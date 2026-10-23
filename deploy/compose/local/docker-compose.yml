@@ -1,0 +1,557 @@
+﻿services:
+  mysql-master:
+    image: "mysql:5.7"
+    container_name: mysql-master
+    restart: unless-stopped
+    privileged: true
+    environment:
+      MYSQL_ROOT_PASSWORD: "${BLOGX_DB_PASSWORD}"
+      TZ: "${TZ}"
+      MYSQL_DATABASE: "${BLOGX_DB_NAME}"
+      BLOGX_DB_USER: "${BLOGX_DB_USER}"
+      BLOGX_DB_PASSWORD: "${BLOGX_DB_PASSWORD}"
+      BLOGX_DB_REPL_USER: "${BLOGX_DB_REPL_USER}"
+      BLOGX_DB_REPL_PASSWORD: "${BLOGX_DB_REPL_PASSWORD}"
+    command:
+    ports:
+      - "${BLOGX_DB_MASTER_PORT}:3306"
+    volumes:
+      - ../../docker/mysql/master/my.cnf:/etc/mysql/my.cnf
+      - ../../state/mysql/master/mysql-files:/var/lib/mysql-files
+      - ../../state/mysql/master/data:/var/lib/mysql
+      - ../../state/mysql/master/log:/var/log/
+      - ../../docker/mysql/master/init.sh:/docker-entrypoint-initdb.d/init.sh:ro
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          'mysql -h127.0.0.1 -P3306 --protocol=TCP --skip-ssl -u"$${BLOGX_DB_USER}" -p"$${BLOGX_DB_PASSWORD}" -D"$${MYSQL_DATABASE}" -e "SELECT 1" > /dev/null 2>&1 || exit 1',
+        ]
+      interval: 30s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+    networks:
+      - blogx_network
+
+  mysql-slave:
+    image: "mysql:5.7"
+    container_name: mysql-slave
+    restart: unless-stopped
+    privileged: true
+    environment:
+      MYSQL_ROOT_PASSWORD: "${BLOGX_DB_PASSWORD}"
+      TZ: "${TZ}"
+      BLOGX_DB_NAME: "${BLOGX_DB_NAME}"
+      BLOGX_DB_USER: "${BLOGX_DB_USER}"
+      BLOGX_DB_PASSWORD: "${BLOGX_DB_PASSWORD}"
+      BLOGX_DB_REPL_USER: "${BLOGX_DB_REPL_USER}"
+      BLOGX_DB_REPL_PASSWORD: "${BLOGX_DB_REPL_PASSWORD}"
+    command:
+    ports:
+      - "${BLOGX_DB_REPLICA_PORT}:3306"
+    volumes:
+      - ../../docker/mysql/slave/my.cnf:/etc/mysql/my.cnf
+      - ../../state/mysql/slave/mysql-files:/var/lib/mysql-files
+      - ../../state/mysql/slave/data:/var/lib/mysql
+      - ../../state/mysql/slave/log:/var/log/
+      - ../../docker/mysql/slave/init.sh:/docker-entrypoint-initdb.d/init.sh:ro
+    depends_on:
+      mysql-master:
+        condition: service_healthy
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          'mysql -h127.0.0.1 -P3306 --protocol=TCP --skip-ssl -u"$${BLOGX_DB_USER}" -p"$${BLOGX_DB_PASSWORD}" -D"$${BLOGX_DB_NAME}" -e "SELECT 1" > /dev/null 2>&1 || exit 1',
+        ]
+      interval: 30s
+      timeout: 5s
+      retries: 12
+      start_period: 30s
+    networks:
+      - blogx_network
+
+  es:
+    build:
+      context: ../../..
+      dockerfile: deploy/docker/es/Dockerfile
+    image: "myblogx-elasticsearch:7.12.0"
+    pull_policy: never
+    container_name: es
+    restart: unless-stopped
+    privileged: true
+    environment:
+      discovery.type: single-node
+      ES_JAVA_OPTS: "-Xms512m -Xmx512m"
+      xpack.security.enabled: "true"
+      xpack.security.transport.ssl.enabled: "true"
+      http.cors.enabled: true
+      http.cors.allow-origin: "*"
+      http.cors.allow-headers: "X-Requested-With,Content-Type,Authorization"
+      ELASTIC_PASSWORD: "${BLOGX_ES_PASSWORD}"
+    ports:
+      - "${BLOGX_ES_PORT}:9200"
+    volumes:
+      - ../../state/es/data:/usr/share/elasticsearch/data
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "curl -fsS -u elastic:$${ELASTIC_PASSWORD} http://127.0.0.1:9200/_cluster/health?wait_for_status=green&timeout=5s > /dev/null || exit 1",
+        ]
+      interval: 30s
+      timeout: 10s
+      retries: 12
+      start_period: 40s
+    networks:
+      - blogx_network
+
+  redis:
+    image: "redis:7.4.7"
+    container_name: redis
+    restart: unless-stopped
+    privileged: true
+    environment:
+      BLOGX_REDIS_PASSWORD: "${BLOGX_REDIS_PASSWORD}"
+    command: ["/bin/sh", "/etc/redis/render-config.sh"]
+    ports:
+      - "${BLOGX_REDIS_PORT}:6379"
+    volumes:
+      - ../../state/redis/data:/data
+      - ../../docker/redis/conf/redis.conf.tmpl:/etc/redis/redis.conf.tmpl:ro
+      - ../../docker/redis/conf/render-config.sh:/etc/redis/render-config.sh:ro
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "${BLOGX_REDIS_PASSWORD}", "ping"]
+      interval: 30s
+      timeout: 5s
+      retries: 12
+      start_period: 10s
+    networks:
+      - blogx_network
+
+    # kafka:
+  #   image: apache/kafka:3.9.0
+  #   container_name: kafka
+  #   hostname: kafka
+  #   privileged: true
+  #   restart: unless-stopped
+
+  #   # 对外只暴露 EXTERNAL 端口：避免容器内服务绕公网回环、也减少暴露面
+  #   ports:
+  #     - "19092:19092"
+
+  #   # entrypoint: ["/bin/sh", "/start.sh"]
+
+  #   # KRaft 元数据 + 日志数据必须持久化，否则容器重建会丢集群状态
+  #   volumes:
+  #     - ./kafka/data:/var/lib/kafka/data
+  #     - ./kafka/start.sh:/start.sh:ro
+
+  #   environment:
+  #     # ===== KRaft combined 单节点必需项 =====
+  #     # 节点角色：同时作为控制器(controller)和 broker
+  #     # 在KRaft模式下，节点可以是纯控制器、纯broker或混合角色
+  #     - KAFKA_PROCESS_ROLES=broker,controller
+
+  #     # 节点ID：在集群中唯一标识当前节点，取值范围1-255
+  #     - KAFKA_NODE_ID=1
+
+  #     # controller quorum：单节点指向自己（用容器 hostname 更稳）
+  #     - KAFKA_CONTROLLER_QUORUM_VOTERS=1@kafka:9093
+
+  #     # 指定控制器使用的监听器名称（需与下方 LISTENERS 配置对应）
+  #     - KAFKA_CONTROLLER_LISTENER_NAMES=CONTROLLER
+
+  #     # 指定 broker 之间通信使用的监听器名称
+  #     # 必须与 ADVERTISED_LISTENERS 中定义的监听器名称一致
+  #     - KAFKA_INTER_BROKER_LISTENER_NAME=INTERNAL
+
+  #     # ===== listeners / advertised.listeners =====
+  #     # 配置Kafka监听的网络接口和端口
+  #     # 格式：监听器名称://绑定地址:端口
+  #     #
+  #     # INTERNAL：给 docker 网络内使用（容器/服务名访问，如 kafka:9092）
+  #     # EXTERNAL：给宿主机/公网使用（公网IP访问，如 106.53.184.85:19092）
+  #     # CONTROLLER：KRaft 控制器（仅内部使用，不对外暴露）
+  #     #
+  #     # 注意：
+  #     # - listener 绑定用 0.0.0.0 监听所有网卡是最稳的做法（对外真实地址由 advertised.listeners 决定）
+  #     - KAFKA_LISTENERS=INTERNAL://0.0.0.0:9092,EXTERNAL://0.0.0.0:19092,CONTROLLER://0.0.0.0:9093
+
+  #     # 配置对外公告的监听器地址（客户端实际连接的地址）
+  #     # 当客户端连接Kafka时，Kafka会返回此地址给客户端
+  #     - KAFKA_ADVERTISED_LISTENERS=INTERNAL://kafka:9092,EXTERNAL://106.53.184.85:19092,CONTROLLER://kafka:9093
+
+  #     # 配置监听器的安全协议映射
+  #     # 格式：监听器名称:协议类型
+  #     # INTERNAL（容器内）：PLAINTEXT（无认证）
+  #     # EXTERNAL（外部）：SASL_PLAINTEXT（有认证）
+  #     # CONTROLLER（KRaft内部）：SASL_PLAINTEXT（KRaft controller 也启用认证 - 方案B）
+  #     - KAFKA_LISTENER_SECURITY_PROTOCOL_MAP=INTERNAL:PLAINTEXT,EXTERNAL:SASL_PLAINTEXT,CONTROLLER:SASL_PLAINTEXT
+
+  #     # ===== 单节点必须把这些 replication/minISR 设成 1 =====
+  #     # （否则 Kafka 默认可能是 3，会导致创建内部主题/事务相关功能异常）
+  #     - KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR=1
+  #     - KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR=1
+  #     - KAFKA_TRANSACTION_STATE_LOG_MIN_ISR=1
+  #     - KAFKA_DEFAULT_REPLICATION_FACTOR=1
+  #     - KAFKA_MIN_INSYNC_REPLICAS=1
+
+  #     # ===== 生产常见建议项（按需）=====
+  #     - KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS=0
+
+  #     # 建议关闭自动建 topic，避免拼错 topic 名也“写成功”
+  #     - KAFKA_AUTO_CREATE_TOPICS_ENABLE=false
+
+  #     # ===== 数据目录持久化 =====
+  #     # server.properties: log.dirs
+  #     - KAFKA_LOG_DIRS=/var/lib/kafka/data
+
+  #     # ===== cluster id（建议显式写定）=====
+  #     # 官方 usage guide：CLUSTER_ID 可选（容器里有默认），但生产建议你自己固定下来
+  #     - CLUSTER_ID=kafka-single-prod-G86wewKeSvqCK-yU4sWNIA
+
+  #     # ===== （可选）JVM 堆大小 =====
+  #     - KAFKA_HEAP_OPTS=-Xms1g -Xmx1g
+
+  #     # ===== SASL认证配置 =====
+  #     - KAFKA_SASL_ENABLED_MECHANISMS=PLAIN
+
+  #     # 显式声明每个 listener 支持的机制（避免默认值导致不匹配）
+  #     - KAFKA_LISTENER_NAME_EXTERNAL_SASL_ENABLED_MECHANISMS=PLAIN
+  #     - KAFKA_LISTENER_NAME_CONTROLLER_SASL_ENABLED_MECHANISMS=PLAIN
+
+  #     # 显式指定 controller 通信的 SASL 机制（因为 CONTROLLER listener 是 SASL_PLAINTEXT）
+  #     - KAFKA_SASL_MECHANISM_CONTROLLER_PROTOCOL=PLAIN
+
+  #     # 注意：INTER_BROKER 用的是 INTERNAL（PLAINTEXT），所以不要配置 inter-broker SASL 机制
+  #     # - KAFKA_SASL_MECHANISM_INTER_BROKER_PROTOCOL=PLAIN
+
+  #     # ===== JAAS 配置（关键）=====
+  #     # 不要用 KAFKA_SASL_JAAS_CONFIG（你之前就是这行被 Kafka 忽略导致崩溃）
+  #     # 改为 listener + mechanism 级别配置：
+  #     # 1) EXTERNAL 给外部客户端认证（logistics/logistics123）
+  #     # 2) CONTROLLER 给 KRaft 内部认证（broker/controller 自己用 kafka_admin 登录）
+  #     #
+  #     # username/password：Kafka 内部（broker/controller）通信的账号
+  #     # user_<用户名>="<密码>"：允许的客户端用户（固定格式）
+  #     - >-
+  #       KAFKA_LISTENER_NAME_EXTERNAL_PLAIN_SASL_JAAS_CONFIG=org.apache.kafka.common.security.plain.PlainLoginModule required
+  #       username="kafka_admin"
+  #       password="kafka_admin123"
+  #       user_kafka_admin="kafka_admin123"
+  #       user_logistics="logistics123";
+
+  #     - >-
+  #       KAFKA_LISTENER_NAME_CONTROLLER_PLAIN_SASL_JAAS_CONFIG=org.apache.kafka.common.security.plain.PlainLoginModule required
+  #       username="kafka_admin"
+  #       password="kafka_admin123"
+  #       user_kafka_admin="kafka_admin123"
+  #       user_logistics="logistics123";
+
+  #   healthcheck:
+  #     test:
+  #       [
+  #         "CMD-SHELL",
+  #         "/opt/kafka/bin/kafka-broker-api-versions.sh --bootstrap-server localhost:9092 > /dev/null 2>&1 || exit 1",
+  #       ]
+  #     interval: 10s
+  #     timeout: 10s
+  #     retries: 20
+  #     start_period: 20s
+  #   networks:
+  #     - blogx_network
+
+  clickhouse:
+    image: clickhouse/clickhouse-server:25.3
+    container_name: clickhouse
+    restart: unless-stopped
+    environment:
+      CLICKHOUSE_DB: "${BLOGX_CLICKHOUSE_DB}" # 初始化创建的默认数据库（与日志库一致）
+      CLICKHOUSE_PASSWORD: "${BLOGX_CLICKHOUSE_PASSWORD}" # 默认登录密码（与 Fluent Bit 配置一致）
+      CLICKHOUSE_DEFAULT_ACCESS_MANAGEMENT: "${CLICKHOUSE_DEFAULT_ACCESS_MANAGEMENT}" # 开启默认权限管理，允许远程连接和账号管理
+    ports:
+      # HTTP 接口端口（Fluent Bit 写入用）
+      - 8123:8123
+      # 原生 TCP 端口（客户端连接、程序直连用）
+      - 9000:9000
+    volumes:
+      - ../../state/clickhouse/data:/var/lib/clickhouse
+      - ../../state/clickhouse/logs:/var/log/clickhouse-server
+      - ../../docker/clickhouse/init:/docker-entrypoint-initdb.d
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          'clickhouse-client --user default --password "$${CLICKHOUSE_PASSWORD}" --query "SELECT 1" || exit 1',
+        ]
+      interval: 30s
+      timeout: 10s
+      retries: 12
+      start_period: 20s
+    networks:
+      - blogx_network
+
+  blogx_server:
+    container_name: blogx-server
+    image: "blogx-server:6"
+    restart: unless-stopped
+    build:
+      context: ../../..
+      dockerfile: deploy/docker/api/Dockerfile
+    environment:
+      TZ: "${TZ}"
+      BLOGX_SERVER_ID: "${BLOGX_SERVER_ID}"
+      BLOGX_APP_HOST: "${BLOGX_APP_HOST}"
+      BLOGX_APP_PORT: "${BLOGX_APP_PORT}"
+      BLOGX_APP_ENV: "${BLOGX_APP_ENV}"
+      BLOGX_GIN_MODE: "${BLOGX_GIN_MODE}"
+      BLOGX_LOG_APP: "${BLOGX_LOG_APP}"
+      BLOGX_LOG_LEVEL: "${BLOGX_LOG_LEVEL}"
+      BLOGX_LOG_REQUEST_LOG_ENABLED: "${BLOGX_LOG_REQUEST_LOG_ENABLED}"
+      BLOGX_LOG_QUERY_DEFAULT_LIMIT: "${BLOGX_LOG_QUERY_DEFAULT_LIMIT}"
+      BLOGX_LOG_QUERY_MAX_LIMIT: "${BLOGX_LOG_QUERY_MAX_LIMIT}"
+      BLOGX_LOG_CLEANUP_ENABLED: "${BLOGX_LOG_CLEANUP_ENABLED}"
+      BLOGX_LOG_RETENTION_DAYS: "${BLOGX_LOG_RETENTION_DAYS}"
+      BLOGX_LOG_CLEANUP_RUN_AT: "${BLOGX_LOG_CLEANUP_RUN_AT}"
+      BLOGX_JWT_SECRET: "${BLOGX_JWT_SECRET}"
+      BLOGX_JWT_ISSUER: "${BLOGX_JWT_ISSUER}"
+      BLOGX_JWT_EXPIRE_HOURS: "${BLOGX_JWT_EXPIRE_HOURS}"
+      BLOGX_JWT_REFRESH_EXPIRE_HOURS: "${BLOGX_JWT_REFRESH_EXPIRE_HOURS}"
+      BLOGX_DB_NAME: "${BLOGX_DB_NAME}"
+      BLOGX_DB_USER: "${BLOGX_DB_USER}"
+      BLOGX_DB_PASSWORD: "${BLOGX_DB_PASSWORD}"
+      BLOGX_DB_MASTER_HOST: "mysql-master"
+      BLOGX_DB_MASTER_PORT: "3306"
+      BLOGX_DB_REPLICA_HOST: "mysql-slave"
+      BLOGX_DB_REPLICA_PORT: "3306"
+      BLOGX_GORM_DEBUG: "${BLOGX_GORM_DEBUG}"
+      BLOGX_GORM_MAX_IDLE_CONNS: "${BLOGX_GORM_MAX_IDLE_CONNS}"
+      BLOGX_GORM_MAX_OPEN_CONNS: "${BLOGX_GORM_MAX_OPEN_CONNS}"
+      BLOGX_GORM_CONN_MAX_LIFETIME_HOURS: "${BLOGX_GORM_CONN_MAX_LIFETIME_HOURS}"
+      BLOGX_REDIS_HOST: "redis"
+      BLOGX_REDIS_PORT: "6379"
+      BLOGX_REDIS_USERNAME: "${BLOGX_REDIS_USERNAME}"
+      BLOGX_REDIS_PASSWORD: "${BLOGX_REDIS_PASSWORD}"
+      BLOGX_REDIS_DB: "${BLOGX_REDIS_DB}"
+      BLOGX_KAFKA_BROKERS: "${BLOGX_KAFKA_BROKERS}"
+      BLOGX_KAFKA_TOPIC: "${BLOGX_KAFKA_TOPIC}"
+      BLOGX_KAFKA_GROUP_ID: "${BLOGX_KAFKA_GROUP_ID}"
+      BLOGX_KAFKA_USERNAME: "${BLOGX_KAFKA_USERNAME}"
+      BLOGX_KAFKA_PASSWORD: "${BLOGX_KAFKA_PASSWORD}"
+      BLOGX_ES_URL: "http://es:9200"
+      BLOGX_ES_ADDR: "es:9200"
+      BLOGX_ES_INDEX: "${BLOGX_ES_INDEX}"
+      BLOGX_ES_USERNAME: "${BLOGX_ES_USERNAME}"
+      BLOGX_ES_PASSWORD: "${BLOGX_ES_PASSWORD}"
+      BLOGX_ES_USE_HTTPS: "${BLOGX_ES_USE_HTTPS}"
+      BLOGX_CLICKHOUSE_ADDR: "clickhouse:9000"
+      BLOGX_CLICKHOUSE_DB: "${BLOGX_CLICKHOUSE_DB}"
+      BLOGX_CLICKHOUSE_USERNAME: "${BLOGX_CLICKHOUSE_USERNAME}"
+      BLOGX_CLICKHOUSE_PASSWORD: "${BLOGX_CLICKHOUSE_PASSWORD}"
+      BLOGX_CLICKHOUSE_DIAL_TIMEOUT_SEC: "${BLOGX_CLICKHOUSE_DIAL_TIMEOUT_SEC}"
+      BLOGX_CLICKHOUSE_MAX_OPEN_CONNS: "${BLOGX_CLICKHOUSE_MAX_OPEN_CONNS}"
+      BLOGX_CLICKHOUSE_MAX_IDLE_CONNS: "${BLOGX_CLICKHOUSE_MAX_IDLE_CONNS}"
+      BLOGX_RIVER_ENABLED: "${BLOGX_RIVER_ENABLED}"
+      BLOGX_RIVER_SERVER_ID: "${BLOGX_RIVER_SERVER_ID}"
+      BLOGX_RIVER_MYSQL_ADDR: "mysql-master:3306"
+      BLOGX_RIVER_MYSQL_USER: "${BLOGX_RIVER_MYSQL_USER}"
+      BLOGX_RIVER_MYSQL_PASSWORD: "${BLOGX_RIVER_MYSQL_PASSWORD}"
+      BLOGX_RIVER_INDEX: "${BLOGX_RIVER_INDEX}"
+      BLOGX_IMAGE_REF_RIVER_ENABLED: "${BLOGX_IMAGE_REF_RIVER_ENABLED}"
+      BLOGX_IMAGE_REF_RIVER_SERVER_ID: "${BLOGX_IMAGE_REF_RIVER_SERVER_ID}"
+      BLOGX_IMAGE_REF_RIVER_SCHEMA: "${BLOGX_IMAGE_REF_RIVER_SCHEMA}"
+      BLOGX_IMAGE_REF_RIVER_MYSQL_ADDR: "mysql-master:3306"
+      BLOGX_IMAGE_REF_RIVER_MYSQL_USER: "${BLOGX_IMAGE_REF_RIVER_MYSQL_USER}"
+      BLOGX_IMAGE_REF_RIVER_MYSQL_PASSWORD: "${BLOGX_IMAGE_REF_RIVER_MYSQL_PASSWORD}"
+      BLOGX_UPLOAD_SIZE_MB: "${BLOGX_UPLOAD_SIZE_MB}"
+      BLOGX_UPLOAD_DIR: "${BLOGX_UPLOAD_DIR}"
+      BLOGX_SMTP_HOST: "${BLOGX_SMTP_HOST}"
+      BLOGX_SMTP_PORT: "${BLOGX_SMTP_PORT}"
+      BLOGX_SMTP_USERNAME: "${BLOGX_SMTP_USERNAME}"
+      BLOGX_SMTP_AUTH_CODE: "${BLOGX_SMTP_AUTH_CODE}"
+      BLOGX_SMTP_FROM_NAME: "${BLOGX_SMTP_FROM_NAME}"
+      BLOGX_SMTP_SSL: "${BLOGX_SMTP_SSL}"
+      BLOGX_SMTP_TLS: "${BLOGX_SMTP_TLS}"
+      BLOGX_QQ_APP_ID: "${BLOGX_QQ_APP_ID}"
+      BLOGX_QQ_APP_KEY: "${BLOGX_QQ_APP_KEY}"
+      BLOGX_QQ_REDIRECT: "${BLOGX_QQ_REDIRECT}"
+      BLOGX_QINIU_ENABLED: "${BLOGX_QINIU_ENABLED}"
+      BLOGX_QINIU_ACCESS_KEY: "${BLOGX_QINIU_ACCESS_KEY}"
+      BLOGX_QINIU_SECRET_KEY: "${BLOGX_QINIU_SECRET_KEY}"
+      BLOGX_QINIU_BUCKET: "${BLOGX_QINIU_BUCKET}"
+      BLOGX_QINIU_DOMAIN: "${BLOGX_QINIU_DOMAIN}"
+      BLOGX_QINIU_REGION: "${BLOGX_QINIU_REGION}"
+      BLOGX_QINIU_PREFIX: "${BLOGX_QINIU_PREFIX}"
+      BLOGX_QINIU_MAX_SIZE_MB: "${BLOGX_QINIU_MAX_SIZE_MB}"
+      BLOGX_QINIU_TOKEN_EXPIRY_SEC: "${BLOGX_QINIU_TOKEN_EXPIRY_SEC}"
+      BLOGX_QINIU_CALLBACK_URL: "${BLOGX_QINIU_CALLBACK_URL}"
+      BLOGX_SITE_MODE: "${BLOGX_SITE_MODE}"
+      BLOGX_LOGIN_QQ_ENABLED: "${BLOGX_LOGIN_QQ_ENABLED}"
+      BLOGX_LOGIN_USERNAME_PASSWORD_ENABLED: "${BLOGX_LOGIN_USERNAME_PASSWORD_ENABLED}"
+      BLOGX_LOGIN_EMAIL_ENABLED: "${BLOGX_LOGIN_EMAIL_ENABLED}"
+      BLOGX_LOGIN_CAPTCHA_ENABLED: "${BLOGX_LOGIN_CAPTCHA_ENABLED}"
+      BLOGX_EMAIL_CODE_TIMEOUT_MIN: "${BLOGX_EMAIL_CODE_TIMEOUT_MIN}"
+      BLOGX_LOGIN_FAIL_WINDOW_MIN: "${BLOGX_LOGIN_FAIL_WINDOW_MIN}"
+      BLOGX_LOGIN_FAIL_USER_MAX: "${BLOGX_LOGIN_FAIL_USER_MAX}"
+      BLOGX_LOGIN_FAIL_IP_MAX: "${BLOGX_LOGIN_FAIL_IP_MAX}"
+      BLOGX_EMAIL_SEND_WINDOW_SEC: "${BLOGX_EMAIL_SEND_WINDOW_SEC}"
+      BLOGX_EMAIL_SEND_PER_EMAIL_MAX: "${BLOGX_EMAIL_SEND_PER_EMAIL_MAX}"
+      BLOGX_EMAIL_SEND_PER_IP_MAX: "${BLOGX_EMAIL_SEND_PER_IP_MAX}"
+      BLOGX_ARTICLE_SKIP_EXAMINING: "${BLOGX_ARTICLE_SKIP_EXAMINING}"
+      BLOGX_COMMENT_SKIP_EXAMINING: "${BLOGX_COMMENT_SKIP_EXAMINING}"
+      BLOGX_AI_ENABLED: "${BLOGX_AI_ENABLED}"
+      BLOGX_AI_SECRET: "${BLOGX_AI_SECRET}"
+      BLOGX_AI_BASE_URL: "${BLOGX_AI_BASE_URL}"
+      BLOGX_AI_CHAT_MODEL: "${BLOGX_AI_CHAT_MODEL}"
+      BLOGX_AI_REASON_MODEL: "${BLOGX_AI_REASON_MODEL}"
+      BLOGX_AI_TIMEOUT_SEC: "${BLOGX_AI_TIMEOUT_SEC}"
+      BLOGX_AI_MAX_INPUT_CHARS: "${BLOGX_AI_MAX_INPUT_CHARS}"
+      BLOGX_AI_TEMPERATURE: "${BLOGX_AI_TEMPERATURE}"
+      BLOGX_AI_DAILY_QUOTA: "${BLOGX_AI_DAILY_QUOTA}"
+    depends_on:
+      mysql-master:
+        condition: service_healthy
+      mysql-slave:
+        condition: service_healthy
+      es:
+        condition: service_healthy
+      clickhouse:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - ../../../backend/config:/app/config:ro
+      - ../../state/api/uploads:/app/uploads
+      - ../../state/api/logs:/app/logs
+      - ../../state/api/var:/app/var
+      - ../../docker/api/entrypoint.sh:/app/entrypoint.sh:ro
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "wget -q -O /dev/null http://127.0.0.1:$${BLOGX_APP_PORT}/health || exit 1",
+        ]
+      interval: 60s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+    entrypoint: ["/bin/sh", "/app/entrypoint.sh"]
+    command: ["/app/server", "-f", "config/settings.yaml", "-role=all"]
+    networks:
+      - blogx_network
+
+  fluent-bit:
+    image: fluent/fluent-bit:3.2
+    container_name: fluent-bit
+    restart: unless-stopped
+    environment:
+      BLOGX_CLICKHOUSE_DB: "${BLOGX_CLICKHOUSE_DB}"
+      BLOGX_CLICKHOUSE_USERNAME: "${BLOGX_CLICKHOUSE_USERNAME}"
+      BLOGX_CLICKHOUSE_PASSWORD: "${BLOGX_CLICKHOUSE_PASSWORD}"
+    depends_on:
+      clickhouse:
+        condition: service_healthy
+      blogx_server:
+        condition: service_started
+    volumes:
+      - ../../docker/fluent-bit/fluent-bit.conf:/fluent-bit/etc/fluent-bit.conf:ro
+      - ../../docker/fluent-bit/parsers.conf:/fluent-bit/etc/parsers.conf:ro
+      - ../../state/api/logs:/logs:ro
+      - ../../state/fluent-bit/state:/fluent-bit/state
+    command: ["-c", "/fluent-bit/etc/fluent-bit.conf"]
+    networks:
+      - blogx_network
+
+  blogx_web:
+    container_name: blogx-web
+    image: "blogx-web:1"
+    restart: unless-stopped
+    build:
+      context: ../../..
+      dockerfile: deploy/docker/web/Dockerfile
+    environment:
+      NODE_ENV: "production"
+      NITRO_HOST: "0.0.0.0"
+      NITRO_PORT: "3000"
+      NUXT_ENV_PROFILE: "${BLOGX_WEB_ENV_PROFILE:-local-local}"
+      NUXT_API_UPSTREAM: "${BLOGX_WEB_API_UPSTREAM:-http://blogx_server:8080}"
+      NUXT_PUBLIC_ENV_PROFILE: "${BLOGX_WEB_ENV_PROFILE:-local-local}"
+      NUXT_PUBLIC_SITE_URL: "${BLOGX_WEB_SITE_URL:-http://localhost}"
+      NUXT_PUBLIC_API_BASE: "${BLOGX_WEB_API_BASE:-/api}"
+      NUXT_PUBLIC_WS_PATH: "${BLOGX_WEB_WS_PATH:-/api/chat/ws}"
+      NUXT_PUBLIC_ASSET_PROXY_BASE: "${BLOGX_WEB_ASSET_PROXY_BASE:-/_origin}"
+    depends_on:
+      blogx_server:
+        condition: service_started
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "wget -q -O /dev/null http://127.0.0.1:3000/ || exit 1",
+        ]
+      interval: 30s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+    networks:
+      - blogx_network
+
+  blogx_admin:
+    container_name: blogx-admin
+    image: "blogx-admin:1"
+    restart: unless-stopped
+    build:
+      context: ../../..
+      dockerfile: deploy/docker/admin/Dockerfile
+    environment:
+      NODE_ENV: "production"
+      NITRO_HOST: "0.0.0.0"
+      NITRO_PORT: "3001"
+      NUXT_ENV_PROFILE: "${BLOGX_ADMIN_ENV_PROFILE:-local-local}"
+      NUXT_API_UPSTREAM: "${BLOGX_ADMIN_API_UPSTREAM:-http://blogx_server:8080}"
+      NUXT_PUBLIC_ENV_PROFILE: "${BLOGX_ADMIN_ENV_PROFILE:-local-local}"
+      NUXT_PUBLIC_API_BASE: "${BLOGX_ADMIN_API_BASE:-/api}"
+      NUXT_PUBLIC_SITE_URL: "${BLOGX_ADMIN_SITE_URL:-http://localhost/admin}"
+      NUXT_PUBLIC_WEB_SITE_URL: "${BLOGX_ADMIN_WEB_SITE_URL:-http://localhost}"
+    depends_on:
+      blogx_server:
+        condition: service_started
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "wget -q -O /dev/null http://127.0.0.1:3001/admin/ || exit 1",
+        ]
+      interval: 30s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+    networks:
+      - blogx_network
+
+  nginx:
+    image: nginx:latest
+    container_name: nginx
+    restart: unless-stopped
+    depends_on:
+      blogx_server:
+        condition: service_healthy
+      blogx_web:
+        condition: service_healthy
+      blogx_admin:
+        condition: service_healthy
+    volumes:
+      - ../../docker/nginx/nginx.${BLOGX_NGINX_ENV:-local}.conf:/etc/nginx/nginx.conf:ro
+      - ../../state/nginx/logs:/var/log/nginx/
+      - ../../state/nginx/cert:/usr/share/nginx/cert:ro
+    networks:
+      - blogx_network
+    ports:
+      - "80:80"
+      - "443:443"
+
+networks:
+  blogx_network:
+    driver: bridge

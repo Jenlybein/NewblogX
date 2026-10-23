@@ -1,0 +1,359 @@
+﻿# 后端服务主配置。
+# 说明：
+# 1. 该文件主要负责进程级基础设施配置，如数据库、缓存、日志、对象存储等。
+# 2. 站点展示类默认值放在 site_default_settings.yaml 中。
+# 3. 涉及密码、密钥的字段均为敏感信息，提交前建议做脱敏处理。
+
+# 服务基础配置
+system:
+  # 雪花 ID 工作节点编号；多实例部署时每个实例必须唯一，避免生成重复 ID
+  server_id: ${BLOGX_SERVER_ID}
+  # HTTP 服务监听 IP；留空时通常会监听全部网卡，最终地址会表现为 :port
+  ip: "${BLOGX_APP_HOST}"
+  # HTTP 服务监听端口
+  port: ${BLOGX_APP_PORT}
+  # 运行环境标识；当前代码会写入日志，并用于生产环境 Cookie 等行为判断
+  # 常见取值：dev / test / prod
+  env: "${BLOGX_APP_ENV}"
+  # Gin 运行模式；常见取值：debug / release / test
+  gin_mode: "${BLOGX_GIN_MODE}"
+
+# JWT 鉴权配置
+jwt:
+  # Access Token 过期时间，单位：小时
+  expire: ${BLOGX_JWT_EXPIRE_HOURS}
+  # Refresh Token / 会话过期时间，单位：小时
+  refresh_expire: ${BLOGX_JWT_REFRESH_EXPIRE_HOURS}
+  # JWT 签名密钥；生产环境务必改成高强度随机字符串
+  secret: "${BLOGX_JWT_SECRET}"
+  # JWT 签发者标识
+  issuer: "${BLOGX_JWT_ISSUER}"
+
+# 日志配置
+log:
+  # 服务名；会写入结构化日志字段，也决定日志文件名前缀
+  app: "${BLOGX_LOG_APP}"
+  # 日志根目录；运行时日志会在该目录下按日期分目录落盘
+  dir: ./logs
+  # 日志级别；常见取值：trace / debug / info / warn / error
+  level: "${BLOGX_LOG_LEVEL}"
+  # 标准输出格式；支持 text / json，推荐生产环境使用 json
+  stdout_format: json
+  # 是否记录请求访问日志
+  request_log_enabled: ${BLOGX_LOG_REQUEST_LOG_ENABLED}
+  # 后台日志查询接口的默认分页条数
+  query_default_limit: ${BLOGX_LOG_QUERY_DEFAULT_LIMIT}
+  # 后台日志查询接口允许的最大分页条数
+  query_max_limit: ${BLOGX_LOG_QUERY_MAX_LIMIT}
+  # 本地日志文件清理策略
+  cleanup:
+    # 是否启用按天清理过期日志目录
+    enabled: ${BLOGX_LOG_CLEANUP_ENABLED:-true}
+    # 保留天数（包含当天）；例如 7 表示保留最近 7 天
+    retention_days: ${BLOGX_LOG_RETENTION_DAYS:-7}
+    # 每日执行时间，格式 HH:MM:SS（24 小时制）
+    run_at: "${BLOGX_LOG_CLEANUP_RUN_AT:-03:30:00}"
+  # 错误日志扩展配置
+  error:
+    # 总开关：false 时任何级别都不记录 error.stack
+    capture_stack: true
+    # 最低记录级别：仅当 level >= 该级别时允许写 error.stack
+    capture_min_level: error
+    # error.stack 最大字节数，超长将截断
+    stack_max_bytes: 8192
+    # error.cause_chain 最大展开层数
+    cause_chain_depth: 5
+  # trace 链路配置
+  trace:
+    # 是否启用 trace_id/span_id/parent_span_id
+    enabled: true
+    # 是否让 request_id 默认等于最终 trace_id
+    request_id_equals_trace_id: true
+    # 是否优先继承网关透传 trace
+    inherit_from_gateway: true
+    # 网关头读取优先级（支持 > 或 , 分隔）
+    gateway_header_priority: traceparent>x-request-id
+
+# 数据库配置。
+# 约定：
+# 1. 第一个节点会作为写库（主库）
+# 2. 后续节点会作为读库（从库）参与 GORM 读写分离
+db:
+  # 主库
+  -
+    # 数据库主机地址
+    host: "${BLOGX_DB_MASTER_HOST}"
+    # 数据库端口
+    port: ${BLOGX_DB_MASTER_PORT}
+    # 数据库用户名
+    user: "${BLOGX_DB_USER}"
+    # 数据库密码
+    password: "${BLOGX_DB_PASSWORD}"
+    # 数据库名
+    dbname: "${BLOGX_DB_NAME}"
+    # 数据源类型；当前项目使用 mysql
+    source: mysql
+  # 从库
+  -
+    # 数据库主机地址
+    host: "${BLOGX_DB_REPLICA_HOST}"
+    # 数据库端口
+    port: ${BLOGX_DB_REPLICA_PORT}
+    # 数据库用户名
+    user: "${BLOGX_DB_USER}"
+    # 数据库密码
+    password: "${BLOGX_DB_PASSWORD}"
+    # 数据库名
+    dbname: "${BLOGX_DB_NAME}"
+    # 数据源类型；当前项目使用 mysql
+    source: mysql
+
+# GORM 连接池与 SQL 日志配置
+gorm:
+  # 是否输出 SQL 调试日志；开启后会把 SQL 打到日志中
+  debug: ${BLOGX_GORM_DEBUG}
+  # 连接池最大空闲连接数
+  max_idle_conns: ${BLOGX_GORM_MAX_IDLE_CONNS}
+  # 连接池最大打开连接数
+  max_open_conns: ${BLOGX_GORM_MAX_OPEN_CONNS}
+  # 单条连接的最长复用时间，单位：小时
+  conn_max_lifetime: ${BLOGX_GORM_CONN_MAX_LIFETIME_HOURS}
+
+# Redis 配置
+redis:
+  # Redis 主机地址
+  addr: "${BLOGX_REDIS_HOST}"
+  # Redis 端口
+  port: ${BLOGX_REDIS_PORT}
+  # Redis 用户名；Redis 6+ ACL 场景可用
+  username: "${BLOGX_REDIS_USERNAME}"
+  # Redis 密码
+  password: "${BLOGX_REDIS_PASSWORD}"
+  # Redis 逻辑库编号
+  db: ${BLOGX_REDIS_DB}
+
+# Kafka 配置。
+# 当前主程序默认未启用 Kafka 客户端初始化，这里作为预留配置保留。
+kafka:
+  mysql:
+    # Kafka Broker 地址列表
+    brokers:
+      - "${BLOGX_KAFKA_BROKERS}"
+    # MySQL 相关消息使用的 Topic 名
+    topic: "${BLOGX_KAFKA_TOPIC}"
+    # 消费组 ID
+    group_id: "${BLOGX_KAFKA_GROUP_ID}"
+    # SASL 用户名；如 Broker 未开启认证，可留空
+    username: "${BLOGX_KAFKA_USERNAME}"
+    # SASL 密码；如 Broker 未开启认证，可留空
+    password: "${BLOGX_KAFKA_PASSWORD}"
+
+# Elasticsearch 配置
+es:
+  # Elasticsearch 地址列表；Go 客户端会优先使用这里
+  addresses:
+    - "${BLOGX_ES_URL}"
+  # Elasticsearch 用户名
+  username: "${BLOGX_ES_USERNAME}"
+  # Elasticsearch 密码
+  password: "${BLOGX_ES_PASSWORD}"
+  # 默认文章索引名
+  index: "${BLOGX_ES_INDEX}"
+  # 单地址写法；部分代码或旧逻辑会直接读取该字段，建议与 addresses 保持一致
+  addr: "${BLOGX_ES_ADDR}"
+  # 是否按 HTTPS 连接 ES
+  is_https: ${BLOGX_ES_USE_HTTPS}
+
+# ClickHouse 配置
+clickhouse:
+  # 是否启用 ClickHouse 日志库
+  enabled: true
+  # ClickHouse 地址列表，格式 host:port
+  addresses:
+    - "${BLOGX_CLICKHOUSE_ADDR}"
+  # 默认数据库名
+  database: "${BLOGX_CLICKHOUSE_DB}"
+  # 登录用户名
+  username: "${BLOGX_CLICKHOUSE_USERNAME}"
+  # 登录密码
+  password: "${BLOGX_CLICKHOUSE_PASSWORD}"
+  # 首次建连超时时间，单位：秒
+  dial_timeout: ${BLOGX_CLICKHOUSE_DIAL_TIMEOUT_SEC}
+  # 连接池最大打开连接数
+  max_open_conns: ${BLOGX_CLICKHOUSE_MAX_OPEN_CONNS}
+  # 连接池最大空闲连接数
+  max_idle_conns: ${BLOGX_CLICKHOUSE_MAX_IDLE_CONNS}
+
+# MySQL -> Elasticsearch 同步配置。
+# 该模块会监听 MySQL binlog，把指定表同步到 ES。
+river:
+  # 是否启用 MySQL 到 ES 的增量同步
+  enabled: ${BLOGX_RIVER_ENABLED}
+  # canal 模拟 MySQL 从库时使用的 server-id；必须与现有从库区分
+  server_id: ${BLOGX_RIVER_SERVER_ID}
+  # 上游数据库类型；当前项目为 mysql
+  flavor: mysql
+  # river 运行时数据目录，用于保存位点等状态
+  data_dir: ./var
+  mysql:
+    # MySQL 地址，格式 host:port
+    addr: "${BLOGX_RIVER_MYSQL_ADDR}"
+    # MySQL 用户名
+    user: "${BLOGX_RIVER_MYSQL_USER}"
+    # MySQL 密码
+    password: "${BLOGX_RIVER_MYSQL_PASSWORD}"
+  source:
+    # 需要监听的库表范围
+    -
+      # 库名
+      schema: blogx
+      tables:
+        # 表名列表
+        - article_models
+        - user_models
+        - category_models
+        - tag_models
+        - article_tag_models
+        - user_top_article_models
+  rule:
+    # 库表到 ES 索引的映射规则
+    -
+      # 源库名
+      schema: blogx
+      # 源表名
+      table: article_models
+      # 目标 ES 索引名
+      index: "${BLOGX_RIVER_INDEX}"
+      # ES 文档类型；ES 7+ 中基本固定为 _doc，主要兼容旧写法
+      type: _doc
+      field:
+        # MySQL 中可能是 tinyint(1) 的 1/0，写 ES 时显式转为 boolean
+        comments_toggle: ",bool"
+      filter:
+        # 允许同步到 ES 的字段白名单
+        - id
+        - created_at
+        - updated_at
+        - title
+        - abstract
+        - category_id
+        - cover
+        - comments_toggle
+  # 与 MySQL 通信使用的字符集
+  charset: "utf8mb4"
+  # mysqldump 可执行文件名或路径
+  mysqldump: "mysqldump"
+  # 是否跳过 mysqldump 的 master-data 信息
+  skip_master_data: true
+  # 批量写入 ES 的单批文档数
+  bulk_size: 128
+  # 批量刷新 ES 的时间间隔，单位：毫秒
+  flush_bulk_time: 200
+  # 固定间隔重试配置
+  retry:
+    # 最大尝试次数（包含首次）
+    max_attempts: 2
+    # 固定重试间隔（毫秒）
+    delay_ms: 200
+
+# 图片引用关系同步配置。
+# 该模块会监听指定库中与图片引用相关的数据变更，用来维护图片引用关系。
+image_ref_river:
+  # 是否启用图片引用关系同步
+  enabled: ${BLOGX_IMAGE_REF_RIVER_ENABLED}
+  # canal 模拟 MySQL 从库时使用的 server-id；同样需要保证唯一
+  server_id: ${BLOGX_IMAGE_REF_RIVER_SERVER_ID}
+  # 上游数据库类型；当前项目为 mysql
+  flavor: mysql
+  # 需要监听的库名
+  schema: "${BLOGX_IMAGE_REF_RIVER_SCHEMA}"
+  mysql:
+    # MySQL 地址，格式 host:port
+    addr: "${BLOGX_IMAGE_REF_RIVER_MYSQL_ADDR}"
+    # MySQL 用户名
+    user: "${BLOGX_IMAGE_REF_RIVER_MYSQL_USER}"
+    # MySQL 密码
+    password: "${BLOGX_IMAGE_REF_RIVER_MYSQL_PASSWORD}"
+  # 与 MySQL 通信使用的字符集
+  charset: "utf8mb4"
+  # mysqldump 可执行文件名或路径
+  mysqldump: "mysqldump"
+  # 是否跳过 mysqldump 的 master-data 信息
+  skip_master_data: true
+  # 固定间隔重试配置
+  retry:
+    # 最大尝试次数（包含首次）
+    max_attempts: 2
+    # 固定重试间隔（毫秒）
+    delay_ms: 200
+
+# DLQ 回放配置
+replay:
+  # 单批回放条数
+  batch_size: 100
+
+# 上传相关的通用配置。
+# 当前代码里实际生效的主要是图片格式白名单；size 和 upload_dir 更偏向预留/兼容字段。
+upload:
+  # 预留的上传大小限制，单位：MB；当前核心上传流程未直接读取该值
+  size: ${BLOGX_UPLOAD_SIZE_MB}
+  whitelist:
+    # 允许上传的图片后缀白名单
+    - bmp
+    - jpg
+    - jpeg
+    - png
+    - gif
+    - webp
+  # 预留的上传目录标识；当前核心上传流程未直接读取该值
+  upload_dir: "${BLOGX_UPLOAD_DIR}"
+
+# 邮件发送配置
+email:
+  # SMTP 服务器域名
+  domain: "${BLOGX_SMTP_HOST}"
+  # SMTP 端口
+  port: ${BLOGX_SMTP_PORT}
+  # 发件邮箱
+  send_email: "${BLOGX_SMTP_USERNAME}"
+  # SMTP 授权码/应用专用密码，不是邮箱登录密码
+  auth_code: "${BLOGX_SMTP_AUTH_CODE}"
+  # 发件人昵称
+  send_nickname: "${BLOGX_SMTP_FROM_NAME}"
+  # 是否启用 SSL 直连
+  ssl: ${BLOGX_SMTP_SSL}
+  # 是否启用 STARTTLS / TLS
+  tls: ${BLOGX_SMTP_TLS}
+
+# QQ 登录开放平台配置
+qq:
+  # QQ 互联应用 AppID
+  app_id: "${BLOGX_QQ_APP_ID}"
+  # QQ 互联应用 AppKey
+  app_key: "${BLOGX_QQ_APP_KEY}"
+  # QQ 登录回调地址；需要与 QQ 开放平台后台配置一致
+  redirect: "${BLOGX_QQ_REDIRECT}"
+
+# 七牛云对象存储配置
+qiniu:
+  # 是否启用七牛上传
+  enable: ${BLOGX_QINIU_ENABLED}
+  # 七牛 AccessKey
+  access_key: "${BLOGX_QINIU_ACCESS_KEY}"
+  # 七牛 SecretKey
+  secret_key: "${BLOGX_QINIU_SECRET_KEY}"
+  # 存储空间 bucket 名
+  bucket: "${BLOGX_QINIU_BUCKET}"
+  # 资源访问域名；返回图片 URL 时会用到
+  uri: "${BLOGX_QINIU_DOMAIN}"
+  # 七牛存储区域标识
+  region: "${BLOGX_QINIU_REGION}"
+  # 对象 key 前缀；最终对象路径会在此前缀下继续拼接日期和 images 子目录
+  prefix: "${BLOGX_QINIU_PREFIX}"
+  # 七牛上传允许的图片大小上限，单位：MB
+  size: ${BLOGX_QINIU_MAX_SIZE_MB}
+  # 上传凭证有效期，单位：秒
+  expiry: ${BLOGX_QINIU_TOKEN_EXPIRY_SEC}
+  # 七牛上传成功后的服务端回调地址；通常形如 https://你的域名/api/images/qiniu/callback
+  # 留空表示不启用回调
+  callback_url: "${BLOGX_QINIU_CALLBACK_URL}"

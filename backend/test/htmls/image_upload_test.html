@@ -1,0 +1,661 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>图片上传本地测试页</title>
+  <style>
+    :root {
+      --bg: #f4f1ea;
+      --card: #fffaf2;
+      --line: #d9c9ad;
+      --text: #2e261c;
+      --sub: #6f624e;
+      --accent: #1f6f5f;
+      --accent-2: #c26d2c;
+      --danger: #b03a2e;
+      --ok: #24713e;
+      --mono: "Cascadia Code", "SFMono-Regular", Consolas, monospace;
+      --sans: "Microsoft YaHei UI", "PingFang SC", sans-serif;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      font-family: var(--sans);
+      background:
+        radial-gradient(circle at top right, rgba(194,109,44,.18), transparent 28%),
+        radial-gradient(circle at left, rgba(31,111,95,.18), transparent 25%),
+        var(--bg);
+      color: var(--text);
+    }
+
+    .wrap {
+      max-width: 1080px;
+      margin: 0 auto;
+      padding: 32px 20px 48px;
+    }
+
+    h1 {
+      margin: 0 0 10px;
+      font-size: 34px;
+      line-height: 1.15;
+    }
+
+    .lead {
+      margin: 0 0 24px;
+      color: var(--sub);
+      font-size: 15px;
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: 1.1fr .9fr;
+      gap: 20px;
+    }
+
+    .card {
+      background: var(--card);
+      border: 1px solid var(--line);
+      border-radius: 18px;
+      padding: 18px;
+      box-shadow: 0 10px 30px rgba(46,38,28,.06);
+    }
+
+    .card h2 {
+      margin: 0 0 14px;
+      font-size: 18px;
+    }
+
+    .field {
+      margin-bottom: 14px;
+    }
+
+    .field label {
+      display: block;
+      font-size: 13px;
+      color: var(--sub);
+      margin-bottom: 6px;
+    }
+
+    input[type="text"],
+    input[type="password"],
+    input[type="file"],
+    textarea,
+    select {
+      width: 100%;
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      padding: 10px 12px;
+      font-size: 14px;
+      background: #fff;
+      color: var(--text);
+    }
+
+    textarea {
+      min-height: 96px;
+      resize: vertical;
+      font-family: var(--mono);
+    }
+
+    .row {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 12px;
+    }
+
+    .actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      margin-top: 12px;
+    }
+
+    button {
+      border: 0;
+      border-radius: 999px;
+      padding: 10px 16px;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: transform .15s ease, opacity .15s ease;
+    }
+
+    button:hover {
+      transform: translateY(-1px);
+    }
+
+    button:disabled {
+      opacity: .45;
+      cursor: not-allowed;
+      transform: none;
+    }
+
+    .primary {
+      background: var(--accent);
+      color: #fff;
+    }
+
+    .secondary {
+      background: var(--accent-2);
+      color: #fff;
+    }
+
+    .ghost {
+      background: #efe5d3;
+      color: var(--text);
+    }
+
+    .status {
+      margin-top: 12px;
+      padding: 10px 12px;
+      border-radius: 12px;
+      font-size: 13px;
+      line-height: 1.5;
+      background: #f3eadb;
+      color: var(--text);
+    }
+
+    .status.ok {
+      background: rgba(36,113,62,.12);
+      color: var(--ok);
+    }
+
+    .status.err {
+      background: rgba(176,58,46,.12);
+      color: var(--danger);
+    }
+
+    pre {
+      margin: 0;
+      white-space: pre-wrap;
+      word-break: break-word;
+      font-family: var(--mono);
+      font-size: 12px;
+      line-height: 1.55;
+      background: #fff;
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      padding: 12px;
+      min-height: 140px;
+    }
+
+    .preview {
+      margin-top: 14px;
+      min-height: 120px;
+      border: 1px dashed var(--line);
+      border-radius: 16px;
+      display: grid;
+      place-items: center;
+      background: rgba(255,255,255,.55);
+      overflow: hidden;
+    }
+
+    .preview img {
+      display: block;
+      max-width: 100%;
+      max-height: 320px;
+    }
+
+    .kv {
+      display: grid;
+      grid-template-columns: 120px 1fr;
+      gap: 8px 12px;
+      font-size: 13px;
+      margin-top: 10px;
+    }
+
+    .kv div:nth-child(odd) {
+      color: var(--sub);
+    }
+
+    .hint {
+      font-size: 12px;
+      color: var(--sub);
+      margin-top: 6px;
+    }
+
+    @media (max-width: 900px) {
+      .grid {
+        grid-template-columns: 1fr;
+      }
+
+      .row {
+        grid-template-columns: 1fr;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <h1>图片上传本地测试页</h1>
+    <p class="lead">这页支持当前两种调试方式：开发阶段可直接调 <code>/api/images/upload-tasks/complete</code>，正式链路也可以在七牛回调后轮询 <code>/api/images/upload-tasks/:id</code> 查看最终状态。</p>
+
+    <div class="grid">
+      <section class="card">
+        <h2>请求配置</h2>
+
+        <div class="field">
+          <label for="baseUrl">后端地址</label>
+          <input id="baseUrl" type="text" value="http://127.0.0.1:8080" />
+          <div class="hint">填你的后端服务地址，不要带最后的斜杠。</div>
+        </div>
+
+        <div class="field">
+          <label for="token">Access Token</label>
+          <textarea id="token" placeholder="粘贴登录后的 access token"></textarea>
+          <div class="hint">会以 <code>Authorization: Bearer xxx</code> 发给后端。</div>
+        </div>
+
+        <div class="field">
+          <label for="uploadHost">七牛上传地址</label>
+          <input id="uploadHost" type="text" value="https://upload-z2.qiniup.com" />
+          <div class="hint">默认按华南 z2，你也可以手动改。创建任务成功后如果 region 有变化，页面会自动切换。</div>
+        </div>
+
+        <div class="field">
+          <label for="fileInput">选择图片</label>
+          <input id="fileInput" type="file" accept="image/*" />
+        </div>
+
+        <div class="actions">
+          <button id="btnCreate" class="primary">1. 创建上传任务</button>
+          <button id="btnUpload" class="secondary" disabled>2. 直传七牛</button>
+          <button id="btnComplete" class="ghost" disabled>3. 调 complete 确认</button>
+          <button id="btnStatus" class="ghost" disabled>4. 查询任务状态</button>
+          <button id="btnAll" class="primary">一键完整上传</button>
+        </div>
+
+        <div id="status" class="status">等待操作</div>
+
+        <div class="preview" id="preview">
+          <span class="hint">这里会显示本地预览或最终图片</span>
+        </div>
+
+        <div class="kv" id="meta"></div>
+      </section>
+
+      <section class="card">
+        <h2>调试输出</h2>
+        <pre id="log"></pre>
+      </section>
+    </div>
+  </div>
+
+  <script>
+    const state = {
+      file: null,
+      fileHash: "",
+      createResp: null,
+      qiniuResp: null,
+      completeResp: null,
+    };
+
+    const regionUploadHosts = {
+      z0: "https://upload.qiniup.com",
+      z1: "https://upload-z1.qiniup.com",
+      z2: "https://upload-z2.qiniup.com",
+      na0: "https://upload-na0.qiniup.com",
+      as0: "https://upload-as0.qiniup.com",
+      ap: "https://upload-ap-southeast-1.qiniup.com",
+    };
+
+    const els = {
+      baseUrl: document.getElementById("baseUrl"),
+      token: document.getElementById("token"),
+      uploadHost: document.getElementById("uploadHost"),
+      fileInput: document.getElementById("fileInput"),
+      btnCreate: document.getElementById("btnCreate"),
+      btnUpload: document.getElementById("btnUpload"),
+      btnComplete: document.getElementById("btnComplete"),
+      btnStatus: document.getElementById("btnStatus"),
+      btnAll: document.getElementById("btnAll"),
+      status: document.getElementById("status"),
+      log: document.getElementById("log"),
+      preview: document.getElementById("preview"),
+      meta: document.getElementById("meta"),
+    };
+
+    function setStatus(message, type = "") {
+      els.status.className = `status ${type}`.trim();
+      els.status.textContent = message;
+    }
+
+    function log(title, payload) {
+      const text = typeof payload === "string"
+        ? payload
+        : JSON.stringify(payload, null, 2);
+      const current = els.log.textContent.trim();
+      const block = `[${new Date().toLocaleTimeString()}] ${title}\n${text}`;
+      els.log.textContent = current ? `${current}\n\n${block}` : block;
+    }
+
+    function normalizeBaseUrl(raw) {
+      return raw.trim().replace(/\/+$/, "");
+    }
+
+    function authHeaders() {
+      const token = els.token.value.trim();
+      if (!token) {
+        throw new Error("请先填写 access token");
+      }
+      return {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      };
+    }
+
+    function ensureFile() {
+      const file = els.fileInput.files[0];
+      if (!file) {
+        throw new Error("请先选择图片");
+      }
+      state.file = file;
+      return file;
+    }
+
+    function renderPreviewFromFile(file) {
+      const reader = new FileReader();
+      reader.onload = () => {
+        els.preview.innerHTML = `<img src="${reader.result}" alt="本地预览" />`;
+      };
+      reader.readAsDataURL(file);
+    }
+
+    function renderPreviewFromURL(url) {
+      els.preview.innerHTML = `<img src="${url}" alt="最终图片" />`;
+    }
+
+    function renderMeta() {
+      const createData = state.createResp?.data || {};
+      const completeData = state.completeResp?.data || {};
+      const items = [
+        ["upload_id", createData.upload_id || completeData.upload_id || "-"],
+        ["hash", createData.hash || state.fileHash || "-"],
+        ["object_key", createData.object_key || "-"],
+        ["bucket", createData.bucket || "-"],
+        ["region", createData.region || "-"],
+        ["image_id", completeData.image_id || createData.image_id || "-"],
+        ["status", completeData.status || createData.status || "-"],
+        ["url", completeData.url || createData.url || "-"],
+      ];
+      els.meta.innerHTML = items.map(([k, v]) => `<div>${k}</div><div>${String(v)}</div>`).join("");
+    }
+
+    async function safeFetchJSON(url, options) {
+      const res = await fetch(url, options);
+      const text = await res.text();
+      let data;
+      try {
+        data = text ? JSON.parse(text) : {};
+      } catch {
+        data = { raw: text };
+      }
+      return { res, data };
+    }
+
+    function base64UrlFromBytes(bytes) {
+      let binary = "";
+      for (const b of bytes) {
+        binary += String.fromCharCode(b);
+      }
+      return btoa(binary).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/g, "");
+    }
+
+    async function sha1Bytes(buffer) {
+      const digest = await crypto.subtle.digest("SHA-1", buffer);
+      return new Uint8Array(digest);
+    }
+
+    async function computeQetag(file) {
+      const blockSize = 4 * 1024 * 1024;
+      if (file.size <= blockSize) {
+        const buffer = await file.arrayBuffer();
+        const sha1 = await sha1Bytes(buffer);
+        const result = new Uint8Array(1 + sha1.length);
+        result[0] = 0x16;
+        result.set(sha1, 1);
+        return base64UrlFromBytes(result);
+      }
+
+      const parts = [];
+      for (let start = 0; start < file.size; start += blockSize) {
+        const end = Math.min(start + blockSize, file.size);
+        const chunk = await file.slice(start, end).arrayBuffer();
+        const sha1 = await sha1Bytes(chunk);
+        parts.push(sha1);
+      }
+
+      const merged = new Uint8Array(parts.length * 20);
+      parts.forEach((part, index) => merged.set(part, index * 20));
+      const allSha1 = await sha1Bytes(merged.buffer);
+      const result = new Uint8Array(1 + allSha1.length);
+      result[0] = 0x96;
+      result.set(allSha1, 1);
+      return base64UrlFromBytes(result);
+    }
+
+    async function ensureFileHash(file) {
+      if (state.fileHash) {
+        return state.fileHash;
+      }
+      setStatus("正在计算图片 qetag...");
+      const hash = await computeQetag(file);
+      state.fileHash = hash;
+      return hash;
+    }
+
+    async function createTask() {
+      const file = ensureFile();
+      renderPreviewFromFile(file);
+      const hash = await ensureFileHash(file);
+      setStatus("正在创建上传任务...");
+
+      const baseUrl = normalizeBaseUrl(els.baseUrl.value);
+      const body = {
+        file_name: file.name,
+        size: file.size,
+        mime_type: file.type || "application/octet-stream",
+        hash,
+      };
+
+      const { res, data } = await safeFetchJSON(`${baseUrl}/api/images/upload-tasks`, {
+        method: "POST",
+        headers: authHeaders(),
+        body: JSON.stringify(body),
+      });
+
+      log("创建上传任务响应", data);
+      if (!res.ok || data.code !== 0) {
+        throw new Error(data.msg || `创建上传任务失败，HTTP ${res.status}`);
+      }
+
+      state.createResp = data;
+      state.qiniuResp = null;
+      state.completeResp = null;
+
+      const region = data.data?.region;
+      if (region && regionUploadHosts[region]) {
+        els.uploadHost.value = regionUploadHosts[region];
+      }
+
+      if (data.data?.skip_upload) {
+        els.btnUpload.disabled = true;
+        els.btnComplete.disabled = true;
+        els.btnStatus.disabled = true;
+        if (data.data?.url) {
+          renderPreviewFromURL(data.data.url);
+        }
+        renderMeta();
+        setStatus("命中预去重，已直接复用已有图片。", "ok");
+        return data;
+      }
+
+      els.btnUpload.disabled = false;
+      els.btnComplete.disabled = true;
+      els.btnStatus.disabled = false;
+      renderMeta();
+      setStatus("上传任务创建成功，可以开始直传七牛。", "ok");
+      return data;
+    }
+
+    async function uploadToQiniu() {
+      const file = ensureFile();
+      const createData = state.createResp?.data;
+      if (!createData) {
+        throw new Error("请先创建上传任务");
+      }
+      if (createData.skip_upload) {
+        throw new Error("当前图片已命中预去重，不需要再上传");
+      }
+
+      setStatus("正在直传七牛...");
+      const form = new FormData();
+      form.append("token", createData.upload_token);
+      form.append("key", createData.object_key);
+      form.append("file", file, file.name);
+
+      const uploadHost = normalizeBaseUrl(els.uploadHost.value);
+      const res = await fetch(uploadHost, {
+        method: "POST",
+        body: form,
+      });
+      const text = await res.text();
+      let data;
+      try {
+        data = text ? JSON.parse(text) : {};
+      } catch {
+        data = { raw: text };
+      }
+
+      log("七牛上传响应", data);
+      if (!res.ok) {
+        throw new Error(`直传七牛失败，HTTP ${res.status}`);
+      }
+
+      state.qiniuResp = data;
+      els.btnComplete.disabled = false;
+      setStatus("七牛上传成功，可以调用 complete 确认。", "ok");
+      return data;
+    }
+
+    async function completeTask() {
+      const createData = state.createResp?.data;
+      if (!createData) {
+        throw new Error("请先创建上传任务");
+      }
+      if (createData.skip_upload) {
+        throw new Error("当前图片已命中预去重，不需要再调用 complete");
+      }
+
+      setStatus("正在调用 complete 确认...");
+      const baseUrl = normalizeBaseUrl(els.baseUrl.value);
+      const body = {
+        upload_id: createData.upload_id,
+        object_key: createData.object_key,
+      };
+
+      const { res, data } = await safeFetchJSON(`${baseUrl}/api/images/upload-tasks/complete`, {
+        method: "POST",
+        headers: authHeaders(),
+        body: JSON.stringify(body),
+      });
+
+      log("complete 响应", data);
+      if (!res.ok || data.code !== 0) {
+        throw new Error(data.msg || `complete 失败，HTTP ${res.status}`);
+      }
+
+      state.completeResp = data;
+      renderMeta();
+      if (data.data?.url) {
+        renderPreviewFromURL(data.data.url);
+      }
+      setStatus("图片已通过服务端确认并正式入库。", "ok");
+      return data;
+    }
+
+    async function queryTaskStatus() {
+      const createData = state.createResp?.data;
+      if (!createData?.upload_id) {
+        throw new Error("请先创建上传任务");
+      }
+
+      setStatus("正在查询上传任务状态...");
+      const baseUrl = normalizeBaseUrl(els.baseUrl.value);
+      const { res, data } = await safeFetchJSON(`${baseUrl}/api/images/upload-tasks/${createData.upload_id}`, {
+        method: "GET",
+        headers: {
+          Authorization: authHeaders().Authorization,
+        },
+      });
+
+      log("任务状态响应", data);
+      if (!res.ok || data.code !== 0) {
+        throw new Error(data.msg || `查询任务状态失败，HTTP ${res.status}`);
+      }
+
+      state.completeResp = { data: data.data };
+      renderMeta();
+      if (data.data?.url) {
+        renderPreviewFromURL(data.data.url);
+      }
+      if (data.data?.status === "ready") {
+        setStatus("图片已经通过回调确认并正式可用。", "ok");
+      } else if (data.data?.status === "failed") {
+        setStatus(data.data?.error_msg || "上传任务校验失败", "err");
+      } else {
+        setStatus("上传任务仍在处理中，可以稍后继续轮询。");
+      }
+      return data;
+    }
+
+    async function runStep(fn) {
+      try {
+        await fn();
+      } catch (err) {
+        console.error(err);
+        setStatus(err.message || String(err), "err");
+        log("错误", err.message || String(err));
+      }
+    }
+
+    els.fileInput.addEventListener("change", () => {
+      state.file = els.fileInput.files[0] || null;
+      state.fileHash = "";
+      state.createResp = null;
+      state.qiniuResp = null;
+      state.completeResp = null;
+      els.btnUpload.disabled = true;
+      els.btnComplete.disabled = true;
+      els.btnStatus.disabled = true;
+      renderMeta();
+      if (state.file) {
+        renderPreviewFromFile(state.file);
+        setStatus(`已选择文件：${state.file.name}`);
+      } else {
+        els.preview.innerHTML = `<span class="hint">这里会显示本地预览或最终图片</span>`;
+        setStatus("等待操作");
+      }
+    });
+
+    els.btnCreate.addEventListener("click", () => runStep(createTask));
+    els.btnUpload.addEventListener("click", () => runStep(uploadToQiniu));
+    els.btnComplete.addEventListener("click", () => runStep(completeTask));
+    els.btnStatus.addEventListener("click", () => runStep(queryTaskStatus));
+    els.btnAll.addEventListener("click", () => runStep(async () => {
+      const created = await createTask();
+      if (created?.data?.skip_upload) {
+        return;
+      }
+      await uploadToQiniu();
+      await completeTask();
+    }));
+
+    renderMeta();
+  </script>
+</body>
+</html>

@@ -1,0 +1,36 @@
+# 依赖
+node_modules
+**/node_modules
+
+# 构建产物与缓存
+**/.turbo
+**/.nuxt
+**/.output
+**/.nitro
+**/.data
+**/.cache
+**/dist
+**/coverage
+output
+
+# VCS 与编辑器元数据
+.git
+.idea
+.fleet
+.DS_Store
+
+# 日志与临时文件
+*.log
+*.tmp
+
+# 本地服务状态与大文件
+backend/bin
+backend/logs
+backend/uploads
+backend/var
+deploy/state
+*.tar
+*.tar.*
+
+# Agent 内部数据
+.workbuddy

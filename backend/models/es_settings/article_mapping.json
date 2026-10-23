@@ -1,0 +1,141 @@
+{
+  "settings": {
+    "index.default_pipeline": "article_pipeline"
+  },
+  "mappings": {
+    "properties": {
+      "id": {
+        "type": "keyword"
+      },
+      "created_at": {
+        "type": "date",
+        "null_value": "null"
+      },
+      "updated_at": {
+        "type": "date",
+        "null_value": "null"
+      },
+      "title": {
+        "type": "text",
+        "fields": {
+          "keyword": {
+            "type": "keyword"
+          }
+        }
+      },
+      "abstract": {
+        "type": "text"
+      },
+      "content_head": {
+        "type": "text",
+        "analyzer": "ik_max_word",
+        "search_analyzer": "ik_smart"
+      },
+      "content_parts": {
+        "properties": {
+          "order": {
+            "type": "integer"
+          },
+          "level": {
+            "type": "integer"
+          },
+          "title": {
+            "type": "text",
+            "fields": {
+              "keyword": {
+                "type": "keyword"
+              }
+            }
+          },
+          "path": {
+            "type": "keyword"
+          },
+          "content": {
+            "type": "text",
+            "analyzer": "ik_max_word",
+            "search_analyzer": "ik_smart"
+          }
+        }
+      },
+      "category_id": {
+        "type": "keyword"
+      },
+      "category": {
+        "properties": {
+          "id": {
+            "type": "keyword"
+          },
+          "title": {
+            "type": "keyword"
+          }
+        }
+      },
+      "cover": {
+        "type": "keyword"
+      },
+      "author_id": {
+        "type": "keyword"
+      },
+      "author": {
+        "properties": {
+          "id": {
+            "type": "keyword"
+          },
+          "nickname": {
+            "type": "keyword"
+          },
+          "avatar": {
+            "type": "keyword"
+          }
+        }
+      },
+      "view_count": {
+        "type": "integer"
+      },
+      "digg_count": {
+        "type": "integer"
+      },
+      "comment_count": {
+        "type": "integer"
+      },
+      "favor_count": {
+        "type": "integer"
+      },
+      "tags": {
+        "properties": {
+          "id": {
+            "type": "keyword"
+          },
+          "title": {
+            "type": "keyword"
+          }
+        }
+      },
+      "top": {
+        "properties": {
+          "user": {
+            "type": "boolean"
+          },
+          "admin": {
+            "type": "boolean"
+          }
+        }
+      },
+      "publish_status": {
+        "type": "integer"
+      },
+      "visibility_status": {
+        "type": "keyword"
+      },
+      "comments_toggle": {
+        "type": "boolean"
+      },
+      "admin_top": {
+        "type": "boolean"
+      },
+      "author_top": {
+        "type": "boolean"
+      }
+    }
+  }
+}

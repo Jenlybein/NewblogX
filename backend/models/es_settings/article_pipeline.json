@@ -1,0 +1,4 @@
+{
+  "description": "文章索引 no-op pipeline，正文摘要与分段已在服务端生成",
+  "processors": []
+}

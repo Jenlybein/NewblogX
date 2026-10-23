@@ -1,0 +1,191 @@
+# 环境变量模板
+# 用法：
+# 1. 复制本文件改名为 .envrc
+# 2. 把每个变量改成真实值
+# 3. 进入目录后执行 `direnv allow`
+# 4. 看到 `direnv: export ...` 才表示变量已经真正注入当前 shell
+# 5. 如果当前 bash 还没接入 direnv hook，可直接用 `direnv exec . go run main.go`
+#
+# 说明：
+# 1. .envrc 已在 .gitignore 中忽略，真实密钥不会进仓库
+# 2. 本模板提供“可参考的示例值”，方便照着改
+# 3. 如果想让 `cd` 进入目录时自动加载，需要在 `~/.bashrc` 里加入：
+#    `eval "$(direnv hook bash)"`
+# 4. 所有带 ****** 和 127.0.0.1 的值都只是示例，不能直接用于生产
+
+# 基础运行参数
+export TZ='Asia/Shanghai'
+export BLOGX_SERVER_ID='1'
+export BLOGX_APP_HOST='127.0.0.1'
+export BLOGX_APP_PORT='8080'
+export BLOGX_APP_ENV='dev'
+export BLOGX_GIN_MODE='release'
+export BLOGX_LOG_APP='blogx_server'
+export BLOGX_LOG_LEVEL='info'
+export BLOGX_LOG_REQUEST_LOG_ENABLED='true'
+export BLOGX_LOG_QUERY_DEFAULT_LIMIT='20'
+export BLOGX_LOG_QUERY_MAX_LIMIT='200'
+
+# Nginx 固定配置选择：
+# - 本地：BLOGX_NGINX_ENV='local'
+# - API-only 联调：BLOGX_NGINX_ENV='api-only'
+# - 测试：BLOGX_NGINX_ENV='test'
+# - 生产：BLOGX_NGINX_ENV='production'
+# API-only 联调时可使用：export BLOGX_NGINX_ENV='api-only'
+export BLOGX_NGINX_ENV='local'
+
+# Web SSR 部署参数
+# 本地 compose：
+export BLOGX_WEB_ENV_PROFILE='local-local'
+export BLOGX_WEB_SITE_URL='http://localhost'
+export BLOGX_WEB_API_UPSTREAM='http://blogx_server:8080'
+#
+# 测试构建口径：
+# export BLOGX_NGINX_ENV='test'
+# export BLOGX_WEB_ENV_PROFILE='test'
+# export BLOGX_WEB_SITE_URL='https://blog.gentlybeing.cn'
+# export BLOGX_WEB_API_UPSTREAM='http://blogx_server:8080'
+#
+# 生产构建口径：
+# export BLOGX_NGINX_ENV='production'
+# export BLOGX_WEB_ENV_PROFILE='production'
+# export BLOGX_WEB_SITE_URL='https://blogx.gentlybeing.cn'
+# export BLOGX_WEB_API_UPSTREAM='http://blogx_server:8080'
+
+# JWT
+export BLOGX_JWT_SECRET='******'
+export BLOGX_JWT_ISSUER='******'
+export BLOGX_JWT_EXPIRE_HOURS='24'
+export BLOGX_JWT_REFRESH_EXPIRE_HOURS='720'
+
+# MySQL
+export BLOGX_DB_NAME='blogx'
+export BLOGX_DB_USER='admin'
+export BLOGX_DB_PASSWORD='******'
+export BLOGX_DB_REPL_USER='repl'
+export BLOGX_DB_REPL_PASSWORD='******'
+export BLOGX_DB_MASTER_HOST='127.0.0.1'
+export BLOGX_DB_MASTER_PORT='3306'
+export BLOGX_DB_REPLICA_HOST='127.0.0.1'
+export BLOGX_DB_REPLICA_PORT='3307'
+export BLOGX_GORM_DEBUG='true'
+export BLOGX_GORM_MAX_IDLE_CONNS='100'
+export BLOGX_GORM_MAX_OPEN_CONNS='100'
+export BLOGX_GORM_CONN_MAX_LIFETIME_HOURS='1'
+
+# 给 docker-compose / 初始化脚本复用的别名
+export MYSQL_ROOT_PASSWORD="$BLOGX_DB_PASSWORD"
+export MYSQL_DATABASE="$BLOGX_DB_NAME"
+
+# Redis
+export BLOGX_REDIS_HOST='127.0.0.1'
+export BLOGX_REDIS_PORT='6379'
+export BLOGX_REDIS_USERNAME='******'
+export BLOGX_REDIS_PASSWORD='******'
+export BLOGX_REDIS_DB='0'
+
+# Kafka
+export BLOGX_KAFKA_BROKERS='127.0.0.1:19092'
+export BLOGX_KAFKA_TOPIC='blogx-mysql'
+export BLOGX_KAFKA_GROUP_ID='logistics_group'
+export BLOGX_KAFKA_USERNAME='logistics'
+export BLOGX_KAFKA_PASSWORD='******'
+
+# Elasticsearch
+export BLOGX_ES_URL='http://127.0.0.1:9200'
+export BLOGX_ES_PORT='9200'
+export BLOGX_ES_ADDR='127.0.0.1:9200'
+export BLOGX_ES_INDEX='article_index'
+export BLOGX_ES_USERNAME='elastic'
+export BLOGX_ES_PASSWORD='******'
+export BLOGX_ES_USE_HTTPS='false'
+
+# 给 docker-compose 复用的别名
+export ELASTIC_PASSWORD="$BLOGX_ES_PASSWORD"
+
+# ClickHouse
+export BLOGX_CLICKHOUSE_ADDR='127.0.0.1:9000'
+export BLOGX_CLICKHOUSE_DB='blogx_logs'
+export BLOGX_CLICKHOUSE_USERNAME='default'
+export BLOGX_CLICKHOUSE_PASSWORD='******'
+export BLOGX_CLICKHOUSE_DIAL_TIMEOUT_SEC='5'
+export BLOGX_CLICKHOUSE_MAX_OPEN_CONNS='10'
+export BLOGX_CLICKHOUSE_MAX_IDLE_CONNS='5'
+
+# 给 docker-compose 复用的别名
+export CLICKHOUSE_DB="$BLOGX_CLICKHOUSE_DB"
+export CLICKHOUSE_PASSWORD="$BLOGX_CLICKHOUSE_PASSWORD"
+export CLICKHOUSE_DEFAULT_ACCESS_MANAGEMENT='1'
+
+# MySQL -> ES 同步
+export BLOGX_RIVER_ENABLED='true'
+export BLOGX_RIVER_SERVER_ID='1001'
+export BLOGX_RIVER_MYSQL_ADDR='127.0.0.1:3306'
+export BLOGX_RIVER_MYSQL_USER='admin'
+export BLOGX_RIVER_MYSQL_PASSWORD='******'
+export BLOGX_RIVER_INDEX='article_index'
+
+# 图片引用关系同步
+export BLOGX_IMAGE_REF_RIVER_ENABLED='true'
+export BLOGX_IMAGE_REF_RIVER_SERVER_ID='1002'
+export BLOGX_IMAGE_REF_RIVER_SCHEMA='blogx'
+export BLOGX_IMAGE_REF_RIVER_MYSQL_ADDR='127.0.0.1:3306'
+export BLOGX_IMAGE_REF_RIVER_MYSQL_USER='admin'
+export BLOGX_IMAGE_REF_RIVER_MYSQL_PASSWORD='******'
+
+# 上传
+export BLOGX_UPLOAD_SIZE_MB='3'
+export BLOGX_UPLOAD_DIR='images001'
+
+# 邮件
+export BLOGX_SMTP_HOST='smtp.qq.com'
+export BLOGX_SMTP_PORT='587'
+export BLOGX_SMTP_USERNAME='your-email@example.com'
+export BLOGX_SMTP_AUTH_CODE='******'
+export BLOGX_SMTP_FROM_NAME='我的博客'
+export BLOGX_SMTP_SSL='false'
+export BLOGX_SMTP_TLS='false'
+
+# QQ 登录
+export BLOGX_QQ_APP_ID='123456'
+export BLOGX_QQ_APP_KEY='******'
+export BLOGX_QQ_REDIRECT='https://example.com/api/user/qq/callback'
+export BLOGX_LOGIN_QQ_ENABLED='false'
+
+# 七牛云
+export BLOGX_QINIU_ENABLED='true'
+export BLOGX_QINIU_ACCESS_KEY='******'
+export BLOGX_QINIU_SECRET_KEY='******'
+export BLOGX_QINIU_BUCKET='your-bucket'
+export BLOGX_QINIU_DOMAIN='https://cdn.example.com'
+export BLOGX_QINIU_REGION='z2'
+export BLOGX_QINIU_PREFIX='myblogx'
+export BLOGX_QINIU_MAX_SIZE_MB='5'
+export BLOGX_QINIU_TOKEN_EXPIRY_SEC='1800'
+export BLOGX_QINIU_CALLBACK_URL='https://api.example.com/api/images/qiniu/callback'
+
+# 运行时默认站点开关
+export BLOGX_SITE_MODE='1'
+export BLOGX_LOGIN_USERNAME_PASSWORD_ENABLED='true'
+export BLOGX_LOGIN_EMAIL_ENABLED='true'
+export BLOGX_LOGIN_CAPTCHA_ENABLED='false'
+export BLOGX_EMAIL_CODE_TIMEOUT_MIN='5'
+export BLOGX_LOGIN_FAIL_WINDOW_MIN='15'
+export BLOGX_LOGIN_FAIL_USER_MAX='5'
+export BLOGX_LOGIN_FAIL_IP_MAX='20'
+export BLOGX_EMAIL_SEND_WINDOW_SEC='60'
+export BLOGX_EMAIL_SEND_PER_EMAIL_MAX='1'
+export BLOGX_EMAIL_SEND_PER_IP_MAX='10'
+export BLOGX_ARTICLE_SKIP_EXAMINING='true'
+export BLOGX_COMMENT_SKIP_EXAMINING='true'
+
+# AI
+export BLOGX_AI_ENABLED='true'
+export BLOGX_AI_SECRET='sk-example-your-ai-token'
+export BLOGX_AI_BASE_URL='https://api.openai.com/v1/chat/completions'
+export BLOGX_AI_CHAT_MODEL='gpt-4.1-mini'
+export BLOGX_AI_REASON_MODEL=''
+export BLOGX_AI_TIMEOUT_SEC=''
+export BLOGX_AI_MAX_INPUT_CHARS='100000'
+export BLOGX_AI_TEMPERATURE=''
+export BLOGX_AI_DAILY_QUOTA=''

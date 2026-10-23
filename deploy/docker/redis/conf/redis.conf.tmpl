@@ -1,0 +1,19 @@
+# Redis 配置模板
+# 说明：启动时会由 render-config.sh 把环境变量渲染进最终配置
+
+appendonly yes
+port 6379
+
+save 900 1
+save 300 10
+save 60 10000
+
+protected-mode no
+daemonize no
+bind 0.0.0.0
+
+dir /data
+dbfilename dump.rdb
+
+requirepass __BLOGX_REDIS_PASSWORD__
+databases 16

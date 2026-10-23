@@ -1,0 +1,9 @@
+{
+  "name": "api",
+  "private": true,
+  "scripts": {
+    "dev": "node ./run-go-task.cjs dev",
+    "build": "node ./run-go-task.cjs build",
+    "test": "node ./run-go-task.cjs test"
+  }
+}

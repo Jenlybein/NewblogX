@@ -1,0 +1,103 @@
+﻿# 站点运行时默认配置。
+# 说明：
+# 1. 系统启动时会尝试读取此文件，并在数据库还没有运行时配置记录时把这里的值写入数据库。
+# 2. 后台后续修改站点设置 / AI 设置时，实际生效值以数据库中的运行时配置为准。
+# 3. 当数据库中的运行时配置缺失或回退时，这里也会作为默认值来源。
+
+# 站点展示与登录策略
+site:
+  site_info:
+    # 站点主标题
+    title: 技术博客
+    # 站点 Logo 图片地址；通常用于页面头部或 SEO 输出
+    logo: ""
+    # ICP / 公网安备等备案号展示文案
+    beian: ""
+    # 站点模式；1 = 社区模式，2 = 博客模式
+    # 博客模式下，普通用户发布文章会受到更严格的限制
+    mode: ${BLOGX_SITE_MODE}
+  project:
+    # 前端项目名称；通常用于页面标题、SEO 和管理端展示
+    title: 技术博客
+    # 前端 favicon 或项目图标地址
+    icon: /xxx.png
+    # 前端静态入口文件路径；可作为项目主页入口路径配置使用
+    web_path: uploads/index.html
+  seo:
+    # SEO 关键词；多个关键词通常用英文逗号分隔
+    keywords: ""
+    # SEO 描述摘要
+    description: ""
+  about:
+    # 站点创建/上线日期文案
+    site_date: ""
+    # 对外展示的 QQ 账号或链接
+    qq: ""
+    # 对外展示的微信号、二维码链接或说明文案
+    wechat: ""
+    # Gitee 主页地址
+    gitee: ""
+    # B 站主页地址
+    bilibili: ""
+    # GitHub 主页地址
+    github: ""
+  login:
+    # 是否启用 QQ 登录；启用前还需要在 settings.yaml 中配置 qq.app_id / app_key / redirect
+    qq_login: ${BLOGX_LOGIN_QQ_ENABLED}
+    # 是否启用用户名密码登录
+    username_pwd_login: ${BLOGX_LOGIN_USERNAME_PASSWORD_ENABLED}
+    # 是否启用邮箱验证码登录
+    email_login: ${BLOGX_LOGIN_EMAIL_ENABLED}
+    # 登录和发送邮箱验证码接口是否启用图形验证码中间件
+    captcha: ${BLOGX_LOGIN_CAPTCHA_ENABLED}
+    # 邮箱验证码有效期，单位：分钟
+    email_code_timeout: ${BLOGX_EMAIL_CODE_TIMEOUT_MIN}
+    # 登录失败统计窗口，单位：分钟
+    login_fail_window_minute: ${BLOGX_LOGIN_FAIL_WINDOW_MIN}
+    # 单个账号在统计窗口内允许的最大失败次数
+    login_fail_user_max: ${BLOGX_LOGIN_FAIL_USER_MAX}
+    # 单个 IP 在统计窗口内允许的最大失败次数
+    login_fail_ip_max: ${BLOGX_LOGIN_FAIL_IP_MAX}
+    # 邮件发送限流窗口，单位：秒
+    email_send_window_second: ${BLOGX_EMAIL_SEND_WINDOW_SEC}
+    # 单个邮箱在限流窗口内允许的最大发送次数
+    email_send_per_email_max: ${BLOGX_EMAIL_SEND_PER_EMAIL_MAX}
+    # 单个 IP 在限流窗口内允许的最大发送次数
+    email_send_per_ip_max: ${BLOGX_EMAIL_SEND_PER_IP_MAX}
+  index_right:
+    # 首页右侧组件列表；每项结构为 {title: 组件标题, enable: 是否启用}
+    list: []
+  article:
+    # 是否允许文章发布后直接跳过审核
+    skip_examining: ${BLOGX_ARTICLE_SKIP_EXAMINING}
+  comment:
+    # 是否允许评论发布后直接跳过审核
+    skip_examining: ${BLOGX_COMMENT_SKIP_EXAMINING}
+
+# 站点 AI 助手配置
+ai:
+  # 是否启用 AI 能力
+  enable: ${BLOGX_AI_ENABLED}
+  # AI 服务访问密钥 / Bearer Token
+  secret: "${BLOGX_AI_SECRET}"
+  # Chat Completions 风格的接口地址
+  base_url: "${BLOGX_AI_BASE_URL}"
+  # 默认聊天/生成模型名；当前代码实际使用的就是这个字段
+  chat_model: "${BLOGX_AI_CHAT_MODEL}"
+  # 推理模型名预留字段；当前服务未单独读取，留空表示不额外指定
+  reason_model: "${BLOGX_AI_REASON_MODEL}"
+  # 请求超时时间，单位：秒；当前服务端代码未直接使用，留空表示预留
+  timeout_sec: ${BLOGX_AI_TIMEOUT_SEC}
+  # 单次送入 AI 的最大输入字符数；过长内容会先截断或归一化
+  max_input_chars: ${BLOGX_AI_MAX_INPUT_CHARS}
+  # 采样温度；当前服务端代码未直接下发，留空表示预留
+  temperature: ${BLOGX_AI_TEMPERATURE}
+  # 每日调用额度预留字段；当前服务端代码未直接使用，留空表示不限制
+  daily_quota: ${BLOGX_AI_DAILY_QUOTA}
+  # 对外展示给用户的 AI 助手简介
+  abstract: "你好！我是我的博客的AI助手，可以帮助你找到喜欢的文章！"
+  # 对外展示给用户的 AI 助手昵称
+  nickname: "博客AI助手"
+  # 对外展示给用户的 AI 助手头像地址
+  avatar: ""
+

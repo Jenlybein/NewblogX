@@ -1,0 +1,32 @@
+@font-face {
+  font-family: "Sora";
+  font-style: normal;
+  font-display: optional;
+  font-weight: 400;
+  src: url("@fontsource/sora/files/sora-latin-400-normal.woff2") format("woff2");
+}
+
+@font-face {
+  font-family: "Sora";
+  font-style: normal;
+  font-display: optional;
+  font-weight: 600;
+  src: url("@fontsource/sora/files/sora-latin-600-normal.woff2") format("woff2");
+}
+
+@font-face {
+  font-family: "Sora";
+  font-style: normal;
+  font-display: optional;
+  font-weight: 700;
+  src: url("@fontsource/sora/files/sora-latin-700-normal.woff2") format("woff2");
+}
+
+@font-face {
+  font-family: "Sora Fallback";
+  src: local("Segoe UI");
+  ascent-override: 92%;
+  descent-override: 24%;
+  line-gap-override: 0%;
+  size-adjust: 96%;
+}

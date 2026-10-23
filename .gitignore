@@ -1,0 +1,43 @@
+# 依赖
+node_modules/
+**/node_modules/
+
+# 构建产物与缓存
+**/.nuxt/
+**/.output/
+**/.nitro/
+**/.data/
+**/.cache/
+**/dist/
+**/coverage/
+**/.turbo/
+.turbo/
+
+# Go 运行时数据
+backend/bin/
+backend/logs/
+backend/uploads/
+backend/var/*
+!backend/var/.gitkeep
+
+# 部署本地状态
+deploy/state/**/*
+!deploy/state/**/.gitkeep
+
+# 环境变量与密钥
+.env
+.env.*
+!.env.example
+.envrc
+
+# 日志与临时文件
+*.log
+*.tmp
+*.exe
+
+# 操作系统 / 编辑器
+.DS_Store
+.idea/
+
+# Agent 内部数据（不随仓库分发）
+.workbuddy/

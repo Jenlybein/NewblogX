@@ -254,7 +254,39 @@ M3-C2 追加验收：`go build` / `go vet` / `gofmt -l` 全干净；`go test ./.
 | S2.8 | ❌ **未做** | swag 已装、可跑通；但 118 个 operation 需逐个补注解（见下） |
 | S2.9 | ❌ **未做** | 依赖 S2.8 完整覆盖，半量契约会让前端类型残缺 |
 | L.1 / L.2 | ✅ | `internal/platform/log`：类型化事件 + 有界异步 + file sink |
-| T.3 | ✅ | `testkit/`：Clock / SeqID / Golden / 独立 SQLite，无全局状态 |
+| L.3 | ❌ **未接** | 18 处 `EmitActionAudit` 与 `log_middleware` 仍是同步 `json.Marshal` + 直接落文件 |
+| L.4 | 🟡 **组件就绪、待接生产入口** | 新增 `log/persist`：`ClickHouseSink`（`FORMAT JSONEachRow`，表名白名单防拼接）+ `WALSink`（失败落盘、`.tmp`→fsync→rename 原子发布）+ `ReplayWAL`；5 张日志表引擎改为 `ReplacingMergeTree`；集成测试验证断库 1000 条不丢、重复投递不重 |
+| L.5 | ❌ 未做 | fluent-bit 的 app tail 尚未关闭 |
+| T.3 / T.4（tx） | ✅ | `testkit/`：Clock / SeqID / Golden / 独立 SQLite；`mysql.FakeTxManager` |
+
+#### L.4 的落地形态与验证方式（组件已完成，尚未接生产入口）
+
+`internal/platform/log/persist` 三个组件：
+
+| 组件 | 职责 | 关键设计 |
+| --- | --- | --- |
+| `ClickHouseSink` | 把一批 JSON 行灌进 CH | 走 `INSERT ... FORMAT JSONEachRow`，不逐列映射（JSON 字段名与列名本就直接对齐）；表名走白名单正则——CH 不支持表名占位符，只能拼进 SQL |
+| `WALSink` | 主出口失败时落盘兜底 | write-behind：正常路径不碰磁盘，失败才写。落盘用 `.tmp → fsync → rename`，保证磁盘上出现的 `*.jsonl` 一定是完整批次，不会重放到半截 JSON |
+| `ReplayWAL` | 恢复后重放 | 按文件名（20 位 unixnano 前缀）时间序重放；单批失败即停并保留剩余文件——宁可少放，不可跳过，跳过会在日志链路留永久空洞 |
+
+表引擎从 `MergeTree` 改为 `ReplacingMergeTree`：日志是「至少一次」语义，
+重放可能重复投递，靠 ORDER BY 里的 `event_id` 去重。**前提是重放投递同一份字节**
+（`ts` 等列完全相同）；若日志被重新生成，会被当成新事件。
+
+验证（`//go:build integration`，需 Docker CH）：
+
+```bash
+docker run -d --name blogx-ch-it -p 18123:8123 -p 19000:9000 \
+  -e CLICKHOUSE_DB=blogx_logs -e CLICKHOUSE_SKIP_USER_SETUP=1 \
+  -v "<repo>/deploy/docker/clickhouse/init:/docker-entrypoint-initdb.d" \
+  clickhouse/clickhouse-server:25.3
+
+BLOGX_CH_ADDR=127.0.0.1:19000 go test -tags integration \
+  -run Integration ./internal/platform/log/persist/
+```
+
+实测：断库期间 1000 条全部积压成 10 个 WAL 批次、CH 内 0 条；恢复后重放 10 批
+→ `count(DISTINCT event_id)` = 1000；再重复投递一遍 → `count() FINAL` 仍为 1000。
 
 #### 两个必须说清的结论
 

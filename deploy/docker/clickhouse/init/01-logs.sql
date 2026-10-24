@@ -5,6 +5,12 @@ CREATE DATABASE IF NOT EXISTS blogx_logs;
 -- 1) 五张日志表均包含核心 12 列 + extra_json
 -- 2) 保留 message/request_id/log_kind 作为查询与兼容辅助列
 -- 3) 部分日志类型保留场景扩展列（HTTP/Audit/CDC/Replay）
+-- 4) 全部使用 ReplacingMergeTree：日志写入是「至少一次」语义——
+--    WAL 重放可能重复投递同一批（写完 CH、还没删 WAL 文件时崩溃）。
+--    去重键是 ORDER BY 里的 event_id。需要立即去重的查询用 FINAL，
+--    或 count(DISTINCT event_id)；不做 FINAL 时后台合并最终也会收敛。
+--    前提：重放投递的是磁盘上的同一份字节，ORDER BY 元组（含 ts）完全一致；
+--    若日志被重新生成（ts 变化），会被当成新事件，不会去重。
 
 -- 运行日志（runtime）
 CREATE TABLE IF NOT EXISTS blogx_logs.runtime_logs (
@@ -36,7 +42,7 @@ CREATE TABLE IF NOT EXISTS blogx_logs.runtime_logs (
     error_type String,
     error_stack String,
     extra_json String
-) ENGINE = MergeTree
+) ENGINE = ReplacingMergeTree
 PARTITION BY toYYYYMM(ts)
 ORDER BY (service, ts, level, event_id)
 TTL toDateTime(ts) + INTERVAL 120 DAY
@@ -70,7 +76,7 @@ CREATE TABLE IF NOT EXISTS blogx_logs.login_event_logs (
     addr String,
     ua String,
     extra_json String
-) ENGINE = MergeTree
+) ENGINE = ReplacingMergeTree
 PARTITION BY toYYYYMM(ts)
 ORDER BY (user_id, ts, event_name, event_id)
 TTL toDateTime(ts) + INTERVAL 120 DAY
@@ -111,7 +117,7 @@ CREATE TABLE IF NOT EXISTS blogx_logs.action_audit_logs (
     request_header_raw String,
     response_header_raw String,
     extra_json String
-) ENGINE = MergeTree
+) ENGINE = ReplacingMergeTree
 PARTITION BY toYYYYMM(ts)
 ORDER BY (user_id, ts, action_name, target_type, event_id)
 TTL toDateTime(ts) + INTERVAL 120 DAY
@@ -144,7 +150,7 @@ CREATE TABLE IF NOT EXISTS blogx_logs.cdc_event_logs (
     retry_count UInt8,
     result LowCardinality(String),
     extra_json String
-) ENGINE = MergeTree
+) ENGINE = ReplacingMergeTree
 PARTITION BY toYYYYMM(ts)
 ORDER BY (stream, ts, source_table, event_id)
 TTL toDateTime(ts) + INTERVAL 120 DAY
@@ -177,7 +183,7 @@ CREATE TABLE IF NOT EXISTS blogx_logs.replay_event_logs (
     retry_count UInt8,
     result LowCardinality(String),
     extra_json String
-) ENGINE = MergeTree
+) ENGINE = ReplacingMergeTree
 PARTITION BY toYYYYMM(ts)
 ORDER BY (stream, ts, source_table, event_id)
 TTL toDateTime(ts) + INTERVAL 120 DAY

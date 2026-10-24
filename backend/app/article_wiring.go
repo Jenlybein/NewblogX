@@ -21,15 +21,12 @@ import (
 	"myblogx/utils/jwts"
 )
 
-// WireArticle 装配 article 模块的新链路。
+// WireArticle 装配 article 模块。
 //
-// 只在 BLOGX_ARTICLE_NEW_PIPELINE=1 时生效：此时 router.ArticleRouter
-// 会挂新路由，旧 api/article_api 不再被调用（但代码保留，便于回滚）。
+// 旧 api/article_api 已删除，这里是 article 路由的唯一实现，
+// 启动时无条件注入处理器。
 func WireArticle(infra *Infra) {
 	if infra == nil {
-		return
-	}
-	if !articlehttp.Enabled() {
 		return
 	}
 

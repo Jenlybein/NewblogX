@@ -4,7 +4,6 @@ package api
 
 import (
 	"myblogx/api/ai_api"
-	"myblogx/api/article_api"
 	"myblogx/api/banner_api"
 	"myblogx/api/captcha_api"
 	"myblogx/api/chat_api"
@@ -28,7 +27,6 @@ type Api struct {
 	BannerApi       banner_api.BannerApi
 	ImageCaptchaApi captcha_api.ImageCaptchaApi
 	UserApi         user_api.UserApi
-	ArticleApi      article_api.ArticleApi
 	CommentApi      comment_api.CommentApi
 	ChatApi         chat_api.ChatApi
 	SitemsgApi      sitemsg_api.SitemsgApi
@@ -82,13 +80,6 @@ func New(deps middleware.Deps) Api {
 			Logger:           deps.Logger,
 			Redis:            deps.Redis,
 			RuntimeSite:      deps.RuntimeSite,
-		}),
-		ArticleApi: article_api.New(article_api.Deps{
-			DB:          deps.DB,
-			JWT:         deps.JWT,
-			Logger:      deps.Logger,
-			Redis:       deps.Redis,
-			RuntimeSite: deps.RuntimeSite,
 		}),
 		CommentApi: comment_api.New(comment_api.Deps{
 			DB:          deps.DB,

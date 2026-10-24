@@ -1,24 +1,11 @@
 package http
 
 import (
-	"os"
-
 	"github.com/gin-gonic/gin"
 
 	mw "myblogx/middleware"
 	"myblogx/models"
 )
-
-// Enabled 判断是否启用新链路。
-//
-// 过渡期开关：M4 期间新旧两套路由并存，靠环境变量切换，
-// golden 通过、灰度一周后再删旧路由与这个开关（S5.5）。
-//
-// 为什么用环境变量而不是配置文件：开关只影响路由装配，
-// 不需要热更新；而且能避免为一个过渡期开关去改所有环境的 yaml。
-func Enabled() bool {
-	return os.Getenv("BLOGX_ARTICLE_NEW_PIPELINE") == "1"
-}
 
 // Register 把 article 模块的全部路由挂到 /api 下。
 //

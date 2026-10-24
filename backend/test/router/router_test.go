@@ -2,6 +2,7 @@ package router_test
 
 import (
 	api2 "myblogx/api"
+	articlehttp "myblogx/internal/article/adapter/http"
 	mw "myblogx/middleware"
 	"myblogx/router"
 	"testing"
@@ -23,7 +24,10 @@ func TestRegisterAllRoutes(t *testing.T) {
 	router.BannerRouter(api, app, runtimeMw)
 	router.CaptchaRouter(api, app, runtimeMw)
 	router.UserRouter(api, app, runtimeMw)
-	router.ArticleRouter(api, app, runtimeMw)
+	// 旧 article_api 已删除，路由只来自新 handler；这里用空依赖的处理器
+	// 仅验证路由表，不发起真实请求。
+	router.SetArticleHandler(articlehttp.NewHandler(nil, nil, nil, nil, nil))
+	router.ArticleRouter(api, runtimeMw)
 	router.SearchRouter(api, app, runtimeMw)
 	router.SitemsgRouter(api, app, runtimeMw)
 	router.GlobalNotifRouter(api, app, runtimeMw)

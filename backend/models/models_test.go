@@ -5,7 +5,6 @@ import (
 	"myblogx/models"
 	"myblogx/models/ctype"
 	"myblogx/models/enum"
-	"myblogx/service/article_service"
 	"myblogx/test/testutil"
 	"strings"
 	"testing"
@@ -104,85 +103,6 @@ func TestInitUserDefaults(t *testing.T) {
 	var confModel models.UserConfModel
 	if err := db.First(&confModel, "user_id = ?", user.ID).Error; err != nil {
 		t.Fatalf("InitUserDefaults 未创建 user_conf: %v", err)
-	}
-}
-
-func TestDeleteArticles(t *testing.T) {
-	db := testutil.SetupSQLite(
-		t,
-		&models.UserModel{},
-		&models.UserConfModel{},
-		&models.CategoryModel{},
-		&models.ArticleModel{},
-		&models.CommentModel{},
-		&models.ArticleDiggModel{},
-		&models.FavoriteModel{},
-		&models.UserArticleFavorModel{},
-		&models.UserTopArticleModel{},
-		&models.UserArticleViewHistoryModel{},
-	)
-
-	author := models.UserModel{Username: "u1", Password: "p"}
-	testutil.CreateUser(t, db, &author)
-	article := models.ArticleModel{Title: "t", AuthorID: author.ID}
-	if err := db.Create(&article).Error; err != nil {
-		t.Fatalf("创建文章失败: %v", err)
-	}
-
-	comment := models.CommentModel{ArticleID: article.ID, UserID: author.ID, Content: "c"}
-	digg := models.ArticleDiggModel{ArticleID: article.ID, UserID: author.ID}
-	favorite := models.FavoriteModel{UserID: author.ID, Title: "f"}
-	if err := db.Create(&favorite).Error; err != nil {
-		t.Fatalf("创建收藏夹失败: %v", err)
-	}
-	favorRelation := models.UserArticleFavorModel{
-		ArticleID: article.ID,
-		UserID:    author.ID,
-		FavorID:   favorite.ID,
-	}
-	top := models.UserTopArticleModel{UserID: author.ID, ArticleID: article.ID}
-	view := models.UserArticleViewHistoryModel{UserID: author.ID, ArticleID: article.ID}
-
-	if err := db.Create(&comment).Error; err != nil {
-		t.Fatalf("创建评论失败: %v", err)
-	}
-	if err := db.Create(&digg).Error; err != nil {
-		t.Fatalf("创建点赞失败: %v", err)
-	}
-	if err := db.Create(&favorRelation).Error; err != nil {
-		t.Fatalf("创建收藏关系失败: %v", err)
-	}
-	if err := db.Create(&top).Error; err != nil {
-		t.Fatalf("创建置顶失败: %v", err)
-	}
-	if err := db.Create(&view).Error; err != nil {
-		t.Fatalf("创建浏览记录失败: %v", err)
-	}
-
-	if err := article_service.DeleteArticles(db, []models.ArticleModel{article}, true); err != nil {
-		t.Fatalf("删除文章失败: %v", err)
-	}
-
-	var cnt int64
-	_ = db.Model(&models.CommentModel{}).Where("article_id = ?", article.ID).Count(&cnt).Error
-	if cnt != 0 {
-		t.Fatalf("评论未清理, cnt=%d", cnt)
-	}
-	_ = db.Model(&models.ArticleDiggModel{}).Where("article_id = ?", article.ID).Count(&cnt).Error
-	if cnt != 0 {
-		t.Fatalf("点赞未清理, cnt=%d", cnt)
-	}
-	_ = db.Model(&models.UserArticleFavorModel{}).Where("article_id = ?", article.ID).Count(&cnt).Error
-	if cnt != 0 {
-		t.Fatalf("收藏关系未清理, cnt=%d", cnt)
-	}
-	_ = db.Model(&models.UserTopArticleModel{}).Where("article_id = ?", article.ID).Count(&cnt).Error
-	if cnt != 0 {
-		t.Fatalf("置顶未清理, cnt=%d", cnt)
-	}
-	_ = db.Model(&models.UserArticleViewHistoryModel{}).Where("article_id = ?", article.ID).Count(&cnt).Error
-	if cnt != 0 {
-		t.Fatalf("浏览记录未清理, cnt=%d", cnt)
 	}
 }
 

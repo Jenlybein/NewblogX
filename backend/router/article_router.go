@@ -1,91 +1,30 @@
 package router
 
 import (
-	"myblogx/api"
-	"myblogx/api/article_api"
-	"myblogx/api/article_api/category"
-	"myblogx/api/article_api/favorite"
-	"myblogx/api/article_api/tags"
-	"myblogx/api/article_api/top"
-	"myblogx/api/article_api/view_history"
 	articlehttp "myblogx/internal/article/adapter/http"
 	mw "myblogx/middleware"
-	"myblogx/models"
 
 	"github.com/gin-gonic/gin"
 )
 
-// articleHTTPHandler 是新链路的处理器，由装配层注入。
+// articleHTTPHandler 是 article 模块的处理器，由装配层注入。
 //
-// 为什么不放进 api.Api 容器：那个容器是旧结构的产物，M5 会整体删除；
+// 不放进 api.Api 容器：那个容器是旧结构的产物，M5 会整体删除；
 // 把新链路塞进去等于让新代码依赖即将消失的壳。
 var articleHTTPHandler *articlehttp.Handler
 
-// SetArticleHandler 注入 article 模块的新链路处理器。
+// SetArticleHandler 注入 article 模块的处理器。
 //
-// 装配层在启动时调用一次；未调用（或开关关闭）时走旧实现。
+// 装配层在启动时调用一次。旧实现（api/article_api）已删除，
+// article 路由只有新链路一条路径，不再有开关切换。
 func SetArticleHandler(h *articlehttp.Handler) { articleHTTPHandler = h }
 
 // ArticleRouter 注册 article 模块路由。
 //
-// 过渡期支持两套实现：BLOGX_ARTICLE_NEW_PIPELINE=1 时挂新链路，
-// 否则挂旧的 api/article_api。两者路径完全一致，因此切换对前端透明。
-func ArticleRouter(r *gin.RouterGroup, appContainer api.Api, runtimeMw mw.Runtime) {
-	if articleHTTPHandler != nil && articlehttp.Enabled() {
-		articleHTTPHandler.Register(r, runtimeMw.AuthMiddleware, runtimeMw.OptionalAuthMiddleware)
-		return
+// 处理器必须由装配层在启动时注入；未注入说明装配顺序有误，直接 panic 早暴露。
+func ArticleRouter(r *gin.RouterGroup, runtimeMw mw.Runtime) {
+	if articleHTTPHandler == nil {
+		panic("article: 处理器未注入，请确认 app.WireArticle 在 router.Run 之前调用")
 	}
-
-	group := r.Group("articles")
-	reviewGroup := r.Group("article-review")
-	reviewTaskGroup := r.Group("article-review-tasks")
-	authGroup := group.Group("", runtimeMw.AuthMiddleware)
-	adminGroup := authGroup.Group("", mw.AdminMiddleware)
-	reviewAdminGroup := reviewGroup.Group("", runtimeMw.AuthMiddleware, mw.AdminMiddleware)
-	reviewTaskAdminGroup := reviewTaskGroup.Group("", runtimeMw.AuthMiddleware, mw.AdminMiddleware)
-
-	app := appContainer.ArticleApi
-
-	// 文章操作
-	group.GET("author_info", mw.BindQuery[article_api.ArticleAuthorInfoBindRequest], app.ArticleAuthorInfoView)
-	group.GET(":id", mw.BindUri[models.IDRequest], app.ArticleDetailView)
-	authGroup.POST("", mw.BindJson[article_api.ArticleCreateRequest], app.ArticleCreateView)
-	authGroup.PUT(":id", mw.BindUri[models.IDRequest], mw.BindJson[article_api.ArticleUpdateRequest], app.ArticleUpdateView)
-	authGroup.DELETE(":id", mw.BindUri[models.IDRequest], app.ArticleRemoveUserView)
-	adminGroup.DELETE("", mw.CaptureLog(mw.ReqBody), mw.BindJson[models.IDListRequest], app.ArticleRemoveView)
-	adminGroup.POST(":id/admin/:visibility", mw.BindUri[article_api.ArticleAdminVisibilityURI], app.ArticleAdminVisibilityView)
-
-	group.POST("view", mw.BindJson[article_api.ArticleViewCountRequest], app.ArticleVisitView)
-	authGroup.PUT(":id/digg", mw.BindUri[models.IDRequest], app.ArticleDiggView)
-	reviewAdminGroup.GET("", mw.BindQuery[article_api.ArticleReviewTaskListRequest], app.ArticleReviewTaskListView)
-	reviewTaskAdminGroup.POST(":id/review", mw.CaptureLog(mw.ReqBody), mw.BindUri[models.IDRequest], mw.BindJson[article_api.ArticleReviewHandleRequest], app.ArticleReviewTaskHandleView)
-
-	// 收藏
-	group.GET("favorite", mw.BindQuery[favorite.FavoriteListRequest], app.FavoriteListView)
-	group.GET("favorite/contents", mw.BindQuery[favorite.FavoriteArticlesRequest], app.FavoriteArticlesView)
-	authGroup.PUT("favorite", mw.BindJson[favorite.FavoriteRequest], app.FavoriteCreateUpdateView)
-	authGroup.DELETE("favorite/contents", mw.BindJson[favorite.FavoriteRemovePatchModel], app.FavoriteRemovePatchView)
-	authGroup.DELETE("favorite", mw.BindJson[models.IDListRequest], app.FavoriteDeleteView)
-	authGroup.POST("favorite", mw.BindJson[article_api.ArticleFavoriteRequest], app.ArticleFavoriteSaveView)
-
-	// 置顶
-	group.GET("top", mw.BindQuery[top.ArticleTopListRequest], app.ArticleTopListView)
-	authGroup.POST("top", mw.BindJson[top.ArticleTopSetRequest], app.ArticleTopSetView)
-	authGroup.DELETE("top", mw.BindJson[top.ArticleTopSetRequest], app.ArticleTopRemoveView)
-
-	// 浏览历史
-	authGroup.GET("history", mw.BindQuery[view_history.ArticleViewHistoryRequest], app.ArticleViewHistoryView)
-	authGroup.DELETE("history", mw.BindJson[models.IDListRequest], app.ArticleViewHistoryRemoveView)
-
-	// 分类
-	group.GET("category", mw.BindQuery[category.CategoryListRequest], app.CategoryListView)
-	authGroup.POST("category", mw.CaptureLog(mw.ReqBody), mw.BindJson[category.CategoryRequest], app.CategoryCreateUpdateView)
-	authGroup.DELETE("category", mw.CaptureLog(mw.ReqBody), mw.BindJson[models.IDListRequest], app.CategoryDeleteView)
-	group.GET("category/options", mw.BindQuery[category.CategoryOptionsRequest], app.CategoryOptionsView)
-
-	// 标签
-	group.GET("tags", mw.BindQuery[tags.TagListRequest], app.TagListView)
-	group.GET("tags/options", app.ArticleTagOptionsView)
-	adminGroup.PUT("tags", mw.CaptureLog(mw.ReqBody), mw.BindJson[tags.TagRequest], app.TagCreateUpdateView)
-	adminGroup.DELETE("tags", mw.CaptureLog(mw.ReqBody), mw.BindJson[models.IDListRequest], app.TagDeleteView)
+	articleHTTPHandler.Register(r, runtimeMw.AuthMiddleware, runtimeMw.OptionalAuthMiddleware)
 }

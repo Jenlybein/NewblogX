@@ -43,7 +43,7 @@ func Run(deps middleware.Deps, app api.Api) (*http.Server, error) {
 	BannerRouter(nr, app, mwRuntime)
 	CaptchaRouter(nr, app, mwRuntime)
 	UserRouter(nr, app, mwRuntime)
-	ArticleRouter(nr, app, mwRuntime)
+	ArticleRouter(nr, mwRuntime)
 	CommentRouter(nr, app, mwRuntime)
 	ChatRouter(nr, app, mwRuntime)
 	SitemsgRouter(nr, app, mwRuntime)

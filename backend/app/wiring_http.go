@@ -44,7 +44,7 @@ func WireHTTP(infra *Infra, lc *Lifecycle) error {
 		Tx:                mysql.NewTxManager(infra.DB),
 	}
 
-	// article 新链路：仅在开关打开时注入处理器，否则 router 继续走旧实现。
+	// article 链路：启动时注入处理器。旧实现已删除，这是唯一路径。
 	WireArticle(infra)
 
 	srv, err := router.Run(deps, api.New(deps))

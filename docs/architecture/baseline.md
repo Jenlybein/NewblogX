@@ -311,6 +311,49 @@ category / tags），生产代码 3,547 行。开工前复核出四处与早期�
 **硬约束：零 DDL。** ES 投影纯靠 CDC（`cdc/river/article_row_snapshot.go` 按列名解析 binlog），
 `api/article_api` 内 0 处调用 ES；删列或改名会直接打穿投影。
 
+#### M4 进度（2026-10-24，代码已落地）
+
+| 步 | 内容 | 状态 |
+| --- | --- | --- |
+| S3.0 | `testkit/mysqlcontainer`（testcontainers MySQL 8，独立 schema，DSN 钉 +08） | ✅ |
+| S3.1/S3.2 | `internal/article/domain` 全 7 子域 + 不变量矩阵 **28 组**（4 状态 + 已删除）× 角色 + 两种隐藏可见性 | ✅ |
+| T.4 | `internal/article/apptest` 有状态 fake（7 仓储 + 4 端口，带故障注入/计数/快照回滚） | ✅ |
+| S3.3 | `internal/article/app` 全用例（create/update/examine/delete/query/interaction/subdomain）+ `Repos`/`TxManager`/`AuthorStatsPort` | ✅ |
+| S3.4/S3.8 | `adapter/mysql` 六仓储 + mapper（row 复用 models，零 DDL） | ✅ 真库契约测 8 条 |
+| S3.5/S3.6 | `adapter/http` 30 端点 + 路由开关 + 装配；HTTP 层零 SQL | ✅ e2e 通过 |
+| S3.9 | 16 个写接口埋审计 | ✅ |
+| S3.10 | golden 机制（写死种子 + 逐字节，已验证可复现） | 🟡 样本 5 条，文档要求 20×12 |
+| S3.11 | 删旧 `api/article_api` / `article_service` | ⏸ 按文档"灰度一周后"，不在 M4 内执行 |
+
+**M4 期间的两次棘轮回归（均已修复，记录以免重犯）**
+
+1. domain 首版写了 27 处 `errors.New("中文")` → R8 125→152、合计 345。
+   处理方式是补上规则一直指向却从未落地的 `internal/apperr`（错误码 + 集中文案表），
+   而不是放宽规则。副产品：S5 清理存量 125 处时终于有统一去处。
+2. `adapter/http` 首版直接用 gorm 句柄查图片反查与作者信息 → R1 142→147。
+   收口方式：新增 `app.AuthorProfile` 用例 + `ImageResolver` 端口。
+   这条恰好证明"收回 handler SQL"对新代码同样适用——新写的 handler 也会犯同样的错。
+
+**M4 过程中发现的三个真实缺陷（不是文档估算偏差，是代码 bug）**
+
+- `article_tag_models` 是 `many2many` 自动建的**纯 join 表**（只有 `article_id`/`tag_id`，
+  无 `id` 无 `deleted_at`）。用 `models.ArticleTagModel` 结构体查会被 GORM 加上
+  `deleted_at IS NULL` 而报 Unknown column；且软删同一对 (article, tag) 再次插入会撞唯一键。
+  已改为 `Table(...)` 直连 + 硬删。
+- GORM 对零值 `CreatedAt` 会自己填 `time.Now()`，导致落库时间不由用例层的可注入时钟决定。
+  golden 会因此变成"每次都红"或"每次都绿"的假测试。mapper 已显式写 `CreatedAt`。
+- 旧链路的 `ArticleExamineView` **从未被任何路由注册**（审核实际走 `article-review-tasks/:id/review`）。
+  按"不照抄死代码"处理：新链路不实现该端点。
+
+**golden 上线第一天就抓到的缺陷（尚未修，已隔离）**
+
+`utils/markdown.MdToSafe` 在**并发调用**下偶发多输出一个前导换行：
+同一份输入 `"正文A"`，有时产出 `"正文A\n"`、有时 `"\n正文A\n"`。
+影响面：文章正文/摘要的落库值不稳定，进而影响 ES 投影与前端渲染。
+当前处理：golden 用例改为串行（`TestArticleGolden` 不 `t.Parallel`），
+连跑 3 次稳定通过；缺陷本身待查（怀疑 `sanitizeSafeMarkdownAST` 与共享
+`goldmark` 引擎的交互），列入 M4 收尾项。
+
 **M4 过程中的一次棘轮回归与修复**：S3.1 首次提交时在 domain 里写了 27 处
 `errors.New("中文")`，archcheck 从 318 涨到 345（R8 125→152），违反"只准降不准升"。
 处理方式不是放宽规则，而是补上规则一直指向却从未落地的 `internal/apperr`：

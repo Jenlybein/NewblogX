@@ -10,6 +10,7 @@ import (
 	"myblogx/internal/article/domain/taxonomy"
 	"myblogx/models"
 	"myblogx/models/ctype"
+	"myblogx/service/db_service"
 )
 
 // CategoryRepo 是 taxonomy.CategoryRepository 的 MySQL 实现。
@@ -207,9 +208,17 @@ func (r *TagRepo) ReplaceArticleTags(ctx context.Context, articleID domain.Artic
 	if len(tagIDs) == 0 {
 		return nil
 	}
+	// 显式给主键：这张表是 many2many 关系表，`id` 是 `autoIncrement:false`
+	// 的雪花主键，没有数据库默认值；不给就会报 Field 'id' doesn't have a default value。
+	// 同时刻意不写 deleted_at——不同环境里这张表是否带该列并不一致（见 baseline）。
 	rows := make([]map[string]any, 0, len(tagIDs))
 	for _, id := range tagIDs {
+		pk, err := db_service.NextSnowflakeID()
+		if err != nil {
+			return err
+		}
 		rows = append(rows, map[string]any{
+			"id":         uint64(pk),
 			"article_id": uint64(aid),
 			"tag_id":     id.Uint64(),
 		})

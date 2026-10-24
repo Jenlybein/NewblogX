@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"myblogx/api"
+	"myblogx/internal/platform/mysql"
 	"myblogx/middleware"
 	"myblogx/router"
 
@@ -40,6 +41,7 @@ func WireHTTP(infra *Infra, lc *Lifecycle) error {
 		ESClient:          infra.ESClient,
 		RuntimeSite:       infra.RuntimeSite,
 		ImageCaptchaStore: base64Captcha.DefaultMemStore,
+		Tx:                mysql.NewTxManager(infra.DB),
 	}
 
 	srv, err := router.Run(deps, api.New(deps))

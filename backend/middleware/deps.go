@@ -4,6 +4,7 @@ import (
 	"database/sql"
 
 	"myblogx/conf"
+	"myblogx/internal/platform/mysql"
 	"myblogx/service/site_service"
 
 	"github.com/elastic/go-elasticsearch/v7"
@@ -41,4 +42,8 @@ type Deps struct {
 	ESClient          *elasticsearch.Client
 	RuntimeSite       *site_service.RuntimeConfigService
 	ImageCaptchaStore base64Captcha.Store
+
+	// Tx 是事务边界。业务层（尤其 M4 起的 internal/article/app）应依赖它，
+	// 而不是自己去拿 *gorm.DB 开事务。放在这里是为了让装配层只拼一份依赖。
+	Tx mysql.TxManager
 }

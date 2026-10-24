@@ -66,7 +66,7 @@ type Handler struct {
 	db *gorm.DB
 }
 `,
-			ruleID: "R1",
+			ruleID:   "R1",
 			wantHits: 2, // 1 处 import + 1 处类型
 		},
 		{
@@ -325,6 +325,32 @@ func Handler() {
 			src:      "package x\n\nfunc f() {}\n",
 			ruleID:   "R7",
 			wantHits: 0,
+		},
+		{
+			// safego 是规则的正解实现地，必须豁免；否则规则无解。
+			name: "safego 自身实现豁免",
+			rel:  "internal/platform/safego/safego.go",
+			src: `package safego
+
+func Go(fn func()) {
+	go func() { fn() }()
+}
+`,
+			ruleID:   "R7",
+			wantHits: 0,
+		},
+		{
+			// 豁免必须精确：platform 其他目录仍然要拦。
+			name: "platform 其他包不豁免",
+			rel:  "internal/platform/log/emit.go",
+			src: `package log
+
+func start() {
+	go func() {}()
+}
+`,
+			ruleID:   "R7",
+			wantHits: 1,
 		},
 	}
 	for _, c := range cases {

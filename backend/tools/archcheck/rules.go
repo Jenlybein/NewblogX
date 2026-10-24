@@ -249,6 +249,12 @@ func ruleNoBareGo() Rule {
 		Title: "禁止裸 go 语句（应使用 safego.Go）",
 		Level: "warn",
 		Check: func(fset *token.FileSet, file *ast.File, rel string) []Violation {
+			// safego 是这条规则的正解实现地：启动裸 goroutine 的那一行必然
+			// 出现在它内部。若连它自己也被拦，规则将无解。豁免范围**精确**
+			// 限定到该目录，不覆盖 platform 的其他部分。
+			if isSafeGoImpl(rel) {
+				return nil
+			}
 			var out []Violation
 			ast.Inspect(file, func(n ast.Node) bool {
 				gs, ok := n.(*ast.GoStmt)
@@ -331,6 +337,13 @@ func isServiceOrDomainLayer(rel string) bool {
 // isDomainLayer 判断是否处于领域层。
 func isDomainLayer(rel string) bool {
 	return strings.Contains(rel, "/domain/") || strings.HasPrefix(rel, "domain/")
+}
+
+// isSafeGoImpl 判断是否是 safego 自身实现（R7 的唯一豁免点）。
+//
+// 只匹配该包目录下的文件；测试文件不在豁免范围内也无影响（它们不写裸 go）。
+func isSafeGoImpl(rel string) bool {
+	return strings.HasPrefix(rel, "internal/platform/safego/")
 }
 
 // hasChinese 判断字符串是否含 CJK 汉字。

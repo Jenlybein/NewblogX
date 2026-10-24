@@ -1,25 +1,32 @@
 package router
 
 import (
-	"myblogx/api"
-	"myblogx/api/comment_api"
+	commenthttp "myblogx/internal/comment/adapter/http"
 	mw "myblogx/middleware"
-	"myblogx/models"
 
 	"github.com/gin-gonic/gin"
 )
 
-func CommentRouter(r *gin.RouterGroup, appContainer api.Api, runtimeMw mw.Runtime) {
-	app := appContainer.CommentApi
+// commentHandler 由 app.WireComment 在启动时注入。
+var commentHandler *commenthttp.Handler
+
+// SetCommentHandler 注入评论处理器。
+func SetCommentHandler(h *commenthttp.Handler) { commentHandler = h }
+
+// CommentRouter 注册评论路由。
+func CommentRouter(r *gin.RouterGroup, runtimeMw mw.Runtime) {
+	if commentHandler == nil {
+		panic("router: 评论处理器未注入（应在 app.WireComment 中调用 SetCommentHandler）")
+	}
+	app := commentHandler
 
 	Group := r.Group("comments")
 	authGroup := Group.Group("", runtimeMw.AuthMiddleware)
-	// adminGroup := authGroup.Group("", mw.AdminMiddleware)
 
-	Group.GET("", mw.BindQuery[comment_api.CommentRootListRequest], app.CommentRootListView)
-	Group.GET("replies", mw.BindQuery[comment_api.CommentReplyListRequest], app.CommentReplyListView)
-	authGroup.GET("man", mw.BindQuery[comment_api.CommentManListRequest], app.CommentManListView)
-	authGroup.POST("", mw.BindJson[comment_api.CommentCreateRequest], app.CommentCreateView)
-	authGroup.POST(":id/digg", mw.BindUri[models.IDRequest], app.CommentDiggView)
-	authGroup.DELETE(":id", mw.BindUri[models.IDRequest], app.CommentRemoveView)
+	Group.GET("", app.ListRoot)
+	Group.GET("replies", app.ListReplies)
+	authGroup.GET("man", app.ListManaged)
+	authGroup.POST("", app.Create)
+	authGroup.POST(":id/digg", app.Digg)
+	authGroup.DELETE(":id", app.Remove)
 }

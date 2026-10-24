@@ -7,7 +7,6 @@ import (
 	"myblogx/api/banner_api"
 	"myblogx/api/captcha_api"
 	"myblogx/api/chat_api"
-	"myblogx/api/comment_api"
 	"myblogx/api/data_api"
 	"myblogx/api/follow_api"
 	"myblogx/api/global_notif_api"
@@ -27,7 +26,6 @@ type Api struct {
 	BannerApi       banner_api.BannerApi
 	ImageCaptchaApi captcha_api.ImageCaptchaApi
 	UserApi         user_api.UserApi
-	CommentApi      comment_api.CommentApi
 	ChatApi         chat_api.ChatApi
 	SitemsgApi      sitemsg_api.SitemsgApi
 	GlobalNotifApi  global_notif_api.GlobalNotifApi
@@ -79,12 +77,6 @@ func New(deps middleware.Deps) Api {
 			Email:            deps.Email,
 			Logger:           deps.Logger,
 			Redis:            deps.Redis,
-		}),
-		CommentApi: comment_api.New(comment_api.Deps{
-			DB:          deps.DB,
-			Logger:      deps.Logger,
-			Redis:       deps.Redis,
-			RuntimeSite: deps.RuntimeSite,
 		}),
 		ChatApi: chat_api.New(chat_api.Deps{
 			DB:     deps.DB,

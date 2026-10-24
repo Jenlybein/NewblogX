@@ -764,3 +764,17 @@ T.4 里 `article`/`comment`/`user` 的 fake 依赖 domain 实体，属依赖顺�
 - 装配期循环依赖用 `SessionRevokerFunc` 闭包延迟绑定（user 服务先建、auth 服务后建）。
 - `user_api` 只剩 `log_api`（登录日志，归 S4.9）；auth / profile / user_man 三个子包已迁。
 - 棘轮 **240 → 224**。
+
+## 11. M5 交付记录 · S4.2（comment）
+
+**2026-10-25**：`api/comment_api` + `repository/comment_repo` + `service/comment_service` 已删，
+`/comments` 6 条路由改由 `internal/comment` 提供。
+
+- `internal/comment/{domain,app,adapter/{mysql,http}}`：实体 + 状态 + 删除权限规则；
+  用例 Create / ToggleDigg / Remove / ListRoot / ListReplies / ListManaged。
+- **两级评论**：回复二级评论时 RootID 仍指向同一个一级评论，不再加深层级。
+- 计数 = 表内基数 + Redis 增量（`read_repo.CommentCounterReader`），
+  发布/删除时回写 `redis_article.SetCacheComment` 与 `redis_comment.*`。
+- 通知从裸 goroutine 改为同步 `Notifier` 端口（失败只记日志），S4.6 再换 outbox。
+- 点赞仓储拆成 `DiggRepo` 独立类型：两个端口的 `Create` 签名不同，同一类型不能同名方法。
+- 棘轮 **224 → 214**；`internal/comment/...` 零违规。

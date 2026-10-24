@@ -50,6 +50,9 @@ func WireHTTP(infra *Infra, lc *Lifecycle) error {
 	// user + auth 链路：认证路由改由 internal/auth 提供。
 	WireUser(infra)
 
+	// comment 链路：路由改由 internal/comment 提供。
+	WireComment(infra)
+
 	srv, err := router.Run(deps, api.New(deps))
 	if err != nil {
 		return fmt.Errorf("启动 HTTP 服务失败: %w", err)

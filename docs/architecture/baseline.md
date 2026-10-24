@@ -261,6 +261,25 @@ M3-C2 追加验收：`go build` / `go vet` / `gofmt -l` 全干净；`go test ./.
 | T.3 / T.4（tx） | ✅ | `testkit/`：Clock / SeqID / Golden / 独立 SQLite；`mysql.FakeTxManager` |
 | T.8 | ✅ | 集成测试改 testcontainers：`internal/testkit/chcontainer` 自动起 ClickHouse 并执行 `01-logs.sql`；无 Docker 时 `t.Skip`；`BLOGX_CH_ADDR` 可复用已有实例 |
 
+#### M3 阶段验收（2026-10-24 通过）
+
+M3 = S2 全部 + L 全部（L.1–L.5 + 提前完成的 L.10）+ T 基建（T.3 / T.4 基建 / T.8），全部达标：
+
+| 维度 | 项 | 状态 |
+| --- | --- | --- |
+| 契约 | S2.8 = 117 business operations；S2.9 = 两前端 `openapi.d.ts` + `Schema<>`/`Operation<>` | ✅ |
+| 日志 | L.1–L.5 端到端异步管道（WAL + ClickHouse sink）；L.10 审计瘦身（默认不记全量 raw） | ✅ |
+| 测试 | T.3 testkit / T.4 tx·outbox fake / T.8 testcontainers | ✅ |
+| 门禁 | 全量 `scripts/check.sh` exit 0；archcheck 棘轮 318 未上升；门禁自检 4/4 | ✅ |
+| 集成 | `go test -tags integration`（testcontainers 自动起 ClickHouse）两包 ok | ✅ |
+
+刻意的范围边界（不是缺陷）：
+
+- `/health` 不纳入 OpenAPI：infra 探针、不在 `/api` 下、返回空 body。
+- `api.ts` 保留为**视图模型/适配层**；契约 DTO 的唯一来源是生成的 `openapi.d.ts`。
+- **L.6–L.9**（删 `logsafe` 反射 / 去雪花 / TTL·压缩 / 日志规则）仍按原计划归 **M6**，
+  不在 M3 范围。
+
 #### L.3 的接线方式：一条管道，五张表，两种出口
 
 改造前：`EmitActionAudit` → `jsonLineSink.write` → 每个请求线程里 `json.Marshal`

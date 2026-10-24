@@ -5,9 +5,9 @@ import (
 	"io"
 	"myblogx/buildinfo"
 	"myblogx/conf"
+	"myblogx/internal/platform/idgen"
 	blogmodels "myblogx/models"
 	"myblogx/models/ctype"
-	"myblogx/service/db_service"
 	"myblogx/service/user_service"
 	"myblogx/utils/jwts"
 	"net/http"
@@ -46,7 +46,7 @@ func InitGlobals() {
 	}
 	applyDefaultConfig(testConfig)
 	configureModules()
-	if err := db_service.InitSnowflake(testConfig.System.ServerID); err != nil {
+	if err := idgen.Init(testConfig.System.ServerID); err != nil {
 		panic(fmt.Errorf("初始化测试雪花 ID 生成器失败: %w", err))
 	}
 }
@@ -256,7 +256,7 @@ func NewJSONRequest(method, target, body string) *http.Request {
 
 func IssueAccessToken(t *testing.T, user *blogmodels.UserModel) string {
 	t.Helper()
-	sessionID, err := db_service.NextSnowflakeID()
+	sessionID, err := idgen.Next()
 	if err != nil {
 		t.Fatalf("生成测试会话ID失败: %v", err)
 	}

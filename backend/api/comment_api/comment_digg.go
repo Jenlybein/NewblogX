@@ -2,12 +2,12 @@ package comment_api
 
 import (
 	"myblogx/common/res"
+	"myblogx/internal/platform/mysql"
 	"myblogx/internal/platform/redis"
 	"myblogx/internal/platform/redis/redis_comment"
 	"myblogx/middleware"
 	"myblogx/models"
 	"myblogx/models/enum"
-	dbservice "myblogx/service/db_service"
 	"myblogx/service/message_service"
 	"myblogx/utils/jwts"
 
@@ -62,7 +62,7 @@ func (h CommentApi) CommentDiggView(c *gin.Context) {
 	}
 
 	// 点赞成功与否只看本次恢复/新建是否真正落库。
-	createdOrRestored, err := dbservice.RestoreOrCreateUnique(db, &models.CommentDiggModel{
+	createdOrRestored, err := mysql.RestoreOrCreateUnique(db, &models.CommentDiggModel{
 		CommentID: id.ID,
 		UserID:    claims.UserID,
 	}, []string{"comment_id", "user_id"})

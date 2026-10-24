@@ -456,6 +456,7 @@ func TestAllRulesHaveSelfCheck(t *testing.T) {
 	covered := map[string]bool{
 		"R1": true, "R2": true, "R3": true, "R4": true,
 		"R5": true, "R6": true, "R7": true, "R8": true, "R9": true,
+		"R10": true, "R11": true,
 	}
 	for _, r := range rules() {
 		if !covered[r.ID] {
@@ -464,5 +465,123 @@ func TestAllRulesHaveSelfCheck(t *testing.T) {
 	}
 	if len(rules()) != len(covered) {
 		t.Errorf("规则数与自检覆盖数不一致：规则 %d 条，覆盖 %d 条", len(rules()), len(covered))
+	}
+}
+
+// TestR10_模块禁止importModels 验证 row 归属口径的闸门。
+func TestR10_模块禁止importModels(t *testing.T) {
+	cases := []case_{
+		{
+			name: "模块 adapter 直接 import models 根包",
+			rel:  "internal/comment/adapter/mysql/repo.go",
+			src: `package mysql
+
+import "myblogx/models"
+`,
+			ruleID:   "R10",
+			wantHits: 1,
+		},
+		{
+			name: "模块 domain import models 子包（非 ctype）",
+			rel:  "internal/comment/domain/comment.go",
+			src: `package domain
+
+import "myblogx/models/enum"
+`,
+			ruleID:   "R10",
+			wantHits: 1,
+		},
+		{
+			name: "import models/ctype 放行（值类型，M6 才搬）",
+			rel:  "internal/comment/adapter/mysql/repo.go",
+			src: `package mysql
+
+import "myblogx/models/ctype"
+`,
+			ruleID:   "R10",
+			wantHits: 0,
+		},
+		{
+			name: "共享设施不受约束",
+			rel:  "internal/platform/idgen/idgen.go",
+			src: `package idgen
+
+import "myblogx/models/ctype"
+`,
+			ruleID:   "R10",
+			wantHits: 0,
+		},
+		{
+			name: "旧 api 层不在本规则范围（由 R1/R5 管）",
+			rel:  "api/comment_api/enter.go",
+			src: `package comment_api
+
+import "myblogx/models"
+`,
+			ruleID:   "R10",
+			wantHits: 0,
+		},
+	}
+	for _, c := range cases {
+		runOne(t, c)
+	}
+}
+
+// TestR11_禁止跨模块importAdapter 验证模块边界。
+func TestR11_禁止跨模块importAdapter(t *testing.T) {
+	cases := []case_{
+		{
+			name: "comment 模块 import article 的 adapter",
+			rel:  "internal/comment/app/create.go",
+			src: `package app
+
+import "myblogx/internal/article/adapter/mysql"
+`,
+			ruleID:   "R11",
+			wantHits: 1,
+		},
+		{
+			name: "import 同模块自己的 adapter 放行",
+			rel:  "internal/article/app/create.go",
+			src: `package app
+
+import "myblogx/internal/article/adapter/mysql"
+`,
+			ruleID:   "R11",
+			wantHits: 0,
+		},
+		{
+			name: "import 别的模块 domain（端口/值对象）放行",
+			rel:  "internal/comment/app/create.go",
+			src: `package app
+
+import "myblogx/internal/article/domain"
+`,
+			ruleID:   "R11",
+			wantHits: 0,
+		},
+		{
+			name: "import platform 适配器放行",
+			rel:  "internal/comment/adapter/mysql/repo.go",
+			src: `package mysql
+
+import "myblogx/internal/platform/mysql"
+`,
+			ruleID:   "R11",
+			wantHits: 0,
+		},
+		{
+			name: "非 internal 文件不在范围",
+			rel:  "api/comment_api/create.go",
+			src: `package comment_api
+
+import "myblogx/internal/article/adapter/mysql"
+`,
+			ruleID:   "R11",
+			wantHits: 0,
+		},
+	}
+	for _, c := range cases {
+		runOne(t, c)
 	}
 }

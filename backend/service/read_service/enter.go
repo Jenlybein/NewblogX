@@ -17,7 +17,3 @@ func LoadUserDisplayMap(db *gorm.DB, userIDs []ctype.ID) (map[ctype.ID]UserDispl
 func SyncUserDisplaySnapshots(db *gorm.DB, userID ctype.ID) error {
 	return read_repo.SyncUserDisplaySnapshots(db, userID)
 }
-
-func SyncArticleFavorSnapshots(db *gorm.DB, articleIDs []ctype.ID) error {
-	return read_repo.SyncArticleFavorSnapshots(db, articleIDs)
-}

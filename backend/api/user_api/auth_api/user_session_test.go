@@ -4,10 +4,10 @@ import (
 	"encoding/json"
 	"fmt"
 	"myblogx/api/user_api/auth_api"
+	"myblogx/internal/platform/idgen"
 	"myblogx/models"
 	"myblogx/models/ctype"
 	"myblogx/models/enum"
-	"myblogx/service/db_service"
 	"myblogx/test/testutil"
 	"myblogx/utils/jwts"
 	"net/http"
@@ -18,7 +18,7 @@ import (
 
 func mustNextID(t *testing.T) ctype.ID {
 	t.Helper()
-	id, err := db_service.NextSnowflakeID()
+	id, err := idgen.Next()
 	if err != nil {
 		t.Fatalf("生成雪花 ID 失败: %v", err)
 	}

@@ -4,7 +4,7 @@ import (
 	"fmt"
 
 	"myblogx/conf"
-	"myblogx/service/db_service"
+	"myblogx/internal/platform/idgen"
 )
 
 const (
@@ -24,7 +24,7 @@ func InitSnowflake(config *conf.Config) error {
 		return fmt.Errorf("雪花机器ID必须在 1-%d 之间，当前: %d", maxSnowflakeNodeID, workerID)
 	}
 
-	if err := db_service.InitSnowflake(workerID); err != nil {
+	if err := idgen.Init(workerID); err != nil {
 		return fmt.Errorf("初始化雪花 ID 生成器失败: %w", err)
 	}
 

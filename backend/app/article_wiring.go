@@ -12,11 +12,11 @@ import (
 	articleapp "myblogx/internal/article/app"
 	"myblogx/internal/article/domain"
 	"myblogx/internal/article/domain/favorite"
+	"myblogx/internal/platform/idgen"
 	redis_service "myblogx/internal/platform/redis"
 	"myblogx/models/ctype"
 	"myblogx/models/enum"
 	"myblogx/router"
-	"myblogx/service/db_service"
 	"myblogx/service/image_service"
 	"myblogx/utils/jwts"
 )
@@ -61,7 +61,7 @@ type snowflakeIDs struct{}
 
 // NextArticleID 返回下一个文章 ID。
 func (snowflakeIDs) NextArticleID() domain.ArticleID {
-	id, err := db_service.NextSnowflakeID()
+	id, err := idgen.Next()
 	if err != nil {
 		panic("article: 雪花 ID 生成失败: " + err.Error())
 	}
@@ -70,7 +70,7 @@ func (snowflakeIDs) NextArticleID() domain.ArticleID {
 
 // NextReviewTaskID 返回下一个审核任务 ID。
 func (snowflakeIDs) NextReviewTaskID() uint64 {
-	id, err := db_service.NextSnowflakeID()
+	id, err := idgen.Next()
 	if err != nil {
 		panic("article: 雪花 ID 生成失败: " + err.Error())
 	}
@@ -79,7 +79,7 @@ func (snowflakeIDs) NextReviewTaskID() uint64 {
 
 // NextFolderID 返回下一个收藏夹 ID。
 func (snowflakeIDs) NextFolderID() favorite.ID {
-	id, err := db_service.NextSnowflakeID()
+	id, err := idgen.Next()
 	if err != nil {
 		panic("article: 雪花 ID 生成失败: " + err.Error())
 	}

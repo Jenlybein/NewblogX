@@ -6,10 +6,10 @@ import (
 	"strings"
 	"time"
 
+	"myblogx/internal/platform/idgen"
 	"myblogx/models"
 	"myblogx/models/ctype"
 	"myblogx/models/enum"
-	"myblogx/service/db_service"
 
 	"gorm.io/gorm"
 )
@@ -63,7 +63,7 @@ func CreateUploadTask(deps Deps, userID ctype.ID, fileName string, size int64, m
 	}
 
 	// 生成雪花ID作为上传任务ID
-	taskID, err := db_service.NextSnowflakeID()
+	taskID, err := idgen.Next()
 	if err != nil {
 		return nil, err
 	}

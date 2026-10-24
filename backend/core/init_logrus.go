@@ -6,8 +6,8 @@ import (
 	"time"
 
 	"myblogx/conf"
+	"myblogx/internal/platform/idgen"
 	"myblogx/models/ctype"
-	"myblogx/service/db_service"
 	"myblogx/service/log_service"
 
 	"github.com/sirupsen/logrus"
@@ -37,7 +37,7 @@ func (hook CommonFieldsHook) Fire(entry *logrus.Entry) error {
 
 	// 自动生成事件ID：优先雪花算法，失败则降级使用纳秒时间戳
 	if _, ok := entry.Data["event_id"]; !ok {
-		eventID, err := db_service.NextSnowflakeID()
+		eventID, err := idgen.Next()
 		if err == nil {
 			entry.Data["event_id"] = uint64(eventID)
 		} else {

@@ -8,9 +8,9 @@ import (
 
 	"myblogx/internal/article/domain"
 	"myblogx/internal/article/domain/taxonomy"
+	"myblogx/internal/platform/idgen"
 	"myblogx/models"
 	"myblogx/models/ctype"
-	"myblogx/service/db_service"
 )
 
 // CategoryRepo 是 taxonomy.CategoryRepository 的 MySQL 实现。
@@ -235,7 +235,7 @@ func (r *TagRepo) ReplaceArticleTags(ctx context.Context, articleID domain.Artic
 	// 同时刻意不写 deleted_at——不同环境里这张表是否带该列并不一致（见 baseline）。
 	rows := make([]map[string]any, 0, len(tagIDs))
 	for _, id := range tagIDs {
-		pk, err := db_service.NextSnowflakeID()
+		pk, err := idgen.Next()
 		if err != nil {
 			return err
 		}

@@ -21,8 +21,8 @@ import (
 	"time"
 
 	"myblogx/conf"
+	"myblogx/internal/platform/idgen"
 	"myblogx/internal/testkit/chcontainer"
-	"myblogx/service/db_service"
 
 	clickhouse "github.com/ClickHouse/clickhouse-go/v2"
 	"github.com/sirupsen/logrus"
@@ -72,7 +72,7 @@ func TestIntegrationPipelineWritesAllKinds(t *testing.T) {
 
 	// 雪花 ID 保证 event_id 唯一；否则同毫秒内的审计日志会被
 	// ReplacingMergeTree 当成重复行合并掉，count 断言会飘。
-	if err := db_service.InitSnowflake(1); err != nil {
+	if err := idgen.Init(1); err != nil {
 		t.Fatalf("初始化雪花 ID 失败: %v", err)
 	}
 

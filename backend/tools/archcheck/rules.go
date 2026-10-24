@@ -25,6 +25,8 @@ func rules() []Rule {
 		ruleNoBareGo(),
 		ruleNoChineseErrorsNew(),
 		ruleLogNoAny(),
+		ruleModuleNoModels(),
+		ruleModuleNoCrossAdapter(),
 	}
 }
 
@@ -423,4 +425,126 @@ func isAnyType(expr ast.Expr) bool {
 // isLogLayer 判断是否属于日志/审计层（R9 的作用范围）。
 func isLogLayer(rel string) bool {
 	return strings.HasPrefix(rel, "service/log_service/") || strings.HasPrefix(rel, "middleware/")
+}
+
+// ── R10：业务模块禁止 import models ─────────────────────────────
+//
+// M5 的 row 归属口径（见 04 §4.0）：row 结构（GORM 标签、列映射、TableName）
+// 复制进各模块 adapter/mysql 包内，models/ 只做减法。
+//
+// 不加这条闸门，九个批次都会照抄 M4 的做法继续 import models，
+// 到 M6 删 models/ 时就从"删文件"变成"九次集体返工"。
+//
+// 为什么放行 models/ctype：它是值类型（ID），不是 row 结构，全仓 186 个文件在用；
+// 搬它属于 M6 随 models 一起去 kernel 的事，与本规则主题无关。
+func ruleModuleNoModels() Rule {
+	return Rule{
+		ID:    "R10",
+		Slug:  "mod-no-models",
+		Title: "业务模块禁止 import models（row 结构应放本模块 adapter）",
+		Level: "warn",
+		Check: func(fset *token.FileSet, file *ast.File, rel string) []Violation {
+			if !isBusinessModule(rel) {
+				return nil
+			}
+			var out []Violation
+			for _, imp := range file.Imports {
+				p, _ := strconv.Unquote(imp.Path.Value)
+				if p != "myblogx/models" && !strings.HasPrefix(p, "myblogx/models/") {
+					continue
+				}
+				if strings.HasPrefix(p, "myblogx/models/ctype") {
+					continue
+				}
+				out = append(out, Violation{
+					Rule: "R10", File: rel, Line: fset.Position(imp.Pos()).Line,
+					Msg: fmt.Sprintf("业务模块不应 import %s（row 结构复制进本模块 adapter/mysql）", p),
+				})
+			}
+			return out
+		},
+	}
+}
+
+// ── R11：禁止跨模块 import 别人的 adapter ───────────────────────
+//
+// 跨模块协作只能走 port（读）或 outbox 事件（写），见 04 §4.2。
+// 一旦允许直接 import 别人的 adapter，那个 adapter 就成了事实上的公共库，
+// 依赖方向会从"模块 → 端口"退化成"模块 → 模块实现"，等于白拆。
+func ruleModuleNoCrossAdapter() Rule {
+	return Rule{
+		ID:    "R11",
+		Slug:  "mod-no-cross-adapter",
+		Title: "禁止跨模块 import 其他模块的 adapter",
+		Level: "warn",
+		Check: func(fset *token.FileSet, file *ast.File, rel string) []Violation {
+			self := moduleOf(rel)
+			if self == "" {
+				return nil
+			}
+			var out []Violation
+			for _, imp := range file.Imports {
+				p, _ := strconv.Unquote(imp.Path.Value)
+				other := moduleOfImport(p)
+				if other == "" || other == self {
+					continue
+				}
+				out = append(out, Violation{
+					Rule: "R11", File: rel, Line: fset.Position(imp.Pos()).Line,
+					Msg: fmt.Sprintf("模块 %s 不应 import 模块 %s 的 adapter（改走 port 或 outbox）", self, other),
+				})
+			}
+			return out
+		},
+	}
+}
+
+// isBusinessModule 判断是否属于 vertical slice 的业务模块。
+//
+// internal/platform、internal/testkit、internal/kernel、internal/apperr 是共享设施，
+// 不属于任何业务模块，不受 row 归属口径约束。
+func isBusinessModule(rel string) bool {
+	mod := moduleOf(rel)
+	return mod != ""
+}
+
+// moduleOf 从相对路径里取业务模块名；返回空串表示不是业务模块。
+//
+//	internal/article/adapter/mysql/x.go → "article"
+//	internal/platform/idgen/x.go        → ""（共享设施）
+func moduleOf(rel string) string {
+	if !strings.HasPrefix(rel, "internal/") {
+		return ""
+	}
+	rest := strings.TrimPrefix(rel, "internal/")
+	seg := rest
+	if i := strings.Index(rest, "/"); i >= 0 {
+		seg = rest[:i]
+	}
+	switch seg {
+	case "", "platform", "testkit", "kernel", "apperr":
+		return ""
+	}
+	return seg
+}
+
+// moduleOfImport 判断 import 路径是否指向某个业务模块的 adapter 包。
+//
+//	myblogx/internal/article/adapter/mysql → "article"
+//	myblogx/internal/article/domain        → ""（domain 可被跨模块依赖其契约）
+func moduleOfImport(p string) string {
+	const prefix = "myblogx/internal/"
+	if !strings.HasPrefix(p, prefix) {
+		return ""
+	}
+	rest := strings.TrimPrefix(p, prefix)
+	parts := strings.Split(rest, "/")
+	if len(parts) < 2 || parts[1] != "adapter" {
+		return ""
+	}
+	switch parts[0] {
+	case "platform", "testkit", "kernel", "apperr":
+		return ""
+	}
+	return parts[0]
 }

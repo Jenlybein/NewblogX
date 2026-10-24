@@ -262,6 +262,20 @@ river:
     # 固定重试间隔（毫秒）
     delay_ms: 200
 
+# 事务型发件箱（outbox_event_models）的保留期配置。
+# 中继只清理已终结的事件行（done / dead）；pending / failed / processing
+# 代表尚未投递完，无论多老都不清理，否则等于丢事件。
+# 0 或省略均按默认值处理。
+outbox:
+  # 已完成事件保留小时数，超期物理删除（默认 168 = 7 天）
+  retention_hours: 168
+  # 死信事件保留小时数，比 done 长便于排查（默认 720 = 30 天）
+  dead_retention_hours: 720
+  # 保留期清理的检查间隔（分钟，默认 60）
+  cleanup_interval_minutes: 60
+  # 单批删除行数上限，分批删除避免长时间持锁（默认 1000）
+  cleanup_batch_size: 1000
+
 # 图片引用关系同步配置。
 # 该模块会监听指定库中与图片引用相关的数据变更，用来维护图片引用关系。
 image_ref_river:

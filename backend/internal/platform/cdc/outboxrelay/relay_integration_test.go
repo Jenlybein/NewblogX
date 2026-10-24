@@ -312,3 +312,85 @@ func TestRelayRunAndClose(t *testing.T) {
 		t.Fatalf("订阅者调用次数: got=%d want=1", got)
 	}
 }
+
+// seedStaleRow 造一条"状态为 status、最后更新时间在 age 之前"的事件行。
+//
+// updated_at 必须用原始 SQL 回填：GORM 对 UpdatedAt 字段有 autoUpdateTime
+// 回调，用 Create/Updates 都改写不成"陈旧"值。
+func seedStaleRow(t *testing.T, db *gorm.DB, status string, age time.Duration) ctype.ID {
+	t.Helper()
+	now := time.Now()
+	row := models.OutboxEventModel{
+		EventName:     "article.published",
+		AggregateType: "article",
+		AggregateID:   9001,
+		Payload:       "{}",
+		Status:        status,
+		AvailableAt:   now,
+	}
+	row.CreatedAt = now
+	row.UpdatedAt = now
+	if err := db.Create(&row).Error; err != nil {
+		t.Fatalf("插入事件失败: %v", err)
+	}
+
+	if err := db.Exec(
+		"UPDATE outbox_event_models SET updated_at = ? WHERE id = ?",
+		now.Add(-age), row.ID,
+	).Error; err != nil {
+		t.Fatalf("回填 updated_at 失败: %v", err)
+	}
+	return row.ID
+}
+
+// TestRelayCleanup 保留期清理：
+//   - 只删过期的 done / dead；
+//   - 未过期的 done / dead 保留；
+//   - pending / failed / processing 无论多老都不删（还欠一次投递）；
+//   - 是物理删除（Unscoped 也查不到），否则回收不了磁盘。
+func TestRelayCleanup(t *testing.T) {
+	db := migrate(t)
+	relay := outboxrelay.New(db, nil, outboxrelay.Options{
+		RetentionDone: 24 * time.Hour,
+		RetentionDead: 72 * time.Hour,
+		CleanupLimit:  10,
+	})
+
+	expiredDone := seedStaleRow(t, db, models.OutboxStatusDone, 48*time.Hour)
+	obsoleteDone := seedStaleRow(t, db, models.OutboxStatusDone, time.Hour)
+	expiredDead := seedStaleRow(t, db, models.OutboxStatusDead, 100*time.Hour)
+	obsoleteDead := seedStaleRow(t, db, models.OutboxStatusDead, time.Hour)
+	// 这三条即使"很老"也不能删：它们还欠一次投递。
+	oldPending := seedStaleRow(t, db, models.OutboxStatusPending, 1000*time.Hour)
+	oldFailed := seedStaleRow(t, db, models.OutboxStatusFailed, 1000*time.Hour)
+	oldProcessing := seedStaleRow(t, db, models.OutboxStatusProcessing, 1000*time.Hour)
+
+	n, err := relay.Cleanup(context.Background())
+	if err != nil {
+		t.Fatalf("清理失败: %v", err)
+	}
+	if n != 2 {
+		t.Fatalf("删除条数: got=%d want=2", n)
+	}
+
+	countUnscoped := func(id ctype.ID) int64 {
+		t.Helper()
+		var cnt int64
+		if err := db.Unscoped().Model(&models.OutboxEventModel{}).
+			Where("id = ?", id).Count(&cnt).Error; err != nil {
+			t.Fatalf("查询失败: %v", err)
+		}
+		return cnt
+	}
+
+	for _, id := range []ctype.ID{expiredDone, expiredDead} {
+		if got := countUnscoped(id); got != 0 {
+			t.Fatalf("过期的终结行未被物理删除: id=%d count=%d", id, got)
+		}
+	}
+	for _, id := range []ctype.ID{obsoleteDone, obsoleteDead, oldPending, oldFailed, oldProcessing} {
+		if got := countUnscoped(id); got != 1 {
+			t.Fatalf("行被误删: id=%d count=%d", id, got)
+		}
+	}
+}

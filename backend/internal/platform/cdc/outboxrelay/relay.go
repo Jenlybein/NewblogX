@@ -74,6 +74,24 @@ type Options struct {
 	// 这行会一直卡在 processing。租约到期后补偿扫描会把这些行重新捞回，
 	// 否则崩溃一次就永久丢一条事件。
 	LeaseDuration time.Duration
+
+	// RetentionDone 已完成（done）事件行保留时长，超期物理删除。
+	//
+	// done 的行已经投递过了，再留着没有投递价值，只占磁盘。
+	// 不清理的话，每篇文章的创建/发布/点赞/收藏都会沉淀一行，长期只增不减。
+	RetentionDone time.Duration
+	// RetentionDead 死信（dead）事件行保留时长，通常比 done 长，便于事后排查。
+	//
+	// 死信在标记 dead 时已经同时写入 cdc_dead_letter_models，
+	// 所以这里过期后物理删除是安全的：证据还在死信表里。
+	RetentionDead time.Duration
+	// CleanupInterval 保留期清理的检查间隔。
+	CleanupInterval time.Duration
+	// CleanupLimit 单批删除行数上限。
+	//
+	// 为什么要分批：一次 DELETE 几十万行会长时间持锁、把 undo log 撑爆。
+	// 分批删能把每批的影响控制在可控范围。
+	CleanupLimit int
 }
 
 func (o Options) withDefaults() Options {
@@ -97,6 +115,18 @@ func (o Options) withDefaults() Options {
 	}
 	if o.LeaseDuration <= 0 {
 		o.LeaseDuration = 2 * time.Minute
+	}
+	if o.RetentionDone <= 0 {
+		o.RetentionDone = 7 * 24 * time.Hour
+	}
+	if o.RetentionDead <= 0 {
+		o.RetentionDead = 30 * 24 * time.Hour
+	}
+	if o.CleanupInterval <= 0 {
+		o.CleanupInterval = time.Hour
+	}
+	if o.CleanupLimit <= 0 {
+		o.CleanupLimit = 1000
 	}
 	return o
 }
@@ -195,6 +225,8 @@ func (r *Relay) Run() {
 		}
 		r.wg.Add(1)
 		safego.Go(handler, r.sweepLoop)
+		r.wg.Add(1)
+		safego.Go(handler, r.cleanupLoop)
 	})
 }
 
@@ -282,6 +314,107 @@ func (r *Relay) Sweep(ctx context.Context) (int, error) {
 		enqueued++
 	}
 	return enqueued, nil
+}
+
+// cleanupLoop 周期性删除超过保留期的已终结事件行。
+func (r *Relay) cleanupLoop() {
+	defer r.wg.Done()
+	ticker := time.NewTicker(r.opts.CleanupInterval)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ticker.C:
+			n, err := r.Cleanup(r.ctx)
+			if err != nil {
+				if r.log != nil {
+					r.log.Errorf("outbox 保留期清理失败: %v", err)
+				}
+				continue
+			}
+			if n > 0 && r.log != nil {
+				r.log.Infof("outbox 保留期清理删除 %d 条已终结事件", n)
+			}
+		case <-r.ctx.Done():
+			return
+		}
+	}
+}
+
+// maxCleanupBatches 单轮清理最多删多少批。
+//
+// 首次上线时表里可能已有存量，一轮删太久会拖慢停机；
+// 删不完的留给下一轮，反正清理是幂等的。
+const maxCleanupBatches = 20
+
+// Cleanup 删除超过保留期的已终结事件行（done / dead），返回删除条数。
+//
+// 只删 done 与 dead：pending/failed/processing 都代表"还欠一次投递"，
+// 无论多老都不能删，否则等于把事件丢掉。dead 之所以能删，是因为它在
+// 进入 dead 时已经把证据写进 cdc_dead_letter_models。
+//
+// 用 Unscoped 硬删：模型内嵌了软删的 deleted_at，软删并不回收磁盘，
+// 而保留期清理的目的就是回收磁盘，必须物理删除。
+func (r *Relay) Cleanup(ctx context.Context) (int, error) {
+	if r == nil || r.db == nil {
+		return 0, nil
+	}
+
+	now := time.Now()
+	// 再跑一次 withDefaults：万一有调用方绕过 New 直接构造 Relay，
+	// 也不会因为 Retention 为 0 把 done/dead 全删光。
+	opts := r.opts.withDefaults()
+	total := 0
+	for _, spec := range []struct {
+		status string
+		before time.Time
+	}{
+		{models.OutboxStatusDone, now.Add(-opts.RetentionDone)},
+		{models.OutboxStatusDead, now.Add(-opts.RetentionDead)},
+	} {
+		n, err := r.purge(ctx, spec.status, spec.before, opts.CleanupLimit)
+		if err != nil {
+			return total, err
+		}
+		total += n
+	}
+	return total, nil
+}
+
+// purge 按状态分批删除 updated_at 早于 before 的行。
+//
+// 先查 ID 再按 ID 删，而不是 DELETE ... LIMIT：
+//   - 不依赖 MySQL 方言（sqlite 默认不支持 DELETE ... LIMIT）；
+//   - 单批删除量严格可控，且能准确拿到 RowsAffected。
+func (r *Relay) purge(ctx context.Context, status string, before time.Time, limit int) (int, error) {
+	deleted := 0
+	for batch := 0; batch < maxCleanupBatches; batch++ {
+		var ids []ctype.ID
+		err := r.db.WithContext(ctx).Model(&models.OutboxEventModel{}).
+			Where("status = ? AND updated_at < ?", status, before).
+			Order("id asc").
+			Limit(limit).
+			Pluck("id", &ids).Error
+		if err != nil {
+			return deleted, err
+		}
+		if len(ids) == 0 {
+			break
+		}
+
+		res := r.db.WithContext(ctx).Unscoped().
+			Where("id IN ? AND status = ? AND updated_at < ?", ids, status, before).
+			Delete(&models.OutboxEventModel{})
+		if res.Error != nil {
+			return deleted, res.Error
+		}
+		deleted += int(res.RowsAffected)
+
+		if len(ids) < limit {
+			break // 不足一批，说明已经清完
+		}
+	}
+	return deleted, nil
 }
 
 // Dispatch 领取并投递一条事件。

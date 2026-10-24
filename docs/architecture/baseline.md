@@ -181,7 +181,7 @@ R3/R5 为 0 说明这两条当前确实没被违反（不是规则失效——`r
 
 | 指标 | 现在 | 目标 |
 | --- | --- | --- |
-| archcheck 违规数 | **320**（M3-D 后，棘轮已收紧到 320） | 单调递减至 0 |
+| archcheck 违规数 | **319**（M3-C1 后，棘轮已收紧到 319） | 单调递减至 0 |
 | `type Deps struct` | 34 | 0 |
 | api 层 `*gorm.DB` | 142 | 0 |
 | 裸 `go` 语句 | 17 | 0 |
@@ -213,12 +213,13 @@ M3 的 17 项里，先落地"所有后续模块都要用"的四件套。它们�
 | archcheck | **321 ≤ 321**，零新增；R7 豁免有正反用例 |
 | 棘轮 | `check.sh` / `verify-gates.sh` / `ci.yml` 同步收紧到 321 |
 
-### M3-B / M3-D：基础设施归位 + AI 客户端（已交付，棘轮 321→320）
+### M3-B / M3-D / M3-C1：基础设施归位 + AI 客户端 + 超长文件拆分（已交付，棘轮 321→319）
 
 | 批次 | 内容 | 结果 |
 | --- | --- | --- |
 | **M3-B（S2.2/S2.3）** | `service/redis_service` → `internal/platform/redis`；`service/es_service` → `internal/platform/es`；89 个文件 import 同步改写 | 纯路径迁移，行为零变化；移动包测试全绿；无残留旧路径 |
 | **M3-D（S2.6）** | 新建 `internal/platform/llm`：超时 / ctx / 重试 / 连接池；流式协程改 `safego.Go`；`ai_service` 变薄委托层 | R7 −1（`ai_service/enter.go` 的裸 `go` 消失），棘轮收紧到 **320** |
+| **M3-C1（S2.4）** | `internal/platform/es/article_sync.go`(1547) 按职责拆为 `article_sync.go` / `_update.go` / `_load.go`（435 / 385 / 752 行） | 同包内拆分、语义不变；R6 −1，棘轮收紧到 **319** |
 
 验收：`go test ./... -count=1` 全绿；llm 6 用例（成功/5xx重试/4xx不重试/ctx取消/流式/未开启）全绿；
 canary 注入 3 处违规 → 323 > 320 正确失败。
@@ -239,7 +240,7 @@ canary 注入 3 处违规 → 323 > 320 正确失败。
 | 批次 | 内容 | 规模 | 风险 |
 | --- | --- | --- | --- |
 | M3-B | S2.2 redis 拆 counter/guard/cache + S2.3 es 承接 | ~5,500 行，~15 处 importer | 中（机械迁移，但面广） |
-| M3-C | S2.4 拆 `article_sync.go`(1547) + S2.5 合并 river(3231→~1800) | ~4,800 行 | 高（行为等价需回归） |
+| M3-C | S2.5 合并 river(3231→~1800)（S2.4 article_sync 已拆分） | ~2,500 行 | 高（CDC 位点/行为等价需 shadow 双跑） |
 | M3-D | S2.6 `platform/llm` 重写 + S2.7 结构化输出 | ~2,800 行 | 中（需超时/ctx/重试） |
 | M3-E | S2.8 swag 生成 + S2.9 前端类型生成 | 工具链 | 低-中（契约先行） |
 | M3-F | L.3–L.5 生产写入口替换 + ClickHouse 批量/WAL | 跨模块 | 高（合规：audit 不可丢） |

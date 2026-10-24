@@ -23,6 +23,8 @@ import (
 	"myblogx/internal/testkit/mysqlcontainer"
 	"myblogx/models"
 	"myblogx/models/ctype"
+	"myblogx/models/enum"
+	"myblogx/utils/jwts"
 )
 
 // testClock 是固定时钟。
@@ -82,8 +84,14 @@ func newRouterWithIDs(t *testing.T, db *gorm.DB, viewer domain.Viewer, idStart u
 	gin.SetMode(gin.TestMode)
 	r := gin.New()
 	api := r.Group("/api")
-	noop := func(c *gin.Context) { c.Next() }
-	h.Register(api, noop, noop)
+	// 假鉴权：真实 JWT 中间件不在测试范围内。这里注入固定 claims，
+	// 因为 AdminMiddleware 会直接读上下文里的 claims（MustGet 不存在会 panic）。
+	// 实际操作者仍由上面的 viewer 闭包决定，两者互不影响。
+	auth := func(c *gin.Context) {
+		c.Set("claims", &jwts.MyClaims{Claims: jwts.Claims{UserID: ctype.ID(900), Role: enum.RoleAdmin}})
+		c.Next()
+	}
+	h.Register(api, auth, auth)
 	return r
 }
 

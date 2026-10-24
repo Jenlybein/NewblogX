@@ -3,6 +3,7 @@ package mysql
 import (
 	"context"
 	"errors"
+	"time"
 
 	"gorm.io/gorm"
 
@@ -13,6 +14,7 @@ import (
 	"myblogx/internal/article/domain/viewhistory"
 	"myblogx/models"
 	"myblogx/models/ctype"
+	"myblogx/models/enum"
 )
 
 // FavoriteRepo 是 favorite.Repository 的 MySQL 实现。
@@ -62,17 +64,38 @@ func (r *FavoriteRepo) DefaultFolder(ctx context.Context, userID domain.UserID) 
 }
 
 // ListFolders 列出某用户的收藏夹。
+//
+// 带回列表页需要的读模型字段：所属用户昵称/头像、创建与更新时间。
 func (r *FavoriteRepo) ListFolders(ctx context.Context, userID domain.UserID) ([]*favorite.Folder, error) {
-	var rows []models.FavoriteModel
+	var rows []struct {
+		models.FavoriteModel
+		Nickname string
+		Avatar   string
+	}
 	if err := r.db.WithContext(ctx).
-		Where("user_id = ?", fromUserID(userID)).
-		Order("is_default desc, id asc").
-		Find(&rows).Error; err != nil {
+		Table("favorite_models AS f").
+		Select("f.*, u.nickname AS nickname, u.avatar AS avatar").
+		Joins("LEFT JOIN user_models u ON u.id = f.user_id").
+		Where("f.user_id = ? AND f.deleted_at IS NULL", fromUserID(userID)).
+		Order("f.is_default desc, f.id asc").
+		Scan(&rows).Error; err != nil {
 		return nil, err
 	}
 	out := make([]*favorite.Folder, 0, len(rows))
 	for _, m := range rows {
-		out = append(out, toDomainFolder(m))
+		out = append(out, favorite.RestoreFolder(favorite.RestoreFolderParams{
+			ID:            favorite.ID(m.ID),
+			UserID:        domain.UserID(m.UserID),
+			Title:         m.Title,
+			Cover:         m.Cover,
+			Abstract:      m.Abstract,
+			IsDefault:     m.IsDefault,
+			ArticleCount:  m.ArticleCount,
+			CreatedAt:     m.CreatedAt,
+			UpdatedAt:     m.UpdatedAt,
+			OwnerNickname: m.Nickname,
+			OwnerAvatar:   m.Avatar,
+		}))
 	}
 	return out, nil
 }
@@ -119,7 +142,9 @@ func (r *FavoriteRepo) SaveFolder(ctx context.Context, f *favorite.Folder) error
 
 // DeleteFolder 删除收藏夹（FavoriteModel 的 BeforeDelete 会清掉收藏关系）。
 func (r *FavoriteRepo) DeleteFolder(ctx context.Context, id favorite.ID) error {
-	return r.db.WithContext(ctx).Delete(&models.FavoriteModel{}, "id = ?", ctype.ID(id)).Error
+	return r.db.WithContext(ctx).
+		Where("id = ?", ctype.ID(id)).
+		Delete(&models.FavoriteModel{}).Error
 }
 
 // FindItem 读取某夹子里的收藏。
@@ -185,24 +210,71 @@ func (r *FavoriteRepo) DeleteItemsByArticle(ctx context.Context, articleID domai
 }
 
 // ListItems 分页列出某夹子的收藏。
+//
+// 收藏快照 + 文章实时计数一次查出：列表页要展示 view/digg/comment/favor，
+// 快照里没有这些会变的数字，只能 join 文章表取当前值。
 func (r *FavoriteRepo) ListItems(ctx context.Context, folderID favorite.ID, offset, limit int) ([]*favorite.Item, int64, error) {
-	q := r.db.WithContext(ctx).Model(&models.UserArticleFavorModel{}).
-		Where("favor_id = ?", ctype.ID(folderID))
+	base := func() *gorm.DB {
+		return r.db.WithContext(ctx).Table("user_article_favor_models AS f").
+			Where("f.favor_id = ? AND f.deleted_at IS NULL", ctype.ID(folderID))
+	}
 
 	var total int64
-	if err := q.Count(&total).Error; err != nil {
+	if err := base().Count(&total).Error; err != nil {
 		return nil, 0, err
 	}
 	if limit <= 0 {
 		limit = 10
 	}
-	var rows []models.UserArticleFavorModel
-	if err := q.Order("created_at desc, id desc").Offset(offset).Limit(limit).Find(&rows).Error; err != nil {
+
+	var rows []struct {
+		CreatedAt       time.Time
+		ArticleID       ctype.ID
+		UserID          ctype.ID
+		ArticleTitle    string
+		ArticleAbstract string
+		ArticleCover    string
+		ArticleStatus   enum.ArticleStatus
+		AuthorID        ctype.ID
+		AuthorNickname  string
+		AuthorAvatar    string
+		ViewCount       int
+		DiggCount       int
+		CommentCount    int
+		FavorCount      int
+	}
+	if err := base().
+		Select("f.created_at, f.article_id, f.user_id, f.article_title, f.article_abstract, f.article_cover, " +
+			"f.article_status, f.article_author_id AS author_id, " +
+			"f.article_author_nickname AS author_nickname, f.article_author_avatar AS author_avatar, " +
+			"COALESCE(a.view_count,0) AS view_count, COALESCE(a.digg_count,0) AS digg_count, " +
+			"COALESCE(a.comment_count,0) AS comment_count, COALESCE(a.favor_count,0) AS favor_count").
+		Joins("LEFT JOIN article_models a ON a.id = f.article_id AND a.deleted_at IS NULL").
+		Order("f.created_at desc, f.id desc").
+		Offset(offset).Limit(limit).
+		Scan(&rows).Error; err != nil {
 		return nil, 0, err
 	}
+
 	out := make([]*favorite.Item, 0, len(rows))
 	for _, m := range rows {
-		out = append(out, toDomainItem(m))
+		out = append(out, favorite.RestoreItem(favorite.RestoreItemParams{
+			ArticleID:       domain.ArticleID(m.ArticleID),
+			UserID:          domain.UserID(m.UserID),
+			FolderID:        folderID,
+			ArticleTitle:    m.ArticleTitle,
+			ArticleAbstract: m.ArticleAbstract,
+			ArticleCover:    m.ArticleCover,
+			ArticleStatus:   domain.Status(m.ArticleStatus),
+			AuthorID:        domain.UserID(m.AuthorID),
+			AuthorNickname:  m.AuthorNickname,
+			AuthorAvatar:    m.AuthorAvatar,
+			FavoritedAt:     m.CreatedAt,
+			ViewCount:       m.ViewCount,
+			DiggCount:       m.DiggCount,
+			CommentCount:    m.CommentCount,
+			FavorCount:      m.FavorCount,
+		}))
 	}
 	return out, total, nil
 }
@@ -339,25 +411,53 @@ func (r *ViewHistoryRepo) Upsert(ctx context.Context, rec *viewhistory.Record) e
 }
 
 // List 列出浏览历史。
+//
+// 一次 join 出列表页要的标题/封面与浏览者信息，避免 HTTP 层逐条回查。
 func (r *ViewHistoryRepo) List(ctx context.Context, userID domain.UserID, offset, limit int) ([]*viewhistory.Record, int64, error) {
-	q := r.db.WithContext(ctx).Model(&models.UserArticleViewHistoryModel{}).
-		Where("user_id = ?", fromUserID(userID))
+	base := func() *gorm.DB {
+		return r.db.WithContext(ctx).Table("user_article_view_history_models AS h").
+			Where("h.user_id = ? AND h.deleted_at IS NULL", fromUserID(userID))
+	}
 
 	var total int64
-	if err := q.Count(&total).Error; err != nil {
+	if err := base().Count(&total).Error; err != nil {
 		return nil, 0, err
 	}
 	if limit <= 0 {
 		limit = 10
 	}
-	var rows []models.UserArticleViewHistoryModel
-	if err := q.Order("updated_at desc, id desc").Offset(offset).Limit(limit).Find(&rows).Error; err != nil {
+
+	var rows []struct {
+		UpdatedAt time.Time
+		ArticleID ctype.ID
+		UserID    ctype.ID
+		Title     string
+		Cover     string
+		Nickname  string
+		Avatar    string
+	}
+	if err := base().
+		Select("h.updated_at, h.article_id, h.user_id, " +
+			"a.title AS title, a.cover AS cover, u.nickname AS nickname, u.avatar AS avatar").
+		Joins("LEFT JOIN article_models a ON a.id = h.article_id AND a.deleted_at IS NULL").
+		Joins("LEFT JOIN user_models u ON u.id = h.user_id").
+		Order("h.updated_at desc, h.id desc").
+		Offset(offset).Limit(limit).
+		Scan(&rows).Error; err != nil {
 		return nil, 0, err
 	}
+
 	out := make([]*viewhistory.Record, 0, len(rows))
 	for _, m := range rows {
-		out = append(out, viewhistory.NewRecord(
-			domain.UserID(m.UserID), domain.ArticleID(m.ArticleID), m.UpdatedAt))
+		out = append(out, viewhistory.RestoreRecord(viewhistory.RestoreRecordParams{
+			ArticleID:    domain.ArticleID(m.ArticleID),
+			UserID:       domain.UserID(m.UserID),
+			ViewedAt:     m.UpdatedAt,
+			ArticleTitle: m.Title,
+			ArticleCover: m.Cover,
+			Nickname:     m.Nickname,
+			Avatar:       m.Avatar,
+		}))
 	}
 	return out, total, nil
 }

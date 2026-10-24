@@ -176,15 +176,17 @@ type FavoriteListRequest struct {
 
 // FavoriteArticlesRequest 收藏夹内文章。
 type FavoriteArticlesRequest struct {
-	FavorID ctype.ID `form:"favor_id" binding:"required"`
+	// 字段名沿用旧契约 favorite_id（不是 favor_id），前端零改动。
+	FavorID ctype.ID `form:"favorite_id" binding:"required"`
 	Page    int      `form:"page"`
 	Limit   int      `form:"limit"`
 }
 
 // FavoriteRemovePatchModel 批量移除收藏。
 type FavoriteRemovePatchModel struct {
-	ArticleIDs []ctype.ID `json:"article_ids" binding:"required"`
-	FavorID    ctype.ID   `json:"favor_id"`
+	// 字段名沿用旧契约 articles / favorite_id。
+	ArticleIDs []ctype.ID `json:"articles" binding:"required"`
+	FavorID    ctype.ID   `json:"favorite_id"`
 }
 
 // TagRequest 标签创建/更新（管理员）。
@@ -215,4 +217,78 @@ type ArticleTopListRequest struct {
 type ArticleViewHistoryRequest struct {
 	Page  int `form:"page"`
 	Limit int `form:"limit"`
+}
+
+// ── 列表类响应 DTO ──
+//
+// 这些接口的 domain 实体是私有字段，不能直接序列化；字段与旧契约一致。
+
+// CategoryListItem 分类列表项。
+type CategoryListItem struct {
+	ID           ctype.ID   `json:"id"`
+	CreatedAt    time.Time  `json:"created_at"`
+	UpdatedAt    time.Time  `json:"updated_at"`
+	DeletedAt    *time.Time `json:"deleted_at"`
+	Title        string     `json:"title"`
+	UserID       ctype.ID   `json:"user_id"`
+	ArticleCount int        `json:"article_count"`
+	Nickname     string     `json:"nickname,omitempty"`
+	Avatar       string     `json:"avatar,omitempty"`
+}
+
+// TagListItem 标签列表项。
+type TagListItem struct {
+	ID           ctype.ID   `json:"id"`
+	CreatedAt    time.Time  `json:"created_at"`
+	UpdatedAt    time.Time  `json:"updated_at"`
+	DeletedAt    *time.Time `json:"deleted_at"`
+	Title        string     `json:"title"`
+	Sort         int        `json:"sort"`
+	Description  string     `json:"description"`
+	ArticleCount int        `json:"article_count"`
+	IsEnabled    bool       `json:"is_enabled"`
+	CreatedBy    ctype.ID   `json:"created_by"`
+}
+
+// FavoriteListItem 收藏夹列表项。
+type FavoriteListItem struct {
+	CreatedAt    time.Time `json:"created_at"`
+	UpdatedAt    time.Time `json:"updated_at"`
+	ID           ctype.ID  `json:"id"`
+	UserID       ctype.ID  `json:"user_id"`
+	Title        string    `json:"title"`
+	Cover        string    `json:"cover"`
+	Abstract     string    `json:"abstract"`
+	IsDefault    bool      `json:"is_default"`
+	ArticleCount int       `json:"article_count"`
+	Nickname     string    `json:"nickname,omitempty"`
+	Avatar       string    `json:"avatar,omitempty"`
+	HasArticle   bool      `json:"has_article"`
+}
+
+// FavoriteArticleListItem 收藏内容项。
+type FavoriteArticleListItem struct {
+	FavoritedAt   time.Time          `json:"favorited_at"`
+	ArticleID     ctype.ID           `json:"article_id"`
+	Title         string             `json:"title"`
+	Abstract      string             `json:"abstract"`
+	Cover         string             `json:"cover"`
+	ViewCount     int                `json:"view_count"`
+	DiggCount     int                `json:"digg_count"`
+	CommentCount  int                `json:"comment_count"`
+	FavorCount    int                `json:"favor_count"`
+	UserNickname  string             `json:"user_nickname"`
+	UserAvatar    string             `json:"user_avatar"`
+	ArticleStatus enum.ArticleStatus `json:"article_status"`
+}
+
+// ArticleViewHistoryItem 浏览历史项。
+type ArticleViewHistoryItem struct {
+	UpdatedAt time.Time `json:"updated_at"`
+	Title     string    `json:"title"`
+	Cover     string    `json:"cover"`
+	Nickname  string    `json:"nickname"`
+	Avatar    string    `json:"avatar"`
+	UserID    ctype.ID  `json:"user_id"`
+	ArticleID ctype.ID  `json:"article_id"`
 }

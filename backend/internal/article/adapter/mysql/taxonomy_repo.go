@@ -34,17 +34,39 @@ func (r *CategoryRepo) Find(ctx context.Context, id domain.CategoryID) (*taxonom
 }
 
 // ListByUser 列出某用户的分类。
+//
+// 一次查询带回列表页需要的读模型字段：文章数、所属用户昵称/头像。
+// 不用 Preload("ArticleList")：那会把整篇文章行都捞上来，只为算个 count。
 func (r *CategoryRepo) ListByUser(ctx context.Context, userID domain.UserID) ([]*taxonomy.Category, error) {
-	var rows []models.CategoryModel
+	var rows []struct {
+		models.CategoryModel
+		ArticleCount int
+		Nickname     string
+		Avatar       string
+	}
 	if err := r.db.WithContext(ctx).
-		Where("user_id = ?", fromUserID(userID)).
-		Order("id asc").
-		Find(&rows).Error; err != nil {
+		Table("category_models AS c").
+		Select("c.*, "+
+			"(SELECT COUNT(*) FROM article_models a WHERE a.category_id = c.id AND a.deleted_at IS NULL) AS article_count, "+
+			"u.nickname AS nickname, u.avatar AS avatar").
+		Joins("LEFT JOIN user_models u ON u.id = c.user_id").
+		Where("c.user_id = ? AND c.deleted_at IS NULL", fromUserID(userID)).
+		Order("c.id asc").
+		Scan(&rows).Error; err != nil {
 		return nil, err
 	}
 	out := make([]*taxonomy.Category, 0, len(rows))
 	for _, m := range rows {
-		out = append(out, taxonomy.RestoreCategory(domain.CategoryID(m.ID), domain.UserID(m.UserID), m.Title))
+		out = append(out, taxonomy.RestoreCategoryView(taxonomy.RestoreCategoryParams{
+			ID:            domain.CategoryID(m.ID),
+			UserID:        domain.UserID(m.UserID),
+			Title:         m.Title,
+			CreatedAt:     m.CreatedAt,
+			UpdatedAt:     m.UpdatedAt,
+			ArticleCount:  m.ArticleCount,
+			OwnerNickname: m.Nickname,
+			OwnerAvatar:   m.Avatar,
+		}))
 	}
 	return out, nil
 }
@@ -255,5 +277,7 @@ func toDomainTag(m models.TagModel) *taxonomy.Tag {
 		ArticleCount: m.ArticleCount,
 		Enabled:      m.IsEnabled,
 		CreatedBy:    domain.UserID(m.CreatedBy),
+		CreatedAt:    m.CreatedAt,
+		UpdatedAt:    m.UpdatedAt,
 	})
 }

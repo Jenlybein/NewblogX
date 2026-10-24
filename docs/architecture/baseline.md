@@ -232,7 +232,8 @@ M3-C2 追加验收：`go build` / `go vet` / `gofmt -l` 全干净；`go test ./.
 ### 为什么"地基"要先做这四件
 
 - **事务**：M4 的 `internal/article/app` 必须能在一个事务里完成"写文章 + 发事件"，
-  并且能在没有数据库的情况下用 fake 跑回滚测试。没有 `TxManager`，M4 无法开始。
+  并且能在没有数据库的情况下用 fake 跑回滚测试。M3 已交付 `TxManager`，但接口形态
+  （回调交出 `*gorm.DB`）会让 app 反向依赖 gorm，**M4 步骤 0 需改造成 UnitOfWork**。
 - **testkit**：现有 `test/testutil` 是全局单例（`InitGlobals()` + 包级 `testDB`），
   测试之间互相污染、无法并行。新模块若沿用这套，重构会继续积累技术债。
 - **日志**：M3 之后所有模块都要写日志。先把"类型化 + 有界 + 不阻塞"的管道立起来，
@@ -279,6 +280,36 @@ M3 = S2 全部 + L 全部（L.1–L.5 + 提前完成的 L.10）+ T 基建（T.3 
 - `api.ts` 保留为**视图模型/适配层**；契约 DTO 的唯一来源是生成的 `openapi.d.ts`。
 - **L.6–L.9**（删 `logsafe` 反射 / 去雪花 / TTL·压缩 / 日志规则）仍按原计划归 **M6**，
   不在 M3 范围。
+
+#### M4 前置条件与七项决策（2026-10-24 拍板，代码未动）
+
+M4 = S3，范围定为**全 7 个子域**（article 主体 / review / favorite / top / view_history /
+category / tags），生产代码 3,547 行。开工前复核出四处与早期文档不符的实际口径：
+
+| 早期文档 | 实测 |
+| --- | --- |
+| 194 处 handler SQL | **63 处**（grep）/ archcheck R1 命中 69 处（全 api 层 140/142） |
+| `BeforeDelete` 级联上移 | **该钩子不存在**；级联在 `service/article_service/delete.go` 的 `DeleteArticles(tx *gorm.DB, ...)`，软删 **6 张表** + 本体，逐条 select+delete（N+1） |
+| article 模块即主体 | 另有 **34 处跨模块调用**：鉴权 8 / 跨模块写 4（`StatApplyArticleDelta`）/ 读展示 8 / 图片 6 / 子域互调 8 |
+| repository 有存量 | `repository/article_repo` 是**空壳**，S3.4 是从零实现 |
+
+七项决策：
+
+1. **范围**：全 7 子域，可整体删 `api/article_api`；`models/` 保留到 S5.2，故 ai/search/cron 引用不必提前改。
+2. **事务**：UnitOfWork —— `WithinTx(ctx, fn(ctx, Repos) error)`，`Repos` 由 app 定义。
+   **M3 交付的 `TxManager`/`FakeTxManager` 需返工**：现状 `fn(ctx, *gorm.DB)` 会把 gorm 直接塞进 app，
+   与 S3 验收「app 内不得出现 `*gorm.DB`」自相矛盾。
+3. **目录**：水平一套三层 `internal/article/{domain,app,adapter}`，子域在 domain 内用子包，
+   共享同一事务边界。
+4. **golden**：写死种子（20 篇 × 6 关联表，ID/时间/计数全硬编码），响应**逐字节比、不归一化**；
+   时区在种子内 `SET time_zone='+08:00'`。
+5. **MySQL 契约测试**：新增 `internal/testkit/mysqlcontainer`（照 `chcontainer` 模式）；
+   sqlite 不可用于此项。
+6. **跨模块写**：`AuthorStatsPort` 同步、复用同一事务；不改异步（会改变"统计立即生效"的语义）。
+7. **旧测试**：迁能迁的（业务规则 → domain 不变量矩阵），删绑死 DB/Gin 的；2,661 行不整体保留。
+
+**硬约束：零 DDL。** ES 投影纯靠 CDC（`cdc/river/article_row_snapshot.go` 按列名解析 binlog），
+`api/article_api` 内 0 处调用 ES；删列或改名会直接打穿投影。
 
 #### L.3 的接线方式：一条管道，五张表，两种出口
 
@@ -460,7 +491,7 @@ swag 链路已落地：`make openapi`（= `swag init --parseDependency --parseIn
 - **M3 = S2 全部 + L 全部（L.1–L.5）+ T 基建（T.3 / T.4 基建 / T.8）**
   日志是端到端管道：只做 L.1/L.2 会让"平台层已建好、生产路径仍同步落盘"的新旧并存状态
   持续整个阶段，且 L.3 单独做会丢审计日志——必须先有 L.4 的 WAL 兜底。
-- **M4 = S3**：article 全链路 + article 的有状态 fake
+- **M4 = S3**：article 全链路（全 7 子域）+ article 及各子域的有状态 fake（七项决策见上）
 - **M5 = S4**：其余模块，各自随行交付本模块的有状态 fake
 - **M6 = S5 + L6–L9**：删旧 Hook、去雪花、TTL 与压缩、日志规则（**L.10 审计字段瘦身已提前执行**，不占 M6 工期）
 

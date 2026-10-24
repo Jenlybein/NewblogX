@@ -3,10 +3,11 @@
 // L.3 验收：生产入口（EmitActionAudit / EmitLoginEvent / EmitCdcEvent /
 // EmitReplayEvent / logrus 钩子）接到管道后，日志真的进了 ClickHouse。
 //
-// 运行方式（需先起 ClickHouse 并建表，见 persist 包的集成测试说明）：
+// 运行方式（默认用 testcontainers 自动起 ClickHouse；没有 Docker 时 skip）：
 //
-//	BLOGX_CH_ADDR=127.0.0.1:19000 \
-//	  go test -tags integration -run Integration ./service/log_service/
+//	go test -tags integration -run Integration ./service/log_service/
+//
+// 复用已有实例时设 BLOGX_CH_ADDR=host:9000。
 package log_service
 
 import (
@@ -14,13 +15,13 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
-	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 	"time"
 
 	"myblogx/conf"
+	"myblogx/internal/testkit/chcontainer"
 	"myblogx/service/db_service"
 
 	clickhouse "github.com/ClickHouse/clickhouse-go/v2"
@@ -30,10 +31,7 @@ import (
 func openIntegrationCH(t *testing.T) *sql.DB {
 	t.Helper()
 
-	addr := os.Getenv("BLOGX_CH_ADDR")
-	if addr == "" {
-		addr = "127.0.0.1:19000"
-	}
+	addr := chcontainer.Addr(t)
 
 	db := clickhouse.OpenDB(&clickhouse.Options{
 		Addr: []string{addr},

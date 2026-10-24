@@ -2,13 +2,13 @@ package comment_api
 
 import (
 	"myblogx/common/res"
+	"myblogx/internal/platform/redis"
+	"myblogx/internal/platform/redis/redis_article"
+	"myblogx/internal/platform/redis/redis_comment"
 	"myblogx/middleware"
 	"myblogx/models"
 	"myblogx/models/ctype"
 	"myblogx/models/enum"
-	"myblogx/service/redis_service"
-	"myblogx/service/redis_service/redis_article"
-	"myblogx/service/redis_service/redis_comment"
 	"myblogx/utils/jwts"
 
 	"github.com/gin-gonic/gin"

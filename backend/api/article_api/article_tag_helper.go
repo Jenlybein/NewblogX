@@ -3,10 +3,10 @@ package article_api
 import (
 	"time"
 
+	"myblogx/internal/platform/redis"
+	"myblogx/internal/platform/redis/redis_tag"
 	"myblogx/models"
 	"myblogx/models/ctype"
-	"myblogx/service/redis_service"
-	"myblogx/service/redis_service/redis_tag"
 
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"

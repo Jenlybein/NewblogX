@@ -1,9 +1,9 @@
 package user_service_test
 
 import (
+	"myblogx/internal/platform/redis"
+	"myblogx/internal/platform/redis/redis_user"
 	"myblogx/models"
-	"myblogx/service/redis_service"
-	"myblogx/service/redis_service/redis_user"
 	"myblogx/service/user_service"
 	"myblogx/test/testutil"
 	"testing"

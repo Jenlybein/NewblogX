@@ -3,10 +3,10 @@ package comment_api
 import (
 	"encoding/json"
 	"myblogx/common"
+	"myblogx/internal/platform/redis/redis_comment"
 	"myblogx/models"
 	"myblogx/models/enum"
 	"myblogx/models/enum/relationship_enum"
-	"myblogx/service/redis_service/redis_comment"
 	"myblogx/test/testutil"
 	"myblogx/utils/jwts"
 	"testing"

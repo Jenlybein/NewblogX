@@ -6,9 +6,9 @@ import (
 	"strings"
 	"time"
 
+	"myblogx/internal/platform/es"
 	"myblogx/models/ctype"
 	"myblogx/models/enum"
-	"myblogx/service/es_service"
 
 	"github.com/go-mysql-org/go-mysql/canal"
 	"github.com/go-mysql-org/go-mysql/schema"

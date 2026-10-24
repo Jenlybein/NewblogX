@@ -6,8 +6,8 @@ import (
 	"time"
 
 	"myblogx/conf"
+	"myblogx/internal/platform/redis"
 	"myblogx/models/ctype"
-	"myblogx/service/redis_service"
 
 	"github.com/go-co-op/gocron/v2"
 	"github.com/go-redis/redis/v8"

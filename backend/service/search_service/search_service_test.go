@@ -2,12 +2,12 @@ package search_service
 
 import (
 	"encoding/json"
+	"myblogx/internal/platform/redis"
+	"myblogx/internal/platform/redis/redis_article"
 	"myblogx/models"
 	"myblogx/models/ctype"
 	"myblogx/models/enum"
 	"myblogx/repository/user_repo"
-	"myblogx/service/redis_service"
-	"myblogx/service/redis_service/redis_article"
 	"myblogx/test/testutil"
 	"myblogx/utils/markdown"
 	"testing"

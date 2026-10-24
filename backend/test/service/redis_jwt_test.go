@@ -2,9 +2,9 @@ package service_test
 
 import (
 	"myblogx/conf"
+	"myblogx/internal/platform/redis"
+	redis_jwt "myblogx/internal/platform/redis/redis_jwt"
 	"myblogx/models/enum"
-	"myblogx/service/redis_service"
-	redis_jwt "myblogx/service/redis_service/redis_jwt"
 	"myblogx/test/testutil"
 	"myblogx/utils/jwts"
 	"testing"

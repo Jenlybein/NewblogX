@@ -6,9 +6,9 @@ import (
 	"fmt"
 	"time"
 
+	"myblogx/internal/platform/redis/redis_image"
 	"myblogx/models"
 	"myblogx/models/enum"
-	"myblogx/service/redis_service/redis_image"
 
 	"github.com/go-redis/redis/v8"
 	"gorm.io/gorm"

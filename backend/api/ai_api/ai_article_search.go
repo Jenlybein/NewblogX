@@ -3,10 +3,10 @@ package ai_api
 import (
 	"myblogx/common"
 	"myblogx/common/res"
+	"myblogx/internal/platform/redis"
 	"myblogx/middleware"
 	"myblogx/models/ctype"
 	"myblogx/service/ai_service/ai_search"
-	"myblogx/service/redis_service"
 	"myblogx/service/search_service"
 	"strings"
 

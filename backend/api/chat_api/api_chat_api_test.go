@@ -8,13 +8,13 @@ import (
 	"time"
 
 	"myblogx/common"
+	"myblogx/internal/platform/redis"
 	"myblogx/models"
 	"myblogx/models/ctype"
 	"myblogx/models/enum"
 	"myblogx/models/enum/chat_msg_enum"
 	"myblogx/models/enum/relationship_enum"
 	"myblogx/service/chat_service"
-	"myblogx/service/redis_service"
 	"myblogx/test/testutil"
 	"myblogx/utils/jwts"
 

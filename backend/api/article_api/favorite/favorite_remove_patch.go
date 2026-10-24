@@ -3,10 +3,10 @@ package favorite
 import (
 	"fmt"
 	"myblogx/common/res"
+	"myblogx/internal/platform/redis"
+	"myblogx/internal/platform/redis/redis_article"
 	"myblogx/middleware"
 	"myblogx/models"
-	"myblogx/service/redis_service"
-	"myblogx/service/redis_service/redis_article"
 	"myblogx/utils/jwts"
 
 	"github.com/gin-gonic/gin"

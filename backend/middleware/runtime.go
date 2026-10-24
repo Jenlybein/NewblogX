@@ -2,8 +2,8 @@ package middleware
 
 import (
 	"myblogx/conf"
+	"myblogx/internal/platform/redis"
 	"myblogx/service/log_service"
-	"myblogx/service/redis_service"
 	"myblogx/service/site_service"
 	"myblogx/service/user_service"
 

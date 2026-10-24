@@ -1,7 +1,7 @@
 package river_service
 
 import (
-	"myblogx/service/es_service"
+	"myblogx/internal/platform/es"
 	riverrule "myblogx/service/river_service/rule"
 	"myblogx/test/testutil"
 	"testing"

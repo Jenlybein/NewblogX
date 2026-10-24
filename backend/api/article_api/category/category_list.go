@@ -3,9 +3,9 @@ package category
 import (
 	"myblogx/common"
 	"myblogx/common/res"
+	"myblogx/internal/platform/redis"
 	"myblogx/middleware"
 	"myblogx/models"
-	"myblogx/service/redis_service"
 	"myblogx/service/user_service"
 	"myblogx/utils/jwts"
 

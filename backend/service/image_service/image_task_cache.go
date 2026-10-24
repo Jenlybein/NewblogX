@@ -5,8 +5,8 @@ import (
 	"errors"
 	"time"
 
+	"myblogx/internal/platform/redis/redis_image"
 	"myblogx/models/ctype"
-	"myblogx/service/redis_service/redis_image"
 
 	"github.com/go-redis/redis/v8"
 )

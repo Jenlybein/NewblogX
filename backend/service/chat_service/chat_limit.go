@@ -2,12 +2,12 @@ package chat_service
 
 import (
 	"errors"
+	"myblogx/internal/platform/redis"
+	"myblogx/internal/platform/redis/redis_chat"
 	"myblogx/models"
 	"myblogx/models/ctype"
 	"myblogx/models/enum/relationship_enum"
 	"myblogx/service/follow_service"
-	"myblogx/service/redis_service"
-	"myblogx/service/redis_service/redis_chat"
 	"time"
 
 	"gorm.io/gorm"

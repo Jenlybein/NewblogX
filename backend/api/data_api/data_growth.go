@@ -2,10 +2,10 @@ package data_api
 
 import (
 	"myblogx/common/res"
+	"myblogx/internal/platform/redis"
+	"myblogx/internal/platform/redis/redis_site"
 	"myblogx/middleware"
 	"myblogx/models"
-	"myblogx/service/redis_service"
-	"myblogx/service/redis_service/redis_site"
 	"time"
 
 	"github.com/gin-gonic/gin"

@@ -3,9 +3,9 @@ package cron_service
 import (
 	"context"
 	"fmt"
+	"myblogx/internal/platform/redis/redis_article"
 	"myblogx/models"
 	"myblogx/models/ctype"
-	"myblogx/service/redis_service/redis_article"
 	"time"
 
 	"gorm.io/gorm"

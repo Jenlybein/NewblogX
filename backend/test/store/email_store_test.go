@@ -1,8 +1,8 @@
 package store_test
 
 import (
-	"myblogx/service/redis_service"
-	redis_email "myblogx/service/redis_service/redis_email"
+	"myblogx/internal/platform/redis"
+	redis_email "myblogx/internal/platform/redis/redis_email"
 	"myblogx/test/testutil"
 	"testing"
 	"time"

@@ -2,7 +2,7 @@ package middleware
 
 import (
 	"myblogx/common/res"
-	redis_email "myblogx/service/redis_service/redis_email"
+	redis_email "myblogx/internal/platform/redis/redis_email"
 	"myblogx/utils/io_util"
 
 	"github.com/gin-gonic/gin"

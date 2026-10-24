@@ -61,6 +61,33 @@ const (
 	CodeReviewTaskDenied   Code = "review.task_forbidden"
 )
 
+// 用户资料与管理。
+const (
+	CodeUserNotFound          Code = "user.not_found"
+	CodeUserForbidden         Code = "user.forbidden"
+	CodeUserUsernameTaken     Code = "user.username_taken"
+	CodeUserUsernameCooldown  Code = "user.username_cooldown"
+	CodeUserUsernameInvalid   Code = "user.username_invalid"
+	CodeUserNicknameRequired  Code = "user.nickname_required"
+	CodeUserNicknameTooLong   Code = "user.nickname_too_long"
+	CodeUserAbstractTooLong   Code = "user.abstract_too_long"
+	CodeUserStatusInvalid     Code = "user.status_invalid"
+	CodeUserStatusSelfLocked  Code = "user.status_self_locked"
+	CodeUserEmailTaken        Code = "user.email_taken"
+	CodeUserEmailNotBound     Code = "user.email_not_bound"
+	CodeUserInvalidCredential Code = "user.invalid_credential"
+	CodeUserAccountDisabled   Code = "user.account_disabled"
+	CodeUserAccountBanned     Code = "user.account_banned"
+	CodeUserPasswordRequired  Code = "user.password_required"
+	CodeUserPasswordTooShort  Code = "user.password_too_short"
+	CodeUserSessionExpired    Code = "user.session_expired"
+	CodeUserTokenInvalid      Code = "user.token_invalid"
+	CodeUserCaptchaInvalid    Code = "user.captcha_invalid"
+	CodeUserMailSendFailed    Code = "user.mail_send_failed"
+	CodeUserOAuthFailed       Code = "user.oauth_failed"
+	CodeUserRegisterDisabled  Code = "user.register_disabled"
+)
+
 // messages 是错误码到中文文案的唯一映射。
 //
 // 新增错误码时**必须**在这里补一行；缺了不会 panic，Error() 会退化成码本身，
@@ -93,6 +120,30 @@ var messages = map[Code]string{
 	CodeReviewTaskNotFound: "审核任务不存在",
 	CodeReviewTaskHandled:  "审核任务已处理",
 	CodeReviewTaskDenied:   "无权处理该审核任务",
+
+	CodeUserNotFound:          "用户不存在",
+	CodeUserForbidden:         "无权操作该用户",
+	CodeUserUsernameTaken:     "用户名已被使用",
+	CodeUserUsernameCooldown:  "用户名每 30 天内只能更新 1 次",
+	CodeUserUsernameInvalid:   "用户名格式不符合要求",
+	CodeUserNicknameRequired:  "昵称不能为空",
+	CodeUserNicknameTooLong:   "昵称长度超出限制",
+	CodeUserAbstractTooLong:   "个人简介长度超出限制",
+	CodeUserStatusInvalid:     "账号状态不合法",
+	CodeUserStatusSelfLocked:  "不能修改自己的账号状态",
+	CodeUserEmailTaken:        "邮箱已被使用",
+	CodeUserEmailNotBound:     "账号尚未绑定邮箱",
+	CodeUserInvalidCredential: "账号或密码错误",
+	CodeUserAccountDisabled:   "账号已被禁用",
+	CodeUserAccountBanned:     "账号已被封禁",
+	CodeUserPasswordRequired:  "请先设置密码",
+	CodeUserPasswordTooShort:  "密码长度不足",
+	CodeUserSessionExpired:    "登录状态已过期，请重新登录",
+	CodeUserTokenInvalid:      "登录凭证无效",
+	CodeUserCaptchaInvalid:    "验证码错误或已过期",
+	CodeUserMailSendFailed:    "邮件发送失败，请稍后重试",
+	CodeUserOAuthFailed:       "第三方登录失败",
+	CodeUserRegisterDisabled:  "当前站点未开放注册",
 }
 
 // Error 是带错误码的应用错误。

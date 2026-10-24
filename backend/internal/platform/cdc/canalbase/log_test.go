@@ -1,4 +1,4 @@
-package river
+package canalbase
 
 import (
 	"bytes"
@@ -23,9 +23,9 @@ func newBufferLogger() (*logrus.Logger, *bytes.Buffer) {
 	return l, buf
 }
 
-func TestLogrusToSlogAdapter(t *testing.T) {
+func TestNewLogAdapter(t *testing.T) {
 	logger, buf := newBufferLogger()
-	adapter := logrusToSlogAdapter(logger)
+	adapter := NewLogAdapter(logger)
 
 	adapter.Info("hello", "k", "v")
 	out := buf.String()
@@ -70,5 +70,37 @@ func TestSimpleLogrusHandlerHandleAndHelpers(t *testing.T) {
 	}
 	if !strings.Contains(out, "a=1") {
 		t.Fatalf("日志属性输出缺失: %s", out)
+	}
+}
+
+// 高频进度日志必须降级到 debug；正常消息不能被误降级。
+func TestShouldDowngradeInfo(t *testing.T) {
+	cases := []struct {
+		msg  string
+		want bool
+	}{
+		{"Create BinlogSyncer with config", true},
+		{"rotate to next binlog", true},
+		{"connected to server", true},
+		{"同步文章失败", false},
+		{"", false},
+	}
+	for _, c := range cases {
+		if got := shouldDowngradeInfo(c.msg); got != c.want {
+			t.Fatalf("shouldDowngradeInfo(%q) = %v, 期望 %v", c.msg, got, c.want)
+		}
+	}
+}
+
+// 文件名与函数名的截断规则不同：文件名含点不能被切掉扩展名。
+func TestBaseNameHelpers(t *testing.T) {
+	if got := baseFileName(`C:\a\b\river.go`); got != "river.go" {
+		t.Fatalf("baseFileName 结果 %q，期望 river.go", got)
+	}
+	if got := baseFileName("a/b/imageref.go"); got != "imageref.go" {
+		t.Fatalf("baseFileName 结果 %q，期望 imageref.go", got)
+	}
+	if got := baseFuncName("myblogx/cdc.(*River).Run"); got != "Run" {
+		t.Fatalf("baseFuncName 结果 %q，期望 Run", got)
 	}
 }

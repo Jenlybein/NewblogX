@@ -67,9 +67,15 @@ func migrate(t *testing.T) *gorm.DB {
 // newRouter 装一套真实链路（真 MySQL + 新 handler），只把鉴权换成固定身份。
 func newRouter(t *testing.T, db *gorm.DB, viewer domain.Viewer) *gin.Engine {
 	t.Helper()
+	return newRouterWithIDs(t, db, viewer, 100)
+}
+
+// newRouterWithIDs 允许指定 ID 起点：golden 要可复现，ID 必须可预测。
+func newRouterWithIDs(t *testing.T, db *gorm.DB, viewer domain.Viewer, idStart uint64) *gin.Engine {
+	t.Helper()
 
 	uow := articlemysql.NewTxManager(db, redis_service.Deps{}, articlemysql.NewOutbox())
-	svc := articleapp.New(uow, testClock{at: time.Date(2026, 1, 1, 12, 0, 0, 0, time.UTC)}, &testIDs{n: 100})
+	svc := articleapp.New(uow, testClock{at: time.Date(2026, 1, 1, 12, 0, 0, 0, time.UTC)}, &testIDs{n: idStart})
 
 	h := articlehttp.NewHandler(svc, nil, nil, func(*gin.Context) domain.Viewer { return viewer }, nil)
 
@@ -79,6 +85,40 @@ func newRouter(t *testing.T, db *gorm.DB, viewer domain.Viewer) *gin.Engine {
 	noop := func(c *gin.Context) { c.Next() }
 	h.Register(api, noop, noop)
 	return r
+}
+
+// rawRequest 返回原始响应字节。
+//
+// golden 必须比字节：结构体比较会掩盖字段顺序、数字/字符串、null 与缺省等差异。
+func rawRequest(t *testing.T, r *gin.Engine, method, path string, body []byte) []byte {
+	t.Helper()
+	var req *http.Request
+	if body != nil {
+		req = httptest.NewRequest(method, path, bytes.NewReader(body))
+		req.Header.Set("Content-Type", "application/json")
+	} else {
+		req = httptest.NewRequest(method, path, nil)
+	}
+	reader := httptest.NewRecorder()
+	r.ServeHTTP(reader, req)
+	return reader.Body.Bytes()
+}
+
+// seedAuthor 插入作者行（article.author_id 有外键）。
+func seedAuthor(t *testing.T, db *gorm.DB, id uint64) {
+	t.Helper()
+	u := models.UserModel{}
+	u.ID = ctype.ID(id)
+	u.Username = "author"
+	u.Nickname = "作者"
+	u.Password = "x"
+	// 固定时间：作者创建时间会进详情响应（author_created_time），
+	// 不定死的话 golden 每次都变。
+	u.CreatedAt = time.Date(2026, 1, 1, 12, 0, 0, 0, time.UTC)
+	u.UpdatedAt = u.CreatedAt
+	if err := db.Create(&u).Error; err != nil {
+		t.Fatalf("建用户失败: %v", err)
+	}
 }
 
 func do(t *testing.T, r *gin.Engine, method, path string, body []byte) map[string]any {
@@ -112,6 +152,10 @@ func TestDetailEndToEnd(t *testing.T) {
 	u.Username = "author"
 	u.Nickname = "作者"
 	u.Password = "x"
+	// 固定时间：作者创建时间会进详情响应（author_created_time），
+	// 不定死的话 golden 每次都变。
+	u.CreatedAt = time.Date(2026, 1, 1, 12, 0, 0, 0, time.UTC)
+	u.UpdatedAt = u.CreatedAt
 	if err := db.Create(&u).Error; err != nil {
 		t.Fatalf("建用户失败: %v", err)
 	}

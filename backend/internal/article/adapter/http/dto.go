@@ -87,12 +87,6 @@ type ArticleDetailResponse struct {
 	IsFavor             bool                         `json:"is_favor"`
 }
 
-// ArticleExamineRequest 审核。
-type ArticleExamineRequest struct {
-	Status enum.ArticleStatus `json:"status" binding:"required,oneof=3 4"`
-	Reason string             `json:"reason"`
-}
-
 // ArticleFavoriteRequest 收藏。
 type ArticleFavoriteRequest struct {
 	ArticleID ctype.ID `json:"article_id" binding:"required"`

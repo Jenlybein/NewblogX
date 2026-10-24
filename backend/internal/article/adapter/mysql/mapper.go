@@ -120,6 +120,7 @@ func toDomainArticle(m models.ArticleModel, tags []domain.TagID) *domain.Article
 func applyArticleTo(a *domain.Article, m *models.ArticleModel) {
 	m.ID = fromArticleID(a.ID())
 	m.AuthorID = fromUserID(a.AuthorID())
+	m.CreatedAt = a.CreatedAt()
 	m.Title = a.Title()
 	m.Abstract = a.Abstract()
 	m.Content = a.Content()

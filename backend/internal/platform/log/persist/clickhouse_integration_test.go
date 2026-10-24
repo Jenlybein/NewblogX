@@ -2,15 +2,11 @@
 
 // L.4 验收：断 ClickHouse 写 1000 条 audit，恢复后 count==1000 且无重复。
 //
-// 运行方式（需先起 ClickHouse 并建表）：
+// 运行方式（默认用 testcontainers 自动起 ClickHouse；没有 Docker 时 skip）：
 //
-//	docker run -d --name blogx-ch-it -p 18123:8123 -p 19000:9000 \
-//	  -e CLICKHOUSE_DB=blogx_logs -e CLICKHOUSE_SKIP_USER_SETUP=1 \
-//	  -v "<repo>/deploy/docker/clickhouse/init:/docker-entrypoint-initdb.d" \
-//	  clickhouse/clickhouse-server:25.3
+//	go test -tags integration -run Integration ./internal/platform/log/persist/
 //
-//	BLOGX_CH_ADDR=127.0.0.1:19000 \
-//	  go test -tags integration -run Integration ./internal/platform/log/persist/
+// 复用已有实例时设 BLOGX_CH_ADDR=host:9000（该实例需已执行 01-logs.sql 建表）。
 package persist
 
 import (
@@ -22,6 +18,8 @@ import (
 	"testing"
 	"time"
 
+	"myblogx/internal/testkit/chcontainer"
+
 	clickhouse "github.com/ClickHouse/clickhouse-go/v2"
 )
 
@@ -30,10 +28,7 @@ const auditTable = "blogx_logs.action_audit_logs"
 func openCH(t *testing.T) *sql.DB {
 	t.Helper()
 
-	addr := os.Getenv("BLOGX_CH_ADDR")
-	if addr == "" {
-		addr = "127.0.0.1:19000"
-	}
+	addr := chcontainer.Addr(t)
 
 	db := clickhouse.OpenDB(&clickhouse.Options{
 		Addr: []string{addr},

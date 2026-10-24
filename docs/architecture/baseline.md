@@ -259,6 +259,7 @@ M3-C2 追加验收：`go build` / `go vet` / `gofmt -l` 全干净；`go test ./.
 | L.5 | ✅ | 删掉 fluent-bit 服务与其 5 个 app tail（`Skip_Long_Lines` 会丢长行、`Read_from_Head` 会重放历史）。应用现在直接写 ClickHouse，中间不再有采集器 |
 | L.10 | ✅ | 审计字段瘦身（选项 1 纯热库）：删 4 个 `*_raw` 列与字段；`request_body`/`response_body` 仅失败时写 + `CODEC(ZSTD(9))`；`ActionAuditInput.RequestBody/ResponseBody` 改 `[]byte`、`GinAuditInput` 去 body/header 入参；请求体边界 `io.LimitReader` 限 1MB；archcheck 新增 R9（slug `log-no-any`） |
 | T.3 / T.4（tx） | ✅ | `testkit/`：Clock / SeqID / Golden / 独立 SQLite；`mysql.FakeTxManager` |
+| T.8 | ✅ | 集成测试改 testcontainers：`internal/testkit/chcontainer` 自动起 ClickHouse 并执行 `01-logs.sql`；无 Docker 时 `t.Skip`；`BLOGX_CH_ADDR` 可复用已有实例 |
 
 #### L.3 的接线方式：一条管道，五张表，两种出口
 

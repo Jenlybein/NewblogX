@@ -257,6 +257,7 @@ M3-C2 追加验收：`go build` / `go vet` / `gofmt -l` 全干净；`go test ./.
 | L.3 | ✅ | 生产入口已接线：删掉 `jsonLineSink`（同步 `json.Marshal` + 每条一次文件写 + 全局锁），改由 `log_service/pipeline.go` 五条有界队列承接；`EmitActionAudit` 等 4 类写入与 logrus 的 `FileDateHook` 全部改为投递 |
 | L.4 | ✅ | `log/persist`：`ClickHouseSink` + `WALSink` + `ReplayWAL`；管道在启用 ClickHouse 时组合为 `WALSink(ClickHouseSink)`，并挂在启动时自动重放；5 张日志表引擎改 `ReplacingMergeTree` |
 | L.5 | ✅ | 删掉 fluent-bit 服务与其 5 个 app tail（`Skip_Long_Lines` 会丢长行、`Read_from_Head` 会重放历史）。应用现在直接写 ClickHouse，中间不再有采集器 |
+| L.10 | 🟡 **文档已定稿、待实现** | 审计字段瘦身（选项 1 纯热库）：删 4 个 `*_raw` 列与字段；`request_body`/`response_body` 仅失败时写 + `CODEC(ZSTD(9))`；`ActionAuditInput` 去 `any`；补 archcheck `log-no-any` |
 | T.3 / T.4（tx） | ✅ | `testkit/`：Clock / SeqID / Golden / 独立 SQLite；`mysql.FakeTxManager` |
 
 #### L.3 的接线方式：一条管道，五张表，两种出口
@@ -361,6 +362,21 @@ L.3 之后应用已经直接写 ClickHouse（`WALSink(ClickHouseSink)`），采�
 应用退回写每日文件（L.3 的文件出口），此时没有采集器把文件送进 CH——这是刻意的：
 关掉 CH 就表示"这台实例不查 CH 日志"，而不是"用采集器补上"。
 
+#### L.10 审计字段策略：默认不记全量 raw（选项 1 · 纯热库）
+
+落地口径见 [07 §0](./07-日志模块治理.md)。要点：
+
+- **删除** `request_body_raw` / `response_body_raw` / `request_header_raw` / `response_header_raw`
+  四个字段与 ClickHouse 列——它们既是采集器会丢的"最长行"，又是 `MarshalAuditValue → SanitizeValue`
+  反射整棵树的爆炸源，还带 PII 合规风险。
+- `request_body` / `response_body` 保留，但**只在失败请求时写**，列加 `CODEC(ZSTD(9))`。
+- `ActionAuditInput` 去掉 `RequestBody any` / `ResponseBody any`，改受控的 `[]byte`（已脱敏 + ≤16KB）。
+- archcheck 新增 `log-no-any`：审计输入禁 `any`、禁结构体，防止老毛病复发。
+- **不做冷存储分层**（选项 1）。`payload_ref` 列预留但默认不写，将来要"原始报文冷存储"再启用。
+
+迁移：`ReplacingMergeTree` 支持 `ALTER TABLE ... DROP COLUMN`，旧数据那几列变默认空；
+CH 的 `input_format_skip_unknown_fields=1` 会让旧 WAL 里多出的 `*_raw` 键被静默忽略，重放不受影响。
+
 #### L.4 三个组件各自负责什么
 
 | 组件 | 职责 | 关键设计 |
@@ -425,7 +441,7 @@ swag 工具链已验证：能装（`go install` 成功）、能跑（`swag init`
   持续整个阶段，且 L.3 单独做会丢审计日志——必须先有 L.4 的 WAL 兜底。
 - **M4 = S3**：article 全链路 + article 的有状态 fake
 - **M5 = S4**：其余模块，各自随行交付本模块的有状态 fake
-- **M6 = S5 + L6–L9**：删旧 Hook、去雪花、TTL 与压缩、日志规则
+- **M6 = S5 + L6–L9**：删旧 Hook、去雪花、TTL 与压缩、日志规则（**L.10 审计字段瘦身已提前执行**，不占 M6 工期）
 
 T.4 里 `article`/`comment`/`user` 的 fake 依赖 domain 实体，属依赖顺序而非成本，随各模块交付；
 `outbox`/`tx` 的 fake 不依赖 domain，在 M3 交付。

@@ -254,4 +254,6 @@ type Repository interface {
 	DeleteItemsByArticle(ctx context.Context, articleID domain.ArticleID) error
 	// ListItems 分页列出某夹子里的收藏。
 	ListItems(ctx context.Context, folderID ID, offset, limit int) ([]*Item, int64, error)
+	// CountByArticle 统计某文章被收藏的次数（删文章时用于审计与统计扣减）。
+	CountByArticle(ctx context.Context, articleID domain.ArticleID) (int, error)
 }

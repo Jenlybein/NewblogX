@@ -281,6 +281,23 @@ func (r *FavoriteRepo) ListItems(_ context.Context, folderID favorite.ID, offset
 	return all[offset:end], total, nil
 }
 
+// CountByArticle 统计某文章被收藏的次数。
+func (r *FavoriteRepo) CountByArticle(_ context.Context, articleID domain.ArticleID) (int, error) {
+	r.count.inc("CountByArticle")
+	if err := r.fault.take("CountByArticle"); err != nil {
+		return 0, err
+	}
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	n := 0
+	for k := range r.items {
+		if k.articleID == articleID {
+			n++
+		}
+	}
+	return n, nil
+}
+
 // Snapshot 参与事务回滚。
 func (r *FavoriteRepo) Snapshot() any {
 	r.mu.Lock()

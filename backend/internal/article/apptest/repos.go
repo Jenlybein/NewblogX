@@ -31,6 +31,10 @@ type Repos struct {
 	reviewRepo   *ReviewRepo
 	authorStats  *AuthorStats
 	outbox       *Outbox
+	counters     *Counters
+	comments     *Comments
+	users        *Users
+	diggs        *Diggs
 }
 
 // NewRepos 构造一套全部为空的 fake 仓储。
@@ -45,8 +49,36 @@ func NewRepos() *Repos {
 		reviewRepo:   NewReviewRepo(),
 		authorStats:  NewAuthorStats(),
 		outbox:       NewOutbox(),
+		counters:     NewCounters(),
+		comments:     NewComments(),
+		users:        NewUsers(),
+		diggs:        NewDiggs(),
 	}
 }
+
+// Counters 返回计数端口。
+func (r *Repos) Counters() app.CounterPort { return r.counters }
+
+// Comments 返回评论端口。
+func (r *Repos) Comments() app.CommentPort { return r.comments }
+
+// Users 返回用户端口。
+func (r *Repos) Users() app.UserPort { return r.users }
+
+// Diggs 返回点赞端口。
+func (r *Repos) Diggs() app.DiggPort { return r.diggs }
+
+// FakeCounters 返回计数 fake。
+func (r *Repos) FakeCounters() *Counters { return r.counters }
+
+// FakeComments 返回评论 fake。
+func (r *Repos) FakeComments() *Comments { return r.comments }
+
+// FakeUsers 返回用户 fake。
+func (r *Repos) FakeUsers() *Users { return r.users }
+
+// FakeDiggs 返回点赞 fake。
+func (r *Repos) FakeDiggs() *Diggs { return r.diggs }
 
 // ── app.Repos 接口实现 ──
 
@@ -106,31 +138,41 @@ func (r *Repos) FakeAuthorStats() *AuthorStats { return r.authorStats }
 // FakeOutbox 返回 outbox fake。
 func (r *Repos) FakeOutbox() *Outbox { return r.outbox }
 
-// snapshotAll 为事务回滚保存全部仓储状态。
-func (r *Repos) snapshotAll() []any {
-	return []any{
-		r.articleRepo.Snapshot(),
-		r.categoryRepo.Snapshot(),
-		r.tagRepo.Snapshot(),
-		r.favoriteRepo.Snapshot(),
-		r.topRepo.Snapshot(),
-		r.historyRepo.Snapshot(),
-		r.reviewRepo.Snapshot(),
+// snapshotAll 为事务回滚保存全部**有状态**依赖。
+//
+// 用 map 而不是切片：以后加端口不必同步改下标，少一类"加了三处漏了一处"的错。
+// 只读端口（Users）不参与：它没有状态可回滚。
+func (r *Repos) snapshotAll() map[string]any {
+	return map[string]any{
+		"articles":   r.articleRepo.Snapshot(),
+		"categories": r.categoryRepo.Snapshot(),
+		"tags":       r.tagRepo.Snapshot(),
+		"favorites":  r.favoriteRepo.Snapshot(),
+		"tops":       r.topRepo.Snapshot(),
+		"history":    r.historyRepo.Snapshot(),
+		"reviews":    r.reviewRepo.Snapshot(),
+		"stats":      r.authorStats.Snapshot(),
+		"outbox":     r.outbox.Snapshot(),
+		"counters":   r.counters.Snapshot(),
+		"comments":   r.comments.Snapshot(),
+		"diggs":      r.diggs.Snapshot(),
 	}
 }
 
-// restoreAll 用快照覆盖全部仓储。
-func (r *Repos) restoreAll(snaps []any) {
-	if len(snaps) != 7 {
-		return
-	}
-	r.articleRepo.RestoreState(snaps[0])
-	r.categoryRepo.RestoreState(snaps[1])
-	r.tagRepo.RestoreState(snaps[2])
-	r.favoriteRepo.RestoreState(snaps[3])
-	r.topRepo.RestoreState(snaps[4])
-	r.historyRepo.RestoreState(snaps[5])
-	r.reviewRepo.RestoreState(snaps[6])
+// restoreAll 用快照覆盖全部有状态依赖。
+func (r *Repos) restoreAll(snaps map[string]any) {
+	r.articleRepo.RestoreState(snaps["articles"])
+	r.categoryRepo.RestoreState(snaps["categories"])
+	r.tagRepo.RestoreState(snaps["tags"])
+	r.favoriteRepo.RestoreState(snaps["favorites"])
+	r.topRepo.RestoreState(snaps["tops"])
+	r.historyRepo.RestoreState(snaps["history"])
+	r.reviewRepo.RestoreState(snaps["reviews"])
+	r.authorStats.RestoreState(snaps["stats"])
+	r.outbox.RestoreState(snaps["outbox"])
+	r.counters.RestoreState(snaps["counters"])
+	r.comments.RestoreState(snaps["comments"])
+	r.diggs.RestoreState(snaps["diggs"])
 }
 
 // Tx 是 app.TxManager 的实现。

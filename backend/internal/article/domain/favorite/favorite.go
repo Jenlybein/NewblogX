@@ -8,6 +8,7 @@ package favorite
 import (
 	"context"
 	"strings"
+	"time"
 
 	"myblogx/internal/apperr"
 	"myblogx/internal/article/domain"
@@ -52,6 +53,13 @@ type Folder struct {
 	abstract     string
 	isDefault    bool
 	articleCount int
+
+	// 读模型字段：列表页展示时间、所属用户与"是否已收藏当前文章"。
+	createdAt     time.Time
+	updatedAt     time.Time
+	ownerNickname string
+	ownerAvatar   string
+	hasArticle    bool
 }
 
 // NewFolder 创建收藏夹。
@@ -68,25 +76,35 @@ func NewFolder(id ID, userID domain.UserID, title string) (*Folder, error) {
 
 // RestoreFolderParams 是重建收藏夹的输入。
 type RestoreFolderParams struct {
-	ID           ID
-	UserID       domain.UserID
-	Title        string
-	Cover        string
-	Abstract     string
-	IsDefault    bool
-	ArticleCount int
+	ID            ID
+	UserID        domain.UserID
+	Title         string
+	Cover         string
+	Abstract      string
+	IsDefault     bool
+	ArticleCount  int
+	CreatedAt     time.Time
+	UpdatedAt     time.Time
+	OwnerNickname string
+	OwnerAvatar   string
+	HasArticle    bool
 }
 
 // RestoreFolder 从持久化数据重建。
 func RestoreFolder(p RestoreFolderParams) *Folder {
 	return &Folder{
-		id:           p.ID,
-		userID:       p.UserID,
-		title:        p.Title,
-		cover:        p.Cover,
-		abstract:     p.Abstract,
-		isDefault:    p.IsDefault,
-		articleCount: p.ArticleCount,
+		id:            p.ID,
+		userID:        p.UserID,
+		title:         p.Title,
+		cover:         p.Cover,
+		abstract:      p.Abstract,
+		isDefault:     p.IsDefault,
+		articleCount:  p.ArticleCount,
+		createdAt:     p.CreatedAt,
+		updatedAt:     p.UpdatedAt,
+		ownerNickname: p.OwnerNickname,
+		ownerAvatar:   p.OwnerAvatar,
+		hasArticle:    p.HasArticle,
 	}
 }
 
@@ -110,6 +128,21 @@ func (f *Folder) IsDefault() bool { return f.isDefault }
 
 // ArticleCount 返回文章数。
 func (f *Folder) ArticleCount() int { return f.articleCount }
+
+// CreatedAt 返回创建时间（读模型）。
+func (f *Folder) CreatedAt() time.Time { return f.createdAt }
+
+// UpdatedAt 返回更新时间（读模型）。
+func (f *Folder) UpdatedAt() time.Time { return f.updatedAt }
+
+// OwnerNickname 返回所属用户昵称（读模型）。
+func (f *Folder) OwnerNickname() string { return f.ownerNickname }
+
+// OwnerAvatar 返回所属用户头像（读模型）。
+func (f *Folder) OwnerAvatar() string { return f.ownerAvatar }
+
+// HasArticle 返回当前查询的那篇文章是否已在该夹内（读模型）。
+func (f *Folder) HasArticle() bool { return f.hasArticle }
 
 // Rename 改名并更新封面/简介。
 func (f *Folder) Rename(title, cover, abstract string) error {
@@ -142,6 +175,13 @@ type Item struct {
 	authorID        domain.UserID
 	authorNickname  string
 	authorAvatar    string
+
+	// 读模型字段：收藏时间与文章实时计数（列表页直接展示）。
+	favoritedAt  time.Time
+	viewCount    int
+	diggCount    int
+	commentCount int
+	favorCount   int
 }
 
 // RestoreItemParams 是重建收藏关系的输入。
@@ -156,6 +196,11 @@ type RestoreItemParams struct {
 	AuthorID        domain.UserID
 	AuthorNickname  string
 	AuthorAvatar    string
+	FavoritedAt     time.Time
+	ViewCount       int
+	DiggCount       int
+	CommentCount    int
+	FavorCount      int
 }
 
 // RestoreItem 从持久化数据重建。
@@ -171,6 +216,11 @@ func RestoreItem(p RestoreItemParams) *Item {
 		authorID:        p.AuthorID,
 		authorNickname:  p.AuthorNickname,
 		authorAvatar:    p.AuthorAvatar,
+		favoritedAt:     p.FavoritedAt,
+		viewCount:       p.ViewCount,
+		diggCount:       p.DiggCount,
+		commentCount:    p.CommentCount,
+		favorCount:      p.FavorCount,
 	}
 }
 
@@ -219,6 +269,21 @@ func (i *Item) AuthorNickname() string { return i.authorNickname }
 
 // AuthorAvatar 返回作者头像快照。
 func (i *Item) AuthorAvatar() string { return i.authorAvatar }
+
+// FavoritedAt 返回收藏时间（读模型）。
+func (i *Item) FavoritedAt() time.Time { return i.favoritedAt }
+
+// ViewCount 返回文章浏览量（读模型）。
+func (i *Item) ViewCount() int { return i.viewCount }
+
+// DiggCount 返回文章点赞数（读模型）。
+func (i *Item) DiggCount() int { return i.diggCount }
+
+// CommentCount 返回文章评论数（读模型）。
+func (i *Item) CommentCount() int { return i.commentCount }
+
+// FavorCount 返回文章收藏数（读模型）。
+func (i *Item) FavorCount() int { return i.favorCount }
 
 // WithAuthorProfile 补全作者昵称与头像（调用方从用户模块取）。
 func (i *Item) WithAuthorProfile(nickname, avatar string) *Item {

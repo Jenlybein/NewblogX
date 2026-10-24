@@ -19,14 +19,16 @@ type TagModel struct {
 }
 
 func (t *TagModel) BeforeDelete(tx *gorm.DB) (err error) {
+	// 同 FavoriteModel.BeforeDelete：hook 内用新 session，避免污染主 DELETE 语句。
+	hook := tx.Session(&gorm.Session{NewDB: true})
 	var relationList []ArticleTagModel
-	if err = tx.Find(&relationList, "tag_id = ?", t.ID).Error; err != nil {
+	if err = hook.Find(&relationList, "tag_id = ?", t.ID).Error; err != nil {
 		return err
 	}
 	if len(relationList) == 0 {
 		return nil
 	}
-	if err = tx.Delete(&relationList).Error; err != nil {
+	if err = hook.Delete(&relationList).Error; err != nil {
 		return err
 	}
 	return nil

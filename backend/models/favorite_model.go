@@ -24,12 +24,19 @@ type FavoriteModel struct {
 }
 
 func (f *FavoriteModel) BeforeDelete(tx *gorm.DB) (err error) {
+	// hook 内查/删关联必须用新 session：直接复用 tx 会污染正在执行的 DELETE。
+	// 且空列表不能直接 Delete——GORM 会因为没有 WHERE 报 "WHERE conditions required"。
+	hook := tx.Session(&gorm.Session{NewDB: true})
 	var favorList []UserArticleFavorModel
-	if err = tx.Find(&favorList, "favor_id = ?", f.ID).Error; err != nil {
+	if err = hook.Find(&favorList, "favor_id = ?", f.ID).Error; err != nil {
 		return err
 	}
 
-	if err = tx.Delete(&favorList).Error; err != nil {
+	if len(favorList) == 0 {
+		return nil
+	}
+
+	if err = hook.Delete(&favorList).Error; err != nil {
 		return err
 	}
 

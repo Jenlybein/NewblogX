@@ -26,13 +26,7 @@ import (
 // @Router /articles/category [get]
 func (h *Handler) Categories(c *gin.Context) {
 	cr := middleware.GetBindQuery[CategoryListRequest](c)
-
-	list, err := h.svc.ListCategories(c.Request.Context(), h.viewerOf(c), domain.UserID(cr.UserID))
-	if err != nil {
-		h.fail(c, err)
-		return
-	}
-	res.OkWithList(list, len(list), c)
+	h.listCategories(c, cr.UserID)
 }
 
 // SaveCategory 创建或更新分类。
@@ -90,7 +84,33 @@ func (h *Handler) DeleteCategories(c *gin.Context) {
 // @Success 200 {object} object{code=int,data=object{list=[]object{},count=int},msg=string}
 // @Router /articles/category/options [get]
 func (h *Handler) CategoryOptions(c *gin.Context) {
-	h.Categories(c)
+	// 不能复用 Categories：两个路由绑定的请求类型不同，
+	// GetBindQuery 是带类型断言的，复用会 panic。这里各取各的再走同一段逻辑。
+	cr := middleware.GetBindQuery[CategoryOptionsRequest](c)
+	h.listCategories(c, cr.UserID)
+}
+
+// listCategories 是分类列表/下拉的公共逻辑。
+func (h *Handler) listCategories(c *gin.Context, userID ctype.ID) {
+	list, err := h.svc.ListCategories(c.Request.Context(), h.viewerOf(c), domain.UserID(userID))
+	if err != nil {
+		h.fail(c, err)
+		return
+	}
+	items := make([]CategoryListItem, 0, len(list))
+	for _, cat := range list {
+		items = append(items, CategoryListItem{
+			ID:           ctype.ID(cat.ID()),
+			CreatedAt:    cat.CreatedAt(),
+			UpdatedAt:    cat.UpdatedAt(),
+			Title:        cat.Title(),
+			UserID:       ctype.ID(cat.UserID()),
+			ArticleCount: cat.ArticleCount(),
+			Nickname:     cat.OwnerNickname(),
+			Avatar:       cat.OwnerAvatar(),
+		})
+	}
+	res.OkWithList(items, len(items), c)
 }
 
 // ── 标签 ──
@@ -105,13 +125,7 @@ func (h *Handler) CategoryOptions(c *gin.Context) {
 // @Router /articles/tags [get]
 func (h *Handler) Tags(c *gin.Context) {
 	cr := middleware.GetBindQuery[TagListRequest](c)
-
-	list, err := h.svc.ListTags(c.Request.Context(), cr.IncludeDisabled)
-	if err != nil {
-		h.fail(c, err)
-		return
-	}
-	res.OkWithList(list, len(list), c)
+	h.listTags(c, cr.IncludeDisabled)
 }
 
 // TagOptions 标签下拉项（只含启用项）。
@@ -122,12 +136,31 @@ func (h *Handler) Tags(c *gin.Context) {
 // @Success 200 {object} object{code=int,data=object{list=[]object{},count=int},msg=string}
 // @Router /articles/tags/options [get]
 func (h *Handler) TagOptions(c *gin.Context) {
-	list, err := h.svc.ListTags(c.Request.Context(), false)
+	h.listTags(c, false)
+}
+
+// listTags 是标签列表/下拉的公共逻辑。
+func (h *Handler) listTags(c *gin.Context, includeDisabled bool) {
+	list, err := h.svc.ListTags(c.Request.Context(), includeDisabled)
 	if err != nil {
 		h.fail(c, err)
 		return
 	}
-	res.OkWithList(list, len(list), c)
+	items := make([]TagListItem, 0, len(list))
+	for _, t := range list {
+		items = append(items, TagListItem{
+			ID:           ctype.ID(t.ID()),
+			CreatedAt:    t.CreatedAt(),
+			UpdatedAt:    t.UpdatedAt(),
+			Title:        t.Title(),
+			Sort:         t.Sort(),
+			Description:  t.Description(),
+			ArticleCount: t.ArticleCount(),
+			IsEnabled:    t.Enabled(),
+			CreatedBy:    ctype.ID(t.CreatedBy()),
+		})
+	}
+	res.OkWithList(items, len(items), c)
 }
 
 // SaveTag 创建或更新标签（管理员）。
@@ -204,7 +237,24 @@ func (h *Handler) Folders(c *gin.Context) {
 		h.fail(c, err)
 		return
 	}
-	res.OkWithList(list, len(list), c)
+	items := make([]FavoriteListItem, 0, len(list))
+	for _, f := range list {
+		items = append(items, FavoriteListItem{
+			CreatedAt:    f.CreatedAt(),
+			UpdatedAt:    f.UpdatedAt(),
+			ID:           ctype.ID(f.ID()),
+			UserID:       ctype.ID(f.UserID()),
+			Title:        f.Title(),
+			Cover:        f.Cover(),
+			Abstract:     f.Abstract(),
+			IsDefault:    f.IsDefault(),
+			ArticleCount: f.ArticleCount(),
+			Nickname:     f.OwnerNickname(),
+			Avatar:       f.OwnerAvatar(),
+			HasArticle:   f.HasArticle(),
+		})
+	}
+	res.OkWithList(items, len(items), c)
 }
 
 // SaveFolder 创建或更新收藏夹。
@@ -271,13 +321,31 @@ func (h *Handler) DeleteFolders(c *gin.Context) {
 func (h *Handler) FavoriteItems(c *gin.Context) {
 	cr := middleware.GetBindQuery[FavoriteArticlesRequest](c)
 
+	offset := pageOffset(cr.Page, cr.Limit)
 	items, total, err := h.svc.ListFavoriteItems(c.Request.Context(), h.viewerOf(c),
-		favorite.ID(cr.FavorID), domain.Page{Offset: pageOffset(cr.Page, cr.Limit), Limit: cr.Limit})
+		favorite.ID(cr.FavorID), domain.Page{Offset: offset, Limit: cr.Limit})
 	if err != nil {
 		h.fail(c, err)
 		return
 	}
-	res.OkWithList(items, int(total), c)
+	list := make([]FavoriteArticleListItem, 0, len(items))
+	for _, it := range items {
+		list = append(list, FavoriteArticleListItem{
+			FavoritedAt:   it.FavoritedAt(),
+			ArticleID:     ctype.ID(it.ArticleID()),
+			Title:         it.ArticleTitle(),
+			Abstract:      it.ArticleAbstract(),
+			Cover:         it.ArticleCover(),
+			ViewCount:     it.ViewCount(),
+			DiggCount:     it.DiggCount(),
+			CommentCount:  it.CommentCount(),
+			FavorCount:    it.FavorCount(),
+			UserNickname:  it.AuthorNickname(),
+			UserAvatar:    it.AuthorAvatar(),
+			ArticleStatus: enum.ArticleStatus(it.ArticleStatus()),
+		})
+	}
+	res.OkWithHasMoreList(list, int64(offset+len(list)) < total, c)
 }
 
 // SaveFavorite 收藏文章。
@@ -421,13 +489,26 @@ func (h *Handler) toggleTops(c *gin.Context, ids []ctype.ID, remove bool) {
 func (h *Handler) History(c *gin.Context) {
 	cr := middleware.GetBindQuery[ArticleViewHistoryRequest](c)
 
+	offset := pageOffset(cr.Page, cr.Limit)
 	records, total, err := h.svc.ListViewHistory(c.Request.Context(), h.viewerOf(c),
-		domain.Page{Offset: pageOffset(cr.Page, cr.Limit), Limit: cr.Limit})
+		domain.Page{Offset: offset, Limit: cr.Limit})
 	if err != nil {
 		h.fail(c, err)
 		return
 	}
-	res.OkWithList(records, int(total), c)
+	list := make([]ArticleViewHistoryItem, 0, len(records))
+	for _, r := range records {
+		list = append(list, ArticleViewHistoryItem{
+			UpdatedAt: r.ViewedAt(),
+			Title:     r.ArticleTitle(),
+			Cover:     r.ArticleCover(),
+			Nickname:  r.Nickname(),
+			Avatar:    r.Avatar(),
+			UserID:    ctype.ID(r.UserID()),
+			ArticleID: ctype.ID(r.ArticleID()),
+		})
+	}
+	res.OkWithHasMoreList(list, int64(offset+len(list)) < total, c)
 }
 
 // RemoveHistory 删除浏览历史。

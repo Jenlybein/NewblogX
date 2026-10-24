@@ -8,6 +8,7 @@ package taxonomy
 import (
 	"context"
 	"strings"
+	"time"
 
 	"myblogx/internal/apperr"
 	"myblogx/internal/article/domain"
@@ -34,6 +35,14 @@ type Category struct {
 	id     domain.CategoryID
 	userID domain.UserID
 	title  string
+
+	// 读模型字段：列表页要展示文章数与作者展示信息。
+	// 放在实体上而不是另建 View，是为了让仓储一次查询就返回列表所需的全部字段。
+	createdAt     time.Time
+	updatedAt     time.Time
+	articleCount  int
+	ownerNickname string
+	ownerAvatar   string
 }
 
 // NewCategory 创建分类。标题去空白后不能为空。
@@ -53,6 +62,32 @@ func RestoreCategory(id domain.CategoryID, userID domain.UserID, title string) *
 	return &Category{id: id, userID: userID, title: title}
 }
 
+// RestoreCategoryParams 是带读模型字段的重建参数。
+type RestoreCategoryParams struct {
+	ID            domain.CategoryID
+	UserID        domain.UserID
+	Title         string
+	CreatedAt     time.Time
+	UpdatedAt     time.Time
+	ArticleCount  int
+	OwnerNickname string
+	OwnerAvatar   string
+}
+
+// RestoreCategoryView 从持久化数据重建（含列表页所需读模型字段）。
+func RestoreCategoryView(p RestoreCategoryParams) *Category {
+	return &Category{
+		id:            p.ID,
+		userID:        p.UserID,
+		title:         p.Title,
+		createdAt:     p.CreatedAt,
+		updatedAt:     p.UpdatedAt,
+		articleCount:  p.ArticleCount,
+		ownerNickname: p.OwnerNickname,
+		ownerAvatar:   p.OwnerAvatar,
+	}
+}
+
 // ID 返回分类 ID。
 func (c *Category) ID() domain.CategoryID { return c.id }
 
@@ -61,6 +96,21 @@ func (c *Category) UserID() domain.UserID { return c.userID }
 
 // Title 返回标题。
 func (c *Category) Title() string { return c.title }
+
+// CreatedAt 返回创建时间（读模型）。
+func (c *Category) CreatedAt() time.Time { return c.createdAt }
+
+// UpdatedAt 返回更新时间（读模型）。
+func (c *Category) UpdatedAt() time.Time { return c.updatedAt }
+
+// ArticleCount 返回该分类下文章数（读模型）。
+func (c *Category) ArticleCount() int { return c.articleCount }
+
+// OwnerNickname 返回所属用户昵称（读模型）。
+func (c *Category) OwnerNickname() string { return c.ownerNickname }
+
+// OwnerAvatar 返回所属用户头像（读模型）。
+func (c *Category) OwnerAvatar() string { return c.ownerAvatar }
 
 // Rename 改名。
 func (c *Category) Rename(title string) error {
@@ -84,6 +134,8 @@ type Tag struct {
 	articleCount int
 	enabled      bool
 	createdBy    domain.UserID
+	createdAt    time.Time
+	updatedAt    time.Time
 }
 
 // NewTag 创建标签。
@@ -104,6 +156,8 @@ type RestoreTagParams struct {
 	ArticleCount int
 	Enabled      bool
 	CreatedBy    domain.UserID
+	CreatedAt    time.Time
+	UpdatedAt    time.Time
 }
 
 // RestoreTag 从持久化数据重建。
@@ -116,6 +170,8 @@ func RestoreTag(p RestoreTagParams) *Tag {
 		articleCount: p.ArticleCount,
 		enabled:      p.Enabled,
 		createdBy:    p.CreatedBy,
+		createdAt:    p.CreatedAt,
+		updatedAt:    p.UpdatedAt,
 	}
 }
 
@@ -139,6 +195,12 @@ func (t *Tag) Enabled() bool { return t.enabled }
 
 // CreatedBy 返回创建人。
 func (t *Tag) CreatedBy() domain.UserID { return t.createdBy }
+
+// CreatedAt 返回创建时间（读模型）。
+func (t *Tag) CreatedAt() time.Time { return t.createdAt }
+
+// UpdatedAt 返回更新时间（读模型）。
+func (t *Tag) UpdatedAt() time.Time { return t.updatedAt }
 
 // Usable 判断标签能否被文章使用。
 func (t *Tag) Usable() bool { return t.enabled }

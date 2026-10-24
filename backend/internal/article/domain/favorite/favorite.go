@@ -7,22 +7,22 @@ package favorite
 
 import (
 	"context"
-	"errors"
 	"strings"
 
+	"myblogx/internal/apperr"
 	"myblogx/internal/article/domain"
 )
 
-// 子域错误。
+// 子域错误。文案统一在 internal/apperr 的消息表里。
 var (
 	// ErrTitleRequired 收藏夹名称不能为空。
-	ErrTitleRequired = errors.New("收藏夹名称不能为空")
+	ErrTitleRequired = apperr.New(apperr.CodeFavoriteTitleRequired)
 	// ErrFolderNotFound 收藏夹不存在。
-	ErrFolderNotFound = errors.New("收藏夹不存在")
+	ErrFolderNotFound = apperr.New(apperr.CodeFavoriteFolderMissing)
 	// ErrFolderExists 收藏夹名称重复。
-	ErrFolderExists = errors.New("收藏夹名称重复")
+	ErrFolderExists = apperr.New(apperr.CodeFavoriteFolderExists)
 	// ErrFolderForbidden 无权操作该收藏夹。
-	ErrFolderForbidden = errors.New("无权操作该收藏夹")
+	ErrFolderForbidden = apperr.New(apperr.CodeFavoriteFolderDenied)
 )
 
 // ID 是收藏夹标识。

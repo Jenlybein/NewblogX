@@ -7,24 +7,24 @@ package taxonomy
 
 import (
 	"context"
-	"errors"
 	"strings"
 
+	"myblogx/internal/apperr"
 	"myblogx/internal/article/domain"
 )
 
-// 子域错误。
+// 子域错误。文案统一在 internal/apperr 的消息表里。
 var (
 	// ErrTitleRequired 名称不能为空。
-	ErrTitleRequired = errors.New("名称不能为空")
+	ErrTitleRequired = apperr.New(apperr.CodeTaxonomyTitleRequired)
 	// ErrTitleDuplicated 同一用户下名称重复。
-	ErrTitleDuplicated = errors.New("名称重复")
+	ErrTitleDuplicated = apperr.New(apperr.CodeTaxonomyTitleExists)
 	// ErrCategoryNotFound 分类不存在。
-	ErrCategoryNotFound = errors.New("分类不存在")
+	ErrCategoryNotFound = apperr.New(apperr.CodeCategoryNotFound)
 	// ErrTagDisabled 标签不存在或已停用。
-	ErrTagDisabled = errors.New("标签不存在或已停用")
+	ErrTagDisabled = apperr.New(apperr.CodeTagDisabled)
 	// ErrTagNotFound 标签不存在。
-	ErrTagNotFound = errors.New("标签不存在")
+	ErrTagNotFound = apperr.New(apperr.CodeTagNotFound)
 )
 
 // Category 是用户自建的分类。

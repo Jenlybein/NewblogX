@@ -311,6 +311,17 @@ category / tags），生产代码 3,547 行。开工前复核出四处与早期�
 **硬约束：零 DDL。** ES 投影纯靠 CDC（`cdc/river/article_row_snapshot.go` 按列名解析 binlog），
 `api/article_api` 内 0 处调用 ES；删列或改名会直接打穿投影。
 
+**M4 过程中的一次棘轮回归与修复**：S3.1 首次提交时在 domain 里写了 27 处
+`errors.New("中文")`，archcheck 从 318 涨到 345（R8 125→152），违反"只准降不准升"。
+处理方式不是放宽规则，而是补上规则一直指向却从未落地的 `internal/apperr`：
+
+- 错误码为稳定契约（`article.not_found` / `taxonomy.tag_disabled` …），文案集中在
+  `apperr.messages` 一处，调用点只写码；
+- `apperr` 只依赖 stdlib，因此 domain 仍能满核并行测试；
+- 修完 R8 回到 125、合计回到 318。
+
+副产品：S5 清理存量 125 处中文 error 时，终于有统一去处。
+
 #### L.3 的接线方式：一条管道，五张表，两种出口
 
 改造前：`EmitActionAudit` → `jsonLineSink.write` → 每个请求线程里 `json.Marshal`

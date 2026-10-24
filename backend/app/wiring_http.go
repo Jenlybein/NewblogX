@@ -47,6 +47,9 @@ func WireHTTP(infra *Infra, lc *Lifecycle) error {
 	// article 链路：启动时注入处理器。旧实现已删除，这是唯一路径。
 	WireArticle(infra)
 
+	// user + auth 链路：认证路由改由 internal/auth 提供。
+	WireUser(infra)
+
 	srv, err := router.Run(deps, api.New(deps))
 	if err != nil {
 		return fmt.Errorf("启动 HTTP 服务失败: %w", err)

@@ -178,6 +178,42 @@ func (r *Repo) UpdateStatus(ctx context.Context, id domain.UserID, status domain
 	return nil
 }
 
+// UpdatePassword 实现 domain.Repository。
+//
+// 同时写令牌版本与改密时间：版本 +1 让所有旧访问令牌立即失效，
+// 改密时间用于前端展示"上次修改密码"。
+func (r *Repo) UpdatePassword(ctx context.Context, id domain.UserID, hash string, tokenVersion uint32) error {
+	now := time.Now()
+	res := r.db.WithContext(ctx).Model(&UserRow{}).
+		Where("id = ?", id.Uint64()).
+		Updates(map[string]any{
+			"password":                 hash,
+			"token_version":            tokenVersion,
+			"last_password_changed_at": now,
+		})
+	if res.Error != nil {
+		return translate(res.Error)
+	}
+	if res.RowsAffected == 0 {
+		return apperr.New(apperr.CodeUserNotFound)
+	}
+	return nil
+}
+
+// UpdateEmail 实现 domain.Repository。
+func (r *Repo) UpdateEmail(ctx context.Context, id domain.UserID, email string) error {
+	res := r.db.WithContext(ctx).Model(&UserRow{}).
+		Where("id = ?", id.Uint64()).
+		Update("email", email)
+	if res.Error != nil {
+		return translate(res.Error)
+	}
+	if res.RowsAffected == 0 {
+		return apperr.New(apperr.CodeUserNotFound)
+	}
+	return nil
+}
+
 // List 实现 domain.Repository。
 func (r *Repo) List(ctx context.Context, q domain.Query) (domain.Page, error) {
 	q = q.Normalize()

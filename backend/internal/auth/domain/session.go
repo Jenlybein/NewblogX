@@ -30,6 +30,7 @@ type Session struct {
 	IP               string
 	Addr             string
 	UA               string
+	CreatedAt        time.Time
 	LastSeenAt       *time.Time
 	ExpiresAt        time.Time
 	RevokedAt        *time.Time

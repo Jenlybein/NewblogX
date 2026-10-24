@@ -38,6 +38,14 @@ type Logger interface {
 	Errorf(format string, args ...any)
 }
 
+// UsernameAllocator 分配系统自动用户名（来自 Redis 递增序列）。
+//
+// 邮箱注册 / 第三方登录首次建档时没有用户输入的用户名，只能用系统分配。
+// 做成端口而不是直接用 redis_user，是为了让用例层测试不必起 Redis。
+type UsernameAllocator interface {
+	Next() (string, error)
+}
+
 // UserInfoPort 是本模块提供给其他模块的只读能力。
 //
 // 定义在**提供方**（本包），消费方只依赖这个接口：
@@ -73,14 +81,26 @@ type CredentialPort interface {
 // 一个 Service 同时实现 UserInfoPort——读能力和写用例共享同一套仓储，
 // 没必要拆成两个结构体再互相注入。
 type Service struct {
-	users     domain.Repository
-	settings  domain.SettingsRepository
-	stats     domain.StatsRepository
-	snapshots domain.SnapshotSyncer
-	enricher  DetailEnricher
-	clock     Clock
-	hasher    PasswordHasher
-	logger    Logger
+	users         domain.Repository
+	settings      domain.SettingsRepository
+	stats         domain.StatsRepository
+	snapshots     domain.SnapshotSyncer
+	enricher      DetailEnricher
+	clock         Clock
+	hasher        PasswordHasher
+	usernameAlloc UsernameAllocator
+	logger        Logger
+}
+
+// Option 是可选的装配项。
+//
+// 用可变参数而不是往 New 再加一个必填参数：已有的测试与调用方不需要感知
+// 新增能力（账号生命周期相关的装配只有生产路径才需要）。
+type Option func(*Service)
+
+// WithUsernameAllocator 注入自动用户名分配器。
+func WithUsernameAllocator(a UsernameAllocator) Option {
+	return func(s *Service) { s.usernameAlloc = a }
 }
 
 // New 构造服务。
@@ -100,6 +120,7 @@ func New(
 	clock Clock,
 	hasher PasswordHasher,
 	logger Logger,
+	extras ...Option,
 ) *Service {
 	if users == nil {
 		panic("user/app: 用户仓储未注入")
@@ -113,7 +134,7 @@ func New(
 	if clock == nil {
 		panic("user/app: 时钟未注入")
 	}
-	return &Service{
+	svc := &Service{
 		users:     users,
 		settings:  settings,
 		stats:     stats,
@@ -123,6 +144,12 @@ func New(
 		hasher:    hasher,
 		logger:    logger,
 	}
+	for _, opt := range extras {
+		if opt != nil {
+			opt(svc)
+		}
+	}
+	return svc
 }
 
 // 编译期断言：Service 同时满足两个对外端口。

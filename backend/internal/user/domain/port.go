@@ -84,6 +84,10 @@ type Repository interface {
 	UpdateProfile(ctx context.Context, id UserID, update ProfileUpdate, updatedUsernameAt *time.Time) error
 	// UpdateStatus 只更新账号状态。
 	UpdateStatus(ctx context.Context, id UserID, status Status) error
+	// UpdatePassword 改写密码哈希与令牌版本（版本 +1 让旧令牌立即失效）。
+	UpdatePassword(ctx context.Context, id UserID, hash string, tokenVersion uint32) error
+	// UpdateEmail 绑定或换绑邮箱。
+	UpdateEmail(ctx context.Context, id UserID, email string) error
 	// List 按条件分页查询。
 	List(ctx context.Context, q Query) (Page, error)
 }

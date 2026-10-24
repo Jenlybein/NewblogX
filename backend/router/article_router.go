@@ -8,13 +8,34 @@ import (
 	"myblogx/api/article_api/tags"
 	"myblogx/api/article_api/top"
 	"myblogx/api/article_api/view_history"
+	articlehttp "myblogx/internal/article/adapter/http"
 	mw "myblogx/middleware"
 	"myblogx/models"
 
 	"github.com/gin-gonic/gin"
 )
 
+// articleHTTPHandler 是新链路的处理器，由装配层注入。
+//
+// 为什么不放进 api.Api 容器：那个容器是旧结构的产物，M5 会整体删除；
+// 把新链路塞进去等于让新代码依赖即将消失的壳。
+var articleHTTPHandler *articlehttp.Handler
+
+// SetArticleHandler 注入 article 模块的新链路处理器。
+//
+// 装配层在启动时调用一次；未调用（或开关关闭）时走旧实现。
+func SetArticleHandler(h *articlehttp.Handler) { articleHTTPHandler = h }
+
+// ArticleRouter 注册 article 模块路由。
+//
+// 过渡期支持两套实现：BLOGX_ARTICLE_NEW_PIPELINE=1 时挂新链路，
+// 否则挂旧的 api/article_api。两者路径完全一致，因此切换对前端透明。
 func ArticleRouter(r *gin.RouterGroup, appContainer api.Api, runtimeMw mw.Runtime) {
+	if articleHTTPHandler != nil && articlehttp.Enabled() {
+		articleHTTPHandler.Register(r, runtimeMw.AuthMiddleware)
+		return
+	}
+
 	group := r.Group("articles")
 	reviewGroup := r.Group("article-review")
 	reviewTaskGroup := r.Group("article-review-tasks")

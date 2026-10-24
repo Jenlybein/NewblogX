@@ -109,6 +109,22 @@ const (
 	CodeCommentContentEmpty   Code = "comment.content_empty"
 )
 
+// 图片与对象存储。
+const (
+	CodeImageUnavailable      Code = "image.unavailable"
+	CodeImageUploadDisabled   Code = "image.upload_disabled"
+	CodeImageTaskNotFound     Code = "image.task_not_found"
+	CodeImageTaskFailed       Code = "image.task_failed"
+	CodeImageTaskProcessing   Code = "image.task_processing"
+	CodeImageInvalid          Code = "image.invalid"
+	CodeImageTooLarge         Code = "image.too_large"
+	CodeImageMismatch         Code = "image.mismatch"
+	CodeImageAuditInvalid     Code = "image.audit_invalid"
+	CodeImageDeleteFailed     Code = "image.delete_failed"
+	CodeImageObjectKeyMissing Code = "image.object_key_missing"
+	CodeImageCallbackInvalid  Code = "image.callback_invalid"
+)
+
 // messages 是错误码到中文文案的唯一映射。
 //
 // 新增错误码时**必须**在这里补一行；缺了不会 panic，Error() 会退化成码本身，
@@ -180,6 +196,19 @@ var messages = map[Code]string{
 	CodeCommentDiggChanged:    "点赞状态已变化，请刷新后重试",
 	CodeCommentDiggDuplicated: "请勿重复点赞",
 	CodeCommentContentEmpty:   "评论内容不能为空",
+
+	CodeImageUnavailable:      "图片不存在或不可用",
+	CodeImageUploadDisabled:   "站点未启用图片上传",
+	CodeImageTaskNotFound:     "上传任务不存在",
+	CodeImageTaskFailed:       "上传任务校验失败",
+	CodeImageTaskProcessing:   "上传任务处理中，请稍后重试",
+	CodeImageInvalid:          "图片参数不合法",
+	CodeImageTooLarge:         "图片大小超出限制",
+	CodeImageMismatch:         "上传对象与任务不匹配",
+	CodeImageAuditInvalid:     "未知的审核结论",
+	CodeImageDeleteFailed:     "删除图片失败",
+	CodeImageObjectKeyMissing: "回调缺少对象 key",
+	CodeImageCallbackInvalid:  "回调签名校验失败",
 }
 
 // Error 是带错误码的应用错误。

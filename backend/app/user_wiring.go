@@ -15,6 +15,7 @@ import (
 	authsec "myblogx/internal/auth/adapter/security"
 	authapp "myblogx/internal/auth/app"
 	authdomain "myblogx/internal/auth/domain"
+	mediamysql "myblogx/internal/media/adapter/mysql"
 	redis_service "myblogx/internal/platform/redis"
 	"myblogx/internal/platform/redis/redis_email"
 	"myblogx/internal/platform/redis/redis_user"
@@ -31,7 +32,6 @@ import (
 	"myblogx/router"
 	"myblogx/service/email_service"
 	"myblogx/service/follow_service"
-	"myblogx/service/image_service"
 	"myblogx/service/log_service"
 	"myblogx/service/qq_service"
 	"myblogx/service/site_service"
@@ -402,19 +402,12 @@ type userEnricher struct {
 
 // AvatarIDByURL 由头像 URL 反查图片 ID。
 func (e *userEnricher) AvatarIDByURL(_ context.Context, url string) (uint64, bool, error) {
-	id, err := image_service.FindImageIDByURL(e.db, url)
-	if err != nil {
-		return 0, false, err
-	}
-	if id == nil {
-		return 0, false, nil
-	}
-	return uint64(*id), true, nil
+	return mediamysql.FindIDByURL(e.db, url)
 }
 
 // AvatarURLByID 由图片 ID 取 URL。
 func (e *userEnricher) AvatarURLByID(_ context.Context, id uint64) (string, error) {
-	return image_service.ResolveImageURLByID(e.db, ctype.ID(id))
+	return mediamysql.ResolveURLByID(e.db, id)
 }
 
 // TagTitles 批量取标签标题。

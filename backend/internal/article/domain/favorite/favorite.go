@@ -23,6 +23,12 @@ var (
 	ErrFolderExists = apperr.New(apperr.CodeFavoriteFolderExists)
 	// ErrFolderForbidden 无权操作该收藏夹。
 	ErrFolderForbidden = apperr.New(apperr.CodeFavoriteFolderDenied)
+	// ErrItemExists 已收藏该文章。
+	ErrItemExists = apperr.New(apperr.CodeFavoriteExists)
+	// ErrItemNotFound 尚未收藏该文章。
+	ErrItemNotFound = apperr.New(apperr.CodeFavoriteNotFound)
+	// ErrSelfFavorite 不能收藏自己的文章。
+	ErrSelfFavorite = apperr.New(apperr.CodeFavoriteSelf)
 )
 
 // ID 是收藏夹标识。
@@ -192,6 +198,34 @@ func (i *Item) UserID() domain.UserID { return i.userID }
 
 // FolderID 返回所属收藏夹。
 func (i *Item) FolderID() ID { return i.folderID }
+
+// ArticleTitle 返回文章标题快照。
+func (i *Item) ArticleTitle() string { return i.articleTitle }
+
+// ArticleAbstract 返回文章摘要快照。
+func (i *Item) ArticleAbstract() string { return i.articleAbstract }
+
+// ArticleCover 返回文章封面快照。
+func (i *Item) ArticleCover() string { return i.articleCover }
+
+// ArticleStatus 返回收藏时的文章状态。
+func (i *Item) ArticleStatus() domain.Status { return i.articleStatus }
+
+// AuthorID 返回作者。
+func (i *Item) AuthorID() domain.UserID { return i.authorID }
+
+// AuthorNickname 返回作者昵称快照。
+func (i *Item) AuthorNickname() string { return i.authorNickname }
+
+// AuthorAvatar 返回作者头像快照。
+func (i *Item) AuthorAvatar() string { return i.authorAvatar }
+
+// WithAuthorProfile 补全作者昵称与头像（调用方从用户模块取）。
+func (i *Item) WithAuthorProfile(nickname, avatar string) *Item {
+	i.authorNickname = nickname
+	i.authorAvatar = avatar
+	return i
+}
 
 // Repository 是收藏子域的持久化契约。
 type Repository interface {

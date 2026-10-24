@@ -633,7 +633,20 @@ swag 链路已落地：`make openapi`（= `swag init --parseDependency --parseIn
   日志是端到端管道：只做 L.1/L.2 会让"平台层已建好、生产路径仍同步落盘"的新旧并存状态
   持续整个阶段，且 L.3 单独做会丢审计日志——必须先有 L.4 的 WAL 兜底。
 - **M4 = S3**：article 全链路（全 7 子域）+ article 及各子域的有状态 fake（七项决策见上）
-- **M5 = S4**：其余模块，各自随行交付本模块的有状态 fake
+- **M5 = S4**：其余 11 个模块（含 `ai`）+ 平台归位 + 棘轮归零，各自随行交付本模块的有状态 fake。
+  **四项决策（2026-10-25 拍板，详见 [04 §4.2](./04-迁移路线图.md#42-模块间协作通则2026-10-25-拍板读同步写事件) / [06 §4.1](./06-质量保障与治理.md#41-测试分层口径2026-10-25-拍板)）**：
+  1. **范围=全包**：S4.0 公共前置 + 9 个业务批次 + S4.10 平台收尾。M5 结束时 `archcheck --error ./...` 全绿、
+     `models/` 只剩空壳，M6 不再夹带迁移（只剩删目录 / 前端 / 部署这类可整体回滚的事）。
+  2. **模块协作=读同步、写事件**：读别的模块数据走窄 port 同步直调；通知/统计/投影等副作用落 `outbox` 事件；
+     "写结果本身"（如文章计数 +1）同步同事务。port 接口定义在被调用方的 `app/port.go`。
+  3. **切换=直接替换**：一模块一 commit，**不保留** `BLOGX_<MODULE>_NEW_PIPELINE`。M4 证明开关只带来
+     "两套路径并存 + 最后再删一次"，出问题整模块回滚一个 commit 更干净。
+  4. **测试=分层**：不变量矩阵 + app 用例测**每模块必做**；golden **只给 5 个只读模块**
+     （comment / search / site / notification / analytics）；全模块补 openapi 契约测；
+     WebSocket / 文件上传 / SSE 只做 e2e 冒烟（分片顺序与时效天然不稳定，逐字节比无意义）。
+  **row 归属口径**：row 结构（GORM 标签 / 列映射 / `TableName`）**复制进各模块 `adapter/mysql` 包内部**，
+  不进 domain、不跨模块共享；雪花 `BeforeCreate` 钩子上提 `platform/mysql/hooks.go`，避免被复制 9 份。
+  M4 的 article adapter 目前仍直接复用 `models.Article` 作 row（8 处），S4.0 一并改。
 - **M6 = S5 + L6–L9**：删旧 Hook、去雪花、TTL 与压缩、日志规则（**L.10 审计字段瘦身已提前执行**，不占 M6 工期）
 
 T.4 里 `article`/`comment`/`user` 的 fake 依赖 domain 实体，属依赖顺序而非成本，随各模块交付；

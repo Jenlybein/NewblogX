@@ -45,6 +45,13 @@ ARCH_MAX_VIOLATIONS=236
 export NODE_OPTIONS="${NODE_OPTIONS:---max-old-space-size=8192}"
 
 FAILED=0
+# run 执行一条门禁命令。
+#
+# 两个坑都在这里堵掉，否则门禁会"撒谎"：
+#   1. 必须 return 1：只设置 FAILED 而不返回非 0，调用方无从判断失败；
+#   2. 调用方若在子 shell ( ... ) 里跑，子 shell 的退出码只等于**最后一条**命令，
+#      前面某步失败会被吞掉。所以每个子 shell 末尾必须显式 exit "$FAILED"
+#      （见下面 backend / frontend 两处）。
 run() {
   local name="$1"
   shift
@@ -52,10 +59,11 @@ run() {
   echo "──── $name ────"
   if "$@"; then
     echo "✓ $name"
-  else
-    echo "✗ $name"
-    FAILED=1
+    return 0
   fi
+  echo "✗ $name"
+  FAILED=1
+  return 1
 }
 
 # nuxt prepare 会重写 .nuxt/ 下的生成文件。Windows 上偶发被其他进程
@@ -96,6 +104,9 @@ if [ "$TARGET" = "all" ] || [ "$TARGET" = "backend" ]; then
     run "backend: archcheck 棘轮($ARCH_MAX_VIOLATIONS)" \
       go run ./tools/archcheck --mode=error --max-violations="$ARCH_MAX_VIOLATIONS" .
     run "backend: go test (race, short)" go test -race -short -count=1 ./...
+    # 关键：把子 shell 内累积的 FAILED 作为退出码带出去，
+    # 否则只有最后一条命令的成败能传出去，中间步骤失败会被吞掉。
+    exit "$FAILED"
   ) || FAILED=1
 fi
 
@@ -108,12 +119,14 @@ if [ "$TARGET" = "all" ] || [ "$TARGET" = "frontend" ]; then
       run "$app: lint"         corepack pnpm lint
       run "$app: typecheck"    corepack pnpm typecheck
       run "$app: test"         corepack pnpm test
+      exit "$FAILED"
     ) || FAILED=1
   done
   # 覆盖率门槛只在读者站生效（管理后台暂无测试）
   (
     cd frontend
     run "frontend: coverage 门槛" corepack pnpm test:coverage
+    exit "$FAILED"
   ) || FAILED=1
 fi
 

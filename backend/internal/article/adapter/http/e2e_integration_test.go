@@ -60,6 +60,8 @@ func migrate(t *testing.T) *gorm.DB {
 		&models.UserArticleViewHistoryModel{},
 		&models.ArticleReviewTaskModel{},
 		&models.CommentModel{},
+		// 写侧会把领域事件插进 outbox 表，缺表会让整笔事务失败。
+		&models.OutboxEventModel{},
 	); err != nil {
 		t.Fatalf("建表失败: %v", err)
 	}
@@ -76,7 +78,7 @@ func newRouter(t *testing.T, db *gorm.DB, viewer domain.Viewer) *gin.Engine {
 func newRouterWithIDs(t *testing.T, db *gorm.DB, viewer domain.Viewer, idStart uint64) *gin.Engine {
 	t.Helper()
 
-	uow := articlemysql.NewTxManager(db, redis_service.Deps{}, articlemysql.NewOutbox())
+	uow := articlemysql.NewTxManager(db, redis_service.Deps{})
 	svc := articleapp.New(uow, testClock{at: time.Date(2026, 1, 1, 12, 0, 0, 0, time.UTC)}, &testIDs{n: idStart})
 
 	h := articlehttp.NewHandler(svc, nil, nil, func(*gin.Context) domain.Viewer { return viewer }, nil)

@@ -598,6 +598,11 @@ func TestFavoriteAndUnfavorite(t *testing.T) {
 	if got := repos.FakeCounters().Get(1).Favor; got != 1 {
 		t.Fatalf("收藏增量应为 1，实际 %d", got)
 	}
+	// 收藏必须发事件：旧代码在这里会通知作者"有人收藏了你的文章"，
+	// 删掉旧链路后改由 outbox 中继投递，这个断言防止该副作用再次静默丢失。
+	if names := repos.FakeOutbox().Names(); len(names) != 1 || names[0] != app.EventArticleFavorited {
+		t.Fatalf("应发收藏事件，实际 %v", names)
+	}
 	// 重复收藏应报错
 	if err := svc.Favorite(ctx, app.FavoriteCmd{Actor: strangerViewer(), ArticleID: 1}); !errors.Is(err, favorite.ErrItemExists) {
 		t.Fatalf("重复收藏应报 ErrItemExists，实际 %v", err)
@@ -638,6 +643,10 @@ func TestDiggToggle(t *testing.T) {
 	if !liked || repos.FakeCounters().Get(1).Digg != 1 {
 		t.Fatalf("首次点赞应 liked=true 且增量 1，实际 liked=%v delta=%d", liked, repos.FakeCounters().Get(1).Digg)
 	}
+	// 点赞必须发事件（旧代码在这里通知作者）；取消点赞不应再发。
+	if names := repos.FakeOutbox().Names(); len(names) != 1 || names[0] != app.EventArticleDigg {
+		t.Fatalf("应发点赞事件，实际 %v", names)
+	}
 
 	liked, err = svc.Digg(ctx, 1, strangerViewer())
 	if err != nil {
@@ -645,6 +654,10 @@ func TestDiggToggle(t *testing.T) {
 	}
 	if liked || repos.FakeCounters().Get(1).Digg != 0 {
 		t.Fatalf("再次点击应取消，实际 liked=%v delta=%d", liked, repos.FakeCounters().Get(1).Digg)
+	}
+	// 取消点赞不应再发事件（与旧实现一致：只在新增加点赞时通知）
+	if names := repos.FakeOutbox().Names(); len(names) != 1 {
+		t.Fatalf("取消点赞不应新增事件，实际 %v", names)
 	}
 }
 

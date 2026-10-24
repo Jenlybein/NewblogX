@@ -6,6 +6,7 @@ import (
 	"myblogx/conf"
 	"myblogx/internal/platform/cdc/canalbase"
 	"myblogx/internal/platform/cdc/river/rule"
+	"myblogx/models"
 	"myblogx/service/log_service"
 	"regexp"
 	"strings"
@@ -112,7 +113,15 @@ func (r *River) newCanal() error {
 // prepareCanal 注册事件处理器并设置全量转储范围
 func (r *River) prepareCanal() error {
 	dump := canalbase.Spec{Tables: map[string][]string{}}
+	outboxTable := (&models.OutboxEventModel{}).TableName()
 	for _, rule := range r.rules {
+		// outbox 表**不参与全量转储**：
+		// 转储会把表里所有历史行按 INSERT 重放一遍，
+		// 而这些行绝大多数早就投递完成（原子领取会挡掉，但仍是无谓的全表扫描）。
+		// 它的积压恢复交给中继自己的补偿扫描（有 LIMIT、按 id 升序，可控）。
+		if strings.EqualFold(rule.Table, outboxTable) {
+			continue
+		}
 		dump.Tables[rule.Schema] = append(dump.Tables[rule.Schema], rule.Table)
 	}
 

@@ -37,10 +37,15 @@ func goldenBaseTime() time.Time { return time.Date(2026, 1, 1, 12, 0, 0, 0, time
 //     标签、标签下拉、收藏夹、收藏内容、置顶、浏览历史、审核任务、创建；
 //   - 响应逐字节比对，不做归一化。
 //
-// 刻意不 t.Parallel()：utils/markdown.MdToSafe 在并发调用下偶发多输出一个前导换行
-// （同一次运行里时有时无），会让 golden 假红。这是被测代码的真实缺陷，已记录在
-// baseline；golden 本身必须可复现，所以在修好之前先串行跑。
+// 并发说明：这里现在可以放心并行。
+// 早先 utils/markdown.MdToSafe 并发调用会偶发多输出一个前导换行（同一次运行里
+// 时有时无），会让 golden 假红，所以曾临时改成串行规避。
+// 该缺陷已修复：根因是 mdrenderer 把渲染状态粘在渲染器实例上、复用必然继承脏状态，
+// 改为每次调用新建引擎（详见 utils/markdown/init.go），
+// 并发回归测试见 utils/markdown/md_concurrency_test.go。
 func TestArticleGolden(t *testing.T) {
+	t.Parallel()
+
 	db := migrate(t)
 	seedGoldenDataset(t, db)
 

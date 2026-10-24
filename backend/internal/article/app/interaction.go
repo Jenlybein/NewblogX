@@ -55,7 +55,11 @@ func (s *Service) Favorite(ctx context.Context, cmd FavoriteCmd) error {
 		if err := r.Favorites().SaveItem(ctx, item); err != nil {
 			return err
 		}
-		return r.Counters().Add(ctx, a.ID(), domain.Counters{Favor: 1})
+		if err := r.Counters().Add(ctx, a.ID(), domain.Counters{Favor: 1}); err != nil {
+			return err
+		}
+		// 通知作者"有人收藏了你的文章"（旧实现同样只在收藏成功时发）。
+		return emitWithActor(ctx, r, EventArticleFavorited, a.ID(), cmd.Actor.UserID)
 	})
 }
 
@@ -135,6 +139,10 @@ func (s *Service) Digg(ctx context.Context, articleID domain.ArticleID, viewer d
 		}
 		if added {
 			if err := r.Counters().Add(ctx, articleID, domain.Counters{Digg: 1}); err != nil {
+				return err
+			}
+			// 只在"新增点赞"时通知作者，取消点赞不通知（与旧实现一致）。
+			if err := emitWithActor(ctx, r, EventArticleDigg, articleID, viewer.UserID); err != nil {
 				return err
 			}
 		}

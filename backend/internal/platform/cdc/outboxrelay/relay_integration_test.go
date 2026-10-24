@@ -1,0 +1,314 @@
+//go:build integration
+
+package outboxrelay_test
+
+import (
+	"context"
+	"errors"
+	"sync/atomic"
+	"testing"
+	"time"
+
+	"gorm.io/gorm"
+
+	"myblogx/internal/platform/cdc/outboxrelay"
+	"myblogx/internal/testkit/mysqlcontainer"
+	"myblogx/models"
+	"myblogx/models/ctype"
+)
+
+// migrate 建 outbox 表与死信表（本组测试只关心这两张）。
+func migrate(t *testing.T) *gorm.DB {
+	t.Helper()
+	db := mysqlcontainer.DB(t)
+	if err := db.AutoMigrate(
+		&models.OutboxEventModel{},
+		&models.CdcDeadLetterModel{},
+	); err != nil {
+		t.Fatalf("建表失败: %v", err)
+	}
+	return db
+}
+
+// seedEvent 插一条 pending 事件，返回它的 ID。
+func seedEvent(t *testing.T, db *gorm.DB, name string, aggregateID uint64) ctype.ID {
+	t.Helper()
+	now := time.Now()
+	row := models.OutboxEventModel{
+		EventName:     name,
+		AggregateType: "article",
+		AggregateID:   aggregateID,
+		Payload:       `{"article_id":1}`,
+		Status:        models.OutboxStatusPending,
+		AvailableAt:   now,
+	}
+	row.CreatedAt = now
+	row.UpdatedAt = now
+	if err := db.Create(&row).Error; err != nil {
+		t.Fatalf("插入事件失败: %v", err)
+	}
+	return row.ID
+}
+
+func reload(t *testing.T, db *gorm.DB, id ctype.ID) models.OutboxEventModel {
+	t.Helper()
+	var row models.OutboxEventModel
+	if err := db.Where("id = ?", id).Take(&row).Error; err != nil {
+		t.Fatalf("读取事件失败: %v", err)
+	}
+	return row
+}
+
+// TestRelayDispatchSuccess 成功投递：订阅者被调用一次，事件标记为 done。
+func TestRelayDispatchSuccess(t *testing.T) {
+	db := migrate(t)
+	relay := outboxrelay.New(db, nil, outboxrelay.Options{})
+
+	var calls int32
+	var gotName string
+	relay.On("article.published", func(ctx context.Context, e outboxrelay.Event) error {
+		atomic.AddInt32(&calls, 1)
+		gotName = e.EventName
+		return nil
+	})
+
+	id := seedEvent(t, db, "article.published", 1001)
+	if err := relay.Dispatch(context.Background(), id); err != nil {
+		t.Fatalf("投递返回错误: %v", err)
+	}
+
+	if got := atomic.LoadInt32(&calls); got != 1 {
+		t.Fatalf("订阅者调用次数: got=%d want=1", got)
+	}
+	if gotName != "article.published" {
+		t.Fatalf("事件名: got=%q want=%q", gotName, "article.published")
+	}
+
+	row := reload(t, db, id)
+	if row.Status != models.OutboxStatusDone {
+		t.Fatalf("状态: got=%s want=%s", row.Status, models.OutboxStatusDone)
+	}
+	if row.DispatchedAt == nil {
+		t.Fatal("dispatched_at 未写入")
+	}
+}
+
+// TestRelayDispatchIsIdempotent 幂等：重复投递同一条事件，订阅者只执行一次。
+//
+// 这是 at-least-once 语义下最关键的性质：第二次领取会被"条件 UPDATE"挡掉，
+// 因为状态已经不是 pending/failed。
+func TestRelayDispatchIsIdempotent(t *testing.T) {
+	db := migrate(t)
+	relay := outboxrelay.New(db, nil, outboxrelay.Options{})
+
+	var calls int32
+	relay.On("article.published", func(ctx context.Context, e outboxrelay.Event) error {
+		atomic.AddInt32(&calls, 1)
+		return nil
+	})
+
+	id := seedEvent(t, db, "article.published", 1002)
+	for i := 0; i < 3; i++ {
+		if err := relay.Dispatch(context.Background(), id); err != nil {
+			t.Fatalf("第 %d 次投递返回错误: %v", i+1, err)
+		}
+	}
+
+	if got := atomic.LoadInt32(&calls); got != 1 {
+		t.Fatalf("订阅者调用次数: got=%d want=1（重复投递必须被挡掉）", got)
+	}
+}
+
+// TestRelayNoSubscriberMarksDone 没人订阅的事件不算失败，直接标记完成。
+func TestRelayNoSubscriberMarksDone(t *testing.T) {
+	db := migrate(t)
+	relay := outboxrelay.New(db, nil, outboxrelay.Options{})
+
+	id := seedEvent(t, db, "article.unknown", 1003)
+	if err := relay.Dispatch(context.Background(), id); err != nil {
+		t.Fatalf("投递返回错误: %v", err)
+	}
+	if row := reload(t, db, id); row.Status != models.OutboxStatusDone {
+		t.Fatalf("状态: got=%s want=%s", row.Status, models.OutboxStatusDone)
+	}
+}
+
+// TestRelayRetryThenDeadLetter 失败重试：耗尽重试后标记 dead 并写死信。
+func TestRelayRetryThenDeadLetter(t *testing.T) {
+	db := migrate(t)
+	// BackoffMS=1（毫秒）让失败后几乎立刻可重试，不必在测试里等真实退避。
+	// 注意不能写 0：withDefaults 会把 0 当成"未设置"并填成 1000ms。
+	relay := outboxrelay.New(db, nil, outboxrelay.Options{MaxAttempts: 3, BackoffMS: 1})
+
+	var calls int32
+	relay.On("article.published", func(ctx context.Context, e outboxrelay.Event) error {
+		atomic.AddInt32(&calls, 1)
+		return errors.New("下游炸了")
+	})
+
+	id := seedEvent(t, db, "article.published", 1004)
+
+	for i := 1; i <= 2; i++ {
+		if err := relay.Dispatch(context.Background(), id); err != nil {
+			t.Fatalf("第 %d 次投递返回错误: %v", i, err)
+		}
+		row := reload(t, db, id)
+		if row.Status != models.OutboxStatusFailed {
+			t.Fatalf("第 %d 次后状态: got=%s want=%s", i, row.Status, models.OutboxStatusFailed)
+		}
+		if row.Attempts != i {
+			t.Fatalf("第 %d 次后 attempts: got=%d want=%d", i, row.Attempts, i)
+		}
+	}
+
+	// 第三次：重试耗尽 → dead + 死信
+	if err := relay.Dispatch(context.Background(), id); err != nil {
+		t.Fatalf("第 3 次投递返回错误: %v", err)
+	}
+	row := reload(t, db, id)
+	if row.Status != models.OutboxStatusDead {
+		t.Fatalf("耗尽后状态: got=%s want=%s", row.Status, models.OutboxStatusDead)
+	}
+	if got := atomic.LoadInt32(&calls); got != 3 {
+		t.Fatalf("订阅者调用次数: got=%d want=3", got)
+	}
+
+	var dlq int64
+	if err := db.Model(&models.CdcDeadLetterModel{}).
+		Where("stream = ?", "outbox_relay").Count(&dlq).Error; err != nil {
+		t.Fatalf("查询死信失败: %v", err)
+	}
+	if dlq != 1 {
+		t.Fatalf("死信条数: got=%d want=1", dlq)
+	}
+
+	// dead 之后不再被领取
+	if err := relay.Dispatch(context.Background(), id); err != nil {
+		t.Fatalf("dead 后再投递返回错误: %v", err)
+	}
+	if got := atomic.LoadInt32(&calls); got != 3 {
+		t.Fatalf("dead 后仍被投递: calls=%d", got)
+	}
+}
+
+// TestRelaySweepEnqueues 补偿扫描能把 pending 事件捞出来。
+func TestRelaySweepEnqueues(t *testing.T) {
+	db := migrate(t)
+	relay := outboxrelay.New(db, nil, outboxrelay.Options{SweepLimit: 10})
+
+	seedEvent(t, db, "article.created", 2001)
+	seedEvent(t, db, "article.created", 2002)
+
+	n, err := relay.Sweep(context.Background())
+	if err != nil {
+		t.Fatalf("扫描失败: %v", err)
+	}
+	if n != 2 {
+		t.Fatalf("入队条数: got=%d want=2", n)
+	}
+}
+
+// TestRelaySweepSkipsFuture 还没到可领取时间的事件不会被扫描到。
+func TestRelaySweepSkipsFuture(t *testing.T) {
+	db := migrate(t)
+	relay := outboxrelay.New(db, nil, outboxrelay.Options{})
+
+	now := time.Now()
+	row := models.OutboxEventModel{
+		EventName:   "article.published",
+		AggregateID: 3001,
+		Status:      models.OutboxStatusFailed,
+		AvailableAt: now.Add(time.Hour), // 退避中
+	}
+	row.CreatedAt = now
+	row.UpdatedAt = now
+	if err := db.Create(&row).Error; err != nil {
+		t.Fatalf("插入事件失败: %v", err)
+	}
+
+	n, err := relay.Sweep(context.Background())
+	if err != nil {
+		t.Fatalf("扫描失败: %v", err)
+	}
+	if n != 0 {
+		t.Fatalf("入队条数: got=%d want=0（未到点的应被跳过）", n)
+	}
+}
+
+// TestRelayRecoversExpiredLease 租约恢复：
+// worker 领了事件但崩溃（状态卡在 processing），租约到期后必须能被重新捞起。
+// 没有这个机制，崩溃一次就永久丢一条事件。
+func TestRelayRecoversExpiredLease(t *testing.T) {
+	db := migrate(t)
+	relay := outboxrelay.New(db, nil, outboxrelay.Options{LeaseDuration: time.Minute})
+
+	var calls int32
+	relay.On("article.published", func(ctx context.Context, e outboxrelay.Event) error {
+		atomic.AddInt32(&calls, 1)
+		return nil
+	})
+
+	id := seedEvent(t, db, "article.published", 4001)
+
+	// 模拟"领了但没做完"：直接把状态改成 processing，并让租约看起来已过期。
+	stale := time.Now().Add(-5 * time.Minute)
+	if err := db.Model(&models.OutboxEventModel{}).Where("id = ?", id).
+		Updates(map[string]any{
+			"status":     models.OutboxStatusProcessing,
+			"updated_at": stale,
+		}).Error; err != nil {
+		t.Fatalf("制造陈旧 processing 失败: %v", err)
+	}
+
+	n, err := relay.Sweep(context.Background())
+	if err != nil {
+		t.Fatalf("扫描失败: %v", err)
+	}
+	if n != 1 {
+		t.Fatalf("过期租约未被捞回: 入队=%d want=1", n)
+	}
+	if err := relay.Dispatch(context.Background(), id); err != nil {
+		t.Fatalf("投递失败: %v", err)
+	}
+	if got := atomic.LoadInt32(&calls); got != 1 {
+		t.Fatalf("订阅者调用次数: got=%d want=1", got)
+	}
+	if row := reload(t, db, id); row.Status != models.OutboxStatusDone {
+		t.Fatalf("状态: got=%s want=%s", row.Status, models.OutboxStatusDone)
+	}
+}
+
+// TestRelayRunAndClose 启动后 worker 会自动消费队列里的事件。
+func TestRelayRunAndClose(t *testing.T) {
+	db := migrate(t)
+	relay := outboxrelay.New(db, nil, outboxrelay.Options{
+		Workers:       2,
+		SweepInterval: 50 * time.Millisecond,
+	})
+
+	var calls int32
+	relay.On("article.published", func(ctx context.Context, e outboxrelay.Event) error {
+		atomic.AddInt32(&calls, 1)
+		return nil
+	})
+
+	id := seedEvent(t, db, "article.published", 5001)
+	relay.Run()
+	relay.EnqueueID(id)
+
+	deadline := time.Now().Add(5 * time.Second)
+	for time.Now().Before(deadline) {
+		if reload(t, db, id).Status == models.OutboxStatusDone {
+			break
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+	relay.Close()
+
+	if row := reload(t, db, id); row.Status != models.OutboxStatusDone {
+		t.Fatalf("worker 未消费: 状态=%s", row.Status)
+	}
+	if got := atomic.LoadInt32(&calls); got != 1 {
+		t.Fatalf("订阅者调用次数: got=%d want=1", got)
+	}
+}

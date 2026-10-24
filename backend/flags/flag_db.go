@@ -49,6 +49,8 @@ func FlagDB(db *gorm.DB, logger *logrus.Logger) error {
 		&models.ChatMsgModel{},
 		&models.ChatMsgUserStateModel{},
 		&models.CdcDeadLetterModel{},
+		// 事务型发件箱：新增表，不影响任何既有表的列，因此不违反零 DDL 约束。
+		&models.OutboxEventModel{},
 	)
 	if err != nil {
 		if logger != nil {

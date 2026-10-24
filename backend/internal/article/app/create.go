@@ -27,6 +27,10 @@ const (
 	EventArticleDeleted = "article.deleted"
 	// EventArticleBackToDraft 作者退回草稿。
 	EventArticleBackToDraft = "article.back_to_draft"
+	// EventArticleDigg 文章被点赞（只在"新增点赞"时发，取消点赞不发）。
+	EventArticleDigg = "article.digg"
+	// EventArticleFavorited 文章被收藏。
+	EventArticleFavorited = "article.favorited"
 )
 
 // Create 创建文章。
@@ -197,5 +201,30 @@ func emit(ctx context.Context, r Repos, name string, articleID domain.ArticleID)
 	if err != nil {
 		return err
 	}
-	return r.Outbox().Emit(ctx, Event{Name: name, Payload: payload})
+	return r.Outbox().Emit(ctx, Event{
+		Name:          name,
+		Payload:       payload,
+		AggregateID:   articleID.Uint64(),
+		AggregateType: "article",
+	})
+}
+
+// emitWithActor 发一条需要知道"是谁做的"的事件。
+//
+// 点赞/收藏通知要告诉作者"某某赞了你"，所以事件体里除了文章 ID
+// 还必须带上操作者 ID。与 emit 一样只带标量，不带整个聚合。
+func emitWithActor(ctx context.Context, r Repos, name string, articleID domain.ArticleID, actorID domain.UserID) error {
+	payload, err := json.Marshal(map[string]uint64{
+		"article_id": articleID.Uint64(),
+		"actor_id":   actorID.Uint64(),
+	})
+	if err != nil {
+		return err
+	}
+	return r.Outbox().Emit(ctx, Event{
+		Name:          name,
+		Payload:       payload,
+		AggregateID:   articleID.Uint64(),
+		AggregateType: "article",
+	})
 }

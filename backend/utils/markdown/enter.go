@@ -69,11 +69,16 @@ func MdToHTMLSafe(md string) string {
 func MdToSafe(md string) string {
 	md = normalizeMarkdownSyntax(md)
 	source := []byte(md)
-	doc := safeMarkdownEngine.Parser().Parse(text.NewReader(source))
+
+	// 每次调用新建一份干净引擎：mdrenderer 的渲染状态粘在实例上且无法外部重置，
+	// 复用会让上一次的残留状态污染本次输出（根因与取舍详见 init.go 注释）。
+	eng := newSafeEngine()
+
+	doc := eng.Parser().Parse(text.NewReader(source))
 	sanitizeSafeMarkdownAST(doc, source)
 
 	var buf bytes.Buffer
-	if err := safeMarkdownEngine.Renderer().Render(&buf, source, doc); err != nil {
+	if err := eng.Renderer().Render(&buf, source, doc); err != nil {
 		return ""
 	}
 	return buf.String()

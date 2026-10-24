@@ -88,8 +88,9 @@ function sha1BytesFallback(buffer: ArrayBuffer) {
     let e = h4;
 
     for (let index = 0; index < 80; index += 1) {
-      let f = 0;
-      let k = 0;
+      // if/else 覆盖全部区间，必定赋值，无需初值
+      let f: number;
+      let k: number;
 
       if (index < 20) {
         f = (b & c) | (~b & d);

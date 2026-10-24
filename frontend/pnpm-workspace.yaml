@@ -1,0 +1,13 @@
+# pnpm 配置（读者站）
+#
+# pnpm 10+ 出于供应链安全，默认禁止依赖执行安装脚本。
+# 这里显式批准确实需要构建的包，否则 `nuxt prepare` 会失败。
+#
+# 说明：unrs-resolver 是 eslint 的导入解析器，其 postinstall 会下载平台二进制；
+# 下载失败会中断整次安装。它只影响 lint 的解析精度，不影响构建与类型检查，
+# 因此不批准构建（保持 false），避免因网络问题阻塞依赖安装。
+allowBuilds:
+  '@parcel/watcher': true
+  esbuild: true
+  unrs-resolver: false
+  vue-demi: true

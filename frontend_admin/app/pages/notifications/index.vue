@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { h } from 'vue'
-import { NButton, NCard, NDataTable, NDatePicker, NForm, NFormItem, NGrid, NGridItem, NInput, NSpace, NTag, useDialog, useMessage } from 'naive-ui'
+import { NButton, NCard, NDataTable, NDatePicker, NForm, NFormItem, NGrid, NGridItem, NInput, NTag, useDialog, useMessage } from 'naive-ui'
 import { createGlobalNotification, deleteGlobalNotifications, getGlobalNotifications } from '~/services/admin'
 import type { GlobalNotifListItem } from '~/types/api'
 import { formatDateTime } from '~/utils/format'

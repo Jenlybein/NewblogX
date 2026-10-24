@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { NButton, NTag, NThing } from "naive-ui";
+import { NTag, NThing } from "naive-ui";
 import ArticleCover from "~/components/article/ArticleCover.vue";
 import type { FavoriteArticleItem, FavoriteFolderItem } from "~/types/api";
 import { formatCount, formatDateTimeLabel } from "~/utils/format";

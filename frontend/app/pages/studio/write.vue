@@ -441,17 +441,6 @@ function insertSnippet(snippet: string) {
   });
 }
 
-function wrapSelection(prefix: string, suffix: string, placeholder: string) {
-  replaceSelection((selectedText) => {
-    const value = selectedText || placeholder;
-    return {
-      content: `${prefix}${value}${suffix}`,
-      start: prefix.length,
-      end: prefix.length + value.length,
-    };
-  });
-}
-
 function findWordRangeAtCursor(content: string, cursor: number) {
   const isWordChar = (char: string) => /[A-Za-z0-9_\u4e00-\u9fff]/.test(char);
   let start = cursor;
@@ -1289,7 +1278,8 @@ useSeoMeta({
   <div class="write-page">
     <header class="write-page__header">
       <div class="write-page__topbar">
-        <NInput v-model:value="form.title" class="write-title-input" size="large" maxlength="120"
+        <NInput
+v-model:value="form.title" class="write-title-input" size="large" maxlength="120"
           placeholder="输入文章标题..." :bordered="false" />
 
         <div class="write-page__actions">
@@ -1303,7 +1293,8 @@ useSeoMeta({
           <NButton quaternary @click="navigateTo('/')">返回首页</NButton>
           <NButton quaternary @click="navigateTo('/studio/profile')">草稿箱</NButton>
           <NButton type="primary" @click="publishVisible = true">{{ isEditMode ? "更新" : "发布" }}</NButton>
-          <NuxtLink :to="authStore.profileId ? `/users/${authStore.profileId}` : '/studio/profile'"
+          <NuxtLink
+:to="authStore.profileId ? `/users/${authStore.profileId}` : '/studio/profile'"
             class="write-avatar-link">
             <AppAvatar
               :key="authStore.profileAvatar || authStore.profileName"
@@ -1325,10 +1316,12 @@ useSeoMeta({
               </template>
 
               <div class="write-tool-popover">
-                <button v-for="option in tool.options" :key="option.key" type="button" class="write-tool-option"
+                <button
+v-for="option in tool.options" :key="option.key" type="button" class="write-tool-option"
                   :class="{ 'write-tool-option--active': isToolOptionActive(tool.key, option.key) }"
                   @click.prevent.stop="handleToolOption(tool.key, option.key)">
-                  <component v-if="option.icon" :is="option.icon" class="write-tool-option__icon" :size="16"
+                  <component
+:is="option.icon" v-if="option.icon" class="write-tool-option__icon" :size="16"
                     :stroke-width="1.9" />
                   {{ option.label }}
                 </button>
@@ -1337,7 +1330,8 @@ useSeoMeta({
 
             <NTooltip v-else trigger="hover" placement="bottom">
               <template #trigger>
-                <button type="button" class="write-tool-button" :aria-label="tool.label" :title="getToolTooltip(tool)"
+                <button
+type="button" class="write-tool-button" :aria-label="tool.label" :title="getToolTooltip(tool)"
                   @click="handleToolClick(tool)">
                   <component :is="tool.icon" class="write-tool-button__icon" :size="18" :stroke-width="1.9" />
                 </button>
@@ -1350,7 +1344,8 @@ useSeoMeta({
         <div class="write-page__toolbar-group write-page__toolbar-group--right">
           <NTooltip trigger="hover" placement="bottom">
             <template #trigger>
-              <button type="button" class="write-tool-button" :class="{ 'write-tool-button--active': showToc }"
+              <button
+type="button" class="write-tool-button" :class="{ 'write-tool-button--active': showToc }"
                 aria-label="目录" @click="handleRightToolClick('toc')">
                 <IconListDetails class="write-tool-button__icon" :size="18" :stroke-width="1.9" />
               </button>
@@ -1360,7 +1355,8 @@ useSeoMeta({
 
           <NTooltip trigger="hover" placement="bottom">
             <template #trigger>
-              <button type="button" class="write-tool-button"
+              <button
+type="button" class="write-tool-button"
                 :class="{ 'write-tool-button--active': viewMode === 'editor' }" aria-label="仅显示编辑区"
                 @click="handleRightToolClick('editor')">
                 <IconColumns1 class="write-tool-button__icon" :size="18" :stroke-width="1.9" />
@@ -1371,7 +1367,8 @@ useSeoMeta({
 
           <NTooltip trigger="hover" placement="bottom">
             <template #trigger>
-              <button type="button" class="write-tool-button"
+              <button
+type="button" class="write-tool-button"
                 :class="{ 'write-tool-button--active': viewMode === 'preview' }" aria-label="仅显示预览区"
                 @click="handleRightToolClick('preview')">
                 <IconColumns2 class="write-tool-button__icon" :size="18" :stroke-width="1.9" />
@@ -1387,7 +1384,8 @@ useSeoMeta({
       <aside v-show="showToc" class="write-page__toc">
         <div class="write-page__toc-header">目录</div>
         <nav class="write-page__toc-list">
-          <button v-for="item in tocItems" :key="`${item.level}-${item.label}`" type="button"
+          <button
+v-for="item in tocItems" :key="`${item.level}-${item.label}`" type="button"
             class="write-page__toc-item" :class="[`write-page__toc-item--level-${Math.min(item.level, 4)}`]"
             @click="handleTocJump(item.id)">
             {{ item.label }}
@@ -1396,13 +1394,14 @@ useSeoMeta({
       </aside>
 
       <section class="write-page__pane write-page__pane--editor">
-        <textarea ref="editorTextareaRef" v-model="form.content" class="write-page__textarea"
+        <textarea
+ref="editorTextareaRef" v-model="form.content" class="write-page__textarea"
+          placeholder="从这里开始写作，把 API 能力、页面结构和组件关系整理清楚。"
           @keydown="handleEditorShortcuts"
           @keyup="handleEditorSelectionChange"
           @mouseup="handleEditorSelectionChange"
           @select="handleEditorSelectionChange"
-          @scroll="handleEditorSelectionChange"
-          placeholder="从这里开始写作，把 API 能力、页面结构和组件关系整理清楚。" />
+          @scroll="handleEditorSelectionChange" />
       </section>
 
       <aside class="write-page__pane write-page__pane--preview">
@@ -1473,13 +1472,15 @@ useSeoMeta({
           <div class="publish-form">
             <div class="publish-form__row">
               <label class="publish-form__label">分类</label>
-              <NSelect v-model:value="form.category_id" clearable filterable :options="categoryOptions || []"
+              <NSelect
+v-model:value="form.category_id" clearable filterable :options="categoryOptions || []"
                 placeholder="请选择分类" class="publish-form__control" />
             </div>
 
             <div class="publish-form__row">
               <label class="publish-form__label">添加标签</label>
-              <NSelect v-model:value="form.tag_ids" multiple clearable filterable max-tag-count="responsive"
+              <NSelect
+v-model:value="form.tag_ids" multiple clearable filterable max-tag-count="responsive"
                 :options="tagOptions || []" placeholder="请选择已有标签" class="publish-form__control" />
             </div>
 
@@ -1491,7 +1492,7 @@ useSeoMeta({
                   type="file"
                   accept="image/*"
                   class="publish-cover__file-input"
-                  @change="handleCoverFileChange" />
+                  @change="handleCoverFileChange" >
 
                 <button
                   type="button"
@@ -1502,7 +1503,7 @@ useSeoMeta({
                     v-if="coverPreviewUrl"
                     :src="coverPreviewUrl"
                     alt="文章封面预览"
-                    class="publish-cover__preview-image" />
+                    class="publish-cover__preview-image" >
                   <template v-else>
                     <span class="publish-cover__plus">+</span>
                     <span>上传封面</span>
@@ -1524,7 +1525,8 @@ useSeoMeta({
             <div class="publish-form__row publish-form__row--top">
               <label class="publish-form__label">编辑摘要</label>
               <div class="publish-summary">
-                <NInput v-model:value="form.abstract" type="textarea" maxlength="180"
+                <NInput
+v-model:value="form.abstract" type="textarea" maxlength="180"
                   :autosize="{ minRows: 5, maxRows: 8 }" placeholder="请输入文章摘要" />
                 <span class="publish-summary__count">{{ form.abstract.length }}/180</span>
               </div>

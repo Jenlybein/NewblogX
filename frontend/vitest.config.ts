@@ -38,6 +38,18 @@ export default defineConfig({
         "test/**",
         "app/types/**",
       ],
+      // 覆盖率门槛存在的意义：防止有人把测过的代码删掉、或把难测的分支
+      // 挪到没测试的地方，导致覆盖率"静默下降"而没人发现。
+      //
+      // 数值 = 2026-10-24 实测值向下取整（stmt 62.47 / branch 50.96 /
+      // func 67.14 / line 62.62），作为只升不降的基线。
+      // 后续每补一批测试就上调，永不回调。
+      thresholds: {
+        statements: 60,
+        branches: 50,
+        functions: 65,
+        lines: 60,
+      },
     },
   },
 });

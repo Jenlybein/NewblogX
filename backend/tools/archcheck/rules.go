@@ -24,6 +24,7 @@ func rules() []Rule {
 		ruleFileTooLong(),
 		ruleNoBareGo(),
 		ruleNoChineseErrorsNew(),
+		ruleLogNoAny(),
 	}
 }
 
@@ -358,3 +359,68 @@ func hasChinese(s string) bool {
 
 // base 返回路径最后一段（便于测试）。
 func base(p string) string { return path.Base(p) }
+
+// ── R9：日志审计输入禁止 any（L.10 闸门）────────────────────────
+//
+// 老毛病：审计 body 曾用 `any` 接收任意结构体，进而在请求路径上反射整棵树，
+// 是内存/CPU 尖刺的根源（见 docs/architecture/07 §1.2）。
+// 现在 body 只接受边界采集好的 []byte；这里从类型上堵死回归。
+//
+// 只检查名字以 AuditInput / AuditEvent 结尾的结构体（及 GinAuditInput），
+// 不误伤业务结构体里的普通 any。
+func ruleLogNoAny() Rule {
+	return Rule{
+		ID:    "R9",
+		Slug:  "log-no-any",
+		Title: "日志审计输入禁 any / 禁结构体",
+		Level: "error",
+		Check: func(fset *token.FileSet, file *ast.File, rel string) []Violation {
+			if !isLogLayer(rel) {
+				return nil
+			}
+			var out []Violation
+			ast.Inspect(file, func(n ast.Node) bool {
+				ts, ok := n.(*ast.TypeSpec)
+				if !ok {
+					return true
+				}
+				name := ts.Name.Name
+				if !strings.HasSuffix(name, "AuditInput") &&
+					!strings.HasSuffix(name, "AuditEvent") &&
+					name != "GinAuditInput" {
+					return true
+				}
+				st, ok := ts.Type.(*ast.StructType)
+				if !ok || st.Fields == nil {
+					return true
+				}
+				for _, f := range st.Fields.List {
+					if isAnyType(f.Type) {
+						out = append(out, Violation{
+							Rule: "R9", File: rel, Line: fset.Position(f.Pos()).Line,
+							Msg: fmt.Sprintf("%s 的字段不应为 any（改用受控类型，如 []byte / string）", name),
+						})
+					}
+				}
+				return true
+			})
+			return out
+		},
+	}
+}
+
+// isAnyType 判断类型表达式是否是裸 any / interface{}。
+func isAnyType(expr ast.Expr) bool {
+	switch t := expr.(type) {
+	case *ast.Ident:
+		return t.Name == "any"
+	case *ast.InterfaceType:
+		return t.Methods == nil || len(t.Methods.List) == 0
+	}
+	return false
+}
+
+// isLogLayer 判断是否属于日志/审计层（R9 的作用范围）。
+func isLogLayer(rel string) bool {
+	return strings.HasPrefix(rel, "service/log_service/") || strings.HasPrefix(rel, "middleware/")
+}

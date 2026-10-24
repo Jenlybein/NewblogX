@@ -7,44 +7,34 @@ import (
 	"mime"
 	"strings"
 	"unicode/utf8"
-
-	"myblogx/utils/logsafe"
 )
 
 // CaptureLogMode 定义请求/响应 body 与 header 的按位采集模式。
 type CaptureLogMode uint8
 
 const (
-	// None 表示不采集任何原始请求/响应信息。
+	// None 表示不采集任何请求/响应体。
 	None CaptureLogMode = 0
-	// ReqBody 表示采集原始请求体。
-	ReqBody CaptureLogMode = 1 << iota
-	// RespBody 表示采集原始响应体。
-	RespBody
-	// ReqHeader 表示采集原始请求头。
-	ReqHeader
-	// RespHeader 表示采集原始响应头。
-	RespHeader
+	// ReqBody 表示采集请求体。
+	ReqBody CaptureLogMode = 1 << 0
+	// RespBody 表示采集响应体。
+	RespBody CaptureLogMode = 1 << 1
 )
 
 const (
-	// BothBody 表示同时采集原始请求体和响应体。
+	// BothBody 表示同时采集请求体和响应体。
 	BothBody = ReqBody | RespBody
-	// BothHeader 表示同时采集原始请求头和响应头。
-	BothHeader = ReqHeader | RespHeader
-	// All 表示同时采集 body 和 header。
-	All = BothBody | BothHeader
+	// All 是 BothBody 的别名（L.10 起不再采集 header）。
+	All = BothBody
 )
 
 const (
 	// MaxBodyBytes 控制写入日志前单个原始 body/header 的最大长度。
 	MaxBodyBytes = 16 * 1024
 
-	contextKeyRawRequestBody  = "_audit_raw_request_body"
-	contextKeyRawResponseBody = "_audit_raw_response_body"
-	contextKeyRawRequestHead  = "_audit_raw_request_header"
-	contextKeyRawResponseHead = "_audit_raw_response_header"
-	truncationSuffix          = "...(已截断)"
+	contextKeyCapturedRequestBody  = "_audit_captured_request_body"
+	contextKeyCapturedResponseBody = "_audit_captured_response_body"
+	truncationSuffix               = "...(已截断)"
 )
 
 var sensitiveKeys = map[string]struct{}{
@@ -80,30 +70,20 @@ func (mode CaptureLogMode) NeedResponseBody() bool {
 	return mode&RespBody != 0
 }
 
-// NeedRequestHeader 返回当前模式是否需要采集原始请求头。
-func (mode CaptureLogMode) NeedRequestHeader() bool {
-	return mode&ReqHeader != 0
-}
-
-// NeedResponseHeader 返回当前模式是否需要采集原始响应头。
-func (mode CaptureLogMode) NeedResponseHeader() bool {
-	return mode&RespHeader != 0
-}
-
-// SetRawRequestBody 将处理后的原始请求体缓存到 Gin 上下文。
-func SetRawRequestBody(c contextValueStore, body string) {
+// SetCapturedRequestBody 缓存边界采集的请求体（已脱敏 + ≤16KB）。
+func SetCapturedRequestBody(c contextValueStore, body string) {
 	if c == nil || body == "" {
 		return
 	}
-	c.Set(contextKeyRawRequestBody, body)
+	c.Set(contextKeyCapturedRequestBody, body)
 }
 
-// GetRawRequestBody 从 Gin 上下文读取处理后的原始请求体。
-func GetRawRequestBody(c contextValueStore) string {
+// GetCapturedRequestBody 读取边界采集的请求体。
+func GetCapturedRequestBody(c contextValueStore) string {
 	if c == nil {
 		return ""
 	}
-	value, ok := c.Get(contextKeyRawRequestBody)
+	value, ok := c.Get(contextKeyCapturedRequestBody)
 	if !ok {
 		return ""
 	}
@@ -111,67 +91,25 @@ func GetRawRequestBody(c contextValueStore) string {
 	return body
 }
 
-// SetRawResponseBody 将处理后的原始响应体缓存到 Gin 上下文。
-func SetRawResponseBody(c contextValueStore, body string) {
+// SetCapturedResponseBody 缓存边界采集的响应体（已脱敏 + ≤16KB）。
+func SetCapturedResponseBody(c contextValueStore, body string) {
 	if c == nil || body == "" {
 		return
 	}
-	c.Set(contextKeyRawResponseBody, body)
+	c.Set(contextKeyCapturedResponseBody, body)
 }
 
-// GetRawResponseBody 从 Gin 上下文读取处理后的原始响应体。
-func GetRawResponseBody(c contextValueStore) string {
+// GetCapturedResponseBody 读取边界采集的响应体。
+func GetCapturedResponseBody(c contextValueStore) string {
 	if c == nil {
 		return ""
 	}
-	value, ok := c.Get(contextKeyRawResponseBody)
+	value, ok := c.Get(contextKeyCapturedResponseBody)
 	if !ok {
 		return ""
 	}
 	body, _ := value.(string)
 	return body
-}
-
-// SetRawRequestHeader 将处理后的原始请求头缓存到 Gin 上下文。
-func SetRawRequestHeader(c contextValueStore, header string) {
-	if c == nil || header == "" {
-		return
-	}
-	c.Set(contextKeyRawRequestHead, header)
-}
-
-// GetRawRequestHeader 从 Gin 上下文读取处理后的原始请求头。
-func GetRawRequestHeader(c contextValueStore) string {
-	if c == nil {
-		return ""
-	}
-	value, ok := c.Get(contextKeyRawRequestHead)
-	if !ok {
-		return ""
-	}
-	header, _ := value.(string)
-	return header
-}
-
-// SetRawResponseHeader 将处理后的原始响应头缓存到 Gin 上下文。
-func SetRawResponseHeader(c contextValueStore, header string) {
-	if c == nil || header == "" {
-		return
-	}
-	c.Set(contextKeyRawResponseHead, header)
-}
-
-// GetRawResponseHeader 从 Gin 上下文读取处理后的原始响应头。
-func GetRawResponseHeader(c contextValueStore) string {
-	if c == nil {
-		return ""
-	}
-	value, ok := c.Get(contextKeyRawResponseHead)
-	if !ok {
-		return ""
-	}
-	header, _ := value.(string)
-	return header
 }
 
 // PrepareCapturedBody 对原始 body 做脱敏和截断后，返回适合写入审计日志的文本。
@@ -188,46 +126,6 @@ func PrepareCapturedBody(raw []byte, contentType string) string {
 	}
 
 	return truncatePlainText(string(trimmed), MaxBodyBytes)
-}
-
-// PrepareCapturedHeaders 对请求头或响应头做脱敏和截断，返回适合写入审计日志的 JSON 字符串。
-func PrepareCapturedHeaders(headers map[string][]string) string {
-	if len(headers) == 0 {
-		return ""
-	}
-
-	value := make(map[string]any, len(headers))
-	for key, items := range headers {
-		if len(items) == 0 {
-			value[key] = ""
-			continue
-		}
-		if len(items) == 1 {
-			value[key] = items[0]
-			continue
-		}
-		cloned := make([]string, 0, len(items))
-		cloned = append(cloned, items...)
-		value[key] = cloned
-	}
-
-	return marshalStructuredWithinLimit(redactValue("", value), MaxBodyBytes)
-}
-
-// MarshalAuditValue 将业务代码传入的请求/响应摘要安全序列化为单行 JSON。
-func MarshalAuditValue(value any) string {
-	if value == nil {
-		return ""
-	}
-
-	switch typed := value.(type) {
-	case string:
-		return PrepareCapturedBody([]byte(typed), "application/json")
-	case []byte:
-		return PrepareCapturedBody(typed, "application/json")
-	}
-
-	return marshalStructuredWithinLimit(redactValue("", logsafe.SanitizeValue(value)), MaxBodyBytes)
 }
 
 func decodeJSON(raw []byte) (any, bool) {

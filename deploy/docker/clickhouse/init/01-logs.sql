@@ -11,6 +11,16 @@ CREATE DATABASE IF NOT EXISTS blogx_logs;
 --    或 count(DISTINCT event_id)；不做 FINAL 时后台合并最终也会收敛。
 --    前提：重放投递的是磁盘上的同一份字节，ORDER BY 元组（含 ts）完全一致；
 --    若日志被重新生成（ts 变化），会被当成新事件，不会去重。
+-- 5) L.10（2026-10-24）审计字段瘦身：action_audit_logs 删除了 4 个 *_raw 列，
+--    request_body/response_body 仅失败请求时写并加 CODEC(ZSTD(9))，新增 payload_ref 预留列。
+--    存量部署（表已存在时 CREATE IF NOT EXISTS 不改结构）需手工迁移：
+--      ALTER TABLE blogx_logs.action_audit_logs DROP COLUMN IF EXISTS request_body_raw;
+--      ALTER TABLE blogx_logs.action_audit_logs DROP COLUMN IF EXISTS response_body_raw;
+--      ALTER TABLE blogx_logs.action_audit_logs DROP COLUMN IF EXISTS request_header_raw;
+--      ALTER TABLE blogx_logs.action_audit_logs DROP COLUMN IF EXISTS response_header_raw;
+--      ALTER TABLE blogx_logs.action_audit_logs ADD COLUMN IF NOT EXISTS payload_ref String;
+--      ALTER TABLE blogx_logs.action_audit_logs MODIFY COLUMN request_body String CODEC(ZSTD(9));
+--      ALTER TABLE blogx_logs.action_audit_logs MODIFY COLUMN response_body String CODEC(ZSTD(9));
 
 -- 运行日志（runtime）
 CREATE TABLE IF NOT EXISTS blogx_logs.runtime_logs (
@@ -110,12 +120,11 @@ CREATE TABLE IF NOT EXISTS blogx_logs.action_audit_logs (
     target_type LowCardinality(String),
     target_id String,
     success UInt8,
-    request_body String,
-    response_body String,
-    request_body_raw String,
-    response_body_raw String,
-    request_header_raw String,
-    response_header_raw String,
+    -- 仅在失败请求时填充（success=0）；成功请求留空。见 docs/architecture/07 §0
+    request_body String CODEC(ZSTD(9)),
+    response_body String CODEC(ZSTD(9)),
+    -- 预留：将来启用"原始报文冷存储"时，指向对象存储的取件码；默认不写
+    payload_ref String,
     extra_json String
 ) ENGINE = ReplacingMergeTree
 PARTITION BY toYYYYMM(ts)

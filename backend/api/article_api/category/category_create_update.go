@@ -38,13 +38,11 @@ func (h CategoryApi) CategoryCreateUpdateView(c *gin.Context) {
 			Title: category.Title,
 		}, c)
 		middleware.EmitActionAuditFromGin(c, middleware.GinAuditInput{
-			ActionName:        "category_create",
-			TargetType:        "category",
-			TargetID:          strconv.FormatUint(uint64(category.ID), 10),
-			Success:           true,
-			Message:           "创建分类成功",
-			RequestBody:       cr,
-			UseRawRequestBody: true,
+			ActionName: "category_create",
+			TargetType: "category",
+			TargetID:   strconv.FormatUint(uint64(category.ID), 10),
+			Success:    true,
+			Message:    "创建分类成功",
 		})
 		return
 	}
@@ -66,12 +64,10 @@ func (h CategoryApi) CategoryCreateUpdateView(c *gin.Context) {
 	}
 	res.OkWithMsg("更新分类成功", c)
 	middleware.EmitActionAuditFromGin(c, middleware.GinAuditInput{
-		ActionName:        "category_update",
-		TargetType:        "category",
-		TargetID:          strconv.FormatUint(uint64(category.ID), 10),
-		Success:           true,
-		Message:           "更新分类成功",
-		RequestBody:       cr,
-		UseRawRequestBody: true,
+		ActionName: "category_update",
+		TargetType: "category",
+		TargetID:   strconv.FormatUint(uint64(category.ID), 10),
+		Success:    true,
+		Message:    "更新分类成功",
 	})
 }

@@ -45,15 +45,9 @@ func (h CategoryApi) CategoryDeleteView(c *gin.Context) {
 	}
 	res.OkWithMsg(fmt.Sprintf("删除分类成功，共删除 %d 条", len(list)), c)
 	middleware.EmitActionAuditFromGin(c, middleware.GinAuditInput{
-		ActionName:  "category_delete",
-		TargetType:  "category",
-		Success:     true,
-		Message:     fmt.Sprintf("删除分类成功，共删除 %d 条", len(list)),
-		RequestBody: map[string]any{"id_list": cr.IDList},
-		ResponseBody: map[string]any{
-			"deleted_count": len(list),
-		},
-		UseRawRequestBody: true,
-		UseRawRequestHead: true,
+		ActionName: "category_delete",
+		TargetType: "category",
+		Success:    true,
+		Message:    fmt.Sprintf("删除分类成功，共删除 %d 条", len(list)),
 	})
 }

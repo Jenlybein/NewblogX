@@ -182,12 +182,6 @@ func (h ArticleApi) ArticleReviewTaskHandleView(c *gin.Context) {
 		TargetID:   strconv.FormatUint(uint64(task.ID), 10),
 		Success:    true,
 		Message:    "审核任务处理成功",
-		RequestBody: map[string]any{
-			"status": cr.Status,
-			"reason": strings.TrimSpace(cr.Reason),
-		},
-		UseRawRequestBody: true,
-		UseRawRequestHead: true,
 	})
 }
 
@@ -217,9 +211,5 @@ func (h ArticleApi) ArticleAdminVisibilityView(c *gin.Context) {
 		TargetID:   strconv.FormatUint(uint64(article.ID), 10),
 		Success:    true,
 		Message:    "更新文章可见性成功",
-		RequestBody: map[string]any{
-			"visibility": nextVisibility,
-		},
-		UseRawRequestHead: true,
 	})
 }

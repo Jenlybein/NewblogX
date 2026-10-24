@@ -39,16 +39,10 @@ func (h GlobalNotifApi) GlobalNotifAdminRemoveView(c *gin.Context) {
 	}
 	res.OkWithMsg(fmt.Sprintf("请求删除公告%d个，成功%d条", len(cr.IDList), len(list)), c)
 	middleware.EmitActionAuditFromGin(c, middleware.GinAuditInput{
-		ActionName:  "global_notif_admin_remove",
-		TargetType:  "global_notif",
-		Success:     true,
-		Message:     fmt.Sprintf("请求删除公告%d个，成功%d条", len(cr.IDList), len(list)),
-		RequestBody: map[string]any{"id_list": cr.IDList},
-		ResponseBody: map[string]any{
-			"deleted_count": len(list),
-		},
-		UseRawRequestBody: true,
-		UseRawRequestHead: true,
+		ActionName: "global_notif_admin_remove",
+		TargetType: "global_notif",
+		Success:    true,
+		Message:    fmt.Sprintf("请求删除公告%d个，成功%d条", len(cr.IDList), len(list)),
 	})
 }
 

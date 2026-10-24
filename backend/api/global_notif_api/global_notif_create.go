@@ -71,13 +71,10 @@ func (h GlobalNotifApi) GlobalNotifCreateView(c *gin.Context) {
 		Href:            model.Href,
 	}, c)
 	middleware.EmitActionAuditFromGin(c, middleware.GinAuditInput{
-		ActionName:        "global_notif_create",
-		TargetType:        "global_notif",
-		TargetID:          model.ID.String(),
-		Success:           true,
-		Message:           "创建全局通知成功",
-		RequestBody:       cr,
-		UseRawRequestBody: true,
-		UseRawRequestHead: true,
+		ActionName: "global_notif_create",
+		TargetType: "global_notif",
+		TargetID:   model.ID.String(),
+		Success:    true,
+		Message:    "创建全局通知成功",
 	})
 }

@@ -47,26 +47,3 @@ func TestPrepareCapturedBodyTruncatesLargeJSONAndKeepsKeys(t *testing.T) {
 		t.Fatalf("截断后仍应保留 content 字段名: %s", body)
 	}
 }
-
-func TestPrepareCapturedHeadersMasksSensitiveFields(t *testing.T) {
-	headers := map[string][]string{
-		"Authorization": {"Bearer token-123"},
-		"Cookie":        {"sid=abc"},
-		"X-Trace-Id":    {"trace-1"},
-	}
-
-	body := PrepareCapturedHeaders(headers)
-
-	if strings.Contains(body, "token-123") || strings.Contains(body, "sid=abc") {
-		t.Fatalf("脱敏后的请求头不应包含敏感明文: %s", body)
-	}
-	if !strings.Contains(body, `"Authorization":"***"`) {
-		t.Fatalf("Authorization 头应被脱敏: %s", body)
-	}
-	if !strings.Contains(body, `"Cookie":"***"`) {
-		t.Fatalf("Cookie 头应被脱敏: %s", body)
-	}
-	if !strings.Contains(body, `"X-Trace-Id":"trace-1"`) {
-		t.Fatalf("普通请求头应被保留: %s", body)
-	}
-}

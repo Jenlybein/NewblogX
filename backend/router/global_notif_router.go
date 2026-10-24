@@ -20,6 +20,6 @@ func GlobalNotifRouter(r *gin.RouterGroup, appContainer api.Api, runtimeMw mw.Ru
 	authGroup.POST("read", mw.BindJson[models.IDListRequest], app.GlobalNotifReadView)
 	authGroup.DELETE("user", mw.BindJson[models.IDListRequest], app.GlobalNotifUserRemoveView)
 
-	adminGroup.POST("", mw.CaptureLog(mw.ReqBody|mw.ReqHeader), mw.BindJson[global_notif_api.GlobalNotifCreateRequest], app.GlobalNotifCreateView)
-	adminGroup.DELETE("", mw.CaptureLog(mw.ReqBody|mw.ReqHeader), mw.BindJson[models.IDListRequest], app.GlobalNotifAdminRemoveView)
+	adminGroup.POST("", mw.CaptureLog(mw.ReqBody), mw.BindJson[global_notif_api.GlobalNotifCreateRequest], app.GlobalNotifCreateView)
+	adminGroup.DELETE("", mw.CaptureLog(mw.ReqBody), mw.BindJson[models.IDListRequest], app.GlobalNotifAdminRemoveView)
 }

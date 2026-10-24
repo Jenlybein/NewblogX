@@ -62,16 +62,5 @@ func (h ArticleApi) ArticleCreateView(c *gin.Context) {
 		TargetID:   strconv.FormatUint(uint64(article.ID), 10),
 		Success:    true,
 		Message:    "创建文章成功",
-		RequestBody: map[string]any{
-			"title":           cr.Title,
-			"abstract":        cr.Abstract,
-			"cover_image_id":  cr.CoverImageID,
-			"category_id":     cr.CategoryID,
-			"publish_status":  article.PublishStatus,
-			"comments_toggle": cr.CommentsToggle,
-			"tag_ids":         cr.TagIDs,
-			"content_length":  len(cr.Content),
-			"content_changed": len(cr.Content) > 0,
-		},
 	})
 }

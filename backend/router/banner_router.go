@@ -17,7 +17,7 @@ func BannerRouter(r *gin.RouterGroup, appContainer api.Api, runtimeMw mw.Runtime
 	app := appContainer.BannerApi
 
 	Group.GET("", mw.BindQuery[banner_api.BannerListRequest], app.BannerListView)
-	adminGroup.POST("", mw.CaptureLog(mw.ReqBody|mw.ReqHeader), mw.BindJson[banner_api.BannerCreateRequest], app.BannerCreateView)
-	adminGroup.PUT(":id", mw.CaptureLog(mw.ReqBody|mw.ReqHeader), mw.BindUri[models.IDRequest], mw.BindJson[banner_api.BannerCreateRequest], app.BannerUpdateView)
-	adminGroup.DELETE("", mw.CaptureLog(mw.ReqBody|mw.ReqHeader), mw.BindJson[models.IDListRequest], app.BannerRemoveView)
+	adminGroup.POST("", mw.CaptureLog(mw.ReqBody), mw.BindJson[banner_api.BannerCreateRequest], app.BannerCreateView)
+	adminGroup.PUT(":id", mw.CaptureLog(mw.ReqBody), mw.BindUri[models.IDRequest], mw.BindJson[banner_api.BannerCreateRequest], app.BannerUpdateView)
+	adminGroup.DELETE("", mw.CaptureLog(mw.ReqBody), mw.BindJson[models.IDListRequest], app.BannerRemoveView)
 }

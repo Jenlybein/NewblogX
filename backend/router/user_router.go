@@ -36,12 +36,12 @@ func UserRouter(r *gin.RouterGroup, appContainer api.Api, runtimeMw mw.Runtime) 
 	authGroup.GET("detail", profile.UserDetailView)
 	Group.GET("base", runtimeMw.OptionalAuthMiddleware, mw.BindQuery[models.IDRequest], profile.UserBaseInfoView)
 	authGroup.PUT("info", mw.BindJson[profile_api.UserInfoUpdateRequest], profile.UserInfoUpdateView)
-	adminGroup.PUT("admin/info", mw.CaptureLog(mw.ReqBody|mw.ReqHeader), mw.BindJson[profile_api.AdminUserInfoUpdateRequest], profile.AdminUserInfoUpdateView)
+	adminGroup.PUT("admin/info", mw.CaptureLog(mw.ReqBody), mw.BindJson[profile_api.AdminUserInfoUpdateRequest], profile.AdminUserInfoUpdateView)
 
 	log := appContainer.UserApi.LogApi
 	adminGroup.GET("login/log", mw.BindQuery[log_api.UserLoginListRequest], log.UserLoginLogList)
 
 	man := appContainer.UserApi.UserManApi
-	adminGroup.POST("admin", mw.CaptureLog(mw.ReqHeader), mw.BindJson[user_man_api.AdminUserCreateRequest], man.AdminUserCreateView)
+	adminGroup.POST("admin", mw.BindJson[user_man_api.AdminUserCreateRequest], man.AdminUserCreateView)
 	adminGroup.GET("admin/list", mw.BindQuery[user_man_api.UserListRequest], man.UserListView)
 }

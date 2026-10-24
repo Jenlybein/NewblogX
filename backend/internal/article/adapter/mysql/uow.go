@@ -19,7 +19,8 @@ import (
 // errNilDB 表示装配期漏传了数据库连接。
 //
 // 不 panic：启动期错误应该尽早暴露，但不该在装配阶段直接杀死进程难以定位。
-var errNilDB = errors.New("article/mysql: 数据库未初始化")
+// 文案用英文：这是运维/开发者看的错误，不面向终端用户（R8 的目标是后者）。
+var errNilDB = errors.New("article/mysql: database not initialized")
 
 // TxManager 是 app.TxManager 的实现。
 //

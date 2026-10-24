@@ -214,6 +214,56 @@ func (r *Repo) UpdateEmail(ctx context.Context, id domain.UserID, email string) 
 	return nil
 }
 
+// UpdateAdmin 实现 domain.Repository。
+func (r *Repo) UpdateAdmin(ctx context.Context, id domain.UserID, patch domain.AdminPatch) error {
+	cols := map[string]any{}
+	if patch.Username != nil {
+		cols["username"] = strings.TrimSpace(*patch.Username)
+	}
+	if patch.Nickname != nil {
+		cols["nickname"] = strings.TrimSpace(*patch.Nickname)
+	}
+	if patch.Abstract != nil {
+		cols["abstract"] = *patch.Abstract
+	}
+	if patch.AvatarURL != nil {
+		cols["avatar"] = *patch.AvatarURL
+	}
+	if patch.Role != nil {
+		cols["role"] = int8(*patch.Role)
+	}
+	if patch.Status != nil {
+		cols["status"] = int8(*patch.Status)
+	}
+	if len(cols) == 0 {
+		return nil
+	}
+	res := r.db.WithContext(ctx).Model(&UserRow{}).Where("id = ?", id.Uint64()).Updates(cols)
+	if res.Error != nil {
+		return translate(res.Error)
+	}
+	if res.RowsAffected == 0 {
+		return apperr.New(apperr.CodeUserNotFound)
+	}
+	return nil
+}
+
+// BumpTokenVersion 实现 domain.Repository。
+//
+// 用 SQL 自增而不是"读出来再写回去"：并发改两次也能各自生效。
+func (r *Repo) BumpTokenVersion(ctx context.Context, id domain.UserID) error {
+	res := r.db.WithContext(ctx).Model(&UserRow{}).
+		Where("id = ?", id.Uint64()).
+		UpdateColumn("token_version", gorm.Expr("token_version + 1"))
+	if res.Error != nil {
+		return translate(res.Error)
+	}
+	if res.RowsAffected == 0 {
+		return apperr.New(apperr.CodeUserNotFound)
+	}
+	return nil
+}
+
 // List 实现 domain.Repository。
 func (r *Repo) List(ctx context.Context, q domain.Query) (domain.Page, error) {
 	q = q.Normalize()

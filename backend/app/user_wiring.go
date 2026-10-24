@@ -18,20 +18,28 @@ import (
 	redis_service "myblogx/internal/platform/redis"
 	"myblogx/internal/platform/redis/redis_email"
 	"myblogx/internal/platform/redis/redis_user"
+	userhttp "myblogx/internal/user/adapter/http"
 	usermysql "myblogx/internal/user/adapter/mysql"
 	userredis "myblogx/internal/user/adapter/redis"
 	usersec "myblogx/internal/user/adapter/security"
 	userapp "myblogx/internal/user/app"
 	userdomain "myblogx/internal/user/domain"
 	"myblogx/middleware"
+	"myblogx/models"
 	"myblogx/models/ctype"
 	"myblogx/models/enum"
 	"myblogx/router"
 	"myblogx/service/email_service"
+	"myblogx/service/follow_service"
+	"myblogx/service/image_service"
+	"myblogx/service/log_service"
 	"myblogx/service/qq_service"
 	"myblogx/service/site_service"
+	"myblogx/service/user_service"
 	"myblogx/utils/jwts"
 	"myblogx/utils/requestmeta"
+
+	"gorm.io/gorm"
 
 	"myblogx/conf"
 	siteconf "myblogx/conf/site"
@@ -52,23 +60,42 @@ func WireUser(infra *Infra) {
 	usersRepo := usermysql.New(infra.DB)
 	settingsRepo := usermysql.NewSettings(infra.DB)
 	statsRepo := usermysql.NewStats(infra.DB)
+
+	// authSvc 在 userSvc 之后才能构造（它要 userSvc 的凭证能力），
+	// 但 userSvc 的"管理员改角色/状态要吊销会话"又需要 authSvc。
+	// 用闭包延迟绑定打破这个环。
+	var authSvc *authapp.Service
+	sessionRevoker := userapp.SessionRevokerFunc(func(ctx context.Context, userID uint64) error {
+		if authSvc == nil {
+			return nil
+		}
+		return authSvc.RevokeAll(ctx, userID)
+	})
+
 	userSvc := userapp.New(
 		usersRepo,
 		settingsRepo,
 		statsRepo,
 		usersRepo, // 快照同步也在同一个仓储上
-		nil,       // 详情增强读（头像图片 ID / 标签标题）不影响认证，暂不注入
+		&userEnricher{db: infra.DB},
 		realClock{},
 		usersec.Hasher{},
 		infra.Logger,
 		userapp.WithUsernameAllocator(userredis.NewUsernameAllocator(redisDeps)),
+		userapp.WithIntegrations(userapp.Integrations{
+			Relation:  &relationBridge{db: infra.DB},
+			HomeView:  &homeViewBridge{deps: user_service.NewDepsWithRedis(cfg.Jwt, cfg.System.Env, infra.DB, infra.Logger, infra.Redis)},
+			Sessions:  sessionRevoker,
+			LastLogin: &lastLoginBridge{deps: log_service.NewDeps(cfg.Log, cfg.System, cfg.ClickHouse.Enabled, infra.Logger, infra.ClickHouse)},
+			Tags:      &tagBridge{db: infra.DB},
+		}),
 	)
 
 	// ── auth 模块 ──
 	sessionRepo := authmysql.NewSessionRepo(infra.DB)
 	loginConf := func() siteconf.Login { return infra.RuntimeSite.GetRuntimeLogin() }
 
-	authSvc := authapp.New(
+	authSvc = authapp.New(
 		sessionRepo,
 		&jwtIssuer{cfg: cfg.Jwt},
 		authsec.NewSecrets(),
@@ -105,6 +132,7 @@ func WireUser(infra *Infra) {
 		cfg.Jwt.RefreshExpire,
 	)
 	router.SetAuthHandler(h)
+	router.SetUserHandler(userhttp.NewHandler(userSvc))
 }
 
 // jwtIssuer 用既有 JWT 工具签发认证令牌，实现 authdomain.TokenIssuer。
@@ -363,4 +391,130 @@ func toAuthAccount(u userdomain.User) authapp.Account {
 		Role:         int8(u.Role),
 		TokenVersion: u.TokenVersion,
 	}
+}
+
+// userEnricher 实现 app.DetailEnricher：头像反查 + 标签标题。
+//
+// 放装配层：它要直接读图片表与标签表，而业务模块禁止 import models。
+type userEnricher struct {
+	db *gorm.DB
+}
+
+// AvatarIDByURL 由头像 URL 反查图片 ID。
+func (e *userEnricher) AvatarIDByURL(_ context.Context, url string) (uint64, bool, error) {
+	id, err := image_service.FindImageIDByURL(e.db, url)
+	if err != nil {
+		return 0, false, err
+	}
+	if id == nil {
+		return 0, false, nil
+	}
+	return uint64(*id), true, nil
+}
+
+// AvatarURLByID 由图片 ID 取 URL。
+func (e *userEnricher) AvatarURLByID(_ context.Context, id uint64) (string, error) {
+	return image_service.ResolveImageURLByID(e.db, ctype.ID(id))
+}
+
+// TagTitles 批量取标签标题。
+func (e *userEnricher) TagTitles(_ context.Context, ids []uint64) (map[uint64]string, error) {
+	out := make(map[uint64]string, len(ids))
+	if len(ids) == 0 {
+		return out, nil
+	}
+	var rows []models.TagModel
+	if err := e.db.Select("id", "title").Find(&rows, "id IN ?", ids).Error; err != nil {
+		return nil, err
+	}
+	for _, row := range rows {
+		out[uint64(row.ID)] = row.Title
+	}
+	return out, nil
+}
+
+// relationBridge 实现 app.RelationReader。
+type relationBridge struct {
+	db *gorm.DB
+}
+
+// Relation 读关注关系。
+func (b *relationBridge) Relation(_ context.Context, viewer, target userdomain.UserID) (int8, error) {
+	return int8(follow_service.CalUserRelationship(b.db, ctype.ID(viewer), ctype.ID(target))), nil
+}
+
+// homeViewBridge 实现 app.HomeViewRecorder。
+type homeViewBridge struct {
+	deps user_service.Deps
+}
+
+// Record 记录主页浏览（带去重）。
+func (b *homeViewBridge) Record(_ context.Context, target, viewer userdomain.UserID) (bool, error) {
+	return user_service.StatRecordUserHomeView(b.deps, ctype.ID(target), ctype.ID(viewer))
+}
+
+// lastLoginBridge 实现 app.LastLoginReader。
+type lastLoginBridge struct {
+	deps log_service.Deps
+}
+
+// Latest 批量读最后登录信息。
+func (b *lastLoginBridge) Latest(_ context.Context, ids []uint64) (map[uint64]userapp.LastLogin, error) {
+	out := make(map[uint64]userapp.LastLogin, len(ids))
+	if len(ids) == 0 {
+		return out, nil
+	}
+	raw := make([]ctype.ID, 0, len(ids))
+	for _, id := range ids {
+		raw = append(raw, ctype.ID(id))
+	}
+	got, err := log_service.LoadLatestLoginMap(b.deps, raw)
+	if err != nil {
+		return nil, err
+	}
+	for id, rec := range got {
+		at, _ := time.ParseInLocation("2006-01-02 15:04:05.000", rec.TS, time.Local)
+		out[uint64(id)] = userapp.LastLogin{IP: rec.IP, Addr: rec.Addr, At: at}
+	}
+	return out, nil
+}
+
+// tagBridge 实现 app.TagValidator。
+type tagBridge struct {
+	db *gorm.DB
+}
+
+// Validate 校验标签都存在且启用。
+func (b *tagBridge) Validate(_ context.Context, ids []uint64) error {
+	normalized := normalizeTagIDs(ids)
+	if len(normalized) == 0 {
+		return nil
+	}
+	var count int64
+	if err := b.db.Model(&models.TagModel{}).
+		Where("id IN ? AND is_enabled = ?", normalized, true).
+		Count(&count).Error; err != nil {
+		return err
+	}
+	if count != int64(len(normalized)) {
+		return apperr.New(apperr.CodeTagDisabled)
+	}
+	return nil
+}
+
+// normalizeTagIDs 去零去重。
+func normalizeTagIDs(ids []uint64) []uint64 {
+	out := make([]uint64, 0, len(ids))
+	seen := make(map[uint64]struct{}, len(ids))
+	for _, id := range ids {
+		if id == 0 {
+			continue
+		}
+		if _, ok := seen[id]; ok {
+			continue
+		}
+		seen[id] = struct{}{}
+		out = append(out, id)
+	}
+	return out
 }

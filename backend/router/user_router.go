@@ -3,6 +3,7 @@ package router
 import (
 	"myblogx/api"
 	authhttp "myblogx/internal/auth/adapter/http"
+	userhttp "myblogx/internal/user/adapter/http"
 	mw "myblogx/middleware"
 
 	"github.com/gin-gonic/gin"
@@ -11,17 +12,26 @@ import (
 // authHandler 是认证模块的 HTTP 处理器，由 app.WireUser 在启动时注入。
 //
 // 与 article 同一套路：路由文件不再自己 new 处理器，装配职责集中在 app 层。
-var authHandler *authhttp.Handler
+var (
+	authHandler *authhttp.Handler
+	userHandler *userhttp.Handler
+)
 
 // SetAuthHandler 注入认证处理器。
 func SetAuthHandler(h *authhttp.Handler) { authHandler = h }
 
+// SetUserHandler 注入用户模块处理器。
+func SetUserHandler(h *userhttp.Handler) { userHandler = h }
+
 // UserRouter 注册用户与认证路由。
 //
-// 认证 13 条已迁到 internal/auth；资料/管理端/登录日志仍走旧 api，后续单独迁移。
+// 认证与用户资料/管理端都已迁到 internal/*；登录日志暂留旧 api（归 S4.9 analytics）。
 func UserRouter(r *gin.RouterGroup, appContainer api.Api, runtimeMw mw.Runtime) {
 	if authHandler == nil {
 		panic("router: 认证处理器未注入（应在 app.WireUser 中调用 SetAuthHandler）")
+	}
+	if userHandler == nil {
+		panic("router: 用户处理器未注入（应在 app.WireUser 中调用 SetUserHandler）")
 	}
 
 	Group := r.Group("users")
@@ -43,16 +53,15 @@ func UserRouter(r *gin.RouterGroup, appContainer api.Api, runtimeMw mw.Runtime) 
 	authGroup.GET("sessions", auth.Sessions)
 	authGroup.DELETE("sessions/:id", auth.DeleteSession)
 
-	profile := appContainer.UserApi.ProfileApi
-	authGroup.GET("detail", profile.UserDetailView)
-	Group.GET("base", runtimeMw.OptionalAuthMiddleware, profile.UserBaseInfoView)
-	authGroup.PUT("info", profile.UserInfoUpdateView)
-	adminGroup.PUT("admin/info", mw.CaptureLog(mw.ReqBody), profile.AdminUserInfoUpdateView)
+	profile := userHandler
+	authGroup.GET("detail", profile.Detail)
+	Group.GET("base", runtimeMw.OptionalAuthMiddleware, profile.BaseInfo)
+	authGroup.PUT("info", profile.UpdateInfo)
+	adminGroup.PUT("admin/info", mw.CaptureLog(mw.ReqBody), profile.AdminUpdate)
 
 	log := appContainer.UserApi.LogApi
 	adminGroup.GET("login/log", log.UserLoginLogList)
 
-	man := appContainer.UserApi.UserManApi
-	adminGroup.POST("admin", man.AdminUserCreateView)
-	adminGroup.GET("admin/list", man.UserListView)
+	adminGroup.POST("admin", profile.AdminCreate)
+	adminGroup.GET("admin/list", profile.AdminList)
 }

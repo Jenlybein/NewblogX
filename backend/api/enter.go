@@ -79,7 +79,6 @@ func New(deps middleware.Deps) Api {
 			Email:            deps.Email,
 			Logger:           deps.Logger,
 			Redis:            deps.Redis,
-			RuntimeSite:      deps.RuntimeSite,
 		}),
 		CommentApi: comment_api.New(comment_api.Deps{
 			DB:          deps.DB,

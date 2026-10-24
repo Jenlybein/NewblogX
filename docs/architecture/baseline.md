@@ -751,3 +751,16 @@ T.4 里 `article`/`comment`/`user` 的 fake 依赖 domain 实体，属依赖顺�
 - 棘轮 **250 → 240**（删掉 auth_api 的中文 error 与跨层引用）。
 - 未做：`profile_api` / `user_man_api` / `log_api` 仍在旧 `api/user_api` 下，
   下一刀做 user 路由等价替换后整包删除。
+
+## 10. M5 交付记录 · S4.1e（用户资料与管理端）
+
+**2026-10-25**：`api/user_api/profile_api` 与 `user_man_api` 已删，路由路径与响应字段保持不变。
+
+- user app 新增：`BaseInfo`（关注关系 / 主页浏览去重 / 头像图片 ID）、
+  `UpdateInfo`（资料 + 偏好合并）、`AdminUpdate`（角色或状态变化 → 令牌版本 +1 + 吊销全部会话）、
+  `AdminList`（附最后登录信息）。
+- 可选外部能力收进 `app.Integrations`（Relation / HomeView / Sessions / LastLogin / Tags），
+  装配层用旧 service 适配，避免用户模块直接 import 对方的表。
+- 装配期循环依赖用 `SessionRevokerFunc` 闭包延迟绑定（user 服务先建、auth 服务后建）。
+- `user_api` 只剩 `log_api`（登录日志，归 S4.9）；auth / profile / user_man 三个子包已迁。
+- 棘轮 **240 → 224**。

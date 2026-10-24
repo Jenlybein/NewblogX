@@ -278,6 +278,55 @@ func (u *Users) UpdateEmail(_ context.Context, id domain.UserID, email string) e
 	return nil
 }
 
+// UpdateAdmin 实现 domain.Repository。
+func (u *Users) UpdateAdmin(_ context.Context, id domain.UserID, patch domain.AdminPatch) error {
+	u.mu.Lock()
+	defer u.mu.Unlock()
+	if err := u.takeErr(); err != nil {
+		return err
+	}
+	user, ok := u.byID[id]
+	if !ok {
+		return apperr.New(apperr.CodeUserNotFound)
+	}
+	if patch.Username != nil {
+		user.Username = *patch.Username
+	}
+	if patch.Nickname != nil {
+		user.Nickname = *patch.Nickname
+	}
+	if patch.Abstract != nil {
+		user.Abstract = *patch.Abstract
+	}
+	if patch.AvatarURL != nil {
+		user.Avatar = *patch.AvatarURL
+	}
+	if patch.Role != nil {
+		user.Role = *patch.Role
+	}
+	if patch.Status != nil {
+		user.Status = *patch.Status
+	}
+	u.byID[id] = user
+	return nil
+}
+
+// BumpTokenVersion 实现 domain.Repository。
+func (u *Users) BumpTokenVersion(_ context.Context, id domain.UserID) error {
+	u.mu.Lock()
+	defer u.mu.Unlock()
+	if err := u.takeErr(); err != nil {
+		return err
+	}
+	user, ok := u.byID[id]
+	if !ok {
+		return apperr.New(apperr.CodeUserNotFound)
+	}
+	user.TokenVersion++
+	u.byID[id] = user
+	return nil
+}
+
 // List 实现 domain.Repository。
 func (u *Users) List(_ context.Context, q domain.Query) (domain.Page, error) {
 	u.mu.Lock()
@@ -495,6 +544,16 @@ func NewEnricher() *Enricher {
 func (e *Enricher) AvatarIDByURL(_ context.Context, url string) (uint64, bool, error) {
 	id, ok := e.AvatarIDMap[url]
 	return id, ok, nil
+}
+
+// AvatarURLByID 实现 app.DetailEnricher。
+func (e *Enricher) AvatarURLByID(_ context.Context, id uint64) (string, error) {
+	for url, got := range e.AvatarIDMap {
+		if got == id {
+			return url, nil
+		}
+	}
+	return "", nil
 }
 
 // TagTitles 实现 app.DetailEnricher。

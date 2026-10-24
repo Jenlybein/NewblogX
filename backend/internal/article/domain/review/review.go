@@ -7,20 +7,20 @@ package review
 
 import (
 	"context"
-	"errors"
 	"time"
 
+	"myblogx/internal/apperr"
 	"myblogx/internal/article/domain"
 )
 
-// 子域错误。
+// 子域错误。文案统一在 internal/apperr 的消息表里。
 var (
 	// ErrTaskNotFound 审核任务不存在。
-	ErrTaskNotFound = errors.New("审核任务不存在")
+	ErrTaskNotFound = apperr.New(apperr.CodeReviewTaskNotFound)
 	// ErrTaskHandled 任务已被处理，不能重复处理。
-	ErrTaskHandled = errors.New("审核任务已处理")
+	ErrTaskHandled = apperr.New(apperr.CodeReviewTaskHandled)
 	// ErrTaskForbidden 无权处理该任务。
-	ErrTaskForbidden = errors.New("无权处理该审核任务")
+	ErrTaskForbidden = apperr.New(apperr.CodeReviewTaskDenied)
 )
 
 // Status 是任务状态。取值与数据库 varchar 值一致。

@@ -24,7 +24,14 @@ func Enabled() bool {
 //
 // 路径与改造前完全一致（含 article-review 与 article-review-tasks 两个独立前缀），
 // 前端零改动。
-func (h *Handler) Register(r *gin.RouterGroup, authMw gin.HandlerFunc) {
+//
+// optionalMw 是"解析但不强制"的鉴权：公开详情页需要它来识别"作者本人看自己的草稿"。
+// 改造前这一步是在 handler 内部手动解析 token 完成的，现在提到中间件，
+// 行为一致但少一次重复解析。
+func (h *Handler) Register(r *gin.RouterGroup, authMw, optionalMw gin.HandlerFunc) {
+	if optionalMw != nil {
+		r = r.Group("", optionalMw)
+	}
 	group := r.Group("articles")
 	reviewGroup := r.Group("article-review")
 	reviewTaskGroup := r.Group("article-review-tasks")

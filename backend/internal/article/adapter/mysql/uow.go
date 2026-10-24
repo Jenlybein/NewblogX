@@ -29,14 +29,14 @@ var errNilDB = errors.New("article/mysql: database not initialized")
 type TxManager struct {
 	db          *gorm.DB
 	counterDeps redis_service.Deps
-	outbox      *outbox
+	outbox      *Outbox
 }
 
 // NewTxManager 构造事务管理器。
 //
 // counterDeps 允许零值（无 Redis 时计数退化为 no-op）；
 // outbox 可为 nil，此时事件被丢弃（等价于"没有下游订阅"）。
-func NewTxManager(db *gorm.DB, counterDeps redis_service.Deps, ob *outbox) *TxManager {
+func NewTxManager(db *gorm.DB, counterDeps redis_service.Deps, ob *Outbox) *TxManager {
 	if ob == nil {
 		ob = NewOutbox()
 	}
@@ -69,7 +69,7 @@ func (m *TxManager) repos(tx *gorm.DB) *repos {
 type repos struct {
 	db      *gorm.DB
 	counter app.CounterPort
-	outbox  *outbox
+	outbox  *Outbox
 }
 
 func (r *repos) Articles() domain.Repository             { return NewArticleRepo(r.db) }

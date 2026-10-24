@@ -32,7 +32,7 @@ func SetArticleHandler(h *articlehttp.Handler) { articleHTTPHandler = h }
 // 否则挂旧的 api/article_api。两者路径完全一致，因此切换对前端透明。
 func ArticleRouter(r *gin.RouterGroup, appContainer api.Api, runtimeMw mw.Runtime) {
 	if articleHTTPHandler != nil && articlehttp.Enabled() {
-		articleHTTPHandler.Register(r, runtimeMw.AuthMiddleware)
+		articleHTTPHandler.Register(r, runtimeMw.AuthMiddleware, runtimeMw.OptionalAuthMiddleware)
 		return
 	}
 

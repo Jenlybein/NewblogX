@@ -88,6 +88,14 @@ const (
 	CodeUserRegisterDisabled  Code = "user.register_disabled"
 )
 
+// 认证与会话。
+const (
+	CodeAuthRequired       Code = "auth.required"
+	CodeAuthTooFrequent    Code = "auth.too_frequent"
+	CodeAuthRefreshInvalid Code = "auth.refresh_invalid"
+	CodeAuthLoginDisabled  Code = "auth.login_disabled"
+)
+
 // messages 是错误码到中文文案的唯一映射。
 //
 // 新增错误码时**必须**在这里补一行；缺了不会 panic，Error() 会退化成码本身，
@@ -144,6 +152,11 @@ var messages = map[Code]string{
 	CodeUserMailSendFailed:    "邮件发送失败，请稍后重试",
 	CodeUserOAuthFailed:       "第三方登录失败",
 	CodeUserRegisterDisabled:  "当前站点未开放注册",
+
+	CodeAuthRequired:       "请先登录",
+	CodeAuthTooFrequent:    "登录失败次数过多，请稍后再试",
+	CodeAuthRefreshInvalid: "刷新令牌无效或已过期，请重新登录",
+	CodeAuthLoginDisabled:  "站点未启用该登录方式",
 }
 
 // Error 是带错误码的应用错误。

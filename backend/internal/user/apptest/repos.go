@@ -51,6 +51,9 @@ type Hasher struct{ Prefix string }
 // Hash 返回 "前缀+明文"。
 func (h Hasher) Hash(plain string) (string, error) { return h.Prefix + plain, nil }
 
+// Verify 比较 "前缀+明文"。
+func (h Hasher) Verify(hash, plain string) bool { return hash == h.Prefix+plain }
+
 // ------------------------------------------------------------------
 // 用户仓储
 // ------------------------------------------------------------------

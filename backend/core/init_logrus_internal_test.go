@@ -1,13 +1,15 @@
 package core
 
 import (
-	"bytes"
+	"context"
 	"encoding/json"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 	"time"
+
+	"myblogx/service/log_service"
 
 	"github.com/sirupsen/logrus"
 )
@@ -52,60 +54,72 @@ func TestCommonFieldsHookFire(t *testing.T) {
 	}
 }
 
-func TestFileDateHookFire(t *testing.T) {
+// StructuredLogHook 只做转交：管道未初始化时应同步落到「每日文件」，
+// 保证 InitLogrus 到 InitStructuredLog 之间那几行日志不丢。
+func TestStructuredLogHookFireFallsBackToFile(t *testing.T) {
 	dir := t.TempDir()
 	logger := logrus.New()
-	logger.SetFormatter(&logrus.TextFormatter{DisableTimestamp: true, DisableColors: true})
 
-	hook := &FileDateHook{
-		logPath:  dir,
-		fileDate: "2000-01-01",
-		appName:  "app",
-		formatter: &logrus.JSONFormatter{
-			TimestampFormat: "2006-01-02 15:04:05.000",
-			FieldMap: logrus.FieldMap{
-				logrus.FieldKeyTime: "ts",
-				logrus.FieldKeyMsg:  "message",
-			},
-		},
-	}
+	// 兜底出口会一直持有文件句柄，测试结束前必须收掉，否则临时目录删不掉。
+	t.Cleanup(func() { _ = log_service.CloseStructuredLog(context.Background()) })
 
+	hook := StructuredLogHook{Dir: dir, App: "app"}
+
+	now := time.Now()
 	entry := &logrus.Entry{
 		Logger:  logger,
-		Time:    time.Date(2026, 3, 2, 9, 0, 0, 0, time.Local),
+		Time:    now,
 		Level:   logrus.InfoLevel,
 		Message: "line-1",
-		Buffer:  &bytes.Buffer{},
+		Data:    logrus.Fields{"request_id": "req-1"},
 	}
-
 	if err := hook.Fire(entry); err != nil {
-		t.Fatalf("首次 Fire 失败: %v", err)
+		t.Fatalf("Fire 失败: %v", err)
 	}
-	if hook.file == nil {
-		t.Fatal("首次 Fire 后应创建日志文件")
-	}
-	t.Cleanup(func() {
-		_ = hook.file.Close()
-	})
 
 	entry2 := &logrus.Entry{
 		Logger:  logger,
-		Time:    time.Date(2026, 3, 2, 10, 0, 0, 0, time.Local),
+		Time:    now,
 		Level:   logrus.WarnLevel,
 		Message: "line-2",
-		Buffer:  &bytes.Buffer{},
 	}
 	if err := hook.Fire(entry2); err != nil {
-		t.Fatalf("同日再次 Fire 失败: %v", err)
+		t.Fatalf("再次 Fire 失败: %v", err)
 	}
 
-	logFile := filepath.Join(dir, "2026-03-02", "app.log")
+	logFile := filepath.Join(dir, "runtime_logs", now.Format("2006-01-02"), "app.log")
 	b, err := os.ReadFile(logFile)
 	if err != nil {
 		t.Fatalf("读取日志文件失败: %v", err)
 	}
-	s := string(b)
-	if !strings.Contains(s, "line-1") || !strings.Contains(s, "line-2") {
-		t.Fatalf("日志内容不完整: %s", s)
+
+	lines := strings.Split(strings.TrimSuffix(string(b), "\n"), "\n")
+	if len(lines) != 2 {
+		t.Fatalf("期望 2 行，实际 %d 行：%s", len(lines), b)
+	}
+
+	var first map[string]any
+	if err := json.Unmarshal([]byte(lines[0]), &first); err != nil {
+		t.Fatalf("第 1 行不是合法 JSON: %v", err)
+	}
+	if first["message"] != "line-1" {
+		t.Fatalf("message 不符: %#v", first["message"])
+	}
+	if first["level"] != "info" {
+		t.Fatalf("level 不符: %#v", first["level"])
+	}
+	if first["request_id"] != "req-1" {
+		t.Fatalf("request_id 不符: %#v", first["request_id"])
+	}
+	if first["log_kind"] != "runtime" {
+		t.Fatalf("log_kind 不符: %#v", first["log_kind"])
+	}
+
+	var second map[string]any
+	if err := json.Unmarshal([]byte(lines[1]), &second); err != nil {
+		t.Fatalf("第 2 行不是合法 JSON: %v", err)
+	}
+	if second["level"] != "warning" {
+		t.Fatalf("warn 级别应写成 warning: %#v", second["level"])
 	}
 }

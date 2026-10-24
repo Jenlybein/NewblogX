@@ -28,8 +28,19 @@ var tableNamePattern = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_]*(\.[A-Za-z_][A
 // 关键约定：**JSON 字段名与表列名一致**。log_service 的 baseEvent 与各类
 // 事件结构都是照 ClickHouse 表结构设计的（event_id / ts / level / ... /
 // extra_json），所以这里走 `INSERT INTO <table> FORMAT JSONEachRow`，
-// 不做逐列映射、不引入反射。字段名一旦漂移，插入会直接报错而不是静默写错，
-// 这是刻意保留的"响亮的失败"。
+// 不做逐列映射、不引入反射。
+//
+// 已知行为（实测 CH 25.3）：`input_format_skip_unknown_fields` 默认为 1，
+// 因此
+//   - JSON 里多出的字段会被**静默丢弃**，不会报错；
+//   - JSON 里缺失的列取类型默认值（空串 / 0）；
+//   - 类型不匹配（例如给 String 列传对象）会被序列化成 JSON 字符串。
+//
+// 也就是说"列名写错"不会响——这是 JSONEachRow 的固有语义，无法靠 INSERT
+// 语句纠正。补这个缺口的是测试而不是运行时：`clickhouse_integration_test.go`
+// 用 DESCRIBE TABLE 与各类事件结构体做对照，列名一漂移 CI 就会红。
+// 我们把该设置显式写进连接（见 core/init_clickhouse.go），
+// 不依赖服务端默认值，避免换版本后行为变化。
 type ClickHouseSink struct {
 	db    *sql.DB
 	table string

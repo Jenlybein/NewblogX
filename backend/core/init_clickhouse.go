@@ -44,6 +44,10 @@ func InitClickHouse(cfg *conf.ClickHouse) *sql.DB {
 		DialTimeout: dialTimeout,
 		Settings: clickhouse.Settings{
 			"allow_experimental_object_type": 1,
+			// 日志写入走 `INSERT ... FORMAT JSONEachRow`：行里的字段可能多于
+			// 表的列（runtime 日志会带业务自定义字段）。这里显式确认为「跳过
+			// 未知字段」，而不是依赖服务端默认值——换版本时行为才不会悄悄改变。
+			"input_format_skip_unknown_fields": 1,
 		},
 	})
 

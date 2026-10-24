@@ -1,6 +1,10 @@
 package log_service
 
-import "strings"
+import (
+	"strings"
+
+	platformlog "myblogx/internal/platform/log"
+)
 
 type ReplayEvent struct {
 	baseEvent
@@ -91,9 +95,7 @@ func EmitReplayEvent(deps Deps, input ReplayEventInput) {
 		RetryCount:  input.RetryCount,
 		Result:      input.Result,
 	}
-	if err := replayEventSink().write(deps, event); err != nil && deps.Logger != nil {
-		deps.Logger.Errorf("写入回放日志失败: %v", err)
-	}
+	emitRow(deps, platformlog.KindReplay, parseLevel(base.Level), event)
 }
 
 func defaultReplayEventName(input ReplayEventInput) string {

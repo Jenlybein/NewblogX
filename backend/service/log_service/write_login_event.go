@@ -2,6 +2,8 @@ package log_service
 
 import (
 	"encoding/json"
+
+	platformlog "myblogx/internal/platform/log"
 )
 
 // EmitLoginEvent 写入一条登录事件日志，并根据成功状态推导默认级别与消息。
@@ -38,11 +40,7 @@ func EmitLoginEvent(deps Deps, input LoginEventInput) {
 		UA:        input.UA,
 	}
 
-	if err := loginEventSink().write(deps, event); err != nil {
-		if deps.Logger != nil {
-			deps.Logger.Errorf("写入登录事件日志失败: %v", err)
-		}
-	}
+	emitRow(deps, platformlog.KindLogin, parseLevel(base.Level), event)
 }
 
 // loginLevel 根据登录结果映射日志级别。

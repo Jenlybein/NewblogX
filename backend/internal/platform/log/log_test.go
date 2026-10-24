@@ -367,3 +367,79 @@ func TestFileSinkWritesJSONLines(t *testing.T) {
 		}
 	}
 }
+
+// EmitLine 投递的是调用方编码好的整行，管道不得改写、不得重新编码。
+func TestEmitLinePassesThroughUntouched(t *testing.T) {
+	t.Parallel()
+
+	sink := &memSink{}
+	em := log.New(log.Options{BufferEntries: 64, BatchSize: 2, FlushInterval: time.Hour}, sink)
+
+	raw := []byte(`{"event_id":7,"ts":"2026-10-24 10:00:00.000","action_name":"create"}`)
+	em.EmitLine(context.Background(), log.LevelInfo, raw)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+	if err := em.Close(ctx); err != nil {
+		t.Fatalf("关闭失败: %v", err)
+	}
+
+	lines := sink.Lines()
+	if len(lines) != 1 {
+		t.Fatalf("期望 1 行，实际 %d 行", len(lines))
+	}
+	if string(lines[0]) != string(raw) {
+		t.Fatalf("行内容被改写：\n期望 %s\n实际 %s", raw, lines[0])
+	}
+	if st := em.Stats(); st.Emitted != 1 || st.Written != 1 {
+		t.Fatalf("统计不符: %+v", st)
+	}
+}
+
+// EmitLine 同样受级别阈值约束，且空行直接丢弃。
+func TestEmitLineLevelFilterAndEmpty(t *testing.T) {
+	t.Parallel()
+
+	sink := &memSink{}
+	em := log.New(log.Options{Level: log.LevelWarn, BufferEntries: 16, BatchSize: 16, FlushInterval: time.Hour}, sink)
+
+	em.EmitLine(context.Background(), log.LevelInfo, []byte(`{"a":1}`))
+	em.EmitLine(context.Background(), log.LevelError, []byte(`{"a":2}`))
+	em.EmitLine(context.Background(), log.LevelError, nil)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+	_ = em.Close(ctx)
+
+	lines := sink.Lines()
+	if len(lines) != 1 {
+		t.Fatalf("期望只输出 1 行，实际 %d 行", len(lines))
+	}
+	if string(lines[0]) != `{"a":2}` {
+		t.Fatalf("输出行不符: %s", lines[0])
+	}
+}
+
+// EmitLine 与 Emit 混用时应共享同一个有界队列与统计。
+func TestEmitLineMixedWithEmit(t *testing.T) {
+	t.Parallel()
+
+	sink := &memSink{}
+	em := log.New(log.Options{BufferEntries: 128, BatchSize: 50, FlushInterval: time.Hour}, sink)
+
+	const n = 40
+	for i := 0; i < n; i++ {
+		em.Emit(context.Background(), log.Event{Base: log.Base{Level: log.LevelInfo}, Message: "typed"})
+		em.EmitLine(context.Background(), log.LevelInfo, []byte(`{"kind":"line"}`))
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	if err := em.Close(ctx); err != nil {
+		t.Fatalf("关闭失败: %v", err)
+	}
+
+	if got := len(sink.Lines()); got != 2*n {
+		t.Fatalf("期望 %d 行，实际 %d 行", 2*n, got)
+	}
+}

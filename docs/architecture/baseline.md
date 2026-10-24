@@ -254,14 +254,114 @@ M3-C2 追加验收：`go build` / `go vet` / `gofmt -l` 全干净；`go test ./.
 | S2.8 | ❌ **未做** | swag 已装、可跑通；但 118 个 operation 需逐个补注解（见下） |
 | S2.9 | ❌ **未做** | 依赖 S2.8 完整覆盖，半量契约会让前端类型残缺 |
 | L.1 / L.2 | ✅ | `internal/platform/log`：类型化事件 + 有界异步 + file sink |
-| L.3 | ❌ **未接** | 18 处 `EmitActionAudit` 与 `log_middleware` 仍是同步 `json.Marshal` + 直接落文件 |
-| L.4 | 🟡 **组件就绪、待接生产入口** | 新增 `log/persist`：`ClickHouseSink`（`FORMAT JSONEachRow`，表名白名单防拼接）+ `WALSink`（失败落盘、`.tmp`→fsync→rename 原子发布）+ `ReplayWAL`；5 张日志表引擎改为 `ReplacingMergeTree`；集成测试验证断库 1000 条不丢、重复投递不重 |
-| L.5 | ❌ 未做 | fluent-bit 的 app tail 尚未关闭 |
+| L.3 | ✅ | 生产入口已接线：删掉 `jsonLineSink`（同步 `json.Marshal` + 每条一次文件写 + 全局锁），改由 `log_service/pipeline.go` 五条有界队列承接；`EmitActionAudit` 等 4 类写入与 logrus 的 `FileDateHook` 全部改为投递 |
+| L.4 | ✅ | `log/persist`：`ClickHouseSink` + `WALSink` + `ReplayWAL`；管道在启用 ClickHouse 时组合为 `WALSink(ClickHouseSink)`，并挂在启动时自动重放；5 张日志表引擎改 `ReplacingMergeTree` |
+| L.5 | ✅ | 删掉 fluent-bit 服务与其 5 个 app tail（`Skip_Long_Lines` 会丢长行、`Read_from_Head` 会重放历史）。应用现在直接写 ClickHouse，中间不再有采集器 |
 | T.3 / T.4（tx） | ✅ | `testkit/`：Clock / SeqID / Golden / 独立 SQLite；`mysql.FakeTxManager` |
 
-#### L.4 的落地形态与验证方式（组件已完成，尚未接生产入口）
+#### L.3 的接线方式：一条管道，五张表，两种出口
 
-`internal/platform/log/persist` 三个组件：
+改造前：`EmitActionAudit` → `jsonLineSink.write` → 每个请求线程里 `json.Marshal`
+再 `file.Write`（一把全局 `sync.Mutex` 串住所有写）。HTTP 访问日志走 logrus 的
+`FileDateHook`，同样是「每条一次 write」。
+
+改造后只有一条路径：
+
+```
+业务调用 ──► emitRow(kind, level, row) ──► json.Marshal ──► Emitter.EmitLine
+                                                        │  有界队列（条目 + 字节双限）
+                                                        ▼
+                                              写协程：攒批 → 1s 或 500 条触发
+                                                        │
+                              ┌─────────────────────────┴──────────────────────┐
+                              ▼                                                ▼
+                   ClickHouse 开启                            ClickHouse 关闭
+                   WALSink(ClickHouseSink)                    dailyFileSink
+                   ├ 成功：直接进表                            └ 与改造前完全同路径、同字节
+                   └ 失败：落 <wal_dir>/<类别>/*.jsonl
+```
+
+要点：
+
+- **五条独立队列**：每类日志一个 `Emitter`，审计日志暴涨不会把 runtime 挤掉。
+- **编码留在业务侧**：预算是按字节算的，编码后才知道真实大小；且这些结构体本身
+  就是表的行形态，`platform/log` 因此不必接受 `any`，`Event` 的字段集合保持封闭。
+  请求路径上被拿掉的是文件写、全局锁与 fsync——这些才是阻塞项。
+- **未启用 ClickHouse 时文件就是最终落点**，不套 WAL：往同一个磁盘再写一份"兜底"
+  挡不住磁盘满，只会让失败路径更长；落点与文件名（`<dir>/<类别>/<日期>/<app>.log`）
+  一个字节都没变，外部采集器不需要调整。
+- **启动即重放**：`InitStructuredLog` 先把上次遗留的 WAL 灌回主出口；失败只告警
+  不阻断启动（文件还在，下次再试）。
+- **停机顺序**：日志管道最后注册、最先执行，必须先把队列刷完再关 ClickHouse 连接
+  （见 `app.RegisterInfraCleanup`）。
+- **惰性兜底**：单测与命令行工具不走 `app.InitInfra`，首次写日志时自动建一条
+  "只写文件"的管道，不 panic、不丢日志。
+
+**`log_middleware` 的位置没变**：它仍然通过 `logrus` 打点，只是 `FileDateHook`
+换成了 `core.StructuredLogHook`——三行转发，不持文件句柄、不做 IO。条目到列的映射
+集中在 `buildRuntimeRow`：表里有的列按名取，表里没有的字段一律进 `extra_json`
+（宁可多带一列 JSON，也不静默丢字段）。
+
+#### L.4 / L.3 的验证方式
+
+**1) 断库不丢（`persist` 集成测试）**
+
+```bash
+docker run -d --name blogx-ch-it -p 18123:8123 -p 19000:9000 \
+  -e CLICKHOUSE_DB=blogx_logs -e CLICKHOUSE_SKIP_USER_SETUP=1 \
+  -v "<repo>/deploy/docker/clickhouse/init:/docker-entrypoint-initdb.d" \
+  clickhouse/clickhouse-server:25.3
+
+BLOGX_CH_ADDR=127.0.0.1:19000 go test -tags integration \
+  ./internal/platform/log/persist/ ./service/log_service/
+```
+
+`persist`：断库期间 1000 条全部积压成 WAL 批次、CH 内 0 条；恢复后重放 →
+`count(DISTINCT event_id)` = 1000；再重复投递一遍 → `count() FINAL` 仍为 1000。
+
+`log_service`（L.3 验收）：1000 条 `EmitActionAudit` 真的进了 `action_audit_logs`，
+且 `method/path/status_code/success/user_id` 五个扩展列都对得上；登录 / CDC / 回放
+各 1 条进各自表；runtime 经 logrus 桥进 `runtime_logs`，HTTP 列与 `extra_json` 都对。
+
+**2) 断库不丢（无 Docker 也能跑的单元级验证）**
+
+`TestPipelineFallsBackToWALWhenClickHouseDown` 用指向 `127.0.0.1:1` 的连接模拟断库：
+5 条审计日志必须变成 WAL 批次，且每行都是合法 JSON。这条测试在普通 `go test` 里就跑。
+
+**3) 列名契约（补 `JSONEachRow` 的静默缺口）**
+
+实测 CH 25.3 的 `input_format_skip_unknown_fields` 默认为 1：**多出的字段被静默丢弃**，
+缺列取默认值，类型不匹配的还会被序列化成字符串。也就是说"列名写错"不会响。
+补法有两个：
+
+- 连接层显式声明该设置（`core/init_clickhouse.go`），不依赖服务端默认值；
+- `TestIntegrationEventStructsMatchTableColumns`：拿 5 个事件结构体的 JSON 键与
+  `DESCRIBE TABLE` 的列做对照，要求 **JSON 键 ⊆ 表列**。
+
+这条契约测试当场抓到一个真实漂移：`cdc_event_logs` / `replay_event_logs` 缺
+`user_id`、`ip` 两列，而 `baseEvent` 会带出来。已把这两列补进建表脚本——
+现在五张表都覆盖 `baseEvent` 的全部列。
+
+#### L.5 为什么可以直接删掉采集器
+
+原来的链路是「应用写文件 → fluent-bit tail 文件 → HTTP 灌进 ClickHouse」。这条路有两个
+结构性问题，都来自 tail 的语义：
+
+- `Skip_Long_Lines On`：超过 `Buffer_Max_Size` 的行被**直接丢掉**，而审计日志的
+  `request_body_raw` / `response_header_raw` 恰恰是最长的行；
+- `Read_from_Head On`：容器重建、state 文件丢失时会**从头重读**，把历史日志重复灌一遍。
+
+换行尾的 `\` 继续换行还可能把一条完整 JSON 拆成两条。这些都不是配置能调好的问题，
+是「先落盘、再猜增量」这个模型本身的限制。
+
+L.3 之后应用已经直接写 ClickHouse（`WALSink(ClickHouseSink)`），采集器成了纯中间层，
+所以整块删掉：`deploy/docker/fluent-bit/` 两个配置文件 + compose 里的 `fluent-bit` 服务。
+
+副作用要说清：**ClickHouse 开启时不再产生日志文件**。若把 `clickhouse.enabled` 关掉，
+应用退回写每日文件（L.3 的文件出口），此时没有采集器把文件送进 CH——这是刻意的：
+关掉 CH 就表示"这台实例不查 CH 日志"，而不是"用采集器补上"。
+
+#### L.4 三个组件各自负责什么
 
 | 组件 | 职责 | 关键设计 |
 | --- | --- | --- |
@@ -273,20 +373,10 @@ M3-C2 追加验收：`go build` / `go vet` / `gofmt -l` 全干净；`go test ./.
 重放可能重复投递，靠 ORDER BY 里的 `event_id` 去重。**前提是重放投递同一份字节**
 （`ts` 等列完全相同）；若日志被重新生成，会被当成新事件。
 
-验证（`//go:build integration`，需 Docker CH）：
-
-```bash
-docker run -d --name blogx-ch-it -p 18123:8123 -p 19000:9000 \
-  -e CLICKHOUSE_DB=blogx_logs -e CLICKHOUSE_SKIP_USER_SETUP=1 \
-  -v "<repo>/deploy/docker/clickhouse/init:/docker-entrypoint-initdb.d" \
-  clickhouse/clickhouse-server:25.3
-
-BLOGX_CH_ADDR=127.0.0.1:19000 go test -tags integration \
-  -run Integration ./internal/platform/log/persist/
-```
-
-实测：断库期间 1000 条全部积压成 10 个 WAL 批次、CH 内 0 条；恢复后重放 10 批
-→ `count(DISTINCT event_id)` = 1000；再重复投递一遍 → `count() FINAL` 仍为 1000。
+运维上的一个已知特征：断库期间每次刷盘失败都会落一个 WAL 文件
+（默认刷盘间隔 1s，五类日志各一条管道）。断库 1 小时约 1.8 万个文件，
+恢复后按序重放并逐个删除。要压这个数量就调大 `FlushInterval`，
+代价是日志可见延迟变大。
 
 #### 两个必须说清的结论
 

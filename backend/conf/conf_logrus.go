@@ -5,6 +5,7 @@ package conf
 type Logrus struct {
 	App               string         `yaml:"app"`
 	Dir               string         `yaml:"dir"`
+	WALDir            string         `yaml:"wal_dir"`             // 日志本地兜底目录，空则用 <dir>/wal
 	Level             string         `yaml:"level"`
 	StdoutFormat      string         `yaml:"stdout_format"`       // text/json，默认 json
 	RequestLogEnabled bool           `yaml:"request_log_enabled"` // 是否记录请求访问日志

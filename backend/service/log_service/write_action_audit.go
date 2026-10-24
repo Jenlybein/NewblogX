@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 
+	platformlog "myblogx/internal/platform/log"
 	"myblogx/models/ctype"
 )
 
@@ -121,12 +122,9 @@ func EmitActionAudit(deps Deps, input ActionAuditInput) {
 		ResponseHeaderRaw: mustMarshalCompactJSON(input.ResponseHeaderRaw), // 脱敏截断后的原始响应头
 	}
 
-	// 写入审计日志文件，写入失败则打印错误日志
-	if err := actionAuditSink().write(deps, event); err != nil {
-		if deps.Logger != nil {
-			deps.Logger.Errorf("写入操作审计日志失败: %v", err)
-		}
-	}
+	// 投递进有界异步管道：请求路径上只做一次入队，
+	// 写文件 / 写 ClickHouse 以及失败落 WAL 都在后台协程完成。
+	emitRow(deps, platformlog.KindAudit, parseLevel(level), event)
 }
 
 // mustMarshalCompactJSON 将任意请求/响应摘要压缩成单行 JSON，失败时返回空串。

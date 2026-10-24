@@ -55,13 +55,11 @@ func (h TagsApi) TagCreateUpdateView(c *gin.Context) {
 			IsEnabled:   tag.IsEnabled,
 		}, c)
 		middleware.EmitActionAuditFromGin(c, middleware.GinAuditInput{
-			ActionName:        "tag_create",
-			TargetType:        "tag",
-			TargetID:          strconv.FormatUint(uint64(tag.ID), 10),
-			Success:           true,
-			Message:           "创建标签成功",
-			RequestBody:       cr,
-			UseRawRequestBody: true,
+			ActionName: "tag_create",
+			TargetType: "tag",
+			TargetID:   strconv.FormatUint(uint64(tag.ID), 10),
+			Success:    true,
+			Message:    "创建标签成功",
 		})
 		return
 	}
@@ -101,13 +99,11 @@ func (h TagsApi) TagCreateUpdateView(c *gin.Context) {
 	}
 	res.OkWithMsg("更新标签成功", c)
 	middleware.EmitActionAuditFromGin(c, middleware.GinAuditInput{
-		ActionName:        "tag_update",
-		TargetType:        "tag",
-		TargetID:          strconv.FormatUint(uint64(tag.ID), 10),
-		Success:           true,
-		Message:           "更新标签成功",
-		RequestBody:       cr,
-		UseRawRequestBody: true,
+		ActionName: "tag_update",
+		TargetType: "tag",
+		TargetID:   strconv.FormatUint(uint64(tag.ID), 10),
+		Success:    true,
+		Message:    "更新标签成功",
 	})
 }
 

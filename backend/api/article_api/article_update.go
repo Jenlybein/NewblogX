@@ -54,21 +54,5 @@ func (h ArticleApi) ArticleUpdateView(c *gin.Context) {
 		TargetID:   strconv.FormatUint(uint64(article.ID), 10),
 		Success:    true,
 		Message:    "更新文章成功",
-		RequestBody: map[string]any{
-			"title":           cr.Title,
-			"abstract":        cr.Abstract,
-			"cover_image_id":  cr.CoverImageID,
-			"category_id":     cr.CategoryID,
-			"publish_status":  result.UpdateMap["publish_status"],
-			"comments_toggle": cr.CommentsToggle,
-			"tag_ids":         cr.TagIDs,
-			"content_length": func() int {
-				if cr.Content == nil {
-					return 0
-				}
-				return len(*cr.Content)
-			}(),
-			"content_changed": cr.Content != nil,
-		},
 	})
 }

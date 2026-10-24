@@ -63,10 +63,5 @@ func (h ArticleApi) ArticleExamineView(c *gin.Context) {
 		TargetID:   strconv.FormatUint(uint64(article.ID), 10),
 		Success:    true,
 		Message:    "文章审核成功",
-		RequestBody: map[string]any{
-			"status": cr.Status,
-		},
-		UseRawRequestBody: true,
-		UseRawRequestHead: true,
 	})
 }

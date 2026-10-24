@@ -12,20 +12,18 @@ import (
 )
 
 // GinAuditInput 定义基于 Gin 上下文补充操作审计日志时的业务输入。
+//
+// 注意：这里不再接收请求/响应体。全量原始报文默认不入库（见 07 §0 / L.10）；
+// 需要排查时，请求/响应体由 CaptureLog 在 HTTP 边界采集「已脱敏 + ≤16KB」快照，
+// 且只在**失败请求**时写入审计日志。
 type GinAuditInput struct {
-	Level              string
-	Message            string
-	ActionName         string
-	TargetType         string
-	TargetID           string
-	Success            bool
-	RequestBody        any
-	ResponseBody       any
-	UseRawRequestBody  bool
-	UseRawResponseBody bool
-	UseRawRequestHead  bool
-	UseRawResponseHead bool
-	Extra              map[string]any
+	Level      string
+	Message    string
+	ActionName string
+	TargetType string
+	TargetID   string
+	Success    bool
+	Extra      map[string]any
 }
 
 // EmitActionAuditFromGin 从 Gin 上下文提取请求元信息并写入操作审计日志。
@@ -33,15 +31,13 @@ func EmitActionAuditFromGin(c *gin.Context, input GinAuditInput) {
 	deps := logDepsFromContext(c)
 	if c == nil {
 		log_service.EmitActionAudit(deps, log_service.ActionAuditInput{
-			Level:        input.Level,
-			Message:      input.Message,
-			ActionName:   input.ActionName,
-			TargetType:   input.TargetType,
-			TargetID:     input.TargetID,
-			Success:      input.Success,
-			RequestBody:  input.RequestBody,
-			ResponseBody: input.ResponseBody,
-			Extra:        input.Extra,
+			Level:      input.Level,
+			Message:    input.Message,
+			ActionName: input.ActionName,
+			TargetType: input.TargetType,
+			TargetID:   input.TargetID,
+			Success:    input.Success,
+			Extra:      input.Extra,
 		})
 		return
 	}
@@ -69,48 +65,39 @@ func EmitActionAuditFromGin(c *gin.Context, input GinAuditInput) {
 		statusCode = c.Writer.Status()
 	}
 
-	rawRequestBody := ""
-	if input.UseRawRequestBody {
-		rawRequestBody = log_service.GetRawRequestBody(c)
-	}
-	rawResponseBody := ""
-	if input.UseRawResponseBody {
-		rawResponseBody = log_service.GetRawResponseBody(c)
-	}
-	rawRequestHeader := ""
-	if input.UseRawRequestHead {
-		rawRequestHeader = log_service.GetRawRequestHeader(c)
-	}
-	rawResponseHeader := ""
-	if input.UseRawResponseHead {
-		rawResponseHeader = log_service.GetRawResponseHeader(c)
+	// 只记失败请求的 body：成功请求海量且价值低，失败请求才是排查所需。
+	// 内容来自 CaptureLog 在边界做的「限量读 + 脱敏 + 截断」，不是全量原始报文。
+	var reqBody, respBody []byte
+	if !input.Success {
+		if s := log_service.GetCapturedRequestBody(c); s != "" {
+			reqBody = []byte(s)
+		}
+		if s := log_service.GetCapturedResponseBody(c); s != "" {
+			respBody = []byte(s)
+		}
 	}
 
 	log_service.EmitActionAudit(deps, log_service.ActionAuditInput{
-		Level:             input.Level,
-		Message:           input.Message,
-		RequestID:         requestmeta.GetRequestID(c),
-		TraceID:           requestmeta.GetTraceID(c),
-		SpanID:            requestmeta.GetSpanID(c),
-		ParentSpanID:      requestmeta.GetParentSpanID(c),
-		ErrorCode:         buildAuditErrorCode(statusCode, input.Success),
-		ErrorMessage:      buildAuditErrorMessage(c, input.Success),
-		UserID:            userID,
-		IP:                ip,
-		Method:            method,
-		Path:              path,
-		StatusCode:        statusCode,
-		ActionName:        input.ActionName,
-		TargetType:        input.TargetType,
-		TargetID:          input.TargetID,
-		Success:           input.Success,
-		RequestBody:       input.RequestBody,
-		ResponseBody:      input.ResponseBody,
-		RequestBodyRaw:    rawRequestBody,
-		ResponseBodyRaw:   rawResponseBody,
-		RequestHeaderRaw:  rawRequestHeader,
-		ResponseHeaderRaw: rawResponseHeader,
-		Extra:             input.Extra,
+		Level:        input.Level,
+		Message:      input.Message,
+		RequestID:    requestmeta.GetRequestID(c),
+		TraceID:      requestmeta.GetTraceID(c),
+		SpanID:       requestmeta.GetSpanID(c),
+		ParentSpanID: requestmeta.GetParentSpanID(c),
+		ErrorCode:    buildAuditErrorCode(statusCode, input.Success),
+		ErrorMessage: buildAuditErrorMessage(c, input.Success),
+		UserID:       userID,
+		IP:           ip,
+		Method:       method,
+		Path:         path,
+		StatusCode:   statusCode,
+		ActionName:   input.ActionName,
+		TargetType:   input.TargetType,
+		TargetID:     input.TargetID,
+		Success:      input.Success,
+		RequestBody:  reqBody,
+		ResponseBody: respBody,
+		Extra:        input.Extra,
 	})
 }
 

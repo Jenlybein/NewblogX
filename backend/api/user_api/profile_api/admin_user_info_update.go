@@ -72,16 +72,5 @@ func (h ProfileApi) AdminUserInfoUpdateView(c *gin.Context) {
 		TargetID:   strconv.FormatUint(uint64(cr.UserID), 10),
 		Success:    true,
 		Message:    "管理员更新用户信息成功",
-		RequestBody: map[string]any{
-			"user_id":         cr.UserID,
-			"username":        cr.Username,
-			"nickname":        cr.Nickname,
-			"avatar_image_id": cr.AvatarImageID,
-			"abstract":        cr.Abstract,
-			"role":            cr.Role,
-			"status":          cr.Status,
-		},
-		UseRawRequestBody: true,
-		UseRawRequestHead: true,
 	})
 }

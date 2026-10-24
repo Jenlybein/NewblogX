@@ -36,6 +36,7 @@ type Violation struct {
 // 约定：Check 不要做跨文件分析（预留扩展点，但当前版本是单文件粒度）。
 type Rule struct {
 	ID    string
+	Slug  string // 可选：人类可读名（如 log-no-any），供 --rule 过滤
 	Title string
 	Level string // error / warn
 	Check func(fset *token.FileSet, file *ast.File, rel string) []Violation
@@ -47,6 +48,7 @@ type Config struct {
 	Mode          string // warn 或 error
 	MaxViolations int    // 允许的最大违反数，-1 表示不限
 	SkipTests     bool   // 是否跳过 _test.go
+	RuleFilter    string // 只跑指定规则（ID 或 Slug）；空表示全部
 }
 
 func main() {
@@ -56,17 +58,22 @@ func main() {
 		maxViolations = flag.Int("max-violations", -1, "允许的最大违反数（棘轮），-1 表示不限")
 		skipTests     = flag.Bool("skip-tests", true, "跳过 _test.go 文件")
 		listRules     = flag.Bool("list-rules", false, "列出所有规则后退出")
+		ruleFilter    = flag.String("rule", "", "只运行指定规则（ID 或 slug，如 R9 / log-no-any）")
 	)
 	flag.Parse()
 
 	if *listRules {
 		for _, r := range rules() {
-			fmt.Printf("%s\t[%s]\t%s\n", r.ID, r.Level, r.Title)
+			slug := r.Slug
+			if slug == "" {
+				slug = "-"
+			}
+			fmt.Printf("%s\t%s\t[%s]\t%s\n", r.ID, slug, r.Level, r.Title)
 		}
 		return
 	}
 
-	cfg := Config{Root: *root, Mode: *mode, MaxViolations: *maxViolations, SkipTests: *skipTests}
+	cfg := Config{Root: *root, Mode: *mode, MaxViolations: *maxViolations, SkipTests: *skipTests, RuleFilter: *ruleFilter}
 
 	targets := flag.Args()
 	if len(targets) == 0 {
@@ -102,6 +109,22 @@ func main() {
 		}
 		fmt.Println("\n✓ 全部规则通过")
 	}
+}
+
+// selectedRules 按 cfg.RuleFilter 过滤（匹配 ID 或 Slug，忽略大小写）。
+func selectedRules(cfg Config) []Rule {
+	all := rules()
+	filter := strings.ToLower(strings.TrimSpace(cfg.RuleFilter))
+	if filter == "" {
+		return all
+	}
+	out := make([]Rule, 0, len(all))
+	for _, r := range all {
+		if strings.ToLower(r.ID) == filter || strings.ToLower(r.Slug) == filter {
+			out = append(out, r)
+		}
+	}
+	return out
 }
 
 // normalizeTarget 把 Go 的包模式（./...、api/...）转成目录路径。
@@ -162,7 +185,7 @@ func Run(cfg Config, targets []string) ([]Violation, error) {
 			}
 			rel = filepath.ToSlash(rel)
 
-			for _, rule := range rules() {
+			for _, rule := range selectedRules(cfg) {
 				all = append(all, rule.Check(fset, file, rel)...)
 			}
 			return nil

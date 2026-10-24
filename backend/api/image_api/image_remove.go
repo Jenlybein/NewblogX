@@ -51,15 +51,9 @@ func (h ImageApi) ImageRemoveView(c *gin.Context) {
 	msg := fmt.Sprintf("操作成功，删除了 %d 张图片", len(list))
 	res.OkWithData(msg, c)
 	middleware.EmitActionAuditFromGin(c, middleware.GinAuditInput{
-		ActionName:  "image_remove",
-		TargetType:  "image",
-		Success:     true,
-		Message:     msg,
-		RequestBody: map[string]any{"id_list": cr.IDList},
-		ResponseBody: map[string]any{
-			"deleted_count": len(list),
-		},
-		UseRawRequestBody: true,
-		UseRawRequestHead: true,
+		ActionName: "image_remove",
+		TargetType: "image",
+		Success:    true,
+		Message:    msg,
 	})
 }

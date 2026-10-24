@@ -257,7 +257,7 @@ M3-C2 追加验收：`go build` / `go vet` / `gofmt -l` 全干净；`go test ./.
 | L.3 | ✅ | 生产入口已接线：删掉 `jsonLineSink`（同步 `json.Marshal` + 每条一次文件写 + 全局锁），改由 `log_service/pipeline.go` 五条有界队列承接；`EmitActionAudit` 等 4 类写入与 logrus 的 `FileDateHook` 全部改为投递 |
 | L.4 | ✅ | `log/persist`：`ClickHouseSink` + `WALSink` + `ReplayWAL`；管道在启用 ClickHouse 时组合为 `WALSink(ClickHouseSink)`，并挂在启动时自动重放；5 张日志表引擎改 `ReplacingMergeTree` |
 | L.5 | ✅ | 删掉 fluent-bit 服务与其 5 个 app tail（`Skip_Long_Lines` 会丢长行、`Read_from_Head` 会重放历史）。应用现在直接写 ClickHouse，中间不再有采集器 |
-| L.10 | 🟡 **文档已定稿、待实现** | 审计字段瘦身（选项 1 纯热库）：删 4 个 `*_raw` 列与字段；`request_body`/`response_body` 仅失败时写 + `CODEC(ZSTD(9))`；`ActionAuditInput` 去 `any`；补 archcheck `log-no-any` |
+| L.10 | ✅ | 审计字段瘦身（选项 1 纯热库）：删 4 个 `*_raw` 列与字段；`request_body`/`response_body` 仅失败时写 + `CODEC(ZSTD(9))`；`ActionAuditInput.RequestBody/ResponseBody` 改 `[]byte`、`GinAuditInput` 去 body/header 入参；请求体边界 `io.LimitReader` 限 1MB；archcheck 新增 R9（slug `log-no-any`） |
 | T.3 / T.4（tx） | ✅ | `testkit/`：Clock / SeqID / Golden / 独立 SQLite；`mysql.FakeTxManager` |
 
 #### L.3 的接线方式：一条管道，五张表，两种出口
@@ -370,8 +370,11 @@ L.3 之后应用已经直接写 ClickHouse（`WALSink(ClickHouseSink)`），采�
   四个字段与 ClickHouse 列——它们既是采集器会丢的"最长行"，又是 `MarshalAuditValue → SanitizeValue`
   反射整棵树的爆炸源，还带 PII 合规风险。
 - `request_body` / `response_body` 保留，但**只在失败请求时写**，列加 `CODEC(ZSTD(9))`。
-- `ActionAuditInput` 去掉 `RequestBody any` / `ResponseBody any`，改受控的 `[]byte`（已脱敏 + ≤16KB）。
-- archcheck 新增 `log-no-any`：审计输入禁 `any`、禁结构体，防止老毛病复发。
+- **header 不再采集**：4 个列删掉后没有落点，原始头一律不入库，trace 由 `trace_id/request_id/span_id` 承载。
+- `ActionAuditInput` 去掉 `RequestBody any` / `ResponseBody any`，改受控的 `[]byte`（已脱敏 + ≤16KB）；
+  `GinAuditInput` 不再接收 body/header，body 统一由 `CaptureLog` 在 HTTP 边界采集。
+- 请求体用 `io.LimitReader` **限量 1MB**，再脱敏 + 截断到 16KB——先限量读，绝不整个读进内存。
+- archcheck 新增 **R9（slug `log-no-any`）**：审计输入禁 `any`、禁结构体，防止老毛病复发。
 - **不做冷存储分层**（选项 1）。`payload_ref` 列预留但默认不写，将来要"原始报文冷存储"再启用。
 
 迁移：`ReplacingMergeTree` 支持 `ALTER TABLE ... DROP COLUMN`，旧数据那几列变默认空；

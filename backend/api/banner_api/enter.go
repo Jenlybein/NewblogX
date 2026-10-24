@@ -65,14 +65,11 @@ func (h BannerApi) BannerCreateView(c *gin.Context) {
 		Show:         model.Show,
 	}, c)
 	middleware.EmitActionAuditFromGin(c, middleware.GinAuditInput{
-		ActionName:        "banner_create",
-		TargetType:        "banner",
-		TargetID:          strconv.FormatUint(uint64(model.ID), 10),
-		Success:           true,
-		Message:           "创建轮播图成功",
-		RequestBody:       map[string]any{"cover_image_id": cr.CoverImageID, "href": cr.Href, "show": cr.Show},
-		UseRawRequestBody: true,
-		UseRawRequestHead: true,
+		ActionName: "banner_create",
+		TargetType: "banner",
+		TargetID:   strconv.FormatUint(uint64(model.ID), 10),
+		Success:    true,
+		Message:    "创建轮播图成功",
 	})
 }
 
@@ -115,16 +112,10 @@ func (h BannerApi) BannerRemoveView(c *gin.Context) {
 	}
 	res.OkWithMsg(fmt.Sprintf("请求删除轮播图%d个, 成功%d条", len(cr.IDList), len(list)), c)
 	middleware.EmitActionAuditFromGin(c, middleware.GinAuditInput{
-		ActionName:  "banner_remove",
-		TargetType:  "banner",
-		Success:     true,
-		Message:     fmt.Sprintf("请求删除轮播图%d个, 成功%d条", len(cr.IDList), len(list)),
-		RequestBody: map[string]any{"id_list": cr.IDList},
-		ResponseBody: map[string]any{
-			"deleted_count": len(list),
-		},
-		UseRawRequestBody: true,
-		UseRawRequestHead: true,
+		ActionName: "banner_remove",
+		TargetType: "banner",
+		Success:    true,
+		Message:    fmt.Sprintf("请求删除轮播图%d个, 成功%d条", len(cr.IDList), len(list)),
 	})
 }
 
@@ -154,14 +145,11 @@ func (h BannerApi) BannerUpdateView(c *gin.Context) {
 	}
 	res.OkWithMsg("更新轮播图成功", c)
 	middleware.EmitActionAuditFromGin(c, middleware.GinAuditInput{
-		ActionName:        "banner_update",
-		TargetType:        "banner",
-		TargetID:          strconv.FormatUint(uint64(model.ID), 10),
-		Success:           true,
-		Message:           "更新轮播图成功",
-		RequestBody:       map[string]any{"cover_image_id": cr.CoverImageID, "href": cr.Href, "show": cr.Show},
-		UseRawRequestBody: true,
-		UseRawRequestHead: true,
+		ActionName: "banner_update",
+		TargetType: "banner",
+		TargetID:   strconv.FormatUint(uint64(model.ID), 10),
+		Success:    true,
+		Message:    "更新轮播图成功",
 	})
 }
 

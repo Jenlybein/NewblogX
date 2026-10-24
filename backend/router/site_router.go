@@ -23,5 +23,5 @@ func SiteRouter(r *gin.RouterGroup, appContainer api.Api, runtimeMw mw.Runtime) 
 	Group.GET(":name", mw.BindUri[site_api.SiteInfoRequest], app.SiteInfoView)
 
 	adminGroup.GET("admin/:name", mw.BindUri[site_api.SiteInfoRequest], app.SiteInfoAdminView)
-	adminGroup.PUT(":name", mw.CaptureLog(mw.ReqBody|mw.ReqHeader), mw.BindUri[site_api.SiteInfoRequest], app.SiteUpdateView)
+	adminGroup.PUT(":name", mw.CaptureLog(mw.ReqBody), mw.BindUri[site_api.SiteInfoRequest], app.SiteUpdateView)
 }

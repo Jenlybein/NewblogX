@@ -391,13 +391,71 @@ var ErrBad = errors.New("invalid credentials")
 	}
 }
 
+// TestR9_日志输入禁any 验证审计输入结构体里的裸 any 字段会被抓。
+func TestR9_日志输入禁any(t *testing.T) {
+	cases := []case_{
+		{
+			name: "审计输入带 any 字段",
+			rel:  "service/log_service/write_action_audit.go",
+			src: `package log_service
+
+type ActionAuditInput struct {
+	RequestBody any
+	Extra       map[string]any
+}
+`,
+			ruleID:   "R9",
+			wantHits: 1, // 只有裸 any 命中，map[string]any 不算
+		},
+		{
+			name: "GinAuditInput 带 interface{} 也拦",
+			rel:  "middleware/log_emit.go",
+			src: `package middleware
+
+type GinAuditInput struct {
+	Payload interface{}
+}
+`,
+			ruleID:   "R9",
+			wantHits: 1,
+		},
+		{
+			name: "普通业务结构体不误报",
+			rel:  "service/log_service/other.go",
+			src: `package log_service
+
+type SomeInput struct {
+	Payload any
+}
+`,
+			ruleID:   "R9",
+			wantHits: 0,
+		},
+		{
+			name: "非日志层不适用",
+			rel:  "api/x/x.go",
+			src: `package x
+
+type ActionAuditInput struct {
+	Payload any
+}
+`,
+			ruleID:   "R9",
+			wantHits: 0,
+		},
+	}
+	for _, c := range cases {
+		runOne(t, c)
+	}
+}
+
 // TestAllRulesHaveSelfCheck 确保每条规则都有测试覆盖。
 //
 // 这是防止"以后新增规则却忘了写测试"的元规则。
 func TestAllRulesHaveSelfCheck(t *testing.T) {
 	covered := map[string]bool{
 		"R1": true, "R2": true, "R3": true, "R4": true,
-		"R5": true, "R6": true, "R7": true, "R8": true,
+		"R5": true, "R6": true, "R7": true, "R8": true, "R9": true,
 	}
 	for _, r := range rules() {
 		if !covered[r.ID] {

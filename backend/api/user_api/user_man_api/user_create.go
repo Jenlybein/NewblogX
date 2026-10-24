@@ -95,22 +95,6 @@ func (h *UserManApi) AdminUserCreateView(c *gin.Context) {
 		TargetID:   user.ID.String(),
 		Success:    true,
 		Message:    "管理员创建用户成功",
-		RequestBody: map[string]any{
-			"username": username,
-			"nickname": nickname,
-			"email":    user.Email,
-			"role":     user.Role,
-		},
-		ResponseBody: map[string]any{
-			"id":              user.ID,
-			"username":        user.Username,
-			"nickname":        user.Nickname,
-			"email":           user.Email,
-			"role":            user.Role,
-			"status":          user.Status,
-			"register_source": user.RegisterSource,
-		},
-		UseRawRequestHead: true,
 	})
 }
 

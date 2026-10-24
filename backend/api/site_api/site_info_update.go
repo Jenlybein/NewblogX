@@ -42,14 +42,11 @@ func (h SiteApi) SiteUpdateView(c *gin.Context) {
 			return
 		}
 		auditInput = middleware.GinAuditInput{
-			ActionName:        "site_runtime_update",
-			TargetType:        "runtime_site_config",
-			TargetID:          "site",
-			Success:           true,
-			Message:           "更新站点运行时配置成功",
-			RequestBody:       *s,
-			UseRawRequestBody: true,
-			UseRawRequestHead: true,
+			ActionName: "site_runtime_update",
+			TargetType: "runtime_site_config",
+			TargetID:   "site",
+			Success:    true,
+			Message:    "更新站点运行时配置成功",
 		}
 	case *conf.AI:
 		current := runtimeSite.GetRuntimeAI()
@@ -66,17 +63,6 @@ func (h SiteApi) SiteUpdateView(c *gin.Context) {
 			TargetID:   "ai",
 			Success:    true,
 			Message:    "更新 AI 运行时配置成功",
-			RequestBody: map[string]any{
-				"enable":     s.Enable,
-				"model":      s.ChatModel,
-				"base_url":   s.BaseURL,
-				"nickname":   s.Nickname,
-				"avatar":     s.Avatar,
-				"abstract":   s.Abstract,
-				"secret_key": "***",
-			},
-			UseRawRequestBody: true,
-			UseRawRequestHead: true,
 		}
 	default:
 		res.FailWithMsg("站点信息不存在", c)

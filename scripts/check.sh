@@ -34,13 +34,17 @@ fi
 export GOTOOLCHAIN=local
 export CGO_ENABLED=1
 
-# 架构违规棘轮：当前存量 236 处，只准减少不准增加。
+# 架构违规棘轮：当前存量 250 处，只准减少不准增加。
 # 每迁完一个模块就下调，最终目标 0。
 # 演进：M1 基线 324 → M2 321 → M3-D（AI 客户端，R7 -1）320
 #       → M3-C1 拆分 article_sync.go（R6 -1）319
 #       → M3-C2 river 合并进 platform/cdc + 拆 sync.go（R6 归零）318
-#       → S3.11 删除旧 api/article_api 318 → 236。
-ARCH_MAX_VIOLATIONS=236
+#       → S3.11 删除旧 api/article_api 318 → 236
+#       → S4.0-A 删除 M4 孤儿的死代码（R8 -3）236 → 233
+#       → S4.0-A 新增 R10「业务模块禁止 import models」+17 处真实存量，重新标定为 250。
+#         这不是放宽：那 17 处一直存在，只是此前没有任何规则统计它。
+#         清理动作已排进 S4.1.0（article row 迁进 adapter），届时回到 233。
+ARCH_MAX_VIOLATIONS=250
 # nuxt typecheck 在 Windows 上默认堆不够，需要抬高上限
 export NODE_OPTIONS="${NODE_OPTIONS:---max-old-space-size=8192}"
 

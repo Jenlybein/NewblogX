@@ -9,64 +9,6 @@ import (
 	"myblogx/platform/cachex"
 )
 
-type ArticleBatchCounters struct {
-	ViewMap    map[ctype.ID]int
-	DiggMap    map[ctype.ID]int
-	FavorMap   map[ctype.ID]int
-	CommentMap map[ctype.ID]int
-}
-
-type ArticleCounterReader struct {
-	Cache cachex.Deps
-}
-
-func NewArticleCounterReader(cacheDeps cachex.Deps) ArticleCounterReader {
-	return ArticleCounterReader{
-		Cache: cacheDeps,
-	}
-}
-
-func (r ArticleCounterReader) Batch(articleIDs []ctype.ID) ArticleBatchCounters {
-	counters := ArticleBatchCounters{
-		ViewMap:    make(map[ctype.ID]int),
-		DiggMap:    make(map[ctype.ID]int),
-		FavorMap:   make(map[ctype.ID]int),
-		CommentMap: make(map[ctype.ID]int),
-	}
-	if r.Cache.Client == nil || len(articleIDs) == 0 {
-		return counters
-	}
-
-	ctx := context.Background()
-	fields := buildBatchFields(articleIDs)
-	pipe := r.Cache.Client.Pipeline()
-	defer pipe.Close()
-
-	viewCmd := pipe.HMGet(ctx, "article_view", fields...)
-	diggCmd := pipe.HMGet(ctx, "article_digg", fields...)
-	favorCmd := pipe.HMGet(ctx, "article_favorite", fields...)
-	commentCmd := pipe.HMGet(ctx, "article_comment", fields...)
-
-	if _, err := pipe.Exec(ctx); err != nil {
-		return counters
-	}
-
-	if values, err := viewCmd.Result(); err == nil {
-		counters.ViewMap = decodeBatchValues(articleIDs, values)
-	}
-	if values, err := diggCmd.Result(); err == nil {
-		counters.DiggMap = decodeBatchValues(articleIDs, values)
-	}
-	if values, err := favorCmd.Result(); err == nil {
-		counters.FavorMap = decodeBatchValues(articleIDs, values)
-	}
-	if values, err := commentCmd.Result(); err == nil {
-		counters.CommentMap = decodeBatchValues(articleIDs, values)
-	}
-
-	return counters
-}
-
 type CommentBatchCounters struct {
 	ReplyMap map[ctype.ID]int
 	DiggMap  map[ctype.ID]int

@@ -2,10 +2,10 @@ package follow_api
 
 import (
 	"myblogx/common/res"
+	"myblogx/internal/platform/mysql"
 	"myblogx/middleware"
 	"myblogx/models"
 	"myblogx/models/ctype"
-	"myblogx/service/db_service"
 	"myblogx/service/read_service"
 	"myblogx/service/user_service"
 	"myblogx/utils/jwts"
@@ -51,7 +51,7 @@ func (h FollowApi) FollowUserView(c *gin.Context) {
 	err = h.App.DB.Transaction(func(tx *gorm.DB) error {
 		// 尝试寻找是否存在软删的关注记录，没有则尝试进行创建
 		var createErr error
-		createdOrRestored, createErr = db_service.RestoreOrCreateUnique(tx, &models.UserFollowModel{
+		createdOrRestored, createErr = mysql.RestoreOrCreateUnique(tx, &models.UserFollowModel{
 			FollowedUserID:   cr.ID,
 			FollowedNickname: followedUser.Nickname,
 			FollowedAvatar:   followedUser.Avatar,

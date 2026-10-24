@@ -78,7 +78,7 @@ type Deps struct {
 EOF
 CLEANUP+=("$CANARY_ARCH")
 expect_fail "archcheck 棘轮（新增违规即超阈值）" \
-  bash -c 'cd backend && go run ./tools/archcheck --mode=error --max-violations=236 .'
+  bash -c 'cd backend && go run ./tools/archcheck --mode=error --max-violations=250 .'
 rm -f "$CANARY_ARCH"; rmdir backend/api/zz_canary 2>/dev/null
 
 echo ""

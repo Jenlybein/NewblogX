@@ -1,8 +1,8 @@
 package log_service
 
 import (
+	"myblogx/internal/platform/idgen"
 	"myblogx/models/ctype"
-	"myblogx/service/db_service"
 	"os"
 	"strconv"
 	"time"
@@ -51,7 +51,7 @@ type baseEvent struct {
 
 // newBaseEvent 构造一条基础日志事件，并补齐 event_id、时间、环境和实例信息。
 func newBaseEvent(deps Deps, logKind, level, message string) baseEvent {
-	eventID, err := db_service.NextSnowflakeID()
+	eventID, err := idgen.Next()
 	if err != nil {
 		eventID = ctype.ID(time.Now().UnixNano())
 	}

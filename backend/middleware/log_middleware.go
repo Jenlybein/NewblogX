@@ -11,7 +11,7 @@ import (
 	"time"
 
 	"myblogx/conf"
-	"myblogx/service/db_service"
+	"myblogx/internal/platform/idgen"
 	"myblogx/service/log_service"
 	"myblogx/utils/jwts"
 	"myblogx/utils/requestmeta"
@@ -108,7 +108,7 @@ func (h Runtime) LogMiddleware(c *gin.Context) {
 
 // newRequestID 生成唯一请求ID
 func newRequestID() string {
-	if id, err := db_service.NextSnowflakeID(); err == nil {
+	if id, err := idgen.Next(); err == nil {
 		return strconv.FormatUint(uint64(id), 10)
 	}
 	return strconv.FormatInt(time.Now().UnixNano(), 10)

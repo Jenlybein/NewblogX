@@ -5,8 +5,8 @@ package models
 import (
 	"time"
 
+	"myblogx/internal/platform/idgen"
 	"myblogx/models/ctype"
-	dbservice "myblogx/service/db_service"
 
 	"gorm.io/gorm"
 )
@@ -23,7 +23,7 @@ func (m *Model) BeforeCreate(tx *gorm.DB) (err error) {
 	if !m.ID.IsZero() {
 		return nil
 	}
-	m.ID, err = dbservice.NextSnowflakeID()
+	m.ID, err = idgen.Next()
 	return err
 }
 

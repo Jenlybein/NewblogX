@@ -190,7 +190,7 @@ R3/R5 为 0 说明这两条当前确实没被违反（不是规则失效——`r
 
 | 指标 | 现在 | 目标 |
 | --- | --- | --- |
-| archcheck 违规数 | **236**（S3.11 删旧 `api/article_api` 后由 318 收紧到 236） | 单调递减至 0 |
+| archcheck 违规数 | **250**（见下方 S4.0 重标说明；S3.11 时是 236） | 单调递减至 0 |
 | `type Deps struct` | 34 | 0 |
 | api 层 `*gorm.DB` | 142 | 0 |
 | 裸 `go` 语句 | 17 | 0 |
@@ -654,3 +654,61 @@ T.4 里 `article`/`comment`/`user` 的 fake 依赖 domain 实体，属依赖顺�
 | 前端覆盖率（语句） | 62.47 | 单调递增 |
 
 **规矩**：违规数只准降不准升。一旦某次提交让任何一个数字变差，就是引入了回归。
+
+---
+
+## 8. M5 交付记录（S4.0 起）
+
+### S4.0-A 公共前置：拆工具包 + 平台能力归位
+
+**背景**：S4.0 定的三处结构债里，`service/db_service` 与 `service/read_service` 都是
+"别人在用的转发壳 / 工具包"。动手前先做了一次调用者盘点，结果比预期好——M4 删掉
+`api/article_api` 之后，有一整批包已经变成孤儿。
+
+**删掉的死代码（约 790 行）**：
+
+| 包 / 符号 | 行数 | 判定依据 |
+| --- | --- | --- |
+| `service/favorite_service` | 11 | 纯类型别名 + 转发到 `favor_repo`，全仓 **0 个调用者** |
+| `service/top_service` | 8 | 同上 |
+| `repository/favor_repo` | 401 | 只被上面那个孤儿 service import |
+| `repository/top_repo` | 218 | 同上 |
+| `read_repo` 的 5 个符号 | ~150 | 删掉上面两个 repo 后调用者归零：`LoadCategoryTitleMap`、`LoadArticleTagTitlesMap`、`ArticleCounterReader`（含 `ArticleBatchCounters` / `NewArticleCounterReader`）、`SyncArticleFavorSnapshots` |
+
+`read_repo` 从 446 行降到 276 行。剩下的三块各有明确归属，随模块走：
+`UserDisplay` / `LoadUserDisplayMap` / `SyncUserDisplaySnapshots` → S4.1（user）；
+`CommentCounterReader` → S4.2（comment）；`LoadArticleBaseMap` / `NormalizeIDs` → S4.2 顺带
+（comment 是它唯一的读者）。
+
+**两个平台能力归位**：
+
+- `service/db_service/snowflake.go` → `internal/platform/idgen/`
+  新增并发锁（原实现两个 goroutine 同时 `Init` 有竞态）、错误信息改英文、补 5 个用例
+  （非法机器号 / 未初始化不兜底 / 幂等且拒绝换号 / 8×500 并发无重复 / 严格递增）。
+  改了 12 个调用点；`service/db_service/` 整个目录删除。
+- `service/db_service/restore_create_unique.go` → `internal/platform/mysql/restore.go`
+  逻辑照搬，错误改英文常量（`ErrRestoreNilValue` / `ErrRestoreEmptyMatch`）。
+  测试从 `test/testutil` 改为自建 sqlite（平台包不该反向依赖测试工具包）；
+  顺手补了一条原测试没有的断言：**活记录已存在时不能改写它的字段**。
+
+**新增两条架构规则**：
+
+| 规则 | 内容 | 当前命中 |
+| --- | --- | --- |
+| **R10** `mod-no-models` | 业务模块禁止 import `myblogx/models`（放行 `models/ctype`——它是值类型，不是 row） | 17 |
+| **R11** `mod-no-cross-adapter` | 禁止跨模块 import 别人的 `adapter`（跨模块只能走 port 或 outbox） | 0 |
+
+两条都配了人造违规用例，`TestAllRulesHaveSelfCheck` 同步更新。R11 现在 0 命中属于
+"暂未违规"而非"规则无效"——它的用例证明规则会红。
+
+**棘轮为什么从 236 变成 250**：
+
+250 = 233（删死代码让 R8 从 111 → 108）+ 17（R10 首次统计出的 article adapter 存量）。
+
+那 17 处一直是真违规，只是此前没有任何规则统计它。**重标不是放宽，是把隐藏债务显性化**；
+代价是必须尽快清掉，已排进 **S4.1.0**（article row 迁进 `adapter/mysql`），清完回到 233。
+
+**一个刻意没做的事**：文档原本写"R7 转 error"，读代码后放弃——
+`archcheck` 当前只按 `--mode` + `--max-violations` 判定，`Rule.Level` 只用于
+`-list-rules` 显示，**不参与失败判定**。现在改 R7 的 Level 不会有任何效果，属于"看起来做了"。
+正确做法是等棘轮清零时（M6）让 `Level` 真正参与判定，届时一并处理。

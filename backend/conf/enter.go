@@ -13,6 +13,7 @@ type Config struct {
 	ClickHouse    ClickHouse    `yaml:"clickhouse"`
 	River         River         `yaml:"river"`
 	ImageRefRiver ImageRefRiver `yaml:"image_ref_river"`
+	Outbox        Outbox        `yaml:"outbox"`
 	Replay        Replay        `yaml:"replay"`
 	Upload        Upload        `yaml:"upload"`
 	Site          Site          `yaml:"site"`

@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"time"
 
 	articleapp "myblogx/internal/article/app"
 	"myblogx/internal/platform/cdc/outboxrelay"
@@ -27,7 +28,7 @@ func WireOutboxRelay(infra *Infra) {
 		return
 	}
 
-	relay := outboxrelay.New(infra.DB, infra.Logger, outboxrelay.Options{})
+	relay := outboxrelay.New(infra.DB, infra.Logger, relayOptions(infra))
 
 	// 评分：创建与发布都要保证有评分记录（复刻旧 create/examine/review 的行为）。
 	relay.On(articleapp.EventArticleCreated, scoreSubscriber(infra))
@@ -46,6 +47,23 @@ func WireOutboxRelay(infra *Infra) {
 	// 注册为进程内实例，river 的 CDC 路径通过它入队。
 	outboxrelay.SetCurrent(relay)
 	relay.Run()
+}
+
+// relayOptions 把配置里的保留期参数映射成中继参数。
+//
+// 0 值交给 outboxrelay 的 withDefaults 兜底，所以这里不用再判 0：
+// "没配置"与"配成 0"都按默认保留期处理。
+func relayOptions(infra *Infra) outboxrelay.Options {
+	opts := outboxrelay.Options{}
+	if infra == nil || infra.Config == nil {
+		return opts
+	}
+	o := infra.Config.Outbox
+	opts.RetentionDone = time.Duration(o.RetentionHours) * time.Hour
+	opts.RetentionDead = time.Duration(o.DeadRetentionHours) * time.Hour
+	opts.CleanupInterval = time.Duration(o.CleanupIntervalMinutes) * time.Minute
+	opts.CleanupLimit = o.CleanupBatchSize
+	return opts
 }
 
 // scoreSubscriber 确保文章有 AI 质量评分。

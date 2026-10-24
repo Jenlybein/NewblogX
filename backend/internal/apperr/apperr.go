@@ -98,6 +98,17 @@ const (
 	CodeAuthLoginDisabled  Code = "auth.login_disabled"
 )
 
+// 评论。
+const (
+	CodeCommentNotFound       Code = "comment.not_found"
+	CodeCommentClosed         Code = "comment.closed"
+	CodeCommentForbidden      Code = "comment.forbidden"
+	CodeCommentReplyInvalid   Code = "comment.reply_invalid"
+	CodeCommentDiggChanged    Code = "comment.digg_changed"
+	CodeCommentDiggDuplicated Code = "comment.digg_duplicated"
+	CodeCommentContentEmpty   Code = "comment.content_empty"
+)
+
 // messages 是错误码到中文文案的唯一映射。
 //
 // 新增错误码时**必须**在这里补一行；缺了不会 panic，Error() 会退化成码本身，
@@ -161,6 +172,14 @@ var messages = map[Code]string{
 	CodeAuthTooFrequent:    "登录失败次数过多，请稍后再试",
 	CodeAuthRefreshInvalid: "刷新令牌无效或已过期，请重新登录",
 	CodeAuthLoginDisabled:  "站点未启用该登录方式",
+
+	CodeCommentNotFound:       "评论不存在",
+	CodeCommentClosed:         "该文章已关闭评论",
+	CodeCommentForbidden:      "无权限删除该评论",
+	CodeCommentReplyInvalid:   "回复的评论不存在",
+	CodeCommentDiggChanged:    "点赞状态已变化，请刷新后重试",
+	CodeCommentDiggDuplicated: "请勿重复点赞",
+	CodeCommentContentEmpty:   "评论内容不能为空",
 }
 
 // Error 是带错误码的应用错误。

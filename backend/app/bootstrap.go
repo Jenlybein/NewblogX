@@ -50,14 +50,27 @@ func InitInfra(cfg *conf.Config, configFile string, version string) (*Infra, err
 	clickHouse := core.InitClickHouse(&cfg.ClickHouse)
 	esClient := searchx.Init(&cfg.ES, logger)
 
-	if err := log_service.EnsureDailyLogFiles(log_service.Deps{
+	logDeps := log_service.Deps{
 		LogConfig:        cfg.Log,
 		SystemConfig:     cfg.System,
 		ClickHouseEnable: cfg.ClickHouse.Enabled,
 		Logger:           logger,
 		ClickHouse:       clickHouse,
-	}); err != nil {
+	}
+
+	if err := log_service.EnsureDailyLogFiles(logDeps); err != nil {
 		logger.Errorf("初始化结构化日志文件失败: %v", err)
+	}
+
+	// 安装结构化日志管道：五类日志各一条有界队列。
+	// 启用 ClickHouse 时直接写表、失败落本地 WAL；未启用时写每日文件
+	// （与改造前的落点完全一致，外部采集器无需调整）。
+	if err := log_service.InitStructuredLog(log_service.PipelineConfig{
+		Deps:       logDeps,
+		WALDir:     cfg.Log.WALDir,
+		ClickHouse: cfg.ClickHouse.Enabled,
+	}); err != nil {
+		return nil, fmt.Errorf("初始化结构化日志管道失败: %w", err)
 	}
 
 	return &Infra{
@@ -91,6 +104,9 @@ func InitRuntimeServices(infra *Infra) error {
 // 注册顺序很重要：Lifecycle 按「后注册先执行」的顺序运行钩子，
 // 因此先在这里注册 DB / Redis / ClickHouse，HTTP 服务随后在 WireHTTP 中注册；
 // 停机时 HTTP 会先 Shutdown（等在途请求结束），再关闭这些连接池。
+//
+// 日志管道最后注册，所以最先执行：必须把队列刷完、断开出口之后，
+// 才能关掉 ClickHouse 连接，否则最后一批日志会写进已关闭的连接池。
 func RegisterInfraCleanup(lc *Lifecycle, infra *Infra) {
 	if lc == nil || infra == nil {
 		return
@@ -119,6 +135,11 @@ func RegisterInfraCleanup(lc *Lifecycle, infra *Infra) {
 			return nil
 		}
 		return infra.ClickHouse.Close()
+	})
+
+	// 日志管道最后注册 → 停机时最先执行：先把队列里剩下的日志刷完。
+	lc.OnStop("structured-log", func(ctx context.Context) error {
+		return log_service.CloseStructuredLog(ctx)
 	})
 }
 

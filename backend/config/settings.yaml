@@ -35,6 +35,9 @@ log:
   app: "${BLOGX_LOG_APP}"
   # 日志根目录；运行时日志会在该目录下按日期分目录落盘
   dir: ./logs
+  # 日志本地兜底目录：启用 ClickHouse 时，写入失败的批次先落这里，
+  # 等恢复后自动重放；留空则使用 <dir>/wal
+  wal_dir: ./logs/wal
   # 日志级别；常见取值：trace / debug / info / warn / error
   level: "${BLOGX_LOG_LEVEL}"
   # 标准输出格式；支持 text / json，推荐生产环境使用 json

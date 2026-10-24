@@ -442,28 +442,6 @@
     networks:
       - blogx_network
 
-  fluent-bit:
-    image: fluent/fluent-bit:3.2
-    container_name: fluent-bit
-    restart: unless-stopped
-    environment:
-      BLOGX_CLICKHOUSE_DB: "${BLOGX_CLICKHOUSE_DB}"
-      BLOGX_CLICKHOUSE_USERNAME: "${BLOGX_CLICKHOUSE_USERNAME}"
-      BLOGX_CLICKHOUSE_PASSWORD: "${BLOGX_CLICKHOUSE_PASSWORD}"
-    depends_on:
-      clickhouse:
-        condition: service_healthy
-      blogx_server:
-        condition: service_started
-    volumes:
-      - ../../docker/fluent-bit/fluent-bit.conf:/fluent-bit/etc/fluent-bit.conf:ro
-      - ../../docker/fluent-bit/parsers.conf:/fluent-bit/etc/parsers.conf:ro
-      - ../../state/api/logs:/logs:ro
-      - ../../state/fluent-bit/state:/fluent-bit/state
-    command: ["-c", "/fluent-bit/etc/fluent-bit.conf"]
-    networks:
-      - blogx_network
-
   blogx_web:
     container_name: blogx-web
     image: "blogx-web:1"

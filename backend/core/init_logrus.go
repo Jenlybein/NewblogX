@@ -1,9 +1,7 @@
 package core
 
 import (
-	"fmt"
 	"os"
-	"path/filepath"
 	"strconv"
 	"time"
 
@@ -81,107 +79,25 @@ func (hook CommonFieldsHook) Fire(entry *logrus.Entry) error {
 	return nil
 }
 
-// FileDateHook 按日期切割日志文件钩子
-// 作用：按天自动生成日志文件，每天一个独立目录，实现日志自动轮转
-type FileDateHook struct {
-	file      *os.File              // 当前打开的日志文件句柄
-	logPath   string                // 日志根目录
-	fileDate  string                // 当前日志文件对应的日期
-	appName   string                // 应用名称
-	formatter *logrus.JSONFormatter // JSON格式化器
+// StructuredLogHook 把 logrus 条目转交结构化日志管道（runtime_logs 表）。
+//
+// 它取代了原来的 FileDateHook：编码、批量、落盘与 ClickHouse 投递都由
+// log_service 的管道负责，这里只做转交——不持有文件句柄、不做任何 IO。
+// 这样做的好处是请求路径上不再有"每条日志一次 write + 一把全局锁"。
+type StructuredLogHook struct {
+	Dir string
+	App string
 }
 
-// createLogFile 创建日志文件（含目录）
-// 作用：按日期创建日志目录，打开/创建日志文件并设置权限
-func createLogFile(logPath, timer, appName string) (*os.File, error) {
-	// 拼接日志目录：根目录/日期
-	dir := filepath.Join(logPath, timer)
-	// 递归创建日志目录
-	if err := os.MkdirAll(dir, os.ModePerm); err != nil {
-		return nil, fmt.Errorf("创建日志目录失败: %w", err)
-	}
-
-	// 拼接日志文件路径
-	filename := filepath.Join(dir, fmt.Sprintf("%s.log", appName))
-	// 打开文件：只写、追加、不存在创建，权限0644
-	file, err := os.OpenFile(filename, os.O_WRONLY|os.O_APPEND|os.O_CREATE, 0644)
-	if err != nil {
-		return nil, fmt.Errorf("打开日志文件失败: %w", err)
-	}
-	// 显式设置文件权限，确保跨平台可用
-	if chmodErr := os.Chmod(filename, 0644); chmodErr != nil {
-		_ = file.Close()
-		return nil, fmt.Errorf("修正日志文件权限失败: %w", chmodErr)
-	}
-	return file, nil
-}
-
-// Levels 实现 logrus.Hook 接口
-// 作用：该钩子对所有日志级别生效
-func (hook FileDateHook) Levels() []logrus.Level {
+// Levels 实现 logrus.Hook 接口：对所有级别生效。
+func (hook StructuredLogHook) Levels() []logrus.Level {
 	return logrus.AllLevels
 }
 
-// Fire 实现 logrus.Hook 接口，日志输出前执行
-// 作用：自动按日期切换日志文件，写入JSON格式日志
-func (hook *FileDateHook) Fire(entry *logrus.Entry) error {
-	// 获取当前日志的日期
-	timer := entry.Time.Format("2006-01-02")
-	// 将日志序列化为JSON格式
-	line, err := hook.formatter.Format(entry)
-	if err != nil {
-		return err
-	}
-
-	// 日期变更或文件未初始化，切换到新的日志文件
-	if hook.fileDate != timer || hook.file == nil {
-		if hook.file != nil {
-			_ = hook.file.Close() // 关闭旧文件
-		}
-		// 创建新日期的日志文件
-		newFile, createErr := createLogFile(hook.logPath, timer, hook.appName)
-		if createErr != nil {
-			return fmt.Errorf("切换日志文件失败: %w", createErr)
-		}
-		hook.file = newFile
-		hook.fileDate = timer
-	}
-
-	// 写入日志内容到文件
-	if _, err = hook.file.Write([]byte(line)); err != nil {
-		return fmt.Errorf("写入日志文件失败: %w", err)
-	}
+// Fire 实现 logrus.Hook 接口：把条目交给结构化管道。
+func (hook StructuredLogHook) Fire(entry *logrus.Entry) error {
+	log_service.EmitRuntimeLog(hook.Dir, hook.App, entry)
 	return nil
-}
-
-// InitFile 初始化文件日志钩子
-// 作用：给日志器添加按日期切割的文件钩子
-func InitFile(logger *logrus.Logger, logPath, appName string) {
-	// 获取当前日期
-	fileDate := time.Now().Format("2006-01-02")
-	// 创建当天日志文件
-	file, err := createLogFile(logPath, fileDate, appName)
-	if err != nil {
-		logger.Error(err)
-		return
-	}
-	// 初始化文件钩子
-	fileHook := FileDateHook{
-		file:     file,
-		logPath:  logPath,
-		fileDate: fileDate,
-		appName:  appName,
-		formatter: &logrus.JSONFormatter{
-			TimestampFormat:   "2006-01-02 15:04:05.000", // 时间戳格式
-			DisableHTMLEscape: true,                      // 关闭HTML转义
-			FieldMap: logrus.FieldMap{
-				logrus.FieldKeyTime: "ts",      // 时间字段重命名为ts
-				logrus.FieldKeyMsg:  "message", // 消息字段重命名为message
-			},
-		},
-	}
-	// 将文件钩子注册到日志器
-	logger.AddHook(&fileHook)
 }
 
 // InitLogrus 初始化日志系统（入口方法）
@@ -238,12 +154,12 @@ func InitLogrus(l *conf.Logrus, system *conf.System) *logrus.Logger {
 		Env:        env,
 		InstanceID: instanceID,
 	})
-	// 初始化运行时日志文件输出
-	InitFile(
-		logger,
-		filepath.Join(log_service.ResolveLogDir(l.Dir), log_service.RuntimeLogDirName),
-		serviceName,
-	)
+	// 注册结构化日志钩子：条目转交 log_service 的有界异步管道，
+	// 由管道决定落本地文件还是直接写 ClickHouse（见 log_service/pipeline.go）。
+	logger.AddHook(StructuredLogHook{
+		Dir: log_service.ResolveLogDir(l.Dir),
+		App: serviceName,
+	})
 
 	return logger
 }

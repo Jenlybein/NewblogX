@@ -10,8 +10,12 @@ import (
 )
 
 // record 是入队的内部包装，size 在 Emit 时算好，出队时直接扣减预算。
+//
+// line 非空表示调用方已经编码好整行 JSON（表格式日志用这条路径），
+// 此时 ev 为空，flush 不再做编码。
 type record struct {
 	ev   Event
+	line []byte
 	size int64
 }
 
@@ -114,6 +118,53 @@ func (e *Emitter) Emit(ctx context.Context, ev Event) {
 		e.emitted.Add(1)
 	default:
 		// 队列满：退还预算并计损
+		e.buffered.Add(-sz)
+		e.dropped.Add(1)
+	}
+}
+
+// EmitLine 投递一条**已经编码好**的 JSON 行（不含换行符）。
+//
+// 用途：表格式日志（runtime / audit / login / cdc / replay）的行结构由业务侧
+// 的 typed struct 决定，字段名与 ClickHouse 列名一一对应；这类日志不适合塞进
+// Event 的封闭字段集合，所以在这里直接接收编码结果，复用同一套有界队列、
+// 批量、WAL 与统计逻辑。
+//
+// 与 Emit 的差别：
+//  1. 不做字段补全——时间、service 等由调用方负责，因为这些列本来就在行里；
+//  2. 不重新估算大小——按字节数直接计入预算，比 Event 的估算更准；
+//  3. 级别必须由调用方显式传入（不解析 JSON 去猜）。
+//
+// 契约：line 的底层数组在 EmitLine 返回后**不得再被修改或复用**，
+// 与 Emit 对 Fields 的约定一致——避免每次投递都做防御性拷贝。
+func (e *Emitter) EmitLine(ctx context.Context, level Level, line []byte) {
+	if e == nil || e.closed.Load() || len(line) == 0 {
+		return
+	}
+	if !level.enabled(e.opts.Level) {
+		return
+	}
+	if ctx != nil {
+		select {
+		case <-ctx.Done():
+			e.dropped.Add(1)
+			return
+		default:
+		}
+	}
+
+	// 队列里每条记录还有 channel/mutex 等固定开销，按 64 字节预留。
+	sz := int64(len(line)) + 64
+	if e.buffered.Load()+sz > e.opts.MaxBytes {
+		e.dropped.Add(1)
+		return
+	}
+	e.buffered.Add(sz)
+
+	select {
+	case e.ch <- record{line: line, size: sz}:
+		e.emitted.Add(1)
+	default:
 		e.buffered.Add(-sz)
 		e.dropped.Add(1)
 	}
@@ -234,6 +285,11 @@ func (e *Emitter) flush(batch []record) {
 	lines := make([][]byte, len(batch))
 	buf := make([]byte, 0, 256)
 	for i := range batch {
+		if batch[i].line != nil {
+			// 已由调用方编码：直接交出所有权，不再复制。
+			lines[i] = batch[i].line
+			continue
+		}
 		buf = encodeEvent(buf[:0], &batch[i].ev, e.opts.TimeFormat)
 		line := make([]byte, len(buf))
 		copy(line, buf)

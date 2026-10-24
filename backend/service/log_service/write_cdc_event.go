@@ -1,6 +1,10 @@
 package log_service
 
-import "strings"
+import (
+	"strings"
+
+	platformlog "myblogx/internal/platform/log"
+)
 
 type CdcEvent struct {
 	baseEvent
@@ -91,9 +95,7 @@ func EmitCDCEvent(deps Deps, input CdcEventInput) {
 		RetryCount:  input.RetryCount,
 		Result:      input.Result,
 	}
-	if err := cdcEventSink().write(deps, event); err != nil && deps.Logger != nil {
-		deps.Logger.Errorf("写入 CDC 日志失败: %v", err)
-	}
+	emitRow(deps, platformlog.KindCDC, parseLevel(base.Level), event)
 }
 
 func defaultCDCEventName(input CdcEventInput) string {

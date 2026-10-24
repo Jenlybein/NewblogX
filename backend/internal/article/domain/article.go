@@ -54,6 +54,7 @@ type NewArticleParams struct {
 	CommentsToggle bool
 	Status         Status
 	Visibility     Visibility
+	SubmittedAt    *time.Time
 	Now            time.Time
 }
 
@@ -82,6 +83,7 @@ func NewArticle(p NewArticleParams) (*Article, error) {
 		commentsToggle: p.CommentsToggle,
 		status:         p.Status,
 		visibility:     NormalizeVisibility(p.Visibility),
+		submittedAt:    p.SubmittedAt,
 		createdAt:      p.Now,
 		updatedAt:      p.Now,
 	}, nil

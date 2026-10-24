@@ -20,7 +20,7 @@ import (
 
 // Repos 是"一次事务内可用的全部仓储"。
 //
-// 关键设计：app 拿到的是 Repos 而不是 *gorm.DB。
+// 关键设计：app 拿到的是 Repos 而不是数据库句柄。
 // 类型上就写不出 SQL，也就不会把 handler 里"随手查库"的老毛病带进来。
 type Repos interface {
 	Articles() domain.Repository
@@ -34,11 +34,64 @@ type Repos interface {
 	AuthorStats() AuthorStatsPort
 	// Outbox 是领域事件的出口（当前仅用于记录与后续订阅）。
 	Outbox() OutboxPort
+	// Counters 是浏览/点赞/收藏/评论的增量计数（生产里落在 Redis）。
+	Counters() CounterPort
+	// Comments 是评论模块的跨模块能力（删文章级联、详情页评论数）。
+	Comments() CommentPort
+	// Users 是用户模块的只读能力（作者展示信息）。
+	Users() UserPort
+	// Diggs 是点赞关系（详情页"是否已赞"、级联删除）。
+	Diggs() DiggPort
+}
+
+// DiggPort 是点赞关系端口。
+//
+// 计数增量走 CounterPort，关系本身（谁赞了哪篇）走这里——两者职责不同：
+// 前者在 Redis 里是易失的，后者必须落库才能防重复。
+type DiggPort interface {
+	// Exists 判断某用户是否已点赞。
+	Exists(ctx context.Context, articleID domain.ArticleID, userID domain.UserID) (bool, error)
+	// Add 新增点赞关系；已存在返回 false 表示无变化。
+	Add(ctx context.Context, articleID domain.ArticleID, userID domain.UserID) (bool, error)
+	// Remove 取消点赞；本不存在返回 false。
+	Remove(ctx context.Context, articleID domain.ArticleID, userID domain.UserID) (bool, error)
+	// DeleteByArticle 删除某文章的全部点赞，返回条数。
+	DeleteByArticle(ctx context.Context, articleID domain.ArticleID) (int, error)
+}
+
+// CounterPort 是文章计数增量端口。
+//
+// 生产实现转发到现有 Redis 计数（redis_article）；测试用内存 fake。
+// 设计成"只加增量、不做绝对值"：并发点赞不能靠读-改-写。
+type CounterPort interface {
+	// Add 累加计数增量。
+	Add(ctx context.Context, id domain.ArticleID, delta domain.Counters) error
+	// Load 批量读取增量；缺失的文章返回零值。
+	Load(ctx context.Context, ids []domain.ArticleID) (map[domain.ArticleID]domain.Counters, error)
+}
+
+// CommentPort 是评论模块能力。
+//
+// 只暴露 article 需要的两个动作：级联删除与计数。
+// 不把评论实体引进来，避免两个聚合互相依赖。
+type CommentPort interface {
+	// DeleteByArticle 删除某文章的全部评论，返回删除条数。
+	DeleteByArticle(ctx context.Context, articleID domain.ArticleID) (int, error)
+	// CountByArticle 统计某文章的评论数。
+	CountByArticle(ctx context.Context, articleID domain.ArticleID) (int, error)
+}
+
+// UserPort 是用户模块的只读能力。
+type UserPort interface {
+	// Profile 取单个用户的展示信息。
+	Profile(ctx context.Context, id domain.UserID) (AuthorView, error)
+	// Profiles 批量取；缺失的 ID 直接跳过。
+	Profiles(ctx context.Context, ids []domain.UserID) (map[domain.UserID]AuthorView, error)
 }
 
 // TxManager 划定事务边界。
 //
-// 实现放在 adapter（用 platform/mysql 的 *gorm.DB 开事务，
+// 实现放在 adapter（用 platform/mysql 的句柄开事务，
 // 再用同一个 tx 构造 Repos）；测试用 apptest.Tx 注入失败与回滚。
 type TxManager interface {
 	WithinTx(ctx context.Context, fn func(ctx context.Context, r Repos) error) error

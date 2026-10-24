@@ -735,3 +735,19 @@ T.4 里 `article`/`comment`/`user` 的 fake 依赖 domain 实体，属依赖顺�
 `archcheck` 当前只按 `--mode` + `--max-violations` 判定，`Rule.Level` 只用于
 `-list-rules` 显示，**不参与失败判定**。现在改 R7 的 Level 不会有任何效果，属于"看起来做了"。
 正确做法是等棘轮清零时（M6）让 `Level` 真正参与判定，届时一并处理。
+
+## 9. M5 交付记录 · S4.1d（认证链路）
+
+**2026-10-25**：`api/user_api/auth_api`（13 文件）删除，认证 13 条路由改由 `internal/auth` 提供。
+
+- 适配器：`adapter/mysql`（会话表）、`adapter/redis`（黑名单 + 登录限流）、
+  `adapter/security`（刷新令牌随机串 + SHA256）、`adapter/http`（13 条接口）。
+- 用例：在核心 Login / Refresh / Logout / Authenticate 之外，补邮箱验证码登录与注册、
+  QQ 登录、改密 / 重置 / 绑定邮箱；依赖一律走窄端口（Directory / EmailCodes / OAuth）。
+- user 侧补账号生命周期：注册建档、第三方建档、改密、绑定邮箱；
+  仓储新增 `UpdatePassword`（令牌版本 +1）与 `UpdateEmail`。
+- **JWT 签发器放在装配层**：载荷映射需要 `models/enum`，业务模块禁止 import models（R10）。
+- 邮箱验证码沿用旧实现的**反枚举**语义：注册时邮箱已存在也返回成功和 id，但不发信、不存码。
+- 棘轮 **250 → 240**（删掉 auth_api 的中文 error 与跨层引用）。
+- 未做：`profile_api` / `user_man_api` / `log_api` 仍在旧 `api/user_api` 下，
+  下一刀做 user 路由等价替换后整包删除。

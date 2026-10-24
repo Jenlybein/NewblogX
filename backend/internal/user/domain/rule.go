@@ -275,3 +275,20 @@ func NeedsDisplaySnapshotSync(changed []string) bool {
 	}
 	return false
 }
+
+// MinPasswordLen 是密码最小长度。
+//
+// 与认证模块保持同一口径：只约束长度，不做复杂度要求。复杂度规则会逼用户写
+// "Passw0rd!" 这类好猜又好忘的组合，长度才是更有效的约束。
+const MinPasswordLen = 8
+
+// ValidatePassword 校验密码长度。
+func ValidatePassword(s string) error {
+	if s == "" {
+		return apperr.New(apperr.CodeUserPasswordRequired)
+	}
+	if len(s) < MinPasswordLen {
+		return apperr.New(apperr.CodeUserPasswordTooShort)
+	}
+	return nil
+}

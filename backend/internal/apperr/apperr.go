@@ -80,6 +80,8 @@ const (
 	CodeUserAccountBanned     Code = "user.account_banned"
 	CodeUserPasswordRequired  Code = "user.password_required"
 	CodeUserPasswordTooShort  Code = "user.password_too_short"
+	CodeUserOldPasswordWrong  Code = "user.old_password_wrong"
+	CodeUserPasswordSame      Code = "user.password_same"
 	CodeUserSessionExpired    Code = "user.session_expired"
 	CodeUserTokenInvalid      Code = "user.token_invalid"
 	CodeUserCaptchaInvalid    Code = "user.captcha_invalid"
@@ -146,6 +148,8 @@ var messages = map[Code]string{
 	CodeUserAccountBanned:     "账号已被封禁",
 	CodeUserPasswordRequired:  "请先设置密码",
 	CodeUserPasswordTooShort:  "密码长度不足",
+	CodeUserOldPasswordWrong:  "旧密码错误",
+	CodeUserPasswordSame:      "新密码不能与旧密码相同",
 	CodeUserSessionExpired:    "登录状态已过期，请重新登录",
 	CodeUserTokenInvalid:      "登录凭证无效",
 	CodeUserCaptchaInvalid:    "验证码错误或已过期",

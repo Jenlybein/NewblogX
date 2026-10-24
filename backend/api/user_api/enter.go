@@ -2,7 +2,6 @@ package user_api
 
 import (
 	"database/sql"
-	"myblogx/api/user_api/auth_api"
 	"myblogx/api/user_api/log_api"
 	"myblogx/api/user_api/profile_api"
 	"myblogx/api/user_api/user_man_api"
@@ -30,7 +29,6 @@ type Deps struct {
 
 type UserApi struct {
 	ProfileApi profile_api.ProfileApi
-	AuthApi    auth_api.AuthApi
 	LogApi     log_api.LogApi
 	UserManApi user_man_api.UserManApi
 }
@@ -43,16 +41,6 @@ func New(deps Deps) UserApi {
 			Logger: deps.Logger,
 			Redis:  deps.Redis,
 			System: deps.System,
-		}),
-		AuthApi: auth_api.New(auth_api.Deps{
-			DB:          deps.DB,
-			Email:       deps.Email,
-			JWT:         deps.JWT,
-			Logger:      deps.Logger,
-			QQ:          deps.QQ,
-			Redis:       deps.Redis,
-			RuntimeSite: deps.RuntimeSite,
-			System:      deps.System,
 		}),
 		LogApi: log_api.New(log_api.Deps{
 			Log:              deps.Log,

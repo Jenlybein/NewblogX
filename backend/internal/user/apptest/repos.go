@@ -244,6 +244,40 @@ func (u *Users) UpdateStatus(_ context.Context, id domain.UserID, status domain.
 	return nil
 }
 
+// UpdatePassword 实现 domain.Repository。
+func (u *Users) UpdatePassword(_ context.Context, id domain.UserID, hash string, tokenVersion uint32) error {
+	u.mu.Lock()
+	defer u.mu.Unlock()
+	if err := u.takeErr(); err != nil {
+		return err
+	}
+	user, ok := u.byID[id]
+	if !ok {
+		return apperr.New(apperr.CodeUserNotFound)
+	}
+	user.PasswordHash = hash
+	user.TokenVersion = tokenVersion
+	u.byID[id] = user
+	return nil
+}
+
+// UpdateEmail 实现 domain.Repository。
+func (u *Users) UpdateEmail(_ context.Context, id domain.UserID, email string) error {
+	u.mu.Lock()
+	defer u.mu.Unlock()
+	if err := u.takeErr(); err != nil {
+		return err
+	}
+	user, ok := u.byID[id]
+	if !ok {
+		return apperr.New(apperr.CodeUserNotFound)
+	}
+	value := email
+	user.Email = &value
+	u.byID[id] = user
+	return nil
+}
+
 // List 实现 domain.Repository。
 func (u *Users) List(_ context.Context, q domain.Query) (domain.Page, error) {
 	u.mu.Lock()

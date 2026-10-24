@@ -66,7 +66,25 @@ type Service struct {
 	clock     domain.Clock
 	logger    Logger
 	opts      Options
+
+	// 以下依赖只在"扩展登录方式"（邮箱/QQ/改密/绑定）时使用，
+	// 为空时对应用例会返回明确的错误，而不会 nil panic。
+	dir   Directory
+	codes EmailCodes
+	oauth OAuth
 }
+
+// Option 是可选的装配项。
+type Option func(*Service)
+
+// WithDirectory 注入账号目录能力（注册、改密、绑定邮箱）。
+func WithDirectory(d Directory) Option { return func(s *Service) { s.dir = d } }
+
+// WithEmailCodes 注入邮箱验证码发送能力。
+func WithEmailCodes(c EmailCodes) Option { return func(s *Service) { s.codes = c } }
+
+// WithOAuth 注入第三方登录能力。
+func WithOAuth(o OAuth) Option { return func(s *Service) { s.oauth = o } }
 
 // New 构造认证服务。
 func New(
@@ -80,6 +98,7 @@ func New(
 	clock domain.Clock,
 	logger Logger,
 	opts Options,
+	extras ...Option,
 ) *Service {
 	if sessions == nil {
 		panic("auth/app: 会话仓储未注入")
@@ -96,7 +115,7 @@ func New(
 	if clock == nil {
 		panic("auth/app: 时钟未注入")
 	}
-	return &Service{
+	svc := &Service{
 		sessions:  sessions,
 		issuer:    issuer,
 		secrets:   secrets,
@@ -108,6 +127,12 @@ func New(
 		logger:    logger,
 		opts:      opts.withDefaults(),
 	}
+	for _, opt := range extras {
+		if opt != nil {
+			opt(svc)
+		}
+	}
+	return svc
 }
 
 // LoginInput 是登录请求。
@@ -345,6 +370,20 @@ func (s *Service) ListSessions(ctx context.Context, userID uint64) ([]domain.Ses
 		return nil, apperr.New(apperr.CodeAuthRequired)
 	}
 	return s.sessions.ListActive(ctx, userID)
+}
+
+// RevokeSession 吊销指定会话（登录设备管理里的"下线该设备"）。
+//
+// 先 FindActive 校验归属：只凭 sessionID 吊销等于让任何登录用户
+// 踢掉别人的设备。校验不到就返回"已失效"，不区分"不存在"和"不是你的"。
+func (s *Service) RevokeSession(ctx context.Context, userID, sessionID uint64) error {
+	if userID == 0 || sessionID == 0 {
+		return apperr.New(apperr.CodeAuthRequired)
+	}
+	if _, err := s.sessions.FindActive(ctx, domain.SessionID(sessionID), userID); err != nil {
+		return err
+	}
+	return s.sessions.Revoke(ctx, domain.SessionID(sessionID), s.clock.Now())
 }
 
 // claimsOf 组装访问令牌载荷。

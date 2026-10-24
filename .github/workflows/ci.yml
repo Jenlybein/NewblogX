@@ -60,11 +60,11 @@ jobs:
       - name: archcheck rules self-test
         run: go test ./tools/archcheck/...
 
-      # 棘轮：存量 324 处已知，只准减少不准增加。
+      # 棘轮：存量 321 处已知，只准减少不准增加（M1 基线 324，M2 降至 321）。
       # 数字随模块迁移逐步下调，最终目标是 0。
       # 如果有人新增了违规（比如又在 api 层 import gorm），这里立刻失败。
       - name: archcheck (ratchet)
-        run: go run ./tools/archcheck --mode=error --max-violations=324 .
+        run: go run ./tools/archcheck --mode=error --max-violations=321 .
 
   # ── 前端 lint（两端解耦，矩阵并行）────────────────────────────────
   frontend-lint:

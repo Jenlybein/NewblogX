@@ -34,9 +34,10 @@ fi
 export GOTOOLCHAIN=local
 export CGO_ENABLED=1
 
-# 架构违规棘轮：当前存量 324 处，只准减少不准增加。
+# 架构违规棘轮：当前存量 321 处，只准减少不准增加。
 # 每迁完一个模块就下调，最终目标 0。
-ARCH_MAX_VIOLATIONS=324
+# 演进：M1 基线 324 → M2 合并 apideps/删 kafka 后 321 → M3 起以此为准。
+ARCH_MAX_VIOLATIONS=321
 # nuxt typecheck 在 Windows 上默认堆不够，需要抬高上限
 export NODE_OPTIONS="${NODE_OPTIONS:---max-old-space-size=8192}"
 

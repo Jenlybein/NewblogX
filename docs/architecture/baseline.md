@@ -181,12 +181,59 @@ R3/R5 为 0 说明这两条当前确实没被违反（不是规则失效——`r
 
 | 指标 | 现在 | 目标 |
 | --- | --- | --- |
-| archcheck 违规数 | 324 | 单调递减至 0 |
+| archcheck 违规数 | **321**（M2 后，棘轮已收紧到 321） | 单调递减至 0 |
 | `type Deps struct` | 35 | 0 |
 | api 层 `*gorm.DB` | 144 | 0 |
 | 裸 `go` 语句 | 17 | 0 |
 | 后端测试包失败数 | 0 | 保持 0 |
 | 前端 lint error | 0 | 保持 0 |
+
+---
+
+## 7. M3-A：平台层地基（已交付）
+
+M3 的 17 项里，先落地"所有后续模块都要用"的四件套。它们全部是新包、无历史包袱，
+因此可以做到**零新增违规**，并把测试写成可并行、无全局状态。
+
+| 项 | 落点 | 说明 |
+| --- | --- | --- |
+| **S2.1** | `internal/platform/mysql` | `TxManager` 窄接口 + GORM 实现 + 可注入失败的 fake；已接入 `middleware.Deps.Tx` |
+| **T.3（核心）** | `testkit/` | Clock / SeqID / Golden / 独立内存 SQLite，**无包级状态**，可在 `t.Parallel()` 下用 |
+| **L.1** | `internal/platform/log` | 类型化事件：`Field` 是封闭联合（str/int/uint/float/bool/dur/time/strs），无 `any` |
+| **L.2** | 同上 + `WriterSink`/`NewFileSink` | 有界异步管道（条目 8192 + 8MB 双限，满则丢弃计数）+ 批量写 JSON Lines，输出字段/时间格式与现有 logrus 一致 |
+| **R7 正解** | `internal/platform/safego` | 唯一允许写裸 `go` 的地方；archcheck 对此目录**精确豁免**（并有反向用例证明其他 platform 包仍被拦） |
+
+### 验收实测
+
+| 检查 | 结果 |
+| --- | --- |
+| `go build ./...` / `go vet ./...` / `gofmt -l` | 全部干净 |
+| `go test ./internal/... ./testkit/... -race` | 全绿（含 8 路并行 sqlite 隔离、5000 条灌入不阻塞、关闭 drain） |
+| `go test ./middleware/... ./app/... ./router/... ./api/...` | 全绿 |
+| archcheck | **321 ≤ 321**，零新增；R7 豁免有正反用例 |
+| 棘轮 | `check.sh` / `verify-gates.sh` / `ci.yml` 同步收紧到 321 |
+
+### 为什么"地基"要先做这四件
+
+- **事务**：M4 的 `internal/article/app` 必须能在一个事务里完成"写文章 + 发事件"，
+  并且能在没有数据库的情况下用 fake 跑回滚测试。没有 `TxManager`，M4 无法开始。
+- **testkit**：现有 `test/testutil` 是全局单例（`InitGlobals()` + 包级 `testDB`），
+  测试之间互相污染、无法并行。新模块若沿用这套，重构会继续积累技术债。
+- **日志**：M3 之后所有模块都要写日志。先把"类型化 + 有界 + 不阻塞"的管道立起来，
+  后续模块直接接入，避免再造一批 `SanitizeValue(any)`。
+- **safego**：R7 有 17 处存量裸 `go`。要修它们，必须先有一个合法的替代品；
+  否则规则只降不升的要求会让任何后台任务都无从写起。
+
+### 尚未覆盖（M3 剩余批次）
+
+| 批次 | 内容 | 规模 | 风险 |
+| --- | --- | --- | --- |
+| M3-B | S2.2 redis 拆 counter/guard/cache + S2.3 es 承接 | ~5,500 行，~15 处 importer | 中（机械迁移，但面广） |
+| M3-C | S2.4 拆 `article_sync.go`(1547) + S2.5 合并 river(3231→~1800) | ~4,800 行 | 高（行为等价需回归） |
+| M3-D | S2.6 `platform/llm` 重写 + S2.7 结构化输出 | ~2,800 行 | 中（需超时/ctx/重试） |
+| M3-E | S2.8 swag 生成 + S2.9 前端类型生成 | 工具链 | 低-中（契约先行） |
+| M3-F | L.3–L.5 生产写入口替换 + ClickHouse 批量/WAL | 跨模块 | 高（合规：audit 不可丢） |
+| M3-G | T.4 有状态 fake + T.8 testcontainers | 测试 | 中（需 Docker） |
 | 前端覆盖率（语句） | 62.47 | 单调递增 |
 
 **规矩**：违规数只准降不准升。一旦某次提交让任何一个数字变差，就是引入了回归。

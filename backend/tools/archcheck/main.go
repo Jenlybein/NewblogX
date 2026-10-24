@@ -35,10 +35,10 @@ type Violation struct {
 // Check 接收单个文件已经解析好的 AST，返回该文件内的违反列表。
 // 约定：Check 不要做跨文件分析（预留扩展点，但当前版本是单文件粒度）。
 type Rule struct {
-	ID      string
-	Title   string
-	Level   string // error / warn
-	Check   func(fset *token.FileSet, file *ast.File, rel string) []Violation
+	ID    string
+	Title string
+	Level string // error / warn
+	Check func(fset *token.FileSet, file *ast.File, rel string) []Violation
 }
 
 // Config 控制检查行为。

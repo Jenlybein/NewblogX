@@ -148,6 +148,18 @@ func (t *Task) AuthorID() domain.UserID { return t.authorID }
 // ArticleTitle 返回文章标题（快照）。
 func (t *Task) ArticleTitle() string { return t.articleTitle }
 
+// AuthorName 返回作者昵称快照。
+func (t *Task) AuthorName() string { return t.authorName }
+
+// Stage 返回审核阶段。
+func (t *Task) Stage() Stage { return t.stage }
+
+// Reason 返回审核意见/撤销原因。
+func (t *Task) Reason() string { return t.reason }
+
+// CreatedAt 返回创建时间。
+func (t *Task) CreatedAt() time.Time { return t.createdAt }
+
 // Status 返回任务状态。
 func (t *Task) Status() Status { return t.status }
 

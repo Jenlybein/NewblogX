@@ -311,6 +311,8 @@ github.com/testcontainers/testcontainers-go v0.35.0 h1:uADsZpTKFAtp8SLK+hMwSaa+X
 github.com/testcontainers/testcontainers-go v0.35.0/go.mod h1:oEVBj5zrfJTrgjwONs1SsRbnBtH9OKl+IGl3UMcr2B4=
 github.com/testcontainers/testcontainers-go/modules/clickhouse v0.35.0 h1:A4NESGwof4RK+i/pjL0lAVu0JxNZIvLR35ZFB9DKgYQ=
 github.com/testcontainers/testcontainers-go/modules/clickhouse v0.35.0/go.mod h1:nT0LQ4rqTljX5Ub0Q3GdFrVXRYSrjK6p7RuJPpUE4wg=
+github.com/testcontainers/testcontainers-go/modules/mysql v0.35.0 h1:9voGAf+1KxC0ck/XtrC/AUrkr74SSGpQRBp0O851B3Y=
+github.com/testcontainers/testcontainers-go/modules/mysql v0.35.0/go.mod h1:rxKSkFpc5XZtG00prjqPfobuMgt5EpFEOrzZgYdOX0c=
 github.com/tidwall/pretty v1.0.0/go.mod h1:XNkn88O1ChpSDQmQeStsy+sBenx6DDtFZJxhVysOjyk=
 github.com/tklauser/go-sysconf v0.3.12 h1:0QaGUFOdQaIVdPgfITYzaTegZvdCjmYO52cSFAEVmqU=
 github.com/tklauser/go-sysconf v0.3.12/go.mod h1:Ho14jnntGE1fpdOqQEEaiKRpvIavV0hSfmBq8nJbHYI=

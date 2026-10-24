@@ -133,6 +133,7 @@ require (
 	github.com/swaggo/swag v1.16.6 // indirect
 	github.com/testcontainers/testcontainers-go v0.35.0 // indirect
 	github.com/testcontainers/testcontainers-go/modules/clickhouse v0.35.0 // indirect
+	github.com/testcontainers/testcontainers-go/modules/mysql v0.35.0 // indirect
 	github.com/tklauser/go-sysconf v0.3.12 // indirect
 	github.com/tklauser/numcpus v0.6.1 // indirect
 	github.com/twitchyliquid64/golang-asm v0.15.1 // indirect

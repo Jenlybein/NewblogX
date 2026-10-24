@@ -1,0 +1,28 @@
+# 统一行尾为 LF（仓库约定）
+#
+# 为什么需要这个文件：
+# 本项目在 Windows 上开发，git 默认的 core.autocrlf 会把检出内容变成 CRLF，
+# 于是"某个文件有没有真改动"经常判断不出来——一次 eslint --fix 就能让
+# 几百个文件在 diff 里显示"全部重写"，实际只是行尾不同。
+#
+# 明确写死 eol=lf 之后：仓库里存的是 LF，检出到哪台机器都是 LF，
+# diff 只反映真实改动。CI 跑在 Linux 上也不会出现"本地改一行、CI 显示改全文"。
+
+* text=auto eol=lf
+
+# 二进制文件不做任何换行转换
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.webp binary
+*.ico binary
+*.woff binary
+*.woff2 binary
+*.ttf binary
+*.zip binary
+*.7z binary
+
+# 这些文件本质是二进制（IP 库），必须保护
+*.xdb binary
+*.ipdb binary

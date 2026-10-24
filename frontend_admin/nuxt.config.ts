@@ -6,6 +6,15 @@ import { defineNuxtConfig } from "nuxt/config";
 const appRoot = dirname(fileURLToPath(import.meta.url));
 const hydratedEnvKeys = new Set<string>();
 
+
+// 只允许注入本应用命名空间下的键（以及 Nuxt 自身的 NUXT_ 键）。
+// 历史原因：env 文件曾经从后端配置里抄过来，一旦有人复制了 BLOGX_JWT_SECRET
+// 这类后端密钥，它就会被无差别写进前端进程环境。这里用白名单从源头堵住。
+const ALLOWED_ENV_PREFIX = ['BLOGX_ADMIN_', 'NUXT_']
+function isAllowedEnvKey(key: string) {
+  return ALLOWED_ENV_PREFIX.some((prefix) => key.startsWith(prefix))
+}
+
 function hydrateProcessEnv(
   relativePath: string,
   options: { overrideHydrated?: boolean } = {},
@@ -22,6 +31,10 @@ function hydrateProcessEnv(
     if (separatorIndex <= 0) continue;
 
     const key = line.slice(0, separatorIndex).trim();
+    // 非本应用命名空间的键直接忽略（防止后端密钥泄漏到前端进程环境）
+    if (key && !isAllowedEnvKey(key)) {
+      continue;
+    }
     if (
       !key ||
       (process.env[key] !== undefined &&
@@ -134,7 +147,7 @@ export default defineNuxtConfig({
   app: {
     baseURL: adminBaseURL,
   },
-  modules: ["@pinia/nuxt", "@vueuse/nuxt", "@nuxtjs/tailwindcss"],
+  modules: ["@pinia/nuxt", "@vueuse/nuxt", "@nuxtjs/tailwindcss", "@nuxt/eslint"],
   css: ["~/assets/css/fonts.css", "~/assets/css/admin.css"],
   build: {
     transpile: ["naive-ui", "vueuc", "date-fns"],

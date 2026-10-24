@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed } from "vue";
-import { NButton, NTag, useMessage } from "naive-ui";
+import { NTag, useMessage } from "naive-ui";
 import ArticleFeedItem from "~/components/article/ArticleFeedItem.vue";
 import ProfileCollectionShelf from "~/components/profile/ProfileCollectionShelf.vue";
 import ProfileHeroCard from "~/components/profile/ProfileHeroCard.vue";
@@ -10,7 +10,7 @@ import { getFansList, getFollowList, followUser, unfollowUser } from "~/services
 import { getSelfUserDetail, getUserBaseInfo } from "~/services/user";
 import type { InboxDraftSessionSeed } from "~/utils/chat";
 import { formatCount } from "~/utils/format";
-import { getAuthorButtonLabel, getRelationLabel, isFollowing } from "~/utils/relation";
+import { getAuthorButtonLabel, isFollowing } from "~/utils/relation";
 
 type UserTab = "articles" | "favorites" | "follow" | "fans";
 const USER_TABS: UserTab[] = ["articles", "favorites", "follow", "fans"];

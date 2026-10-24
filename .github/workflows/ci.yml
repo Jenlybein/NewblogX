@@ -1,0 +1,192 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  GO_VERSION: "1.25"
+  NODE_VERSION: "22"
+
+jobs:
+  # ── 后端：编译 + vet + 单测（race）────────────────────────────────
+  backend:
+    name: backend (build / vet / test)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache-dependency-path: backend/go.sum
+
+      - name: go build
+        run: go build ./...
+
+      - name: go vet
+        run: go vet ./...
+
+      # -short 只跑不依赖外部中间件的用例；集成测试由 nightly 档跑
+      - name: go test (race, short)
+        run: go test -race -short -count=1 ./...
+
+  # ── 架构守卫：AST 规则（先 warn，逐步升级 error）─────────────────
+  archcheck:
+    name: backend (archcheck)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache-dependency-path: backend/go.sum
+
+      # 规则自身的单测：每条规则都必须能在人造违规上报错
+      - name: archcheck rules self-test
+        run: go test ./tools/archcheck/...
+
+      # 棘轮：存量 324 处已知，只准减少不准增加。
+      # 数字随模块迁移逐步下调，最终目标是 0。
+      # 如果有人新增了违规（比如又在 api 层 import gorm），这里立刻失败。
+      - name: archcheck (ratchet)
+        run: go run ./tools/archcheck --mode=error --max-violations=324 .
+
+  # ── 前端 lint（两端解耦，矩阵并行）────────────────────────────────
+  frontend-lint:
+    name: ${{ matrix.app }} (lint)
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        app: [frontend, frontend_admin]
+    defaults:
+      run:
+        working-directory: ${{ matrix.app }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+          cache-dependency-path: ${{ matrix.app }}/pnpm-lock.yaml
+
+      - run: pnpm install --frozen-lockfile
+
+      - name: pnpm lint
+        run: pnpm lint
+
+  # ── 前端类型检查 ──────────────────────────────────────────────────
+  frontend-typecheck:
+    name: ${{ matrix.app }} (typecheck)
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        app: [frontend, frontend_admin]
+    defaults:
+      run:
+        working-directory: ${{ matrix.app }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+          cache-dependency-path: ${{ matrix.app }}/pnpm-lock.yaml
+
+      - run: pnpm install --frozen-lockfile
+
+      - run: pnpm typecheck
+
+  # ── 前端单测 ──────────────────────────────────────────────────────
+  frontend-test:
+    name: ${{ matrix.app }} (test)
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        app: [frontend, frontend_admin]
+    defaults:
+      run:
+        working-directory: ${{ matrix.app }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+          cache-dependency-path: ${{ matrix.app }}/pnpm-lock.yaml
+
+      - run: pnpm install --frozen-lockfile
+
+      # 管理后台当前 0 用例，vitest 配置里开了 passWithNoTests，
+      # 保证"还没有测试"不会挡住流水线，但一旦有人加测试就必须通过。
+      - run: pnpm test
+
+  # ── 门禁自检：故意注入失败，CI 必须变红 ───────────────────────────
+  # 这个 job 存在的意义：证明上面所有 job 真的会失败。
+  # 如果它们只是"永远绿"，那么整套 CI 等于不存在。
+  gates-canary:
+    name: gates canary (must fail)
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+
+      # 只有在 PR 标题带 [canary] 时才验证"能变红"，
+      # 避免每次 PR 都付出额外 5 分钟。
+      - name: 仅在 canary PR 上验证门禁有效性
+        if: contains(github.event.pull_request.title, '[canary]')
+        working-directory: backend
+        run: |
+          echo "== 注入一个必然失败的测试，若 CI 仍绿说明门禁失效 =="
+          mkdir -p internal/canary
+          cat > internal/canary/canary_test.go <<'EOF'
+          package canary
+
+          import "testing"
+
+          func TestMustFail(t *testing.T) {
+          	t.Fatal("canary: 这个测试必须失败，否则说明 CI 门禁没有生效")
+          }
+          EOF
+          if go test ./internal/canary/... ; then
+            echo "::error::门禁失效：注入的失败测试竟然通过了"
+            exit 1
+          else
+            echo "门禁有效：失败测试被正确捕获"
+          fi

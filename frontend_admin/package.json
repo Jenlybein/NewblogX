@@ -3,16 +3,20 @@
   "type": "module",
   "private": true,
   "scripts": {
-    "build": "node ../../scripts/run-admin-env.mjs production build",
-    "dev": "node ../../scripts/run-admin-env.mjs local-local dev",
-    "dev:local-local": "node ../../scripts/run-admin-env.mjs local-local dev",
-    "dev:local-test": "node ../../scripts/run-admin-env.mjs local-test dev",
-    "build:test": "node ../../scripts/run-admin-env.mjs test build",
-    "build:production": "node ../../scripts/run-admin-env.mjs production build",
+    "build": "node scripts/run-env.mjs production build",
+    "dev": "node scripts/run-env.mjs local-local dev",
+    "dev:local-local": "node scripts/run-env.mjs local-local dev",
+    "dev:local-test": "node scripts/run-env.mjs local-test dev",
+    "build:test": "node scripts/run-env.mjs test build",
+    "build:production": "node scripts/run-env.mjs production build",
     "generate": "nuxt generate",
     "preview": "nuxt preview",
     "typecheck": "nuxi typecheck",
-    "postinstall": "nuxt prepare"
+    "postinstall": "nuxt prepare",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
+    "test": "vitest run",
+    "test:watch": "vitest"
   },
   "dependencies": {
     "@css-render/vue3-ssr": "^0.15.14",
@@ -29,6 +33,18 @@
     "vue-router": "^5.0.4"
   },
   "devDependencies": {
+    "@nuxt/eslint": "^1.17.0",
+    "@nuxt/eslint-config": "^1.17.0",
+    "@types/node": "^26.6.5",
+    "@vitejs/plugin-vue": "^6.0.10",
+    "eslint": "^9.39.5",
+    "happy-dom": "^21.0.4",
+    "typescript": "^5.9.3",
+    "vitest": "^4.1.12",
     "vue-tsc": "^3.2.6"
+  },
+  "packageManager": "pnpm@10.33.0",
+  "engines": {
+    "node": ">=20.12.0"
   }
 }

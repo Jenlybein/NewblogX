@@ -5,13 +5,12 @@ import {
   IconBell,
   IconChartBar,
   IconDatabase,
-  IconFileSearch,
-  IconHome,
   IconPhoto,
   IconSettings,
   IconShieldCheck,
   IconUsers,
 } from '@tabler/icons-vue'
+import type { IconHome } from '@tabler/icons-vue'
 import { NuxtLink } from '#components'
 import {
   NAvatar,

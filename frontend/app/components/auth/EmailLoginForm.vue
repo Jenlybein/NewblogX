@@ -38,11 +38,11 @@ const sendDisabled = computed(() => countdown.value > 0);
 
 function startCountdown() {
   countdown.value = 60;
-  timer && clearInterval(timer);
+  if (timer) clearInterval(timer);
   timer = setInterval(() => {
     countdown.value -= 1;
     if (countdown.value <= 0) {
-      timer && clearInterval(timer);
+      if (timer) clearInterval(timer);
       timer = null;
     }
   }, 1000);

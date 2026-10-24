@@ -3,14 +3,35 @@
 package main
 
 import (
+	"fmt"
+	"os"
+	"strings"
+
 	"myblogx/app"
 	"myblogx/buildinfo"
 	"myblogx/core"
 	"myblogx/flags"
-	"strings"
 )
 
+// wantsVersion 判断命令行是否只想要版本号。
+//
+// 必须在读取配置之前处理：否则运维只想确认"线上跑的是哪个提交"，
+// 却会先撞上"缺少 N 个环境变量"的 panic。
+func wantsVersion(args []string) bool {
+	for _, a := range args {
+		if a == "--version" || a == "-version" || a == "-v" {
+			return true
+		}
+	}
+	return false
+}
+
 func main() {
+	if wantsVersion(os.Args[1:]) {
+		fmt.Println(buildinfo.String())
+		return
+	}
+
 	flag := flags.Parse()
 	config := core.ReadCfg(&flag.File)
 

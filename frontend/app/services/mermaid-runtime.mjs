@@ -219,7 +219,7 @@ function extractFrontMatter(text) {
 
 function cleanupText(code) {
   return code.replace(/\r\n?/g, "\n").replace(/<(\w+)([^>]*)>/g, (_match, tag, attributes) => {
-    return "<" + tag + attributes.replace(/=\"([^\"]*)\"/g, "='$1'") + ">";
+    return "<" + tag + attributes.replace(/="([^"]*)"/g, "='$1'") + ">";
   });
 }
 

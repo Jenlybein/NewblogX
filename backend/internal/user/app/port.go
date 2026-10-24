@@ -13,12 +13,13 @@ import (
 // Clock 是时间来源（领域层已定义，这里别名一次方便调用）。
 type Clock = domain.Clock
 
-// PasswordHasher 把明文密码转成可存储的哈希。
+// PasswordHasher 负责密码的哈希与校验。
 //
-// 只暴露 Hash 不暴露 Verify：校验由仓储层在查询时配合完成，
-// 让应用层拿不到"比较密码"的能力，减少误用的可能。
+// 两者都放在本模块：认证模块（auth）只能拿到「验过了/没验过」的结论，
+// 永远拿不到密码哈希本身——这是密码不出用户模块边界的唯一保障。
 type PasswordHasher interface {
 	Hash(plain string) (string, error)
+	Verify(hash, plain string) bool
 }
 
 // DetailEnricher 是详情页的"增强读"能力：头像图片 ID 与偏好标签标题。
@@ -49,6 +50,22 @@ type UserInfoPort interface {
 	LoadDisplays(ctx context.Context, ids []domain.UserID) (map[domain.UserID]domain.Display, error)
 	// EnsureUsable 校验用户处于可写状态（存在且未被禁用/封禁）。
 	EnsureUsable(ctx context.Context, id domain.UserID) error
+}
+
+// CredentialPort 是给认证模块（auth）用的凭证能力。
+//
+// 与 UserInfoPort 分开：那个只给展示用的公开信息，这个能拿到完整 User
+// （含密码哈希），只有认证场景才该用。
+//
+// 刻意不提供「按 ID 查密码哈希」的方法：auth 只需要验密码，不需要读哈希。
+type CredentialPort interface {
+	// VerifyPassword 用「用户名或邮箱 + 明文密码」校验，成功返回用户。
+	//
+	// 用户名不存在、没设密码、密码错误三种情况返回同一个错误码
+	// （CodeUserInvalidCredential），否则攻击者可以据此枚举账号。
+	VerifyPassword(ctx context.Context, identifier, plain string) (domain.User, error)
+	// FindForAuth 按 ID 查用户，供令牌校验时判断状态与版本号。
+	FindForAuth(ctx context.Context, id domain.UserID) (domain.User, error)
 }
 
 // Service 是用户模块的应用服务。
@@ -108,8 +125,11 @@ func New(
 	}
 }
 
-// 编译期断言：Service 必须满足 UserInfoPort。
-var _ UserInfoPort = (*Service)(nil)
+// 编译期断言：Service 同时满足两个对外端口。
+var (
+	_ UserInfoPort   = (*Service)(nil)
+	_ CredentialPort = (*Service)(nil)
+)
 
 // LoadDisplays 实现 UserInfoPort。
 func (s *Service) LoadDisplays(ctx context.Context, ids []domain.UserID) (map[domain.UserID]domain.Display, error) {

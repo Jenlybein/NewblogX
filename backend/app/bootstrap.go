@@ -1,6 +1,7 @@
 package app
 
 import (
+	"context"
 	"database/sql"
 	"fmt"
 
@@ -85,16 +86,40 @@ func InitRuntimeServices(infra *Infra) error {
 	return nil
 }
 
-// Bootstrap 初始化完整运行所需的基础设施与运行时服务。
-func Bootstrap(cfg *conf.Config, configFile string, version string) (*Infra, error) {
-	infra, err := InitInfra(cfg, configFile, version)
-	if err != nil {
-		return nil, err
+// RegisterInfraCleanup 把基础设施句柄注册为停机钩子。
+//
+// 注册顺序很重要：Lifecycle 按「后注册先执行」的顺序运行钩子，
+// 因此先在这里注册 DB / Redis / ClickHouse，HTTP 服务随后在 WireHTTP 中注册；
+// 停机时 HTTP 会先 Shutdown（等在途请求结束），再关闭这些连接池。
+func RegisterInfraCleanup(lc *Lifecycle, infra *Infra) {
+	if lc == nil || infra == nil {
+		return
 	}
-	if err = InitRuntimeServices(infra); err != nil {
-		return nil, fmt.Errorf("bootstrap 失败: %w", err)
-	}
-	return infra, nil
+
+	lc.OnStop("mysql", func(context.Context) error {
+		if infra.DB == nil {
+			return nil
+		}
+		sqlDB, err := infra.DB.DB()
+		if err != nil {
+			return err
+		}
+		return sqlDB.Close()
+	})
+
+	lc.OnStop("redis", func(context.Context) error {
+		if infra.Redis == nil {
+			return nil
+		}
+		return infra.Redis.Close()
+	})
+
+	lc.OnStop("clickhouse", func(context.Context) error {
+		if infra.ClickHouse == nil {
+			return nil
+		}
+		return infra.ClickHouse.Close()
+	})
 }
 
 func validateInfra(infra *Infra) error {

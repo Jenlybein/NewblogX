@@ -14,7 +14,7 @@ func TestRegisterAllRoutes(t *testing.T) {
 	r := gin.New()
 	router.HealthRouter(r)
 	api := r.Group("/api")
-	app := api2.New(api2.Deps{})
+	app := api2.New(mw.Deps{})
 	runtimeMw := mw.Runtime{}
 
 	router.SiteRouter(api, app, runtimeMw)

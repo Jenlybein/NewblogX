@@ -116,21 +116,22 @@ node .output/server/index.mjs
 因此同一个 `blogx-web:1` 镜像可以在不同运行环境下复用；改 upstream/siteUrl 后重启容器即可生效，
 不需要为了这些运行时配置重新 build。
 
-### Nginx 固定配置
+### Nginx 配置（单模板 + envsubst）
 
-Nginx 不再使用模板渲染，改成固定配置文件：
+Nginx 只保留一份模板，启动时由 `envsubst` 按部署形态渲染：
 
-- 本地 compose：[nginx.local.conf](/E:/project/blogx_monorepo/deploy/docker/nginx/nginx.local.conf)
-- 后端联调：[nginx.api-only.conf](/E:/project/blogx_monorepo/deploy/docker/nginx/nginx.api-only.conf)
-- 测试：[nginx.test.conf](/E:/project/blogx_monorepo/deploy/docker/nginx/nginx.test.conf)
-- 生产：[nginx.production.conf](/E:/project/blogx_monorepo/deploy/docker/nginx/nginx.production.conf)
+- 模板：[nginx.conf.tmpl](../../deploy/docker/nginx/nginx.conf.tmpl)
+- 渲染脚本：[render-config.sh](../../deploy/docker/nginx/render-config.sh)
 
-本地 compose 通过 `BLOGX_NGINX_ENV` 选择要挂载的固定配置：
+容器启动时执行 `render-config.sh`，用 `envsubst` 把模板渲染成 `/etc/nginx/nginx.conf` 再启动 nginx。
+只需要一个开关 `BLOGX_NGINX_ENV` 选择形态，其余变量（server_name、TLS、upstream、是否启用 web/admin）由脚本推导：
 
-- `BLOGX_NGINX_ENV=local` -> `nginx.local.conf`
-- `BLOGX_NGINX_ENV=api-only` -> `nginx.api-only.conf`
-- `BLOGX_NGINX_ENV=test` -> `nginx.test.conf`
-- `BLOGX_NGINX_ENV=production` -> `nginx.production.conf`
+- `BLOGX_NGINX_ENV=local`（默认）-> `localhost`，不启用 TLS
+- `BLOGX_NGINX_ENV=test` -> `blog.gentlybeing.cn`，启用 TLS
+- `BLOGX_NGINX_ENV=production` -> `blogx.gentlybeing.cn`，启用 TLS
+- `BLOGX_NGINX_ENV=api-only` -> `blog.gentlybeing.cn`，启用 TLS，且 `/admin` 与 `/` 返回 404
+
+显式传入同名环境变量（如 `BLOGX_NGINX_SERVER_NAME`、`BLOGX_NGINX_WEB_UPSTREAM`）可临时覆盖脚本默认值。
 
 `api-only` 用于“服务器跑后端 Docker 容器，本地跑 Nuxt dev server”的联调模式；它只代理 `/api/*`、`/api/chat/ws`、`/uploads/*`、`/_origin/*`，不依赖 `blogx_web`。
 

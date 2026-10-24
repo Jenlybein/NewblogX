@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"fmt"
 	api2 "myblogx/api"
-	"myblogx/apideps"
 	"myblogx/conf"
 	mw "myblogx/middleware"
 	"myblogx/models"
@@ -70,13 +69,13 @@ func newSitemsgRouterEngine() *gin.Engine {
 	gin.SetMode(gin.TestMode)
 	r := gin.New()
 	apiGroup := r.Group("/api")
-	app := api2.New(api2.Deps{
+	app := api2.New(mw.Deps{
 		DB:     testutil.DB(),
 		Redis:  testutil.Redis(),
 		JWT:    testutil.Config().Jwt,
 		Logger: testutil.Logger(),
 	})
-	runtimeMw := mw.NewRuntime(apideps.Deps{
+	runtimeMw := mw.NewRuntime(mw.Deps{
 		DB:               testutil.DB(),
 		Redis:            testutil.Redis(),
 		JWT:              testutil.Config().Jwt,
@@ -115,13 +114,13 @@ func TestSitemsgRouterPutConfBindsJSON(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	r := gin.New()
 	apiGroup := r.Group("/api")
-	app := api2.New(api2.Deps{
+	app := api2.New(mw.Deps{
 		DB:     testutil.DB(),
 		Redis:  testutil.Redis(),
 		JWT:    testutil.Config().Jwt,
 		Logger: testutil.Logger(),
 	})
-	runtimeMw := mw.NewRuntime(apideps.Deps{
+	runtimeMw := mw.NewRuntime(mw.Deps{
 		DB:               testutil.DB(),
 		Redis:            testutil.Redis(),
 		JWT:              testutil.Config().Jwt,

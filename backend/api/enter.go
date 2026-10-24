@@ -3,7 +3,6 @@
 package api
 
 import (
-	"database/sql"
 	"myblogx/api/ai_api"
 	"myblogx/api/article_api"
 	"myblogx/api/banner_api"
@@ -19,35 +18,8 @@ import (
 	"myblogx/api/site_api"
 	"myblogx/api/sitemsg_api"
 	"myblogx/api/user_api"
-	"myblogx/conf"
-	"myblogx/service/site_service"
-
-	"github.com/elastic/go-elasticsearch/v7"
-	"github.com/go-redis/redis/v8"
-	"github.com/mojocn/base64Captcha"
-	"github.com/sirupsen/logrus"
-	"gorm.io/gorm"
+	"myblogx/middleware"
 )
-
-type Deps struct {
-	Version           string
-	System            conf.System
-	JWT               conf.Jwt
-	Log               conf.Logrus
-	ClickHouseConfig  conf.ClickHouse
-	ES                conf.ES
-	QQ                conf.QQ
-	Email             conf.Email
-	QiNiu             conf.QiNiu
-	Upload            conf.Upload
-	Logger            *logrus.Logger
-	DB                *gorm.DB
-	Redis             *redis.Client
-	ClickHouse        *sql.DB
-	ESClient          *elasticsearch.Client
-	RuntimeSite       *site_service.RuntimeConfigService
-	ImageCaptchaStore base64Captcha.Store
-}
 
 type Api struct {
 	SiteApi         site_api.SiteApi
@@ -67,7 +39,7 @@ type Api struct {
 	DataApi         data_api.DataApi
 }
 
-func New(deps Deps) Api {
+func New(deps middleware.Deps) Api {
 	return Api{
 		SiteApi: site_api.New(site_api.Deps{
 			Version:     deps.Version,

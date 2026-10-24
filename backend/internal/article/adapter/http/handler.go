@@ -13,7 +13,6 @@ import (
 	"myblogx/middleware"
 	"myblogx/models"
 	"myblogx/models/ctype"
-	"myblogx/models/enum"
 	"myblogx/service/site_service"
 	"myblogx/utils/markdown"
 )
@@ -293,37 +292,6 @@ func (h *Handler) RemoveBatch(c *gin.Context) {
 	}
 	h.audit(c, "article_delete_batch", 0, true, "批量删除文章")
 	res.OkWithMsg("删除成功", c)
-}
-
-// ── 审核 ──
-
-// Examine 审核文章。
-//
-// @Summary 审核文章
-// @Tags article
-// @Accept json
-// @Produce json
-// @Security BearerAuth
-// @Param id path int true "文章 ID"
-// @Param body body ArticleExamineRequest true "请求体"
-// @Success 200 {object} object{code=int,data=object{},msg=string}
-// @Router /articles/{id}/examine [post]
-func (h *Handler) Examine(c *gin.Context) {
-	uri := middleware.GetBindUri[models.IDRequest](c)
-	cr := middleware.GetBindJson[ArticleExamineRequest](c)
-
-	approve := cr.Status == enum.ArticleStatusPublished
-	if _, err := h.svc.Examine(c.Request.Context(), app.ExamineCmd{
-		Actor:     h.viewerOf(c),
-		ArticleID: domain.ArticleID(uri.ID),
-		Approve:   approve,
-		Reason:    cr.Reason,
-	}); err != nil {
-		h.fail(c, err)
-		return
-	}
-	h.audit(c, "article_examine", domain.ArticleID(uri.ID), true, "文章审核成功")
-	res.OkWithMsg("文章审核成功", c)
 }
 
 // ── 可见性 ──

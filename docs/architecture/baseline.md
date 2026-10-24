@@ -181,7 +181,7 @@ R3/R5 为 0 说明这两条当前确实没被违反（不是规则失效——`r
 
 | 指标 | 现在 | 目标 |
 | --- | --- | --- |
-| archcheck 违规数 | **321**（M2 后，棘轮已收紧到 321） | 单调递减至 0 |
+| archcheck 违规数 | **320**（M3-D 后，棘轮已收紧到 320） | 单调递减至 0 |
 | `type Deps struct` | 35 | 0 |
 | api 层 `*gorm.DB` | 144 | 0 |
 | 裸 `go` 语句 | 17 | 0 |
@@ -210,8 +210,8 @@ M3 的 17 项里，先落地"所有后续模块都要用"的四件套。它们�
 | `go build ./...` / `go vet ./...` / `gofmt -l` | 全部干净 |
 | `go test ./internal/... ./testkit/... -race` | 全绿（含 8 路并行 sqlite 隔离、5000 条灌入不阻塞、关闭 drain） |
 | `go test ./middleware/... ./app/... ./router/... ./api/...` | 全绿 |
-| archcheck | **321 ≤ 321**，零新增；R7 豁免有正反用例 |
-| 棘轮 | `check.sh` / `verify-gates.sh` / `ci.yml` 同步收紧到 321 |
+| archcheck | **320 ≤ 320**，零新增；R7 豁免有正反用例 |
+| 棘轮 | `check.sh` / `verify-gates.sh` / `ci.yml` 同步收紧到 320 |
 
 ### 为什么"地基"要先做这四件
 

@@ -137,6 +137,9 @@ func (t *Tag) ArticleCount() int { return t.articleCount }
 // Enabled 返回是否启用。
 func (t *Tag) Enabled() bool { return t.enabled }
 
+// CreatedBy 返回创建人。
+func (t *Tag) CreatedBy() domain.UserID { return t.createdBy }
+
 // Usable 判断标签能否被文章使用。
 func (t *Tag) Usable() bool { return t.enabled }
 

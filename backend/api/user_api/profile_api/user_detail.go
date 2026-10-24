@@ -44,6 +44,13 @@ type UserDetailResponse struct {
 	StrangerChatEnabled      bool                    `json:"stranger_msg_enabled"`
 }
 
+// UserDetailView 返回当前登录用户的详细资料。
+// @Summary 当前用户详情
+// @Tags user
+// @Produce json
+// @Security BearerAuth
+// @Success 200 {object} object{code=int,data=UserDetailResponse,msg=string}
+// @Router /users/detail [get]
 func (h ProfileApi) UserDetailView(c *gin.Context) {
 	app := h.App
 	claims := jwts.MustGetClaimsByGin(c)

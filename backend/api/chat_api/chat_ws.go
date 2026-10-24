@@ -36,6 +36,12 @@ var chatWSUpgrader = websocket.Upgrader{
 }
 
 // ChatWsTicketView 生成聊天票据
+// @Summary 获取聊天 WebSocket 票据
+// @Tags chat
+// @Produce json
+// @Security BearerAuth
+// @Success 200 {object} object{code=int,data=object{},msg=string}
+// @Router /chat/ws-ticket [get]
 func (h ChatApi) ChatWsTicketView(c *gin.Context) {
 	redisDeps := redis_service.NewDeps(h.App.Redis, h.App.Logger)
 	claims := jwts.MustGetClaimsByGin(c)
@@ -58,6 +64,12 @@ func (h ChatApi) ChatWsTicketView(c *gin.Context) {
 }
 
 // ChatWsView 处理聊天 WebSocket 长连接。
+// @Summary 聊天 WebSocket 长连接
+// @Tags chat
+// @Produce json
+// @Param ticket query string false "WS 票据（未携带 Authorization 头时使用）"
+// @Success 200 {object} object{code=int,data=object{},msg=string}
+// @Router /chat/ws [get]
 func (h ChatApi) ChatWsView(c *gin.Context) {
 	logger := h.App.Logger
 	db := h.App.DB

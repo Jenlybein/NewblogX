@@ -16,6 +16,13 @@ import (
 	"gorm.io/gorm"
 )
 
+// ArticleDetailView 查询文章详情。
+// @Summary 文章详情
+// @Tags article
+// @Produce json
+// @Param id path int true "文章 ID"
+// @Success 200 {object} object{code=int,data=ArticleDetailResponse,msg=string}
+// @Router /articles/{id} [get]
 func (h ArticleApi) ArticleDetailView(c *gin.Context) {
 	cr := middleware.GetBindUri[models.IDRequest](c)
 

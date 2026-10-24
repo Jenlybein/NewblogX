@@ -15,6 +15,19 @@ import (
 )
 
 // 查询收藏夹列表
+// FavoriteListView 分页查询收藏夹列表。
+// @Summary 收藏夹列表
+// @Tags article
+// @Produce json
+// @Param page query int false "页码"
+// @Param limit query int false "每页条数"
+// @Param key query string false "关键词"
+// @Param order query string false "排序"
+// @Param user_id query int false "目标用户 ID"
+// @Param article_id query int false "文章 ID"
+// @Param type query int true "查询类型(1:自己 2:别人 3:管理员)"
+// @Success 200 {object} object{code=int,data=object{list=[]favorite_service.FavoriteListItem,count=int},msg=string}
+// @Router /articles/favorite [get]
 func (h FavoriteApi) FavoriteListView(c *gin.Context) {
 	cr := middleware.GetBindQuery[FavoriteListRequest](c)
 

@@ -12,6 +12,17 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+// UserListView 管理员分页查询用户列表。
+// @Summary 用户列表
+// @Tags user
+// @Produce json
+// @Security BearerAuth
+// @Param limit query int false "每页条数"
+// @Param page query int false "页码"
+// @Param key query string false "关键词"
+// @Param order query string false "排序"
+// @Success 200 {object} object{code=int,data=object{list=[]UserListResponse,count=int},msg=string}
+// @Router /users/admin/list [get]
 func (h *UserManApi) UserListView(c *gin.Context) {
 	app := h.App
 	cr := middleware.GetBindQuery[UserListRequest](c)

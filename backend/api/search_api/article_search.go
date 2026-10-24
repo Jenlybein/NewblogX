@@ -13,6 +13,22 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+// ArticleSearchView 按关键词、标签、分类等条件搜索文章。
+// @Summary 文章搜索
+// @Tags search
+// @Produce json
+// @Param type query int false "搜索类型：1 公共文章 2 猜你喜欢 3 作者文章 4 自己文章 5 管理员搜索"
+// @Param sort query int false "排序：1 默认 2 最新发布 3 最多回复 4 最多点赞 5 最多收藏 6 最多浏览"
+// @Param page_mode query string false "分页模式"
+// @Param page query int false "页码"
+// @Param limit query int false "每页数量"
+// @Param key query string false "搜索关键词"
+// @Param category_id query int false "分类 ID"
+// @Param author_id query int false "作者 ID"
+// @Param status query int false "文章状态"
+// @Param tag_ids query string false "标签 ID 列表，支持逗号分隔"
+// @Success 200 {object} object{code=int,data=search_service.ArticleSearchResponse,msg=string}
+// @Router /search/articles [get]
 func (h SearchApi) ArticleSearchView(c *gin.Context) {
 	cr := middleware.GetBindQuery[search_service.ArticleSearchRequest](c)
 	if len(cr.TagIDs) == 0 {

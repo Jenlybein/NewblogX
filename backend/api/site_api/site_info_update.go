@@ -16,6 +16,15 @@ var confMap = map[string]any{
 
 // 更新站点运行时配置。
 // 这里只允许修改数据库中的运行时配置，不再修改 settings.yaml 和前端 HTML 文件。
+// @Summary 更新站点运行时配置（管理员）
+// @Tags site
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Param name path string true "配置名称：site 站点配置、ai AI 配置"
+// @Param body body object true "请求体，name=site 时为 conf.Site，name=ai 时为 conf.AI"
+// @Success 200 {object} object{code=int,data=object{},msg=string}
+// @Router /site/{name} [put]
 func (h SiteApi) SiteUpdateView(c *gin.Context) {
 	cr := middleware.GetBindUri[SiteInfoRequest](c)
 	runtimeSite := h.App.RuntimeSite

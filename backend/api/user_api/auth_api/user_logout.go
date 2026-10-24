@@ -11,6 +11,13 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+// UserLogoutView 退出当前设备登录。
+// @Summary 退出登录
+// @Tags user
+// @Produce json
+// @Security BearerAuth
+// @Success 200 {object} object{code=int,data=object{},msg=string}
+// @Router /users/logout [post]
 func (h AuthApi) UserLogoutView(c *gin.Context) {
 	claims := jwts.MustGetClaimsByGin(c)
 	deps := user_service.NewDepsWithRedis(h.App.JWT, h.App.System.Env, h.App.DB, h.App.Logger, h.App.Redis)
@@ -30,6 +37,13 @@ func (h AuthApi) UserLogoutView(c *gin.Context) {
 	res.OkWithMsg("退出登录成功", c)
 }
 
+// UserLogoutAllView 退出全部设备登录。
+// @Summary 退出全部设备
+// @Tags user
+// @Produce json
+// @Security BearerAuth
+// @Success 200 {object} object{code=int,data=object{},msg=string}
+// @Router /users/logout/all [post]
 func (h AuthApi) UserLogoutAllView(c *gin.Context) {
 	claims := jwts.MustGetClaimsByGin(c)
 	deps := user_service.NewDepsWithRedis(h.App.JWT, h.App.System.Env, h.App.DB, h.App.Logger, h.App.Redis)

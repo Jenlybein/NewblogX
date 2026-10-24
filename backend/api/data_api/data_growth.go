@@ -11,6 +11,14 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+// GrowthDataView 近七日增长数据（管理员）。
+// @Summary 近七日增长数据
+// @Tags data
+// @Produce json
+// @Security BearerAuth
+// @Param type query int true "统计类型：1 网站流量 2 文章发布 3 用户注册"
+// @Success 200 {object} object{code=int,data=GrowthDataResponse,msg=string}
+// @Router /data/growth [get]
 func (h DataApi) GrowthDataView(c *gin.Context) {
 	app := h.App
 	cr := middleware.GetBindQuery[GrowthDataRequest](c)

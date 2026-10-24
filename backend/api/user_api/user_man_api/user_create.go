@@ -33,6 +33,15 @@ type AdminUserCreateResponse struct {
 	RegisterSource enum.RegisterSourceType `json:"register_source"`
 }
 
+// AdminUserCreateView 管理员创建用户。
+// @Summary 管理员创建用户
+// @Tags user
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Param body body AdminUserCreateRequest true "请求体"
+// @Success 200 {object} object{code=int,data=AdminUserCreateResponse,msg=string}
+// @Router /users/admin [post]
 func (h *UserManApi) AdminUserCreateView(c *gin.Context) {
 	cr := middleware.GetBindJson[AdminUserCreateRequest](c)
 

@@ -32,11 +32,21 @@ func New(deps Deps) SiteApi {
 var sensitive_place_holder = "******"
 
 // 站点 qq 登录地址
+// @Summary 获取 QQ 登录地址
+// @Tags site
+// @Produce json
+// @Success 200 {object} object{code=int,data=string,msg=string}
+// @Router /site/qq_url [get]
 func (h SiteApi) SiteInfoQQView(c *gin.Context) {
 	res.OkWithData(h.App.QQ.Url(), c)
 }
 
 // AI 信息获取
+// @Summary 获取站点 AI 信息
+// @Tags site
+// @Produce json
+// @Success 200 {object} object{code=int,data=SiteAIResponse,msg=string}
+// @Router /site/ai_info [get]
 func (h SiteApi) SiteInfoAIView(c *gin.Context) {
 	if h.App.RuntimeSite == nil {
 		res.FailWithMsg("运行时配置服务未初始化", c)
@@ -52,6 +62,11 @@ func (h SiteApi) SiteInfoAIView(c *gin.Context) {
 }
 
 // SEO 信息获取，适合 Nuxt 等前端在服务端渲染或页面切换时拉取。
+// @Summary 获取站点 SEO 信息
+// @Tags site
+// @Produce json
+// @Success 200 {object} object{code=int,data=SiteSEOResponse,msg=string}
+// @Router /site/seo [get]
 func (h SiteApi) SiteSEOView(c *gin.Context) {
 	if h.App.RuntimeSite == nil {
 		res.FailWithMsg("运行时配置服务未初始化", c)

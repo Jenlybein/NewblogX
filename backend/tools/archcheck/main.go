@@ -160,7 +160,8 @@ func Run(cfg Config, targets []string) ([]Violation, error) {
 			if info.IsDir() {
 				// 跳过无用目录
 				base := info.Name()
-				if base == ".git" || base == "node_modules" || base == "var" || base == "resources" {
+				// docs/ 是 swag 生成的 OpenAPI 产物（docs.go / swagger.*），不是手写代码，不参与架构规则。
+				if base == ".git" || base == "node_modules" || base == "var" || base == "resources" || base == "docs" {
 					return filepath.SkipDir
 				}
 				return nil

@@ -17,6 +17,14 @@ import (
 
 // ChatMsgReadUserView 批量标记当前用户收到的消息为已读。
 // 这里只处理“当前用户是接收方”的消息；自己发送的消息和不存在的消息会被自动忽略。
+// @Summary 批量标记消息已读
+// @Tags chat
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Param body body ChatMsgReadUserRequest true "请求体"
+// @Success 200 {object} object{code=int,data=object{},msg=string}
+// @Router /chat/read [post]
 func (h ChatApi) ChatMsgReadUserView(c *gin.Context) {
 	cr := middleware.GetBindJson[ChatMsgReadUserRequest](c)
 	claims := jwts.MustGetClaimsByGin(c)

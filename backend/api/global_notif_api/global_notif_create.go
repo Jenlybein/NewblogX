@@ -12,6 +12,15 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+// GlobalNotifCreateView 创建全局通知（管理员）。
+// @Summary 创建全局通知
+// @Tags global_notif
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Param body body GlobalNotifCreateRequest true "请求体"
+// @Success 200 {object} object{code=int,data=GlobalNotifCreateResponse,msg=string}
+// @Router /global_notif [post]
 func (h GlobalNotifApi) GlobalNotifCreateView(c *gin.Context) {
 	app := h.App
 	cr := middleware.GetBindJson[GlobalNotifCreateRequest](c)

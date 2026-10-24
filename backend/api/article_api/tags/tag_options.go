@@ -8,6 +8,12 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+// ArticleTagOptionsView 查询启用中的标签下拉选项。
+// @Summary 标签选项
+// @Tags article
+// @Produce json
+// @Success 200 {object} object{code=int,data=[]object{id=int,title=string,label=string,value=int},msg=string}
+// @Router /articles/tags/options [get]
 func (h TagsApi) ArticleTagOptionsView(c *gin.Context) {
 	var list []models.OptionsResponse[ctype.ID]
 	if err := h.App.DB.Model(&models.TagModel{}).

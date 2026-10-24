@@ -14,6 +14,14 @@ import (
 	"gorm.io/gorm"
 )
 
+// ArticleDiggView 点赞或取消点赞文章。
+// @Summary 文章点赞/取消点赞
+// @Tags article
+// @Produce json
+// @Security BearerAuth
+// @Param id path int true "文章 ID"
+// @Success 200 {object} object{code=int,data=object{},msg=string}
+// @Router /articles/{id}/digg [put]
 func (h ArticleApi) ArticleDiggView(c *gin.Context) {
 	app := h.App
 	id := middleware.GetBindUri[models.IDRequest](c)

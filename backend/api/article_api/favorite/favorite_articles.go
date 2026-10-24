@@ -24,6 +24,17 @@ var favoriteArticleOrderMap = map[string]string{
 // 1. 收藏夹所有者和管理员可直接查看
 // 2. 其他人只有在收藏夹公开时才能查看
 // 3. 列表按收藏时间排序，支持按文章标题关键字筛选
+// FavoriteArticlesView 查询收藏夹内的文章列表。
+// @Summary 收藏夹文章列表
+// @Tags article
+// @Produce json
+// @Param page query int false "页码"
+// @Param limit query int false "每页条数"
+// @Param key query string false "关键词"
+// @Param order query string false "排序"
+// @Param favorite_id query int true "收藏夹 ID"
+// @Success 200 {object} object{code=int,data=object{list=[]favorite_service.FavoriteArticleItem,has_more=bool},msg=string}
+// @Router /articles/favorite/contents [get]
 func (h FavoriteApi) FavoriteArticlesView(c *gin.Context) {
 	cr := middleware.GetBindQuery[FavoriteArticlesRequest](c)
 	var claims *jwts.MyClaims

@@ -30,6 +30,15 @@ type UserInfoUpdateRequest struct {
 	HomeStyleID         *ctype.ID   `json:"home_style_id"`
 }
 
+// UserInfoUpdateView 更新当前用户的个人资料。
+// @Summary 更新个人信息
+// @Tags user
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Param body body UserInfoUpdateRequest true "请求体"
+// @Success 200 {object} object{code=int,data=object{},msg=string}
+// @Router /users/info [put]
 func (h ProfileApi) UserInfoUpdateView(c *gin.Context) {
 	app := h.App
 	cr := middleware.GetBindJson[UserInfoUpdateRequest](c)

@@ -22,6 +22,17 @@ type CommentRootListResponse struct {
 	comment_service.RootCommentItem
 }
 
+// CommentRootListView 获取文章一级评论列表。
+// @Summary 一级评论列表
+// @Tags comment
+// @Produce json
+// @Param limit query int false "每页条数"
+// @Param page query int false "页码"
+// @Param key query string false "关键词"
+// @Param order query string false "排序"
+// @Param article_id query int true "文章 ID"
+// @Success 200 {object} object{code=int,data=object{},msg=string}
+// @Router /comments [get]
 func (h CommentApi) CommentRootListView(c *gin.Context) {
 	cr := middleware.GetBindQuery[CommentRootListRequest](c)
 	queryService := comment_service.NewQueryService(h.App.DB, cachex.NewDeps(h.App.Redis, h.App.Logger))

@@ -103,6 +103,34 @@ func (h *LogApi) logDeps() log_service.Deps {
 	return log_service.NewDeps(h.App.Log, h.App.System, h.App.ClickHouseConfig.Enabled, h.App.Logger, h.App.ClickHouse)
 }
 
+// CdcEventListView CDC 执行日志列表（管理员）。
+// @Summary CDC 执行日志列表
+// @Tags log
+// @Produce json
+// @Security BearerAuth
+// @Param limit query int false "每页条数"
+// @Param page query int false "页码"
+// @Param start_at query string false "开始时间"
+// @Param end_at query string false "结束时间"
+// @Param service query string false "服务名"
+// @Param level query string false "日志级别"
+// @Param stream query string false "Stream 名称"
+// @Param source_table query string false "源表"
+// @Param action query string false "操作类型"
+// @Param result query string false "执行结果"
+// @Param retry_count query int false "重试次数"
+// @Param request_id query string false "请求 ID"
+// @Param request_id_prefix query bool false "请求 ID 前缀匹配"
+// @Param trace_id query string false "链路 ID"
+// @Param trace_id_prefix query bool false "链路 ID 前缀匹配"
+// @Param cdc_job_id query string false "CDC 任务 ID"
+// @Param cdc_job_id_prefix query bool false "CDC 任务 ID 前缀匹配"
+// @Param error_code query string false "错误码"
+// @Param error_message query string false "错误信息"
+// @Param event_name query string false "事件名"
+// @Param module query string false "模块"
+// @Success 200 {object} object{code=int,data=object{list=[]log_service.CdcEventRecord,count=int},msg=string}
+// @Router /logs/cdc [get]
 func (h *LogApi) CdcEventListView(c *gin.Context) {
 	cr := middleware.GetBindQuery[CdcEventListRequest](c)
 	list, count, err := log_service.ListCdcEvents(h.logDeps(), log_service.CdcEventQuery{
@@ -139,6 +167,14 @@ func (h *LogApi) CdcEventListView(c *gin.Context) {
 	res.OkWithList(list, int(count), c)
 }
 
+// CdcEventDetailView CDC 执行日志详情（管理员）。
+// @Summary CDC 执行日志详情
+// @Tags log
+// @Produce json
+// @Security BearerAuth
+// @Param id path int true "日志 ID"
+// @Success 200 {object} object{code=int,data=log_service.CdcEventRecord,msg=string}
+// @Router /logs/cdc/{id} [get]
 func (h *LogApi) CdcEventDetailView(c *gin.Context) {
 	cr := middleware.GetBindUri[models.IDRequest](c)
 	item, err := log_service.GetCdcEvent(h.logDeps(), uint64(cr.ID))
@@ -153,6 +189,34 @@ func (h *LogApi) CdcEventDetailView(c *gin.Context) {
 	res.OkWithData(item, c)
 }
 
+// ReplayEventListView 回放日志列表（管理员）。
+// @Summary 回放日志列表
+// @Tags log
+// @Produce json
+// @Security BearerAuth
+// @Param limit query int false "每页条数"
+// @Param page query int false "页码"
+// @Param start_at query string false "开始时间"
+// @Param end_at query string false "结束时间"
+// @Param service query string false "服务名"
+// @Param level query string false "日志级别"
+// @Param stream query string false "Stream 名称"
+// @Param source_table query string false "源表"
+// @Param action query string false "操作类型"
+// @Param result query string false "执行结果"
+// @Param retry_count query int false "重试次数"
+// @Param request_id query string false "请求 ID"
+// @Param request_id_prefix query bool false "请求 ID 前缀匹配"
+// @Param trace_id query string false "链路 ID"
+// @Param trace_id_prefix query bool false "链路 ID 前缀匹配"
+// @Param cdc_job_id query string false "CDC 任务 ID"
+// @Param cdc_job_id_prefix query bool false "CDC 任务 ID 前缀匹配"
+// @Param error_code query string false "错误码"
+// @Param error_message query string false "错误信息"
+// @Param event_name query string false "事件名"
+// @Param module query string false "模块"
+// @Success 200 {object} object{code=int,data=object{list=[]log_service.ReplayEventRecord,count=int},msg=string}
+// @Router /logs/replay [get]
 func (h *LogApi) ReplayEventListView(c *gin.Context) {
 	cr := middleware.GetBindQuery[ReplayEventListRequest](c)
 	list, count, err := log_service.ListReplayEvents(h.logDeps(), log_service.ReplayEventQuery{
@@ -189,6 +253,14 @@ func (h *LogApi) ReplayEventListView(c *gin.Context) {
 	res.OkWithList(list, int(count), c)
 }
 
+// ReplayEventDetailView 回放日志详情（管理员）。
+// @Summary 回放日志详情
+// @Tags log
+// @Produce json
+// @Security BearerAuth
+// @Param id path int true "日志 ID"
+// @Success 200 {object} object{code=int,data=log_service.ReplayEventRecord,msg=string}
+// @Router /logs/replay/{id} [get]
 func (h *LogApi) ReplayEventDetailView(c *gin.Context) {
 	cr := middleware.GetBindUri[models.IDRequest](c)
 	item, err := log_service.GetReplayEvent(h.logDeps(), uint64(cr.ID))
@@ -203,6 +275,24 @@ func (h *LogApi) ReplayEventDetailView(c *gin.Context) {
 	res.OkWithData(item, c)
 }
 
+// ChainQueryView 全链路日志聚合查询（管理员）。
+// @Summary 全链路日志聚合查询
+// @Tags log
+// @Produce json
+// @Security BearerAuth
+// @Param request_id query string false "请求 ID"
+// @Param trace_id query string false "链路 ID"
+// @Param cdc_job_id query string false "CDC 任务 ID"
+// @Param cdc_job_id_prefix query bool false "CDC 任务 ID 前缀匹配"
+// @Param stream query string false "Stream 名称"
+// @Param status query string false "死信状态"
+// @Param start_at query string false "开始时间"
+// @Param end_at query string false "结束时间"
+// @Param limit query int false "返回条数上限（默认 50，最大 200）"
+// @Param request_id_prefix query bool false "请求 ID 前缀匹配"
+// @Param trace_id_prefix query bool false "链路 ID 前缀匹配"
+// @Success 200 {object} object{code=int,data=ChainQueryResponse,msg=string}
+// @Router /logs/chain [get]
 func (h *LogApi) ChainQueryView(c *gin.Context) {
 	cr := middleware.GetBindQuery[ChainQueryRequest](c)
 	if strings.TrimSpace(cr.RequestID) == "" && strings.TrimSpace(cr.TraceID) == "" && strings.TrimSpace(cr.CdcJobID) == "" {

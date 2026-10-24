@@ -12,6 +12,18 @@ import (
 
 // TODO：增加用户名搜索
 // FollowListView 获取关注列表
+// @Summary 关注列表
+// @Tags follow
+// @Produce json
+// @Security BearerAuth
+// @Param limit query int false "每页条数"
+// @Param page query int false "页码"
+// @Param key query string false "关键词"
+// @Param order query string false "排序"
+// @Param user_id query int false "目标用户 ID，缺省为当前登录用户"
+// @Param followed_user_id query int false "只查与指定被关注用户相关的记录"
+// @Success 200 {object} object{code=int,data=object{list=[]follow_service.FollowListItem,has_more=bool},msg=string}
+// @Router /follow [get]
 func (h *FollowApi) FollowListView(c *gin.Context) {
 	cr := middleware.GetBindQuery[FollowListRequest](c)
 

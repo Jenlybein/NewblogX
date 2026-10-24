@@ -15,6 +15,13 @@ type ArticleAuthorInfoResponse struct {
 	FansCount           int    `json:"fans_count"`
 }
 
+// ArticleAuthorInfoView 查询指定作者的文章与粉丝统计信息。
+// @Summary 查询作者信息
+// @Tags article
+// @Produce json
+// @Param author_id query int true "作者 ID"
+// @Success 200 {object} object{code=int,data=ArticleAuthorInfoResponse,msg=string}
+// @Router /articles/author_info [get]
 func (h ArticleApi) ArticleAuthorInfoView(c *gin.Context) {
 	cr := middleware.GetBindQuery[ArticleAuthorInfoBindRequest](c)
 

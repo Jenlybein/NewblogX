@@ -14,6 +14,15 @@ import (
 	"gorm.io/gorm"
 )
 
+// ArticleRemoveView 管理员批量删除文章。
+// @Summary 批量删除文章
+// @Tags article
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Param body body models.IDListRequest true "ID 列表"
+// @Success 200 {object} object{code=int,data=object{},msg=string}
+// @Router /articles [delete]
 func (h ArticleApi) ArticleRemoveView(c *gin.Context) {
 	cr := middleware.GetBindJson[models.IDListRequest](c)
 

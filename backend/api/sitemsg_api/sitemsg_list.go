@@ -11,6 +11,16 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+// SitemsgListView 获取当前用户的消息列表。
+// @Summary 获取消息列表
+// @Tags sitemsg
+// @Produce json
+// @Security BearerAuth
+// @Param t query int true "消息类型：1 评论和回复 2 点赞和收藏 3 系统通知"
+// @Param page query int false "页码"
+// @Param limit query int false "每页数量"
+// @Success 200 {object} object{code=int,data=object{list=[]models.ArticleMessageModel,has_more=bool},msg=string}
+// @Router /sitemsg [get]
 func (h *SitemsgApi) SitemsgListView(c *gin.Context) {
 	app := h.App
 	cr := middleware.GetBindQuery[SitemsgListRequest](c)

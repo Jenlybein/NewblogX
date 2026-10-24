@@ -11,6 +11,15 @@ import (
 )
 
 // 删除分类
+// CategoryDeleteView 批量删除分类。
+// @Summary 批量删除分类
+// @Tags article
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Param body body models.IDListRequest true "分类 ID 列表"
+// @Success 200 {object} object{code=int,data=object{},msg=string}
+// @Router /articles/category [delete]
 func (h CategoryApi) CategoryDeleteView(c *gin.Context) {
 	cr := middleware.GetBindJson[models.IDListRequest](c)
 

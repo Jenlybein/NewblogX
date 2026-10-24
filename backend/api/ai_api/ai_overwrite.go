@@ -9,6 +9,14 @@ import (
 )
 
 // AIOverwriteView 对选中文本执行改写，并通过 SSE 直接输出 AI token 流。
+// @Summary AI 文本改写（SSE 流式）
+// @Tags ai
+// @Accept json
+// @Produce text/event-stream
+// @Security BearerAuth
+// @Param body body AIOverwriteRequest true "请求体"
+// @Success 200 {string} string "SSE 流"
+// @Router /ai/overwrite [post]
 func (h AIApi) AIOverwriteView(c *gin.Context) {
 	if h.App.RuntimeSite == nil {
 		res.SSEFail("运行时配置服务未初始化", c)

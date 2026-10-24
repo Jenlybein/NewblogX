@@ -251,7 +251,7 @@ M3-C2 追加验收：`go build` / `go vet` / `gofmt -l` 全干净；`go test ./.
 | S2.5 | ✅ **结构 + 引擎唯一** | 两套 river + deadletter → `platform/cdc/{river,imageref,deadletter}`；新增 `cdc/canalbase` 单一引擎（连接/日志/表过滤/dump 范围），业务子包内已无 `canal.NewCanal`；`sync.go`(852) 拆三文件。行数 3,237（原 3,231，见下方结论） |
 | S2.6 | ✅ | `internal/platform/llm`：超时 / ctx / 重试 / 连接池 |
 | S2.7 | ✅ | JSON 抽取已收敛为 `UnmarshalJSONBlock` 单入口（另一处正则是去代码块，非 JSON 解析） |
-| S2.8 | ❌ **未做** | swag 已装、可跑通；但 118 个 operation 需逐个补注解（见下） |
+| S2.8 | ✅ | 117 个业务 operation 全部补注解（article 30 / user 20 / log 11 / 其余 56），`swag init` 产出 `backend/docs/swagger.json`；`make openapi` 可复现。`/health` 为 infra 探针、不在 `/api` 下且返回空 body，不纳入业务契约 |
 | S2.9 | ❌ **未做** | 依赖 S2.8 完整覆盖，半量契约会让前端类型残缺 |
 | L.1 / L.2 | ✅ | `internal/platform/log`：类型化事件 + 有界异步 + file sink |
 | L.3 | ✅ | 生产入口已接线：删掉 `jsonLineSink`（同步 `json.Marshal` + 每条一次文件写 + 全局锁），改由 `log_service/pipeline.go` 五条有界队列承接；`EmitActionAudit` 等 4 类写入与 logrus 的 `FileDateHook` 全部改为投递 |

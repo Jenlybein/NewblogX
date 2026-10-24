@@ -9,6 +9,14 @@ import (
 )
 
 // AIDiagnoseView 对选中文本做结构化问题诊断，并通过 SSE 返回最终结构化结果。
+// @Summary AI 文本诊断（SSE 流式）
+// @Tags ai
+// @Accept json
+// @Produce text/event-stream
+// @Security BearerAuth
+// @Param body body AIDiagnoseRequest true "请求体"
+// @Success 200 {string} string "SSE 流"
+// @Router /ai/diagnose [post]
 func (h AIApi) AIDiagnoseView(c *gin.Context) {
 	if h.App.RuntimeSite == nil {
 		res.SSEFail("运行时配置服务未初始化", c)

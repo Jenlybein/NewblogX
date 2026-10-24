@@ -16,6 +16,18 @@ import (
 )
 
 // ChatSessionListView 返回当前登录用户的会话列表。
+// @Summary 会话列表
+// @Tags chat
+// @Produce json
+// @Security BearerAuth
+// @Param limit query int false "每页条数"
+// @Param page query int false "页码"
+// @Param key query string false "关键词"
+// @Param order query string false "排序"
+// @Param user_id query int false "用户 ID（type=2 时必填）"
+// @Param type query int true "查询类型：1 我自己的会话 2 管理员查指定用户"
+// @Success 200 {object} object{code=int,data=object{list=[]chat_service.SessionListItem,count=int},msg=string}
+// @Router /chat/sessions [get]
 func (h *ChatApi) ChatSessionListView(c *gin.Context) {
 	cr := middleware.GetBindQuery[ChatSessionListRequest](c)
 	claims := jwts.MustGetClaimsByGin(c)
@@ -48,6 +60,19 @@ func (h *ChatApi) ChatSessionListView(c *gin.Context) {
 }
 
 // ChatMsgListView 返回当前登录用户在某个会话下的消息列表。
+// @Summary 会话消息列表
+// @Tags chat
+// @Produce json
+// @Security BearerAuth
+// @Param limit query int false "每页条数"
+// @Param page query int false "页码"
+// @Param key query string false "关键词"
+// @Param order query string false "排序"
+// @Param session_id query string true "会话 ID"
+// @Param user_id query int false "用户 ID（type=2 时必填）"
+// @Param type query int true "查询类型：1 我自己的消息 2 管理员查指定用户"
+// @Success 200 {object} object{code=int,data=object{list=[]ChatMsgResponse,count=int},msg=string}
+// @Router /chat/messages [get]
 func (h *ChatApi) ChatMsgListView(c *gin.Context) {
 	cr := middleware.GetBindQuery[ChatMsgListRequest](c)
 	claims := jwts.MustGetClaimsByGin(c)

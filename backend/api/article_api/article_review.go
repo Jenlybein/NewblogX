@@ -33,6 +33,16 @@ func normalizeReviewListPage(page, limit int) (int, int) {
 	return page, limit
 }
 
+// ArticleReviewTaskListView 分页查询文章审核任务。
+// @Summary 审核任务列表
+// @Tags article
+// @Produce json
+// @Security BearerAuth
+// @Param page query int false "页码"
+// @Param limit query int false "每页条数"
+// @Param status query string false "审核状态(pending/approved/rejected/canceled)"
+// @Success 200 {object} object{code=int,data=ArticleReviewTaskListResponse,msg=string}
+// @Router /article-review [get]
 func (h ArticleApi) ArticleReviewTaskListView(c *gin.Context) {
 	cr := middleware.GetBindQuery[ArticleReviewTaskListRequest](c)
 	page, limit := normalizeReviewListPage(cr.Page, cr.Limit)
@@ -83,6 +93,16 @@ func (h ArticleApi) ArticleReviewTaskListView(c *gin.Context) {
 	}, c)
 }
 
+// ArticleReviewTaskHandleView 处理文章审核任务。
+// @Summary 处理审核任务
+// @Tags article
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Param id path int true "审核任务 ID"
+// @Param body body ArticleReviewHandleRequest true "请求体"
+// @Success 200 {object} object{code=int,data=object{},msg=string}
+// @Router /article-review-tasks/{id}/review [post]
 func (h ArticleApi) ArticleReviewTaskHandleView(c *gin.Context) {
 	id := middleware.GetBindUri[models.IDRequest](c)
 	cr := middleware.GetBindJson[ArticleReviewHandleRequest](c)
@@ -185,6 +205,15 @@ func (h ArticleApi) ArticleReviewTaskHandleView(c *gin.Context) {
 	})
 }
 
+// ArticleAdminVisibilityView 管理员设置文章可见性。
+// @Summary 设置文章可见性
+// @Tags article
+// @Produce json
+// @Security BearerAuth
+// @Param id path int true "文章 ID"
+// @Param visibility path string true "可见性(hide/show)"
+// @Success 200 {object} object{code=int,data=object{},msg=string}
+// @Router /articles/{id}/admin/{visibility} [post]
 func (h ArticleApi) ArticleAdminVisibilityView(c *gin.Context) {
 	cr := middleware.GetBindUri[ArticleAdminVisibilityURI](c)
 

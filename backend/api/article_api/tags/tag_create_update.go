@@ -15,6 +15,15 @@ import (
 	"gorm.io/gorm"
 )
 
+// TagCreateUpdateView 创建或更新标签。
+// @Summary 创建/更新标签
+// @Tags article
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Param body body tags.TagRequest true "请求体"
+// @Success 200 {object} object{code=int,data=tags.TagCreateResponse,msg=string}
+// @Router /articles/tags [put]
 func (h TagsApi) TagCreateUpdateView(c *gin.Context) {
 	cr := middleware.GetBindJson[TagRequest](c)
 	claims := jwts.MustGetClaimsByGin(c)

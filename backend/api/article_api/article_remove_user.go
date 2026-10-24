@@ -14,6 +14,14 @@ import (
 	"gorm.io/gorm"
 )
 
+// ArticleRemoveUserView 作者删除自己的文章。
+// @Summary 删除自己的文章
+// @Tags article
+// @Produce json
+// @Security BearerAuth
+// @Param id path int true "文章 ID"
+// @Success 200 {object} object{code=int,data=object{},msg=string}
+// @Router /articles/{id} [delete]
 func (h ArticleApi) ArticleRemoveUserView(c *gin.Context) {
 	cr := middleware.GetBindUri[models.IDRequest](c)
 

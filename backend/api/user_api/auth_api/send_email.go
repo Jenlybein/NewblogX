@@ -23,6 +23,14 @@ type SendEmailResponse struct {
 	ID string `json:"id"`
 }
 
+// SendEmailView 发送邮箱验证码。
+// @Summary 发送邮箱验证码
+// @Tags user
+// @Accept json
+// @Produce json
+// @Param body body SendEmailRequest true "请求体"
+// @Success 200 {object} object{code=int,data=SendEmailResponse,msg=string}
+// @Router /users/email/verify [post]
 func (h AuthApi) SendEmailView(c *gin.Context) {
 	app := h.App
 	if app.RuntimeSite == nil {

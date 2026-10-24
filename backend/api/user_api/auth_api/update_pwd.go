@@ -16,6 +16,15 @@ type UpdatePasswordRequest struct {
 	NewPassword string `json:"new_password" binding:"required"`
 }
 
+// UpdatePwdByEmailView 已登录用户修改密码。
+// @Summary 修改密码
+// @Tags user
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Param body body UpdatePasswordRequest true "请求体"
+// @Success 200 {object} object{code=int,data=object{},msg=string}
+// @Router /users/password/renewal/email [put]
 func (h AuthApi) UpdatePwdByEmailView(c *gin.Context) {
 	app := h.App
 	cr := middleware.GetBindJson[UpdatePasswordRequest](c)

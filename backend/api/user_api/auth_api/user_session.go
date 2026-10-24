@@ -30,6 +30,16 @@ type UserSessionItem struct {
 }
 
 // UserSessionListView 返回当前用户仍然有效的登录会话列表。
+// @Summary 登录会话列表
+// @Tags user
+// @Produce json
+// @Security BearerAuth
+// @Param limit query int false "每页条数"
+// @Param page query int false "页码"
+// @Param key query string false "关键词"
+// @Param order query string false "排序"
+// @Success 200 {object} object{code=int,data=object{list=[]UserSessionItem,count=int},msg=string}
+// @Router /users/sessions [get]
 func (h AuthApi) UserSessionListView(c *gin.Context) {
 	cr := middleware.GetBindQuery[UserSessionListRequest](c)
 	claims := jwts.MustGetClaimsByGin(c)
@@ -69,6 +79,13 @@ func (h AuthApi) UserSessionListView(c *gin.Context) {
 }
 
 // UserSessionDeleteView 吊销当前用户指定的登录会话。
+// @Summary 下线指定会话
+// @Tags user
+// @Produce json
+// @Security BearerAuth
+// @Param id path int true "ID"
+// @Success 200 {object} object{code=int,data=object{},msg=string}
+// @Router /users/sessions/{id} [delete]
 func (h AuthApi) UserSessionDeleteView(c *gin.Context) {
 	cr := middleware.GetBindUri[models.IDRequest](c)
 	claims := jwts.MustGetClaimsByGin(c)

@@ -11,6 +11,18 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+// GlobalNotifListView 获取全局通知列表。
+// @Summary 全局通知列表
+// @Tags global_notif
+// @Produce json
+// @Security BearerAuth
+// @Param limit query int false "每页条数"
+// @Param page query int false "页码"
+// @Param key query string false "关键词"
+// @Param order query string false "排序"
+// @Param type query int true "查询类型：1 普通用户可见通知 2 管理员查全部通知"
+// @Success 200 {object} object{code=int,data=object{list=[]GlobalNotifListResponse,has_more=bool},msg=string}
+// @Router /global_notif [get]
 func (h GlobalNotifApi) GlobalNotifListView(c *gin.Context) {
 	cr := middleware.GetBindQuery[GlobalNotifListRequest](c)
 

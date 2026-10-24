@@ -13,6 +13,15 @@ import (
 	"gorm.io/gorm"
 )
 
+// FavoriteRemovePatchView 批量取消收藏夹内的文章。
+// @Summary 批量取消收藏
+// @Tags article
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Param body body favorite.FavoriteRemovePatchModel true "请求体"
+// @Success 200 {object} object{code=int,data=object{},msg=string}
+// @Router /articles/favorite/contents [delete]
 func (h FavoriteApi) FavoriteRemovePatchView(c *gin.Context) {
 	var cr = middleware.GetBindJson[FavoriteRemovePatchModel](c)
 

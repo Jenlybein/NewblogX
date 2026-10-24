@@ -17,6 +17,15 @@ import (
 	"gorm.io/gorm"
 )
 
+// ArticleFavoriteSaveView 收藏或取消收藏文章。
+// @Summary 收藏/取消收藏文章
+// @Tags article
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Param body body ArticleFavoriteRequest true "请求体"
+// @Success 200 {object} object{code=int,data=object{},msg=string}
+// @Router /articles/favorite [post]
 func (h ArticleApi) ArticleFavoriteSaveView(c *gin.Context) {
 	app := h.App
 	cr := middleware.GetBindJson[ArticleFavoriteRequest](c)

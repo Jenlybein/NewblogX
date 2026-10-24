@@ -17,6 +17,15 @@ import (
 // 低风险：普通用户消息列表的已删过滤还是 NOT IN (subquery)。
 // chat_delete_user.go 在依赖状态表子查询排除消息。配合当前索引能跑，但如果以后状态表很大，NOT EXISTS 或显式 LEFT JOIN ... IS NULL 往往更容易拿到稳定执行计划。
 
+// ChatMsgDeleteUserView 删除当前用户视角下的消息。
+// @Summary 删除消息
+// @Tags chat
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Param body body ChatMsgDeleteUserRequest true "请求体"
+// @Success 200 {object} object{code=int,data=object{},msg=string}
+// @Router /chat/messages [delete]
 func (h ChatApi) ChatMsgDeleteUserView(c *gin.Context) {
 	cr := middleware.GetBindJson[ChatMsgDeleteUserRequest](c)
 	claims := jwts.MustGetClaimsByGin(c)

@@ -27,6 +27,21 @@ type CommentManListResponse struct {
 	comment_service.ManageCommentItem
 }
 
+// CommentManListView 获取评论管理列表。
+// @Summary 评论管理列表
+// @Tags comment
+// @Produce json
+// @Security BearerAuth
+// @Param limit query int false "每页条数"
+// @Param page query int false "页码"
+// @Param key query string false "关键词"
+// @Param order query string false "排序"
+// @Param article_id query int false "文章 ID"
+// @Param user_id query int false "用户 ID（type=2 时忽略，取当前登录用户）"
+// @Param status query int false "评论状态：1 审核中 2 已发布 3 已删除"
+// @Param type query int true "查询类型：1 我文章下的评论 2 我发的评论 3 管理员查所有评论"
+// @Success 200 {object} object{code=int,data=object{list=[]comment_service.ManageCommentItem,count=int},msg=string}
+// @Router /comments/man [get]
 func (h CommentApi) CommentManListView(c *gin.Context) {
 	cr := middleware.GetBindQuery[CommentManListRequest](c)
 	claims := jwts.MustGetClaimsByGin(c)

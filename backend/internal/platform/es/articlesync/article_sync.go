@@ -1,4 +1,4 @@
-package es_service
+package articlesync
 
 import (
 	"fmt"
@@ -7,6 +7,7 @@ import (
 
 	"github.com/elastic/go-elasticsearch/v7"
 	"gorm.io/gorm"
+	"myblogx/internal/platform/es"
 	"myblogx/models"
 	"myblogx/models/ctype"
 	"myblogx/models/enum"
@@ -154,7 +155,7 @@ func UpdateESDocsByArticleDeltas(db *gorm.DB, client *elasticsearch.Client, delt
 		return err
 	}
 
-	reqs := make([]*BulkRequest, 0, len(deltas))
+	reqs := make([]*es_service.BulkRequest, 0, len(deltas))
 	for _, delta := range deltas {
 		data := make(map[string]any)
 		for field, raw := range delta.Changed {
@@ -251,8 +252,8 @@ func UpdateESDocsByArticleDeltas(db *gorm.DB, client *elasticsearch.Client, delt
 		if len(data) == 0 {
 			continue
 		}
-		reqs = append(reqs, &BulkRequest{
-			Action: ActionUpdate,
+		reqs = append(reqs, &es_service.BulkRequest{
+			Action: es_service.ActionUpdate,
 			ID:     strconv.FormatUint(uint64(delta.ArticleID), 10),
 			Data:   data,
 		})
@@ -413,16 +414,16 @@ func indexArticleSnapshots(db *gorm.DB, client *elasticsearch.Client, snapshots 
 		return err
 	}
 
-	reqs := make([]*BulkRequest, 0, len(snapshots))
+	reqs := make([]*es_service.BulkRequest, 0, len(snapshots))
 	for _, snapshot := range snapshots {
-		reqs = append(reqs, &BulkRequest{
-			Action: ActionIndex,
+		reqs = append(reqs, &es_service.BulkRequest{
+			Action: es_service.ActionIndex,
 			ID:     strconv.FormatUint(uint64(snapshot.ID), 10),
 			Data:   buildArticleESDocumentFromSnapshot(snapshot, deps),
 		})
 	}
 
-	resp := IndexBulk(client, models.ArticleModel{}.Index(), reqs)
+	resp := es_service.IndexBulk(client, models.ArticleModel{}.Index(), reqs)
 	if !resp.Success {
 		return fmt.Errorf("%s: %s", errPrefix, resp.Msg)
 	}

@@ -6,7 +6,7 @@ import (
 	"strings"
 	"time"
 
-	"myblogx/internal/platform/es"
+	"myblogx/internal/platform/es/articlesync"
 	"myblogx/models/ctype"
 	"myblogx/models/enum"
 
@@ -26,13 +26,13 @@ func newArticleRowLayout(columns []schema.TableColumn) articleRowLayout {
 	return articleRowLayout{columns: result}
 }
 
-func collectArticleRowSnapshots(e *canal.RowsEvent) ([]es_service.ArticleRowSnapshot, error) {
+func collectArticleRowSnapshots(e *canal.RowsEvent) ([]articlesync.ArticleRowSnapshot, error) {
 	if e == nil || e.Table == nil || len(e.Rows) == 0 {
 		return nil, nil
 	}
 
 	layout := newArticleRowLayout(e.Table.Columns)
-	snapshots := make([]es_service.ArticleRowSnapshot, 0, len(e.Rows))
+	snapshots := make([]articlesync.ArticleRowSnapshot, 0, len(e.Rows))
 	for _, row := range e.Rows {
 		snapshot, err := parseArticleRowSnapshot(layout, row)
 		if err != nil {
@@ -46,8 +46,8 @@ func collectArticleRowSnapshots(e *canal.RowsEvent) ([]es_service.ArticleRowSnap
 	return snapshots, nil
 }
 
-func parseArticleRowSnapshot(layout articleRowLayout, row []any) (es_service.ArticleRowSnapshot, error) {
-	var snapshot es_service.ArticleRowSnapshot
+func parseArticleRowSnapshot(layout articleRowLayout, row []any) (articlesync.ArticleRowSnapshot, error) {
+	var snapshot articlesync.ArticleRowSnapshot
 	if isDeleted, err := scanArticleDeletedAt(layout, row); err != nil {
 		return snapshot, err
 	} else if isDeleted {

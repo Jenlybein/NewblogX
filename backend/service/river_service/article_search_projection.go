@@ -5,7 +5,7 @@ import (
 	"sort"
 	"strings"
 
-	"myblogx/internal/platform/es"
+	"myblogx/internal/platform/es/articlesync"
 	"myblogx/models/ctype"
 
 	"github.com/go-mysql-org/go-mysql/canal"
@@ -38,8 +38,8 @@ func (r *River) syncArticleDocsByArticleRows(e *canal.RowsEvent) error {
 		if len(articleIDs) == 0 {
 			return nil
 		}
-		return es_service.SyncArticleSearchProjection(r.db, r.es, es_service.ArticleSearchProjectionEvent{
-			Type: es_service.ArticleSearchProjectionArticleDelete,
+		return articlesync.SyncArticleSearchProjection(r.db, r.es, articlesync.ArticleSearchProjectionEvent{
+			Type: articlesync.ArticleSearchProjectionArticleDelete,
 			IDs:  articleIDs,
 		})
 	case canal.InsertAction:
@@ -50,13 +50,13 @@ func (r *River) syncArticleDocsByArticleRows(e *canal.RowsEvent) error {
 		if len(snapshots) == 0 {
 			return nil
 		}
-		return es_service.SyncESDocsByArticleSnapshots(r.db, r.es, snapshots)
+		return articlesync.SyncESDocsByArticleSnapshots(r.db, r.es, snapshots)
 	case canal.UpdateAction:
 		deltas := collectArticleModelDeltas(e)
 		if len(deltas) == 0 {
 			return nil
 		}
-		return es_service.UpdateESDocsByArticleDeltas(r.db, r.es, deltas)
+		return articlesync.UpdateESDocsByArticleDeltas(r.db, r.es, deltas)
 	default:
 		return nil
 	}
@@ -67,14 +67,14 @@ func (r *River) syncArticleDocsByUserRows(e *canal.RowsEvent) error {
 	if len(userIDs) == 0 {
 		return nil
 	}
-	if err := es_service.SyncArticleSearchProjection(r.db, r.es, es_service.ArticleSearchProjectionEvent{
-		Type: es_service.ArticleSearchProjectionAuthorSnapshot,
+	if err := articlesync.SyncArticleSearchProjection(r.db, r.es, articlesync.ArticleSearchProjectionEvent{
+		Type: articlesync.ArticleSearchProjectionAuthorSnapshot,
 		IDs:  userIDs,
 	}); err != nil {
 		return err
 	}
-	return es_service.SyncArticleSearchProjection(r.db, r.es, es_service.ArticleSearchProjectionEvent{
-		Type: es_service.ArticleSearchProjectionTopUserChanged,
+	return articlesync.SyncArticleSearchProjection(r.db, r.es, articlesync.ArticleSearchProjectionEvent{
+		Type: articlesync.ArticleSearchProjectionTopUserChanged,
 		IDs:  userIDs,
 	})
 }
@@ -84,8 +84,8 @@ func (r *River) syncArticleDocsByCategoryRows(e *canal.RowsEvent) error {
 	if len(categoryIDs) == 0 {
 		return nil
 	}
-	return es_service.SyncArticleSearchProjection(r.db, r.es, es_service.ArticleSearchProjectionEvent{
-		Type: es_service.ArticleSearchProjectionCategorySnapshot,
+	return articlesync.SyncArticleSearchProjection(r.db, r.es, articlesync.ArticleSearchProjectionEvent{
+		Type: articlesync.ArticleSearchProjectionCategorySnapshot,
 		IDs:  categoryIDs,
 	})
 }
@@ -95,8 +95,8 @@ func (r *River) syncArticleDocsByTagRows(e *canal.RowsEvent) error {
 	if len(tagIDs) == 0 {
 		return nil
 	}
-	return es_service.SyncArticleSearchProjection(r.db, r.es, es_service.ArticleSearchProjectionEvent{
-		Type: es_service.ArticleSearchProjectionTagSnapshot,
+	return articlesync.SyncArticleSearchProjection(r.db, r.es, articlesync.ArticleSearchProjectionEvent{
+		Type: articlesync.ArticleSearchProjectionTagSnapshot,
 		IDs:  tagIDs,
 	})
 }
@@ -106,8 +106,8 @@ func (r *River) syncArticleDocsByArticleTagRows(e *canal.RowsEvent) error {
 	if len(articleIDs) == 0 {
 		return nil
 	}
-	return es_service.SyncArticleSearchProjection(r.db, r.es, es_service.ArticleSearchProjectionEvent{
-		Type: es_service.ArticleSearchProjectionArticleTagsChanged,
+	return articlesync.SyncArticleSearchProjection(r.db, r.es, articlesync.ArticleSearchProjectionEvent{
+		Type: articlesync.ArticleSearchProjectionArticleTagsChanged,
 		IDs:  articleIDs,
 	})
 }
@@ -117,8 +117,8 @@ func (r *River) syncArticleDocsByTopRows(e *canal.RowsEvent) error {
 	if len(articleIDs) == 0 {
 		return nil
 	}
-	return es_service.SyncArticleSearchProjection(r.db, r.es, es_service.ArticleSearchProjectionEvent{
-		Type: es_service.ArticleSearchProjectionArticleTopChanged,
+	return articlesync.SyncArticleSearchProjection(r.db, r.es, articlesync.ArticleSearchProjectionEvent{
+		Type: articlesync.ArticleSearchProjectionArticleTopChanged,
 		IDs:  articleIDs,
 	})
 }
@@ -158,7 +158,7 @@ func collectRowsIDs(e *canal.RowsEvent, columnName string) []ctype.ID {
 	return result
 }
 
-func collectArticleModelDeltas(e *canal.RowsEvent) []es_service.ArticleModelDelta {
+func collectArticleModelDeltas(e *canal.RowsEvent) []articlesync.ArticleModelDelta {
 	if e == nil || e.Table == nil || len(e.Rows) == 0 || len(e.Rows)%2 != 0 {
 		return nil
 	}
@@ -174,7 +174,7 @@ func collectArticleModelDeltas(e *canal.RowsEvent) []es_service.ArticleModelDelt
 		return nil
 	}
 
-	deltas := make([]es_service.ArticleModelDelta, 0, len(e.Rows)/2)
+	deltas := make([]articlesync.ArticleModelDelta, 0, len(e.Rows)/2)
 	for i := 0; i < len(e.Rows); i += 2 {
 		before := e.Rows[i]
 		after := e.Rows[i+1]
@@ -206,7 +206,7 @@ func collectArticleModelDeltas(e *canal.RowsEvent) []es_service.ArticleModelDelt
 		if len(changed) == 0 {
 			continue
 		}
-		deltas = append(deltas, es_service.ArticleModelDelta{
+		deltas = append(deltas, articlesync.ArticleModelDelta{
 			ArticleID: articleID,
 			Changed:   changed,
 		})

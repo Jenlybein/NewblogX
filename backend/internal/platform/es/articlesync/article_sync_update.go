@@ -1,4 +1,4 @@
-package es_service
+package articlesync
 
 import (
 	"fmt"
@@ -7,6 +7,7 @@ import (
 
 	"github.com/elastic/go-elasticsearch/v7"
 	"gorm.io/gorm"
+	"myblogx/internal/platform/es"
 	"myblogx/models"
 	"myblogx/models/ctype"
 	"myblogx/utils/markdown"
@@ -71,7 +72,7 @@ func UpdateESDocsTags(db *gorm.DB, client *elasticsearch.Client, articleIDs []ct
 		return err
 	}
 
-	reqs := make([]*BulkRequest, 0, len(articleList))
+	reqs := make([]*es_service.BulkRequest, 0, len(articleList))
 	for _, article := range articleList {
 		tags := make([]models.ESTag, 0, len(article.Tags))
 		for _, tag := range article.Tags {
@@ -80,8 +81,8 @@ func UpdateESDocsTags(db *gorm.DB, client *elasticsearch.Client, articleIDs []ct
 				Title: tag.Title,
 			})
 		}
-		reqs = append(reqs, &BulkRequest{
-			Action: ActionUpdate,
+		reqs = append(reqs, &es_service.BulkRequest{
+			Action: es_service.ActionUpdate,
 			ID:     strconv.FormatUint(uint64(article.ID), 10),
 			Data: map[string]any{
 				"tags":       tags,
@@ -105,10 +106,10 @@ func UpdateESDocsContent(db *gorm.DB, client *elasticsearch.Client, articleIDs [
 		return err
 	}
 
-	reqs := make([]*BulkRequest, 0, len(articleList))
+	reqs := make([]*es_service.BulkRequest, 0, len(articleList))
 	for _, article := range articleList {
-		reqs = append(reqs, &BulkRequest{
-			Action: ActionUpdate,
+		reqs = append(reqs, &es_service.BulkRequest{
+			Action: es_service.ActionUpdate,
 			ID:     strconv.FormatUint(uint64(article.ID), 10),
 			Data: map[string]any{
 				"updated_at":    article.UpdatedAt,
@@ -165,11 +166,11 @@ func UpdateESDocsTop(db *gorm.DB, client *elasticsearch.Client, articleIDs []cty
 		return err
 	}
 
-	reqs := make([]*BulkRequest, 0, len(articleIDs))
+	reqs := make([]*es_service.BulkRequest, 0, len(articleIDs))
 	for _, articleID := range articleIDs {
 		top := topMap[articleID]
-		reqs = append(reqs, &BulkRequest{
-			Action: ActionUpdate,
+		reqs = append(reqs, &es_service.BulkRequest{
+			Action: es_service.ActionUpdate,
 			ID:     strconv.FormatUint(uint64(articleID), 10),
 			Data: map[string]any{
 				"top": map[string]any{
@@ -192,10 +193,10 @@ func DeleteESDocs(_ *gorm.DB, client *elasticsearch.Client, articleIDs []ctype.I
 		return nil
 	}
 
-	reqs := make([]*BulkRequest, 0, len(articleIDs))
+	reqs := make([]*es_service.BulkRequest, 0, len(articleIDs))
 	for _, articleID := range articleIDs {
-		reqs = append(reqs, &BulkRequest{
-			Action: ActionDelete,
+		reqs = append(reqs, &es_service.BulkRequest{
+			Action: es_service.ActionDelete,
 			ID:     strconv.FormatUint(uint64(articleID), 10),
 		})
 	}
@@ -238,15 +239,15 @@ func SyncESDocsByCategoryIDs(db *gorm.DB, client *elasticsearch.Client, category
 		return err
 	}
 
-	reqs := make([]*BulkRequest, 0, len(rows))
+	reqs := make([]*es_service.BulkRequest, 0, len(rows))
 	for _, row := range rows {
 		categoryIDValue := toESNullableID(row.CategoryID)
 		var categoryTitle string
 		if row.CategoryID != nil {
 			categoryTitle = categoryTitleMap[*row.CategoryID]
 		}
-		reqs = append(reqs, &BulkRequest{
-			Action: ActionUpdate,
+		reqs = append(reqs, &es_service.BulkRequest{
+			Action: es_service.ActionUpdate,
 			ID:     strconv.FormatUint(uint64(row.ID), 10),
 			Data: map[string]any{
 				"category_id": categoryIDValue,
@@ -294,11 +295,11 @@ func SyncESDocsByAuthorIDs(db *gorm.DB, client *elasticsearch.Client, userIDs []
 		return err
 	}
 
-	reqs := make([]*BulkRequest, 0, len(rows))
+	reqs := make([]*es_service.BulkRequest, 0, len(rows))
 	for _, row := range rows {
 		author := authorMap[row.AuthorID]
-		reqs = append(reqs, &BulkRequest{
-			Action: ActionUpdate,
+		reqs = append(reqs, &es_service.BulkRequest{
+			Action: es_service.ActionUpdate,
 			ID:     strconv.FormatUint(uint64(row.ID), 10),
 			Data: map[string]any{
 				"author_id": toESID(row.AuthorID),
@@ -361,12 +362,12 @@ type articleBulkFailure struct {
 	Reason    string
 }
 
-func applyArticlePartialBulkUpdate(db *gorm.DB, client *elasticsearch.Client, reqs []*BulkRequest, errPrefix string) error {
+func applyArticlePartialBulkUpdate(db *gorm.DB, client *elasticsearch.Client, reqs []*es_service.BulkRequest, errPrefix string) error {
 	if len(reqs) == 0 {
 		return nil
 	}
 
-	resp := IndexBulk(client, models.ArticleModel{}.Index(), reqs)
+	resp := es_service.IndexBulk(client, models.ArticleModel{}.Index(), reqs)
 	if !resp.Success {
 		return fmt.Errorf("%s: %s", errPrefix, resp.Msg)
 	}

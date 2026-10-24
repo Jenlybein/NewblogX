@@ -1,3 +1,18 @@
+# blogx nginx 统一模板
+#
+# 由 envsubst 渲染成 /etc/nginx/nginx.conf，再启动 nginx。
+# 只替换 BLOGX_NGINX_* 变量（见 compose 的 nginx.command），
+# nginx 自身的 $host / $remote_addr / $http_upgrade 等不会被误替换。
+#
+# 四种部署形态对应的变量取值：
+#   local       SERVER_NAME=localhost           LISTEN_443/SSL 空   SERVE_WEB=1 SERVE_ADMIN=1
+#   test        SERVER_NAME=blog.gentlybeing.cn LISTEN_443/SSL 有   SERVE_WEB=1 SERVE_ADMIN=1
+#   production  SERVER_NAME=blogx.gentlybeing.cn LISTEN_443/SSL 有  SERVE_WEB=1 SERVE_ADMIN=1
+#   api-only    SERVER_NAME=blog.gentlybeing.cn LISTEN_443/SSL 有   SERVE_WEB=0 SERVE_ADMIN=0
+#
+# api-only 时 web/admin 的 upstream 指到 api 容器（未被 location 使用，只是为了让
+# nginx 启动阶段能解析主机名）；/admin 与 / 通过 serve 开关直接返回 404。
+
 user  root;
 worker_processes  1;
 
@@ -23,31 +38,39 @@ http {
   sendfile        on;
   keepalive_timeout  500;
   client_max_body_size 2000m;
-  ssl_certificate /usr/share/nginx/cert/domain.pem;
-  ssl_certificate_key /usr/share/nginx/cert/domain.key;
+
+  # ---- TLS 证书（local 渲染为空行）----
+  ${BLOGX_NGINX_SSL_CERT}
+  ${BLOGX_NGINX_SSL_KEY}
 
   upstream blogx_web_upstream {
-    server blogx_web:3000;
+    server ${BLOGX_NGINX_WEB_UPSTREAM};
   }
 
   upstream blogx_admin_upstream {
-    server blogx_admin:3001;
+    server ${BLOGX_NGINX_ADMIN_UPSTREAM};
   }
 
   upstream blogx_api_upstream {
-    server blogx_server:8080;
+    server ${BLOGX_NGINX_API_UPSTREAM};
   }
 
   server {
      listen       80;
-     listen       443 ssl;
-     server_name  blogx.gentlybeing.cn;
+     ${BLOGX_NGINX_LISTEN_443}
+     server_name  ${BLOGX_NGINX_SERVER_NAME};
+
+     # 部署形态开关：1=启用，0=该子站不对外提供（返回 404）
+     set $blogx_serve_web "${BLOGX_NGINX_SERVE_WEB}";
+     set $blogx_serve_admin "${BLOGX_NGINX_SERVE_ADMIN}";
 
      location = /admin {
+        if ($blogx_serve_admin = "0") { return 404; }
         return 301 /admin/;
      }
 
      location ^~ /admin/ {
+        if ($blogx_serve_admin = "0") { return 404; }
         proxy_http_version 1.1;
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
@@ -131,6 +154,7 @@ http {
      }
 
      location / {
+        if ($blogx_serve_web = "0") { return 404; }
         proxy_http_version 1.1;
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;

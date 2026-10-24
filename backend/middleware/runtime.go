@@ -1,7 +1,6 @@
 package middleware
 
 import (
-	"myblogx/apideps"
 	"myblogx/conf"
 	"myblogx/service/log_service"
 	"myblogx/service/redis_service"
@@ -25,7 +24,7 @@ type Runtime struct {
 	Authenticator     *user_service.Authenticator
 }
 
-func NewRuntime(deps apideps.Deps) Runtime {
+func NewRuntime(deps Deps) Runtime {
 	redisDeps := redis_service.Deps{
 		Client: deps.Redis,
 		Logger: deps.Logger,

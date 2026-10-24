@@ -542,10 +542,16 @@
         condition: service_healthy
       blogx_admin:
         condition: service_healthy
+    environment:
+      # 部署形态：local | test | production | api-only（其余变量由 render-config.sh 推导）
+      BLOGX_NGINX_ENV: "${BLOGX_NGINX_ENV:-local}"
     volumes:
-      - ../../docker/nginx/nginx.${BLOGX_NGINX_ENV:-local}.conf:/etc/nginx/nginx.conf:ro
+      - ../../docker/nginx/nginx.conf.tmpl:/etc/nginx/nginx.conf.tmpl:ro
+      - ../../docker/nginx/render-config.sh:/etc/nginx/render-config.sh:ro
       - ../../state/nginx/logs:/var/log/nginx/
       - ../../state/nginx/cert:/usr/share/nginx/cert:ro
+    # 先 envsubst 渲染模板，再启动 nginx（只用一个 BLOGX_NGINX_ENV 开关）
+    command: ["/bin/sh", "/etc/nginx/render-config.sh"]
     networks:
       - blogx_network
     ports:

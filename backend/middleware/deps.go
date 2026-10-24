@@ -1,4 +1,4 @@
-package apideps
+package middleware
 
 import (
 	"database/sql"
@@ -13,7 +13,15 @@ import (
 	"gorm.io/gorm"
 )
 
-// Deps 是 API 层可见的显式依赖集合，不暴露运行时容器能力。
+// Deps 是 HTTP 装配层共享的显式依赖集合。
+//
+// 为什么放在 middleware 而不是 api：
+//   - api 目录下的各个 handler 包大量 import middleware（取 claims、绑定参数等），
+//     因此 api 依赖 middleware 是既成事实；
+//   - middleware 及其服务依赖都不 import api，放在这里是叶子位置，不会成环。
+//
+// 放在这里之后，router（装配）与 api（构造 handler）可以共用同一份依赖，
+// 不必像过去那样在 wiring 里把同样的字段拼两遍（apideps.Deps + api.Deps）。
 type Deps struct {
 	Version           string
 	ConfigFile        string

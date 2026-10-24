@@ -60,12 +60,14 @@ func main() {
 
 	role := strings.ToLower(strings.TrimSpace(flag.Role))
 	lifecycle := app.NewLifecycle(infra.Logger)
+	app.RegisterInfraCleanup(lifecycle, infra)
 
 	switch role {
 	case "api":
-		if err := app.WireHTTP(infra); err != nil {
+		if err := app.WireHTTP(infra, lifecycle); err != nil {
 			infra.Logger.Fatalf("HTTP 组装失败: %v", err)
 		}
+		lifecycle.WaitForShutdown()
 		return
 	case "river":
 		if err := app.WireRiver(infra); err != nil {
@@ -95,9 +97,10 @@ func main() {
 		if err := app.WireWorker(infra); err != nil {
 			infra.Logger.Fatalf("Worker 组装失败: %v", err)
 		}
-		if err := app.WireHTTP(infra); err != nil {
+		if err := app.WireHTTP(infra, lifecycle); err != nil {
 			infra.Logger.Fatalf("HTTP 组装失败: %v", err)
 		}
+		lifecycle.WaitForShutdown()
 		return
 	default:
 		infra.Logger.Fatalf("未知 role 参数: %s，可选值: api|river|image-ref|cron|worker|all", role)

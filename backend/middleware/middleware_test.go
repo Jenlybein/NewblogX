@@ -2,7 +2,6 @@ package middleware_test
 
 import (
 	"encoding/json"
-	"myblogx/apideps"
 	"myblogx/conf"
 	confsite "myblogx/conf/site"
 	"myblogx/middleware"
@@ -108,7 +107,7 @@ func newMiddlewareRuntime(t *testing.T) middleware.Runtime {
 	if err := runtimeSvc.InitRuntimeConfig(); err != nil {
 		t.Fatalf("初始化中间件运行时配置失败: %v", err)
 	}
-	return middleware.NewRuntime(apideps.Deps{
+	return middleware.NewRuntime(middleware.Deps{
 		DB:                testutil.DB(),
 		Redis:             testutil.Redis(),
 		JWT:               testutil.Config().Jwt,

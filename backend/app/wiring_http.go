@@ -44,6 +44,9 @@ func WireHTTP(infra *Infra, lc *Lifecycle) error {
 		Tx:                mysql.NewTxManager(infra.DB),
 	}
 
+	// article 新链路：仅在开关打开时注入处理器，否则 router 继续走旧实现。
+	WireArticle(infra)
+
 	srv, err := router.Run(deps, api.New(deps))
 	if err != nil {
 		return fmt.Errorf("启动 HTTP 服务失败: %w", err)

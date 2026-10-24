@@ -21,21 +21,21 @@ type EventHandler func(ctx context.Context, e app.Event) error
 //
 // 任一 handler 返回错误会让整个事务回滚——这正是我们要的：
 // 通知发不出去就不该留下"文章已发布"的状态。
-type outbox struct {
+type Outbox struct {
 	handlers map[string][]EventHandler
 }
 
 // NewOutbox 构造事件分发器。
-func NewOutbox() *outbox { return &outbox{handlers: make(map[string][]EventHandler)} }
+func NewOutbox() *Outbox { return &Outbox{handlers: make(map[string][]EventHandler)} }
 
 // On 注册某事件名的处理器。
-func (o *outbox) On(name string, h EventHandler) *outbox {
+func (o *Outbox) On(name string, h EventHandler) *Outbox {
 	o.handlers[name] = append(o.handlers[name], h)
 	return o
 }
 
 // Emit 分发一条事件。
-func (o *outbox) Emit(ctx context.Context, e app.Event) error {
+func (o *Outbox) Emit(ctx context.Context, e app.Event) error {
 	for _, h := range o.handlers[e.Name] {
 		if h == nil {
 			continue

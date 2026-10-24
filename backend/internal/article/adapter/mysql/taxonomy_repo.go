@@ -192,32 +192,40 @@ func (r *TagRepo) Delete(ctx context.Context, id domain.TagID) error {
 }
 
 // ReplaceArticleTags 用给定集合替换文章标签。
+//
+// 关系表是 many2many 自动建的纯 join 表（无 id / 无 deleted_at），
+// 因此：① 用 Table 操作，② 删除是**硬删**——
+// 若走软删语义，同一对 (article_id, tag_id) 再次添加会撞唯一键。
 func (r *TagRepo) ReplaceArticleTags(ctx context.Context, articleID domain.ArticleID, tagIDs []domain.TagID) error {
 	aid := fromArticleID(articleID)
 	if err := r.db.WithContext(ctx).
+		Table("article_tag_models").
 		Where("article_id = ?", aid).
-		Delete(&models.ArticleTagModel{}).Error; err != nil {
+		Delete(nil).Error; err != nil {
 		return err
 	}
 	if len(tagIDs) == 0 {
 		return nil
 	}
-	links := make([]models.ArticleTagModel, 0, len(tagIDs))
+	rows := make([]map[string]any, 0, len(tagIDs))
 	for _, id := range tagIDs {
-		links = append(links, models.ArticleTagModel{
-			ArticleID: aid,
-			TagID:     ctype.ID(id),
+		rows = append(rows, map[string]any{
+			"article_id": uint64(aid),
+			"tag_id":     id.Uint64(),
 		})
 	}
-	return r.db.WithContext(ctx).Create(&links).Error
+	return r.db.WithContext(ctx).Table("article_tag_models").Create(&rows).Error
 }
 
 // ArticleTagIDs 读取文章标签。
 func (r *TagRepo) ArticleTagIDs(ctx context.Context, articleID domain.ArticleID) ([]domain.TagID, error) {
-	var links []models.ArticleTagModel
+	var links []struct {
+		TagID ctype.ID
+	}
 	if err := r.db.WithContext(ctx).
+		Table("article_tag_models").
+		Select("tag_id").
 		Where("article_id = ?", fromArticleID(articleID)).
-		Order("id asc").
 		Find(&links).Error; err != nil {
 		return nil, err
 	}

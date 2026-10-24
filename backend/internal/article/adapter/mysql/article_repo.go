@@ -196,10 +196,17 @@ func (r *ArticleRepo) tagIDs(ctx context.Context, ids []ctype.ID) (map[ctype.ID]
 	if len(ids) == 0 {
 		return out, nil
 	}
-	var links []models.ArticleTagModel
+	// 用 Table 而不是 ArticleTagModel：这张表是 many2many 自动建出来的
+	// 纯 join 表（只有 article_id / tag_id 两列，没有 deleted_at / id），
+	// 用结构体查会被 GORM 加上 `deleted_at IS NULL` 而报 Unknown column。
+	var links []struct {
+		ArticleID ctype.ID
+		TagID     ctype.ID
+	}
 	if err := r.db.WithContext(ctx).
+		Table("article_tag_models").
+		Select("article_id, tag_id").
 		Where("article_id IN ?", ids).
-		Order("id asc").
 		Find(&links).Error; err != nil {
 		return nil, err
 	}

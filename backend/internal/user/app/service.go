@@ -20,6 +20,12 @@ type PublicProfile struct {
 	FavoritesVis bool
 	FollowVis    bool
 	FansVis      bool
+
+	// 以下字段是主页展示需要的补充信息。
+	AvatarImageID *uint64
+	HomeStyleID   uint64
+	Place         string
+	Relation      int8
 }
 
 // Detail 返回当前登录用户的完整资料。
@@ -109,6 +115,8 @@ func (s *Service) PublicProfile(ctx context.Context, target domain.UserID) (*Pub
 		FavoritesVis: settings.FavoritesVisibility,
 		FollowVis:    settings.FollowVisibility,
 		FansVis:      settings.FansVisibility,
+		HomeStyleID:  settings.HomeStyleID,
+		Place:        u.Addr,
 	}, nil
 }
 
@@ -192,6 +200,11 @@ func (s *Service) UpdateSettings(ctx context.Context, viewer domain.Viewer, targ
 	}
 	if patch.IsEmpty() {
 		return nil
+	}
+	if patch.LikeTagIDs != nil && s.tags != nil {
+		if err := s.tags.Validate(ctx, *patch.LikeTagIDs); err != nil {
+			return err
+		}
 	}
 	current, err := s.settings.Find(ctx, target)
 	if err != nil {

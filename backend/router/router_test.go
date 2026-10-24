@@ -5,6 +5,8 @@ import (
 	articlehttp "myblogx/internal/article/adapter/http"
 	authhttp "myblogx/internal/auth/adapter/http"
 	authapptest "myblogx/internal/auth/apptest"
+	userhttp "myblogx/internal/user/adapter/http"
+	userapptest "myblogx/internal/user/apptest"
 	mw "myblogx/middleware"
 	"myblogx/router"
 	"testing"
@@ -28,6 +30,7 @@ func TestRegisterAllRoutes(t *testing.T) {
 	router.CaptchaRouter(api, app, runtimeMw)
 	// 认证路由来自 internal/auth：这里用全空替身，仅验证路由表。
 	router.SetAuthHandler(authhttp.NewHandler(authapptest.NewRepos(time.Now()).Service(), nil, nil, nil, false, 0))
+	router.SetUserHandler(userhttp.NewHandler(userapptest.NewRepos(time.Now()).Service()))
 	router.UserRouter(api, app, runtimeMw)
 	// 旧 article_api 已删除，路由只来自新 handler；这里用空依赖的处理器
 	// 仅验证路由表，不发起真实请求。

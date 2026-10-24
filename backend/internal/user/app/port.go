@@ -6,6 +6,7 @@ package app
 
 import (
 	"context"
+	"time"
 
 	"myblogx/internal/user/domain"
 )
@@ -29,6 +30,8 @@ type PasswordHasher interface {
 type DetailEnricher interface {
 	// AvatarIDByURL 由头像 URL 反查图片表 ID。
 	AvatarIDByURL(ctx context.Context, url string) (uint64, bool, error)
+	// AvatarURLByID 由图片 ID 取头像 URL（前端传的是图片 ID）。
+	AvatarURLByID(ctx context.Context, id uint64) (string, error)
 	// TagTitles 批量取标签标题。
 	TagTitles(ctx context.Context, ids []uint64) (map[uint64]string, error)
 }
@@ -44,6 +47,75 @@ type Logger interface {
 // 做成端口而不是直接用 redis_user，是为了让用例层测试不必起 Redis。
 type UsernameAllocator interface {
 	Next() (string, error)
+}
+
+// RelationReader 读当前用户与目标用户的关注关系。
+//
+// 关系数据在 social 模块，用户模块只消费结论（0 无 / 1 关注 …），
+// 不 import 对方的表。
+type RelationReader interface {
+	Relation(ctx context.Context, viewer, target domain.UserID) (int8, error)
+}
+
+// HomeViewRecorder 记录一次主页浏览（按天去重），返回本次是否计入。
+type HomeViewRecorder interface {
+	Record(ctx context.Context, target, viewer domain.UserID) (bool, error)
+}
+
+// SessionRevoker 让某用户全部会话失效（管理员改角色/状态时）。
+type SessionRevoker interface {
+	RevokeAll(ctx context.Context, userID uint64) error
+}
+
+// SessionRevokerFunc 让函数实现 SessionRevoker。
+//
+// 用来打破装配期的循环依赖：user 服务先建、auth 服务后建，
+// 用一个闭包把"后建的 auth 服务"延迟绑定进来。
+type SessionRevokerFunc func(ctx context.Context, userID uint64) error
+
+// RevokeAll 实现 SessionRevoker。
+func (f SessionRevokerFunc) RevokeAll(ctx context.Context, userID uint64) error {
+	return f(ctx, userID)
+}
+
+// LastLogin 是列表页展示的最后登录信息。
+type LastLogin struct {
+	IP   string
+	Addr string
+	At   time.Time
+}
+
+// LastLoginReader 批量读最后登录信息。
+type LastLoginReader interface {
+	Latest(ctx context.Context, ids []uint64) (map[uint64]LastLogin, error)
+}
+
+// TagValidator 校验偏好标签都存在且启用。
+type TagValidator interface {
+	Validate(ctx context.Context, ids []uint64) error
+}
+
+// Integrations 是用户模块的可选外部能力集合。
+//
+// 合成一个结构而不是六个 WithXxx：它们都是"详情页/管理端"的锦上添花能力，
+// 装配时一次性给齐或全不给，拆开只会让 New 的参数列表继续膨胀。
+type Integrations struct {
+	Relation  RelationReader
+	HomeView  HomeViewRecorder
+	Sessions  SessionRevoker
+	LastLogin LastLoginReader
+	Tags      TagValidator
+}
+
+// WithIntegrations 注入可选外部能力。
+func WithIntegrations(i Integrations) Option {
+	return func(s *Service) {
+		s.relation = i.Relation
+		s.homeView = i.HomeView
+		s.sessions = i.Sessions
+		s.lastLogin = i.LastLogin
+		s.tags = i.Tags
+	}
 }
 
 // UserInfoPort 是本模块提供给其他模块的只读能力。
@@ -90,6 +162,12 @@ type Service struct {
 	hasher        PasswordHasher
 	usernameAlloc UsernameAllocator
 	logger        Logger
+
+	relation  RelationReader
+	homeView  HomeViewRecorder
+	sessions  SessionRevoker
+	lastLogin LastLoginReader
+	tags      TagValidator
 }
 
 // Option 是可选的装配项。

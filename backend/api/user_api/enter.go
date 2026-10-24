@@ -3,16 +3,17 @@ package user_api
 import (
 	"database/sql"
 	"myblogx/api/user_api/log_api"
-	"myblogx/api/user_api/profile_api"
-	"myblogx/api/user_api/user_man_api"
 	"myblogx/conf"
-	"myblogx/service/site_service"
 
 	"github.com/go-redis/redis/v8"
 	"github.com/sirupsen/logrus"
 	"gorm.io/gorm"
 )
 
+// Deps 是旧 user_api 剩余部分（登录日志）的依赖。
+//
+// profile / user_man 已迁到 internal/user，auth 已迁到 internal/auth；
+// 这里只剩登录日志查询，按文档归 S4.9 analytics，迁移后本包整体删除。
 type Deps struct {
 	DB               *gorm.DB
 	JWT              conf.Jwt
@@ -24,33 +25,15 @@ type Deps struct {
 	Email            conf.Email
 	Logger           *logrus.Logger
 	Redis            *redis.Client
-	RuntimeSite      *site_service.RuntimeConfigService
 }
 
 type UserApi struct {
-	ProfileApi profile_api.ProfileApi
-	LogApi     log_api.LogApi
-	UserManApi user_man_api.UserManApi
+	LogApi log_api.LogApi
 }
 
 func New(deps Deps) UserApi {
 	return UserApi{
-		ProfileApi: profile_api.New(profile_api.Deps{
-			DB:     deps.DB,
-			JWT:    deps.JWT,
-			Logger: deps.Logger,
-			Redis:  deps.Redis,
-			System: deps.System,
-		}),
 		LogApi: log_api.New(log_api.Deps{
-			Log:              deps.Log,
-			System:           deps.System,
-			ClickHouseConfig: deps.ClickHouseConfig,
-			Logger:           deps.Logger,
-			ClickHouse:       deps.ClickHouse,
-		}),
-		UserManApi: user_man_api.New(user_man_api.Deps{
-			DB:               deps.DB,
 			Log:              deps.Log,
 			System:           deps.System,
 			ClickHouseConfig: deps.ClickHouseConfig,

@@ -61,6 +61,19 @@ func (d StatsDelta) IsZero() bool {
 	return d.View == 0 && d.Fans == 0 && d.Follow == 0 && d.ArticleVisited == 0 && d.Article == 0
 }
 
+// AdminPatch 是管理员修改用户信息的补丁。
+//
+// 全指针：PATCH 语义下"没传"和"传空"是两件事。角色/状态单独给，
+// 因为它们变化时要连带作废该用户全部登录态。
+type AdminPatch struct {
+	Username  *string
+	Nickname  *string
+	Abstract  *string
+	AvatarURL *string
+	Role      *Role
+	Status    *Status
+}
+
 // Repository 是用户聚合的持久化端口。
 //
 // 所有方法都接收 ctx；错误一律返回 apperr 错误码，不返回 gorm 的原始错误——
@@ -88,6 +101,10 @@ type Repository interface {
 	UpdatePassword(ctx context.Context, id UserID, hash string, tokenVersion uint32) error
 	// UpdateEmail 绑定或换绑邮箱。
 	UpdateEmail(ctx context.Context, id UserID, email string) error
+	// UpdateAdmin 应用管理员补丁（只写传入的列）。
+	UpdateAdmin(ctx context.Context, id UserID, patch AdminPatch) error
+	// BumpTokenVersion 把令牌版本 +1，让该用户所有旧访问令牌立即失效。
+	BumpTokenVersion(ctx context.Context, id UserID) error
 	// List 按条件分页查询。
 	List(ctx context.Context, q Query) (Page, error)
 }

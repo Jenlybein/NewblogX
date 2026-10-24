@@ -3,11 +3,11 @@ package tags
 import (
 	"myblogx/common"
 	"myblogx/common/res"
+	"myblogx/internal/platform/redis"
+	"myblogx/internal/platform/redis/redis_tag"
 	"myblogx/middleware"
 	"myblogx/models"
 	"myblogx/models/ctype"
-	"myblogx/service/redis_service"
-	"myblogx/service/redis_service/redis_tag"
 
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"

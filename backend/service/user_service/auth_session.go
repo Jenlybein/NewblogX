@@ -8,10 +8,10 @@ import (
 	"github.com/sirupsen/logrus"
 	"gorm.io/gorm"
 	"myblogx/conf"
+	"myblogx/internal/platform/redis"
+	"myblogx/internal/platform/redis/redis_jwt"
 	"myblogx/models"
 	"myblogx/models/ctype"
-	"myblogx/service/redis_service"
-	"myblogx/service/redis_service/redis_jwt"
 	"myblogx/utils/jwts"
 )
 

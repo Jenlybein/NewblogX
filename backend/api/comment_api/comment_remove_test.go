@@ -1,11 +1,11 @@
 package comment_api
 
 import (
+	"myblogx/internal/platform/redis/redis_article"
+	"myblogx/internal/platform/redis/redis_comment"
 	"myblogx/models"
 	"myblogx/models/ctype"
 	"myblogx/models/enum"
-	"myblogx/service/redis_service/redis_article"
-	"myblogx/service/redis_service/redis_comment"
 	"myblogx/test/testutil"
 	"myblogx/utils/jwts"
 	"testing"

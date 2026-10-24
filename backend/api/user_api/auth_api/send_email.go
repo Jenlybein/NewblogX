@@ -3,12 +3,12 @@ package auth_api
 import (
 	"fmt"
 	"myblogx/common/res"
+	"myblogx/internal/platform/redis"
+	"myblogx/internal/platform/redis/redis_email"
+	"myblogx/internal/platform/redis/redis_user"
 	"myblogx/middleware"
 	"myblogx/models"
 	"myblogx/service/email_service"
-	"myblogx/service/redis_service"
-	"myblogx/service/redis_service/redis_email"
-	"myblogx/service/redis_service/redis_user"
 
 	"github.com/gin-gonic/gin"
 	"github.com/mojocn/base64Captcha"

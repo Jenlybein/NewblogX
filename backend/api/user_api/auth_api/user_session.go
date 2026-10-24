@@ -3,10 +3,10 @@ package auth_api
 import (
 	"myblogx/common"
 	"myblogx/common/res"
+	"myblogx/internal/platform/redis/redis_jwt"
 	"myblogx/middleware"
 	"myblogx/models"
 	"myblogx/models/ctype"
-	"myblogx/service/redis_service/redis_jwt"
 	"myblogx/service/user_service"
 	"myblogx/utils/jwts"
 	"time"

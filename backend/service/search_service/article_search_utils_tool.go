@@ -1,9 +1,9 @@
 package search_service
 
 import (
+	"myblogx/internal/platform/redis"
+	"myblogx/internal/platform/redis/redis_article"
 	"myblogx/models/ctype"
-	"myblogx/service/redis_service"
-	"myblogx/service/redis_service/redis_article"
 )
 
 // extractHighlightValues 提取高亮值

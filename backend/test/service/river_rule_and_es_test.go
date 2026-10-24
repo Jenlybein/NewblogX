@@ -1,8 +1,8 @@
 package service_test
 
 import (
+	"myblogx/internal/platform/es"
 	"myblogx/models/ctype"
-	"myblogx/service/es_service"
 	river_service "myblogx/service/river_service"
 	"myblogx/service/river_service/rule"
 	"os"

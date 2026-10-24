@@ -2,9 +2,9 @@ package flags
 
 import (
 	"fmt"
+	"myblogx/internal/platform/es"
 	"myblogx/models"
 	"myblogx/models/ctype"
-	"myblogx/service/es_service"
 
 	"github.com/elastic/go-elasticsearch/v7"
 	"github.com/sirupsen/logrus"

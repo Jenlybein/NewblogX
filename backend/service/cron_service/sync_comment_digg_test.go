@@ -2,11 +2,11 @@ package cron_service_test
 
 import (
 	"context"
+	"myblogx/internal/platform/redis"
+	"myblogx/internal/platform/redis/redis_comment"
 	"myblogx/models"
 	"myblogx/models/ctype"
 	"myblogx/service/cron_service"
-	"myblogx/service/redis_service"
-	"myblogx/service/redis_service/redis_comment"
 	"myblogx/test/testutil"
 	"testing"
 )

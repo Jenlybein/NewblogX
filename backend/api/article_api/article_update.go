@@ -3,6 +3,7 @@ package article_api
 import (
 	"errors"
 	"myblogx/common/res"
+	"myblogx/internal/platform/redis"
 	"myblogx/middleware"
 	"myblogx/models"
 	"myblogx/models/ctype"
@@ -10,7 +11,6 @@ import (
 	"myblogx/service/ai_service/article_score_service"
 	"myblogx/service/image_service"
 	"myblogx/service/read_service"
-	"myblogx/service/redis_service"
 	"myblogx/utils/jwts"
 	"strconv"
 

@@ -7,11 +7,11 @@ import (
 	"math"
 	"strings"
 
+	"myblogx/internal/platform/es"
+	"myblogx/internal/platform/redis"
 	"myblogx/models"
 	"myblogx/models/ctype"
 	"myblogx/models/enum"
-	"myblogx/service/es_service"
-	"myblogx/service/redis_service"
 	"myblogx/utils/jwts"
 
 	"github.com/elastic/go-elasticsearch/v7"

@@ -2,12 +2,12 @@ package favorite
 
 import (
 	"myblogx/common/res"
+	"myblogx/internal/platform/redis"
 	"myblogx/middleware"
 	"myblogx/models"
 	"myblogx/models/ctype"
 	"myblogx/platform/cachex"
 	"myblogx/service/favorite_service"
-	"myblogx/service/redis_service"
 	"myblogx/service/user_service"
 	"myblogx/utils/jwts"
 

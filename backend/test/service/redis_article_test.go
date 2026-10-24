@@ -1,8 +1,8 @@
 package service_test
 
 import (
-	"myblogx/service/redis_service"
-	"myblogx/service/redis_service/redis_article"
+	"myblogx/internal/platform/redis"
+	"myblogx/internal/platform/redis/redis_article"
 	"myblogx/test/testutil"
 	"testing"
 )

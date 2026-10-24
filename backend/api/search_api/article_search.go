@@ -2,9 +2,9 @@ package search_api
 
 import (
 	"myblogx/common/res"
+	"myblogx/internal/platform/redis"
 	"myblogx/middleware"
 	"myblogx/models/ctype"
-	"myblogx/service/redis_service"
 	"myblogx/service/search_service"
 	"myblogx/service/user_service"
 	"myblogx/utils/jwts"

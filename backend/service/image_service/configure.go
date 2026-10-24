@@ -2,7 +2,7 @@ package image_service
 
 import (
 	"myblogx/conf"
-	"myblogx/service/redis_service"
+	"myblogx/internal/platform/redis"
 
 	"github.com/go-redis/redis/v8"
 	"github.com/sirupsen/logrus"

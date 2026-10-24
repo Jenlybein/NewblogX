@@ -4,9 +4,9 @@ import (
 	"fmt"
 	"time"
 
+	"myblogx/internal/platform/redis/redis_user"
 	"myblogx/models"
 	"myblogx/models/ctype"
-	"myblogx/service/redis_service/redis_user"
 
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"

@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"myblogx/conf"
+	"myblogx/internal/platform/cdc/canalbase"
 	"myblogx/internal/platform/cdc/river/rule"
 	"myblogx/service/log_service"
 	"regexp"
@@ -84,59 +85,38 @@ func NewRiver(config conf.River, logger *logrus.Logger, db *gorm.DB, esClient *e
 
 // newCanal 创建canal实例
 func (r *River) newCanal() error {
-	cfg := canal.NewDefaultConfig()
-
-	// 配置日志记录器
-	cfg.Logger = logrusToSlogAdapter(r.log)
-
-	// 配置mysql连接信息
-	cfg.Addr = r.cfg.Mysql.Addr
-	cfg.User = r.cfg.Mysql.User
-	cfg.Password = r.cfg.Mysql.Password
-	cfg.Charset = r.cfg.Charset
-	cfg.Flavor = r.cfg.Flavor
-
-	cfg.ServerID = r.cfg.ServerID
-	cfg.Dump.ExecutionPath = r.cfg.DumpExec
-	cfg.Dump.DiscardErr = false
-	cfg.Dump.SkipMasterData = r.cfg.SkipMasterData
-
-	// 配置需要同步的数据库表，添加正则表达式 "schema\\.table"
+	// 监听范围来自配置的 Sources（可能与下面的 Rules 不同：一个管"看哪些表"，一个管"怎么映射"）
+	listen := canalbase.Spec{Tables: map[string][]string{}}
 	for _, s := range r.cfg.Sources {
-		for _, t := range s.Tables {
-			cfg.IncludeTableRegex = append(cfg.IncludeTableRegex, s.Schema+"\\."+t)
-		}
+		listen.Tables[s.Schema] = append(listen.Tables[s.Schema], s.Tables...)
 	}
 
-	var err error
-	r.canal, err = canal.NewCanal(cfg)
-	return errors.Trace(err)
+	c, err := canalbase.Build(canalbase.MySQL{
+		Addr:           r.cfg.Mysql.Addr,
+		User:           r.cfg.Mysql.User,
+		Password:       r.cfg.Mysql.Password,
+		Charset:        r.cfg.Charset,
+		Flavor:         r.cfg.Flavor,
+		ServerID:       r.cfg.ServerID,
+		DumpExec:       r.cfg.DumpExec,
+		SkipMasterData: r.cfg.SkipMasterData,
+	}, listen, r.log)
+	if err != nil {
+		return errors.Trace(err)
+	}
+
+	r.canal = c
+	return nil
 }
 
-// prepareCanal 准备canal实例
+// prepareCanal 注册事件处理器并设置全量转储范围
 func (r *River) prepareCanal() error {
-	var db string
-	dbs := map[string]struct{}{}
-	tables := make([]string, 0, len(r.rules))
+	dump := canalbase.Spec{Tables: map[string][]string{}}
 	for _, rule := range r.rules {
-		db = rule.Schema
-		dbs[rule.Schema] = struct{}{}
-		tables = append(tables, rule.Table)
+		dump.Tables[rule.Schema] = append(dump.Tables[rule.Schema], rule.Table)
 	}
 
-	if len(dbs) == 1 {
-		// one db, we can shrink using table
-		r.canal.AddDumpTables(db, tables...)
-	} else {
-		// many dbs, can only assign databases to dump
-		keys := make([]string, 0, len(dbs))
-		for key := range dbs {
-			keys = append(keys, key)
-		}
-
-		r.canal.AddDumpDatabases(keys...)
-	}
-
+	canalbase.PrepareDump(r.canal, dump)
 	r.canal.SetEventHandler(&eventHandler{r})
 
 	return nil

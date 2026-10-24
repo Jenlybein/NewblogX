@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"myblogx/conf"
+	"myblogx/internal/platform/cdc/canalbase"
 	"myblogx/internal/platform/cdc/deadletter"
 	"myblogx/models/ctype"
 	"myblogx/models/enum/image_ref_enum"
@@ -50,38 +51,30 @@ func (r *River) SetLogDeps(deps log_service.Deps) {
 	r.logDeps = deps
 }
 
+// imageRefTables 是图片引用需要监听的四张核心业务表
+var imageRefTables = []string{"article_models", "user_models", "banner_models", "favorite_models"}
+
 // newCanal 配置并创建 MySQL Binlog 监听客户端
 func (r *River) newCanal() error {
-	// 创建默认 canal 配置
-	cfg := canal.NewDefaultConfig()
-	// 绑定日志适配器
-	cfg.Logger = logrusToSlogAdapter(r.log)
-	// 从全局配置加载 MySQL 连接信息
-	cfg.Addr = r.cfg.Mysql.Addr
-	cfg.User = r.cfg.Mysql.User
-	cfg.Password = r.cfg.Mysql.Password
-	cfg.Charset = r.cfg.Charset
-	cfg.Flavor = r.cfg.Flavor
-	cfg.ServerID = r.cfg.ServerID
-	// 全量数据备份相关配置
-	cfg.Dump.ExecutionPath = r.cfg.DumpExec
-	cfg.Dump.SkipMasterData = r.cfg.SkipMasterData
-
-	// 获取要监听的数据库名
 	schema := strings.TrimSpace(r.cfg.Schema)
-	// 监听四张核心业务表
-	for _, table := range []string{"article_models", "user_models", "banner_models", "favorite_models"} {
-		cfg.IncludeTableRegex = append(cfg.IncludeTableRegex, schema+"\\."+table)
-	}
+	spec := canalbase.Spec{Tables: map[string][]string{schema: imageRefTables}}
 
-	var err error
-	// 创建 canal 实例
-	r.canal, err = canal.NewCanal(cfg)
+	c, err := canalbase.Build(canalbase.MySQL{
+		Addr:           r.cfg.Mysql.Addr,
+		User:           r.cfg.Mysql.User,
+		Password:       r.cfg.Mysql.Password,
+		Charset:        r.cfg.Charset,
+		Flavor:         r.cfg.Flavor,
+		ServerID:       r.cfg.ServerID,
+		DumpExec:       r.cfg.DumpExec,
+		SkipMasterData: r.cfg.SkipMasterData,
+	}, spec, r.log)
 	if err != nil {
 		return err
 	}
-	// 添加需要全量转储的表
-	r.canal.AddDumpTables(schema, "article_models", "user_models", "banner_models", "favorite_models")
+
+	canalbase.PrepareDump(c, spec)
+	r.canal = c
 	return nil
 }
 

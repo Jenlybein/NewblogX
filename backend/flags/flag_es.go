@@ -3,6 +3,7 @@ package flags
 import (
 	"fmt"
 	"myblogx/internal/platform/es"
+	"myblogx/internal/platform/es/articlesync"
 	"myblogx/models"
 	"myblogx/models/ctype"
 
@@ -133,7 +134,7 @@ func syncArticleDocuments(db *gorm.DB, esClient *elasticsearch.Client, index str
 				return nil
 			}
 
-			if err := es_service.SyncESDocs(db, esClient, articleIDs); err != nil {
+			if err := articlesync.SyncESDocs(db, esClient, articleIDs); err != nil {
 				return fmt.Errorf("第 %d 批文章同步到 ES 失败: %w", batch, err)
 			}
 
@@ -148,7 +149,7 @@ func syncArticleDocuments(db *gorm.DB, esClient *elasticsearch.Client, index str
 }
 
 func buildArticleESDocument(article models.ArticleModel, adminTop, authorTop bool) map[string]any {
-	return es_service.BuildArticleESDocument(article, adminTop, authorTop)
+	return articlesync.BuildArticleESDocument(article, adminTop, authorTop)
 }
 
 func logESInfo(logger *logrus.Logger, format string, args ...any) {

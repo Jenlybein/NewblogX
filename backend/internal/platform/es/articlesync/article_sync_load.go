@@ -1,4 +1,4 @@
-package es_service
+package articlesync
 
 import (
 	"encoding/json"
@@ -9,12 +9,13 @@ import (
 	"time"
 
 	"gorm.io/gorm"
+	"myblogx/internal/platform/es"
 	"myblogx/models"
 	"myblogx/models/ctype"
 	"myblogx/models/enum"
 )
 
-func collectArticleBulkFailures(data any, reqs []*BulkRequest, maxItems int) ([]articleBulkFailure, []ctype.ID) {
+func collectArticleBulkFailures(data any, reqs []*es_service.BulkRequest, maxItems int) ([]articleBulkFailure, []ctype.ID) {
 	root, ok := data.(map[string]any)
 	if !ok {
 		return nil, nil
@@ -69,10 +70,10 @@ func collectArticleBulkFailures(data any, reqs []*BulkRequest, maxItems int) ([]
 				}
 			}
 
-			if action == ActionDelete && errType == "document_missing_exception" {
+			if action == es_service.ActionDelete && errType == "document_missing_exception" {
 				continue
 			}
-			if action == ActionUpdate && errType == "document_missing_exception" {
+			if action == es_service.ActionUpdate && errType == "document_missing_exception" {
 				var articleID ctype.ID
 				if err := articleID.UnmarshalText([]byte(docID)); err == nil && articleID != 0 {
 					if _, ok := seenMissing[articleID]; !ok {

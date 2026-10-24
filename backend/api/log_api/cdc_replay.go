@@ -6,10 +6,10 @@ import (
 
 	"myblogx/common"
 	"myblogx/common/res"
+	"myblogx/internal/platform/cdc/deadletter"
 	"myblogx/middleware"
 	"myblogx/models"
 	"myblogx/models/ctype"
-	"myblogx/service/cdc_dead_letter_service"
 	"myblogx/service/log_service"
 
 	"github.com/gin-gonic/gin"
@@ -309,7 +309,7 @@ func (h *LogApi) ChainQueryView(c *gin.Context) {
 		cdcJobIDs = append(cdcJobIDs, cdcJobID)
 	}
 
-	dlqList, err := cdc_dead_letter_service.Query(h.App.DB, cdc_dead_letter_service.QueryOption{
+	dlqList, err := deadletter.Query(h.App.DB, deadletter.QueryOption{
 		Stream:         cr.Stream,
 		Status:         cr.Status,
 		CdcJobID:       cr.CdcJobID,

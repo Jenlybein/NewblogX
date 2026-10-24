@@ -2,10 +2,10 @@ package app
 
 import (
 	"fmt"
+	"myblogx/internal/platform/cdc/imageref"
+	"myblogx/internal/platform/cdc/river"
 	"myblogx/service/cron_service"
-	"myblogx/service/image_ref_river_service"
 	"myblogx/service/log_service"
-	"myblogx/service/river_service"
 )
 
 // WireRiver 组装并启动 MySQL->ES 同步 worker。
@@ -19,7 +19,7 @@ func WireRiver(infra *Infra) error {
 		return nil
 	}
 
-	r, err := river_service.NewRiver(infra.Config.River, infra.Logger, infra.DB, infra.ESClient)
+	r, err := river.NewRiver(infra.Config.River, infra.Logger, infra.DB, infra.ESClient)
 	if err != nil {
 		return fmt.Errorf("创建 River 失败: %w", err)
 	}
@@ -44,7 +44,7 @@ func WireImageRef(infra *Infra) error {
 		return nil
 	}
 
-	r, err := image_ref_river_service.NewRiver(infra.Config.ImageRefRiver, infra.Config.QiNiu, infra.Logger, infra.DB)
+	r, err := imageref.NewRiver(infra.Config.ImageRefRiver, infra.Config.QiNiu, infra.Logger, infra.DB)
 	if err != nil {
 		return fmt.Errorf("创建 ImageRef River 失败: %w", err)
 	}

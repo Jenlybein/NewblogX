@@ -181,7 +181,7 @@ R3/R5 为 0 说明这两条当前确实没被违反（不是规则失效——`r
 
 | 指标 | 现在 | 目标 |
 | --- | --- | --- |
-| archcheck 违规数 | **319**（M3-C1 后，棘轮已收紧到 319） | 单调递减至 0 |
+| archcheck 违规数 | **318**（M3-C2 后，棘轮已收紧到 318） | 单调递减至 0 |
 | `type Deps struct` | 34 | 0 |
 | api 层 `*gorm.DB` | 142 | 0 |
 | 裸 `go` 语句 | 17 | 0 |
@@ -213,16 +213,21 @@ M3 的 17 项里，先落地"所有后续模块都要用"的四件套。它们�
 | archcheck | **321 ≤ 321**，零新增；R7 豁免有正反用例 |
 | 棘轮 | `check.sh` / `verify-gates.sh` / `ci.yml` 同步收紧到 321 |
 
-### M3-B / M3-D / M3-C1：基础设施归位 + AI 客户端 + 超长文件拆分（已交付，棘轮 321→319）
+### M3-B / M3-D / M3-C1 / M3-C2：基础设施归位 + AI 客户端 + 超长文件拆分 + CDC 合并（已交付，棘轮 321→318）
 
 | 批次 | 内容 | 结果 |
 | --- | --- | --- |
 | **M3-B（S2.2/S2.3）** | `service/redis_service` → `internal/platform/redis`；`service/es_service` → `internal/platform/es`；89 个文件 import 同步改写 | 纯路径迁移，行为零变化；移动包测试全绿；无残留旧路径 |
 | **M3-D（S2.6）** | 新建 `internal/platform/llm`：超时 / ctx / 重试 / 连接池；流式协程改 `safego.Go`；`ai_service` 变薄委托层 | R7 −1（`ai_service/enter.go` 的裸 `go` 消失），棘轮收紧到 **320** |
-| **M3-C1（S2.4）** | `internal/platform/es/article_sync.go`(1547) 按职责拆为 `article_sync.go` / `_update.go` / `_load.go`（435 / 385 / 752 行） | 同包内拆分、语义不变；R6 −1，棘轮收紧到 **319** |
+| **M3-C1（S2.4）** | `internal/platform/es/article_sync.go`(1547) 按职责拆为 `article_sync.go` / `_update.go` / `_load.go`，再收进 `articlesync/` 子包（436 / 386 / 753 行） | 同包内拆分 + 子包归拢、语义不变；R6 −1，棘轮收紧到 **319** |
+| **M3-C2（S2.5）** | `service/river_service` → `internal/platform/cdc/river`；`service/image_ref_river_service` → `internal/platform/cdc/imageref`；`service/cdc_dead_letter_service` → `internal/platform/cdc/deadletter`（消除 platform→service 反向依赖）；`river/sync.go`(852) 拆为 `sync.go`(223) / `sync_request.go`(397) / `sync_bulk.go`(265) | 两包互不依赖，纯路径迁移 + 同包内拆分；函数数精确对上 27 = 10+12+5；**R6 归零**，棘轮收紧到 **318** |
 
 验收：`go test ./... -count=1` 全绿；llm 6 用例（成功/5xx重试/4xx不重试/ctx取消/流式/未开启）全绿；
 canary 注入 3 处违规 → 323 > 320 正确失败。
+
+M3-C2 追加验收：`go build` / `go vet` / `gofmt -l` 全干净；`go test ./... -count=1` 全绿；
+`internal/platform/cdc/{river,river/rule,imageref,deadletter}` 编译与测试通过；
+无残留旧路径引用；canary 注入 4 处违规 → **322 > 318 正确失败**，清理后 318 通过。
 
 ### 为什么"地基"要先做这四件
 
@@ -235,16 +240,58 @@ canary 注入 3 处违规 → 323 > 320 正确失败。
 - **safego**：R7 有 17 处存量裸 `go`。要修它们，必须先有一个合法的替代品；
   否则规则只降不升的要求会让任何后台任务都无从写起。
 
-### 尚未覆盖（M3 剩余批次）
+### M3 进度盘点（按 08 §4 的 M3 范围）
 
-| 批次 | 内容 | 规模 | 风险 |
-| --- | --- | --- | --- |
-| M3-B | S2.2 redis 拆 counter/guard/cache + S2.3 es 承接 | ~5,500 行，~15 处 importer | 中（机械迁移，但面广） |
-| M3-C | S2.5 合并 river(3231→~1800)（S2.4 article_sync 已拆分） | ~2,500 行 | 高（CDC 位点/行为等价需 shadow 双跑） |
-| M3-D | S2.6 `platform/llm` 重写 + S2.7 结构化输出 | ~2,800 行 | 中（需超时/ctx/重试） |
-| M3-E | S2.8 swag 生成 + S2.9 前端类型生成 | 工具链 | 低-中（契约先行） |
-| M3-F | L.3–L.5 生产写入口替换 + ClickHouse 批量/WAL | 跨模块 | 高（合规：audit 不可丢） |
-| M3-G | T.4 有状态 fake + T.8 testcontainers | 测试 | 中（需 Docker） |
+| 项 | 状态 | 落点 / 说明 |
+| --- | --- | --- |
+| S2.1 | ✅ | `internal/platform/mysql`：`TxManager` 窄接口 + GORM 实现 + fake |
+| S2.2 | ✅ | redis 10 子包 → `internal/platform/redis` |
+| S2.3 | ✅ | `es_service` → `internal/platform/es` |
+| S2.4 | ✅ | `article_sync.go`(1547) → `es/articlesync/` 三文件（436 / 386 / 753） |
+| S2.5 | ⚠️ **结构完成，行数未达** | 两套 river + deadletter → `platform/cdc/{river,imageref,deadletter}`；`sync.go`(852) 拆三文件（223/397/265）。**总行数 3,244，未达 `<2000`** |
+| S2.6 | ✅ | `internal/platform/llm`：超时 / ctx / 重试 / 连接池 |
+| S2.7 | ✅ | JSON 抽取已收敛为 `UnmarshalJSONBlock` 单入口（另一处正则是去代码块，非 JSON 解析） |
+| S2.8 | ❌ **未做** | swag 已装、可跑通；但 118 个 operation 需逐个补注解（见下） |
+| S2.9 | ❌ **未做** | 依赖 S2.8 完整覆盖，半量契约会让前端类型残缺 |
+| L.1 / L.2 | ✅ | `internal/platform/log`：类型化事件 + 有界异步 + file sink |
+| T.3 | ✅ | `testkit/`：Clock / SeqID / Golden / 独立 SQLite，无全局状态 |
+
+#### 两个必须说清的结论
+
+**1. S2.5 的 `<2000 行` 目标不成立（实测）**
+
+08 文档写"3,231 → ~1,800"。但实测两套 river 的 `river.go` 差异达 **694 行**（两文件共 766 行），
+业务逻辑本质不同——一套把文章行事件翻译成 ES bulk 请求，另一套追踪图片引用关系。
+**它们不是同一份代码的两份拷贝。** 可抽公共的只有 `logger.go`（两边 diff 仅 67 行）与 canal 启动骨架，
+合计约 180 行。
+
+要压到 2000 以下只能删除实际功能，属于行为变更，与本阶段"行为等价"的约束直接冲突。
+**建议把 S2.5 验收改为"结构归位 + 单文件 ≤800 + 功能等价"，不再以总行数作门禁**——否则这条验收会永远红着。
+
+**2. S2.8 的难点不是工具，是注解**
+
+swag 工具链已验证：能装（`go install` 成功）、能跑（`swag init` exit 0）。但当前代码零注解，
+生成的 `swagger.json` 只有 84 字节、0 条 path。openapi 的内容完全由注解驱动：
+
+```go
+// @Summary 文章详情
+// @Tags article
+// @Param id path int true "文章 ID"
+// @Success 200 {object} ArticleDetailResponse
+// @Router /api/articles/{id} [get]
+```
+
+全项目 **118 个 operation**（article 30 / user 20 / log 11 / 其余 57）。每个都必须准确对应 handler
+的入参与响应类型——写错会生成一份**比没有更糟**的契约，并被 S2.9 的类型生成直接放大到前端。
+这是逐模块、可增量验证的工程，不适合一次冲刺。
+
+#### 文档内部的口径不一致（需你拍板）
+
+- **L.3–L.5**：08 §4.2 表格把它们列在 M3 下，但 §7 标题又写 "M6 收尾（S5 + L3/L4）"；
+  04 路线图则把 L 章节标为"可与 S2 并行"。
+- **T.4**：08 §4.3 列在 M3 下，§6 标题又写 "M5 铺开（S4 + T4）"。
+
+所以本阶段按"M3 = S2 + L1/L2 + T2"这一口径判定进度；L.3–L.5 与 T.4/T.8 的归属请明确后再排。
 | 前端覆盖率（语句） | 62.47 | 单调递增 |
 
 **规矩**：违规数只准降不准升。一旦某次提交让任何一个数字变差，就是引入了回归。

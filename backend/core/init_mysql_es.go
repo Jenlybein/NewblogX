@@ -2,8 +2,8 @@ package core
 
 import (
 	"myblogx/conf"
+	"myblogx/internal/platform/cdc/river"
 	"myblogx/service/log_service"
-	"myblogx/service/river_service"
 
 	"github.com/elastic/go-elasticsearch/v7"
 	"github.com/sirupsen/logrus"
@@ -26,7 +26,7 @@ func InitMySQLES(deps MySQLESDeps) {
 		return
 	}
 
-	r, err := river_service.NewRiver(deps.RiverConfig, deps.Logger, deps.DB, deps.ESClient)
+	r, err := river.NewRiver(deps.RiverConfig, deps.Logger, deps.DB, deps.ESClient)
 	if err != nil {
 		deps.Logger.Fatal(err)
 	}

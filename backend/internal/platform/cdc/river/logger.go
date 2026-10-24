@@ -1,5 +1,5 @@
 // 适配 logrus 到 slog，用于 canal 日志
-package river_service
+package river
 
 import (
 	// 其他导入...

@@ -1,4 +1,4 @@
-package river_service
+package river
 
 import (
 	"bytes"

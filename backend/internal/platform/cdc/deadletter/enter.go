@@ -1,4 +1,4 @@
-package cdc_dead_letter_service
+package deadletter
 
 import (
 	"encoding/json"

@@ -1,4 +1,4 @@
-package image_ref_river_service
+package imageref
 
 import (
 	"fmt"
@@ -6,9 +6,9 @@ import (
 	"time"
 
 	"myblogx/conf"
+	"myblogx/internal/platform/cdc/deadletter"
 	"myblogx/models/ctype"
 	"myblogx/models/enum/image_ref_enum"
-	"myblogx/service/cdc_dead_letter_service"
 	"myblogx/service/log_service"
 
 	"github.com/go-mysql-org/go-mysql/canal"
@@ -355,7 +355,7 @@ func (r *River) runTaskWithRetry(task imageRefTask, payload map[string]any, runn
 		time.Sleep(delay)
 	}
 
-	if err := cdc_dead_letter_service.SaveBatch(r.db, []cdc_dead_letter_service.Item{{
+	if err := deadletter.SaveBatch(r.db, []deadletter.Item{{
 		Stream:      task.Stream,
 		CdcJobID:    task.CdcJobID,
 		SourceTable: task.SourceTable,

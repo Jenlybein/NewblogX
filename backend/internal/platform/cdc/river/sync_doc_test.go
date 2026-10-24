@@ -1,8 +1,8 @@
-package river_service
+package river
 
 import (
+	riverrule "myblogx/internal/platform/cdc/river/rule"
 	"myblogx/internal/platform/es"
-	riverrule "myblogx/service/river_service/rule"
 	"myblogx/test/testutil"
 	"testing"
 

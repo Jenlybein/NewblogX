@@ -1,4 +1,4 @@
-package image_ref_river_service
+package imageref
 
 import (
 	"fmt"

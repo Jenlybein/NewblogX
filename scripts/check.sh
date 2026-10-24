@@ -34,11 +34,12 @@ fi
 export GOTOOLCHAIN=local
 export CGO_ENABLED=1
 
-# 架构违规棘轮：当前存量 319 处，只准减少不准增加。
+# 架构违规棘轮：当前存量 318 处，只准减少不准增加。
 # 每迁完一个模块就下调，最终目标 0。
 # 演进：M1 基线 324 → M2 321 → M3-D（AI 客户端，R7 -1）320
-#       → M3-C1 拆分 article_sync.go（R6 -1）319。
-ARCH_MAX_VIOLATIONS=319
+#       → M3-C1 拆分 article_sync.go（R6 -1）319
+#       → M3-C2 river 合并进 platform/cdc + 拆 sync.go（R6 归零）318。
+ARCH_MAX_VIOLATIONS=318
 # nuxt typecheck 在 Windows 上默认堆不够，需要抬高上限
 export NODE_OPTIONS="${NODE_OPTIONS:---max-old-space-size=8192}"
 

@@ -1,6 +1,6 @@
 package conf
 
-import "myblogx/service/river_service/rule"
+import "myblogx/internal/platform/cdc/river/rule"
 
 type River struct {
 	Enabled bool `yaml:"enabled"`

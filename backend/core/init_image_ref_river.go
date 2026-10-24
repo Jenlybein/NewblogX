@@ -2,7 +2,7 @@ package core
 
 import (
 	"myblogx/conf"
-	"myblogx/service/image_ref_river_service"
+	"myblogx/internal/platform/cdc/imageref"
 	"myblogx/service/log_service"
 
 	"github.com/sirupsen/logrus"
@@ -25,7 +25,7 @@ func InitImageRefRiver(deps ImageRefRiverDeps) {
 		return
 	}
 
-	r, err := image_ref_river_service.NewRiver(deps.ImageRefRiverConfig, deps.QiNiuConfig, deps.Logger, deps.DB)
+	r, err := imageref.NewRiver(deps.ImageRefRiverConfig, deps.QiNiuConfig, deps.Logger, deps.DB)
 	if err != nil {
 		deps.Logger.Fatal(err)
 	}

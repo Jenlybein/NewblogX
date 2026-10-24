@@ -1,11 +1,11 @@
-package river_service
+package river
 
 import (
 	"context"
 	"fmt"
 	"myblogx/conf"
+	"myblogx/internal/platform/cdc/river/rule"
 	"myblogx/service/log_service"
-	"myblogx/service/river_service/rule"
 	"regexp"
 	"strings"
 	"sync"

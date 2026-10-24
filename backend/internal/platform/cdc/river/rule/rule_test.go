@@ -1,7 +1,7 @@
 package rule_test
 
 import (
-	"myblogx/service/river_service/rule"
+	"myblogx/internal/platform/cdc/river/rule"
 	"testing"
 )
 

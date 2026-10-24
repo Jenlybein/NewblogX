@@ -3,10 +3,10 @@ package image_api
 import (
 	"fmt"
 	"myblogx/common/res"
+	"myblogx/internal/platform/cdc/imageref"
 	"myblogx/middleware"
 	"myblogx/models"
 	"myblogx/models/ctype"
-	"myblogx/service/image_ref_river_service"
 	"myblogx/service/image_service"
 
 	"github.com/gin-gonic/gin"
@@ -39,7 +39,7 @@ func (h ImageApi) ImageRemoveView(c *gin.Context) {
 		imageIDs = append(imageIDs, item.ID)
 	}
 	if err := app.DB.Transaction(func(tx *gorm.DB) error {
-		if err := image_ref_river_service.DeleteImageRefsByImageIDs(tx, imageIDs); err != nil {
+		if err := imageref.DeleteImageRefsByImageIDs(tx, imageIDs); err != nil {
 			return err
 		}
 		return tx.Unscoped().Delete(&list).Error

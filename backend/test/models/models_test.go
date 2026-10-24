@@ -93,4 +93,3 @@ func TestInitUserDefaults(t *testing.T) {
 		t.Fatalf("InitUserDefaults 未创建 user_conf: %v", err)
 	}
 }
-

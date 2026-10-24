@@ -46,6 +46,8 @@ func migrate(t *testing.T) *gorm.DB {
 		&models.UserArticleViewHistoryModel{},
 		&models.ArticleReviewTaskModel{},
 		&models.CommentModel{},
+		// 写侧会把领域事件插进 outbox 表，缺表会让整笔事务失败。
+		&models.OutboxEventModel{},
 	); err != nil {
 		t.Fatalf("建表失败: %v", err)
 	}
@@ -378,7 +380,7 @@ func TestUoWCommitAndRollback(t *testing.T) {
 
 	db := migrate(t)
 	seedUsers(t, db)
-	uow := mysql.NewTxManager(db, redis_service.Deps{}, nil)
+	uow := mysql.NewTxManager(db, redis_service.Deps{})
 	repo := mysql.NewArticleRepo(db)
 	ctx := context.Background()
 

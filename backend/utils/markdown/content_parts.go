@@ -22,6 +22,7 @@ type partHeading struct {
 func MdToContentParts(md string) []ContentPart {
 	md = normalizeMarkdownSyntax(md)
 	source := []byte(md)
+
 	doc := rawHTMLMarkdownEngine.Parser().Parse(text.NewReader(source))
 	headings := collectPartHeadings(doc, source)
 	if len(headings) == 0 {

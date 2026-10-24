@@ -119,6 +119,13 @@ type Event struct {
 	Name string
 	// Payload 是已序列化的 JSON。
 	Payload []byte
+	// AggregateID 是事件主体的 ID（文章事件就是文章 ID）。
+	//
+	// 单独带一份而不是让消费者去解 payload：outbox 表要按它建索引，
+	// 运维排查"这篇文章的事件卡在哪一步"时可以直接查。
+	AggregateID uint64
+	// AggregateType 是聚合类型，当前只有 "article"。
+	AggregateType string
 }
 
 // Clock 是可注入时钟。domain 不取时间，时间由用例层传入。

@@ -218,6 +218,9 @@ river:
         - tag_models
         - article_tag_models
         - user_top_article_models
+        # 事务型发件箱：领域事件落在这里，由 outbox 中继订阅投递。
+        # 它不参与全量转储（river 里已排除），积压由中继的补偿扫描兜底。
+        - outbox_event_models
   rule:
     # 库表到 ES 索引的映射规则
     -

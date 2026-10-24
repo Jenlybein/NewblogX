@@ -2,47 +2,64 @@ package mysql
 
 import (
 	"context"
+	"time"
+
+	"gorm.io/gorm"
 
 	"myblogx/internal/article/app"
+	"myblogx/models"
 )
 
-// EventHandler 是领域事件的消费者。
+// outboxWriter 是 app.OutboxPort 的实现：把领域事件写进**事务内**的 outbox 表。
 //
-// 由装配层注册（例如把 article.published 接到"重建 ES 投影""发系统通知"）。
-// 放在这里而不是 app 里，是为了让 app 完全不认识下游模块。
-type EventHandler func(ctx context.Context, e app.Event) error
-
-// outbox 是 app.OutboxPort 的实现：按事件名同步分发给注册的处理器。
+// 关键点：它持有的 *gorm.DB 是 WithinTx 传下来的事务句柄，
+// 所以"业务写入"与"事件落库"在同一个事务里原子提交、一起回滚——
+// 这正是事务型发件箱（transactional outbox）要保证的性质：
 //
-// 为什么当前是同步而不是真 outbox 表 + 异步消费：
-// 改造前这些副作用（通知、评分、收藏快照同步）本来就是"要么同步、要么裸 goroutine"，
-// 同步分发能保证行为等价、golden 可测；异步 outbox 属于 S4.6 的规划，
-// 届时只需把这里换成"先落 outbox 表再投递"，app 与 handler 都不用动。
+//	事件存在 ⇔ 业务已提交
 //
-// 任一 handler 返回错误会让整个事务回滚——这正是我们要的：
-// 通知发不出去就不该留下"文章已发布"的状态。
-type Outbox struct {
-	handlers map[string][]EventHandler
+// 这里**不做分发**：投递交给 CDC 中继（internal/platform/cdc/outboxrelay）
+// 订阅 outbox 表的 binlog 异步完成；下游失败可重试、进程崩溃可恢复。
+//
+// 对比改造前（内存中同步调已注册 handler）：
+//   - 旧：进程在"提交后、分发前"崩溃就会丢事件；
+//   - 旧：下游失败只能让整个业务事务回滚，下游与业务强耦合；
+//   - 新：两者都解决，代价是下游变成最终一致（而非同事务强一致）。
+type outboxWriter struct {
+	db *gorm.DB
 }
 
-// NewOutbox 构造事件分发器。
-func NewOutbox() *Outbox { return &Outbox{handlers: make(map[string][]EventHandler)} }
+// NewOutboxWriter 构造绑定到某个事务句柄的 outbox 写入器。
+func NewOutboxWriter(db *gorm.DB) app.OutboxPort { return &outboxWriter{db: db} }
 
-// On 注册某事件名的处理器。
-func (o *Outbox) On(name string, h EventHandler) *Outbox {
-	o.handlers[name] = append(o.handlers[name], h)
-	return o
-}
-
-// Emit 分发一条事件。
-func (o *Outbox) Emit(ctx context.Context, e app.Event) error {
-	for _, h := range o.handlers[e.Name] {
-		if h == nil {
-			continue
-		}
-		if err := h(ctx, e); err != nil {
-			return err
-		}
+// Emit 把一条事件写进 outbox 表。
+//
+// db 为 nil 时静默丢弃（等价于"没有下游订阅"）：与改造前 outbox 为 nil 的
+// 行为保持一致，避免装配缺依赖时反而打断业务写操作。
+func (w *outboxWriter) Emit(ctx context.Context, e app.Event) error {
+	if w == nil || w.db == nil {
+		return nil
 	}
-	return nil
+
+	aggregateType := e.AggregateType
+	if aggregateType == "" {
+		aggregateType = "article"
+	}
+
+	// 时间戳显式写：GORM 会给零值 CreatedAt 自动填 time.Now()，
+	// 但这里统一由本函数决定，便于测试固定时间与审计。
+	now := time.Now()
+
+	row := models.OutboxEventModel{
+		EventName:     e.Name,
+		AggregateType: aggregateType,
+		AggregateID:   e.AggregateID,
+		Payload:       string(e.Payload),
+		Status:        models.OutboxStatusPending,
+		AvailableAt:   now,
+	}
+	row.CreatedAt = now
+	row.UpdatedAt = now
+
+	return w.db.WithContext(ctx).Create(&row).Error
 }

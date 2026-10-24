@@ -29,18 +29,17 @@ var errNilDB = errors.New("article/mysql: database not initialized")
 type TxManager struct {
 	db          *gorm.DB
 	counterDeps redis_service.Deps
-	outbox      *Outbox
 }
 
 // NewTxManager 构造事务管理器。
 //
-// counterDeps 允许零值（无 Redis 时计数退化为 no-op）；
-// outbox 可为 nil，此时事件被丢弃（等价于"没有下游订阅"）。
-func NewTxManager(db *gorm.DB, counterDeps redis_service.Deps, ob *Outbox) *TxManager {
-	if ob == nil {
-		ob = NewOutbox()
-	}
-	return &TxManager{db: db, counterDeps: counterDeps, outbox: ob}
+// counterDeps 允许零值（无 Redis 时计数退化为 no-op）。
+//
+// 不再接收 outbox：事件出口现在是**事务内的 outbox 表**，
+// 由 repos 用当前事务句柄现场构造（见 repos.Outbox），
+// 因此事件落库必然与业务写入同事务，不可能绕过事务。
+func NewTxManager(db *gorm.DB, counterDeps redis_service.Deps) *TxManager {
+	return &TxManager{db: db, counterDeps: counterDeps}
 }
 
 // WithinTx 在一个事务里执行 fn，并用同一个句柄构造全部仓储。
@@ -58,7 +57,6 @@ func (m *TxManager) repos(tx *gorm.DB) *repos {
 	return &repos{
 		db:      tx,
 		counter: NewCounterPort(m.counterDeps),
-		outbox:  m.outbox,
 	}
 }
 
@@ -69,7 +67,6 @@ func (m *TxManager) repos(tx *gorm.DB) *repos {
 type repos struct {
 	db      *gorm.DB
 	counter app.CounterPort
-	outbox  *Outbox
 }
 
 func (r *repos) Articles() domain.Repository             { return NewArticleRepo(r.db) }
@@ -80,8 +77,10 @@ func (r *repos) Tops() top.Repository                    { return NewTopRepo(r.d
 func (r *repos) ViewHistory() viewhistory.Repository     { return NewViewHistoryRepo(r.db) }
 func (r *repos) Reviews() review.Repository              { return NewReviewRepo(r.db) }
 func (r *repos) AuthorStats() app.AuthorStatsPort        { return &authorStats{db: r.db} }
-func (r *repos) Outbox() app.OutboxPort                  { return r.outbox }
-func (r *repos) Counters() app.CounterPort               { return r.counter }
-func (r *repos) Comments() app.CommentPort               { return &commentPort{db: r.db} }
-func (r *repos) Users() app.UserPort                     { return &userPort{db: r.db} }
-func (r *repos) Diggs() app.DiggPort                     { return &diggPort{db: r.db} }
+
+// Outbox 用当前事务句柄构造写入器：事件行写进本事务，随业务一起提交/回滚。
+func (r *repos) Outbox() app.OutboxPort    { return NewOutboxWriter(r.db) }
+func (r *repos) Counters() app.CounterPort { return r.counter }
+func (r *repos) Comments() app.CommentPort { return &commentPort{db: r.db} }
+func (r *repos) Users() app.UserPort       { return &userPort{db: r.db} }
+func (r *repos) Diggs() app.DiggPort       { return &diggPort{db: r.db} }

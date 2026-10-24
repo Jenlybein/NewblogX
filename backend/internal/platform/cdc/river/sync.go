@@ -79,6 +79,12 @@ func (h *eventHandler) OnXID(header *replication.EventHeader, nextPos mysql.Posi
 
 // OnRow 处理行事件
 func (h *eventHandler) OnRow(e *canal.RowsEvent) error {
+	// outbox（领域事件）最先判断：它与 ES 无关，
+	// 且必须命中后直接返回，否则会被当成业务数据同步进 ES。
+	if h.r.handleOutboxEvent(e) {
+		return h.r.ctx.Err()
+	}
+
 	if handled, err := h.r.handleArticleSearchProjectionEvent(e); handled {
 		if err != nil {
 			h.r.saveProjectionErrorToDLQ(e, err)

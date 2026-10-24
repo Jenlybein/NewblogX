@@ -173,6 +173,15 @@ R3/R5 为 0 说明这两条当前确实没被违反（不是规则失效——`r
 
 顺带一个佐证：旧 `test/architecture/no_global_refs_test.go` 用正则 `\bglobal\.` 扫全文，把新写的 `archcheck/rules.go` 注释里的 "global.DB" 判成了违规——它连注释和字符串分不清。该目录已删除。
 
+**另一处"门禁会撒谎"的坑（2026-10-25 修复）**：`scripts/check.sh` 把后端步骤包在
+子 shell `( ... )` 里，而 `run()` 只在子 shell **内部**置 `FAILED=1`。
+子 shell 的退出码等于**最后一条命令**的成败，于是出现"archcheck 明明红了、
+最后一条 `go test` 是绿的 → 整体打印 ✓ 全部门禁通过、退出码 0"。
+比没有门禁更危险：它让人误以为验证过了。
+
+修法：`run()` 失败时 `return 1`；每个子 shell 末尾显式 `exit "$FAILED"`。
+并用"把棘轮上限临时改成 1"验证过——现在确实 `✗ 门禁未通过` + 退出码 1。
+
 ---
 
 ## 6. 下一步的对照点
@@ -322,8 +331,11 @@ category / tags），生产代码 3,547 行。开工前复核出四处与早期�
 | S3.4/S3.8 | `adapter/mysql` 六仓储 + mapper（row 复用 models，零 DDL） | ✅ 真库契约测 8 条 |
 | S3.5/S3.6 | `adapter/http` 30 端点 + 路由开关 + 装配；HTTP 层零 SQL | ✅ e2e 通过 |
 | S3.9 | 16 个写接口埋审计 | ✅ |
-| S3.10 | golden 机制（写死种子 + 逐字节，已验证可复现） | 🟡 样本 5 条，文档要求 20×12 |
-| S3.11 | 删旧 `api/article_api` / `article_service` | ⏸ 按文档"灰度一周后"，不在 M4 内执行 |
+| S3.10 | golden 机制（写死种子 + 逐字节，已验证可复现） | ✅ 20 篇 × 12 接口、32 个基线文件、并行连跑稳定 |
+| S3.11 | 删旧 `api/article_api` / `article_service` / `repository/article_repo` | ✅ 按用户指令提前执行；棘轮 318→236 |
+| 收尾① | `MdToSafe` 并发缺陷 | ✅ 每次新建引擎（池化修不了），golden 恢复 `t.Parallel` |
+| 收尾③ | outbox 下游接回真实副作用 | ✅ 事务落表 + CDC 中继（含租约恢复/死信）；评分/通知/点赞/收藏已接回 |
+| 收尾⑤ | 子域端点 e2e | ✅ 新增 `e2e_subdomain_integration_test.go` 覆盖读写端点 |
 
 **M4 期间的两次棘轮回归（均已修复，记录以免重犯）**
 
@@ -345,14 +357,79 @@ category / tags），生产代码 3,547 行。开工前复核出四处与早期�
 - 旧链路的 `ArticleExamineView` **从未被任何路由注册**（审核实际走 `article-review-tasks/:id/review`）。
   按"不照抄死代码"处理：新链路不实现该端点。
 
-**golden 上线第一天就抓到的缺陷（尚未修，已隔离）**
+**golden 上线第一天抓到的并发缺陷（已修复）**
 
-`utils/markdown.MdToSafe` 在**并发调用**下偶发多输出一个前导换行：
-同一份输入 `"正文A"`，有时产出 `"正文A\n"`、有时 `"\n正文A\n"`。
+`utils/markdown.MdToSafe` 在并发调用下输出不稳定：同一份输入 `"正文A"`，
+有时产出 `"正文A\n"`、有时 `"\n正文A\n"`；并发压测时甚至会直接 panic。
 影响面：文章正文/摘要的落库值不稳定，进而影响 ES 投影与前端渲染。
-当前处理：golden 用例改为串行（`TestArticleGolden` 不 `t.Parallel`），
-连跑 3 次稳定通过；缺陷本身待查（怀疑 `sanitizeSafeMarkdownAST` 与共享
-`goldmark` 引擎的交互），列入 M4 收尾项。
+
+根因（注意：不是"goldmark 没做并发隔离"）：`mdrenderer.Renderer` 把渲染中间状态
+（`previousLineBlank` / `wasAtNL` / `bufs` 等）存放在渲染器**实例**上。
+构造时 `previousLineBlank` 被初始化为 `true`（源码注释即
+"document (conceptually) starts with a blank line"），
+但 `Render` 结束时不会复位、开头也不会重置——
+**复用实例必然继承上一次渲染留下的脏状态**。
+
+由此得到两个结论：
+
+1. `sync.Pool` 复用实例**修不了**这个问题——"归还再取出"只是换一个 goroutine
+   来继承脏状态，并不能清零；而这些字段在 `internal` 包里是私有的，外部也无法
+   手动重置。（实测：池化后 panic 消失，但仍有约 12% 的输出不一致。）
+2. 正确做法是**每次调用新建一份干净引擎**。
+
+修复：`MdToSafe` 改为每次调用 `newSafeEngine()`；`rawHTMLMarkdownEngine`
+（goldmark 自带 html 渲染器，每次 Render 新建上下文）经并发 + `-race` 验证
+可安全共享，保持单例。
+实测开销：新建引擎约 12µs、`MdToSafe` 整体约 22–28µs，且只在文章创建/更新
+两处写路径调用，不在读路径，代价可接受。
+
+回归：`utils/markdown/md_concurrency_test.go`（32 goroutine × 100 次 × 8 种输入，
+覆盖公式/代码块/列表/引用等分支）——修复前必失败（含 panic），修复后
+普通与 `-race` 均稳定通过；`TestArticleGolden` 已恢复 `t.Parallel()`
+并连跑 3 次全绿。
+
+#### 事务型发件箱（outbox）：把"内存同步分发"换成"落表 + CDC 中继"
+
+M4 收尾时新链路的事件出口其实是个空壳：`Emit` 在内存里同步调已注册 handler，
+而 handler 体只有一行 debug 日志，且只挂了 published/deleted 两个事件。
+若就这样上线，"评分 / 系统通知"两类副作用会整体丢失。
+
+改造后的结构分四层：
+
+1. **写侧（`internal/article/adapter/mysql/outbox.go`）**
+   `repos.Outbox()` 用**当前事务句柄**构造写入器，`Emit` 就是往
+   `outbox_event_models` 插一条 `status='pending'` 的行。
+   于是事件与业务**同事务原子提交**：`事件存在 ⇔ 业务已提交`；
+   事务回滚时事件一起消失（`TestOutboxWriterTxRollback` 守着这条）。
+
+2. **中继（`internal/platform/cdc/outboxrelay`）**
+   - 状态机 `pending → processing → done`；失败回 `failed`（带退避），
+     重试耗尽转 `dead` 并写死信；
+   - **原子领取**：靠 `UPDATE ... WHERE status IN (pending,failed) AND available_at<=now`
+     的 `RowsAffected` 判定归属，保证同一条事件只被一个 worker 处理；
+   - **租约恢复**：worker 领取后崩溃会把行卡死在 `processing`，
+     所以 `claimable` 还接受"`processing` 且 `updated_at` 超过租约"的行，
+     否则崩一次就永久丢一条事件；
+   - **两条摄入路径**：river 订阅 outbox 表 binlog INSERT（低延迟），
+     加周期性补偿扫描（兜底，river 没启用也能投递）。
+
+3. **下游订阅者（`app/outbox_wiring.go`）**
+   - 评分：`EnsureArticleScoreIfMissing`（同步版——中继本身已异步，
+     用同步版才能拿到错误去重试；且它"缺失时才生成"，天然幂等）；
+   - 通知：审核通过/拒绝对作者发系统通知；点赞/收藏通知作者。
+     **点赞/收藏这两处是 ④ 删旧代码后暴露的真实回归**：旧实现是 handler 里的
+     裸 goroutine，删掉旧代码后通知会静默消失。现已接回并加单测锁死
+     （`TestDiggToggle` / `TestFavoriteAndUnfavorite` 断言事件必须发出）。
+
+4. **不双写**：ES 投影继续由 article 表的 CDC 驱动（本来就在跑），
+   outbox 中继不碰 ES，避免同一份数据出现两条写路径。
+
+新增表 `outbox_event_models` 不违反零 DDL：该约束只禁止改/删**既有**表
+（ES 投影按列名解析 binlog）。这张表还特意**排除在全量转储之外**，
+否则 canal 启动时会把历史已完成事件按 INSERT 全量重放一遍。
+
+验证：`outboxrelay` 8 个集成用例（成功 / 幂等 / 重试耗尽进死信 / 扫描 /
+未到点跳过 / 租约恢复 / worker 消费）+ 写侧 2 个事务用例，全部打真 MySQL。
 
 **M4 过程中的一次棘轮回归与修复**：S3.1 首次提交时在 domain 里写了 27 处
 `errors.New("中文")`，archcheck 从 318 涨到 345（R8 125→152），违反"只准降不准升"。

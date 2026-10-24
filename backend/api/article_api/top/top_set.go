@@ -16,6 +16,15 @@ import (
 
 const maxUserTopArticleCount = 3
 
+// ArticleTopSetView 设置文章置顶。
+// @Summary 设置文章置顶
+// @Tags article
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Param body body top.ArticleTopSetRequest true "请求体"
+// @Success 200 {object} object{code=int,data=object{},msg=string}
+// @Router /articles/top [post]
 func (h TopApi) ArticleTopSetView(c *gin.Context) {
 	cr := middleware.GetBindJson[ArticleTopSetRequest](c)
 	claims := jwts.MustGetClaimsByGin(c)

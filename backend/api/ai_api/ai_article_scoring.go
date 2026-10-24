@@ -19,6 +19,13 @@ import (
 
 // AIArticleScoringView 读取或生成文章质量评分。
 // type=1 读取公开评分摘要；type=2 读取作者可见完整评分；type=3 重新评分并落库。
+// @Summary 读取或生成文章质量评分
+// @Tags ai
+// @Accept json
+// @Produce json
+// @Param body body AIArticleScoringRequest true "请求体"
+// @Success 200 {object} object{code=int,data=AIArticleScoringResponse,msg=string}
+// @Router /ai/scoring/article [post]
 func (h AIApi) AIArticleScoringView(c *gin.Context) {
 	cr := middleware.GetBindJson[AIArticleScoringRequest](c)
 	if cr.ArticleID == nil || *cr.ArticleID == 0 {

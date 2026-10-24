@@ -7,6 +7,13 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+// ArticleYearDataView 近十二月文章发布数据（管理员）。
+// @Summary 近十二月文章发布数据
+// @Tags data
+// @Produce json
+// @Security BearerAuth
+// @Success 200 {object} object{code=int,data=ArticleYearDataResponse,msg=string}
+// @Router /data/article-year [get]
 func (h DataApi) ArticleYearDataView(c *gin.Context) {
 	app := h.App
 	var resp ArticleYearDataResponse

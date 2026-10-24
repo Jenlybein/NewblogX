@@ -9,6 +9,15 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+// ArticleTopRemoveView 取消文章置顶。
+// @Summary 取消文章置顶
+// @Tags article
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Param body body top.ArticleTopSetRequest true "请求体"
+// @Success 200 {object} object{code=int,data=object{},msg=string}
+// @Router /articles/top [delete]
 func (h TopApi) ArticleTopRemoveView(c *gin.Context) {
 	cr := middleware.GetBindJson[ArticleTopSetRequest](c)
 	claims := jwts.MustGetClaimsByGin(c)

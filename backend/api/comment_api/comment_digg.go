@@ -15,6 +15,14 @@ import (
 	"gorm.io/gorm"
 )
 
+// CommentDiggView 点赞或取消点赞评论。
+// @Summary 评论点赞/取消点赞
+// @Tags comment
+// @Produce json
+// @Security BearerAuth
+// @Param id path int true "评论 ID"
+// @Success 200 {object} object{code=int,data=object{},msg=string}
+// @Router /comments/{id}/digg [post]
 func (h CommentApi) CommentDiggView(c *gin.Context) {
 	id := middleware.GetBindUri[models.IDRequest](c)
 	db := h.App.DB

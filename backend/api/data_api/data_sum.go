@@ -11,6 +11,13 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+// SumView 站点汇总统计（管理员）。
+// @Summary 站点汇总统计
+// @Tags data
+// @Produce json
+// @Security BearerAuth
+// @Success 200 {object} object{code=int,data=SumResponse,msg=string}
+// @Router /data/sum [get]
 func (h DataApi) SumView(c *gin.Context) {
 	app := h.App
 	var data SumResponse

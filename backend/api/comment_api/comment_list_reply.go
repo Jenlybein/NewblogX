@@ -23,6 +23,18 @@ type CommentReplyListResponse struct {
 	comment_service.ReplyCommentItem
 }
 
+// CommentReplyListView 获取一级评论下的二级评论列表。
+// @Summary 二级评论列表
+// @Tags comment
+// @Produce json
+// @Param limit query int false "每页条数"
+// @Param page query int false "页码"
+// @Param key query string false "关键词"
+// @Param order query string false "排序"
+// @Param article_id query int true "文章 ID"
+// @Param root_id query int true "一级评论 ID"
+// @Success 200 {object} object{code=int,data=object{},msg=string}
+// @Router /comments/replies [get]
 func (h CommentApi) CommentReplyListView(c *gin.Context) {
 	cr := middleware.GetBindQuery[CommentReplyListRequest](c)
 	queryService := comment_service.NewQueryService(h.App.DB, cachex.NewDeps(h.App.Redis, h.App.Logger))

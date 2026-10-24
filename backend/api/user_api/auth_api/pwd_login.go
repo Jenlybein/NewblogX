@@ -20,6 +20,14 @@ type PwdLoginRequest struct {
 	Password string `json:"password" binding:"required"`
 }
 
+// PwdLoginView 用户名密码登录。
+// @Summary 密码登录
+// @Tags user
+// @Accept json
+// @Produce json
+// @Param body body PwdLoginRequest true "请求体"
+// @Success 200 {object} object{code=int,data=string,msg=string}
+// @Router /users/login [post]
 func (h AuthApi) PwdLoginView(c *gin.Context) {
 	app := h.App
 	runtimeSite := app.RuntimeSite

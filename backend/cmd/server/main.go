@@ -26,6 +26,13 @@ func wantsVersion(args []string) bool {
 	return false
 }
 
+// @title BlogX API
+// @version 1.0
+// @description BlogX 后端 API 契约（由 swag 从代码注解生成，勿手工编辑产物）。
+// @BasePath /api
+// @securityDefinitions.apikey BearerAuth
+// @in header
+// @name Authorization
 func main() {
 	if wantsVersion(os.Args[1:]) {
 		fmt.Println(buildinfo.String())

@@ -10,6 +10,19 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+// ArticleViewHistoryView 分页查询文章浏览历史。
+// @Summary 文章浏览历史
+// @Tags article
+// @Produce json
+// @Security BearerAuth
+// @Param page query int false "页码"
+// @Param limit query int false "每页条数"
+// @Param key query string false "关键词"
+// @Param order query string false "排序"
+// @Param user_id query int false "目标用户 ID(type=2 时使用)"
+// @Param type query int true "查询类型(1:自己 2:别人)"
+// @Success 200 {object} object{code=int,data=object{list=[]view_history.ArticleViewHistoryResponse,has_more=bool},msg=string}
+// @Router /articles/history [get]
 func (h ViewHistoryApi) ArticleViewHistoryView(c *gin.Context) {
 	cr := middleware.GetBindQuery[ArticleViewHistoryRequest](c)
 	claims := jwts.GetClaimsByGin(c)

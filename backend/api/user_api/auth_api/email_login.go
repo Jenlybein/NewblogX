@@ -12,6 +12,11 @@ import (
 
 // EmailLoginView 邮箱验证码登录。
 // 这里依赖 EmailVerifyMiddleware 先完成验证码校验，并把邮箱写入上下文。
+// @Summary 邮箱验证码登录
+// @Tags user
+// @Produce json
+// @Success 200 {object} object{code=int,data=string,msg=string}
+// @Router /users/email/login [post]
 func (h AuthApi) EmailLoginView(c *gin.Context) {
 	app := h.App
 	if app.RuntimeSite == nil {

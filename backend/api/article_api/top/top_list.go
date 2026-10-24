@@ -9,6 +9,14 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+// ArticleTopListView 查询置顶文章列表。
+// @Summary 置顶文章列表
+// @Tags article
+// @Produce json
+// @Param type query int true "置顶类型(1:用户 2:管理员)"
+// @Param user_id query int false "用户 ID(type=1 时必填)"
+// @Success 200 {object} object{code=int,data=object{list=[]top_service.ArticleTopListItem,count=int},msg=string}
+// @Router /articles/top [get]
 func (h TopApi) ArticleTopListView(c *gin.Context) {
 	cr := middleware.GetBindQuery[ArticleTopListRequest](c)
 

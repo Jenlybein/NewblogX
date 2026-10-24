@@ -17,6 +17,12 @@ type ImageCaptchaResponse struct {
 	Base64    string `json:"base64"`
 }
 
+// CaptchaView 生成图片验证码并返回 base64 图片。
+// @Summary 获取图片验证码
+// @Tags captcha
+// @Produce json
+// @Success 200 {object} object{code=int,data=ImageCaptchaResponse,msg=string}
+// @Router /imagecaptcha [get]
 func (h *ImageCaptchaApi) CaptchaView(c *gin.Context) {
 	if h.App.RuntimeSite == nil || !h.App.RuntimeSite.GetRuntimeLogin().Captcha {
 		res.FailWithMsg("站点未启用验证码功能", c)

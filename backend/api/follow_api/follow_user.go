@@ -15,6 +15,13 @@ import (
 )
 
 // 当前登录用户关注其他用户
+// @Summary 关注用户
+// @Tags follow
+// @Produce json
+// @Security BearerAuth
+// @Param id path int true "被关注用户 ID"
+// @Success 200 {object} object{code=int,data=object{},msg=string}
+// @Router /follow/{id} [post]
 func (h FollowApi) FollowUserView(c *gin.Context) {
 	cr := middleware.GetBindUri[models.IDRequest](c)
 
@@ -89,6 +96,13 @@ func (h FollowApi) FollowUserView(c *gin.Context) {
 }
 
 // 当前登录用户取消关注其他用户
+// @Summary 取消关注用户
+// @Tags follow
+// @Produce json
+// @Security BearerAuth
+// @Param id path int true "被取消关注的用户 ID"
+// @Success 200 {object} object{code=int,data=object{},msg=string}
+// @Router /follow/{id} [delete]
 func (h FollowApi) UnfollowUserView(c *gin.Context) {
 	cr := middleware.GetBindUri[models.IDRequest](c)
 

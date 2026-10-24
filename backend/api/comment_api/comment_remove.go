@@ -14,6 +14,14 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+// CommentRemoveView 删除评论（管理员、评论作者或文章作者）。
+// @Summary 删除评论
+// @Tags comment
+// @Produce json
+// @Security BearerAuth
+// @Param id path int true "评论 ID"
+// @Success 200 {object} object{code=int,data=object{},msg=string}
+// @Router /comments/{id} [delete]
 func (h CommentApi) CommentRemoveView(c *gin.Context) {
 	cr := middleware.GetBindUri[models.IDRequest](c)
 	claims := jwts.MustGetClaimsByGin(c)

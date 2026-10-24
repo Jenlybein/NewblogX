@@ -13,6 +13,15 @@ import (
 	"gorm.io/gorm"
 )
 
+// ImageRemoveView 批量删除图片（管理员）。
+// @Summary 删除图片
+// @Tags image
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Param body body models.IDListRequest true "图片 ID 列表"
+// @Success 200 {object} object{code=int,data=string,msg=string}
+// @Router /images [delete]
 func (h ImageApi) ImageRemoveView(c *gin.Context) {
 	app := h.App
 	cr := middleware.GetBindJson[models.IDListRequest](c)

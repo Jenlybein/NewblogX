@@ -12,6 +12,15 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+// SitemsgReadView 按 ID 或类型标记消息为已读。
+// @Summary 标记消息已读
+// @Tags sitemsg
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Param body body SitemsgReadRequest true "请求体"
+// @Success 200 {object} object{code=int,data=object{},msg=string}
+// @Router /sitemsg [post]
 func (h *SitemsgApi) SitemsgReadView(c *gin.Context) {
 	app := h.App
 	cr := middleware.GetBindJson[SitemsgReadRequest](c)

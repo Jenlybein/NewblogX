@@ -14,6 +14,14 @@ type ResetPasswordRequest struct {
 	NewPassword string `json:"new_password" binding:"required"`
 }
 
+// ResetPwdByEmailView 通过邮箱验证码重置密码。
+// @Summary 邮箱重置密码
+// @Tags user
+// @Accept json
+// @Produce json
+// @Param body body ResetPasswordRequest true "请求体"
+// @Success 200 {object} object{code=int,data=object{},msg=string}
+// @Router /users/password/recovery/email [put]
 func (h AuthApi) ResetPwdByEmailView(c *gin.Context) {
 	app := h.App
 	cr := middleware.GetBindJson[ResetPasswordRequest](c)

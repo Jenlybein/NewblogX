@@ -10,6 +10,13 @@ import (
 	"gorm.io/gorm"
 )
 
+// BindEmailView 绑定邮箱到当前用户。
+// @Summary 绑定邮箱
+// @Tags user
+// @Produce json
+// @Security BearerAuth
+// @Success 200 {object} object{code=int,data=object{},msg=string}
+// @Router /users/email/bind [put]
 func (h AuthApi) BindEmailView(c *gin.Context) {
 	app := h.App
 	email := c.GetString("email")

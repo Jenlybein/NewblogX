@@ -33,6 +33,13 @@ type UserBaseInfoResponse struct {
 	Place               string    `json:"place"`
 }
 
+// UserBaseInfoView 返回指定用户的主页基础信息。
+// @Summary 用户基础信息
+// @Tags user
+// @Produce json
+// @Param id query int true "ID"
+// @Success 200 {object} object{code=int,data=UserBaseInfoResponse,msg=string}
+// @Router /users/base [get]
 func (h ProfileApi) UserBaseInfoView(c *gin.Context) {
 	app := h.App
 	cr := middleware.GetBindQuery[models.IDRequest](c)

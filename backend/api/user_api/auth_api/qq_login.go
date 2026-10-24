@@ -20,6 +20,14 @@ type QQLoginRequest struct {
 	Code string `json:"code" binding:"required"`
 }
 
+// QQLoginView QQ 授权码登录。
+// @Summary QQ 登录
+// @Tags user
+// @Accept json
+// @Produce json
+// @Param body body QQLoginRequest true "请求体"
+// @Success 200 {object} object{code=int,data=string,msg=string}
+// @Router /users/qq [post]
 func (h AuthApi) QQLoginView(c *gin.Context) {
 	app := h.App
 	redisDeps := redis_service.NewDeps(h.App.Redis, h.App.Logger)

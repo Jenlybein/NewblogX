@@ -9,6 +9,12 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+// RefreshTokenView 用刷新令牌换取新的访问令牌。
+// @Summary 刷新访问令牌
+// @Tags user
+// @Produce json
+// @Success 200 {object} object{code=int,data=string,msg=string}
+// @Router /users/refresh [post]
 func (h AuthApi) RefreshTokenView(c *gin.Context) {
 	deps := user_service.NewDepsWithRedis(h.App.JWT, h.App.System.Env, h.App.DB, h.App.Logger, h.App.Redis)
 	// 获取旧的刷新令牌

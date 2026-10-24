@@ -15,6 +15,15 @@ import (
 )
 
 // 创建或者编辑收藏夹（传入ID则视为创建，不传入则视为编辑）
+// FavoriteCreateUpdateView 创建或更新收藏夹。
+// @Summary 创建/更新收藏夹
+// @Tags article
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Param body body favorite.FavoriteRequest true "请求体"
+// @Success 200 {object} object{code=int,data=favorite.FavoriteCreateResponse,msg=string}
+// @Router /articles/favorite [put]
 func (h FavoriteApi) FavoriteCreateUpdateView(c *gin.Context) {
 	cr := middleware.GetBindJson[FavoriteRequest](c)
 	claims := jwts.MustGetClaimsByGin(c)

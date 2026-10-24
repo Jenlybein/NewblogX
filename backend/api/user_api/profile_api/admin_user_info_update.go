@@ -25,6 +25,15 @@ type AdminUserInfoUpdateRequest struct {
 	Status        *enum.UserStatus `json:"status"`
 }
 
+// AdminUserInfoUpdateView 管理员更新指定用户信息。
+// @Summary 管理员更新用户信息
+// @Tags user
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Param body body AdminUserInfoUpdateRequest true "请求体"
+// @Success 200 {object} object{code=int,data=object{},msg=string}
+// @Router /users/admin/info [put]
 func (h ProfileApi) AdminUserInfoUpdateView(c *gin.Context) {
 	app := h.App
 	cr := middleware.GetBindJson[AdminUserInfoUpdateRequest](c)

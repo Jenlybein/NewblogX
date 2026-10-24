@@ -13,6 +13,15 @@ import (
 	"gorm.io/gorm/clause"
 )
 
+// GlobalNotifReadView 批量标记全局通知为已读。
+// @Summary 标记全局通知已读
+// @Tags global_notif
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Param body body models.IDListRequest true "通知 ID 列表"
+// @Success 200 {object} object{code=int,data=object{},msg=string}
+// @Router /global_notif/read [post]
 func (h GlobalNotifApi) GlobalNotifReadView(c *gin.Context) {
 	cr := middleware.GetBindJson[models.IDListRequest](c)
 	claims := jwts.MustGetClaimsByGin(c)

@@ -14,6 +14,15 @@ import (
 )
 
 // 创建或者编辑分类（不传入 ID 视为创建，传入 ID 视为编辑）
+// CategoryCreateUpdateView 创建或更新分类。
+// @Summary 创建/更新分类
+// @Tags article
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Param body body category.CategoryRequest true "请求体"
+// @Success 200 {object} object{code=int,data=category.CategoryCreateResponse,msg=string}
+// @Router /articles/category [post]
 func (h CategoryApi) CategoryCreateUpdateView(c *gin.Context) {
 	cr := middleware.GetBindJson[CategoryRequest](c)
 	claims := jwts.MustGetClaimsByGin(c)

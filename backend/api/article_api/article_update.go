@@ -17,6 +17,16 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+// ArticleUpdateView 更新文章。
+// @Summary 更新文章
+// @Tags article
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Param id path int true "文章 ID"
+// @Param body body ArticleUpdateRequest true "请求体"
+// @Success 200 {object} object{code=int,data=object{},msg=string}
+// @Router /articles/{id} [put]
 func (h ArticleApi) ArticleUpdateView(c *gin.Context) {
 	id := middleware.GetBindUri[models.IDRequest](c)
 	cr := middleware.GetBindJson[ArticleUpdateRequest](c)

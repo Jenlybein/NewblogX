@@ -9,6 +9,15 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+// TagDeleteView 批量删除标签。
+// @Summary 批量删除标签
+// @Tags article
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Param body body models.IDListRequest true "标签 ID 列表"
+// @Success 200 {object} object{code=int,data=object{},msg=string}
+// @Router /articles/tags [delete]
 func (h TagsApi) TagDeleteView(c *gin.Context) {
 	cr := middleware.GetBindJson[models.IDListRequest](c)
 	if len(cr.IDList) == 0 {

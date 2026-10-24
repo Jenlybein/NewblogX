@@ -10,6 +10,12 @@ import (
 )
 
 // 获取站点基本配置信息-任何用户
+// @Summary 获取站点公开配置
+// @Tags site
+// @Produce json
+// @Param name path string true "站点信息名称：site 站点版本、seo SEO 信息"
+// @Success 200 {object} object{code=int,data=object{},msg=string}
+// @Router /site/{name} [get]
 func (h SiteApi) SiteInfoView(c *gin.Context) {
 	cr := middleware.GetBindUri[SiteInfoRequest](c)
 	runtimeSite := h.App.RuntimeSite
@@ -46,6 +52,13 @@ func (h SiteApi) SiteInfoView(c *gin.Context) {
 }
 
 // 获取站点配置信息-管理员
+// @Summary 获取站点配置（管理员）
+// @Tags site
+// @Produce json
+// @Security BearerAuth
+// @Param name path string true "配置名称：site 站点配置、ai AI 配置"
+// @Success 200 {object} object{code=int,data=object{},msg=string}
+// @Router /site/admin/{name} [get]
 func (h SiteApi) SiteInfoAdminView(c *gin.Context) {
 	cr := middleware.GetBindUri[SiteInfoRequest](c)
 	runtimeSite := h.App.RuntimeSite

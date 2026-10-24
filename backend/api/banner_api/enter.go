@@ -40,6 +40,15 @@ type BannerCreateResponse struct {
 	Show         bool     `json:"show"`
 }
 
+// BannerCreateView 创建轮播图（管理员）。
+// @Summary 创建轮播图
+// @Tags banner
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Param body body BannerCreateRequest true "创建参数"
+// @Success 200 {object} object{code=int,data=BannerCreateResponse,msg=string}
+// @Router /banners [post]
 func (h BannerApi) BannerCreateView(c *gin.Context) {
 	cr := middleware.GetBindJson[BannerCreateRequest](c)
 	coverURL, err := resolveBannerCoverURL(h.App.DB, cr.CoverImageID)
@@ -78,6 +87,17 @@ type BannerListRequest struct {
 	Show bool `form:"show"`
 }
 
+// BannerListView 轮播图列表。
+// @Summary 轮播图列表
+// @Tags banner
+// @Produce json
+// @Param limit query int false "每页条数"
+// @Param page query int false "页码"
+// @Param key query string false "关键词"
+// @Param order query string false "排序"
+// @Param show query bool false "是否展示"
+// @Success 200 {object} object{code=int,data=object{list=[]models.BannerModel,has_more=bool},msg=string}
+// @Router /banners [get]
 func (h BannerApi) BannerListView(c *gin.Context) {
 	cr := middleware.GetBindQuery[BannerListRequest](c)
 
@@ -96,6 +116,15 @@ func (h BannerApi) BannerListView(c *gin.Context) {
 	res.OkWithHasMoreList(list, hasMore, c)
 }
 
+// BannerRemoveView 批量删除轮播图（管理员）。
+// @Summary 批量删除轮播图
+// @Tags banner
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Param body body models.IDListRequest true "ID 列表"
+// @Success 200 {object} object{code=int,data=object{},msg=string}
+// @Router /banners [delete]
 func (h BannerApi) BannerRemoveView(c *gin.Context) {
 	cr := middleware.GetBindJson[models.IDListRequest](c)
 
@@ -119,6 +148,16 @@ func (h BannerApi) BannerRemoveView(c *gin.Context) {
 	})
 }
 
+// BannerUpdateView 更新轮播图（管理员）。
+// @Summary 更新轮播图
+// @Tags banner
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Param id path int true "轮播图 ID"
+// @Param body body BannerCreateRequest true "更新参数"
+// @Success 200 {object} object{code=int,data=object{},msg=string}
+// @Router /banners/{id} [put]
 func (h BannerApi) BannerUpdateView(c *gin.Context) {
 	id := middleware.GetBindUri[models.IDRequest](c)
 

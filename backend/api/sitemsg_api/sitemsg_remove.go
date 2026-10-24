@@ -11,6 +11,15 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+// SitemsgRemoveView 按 ID 或类型删除消息。
+// @Summary 删除消息
+// @Tags sitemsg
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Param body body SitemsgRemoveRequest true "请求体"
+// @Success 200 {object} object{code=int,data=object{},msg=string}
+// @Router /sitemsg [delete]
 func (h *SitemsgApi) SitemsgRemoveView(c *gin.Context) {
 	app := h.App
 	cr := middleware.GetBindJson[SitemsgRemoveRequest](c)

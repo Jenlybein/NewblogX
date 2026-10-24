@@ -15,6 +15,15 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+// ArticleCreateView 创建文章。
+// @Summary 创建文章
+// @Tags article
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Param body body ArticleCreateRequest true "请求体"
+// @Success 200 {object} object{code=int,data=ArticleCreateResponse,msg=string}
+// @Router /articles [post]
 func (h ArticleApi) ArticleCreateView(c *gin.Context) {
 	cr := middleware.GetBindJson[ArticleCreateRequest](c)
 	claims := jwts.MustGetClaimsByGin(c)

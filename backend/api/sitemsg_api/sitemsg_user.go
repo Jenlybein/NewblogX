@@ -12,6 +12,13 @@ import (
 	"gorm.io/gorm"
 )
 
+// SitemsgUserView 获取当前用户的各类未读消息数量。
+// @Summary 获取未读消息统计
+// @Tags sitemsg
+// @Produce json
+// @Security BearerAuth
+// @Success 200 {object} object{code=int,data=SitemsgUserResponse,msg=string}
+// @Router /sitemsg/user [get]
 func (h SitemsgApi) SitemsgUserView(c *gin.Context) {
 	claims := jwts.MustGetClaimsByGin(c)
 

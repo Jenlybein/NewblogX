@@ -20,6 +20,14 @@ import (
 
 // CreateUploadTaskView 创建图片直传上传任务
 // 前端调用：获取上传凭证、判断是否需要上传（秒传）
+// @Summary 创建图片上传任务
+// @Tags image
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Param body body CreateImageUploadTaskRequest true "请求体"
+// @Success 200 {object} object{code=int,data=CreateImageUploadTaskResponse,msg=string}
+// @Router /images/upload-tasks [post]
 func (h ImageApi) CreateUploadTaskView(c *gin.Context) {
 	app := h.App
 	imageDeps := image_service.NewDeps(app.QiNiu, app.Upload, app.DB, app.Redis, app.Logger)
@@ -63,6 +71,14 @@ func (h ImageApi) CreateUploadTaskView(c *gin.Context) {
 // CompleteUploadTaskView 手动完成上传任务
 // 作用：前端上传完成后，主动通知后端确认文件上传成功
 // 备注：正式环境优先使用七牛回调，此接口用于本地调试/兜底
+// @Summary 完成图片上传任务
+// @Tags image
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Param body body CompleteImageUploadTaskRequest true "请求体"
+// @Success 200 {object} object{code=int,data=CompleteImageUploadTaskResponse,msg=string}
+// @Router /images/upload-tasks/complete [post]
 func (h ImageApi) CompleteUploadTaskView(c *gin.Context) {
 	imageDeps := image_service.NewDeps(h.App.QiNiu, h.App.Upload, h.App.DB, h.App.Redis, h.App.Logger)
 	cr := middleware.GetBindJson[CompleteImageUploadTaskRequest](c)
@@ -86,6 +102,13 @@ func (h ImageApi) CompleteUploadTaskView(c *gin.Context) {
 
 // UploadTaskStatusView 查询上传任务状态
 // 前端轮询使用：实时获取任务是否完成、失败、成功
+// @Summary 查询上传任务状态
+// @Tags image
+// @Produce json
+// @Security BearerAuth
+// @Param id path int true "上传任务 ID"
+// @Success 200 {object} object{code=int,data=UploadTaskStatusResponse,msg=string}
+// @Router /images/upload-tasks/{id} [get]
 func (h ImageApi) UploadTaskStatusView(c *gin.Context) {
 	imageDeps := image_service.NewDeps(h.App.QiNiu, h.App.Upload, h.App.DB, h.App.Redis, h.App.Logger)
 	claims := jwts.MustGetClaimsByGin(c)
@@ -121,6 +144,13 @@ func (h ImageApi) UploadTaskStatusView(c *gin.Context) {
 // QiniuCallbackView 七牛云上传成功回调接口
 // 功能：七牛云文件上传完成后，自动回调该接口，后端完成任务确认
 // 配置：七牛后台填写回调地址：https://你的后端域名/api/images/qiniu/callback
+// @Summary 七牛云上传回调
+// @Tags image
+// @Accept json
+// @Produce json
+// @Param body body object true "七牛回调 JSON：key、hash、bucket、fsize"
+// @Success 200 {object} object{code=int,data=CompleteImageUploadTaskResponse,msg=string}
+// @Router /images/qiniu/callback [post]
 func (h ImageApi) QiniuCallbackView(c *gin.Context) {
 	// 记录并重置请求体（用于后续重复读取）
 	body, err := io.ReadAll(c.Request.Body)
@@ -172,6 +202,13 @@ func (h ImageApi) QiniuCallbackView(c *gin.Context) {
 
 // QiniuAuditCallbackView 七牛内容审核回调接口。
 // 七牛完成内容审核后回调该接口，服务端根据审核结论更新图片状态。
+// @Summary 七牛内容审核回调
+// @Tags image
+// @Accept json
+// @Produce json
+// @Param body body object true "七牛审核回调 JSON"
+// @Success 200 {object} object{code=int,data=object{},msg=string}
+// @Router /images/qiniu/audit/callback [post]
 func (h ImageApi) QiniuAuditCallbackView(c *gin.Context) {
 	body, err := io.ReadAll(c.Request.Body)
 	if err != nil {

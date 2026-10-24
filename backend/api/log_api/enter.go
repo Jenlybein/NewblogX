@@ -95,6 +95,33 @@ type ActionAuditListRequest struct {
 	Module          string   `form:"module"`
 }
 
+// RuntimeLogListView 运行日志列表（管理员）。
+// @Summary 运行日志列表
+// @Tags log
+// @Produce json
+// @Security BearerAuth
+// @Param limit query int false "每页条数"
+// @Param page query int false "页码"
+// @Param key query string false "关键词"
+// @Param order query string false "排序"
+// @Param start_at query string false "开始时间"
+// @Param end_at query string false "结束时间"
+// @Param service query string false "服务名"
+// @Param level query string false "日志级别"
+// @Param host query string false "主机"
+// @Param method query string false "HTTP 方法"
+// @Param path query string false "请求路径"
+// @Param user_id query int false "用户 ID"
+// @Param request_id query string false "请求 ID"
+// @Param request_id_prefix query bool false "请求 ID 前缀匹配"
+// @Param trace_id query string false "链路 ID"
+// @Param trace_id_prefix query bool false "链路 ID 前缀匹配"
+// @Param error_code query string false "错误码"
+// @Param error_message query string false "错误信息"
+// @Param event_name query string false "事件名"
+// @Param module query string false "模块"
+// @Success 200 {object} object{code=int,data=object{list=[]log_service.RuntimeLogRecord,count=int},msg=string}
+// @Router /logs/runtime [get]
 func (h *LogApi) RuntimeLogListView(c *gin.Context) {
 	cr := middleware.GetBindQuery[RuntimeLogListRequest](c)
 	list, count, err := log_service.ListRuntimeLogs(log_service.NewDeps(h.App.Log, h.App.System, h.App.ClickHouseConfig.Enabled, h.App.Logger, h.App.ClickHouse), log_service.RuntimeLogQuery{
@@ -130,6 +157,14 @@ func (h *LogApi) RuntimeLogListView(c *gin.Context) {
 	res.OkWithList(list, int(count), c)
 }
 
+// RuntimeLogDetailView 运行日志详情（管理员）。
+// @Summary 运行日志详情
+// @Tags log
+// @Produce json
+// @Security BearerAuth
+// @Param id path int true "日志 ID"
+// @Success 200 {object} object{code=int,data=log_service.RuntimeLogRecord,msg=string}
+// @Router /logs/runtime/{id} [get]
 func (h *LogApi) RuntimeLogDetailView(c *gin.Context) {
 	cr := middleware.GetBindUri[models.IDRequest](c)
 	item, err := log_service.GetRuntimeLog(log_service.NewDeps(h.App.Log, h.App.System, h.App.ClickHouseConfig.Enabled, h.App.Logger, h.App.ClickHouse), uint64(cr.ID))
@@ -144,6 +179,31 @@ func (h *LogApi) RuntimeLogDetailView(c *gin.Context) {
 	res.OkWithData(item, c)
 }
 
+// LoginLogListView 登录日志列表（管理员）。
+// @Summary 登录日志列表
+// @Tags log
+// @Produce json
+// @Security BearerAuth
+// @Param limit query int false "每页条数"
+// @Param page query int false "页码"
+// @Param start_at query string false "开始时间"
+// @Param end_at query string false "结束时间"
+// @Param user_id query int false "用户 ID"
+// @Param ip query string false "IP 地址"
+// @Param username query string false "用户名"
+// @Param login_type query string false "登录方式"
+// @Param event_name query string false "事件名（模糊匹配）"
+// @Param event_name_exact query string false "事件名（精确匹配）"
+// @Param success query bool false "是否成功"
+// @Param request_id query string false "请求 ID"
+// @Param request_id_prefix query bool false "请求 ID 前缀匹配"
+// @Param trace_id query string false "链路 ID"
+// @Param trace_id_prefix query bool false "链路 ID 前缀匹配"
+// @Param error_code query string false "错误码"
+// @Param error_message query string false "错误信息"
+// @Param module query string false "模块"
+// @Success 200 {object} object{code=int,data=object{list=[]log_service.LoginEventRecord,count=int},msg=string}
+// @Router /logs/login [get]
 func (h *LogApi) LoginLogListView(c *gin.Context) {
 	cr := middleware.GetBindQuery[LoginLogListRequest](c)
 	eventNameLike := cr.EventName
@@ -178,6 +238,14 @@ func (h *LogApi) LoginLogListView(c *gin.Context) {
 	res.OkWithList(list, int(count), c)
 }
 
+// LoginLogDetailView 登录日志详情（管理员）。
+// @Summary 登录日志详情
+// @Tags log
+// @Produce json
+// @Security BearerAuth
+// @Param id path int true "日志 ID"
+// @Success 200 {object} object{code=int,data=log_service.LoginEventRecord,msg=string}
+// @Router /logs/login/{id} [get]
 func (h *LogApi) LoginLogDetailView(c *gin.Context) {
 	cr := middleware.GetBindUri[models.IDRequest](c)
 	item, err := log_service.GetLoginEvent(log_service.NewDeps(h.App.Log, h.App.System, h.App.ClickHouseConfig.Enabled, h.App.Logger, h.App.ClickHouse), uint64(cr.ID))
@@ -192,6 +260,33 @@ func (h *LogApi) LoginLogDetailView(c *gin.Context) {
 	res.OkWithData(item, c)
 }
 
+// ActionAuditListView 操作审计日志列表（管理员）。
+// @Summary 操作审计日志列表
+// @Tags log
+// @Produce json
+// @Security BearerAuth
+// @Param limit query int false "每页条数"
+// @Param page query int false "页码"
+// @Param start_at query string false "开始时间"
+// @Param end_at query string false "结束时间"
+// @Param user_id query int false "用户 ID"
+// @Param ip query string false "IP 地址"
+// @Param action_name query string false "操作名"
+// @Param target_type query string false "目标类型"
+// @Param target_id query string false "目标 ID"
+// @Param success query bool false "是否成功"
+// @Param path query string false "请求路径"
+// @Param request_id query string false "请求 ID"
+// @Param request_id_prefix query bool false "请求 ID 前缀匹配"
+// @Param trace_id query string false "链路 ID"
+// @Param trace_id_prefix query bool false "链路 ID 前缀匹配"
+// @Param error_code query string false "错误码"
+// @Param error_message query string false "错误信息"
+// @Param event_name query string false "事件名（模糊匹配）"
+// @Param event_name_like query string false "事件名（模糊匹配，event_name 为空时生效）"
+// @Param module query string false "模块"
+// @Success 200 {object} object{code=int,data=object{list=[]log_service.ActionAuditRecord,count=int},msg=string}
+// @Router /logs/action [get]
 func (h *LogApi) ActionAuditListView(c *gin.Context) {
 	cr := middleware.GetBindQuery[ActionAuditListRequest](c)
 	eventNameLike := cr.EventName
@@ -230,6 +325,14 @@ func (h *LogApi) ActionAuditListView(c *gin.Context) {
 	res.OkWithList(list, int(count), c)
 }
 
+// ActionAuditDetailView 操作审计日志详情（管理员）。
+// @Summary 操作审计日志详情
+// @Tags log
+// @Produce json
+// @Security BearerAuth
+// @Param id path int true "日志 ID"
+// @Success 200 {object} object{code=int,data=log_service.ActionAuditRecord,msg=string}
+// @Router /logs/action/{id} [get]
 func (h *LogApi) ActionAuditDetailView(c *gin.Context) {
 	cr := middleware.GetBindUri[models.IDRequest](c)
 	item, err := log_service.GetActionAudit(log_service.NewDeps(h.App.Log, h.App.System, h.App.ClickHouseConfig.Enabled, h.App.Logger, h.App.ClickHouse), uint64(cr.ID))

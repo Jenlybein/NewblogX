@@ -12,6 +12,18 @@ import (
 
 // TODO：增加用户名搜索
 // FansListView 获取粉丝列表
+// @Summary 粉丝列表
+// @Tags follow
+// @Produce json
+// @Security BearerAuth
+// @Param limit query int false "每页条数"
+// @Param page query int false "页码"
+// @Param key query string false "关键词"
+// @Param order query string false "排序"
+// @Param user_id query int false "目标用户 ID，缺省为当前登录用户"
+// @Param fans_user_id query int false "只查与指定粉丝用户相关的记录"
+// @Success 200 {object} object{code=int,data=object{list=[]follow_service.FansListItem,has_more=bool},msg=string}
+// @Router /fans [get]
 func (h *FollowApi) FansListView(c *gin.Context) {
 	cr := middleware.GetBindQuery[FansListRequest](c)
 

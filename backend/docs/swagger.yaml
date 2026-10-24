@@ -1,0 +1,6249 @@
+basePath: /api
+definitions:
+  api_ai_api.AIArticleScoreDimension:
+    properties:
+      name:
+        type: string
+      reason:
+        type: string
+      score:
+        type: integer
+    type: object
+  api_ai_api.AIArticleScoringRequest:
+    properties:
+      article_id:
+        type: integer
+      content:
+        type: string
+      title:
+        type: string
+      type:
+        enum:
+        - 1
+        - 2
+        - 3
+        type: integer
+    required:
+    - type
+    type: object
+  api_ai_api.AIArticleScoringResponse:
+    properties:
+      ai_total_score:
+        type: integer
+      article_id:
+        type: integer
+      article_type:
+        type: string
+      created_at:
+        type: string
+      dimensions:
+        items:
+          $ref: '#/definitions/api_ai_api.AIArticleScoreDimension'
+        type: array
+      has_score:
+        type: boolean
+      main_issues:
+        items:
+          $ref: '#/definitions/myblogx_service_ai_service_ai_scoring.ArticleScoreIssue'
+        type: array
+      overall_comment:
+        type: string
+      record_id:
+        type: integer
+      score_level:
+        type: string
+      total_score:
+        type: integer
+    type: object
+  api_ai_api.AIBaseRequest:
+    properties:
+      content:
+        type: string
+    required:
+    - content
+    type: object
+  api_ai_api.AIDiagnoseRequest:
+    properties:
+      article_title:
+        maxLength: 50
+        type: string
+      prefix_text:
+        maxLength: 800
+        type: string
+      selection_text:
+        maxLength: 3500
+        type: string
+      suffix_text:
+        maxLength: 800
+        type: string
+    required:
+    - article_title
+    - selection_text
+    type: object
+  api_ai_api.AIOverwriteRequest:
+    properties:
+      article_title:
+        maxLength: 50
+        type: string
+      mode:
+        enum:
+        - polish
+        - grammar_fix
+        - style_transform
+        type: string
+      prefix_text:
+        maxLength: 800
+        type: string
+      selection_text:
+        maxLength: 3500
+        type: string
+      suffix_text:
+        maxLength: 800
+        type: string
+      target_style:
+        maxLength: 30
+        type: string
+    required:
+    - article_title
+    - mode
+    - selection_text
+    type: object
+  api_article_api.ArticleAuthorInfoResponse:
+    properties:
+      article_count:
+        type: integer
+      article_visited_count:
+        type: integer
+      author_id:
+        type: string
+      fans_count:
+        type: integer
+    type: object
+  api_article_api.ArticleCreateRequest:
+    properties:
+      abstract:
+        type: string
+      category_id:
+        type: integer
+      comments_toggle:
+        type: boolean
+      content:
+        type: string
+      cover_image_id:
+        type: integer
+      status:
+        allOf:
+        - $ref: '#/definitions/myblogx_models_enum.ArticleStatus'
+        enum:
+        - 1
+        - 2
+      tag_ids:
+        items:
+          type: integer
+        type: array
+      title:
+        type: string
+      visibility_status:
+        allOf:
+        - $ref: '#/definitions/myblogx_models_enum.ArticleVisibilityStatus'
+        enum:
+        - visible
+        - user_hidden
+    required:
+    - content
+    - status
+    - title
+    type: object
+  api_article_api.ArticleCreateResponse:
+    properties:
+      category_id:
+        type: integer
+      comments_toggle:
+        type: boolean
+      cover_image_id:
+        type: integer
+      id:
+        type: integer
+      publish_status:
+        $ref: '#/definitions/myblogx_models_enum.ArticleStatus'
+      status:
+        $ref: '#/definitions/myblogx_models_enum.ArticleStatus'
+      tag_ids:
+        items:
+          type: integer
+        type: array
+      title:
+        type: string
+      visibility_status:
+        $ref: '#/definitions/myblogx_models_enum.ArticleVisibilityStatus'
+    type: object
+  api_article_api.ArticleDetailResponse:
+    properties:
+      abstract:
+        type: string
+      author_abstract:
+        type: string
+      author_avatar:
+        type: string
+      author_avatar_image_id:
+        type: integer
+      author_created_time:
+        type: string
+      author_id:
+        type: integer
+      author_name:
+        type: string
+      author_username:
+        type: string
+      category_id:
+        type: integer
+      category_name:
+        type: string
+      comment_count:
+        type: integer
+      comments_toggle:
+        type: boolean
+      content:
+        type: string
+      cover:
+        type: string
+      cover_image_id:
+        type: integer
+      created_at:
+        type: string
+      digg_count:
+        type: integer
+      favor_count:
+        type: integer
+      id:
+        type: integer
+      is_digg:
+        type: boolean
+      is_favor:
+        type: boolean
+      publish_status:
+        $ref: '#/definitions/myblogx_models_enum.ArticleStatus'
+      status:
+        $ref: '#/definitions/myblogx_models_enum.ArticleStatus'
+      tag_ids:
+        items:
+          type: integer
+        type: array
+      tags:
+        items:
+          type: string
+        type: array
+      title:
+        type: string
+      updated_at:
+        type: string
+      view_count:
+        type: integer
+      visibility_status:
+        $ref: '#/definitions/myblogx_models_enum.ArticleVisibilityStatus'
+    type: object
+  api_article_api.ArticleFavoriteRequest:
+    properties:
+      article_id:
+        type: integer
+      favor_id:
+        type: integer
+    required:
+    - article_id
+    type: object
+  api_article_api.ArticleReviewHandleRequest:
+    properties:
+      reason:
+        type: string
+      status:
+        allOf:
+        - $ref: '#/definitions/myblogx_models_enum.ArticleStatus'
+        enum:
+        - 3
+        - 4
+    required:
+    - status
+    type: object
+  api_article_api.ArticleReviewTaskItem:
+    properties:
+      article_id:
+        type: integer
+      article_title:
+        type: string
+      author_id:
+        type: integer
+      author_name:
+        type: string
+      created_at:
+        type: string
+      id:
+        type: integer
+      publish_status:
+        $ref: '#/definitions/myblogx_models_enum.ArticleStatus'
+      reason:
+        type: string
+      reviewed_at:
+        type: string
+      reviewed_by:
+        type: integer
+      source:
+        $ref: '#/definitions/models.ArticleReviewTaskSource'
+      stage:
+        $ref: '#/definitions/models.ArticleReviewTaskStage'
+      status:
+        $ref: '#/definitions/models.ArticleReviewTaskStatus'
+    type: object
+  api_article_api.ArticleReviewTaskListResponse:
+    properties:
+      count:
+        type: integer
+      list:
+        items:
+          $ref: '#/definitions/api_article_api.ArticleReviewTaskItem'
+        type: array
+    type: object
+  api_article_api.ArticleUpdateRequest:
+    properties:
+      abstract:
+        type: string
+      category_id:
+        type: integer
+      comments_toggle:
+        type: boolean
+      content:
+        type: string
+      cover_image_id:
+        type: integer
+      status:
+        allOf:
+        - $ref: '#/definitions/myblogx_models_enum.ArticleStatus'
+        enum:
+        - 1
+        - 2
+      tag_ids:
+        items:
+          type: integer
+        type: array
+      title:
+        type: string
+      visibility_status:
+        allOf:
+        - $ref: '#/definitions/myblogx_models_enum.ArticleVisibilityStatus'
+        enum:
+        - visible
+        - user_hidden
+    type: object
+  api_article_api.ArticleViewCountRequest:
+    properties:
+      article_id:
+        type: integer
+    required:
+    - article_id
+    type: object
+  api_article_api_category.CategoryCreateResponse:
+    properties:
+      id:
+        type: integer
+      title:
+        type: string
+    type: object
+  api_article_api_category.CategoryListResponse:
+    properties:
+      article_count:
+        type: integer
+      avatar:
+        type: string
+      created_at:
+        type: string
+      deleted_at:
+        $ref: '#/definitions/gorm.DeletedAt'
+      id:
+        type: integer
+      nickname:
+        type: string
+      title:
+        type: string
+      updated_at:
+        type: string
+      user_id:
+        type: integer
+    type: object
+  api_article_api_category.CategoryRequest:
+    properties:
+      id:
+        type: integer
+      title:
+        maxLength: 20
+        minLength: 2
+        type: string
+    required:
+    - title
+    type: object
+  api_article_api_favorite.FavoriteCreateResponse:
+    properties:
+      abstract:
+        type: string
+      article_count:
+        type: integer
+      cover:
+        type: string
+      id:
+        type: integer
+      is_default:
+        type: boolean
+      title:
+        type: string
+      user_id:
+        type: integer
+    type: object
+  api_article_api_favorite.FavoriteRemovePatchModel:
+    properties:
+      articles:
+        items:
+          type: integer
+        type: array
+      favorite_id:
+        type: integer
+    required:
+    - articles
+    - favorite_id
+    type: object
+  api_article_api_favorite.FavoriteRequest:
+    properties:
+      abstract:
+        maxLength: 256
+        type: string
+      cover:
+        type: string
+      id:
+        type: integer
+      title:
+        maxLength: 32
+        minLength: 2
+        type: string
+    required:
+    - abstract
+    - title
+    type: object
+  api_article_api_tags.TagCreateResponse:
+    properties:
+      description:
+        type: string
+      id:
+        type: integer
+      is_enabled:
+        type: boolean
+      sort:
+        type: integer
+      title:
+        type: string
+    type: object
+  api_article_api_tags.TagListResponse:
+    properties:
+      article_count:
+        type: integer
+      created_at:
+        type: string
+      created_by:
+        type: integer
+      deleted_at:
+        $ref: '#/definitions/gorm.DeletedAt'
+      description:
+        type: string
+      id:
+        type: integer
+      is_enabled:
+        type: boolean
+      sort:
+        type: integer
+      title:
+        type: string
+      updated_at:
+        type: string
+    type: object
+  api_article_api_tags.TagRequest:
+    properties:
+      description:
+        maxLength: 255
+        type: string
+      id:
+        type: integer
+      is_enabled:
+        type: boolean
+      sort:
+        default: 0
+        type: integer
+      title:
+        maxLength: 64
+        minLength: 1
+        type: string
+    required:
+    - title
+    type: object
+  api_article_api_top.ArticleTopSetRequest:
+    properties:
+      article_id:
+        type: integer
+      type:
+        enum:
+        - 1
+        - 2
+        type: integer
+    required:
+    - type
+    type: object
+  api_article_api_view_history.ArticleViewHistoryResponse:
+    properties:
+      article_id:
+        type: integer
+      avatar:
+        type: string
+      cover:
+        type: string
+      nickname:
+        type: string
+      title:
+        type: string
+      updated_at:
+        type: string
+      user_id:
+        type: integer
+    type: object
+  api_banner_api.BannerCreateRequest:
+    properties:
+      cover_image_id:
+        type: integer
+      href:
+        type: string
+      show:
+        type: boolean
+    required:
+    - cover_image_id
+    type: object
+  api_banner_api.BannerCreateResponse:
+    properties:
+      cover:
+        type: string
+      cover_image_id:
+        type: integer
+      href:
+        type: string
+      id:
+        type: integer
+      show:
+        type: boolean
+    type: object
+  api_captcha_api.ImageCaptchaResponse:
+    properties:
+      base64:
+        type: string
+      captcha_id:
+        type: string
+    type: object
+  api_chat_api.ChatMsgDeleteUserRequest:
+    properties:
+      msg_id_list:
+        items:
+          type: integer
+        type: array
+    required:
+    - msg_id_list
+    type: object
+  api_chat_api.ChatMsgReadUserRequest:
+    properties:
+      msg_id_list:
+        items:
+          type: integer
+        type: array
+    required:
+    - msg_id_list
+    type: object
+  api_chat_api.ChatMsgResponse:
+    properties:
+      content:
+        type: string
+      deleted_at:
+        type: string
+      id:
+        type: integer
+      is_read:
+        type: boolean
+      is_self:
+        type: boolean
+      msg_status:
+        $ref: '#/definitions/myblogx_models_enum_chat_msg_enum.MsgStatus'
+      msg_type:
+        $ref: '#/definitions/myblogx_models_enum_chat_msg_enum.MsgType'
+      receiver_id:
+        type: integer
+      send_time:
+        type: string
+      sender_id:
+        type: integer
+      session_id:
+        type: string
+    type: object
+  api_chat_api.ChatSessionDeleteUserRequest:
+    properties:
+      session_id_list:
+        items:
+          type: string
+        type: array
+    required:
+    - session_id_list
+    type: object
+  api_comment_api.CommentCreateRequest:
+    properties:
+      article_id:
+        type: integer
+      content:
+        type: string
+      reply_id:
+        type: integer
+    required:
+    - article_id
+    - content
+    type: object
+  api_comment_api.CommentCreateResponse:
+    properties:
+      article_id:
+        type: integer
+      content:
+        type: string
+      id:
+        type: integer
+      reply_id:
+        type: integer
+      root_id:
+        type: integer
+      status:
+        $ref: '#/definitions/myblogx_models_enum.CommentStatus'
+    type: object
+  api_data_api.ArticleYearDataResponse:
+    properties:
+      date_count_list:
+        items:
+          $ref: '#/definitions/api_data_api.DateCountItem'
+        type: array
+    type: object
+  api_data_api.DateCountItem:
+    properties:
+      count:
+        type: integer
+      date:
+        type: string
+    type: object
+  api_data_api.GrowthDataResponse:
+    properties:
+      date_count_list:
+        items:
+          $ref: '#/definitions/api_data_api.DateCountItem'
+        type: array
+      growth_num:
+        type: integer
+      growth_rate:
+        type: integer
+    type: object
+  api_data_api.SumResponse:
+    properties:
+      article_count:
+        type: integer
+      comment_count:
+        type: integer
+      flow_count:
+        type: integer
+      message_count:
+        type: integer
+      new_login_count:
+        type: integer
+      new_sign_count:
+        type: integer
+      user_count:
+        type: integer
+    type: object
+  api_global_notif_api.GlobalNotifCreateRequest:
+    properties:
+      content:
+        type: string
+      expire_time:
+        type: string
+      href:
+        type: string
+      icon:
+        type: string
+      title:
+        type: string
+      user_visible_rule:
+        $ref: '#/definitions/myblogx_models_enum_global_notif_enum.Type'
+    required:
+    - content
+    - title
+    type: object
+  api_global_notif_api.GlobalNotifCreateResponse:
+    properties:
+      content:
+        type: string
+      expire_time:
+        type: string
+      href:
+        type: string
+      icon:
+        type: string
+      id:
+        type: integer
+      title:
+        type: string
+      user_visible_rule:
+        $ref: '#/definitions/myblogx_models_enum_global_notif_enum.Type'
+    type: object
+  api_global_notif_api.GlobalNotifListResponse:
+    properties:
+      content:
+        description: 通知内容
+        type: string
+      create_at:
+        type: string
+      herf:
+        description: 通知链接
+        type: string
+      icon:
+        description: 通知图标
+        type: string
+      id:
+        type: integer
+      is_read:
+        type: boolean
+      title:
+        description: 通知标题
+        type: string
+    type: object
+  api_image_api.CompleteImageUploadTaskRequest:
+    properties:
+      object_key:
+        type: string
+      upload_id:
+        type: integer
+    required:
+    - object_key
+    - upload_id
+    type: object
+  api_image_api.CompleteImageUploadTaskResponse:
+    properties:
+      error_msg:
+        type: string
+      image_id:
+        type: integer
+      status:
+        type: string
+      upload_id:
+        type: integer
+      url:
+        type: string
+    type: object
+  api_image_api.CreateImageUploadTaskRequest:
+    properties:
+      file_name:
+        maxLength: 255
+        type: string
+      hash:
+        maxLength: 64
+        type: string
+      mime_type:
+        maxLength: 128
+        type: string
+      size:
+        type: integer
+    required:
+    - file_name
+    - hash
+    - mime_type
+    - size
+    type: object
+  api_image_api.CreateImageUploadTaskResponse:
+    properties:
+      bucket:
+        type: string
+      expire_at:
+        type: string
+      hash:
+        type: string
+      image_id:
+        type: integer
+      max_size:
+        type: integer
+      object_key:
+        type: string
+      provider:
+        type: string
+      region:
+        type: string
+      skip_upload:
+        type: boolean
+      status:
+        type: string
+      upload_id:
+        type: integer
+      upload_token:
+        type: string
+      url:
+        type: string
+    type: object
+  api_image_api.UploadTaskStatusResponse:
+    properties:
+      error_msg:
+        type: string
+      hash:
+        type: string
+      image_id:
+        type: integer
+      status:
+        type: string
+      upload_id:
+        type: integer
+      url:
+        type: string
+    type: object
+  api_log_api.ChainDeadLetterRecord:
+    properties:
+      action:
+        type: string
+      cdc_job_id:
+        type: string
+      created_at:
+        type: string
+      error_code:
+        type: string
+      error_msg:
+        type: string
+      id:
+        type: integer
+      retry_count:
+        type: integer
+      source_table:
+        type: string
+      status:
+        type: string
+      stream:
+        type: string
+      target_key:
+        type: string
+      updated_at:
+        type: string
+    type: object
+  api_log_api.ChainQueryResponse:
+    properties:
+      action_logs:
+        items:
+          $ref: '#/definitions/myblogx_service_log_service.ActionAuditRecord'
+        type: array
+      cdc_logs:
+        items:
+          $ref: '#/definitions/myblogx_service_log_service.CdcEventRecord'
+        type: array
+      dlq:
+        items:
+          $ref: '#/definitions/api_log_api.ChainDeadLetterRecord'
+        type: array
+      login_logs:
+        items:
+          $ref: '#/definitions/myblogx_service_log_service.LoginEventRecord'
+        type: array
+      replay_logs:
+        items:
+          $ref: '#/definitions/myblogx_service_log_service.ReplayEventRecord'
+        type: array
+      runtime_logs:
+        items:
+          $ref: '#/definitions/myblogx_service_log_service.RuntimeLogRecord'
+        type: array
+    type: object
+  api_site_api.SiteAIResponse:
+    properties:
+      abstract:
+        type: string
+      avatar:
+        type: string
+      enable:
+        type: boolean
+      nickname:
+        type: string
+    type: object
+  api_site_api.SiteSEOResponse:
+    properties:
+      description:
+        type: string
+      icon:
+        type: string
+      keywords:
+        type: string
+      logo:
+        type: string
+      project_title:
+        type: string
+      site_title:
+        type: string
+    type: object
+  api_sitemsg_api.SitemsgReadRequest:
+    properties:
+      id:
+        type: integer
+      t:
+        description: 批量已读的类型
+        enum:
+        - 1
+        - 2
+        - 3
+        type: integer
+    type: object
+  api_sitemsg_api.SitemsgRemoveRequest:
+    properties:
+      id:
+        type: integer
+      t:
+        description: 批量已读的类型
+        enum:
+        - 1
+        - 2
+        - 3
+        type: integer
+    type: object
+  api_sitemsg_api.SitemsgUserResponse:
+    properties:
+      comment_msg_count:
+        type: integer
+      digg_favor_msg_count:
+        type: integer
+      global_msg_count:
+        type: integer
+      private_msg_count:
+        type: integer
+      system_msg_count:
+        type: integer
+    type: object
+  api_sitemsg_api.UserMsgConfResponseAndRequest:
+    properties:
+      comment_notice_enabled:
+        type: boolean
+      digg_notice_enabled:
+        type: boolean
+      favor_notice_enabled:
+        type: boolean
+      private_chat_notice_enabled:
+        type: boolean
+    type: object
+  api_user_api_auth_api.PwdLoginRequest:
+    properties:
+      password:
+        type: string
+      username:
+        description: 用户名或邮箱
+        type: string
+    required:
+    - password
+    - username
+    type: object
+  api_user_api_auth_api.QQLoginRequest:
+    properties:
+      code:
+        type: string
+    required:
+    - code
+    type: object
+  api_user_api_auth_api.RegisterEmailRequest:
+    properties:
+      pwd:
+        type: string
+    required:
+    - pwd
+    type: object
+  api_user_api_auth_api.ResetPasswordRequest:
+    properties:
+      new_password:
+        type: string
+    required:
+    - new_password
+    type: object
+  api_user_api_auth_api.SendEmailRequest:
+    properties:
+      email:
+        type: string
+      type:
+        description: 1:注册 2:重置密码 3:绑定邮箱 4:邮箱登录
+        type: integer
+    required:
+    - email
+    type: object
+  api_user_api_auth_api.SendEmailResponse:
+    properties:
+      id:
+        type: string
+    type: object
+  api_user_api_auth_api.UpdatePasswordRequest:
+    properties:
+      new_password:
+        type: string
+      old_password:
+        type: string
+    required:
+    - new_password
+    - old_password
+    type: object
+  api_user_api_auth_api.UserSessionItem:
+    properties:
+      addr:
+        type: string
+      created_at:
+        type: string
+      expires_at:
+        type: string
+      id:
+        type: integer
+      ip:
+        type: string
+      is_current:
+        type: boolean
+      last_seen_at:
+        type: string
+      ua:
+        type: string
+    type: object
+  api_user_api_profile_api.AdminUserInfoUpdateRequest:
+    properties:
+      abstract:
+        type: string
+      avatar_image_id:
+        type: integer
+      nickname:
+        type: string
+      role:
+        $ref: '#/definitions/myblogx_models_enum.RoleType'
+      status:
+        $ref: '#/definitions/myblogx_models_enum.UserStatus'
+      user_id:
+        type: integer
+      username:
+        type: string
+    required:
+    - user_id
+    type: object
+  api_user_api_profile_api.UserBaseInfoResponse:
+    properties:
+      abstract:
+        type: string
+      article_count:
+        type: integer
+      article_visited_count:
+        type: integer
+      avatar:
+        type: string
+      avatar_image_id:
+        type: integer
+      code_age:
+        type: integer
+      fans_count:
+        type: integer
+      fans_visibility:
+        type: boolean
+      favorites_visibility:
+        type: boolean
+      follow_count:
+        type: integer
+      followers_visibility:
+        type: boolean
+      home_style_id:
+        type: integer
+      id:
+        type: integer
+      nickname:
+        type: string
+      place:
+        type: string
+      relation:
+        type: integer
+      view_count:
+        type: integer
+    type: object
+  api_user_api_profile_api.UserDetailResponse:
+    properties:
+      abstract:
+        type: string
+      avatar:
+        type: string
+      avatar_image_id:
+        type: integer
+      code_age:
+        type: integer
+      comment_notice_enabled:
+        type: boolean
+      created_at:
+        type: string
+      digg_notice_enabled:
+        type: boolean
+      email:
+        type: string
+      fans_visibility:
+        type: boolean
+      favor_notice_enabled:
+        type: boolean
+      favorites_visibility:
+        type: boolean
+      followers_visibility:
+        type: boolean
+      has_password:
+        type: boolean
+      home_style_id:
+        type: integer
+      id:
+        type: integer
+      like_tag_ids:
+        items:
+          type: integer
+        type: array
+      like_tag_items:
+        items:
+          $ref: '#/definitions/api_user_api_profile_api.UserLikeTagItem'
+        type: array
+      nickname:
+        type: string
+      private_chat_notice_enabled:
+        type: boolean
+      register_source:
+        $ref: '#/definitions/myblogx_models_enum.RegisterSourceType'
+      stranger_msg_enabled:
+        type: boolean
+      updated_username_date:
+        type: string
+      username:
+        type: string
+    type: object
+  api_user_api_profile_api.UserInfoUpdateRequest:
+    properties:
+      abstract:
+        type: string
+      avatar_image_id:
+        type: integer
+      fans_visibility:
+        type: boolean
+      favorites_visibility:
+        type: boolean
+      followers_visibility:
+        type: boolean
+      home_style_id:
+        type: integer
+      like_tag_ids:
+        items:
+          type: integer
+        type: array
+      nickname:
+        type: string
+      username:
+        type: string
+    type: object
+  api_user_api_profile_api.UserLikeTagItem:
+    properties:
+      id:
+        type: integer
+      title:
+        type: string
+    type: object
+  api_user_api_user_man_api.AdminUserCreateRequest:
+    properties:
+      email:
+        maxLength: 256
+        type: string
+      nickname:
+        maxLength: 32
+        minLength: 2
+        type: string
+      password:
+        maxLength: 72
+        minLength: 6
+        type: string
+      username:
+        maxLength: 32
+        minLength: 2
+        type: string
+    required:
+    - password
+    - username
+    type: object
+  api_user_api_user_man_api.AdminUserCreateResponse:
+    properties:
+      email:
+        type: string
+      id:
+        type: integer
+      nickname:
+        type: string
+      register_source:
+        $ref: '#/definitions/myblogx_models_enum.RegisterSourceType'
+      role:
+        $ref: '#/definitions/myblogx_models_enum.RoleType'
+      status:
+        $ref: '#/definitions/myblogx_models_enum.UserStatus'
+      username:
+        type: string
+    type: object
+  api_user_api_user_man_api.UserListResponse:
+    properties:
+      addr:
+        type: string
+      avatar:
+        type: string
+      created_at:
+        description: 注册时间
+        type: string
+      id:
+        type: integer
+      ip:
+        description: |-
+          ArticleCount int       `json:"article_count"`
+          FansCount    int       `json:"fans_count"`
+          FollowCount  int       `json:"follow_count"`
+        type: string
+      last_login_at:
+        description: 最后登录时间
+        type: string
+      nickname:
+        type: string
+      username:
+        type: string
+    type: object
+  gorm.DeletedAt:
+    properties:
+      time:
+        type: string
+      valid:
+        description: Valid is true if Time is not NULL
+        type: boolean
+    type: object
+  models.ArticleMessageModel:
+    properties:
+      action_user_avatar:
+        type: string
+      action_user_id:
+        type: integer
+      action_user_nickname:
+        type: string
+      article_id:
+        description: 记录触发的业务对象
+        type: integer
+      article_title:
+        type: string
+      comment_id:
+        type: integer
+      content:
+        type: string
+      created_at:
+        type: string
+      deleted_at:
+        $ref: '#/definitions/gorm.DeletedAt'
+      id:
+        type: integer
+      is_read:
+        description: 是否已读
+        type: boolean
+      link_herf:
+        type: string
+      link_title:
+        description: 额外提示的链接
+        type: string
+      read_at:
+        type: string
+      receiver_id:
+        type: integer
+      type:
+        $ref: '#/definitions/myblogx_models_enum_message_enum.Type'
+      updated_at:
+        type: string
+    type: object
+  models.ArticleReviewTaskSource:
+    enum:
+    - create
+    - edit
+    - resubmit
+    type: string
+    x-enum-varnames:
+    - ArticleReviewTaskSourceCreate
+    - ArticleReviewTaskSourceEdit
+    - ArticleReviewTaskSourceResubmit
+  models.ArticleReviewTaskStage:
+    enum:
+    - manual
+    type: string
+    x-enum-varnames:
+    - ArticleReviewTaskStageManual
+  models.ArticleReviewTaskStatus:
+    enum:
+    - pending
+    - approved
+    - rejected
+    - canceled
+    type: string
+    x-enum-varnames:
+    - ArticleReviewTaskPending
+    - ArticleReviewTaskApproved
+    - ArticleReviewTaskRejected
+    - ArticleReviewTaskCanceled
+  models.BannerModel:
+    properties:
+      cover:
+        description: 封面图片链接
+        type: string
+      cover_image_id:
+        description: 封面图片 ID，用于前端编辑回填
+        type: integer
+      created_at:
+        type: string
+      deleted_at:
+        $ref: '#/definitions/gorm.DeletedAt'
+      href:
+        description: 跳转链接
+        type: string
+      id:
+        type: integer
+      show:
+        description: 是否显示
+        type: boolean
+      updated_at:
+        type: string
+    type: object
+  models.IDListRequest:
+    properties:
+      id_list:
+        items:
+          type: integer
+        type: array
+    required:
+    - id_list
+    type: object
+  models.ImageModel:
+    properties:
+      bucket:
+        type: string
+      created_at:
+        type: string
+      deleted_at:
+        $ref: '#/definitions/gorm.DeletedAt'
+      file_name:
+        type: string
+      hash:
+        type: string
+      height:
+        type: integer
+      id:
+        type: integer
+      mime_type:
+        type: string
+      object_key:
+        type: string
+      provider:
+        $ref: '#/definitions/myblogx_models_enum.ImageProvider'
+      size:
+        type: integer
+      status:
+        $ref: '#/definitions/myblogx_models_enum.ImageStatus'
+      updated_at:
+        type: string
+      url:
+        type: string
+      user_id:
+        type: integer
+      width:
+        type: integer
+    type: object
+  myblogx_models_enum.ArticleStatus:
+    enum:
+    - 1
+    - 2
+    - 3
+    - 4
+    format: int32
+    type: integer
+    x-enum-comments:
+      ArticleStatusDraft: 草稿
+      ArticleStatusExamining: 审核中
+      ArticleStatusPublished: 已发布
+      ArticleStatusRejected: 已拒绝
+    x-enum-descriptions:
+    - 草稿
+    - 审核中
+    - 已发布
+    - 已拒绝
+    x-enum-varnames:
+    - ArticleStatusDraft
+    - ArticleStatusExamining
+    - ArticleStatusPublished
+    - ArticleStatusRejected
+  myblogx_models_enum.ArticleVisibilityStatus:
+    enum:
+    - visible
+    - user_hidden
+    - admin_hidden
+    type: string
+    x-enum-varnames:
+    - ArticleVisibilityVisible
+    - ArticleVisibilityUserHidden
+    - ArticleVisibilityAdminHidden
+  myblogx_models_enum.CommentStatus:
+    enum:
+    - 1
+    - 2
+    - 3
+    format: int32
+    type: integer
+    x-enum-varnames:
+    - CommentStatusExamining
+    - CommentStatusPublished
+    - CommentStatusDeleted
+  myblogx_models_enum.ImageProvider:
+    enum:
+    - qiniu
+    type: string
+    x-enum-varnames:
+    - ImageProviderQiNiu
+  myblogx_models_enum.ImageStatus:
+    enum:
+    - 0
+    - 1
+    - 2
+    - 3
+    - 4
+    - 5
+    type: integer
+    x-enum-varnames:
+    - ImageStatusUnknown
+    - ImageStatusPass
+    - ImageStatusDeleted
+    - ImageStatusOrphaned
+    - ImageStatusReviewing
+    - ImageStatusBlocked
+  myblogx_models_enum.RegisterSourceType:
+    enum:
+    - 1
+    - 2
+    - 3
+    - 4
+    format: int32
+    type: integer
+    x-enum-comments:
+      RegisterAdminSourceType: 管理员创建
+      RegisterEmailSourceType: 邮箱注册
+      RegisterQQSourceType: qq 登录
+      RegisterTerminalSourceType: 终端注册
+    x-enum-descriptions:
+    - 邮箱注册
+    - qq 登录
+    - 终端注册
+    - 管理员创建
+    x-enum-varnames:
+    - RegisterEmailSourceType
+    - RegisterQQSourceType
+    - RegisterTerminalSourceType
+    - RegisterAdminSourceType
+  myblogx_models_enum.RoleType:
+    enum:
+    - 1
+    - 2
+    - 3
+    format: int32
+    type: integer
+    x-enum-comments:
+      RoleAdmin: 管理员
+      RoleGuest: 访客
+      RoleUser: 普通用户
+    x-enum-descriptions:
+    - 管理员
+    - 普通用户
+    - 访客
+    x-enum-varnames:
+    - RoleAdmin
+    - RoleUser
+    - RoleGuest
+  myblogx_models_enum.UserStatus:
+    enum:
+    - 1
+    - 2
+    - 3
+    format: int32
+    type: integer
+    x-enum-comments:
+      UserStatusActive: 正常
+      UserStatusBanned: 封禁
+      UserStatusDisabled: 禁用
+    x-enum-descriptions:
+    - 正常
+    - 禁用
+    - 封禁
+    x-enum-varnames:
+    - UserStatusActive
+    - UserStatusDisabled
+    - UserStatusBanned
+  myblogx_models_enum_chat_msg_enum.MsgStatus:
+    enum:
+    - 1
+    - 2
+    - 3
+    - 4
+    - 5
+    format: int32
+    type: integer
+    x-enum-varnames:
+    - MsgStatusSend
+    - MsgStatusDelivered
+    - MsgStatusRead
+    - MsgStatusRecall
+    - MsgStatusDelete
+  myblogx_models_enum_chat_msg_enum.MsgType:
+    enum:
+    - 1
+    - 2
+    - 3
+    - 4
+    - 5
+    - 6
+    - 7
+    - 8
+    format: int32
+    type: integer
+    x-enum-varnames:
+    - MsgTypeText
+    - MsgTypeImage
+    - MsgTypeAudio
+    - MsgTypeVideo
+    - MsgTypeFile
+    - MsgTypeEmoji
+    - MsgTypeMarkdown
+    - MsgTypeRead
+  myblogx_models_enum_global_notif_enum.Type:
+    enum:
+    - 1
+    - 2
+    - 3
+    format: int32
+    type: integer
+    x-enum-varnames:
+    - UserVisibleRegisteredUsers
+    - UserVisibleNewUsers
+    - UserVisibleAllUsers
+  myblogx_models_enum_message_enum.Type:
+    enum:
+    - 1
+    - 2
+    - 3
+    - 4
+    - 5
+    - 6
+    - 7
+    - 8
+    - 9
+    format: int32
+    type: integer
+    x-enum-varnames:
+    - CommentArticleType
+    - CommentReplyType
+    - DiggArticleType
+    - UnDiggArticleType
+    - DiggCommentType
+    - UnDiggCommentType
+    - FavorArticleType
+    - UnFavorArticleType
+    - SystemType
+  myblogx_service_ai_service_ai_metainfo.MetainfoResponse:
+    properties:
+      abstract:
+        type: string
+      category:
+        $ref: '#/definitions/myblogx_service_ai_service_ai_metainfo.Metainfos'
+      tags:
+        items:
+          $ref: '#/definitions/myblogx_service_ai_service_ai_metainfo.Metainfos'
+        type: array
+      title:
+        type: string
+    type: object
+  myblogx_service_ai_service_ai_metainfo.Metainfos:
+    properties:
+      id:
+        type: integer
+      title:
+        type: string
+    type: object
+  myblogx_service_ai_service_ai_scoring.ArticleScoreIssue:
+    properties:
+      positions:
+        items:
+          $ref: '#/definitions/myblogx_service_ai_service_ai_scoring.ArticleScorePosition'
+        type: array
+      reason:
+        type: string
+      suggestion:
+        type: string
+    type: object
+  myblogx_service_ai_service_ai_scoring.ArticleScorePosition:
+    properties:
+      paragraph:
+        type: integer
+      quote:
+        type: string
+    type: object
+  myblogx_service_chat_service.SessionListItem:
+    properties:
+      deleted_at:
+        type: string
+      is_mute:
+        type: boolean
+      is_top:
+        type: boolean
+      last_msg_content:
+        type: string
+      last_msg_time:
+        type: string
+      receiver_avatar:
+        type: string
+      receiver_id:
+        type: integer
+      receiver_nickname:
+        type: string
+      relation:
+        type: integer
+      session_id:
+        type: string
+      unread_count:
+        type: integer
+    type: object
+  myblogx_service_comment_service.ManageCommentItem:
+    properties:
+      article_cover:
+        type: string
+      article_id:
+        type: integer
+      article_title:
+        type: string
+      content:
+        type: string
+      created_at:
+        type: string
+      digg_count:
+        type: integer
+      id:
+        type: integer
+      relation:
+        type: integer
+      reply_count:
+        type: integer
+      user_avatar:
+        type: string
+      user_id:
+        type: integer
+      user_nickname:
+        type: string
+    type: object
+  myblogx_service_favorite_service.FavoriteArticleItem:
+    properties:
+      abstract:
+        type: string
+      article_id:
+        type: integer
+      article_status:
+        $ref: '#/definitions/myblogx_models_enum.ArticleStatus'
+      comment_count:
+        type: integer
+      cover:
+        type: string
+      digg_count:
+        type: integer
+      favor_count:
+        type: integer
+      favorited_at:
+        type: string
+      title:
+        type: string
+      user_avatar:
+        type: string
+      user_nickname:
+        type: string
+      view_count:
+        type: integer
+    type: object
+  myblogx_service_favorite_service.FavoriteListItem:
+    properties:
+      abstract:
+        type: string
+      article_count:
+        type: integer
+      avatar:
+        type: string
+      cover:
+        type: string
+      created_at:
+        type: string
+      has_article:
+        type: boolean
+      id:
+        type: integer
+      is_default:
+        type: boolean
+      nickname:
+        type: string
+      title:
+        type: string
+      updated_at:
+        type: string
+      user_id:
+        type: integer
+    type: object
+  myblogx_service_follow_service.FansListItem:
+    properties:
+      fans_abstract:
+        type: string
+      fans_avatar:
+        type: string
+      fans_nickname:
+        type: string
+      fans_user_id:
+        type: integer
+      follow_time:
+        type: string
+      relation:
+        type: integer
+    type: object
+  myblogx_service_follow_service.FollowListItem:
+    properties:
+      follow_time:
+        type: string
+      followed_abstract:
+        type: string
+      followed_avatar:
+        type: string
+      followed_nickname:
+        type: string
+      followed_user_id:
+        type: integer
+      relation:
+        type: integer
+    type: object
+  myblogx_service_log_service.ActionAuditRecord:
+    properties:
+      action_name:
+        type: string
+      env:
+        type: string
+      error_code:
+        type: string
+      error_message:
+        type: string
+      event_id:
+        type: integer
+      extra_json:
+        type: string
+      host:
+        type: string
+      instance_id:
+        type: string
+      ip:
+        type: string
+      level:
+        type: string
+      message:
+        type: string
+      method:
+        type: string
+      path:
+        type: string
+      request_body:
+        type: string
+      request_id:
+        type: string
+      response_body:
+        type: string
+      service:
+        type: string
+      status_code:
+        type: integer
+      success:
+        type: integer
+      target_id:
+        type: string
+      target_type:
+        type: string
+      trace_id:
+        type: string
+      ts:
+        type: string
+      user_id:
+        type: integer
+    type: object
+  myblogx_service_log_service.CdcEventRecord:
+    properties:
+      action:
+        type: string
+      cdc_job_id:
+        type: string
+      env:
+        type: string
+      error_code:
+        type: string
+      error_message:
+        type: string
+      event_id:
+        type: integer
+      event_name:
+        type: string
+      extra_json:
+        type: string
+      host:
+        type: string
+      instance_id:
+        type: string
+      level:
+        type: string
+      message:
+        type: string
+      request_id:
+        type: string
+      result:
+        type: string
+      retry_count:
+        type: integer
+      service:
+        type: string
+      source_table:
+        type: string
+      stream:
+        type: string
+      target_key:
+        type: string
+      trace_id:
+        type: string
+      ts:
+        type: string
+    type: object
+  myblogx_service_log_service.LoginEventRecord:
+    properties:
+      addr:
+        type: string
+      env:
+        type: string
+      error_code:
+        type: string
+      error_message:
+        type: string
+      event_id:
+        type: integer
+      event_name:
+        type: string
+      extra_json:
+        type: string
+      host:
+        type: string
+      instance_id:
+        type: string
+      ip:
+        type: string
+      level:
+        type: string
+      login_type:
+        type: string
+      message:
+        type: string
+      reason:
+        type: string
+      request_id:
+        type: string
+      service:
+        type: string
+      success:
+        type: integer
+      trace_id:
+        type: string
+      ts:
+        type: string
+      ua:
+        type: string
+      user_id:
+        type: integer
+      username:
+        type: string
+    type: object
+  myblogx_service_log_service.ReplayEventRecord:
+    properties:
+      action:
+        type: string
+      cdc_job_id:
+        type: string
+      env:
+        type: string
+      error_code:
+        type: string
+      error_message:
+        type: string
+      event_id:
+        type: integer
+      event_name:
+        type: string
+      extra_json:
+        type: string
+      host:
+        type: string
+      instance_id:
+        type: string
+      level:
+        type: string
+      message:
+        type: string
+      request_id:
+        type: string
+      result:
+        type: string
+      retry_count:
+        type: integer
+      service:
+        type: string
+      source_table:
+        type: string
+      stream:
+        type: string
+      target_key:
+        type: string
+      trace_id:
+        type: string
+      ts:
+        type: string
+    type: object
+  myblogx_service_log_service.RuntimeLogRecord:
+    properties:
+      env:
+        type: string
+      error_code:
+        type: string
+      error_message:
+        type: string
+      error_stack:
+        type: string
+      error_type:
+        type: string
+      event_id:
+        type: integer
+      event_name:
+        type: string
+      extra_json:
+        type: string
+      file:
+        type: string
+      func:
+        type: string
+      host:
+        type: string
+      instance_id:
+        type: string
+      ip:
+        type: string
+      latency_ms:
+        type: integer
+      level:
+        type: string
+      message:
+        type: string
+      method:
+        type: string
+      path:
+        type: string
+      request_id:
+        type: string
+      service:
+        type: string
+      status_code:
+        type: integer
+      trace_id:
+        type: string
+      ts:
+        type: string
+      user_id:
+        type: integer
+    type: object
+  myblogx_service_search_service.ArticleSearchResponse:
+    properties:
+      list:
+        items:
+          $ref: '#/definitions/myblogx_service_search_service.SearchListResponse'
+        type: array
+      pagination:
+        $ref: '#/definitions/myblogx_service_search_service.SearchPagination'
+    type: object
+  myblogx_service_search_service.PageMode:
+    enum:
+    - has_more
+    - count
+    type: string
+    x-enum-varnames:
+    - PageModeHasMore
+    - PageModeCount
+  myblogx_service_search_service.SearchAuthor:
+    properties:
+      avatar:
+        type: string
+      id:
+        type: integer
+      nickname:
+        type: string
+    type: object
+  myblogx_service_search_service.SearchCategory:
+    properties:
+      id:
+        type: integer
+      title:
+        type: string
+    type: object
+  myblogx_service_search_service.SearchHighlight:
+    properties:
+      abstract:
+        type: string
+      title:
+        type: string
+    type: object
+  myblogx_service_search_service.SearchListResponse:
+    properties:
+      abstract:
+        type: string
+      author:
+        $ref: '#/definitions/myblogx_service_search_service.SearchAuthor'
+      category:
+        $ref: '#/definitions/myblogx_service_search_service.SearchCategory'
+      comment_count:
+        type: integer
+      comments_toggle:
+        type: boolean
+      cover:
+        type: string
+      created_at:
+        type: string
+      digg_count:
+        type: integer
+      favor_count:
+        type: integer
+      highlight:
+        $ref: '#/definitions/myblogx_service_search_service.SearchHighlight'
+      id:
+        type: integer
+      publish_status:
+        $ref: '#/definitions/myblogx_models_enum.ArticleStatus'
+      score:
+        type: number
+      tags:
+        items:
+          $ref: '#/definitions/myblogx_service_search_service.SearchTag'
+        type: array
+      title:
+        type: string
+      top:
+        $ref: '#/definitions/myblogx_service_search_service.SearchTop'
+      updated_at:
+        type: string
+      view_count:
+        type: integer
+      visibility_status:
+        $ref: '#/definitions/myblogx_models_enum.ArticleVisibilityStatus'
+    type: object
+  myblogx_service_search_service.SearchPagination:
+    properties:
+      has_more:
+        type: boolean
+      limit:
+        type: integer
+      mode:
+        $ref: '#/definitions/myblogx_service_search_service.PageMode'
+      page:
+        type: integer
+      total:
+        type: integer
+      total_pages:
+        type: integer
+    type: object
+  myblogx_service_search_service.SearchTag:
+    properties:
+      id:
+        type: integer
+      title:
+        type: string
+    type: object
+  myblogx_service_search_service.SearchTop:
+    properties:
+      admin:
+        type: boolean
+      user:
+        type: boolean
+    type: object
+  myblogx_service_top_service.ArticleTopListItem:
+    properties:
+      abstract:
+        type: string
+      admin_top:
+        type: boolean
+      category_title:
+        type: string
+      comment_count:
+        type: integer
+      comments_toggle:
+        type: boolean
+      cover:
+        type: string
+      created_at:
+        type: string
+      digg_count:
+        type: integer
+      favor_count:
+        type: integer
+      id:
+        type: integer
+      status:
+        $ref: '#/definitions/myblogx_models_enum.ArticleStatus'
+      tags:
+        items:
+          type: string
+        type: array
+      title:
+        type: string
+      updated_at:
+        type: string
+      user_avatar:
+        type: string
+      user_nickname:
+        type: string
+      user_top:
+        type: boolean
+      view_count:
+        type: integer
+    type: object
+info:
+  contact: {}
+  description: BlogX 后端 API 契约（由 swag 从代码注解生成，勿手工编辑产物）。
+  title: BlogX API
+  version: "1.0"
+paths:
+  /ai/diagnose:
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: 请求体
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/api_ai_api.AIDiagnoseRequest'
+      produces:
+      - text/event-stream
+      responses:
+        "200":
+          description: SSE 流
+          schema:
+            type: string
+      security:
+      - BearerAuth: []
+      summary: AI 文本诊断（SSE 流式）
+      tags:
+      - ai
+  /ai/metainfo:
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: 请求体
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/api_ai_api.AIBaseRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            properties:
+              code:
+                type: integer
+              data:
+                $ref: '#/definitions/myblogx_service_ai_service_ai_metainfo.MetainfoResponse'
+              msg:
+                type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: 生成文章元信息
+      tags:
+      - ai
+  /ai/overwrite:
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: 请求体
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/api_ai_api.AIOverwriteRequest'
+      produces:
+      - text/event-stream
+      responses:
+        "200":
+          description: SSE 流
+          schema:
+            type: string
+      security:
+      - BearerAuth: []
+      summary: AI 文本改写（SSE 流式）
+      tags:
+      - ai
+  /ai/scoring/article:
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: 请求体
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/api_ai_api.AIArticleScoringRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            properties:
+              code:
+                type: integer
+              data:
+                $ref: '#/definitions/api_ai_api.AIArticleScoringResponse'
+              msg:
+                type: string
+            type: object
+      summary: 读取或生成文章质量评分
+      tags:
+      - ai
+  /ai/search/list:
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: 请求体
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/api_ai_api.AIBaseRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            properties:
+              code:
+                type: integer
+              data:
+                $ref: '#/definitions/myblogx_service_search_service.ArticleSearchResponse'
+              msg:
+                type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: AI 文章搜索（列表）
+      tags:
+      - ai
+  /ai/search/llm:
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: 请求体
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/api_ai_api.AIBaseRequest'
+      produces:
+      - text/event-stream
+      responses:
+        "200":
+          description: SSE 流
+          schema:
+            type: string
+      security:
+      - BearerAuth: []
+      summary: AI 文章搜索（LLM 流式回答）
+      tags:
+      - ai
+  /article-review:
+    get:
+      parameters:
+      - description: 页码
+        in: query
+        name: page
+        type: integer
+      - description: 每页条数
+        in: query
+        name: limit
+        type: integer
+      - description: 审核状态(pending/approved/rejected/canceled)
+        in: query
+        name: status
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            properties:
+              code:
+                type: integer
+              data:
+                $ref: '#/definitions/api_article_api.ArticleReviewTaskListResponse'
+              msg:
+                type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: 审核任务列表
+      tags:
+      - article
+  /article-review-tasks/{id}/review:
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: 审核任务 ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: 请求体
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/api_article_api.ArticleReviewHandleRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            properties:
+              code:
+                type: integer
+              data:
+                type: object
+              msg:
+                type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: 处理审核任务
+      tags:
+      - article
+  /articles:
+    delete:
+      consumes:
+      - application/json
+      parameters:
+      - description: ID 列表
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/models.IDListRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            properties:
+              code:
+                type: integer
+              data:
+                type: object
+              msg:
+                type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: 批量删除文章
+      tags:
+      - article
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: 请求体
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/api_article_api.ArticleCreateRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            properties:
+              code:
+                type: integer
+              data:
+                $ref: '#/definitions/api_article_api.ArticleCreateResponse'
+              msg:
+                type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: 创建文章
+      tags:
+      - article
+  /articles/{id}:
+    delete:
+      parameters:
+      - description: 文章 ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            properties:
+              code:
+                type: integer
+              data:
+                type: object
+              msg:
+                type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: 删除自己的文章
+      tags:
+      - article
+    get:
+      parameters:
+      - description: 文章 ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            properties:
+              code:
+                type: integer
+              data:
+                $ref: '#/definitions/api_article_api.ArticleDetailResponse'
+              msg:
+                type: string
+            type: object
+      summary: 文章详情
+      tags:
+      - article
+    put:
+      consumes:
+      - application/json
+      parameters:
+      - description: 文章 ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: 请求体
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/api_article_api.ArticleUpdateRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            properties:
+              code:
+                type: integer
+              data:
+                type: object
+              msg:
+                type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: 更新文章
+      tags:
+      - article
+  /articles/{id}/admin/{visibility}:
+    post:
+      parameters:
+      - description: 文章 ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: 可见性(hide/show)
+        in: path
+        name: visibility
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            properties:
+              code:
+                type: integer
+              data:
+                type: object
+              msg:
+                type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: 设置文章可见性
+      tags:
+      - article
+  /articles/{id}/digg:
+    put:
+      parameters:
+      - description: 文章 ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            properties:
+              code:
+                type: integer
+              data:
+                type: object
+              msg:
+                type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: 文章点赞/取消点赞
+      tags:
+      - article
+  /articles/author_info:
+    get:
+      parameters:
+      - description: 作者 ID
+        in: query
+        name: author_id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            properties:
+              code:
+                type: integer
+              data:
+                $ref: '#/definitions/api_article_api.ArticleAuthorInfoResponse'
+              msg:
+                type: string
+            type: object
+      summary: 查询作者信息
+      tags:
+      - article
+  /articles/category:
+    delete:
+      consumes:
+      - application/json
+      parameters:
+      - description: 分类 ID 列表
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/models.IDListRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            properties:
+              code:
+                type: integer
+              data:
+                type: object
+              msg:
+                type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: 批量删除分类
+      tags:
+      - article
+    get:
+      parameters:
+      - description: 页码
+        in: query
+        name: page
+        type: integer
+      - description: 每页条数
+        in: query
+        name: limit
+        type: integer
+      - description: 关键词
+        in: query
+        name: key
+        type: string
+      - description: 排序
+        in: query
+        name: order
+        type: string
+      - description: 目标用户 ID
+        in: query
+        name: user_id
+        type: integer
+      - description: 查询类型(1:自己 2:别人 3:管理员)
+        in: query
+        name: type
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            properties:
+              code:
+                type: integer
+              data:
+                properties:
+                  count:
+                    type: integer
+                  list:
+                    items:
+                      $ref: '#/definitions/api_article_api_category.CategoryListResponse'
+                    type: array
+                type: object
+              msg:
+                type: string
+            type: object
+      summary: 分类列表
+      tags:
+      - article
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: 请求体
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/api_article_api_category.CategoryRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            properties:
+              code:
+                type: integer
+              data:
+                $ref: '#/definitions/api_article_api_category.CategoryCreateResponse'
+              msg:
+                type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: 创建/更新分类
+      tags:
+      - article
+  /articles/category/options:
+    get:
+      parameters:
+      - description: 用户 ID
+        in: query
+        name: user_id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            properties:
+              code:
+                type: integer
+              data:
+                items:
+                  properties:
+                    id:
+                      type: integer
+                    label:
+                      type: string
+                    title:
+                      type: string
+                    value:
+                      type: integer
+                  type: object
+                type: array
+              msg:
+                type: string
+            type: object
+      summary: 分类选项
+      tags:
+      - article
+  /articles/favorite:
+    delete:
+      consumes:
+      - application/json
+      parameters:
+      - description: 收藏夹 ID 列表
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/models.IDListRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            properties:
+              code:
+                type: integer
+              data:
+                type: object
+              msg:
+                type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: 批量删除收藏夹
+      tags:
+      - article
+    get:
+      parameters:
+      - description: 页码
+        in: query
+        name: page
+        type: integer
+      - description: 每页条数
+        in: query
+        name: limit
+        type: integer
+      - description: 关键词
+        in: query
+        name: key
+        type: string
+      - description: 排序
+        in: query
+        name: order
+        type: string
+      - description: 目标用户 ID
+        in: query
+        name: user_id
+        type: integer
+      - description: 文章 ID
+        in: query
+        name: article_id
+        type: integer
+      - description: 查询类型(1:自己 2:别人 3:管理员)
+        in: query
+        name: type
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            properties:
+              code:
+                type: integer
+              data:
+                properties:
+                  count:
+                    type: integer
+                  list:
+                    items:
+                      $ref: '#/definitions/myblogx_service_favorite_service.FavoriteListItem'
+                    type: array
+                type: object
+              msg:
+                type: string
+            type: object
+      summary: 收藏夹列表
+      tags:
+      - article
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: 请求体
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/api_article_api.ArticleFavoriteRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            properties:
+              code:
+                type: integer
+              data:
+                type: object
+              msg:
+                type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: 收藏/取消收藏文章
+      tags:
+      - article
+    put:
+      consumes:
+      - application/json
+      parameters:
+      - description: 请求体
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/api_article_api_favorite.FavoriteRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            properties:
+              code:
+                type: integer
+              data:
+                $ref: '#/definitions/api_article_api_favorite.FavoriteCreateResponse'
+              msg:
+                type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: 创建/更新收藏夹
+      tags:
+      - article
+  /articles/favorite/contents:
+    delete:
+      consumes:
+      - application/json
+      parameters:
+      - description: 请求体
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/api_article_api_favorite.FavoriteRemovePatchModel'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            properties:
+              code:
+                type: integer
+              data:
+                type: object
+              msg:
+                type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: 批量取消收藏
+      tags:
+      - article
+    get:
+      parameters:
+      - description: 页码
+        in: query
+        name: page
+        type: integer
+      - description: 每页条数
+        in: query
+        name: limit
+        type: integer
+      - description: 关键词
+        in: query
+        name: key
+        type: string
+      - description: 排序
+        in: query
+        name: order
+        type: string
+      - description: 收藏夹 ID
+        in: query
+        name: favorite_id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            properties:
+              code:
+                type: integer
+              data:
+                properties:
+                  has_more:
+                    type: boolean
+                  list:
+                    items:
+                      $ref: '#/definitions/myblogx_service_favorite_service.FavoriteArticleItem'
+                    type: array
+                type: object
+              msg:
+                type: string
+            type: object
+      summary: 收藏夹文章列表
+      tags:
+      - article
+  /articles/history:
+    delete:
+      consumes:
+      - application/json
+      parameters:
+      - description: 文章 ID 列表
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/models.IDListRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            properties:
+              code:
+                type: integer
+              data:
+                type: object
+              msg:
+                type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: 删除浏览历史
+      tags:
+      - article
+    get:
+      parameters:
+      - description: 页码
+        in: query
+        name: page
+        type: integer
+      - description: 每页条数
+        in: query
+        name: limit
+        type: integer
+      - description: 关键词
+        in: query
+        name: key
+        type: string
+      - description: 排序
+        in: query
+        name: order
+        type: string
+      - description: 目标用户 ID(type=2 时使用)
+        in: query
+        name: user_id
+        type: integer
+      - description: 查询类型(1:自己 2:别人)
+        in: query
+        name: type
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            properties:
+              code:
+                type: integer
+              data:
+                properties:
+                  has_more:
+                    type: boolean
+                  list:
+                    items:
+                      $ref: '#/definitions/api_article_api_view_history.ArticleViewHistoryResponse'
+                    type: array
+                type: object
+              msg:
+                type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: 文章浏览历史
+      tags:
+      - article
+  /articles/tags:
+    delete:
+      consumes:
+      - application/json
+      parameters:
+      - description: 标签 ID 列表
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/models.IDListRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            properties:
+              code:
+                type: integer
+              data:
+                type: object
+              msg:
+                type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: 批量删除标签
+      tags:
+      - article
+    get:
+      parameters:
+      - description: 页码
+        in: query
+        name: page
+        type: integer
+      - description: 每页条数
+        in: query
+        name: limit
+        type: integer
+      - description: 关键词
+        in: query
+        name: key
+        type: string
+      - description: 排序
+        in: query
+        name: order
+        type: string
+      - description: 是否启用
+        in: query
+        name: is_enabled
+        type: boolean
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            properties:
+              code:
+                type: integer
+              data:
+                properties:
+                  count:
+                    type: integer
+                  list:
+                    items:
+                      $ref: '#/definitions/api_article_api_tags.TagListResponse'
+                    type: array
+                type: object
+              msg:
+                type: string
+            type: object
+      summary: 标签列表
+      tags:
+      - article
+    put:
+      consumes:
+      - application/json
+      parameters:
+      - description: 请求体
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/api_article_api_tags.TagRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            properties:
+              code:
+                type: integer
+              data:
+                $ref: '#/definitions/api_article_api_tags.TagCreateResponse'
+              msg:
+                type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: 创建/更新标签
+      tags:
+      - article
+  /articles/tags/options:
+    get:
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            properties:
+              code:
+                type: integer
+              data:
+                items:
+                  properties:
+                    id:
+                      type: integer
+                    label:
+                      type: string
+                    title:
+                      type: string
+                    value:
+                      type: integer
+                  type: object
+                type: array
+              msg:
+                type: string
+            type: object
+      summary: 标签选项
+      tags:
+      - article
+  /articles/top:
+    delete:
+      consumes:
+      - application/json
+      parameters:
+      - description: 请求体
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/api_article_api_top.ArticleTopSetRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            properties:
+              code:
+                type: integer
+              data:
+                type: object
+              msg:
+                type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: 取消文章置顶
+      tags:
+      - article
+    get:
+      parameters:
+      - description: 置顶类型(1:用户 2:管理员)
+        in: query
+        name: type
+        required: true
+        type: integer
+      - description: 用户 ID(type=1 时必填)
+        in: query
+        name: user_id
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            properties:
+              code:
+                type: integer
+              data:
+                properties:
+                  count:
+                    type: integer
+                  list:
+                    items:
+                      $ref: '#/definitions/myblogx_service_top_service.ArticleTopListItem'
+                    type: array
+                type: object
+              msg:
+                type: string
+            type: object
+      summary: 置顶文章列表
+      tags:
+      - article
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: 请求体
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/api_article_api_top.ArticleTopSetRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            properties:
+              code:
+                type: integer
+              data:
+                type: object
+              msg:
+                type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: 设置文章置顶
+      tags:
+      - article
+  /articles/view:
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: 请求体
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/api_article_api.ArticleViewCountRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            properties:
+              code:
+                type: integer
+              data:
+                type: object
+              msg:
+                type: string
+            type: object
+      summary: 记录文章访问量
+      tags:
+      - article
+  /banners:
+    delete:
+      consumes:
+      - application/json
+      parameters:
+      - description: ID 列表
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/models.IDListRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            properties:
+              code:
+                type: integer
+              data:
+                type: object
+              msg:
+                type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: 批量删除轮播图
+      tags:
+      - banner
+    get:
+      parameters:
+      - description: 每页条数
+        in: query
+        name: limit
+        type: integer
+      - description: 页码
+        in: query
+        name: page
+        type: integer
+      - description: 关键词
+        in: query
+        name: key
+        type: string
+      - description: 排序
+        in: query
+        name: order
+        type: string
+      - description: 是否展示
+        in: query
+        name: show
+        type: boolean
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            properties:
+              code:
+                type: integer
+              data:
+                properties:
+                  has_more:
+                    type: boolean
+                  list:
+                    items:
+                      $ref: '#/definitions/models.BannerModel'
+                    type: array
+                type: object
+              msg:
+                type: string
+            type: object
+      summary: 轮播图列表
+      tags:
+      - banner
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: 创建参数
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/api_banner_api.BannerCreateRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            properties:
+              code:
+                type: integer
+              data:
+                $ref: '#/definitions/api_banner_api.BannerCreateResponse'
+              msg:
+                type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: 创建轮播图
+      tags:
+      - banner
+  /banners/{id}:
+    put:
+      consumes:
+      - application/json
+      parameters:
+      - description: 轮播图 ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: 更新参数
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/api_banner_api.BannerCreateRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            properties:
+              code:
+                type: integer
+              data:
+                type: object
+              msg:
+                type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: 更新轮播图
+      tags:
+      - banner
+  /chat/messages:
+    delete:
+      consumes:
+      - application/json
+      parameters:
+      - description: 请求体
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/api_chat_api.ChatMsgDeleteUserRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            properties:
+              code:
+                type: integer
+              data:
+                type: object
+              msg:
+                type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: 删除消息
+      tags:
+      - chat
+    get:
+      parameters:
+      - description: 每页条数
+        in: query
+        name: limit
+        type: integer
+      - description: 页码
+        in: query
+        name: page
+        type: integer
+      - description: 关键词
+        in: query
+        name: key
+        type: string
+      - description: 排序
+        in: query
+        name: order
+        type: string
+      - description: 会话 ID
+        in: query
+        name: session_id
+        required: true
+        type: string
+      - description: 用户 ID（type=2 时必填）
+        in: query
+        name: user_id
+        type: integer
+      - description: 查询类型：1 我自己的消息 2 管理员查指定用户
+        in: query
+        name: type
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            properties:
+              code:
+                type: integer
+              data:
+                properties:
+                  count:
+                    type: integer
+                  list:
+                    items:
+                      $ref: '#/definitions/api_chat_api.ChatMsgResponse'
+                    type: array
+                type: object
+              msg:
+                type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: 会话消息列表
+      tags:
+      - chat
+  /chat/read:
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: 请求体
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/api_chat_api.ChatMsgReadUserRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            properties:
+              code:
+                type: integer
+              data:
+                type: object
+              msg:
+                type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: 批量标记消息已读
+      tags:
+      - chat
+  /chat/sessions:
+    delete:
+      consumes:
+      - application/json
+      parameters:
+      - description: 请求体
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/api_chat_api.ChatSessionDeleteUserRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            properties:
+              code:
+                type: integer
+              data:
+                type: object
+              msg:
+                type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: 删除会话
+      tags:
+      - chat
+    get:
+      parameters:
+      - description: 每页条数
+        in: query
+        name: limit
+        type: integer
+      - description: 页码
+        in: query
+        name: page
+        type: integer
+      - description: 关键词
+        in: query
+        name: key
+        type: string
+      - description: 排序
+        in: query
+        name: order
+        type: string
+      - description: 用户 ID（type=2 时必填）
+        in: query
+        name: user_id
+        type: integer
+      - description: 查询类型：1 我自己的会话 2 管理员查指定用户
+        in: query
+        name: type
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            properties:
+              code:
+                type: integer
+              data:
+                properties:
+                  count:
+                    type: integer
+                  list:
+                    items:
+                      $ref: '#/definitions/myblogx_service_chat_service.SessionListItem'
+                    type: array
+                type: object
+              msg:
+                type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: 会话列表
+      tags:
+      - chat
+  /chat/ws:
+    get:
+      parameters:
+      - description: WS 票据（未携带 Authorization 头时使用）
+        in: query
+        name: ticket
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            properties:
+              code:
+                type: integer
+              data:
+                type: object
+              msg:
+                type: string
+            type: object
+      summary: 聊天 WebSocket 长连接
+      tags:
+      - chat
+  /chat/ws-ticket:
+    get:
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            properties:
+              code:
+                type: integer
+              data:
+                type: object
+              msg:
+                type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: 获取聊天 WebSocket 票据
+      tags:
+      - chat
+  /comments:
+    get:
+      parameters:
+      - description: 每页条数
+        in: query
+        name: limit
+        type: integer
+      - description: 页码
+        in: query
+        name: page
+        type: integer
+      - description: 关键词
+        in: query
+        name: key
+        type: string
+      - description: 排序
+        in: query
+        name: order
+        type: string
+      - description: 文章 ID
+        in: query
+        name: article_id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            properties:
+              code:
+                type: integer
+              data:
+                type: object
+              msg:
+                type: string
+            type: object
+      summary: 一级评论列表
+      tags:
+      - comment
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: 请求体
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/api_comment_api.CommentCreateRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            properties:
+              code:
+                type: integer
+              data:
+                $ref: '#/definitions/api_comment_api.CommentCreateResponse'
+              msg:
+                type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: 发表评论
+      tags:
+      - comment
+  /comments/{id}:
+    delete:
+      parameters:
+      - description: 评论 ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            properties:
+              code:
+                type: integer
+              data:
+                type: object
+              msg:
+                type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: 删除评论
+      tags:
+      - comment
+  /comments/{id}/digg:
+    post:
+      parameters:
+      - description: 评论 ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            properties:
+              code:
+                type: integer
+              data:
+                type: object
+              msg:
+                type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: 评论点赞/取消点赞
+      tags:
+      - comment
+  /comments/man:
+    get:
+      parameters:
+      - description: 每页条数
+        in: query
+        name: limit
+        type: integer
+      - description: 页码
+        in: query
+        name: page
+        type: integer
+      - description: 关键词
+        in: query
+        name: key
+        type: string
+      - description: 排序
+        in: query
+        name: order
+        type: string
+      - description: 文章 ID
+        in: query
+        name: article_id
+        type: integer
+      - description: 用户 ID（type=2 时忽略，取当前登录用户）
+        in: query
+        name: user_id
+        type: integer
+      - description: 评论状态：1 审核中 2 已发布 3 已删除
+        in: query
+        name: status
+        type: integer
+      - description: 查询类型：1 我文章下的评论 2 我发的评论 3 管理员查所有评论
+        in: query
+        name: type
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            properties:
+              code:
+                type: integer
+              data:
+                properties:
+                  count:
+                    type: integer
+                  list:
+                    items:
+                      $ref: '#/definitions/myblogx_service_comment_service.ManageCommentItem'
+                    type: array
+                type: object
+              msg:
+                type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: 评论管理列表
+      tags:
+      - comment
+  /comments/replies:
+    get:
+      parameters:
+      - description: 每页条数
+        in: query
+        name: limit
+        type: integer
+      - description: 页码
+        in: query
+        name: page
+        type: integer
+      - description: 关键词
+        in: query
+        name: key
+        type: string
+      - description: 排序
+        in: query
+        name: order
+        type: string
+      - description: 文章 ID
+        in: query
+        name: article_id
+        required: true
+        type: integer
+      - description: 一级评论 ID
+        in: query
+        name: root_id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            properties:
+              code:
+                type: integer
+              data:
+                type: object
+              msg:
+                type: string
+            type: object
+      summary: 二级评论列表
+      tags:
+      - comment
+  /data/article-year:
+    get:
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            properties:
+              code:
+                type: integer
+              data:
+                $ref: '#/definitions/api_data_api.ArticleYearDataResponse'
+              msg:
+                type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: 近十二月文章发布数据
+      tags:
+      - data
+  /data/growth:
+    get:
+      parameters:
+      - description: 统计类型：1 网站流量 2 文章发布 3 用户注册
+        in: query
+        name: type
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            properties:
+              code:
+                type: integer
+              data:
+                $ref: '#/definitions/api_data_api.GrowthDataResponse'
+              msg:
+                type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: 近七日增长数据
+      tags:
+      - data
+  /data/sum:
+    get:
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            properties:
+              code:
+                type: integer
+              data:
+                $ref: '#/definitions/api_data_api.SumResponse'
+              msg:
+                type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: 站点汇总统计
+      tags:
+      - data
+  /fans:
+    get:
+      parameters:
+      - description: 每页条数
+        in: query
+        name: limit
+        type: integer
+      - description: 页码
+        in: query
+        name: page
+        type: integer
+      - description: 关键词
+        in: query
+        name: key
+        type: string
+      - description: 排序
+        in: query
+        name: order
+        type: string
+      - description: 目标用户 ID，缺省为当前登录用户
+        in: query
+        name: user_id
+        type: integer
+      - description: 只查与指定粉丝用户相关的记录
+        in: query
+        name: fans_user_id
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            properties:
+              code:
+                type: integer
+              data:
+                properties:
+                  has_more:
+                    type: boolean
+                  list:
+                    items:
+                      $ref: '#/definitions/myblogx_service_follow_service.FansListItem'
+                    type: array
+                type: object
+              msg:
+                type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: 粉丝列表
+      tags:
+      - follow
+  /follow:
+    get:
+      parameters:
+      - description: 每页条数
+        in: query
+        name: limit
+        type: integer
+      - description: 页码
+        in: query
+        name: page
+        type: integer
+      - description: 关键词
+        in: query
+        name: key
+        type: string
+      - description: 排序
+        in: query
+        name: order
+        type: string
+      - description: 目标用户 ID，缺省为当前登录用户
+        in: query
+        name: user_id
+        type: integer
+      - description: 只查与指定被关注用户相关的记录
+        in: query
+        name: followed_user_id
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            properties:
+              code:
+                type: integer
+              data:
+                properties:
+                  has_more:
+                    type: boolean
+                  list:
+                    items:
+                      $ref: '#/definitions/myblogx_service_follow_service.FollowListItem'
+                    type: array
+                type: object
+              msg:
+                type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: 关注列表
+      tags:
+      - follow
+  /follow/{id}:
+    delete:
+      parameters:
+      - description: 被取消关注的用户 ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            properties:
+              code:
+                type: integer
+              data:
+                type: object
+              msg:
+                type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: 取消关注用户
+      tags:
+      - follow
+    post:
+      parameters:
+      - description: 被关注用户 ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            properties:
+              code:
+                type: integer
+              data:
+                type: object
+              msg:
+                type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: 关注用户
+      tags:
+      - follow
+  /global_notif:
+    delete:
+      consumes:
+      - application/json
+      parameters:
+      - description: 通知 ID 列表
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/models.IDListRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            properties:
+              code:
+                type: integer
+              data:
+                type: object
+              msg:
+                type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: 删除全局通知（管理员）
+      tags:
+      - global_notif
+    get:
+      parameters:
+      - description: 每页条数
+        in: query
+        name: limit
+        type: integer
+      - description: 页码
+        in: query
+        name: page
+        type: integer
+      - description: 关键词
+        in: query
+        name: key
+        type: string
+      - description: 排序
+        in: query
+        name: order
+        type: string
+      - description: 查询类型：1 普通用户可见通知 2 管理员查全部通知
+        in: query
+        name: type
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            properties:
+              code:
+                type: integer
+              data:
+                properties:
+                  has_more:
+                    type: boolean
+                  list:
+                    items:
+                      $ref: '#/definitions/api_global_notif_api.GlobalNotifListResponse'
+                    type: array
+                type: object
+              msg:
+                type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: 全局通知列表
+      tags:
+      - global_notif
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: 请求体
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/api_global_notif_api.GlobalNotifCreateRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            properties:
+              code:
+                type: integer
+              data:
+                $ref: '#/definitions/api_global_notif_api.GlobalNotifCreateResponse'
+              msg:
+                type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: 创建全局通知
+      tags:
+      - global_notif
+  /global_notif/read:
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: 通知 ID 列表
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/models.IDListRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            properties:
+              code:
+                type: integer
+              data:
+                type: object
+              msg:
+                type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: 标记全局通知已读
+      tags:
+      - global_notif
+  /global_notif/user:
+    delete:
+      consumes:
+      - application/json
+      parameters:
+      - description: 通知 ID 列表
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/models.IDListRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            properties:
+              code:
+                type: integer
+              data:
+                type: object
+              msg:
+                type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: 用户删除全局通知
+      tags:
+      - global_notif
+  /imagecaptcha:
+    get:
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            properties:
+              code:
+                type: integer
+              data:
+                $ref: '#/definitions/api_captcha_api.ImageCaptchaResponse'
+              msg:
+                type: string
+            type: object
+      summary: 获取图片验证码
+      tags:
+      - captcha
+  /images:
+    delete:
+      consumes:
+      - application/json
+      parameters:
+      - description: 图片 ID 列表
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/models.IDListRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            properties:
+              code:
+                type: integer
+              data:
+                type: string
+              msg:
+                type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: 删除图片
+      tags:
+      - image
+    get:
+      parameters:
+      - description: 每页条数
+        in: query
+        name: limit
+        type: integer
+      - description: 页码
+        in: query
+        name: page
+        type: integer
+      - description: 关键词
+        in: query
+        name: key
+        type: string
+      - description: 排序
+        in: query
+        name: order
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            properties:
+              code:
+                type: integer
+              data:
+                properties:
+                  count:
+                    type: integer
+                  list:
+                    items:
+                      $ref: '#/definitions/models.ImageModel'
+                    type: array
+                type: object
+              msg:
+                type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: 图片列表
+      tags:
+      - image
+  /images/qiniu/audit/callback:
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: 七牛审核回调 JSON
+        in: body
+        name: body
+        required: true
+        schema:
+          type: object
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            properties:
+              code:
+                type: integer
+              data:
+                type: object
+              msg:
+                type: string
+            type: object
+      summary: 七牛内容审核回调
+      tags:
+      - image
+  /images/qiniu/callback:
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: 七牛回调 JSON：key、hash、bucket、fsize
+        in: body
+        name: body
+        required: true
+        schema:
+          type: object
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            properties:
+              code:
+                type: integer
+              data:
+                $ref: '#/definitions/api_image_api.CompleteImageUploadTaskResponse'
+              msg:
+                type: string
+            type: object
+      summary: 七牛云上传回调
+      tags:
+      - image
+  /images/upload-tasks:
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: 请求体
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/api_image_api.CreateImageUploadTaskRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            properties:
+              code:
+                type: integer
+              data:
+                $ref: '#/definitions/api_image_api.CreateImageUploadTaskResponse'
+              msg:
+                type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: 创建图片上传任务
+      tags:
+      - image
+  /images/upload-tasks/{id}:
+    get:
+      parameters:
+      - description: 上传任务 ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            properties:
+              code:
+                type: integer
+              data:
+                $ref: '#/definitions/api_image_api.UploadTaskStatusResponse'
+              msg:
+                type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: 查询上传任务状态
+      tags:
+      - image
+  /images/upload-tasks/complete:
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: 请求体
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/api_image_api.CompleteImageUploadTaskRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            properties:
+              code:
+                type: integer
+              data:
+                $ref: '#/definitions/api_image_api.CompleteImageUploadTaskResponse'
+              msg:
+                type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: 完成图片上传任务
+      tags:
+      - image
+  /logs/action:
+    get:
+      parameters:
+      - description: 每页条数
+        in: query
+        name: limit
+        type: integer
+      - description: 页码
+        in: query
+        name: page
+        type: integer
+      - description: 开始时间
+        in: query
+        name: start_at
+        type: string
+      - description: 结束时间
+        in: query
+        name: end_at
+        type: string
+      - description: 用户 ID
+        in: query
+        name: user_id
+        type: integer
+      - description: IP 地址
+        in: query
+        name: ip
+        type: string
+      - description: 操作名
+        in: query
+        name: action_name
+        type: string
+      - description: 目标类型
+        in: query
+        name: target_type
+        type: string
+      - description: 目标 ID
+        in: query
+        name: target_id
+        type: string
+      - description: 是否成功
+        in: query
+        name: success
+        type: boolean
+      - description: 请求路径
+        in: query
+        name: path
+        type: string
+      - description: 请求 ID
+        in: query
+        name: request_id
+        type: string
+      - description: 请求 ID 前缀匹配
+        in: query
+        name: request_id_prefix
+        type: boolean
+      - description: 链路 ID
+        in: query
+        name: trace_id
+        type: string
+      - description: 链路 ID 前缀匹配
+        in: query
+        name: trace_id_prefix
+        type: boolean
+      - description: 错误码
+        in: query
+        name: error_code
+        type: string
+      - description: 错误信息
+        in: query
+        name: error_message
+        type: string
+      - description: 事件名（模糊匹配）
+        in: query
+        name: event_name
+        type: string
+      - description: 事件名（模糊匹配，event_name 为空时生效）
+        in: query
+        name: event_name_like
+        type: string
+      - description: 模块
+        in: query
+        name: module
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            properties:
+              code:
+                type: integer
+              data:
+                properties:
+                  count:
+                    type: integer
+                  list:
+                    items:
+                      $ref: '#/definitions/myblogx_service_log_service.ActionAuditRecord'
+                    type: array
+                type: object
+              msg:
+                type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: 操作审计日志列表
+      tags:
+      - log
+  /logs/action/{id}:
+    get:
+      parameters:
+      - description: 日志 ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            properties:
+              code:
+                type: integer
+              data:
+                $ref: '#/definitions/myblogx_service_log_service.ActionAuditRecord'
+              msg:
+                type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: 操作审计日志详情
+      tags:
+      - log
+  /logs/cdc:
+    get:
+      parameters:
+      - description: 每页条数
+        in: query
+        name: limit
+        type: integer
+      - description: 页码
+        in: query
+        name: page
+        type: integer
+      - description: 开始时间
+        in: query
+        name: start_at
+        type: string
+      - description: 结束时间
+        in: query
+        name: end_at
+        type: string
+      - description: 服务名
+        in: query
+        name: service
+        type: string
+      - description: 日志级别
+        in: query
+        name: level
+        type: string
+      - description: Stream 名称
+        in: query
+        name: stream
+        type: string
+      - description: 源表
+        in: query
+        name: source_table
+        type: string
+      - description: 操作类型
+        in: query
+        name: action
+        type: string
+      - description: 执行结果
+        in: query
+        name: result
+        type: string
+      - description: 重试次数
+        in: query
+        name: retry_count
+        type: integer
+      - description: 请求 ID
+        in: query
+        name: request_id
+        type: string
+      - description: 请求 ID 前缀匹配
+        in: query
+        name: request_id_prefix
+        type: boolean
+      - description: 链路 ID
+        in: query
+        name: trace_id
+        type: string
+      - description: 链路 ID 前缀匹配
+        in: query
+        name: trace_id_prefix
+        type: boolean
+      - description: CDC 任务 ID
+        in: query
+        name: cdc_job_id
+        type: string
+      - description: CDC 任务 ID 前缀匹配
+        in: query
+        name: cdc_job_id_prefix
+        type: boolean
+      - description: 错误码
+        in: query
+        name: error_code
+        type: string
+      - description: 错误信息
+        in: query
+        name: error_message
+        type: string
+      - description: 事件名
+        in: query
+        name: event_name
+        type: string
+      - description: 模块
+        in: query
+        name: module
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            properties:
+              code:
+                type: integer
+              data:
+                properties:
+                  count:
+                    type: integer
+                  list:
+                    items:
+                      $ref: '#/definitions/myblogx_service_log_service.CdcEventRecord'
+                    type: array
+                type: object
+              msg:
+                type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: CDC 执行日志列表
+      tags:
+      - log
+  /logs/cdc/{id}:
+    get:
+      parameters:
+      - description: 日志 ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            properties:
+              code:
+                type: integer
+              data:
+                $ref: '#/definitions/myblogx_service_log_service.CdcEventRecord'
+              msg:
+                type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: CDC 执行日志详情
+      tags:
+      - log
+  /logs/chain:
+    get:
+      parameters:
+      - description: 请求 ID
+        in: query
+        name: request_id
+        type: string
+      - description: 链路 ID
+        in: query
+        name: trace_id
+        type: string
+      - description: CDC 任务 ID
+        in: query
+        name: cdc_job_id
+        type: string
+      - description: CDC 任务 ID 前缀匹配
+        in: query
+        name: cdc_job_id_prefix
+        type: boolean
+      - description: Stream 名称
+        in: query
+        name: stream
+        type: string
+      - description: 死信状态
+        in: query
+        name: status
+        type: string
+      - description: 开始时间
+        in: query
+        name: start_at
+        type: string
+      - description: 结束时间
+        in: query
+        name: end_at
+        type: string
+      - description: 返回条数上限（默认 50，最大 200）
+        in: query
+        name: limit
+        type: integer
+      - description: 请求 ID 前缀匹配
+        in: query
+        name: request_id_prefix
+        type: boolean
+      - description: 链路 ID 前缀匹配
+        in: query
+        name: trace_id_prefix
+        type: boolean
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            properties:
+              code:
+                type: integer
+              data:
+                $ref: '#/definitions/api_log_api.ChainQueryResponse'
+              msg:
+                type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: 全链路日志聚合查询
+      tags:
+      - log
+  /logs/login:
+    get:
+      parameters:
+      - description: 每页条数
+        in: query
+        name: limit
+        type: integer
+      - description: 页码
+        in: query
+        name: page
+        type: integer
+      - description: 开始时间
+        in: query
+        name: start_at
+        type: string
+      - description: 结束时间
+        in: query
+        name: end_at
+        type: string
+      - description: 用户 ID
+        in: query
+        name: user_id
+        type: integer
+      - description: IP 地址
+        in: query
+        name: ip
+        type: string
+      - description: 用户名
+        in: query
+        name: username
+        type: string
+      - description: 登录方式
+        in: query
+        name: login_type
+        type: string
+      - description: 事件名（模糊匹配）
+        in: query
+        name: event_name
+        type: string
+      - description: 事件名（精确匹配）
+        in: query
+        name: event_name_exact
+        type: string
+      - description: 是否成功
+        in: query
+        name: success
+        type: boolean
+      - description: 请求 ID
+        in: query
+        name: request_id
+        type: string
+      - description: 请求 ID 前缀匹配
+        in: query
+        name: request_id_prefix
+        type: boolean
+      - description: 链路 ID
+        in: query
+        name: trace_id
+        type: string
+      - description: 链路 ID 前缀匹配
+        in: query
+        name: trace_id_prefix
+        type: boolean
+      - description: 错误码
+        in: query
+        name: error_code
+        type: string
+      - description: 错误信息
+        in: query
+        name: error_message
+        type: string
+      - description: 模块
+        in: query
+        name: module
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            properties:
+              code:
+                type: integer
+              data:
+                properties:
+                  count:
+                    type: integer
+                  list:
+                    items:
+                      $ref: '#/definitions/myblogx_service_log_service.LoginEventRecord'
+                    type: array
+                type: object
+              msg:
+                type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: 登录日志列表
+      tags:
+      - log
+  /logs/login/{id}:
+    get:
+      parameters:
+      - description: 日志 ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            properties:
+              code:
+                type: integer
+              data:
+                $ref: '#/definitions/myblogx_service_log_service.LoginEventRecord'
+              msg:
+                type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: 登录日志详情
+      tags:
+      - log
+  /logs/replay:
+    get:
+      parameters:
+      - description: 每页条数
+        in: query
+        name: limit
+        type: integer
+      - description: 页码
+        in: query
+        name: page
+        type: integer
+      - description: 开始时间
+        in: query
+        name: start_at
+        type: string
+      - description: 结束时间
+        in: query
+        name: end_at
+        type: string
+      - description: 服务名
+        in: query
+        name: service
+        type: string
+      - description: 日志级别
+        in: query
+        name: level
+        type: string
+      - description: Stream 名称
+        in: query
+        name: stream
+        type: string
+      - description: 源表
+        in: query
+        name: source_table
+        type: string
+      - description: 操作类型
+        in: query
+        name: action
+        type: string
+      - description: 执行结果
+        in: query
+        name: result
+        type: string
+      - description: 重试次数
+        in: query
+        name: retry_count
+        type: integer
+      - description: 请求 ID
+        in: query
+        name: request_id
+        type: string
+      - description: 请求 ID 前缀匹配
+        in: query
+        name: request_id_prefix
+        type: boolean
+      - description: 链路 ID
+        in: query
+        name: trace_id
+        type: string
+      - description: 链路 ID 前缀匹配
+        in: query
+        name: trace_id_prefix
+        type: boolean
+      - description: CDC 任务 ID
+        in: query
+        name: cdc_job_id
+        type: string
+      - description: CDC 任务 ID 前缀匹配
+        in: query
+        name: cdc_job_id_prefix
+        type: boolean
+      - description: 错误码
+        in: query
+        name: error_code
+        type: string
+      - description: 错误信息
+        in: query
+        name: error_message
+        type: string
+      - description: 事件名
+        in: query
+        name: event_name
+        type: string
+      - description: 模块
+        in: query
+        name: module
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            properties:
+              code:
+                type: integer
+              data:
+                properties:
+                  count:
+                    type: integer
+                  list:
+                    items:
+                      $ref: '#/definitions/myblogx_service_log_service.ReplayEventRecord'
+                    type: array
+                type: object
+              msg:
+                type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: 回放日志列表
+      tags:
+      - log
+  /logs/replay/{id}:
+    get:
+      parameters:
+      - description: 日志 ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            properties:
+              code:
+                type: integer
+              data:
+                $ref: '#/definitions/myblogx_service_log_service.ReplayEventRecord'
+              msg:
+                type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: 回放日志详情
+      tags:
+      - log
+  /logs/runtime:
+    get:
+      parameters:
+      - description: 每页条数
+        in: query
+        name: limit
+        type: integer
+      - description: 页码
+        in: query
+        name: page
+        type: integer
+      - description: 关键词
+        in: query
+        name: key
+        type: string
+      - description: 排序
+        in: query
+        name: order
+        type: string
+      - description: 开始时间
+        in: query
+        name: start_at
+        type: string
+      - description: 结束时间
+        in: query
+        name: end_at
+        type: string
+      - description: 服务名
+        in: query
+        name: service
+        type: string
+      - description: 日志级别
+        in: query
+        name: level
+        type: string
+      - description: 主机
+        in: query
+        name: host
+        type: string
+      - description: HTTP 方法
+        in: query
+        name: method
+        type: string
+      - description: 请求路径
+        in: query
+        name: path
+        type: string
+      - description: 用户 ID
+        in: query
+        name: user_id
+        type: integer
+      - description: 请求 ID
+        in: query
+        name: request_id
+        type: string
+      - description: 请求 ID 前缀匹配
+        in: query
+        name: request_id_prefix
+        type: boolean
+      - description: 链路 ID
+        in: query
+        name: trace_id
+        type: string
+      - description: 链路 ID 前缀匹配
+        in: query
+        name: trace_id_prefix
+        type: boolean
+      - description: 错误码
+        in: query
+        name: error_code
+        type: string
+      - description: 错误信息
+        in: query
+        name: error_message
+        type: string
+      - description: 事件名
+        in: query
+        name: event_name
+        type: string
+      - description: 模块
+        in: query
+        name: module
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            properties:
+              code:
+                type: integer
+              data:
+                properties:
+                  count:
+                    type: integer
+                  list:
+                    items:
+                      $ref: '#/definitions/myblogx_service_log_service.RuntimeLogRecord'
+                    type: array
+                type: object
+              msg:
+                type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: 运行日志列表
+      tags:
+      - log
+  /logs/runtime/{id}:
+    get:
+      parameters:
+      - description: 日志 ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            properties:
+              code:
+                type: integer
+              data:
+                $ref: '#/definitions/myblogx_service_log_service.RuntimeLogRecord'
+              msg:
+                type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: 运行日志详情
+      tags:
+      - log
+  /search/articles:
+    get:
+      parameters:
+      - description: 搜索类型：1 公共文章 2 猜你喜欢 3 作者文章 4 自己文章 5 管理员搜索
+        in: query
+        name: type
+        type: integer
+      - description: 排序：1 默认 2 最新发布 3 最多回复 4 最多点赞 5 最多收藏 6 最多浏览
+        in: query
+        name: sort
+        type: integer
+      - description: 分页模式
+        in: query
+        name: page_mode
+        type: string
+      - description: 页码
+        in: query
+        name: page
+        type: integer
+      - description: 每页数量
+        in: query
+        name: limit
+        type: integer
+      - description: 搜索关键词
+        in: query
+        name: key
+        type: string
+      - description: 分类 ID
+        in: query
+        name: category_id
+        type: integer
+      - description: 作者 ID
+        in: query
+        name: author_id
+        type: integer
+      - description: 文章状态
+        in: query
+        name: status
+        type: integer
+      - description: 标签 ID 列表，支持逗号分隔
+        in: query
+        name: tag_ids
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            properties:
+              code:
+                type: integer
+              data:
+                $ref: '#/definitions/myblogx_service_search_service.ArticleSearchResponse'
+              msg:
+                type: string
+            type: object
+      summary: 文章搜索
+      tags:
+      - search
+  /site/{name}:
+    get:
+      parameters:
+      - description: 站点信息名称：site 站点版本、seo SEO 信息
+        in: path
+        name: name
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            properties:
+              code:
+                type: integer
+              data:
+                type: object
+              msg:
+                type: string
+            type: object
+      summary: 获取站点公开配置
+      tags:
+      - site
+    put:
+      consumes:
+      - application/json
+      parameters:
+      - description: 配置名称：site 站点配置、ai AI 配置
+        in: path
+        name: name
+        required: true
+        type: string
+      - description: 请求体，name=site 时为 conf.Site，name=ai 时为 conf.AI
+        in: body
+        name: body
+        required: true
+        schema:
+          type: object
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            properties:
+              code:
+                type: integer
+              data:
+                type: object
+              msg:
+                type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: 更新站点运行时配置（管理员）
+      tags:
+      - site
+  /site/admin/{name}:
+    get:
+      parameters:
+      - description: 配置名称：site 站点配置、ai AI 配置
+        in: path
+        name: name
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            properties:
+              code:
+                type: integer
+              data:
+                type: object
+              msg:
+                type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: 获取站点配置（管理员）
+      tags:
+      - site
+  /site/ai_info:
+    get:
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            properties:
+              code:
+                type: integer
+              data:
+                $ref: '#/definitions/api_site_api.SiteAIResponse'
+              msg:
+                type: string
+            type: object
+      summary: 获取站点 AI 信息
+      tags:
+      - site
+  /site/qq_url:
+    get:
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            properties:
+              code:
+                type: integer
+              data:
+                type: string
+              msg:
+                type: string
+            type: object
+      summary: 获取 QQ 登录地址
+      tags:
+      - site
+  /site/seo:
+    get:
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            properties:
+              code:
+                type: integer
+              data:
+                $ref: '#/definitions/api_site_api.SiteSEOResponse'
+              msg:
+                type: string
+            type: object
+      summary: 获取站点 SEO 信息
+      tags:
+      - site
+  /sitemsg:
+    delete:
+      consumes:
+      - application/json
+      parameters:
+      - description: 请求体
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/api_sitemsg_api.SitemsgRemoveRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            properties:
+              code:
+                type: integer
+              data:
+                type: object
+              msg:
+                type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: 删除消息
+      tags:
+      - sitemsg
+    get:
+      parameters:
+      - description: 消息类型：1 评论和回复 2 点赞和收藏 3 系统通知
+        in: query
+        name: t
+        required: true
+        type: integer
+      - description: 页码
+        in: query
+        name: page
+        type: integer
+      - description: 每页数量
+        in: query
+        name: limit
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            properties:
+              code:
+                type: integer
+              data:
+                properties:
+                  has_more:
+                    type: boolean
+                  list:
+                    items:
+                      $ref: '#/definitions/models.ArticleMessageModel'
+                    type: array
+                type: object
+              msg:
+                type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: 获取消息列表
+      tags:
+      - sitemsg
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: 请求体
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/api_sitemsg_api.SitemsgReadRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            properties:
+              code:
+                type: integer
+              data:
+                type: object
+              msg:
+                type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: 标记消息已读
+      tags:
+      - sitemsg
+  /sitemsg/conf:
+    get:
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            properties:
+              code:
+                type: integer
+              data:
+                $ref: '#/definitions/api_sitemsg_api.UserMsgConfResponseAndRequest'
+              msg:
+                type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: 获取消息通知配置
+      tags:
+      - sitemsg
+    put:
+      consumes:
+      - application/json
+      parameters:
+      - description: 请求体
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/api_sitemsg_api.UserMsgConfResponseAndRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            properties:
+              code:
+                type: integer
+              data:
+                type: object
+              msg:
+                type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: 更新消息通知配置
+      tags:
+      - sitemsg
+  /sitemsg/user:
+    get:
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            properties:
+              code:
+                type: integer
+              data:
+                $ref: '#/definitions/api_sitemsg_api.SitemsgUserResponse'
+              msg:
+                type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: 获取未读消息统计
+      tags:
+      - sitemsg
+  /users/admin:
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: 请求体
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/api_user_api_user_man_api.AdminUserCreateRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            properties:
+              code:
+                type: integer
+              data:
+                $ref: '#/definitions/api_user_api_user_man_api.AdminUserCreateResponse'
+              msg:
+                type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: 管理员创建用户
+      tags:
+      - user
+  /users/admin/info:
+    put:
+      consumes:
+      - application/json
+      parameters:
+      - description: 请求体
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/api_user_api_profile_api.AdminUserInfoUpdateRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            properties:
+              code:
+                type: integer
+              data:
+                type: object
+              msg:
+                type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: 管理员更新用户信息
+      tags:
+      - user
+  /users/admin/list:
+    get:
+      parameters:
+      - description: 每页条数
+        in: query
+        name: limit
+        type: integer
+      - description: 页码
+        in: query
+        name: page
+        type: integer
+      - description: 关键词
+        in: query
+        name: key
+        type: string
+      - description: 排序
+        in: query
+        name: order
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            properties:
+              code:
+                type: integer
+              data:
+                properties:
+                  count:
+                    type: integer
+                  list:
+                    items:
+                      $ref: '#/definitions/api_user_api_user_man_api.UserListResponse'
+                    type: array
+                type: object
+              msg:
+                type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: 用户列表
+      tags:
+      - user
+  /users/base:
+    get:
+      parameters:
+      - description: ID
+        in: query
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            properties:
+              code:
+                type: integer
+              data:
+                $ref: '#/definitions/api_user_api_profile_api.UserBaseInfoResponse'
+              msg:
+                type: string
+            type: object
+      summary: 用户基础信息
+      tags:
+      - user
+  /users/detail:
+    get:
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            properties:
+              code:
+                type: integer
+              data:
+                $ref: '#/definitions/api_user_api_profile_api.UserDetailResponse'
+              msg:
+                type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: 当前用户详情
+      tags:
+      - user
+  /users/email/bind:
+    put:
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            properties:
+              code:
+                type: integer
+              data:
+                type: object
+              msg:
+                type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: 绑定邮箱
+      tags:
+      - user
+  /users/email/login:
+    post:
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            properties:
+              code:
+                type: integer
+              data:
+                type: string
+              msg:
+                type: string
+            type: object
+      summary: 邮箱验证码登录
+      tags:
+      - user
+  /users/email/register:
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: 请求体
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/api_user_api_auth_api.RegisterEmailRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            properties:
+              code:
+                type: integer
+              data:
+                type: string
+              msg:
+                type: string
+            type: object
+      summary: 邮箱注册
+      tags:
+      - user
+  /users/email/verify:
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: 请求体
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/api_user_api_auth_api.SendEmailRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            properties:
+              code:
+                type: integer
+              data:
+                $ref: '#/definitions/api_user_api_auth_api.SendEmailResponse'
+              msg:
+                type: string
+            type: object
+      summary: 发送邮箱验证码
+      tags:
+      - user
+  /users/info:
+    put:
+      consumes:
+      - application/json
+      parameters:
+      - description: 请求体
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/api_user_api_profile_api.UserInfoUpdateRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            properties:
+              code:
+                type: integer
+              data:
+                type: object
+              msg:
+                type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: 更新个人信息
+      tags:
+      - user
+  /users/login:
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: 请求体
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/api_user_api_auth_api.PwdLoginRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            properties:
+              code:
+                type: integer
+              data:
+                type: string
+              msg:
+                type: string
+            type: object
+      summary: 密码登录
+      tags:
+      - user
+  /users/login/log:
+    get:
+      parameters:
+      - description: 每页条数
+        in: query
+        name: limit
+        type: integer
+      - description: 页码
+        in: query
+        name: page
+        type: integer
+      - description: 关键词
+        in: query
+        name: key
+        type: string
+      - description: 排序
+        in: query
+        name: order
+        type: string
+      - description: 用户 ID
+        in: query
+        name: user_id
+        type: integer
+      - description: 登录 IP
+        in: query
+        name: ip
+        type: string
+      - description: 开始时间
+        in: query
+        name: start_at
+        type: string
+      - description: 结束时间
+        in: query
+        name: end_at
+        type: string
+      - description: 查询类型：1 用户查自己，2 管理员查任意用户
+        in: query
+        name: type
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            properties:
+              code:
+                type: integer
+              data:
+                properties:
+                  count:
+                    type: integer
+                  list:
+                    items:
+                      $ref: '#/definitions/myblogx_service_log_service.LoginEventRecord'
+                    type: array
+                type: object
+              msg:
+                type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: 用户登录日志
+      tags:
+      - user
+  /users/logout:
+    post:
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            properties:
+              code:
+                type: integer
+              data:
+                type: object
+              msg:
+                type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: 退出登录
+      tags:
+      - user
+  /users/logout/all:
+    post:
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            properties:
+              code:
+                type: integer
+              data:
+                type: object
+              msg:
+                type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: 退出全部设备
+      tags:
+      - user
+  /users/password/recovery/email:
+    put:
+      consumes:
+      - application/json
+      parameters:
+      - description: 请求体
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/api_user_api_auth_api.ResetPasswordRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            properties:
+              code:
+                type: integer
+              data:
+                type: object
+              msg:
+                type: string
+            type: object
+      summary: 邮箱重置密码
+      tags:
+      - user
+  /users/password/renewal/email:
+    put:
+      consumes:
+      - application/json
+      parameters:
+      - description: 请求体
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/api_user_api_auth_api.UpdatePasswordRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            properties:
+              code:
+                type: integer
+              data:
+                type: object
+              msg:
+                type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: 修改密码
+      tags:
+      - user
+  /users/qq:
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: 请求体
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/api_user_api_auth_api.QQLoginRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            properties:
+              code:
+                type: integer
+              data:
+                type: string
+              msg:
+                type: string
+            type: object
+      summary: QQ 登录
+      tags:
+      - user
+  /users/refresh:
+    post:
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            properties:
+              code:
+                type: integer
+              data:
+                type: string
+              msg:
+                type: string
+            type: object
+      summary: 刷新访问令牌
+      tags:
+      - user
+  /users/sessions:
+    get:
+      parameters:
+      - description: 每页条数
+        in: query
+        name: limit
+        type: integer
+      - description: 页码
+        in: query
+        name: page
+        type: integer
+      - description: 关键词
+        in: query
+        name: key
+        type: string
+      - description: 排序
+        in: query
+        name: order
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            properties:
+              code:
+                type: integer
+              data:
+                properties:
+                  count:
+                    type: integer
+                  list:
+                    items:
+                      $ref: '#/definitions/api_user_api_auth_api.UserSessionItem'
+                    type: array
+                type: object
+              msg:
+                type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: 登录会话列表
+      tags:
+      - user
+  /users/sessions/{id}:
+    delete:
+      parameters:
+      - description: ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            properties:
+              code:
+                type: integer
+              data:
+                type: object
+              msg:
+                type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: 下线指定会话
+      tags:
+      - user
+securityDefinitions:
+  BearerAuth:
+    in: header
+    name: Authorization
+    type: apiKey
+swagger: "2.0"

@@ -24,6 +24,14 @@ import (
 	"gorm.io/gorm/clause"
 )
 
+// ArticleVisitView 记录文章访问量。
+// @Summary 记录文章访问量
+// @Tags article
+// @Accept json
+// @Produce json
+// @Param body body ArticleViewCountRequest true "请求体"
+// @Success 200 {object} object{code=int,data=object{},msg=string}
+// @Router /articles/view [post]
 func (h ArticleApi) ArticleVisitView(c *gin.Context) {
 	cr := middleware.GetBindJson[ArticleViewCountRequest](c)
 	redisDeps := redis_service.NewDeps(h.App.Redis, h.App.Logger)

@@ -10,6 +10,15 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+// ArticleViewHistoryRemoveView 删除文章浏览历史。
+// @Summary 删除浏览历史
+// @Tags article
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Param body body models.IDListRequest true "文章 ID 列表"
+// @Success 200 {object} object{code=int,data=object{},msg=string}
+// @Router /articles/history [delete]
 func (h ViewHistoryApi) ArticleViewHistoryRemoveView(c *gin.Context) {
 	cr := middleware.GetBindJson[models.IDListRequest](c)
 	claims := jwts.GetClaimsByGin(c)

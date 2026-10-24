@@ -33,6 +33,15 @@ type CommentCreateResponse struct {
 	Content   string             `json:"content"`
 }
 
+// CommentCreateView 发表评论或回复评论。
+// @Summary 发表评论
+// @Tags comment
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Param body body CommentCreateRequest true "请求体"
+// @Success 200 {object} object{code=int,data=CommentCreateResponse,msg=string}
+// @Router /comments [post]
 func (h CommentApi) CommentCreateView(c *gin.Context) {
 	cr := middleware.GetBindJson[CommentCreateRequest](c)
 	if h.App.RuntimeSite == nil {

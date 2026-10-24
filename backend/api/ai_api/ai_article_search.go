@@ -14,6 +14,15 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+// AIArticleSearchListView 通过 AI 意图识别改写搜索词并返回文章列表。
+// @Summary AI 文章搜索（列表）
+// @Tags ai
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Param body body AIBaseRequest true "请求体"
+// @Success 200 {object} object{code=int,data=search_service.ArticleSearchResponse,msg=string}
+// @Router /ai/search/list [post]
 func (h AIApi) AIArticleSearchListView(c *gin.Context) {
 	app := h.App
 	if app.RuntimeSite == nil {
@@ -50,6 +59,15 @@ func (h AIApi) AIArticleSearchListView(c *gin.Context) {
 	res.OkWithData(result, c)
 }
 
+// AIArticleSearchLLMView 基于检索结果生成 AI 回答，通过 SSE 流式返回。
+// @Summary AI 文章搜索（LLM 流式回答）
+// @Tags ai
+// @Accept json
+// @Produce text/event-stream
+// @Security BearerAuth
+// @Param body body AIBaseRequest true "请求体"
+// @Success 200 {string} string "SSE 流"
+// @Router /ai/search/llm [post]
 func (h AIApi) AIArticleSearchLLMView(c *gin.Context) {
 	app := h.App
 	if app.RuntimeSite == nil {

@@ -10,6 +10,13 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+// UserMsgConfView 获取当前用户的消息通知配置。
+// @Summary 获取消息通知配置
+// @Tags sitemsg
+// @Produce json
+// @Security BearerAuth
+// @Success 200 {object} object{code=int,data=UserMsgConfResponseAndRequest,msg=string}
+// @Router /sitemsg/conf [get]
 func (h *SitemsgApi) UserMsgConfView(c *gin.Context) {
 	app := h.App
 	claims := jwts.MustGetClaimsByGin(c)
@@ -30,6 +37,15 @@ func (h *SitemsgApi) UserMsgConfView(c *gin.Context) {
 	res.OkWithData(msgConf, c)
 }
 
+// UserMsgConfUpdateView 更新当前用户的消息通知配置。
+// @Summary 更新消息通知配置
+// @Tags sitemsg
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Param body body UserMsgConfResponseAndRequest true "请求体"
+// @Success 200 {object} object{code=int,data=object{},msg=string}
+// @Router /sitemsg/conf [put]
 func (h *SitemsgApi) UserMsgConfUpdateView(c *gin.Context) {
 	app := h.App
 	cr := middleware.GetBindJson[UserMsgConfResponseAndRequest](c)

@@ -11,6 +11,15 @@ import (
 )
 
 // 删除收藏夹
+// FavoriteDeleteView 批量删除收藏夹。
+// @Summary 批量删除收藏夹
+// @Tags article
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Param body body models.IDListRequest true "收藏夹 ID 列表"
+// @Success 200 {object} object{code=int,data=object{},msg=string}
+// @Router /articles/favorite [delete]
 func (h FavoriteApi) FavoriteDeleteView(c *gin.Context) {
 	cr := middleware.GetBindJson[models.IDListRequest](c)
 

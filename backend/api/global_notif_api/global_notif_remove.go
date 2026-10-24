@@ -13,6 +13,15 @@ import (
 	"gorm.io/gorm/clause"
 )
 
+// GlobalNotifAdminRemoveView 管理员删除全局通知。
+// @Summary 删除全局通知（管理员）
+// @Tags global_notif
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Param body body models.IDListRequest true "通知 ID 列表"
+// @Success 200 {object} object{code=int,data=object{},msg=string}
+// @Router /global_notif [delete]
 func (h GlobalNotifApi) GlobalNotifAdminRemoveView(c *gin.Context) {
 	app := h.App
 	cr := middleware.GetBindJson[models.IDListRequest](c)
@@ -46,6 +55,15 @@ func (h GlobalNotifApi) GlobalNotifAdminRemoveView(c *gin.Context) {
 	})
 }
 
+// GlobalNotifUserRemoveView 用户删除自己可见的全局通知。
+// @Summary 用户删除全局通知
+// @Tags global_notif
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Param body body models.IDListRequest true "通知 ID 列表"
+// @Success 200 {object} object{code=int,data=object{},msg=string}
+// @Router /global_notif/user [delete]
 func (h GlobalNotifApi) GlobalNotifUserRemoveView(c *gin.Context) {
 	cr := middleware.GetBindJson[models.IDListRequest](c)
 	claims := jwts.MustGetClaimsByGin(c)

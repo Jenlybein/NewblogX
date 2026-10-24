@@ -20,6 +20,14 @@ type RegisterEmailRequest struct {
 	Pwd string `json:"pwd" binding:"required"`
 }
 
+// RegisterEmailView 邮箱注册并签发登录令牌。
+// @Summary 邮箱注册
+// @Tags user
+// @Accept json
+// @Produce json
+// @Param body body RegisterEmailRequest true "请求体"
+// @Success 200 {object} object{code=int,data=string,msg=string}
+// @Router /users/email/register [post]
 func (h AuthApi) RegisterEmailView(c *gin.Context) {
 	app := h.App
 	redisDeps := redis_service.NewDeps(h.App.Redis, h.App.Logger)

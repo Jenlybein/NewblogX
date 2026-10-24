@@ -13,6 +13,9 @@ node_modules/
 **/.turbo/
 .turbo/
 
+# OpenAPI 2.0→3.0 中间产物（前端生成类型时的临时文件）
+**/.openapi3.json
+
 # Go 运行时数据
 backend/bin/
 backend/logs/

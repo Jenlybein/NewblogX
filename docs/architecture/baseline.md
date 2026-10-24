@@ -252,7 +252,7 @@ M3-C2 追加验收：`go build` / `go vet` / `gofmt -l` 全干净；`go test ./.
 | S2.6 | ✅ | `internal/platform/llm`：超时 / ctx / 重试 / 连接池 |
 | S2.7 | ✅ | JSON 抽取已收敛为 `UnmarshalJSONBlock` 单入口（另一处正则是去代码块，非 JSON 解析） |
 | S2.8 | ✅ | 117 个业务 operation 全部补注解（article 30 / user 20 / log 11 / 其余 56），`swag init` 产出 `backend/docs/swagger.json`；`make openapi` 可复现。`/health` 为 infra 探针、不在 `/api` 下且返回空 body，不纳入业务契约 |
-| S2.9 | ❌ **未做** | 依赖 S2.8 完整覆盖，半量契约会让前端类型残缺 |
+| S2.9 | ✅ | 两前端 `pnpm openapi:types`：`swagger2openapi`（2.0→3.0）→ `openapi-typescript` 生成 `app/types/openapi.d.ts`（117 operations）；`app/types/contract.ts` 提供 `Schema<>`/`Operation<>`；`api.ts` 保留为视图模型层 |
 | L.1 / L.2 | ✅ | `internal/platform/log`：类型化事件 + 有界异步 + file sink |
 | L.3 | ✅ | 生产入口已接线：删掉 `jsonLineSink`（同步 `json.Marshal` + 每条一次文件写 + 全局锁），改由 `log_service/pipeline.go` 五条有界队列承接；`EmitActionAudit` 等 4 类写入与 logrus 的 `FileDateHook` 全部改为投递 |
 | L.4 | ✅ | `log/persist`：`ClickHouseSink` + `WALSink` + `ReplayWAL`；管道在启用 ClickHouse 时组合为 `WALSink(ClickHouseSink)`，并挂在启动时自动重放；5 张日志表引擎改 `ReplacingMergeTree` |
@@ -418,22 +418,20 @@ CH 的 `input_format_skip_unknown_fields=1` 会让旧 WAL 里多出的 `*_raw` �
 连两份重复的日志适配器也合并成 `canalbase.NewLogAdapter` 一份。
 行数不再当门禁，降级为"只降不升"的观察项。
 
-**2. S2.8 的难点不是工具，是注解**
+**2. S2.8 / S2.9：契约从代码长出来，前端类型从契约长出来**
 
-swag 工具链已验证：能装（`go install` 成功）、能跑（`swag init` exit 0）。但当前代码零注解，
-生成的 `swagger.json` 只有 84 字节、0 条 path。openapi 的内容完全由注解驱动：
+swag 链路已落地：`make openapi`（= `swag init --parseDependency --parseInternal`）
+从代码注解生成 `backend/docs/swagger.json`。
 
-```go
-// @Summary 文章详情
-// @Tags article
-// @Param id path int true "文章 ID"
-// @Success 200 {object} ArticleDetailResponse
-// @Router /api/articles/{id} [get]
-```
-
-全项目 **118 个 operation**（article 30 / user 20 / log 11 / 其余 57）。每个都必须准确对应 handler
-的入参与响应类型——写错会生成一份**比没有更糟**的契约，并被 S2.9 的类型生成直接放大到前端。
-这是逐模块、可增量验证的工程，不适合一次冲刺。
+- 覆盖 **117 个业务 operation**（article 30 / user 20 / log 11 / 其余 56）。
+  `/health` 是 infra 探针、不在 `/api` 下且返回空 body，刻意不纳入业务契约。
+- 响应统一写成内联 `object{code=int,data=<Type>,msg=string}`。
+  **踩过的坑**：`@Success 200` 与 `@Failure 200` 用同一状态码时，后者会覆盖前者——
+  本项目失败也返回 HTTP 200 + 业务 code，所以约定**只写 `@Success 200`**。
+- 前端类型链路：`pnpm openapi:types` = `swagger2openapi`（2.0→3.0）+ `openapi-typescript`
+  → `app/types/openapi.d.ts`。openapi-typescript 7 只吃 OpenAPI 3.x，故必须转换这一步。
+- `app/types/contract.ts` 提供 `Schema<"...">` / `Operation<"...","get">`；`api.ts` 保留为
+  **视图模型/适配层**（组件消费面向 UI 的形状），不再镜像原始 HTTP 契约。
 
 #### 文档口径已统一（2026-10-24 拍板）
 

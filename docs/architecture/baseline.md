@@ -792,3 +792,17 @@ T.4 里 `article`/`comment`/`user` 的 fake 依赖 domain 实体，属依赖顺�
   `FindIDByURL` / `ResolveURLByID`，不再依赖旧 `image_service`。
 - 平台包不依赖业务 domain：`qiniu.Storage` 由装配层的 `qiniuStorage` 适配成 media 端口。
 - 棘轮 **214 → 186**；`internal/media/...` 零违规。
+
+## 13. M5 交付记录 · S4.4（search）
+
+**2026-10-25**：`api/search_api` 与搜索实现文件已删，`GET /search/articles` 改由 `internal/search` 提供。
+
+- `internal/search/{domain,app,adapter/{redis,mysql,http}}`：请求归一化、ES DSL 构造、
+  结果解析、计数叠加、偏好标签加权。
+- DSL 语义原样保留：function_score（时间衰减 + 点赞/评论/收藏/浏览 log1p 加权）、
+  published/visible 过滤、作者/分类/标签/关键词条件、两种分页模式（has_more/count）。
+- 计数仍是「ES 基数 + Redis 增量」。
+- **AI 模块仍复用搜索响应类型与 SearchArticles**（S4.8 才迁）：保留一个极薄的
+  `service/search_service` 兼容层（类型别名 + 包装），AI 只改了两处 `PageInfo` 类型。
+- 删 `repository/user_repo`（最后一个引用随偏好标签读取迁入 `internal/search/adapter/mysql` 消失）。
+- 棘轮 **186 → 171**；`internal/search/...` 零违规。

@@ -4,6 +4,7 @@ import (
 	"myblogx/common"
 	"myblogx/common/res"
 	"myblogx/internal/platform/redis"
+	"myblogx/internal/search/domain"
 	"myblogx/middleware"
 	"myblogx/models/ctype"
 	"myblogx/service/ai_service/ai_search"
@@ -194,7 +195,7 @@ func searchAIArticles(rewrite *ai_search.ArticleSearchRewrite, redisDeps redis_s
 			PageMode:      search_service.PageModeHasMore,
 			LegacyTagList: rewrite.TagList,
 			Key:           key,
-			PageInfo:      common.PageInfo{Page: 1, Limit: limit},
+			PageInfo:      domain.PageInfo{Page: 1, Limit: limit},
 		}, nil, nil, redisDeps, esClient, index)
 		if err != nil {
 			return search_service.ArticleSearchResponse{}, err
@@ -207,7 +208,7 @@ func searchAIArticles(rewrite *ai_search.ArticleSearchRewrite, redisDeps redis_s
 		Sort:     rewrite.Sort,
 		PageMode: search_service.PageModeHasMore,
 		Key:      key,
-		PageInfo: common.PageInfo{Page: 1, Limit: limit},
+		PageInfo: domain.PageInfo{Page: 1, Limit: limit},
 	}, nil, nil, redisDeps, esClient, index)
 	if err != nil {
 		return search_service.ArticleSearchResponse{}, err

@@ -12,12 +12,12 @@ import (
 	articleapp "myblogx/internal/article/app"
 	"myblogx/internal/article/domain"
 	"myblogx/internal/article/domain/favorite"
+	mediamysql "myblogx/internal/media/adapter/mysql"
 	"myblogx/internal/platform/idgen"
 	redis_service "myblogx/internal/platform/redis"
 	"myblogx/models/ctype"
 	"myblogx/models/enum"
 	"myblogx/router"
-	"myblogx/service/image_service"
 	"myblogx/utils/jwts"
 )
 
@@ -111,11 +111,16 @@ type imageResolver struct{ db *gorm.DB }
 // FindImageIDByURL 反查图片 ID。
 func (r *imageResolver) FindImageIDByURL(ctx context.Context, url string) (*ctype.ID, error) {
 	_ = ctx
-	return image_service.FindImageIDByURL(r.db, url)
+	id, ok, err := mediamysql.FindIDByURL(r.db, url)
+	if err != nil || !ok {
+		return nil, err
+	}
+	value := ctype.ID(id)
+	return &value, nil
 }
 
 // ResolveImageURLByID 取图片 URL。
 func (r *imageResolver) ResolveImageURLByID(ctx context.Context, id ctype.ID) (string, error) {
 	_ = ctx
-	return image_service.ResolveImageURLByID(r.db, id)
+	return mediamysql.ResolveURLByID(r.db, uint64(id))
 }

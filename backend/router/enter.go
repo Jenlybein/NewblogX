@@ -39,7 +39,7 @@ func Run(deps middleware.Deps, app api.Api) (*http.Server, error) {
 
 	SiteRouter(nr, app, mwRuntime)
 	LogRouter(nr, app, mwRuntime)
-	ImageRouter(nr, app, mwRuntime)
+	ImageRouter(nr, mwRuntime)
 	BannerRouter(nr, app, mwRuntime)
 	CaptchaRouter(nr, app, mwRuntime)
 	UserRouter(nr, app, mwRuntime)

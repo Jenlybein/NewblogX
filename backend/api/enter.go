@@ -10,7 +10,6 @@ import (
 	"myblogx/api/data_api"
 	"myblogx/api/follow_api"
 	"myblogx/api/global_notif_api"
-	"myblogx/api/image_api"
 	"myblogx/api/log_api"
 	"myblogx/api/search_api"
 	"myblogx/api/site_api"
@@ -22,7 +21,6 @@ import (
 type Api struct {
 	SiteApi         site_api.SiteApi
 	LogApi          log_api.LogApi
-	ImageApi        image_api.ImageApi
 	BannerApi       banner_api.BannerApi
 	ImageCaptchaApi captcha_api.ImageCaptchaApi
 	UserApi         user_api.UserApi
@@ -51,13 +49,6 @@ func New(deps middleware.Deps) Api {
 			Logger:           deps.Logger,
 			ClickHouse:       deps.ClickHouse,
 			DB:               deps.DB,
-		}),
-		ImageApi: image_api.New(image_api.Deps{
-			DB:     deps.DB,
-			Logger: deps.Logger,
-			QiNiu:  deps.QiNiu,
-			Upload: deps.Upload,
-			Redis:  deps.Redis,
 		}),
 		BannerApi: banner_api.New(banner_api.Deps{
 			DB: deps.DB,

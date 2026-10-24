@@ -778,3 +778,17 @@ T.4 里 `article`/`comment`/`user` 的 fake 依赖 domain 实体，属依赖顺�
 - 通知从裸 goroutine 改为同步 `Notifier` 端口（失败只记日志），S4.6 再换 outbox。
 - 点赞仓储拆成 `DiggRepo` 独立类型：两个端口的 `Create` 签名不同，同一类型不能同名方法。
 - 棘轮 **224 → 214**；`internal/comment/...` 零违规。
+
+## 12. M5 交付记录 · S4.3（media）
+
+**2026-10-25**：`api/image_api` + `service/image_service` 已删，`/images` 7 条路由改由 `internal/media` 提供；
+七牛 SDK 调用迁入 `platform/storage/qiniu`。
+
+- `internal/media/{domain,app,adapter/{mysql,redis,http}}` + `apptest` 内存替身。
+- 上传任务完整保留：创建（秒传判断 + 凭证 + 对象 key）、手动确认、七牛回调确认、
+  状态轮询、内容审核回调（含"回调先到、图片后入库"的 Redis 暂存）。
+- 校验链未简化：哈希、大小、bucket、图片格式白名单、真实 imageInfo 尺寸。
+- `article` / `user` / `banner` 的图片反查改为 `internal/media/adapter/mysql` 的
+  `FindIDByURL` / `ResolveURLByID`，不再依赖旧 `image_service`。
+- 平台包不依赖业务 domain：`qiniu.Storage` 由装配层的 `qiniuStorage` 适配成 media 端口。
+- 棘轮 **214 → 186**；`internal/media/...` 零违规。

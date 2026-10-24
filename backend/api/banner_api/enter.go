@@ -4,10 +4,11 @@ import (
 	"fmt"
 	"myblogx/common"
 	"myblogx/common/res"
+	"myblogx/internal/apperr"
+	mediamysql "myblogx/internal/media/adapter/mysql"
 	"myblogx/middleware"
 	"myblogx/models"
 	"myblogx/models/ctype"
-	"myblogx/service/image_service"
 	"strconv"
 
 	"github.com/gin-gonic/gin"
@@ -194,9 +195,9 @@ func (h BannerApi) BannerUpdateView(c *gin.Context) {
 
 func resolveBannerCoverURL(db *gorm.DB, imageID ctype.ID) (string, error) {
 	if imageID == 0 {
-		return "", image_service.ErrImageUnavailable
+		return "", apperr.New(apperr.CodeImageUnavailable)
 	}
-	return image_service.ResolveImageURLByID(db, imageID)
+	return mediamysql.ResolveURLByID(db, uint64(imageID))
 }
 
 func attachBannerCoverImageIDs(db *gorm.DB, list []models.BannerModel) {

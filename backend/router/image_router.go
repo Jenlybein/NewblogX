@@ -1,28 +1,35 @@
 package router
 
 import (
-	"myblogx/api"
-	"myblogx/api/image_api"
-	"myblogx/common"
+	mediahttp "myblogx/internal/media/adapter/http"
 	mw "myblogx/middleware"
-	"myblogx/models"
 
 	"github.com/gin-gonic/gin"
 )
 
-func ImageRouter(r *gin.RouterGroup, appContainer api.Api, runtimeMw mw.Runtime) {
+// imageHandler 由 app.WireMedia 在启动时注入。
+var imageHandler *mediahttp.Handler
+
+// SetImageHandler 注入图片处理器。
+func SetImageHandler(h *mediahttp.Handler) { imageHandler = h }
+
+// ImageRouter 注册图片路由。
+func ImageRouter(r *gin.RouterGroup, runtimeMw mw.Runtime) {
+	if imageHandler == nil {
+		panic("router: 图片处理器未注入（应在 app.WireMedia 中调用 SetImageHandler）")
+	}
+	app := imageHandler
+
 	Group := r.Group("images")
 	authGroup := Group.Group("", runtimeMw.AuthMiddleware)
 	adminGroup := authGroup.Group("", mw.AdminMiddleware)
 
-	app := appContainer.ImageApi
+	authGroup.POST("upload-tasks", app.CreateUploadTask)
+	authGroup.POST("upload-tasks/complete", app.CompleteUploadTask)
+	authGroup.GET("upload-tasks/:id", app.UploadTaskStatus)
+	Group.POST("qiniu/callback", app.QiniuCallback)
+	Group.POST("qiniu/audit/callback", app.QiniuAuditCallback)
 
-	authGroup.POST("upload-tasks", mw.BindJson[image_api.CreateImageUploadTaskRequest], app.CreateUploadTaskView)
-	authGroup.POST("upload-tasks/complete", mw.BindJson[image_api.CompleteImageUploadTaskRequest], app.CompleteUploadTaskView)
-	authGroup.GET("upload-tasks/:id", mw.BindUri[models.IDRequest], app.UploadTaskStatusView)
-	Group.POST("qiniu/callback", app.QiniuCallbackView)
-	Group.POST("qiniu/audit/callback", app.QiniuAuditCallbackView)
-
-	adminGroup.GET("", mw.BindQuery[common.PageInfo], app.ImageListView)
-	adminGroup.DELETE("", mw.CaptureLog(mw.ReqBody), mw.BindJson[models.IDListRequest], app.ImageRemoveView)
+	adminGroup.GET("", app.List)
+	adminGroup.DELETE("", mw.CaptureLog(mw.ReqBody), app.Remove)
 }

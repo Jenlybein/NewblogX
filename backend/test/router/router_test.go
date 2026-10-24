@@ -5,6 +5,8 @@ import (
 	articlehttp "myblogx/internal/article/adapter/http"
 	authhttp "myblogx/internal/auth/adapter/http"
 	authapptest "myblogx/internal/auth/apptest"
+	mediahttp "myblogx/internal/media/adapter/http"
+	mediaapptest "myblogx/internal/media/apptest"
 	userhttp "myblogx/internal/user/adapter/http"
 	userapptest "myblogx/internal/user/apptest"
 	mw "myblogx/middleware"
@@ -25,7 +27,8 @@ func TestRegisterAllRoutes(t *testing.T) {
 
 	router.SiteRouter(api, app, runtimeMw)
 	router.LogRouter(api, app, runtimeMw)
-	router.ImageRouter(api, app, runtimeMw)
+	router.SetImageHandler(mediahttp.NewHandler(mediaapptest.NewDefaultService()))
+	router.ImageRouter(api, runtimeMw)
 	router.BannerRouter(api, app, runtimeMw)
 	router.CaptchaRouter(api, app, runtimeMw)
 	// 认证路由来自 internal/auth：这里用全空替身，仅验证路由表。

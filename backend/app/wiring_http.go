@@ -44,6 +44,9 @@ func WireHTTP(infra *Infra, lc *Lifecycle) error {
 		Tx:                mysql.NewTxManager(infra.DB),
 	}
 
+	// media 链路：图片能力改由 internal/media + platform/storage 提供。
+	WireMedia(infra)
+
 	// article 链路：启动时注入处理器。旧实现已删除，这是唯一路径。
 	WireArticle(infra)
 

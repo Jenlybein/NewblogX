@@ -125,6 +125,18 @@ const (
 	CodeImageCallbackInvalid  Code = "image.callback_invalid"
 )
 
+// 搜索。
+const (
+	CodeSearchTypeInvalid     Code = "search.type_invalid"
+	CodeSearchSortInvalid     Code = "search.sort_invalid"
+	CodeSearchPageModeInvalid Code = "search.page_mode_invalid"
+	CodeSearchStatusRestrict  Code = "search.status_restricted"
+	CodeSearchAuthorRequired  Code = "search.author_required"
+	CodeSearchUnauthorized    Code = "search.unauthorized"
+	CodeSearchForbidden       Code = "search.forbidden"
+	CodeSearchResultInvalid   Code = "search.result_invalid"
+)
+
 // messages 是错误码到中文文案的唯一映射。
 //
 // 新增错误码时**必须**在这里补一行；缺了不会 panic，Error() 会退化成码本身，
@@ -209,6 +221,15 @@ var messages = map[Code]string{
 	CodeImageDeleteFailed:     "删除图片失败",
 	CodeImageObjectKeyMissing: "回调缺少对象 key",
 	CodeImageCallbackInvalid:  "回调签名校验失败",
+
+	CodeSearchTypeInvalid:     "搜索类型错误",
+	CodeSearchSortInvalid:     "搜索排序错误",
+	CodeSearchPageModeInvalid: "分页模式错误",
+	CodeSearchStatusRestrict:  "当前搜索类型只能查询已发布文章",
+	CodeSearchAuthorRequired:  "作者文章必须传 author_id",
+	CodeSearchUnauthorized:    "请先登录",
+	CodeSearchForbidden:       "权限错误",
+	CodeSearchResultInvalid:   "搜索结果格式错误",
 }
 
 // Error 是带错误码的应用错误。

@@ -11,7 +11,6 @@ import (
 	"myblogx/api/follow_api"
 	"myblogx/api/global_notif_api"
 	"myblogx/api/log_api"
-	"myblogx/api/search_api"
 	"myblogx/api/site_api"
 	"myblogx/api/sitemsg_api"
 	"myblogx/api/user_api"
@@ -28,7 +27,6 @@ type Api struct {
 	SitemsgApi      sitemsg_api.SitemsgApi
 	GlobalNotifApi  global_notif_api.GlobalNotifApi
 	FollowApi       follow_api.FollowApi
-	SearchApi       search_api.SearchApi
 	AIApi           ai_api.AIApi
 	DataApi         data_api.DataApi
 }
@@ -83,14 +81,6 @@ func New(deps middleware.Deps) Api {
 		}),
 		FollowApi: follow_api.New(follow_api.Deps{
 			DB: deps.DB,
-		}),
-		SearchApi: search_api.New(search_api.Deps{
-			DB:       deps.DB,
-			Logger:   deps.Logger,
-			JWT:      deps.JWT,
-			Redis:    deps.Redis,
-			ESClient: deps.ESClient,
-			ES:       deps.ES,
 		}),
 		AIApi: ai_api.New(ai_api.Deps{
 			DB:          deps.DB,

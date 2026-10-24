@@ -1,19 +1,24 @@
 package router
 
 import (
-	"myblogx/api"
+	searchhttp "myblogx/internal/search/adapter/http"
 	mw "myblogx/middleware"
-	"myblogx/service/search_service"
 
 	"github.com/gin-gonic/gin"
 )
 
-func SearchRouter(r *gin.RouterGroup, appContainer api.Api, runtimeMw mw.Runtime) {
+// searchHandler 由 app.WireSearch 在启动时注入。
+var searchHandler *searchhttp.Handler
+
+// SetSearchHandler 注入搜索处理器。
+func SetSearchHandler(h *searchhttp.Handler) { searchHandler = h }
+
+// SearchRouter 注册搜索路由。
+func SearchRouter(r *gin.RouterGroup, runtimeMw mw.Runtime) {
+	if searchHandler == nil {
+		panic("router: 搜索处理器未注入（应在 app.WireSearch 中调用 SetSearchHandler）")
+	}
+	_ = runtimeMw
 	group := r.Group("search")
-	// authGroup := group.Group("", runtimeMw.AuthMiddleware)
-	// adminGroup := authGroup.Group("", mw.AdminMiddleware)
-
-	app := appContainer.SearchApi
-
-	group.GET("articles", mw.BindQuery[search_service.ArticleSearchRequest], app.ArticleSearchView)
+	group.GET("articles", searchHandler.ArticleSearch)
 }

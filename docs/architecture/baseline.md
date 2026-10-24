@@ -703,10 +703,33 @@ T.4 里 `article`/`comment`/`user` 的 fake 依赖 domain 实体，属依赖顺�
 
 **棘轮为什么从 236 变成 250**：
 
-250 = 233（删死代码让 R8 从 111 → 108）+ 17（R10 首次统计出的 article adapter 存量）。
+250 = 233（删死代码让 R8 从 111 → 108）+ 17（R10 首次统计出的 article 存量）。
 
-那 17 处一直是真违规，只是此前没有任何规则统计它。**重标不是放宽，是把隐藏债务显性化**；
-代价是必须尽快清掉，已排进 **S4.1.0**（article row 迁进 `adapter/mysql`），清完回到 233。
+那 17 处一直是真违规，只是此前没有任何规则统计它。**重标不是放宽，是把隐藏债务显性化**。
+
+**进一步查了这 17 处的构成，结论比"row 放哪"更严重**：
+
+| 位置 | 处数 | 实质 |
+| --- | --- | --- |
+| `adapter/mysql/ports.go` | 2 | **article 直接读写 `CommentModel`（级联软删评论）和 `UserModel`（查作者信息）**——跨模块表穿透，不是 row 归属问题 |
+| `adapter/mysql/*_test.go` | 4 | 集成测试里 `AutoMigrate` 建别的模块的表，属测试脚手架 |
+| `adapter/mysql/*.go`（article 自有表） | 4 | 真正的 row 归属问题 |
+| `adapter/http/*.go` | 7 | `models.IDRequest`/`IDListRequest`（通用请求）+ 审核任务枚举 |
+
+也就是说：**R10 抓到的核心问题是模块边界穿透，而不是"row 该放哪个包"**。
+单纯把 572 行 model 复制进 adapter 只是换皮，边界照样穿透。
+
+**正确的收口顺序**（不是一次复制能解决的）：
+
+1. S4.1 建 `user` 模块时，同时立 `UserPort`（读用户展示信息 / 同步快照），article 的 `ports.go` 改调 port；
+2. S4.2 建 `comment` 模块时，同时立 `CommentPort`（级联删除），article 不再直写评论表；
+3. `adapter/http` 的 7 处独立于上面两步：`IDRequest`/`IDListRequest` 迁 `internal/kernel`，
+   审核任务枚举复用 article domain 已有的类型；
+4. 三步做完 R10 归零，棘轮 250 → 233。
+
+**先记下不做的理由**：在 comment/user 模块还不存在时把 row 复制进 article adapter，
+会让"article 能直接写评论表"这件事变得**更难被发现**——因为它不再叫 `models` 了。
+规则的价值在于暴露问题，不是让人绕过它。
 
 **一个刻意没做的事**：文档原本写"R7 转 error"，读代码后放弃——
 `archcheck` 当前只按 `--mode` + `--max-violations` 判定，`Rule.Level` 只用于

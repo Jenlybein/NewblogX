@@ -1,57 +1,22 @@
 <script setup lang="ts">
-import type { Component } from "vue";
 import type { ArticleHeadingAnchor } from "~/composables/useArticleMarkdown";
 import type { StudioAiAction } from "~/composables/useStudioAiSelection";
 import { computed, defineAsyncComponent, nextTick, reactive, ref, watch } from "vue";
 import { useDebounce } from "@vueuse/core";
-import {
-  IconAlignCenter,
-  IconAlignLeft,
-  IconAlignRight,
-  IconBlockquote,
-  IconBold,
-  IconCodeDots,
-  IconColumns1,
-  IconColumns2,
-  IconHeading,
-  IconHighlight,
-  IconItalic,
-  IconLink,
-  IconList,
-  IconListDetails,
-  IconListNumbers,
-  IconPalette,
-  IconPhoto,
-  IconSparkles,
-  IconStrikethrough,
-  IconTable,
-  IconTopologyStar3,
-} from "@tabler/icons-vue";
-import { NButton, NCard, NInput, NModal, NPopover, NSelect, NSwitch, NTooltip, useMessage } from "naive-ui";
-import AppAvatar from "~/components/common/AppAvatar.vue";
+import { NButton, NCard, NModal, NSelect, NSwitch, useMessage } from "naive-ui";
 import ArticleScoreModal from "~/components/article/ArticleScoreModal.vue";
 import StudioAiAssistPanel from "~/components/studio/StudioAiAssistPanel.vue";
 import StudioSelectionAiToolbar from "~/components/studio/StudioSelectionAiToolbar.vue";
+import StudioWriteHeader from "~/components/studio/StudioWriteHeader.vue";
 import { useStudioAiSelection } from "~/composables/useStudioAiSelection";
+import { useStudioEditorCommands } from "~/composables/useStudioEditorCommands";
+import type { ToolItem } from "~/constants/studioToolbar";
+import { useStudioMarkdownTheme } from "~/composables/useStudioMarkdownTheme";
 import { useTextareaSelectionOverlay } from "~/composables/useTextareaSelectionOverlay";
 import { generateArticleMetainfo, getArticleScoreDetail, regenerateArticleScore } from "~/services/ai";
 import { createArticle, getArticleDetail, updateArticle } from "~/services/article";
 import { uploadImageByTask } from "~/services/image";
 import { getCategoryOptions, getTagOptions } from "~/services/search";
-import katexCssUrl from "katex/dist/katex.min.css?url";
-import highlightCssUrl from "highlight.js/styles/github.min.css?url";
-import githubMarkdownCssUrl from "github-markdown-css/github-markdown-light.css?url";
-import githubMarkdownDarkCssUrl from "github-markdown-css/github-markdown-dark.css?url";
-import githubMarkdownLightColorblindCssUrl from "github-markdown-css/github-markdown-light-colorblind.css?url";
-import githubMarkdownDarkColorblindCssUrl from "github-markdown-css/github-markdown-dark-colorblind.css?url";
-import githubMarkdownDarkDimmedCssUrl from "github-markdown-css/github-markdown-dark-dimmed.css?url";
-import githubMarkdownDarkHighContrastCssUrl from "github-markdown-css/github-markdown-dark-high-contrast.css?url";
-import markdownThemeShanyueCssUrl from "markdown-theme/themes/shanyue.css?url";
-import markdownThemeVGreenCssUrl from "markdown-theme/themes/v-green.css?url";
-import markdownThemeChocolateCssUrl from "markdown-theme/themes/chocolate.css?url";
-import markdownThemeShanchuiCssUrl from "markdown-theme/themes/shanchui.css?url";
-import markdownThemeMenglvCssUrl from "markdown-theme/themes/menglv.css?url";
-import markdownThemeCondensedNightPurpleCssUrl from "markdown-theme/themes/condensed-night-purple.css?url";
 import { resolveAvatarInitial } from "~/utils/avatar";
 
 definePageMeta({
@@ -59,18 +24,6 @@ definePageMeta({
   middleware: "auth",
 });
 
-type ToolOption = {
-  key: string;
-  label: string;
-  icon?: Component;
-};
-
-type ToolItem = {
-  key: string;
-  label: string;
-  icon: Component;
-  options?: ToolOption[];
-};
 
 const router = useRouter();
 const route = useRoute();
@@ -115,20 +68,16 @@ const showToc = ref(true);
 const viewMode = ref<"split" | "editor" | "preview">("split");
 const publishVisible = ref(false);
 const coverDirty = ref(false);
-const selectedMarkdownTheme = ref<
-  | "github"
-  | "github-dark"
-  | "github-colorblind"
-  | "github-dark-colorblind"
-  | "github-dark-dimmed"
-  | "github-dark-high-contrast"
-  | "shanyue"
-  | "vgreen"
-  | "chocolate"
-  | "shanchui"
-  | "menglv"
-  | "condensed-night-purple"
->("github");
+// Markdown 主题（12 套 CSS 的映射表）见 composable。
+const {
+  selectedMarkdownTheme,
+  markdownThemeOptions,
+  visibilityOptions,
+  selectedThemeLabel,
+  activeMarkdownThemeHref,
+  markdownSupportStyleHrefs,
+} = useStudioMarkdownTheme();
+
 
 const currentUserId = computed(() => authStore.profileId || "");
 const currentUserInitial = computed(() => resolveAvatarInitial(authStore.profileName, "我"));
@@ -231,129 +180,9 @@ const isPublishingLocked = computed(() => pendingState.publish || pendingState.d
 const canOpenArticleScore = computed(() => Boolean(editArticleId.value));
 const currentArticlePublishStatus = computed(() => editingArticle.value?.publish_status ?? 0);
 
-const markdownThemeOptions: ToolOption[] = [
-  { key: "github", label: "GitHub Light" },
-  { key: "github-dark", label: "GitHub Dark" },
-  { key: "github-colorblind", label: "GitHub Colorblind" },
-  { key: "github-dark-colorblind", label: "GitHub Dark Colorblind" },
-  { key: "github-dark-dimmed", label: "GitHub Dark Dimmed" },
-  { key: "github-dark-high-contrast", label: "GitHub Dark High Contrast" },
-  { key: "shanyue", label: "Shanyue" },
-  { key: "vgreen", label: "V-Green" },
-  { key: "chocolate", label: "Chocolate" },
-  { key: "shanchui", label: "Shanchui" },
-  { key: "menglv", label: "Menglv" },
-  { key: "condensed-night-purple", label: "Condensed Night Purple" },
-];
 
-const visibilityOptions = [
-  { label: "公开展示", value: "visible" },
-  { label: "仅自己可见", value: "user_hidden" },
-];
+const { focusEditor, insertSnippet, applyBoldShortcut, applyItalicShortcut, applyInlineCodeShortcut, applyImageShortcut, applyStrikeShortcut, applyTableShortcut, applyQuoteShortcut, applyUnorderedListShortcut, applyOrderedListShortcut, applyCodeBlockShortcut, applyLinkShortcut, handleEditorShortcuts } = useStudioEditorCommands({ form, textareaRef: editorTextareaRef });
 
-const selectedThemeLabel = computed(
-  () => markdownThemeOptions.find((item) => item.key === selectedMarkdownTheme.value)?.label || "GitHub Light",
-);
-
-const markdownThemeHrefMap: Record<typeof selectedMarkdownTheme.value, string> = {
-  github: githubMarkdownCssUrl,
-  "github-dark": githubMarkdownDarkCssUrl,
-  "github-colorblind": githubMarkdownLightColorblindCssUrl,
-  "github-dark-colorblind": githubMarkdownDarkColorblindCssUrl,
-  "github-dark-dimmed": githubMarkdownDarkDimmedCssUrl,
-  "github-dark-high-contrast": githubMarkdownDarkHighContrastCssUrl,
-  shanyue: markdownThemeShanyueCssUrl,
-  vgreen: markdownThemeVGreenCssUrl,
-  chocolate: markdownThemeChocolateCssUrl,
-  shanchui: markdownThemeShanchuiCssUrl,
-  menglv: markdownThemeMenglvCssUrl,
-  "condensed-night-purple": markdownThemeCondensedNightPurpleCssUrl,
-};
-
-const activeMarkdownThemeHref = computed(() => markdownThemeHrefMap[selectedMarkdownTheme.value]);
-const markdownSupportStyleHrefs = [katexCssUrl, highlightCssUrl];
-
-const leftTools: ToolItem[] = [
-  {
-    key: "title",
-    label: "标题",
-    icon: IconHeading,
-    options: [
-      { key: "h1", label: "H1 一级标题" },
-      { key: "h2", label: "H2 二级标题" },
-      { key: "h3", label: "H3 三级标题" },
-      { key: "h4", label: "H4 四级标题" },
-      { key: "h5", label: "H5 五级标题" },
-      { key: "h6", label: "H6 六级标题" },
-    ],
-  },
-  { key: "bold", label: "加粗", icon: IconBold },
-  { key: "italic", label: "斜体", icon: IconItalic },
-  { key: "quote", label: "引用", icon: IconBlockquote },
-  { key: "link", label: "链接", icon: IconLink },
-  { key: "image", label: "图片", icon: IconPhoto },
-  { key: "highlight", label: "高亮", icon: IconHighlight },
-  { key: "code", label: "代码块", icon: IconCodeDots },
-  { key: "ul", label: "无序列表", icon: IconList },
-  { key: "ol", label: "有序列表", icon: IconListNumbers },
-  { key: "strike", label: "删除线", icon: IconStrikethrough },
-  { key: "table", label: "表格", icon: IconTable },
-  {
-    key: "ai",
-    label: "AI 辅助",
-    icon: IconSparkles,
-    options: [
-      { key: "polish", label: "润色改写" },
-      { key: "grammar_fix", label: "语法纠错" },
-      { key: "style_transform", label: "风格转换" },
-      { key: "diagnose", label: "内容诊断" },
-    ],
-  },
-  {
-    key: "theme",
-    label: "预览样式",
-    icon: IconPalette,
-    options: markdownThemeOptions,
-  },
-  {
-    key: "align",
-    label: "对齐",
-    icon: IconAlignLeft,
-    options: [
-      { key: "align-left", label: "左对齐", icon: IconAlignLeft },
-      { key: "align-center", label: "居中对齐", icon: IconAlignCenter },
-      { key: "align-right", label: "右对齐", icon: IconAlignRight },
-    ],
-  },
-  {
-    key: "mermaid",
-    label: "Mermaid 图",
-    icon: IconTopologyStar3,
-    options: [
-      { key: "flowchart", label: "流程图" },
-      { key: "sequence", label: "时序图" },
-      { key: "class", label: "类图" },
-      { key: "state", label: "状态图" },
-      { key: "er", label: "关系图" },
-      { key: "journey", label: "旅程图" },
-      { key: "gantt", label: "甘特图" },
-      { key: "pie", label: "饼状图" },
-    ],
-  },
-];
-
-function focusEditor(selectionStart?: number, selectionEnd?: number) {
-  nextTick(() => {
-    const textarea = editorTextareaRef.value;
-    if (!textarea) {
-      return;
-    }
-    textarea.focus();
-    if (typeof selectionStart === "number" && typeof selectionEnd === "number") {
-      textarea.setSelectionRange(selectionStart, selectionEnd);
-    }
-  });
-}
 
 const articleTitleModel = computed({
   get: () => form.title,
@@ -421,412 +250,6 @@ watch(
   },
 );
 
-function replaceSelection(transform: (selectedText: string) => { content: string; start: number; end: number }) {
-  const textarea = editorTextareaRef.value;
-  const fallbackSelection = form.content.length;
-  const selectionStart = textarea?.selectionStart ?? fallbackSelection;
-  const selectionEnd = textarea?.selectionEnd ?? fallbackSelection;
-  const selectedText = form.content.slice(selectionStart, selectionEnd);
-  const nextSelection = transform(selectedText);
-
-  form.content = `${form.content.slice(0, selectionStart)}${nextSelection.content}${form.content.slice(selectionEnd)}`;
-  focusEditor(selectionStart + nextSelection.start, selectionStart + nextSelection.end);
-}
-
-function insertSnippet(snippet: string) {
-  replaceSelection((selectedText) => {
-    const content = selectedText ? `${snippet}${selectedText}` : snippet;
-    const offset = content.length;
-    return { content, start: offset, end: offset };
-  });
-}
-
-function findWordRangeAtCursor(content: string, cursor: number) {
-  const isWordChar = (char: string) => /[A-Za-z0-9_\u4e00-\u9fff]/.test(char);
-  let start = cursor;
-  let end = cursor;
-
-  while (start > 0 && isWordChar(content[start - 1] || "")) {
-    start -= 1;
-  }
-
-  while (end < content.length && isWordChar(content[end] || "")) {
-    end += 1;
-  }
-
-  if (start === end) {
-    return null;
-  }
-
-  return { start, end };
-}
-
-function getShortcutRange() {
-  const textarea = editorTextareaRef.value;
-  if (!textarea) {
-    return null;
-  }
-
-  let selectionStart = textarea.selectionStart ?? 0;
-  let selectionEnd = textarea.selectionEnd ?? selectionStart;
-
-  if (selectionStart === selectionEnd) {
-    const wordRange = findWordRangeAtCursor(form.content, selectionStart);
-    if (!wordRange) {
-      return null;
-    }
-    selectionStart = wordRange.start;
-    selectionEnd = wordRange.end;
-  }
-
-  return { selectionStart, selectionEnd };
-}
-
-function toggleInlineWrapper(prefix: string, suffix: string) {
-  const range = getShortcutRange();
-  if (!range) {
-    return;
-  }
-
-  const { selectionStart, selectionEnd } = range;
-  const content = form.content;
-  const hasWrappedSelection =
-    selectionStart >= prefix.length &&
-    selectionEnd + suffix.length <= content.length &&
-    content.slice(selectionStart - prefix.length, selectionStart) === prefix &&
-    content.slice(selectionEnd, selectionEnd + suffix.length) === suffix;
-
-  if (hasWrappedSelection) {
-    const nextContent =
-      content.slice(0, selectionStart - prefix.length) +
-      content.slice(selectionStart, selectionEnd) +
-      content.slice(selectionEnd + suffix.length);
-    form.content = nextContent;
-    focusEditor(selectionStart - prefix.length, selectionEnd - prefix.length);
-    return;
-  }
-
-  const selectedText = content.slice(selectionStart, selectionEnd);
-  form.content = `${content.slice(0, selectionStart)}${prefix}${selectedText}${suffix}${content.slice(selectionEnd)}`;
-  focusEditor(selectionStart + prefix.length, selectionEnd + prefix.length);
-}
-
-function applyBoldShortcut() {
-  toggleInlineWrapper("**", "**");
-}
-
-function applyItalicShortcut() {
-  toggleInlineWrapper("*", "*");
-}
-
-function applyUnderlineShortcut() {
-  toggleInlineWrapper("++", "++");
-}
-
-function applyInlineCodeShortcut() {
-  toggleInlineWrapper("`", "`");
-}
-
-function applyImageShortcut() {
-  insertSnippet("![图片描述](https://example.com/image.png)\n");
-}
-
-function applyStrikeShortcut() {
-  toggleInlineWrapper("~~", "~~");
-}
-
-function applyTableShortcut() {
-  insertSnippet("| 列1 | 列2 |\n| --- | --- |\n| 内容 | 内容 |\n");
-}
-
-function applyHeadingShortcut(level: number) {
-  const textarea = editorTextareaRef.value;
-  if (!textarea) {
-    return;
-  }
-
-  const selectionStart = textarea.selectionStart ?? 0;
-  const selectionEnd = textarea.selectionEnd ?? selectionStart;
-  const content = form.content;
-  const lineStart = content.lastIndexOf("\n", Math.max(0, selectionStart - 1)) + 1;
-  let lineEnd = content.indexOf("\n", selectionEnd);
-  if (lineEnd === -1) {
-    lineEnd = content.length;
-  }
-
-  const lineBlock = content.slice(lineStart, lineEnd);
-  const nextPrefix = `${"#".repeat(level)} `;
-  const transformedBlock = lineBlock
-    .split("\n")
-    .map((line) => {
-      if (!line.trim()) {
-        return line;
-      }
-      const stripped = line.replace(/^\s{0,3}#{1,6}\s+/, "");
-      return `${nextPrefix}${stripped}`;
-    })
-    .join("\n");
-
-  form.content = `${content.slice(0, lineStart)}${transformedBlock}${content.slice(lineEnd)}`;
-  focusEditor(lineStart, lineStart + transformedBlock.length);
-}
-
-function replaceCurrentLineBlock(transformLine: (line: string, index: number) => string) {
-  const textarea = editorTextareaRef.value;
-  if (!textarea) {
-    return;
-  }
-
-  const selectionStart = textarea.selectionStart ?? 0;
-  const selectionEnd = textarea.selectionEnd ?? selectionStart;
-  const content = form.content;
-  const lineStart = content.lastIndexOf("\n", Math.max(0, selectionStart - 1)) + 1;
-  let lineEnd = content.indexOf("\n", selectionEnd);
-  if (lineEnd === -1) {
-    lineEnd = content.length;
-  }
-
-  const lineBlock = content.slice(lineStart, lineEnd);
-  const transformedBlock = lineBlock
-    .split("\n")
-    .map((line, index) => transformLine(line, index))
-    .join("\n");
-
-  form.content = `${content.slice(0, lineStart)}${transformedBlock}${content.slice(lineEnd)}`;
-  focusEditor(lineStart, lineStart + transformedBlock.length);
-}
-
-function applyQuoteShortcut() {
-  replaceCurrentLineBlock((line) => {
-    if (!line.trim()) {
-      return line;
-    }
-    if (/^\s{0,3}>\s?/.test(line)) {
-      return line.replace(/^\s{0,3}>\s?/, "");
-    }
-    return `> ${line}`;
-  });
-}
-
-function applyUnorderedListShortcut() {
-  const textarea = editorTextareaRef.value;
-  if (!textarea) {
-    return;
-  }
-
-  const selectionStart = textarea.selectionStart ?? 0;
-  const selectionEnd = textarea.selectionEnd ?? selectionStart;
-  const content = form.content;
-  const lineStart = content.lastIndexOf("\n", Math.max(0, selectionStart - 1)) + 1;
-  let lineEnd = content.indexOf("\n", selectionEnd);
-  if (lineEnd === -1) {
-    lineEnd = content.length;
-  }
-  const lineBlock = content.slice(lineStart, lineEnd);
-  const lines = lineBlock.split("\n");
-  const nonEmptyLines = lines.filter((line) => line.trim());
-  const isAllBulleted = nonEmptyLines.length > 0 && nonEmptyLines.every((line) => /^\s*-\s+/.test(line));
-
-  replaceCurrentLineBlock((line) => {
-    if (!line.trim()) {
-      return line;
-    }
-    if (isAllBulleted) {
-      return line.replace(/^\s*-\s+/, "");
-    }
-    return `- ${line}`;
-  });
-}
-
-function applyOrderedListShortcut() {
-  const textarea = editorTextareaRef.value;
-  if (!textarea) {
-    return;
-  }
-
-  const selectionStart = textarea.selectionStart ?? 0;
-  const selectionEnd = textarea.selectionEnd ?? selectionStart;
-  const content = form.content;
-  const lineStart = content.lastIndexOf("\n", Math.max(0, selectionStart - 1)) + 1;
-  let lineEnd = content.indexOf("\n", selectionEnd);
-  if (lineEnd === -1) {
-    lineEnd = content.length;
-  }
-  const lineBlock = content.slice(lineStart, lineEnd);
-  const lines = lineBlock.split("\n");
-  const nonEmptyLines = lines.filter((line) => line.trim());
-  const isAllOrdered = nonEmptyLines.length > 0 && nonEmptyLines.every((line) => /^\s*\d+\.\s+/.test(line));
-  let order = 0;
-
-  replaceCurrentLineBlock((line) => {
-    if (!line.trim()) {
-      return line;
-    }
-    if (isAllOrdered) {
-      return line.replace(/^\s*\d+\.\s+/, "");
-    }
-    order += 1;
-    return `${order}. ${line}`;
-  });
-}
-
-function applyCodeBlockShortcut() {
-  const textarea = editorTextareaRef.value;
-  const fallbackSelection = form.content.length;
-  const selectionStart = textarea?.selectionStart ?? fallbackSelection;
-  const selectionEnd = textarea?.selectionEnd ?? fallbackSelection;
-  const selectedText = form.content.slice(selectionStart, selectionEnd);
-  const match = selectedText.match(/^```([\w-]*)\n([\s\S]*?)\n```$/);
-
-  if (match) {
-    const inner = match[2] || "";
-    form.content = `${form.content.slice(0, selectionStart)}${inner}${form.content.slice(selectionEnd)}`;
-    focusEditor(selectionStart, selectionStart + inner.length);
-    return;
-  }
-
-  const code = selectedText || "const answer = true;";
-  const wrapped = `\`\`\`ts\n${code}\n\`\`\``;
-  form.content = `${form.content.slice(0, selectionStart)}${wrapped}${form.content.slice(selectionEnd)}`;
-  focusEditor(selectionStart + 6, selectionStart + 6 + code.length);
-}
-
-function applyLinkShortcut() {
-  const textarea = editorTextareaRef.value;
-  if (!textarea) {
-    return;
-  }
-
-  const fallbackSelection = form.content.length;
-  let selectionStart = textarea.selectionStart ?? fallbackSelection;
-  let selectionEnd = textarea.selectionEnd ?? fallbackSelection;
-
-  if (selectionStart === selectionEnd) {
-    const wordRange = findWordRangeAtCursor(form.content, selectionStart);
-    if (wordRange) {
-      selectionStart = wordRange.start;
-      selectionEnd = wordRange.end;
-    }
-  }
-
-  const selectedText = form.content.slice(selectionStart, selectionEnd);
-  const linkMatch = selectedText.match(/^\[([^\]]+)\]\(([^)]+)\)$/);
-  const defaultText = linkMatch?.[1] || selectedText || "链接文本";
-  const defaultUrl = linkMatch?.[2] || "https://example.com";
-  const url = import.meta.client ? window.prompt("请输入链接 URL", defaultUrl) : defaultUrl;
-
-  if (!url) {
-    return;
-  }
-
-  const nextContent = `[${defaultText}](${url.trim()})`;
-  form.content = `${form.content.slice(0, selectionStart)}${nextContent}${form.content.slice(selectionEnd)}`;
-  focusEditor(selectionStart + 1, selectionStart + 1 + defaultText.length);
-}
-
-function handleEditorShortcuts(event: KeyboardEvent) {
-  if (!(event.ctrlKey || event.metaKey)) {
-    return;
-  }
-
-  if (event.altKey) {
-    if (event.key.toLowerCase() === "t") {
-      event.preventDefault();
-      applyTableShortcut();
-    }
-    return;
-  }
-
-  if (event.key.toLowerCase() === "b") {
-    event.preventDefault();
-    applyBoldShortcut();
-    return;
-  }
-
-  if (event.shiftKey && event.key.toLowerCase() === "i") {
-    event.preventDefault();
-    applyImageShortcut();
-    return;
-  }
-
-  if (event.key.toLowerCase() === "i") {
-    event.preventDefault();
-    applyItalicShortcut();
-    return;
-  }
-
-  if (event.key.toLowerCase() === "u") {
-    event.preventDefault();
-    applyUnderlineShortcut();
-    return;
-  }
-
-  if (event.shiftKey && event.key.toLowerCase() === "k") {
-    event.preventDefault();
-    applyCodeBlockShortcut();
-    return;
-  }
-
-  if (event.shiftKey && event.key.toLowerCase() === "l") {
-    event.preventDefault();
-    applyOrderedListShortcut();
-    return;
-  }
-
-  if (event.shiftKey && (event.key === "~" || event.code === "Backquote")) {
-    event.preventDefault();
-    applyInlineCodeShortcut();
-    return;
-  }
-
-  if (event.key.toLowerCase() === "q") {
-    event.preventDefault();
-    applyQuoteShortcut();
-    return;
-  }
-
-  if (event.key.toLowerCase() === "k") {
-    event.preventDefault();
-    applyLinkShortcut();
-    return;
-  }
-
-  if (event.key.toLowerCase() === "l") {
-    event.preventDefault();
-    applyUnorderedListShortcut();
-    return;
-  }
-
-  if (event.key.toLowerCase() === "d") {
-    event.preventDefault();
-    applyStrikeShortcut();
-    return;
-  }
-
-  if (/^[1-6]$/.test(event.key)) {
-    event.preventDefault();
-    applyHeadingShortcut(Number(event.key));
-  }
-}
-
-const toolShortcutMap: Partial<Record<ToolItem["key"], string>> = {
-  bold: "Ctrl+B",
-  italic: "Ctrl+I",
-  quote: "Ctrl+Q",
-  link: "Ctrl+K",
-  image: "Ctrl+Shift+I",
-  highlight: "Ctrl+Shift+~",
-  code: "Ctrl+Shift+K",
-  ul: "Ctrl+L",
-  ol: "Ctrl+Shift+L",
-  strike: "Ctrl+D",
-  table: "Ctrl+Alt+T",
-};
-
-function getToolTooltip(tool: ToolItem) {
-  const shortcut = toolShortcutMap[tool.key];
-  return shortcut ? `${tool.label} (${shortcut})` : tool.label;
-}
 
 async function handleAiToolOpen(action: StudioAiAction) {
   try {
@@ -1276,109 +699,25 @@ useSeoMeta({
 
 <template>
   <div class="write-page">
-    <header class="write-page__header">
-      <div class="write-page__topbar">
-        <NInput
-v-model:value="form.title" class="write-title-input" size="large" maxlength="120"
-          placeholder="输入文章标题..." :bordered="false" />
-
-        <div class="write-page__actions">
-          <NTooltip trigger="hover" placement="bottom">
-            <template #trigger>
-              <NButton quaternary @click="handleOpenArticleScore">质量评分</NButton>
-            </template>
-            {{ canOpenArticleScore ? "查看当前文章的历史评分，并可重新获取最新评分" : "请先保存为草稿，再发起文章质量评分" }}
-          </NTooltip>
-          <NButton quaternary :loading="pendingState.draft" @click="submitArticle(1)">{{ draftActionLabel }}</NButton>
-          <NButton quaternary @click="navigateTo('/')">返回首页</NButton>
-          <NButton quaternary @click="navigateTo('/studio/profile')">草稿箱</NButton>
-          <NButton type="primary" @click="publishVisible = true">{{ isEditMode ? "更新" : "发布" }}</NButton>
-          <NuxtLink
-:to="authStore.profileId ? `/users/${authStore.profileId}` : '/studio/profile'"
-            class="write-avatar-link">
-            <AppAvatar
-              :key="authStore.profileAvatar || authStore.profileName"
-              :src="authStore.profileAvatar"
-              :name="authStore.profileName"
-              :fallback="currentUserInitial" />
-          </NuxtLink>
-        </div>
-      </div>
-
-      <div class="write-page__toolbar">
-        <div class="write-page__toolbar-group">
-          <template v-for="tool in leftTools" :key="tool.key">
-            <NPopover v-if="tool.options" trigger="hover" placement="bottom-start">
-              <template #trigger>
-                <button type="button" class="write-tool-button" :aria-label="tool.label" :title="getToolTooltip(tool)">
-                  <component :is="tool.icon" class="write-tool-button__icon" :size="18" :stroke-width="1.9" />
-                </button>
-              </template>
-
-              <div class="write-tool-popover">
-                <button
-v-for="option in tool.options" :key="option.key" type="button" class="write-tool-option"
-                  :class="{ 'write-tool-option--active': isToolOptionActive(tool.key, option.key) }"
-                  @click.prevent.stop="handleToolOption(tool.key, option.key)">
-                  <component
-:is="option.icon" v-if="option.icon" class="write-tool-option__icon" :size="16"
-                    :stroke-width="1.9" />
-                  {{ option.label }}
-                </button>
-              </div>
-            </NPopover>
-
-            <NTooltip v-else trigger="hover" placement="bottom">
-              <template #trigger>
-                <button
-type="button" class="write-tool-button" :aria-label="tool.label" :title="getToolTooltip(tool)"
-                  @click="handleToolClick(tool)">
-                  <component :is="tool.icon" class="write-tool-button__icon" :size="18" :stroke-width="1.9" />
-                </button>
-              </template>
-              {{ getToolTooltip(tool) }}
-            </NTooltip>
-          </template>
-        </div>
-
-        <div class="write-page__toolbar-group write-page__toolbar-group--right">
-          <NTooltip trigger="hover" placement="bottom">
-            <template #trigger>
-              <button
-type="button" class="write-tool-button" :class="{ 'write-tool-button--active': showToc }"
-                aria-label="目录" @click="handleRightToolClick('toc')">
-                <IconListDetails class="write-tool-button__icon" :size="18" :stroke-width="1.9" />
-              </button>
-            </template>
-            目录
-          </NTooltip>
-
-          <NTooltip trigger="hover" placement="bottom">
-            <template #trigger>
-              <button
-type="button" class="write-tool-button"
-                :class="{ 'write-tool-button--active': viewMode === 'editor' }" aria-label="仅显示编辑区"
-                @click="handleRightToolClick('editor')">
-                <IconColumns1 class="write-tool-button__icon" :size="18" :stroke-width="1.9" />
-              </button>
-            </template>
-            仅显示编辑区
-          </NTooltip>
-
-          <NTooltip trigger="hover" placement="bottom">
-            <template #trigger>
-              <button
-type="button" class="write-tool-button"
-                :class="{ 'write-tool-button--active': viewMode === 'preview' }" aria-label="仅显示预览区"
-                @click="handleRightToolClick('preview')">
-                <IconColumns2 class="write-tool-button__icon" :size="18" :stroke-width="1.9" />
-              </button>
-            </template>
-            仅显示预览区
-          </NTooltip>
-        </div>
-      </div>
-    </header>
+    <StudioWriteHeader
+      v-model:title="form.title"
+      :draft-pending="pendingState.draft"
+      :draft-label="draftActionLabel"
+      :is-edit-mode="isEditMode"
+      :can-open-score="canOpenArticleScore"
+      :show-toc="showToc"
+      :view-mode="viewMode"
+      :profile-id="authStore.profileId || ''"
+      :profile-avatar="authStore.profileAvatar"
+      :profile-name="authStore.profileName"
+      :profile-initial="currentUserInitial"
+      :is-option-active="isToolOptionActive"
+      @open-score="handleOpenArticleScore"
+      @save-draft="submitArticle(1)"
+      @open-publish="publishVisible = true"
+      @tool-click="handleToolClick"
+      @tool-option="handleToolOption"
+      @right-tool="handleRightToolClick" />
 
     <main class="write-page__body" :class="writeBodyClass">
       <aside v-show="showToc" class="write-page__toc">
@@ -1574,128 +913,6 @@ v-model:value="form.abstract" type="textarea" maxlength="180"
   min-height: 100vh;
   display: flex;
   flex-direction: column;
-}
-
-.write-page__header {
-  position: sticky;
-  top: 0;
-  z-index: 20;
-  backdrop-filter: blur(18px);
-  background: rgba(255, 251, 245, 0.9);
-  border-bottom: 1px solid rgba(217, 226, 236, 0.92);
-}
-
-.write-page__topbar,
-.write-page__toolbar,
-.write-page__statusbar {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 20px;
-  padding: 14px 24px;
-}
-
-.write-page__toolbar,
-.write-page__statusbar {
-  border-top: 1px solid rgba(217, 226, 236, 0.72);
-}
-
-.write-title-input {
-  flex: 1;
-}
-
-.write-title-input :deep(.n-input) {
-  background: transparent;
-}
-
-.write-title-input :deep(.n-input__input-el) {
-  font-size: 24px;
-  font-weight: 600;
-  letter-spacing: -0.03em;
-}
-
-.write-page__actions {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  white-space: nowrap;
-}
-
-.write-avatar-link {
-  display: inline-flex;
-}
-
-.write-page__toolbar-group {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  flex-wrap: wrap;
-}
-
-.write-tool-button {
-  min-width: 34px;
-  min-height: 34px;
-  border: 1px solid transparent;
-  border-radius: 10px;
-  padding: 6px 8px;
-  background: transparent;
-  color: #334155;
-  cursor: pointer;
-  transition: background 0.2s ease, color 0.2s ease, border-color 0.2s ease;
-}
-
-.write-tool-button__icon {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-width: 18px;
-  font-size: 16px;
-  line-height: 1;
-}
-
-.write-tool-button:hover {
-  background: rgba(15, 118, 110, 0.08);
-  border-color: rgba(15, 118, 110, 0.12);
-  color: #0f766e;
-}
-
-.write-tool-button--active {
-  background: rgba(15, 118, 110, 0.12);
-  border-color: rgba(15, 118, 110, 0.2);
-  color: #0f766e;
-}
-
-.write-tool-popover {
-  min-width: 148px;
-  max-height: 340px;
-  display: flex;
-  flex-direction: column;
-  padding: 8px 0;
-  overflow: auto;
-}
-
-.write-tool-option {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  border: 0;
-  padding: 10px 14px;
-  text-align: left;
-  background: transparent;
-  color: #334155;
-  cursor: pointer;
-  transition: background 0.18s ease, color 0.18s ease;
-}
-
-.write-tool-option:hover {
-  background: rgba(15, 118, 110, 0.08);
-  color: #0f766e;
-}
-
-.write-tool-option--active {
-  background: rgba(15, 118, 110, 0.16);
-  color: #0f766e;
-  font-weight: 600;
 }
 
 .write-page__body {
@@ -2041,5 +1258,13 @@ v-model:value="form.abstract" type="textarea" maxlength="180"
   .publish-modal-shell {
     width: calc(100vw - 28px) !important;
   }
+}
+.write-page__statusbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  padding: 14px 24px;
+  border-top: 1px solid rgba(217, 226, 236, 0.72);
 }
 </style>

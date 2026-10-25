@@ -1,22 +1,27 @@
 <script setup lang="ts">
 import type { ArticleHeadingAnchor } from "~/composables/useArticleMarkdown";
 import type { StudioAiAction } from "~/composables/useStudioAiSelection";
-import { computed, defineAsyncComponent, nextTick, reactive, ref, watch } from "vue";
+import { computed, nextTick, reactive, ref, watch } from "vue";
 import { useDebounce } from "@vueuse/core";
-import { NButton, NCard, NModal, NSelect, NSwitch, useMessage } from "naive-ui";
+import { useMessage } from "naive-ui";
 import ArticleScoreModal from "~/components/article/ArticleScoreModal.vue";
 import StudioAiAssistPanel from "~/components/studio/StudioAiAssistPanel.vue";
 import StudioSelectionAiToolbar from "~/components/studio/StudioSelectionAiToolbar.vue";
+import StudioWritePreview from "~/components/studio/StudioWritePreview.vue";
+import StudioWritePublishDialog from "~/components/studio/StudioWritePublishDialog.vue";
+import StudioWriteToc from "~/components/studio/StudioWriteToc.vue";
 import StudioWriteHeader from "~/components/studio/StudioWriteHeader.vue";
 import { useStudioAiSelection } from "~/composables/useStudioAiSelection";
 import { useStudioEditorCommands } from "~/composables/useStudioEditorCommands";
-import type { ToolItem } from "~/constants/studioToolbar";
+import { useStudioArticle } from "~/composables/useStudioArticle";
 import { useStudioMarkdownTheme } from "~/composables/useStudioMarkdownTheme";
+import { useStudioPublish } from "~/composables/useStudioPublish";
+import { useStudioScore } from "~/composables/useStudioScore";
+import { useStudioToolbar } from "~/composables/useStudioToolbar";
 import { useTextareaSelectionOverlay } from "~/composables/useTextareaSelectionOverlay";
-import { generateArticleMetainfo, getArticleScoreDetail, regenerateArticleScore } from "~/services/ai";
-import { createArticle, getArticleDetail, updateArticle } from "~/services/article";
-import { uploadImageByTask } from "~/services/image";
-import { getCategoryOptions, getTagOptions } from "~/services/search";
+import { updateArticle } from "~/services/article";
+import type { getArticleScoreDetail } from "~/services/ai";
+import { generateArticleMetainfo, regenerateArticleScore } from "~/services/ai";
 import { resolveAvatarInitial } from "~/utils/avatar";
 
 definePageMeta({
@@ -26,29 +31,15 @@ definePageMeta({
 
 
 const router = useRouter();
-const route = useRoute();
-const WriteMarkdownRenderer = defineAsyncComponent(() => import("~/components/common/MarkdownRenderSurface.vue"));
 const authStore = useAuthStore();
 const message = useMessage();
 const editorTextareaRef = ref<HTMLTextAreaElement | null>(null);
-const coverFileInputRef = ref<HTMLInputElement | null>(null);
 const shadowPreviewRef = ref<{ scrollToHeading: (id: string) => boolean } | null>(null);
 const previewHeadings = ref<ArticleHeadingAnchor[]>([]);
 
 if (!authStore.profileId) {
   await authStore.fetchCurrentUser();
 }
-
-const form = reactive({
-  title: "",
-  abstract: "",
-  content: "",
-  category_id: null as string | null,
-  tag_ids: [] as string[],
-  cover_image_id: null as string | null,
-  comments_toggle: true,
-  visibility_status: "visible" as "visible" | "user_hidden",
-});
 
 const pendingState = reactive({
   draft: false,
@@ -57,8 +48,36 @@ const pendingState = reactive({
   cover: false,
 });
 
-const coverPreviewUrl = ref("");
-const coverUploadStage = ref("");
+// 文章数据域见 composable：表单、编辑态回填、tag/分类选项、封面上传、提交载荷。
+//
+// 这些状态**只能一起搬**：hydrate 写 form、封面写 form.cover_image_id、
+// 提交读整个 form。留在页面里时，"谁改了这个字段"要靠通读 1200 行才能回答。
+const {
+  form,
+  articleTitleModel,
+  articleContentModel,
+  editArticleId,
+  isEditMode,
+  hydratedArticleId,
+  tagOptions,
+  categoryOptions,
+  editingArticle,
+  coverPreviewUrl,
+  coverUploadStage,
+  coverDirty,
+  clearCoverSelection,
+  handleCoverFileChange,
+  buildArticlePayload,
+  canSubmit,
+  contentStats,
+  tocItems,
+  canOpenArticleScore,
+  currentArticlePublishStatus,
+  draftActionLabel,
+  publishActionLabel,
+  isPublishingLocked,
+} = await useStudioArticle({ pendingState, message, previewHeadings });
+
 const articleScoreModalOpen = ref(false);
 const articleScoreLoading = ref(false);
 const articleScoreRefreshing = ref(false);
@@ -67,84 +86,14 @@ const articleScoreData = ref<Awaited<ReturnType<typeof getArticleScoreDetail>> |
 const showToc = ref(true);
 const viewMode = ref<"split" | "editor" | "preview">("split");
 const publishVisible = ref(false);
-const coverDirty = ref(false);
 // Markdown 主题（12 套 CSS 的映射表）见 composable。
-const {
-  selectedMarkdownTheme,
-  markdownThemeOptions,
-  visibilityOptions,
-  selectedThemeLabel,
-  activeMarkdownThemeHref,
-  markdownSupportStyleHrefs,
-} = useStudioMarkdownTheme();
+const markdownTheme = useStudioMarkdownTheme();
+const { visibilityOptions, selectedThemeLabel, activeMarkdownThemeHref, markdownSupportStyleHrefs } = markdownTheme;
 
 
-const currentUserId = computed(() => authStore.profileId || "");
 const currentUserInitial = computed(() => resolveAvatarInitial(authStore.profileName, "我"));
-const editArticleId = computed(() => {
-  const fromArticleId = typeof route.query.article_id === "string" ? route.query.article_id.trim() : "";
-  if (fromArticleId) return fromArticleId;
-  const fromId = typeof route.query.id === "string" ? route.query.id.trim() : "";
-  return fromId || "";
-});
-const isEditMode = computed(() => Boolean(editArticleId.value));
-const hydratedArticleId = ref("");
 
-const { data: tagOptions } = await useAsyncData("studio-write-tag-options", () => getTagOptions().catch(() => []));
-const { data: categoryOptions } = await useAsyncData(
-  () => `studio-write-category-options:${currentUserId.value || "guest"}`,
-  () => (currentUserId.value ? getCategoryOptions(currentUserId.value).catch(() => []) : Promise.resolve([])),
-  {
-    watch: [currentUserId],
-  },
-);
 
-const { data: editingArticle, error: editingArticleError } = await useAsyncData(
-  () => `studio-write-article-detail:${editArticleId.value || "new"}`,
-  () => (editArticleId.value ? getArticleDetail(editArticleId.value) : Promise.resolve(null)),
-  {
-    watch: [editArticleId],
-  },
-);
-
-watch(
-  editingArticleError,
-  (error) => {
-    if (!error || !isEditMode.value) return;
-    message.error(error instanceof Error ? error.message : "加载待编辑文章失败");
-  },
-  { immediate: true },
-);
-
-watch(
-  [editArticleId, editingArticle],
-  ([articleId, article]) => {
-    if (!articleId) {
-      hydratedArticleId.value = "";
-      coverPreviewUrl.value = "";
-      form.cover_image_id = null;
-      form.visibility_status = "visible";
-      coverDirty.value = false;
-      return;
-    }
-    if (!article || hydratedArticleId.value === articleId) {
-      return;
-    }
-
-    form.title = article.title || "";
-    form.abstract = article.abstract || "";
-    form.content = article.content || "";
-    form.cover_image_id = article.cover_image_id ?? null;
-    coverPreviewUrl.value = article.cover || "";
-    coverDirty.value = false;
-    form.comments_toggle = article.comments_toggle ?? true;
-    form.visibility_status = article.visibility_status === "user_hidden" ? "user_hidden" : "visible";
-    form.category_id = article.category_id ?? null;
-    form.tag_ids = Array.isArray(article.tag_ids) ? [...article.tag_ids] : [];
-    hydratedArticleId.value = articleId;
-  },
-  { immediate: true },
-);
 
 watch(editArticleId, () => {
   articleScoreData.value = null;
@@ -159,44 +108,14 @@ const writeBodyClass = computed(() => ({
   "write-page__body--preview-only": viewMode.value === "preview",
 }));
 
-const contentStats = computed(() => ({
-  raw: form.content.length,
-  pure: form.content.replace(/\s/g, "").length,
-  lines: form.content ? form.content.split("\n").length : 1,
-}));
-
-const tocItems = computed(() => {
-  return previewHeadings.value.map((item) => ({
-    id: item.id,
-    label: item.title,
-    level: item.level,
-  }));
-});
-
-const canSubmit = computed(() => Boolean(form.title.trim() && form.content.trim()));
-const draftActionLabel = computed(() => (isEditMode.value ? "更新草稿" : "保存草稿"));
-const publishActionLabel = computed(() => (isEditMode.value ? "更新并发布" : "确定并发布"));
-const isPublishingLocked = computed(() => pendingState.publish || pendingState.draft || pendingState.ai || pendingState.cover);
-const canOpenArticleScore = computed(() => Boolean(editArticleId.value));
-const currentArticlePublishStatus = computed(() => editingArticle.value?.publish_status ?? 0);
 
 
-const { focusEditor, insertSnippet, applyBoldShortcut, applyItalicShortcut, applyInlineCodeShortcut, applyImageShortcut, applyStrikeShortcut, applyTableShortcut, applyQuoteShortcut, applyUnorderedListShortcut, applyOrderedListShortcut, applyCodeBlockShortcut, applyLinkShortcut, handleEditorShortcuts } = useStudioEditorCommands({ form, textareaRef: editorTextareaRef });
+const editorCommands = useStudioEditorCommands({ form, textareaRef: editorTextareaRef });
+// 页面自己只用这两个：@keydown 的处理器与"聚焦到底部"。
+// 其余命令由 useStudioToolbar 拿去接线，页面不需要知道它们存在。
+const { focusEditor, handleEditorShortcuts } = editorCommands;
 
 
-const articleTitleModel = computed({
-  get: () => form.title,
-  set: (value: string) => {
-    form.title = value;
-  },
-});
-
-const articleContentModel = computed({
-  get: () => form.content,
-  set: (value: string) => {
-    form.content = value;
-  },
-});
 
 const {
   panelVisible: aiPanelVisible,
@@ -320,122 +239,6 @@ function handleAiPanelVisibility(nextVisible: boolean) {
   });
 }
 
-function handleToolOption(toolKey: string, optionKey: string) {
-  if (toolKey === "ai") {
-    void handleAiToolOpen(optionKey as StudioAiAction);
-    return;
-  }
-
-  if (toolKey === "theme") {
-    selectedMarkdownTheme.value =
-      (markdownThemeOptions.find((option) => option.key === optionKey)?.key as typeof selectedMarkdownTheme.value) ||
-      "github";
-    return;
-  }
-
-  if (toolKey === "title") {
-    const level = Number(optionKey.slice(1)) || 2;
-    insertSnippet(`${"#".repeat(level)} 标题\n`);
-    return;
-  }
-
-  if (toolKey === "align") {
-    const alignMap = {
-      "align-left": "<div align=\"left\">\n内容\n</div>\n",
-      "align-center": "<div align=\"center\">\n内容\n</div>\n",
-      "align-right": "<div align=\"right\">\n内容\n</div>\n",
-    } as const;
-
-    insertSnippet(alignMap[optionKey as keyof typeof alignMap] || "<div align=\"left\">\n内容\n</div>\n");
-    return;
-  }
-
-  if (toolKey === "mermaid") {
-    const mermaidMap = {
-      flowchart: "flowchart TD\n  A[开始] --> B[继续创作]",
-      sequence: "sequenceDiagram\n  participant U as User\n  participant A as API\n  U->>A: 请求数据\n  A-->>U: 返回结果",
-      class: "classDiagram\n  class Article {\n    +string title\n    +string content\n  }",
-      state: "stateDiagram-v2\n  [*] --> Draft\n  Draft --> Published",
-      er: "erDiagram\n  USER ||--o{ ARTICLE : writes",
-      journey: "journey\n  title 创作流程\n  section 写作\n    起草: 5: 作者\n    发布: 4: 作者",
-      gantt: "gantt\n  title 发布计划\n  dateFormat  YYYY-MM-DD\n  section Draft\n  写初稿 :2026-04-14, 2d",
-      pie: "pie title 标签占比\n  \"Nuxt\" : 40\n  \"OpenAPI\" : 30\n  \"TypeScript\" : 30",
-    } as const;
-
-    insertSnippet(`\`\`\`mermaid\n${mermaidMap[optionKey as keyof typeof mermaidMap] || mermaidMap.flowchart}\n\`\`\`\n`);
-  }
-}
-
-function isToolOptionActive(toolKey: string, optionKey: string) {
-  if (toolKey === "theme") {
-    return selectedMarkdownTheme.value === optionKey;
-  }
-  return false;
-}
-
-function handleToolClick(tool: ToolItem) {
-  switch (tool.key) {
-    case "bold":
-      applyBoldShortcut();
-      break;
-    case "italic":
-      applyItalicShortcut();
-      break;
-    case "quote":
-      applyQuoteShortcut();
-      break;
-    case "link":
-      applyLinkShortcut();
-      break;
-    case "image":
-      applyImageShortcut();
-      break;
-    case "highlight":
-      applyInlineCodeShortcut();
-      break;
-    case "code":
-      applyCodeBlockShortcut();
-      break;
-    case "ul":
-      applyUnorderedListShortcut();
-      break;
-    case "ol":
-      applyOrderedListShortcut();
-      break;
-    case "strike":
-      applyStrikeShortcut();
-      break;
-    case "table":
-      applyTableShortcut();
-      break;
-    default:
-      break;
-  }
-}
-
-function handleRightToolClick(key: "toc" | "editor" | "preview") {
-  if (key === "toc") {
-    showToc.value = !showToc.value;
-    return;
-  }
-
-  const nextMode = key === "editor" ? "editor" : "preview";
-  viewMode.value = viewMode.value === nextMode ? "split" : nextMode;
-}
-
-function handleTocJump(id: string) {
-  if (!id) {
-    focusEditor();
-    return;
-  }
-
-  shadowPreviewRef.value?.scrollToHeading(id);
-}
-
-function handlePreviewHeadingsChange(nextHeadings: ArticleHeadingAnchor[]) {
-  previewHeadings.value = nextHeadings;
-}
-
 function matchOptionByText(options: Array<{ label: string; value: string }>, target?: { id?: string; title?: string } | null) {
   if (!target) return null;
   const byId = options.find((item) => item.value === target.id);
@@ -478,31 +281,21 @@ async function handleAiAssist() {
   }
 }
 
-async function fetchStoredArticleScore() {
-  if (!editArticleId.value) {
-    throw new Error("请先保存当前文章，再查看历史评分。");
-  }
 
-  articleScoreData.value = await getArticleScoreDetail(editArticleId.value);
-}
 
-async function handleOpenArticleScore() {
-  if (!editArticleId.value) {
-    message.info("新建文章暂时没有 article_id，请先保存为草稿或更新文章后再查看评分。");
-    return;
-  }
+// 评分弹窗的数据加载见 composable（三个入口共用一套 loading 状态）。
+const { handleOpenArticleScore } = useStudioScore({
+  modalOpen: articleScoreModalOpen,
+  loading: articleScoreLoading,
+  refreshing: articleScoreRefreshing,
+  data: articleScoreData,
+  articleId: editArticleId,
+  message,
+});
 
-  articleScoreModalOpen.value = true;
-  articleScoreLoading.value = true;
-  try {
-    await fetchStoredArticleScore();
-  } catch (error) {
-    message.error(error instanceof Error ? error.message : "读取评分失败");
-  } finally {
-    articleScoreLoading.value = false;
-  }
-}
-
+// handleRefreshArticleScore 留在页面而不是 composable：它跨两个域 ——
+// 先"必要时把当前内容存成草稿"（文章域 + 发布域），再请求重新评分（评分域）。
+// 强行注入 5 个依赖塞进 useStudioScore，会让那个模块变成什么都懂的上帝对象。
 async function handleRefreshArticleScore() {
   if (!editArticleId.value) {
     message.info("请先保存文章后再重新获取评分。");
@@ -547,149 +340,36 @@ async function handleRefreshArticleScore() {
   }
 }
 
-function openCoverFilePicker() {
-  if (pendingState.cover) {
-    return;
-  }
-  coverFileInputRef.value?.click();
-}
+// 提交流程见 composable（新建/编辑 × 草稿/发布 的 6 条分支集中在一处）。
+const { submitArticle } = useStudioPublish({
+  canSubmit,
+  pendingState,
+  isEditMode,
+  editArticleId,
+  publishVisible,
+  visibilityStatus: () => form.visibility_status,
+  buildPayload: buildArticlePayload,
+  message,
+  router,
+});
 
-function clearCoverSelection() {
-  form.cover_image_id = null;
-  coverPreviewUrl.value = "";
-  coverUploadStage.value = "";
-  coverDirty.value = true;
-  if (coverFileInputRef.value) {
-    coverFileInputRef.value.value = "";
-  }
-}
-
-function mapCoverUploadStage(stage: "hashing" | "creating_task" | "uploading_to_qiniu" | "polling_status") {
-  const textMap = {
-    hashing: "正在计算文件指纹…",
-    creating_task: "正在创建上传任务…",
-    uploading_to_qiniu: "正在上传到对象存储…",
-    polling_status: "正在确认图片状态…",
-  } as const;
-  coverUploadStage.value = textMap[stage];
-}
-
-function buildArticlePayload(status: 1 | 2) {
-  const payload: {
-    title: string;
-    abstract?: string;
-    content: string;
-    category_id: string | null;
-    tag_ids: string[];
-    comments_toggle: boolean;
-    visibility_status: "visible" | "user_hidden";
-    status: 1 | 2;
-    cover_image_id?: string | null;
-  } = {
-    title: form.title.trim(),
-    abstract: form.abstract.trim() || undefined,
-    content: form.content,
-    category_id: form.category_id || null,
-    tag_ids: form.tag_ids,
-    comments_toggle: form.comments_toggle,
-    visibility_status: form.visibility_status,
-    status,
-  };
-
-  if (form.cover_image_id) {
-    payload.cover_image_id = form.cover_image_id;
-  } else if (isEditMode.value && coverDirty.value) {
-    payload.cover_image_id = null;
-  }
-
-  return payload;
-}
-
-async function handleCoverFileChange(event: Event) {
-  const input = event.target as HTMLInputElement;
-  const file = input.files?.[0];
-  if (!file) {
-    return;
-  }
-
-  if (!file.type.startsWith("image/")) {
-    message.warning("请选择图片文件作为封面。");
-    input.value = "";
-    return;
-  }
-
-  pendingState.cover = true;
-  coverUploadStage.value = "开始上传封面…";
-  try {
-    const uploadResult = await uploadImageByTask(file, {
-      onStage: mapCoverUploadStage,
-    });
-    if (!uploadResult.image_id || !uploadResult.url) {
-      throw new Error("上传成功但未返回可用图片标识");
-    }
-    form.cover_image_id = uploadResult.image_id;
-    coverPreviewUrl.value = uploadResult.url;
-    coverDirty.value = true;
-    coverUploadStage.value = "封面上传完成";
-    message.success("封面上传成功");
-  } catch (error) {
-    coverUploadStage.value = "";
-    message.error(error instanceof Error ? error.message : "封面上传失败");
-  } finally {
-    pendingState.cover = false;
-    input.value = "";
-  }
-}
-
-async function submitArticle(status: 1 | 2) {
-  if (!canSubmit.value) {
-    message.warning("标题和正文是必填项。");
-    return;
-  }
-
-  if (pendingState.cover) {
-    message.warning("封面仍在上传中，请稍后再提交。");
-    return;
-  }
-
-  const key = status === 1 ? "draft" : "publish";
-  pendingState[key] = true;
-
-  try {
-    const payload = buildArticlePayload(status);
-
-    if (isEditMode.value && editArticleId.value) {
-      await updateArticle(editArticleId.value, payload);
-      publishVisible.value = false;
-      if (status === 1) {
-        message.success("草稿已更新");
-      } else {
-        message.success(
-          form.visibility_status === "user_hidden" ? "文章已提交发布（当前为仅自己可见）" : "文章已提交发布（可能进入审核）",
-        );
-      }
-      await router.push(`/article/${editArticleId.value}`);
-      return;
-    }
-
-    const created = await createArticle(payload);
-    publishVisible.value = false;
-    if (status === 1) {
-      message.success("草稿已保存");
-    } else if (created.publish_status === 3) {
-      message.success("文章已发布成功");
-    } else if (created.publish_status === 2) {
-      message.success("文章已提交审核，审核通过后会公开展示");
-    } else {
-      message.success("文章已提交发布");
-    }
-    await router.push(`/article/${created.id}`);
-  } catch (error) {
-    message.error(error instanceof Error ? error.message : "文章提交失败");
-  } finally {
-    pendingState[key] = false;
-  }
-}
+// 工具栏分发见 composable（按钮 key → 插片段 / 改视图 / 开 AI）。
+const {
+  handleToolOption,
+  isToolOptionActive,
+  handleToolClick,
+  handleRightToolClick,
+  handleTocJump,
+  handlePreviewHeadingsChange,
+} = useStudioToolbar({
+  editor: editorCommands,
+  theme: markdownTheme,
+  showToc,
+  viewMode,
+  previewRef: shadowPreviewRef,
+  previewHeadings,
+  openAi: (action) => void handleAiToolOpen(action),
+});
 
 useSeoMeta({
   title: "创作系统 - 写文章",
@@ -720,17 +400,10 @@ useSeoMeta({
       @right-tool="handleRightToolClick" />
 
     <main class="write-page__body" :class="writeBodyClass">
-      <aside v-show="showToc" class="write-page__toc">
-        <div class="write-page__toc-header">目录</div>
-        <nav class="write-page__toc-list">
-          <button
-v-for="item in tocItems" :key="`${item.level}-${item.label}`" type="button"
-            class="write-page__toc-item" :class="[`write-page__toc-item--level-${Math.min(item.level, 4)}`]"
-            @click="handleTocJump(item.id)">
-            {{ item.label }}
-          </button>
-        </nav>
-      </aside>
+      <StudioWriteToc
+        :visible="showToc"
+        :items="tocItems"
+        @jump="handleTocJump" />
 
       <section class="write-page__pane write-page__pane--editor">
         <textarea
@@ -743,24 +416,14 @@ ref="editorTextareaRef" v-model="form.content" class="write-page__textarea"
           @scroll="handleEditorSelectionChange" />
       </section>
 
-      <aside class="write-page__pane write-page__pane--preview">
-        <div v-if="form.content.trim()" class="write-page__preview-shell">
-          <div class="write-page__theme-indicator">预览样式：{{ selectedThemeLabel }}</div>
-          <WriteMarkdownRenderer
-            ref="shadowPreviewRef"
-            class="write-page__markdown"
-            :source="debouncedContent"
-            :theme-href="activeMarkdownThemeHref"
-            :extra-style-hrefs="markdownSupportStyleHrefs"
-            article-class="markdown-body"
-            @headings-change="handlePreviewHeadingsChange" />
-        </div>
-
-        <div v-else class="write-page__preview-empty">
-          <p>预览区</p>
-          <span>先输入标题或正文，这里会实时显示正式渲染结果。</span>
-        </div>
-      </aside>
+      <StudioWritePreview
+        ref="shadowPreviewRef"
+        :empty="!form.content.trim()"
+        :source="debouncedContent"
+        :theme-href="activeMarkdownThemeHref"
+        :extra-style-hrefs="markdownSupportStyleHrefs"
+        :theme-label="selectedThemeLabel"
+        @headings-change="handlePreviewHeadingsChange" />
     </main>
 
     <footer class="write-page__statusbar">
@@ -805,106 +468,29 @@ ref="editorTextareaRef" v-model="form.content" class="write-page__textarea"
       empty-text="当前还没有历史评分缓存，可以点击“重新获取”生成最新评分。"
       @refresh="handleRefreshArticleScore" />
 
-    <NModal v-model:show="publishVisible" :mask-closable="!isPublishingLocked">
-      <div class="publish-modal-shell">
-        <NCard title="发布文章" :bordered="false" closable class="publish-modal-card" @close="publishVisible = false">
-          <div class="publish-form">
-            <div class="publish-form__row">
-              <label class="publish-form__label">分类</label>
-              <NSelect
-v-model:value="form.category_id" clearable filterable :options="categoryOptions || []"
-                placeholder="请选择分类" class="publish-form__control" />
-            </div>
-
-            <div class="publish-form__row">
-              <label class="publish-form__label">添加标签</label>
-              <NSelect
-v-model:value="form.tag_ids" multiple clearable filterable max-tag-count="responsive"
-                :options="tagOptions || []" placeholder="请选择已有标签" class="publish-form__control" />
-            </div>
-
-            <div class="publish-form__row publish-form__row--top">
-              <label class="publish-form__label">文章封面</label>
-              <div class="publish-cover">
-                <input
-                  ref="coverFileInputRef"
-                  type="file"
-                  accept="image/*"
-                  class="publish-cover__file-input"
-                  @change="handleCoverFileChange" >
-
-                <button
-                  type="button"
-                  class="publish-cover__picker"
-                  :class="{ 'publish-cover__picker--busy': pendingState.cover }"
-                  @click="openCoverFilePicker">
-                  <img
-                    v-if="coverPreviewUrl"
-                    :src="coverPreviewUrl"
-                    alt="文章封面预览"
-                    class="publish-cover__preview-image" >
-                  <template v-else>
-                    <span class="publish-cover__plus">+</span>
-                    <span>上传封面</span>
-                  </template>
-                </button>
-
-                <div class="publish-cover__actions">
-                  <NButton quaternary size="small" :loading="pendingState.cover" @click="openCoverFilePicker">
-                    {{ coverPreviewUrl ? "重新上传" : "选择图片" }}
-                  </NButton>
-                  <NButton v-if="coverPreviewUrl || form.cover_image_id" quaternary size="small" @click="clearCoverSelection">
-                    移除封面
-                  </NButton>
-                </div>
-                <p v-if="coverUploadStage" class="publish-cover__stage">{{ coverUploadStage }}</p>
-              </div>
-            </div>
-
-            <div class="publish-form__row publish-form__row--top">
-              <label class="publish-form__label">编辑摘要</label>
-              <div class="publish-summary">
-                <NInput
-v-model:value="form.abstract" type="textarea" maxlength="180"
-                  :autosize="{ minRows: 5, maxRows: 8 }" placeholder="请输入文章摘要" />
-                <span class="publish-summary__count">{{ form.abstract.length }}/180</span>
-              </div>
-            </div>
-
-            <div class="publish-form__row">
-              <label class="publish-form__label">可见范围</label>
-              <NSelect
-                v-model:value="form.visibility_status"
-                :options="visibilityOptions"
-                placeholder="请选择文章可见范围"
-                class="publish-form__control" />
-            </div>
-
-            <div class="publish-form__row">
-              <label class="publish-form__label">评论开关</label>
-              <div class="publish-form__switch">
-                <span class="muted">{{ form.comments_toggle ? "文章发布后允许评论" : "文章发布后将关闭评论区" }}</span>
-                <NSwitch v-model:value="form.comments_toggle" />
-              </div>
-            </div>
-
-          </div>
-
-          <template #footer>
-            <div class="publish-modal__footer">
-              <NButton quaternary @click="publishVisible = false">取消</NButton>
-              <NButton secondary :loading="pendingState.ai" @click="handleAiAssist()">AI 填入</NButton>
-              <NButton quaternary :loading="pendingState.draft" :disabled="pendingState.cover" @click="submitArticle(1)">
-                {{ draftActionLabel }}
-              </NButton>
-              <NButton type="primary" :loading="pendingState.publish" :disabled="pendingState.cover" @click="submitArticle(2)">
-                {{ publishActionLabel }}
-              </NButton>
-            </div>
-          </template>
-        </NCard>
-      </div>
-    </NModal>
+    <StudioWritePublishDialog
+      v-model:show="publishVisible"
+      v-model:category-id="form.category_id"
+      v-model:tag-ids="form.tag_ids"
+      v-model:abstract-text="form.abstract"
+      v-model:comments-toggle="form.comments_toggle"
+      v-model:visibility="form.visibility_status"
+      :locked="isPublishingLocked"
+      :draft-pending="pendingState.draft"
+      :publish-pending="pendingState.publish"
+      :ai-pending="pendingState.ai"
+      :cover-uploading="pendingState.cover"
+      :cover-preview-url="coverPreviewUrl"
+      :cover-stage="coverUploadStage"
+      :category-options="categoryOptions || []"
+      :tag-options="tagOptions || []"
+      :visibility-options="visibilityOptions"
+      :draft-label="draftActionLabel"
+      :publish-label="publishActionLabel"
+      :on-cover-change="handleCoverFileChange"
+      :on-clear="clearCoverSelection"
+      @submit="submitArticle"
+      @ai-fill="handleAiAssist" />
   </div>
 </template>
 
@@ -950,7 +536,7 @@ v-model:value="form.abstract" type="textarea" maxlength="180"
     linear-gradient(180deg, rgba(245, 248, 252, 0.96) 0%, rgba(241, 245, 249, 0.86) 100%);
 }
 
-.write-page__toc-header {
+:deep(.write-page__toc-header) {
   padding: 18px 16px 10px;
   font-size: 13px;
   font-weight: 700;
@@ -959,14 +545,14 @@ v-model:value="form.abstract" type="textarea" maxlength="180"
   color: #475569;
 }
 
-.write-page__toc-list {
+:deep(.write-page__toc-list) {
   display: flex;
   flex-direction: column;
   gap: 6px;
   padding: 0 10px 14px;
 }
 
-.write-page__toc-item {
+:deep(.write-page__toc-item) {
   border: 1px solid transparent;
   border-radius: 10px;
   padding: 8px 10px;
@@ -983,24 +569,24 @@ v-model:value="form.abstract" type="textarea" maxlength="180"
     transform 0.18s ease;
 }
 
-.write-page__toc-item:hover {
+:deep(.write-page__toc-item:hover) {
   transform: translateX(1px);
   background: rgba(15, 118, 110, 0.1);
   border-color: rgba(15, 118, 110, 0.18);
   color: #0f766e;
 }
 
-.write-page__toc-item--level-2 {
+:deep(.write-page__toc-item--level-2) {
   padding-left: 24px;
   color: #475569;
 }
 
-.write-page__toc-item--level-3 {
+:deep(.write-page__toc-item--level-3) {
   padding-left: 36px;
   color: #64748b;
 }
 
-.write-page__toc-item--level-4 {
+:deep(.write-page__toc-item--level-4) {
   padding-left: 48px;
   color: #94a3b8;
 }
@@ -1029,7 +615,7 @@ v-model:value="form.abstract" type="textarea" maxlength="180"
   outline: none;
 }
 
-.write-page__preview-shell {
+:deep(.write-page__preview-shell) {
   min-height: 100%;
   padding: 32px 36px 48px;
 }
@@ -1051,7 +637,7 @@ v-model:value="form.abstract" type="textarea" maxlength="180"
   box-sizing: border-box;
 }
 
-.write-page__preview-empty {
+:deep(.write-page__preview-empty) {
   height: 100%;
   display: flex;
   flex-direction: column;
@@ -1061,7 +647,7 @@ v-model:value="form.abstract" type="textarea" maxlength="180"
   color: #6b7f95;
 }
 
-.write-page__preview-empty p {
+:deep(.write-page__preview-empty p) {
   margin: 0;
   font-size: 18px;
   color: #334155;

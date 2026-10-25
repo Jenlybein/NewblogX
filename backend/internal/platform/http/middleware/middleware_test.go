@@ -10,7 +10,7 @@ import (
 	"myblogx/internal/platform/redis"
 	redisEmail "myblogx/internal/platform/redis/redis_email"
 	redisJWT "myblogx/internal/platform/redis/redis_jwt"
-	"myblogx/models"
+	"myblogx/internal/testkit/schema"
 	"myblogx/test/testutil"
 	"myblogx/utils/jwts"
 	"net/http"
@@ -84,7 +84,7 @@ func TestBindMiddlewares(t *testing.T) {
 func setupAuthEnv(t *testing.T) {
 	t.Helper()
 	_ = testutil.SetupMiniRedis(t)
-	_ = testutil.SetupSQLite(t, &models.UserModel{}, &models.RuntimeSiteConfigModel{})
+	_ = testutil.SetupSQLite(t, &schema.UserRow{}, &schema.RuntimeSiteConfigRow{})
 	testutil.SetConfig(&conf.Config{
 		Jwt: conf.Jwt{
 			Expire: 1,
@@ -155,8 +155,8 @@ func TestAuthAndAdminMiddleware(t *testing.T) {
 		c.Status(http.StatusOK)
 	})
 
-	user := &models.UserModel{Username: "u1", Password: "x", Role: enum.RoleUser}
-	admin := &models.UserModel{Username: "admin", Password: "x", Role: enum.RoleAdmin}
+	user := &schema.UserRow{Username: "u1", Password: "x", Role: enum.RoleUser}
+	admin := &schema.UserRow{Username: "admin", Password: "x", Role: enum.RoleAdmin}
 	if err := testutil.DB().Create(user).Error; err != nil {
 		t.Fatalf("创建普通用户失败: %v", err)
 	}
@@ -220,7 +220,7 @@ func TestOptionalAuthMiddleware(t *testing.T) {
 		c.JSON(http.StatusOK, gin.H{"user": ""})
 	})
 
-	user := &models.UserModel{Username: "optional_user", Password: "x", Role: enum.RoleUser}
+	user := &schema.UserRow{Username: "optional_user", Password: "x", Role: enum.RoleUser}
 	if err := testutil.DB().Create(user).Error; err != nil {
 		t.Fatalf("创建用户失败: %v", err)
 	}

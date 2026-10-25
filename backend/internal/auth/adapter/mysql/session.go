@@ -17,7 +17,7 @@ import (
 
 // sessionRow 对应 user_session_models 表。
 //
-// 与 models.UserSessionModel 的差别：这里不带 UserModel 关联字段——认证只用
+// 与 testkit/schema.UserSessionRow 的差别：这里不带 User 关联字段——认证只用
 // user_id，关联预加载既浪费一次查询，也会让两个模块的表结构耦合。
 type sessionRow struct {
 	ID               uint64 `gorm:"primaryKey;autoIncrement:false"`

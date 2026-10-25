@@ -10,7 +10,6 @@ import (
 	"myblogx/internal/kernel/ctype"
 	notificationapp "myblogx/internal/notification/app"
 	"myblogx/internal/platform/cdc/outboxrelay"
-	"myblogx/models"
 )
 
 // WireOutboxRelay 启动 outbox 中继，并注册领域事件的真实下游。
@@ -80,7 +79,7 @@ func scoreSubscriber(infra *Infra) outboxrelay.Subscriber {
 		// 文章已经不在了（例如投递前被删除）就没什么可评分的。
 		// 不加这层判断的话，一次删除就会换来 5 次重试 + 一条死信。
 		var count int64
-		if err := infra.DB.WithContext(ctx).Model(&models.ArticleModel{}).
+		if err := infra.DB.WithContext(ctx).Table(noticeArticleRow{}.TableName()).
 			Where("id = ?", articleID).Count(&count).Error; err != nil {
 			return err
 		}
@@ -106,7 +105,7 @@ func notifySubscriber(infra *Infra) outboxrelay.Subscriber {
 			return nil
 		}
 
-		var article models.ArticleModel
+		var article noticeArticleRow
 		if err := infra.DB.WithContext(ctx).Where("id = ?", articleID).Take(&article).Error; err != nil {
 			// 查不到（多半已删除）：没有可通知的对象，直接结束，不重试。
 			return nil
@@ -128,7 +127,7 @@ func notifySubscriber(infra *Infra) outboxrelay.Subscriber {
 		// 消息表不能加去重列（零 DDL 约束禁止改动既有表），
 		// 所以用"同接收者 + 同链接 + 同内容已存在"来去重。
 		var exists int64
-		if err := infra.DB.WithContext(ctx).Model(&models.ArticleMessageModel{}).
+		if err := infra.DB.WithContext(ctx).Table(noticeMessageRow{}.TableName()).
 			Where("receiver_id = ? AND link_herf = ? AND content = ?", article.AuthorID, linkHref, content).
 			Count(&exists).Error; err != nil {
 			return err
@@ -161,17 +160,17 @@ type interactionPayload struct {
 //
 // 返回 ok=false 表示文章已删除或事件体缺失，此时不该重试——
 // 重试也不会成功，只会白白耗尽次数并进死信。
-func loadInteraction(ctx context.Context, infra *Infra, e outboxrelay.Event) (article models.ArticleModel, actorID ctype.ID, ok bool) {
+func loadInteraction(ctx context.Context, infra *Infra, e outboxrelay.Event) (article noticeArticleRow, actorID ctype.ID, ok bool) {
 	var payload interactionPayload
 	if err := json.Unmarshal([]byte(e.Payload), &payload); err != nil {
-		return models.ArticleModel{}, 0, false
+		return noticeArticleRow{}, 0, false
 	}
 	if e.AggregateID == 0 || payload.ActorID == 0 {
-		return models.ArticleModel{}, 0, false
+		return noticeArticleRow{}, 0, false
 	}
 	if err := infra.DB.WithContext(ctx).Where("id = ?", ctype.ID(e.AggregateID)).
 		Take(&article).Error; err != nil {
-		return models.ArticleModel{}, 0, false
+		return noticeArticleRow{}, 0, false
 	}
 	return article, ctype.ID(payload.ActorID), true
 }

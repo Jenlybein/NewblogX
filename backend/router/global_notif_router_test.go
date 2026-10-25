@@ -10,7 +10,7 @@ import (
 	notificationmysql "myblogx/internal/notification/adapter/mysql"
 	notificationapp "myblogx/internal/notification/app"
 	mw "myblogx/internal/platform/http/middleware"
-	"myblogx/models"
+	"myblogx/internal/testkit/schema"
 	"myblogx/router"
 	"myblogx/test/testutil"
 	"net/http"
@@ -21,14 +21,14 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-func setupGlobalNotifRouterEnv(t *testing.T) (*models.UserModel, string, *models.UserModel, string) {
+func setupGlobalNotifRouterEnv(t *testing.T) (*schema.UserRow, string, *schema.UserRow, string) {
 	t.Helper()
 	testutil.SetupMiniRedis(t)
 	db := testutil.SetupSQLite(t,
-		&models.UserModel{},
-		&models.UserConfModel{},
-		&models.GlobalNotifModel{},
-		&models.UserGlobalNotifModel{},
+		&schema.UserRow{},
+		&schema.UserConfRow{},
+		&schema.GlobalNotifRow{},
+		&schema.UserGlobalNotifRow{},
 	)
 	testutil.SetConfig(&conf.Config{
 		Jwt: conf.Jwt{
@@ -38,12 +38,12 @@ func setupGlobalNotifRouterEnv(t *testing.T) (*models.UserModel, string, *models
 		},
 	})
 
-	admin := &models.UserModel{
+	admin := &schema.UserRow{
 		Username: "router_admin",
 		Password: "x",
 		Role:     enum.RoleAdmin,
 	}
-	user := &models.UserModel{
+	user := &schema.UserRow{
 		Username: "router_user",
 		Password: "x",
 		Role:     enum.RoleUser,
@@ -135,25 +135,25 @@ func TestGlobalNotifRouterDeletePaths(t *testing.T) {
 		t.Fatalf("更新用户注册时间失败: %v", err)
 	}
 
-	userNotif := models.GlobalNotifModel{
+	userNotif := schema.GlobalNotifRow{
 		Title:           "user-visible",
 		Content:         "user-visible",
 		ActionUser:      admin.ID,
 		UserVisibleRule: global_notif_enum.UserVisibleAllUsers,
 		ExpireTime:      time.Now().Add(2 * time.Hour),
 	}
-	adminNotif := models.GlobalNotifModel{
+	adminNotif := schema.GlobalNotifRow{
 		Title:           "admin-delete",
 		Content:         "admin-delete",
 		ActionUser:      admin.ID,
 		UserVisibleRule: global_notif_enum.UserVisibleAllUsers,
 		ExpireTime:      time.Now().Add(2 * time.Hour),
 	}
-	if err := db.Create(&[]models.GlobalNotifModel{userNotif, adminNotif}).Error; err != nil {
+	if err := db.Create(&[]schema.GlobalNotifRow{userNotif, adminNotif}).Error; err != nil {
 		t.Fatalf("创建通知失败: %v", err)
 	}
 
-	var list []models.GlobalNotifModel
+	var list []schema.GlobalNotifRow
 	if err := db.Order("id asc").Find(&list).Error; err != nil {
 		t.Fatalf("查询通知失败: %v", err)
 	}
@@ -169,7 +169,7 @@ func TestGlobalNotifRouterDeletePaths(t *testing.T) {
 		t.Fatalf("用户删除通知失败, body=%s", userW.Body.String())
 	}
 
-	var userState models.UserGlobalNotifModel
+	var userState schema.UserGlobalNotifRow
 	if err := db.Unscoped().Take(&userState, "user_id = ? and msg_id = ?", user.ID, userNotif.ID).Error; err != nil {
 		t.Fatalf("查询用户删除状态失败: %v", err)
 	}
@@ -187,7 +187,7 @@ func TestGlobalNotifRouterDeletePaths(t *testing.T) {
 	}
 
 	var count int64
-	if err := db.Model(&models.GlobalNotifModel{}).Where("id = ?", adminNotif.ID).Count(&count).Error; err != nil {
+	if err := db.Model(&schema.GlobalNotifRow{}).Where("id = ?", adminNotif.ID).Count(&count).Error; err != nil {
 		t.Fatalf("查询管理员删除结果失败: %v", err)
 	}
 	if count != 0 {
@@ -200,7 +200,7 @@ func TestGlobalNotifRouterReadPath(t *testing.T) {
 	db := testutil.DB()
 	engine := newGlobalNotifRouterEngine()
 
-	notif := models.GlobalNotifModel{
+	notif := schema.GlobalNotifRow{
 		Title:           "router-read",
 		Content:         "router-read",
 		ActionUser:      admin.ID,
@@ -220,7 +220,7 @@ func TestGlobalNotifRouterReadPath(t *testing.T) {
 		t.Fatalf("读取通知失败, body=%s", w.Body.String())
 	}
 
-	var state models.UserGlobalNotifModel
+	var state schema.UserGlobalNotifRow
 	if err := db.Take(&state, "user_id = ? and msg_id = ?", user.ID, notif.ID).Error; err != nil {
 		t.Fatalf("查询读取状态失败: %v", err)
 	}

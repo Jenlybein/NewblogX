@@ -7,12 +7,11 @@ import (
 	"myblogx/conf"
 	"myblogx/internal/kernel/ctype"
 	"myblogx/internal/platform/idgen"
+	"myblogx/internal/testkit/schema"
 	userAdapter "myblogx/internal/user/adapter/mysql"
-	blogmodels "myblogx/models"
 	"myblogx/utils/jwts"
 	"net/http"
 	"path/filepath"
-	"reflect"
 	"runtime"
 	"strings"
 	"sync/atomic"
@@ -154,7 +153,7 @@ func SetupMiniRedis(t *testing.T) *miniredis.Miniredis {
 	return mr
 }
 
-func SetupSQLite(t *testing.T, models ...any) *gorm.DB {
+func SetupSQLite(t *testing.T, rows ...any) *gorm.DB {
 	t.Helper()
 	InitGlobals()
 	// 注意：本函数会写包级变量（testDB）与全局配置，**因此调用它的测试不能 t.Parallel()**。
@@ -178,9 +177,9 @@ func SetupSQLite(t *testing.T, models ...any) *gorm.DB {
 	sqlDB.SetMaxOpenConns(1)
 	sqlDB.SetMaxIdleConns(1)
 
-	if len(models) > 0 {
-		models = appendDependentModels(models)
-		if err = db.AutoMigrate(models...); err != nil {
+	if len(rows) > 0 {
+		rows = appendDependentRows(db, rows)
+		if err = db.AutoMigrate(rows...); err != nil {
 			t.Fatalf("自动迁移失败: %v", err)
 		}
 	}
@@ -190,7 +189,7 @@ func SetupSQLite(t *testing.T, models ...any) *gorm.DB {
 	return db
 }
 
-func CreateUser(t *testing.T, db *gorm.DB, user *blogmodels.UserModel) {
+func CreateUser(t *testing.T, db *gorm.DB, user *schema.UserRow) {
 	t.Helper()
 	if err := db.Transaction(func(tx *gorm.DB) error {
 		if err := tx.Create(user).Error; err != nil {
@@ -202,55 +201,56 @@ func CreateUser(t *testing.T, db *gorm.DB, user *blogmodels.UserModel) {
 	}
 }
 
-func appendDependentModels(list []any) []any {
-	hasArticle := false
-	hasTag := false
-	hasArticleTag := false
-	hasUser := false
-	hasUserConf := false
-	hasUserStat := false
-	hasUserSession := false
-
+// appendDependentRows 补齐"建表顺序上必须先存在"的依赖表。
+//
+// # 为什么不再用 reflect.TypeOf 判断
+//
+// 原来是一串 `case reflect.TypeOf(&blogmodels.UserModel{})`。M6 删掉 models 之后
+// 那些类型不存在了；即便还在，这种写法把"表之间的依赖关系"编码成了
+// "对具体 Go 类型的枚举"，加一张表就得改这里。
+//
+// 改成按**表名**判断：依赖关系本来就是表之间的事实，与 Go 类型名无关。
+// 表名由 GORM 从行结构推导，所以调用方传什么类型都能识别。
+func appendDependentRows(db *gorm.DB, list []any) []any {
+	has := make(map[string]bool, len(list))
 	for _, item := range list {
-		switch reflect.TypeOf(item) {
-		case reflect.TypeOf(&blogmodels.ArticleModel{}):
-			hasArticle = true
-		case reflect.TypeOf(&blogmodels.TagModel{}):
-			hasTag = true
-		case reflect.TypeOf(&blogmodels.ArticleTagModel{}):
-			hasArticleTag = true
-		case reflect.TypeOf(&blogmodels.UserModel{}):
-			hasUser = true
-		case reflect.TypeOf(&blogmodels.UserConfModel{}):
-			hasUserConf = true
-		case reflect.TypeOf(&blogmodels.UserStatModel{}):
-			hasUserStat = true
-		case reflect.TypeOf(&blogmodels.UserSessionModel{}):
-			hasUserSession = true
+		if table := tableOf(db, item); table != "" {
+			has[table] = true
 		}
 	}
 
-	if hasUser {
-		if !hasUserConf {
-			list = append(list, &blogmodels.UserConfModel{})
+	// 用户默认行：几乎所有登录/资料相关用例都假设它们存在。
+	if has["user_models"] {
+		if !has["user_conf_models"] {
+			list = append(list, &schema.UserConfRow{})
 		}
-		if !hasUserStat {
-			list = append(list, &blogmodels.UserStatModel{})
+		if !has["user_stat_models"] {
+			list = append(list, &schema.UserStatRow{})
 		}
-		if !hasUserSession {
-			list = append(list, &blogmodels.UserSessionModel{})
+		if !has["user_session_models"] {
+			list = append(list, &schema.UserSessionRow{})
 		}
 	}
 
-	if hasArticle {
-		if !hasTag {
-			list = append(list, &blogmodels.TagModel{})
+	// 文章标签是 many2many 的 join 表，标签用例常只声明文章。
+	if has["article_models"] {
+		if !has["tag_models"] {
+			list = append(list, &schema.TagRow{})
 		}
-		if !hasArticleTag {
-			list = append(list, &blogmodels.ArticleTagModel{})
+		if !has["article_tag_models"] {
+			list = append(list, &schema.ArticleTagRow{})
 		}
 	}
 	return list
+}
+
+// tableOf 解析行结构对应的表名；解析失败返回空串（不阻断建表）。
+func tableOf(db *gorm.DB, row any) string {
+	stmt := &gorm.Statement{DB: db}
+	if err := stmt.Parse(row); err != nil {
+		return ""
+	}
+	return stmt.Schema.Table
 }
 
 func NewJSONRequest(method, target, body string) *http.Request {
@@ -259,15 +259,15 @@ func NewJSONRequest(method, target, body string) *http.Request {
 	return req
 }
 
-func IssueAccessToken(t *testing.T, user *blogmodels.UserModel) string {
+func IssueAccessToken(t *testing.T, user *schema.UserRow) string {
 	t.Helper()
 	sessionID, err := idgen.Next()
 	if err != nil {
 		t.Fatalf("生成测试会话ID失败: %v", err)
 	}
 	now := time.Now()
-	session := blogmodels.UserSessionModel{
-		Model: blogmodels.Model{
+	session := schema.UserSessionRow{
+		BaseRow: schema.BaseRow{
 			ID: sessionID,
 		},
 		UserID:           user.ID,
@@ -298,14 +298,14 @@ func IssueAccessToken(t *testing.T, user *blogmodels.UserModel) string {
 	return token
 }
 
-func effectiveTokenVersion(user *blogmodels.UserModel) uint32 {
+func effectiveTokenVersion(user *schema.UserRow) uint32 {
 	if user == nil || user.TokenVersion == 0 {
 		return 1
 	}
 	return user.TokenVersion
 }
 
-func NewClaims(user *blogmodels.UserModel) *jwts.MyClaims {
+func NewClaims(user *schema.UserRow) *jwts.MyClaims {
 	if user == nil {
 		return &jwts.MyClaims{}
 	}

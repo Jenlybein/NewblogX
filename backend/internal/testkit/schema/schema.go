@@ -29,7 +29,8 @@ import (
 
 	"myblogx/internal/kernel/ctype"
 	"myblogx/internal/kernel/enum"
-	"myblogx/models"
+	"myblogx/internal/kernel/enum/article_review_enum"
+	"myblogx/internal/platform/cdc/outboxrelay"
 
 	"gorm.io/gorm"
 )
@@ -66,70 +67,35 @@ const (
 	VisibilityAdminHidden = enum.ArticleVisibilityAdminHidden
 )
 
-// 审核任务的三组枚举。
+// 审核任务的三组枚举（定义在 kernel，业务模块可自由引用）。
 type (
-	ReviewTaskStage  = models.ArticleReviewTaskStage
-	ReviewTaskSource = models.ArticleReviewTaskSource
-	ReviewTaskStatus = models.ArticleReviewTaskStatus
+	ReviewTaskStage  = article_review_enum.Stage
+	ReviewTaskSource = article_review_enum.Source
+	ReviewTaskStatus = article_review_enum.Status
 )
 
 // 审核任务取值。
 const (
-	ReviewStageManual    = models.ArticleReviewTaskStageManual
-	ReviewSourceCreate   = models.ArticleReviewTaskSourceCreate
-	ReviewSourceEdit     = models.ArticleReviewTaskSourceEdit
-	ReviewSourceResubmit = models.ArticleReviewTaskSourceResubmit
-	ReviewStatusPending  = models.ArticleReviewTaskPending
-	ReviewStatusApproved = models.ArticleReviewTaskApproved
-	ReviewStatusRejected = models.ArticleReviewTaskRejected
-	ReviewStatusCanceled = models.ArticleReviewTaskCanceled
+	ReviewStageManual    = article_review_enum.StageManual
+	ReviewSourceCreate   = article_review_enum.SourceCreate
+	ReviewSourceEdit     = article_review_enum.SourceEdit
+	ReviewSourceResubmit = article_review_enum.SourceResubmit
+	ReviewStatusPending  = article_review_enum.StatusPending
+	ReviewStatusApproved = article_review_enum.StatusApproved
+	ReviewStatusRejected = article_review_enum.StatusRejected
+	ReviewStatusCanceled = article_review_enum.StatusCanceled
 )
-
-// OutboxRow 是发件箱表的行类型（测试要断言中继改过哪些列）。
-type OutboxRow = models.OutboxEventModel
 
 // outbox 状态取值。
-const (
-	OutboxStatusPending    = models.OutboxStatusPending
-	OutboxStatusProcessing = models.OutboxStatusProcessing
-	OutboxStatusDone       = models.OutboxStatusDone
-	OutboxStatusFailed     = models.OutboxStatusFailed
-	OutboxStatusDead       = models.OutboxStatusDead
-)
-
-// 以下别名供"列名契约测试"与需要直读列的场景使用。
 //
-// 用别名而不是复制：这类测试的全部意义就是比对**同一份结构定义**与真实表，
-// 复制一份就变成了"两份定义互相比对"，测不出任何东西。
-type (
-	// ArticleRow 是文章表的行类型。
-	ArticleRow = models.ArticleModel
-	// TagRow 是标签表的行类型。
-	TagRow = models.TagModel
-	// ArticleTagRow 是文章-标签关系表的行类型。
-	ArticleTagRow = models.ArticleTagModel
-	// UserTopArticleRow 是用户置顶表的行类型。
-	UserTopArticleRow = models.UserTopArticleModel
-	// ImageRow 是图片本体表的行类型。
-	ImageRow = models.ImageModel
-	// ImageRefRow 是图片引用表的行类型。
-	ImageRefRow = models.ImageRefModel
-	// BannerRow 是轮播位表的行类型。
-	BannerRow = models.BannerModel
-	// FavoriteRow 是收藏夹表的行类型。
-	FavoriteRow = models.FavoriteModel
-	// UserArticleFavorRow 是收藏关系表的行类型。
-	UserArticleFavorRow = models.UserArticleFavorModel
-	// CommentRow 是评论表的行类型。
-	CommentRow = models.CommentModel
-	// UserFollowRow 是关注关系表的行类型。
-	UserFollowRow = models.UserFollowModel
-	// ChatSessionRow 是私信会话表的行类型。
-	ChatSessionRow = models.ChatSessionModel
-	// DeadLetterRow 是 CDC 死信表的行类型。
-	DeadLetterRow = models.CdcDeadLetterModel
-	// RuntimeSiteConfigRow 是站点运行时配置表的行类型。
-	RuntimeSiteConfigRow = models.RuntimeSiteConfigModel
+// 直接引用中继的常量而不是再抄一份：状态机只有中继一个使用方，
+// 它改了口径（比如新增 "retrying"）时这里自动跟上。
+const (
+	OutboxStatusPending    = outboxrelay.OutboxStatusPending
+	OutboxStatusProcessing = outboxrelay.OutboxStatusProcessing
+	OutboxStatusDone       = outboxrelay.OutboxStatusDone
+	OutboxStatusFailed     = outboxrelay.OutboxStatusFailed
+	OutboxStatusDead       = outboxrelay.OutboxStatusDead
 )
 
 // ── 建表 ────────────────────────────────────────────────────────
@@ -168,19 +134,21 @@ const (
 	Social Group = "social"
 	// DeadLetter 是 CDC 死信。
 	DeadLetter Group = "dead_letter"
+	// All 是全部表（仅用于结构一致性契约测试）。
+	All Group = "all"
 )
 
 // groupModels 是每个表组对应的行结构，**组内顺序即建表顺序**。
 var groupModels = map[Group][]any{
 	UserCore: {
-		&models.UserModel{},
-		&models.UserConfModel{},
-		&models.UserStatModel{},
+		&UserRow{},
+		&UserConfRow{},
+		&UserStatRow{},
 	},
 	UserSession: {
-		&models.UserSessionModel{},
+		&UserSessionRow{},
 	},
-	// ArticleCore 含 models.ArticleTagModel，因此 article_tag_models 会带上
+	// ArticleCore 含 ArticleTagRow，因此 article_tag_models 会带上
 	// id / created_at / updated_at / deleted_at 四列（不只是 (article_id, tag_id)）。
 	//
 	// 这是刻意的：标签仓储（article/adapter/mysql 的 ReplaceTags）用
@@ -188,26 +156,26 @@ var groupModels = map[Group][]any{
 	// 代价是插入时必须显式给 id —— 该列 NOT NULL 且无默认值，
 	// 只写两列会报 Error 1364。见 InsertArticleTag。
 	ArticleCore: {
-		&models.CategoryModel{},
-		&models.TagModel{},
-		&models.ArticleModel{},
-		&models.ArticleTagModel{},
-		&models.ArticleDiggModel{},
+		&CategoryRow{},
+		&TagRow{},
+		&ArticleRow{},
+		&ArticleTagRow{},
+		&ArticleDiggRow{},
 	},
 	ArticleReview: {
-		&models.ArticleReviewTaskModel{},
-		&models.ArticleReviewLogModel{},
+		&ArticleReviewTaskRow{},
+		&ArticleReviewLogRow{},
 	},
 	Favorite: {
-		&models.FavoriteModel{},
-		&models.UserArticleFavorModel{},
+		&FavoriteRow{},
+		&UserArticleFavorRow{},
 	},
 	UserReading: {
-		&models.UserTopArticleModel{},
-		&models.UserArticleViewHistoryModel{},
+		&UserTopArticleRow{},
+		&UserArticleViewHistoryRow{},
 	},
 	Comment: {
-		&models.CommentModel{},
+		&CommentRow{},
 	},
 	// Chat 里消息表必须排在会话表**之前**。
 	//
@@ -215,26 +183,65 @@ var groupModels = map[Group][]any{
 	// 建一条指向 chat_msg_models.session_id 的外键。先建会话表的话，
 	// 被引用的表还不存在，MySQL 直接报 Error 1824。
 	Chat: {
-		&models.ChatMsgModel{},
-		&models.ChatSessionModel{},
-		&models.ChatMsgUserStateModel{},
+		&ChatMsgRow{},
+		&ChatSessionRow{},
+		&ChatMsgUserStateRow{},
 	},
 	Outbox: {
-		&models.OutboxEventModel{},
+		&OutboxEventRow{},
 	},
 	ImageAssets: {
-		&models.ImageModel{},
-		&models.ImageRefModel{},
+		&ImageRow{},
+		&ImageRefRow{},
 	},
 	Site: {
-		&models.BannerModel{},
-		&models.RuntimeSiteConfigModel{},
+		&BannerRow{},
+		&RuntimeSiteConfigRow{},
 	},
 	Social: {
-		&models.UserFollowModel{},
+		&UserFollowRow{},
 	},
 	DeadLetter: {
-		&models.CdcDeadLetterModel{},
+		&CdcDeadLetterRow{},
+	},
+	// All 是**全部 32 张表**，只用于"schema.sql 与自持行是否一致"的契约测试。
+	//
+	// 为什么不复用上面那些组拼起来：拼装顺序一变，这个测试就变成
+	// "测拼装顺序"而不是"测结构一致性"。这里写死一份，顺序沿用当年
+	// flag_db 的 AutoMigrate 顺序（被引用的表在前），AutoMigrate 建外键不会撞 1824。
+	All: {
+		&UserRow{},
+		&UserConfRow{},
+		&UserStatRow{},
+		&UserSessionRow{},
+		&UserViewDailyRow{},
+		&CategoryRow{},
+		&TagRow{},
+		&ArticleRow{},
+		&ArticleAIScoreRecordRow{},
+		&ArticleReviewTaskRow{},
+		&ArticleReviewLogRow{},
+		&ArticleTagRow{},
+		&ArticleDiggRow{},
+		&FavoriteRow{},
+		&UserArticleFavorRow{},
+		&UserArticleViewHistoryRow{},
+		&UserTopArticleRow{},
+		&ImageRow{},
+		&ImageRefRow{},
+		&RuntimeSiteConfigRow{},
+		&CommentRow{},
+		&BannerRow{},
+		&GlobalNotifRow{},
+		&CommentDiggRow{},
+		&ArticleMessageRow{},
+		&UserGlobalNotifRow{},
+		&UserFollowRow{},
+		&ChatMsgRow{},
+		&ChatSessionRow{},
+		&ChatMsgUserStateRow{},
+		&CdcDeadLetterRow{},
+		&OutboxEventRow{},
 	},
 }
 
@@ -288,7 +295,7 @@ type UserSpec struct {
 // 所以调用前必须已经建好这两张表（schema.UserCore 组包含它们）。
 func InsertUser(t *testing.T, db *gorm.DB, spec UserSpec) {
 	t.Helper()
-	u := models.UserModel{}
+	u := UserRow{}
 	u.ID = ctype.ID(spec.ID)
 	u.Username = spec.Username
 	u.Nickname = spec.Nickname
@@ -334,8 +341,8 @@ type ArticleSpec struct {
 // Omit 掉关联字段：它们会让 GORM 顺带 upsert 用户/分类，把种子数据搅乱。
 func InsertArticle(t *testing.T, db *gorm.DB, spec ArticleSpec) {
 	t.Helper()
-	m := models.ArticleModel{
-		Model: models.Model{
+	m := ArticleRow{
+		BaseRow: BaseRow{
 			ID:        ctype.ID(spec.ID),
 			CreatedAt: spec.CreatedAt,
 			UpdatedAt: spec.UpdatedAt,
@@ -361,10 +368,10 @@ func InsertArticle(t *testing.T, db *gorm.DB, spec ArticleSpec) {
 // InsertCategory 插入一个分类行。
 func InsertCategory(t *testing.T, db *gorm.DB, id, userID uint64, title string, at time.Time) {
 	t.Helper()
-	m := models.CategoryModel{
-		Model:  models.Model{ID: ctype.ID(id), CreatedAt: at, UpdatedAt: at},
-		Title:  title,
-		UserID: ctype.ID(userID),
+	m := CategoryRow{
+		BaseRow: BaseRow{ID: ctype.ID(id), CreatedAt: at, UpdatedAt: at},
+		Title:   title,
+		UserID:  ctype.ID(userID),
 	}
 	if err := db.Omit("UserModel", "ArticleList").Create(&m).Error; err != nil {
 		t.Fatalf("插入分类 %d 失败: %v", id, err)
@@ -387,8 +394,8 @@ type TagSpec struct {
 // InsertTag 插入一个标签行。
 func InsertTag(t *testing.T, db *gorm.DB, spec TagSpec) {
 	t.Helper()
-	m := models.TagModel{
-		Model:        models.Model{ID: ctype.ID(spec.ID), CreatedAt: spec.At, UpdatedAt: spec.At},
+	m := TagRow{
+		BaseRow:      BaseRow{ID: ctype.ID(spec.ID), CreatedAt: spec.At, UpdatedAt: spec.At},
 		Title:        spec.Title,
 		Sort:         spec.Sort,
 		ArticleCount: spec.ArticleCount,
@@ -400,7 +407,7 @@ func InsertTag(t *testing.T, db *gorm.DB, spec TagSpec) {
 	}
 	if !spec.Enabled {
 		// 见 TagSpec.Enabled 的说明：默认值会把 false 顶回来。
-		if err := db.Model(&models.TagModel{}).Where("id = ?", spec.ID).
+		if err := db.Model(&TagRow{}).Where("id = ?", spec.ID).
 			Update("is_enabled", false).Error; err != nil {
 			t.Fatalf("停用标签 %d 失败: %v", spec.ID, err)
 		}
@@ -438,8 +445,8 @@ type FavoriteSpec struct {
 // InsertFavorite 插入一个收藏夹行。
 func InsertFavorite(t *testing.T, db *gorm.DB, spec FavoriteSpec) {
 	t.Helper()
-	m := models.FavoriteModel{
-		Model:        models.Model{ID: ctype.ID(spec.ID), CreatedAt: spec.At, UpdatedAt: spec.At},
+	m := FavoriteRow{
+		BaseRow:      BaseRow{ID: ctype.ID(spec.ID), CreatedAt: spec.At, UpdatedAt: spec.At},
 		UserID:       ctype.ID(spec.UserID),
 		Title:        spec.Title,
 		IsDefault:    spec.IsDefault,
@@ -467,8 +474,8 @@ type UserArticleFavorSpec struct {
 // InsertUserArticleFavor 插入一条收藏关系。
 func InsertUserArticleFavor(t *testing.T, db *gorm.DB, spec UserArticleFavorSpec) {
 	t.Helper()
-	m := models.UserArticleFavorModel{
-		Model:                 models.Model{ID: ctype.ID(spec.ID), CreatedAt: spec.At, UpdatedAt: spec.At},
+	m := UserArticleFavorRow{
+		BaseRow:               BaseRow{ID: ctype.ID(spec.ID), CreatedAt: spec.At, UpdatedAt: spec.At},
 		ArticleID:             ctype.ID(spec.ArticleID),
 		UserID:                ctype.ID(spec.UserID),
 		FavorID:               ctype.ID(spec.FavorID),
@@ -486,8 +493,8 @@ func InsertUserArticleFavor(t *testing.T, db *gorm.DB, spec UserArticleFavorSpec
 // InsertUserTopArticle 插入一条置顶记录。
 func InsertUserTopArticle(t *testing.T, db *gorm.DB, id, userID, articleID uint64, at time.Time) {
 	t.Helper()
-	m := models.UserTopArticleModel{
-		Model:     models.Model{ID: ctype.ID(id), CreatedAt: at, UpdatedAt: at},
+	m := UserTopArticleRow{
+		BaseRow:   BaseRow{ID: ctype.ID(id), CreatedAt: at, UpdatedAt: at},
 		UserID:    ctype.ID(userID),
 		ArticleID: ctype.ID(articleID),
 	}
@@ -499,8 +506,8 @@ func InsertUserTopArticle(t *testing.T, db *gorm.DB, id, userID, articleID uint6
 // InsertViewHistory 插入一条浏览历史。
 func InsertViewHistory(t *testing.T, db *gorm.DB, id, userID, articleID uint64, at time.Time) {
 	t.Helper()
-	m := models.UserArticleViewHistoryModel{
-		Model:     models.Model{ID: ctype.ID(id), CreatedAt: at, UpdatedAt: at},
+	m := UserArticleViewHistoryRow{
+		BaseRow:   BaseRow{ID: ctype.ID(id), CreatedAt: at, UpdatedAt: at},
 		UserID:    ctype.ID(userID),
 		ArticleID: ctype.ID(articleID),
 	}
@@ -527,8 +534,8 @@ type ReviewTaskSpec struct {
 // InsertReviewTask 插入一条审核任务。
 func InsertReviewTask(t *testing.T, db *gorm.DB, spec ReviewTaskSpec) {
 	t.Helper()
-	m := models.ArticleReviewTaskModel{
-		Model:                models.Model{ID: ctype.ID(spec.ID), CreatedAt: spec.CreatedAt, UpdatedAt: spec.UpdatedAt},
+	m := ArticleReviewTaskRow{
+		BaseRow:              BaseRow{ID: ctype.ID(spec.ID), CreatedAt: spec.CreatedAt, UpdatedAt: spec.UpdatedAt},
 		ArticleID:            ctype.ID(spec.ArticleID),
 		AuthorID:             ctype.ID(spec.AuthorID),
 		ArticleTitle:         spec.ArticleTitle,

@@ -7,7 +7,6 @@ import (
 
 	"myblogx/internal/kernel/ctype"
 	"myblogx/internal/platform/idgen"
-	"myblogx/models"
 
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
@@ -21,7 +20,7 @@ import (
 // 避免平台包反向依赖测试工具包。
 
 type softDeleteUniqueRow struct {
-	models.Model
+	BaseRow
 	UserID    ctype.ID `gorm:"uniqueIndex:uk_restore_test,priority:1"`
 	Title     string   `gorm:"size:64;uniqueIndex:uk_restore_test,priority:2"`
 	Remark    string
@@ -32,7 +31,7 @@ type softDeleteUniqueRow struct {
 func openSQLite(t *testing.T, entities ...any) *gorm.DB {
 	t.Helper()
 
-	// softDeleteUniqueRow 内嵌 models.Model，其 BeforeCreate 会生成雪花 ID，
+	// softDeleteUniqueRow 内嵌 BaseRow，其 BeforeCreate 会生成雪花 ID，
 	// 所以这里必须先让生成器就绪（原 testutil.SetupSQLite 也做了同样的事）。
 	if !idgen.MustReady() {
 		if err := idgen.Init(1); err != nil {

@@ -8,7 +8,7 @@
 //
 // 用法：
 //
-//	db := mysqlcontainer.DB(t, &models.ArticleModel{})   // 独立 schema + 自动建表
+//	db := mysqlcontainer.DB(t, &schema.ArticleRow{})   // 独立 schema + 自动建表
 //	mysqlcontainer.Terminate(ctx)                        // 可选：TestMain 里统一收尾
 //
 // 优先级：BLOGX_MYSQL_DSN 环境变量 > testcontainers 自动启动。
@@ -84,7 +84,7 @@ func DB(t *testing.T, models ...any) *gorm.DB {
 		t.Fatalf("mysqlcontainer: 连接 MySQL 失败: %v", err)
 	}
 
-	// models.Model.BeforeCreate 依赖雪花生成器；不初始化的话
+	// schema.BaseRow.BeforeCreate 依赖雪花生成器；不初始化的话
 	// 任何 Insert（即使没显式设 ID）都会直接报错。
 	// 这属于"测试环境开箱可用"的职责，不该让每个测试自己记得初始化。
 	if err := idgen.Init(1); err != nil {

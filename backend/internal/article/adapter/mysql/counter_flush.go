@@ -6,7 +6,7 @@ import (
 
 // 本文件承载「把 Redis 增量计数刷回文章/标签表」的写入。
 //
-// 这些 SQL 原本在 service/cron_service 里，用 `s.db.Model(&models.ArticleModel{})`
+// 这些 SQL 原本在 service/cron_service 里，用 `s.db.Model(&models.ArticleModel{})`（旧包，已删）
 // 直接写。迁到本包后：表结构由本包的 row 定义，列名受类型约束，
 // cron 侧只负责"取增量、调这里、失败回补"，不再持有任何 SQL。
 

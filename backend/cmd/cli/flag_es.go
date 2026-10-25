@@ -5,7 +5,6 @@ import (
 	"myblogx/internal/kernel/ctype"
 	"myblogx/internal/platform/es"
 	"myblogx/internal/platform/es/articlesync"
-	"strings"
 
 	"github.com/elastic/go-elasticsearch/v7"
 	"github.com/sirupsen/logrus"
@@ -17,7 +16,7 @@ func FlagESIndex(deps Options) error {
 		return logESError(deps.Logger, "初始化索引失败: ES 客户端未初始化")
 	}
 	article := articlesync.ArticleRow{}
-	index := resolveArticleESIndex(deps.ESIndex)
+	index := articlesync.ResolveIndex(deps.ESIndex)
 	pipelineName := article.PipelineName()
 
 	fmt.Printf("正在初始化索引: %s\n", index)
@@ -42,7 +41,7 @@ func FlagESDelete(deps Options) error {
 		return logESError(deps.Logger, "删除索引失败: ES 客户端未初始化")
 	}
 	article := articlesync.ArticleRow{}
-	index := resolveArticleESIndex(deps.ESIndex)
+	index := articlesync.ResolveIndex(deps.ESIndex)
 	pipelineName := article.PipelineName()
 
 	fmt.Printf("正在删除索引: %s\n", index)
@@ -67,7 +66,7 @@ func FlagESEnsure(deps Options) error {
 		return logESError(deps.Logger, "确保索引失败: ES 客户端未初始化")
 	}
 	article := articlesync.ArticleRow{}
-	index := resolveArticleESIndex(deps.ESIndex)
+	index := articlesync.ResolveIndex(deps.ESIndex)
 	pipelineName := article.PipelineName()
 
 	if err := es_service.EnsureIndex(deps.ESClient, index, article.Mapping()); err != nil {
@@ -93,7 +92,7 @@ func FlagESArticleSync(deps Options) error {
 		return logESError(deps.Logger, "文章同步失败: ES 客户端未初始化")
 	}
 
-	index := resolveArticleESIndex(deps.ESIndex)
+	index := articlesync.ResolveIndex(deps.ESIndex)
 	exists, err := es_service.ExistsIndex(deps.ESClient, index)
 	if err != nil {
 		return logESError(deps.Logger, "文章同步失败: 检查 ES 索引失败: %v", err)
@@ -176,15 +175,4 @@ func logESError(logger *logrus.Logger, format string, args ...any) error {
 	}
 	logger.Error(err)
 	return err
-}
-
-// resolveArticleESIndex 收敛索引名：空值回落默认索引。
-//
-// 原本在 models/es_index.go；索引名是 ES 投影的知识，跟着投影走。
-func resolveArticleESIndex(index string) string {
-	clean := strings.TrimSpace(index)
-	if clean == "" {
-		return articlesync.DefaultArticleESIndex
-	}
-	return clean
 }

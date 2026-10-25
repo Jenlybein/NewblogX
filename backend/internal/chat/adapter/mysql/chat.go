@@ -109,7 +109,7 @@ func (r *Repo) SendMessage(ctx context.Context, msg *domain.Message, senderDispl
 				ReceiverAvatar:   senderDisplay.Avatar,
 			})
 		}
-		// 本包的行结构是 adapter 私有的，没有 models.Model 的 BeforeCreate 钩子，
+		// 本包的行结构是 adapter 私有的，没有 BaseRow 的 BeforeCreate 钩子，
 		// 主键必须显式赋值。漏了就会把所有行都写成 id=0：
 		// 第一条成功，第二条撞主键（ON DUPLICATE KEY 于是变成 update），
 		// 表现是"整个站只有一条会话"。
@@ -193,7 +193,7 @@ func (r *Repo) SendMessage(ctx context.Context, msg *domain.Message, senderDispl
 
 // fillRowIDs 给会话行补雪花主键。
 //
-// 为什么需要它：sessionRow 是本包私有的投影结构，不像 models.ChatSessionModel
+// 为什么需要它：sessionRow 是本包私有的投影结构，不像 testkit/schema.ChatSessionRow
 // 那样带 Model.BeforeCreate 钩子。GORM 不会替 `autoIncrement:false` 的主键取值，
 // 于是所有行的 id 都是 0 —— 只写一行时看不出来，第二行就撞主键，
 // 而 ON DUPLICATE KEY UPDATE 会把它变成 update，最终全站只剩一条会话。

@@ -4,25 +4,26 @@ import (
 	"strings"
 
 	"myblogx/conf"
+	"myblogx/internal/kernel/ctype"
 	"myblogx/internal/kernel/enum/image_ref_enum"
-	"myblogx/models"
 
 	"gorm.io/gorm"
 )
 
-func RebuildUserRefs(tx *gorm.DB, qiNiuConfig conf.QiNiu, user *models.UserModel) error {
+// RebuildUserRefs 重建一个用户的头像引用。
+func RebuildUserRefs(tx *gorm.DB, qiNiuConfig conf.QiNiu, userID ctype.ID, avatar string) error {
 	if tx == nil {
 		return gorm.ErrInvalidDB
 	}
 	candidates := make([]refCandidate, 0, 1)
-	if avatar := strings.TrimSpace(user.Avatar); avatar != "" {
+	if trimmed := strings.TrimSpace(avatar); trimmed != "" {
 		candidates = append(candidates, refCandidate{
 			Field:    image_ref_enum.RefFieldUserAvatar,
 			Position: 0,
-			URL:      avatar,
+			URL:      trimmed,
 		})
 	}
-	return replaceOwnerRefs(tx, qiNiuConfig, image_ref_enum.RefTypeUser, user.ID, candidates)
+	return replaceOwnerRefs(tx, qiNiuConfig, image_ref_enum.RefTypeUser, userID, candidates)
 }
 
 func RebuildUserRefsByRow(tx *gorm.DB, qiNiuConfig conf.QiNiu, snapshot rowSnapshot) error {
@@ -37,8 +38,5 @@ func RebuildUserRefsByRow(tx *gorm.DB, qiNiuConfig conf.QiNiu, snapshot rowSnaps
 	if err != nil {
 		return err
 	}
-	return RebuildUserRefs(tx, qiNiuConfig, &models.UserModel{
-		Model:  models.Model{ID: userID},
-		Avatar: avatar,
-	})
+	return RebuildUserRefs(tx, qiNiuConfig, userID, avatar)
 }

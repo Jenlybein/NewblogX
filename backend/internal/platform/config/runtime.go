@@ -15,7 +15,6 @@ import (
 	"myblogx/conf"
 	siteconf "myblogx/conf/site"
 	"myblogx/internal/apperr"
-	"myblogx/models"
 	"myblogx/utils/envyaml"
 
 	"github.com/sirupsen/logrus"
@@ -171,7 +170,7 @@ func marshalRuntimeConfig(cfg *RuntimeConfig) (siteJSON string, aiJSON string, e
 	return string(siteData), string(aiData), nil
 }
 
-func decodeRuntimeConfig(model *models.RuntimeSiteConfigModel) (*RuntimeConfig, error) {
+func decodeRuntimeConfig(model *runtimeSiteConfigRow) (*RuntimeConfig, error) {
 	cfg := &RuntimeConfig{}
 	if model == nil {
 		return cfg, nil
@@ -189,8 +188,8 @@ func decodeRuntimeConfig(model *models.RuntimeSiteConfigModel) (*RuntimeConfig, 
 	return cfg, nil
 }
 
-func (s *RuntimeConfigService) ensureRuntimeConfigModel(tx *gorm.DB) (*models.RuntimeSiteConfigModel, *RuntimeConfig, error) {
-	var model models.RuntimeSiteConfigModel
+func (s *RuntimeConfigService) ensureRuntimeConfigModel(tx *gorm.DB) (*runtimeSiteConfigRow, *RuntimeConfig, error) {
+	var model runtimeSiteConfigRow
 	err := tx.Where("name = ?", runtimeConfigName).Take(&model).Error
 	switch {
 	case errors.Is(err, gorm.ErrRecordNotFound):
@@ -199,7 +198,7 @@ func (s *RuntimeConfigService) ensureRuntimeConfigModel(tx *gorm.DB) (*models.Ru
 		if marshalErr != nil {
 			return nil, nil, marshalErr
 		}
-		model = models.RuntimeSiteConfigModel{
+		model = runtimeSiteConfigRow{
 			Name:     runtimeConfigName,
 			SiteJSON: siteJSON,
 			AIJSON:   aiJSON,
@@ -231,7 +230,7 @@ func (s *RuntimeConfigService) InitRuntimeConfig() error {
 	if s.db == nil {
 		return apperr.New(apperr.CodeRuntimeConfigDBMissing)
 	}
-	if !s.db.Migrator().HasTable(&models.RuntimeSiteConfigModel{}) {
+	if !s.db.Migrator().HasTable(&runtimeSiteConfigRow{}) {
 		return apperr.New(apperr.CodeRuntimeConfigTableMissing)
 	}
 	var loaded *RuntimeConfig

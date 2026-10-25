@@ -4,25 +4,26 @@ import (
 	"strings"
 
 	"myblogx/conf"
+	"myblogx/internal/kernel/ctype"
 	"myblogx/internal/kernel/enum/image_ref_enum"
-	"myblogx/models"
 
 	"gorm.io/gorm"
 )
 
-func RebuildFavoriteRefs(tx *gorm.DB, qiNiuConfig conf.QiNiu, favorite *models.FavoriteModel) error {
+// RebuildFavoriteRefs 重建一个收藏夹的图片引用。
+func RebuildFavoriteRefs(tx *gorm.DB, qiNiuConfig conf.QiNiu, favoriteID ctype.ID, cover string) error {
 	if tx == nil {
 		return gorm.ErrInvalidDB
 	}
 	candidates := make([]refCandidate, 0, 1)
-	if cover := strings.TrimSpace(favorite.Cover); cover != "" {
+	if trimmed := strings.TrimSpace(cover); trimmed != "" {
 		candidates = append(candidates, refCandidate{
 			Field:    image_ref_enum.RefFieldFavoriteCover,
 			Position: 0,
-			URL:      cover,
+			URL:      trimmed,
 		})
 	}
-	return replaceOwnerRefs(tx, qiNiuConfig, image_ref_enum.RefTypeFavorite, favorite.ID, candidates)
+	return replaceOwnerRefs(tx, qiNiuConfig, image_ref_enum.RefTypeFavorite, favoriteID, candidates)
 }
 
 func RebuildFavoriteRefsByRow(tx *gorm.DB, qiNiuConfig conf.QiNiu, snapshot rowSnapshot) error {
@@ -37,8 +38,5 @@ func RebuildFavoriteRefsByRow(tx *gorm.DB, qiNiuConfig conf.QiNiu, snapshot rowS
 	if err != nil {
 		return err
 	}
-	return RebuildFavoriteRefs(tx, qiNiuConfig, &models.FavoriteModel{
-		Model: models.Model{ID: favoriteID},
-		Cover: cover,
-	})
+	return RebuildFavoriteRefs(tx, qiNiuConfig, favoriteID, cover)
 }

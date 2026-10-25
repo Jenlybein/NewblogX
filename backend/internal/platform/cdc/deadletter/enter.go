@@ -4,8 +4,6 @@ import (
 	"encoding/json"
 	"time"
 
-	"myblogx/models"
-
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 )
@@ -40,7 +38,7 @@ func SaveBatch(db *gorm.DB, items []Item) error {
 			if status == "" {
 				status = "pending"
 			}
-			record := models.CdcDeadLetterModel{
+			record := Record{
 				Stream:      item.Stream,
 				CdcJobID:    item.CdcJobID,
 				SourceTable: item.SourceTable,

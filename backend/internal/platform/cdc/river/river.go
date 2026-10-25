@@ -6,10 +6,10 @@ import (
 	"myblogx/conf"
 	"myblogx/internal/apperr"
 	"myblogx/internal/platform/cdc/canalbase"
+	"myblogx/internal/platform/cdc/outboxrelay"
 	"myblogx/internal/platform/cdc/river/rule"
 	"myblogx/internal/platform/log/writer"
 	"myblogx/internal/platform/safego"
-	"myblogx/models"
 	"regexp"
 	"strings"
 	"sync"
@@ -115,7 +115,7 @@ func (r *River) newCanal() error {
 // prepareCanal 注册事件处理器并设置全量转储范围
 func (r *River) prepareCanal() error {
 	dump := canalbase.Spec{Tables: map[string][]string{}}
-	outboxTable := (&models.OutboxEventModel{}).TableName()
+	outboxTable := outboxrelay.OutboxTableName
 	for _, rule := range r.rules {
 		// outbox 表**不参与全量转储**：
 		// 转储会把表里所有历史行按 INSERT 重放一遍，

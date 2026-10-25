@@ -1,12 +1,10 @@
 package models_test
 
 import (
-	"myblogx/conf"
 	"myblogx/internal/kernel/ctype"
 	"myblogx/internal/kernel/enum"
 	"myblogx/models"
 	"myblogx/test/testutil"
-	"strings"
 	"testing"
 	"time"
 
@@ -51,46 +49,10 @@ func TestEnumStrings(t *testing.T) {
 	}
 }
 
-func TestModelMethods(t *testing.T) {
-	testutil.InitGlobals()
-	testutil.SetConfig(&conf.Config{
-		ES: conf.ES{Index: "article_index"},
-	})
-
-	article := models.ArticleModel{}
-	if article.Index() != "article_index" {
-		t.Fatalf("Index 错误: %s", article.Index())
-	}
-	if article.Mapping() == "" {
-		t.Fatal("Mapping 不应为空")
-	}
-	if !strings.Contains(article.Mapping(), "\"content_head\"") {
-		t.Fatal("Mapping 应包含 content_head 字段")
-	}
-	if !strings.Contains(article.Mapping(), "\"content_parts\"") {
-		t.Fatal("Mapping 应包含 content_parts 字段")
-	}
-	if article.Pipeline() == "" {
-		t.Fatal("Pipeline 不应为空")
-	}
-	if strings.Contains(article.Pipeline(), "html_content") {
-		t.Fatal("Pipeline 不应再依赖 html_content 字段")
-	}
-	if article.PipelineName() == "" {
-		t.Fatal("PipelineName 不应为空")
-	}
-
-	img := models.ImageModel{URL: "https://cdn.example.com/a.png"}
-	if img.WebPath() != "https://cdn.example.com/a.png" {
-		t.Fatalf("WebPath 错误: %s", img.WebPath())
-	}
-
-	u := models.UserModel{Model: models.Model{CreatedAt: time.Now().AddDate(-2, 0, 0)}}
-	if u.CodeAge() < 1 {
-		t.Fatalf("CodeAge 计算异常: %d", u.CodeAge())
-	}
-}
-
+// TestModelMethods 已迁到 internal/platform/es/articlesync/rows_test.go。
+//
+// Mapping / Pipeline / Index 是"ES 文档长什么样"的知识，随投影搬走了；
+// 留在这里会变成"测一个已经不存在的职责"。
 func TestInitUserDefaults(t *testing.T) {
 	db := testutil.SetupSQLite(t, &models.UserModel{}, &models.UserConfModel{})
 

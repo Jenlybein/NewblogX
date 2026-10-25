@@ -10,7 +10,6 @@ import (
 	"myblogx/internal/kernel/ctype"
 	"myblogx/internal/kernel/enum"
 	"myblogx/internal/platform/es"
-	"myblogx/models"
 	"myblogx/utils/markdown"
 )
 
@@ -81,7 +80,7 @@ type ArticleRowSnapshot struct {
 type articleProjectionOptions struct {
 	CategoryTitleMap map[ctype.ID]string
 	AuthorMap        map[ctype.ID]authorSnapshot
-	ArticleTagsMap   map[ctype.ID][]models.ESTag
+	ArticleTagsMap   map[ctype.ID][]ESTag
 	TopMap           map[ctype.ID]articleESTop
 }
 
@@ -263,10 +262,10 @@ func UpdateESDocsByArticleDeltas(db *gorm.DB, client *elasticsearch.Client, delt
 }
 
 // BuildArticleESDocument 将文章及其聚合字段转换为 ES 文档。
-func BuildArticleESDocument(article models.ArticleModel, adminTop, authorTop bool) map[string]any {
-	tags := make([]models.ESTag, 0, len(article.Tags))
+func BuildArticleESDocument(article ArticleRow, adminTop, authorTop bool) map[string]any {
+	tags := make([]ESTag, 0, len(article.Tags))
 	for _, tag := range article.Tags {
-		tags = append(tags, models.ESTag{
+		tags = append(tags, ESTag{
 			ID:    tag.ID,
 			Title: tag.Title,
 		})
@@ -294,7 +293,7 @@ func BuildArticleESDocument(article models.ArticleModel, adminTop, authorTop boo
 	deps := articleProjectionOptions{
 		CategoryTitleMap: map[ctype.ID]string{},
 		AuthorMap:        map[ctype.ID]authorSnapshot{},
-		ArticleTagsMap:   map[ctype.ID][]models.ESTag{article.ID: tags},
+		ArticleTagsMap:   map[ctype.ID][]ESTag{article.ID: tags},
 		TopMap: map[ctype.ID]articleESTop{
 			article.ID: {
 				AdminTop:  adminTop,
@@ -324,7 +323,7 @@ func buildArticleESDocumentFromSnapshot(snapshot ArticleRowSnapshot, deps articl
 	top := deps.TopMap[snapshot.ID]
 	tags := deps.ArticleTagsMap[snapshot.ID]
 	if tags == nil {
-		tags = []models.ESTag{}
+		tags = []ESTag{}
 	}
 
 	return map[string]any{
@@ -423,7 +422,7 @@ func indexArticleSnapshots(db *gorm.DB, client *elasticsearch.Client, snapshots 
 		})
 	}
 
-	resp := es_service.IndexBulk(client, models.ArticleModel{}.Index(), reqs)
+	resp := es_service.IndexBulk(client, DefaultArticleESIndex, reqs)
 	if !resp.Success {
 		return fmt.Errorf("%s: %s", errPrefix, resp.Msg)
 	}

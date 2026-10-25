@@ -33,7 +33,6 @@ import (
 	"myblogx/internal/kernel/ctype"
 	"myblogx/internal/platform/cdc/deadletter"
 	"myblogx/internal/platform/safego"
-	"myblogx/models"
 )
 
 // Event 是一条待投递事件（落库形态）。
@@ -139,9 +138,9 @@ func (o Options) withDefaults() Options {
 func (r *Relay) claimable(q *gorm.DB) *gorm.DB {
 	return q.Where(
 		"((status IN ? AND available_at <= ?) OR (status = ? AND updated_at <= ?))",
-		[]string{models.OutboxStatusPending, models.OutboxStatusFailed},
+		[]string{OutboxStatusPending, OutboxStatusFailed},
 		time.Now(),
-		models.OutboxStatusProcessing,
+		OutboxStatusProcessing,
 		time.Now().Add(-r.opts.LeaseDuration),
 	)
 }
@@ -296,7 +295,7 @@ func (r *Relay) Sweep(ctx context.Context) (int, error) {
 	}
 
 	var ids []ctype.ID
-	q := r.claimable(r.db.WithContext(ctx).Model(&models.OutboxEventModel{}))
+	q := r.claimable(r.db.WithContext(ctx).Model(&outboxRow{}))
 	err := q.
 		Where("attempts < ?", r.opts.MaxAttempts).
 		Order("id asc").
@@ -369,8 +368,8 @@ func (r *Relay) Cleanup(ctx context.Context) (int, error) {
 		status string
 		before time.Time
 	}{
-		{models.OutboxStatusDone, now.Add(-opts.RetentionDone)},
-		{models.OutboxStatusDead, now.Add(-opts.RetentionDead)},
+		{OutboxStatusDone, now.Add(-opts.RetentionDone)},
+		{OutboxStatusDead, now.Add(-opts.RetentionDead)},
 	} {
 		n, err := r.purge(ctx, spec.status, spec.before, opts.CleanupLimit)
 		if err != nil {
@@ -390,7 +389,7 @@ func (r *Relay) purge(ctx context.Context, status string, before time.Time, limi
 	deleted := 0
 	for batch := 0; batch < maxCleanupBatches; batch++ {
 		var ids []ctype.ID
-		err := r.db.WithContext(ctx).Model(&models.OutboxEventModel{}).
+		err := r.db.WithContext(ctx).Model(&outboxRow{}).
 			Where("status = ? AND updated_at < ?", status, before).
 			Order("id asc").
 			Limit(limit).
@@ -404,7 +403,7 @@ func (r *Relay) purge(ctx context.Context, status string, before time.Time, limi
 
 		res := r.db.WithContext(ctx).Unscoped().
 			Where("id IN ? AND status = ? AND updated_at < ?", ids, status, before).
-			Delete(&models.OutboxEventModel{})
+			Delete(&outboxRow{})
 		if res.Error != nil {
 			return deleted, res.Error
 		}
@@ -427,7 +426,7 @@ func (r *Relay) Dispatch(ctx context.Context, id ctype.ID) error {
 		return nil
 	}
 
-	var row models.OutboxEventModel
+	var row outboxRow
 	if err := r.db.WithContext(ctx).Where("id = ?", id).Take(&row).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil
@@ -454,11 +453,11 @@ func (r *Relay) Dispatch(ctx context.Context, id ctype.ID) error {
 //
 // 这是幂等的第一道防线：并发投递同一行时，条件 UPDATE 保证只有一个赢家。
 func (r *Relay) claim(ctx context.Context, id ctype.ID) (bool, error) {
-	q := r.claimable(r.db.WithContext(ctx).Model(&models.OutboxEventModel{}).Where("id = ?", id))
+	q := r.claimable(r.db.WithContext(ctx).Model(&outboxRow{}).Where("id = ?", id))
 	res := q.
 		Where("attempts < ?", r.opts.MaxAttempts).
 		Updates(map[string]any{
-			"status":     models.OutboxStatusProcessing,
+			"status":     OutboxStatusProcessing,
 			"attempts":   gorm.Expr("attempts + 1"),
 			"updated_at": time.Now(),
 		})
@@ -468,7 +467,7 @@ func (r *Relay) claim(ctx context.Context, id ctype.ID) (bool, error) {
 	return res.RowsAffected > 0, nil
 }
 
-func (r *Relay) runSubscribers(ctx context.Context, row models.OutboxEventModel) error {
+func (r *Relay) runSubscribers(ctx context.Context, row outboxRow) error {
 	subs := r.subscribers(row.EventName)
 	// 没人订阅不算失败：事件已经发生，只是当前没有下游关心它。
 	if len(subs) == 0 {
@@ -495,26 +494,26 @@ func (r *Relay) runSubscribers(ctx context.Context, row models.OutboxEventModel)
 
 func (r *Relay) markDone(ctx context.Context, id ctype.ID) error {
 	now := time.Now()
-	return r.db.WithContext(ctx).Model(&models.OutboxEventModel{}).
+	return r.db.WithContext(ctx).Model(&outboxRow{}).
 		Where("id = ?", id).
 		Updates(map[string]any{
-			"status":        models.OutboxStatusDone,
+			"status":        OutboxStatusDone,
 			"dispatched_at": now,
 			"last_error":    "",
 			"updated_at":    now,
 		}).Error
 }
 
-func (r *Relay) markFailed(ctx context.Context, row models.OutboxEventModel, dispatchErr error) error {
+func (r *Relay) markFailed(ctx context.Context, row outboxRow, dispatchErr error) error {
 	attempts := row.Attempts + 1
 	msg := truncate(dispatchErr.Error(), 500)
 
 	if attempts >= r.opts.MaxAttempts {
 		// 重试耗尽：这个事件交给人工处理（死信队列），不再自动重试。
-		if err := r.db.WithContext(ctx).Model(&models.OutboxEventModel{}).
+		if err := r.db.WithContext(ctx).Model(&outboxRow{}).
 			Where("id = ?", row.ID).
 			Updates(map[string]any{
-				"status":     models.OutboxStatusDead,
+				"status":     OutboxStatusDead,
 				"last_error": msg,
 				"updated_at": time.Now(),
 			}).Error; err != nil {
@@ -524,17 +523,17 @@ func (r *Relay) markFailed(ctx context.Context, row models.OutboxEventModel, dis
 	}
 
 	backoff := time.Duration(r.opts.BackoffMS*attempts) * time.Millisecond
-	return r.db.WithContext(ctx).Model(&models.OutboxEventModel{}).
+	return r.db.WithContext(ctx).Model(&outboxRow{}).
 		Where("id = ?", row.ID).
 		Updates(map[string]any{
-			"status":       models.OutboxStatusFailed,
+			"status":       OutboxStatusFailed,
 			"available_at": time.Now().Add(backoff),
 			"last_error":   msg,
 			"updated_at":   time.Now(),
 		}).Error
 }
 
-func (r *Relay) saveDeadLetter(row models.OutboxEventModel, attempts int, msg string) error {
+func (r *Relay) saveDeadLetter(row outboxRow, attempts int, msg string) error {
 	return deadletter.SaveBatch(r.db, []deadletter.Item{{
 		Stream:      "outbox_relay",
 		CdcJobID:    fmt.Sprintf("outbox:%d", row.ID),

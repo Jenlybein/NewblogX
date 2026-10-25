@@ -4,25 +4,26 @@ import (
 	"strings"
 
 	"myblogx/conf"
+	"myblogx/internal/kernel/ctype"
 	"myblogx/internal/kernel/enum/image_ref_enum"
-	"myblogx/models"
 
 	"gorm.io/gorm"
 )
 
-func RebuildBannerRefs(tx *gorm.DB, qiNiuConfig conf.QiNiu, banner *models.BannerModel) error {
+// RebuildBannerRefs 重建一个轮播位的图片引用。
+func RebuildBannerRefs(tx *gorm.DB, qiNiuConfig conf.QiNiu, bannerID ctype.ID, cover string) error {
 	if tx == nil {
 		return gorm.ErrInvalidDB
 	}
 	candidates := make([]refCandidate, 0, 1)
-	if cover := strings.TrimSpace(banner.Cover); cover != "" {
+	if trimmed := strings.TrimSpace(cover); trimmed != "" {
 		candidates = append(candidates, refCandidate{
 			Field:    image_ref_enum.RefFieldBannerCover,
 			Position: 0,
-			URL:      cover,
+			URL:      trimmed,
 		})
 	}
-	return replaceOwnerRefs(tx, qiNiuConfig, image_ref_enum.RefTypeBanner, banner.ID, candidates)
+	return replaceOwnerRefs(tx, qiNiuConfig, image_ref_enum.RefTypeBanner, bannerID, candidates)
 }
 
 func RebuildBannerRefsByRow(tx *gorm.DB, qiNiuConfig conf.QiNiu, snapshot rowSnapshot) error {
@@ -37,8 +38,5 @@ func RebuildBannerRefsByRow(tx *gorm.DB, qiNiuConfig conf.QiNiu, snapshot rowSna
 	if err != nil {
 		return err
 	}
-	return RebuildBannerRefs(tx, qiNiuConfig, &models.BannerModel{
-		Model: models.Model{ID: bannerID},
-		Cover: cover,
-	})
+	return RebuildBannerRefs(tx, qiNiuConfig, bannerID, cover)
 }

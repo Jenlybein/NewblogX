@@ -6,7 +6,6 @@ import (
 
 	"myblogx/internal/kernel/ctype"
 	"myblogx/internal/kernel/enum"
-	"myblogx/models"
 
 	"gorm.io/gorm"
 )
@@ -65,7 +64,7 @@ func LoadUserDisplayMap(db *gorm.DB, userIDs []ctype.ID) (map[ctype.ID]UserDispl
 		return result, nil
 	}
 
-	var rows []models.UserModel
+	var rows []userDisplayRow
 	if err := db.Select("id", "nickname", "avatar", "abstract", "role").
 		Where("id IN ?", userIDs).
 		Find(&rows).Error; err != nil {
@@ -90,7 +89,7 @@ func LoadArticleBaseMap(db *gorm.DB, articleIDs []ctype.ID) (map[ctype.ID]Articl
 		return result, nil
 	}
 
-	var rows []models.ArticleModel
+	var rows []articleBaseRow
 	if err := db.Select(
 		"id",
 		"created_at",
@@ -130,3 +129,39 @@ func LoadArticleBaseMap(db *gorm.DB, articleIDs []ctype.ID) (map[ctype.ID]Articl
 	}
 	return result, nil
 }
+
+// userDisplayRow 是 LoadUserDisplayMap 的查询投影。
+//
+// 只有 SELECT 里那几列 —— 这里刻意不用整行结构：列名写在这里，
+// 写错了查询会直接报 Unknown column，不会静默读空值。
+type userDisplayRow struct {
+	ID       ctype.ID
+	Nickname string
+	Avatar   string
+	Abstract string
+	Role     enum.RoleType
+}
+
+// TableName 固定表名。
+func (userDisplayRow) TableName() string { return "user_models" }
+
+// articleBaseRow 是 LoadArticleBaseMap 的查询投影（同上，只含被选中的列）。
+type articleBaseRow struct {
+	ID             ctype.ID
+	CreatedAt      time.Time
+	UpdatedAt      time.Time
+	Title          string
+	Abstract       string
+	Cover          string
+	AuthorID       ctype.ID
+	CategoryID     *ctype.ID
+	ViewCount      int
+	DiggCount      int
+	CommentCount   int
+	FavorCount     int
+	CommentsToggle bool
+	PublishStatus  enum.ArticleStatus
+}
+
+// TableName 固定表名。
+func (articleBaseRow) TableName() string { return "article_models" }

@@ -8,7 +8,6 @@ import (
 	"myblogx/conf"
 	"myblogx/internal/kernel/ctype"
 	"myblogx/internal/kernel/enum/image_ref_enum"
-	"myblogx/models"
 
 	"gorm.io/gorm"
 )
@@ -23,7 +22,7 @@ func DeleteOwnerRefs(tx *gorm.DB, refType image_ref_enum.RefType, ownerID ctype.
 	if tx == nil {
 		return errors.New("tx is required")
 	}
-	return tx.Unscoped().Where("ref_type = ? AND owner_id = ?", refType, ownerID).Delete(&models.ImageRefModel{}).Error
+	return tx.Unscoped().Where("ref_type = ? AND owner_id = ?", refType, ownerID).Delete(&imageRefRow{}).Error
 }
 
 func DeleteImageRefsByImageIDs(tx *gorm.DB, imageIDs []ctype.ID) error {
@@ -33,7 +32,7 @@ func DeleteImageRefsByImageIDs(tx *gorm.DB, imageIDs []ctype.ID) error {
 	if len(imageIDs) == 0 {
 		return nil
 	}
-	return tx.Unscoped().Where("image_id IN ?", imageIDs).Delete(&models.ImageRefModel{}).Error
+	return tx.Unscoped().Where("image_id IN ?", imageIDs).Delete(&imageRefRow{}).Error
 }
 
 func replaceOwnerRefs(tx *gorm.DB, qiNiuConfig conf.QiNiu, refType image_ref_enum.RefType, ownerID ctype.ID, candidates []refCandidate) error {
@@ -49,7 +48,7 @@ func replaceOwnerRefs(tx *gorm.DB, qiNiuConfig conf.QiNiu, refType image_ref_enu
 		return nil
 	}
 
-	var images []models.ImageModel
+	var images []imageKeyRow
 	if err := tx.Select("id", "object_key").Where("object_key IN ?", objectKeys).Find(&images).Error; err != nil {
 		return err
 	}
@@ -59,14 +58,14 @@ func replaceOwnerRefs(tx *gorm.DB, qiNiuConfig conf.QiNiu, refType image_ref_enu
 		imageIDMap[image.ObjectKey] = image.ID
 	}
 
-	refs := make([]models.ImageRefModel, 0, len(candidates))
+	refs := make([]imageRefRow, 0, len(candidates))
 	for _, candidate := range candidates {
 		objectKey := extractObjectKey(candidate.URL, qiNiuConfig)
 		imageID, ok := imageIDMap[objectKey]
 		if !ok {
 			continue
 		}
-		refs = append(refs, models.ImageRefModel{
+		refs = append(refs, imageRefRow{
 			ImageID:  imageID,
 			RefType:  refType,
 			OwnerID:  ownerID,

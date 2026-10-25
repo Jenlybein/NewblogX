@@ -1,8 +1,6 @@
 package deadletter
 
 import (
-	"myblogx/models"
-
 	"gorm.io/gorm"
 )
 
@@ -17,7 +15,7 @@ type QueryOption struct {
 }
 
 // Query 按条件检索死信记录，默认按 created_at 倒序返回。
-func Query(db *gorm.DB, option QueryOption) ([]models.CdcDeadLetterModel, error) {
+func Query(db *gorm.DB, option QueryOption) ([]Record, error) {
 	if db == nil {
 		return nil, nil
 	}
@@ -30,7 +28,7 @@ func Query(db *gorm.DB, option QueryOption) ([]models.CdcDeadLetterModel, error)
 		limit = 500
 	}
 
-	query := db.Model(&models.CdcDeadLetterModel{})
+	query := db.Model(&Record{})
 	if option.Stream != "" {
 		query = query.Where("stream = ?", option.Stream)
 	}
@@ -48,7 +46,7 @@ func Query(db *gorm.DB, option QueryOption) ([]models.CdcDeadLetterModel, error)
 		query = query.Where("cdc_job_id IN ?", option.CdcJobIDs)
 	}
 
-	list := make([]models.CdcDeadLetterModel, 0)
+	list := make([]Record, 0)
 	if err := query.Order("created_at DESC").Limit(limit).Find(&list).Error; err != nil {
 		return nil, err
 	}

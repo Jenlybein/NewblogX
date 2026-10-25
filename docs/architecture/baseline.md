@@ -1297,3 +1297,28 @@ S4.1d 把认证迁进 `internal/auth` 时，只换了**路由层**的 handler。
 
 **集成测试仍未执行**（Docker 守护进程未运行）。本次改动有装配层新增代码
 （`app/cron_wiring.go`），端到端（真实 Redis → MySQL）待 Docker 恢复后补验。
+
+## 32. 测试文件的跨模块 adapter 引用清零（R11）
+
+**2026-10-25**：`--skip-tests=false` 下的 R11 从 2 处 → 0。
+
+上一节为了"保住作者统计的覆盖"，在两个 article 集成测试里 import 了
+`internal/user/adapter/mysql`（为了传真实的 `ApplyArticleDelta`）——
+这恰好踩了 R11（禁止跨模块 import 别人的 adapter）。
+
+复查后发现那两处注入**没有任何断言**：`TestDeleteCascade` 里已经有
+`Delta(author) != -1`（删除时作者文章数 -1）、`TestCreateRollsBackOnAuthorStatsFailure`
+（统计失败要回滚）——真正的覆盖在 `internal/article/app` 层，而且比 e2e 更精确。
+
+所以那两个测试传 `nil` 即可，覆盖一点没少。
+
+### 剩下的 10 处 R10 需要独立方案
+
+测试文件仍 import `models` 的有 7 个文件（10 处），集中在 article / user / analytics 的集成测试。
+它们不只建自己模块的表：article 的测试还要 `user_conf` / `user_stat` / `user_session`
+（seed 用户时要写），analytics 的测试要 article + user + comment + chat_msg 四张表。
+
+所以"各模块提供自己的 Migrate"解决不了 —— 跨模块建表必然要一个共享的表结构来源。
+可行方案是 `internal/testkit/schema`：testkit 不是业务模块，R10/R11 都不管它；
+配套写一个"与 models 建出的表结构逐列一致"的对比测试，保证 M6 删 models 前不漂移。
+这是一个独立步骤，本轮未做。

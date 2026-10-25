@@ -3,7 +3,6 @@
 package api
 
 import (
-	"myblogx/api/ai_api"
 	"myblogx/api/captcha_api"
 	"myblogx/api/data_api"
 	"myblogx/api/log_api"
@@ -15,7 +14,6 @@ type Api struct {
 	LogApi          log_api.LogApi
 	ImageCaptchaApi captcha_api.ImageCaptchaApi
 	UserApi         user_api.UserApi
-	AIApi           ai_api.AIApi
 	DataApi         data_api.DataApi
 }
 
@@ -44,14 +42,6 @@ func New(deps middleware.Deps) Api {
 			Email:            deps.Email,
 			Logger:           deps.Logger,
 			Redis:            deps.Redis,
-		}),
-		AIApi: ai_api.New(ai_api.Deps{
-			DB:          deps.DB,
-			Logger:      deps.Logger,
-			Redis:       deps.Redis,
-			ESClient:    deps.ESClient,
-			ES:          deps.ES,
-			RuntimeSite: deps.RuntimeSite,
 		}),
 		DataApi: data_api.New(data_api.Deps{
 			System:           deps.System,

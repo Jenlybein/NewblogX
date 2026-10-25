@@ -50,7 +50,7 @@ func Run(deps middleware.Deps, app api.Api) (*http.Server, error) {
 	GlobalNotifRouter(nr, mwRuntime)
 	FollowRouter(nr, mwRuntime)
 	SearchRouter(nr, mwRuntime)
-	AIRouter(nr, app, mwRuntime)
+	AIRouter(nr, mwRuntime)
 	DataRouter(nr, app, mwRuntime)
 
 	ln, err := net.Listen("tcp", deps.System.Addr())

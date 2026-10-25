@@ -189,6 +189,31 @@ const (
 	CodeRuntimeConfigTableMissing Code = "runtimeconfig.table_missing"
 )
 
+// AI 能力。
+const (
+	CodeAIDisabled         Code = "ai.disabled"
+	CodeAIConfigMissing    Code = "ai.config_missing"
+	CodeAIUserRequired     Code = "ai.user_required"
+	CodeAIContentRequired  Code = "ai.content_required"
+	CodeAIContentEmpty     Code = "ai.content_empty"
+	CodeAIContentTooShort  Code = "ai.content_too_short"
+	CodeAINotSearchIntent  Code = "ai.not_search_intent"
+	CodeAIKeywordRequired  Code = "ai.keyword_required"
+	CodeAIPermissionDenied Code = "ai.permission_denied"
+	CodeAIArticleMissing   Code = "ai.article_missing"
+	CodeAIRequestFailed    Code = "ai.request_failed"
+	CodeAIScoreMissing     Code = "ai.score_missing"
+	CodeAIScoreSaveFailed  Code = "ai.score_save_failed"
+	CodeAIJSONInvalid      Code = "ai.json_invalid"
+	CodeAITitleRequired    Code = "ai.title_required"
+	CodeAISelectionEmpty   Code = "ai.selection_empty"
+	CodeAIModeUnsupported  Code = "ai.mode_unsupported"
+	CodeAIStyleRequired    Code = "ai.style_required"
+	CodeAIEmptyResponse    Code = "ai.empty_response"
+	CodeAIResultEmpty      Code = "ai.result_empty"
+	CodeAIQuestionRequired Code = "ai.question_required"
+)
+
 // messages 是错误码到中文文案的唯一映射。
 //
 // 新增错误码时**必须**在这里补一行；缺了不会 panic，Error() 会退化成码本身，
@@ -322,6 +347,28 @@ var messages = map[Code]string{
 	CodeRuntimeConfigPathMissing:  "运行时站点默认配置路径未设置",
 	CodeRuntimeConfigDecodeFailed: "运行时配置解析失败",
 	CodeRuntimeConfigTableMissing: "运行时配置表不存在，请先执行数据库初始化命令：/app/server -db",
+
+	CodeAIDisabled:         "AI 功能未启用",
+	CodeAIConfigMissing:    "运行时配置服务未初始化",
+	CodeAIUserRequired:     "用户 ID 不能为空",
+	CodeAIContentRequired:  "内容不能为空",
+	CodeAIContentEmpty:     "文章正文提取结果为空",
+	CodeAIContentTooShort:  "文章内容过短，建议补充完整后再评分",
+	CodeAINotSearchIntent:  "当前输入不是文章搜索意图",
+	CodeAIKeywordRequired:  "搜索关键词不能为空",
+	CodeAIPermissionDenied: "权限错误",
+	CodeAIArticleMissing:   "文章不存在",
+	CodeAIRequestFailed:    "AI 请求失败",
+	CodeAIScoreMissing:     "读取文章评分失败",
+	CodeAIScoreSaveFailed:  "保存文章评分失败",
+	CodeAIJSONInvalid:      "AI 返回内容不是有效 JSON",
+	CodeAITitleRequired:    "文章标题不能为空",
+	CodeAISelectionEmpty:   "选中内容不能为空",
+	CodeAIModeUnsupported:  "改写模式不支持",
+	CodeAIStyleRequired:    "风格转换模式下 target_style 不能为空",
+	CodeAIEmptyResponse:    "AI 返回内容为空",
+	CodeAIResultEmpty:      "文章搜索结果分析为空",
+	CodeAIQuestionRequired: "用户问题不能为空",
 }
 
 // Error 是带错误码的应用错误。

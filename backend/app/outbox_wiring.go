@@ -11,7 +11,6 @@ import (
 	"myblogx/internal/platform/cdc/outboxrelay"
 	"myblogx/models"
 	"myblogx/models/ctype"
-	"myblogx/service/ai_service/article_score_service"
 )
 
 // WireOutboxRelay 启动 outbox 中继，并注册领域事件的真实下游。
@@ -89,7 +88,10 @@ func scoreSubscriber(infra *Infra) outboxrelay.Subscriber {
 			return nil
 		}
 
-		return article_score_service.EnsureArticleScoreIfMissing(infra.DB, infra.RuntimeSite, articleID)
+		if aiService == nil {
+			return nil
+		}
+		return aiService.EnsureScoreIfMissing(ctx, uint64(articleID))
 	}
 }
 

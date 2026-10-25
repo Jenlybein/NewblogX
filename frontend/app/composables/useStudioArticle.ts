@@ -2,6 +2,7 @@ import { computed, reactive, ref, watch, type Ref } from "vue";
 
 import type { ArticleHeadingAnchor } from "~/composables/useArticleMarkdown";
 import { getArticleDetail } from "~/services/article";
+import { buildStudioArticlePayload } from "~/utils/studioArticlePayload";
 import { uploadImageByTask } from "~/services/image";
 import { getCategoryOptions, getTagOptions } from "~/services/search";
 import { useAuthStore } from "~/stores/auth";
@@ -20,6 +21,7 @@ import { useAuthStore } from "~/stores/auth";
 //
 // 状态由本模块持有；跨域的"进行中"标记（pendingState）由页面持有并注入，
 // 因为发布、AI、封面三处都要读它。
+
 
 /** Notifier 是本模块需要的提示能力（只声明用到的三个方法）。 */
 export type Notifier = {
@@ -205,34 +207,7 @@ export async function useStudioArticle(deps: StudioArticleDeps) {
   }
 
   function buildArticlePayload(status: 1 | 2) {
-    const payload: {
-      title: string;
-      abstract?: string;
-      content: string;
-      category_id: string | null;
-      tag_ids: string[];
-      comments_toggle: boolean;
-      visibility_status: "visible" | "user_hidden";
-      status: 1 | 2;
-      cover_image_id?: string | null;
-    } = {
-      title: form.title.trim(),
-      abstract: form.abstract.trim() || undefined,
-      content: form.content,
-      category_id: form.category_id || null,
-      tag_ids: form.tag_ids,
-      comments_toggle: form.comments_toggle,
-      visibility_status: form.visibility_status,
-      status,
-    };
-
-    if (form.cover_image_id) {
-      payload.cover_image_id = form.cover_image_id;
-    } else if (isEditMode.value && coverDirty.value) {
-      payload.cover_image_id = null;
-    }
-
-    return payload;
+    return buildStudioArticlePayload(form, { status, isEditMode: isEditMode.value, coverDirty: coverDirty.value });
   }
 
   async function handleCoverFileChange(event: Event) {

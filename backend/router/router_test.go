@@ -7,6 +7,8 @@ import (
 	authapptest "myblogx/internal/auth/apptest"
 	mediahttp "myblogx/internal/media/adapter/http"
 	mediaapptest "myblogx/internal/media/apptest"
+	notificationhttp "myblogx/internal/notification/adapter/http"
+	notificationtest "myblogx/internal/notification/apptest"
 	searchhttp "myblogx/internal/search/adapter/http"
 	userhttp "myblogx/internal/user/adapter/http"
 	userapptest "myblogx/internal/user/apptest"
@@ -42,8 +44,9 @@ func TestRegisterAllRoutes(t *testing.T) {
 	router.ArticleRouter(api, runtimeMw)
 	router.SetSearchHandler(searchhttp.NewHandler(nil, nil, nil, "", nil))
 	router.SearchRouter(api, runtimeMw)
-	router.SitemsgRouter(api, app, runtimeMw)
-	router.GlobalNotifRouter(api, app, runtimeMw)
+	router.SetNotificationHandler(notificationhttp.NewHandler(notificationtest.NewDefaultService()))
+	router.SitemsgRouter(api, runtimeMw)
+	router.GlobalNotifRouter(api, runtimeMw)
 
 	routes := r.Routes()
 	if len(routes) == 0 {

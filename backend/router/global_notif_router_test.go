@@ -3,8 +3,10 @@ package router_test
 import (
 	"encoding/json"
 	"fmt"
-	api2 "myblogx/api"
 	"myblogx/conf"
+	notificationhttp "myblogx/internal/notification/adapter/http"
+	notificationmysql "myblogx/internal/notification/adapter/mysql"
+	notificationapp "myblogx/internal/notification/app"
 	mw "myblogx/middleware"
 	"myblogx/models"
 	"myblogx/models/enum"
@@ -62,12 +64,6 @@ func newGlobalNotifRouterEngine() *gin.Engine {
 	gin.SetMode(gin.TestMode)
 	r := gin.New()
 	apiGroup := r.Group("/api")
-	app := api2.New(mw.Deps{
-		DB:     testutil.DB(),
-		Redis:  testutil.Redis(),
-		JWT:    testutil.Config().Jwt,
-		Logger: testutil.Logger(),
-	})
 	runtimeMw := mw.NewRuntime(mw.Deps{
 		DB:               testutil.DB(),
 		Redis:            testutil.Redis(),
@@ -77,7 +73,18 @@ func newGlobalNotifRouterEngine() *gin.Engine {
 		System:           testutil.Config().System,
 		ClickHouseConfig: testutil.Config().ClickHouse,
 	})
-	router.GlobalNotifRouter(apiGroup, app, runtimeMw)
+
+	notificationSvc := notificationapp.New(
+		notificationmysql.NewMessage(testutil.DB()),
+		notificationmysql.NewGlobal(testutil.DB()),
+		notificationmysql.NewConf(testutil.DB()),
+		notificationmysql.NewUsers(testutil.DB()),
+		notificationmysql.NewChatUnread(testutil.DB()),
+		nil,
+		testutil.Logger(),
+	)
+	router.SetNotificationHandler(notificationhttp.NewHandler(notificationSvc))
+	router.GlobalNotifRouter(apiGroup, runtimeMw)
 	return r
 }
 

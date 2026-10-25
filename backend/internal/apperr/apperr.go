@@ -163,6 +163,20 @@ const (
 	CodeChatWeekLimit       Code = "chat.week_limit"
 )
 
+// 通知与站内信。
+const (
+	CodeMessageSelectionEmpty Code = "message.selection_empty"
+	CodeMessageNotFound       Code = "message.not_found"
+	CodeMessageAlreadyRead    Code = "message.already_read"
+	CodeMessageNothingRead    Code = "message.nothing_read"
+	CodeMessageConfMissing    Code = "message.conf_missing"
+	CodeNotifNotFound         Code = "notif.not_found"
+	CodeNotifTitleDuplicated  Code = "notif.title_duplicated"
+	CodeNotifExpireTooSoon    Code = "notif.expire_too_soon"
+	CodeNotifCreateFailed     Code = "notif.create_failed"
+	CodeNotifUserMissing      Code = "notif.user_missing"
+)
+
 // messages 是错误码到中文文案的唯一映射。
 //
 // 新增错误码时**必须**在这里补一行；缺了不会 panic，Error() 会退化成码本身，
@@ -276,6 +290,17 @@ var messages = map[Code]string{
 	CodeChatSessionTooFast:  "当前会话发送过于频繁，请稍后再试",
 	CodeChatWeekStranger:    "本周只允许向陌生人发送 1 条消息",
 	CodeChatWeekLimit:       "本周可发送消息次数已达上限，对方回复后才可以继续发送消息",
+
+	CodeMessageSelectionEmpty: "请选择要操作的消息或会话",
+	CodeMessageNotFound:       "消息不存在",
+	CodeMessageAlreadyRead:    "消息已被读取",
+	CodeMessageNothingRead:    "没有可标记已读的消息",
+	CodeMessageConfMissing:    "用户配置信息不存在",
+	CodeNotifNotFound:         "消息不存在",
+	CodeNotifTitleDuplicated:  "全局通知标题重复",
+	CodeNotifExpireTooSoon:    "过期时间不能小于一天",
+	CodeNotifCreateFailed:     "全局通知创建失败",
+	CodeNotifUserMissing:      "用户不存在",
 }
 
 // Error 是带错误码的应用错误。

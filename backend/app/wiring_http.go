@@ -56,6 +56,10 @@ func WireHTTP(infra *Infra, lc *Lifecycle) error {
 	// comment 链路：路由改由 internal/comment 提供。
 	WireComment(infra)
 
+	// notification 链路：站内信与全局公告改由 internal/notification 提供。
+	// 必须早于 outbox：中继的订阅者要靠它发通知。
+	WireNotification(infra)
+
 	// search 链路：路由改由 internal/search 提供。
 	WireSearch(infra)
 

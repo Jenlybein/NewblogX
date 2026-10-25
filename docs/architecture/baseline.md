@@ -1616,3 +1616,106 @@ internal/testkit/schema/schema.go  测试行别名（14 个类型）
    现模型生成，并用 information_schema 对比验证与 AutoMigrate 结果一致）；
 2. `testkit/schema` 的 14 个别名 → 改为自持行（它本来就是测试专用，由列名契约测试兜底）；
 3. `testutil.CreateUser` 的签名带走 `*models.UserModel` → 改为 `schema.UserSpec`。
+
+## 38. M6 收尾：models 归零、旧目录清空、日志治理、生产编排
+
+**2026-10-25/26**。M6 六项全部落地。其中 ⑧（write.vue）只完成第一部分，
+实际结果与 S5.6 的验收口径有偏差，原因见本节末尾 —— 那是口径问题，不是没做完。
+
+### 一、`models/` 目录消失（⑤-b，f02c243）
+
+删除 30 个文件。这一步**没有半删中间态**：代码、建库、测试三条路径同时切换。
+
+| 关注点 | 之前 | 之后 |
+| --- | --- | --- |
+| 建库 | `flag_db` 跑 AutoMigrate(30 个模型) | 执行 `go:embed` 的 `internal/platform/mysql/ddl/schema.sql`（32 张表） |
+| 测试建表 | 22 处 `SetupSQLite(&models.X{})` | `testkit/schema` 自持行（33 个结构体，从 models 复制） |
+| 表结构权威 | Go 结构体 | **SQL 文件** |
+
+**为什么建库不再用 AutoMigrate**：零列变更口径下表结构是冻结的契约，该是可 review
+的文本；AutoMigrate 会为了"对齐结构"主动 `ALTER` 既有表，这正是口径禁止的。
+它还建过一条物理上无法满足的外键（§35）。
+
+**自持行的三条纪律**（生成器从 models 复制时强制）：
+字段顺序与 gorm tag 一字不改 / 显式 `TableName`（改名成 `XxxRow` 后 GORM 会推导出
+`xxx_rows`）/ 钩子一并复制（`BeforeCreate` 生成雪花 ID、`UserRow.AfterCreate` 建
+conf/stat 默认行）。
+
+**验证测试建的库 = 生产建的库**：`TestGeneratedRowsMatchSchemaSQL` 建两个独立库，
+一个只执行 schema.sql、一个只走 AutoMigrate，逐表逐列比对（列名 + 类型 + 是否可空）。
+32 张表全部一致。没有这条测试，"复制行结构"这个决定就没有安全网。
+
+**顺手清掉的死代码**：`GuestArticleViewRecordModel` 除 models 自身外零引用、
+`flag_db` 也没建它 —— 删。
+
+### 二、旧目录全部消失（②，d7a27eb）
+
+`api/ service/ repository/ common/ middleware/ platform/ flags/ testkit/ router/ models/`
+一个不剩。这一步的收尾动作：
+
+- `common/res`（29 文件）→ `internal/platform/http/res`
+- `router/`（17 文件）→ `internal/platform/http/router`
+- `common/list_query.go` 只剩 `PageInfo` 有人用（analytics 的 ClickHouse 查询），
+  `ListQuery / CountQuery / ResolveOrder / PageIDQuery` 全部零引用 → 删；
+  `PageInfo` 迁 `internal/kernel/page`（放 http 会让 clickhouse 反向依赖 http）
+- `common/cursor_query.go` 是 4 行 TODO 注释 + 空包声明 → 删
+
+### 三、日志治理 L.6–L.9（⑥，d7a27eb）
+
+- **L.6** 删 `utils/logsafe` 的反射，内联成 `canalbase.appendAttr`（按 `slog.Value.Kind`
+  分支）。默认分支交给 logrus 走 fmt，不再把转不了的值换成 `%T` 文本。
+- **L.7** 日志 `event_id` 去雪花：`| 48 位毫秒 | 8 位实例号(System.ServerID) | 8 位序列 |`。
+  理由：雪花要求 `idgen.Init`，而启动阶段出错时最需要日志。时钟回拨不倒退；
+  同毫秒写满 256 条时"借"下一毫秒，宁可时间戳快 1ms 也不重复。
+- **L.8** 确认：`01-logs.sql` 的 `TTL 120 DAY` 与 `CODEC(ZSTD(9))` 已就位；口径 A2
+  允许 CH 的 TTL/CODEC，故本项为"已满足"。
+- **L.9** R9 从"禁 any"扩成三条：禁 any / 禁同包自定义类型 / `Extra` 必须
+  `map[string]string`。作用域收窄为 `*Input` 后缀 —— 不把 `Event` 算进来，
+  因为 `internal/platform/log` 的 `Event` 正是"把结构化字段收成类型"的载体。
+  另加**单条 ≤32KB 硬上限**：超限整条丢弃并计数，不截断（截断产出非法 JSON，
+  会让采集器整批报错）。
+
+### 四、生产编排（⑦）
+
+`deploy/compose/production/`：与 local 的差别只有五处 ——
+`restart: always`、`logging` 限流（10m×5）、`deploy.resources.limits`、
+基础设施不对外暴露端口（只有 nginx 开 80/443）、镜像 tag 可由 `BLOGX_*_IMAGE` 覆盖。
+
+`env.example` 从根目录 `.envrc.example` 转换生成（去掉 `export`），
+顺带发现并补上 `.envrc.example` 缺的 3 个变量
+（`BLOGX_LOG_CLEANUP_ENABLED / RETENTION_DAYS / RUN_AT`）——
+compose 引用了它们，但样例文件里没有，属于"照文档配完仍然报 warning"的坑。
+
+`docker compose -f deploy/compose/production/docker-compose.yml config` 退出码 0、
+零 warning（用 env.example 作 .env 验证）。
+
+### 五、write.vue 拆分（⑧）—— 实际结果与口径偏差
+
+**做了什么**（26ec0ab）：
+
+| 抽出物 | 行数 | 判断依据 |
+| --- | --- | --- |
+| `useStudioEditorCommands` | 462 | 只依赖 form.content + textarea 引用 |
+| `useStudioMarkdownTheme` | 118 | 纯数据表（12 套主题 ↔ CSS） |
+| `constants/studioToolbar` | 154 | 纯数据表（按钮 + 快捷键） |
+| `StudioWriteHeader.vue` | 295 | 纯展示 + 上抛事件，不持有业务状态 |
+| **页面** | **2045 → 1272** | |
+
+**没达到 S5.6 的"主文件 <200 行"，原因是口径本身有问题**：
+
+剩下 830 行 script 全部围绕**同一个 `reactive form`** 与一组互相引用的 ref
+（`pendingState` / `coverPreviewUrl` / `editingArticle` / `editArticleId`…）。
+把这些抽成 composable 需要每个函数注入 10+ 个 ref 与回调，例如
+`handleRefreshArticleScore` 一个函数就依赖 `form`、`currentArticlePublishStatus`、
+`editingArticle`、`updateArticle`、`buildArticlePayload`、`message`、`editArticleId`。
+
+那样的"拆分"只是把耦合换个文件放：文件行数达标，模块边界反而更假
+（一个收 12 个参数的 composable 依然是上帝对象，只是换了名字）。
+
+**结论**：`<200 行` 这个数字来自"页面里全是重复模板"的假设；
+实测这个页面的行数大头是**逻辑而非模板**（script 1250 / template 293 / style 474）。
+要真正降到 200，前提是先把"一个 form 承载全部状态"改成"按子域拆状态"
+（草稿/元信息/封面/发布各一套），那是一次独立的重构，不属于 M6。
+
+本批只做能真正降低耦合的部分。剩余方案与预估工时见
+`docs/architecture/09-M6决策清单.md` 附注。

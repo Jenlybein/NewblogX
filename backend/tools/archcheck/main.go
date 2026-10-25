@@ -39,7 +39,18 @@ type Rule struct {
 	Slug  string // 可选：人类可读名（如 log-no-any），供 --rule 过滤
 	Title string
 	Level string // error / warn
-	Check func(fset *token.FileSet, file *ast.File, rel string) []Violation
+	// ProductionOnly 表示这条规则只约束**生产代码**，不检查 _test.go。
+	//
+	// 判据是"违规在测试文件里会不会造成线上风险"：
+	//   - R1（api 层禁 *gorm.DB）、R7（禁裸 go）、R8（禁中文 errors.New）
+	//     约束的是运行时行为（handler 不碰库、goroutine 有 recover、错误有码）。
+	//     测试文件里造数据、起测试协程、写断言消息都不产生线上风险，
+	//     强行套用只会逼人写出更绕的测试，或者干脆把规则关掉。
+	//   - R10（业务模块禁 import models）、R11（禁跨模块 import adapter）
+	//     约束的是依赖方向，测试文件同样会把依赖固化下来，
+	//     甚至直接决定 M6 能不能删 models —— 所以必须一并检查。
+	ProductionOnly bool
+	Check          func(fset *token.FileSet, file *ast.File, rel string) []Violation
 }
 
 // Config 控制检查行为。
@@ -56,7 +67,7 @@ func main() {
 		root          = flag.String("root", ".", "项目根目录")
 		mode          = flag.String("mode", "warn", "输出模式：warn 仅报告 / error 违反即失败")
 		maxViolations = flag.Int("max-violations", -1, "允许的最大违反数（棘轮），-1 表示不限")
-		skipTests     = flag.Bool("skip-tests", true, "跳过 _test.go 文件")
+		skipTests     = flag.Bool("skip-tests", true, "跳过 _test.go 文件（依赖方向的规则 R10/R11 建议用 -skip-tests=false 一并检查）")
 		listRules     = flag.Bool("list-rules", false, "列出所有规则后退出")
 		ruleFilter    = flag.String("rule", "", "只运行指定规则（ID 或 slug，如 R9 / log-no-any）")
 	)
@@ -186,7 +197,11 @@ func Run(cfg Config, targets []string) ([]Violation, error) {
 			}
 			rel = filepath.ToSlash(rel)
 
+			isTest := strings.HasSuffix(path, "_test.go")
 			for _, rule := range selectedRules(cfg) {
+				if isTest && rule.ProductionOnly {
+					continue
+				}
 				all = append(all, rule.Check(fset, file, rel)...)
 			}
 			return nil

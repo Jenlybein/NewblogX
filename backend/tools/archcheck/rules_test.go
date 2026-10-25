@@ -3,6 +3,8 @@ package main
 import (
 	"go/parser"
 	"go/token"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 )
@@ -584,4 +586,95 @@ import "myblogx/internal/article/adapter/mysql"
 	for _, c := range cases {
 		runOne(t, c)
 	}
+}
+
+// TestProductionOnlySkipsTests 验证 ProductionOnly 规则的适用范围。
+//
+// 这条测试跑的是真实的 Run（遍历文件树），不是直接调 Check ——
+// 因为"跳过测试文件"这个判断发生在遍历层，直接调 Check 绕过了它，
+// 那样测出来的结论是假的（改坏过滤逻辑也照样绿）。
+//
+// 两件事必须同时成立，否则规则要么失效、要么误报到没法用：
+//  1. R1（api 层禁 *gorm.DB）在 _test.go 上不报 —— e2e 必须能建表造数据；
+//  2. R10（业务模块禁 import models）在 _test.go 上照报 —— 否则 M6 删 models
+//     时才发现一堆测试被绑定住。
+func TestProductionOnlySkipsTests(t *testing.T) {
+	dir := t.TempDir()
+
+	// 生产代码：api 层持有 *gorm.DB，两道规则都该报。
+	writeFile(t, dir, "internal/foo/adapter/http/handler.go", `package http
+
+import "gorm.io/gorm"
+
+func Handle(db *gorm.DB) {}
+`)
+
+	// 测试代码：同样的违规写法，只有 R10 该报。
+	writeFile(t, dir, "internal/foo/adapter/http/handler_test.go", `package http
+
+import (
+	"gorm.io/gorm"
+	"myblogx/models"
+)
+
+func TestHandle(t *testing.T) {
+	var db *gorm.DB
+	_ = models.UserModel{}
+	_ = db
+}
+`)
+
+	violations, err := Run(Config{
+		Root:          dir,
+		Mode:          "warn",
+		MaxViolations: -1,
+		SkipTests:     false,
+	}, []string{"."})
+	if err != nil {
+		t.Fatalf("Run 失败: %v", err)
+	}
+
+	var inProd, inTest []string
+	for _, v := range violations {
+		if strings.HasSuffix(v.File, "_test.go") {
+			inTest = append(inTest, v.Rule+" "+v.File)
+		} else {
+			inProd = append(inProd, v.Rule+" "+v.File)
+		}
+	}
+
+	// 生产代码：R1 必须报（api 层 import gorm + 用 *gorm.DB）。
+	if !containsRule(inProd, "R1") {
+		t.Errorf("生产代码里的 api 层 *gorm.DB 应当被 R1 拦下，实际违规=%v", inProd)
+	}
+
+	// 测试代码：R1 不能报，R10 必须报。
+	if containsRule(inTest, "R1") {
+		t.Errorf("R1 不该检查测试文件（e2e 要建表造数据），实际违规=%v", inTest)
+	}
+	if !containsRule(inTest, "R10") {
+		t.Errorf("R10 必须检查测试文件（它决定 M6 能否删 models），实际违规=%v", inTest)
+	}
+}
+
+// writeFile 在测试临时目录里写一个文件（自动建父目录）。
+func writeFile(t *testing.T, root, rel, content string) {
+	t.Helper()
+	path := filepath.Join(root, filepath.FromSlash(rel))
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		t.Fatalf("建目录失败: %v", err)
+	}
+	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
+		t.Fatalf("写文件失败: %v", err)
+	}
+}
+
+// containsRule 判断违规列表里有没有指定规则。
+func containsRule(list []string, rule string) bool {
+	for _, item := range list {
+		if strings.HasPrefix(item, rule+" ") {
+			return true
+		}
+	}
+	return false
 }

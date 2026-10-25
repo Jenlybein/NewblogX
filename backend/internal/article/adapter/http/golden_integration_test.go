@@ -14,9 +14,8 @@ import (
 
 	"myblogx/internal/article/domain"
 	"myblogx/internal/testkit"
-	"myblogx/models"
+	"myblogx/internal/testkit/schema"
 	"myblogx/models/ctype"
-	"myblogx/models/enum"
 )
 
 // goldenDir 是 golden 文件目录（相对本包）。
@@ -191,77 +190,48 @@ func TestArticleGolden(t *testing.T) {
 //
 // 所有 ID、时间、计数都是确定的；任何一次改动都会让 golden 变红，
 // 这正是它要守住的：重构不得改变响应字节。
+//
+// 行结构的构造逻辑放在 internal/testkit/schema（业务模块禁止 import models），
+// 本文件只负责"种成什么样"，不负责"怎么插入"。
 func seedGoldenDataset(t *testing.T, db *gorm.DB) {
 	t.Helper()
 	base := goldenBaseTime()
 
 	// 用户：作者 A(100) / 作者 B(101) / 管理员(900)。
-	seedGoldenUser(t, db, 100, "author_a", "作者甲", "", "作者甲简介", enum.RoleUser)
-	seedGoldenUser(t, db, 101, "author_b", "作者乙", "", "作者乙简介", enum.RoleUser)
-	seedGoldenUser(t, db, 900, "admin_golden", "管理员", "", "", enum.RoleAdmin)
+	seedGoldenUser(t, db, 100, "author_a", "作者甲", "", "作者甲简介", schema.RoleUser)
+	seedGoldenUser(t, db, 101, "author_b", "作者乙", "", "作者乙简介", schema.RoleUser)
+	seedGoldenUser(t, db, 900, "admin_golden", "管理员", "", "", schema.RoleAdmin)
 
 	// 分类：用户 100 名下 3 个。
 	for i, title := range []string{"后端", "前端", "其他"} {
-		cat := models.CategoryModel{
-			Model:  models.Model{ID: ctype.ID(i + 1), CreatedAt: base, UpdatedAt: base},
-			Title:  title,
-			UserID: 100,
-		}
-		if err := db.Omit("UserModel", "ArticleList").Create(&cat).Error; err != nil {
-			t.Fatalf("种子分类 %d 失败: %v", i+1, err)
-		}
+		schema.InsertCategory(t, db, uint64(i+1), 100, title, base)
 	}
 
 	// 标签：2 个启用 + 1 个停用（默认列表应只出启用项）。
-	tagSeeds := []struct {
-		id      uint64
-		title   string
-		sort    int
-		count   int
-		enabled bool
-	}{
-		{1, "Go", 1, 8, true},
-		{2, "MySQL", 2, 8, true},
-		{3, "已停用", 3, 4, false},
-	}
-	for _, s := range tagSeeds {
-		m := models.TagModel{
-			Model:        models.Model{ID: ctype.ID(s.id), CreatedAt: base, UpdatedAt: base},
-			Title:        s.title,
-			Sort:         s.sort,
-			IsEnabled:    s.enabled,
-			ArticleCount: s.count,
-			CreatedBy:    900,
-		}
-		if err := db.Omit("ArticleList").Create(&m).Error; err != nil {
-			t.Fatalf("种子标签 %d 失败: %v", s.id, err)
-		}
-		// IsEnabled 带 gorm default:true，零值 false 会被数据库默认值覆盖，
-		// 必须显式 UPDATE 一次，否则"停用标签"实际是启用的。
-		if !s.enabled {
-			if err := db.Model(&models.TagModel{}).Where("id = ?", s.id).
-				Update("is_enabled", false).Error; err != nil {
-				t.Fatalf("停用标签 %d 失败: %v", s.id, err)
-			}
-		}
+	for _, tag := range []schema.TagSpec{
+		{ID: 1, Title: "Go", Sort: 1, ArticleCount: 8, Enabled: true, CreatedBy: 900, At: base},
+		{ID: 2, Title: "MySQL", Sort: 2, ArticleCount: 8, Enabled: true, CreatedBy: 900, At: base},
+		{ID: 3, Title: "已停用", Sort: 3, ArticleCount: 4, Enabled: false, CreatedBy: 900, At: base},
+	} {
+		schema.InsertTag(t, db, tag)
 	}
 
 	// 20 篇文章：4 种状态轮转，发布态里再分可见 / 用户隐藏 / 管理员隐藏。
 	for i := 0; i < 20; i++ {
-		status := []enum.ArticleStatus{
-			enum.ArticleStatusDraft,
-			enum.ArticleStatusExamining,
-			enum.ArticleStatusPublished,
-			enum.ArticleStatusRejected,
+		status := []schema.ArticleStatus{
+			schema.ArticleStatusDraft,
+			schema.ArticleStatusExamining,
+			schema.ArticleStatusPublished,
+			schema.ArticleStatusRejected,
 		}[i%4]
 
-		visibility := enum.ArticleVisibilityVisible
-		if status == enum.ArticleStatusPublished {
+		visibility := schema.VisibilityVisible
+		if status == schema.ArticleStatusPublished {
 			switch i {
 			case 6:
-				visibility = enum.ArticleVisibilityUserHidden
+				visibility = schema.VisibilityUserHidden
 			case 14:
-				visibility = enum.ArticleVisibilityAdminHidden
+				visibility = schema.VisibilityAdminHidden
 			}
 		}
 
@@ -277,24 +247,23 @@ func seedGoldenDataset(t *testing.T, db *gorm.DB) {
 		}
 
 		created := base.Add(time.Duration(i) * time.Hour)
-		m := models.ArticleModel{
-			Model:            models.Model{ID: ctype.ID(1001 + i), CreatedAt: created, UpdatedAt: created.Add(time.Minute)},
-			Title:            fmt.Sprintf("文章%02d", i+1),
-			Abstract:         fmt.Sprintf("摘要%02d", i+1),
-			Content:          fmt.Sprintf("正文%02d", i+1),
-			CategoryID:       categoryID,
-			AuthorID:         ctype.ID(author),
-			ViewCount:        i * 10,
-			DiggCount:        i,
-			CommentCount:     i % 5,
-			FavorCount:       i % 3,
-			CommentsToggle:   true,
-			PublishStatus:    status,
-			VisibilityStatus: visibility,
-		}
-		if err := db.Omit("Tags", "UserModel", "CategoryModel").Create(&m).Error; err != nil {
-			t.Fatalf("种子文章 %d 失败: %v", 1001+i, err)
-		}
+		schema.InsertArticle(t, db, schema.ArticleSpec{
+			ID:             uint64(1001 + i),
+			Title:          fmt.Sprintf("文章%02d", i+1),
+			Abstract:       fmt.Sprintf("摘要%02d", i+1),
+			Content:        fmt.Sprintf("正文%02d", i+1),
+			CategoryID:     categoryID,
+			AuthorID:       author,
+			ViewCount:      i * 10,
+			DiggCount:      i,
+			CommentCount:   i % 5,
+			FavorCount:     i % 3,
+			CommentsToggle: true,
+			PublishStatus:  status,
+			Visibility:     visibility,
+			CreatedAt:      created,
+			UpdatedAt:      created.Add(time.Minute),
+		})
 
 		// 文章标签：每 3 篇一组，覆盖"多标签 / 单标签 / 无标签"。
 		var tagIDs []uint64
@@ -305,117 +274,73 @@ func seedGoldenDataset(t *testing.T, db *gorm.DB) {
 			tagIDs = []uint64{3}
 		}
 		for _, tagID := range tagIDs {
-			// article_tag_models 是 GORM many2many 自动建的纯 join 表（无 id 列），
-			// 用结构体插入会带 id 而报 Unknown column；这里只写关系两列。
-			if err := db.Exec(
-				"INSERT INTO article_tag_models (article_id, tag_id) VALUES (?, ?)",
-				uint64(1001+i), tagID,
-			).Error; err != nil {
-				t.Fatalf("种子文章标签 %d/%d 失败: %v", 1001+i, tagID, err)
-			}
+			schema.InsertArticleTag(t, db, uint64(1001+i), tagID)
 		}
 	}
 
 	// 收藏夹：用户 100 名下 2 个（一个默认）。
-	folderSeeds := []struct {
-		id    uint64
-		title string
-		def   bool
-		count int
-	}{
-		{1, "默认收藏夹", true, 4},
-		{2, "技术收藏", false, 0},
-	}
-	for _, s := range folderSeeds {
-		m := models.FavoriteModel{
-			Model:        models.Model{ID: ctype.ID(s.id), CreatedAt: base, UpdatedAt: base},
-			UserID:       100,
-			Title:        s.title,
-			IsDefault:    s.def,
-			ArticleCount: s.count,
-		}
-		if err := db.Omit("UserModel", "ArticleList").Create(&m).Error; err != nil {
-			t.Fatalf("种子收藏夹 %d 失败: %v", s.id, err)
-		}
+	for _, f := range []schema.FavoriteSpec{
+		{ID: 1, UserID: 100, Title: "默认收藏夹", IsDefault: true, ArticleCount: 4, At: base},
+		{ID: 2, UserID: 100, Title: "技术收藏", IsDefault: false, ArticleCount: 0, At: base},
+	} {
+		schema.InsertFavorite(t, db, f)
 	}
 
 	// 收藏关系：4 篇发布态文章放进默认收藏夹（含一篇用户隐藏，验证过滤）。
-	favoriteArticleIndexes := []int{2, 6, 10, 18}
-	for k, i := range favoriteArticleIndexes {
-		articleID := uint64(1001 + i)
-		m := models.UserArticleFavorModel{
-			Model:                 models.Model{ID: ctype.ID(6000 + k), CreatedAt: base, UpdatedAt: base},
-			ArticleID:             ctype.ID(articleID),
+	for k, i := range []int{2, 6, 10, 18} {
+		schema.InsertUserArticleFavor(t, db, schema.UserArticleFavorSpec{
+			ID:                    uint64(6000 + k),
+			ArticleID:             uint64(1001 + i),
 			UserID:                100,
 			FavorID:               1,
 			ArticleTitle:          fmt.Sprintf("文章%02d", i+1),
 			ArticleAbstract:       fmt.Sprintf("摘要%02d", i+1),
-			ArticleStatus:         enum.ArticleStatusPublished,
+			ArticleStatus:         schema.ArticleStatusPublished,
 			ArticleAuthorID:       100,
 			ArticleAuthorNickname: "作者甲",
-		}
-		if err := db.Omit("UserModel", "ArticleModel", "FavoriteModel").Create(&m).Error; err != nil {
-			t.Fatalf("种子收藏关系 %d 失败: %v", articleID, err)
-		}
+			At:                    base,
+		})
 	}
 
 	// 置顶：用户 100 置顶 3 篇已发布文章。
 	for k, i := range []int{2, 10, 18} {
-		m := models.UserTopArticleModel{
-			Model:     models.Model{ID: ctype.ID(6400 + k), CreatedAt: base, UpdatedAt: base},
-			UserID:    100,
-			ArticleID: ctype.ID(1001 + i),
-		}
-		if err := db.Omit("UserModel", "ArticleModel").Create(&m).Error; err != nil {
-			t.Fatalf("种子置顶 %d 失败: %v", i, err)
-		}
+		schema.InsertUserTopArticle(t, db, uint64(6400+k), 100, uint64(1001+i), base)
 	}
 
 	// 浏览历史：用户 100 看过 5 篇。
 	for k, i := range []int{2, 3, 6, 10, 18} {
-		m := models.UserArticleViewHistoryModel{
-			Model:     models.Model{ID: ctype.ID(6600 + k), CreatedAt: base, UpdatedAt: base},
-			UserID:    100,
-			ArticleID: ctype.ID(1001 + i),
-		}
-		if err := db.Omit("UserModel", "ArticleModel").Create(&m).Error; err != nil {
-			t.Fatalf("种子浏览历史 %d 失败: %v", i, err)
-		}
+		schema.InsertViewHistory(t, db, uint64(6600+k), 100, uint64(1001+i), base)
 	}
 
 	// 审核任务：给 5 篇"审核中"的文章各建一条 pending 任务。
 	for k, i := range []int{1, 5, 9, 13, 17} {
-		m := models.ArticleReviewTaskModel{
-			Model:                models.Model{ID: ctype.ID(7000 + k), CreatedAt: base.Add(time.Duration(k) * time.Minute), UpdatedAt: base},
-			ArticleID:            ctype.ID(1001 + i),
+		schema.InsertReviewTask(t, db, schema.ReviewTaskSpec{
+			ID:                   uint64(7000 + k),
+			ArticleID:            uint64(1001 + i),
 			AuthorID:             100,
 			ArticleTitle:         fmt.Sprintf("文章%02d", i+1),
 			AuthorName:           "作者甲",
-			ArticlePublishStatus: enum.ArticleStatusExamining,
-			Stage:                models.ArticleReviewTaskStageManual,
-			Source:               models.ArticleReviewTaskSourceCreate,
-			Status:               models.ArticleReviewTaskPending,
-		}
-		if err := db.Create(&m).Error; err != nil {
-			t.Fatalf("种子审核任务 %d 失败: %v", 1001+i, err)
-		}
+			ArticlePublishStatus: schema.ArticleStatusExamining,
+			Stage:                schema.ReviewStageManual,
+			Source:               schema.ReviewSourceCreate,
+			Status:               schema.ReviewStatusPending,
+			CreatedAt:            base.Add(time.Duration(k) * time.Minute),
+			UpdatedAt:            base,
+		})
 	}
 }
 
 // seedGoldenUser 插入一个写死时间的用户。
-func seedGoldenUser(t *testing.T, db *gorm.DB, id uint64, username, nickname, avatar, abstract string, role enum.RoleType) {
+func seedGoldenUser(t *testing.T, db *gorm.DB, id uint64, username, nickname, avatar, abstract string, role schema.RoleType) {
 	t.Helper()
-	u := models.UserModel{}
-	u.ID = ctype.ID(id)
-	u.Username = username
-	u.Nickname = nickname
-	u.Avatar = avatar
-	u.Abstract = abstract
-	u.Password = "x"
-	u.Role = role
-	u.CreatedAt = goldenBaseTime()
-	u.UpdatedAt = u.CreatedAt
-	if err := db.Create(&u).Error; err != nil {
-		t.Fatalf("种子用户 %d 失败: %v", id, err)
-	}
+	schema.InsertUser(t, db, schema.UserSpec{
+		ID:        id,
+		Username:  username,
+		Nickname:  nickname,
+		Avatar:    avatar,
+		Abstract:  abstract,
+		Role:      role,
+		CreatedAt: goldenBaseTime(),
+		UpdatedAt: goldenBaseTime(),
+	})
 }

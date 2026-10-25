@@ -4,6 +4,7 @@ package mysql_test
 
 import (
 	"context"
+	"myblogx/internal/testkit/schema"
 	"testing"
 	"time"
 
@@ -11,7 +12,6 @@ import (
 	"myblogx/internal/testkit/mysqlcontainer"
 	"myblogx/internal/user/adapter/mysql"
 	"myblogx/internal/user/domain"
-	"myblogx/models"
 
 	"gorm.io/gorm"
 )
@@ -36,11 +36,7 @@ type env struct {
 
 func setup(t *testing.T) *env {
 	t.Helper()
-	db := mysqlcontainer.DB(t,
-		&models.UserModel{},
-		&models.UserConfModel{},
-		&models.UserStatModel{},
-	)
+	db := mysqlcontainer.DB(t, schema.Models(schema.UserCore)...)
 	// 快照表用原生 DDL 建最小结构：AutoMigrate 会顺带建出指向 article/user 的外键，
 	// 而本模块只写其中 2-3 个冗余列，不该为了测试去造一整套关联数据。
 	for _, ddl := range []string{

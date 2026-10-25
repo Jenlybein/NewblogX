@@ -230,6 +230,14 @@ if [ "$TARGET" = "all" ] || [ "$TARGET" = "backend" ]; then
     run "backend: archcheck 规则自检" go test ./tools/archcheck/...
     run "backend: archcheck 棘轮($ARCH_MAX_VIOLATIONS)" \
       go run ./tools/archcheck --mode=error --max-violations="$ARCH_MAX_VIOLATIONS" .
+    # 第二遍把 _test.go 也算进来，专门盯依赖方向（R10/R11）。
+    #
+    # 为什么要单独一遍：默认的 --skip-tests 会跳过测试文件，而测试里
+    # import models 会把 M6 的"删 models"卡住 —— 那种违规不会在别处报警。
+    # R1/R7/R8 标了 ProductionOnly，在测试文件上本来就不报，所以这一遍
+    # 实际只多出依赖方向的约束，不会因为"测试里造数据用了 *gorm.DB"变红。
+    run "backend: archcheck 棘轮(含测试文件)" \
+      go run ./tools/archcheck --mode=error --skip-tests=false --max-violations="$ARCH_MAX_VIOLATIONS" .
     # 测试只跑一遍。
     #
     # 项目里**没有任何测试**使用 testing.Short()，所以过去"先 -race -short 跑一遍、

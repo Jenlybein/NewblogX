@@ -109,14 +109,40 @@ func (r *Repo) SendMessage(ctx context.Context, msg *domain.Message, senderDispl
 				ReceiverAvatar:   senderDisplay.Avatar,
 			})
 		}
+		// 本包的行结构是 adapter 私有的，没有 models.Model 的 BeforeCreate 钩子，
+		// 主键必须显式赋值。漏了就会把所有行都写成 id=0：
+		// 第一条成功，第二条撞主键（ON DUPLICATE KEY 于是变成 update），
+		// 表现是"整个站只有一条会话"。
+		if err := fillRowIDs(sessions); err != nil {
+			return err
+		}
+		// 先把"被删除的会话"的未读清零，再插入/恢复。
+		//
+		// 不能把清零写成 ON DUPLICATE KEY UPDATE 里的一句
+		// `unread_count = CASE WHEN deleted_at IS NOT NULL THEN 0 ELSE unread_count END`：
+		// 同一句里前面已经把 deleted_at 赋成 NULL，而 map 的赋值顺序不确定，
+		// 所以 CASE 有时候读到的是"已被清空的 deleted_at"，于是保留了旧未读。
+		// 实测症状是"删过的会话重新收到消息，未读数变成 3 而不是 1"，且时好时坏。
+		// 拆成独立的 UPDATE 后顺序确定，与 map 赋值顺序无关。
+		// 必须 Unscoped：sessionRow 带 gorm.DeletedAt，GORM 会自行为查询补
+		// `deleted_at IS NULL`，正好把要处理的行排除掉 —— 语句不报错、影响 0 行。
+		if err := tx.Unscoped().Model(&sessionRow{}).
+			Where("session_id = ? AND deleted_at IS NOT NULL", msg.SessionID).
+			Update("unread_count", 0).Error; err != nil {
+			return err
+		}
+
 		if err := tx.Clauses(clause.OnConflict{
 			Columns: []clause.Column{{Name: "user_id"}, {Name: "receiver_id"}},
 			DoUpdates: clause.Assignments(map[string]any{
-				"session_id":        msg.SessionID,
-				"receiver_nickname": gorm.Expr("excluded.receiver_nickname"),
-				"receiver_avatar":   gorm.Expr("excluded.receiver_avatar"),
-				"deleted_at":        nil,
-				"unread_count":      gorm.Expr("CASE WHEN deleted_at IS NOT NULL THEN 0 ELSE unread_count END"),
+				"session_id": msg.SessionID,
+				// MySQL 没有 PostgreSQL 的 `excluded` 伪表：写 excluded.x 会被
+				// 当成"不存在的列"报 Error 1054 (Unknown column)，发消息直接 500。
+				// MySQL 取"待插入值"的写法是 VALUES(col)。
+				"receiver_nickname": gorm.Expr("VALUES(receiver_nickname)"),
+				"receiver_avatar":   gorm.Expr("VALUES(receiver_avatar)"),
+				// 恢复会话：软删的会话重新收到消息时要回到列表里。
+				"deleted_at": nil,
 			}),
 		}).Create(&sessions).Error; err != nil {
 			return err
@@ -163,6 +189,26 @@ func (r *Repo) SendMessage(ctx context.Context, msg *domain.Message, senderDispl
 		}
 		return nil
 	})
+}
+
+// fillRowIDs 给会话行补雪花主键。
+//
+// 为什么需要它：sessionRow 是本包私有的投影结构，不像 models.ChatSessionModel
+// 那样带 Model.BeforeCreate 钩子。GORM 不会替 `autoIncrement:false` 的主键取值，
+// 于是所有行的 id 都是 0 —— 只写一行时看不出来，第二行就撞主键，
+// 而 ON DUPLICATE KEY UPDATE 会把它变成 update，最终全站只剩一条会话。
+func fillRowIDs(rows []sessionRow) error {
+	for i := range rows {
+		if rows[i].ID != 0 {
+			continue
+		}
+		id, err := idgen.Next()
+		if err != nil {
+			return err
+		}
+		rows[i].ID = id.Uint64()
+	}
+	return nil
 }
 
 // ListSessions 实现 domain.Repository。
@@ -328,6 +374,14 @@ func (r *Repo) DeleteMessagesForUser(ctx context.Context, userID ctype.ID, ids [
 			SessionID: row.SessionID,
 		})
 		out = append(out, toMessage(row))
+	}
+	// 同会话行：没有钩子兜底，主键必须自己填。漏填会让所有用户态行撞 id=0。
+	for i := range states {
+		id, genErr := idgen.Next()
+		if genErr != nil {
+			return nil, genErr
+		}
+		states[i].ID = id.Uint64()
 	}
 	if err := r.db.WithContext(ctx).Clauses(clause.OnConflict{
 		Columns:   []clause.Column{{Name: "msg_id"}, {Name: "user_id"}},

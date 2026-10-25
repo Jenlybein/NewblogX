@@ -25,6 +25,12 @@ export BLOGX_LOG_LEVEL='info'
 export BLOGX_LOG_REQUEST_LOG_ENABLED='true'
 export BLOGX_LOG_QUERY_DEFAULT_LIMIT='20'
 export BLOGX_LOG_QUERY_MAX_LIMIT='200'
+# 日志清理（settings.yaml 里的默认值是 true / 7 / 03:30:00，生产建议显式写出来：
+# 默认值改了不会通知你，而"日志被悄悄提前删掉"这种事很难事后发现）
+export BLOGX_LOG_CLEANUP_ENABLED='true'
+export BLOGX_LOG_RETENTION_DAYS='7'
+export BLOGX_LOG_CLEANUP_RUN_AT='03:30:00'
+
 
 # Nginx 固定配置选择：
 # - 本地：BLOGX_NGINX_ENV='local'

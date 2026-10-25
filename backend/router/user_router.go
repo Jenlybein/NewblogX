@@ -1,7 +1,6 @@
 package router
 
 import (
-	"myblogx/api"
 	authhttp "myblogx/internal/auth/adapter/http"
 	userhttp "myblogx/internal/user/adapter/http"
 	mw "myblogx/middleware"
@@ -25,8 +24,8 @@ func SetUserHandler(h *userhttp.Handler) { userHandler = h }
 
 // UserRouter 注册用户与认证路由。
 //
-// 认证与用户资料/管理端都已迁到 internal/*；登录日志暂留旧 api（归 S4.9 analytics）。
-func UserRouter(r *gin.RouterGroup, appContainer api.Api, runtimeMw mw.Runtime) {
+// 认证、用户资料、管理端、登录日志分别来自 internal/auth、internal/user、internal/analytics。
+func UserRouter(r *gin.RouterGroup, runtimeMw mw.Runtime) {
 	if authHandler == nil {
 		panic("router: 认证处理器未注入（应在 app.WireUser 中调用 SetAuthHandler）")
 	}

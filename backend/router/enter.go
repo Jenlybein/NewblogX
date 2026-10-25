@@ -8,7 +8,6 @@ import (
 	"net"
 	"net/http"
 
-	"myblogx/api"
 	"myblogx/middleware"
 
 	"github.com/gin-gonic/gin"
@@ -22,7 +21,7 @@ import (
 //
 // 监听句柄在返回前同步创建，端口被占用等绑定错误会直接返回 error，
 // 避免"后台 goroutine 启动失败、主流程却挂着等信号"的假活状态。
-func Run(opts middleware.RuntimeOptions, app api.Api) (*http.Server, error) {
+func Run(opts middleware.RuntimeOptions) (*http.Server, error) {
 	gin.SetMode(opts.System.GinMode)
 	r := gin.New()
 	r.Use(gin.LoggerWithConfig(gin.LoggerConfig{
@@ -42,8 +41,8 @@ func Run(opts middleware.RuntimeOptions, app api.Api) (*http.Server, error) {
 	LogRouter(nr, mwRuntime)
 	ImageRouter(nr, mwRuntime)
 	BannerRouter(nr, mwRuntime)
-	CaptchaRouter(nr, app, mwRuntime)
-	UserRouter(nr, app, mwRuntime)
+	CaptchaRouter(nr)
+	UserRouter(nr, mwRuntime)
 	ArticleRouter(nr, mwRuntime)
 	CommentRouter(nr, mwRuntime)
 	ChatRouter(nr, mwRuntime)

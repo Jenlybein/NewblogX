@@ -2,6 +2,7 @@ package http
 
 import (
 	"context"
+	"myblogx/internal/kernel"
 	"strconv"
 
 	"github.com/gin-gonic/gin"
@@ -12,7 +13,6 @@ import (
 	"myblogx/internal/article/domain"
 	sitecfg "myblogx/internal/platform/config"
 	"myblogx/middleware"
-	"myblogx/models"
 	"myblogx/models/ctype"
 	"myblogx/utils/markdown"
 )
@@ -89,7 +89,7 @@ func (h *Handler) fail(c *gin.Context, err error) {
 // @Success 200 {object} object{code=int,data=ArticleDetailResponse,msg=string}
 // @Router /articles/{id} [get]
 func (h *Handler) Detail(c *gin.Context) {
-	cr := middleware.GetBindUri[models.IDRequest](c)
+	cr := middleware.GetBindUri[kernel.IDRequest](c)
 
 	view, err := h.svc.Detail(c.Request.Context(), domain.ArticleID(cr.ID), h.viewerOf(c))
 	if err != nil {
@@ -166,7 +166,7 @@ func (h *Handler) Create(c *gin.Context) {
 // @Success 200 {object} object{code=int,data=ArticleDetailResponse,msg=string}
 // @Router /articles/{id} [put]
 func (h *Handler) Update(c *gin.Context) {
-	uri := middleware.GetBindUri[models.IDRequest](c)
+	uri := middleware.GetBindUri[kernel.IDRequest](c)
 	cr := middleware.GetBindJson[ArticleUpdateRequest](c)
 
 	var content *string
@@ -253,7 +253,7 @@ func (h *Handler) Update(c *gin.Context) {
 // @Success 200 {object} object{code=int,data=object{},msg=string}
 // @Router /articles/{id} [delete]
 func (h *Handler) Remove(c *gin.Context) {
-	uri := middleware.GetBindUri[models.IDRequest](c)
+	uri := middleware.GetBindUri[kernel.IDRequest](c)
 
 	if _, err := h.svc.Delete(c.Request.Context(), app.DeleteCmd{
 		Actor:     h.viewerOf(c),
@@ -273,11 +273,11 @@ func (h *Handler) Remove(c *gin.Context) {
 // @Accept json
 // @Produce json
 // @Security BearerAuth
-// @Param body body models.IDListRequest true "文章 ID 列表"
+// @Param body body kernel.IDListRequest true "文章 ID 列表"
 // @Success 200 {object} object{code=int,data=object{},msg=string}
 // @Router /articles [delete]
 func (h *Handler) RemoveBatch(c *gin.Context) {
-	cr := middleware.GetBindJson[models.IDListRequest](c)
+	cr := middleware.GetBindJson[kernel.IDListRequest](c)
 
 	deleted := 0
 	for i := range cr.IDList {
@@ -354,7 +354,7 @@ func (h *Handler) Visit(c *gin.Context) {
 // @Success 200 {object} object{code=int,data=object{is_digg=bool},msg=string}
 // @Router /articles/{id}/digg [put]
 func (h *Handler) Digg(c *gin.Context) {
-	uri := middleware.GetBindUri[models.IDRequest](c)
+	uri := middleware.GetBindUri[kernel.IDRequest](c)
 
 	liked, err := h.svc.Digg(c.Request.Context(), domain.ArticleID(uri.ID), h.viewerOf(c))
 	if err != nil {

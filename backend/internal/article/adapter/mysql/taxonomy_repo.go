@@ -3,13 +3,13 @@ package mysql
 import (
 	"context"
 	"errors"
+	"time"
 
 	"gorm.io/gorm"
 
 	"myblogx/internal/article/domain"
 	"myblogx/internal/article/domain/taxonomy"
 	"myblogx/internal/platform/idgen"
-	"myblogx/models"
 	"myblogx/models/ctype"
 )
 
@@ -23,7 +23,7 @@ func NewCategoryRepo(db *gorm.DB) *CategoryRepo { return &CategoryRepo{db: db} }
 
 // Find 读取分类。
 func (r *CategoryRepo) Find(ctx context.Context, id domain.CategoryID) (*taxonomy.Category, error) {
-	var m models.CategoryModel
+	var m categoryRow
 	if err := r.db.WithContext(ctx).Take(&m, "id = ?", ctype.ID(id)).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, taxonomy.ErrCategoryNotFound
@@ -39,7 +39,11 @@ func (r *CategoryRepo) Find(ctx context.Context, id domain.CategoryID) (*taxonom
 // 不用 Preload("ArticleList")：那会把整篇文章行都捞上来，只为算个 count。
 func (r *CategoryRepo) ListByUser(ctx context.Context, userID domain.UserID) ([]*taxonomy.Category, error) {
 	var rows []struct {
-		models.CategoryModel
+		ID           ctype.ID
+		CreatedAt    time.Time
+		UpdatedAt    time.Time
+		UserID       ctype.ID
+		Title        string
 		ArticleCount int
 		Nickname     string
 		Avatar       string
@@ -73,7 +77,7 @@ func (r *CategoryRepo) ListByUser(ctx context.Context, userID domain.UserID) ([]
 
 // ExistsTitle 判断同用户下名称是否重复。
 func (r *CategoryRepo) ExistsTitle(ctx context.Context, userID domain.UserID, title string, excludeID domain.CategoryID) (bool, error) {
-	q := r.db.WithContext(ctx).Model(&models.CategoryModel{}).
+	q := r.db.WithContext(ctx).Model(&categoryRow{}).
 		Where("user_id = ? AND title = ?", fromUserID(userID), title)
 	if excludeID != 0 {
 		q = q.Where("id <> ?", ctype.ID(excludeID))
@@ -91,7 +95,7 @@ func (r *CategoryRepo) ExistsTitle(ctx context.Context, userID domain.UserID, ti
 // 它会用主键判断存在性并可能触发全字段覆盖，对软删表容易踩坑。
 func (r *CategoryRepo) Save(ctx context.Context, c *taxonomy.Category) error {
 	id := ctype.ID(c.ID())
-	updates := r.db.WithContext(ctx).Model(&models.CategoryModel{}).
+	updates := r.db.WithContext(ctx).Model(&categoryRow{}).
 		Where("id = ?", id).
 		Updates(map[string]any{"title": c.Title(), "user_id": fromUserID(c.UserID())})
 	if updates.Error != nil {
@@ -100,16 +104,16 @@ func (r *CategoryRepo) Save(ctx context.Context, c *taxonomy.Category) error {
 	if updates.RowsAffected > 0 {
 		return nil
 	}
-	return r.db.WithContext(ctx).Create(&models.CategoryModel{
-		Model:  models.Model{ID: id},
-		Title:  c.Title(),
-		UserID: fromUserID(c.UserID()),
+	return r.db.WithContext(ctx).Create(&categoryRow{
+		BaseRow: BaseRow{ID: id},
+		Title:   c.Title(),
+		UserID:  fromUserID(c.UserID()),
 	}).Error
 }
 
 // Delete 删除分类。
 func (r *CategoryRepo) Delete(ctx context.Context, id domain.CategoryID) error {
-	return r.db.WithContext(ctx).Delete(&models.CategoryModel{}, "id = ?", ctype.ID(id)).Error
+	return r.db.WithContext(ctx).Delete(&categoryRow{}, "id = ?", ctype.ID(id)).Error
 }
 
 // TagRepo 是 taxonomy.TagRepository 的 MySQL 实现。
@@ -122,7 +126,7 @@ func NewTagRepo(db *gorm.DB) *TagRepo { return &TagRepo{db: db} }
 
 // Find 读取标签。
 func (r *TagRepo) Find(ctx context.Context, id domain.TagID) (*taxonomy.Tag, error) {
-	var m models.TagModel
+	var m tagRow
 	if err := r.db.WithContext(ctx).Take(&m, "id = ?", ctype.ID(id)).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, taxonomy.ErrTagNotFound
@@ -141,7 +145,7 @@ func (r *TagRepo) FindMany(ctx context.Context, ids []domain.TagID) ([]*taxonomy
 	for _, id := range ids {
 		raw = append(raw, ctype.ID(id))
 	}
-	var rows []models.TagModel
+	var rows []tagRow
 	if err := r.db.WithContext(ctx).Where("id IN ?", raw).Find(&rows).Error; err != nil {
 		return nil, err
 	}
@@ -154,11 +158,11 @@ func (r *TagRepo) FindMany(ctx context.Context, ids []domain.TagID) ([]*taxonomy
 
 // List 列出标签。
 func (r *TagRepo) List(ctx context.Context, includeDisabled bool) ([]*taxonomy.Tag, error) {
-	q := r.db.WithContext(ctx).Model(&models.TagModel{})
+	q := r.db.WithContext(ctx).Model(&tagRow{})
 	if !includeDisabled {
 		q = q.Where("is_enabled = ?", true)
 	}
-	var rows []models.TagModel
+	var rows []tagRow
 	if err := q.Order("sort desc, id asc").Find(&rows).Error; err != nil {
 		return nil, err
 	}
@@ -171,7 +175,7 @@ func (r *TagRepo) List(ctx context.Context, includeDisabled bool) ([]*taxonomy.T
 
 // ExistsTitle 判断标签名是否重复。
 func (r *TagRepo) ExistsTitle(ctx context.Context, title string, excludeID domain.TagID) (bool, error) {
-	q := r.db.WithContext(ctx).Model(&models.TagModel{}).Where("title = ?", title)
+	q := r.db.WithContext(ctx).Model(&tagRow{}).Where("title = ?", title)
 	if excludeID != 0 {
 		q = q.Where("id <> ?", ctype.ID(excludeID))
 	}
@@ -185,7 +189,7 @@ func (r *TagRepo) ExistsTitle(ctx context.Context, title string, excludeID domai
 // Save 新建或更新标签（upsert，语义同分类）。
 func (r *TagRepo) Save(ctx context.Context, t *taxonomy.Tag) error {
 	id := ctype.ID(t.ID())
-	updates := r.db.WithContext(ctx).Model(&models.TagModel{}).
+	updates := r.db.WithContext(ctx).Model(&tagRow{}).
 		Where("id = ?", id).
 		Updates(map[string]any{
 			"title":       t.Title(),
@@ -199,8 +203,8 @@ func (r *TagRepo) Save(ctx context.Context, t *taxonomy.Tag) error {
 	if updates.RowsAffected > 0 {
 		return nil
 	}
-	return r.db.WithContext(ctx).Create(&models.TagModel{
-		Model:       models.Model{ID: id},
+	return r.db.WithContext(ctx).Create(&tagRow{
+		BaseRow:     BaseRow{ID: id},
 		Title:       t.Title(),
 		Sort:        t.Sort(),
 		Description: t.Description(),
@@ -211,7 +215,7 @@ func (r *TagRepo) Save(ctx context.Context, t *taxonomy.Tag) error {
 
 // Delete 删除标签及关联（TagModel 自带 BeforeDelete 清理 article_tag）。
 func (r *TagRepo) Delete(ctx context.Context, id domain.TagID) error {
-	return r.db.WithContext(ctx).Delete(&models.TagModel{}, "id = ?", ctype.ID(id)).Error
+	return r.db.WithContext(ctx).Delete(&tagRow{}, "id = ?", ctype.ID(id)).Error
 }
 
 // ReplaceArticleTags 用给定集合替换文章标签。
@@ -268,7 +272,7 @@ func (r *TagRepo) ArticleTagIDs(ctx context.Context, articleID domain.ArticleID)
 }
 
 // toDomainTag 把 row 转成领域标签。
-func toDomainTag(m models.TagModel) *taxonomy.Tag {
+func toDomainTag(m tagRow) *taxonomy.Tag {
 	return taxonomy.RestoreTag(taxonomy.RestoreTagParams{
 		ID:           domain.TagID(m.ID),
 		Title:        m.Title,

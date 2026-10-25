@@ -2,6 +2,7 @@ package http
 
 import (
 	"github.com/gin-gonic/gin"
+	"myblogx/internal/kernel"
 
 	"myblogx/common/res"
 	"myblogx/internal/article/app"
@@ -9,9 +10,7 @@ import (
 	"myblogx/internal/article/domain/favorite"
 	"myblogx/internal/article/domain/review"
 	"myblogx/middleware"
-	"myblogx/models"
 	"myblogx/models/ctype"
-	"myblogx/models/enum"
 )
 
 // ── 分类 ──
@@ -57,11 +56,11 @@ func (h *Handler) SaveCategory(c *gin.Context) {
 // @Accept json
 // @Produce json
 // @Security BearerAuth
-// @Param body body models.IDListRequest true "分类 ID 列表"
+// @Param body body kernel.IDListRequest true "分类 ID 列表"
 // @Success 200 {object} object{code=int,data=object{},msg=string}
 // @Router /articles/category [delete]
 func (h *Handler) DeleteCategories(c *gin.Context) {
-	cr := middleware.GetBindJson[models.IDListRequest](c)
+	cr := middleware.GetBindJson[kernel.IDListRequest](c)
 
 	ids := make([]domain.CategoryID, 0, len(cr.IDList))
 	for _, id := range cr.IDList {
@@ -197,11 +196,11 @@ func (h *Handler) SaveTag(c *gin.Context) {
 // @Accept json
 // @Produce json
 // @Security BearerAuth
-// @Param body body models.IDListRequest true "标签 ID 列表"
+// @Param body body kernel.IDListRequest true "标签 ID 列表"
 // @Success 200 {object} object{code=int,data=object{},msg=string}
 // @Router /articles/tags [delete]
 func (h *Handler) DeleteTags(c *gin.Context) {
-	cr := middleware.GetBindJson[models.IDListRequest](c)
+	cr := middleware.GetBindJson[kernel.IDListRequest](c)
 
 	ids := make([]domain.TagID, 0, len(cr.IDList))
 	for _, id := range cr.IDList {
@@ -290,11 +289,11 @@ func (h *Handler) SaveFolder(c *gin.Context) {
 // @Accept json
 // @Produce json
 // @Security BearerAuth
-// @Param body body models.IDListRequest true "收藏夹 ID 列表"
+// @Param body body kernel.IDListRequest true "收藏夹 ID 列表"
 // @Success 200 {object} object{code=int,data=object{},msg=string}
 // @Router /articles/favorite [delete]
 func (h *Handler) DeleteFolders(c *gin.Context) {
-	cr := middleware.GetBindJson[models.IDListRequest](c)
+	cr := middleware.GetBindJson[kernel.IDListRequest](c)
 
 	ids := make([]favorite.ID, 0, len(cr.IDList))
 	for _, id := range cr.IDList {
@@ -342,7 +341,7 @@ func (h *Handler) FavoriteItems(c *gin.Context) {
 			FavorCount:    it.FavorCount(),
 			UserNickname:  it.AuthorNickname(),
 			UserAvatar:    it.AuthorAvatar(),
-			ArticleStatus: enum.ArticleStatus(it.ArticleStatus()),
+			ArticleStatus: ArticleStatus(it.ArticleStatus()),
 		})
 	}
 	res.OkWithHasMoreList(list, int64(offset+len(list)) < total, c)
@@ -518,11 +517,11 @@ func (h *Handler) History(c *gin.Context) {
 // @Accept json
 // @Produce json
 // @Security BearerAuth
-// @Param body body models.IDListRequest true "文章 ID 列表"
+// @Param body body kernel.IDListRequest true "文章 ID 列表"
 // @Success 200 {object} object{code=int,data=object{},msg=string}
 // @Router /articles/history [delete]
 func (h *Handler) RemoveHistory(c *gin.Context) {
-	cr := middleware.GetBindJson[models.IDListRequest](c)
+	cr := middleware.GetBindJson[kernel.IDListRequest](c)
 
 	ids := make([]domain.ArticleID, 0, len(cr.IDList))
 	for _, id := range cr.IDList {
@@ -584,10 +583,10 @@ func (h *Handler) ReviewTasks(c *gin.Context) {
 // @Success 200 {object} object{code=int,data=object{},msg=string}
 // @Router /article-review-tasks/{id}/review [post]
 func (h *Handler) HandleReviewTask(c *gin.Context) {
-	uri := middleware.GetBindUri[models.IDRequest](c)
+	uri := middleware.GetBindUri[kernel.IDRequest](c)
 	cr := middleware.GetBindJson[ArticleReviewHandleRequest](c)
 
-	approve := cr.Status == enum.ArticleStatusPublished
+	approve := cr.Status == ArticleStatusPublished
 	if _, err := h.svc.HandleReviewTask(c.Request.Context(), h.viewerOf(c), uint64(uri.ID), approve, cr.Reason); err != nil {
 		h.fail(c, err)
 		return

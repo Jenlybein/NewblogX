@@ -2,9 +2,9 @@ package http
 
 import (
 	"github.com/gin-gonic/gin"
+	"myblogx/internal/kernel"
 
 	mw "myblogx/middleware"
-	"myblogx/models"
 )
 
 // Register 把 article 模块的全部路由挂到 /api 下。
@@ -30,7 +30,7 @@ func (h *Handler) Register(r *gin.RouterGroup, authMw, optionalMw gin.HandlerFun
 
 	// 公开读
 	group.GET("author_info", mw.BindQuery[ArticleAuthorInfoBindRequest], h.AuthorInfo)
-	group.GET(":id", mw.BindUri[models.IDRequest], h.Detail)
+	group.GET(":id", mw.BindUri[kernel.IDRequest], h.Detail)
 	group.POST("view", mw.BindJson[ArticleViewCountRequest], h.Visit)
 	group.GET("category", mw.BindQuery[CategoryListRequest], h.Categories)
 	group.GET("category/options", mw.BindQuery[CategoryOptionsRequest], h.CategoryOptions)
@@ -43,25 +43,25 @@ func (h *Handler) Register(r *gin.RouterGroup, authMw, optionalMw gin.HandlerFun
 
 	// 登录用户写
 	authGroup.POST("", mw.BindJson[ArticleCreateRequest], h.Create)
-	authGroup.PUT(":id", mw.BindUri[models.IDRequest], mw.BindJson[ArticleUpdateRequest], h.Update)
-	authGroup.DELETE(":id", mw.BindUri[models.IDRequest], h.Remove)
-	authGroup.PUT(":id/digg", mw.BindUri[models.IDRequest], h.Digg)
+	authGroup.PUT(":id", mw.BindUri[kernel.IDRequest], mw.BindJson[ArticleUpdateRequest], h.Update)
+	authGroup.DELETE(":id", mw.BindUri[kernel.IDRequest], h.Remove)
+	authGroup.PUT(":id/digg", mw.BindUri[kernel.IDRequest], h.Digg)
 	authGroup.GET("history", mw.BindQuery[ArticleViewHistoryRequest], h.History)
-	authGroup.DELETE("history", mw.BindJson[models.IDListRequest], h.RemoveHistory)
+	authGroup.DELETE("history", mw.BindJson[kernel.IDListRequest], h.RemoveHistory)
 	authGroup.PUT("favorite", mw.BindJson[FavoriteRequest], h.SaveFolder)
-	authGroup.DELETE("favorite", mw.BindJson[models.IDListRequest], h.DeleteFolders)
+	authGroup.DELETE("favorite", mw.BindJson[kernel.IDListRequest], h.DeleteFolders)
 	authGroup.DELETE("favorite/contents", mw.BindJson[FavoriteRemovePatchModel], h.RemoveFavoriteItems)
 	authGroup.POST("favorite", mw.BindJson[ArticleFavoriteRequest], h.SaveFavorite)
 	authGroup.POST("top", mw.BindJson[ArticleTopSetRequest], h.SetTop)
 	authGroup.DELETE("top", mw.BindJson[ArticleTopSetRequest], h.RemoveTop)
 	authGroup.POST("category", mw.BindJson[CategoryRequest], h.SaveCategory)
-	authGroup.DELETE("category", mw.BindJson[models.IDListRequest], h.DeleteCategories)
+	authGroup.DELETE("category", mw.BindJson[kernel.IDListRequest], h.DeleteCategories)
 
 	// 管理员
-	adminGroup.DELETE("", mw.CaptureLog(mw.ReqBody), mw.BindJson[models.IDListRequest], h.RemoveBatch)
+	adminGroup.DELETE("", mw.CaptureLog(mw.ReqBody), mw.BindJson[kernel.IDListRequest], h.RemoveBatch)
 	adminGroup.POST(":id/admin/:visibility", mw.BindUri[ArticleAdminVisibilityURI], h.AdminVisibility)
 	adminGroup.PUT("tags", mw.CaptureLog(mw.ReqBody), mw.BindJson[TagRequest], h.SaveTag)
-	adminGroup.DELETE("tags", mw.CaptureLog(mw.ReqBody), mw.BindJson[models.IDListRequest], h.DeleteTags)
-	reviewTaskAdminGroup.POST(":id/review", mw.CaptureLog(mw.ReqBody), mw.BindUri[models.IDRequest],
+	adminGroup.DELETE("tags", mw.CaptureLog(mw.ReqBody), mw.BindJson[kernel.IDListRequest], h.DeleteTags)
+	reviewTaskAdminGroup.POST(":id/review", mw.CaptureLog(mw.ReqBody), mw.BindUri[kernel.IDRequest],
 		mw.BindJson[ArticleReviewHandleRequest], h.HandleReviewTask)
 }

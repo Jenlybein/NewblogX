@@ -5,9 +5,7 @@ import (
 
 	"myblogx/internal/article/app"
 	"myblogx/internal/article/domain"
-	"myblogx/models"
 	"myblogx/models/ctype"
-	"myblogx/models/enum"
 )
 
 // toDetailResponse 把用例视图转成详情响应。
@@ -32,9 +30,9 @@ func (h *Handler) toDetailResponse(ctx context.Context, v *app.ArticleView) Arti
 		CommentCount:     a.Counters().Comment,
 		FavorCount:       a.Counters().Favor,
 		CommentsToggle:   a.CommentsToggle(),
-		Status:           enum.ArticleStatus(a.Status()),
-		PublishStatus:    enum.ArticleStatus(a.Status()),
-		VisibilityStatus: enum.ArticleVisibilityStatus(a.Visibility()),
+		Status:           ArticleStatus(a.Status()),
+		PublishStatus:    ArticleStatus(a.Status()),
+		VisibilityStatus: ArticleVisibility(a.Visibility()),
 		AuthorID:         ctype.ID(v.Author.ID.Uint64()),
 		AuthorAvatar:     v.Author.Avatar,
 		AuthorAbstract:   v.Author.Abstract,
@@ -77,9 +75,9 @@ func toCreateResponse(a app.ArticleView, coverImageID *ctype.ID) ArticleCreateRe
 		CategoryID:       toCtypeIDPtr(art.CategoryID()),
 		CoverImageID:     coverImageID,
 		CommentsToggle:   art.CommentsToggle(),
-		Status:           enum.ArticleStatus(art.Status()),
-		PublishStatus:    enum.ArticleStatus(art.Status()),
-		VisibilityStatus: enum.ArticleVisibilityStatus(art.Visibility()),
+		Status:           ArticleStatus(art.Status()),
+		PublishStatus:    ArticleStatus(art.Status()),
+		VisibilityStatus: ArticleVisibility(art.Visibility()),
 	}
 	for _, t := range a.Tags {
 		resp.TagIDs = append(resp.TagIDs, ctype.ID(t.ID.Uint64()))
@@ -96,10 +94,10 @@ func toTaskItem(t app.ReviewTaskView) ArticleReviewTaskItem {
 		AuthorID:      ctype.ID(task.AuthorID().Uint64()),
 		ArticleTitle:  task.ArticleTitle(),
 		AuthorName:    task.AuthorName(),
-		PublishStatus: enum.ArticleStatus(task.PublishStatus()),
-		Stage:         models.ArticleReviewTaskStage(task.Stage()),
-		Source:        models.ArticleReviewTaskSource(task.Source()),
-		Status:        models.ArticleReviewTaskStatus(task.Status()),
+		PublishStatus: ArticleStatus(task.PublishStatus()),
+		Stage:         ReviewTaskStage(task.Stage()),
+		Source:        ReviewTaskSource(task.Source()),
+		Status:        ReviewTaskStatus(task.Status()),
 		Reason:        task.Reason(),
 		CreatedAt:     task.CreatedAt(),
 		ReviewedAt:    task.ReviewedAt(),

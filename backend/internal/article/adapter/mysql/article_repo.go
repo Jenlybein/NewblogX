@@ -8,9 +8,7 @@ import (
 	"gorm.io/gorm"
 
 	"myblogx/internal/article/domain"
-	"myblogx/models"
 	"myblogx/models/ctype"
-	"myblogx/models/enum"
 )
 
 // ArticleRepo 是 domain.Repository 的 MySQL 实现。
@@ -23,7 +21,7 @@ func NewArticleRepo(db *gorm.DB) *ArticleRepo { return &ArticleRepo{db: db} }
 
 // Find 按 ID 读取。
 func (r *ArticleRepo) Find(ctx context.Context, id domain.ArticleID) (*domain.Article, error) {
-	var m models.ArticleModel
+	var m articleRow
 	if err := r.db.WithContext(ctx).Take(&m, "id = ?", fromArticleID(id)).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, domain.ErrArticleNotFound
@@ -47,7 +45,7 @@ func (r *ArticleRepo) FindMany(ctx context.Context, ids []domain.ArticleID) ([]*
 		rawIDs = append(rawIDs, fromArticleID(id))
 	}
 
-	var rows []models.ArticleModel
+	var rows []articleRow
 	if err := r.db.WithContext(ctx).Where("id IN ?", rawIDs).Find(&rows).Error; err != nil {
 		return nil, err
 	}
@@ -56,7 +54,7 @@ func (r *ArticleRepo) FindMany(ctx context.Context, ids []domain.ArticleID) ([]*
 	}
 
 	// 保持入参顺序：调用方（如收藏列表）依赖它做展示排序。
-	byID := make(map[ctype.ID]models.ArticleModel, len(rows))
+	byID := make(map[ctype.ID]articleRow, len(rows))
 	for _, row := range rows {
 		byID[row.ID] = row
 	}
@@ -78,7 +76,7 @@ func (r *ArticleRepo) FindMany(ctx context.Context, ids []domain.ArticleID) ([]*
 // List 按条件分页查询。
 func (r *ArticleRepo) List(ctx context.Context, f domain.Filter, p domain.Page) ([]*domain.Article, int64, error) {
 	p = p.Normalize()
-	q := r.applyFilter(r.db.WithContext(ctx).Model(&models.ArticleModel{}), f)
+	q := r.applyFilter(r.db.WithContext(ctx).Model(&articleRow{}), f)
 
 	var total int64
 	if err := q.Count(&total).Error; err != nil {
@@ -88,7 +86,7 @@ func (r *ArticleRepo) List(ctx context.Context, f domain.Filter, p domain.Page) 
 		return nil, 0, nil
 	}
 
-	var rows []models.ArticleModel
+	var rows []articleRow
 	if err := q.Order("created_at desc, id desc").Offset(p.Offset).Limit(p.Limit).Find(&rows).Error; err != nil {
 		return nil, 0, err
 	}
@@ -111,7 +109,7 @@ func (r *ArticleRepo) List(ctx context.Context, f domain.Filter, p domain.Page) 
 
 // Create 插入。
 func (r *ArticleRepo) Create(ctx context.Context, a *domain.Article) error {
-	m := &models.ArticleModel{}
+	m := &articleRow{}
 	applyArticleTo(a, m)
 	return r.db.WithContext(ctx).Create(m).Error
 }
@@ -121,10 +119,10 @@ func (r *ArticleRepo) Create(ctx context.Context, a *domain.Article) error {
 // 用 Select 显式列出可更新列：GORM 的 Updates(struct) 会忽略零值，
 // 导致"把 category_id 清空""把 submitted_at 置 NULL"这类操作丢失。
 func (r *ArticleRepo) Update(ctx context.Context, a *domain.Article) error {
-	m := &models.ArticleModel{}
+	m := &articleRow{}
 	applyArticleTo(a, m)
 
-	tx := r.db.WithContext(ctx).Model(&models.ArticleModel{}).
+	tx := r.db.WithContext(ctx).Model(&articleRow{}).
 		Where("id = ?", m.ID).
 		Select(
 			"title", "abstract", "content", "category_id", "cover",
@@ -143,7 +141,7 @@ func (r *ArticleRepo) Update(ctx context.Context, a *domain.Article) error {
 
 // SoftDelete 软删（GORM 看到 DeletedAt 字段会自动写 deleted_at）。
 func (r *ArticleRepo) SoftDelete(ctx context.Context, id domain.ArticleID) error {
-	tx := r.db.WithContext(ctx).Delete(&models.ArticleModel{}, "id = ?", fromArticleID(id))
+	tx := r.db.WithContext(ctx).Delete(&articleRow{}, "id = ?", fromArticleID(id))
 	if tx.Error != nil {
 		return tx.Error
 	}
@@ -160,7 +158,7 @@ func (r *ArticleRepo) SoftDelete(ctx context.Context, id domain.ArticleID) error
 func (r *ArticleRepo) applyFilter(q *gorm.DB, f domain.Filter) *gorm.DB {
 	if f.OnlyPublic {
 		q = q.Where("publish_status = ? AND visibility_status = ?",
-			enum.ArticleStatusPublished, enum.ArticleVisibilityVisible)
+			statusPublished, visibilityVisible)
 	}
 	if f.AuthorID != nil {
 		q = q.Where("author_id = ?", fromUserID(*f.AuthorID))
@@ -169,7 +167,7 @@ func (r *ArticleRepo) applyFilter(q *gorm.DB, f domain.Filter) *gorm.DB {
 		q = q.Where("category_id = ?", uint64(*f.CategoryID))
 	}
 	if len(f.Statuses) > 0 {
-		statuses := make([]enum.ArticleStatus, 0, len(f.Statuses))
+		statuses := make([]int8, 0, len(f.Statuses))
 		for _, s := range f.Statuses {
 			statuses = append(statuses, fromStatus(s))
 		}
@@ -181,7 +179,7 @@ func (r *ArticleRepo) applyFilter(q *gorm.DB, f domain.Filter) *gorm.DB {
 			ids = append(ids, ctype.ID(id))
 		}
 		q = q.Where("id IN (?)",
-			r.db.Model(&models.ArticleTagModel{}).Select("article_id").Where("tag_id IN ?", ids))
+			r.db.Model(&articleTagRow{}).Select("article_id").Where("tag_id IN ?", ids))
 	}
 	if kw := strings.TrimSpace(f.Keyword); kw != "" {
 		like := "%" + kw + "%"

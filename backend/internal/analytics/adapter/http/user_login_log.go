@@ -1,18 +1,18 @@
 package http
 
 import (
-	"myblogx/common"
-	"myblogx/common/res"
 	"myblogx/internal/analytics/adapter/clickhouse"
 	"myblogx/internal/kernel/ctype"
+	"myblogx/internal/kernel/page"
 	"myblogx/internal/platform/http/middleware"
+	"myblogx/internal/platform/http/res"
 	"myblogx/utils/jwts"
 
 	"github.com/gin-gonic/gin"
 )
 
 type UserLoginListRequest struct {
-	common.PageInfo
+	page.PageInfo
 	UserID  ctype.ID `form:"user_id"`
 	IP      string   `form:"ip"`
 	StartAt string   `form:"start_at"`
@@ -61,7 +61,7 @@ func (h *Handler) UserLoginLogList(c *gin.Context) {
 	eventName := "login_success"
 	success := true
 	list, count, err := clickhouse.ListLoginEvents(h.logs, clickhouse.LoginEventQuery{
-		PageInfo: common.PageInfo{
+		PageInfo: page.PageInfo{
 			Limit: cr.Limit,
 			Page:  cr.Page,
 		},

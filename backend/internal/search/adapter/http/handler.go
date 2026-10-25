@@ -9,8 +9,8 @@ import (
 	"github.com/elastic/go-elasticsearch/v7"
 	"github.com/gin-gonic/gin"
 
-	"myblogx/common/res"
 	"myblogx/internal/kernel/ctype"
+	"myblogx/internal/platform/http/res"
 	"myblogx/internal/search/app"
 	"myblogx/internal/search/domain"
 	"myblogx/utils/jwts"

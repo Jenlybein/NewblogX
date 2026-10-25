@@ -393,24 +393,66 @@ var ErrBad = errors.New("invalid credentials")
 	}
 }
 
-// TestR9_日志输入禁any 验证审计输入结构体里的裸 any 字段会被抓。
-func TestR9_日志输入禁any(t *testing.T) {
+// TestR9_日志输入类型约束 验证 L.9 的三条约束都会真的报警。
+//
+// 三条分别是：禁 any、禁同包自定义类型、Extra 必须 map[string]string。
+// 每条都备了"该报"和"不该报"两侧用例 —— 只测"会报"的话，
+// 规则写成"凡是 Input 结构体一律报错"也能过。
+func TestR9_日志输入类型约束(t *testing.T) {
 	cases := []case_{
 		{
-			name: "审计输入带 any 字段",
+			name: "裸 any 字段",
 			rel:  "internal/platform/log/writer/write_action_audit.go",
 			src: `package log_service
 
 type ActionAuditInput struct {
 	RequestBody any
-	Extra       map[string]any
 }
 `,
 			ruleID:   "R9",
-			wantHits: 1, // 只有裸 any 命中，map[string]any 不算
+			wantHits: 1,
 		},
 		{
-			name: "GinAuditInput 带 interface{} 也拦",
+			name: "Extra 是 map[string]any",
+			rel:  "internal/platform/log/writer/write_action_audit.go",
+			src: `package log_service
+
+type ActionAuditInput struct {
+	Extra map[string]any
+}
+`,
+			ruleID:   "R9",
+			wantHits: 1,
+		},
+		{
+			name: "Extra 是 map[string]string 不报",
+			rel:  "internal/platform/log/writer/write_action_audit.go",
+			src: `package log_service
+
+import "myblogx/internal/kernel/ctype"
+
+type ActionAuditInput struct {
+	UserID ctype.ID
+	Extra  map[string]string
+}
+`,
+			ruleID:   "R9",
+			wantHits: 0,
+		},
+		{
+			name: "同包自定义类型入参",
+			rel:  "internal/platform/log/writer/write_cdc_event.go",
+			src: `package log_service
+
+type CdcEventInput struct {
+	Detail SomeBusinessStruct
+}
+`,
+			ruleID:   "R9",
+			wantHits: 1,
+		},
+		{
+			name: "接口类型 interface{} 也拦",
 			rel:  "internal/platform/http/middleware/log_emit.go",
 			src: `package middleware
 
@@ -422,11 +464,29 @@ type GinAuditInput struct {
 			wantHits: 1,
 		},
 		{
-			name: "普通业务结构体不误报",
+			name: "跨包类型与切片不误报",
+			rel:  "internal/platform/log/writer/write_cdc_event.go",
+			src: `package log_service
+
+import "myblogx/internal/kernel/enum"
+
+type CdcEventInput struct {
+	LoginType enum.LoginType
+	Cause     []string
+	Body      []byte
+}
+`,
+			ruleID:   "R9",
+			wantHits: 0,
+		},
+		{
+			// 判据是"名字以 Input / Event 结尾"，不是"内容像不像日志"。
+			// 这一条容易被误读成"普通业务类型不该报"，所以用例名写清楚。
+			name: "不以 Input/Event 结尾的结构体不管",
 			rel:  "internal/platform/log/writer/other.go",
 			src: `package log_service
 
-type SomeInput struct {
+type SomeStruct struct {
 	Payload any
 }
 `,

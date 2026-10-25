@@ -12,13 +12,13 @@ import (
 	"myblogx/internal/comment/domain"
 	"myblogx/internal/kernel/ctype"
 	notificationapp "myblogx/internal/notification/app"
+	"myblogx/internal/platform/http/router"
 	"myblogx/internal/platform/idgen"
 	"myblogx/internal/platform/readmodel"
 	redis_service "myblogx/internal/platform/redis"
 	"myblogx/internal/platform/redis/redis_article"
 	"myblogx/internal/platform/redis/redis_comment"
 	socialdomain "myblogx/internal/social/domain"
-	"myblogx/router"
 )
 
 // WireComment 装配评论模块并注入路由处理器。

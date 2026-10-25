@@ -4,7 +4,7 @@ import (
 	notificationhttp "myblogx/internal/notification/adapter/http"
 	notificationmysql "myblogx/internal/notification/adapter/mysql"
 	notificationapp "myblogx/internal/notification/app"
-	"myblogx/router"
+	"myblogx/internal/platform/http/router"
 )
 
 // notificationService 供评论模块与 outbox 中继生产站内信。

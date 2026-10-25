@@ -3,17 +3,17 @@ package http
 import (
 	"database/sql"
 
-	"myblogx/common"
-	"myblogx/common/res"
 	"myblogx/internal/analytics/adapter/clickhouse"
 	"myblogx/internal/kernel/ctype"
+	"myblogx/internal/kernel/page"
 	"myblogx/internal/platform/http/middleware"
+	"myblogx/internal/platform/http/res"
 
 	"github.com/gin-gonic/gin"
 )
 
 type RuntimeLogListRequest struct {
-	common.PageInfo
+	page.PageInfo
 	StartAt         string   `form:"start_at"`
 	EndAt           string   `form:"end_at"`
 	Service         string   `form:"service"`
@@ -33,7 +33,7 @@ type RuntimeLogListRequest struct {
 }
 
 type LoginLogListRequest struct {
-	common.PageInfo
+	page.PageInfo
 	StartAt         string   `form:"start_at"`
 	EndAt           string   `form:"end_at"`
 	UserID          ctype.ID `form:"user_id"`
@@ -53,7 +53,7 @@ type LoginLogListRequest struct {
 }
 
 type ActionAuditListRequest struct {
-	common.PageInfo
+	page.PageInfo
 	StartAt         string   `form:"start_at"`
 	EndAt           string   `form:"end_at"`
 	UserID          ctype.ID `form:"user_id"`
@@ -104,7 +104,7 @@ type ActionAuditListRequest struct {
 func (h *Handler) RuntimeLogListView(c *gin.Context) {
 	cr := middleware.GetBindQuery[RuntimeLogListRequest](c)
 	list, count, err := clickhouse.ListRuntimeLogs(h.logs, clickhouse.RuntimeLogQuery{
-		PageInfo: common.PageInfo{
+		PageInfo: page.PageInfo{
 			Limit: cr.Limit,
 			Page:  cr.Page,
 			Key:   cr.Key,
@@ -187,7 +187,7 @@ func (h *Handler) LoginLogListView(c *gin.Context) {
 	cr := middleware.GetBindQuery[LoginLogListRequest](c)
 	eventNameLike := cr.EventName
 	list, count, err := clickhouse.ListLoginEvents(h.logs, clickhouse.LoginEventQuery{
-		PageInfo: common.PageInfo{
+		PageInfo: page.PageInfo{
 			Limit: cr.Limit,
 			Page:  cr.Page,
 		},
@@ -273,7 +273,7 @@ func (h *Handler) ActionAuditListView(c *gin.Context) {
 		eventNameLike = cr.EventNameLike
 	}
 	list, count, err := clickhouse.ListActionAudits(h.logs, clickhouse.ActionAuditQuery{
-		PageInfo: common.PageInfo{
+		PageInfo: page.PageInfo{
 			Limit: cr.Limit,
 			Page:  cr.Page,
 		},

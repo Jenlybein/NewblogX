@@ -9,9 +9,9 @@ import (
 
 	"github.com/gin-gonic/gin"
 
-	"myblogx/common/res"
 	"myblogx/internal/media/app"
 	"myblogx/internal/media/domain"
+	"myblogx/internal/platform/http/res"
 )
 
 // Handler 是媒体 HTTP 处理器。

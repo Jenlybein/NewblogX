@@ -8,10 +8,10 @@ import (
 	mediaredis "myblogx/internal/media/adapter/redis"
 	mediaapp "myblogx/internal/media/app"
 	"myblogx/internal/media/domain"
+	"myblogx/internal/platform/http/router"
 	"myblogx/internal/platform/idgen"
 	redis_service "myblogx/internal/platform/redis"
 	"myblogx/internal/platform/storage/qiniu"
-	"myblogx/router"
 )
 
 // WireMedia 装配媒体模块并注入路由处理器。

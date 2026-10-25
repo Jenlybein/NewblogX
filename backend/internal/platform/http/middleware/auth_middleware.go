@@ -3,7 +3,7 @@ package middleware
 import (
 	"context"
 
-	"myblogx/common/res"
+	"myblogx/internal/platform/http/res"
 	"myblogx/utils/jwts"
 
 	"github.com/gin-gonic/gin"

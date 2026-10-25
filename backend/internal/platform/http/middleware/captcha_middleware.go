@@ -1,7 +1,7 @@
 package middleware
 
 import (
-	"myblogx/common/res"
+	"myblogx/internal/platform/http/res"
 	"myblogx/utils/io_util"
 
 	"github.com/gin-gonic/gin"

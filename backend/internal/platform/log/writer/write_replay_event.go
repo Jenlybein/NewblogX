@@ -37,7 +37,7 @@ type ReplayEventInput struct {
 	TargetKey    string
 	RetryCount   int
 	Result       string
-	Extra        map[string]any
+	Extra        map[string]string
 }
 
 func EmitReplayEvent(deps Options, input ReplayEventInput) {

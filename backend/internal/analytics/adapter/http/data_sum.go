@@ -3,8 +3,8 @@ package http
 import (
 	"time"
 
-	"myblogx/common/res"
 	"myblogx/internal/analytics/adapter/clickhouse"
+	"myblogx/internal/platform/http/res"
 
 	"github.com/gin-gonic/gin"
 )

@@ -12,12 +12,12 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/gorilla/websocket"
 
-	"myblogx/common/res"
 	"myblogx/internal/apperr"
 	"myblogx/internal/chat/app"
 	"myblogx/internal/chat/domain"
 	"myblogx/internal/kernel/ctype"
 	"myblogx/internal/platform/http/middleware"
+	"myblogx/internal/platform/http/res"
 	"myblogx/internal/platform/http/ws"
 	"myblogx/internal/platform/safego"
 	"myblogx/utils/jwts"

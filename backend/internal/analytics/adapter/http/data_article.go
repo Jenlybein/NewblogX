@@ -1,7 +1,7 @@
 package http
 
 import (
-	"myblogx/common/res"
+	"myblogx/internal/platform/http/res"
 	"time"
 
 	"github.com/gin-gonic/gin"

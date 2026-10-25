@@ -15,10 +15,10 @@ import (
 	"myblogx/internal/kernel/ctype"
 	"myblogx/internal/kernel/enum"
 	mediamysql "myblogx/internal/media/adapter/mysql"
+	"myblogx/internal/platform/http/router"
 	"myblogx/internal/platform/idgen"
 	redis_service "myblogx/internal/platform/redis"
 	usermysql "myblogx/internal/user/adapter/mysql"
-	"myblogx/router"
 	"myblogx/utils/jwts"
 )
 

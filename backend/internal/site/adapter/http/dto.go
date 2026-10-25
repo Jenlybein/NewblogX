@@ -3,9 +3,9 @@ package http
 import (
 	"time"
 
-	"myblogx/common/res"
 	"myblogx/internal/kernel/ctype"
 	"myblogx/internal/platform/http/middleware"
+	"myblogx/internal/platform/http/res"
 
 	"github.com/gin-gonic/gin"
 )

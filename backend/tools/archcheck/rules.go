@@ -369,19 +369,26 @@ func hasChinese(s string) bool {
 // base 返回路径最后一段（便于测试）。
 func base(p string) string { return path.Base(p) }
 
-// ── R9：日志审计输入禁止 any（L.10 闸门）────────────────────────
+// ── R9：日志输入的类型约束（L.9 / L.10 闸门）────────────────────
 //
 // 老毛病：审计 body 曾用 `any` 接收任意结构体，进而在请求路径上反射整棵树，
 // 是内存/CPU 尖刺的根源（见 docs/architecture/07 §1.2）。
 // 现在 body 只接受边界采集好的 []byte；这里从类型上堵死回归。
 //
-// 只检查名字以 AuditInput / AuditEvent 结尾的结构体（及 GinAuditInput），
-// 不误伤业务结构体里的普通 any。
+// 三条约束，都作用在"日志输入结构体"（名字以 Input / Event 结尾）上：
+//
+//  1. **禁 any** —— any 意味着字段形状由调用方决定，日志列的结构随调用点漂移，
+//     而 ClickHouse 那边是按列存的：漂移只会表现为"某字段有时有、有时没有"。
+//  2. **禁同包自定义类型** —— 日志要的是可枚举的标量集合。
+//     塞一个业务 struct 进来，等于把业务模型的字段变更直接变成日志 schema 变更，
+//     还会顺着指针把整棵对象图带进序列化。
+//  3. **Extra 必须是 map[string]string** —— 值类型一旦开放成 any，
+//     上面两条约束就从这个最常用的扩展点漏光了。
 func ruleLogNoAny() Rule {
 	return Rule{
 		ID:    "R9",
 		Slug:  "log-no-any",
-		Title: "日志审计输入禁 any / 禁结构体",
+		Title: "日志输入禁 any / 禁同包类型 / Extra 必须 map[string]string",
 		Level: "error",
 		Check: func(fset *token.FileSet, file *ast.File, rel string) []Violation {
 			if !isLogLayer(rel) {
@@ -390,13 +397,7 @@ func ruleLogNoAny() Rule {
 			var out []Violation
 			ast.Inspect(file, func(n ast.Node) bool {
 				ts, ok := n.(*ast.TypeSpec)
-				if !ok {
-					return true
-				}
-				name := ts.Name.Name
-				if !strings.HasSuffix(name, "AuditInput") &&
-					!strings.HasSuffix(name, "AuditEvent") &&
-					name != "GinAuditInput" {
+				if !ok || !isLogInputType(ts.Name.Name) {
 					return true
 				}
 				st, ok := ts.Type.(*ast.StructType)
@@ -404,10 +405,32 @@ func ruleLogNoAny() Rule {
 					return true
 				}
 				for _, f := range st.Fields.List {
+					line := fset.Position(f.Pos()).Line
+
+					// 具名字段才检查（匿名嵌入无从判断用途）。
+					if len(f.Names) > 0 {
+						for _, nm := range f.Names {
+							if isExtraMapField(nm.Name, f.Type) && !isStringMapType(f.Type) {
+								out = append(out, Violation{
+									Rule: "R9", File: rel, Line: line,
+									Msg: fmt.Sprintf("%s.%s 必须声明为 map[string]string（值不许是 any：会从最常用的扩展点漏掉类型约束）", ts.Name.Name, nm.Name),
+								})
+							}
+						}
+					}
+
 					if isAnyType(f.Type) {
 						out = append(out, Violation{
-							Rule: "R9", File: rel, Line: fset.Position(f.Pos()).Line,
-							Msg: fmt.Sprintf("%s 的字段不应为 any（改用受控类型，如 []byte / string）", name),
+							Rule: "R9", File: rel, Line: line,
+							Msg: fmt.Sprintf("%s 的字段不应为 any（改用受控类型，如 []byte / string）", ts.Name.Name),
+						})
+						continue
+					}
+
+					if name, bad := localStructField(f.Type); bad {
+						out = append(out, Violation{
+							Rule: "R9", File: rel, Line: line,
+							Msg: fmt.Sprintf("%s 的字段类型 %s 是同包自定义类型（日志字段只能是可枚举的标量，否则日志 schema 会跟着业务模型漂移）", ts.Name.Name, name),
 						})
 					}
 				}
@@ -416,6 +439,66 @@ func ruleLogNoAny() Rule {
 			return out
 		},
 	}
+}
+
+// isLogInputType 判断是不是"日志输入结构体"。
+//
+// 只认 Input 后缀：ActionAuditInput、CdcEventInput、LoginEventInput、
+// ReplayEventInput、GinAuditInput 全部命中。用后缀而不是逐个列举，
+// 是因为新增一类日志（比如性能日志）时不该还要回来改规则才受约束。
+//
+// 为什么**不**把 Event 也算进来：internal/platform/log 里的 Event 是
+// emitter 内部的事件对象（Base + Field 两个自定义类型的组合），
+// 它正是"把结构化字段收成类型"的载体，套用"禁自定义类型"会自相矛盾。
+func isLogInputType(name string) bool {
+	return strings.HasSuffix(name, "Input")
+}
+
+// isExtraMapField 判断字段是不是"以映射形式承载扩展字段"。
+//
+// 只对映射类型生效：ExtraJSON 是**已序列化**的 string 结果
+// （Extra 先 marshal 再存进去），它不是扩展点本身，不该要求它是 map。
+// 判据写成"是映射 + 名字含 extra"，正好把这两类分开。
+func isExtraMapField(name string, expr ast.Expr) bool {
+	if !strings.Contains(strings.ToLower(name), "extra") {
+		return false
+	}
+	_, ok := expr.(*ast.MapType)
+	return ok
+}
+
+// isStringMapType 判断类型表达式是否是 map[string]string。
+func isStringMapType(expr ast.Expr) bool {
+	mt, ok := expr.(*ast.MapType)
+	if !ok {
+		return false
+	}
+	key, ok1 := mt.Key.(*ast.Ident)
+	val, ok2 := mt.Value.(*ast.Ident)
+	return ok1 && ok2 && key.Name == "string" && val.Name == "string"
+}
+
+// localStructField 判断字段类型是不是"同包自定义类型"。
+//
+// 判据：裸标识符且首字母大写。基本类型（string/int/bool/byte）与预声明标识符都是小写；
+// 跨包类型一定是 SelectorExpr（pkg.Type，如 ctype.ID、enum.LoginType），不会被误判。
+// 指针/切片/映射先剥一层再看元素类型。
+func localStructField(expr ast.Expr) (string, bool) {
+	switch t := expr.(type) {
+	case *ast.Ident:
+		if t.Name == "" {
+			return "", false
+		}
+		r := rune(t.Name[0])
+		if r >= 'A' && r <= 'Z' {
+			return t.Name, true
+		}
+	case *ast.StarExpr:
+		return localStructField(t.X)
+	case *ast.ArrayType:
+		return localStructField(t.Elt)
+	}
+	return "", false
 }
 
 // isAnyType 判断类型表达式是否是裸 any / interface{}。

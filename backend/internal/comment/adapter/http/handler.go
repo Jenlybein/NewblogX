@@ -4,9 +4,9 @@ package http
 import (
 	"github.com/gin-gonic/gin"
 
-	"myblogx/common/res"
 	"myblogx/internal/comment/app"
 	"myblogx/internal/comment/domain"
+	"myblogx/internal/platform/http/res"
 	"myblogx/utils/jwts"
 )
 

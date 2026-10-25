@@ -7,11 +7,11 @@ import (
 
 	"github.com/gin-gonic/gin"
 
-	"myblogx/common/res"
 	"myblogx/conf"
 	"myblogx/internal/apperr"
 	"myblogx/internal/kernel/ctype"
 	"myblogx/internal/platform/http/middleware"
+	"myblogx/internal/platform/http/res"
 	"myblogx/internal/site/app"
 	"myblogx/internal/site/domain"
 )

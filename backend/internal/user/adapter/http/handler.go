@@ -7,8 +7,8 @@ package http
 import (
 	"github.com/gin-gonic/gin"
 
-	"myblogx/common/res"
 	"myblogx/internal/apperr"
+	"myblogx/internal/platform/http/res"
 	"myblogx/internal/user/app"
 	"myblogx/internal/user/domain"
 	"myblogx/utils/jwts"

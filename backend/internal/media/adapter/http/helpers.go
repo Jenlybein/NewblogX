@@ -5,8 +5,8 @@ import (
 
 	"github.com/gin-gonic/gin"
 
-	"myblogx/common/res"
 	"myblogx/internal/apperr"
+	"myblogx/internal/platform/http/res"
 	"myblogx/utils/jwts"
 )
 

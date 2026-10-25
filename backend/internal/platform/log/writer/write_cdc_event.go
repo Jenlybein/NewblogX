@@ -37,7 +37,7 @@ type CdcEventInput struct {
 	TargetKey    string
 	RetryCount   int
 	Result       string
-	Extra        map[string]any
+	Extra        map[string]string
 }
 
 func EmitCDCEvent(deps Options, input CdcEventInput) {

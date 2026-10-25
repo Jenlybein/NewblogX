@@ -7,10 +7,10 @@ import (
 	"myblogx/internal/apperr"
 	mediamysql "myblogx/internal/media/adapter/mysql"
 	sitecfg "myblogx/internal/platform/config"
+	"myblogx/internal/platform/http/router"
 	sitehttp "myblogx/internal/site/adapter/http"
 	sitemysql "myblogx/internal/site/adapter/mysql"
 	siteapp "myblogx/internal/site/app"
-	"myblogx/router"
 
 	"gorm.io/gorm"
 )

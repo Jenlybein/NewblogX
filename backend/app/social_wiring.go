@@ -3,13 +3,13 @@ package app
 import (
 	"context"
 
+	"myblogx/internal/platform/http/router"
 	"myblogx/internal/platform/readmodel"
 	socialhttp "myblogx/internal/social/adapter/http"
 	socialmysql "myblogx/internal/social/adapter/mysql"
 	socialapp "myblogx/internal/social/app"
 	"myblogx/internal/social/domain"
 	usermysql "myblogx/internal/user/adapter/mysql"
-	"myblogx/router"
 
 	"gorm.io/gorm"
 )

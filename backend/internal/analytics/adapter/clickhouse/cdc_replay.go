@@ -6,8 +6,8 @@ import (
 	"strings"
 	"time"
 
-	"myblogx/common"
 	"myblogx/internal/kernel/ctype"
+	"myblogx/internal/kernel/page"
 )
 
 // CdcEventRecord 对应 CDC 执行日志列表与详情接口返回的单条记录。
@@ -62,7 +62,7 @@ type ReplayEventRecord struct {
 
 // CdcEventQuery 定义 CDC 执行日志查询条件。
 type CdcEventQuery struct {
-	common.PageInfo
+	page.PageInfo
 	LogTimeRange
 	Service         string
 	Level           string
@@ -85,7 +85,7 @@ type CdcEventQuery struct {
 
 // ReplayEventQuery 定义回放日志查询条件。
 type ReplayEventQuery struct {
-	common.PageInfo
+	page.PageInfo
 	LogTimeRange
 	Service         string
 	Level           string

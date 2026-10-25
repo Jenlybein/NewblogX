@@ -36,18 +36,18 @@ type ActionAuditInput struct {
 	ParentSpanID string
 	ErrorCode    string
 	ErrorMessage string
-	UserID       ctype.ID       // 操作用户ID
-	IP           string         // 操作IP地址
-	Method       string         // HTTP请求方法
-	Path         string         // HTTP请求路径
-	StatusCode   int            // HTTP响应状态码
-	ActionName   string         // 操作名称
-	TargetType   string         // 操作目标类型
-	TargetID     string         // 操作目标ID
-	Success      bool           // 操作是否成功
-	RequestBody  []byte         // 已脱敏+≤16KB 的请求体 JSON；仅失败时填充
-	ResponseBody []byte         // 已脱敏+≤16KB 的响应体 JSON；仅失败时填充
-	Extra        map[string]any // 扩展自定义字段
+	UserID       ctype.ID          // 操作用户ID
+	IP           string            // 操作IP地址
+	Method       string            // HTTP请求方法
+	Path         string            // HTTP请求路径
+	StatusCode   int               // HTTP响应状态码
+	ActionName   string            // 操作名称
+	TargetType   string            // 操作目标类型
+	TargetID     string            // 操作目标ID
+	Success      bool              // 操作是否成功
+	RequestBody  []byte            // 已脱敏+≤16KB 的请求体 JSON；仅失败时填充
+	ResponseBody []byte            // 已脱敏+≤16KB 的响应体 JSON；仅失败时填充
+	Extra        map[string]string // 扩展自定义字段（值必须是字符串：见 L.9 / R9）
 }
 
 // EmitActionAudit 写入一条操作审计日志，并自动补齐基础字段与默认级别。

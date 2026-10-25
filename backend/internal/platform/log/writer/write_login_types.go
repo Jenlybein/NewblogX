@@ -32,5 +32,5 @@ type LoginEventInput struct {
 	SpanID       string
 	ParentSpanID string
 	ErrorCode    string
-	Extra        map[string]any
+	Extra        map[string]string
 }

@@ -13,7 +13,7 @@ package captcha
 import (
 	"image/color"
 
-	"myblogx/common/res"
+	"myblogx/internal/platform/http/res"
 
 	"github.com/gin-gonic/gin"
 	"github.com/mojocn/base64Captcha"

@@ -6,10 +6,9 @@ import (
 	"log/slog"
 	"runtime"
 	"strings"
+	"time"
 
 	"github.com/sirupsen/logrus"
-
-	"myblogx/utils/logsafe"
 )
 
 // NewLogAdapter 把 logrus 适配成 canal 需要的 *slog.Logger。
@@ -30,10 +29,7 @@ func (h *simpleLogrusHandler) Handle(_ context.Context, r slog.Record) error {
 	entry := h.logger.WithFields(logrus.Fields{})
 
 	r.Attrs(func(a slog.Attr) bool {
-		key, value, ok := logsafe.SlogAttrToField(a)
-		if ok {
-			entry = entry.WithField(key, value)
-		}
+		entry = appendAttr(entry, "", a)
 		return true
 	})
 
@@ -63,6 +59,59 @@ func (h *simpleLogrusHandler) Handle(_ context.Context, r slog.Record) error {
 func (h *simpleLogrusHandler) WithAttrs([]slog.Attr) slog.Handler       { return h }
 func (h *simpleLogrusHandler) WithGroup(string) slog.Handler            { return h }
 func (h *simpleLogrusHandler) Enabled(context.Context, slog.Level) bool { return true }
+
+// appendAttr 把一个 slog 属性挂到 logrus entry 上，返回新的 entry。
+//
+// # 为什么不用反射
+//
+// 原来这里调 utils/logsafe.SlogAttrToField，它内部有一整套 reflect 实现
+// （把任意值转成 JSON 友好结构）。两个问题：
+//
+//  1. **它只为这一个调用点存在** —— 那套 reflect 逻辑（map/slice/pointer 递归、
+//     json 往返兜底）是为"任意输入"准备的，而 canal 的实际输入永远是基本类型或字符串。
+//  2. **反射路径会把异常藏起来**：转不了的值被换成 `%T` 文本，
+//     日志里出现 `*sync.Mutex` 这种字段，比直接打印值更难查。
+//
+// 现在默认分支直接交给 logrus：它的 formatter 对不可序列化的值走 fmt，
+// 输出默认表示，既不会 panic 也不会假装成功。
+func appendAttr(entry *logrus.Entry, prefix string, a slog.Attr) *logrus.Entry {
+	// 空键 + 空值是 slog 标记"无效属性"的方式，直接丢。
+	if a.Key == "" && a.Value.Kind() == slog.KindAny && a.Value.Any() == nil {
+		return entry
+	}
+
+	key := a.Key
+	if prefix != "" {
+		key = prefix + "." + a.Key
+	}
+
+	v := a.Value.Resolve()
+	switch v.Kind() {
+	case slog.KindString:
+		return entry.WithField(key, v.String())
+	case slog.KindInt64:
+		return entry.WithField(key, v.Int64())
+	case slog.KindUint64:
+		return entry.WithField(key, v.Uint64())
+	case slog.KindFloat64:
+		return entry.WithField(key, v.Float64())
+	case slog.KindBool:
+		return entry.WithField(key, v.Bool())
+	case slog.KindDuration:
+		return entry.WithField(key, v.Duration().String())
+	case slog.KindTime:
+		return entry.WithField(key, v.Time().Format(time.RFC3339Nano))
+	case slog.KindGroup:
+		// 展开成 "父.子" 扁平键，而不是塞一个嵌套 map：
+		// logrus 单行输出里嵌套 map 会变成一坨 %v，没法 grep。
+		for _, sub := range v.Group() {
+			entry = appendAttr(entry, key, sub)
+		}
+		return entry
+	default:
+		return entry.WithField(key, v.Any())
+	}
+}
 
 // withCallSite 在消息前加上 [文件名:行号 函数名]，便于在 logrus 单行输出里定位来源。
 func withCallSite(r slog.Record) string {

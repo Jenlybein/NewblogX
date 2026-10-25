@@ -8,12 +8,12 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/sirupsen/logrus"
 
-	"myblogx/common/res"
 	"myblogx/internal/article/app"
 	"myblogx/internal/article/domain"
 	"myblogx/internal/kernel/ctype"
 	sitecfg "myblogx/internal/platform/config"
 	"myblogx/internal/platform/http/middleware"
+	"myblogx/internal/platform/http/res"
 	"myblogx/utils/markdown"
 )
 

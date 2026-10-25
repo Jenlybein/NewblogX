@@ -7,7 +7,7 @@ import (
 	"github.com/mojocn/base64Captcha"
 
 	"myblogx/internal/platform/http/middleware"
-	"myblogx/router"
+	"myblogx/internal/platform/http/router"
 )
 
 // WireHTTP 集中组装 HTTP handler 与 router。

@@ -4,18 +4,18 @@ import (
 	"database/sql"
 	"strings"
 
-	"myblogx/common"
-	"myblogx/common/res"
 	"myblogx/internal/analytics/adapter/clickhouse"
 	"myblogx/internal/analytics/domain"
 	"myblogx/internal/kernel/ctype"
+	"myblogx/internal/kernel/page"
 	"myblogx/internal/platform/http/middleware"
+	"myblogx/internal/platform/http/res"
 
 	"github.com/gin-gonic/gin"
 )
 
 type CdcEventListRequest struct {
-	common.PageInfo
+	page.PageInfo
 	StartAt         string `form:"start_at"`
 	EndAt           string `form:"end_at"`
 	Service         string `form:"service"`
@@ -38,7 +38,7 @@ type CdcEventListRequest struct {
 }
 
 type ReplayEventListRequest struct {
-	common.PageInfo
+	page.PageInfo
 	StartAt         string `form:"start_at"`
 	EndAt           string `form:"end_at"`
 	Service         string `form:"service"`
@@ -129,7 +129,7 @@ type ChainQueryResponse struct {
 func (h *Handler) CdcEventListView(c *gin.Context) {
 	cr := middleware.GetBindQuery[CdcEventListRequest](c)
 	list, count, err := clickhouse.ListCdcEvents(h.logs, clickhouse.CdcEventQuery{
-		PageInfo: common.PageInfo{
+		PageInfo: page.PageInfo{
 			Limit: cr.Limit,
 			Page:  cr.Page,
 		},
@@ -215,7 +215,7 @@ func (h *Handler) CdcEventDetailView(c *gin.Context) {
 func (h *Handler) ReplayEventListView(c *gin.Context) {
 	cr := middleware.GetBindQuery[ReplayEventListRequest](c)
 	list, count, err := clickhouse.ListReplayEvents(h.logs, clickhouse.ReplayEventQuery{
-		PageInfo: common.PageInfo{
+		PageInfo: page.PageInfo{
 			Limit: cr.Limit,
 			Page:  cr.Page,
 		},
@@ -304,7 +304,7 @@ func (h *Handler) ChainQueryView(c *gin.Context) {
 	}
 
 	opts := h.logs
-	page := common.PageInfo{Limit: limit, Page: 1}
+	page := page.PageInfo{Limit: limit, Page: 1}
 	timeRange := clickhouse.LogTimeRange{StartAt: cr.StartAt, EndAt: cr.EndAt}
 
 	runtimeLogs, _, err := clickhouse.ListRuntimeLogs(opts, clickhouse.RuntimeLogQuery{

@@ -1,8 +1,6 @@
 package writer
 
 import (
-	"myblogx/internal/kernel/ctype"
-	"myblogx/internal/platform/idgen"
 	"os"
 	"strconv"
 	"time"
@@ -51,16 +49,14 @@ type baseEvent struct {
 
 // newBaseEvent 构造一条基础日志事件，并补齐 event_id、时间、环境和实例信息。
 func newBaseEvent(deps Options, logKind, level, message string) baseEvent {
-	eventID, err := idgen.Next()
-	if err != nil {
-		eventID = ctype.ID(time.Now().UnixNano())
-	}
-
+	now := time.Now()
 	host, _ := os.Hostname()
 
 	return baseEvent{
-		EventID:    uint64(eventID),
-		TS:         time.Now().Format(clickhouseTimeLayout),
+		// 不再用雪花 ID：日志不该依赖 idgen.Init 这种额外初始化，
+		// 而"启动阶段出错时最需要日志"。见 event_id.go。
+		EventID:    nextEventID(now, runtimeServerID(deps)),
+		TS:         now.Format(clickhouseTimeLayout),
 		LogKind:    logKind,
 		Service:    ResolveLogApp("", deps.LogConfig.App),
 		Env:        runtimeEnv(deps),

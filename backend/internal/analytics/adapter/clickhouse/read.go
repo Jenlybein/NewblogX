@@ -6,8 +6,8 @@ import (
 	"strings"
 	"time"
 
-	"myblogx/common"
 	"myblogx/internal/kernel/ctype"
+	"myblogx/internal/kernel/page"
 )
 
 // RuntimeLogRecord 对应运行日志列表与详情接口返回的单条记录。
@@ -100,7 +100,7 @@ type LogTimeRange struct {
 
 // RuntimeLogQuery 定义运行日志查询条件。
 type RuntimeLogQuery struct {
-	common.PageInfo
+	page.PageInfo
 	LogTimeRange
 	Service         string
 	Level           string
@@ -121,7 +121,7 @@ type RuntimeLogQuery struct {
 
 // LoginEventQuery 定义登录事件日志查询条件。
 type LoginEventQuery struct {
-	common.PageInfo
+	page.PageInfo
 	LogTimeRange
 	UserID          ctype.ID
 	IP              string
@@ -141,7 +141,7 @@ type LoginEventQuery struct {
 
 // ActionAuditQuery 定义操作审计日志查询条件。
 type ActionAuditQuery struct {
-	common.PageInfo
+	page.PageInfo
 	LogTimeRange
 	UserID          ctype.ID
 	IP              string
@@ -411,7 +411,7 @@ LIMIT 1 BY user_id`, LoginEventLogTableName, strings.Join(placeholders, ",")), a
 }
 
 // normalizeLogPage 统一处理后台日志分页参数和默认限制。
-func normalizeLogPage(opts Options, pageInfo common.PageInfo) (limit int, offset int) {
+func normalizeLogPage(opts Options, pageInfo page.PageInfo) (limit int, offset int) {
 	defaultLimit := 20
 	if opts.LogConfig.QueryDefaultLimit > 0 {
 		defaultLimit = opts.LogConfig.QueryDefaultLimit

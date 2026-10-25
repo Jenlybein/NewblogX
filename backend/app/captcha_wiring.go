@@ -3,7 +3,7 @@ package app
 import (
 	"myblogx/internal/platform/captcha"
 	sitecfg "myblogx/internal/platform/config"
-	"myblogx/router"
+	"myblogx/internal/platform/http/router"
 
 	"github.com/mojocn/base64Captcha"
 )

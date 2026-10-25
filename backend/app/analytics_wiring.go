@@ -9,9 +9,9 @@ import (
 	analyticsmysql "myblogx/internal/analytics/adapter/mysql"
 	"myblogx/internal/analytics/domain"
 	"myblogx/internal/platform/cdc/deadletter"
+	"myblogx/internal/platform/http/router"
 	redis_service "myblogx/internal/platform/redis"
 	"myblogx/internal/platform/redis/redis_site"
-	"myblogx/router"
 
 	"gorm.io/gorm"
 )

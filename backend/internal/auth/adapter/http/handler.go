@@ -10,10 +10,10 @@ import (
 
 	"github.com/gin-gonic/gin"
 
-	"myblogx/common/res"
 	"myblogx/internal/apperr"
 	"myblogx/internal/auth/app"
 	"myblogx/internal/auth/domain"
+	"myblogx/internal/platform/http/res"
 	"myblogx/utils/jwts"
 )
 

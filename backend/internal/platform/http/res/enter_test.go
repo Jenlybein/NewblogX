@@ -1,9 +1,9 @@
-package common_test
+package res_test
 
 import (
 	"encoding/json"
 	"errors"
-	"myblogx/common/res"
+	"myblogx/internal/platform/http/res"
 	"net/http/httptest"
 	"testing"
 
@@ -42,6 +42,20 @@ func TestOkWithData(t *testing.T) {
 	}
 	if body["msg"] == "" {
 		t.Fatal("msg 不应为空")
+	}
+}
+
+func TestOkWithHasMoreList(t *testing.T) {
+	c, w := newGinCtx()
+	res.OkWithHasMoreList([]int{1, 2}, true, c)
+	body := decodeBody(t, w)
+
+	if body["code"].(float64) != float64(res.SuccessCode) {
+		t.Fatalf("code 错误: %v", body["code"])
+	}
+	data := body["data"].(map[string]any)
+	if data["has_more"] != true {
+		t.Fatalf("has_more 错误: %v", data["has_more"])
 	}
 }
 

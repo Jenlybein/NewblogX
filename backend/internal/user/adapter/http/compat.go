@@ -5,7 +5,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 
-	"myblogx/common/res"
+	"myblogx/internal/platform/http/res"
 	"myblogx/internal/user/app"
 	"myblogx/internal/user/domain"
 )

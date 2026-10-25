@@ -21,6 +21,7 @@ import (
 	mediamysql "myblogx/internal/media/adapter/mysql"
 	sitecfg "myblogx/internal/platform/config"
 	"myblogx/internal/platform/http/middleware"
+	"myblogx/internal/platform/http/router"
 	"myblogx/internal/platform/mail"
 	"myblogx/internal/platform/oauth"
 	redis_service "myblogx/internal/platform/redis"
@@ -33,7 +34,6 @@ import (
 	usersec "myblogx/internal/user/adapter/security"
 	userapp "myblogx/internal/user/app"
 	userdomain "myblogx/internal/user/domain"
-	"myblogx/router"
 	"myblogx/utils/jwts"
 	"myblogx/utils/requestmeta"
 

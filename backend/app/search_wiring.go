@@ -6,12 +6,12 @@ import (
 	authapp "myblogx/internal/auth/app"
 	"myblogx/internal/kernel/ctype"
 	"myblogx/internal/kernel/enum"
+	"myblogx/internal/platform/http/router"
 	redis_service "myblogx/internal/platform/redis"
 	searchhttp "myblogx/internal/search/adapter/http"
 	searchmysql "myblogx/internal/search/adapter/mysql"
 	searchredis "myblogx/internal/search/adapter/redis"
 	"myblogx/internal/search/domain"
-	"myblogx/router"
 )
 
 // WireSearch 装配搜索模块并注入路由处理器。

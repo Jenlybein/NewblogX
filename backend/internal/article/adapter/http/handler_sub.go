@@ -4,13 +4,13 @@ import (
 	"github.com/gin-gonic/gin"
 	"myblogx/internal/kernel"
 
-	"myblogx/common/res"
 	"myblogx/internal/article/app"
 	"myblogx/internal/article/domain"
 	"myblogx/internal/article/domain/favorite"
 	"myblogx/internal/article/domain/review"
 	"myblogx/internal/kernel/ctype"
 	"myblogx/internal/platform/http/middleware"
+	"myblogx/internal/platform/http/res"
 )
 
 // ── 分类 ──

@@ -4,12 +4,12 @@ package http
 import (
 	"github.com/gin-gonic/gin"
 
-	"myblogx/common/res"
 	"myblogx/internal/ai/app"
 	"myblogx/internal/ai/diagnose"
 	"myblogx/internal/ai/overwrite"
 	"myblogx/internal/apperr"
 	"myblogx/internal/kernel/ctype"
+	"myblogx/internal/platform/http/res"
 	"myblogx/utils/jwts"
 )
 

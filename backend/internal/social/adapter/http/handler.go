@@ -4,8 +4,8 @@ package http
 import (
 	"github.com/gin-gonic/gin"
 
-	"myblogx/common/res"
 	"myblogx/internal/apperr"
+	"myblogx/internal/platform/http/res"
 	"myblogx/internal/social/app"
 	"myblogx/internal/social/domain"
 	"myblogx/utils/jwts"

@@ -23,7 +23,7 @@ type GinAuditInput struct {
 	TargetType string
 	TargetID   string
 	Success    bool
-	Extra      map[string]any
+	Extra      map[string]string
 }
 
 // EmitActionAuditFromGin 从 Gin 上下文提取请求元信息并写入操作审计日志。
@@ -102,7 +102,7 @@ func EmitActionAuditFromGin(c *gin.Context, input GinAuditInput) {
 }
 
 // EmitLoginEventFromGin 基于 Gin 请求上下文补齐 IP、地域、UA 和 request_id 后记录登录事件。
-func EmitLoginEventFromGin(c *gin.Context, eventName string, loginType enum.LoginType, success bool, username string, userID ctype.ID, reason string, extra map[string]any) {
+func EmitLoginEventFromGin(c *gin.Context, eventName string, loginType enum.LoginType, success bool, username string, userID ctype.ID, reason string, extra map[string]string) {
 	deps := logOptionsFromContext(c)
 	meta := requestmeta.BuildSessionMeta(c)
 

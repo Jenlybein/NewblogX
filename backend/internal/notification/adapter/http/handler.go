@@ -6,11 +6,11 @@ import (
 
 	"github.com/gin-gonic/gin"
 
-	"myblogx/common/res"
 	"myblogx/internal/apperr"
 	"myblogx/internal/kernel/ctype"
 	"myblogx/internal/notification/app"
 	"myblogx/internal/notification/domain"
+	"myblogx/internal/platform/http/res"
 	"myblogx/utils/jwts"
 )
 

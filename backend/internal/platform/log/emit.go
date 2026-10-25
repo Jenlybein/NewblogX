@@ -9,6 +9,16 @@ import (
 	"myblogx/internal/platform/safego"
 )
 
+// MaxEventBytes 是单条日志的字节上限（L.9）。
+//
+// 为什么是硬上限而不是"尽量截断"：日志行是 JSON，截断必然产出非法 JSON，
+// 下游（ClickHouse 的 JSONEachRow、文件采集器）会整条丢弃甚至报错。
+// 所以超限就整条丢弃并计数 —— 丢一条比污染整批安全。
+//
+// 32KB 的依据：审计 body 已限 16KB、调用栈已限 8KB，两条加起来仍留出余量；
+// 真超了说明某处把整个对象图塞进了日志，那是要修的 bug，不是要容忍的常态。
+const MaxEventBytes = 32 << 10
+
 // record 是入队的内部包装，size 在 Emit 时算好，出队时直接扣减预算。
 //
 // line 非空表示调用方已经编码好整行 JSON（表格式日志用这条路径），
@@ -44,6 +54,7 @@ type Emitter struct {
 	written   atomic.Uint64
 	batches   atomic.Uint64
 	writeErrs atomic.Uint64
+	oversized atomic.Uint64
 }
 
 // New 构造并启动写协程。sink 为 nil 时只统计、不输出（用于压测与单测）。
@@ -144,6 +155,12 @@ func (e *Emitter) EmitLine(ctx context.Context, level Level, line []byte) {
 	if !level.enabled(e.opts.Level) {
 		return
 	}
+	if len(line) > MaxEventBytes {
+		// 见 MaxEventBytes：超限整条丢弃，不截断。
+		e.oversized.Add(1)
+		e.dropped.Add(1)
+		return
+	}
 	if ctx != nil {
 		select {
 		case <-ctx.Done():
@@ -177,6 +194,7 @@ type Stats struct {
 	Written       uint64
 	Batches       uint64
 	WriteErrors   uint64
+	Oversized     uint64
 	QueueDepth    int
 	BufferedBytes int64
 }
@@ -192,6 +210,7 @@ func (e *Emitter) Stats() Stats {
 		Written:       e.written.Load(),
 		Batches:       e.batches.Load(),
 		WriteErrors:   e.writeErrs.Load(),
+		Oversized:     e.oversized.Load(),
 		QueueDepth:    len(e.ch),
 		BufferedBytes: e.buffered.Load(),
 	}
@@ -291,20 +310,38 @@ func (e *Emitter) flush(batch []record) {
 			continue
 		}
 		buf = encodeEvent(buf[:0], &batch[i].ev, e.opts.TimeFormat)
+		if len(buf) > MaxEventBytes {
+			// 整条丢弃：截断会产出非法 JSON，比丢一条更糟。
+			lines[i] = nil
+			e.oversized.Add(1)
+			continue
+		}
 		line := make([]byte, len(buf))
 		copy(line, buf)
 		lines[i] = line
+	}
+
+	// 去掉被丢弃的条目，避免把 nil 交给 sink。
+	kept := make([][]byte, 0, len(lines))
+	for _, line := range lines {
+		if line != nil {
+			kept = append(kept, line)
+		}
+	}
+	if len(kept) == 0 {
+		e.batches.Add(1)
+		return
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
 
 	e.batches.Add(1)
-	if err := e.sink.WriteBatch(ctx, lines); err != nil {
+	if err := e.sink.WriteBatch(ctx, kept); err != nil {
 		e.writeErrs.Add(1)
 		return
 	}
-	e.written.Add(uint64(len(lines)))
+	e.written.Add(uint64(len(kept)))
 }
 
 // finish 保证 done 只关一次（正常退出与 panic 退出都会走到）。

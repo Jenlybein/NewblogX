@@ -8,11 +8,11 @@ import (
 	aimysql "myblogx/internal/ai/adapter/mysql"
 	aiapp "myblogx/internal/ai/app"
 	"myblogx/internal/ai/domain"
+	"myblogx/internal/platform/http/router"
 	redis_service "myblogx/internal/platform/redis"
 	searchredis "myblogx/internal/search/adapter/redis"
 	searchapp "myblogx/internal/search/app"
 	searchdomain "myblogx/internal/search/domain"
-	"myblogx/router"
 
 	"github.com/elastic/go-elasticsearch/v7"
 )

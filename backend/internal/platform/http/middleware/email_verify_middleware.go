@@ -1,7 +1,7 @@
 package middleware
 
 import (
-	"myblogx/common/res"
+	"myblogx/internal/platform/http/res"
 	redis_email "myblogx/internal/platform/redis/redis_email"
 	"myblogx/utils/io_util"
 

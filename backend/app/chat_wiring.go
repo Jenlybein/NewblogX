@@ -11,10 +11,10 @@ import (
 	"myblogx/internal/chat/domain"
 	"myblogx/internal/kernel/ctype"
 	"myblogx/internal/kernel/enum"
+	"myblogx/internal/platform/http/router"
 	"myblogx/internal/platform/http/ws"
 	"myblogx/internal/platform/readmodel"
 	redis_service "myblogx/internal/platform/redis"
-	"myblogx/router"
 
 	"gorm.io/gorm"
 )

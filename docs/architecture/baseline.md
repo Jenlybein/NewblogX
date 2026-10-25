@@ -862,3 +862,20 @@ T.4 里 `article`/`comment`/`user` 的 fake 依赖 domain 实体，属依赖顺�
   真实 sqlite），它们直接覆盖新适配器的 SQL。**测试还抓到一个真 bug**：
   `user_conf_models` 没有 `updated_at` 列，写入它会报错。
 - 棘轮 **135 → 116**；`internal/notification/...` 零违规。
+
+## 17. M5 交付记录 · S4.7（site）
+
+**2026-10-25**：`api/site_api` + `api/banner_api` 已删，`site_service` 迁为 `internal/platform/config`；
+`/site` 6 条与 `/banners` 4 条路由改由 `internal/site` 提供。
+
+- `internal/platform/config`：运行时配置服务（原 `service/site_service`）整体搬迁，
+  **这是 middleware 与多个模块装配都依赖的设施**，所以必须放在 platform 而不是业务模块。
+  4 处中文 error 同时改成错误码，模块内 R8 归零。
+- `internal/site/{domain,app,adapter/{mysql,http}}` + `apptest` 内存替身。
+- 公开读：QQ 登录地址、SEO、AI 信息、`/site/site`（含构建版本号）；
+  管理端读：站点配置、AI 配置（密钥用 `******` 遮蔽）；写：按 name 分发到 site / ai。
+- **AI 密钥保留语义**：请求体里密钥等于占位符表示"没改"，沿用当前值。
+- 轮播图：列表（按 show 精确过滤 + 回填封面图片 ID）、创建、更新、批量删除；
+  封面地址由图片 ID 解析，图片不可用时拒绝写入。
+- 审计事件（banner_create / banner_update / banner_remove / site_runtime_update）逐条保留。
+- 棘轮 **116 → 105**；`internal/site/...` 与 `internal/platform/config/...` 零违规。

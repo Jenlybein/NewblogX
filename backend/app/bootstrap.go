@@ -7,11 +7,11 @@ import (
 
 	"myblogx/conf"
 	"myblogx/core"
+	sitecfg "myblogx/internal/platform/config"
 	"myblogx/platform/cachex"
 	"myblogx/platform/dbx"
 	"myblogx/platform/searchx"
 	"myblogx/service/log_service"
-	"myblogx/service/site_service"
 
 	"github.com/elastic/go-elasticsearch/v7"
 	"github.com/go-redis/redis/v8"
@@ -30,7 +30,7 @@ type Infra struct {
 	Redis       *redis.Client
 	ESClient    *elasticsearch.Client
 	ClickHouse  *sql.DB
-	RuntimeSite *site_service.RuntimeConfigService
+	RuntimeSite *sitecfg.RuntimeConfigService
 }
 
 // InitInfra 初始化不依赖业务表的基础设施。

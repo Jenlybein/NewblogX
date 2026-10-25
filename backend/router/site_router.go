@@ -1,27 +1,56 @@
-// 站点路由定义
-
 package router
 
 import (
-	"myblogx/api"
-	"myblogx/api/site_api"
+	sitehttp "myblogx/internal/site/adapter/http"
 	mw "myblogx/middleware"
 
 	"github.com/gin-gonic/gin"
 )
 
-func SiteRouter(r *gin.RouterGroup, appContainer api.Api, runtimeMw mw.Runtime) {
-	Group := r.Group("site")
-	authGroup := Group.Group("", runtimeMw.AuthMiddleware)
+// siteHandler 由 app.WireSite 在启动时注入。
+//
+// 站点配置与轮播图共用一个处理器。
+var siteHandler *sitehttp.Handler
+
+// SetSiteHandler 注入站点处理器。
+func SetSiteHandler(h *sitehttp.Handler) { siteHandler = h }
+
+// mustSiteHandler 取处理器，未注入直接 panic（与 article 一致）。
+func mustSiteHandler() *sitehttp.Handler {
+	if siteHandler == nil {
+		panic("router: 站点处理器未注入（应在 app.WireSite 中调用 SetSiteHandler）")
+	}
+	return siteHandler
+}
+
+// SiteRouter 注册站点配置路由。
+func SiteRouter(r *gin.RouterGroup, runtimeMw mw.Runtime) {
+	app := mustSiteHandler()
+
+	group := r.Group("site")
+	authGroup := group.Group("", runtimeMw.AuthMiddleware)
 	adminGroup := authGroup.Group("", mw.AdminMiddleware)
 
-	app := appContainer.SiteApi
+	// 静态路径必须先于 :name 注册，否则会被通配吃掉。
+	group.GET("qq_url", app.QQLoginURL)
+	group.GET("seo", app.SEO)
+	group.GET("ai_info", app.AIInfo)
+	group.GET(":name", mw.BindUri[sitehttp.SiteInfoRequest], app.PublicInfo)
 
-	Group.GET("qq_url", app.SiteInfoQQView)
-	Group.GET("seo", app.SiteSEOView)
-	Group.GET("ai_info", app.SiteInfoAIView)
-	Group.GET(":name", mw.BindUri[site_api.SiteInfoRequest], app.SiteInfoView)
+	adminGroup.GET("admin/:name", mw.BindUri[sitehttp.SiteInfoRequest], app.AdminInfo)
+	adminGroup.PUT(":name", mw.CaptureLog(mw.ReqBody), mw.BindUri[sitehttp.SiteInfoRequest], app.UpdateConfig)
+}
 
-	adminGroup.GET("admin/:name", mw.BindUri[site_api.SiteInfoRequest], app.SiteInfoAdminView)
-	adminGroup.PUT(":name", mw.CaptureLog(mw.ReqBody), mw.BindUri[site_api.SiteInfoRequest], app.SiteUpdateView)
+// BannerRouter 注册轮播图路由。
+func BannerRouter(r *gin.RouterGroup, runtimeMw mw.Runtime) {
+	app := mustSiteHandler()
+
+	group := r.Group("banners")
+	authGroup := group.Group("", runtimeMw.AuthMiddleware)
+	adminGroup := authGroup.Group("", mw.AdminMiddleware)
+
+	group.GET("", mw.BindQuery[sitehttp.BannerListRequest], app.BannerList)
+	adminGroup.POST("", mw.CaptureLog(mw.ReqBody), mw.BindJson[sitehttp.BannerCreateRequest], app.BannerCreate)
+	adminGroup.PUT(":id", mw.CaptureLog(mw.ReqBody), mw.BindUri[sitehttp.IDRequest], mw.BindJson[sitehttp.BannerCreateRequest], app.BannerUpdate)
+	adminGroup.DELETE("", mw.CaptureLog(mw.ReqBody), mw.BindJson[sitehttp.IDListRequest], app.BannerRemove)
 }

@@ -16,6 +16,7 @@ import (
 	authapp "myblogx/internal/auth/app"
 	authdomain "myblogx/internal/auth/domain"
 	mediamysql "myblogx/internal/media/adapter/mysql"
+	sitecfg "myblogx/internal/platform/config"
 	redis_service "myblogx/internal/platform/redis"
 	"myblogx/internal/platform/redis/redis_email"
 	"myblogx/internal/platform/redis/redis_user"
@@ -34,7 +35,6 @@ import (
 	"myblogx/service/email_service"
 	"myblogx/service/log_service"
 	"myblogx/service/qq_service"
-	"myblogx/service/site_service"
 	"myblogx/service/user_service"
 	"myblogx/utils/jwts"
 	"myblogx/utils/requestmeta"
@@ -347,7 +347,7 @@ func (b qqBridge) Exchange(_ context.Context, code string) (authapp.OAuthUser, e
 
 // policyBridge 实现 authhttp.LoginPolicy。
 type policyBridge struct {
-	site *site_service.RuntimeConfigService
+	site *sitecfg.RuntimeConfigService
 }
 
 // PasswordEnabled 是否启用密码登录。

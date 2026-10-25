@@ -37,10 +37,10 @@ func Run(deps middleware.Deps, app api.Api) (*http.Server, error) {
 	nr := r.Group("/api")
 	nr.Use(mwRuntime.LogMiddleware)
 
-	SiteRouter(nr, app, mwRuntime)
+	SiteRouter(nr, mwRuntime)
 	LogRouter(nr, app, mwRuntime)
 	ImageRouter(nr, mwRuntime)
-	BannerRouter(nr, app, mwRuntime)
+	BannerRouter(nr, mwRuntime)
 	CaptchaRouter(nr, app, mwRuntime)
 	UserRouter(nr, app, mwRuntime)
 	ArticleRouter(nr, mwRuntime)

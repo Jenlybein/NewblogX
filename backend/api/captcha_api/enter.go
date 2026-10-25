@@ -1,13 +1,13 @@
 package captcha_api
 
 import (
-	"myblogx/service/site_service"
+	sitecfg "myblogx/internal/platform/config"
 
 	"github.com/mojocn/base64Captcha"
 )
 
 type Deps struct {
-	RuntimeSite       *site_service.RuntimeConfigService
+	RuntimeSite       *sitecfg.RuntimeConfigService
 	ImageCaptchaStore base64Captcha.Store
 }
 

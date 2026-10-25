@@ -62,6 +62,9 @@ func WireHTTP(infra *Infra, lc *Lifecycle) error {
 	// social 链路：关注关系改由 internal/social 提供。
 	WireSocial(infra)
 
+	// chat 链路：私信改由 internal/chat 提供。
+	WireChat(infra)
+
 	srv, err := router.Run(deps, api.New(deps))
 	if err != nil {
 		return fmt.Errorf("启动 HTTP 服务失败: %w", err)

@@ -1,23 +1,32 @@
 package router
 
 import (
-	"myblogx/api"
-	"myblogx/api/chat_api"
+	chathttp "myblogx/internal/chat/adapter/http"
 	mw "myblogx/middleware"
 
 	"github.com/gin-gonic/gin"
 )
 
-func ChatRouter(r *gin.RouterGroup, appContainer api.Api, runtimeMw mw.Runtime) {
+// chatHandler 由 app.WireChat 在启动时注入。
+var chatHandler *chathttp.Handler
+
+// SetChatHandler 注入私信处理器。
+func SetChatHandler(h *chathttp.Handler) { chatHandler = h }
+
+// ChatRouter 注册私信路由。
+func ChatRouter(r *gin.RouterGroup, runtimeMw mw.Runtime) {
+	if chatHandler == nil {
+		panic("router: 私信处理器未注入（应在 app.WireChat 中调用 SetChatHandler）")
+	}
+	app := chatHandler
+
 	group := r.Group("chat")
 	authGroup := group.Group("", runtimeMw.AuthMiddleware)
-
-	app := appContainer.ChatApi
-	authGroup.GET("sessions", mw.BindQuery[chat_api.ChatSessionListRequest], app.ChatSessionListView)
-	authGroup.DELETE("sessions", mw.BindJson[chat_api.ChatSessionDeleteUserRequest], app.ChatSessionDeleteUserView)
-	authGroup.GET("messages", mw.BindQuery[chat_api.ChatMsgListRequest], app.ChatMsgListView)
-	authGroup.POST("read", mw.BindJson[chat_api.ChatMsgReadUserRequest], app.ChatMsgReadUserView)
-	authGroup.DELETE("messages", mw.BindJson[chat_api.ChatMsgDeleteUserRequest], app.ChatMsgDeleteUserView)
-	authGroup.GET("ws-ticket", app.ChatWsTicketView)
-	group.GET("ws", app.ChatWsView)
+	authGroup.GET("sessions", app.Sessions)
+	authGroup.DELETE("sessions", app.DeleteSessions)
+	authGroup.GET("messages", app.Messages)
+	authGroup.POST("read", app.Read)
+	authGroup.DELETE("messages", app.DeleteMessages)
+	authGroup.GET("ws-ticket", app.WsTicket)
+	group.GET("ws", app.Ws)
 }

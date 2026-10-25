@@ -2,33 +2,37 @@ package res
 
 import (
 	"encoding/json"
-	"myblogx/models/ctype"
-	"myblogx/service/chat_service"
 	"time"
+
+	"myblogx/internal/platform/http/ws"
 
 	"github.com/gorilla/websocket"
 )
 
-func SendConnFailWithMsg(msg string, conn *chat_service.ChatConn, wait time.Duration) error {
+// SendConnFailWithMsg 给单条连接回失败。
+func SendConnFailWithMsg(msg string, conn *ws.Conn, wait time.Duration) error {
 	resp := Response{FailValidCode, nil, msg}
 	byteData, _ := json.Marshal(resp)
 	return conn.WriteMessageTimeout(websocket.TextMessage, byteData, wait)
 }
 
-func SendConnOkWithMsg(msg string, conn *chat_service.ChatConn, wait time.Duration) error {
+// SendConnOkWithMsg 给单条连接回成功消息。
+func SendConnOkWithMsg(msg string, conn *ws.Conn, wait time.Duration) error {
 	resp := Response{SuccessCode, nil, msg}
 	byteData, _ := json.Marshal(resp)
 	return conn.WriteMessageTimeout(websocket.TextMessage, byteData, wait)
 }
 
-func SendConnOkWithData(data any, conn *chat_service.ChatConn, wait time.Duration) error {
+// SendConnOkWithData 给单条连接回成功数据。
+func SendConnOkWithData(data any, conn *ws.Conn, wait time.Duration) error {
 	resp := Response{SuccessCode, data, "成功"}
 	byteData, _ := json.Marshal(resp)
 	return conn.WriteMessageTimeout(websocket.TextMessage, byteData, wait)
 }
 
-func SendWsMsg(data any, store *chat_service.OnlineUserStore, receiverID ctype.ID) int {
+// SendWsMsg 给某个用户所有在线连接推消息；返回成功条数。
+func SendWsMsg(data any, hub *ws.Hub, receiverID uint64) int {
 	resp := Response{SuccessCode, data, "成功"}
 	byteData, _ := json.Marshal(resp)
-	return store.PushToUser(receiverID, websocket.TextMessage, byteData)
+	return hub.Push(receiverID, websocket.TextMessage, byteData)
 }

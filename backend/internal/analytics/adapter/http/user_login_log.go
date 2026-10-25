@@ -1,12 +1,11 @@
-package log_api
+package http
 
 import (
 	"myblogx/common"
 	"myblogx/common/res"
+	"myblogx/internal/analytics/adapter/clickhouse"
 	"myblogx/middleware"
 	"myblogx/models/ctype"
-	"myblogx/models/enum"
-	"myblogx/service/log_service"
 	"myblogx/utils/jwts"
 
 	"github.com/gin-gonic/gin"
@@ -35,12 +34,12 @@ type UserLoginListRequest struct {
 // @Param start_at query string false "开始时间"
 // @Param end_at query string false "结束时间"
 // @Param type query int true "查询类型：1 用户查自己，2 管理员查任意用户"
-// @Success 200 {object} object{code=int,data=object{list=[]log_service.LoginEventRecord,count=int},msg=string}
+// @Success 200 {object} object{code=int,data=object{list=[]clickhouse.LoginEventRecord,count=int},msg=string}
 // @Router /users/login/log [get]
-func (h LogApi) UserLoginLogList(c *gin.Context) {
+func (h *Handler) UserLoginLogList(c *gin.Context) {
 	cr := middleware.GetBindQuery[UserLoginListRequest](c)
 	claims := jwts.MustGetClaimsByGin(c)
-	if claims.Role != enum.RoleAdmin {
+	if !claims.IsAdmin() {
 		res.FailWithMsg("普通角色不可访问日志接口", c)
 		return
 	}
@@ -54,19 +53,19 @@ func (h LogApi) UserLoginLogList(c *gin.Context) {
 			return
 		}
 	}
-	if cr.Type == 2 && claims.Role != enum.RoleAdmin {
+	if cr.Type == 2 && !claims.IsAdmin() {
 		res.FailWithMsg("非管理员用户不能查询其他用户登录日志", c)
 		return
 	}
 
 	eventName := "login_success"
 	success := true
-	list, count, err := log_service.ListLoginEvents(log_service.NewDeps(h.App.Log, h.App.System, h.App.ClickHouseConfig.Enabled, h.App.Logger, h.App.ClickHouse), log_service.LoginEventQuery{
+	list, count, err := clickhouse.ListLoginEvents(h.logs, clickhouse.LoginEventQuery{
 		PageInfo: common.PageInfo{
 			Limit: cr.Limit,
 			Page:  cr.Page,
 		},
-		LogTimeRange: log_service.LogTimeRange{
+		LogTimeRange: clickhouse.LogTimeRange{
 			StartAt: cr.StartAt,
 			EndAt:   cr.EndAt,
 		},

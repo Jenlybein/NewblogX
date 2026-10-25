@@ -1,4 +1,4 @@
-package data_api
+package http
 
 import (
 	"myblogx/common/res"
@@ -14,8 +14,7 @@ import (
 // @Security BearerAuth
 // @Success 200 {object} object{code=int,data=ArticleYearDataResponse,msg=string}
 // @Router /data/article-year [get]
-func (h DataApi) ArticleYearDataView(c *gin.Context) {
-	app := h.App
+func (h *Handler) ArticleYearDataView(c *gin.Context) {
 	var resp ArticleYearDataResponse
 
 	now := time.Now()
@@ -26,9 +25,8 @@ func (h DataApi) ArticleYearDataView(c *gin.Context) {
 	for i := 0; i < 12; i++ {
 		start := rangeStart.AddDate(0, i, 0)
 		end := start.AddDate(0, 1, 0)
-		count, err := countPublishedArticlesBetween(app.DB, start, end)
+		count, err := h.stats.PublishedCountBetween(reqCtx(c), start, end)
 		if err != nil {
-			app.Logger.Errorf("获取年度文章数据失败: %v", err)
 			res.FailWithMsg("获取年度文章数据失败", c)
 			return
 		}

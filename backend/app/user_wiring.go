@@ -8,6 +8,7 @@ import (
 	"github.com/mojocn/base64Captcha"
 	"github.com/sirupsen/logrus"
 
+	analyticsch "myblogx/internal/analytics/adapter/clickhouse"
 	"myblogx/internal/apperr"
 	authhttp "myblogx/internal/auth/adapter/http"
 	authmysql "myblogx/internal/auth/adapter/mysql"
@@ -33,7 +34,6 @@ import (
 	"myblogx/models/enum"
 	"myblogx/router"
 	"myblogx/service/email_service"
-	"myblogx/service/log_service"
 	"myblogx/service/qq_service"
 	"myblogx/service/user_service"
 	"myblogx/utils/jwts"
@@ -89,7 +89,7 @@ func WireUser(infra *Infra) {
 			Relation:  &relationBridge{},
 			HomeView:  &homeViewBridge{deps: user_service.NewDepsWithRedis(cfg.Jwt, cfg.System.Env, infra.DB, infra.Logger, infra.Redis)},
 			Sessions:  sessionRevoker,
-			LastLogin: &lastLoginBridge{deps: log_service.NewDeps(cfg.Log, cfg.System, cfg.ClickHouse.Enabled, infra.Logger, infra.ClickHouse)},
+			LastLogin: &lastLoginBridge{opts: analyticsLogOptions(infra)},
 			Tags:      &tagBridge{db: infra.DB},
 		}),
 	)
@@ -457,7 +457,7 @@ func (b *homeViewBridge) Record(_ context.Context, target, viewer userdomain.Use
 
 // lastLoginBridge 实现 app.LastLoginReader。
 type lastLoginBridge struct {
-	deps log_service.Deps
+	opts analyticsch.Options
 }
 
 // Latest 批量读最后登录信息。
@@ -470,7 +470,7 @@ func (b *lastLoginBridge) Latest(_ context.Context, ids []uint64) (map[uint64]us
 	for _, id := range ids {
 		raw = append(raw, ctype.ID(id))
 	}
-	got, err := log_service.LoadLatestLoginMap(b.deps, raw)
+	got, err := analyticsch.LoadLatestLoginMap(b.opts, raw)
 	if err != nil {
 		return nil, err
 	}

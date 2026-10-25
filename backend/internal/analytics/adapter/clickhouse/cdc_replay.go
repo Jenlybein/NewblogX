@@ -1,4 +1,4 @@
-package log_service
+package clickhouse
 
 import (
 	"context"
@@ -107,7 +107,7 @@ type ReplayEventQuery struct {
 }
 
 // ListCdcEvents 按条件分页查询 CDC 执行日志列表。
-func ListCdcEvents(deps Deps, query CdcEventQuery) ([]CdcEventRecord, int64, error) {
+func ListCdcEvents(opts Options, query CdcEventQuery) ([]CdcEventRecord, int64, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
@@ -115,8 +115,8 @@ func ListCdcEvents(deps Deps, query CdcEventQuery) ([]CdcEventRecord, int64, err
 	if err != nil {
 		return nil, 0, err
 	}
-	limit, offset := normalizeLogPage(deps, query.PageInfo)
-	count, err := queryCount(deps, ctx, fmt.Sprintf("SELECT count() FROM %s %s", CdcEventLogTableName, whereSQL), args...)
+	limit, offset := normalizeLogPage(opts, query.PageInfo)
+	count, err := queryCount(opts, ctx, fmt.Sprintf("SELECT count() FROM %s %s", CdcEventLogTableName, whereSQL), args...)
 	if err != nil {
 		return nil, 0, err
 	}
@@ -127,7 +127,7 @@ FROM %s %s
 ORDER BY ts DESC, event_id DESC
 LIMIT ? OFFSET ?`, CdcEventLogTableName, whereSQL)
 	args = append(args, limit, offset)
-	rows, err := deps.ClickHouse.QueryContext(ctx, sqlText, args...)
+	rows, err := opts.ClickHouse.QueryContext(ctx, sqlText, args...)
 	if err != nil {
 		return nil, 0, err
 	}
@@ -150,11 +150,11 @@ LIMIT ? OFFSET ?`, CdcEventLogTableName, whereSQL)
 }
 
 // GetCdcEvent 按 event_id 查询单条 CDC 执行日志详情。
-func GetCdcEvent(deps Deps, eventID uint64) (*CdcEventRecord, error) {
+func GetCdcEvent(opts Options, eventID uint64) (*CdcEventRecord, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	row := queryRowExists(deps, ctx, fmt.Sprintf(`
+	row := queryRowExists(opts, ctx, fmt.Sprintf(`
 SELECT event_id, toString(ts), service, env, host, instance_id, level, message, request_id, trace_id, event_name, error_code, error_message, cdc_job_id, stream, source_table, action, target_key, retry_count, result, extra_json
 FROM %s WHERE event_id = ? LIMIT 1`, CdcEventLogTableName), eventID)
 	var item CdcEventRecord
@@ -170,7 +170,7 @@ FROM %s WHERE event_id = ? LIMIT 1`, CdcEventLogTableName), eventID)
 }
 
 // ListReplayEvents 按条件分页查询回放日志列表。
-func ListReplayEvents(deps Deps, query ReplayEventQuery) ([]ReplayEventRecord, int64, error) {
+func ListReplayEvents(opts Options, query ReplayEventQuery) ([]ReplayEventRecord, int64, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
@@ -178,8 +178,8 @@ func ListReplayEvents(deps Deps, query ReplayEventQuery) ([]ReplayEventRecord, i
 	if err != nil {
 		return nil, 0, err
 	}
-	limit, offset := normalizeLogPage(deps, query.PageInfo)
-	count, err := queryCount(deps, ctx, fmt.Sprintf("SELECT count() FROM %s %s", ReplayEventLogTableName, whereSQL), args...)
+	limit, offset := normalizeLogPage(opts, query.PageInfo)
+	count, err := queryCount(opts, ctx, fmt.Sprintf("SELECT count() FROM %s %s", ReplayEventLogTableName, whereSQL), args...)
 	if err != nil {
 		return nil, 0, err
 	}
@@ -190,7 +190,7 @@ FROM %s %s
 ORDER BY ts DESC, event_id DESC
 LIMIT ? OFFSET ?`, ReplayEventLogTableName, whereSQL)
 	args = append(args, limit, offset)
-	rows, err := deps.ClickHouse.QueryContext(ctx, sqlText, args...)
+	rows, err := opts.ClickHouse.QueryContext(ctx, sqlText, args...)
 	if err != nil {
 		return nil, 0, err
 	}
@@ -213,11 +213,11 @@ LIMIT ? OFFSET ?`, ReplayEventLogTableName, whereSQL)
 }
 
 // GetReplayEvent 按 event_id 查询单条回放日志详情。
-func GetReplayEvent(deps Deps, eventID uint64) (*ReplayEventRecord, error) {
+func GetReplayEvent(opts Options, eventID uint64) (*ReplayEventRecord, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	row := queryRowExists(deps, ctx, fmt.Sprintf(`
+	row := queryRowExists(opts, ctx, fmt.Sprintf(`
 SELECT event_id, toString(ts), service, env, host, instance_id, level, message, request_id, trace_id, event_name, error_code, error_message, cdc_job_id, stream, source_table, action, target_key, retry_count, result, extra_json
 FROM %s WHERE event_id = ? LIMIT 1`, ReplayEventLogTableName), eventID)
 	var item ReplayEventRecord

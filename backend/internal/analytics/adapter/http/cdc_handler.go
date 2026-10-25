@@ -1,4 +1,4 @@
-package log_api
+package http
 
 import (
 	"database/sql"
@@ -6,11 +6,10 @@ import (
 
 	"myblogx/common"
 	"myblogx/common/res"
-	"myblogx/internal/platform/cdc/deadletter"
+	"myblogx/internal/analytics/adapter/clickhouse"
+	"myblogx/internal/analytics/domain"
 	"myblogx/middleware"
-	"myblogx/models"
 	"myblogx/models/ctype"
-	"myblogx/service/log_service"
 
 	"github.com/gin-gonic/gin"
 )
@@ -91,16 +90,12 @@ type ChainDeadLetterRecord struct {
 }
 
 type ChainQueryResponse struct {
-	RuntimeLogs []log_service.RuntimeLogRecord  `json:"runtime_logs"`
-	LoginLogs   []log_service.LoginEventRecord  `json:"login_logs"`
-	ActionLogs  []log_service.ActionAuditRecord `json:"action_logs"`
-	CdcLogs     []log_service.CdcEventRecord    `json:"cdc_logs"`
-	ReplayLogs  []log_service.ReplayEventRecord `json:"replay_logs"`
-	DLQ         []ChainDeadLetterRecord         `json:"dlq"`
-}
-
-func (h *LogApi) logDeps() log_service.Deps {
-	return log_service.NewDeps(h.App.Log, h.App.System, h.App.ClickHouseConfig.Enabled, h.App.Logger, h.App.ClickHouse)
+	RuntimeLogs []clickhouse.RuntimeLogRecord  `json:"runtime_logs"`
+	LoginLogs   []clickhouse.LoginEventRecord  `json:"login_logs"`
+	ActionLogs  []clickhouse.ActionAuditRecord `json:"action_logs"`
+	CdcLogs     []clickhouse.CdcEventRecord    `json:"cdc_logs"`
+	ReplayLogs  []clickhouse.ReplayEventRecord `json:"replay_logs"`
+	DLQ         []ChainDeadLetterRecord        `json:"dlq"`
 }
 
 // CdcEventListView CDC 执行日志列表（管理员）。
@@ -129,16 +124,16 @@ func (h *LogApi) logDeps() log_service.Deps {
 // @Param error_message query string false "错误信息"
 // @Param event_name query string false "事件名"
 // @Param module query string false "模块"
-// @Success 200 {object} object{code=int,data=object{list=[]log_service.CdcEventRecord,count=int},msg=string}
+// @Success 200 {object} object{code=int,data=object{list=[]clickhouse.CdcEventRecord,count=int},msg=string}
 // @Router /logs/cdc [get]
-func (h *LogApi) CdcEventListView(c *gin.Context) {
+func (h *Handler) CdcEventListView(c *gin.Context) {
 	cr := middleware.GetBindQuery[CdcEventListRequest](c)
-	list, count, err := log_service.ListCdcEvents(h.logDeps(), log_service.CdcEventQuery{
+	list, count, err := clickhouse.ListCdcEvents(h.logs, clickhouse.CdcEventQuery{
 		PageInfo: common.PageInfo{
 			Limit: cr.Limit,
 			Page:  cr.Page,
 		},
-		LogTimeRange: log_service.LogTimeRange{
+		LogTimeRange: clickhouse.LogTimeRange{
 			StartAt: cr.StartAt,
 			EndAt:   cr.EndAt,
 		},
@@ -173,11 +168,11 @@ func (h *LogApi) CdcEventListView(c *gin.Context) {
 // @Produce json
 // @Security BearerAuth
 // @Param id path int true "日志 ID"
-// @Success 200 {object} object{code=int,data=log_service.CdcEventRecord,msg=string}
+// @Success 200 {object} object{code=int,data=clickhouse.CdcEventRecord,msg=string}
 // @Router /logs/cdc/{id} [get]
-func (h *LogApi) CdcEventDetailView(c *gin.Context) {
-	cr := middleware.GetBindUri[models.IDRequest](c)
-	item, err := log_service.GetCdcEvent(h.logDeps(), uint64(cr.ID))
+func (h *Handler) CdcEventDetailView(c *gin.Context) {
+	cr := middleware.GetBindUri[IDRequest](c)
+	item, err := clickhouse.GetCdcEvent(h.logs, uint64(cr.ID))
 	if err != nil {
 		if err == sql.ErrNoRows {
 			res.FailWithMsg("CDC 执行日志不存在", c)
@@ -215,16 +210,16 @@ func (h *LogApi) CdcEventDetailView(c *gin.Context) {
 // @Param error_message query string false "错误信息"
 // @Param event_name query string false "事件名"
 // @Param module query string false "模块"
-// @Success 200 {object} object{code=int,data=object{list=[]log_service.ReplayEventRecord,count=int},msg=string}
+// @Success 200 {object} object{code=int,data=object{list=[]clickhouse.ReplayEventRecord,count=int},msg=string}
 // @Router /logs/replay [get]
-func (h *LogApi) ReplayEventListView(c *gin.Context) {
+func (h *Handler) ReplayEventListView(c *gin.Context) {
 	cr := middleware.GetBindQuery[ReplayEventListRequest](c)
-	list, count, err := log_service.ListReplayEvents(h.logDeps(), log_service.ReplayEventQuery{
+	list, count, err := clickhouse.ListReplayEvents(h.logs, clickhouse.ReplayEventQuery{
 		PageInfo: common.PageInfo{
 			Limit: cr.Limit,
 			Page:  cr.Page,
 		},
-		LogTimeRange: log_service.LogTimeRange{
+		LogTimeRange: clickhouse.LogTimeRange{
 			StartAt: cr.StartAt,
 			EndAt:   cr.EndAt,
 		},
@@ -259,11 +254,11 @@ func (h *LogApi) ReplayEventListView(c *gin.Context) {
 // @Produce json
 // @Security BearerAuth
 // @Param id path int true "日志 ID"
-// @Success 200 {object} object{code=int,data=log_service.ReplayEventRecord,msg=string}
+// @Success 200 {object} object{code=int,data=clickhouse.ReplayEventRecord,msg=string}
 // @Router /logs/replay/{id} [get]
-func (h *LogApi) ReplayEventDetailView(c *gin.Context) {
-	cr := middleware.GetBindUri[models.IDRequest](c)
-	item, err := log_service.GetReplayEvent(h.logDeps(), uint64(cr.ID))
+func (h *Handler) ReplayEventDetailView(c *gin.Context) {
+	cr := middleware.GetBindUri[IDRequest](c)
+	item, err := clickhouse.GetReplayEvent(h.logs, uint64(cr.ID))
 	if err != nil {
 		if err == sql.ErrNoRows {
 			res.FailWithMsg("回放日志不存在", c)
@@ -293,7 +288,7 @@ func (h *LogApi) ReplayEventDetailView(c *gin.Context) {
 // @Param trace_id_prefix query bool false "链路 ID 前缀匹配"
 // @Success 200 {object} object{code=int,data=ChainQueryResponse,msg=string}
 // @Router /logs/chain [get]
-func (h *LogApi) ChainQueryView(c *gin.Context) {
+func (h *Handler) ChainQueryView(c *gin.Context) {
 	cr := middleware.GetBindQuery[ChainQueryRequest](c)
 	if strings.TrimSpace(cr.RequestID) == "" && strings.TrimSpace(cr.TraceID) == "" && strings.TrimSpace(cr.CdcJobID) == "" {
 		res.FailWithMsg("请至少传 request_id、trace_id、cdc_job_id 其中一个", c)
@@ -308,11 +303,11 @@ func (h *LogApi) ChainQueryView(c *gin.Context) {
 		limit = 200
 	}
 
-	deps := h.logDeps()
+	opts := h.logs
 	page := common.PageInfo{Limit: limit, Page: 1}
-	timeRange := log_service.LogTimeRange{StartAt: cr.StartAt, EndAt: cr.EndAt}
+	timeRange := clickhouse.LogTimeRange{StartAt: cr.StartAt, EndAt: cr.EndAt}
 
-	runtimeLogs, _, err := log_service.ListRuntimeLogs(deps, log_service.RuntimeLogQuery{
+	runtimeLogs, _, err := clickhouse.ListRuntimeLogs(opts, clickhouse.RuntimeLogQuery{
 		PageInfo:        page,
 		LogTimeRange:    timeRange,
 		RequestID:       cr.RequestID,
@@ -324,7 +319,7 @@ func (h *LogApi) ChainQueryView(c *gin.Context) {
 		res.FailWithError(err, c)
 		return
 	}
-	loginLogs, _, err := log_service.ListLoginEvents(deps, log_service.LoginEventQuery{
+	loginLogs, _, err := clickhouse.ListLoginEvents(opts, clickhouse.LoginEventQuery{
 		PageInfo:        page,
 		LogTimeRange:    timeRange,
 		RequestID:       cr.RequestID,
@@ -336,7 +331,7 @@ func (h *LogApi) ChainQueryView(c *gin.Context) {
 		res.FailWithError(err, c)
 		return
 	}
-	actionLogs, _, err := log_service.ListActionAudits(deps, log_service.ActionAuditQuery{
+	actionLogs, _, err := clickhouse.ListActionAudits(opts, clickhouse.ActionAuditQuery{
 		PageInfo:        page,
 		LogTimeRange:    timeRange,
 		RequestID:       cr.RequestID,
@@ -349,7 +344,7 @@ func (h *LogApi) ChainQueryView(c *gin.Context) {
 		return
 	}
 
-	cdcLogs, _, err := log_service.ListCdcEvents(deps, log_service.CdcEventQuery{
+	cdcLogs, _, err := clickhouse.ListCdcEvents(opts, clickhouse.CdcEventQuery{
 		PageInfo:        page,
 		LogTimeRange:    timeRange,
 		Stream:          cr.Stream,
@@ -364,7 +359,7 @@ func (h *LogApi) ChainQueryView(c *gin.Context) {
 		res.FailWithError(err, c)
 		return
 	}
-	replayLogs, _, err := log_service.ListReplayEvents(deps, log_service.ReplayEventQuery{
+	replayLogs, _, err := clickhouse.ListReplayEvents(opts, clickhouse.ReplayEventQuery{
 		PageInfo:        page,
 		LogTimeRange:    timeRange,
 		Stream:          cr.Stream,
@@ -399,7 +394,18 @@ func (h *LogApi) ChainQueryView(c *gin.Context) {
 		cdcJobIDs = append(cdcJobIDs, cdcJobID)
 	}
 
-	dlqList, err := deadletter.Query(h.App.DB, deadletter.QueryOption{
+	if h.deadLetters == nil {
+		res.OkWithData(ChainQueryResponse{
+			RuntimeLogs: runtimeLogs,
+			LoginLogs:   loginLogs,
+			ActionLogs:  actionLogs,
+			CdcLogs:     cdcLogs,
+			ReplayLogs:  replayLogs,
+			DLQ:         []ChainDeadLetterRecord{},
+		}, c)
+		return
+	}
+	dlqList, err := h.deadLetters.Query(reqCtx(c), domain.DeadLetterQuery{
 		Stream:         cr.Stream,
 		Status:         cr.Status,
 		CdcJobID:       cr.CdcJobID,
@@ -414,7 +420,7 @@ func (h *LogApi) ChainQueryView(c *gin.Context) {
 	dlq := make([]ChainDeadLetterRecord, 0, len(dlqList))
 	for _, item := range dlqList {
 		dlq = append(dlq, ChainDeadLetterRecord{
-			ID:          item.ID,
+			ID:          ctype.ID(item.ID),
 			Stream:      item.Stream,
 			CdcJobID:    item.CdcJobID,
 			SourceTable: item.SourceTable,

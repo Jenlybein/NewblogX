@@ -899,3 +899,21 @@ T.4 里 `article`/`comment`/`user` 的 fake 依赖 domain 实体，属依赖顺�
 - **技术债**：`api/ai_api` 的 1181 行测试未迁移；新增的 app 层测试覆盖评分可见性、
   作者校验、搜索去重与"AI 未启用不评分"，但 SSE 流式与真实 LLM 调用仍无回归保护。
 - 棘轮 **105 → 83**。
+
+## 19. M5 交付记录 · S4.9（analytics）
+
+**2026-10-25**：`api/data_api`、`api/log_api`、`api/user_api/log_api` 全部删除（`api/` 只剩 `captcha_api`）；
+`/data` 3 条、`/logs` 11 条、`/users/login/log` 改由 `internal/analytics` 提供。
+
+- `internal/analytics/adapter/clickhouse`：原 `log_service` 的三份查询代码
+  （runtime/login/action 三类日志 + CDC/replay + 链路串联）整体搬入，`Deps` 改为 `Options`。
+- `internal/analytics/adapter/mysql`：站点汇总、按区间统计已发布文章、按天统计注册数。
+- `internal/analytics/domain`：`StatsRepository` / `FlowCounter` / `DeadLetterReader` 三个端口。
+- `internal/analytics/adapter/http`：17 个 handler，**请求/响应结构、文案、路由逐字保留**。
+- 访问量仍来自 Redis（`redis_site.GetFlow/GetRecentFlow`），登录数仍来自 ClickHouse；
+  ClickHouse 未启用时登录数按 0 兜底，不影响其它统计。
+- **只切了查询侧**：`service/log_service` 的写入管道（pipeline / write_*）一行未动，
+  它是 M3 建好的端到端日志链，留给 S4.10 归 `platform/log`。
+- 顺手修掉一个越界隐患：访问量缓存为空时，`/data/growth` 取"今天/昨天"会数组越界，
+  现在补 7 天零值骨架。
+- 棘轮 **83 → 69**；`internal/analytics/...` 零违规。

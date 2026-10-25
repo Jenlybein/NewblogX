@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"myblogx/internal/platform/cdc/imageref"
 	"myblogx/internal/platform/cdc/river"
+	"myblogx/internal/platform/safego"
 	"myblogx/service/cron_service"
 	"myblogx/service/log_service"
 )
@@ -25,11 +26,15 @@ func WireRiver(infra *Infra) error {
 	}
 	r.SetLogDeps(log_service.NewDeps(infra.Config.Log, infra.Config.System, infra.Config.ClickHouse.Enabled, infra.Logger, infra.ClickHouse))
 
-	go func() {
+	safego.Go(func(r any, stack []byte) {
+		if infra.Logger != nil {
+			infra.Logger.Errorf("River 运行 panic: %v\n%s", r, stack)
+		}
+	}, func() {
 		if runErr := r.Run(); runErr != nil && infra.Logger != nil {
 			infra.Logger.Errorf("River 运行失败: %v", runErr)
 		}
-	}()
+	})
 	return nil
 }
 
@@ -50,11 +55,15 @@ func WireImageRef(infra *Infra) error {
 	}
 	r.SetLogDeps(log_service.NewDeps(infra.Config.Log, infra.Config.System, infra.Config.ClickHouse.Enabled, infra.Logger, infra.ClickHouse))
 
-	go func() {
+	safego.Go(func(r any, stack []byte) {
+		if infra.Logger != nil {
+			infra.Logger.Errorf("图片引用监听 panic: %v\n%s", r, stack)
+		}
+	}, func() {
 		if runErr := r.Run(); runErr != nil && infra.Logger != nil {
 			infra.Logger.Errorf("图片引用监听运行失败: %v", runErr)
 		}
-	}()
+	})
 	return nil
 }
 

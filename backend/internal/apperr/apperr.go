@@ -212,6 +212,51 @@ const (
 	CodeAIEmptyResponse    Code = "ai.empty_response"
 	CodeAIResultEmpty      Code = "ai.result_empty"
 	CodeAIQuestionRequired Code = "ai.question_required"
+
+	CodeAIServiceOff     Code = "ai.service_off"
+	CodeAISecretMissing  Code = "ai.secret_missing"
+	CodeAIBaseURLMissing Code = "ai.base_url_missing"
+	CodeAIMessageEmpty   Code = "ai.message_empty"
+	CodeAIEncodeFailed   Code = "ai.encode_failed"
+	CodeAIRequestBuild   Code = "ai.request_build"
+	CodeAISendFailed     Code = "ai.send_failed"
+	CodeAIStatusError    Code = "ai.status_error"
+	CodeAIChoicesEmpty   Code = "ai.choices_empty"
+	CodeAIReplyEmpty     Code = "ai.reply_empty"
+)
+
+// 通用工具与基础设施。
+const (
+	CodeCommonInvalidOrder Code = "common.invalid_order"
+	CodeCommonDBRequired   Code = "common.db_required"
+	CodeCdcRuleNotExist    Code = "cdc.rule_not_exist"
+
+	CodeStorageBucketRequired    Code = "storage.bucket_required"
+	CodeStorageObjectKeyRequired Code = "storage.object_key_required"
+	CodeStorageSizeInvalid       Code = "storage.size_invalid"
+	CodeStorageDomainMissing     Code = "storage.domain_missing"
+	CodeStorageImageInfoInvalid  Code = "storage.image_info_invalid"
+
+	CodeAuthTokenExpired    Code = "auth.token_expired"
+	CodeAuthSendTooFrequent Code = "auth.send_too_frequent"
+	CodeAuthRefreshMissing  Code = "auth.refresh_missing"
+
+	CodeUsernameEmpty           Code = "username.empty"
+	CodeUsernameLength          Code = "username.length"
+	CodeUsernameCharset         Code = "username.charset"
+	CodeUsernameUnderscoreCount Code = "username.underscore_count"
+	CodeUsernameUnderscoreEdge  Code = "username.underscore_edge"
+	CodeUsernameSensitive       Code = "username.sensitive"
+
+	CodeJWTTokenEmpty      Code = "jwt.token_empty"
+	CodeJWTSignAlgoInvalid Code = "jwt.sign_algo_invalid"
+	CodeJWTParseFailed     Code = "jwt.parse_failed"
+	CodeJWTTokenInvalid    Code = "jwt.token_invalid"
+	CodeJWTConfigMissing   Code = "jwt.config_missing"
+	CodeJWTConfigType      Code = "jwt.config_type"
+
+	CodeMapsPointerRequired Code = "maps.pointer_required"
+	CodeMapsStructRequired  Code = "maps.struct_required"
 )
 
 // messages 是错误码到中文文案的唯一映射。
@@ -369,6 +414,48 @@ var messages = map[Code]string{
 	CodeAIEmptyResponse:    "AI 返回内容为空",
 	CodeAIResultEmpty:      "文章搜索结果分析为空",
 	CodeAIQuestionRequired: "用户问题不能为空",
+
+	CodeAIServiceOff:     "AI服务未开启",
+	CodeAISecretMissing:  "AI SecretKey 未配置",
+	CodeAIBaseURLMissing: "AI BaseURL 未配置",
+	CodeAIMessageEmpty:   "消息列表不能为空",
+	CodeAIEncodeFailed:   "请求体序列化失败",
+	CodeAIRequestBuild:   "创建请求失败",
+	CodeAISendFailed:     "发送请求失败",
+	CodeAIStatusError:    "请求失败，响应状态码异常",
+	CodeAIChoicesEmpty:   "AI响应无有效Choices数据",
+	CodeAIReplyEmpty:     "AI回复内容为空",
+
+	CodeCommonInvalidOrder: "排序字段错误",
+	CodeCommonDBRequired:   "缺少查询数据库依赖",
+	CodeCdcRuleNotExist:    "规则不存在",
+
+	CodeStorageBucketRequired:    "qiniu: bucket 不能为空",
+	CodeStorageObjectKeyRequired: "qiniu: object key 不能为空",
+	CodeStorageSizeInvalid:       "qiniu: size limit 必须大于 0",
+	CodeStorageDomainMissing:     "qiniu: 下载域名未配置",
+	CodeStorageImageInfoInvalid:  "qiniu: imageInfo 不完整",
+
+	CodeAuthTokenExpired:    "登录已失效，请重新登录",
+	CodeAuthSendTooFrequent: "请求过于频繁，请稍后再试",
+	CodeAuthRefreshMissing:  "刷新令牌不存在，请重新登录",
+
+	CodeUsernameEmpty:           "用户名不能为空",
+	CodeUsernameLength:          "用户名长度必须在6-20个字符之间",
+	CodeUsernameCharset:         "用户名仅支持字母、数字、下划线",
+	CodeUsernameUnderscoreCount: "用户名中下划线数量最多只能有2个",
+	CodeUsernameUnderscoreEdge:  "用户名不能以下划线开头或结尾",
+	CodeUsernameSensitive:       "用户名包含敏感词汇",
+
+	CodeJWTTokenEmpty:      "请登录：token 为空",
+	CodeJWTSignAlgoInvalid: "token 签名算法错误",
+	CodeJWTParseFailed:     "token 解析错误",
+	CodeJWTTokenInvalid:    "token 无效",
+	CodeJWTConfigMissing:   "jwt 配置缺失",
+	CodeJWTConfigType:      "jwt 配置类型错误",
+
+	CodeMapsPointerRequired: "src 和 dest 必须是指针类型",
+	CodeMapsStructRequired:  "src 和 dest 指针必须指向结构体类型",
 }
 
 // Error 是带错误码的应用错误。

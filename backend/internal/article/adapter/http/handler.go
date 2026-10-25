@@ -10,10 +10,10 @@ import (
 	"myblogx/common/res"
 	"myblogx/internal/article/app"
 	"myblogx/internal/article/domain"
+	sitecfg "myblogx/internal/platform/config"
 	"myblogx/middleware"
 	"myblogx/models"
 	"myblogx/models/ctype"
-	sitecfg "myblogx/internal/platform/config"
 	"myblogx/utils/markdown"
 )
 

@@ -13,16 +13,16 @@ TODO:加一个 has_more 的功能
 package common
 
 import (
-	"errors"
 	"fmt"
+	"myblogx/internal/apperr"
 	"myblogx/models/ctype"
 
 	"gorm.io/gorm"
 )
 
 // ErrInvalidOrder 表示前端传入了未授权的排序字段。
-var ErrInvalidOrder = errors.New("排序字段错误")
-var ErrListQueryDBRequired = errors.New("缺少查询数据库依赖")
+var ErrInvalidOrder = apperr.New(apperr.CodeCommonInvalidOrder)
+var ErrListQueryDBRequired = apperr.New(apperr.CodeCommonDBRequired)
 
 // TODO: 添加时间范围筛选支持。
 type PageInfo struct {
@@ -118,7 +118,7 @@ func ListQuery[T any](model T, option Options) (list []T, count int, err error) 
 
 	if option.PageInfo.Order != "" {
 		if option.OrderMap == nil || !option.OrderMap[option.PageInfo.Order] {
-			err = fmt.Errorf("排序字段错误")
+			err = apperr.New(apperr.CodeCommonInvalidOrder)
 			return
 		}
 		listQuery = listQuery.Order(option.PageInfo.Order)

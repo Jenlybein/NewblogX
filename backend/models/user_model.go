@@ -4,6 +4,7 @@ package models
 
 import (
 	"errors"
+	"myblogx/internal/apperr"
 	"myblogx/models/ctype"
 	"myblogx/models/enum"
 	"time"
@@ -94,7 +95,7 @@ func (u *UserModel) ValidateUserStatus() error {
 	case 2, 3:
 		return errors.New(u.Status.String())
 	default:
-		return errors.New("用户状态异常")
+		return apperr.New(apperr.CodeUserStatusInvalid)
 	}
 }
 

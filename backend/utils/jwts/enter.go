@@ -1,8 +1,7 @@
 package jwts
 
 import (
-	"errors"
-	"fmt"
+	"myblogx/internal/apperr"
 	"strings"
 	"time"
 
@@ -62,7 +61,7 @@ func GetToken(config conf.Jwt, claims Claims) (string, error) {
 // 解析 token 的工具函数
 func ParseToken(config conf.Jwt, tokenString string) (*MyClaims, error) {
 	if tokenString == "" {
-		return nil, errors.New("请登录：token 为空")
+		return nil, apperr.New(apperr.CodeJWTTokenEmpty)
 	}
 
 	// 从配置文件中获取 jwt 相关配置
@@ -75,12 +74,12 @@ func ParseToken(config conf.Jwt, tokenString string) (*MyClaims, error) {
 		// 密钥回调函数：返回签名时使用的密钥（必须和生成Token时的Secret一致）
 		if token.Method != Method {
 			// 验证签名算法是否对应得上
-			return nil, fmt.Errorf("token 签名算法错误: %w", jwt.ErrSignatureInvalid)
+			return nil, apperr.Wrap(apperr.CodeJWTSignAlgoInvalid, jwt.ErrSignatureInvalid)
 		}
 		return Secret, nil
 	})
 	if err != nil {
-		return nil, fmt.Errorf("token 解析错误: %w", err)
+		return nil, apperr.Wrap(apperr.CodeJWTParseFailed, err)
 	}
 
 	// 验证Token的有效性，并类型断言提取自定义Claims
@@ -88,7 +87,7 @@ func ParseToken(config conf.Jwt, tokenString string) (*MyClaims, error) {
 		return claims, nil
 	}
 
-	return nil, errors.New("token 无效")
+	return nil, apperr.New(apperr.CodeJWTTokenInvalid)
 }
 
 func GetTokenByGin(c *gin.Context) string {
@@ -109,15 +108,15 @@ func GetTokenByGin(c *gin.Context) string {
 func ParseTokenByGin(c *gin.Context) (*MyClaims, error) {
 	tokenString := GetTokenByGin(c)
 	if c == nil {
-		return nil, errors.New("请登录：token 为空")
+		return nil, apperr.New(apperr.CodeJWTTokenEmpty)
 	}
 	value, ok := c.Get("_jwt_config")
 	if !ok {
-		return nil, errors.New("jwt 配置缺失")
+		return nil, apperr.New(apperr.CodeJWTConfigMissing)
 	}
 	jwtConfig, ok := value.(conf.Jwt)
 	if !ok {
-		return nil, errors.New("jwt 配置类型错误")
+		return nil, apperr.New(apperr.CodeJWTConfigType)
 	}
 	return ParseToken(jwtConfig, tokenString)
 }

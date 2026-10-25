@@ -15,9 +15,9 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"io"
+	"myblogx/internal/apperr"
 	"net"
 	"net/http"
 	"strings"
@@ -151,13 +151,13 @@ func NewClient(cfg Config) *Client {
 // validate 校验基础配置。
 func (c *Client) validate() error {
 	if !c.enable {
-		return errors.New("AI服务未开启")
+		return apperr.New(apperr.CodeAIServiceOff)
 	}
 	if c.apiKey == "" {
-		return errors.New("AI SecretKey 未配置")
+		return apperr.New(apperr.CodeAISecretMissing)
 	}
 	if c.baseURL == "" {
-		return errors.New("AI BaseURL 未配置")
+		return apperr.New(apperr.CodeAIBaseURLMissing)
 	}
 	return nil
 }
@@ -170,14 +170,14 @@ func (c *Client) do(ctx context.Context, payload Request) (*http.Response, error
 
 	body, err := json.Marshal(payload)
 	if err != nil {
-		return nil, fmt.Errorf("请求体序列化失败: %w", err)
+		return nil, apperr.Wrap(apperr.CodeAIEncodeFailed, err)
 	}
 
 	var lastErr error
 	for attempt := 0; attempt <= c.maxRetries; attempt++ {
 		req, err := http.NewRequestWithContext(ctx, http.MethodPost, c.baseURL, bytes.NewReader(body))
 		if err != nil {
-			return nil, fmt.Errorf("创建请求失败: %w", err)
+			return nil, apperr.Wrap(apperr.CodeAIRequestBuild, err)
 		}
 		req.Header.Set("Authorization", "Bearer "+c.apiKey)
 		req.Header.Set("Content-Type", "application/json; charset=utf-8")
@@ -188,7 +188,7 @@ func (c *Client) do(ctx context.Context, payload Request) (*http.Response, error
 			if ctx.Err() != nil {
 				return nil, ctx.Err()
 			}
-			lastErr = fmt.Errorf("发送请求失败: %w", err)
+			lastErr = apperr.Wrap(apperr.CodeAISendFailed, err)
 			if attempt < c.maxRetries {
 				if werr := sleepBackoff(ctx, attempt); werr != nil {
 					return nil, werr
@@ -203,9 +203,9 @@ func (c *Client) do(ctx context.Context, payload Request) (*http.Response, error
 			res.Body.Close()
 			msg := strings.TrimSpace(string(raw))
 			if msg == "" {
-				lastErr = fmt.Errorf("请求失败，响应状态码: %d", res.StatusCode)
+				lastErr = apperr.Wrap(apperr.CodeAIStatusError, fmt.Errorf("status=%d", res.StatusCode))
 			} else {
-				lastErr = fmt.Errorf("请求失败，响应状态码: %d，响应: %s", res.StatusCode, msg)
+				lastErr = apperr.Wrap(apperr.CodeAIStatusError, fmt.Errorf("status=%d body=%s", res.StatusCode, msg))
 			}
 			if attempt < c.maxRetries {
 				if werr := sleepBackoff(ctx, attempt); werr != nil {
@@ -238,7 +238,7 @@ func sleepBackoff(ctx context.Context, attempt int) error {
 // Chat 发送一次非流式对话并返回回复正文。
 func (c *Client) Chat(ctx context.Context, msgList []Message) (string, error) {
 	if len(msgList) == 0 {
-		return "", errors.New("消息列表不能为空")
+		return "", apperr.New(apperr.CodeAIMessageEmpty)
 	}
 
 	res, err := c.do(ctx, Request{Model: c.model, Messages: msgList, Stream: false})
@@ -251,21 +251,21 @@ func (c *Client) Chat(ctx context.Context, msgList []Message) (string, error) {
 		raw, _ := io.ReadAll(res.Body)
 		msg := strings.TrimSpace(string(raw))
 		if msg == "" {
-			return "", fmt.Errorf("请求失败，响应状态码: %d", res.StatusCode)
+			return "", apperr.Wrap(apperr.CodeAIStatusError, fmt.Errorf("status=%d", res.StatusCode))
 		}
-		return "", fmt.Errorf("请求失败，响应状态码: %d，响应: %s", res.StatusCode, msg)
+		return "", apperr.Wrap(apperr.CodeAIStatusError, fmt.Errorf("status=%d body=%s", res.StatusCode, msg))
 	}
 
 	var response ChatCompletion
 	if err := json.NewDecoder(res.Body).Decode(&response); err != nil {
-		return "", fmt.Errorf("解析响应失败: %w", err)
+		return "", apperr.Wrap(apperr.CodeAIJSONInvalid, err)
 	}
 	if len(response.Choices) == 0 {
-		return "", errors.New("AI响应无有效Choices数据")
+		return "", apperr.New(apperr.CodeAIChoicesEmpty)
 	}
 	reply := response.Choices[0].Message.Content
 	if reply == "" {
-		return "", errors.New("AI回复内容为空")
+		return "", apperr.New(apperr.CodeAIReplyEmpty)
 	}
 	return reply, nil
 }
@@ -282,7 +282,7 @@ func (c *Client) ChatStream(ctx context.Context, msgList []Message) (chan string
 		defer close(errChan)
 
 		if len(msgList) == 0 {
-			errChan <- errors.New("消息列表不能为空")
+			errChan <- apperr.New(apperr.CodeAIMessageEmpty)
 			return
 		}
 

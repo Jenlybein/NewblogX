@@ -6,8 +6,8 @@ package qiniu
 
 import (
 	"encoding/json"
-	"errors"
 	"fmt"
+	"myblogx/internal/apperr"
 	"net/http"
 	"strings"
 	"sync"
@@ -92,13 +92,13 @@ func getRuntime(cfg conf.QiNiu) *runtime {
 // Token 生成上传凭证。
 func (s *Storage) Token(p Policy) (Token, error) {
 	if p.Bucket == "" {
-		return Token{}, errors.New("qiniu: bucket 不能为空")
+		return Token{}, apperr.New(apperr.CodeStorageBucketRequired)
 	}
 	if p.ObjectKey == "" {
-		return Token{}, errors.New("qiniu: object key 不能为空")
+		return Token{}, apperr.New(apperr.CodeStorageObjectKeyRequired)
 	}
 	if p.MaxSize <= 0 {
-		return Token{}, errors.New("qiniu: size limit 必须大于 0")
+		return Token{}, apperr.New(apperr.CodeStorageSizeInvalid)
 	}
 
 	putPolicy := storage.PutPolicy{
@@ -148,7 +148,7 @@ func (s *Storage) Delete(bucket, key string) error {
 func (s *Storage) ImageInfo(key string) (ImageInfo, error) {
 	domain := strings.TrimRight(strings.TrimSpace(s.cfg.Uri), "/")
 	if domain == "" {
-		return ImageInfo{}, errors.New("qiniu: 下载域名未配置")
+		return ImageInfo{}, apperr.New(apperr.CodeStorageDomainMissing)
 	}
 
 	deadline := time.Now().Add(3 * time.Minute).Unix()
@@ -165,7 +165,7 @@ func (s *Storage) ImageInfo(key string) (ImageInfo, error) {
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
-		return ImageInfo{}, fmt.Errorf("qiniu: imageInfo 状态码 %d", resp.StatusCode)
+		return ImageInfo{}, apperr.Wrap(apperr.CodeStorageImageInfoInvalid, fmt.Errorf("qiniu: imageInfo status=%d", resp.StatusCode))
 	}
 
 	var result ImageInfo
@@ -173,7 +173,7 @@ func (s *Storage) ImageInfo(key string) (ImageInfo, error) {
 		return ImageInfo{}, err
 	}
 	if result.Format == "" || result.Width <= 0 || result.Height <= 0 {
-		return ImageInfo{}, errors.New("qiniu: imageInfo 不完整")
+		return ImageInfo{}, apperr.New(apperr.CodeStorageImageInfoInvalid)
 	}
 	return result, nil
 }

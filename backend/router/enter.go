@@ -4,6 +4,7 @@ package router
 
 import (
 	"errors"
+	"myblogx/internal/platform/safego"
 	"net"
 	"net/http"
 
@@ -62,12 +63,16 @@ func Run(deps middleware.Deps, app api.Api) (*http.Server, error) {
 		Addr:    ln.Addr().String(),
 		Handler: r,
 	}
-	go func() {
+	safego.Go(func(recovered any, stack []byte) {
+		if deps.Logger != nil {
+			deps.Logger.Errorf("HTTP 服务 panic: %v\n%s", recovered, stack)
+		}
+	}, func() {
 		if err := srv.Serve(ln); err != nil && !errors.Is(err, http.ErrServerClosed) {
 			if deps.Logger != nil {
 				deps.Logger.Errorf("HTTP 服务异常退出: %v", err)
 			}
 		}
-	}()
+	})
 	return srv, nil
 }

@@ -1,4 +1,4 @@
-package read_repo
+package readmodel
 
 import (
 	"myblogx/models"

@@ -940,3 +940,29 @@ T.4 里 `article`/`comment`/`user` 的 fake 依赖 domain 实体，属依赖顺�
 - **R10 17 处**（article 模块 import models）：M4 时期的遗留，需要把 `models.ArticleModel`
   等 row 结构与 `models/enum` 常量复制进 `internal/article/adapter/{mysql,http}`，
   是纯体力但要逐字段核对，风险在"漏一个列名就静默写错"。
+
+## 21. M5 交付记录 · S4.10b（R10 清零，棘轮 27 → 10）
+
+**2026-10-25**：`internal/article/adapter/{http,mysql}` 不再 import `myblogx/models`。
+
+- `adapter/http`：新增 `enums.go`，复制 `ArticleStatus` / `ArticleVisibility` /
+  `ReviewTask{Status,Stage,Source}` 五个枚举（取值与库、与 domain 三者一致）；
+  `models.IDRequest`/`IDListRequest` 换成 `kernel.IDRequest`/`IDListRequest`。
+- `adapter/mysql`：新增 `rows.go`，复制 12 个行结构（article / article_tag / article_digg /
+  comment / user / favorite / user_article_favor / user_top_article /
+  user_article_view_history / review_task / category / tag / outbox），
+  含 `TableName()`、`BaseRow.BeforeCreate`（雪花主键）与状态常量。
+
+**集成测试暴露的两个真问题（都已修）**：
+1. **内嵌行结构必须导出**。`baseRow` 用小写时 GORM 反射写不进去，主键与时间列**静默变成零值**
+   ——编译通过、接口 200、数据全空。改名 `BaseRow` 后恢复。
+2. **匿名结构体不能内嵌带 `TableName()` 的行结构**。内嵌会把 `TableName()` 一起提升，
+   GORM 按"表模型"解析 schema，导致 `SELECT f.*` 扫不进字段。
+   收藏夹列表、分类列表两处改成显式列字段。
+
+**行为未变的两处**：`FavoriteModel.BeforeDelete` / `TagModel.BeforeDelete` 的级联清理由
+`Delete(&Model{})` 触发，钩子收到的模型 ID 为 0，**原本就是空操作**；
+删除后行为与原实现完全一致（集成测试覆盖）。这是一处既有隐患，未在本刀顺手改语义。
+
+验证：`go test -tags integration ./internal/article/...` 全绿，
+含 20 篇文章 × 12 接口的 golden 逐字节比对。

@@ -44,7 +44,7 @@ export CGO_ENABLED=1
 #       → S4.0-A 新增 R10「业务模块禁止 import models」+17 处真实存量，重新标定为 250。
 #         这不是放宽：那 17 处一直存在，只是此前没有任何规则统计它。
 #         清理动作已排进 S4.1.0（article row 迁进 adapter），届时回到 233。
-ARCH_MAX_VIOLATIONS=27
+ARCH_MAX_VIOLATIONS=10
 # nuxt typecheck 在 Windows 上默认堆不够，需要抬高上限
 export NODE_OPTIONS="${NODE_OPTIONS:---max-old-space-size=8192}"
 

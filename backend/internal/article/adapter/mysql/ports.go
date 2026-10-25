@@ -7,7 +7,6 @@ import (
 
 	"myblogx/internal/article/app"
 	"myblogx/internal/article/domain"
-	"myblogx/models"
 	"myblogx/models/ctype"
 	"myblogx/service/user_service"
 )
@@ -46,7 +45,7 @@ func (u *userPort) Profiles(ctx context.Context, ids []domain.UserID) (map[domai
 	for _, id := range ids {
 		raw = append(raw, fromUserID(id))
 	}
-	var rows []models.UserModel
+	var rows []userRow
 	if err := u.db.WithContext(ctx).Where("id IN ?", raw).Find(&rows).Error; err != nil {
 		return nil, err
 	}
@@ -63,7 +62,7 @@ func (u *userPort) Profiles(ctx context.Context, ids []domain.UserID) (map[domai
 }
 
 func (u *userPort) one(ctx context.Context, id ctype.ID) (app.AuthorView, error) {
-	var m models.UserModel
+	var m userRow
 	if err := u.db.WithContext(ctx).Take(&m, "id = ?", id).Error; err != nil {
 		if err == gorm.ErrRecordNotFound {
 			return app.AuthorView{ID: domain.UserID(id)}, nil
@@ -73,7 +72,7 @@ func (u *userPort) one(ctx context.Context, id ctype.ID) (app.AuthorView, error)
 	return toAuthorView(m), nil
 }
 
-func toAuthorView(m models.UserModel) app.AuthorView {
+func toAuthorView(m userRow) app.AuthorView {
 	return app.AuthorView{
 		ID:        domain.UserID(m.ID),
 		Username:  m.Username,
@@ -92,7 +91,7 @@ type commentPort struct{ db *gorm.DB }
 // 先用 Count 再 Delete：审计日志与接口响应都要条数，
 // 而 GORM 的 RowsAffected 在软删时并不等于"真实存在过的条数"（重复执行会是 0）。
 func (c *commentPort) DeleteByArticle(ctx context.Context, articleID domain.ArticleID) (int, error) {
-	q := c.db.WithContext(ctx).Model(&models.CommentModel{}).
+	q := c.db.WithContext(ctx).Model(&commentRow{}).
 		Where("article_id = ?", fromArticleID(articleID))
 
 	var n int64
@@ -104,7 +103,7 @@ func (c *commentPort) DeleteByArticle(ctx context.Context, articleID domain.Arti
 	}
 	if err := c.db.WithContext(ctx).
 		Where("article_id = ?", fromArticleID(articleID)).
-		Delete(&models.CommentModel{}).Error; err != nil {
+		Delete(&commentRow{}).Error; err != nil {
 		return 0, err
 	}
 	return int(n), nil
@@ -113,7 +112,7 @@ func (c *commentPort) DeleteByArticle(ctx context.Context, articleID domain.Arti
 // CountByArticle 统计评论数。
 func (c *commentPort) CountByArticle(ctx context.Context, articleID domain.ArticleID) (int, error) {
 	var n int64
-	if err := c.db.WithContext(ctx).Model(&models.CommentModel{}).
+	if err := c.db.WithContext(ctx).Model(&commentRow{}).
 		Where("article_id = ?", fromArticleID(articleID)).
 		Count(&n).Error; err != nil {
 		return 0, err
@@ -127,7 +126,7 @@ type diggPort struct{ db *gorm.DB }
 // Exists 判断是否已点赞。
 func (d *diggPort) Exists(ctx context.Context, articleID domain.ArticleID, userID domain.UserID) (bool, error) {
 	var n int64
-	if err := d.db.WithContext(ctx).Model(&models.ArticleDiggModel{}).
+	if err := d.db.WithContext(ctx).Model(&articleDiggRow{}).
 		Where("article_id = ? AND user_id = ?", fromArticleID(articleID), fromUserID(userID)).
 		Count(&n).Error; err != nil {
 		return false, err
@@ -141,7 +140,7 @@ func (d *diggPort) Add(ctx context.Context, articleID domain.ArticleID, userID d
 	if err != nil || exists {
 		return false, err
 	}
-	return true, d.db.WithContext(ctx).Create(&models.ArticleDiggModel{
+	return true, d.db.WithContext(ctx).Create(&articleDiggRow{
 		ArticleID: fromArticleID(articleID),
 		UserID:    fromUserID(userID),
 	}).Error
@@ -155,13 +154,13 @@ func (d *diggPort) Remove(ctx context.Context, articleID domain.ArticleID, userI
 	}
 	err = d.db.WithContext(ctx).
 		Where("article_id = ? AND user_id = ?", fromArticleID(articleID), fromUserID(userID)).
-		Delete(&models.ArticleDiggModel{}).Error
+		Delete(&articleDiggRow{}).Error
 	return err == nil, err
 }
 
 // DeleteByArticle 删除某文章全部点赞。
 func (d *diggPort) DeleteByArticle(ctx context.Context, articleID domain.ArticleID) (int, error) {
-	q := d.db.WithContext(ctx).Model(&models.ArticleDiggModel{}).
+	q := d.db.WithContext(ctx).Model(&articleDiggRow{}).
 		Where("article_id = ?", fromArticleID(articleID))
 	var n int64
 	if err := q.Count(&n).Error; err != nil {
@@ -172,7 +171,7 @@ func (d *diggPort) DeleteByArticle(ctx context.Context, articleID domain.Article
 	}
 	if err := d.db.WithContext(ctx).
 		Where("article_id = ?", fromArticleID(articleID)).
-		Delete(&models.ArticleDiggModel{}).Error; err != nil {
+		Delete(&articleDiggRow{}).Error; err != nil {
 		return 0, err
 	}
 	return int(n), nil

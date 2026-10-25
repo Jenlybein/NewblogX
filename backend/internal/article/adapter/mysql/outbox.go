@@ -7,7 +7,6 @@ import (
 	"gorm.io/gorm"
 
 	"myblogx/internal/article/app"
-	"myblogx/models"
 )
 
 // outboxWriter 是 app.OutboxPort 的实现：把领域事件写进**事务内**的 outbox 表。
@@ -50,12 +49,12 @@ func (w *outboxWriter) Emit(ctx context.Context, e app.Event) error {
 	// 但这里统一由本函数决定，便于测试固定时间与审计。
 	now := time.Now()
 
-	row := models.OutboxEventModel{
+	row := outboxRow{
 		EventName:     e.Name,
 		AggregateType: aggregateType,
 		AggregateID:   e.AggregateID,
 		Payload:       string(e.Payload),
-		Status:        models.OutboxStatusPending,
+		Status:        outboxStatusPending,
 		AvailableAt:   now,
 	}
 	row.CreatedAt = now

@@ -12,9 +12,7 @@ import (
 	"myblogx/internal/article/domain/review"
 	"myblogx/internal/article/domain/top"
 	"myblogx/internal/article/domain/viewhistory"
-	"myblogx/models"
 	"myblogx/models/ctype"
-	"myblogx/models/enum"
 )
 
 // FavoriteRepo 是 favorite.Repository 的 MySQL 实现。
@@ -27,7 +25,7 @@ func NewFavoriteRepo(db *gorm.DB) *FavoriteRepo { return &FavoriteRepo{db: db} }
 
 // FindFolder 读取收藏夹。
 func (r *FavoriteRepo) FindFolder(ctx context.Context, id favorite.ID) (*favorite.Folder, error) {
-	var m models.FavoriteModel
+	var m favoriteRow
 	if err := r.db.WithContext(ctx).Take(&m, "id = ?", ctype.ID(id)).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, favorite.ErrFolderNotFound
@@ -41,7 +39,7 @@ func (r *FavoriteRepo) FindFolder(ctx context.Context, id favorite.ID) (*favorit
 //
 // 与旧实现一致：用户第一次收藏不需要先去建夹子。
 func (r *FavoriteRepo) DefaultFolder(ctx context.Context, userID domain.UserID) (*favorite.Folder, error) {
-	var m models.FavoriteModel
+	var m favoriteRow
 	err := r.db.WithContext(ctx).
 		Where("user_id = ? AND is_default = ?", fromUserID(userID), true).
 		Take(&m).Error
@@ -52,7 +50,7 @@ func (r *FavoriteRepo) DefaultFolder(ctx context.Context, userID domain.UserID) 
 		return nil, err
 	}
 
-	created := &models.FavoriteModel{
+	created := &favoriteRow{
 		UserID:    fromUserID(userID),
 		Title:     "默认收藏",
 		IsDefault: true,
@@ -67,10 +65,20 @@ func (r *FavoriteRepo) DefaultFolder(ctx context.Context, userID domain.UserID) 
 //
 // 带回列表页需要的读模型字段：所属用户昵称/头像、创建与更新时间。
 func (r *FavoriteRepo) ListFolders(ctx context.Context, userID domain.UserID) ([]*favorite.Folder, error) {
+	// 不内嵌 favoriteRow：内嵌会把 TableName() 一起提升到匿名结构体上，
+	// GORM 解析 schema 时以"表模型"方式处理，导致自增主键/时间列扫不出来。
 	var rows []struct {
-		models.FavoriteModel
-		Nickname string
-		Avatar   string
+		ID           ctype.ID
+		CreatedAt    time.Time
+		UpdatedAt    time.Time
+		UserID       ctype.ID
+		Title        string
+		Cover        string
+		Abstract     string
+		IsDefault    bool
+		ArticleCount int
+		Nickname     string
+		Avatar       string
 	}
 	if err := r.db.WithContext(ctx).
 		Table("favorite_models AS f").
@@ -102,7 +110,7 @@ func (r *FavoriteRepo) ListFolders(ctx context.Context, userID domain.UserID) ([
 
 // ExistsFolderTitle 判断名称重复。
 func (r *FavoriteRepo) ExistsFolderTitle(ctx context.Context, userID domain.UserID, title string, excludeID favorite.ID) (bool, error) {
-	q := r.db.WithContext(ctx).Model(&models.FavoriteModel{}).
+	q := r.db.WithContext(ctx).Model(&favoriteRow{}).
 		Where("user_id = ? AND title = ?", fromUserID(userID), title)
 	if excludeID != 0 {
 		q = q.Where("id <> ?", ctype.ID(excludeID))
@@ -117,7 +125,7 @@ func (r *FavoriteRepo) ExistsFolderTitle(ctx context.Context, userID domain.User
 // SaveFolder 新建或更新收藏夹。
 func (r *FavoriteRepo) SaveFolder(ctx context.Context, f *favorite.Folder) error {
 	id := ctype.ID(f.ID())
-	updates := r.db.WithContext(ctx).Model(&models.FavoriteModel{}).
+	updates := r.db.WithContext(ctx).Model(&favoriteRow{}).
 		Where("id = ?", id).
 		Updates(map[string]any{
 			"title":    f.Title(),
@@ -130,8 +138,8 @@ func (r *FavoriteRepo) SaveFolder(ctx context.Context, f *favorite.Folder) error
 	if updates.RowsAffected > 0 {
 		return nil
 	}
-	return r.db.WithContext(ctx).Create(&models.FavoriteModel{
-		Model:     models.Model{ID: id},
+	return r.db.WithContext(ctx).Create(&favoriteRow{
+		BaseRow:   BaseRow{ID: id},
 		UserID:    fromUserID(f.UserID()),
 		Title:     f.Title(),
 		Cover:     f.Cover(),
@@ -144,12 +152,12 @@ func (r *FavoriteRepo) SaveFolder(ctx context.Context, f *favorite.Folder) error
 func (r *FavoriteRepo) DeleteFolder(ctx context.Context, id favorite.ID) error {
 	return r.db.WithContext(ctx).
 		Where("id = ?", ctype.ID(id)).
-		Delete(&models.FavoriteModel{}).Error
+		Delete(&favoriteRow{}).Error
 }
 
 // FindItem 读取某夹子里的收藏。
 func (r *FavoriteRepo) FindItem(ctx context.Context, articleID domain.ArticleID, userID domain.UserID, folderID favorite.ID) (*favorite.Item, error) {
-	var m models.UserArticleFavorModel
+	var m userArticleFavorRow
 	err := r.db.WithContext(ctx).
 		Where("article_id = ? AND user_id = ? AND favor_id = ?",
 			fromArticleID(articleID), fromUserID(userID), ctype.ID(folderID)).
@@ -165,7 +173,7 @@ func (r *FavoriteRepo) FindItem(ctx context.Context, articleID domain.ArticleID,
 
 // FindItemAnyFolder 读取任意收藏。
 func (r *FavoriteRepo) FindItemAnyFolder(ctx context.Context, articleID domain.ArticleID, userID domain.UserID) (*favorite.Item, error) {
-	var m models.UserArticleFavorModel
+	var m userArticleFavorRow
 	err := r.db.WithContext(ctx).
 		Where("article_id = ? AND user_id = ?", fromArticleID(articleID), fromUserID(userID)).
 		Take(&m).Error
@@ -180,7 +188,7 @@ func (r *FavoriteRepo) FindItemAnyFolder(ctx context.Context, articleID domain.A
 
 // SaveItem 新建收藏。
 func (r *FavoriteRepo) SaveItem(ctx context.Context, i *favorite.Item) error {
-	return r.db.WithContext(ctx).Create(&models.UserArticleFavorModel{
+	return r.db.WithContext(ctx).Create(&userArticleFavorRow{
 		ArticleID:             fromArticleID(i.ArticleID()),
 		UserID:                fromUserID(i.UserID()),
 		FavorID:               ctype.ID(i.FolderID()),
@@ -199,14 +207,14 @@ func (r *FavoriteRepo) DeleteItem(ctx context.Context, articleID domain.ArticleI
 	return r.db.WithContext(ctx).
 		Where("article_id = ? AND user_id = ? AND favor_id = ?",
 			fromArticleID(articleID), fromUserID(userID), ctype.ID(folderID)).
-		Delete(&models.UserArticleFavorModel{}).Error
+		Delete(&userArticleFavorRow{}).Error
 }
 
 // DeleteItemsByArticle 删除某文章全部收藏。
 func (r *FavoriteRepo) DeleteItemsByArticle(ctx context.Context, articleID domain.ArticleID) error {
 	return r.db.WithContext(ctx).
 		Where("article_id = ?", fromArticleID(articleID)).
-		Delete(&models.UserArticleFavorModel{}).Error
+		Delete(&userArticleFavorRow{}).Error
 }
 
 // ListItems 分页列出某夹子的收藏。
@@ -234,7 +242,7 @@ func (r *FavoriteRepo) ListItems(ctx context.Context, folderID favorite.ID, offs
 		ArticleTitle    string
 		ArticleAbstract string
 		ArticleCover    string
-		ArticleStatus   enum.ArticleStatus
+		ArticleStatus   int8
 		AuthorID        ctype.ID
 		AuthorNickname  string
 		AuthorAvatar    string
@@ -282,7 +290,7 @@ func (r *FavoriteRepo) ListItems(ctx context.Context, folderID favorite.ID, offs
 // CountByArticle 统计某文章被收藏次数。
 func (r *FavoriteRepo) CountByArticle(ctx context.Context, articleID domain.ArticleID) (int, error) {
 	var n int64
-	if err := r.db.WithContext(ctx).Model(&models.UserArticleFavorModel{}).
+	if err := r.db.WithContext(ctx).Model(&userArticleFavorRow{}).
 		Where("article_id = ?", fromArticleID(articleID)).
 		Count(&n).Error; err != nil {
 		return 0, err
@@ -290,7 +298,7 @@ func (r *FavoriteRepo) CountByArticle(ctx context.Context, articleID domain.Arti
 	return int(n), nil
 }
 
-func toDomainFolder(m models.FavoriteModel) *favorite.Folder {
+func toDomainFolder(m favoriteRow) *favorite.Folder {
 	return favorite.RestoreFolder(favorite.RestoreFolderParams{
 		ID:           favorite.ID(m.ID),
 		UserID:       domain.UserID(m.UserID),
@@ -302,7 +310,7 @@ func toDomainFolder(m models.FavoriteModel) *favorite.Folder {
 	})
 }
 
-func toDomainItem(m models.UserArticleFavorModel) *favorite.Item {
+func toDomainItem(m userArticleFavorRow) *favorite.Item {
 	return favorite.RestoreItem(favorite.RestoreItemParams{
 		ArticleID:       domain.ArticleID(m.ArticleID),
 		UserID:          domain.UserID(m.UserID),
@@ -334,7 +342,7 @@ func (r *TopRepo) Save(ctx context.Context, e *top.Entry) error {
 	if exists {
 		return nil
 	}
-	return r.db.WithContext(ctx).Create(&models.UserTopArticleModel{
+	return r.db.WithContext(ctx).Create(&userTopArticleRow{
 		UserID:    fromUserID(e.UserID()),
 		ArticleID: fromArticleID(e.ArticleID()),
 	}).Error
@@ -344,12 +352,12 @@ func (r *TopRepo) Save(ctx context.Context, e *top.Entry) error {
 func (r *TopRepo) Delete(ctx context.Context, userID domain.UserID, articleID domain.ArticleID) error {
 	return r.db.WithContext(ctx).
 		Where("user_id = ? AND article_id = ?", fromUserID(userID), fromArticleID(articleID)).
-		Delete(&models.UserTopArticleModel{}).Error
+		Delete(&userTopArticleRow{}).Error
 }
 
 // ListArticleIDs 列出置顶文章。
 func (r *TopRepo) ListArticleIDs(ctx context.Context, userID domain.UserID) ([]domain.ArticleID, error) {
-	var rows []models.UserTopArticleModel
+	var rows []userTopArticleRow
 	if err := r.db.WithContext(ctx).
 		Where("user_id = ?", fromUserID(userID)).
 		Order("created_at desc, id desc").
@@ -366,7 +374,7 @@ func (r *TopRepo) ListArticleIDs(ctx context.Context, userID domain.UserID) ([]d
 // Exists 判断是否已置顶。
 func (r *TopRepo) Exists(ctx context.Context, userID domain.UserID, articleID domain.ArticleID) (bool, error) {
 	var n int64
-	if err := r.db.WithContext(ctx).Model(&models.UserTopArticleModel{}).
+	if err := r.db.WithContext(ctx).Model(&userTopArticleRow{}).
 		Where("user_id = ? AND article_id = ?", fromUserID(userID), fromArticleID(articleID)).
 		Count(&n).Error; err != nil {
 		return false, err
@@ -378,7 +386,7 @@ func (r *TopRepo) Exists(ctx context.Context, userID domain.UserID, articleID do
 func (r *TopRepo) DeleteByArticle(ctx context.Context, articleID domain.ArticleID) error {
 	return r.db.WithContext(ctx).
 		Where("article_id = ?", fromArticleID(articleID)).
-		Delete(&models.UserTopArticleModel{}).Error
+		Delete(&userTopArticleRow{}).Error
 }
 
 // ViewHistoryRepo 是 viewhistory.Repository 的 MySQL 实现。
@@ -391,20 +399,20 @@ func NewViewHistoryRepo(db *gorm.DB) *ViewHistoryRepo { return &ViewHistoryRepo{
 
 // Upsert 写入或刷新浏览记录（唯一键 article_id + user_id）。
 func (r *ViewHistoryRepo) Upsert(ctx context.Context, rec *viewhistory.Record) error {
-	var m models.UserArticleViewHistoryModel
+	var m userArticleViewHistoryRow
 	err := r.db.WithContext(ctx).
 		Where("article_id = ? AND user_id = ?",
 			fromArticleID(rec.ArticleID()), fromUserID(rec.UserID())).
 		Take(&m).Error
 	if err == nil {
-		return r.db.WithContext(ctx).Model(&models.UserArticleViewHistoryModel{}).
+		return r.db.WithContext(ctx).Model(&userArticleViewHistoryRow{}).
 			Where("id = ?", m.ID).
 			Update("updated_at", rec.ViewedAt()).Error
 	}
 	if !errors.Is(err, gorm.ErrRecordNotFound) {
 		return err
 	}
-	return r.db.WithContext(ctx).Create(&models.UserArticleViewHistoryModel{
+	return r.db.WithContext(ctx).Create(&userArticleViewHistoryRow{
 		ArticleID: fromArticleID(rec.ArticleID()),
 		UserID:    fromUserID(rec.UserID()),
 	}).Error
@@ -473,14 +481,14 @@ func (r *ViewHistoryRepo) Delete(ctx context.Context, userID domain.UserID, arti
 	}
 	return r.db.WithContext(ctx).
 		Where("user_id = ? AND article_id IN ?", fromUserID(userID), raw).
-		Delete(&models.UserArticleViewHistoryModel{}).Error
+		Delete(&userArticleViewHistoryRow{}).Error
 }
 
 // DeleteByArticle 删除某文章全部浏览记录。
 func (r *ViewHistoryRepo) DeleteByArticle(ctx context.Context, articleID domain.ArticleID) error {
 	return r.db.WithContext(ctx).
 		Where("article_id = ?", fromArticleID(articleID)).
-		Delete(&models.UserArticleViewHistoryModel{}).Error
+		Delete(&userArticleViewHistoryRow{}).Error
 }
 
 // ReviewRepo 是 review.Repository 的 MySQL 实现。
@@ -503,7 +511,7 @@ func (r *ReviewRepo) Save(ctx context.Context, t *review.Task) error {
 // Update 保存任务变更。
 func (r *ReviewRepo) Update(ctx context.Context, t *review.Task) error {
 	m := toReviewRow(t)
-	tx := r.db.WithContext(ctx).Model(&models.ArticleReviewTaskModel{}).
+	tx := r.db.WithContext(ctx).Model(&reviewTaskRow{}).
 		Where("id = ?", m.ID).
 		Updates(map[string]any{
 			"status":      m.Status,
@@ -523,7 +531,7 @@ func (r *ReviewRepo) Update(ctx context.Context, t *review.Task) error {
 
 // Find 读取任务。
 func (r *ReviewRepo) Find(ctx context.Context, id uint64) (*review.Task, error) {
-	var m models.ArticleReviewTaskModel
+	var m reviewTaskRow
 	if err := r.db.WithContext(ctx).Take(&m, "id = ?", ctype.ID(id)).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, review.ErrTaskNotFound
@@ -535,9 +543,9 @@ func (r *ReviewRepo) Find(ctx context.Context, id uint64) (*review.Task, error) 
 
 // ListPendingByArticle 取某文章的待处理任务。
 func (r *ReviewRepo) ListPendingByArticle(ctx context.Context, articleID domain.ArticleID) ([]*review.Task, error) {
-	var rows []models.ArticleReviewTaskModel
+	var rows []reviewTaskRow
 	if err := r.db.WithContext(ctx).
-		Where("article_id = ? AND status = ?", fromArticleID(articleID), models.ArticleReviewTaskPending).
+		Where("article_id = ? AND status = ?", fromArticleID(articleID), reviewTaskPending).
 		Order("id asc").
 		Find(&rows).Error; err != nil {
 		return nil, err
@@ -551,7 +559,7 @@ func (r *ReviewRepo) ListPendingByArticle(ctx context.Context, articleID domain.
 
 // List 分页列出任务。
 func (r *ReviewRepo) List(ctx context.Context, status *review.Status, offset, limit int) ([]*review.Task, int64, error) {
-	q := r.db.WithContext(ctx).Model(&models.ArticleReviewTaskModel{})
+	q := r.db.WithContext(ctx).Model(&reviewTaskRow{})
 	if status != nil {
 		q = q.Where("status = ?", string(*status))
 	}
@@ -563,7 +571,7 @@ func (r *ReviewRepo) List(ctx context.Context, status *review.Status, offset, li
 	if limit <= 0 {
 		limit = 10
 	}
-	var rows []models.ArticleReviewTaskModel
+	var rows []reviewTaskRow
 	if err := q.Order("id desc").Offset(offset).Limit(limit).Find(&rows).Error; err != nil {
 		return nil, 0, err
 	}
@@ -574,16 +582,16 @@ func (r *ReviewRepo) List(ctx context.Context, status *review.Status, offset, li
 	return out, total, nil
 }
 
-func toReviewRow(t *review.Task) *models.ArticleReviewTaskModel {
-	m := &models.ArticleReviewTaskModel{
+func toReviewRow(t *review.Task) *reviewTaskRow {
+	m := &reviewTaskRow{
 		ArticleID:            fromArticleID(t.ArticleID()),
 		AuthorID:             fromUserID(t.AuthorID()),
 		ArticleTitle:         t.ArticleTitle(),
 		AuthorName:           t.AuthorName(),
 		ArticlePublishStatus: fromStatus(t.PublishStatus()),
-		Stage:                models.ArticleReviewTaskStage(t.Stage()),
-		Source:               models.ArticleReviewTaskSource(t.Source()),
-		Status:               models.ArticleReviewTaskStatus(t.Status()),
+		Stage:                string(t.Stage()),
+		Source:               string(t.Source()),
+		Status:               string(t.Status()),
 		Reason:               t.Reason(),
 		ReviewedAt:           t.ReviewedAt(),
 		ReviewedBy:           fromReviewerID(t.ReviewedBy()),
@@ -592,7 +600,7 @@ func toReviewRow(t *review.Task) *models.ArticleReviewTaskModel {
 	return m
 }
 
-func toDomainTask(m models.ArticleReviewTaskModel) *review.Task {
+func toDomainTask(m reviewTaskRow) *review.Task {
 	return review.RestoreTask(review.RestoreTaskParams{
 		ID:            uint64(m.ID),
 		ArticleID:     domain.ArticleID(m.ArticleID),

@@ -12,9 +12,7 @@ package mysql
 
 import (
 	"myblogx/internal/article/domain"
-	"myblogx/models"
 	"myblogx/models/ctype"
-	"myblogx/models/enum"
 )
 
 // toArticleID 把库里的 ID 转成领域 ID。
@@ -30,19 +28,19 @@ func toUserID(id ctype.ID) domain.UserID { return domain.UserID(id) }
 func fromUserID(id domain.UserID) ctype.ID { return ctype.ID(id) }
 
 // toStatus 把库里的状态转成领域状态。
-func toStatus(s enum.ArticleStatus) domain.Status { return domain.Status(s) }
+func toStatus(s int8) domain.Status { return domain.Status(s) }
 
 // fromStatus 把领域状态转成库里的状态。
-func fromStatus(s domain.Status) enum.ArticleStatus { return enum.ArticleStatus(s) }
+func fromStatus(s domain.Status) int8 { return int8(s) }
 
 // toVisibility 把库里的可见性转成领域值。
-func toVisibility(v enum.ArticleVisibilityStatus) domain.Visibility {
+func toVisibility(v string) domain.Visibility {
 	return domain.Visibility(v)
 }
 
 // fromVisibility 把领域可见性转成库里的值。
-func fromVisibility(v domain.Visibility) enum.ArticleVisibilityStatus {
-	return enum.ArticleVisibilityStatus(domain.NormalizeVisibility(v))
+func fromVisibility(v domain.Visibility) string {
+	return string(domain.NormalizeVisibility(v))
 }
 
 // toCategoryID 转换可空分类 ID。
@@ -85,7 +83,7 @@ func fromReviewerID(id *domain.UserID) *ctype.ID {
 //
 // tags 由调用方批量查询后传入：文章与标签是多对多关系，
 // 放在这里 join 会让每次读取都多一条 SQL，列表页尤其明显。
-func toDomainArticle(m models.ArticleModel, tags []domain.TagID) *domain.Article {
+func toDomainArticle(m articleRow, tags []domain.TagID) *domain.Article {
 	return domain.Restore(domain.RestoreParams{
 		ID:             toArticleID(m.ID),
 		AuthorID:       toUserID(m.AuthorID),
@@ -117,7 +115,7 @@ func toDomainArticle(m models.ArticleModel, tags []domain.TagID) *domain.Article
 //
 // 只写业务字段：ID / CreatedAt 由库维护，DeletedAt 由软删逻辑单独处理，
 // 计数字段不在这里更新（走 Redis 增量 + 定时落库，与既有设计一致）。
-func applyArticleTo(a *domain.Article, m *models.ArticleModel) {
+func applyArticleTo(a *domain.Article, m *articleRow) {
 	m.ID = fromArticleID(a.ID())
 	m.AuthorID = fromUserID(a.AuthorID())
 	m.CreatedAt = a.CreatedAt()

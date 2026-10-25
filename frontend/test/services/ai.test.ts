@@ -40,7 +40,7 @@ describe("ai service helpers", () => {
 
   it("deduplicates api prefixes when resolving ai request urls", () => {
     expect(resolveAiRequestUrl("/api", "/api/ai/search/llm")).toBe("/api/ai/search/llm");
-    expect(resolveAiRequestUrl("/_backend", "/api/ai/search/llm")).toBe("/_backend/api/ai/search/llm");
-    expect(resolveAiRequestUrl("/_backend/api", "/api/ai/search/llm")).toBe("/_backend/api/ai/search/llm");
+    expect(resolveAiRequestUrl("/edge", "/api/ai/search/llm")).toBe("/edge/api/ai/search/llm");
+    expect(resolveAiRequestUrl("/edge/api", "/api/ai/search/llm")).toBe("/edge/api/ai/search/llm");
   });
 });

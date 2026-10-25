@@ -18,11 +18,13 @@ describe("avatar utils", () => {
 
     expect(resolveAvatarUrl("/uploads/a.png")).toBe("/_asset/uploads/a.png");
     expect(resolveAvatarUrl("_legacy/a.png")).toBe("/_asset/_legacy/a.png");
-    expect(resolveAvatarUrl("/_backend/images/a.png")).toBe("/_asset/images/a.png");
+    // 已带基址的路径必须原样返回，否则会拼成 /_asset/_asset/...
+    expect(resolveAvatarUrl("/_asset/uploads/a.png")).toBe("/_asset/uploads/a.png");
   });
 
   it("reads avatar and display name from known backend field aliases", () => {
-    expect(resolveAvatarUrl({ action_user_avatar: "images/me.png" })).toBe("/_origin/images/me.png");
+    // 默认基址是 /uploads（后端只挂载 uploads 静态目录，没有根路径静态）
+    expect(resolveAvatarUrl({ action_user_avatar: "images/me.png" })).toBe("/uploads/images/me.png");
     expect(resolveDisplayName({ action_user_nickname: " 管理员02 " })).toBe("管理员02");
   });
 

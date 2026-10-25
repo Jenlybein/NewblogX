@@ -119,9 +119,12 @@ const apiUpstream = normalizeOrigin(
 const siteUrl = normalizeOrigin(process.env.NUXT_PUBLIC_SITE_URL || process.env.BLOGX_WEB_SITE_URL || 'http://localhost:3000')
 const apiBase = String(process.env.NUXT_PUBLIC_API_BASE || process.env.BLOGX_WEB_API_BASE || '/api').trim() || '/api'
 const wsPath = String(process.env.NUXT_PUBLIC_WS_PATH || process.env.BLOGX_WEB_WS_PATH || '/api/chat/ws').trim() || '/api/chat/ws'
+// 资源基址默认 /uploads：后端只把 uploads 目录挂成静态（router/enter.go 的
+// r.Static("/uploads", "./uploads")），没有"根路径静态"。以前默认 /_origin
+// 是靠 nginx 把 /_origin/* 代理到后端根目录来实现的，属于历史别名。
 const assetProxyBase =
-  String(process.env.NUXT_PUBLIC_ASSET_PROXY_BASE || process.env.BLOGX_WEB_ASSET_PROXY_BASE || '/_origin').trim() ||
-  '/_origin'
+  String(process.env.NUXT_PUBLIC_ASSET_PROXY_BASE || process.env.BLOGX_WEB_ASSET_PROXY_BASE || '/uploads').trim() ||
+  '/uploads'
 const apiProxyTarget = joinOriginPath(apiUpstream, apiBase)
 const devProxy = apiBase.startsWith('/')
   ? {

@@ -13,8 +13,11 @@
 
 - HTTP API：`/api/*`
 - WebSocket：`/api/chat/ws`
-- 后端相对资源代理：`/_origin/*`
-- 后端上传资源：`/uploads/*`
+- 上传与静态资源：`/uploads/*`
+
+> 历史上还有 `/_origin/*`（资源源站）与 `/_backend/*`（旧 API 别名）两个路径，
+> 它们都只是把请求转发到后端根目录，与 `/uploads`、`/api` 完全重复，已随 S5.5 删除。
+> 后端只把 `uploads` 目录挂成静态（`r.Static("/uploads", "./uploads")`），没有根路径静态。
 
 测试/生产的 SSR 部署里：
 
@@ -22,7 +25,6 @@
 - `/api/*` -> Go API
 - `/api/chat/ws` -> Go WebSocket
 - `/uploads/*` -> Go
-- `/_origin/*` -> Go
 
 ## 环境文件
 
@@ -86,7 +88,7 @@ pnpm start
 - 页面由 Nuxt dev server 提供
 - `/api/*` 由 Nuxt 服务端代理到 `BLOGX_WEB_API_UPSTREAM`
 - `/api/chat/ws` 由 Nuxt `devProxy` 转发
-- `/_origin/*` 和 `/uploads/*` 也保持同源
+- `/uploads/*` 也保持同源
 
 所以“本地前端 + 测试后端”不需要单独处理 CORS，只需要切到 `local-test`。
 
@@ -133,7 +135,7 @@ Nginx 只保留一份模板，启动时由 `envsubst` 按部署形态渲染：
 
 显式传入同名环境变量（如 `BLOGX_NGINX_SERVER_NAME`、`BLOGX_NGINX_WEB_UPSTREAM`）可临时覆盖脚本默认值。
 
-`api-only` 用于“服务器跑后端 Docker 容器，本地跑 Nuxt dev server”的联调模式；它只代理 `/api/*`、`/api/chat/ws`、`/uploads/*`、`/_origin/*`，不依赖 `blogx_web`。
+`api-only` 用于“服务器跑后端 Docker 容器，本地跑 Nuxt dev server”的联调模式；它只代理 `/api/*`、`/api/chat/ws`、`/uploads/*`，不依赖 `blogx_web`。
 
 ### 本地 compose
 

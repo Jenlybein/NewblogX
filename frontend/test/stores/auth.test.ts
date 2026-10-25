@@ -58,7 +58,7 @@ describe("auth store", () => {
     });
     vi.stubGlobal("__useRuntimeConfigMock", () => ({
       public: {
-        apiBase: "/_backend",
+        apiBase: "/api",
       },
     }));
     vi.stubGlobal("__useRequestHeadersMock", () => ({}));
@@ -85,11 +85,11 @@ describe("auth store", () => {
     expect(initialized).toBe(true);
     expect(authStore.isLoggedIn).toBe(true);
     expect(authStore.profileId).toBe("u1");
-    expect(authStore.profileAvatar).toBe("/_origin/uploads/live.png");
+    expect(authStore.profileAvatar).toBe("/uploads/live.png");
     expect(getSelfUserDetailMock).toHaveBeenCalledTimes(1);
     expect(JSON.parse(localStorage.getItem("blogx_profile_snapshot") || "{}")).toMatchObject({
       id: "u1",
-      avatar: "/_origin/uploads/live.png",
+      avatar: "/uploads/live.png",
     });
   });
 
@@ -109,7 +109,7 @@ describe("auth store", () => {
     expect(initialized).toBe(true);
     expect(authStore.isLoggedIn).toBe(true);
     expect(authStore.profileId).toBe("u2");
-    expect(authStore.profileAvatar).toBe("/_origin/uploads/river.png");
+    expect(authStore.profileAvatar).toBe("/uploads/river.png");
     expect(localStorage.getItem("blogx_access_token")).toBe("token-2");
   });
 

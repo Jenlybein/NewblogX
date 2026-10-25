@@ -1781,3 +1781,68 @@ chat / message / site / ui    零出边
 - S2.8 的「118 个 operation 补注解」：本次重新生成后是 123 个 operation、
   107 个 definition，注解已覆盖全部注册路由；剩下的是**字段级**描述
   （`@Param` 的 example/enum），属文档完善而非契约缺失。
+
+## 40. ⑧ write.vue 最终状态（2045 → 361，测试 71 → 95）
+
+**2026-10-26**。四批提交完成（`26ec0ab` → `bf985c3` → `32f4e35` → `563d96c`）。
+
+### 拆出来的东西
+
+| 类型 | 文件 | 行数 | 判据 |
+| --- | --- | --- | --- |
+| composable | `useStudioArticle` | 299 | 共同描述"一篇文章当前是什么内容"（表单+回填+封面+载荷） |
+| composable | `useStudioEditorCommands` | 462 | 只依赖 form.content 与 textarea 引用 |
+| composable | `useStudioAiAssist` | 264 | 建立在两个现成 selection composable 之上 |
+| composable | `useStudioToolbar` | 172 | 按钮 key → 插片段/改视图/开 AI，不碰业务数据 |
+| composable | `useStudioScore` | 108 | 三个入口共用一套 loading |
+| composable | `useStudioPublish` | 111 | 6 条提交分支集中一处 |
+| constant | `constants/studioToolbar` | 154 | 纯数据表（按钮 + 快捷键） |
+| constant | `composables/useStudioMarkdownTheme` | 130 | 纯数据表（12 主题 ↔ CSS） |
+| component | `StudioWriteHeader` | 295 | 纯展示 + 上抛事件 |
+| component | `StudioWritePreview` | 112 | defineExpose 暴露 scrollToHeading |
+| component | `StudioWriteToc` | 55 | 纯展示 |
+| component | `StudioWritePublishDialog` | 300 | 20 个绑定全是显示值/上抛动作 |
+| style | `assets/css/studio-write.css` | 368 | 页面用 `<style scoped src>` 引入 |
+
+页面：2045 → **361**（script 225 / template 135 / style 1）。
+
+### 为什么停在 361 而不是 <200
+
+剩下的 361 行不是"没抽干净"，是**结构决定的**：
+
+- script 225 行里 **130 行是 6 个 composable 的解构**。页面必须持有
+  `form` / `contentStats` / `tocItems` / `aiPanelVisible` 等约 60 个值，
+  因为 template 要绑定它们。
+- template 135 行里大部分是 props 传递（Header 14 个、PublishDialog 16 个）。
+
+再往下只有一条路：**页面 `provide` 上下文，所有子组件 `inject` 自取**。
+那样页面变成纯布局（约 40 行），代价是：
+- 8 个组件的 props 全部改成 inject（含 4 个已有组件，如 ArticleScoreModal）；
+- 依赖关系从"显式 props"变成"隐式上下文"，编译期不再检查；
+- 属于**架构重写**而不是拆分。
+
+### 测试补齐情况（决策四的前置条件）
+
+新增 3 个测试文件、24 个用例（前端 71 → 95）：
+
+- `useStudioPublish.test.ts`（7）：4 条主路径的文案与跳转、两条拦截、失败复位
+- `useStudioToolbar.test.ts`（9）：插入片段内容、非法 key 回落、主题只改主题
+- `useStudioEditorCommands.test.ts`（8）：词边界、光标落点、连按不嵌套
+
+**测试发现的真实语义**（原来没有文档、也没人验证过）：
+`findWordRangeAtCursor` 在光标**紧贴词尾**时应当选中该词（返回 `{start,end}` 而不是
+`null`）——因为用户视觉上"光标就在词尾"，按 Ctrl+B 期望加粗这个词。
+只有左右都不是词字符才返回 `null`。已写成用例钉住。
+
+另一个坑：`focusEditor` 走 `nextTick`，测试里不 `await nextTick` 断言光标，
+拿到的是旧值（第一次写测试就是这么挂的）。
+
+### 口径修正建议
+
+S5.6 的验收写"主文件 <200 行"，但没写"拆成什么"。这个数字假设"页面的行数大头
+是重复模板"，实测是**逻辑 + 解构**（script 1250 / template 293 / style 474）。
+更可执行的验收应该是：
+
+- 不存在 >300 行的模块；
+- 每个 composable 的入参不超过 5 个；
+- 写作页的关键分支（提交、快捷键、AI 落回正文）有测试。

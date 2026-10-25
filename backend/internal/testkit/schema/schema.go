@@ -22,6 +22,8 @@
 package schema
 
 import (
+	"fmt"
+	"sort"
 	"testing"
 	"time"
 
@@ -95,8 +97,40 @@ const (
 	OutboxStatusDead       = models.OutboxStatusDead
 )
 
-// ArticleRow 是文章表的行类型（少数测试要直接按列读数，验证投影）。
-type ArticleRow = models.ArticleModel
+// 以下别名供"列名契约测试"与需要直读列的场景使用。
+//
+// 用别名而不是复制：这类测试的全部意义就是比对**同一份结构定义**与真实表，
+// 复制一份就变成了"两份定义互相比对"，测不出任何东西。
+type (
+	// ArticleRow 是文章表的行类型。
+	ArticleRow = models.ArticleModel
+	// TagRow 是标签表的行类型。
+	TagRow = models.TagModel
+	// ArticleTagRow 是文章-标签关系表的行类型。
+	ArticleTagRow = models.ArticleTagModel
+	// UserTopArticleRow 是用户置顶表的行类型。
+	UserTopArticleRow = models.UserTopArticleModel
+	// ImageRow 是图片本体表的行类型。
+	ImageRow = models.ImageModel
+	// ImageRefRow 是图片引用表的行类型。
+	ImageRefRow = models.ImageRefModel
+	// BannerRow 是轮播位表的行类型。
+	BannerRow = models.BannerModel
+	// FavoriteRow 是收藏夹表的行类型。
+	FavoriteRow = models.FavoriteModel
+	// UserArticleFavorRow 是收藏关系表的行类型。
+	UserArticleFavorRow = models.UserArticleFavorModel
+	// CommentRow 是评论表的行类型。
+	CommentRow = models.CommentModel
+	// UserFollowRow 是关注关系表的行类型。
+	UserFollowRow = models.UserFollowModel
+	// ChatSessionRow 是私信会话表的行类型。
+	ChatSessionRow = models.ChatSessionModel
+	// DeadLetterRow 是 CDC 死信表的行类型。
+	DeadLetterRow = models.CdcDeadLetterModel
+	// RuntimeSiteConfigRow 是站点运行时配置表的行类型。
+	RuntimeSiteConfigRow = models.RuntimeSiteConfigModel
+)
 
 // ── 建表 ────────────────────────────────────────────────────────
 
@@ -126,6 +160,14 @@ const (
 	Chat Group = "chat"
 	// Outbox 是事务型发件箱。
 	Outbox Group = "outbox"
+	// ImageAssets 是图片本体与引用关系。
+	ImageAssets Group = "image_assets"
+	// Site 是站点配置与轮播位。
+	Site Group = "site"
+	// Social 是关注关系。
+	Social Group = "social"
+	// DeadLetter 是 CDC 死信。
+	DeadLetter Group = "dead_letter"
 )
 
 // groupModels 是每个表组对应的行结构，**组内顺序即建表顺序**。
@@ -179,6 +221,20 @@ var groupModels = map[Group][]any{
 	},
 	Outbox: {
 		&models.OutboxEventModel{},
+	},
+	ImageAssets: {
+		&models.ImageModel{},
+		&models.ImageRefModel{},
+	},
+	Site: {
+		&models.BannerModel{},
+		&models.RuntimeSiteConfigModel{},
+	},
+	Social: {
+		&models.UserFollowModel{},
+	},
+	DeadLetter: {
+		&models.CdcDeadLetterModel{},
 	},
 }
 
@@ -510,5 +566,81 @@ func InsertReviewTask(t *testing.T, db *gorm.DB, spec ReviewTaskSpec) {
 	}
 	if err := db.Create(&m).Error; err != nil {
 		t.Fatalf("插入审核任务 %d 失败: %v", spec.ID, err)
+	}
+}
+
+// ColumnsDiff 比对"row 结构体推导出的列"与"真实表列"。
+//
+// 返回 (结构体有但表没有, 表有但结构体没映射)。两者都为空才算一致。
+//
+// # 为什么必须有这条契约
+//
+// 「零 DDL」的真实含义是：**MySQL 的列名是权威**，ES 投影靠 CDC 解析 binlog
+// 的列名来认字段。所以重构时把 row 结构体搬个位置没问题，
+// 但改一个字段名/少一个字段，就等于改了列名 —— 而这类错误几乎不会报错：
+//
+//   - 结构体少一个字段 → GORM 的 INSERT/UPDATE 不会写那一列，
+//     投影侧读到的是上一版的旧值（readmodel 的"快照同步"全是这种写法）；
+//   - 结构体多一个字段 → SELECT 直接报 Unknown column，反而容易发现。
+//
+// 也就是说**沉默的、危险的是"漏字段"**。两个方向都返回，正是为了把它揪出来。
+func ColumnsDiff(db *gorm.DB, row any) (missing, extra []string, err error) {
+	stmt := &gorm.Statement{DB: db}
+	if err = stmt.Parse(row); err != nil {
+		return nil, nil, err
+	}
+	table := stmt.Schema.Table
+
+	want := make(map[string]bool, len(stmt.Schema.Fields))
+	for _, f := range stmt.Schema.Fields {
+		if f.DBName == "" || f.IgnoreMigration {
+			continue
+		}
+		want[f.DBName] = true
+	}
+
+	var got []string
+	if err = db.Raw(
+		"SELECT column_name FROM information_schema.columns WHERE table_schema = DATABASE() AND table_name = ?",
+		table,
+	).Scan(&got).Error; err != nil {
+		return nil, nil, err
+	}
+	if len(got) == 0 {
+		return nil, nil, fmt.Errorf("表 %s 不存在或没有列（先用 schema.Migrate 建表）", table)
+	}
+
+	have := make(map[string]bool, len(got))
+	for _, c := range got {
+		have[c] = true
+	}
+	for col := range want {
+		if !have[col] {
+			missing = append(missing, col)
+		}
+	}
+	for col := range have {
+		if !want[col] {
+			extra = append(extra, col)
+		}
+	}
+	sort.Strings(missing)
+	sort.Strings(extra)
+	return missing, extra, nil
+}
+
+// AssertColumns 把 ColumnsDiff 的差异变成测试失败。
+func AssertColumns(t *testing.T, db *gorm.DB, row any) {
+	t.Helper()
+
+	missing, extra, err := ColumnsDiff(db, row)
+	if err != nil {
+		t.Fatalf("列名契约比对失败: %v", err)
+	}
+	if len(missing) > 0 {
+		t.Errorf("结构体有、表里没有的列 %v（查询会直接报 Unknown column）", missing)
+	}
+	if len(extra) > 0 {
+		t.Errorf("表里有、结构体没映射的列 %v（该列会被静默忽略：读不到、也写不进去）", extra)
 	}
 }

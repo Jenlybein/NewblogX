@@ -1411,3 +1411,53 @@ hasMany（`foreignKey:SessionID;references:SessionID`），GORM 因此在
 
 这些正是 **S5.2「删除 models/」** 的范围，属 M6。本轮的 R10 归零解决了
 "测试把 models 钉死"这部分，M6 可以只面对生产代码。
+
+## 34. M6 开工 · ① 列名契约测试（搬迁 row 的安全网）
+
+**2026-10-25**：`internal/testkit/schema` 新增 `ColumnsDiff` / `AssertColumns`，
+覆盖 15 张**投影相关**的表。
+
+### 为什么这是 M6 的第一件事
+
+"零 DDL" 的真实含义是：**MySQL 的列名是权威** —— ES 投影靠 CDC 解析 binlog
+的列名来认字段。所以 row 结构体搬去哪都行，但**改一个字段名 / 少一个字段**
+就等于改列名，而这类错误几乎不报错：
+
+| 漂移方向 | 后果 | 是否容易发现 |
+| --- | --- | --- |
+| 结构体多一个字段 | `SELECT` 直接报 `Unknown column` | 容易 |
+| **结构体漏一个字段** | GORM 的 INSERT/UPDATE **不写那一列**，投影读到上一版旧值 | **极难** |
+
+第二行是要命的：`readmodel` 的"快照同步"全是
+`db.Model(&CommentRow{}).Updates(map[string]any{...})` 这种写法，
+漏一个字段的表现是"某用户的昵称改了，但历史评论里还是旧昵称"，
+而且不会报任何错。
+
+### 实现
+
+- `ColumnsDiff(db, row) (missing, extra []string, err error)` —— 纯函数，
+  用 `gorm.Statement` 解析 row 得到列集合，再查
+  `information_schema.columns`（作用域限当前 schema）。
+- `AssertColumns(t, db, row)` —— 断言壳，把差异变成测试失败。
+
+拆成纯函数是必须的：自检要"造一个坏结构体，然后断言它会被报出来"，
+如果只能通过 `AssertColumns` 做，失败会把父测试一起标红，没法在同一用例里既造错又断言。
+
+### 覆盖面（15 张表，就是 M6 的搬迁清单）
+
+`article / image / image_ref / banner / favorite`（imageref）、
+`comment / user_follow / user_article_favor / chat_session`（readmodel 快照）、
+`tag / article_tag / user_top_article`（articlesync）、
+`cdc_dead_letter / outbox_event`（死信与中继）、`runtime_site_config`（platform/config）。
+
+搬 row 之后把这些类型换成新类型即可，断言逻辑一行不用改。
+
+### 自检
+
+`TestColumnsDiffCatchesDrift` 三个子用例：正常结构体不报差异、
+结构体多列被报出来、结构体漏字段被报出来。第三个是重点 —— 它守的正是
+上面那个"极难发现"的方向。
+
+> 踩坑：最初把坏结构体定义在 `t.Run` 内部，GORM 推导出的表名是
+> `row_with_ghosts` 这种，比对直接报"表不存在"，测出来的是"表没建"
+> 而不是"能不能发现漂移"。必须定义在包级并显式 `TableName()`。

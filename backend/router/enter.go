@@ -8,7 +8,7 @@ import (
 	"net"
 	"net/http"
 
-	"myblogx/middleware"
+	"myblogx/internal/platform/http/middleware"
 
 	"github.com/gin-gonic/gin"
 )

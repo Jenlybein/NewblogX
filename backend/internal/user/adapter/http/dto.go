@@ -4,9 +4,9 @@ import (
 	"github.com/gin-gonic/gin"
 
 	"myblogx/internal/kernel"
+	"myblogx/internal/platform/http/middleware"
 	"myblogx/internal/user/app"
 	"myblogx/internal/user/domain"
-	"myblogx/middleware"
 )
 
 // 本文件是 HTTP 层的请求结构。

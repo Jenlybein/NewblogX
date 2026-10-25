@@ -2,8 +2,8 @@ package router
 
 import (
 	authhttp "myblogx/internal/auth/adapter/http"
+	mw "myblogx/internal/platform/http/middleware"
 	userhttp "myblogx/internal/user/adapter/http"
-	mw "myblogx/middleware"
 
 	"github.com/gin-gonic/gin"
 )

@@ -4,7 +4,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"myblogx/internal/kernel"
 
-	mw "myblogx/middleware"
+	mw "myblogx/internal/platform/http/middleware"
 )
 
 // Register 把 article 模块的全部路由挂到 /api 下。

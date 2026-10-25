@@ -428,7 +428,8 @@ func isAnyType(expr ast.Expr) bool {
 // 已迁到 internal/platform/log/writer（它构建在 platform/log 的 Event/Emitter 之上）。
 // 规则的作用范围必须跟着代码走，否则搬一次目录就静默失去保护。
 func isLogLayer(rel string) bool {
-	return strings.HasPrefix(rel, "internal/platform/log/") || strings.HasPrefix(rel, "middleware/")
+	return strings.HasPrefix(rel, "internal/platform/log/") ||
+		strings.HasPrefix(rel, "internal/platform/http/middleware/")
 }
 
 // ── R10：业务模块禁止 import models ─────────────────────────────

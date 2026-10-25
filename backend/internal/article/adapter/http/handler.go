@@ -12,7 +12,7 @@ import (
 	"myblogx/internal/article/app"
 	"myblogx/internal/article/domain"
 	sitecfg "myblogx/internal/platform/config"
-	"myblogx/middleware"
+	"myblogx/internal/platform/http/middleware"
 	"myblogx/models/ctype"
 	"myblogx/utils/markdown"
 )

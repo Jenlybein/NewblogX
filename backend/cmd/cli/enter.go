@@ -1,5 +1,5 @@
 // flags/enter.go
-package flags
+package cli
 
 import (
 	"flag"

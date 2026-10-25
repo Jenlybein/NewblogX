@@ -18,7 +18,6 @@ import (
 	"myblogx/internal/platform/redis/redis_comment"
 	socialdomain "myblogx/internal/social/domain"
 	"myblogx/models/ctype"
-	"myblogx/platform/cachex"
 	"myblogx/router"
 )
 
@@ -67,7 +66,7 @@ type counterBridge struct {
 
 // Batch 返回点赞 / 回复增量。
 func (b *counterBridge) Batch(_ context.Context, ids []uint64) (map[uint64]int, map[uint64]int) {
-	reader := readmodel.NewCommentCounterReader(cachex.NewOptions(b.redisOptions.Client, b.logger))
+	reader := readmodel.NewCommentCounterReader(b.redisOptions)
 	got := reader.Batch(toCtypeIDs(ids))
 	digg := make(map[uint64]int, len(got.DiggMap))
 	reply := make(map[uint64]int, len(got.ReplyMap))

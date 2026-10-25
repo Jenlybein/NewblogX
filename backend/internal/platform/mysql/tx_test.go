@@ -6,7 +6,7 @@ import (
 	"testing"
 
 	"myblogx/internal/platform/mysql"
-	"myblogx/testkit"
+	"myblogx/internal/testkit"
 
 	"gorm.io/gorm"
 )

@@ -6,7 +6,7 @@ import (
 
 	"github.com/mojocn/base64Captcha"
 
-	"myblogx/middleware"
+	"myblogx/internal/platform/http/middleware"
 	"myblogx/router"
 )
 

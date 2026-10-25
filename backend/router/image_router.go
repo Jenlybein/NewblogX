@@ -2,7 +2,7 @@ package router
 
 import (
 	mediahttp "myblogx/internal/media/adapter/http"
-	mw "myblogx/middleware"
+	mw "myblogx/internal/platform/http/middleware"
 
 	"github.com/gin-gonic/gin"
 )

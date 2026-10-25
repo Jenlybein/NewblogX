@@ -130,6 +130,7 @@ func defaultTestLogDir() string {
 func SetupMiniRedis(t *testing.T) *miniredis.Miniredis {
 	t.Helper()
 	InitGlobals()
+	// 同上：会写包级 testRedis，调用它的测试不能 t.Parallel()。
 
 	mr, err := miniredis.Run()
 	if err != nil {
@@ -156,6 +157,10 @@ func SetupMiniRedis(t *testing.T) *miniredis.Miniredis {
 func SetupSQLite(t *testing.T, models ...any) *gorm.DB {
 	t.Helper()
 	InitGlobals()
+	// 注意：本函数会写包级变量（testDB）与全局配置，**因此调用它的测试不能 t.Parallel()**。
+	// 并行调用会被 -race 判定为数据竞争（读 applyDefaultConfig / 写 testConfig），
+	// 而且 testutil.DB() 只有一个槽位，后建的库会覆盖先建的。
+	// 需要并行的测试请自己建库，或者只读不共享的 handle。
 
 	seq := atomic.AddUint64(&sqliteDSNCounter, 1)
 	dsn := fmt.Sprintf("file:test_%d_%d?mode=memory&cache=shared", time.Now().UnixNano(), seq)

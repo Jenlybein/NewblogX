@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"myblogx/testkit"
+	"myblogx/internal/testkit"
 )
 
 // row 是隔离测试用的最小表结构。

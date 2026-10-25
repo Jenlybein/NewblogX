@@ -2,7 +2,7 @@ package router
 
 import (
 	analyticshttp "myblogx/internal/analytics/adapter/http"
-	mw "myblogx/middleware"
+	mw "myblogx/internal/platform/http/middleware"
 
 	"github.com/gin-gonic/gin"
 )

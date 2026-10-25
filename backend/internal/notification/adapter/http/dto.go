@@ -4,7 +4,7 @@ import (
 	"time"
 
 	"myblogx/common/res"
-	"myblogx/middleware"
+	"myblogx/internal/platform/http/middleware"
 	"myblogx/models/ctype"
 
 	"github.com/gin-gonic/gin"

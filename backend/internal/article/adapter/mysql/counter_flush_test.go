@@ -10,7 +10,6 @@ import (
 // 与 adapter 内部使用的是同一份表定义。
 
 func TestFlushArticleCountApplies(t *testing.T) {
-	t.Parallel()
 	db := testutil.SetupSQLite(t, &articleRow{})
 
 	row := articleRow{Title: "a1"}
@@ -46,7 +45,6 @@ func TestFlushArticleCountApplies(t *testing.T) {
 // TestFlushArticleCountFloorAtZero 负数不会把计数压到 0 以下。
 // 页面上出现"文章数 -2"比少 1 更难解释。
 func TestFlushArticleCountFloorAtZero(t *testing.T) {
-	t.Parallel()
 	db := testutil.SetupSQLite(t, &articleRow{})
 
 	row := articleRow{Title: "a1"}
@@ -76,7 +74,6 @@ func TestFlushArticleCountFloorAtZero(t *testing.T) {
 // 这个区分很关键：调用方靠它决定"丢弃增量"还是"回补 Redis 下轮重试"。
 // 如果这里返回 error，一条已删除的文章会让任务无限重试同一行。
 func TestFlushArticleCountMissingRow(t *testing.T) {
-	t.Parallel()
 	db := testutil.SetupSQLite(t, &articleRow{})
 
 	hit, err := FlushArticleCount(db, ArticleViewCount, 999999, 1)
@@ -89,7 +86,6 @@ func TestFlushArticleCountMissingRow(t *testing.T) {
 }
 
 func TestFlushTagArticleCount(t *testing.T) {
-	t.Parallel()
 	db := testutil.SetupSQLite(t, &tagRow{})
 
 	row := tagRow{Title: "go"}

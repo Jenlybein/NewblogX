@@ -10,8 +10,8 @@ import (
 
 	"myblogx/app"
 	"myblogx/buildinfo"
+	"myblogx/cmd/cli"
 	"myblogx/core"
-	"myblogx/flags"
 )
 
 // wantsVersion 判断命令行是否只想要版本号。
@@ -40,7 +40,7 @@ func main() {
 		return
 	}
 
-	flag := flags.Parse()
+	flag := cli.Parse()
 	config := core.ReadCfg(&flag.File)
 
 	infra, err := app.InitInfra(config, flag.File, buildinfo.Version)
@@ -48,7 +48,7 @@ func main() {
 		panic(err)
 	}
 
-	runResult, err := flags.Run(flag, flags.Options{
+	runResult, err := cli.Run(flag, cli.Options{
 		RiverConfig: infra.Config.River,
 		Logger:      infra.Logger,
 		DB:          infra.DB,

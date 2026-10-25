@@ -25,11 +25,14 @@ import (
 func setup(t *testing.T) (*mysql.Repo, *gorm.DB) {
 	t.Helper()
 	db := mysqlcontainer.DB(t)
-	// 用 MigrateNoFK 而不是 Migrate：ChatMsgModel.SessionList 会在
-	// chat_session_models.session_id 上建一条指向 chat_msg_models 的外键，
-	// 而发第一条消息时"先有会话、后有消息"，这条外键必然违反。
-	// 详见 schema.MigrateNoFK 的说明。
-	schema.MigrateNoFK(t, db, schema.UserCore, schema.Chat)
+	// 这里建的是**带真实外键**的表，关外键会让这些用例失去意义。
+	//
+	// 背景：ChatMsgModel 里原来有条 hasMany（SessionList），让 GORM 在
+	// chat_session_models.session_id 上建出指向 chat_msg_models 的外键。
+	// 发消息的顺序是"先建会话行、再插消息行"，那条外键让第一步必然违反
+	// （Error 1452），以前只能靠关外键绕过。该字段已删除，
+	// 所以现在的外键集是真实可满足的 —— "发消息能成功"本身就是证明。
+	schema.Migrate(t, db, schema.UserCore, schema.Chat)
 	for _, id := range []uint64{100, 200, 300} {
 		schema.InsertUser(t, db, schema.UserSpec{
 			ID:       id,

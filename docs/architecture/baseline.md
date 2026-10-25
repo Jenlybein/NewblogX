@@ -1461,3 +1461,50 @@ hasMany（`foreignKey:SessionID;references:SessionID`），GORM 因此在
 > 踩坑：最初把坏结构体定义在 `t.Run` 内部，GORM 推导出的表名是
 > `row_with_ghosts` 这种，比对直接报"表不存在"，测出来的是"表没建"
 > 而不是"能不能发现漂移"。必须定义在包级并显式 `TableName()`。
+
+## 35. M6 开工 · ② 零 DDL 口径落定 + chat 假外键根治
+
+**2026-10-25**：两条"零 DDL"相关决策拍板，chat 的建模错误删除。
+
+### 零 DDL 的口径：**零列变更**，不是"零 DDL 语句"
+
+原始动机是"ES 投影靠 CDC 按 binlog **列名**解析"，所以要保的是**列的语义**，
+而不是"一条 DDL 都不许执行"。据此定口径：
+
+| 允许 | 禁止 |
+| --- | --- |
+| 加索引、加/删外键、ClickHouse 的 `TTL` / `CODEC` | 改列名、改类型、改列顺序、删列 |
+
+配套的校验手段就是 §34 的列名契约测试 —— **口径能放宽，是因为有手段验证"列没变"**。
+
+环境现状：**只有本地、可重建**。所以不需要一次性迁移脚本机制，
+凡涉及库结构的动作一律"改声明 + 重建"，不引入 `deploy/sql/*.sql` 这套东西。
+
+### chat 那条物理不可能满足的外键：删掉
+
+`ChatMsgModel.SessionList []ChatSessionModel gorm:"foreignKey:SessionID;references:SessionID"`
+是个纯建模错误：
+
+1. **全仓零使用** —— 从来没人读"某条消息属于哪些会话"。
+2. GORM 据此在 `chat_session_models.session_id` 上建出
+   `fk_chat_msg_models_session_list` → 指向 `chat_msg_models.session_id`。
+   而发送消息的顺序是**先建会话行、再插消息行**，这条外键让第一步必然违反（Error 1452）；
+   删消息同样会被它拦住。
+3. `chat_msg_models.session_id` 不是唯一键，本来就不该被引用。
+
+**这条路径从未在 MySQL 上跑通过**：`internal/chat/adapter/mysql/chat.go` 是 S4.5b
+重构时新写的，里面有 `excluded.xxx`（PostgreSQL 语法，MySQL 报 1054），
+而 `flag_db` 的 AutoMigrate 顺序（`ChatSessionModel` 在前、`ChatMsgModel` 在后）
+会把那条假外键建出来 —— 两个独立故障叠在同一条路径上。
+
+处理：
+- 删除 `SessionList` 字段（零引用，无副作用）。
+- chat 集成测试从"关外键建表"改回**带真实外键**建表 ——
+  这样"发消息能成功"本身就证明了约束集可满足，而不是被绕过去的。
+- `schema.MigrateNoFK` 失去唯一用途，删除（它本来就是为这条假外键而生的）。
+
+### 教训
+
+`flag_db` 的 AutoMigrate **顺序**是有语义的（第 48 行 `ChatSessionModel`、
+第 49 行 `ChatMsgModel`），但这一点没有任何注释。以后再加模型，
+顺序错了只会表现为"建库成功、运行时 1452"。

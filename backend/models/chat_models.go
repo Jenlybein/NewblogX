@@ -36,15 +36,23 @@ type ChatSessionModel struct {
 // 聊天消息
 type ChatMsgModel struct {
 	Model
-	SenderID    ctype.ID                `json:"sender_id"`
-	ReceiverID  ctype.ID                `json:"receiver_id"`
-	SessionID   string                  `gorm:"size:64;not null;index:idx_chat_msg_session_time,priority:1" json:"session_id"`
-	Content     string                  `json:"content"`
-	SendTime    time.Time               `gorm:"index:idx_chat_msg_session_time,priority:2,sort:desc" json:"send_time"`
-	ReadAt      *time.Time              `json:"read_at"`
-	MsgStatus   chat_msg_enum.MsgStatus `json:"msg_status"`
-	MsgType     chat_msg_enum.MsgType   `json:"msg_type"`
-	SessionList []ChatSessionModel      `gorm:"foreignKey:SessionID;references:SessionID" json:"-"`
+	SenderID   ctype.ID                `json:"sender_id"`
+	ReceiverID ctype.ID                `json:"receiver_id"`
+	SessionID  string                  `gorm:"size:64;not null;index:idx_chat_msg_session_time,priority:1" json:"session_id"`
+	Content    string                  `json:"content"`
+	SendTime   time.Time               `gorm:"index:idx_chat_msg_session_time,priority:2,sort:desc" json:"send_time"`
+	ReadAt     *time.Time              `json:"read_at"`
+	MsgStatus  chat_msg_enum.MsgStatus `json:"msg_status"`
+	MsgType    chat_msg_enum.MsgType   `json:"msg_type"`
+	// 这里原来有一个 SessionList []ChatSessionModel（hasMany，foreignKey:SessionID）。
+	// 它是个纯粹的建模错误，已删除：
+	//   1. 全仓零使用 —— 从来没有人读"某条消息属于哪些会话"；
+	//   2. GORM 会据此在 chat_session_models.session_id 上建一条指向
+	//      chat_msg_models.session_id 的外键，而发送消息的顺序是
+	//      "先建会话行、再插消息行"，这条外键让第一步必然失败
+	//      （Error 1452）；删消息也会被它拦住；
+	//   3. chat_msg_models.session_id 不是唯一键，本来就不该被引用。
+	// 见 docs/architecture/09-M6决策清单.md 问题 2。
 }
 
 // 聊天消息用户态

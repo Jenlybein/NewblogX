@@ -34,17 +34,10 @@ fi
 export GOTOOLCHAIN=local
 export CGO_ENABLED=1
 
-# 架构违规棘轮：当前存量 250 处，只准减少不准增加。
-# 每迁完一个模块就下调，最终目标 0。
-# 演进：M1 基线 324 → M2 321 → M3-D（AI 客户端，R7 -1）320
-#       → M3-C1 拆分 article_sync.go（R6 -1）319
-#       → M3-C2 river 合并进 platform/cdc + 拆 sync.go（R6 归零）318
-#       → S3.11 删除旧 api/article_api 318 → 236
-#       → S4.0-A 删除 M4 孤儿的死代码（R8 -3）236 → 233
-#       → S4.0-A 新增 R10「业务模块禁止 import models」+17 处真实存量，重新标定为 250。
-#         这不是放宽：那 17 处一直存在，只是此前没有任何规则统计它。
-#         清理动作已排进 S4.1.0（article row 迁进 adapter），届时回到 233。
-ARCH_MAX_VIOLATIONS=0
+# 架构违规棘轮：当前存量与演进历史见 scripts/arch-baseline.env。
+# 数字只从那一个文件读，避免本地 / CI / 自检脚本三处各写一遍后漂移。
+# shellcheck source=scripts/arch-baseline.env
+. "$ROOT/scripts/arch-baseline.env"
 # nuxt typecheck 在 Windows 上默认堆不够，需要抬高上限
 export NODE_OPTIONS="${NODE_OPTIONS:---max-old-space-size=8192}"
 
@@ -97,6 +90,46 @@ run_prepare() {
   return 1
 }
 
+# 集成测试（-tags integration）需要 Docker：testcontainers 会起 MySQL / ClickHouse。
+#
+# 关键在于"跳过"不能是静默的 —— 静默跳过正是当年门禁撒谎的老毛病。
+# 三种情形分开处理：
+#   1. BLOGX_SKIP_INTEGRATION=1：显式跳过，打印警告（本地临时调试用）；
+#   2. Docker 不可用：跳过 + 醒目警告；若同时设 BLOGX_REQUIRE_INTEGRATION=1 则直接失败（CI 用）；
+#   3. 正常：跑，失败即门禁失败。
+#
+# 这些测试覆盖 golden（20 篇 × 12 接口逐字节）、article/user 仓储真实 SQL、
+# outbox 中继、日志管道 —— 都是只跑 -short 验证不到的东西。
+run_integration() {
+  local name="backend: go test (integration)"
+  echo ""
+  echo "──── $name ────"
+
+  if [ "${BLOGX_SKIP_INTEGRATION:-0}" = "1" ]; then
+    echo "⚠ 已跳过：BLOGX_SKIP_INTEGRATION=1（golden 与容器契约本次未验证）"
+    return 0
+  fi
+
+  if ! docker info >/dev/null 2>&1; then
+    if [ "${BLOGX_REQUIRE_INTEGRATION:-0}" = "1" ]; then
+      echo "✗ $name：Docker 不可用，但设置了 BLOGX_REQUIRE_INTEGRATION=1"
+      FAILED=1
+      return 1
+    fi
+    echo "⚠ 已跳过：Docker 不可用（golden 与容器契约本次未验证）"
+    echo "  本机启动 Docker Desktop 即可；CI 上这个步骤是强制的"
+    return 0
+  fi
+
+  if go test -tags integration -count=1 -timeout 20m ./...; then
+    echo "✓ $name"
+    return 0
+  fi
+  echo "✗ $name"
+  FAILED=1
+  return 1
+}
+
 TARGET="${1:-all}"
 
 if [ "$TARGET" = "all" ] || [ "$TARGET" = "backend" ]; then
@@ -108,6 +141,9 @@ if [ "$TARGET" = "all" ] || [ "$TARGET" = "backend" ]; then
     run "backend: archcheck 棘轮($ARCH_MAX_VIOLATIONS)" \
       go run ./tools/archcheck --mode=error --max-violations="$ARCH_MAX_VIOLATIONS" .
     run "backend: go test (race, short)" go test -race -short -count=1 ./...
+    # 集成测试单独一步：慢（约 1.5 分钟）但覆盖 golden 与真实 SQL，
+    # 只跑 -short 会漏掉 R10 那类"主键静默为零"的问题。
+    run_integration
     # 关键：把子 shell 内累积的 FAILED 作为退出码带出去，
     # 否则只有最后一条命令的成败能传出去，中间步骤失败会被吞掉。
     exit "$FAILED"

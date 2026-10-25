@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import type { ArticleHeadingAnchor } from "~/composables/useArticleMarkdown";
-import { computed, defineAsyncComponent, onMounted, onUnmounted, ref, shallowRef, watch } from "vue";
+import { computed, defineAsyncComponent, onMounted, onUnmounted, ref, shallowRef } from "vue";
 import { IconEye, IconHeart, IconMessageCircle2, IconShare2, IconThumbUp } from "@tabler/icons-vue";
 import { NButton, NTag, useMessage } from "naive-ui";
 import ArticleScoreModal from "~/components/article/ArticleScoreModal.vue";
@@ -9,6 +9,7 @@ import AppAvatar from "~/components/common/AppAvatar.vue";
 import CommentComposer from "~/components/comment/CommentComposer.vue";
 import CommentThread from "~/components/comment/CommentThread.vue";
 import FavoriteFolderModal from "~/components/favorite/FavoriteFolderModal.vue";
+import { useArticleDigg } from "~/composables/useArticleDigg";
 import { useReadingProgress } from "~/composables/useReadingProgress";
 import { followUser, unfollowUser } from "~/services/follow";
 import { ApiBusinessError } from "~/services/http/errors";
@@ -184,107 +185,31 @@ const articleScoreButtonLabel = computed(() => {
 
   return `文章质量总分：${articleScoreSummary.value.total_score ?? "--"}`;
 });
-const articleIsDigged = shallowRef(false);
-const articleDiggCount = shallowRef(0);
-const articleDiggTouched = shallowRef(false);
-const articleDiggStateArticleId = shallowRef("");
-const articleLikePending = shallowRef(false);
-const articleLikeDebouncing = shallowRef(false);
-let articleLikeDebounceTimer: ReturnType<typeof setTimeout> | null = null;
-
-watch(
-  () => [articleId.value, article.value?.is_digg, article.value?.digg_count] as const,
-  ([currentArticleId, isDigged, diggCount]) => {
-    const articleChanged = currentArticleId !== articleDiggStateArticleId.value;
-    if (articleChanged) {
-      articleDiggStateArticleId.value = currentArticleId;
-      articleDiggTouched.value = false;
-    }
-
-    if (articleDiggTouched.value) {
+// 点赞状态机（乐观更新 + 脏标记 + 防抖 + 文案猜方向）见 composable。
+// 这块混在页面里时没人愿意通读，所以单独成文并带测试。
+const {
+  articleIsDigged,
+  articleDiggCount,
+  articleLikePending,
+  articleLikeDebouncing,
+  articleDiggTouched,
+  handleLike,
+  dispose: disposeArticleDigg,
+} = useArticleDigg({
+  articleId: () => articleId.value,
+  snapshot: () => ({ isDigg: article.value?.is_digg, diggCount: article.value?.digg_count }),
+  patchArticle: (isDigg, diggCount) => {
+    if (!article.value) {
       return;
     }
-
-    articleIsDigged.value = Boolean(isDigged);
-    articleDiggCount.value = Math.max(Number(diggCount ?? 0), 0);
+    article.value = { ...article.value, is_digg: isDigg, digg_count: diggCount };
   },
-  { immediate: true },
-);
-
-function patchArticleDiggState(isDigged: boolean, diggCount: number) {
-  articleIsDigged.value = isDigged;
-  articleDiggCount.value = Math.max(diggCount, 0);
-
-  if (article.value) {
-    article.value = {
-      ...article.value,
-      is_digg: isDigged,
-      digg_count: articleDiggCount.value,
-    };
-  }
-}
-
-function resolveArticleDiggMutation(resultMessage: string, wasDigged: boolean) {
-  if (resultMessage.includes("取消")) {
-    return {
-      isDigged: false,
-      countDelta: -1,
-    };
-  }
-
-  if (resultMessage.includes("点赞")) {
-    return {
-      isDigged: true,
-      countDelta: 1,
-    };
-  }
-
-  return {
-    isDigged: !wasDigged,
-    countDelta: wasDigged ? -1 : 1,
-  };
-}
-
-function startArticleLikeDebounce() {
-  articleLikeDebouncing.value = true;
-  if (articleLikeDebounceTimer) {
-    clearTimeout(articleLikeDebounceTimer);
-  }
-
-  articleLikeDebounceTimer = setTimeout(() => {
-    articleLikeDebouncing.value = false;
-    articleLikeDebounceTimer = null;
-  }, ARTICLE_LIKE_DEBOUNCE_MS);
-}
-
-async function handleLike() {
-  const isLoggedIn = await authStore.initializeSession();
-  if (!isLoggedIn) {
-    uiStore.openAuthModal();
-    return;
-  }
-
-  if (articleLikePending.value || articleLikeDebouncing.value || !article.value) {
-    return;
-  }
-
-  const wasDigged = articleIsDigged.value;
-  articleLikePending.value = true;
-
-  try {
-    const result = await toggleArticleDigg(articleId.value);
-    const resultMessage = result.msg || (wasDigged ? "取消点赞成功" : "点赞成功");
-    const mutation = resolveArticleDiggMutation(resultMessage, wasDigged);
-    articleDiggTouched.value = true;
-    patchArticleDiggState(mutation.isDigged, articleDiggCount.value + mutation.countDelta);
-    message.success(resultMessage);
-  } catch (error) {
-    message.error(error instanceof Error ? error.message : "点赞失败");
-  } finally {
-    articleLikePending.value = false;
-    startArticleLikeDebounce();
-  }
-}
+  toggle: toggleArticleDigg,
+  ensureLoggedIn: () => authStore.initializeSession(),
+  openAuthModal: () => uiStore.openAuthModal(),
+  notify: message,
+  debounceMs: ARTICLE_LIKE_DEBOUNCE_MS,
+});
 
 async function handleFavorite() {
   const isLoggedIn = await authStore.initializeSession();
@@ -557,9 +482,8 @@ onMounted(() => {
 });
 
 onUnmounted(() => {
-  if (articleLikeDebounceTimer) {
-    clearTimeout(articleLikeDebounceTimer);
-  }
+  // 定时器归 composable 管，页面只负责通知它该收尾了。
+  disposeArticleDigg();
 });
 
 useSeoMeta({

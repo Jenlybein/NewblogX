@@ -6,7 +6,6 @@ import (
 	"myblogx/internal/platform/cdc/river"
 	"myblogx/internal/platform/log/writer"
 	"myblogx/internal/platform/safego"
-	"myblogx/service/cron_service"
 )
 
 // WireRiver 组装并启动 MySQL->ES 同步 worker。
@@ -67,15 +66,8 @@ func WireImageRef(infra *Infra) error {
 	return nil
 }
 
-// WireCron 组装并启动定时任务 worker。
-func WireCron(infra *Infra) error {
-	if err := validateInfra(infra); err != nil {
-		return err
-	}
-
-	cron_service.NewSchedulerRaw(infra.DB, infra.Redis, infra.Logger, infra.Config.Log).Start()
-	return nil
-}
+// WireCron 见 app/cron_wiring.go：定时任务的编排在那里（刷盘机制、写入 SQL、
+// 调度器已经分到各自的包里，装配层只负责把"哪个 key 刷到哪张表"接起来）。
 
 // WireWorker 组装并启动所有后台 worker（river + image-ref + cron）。
 func WireWorker(infra *Infra) error {

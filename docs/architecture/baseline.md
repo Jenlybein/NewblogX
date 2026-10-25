@@ -1246,3 +1246,54 @@ S4.1d 把认证迁进 `internal/auth` 时，只换了**路由层**的 handler。
 - **本次集成测试未执行**：Docker Desktop 守护进程未运行，`check.sh` 按设计跳过并告警。
   单元测试（`internal/platform/log/...` / `core` / `middleware` / `cdc`）全绿，
   archcheck 0 违规。日志管道的端到端（CH 落盘、WAL 回放）待 Docker 恢复后补验。
+
+## 31. M5 收口补漏 · 阶段七：cron_service 拆成四个职责，service/ 目录清空
+
+**2026-10-25**：`backend/service/cron_service`（1107 行）删除，`backend/service/` 整个目录消失。
+
+### 为什么不能整包搬
+
+`cron_service` 里混了四件彼此无关的事：
+
+| 内容 | 归属 |
+| --- | --- |
+| gocron 调度、Redis 分布式锁、任务日志 | `internal/platform/scheduler` |
+| Redis 双缓冲刷盘算法（RENAME / 解析 / 失败回补） | `internal/platform/rediscounter` |
+| 写 `article_models` / `tag_models` 的计数列 | `internal/article/adapter/mysql` |
+| 写 `comment_models` 的计数列 | `internal/comment/adapter/mysql` |
+| 日志日期目录清理 | `internal/platform/log/writer`（它持有目录约定） |
+| "哪个 key 刷到哪张表" | 装配层 `app/cron_wiring.go` |
+
+整包搬进 `internal/platform/cron` 会让平台层 import 所有业务模块 —— 那是把
+"上帝模块"换个位置而已。拆开之后，平台层不认识任何业务表。
+
+### 顺带消灭的一类静默错误
+
+原来四个指标的 `syncKey` 是手写的（`article_favorite:syncing` 等）。
+复制粘贴漏改一个，两个指标就会共用同一个 sync key 互相覆盖 ——
+不报错、不 panic，只表现为"某个计数偶尔不涨"。
+
+现在 `SyncKey()` 从 `ActiveKey` 派生（`ActiveKey + ":syncing"`），这类错误不可能发生，
+并由 `app/cron_wiring_test.go` 锁定这条规则。
+
+### 写清了一个原本没写清的设计
+
+`Flush` 遇到"sync key 已存在"时**继续执行而不是跳过**。这是恢复语义：
+上一轮在 RENAME 之后、写完库之前崩掉，残留增量只存在于 sync key 里，跳过就永久丢数据。
+正确性依赖外层分布式锁（同一时刻只有一个实例在跑）—— 没有锁时两个实例会把同一笔
+增量加两遍。这条依赖关系原来只在代码里隐含，现在写在 `rediscounter` 的包注释里。
+
+### 测试
+
+删掉的 5 个测试（约 500 行）重写为：
+- `rediscounter/flusher_test.go`（7 例）：正常刷盘、无增量、**写库失败回补**、
+  非法值跳过、**双缓冲隔离**（刷盘期间的新增量不丢）、崩溃残留恢复、无 Redis 降级。
+  其中"回补"与"双缓冲隔离"原测试**没有覆盖**。
+- `writer/cleanup_test.go`（5 例）：时间解析、过期目录删除、非日期目录保留、
+  五子目录一起清、保留天数下限。
+- `article|comment/adapter/mysql/counter_flush_test.go`（7 例）：落库、0 下限、
+  **目标行不存在时返回 hit=false 而不是 error**（若返回 error，已删除的文章会让任务无限重试）。
+- `app/cron_wiring_test.go`（2 例）：映射表 key/列不重复、sync key 派生规则。
+
+**集成测试仍未执行**（Docker 守护进程未运行）。本次改动有装配层新增代码
+（`app/cron_wiring.go`），端到端（真实 Redis → MySQL）待 Docker 恢复后补验。

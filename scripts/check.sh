@@ -10,6 +10,12 @@
 #   ./scripts/check.sh backend      # 只跑后端
 #   ./scripts/check.sh frontend     # 只跑两个前端
 #   ./scripts/check.sh gates        # 只做门禁自检（证明门禁会红）
+#
+# 环境变量（默认值就是推荐值，只在需要时覆盖）：
+#   BLOGX_FAST=1              跳过 -race。快约 12 秒，但不做数据竞争检测；提交前别用。
+#   BLOGX_NO_CACHE=1          不复用 Go 测试缓存，强制全量真跑（CI 用这个语义）。
+#   BLOGX_SKIP_INTEGRATION=1  只跑单元测试，不跑 golden 与容器契约。
+#   BLOGX_MYSQL_ADDR=h:p      复用已有 MySQL 实例，省掉每次起临时容器（约 10 秒）。
 set -uo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -174,16 +180,42 @@ run_integration() {
     race="-race"
   fi
 
+  # Go 会缓存"代码与测试都没变、且上次通过"的包，直接复用结果。
+  #
+  # 默认开着它，这是本地最快的一档：改一个包时只有那个包真跑，其余瞬间返回
+  # （实测全量 93s → 7.5s，带 race 173s → 26s）。
+  #
+  # 代价必须说清楚：**命中缓存意味着这次没有真正执行那批测试**，结论来自上次真跑。
+  # 所以下面把命中数打出来，让"这次到底跑没跑"可见 —— 否则门禁又会变成"看着绿"。
+  # 要强制全量真跑用 BLOGX_NO_CACHE=1；CI 上必须用它。
+  local count_flag=""
+  if [ "${BLOGX_NO_CACHE:-0}" = "1" ]; then
+    count_flag="-count=1"
+    echo "  BLOGX_NO_CACHE=1：强制全量真跑，不复用测试缓存"
+  fi
+
+  local logf="/tmp/blogx-it-$$.log"
   local ok=0
   # shellcheck disable=SC2086
-  if go test $race -tags integration -count=1 -timeout 20m $parallel ./...; then ok=1; fi
+  if go test $race -tags integration $count_flag -timeout 25m $parallel ./... >"$logf" 2>&1; then ok=1; fi
   [ -n "$started" ] && docker rm -f "$started" >/dev/null 2>&1
 
   if [ "$ok" = 1 ]; then
+    local cached
+    cached="$(grep -c '(cached)' "$logf" 2>/dev/null || true)"
+    cached="${cached:-0}"
+    if [ "$cached" -gt 0 ]; then
+      echo "  其中 $cached 个包命中缓存（未重新执行），改动过的包已真跑"
+      echo "  要全部真跑：BLOGX_NO_CACHE=1"
+    fi
+    rm -f "$logf"
     echo "✓ $name"
     return 0
   fi
   echo "✗ $name"
+  # 失败时把关键行打出来，别让人去猜 /tmp 里翻。
+  grep -E "^(FAIL|---|panic:)|_test\.go:[0-9]+:|WARNING: DATA RACE" "$logf" | head -30
+  rm -f "$logf"
   FAILED=1
   return 1
 }

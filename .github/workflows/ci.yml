@@ -84,6 +84,9 @@ jobs:
 
       # 一次跑全部测试：-tags integration 已包含所有非 integration 用例，
       # -race 保留（本地可用 BLOGX_FAST=1 跳过，CI 不应该跳过）。
+      #
+      # -count=1 等价于 BLOGX_NO_CACHE=1：强制真跑，不复用测试结果缓存。
+      # CI 本来就没有历史缓存，但显式写出来，避免有人以为"绿了"是缓存给的。
       - name: go test (race, integration)
         env:
           BLOGX_MYSQL_ADDR: 127.0.0.1:3306

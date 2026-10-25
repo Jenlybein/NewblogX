@@ -37,9 +37,36 @@ jobs:
       - name: go vet
         run: go vet ./...
 
-      # -short 只跑不依赖外部中间件的用例；集成测试由 nightly 档跑
+      # -short 只跑不依赖外部中间件的用例；依赖 Docker 的那批在下面的 integration job。
       - name: go test (race, short)
         run: go test -race -short -count=1 ./...
+
+  # ── 集成测试：golden / 真实 SQL / 容器契约 ──────────────────────────
+  # 这些测试打了 //go:build integration，-short 跑不到。
+  # 它们覆盖的是"编译期看不出来"的错误：row 结构漏列、内嵌结构不导出导致
+  # 主键静默为零、outbox 中继租约恢复、日志管道落盘。之前一直没有 CI job，
+  # 等于这些保护只在开发机手动跑过。
+  backend-integration:
+    name: backend (integration)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache-dependency-path: backend/go.sum
+
+      # testcontainers 需要 Docker：GitHub 的 ubuntu runner 自带，这里只做断言，
+      # 免得哪天镜像变了变成静默跳过。
+      - name: 确认 Docker 可用（集成测试的硬依赖）
+        run: docker info
+
+      - name: go test (integration)
+        run: go test -tags integration -count=1 -timeout 20m ./...
 
   # ── 架构守卫：AST 规则（先 warn，逐步升级 error）─────────────────
   archcheck:
@@ -60,12 +87,16 @@ jobs:
       - name: archcheck rules self-test
         run: go test ./tools/archcheck/...
 
-      # 棘轮：存量 250 处已知，只准减少不准增加（M1 324 → M2 321 → M3-D 320 → M3-C1 319 → M3-C2 318 → S3.11 236 → S4.0 250）。
-      # S4.0 的 +14 来自新增 R10（业务模块禁止 import models）：17 处真实存量首次被统计，同时 R8 因删死代码 -3。
-      # 数字随模块迁移逐步下调，最终目标是 0。
-      # 如果有人新增了违规（比如又在 api 层 import gorm），这里立刻失败。
+      # 棘轮：基线定义在 scripts/arch-baseline.env，本地门禁 / CI / 自检脚本
+      # 三处都读它。这里绝不写死数字 —— 之前 CI 停在 250 而本地已是 0，
+      # 等于 CI 允许新增 250 处违规，棘轮失去意义。
       - name: archcheck (ratchet)
-        run: go run ./tools/archcheck --mode=error --max-violations=250 .
+        working-directory: .
+        run: |
+          . scripts/arch-baseline.env
+          echo "棘轮基线：$ARCH_MAX_VIOLATIONS"
+          cd backend
+          go run ./tools/archcheck --mode=error --max-violations="$ARCH_MAX_VIOLATIONS" .
 
   # ── 前端 lint（两端解耦，矩阵并行）────────────────────────────────
   frontend-lint:

@@ -20,6 +20,11 @@ done
 [ -x "$HOME/scoop/apps/mingw/current/bin/gcc.exe" ] && export PATH="$HOME/scoop/apps/mingw/current/bin:$PATH"
 export GOTOOLCHAIN=local CGO_ENABLED=1
 
+# 棘轮基线从唯一来源读：自检必须用"和真实门禁同一个阈值"，
+# 否则基线降到 0 之后，这里还写死 250 就会注入 1 处违规却仍然通过，
+# 自检反被判成"门禁失效"（2026-10-25 实际发生过）。
+. "$ROOT/scripts/arch-baseline.env"
+
 PASS=0
 FAIL=0
 CLEANUP=()
@@ -77,8 +82,10 @@ type Deps struct {
 }
 EOF
 CLEANUP+=("$CANARY_ARCH")
-expect_fail "archcheck 棘轮（新增违规即超阈值）" \
-  bash -c 'cd backend && go run ./tools/archcheck --mode=error --max-violations=250 .'
+# 注入 1 处违规后总数 = 基线 + 1，用当前基线做阈值必然超限。
+# 这里必须引用变量而不是写死数字：写死就会在基线下调后失效。
+expect_fail "archcheck 棘轮（新增违规即超阈值，基线 $ARCH_MAX_VIOLATIONS）" \
+  bash -c "cd backend && go run ./tools/archcheck --mode=error --max-violations=$ARCH_MAX_VIOLATIONS ."
 rm -f "$CANARY_ARCH"; rmdir backend/api/zz_canary 2>/dev/null
 
 echo ""

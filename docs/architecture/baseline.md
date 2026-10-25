@@ -992,3 +992,27 @@ T.4 里 `article`/`comment`/`user` 的 fake 依赖 domain 实体，属依赖顺�
 - `backend/api/` 只剩 `captcha_api`（一个验证码接口，无业务状态）。
 - `bash scripts/check.sh backend` 全绿；`-tags integration` 的 article golden（20 篇 × 12 接口）
   与 analytics 路由测试全绿。
+
+## 23. M5 收口补漏 · 阶段一：集成测试进流水线 + 棘轮单一来源
+
+**2026-10-25**：M5 名义收口后复查发现流水线本身在撒谎，本阶段修掉。
+
+- **2844 行集成测试从未在 CI 跑过**。`ci.yml` 注释写着"集成测试由 nightly 档跑"，
+  但仓库里只有 `ci.yml` 一个 workflow，**根本没有 nightly**。12 个
+  `//go:build integration` 文件（golden 421 / article_repo 411 / relay 396 /
+  pipeline 379 / user_repo 346 / e2e 222+265 …）只在开发机手动跑过。
+  现已新增 `backend-integration` job：断言 `docker info` 可用，再跑
+  `go test -tags integration -count=1 -timeout 20m ./...`。
+- **棘轮在三处各写一遍，已经漂移**：`scripts/check.sh` 是 0、`ci.yml` 停在 250、
+  `verify-gates.sh` 也停在 250。后果有两个：
+  1. CI 允许新增 250 处违规，棘轮形同虚设；
+  2. **门禁自检自己坏了** —— 它注入 1 处违规后按 250 判断，1 ≤ 250 不会红，
+     `expect_fail` 于是报"门禁失效"。`check.sh gates` 实际是 3/4 通过、
+     整体失败，而 M5 收口时只跑了 `backend`，没跑 `gates`，所以没发现。
+  修法：基线抽到 `scripts/arch-baseline.env` 单一来源，check.sh / verify-gates.sh /
+  ci.yml 三处都读它。自检里改用 `--max-violations=$ARCH_MAX_VIOLATIONS`
+  （注入 1 处后总数 = 基线 + 1，必然超限）。
+- `check.sh` 新增 `run_integration()`：Docker 不可用时**显式警告跳过**（不静默），
+  设 `BLOGX_REQUIRE_INTEGRATION=1` 则直接失败；`BLOGX_SKIP_INTEGRATION=1` 可显式跳过。
+- 验证：`check.sh backend` 全绿（含集成，约 2.5 分钟）；
+  `check.sh gates` **4/4 通过**（修复前是 3/4）。

@@ -96,6 +96,7 @@ func newMiddlewareRuntime(t *testing.T) middleware.Runtime {
 		t.Fatalf("初始化中间件运行时配置失败: %v", err)
 	}
 	return middleware.NewRuntime(middleware.RuntimeOptions{
+		Verifier:          testutil.AuthVerifier{Config: testutil.Config().Jwt, Redis: testRedisOptions()},
 		DB:                testutil.DB(),
 		Redis:             testutil.Redis(),
 		JWT:               testutil.Config().Jwt,

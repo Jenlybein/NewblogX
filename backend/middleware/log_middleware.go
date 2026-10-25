@@ -31,7 +31,6 @@ func (h Runtime) LogMiddleware(c *gin.Context) {
 	requestID := resolveRequestID(h.LogConfig, traceID)
 
 	c.Set("_log_deps", h.Log)
-	c.Set("_authenticator", h.Authenticator)
 	c.Set("_jwt_config", h.JWT)
 	c.Set("_redis_deps", h.Redis)
 

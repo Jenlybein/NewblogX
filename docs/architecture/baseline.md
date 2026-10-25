@@ -1048,3 +1048,43 @@ T.4 里 `article`/`comment`/`user` 的 fake 依赖 domain 实体，属依赖顺�
   放 platform 是诚实的，而 `repository/` 这个目录在 M5 之后不该再存在。
 - `service/read_service`（19 行纯转发）**零外部引用**，是彻底的死代码，直接删。
 - 剩余 `service/`：`cron_service`（1107 行）、`log_service`（写入管道）、`user_service`（878 行）。
+
+## 26. M5 收口补漏 · 阶段四：认证单一化（middleware 摘掉旧 Authenticator）
+
+**2026-10-25**：全站认证只剩一份实现（`internal/auth`），`user_service` 的认证代码删除。
+
+### 发现的问题
+
+S4.1d 把认证迁进 `internal/auth` 时，只换了**路由层**的 handler。
+`middleware.AuthMiddleware` / `OptionalAuthMiddleware` 仍然持有
+`*user_service.Authenticator` —— 也就是说：
+
+- 走 `authHandler` 的接口用新逻辑（查黑名单、令牌版本、会话有效性）
+- 走 `AuthMiddleware` 的接口用旧逻辑
+
+两套并存意味着"登出后 token 还能用"这类问题只会在部分路由上出现，
+且很难复现（取决于该路由挂的是哪个认证）。
+
+### 改法
+
+- 新增 `middleware.TokenVerifier` 窄接口（`VerifyAccessToken(ctx, raw) (*jwts.MyClaims, error)`），
+  middleware 不再依赖任何具体认证实现。
+- `RuntimeOptions.Authenticator` 换成 `Verifier TokenVerifier`；
+  实现由装配层 `app/auth_verifier.go` 提供，内部调 `authService.Authenticate`。
+  用延迟绑定（`authService` 全局变量在 `WireUser` 赋值），因为 opts 在它之前构造。
+- 去掉两处**只写不读**的上下文数据：`auth_user`（整行 UserModel）、
+  `auth_session`（整行 SessionModel）、`_authenticator`。全仓无任何读取方，
+  属于把整行数据塞进请求上下文却没人用的死代码。
+- 删除 `user_service` 的 `auth_session*.go`（3 文件）与 `auth_errors.go`；
+  `stat_view.go` 里"DB 未初始化"误用 `ErrAuthInvalid` 的说法改成 `common.db_required`。
+
+### 测试上的两个坑（都踩了）
+
+1. **测试 verifier 不能只验签名**。`TestAuthAndAdminMiddleware` 明确断言
+   "被拉黑的 token 必须拦截"，简化 verifier 一上就红。所以
+   `testutil.AuthVerifier` 保留了黑名单检查（`redis_jwt.HasTokenBlack`）。
+   这不是测试挑剔，是它守住了真实行为。
+2. **`HasTokenBlack` 的返回语义反直觉**：第二个返回值 `ok=true` 表示
+   **"不在黑名单、可以放行"**，命中黑名单返回 `false`，Redis 不可用/读取出错
+   也返回 `false`（fail-closed）。按名字写成 `if black { 拒绝 }` 会把
+   所有正常 token 拒掉。已在代码注释里写明。

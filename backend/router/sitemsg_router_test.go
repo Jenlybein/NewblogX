@@ -72,6 +72,7 @@ func newSitemsgRouterEngine() *gin.Engine {
 	r := gin.New()
 	apiGroup := r.Group("/api")
 	runtimeMw := mw.NewRuntime(mw.RuntimeOptions{
+		Verifier:         testutil.AuthVerifier{Config: testutil.Config().Jwt},
 		DB:               testutil.DB(),
 		Redis:            testutil.Redis(),
 		JWT:              testutil.Config().Jwt,
@@ -122,6 +123,7 @@ func TestSitemsgRouterPutConfBindsJSON(t *testing.T) {
 	r := gin.New()
 	apiGroup := r.Group("/api")
 	runtimeMw := mw.NewRuntime(mw.RuntimeOptions{
+		Verifier:         testutil.AuthVerifier{Config: testutil.Config().Jwt},
 		DB:               testutil.DB(),
 		Redis:            testutil.Redis(),
 		JWT:              testutil.Config().Jwt,

@@ -3,12 +3,12 @@ package app
 import (
 	"context"
 
+	"myblogx/internal/platform/readmodel"
 	socialhttp "myblogx/internal/social/adapter/http"
 	socialmysql "myblogx/internal/social/adapter/mysql"
 	socialapp "myblogx/internal/social/app"
 	"myblogx/internal/social/domain"
 	"myblogx/models/ctype"
-	"myblogx/repository/read_repo"
 	"myblogx/router"
 	"myblogx/service/user_service"
 
@@ -54,7 +54,7 @@ type displayBridge struct {
 
 // Displays 实现 domain.UserDisplay。
 func (b *displayBridge) Displays(_ context.Context, ids []uint64) (map[uint64]domain.Display, error) {
-	raw, err := read_repo.LoadUserDisplayMap(b.db, toCtypeIDs(ids))
+	raw, err := readmodel.LoadUserDisplayMap(b.db, toCtypeIDs(ids))
 	if err != nil {
 		return nil, err
 	}

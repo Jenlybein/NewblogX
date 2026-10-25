@@ -12,13 +12,13 @@ import (
 	"myblogx/internal/comment/domain"
 	notificationapp "myblogx/internal/notification/app"
 	"myblogx/internal/platform/idgen"
+	"myblogx/internal/platform/readmodel"
 	redis_service "myblogx/internal/platform/redis"
 	"myblogx/internal/platform/redis/redis_article"
 	"myblogx/internal/platform/redis/redis_comment"
 	socialdomain "myblogx/internal/social/domain"
 	"myblogx/models/ctype"
 	"myblogx/platform/cachex"
-	"myblogx/repository/read_repo"
 	"myblogx/router"
 )
 
@@ -67,7 +67,7 @@ type counterBridge struct {
 
 // Batch 返回点赞 / 回复增量。
 func (b *counterBridge) Batch(_ context.Context, ids []uint64) (map[uint64]int, map[uint64]int) {
-	reader := read_repo.NewCommentCounterReader(cachex.NewOptions(b.redisOptions.Client, b.logger))
+	reader := readmodel.NewCommentCounterReader(cachex.NewOptions(b.redisOptions.Client, b.logger))
 	got := reader.Batch(toCtypeIDs(ids))
 	digg := make(map[uint64]int, len(got.DiggMap))
 	reply := make(map[uint64]int, len(got.ReplyMap))
@@ -112,7 +112,7 @@ type userDirBridge struct {
 
 // Displays 批量取昵称头像。
 func (b *userDirBridge) Displays(_ context.Context, ids []uint64) (map[uint64]domain.Display, error) {
-	raw, err := read_repo.LoadUserDisplayMap(b.db, toCtypeIDs(ids))
+	raw, err := readmodel.LoadUserDisplayMap(b.db, toCtypeIDs(ids))
 	if err != nil {
 		return nil, err
 	}

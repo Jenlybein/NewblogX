@@ -1038,3 +1038,13 @@ T.4 里 `article`/`comment`/`user` 的 fake 依赖 domain 实体，属依赖顺�
 - 路由：`CaptchaRouter(nr)` / `UserRouter(nr, mwRuntime)` / `router.Run(opts)` —— 
   `api.Api` 参数全部消失。
 - 验证：`check.sh backend` 全绿（含集成），棘轮仍为 0。
+
+## 25. M5 收口补漏 · 阶段三：read_repo 迁 platform/readmodel，删 read_service 与 repository/
+
+**2026-10-25**：`backend/repository/` 整目录删除，`backend/service/read_service`（19 行）删除。
+
+- `repository/read_repo` → **`internal/platform/readmodel`**。它是「跨模块共享的只读投影」
+  （chat / comment / social 的装配层都要读用户展示信息、评论计数），
+  放 platform 是诚实的，而 `repository/` 这个目录在 M5 之后不该再存在。
+- `service/read_service`（19 行纯转发）**零外部引用**，是彻底的死代码，直接删。
+- 剩余 `service/`：`cron_service`（1107 行）、`log_service`（写入管道）、`user_service`（878 行）。

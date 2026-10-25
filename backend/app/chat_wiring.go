@@ -10,10 +10,10 @@ import (
 	chatapp "myblogx/internal/chat/app"
 	"myblogx/internal/chat/domain"
 	"myblogx/internal/platform/http/ws"
+	"myblogx/internal/platform/readmodel"
 	redis_service "myblogx/internal/platform/redis"
 	"myblogx/models/ctype"
 	"myblogx/models/enum"
-	"myblogx/repository/read_repo"
 	"myblogx/router"
 
 	"gorm.io/gorm"
@@ -80,7 +80,7 @@ type chatUserBridge struct {
 
 // Displays 实现 domain.UserDirectory。
 func (b *chatUserBridge) Displays(_ context.Context, ids []ctype.ID) (map[ctype.ID]domain.Display, error) {
-	raw, err := read_repo.LoadUserDisplayMap(b.db, ids)
+	raw, err := readmodel.LoadUserDisplayMap(b.db, ids)
 	if err != nil {
 		return nil, err
 	}

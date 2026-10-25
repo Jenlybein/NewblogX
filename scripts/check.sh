@@ -162,9 +162,21 @@ run_integration() {
   local parallel=""
   [ "$shared_ok" != 1 ] && parallel="-p 1"
 
+  # race 开关。
+  #
+  # 默认开：race 能抓数据竞争，关掉等于少一类真实缺陷的防线。
+  # 但它让整轮慢一倍以上（实测无 race 93s / 带 race 215s），
+  # 迭代时可设 BLOGX_FAST=1 跳过，提交前再完整跑一次。
+  local race=""
+  if [ "${BLOGX_FAST:-0}" = "1" ]; then
+    echo "  ⚠ BLOGX_FAST=1：本次未启用 -race（提交前请完整跑一次）"
+  else
+    race="-race"
+  fi
+
   local ok=0
   # shellcheck disable=SC2086
-  if go test -tags integration -count=1 -timeout 20m $parallel ./...; then ok=1; fi
+  if go test $race -tags integration -count=1 -timeout 20m $parallel ./...; then ok=1; fi
   [ -n "$started" ] && docker rm -f "$started" >/dev/null 2>&1
 
   if [ "$ok" = 1 ]; then
@@ -186,10 +198,20 @@ if [ "$TARGET" = "all" ] || [ "$TARGET" = "backend" ]; then
     run "backend: archcheck 规则自检" go test ./tools/archcheck/...
     run "backend: archcheck 棘轮($ARCH_MAX_VIOLATIONS)" \
       go run ./tools/archcheck --mode=error --max-violations="$ARCH_MAX_VIOLATIONS" .
-    run "backend: go test (race, short)" go test -race -short -count=1 ./...
-    # 集成测试单独一步：慢（约 1.5 分钟）但覆盖 golden 与真实 SQL，
-    # 只跑 -short 会漏掉 R10 那类"主键静默为零"的问题。
-    run_integration
+    # 测试只跑一遍。
+    #
+    # 项目里**没有任何测试**使用 testing.Short()，所以过去"先 -race -short 跑一遍、
+    # 再 -tags integration 跑一遍"是重复劳动：后者是前者的超集（多编译 integration
+    # 测试文件）。实测 193s + 98s，其中 193s 全是重复。
+    # 现在合成一次：-tags integration 已包含全部非 integration 测试。
+    #
+    # 显式跳过集成时，退回"仅单元测试"，免得一个测试都不跑。
+    if [ "${BLOGX_SKIP_INTEGRATION:-0}" = "1" ]; then
+      run "backend: go test (race, 仅单元)" go test -race -short -count=1 ./...
+      echo "⚠ BLOGX_SKIP_INTEGRATION=1：golden 与容器契约本次未验证"
+    else
+      run_integration
+    fi
     # 关键：把子 shell 内累积的 FAILED 作为退出码带出去，
     # 否则只有最后一条命令的成败能传出去，中间步骤失败会被吞掉。
     exit "$FAILED"

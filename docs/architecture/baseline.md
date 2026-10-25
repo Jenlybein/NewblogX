@@ -1104,3 +1104,51 @@ S4.1d 把认证迁进 `internal/auth` 时，只换了**路由层**的 handler。
   否则用户当天第二次真正访问会被误判成"已看过"。
 - integration 测试传**真实**统计实现而不是 nil：传 nil 能让门禁变绿，
   但那是把"删文章后作者文章数 -1"的覆盖悄悄丢掉。
+
+## 28. 门禁提速：去掉重复测试轮次（5分20秒 → 3分49秒 / 快速模式 2分04秒）
+
+**2026-10-25**：实测各阶段耗时后重排 `check.sh`。
+
+### 先量化，别猜
+
+| 阶段 | 耗时 |
+| --- | --- |
+| `go build ./...` | 10s |
+| `go vet ./...` | 9s |
+| **`go test -race -short ./...`** | **193s** |
+| `go test -tags integration ./...` | 98s |
+| `archcheck` | 3s |
+
+最大的一笔不是容器，也不是 golden —— 是那 193 秒。
+
+### 根因：`-short` 在本项目完全没生效
+
+全仓**没有任何测试使用 `testing.Short()`**（`grep -rl 'testing.Short()' --include=*_test.go` 结果为空）。
+所以 `-race -short ./...` 与 `-tags integration ./...` 跑的是同一批用例，
+后者只是多编译了 integration 测试文件 —— 两遍加起来 291 秒，其中 193 秒是纯重复劳动。
+
+### 改法
+
+- **合并成一次**：`go test -race -tags integration ./...`（215s）。
+  `-tags integration` 已经包含全部非 integration 用例，不需要先单独跑一遍单元测试。
+- 新增 `BLOGX_FAST=1`：跳过 `-race`（93s），迭代时用；提交前跑完整版。
+  race 默认保留 —— 关掉等于少一类真实缺陷的防线。
+- `BLOGX_SKIP_INTEGRATION=1` 时退回"仅单元测试"，避免一个测试都不跑。
+- **`user/adapter/mysql` 的 9 个测试加 `t.Parallel()`**：它们本来就是各自独立 schema，
+  只是漏了并行标记 —— 26s → 2.5s。race 下已验证无数据竞争。
+- CI 同步：`backend` job 只留 build + vet（快反馈），测试全部集中在
+  `backend-integration` job（`-race -tags integration`），不再重复跑两遍。
+
+### 顺带发现的一个坑：testcontainers 容器泄漏
+
+调试期间设过 `TESTCONTAINERS_RYUK_DISABLED=true`，之后发现 **8 个 `mysql:8.0` 容器
+还活着**（ryuk 是 testcontainers 的回收器，关掉就没人清）。它们占着内存，
+会让后续测试整体变慢。已手动清理。
+结论：**不要为了"省一次容器启动"去关 ryuk**；要复用实例应该用 `BLOGX_MYSQL_ADDR`。
+
+### 还能压吗（实测过，没有便宜可捡）
+
+- 并行度：`-p 4` 129s、`-p 8` 94s、默认（16 核）93s。默认已最优，降低反而慢。
+- `article/http` 单跑只要 4s，全量时 45s —— 是和其他包争 CPU/DB 的表现，不是它自己慢。
+  压缩它只能靠减测试量，不可取。
+- 剩下的 10s build + 9s vet 是静态检查，删掉不划算（编译错误会晚一步才暴露）。

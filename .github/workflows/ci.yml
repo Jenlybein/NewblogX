@@ -37,9 +37,10 @@ jobs:
       - name: go vet
         run: go vet ./...
 
-      # -short 只跑不依赖外部中间件的用例；依赖 Docker 的那批在下面的 integration job。
-      - name: go test (race, short)
-        run: go test -race -short -count=1 ./...
+      # 测试不在这里跑：项目里没有任何测试使用 testing.Short()，
+      # 所以 "-race -short" 与下面 integration job 的 "-tags integration"
+      # 跑的是同一批用例（后者是超集）。重复跑一遍只是多花 3 分钟。
+      # 全部测试集中在 backend-integration job（带 -race）。
 
   # ── 集成测试：golden / 真实 SQL / 容器契约 ──────────────────────────
   # 这些测试打了 //go:build integration，-short 跑不到。
@@ -81,10 +82,12 @@ jobs:
       - name: 确认 Docker 可用（ClickHouse 容器测试的依赖）
         run: docker info
 
-      - name: go test (integration)
+      # 一次跑全部测试：-tags integration 已包含所有非 integration 用例，
+      # -race 保留（本地可用 BLOGX_FAST=1 跳过，CI 不应该跳过）。
+      - name: go test (race, integration)
         env:
           BLOGX_MYSQL_ADDR: 127.0.0.1:3306
-        run: go test -tags integration -count=1 -timeout 20m ./...
+        run: go test -race -tags integration -count=1 -timeout 25m ./...
 
   # ── 架构守卫：AST 规则（先 warn，逐步升级 error）─────────────────
   archcheck:

@@ -86,6 +86,7 @@ func newUser(name string) domain.User {
 }
 
 func TestRepoCreateAndFind(t *testing.T) {
+	t.Parallel()
 	e := setup(t)
 	repo, ctx := e.repo, e.ctx
 
@@ -117,6 +118,7 @@ func TestRepoCreateAndFind(t *testing.T) {
 }
 
 func TestRepoFindMissing(t *testing.T) {
+	t.Parallel()
 	e := setup(t)
 	repo, ctx := e.repo, e.ctx
 	_, err := repo.FindByID(ctx, 999999)
@@ -126,6 +128,7 @@ func TestRepoFindMissing(t *testing.T) {
 }
 
 func TestRepoExists(t *testing.T) {
+	t.Parallel()
 	e := setup(t)
 	repo, ctx := e.repo, e.ctx
 	u := newUser("bob")
@@ -148,6 +151,7 @@ func TestRepoExists(t *testing.T) {
 }
 
 func TestRepoUpdateProfile(t *testing.T) {
+	t.Parallel()
 	e := setup(t)
 	repo, settings, ctx := e.repo, e.settings, e.ctx
 	u := newUser("carol")
@@ -184,6 +188,7 @@ func TestRepoUpdateProfile(t *testing.T) {
 }
 
 func TestRepoUpdateStatus(t *testing.T) {
+	t.Parallel()
 	e := setup(t)
 	repo, ctx := e.repo, e.ctx
 	u := newUser("dave")
@@ -203,6 +208,7 @@ func TestRepoUpdateStatus(t *testing.T) {
 }
 
 func TestRepoList(t *testing.T) {
+	t.Parallel()
 	e := setup(t)
 	repo, ctx := e.repo, e.ctx
 	for _, name := range []string{"u1", "u2", "u3"} {
@@ -236,6 +242,7 @@ func TestRepoList(t *testing.T) {
 }
 
 func TestSettingsAndStats(t *testing.T) {
+	t.Parallel()
 	e := setup(t)
 	repo, settings, stats, ctx := e.repo, e.settings, e.stats, e.ctx
 	u := newUser("erin")
@@ -293,6 +300,7 @@ func TestSettingsAndStats(t *testing.T) {
 }
 
 func TestLoadDisplays(t *testing.T) {
+	t.Parallel()
 	e := setup(t)
 	repo, ctx := e.repo, e.ctx
 	u := newUser("frank")
@@ -313,6 +321,7 @@ func TestLoadDisplays(t *testing.T) {
 }
 
 func TestSyncDisplay(t *testing.T) {
+	t.Parallel()
 	e := setup(t)
 	repo, ctx := e.repo, e.ctx
 	u := newUser("grace")

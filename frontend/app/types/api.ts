@@ -60,6 +60,10 @@ export interface BannerItem {
   cover: string;
   href: string;
   show: boolean;
+  created_at?: string;
+  updated_at?: string;
+  deleted_at?: string | null;
+  cover_image_id?: string;
 }
 
 export interface OptionItem {
@@ -290,6 +294,8 @@ export interface SearchArticleItem {
     title?: string;
     abstract?: string;
   };
+  top?: { admin: boolean; user: boolean };
+  score?: number;
 }
 
 export interface SearchArticleResponse {
@@ -460,6 +466,13 @@ export interface UserSelfDetail {
   like_tag_ids?: string[];
   like_tag_items?: UserLikeTagItem[];
   updated_username_date?: string | null;
+  email?: string;
+  has_password?: boolean;
+  stranger_msg_enabled?: boolean;
+  digg_notice_enabled?: boolean;
+  comment_notice_enabled?: boolean;
+  favor_notice_enabled?: boolean;
+  private_chat_notice_enabled?: boolean;
 }
 
 export interface UserLikeTagItem {
@@ -526,6 +539,7 @@ export interface CommentManageItem {
   article_id: string;
   article_title: string;
   article_cover: string;
+  relation?: number;
 }
 
 export interface CommentManageListData {
@@ -646,6 +660,7 @@ export interface SiteMessageItem {
   link_herf: string;
   is_read: boolean;
   read_at: string | null;
+  deleted_at?: string | null;
 }
 
 export interface SiteMessageListData {

@@ -121,7 +121,53 @@ run_integration() {
     return 0
   fi
 
-  if go test -tags integration -count=1 -timeout 20m ./...; then
+  # 起一个临时 MySQL 供所有测试包共用。
+  #
+  # 为什么必须共用：testkit 的 sync.Once 是**包级**的，而 go test ./... 每个包
+  # 编译成独立进程 —— 于是 12 个容器测试包会各起一个 MySQL。并行时它们互相抢
+  # 资源（Windows 的 Docker Desktop 上实测约五成概率把就绪检测拖到超时），
+  # 串行时又要为每个包重复付 12-15 秒启动开销（实测全量 10 分钟）。
+  # 共用一个实例后：每个测试仍各建各的独立 schema，实测 1 分 40 秒且稳定。
+  local started="" shared_ok=0
+  if [ -n "${BLOGX_MYSQL_ADDR:-}" ]; then
+    echo "  使用外部 MySQL：$BLOGX_MYSQL_ADDR"
+    shared_ok=1
+  else
+    local ctr="blogx-it-mysql-$$" port=""
+    if docker run -d --name "$ctr" -p 0:3306 \
+        -e MYSQL_ROOT_PASSWORD=root -e TZ=Asia/Shanghai mysql:8.0 >/dev/null 2>&1; then
+      port="$(docker port "$ctr" 3306/tcp 2>/dev/null | head -1 | sed 's/.*://')"
+    fi
+    if [ -n "$port" ]; then
+      local i
+      for i in $(seq 1 60); do
+        # 容器"已启动"不等于"可连接"，必须等 ping 通。
+        if docker exec "$ctr" mysqladmin ping -uroot -proot --silent >/dev/null 2>&1; then
+          export BLOGX_MYSQL_ADDR="127.0.0.1:$port"
+          started="$ctr"
+          shared_ok=1
+          echo "  临时 MySQL：$BLOGX_MYSQL_ADDR（跑完自动删除）"
+          break
+        fi
+        sleep 1
+      done
+    fi
+    if [ "$shared_ok" != 1 ]; then
+      [ -n "$ctr" ] && docker rm -f "$ctr" >/dev/null 2>&1
+      echo "  临时 MySQL 未就绪，回退为每包自起容器（会明显变慢，且包级串行）"
+    fi
+  fi
+
+  # 没有共享实例时必须 -p 1：否则多个 MySQL 容器并发启动互相拖垮。
+  local parallel=""
+  [ "$shared_ok" != 1 ] && parallel="-p 1"
+
+  local ok=0
+  # shellcheck disable=SC2086
+  if go test -tags integration -count=1 -timeout 20m $parallel ./...; then ok=1; fi
+  [ -n "$started" ] && docker rm -f "$started" >/dev/null 2>&1
+
+  if [ "$ok" = 1 ]; then
     echo "✓ $name"
     return 0
   fi

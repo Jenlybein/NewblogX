@@ -46,9 +46,25 @@ jobs:
   # 它们覆盖的是"编译期看不出来"的错误：row 结构漏列、内嵌结构不导出导致
   # 主键静默为零、outbox 中继租约恢复、日志管道落盘。之前一直没有 CI job，
   # 等于这些保护只在开发机手动跑过。
+  #
+  # 用一个 MySQL service 供所有测试包共用：testkit 的 sync.Once 是包级的、
+  # 每个包是独立进程，不共用的话 12 个包各起一个容器，并行时互相拖垮。
   backend-integration:
     name: backend (integration)
     runs-on: ubuntu-latest
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ROOT_PASSWORD: root
+          TZ: Asia/Shanghai
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -uroot -proot --silent"
+          --health-interval=5s
+          --health-timeout=3s
+          --health-retries=30
     defaults:
       run:
         working-directory: backend
@@ -60,12 +76,14 @@ jobs:
           go-version: ${{ env.GO_VERSION }}
           cache-dependency-path: backend/go.sum
 
-      # testcontainers 需要 Docker：GitHub 的 ubuntu runner 自带，这里只做断言，
+      # ClickHouse 那批仍用 testcontainers，需要 Docker：runner 自带，这里断言一下，
       # 免得哪天镜像变了变成静默跳过。
-      - name: 确认 Docker 可用（集成测试的硬依赖）
+      - name: 确认 Docker 可用（ClickHouse 容器测试的依赖）
         run: docker info
 
       - name: go test (integration)
+        env:
+          BLOGX_MYSQL_ADDR: 127.0.0.1:3306
         run: go test -tags integration -count=1 -timeout 20m ./...
 
   # ── 架构守卫：AST 规则（先 warn，逐步升级 error）─────────────────

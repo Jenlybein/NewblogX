@@ -2,6 +2,9 @@ package router_test
 
 import (
 	api2 "myblogx/api"
+	analyticsch "myblogx/internal/analytics/adapter/clickhouse"
+	analyticshttp "myblogx/internal/analytics/adapter/http"
+	analyticsmysql "myblogx/internal/analytics/adapter/mysql"
 	articlehttp "myblogx/internal/article/adapter/http"
 	authhttp "myblogx/internal/auth/adapter/http"
 	authapptest "myblogx/internal/auth/apptest"
@@ -16,6 +19,7 @@ import (
 	userapptest "myblogx/internal/user/apptest"
 	mw "myblogx/middleware"
 	"myblogx/router"
+	"myblogx/test/testutil"
 	"testing"
 	"time"
 
@@ -32,7 +36,8 @@ func TestRegisterAllRoutes(t *testing.T) {
 
 	router.SetSiteHandler(sitehttp.NewHandler(sitetest.NewDefaultService()))
 	router.SiteRouter(api, runtimeMw)
-	router.LogRouter(api, app, runtimeMw)
+	router.SetAnalyticsHandler(analyticshttp.NewHandler(analyticsch.Options{}, analyticsmysql.NewStats(testutil.DB()), nil, nil))
+	router.LogRouter(api, runtimeMw)
 	router.SetImageHandler(mediahttp.NewHandler(mediaapptest.NewDefaultService()))
 	router.ImageRouter(api, runtimeMw)
 	router.BannerRouter(api, runtimeMw)

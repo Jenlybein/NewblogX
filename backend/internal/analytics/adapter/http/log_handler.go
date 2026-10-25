@@ -1,37 +1,16 @@
-package log_api
+package http
 
 import (
 	"database/sql"
 
 	"myblogx/common"
 	"myblogx/common/res"
-	"myblogx/conf"
+	"myblogx/internal/analytics/adapter/clickhouse"
 	"myblogx/middleware"
-	"myblogx/models"
 	"myblogx/models/ctype"
-	"myblogx/service/log_service"
 
 	"github.com/gin-gonic/gin"
-	"github.com/sirupsen/logrus"
-	"gorm.io/gorm"
 )
-
-type Deps struct {
-	Log              conf.Logrus
-	System           conf.System
-	ClickHouseConfig conf.ClickHouse
-	Logger           *logrus.Logger
-	ClickHouse       *sql.DB
-	DB               *gorm.DB
-}
-
-type LogApi struct {
-	App Deps
-}
-
-func New(deps Deps) LogApi {
-	return LogApi{App: deps}
-}
 
 type RuntimeLogListRequest struct {
 	common.PageInfo
@@ -120,17 +99,17 @@ type ActionAuditListRequest struct {
 // @Param error_message query string false "错误信息"
 // @Param event_name query string false "事件名"
 // @Param module query string false "模块"
-// @Success 200 {object} object{code=int,data=object{list=[]log_service.RuntimeLogRecord,count=int},msg=string}
+// @Success 200 {object} object{code=int,data=object{list=[]clickhouse.RuntimeLogRecord,count=int},msg=string}
 // @Router /logs/runtime [get]
-func (h *LogApi) RuntimeLogListView(c *gin.Context) {
+func (h *Handler) RuntimeLogListView(c *gin.Context) {
 	cr := middleware.GetBindQuery[RuntimeLogListRequest](c)
-	list, count, err := log_service.ListRuntimeLogs(log_service.NewDeps(h.App.Log, h.App.System, h.App.ClickHouseConfig.Enabled, h.App.Logger, h.App.ClickHouse), log_service.RuntimeLogQuery{
+	list, count, err := clickhouse.ListRuntimeLogs(h.logs, clickhouse.RuntimeLogQuery{
 		PageInfo: common.PageInfo{
 			Limit: cr.Limit,
 			Page:  cr.Page,
 			Key:   cr.Key,
 		},
-		LogTimeRange: log_service.LogTimeRange{
+		LogTimeRange: clickhouse.LogTimeRange{
 			StartAt: cr.StartAt,
 			EndAt:   cr.EndAt,
 		},
@@ -163,11 +142,11 @@ func (h *LogApi) RuntimeLogListView(c *gin.Context) {
 // @Produce json
 // @Security BearerAuth
 // @Param id path int true "日志 ID"
-// @Success 200 {object} object{code=int,data=log_service.RuntimeLogRecord,msg=string}
+// @Success 200 {object} object{code=int,data=clickhouse.RuntimeLogRecord,msg=string}
 // @Router /logs/runtime/{id} [get]
-func (h *LogApi) RuntimeLogDetailView(c *gin.Context) {
-	cr := middleware.GetBindUri[models.IDRequest](c)
-	item, err := log_service.GetRuntimeLog(log_service.NewDeps(h.App.Log, h.App.System, h.App.ClickHouseConfig.Enabled, h.App.Logger, h.App.ClickHouse), uint64(cr.ID))
+func (h *Handler) RuntimeLogDetailView(c *gin.Context) {
+	cr := middleware.GetBindUri[IDRequest](c)
+	item, err := clickhouse.GetRuntimeLog(h.logs, uint64(cr.ID))
 	if err != nil {
 		if err == sql.ErrNoRows {
 			res.FailWithMsg("运行日志不存在", c)
@@ -202,17 +181,17 @@ func (h *LogApi) RuntimeLogDetailView(c *gin.Context) {
 // @Param error_code query string false "错误码"
 // @Param error_message query string false "错误信息"
 // @Param module query string false "模块"
-// @Success 200 {object} object{code=int,data=object{list=[]log_service.LoginEventRecord,count=int},msg=string}
+// @Success 200 {object} object{code=int,data=object{list=[]clickhouse.LoginEventRecord,count=int},msg=string}
 // @Router /logs/login [get]
-func (h *LogApi) LoginLogListView(c *gin.Context) {
+func (h *Handler) LoginLogListView(c *gin.Context) {
 	cr := middleware.GetBindQuery[LoginLogListRequest](c)
 	eventNameLike := cr.EventName
-	list, count, err := log_service.ListLoginEvents(log_service.NewDeps(h.App.Log, h.App.System, h.App.ClickHouseConfig.Enabled, h.App.Logger, h.App.ClickHouse), log_service.LoginEventQuery{
+	list, count, err := clickhouse.ListLoginEvents(h.logs, clickhouse.LoginEventQuery{
 		PageInfo: common.PageInfo{
 			Limit: cr.Limit,
 			Page:  cr.Page,
 		},
-		LogTimeRange: log_service.LogTimeRange{
+		LogTimeRange: clickhouse.LogTimeRange{
 			StartAt: cr.StartAt,
 			EndAt:   cr.EndAt,
 		},
@@ -244,11 +223,11 @@ func (h *LogApi) LoginLogListView(c *gin.Context) {
 // @Produce json
 // @Security BearerAuth
 // @Param id path int true "日志 ID"
-// @Success 200 {object} object{code=int,data=log_service.LoginEventRecord,msg=string}
+// @Success 200 {object} object{code=int,data=clickhouse.LoginEventRecord,msg=string}
 // @Router /logs/login/{id} [get]
-func (h *LogApi) LoginLogDetailView(c *gin.Context) {
-	cr := middleware.GetBindUri[models.IDRequest](c)
-	item, err := log_service.GetLoginEvent(log_service.NewDeps(h.App.Log, h.App.System, h.App.ClickHouseConfig.Enabled, h.App.Logger, h.App.ClickHouse), uint64(cr.ID))
+func (h *Handler) LoginLogDetailView(c *gin.Context) {
+	cr := middleware.GetBindUri[IDRequest](c)
+	item, err := clickhouse.GetLoginEvent(h.logs, uint64(cr.ID))
 	if err != nil {
 		if err == sql.ErrNoRows {
 			res.FailWithMsg("登录事件不存在", c)
@@ -285,20 +264,20 @@ func (h *LogApi) LoginLogDetailView(c *gin.Context) {
 // @Param event_name query string false "事件名（模糊匹配）"
 // @Param event_name_like query string false "事件名（模糊匹配，event_name 为空时生效）"
 // @Param module query string false "模块"
-// @Success 200 {object} object{code=int,data=object{list=[]log_service.ActionAuditRecord,count=int},msg=string}
+// @Success 200 {object} object{code=int,data=object{list=[]clickhouse.ActionAuditRecord,count=int},msg=string}
 // @Router /logs/action [get]
-func (h *LogApi) ActionAuditListView(c *gin.Context) {
+func (h *Handler) ActionAuditListView(c *gin.Context) {
 	cr := middleware.GetBindQuery[ActionAuditListRequest](c)
 	eventNameLike := cr.EventName
 	if eventNameLike == "" {
 		eventNameLike = cr.EventNameLike
 	}
-	list, count, err := log_service.ListActionAudits(log_service.NewDeps(h.App.Log, h.App.System, h.App.ClickHouseConfig.Enabled, h.App.Logger, h.App.ClickHouse), log_service.ActionAuditQuery{
+	list, count, err := clickhouse.ListActionAudits(h.logs, clickhouse.ActionAuditQuery{
 		PageInfo: common.PageInfo{
 			Limit: cr.Limit,
 			Page:  cr.Page,
 		},
-		LogTimeRange: log_service.LogTimeRange{
+		LogTimeRange: clickhouse.LogTimeRange{
 			StartAt: cr.StartAt,
 			EndAt:   cr.EndAt,
 		},
@@ -331,11 +310,11 @@ func (h *LogApi) ActionAuditListView(c *gin.Context) {
 // @Produce json
 // @Security BearerAuth
 // @Param id path int true "日志 ID"
-// @Success 200 {object} object{code=int,data=log_service.ActionAuditRecord,msg=string}
+// @Success 200 {object} object{code=int,data=clickhouse.ActionAuditRecord,msg=string}
 // @Router /logs/action/{id} [get]
-func (h *LogApi) ActionAuditDetailView(c *gin.Context) {
-	cr := middleware.GetBindUri[models.IDRequest](c)
-	item, err := log_service.GetActionAudit(log_service.NewDeps(h.App.Log, h.App.System, h.App.ClickHouseConfig.Enabled, h.App.Logger, h.App.ClickHouse), uint64(cr.ID))
+func (h *Handler) ActionAuditDetailView(c *gin.Context) {
+	cr := middleware.GetBindUri[IDRequest](c)
+	item, err := clickhouse.GetActionAudit(h.logs, uint64(cr.ID))
 	if err != nil {
 		if err == sql.ErrNoRows {
 			res.FailWithMsg("操作审计日志不存在", c)

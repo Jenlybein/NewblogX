@@ -1,4 +1,4 @@
-package log_service
+package clickhouse
 
 import (
 	"context"
@@ -161,7 +161,7 @@ type ActionAuditQuery struct {
 }
 
 // ListRuntimeLogs 按条件分页查询运行日志列表。
-func ListRuntimeLogs(deps Deps, query RuntimeLogQuery) ([]RuntimeLogRecord, int64, error) {
+func ListRuntimeLogs(opts Options, query RuntimeLogQuery) ([]RuntimeLogRecord, int64, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
@@ -169,9 +169,9 @@ func ListRuntimeLogs(deps Deps, query RuntimeLogQuery) ([]RuntimeLogRecord, int6
 	if err != nil {
 		return nil, 0, err
 	}
-	limit, offset := normalizeLogPage(deps, query.PageInfo)
+	limit, offset := normalizeLogPage(opts, query.PageInfo)
 	countQuery := fmt.Sprintf("SELECT count() FROM %s %s", RuntimeLogTableName, whereSQL)
-	count, err := queryCount(deps, ctx, countQuery, args...)
+	count, err := queryCount(opts, ctx, countQuery, args...)
 	if err != nil {
 		return nil, 0, err
 	}
@@ -183,7 +183,7 @@ ORDER BY ts DESC, event_id DESC
 LIMIT ? OFFSET ?`, RuntimeLogTableName, whereSQL)
 	args = append(args, limit, offset)
 
-	rows, err := deps.ClickHouse.QueryContext(ctx, sqlText, args...)
+	rows, err := opts.ClickHouse.QueryContext(ctx, sqlText, args...)
 	if err != nil {
 		return nil, 0, err
 	}
@@ -206,11 +206,11 @@ LIMIT ? OFFSET ?`, RuntimeLogTableName, whereSQL)
 }
 
 // GetRuntimeLog 按 event_id 查询单条运行日志详情。
-func GetRuntimeLog(deps Deps, eventID uint64) (*RuntimeLogRecord, error) {
+func GetRuntimeLog(opts Options, eventID uint64) (*RuntimeLogRecord, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	row := queryRowExists(deps, ctx, fmt.Sprintf(`
+	row := queryRowExists(opts, ctx, fmt.Sprintf(`
 SELECT event_id, toString(ts), service, env, host, instance_id, level, message, request_id, trace_id, file, func, user_id, ip, method, path, status_code, latency_ms, event_name, error_code, error_message, error_type, error_stack, extra_json
 FROM %s WHERE event_id = ? LIMIT 1`, RuntimeLogTableName), eventID)
 	var item RuntimeLogRecord
@@ -226,15 +226,15 @@ FROM %s WHERE event_id = ? LIMIT 1`, RuntimeLogTableName), eventID)
 }
 
 // ListLoginEvents 按条件分页查询登录事件日志列表。
-func ListLoginEvents(deps Deps, query LoginEventQuery) ([]LoginEventRecord, int64, error) {
+func ListLoginEvents(opts Options, query LoginEventQuery) ([]LoginEventRecord, int64, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 	whereSQL, args, err := buildLoginWhere(query)
 	if err != nil {
 		return nil, 0, err
 	}
-	limit, offset := normalizeLogPage(deps, query.PageInfo)
-	count, err := queryCount(deps, ctx, fmt.Sprintf("SELECT count() FROM %s %s", LoginEventLogTableName, whereSQL), args...)
+	limit, offset := normalizeLogPage(opts, query.PageInfo)
+	count, err := queryCount(opts, ctx, fmt.Sprintf("SELECT count() FROM %s %s", LoginEventLogTableName, whereSQL), args...)
 	if err != nil {
 		return nil, 0, err
 	}
@@ -244,7 +244,7 @@ FROM %s %s
 ORDER BY ts DESC, event_id DESC
 LIMIT ? OFFSET ?`, LoginEventLogTableName, whereSQL)
 	args = append(args, limit, offset)
-	rows, err := deps.ClickHouse.QueryContext(ctx, sqlText, args...)
+	rows, err := opts.ClickHouse.QueryContext(ctx, sqlText, args...)
 	if err != nil {
 		return nil, 0, err
 	}
@@ -267,10 +267,10 @@ LIMIT ? OFFSET ?`, LoginEventLogTableName, whereSQL)
 }
 
 // GetLoginEvent 按 event_id 查询单条登录事件日志详情。
-func GetLoginEvent(deps Deps, eventID uint64) (*LoginEventRecord, error) {
+func GetLoginEvent(opts Options, eventID uint64) (*LoginEventRecord, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	row := queryRowExists(deps, ctx, fmt.Sprintf(`
+	row := queryRowExists(opts, ctx, fmt.Sprintf(`
 SELECT event_id, toString(ts), service, env, host, instance_id, level, message, request_id, trace_id, user_id, ip, event_name, error_code, error_message, username, login_type, success, reason, addr, ua, extra_json
 FROM %s WHERE event_id = ? LIMIT 1`, LoginEventLogTableName), eventID)
 	var item LoginEventRecord
@@ -286,15 +286,15 @@ FROM %s WHERE event_id = ? LIMIT 1`, LoginEventLogTableName), eventID)
 }
 
 // ListActionAudits 按条件分页查询操作审计日志列表。
-func ListActionAudits(deps Deps, query ActionAuditQuery) ([]ActionAuditRecord, int64, error) {
+func ListActionAudits(opts Options, query ActionAuditQuery) ([]ActionAuditRecord, int64, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 	whereSQL, args, err := buildActionWhere(query)
 	if err != nil {
 		return nil, 0, err
 	}
-	limit, offset := normalizeLogPage(deps, query.PageInfo)
-	count, err := queryCount(deps, ctx, fmt.Sprintf("SELECT count() FROM %s %s", ActionAuditLogTableName, whereSQL), args...)
+	limit, offset := normalizeLogPage(opts, query.PageInfo)
+	count, err := queryCount(opts, ctx, fmt.Sprintf("SELECT count() FROM %s %s", ActionAuditLogTableName, whereSQL), args...)
 	if err != nil {
 		return nil, 0, err
 	}
@@ -304,7 +304,7 @@ FROM %s %s
 ORDER BY ts DESC, event_id DESC
 LIMIT ? OFFSET ?`, ActionAuditLogTableName, whereSQL)
 	args = append(args, limit, offset)
-	rows, err := deps.ClickHouse.QueryContext(ctx, sqlText, args...)
+	rows, err := opts.ClickHouse.QueryContext(ctx, sqlText, args...)
 	if err != nil {
 		return nil, 0, err
 	}
@@ -327,10 +327,10 @@ LIMIT ? OFFSET ?`, ActionAuditLogTableName, whereSQL)
 }
 
 // GetActionAudit 按 event_id 查询单条操作审计日志详情。
-func GetActionAudit(deps Deps, eventID uint64) (*ActionAuditRecord, error) {
+func GetActionAudit(opts Options, eventID uint64) (*ActionAuditRecord, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	row := queryRowExists(deps, ctx, fmt.Sprintf(`
+	row := queryRowExists(opts, ctx, fmt.Sprintf(`
 SELECT event_id, toString(ts), service, env, host, instance_id, level, message, request_id, trace_id, user_id, ip, method, path, status_code, error_code, error_message, action_name, target_type, target_id, success, request_body, response_body, extra_json
 FROM %s WHERE event_id = ? LIMIT 1`, ActionAuditLogTableName), eventID)
 	var item ActionAuditRecord
@@ -346,19 +346,19 @@ FROM %s WHERE event_id = ? LIMIT 1`, ActionAuditLogTableName), eventID)
 }
 
 // CountDistinctLoginUsersSince 统计指定时间之后成功登录的去重用户数。
-func CountDistinctLoginUsersSince(deps Deps, since time.Time) (int64, error) {
-	if !clickhouseEnabled(deps) {
+func CountDistinctLoginUsersSince(opts Options, since time.Time) (int64, error) {
+	if !clickhouseEnabled(opts) {
 		return 0, nil
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	return queryCount(deps, ctx, fmt.Sprintf("SELECT count(DISTINCT user_id) FROM %s WHERE event_name = ? AND success = 1 AND ts >= ?", LoginEventLogTableName), "login_success", since.Format(clickhouseTimeLayout))
+	return queryCount(opts, ctx, fmt.Sprintf("SELECT count(DISTINCT user_id) FROM %s WHERE event_name = ? AND success = 1 AND ts >= ?", LoginEventLogTableName), "login_success", since.Format(clickhouseTimeLayout))
 }
 
 // LoadLatestLoginMap 批量加载用户最近一次成功登录事件，供后台用户列表补充登录信息。
-func LoadLatestLoginMap(deps Deps, userIDs []ctype.ID) (map[ctype.ID]LoginEventRecord, error) {
+func LoadLatestLoginMap(opts Options, userIDs []ctype.ID) (map[ctype.ID]LoginEventRecord, error) {
 	result := make(map[ctype.ID]LoginEventRecord)
-	if !clickhouseEnabled(deps) {
+	if !clickhouseEnabled(opts) {
 		return result, nil
 	}
 	if len(userIDs) == 0 {
@@ -384,7 +384,7 @@ func LoadLatestLoginMap(deps Deps, userIDs []ctype.ID) (map[ctype.ID]LoginEventR
 		placeholders = append(placeholders, "?")
 		args = append(args, value)
 	}
-	rows, err := deps.ClickHouse.QueryContext(ctx, fmt.Sprintf(`
+	rows, err := opts.ClickHouse.QueryContext(ctx, fmt.Sprintf(`
 SELECT event_id, toString(ts), service, env, host, instance_id, level, message, request_id, trace_id, user_id, ip, event_name, username, login_type, success, reason, addr, ua, extra_json
 FROM %s
 WHERE user_id IN (%s) AND event_name = 'login_success' AND success = 1
@@ -411,14 +411,14 @@ LIMIT 1 BY user_id`, LoginEventLogTableName, strings.Join(placeholders, ",")), a
 }
 
 // normalizeLogPage 统一处理后台日志分页参数和默认限制。
-func normalizeLogPage(deps Deps, pageInfo common.PageInfo) (limit int, offset int) {
+func normalizeLogPage(opts Options, pageInfo common.PageInfo) (limit int, offset int) {
 	defaultLimit := 20
-	if deps.LogConfig.QueryDefaultLimit > 0 {
-		defaultLimit = deps.LogConfig.QueryDefaultLimit
+	if opts.LogConfig.QueryDefaultLimit > 0 {
+		defaultLimit = opts.LogConfig.QueryDefaultLimit
 	}
 	maxLimit := 200
-	if deps.LogConfig.QueryMaxLimit > 0 {
-		maxLimit = deps.LogConfig.QueryMaxLimit
+	if opts.LogConfig.QueryMaxLimit > 0 {
+		maxLimit = opts.LogConfig.QueryMaxLimit
 	}
 
 	limit = pageInfo.Limit

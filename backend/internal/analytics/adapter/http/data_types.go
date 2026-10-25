@@ -1,4 +1,4 @@
-package data_api
+package http
 
 type SumResponse struct {
 	FlowCount     int   `json:"flow_count"`

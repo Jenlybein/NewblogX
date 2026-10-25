@@ -59,8 +59,9 @@ func UserRouter(r *gin.RouterGroup, appContainer api.Api, runtimeMw mw.Runtime) 
 	authGroup.PUT("info", profile.UpdateInfo)
 	adminGroup.PUT("admin/info", mw.CaptureLog(mw.ReqBody), profile.AdminUpdate)
 
-	log := appContainer.UserApi.LogApi
-	adminGroup.GET("login/log", log.UserLoginLogList)
+	// 登录日志归 analytics 模块（S4.9）。
+	analytics := mustAnalyticsHandler()
+	adminGroup.GET("login/log", analytics.UserLoginLogList)
 
 	adminGroup.POST("admin", profile.AdminCreate)
 	adminGroup.GET("admin/list", profile.AdminList)

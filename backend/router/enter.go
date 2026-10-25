@@ -38,7 +38,7 @@ func Run(deps middleware.Deps, app api.Api) (*http.Server, error) {
 	nr.Use(mwRuntime.LogMiddleware)
 
 	SiteRouter(nr, mwRuntime)
-	LogRouter(nr, app, mwRuntime)
+	LogRouter(nr, mwRuntime)
 	ImageRouter(nr, mwRuntime)
 	BannerRouter(nr, mwRuntime)
 	CaptchaRouter(nr, app, mwRuntime)
@@ -51,7 +51,7 @@ func Run(deps middleware.Deps, app api.Api) (*http.Server, error) {
 	FollowRouter(nr, mwRuntime)
 	SearchRouter(nr, mwRuntime)
 	AIRouter(nr, mwRuntime)
-	DataRouter(nr, app, mwRuntime)
+	DataRouter(nr, mwRuntime)
 
 	ln, err := net.Listen("tcp", deps.System.Addr())
 	if err != nil {

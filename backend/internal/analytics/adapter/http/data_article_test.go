@@ -1,7 +1,9 @@
-package data_api
+package http
 
 import (
 	"encoding/json"
+	"myblogx/internal/analytics/adapter/clickhouse"
+	analyticsmysql "myblogx/internal/analytics/adapter/mysql"
 	"myblogx/models"
 	"myblogx/models/enum"
 	"myblogx/test/testutil"
@@ -19,13 +21,16 @@ func newDataCtx() (*gin.Context, *httptest.ResponseRecorder) {
 	return c, w
 }
 
-func newDataAPI(t *testing.T) DataApi {
+// newDataHandler 用真实 sqlite 组装统计处理器。
+func newDataHandler(t *testing.T) *Handler {
 	t.Helper()
-	db := testutil.SetupSQLite(t, &models.ArticleModel{})
-	return New(Deps{
-		DB:     db,
-		Logger: testutil.Logger(),
-	})
+	db := testutil.SetupSQLite(t, &models.ArticleModel{}, &models.UserModel{}, &models.CommentModel{}, &models.ChatMsgModel{})
+	return NewHandler(
+		clickhouse.Options{},
+		analyticsmysql.NewStats(db),
+		nil,
+		nil,
+	)
 }
 
 func readDataResponse[T any](t *testing.T, w *httptest.ResponseRecorder) T {
@@ -61,7 +66,7 @@ func createPublishedByPublishStatusOnlyArticle(t *testing.T, createdAt time.Time
 }
 
 func TestGrowthDataViewCountsEffectivePublishedArticles(t *testing.T) {
-	api := newDataAPI(t)
+	api := newDataHandler(t)
 	now := time.Now()
 	createPublishedByPublishStatusOnlyArticle(t, now)
 
@@ -81,7 +86,7 @@ func TestGrowthDataViewCountsEffectivePublishedArticles(t *testing.T) {
 }
 
 func TestArticleYearDataViewCountsEffectivePublishedArticles(t *testing.T) {
-	api := newDataAPI(t)
+	api := newDataHandler(t)
 	now := time.Now()
 	createPublishedByPublishStatusOnlyArticle(t, now)
 

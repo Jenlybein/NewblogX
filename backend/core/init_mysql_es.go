@@ -3,8 +3,8 @@ package core
 import (
 	"myblogx/conf"
 	"myblogx/internal/platform/cdc/river"
+	"myblogx/internal/platform/log/writer"
 	"myblogx/internal/platform/safego"
-	"myblogx/service/log_service"
 
 	"github.com/elastic/go-elasticsearch/v7"
 	"github.com/sirupsen/logrus"
@@ -31,7 +31,7 @@ func InitMySQLES(deps MySQLESOptions) {
 	if err != nil {
 		deps.Logger.Fatal(err)
 	}
-	r.SetLogOptions(log_service.NewOptions(deps.LogConfig, deps.System, deps.ClickHouseEnabled, deps.Logger, nil))
+	r.SetLogOptions(writer.NewOptions(deps.LogConfig, deps.System, deps.ClickHouseEnabled, deps.Logger, nil))
 
 	safego.Go(func(recovered any, stack []byte) {
 		deps.Logger.Errorf("MySQL→ES 同步 panic: %v\n%s", recovered, stack)

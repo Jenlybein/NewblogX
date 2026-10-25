@@ -4018,7 +4018,7 @@ const docTemplate = `{
                                         "list": {
                                             "type": "array",
                                             "items": {
-                                                "$ref": "#/definitions/myblogx_service_log_service.ActionAuditRecord"
+                                                "$ref": "#/definitions/myblogx_service_writer.ActionAuditRecord"
                                             }
                                         }
                                     }
@@ -4065,7 +4065,7 @@ const docTemplate = `{
                                     "type": "integer"
                                 },
                                 "data": {
-                                    "$ref": "#/definitions/myblogx_service_log_service.ActionAuditRecord"
+                                    "$ref": "#/definitions/myblogx_service_writer.ActionAuditRecord"
                                 },
                                 "msg": {
                                     "type": "string"
@@ -4236,7 +4236,7 @@ const docTemplate = `{
                                         "list": {
                                             "type": "array",
                                             "items": {
-                                                "$ref": "#/definitions/myblogx_service_log_service.CdcEventRecord"
+                                                "$ref": "#/definitions/myblogx_service_writer.CdcEventRecord"
                                             }
                                         }
                                     }
@@ -4283,7 +4283,7 @@ const docTemplate = `{
                                     "type": "integer"
                                 },
                                 "data": {
-                                    "$ref": "#/definitions/myblogx_service_log_service.CdcEventRecord"
+                                    "$ref": "#/definitions/myblogx_service_writer.CdcEventRecord"
                                 },
                                 "msg": {
                                     "type": "string"
@@ -4539,7 +4539,7 @@ const docTemplate = `{
                                         "list": {
                                             "type": "array",
                                             "items": {
-                                                "$ref": "#/definitions/myblogx_service_log_service.LoginEventRecord"
+                                                "$ref": "#/definitions/myblogx_service_writer.LoginEventRecord"
                                             }
                                         }
                                     }
@@ -4586,7 +4586,7 @@ const docTemplate = `{
                                     "type": "integer"
                                 },
                                 "data": {
-                                    "$ref": "#/definitions/myblogx_service_log_service.LoginEventRecord"
+                                    "$ref": "#/definitions/myblogx_service_writer.LoginEventRecord"
                                 },
                                 "msg": {
                                     "type": "string"
@@ -4757,7 +4757,7 @@ const docTemplate = `{
                                         "list": {
                                             "type": "array",
                                             "items": {
-                                                "$ref": "#/definitions/myblogx_service_log_service.ReplayEventRecord"
+                                                "$ref": "#/definitions/myblogx_service_writer.ReplayEventRecord"
                                             }
                                         }
                                     }
@@ -4804,7 +4804,7 @@ const docTemplate = `{
                                     "type": "integer"
                                 },
                                 "data": {
-                                    "$ref": "#/definitions/myblogx_service_log_service.ReplayEventRecord"
+                                    "$ref": "#/definitions/myblogx_service_writer.ReplayEventRecord"
                                 },
                                 "msg": {
                                     "type": "string"
@@ -4969,7 +4969,7 @@ const docTemplate = `{
                                         "list": {
                                             "type": "array",
                                             "items": {
-                                                "$ref": "#/definitions/myblogx_service_log_service.RuntimeLogRecord"
+                                                "$ref": "#/definitions/myblogx_service_writer.RuntimeLogRecord"
                                             }
                                         }
                                     }
@@ -5016,7 +5016,7 @@ const docTemplate = `{
                                     "type": "integer"
                                 },
                                 "data": {
-                                    "$ref": "#/definitions/myblogx_service_log_service.RuntimeLogRecord"
+                                    "$ref": "#/definitions/myblogx_service_writer.RuntimeLogRecord"
                                 },
                                 "msg": {
                                     "type": "string"
@@ -6203,7 +6203,7 @@ const docTemplate = `{
                                         "list": {
                                             "type": "array",
                                             "items": {
-                                                "$ref": "#/definitions/myblogx_service_log_service.LoginEventRecord"
+                                                "$ref": "#/definitions/myblogx_service_writer.LoginEventRecord"
                                             }
                                         }
                                     }
@@ -7836,13 +7836,13 @@ const docTemplate = `{
                 "action_logs": {
                     "type": "array",
                     "items": {
-                        "$ref": "#/definitions/myblogx_service_log_service.ActionAuditRecord"
+                        "$ref": "#/definitions/myblogx_service_writer.ActionAuditRecord"
                     }
                 },
                 "cdc_logs": {
                     "type": "array",
                     "items": {
-                        "$ref": "#/definitions/myblogx_service_log_service.CdcEventRecord"
+                        "$ref": "#/definitions/myblogx_service_writer.CdcEventRecord"
                     }
                 },
                 "dlq": {
@@ -7854,19 +7854,19 @@ const docTemplate = `{
                 "login_logs": {
                     "type": "array",
                     "items": {
-                        "$ref": "#/definitions/myblogx_service_log_service.LoginEventRecord"
+                        "$ref": "#/definitions/myblogx_service_writer.LoginEventRecord"
                     }
                 },
                 "replay_logs": {
                     "type": "array",
                     "items": {
-                        "$ref": "#/definitions/myblogx_service_log_service.ReplayEventRecord"
+                        "$ref": "#/definitions/myblogx_service_writer.ReplayEventRecord"
                     }
                 },
                 "runtime_logs": {
                     "type": "array",
                     "items": {
-                        "$ref": "#/definitions/myblogx_service_log_service.RuntimeLogRecord"
+                        "$ref": "#/definitions/myblogx_service_writer.RuntimeLogRecord"
                     }
                 }
             }
@@ -9110,7 +9110,7 @@ const docTemplate = `{
                 }
             }
         },
-        "myblogx_service_log_service.ActionAuditRecord": {
+        "myblogx_service_writer.ActionAuditRecord": {
             "type": "object",
             "properties": {
                 "action_name": {
@@ -9187,7 +9187,7 @@ const docTemplate = `{
                 }
             }
         },
-        "myblogx_service_log_service.CdcEventRecord": {
+        "myblogx_service_writer.CdcEventRecord": {
             "type": "object",
             "properties": {
                 "action": {
@@ -9255,7 +9255,7 @@ const docTemplate = `{
                 }
             }
         },
-        "myblogx_service_log_service.LoginEventRecord": {
+        "myblogx_service_writer.LoginEventRecord": {
             "type": "object",
             "properties": {
                 "addr": {
@@ -9326,7 +9326,7 @@ const docTemplate = `{
                 }
             }
         },
-        "myblogx_service_log_service.ReplayEventRecord": {
+        "myblogx_service_writer.ReplayEventRecord": {
             "type": "object",
             "properties": {
                 "action": {
@@ -9394,7 +9394,7 @@ const docTemplate = `{
                 }
             }
         },
-        "myblogx_service_log_service.RuntimeLogRecord": {
+        "myblogx_service_writer.RuntimeLogRecord": {
             "type": "object",
             "properties": {
                 "env": {

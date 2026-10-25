@@ -1,4 +1,4 @@
-package log_service
+package writer
 
 import (
 	"bytes"

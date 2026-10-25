@@ -2,9 +2,9 @@ package middleware
 
 import (
 	"fmt"
+	"myblogx/internal/platform/log/writer"
 	"myblogx/models/ctype"
 	"myblogx/models/enum"
-	"myblogx/service/log_service"
 	"myblogx/utils/jwts"
 	"myblogx/utils/requestmeta"
 
@@ -30,7 +30,7 @@ type GinAuditInput struct {
 func EmitActionAuditFromGin(c *gin.Context, input GinAuditInput) {
 	deps := logOptionsFromContext(c)
 	if c == nil {
-		log_service.EmitActionAudit(deps, log_service.ActionAuditInput{
+		writer.EmitActionAudit(deps, writer.ActionAuditInput{
 			Level:      input.Level,
 			Message:    input.Message,
 			ActionName: input.ActionName,
@@ -69,15 +69,15 @@ func EmitActionAuditFromGin(c *gin.Context, input GinAuditInput) {
 	// 内容来自 CaptureLog 在边界做的「限量读 + 脱敏 + 截断」，不是全量原始报文。
 	var reqBody, respBody []byte
 	if !input.Success {
-		if s := log_service.GetCapturedRequestBody(c); s != "" {
+		if s := writer.GetCapturedRequestBody(c); s != "" {
 			reqBody = []byte(s)
 		}
-		if s := log_service.GetCapturedResponseBody(c); s != "" {
+		if s := writer.GetCapturedResponseBody(c); s != "" {
 			respBody = []byte(s)
 		}
 	}
 
-	log_service.EmitActionAudit(deps, log_service.ActionAuditInput{
+	writer.EmitActionAudit(deps, writer.ActionAuditInput{
 		Level:        input.Level,
 		Message:      input.Message,
 		RequestID:    requestmeta.GetRequestID(c),
@@ -106,7 +106,7 @@ func EmitLoginEventFromGin(c *gin.Context, eventName string, loginType enum.Logi
 	deps := logOptionsFromContext(c)
 	meta := requestmeta.BuildSessionMeta(c)
 
-	log_service.EmitLoginEvent(deps, log_service.LoginEventInput{
+	writer.EmitLoginEvent(deps, writer.LoginEventInput{
 		EventName:    eventName,
 		Username:     username,
 		LoginType:    loginType,
@@ -146,14 +146,14 @@ func buildLoginErrorCode(success bool) string {
 	return "AUTH_FAILED"
 }
 
-func logOptionsFromContext(c *gin.Context) log_service.Options {
+func logOptionsFromContext(c *gin.Context) writer.Options {
 	if c == nil {
-		return log_service.Options{}
+		return writer.Options{}
 	}
 	value, ok := c.Get("_log_deps")
 	if !ok {
-		return log_service.Options{}
+		return writer.Options{}
 	}
-	deps, _ := value.(log_service.Options)
+	deps, _ := value.(writer.Options)
 	return deps
 }

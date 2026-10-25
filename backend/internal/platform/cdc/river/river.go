@@ -7,9 +7,9 @@ import (
 	"myblogx/internal/apperr"
 	"myblogx/internal/platform/cdc/canalbase"
 	"myblogx/internal/platform/cdc/river/rule"
+	"myblogx/internal/platform/log/writer"
 	"myblogx/internal/platform/safego"
 	"myblogx/models"
-	"myblogx/service/log_service"
 	"regexp"
 	"strings"
 	"sync"
@@ -31,7 +31,7 @@ type River struct {
 	rules      map[string]*rule.Rule // 规则映射
 	cfg        conf.River
 	log        *logrus.Logger
-	logOptions log_service.Options
+	logOptions writer.Options
 	db         *gorm.DB
 	es         *elasticsearch.Client
 
@@ -45,7 +45,7 @@ type River struct {
 	syncCh chan interface{} // 同步通道
 }
 
-func (r *River) SetLogOptions(deps log_service.Options) {
+func (r *River) SetLogOptions(deps writer.Options) {
 	r.logOptions = deps
 }
 

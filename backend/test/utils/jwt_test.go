@@ -2,7 +2,7 @@ package utils_test
 
 import (
 	"myblogx/conf"
-	"myblogx/models/enum"
+	"myblogx/internal/kernel/enum"
 	"myblogx/test/testutil"
 	"myblogx/utils/jwts"
 	"net/http"

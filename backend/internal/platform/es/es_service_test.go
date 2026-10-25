@@ -3,7 +3,7 @@ package es_service
 import (
 	"encoding/json"
 	"io"
-	"myblogx/models/ctype"
+	"myblogx/internal/kernel/ctype"
 	"myblogx/test/testutil"
 	"net/http"
 	"net/http/httptest"

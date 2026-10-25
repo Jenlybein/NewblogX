@@ -8,7 +8,7 @@ import (
 	"gorm.io/gorm"
 
 	"myblogx/internal/article/domain"
-	"myblogx/models/ctype"
+	"myblogx/internal/kernel/ctype"
 )
 
 // ArticleRepo 是 domain.Repository 的 MySQL 实现。

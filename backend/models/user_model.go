@@ -5,8 +5,8 @@ package models
 import (
 	"errors"
 	"myblogx/internal/apperr"
-	"myblogx/models/ctype"
-	"myblogx/models/enum"
+	"myblogx/internal/kernel/ctype"
+	"myblogx/internal/kernel/enum"
 	"time"
 
 	"gorm.io/gorm"

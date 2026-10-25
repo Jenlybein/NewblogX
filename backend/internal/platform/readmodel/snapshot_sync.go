@@ -1,8 +1,8 @@
 package readmodel
 
 import (
+	"myblogx/internal/kernel/ctype"
 	"myblogx/models"
-	"myblogx/models/ctype"
 
 	"gorm.io/gorm"
 )

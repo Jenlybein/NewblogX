@@ -8,9 +8,9 @@ import (
 
 	"myblogx/common/res"
 	"myblogx/internal/apperr"
+	"myblogx/internal/kernel/ctype"
 	"myblogx/internal/notification/app"
 	"myblogx/internal/notification/domain"
-	"myblogx/models/ctype"
 	"myblogx/utils/jwts"
 )
 

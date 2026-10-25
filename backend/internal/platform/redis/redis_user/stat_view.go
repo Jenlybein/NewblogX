@@ -4,8 +4,8 @@ import (
 	"context"
 	"time"
 
+	"myblogx/internal/kernel/ctype"
 	"myblogx/internal/platform/redis"
-	"myblogx/models/ctype"
 )
 
 // TryMarkUserHomeViewed 使用 HSETNX 做“写入式判重”。

@@ -2,7 +2,7 @@
 
 package models
 
-import "myblogx/models/ctype"
+import "myblogx/internal/kernel/ctype"
 
 // 用户文章查看历史表
 type UserArticleViewHistoryModel struct {

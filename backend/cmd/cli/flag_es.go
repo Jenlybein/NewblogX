@@ -2,10 +2,10 @@ package cli
 
 import (
 	"fmt"
+	"myblogx/internal/kernel/ctype"
 	"myblogx/internal/platform/es"
 	"myblogx/internal/platform/es/articlesync"
 	"myblogx/models"
-	"myblogx/models/ctype"
 
 	"github.com/elastic/go-elasticsearch/v7"
 	"github.com/sirupsen/logrus"

@@ -2,7 +2,7 @@
 
 package models
 
-import "myblogx/models/ctype"
+import "myblogx/internal/kernel/ctype"
 
 // 用户置顶文章表
 type UserTopArticleModel struct {

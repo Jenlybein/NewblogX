@@ -1,8 +1,8 @@
 package writer
 
 import (
+	"myblogx/internal/kernel/ctype"
 	"myblogx/internal/platform/idgen"
-	"myblogx/models/ctype"
 	"os"
 	"strconv"
 	"time"

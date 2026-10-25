@@ -14,7 +14,7 @@ import (
 
 	"github.com/bwmarrin/snowflake"
 
-	"myblogx/models/ctype"
+	"myblogx/internal/kernel/ctype"
 )
 
 const (

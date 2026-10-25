@@ -2,9 +2,9 @@ package models_test
 
 import (
 	"myblogx/conf"
+	"myblogx/internal/kernel/ctype"
+	"myblogx/internal/kernel/enum"
 	"myblogx/models"
-	"myblogx/models/ctype"
-	"myblogx/models/enum"
 	"myblogx/test/testutil"
 	"testing"
 	"time"

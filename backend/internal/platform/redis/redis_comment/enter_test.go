@@ -1,9 +1,9 @@
 package redis_comment_test
 
 import (
+	"myblogx/internal/kernel/ctype"
 	"myblogx/internal/platform/redis"
 	"myblogx/internal/platform/redis/redis_comment"
-	"myblogx/models/ctype"
 	"myblogx/test/testutil"
 	"testing"
 )

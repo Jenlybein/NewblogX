@@ -4,7 +4,7 @@ import (
 	"testing"
 
 	"myblogx/internal/chat/domain"
-	"myblogx/models/ctype"
+	"myblogx/internal/kernel/ctype"
 )
 
 func TestBuildSessionID(t *testing.T) {

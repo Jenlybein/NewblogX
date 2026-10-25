@@ -3,7 +3,7 @@ package models
 import (
 	"time"
 
-	"myblogx/models/ctype"
+	"myblogx/internal/kernel/ctype"
 )
 
 // UserStatModel 维护用户主页展示所需的冗余统计字段。

@@ -5,9 +5,9 @@ import (
 
 	"myblogx/internal/article/app"
 	"myblogx/internal/article/domain"
+	"myblogx/internal/kernel/ctype"
 	redis_service "myblogx/internal/platform/redis"
 	"myblogx/internal/platform/redis/redis_article"
-	"myblogx/models/ctype"
 )
 
 // counterPort 是 app.CounterPort 的实现：计数增量落在 Redis。

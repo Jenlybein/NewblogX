@@ -1,10 +1,10 @@
 package service_test
 
 import (
+	"myblogx/internal/kernel/ctype"
 	"myblogx/internal/platform/cdc/river"
 	"myblogx/internal/platform/cdc/river/rule"
 	"myblogx/internal/platform/es"
-	"myblogx/models/ctype"
 	"os"
 	"path/filepath"
 	"testing"

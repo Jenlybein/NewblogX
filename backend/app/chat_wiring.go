@@ -9,11 +9,11 @@ import (
 	chatredis "myblogx/internal/chat/adapter/redis"
 	chatapp "myblogx/internal/chat/app"
 	"myblogx/internal/chat/domain"
+	"myblogx/internal/kernel/ctype"
+	"myblogx/internal/kernel/enum"
 	"myblogx/internal/platform/http/ws"
 	"myblogx/internal/platform/readmodel"
 	redis_service "myblogx/internal/platform/redis"
-	"myblogx/models/ctype"
-	"myblogx/models/enum"
 	"myblogx/router"
 
 	"gorm.io/gorm"

@@ -10,10 +10,10 @@ import (
 	"myblogx/common/res"
 	"myblogx/conf"
 	"myblogx/internal/apperr"
+	"myblogx/internal/kernel/ctype"
 	"myblogx/internal/platform/http/middleware"
 	"myblogx/internal/site/app"
 	"myblogx/internal/site/domain"
-	"myblogx/models/ctype"
 )
 
 // Handler 聚合站点与轮播图的所有 HTTP 入口。

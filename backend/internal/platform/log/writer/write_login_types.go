@@ -1,8 +1,8 @@
 package writer
 
 import (
-	"myblogx/models/ctype"
-	"myblogx/models/enum"
+	"myblogx/internal/kernel/ctype"
+	"myblogx/internal/kernel/enum"
 )
 
 // LoginEvent 表示落盘后的登录事件日志结构。

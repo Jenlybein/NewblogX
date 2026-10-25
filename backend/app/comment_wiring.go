@@ -10,6 +10,7 @@ import (
 	commentmysql "myblogx/internal/comment/adapter/mysql"
 	commentapp "myblogx/internal/comment/app"
 	"myblogx/internal/comment/domain"
+	"myblogx/internal/kernel/ctype"
 	notificationapp "myblogx/internal/notification/app"
 	"myblogx/internal/platform/idgen"
 	"myblogx/internal/platform/readmodel"
@@ -17,7 +18,6 @@ import (
 	"myblogx/internal/platform/redis/redis_article"
 	"myblogx/internal/platform/redis/redis_comment"
 	socialdomain "myblogx/internal/social/domain"
-	"myblogx/models/ctype"
 	"myblogx/router"
 )
 

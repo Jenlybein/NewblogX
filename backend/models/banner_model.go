@@ -2,7 +2,7 @@
 
 package models
 
-import "myblogx/models/ctype"
+import "myblogx/internal/kernel/ctype"
 
 // 轮播图表
 type BannerModel struct {

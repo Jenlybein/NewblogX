@@ -15,7 +15,7 @@ package common
 import (
 	"fmt"
 	"myblogx/internal/apperr"
-	"myblogx/models/ctype"
+	"myblogx/internal/kernel/ctype"
 
 	"gorm.io/gorm"
 )

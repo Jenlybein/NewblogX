@@ -9,8 +9,8 @@ import (
 
 	"myblogx/internal/article/domain"
 	"myblogx/internal/article/domain/taxonomy"
+	"myblogx/internal/kernel/ctype"
 	"myblogx/internal/platform/idgen"
-	"myblogx/models/ctype"
 )
 
 // CategoryRepo 是 taxonomy.CategoryRepository 的 MySQL 实现。

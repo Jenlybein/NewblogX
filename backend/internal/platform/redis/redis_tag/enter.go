@@ -3,8 +3,8 @@ package redis_tag
 import (
 	"context"
 	"fmt"
+	"myblogx/internal/kernel/ctype"
 	"myblogx/internal/platform/redis"
-	"myblogx/models/ctype"
 	"strconv"
 )
 

@@ -3,8 +3,8 @@
 package models
 
 import (
-	"myblogx/models/ctype"
-	"myblogx/models/enum"
+	"myblogx/internal/kernel/ctype"
+	"myblogx/internal/kernel/enum"
 )
 
 // 评论表

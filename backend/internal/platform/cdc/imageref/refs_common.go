@@ -6,9 +6,9 @@ import (
 	"strings"
 
 	"myblogx/conf"
+	"myblogx/internal/kernel/ctype"
+	"myblogx/internal/kernel/enum/image_ref_enum"
 	"myblogx/models"
-	"myblogx/models/ctype"
-	"myblogx/models/enum/image_ref_enum"
 
 	"gorm.io/gorm"
 )

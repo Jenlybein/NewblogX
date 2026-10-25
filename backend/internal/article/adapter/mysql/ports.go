@@ -7,7 +7,7 @@ import (
 
 	"myblogx/internal/article/app"
 	"myblogx/internal/article/domain"
-	"myblogx/models/ctype"
+	"myblogx/internal/kernel/ctype"
 )
 
 // authorStats 是 app.AuthorStatsPort 的实现。

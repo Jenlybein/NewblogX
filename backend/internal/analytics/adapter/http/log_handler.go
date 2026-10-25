@@ -6,8 +6,8 @@ import (
 	"myblogx/common"
 	"myblogx/common/res"
 	"myblogx/internal/analytics/adapter/clickhouse"
+	"myblogx/internal/kernel/ctype"
 	"myblogx/internal/platform/http/middleware"
-	"myblogx/models/ctype"
 
 	"github.com/gin-gonic/gin"
 )

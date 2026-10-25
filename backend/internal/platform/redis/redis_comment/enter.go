@@ -3,8 +3,8 @@ package redis_comment
 import (
 	"context"
 	"fmt"
+	"myblogx/internal/kernel/ctype"
 	"myblogx/internal/platform/redis"
-	"myblogx/models/ctype"
 	"strconv"
 )
 

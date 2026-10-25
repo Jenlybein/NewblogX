@@ -30,10 +30,10 @@ import (
 	"github.com/sirupsen/logrus"
 	"gorm.io/gorm"
 
+	"myblogx/internal/kernel/ctype"
 	"myblogx/internal/platform/cdc/deadletter"
 	"myblogx/internal/platform/safego"
 	"myblogx/models"
-	"myblogx/models/ctype"
 )
 
 // Event 是一条待投递事件（落库形态）。

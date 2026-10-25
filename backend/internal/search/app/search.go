@@ -9,9 +9,9 @@ import (
 	"time"
 
 	"myblogx/internal/apperr"
+	"myblogx/internal/kernel/ctype"
 	es_service "myblogx/internal/platform/es"
 	"myblogx/internal/search/domain"
-	"myblogx/models/ctype"
 	"myblogx/utils/markdown"
 
 	"github.com/elastic/go-elasticsearch/v7"

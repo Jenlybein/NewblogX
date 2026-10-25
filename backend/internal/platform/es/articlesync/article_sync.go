@@ -7,10 +7,10 @@ import (
 
 	"github.com/elastic/go-elasticsearch/v7"
 	"gorm.io/gorm"
+	"myblogx/internal/kernel/ctype"
+	"myblogx/internal/kernel/enum"
 	"myblogx/internal/platform/es"
 	"myblogx/models"
-	"myblogx/models/ctype"
-	"myblogx/models/enum"
 	"myblogx/utils/markdown"
 )
 

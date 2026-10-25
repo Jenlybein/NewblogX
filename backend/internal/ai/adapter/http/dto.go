@@ -6,7 +6,7 @@ import (
 	"myblogx/internal/ai/diagnose"
 	"myblogx/internal/ai/metainfo"
 	"myblogx/internal/ai/scoring"
-	"myblogx/models/ctype"
+	"myblogx/internal/kernel/ctype"
 
 	"github.com/gin-gonic/gin"
 )

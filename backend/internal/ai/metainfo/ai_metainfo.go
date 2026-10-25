@@ -7,7 +7,7 @@ import (
 	"myblogx/conf"
 	"myblogx/internal/ai/domain"
 	"myblogx/internal/apperr"
-	"myblogx/models/ctype"
+	"myblogx/internal/kernel/ctype"
 
 	"github.com/sirupsen/logrus"
 )

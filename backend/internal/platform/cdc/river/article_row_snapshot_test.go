@@ -4,7 +4,7 @@ import (
 	"testing"
 	"time"
 
-	"myblogx/models/enum"
+	"myblogx/internal/kernel/enum"
 
 	"github.com/go-mysql-org/go-mysql/canal"
 	"github.com/go-mysql-org/go-mysql/schema"

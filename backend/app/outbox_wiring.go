@@ -7,10 +7,10 @@ import (
 	"time"
 
 	articleapp "myblogx/internal/article/app"
+	"myblogx/internal/kernel/ctype"
 	notificationapp "myblogx/internal/notification/app"
 	"myblogx/internal/platform/cdc/outboxrelay"
 	"myblogx/models"
-	"myblogx/models/ctype"
 )
 
 // WireOutboxRelay 启动 outbox 中继，并注册领域事件的真实下游。

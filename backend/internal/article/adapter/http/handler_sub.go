@@ -9,8 +9,8 @@ import (
 	"myblogx/internal/article/domain"
 	"myblogx/internal/article/domain/favorite"
 	"myblogx/internal/article/domain/review"
+	"myblogx/internal/kernel/ctype"
 	"myblogx/internal/platform/http/middleware"
-	"myblogx/models/ctype"
 )
 
 // ── 分类 ──

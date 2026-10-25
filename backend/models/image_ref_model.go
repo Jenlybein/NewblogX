@@ -1,8 +1,8 @@
 package models
 
 import (
-	"myblogx/models/ctype"
-	"myblogx/models/enum/image_ref_enum"
+	"myblogx/internal/kernel/ctype"
+	"myblogx/internal/kernel/enum/image_ref_enum"
 )
 
 // ImageRefModel 记录图片被哪个业务对象引用。

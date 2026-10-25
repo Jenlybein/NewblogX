@@ -7,7 +7,7 @@ import (
 	"time"
 
 	"myblogx/common"
-	"myblogx/models/ctype"
+	"myblogx/internal/kernel/ctype"
 )
 
 // CdcEventRecord 对应 CDC 执行日志列表与详情接口返回的单条记录。

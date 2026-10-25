@@ -10,9 +10,9 @@ import (
 
 	"myblogx/internal/chat/adapter/mysql"
 	"myblogx/internal/chat/domain"
+	"myblogx/internal/kernel/ctype"
 	"myblogx/internal/testkit/mysqlcontainer"
 	"myblogx/internal/testkit/schema"
-	"myblogx/models/ctype"
 
 	"gorm.io/gorm"
 )

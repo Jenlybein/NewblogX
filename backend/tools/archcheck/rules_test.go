@@ -488,7 +488,7 @@ import "myblogx/models"
 			rel:  "internal/comment/domain/comment.go",
 			src: `package domain
 
-import "myblogx/models/enum"
+import "myblogx/internal/kernel/enum"
 `,
 			ruleID:   "R10",
 			wantHits: 1,
@@ -498,7 +498,7 @@ import "myblogx/models/enum"
 			rel:  "internal/comment/adapter/mysql/repo.go",
 			src: `package mysql
 
-import "myblogx/models/ctype"
+import "myblogx/internal/kernel/ctype"
 `,
 			ruleID:   "R10",
 			wantHits: 0,
@@ -508,7 +508,7 @@ import "myblogx/models/ctype"
 			rel:  "internal/platform/idgen/idgen.go",
 			src: `package idgen
 
-import "myblogx/models/ctype"
+import "myblogx/internal/kernel/ctype"
 `,
 			ruleID:   "R10",
 			wantHits: 0,

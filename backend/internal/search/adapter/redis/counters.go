@@ -2,10 +2,10 @@
 package redis
 
 import (
+	"myblogx/internal/kernel/ctype"
 	redis_service "myblogx/internal/platform/redis"
 	"myblogx/internal/platform/redis/redis_article"
 	"myblogx/internal/search/domain"
-	"myblogx/models/ctype"
 )
 
 // Counters 实现 domain.CounterReader。

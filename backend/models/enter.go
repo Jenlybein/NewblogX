@@ -5,8 +5,8 @@ package models
 import (
 	"time"
 
+	"myblogx/internal/kernel/ctype"
 	"myblogx/internal/platform/idgen"
-	"myblogx/models/ctype"
 
 	"gorm.io/gorm"
 )

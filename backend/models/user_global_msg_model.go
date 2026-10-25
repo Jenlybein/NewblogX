@@ -2,7 +2,7 @@ package models
 
 import "time"
 
-import "myblogx/models/ctype"
+import "myblogx/internal/kernel/ctype"
 
 type UserGlobalNotifModel struct {
 	Model

@@ -2,9 +2,9 @@ package redis_jwt_test
 
 import (
 	"myblogx/conf"
+	"myblogx/internal/kernel/enum"
 	"myblogx/internal/platform/redis"
 	redis_jwt "myblogx/internal/platform/redis/redis_jwt"
-	"myblogx/models/enum"
 	"myblogx/test/testutil"
 	"myblogx/utils/jwts"
 	"testing"

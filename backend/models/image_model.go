@@ -1,8 +1,8 @@
 package models
 
 import (
-	"myblogx/models/ctype"
-	"myblogx/models/enum"
+	"myblogx/internal/kernel/ctype"
+	"myblogx/internal/kernel/enum"
 )
 
 // ImageModel 表示已经通过服务端验收、可供业务引用的正式图片。

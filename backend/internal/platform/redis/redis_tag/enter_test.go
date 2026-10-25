@@ -3,9 +3,9 @@ package redis_tag_test
 import (
 	"testing"
 
+	"myblogx/internal/kernel/ctype"
 	"myblogx/internal/platform/redis"
 	"myblogx/internal/platform/redis/redis_tag"
-	"myblogx/models/ctype"
 	"myblogx/test/testutil"
 )
 

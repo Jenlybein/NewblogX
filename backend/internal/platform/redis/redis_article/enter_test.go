@@ -1,9 +1,9 @@
 package redis_article_test
 
 import (
+	"myblogx/internal/kernel/ctype"
 	"myblogx/internal/platform/redis"
 	"myblogx/internal/platform/redis/redis_article"
-	"myblogx/models/ctype"
 	"myblogx/test/testutil"
 	"testing"
 )

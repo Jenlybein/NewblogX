@@ -5,9 +5,9 @@ import (
 	"os"
 	"testing"
 
+	"myblogx/internal/kernel/ctype"
 	"myblogx/internal/search/domain"
 	"myblogx/internal/testkit"
-	"myblogx/models/ctype"
 )
 
 // dslGoldenDir 是请求体 golden 的目录（相对本包）。

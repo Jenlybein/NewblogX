@@ -3,7 +3,7 @@ package metainfo
 import (
 	"encoding/json"
 	"fmt"
-	"myblogx/models/ctype"
+	"myblogx/internal/kernel/ctype"
 	"myblogx/utils/markdown"
 	"strings"
 )

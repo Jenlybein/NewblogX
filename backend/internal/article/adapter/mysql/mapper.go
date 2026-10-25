@@ -12,7 +12,7 @@ package mysql
 
 import (
 	"myblogx/internal/article/domain"
-	"myblogx/models/ctype"
+	"myblogx/internal/kernel/ctype"
 )
 
 // toArticleID 把库里的 ID 转成领域 ID。

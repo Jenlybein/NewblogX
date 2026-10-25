@@ -1,7 +1,7 @@
 package ctype_test
 
 import (
-	"myblogx/models/ctype"
+	"myblogx/internal/kernel/ctype"
 	"testing"
 )
 

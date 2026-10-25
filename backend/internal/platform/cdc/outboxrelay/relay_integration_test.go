@@ -11,10 +11,10 @@ import (
 
 	"gorm.io/gorm"
 
+	"myblogx/internal/kernel/ctype"
 	"myblogx/internal/platform/cdc/outboxrelay"
 	"myblogx/internal/testkit/mysqlcontainer"
 	"myblogx/models"
-	"myblogx/models/ctype"
 )
 
 // migrate 建 outbox 表与死信表（本组测试只关心这两张）。

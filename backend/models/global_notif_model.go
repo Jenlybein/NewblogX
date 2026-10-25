@@ -3,8 +3,8 @@
 package models
 
 import (
-	"myblogx/models/ctype"
-	"myblogx/models/enum/global_notif_enum"
+	"myblogx/internal/kernel/ctype"
+	"myblogx/internal/kernel/enum/global_notif_enum"
 	"time"
 
 	"gorm.io/gorm"

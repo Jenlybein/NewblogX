@@ -1,6 +1,6 @@
 package redis_image
 
-import "myblogx/models/ctype"
+import "myblogx/internal/kernel/ctype"
 
 // uploadTaskIDKey 生成taskID对应的Redis Key
 func uploadTaskIDKey(taskID ctype.ID) string {

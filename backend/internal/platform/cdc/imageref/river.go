@@ -6,11 +6,11 @@ import (
 	"time"
 
 	"myblogx/conf"
+	"myblogx/internal/kernel/ctype"
+	"myblogx/internal/kernel/enum/image_ref_enum"
 	"myblogx/internal/platform/cdc/canalbase"
 	"myblogx/internal/platform/cdc/deadletter"
 	"myblogx/internal/platform/log/writer"
-	"myblogx/models/ctype"
-	"myblogx/models/enum/image_ref_enum"
 
 	"github.com/go-mysql-org/go-mysql/canal"
 	"github.com/go-mysql-org/go-mysql/mysql"

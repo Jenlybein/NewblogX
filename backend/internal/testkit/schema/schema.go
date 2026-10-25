@@ -27,9 +27,9 @@ import (
 	"testing"
 	"time"
 
+	"myblogx/internal/kernel/ctype"
+	"myblogx/internal/kernel/enum"
 	"myblogx/models"
-	"myblogx/models/ctype"
-	"myblogx/models/enum"
 
 	"gorm.io/gorm"
 )

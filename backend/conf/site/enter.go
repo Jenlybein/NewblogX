@@ -1,6 +1,6 @@
 package site
 
-import "myblogx/models/enum"
+import "myblogx/internal/kernel/enum"
 
 // 网站设置
 type SiteInfo struct {

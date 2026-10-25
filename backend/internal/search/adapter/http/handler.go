@@ -10,9 +10,9 @@ import (
 	"github.com/gin-gonic/gin"
 
 	"myblogx/common/res"
+	"myblogx/internal/kernel/ctype"
 	"myblogx/internal/search/app"
 	"myblogx/internal/search/domain"
-	"myblogx/models/ctype"
 	"myblogx/utils/jwts"
 )
 

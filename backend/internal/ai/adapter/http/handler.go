@@ -9,7 +9,7 @@ import (
 	"myblogx/internal/ai/diagnose"
 	"myblogx/internal/ai/overwrite"
 	"myblogx/internal/apperr"
-	"myblogx/models/ctype"
+	"myblogx/internal/kernel/ctype"
 	"myblogx/utils/jwts"
 )
 

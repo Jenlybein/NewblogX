@@ -11,8 +11,8 @@ import (
 	"myblogx/internal/ai/domain"
 	aisearch "myblogx/internal/ai/search"
 	"myblogx/internal/apperr"
+	"myblogx/internal/kernel/ctype"
 	searchdomain "myblogx/internal/search/domain"
-	"myblogx/models/ctype"
 )
 
 // newEnv 构造带一篇文章的替身。

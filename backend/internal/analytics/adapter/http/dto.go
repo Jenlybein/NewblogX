@@ -1,6 +1,6 @@
 package http
 
-import "myblogx/models/ctype"
+import "myblogx/internal/kernel/ctype"
 
 // IDRequest 是路径里的数字 ID。
 type IDRequest struct {

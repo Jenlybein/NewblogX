@@ -465,7 +465,7 @@ func ruleModuleNoModels() Rule {
 				if p != "myblogx/models" && !strings.HasPrefix(p, "myblogx/models/") {
 					continue
 				}
-				if strings.HasPrefix(p, "myblogx/models/ctype") {
+				if strings.HasPrefix(p, "myblogx/internal/kernel/ctype") {
 					continue
 				}
 				out = append(out, Violation{

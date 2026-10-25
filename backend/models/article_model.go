@@ -2,8 +2,8 @@ package models
 
 import (
 	_ "embed"
-	"myblogx/models/ctype"
-	"myblogx/models/enum"
+	"myblogx/internal/kernel/ctype"
+	"myblogx/internal/kernel/enum"
 	"time"
 )
 

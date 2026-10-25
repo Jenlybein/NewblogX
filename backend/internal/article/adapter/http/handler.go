@@ -11,9 +11,9 @@ import (
 	"myblogx/common/res"
 	"myblogx/internal/article/app"
 	"myblogx/internal/article/domain"
+	"myblogx/internal/kernel/ctype"
 	sitecfg "myblogx/internal/platform/config"
 	"myblogx/internal/platform/http/middleware"
-	"myblogx/models/ctype"
 	"myblogx/utils/markdown"
 )
 

@@ -12,7 +12,7 @@ import (
 	"myblogx/internal/article/domain/review"
 	"myblogx/internal/article/domain/top"
 	"myblogx/internal/article/domain/viewhistory"
-	"myblogx/models/ctype"
+	"myblogx/internal/kernel/ctype"
 )
 
 // FavoriteRepo 是 favorite.Repository 的 MySQL 实现。

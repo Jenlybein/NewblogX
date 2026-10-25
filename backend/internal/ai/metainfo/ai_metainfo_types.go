@@ -1,6 +1,6 @@
 package metainfo
 
-import "myblogx/models/ctype"
+import "myblogx/internal/kernel/ctype"
 
 const (
 	articleMetainfoTitleLimit    = 30

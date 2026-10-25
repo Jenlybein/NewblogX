@@ -20,9 +20,9 @@ import (
 	articleapp "myblogx/internal/article/app"
 	"myblogx/internal/article/domain"
 	"myblogx/internal/article/domain/favorite"
+	"myblogx/internal/kernel/ctype"
 	redis_service "myblogx/internal/platform/redis"
 	"myblogx/internal/testkit/mysqlcontainer"
-	"myblogx/models/ctype"
 	"myblogx/utils/jwts"
 )
 

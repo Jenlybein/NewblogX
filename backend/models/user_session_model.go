@@ -3,7 +3,7 @@ package models
 import (
 	"time"
 
-	"myblogx/models/ctype"
+	"myblogx/internal/kernel/ctype"
 )
 
 // 一个 Refresh Token = 一条 Session 记录

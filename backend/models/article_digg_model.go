@@ -2,7 +2,7 @@
 
 package models
 
-import "myblogx/models/ctype"
+import "myblogx/internal/kernel/ctype"
 
 // 用户点赞表
 type ArticleDiggModel struct {

@@ -1,7 +1,7 @@
 package enum_test
 
 import (
-	"myblogx/models/enum"
+	"myblogx/internal/kernel/enum"
 	"testing"
 )
 

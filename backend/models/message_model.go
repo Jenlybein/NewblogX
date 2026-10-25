@@ -1,8 +1,8 @@
 package models
 
 import (
-	"myblogx/models/ctype"
-	"myblogx/models/enum/message_enum"
+	"myblogx/internal/kernel/ctype"
+	"myblogx/internal/kernel/enum/message_enum"
 	"time"
 )
 

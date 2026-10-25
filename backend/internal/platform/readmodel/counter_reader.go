@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"strconv"
 
+	"myblogx/internal/kernel/ctype"
 	redis_service "myblogx/internal/platform/redis"
-	"myblogx/models/ctype"
 )
 
 type CommentBatchCounters struct {

@@ -7,7 +7,7 @@ import (
 	"time"
 
 	"myblogx/common"
-	"myblogx/models/ctype"
+	"myblogx/internal/kernel/ctype"
 )
 
 // RuntimeLogRecord 对应运行日志列表与详情接口返回的单条记录。

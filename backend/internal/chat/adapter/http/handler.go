@@ -16,10 +16,10 @@ import (
 	"myblogx/internal/apperr"
 	"myblogx/internal/chat/app"
 	"myblogx/internal/chat/domain"
+	"myblogx/internal/kernel/ctype"
 	"myblogx/internal/platform/http/middleware"
 	"myblogx/internal/platform/http/ws"
 	"myblogx/internal/platform/safego"
-	"myblogx/models/ctype"
 	"myblogx/utils/jwts"
 )
 

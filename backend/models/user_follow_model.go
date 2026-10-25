@@ -1,6 +1,6 @@
 package models
 
-import "myblogx/models/ctype"
+import "myblogx/internal/kernel/ctype"
 
 type UserFollowModel struct {
 	Model

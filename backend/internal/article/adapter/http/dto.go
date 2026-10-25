@@ -10,7 +10,7 @@ package http
 import (
 	"time"
 
-	"myblogx/models/ctype"
+	"myblogx/internal/kernel/ctype"
 )
 
 // ArticleCreateRequest 创建文章。

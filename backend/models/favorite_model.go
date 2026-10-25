@@ -3,7 +3,7 @@
 package models
 
 import (
-	"myblogx/models/ctype"
+	"myblogx/internal/kernel/ctype"
 
 	"gorm.io/gorm"
 )

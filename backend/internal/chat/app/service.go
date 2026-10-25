@@ -9,7 +9,7 @@ import (
 
 	"myblogx/internal/apperr"
 	"myblogx/internal/chat/domain"
-	"myblogx/models/ctype"
+	"myblogx/internal/kernel/ctype"
 )
 
 // Service 是私信应用服务。

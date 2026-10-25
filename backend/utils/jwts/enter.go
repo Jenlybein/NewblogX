@@ -6,8 +6,8 @@ import (
 	"time"
 
 	"myblogx/conf"
-	"myblogx/models/ctype"
-	"myblogx/models/enum"
+	"myblogx/internal/kernel/ctype"
+	"myblogx/internal/kernel/enum"
 
 	"github.com/gin-gonic/gin"
 	"github.com/golang-jwt/jwt"

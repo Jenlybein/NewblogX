@@ -4,8 +4,8 @@ package mysql
 import (
 	"context"
 
+	"myblogx/internal/kernel/ctype"
 	"myblogx/internal/search/domain"
-	"myblogx/models/ctype"
 
 	"gorm.io/gorm"
 )

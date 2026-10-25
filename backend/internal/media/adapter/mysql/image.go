@@ -7,10 +7,10 @@ import (
 	"time"
 
 	"myblogx/internal/apperr"
+	"myblogx/internal/kernel/ctype"
 	"myblogx/internal/media/domain"
 	"myblogx/internal/platform/cdc/imageref"
 	"myblogx/internal/platform/idgen"
-	"myblogx/models/ctype"
 
 	"gorm.io/gorm"
 )

@@ -7,10 +7,10 @@ import (
 
 	"myblogx/internal/apperr"
 	"myblogx/internal/chat/domain"
+	"myblogx/internal/kernel/ctype"
 	redis_service "myblogx/internal/platform/redis"
 	"myblogx/internal/platform/redis/redis_chat"
 	"myblogx/internal/platform/redis/redis_ws_ticket"
-	"myblogx/models/ctype"
 )
 
 // Limiter 实现 domain.Limiter。

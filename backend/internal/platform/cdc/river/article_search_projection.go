@@ -5,8 +5,8 @@ import (
 	"sort"
 	"strings"
 
+	"myblogx/internal/kernel/ctype"
 	"myblogx/internal/platform/es/articlesync"
-	"myblogx/models/ctype"
 
 	"github.com/go-mysql-org/go-mysql/canal"
 )

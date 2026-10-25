@@ -2,8 +2,8 @@ package cli
 
 import (
 	"fmt"
+	"myblogx/internal/kernel/enum"
 	"myblogx/models"
-	"myblogx/models/enum"
 	"myblogx/utils/pwd"
 	"os"
 	"strconv"

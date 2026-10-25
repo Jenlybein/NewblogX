@@ -5,9 +5,9 @@ import (
 	"testing"
 	"time"
 
+	"myblogx/internal/kernel/ctype"
 	"myblogx/internal/platform/idgen"
 	"myblogx/models"
-	"myblogx/models/ctype"
 
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"

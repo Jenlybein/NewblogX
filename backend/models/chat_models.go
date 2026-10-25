@@ -1,8 +1,8 @@
 package models
 
 import (
-	"myblogx/models/ctype"
-	"myblogx/models/enum/chat_msg_enum"
+	"myblogx/internal/kernel/ctype"
+	"myblogx/internal/kernel/enum/chat_msg_enum"
 	"time"
 )
 

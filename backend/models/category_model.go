@@ -2,7 +2,7 @@
 
 package models
 
-import "myblogx/models/ctype"
+import "myblogx/internal/kernel/ctype"
 
 // 分类表
 type CategoryModel struct {

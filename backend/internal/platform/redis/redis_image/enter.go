@@ -6,8 +6,8 @@ import (
 	"fmt"
 	"time"
 
+	"myblogx/internal/kernel/ctype"
 	"myblogx/internal/platform/redis"
-	"myblogx/models/ctype"
 
 	"github.com/go-redis/redis/v8"
 )

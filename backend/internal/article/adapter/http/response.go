@@ -5,7 +5,7 @@ import (
 
 	"myblogx/internal/article/app"
 	"myblogx/internal/article/domain"
-	"myblogx/models/ctype"
+	"myblogx/internal/kernel/ctype"
 )
 
 // toDetailResponse 把用例视图转成详情响应。

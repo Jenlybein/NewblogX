@@ -6,9 +6,9 @@ import (
 	"time"
 
 	"myblogx/conf"
+	"myblogx/internal/kernel/ctype"
 	"myblogx/internal/platform/idgen"
 	"myblogx/internal/platform/log/writer"
-	"myblogx/models/ctype"
 
 	"github.com/sirupsen/logrus"
 )

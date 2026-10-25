@@ -8,8 +8,8 @@ import (
 	"fmt"
 	"time"
 
+	"myblogx/internal/kernel/ctype"
 	"myblogx/internal/platform/redis"
-	"myblogx/models/ctype"
 )
 
 // chatWSTicketPrefix Redis 中存储 WebSocket 票据的 key 前缀

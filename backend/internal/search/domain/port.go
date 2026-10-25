@@ -3,7 +3,7 @@ package domain
 import (
 	"context"
 
-	"myblogx/models/ctype"
+	"myblogx/internal/kernel/ctype"
 )
 
 // Counts 是文章计数的实时增量（Redis 里尚未落库的部分）。

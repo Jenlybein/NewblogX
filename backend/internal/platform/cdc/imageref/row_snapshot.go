@@ -5,7 +5,7 @@ import (
 	"strings"
 	"time"
 
-	"myblogx/models/ctype"
+	"myblogx/internal/kernel/ctype"
 )
 
 type rowSnapshot struct {

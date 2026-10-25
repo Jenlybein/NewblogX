@@ -7,7 +7,7 @@ import (
 	"strings"
 	"time"
 
-	"myblogx/models/ctype"
+	"myblogx/internal/kernel/ctype"
 	"myblogx/utils/markdown"
 )
 

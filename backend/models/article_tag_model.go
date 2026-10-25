@@ -1,6 +1,6 @@
 package models
 
-import "myblogx/models/ctype"
+import "myblogx/internal/kernel/ctype"
 
 // ArticleTagModel 文章和公共标签的关系表
 type ArticleTagModel struct {

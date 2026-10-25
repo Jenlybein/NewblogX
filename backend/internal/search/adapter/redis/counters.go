@@ -10,13 +10,13 @@ import (
 
 // Counters 实现 domain.CounterReader。
 type Counters struct {
-	deps redis_service.Deps
+	deps redis_service.Options
 }
 
 var _ domain.CounterReader = (*Counters)(nil)
 
 // NewCounters 构造计数读取器。
-func NewCounters(deps redis_service.Deps) *Counters { return &Counters{deps: deps} }
+func NewCounters(deps redis_service.Options) *Counters { return &Counters{deps: deps} }
 
 // Batch 返回文章计数增量。
 func (c *Counters) Batch(ids []ctype.ID) domain.Counts {

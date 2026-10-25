@@ -12,7 +12,7 @@ import (
 
 // EnsureDailyLogFiles 提前创建当天各类日志文件，避免采集器在无文件时持续告警。
 // 服务启动时调用；未启用 ClickHouse 时这是"文件已就位"的保证。
-func EnsureDailyLogFiles(deps Deps) error {
+func EnsureDailyLogFiles(deps Options) error {
 	now := time.Now()
 	rootDir := ResolveLogDir(runtimeLogDir(deps))
 	appName := ResolveLogApp("", deps.LogConfig.App)
@@ -31,6 +31,6 @@ func EnsureDailyLogFiles(deps Deps) error {
 }
 
 // runtimeLogDir 返回配置中的日志根目录（未配置时由 ResolveLogDir 补默认值）。
-func runtimeLogDir(deps Deps) string {
+func runtimeLogDir(deps Options) string {
 	return deps.LogConfig.Dir
 }

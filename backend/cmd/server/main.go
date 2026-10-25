@@ -48,7 +48,7 @@ func main() {
 		panic(err)
 	}
 
-	runResult, err := flags.Run(flag, flags.Deps{
+	runResult, err := flags.Run(flag, flags.Options{
 		RiverConfig: infra.Config.River,
 		Logger:      infra.Logger,
 		DB:          infra.DB,

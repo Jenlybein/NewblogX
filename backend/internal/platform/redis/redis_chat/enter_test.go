@@ -8,14 +8,14 @@ import (
 	"time"
 )
 
-func testRedisDeps() redis_service.Deps {
-	return redis_service.Deps{Client: testutil.Redis(), Logger: testutil.Logger()}
+func testRedisOptions() redis_service.Options {
+	return redis_service.Options{Client: testutil.Redis(), Logger: testutil.Logger()}
 }
 
 // TestReserveChatMinuteRateSessionAndUserLimit 验证分钟级滑动窗口限流会同时约束会话级和用户级发送频率。
 func TestReserveChatMinuteRateSessionAndUserLimit(t *testing.T) {
 	_ = testutil.SetupMiniRedis(t)
-	deps := testRedisDeps()
+	deps := testRedisOptions()
 	now := time.Now()
 
 	for i := 0; i < 30; i++ {
@@ -58,7 +58,7 @@ func TestReserveChatMinuteRateSessionAndUserLimit(t *testing.T) {
 // TestReserveChatMinuteRateSlidingWindow 验证滑动 60 秒窗口会随时间推进自动释放旧额度。
 func TestReserveChatMinuteRateSlidingWindow(t *testing.T) {
 	_ = testutil.SetupMiniRedis(t)
-	deps := testRedisDeps()
+	deps := testRedisOptions()
 	now := time.Now()
 
 	for i := 0; i < 30; i++ {
@@ -75,7 +75,7 @@ func TestReserveChatMinuteRateSlidingWindow(t *testing.T) {
 // TestReserveChatWeekQuotaAndReset 验证自然周配额上限以及被回复后的重置行为。
 func TestReserveChatWeekQuotaAndReset(t *testing.T) {
 	_ = testutil.SetupMiniRedis(t)
-	deps := testRedisDeps()
+	deps := testRedisOptions()
 	now := time.Now().In(time.Local)
 
 	for i := 0; i < 3; i++ {
@@ -112,7 +112,7 @@ func TestReserveChatWeekQuotaAndReset(t *testing.T) {
 // TestReserveChatWeekQuotaWithStrangerLimit 验证陌生人自然周额度为 1 条。
 func TestReserveChatWeekQuotaWithStrangerLimit(t *testing.T) {
 	_ = testutil.SetupMiniRedis(t)
-	deps := testRedisDeps()
+	deps := testRedisOptions()
 	now := time.Now().In(time.Local)
 
 	reservation, allowed, err := redis_chat.ReserveChatWeekQuota(deps, 1, 2, 1, now)

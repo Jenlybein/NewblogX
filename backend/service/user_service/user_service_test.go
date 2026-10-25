@@ -21,7 +21,7 @@ func TestNewUserService(t *testing.T) {
 
 func TestNextAutoUsername(t *testing.T) {
 	testutil.SetupMiniRedis(t)
-	deps := redis_service.Deps{Client: testutil.Redis(), Logger: testutil.Logger()}
+	deps := redis_service.Options{Client: testutil.Redis(), Logger: testutil.Logger()}
 
 	username1, err := redis_user.NextAutoUsername(deps)
 	if err != nil {

@@ -22,7 +22,7 @@ type Authenticator struct {
 	DB     *gorm.DB
 	Logger *logrus.Logger
 	JWT    conf.Jwt
-	Redis  redis_service.Deps
+	Redis  redis_service.Options
 }
 
 type SessionMeta struct {
@@ -38,12 +38,12 @@ type AuthResult struct {
 	Session *models.UserSessionModel // 对应用户会话信息
 }
 
-func NewAuthenticator(db *gorm.DB, logger *logrus.Logger, jwt conf.Jwt, redisDeps redis_service.Deps) *Authenticator {
+func NewAuthenticator(db *gorm.DB, logger *logrus.Logger, jwt conf.Jwt, redisOptions redis_service.Options) *Authenticator {
 	return &Authenticator{
 		DB:     db,
 		Logger: logger,
 		JWT:    jwt,
-		Redis:  redisDeps,
+		Redis:  redisOptions,
 	}
 }
 

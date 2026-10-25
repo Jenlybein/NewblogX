@@ -183,7 +183,7 @@ func WithUsernameAllocator(a UsernameAllocator) Option {
 
 // New 构造服务。
 //
-// 用显式参数而不是依赖结构体：archcheck 的 R2 禁止 `type Deps struct`，
+// 用显式参数而不是依赖结构体：archcheck 的 R2 禁止 `type Options struct`，
 // 那条规则的本意是防止再造一个"什么都往里塞"的袋子。显式参数逼着调用方
 // 写清每一个依赖，代价只是构造行有点长。
 //
@@ -238,7 +238,7 @@ var (
 
 // LoadDisplays 实现 UserInfoPort。
 func (s *Service) LoadDisplays(ctx context.Context, ids []domain.UserID) (map[domain.UserID]domain.Display, error) {
-	// 仓储层是 DisplayReader 的实现，这里做一次类型断言而不是往 Deps 再加一个字段：
+	// 仓储层是 DisplayReader 的实现，这里做一次类型断言而不是往 Options 再加一个字段：
 	// 读快照是"仓储顺带具备"的能力，不是所有仓储实现都必须支持。
 	reader, ok := s.users.(domain.DisplayReader)
 	if !ok {

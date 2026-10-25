@@ -29,14 +29,14 @@ const (
 )
 
 // 设置缓存
-func set(deps redis_service.Deps, t ArticleCacheType, articleID ctype.ID, increase int) error {
+func set(deps redis_service.Options, t ArticleCacheType, articleID ctype.ID, increase int) error {
 	if deps.Client == nil {
 		return nil
 	}
 	return deps.Client.HIncrBy(context.Background(), string(t), articleID.String(), int64(increase)).Err()
 }
 
-func get(deps redis_service.Deps, t ArticleCacheType, articleID ctype.ID) int {
+func get(deps redis_service.Options, t ArticleCacheType, articleID ctype.ID) int {
 	if deps.Client == nil {
 		return 0
 	}
@@ -45,38 +45,38 @@ func get(deps redis_service.Deps, t ArticleCacheType, articleID ctype.ID) int {
 }
 
 // 浏览量缓存
-func SetCacheView(deps redis_service.Deps, articleID ctype.ID, increase int) error {
+func SetCacheView(deps redis_service.Options, articleID ctype.ID, increase int) error {
 	return set(deps, ArticleCacheView, articleID, increase)
 }
-func GetCacheView(deps redis_service.Deps, articleID ctype.ID) int {
+func GetCacheView(deps redis_service.Options, articleID ctype.ID) int {
 	return get(deps, ArticleCacheView, articleID)
 }
 
 // 点赞缓存
-func SetCacheDigg(deps redis_service.Deps, articleID ctype.ID, increase int) error {
+func SetCacheDigg(deps redis_service.Options, articleID ctype.ID, increase int) error {
 	return set(deps, ArticleCacheDigg, articleID, increase)
 }
-func GetCacheDigg(deps redis_service.Deps, articleID ctype.ID) int {
+func GetCacheDigg(deps redis_service.Options, articleID ctype.ID) int {
 	return get(deps, ArticleCacheDigg, articleID)
 }
 
 // 收藏缓存
-func SetCacheFavorite(deps redis_service.Deps, articleID ctype.ID, increase int) error {
+func SetCacheFavorite(deps redis_service.Options, articleID ctype.ID, increase int) error {
 	return set(deps, ArticleCacheFavorite, articleID, increase)
 }
-func GetCacheFavorite(deps redis_service.Deps, articleID ctype.ID) int {
+func GetCacheFavorite(deps redis_service.Options, articleID ctype.ID) int {
 	return get(deps, ArticleCacheFavorite, articleID)
 }
 
 // 评论缓存
-func SetCacheComment(deps redis_service.Deps, articleID ctype.ID, increase int) error {
+func SetCacheComment(deps redis_service.Options, articleID ctype.ID, increase int) error {
 	return set(deps, ArticleCacheComment, articleID, increase)
 }
-func GetCacheComment(deps redis_service.Deps, articleID ctype.ID) int {
+func GetCacheComment(deps redis_service.Options, articleID ctype.ID) int {
 	return get(deps, ArticleCacheComment, articleID)
 }
 
-func GetAll(deps redis_service.Deps, t ArticleCacheType) map[ctype.ID]int {
+func GetAll(deps redis_service.Options, t ArticleCacheType) map[ctype.ID]int {
 	if deps.Client == nil {
 		return nil
 	}
@@ -97,7 +97,7 @@ func GetAll(deps redis_service.Deps, t ArticleCacheType) map[ctype.ID]int {
 	return numMap
 }
 
-func getBatch(deps redis_service.Deps, t ArticleCacheType, articleIDs []ctype.ID) map[ctype.ID]int {
+func getBatch(deps redis_service.Options, t ArticleCacheType, articleIDs []ctype.ID) map[ctype.ID]int {
 	result := make(map[ctype.ID]int, len(articleIDs))
 	if deps.Client == nil || len(articleIDs) == 0 {
 		return result
@@ -110,22 +110,22 @@ func getBatch(deps redis_service.Deps, t ArticleCacheType, articleIDs []ctype.ID
 	return decodeBatchValues(articleIDs, values)
 }
 
-func GetBatchCacheView(deps redis_service.Deps, articleIDs []ctype.ID) map[ctype.ID]int {
+func GetBatchCacheView(deps redis_service.Options, articleIDs []ctype.ID) map[ctype.ID]int {
 	return getBatch(deps, ArticleCacheView, articleIDs)
 }
-func GetBatchCacheDigg(deps redis_service.Deps, articleIDs []ctype.ID) map[ctype.ID]int {
+func GetBatchCacheDigg(deps redis_service.Options, articleIDs []ctype.ID) map[ctype.ID]int {
 	return getBatch(deps, ArticleCacheDigg, articleIDs)
 }
-func GetBatchCacheFavorite(deps redis_service.Deps, articleIDs []ctype.ID) map[ctype.ID]int {
+func GetBatchCacheFavorite(deps redis_service.Options, articleIDs []ctype.ID) map[ctype.ID]int {
 	return getBatch(deps, ArticleCacheFavorite, articleIDs)
 }
-func GetBatchCacheComment(deps redis_service.Deps, articleIDs []ctype.ID) map[ctype.ID]int {
+func GetBatchCacheComment(deps redis_service.Options, articleIDs []ctype.ID) map[ctype.ID]int {
 	return getBatch(deps, ArticleCacheComment, articleIDs)
 }
 
 // GetBatchCounters 通过一次 Redis Pipeline 批量读取文章的四类计数增量，
 // 减少搜索列表阶段的 Redis 往返次数。
-func GetBatchCounters(deps redis_service.Deps, articleIDs []ctype.ID) BatchCounters {
+func GetBatchCounters(deps redis_service.Options, articleIDs []ctype.ID) BatchCounters {
 	counters := BatchCounters{
 		ViewMap:    make(map[ctype.ID]int),
 		DiggMap:    make(map[ctype.ID]int),
@@ -189,20 +189,20 @@ func decodeBatchValues(articleIDs []ctype.ID, values []any) map[ctype.ID]int {
 	return result
 }
 
-func GetAllCacheView(deps redis_service.Deps) map[ctype.ID]int {
+func GetAllCacheView(deps redis_service.Options) map[ctype.ID]int {
 	return GetAll(deps, ArticleCacheView)
 }
-func GetAllCacheDigg(deps redis_service.Deps) map[ctype.ID]int {
+func GetAllCacheDigg(deps redis_service.Options) map[ctype.ID]int {
 	return GetAll(deps, ArticleCacheDigg)
 }
-func GetAllCacheFavorite(deps redis_service.Deps) map[ctype.ID]int {
+func GetAllCacheFavorite(deps redis_service.Options) map[ctype.ID]int {
 	return GetAll(deps, ArticleCacheFavorite)
 }
-func GetAllCacheComment(deps redis_service.Deps) map[ctype.ID]int {
+func GetAllCacheComment(deps redis_service.Options) map[ctype.ID]int {
 	return GetAll(deps, ArticleCacheComment)
 }
 
-func ClearAllCacheArticle(deps redis_service.Deps) error {
+func ClearAllCacheArticle(deps redis_service.Options) error {
 	if deps.Client == nil {
 		return nil
 	}
@@ -216,7 +216,7 @@ func ClearAllCacheArticle(deps redis_service.Deps) error {
 }
 
 // 设置用户阅读历史
-func SetUserArticleHistoryCache(deps redis_service.Deps, articleID, userID int) {
+func SetUserArticleHistoryCache(deps redis_service.Options, articleID, userID int) {
 	if deps.Client == nil {
 		return
 	}
@@ -240,7 +240,7 @@ func SetUserArticleHistoryCache(deps redis_service.Deps, articleID, userID int) 
 		return
 	}
 }
-func GetUserArticleHistoryCache(deps redis_service.Deps, articleID, userID int) bool {
+func GetUserArticleHistoryCache(deps redis_service.Options, articleID, userID int) bool {
 	if deps.Client == nil {
 		return false
 	}
@@ -255,7 +255,7 @@ func GetUserArticleHistoryCache(deps redis_service.Deps, articleID, userID int) 
 }
 
 // 访客阅读记录
-func SetGuestArticleHistoryCache(deps redis_service.Deps, articleID int, hash string) {
+func SetGuestArticleHistoryCache(deps redis_service.Options, articleID int, hash string) {
 	if deps.Client == nil {
 		return
 	}
@@ -279,7 +279,7 @@ func SetGuestArticleHistoryCache(deps redis_service.Deps, articleID int, hash st
 		return
 	}
 }
-func GetGuestArticleHistoryCache(deps redis_service.Deps, articleID int, hash string) bool {
+func GetGuestArticleHistoryCache(deps redis_service.Options, articleID int, hash string) bool {
 	if deps.Client == nil {
 		return false
 	}

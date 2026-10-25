@@ -40,7 +40,7 @@ func TestTokenBlacklistFlow(t *testing.T) {
 		},
 	})
 	jwtConf := testutil.Config().Jwt
-	deps := redis_service.Deps{Client: testutil.Redis(), Logger: testutil.Logger()}
+	deps := redis_service.Options{Client: testutil.Redis(), Logger: testutil.Logger()}
 
 	token, err := jwts.GetToken(jwtConf, jwts.Claims{
 		UserID:   1,

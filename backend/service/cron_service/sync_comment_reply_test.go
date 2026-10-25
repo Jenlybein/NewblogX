@@ -110,7 +110,7 @@ func TestSyncCommentReplyNotBelowZeroAndLockSkip(t *testing.T) {
 	if got.ReplyCount != 0 {
 		t.Fatalf("加锁后不应更新reply_count: %d", got.ReplyCount)
 	}
-	deps := redis_service.Deps{Client: testutil.Redis(), Logger: testutil.Logger()}
+	deps := redis_service.Options{Client: testutil.Redis(), Logger: testutil.Logger()}
 	if redis_comment.GetCacheReply(deps, root.ID) != 9 {
 		t.Fatalf("加锁后缓存应保留: %d", redis_comment.GetCacheReply(deps, root.ID))
 	}

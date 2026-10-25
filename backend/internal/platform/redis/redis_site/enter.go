@@ -19,7 +19,7 @@ type DateCountItem struct {
 }
 
 // SetFlow 写入站点流量
-func SetFlow(deps redis_service.Deps) {
+func SetFlow(deps redis_service.Options) {
 	if deps.Client == nil {
 		return
 	}
@@ -42,7 +42,7 @@ func SetFlow(deps redis_service.Deps) {
 }
 
 // GetFlow 读取站点流量
-func GetFlow(deps redis_service.Deps) int {
+func GetFlow(deps redis_service.Options) int {
 	if deps.Client == nil {
 		return 0
 	}
@@ -51,7 +51,7 @@ func GetFlow(deps redis_service.Deps) int {
 }
 
 // GetRecentFlow 获取最近 days 天的站点流量
-func GetRecentFlow(deps redis_service.Deps, days int) []DateCountItem {
+func GetRecentFlow(deps redis_service.Options, days int) []DateCountItem {
 	if deps.Client == nil || days <= 0 {
 		return nil
 	}
@@ -81,7 +81,7 @@ func GetRecentFlow(deps redis_service.Deps, days int) []DateCountItem {
 }
 
 // pruneExpiredDailyFlow 清理过期的站点流量
-func pruneExpiredDailyFlow(deps redis_service.Deps, now time.Time) {
+func pruneExpiredDailyFlow(deps redis_service.Options, now time.Time) {
 	if deps.Client == nil {
 		return
 	}

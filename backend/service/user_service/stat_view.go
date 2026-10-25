@@ -14,7 +14,7 @@ import (
 
 // StatRecordUserHomeView 记录一次“登录用户访问他人主页”的去重浏览。
 // 返回 counted=true 表示本次访问真正让 ViewCount +1。
-func StatRecordUserHomeView(deps Deps, userID, viewerUserID ctype.ID) (counted bool, err error) {
+func StatRecordUserHomeView(deps Options, userID, viewerUserID ctype.ID) (counted bool, err error) {
 	if deps.DB == nil {
 		return false, ErrAuthInvalid
 	}

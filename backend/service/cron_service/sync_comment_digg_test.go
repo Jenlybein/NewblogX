@@ -110,7 +110,7 @@ func TestSyncCommentDiggNotBelowZeroAndLockSkip(t *testing.T) {
 	if got.DiggCount != 0 {
 		t.Fatalf("加锁后不应更新 digg_count: %d", got.DiggCount)
 	}
-	deps := redis_service.Deps{Client: testutil.Redis(), Logger: testutil.Logger()}
+	deps := redis_service.Options{Client: testutil.Redis(), Logger: testutil.Logger()}
 	if redis_comment.GetCacheDigg(deps, comment.ID) != 9 {
 		t.Fatalf("加锁后缓存应保留: %d", redis_comment.GetCacheDigg(deps, comment.ID))
 	}

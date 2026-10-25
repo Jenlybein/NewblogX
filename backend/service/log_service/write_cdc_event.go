@@ -40,7 +40,7 @@ type CdcEventInput struct {
 	Extra        map[string]any
 }
 
-func EmitCDCEvent(deps Deps, input CdcEventInput) {
+func EmitCDCEvent(deps Options, input CdcEventInput) {
 	level := strings.TrimSpace(strings.ToLower(input.Level))
 	if level == "" {
 		level = "info"

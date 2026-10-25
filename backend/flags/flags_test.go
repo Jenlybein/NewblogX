@@ -61,7 +61,7 @@ func TestParse(t *testing.T) {
 
 func TestRunNoOp(t *testing.T) {
 	testutil.InitGlobals()
-	if _, err := Run(&FlagOptions{}, Deps{}); err != nil {
+	if _, err := Run(&FlagOptions{}, Options{}); err != nil {
 		t.Fatalf("Run no-op 返回错误: %v", err)
 	}
 }
@@ -87,7 +87,7 @@ func TestFlagESIndexNoOp(t *testing.T) {
 	})
 
 	withStdin(t, "3\n3\n", func() {
-		if err := FlagESIndex(Deps{ESIndex: testutil.Config().ES.Index}); err == nil {
+		if err := FlagESIndex(Options{ESIndex: testutil.Config().ES.Index}); err == nil {
 			t.Fatal("ESClient 为空时应返回错误")
 		}
 	})

@@ -24,7 +24,7 @@ func WireRiver(infra *Infra) error {
 	if err != nil {
 		return fmt.Errorf("创建 River 失败: %w", err)
 	}
-	r.SetLogDeps(log_service.NewDeps(infra.Config.Log, infra.Config.System, infra.Config.ClickHouse.Enabled, infra.Logger, infra.ClickHouse))
+	r.SetLogOptions(log_service.NewOptions(infra.Config.Log, infra.Config.System, infra.Config.ClickHouse.Enabled, infra.Logger, infra.ClickHouse))
 
 	safego.Go(func(r any, stack []byte) {
 		if infra.Logger != nil {
@@ -53,7 +53,7 @@ func WireImageRef(infra *Infra) error {
 	if err != nil {
 		return fmt.Errorf("创建 ImageRef River 失败: %w", err)
 	}
-	r.SetLogDeps(log_service.NewDeps(infra.Config.Log, infra.Config.System, infra.Config.ClickHouse.Enabled, infra.Logger, infra.ClickHouse))
+	r.SetLogOptions(log_service.NewOptions(infra.Config.Log, infra.Config.System, infra.Config.ClickHouse.Enabled, infra.Logger, infra.ClickHouse))
 
 	safego.Go(func(r any, stack []byte) {
 		if infra.Logger != nil {

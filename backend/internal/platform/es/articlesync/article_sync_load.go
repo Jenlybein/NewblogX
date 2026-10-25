@@ -394,8 +394,8 @@ func loadArticleSnapshotsByIDs(db *gorm.DB, articleIDs []ctype.ID) ([]ArticleRow
 	return snapshots, err
 }
 
-func loadArticleProjectionDeps(db *gorm.DB, snapshots []ArticleRowSnapshot) (articleProjectionDeps, error) {
-	deps := articleProjectionDeps{
+func loadArticleProjectionOptions(db *gorm.DB, snapshots []ArticleRowSnapshot) (articleProjectionOptions, error) {
+	deps := articleProjectionOptions{
 		CategoryTitleMap: map[ctype.ID]string{},
 		AuthorMap:        map[ctype.ID]authorSnapshot{},
 		ArticleTagsMap:   map[ctype.ID][]models.ESTag{},

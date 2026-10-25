@@ -28,16 +28,16 @@ func WireComment(infra *Infra) {
 		return
 	}
 	repo := commentmysql.New(infra.DB)
-	redisDeps := redis_service.NewDeps(infra.Redis, infra.Logger)
+	redisOptions := redis_service.NewOptions(infra.Redis, infra.Logger)
 
 	svc := commentapp.New(
 		repo,
 		commentmysql.NewDigg(infra.DB),
-		&counterBridge{db: infra.DB, redisDeps: redisDeps, logger: infra.Logger},
+		&counterBridge{db: infra.DB, redisOptions: redisOptions, logger: infra.Logger},
 		&commentRelationBridge{},
 		&userDirBridge{db: infra.DB},
 		&articleBridge{db: infra.DB},
-		&cacheBridge{deps: redisDeps},
+		&cacheBridge{deps: redisOptions},
 		notifierBridge{},
 		commentIDs{},
 		infra.Logger,
@@ -60,14 +60,14 @@ func (commentIDs) NextCommentID() domain.CommentID {
 
 // counterBridge 读评论计数的 Redis 增量。
 type counterBridge struct {
-	db        *gorm.DB
-	redisDeps redis_service.Deps
-	logger    *logrus.Logger
+	db           *gorm.DB
+	redisOptions redis_service.Options
+	logger       *logrus.Logger
 }
 
 // Batch 返回点赞 / 回复增量。
 func (b *counterBridge) Batch(_ context.Context, ids []uint64) (map[uint64]int, map[uint64]int) {
-	reader := read_repo.NewCommentCounterReader(cachex.NewDeps(b.redisDeps.Client, b.logger))
+	reader := read_repo.NewCommentCounterReader(cachex.NewOptions(b.redisOptions.Client, b.logger))
 	got := reader.Batch(toCtypeIDs(ids))
 	digg := make(map[uint64]int, len(got.DiggMap))
 	reply := make(map[uint64]int, len(got.ReplyMap))
@@ -183,7 +183,7 @@ func (b *articleBridge) IDsByAuthor(_ context.Context, authorID, articleID uint6
 
 // cacheBridge 回写计数缓存。
 type cacheBridge struct {
-	deps redis_service.Deps
+	deps redis_service.Options
 }
 
 // AddArticleComments 文章评论数增量。

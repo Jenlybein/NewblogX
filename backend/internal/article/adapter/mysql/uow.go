@@ -27,19 +27,19 @@ var errNilDB = errors.New("article/mysql: database not initialized")
 // 关键点：事务句柄只在本包内流转。app 拿到的是 repos（一组仓储接口），
 // 因此 app 里不可能出现 SQL，也不可能绕过事务直接落库。
 type TxManager struct {
-	db          *gorm.DB
-	counterDeps redis_service.Deps
+	db             *gorm.DB
+	counterOptions redis_service.Options
 }
 
 // NewTxManager 构造事务管理器。
 //
-// counterDeps 允许零值（无 Redis 时计数退化为 no-op）。
+// counterOptions 允许零值（无 Redis 时计数退化为 no-op）。
 //
 // 不再接收 outbox：事件出口现在是**事务内的 outbox 表**，
 // 由 repos 用当前事务句柄现场构造（见 repos.Outbox），
 // 因此事件落库必然与业务写入同事务，不可能绕过事务。
-func NewTxManager(db *gorm.DB, counterDeps redis_service.Deps) *TxManager {
-	return &TxManager{db: db, counterDeps: counterDeps}
+func NewTxManager(db *gorm.DB, counterOptions redis_service.Options) *TxManager {
+	return &TxManager{db: db, counterOptions: counterOptions}
 }
 
 // WithinTx 在一个事务里执行 fn，并用同一个句柄构造全部仓储。
@@ -56,7 +56,7 @@ func (m *TxManager) WithinTx(ctx context.Context, fn func(ctx context.Context, r
 func (m *TxManager) repos(tx *gorm.DB) *repos {
 	return &repos{
 		db:      tx,
-		counter: NewCounterPort(m.counterDeps),
+		counter: NewCounterPort(m.counterOptions),
 	}
 }
 

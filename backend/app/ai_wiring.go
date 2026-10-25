@@ -25,14 +25,14 @@ func WireAI(infra *Infra) {
 	if infra == nil {
 		return
 	}
-	redisDeps := redis_service.NewDeps(infra.Redis, infra.Logger)
+	redisOptions := redis_service.NewOptions(infra.Redis, infra.Logger)
 	catalog := aimysql.NewCatalog(infra.DB)
 	svc := aiapp.New(
 		aimysql.New(infra.DB),
 		catalog,
 		catalog, // 同一个适配器同时实现候选读取与标签标题
 		&aiSearcher{
-			counters: searchredis.NewCounters(redisDeps),
+			counters: searchredis.NewCounters(redisOptions),
 			esClient: infra.ESClient,
 			index:    infra.Config.ES.Index,
 		},

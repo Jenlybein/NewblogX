@@ -19,9 +19,9 @@ func WireSearch(infra *Infra) {
 	if infra == nil {
 		return
 	}
-	redisDeps := redis_service.NewDeps(infra.Redis, infra.Logger)
+	redisOptions := redis_service.NewOptions(infra.Redis, infra.Logger)
 	h := searchhttp.NewHandler(
-		searchredis.NewCounters(redisDeps),
+		searchredis.NewCounters(redisOptions),
 		searchmysql.NewPrefs(infra.DB),
 		infra.ESClient,
 		infra.Config.ES.Index,

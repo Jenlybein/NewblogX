@@ -11,7 +11,7 @@ import (
 	"gorm.io/gorm"
 )
 
-type MySQLESDeps struct {
+type MySQLESOptions struct {
 	RiverConfig       conf.River
 	LogConfig         conf.Logrus
 	System            conf.System
@@ -21,7 +21,7 @@ type MySQLESDeps struct {
 	ESClient          *elasticsearch.Client
 }
 
-func InitMySQLES(deps MySQLESDeps) {
+func InitMySQLES(deps MySQLESOptions) {
 	if !deps.RiverConfig.Enabled {
 		deps.Logger.Infof("配置中未启用 MySQL 同步任务")
 		return
@@ -31,7 +31,7 @@ func InitMySQLES(deps MySQLESDeps) {
 	if err != nil {
 		deps.Logger.Fatal(err)
 	}
-	r.SetLogDeps(log_service.NewDeps(deps.LogConfig, deps.System, deps.ClickHouseEnabled, deps.Logger, nil))
+	r.SetLogOptions(log_service.NewOptions(deps.LogConfig, deps.System, deps.ClickHouseEnabled, deps.Logger, nil))
 
 	safego.Go(func(recovered any, stack []byte) {
 		deps.Logger.Errorf("MySQL→ES 同步 panic: %v\n%s", recovered, stack)

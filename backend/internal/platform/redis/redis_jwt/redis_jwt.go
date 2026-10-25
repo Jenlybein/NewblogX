@@ -48,7 +48,7 @@ func BlackTypeFromRedisValue(str string) (BlackType, error) {
 }
 
 // SetTokenBlack 将 token 放入 Redis 的黑名单中。
-func SetTokenBlack(deps redis_service.Deps, jwtConfig conf.Jwt, token string, blackType BlackType) {
+func SetTokenBlack(deps redis_service.Options, jwtConfig conf.Jwt, token string, blackType BlackType) {
 	if deps.Client == nil {
 		return
 	}
@@ -83,7 +83,7 @@ func SetTokenBlack(deps redis_service.Deps, jwtConfig conf.Jwt, token string, bl
 }
 
 // HasTokenBlack 检查 token 是否在 Redis 的黑名单中。
-func HasTokenBlack(deps redis_service.Deps, token string) (blackType BlackType, ok bool) {
+func HasTokenBlack(deps redis_service.Options, token string) (blackType BlackType, ok bool) {
 	if deps.Client == nil {
 		return 0, true
 	}

@@ -17,13 +17,13 @@ import (
 
 // TaskStore 实现 domain.TaskStore。
 type TaskStore struct {
-	deps redis_service.Deps
+	deps redis_service.Options
 }
 
 var _ domain.TaskStore = (*TaskStore)(nil)
 
 // NewTaskStore 构造任务缓存。
-func NewTaskStore(deps redis_service.Deps) *TaskStore { return &TaskStore{deps: deps} }
+func NewTaskStore(deps redis_service.Options) *TaskStore { return &TaskStore{deps: deps} }
 
 // Save 保存任务。
 func (s *TaskStore) Save(_ context.Context, task *domain.Task, ttl time.Duration) error {
@@ -69,13 +69,13 @@ func (s *TaskStore) Lock(_ context.Context, id uint64, ttl time.Duration) (func(
 
 // AuditStore 实现 domain.AuditStore。
 type AuditStore struct {
-	deps redis_service.Deps
+	deps redis_service.Options
 }
 
 var _ domain.AuditStore = (*AuditStore)(nil)
 
 // NewAuditStore 构造审核状态暂存。
-func NewAuditStore(deps redis_service.Deps) *AuditStore { return &AuditStore{deps: deps} }
+func NewAuditStore(deps redis_service.Options) *AuditStore { return &AuditStore{deps: deps} }
 
 // Store 暂存审核结论。
 func (s *AuditStore) Store(_ context.Context, objectKey, status string, ttl time.Duration) error {

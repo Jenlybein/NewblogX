@@ -10,14 +10,14 @@ import (
 
 const TagCacheArticleCount = "tag_article_count"
 
-func SetCacheArticleCount(deps redis_service.Deps, tagID ctype.ID, increase int) error {
+func SetCacheArticleCount(deps redis_service.Options, tagID ctype.ID, increase int) error {
 	if deps.Client == nil {
 		return nil
 	}
 	return deps.Client.HIncrBy(context.Background(), TagCacheArticleCount, tagID.String(), int64(increase)).Err()
 }
 
-func GetCacheArticleCount(deps redis_service.Deps, tagID ctype.ID) int {
+func GetCacheArticleCount(deps redis_service.Options, tagID ctype.ID) int {
 	if deps.Client == nil {
 		return 0
 	}
@@ -25,7 +25,7 @@ func GetCacheArticleCount(deps redis_service.Deps, tagID ctype.ID) int {
 	return num
 }
 
-func GetBatchCacheArticleCount(deps redis_service.Deps, tagIDs []ctype.ID) map[ctype.ID]int {
+func GetBatchCacheArticleCount(deps redis_service.Options, tagIDs []ctype.ID) map[ctype.ID]int {
 	result := make(map[ctype.ID]int, len(tagIDs))
 	if len(tagIDs) == 0 {
 		return result
@@ -57,7 +57,7 @@ func GetBatchCacheArticleCount(deps redis_service.Deps, tagIDs []ctype.ID) map[c
 	return result
 }
 
-func GetAllCacheArticleCount(deps redis_service.Deps) map[ctype.ID]int {
+func GetAllCacheArticleCount(deps redis_service.Options) map[ctype.ID]int {
 	if deps.Client == nil {
 		return map[ctype.ID]int{}
 	}
@@ -81,7 +81,7 @@ func GetAllCacheArticleCount(deps redis_service.Deps) map[ctype.ID]int {
 	return numMap
 }
 
-func ClearAllCacheTag(deps redis_service.Deps) error {
+func ClearAllCacheTag(deps redis_service.Options) error {
 	if deps.Client == nil {
 		return nil
 	}

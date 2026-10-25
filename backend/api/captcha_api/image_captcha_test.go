@@ -53,10 +53,7 @@ func newCaptchaAPI(t *testing.T) captcha_api.ImageCaptchaApi {
 	if err := runtimeSvc.InitRuntimeConfig(); err != nil {
 		t.Fatalf("初始化运行时配置失败: %v", err)
 	}
-	return captcha_api.New(captcha_api.Deps{
-		RuntimeSite:       runtimeSvc,
-		ImageCaptchaStore: testutil.ImageCaptchaStore(),
-	})
+	return captcha_api.New(runtimeSvc, testutil.ImageCaptchaStore())
 }
 
 func TestCaptchaViewDisabled(t *testing.T) {

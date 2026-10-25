@@ -9,7 +9,7 @@ import (
 )
 
 // keyExists 检查Redis Key是否存在
-func keyExists(deps redis_service.Deps, ctx context.Context, key string) bool {
+func keyExists(deps redis_service.Options, ctx context.Context, key string) bool {
 	if deps.Client == nil {
 		return false
 	}

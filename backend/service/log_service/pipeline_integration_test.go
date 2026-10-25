@@ -77,7 +77,7 @@ func TestIntegrationPipelineWritesAllKinds(t *testing.T) {
 	}
 
 	root := t.TempDir()
-	deps := Deps{
+	deps := Options{
 		LogConfig:        conf.Logrus{App: "itest", Dir: root, WALDir: filepath.Join(root, "wal")},
 		SystemConfig:     conf.System{ServerID: 1, Env: "integration"},
 		ClickHouseEnable: true,
@@ -85,7 +85,7 @@ func TestIntegrationPipelineWritesAllKinds(t *testing.T) {
 	}
 
 	if err := InitStructuredLog(PipelineConfig{
-		Deps:       deps,
+		Options:    deps,
 		WALDir:     filepath.Join(root, "wal"),
 		ClickHouse: true,
 	}); err != nil {

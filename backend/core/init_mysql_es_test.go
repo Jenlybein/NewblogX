@@ -15,7 +15,7 @@ func TestInitMySQLESDisabled(t *testing.T) {
 		},
 	})
 
-	core.InitMySQLES(core.MySQLESDeps{
+	core.InitMySQLES(core.MySQLESOptions{
 		RiverConfig: testutil.Config().River,
 		Logger:      testutil.Logger(),
 	})

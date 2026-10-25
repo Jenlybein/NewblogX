@@ -66,7 +66,7 @@ func (s *CronService) syncCounters() {
 func (s *CronService) runLockedSyncTask(taskName, lockKey string, lockTTL time.Duration, syncFunc func(ctx context.Context) (int, error)) {
 	ctx := context.Background()
 
-	unlock, err := redis_service.LockArticleSync(redis_service.Deps{Client: s.redis, Logger: s.log}, ctx, lockKey, lockTTL)
+	unlock, err := redis_service.LockArticleSync(redis_service.Options{Client: s.redis, Logger: s.log}, ctx, lockKey, lockTTL)
 	if err != nil {
 		if s.log != nil {
 			s.log.Errorf("%s获取锁失败: 错误=%v", taskName, err)

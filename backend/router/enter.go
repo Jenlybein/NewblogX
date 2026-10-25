@@ -22,15 +22,15 @@ import (
 //
 // 监听句柄在返回前同步创建，端口被占用等绑定错误会直接返回 error，
 // 避免"后台 goroutine 启动失败、主流程却挂着等信号"的假活状态。
-func Run(deps middleware.Deps, app api.Api) (*http.Server, error) {
-	gin.SetMode(deps.System.GinMode)
+func Run(opts middleware.RuntimeOptions, app api.Api) (*http.Server, error) {
+	gin.SetMode(opts.System.GinMode)
 	r := gin.New()
 	r.Use(gin.LoggerWithConfig(gin.LoggerConfig{
 		SkipPaths: []string{"/health"},
 	}))
 	r.Use(gin.Recovery())
 	r.Use(middleware.CorsMiddleware())
-	mwRuntime := middleware.NewRuntime(deps)
+	mwRuntime := middleware.NewRuntime(opts)
 
 	r.Static("/uploads", "./uploads")
 	HealthRouter(r)
@@ -54,7 +54,7 @@ func Run(deps middleware.Deps, app api.Api) (*http.Server, error) {
 	AIRouter(nr, mwRuntime)
 	DataRouter(nr, mwRuntime)
 
-	ln, err := net.Listen("tcp", deps.System.Addr())
+	ln, err := net.Listen("tcp", opts.System.Addr())
 	if err != nil {
 		return nil, err
 	}
@@ -64,13 +64,13 @@ func Run(deps middleware.Deps, app api.Api) (*http.Server, error) {
 		Handler: r,
 	}
 	safego.Go(func(recovered any, stack []byte) {
-		if deps.Logger != nil {
-			deps.Logger.Errorf("HTTP 服务 panic: %v\n%s", recovered, stack)
+		if opts.Logger != nil {
+			opts.Logger.Errorf("HTTP 服务 panic: %v\n%s", recovered, stack)
 		}
 	}, func() {
 		if err := srv.Serve(ln); err != nil && !errors.Is(err, http.ErrServerClosed) {
-			if deps.Logger != nil {
-				deps.Logger.Errorf("HTTP 服务异常退出: %v", err)
+			if opts.Logger != nil {
+				opts.Logger.Errorf("HTTP 服务异常退出: %v", err)
 			}
 		}
 	})

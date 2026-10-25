@@ -16,10 +16,10 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
-// testDeps 构造一份指向临时目录的日志依赖，避免污染仓库里的 logs/。
-func testDeps(t *testing.T, rootDir string) Deps {
+// testOptions 构造一份指向临时目录的日志依赖，避免污染仓库里的 logs/。
+func testOptions(t *testing.T, rootDir string) Options {
 	t.Helper()
-	return Deps{
+	return Options{
 		LogConfig:    conf.Logrus{App: "app", Dir: rootDir, WALDir: filepath.Join(rootDir, "wal")},
 		SystemConfig: conf.System{ServerID: 1, Env: "test"},
 	}
@@ -38,8 +38,8 @@ func mustInit(t *testing.T, cfg PipelineConfig) {
 // 那张 action_audit_logs 表对应的行形态（字段名与 ClickHouse 列名一致）。
 func TestPipelineWritesAuditToDailyFile(t *testing.T) {
 	root := t.TempDir()
-	deps := testDeps(t, root)
-	mustInit(t, PipelineConfig{Deps: deps})
+	deps := testOptions(t, root)
+	mustInit(t, PipelineConfig{Options: deps})
 
 	EmitActionAudit(deps, ActionAuditInput{
 		ActionName: "article_create",
@@ -114,8 +114,8 @@ func TestPipelineWritesAuditToDailyFile(t *testing.T) {
 // 未启用 ClickHouse 时文件就是最终落点：不套 WAL，也不产生 wal 目录。
 func TestPipelineFileModeDoesNotCreateWAL(t *testing.T) {
 	root := t.TempDir()
-	deps := testDeps(t, root)
-	mustInit(t, PipelineConfig{Deps: deps})
+	deps := testOptions(t, root)
+	mustInit(t, PipelineConfig{Options: deps})
 
 	EmitLoginEvent(deps, LoginEventInput{EventName: "login", Success: true, Username: "alice"})
 
@@ -136,7 +136,7 @@ func TestPipelineFileModeDoesNotCreateWAL(t *testing.T) {
 // 这里用一个指向 127.0.0.1:1（必然连不上）的 ClickHouse 连接模拟断库。
 func TestPipelineFallsBackToWALWhenClickHouseDown(t *testing.T) {
 	root := t.TempDir()
-	deps := testDeps(t, root)
+	deps := testOptions(t, root)
 
 	db := clickhouse.OpenDB(&clickhouse.Options{
 		Addr:        []string{"127.0.0.1:1"},
@@ -147,7 +147,7 @@ func TestPipelineFallsBackToWALWhenClickHouseDown(t *testing.T) {
 	deps.ClickHouseEnable = true
 
 	mustInit(t, PipelineConfig{
-		Deps:       deps,
+		Options:    deps,
 		WALDir:     filepath.Join(root, "wal"),
 		ClickHouse: true,
 	})

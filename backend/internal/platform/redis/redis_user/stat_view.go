@@ -10,7 +10,7 @@ import (
 
 // TryMarkUserHomeViewed 使用 HSETNX 做“写入式判重”。
 // 返回 true 表示今天第一次记录这次访问；返回 false 表示今天已经访问过。
-func TryMarkUserHomeViewed(deps redis_service.Deps, userID, viewerUserID ctype.ID, now time.Time) (bool, error) {
+func TryMarkUserHomeViewed(deps redis_service.Options, userID, viewerUserID ctype.ID, now time.Time) (bool, error) {
 	if deps.Client == nil {
 		return true, nil
 	}
@@ -38,7 +38,7 @@ func TryMarkUserHomeViewed(deps redis_service.Deps, userID, viewerUserID ctype.I
 
 // RollbackUserHomeViewed 在数据库事务失败时尽力回滚 Redis 判重标记，
 // 避免“Redis 已记过，但数据库未成功落库”导致当天少算 1 次。
-func RollbackUserHomeViewed(deps redis_service.Deps, userID, viewerUserID ctype.ID, now time.Time) error {
+func RollbackUserHomeViewed(deps redis_service.Options, userID, viewerUserID ctype.ID, now time.Time) error {
 	if deps.Client == nil {
 		return nil
 	}

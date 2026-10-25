@@ -28,7 +28,7 @@ type FlagOptions struct {
 	UserNoPrompt       bool
 }
 
-type Deps struct {
+type Options struct {
 	RiverConfig conf.River
 	Logger      *logrus.Logger
 	DB          *gorm.DB
@@ -62,7 +62,7 @@ func Parse() *FlagOptions {
 	return Flags
 }
 
-func Run(op *FlagOptions, deps Deps) (RunResult, error) {
+func Run(op *FlagOptions, deps Options) (RunResult, error) {
 	if op.DB {
 		// 执行数据库迁移
 		if err := FlagDB(deps.DB, deps.Logger); err != nil {

@@ -34,11 +34,11 @@ func WireAnalytics(infra *Infra) {
 	if infra == nil {
 		return
 	}
-	redisDeps := redis_service.NewDeps(infra.Redis, infra.Logger)
+	redisOptions := redis_service.NewOptions(infra.Redis, infra.Logger)
 	h := analyticshttp.NewHandler(
 		analyticsLogOptions(infra),
 		analyticsmysql.NewStats(infra.DB),
-		&analyticsFlow{deps: redisDeps},
+		&analyticsFlow{deps: redisOptions},
 		&analyticsDeadLetters{db: infra.DB},
 	)
 	router.SetAnalyticsHandler(h)
@@ -46,7 +46,7 @@ func WireAnalytics(infra *Infra) {
 
 // analyticsFlow 把 Redis 的访问量计数适配成统计端口。
 type analyticsFlow struct {
-	deps redis_service.Deps
+	deps redis_service.Options
 }
 
 var _ domain.FlowCounter = (*analyticsFlow)(nil)

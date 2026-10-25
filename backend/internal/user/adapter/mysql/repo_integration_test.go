@@ -25,7 +25,7 @@ import (
 // 建表直接复用 models 里的定义：如果本 adapter 的 row 与 models 的列名漂移，
 // 这里的读写会立刻失败——这正是我们想要的保护。
 
-// env 把一次测试需要的适配器聚在一起（不叫 Deps：archcheck R2 会报）。
+// env 把一次测试需要的适配器聚在一起（不叫 Options：archcheck R2 会报）。
 type env struct {
 	repo     *mysql.Repo
 	settings *mysql.SettingsRepo

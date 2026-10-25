@@ -2,9 +2,9 @@ package middleware
 
 import (
 	"myblogx/conf"
+	sitecfg "myblogx/internal/platform/config"
 	"myblogx/internal/platform/redis"
 	"myblogx/service/log_service"
-	sitecfg "myblogx/internal/platform/config"
 	"myblogx/service/user_service"
 
 	"github.com/gin-gonic/gin"
@@ -17,33 +17,33 @@ type Runtime struct {
 	JWT               conf.Jwt
 	LogConfig         conf.Logrus
 	Logger            *logrus.Logger
-	Redis             redis_service.Deps
-	Log               log_service.Deps
+	Redis             redis_service.Options
+	Log               log_service.Options
 	RuntimeSite       *sitecfg.RuntimeConfigService
 	ImageCaptchaStore base64Captcha.Store
 	Authenticator     *user_service.Authenticator
 }
 
-func NewRuntime(deps Deps) Runtime {
-	redisDeps := redis_service.Deps{
-		Client: deps.Redis,
-		Logger: deps.Logger,
+func NewRuntime(opts RuntimeOptions) Runtime {
+	redisOptions := redis_service.Options{
+		Client: opts.Redis,
+		Logger: opts.Logger,
 	}
 	return Runtime{
-		JWT:       deps.JWT,
-		LogConfig: deps.Log,
-		Logger:    deps.Logger,
-		Redis:     redisDeps,
-		Log: log_service.Deps{
-			LogConfig:        deps.Log,
-			SystemConfig:     deps.System,
-			ClickHouseEnable: deps.ClickHouseConfig.Enabled,
-			Logger:           deps.Logger,
-			ClickHouse:       deps.ClickHouse,
+		JWT:       opts.JWT,
+		LogConfig: opts.Log,
+		Logger:    opts.Logger,
+		Redis:     redisOptions,
+		Log: log_service.Options{
+			LogConfig:        opts.Log,
+			SystemConfig:     opts.System,
+			ClickHouseEnable: opts.ClickHouseConfig.Enabled,
+			Logger:           opts.Logger,
+			ClickHouse:       opts.ClickHouse,
 		},
-		RuntimeSite:       deps.RuntimeSite,
-		ImageCaptchaStore: deps.ImageCaptchaStore,
-		Authenticator:     user_service.NewAuthenticator(deps.DB, deps.Logger, deps.JWT, redisDeps),
+		RuntimeSite:       opts.RuntimeSite,
+		ImageCaptchaStore: opts.ImageCaptchaStore,
+		Authenticator:     user_service.NewAuthenticator(opts.DB, opts.Logger, opts.JWT, redisOptions),
 	}
 }
 

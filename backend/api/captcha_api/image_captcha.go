@@ -9,7 +9,7 @@ import (
 )
 
 type ImageCaptchaApi struct {
-	App Deps
+	App options
 }
 
 type ImageCaptchaResponse struct {
@@ -24,7 +24,7 @@ type ImageCaptchaResponse struct {
 // @Success 200 {object} object{code=int,data=ImageCaptchaResponse,msg=string}
 // @Router /imagecaptcha [get]
 func (h *ImageCaptchaApi) CaptchaView(c *gin.Context) {
-	if h.App.RuntimeSite == nil || !h.App.RuntimeSite.GetRuntimeLogin().Captcha {
+	if h.App.runtimeSite == nil || !h.App.runtimeSite.GetRuntimeLogin().Captcha {
 		res.FailWithMsg("站点未启用验证码功能", c)
 		return
 	}
@@ -44,7 +44,7 @@ func (h *ImageCaptchaApi) CaptchaView(c *gin.Context) {
 	var driver base64Captcha.Driver = driverString.ConvertFonts()
 
 	//生成验证码
-	captcha := base64Captcha.NewCaptcha(driver, h.App.ImageCaptchaStore)
+	captcha := base64Captcha.NewCaptcha(driver, h.App.store)
 	if id, b64s, _, err := captcha.Generate(); err == nil {
 		res.OkWithData(&ImageCaptchaResponse{
 			CaptchaId: id,

@@ -8,11 +8,11 @@ import (
 
 // UsernameAllocator 从 Redis 递增序列分配系统用户名。
 type UsernameAllocator struct {
-	deps redis_service.Deps
+	deps redis_service.Options
 }
 
 // NewUsernameAllocator 构造用户名分配器。
-func NewUsernameAllocator(deps redis_service.Deps) *UsernameAllocator {
+func NewUsernameAllocator(deps redis_service.Options) *UsernameAllocator {
 	return &UsernameAllocator{deps: deps}
 }
 

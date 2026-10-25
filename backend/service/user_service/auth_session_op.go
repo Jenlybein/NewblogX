@@ -11,7 +11,7 @@ import (
 )
 
 // CreateLoginTokens 创建登录成功后的双令牌（AccessToken + RefreshToken）同时生成并持久化用户会话到数据库
-func CreateLoginTokens(deps Deps, user *models.UserModel, meta SessionMeta) (accessToken string, refreshToken string, session *models.UserSessionModel, err error) {
+func CreateLoginTokens(deps Options, user *models.UserModel, meta SessionMeta) (accessToken string, refreshToken string, session *models.UserSessionModel, err error) {
 	if deps.DB == nil {
 		return "", "", nil, ErrAuthInvalid
 	}
@@ -54,7 +54,7 @@ func CreateLoginTokens(deps Deps, user *models.UserModel, meta SessionMeta) (acc
 
 // RefreshTokens 刷新令牌核心方法
 // 使用旧RefreshToken换取新的AccessToken + 新RefreshToken（轮换机制，更安全）
-func RefreshTokens(deps Deps, refreshToken string, meta SessionMeta) (accessToken string, newRefreshToken string, user *models.UserModel, session *models.UserSessionModel, err error) {
+func RefreshTokens(deps Options, refreshToken string, meta SessionMeta) (accessToken string, newRefreshToken string, user *models.UserModel, session *models.UserSessionModel, err error) {
 	if deps.DB == nil {
 		return "", "", nil, nil, ErrAuthInvalid
 	}
@@ -117,7 +117,7 @@ func RefreshTokens(deps Deps, refreshToken string, meta SessionMeta) (accessToke
 
 // SetRefreshTokenCookie 将刷新令牌写入HttpOnly Cookie
 // 安全策略：HttpOnly + 生产环境启用Secure + SameSiteLax
-func SetRefreshTokenCookie(w http.ResponseWriter, refreshToken string, deps Deps) {
+func SetRefreshTokenCookie(w http.ResponseWriter, refreshToken string, deps Options) {
 	http.SetCookie(w, &http.Cookie{
 		Name:     refreshTokenCookieName,
 		Value:    refreshToken,
@@ -131,7 +131,7 @@ func SetRefreshTokenCookie(w http.ResponseWriter, refreshToken string, deps Deps
 
 // ClearRefreshTokenCookie 清除刷新令牌Cookie
 // 用于退出登录
-func ClearRefreshTokenCookie(w http.ResponseWriter, deps Deps) {
+func ClearRefreshTokenCookie(w http.ResponseWriter, deps Options) {
 	http.SetCookie(w, &http.Cookie{
 		Name:     refreshTokenCookieName,
 		Value:    "",

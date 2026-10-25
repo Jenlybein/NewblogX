@@ -114,7 +114,7 @@ func (h *eventHandler) OnRow(e *canal.RowsEvent) error {
 
 	if err != nil {
 		pos := h.r.canal.SyncedPosition()
-		log_service.EmitCDCEvent(h.r.logDeps, log_service.CdcEventInput{
+		log_service.EmitCDCEvent(h.r.logOptions, log_service.CdcEventInput{
 			Level:        "error",
 			Message:      "river 构建批量请求失败",
 			ErrorCode:    "RIVER_BUILD_FAILED",

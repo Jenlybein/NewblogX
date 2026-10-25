@@ -966,3 +966,29 @@ T.4 里 `article`/`comment`/`user` 的 fake 依赖 domain 实体，属依赖顺�
 
 验证：`go test -tags integration ./internal/article/...` 全绿，
 含 20 篇文章 × 12 接口的 golden 逐字节比对。
+
+## 22. M5 交付记录 · S4.10c（R2 清零，棘轮 10 → 0）
+
+**2026-10-25**：`archcheck --mode=error ./...` 全绿，**M5 收口**。
+
+- **真正的依赖袋**只有两个，如实收窄：
+  - `middleware.Deps`（21 字段）→ `middleware.RuntimeOptions`（10 字段）。
+    `NewRuntime` 实际只读 10 个，其余 11 个是"顺手塞进来的"。
+  - `api.New(deps middleware.Deps)` → `api.New(runtimeSite, captchaStore)`；
+    `captcha_api.Deps` 改成包内私有 `options`。`api` 包从此不依赖 middleware。
+- **其余 8 处是构造参数，不是依赖袋**，统一改名 `Options` 并补注释说明区别：
+  `internal/platform/redis`、`platform/cachex`、`service/log_service`、
+  `service/user_service`、`flags`、`core/init_{image_ref_river,mysql_es}`、
+  `internal/platform/es/articlesync`。
+- **踩坑记录**：批量把 `Deps` 重命名为 `Options` 时，把 `tools/archcheck/rules.go`
+  里的**规则实现本身**也改了（`name != "Deps"` → `name != "Options"`），
+  守卫因此变成"拦截 Options 结构体"，违规数反而从 10 涨到 17。
+  已 `git checkout` 还原。教训：**改代码的脚本必须排除守卫自己的源码**。
+
+## M5 完成状态
+
+- 九个业务批次 + 平台收尾全部完成，13 个绿色提交。
+- 架构守卫棘轮 **324 → 0**，`--mode=error` 无违规。
+- `backend/api/` 只剩 `captcha_api`（一个验证码接口，无业务状态）。
+- `bash scripts/check.sh backend` 全绿；`-tags integration` 的 article golden（20 篇 × 12 接口）
+  与 analytics 路由测试全绿。

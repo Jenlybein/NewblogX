@@ -10,7 +10,7 @@ import (
 )
 
 // CheckLoginAllowed 检查账号和IP是否允许登录
-func CheckLoginAllowed(deps redis_service.Deps, account, ip string) bool {
+func CheckLoginAllowed(deps redis_service.Options, account, ip string) bool {
 	if deps.Client == nil {
 		return true
 	}
@@ -21,7 +21,7 @@ func CheckLoginAllowed(deps redis_service.Deps, account, ip string) bool {
 }
 
 // RecordLoginFailure 记录登录失败，并在达到阈值时触发锁定
-func RecordLoginFailure(deps redis_service.Deps, loginConf siteconf.Login, account, ip string) {
+func RecordLoginFailure(deps redis_service.Options, loginConf siteconf.Login, account, ip string) {
 	if deps.Client == nil {
 		return
 	}
@@ -33,7 +33,7 @@ func RecordLoginFailure(deps redis_service.Deps, loginConf siteconf.Login, accou
 }
 
 // ResetLoginFailures 重置账号和IP的登录失败计数与锁定状态
-func ResetLoginFailures(deps redis_service.Deps, account, ip string) {
+func ResetLoginFailures(deps redis_service.Options, account, ip string) {
 	if deps.Client == nil {
 		return
 	}
@@ -48,7 +48,7 @@ func ResetLoginFailures(deps redis_service.Deps, account, ip string) {
 }
 
 // AllowEmailSend 检查邮箱发送是否在频率限制范围内
-func AllowEmailSend(deps redis_service.Deps, loginConf siteconf.Login, email, ip string, sendType int8) bool {
+func AllowEmailSend(deps redis_service.Options, loginConf siteconf.Login, email, ip string, sendType int8) bool {
 	if deps.Client == nil {
 		return true
 	}
@@ -62,7 +62,7 @@ func AllowEmailSend(deps redis_service.Deps, loginConf siteconf.Login, email, ip
 }
 
 // recordFailure 记录失败次数，并在达到阈值时设置锁定
-func recordFailure(deps redis_service.Deps, ctx context.Context, countKey, lockKey string, ttl time.Duration, max int64) {
+func recordFailure(deps redis_service.Options, ctx context.Context, countKey, lockKey string, ttl time.Duration, max int64) {
 	// countKey - 失败计数的Redis Key
 	//	lockKey - 锁定状态的Redis Key
 	//	ttl - 时间窗口（计数和锁定的过期时间）
@@ -84,7 +84,7 @@ func recordFailure(deps redis_service.Deps, ctx context.Context, countKey, lockK
 }
 
 // allowWithinWindow 检查操作是否在时间窗口内的允许次数范围内
-func allowWithinWindow(deps redis_service.Deps, ctx context.Context, key string, ttl time.Duration, max int64) bool {
+func allowWithinWindow(deps redis_service.Options, ctx context.Context, key string, ttl time.Duration, max int64) bool {
 	//	key - 计数的Redis Key
 	//	ttl - 时间窗口
 	//	max - 最大允许次数

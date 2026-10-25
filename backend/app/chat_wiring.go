@@ -24,7 +24,7 @@ func WireChat(infra *Infra) {
 	if infra == nil {
 		return
 	}
-	redisDeps := redis_service.NewDeps(infra.Redis, infra.Logger)
+	redisOptions := redis_service.NewOptions(infra.Redis, infra.Logger)
 	hub := ws.NewHub()
 
 	svc := chatapp.New(
@@ -32,7 +32,7 @@ func WireChat(infra *Infra) {
 		&chatRelationBridge{},
 		&chatUserBridge{db: infra.DB},
 		&strangerBridge{db: infra.DB},
-		chatredis.NewLimiter(redisDeps),
+		chatredis.NewLimiter(redisOptions),
 		chatHub{inner: hub},
 		infra.Logger,
 	)
@@ -40,7 +40,7 @@ func WireChat(infra *Infra) {
 	handler := chathttp.NewHandler(
 		svc,
 		hub,
-		chatredis.NewTickets(redisDeps),
+		chatredis.NewTickets(redisOptions),
 		chatAuthBridge{svc: authService},
 		infra.Logger,
 	)

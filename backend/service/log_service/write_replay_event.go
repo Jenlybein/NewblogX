@@ -40,7 +40,7 @@ type ReplayEventInput struct {
 	Extra        map[string]any
 }
 
-func EmitReplayEvent(deps Deps, input ReplayEventInput) {
+func EmitReplayEvent(deps Options, input ReplayEventInput) {
 	level := strings.TrimSpace(strings.ToLower(input.Level))
 	if level == "" {
 		level = "info"

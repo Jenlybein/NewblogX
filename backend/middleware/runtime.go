@@ -5,7 +5,6 @@ import (
 	sitecfg "myblogx/internal/platform/config"
 	"myblogx/internal/platform/redis"
 	"myblogx/service/log_service"
-	"myblogx/service/user_service"
 
 	"github.com/gin-gonic/gin"
 	"github.com/mojocn/base64Captcha"
@@ -21,7 +20,7 @@ type Runtime struct {
 	Log               log_service.Options
 	RuntimeSite       *sitecfg.RuntimeConfigService
 	ImageCaptchaStore base64Captcha.Store
-	Authenticator     *user_service.Authenticator
+	Verifier          TokenVerifier
 }
 
 func NewRuntime(opts RuntimeOptions) Runtime {
@@ -43,7 +42,7 @@ func NewRuntime(opts RuntimeOptions) Runtime {
 		},
 		RuntimeSite:       opts.RuntimeSite,
 		ImageCaptchaStore: opts.ImageCaptchaStore,
-		Authenticator:     user_service.NewAuthenticator(opts.DB, opts.Logger, opts.JWT, redisOptions),
+		Verifier:          opts.Verifier,
 	}
 }
 

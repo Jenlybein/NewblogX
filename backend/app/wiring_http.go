@@ -34,6 +34,8 @@ func WireHTTP(infra *Infra, lc *Lifecycle) error {
 		ClickHouse:        infra.ClickHouse,
 		RuntimeSite:       infra.RuntimeSite,
 		ImageCaptchaStore: captchaStore,
+		// 认证只有一份实现：中间件与路由都走 internal/auth。
+		Verifier: authVerifier{},
 	}
 
 	// captcha 链路：图片验证码改由 internal/platform/captcha 提供。

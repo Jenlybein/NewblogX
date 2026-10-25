@@ -31,4 +31,7 @@ type RuntimeOptions struct {
 	ClickHouse        *sql.DB
 	RuntimeSite       *sitecfg.RuntimeConfigService
 	ImageCaptchaStore base64Captcha.Store
+
+	// Verifier 校验访问令牌。实现由装配层提供（internal/auth 的服务）。
+	Verifier TokenVerifier
 }

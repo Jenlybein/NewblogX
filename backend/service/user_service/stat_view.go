@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"time"
 
+	"myblogx/internal/apperr"
 	"myblogx/internal/platform/redis/redis_user"
 	"myblogx/models"
 	"myblogx/models/ctype"
@@ -16,7 +17,8 @@ import (
 // 返回 counted=true 表示本次访问真正让 ViewCount +1。
 func StatRecordUserHomeView(deps Options, userID, viewerUserID ctype.ID) (counted bool, err error) {
 	if deps.DB == nil {
-		return false, ErrAuthInvalid
+		// 这是"依赖没装好"，不是鉴权失败 —— 用准确的错误码，别让排障时走错方向。
+		return false, apperr.New(apperr.CodeCommonDBRequired)
 	}
 
 	if userID.IsZero() || viewerUserID.IsZero() || userID == viewerUserID {

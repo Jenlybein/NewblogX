@@ -147,6 +147,22 @@ const (
 	CodeFollowConfigMissing  Code = "follow.config_missing"
 )
 
+// 私信。
+const (
+	CodeChatUserNotFound    Code = "chat.user_not_found"
+	CodeChatContentEmpty    Code = "chat.content_empty"
+	CodeChatTypeUnsupported Code = "chat.type_unsupported"
+	CodeChatStrangerOff     Code = "chat.stranger_disabled"
+	CodeChatNoPermission    Code = "chat.no_permission"
+	CodeChatSessionNotFound Code = "chat.session_not_found"
+	CodeChatEmptySelection  Code = "chat.empty_selection"
+	CodeChatSendFailed      Code = "chat.send_failed"
+	CodeChatTooFrequent     Code = "chat.too_frequent"
+	CodeChatSessionTooFast  Code = "chat.session_too_fast"
+	CodeChatWeekStranger    Code = "chat.week_stranger_limit"
+	CodeChatWeekLimit       Code = "chat.week_limit"
+)
+
 // messages 是错误码到中文文案的唯一映射。
 //
 // 新增错误码时**必须**在这里补一行；缺了不会 panic，Error() 会退化成码本身，
@@ -247,6 +263,19 @@ var messages = map[Code]string{
 	CodeFollowNotFollowing:   "尚未关注该用户",
 	CodeFollowListPrivate:    "关注关系未公开",
 	CodeFollowConfigMissing:  "用户配置信息不存在",
+
+	CodeChatUserNotFound:    "接收人不存在",
+	CodeChatContentEmpty:    "消息内容不能为空",
+	CodeChatTypeUnsupported: "不支持的消息类型",
+	CodeChatStrangerOff:     "对方未开启陌生人私信",
+	CodeChatNoPermission:    "权限不足",
+	CodeChatSessionNotFound: "会话不存在",
+	CodeChatEmptySelection:  "请选择要操作的消息或会话",
+	CodeChatSendFailed:      "消息发送失败",
+	CodeChatTooFrequent:     "发送过于频繁，请稍后再试",
+	CodeChatSessionTooFast:  "当前会话发送过于频繁，请稍后再试",
+	CodeChatWeekStranger:    "本周只允许向陌生人发送 1 条消息",
+	CodeChatWeekLimit:       "本周可发送消息次数已达上限，对方回复后才可以继续发送消息",
 }
 
 // Error 是带错误码的应用错误。

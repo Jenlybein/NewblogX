@@ -821,3 +821,23 @@ T.4 里 `article`/`comment`/`user` 的 fake 依赖 domain 实体，属依赖顺�
 - `repository/follow_repo` 与 `service/follow_service` **暂留**：chat 模块仍在用，
   随 chat 迁移一并删除。
 - 棘轮 **171 → 165**；`internal/social/...` 零违规。
+
+## 15. M5 交付记录 · S4.5b（chat）
+
+**2026-10-25**：`api/chat_api`、`service/chat_service`、`repository/chat_repo`、
+`repository/follow_repo`、`service/follow_service` 全部删除；`/chat` 7 条路由（含 WS）改由 `internal/chat` 提供。
+
+- 新增 `internal/platform/http/ws`：升级（Origin 策略注入）、Conn（写锁+超时+心跳）、
+  Hub（多连接在线池，推送前复制快照，不持锁写 socket）。
+- 新增 `internal/chat/{domain,app,adapter/{mysql,redis,http}}`：
+  - 发消息一个事务：建/恢复双方会话 → 插消息 → 更新双方 last_msg / 接收方未读；
+    `RowsAffected` 必须匹配（自聊 1、双人 2），否则回滚。
+  - 已读：只命中"我作为接收方且未读"的消息，事务内同时递减会话未读（下限 0），
+    再按 (发送者, 会话) 聚合推 WS 已读回执。
+  - 单条删除写 `chat_msg_user_states`（不动原消息）；会话删除推进 `clear_before_msg_id` 水位。
+  - 限流：分钟级 30/60 + 自然周（陌生人 1、单向 3、好友无限）；落库成功才提交预占，失败回滚。
+  - WS：ticket 存 Redis 1 分钟，先试 Authorization 再试 ticket；读限制 4K、pong 60s、ping 54s。
+  - 后台心跳用 `safego.Go`，不再是裸 goroutine。
+- **技术债**：旧 chat/follow 测试（约 1770 行）未迁移，目前只有 chat domain 的
+  `BuildSessionID` / `Summary` 与 social 枚举测试；消息事务、未读递减、水位删除缺少回归保护。
+- 棘轮 **165 → 135**；`internal/chat/...` 零违规。

@@ -90,6 +90,12 @@ func (c *Conn) WriteJSON(v any) error {
 	return c.WriteMessage(websocket.TextMessage, data)
 }
 
+// WriteMessageTimeout 设置写超时后发一条消息。
+func (c *Conn) WriteMessageTimeout(messageType int, data []byte, wait time.Duration) error {
+	_ = c.SetWriteDeadline(time.Now().Add(wait))
+	return c.WriteMessage(messageType, data)
+}
+
 // Close 关闭连接。
 func (c *Conn) Close() error { return c.raw.Close() }
 

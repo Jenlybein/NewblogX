@@ -1,7 +1,6 @@
 package router_test
 
 import (
-	api2 "myblogx/api"
 	analyticsch "myblogx/internal/analytics/adapter/clickhouse"
 	analyticshttp "myblogx/internal/analytics/adapter/http"
 	analyticsmysql "myblogx/internal/analytics/adapter/mysql"
@@ -12,6 +11,7 @@ import (
 	mediaapptest "myblogx/internal/media/apptest"
 	notificationhttp "myblogx/internal/notification/adapter/http"
 	notificationtest "myblogx/internal/notification/apptest"
+	"myblogx/internal/platform/captcha"
 	searchhttp "myblogx/internal/search/adapter/http"
 	sitehttp "myblogx/internal/site/adapter/http"
 	sitetest "myblogx/internal/site/apptest"
@@ -24,6 +24,7 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/mojocn/base64Captcha"
 )
 
 func TestRegisterAllRoutes(t *testing.T) {
@@ -31,7 +32,6 @@ func TestRegisterAllRoutes(t *testing.T) {
 	r := gin.New()
 	router.HealthRouter(r)
 	api := r.Group("/api")
-	app := api2.New(nil, nil)
 	runtimeMw := mw.Runtime{}
 
 	router.SetSiteHandler(sitehttp.NewHandler(sitetest.NewDefaultService()))
@@ -41,11 +41,12 @@ func TestRegisterAllRoutes(t *testing.T) {
 	router.SetImageHandler(mediahttp.NewHandler(mediaapptest.NewDefaultService()))
 	router.ImageRouter(api, runtimeMw)
 	router.BannerRouter(api, runtimeMw)
-	router.CaptchaRouter(api, app, runtimeMw)
+	router.SetCaptchaHandler(captcha.NewHandler(captchaSettings{true}, base64Captcha.DefaultMemStore))
+	router.CaptchaRouter(api)
 	// 认证路由来自 internal/auth：这里用全空替身，仅验证路由表。
 	router.SetAuthHandler(authhttp.NewHandler(authapptest.NewRepos(time.Now()).Service(), nil, nil, nil, false, 0))
 	router.SetUserHandler(userhttp.NewHandler(userapptest.NewRepos(time.Now()).Service()))
-	router.UserRouter(api, app, runtimeMw)
+	router.UserRouter(api, runtimeMw)
 	// 旧 article_api 已删除，路由只来自新 handler；这里用空依赖的处理器
 	// 仅验证路由表，不发起真实请求。
 	router.SetArticleHandler(articlehttp.NewHandler(nil, nil, nil, nil, nil))
@@ -98,3 +99,8 @@ func TestRegisterAllRoutes(t *testing.T) {
 		}
 	}
 }
+
+// captchaSettings 是验证码开关替身（路由表测试只关心路由是否注册成功）。
+type captchaSettings struct{ enabled bool }
+
+func (c captchaSettings) CaptchaEnabled() bool { return c.enabled }

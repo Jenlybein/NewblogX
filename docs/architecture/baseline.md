@@ -1016,3 +1016,25 @@ T.4 里 `article`/`comment`/`user` 的 fake 依赖 domain 实体，属依赖顺�
   设 `BLOGX_REQUIRE_INTEGRATION=1` 则直接失败；`BLOGX_SKIP_INTEGRATION=1` 可显式跳过。
 - 验证：`check.sh backend` 全绿（含集成，约 2.5 分钟）；
   `check.sh gates` **4/4 通过**（修复前是 3/4）。
+
+## 24. M5 收口补漏 · 阶段二：captcha 迁入 platform，删除 backend/api
+
+**2026-10-25**：`backend/api/`（最后一个 api 包）整目录删除，`router.Run` 不再接收容器参数。
+
+- `api/captcha_api`（170 行）→ **`internal/platform/captcha`**。没有建业务模块：
+  它无领域状态、无业务规则，只是把 base64Captcha 包一层 + 读一个开关。
+  为 170 行造 domain/app/adapter 三层属于为结构而结构。
+- `captcha.Settings` 窄接口（`CaptchaEnabled() bool`）代替直接依赖
+  `RuntimeConfigService`；装配层 `captchaSettings` 适配。
+- **修掉一处靠巧合成立的耦合**：生成在 `platform/captcha`，校验在
+  `middleware.CaptchaMiddleware`（登录、发邮箱验证码两条路由挂了它）。
+  两边原先都各自取 `base64Captcha.DefaultMemStore` 包级单例 —— 恰好是同一个对象，
+  所以能跑通；但任何一方改成 `NewMemoryStore()` 就会静默断掉（接口都返回 200，
+  只是登录永远报"验证码错误"）。现在 `WireHTTP` 只创建一个 store 实例，
+  同时传给 `RuntimeOptions.ImageCaptchaStore` 与 `WireCaptcha`。
+- 测试从旧 `image_captcha_test.go` 迁移为 `platform/captcha/handler_test.go`，
+  3 个用例：开关关闭不写 store、正常生成返回 id+base64、**生成的数据能从外部
+  store 查到**（守住上面那条耦合，防止 Handler 内部偷偷 new 一个 store）。
+- 路由：`CaptchaRouter(nr)` / `UserRouter(nr, mwRuntime)` / `router.Run(opts)` —— 
+  `api.Api` 参数全部消失。
+- 验证：`check.sh backend` 全绿（含集成），棘轮仍为 0。

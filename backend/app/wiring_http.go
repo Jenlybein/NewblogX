@@ -4,23 +4,25 @@ import (
 	"context"
 	"fmt"
 
-	"myblogx/api"
+	"github.com/mojocn/base64Captcha"
+
 	"myblogx/middleware"
 	"myblogx/router"
-
-	"github.com/mojocn/base64Captcha"
 )
 
 // WireHTTP 集中组装 HTTP handler 与 router。
 //
-// 依赖只拼一份（middleware.Options），同时交给 router 与 api.New 使用，
-// 避免过去 apideps.Options + api.Options 两份字段完全重复的字面量。
+// 依赖只拼一份（middleware.RuntimeOptions），各模块的处理器都在这里注入 router。
+// 旧的 api.Api 容器已随 captcha 迁入 platform 而删除 —— 路由文件不再接收容器参数。
 func WireHTTP(infra *Infra, lc *Lifecycle) error {
 	if err := validateInfra(infra); err != nil {
 		return err
 	}
 
 	cfg := infra.Config
+	// 验证码的生成（internal/platform/captcha）与校验（middleware）必须是同一个 store，
+	// 否则前端拿到的 captcha_id 在登录时校验不到。这里只创建一个实例，两处共用。
+	captchaStore := base64Captcha.DefaultMemStore
 	opts := middleware.RuntimeOptions{
 		System:            cfg.System,
 		JWT:               cfg.Jwt,
@@ -31,8 +33,11 @@ func WireHTTP(infra *Infra, lc *Lifecycle) error {
 		Redis:             infra.Redis,
 		ClickHouse:        infra.ClickHouse,
 		RuntimeSite:       infra.RuntimeSite,
-		ImageCaptchaStore: base64Captcha.DefaultMemStore,
+		ImageCaptchaStore: captchaStore,
 	}
+
+	// captcha 链路：图片验证码改由 internal/platform/captcha 提供。
+	WireCaptcha(infra, captchaStore)
 
 	// media 链路：图片能力改由 internal/media + platform/storage 提供。
 	WireMedia(infra)
@@ -69,7 +74,7 @@ func WireHTTP(infra *Infra, lc *Lifecycle) error {
 	// 必须在 WireUser 之后：用户列表的"最后登录"依赖同一份日志查询配置。
 	WireAnalytics(infra)
 
-	srv, err := router.Run(opts, api.New(opts.RuntimeSite, opts.ImageCaptchaStore))
+	srv, err := router.Run(opts)
 	if err != nil {
 		return fmt.Errorf("启动 HTTP 服务失败: %w", err)
 	}

@@ -1,7 +1,8 @@
 package info_check
 
 import (
-	"errors"
+	"fmt"
+	"myblogx/internal/apperr"
 	"regexp"
 	"strings"
 	"unicode"
@@ -98,31 +99,31 @@ func CheckUsername(username string) error {
 	// 清除用户名首尾空格
 	cleanUsername := strings.TrimSpace(username)
 	if cleanUsername == "" {
-		return errors.New("用户名不能为空")
+		return apperr.New(apperr.CodeUsernameEmpty)
 	}
 
 	usernameLen := len(cleanUsername)
 	if usernameLen < 6 || usernameLen > 20 {
-		return errors.New("用户名长度必须在6-20个字符之间")
+		return apperr.New(apperr.CodeUsernameLength)
 	}
 
 	if !validUsernameRegex.MatchString(cleanUsername) {
-		return errors.New("用户名仅支持字母、数字、下划线")
+		return apperr.New(apperr.CodeUsernameCharset)
 	}
 
 	underlineCount := strings.Count(cleanUsername, "_")
 	if underlineCount > 2 {
-		return errors.New("用户名中下划线数量最多只能有2个")
+		return apperr.New(apperr.CodeUsernameUnderscoreCount)
 	}
 
 	if strings.HasPrefix(cleanUsername, "_") || strings.HasSuffix(cleanUsername, "_") {
-		return errors.New("用户名不能以下划线开头或结尾")
+		return apperr.New(apperr.CodeUsernameUnderscoreEdge)
 	}
 
 	// 敏感词校验
 	sensitive, ok := IsSensitiveWord(cleanUsername)
 	if ok {
-		return errors.New("用户名包含敏感词汇：" + sensitive)
+		return apperr.Wrap(apperr.CodeUsernameSensitive, fmt.Errorf("sensitive=%s", sensitive))
 	}
 
 	return nil

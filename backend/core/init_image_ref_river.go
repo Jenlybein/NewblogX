@@ -3,6 +3,7 @@ package core
 import (
 	"myblogx/conf"
 	"myblogx/internal/platform/cdc/imageref"
+	"myblogx/internal/platform/safego"
 	"myblogx/service/log_service"
 
 	"github.com/sirupsen/logrus"
@@ -30,9 +31,11 @@ func InitImageRefRiver(deps ImageRefRiverDeps) {
 		deps.Logger.Fatal(err)
 	}
 	r.SetLogDeps(log_service.NewDeps(deps.LogConfig, deps.System, deps.ClickHouseEnabled, deps.Logger, nil))
-	go func() {
+	safego.Go(func(recovered any, stack []byte) {
+		deps.Logger.Errorf("图片引用监听 panic: %v\n%s", recovered, stack)
+	}, func() {
 		if err := r.Run(); err != nil {
 			deps.Logger.Errorf("图片引用监听运行失败: %v", err)
 		}
-	}()
+	})
 }

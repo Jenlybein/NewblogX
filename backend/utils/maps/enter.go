@@ -1,7 +1,7 @@
 package maps
 
 import (
-	"errors"
+	"myblogx/internal/apperr"
 	"reflect"
 )
 
@@ -13,7 +13,7 @@ func FieldsStructToStruct(src, dest any) error {
 
 	// 校验是否为指针
 	if srcVal.Kind() != reflect.Ptr || destVal.Kind() != reflect.Ptr {
-		return errors.New("src 和 dest 必须是指针类型")
+		return apperr.New(apperr.CodeMapsPointerRequired)
 	}
 
 	// 取指针指向的结构体元素
@@ -22,7 +22,7 @@ func FieldsStructToStruct(src, dest any) error {
 
 	// 校验是否为结构体
 	if srcElem.Kind() != reflect.Struct || destElem.Kind() != reflect.Struct {
-		return errors.New("src 和 dest 指针必须指向结构体类型")
+		return apperr.New(apperr.CodeMapsStructRequired)
 	}
 
 	// 遍历dest结构体的所有字段
@@ -74,7 +74,7 @@ func FieldsStructToMap(src, dest any) (res map[string]any, err error) {
 
 	// 校验是否为指针
 	if srcVal.Kind() != reflect.Ptr || destVal.Kind() != reflect.Ptr {
-		return nil, errors.New("src 和 dest 必须是指针类型")
+		return nil, apperr.New(apperr.CodeMapsPointerRequired)
 	}
 
 	// 初始化返回值
@@ -86,7 +86,7 @@ func FieldsStructToMap(src, dest any) (res map[string]any, err error) {
 
 	// 校验是否为结构体
 	if srcElem.Kind() != reflect.Struct || destElem.Kind() != reflect.Struct {
-		return nil, errors.New("src 和 dest 指针必须指向结构体类型")
+		return nil, apperr.New(apperr.CodeMapsStructRequired)
 	}
 
 	// 遍历dest结构体的所有字段

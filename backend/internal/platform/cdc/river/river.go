@@ -4,8 +4,10 @@ import (
 	"context"
 	"fmt"
 	"myblogx/conf"
+	"myblogx/internal/apperr"
 	"myblogx/internal/platform/cdc/canalbase"
 	"myblogx/internal/platform/cdc/river/rule"
+	"myblogx/internal/platform/safego"
 	"myblogx/models"
 	"myblogx/service/log_service"
 	"regexp"
@@ -20,7 +22,7 @@ import (
 )
 
 // ErrRuleNotExist 是规则不存在的错误
-var ErrRuleNotExist = errors.New("规则不存在")
+var ErrRuleNotExist = apperr.New(apperr.CodeCdcRuleNotExist)
 
 // River 是一个可插拔的服务，它从Elasticsearch中拉取数据然后将其索引到Elasticsearch中。
 type River struct {
@@ -313,7 +315,11 @@ func ruleKey(schema string, table string) string {
 // Run 从MySQL同步数据并插入到ES中
 func (r *River) Run() error {
 	r.wg.Add(1)
-	go r.syncLoop()
+	safego.Go(func(recovered any, stack []byte) {
+		if r.log != nil {
+			r.log.Errorf("同步循环 panic: %v\n%s", recovered, stack)
+		}
+	}, r.syncLoop)
 
 	pos := r.master.Position()
 	if err := r.canal.RunFrom(pos); err != nil {

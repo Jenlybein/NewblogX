@@ -917,3 +917,26 @@ T.4 里 `article`/`comment`/`user` 的 fake 依赖 domain 实体，属依赖顺�
 - 顺手修掉一个越界隐患：访问量缓存为空时，`/data/growth` 取"今天/昨天"会数组越界，
   现在补 7 天零值骨架。
 - 棘轮 **83 → 69**；`internal/analytics/...` 零违规。
+
+## 20. M5 交付记录 · S4.10a（R7 + R8 清零）
+
+**2026-10-25**：棘轮 **69 → 27**，R7（裸 goroutine）与 R8（中文 errors.New）双双归零。
+
+- **R7 6 处 → 0**：`app/wiring_worker` 两处、`core/init_image_ref_river`、`core/init_mysql_es`、
+  `cdc/river` 的同步循环、`router/enter` 的 HTTP 服务协程，全部改走 `safego.Go`，
+  并在 panic 处理器里记结构化错误日志。后台协程 panic 不再拖垮进程。
+- **R8 36 处 → 0**：`common/list_query`、`cdc/river`、`platform/llm`（7）、
+  `platform/storage/qiniu`（5）、`service/user_service/auth_errors`（6）、
+  `utils/{info_check,jwts,maps}`（14）、`models/user_model`（1），
+  统一换成 `apperr.New/Wrap`；`%w` 包装改成 `apperr.Wrap(code, cause)`，错误链仍可用 `errors.Is` 穿透。
+- 一处文案微调：`user_model` 的"用户状态异常"并入既有 `user.status_invalid`，文案变为"账号状态不合法"，
+  语义未变。
+
+**剩余 27 处，均需真实重构，不是替换能解决的**：
+- **R2 10 处**（`type XxxDeps struct`）：`api/captcha_api`、`core`×2、`flags`、`middleware/deps.go`、
+  `platform/cachex`、`internal/platform/redis`、`internal/platform/es/articlesync`、
+  `service/log_service`、`service/user_service`。这些是**装配根的依赖容器**，
+  改窄接口会连带改所有 Wire 调用点，属于独立一刀。
+- **R10 17 处**（article 模块 import models）：M4 时期的遗留，需要把 `models.ArticleModel`
+  等 row 结构与 `models/enum` 常量复制进 `internal/article/adapter/{mysql,http}`，
+  是纯体力但要逐字段核对，风险在"漏一个列名就静默写错"。

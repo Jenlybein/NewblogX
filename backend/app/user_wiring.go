@@ -19,6 +19,7 @@ import (
 	redis_service "myblogx/internal/platform/redis"
 	"myblogx/internal/platform/redis/redis_email"
 	"myblogx/internal/platform/redis/redis_user"
+	socialdomain "myblogx/internal/social/domain"
 	userhttp "myblogx/internal/user/adapter/http"
 	usermysql "myblogx/internal/user/adapter/mysql"
 	userredis "myblogx/internal/user/adapter/redis"
@@ -31,7 +32,6 @@ import (
 	"myblogx/models/enum"
 	"myblogx/router"
 	"myblogx/service/email_service"
-	"myblogx/service/follow_service"
 	"myblogx/service/log_service"
 	"myblogx/service/qq_service"
 	"myblogx/service/site_service"
@@ -86,7 +86,7 @@ func WireUser(infra *Infra) {
 		infra.Logger,
 		userapp.WithUsernameAllocator(userredis.NewUsernameAllocator(redisDeps)),
 		userapp.WithIntegrations(userapp.Integrations{
-			Relation:  &relationBridge{db: infra.DB},
+			Relation:  &relationBridge{},
 			HomeView:  &homeViewBridge{deps: user_service.NewDepsWithRedis(cfg.Jwt, cfg.System.Env, infra.DB, infra.Logger, infra.Redis)},
 			Sessions:  sessionRevoker,
 			LastLogin: &lastLoginBridge{deps: log_service.NewDeps(cfg.Log, cfg.System, cfg.ClickHouse.Enabled, infra.Logger, infra.ClickHouse)},
@@ -430,14 +430,19 @@ func (e *userEnricher) TagTitles(_ context.Context, ids []uint64) (map[uint64]st
 	return out, nil
 }
 
-// relationBridge 实现 app.RelationReader。
-type relationBridge struct {
-	db *gorm.DB
-}
+// relationBridge 实现 app.RelationReader（数据来自 social 模块）。
+type relationBridge struct{}
 
 // Relation 读关注关系。
-func (b *relationBridge) Relation(_ context.Context, viewer, target userdomain.UserID) (int8, error) {
-	return int8(follow_service.CalUserRelationship(b.db, ctype.ID(viewer), ctype.ID(target))), nil
+func (b *relationBridge) Relation(ctx context.Context, viewer, target userdomain.UserID) (int8, error) {
+	if socialService == nil {
+		return socialdomain.RelationStranger.Int8(), nil
+	}
+	rel, err := socialService.Relation(ctx, viewer.Uint64(), target.Uint64())
+	if err != nil {
+		return socialdomain.RelationStranger.Int8(), nil
+	}
+	return rel.Int8(), nil
 }
 
 // homeViewBridge 实现 app.HomeViewRecorder。

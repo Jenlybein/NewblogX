@@ -806,3 +806,18 @@ T.4 里 `article`/`comment`/`user` 的 fake 依赖 domain 实体，属依赖顺�
   `service/search_service` 兼容层（类型别名 + 包装），AI 只改了两处 `PageInfo` 类型。
 - 删 `repository/user_repo`（最后一个引用随偏好标签读取迁入 `internal/search/adapter/mysql` 消失）。
 - 棘轮 **186 → 171**；`internal/search/...` 零违规。
+
+## 14. M5 交付记录 · S4.5a（social / 关注关系）
+
+**2026-10-25**：`api/follow_api` 已删，`/follow` 与 `/fans` 4 条路由改由 `internal/social` 提供。
+
+- `internal/social/{domain,app,adapter/{mysql,http}}`：关注实体、关系枚举（1..4 与旧契约一致）、
+  列表分页、隐私可见性校验、快照补齐。
+- `Relation` / `RelationBatch` 作为 **跨模块读端口**：user 的主页关系、comment 的列表关系
+  都改成调 social 服务，不再直接 import `follow_repo` / `follow_service`。
+- 关注/取关保留「软删恢复」「重复关注提示」「取关未关注提示」语义。
+- **已知债**：关注数/粉丝数统计从"同事务"退化为"关注成功后再更新"（失败只记日志）。
+  S4.6 会把"更新统计"改成 outbox 事件恢复最终一致。
+- `repository/follow_repo` 与 `service/follow_service` **暂留**：chat 模块仍在用，
+  随 chat 迁移一并删除。
+- 棘轮 **171 → 165**；`internal/social/...` 零违规。

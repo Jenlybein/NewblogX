@@ -48,7 +48,7 @@ func Run(deps middleware.Deps, app api.Api) (*http.Server, error) {
 	ChatRouter(nr, app, mwRuntime)
 	SitemsgRouter(nr, app, mwRuntime)
 	GlobalNotifRouter(nr, app, mwRuntime)
-	FollowRouter(nr, app, mwRuntime)
+	FollowRouter(nr, mwRuntime)
 	SearchRouter(nr, mwRuntime)
 	AIRouter(nr, app, mwRuntime)
 	DataRouter(nr, app, mwRuntime)

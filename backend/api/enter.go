@@ -8,7 +8,6 @@ import (
 	"myblogx/api/captcha_api"
 	"myblogx/api/chat_api"
 	"myblogx/api/data_api"
-	"myblogx/api/follow_api"
 	"myblogx/api/global_notif_api"
 	"myblogx/api/log_api"
 	"myblogx/api/site_api"
@@ -26,7 +25,6 @@ type Api struct {
 	ChatApi         chat_api.ChatApi
 	SitemsgApi      sitemsg_api.SitemsgApi
 	GlobalNotifApi  global_notif_api.GlobalNotifApi
-	FollowApi       follow_api.FollowApi
 	AIApi           ai_api.AIApi
 	DataApi         data_api.DataApi
 }
@@ -77,9 +75,6 @@ func New(deps middleware.Deps) Api {
 			DB: deps.DB,
 		}),
 		GlobalNotifApi: global_notif_api.New(global_notif_api.Deps{
-			DB: deps.DB,
-		}),
-		FollowApi: follow_api.New(follow_api.Deps{
 			DB: deps.DB,
 		}),
 		AIApi: ai_api.New(ai_api.Deps{

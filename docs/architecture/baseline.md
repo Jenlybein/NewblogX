@@ -1508,3 +1508,53 @@ hasMany（`foreignKey:SessionID;references:SessionID`），GORM 因此在
 `flag_db` 的 AutoMigrate **顺序**是有语义的（第 48 行 `ChatSessionModel`、
 第 49 行 `ChatMsgModel`），但这一点没有任何注释。以后再加模型，
 顺序错了只会表现为"建库成功、运行时 1452"。
+
+## 36. M6 ③ S5.5：删 `_backend`/`_origin`，资源基址改 `/uploads`
+
+**2026-10-25**：nginx 从 4 个 location 族收成 3 个，两个前端代理入口收成 2 个。
+
+### 删掉了什么、为什么能删
+
+`/_origin/*` 与 `/_backend/*`（含 `/_backend/api/`、`/_backend/api/chat/ws`）都是
+"代理到**后端根目录**"的别名。而后端根本没挂根路径静态：
+
+```go
+// router/enter.go
+r.Static("/uploads", "./uploads")   // 只有这一个静态目录
+nr := r.Group("/api")               // 其余全是 /api
+```
+
+所以 `/_origin/uploads/x.png` 实际等价于 `/uploads/x.png`，`/_backend/api/x` 等价于
+`/api/x` —— 三个路径做同一件事，nginx 维护三遍、Nitro 维护两份、devProxy 再一份。
+
+### 改了什么
+
+| 位置 | 改动 |
+| --- | --- |
+| `deploy/docker/nginx/nginx.conf.tmpl` | 删 `/_origin/`、`/_backend/api/chat/ws`、`/_backend/api/`、`/_backend/` 四段；保留 `= /admin`、`^~ /admin/`、`= /api/chat/ws`、`^~ /api/`、`^~ /uploads/`、`/` |
+| `frontend/server/routes/{_backend,_origin}/[...path].ts` | 删除（`api/[...path].ts`、`uploads/[...path].ts` 保留） |
+| `frontend/nuxt.config.ts` | `assetProxyBase` 默认 `/_origin` → `/uploads` |
+| `frontend/env/common.env` | `BLOGX_WEB_ASSET_PROXY_BASE=/uploads` |
+| `deploy/compose/local/docker-compose.yml` | 同上默认值 |
+| `frontend/app/utils/avatar.ts` | 默认基址改 `/uploads`；删掉 `/_backend/x → {基址}/x` 的兼容改写 |
+
+**没有做 301 过渡**。02 文档写的是"若历史上确有外部调用方在用 `/_backend`，用 301 过渡一个
+版本周期"——而环境只有本地、可重建（§35 已定），不存在外部调用方，过渡期只是给自己留垃圾。
+
+### 一个容易踩的点：基址判定顺序
+
+`avatar.ts` 里必须先判"值已带基址"再判"以 `/` 开头"，否则
+
+```
+/uploads/a.png  →  /uploads/uploads/a.png
+```
+
+把判定顺序颠倒过来就是这个结果 —— 而且不会报错，只是图片全 404。
+
+### 验证
+
+- `nginx -t`：渲染模板后丢进 `nginx:alpine` 容器实测。**首次失败是因为容器里解析不到
+  compose 服务名 `blogx_web:3000`（DNS，不是语法）**，把 upstream 换成回环地址后
+  `syntax is ok / test is successful`。
+- `docker compose -f deploy/compose/local/docker-compose.yml config` 退出码 0。
+- `bash scripts/check.sh frontend`：两端 lint / typecheck / test / coverage 全绿（71 个前端用例）。

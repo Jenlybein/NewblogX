@@ -459,7 +459,7 @@
       NUXT_PUBLIC_SITE_URL: "${BLOGX_WEB_SITE_URL:-http://localhost}"
       NUXT_PUBLIC_API_BASE: "${BLOGX_WEB_API_BASE:-/api}"
       NUXT_PUBLIC_WS_PATH: "${BLOGX_WEB_WS_PATH:-/api/chat/ws}"
-      NUXT_PUBLIC_ASSET_PROXY_BASE: "${BLOGX_WEB_ASSET_PROXY_BASE:-/_origin}"
+      NUXT_PUBLIC_ASSET_PROXY_BASE: "${BLOGX_WEB_ASSET_PROXY_BASE:-/uploads}"
     depends_on:
       blogx_server:
         condition: service_started

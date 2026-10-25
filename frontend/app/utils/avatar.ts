@@ -26,9 +26,9 @@ function resolveAssetProxyBase() {
   try {
     const config = useRuntimeConfig();
     const value = String(config.public.assetProxyBase || "").trim();
-    return value || "/_origin";
+    return value || "/uploads";
   } catch {
-    return "/_origin";
+    return "/uploads";
   }
 }
 
@@ -44,12 +44,14 @@ function normalizeAvatarUrl(raw: string): string {
 
   const assetProxyBase = resolveAssetProxyBase();
 
-  // 后端历史数据里头像常是相对路径，统一走同源资源代理避免 404/CORS。
+  // 后端历史数据里头像常是相对路径，统一补上资源基址避免 404/CORS。
+  //
+  // 这里的取值顺序有意义：先判"已经带了基址"，否则 "/uploads/a.png" 这种
+  // 会被再拼一次变成 "/uploads/uploads/a.png"。
+  // 曾经还有一条把 "/_backend/x" 改写成 "{基址}/x" 的兼容分支，
+  // 随着 nginx 的 /_backend 别名一起删掉了（S5.5）。
   if (value.startsWith(`${assetProxyBase}/`)) {
     return value;
-  }
-  if (value.startsWith("/_backend/")) {
-    return value.replace(/^\/_backend/, assetProxyBase);
   }
   if (value.startsWith("/")) {
     return `${assetProxyBase}${value}`;

@@ -35,7 +35,6 @@ import (
 	"myblogx/platform/mail"
 	"myblogx/platform/oauth"
 	"myblogx/router"
-	"myblogx/service/user_service"
 	"myblogx/utils/jwts"
 	"myblogx/utils/requestmeta"
 
@@ -87,7 +86,7 @@ func WireUser(infra *Infra) {
 		userapp.WithUsernameAllocator(userredis.NewUsernameAllocator(redisOptions)),
 		userapp.WithIntegrations(userapp.Integrations{
 			Relation:  &relationBridge{},
-			HomeView:  &homeViewBridge{deps: user_service.NewOptionsWithRedis(cfg.Jwt, cfg.System.Env, infra.DB, infra.Logger, infra.Redis)},
+			HomeView:  &homeViewBridge{db: infra.DB, redis: redisOptions, logger: infra.Logger},
 			Sessions:  sessionRevoker,
 			LastLogin: &lastLoginBridge{opts: analyticsLogOptions(infra)},
 			Tags:      &tagBridge{db: infra.DB},
@@ -445,14 +444,59 @@ func (b *relationBridge) Relation(ctx context.Context, viewer, target userdomain
 	return rel.Int8(), nil
 }
 
-// homeViewBridge 实现 app.HomeViewRecorder。
+// homeViewBridge 实现 app.HomeViewRecorder：主页浏览按天去重计数。
+//
+// 两段式：Redis 先做当天挡板（便宜、能扛住热点主页的重复访问），
+// 数据库唯一索引兜底（Redis 挂了或被清空时仍然不会重复计数）。
+// 事务失败要把 Redis 的标记回滚掉，否则用户当天第二次真正访问会被误判为"已看过"。
 type homeViewBridge struct {
-	deps user_service.Options
+	db     *gorm.DB
+	redis  redis_service.Options
+	logger *logrus.Logger
 }
 
-// Record 记录主页浏览（带去重）。
+// Record 记录一次浏览，返回本次是否真正计入。
 func (b *homeViewBridge) Record(_ context.Context, target, viewer userdomain.UserID) (bool, error) {
-	return user_service.StatRecordUserHomeView(b.deps, ctype.ID(target), ctype.ID(viewer))
+	if b.db == nil {
+		return false, apperr.New(apperr.CodeCommonDBRequired)
+	}
+	targetID, viewerID := target.Uint64(), viewer.Uint64()
+	if targetID == 0 || viewerID == 0 || targetID == viewerID {
+		return false, nil
+	}
+
+	now := time.Now()
+	viewDate := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location())
+
+	// Redis 挡板：能挡住绝大多数重复访问。
+	reservedByRedis := false
+	marked, markErr := redis_user.TryMarkUserHomeViewed(b.redis, ctype.ID(targetID), ctype.ID(viewerID), now)
+	if markErr != nil {
+		// 降级到数据库兜底，不因为缓存不可用就丢掉计数。
+		if b.logger != nil {
+			b.logger.Warnf("主页浏览 Redis 判重失败，降级走数据库: target=%d viewer=%d err=%v", targetID, viewerID, markErr)
+		}
+	} else {
+		if !marked {
+			return false, nil
+		}
+		reservedByRedis = true
+	}
+
+	counted := false
+	err := b.db.Transaction(func(tx *gorm.DB) error {
+		var err error
+		counted, err = usermysql.RecordViewDaily(tx, targetID, viewerID, viewDate)
+		return err
+	})
+	if err != nil && reservedByRedis {
+		if rollbackErr := redis_user.RollbackUserHomeViewed(b.redis, ctype.ID(targetID), ctype.ID(viewerID), now); rollbackErr != nil {
+			if b.logger != nil {
+				b.logger.Warnf("主页浏览 Redis 判重回滚失败: target=%d viewer=%d err=%v", targetID, viewerID, rollbackErr)
+			}
+		}
+	}
+	return counted, err
 }
 
 // lastLoginBridge 实现 app.LastLoginReader。

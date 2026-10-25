@@ -12,9 +12,8 @@ import (
 // authVerifier 用 internal/auth 校验访问令牌。
 //
 // 这是全站唯一的认证实现：路由里的 authHandler 与 middleware.AuthMiddleware
-// 都走这里。S4.1 迁完认证后，中间件仍挂着旧的 user_service.Authenticator，
-// 形成"路由查黑名单、中间件不一定查"的两套逻辑 —— 那类"登出了但 token 还能用"
-// 的问题就藏在这种并存里。
+// 都走这里。迁移中期曾出现"路由用新实现、中间件还挂旧 Authenticator"的并存状态，
+// 那类"登出了但 token 还能用"的问题就藏在并存里；旧实现已随 user_service 一起删除。
 //
 // 用延迟绑定而不是构造顺序：authService 在 WireUser 里赋值，而 middleware
 // 的 RuntimeOptions 在它之前构造。router.Run 在两者之后调用，所以运行时一定有值。

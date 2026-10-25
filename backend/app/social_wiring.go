@@ -8,9 +8,8 @@ import (
 	socialmysql "myblogx/internal/social/adapter/mysql"
 	socialapp "myblogx/internal/social/app"
 	"myblogx/internal/social/domain"
-	"myblogx/models/ctype"
+	usermysql "myblogx/internal/user/adapter/mysql"
 	"myblogx/router"
-	"myblogx/service/user_service"
 
 	"gorm.io/gorm"
 )
@@ -44,7 +43,7 @@ type followStatsBridge struct {
 
 // ApplyFollowDelta 实现 domain.UserStats。
 func (b *followStatsBridge) ApplyFollowDelta(_ context.Context, fansID, followedID uint64, delta int) error {
-	return user_service.StatApplyFollowDelta(b.db, ctype.ID(fansID), ctype.ID(followedID), delta)
+	return usermysql.ApplyFollowDelta(b.db, uint64(fansID), uint64(followedID), delta)
 }
 
 // displayBridge 读用户展示快照。

@@ -15,6 +15,7 @@ import (
 	mediamysql "myblogx/internal/media/adapter/mysql"
 	"myblogx/internal/platform/idgen"
 	redis_service "myblogx/internal/platform/redis"
+	usermysql "myblogx/internal/user/adapter/mysql"
 	"myblogx/models/ctype"
 	"myblogx/models/enum"
 	"myblogx/router"
@@ -34,7 +35,9 @@ func WireArticle(infra *Infra) {
 	// 真正的下游订阅者（评分 / 系统通知）挂在 outbox 中继上，
 	// 见 app/outbox_wiring.go 的 WireOutboxRelay。
 	counterOptions := redis_service.Options{Client: infra.Redis, Logger: infra.Logger}
-	uow := mysql.NewTxManager(infra.DB, counterOptions)
+	// 作者统计的写入逻辑归 user 模块，这里把函数交给 article 的 UoW，
+	// 由它在自己的事务里调用 —— 跨模块写仍然同事务，但不再互相 import。
+	uow := mysql.NewTxManager(infra.DB, counterOptions, usermysql.ApplyArticleDelta)
 	svc := articleapp.New(uow, realClock{}, snowflakeIDs{})
 
 	h := articlehttp.NewHandler(

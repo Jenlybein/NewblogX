@@ -103,3 +103,17 @@ type UserStatRow struct {
 
 // TableName 固定表名。
 func (UserStatRow) TableName() string { return "user_stat_models" }
+
+// UserViewDailyRow 对应 user_view_daily_models 表。
+//
+// 唯一索引 (user_id, viewer_user_id, view_date) 是"同一访客当天只计一次"
+// 的数据库兜底 —— Redis 挡板失效或缓存被清时，靠它防重复计数。
+type UserViewDailyRow struct {
+	BaseRow
+	UserID       uint64    `gorm:"uniqueIndex:uk_user_view_daily,priority:1"`
+	ViewerUserID uint64    `gorm:"uniqueIndex:uk_user_view_daily,priority:2"`
+	ViewDate     time.Time `gorm:"type:date;uniqueIndex:uk_user_view_daily,priority:3"`
+}
+
+// TableName 固定表名。
+func (UserViewDailyRow) TableName() string { return "user_view_daily_models" }

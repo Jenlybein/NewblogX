@@ -29,7 +29,16 @@ var errNilDB = errors.New("article/mysql: database not initialized")
 type TxManager struct {
 	db             *gorm.DB
 	counterOptions redis_service.Options
+	// authorStats 是写作者统计的实现（归 user 模块）。
+	//
+	// 用函数注入而不是 import 对方的包：统计写入必须在文章侧的事务里执行
+	// （删文章与作者文章数 -1 要么同时成功要么同时回滚），但"怎么写 user_stat"
+	// 是 user 模块的知识。装配层把两者接起来，本包只负责把当前事务句柄递过去。
+	authorStats AuthorStatsApplier
 }
+
+// AuthorStatsApplier 是写作者统计的签名。
+type AuthorStatsApplier func(tx *gorm.DB, authorID uint64, articleDelta, viewDelta int) error
 
 // NewTxManager 构造事务管理器。
 //
@@ -38,8 +47,8 @@ type TxManager struct {
 // 不再接收 outbox：事件出口现在是**事务内的 outbox 表**，
 // 由 repos 用当前事务句柄现场构造（见 repos.Outbox），
 // 因此事件落库必然与业务写入同事务，不可能绕过事务。
-func NewTxManager(db *gorm.DB, counterOptions redis_service.Options) *TxManager {
-	return &TxManager{db: db, counterOptions: counterOptions}
+func NewTxManager(db *gorm.DB, counterOptions redis_service.Options, authorStats AuthorStatsApplier) *TxManager {
+	return &TxManager{db: db, counterOptions: counterOptions, authorStats: authorStats}
 }
 
 // WithinTx 在一个事务里执行 fn，并用同一个句柄构造全部仓储。
@@ -55,8 +64,9 @@ func (m *TxManager) WithinTx(ctx context.Context, fn func(ctx context.Context, r
 // repos 用指定事务句柄构造仓储集合。
 func (m *TxManager) repos(tx *gorm.DB) *repos {
 	return &repos{
-		db:      tx,
-		counter: NewCounterPort(m.counterOptions),
+		db:          tx,
+		counter:     NewCounterPort(m.counterOptions),
+		authorStats: m.authorStats,
 	}
 }
 
@@ -65,8 +75,9 @@ func (m *TxManager) repos(tx *gorm.DB) *repos {
 // 每个 Getter 现场构造一个轻量仓储（只是把 db 包起来），不做缓存：
 // 这样"同一个 repos 实例 == 同一个事务句柄"的语义不会被破坏。
 type repos struct {
-	db      *gorm.DB
-	counter app.CounterPort
+	db          *gorm.DB
+	counter     app.CounterPort
+	authorStats AuthorStatsApplier
 }
 
 func (r *repos) Articles() domain.Repository             { return NewArticleRepo(r.db) }
@@ -76,7 +87,9 @@ func (r *repos) Favorites() favorite.Repository          { return NewFavoriteRep
 func (r *repos) Tops() top.Repository                    { return NewTopRepo(r.db) }
 func (r *repos) ViewHistory() viewhistory.Repository     { return NewViewHistoryRepo(r.db) }
 func (r *repos) Reviews() review.Repository              { return NewReviewRepo(r.db) }
-func (r *repos) AuthorStats() app.AuthorStatsPort        { return &authorStats{db: r.db} }
+func (r *repos) AuthorStats() app.AuthorStatsPort {
+	return &authorStats{db: r.db, apply: r.authorStats}
+}
 
 // Outbox 用当前事务句柄构造写入器：事件行写进本事务，随业务一起提交/回滚。
 func (r *repos) Outbox() app.OutboxPort    { return NewOutboxWriter(r.db) }

@@ -11,7 +11,7 @@ import (
 	notificationmysql "myblogx/internal/notification/adapter/mysql"
 	notificationapp "myblogx/internal/notification/app"
 	mw "myblogx/internal/platform/http/middleware"
-	"myblogx/models"
+	"myblogx/internal/testkit/schema"
 	"myblogx/router"
 	"myblogx/test/testutil"
 	"net/http"
@@ -33,17 +33,17 @@ func readBizCode(t *testing.T, w *httptest.ResponseRecorder) int {
 	return int(body["code"].(float64))
 }
 
-func setupSitemsgRouterEnv(t *testing.T) (*models.UserModel, string) {
+func setupSitemsgRouterEnv(t *testing.T) (*schema.UserRow, string) {
 	t.Helper()
 	testutil.SetupMiniRedis(t)
 	db := testutil.SetupSQLite(
 		t,
-		&models.UserModel{},
-		&models.UserConfModel{},
-		&models.ChatSessionModel{},
-		&models.ArticleMessageModel{},
-		&models.GlobalNotifModel{},
-		&models.UserGlobalNotifModel{},
+		&schema.UserRow{},
+		&schema.UserConfRow{},
+		&schema.ChatSessionRow{},
+		&schema.ArticleMessageRow{},
+		&schema.GlobalNotifRow{},
+		&schema.UserGlobalNotifRow{},
 	)
 	testutil.SetConfig(&conf.Config{
 		Jwt: conf.Jwt{
@@ -53,7 +53,7 @@ func setupSitemsgRouterEnv(t *testing.T) (*models.UserModel, string) {
 		},
 	})
 
-	user := &models.UserModel{
+	user := &schema.UserRow{
 		Username: "msg_user",
 		Password: "x",
 		Nickname: "msg",
@@ -98,7 +98,7 @@ func newSitemsgRouterEngine() *gin.Engine {
 
 func TestSitemsgRouterPutConfBindsJSON(t *testing.T) {
 	testutil.SetupMiniRedis(t)
-	db := testutil.SetupSQLite(t, &models.UserModel{}, &models.UserConfModel{})
+	db := testutil.SetupSQLite(t, &schema.UserRow{}, &schema.UserConfRow{})
 	testutil.SetConfig(&conf.Config{
 		Jwt: conf.Jwt{
 			Expire: 1,
@@ -107,7 +107,7 @@ func TestSitemsgRouterPutConfBindsJSON(t *testing.T) {
 		},
 	})
 
-	user := models.UserModel{
+	user := schema.UserRow{
 		Username: "msg_user",
 		Password: "x",
 		Nickname: "msg",
@@ -163,7 +163,7 @@ func TestSitemsgRouterPutConfBindsJSON(t *testing.T) {
 		t.Fatalf("业务码异常: %d, body=%s", code, w.Body.String())
 	}
 
-	var confModel models.UserConfModel
+	var confModel schema.UserConfRow
 	if err := db.Take(&confModel, user.ID).Error; err != nil {
 		t.Fatalf("查询用户消息配置失败: %v", err)
 	}
@@ -178,7 +178,7 @@ func TestSitemsgRouterPostSupportsReadByID(t *testing.T) {
 	user, token := setupSitemsgRouterEnv(t)
 	db := testutil.DB()
 
-	msg := models.ArticleMessageModel{
+	msg := schema.ArticleMessageRow{
 		ReceiverID: user.ID,
 		Type:       message_enum.SystemType,
 		Content:    "system",
@@ -197,7 +197,7 @@ func TestSitemsgRouterPostSupportsReadByID(t *testing.T) {
 		t.Fatalf("按 id 标记已读失败, body=%s", w.Body.String())
 	}
 
-	var check models.ArticleMessageModel
+	var check schema.ArticleMessageRow
 	if err := db.Take(&check, msg.ID).Error; err != nil {
 		t.Fatalf("查询消息失败: %v", err)
 	}
@@ -210,7 +210,7 @@ func TestSitemsgRouterPostSupportsBatchReadByType(t *testing.T) {
 	user, token := setupSitemsgRouterEnv(t)
 	db := testutil.DB()
 
-	msgs := []models.ArticleMessageModel{
+	msgs := []schema.ArticleMessageRow{
 		{ReceiverID: user.ID, Type: message_enum.DiggArticleType, Content: "d1"},
 		{ReceiverID: user.ID, Type: message_enum.FavorArticleType, Content: "f1"},
 		{ReceiverID: user.ID, Type: message_enum.SystemType, Content: "s1"},
@@ -229,7 +229,7 @@ func TestSitemsgRouterPostSupportsBatchReadByType(t *testing.T) {
 		t.Fatalf("按类型批量已读失败, body=%s", w.Body.String())
 	}
 
-	var checks []models.ArticleMessageModel
+	var checks []schema.ArticleMessageRow
 	if err := db.Order("id asc").Find(&checks).Error; err != nil {
 		t.Fatalf("查询消息失败: %v", err)
 	}
@@ -245,7 +245,7 @@ func TestSitemsgRouterDeleteSupportsRemoveByID(t *testing.T) {
 	user, token := setupSitemsgRouterEnv(t)
 	db := testutil.DB()
 
-	msg := models.ArticleMessageModel{
+	msg := schema.ArticleMessageRow{
 		ReceiverID: user.ID,
 		Type:       message_enum.SystemType,
 		Content:    "system",
@@ -265,7 +265,7 @@ func TestSitemsgRouterDeleteSupportsRemoveByID(t *testing.T) {
 	}
 
 	var count int64
-	if err := db.Model(&models.ArticleMessageModel{}).Where("id = ?", msg.ID).Count(&count).Error; err != nil {
+	if err := db.Model(&schema.ArticleMessageRow{}).Where("id = ?", msg.ID).Count(&count).Error; err != nil {
 		t.Fatalf("查询消息失败: %v", err)
 	}
 	if count != 0 {
@@ -277,7 +277,7 @@ func TestSitemsgRouterDeleteSupportsBatchRemoveByType(t *testing.T) {
 	user, token := setupSitemsgRouterEnv(t)
 	db := testutil.DB()
 
-	msgs := []models.ArticleMessageModel{
+	msgs := []schema.ArticleMessageRow{
 		{ReceiverID: user.ID, Type: message_enum.DiggArticleType, Content: "d1"},
 		{ReceiverID: user.ID, Type: message_enum.FavorArticleType, Content: "f1"},
 		{ReceiverID: user.ID, Type: message_enum.SystemType, Content: "s1"},
@@ -296,7 +296,7 @@ func TestSitemsgRouterDeleteSupportsBatchRemoveByType(t *testing.T) {
 		t.Fatalf("按类型批量删除消息失败, body=%s", w.Body.String())
 	}
 
-	var remain []models.ArticleMessageModel
+	var remain []schema.ArticleMessageRow
 	if err := db.Order("id asc").Find(&remain).Error; err != nil {
 		t.Fatalf("查询消息失败: %v", err)
 	}
@@ -317,7 +317,7 @@ func TestSitemsgRouterGetUserSummary(t *testing.T) {
 		t.Fatalf("回查用户失败: %v", err)
 	}
 
-	msgs := []models.ArticleMessageModel{
+	msgs := []schema.ArticleMessageRow{
 		{ReceiverID: user.ID, Type: message_enum.CommentArticleType, Content: "comment-unread"},
 		{ReceiverID: user.ID, Type: message_enum.DiggArticleType, Content: "digg-unread"},
 		{ReceiverID: user.ID, Type: message_enum.SystemType, Content: "system-unread"},
@@ -327,7 +327,7 @@ func TestSitemsgRouterGetUserSummary(t *testing.T) {
 		t.Fatalf("创建站内消息失败: %v", err)
 	}
 
-	notifs := []models.GlobalNotifModel{
+	notifs := []schema.GlobalNotifRow{
 		{
 			Title:           "global-unread",
 			Content:         "global-unread",
@@ -346,7 +346,7 @@ func TestSitemsgRouterGetUserSummary(t *testing.T) {
 	}
 
 	now := time.Now()
-	if err := db.Create(&models.UserGlobalNotifModel{
+	if err := db.Create(&schema.UserGlobalNotifRow{
 		MsgID:  notifs[1].ID,
 		UserID: user.ID,
 		IsRead: true,

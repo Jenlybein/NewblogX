@@ -2,7 +2,7 @@ package common_test
 
 import (
 	"myblogx/common"
-	"myblogx/models"
+	"myblogx/internal/testkit/schema"
 	"myblogx/test/testutil"
 	"testing"
 )
@@ -26,9 +26,9 @@ func TestPageInfoHelpers(t *testing.T) {
 }
 
 func TestListQueryBasic(t *testing.T) {
-	db := testutil.SetupSQLite(t, &models.BannerModel{})
+	db := testutil.SetupSQLite(t, &schema.BannerRow{})
 
-	records := []models.BannerModel{
+	records := []schema.BannerRow{
 		{Show: true, Cover: "alpha-cover", Href: "/a"},
 		{Show: true, Cover: "beta-cover", Href: "/b"},
 		{Show: false, Cover: "gamma", Href: "/c"},
@@ -38,7 +38,7 @@ func TestListQueryBasic(t *testing.T) {
 	}
 
 	list, count, err := common.ListQuery(
-		models.BannerModel{},
+		schema.BannerRow{},
 		common.Options{
 			DB:       db,
 			PageInfo: common.PageInfo{Page: 1, Limit: 2, Key: "cover"},
@@ -57,10 +57,10 @@ func TestListQueryBasic(t *testing.T) {
 }
 
 func TestListQueryInvalidOrder(t *testing.T) {
-	db := testutil.SetupSQLite(t, &models.BannerModel{})
+	db := testutil.SetupSQLite(t, &schema.BannerRow{})
 
 	_, _, err := common.ListQuery(
-		models.BannerModel{},
+		schema.BannerRow{},
 		common.Options{
 			DB:       db,
 			PageInfo: common.PageInfo{Order: "created_at desc"},
@@ -75,14 +75,14 @@ func TestListQueryInvalidOrder(t *testing.T) {
 }
 
 func TestListQuerySelect(t *testing.T) {
-	db := testutil.SetupSQLite(t, &models.BannerModel{})
-	item := models.BannerModel{Show: true, Cover: "cover-x", Href: "/x"}
+	db := testutil.SetupSQLite(t, &schema.BannerRow{})
+	item := schema.BannerRow{Show: true, Cover: "cover-x", Href: "/x"}
 	if err := db.Create(&item).Error; err != nil {
 		t.Fatalf("创建数据失败: %v", err)
 	}
 
 	list, count, err := common.ListQuery(
-		models.BannerModel{},
+		schema.BannerRow{},
 		common.Options{
 			DB:       db,
 			PageInfo: common.PageInfo{Page: 1, Limit: 10},
@@ -104,8 +104,8 @@ func TestListQuerySelect(t *testing.T) {
 }
 
 func TestListQueryLikesAndWhere(t *testing.T) {
-	db := testutil.SetupSQLite(t, &models.BannerModel{})
-	records := []models.BannerModel{
+	db := testutil.SetupSQLite(t, &schema.BannerRow{})
+	records := []schema.BannerRow{
 		{Show: true, Cover: "alpha-cover", Href: "/a"},
 		{Show: false, Cover: "alpha-hidden", Href: "/b"},
 		{Show: true, Cover: "beta-cover", Href: "/c"},
@@ -115,7 +115,7 @@ func TestListQueryLikesAndWhere(t *testing.T) {
 	}
 
 	list, count, err := common.ListQuery(
-		models.BannerModel{},
+		schema.BannerRow{},
 		common.Options{
 			DB:       db,
 			PageInfo: common.PageInfo{Page: 1, Limit: 10, Key: "alpha"},
@@ -135,13 +135,13 @@ func TestListQueryLikesAndWhere(t *testing.T) {
 }
 
 func TestListQueryCountError(t *testing.T) {
-	db := testutil.SetupSQLite(t, &models.BannerModel{})
-	if err := db.Create(&models.BannerModel{Show: true, Cover: "cover-x", Href: "/x"}).Error; err != nil {
+	db := testutil.SetupSQLite(t, &schema.BannerRow{})
+	if err := db.Create(&schema.BannerRow{Show: true, Cover: "cover-x", Href: "/x"}).Error; err != nil {
 		t.Fatalf("创建数据失败: %v", err)
 	}
 
 	_, _, err := common.ListQuery(
-		models.BannerModel{},
+		schema.BannerRow{},
 		common.Options{
 			DB:    db,
 			Where: db.Where("not a valid sql fragment"),
@@ -153,9 +153,9 @@ func TestListQueryCountError(t *testing.T) {
 }
 
 func TestListQueryUnscoped(t *testing.T) {
-	db := testutil.SetupSQLite(t, &models.BannerModel{})
+	db := testutil.SetupSQLite(t, &schema.BannerRow{})
 
-	item := models.BannerModel{Show: true, Cover: "deleted-cover", Href: "/deleted"}
+	item := schema.BannerRow{Show: true, Cover: "deleted-cover", Href: "/deleted"}
 	if err := db.Create(&item).Error; err != nil {
 		t.Fatalf("创建数据失败: %v", err)
 	}
@@ -164,7 +164,7 @@ func TestListQueryUnscoped(t *testing.T) {
 	}
 
 	list, count, err := common.ListQuery(
-		models.BannerModel{},
+		schema.BannerRow{},
 		common.Options{
 			DB:       db,
 			PageInfo: common.PageInfo{Page: 1, Limit: 10},
@@ -178,7 +178,7 @@ func TestListQueryUnscoped(t *testing.T) {
 	}
 
 	list, count, err = common.ListQuery(
-		models.BannerModel{},
+		schema.BannerRow{},
 		common.Options{
 			DB:       db,
 			PageInfo: common.PageInfo{Page: 1, Limit: 10},
@@ -197,9 +197,9 @@ func TestListQueryUnscoped(t *testing.T) {
 }
 
 func TestPageIDQueryUnscoped(t *testing.T) {
-	db := testutil.SetupSQLite(t, &models.BannerModel{})
+	db := testutil.SetupSQLite(t, &schema.BannerRow{})
 
-	item := models.BannerModel{Show: true, Cover: "deleted-cover", Href: "/deleted"}
+	item := schema.BannerRow{Show: true, Cover: "deleted-cover", Href: "/deleted"}
 	if err := db.Create(&item).Error; err != nil {
 		t.Fatalf("创建数据失败: %v", err)
 	}
@@ -208,7 +208,7 @@ func TestPageIDQueryUnscoped(t *testing.T) {
 	}
 
 	ids, count, err := common.PageIDQuery(
-		db.Model(&models.BannerModel{}),
+		db.Model(&schema.BannerRow{}),
 		common.IDPageOptions{
 			PageInfo:     common.PageInfo{Page: 1, Limit: 10},
 			DefaultOrder: "id desc",
@@ -222,7 +222,7 @@ func TestPageIDQueryUnscoped(t *testing.T) {
 	}
 
 	ids, count, err = common.PageIDQuery(
-		db.Model(&models.BannerModel{}),
+		db.Model(&schema.BannerRow{}),
 		common.IDPageOptions{
 			PageInfo:     common.PageInfo{Page: 1, Limit: 10},
 			DefaultOrder: "id desc",

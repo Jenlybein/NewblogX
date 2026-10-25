@@ -10,7 +10,7 @@ import (
 	"time"
 
 	"myblogx/internal/testkit/mysqlcontainer"
-	"myblogx/models"
+	"myblogx/internal/testkit/schema"
 )
 
 func TestMain(m *testing.M) {
@@ -47,9 +47,9 @@ func TestIsolatedSchema(t *testing.T) {
 func TestAutoMigrateAndUniqueKey(t *testing.T) {
 	t.Parallel()
 
-	db := mysqlcontainer.DB(t, &models.ArticleModel{}, &models.TagModel{})
+	db := mysqlcontainer.DB(t, &schema.ArticleRow{}, &schema.TagRow{})
 
-	if !db.Migrator().HasTable(&models.ArticleModel{}) {
+	if !db.Migrator().HasTable(&schema.ArticleRow{}) {
 		t.Fatal("AutoMigrate 后应存在 article 表")
 	}
 

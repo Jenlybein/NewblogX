@@ -9,7 +9,6 @@ import (
 	confsite "myblogx/conf/site"
 	"myblogx/internal/kernel/ctype"
 	"myblogx/internal/kernel/enum"
-	"myblogx/models"
 	"myblogx/test/testutil"
 	"net/http"
 	"net/http/httptest"
@@ -47,12 +46,12 @@ func writeJSON(w http.ResponseWriter, code int, body string) {
 
 func TestUpdateESDocsContent(t *testing.T) {
 	db := testutil.SetupSQLite(t,
-		&models.UserModel{},
-		&models.UserConfModel{},
-		&models.ArticleModel{},
-		&models.TagModel{},
-		&models.ArticleTagModel{},
-		&models.UserTopArticleModel{},
+		&UserRow{},
+		&UserConfRow{},
+		&ArticleRow{},
+		&TagRow{},
+		&ArticleTagRow{},
+		&UserTopArticleRow{},
 	)
 	testutil.SetConfig(&conf.Config{
 		ES: conf.ES{Index: "article_index"},
@@ -61,11 +60,11 @@ func TestUpdateESDocsContent(t *testing.T) {
 		},
 	})
 
-	user := models.UserModel{Username: "author", Password: "x", Role: enum.RoleUser}
+	user := UserRow{Username: "author", Password: "x", Role: enum.RoleUser}
 	if err := db.Create(&user).Error; err != nil {
 		t.Fatalf("创建用户失败: %v", err)
 	}
-	article := models.ArticleModel{
+	article := ArticleRow{
 		Title:         "t1",
 		Abstract:      "摘要",
 		Content:       "# 新标题\n新正文\n[错误链接](### 新标题)",
@@ -142,31 +141,31 @@ func TestUpdateESDocsContent(t *testing.T) {
 
 func TestUpdateESDocsTags(t *testing.T) {
 	db := testutil.SetupSQLite(t,
-		&models.UserModel{},
-		&models.UserConfModel{},
-		&models.ArticleModel{},
-		&models.TagModel{},
-		&models.ArticleTagModel{},
+		&UserRow{},
+		&UserConfRow{},
+		&ArticleRow{},
+		&TagRow{},
+		&ArticleTagRow{},
 	)
 	testutil.SetConfig(&conf.Config{ES: conf.ES{Index: "article_index"}})
 
-	user := models.UserModel{Username: "author", Password: "x", Role: enum.RoleUser}
+	user := UserRow{Username: "author", Password: "x", Role: enum.RoleUser}
 	if err := db.Create(&user).Error; err != nil {
 		t.Fatalf("创建用户失败: %v", err)
 	}
-	tagGo := models.TagModel{Title: "Go", IsEnabled: true}
-	tagES := models.TagModel{Title: "ES", IsEnabled: true}
+	tagGo := TagRow{Title: "Go", IsEnabled: true}
+	tagES := TagRow{Title: "ES", IsEnabled: true}
 	if err := db.Create(&tagGo).Error; err != nil {
 		t.Fatalf("创建标签失败: %v", err)
 	}
 	if err := db.Create(&tagES).Error; err != nil {
 		t.Fatalf("创建标签失败: %v", err)
 	}
-	article := models.ArticleModel{Title: "t1", Content: "正文", AuthorID: user.ID, PublishStatus: enum.ArticleStatusExamining}
+	article := ArticleRow{Title: "t1", Content: "正文", AuthorID: user.ID, PublishStatus: enum.ArticleStatusExamining}
 	if err := db.Create(&article).Error; err != nil {
 		t.Fatalf("创建文章失败: %v", err)
 	}
-	if err := db.Model(&article).Association("Tags").Replace([]models.TagModel{tagGo, tagES}); err != nil {
+	if err := db.Model(&article).Association("Tags").Replace([]TagRow{tagGo, tagES}); err != nil {
 		t.Fatalf("写入文章标签失败: %v", err)
 	}
 
@@ -220,29 +219,29 @@ func TestUpdateESDocsTags(t *testing.T) {
 
 func TestUpdateESDocsTop(t *testing.T) {
 	db := testutil.SetupSQLite(t,
-		&models.UserModel{},
-		&models.UserConfModel{},
-		&models.ArticleModel{},
-		&models.UserTopArticleModel{},
+		&UserRow{},
+		&UserConfRow{},
+		&ArticleRow{},
+		&UserTopArticleRow{},
 	)
 	testutil.SetConfig(&conf.Config{ES: conf.ES{Index: "article_index"}})
 
-	admin := models.UserModel{Username: "admin", Password: "x", Role: enum.RoleAdmin}
-	author := models.UserModel{Username: "author", Password: "x", Role: enum.RoleUser}
+	admin := UserRow{Username: "admin", Password: "x", Role: enum.RoleAdmin}
+	author := UserRow{Username: "author", Password: "x", Role: enum.RoleUser}
 	if err := db.Create(&admin).Error; err != nil {
 		t.Fatalf("创建管理员失败: %v", err)
 	}
 	if err := db.Create(&author).Error; err != nil {
 		t.Fatalf("创建作者失败: %v", err)
 	}
-	article := models.ArticleModel{Title: "t1", Content: "正文", AuthorID: author.ID, PublishStatus: enum.ArticleStatusExamining}
+	article := ArticleRow{Title: "t1", Content: "正文", AuthorID: author.ID, PublishStatus: enum.ArticleStatusExamining}
 	if err := db.Create(&article).Error; err != nil {
 		t.Fatalf("创建文章失败: %v", err)
 	}
-	if err := db.Create(&models.UserTopArticleModel{UserID: admin.ID, ArticleID: article.ID}).Error; err != nil {
+	if err := db.Create(&UserTopArticleRow{UserID: admin.ID, ArticleID: article.ID}).Error; err != nil {
 		t.Fatalf("创建管理员置顶失败: %v", err)
 	}
-	if err := db.Create(&models.UserTopArticleModel{UserID: author.ID, ArticleID: article.ID}).Error; err != nil {
+	if err := db.Create(&UserTopArticleRow{UserID: author.ID, ArticleID: article.ID}).Error; err != nil {
 		t.Fatalf("创建作者置顶失败: %v", err)
 	}
 
@@ -295,12 +294,12 @@ func TestUpdateESDocsTop(t *testing.T) {
 
 func TestSyncESDocsByArticleSnapshots(t *testing.T) {
 	db := testutil.SetupSQLite(t,
-		&models.UserModel{},
-		&models.UserConfModel{},
-		&models.CategoryModel{},
-		&models.TagModel{},
-		&models.ArticleTagModel{},
-		&models.UserTopArticleModel{},
+		&UserRow{},
+		&UserConfRow{},
+		&CategoryRow{},
+		&TagRow{},
+		&ArticleTagRow{},
+		&UserTopArticleRow{},
 	)
 	testutil.SetConfig(&conf.Config{
 		ES: conf.ES{Index: "article_index"},
@@ -309,19 +308,19 @@ func TestSyncESDocsByArticleSnapshots(t *testing.T) {
 		},
 	})
 
-	admin := models.UserModel{Username: "admin", Password: "x", Role: enum.RoleAdmin, Nickname: "管理员"}
-	author := models.UserModel{Username: "author", Password: "x", Role: enum.RoleUser, Nickname: "作者", Avatar: "/avatar.png"}
+	admin := UserRow{Username: "admin", Password: "x", Role: enum.RoleAdmin, Nickname: "管理员"}
+	author := UserRow{Username: "author", Password: "x", Role: enum.RoleUser, Nickname: "作者", Avatar: "/avatar.png"}
 	if err := db.Create(&admin).Error; err != nil {
 		t.Fatalf("创建管理员失败: %v", err)
 	}
 	if err := db.Create(&author).Error; err != nil {
 		t.Fatalf("创建作者失败: %v", err)
 	}
-	category := models.CategoryModel{Title: "后端", UserID: author.ID}
+	category := CategoryRow{Title: "后端", UserID: author.ID}
 	if err := db.Create(&category).Error; err != nil {
 		t.Fatalf("创建分类失败: %v", err)
 	}
-	tag := models.TagModel{Title: "Go", IsEnabled: true}
+	tag := TagRow{Title: "Go", IsEnabled: true}
 	if err := db.Create(&tag).Error; err != nil {
 		t.Fatalf("创建标签失败: %v", err)
 	}
@@ -330,10 +329,10 @@ func TestSyncESDocsByArticleSnapshots(t *testing.T) {
 	if err := db.Exec("INSERT INTO article_tag_models(article_id, tag_id) VALUES (?, ?)", articleID, tag.ID).Error; err != nil {
 		t.Fatalf("创建文章标签关系失败: %v", err)
 	}
-	if err := db.Create(&models.UserTopArticleModel{UserID: admin.ID, ArticleID: articleID}).Error; err != nil {
+	if err := db.Create(&UserTopArticleRow{UserID: admin.ID, ArticleID: articleID}).Error; err != nil {
 		t.Fatalf("创建管理员置顶失败: %v", err)
 	}
-	if err := db.Create(&models.UserTopArticleModel{UserID: author.ID, ArticleID: articleID}).Error; err != nil {
+	if err := db.Create(&UserTopArticleRow{UserID: author.ID, ArticleID: articleID}).Error; err != nil {
 		t.Fatalf("创建作者置顶失败: %v", err)
 	}
 
@@ -414,12 +413,12 @@ func TestSyncESDocsByArticleSnapshots(t *testing.T) {
 
 func TestUpdateESDocsByArticleDeltasRebuildsMissingDocs(t *testing.T) {
 	db := testutil.SetupSQLite(t,
-		&models.UserModel{},
-		&models.UserConfModel{},
-		&models.ArticleModel{},
-		&models.TagModel{},
-		&models.ArticleTagModel{},
-		&models.UserTopArticleModel{},
+		&UserRow{},
+		&UserConfRow{},
+		&ArticleRow{},
+		&TagRow{},
+		&ArticleTagRow{},
+		&UserTopArticleRow{},
 	)
 	testutil.SetConfig(&conf.Config{
 		ES: conf.ES{Index: "article_index"},
@@ -428,11 +427,11 @@ func TestUpdateESDocsByArticleDeltasRebuildsMissingDocs(t *testing.T) {
 		},
 	})
 
-	user := models.UserModel{Username: "author", Password: "x", Role: enum.RoleUser, Nickname: "作者", Avatar: "/avatar.png"}
+	user := UserRow{Username: "author", Password: "x", Role: enum.RoleUser, Nickname: "作者", Avatar: "/avatar.png"}
 	if err := db.Create(&user).Error; err != nil {
 		t.Fatalf("创建用户失败: %v", err)
 	}
-	article := models.ArticleModel{
+	article := ArticleRow{
 		Title:            "旧标题",
 		Abstract:         "旧摘要",
 		Content:          "旧内容",
@@ -494,12 +493,12 @@ func TestUpdateESDocsByArticleDeltasRebuildsMissingDocs(t *testing.T) {
 
 func TestSyncESDocsReturnsErrorWhenArticlesMissing(t *testing.T) {
 	db := testutil.SetupSQLite(t,
-		&models.UserModel{},
-		&models.UserConfModel{},
-		&models.ArticleModel{},
-		&models.TagModel{},
-		&models.ArticleTagModel{},
-		&models.UserTopArticleModel{},
+		&UserRow{},
+		&UserConfRow{},
+		&ArticleRow{},
+		&TagRow{},
+		&ArticleTagRow{},
+		&UserTopArticleRow{},
 	)
 	testutil.SetConfig(&conf.Config{
 		ES: conf.ES{Index: "article_index"},

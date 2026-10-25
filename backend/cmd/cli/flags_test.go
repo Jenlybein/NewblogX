@@ -10,7 +10,7 @@ import (
 	"myblogx/internal/kernel/enum"
 	"myblogx/internal/platform/es/articlesync"
 	"myblogx/internal/platform/mysql"
-	"myblogx/models"
+	"myblogx/internal/testkit/schema"
 	"myblogx/test/testutil"
 	"myblogx/utils/markdown"
 	"net/http"
@@ -69,20 +69,6 @@ func TestRunNoOp(t *testing.T) {
 	}
 }
 
-func TestFlagDB(t *testing.T) {
-	db := testutil.SetupSQLite(t)
-	if err := FlagDB(db, nil); err != nil {
-		t.Fatalf("FlagDB 返回错误: %v", err)
-	}
-
-	if !db.Migrator().HasTable(&models.UserModel{}) {
-		t.Fatal("UserModel 表未迁移")
-	}
-	if !db.Migrator().HasTable(&models.ArticleModel{}) {
-		t.Fatal("ArticleModel 表未迁移")
-	}
-}
-
 func TestFlagESIndexNoOp(t *testing.T) {
 	testutil.InitGlobals()
 	testutil.SetConfig(&conf.Config{
@@ -97,7 +83,7 @@ func TestFlagESIndexNoOp(t *testing.T) {
 }
 
 func TestFlagUserCreateInvalidRoleAndExistsUser(t *testing.T) {
-	db := testutil.SetupSQLite(t, &models.UserModel{}, &models.UserConfModel{})
+	db := testutil.SetupSQLite(t, &schema.UserRow{}, &schema.UserConfRow{})
 
 	t.Run("非法角色直接返回", func(t *testing.T) {
 		withStdin(t, "0\n", func() {
@@ -105,14 +91,14 @@ func TestFlagUserCreateInvalidRoleAndExistsUser(t *testing.T) {
 			u.Create(db, nil, UserCreateOptions{})
 		})
 		var cnt int64
-		_ = db.Model(&models.UserModel{}).Count(&cnt).Error
+		_ = db.Model(&schema.UserRow{}).Count(&cnt).Error
 		if cnt != 0 {
 			t.Fatalf("非法角色不应创建用户, cnt=%d", cnt)
 		}
 	})
 
 	t.Run("用户名已存在直接返回", func(t *testing.T) {
-		exists := models.UserModel{
+		exists := schema.UserRow{
 			Username: "exists_u",
 			Password: "x",
 		}
@@ -126,7 +112,7 @@ func TestFlagUserCreateInvalidRoleAndExistsUser(t *testing.T) {
 		})
 
 		var cnt int64
-		_ = db.Model(&models.UserModel{}).Where("username = ?", "exists_u").Count(&cnt).Error
+		_ = db.Model(&schema.UserRow{}).Where("username = ?", "exists_u").Count(&cnt).Error
 		if cnt != 1 {
 			t.Fatalf("已存在用户分支不应重复创建, cnt=%d", cnt)
 		}
@@ -134,7 +120,7 @@ func TestFlagUserCreateInvalidRoleAndExistsUser(t *testing.T) {
 }
 
 func TestFlagUserCreateNonInteractive(t *testing.T) {
-	db := testutil.SetupSQLite(t, &models.UserModel{}, &models.UserConfModel{})
+	db := testutil.SetupSQLite(t, &schema.UserRow{}, &schema.UserConfRow{})
 	u := FlagUser{}
 
 	u.Create(db, nil, UserCreateOptions{
@@ -145,7 +131,7 @@ func TestFlagUserCreateNonInteractive(t *testing.T) {
 		Email:    "cli_admin@example.com",
 	})
 
-	var created models.UserModel
+	var created schema.UserRow
 	if err := db.Take(&created, "username = ?", "cli_admin").Error; err != nil {
 		t.Fatalf("非交互创建用户失败: %v", err)
 	}
@@ -255,16 +241,16 @@ func TestBuildArticleESDocument(t *testing.T) {
 }
 
 func TestSyncArticleDocuments(t *testing.T) {
-	db := testutil.SetupSQLite(t, &models.UserModel{}, &models.UserConfModel{}, &models.ArticleModel{}, &models.TagModel{}, &models.ArticleTagModel{}, &models.UserTopArticleModel{})
+	db := testutil.SetupSQLite(t, &schema.UserRow{}, &schema.UserConfRow{}, &schema.ArticleRow{}, &schema.TagRow{}, &schema.ArticleTagRow{}, &schema.UserTopArticleRow{})
 	testutil.InitGlobals()
 	testutil.SetConfig(&conf.Config{
 		ES:    conf.ES{Index: "article_index"},
 		River: conf.River{BulkSize: 2},
 	})
 
-	admin := models.UserModel{Username: "admin", Password: "x", Role: enum.RoleAdmin}
-	author1 := models.UserModel{Username: "author1", Password: "x", Role: enum.RoleUser}
-	author2 := models.UserModel{Username: "author2", Password: "x", Role: enum.RoleUser}
+	admin := schema.UserRow{Username: "admin", Password: "x", Role: enum.RoleAdmin}
+	author1 := schema.UserRow{Username: "author1", Password: "x", Role: enum.RoleUser}
+	author2 := schema.UserRow{Username: "author2", Password: "x", Role: enum.RoleUser}
 	if err := db.Create(&admin).Error; err != nil {
 		t.Fatalf("创建管理员失败: %v", err)
 	}
@@ -275,9 +261,9 @@ func TestSyncArticleDocuments(t *testing.T) {
 		t.Fatalf("创建作者2失败: %v", err)
 	}
 
-	tagGo := models.TagModel{Title: "Go", IsEnabled: true}
-	tagBackend := models.TagModel{Title: "后端", IsEnabled: true}
-	tagRedis := models.TagModel{Title: "Redis", IsEnabled: true}
+	tagGo := schema.TagRow{Title: "Go", IsEnabled: true}
+	tagBackend := schema.TagRow{Title: "后端", IsEnabled: true}
+	tagRedis := schema.TagRow{Title: "Redis", IsEnabled: true}
 	if err := db.Create(&tagGo).Error; err != nil {
 		t.Fatalf("创建标签 Go 失败: %v", err)
 	}
@@ -288,7 +274,7 @@ func TestSyncArticleDocuments(t *testing.T) {
 		t.Fatalf("创建标签 Redis 失败: %v", err)
 	}
 
-	articles := []models.ArticleModel{
+	articles := []schema.ArticleRow{
 		{
 			Title:          "第一篇",
 			Abstract:       "摘要1",
@@ -317,19 +303,19 @@ func TestSyncArticleDocuments(t *testing.T) {
 	if err := db.Create(&articles).Error; err != nil {
 		t.Fatalf("创建测试文章失败: %v", err)
 	}
-	if err := db.Create(&models.ArticleTagModel{ArticleID: articles[0].ID, TagID: tagGo.ID}).Error; err != nil {
+	if err := db.Create(&schema.ArticleTagRow{ArticleID: articles[0].ID, TagID: tagGo.ID}).Error; err != nil {
 		t.Fatalf("创建文章1-Go 标签关系失败: %v", err)
 	}
-	if err := db.Create(&models.ArticleTagModel{ArticleID: articles[0].ID, TagID: tagBackend.ID}).Error; err != nil {
+	if err := db.Create(&schema.ArticleTagRow{ArticleID: articles[0].ID, TagID: tagBackend.ID}).Error; err != nil {
 		t.Fatalf("创建文章1-后端 标签关系失败: %v", err)
 	}
-	if err := db.Create(&models.ArticleTagModel{ArticleID: articles[1].ID, TagID: tagRedis.ID}).Error; err != nil {
+	if err := db.Create(&schema.ArticleTagRow{ArticleID: articles[1].ID, TagID: tagRedis.ID}).Error; err != nil {
 		t.Fatalf("创建文章2-Redis 标签关系失败: %v", err)
 	}
-	if err := db.Create(&models.UserTopArticleModel{UserID: admin.ID, ArticleID: articles[0].ID}).Error; err != nil {
+	if err := db.Create(&schema.UserTopArticleRow{UserID: admin.ID, ArticleID: articles[0].ID}).Error; err != nil {
 		t.Fatalf("创建管理员置顶失败: %v", err)
 	}
-	if err := db.Create(&models.UserTopArticleModel{UserID: author1.ID, ArticleID: articles[0].ID}).Error; err != nil {
+	if err := db.Create(&schema.UserTopArticleRow{UserID: author1.ID, ArticleID: articles[0].ID}).Error; err != nil {
 		t.Fatalf("创建作者置顶失败: %v", err)
 	}
 

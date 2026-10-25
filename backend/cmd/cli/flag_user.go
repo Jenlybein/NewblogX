@@ -1,13 +1,16 @@
 package cli
 
 import (
+	"context"
 	"fmt"
-	"myblogx/internal/kernel/enum"
-	"myblogx/models"
-	"myblogx/utils/pwd"
 	"os"
 	"strconv"
 	"strings"
+
+	"myblogx/internal/kernel/enum"
+	usermysql "myblogx/internal/user/adapter/mysql"
+	"myblogx/internal/user/domain"
+	"myblogx/utils/pwd"
 
 	"github.com/sirupsen/logrus"
 	"golang.org/x/crypto/ssh/terminal"
@@ -49,8 +52,8 @@ func (u *FlagUser) Create(db *gorm.DB, logger *logrus.Logger, opts UserCreateOpt
 	fmt.Println("请输入用户名: ")
 	fmt.Scanln(&username)
 
-	var model models.UserModel
-	if db.Take(&model, "username = ?", username).Error == nil {
+	repo := usermysql.New(db)
+	if exists, err := repo.ExistsUsername(context.Background(), username, 0); err != nil || exists {
 		fmt.Printf("用户名 %s 已存在\n", username)
 		return
 	}
@@ -80,13 +83,13 @@ func (u *FlagUser) Create(db *gorm.DB, logger *logrus.Logger, opts UserCreateOpt
 	}
 
 	// 创建用户
-	if err := db.Create(&models.UserModel{
+	if err := repo.Create(context.Background(), &domain.User{
 		Username:       username,
 		Nickname:       "命令用户",
-		Password:       hashedPassword,
-		Role:           role,
-		RegisterSource: enum.RegisterTerminalSourceType,
-	}).Error; err != nil {
+		PasswordHash:   hashedPassword,
+		Role:           domain.Role(role),
+		RegisterSource: domain.SourceTerminal,
+	}); err != nil {
 		fmt.Printf("创建用户错误 %s\n", err.Error())
 		return
 	}
@@ -131,8 +134,8 @@ func (u *FlagUser) createNonInteractive(db *gorm.DB, logger *logrus.Logger, opts
 		nickname = "命令用户"
 	}
 
-	var model models.UserModel
-	if db.Take(&model, "username = ?", username).Error == nil {
+	repo := usermysql.New(db)
+	if exists, err := repo.ExistsUsername(context.Background(), username, 0); err != nil || exists {
 		fmt.Printf("用户名 %s 已存在\n", username)
 		return
 	}
@@ -143,12 +146,12 @@ func (u *FlagUser) createNonInteractive(db *gorm.DB, logger *logrus.Logger, opts
 		return
 	}
 
-	user := models.UserModel{
+	user := domain.User{
 		Username:       username,
 		Nickname:       nickname,
-		Password:       hashedPassword,
-		Role:           role,
-		RegisterSource: enum.RegisterTerminalSourceType,
+		PasswordHash:   hashedPassword,
+		Role:           domain.Role(role),
+		RegisterSource: domain.SourceTerminal,
 	}
 
 	email := strings.TrimSpace(opts.Email)
@@ -156,7 +159,7 @@ func (u *FlagUser) createNonInteractive(db *gorm.DB, logger *logrus.Logger, opts
 		user.Email = &email
 	}
 
-	if err = db.Create(&user).Error; err != nil {
+	if err = repo.Create(context.Background(), &user); err != nil {
 		fmt.Printf("创建用户错误 %s\n", err.Error())
 		return
 	}

@@ -26,7 +26,7 @@ type BaseRow struct {
 	DeletedAt gorm.DeletedAt
 }
 
-// beforeCreate 生成雪花 ID：与 models.Model 的钩子行为一致。
+// beforeCreate 生成雪花 ID：与 platform/mysql.BaseRow 的钩子行为一致。
 func beforeCreate(id *uint64) error {
 	if *id != 0 {
 		return nil

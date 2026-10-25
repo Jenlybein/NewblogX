@@ -33,7 +33,6 @@ import (
 	usersec "myblogx/internal/user/adapter/security"
 	userapp "myblogx/internal/user/app"
 	userdomain "myblogx/internal/user/domain"
-	"myblogx/models"
 	"myblogx/router"
 	"myblogx/utils/jwts"
 	"myblogx/utils/requestmeta"
@@ -419,7 +418,7 @@ func (e *userEnricher) TagTitles(_ context.Context, ids []uint64) (map[uint64]st
 	if len(ids) == 0 {
 		return out, nil
 	}
-	var rows []models.TagModel
+	var rows []tagTitleRow
 	if err := e.db.Select("id", "title").Find(&rows, "id IN ?", ids).Error; err != nil {
 		return nil, err
 	}
@@ -537,7 +536,7 @@ func (b *tagBridge) Validate(_ context.Context, ids []uint64) error {
 		return nil
 	}
 	var count int64
-	if err := b.db.Model(&models.TagModel{}).
+	if err := b.db.Table(tagTitleRow{}.TableName()).
 		Where("id IN ? AND is_enabled = ?", normalized, true).
 		Count(&count).Error; err != nil {
 		return err

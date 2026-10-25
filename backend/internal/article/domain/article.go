@@ -415,7 +415,7 @@ func (a *Article) Reject(reviewer UserID, now time.Time) error {
 
 // SoftDelete 标记删除。
 //
-// 项目现有语义就是软删（models.Model 内嵌 gorm.DeletedAt），这里保持一致：
+// 项目现有语义就是软删（行结构内嵌 gorm.DeletedAt），这里保持一致：
 // 不物理删除，也不提供硬删方法。
 func (a *Article) SoftDelete(now time.Time) {
 	a.deleted = true

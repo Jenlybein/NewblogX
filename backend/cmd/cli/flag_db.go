@@ -2,12 +2,25 @@ package cli
 
 import (
 	"fmt"
-	"myblogx/models"
+
+	mysqlddl "myblogx/internal/platform/mysql/ddl"
 
 	"github.com/sirupsen/logrus"
 	"gorm.io/gorm"
 )
 
+// FlagDB 建出全部表。
+//
+// 执行的是 internal/platform/mysql/ddl 里的 schema.sql，不再用 AutoMigrate：
+//
+//   - 表结构是冻结的契约（零列变更口径），该是可 review 的文本，
+//     而不是"当前 Go 结构长什么样"的推导结果；
+//   - AutoMigrate 会为了对齐结构主动 ALTER 既有表，
+//     这在零列变更口径下是明确禁止的；
+//   - 它还会建出建模副产物，例如一条物理上无法满足的外键
+//     （见 docs/architecture/baseline.md §35）。
+//
+// 语句都是 CREATE TABLE IF NOT EXISTS，可重复执行。
 func FlagDB(db *gorm.DB, logger *logrus.Logger) error {
 	if db == nil {
 		return fmt.Errorf("数据库迁移失败: 数据库未初始化")
@@ -17,52 +30,13 @@ func FlagDB(db *gorm.DB, logger *logrus.Logger) error {
 		logger.Info("数据库开始迁移")
 	}
 
-	err := db.AutoMigrate(
-		&models.UserModel{},
-		&models.UserConfModel{},
-		&models.UserStatModel{},
-		&models.UserSessionModel{},
-		&models.UserViewDailyModel{},
-		&models.ArticleModel{},
-		&models.ArticleAIScoreRecordModel{},
-		&models.ArticleReviewTaskModel{},
-		&models.ArticleReviewLogModel{},
-		&models.TagModel{},
-		&models.ArticleTagModel{},
-		&models.ArticleDiggModel{},
-		&models.CategoryModel{},
-		&models.FavoriteModel{},
-		&models.UserArticleFavorModel{},
-		&models.UserArticleViewHistoryModel{},
-		&models.UserTopArticleModel{},
-		&models.ImageModel{},
-		&models.ImageRefModel{},
-		&models.RuntimeSiteConfigModel{},
-		&models.CommentModel{},
-		&models.BannerModel{},
-		&models.GlobalNotifModel{},
-		&models.CommentDiggModel{},
-		&models.ArticleMessageModel{},
-		&models.UserGlobalNotifModel{},
-		&models.UserFollowModel{},
-		&models.ChatSessionModel{},
-		&models.ChatMsgModel{},
-		&models.ChatMsgUserStateModel{},
-		&models.CdcDeadLetterModel{},
-		// 事务型发件箱：新增表，不影响任何既有表的列，因此不违反零 DDL 约束。
-		&models.OutboxEventModel{},
-	)
-	if err != nil {
+	if err := mysqlddl.Apply(db); err != nil {
 		if logger != nil {
-			logger.Error("数据库迁移失败", err)
+			logger.Error("数据库迁移失败: ", err)
 		}
 		return err
 	}
-	// if db.Migrator().HasTable("image_upload_task_models") {
-	// 	if err := db.Migrator().DropTable("image_upload_task_models"); err != nil {
-	// 		flagLogger.Errorf("删除旧图片上传任务表失败: %v", err)
-	// 	}
-	// }
+
 	if logger != nil {
 		logger.Info("数据库迁移成功")
 	}

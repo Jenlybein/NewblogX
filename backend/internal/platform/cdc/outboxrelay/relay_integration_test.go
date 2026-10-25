@@ -12,9 +12,10 @@ import (
 	"gorm.io/gorm"
 
 	"myblogx/internal/kernel/ctype"
+	"myblogx/internal/platform/cdc/deadletter"
 	"myblogx/internal/platform/cdc/outboxrelay"
 	"myblogx/internal/testkit/mysqlcontainer"
-	"myblogx/models"
+	"myblogx/internal/testkit/schema"
 )
 
 // migrate 建 outbox 表与死信表（本组测试只关心这两张）。
@@ -22,8 +23,8 @@ func migrate(t *testing.T) *gorm.DB {
 	t.Helper()
 	db := mysqlcontainer.DB(t)
 	if err := db.AutoMigrate(
-		&models.OutboxEventModel{},
-		&models.CdcDeadLetterModel{},
+		&schema.OutboxRow{},
+		&deadletter.Record{},
 	); err != nil {
 		t.Fatalf("建表失败: %v", err)
 	}
@@ -34,12 +35,12 @@ func migrate(t *testing.T) *gorm.DB {
 func seedEvent(t *testing.T, db *gorm.DB, name string, aggregateID uint64) ctype.ID {
 	t.Helper()
 	now := time.Now()
-	row := models.OutboxEventModel{
+	row := schema.OutboxRow{
 		EventName:     name,
 		AggregateType: "article",
 		AggregateID:   aggregateID,
 		Payload:       `{"article_id":1}`,
-		Status:        models.OutboxStatusPending,
+		Status:        outboxrelay.OutboxStatusPending,
 		AvailableAt:   now,
 	}
 	row.CreatedAt = now
@@ -50,9 +51,9 @@ func seedEvent(t *testing.T, db *gorm.DB, name string, aggregateID uint64) ctype
 	return row.ID
 }
 
-func reload(t *testing.T, db *gorm.DB, id ctype.ID) models.OutboxEventModel {
+func reload(t *testing.T, db *gorm.DB, id ctype.ID) schema.OutboxRow {
 	t.Helper()
-	var row models.OutboxEventModel
+	var row schema.OutboxRow
 	if err := db.Where("id = ?", id).Take(&row).Error; err != nil {
 		t.Fatalf("读取事件失败: %v", err)
 	}
@@ -85,8 +86,8 @@ func TestRelayDispatchSuccess(t *testing.T) {
 	}
 
 	row := reload(t, db, id)
-	if row.Status != models.OutboxStatusDone {
-		t.Fatalf("状态: got=%s want=%s", row.Status, models.OutboxStatusDone)
+	if row.Status != outboxrelay.OutboxStatusDone {
+		t.Fatalf("状态: got=%s want=%s", row.Status, outboxrelay.OutboxStatusDone)
 	}
 	if row.DispatchedAt == nil {
 		t.Fatal("dispatched_at 未写入")
@@ -128,8 +129,8 @@ func TestRelayNoSubscriberMarksDone(t *testing.T) {
 	if err := relay.Dispatch(context.Background(), id); err != nil {
 		t.Fatalf("投递返回错误: %v", err)
 	}
-	if row := reload(t, db, id); row.Status != models.OutboxStatusDone {
-		t.Fatalf("状态: got=%s want=%s", row.Status, models.OutboxStatusDone)
+	if row := reload(t, db, id); row.Status != outboxrelay.OutboxStatusDone {
+		t.Fatalf("状态: got=%s want=%s", row.Status, outboxrelay.OutboxStatusDone)
 	}
 }
 
@@ -153,8 +154,8 @@ func TestRelayRetryThenDeadLetter(t *testing.T) {
 			t.Fatalf("第 %d 次投递返回错误: %v", i, err)
 		}
 		row := reload(t, db, id)
-		if row.Status != models.OutboxStatusFailed {
-			t.Fatalf("第 %d 次后状态: got=%s want=%s", i, row.Status, models.OutboxStatusFailed)
+		if row.Status != outboxrelay.OutboxStatusFailed {
+			t.Fatalf("第 %d 次后状态: got=%s want=%s", i, row.Status, outboxrelay.OutboxStatusFailed)
 		}
 		if row.Attempts != i {
 			t.Fatalf("第 %d 次后 attempts: got=%d want=%d", i, row.Attempts, i)
@@ -166,15 +167,15 @@ func TestRelayRetryThenDeadLetter(t *testing.T) {
 		t.Fatalf("第 3 次投递返回错误: %v", err)
 	}
 	row := reload(t, db, id)
-	if row.Status != models.OutboxStatusDead {
-		t.Fatalf("耗尽后状态: got=%s want=%s", row.Status, models.OutboxStatusDead)
+	if row.Status != outboxrelay.OutboxStatusDead {
+		t.Fatalf("耗尽后状态: got=%s want=%s", row.Status, outboxrelay.OutboxStatusDead)
 	}
 	if got := atomic.LoadInt32(&calls); got != 3 {
 		t.Fatalf("订阅者调用次数: got=%d want=3", got)
 	}
 
 	var dlq int64
-	if err := db.Model(&models.CdcDeadLetterModel{}).
+	if err := db.Model(&deadletter.Record{}).
 		Where("stream = ?", "outbox_relay").Count(&dlq).Error; err != nil {
 		t.Fatalf("查询死信失败: %v", err)
 	}
@@ -214,10 +215,10 @@ func TestRelaySweepSkipsFuture(t *testing.T) {
 	relay := outboxrelay.New(db, nil, outboxrelay.Options{})
 
 	now := time.Now()
-	row := models.OutboxEventModel{
+	row := schema.OutboxRow{
 		EventName:   "article.published",
 		AggregateID: 3001,
-		Status:      models.OutboxStatusFailed,
+		Status:      outboxrelay.OutboxStatusFailed,
 		AvailableAt: now.Add(time.Hour), // 退避中
 	}
 	row.CreatedAt = now
@@ -252,9 +253,9 @@ func TestRelayRecoversExpiredLease(t *testing.T) {
 
 	// 模拟"领了但没做完"：直接把状态改成 processing，并让租约看起来已过期。
 	stale := time.Now().Add(-5 * time.Minute)
-	if err := db.Model(&models.OutboxEventModel{}).Where("id = ?", id).
+	if err := db.Model(&schema.OutboxRow{}).Where("id = ?", id).
 		Updates(map[string]any{
-			"status":     models.OutboxStatusProcessing,
+			"status":     outboxrelay.OutboxStatusProcessing,
 			"updated_at": stale,
 		}).Error; err != nil {
 		t.Fatalf("制造陈旧 processing 失败: %v", err)
@@ -273,8 +274,8 @@ func TestRelayRecoversExpiredLease(t *testing.T) {
 	if got := atomic.LoadInt32(&calls); got != 1 {
 		t.Fatalf("订阅者调用次数: got=%d want=1", got)
 	}
-	if row := reload(t, db, id); row.Status != models.OutboxStatusDone {
-		t.Fatalf("状态: got=%s want=%s", row.Status, models.OutboxStatusDone)
+	if row := reload(t, db, id); row.Status != outboxrelay.OutboxStatusDone {
+		t.Fatalf("状态: got=%s want=%s", row.Status, outboxrelay.OutboxStatusDone)
 	}
 }
 
@@ -298,14 +299,14 @@ func TestRelayRunAndClose(t *testing.T) {
 
 	deadline := time.Now().Add(5 * time.Second)
 	for time.Now().Before(deadline) {
-		if reload(t, db, id).Status == models.OutboxStatusDone {
+		if reload(t, db, id).Status == outboxrelay.OutboxStatusDone {
 			break
 		}
 		time.Sleep(20 * time.Millisecond)
 	}
 	relay.Close()
 
-	if row := reload(t, db, id); row.Status != models.OutboxStatusDone {
+	if row := reload(t, db, id); row.Status != outboxrelay.OutboxStatusDone {
 		t.Fatalf("worker 未消费: 状态=%s", row.Status)
 	}
 	if got := atomic.LoadInt32(&calls); got != 1 {
@@ -320,7 +321,7 @@ func TestRelayRunAndClose(t *testing.T) {
 func seedStaleRow(t *testing.T, db *gorm.DB, status string, age time.Duration) ctype.ID {
 	t.Helper()
 	now := time.Now()
-	row := models.OutboxEventModel{
+	row := schema.OutboxRow{
 		EventName:     "article.published",
 		AggregateType: "article",
 		AggregateID:   9001,
@@ -356,14 +357,14 @@ func TestRelayCleanup(t *testing.T) {
 		CleanupLimit:  10,
 	})
 
-	expiredDone := seedStaleRow(t, db, models.OutboxStatusDone, 48*time.Hour)
-	obsoleteDone := seedStaleRow(t, db, models.OutboxStatusDone, time.Hour)
-	expiredDead := seedStaleRow(t, db, models.OutboxStatusDead, 100*time.Hour)
-	obsoleteDead := seedStaleRow(t, db, models.OutboxStatusDead, time.Hour)
+	expiredDone := seedStaleRow(t, db, outboxrelay.OutboxStatusDone, 48*time.Hour)
+	obsoleteDone := seedStaleRow(t, db, outboxrelay.OutboxStatusDone, time.Hour)
+	expiredDead := seedStaleRow(t, db, outboxrelay.OutboxStatusDead, 100*time.Hour)
+	obsoleteDead := seedStaleRow(t, db, outboxrelay.OutboxStatusDead, time.Hour)
 	// 这三条即使"很老"也不能删：它们还欠一次投递。
-	oldPending := seedStaleRow(t, db, models.OutboxStatusPending, 1000*time.Hour)
-	oldFailed := seedStaleRow(t, db, models.OutboxStatusFailed, 1000*time.Hour)
-	oldProcessing := seedStaleRow(t, db, models.OutboxStatusProcessing, 1000*time.Hour)
+	oldPending := seedStaleRow(t, db, outboxrelay.OutboxStatusPending, 1000*time.Hour)
+	oldFailed := seedStaleRow(t, db, outboxrelay.OutboxStatusFailed, 1000*time.Hour)
+	oldProcessing := seedStaleRow(t, db, outboxrelay.OutboxStatusProcessing, 1000*time.Hour)
 
 	n, err := relay.Cleanup(context.Background())
 	if err != nil {
@@ -376,7 +377,7 @@ func TestRelayCleanup(t *testing.T) {
 	countUnscoped := func(id ctype.ID) int64 {
 		t.Helper()
 		var cnt int64
-		if err := db.Unscoped().Model(&models.OutboxEventModel{}).
+		if err := db.Unscoped().Model(&schema.OutboxRow{}).
 			Where("id = ?", id).Count(&cnt).Error; err != nil {
 			t.Fatalf("查询失败: %v", err)
 		}

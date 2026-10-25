@@ -14,7 +14,7 @@
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
     "typecheck": "nuxi typecheck",
-    "openapi:types": "swagger2openapi ../backend/docs/swagger.json -o .openapi3.json && openapi-typescript .openapi3.json -o app/types/openapi.d.ts",
+    "openapi:types": "swagger2openapi ../backend/docs/swagger.json -o .openapi3.json && node scripts/fix-openapi-id-types.mjs .openapi3.json && openapi-typescript .openapi3.json -o app/types/openapi.d.ts",
     "postinstall": "nuxt prepare",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix"

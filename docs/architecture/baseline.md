@@ -1992,3 +1992,77 @@ $ 生成 801 行 → eslint --stdin --stdin-filename app/pages/__probe.vue
 | lines | 57.14 | **58.18** |
 
 用例总数 104 → 113。门槛（57/47/63/57）不必再调。
+
+## 43. 契约终于"被使用"：ID 类型修正 + 编译期守卫（M6 之后第 1 件事）
+
+**2026-10-26**。收尾时发现的最大洞：`swagger.json → openapi.d.ts` 链路是通的，
+但**业务代码一个都没用**（`contract.ts` 零引用，38 处业务全走手写 `api.ts`）。
+后果：后端改字段名/删字段，前端不会有任何报错，只会在运行时静默拿到 `undefined`。
+
+### 一、先修契约的"事实错误"：ID 是字符串，不是数字
+
+`ctype.ID.MarshalJSON` 返回 `id.String()` —— 也就是说 JSON 里 ID 是**字符串**
+（雪花值超出 JS 安全整数，后端故意这么序列化）。但 swag 只看 Go 类型（uint64），
+输出 `type: integer`，全量 **138 处** ID 字段都是错的。
+
+修法对比：
+
+| | 做法 | 问题 |
+| --- | --- | --- |
+| A | 给每个 `ctype.ID` 字段加 `swaggertype:"string"` | 精确，但要动 100 处 struct；domain 层结构体会被迫知道 swag 的存在 |
+| **B（选用）** | 在 `openapi:types` 流水线里改一次（`scripts/fix-openapi-id-types.mjs`） | 后端零改动；规则集中、可自校验 |
+
+```
+openapi:types = swagger2openapi → fix-openapi-id-types.mjs → openapi-typescript
+```
+
+**踩坑（差点让这道检查撒谎）**：第一版只遍历 `components.schemas`，漏掉 8 处
+嵌在 `paths` 里的 `?user_id=` 参数；更糟的是**自校验复用了同一套遍历**，
+于是它也跟着漏、还打印"0 处剩余"。后来把自校验改成独立扫描（只认"名字像 ID +
+值是整数"），才发现问题。**教训：改写逻辑和校验逻辑共享遍历，就等于共享盲区。**
+
+### 二、让 api.ts 与契约在编译期对上：`app/types/contract-guard.ts`
+
+不是"把业务类型换成生成类型"（契约全字段可选，直接换会让每个字段多 `undefined`），
+而是**保留 api.ts 作为 UI 形状，用类型断言钉死它与契约的字段集合**：
+
+```ts
+type KeysCheck<A, B> = /* 键集合相等，可选性不参与比较 */;
+export type GuardBannerItem = Assert<KeysCheck<Api.BannerItem, Schema<"internal_site_adapter_http.BannerItem">>>;
+```
+
+后端改名/删字段 → `nuxi typecheck` 在这个文件上报错，**并直接说出差哪几个字段**：
+
+```
+contract-guard.ts(65,38): error TS2344:
+  Type '{ missingInContract: "hrefRenamed"; }' does not satisfy the constraint 'true'.
+```
+
+（实测过：故意把 `BannerItem.href` 改名，报错如上，然后还原。）
+
+覆盖面：**31 个类型**（占 api.ts 72 个带字段类型的 43%）。映射靠"字段重合度 ≥0.85
+且两侧 ≥5 字段"自动算出来，再人工补了 9 个字段少、区分度低的（列表包装与请求体）。
+
+### 三、守卫上线当天就抓到一个真 bug
+
+`api.ts` 的 `UserBaseInfo` 声明了 `digg_count / favor_count / comment_count`，
+而后端 `BaseInfoResponse` **从来没有这三个字段**。也就是说用户主页上那三个
+"点赞 / 收藏 / 评论"数字**恒为 0**（`app/pages/users/[id].vue:74` 还留着
+手写 `0` 的补丁 —— 说明当时就知道缺，只是绕过去了）。
+
+现在把这三个字段列为**显式豁免**（`PHANTOM`），而不是删掉：
+类型文件里写明"后端没提供、恒为 0、补聚合后请删掉这条豁免"，这样它不会变成
+"没人记得的谎言"。补后端聚合是独立的一件事（user 域要加三个 count）。
+
+### 四、为什么只覆盖 31 个，剩下的守不了
+
+未覆盖的 32 个里，绝大多数是**列表包装** `{list, count}` ——
+后端这些响应是**匿名结构体**，契约里没有对应的 named schema，**没有可比对的对象**。
+要让它们也能守，前置动作是**后端给列表响应命名**（定义 DTO 并在 `@Success` 里引用）。
+
+其余是纯 UI 形状（`ApiEnvelope`、`OptionItem`、`ChatSocketEnvelope`），不对应任何接口响应。
+
+### 五、口径统一
+
+`03-物理目录与映射.md` 原来写"删除 `api.ts`，改用生成类型"，与 `contract.ts` 注释里
+"api.ts 是视图模型/适配层"冲突。现统一为后者，并补上"必须被 `contract-guard.ts` 断言"。

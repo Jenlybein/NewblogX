@@ -1719,3 +1719,65 @@ compose 引用了它们，但样例文件里没有，属于"照文档配完仍�
 
 本批只做能真正降低耦合的部分。剩余方案与预估工时见
 `docs/architecture/09-M6决策清单.md` 附注。
+
+## 39. M6 剩余清单（唯一口径）
+
+**2026-10-26** 全项核对。M6 共 10 项，8 项完成，2 项有偏差。
+
+### 一、补掉的一项：swagger 契约重新生成
+
+删掉 `models` 之后，`docs/docs.go` 还是 M4 时期的旧产物 —— 里面挂着 23 处
+`models.XxxModel` 的 definition 名，而这些类型已经不存在。契约不改的话，
+下一次 `swag init` 会产出一份完全不同的 schema，前端 `openapi:types` 生成的
+类型名整体漂移，diff 里看不出哪一步是对的。
+
+重新生成结果：
+- **0 处** `models` 引用（definition 名变成 `myblogx_internal_xxx.Yyy`，即真实所在包）
+- operations **117 → 123**：补上 6 个旧 docs.go 里就没有的接口
+  （`GET/POST/PUT /users`、`PUT /users/settings`、`GET /users/{id}`、`PUT /users/{id}/status`）
+- **0 个 operation 消失**（逐个比对 paths × method）
+
+两端 `openapi:types` 重跑后 typecheck 均通过 —— 前端引用的是 operation 路径
+而不是 definition 名，所以命名变化不影响业务代码。
+
+### 二、剩两项
+
+**S5.6 `write.vue`：未达 <200 行**（实际 1,270）。
+
+已完成 2,045 → 1,270：编辑器命令 composable（462）、主题表（118）、
+工具栏常量（154）、header 组件（295）。理由与「<200 这个口径为什么有问题」
+见 §38 末尾。
+
+要真正达标，前置条件是**按子域拆状态**：现在 `form` / `pendingState` /
+`editingArticle` / `coverPreviewUrl` 等被所有函数共享，`handleRefreshArticleScore`
+一个函数就依赖 7 个外部符号。拆状态 = 草稿、元信息、封面、发布各一套，
+属独立重构，不属于 M6。
+
+**S5.7 stores 循环依赖：无环已达成，但不是「事件驱动」**。
+
+依赖图（实测）：
+
+```
+auth  →  chat
+auth  →  message
+chat / message / site / ui    零出边
+```
+
+无环，所以不会有初始化死锁 —— 原始问题（循环依赖）确实不存在。
+但 `auth` 仍直接调用另外两个 store：logout 时 `messageStore.clear()` +
+`chatStore.resetSocketState()`，登录后 4 处 `messageStore.refreshSummary()`。
+
+改事件驱动（auth 发 `auth:logout`，各 store 自己订阅）能去掉这条直接依赖，
+代价是引入订阅生命周期管理（订阅泄漏比直接调用更难查）。属于可选优化，
+不是遗留缺陷。
+
+> 上一版文档写的是「5 个 store 零互引」，那是错的 —— 结论（无环）对，
+> 论证不完整。已按实测改正。
+
+### 三、不属于 M6 的待办（记录，避免混淆）
+
+- `InboxChatPanel.vue` 里「当前仅接入文本发送，图片与 Markdown 仍待补协议联调」——
+  功能待办，不是重构遗留。
+- S2.8 的「118 个 operation 补注解」：本次重新生成后是 123 个 operation、
+  107 个 definition，注解已覆盖全部注册路由；剩下的是**字段级**描述
+  （`@Param` 的 example/enum），属文档完善而非契约缺失。

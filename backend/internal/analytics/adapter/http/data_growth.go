@@ -5,7 +5,7 @@ import (
 
 	"myblogx/common/res"
 	"myblogx/internal/analytics/domain"
-	"myblogx/middleware"
+	"myblogx/internal/platform/http/middleware"
 
 	"github.com/gin-gonic/gin"
 )

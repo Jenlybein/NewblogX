@@ -9,7 +9,7 @@ import (
 	"myblogx/internal/article/domain"
 	"myblogx/internal/article/domain/favorite"
 	"myblogx/internal/article/domain/review"
-	"myblogx/middleware"
+	"myblogx/internal/platform/http/middleware"
 	"myblogx/models/ctype"
 )
 

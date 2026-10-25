@@ -7,7 +7,7 @@ import (
 	notificationhttp "myblogx/internal/notification/adapter/http"
 	notificationmysql "myblogx/internal/notification/adapter/mysql"
 	notificationapp "myblogx/internal/notification/app"
-	mw "myblogx/middleware"
+	mw "myblogx/internal/platform/http/middleware"
 	"myblogx/models"
 	"myblogx/models/enum"
 	"myblogx/models/enum/global_notif_enum"

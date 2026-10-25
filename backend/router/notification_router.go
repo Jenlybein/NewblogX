@@ -2,7 +2,7 @@ package router
 
 import (
 	notificationhttp "myblogx/internal/notification/adapter/http"
-	mw "myblogx/middleware"
+	mw "myblogx/internal/platform/http/middleware"
 
 	"github.com/gin-gonic/gin"
 )

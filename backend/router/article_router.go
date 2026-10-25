@@ -2,7 +2,7 @@ package router
 
 import (
 	articlehttp "myblogx/internal/article/adapter/http"
-	mw "myblogx/middleware"
+	mw "myblogx/internal/platform/http/middleware"
 
 	"github.com/gin-gonic/gin"
 )

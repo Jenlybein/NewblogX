@@ -10,9 +10,9 @@ import (
 	"myblogx/common/res"
 	"myblogx/conf"
 	"myblogx/internal/apperr"
+	"myblogx/internal/platform/http/middleware"
 	"myblogx/internal/site/app"
 	"myblogx/internal/site/domain"
-	"myblogx/middleware"
 	"myblogx/models/ctype"
 )
 

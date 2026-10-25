@@ -409,7 +409,7 @@ type ActionAuditInput struct {
 		},
 		{
 			name: "GinAuditInput 带 interface{} 也拦",
-			rel:  "middleware/log_emit.go",
+			rel:  "internal/platform/http/middleware/log_emit.go",
 			src: `package middleware
 
 type GinAuditInput struct {

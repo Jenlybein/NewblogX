@@ -10,7 +10,7 @@ import (
 	"myblogx/internal/media/domain"
 	"myblogx/internal/platform/idgen"
 	redis_service "myblogx/internal/platform/redis"
-	"myblogx/platform/storage/qiniu"
+	"myblogx/internal/platform/storage/qiniu"
 	"myblogx/router"
 )
 

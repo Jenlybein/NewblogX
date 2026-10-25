@@ -2,7 +2,7 @@ package utils_test
 
 import (
 	"io"
-	"myblogx/middleware"
+	"myblogx/internal/platform/http/middleware"
 	"myblogx/utils/info_check"
 	"myblogx/utils/io_util"
 	"myblogx/utils/maps"

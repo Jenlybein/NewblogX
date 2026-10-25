@@ -1,8 +1,8 @@
 package router
 
 import (
+	mw "myblogx/internal/platform/http/middleware"
 	socialhttp "myblogx/internal/social/adapter/http"
-	mw "myblogx/middleware"
 
 	"github.com/gin-gonic/gin"
 )

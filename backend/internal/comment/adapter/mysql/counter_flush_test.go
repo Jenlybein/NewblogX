@@ -9,7 +9,6 @@ import (
 // 包内测试：直接用 commentRow 建表，与 adapter 内部同一份表定义。
 
 func TestFlushCommentCountApplies(t *testing.T) {
-	t.Parallel()
 	db := testutil.SetupSQLite(t, &commentRow{})
 
 	row := commentRow{Content: "c1", ArticleID: 1, UserID: 1}
@@ -36,7 +35,6 @@ func TestFlushCommentCountApplies(t *testing.T) {
 
 // TestFlushCommentCountFloorAtZero 取消点赞过多时不出现负计数。
 func TestFlushCommentCountFloorAtZero(t *testing.T) {
-	t.Parallel()
 	db := testutil.SetupSQLite(t, &commentRow{})
 
 	row := commentRow{Content: "c1", ArticleID: 1, UserID: 1}
@@ -64,7 +62,6 @@ func TestFlushCommentCountFloorAtZero(t *testing.T) {
 // TestFlushCommentCountMissingRow 评论已删除时返回 hit=false（不是错误），
 // 调用方据此丢弃增量，避免无限重试同一行。
 func TestFlushCommentCountMissingRow(t *testing.T) {
-	t.Parallel()
 	db := testutil.SetupSQLite(t, &commentRow{})
 
 	hit, err := FlushCommentCount(db, CommentReplyCount, 999999, 1)

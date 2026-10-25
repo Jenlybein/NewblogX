@@ -4,7 +4,7 @@ import (
 	"myblogx/common"
 	"myblogx/common/res"
 	"myblogx/internal/analytics/adapter/clickhouse"
-	"myblogx/middleware"
+	"myblogx/internal/platform/http/middleware"
 	"myblogx/models/ctype"
 	"myblogx/utils/jwts"
 

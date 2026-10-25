@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"strconv"
 
+	redis_service "myblogx/internal/platform/redis"
 	"myblogx/models/ctype"
-	"myblogx/platform/cachex"
 )
 
 type CommentBatchCounters struct {
@@ -15,10 +15,10 @@ type CommentBatchCounters struct {
 }
 
 type CommentCounterReader struct {
-	Cache cachex.Options
+	Cache redis_service.Options
 }
 
-func NewCommentCounterReader(cacheOptions cachex.Options) CommentCounterReader {
+func NewCommentCounterReader(cacheOptions redis_service.Options) CommentCounterReader {
 	return CommentCounterReader{
 		Cache: cacheOptions,
 	}

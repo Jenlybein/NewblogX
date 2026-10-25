@@ -13,10 +13,10 @@ import (
 	"gorm.io/gorm"
 
 	"myblogx/internal/article/domain"
+	"myblogx/internal/testkit"
 	"myblogx/models"
 	"myblogx/models/ctype"
 	"myblogx/models/enum"
-	"myblogx/testkit"
 )
 
 // goldenDir 是 golden 文件目录（相对本包）。

@@ -9,9 +9,6 @@ import (
 	"myblogx/core"
 	sitecfg "myblogx/internal/platform/config"
 	"myblogx/internal/platform/log/writer"
-	"myblogx/platform/cachex"
-	"myblogx/platform/dbx"
-	"myblogx/platform/searchx"
 
 	"github.com/elastic/go-elasticsearch/v7"
 	"github.com/go-redis/redis/v8"
@@ -45,10 +42,10 @@ func InitInfra(cfg *conf.Config, configFile string, version string) (*Infra, err
 	}
 
 	logger := core.InitLogrus(&cfg.Log, &cfg.System)
-	redisClient := cachex.Init(&cfg.Redis, logger)
-	db := dbx.Init(cfg.DB, cfg.GORM, cfg.Log, logger, redisClient)
+	redisClient := core.InitRedis(&cfg.Redis, logger)
+	db := core.InitDB(cfg.DB, cfg.GORM, cfg.Log, logger, redisClient)
 	clickHouse := core.InitClickHouse(&cfg.ClickHouse)
-	esClient := searchx.Init(&cfg.ES, logger)
+	esClient := core.EsConnect(&cfg.ES, logger)
 
 	logOptions := writer.Options{
 		LogConfig:        cfg.Log,

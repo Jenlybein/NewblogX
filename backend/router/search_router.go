@@ -1,8 +1,8 @@
 package router
 
 import (
+	mw "myblogx/internal/platform/http/middleware"
 	searchhttp "myblogx/internal/search/adapter/http"
-	mw "myblogx/middleware"
 
 	"github.com/gin-gonic/gin"
 )

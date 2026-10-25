@@ -7,8 +7,6 @@ const registerWithEmailMock = vi.hoisted(() => vi.fn());
 const logoutCurrentSessionMock = vi.hoisted(() => vi.fn());
 const getSelfUserDetailMock = vi.hoisted(() => vi.fn());
 const isAuthLikeErrorMock = vi.hoisted(() => vi.fn());
-const useMessageStoreMock = vi.hoisted(() => vi.fn());
-const useChatStoreMock = vi.hoisted(() => vi.fn());
 
 vi.mock("~/services/auth", () => ({
   loginWithPassword: loginWithPasswordMock,
@@ -25,13 +23,11 @@ vi.mock("~/services/http/errors", () => ({
   isAuthLikeError: isAuthLikeErrorMock,
 }));
 
-vi.mock("~/stores/message", () => ({
-  useMessageStore: useMessageStoreMock,
-}));
-
-vi.mock("~/stores/chat", () => ({
-  useChatStore: useChatStoreMock,
-}));
+// 这里**故意**不 mock message / chat 两个 store。
+//
+// 以前必须 mock：auth 会反过来调 useMessageStore().clear() 与 useChatStore().resetSocketState()。
+// 现在它们自己 watch auth 的 isLoggedIn（见 baseline §42），auth 与本测试都不需要知道它们存在 ——
+// 这组 mock 的消失本身就是"解耦生效"的证据。
 
 async function createAuthStore() {
   vi.resetModules();
@@ -49,13 +45,6 @@ describe("auth store", () => {
     logoutCurrentSessionMock.mockReset();
     getSelfUserDetailMock.mockReset();
     isAuthLikeErrorMock.mockReset();
-    useMessageStoreMock.mockReturnValue({
-      clear: vi.fn(),
-      refreshSummary: vi.fn().mockResolvedValue(undefined),
-    });
-    useChatStoreMock.mockReturnValue({
-      resetSocketState: vi.fn(),
-    });
     vi.stubGlobal("__useRuntimeConfigMock", () => ({
       public: {
         apiBase: "/api",

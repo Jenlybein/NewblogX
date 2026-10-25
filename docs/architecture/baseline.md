@@ -1898,11 +1898,15 @@ $ 生成 801 行 → eslint --stdin --stdin-filename app/pages/__probe.vue
 | 文件 | 行数 | 余量 |
 | --- | --- | --- |
 | `app/pages/studio/write.vue` | 361 | 439 |
-| `frontend/app/pages/article/[id].vue` | **791** | **9** |
+| `frontend/app/pages/article/[id].vue` | 791 → **716** | 84（2026-10-26 抽出点赞状态机后） |
 | `frontend/app/pages/studio/settings.vue` | 549 | 251 |
 | `frontend_admin/app/pages/media/index.vue` | 328 | 472 |
 
-`article/[id].vue` 只剩 9 行 —— 下次再往里加东西就会红。**这是有意的**：
+`article/[id].vue` 抽出点赞状态机后从 791 降到 716（余量 9 → 84）。
+
+---
+
+（以下是当时只剩 9 行时的记录）
 红的时候正确的动作是把 `<style>` 外移（写作页正是这么从 2,045 降到 361 的），
 而不是把上限调高。
 

@@ -1,29 +1,30 @@
 package router
 
 import (
-	"myblogx/api"
-	"myblogx/api/follow_api"
+	socialhttp "myblogx/internal/social/adapter/http"
 	mw "myblogx/middleware"
-	"myblogx/models"
 
 	"github.com/gin-gonic/gin"
 )
 
-func FollowRouter(r *gin.RouterGroup, appContainer api.Api, runtimeMw mw.Runtime) {
-	app := appContainer.FollowApi
+// followHandler 由 app.WireSocial 在启动时注入。
+var followHandler *socialhttp.Handler
 
-	// 关注
-	followGroup := r.Group("follow")
-	followAuthGroup := followGroup.Group("", runtimeMw.AuthMiddleware)
-	// followAdminGroup := followAuthGroup.Group("", mw.AdminMiddleware)
+// SetFollowHandler 注入社交处理器。
+func SetFollowHandler(h *socialhttp.Handler) { followHandler = h }
 
-	followAuthGroup.POST(":id", mw.BindUri[models.IDRequest], app.FollowUserView)
-	followAuthGroup.DELETE(":id", mw.BindUri[models.IDRequest], app.UnfollowUserView)
-	followAuthGroup.GET("", mw.BindQuery[follow_api.FollowListRequest], app.FollowListView)
+// FollowRouter 注册关注与粉丝路由。
+func FollowRouter(r *gin.RouterGroup, runtimeMw mw.Runtime) {
+	if followHandler == nil {
+		panic("router: 社交处理器未注入（应在 app.WireSocial 中调用 SetFollowHandler）")
+	}
+	app := followHandler
 
-	// 粉丝
-	fansGroup := r.Group("fans")
-	FansAuthGroup := fansGroup.Group("", runtimeMw.AuthMiddleware)
+	followAuth := r.Group("follow").Group("", runtimeMw.AuthMiddleware)
+	followAuth.POST(":id", app.Follow)
+	followAuth.DELETE(":id", app.Unfollow)
+	followAuth.GET("", app.ListFollowing)
 
-	FansAuthGroup.GET("", mw.BindQuery[follow_api.FansListRequest], app.FansListView)
+	fansAuth := r.Group("fans").Group("", runtimeMw.AuthMiddleware)
+	fansAuth.GET("", app.ListFans)
 }

@@ -137,6 +137,16 @@ const (
 	CodeSearchResultInvalid   Code = "search.result_invalid"
 )
 
+// 关注关系。
+const (
+	CodeFollowSelf           Code = "follow.self"
+	CodeFollowTargetNotFound Code = "follow.target_not_found"
+	CodeFollowDuplicate      Code = "follow.duplicate"
+	CodeFollowNotFollowing   Code = "follow.not_following"
+	CodeFollowListPrivate    Code = "follow.list_private"
+	CodeFollowConfigMissing  Code = "follow.config_missing"
+)
+
 // messages 是错误码到中文文案的唯一映射。
 //
 // 新增错误码时**必须**在这里补一行；缺了不会 panic，Error() 会退化成码本身，
@@ -230,6 +240,13 @@ var messages = map[Code]string{
 	CodeSearchUnauthorized:    "请先登录",
 	CodeSearchForbidden:       "权限错误",
 	CodeSearchResultInvalid:   "搜索结果格式错误",
+
+	CodeFollowSelf:           "不能关注自己",
+	CodeFollowTargetNotFound: "目标用户不存在",
+	CodeFollowDuplicate:      "请勿重复关注",
+	CodeFollowNotFollowing:   "尚未关注该用户",
+	CodeFollowListPrivate:    "关注关系未公开",
+	CodeFollowConfigMissing:  "用户配置信息不存在",
 }
 
 // Error 是带错误码的应用错误。

@@ -14,9 +14,9 @@ import (
 	redis_service "myblogx/internal/platform/redis"
 	"myblogx/internal/platform/redis/redis_article"
 	"myblogx/internal/platform/redis/redis_comment"
+	socialdomain "myblogx/internal/social/domain"
 	"myblogx/models/ctype"
 	"myblogx/platform/cachex"
-	"myblogx/repository/follow_repo"
 	"myblogx/repository/read_repo"
 	"myblogx/router"
 	"myblogx/service/message_service"
@@ -34,7 +34,7 @@ func WireComment(infra *Infra) {
 		repo,
 		commentmysql.NewDigg(infra.DB),
 		&counterBridge{db: infra.DB, redisDeps: redisDeps, logger: infra.Logger},
-		&commentRelationBridge{db: infra.DB},
+		&commentRelationBridge{},
 		&userDirBridge{db: infra.DB},
 		&articleBridge{db: infra.DB},
 		&cacheBridge{deps: redisDeps},
@@ -80,17 +80,27 @@ func (b *counterBridge) Batch(_ context.Context, ids []uint64) (map[uint64]int, 
 	return digg, reply
 }
 
-// commentRelationBridge 读关注关系。
-type commentRelationBridge struct {
-	db *gorm.DB
-}
+// commentRelationBridge 读关注关系（数据来自 social 模块）。
+type commentRelationBridge struct{}
 
 // Batch 返回 viewer 与一批用户的关系。
-func (b *commentRelationBridge) Batch(_ context.Context, viewerID uint64, userIDs []uint64) (map[uint64]int8, error) {
-	raw := follow_repo.CalUserRelationshipBatch(b.db, ctype.ID(viewerID), toCtypeIDs(userIDs))
-	out := make(map[uint64]int8, len(raw))
-	for id, rel := range raw {
-		out[uint64(id)] = int8(rel)
+func (b *commentRelationBridge) Batch(ctx context.Context, viewerID uint64, userIDs []uint64) (map[uint64]int8, error) {
+	out := make(map[uint64]int8, len(userIDs))
+	if socialService == nil || viewerID == 0 {
+		for _, id := range userIDs {
+			out[id] = socialdomain.RelationStranger.Int8()
+		}
+		return out, nil
+	}
+	got, err := socialService.RelationBatch(ctx, viewerID, userIDs)
+	if err != nil {
+		for _, id := range userIDs {
+			out[id] = socialdomain.RelationStranger.Int8()
+		}
+		return out, nil
+	}
+	for id, rel := range got {
+		out[id] = rel.Int8()
 	}
 	return out, nil
 }

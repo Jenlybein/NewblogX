@@ -841,3 +841,24 @@ T.4 里 `article`/`comment`/`user` 的 fake 依赖 domain 实体，属依赖顺�
 - **技术债**：旧 chat/follow 测试（约 1770 行）未迁移，目前只有 chat domain 的
   `BuildSessionID` / `Summary` 与 social 枚举测试；消息事务、未读递减、水位删除缺少回归保护。
 - 棘轮 **165 → 135**；`internal/chat/...` 零违规。
+
+## 16. M5 交付记录 · S4.6（notification）
+
+**2026-10-25**：`api/global_notif_api`、`api/sitemsg_api`、`service/message_service` 全部删除；
+`/global_notif` 5 条与 `/sitemsg` 6 条路由改由 `internal/notification` 提供。
+
+- `internal/notification/{domain,app,adapter/{mysql,http}}` + `apptest` 内存替身。
+- 读侧：站内信分组列表/单条已读/分组已读/单条删除/分组删除/未读汇总；
+  公告列表（用户视角 vs 管理员视角）、批量已读、用户删除、管理员发布/删除。
+- 写侧：`NotifyComment` / `NotifyReply` / `NotifyCommentDigg` / `NotifyArticleDigg` /
+  `NotifyArticleFavor` / `NotifySystem`。**错误不再吞掉**，交给 outbox 中继重试；
+  去重（同一人对同一对象只通知一次）原样保留，所以重试幂等。
+- 公告可见性三段规则原样保留（所有用户 / 发布前已注册 / 发布后注册），
+  已删除公告改用 `NOT IN` 子查询排除，不再把用户全部状态读进内存。
+- 评论与 outbox 中继的生产路径改为调用 `notificationService`，不再直连消息表。
+- **一处有意修正**：站内信列表旧实现没有 `ORDER BY`，翻页会出现重复/漏行，
+  现在固定 `created_at DESC, id DESC`。
+- 保留并改造了 `router/global_notif_router_test.go` 与 `sitemsg_router_test.go`（9 个用例，
+  真实 sqlite），它们直接覆盖新适配器的 SQL。**测试还抓到一个真 bug**：
+  `user_conf_models` 没有 `updated_at` 列，写入它会报错。
+- 棘轮 **135 → 116**；`internal/notification/...` 零违规。

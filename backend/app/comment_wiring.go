@@ -10,6 +10,7 @@ import (
 	commentmysql "myblogx/internal/comment/adapter/mysql"
 	commentapp "myblogx/internal/comment/app"
 	"myblogx/internal/comment/domain"
+	notificationapp "myblogx/internal/notification/app"
 	"myblogx/internal/platform/idgen"
 	redis_service "myblogx/internal/platform/redis"
 	"myblogx/internal/platform/redis/redis_article"
@@ -19,7 +20,6 @@ import (
 	"myblogx/platform/cachex"
 	"myblogx/repository/read_repo"
 	"myblogx/router"
-	"myblogx/service/message_service"
 )
 
 // WireComment 装配评论模块并注入路由处理器。
@@ -38,7 +38,7 @@ func WireComment(infra *Infra) {
 		&userDirBridge{db: infra.DB},
 		&articleBridge{db: infra.DB},
 		&cacheBridge{deps: redisDeps},
-		&notifierBridge{db: infra.DB, logger: infra.Logger},
+		notifierBridge{},
 		commentIDs{},
 		infra.Logger,
 		func() bool { return infra.RuntimeSite.GetRuntimeComment().SkipExamining },
@@ -211,52 +211,56 @@ func (b *cacheBridge) DelDigg(_ context.Context, commentID uint64) error {
 	return redis_comment.DelCacheDigg(b.deps, ctype.ID(commentID))
 }
 
-// notifierBridge 发送评论通知。
+// notifierBridge 把评论事件翻译成站内信。
 //
-// 旧实现是裸 goroutine；这里改成同步调用，失败只记日志，
-// 之后 S4.6 会替换成 outbox 事件。
-type notifierBridge struct {
-	db     *gorm.DB
-	logger *logrus.Logger
-}
+// 数据只经 internal/notification 落库，评论模块不再直接写消息表。
+// 通知服务在 WireNotification 里赋值，这里做 nil 兜底：
+// 通知没装配时评论照常成功，只是不发通知。
+type notifierBridge struct{}
 
 // CommentCreated 通知文章作者。
-func (b *notifierBridge) CommentCreated(_ context.Context, in domain.CommentNotice) error {
-	message_service.InsertCommentMessage(b.db, b.logger, message_service.ArticleCommentMessage{
-		CommentID:    ctype.ID(in.CommentID),
+func (notifierBridge) CommentCreated(ctx context.Context, in domain.CommentNotice) error {
+	if notificationService == nil {
+		return nil
+	}
+	return notificationService.NotifyComment(ctx, notificationapp.CommentNotice{
+		CommentID:    in.CommentID,
 		Content:      in.Content,
-		ReceiverID:   ctype.ID(in.ReceiverID),
-		ActionUserID: ctype.ID(in.ActionUserID),
-		ArticleID:    ctype.ID(in.ArticleID),
+		Receiver:     in.ReceiverID,
+		ActionUser:   in.ActionUserID,
+		ArticleID:    in.ArticleID,
 		ArticleTitle: in.ArticleTitle,
 	})
-	return nil
 }
 
 // ReplyCreated 通知被回复的人。
-func (b *notifierBridge) ReplyCreated(_ context.Context, in domain.ReplyNotice) error {
-	message_service.InsertReplyMessage(b.db, b.logger, message_service.ArticleReplyMessage{
-		CommentID:    ctype.ID(in.CommentID),
+func (notifierBridge) ReplyCreated(ctx context.Context, in domain.ReplyNotice) error {
+	if notificationService == nil {
+		return nil
+	}
+	return notificationService.NotifyReply(ctx, notificationapp.ReplyNotice{
+		CommentID:    in.CommentID,
 		Content:      in.Content,
-		ReceiverID:   ctype.ID(in.ReceiverID),
-		ActionUserID: ctype.ID(in.ActionUserID),
-		ArticleID:    ctype.ID(in.ArticleID),
+		Receiver:     in.ReceiverID,
+		ActionUser:   in.ActionUserID,
+		ArticleID:    in.ArticleID,
 		ArticleTitle: in.ArticleTitle,
 	})
-	return nil
 }
 
 // DiggCreated 通知被点赞的评论作者。
-func (b *notifierBridge) DiggCreated(_ context.Context, in domain.DiggNotice) error {
-	message_service.InsertCommentDiggMessage(b.db, b.logger, message_service.CommentDiggMessage{
-		CommentID:    ctype.ID(in.CommentID),
+func (notifierBridge) DiggCreated(ctx context.Context, in domain.DiggNotice) error {
+	if notificationService == nil {
+		return nil
+	}
+	return notificationService.NotifyCommentDigg(ctx, notificationapp.CommentDiggNotice{
+		CommentID:    in.CommentID,
 		Content:      in.Content,
-		ReceiverID:   ctype.ID(in.ReceiverID),
-		ActionUserID: ctype.ID(in.ActionUserID),
-		ArticleID:    ctype.ID(in.ArticleID),
+		Receiver:     in.ReceiverID,
+		ActionUser:   in.ActionUserID,
+		ArticleID:    in.ArticleID,
 		ArticleTitle: in.ArticleTitle,
 	})
-	return nil
 }
 
 func toArticle(row articleRow) domain.Article {

@@ -3,8 +3,10 @@ package router_test
 import (
 	"encoding/json"
 	"fmt"
-	api2 "myblogx/api"
 	"myblogx/conf"
+	notificationhttp "myblogx/internal/notification/adapter/http"
+	notificationmysql "myblogx/internal/notification/adapter/mysql"
+	notificationapp "myblogx/internal/notification/app"
 	mw "myblogx/middleware"
 	"myblogx/models"
 	"myblogx/models/enum"
@@ -69,12 +71,6 @@ func newSitemsgRouterEngine() *gin.Engine {
 	gin.SetMode(gin.TestMode)
 	r := gin.New()
 	apiGroup := r.Group("/api")
-	app := api2.New(mw.Deps{
-		DB:     testutil.DB(),
-		Redis:  testutil.Redis(),
-		JWT:    testutil.Config().Jwt,
-		Logger: testutil.Logger(),
-	})
 	runtimeMw := mw.NewRuntime(mw.Deps{
 		DB:               testutil.DB(),
 		Redis:            testutil.Redis(),
@@ -84,7 +80,18 @@ func newSitemsgRouterEngine() *gin.Engine {
 		System:           testutil.Config().System,
 		ClickHouseConfig: testutil.Config().ClickHouse,
 	})
-	router.SitemsgRouter(apiGroup, app, runtimeMw)
+
+	notificationSvc := notificationapp.New(
+		notificationmysql.NewMessage(testutil.DB()),
+		notificationmysql.NewGlobal(testutil.DB()),
+		notificationmysql.NewConf(testutil.DB()),
+		notificationmysql.NewUsers(testutil.DB()),
+		notificationmysql.NewChatUnread(testutil.DB()),
+		nil,
+		testutil.Logger(),
+	)
+	router.SetNotificationHandler(notificationhttp.NewHandler(notificationSvc))
+	router.SitemsgRouter(apiGroup, runtimeMw)
 	return r
 }
 
@@ -114,12 +121,6 @@ func TestSitemsgRouterPutConfBindsJSON(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	r := gin.New()
 	apiGroup := r.Group("/api")
-	app := api2.New(mw.Deps{
-		DB:     testutil.DB(),
-		Redis:  testutil.Redis(),
-		JWT:    testutil.Config().Jwt,
-		Logger: testutil.Logger(),
-	})
 	runtimeMw := mw.NewRuntime(mw.Deps{
 		DB:               testutil.DB(),
 		Redis:            testutil.Redis(),
@@ -129,7 +130,18 @@ func TestSitemsgRouterPutConfBindsJSON(t *testing.T) {
 		System:           testutil.Config().System,
 		ClickHouseConfig: testutil.Config().ClickHouse,
 	})
-	router.SitemsgRouter(apiGroup, app, runtimeMw)
+
+	notificationSvc := notificationapp.New(
+		notificationmysql.NewMessage(testutil.DB()),
+		notificationmysql.NewGlobal(testutil.DB()),
+		notificationmysql.NewConf(testutil.DB()),
+		notificationmysql.NewUsers(testutil.DB()),
+		notificationmysql.NewChatUnread(testutil.DB()),
+		nil,
+		testutil.Logger(),
+	)
+	router.SetNotificationHandler(notificationhttp.NewHandler(notificationSvc))
+	router.SitemsgRouter(apiGroup, runtimeMw)
 
 	req := testutil.NewJSONRequest(http.MethodPut, "/api/sitemsg/conf", `{
 		"digg_notice_enabled": false,

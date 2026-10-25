@@ -7,11 +7,11 @@ import (
 	"time"
 
 	articleapp "myblogx/internal/article/app"
+	notificationapp "myblogx/internal/notification/app"
 	"myblogx/internal/platform/cdc/outboxrelay"
 	"myblogx/models"
 	"myblogx/models/ctype"
 	"myblogx/service/ai_service/article_score_service"
-	"myblogx/service/message_service"
 )
 
 // WireOutboxRelay 启动 outbox 中继，并注册领域事件的真实下游。
@@ -135,17 +135,17 @@ func notifySubscriber(infra *Infra) outboxrelay.Subscriber {
 			return nil
 		}
 
+		if notificationService == nil {
+			return nil
+		}
 		authorID := article.AuthorID
-		// InsertSystemMessage 没有 error 返回值（内部自行记日志），
-		// 所以这里只能保证"该发的发了"，无法据此触发重试。
-		message_service.InsertSystemMessage(infra.DB, infra.Logger, message_service.SystemMessage{
-			ReceiverID:   authorID,
-			ActionUserID: &authorID,
-			Content:      content,
-			LinkTitle:    article.Title,
-			LinkHerf:     linkHref,
+		return notificationService.NotifySystem(ctx, notificationapp.SystemNotice{
+			Receiver:   uint64(authorID),
+			ActionUser: uint64(authorID),
+			Content:    content,
+			LinkTitle:  article.Title,
+			LinkHref:   linkHref,
 		})
-		return nil
 	}
 }
 
@@ -181,15 +181,17 @@ func diggNotifySubscriber(infra *Infra) outboxrelay.Subscriber {
 		if !ok {
 			return nil
 		}
-		// InsertArticleDiggMessage 内部会先按 (操作者, 类型, 文章) 查重，
-		// 重复投递不会产生重复消息，所以这里不用再做幂等。
-		message_service.InsertArticleDiggMessage(infra.DB, infra.Logger, message_service.ArticleDiggMessage{
-			ReceiverID:   article.AuthorID,
-			ActionUserID: actorID,
-			ArticleID:    article.ID,
+		if notificationService == nil {
+			return nil
+		}
+		// 通知服务内部按 (操作者, 类型, 文章) 查重，
+		// 中继重复投递不会产生重复消息，所以这里不用再做幂等。
+		return notificationService.NotifyArticleDigg(ctx, notificationapp.InteractionNotice{
+			Receiver:     uint64(article.AuthorID),
+			ActionUser:   uint64(actorID),
+			ArticleID:    uint64(article.ID),
 			ArticleTitle: article.Title,
 		})
-		return nil
 	}
 }
 
@@ -200,13 +202,15 @@ func favorNotifySubscriber(infra *Infra) outboxrelay.Subscriber {
 		if !ok {
 			return nil
 		}
-		message_service.InsertArticleFavorMessage(infra.DB, infra.Logger, message_service.ArticleFavorMessage{
-			ReceiverID:   article.AuthorID,
-			ActionUserID: actorID,
-			ArticleID:    article.ID,
+		if notificationService == nil {
+			return nil
+		}
+		return notificationService.NotifyArticleFavor(ctx, notificationapp.InteractionNotice{
+			Receiver:     uint64(article.AuthorID),
+			ActionUser:   uint64(actorID),
+			ArticleID:    uint64(article.ID),
 			ArticleTitle: article.Title,
 		})
-		return nil
 	}
 }
 

@@ -39,7 +39,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/api_ai_api.AIDiagnoseRequest"
+                            "$ref": "#/definitions/internal_ai_adapter_http.DiagnoseRequest"
                         }
                     }
                 ],
@@ -77,7 +77,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/api_ai_api.AIBaseRequest"
+                            "$ref": "#/definitions/internal_ai_adapter_http.BaseRequest"
                         }
                     }
                 ],
@@ -91,7 +91,7 @@ const docTemplate = `{
                                     "type": "integer"
                                 },
                                 "data": {
-                                    "$ref": "#/definitions/myblogx_service_ai_service_metainfo.MetainfoResponse"
+                                    "$ref": "#/definitions/internal_ai_adapter_http.MetaInfoResponse"
                                 },
                                 "msg": {
                                     "type": "string"
@@ -126,7 +126,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/api_ai_api.AIOverwriteRequest"
+                            "$ref": "#/definitions/internal_ai_adapter_http.OverwriteRequest"
                         }
                     }
                 ],
@@ -159,7 +159,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/api_ai_api.AIArticleScoringRequest"
+                            "$ref": "#/definitions/internal_ai_adapter_http.ScoringRequest"
                         }
                     }
                 ],
@@ -173,7 +173,7 @@ const docTemplate = `{
                                     "type": "integer"
                                 },
                                 "data": {
-                                    "$ref": "#/definitions/api_ai_api.AIArticleScoringResponse"
+                                    "$ref": "#/definitions/internal_ai_adapter_http.ScoringResponse"
                                 },
                                 "msg": {
                                     "type": "string"
@@ -208,7 +208,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/api_ai_api.AIBaseRequest"
+                            "$ref": "#/definitions/internal_ai_adapter_http.BaseRequest"
                         }
                     }
                 ],
@@ -222,7 +222,7 @@ const docTemplate = `{
                                     "type": "integer"
                                 },
                                 "data": {
-                                    "$ref": "#/definitions/myblogx_service_search_service.ArticleSearchResponse"
+                                    "type": "object"
                                 },
                                 "msg": {
                                     "type": "string"
@@ -257,7 +257,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/api_ai_api.AIBaseRequest"
+                            "$ref": "#/definitions/internal_ai_adapter_http.BaseRequest"
                         }
                     }
                 ],
@@ -287,6 +287,12 @@ const docTemplate = `{
                 "summary": "审核任务列表",
                 "parameters": [
                     {
+                        "type": "string",
+                        "description": "任务状态",
+                        "name": "status",
+                        "in": "query"
+                    },
+                    {
                         "type": "integer",
                         "description": "页码",
                         "name": "page",
@@ -294,14 +300,8 @@ const docTemplate = `{
                     },
                     {
                         "type": "integer",
-                        "description": "每页条数",
+                        "description": "每页数量",
                         "name": "limit",
-                        "in": "query"
-                    },
-                    {
-                        "type": "string",
-                        "description": "审核状态(pending/approved/rejected/canceled)",
-                        "name": "status",
                         "in": "query"
                     }
                 ],
@@ -315,7 +315,7 @@ const docTemplate = `{
                                     "type": "integer"
                                 },
                                 "data": {
-                                    "$ref": "#/definitions/api_article_api.ArticleReviewTaskListResponse"
+                                    "$ref": "#/definitions/internal_article_adapter_http.ArticleReviewTaskListResponse"
                                 },
                                 "msg": {
                                     "type": "string"
@@ -346,7 +346,7 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "integer",
-                        "description": "审核任务 ID",
+                        "description": "任务 ID",
                         "name": "id",
                         "in": "path",
                         "required": true
@@ -357,7 +357,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/api_article_api.ArticleReviewHandleRequest"
+                            "$ref": "#/definitions/internal_article_adapter_http.ArticleReviewHandleRequest"
                         }
                     }
                 ],
@@ -406,7 +406,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/api_article_api.ArticleCreateRequest"
+                            "$ref": "#/definitions/internal_article_adapter_http.ArticleCreateRequest"
                         }
                     }
                 ],
@@ -420,7 +420,7 @@ const docTemplate = `{
                                     "type": "integer"
                                 },
                                 "data": {
-                                    "$ref": "#/definitions/api_article_api.ArticleCreateResponse"
+                                    "$ref": "#/definitions/internal_article_adapter_http.ArticleCreateResponse"
                                 },
                                 "msg": {
                                     "type": "string"
@@ -448,12 +448,12 @@ const docTemplate = `{
                 "summary": "批量删除文章",
                 "parameters": [
                     {
-                        "description": "ID 列表",
+                        "description": "文章 ID 列表",
                         "name": "body",
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/models.IDListRequest"
+                            "$ref": "#/definitions/myblogx_internal_kernel.IDListRequest"
                         }
                     }
                 ],
@@ -486,7 +486,7 @@ const docTemplate = `{
                 "tags": [
                     "article"
                 ],
-                "summary": "查询作者信息",
+                "summary": "作者信息",
                 "parameters": [
                     {
                         "type": "integer",
@@ -506,7 +506,7 @@ const docTemplate = `{
                                     "type": "integer"
                                 },
                                 "data": {
-                                    "$ref": "#/definitions/api_article_api.ArticleAuthorInfoResponse"
+                                    "type": "object"
                                 },
                                 "msg": {
                                     "type": "string"
@@ -529,40 +529,9 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "integer",
-                        "description": "页码",
-                        "name": "page",
-                        "in": "query"
-                    },
-                    {
-                        "type": "integer",
-                        "description": "每页条数",
-                        "name": "limit",
-                        "in": "query"
-                    },
-                    {
-                        "type": "string",
-                        "description": "关键词",
-                        "name": "key",
-                        "in": "query"
-                    },
-                    {
-                        "type": "string",
-                        "description": "排序",
-                        "name": "order",
-                        "in": "query"
-                    },
-                    {
-                        "type": "integer",
-                        "description": "目标用户 ID",
+                        "description": "用户 ID",
                         "name": "user_id",
                         "in": "query"
-                    },
-                    {
-                        "type": "integer",
-                        "description": "查询类型(1:自己 2:别人 3:管理员)",
-                        "name": "type",
-                        "in": "query",
-                        "required": true
                     }
                 ],
                 "responses": {
@@ -583,7 +552,7 @@ const docTemplate = `{
                                         "list": {
                                             "type": "array",
                                             "items": {
-                                                "$ref": "#/definitions/api_article_api_category.CategoryListResponse"
+                                                "type": "object"
                                             }
                                         }
                                     }
@@ -611,7 +580,7 @@ const docTemplate = `{
                 "tags": [
                     "article"
                 ],
-                "summary": "创建/更新分类",
+                "summary": "保存分类",
                 "parameters": [
                     {
                         "description": "请求体",
@@ -619,7 +588,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/api_article_api_category.CategoryRequest"
+                            "$ref": "#/definitions/internal_article_adapter_http.CategoryRequest"
                         }
                     }
                 ],
@@ -633,7 +602,7 @@ const docTemplate = `{
                                     "type": "integer"
                                 },
                                 "data": {
-                                    "$ref": "#/definitions/api_article_api_category.CategoryCreateResponse"
+                                    "type": "object"
                                 },
                                 "msg": {
                                     "type": "string"
@@ -658,7 +627,7 @@ const docTemplate = `{
                 "tags": [
                     "article"
                 ],
-                "summary": "批量删除分类",
+                "summary": "删除分类",
                 "parameters": [
                     {
                         "description": "分类 ID 列表",
@@ -666,7 +635,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/models.IDListRequest"
+                            "$ref": "#/definitions/myblogx_internal_kernel.IDListRequest"
                         }
                     }
                 ],
@@ -699,14 +668,13 @@ const docTemplate = `{
                 "tags": [
                     "article"
                 ],
-                "summary": "分类选项",
+                "summary": "分类下拉",
                 "parameters": [
                     {
                         "type": "integer",
                         "description": "用户 ID",
                         "name": "user_id",
-                        "in": "query",
-                        "required": true
+                        "in": "query"
                     }
                 ],
                 "responses": {
@@ -719,21 +687,15 @@ const docTemplate = `{
                                     "type": "integer"
                                 },
                                 "data": {
-                                    "type": "array",
-                                    "items": {
-                                        "type": "object",
-                                        "properties": {
-                                            "id": {
-                                                "type": "integer"
-                                            },
-                                            "label": {
-                                                "type": "string"
-                                            },
-                                            "title": {
-                                                "type": "string"
-                                            },
-                                            "value": {
-                                                "type": "integer"
+                                    "type": "object",
+                                    "properties": {
+                                        "count": {
+                                            "type": "integer"
+                                        },
+                                        "list": {
+                                            "type": "array",
+                                            "items": {
+                                                "type": "object"
                                             }
                                         }
                                     }
@@ -759,46 +721,9 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "integer",
-                        "description": "页码",
-                        "name": "page",
-                        "in": "query"
-                    },
-                    {
-                        "type": "integer",
-                        "description": "每页条数",
-                        "name": "limit",
-                        "in": "query"
-                    },
-                    {
-                        "type": "string",
-                        "description": "关键词",
-                        "name": "key",
-                        "in": "query"
-                    },
-                    {
-                        "type": "string",
-                        "description": "排序",
-                        "name": "order",
-                        "in": "query"
-                    },
-                    {
-                        "type": "integer",
-                        "description": "目标用户 ID",
+                        "description": "用户 ID",
                         "name": "user_id",
                         "in": "query"
-                    },
-                    {
-                        "type": "integer",
-                        "description": "文章 ID",
-                        "name": "article_id",
-                        "in": "query"
-                    },
-                    {
-                        "type": "integer",
-                        "description": "查询类型(1:自己 2:别人 3:管理员)",
-                        "name": "type",
-                        "in": "query",
-                        "required": true
                     }
                 ],
                 "responses": {
@@ -819,7 +744,7 @@ const docTemplate = `{
                                         "list": {
                                             "type": "array",
                                             "items": {
-                                                "$ref": "#/definitions/myblogx_service_favorite_service.FavoriteListItem"
+                                                "type": "object"
                                             }
                                         }
                                     }
@@ -847,7 +772,7 @@ const docTemplate = `{
                 "tags": [
                     "article"
                 ],
-                "summary": "创建/更新收藏夹",
+                "summary": "保存收藏夹",
                 "parameters": [
                     {
                         "description": "请求体",
@@ -855,7 +780,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/api_article_api_favorite.FavoriteRequest"
+                            "$ref": "#/definitions/internal_article_adapter_http.FavoriteRequest"
                         }
                     }
                 ],
@@ -869,7 +794,7 @@ const docTemplate = `{
                                     "type": "integer"
                                 },
                                 "data": {
-                                    "$ref": "#/definitions/api_article_api_favorite.FavoriteCreateResponse"
+                                    "type": "object"
                                 },
                                 "msg": {
                                     "type": "string"
@@ -894,7 +819,7 @@ const docTemplate = `{
                 "tags": [
                     "article"
                 ],
-                "summary": "收藏/取消收藏文章",
+                "summary": "收藏文章",
                 "parameters": [
                     {
                         "description": "请求体",
@@ -902,7 +827,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/api_article_api.ArticleFavoriteRequest"
+                            "$ref": "#/definitions/internal_article_adapter_http.ArticleFavoriteRequest"
                         }
                     }
                 ],
@@ -941,7 +866,7 @@ const docTemplate = `{
                 "tags": [
                     "article"
                 ],
-                "summary": "批量删除收藏夹",
+                "summary": "删除收藏夹",
                 "parameters": [
                     {
                         "description": "收藏夹 ID 列表",
@@ -949,7 +874,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/models.IDListRequest"
+                            "$ref": "#/definitions/myblogx_internal_kernel.IDListRequest"
                         }
                     }
                 ],
@@ -982,8 +907,15 @@ const docTemplate = `{
                 "tags": [
                     "article"
                 ],
-                "summary": "收藏夹文章列表",
+                "summary": "收藏夹内容",
                 "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "收藏夹 ID",
+                        "name": "favor_id",
+                        "in": "query",
+                        "required": true
+                    },
                     {
                         "type": "integer",
                         "description": "页码",
@@ -992,28 +924,9 @@ const docTemplate = `{
                     },
                     {
                         "type": "integer",
-                        "description": "每页条数",
+                        "description": "每页数量",
                         "name": "limit",
                         "in": "query"
-                    },
-                    {
-                        "type": "string",
-                        "description": "关键词",
-                        "name": "key",
-                        "in": "query"
-                    },
-                    {
-                        "type": "string",
-                        "description": "排序",
-                        "name": "order",
-                        "in": "query"
-                    },
-                    {
-                        "type": "integer",
-                        "description": "收藏夹 ID",
-                        "name": "favorite_id",
-                        "in": "query",
-                        "required": true
                     }
                 ],
                 "responses": {
@@ -1028,13 +941,13 @@ const docTemplate = `{
                                 "data": {
                                     "type": "object",
                                     "properties": {
-                                        "has_more": {
-                                            "type": "boolean"
+                                        "count": {
+                                            "type": "integer"
                                         },
                                         "list": {
                                             "type": "array",
                                             "items": {
-                                                "$ref": "#/definitions/myblogx_service_favorite_service.FavoriteArticleItem"
+                                                "type": "object"
                                             }
                                         }
                                     }
@@ -1062,7 +975,7 @@ const docTemplate = `{
                 "tags": [
                     "article"
                 ],
-                "summary": "批量取消收藏",
+                "summary": "取消收藏",
                 "parameters": [
                     {
                         "description": "请求体",
@@ -1070,7 +983,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/api_article_api_favorite.FavoriteRemovePatchModel"
+                            "$ref": "#/definitions/internal_article_adapter_http.FavoriteRemovePatchModel"
                         }
                     }
                 ],
@@ -1108,7 +1021,7 @@ const docTemplate = `{
                 "tags": [
                     "article"
                 ],
-                "summary": "文章浏览历史",
+                "summary": "浏览历史",
                 "parameters": [
                     {
                         "type": "integer",
@@ -1118,34 +1031,9 @@ const docTemplate = `{
                     },
                     {
                         "type": "integer",
-                        "description": "每页条数",
+                        "description": "每页数量",
                         "name": "limit",
                         "in": "query"
-                    },
-                    {
-                        "type": "string",
-                        "description": "关键词",
-                        "name": "key",
-                        "in": "query"
-                    },
-                    {
-                        "type": "string",
-                        "description": "排序",
-                        "name": "order",
-                        "in": "query"
-                    },
-                    {
-                        "type": "integer",
-                        "description": "目标用户 ID(type=2 时使用)",
-                        "name": "user_id",
-                        "in": "query"
-                    },
-                    {
-                        "type": "integer",
-                        "description": "查询类型(1:自己 2:别人)",
-                        "name": "type",
-                        "in": "query",
-                        "required": true
                     }
                 ],
                 "responses": {
@@ -1160,13 +1048,13 @@ const docTemplate = `{
                                 "data": {
                                     "type": "object",
                                     "properties": {
-                                        "has_more": {
-                                            "type": "boolean"
+                                        "count": {
+                                            "type": "integer"
                                         },
                                         "list": {
                                             "type": "array",
                                             "items": {
-                                                "$ref": "#/definitions/api_article_api_view_history.ArticleViewHistoryResponse"
+                                                "type": "object"
                                             }
                                         }
                                     }
@@ -1202,7 +1090,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/models.IDListRequest"
+                            "$ref": "#/definitions/myblogx_internal_kernel.IDListRequest"
                         }
                     }
                 ],
@@ -1238,33 +1126,9 @@ const docTemplate = `{
                 "summary": "标签列表",
                 "parameters": [
                     {
-                        "type": "integer",
-                        "description": "页码",
-                        "name": "page",
-                        "in": "query"
-                    },
-                    {
-                        "type": "integer",
-                        "description": "每页条数",
-                        "name": "limit",
-                        "in": "query"
-                    },
-                    {
-                        "type": "string",
-                        "description": "关键词",
-                        "name": "key",
-                        "in": "query"
-                    },
-                    {
-                        "type": "string",
-                        "description": "排序",
-                        "name": "order",
-                        "in": "query"
-                    },
-                    {
                         "type": "boolean",
-                        "description": "是否启用",
-                        "name": "is_enabled",
+                        "description": "是否包含停用",
+                        "name": "include_disabled",
                         "in": "query"
                     }
                 ],
@@ -1286,7 +1150,7 @@ const docTemplate = `{
                                         "list": {
                                             "type": "array",
                                             "items": {
-                                                "$ref": "#/definitions/api_article_api_tags.TagListResponse"
+                                                "type": "object"
                                             }
                                         }
                                     }
@@ -1314,7 +1178,7 @@ const docTemplate = `{
                 "tags": [
                     "article"
                 ],
-                "summary": "创建/更新标签",
+                "summary": "保存标签",
                 "parameters": [
                     {
                         "description": "请求体",
@@ -1322,7 +1186,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/api_article_api_tags.TagRequest"
+                            "$ref": "#/definitions/internal_article_adapter_http.TagRequest"
                         }
                     }
                 ],
@@ -1336,7 +1200,7 @@ const docTemplate = `{
                                     "type": "integer"
                                 },
                                 "data": {
-                                    "$ref": "#/definitions/api_article_api_tags.TagCreateResponse"
+                                    "type": "object"
                                 },
                                 "msg": {
                                     "type": "string"
@@ -1361,7 +1225,7 @@ const docTemplate = `{
                 "tags": [
                     "article"
                 ],
-                "summary": "批量删除标签",
+                "summary": "删除标签",
                 "parameters": [
                     {
                         "description": "标签 ID 列表",
@@ -1369,7 +1233,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/models.IDListRequest"
+                            "$ref": "#/definitions/myblogx_internal_kernel.IDListRequest"
                         }
                     }
                 ],
@@ -1402,7 +1266,7 @@ const docTemplate = `{
                 "tags": [
                     "article"
                 ],
-                "summary": "标签选项",
+                "summary": "标签下拉",
                 "responses": {
                     "200": {
                         "description": "OK",
@@ -1413,21 +1277,15 @@ const docTemplate = `{
                                     "type": "integer"
                                 },
                                 "data": {
-                                    "type": "array",
-                                    "items": {
-                                        "type": "object",
-                                        "properties": {
-                                            "id": {
-                                                "type": "integer"
-                                            },
-                                            "label": {
-                                                "type": "string"
-                                            },
-                                            "title": {
-                                                "type": "string"
-                                            },
-                                            "value": {
-                                                "type": "integer"
+                                    "type": "object",
+                                    "properties": {
+                                        "count": {
+                                            "type": "integer"
+                                        },
+                                        "list": {
+                                            "type": "array",
+                                            "items": {
+                                                "type": "object"
                                             }
                                         }
                                     }
@@ -1449,18 +1307,11 @@ const docTemplate = `{
                 "tags": [
                     "article"
                 ],
-                "summary": "置顶文章列表",
+                "summary": "置顶列表",
                 "parameters": [
                     {
                         "type": "integer",
-                        "description": "置顶类型(1:用户 2:管理员)",
-                        "name": "type",
-                        "in": "query",
-                        "required": true
-                    },
-                    {
-                        "type": "integer",
-                        "description": "用户 ID(type=1 时必填)",
+                        "description": "用户 ID",
                         "name": "user_id",
                         "in": "query"
                     }
@@ -1483,7 +1334,7 @@ const docTemplate = `{
                                         "list": {
                                             "type": "array",
                                             "items": {
-                                                "$ref": "#/definitions/myblogx_service_top_service.ArticleTopListItem"
+                                                "type": "object"
                                             }
                                         }
                                     }
@@ -1511,7 +1362,7 @@ const docTemplate = `{
                 "tags": [
                     "article"
                 ],
-                "summary": "设置文章置顶",
+                "summary": "设置置顶",
                 "parameters": [
                     {
                         "description": "请求体",
@@ -1519,7 +1370,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/api_article_api_top.ArticleTopSetRequest"
+                            "$ref": "#/definitions/internal_article_adapter_http.ArticleTopSetRequest"
                         }
                     }
                 ],
@@ -1558,7 +1409,7 @@ const docTemplate = `{
                 "tags": [
                     "article"
                 ],
-                "summary": "取消文章置顶",
+                "summary": "取消置顶",
                 "parameters": [
                     {
                         "description": "请求体",
@@ -1566,7 +1417,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/api_article_api_top.ArticleTopSetRequest"
+                            "$ref": "#/definitions/internal_article_adapter_http.ArticleTopSetRequest"
                         }
                     }
                 ],
@@ -1602,7 +1453,7 @@ const docTemplate = `{
                 "tags": [
                     "article"
                 ],
-                "summary": "记录文章访问量",
+                "summary": "记录文章浏览",
                 "parameters": [
                     {
                         "description": "请求体",
@@ -1610,7 +1461,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/api_article_api.ArticleViewCountRequest"
+                            "$ref": "#/definitions/internal_article_adapter_http.ArticleViewCountRequest"
                         }
                     }
                 ],
@@ -1663,7 +1514,7 @@ const docTemplate = `{
                                     "type": "integer"
                                 },
                                 "data": {
-                                    "$ref": "#/definitions/api_article_api.ArticleDetailResponse"
+                                    "$ref": "#/definitions/internal_article_adapter_http.ArticleDetailResponse"
                                 },
                                 "msg": {
                                     "type": "string"
@@ -1703,7 +1554,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/api_article_api.ArticleUpdateRequest"
+                            "$ref": "#/definitions/internal_article_adapter_http.ArticleUpdateRequest"
                         }
                     }
                 ],
@@ -1717,7 +1568,7 @@ const docTemplate = `{
                                     "type": "integer"
                                 },
                                 "data": {
-                                    "type": "object"
+                                    "$ref": "#/definitions/internal_article_adapter_http.ArticleDetailResponse"
                                 },
                                 "msg": {
                                     "type": "string"
@@ -1739,7 +1590,7 @@ const docTemplate = `{
                 "tags": [
                     "article"
                 ],
-                "summary": "删除自己的文章",
+                "summary": "删除文章",
                 "parameters": [
                     {
                         "type": "integer",
@@ -1783,7 +1634,7 @@ const docTemplate = `{
                 "tags": [
                     "article"
                 ],
-                "summary": "设置文章可见性",
+                "summary": "管理员设置文章可见性",
                 "parameters": [
                     {
                         "type": "integer",
@@ -1794,7 +1645,7 @@ const docTemplate = `{
                     },
                     {
                         "type": "string",
-                        "description": "可见性(hide/show)",
+                        "description": "hide 或 show",
                         "name": "visibility",
                         "in": "path",
                         "required": true
@@ -1834,7 +1685,7 @@ const docTemplate = `{
                 "tags": [
                     "article"
                 ],
-                "summary": "文章点赞/取消点赞",
+                "summary": "文章点赞",
                 "parameters": [
                     {
                         "type": "integer",
@@ -1854,7 +1705,12 @@ const docTemplate = `{
                                     "type": "integer"
                                 },
                                 "data": {
-                                    "type": "object"
+                                    "type": "object",
+                                    "properties": {
+                                        "is_digg": {
+                                            "type": "boolean"
+                                        }
+                                    }
                                 },
                                 "msg": {
                                     "type": "string"
@@ -1875,30 +1731,6 @@ const docTemplate = `{
                 ],
                 "summary": "轮播图列表",
                 "parameters": [
-                    {
-                        "type": "integer",
-                        "description": "每页条数",
-                        "name": "limit",
-                        "in": "query"
-                    },
-                    {
-                        "type": "integer",
-                        "description": "页码",
-                        "name": "page",
-                        "in": "query"
-                    },
-                    {
-                        "type": "string",
-                        "description": "关键词",
-                        "name": "key",
-                        "in": "query"
-                    },
-                    {
-                        "type": "string",
-                        "description": "排序",
-                        "name": "order",
-                        "in": "query"
-                    },
                     {
                         "type": "boolean",
                         "description": "是否展示",
@@ -1924,7 +1756,7 @@ const docTemplate = `{
                                         "list": {
                                             "type": "array",
                                             "items": {
-                                                "$ref": "#/definitions/models.BannerModel"
+                                                "$ref": "#/definitions/internal_site_adapter_http.BannerItem"
                                             }
                                         }
                                     }
@@ -1960,7 +1792,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/api_banner_api.BannerCreateRequest"
+                            "$ref": "#/definitions/internal_site_adapter_http.BannerCreateRequest"
                         }
                     }
                 ],
@@ -1974,7 +1806,7 @@ const docTemplate = `{
                                     "type": "integer"
                                 },
                                 "data": {
-                                    "$ref": "#/definitions/api_banner_api.BannerCreateResponse"
+                                    "$ref": "#/definitions/internal_site_adapter_http.BannerCreateResponse"
                                 },
                                 "msg": {
                                     "type": "string"
@@ -2007,7 +1839,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/models.IDListRequest"
+                            "$ref": "#/definitions/internal_site_adapter_http.IDListRequest"
                         }
                     }
                 ],
@@ -2063,7 +1895,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/api_banner_api.BannerCreateRequest"
+                            "$ref": "#/definitions/internal_site_adapter_http.BannerCreateRequest"
                         }
                     }
                 ],
@@ -2102,52 +1934,6 @@ const docTemplate = `{
                     "chat"
                 ],
                 "summary": "会话消息列表",
-                "parameters": [
-                    {
-                        "type": "integer",
-                        "description": "每页条数",
-                        "name": "limit",
-                        "in": "query"
-                    },
-                    {
-                        "type": "integer",
-                        "description": "页码",
-                        "name": "page",
-                        "in": "query"
-                    },
-                    {
-                        "type": "string",
-                        "description": "关键词",
-                        "name": "key",
-                        "in": "query"
-                    },
-                    {
-                        "type": "string",
-                        "description": "排序",
-                        "name": "order",
-                        "in": "query"
-                    },
-                    {
-                        "type": "string",
-                        "description": "会话 ID",
-                        "name": "session_id",
-                        "in": "query",
-                        "required": true
-                    },
-                    {
-                        "type": "integer",
-                        "description": "用户 ID（type=2 时必填）",
-                        "name": "user_id",
-                        "in": "query"
-                    },
-                    {
-                        "type": "integer",
-                        "description": "查询类型：1 我自己的消息 2 管理员查指定用户",
-                        "name": "type",
-                        "in": "query",
-                        "required": true
-                    }
-                ],
                 "responses": {
                     "200": {
                         "description": "OK",
@@ -2166,7 +1952,7 @@ const docTemplate = `{
                                         "list": {
                                             "type": "array",
                                             "items": {
-                                                "$ref": "#/definitions/api_chat_api.ChatMsgResponse"
+                                                "$ref": "#/definitions/myblogx_internal_chat_domain.MessageItem"
                                             }
                                         }
                                     }
@@ -2195,17 +1981,6 @@ const docTemplate = `{
                     "chat"
                 ],
                 "summary": "删除消息",
-                "parameters": [
-                    {
-                        "description": "请求体",
-                        "name": "body",
-                        "in": "body",
-                        "required": true,
-                        "schema": {
-                            "$ref": "#/definitions/api_chat_api.ChatMsgDeleteUserRequest"
-                        }
-                    }
-                ],
                 "responses": {
                     "200": {
                         "description": "OK",
@@ -2244,17 +2019,6 @@ const docTemplate = `{
                     "chat"
                 ],
                 "summary": "批量标记消息已读",
-                "parameters": [
-                    {
-                        "description": "请求体",
-                        "name": "body",
-                        "in": "body",
-                        "required": true,
-                        "schema": {
-                            "$ref": "#/definitions/api_chat_api.ChatMsgReadUserRequest"
-                        }
-                    }
-                ],
                 "responses": {
                     "200": {
                         "description": "OK",
@@ -2290,45 +2054,6 @@ const docTemplate = `{
                     "chat"
                 ],
                 "summary": "会话列表",
-                "parameters": [
-                    {
-                        "type": "integer",
-                        "description": "每页条数",
-                        "name": "limit",
-                        "in": "query"
-                    },
-                    {
-                        "type": "integer",
-                        "description": "页码",
-                        "name": "page",
-                        "in": "query"
-                    },
-                    {
-                        "type": "string",
-                        "description": "关键词",
-                        "name": "key",
-                        "in": "query"
-                    },
-                    {
-                        "type": "string",
-                        "description": "排序",
-                        "name": "order",
-                        "in": "query"
-                    },
-                    {
-                        "type": "integer",
-                        "description": "用户 ID（type=2 时必填）",
-                        "name": "user_id",
-                        "in": "query"
-                    },
-                    {
-                        "type": "integer",
-                        "description": "查询类型：1 我自己的会话 2 管理员查指定用户",
-                        "name": "type",
-                        "in": "query",
-                        "required": true
-                    }
-                ],
                 "responses": {
                     "200": {
                         "description": "OK",
@@ -2347,7 +2072,7 @@ const docTemplate = `{
                                         "list": {
                                             "type": "array",
                                             "items": {
-                                                "$ref": "#/definitions/myblogx_service_chat_service.SessionListItem"
+                                                "$ref": "#/definitions/myblogx_internal_chat_domain.SessionItem"
                                             }
                                         }
                                     }
@@ -2376,17 +2101,6 @@ const docTemplate = `{
                     "chat"
                 ],
                 "summary": "删除会话",
-                "parameters": [
-                    {
-                        "description": "请求体",
-                        "name": "body",
-                        "in": "body",
-                        "required": true,
-                        "schema": {
-                            "$ref": "#/definitions/api_chat_api.ChatSessionDeleteUserRequest"
-                        }
-                    }
-                ],
                 "responses": {
                     "200": {
                         "description": "OK",
@@ -2417,14 +2131,6 @@ const docTemplate = `{
                     "chat"
                 ],
                 "summary": "聊天 WebSocket 长连接",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "WS 票据（未携带 Authorization 头时使用）",
-                        "name": "ticket",
-                        "in": "query"
-                    }
-                ],
                 "responses": {
                     "200": {
                         "description": "OK",
@@ -2493,30 +2199,6 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "integer",
-                        "description": "每页条数",
-                        "name": "limit",
-                        "in": "query"
-                    },
-                    {
-                        "type": "integer",
-                        "description": "页码",
-                        "name": "page",
-                        "in": "query"
-                    },
-                    {
-                        "type": "string",
-                        "description": "关键词",
-                        "name": "key",
-                        "in": "query"
-                    },
-                    {
-                        "type": "string",
-                        "description": "排序",
-                        "name": "order",
-                        "in": "query"
-                    },
-                    {
-                        "type": "integer",
                         "description": "文章 ID",
                         "name": "article_id",
                         "in": "query",
@@ -2533,7 +2215,18 @@ const docTemplate = `{
                                     "type": "integer"
                                 },
                                 "data": {
-                                    "type": "object"
+                                    "type": "object",
+                                    "properties": {
+                                        "has_more": {
+                                            "type": "boolean"
+                                        },
+                                        "list": {
+                                            "type": "array",
+                                            "items": {
+                                                "$ref": "#/definitions/myblogx_internal_comment_app.RootItem"
+                                            }
+                                        }
+                                    }
                                 },
                                 "msg": {
                                     "type": "string"
@@ -2566,7 +2259,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/api_comment_api.CommentCreateRequest"
+                            "$ref": "#/definitions/internal_comment_adapter_http.CreateRequest"
                         }
                     }
                 ],
@@ -2580,7 +2273,7 @@ const docTemplate = `{
                                     "type": "integer"
                                 },
                                 "data": {
-                                    "$ref": "#/definitions/api_comment_api.CommentCreateResponse"
+                                    "$ref": "#/definitions/myblogx_internal_comment_app.CreateResult"
                                 },
                                 "msg": {
                                     "type": "string"
@@ -2605,57 +2298,6 @@ const docTemplate = `{
                     "comment"
                 ],
                 "summary": "评论管理列表",
-                "parameters": [
-                    {
-                        "type": "integer",
-                        "description": "每页条数",
-                        "name": "limit",
-                        "in": "query"
-                    },
-                    {
-                        "type": "integer",
-                        "description": "页码",
-                        "name": "page",
-                        "in": "query"
-                    },
-                    {
-                        "type": "string",
-                        "description": "关键词",
-                        "name": "key",
-                        "in": "query"
-                    },
-                    {
-                        "type": "string",
-                        "description": "排序",
-                        "name": "order",
-                        "in": "query"
-                    },
-                    {
-                        "type": "integer",
-                        "description": "文章 ID",
-                        "name": "article_id",
-                        "in": "query"
-                    },
-                    {
-                        "type": "integer",
-                        "description": "用户 ID（type=2 时忽略，取当前登录用户）",
-                        "name": "user_id",
-                        "in": "query"
-                    },
-                    {
-                        "type": "integer",
-                        "description": "评论状态：1 审核中 2 已发布 3 已删除",
-                        "name": "status",
-                        "in": "query"
-                    },
-                    {
-                        "type": "integer",
-                        "description": "查询类型：1 我文章下的评论 2 我发的评论 3 管理员查所有评论",
-                        "name": "type",
-                        "in": "query",
-                        "required": true
-                    }
-                ],
                 "responses": {
                     "200": {
                         "description": "OK",
@@ -2674,7 +2316,7 @@ const docTemplate = `{
                                         "list": {
                                             "type": "array",
                                             "items": {
-                                                "$ref": "#/definitions/myblogx_service_comment_service.ManageCommentItem"
+                                                "$ref": "#/definitions/myblogx_internal_comment_app.ManageItem"
                                             }
                                         }
                                     }
@@ -2697,46 +2339,6 @@ const docTemplate = `{
                     "comment"
                 ],
                 "summary": "二级评论列表",
-                "parameters": [
-                    {
-                        "type": "integer",
-                        "description": "每页条数",
-                        "name": "limit",
-                        "in": "query"
-                    },
-                    {
-                        "type": "integer",
-                        "description": "页码",
-                        "name": "page",
-                        "in": "query"
-                    },
-                    {
-                        "type": "string",
-                        "description": "关键词",
-                        "name": "key",
-                        "in": "query"
-                    },
-                    {
-                        "type": "string",
-                        "description": "排序",
-                        "name": "order",
-                        "in": "query"
-                    },
-                    {
-                        "type": "integer",
-                        "description": "文章 ID",
-                        "name": "article_id",
-                        "in": "query",
-                        "required": true
-                    },
-                    {
-                        "type": "integer",
-                        "description": "一级评论 ID",
-                        "name": "root_id",
-                        "in": "query",
-                        "required": true
-                    }
-                ],
                 "responses": {
                     "200": {
                         "description": "OK",
@@ -2870,7 +2472,7 @@ const docTemplate = `{
                                     "type": "integer"
                                 },
                                 "data": {
-                                    "$ref": "#/definitions/api_data_api.ArticleYearDataResponse"
+                                    "$ref": "#/definitions/internal_analytics_adapter_http.ArticleYearDataResponse"
                                 },
                                 "msg": {
                                     "type": "string"
@@ -2914,7 +2516,7 @@ const docTemplate = `{
                                     "type": "integer"
                                 },
                                 "data": {
-                                    "$ref": "#/definitions/api_data_api.GrowthDataResponse"
+                                    "$ref": "#/definitions/internal_analytics_adapter_http.GrowthDataResponse"
                                 },
                                 "msg": {
                                     "type": "string"
@@ -2949,7 +2551,7 @@ const docTemplate = `{
                                     "type": "integer"
                                 },
                                 "data": {
-                                    "$ref": "#/definitions/api_data_api.SumResponse"
+                                    "$ref": "#/definitions/internal_analytics_adapter_http.SumResponse"
                                 },
                                 "msg": {
                                     "type": "string"
@@ -2974,44 +2576,6 @@ const docTemplate = `{
                     "follow"
                 ],
                 "summary": "粉丝列表",
-                "parameters": [
-                    {
-                        "type": "integer",
-                        "description": "每页条数",
-                        "name": "limit",
-                        "in": "query"
-                    },
-                    {
-                        "type": "integer",
-                        "description": "页码",
-                        "name": "page",
-                        "in": "query"
-                    },
-                    {
-                        "type": "string",
-                        "description": "关键词",
-                        "name": "key",
-                        "in": "query"
-                    },
-                    {
-                        "type": "string",
-                        "description": "排序",
-                        "name": "order",
-                        "in": "query"
-                    },
-                    {
-                        "type": "integer",
-                        "description": "目标用户 ID，缺省为当前登录用户",
-                        "name": "user_id",
-                        "in": "query"
-                    },
-                    {
-                        "type": "integer",
-                        "description": "只查与指定粉丝用户相关的记录",
-                        "name": "fans_user_id",
-                        "in": "query"
-                    }
-                ],
                 "responses": {
                     "200": {
                         "description": "OK",
@@ -3030,7 +2594,7 @@ const docTemplate = `{
                                         "list": {
                                             "type": "array",
                                             "items": {
-                                                "$ref": "#/definitions/myblogx_service_follow_service.FansListItem"
+                                                "$ref": "#/definitions/myblogx_internal_social_domain.FansItem"
                                             }
                                         }
                                     }
@@ -3058,44 +2622,6 @@ const docTemplate = `{
                     "follow"
                 ],
                 "summary": "关注列表",
-                "parameters": [
-                    {
-                        "type": "integer",
-                        "description": "每页条数",
-                        "name": "limit",
-                        "in": "query"
-                    },
-                    {
-                        "type": "integer",
-                        "description": "页码",
-                        "name": "page",
-                        "in": "query"
-                    },
-                    {
-                        "type": "string",
-                        "description": "关键词",
-                        "name": "key",
-                        "in": "query"
-                    },
-                    {
-                        "type": "string",
-                        "description": "排序",
-                        "name": "order",
-                        "in": "query"
-                    },
-                    {
-                        "type": "integer",
-                        "description": "目标用户 ID，缺省为当前登录用户",
-                        "name": "user_id",
-                        "in": "query"
-                    },
-                    {
-                        "type": "integer",
-                        "description": "只查与指定被关注用户相关的记录",
-                        "name": "followed_user_id",
-                        "in": "query"
-                    }
-                ],
                 "responses": {
                     "200": {
                         "description": "OK",
@@ -3114,7 +2640,7 @@ const docTemplate = `{
                                         "list": {
                                             "type": "array",
                                             "items": {
-                                                "$ref": "#/definitions/myblogx_service_follow_service.FollowListItem"
+                                                "$ref": "#/definitions/myblogx_internal_social_domain.FollowingItem"
                                             }
                                         }
                                     }
@@ -3231,30 +2757,6 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "integer",
-                        "description": "每页条数",
-                        "name": "limit",
-                        "in": "query"
-                    },
-                    {
-                        "type": "integer",
-                        "description": "页码",
-                        "name": "page",
-                        "in": "query"
-                    },
-                    {
-                        "type": "string",
-                        "description": "关键词",
-                        "name": "key",
-                        "in": "query"
-                    },
-                    {
-                        "type": "string",
-                        "description": "排序",
-                        "name": "order",
-                        "in": "query"
-                    },
-                    {
-                        "type": "integer",
                         "description": "查询类型：1 普通用户可见通知 2 管理员查全部通知",
                         "name": "type",
                         "in": "query",
@@ -3279,7 +2781,7 @@ const docTemplate = `{
                                         "list": {
                                             "type": "array",
                                             "items": {
-                                                "$ref": "#/definitions/api_global_notif_api.GlobalNotifListResponse"
+                                                "$ref": "#/definitions/internal_notification_adapter_http.GlobalListResponse"
                                             }
                                         }
                                     }
@@ -3315,7 +2817,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/api_global_notif_api.GlobalNotifCreateRequest"
+                            "$ref": "#/definitions/internal_notification_adapter_http.GlobalCreateRequest"
                         }
                     }
                 ],
@@ -3329,7 +2831,7 @@ const docTemplate = `{
                                     "type": "integer"
                                 },
                                 "data": {
-                                    "$ref": "#/definitions/api_global_notif_api.GlobalNotifCreateResponse"
+                                    "$ref": "#/definitions/internal_notification_adapter_http.GlobalCreateResponse"
                                 },
                                 "msg": {
                                     "type": "string"
@@ -3362,7 +2864,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/models.IDListRequest"
+                            "$ref": "#/definitions/internal_notification_adapter_http.IDListRequest"
                         }
                     }
                 ],
@@ -3411,7 +2913,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/models.IDListRequest"
+                            "$ref": "#/definitions/internal_notification_adapter_http.IDListRequest"
                         }
                     }
                 ],
@@ -3460,7 +2962,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/models.IDListRequest"
+                            "$ref": "#/definitions/internal_notification_adapter_http.IDListRequest"
                         }
                     }
                 ],
@@ -3504,7 +3006,7 @@ const docTemplate = `{
                                     "type": "integer"
                                 },
                                 "data": {
-                                    "$ref": "#/definitions/api_captcha_api.ImageCaptchaResponse"
+                                    "$ref": "#/definitions/internal_platform_captcha.ImageResponse"
                                 },
                                 "msg": {
                                     "type": "string"
@@ -3529,32 +3031,6 @@ const docTemplate = `{
                     "image"
                 ],
                 "summary": "图片列表",
-                "parameters": [
-                    {
-                        "type": "integer",
-                        "description": "每页条数",
-                        "name": "limit",
-                        "in": "query"
-                    },
-                    {
-                        "type": "integer",
-                        "description": "页码",
-                        "name": "page",
-                        "in": "query"
-                    },
-                    {
-                        "type": "string",
-                        "description": "关键词",
-                        "name": "key",
-                        "in": "query"
-                    },
-                    {
-                        "type": "string",
-                        "description": "排序",
-                        "name": "order",
-                        "in": "query"
-                    }
-                ],
                 "responses": {
                     "200": {
                         "description": "OK",
@@ -3573,7 +3049,7 @@ const docTemplate = `{
                                         "list": {
                                             "type": "array",
                                             "items": {
-                                                "$ref": "#/definitions/models.ImageModel"
+                                                "$ref": "#/definitions/internal_media_adapter_http.ImageItem"
                                             }
                                         }
                                     }
@@ -3609,7 +3085,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/models.IDListRequest"
+                            "$ref": "#/definitions/internal_media_adapter_http.RemoveRequest"
                         }
                     }
                 ],
@@ -3646,17 +3122,6 @@ const docTemplate = `{
                     "image"
                 ],
                 "summary": "七牛内容审核回调",
-                "parameters": [
-                    {
-                        "description": "七牛审核回调 JSON",
-                        "name": "body",
-                        "in": "body",
-                        "required": true,
-                        "schema": {
-                            "type": "object"
-                        }
-                    }
-                ],
                 "responses": {
                     "200": {
                         "description": "OK",
@@ -3690,17 +3155,6 @@ const docTemplate = `{
                     "image"
                 ],
                 "summary": "七牛云上传回调",
-                "parameters": [
-                    {
-                        "description": "七牛回调 JSON：key、hash、bucket、fsize",
-                        "name": "body",
-                        "in": "body",
-                        "required": true,
-                        "schema": {
-                            "type": "object"
-                        }
-                    }
-                ],
                 "responses": {
                     "200": {
                         "description": "OK",
@@ -3711,7 +3165,7 @@ const docTemplate = `{
                                     "type": "integer"
                                 },
                                 "data": {
-                                    "$ref": "#/definitions/api_image_api.CompleteImageUploadTaskResponse"
+                                    "$ref": "#/definitions/internal_media_adapter_http.CompleteTaskResponse"
                                 },
                                 "msg": {
                                     "type": "string"
@@ -3746,7 +3200,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/api_image_api.CreateImageUploadTaskRequest"
+                            "$ref": "#/definitions/internal_media_adapter_http.CreateTaskRequest"
                         }
                     }
                 ],
@@ -3760,7 +3214,7 @@ const docTemplate = `{
                                     "type": "integer"
                                 },
                                 "data": {
-                                    "$ref": "#/definitions/api_image_api.CreateImageUploadTaskResponse"
+                                    "$ref": "#/definitions/internal_media_adapter_http.CreateTaskResponse"
                                 },
                                 "msg": {
                                     "type": "string"
@@ -3795,7 +3249,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/api_image_api.CompleteImageUploadTaskRequest"
+                            "$ref": "#/definitions/internal_media_adapter_http.CompleteTaskRequest"
                         }
                     }
                 ],
@@ -3809,7 +3263,7 @@ const docTemplate = `{
                                     "type": "integer"
                                 },
                                 "data": {
-                                    "$ref": "#/definitions/api_image_api.CompleteImageUploadTaskResponse"
+                                    "$ref": "#/definitions/internal_media_adapter_http.CompleteTaskResponse"
                                 },
                                 "msg": {
                                     "type": "string"
@@ -3853,7 +3307,7 @@ const docTemplate = `{
                                     "type": "integer"
                                 },
                                 "data": {
-                                    "$ref": "#/definitions/api_image_api.UploadTaskStatusResponse"
+                                    "$ref": "#/definitions/internal_media_adapter_http.TaskStatusResponse"
                                 },
                                 "msg": {
                                     "type": "string"
@@ -4018,7 +3472,7 @@ const docTemplate = `{
                                         "list": {
                                             "type": "array",
                                             "items": {
-                                                "$ref": "#/definitions/myblogx_service_writer.ActionAuditRecord"
+                                                "$ref": "#/definitions/myblogx_internal_analytics_adapter_clickhouse.ActionAuditRecord"
                                             }
                                         }
                                     }
@@ -4065,7 +3519,7 @@ const docTemplate = `{
                                     "type": "integer"
                                 },
                                 "data": {
-                                    "$ref": "#/definitions/myblogx_service_writer.ActionAuditRecord"
+                                    "$ref": "#/definitions/myblogx_internal_analytics_adapter_clickhouse.ActionAuditRecord"
                                 },
                                 "msg": {
                                     "type": "string"
@@ -4236,7 +3690,7 @@ const docTemplate = `{
                                         "list": {
                                             "type": "array",
                                             "items": {
-                                                "$ref": "#/definitions/myblogx_service_writer.CdcEventRecord"
+                                                "$ref": "#/definitions/myblogx_internal_analytics_adapter_clickhouse.CdcEventRecord"
                                             }
                                         }
                                     }
@@ -4283,7 +3737,7 @@ const docTemplate = `{
                                     "type": "integer"
                                 },
                                 "data": {
-                                    "$ref": "#/definitions/myblogx_service_writer.CdcEventRecord"
+                                    "$ref": "#/definitions/myblogx_internal_analytics_adapter_clickhouse.CdcEventRecord"
                                 },
                                 "msg": {
                                     "type": "string"
@@ -4386,7 +3840,7 @@ const docTemplate = `{
                                     "type": "integer"
                                 },
                                 "data": {
-                                    "$ref": "#/definitions/api_log_api.ChainQueryResponse"
+                                    "$ref": "#/definitions/internal_analytics_adapter_http.ChainQueryResponse"
                                 },
                                 "msg": {
                                     "type": "string"
@@ -4539,7 +3993,7 @@ const docTemplate = `{
                                         "list": {
                                             "type": "array",
                                             "items": {
-                                                "$ref": "#/definitions/myblogx_service_writer.LoginEventRecord"
+                                                "$ref": "#/definitions/myblogx_internal_analytics_adapter_clickhouse.LoginEventRecord"
                                             }
                                         }
                                     }
@@ -4586,7 +4040,7 @@ const docTemplate = `{
                                     "type": "integer"
                                 },
                                 "data": {
-                                    "$ref": "#/definitions/myblogx_service_writer.LoginEventRecord"
+                                    "$ref": "#/definitions/myblogx_internal_analytics_adapter_clickhouse.LoginEventRecord"
                                 },
                                 "msg": {
                                     "type": "string"
@@ -4757,7 +4211,7 @@ const docTemplate = `{
                                         "list": {
                                             "type": "array",
                                             "items": {
-                                                "$ref": "#/definitions/myblogx_service_writer.ReplayEventRecord"
+                                                "$ref": "#/definitions/myblogx_internal_analytics_adapter_clickhouse.ReplayEventRecord"
                                             }
                                         }
                                     }
@@ -4804,7 +4258,7 @@ const docTemplate = `{
                                     "type": "integer"
                                 },
                                 "data": {
-                                    "$ref": "#/definitions/myblogx_service_writer.ReplayEventRecord"
+                                    "$ref": "#/definitions/myblogx_internal_analytics_adapter_clickhouse.ReplayEventRecord"
                                 },
                                 "msg": {
                                     "type": "string"
@@ -4969,7 +4423,7 @@ const docTemplate = `{
                                         "list": {
                                             "type": "array",
                                             "items": {
-                                                "$ref": "#/definitions/myblogx_service_writer.RuntimeLogRecord"
+                                                "$ref": "#/definitions/myblogx_internal_analytics_adapter_clickhouse.RuntimeLogRecord"
                                             }
                                         }
                                     }
@@ -5016,7 +4470,7 @@ const docTemplate = `{
                                     "type": "integer"
                                 },
                                 "data": {
-                                    "$ref": "#/definitions/myblogx_service_writer.RuntimeLogRecord"
+                                    "$ref": "#/definitions/myblogx_internal_analytics_adapter_clickhouse.RuntimeLogRecord"
                                 },
                                 "msg": {
                                     "type": "string"
@@ -5036,68 +4490,6 @@ const docTemplate = `{
                     "search"
                 ],
                 "summary": "文章搜索",
-                "parameters": [
-                    {
-                        "type": "integer",
-                        "description": "搜索类型：1 公共文章 2 猜你喜欢 3 作者文章 4 自己文章 5 管理员搜索",
-                        "name": "type",
-                        "in": "query"
-                    },
-                    {
-                        "type": "integer",
-                        "description": "排序：1 默认 2 最新发布 3 最多回复 4 最多点赞 5 最多收藏 6 最多浏览",
-                        "name": "sort",
-                        "in": "query"
-                    },
-                    {
-                        "type": "string",
-                        "description": "分页模式",
-                        "name": "page_mode",
-                        "in": "query"
-                    },
-                    {
-                        "type": "integer",
-                        "description": "页码",
-                        "name": "page",
-                        "in": "query"
-                    },
-                    {
-                        "type": "integer",
-                        "description": "每页数量",
-                        "name": "limit",
-                        "in": "query"
-                    },
-                    {
-                        "type": "string",
-                        "description": "搜索关键词",
-                        "name": "key",
-                        "in": "query"
-                    },
-                    {
-                        "type": "integer",
-                        "description": "分类 ID",
-                        "name": "category_id",
-                        "in": "query"
-                    },
-                    {
-                        "type": "integer",
-                        "description": "作者 ID",
-                        "name": "author_id",
-                        "in": "query"
-                    },
-                    {
-                        "type": "integer",
-                        "description": "文章状态",
-                        "name": "status",
-                        "in": "query"
-                    },
-                    {
-                        "type": "string",
-                        "description": "标签 ID 列表，支持逗号分隔",
-                        "name": "tag_ids",
-                        "in": "query"
-                    }
-                ],
                 "responses": {
                     "200": {
                         "description": "OK",
@@ -5108,7 +4500,7 @@ const docTemplate = `{
                                     "type": "integer"
                                 },
                                 "data": {
-                                    "$ref": "#/definitions/myblogx_service_search_service.ArticleSearchResponse"
+                                    "$ref": "#/definitions/myblogx_internal_search_domain.Response"
                                 },
                                 "msg": {
                                     "type": "string"
@@ -5182,7 +4574,7 @@ const docTemplate = `{
                                     "type": "integer"
                                 },
                                 "data": {
-                                    "$ref": "#/definitions/api_site_api.SiteAIResponse"
+                                    "$ref": "#/definitions/internal_site_adapter_http.AIResponse"
                                 },
                                 "msg": {
                                     "type": "string"
@@ -5242,7 +4634,7 @@ const docTemplate = `{
                                     "type": "integer"
                                 },
                                 "data": {
-                                    "$ref": "#/definitions/api_site_api.SiteSEOResponse"
+                                    "$ref": "#/definitions/internal_site_adapter_http.SEOResponse"
                                 },
                                 "msg": {
                                     "type": "string"
@@ -5316,7 +4708,7 @@ const docTemplate = `{
                         "required": true
                     },
                     {
-                        "description": "请求体，name=site 时为 conf.Site，name=ai 时为 conf.AI",
+                        "description": "请求体",
                         "name": "body",
                         "in": "body",
                         "required": true,
@@ -5367,18 +4759,6 @@ const docTemplate = `{
                         "name": "t",
                         "in": "query",
                         "required": true
-                    },
-                    {
-                        "type": "integer",
-                        "description": "页码",
-                        "name": "page",
-                        "in": "query"
-                    },
-                    {
-                        "type": "integer",
-                        "description": "每页数量",
-                        "name": "limit",
-                        "in": "query"
                     }
                 ],
                 "responses": {
@@ -5399,7 +4779,7 @@ const docTemplate = `{
                                         "list": {
                                             "type": "array",
                                             "items": {
-                                                "$ref": "#/definitions/models.ArticleMessageModel"
+                                                "$ref": "#/definitions/internal_notification_adapter_http.MessageItem"
                                             }
                                         }
                                     }
@@ -5435,7 +4815,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/api_sitemsg_api.SitemsgReadRequest"
+                            "$ref": "#/definitions/internal_notification_adapter_http.MessageSelectRequest"
                         }
                     }
                 ],
@@ -5482,7 +4862,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/api_sitemsg_api.SitemsgRemoveRequest"
+                            "$ref": "#/definitions/internal_notification_adapter_http.MessageSelectRequest"
                         }
                     }
                 ],
@@ -5531,7 +4911,7 @@ const docTemplate = `{
                                     "type": "integer"
                                 },
                                 "data": {
-                                    "$ref": "#/definitions/api_sitemsg_api.UserMsgConfResponseAndRequest"
+                                    "$ref": "#/definitions/internal_notification_adapter_http.ConfRequest"
                                 },
                                 "msg": {
                                     "type": "string"
@@ -5564,7 +4944,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/api_sitemsg_api.UserMsgConfResponseAndRequest"
+                            "$ref": "#/definitions/internal_notification_adapter_http.ConfRequest"
                         }
                     }
                 ],
@@ -5613,7 +4993,126 @@ const docTemplate = `{
                                     "type": "integer"
                                 },
                                 "data": {
-                                    "$ref": "#/definitions/api_sitemsg_api.SitemsgUserResponse"
+                                    "$ref": "#/definitions/internal_notification_adapter_http.UnreadResponse"
+                                },
+                                "msg": {
+                                    "type": "string"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/users": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "user"
+                ],
+                "summary": "用户列表",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "properties": {
+                                "code": {
+                                    "type": "integer"
+                                },
+                                "data": {
+                                    "type": "object",
+                                    "properties": {
+                                        "list": {
+                                            "type": "array",
+                                            "items": {
+                                                "$ref": "#/definitions/myblogx_internal_user_domain.User"
+                                            }
+                                        },
+                                        "total": {
+                                            "type": "integer",
+                                            "format": "int64"
+                                        }
+                                    }
+                                },
+                                "msg": {
+                                    "type": "string"
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            "put": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "user"
+                ],
+                "summary": "更新用户资料",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "properties": {
+                                "code": {
+                                    "type": "integer"
+                                },
+                                "data": {
+                                    "$ref": "#/definitions/myblogx_internal_user_app.UpdateResult"
+                                },
+                                "msg": {
+                                    "type": "string"
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "user"
+                ],
+                "summary": "创建用户",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "properties": {
+                                "code": {
+                                    "type": "integer"
+                                },
+                                "data": {
+                                    "$ref": "#/definitions/myblogx_internal_user_domain.User"
                                 },
                                 "msg": {
                                     "type": "string"
@@ -5648,7 +5147,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/api_user_api_user_man_api.AdminUserCreateRequest"
+                            "$ref": "#/definitions/internal_user_adapter_http.AdminCreateRequest"
                         }
                     }
                 ],
@@ -5662,7 +5161,7 @@ const docTemplate = `{
                                     "type": "integer"
                                 },
                                 "data": {
-                                    "$ref": "#/definitions/api_user_api_user_man_api.AdminUserCreateResponse"
+                                    "$ref": "#/definitions/internal_user_adapter_http.AdminCreateResponse"
                                 },
                                 "msg": {
                                     "type": "string"
@@ -5697,7 +5196,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/api_user_api_profile_api.AdminUserInfoUpdateRequest"
+                            "$ref": "#/definitions/internal_user_adapter_http.AdminUpdateRequest"
                         }
                     }
                 ],
@@ -5736,32 +5235,6 @@ const docTemplate = `{
                     "user"
                 ],
                 "summary": "用户列表",
-                "parameters": [
-                    {
-                        "type": "integer",
-                        "description": "每页条数",
-                        "name": "limit",
-                        "in": "query"
-                    },
-                    {
-                        "type": "integer",
-                        "description": "页码",
-                        "name": "page",
-                        "in": "query"
-                    },
-                    {
-                        "type": "string",
-                        "description": "关键词",
-                        "name": "key",
-                        "in": "query"
-                    },
-                    {
-                        "type": "string",
-                        "description": "排序",
-                        "name": "order",
-                        "in": "query"
-                    }
-                ],
                 "responses": {
                     "200": {
                         "description": "OK",
@@ -5780,7 +5253,7 @@ const docTemplate = `{
                                         "list": {
                                             "type": "array",
                                             "items": {
-                                                "$ref": "#/definitions/api_user_api_user_man_api.UserListResponse"
+                                                "$ref": "#/definitions/internal_user_adapter_http.AdminUserItemResponse"
                                             }
                                         }
                                     }
@@ -5822,7 +5295,7 @@ const docTemplate = `{
                                     "type": "integer"
                                 },
                                 "data": {
-                                    "$ref": "#/definitions/api_user_api_profile_api.UserBaseInfoResponse"
+                                    "$ref": "#/definitions/internal_user_adapter_http.BaseInfoResponse"
                                 },
                                 "msg": {
                                     "type": "string"
@@ -5857,7 +5330,7 @@ const docTemplate = `{
                                     "type": "integer"
                                 },
                                 "data": {
-                                    "$ref": "#/definitions/api_user_api_profile_api.UserDetailResponse"
+                                    "$ref": "#/definitions/myblogx_internal_user_app.DetailView"
                                 },
                                 "msg": {
                                     "type": "string"
@@ -5952,7 +5425,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/api_user_api_auth_api.RegisterEmailRequest"
+                            "$ref": "#/definitions/internal_auth_adapter_http.RegisterEmailRequest"
                         }
                     }
                 ],
@@ -5996,7 +5469,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/api_user_api_auth_api.SendEmailRequest"
+                            "$ref": "#/definitions/internal_auth_adapter_http.SendEmailRequest"
                         }
                     }
                 ],
@@ -6010,7 +5483,7 @@ const docTemplate = `{
                                     "type": "integer"
                                 },
                                 "data": {
-                                    "$ref": "#/definitions/api_user_api_auth_api.SendEmailResponse"
+                                    "$ref": "#/definitions/internal_auth_adapter_http.SendEmailResponse"
                                 },
                                 "msg": {
                                     "type": "string"
@@ -6045,7 +5518,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/api_user_api_profile_api.UserInfoUpdateRequest"
+                            "$ref": "#/definitions/internal_user_adapter_http.UpdateInfoRequest"
                         }
                     }
                 ],
@@ -6089,7 +5562,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/api_user_api_auth_api.PwdLoginRequest"
+                            "$ref": "#/definitions/internal_auth_adapter_http.PwdLoginRequest"
                         }
                     }
                 ],
@@ -6203,7 +5676,7 @@ const docTemplate = `{
                                         "list": {
                                             "type": "array",
                                             "items": {
-                                                "$ref": "#/definitions/myblogx_service_writer.LoginEventRecord"
+                                                "$ref": "#/definitions/myblogx_internal_analytics_adapter_clickhouse.LoginEventRecord"
                                             }
                                         }
                                     }
@@ -6306,7 +5779,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/api_user_api_auth_api.ResetPasswordRequest"
+                            "$ref": "#/definitions/internal_auth_adapter_http.ResetPasswordRequest"
                         }
                     }
                 ],
@@ -6355,7 +5828,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/api_user_api_auth_api.UpdatePasswordRequest"
+                            "$ref": "#/definitions/internal_auth_adapter_http.UpdatePasswordRequest"
                         }
                     }
                 ],
@@ -6399,7 +5872,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/api_user_api_auth_api.QQLoginRequest"
+                            "$ref": "#/definitions/internal_auth_adapter_http.QQLoginRequest"
                         }
                     }
                 ],
@@ -6468,32 +5941,6 @@ const docTemplate = `{
                     "user"
                 ],
                 "summary": "登录会话列表",
-                "parameters": [
-                    {
-                        "type": "integer",
-                        "description": "每页条数",
-                        "name": "limit",
-                        "in": "query"
-                    },
-                    {
-                        "type": "integer",
-                        "description": "页码",
-                        "name": "page",
-                        "in": "query"
-                    },
-                    {
-                        "type": "string",
-                        "description": "关键词",
-                        "name": "key",
-                        "in": "query"
-                    },
-                    {
-                        "type": "string",
-                        "description": "排序",
-                        "name": "order",
-                        "in": "query"
-                    }
-                ],
                 "responses": {
                     "200": {
                         "description": "OK",
@@ -6512,7 +5959,7 @@ const docTemplate = `{
                                         "list": {
                                             "type": "array",
                                             "items": {
-                                                "$ref": "#/definitions/api_user_api_auth_api.UserSessionItem"
+                                                "$ref": "#/definitions/internal_auth_adapter_http.SessionItem"
                                             }
                                         }
                                     }
@@ -6569,93 +6016,134 @@ const docTemplate = `{
                     }
                 }
             }
+        },
+        "/users/settings": {
+            "put": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "user"
+                ],
+                "summary": "更新用户偏好",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "properties": {
+                                "code": {
+                                    "type": "integer"
+                                },
+                                "data": {
+                                    "type": "string"
+                                },
+                                "msg": {
+                                    "type": "string"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/users/{id}": {
+            "get": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "user"
+                ],
+                "summary": "用户公开主页",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "用户 ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "properties": {
+                                "code": {
+                                    "type": "integer"
+                                },
+                                "data": {
+                                    "$ref": "#/definitions/myblogx_internal_user_app.PublicProfile"
+                                },
+                                "msg": {
+                                    "type": "string"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/users/{id}/status": {
+            "put": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "user"
+                ],
+                "summary": "修改账号状态",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "用户 ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "properties": {
+                                "code": {
+                                    "type": "integer"
+                                },
+                                "data": {
+                                    "type": "string"
+                                },
+                                "msg": {
+                                    "type": "string"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
         }
     },
     "definitions": {
-        "api_ai_api.AIArticleScoreDimension": {
-            "type": "object",
-            "properties": {
-                "name": {
-                    "type": "string"
-                },
-                "reason": {
-                    "type": "string"
-                },
-                "score": {
-                    "type": "integer"
-                }
-            }
-        },
-        "api_ai_api.AIArticleScoringRequest": {
-            "type": "object",
-            "required": [
-                "type"
-            ],
-            "properties": {
-                "article_id": {
-                    "type": "integer"
-                },
-                "content": {
-                    "type": "string"
-                },
-                "title": {
-                    "type": "string"
-                },
-                "type": {
-                    "type": "integer",
-                    "enum": [
-                        1,
-                        2,
-                        3
-                    ]
-                }
-            }
-        },
-        "api_ai_api.AIArticleScoringResponse": {
-            "type": "object",
-            "properties": {
-                "ai_total_score": {
-                    "type": "integer"
-                },
-                "article_id": {
-                    "type": "integer"
-                },
-                "article_type": {
-                    "type": "string"
-                },
-                "created_at": {
-                    "type": "string"
-                },
-                "dimensions": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/api_ai_api.AIArticleScoreDimension"
-                    }
-                },
-                "has_score": {
-                    "type": "boolean"
-                },
-                "main_issues": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/myblogx_service_ai_service_scoring.ArticleScoreIssue"
-                    }
-                },
-                "overall_comment": {
-                    "type": "string"
-                },
-                "record_id": {
-                    "type": "integer"
-                },
-                "score_level": {
-                    "type": "string"
-                },
-                "total_score": {
-                    "type": "integer"
-                }
-            }
-        },
-        "api_ai_api.AIBaseRequest": {
+        "internal_ai_adapter_http.BaseRequest": {
             "type": "object",
             "required": [
                 "content"
@@ -6666,7 +6154,7 @@ const docTemplate = `{
                 }
             }
         },
-        "api_ai_api.AIDiagnoseRequest": {
+        "internal_ai_adapter_http.DiagnoseRequest": {
             "type": "object",
             "required": [
                 "article_title",
@@ -6691,7 +6179,27 @@ const docTemplate = `{
                 }
             }
         },
-        "api_ai_api.AIOverwriteRequest": {
+        "internal_ai_adapter_http.MetaInfoResponse": {
+            "type": "object",
+            "properties": {
+                "abstract": {
+                    "type": "string"
+                },
+                "category": {
+                    "$ref": "#/definitions/myblogx_internal_ai_metainfo.Metainfos"
+                },
+                "tags": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/myblogx_internal_ai_metainfo.Metainfos"
+                    }
+                },
+                "title": {
+                    "type": "string"
+                }
+            }
+        },
+        "internal_ai_adapter_http.OverwriteRequest": {
             "type": "object",
             "required": [
                 "article_title",
@@ -6729,24 +6237,237 @@ const docTemplate = `{
                 }
             }
         },
-        "api_article_api.ArticleAuthorInfoResponse": {
+        "internal_ai_adapter_http.ScoreDimension": {
+            "type": "object",
+            "properties": {
+                "name": {
+                    "type": "string"
+                },
+                "reason": {
+                    "type": "string"
+                },
+                "score": {
+                    "type": "integer"
+                }
+            }
+        },
+        "internal_ai_adapter_http.ScoringRequest": {
+            "type": "object",
+            "required": [
+                "type"
+            ],
+            "properties": {
+                "article_id": {
+                    "type": "integer"
+                },
+                "content": {
+                    "type": "string"
+                },
+                "title": {
+                    "type": "string"
+                },
+                "type": {
+                    "type": "integer",
+                    "enum": [
+                        1,
+                        2,
+                        3
+                    ]
+                }
+            }
+        },
+        "internal_ai_adapter_http.ScoringResponse": {
+            "type": "object",
+            "properties": {
+                "ai_total_score": {
+                    "type": "integer"
+                },
+                "article_id": {
+                    "type": "integer"
+                },
+                "article_type": {
+                    "type": "string"
+                },
+                "created_at": {
+                    "type": "string"
+                },
+                "dimensions": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/internal_ai_adapter_http.ScoreDimension"
+                    }
+                },
+                "has_score": {
+                    "type": "boolean"
+                },
+                "main_issues": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/myblogx_internal_ai_scoring.ArticleScoreIssue"
+                    }
+                },
+                "overall_comment": {
+                    "type": "string"
+                },
+                "record_id": {
+                    "type": "integer"
+                },
+                "score_level": {
+                    "type": "string"
+                },
+                "total_score": {
+                    "type": "integer"
+                }
+            }
+        },
+        "internal_analytics_adapter_http.ArticleYearDataResponse": {
+            "type": "object",
+            "properties": {
+                "date_count_list": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/internal_analytics_adapter_http.DateCountItem"
+                    }
+                }
+            }
+        },
+        "internal_analytics_adapter_http.ChainDeadLetterRecord": {
+            "type": "object",
+            "properties": {
+                "action": {
+                    "type": "string"
+                },
+                "cdc_job_id": {
+                    "type": "string"
+                },
+                "created_at": {
+                    "type": "string"
+                },
+                "error_code": {
+                    "type": "string"
+                },
+                "error_msg": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "integer"
+                },
+                "retry_count": {
+                    "type": "integer"
+                },
+                "source_table": {
+                    "type": "string"
+                },
+                "status": {
+                    "type": "string"
+                },
+                "stream": {
+                    "type": "string"
+                },
+                "target_key": {
+                    "type": "string"
+                },
+                "updated_at": {
+                    "type": "string"
+                }
+            }
+        },
+        "internal_analytics_adapter_http.ChainQueryResponse": {
+            "type": "object",
+            "properties": {
+                "action_logs": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/myblogx_internal_analytics_adapter_clickhouse.ActionAuditRecord"
+                    }
+                },
+                "cdc_logs": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/myblogx_internal_analytics_adapter_clickhouse.CdcEventRecord"
+                    }
+                },
+                "dlq": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/internal_analytics_adapter_http.ChainDeadLetterRecord"
+                    }
+                },
+                "login_logs": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/myblogx_internal_analytics_adapter_clickhouse.LoginEventRecord"
+                    }
+                },
+                "replay_logs": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/myblogx_internal_analytics_adapter_clickhouse.ReplayEventRecord"
+                    }
+                },
+                "runtime_logs": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/myblogx_internal_analytics_adapter_clickhouse.RuntimeLogRecord"
+                    }
+                }
+            }
+        },
+        "internal_analytics_adapter_http.DateCountItem": {
+            "type": "object",
+            "properties": {
+                "count": {
+                    "type": "integer"
+                },
+                "date": {
+                    "type": "string"
+                }
+            }
+        },
+        "internal_analytics_adapter_http.GrowthDataResponse": {
+            "type": "object",
+            "properties": {
+                "date_count_list": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/internal_analytics_adapter_http.DateCountItem"
+                    }
+                },
+                "growth_num": {
+                    "type": "integer"
+                },
+                "growth_rate": {
+                    "type": "integer"
+                }
+            }
+        },
+        "internal_analytics_adapter_http.SumResponse": {
             "type": "object",
             "properties": {
                 "article_count": {
                     "type": "integer"
                 },
-                "article_visited_count": {
+                "comment_count": {
                     "type": "integer"
                 },
-                "author_id": {
-                    "type": "string"
+                "flow_count": {
+                    "type": "integer"
                 },
-                "fans_count": {
+                "message_count": {
+                    "type": "integer"
+                },
+                "new_login_count": {
+                    "type": "integer"
+                },
+                "new_sign_count": {
+                    "type": "integer"
+                },
+                "user_count": {
                     "type": "integer"
                 }
             }
         },
-        "api_article_api.ArticleCreateRequest": {
+        "internal_article_adapter_http.ArticleCreateRequest": {
             "type": "object",
             "required": [
                 "content",
@@ -6776,7 +6497,7 @@ const docTemplate = `{
                     ],
                     "allOf": [
                         {
-                            "$ref": "#/definitions/myblogx_models_enum.ArticleStatus"
+                            "$ref": "#/definitions/internal_article_adapter_http.ArticleStatus"
                         }
                     ]
                 },
@@ -6796,13 +6517,13 @@ const docTemplate = `{
                     ],
                     "allOf": [
                         {
-                            "$ref": "#/definitions/myblogx_models_enum.ArticleVisibilityStatus"
+                            "$ref": "#/definitions/internal_article_adapter_http.ArticleVisibility"
                         }
                     ]
                 }
             }
         },
-        "api_article_api.ArticleCreateResponse": {
+        "internal_article_adapter_http.ArticleCreateResponse": {
             "type": "object",
             "properties": {
                 "category_id": {
@@ -6818,10 +6539,10 @@ const docTemplate = `{
                     "type": "integer"
                 },
                 "publish_status": {
-                    "$ref": "#/definitions/myblogx_models_enum.ArticleStatus"
+                    "$ref": "#/definitions/internal_article_adapter_http.ArticleStatus"
                 },
                 "status": {
-                    "$ref": "#/definitions/myblogx_models_enum.ArticleStatus"
+                    "$ref": "#/definitions/internal_article_adapter_http.ArticleStatus"
                 },
                 "tag_ids": {
                     "type": "array",
@@ -6833,11 +6554,11 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "visibility_status": {
-                    "$ref": "#/definitions/myblogx_models_enum.ArticleVisibilityStatus"
+                    "$ref": "#/definitions/internal_article_adapter_http.ArticleVisibility"
                 }
             }
         },
-        "api_article_api.ArticleDetailResponse": {
+        "internal_article_adapter_http.ArticleDetailResponse": {
             "type": "object",
             "properties": {
                 "abstract": {
@@ -6904,10 +6625,10 @@ const docTemplate = `{
                     "type": "boolean"
                 },
                 "publish_status": {
-                    "$ref": "#/definitions/myblogx_models_enum.ArticleStatus"
+                    "$ref": "#/definitions/internal_article_adapter_http.ArticleStatus"
                 },
                 "status": {
-                    "$ref": "#/definitions/myblogx_models_enum.ArticleStatus"
+                    "$ref": "#/definitions/internal_article_adapter_http.ArticleStatus"
                 },
                 "tag_ids": {
                     "type": "array",
@@ -6931,11 +6652,11 @@ const docTemplate = `{
                     "type": "integer"
                 },
                 "visibility_status": {
-                    "$ref": "#/definitions/myblogx_models_enum.ArticleVisibilityStatus"
+                    "$ref": "#/definitions/internal_article_adapter_http.ArticleVisibility"
                 }
             }
         },
-        "api_article_api.ArticleFavoriteRequest": {
+        "internal_article_adapter_http.ArticleFavoriteRequest": {
             "type": "object",
             "required": [
                 "article_id"
@@ -6949,7 +6670,7 @@ const docTemplate = `{
                 }
             }
         },
-        "api_article_api.ArticleReviewHandleRequest": {
+        "internal_article_adapter_http.ArticleReviewHandleRequest": {
             "type": "object",
             "required": [
                 "status"
@@ -6965,13 +6686,13 @@ const docTemplate = `{
                     ],
                     "allOf": [
                         {
-                            "$ref": "#/definitions/myblogx_models_enum.ArticleStatus"
+                            "$ref": "#/definitions/internal_article_adapter_http.ArticleStatus"
                         }
                     ]
                 }
             }
         },
-        "api_article_api.ArticleReviewTaskItem": {
+        "internal_article_adapter_http.ArticleReviewTaskItem": {
             "type": "object",
             "properties": {
                 "article_id": {
@@ -6993,7 +6714,7 @@ const docTemplate = `{
                     "type": "integer"
                 },
                 "publish_status": {
-                    "$ref": "#/definitions/myblogx_models_enum.ArticleStatus"
+                    "$ref": "#/definitions/internal_article_adapter_http.ArticleStatus"
                 },
                 "reason": {
                     "type": "string"
@@ -7005,17 +6726,17 @@ const docTemplate = `{
                     "type": "integer"
                 },
                 "source": {
-                    "$ref": "#/definitions/models.ArticleReviewTaskSource"
+                    "$ref": "#/definitions/internal_article_adapter_http.ReviewTaskSource"
                 },
                 "stage": {
-                    "$ref": "#/definitions/models.ArticleReviewTaskStage"
+                    "$ref": "#/definitions/internal_article_adapter_http.ReviewTaskStage"
                 },
                 "status": {
-                    "$ref": "#/definitions/models.ArticleReviewTaskStatus"
+                    "$ref": "#/definitions/internal_article_adapter_http.ReviewTaskStatus"
                 }
             }
         },
-        "api_article_api.ArticleReviewTaskListResponse": {
+        "internal_article_adapter_http.ArticleReviewTaskListResponse": {
             "type": "object",
             "properties": {
                 "count": {
@@ -7024,12 +6745,42 @@ const docTemplate = `{
                 "list": {
                     "type": "array",
                     "items": {
-                        "$ref": "#/definitions/api_article_api.ArticleReviewTaskItem"
+                        "$ref": "#/definitions/internal_article_adapter_http.ArticleReviewTaskItem"
                     }
                 }
             }
         },
-        "api_article_api.ArticleUpdateRequest": {
+        "internal_article_adapter_http.ArticleStatus": {
+            "type": "integer",
+            "format": "int32",
+            "enum": [
+                1,
+                2,
+                3,
+                4
+            ],
+            "x-enum-varnames": [
+                "ArticleStatusDraft",
+                "ArticleStatusExamining",
+                "ArticleStatusPublished",
+                "ArticleStatusRejected"
+            ]
+        },
+        "internal_article_adapter_http.ArticleTopSetRequest": {
+            "type": "object",
+            "required": [
+                "article_ids"
+            ],
+            "properties": {
+                "article_ids": {
+                    "type": "array",
+                    "items": {
+                        "type": "integer"
+                    }
+                }
+            }
+        },
+        "internal_article_adapter_http.ArticleUpdateRequest": {
             "type": "object",
             "properties": {
                 "abstract": {
@@ -7054,7 +6805,7 @@ const docTemplate = `{
                     ],
                     "allOf": [
                         {
-                            "$ref": "#/definitions/myblogx_models_enum.ArticleStatus"
+                            "$ref": "#/definitions/internal_article_adapter_http.ArticleStatus"
                         }
                     ]
                 },
@@ -7074,13 +6825,13 @@ const docTemplate = `{
                     ],
                     "allOf": [
                         {
-                            "$ref": "#/definitions/myblogx_models_enum.ArticleVisibilityStatus"
+                            "$ref": "#/definitions/internal_article_adapter_http.ArticleVisibility"
                         }
                     ]
                 }
             }
         },
-        "api_article_api.ArticleViewCountRequest": {
+        "internal_article_adapter_http.ArticleViewCountRequest": {
             "type": "object",
             "required": [
                 "article_id"
@@ -7091,50 +6842,20 @@ const docTemplate = `{
                 }
             }
         },
-        "api_article_api_category.CategoryCreateResponse": {
-            "type": "object",
-            "properties": {
-                "id": {
-                    "type": "integer"
-                },
-                "title": {
-                    "type": "string"
-                }
-            }
+        "internal_article_adapter_http.ArticleVisibility": {
+            "type": "string",
+            "enum": [
+                "visible",
+                "user_hidden",
+                "admin_hidden"
+            ],
+            "x-enum-varnames": [
+                "ArticleVisibilityVisible",
+                "ArticleVisibilityUserHidden",
+                "ArticleVisibilityAdminHidden"
+            ]
         },
-        "api_article_api_category.CategoryListResponse": {
-            "type": "object",
-            "properties": {
-                "article_count": {
-                    "type": "integer"
-                },
-                "avatar": {
-                    "type": "string"
-                },
-                "created_at": {
-                    "type": "string"
-                },
-                "deleted_at": {
-                    "$ref": "#/definitions/gorm.DeletedAt"
-                },
-                "id": {
-                    "type": "integer"
-                },
-                "nickname": {
-                    "type": "string"
-                },
-                "title": {
-                    "type": "string"
-                },
-                "updated_at": {
-                    "type": "string"
-                },
-                "user_id": {
-                    "type": "integer"
-                }
-            }
-        },
-        "api_article_api_category.CategoryRequest": {
+        "internal_article_adapter_http.CategoryRequest": {
             "type": "object",
             "required": [
                 "title"
@@ -7144,46 +6865,18 @@ const docTemplate = `{
                     "type": "integer"
                 },
                 "title": {
-                    "type": "string",
-                    "maxLength": 20,
-                    "minLength": 2
+                    "type": "string"
                 }
             }
         },
-        "api_article_api_favorite.FavoriteCreateResponse": {
-            "type": "object",
-            "properties": {
-                "abstract": {
-                    "type": "string"
-                },
-                "article_count": {
-                    "type": "integer"
-                },
-                "cover": {
-                    "type": "string"
-                },
-                "id": {
-                    "type": "integer"
-                },
-                "is_default": {
-                    "type": "boolean"
-                },
-                "title": {
-                    "type": "string"
-                },
-                "user_id": {
-                    "type": "integer"
-                }
-            }
-        },
-        "api_article_api_favorite.FavoriteRemovePatchModel": {
+        "internal_article_adapter_http.FavoriteRemovePatchModel": {
             "type": "object",
             "required": [
-                "articles",
-                "favorite_id"
+                "articles"
             ],
             "properties": {
                 "articles": {
+                    "description": "字段名沿用旧契约 articles / favorite_id。",
                     "type": "array",
                     "items": {
                         "type": "integer"
@@ -7194,16 +6887,14 @@ const docTemplate = `{
                 }
             }
         },
-        "api_article_api_favorite.FavoriteRequest": {
+        "internal_article_adapter_http.FavoriteRequest": {
             "type": "object",
             "required": [
-                "abstract",
                 "title"
             ],
             "properties": {
                 "abstract": {
-                    "type": "string",
-                    "maxLength": 256
+                    "type": "string"
                 },
                 "cover": {
                     "type": "string"
@@ -7212,76 +6903,55 @@ const docTemplate = `{
                     "type": "integer"
                 },
                 "title": {
-                    "type": "string",
-                    "maxLength": 32,
-                    "minLength": 2
-                }
-            }
-        },
-        "api_article_api_tags.TagCreateResponse": {
-            "type": "object",
-            "properties": {
-                "description": {
-                    "type": "string"
-                },
-                "id": {
-                    "type": "integer"
-                },
-                "is_enabled": {
-                    "type": "boolean"
-                },
-                "sort": {
-                    "type": "integer"
-                },
-                "title": {
                     "type": "string"
                 }
             }
         },
-        "api_article_api_tags.TagListResponse": {
-            "type": "object",
-            "properties": {
-                "article_count": {
-                    "type": "integer"
-                },
-                "created_at": {
-                    "type": "string"
-                },
-                "created_by": {
-                    "type": "integer"
-                },
-                "deleted_at": {
-                    "$ref": "#/definitions/gorm.DeletedAt"
-                },
-                "description": {
-                    "type": "string"
-                },
-                "id": {
-                    "type": "integer"
-                },
-                "is_enabled": {
-                    "type": "boolean"
-                },
-                "sort": {
-                    "type": "integer"
-                },
-                "title": {
-                    "type": "string"
-                },
-                "updated_at": {
-                    "type": "string"
-                }
-            }
+        "internal_article_adapter_http.ReviewTaskSource": {
+            "type": "string",
+            "enum": [
+                "create",
+                "edit",
+                "resubmit"
+            ],
+            "x-enum-varnames": [
+                "ReviewTaskSourceCreate",
+                "ReviewTaskSourceEdit",
+                "ReviewTaskSourceResubmit"
+            ]
         },
-        "api_article_api_tags.TagRequest": {
+        "internal_article_adapter_http.ReviewTaskStage": {
+            "type": "string",
+            "enum": [
+                "manual"
+            ],
+            "x-enum-varnames": [
+                "ReviewTaskStageManual"
+            ]
+        },
+        "internal_article_adapter_http.ReviewTaskStatus": {
+            "type": "string",
+            "enum": [
+                "pending",
+                "approved",
+                "rejected",
+                "canceled"
+            ],
+            "x-enum-varnames": [
+                "ReviewTaskPending",
+                "ReviewTaskApproved",
+                "ReviewTaskRejected",
+                "ReviewTaskCanceled"
+            ]
+        },
+        "internal_article_adapter_http.TagRequest": {
             "type": "object",
             "required": [
                 "title"
             ],
             "properties": {
                 "description": {
-                    "type": "string",
-                    "maxLength": 255
+                    "type": "string"
                 },
                 "id": {
                     "type": "integer"
@@ -7290,189 +6960,129 @@ const docTemplate = `{
                     "type": "boolean"
                 },
                 "sort": {
-                    "type": "integer",
-                    "default": 0
+                    "type": "integer"
                 },
                 "title": {
-                    "type": "string",
-                    "maxLength": 64,
-                    "minLength": 1
+                    "type": "string"
                 }
             }
         },
-        "api_article_api_top.ArticleTopSetRequest": {
+        "internal_auth_adapter_http.PwdLoginRequest": {
             "type": "object",
             "required": [
-                "type"
+                "password",
+                "username"
             ],
             "properties": {
-                "article_id": {
-                    "type": "integer"
+                "password": {
+                    "type": "string"
+                },
+                "username": {
+                    "type": "string"
+                }
+            }
+        },
+        "internal_auth_adapter_http.QQLoginRequest": {
+            "type": "object",
+            "required": [
+                "code"
+            ],
+            "properties": {
+                "code": {
+                    "type": "string"
+                }
+            }
+        },
+        "internal_auth_adapter_http.RegisterEmailRequest": {
+            "type": "object",
+            "required": [
+                "pwd"
+            ],
+            "properties": {
+                "pwd": {
+                    "type": "string"
+                }
+            }
+        },
+        "internal_auth_adapter_http.ResetPasswordRequest": {
+            "type": "object",
+            "required": [
+                "new_password"
+            ],
+            "properties": {
+                "new_password": {
+                    "type": "string"
+                }
+            }
+        },
+        "internal_auth_adapter_http.SendEmailRequest": {
+            "type": "object",
+            "required": [
+                "email"
+            ],
+            "properties": {
+                "email": {
+                    "type": "string"
                 },
                 "type": {
-                    "type": "integer",
-                    "enum": [
-                        1,
-                        2
-                    ]
-                }
-            }
-        },
-        "api_article_api_view_history.ArticleViewHistoryResponse": {
-            "type": "object",
-            "properties": {
-                "article_id": {
-                    "type": "integer"
-                },
-                "avatar": {
-                    "type": "string"
-                },
-                "cover": {
-                    "type": "string"
-                },
-                "nickname": {
-                    "type": "string"
-                },
-                "title": {
-                    "type": "string"
-                },
-                "updated_at": {
-                    "type": "string"
-                },
-                "user_id": {
+                    "description": "Type：1 注册、2 重置密码、3 绑定邮箱、4 邮箱登录。",
                     "type": "integer"
                 }
             }
         },
-        "api_banner_api.BannerCreateRequest": {
+        "internal_auth_adapter_http.SendEmailResponse": {
             "type": "object",
-            "required": [
-                "cover_image_id"
-            ],
             "properties": {
-                "cover_image_id": {
-                    "type": "integer"
-                },
-                "href": {
+                "id": {
                     "type": "string"
-                },
-                "show": {
-                    "type": "boolean"
                 }
             }
         },
-        "api_banner_api.BannerCreateResponse": {
+        "internal_auth_adapter_http.SessionItem": {
             "type": "object",
             "properties": {
-                "cover": {
+                "addr": {
                     "type": "string"
                 },
-                "cover_image_id": {
-                    "type": "integer"
+                "created_at": {
+                    "type": "string"
                 },
-                "href": {
+                "expires_at": {
                     "type": "string"
                 },
                 "id": {
                     "type": "integer"
                 },
-                "show": {
-                    "type": "boolean"
-                }
-            }
-        },
-        "api_captcha_api.ImageCaptchaResponse": {
-            "type": "object",
-            "properties": {
-                "base64": {
+                "ip": {
                     "type": "string"
                 },
-                "captcha_id": {
-                    "type": "string"
-                }
-            }
-        },
-        "api_chat_api.ChatMsgDeleteUserRequest": {
-            "type": "object",
-            "required": [
-                "msg_id_list"
-            ],
-            "properties": {
-                "msg_id_list": {
-                    "type": "array",
-                    "items": {
-                        "type": "integer"
-                    }
-                }
-            }
-        },
-        "api_chat_api.ChatMsgReadUserRequest": {
-            "type": "object",
-            "required": [
-                "msg_id_list"
-            ],
-            "properties": {
-                "msg_id_list": {
-                    "type": "array",
-                    "items": {
-                        "type": "integer"
-                    }
-                }
-            }
-        },
-        "api_chat_api.ChatMsgResponse": {
-            "type": "object",
-            "properties": {
-                "content": {
-                    "type": "string"
-                },
-                "deleted_at": {
-                    "type": "string"
-                },
-                "id": {
-                    "type": "integer"
-                },
-                "is_read": {
+                "is_current": {
                     "type": "boolean"
                 },
-                "is_self": {
-                    "type": "boolean"
-                },
-                "msg_status": {
-                    "$ref": "#/definitions/myblogx_models_enum_chat_msg_enum.MsgStatus"
-                },
-                "msg_type": {
-                    "$ref": "#/definitions/myblogx_models_enum_chat_msg_enum.MsgType"
-                },
-                "receiver_id": {
-                    "type": "integer"
-                },
-                "send_time": {
+                "last_seen_at": {
                     "type": "string"
                 },
-                "sender_id": {
-                    "type": "integer"
-                },
-                "session_id": {
+                "ua": {
                     "type": "string"
                 }
             }
         },
-        "api_chat_api.ChatSessionDeleteUserRequest": {
+        "internal_auth_adapter_http.UpdatePasswordRequest": {
             "type": "object",
             "required": [
-                "session_id_list"
+                "new_password",
+                "old_password"
             ],
             "properties": {
-                "session_id_list": {
-                    "type": "array",
-                    "items": {
-                        "type": "string"
-                    }
+                "new_password": {
+                    "type": "string"
+                },
+                "old_password": {
+                    "type": "string"
                 }
             }
         },
-        "api_comment_api.CommentCreateRequest": {
+        "internal_comment_adapter_http.CreateRequest": {
             "type": "object",
             "required": [
                 "article_id",
@@ -7490,178 +7100,7 @@ const docTemplate = `{
                 }
             }
         },
-        "api_comment_api.CommentCreateResponse": {
-            "type": "object",
-            "properties": {
-                "article_id": {
-                    "type": "integer"
-                },
-                "content": {
-                    "type": "string"
-                },
-                "id": {
-                    "type": "integer"
-                },
-                "reply_id": {
-                    "type": "integer"
-                },
-                "root_id": {
-                    "type": "integer"
-                },
-                "status": {
-                    "$ref": "#/definitions/myblogx_models_enum.CommentStatus"
-                }
-            }
-        },
-        "api_data_api.ArticleYearDataResponse": {
-            "type": "object",
-            "properties": {
-                "date_count_list": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/api_data_api.DateCountItem"
-                    }
-                }
-            }
-        },
-        "api_data_api.DateCountItem": {
-            "type": "object",
-            "properties": {
-                "count": {
-                    "type": "integer"
-                },
-                "date": {
-                    "type": "string"
-                }
-            }
-        },
-        "api_data_api.GrowthDataResponse": {
-            "type": "object",
-            "properties": {
-                "date_count_list": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/api_data_api.DateCountItem"
-                    }
-                },
-                "growth_num": {
-                    "type": "integer"
-                },
-                "growth_rate": {
-                    "type": "integer"
-                }
-            }
-        },
-        "api_data_api.SumResponse": {
-            "type": "object",
-            "properties": {
-                "article_count": {
-                    "type": "integer"
-                },
-                "comment_count": {
-                    "type": "integer"
-                },
-                "flow_count": {
-                    "type": "integer"
-                },
-                "message_count": {
-                    "type": "integer"
-                },
-                "new_login_count": {
-                    "type": "integer"
-                },
-                "new_sign_count": {
-                    "type": "integer"
-                },
-                "user_count": {
-                    "type": "integer"
-                }
-            }
-        },
-        "api_global_notif_api.GlobalNotifCreateRequest": {
-            "type": "object",
-            "required": [
-                "content",
-                "title"
-            ],
-            "properties": {
-                "content": {
-                    "type": "string"
-                },
-                "expire_time": {
-                    "type": "string"
-                },
-                "href": {
-                    "type": "string"
-                },
-                "icon": {
-                    "type": "string"
-                },
-                "title": {
-                    "type": "string"
-                },
-                "user_visible_rule": {
-                    "$ref": "#/definitions/myblogx_models_enum_global_notif_enum.Type"
-                }
-            }
-        },
-        "api_global_notif_api.GlobalNotifCreateResponse": {
-            "type": "object",
-            "properties": {
-                "content": {
-                    "type": "string"
-                },
-                "expire_time": {
-                    "type": "string"
-                },
-                "href": {
-                    "type": "string"
-                },
-                "icon": {
-                    "type": "string"
-                },
-                "id": {
-                    "type": "integer"
-                },
-                "title": {
-                    "type": "string"
-                },
-                "user_visible_rule": {
-                    "$ref": "#/definitions/myblogx_models_enum_global_notif_enum.Type"
-                }
-            }
-        },
-        "api_global_notif_api.GlobalNotifListResponse": {
-            "type": "object",
-            "properties": {
-                "content": {
-                    "description": "通知内容",
-                    "type": "string"
-                },
-                "create_at": {
-                    "type": "string"
-                },
-                "herf": {
-                    "description": "通知链接",
-                    "type": "string"
-                },
-                "icon": {
-                    "description": "通知图标",
-                    "type": "string"
-                },
-                "id": {
-                    "type": "integer"
-                },
-                "is_read": {
-                    "type": "boolean"
-                },
-                "title": {
-                    "description": "通知标题",
-                    "type": "string"
-                }
-            }
-        },
-        "api_image_api.CompleteImageUploadTaskRequest": {
+        "internal_media_adapter_http.CompleteTaskRequest": {
             "type": "object",
             "required": [
                 "object_key",
@@ -7676,7 +7115,7 @@ const docTemplate = `{
                 }
             }
         },
-        "api_image_api.CompleteImageUploadTaskResponse": {
+        "internal_media_adapter_http.CompleteTaskResponse": {
             "type": "object",
             "properties": {
                 "error_msg": {
@@ -7696,7 +7135,7 @@ const docTemplate = `{
                 }
             }
         },
-        "api_image_api.CreateImageUploadTaskRequest": {
+        "internal_media_adapter_http.CreateTaskRequest": {
             "type": "object",
             "required": [
                 "file_name",
@@ -7722,7 +7161,7 @@ const docTemplate = `{
                 }
             }
         },
-        "api_image_api.CreateImageUploadTaskResponse": {
+        "internal_media_adapter_http.CreateTaskResponse": {
             "type": "object",
             "properties": {
                 "bucket": {
@@ -7766,7 +7205,68 @@ const docTemplate = `{
                 }
             }
         },
-        "api_image_api.UploadTaskStatusResponse": {
+        "internal_media_adapter_http.ImageItem": {
+            "type": "object",
+            "properties": {
+                "bucket": {
+                    "type": "string"
+                },
+                "created_at": {
+                    "type": "string"
+                },
+                "file_name": {
+                    "type": "string"
+                },
+                "hash": {
+                    "type": "string"
+                },
+                "height": {
+                    "type": "integer"
+                },
+                "id": {
+                    "type": "integer"
+                },
+                "mime_type": {
+                    "type": "string"
+                },
+                "object_key": {
+                    "type": "string"
+                },
+                "provider": {
+                    "type": "string"
+                },
+                "size": {
+                    "type": "integer"
+                },
+                "status": {
+                    "type": "integer"
+                },
+                "url": {
+                    "type": "string"
+                },
+                "user_id": {
+                    "type": "integer"
+                },
+                "width": {
+                    "type": "integer"
+                }
+            }
+        },
+        "internal_media_adapter_http.RemoveRequest": {
+            "type": "object",
+            "required": [
+                "id_list"
+            ],
+            "properties": {
+                "id_list": {
+                    "type": "array",
+                    "items": {
+                        "type": "integer"
+                    }
+                }
+            }
+        },
+        "internal_media_adapter_http.TaskStatusResponse": {
             "type": "object",
             "properties": {
                 "error_msg": {
@@ -7789,89 +7289,220 @@ const docTemplate = `{
                 }
             }
         },
-        "api_log_api.ChainDeadLetterRecord": {
+        "internal_notification_adapter_http.ConfRequest": {
             "type": "object",
             "properties": {
-                "action": {
+                "comment_notice_enabled": {
+                    "type": "boolean"
+                },
+                "digg_notice_enabled": {
+                    "type": "boolean"
+                },
+                "favor_notice_enabled": {
+                    "type": "boolean"
+                },
+                "private_chat_notice_enabled": {
+                    "type": "boolean"
+                }
+            }
+        },
+        "internal_notification_adapter_http.GlobalCreateRequest": {
+            "type": "object",
+            "required": [
+                "content",
+                "title"
+            ],
+            "properties": {
+                "content": {
                     "type": "string"
                 },
-                "cdc_job_id": {
+                "expire_time": {
                     "type": "string"
                 },
-                "created_at": {
+                "href": {
                     "type": "string"
                 },
-                "error_code": {
+                "icon": {
                     "type": "string"
                 },
-                "error_msg": {
+                "title": {
+                    "type": "string"
+                },
+                "user_visible_rule": {
+                    "type": "integer"
+                }
+            }
+        },
+        "internal_notification_adapter_http.GlobalCreateResponse": {
+            "type": "object",
+            "properties": {
+                "content": {
+                    "type": "string"
+                },
+                "expire_time": {
+                    "type": "string"
+                },
+                "href": {
+                    "type": "string"
+                },
+                "icon": {
                     "type": "string"
                 },
                 "id": {
                     "type": "integer"
                 },
-                "retry_count": {
+                "title": {
+                    "type": "string"
+                },
+                "user_visible_rule": {
+                    "type": "integer"
+                }
+            }
+        },
+        "internal_notification_adapter_http.GlobalListResponse": {
+            "type": "object",
+            "properties": {
+                "content": {
+                    "type": "string"
+                },
+                "create_at": {
+                    "type": "string"
+                },
+                "herf": {
+                    "type": "string"
+                },
+                "icon": {
+                    "type": "string"
+                },
+                "id": {
                     "type": "integer"
                 },
-                "source_table": {
+                "is_read": {
+                    "type": "boolean"
+                },
+                "title": {
+                    "type": "string"
+                }
+            }
+        },
+        "internal_notification_adapter_http.IDListRequest": {
+            "type": "object",
+            "required": [
+                "id_list"
+            ],
+            "properties": {
+                "id_list": {
+                    "type": "array",
+                    "items": {
+                        "type": "integer"
+                    }
+                }
+            }
+        },
+        "internal_notification_adapter_http.MessageItem": {
+            "type": "object",
+            "properties": {
+                "action_user_avatar": {
                     "type": "string"
                 },
-                "status": {
+                "action_user_id": {
+                    "type": "integer"
+                },
+                "action_user_nickname": {
                     "type": "string"
                 },
-                "stream": {
+                "article_id": {
+                    "type": "integer"
+                },
+                "article_title": {
                     "type": "string"
                 },
-                "target_key": {
+                "comment_id": {
+                    "type": "integer"
+                },
+                "content": {
                     "type": "string"
+                },
+                "created_at": {
+                    "type": "string"
+                },
+                "deleted_at": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "integer"
+                },
+                "is_read": {
+                    "type": "boolean"
+                },
+                "link_herf": {
+                    "type": "string"
+                },
+                "link_title": {
+                    "type": "string"
+                },
+                "read_at": {
+                    "type": "string"
+                },
+                "receiver_id": {
+                    "type": "integer"
+                },
+                "type": {
+                    "type": "integer"
                 },
                 "updated_at": {
                     "type": "string"
                 }
             }
         },
-        "api_log_api.ChainQueryResponse": {
+        "internal_notification_adapter_http.MessageSelectRequest": {
             "type": "object",
             "properties": {
-                "action_logs": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/myblogx_service_writer.ActionAuditRecord"
-                    }
+                "id": {
+                    "type": "integer"
                 },
-                "cdc_logs": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/myblogx_service_writer.CdcEventRecord"
-                    }
-                },
-                "dlq": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/api_log_api.ChainDeadLetterRecord"
-                    }
-                },
-                "login_logs": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/myblogx_service_writer.LoginEventRecord"
-                    }
-                },
-                "replay_logs": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/myblogx_service_writer.ReplayEventRecord"
-                    }
-                },
-                "runtime_logs": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/myblogx_service_writer.RuntimeLogRecord"
-                    }
+                "t": {
+                    "type": "integer",
+                    "enum": [
+                        1,
+                        2,
+                        3
+                    ]
                 }
             }
         },
-        "api_site_api.SiteAIResponse": {
+        "internal_notification_adapter_http.UnreadResponse": {
+            "type": "object",
+            "properties": {
+                "comment_msg_count": {
+                    "type": "integer"
+                },
+                "digg_favor_msg_count": {
+                    "type": "integer"
+                },
+                "global_msg_count": {
+                    "type": "integer"
+                },
+                "private_msg_count": {
+                    "type": "integer"
+                },
+                "system_msg_count": {
+                    "type": "integer"
+                }
+            }
+        },
+        "internal_platform_captcha.ImageResponse": {
+            "type": "object",
+            "properties": {
+                "base64": {
+                    "type": "string"
+                },
+                "captcha_id": {
+                    "type": "string"
+                }
+            }
+        },
+        "internal_site_adapter_http.AIResponse": {
             "type": "object",
             "properties": {
                 "abstract": {
@@ -7888,7 +7519,87 @@ const docTemplate = `{
                 }
             }
         },
-        "api_site_api.SiteSEOResponse": {
+        "internal_site_adapter_http.BannerCreateRequest": {
+            "type": "object",
+            "required": [
+                "cover_image_id"
+            ],
+            "properties": {
+                "cover_image_id": {
+                    "type": "integer"
+                },
+                "href": {
+                    "type": "string"
+                },
+                "show": {
+                    "type": "boolean"
+                }
+            }
+        },
+        "internal_site_adapter_http.BannerCreateResponse": {
+            "type": "object",
+            "properties": {
+                "cover": {
+                    "type": "string"
+                },
+                "cover_image_id": {
+                    "type": "integer"
+                },
+                "href": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "integer"
+                },
+                "show": {
+                    "type": "boolean"
+                }
+            }
+        },
+        "internal_site_adapter_http.BannerItem": {
+            "type": "object",
+            "properties": {
+                "cover": {
+                    "type": "string"
+                },
+                "cover_image_id": {
+                    "type": "integer"
+                },
+                "created_at": {
+                    "type": "string"
+                },
+                "deleted_at": {
+                    "type": "string"
+                },
+                "href": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "integer"
+                },
+                "show": {
+                    "type": "boolean"
+                },
+                "updated_at": {
+                    "type": "string"
+                }
+            }
+        },
+        "internal_site_adapter_http.IDListRequest": {
+            "type": "object",
+            "required": [
+                "id_list"
+            ],
+            "properties": {
+                "id_list": {
+                    "type": "array",
+                    "items": {
+                        "type": "integer"
+                    }
+                }
+            }
+        },
+        "internal_site_adapter_http.SEOResponse": {
             "type": "object",
             "properties": {
                 "description": {
@@ -7911,194 +7622,61 @@ const docTemplate = `{
                 }
             }
         },
-        "api_sitemsg_api.SitemsgReadRequest": {
-            "type": "object",
-            "properties": {
-                "id": {
-                    "type": "integer"
-                },
-                "t": {
-                    "description": "批量已读的类型",
-                    "type": "integer",
-                    "enum": [
-                        1,
-                        2,
-                        3
-                    ]
-                }
-            }
-        },
-        "api_sitemsg_api.SitemsgRemoveRequest": {
-            "type": "object",
-            "properties": {
-                "id": {
-                    "type": "integer"
-                },
-                "t": {
-                    "description": "批量已读的类型",
-                    "type": "integer",
-                    "enum": [
-                        1,
-                        2,
-                        3
-                    ]
-                }
-            }
-        },
-        "api_sitemsg_api.SitemsgUserResponse": {
-            "type": "object",
-            "properties": {
-                "comment_msg_count": {
-                    "type": "integer"
-                },
-                "digg_favor_msg_count": {
-                    "type": "integer"
-                },
-                "global_msg_count": {
-                    "type": "integer"
-                },
-                "private_msg_count": {
-                    "type": "integer"
-                },
-                "system_msg_count": {
-                    "type": "integer"
-                }
-            }
-        },
-        "api_sitemsg_api.UserMsgConfResponseAndRequest": {
-            "type": "object",
-            "properties": {
-                "comment_notice_enabled": {
-                    "type": "boolean"
-                },
-                "digg_notice_enabled": {
-                    "type": "boolean"
-                },
-                "favor_notice_enabled": {
-                    "type": "boolean"
-                },
-                "private_chat_notice_enabled": {
-                    "type": "boolean"
-                }
-            }
-        },
-        "api_user_api_auth_api.PwdLoginRequest": {
+        "internal_user_adapter_http.AdminCreateRequest": {
             "type": "object",
             "required": [
                 "password",
                 "username"
             ],
             "properties": {
+                "email": {
+                    "type": "string",
+                    "maxLength": 256
+                },
+                "nickname": {
+                    "type": "string",
+                    "maxLength": 32,
+                    "minLength": 2
+                },
                 "password": {
-                    "type": "string"
+                    "type": "string",
+                    "maxLength": 72,
+                    "minLength": 6
                 },
                 "username": {
-                    "description": "用户名或邮箱",
-                    "type": "string"
+                    "type": "string",
+                    "maxLength": 32,
+                    "minLength": 2
                 }
             }
         },
-        "api_user_api_auth_api.QQLoginRequest": {
+        "internal_user_adapter_http.AdminCreateResponse": {
             "type": "object",
-            "required": [
-                "code"
-            ],
-            "properties": {
-                "code": {
-                    "type": "string"
-                }
-            }
-        },
-        "api_user_api_auth_api.RegisterEmailRequest": {
-            "type": "object",
-            "required": [
-                "pwd"
-            ],
-            "properties": {
-                "pwd": {
-                    "type": "string"
-                }
-            }
-        },
-        "api_user_api_auth_api.ResetPasswordRequest": {
-            "type": "object",
-            "required": [
-                "new_password"
-            ],
-            "properties": {
-                "new_password": {
-                    "type": "string"
-                }
-            }
-        },
-        "api_user_api_auth_api.SendEmailRequest": {
-            "type": "object",
-            "required": [
-                "email"
-            ],
             "properties": {
                 "email": {
                     "type": "string"
                 },
-                "type": {
-                    "description": "1:注册 2:重置密码 3:绑定邮箱 4:邮箱登录",
-                    "type": "integer"
-                }
-            }
-        },
-        "api_user_api_auth_api.SendEmailResponse": {
-            "type": "object",
-            "properties": {
-                "id": {
-                    "type": "string"
-                }
-            }
-        },
-        "api_user_api_auth_api.UpdatePasswordRequest": {
-            "type": "object",
-            "required": [
-                "new_password",
-                "old_password"
-            ],
-            "properties": {
-                "new_password": {
-                    "type": "string"
-                },
-                "old_password": {
-                    "type": "string"
-                }
-            }
-        },
-        "api_user_api_auth_api.UserSessionItem": {
-            "type": "object",
-            "properties": {
-                "addr": {
-                    "type": "string"
-                },
-                "created_at": {
-                    "type": "string"
-                },
-                "expires_at": {
-                    "type": "string"
-                },
                 "id": {
                     "type": "integer"
                 },
-                "ip": {
+                "nickname": {
                     "type": "string"
                 },
-                "is_current": {
-                    "type": "boolean"
+                "register_source": {
+                    "type": "integer"
                 },
-                "last_seen_at": {
-                    "type": "string"
+                "role": {
+                    "type": "integer"
                 },
-                "ua": {
+                "status": {
+                    "type": "integer"
+                },
+                "username": {
                     "type": "string"
                 }
             }
         },
-        "api_user_api_profile_api.AdminUserInfoUpdateRequest": {
+        "internal_user_adapter_http.AdminUpdateRequest": {
             "type": "object",
             "required": [
                 "user_id"
@@ -8114,10 +7692,10 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "role": {
-                    "$ref": "#/definitions/myblogx_models_enum.RoleType"
+                    "type": "integer"
                 },
                 "status": {
-                    "$ref": "#/definitions/myblogx_models_enum.UserStatus"
+                    "type": "integer"
                 },
                 "user_id": {
                     "type": "integer"
@@ -8127,7 +7705,36 @@ const docTemplate = `{
                 }
             }
         },
-        "api_user_api_profile_api.UserBaseInfoResponse": {
+        "internal_user_adapter_http.AdminUserItemResponse": {
+            "type": "object",
+            "properties": {
+                "addr": {
+                    "type": "string"
+                },
+                "avatar": {
+                    "type": "string"
+                },
+                "created_at": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "integer"
+                },
+                "ip": {
+                    "type": "string"
+                },
+                "last_login_at": {
+                    "type": "string"
+                },
+                "nickname": {
+                    "type": "string"
+                },
+                "username": {
+                    "type": "string"
+                }
+            }
+        },
+        "internal_user_adapter_http.BaseInfoResponse": {
             "type": "object",
             "properties": {
                 "abstract": {
@@ -8183,87 +7790,7 @@ const docTemplate = `{
                 }
             }
         },
-        "api_user_api_profile_api.UserDetailResponse": {
-            "type": "object",
-            "properties": {
-                "abstract": {
-                    "type": "string"
-                },
-                "avatar": {
-                    "type": "string"
-                },
-                "avatar_image_id": {
-                    "type": "integer"
-                },
-                "code_age": {
-                    "type": "integer"
-                },
-                "comment_notice_enabled": {
-                    "type": "boolean"
-                },
-                "created_at": {
-                    "type": "string"
-                },
-                "digg_notice_enabled": {
-                    "type": "boolean"
-                },
-                "email": {
-                    "type": "string"
-                },
-                "fans_visibility": {
-                    "type": "boolean"
-                },
-                "favor_notice_enabled": {
-                    "type": "boolean"
-                },
-                "favorites_visibility": {
-                    "type": "boolean"
-                },
-                "followers_visibility": {
-                    "type": "boolean"
-                },
-                "has_password": {
-                    "type": "boolean"
-                },
-                "home_style_id": {
-                    "type": "integer"
-                },
-                "id": {
-                    "type": "integer"
-                },
-                "like_tag_ids": {
-                    "type": "array",
-                    "items": {
-                        "type": "integer"
-                    }
-                },
-                "like_tag_items": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/api_user_api_profile_api.UserLikeTagItem"
-                    }
-                },
-                "nickname": {
-                    "type": "string"
-                },
-                "private_chat_notice_enabled": {
-                    "type": "boolean"
-                },
-                "register_source": {
-                    "$ref": "#/definitions/myblogx_models_enum.RegisterSourceType"
-                },
-                "stranger_msg_enabled": {
-                    "type": "boolean"
-                },
-                "updated_username_date": {
-                    "type": "string"
-                },
-                "username": {
-                    "type": "string"
-                }
-            }
-        },
-        "api_user_api_profile_api.UserInfoUpdateRequest": {
+        "internal_user_adapter_http.UpdateInfoRequest": {
             "type": "object",
             "properties": {
                 "abstract": {
@@ -8298,7 +7825,7 @@ const docTemplate = `{
                 }
             }
         },
-        "api_user_api_profile_api.UserLikeTagItem": {
+        "myblogx_internal_ai_metainfo.Metainfos": {
             "type": "object",
             "properties": {
                 "id": {
@@ -8309,579 +7836,13 @@ const docTemplate = `{
                 }
             }
         },
-        "api_user_api_user_man_api.AdminUserCreateRequest": {
-            "type": "object",
-            "required": [
-                "password",
-                "username"
-            ],
-            "properties": {
-                "email": {
-                    "type": "string",
-                    "maxLength": 256
-                },
-                "nickname": {
-                    "type": "string",
-                    "maxLength": 32,
-                    "minLength": 2
-                },
-                "password": {
-                    "type": "string",
-                    "maxLength": 72,
-                    "minLength": 6
-                },
-                "username": {
-                    "type": "string",
-                    "maxLength": 32,
-                    "minLength": 2
-                }
-            }
-        },
-        "api_user_api_user_man_api.AdminUserCreateResponse": {
-            "type": "object",
-            "properties": {
-                "email": {
-                    "type": "string"
-                },
-                "id": {
-                    "type": "integer"
-                },
-                "nickname": {
-                    "type": "string"
-                },
-                "register_source": {
-                    "$ref": "#/definitions/myblogx_models_enum.RegisterSourceType"
-                },
-                "role": {
-                    "$ref": "#/definitions/myblogx_models_enum.RoleType"
-                },
-                "status": {
-                    "$ref": "#/definitions/myblogx_models_enum.UserStatus"
-                },
-                "username": {
-                    "type": "string"
-                }
-            }
-        },
-        "api_user_api_user_man_api.UserListResponse": {
-            "type": "object",
-            "properties": {
-                "addr": {
-                    "type": "string"
-                },
-                "avatar": {
-                    "type": "string"
-                },
-                "created_at": {
-                    "description": "注册时间",
-                    "type": "string"
-                },
-                "id": {
-                    "type": "integer"
-                },
-                "ip": {
-                    "description": "ArticleCount int       ` + "`" + `json:\"article_count\"` + "`" + `\nFansCount    int       ` + "`" + `json:\"fans_count\"` + "`" + `\nFollowCount  int       ` + "`" + `json:\"follow_count\"` + "`" + `",
-                    "type": "string"
-                },
-                "last_login_at": {
-                    "description": "最后登录时间",
-                    "type": "string"
-                },
-                "nickname": {
-                    "type": "string"
-                },
-                "username": {
-                    "type": "string"
-                }
-            }
-        },
-        "gorm.DeletedAt": {
-            "type": "object",
-            "properties": {
-                "time": {
-                    "type": "string"
-                },
-                "valid": {
-                    "description": "Valid is true if Time is not NULL",
-                    "type": "boolean"
-                }
-            }
-        },
-        "models.ArticleMessageModel": {
-            "type": "object",
-            "properties": {
-                "action_user_avatar": {
-                    "type": "string"
-                },
-                "action_user_id": {
-                    "type": "integer"
-                },
-                "action_user_nickname": {
-                    "type": "string"
-                },
-                "article_id": {
-                    "description": "记录触发的业务对象",
-                    "type": "integer"
-                },
-                "article_title": {
-                    "type": "string"
-                },
-                "comment_id": {
-                    "type": "integer"
-                },
-                "content": {
-                    "type": "string"
-                },
-                "created_at": {
-                    "type": "string"
-                },
-                "deleted_at": {
-                    "$ref": "#/definitions/gorm.DeletedAt"
-                },
-                "id": {
-                    "type": "integer"
-                },
-                "is_read": {
-                    "description": "是否已读",
-                    "type": "boolean"
-                },
-                "link_herf": {
-                    "type": "string"
-                },
-                "link_title": {
-                    "description": "额外提示的链接",
-                    "type": "string"
-                },
-                "read_at": {
-                    "type": "string"
-                },
-                "receiver_id": {
-                    "type": "integer"
-                },
-                "type": {
-                    "$ref": "#/definitions/myblogx_models_enum_message_enum.Type"
-                },
-                "updated_at": {
-                    "type": "string"
-                }
-            }
-        },
-        "models.ArticleReviewTaskSource": {
-            "type": "string",
-            "enum": [
-                "create",
-                "edit",
-                "resubmit"
-            ],
-            "x-enum-varnames": [
-                "ArticleReviewTaskSourceCreate",
-                "ArticleReviewTaskSourceEdit",
-                "ArticleReviewTaskSourceResubmit"
-            ]
-        },
-        "models.ArticleReviewTaskStage": {
-            "type": "string",
-            "enum": [
-                "manual"
-            ],
-            "x-enum-varnames": [
-                "ArticleReviewTaskStageManual"
-            ]
-        },
-        "models.ArticleReviewTaskStatus": {
-            "type": "string",
-            "enum": [
-                "pending",
-                "approved",
-                "rejected",
-                "canceled"
-            ],
-            "x-enum-varnames": [
-                "ArticleReviewTaskPending",
-                "ArticleReviewTaskApproved",
-                "ArticleReviewTaskRejected",
-                "ArticleReviewTaskCanceled"
-            ]
-        },
-        "models.BannerModel": {
-            "type": "object",
-            "properties": {
-                "cover": {
-                    "description": "封面图片链接",
-                    "type": "string"
-                },
-                "cover_image_id": {
-                    "description": "封面图片 ID，用于前端编辑回填",
-                    "type": "integer"
-                },
-                "created_at": {
-                    "type": "string"
-                },
-                "deleted_at": {
-                    "$ref": "#/definitions/gorm.DeletedAt"
-                },
-                "href": {
-                    "description": "跳转链接",
-                    "type": "string"
-                },
-                "id": {
-                    "type": "integer"
-                },
-                "show": {
-                    "description": "是否显示",
-                    "type": "boolean"
-                },
-                "updated_at": {
-                    "type": "string"
-                }
-            }
-        },
-        "models.IDListRequest": {
-            "type": "object",
-            "required": [
-                "id_list"
-            ],
-            "properties": {
-                "id_list": {
-                    "type": "array",
-                    "items": {
-                        "type": "integer"
-                    }
-                }
-            }
-        },
-        "models.ImageModel": {
-            "type": "object",
-            "properties": {
-                "bucket": {
-                    "type": "string"
-                },
-                "created_at": {
-                    "type": "string"
-                },
-                "deleted_at": {
-                    "$ref": "#/definitions/gorm.DeletedAt"
-                },
-                "file_name": {
-                    "type": "string"
-                },
-                "hash": {
-                    "type": "string"
-                },
-                "height": {
-                    "type": "integer"
-                },
-                "id": {
-                    "type": "integer"
-                },
-                "mime_type": {
-                    "type": "string"
-                },
-                "object_key": {
-                    "type": "string"
-                },
-                "provider": {
-                    "$ref": "#/definitions/myblogx_models_enum.ImageProvider"
-                },
-                "size": {
-                    "type": "integer"
-                },
-                "status": {
-                    "$ref": "#/definitions/myblogx_models_enum.ImageStatus"
-                },
-                "updated_at": {
-                    "type": "string"
-                },
-                "url": {
-                    "type": "string"
-                },
-                "user_id": {
-                    "type": "integer"
-                },
-                "width": {
-                    "type": "integer"
-                }
-            }
-        },
-        "myblogx_models_enum.ArticleStatus": {
-            "type": "integer",
-            "format": "int32",
-            "enum": [
-                1,
-                2,
-                3,
-                4
-            ],
-            "x-enum-comments": {
-                "ArticleStatusDraft": "草稿",
-                "ArticleStatusExamining": "审核中",
-                "ArticleStatusPublished": "已发布",
-                "ArticleStatusRejected": "已拒绝"
-            },
-            "x-enum-descriptions": [
-                "草稿",
-                "审核中",
-                "已发布",
-                "已拒绝"
-            ],
-            "x-enum-varnames": [
-                "ArticleStatusDraft",
-                "ArticleStatusExamining",
-                "ArticleStatusPublished",
-                "ArticleStatusRejected"
-            ]
-        },
-        "myblogx_models_enum.ArticleVisibilityStatus": {
-            "type": "string",
-            "enum": [
-                "visible",
-                "user_hidden",
-                "admin_hidden"
-            ],
-            "x-enum-varnames": [
-                "ArticleVisibilityVisible",
-                "ArticleVisibilityUserHidden",
-                "ArticleVisibilityAdminHidden"
-            ]
-        },
-        "myblogx_models_enum.CommentStatus": {
-            "type": "integer",
-            "format": "int32",
-            "enum": [
-                1,
-                2,
-                3
-            ],
-            "x-enum-varnames": [
-                "CommentStatusExamining",
-                "CommentStatusPublished",
-                "CommentStatusDeleted"
-            ]
-        },
-        "myblogx_models_enum.ImageProvider": {
-            "type": "string",
-            "enum": [
-                "qiniu"
-            ],
-            "x-enum-varnames": [
-                "ImageProviderQiNiu"
-            ]
-        },
-        "myblogx_models_enum.ImageStatus": {
-            "type": "integer",
-            "enum": [
-                0,
-                1,
-                2,
-                3,
-                4,
-                5
-            ],
-            "x-enum-varnames": [
-                "ImageStatusUnknown",
-                "ImageStatusPass",
-                "ImageStatusDeleted",
-                "ImageStatusOrphaned",
-                "ImageStatusReviewing",
-                "ImageStatusBlocked"
-            ]
-        },
-        "myblogx_models_enum.RegisterSourceType": {
-            "type": "integer",
-            "format": "int32",
-            "enum": [
-                1,
-                2,
-                3,
-                4
-            ],
-            "x-enum-comments": {
-                "RegisterAdminSourceType": "管理员创建",
-                "RegisterEmailSourceType": "邮箱注册",
-                "RegisterQQSourceType": "qq 登录",
-                "RegisterTerminalSourceType": "终端注册"
-            },
-            "x-enum-descriptions": [
-                "邮箱注册",
-                "qq 登录",
-                "终端注册",
-                "管理员创建"
-            ],
-            "x-enum-varnames": [
-                "RegisterEmailSourceType",
-                "RegisterQQSourceType",
-                "RegisterTerminalSourceType",
-                "RegisterAdminSourceType"
-            ]
-        },
-        "myblogx_models_enum.RoleType": {
-            "type": "integer",
-            "format": "int32",
-            "enum": [
-                1,
-                2,
-                3
-            ],
-            "x-enum-comments": {
-                "RoleAdmin": "管理员",
-                "RoleGuest": "访客",
-                "RoleUser": "普通用户"
-            },
-            "x-enum-descriptions": [
-                "管理员",
-                "普通用户",
-                "访客"
-            ],
-            "x-enum-varnames": [
-                "RoleAdmin",
-                "RoleUser",
-                "RoleGuest"
-            ]
-        },
-        "myblogx_models_enum.UserStatus": {
-            "type": "integer",
-            "format": "int32",
-            "enum": [
-                1,
-                2,
-                3
-            ],
-            "x-enum-comments": {
-                "UserStatusActive": "正常",
-                "UserStatusBanned": "封禁",
-                "UserStatusDisabled": "禁用"
-            },
-            "x-enum-descriptions": [
-                "正常",
-                "禁用",
-                "封禁"
-            ],
-            "x-enum-varnames": [
-                "UserStatusActive",
-                "UserStatusDisabled",
-                "UserStatusBanned"
-            ]
-        },
-        "myblogx_models_enum_chat_msg_enum.MsgStatus": {
-            "type": "integer",
-            "format": "int32",
-            "enum": [
-                1,
-                2,
-                3,
-                4,
-                5
-            ],
-            "x-enum-varnames": [
-                "MsgStatusSend",
-                "MsgStatusDelivered",
-                "MsgStatusRead",
-                "MsgStatusRecall",
-                "MsgStatusDelete"
-            ]
-        },
-        "myblogx_models_enum_chat_msg_enum.MsgType": {
-            "type": "integer",
-            "format": "int32",
-            "enum": [
-                1,
-                2,
-                3,
-                4,
-                5,
-                6,
-                7,
-                8
-            ],
-            "x-enum-varnames": [
-                "MsgTypeText",
-                "MsgTypeImage",
-                "MsgTypeAudio",
-                "MsgTypeVideo",
-                "MsgTypeFile",
-                "MsgTypeEmoji",
-                "MsgTypeMarkdown",
-                "MsgTypeRead"
-            ]
-        },
-        "myblogx_models_enum_global_notif_enum.Type": {
-            "type": "integer",
-            "format": "int32",
-            "enum": [
-                1,
-                2,
-                3
-            ],
-            "x-enum-varnames": [
-                "UserVisibleRegisteredUsers",
-                "UserVisibleNewUsers",
-                "UserVisibleAllUsers"
-            ]
-        },
-        "myblogx_models_enum_message_enum.Type": {
-            "type": "integer",
-            "format": "int32",
-            "enum": [
-                1,
-                2,
-                3,
-                4,
-                5,
-                6,
-                7,
-                8,
-                9
-            ],
-            "x-enum-varnames": [
-                "CommentArticleType",
-                "CommentReplyType",
-                "DiggArticleType",
-                "UnDiggArticleType",
-                "DiggCommentType",
-                "UnDiggCommentType",
-                "FavorArticleType",
-                "UnFavorArticleType",
-                "SystemType"
-            ]
-        },
-        "myblogx_service_ai_service_metainfo.MetainfoResponse": {
-            "type": "object",
-            "properties": {
-                "abstract": {
-                    "type": "string"
-                },
-                "category": {
-                    "$ref": "#/definitions/myblogx_service_ai_service_metainfo.Metainfos"
-                },
-                "tags": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/myblogx_service_ai_service_metainfo.Metainfos"
-                    }
-                },
-                "title": {
-                    "type": "string"
-                }
-            }
-        },
-        "myblogx_service_ai_service_metainfo.Metainfos": {
-            "type": "object",
-            "properties": {
-                "id": {
-                    "type": "integer"
-                },
-                "title": {
-                    "type": "string"
-                }
-            }
-        },
-        "myblogx_service_ai_service_scoring.ArticleScoreIssue": {
+        "myblogx_internal_ai_scoring.ArticleScoreIssue": {
             "type": "object",
             "properties": {
                 "positions": {
                     "type": "array",
                     "items": {
-                        "$ref": "#/definitions/myblogx_service_ai_service_scoring.ArticleScorePosition"
+                        "$ref": "#/definitions/myblogx_internal_ai_scoring.ArticleScorePosition"
                     }
                 },
                 "reason": {
@@ -8892,7 +7853,7 @@ const docTemplate = `{
                 }
             }
         },
-        "myblogx_service_ai_service_scoring.ArticleScorePosition": {
+        "myblogx_internal_ai_scoring.ArticleScorePosition": {
             "type": "object",
             "properties": {
                 "paragraph": {
@@ -8903,214 +7864,7 @@ const docTemplate = `{
                 }
             }
         },
-        "myblogx_service_chat_service.SessionListItem": {
-            "type": "object",
-            "properties": {
-                "deleted_at": {
-                    "type": "string"
-                },
-                "is_mute": {
-                    "type": "boolean"
-                },
-                "is_top": {
-                    "type": "boolean"
-                },
-                "last_msg_content": {
-                    "type": "string"
-                },
-                "last_msg_time": {
-                    "type": "string"
-                },
-                "receiver_avatar": {
-                    "type": "string"
-                },
-                "receiver_id": {
-                    "type": "integer"
-                },
-                "receiver_nickname": {
-                    "type": "string"
-                },
-                "relation": {
-                    "type": "integer"
-                },
-                "session_id": {
-                    "type": "string"
-                },
-                "unread_count": {
-                    "type": "integer"
-                }
-            }
-        },
-        "myblogx_service_comment_service.ManageCommentItem": {
-            "type": "object",
-            "properties": {
-                "article_cover": {
-                    "type": "string"
-                },
-                "article_id": {
-                    "type": "integer"
-                },
-                "article_title": {
-                    "type": "string"
-                },
-                "content": {
-                    "type": "string"
-                },
-                "created_at": {
-                    "type": "string"
-                },
-                "digg_count": {
-                    "type": "integer"
-                },
-                "id": {
-                    "type": "integer"
-                },
-                "relation": {
-                    "type": "integer"
-                },
-                "reply_count": {
-                    "type": "integer"
-                },
-                "user_avatar": {
-                    "type": "string"
-                },
-                "user_id": {
-                    "type": "integer"
-                },
-                "user_nickname": {
-                    "type": "string"
-                }
-            }
-        },
-        "myblogx_service_favorite_service.FavoriteArticleItem": {
-            "type": "object",
-            "properties": {
-                "abstract": {
-                    "type": "string"
-                },
-                "article_id": {
-                    "type": "integer"
-                },
-                "article_status": {
-                    "$ref": "#/definitions/myblogx_models_enum.ArticleStatus"
-                },
-                "comment_count": {
-                    "type": "integer"
-                },
-                "cover": {
-                    "type": "string"
-                },
-                "digg_count": {
-                    "type": "integer"
-                },
-                "favor_count": {
-                    "type": "integer"
-                },
-                "favorited_at": {
-                    "type": "string"
-                },
-                "title": {
-                    "type": "string"
-                },
-                "user_avatar": {
-                    "type": "string"
-                },
-                "user_nickname": {
-                    "type": "string"
-                },
-                "view_count": {
-                    "type": "integer"
-                }
-            }
-        },
-        "myblogx_service_favorite_service.FavoriteListItem": {
-            "type": "object",
-            "properties": {
-                "abstract": {
-                    "type": "string"
-                },
-                "article_count": {
-                    "type": "integer"
-                },
-                "avatar": {
-                    "type": "string"
-                },
-                "cover": {
-                    "type": "string"
-                },
-                "created_at": {
-                    "type": "string"
-                },
-                "has_article": {
-                    "type": "boolean"
-                },
-                "id": {
-                    "type": "integer"
-                },
-                "is_default": {
-                    "type": "boolean"
-                },
-                "nickname": {
-                    "type": "string"
-                },
-                "title": {
-                    "type": "string"
-                },
-                "updated_at": {
-                    "type": "string"
-                },
-                "user_id": {
-                    "type": "integer"
-                }
-            }
-        },
-        "myblogx_service_follow_service.FansListItem": {
-            "type": "object",
-            "properties": {
-                "fans_abstract": {
-                    "type": "string"
-                },
-                "fans_avatar": {
-                    "type": "string"
-                },
-                "fans_nickname": {
-                    "type": "string"
-                },
-                "fans_user_id": {
-                    "type": "integer"
-                },
-                "follow_time": {
-                    "type": "string"
-                },
-                "relation": {
-                    "type": "integer"
-                }
-            }
-        },
-        "myblogx_service_follow_service.FollowListItem": {
-            "type": "object",
-            "properties": {
-                "follow_time": {
-                    "type": "string"
-                },
-                "followed_abstract": {
-                    "type": "string"
-                },
-                "followed_avatar": {
-                    "type": "string"
-                },
-                "followed_nickname": {
-                    "type": "string"
-                },
-                "followed_user_id": {
-                    "type": "integer"
-                },
-                "relation": {
-                    "type": "integer"
-                }
-            }
-        },
-        "myblogx_service_writer.ActionAuditRecord": {
+        "myblogx_internal_analytics_adapter_clickhouse.ActionAuditRecord": {
             "type": "object",
             "properties": {
                 "action_name": {
@@ -9187,7 +7941,7 @@ const docTemplate = `{
                 }
             }
         },
-        "myblogx_service_writer.CdcEventRecord": {
+        "myblogx_internal_analytics_adapter_clickhouse.CdcEventRecord": {
             "type": "object",
             "properties": {
                 "action": {
@@ -9255,7 +8009,7 @@ const docTemplate = `{
                 }
             }
         },
-        "myblogx_service_writer.LoginEventRecord": {
+        "myblogx_internal_analytics_adapter_clickhouse.LoginEventRecord": {
             "type": "object",
             "properties": {
                 "addr": {
@@ -9326,7 +8080,7 @@ const docTemplate = `{
                 }
             }
         },
-        "myblogx_service_writer.ReplayEventRecord": {
+        "myblogx_internal_analytics_adapter_clickhouse.ReplayEventRecord": {
             "type": "object",
             "properties": {
                 "action": {
@@ -9394,7 +8148,7 @@ const docTemplate = `{
                 }
             }
         },
-        "myblogx_service_writer.RuntimeLogRecord": {
+        "myblogx_internal_analytics_adapter_clickhouse.RuntimeLogRecord": {
             "type": "object",
             "properties": {
                 "env": {
@@ -9471,32 +8225,263 @@ const docTemplate = `{
                 }
             }
         },
-        "myblogx_service_search_service.ArticleSearchResponse": {
+        "myblogx_internal_chat_domain.MessageItem": {
             "type": "object",
             "properties": {
-                "list": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/myblogx_service_search_service.SearchListResponse"
-                    }
+                "content": {
+                    "type": "string"
                 },
-                "pagination": {
-                    "$ref": "#/definitions/myblogx_service_search_service.SearchPagination"
+                "deleted_at": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "integer"
+                },
+                "is_read": {
+                    "type": "boolean"
+                },
+                "is_self": {
+                    "type": "boolean"
+                },
+                "msg_status": {
+                    "$ref": "#/definitions/myblogx_internal_chat_domain.MsgStatus"
+                },
+                "msg_type": {
+                    "$ref": "#/definitions/myblogx_internal_chat_domain.MsgType"
+                },
+                "receiver_id": {
+                    "type": "integer"
+                },
+                "send_time": {
+                    "type": "string"
+                },
+                "sender_id": {
+                    "type": "integer"
+                },
+                "session_id": {
+                    "type": "string"
                 }
             }
         },
-        "myblogx_service_search_service.PageMode": {
-            "type": "string",
+        "myblogx_internal_chat_domain.MsgStatus": {
+            "type": "integer",
+            "format": "int32",
             "enum": [
-                "has_more",
-                "count"
+                1,
+                2,
+                3,
+                4,
+                5
             ],
             "x-enum-varnames": [
-                "PageModeHasMore",
-                "PageModeCount"
+                "StatusSent",
+                "StatusDelivered",
+                "StatusRead",
+                "StatusRecall",
+                "StatusDeleted"
             ]
         },
-        "myblogx_service_search_service.SearchAuthor": {
+        "myblogx_internal_chat_domain.MsgType": {
+            "type": "integer",
+            "format": "int32",
+            "enum": [
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7,
+                8
+            ],
+            "x-enum-varnames": [
+                "TypeText",
+                "TypeImage",
+                "TypeAudio",
+                "TypeVideo",
+                "TypeFile",
+                "TypeEmoji",
+                "TypeMarkdown",
+                "TypeRead"
+            ]
+        },
+        "myblogx_internal_chat_domain.SessionItem": {
+            "type": "object",
+            "properties": {
+                "deleted_at": {
+                    "type": "string"
+                },
+                "is_mute": {
+                    "type": "boolean"
+                },
+                "is_top": {
+                    "type": "boolean"
+                },
+                "last_msg_content": {
+                    "type": "string"
+                },
+                "last_msg_time": {
+                    "type": "string"
+                },
+                "receiver_avatar": {
+                    "type": "string"
+                },
+                "receiver_id": {
+                    "type": "integer"
+                },
+                "receiver_nickname": {
+                    "type": "string"
+                },
+                "relation": {
+                    "type": "integer"
+                },
+                "session_id": {
+                    "type": "string"
+                },
+                "unread_count": {
+                    "type": "integer"
+                }
+            }
+        },
+        "myblogx_internal_comment_app.CreateResult": {
+            "type": "object",
+            "properties": {
+                "article_id": {
+                    "type": "integer"
+                },
+                "content": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "integer"
+                },
+                "reply_id": {
+                    "type": "integer"
+                },
+                "root_id": {
+                    "type": "integer"
+                },
+                "status": {
+                    "type": "integer"
+                }
+            }
+        },
+        "myblogx_internal_comment_app.ManageItem": {
+            "type": "object",
+            "properties": {
+                "article_cover": {
+                    "type": "string"
+                },
+                "article_id": {
+                    "type": "integer"
+                },
+                "article_title": {
+                    "type": "string"
+                },
+                "content": {
+                    "type": "string"
+                },
+                "created_at": {
+                    "type": "string"
+                },
+                "digg_count": {
+                    "type": "integer"
+                },
+                "id": {
+                    "type": "integer"
+                },
+                "relation": {
+                    "type": "integer"
+                },
+                "reply_count": {
+                    "type": "integer"
+                },
+                "user_avatar": {
+                    "type": "string"
+                },
+                "user_id": {
+                    "type": "integer"
+                },
+                "user_nickname": {
+                    "type": "string"
+                }
+            }
+        },
+        "myblogx_internal_comment_app.RootItem": {
+            "type": "object",
+            "properties": {
+                "content": {
+                    "type": "string"
+                },
+                "created_at": {
+                    "type": "string"
+                },
+                "digg_count": {
+                    "type": "integer"
+                },
+                "id": {
+                    "type": "integer"
+                },
+                "is_digg": {
+                    "type": "boolean"
+                },
+                "relation": {
+                    "type": "integer"
+                },
+                "reply_count": {
+                    "type": "integer"
+                },
+                "reply_id": {
+                    "type": "integer"
+                },
+                "root_id": {
+                    "type": "integer"
+                },
+                "status": {
+                    "type": "integer"
+                },
+                "user_avatar": {
+                    "type": "string"
+                },
+                "user_id": {
+                    "type": "integer"
+                },
+                "user_nickname": {
+                    "type": "string"
+                }
+            }
+        },
+        "myblogx_internal_kernel.IDListRequest": {
+            "type": "object",
+            "required": [
+                "id_list"
+            ],
+            "properties": {
+                "id_list": {
+                    "type": "array",
+                    "items": {
+                        "type": "integer"
+                    }
+                }
+            }
+        },
+        "myblogx_internal_search_domain.ArticleStatus": {
+            "type": "integer",
+            "format": "int32",
+            "enum": [
+                1,
+                2,
+                3,
+                4
+            ],
+            "x-enum-varnames": [
+                "StatusDraft",
+                "StatusExamining",
+                "StatusPublished",
+                "StatusRejected"
+            ]
+        },
+        "myblogx_internal_search_domain.Author": {
             "type": "object",
             "properties": {
                 "avatar": {
@@ -9510,7 +8495,7 @@ const docTemplate = `{
                 }
             }
         },
-        "myblogx_service_search_service.SearchCategory": {
+        "myblogx_internal_search_domain.Category": {
             "type": "object",
             "properties": {
                 "id": {
@@ -9521,7 +8506,7 @@ const docTemplate = `{
                 }
             }
         },
-        "myblogx_service_search_service.SearchHighlight": {
+        "myblogx_internal_search_domain.Highlight": {
             "type": "object",
             "properties": {
                 "abstract": {
@@ -9532,17 +8517,17 @@ const docTemplate = `{
                 }
             }
         },
-        "myblogx_service_search_service.SearchListResponse": {
+        "myblogx_internal_search_domain.Item": {
             "type": "object",
             "properties": {
                 "abstract": {
                     "type": "string"
                 },
                 "author": {
-                    "$ref": "#/definitions/myblogx_service_search_service.SearchAuthor"
+                    "$ref": "#/definitions/myblogx_internal_search_domain.Author"
                 },
                 "category": {
-                    "$ref": "#/definitions/myblogx_service_search_service.SearchCategory"
+                    "$ref": "#/definitions/myblogx_internal_search_domain.Category"
                 },
                 "comment_count": {
                     "type": "integer"
@@ -9563,13 +8548,13 @@ const docTemplate = `{
                     "type": "integer"
                 },
                 "highlight": {
-                    "$ref": "#/definitions/myblogx_service_search_service.SearchHighlight"
+                    "$ref": "#/definitions/myblogx_internal_search_domain.Highlight"
                 },
                 "id": {
                     "type": "integer"
                 },
                 "publish_status": {
-                    "$ref": "#/definitions/myblogx_models_enum.ArticleStatus"
+                    "$ref": "#/definitions/myblogx_internal_search_domain.ArticleStatus"
                 },
                 "score": {
                     "type": "number"
@@ -9577,14 +8562,14 @@ const docTemplate = `{
                 "tags": {
                     "type": "array",
                     "items": {
-                        "$ref": "#/definitions/myblogx_service_search_service.SearchTag"
+                        "$ref": "#/definitions/myblogx_internal_search_domain.Tag"
                     }
                 },
                 "title": {
                     "type": "string"
                 },
                 "top": {
-                    "$ref": "#/definitions/myblogx_service_search_service.SearchTop"
+                    "$ref": "#/definitions/myblogx_internal_search_domain.Top"
                 },
                 "updated_at": {
                     "type": "string"
@@ -9593,11 +8578,22 @@ const docTemplate = `{
                     "type": "integer"
                 },
                 "visibility_status": {
-                    "$ref": "#/definitions/myblogx_models_enum.ArticleVisibilityStatus"
+                    "$ref": "#/definitions/myblogx_internal_search_domain.VisibilityStatus"
                 }
             }
         },
-        "myblogx_service_search_service.SearchPagination": {
+        "myblogx_internal_search_domain.PageMode": {
+            "type": "string",
+            "enum": [
+                "has_more",
+                "count"
+            ],
+            "x-enum-varnames": [
+                "PageModeHasMore",
+                "PageModeCount"
+            ]
+        },
+        "myblogx_internal_search_domain.Pagination": {
             "type": "object",
             "properties": {
                 "has_more": {
@@ -9607,7 +8603,7 @@ const docTemplate = `{
                     "type": "integer"
                 },
                 "mode": {
-                    "$ref": "#/definitions/myblogx_service_search_service.PageMode"
+                    "$ref": "#/definitions/myblogx_internal_search_domain.PageMode"
                 },
                 "page": {
                     "type": "integer"
@@ -9620,7 +8616,21 @@ const docTemplate = `{
                 }
             }
         },
-        "myblogx_service_search_service.SearchTag": {
+        "myblogx_internal_search_domain.Response": {
+            "type": "object",
+            "properties": {
+                "list": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/myblogx_internal_search_domain.Item"
+                    }
+                },
+                "pagination": {
+                    "$ref": "#/definitions/myblogx_internal_search_domain.Pagination"
+                }
+            }
+        },
+        "myblogx_internal_search_domain.Tag": {
             "type": "object",
             "properties": {
                 "id": {
@@ -9631,7 +8641,7 @@ const docTemplate = `{
                 }
             }
         },
-        "myblogx_service_search_service.SearchTop": {
+        "myblogx_internal_search_domain.Top": {
             "type": "object",
             "properties": {
                 "admin": {
@@ -9642,65 +8652,338 @@ const docTemplate = `{
                 }
             }
         },
-        "myblogx_service_top_service.ArticleTopListItem": {
+        "myblogx_internal_search_domain.VisibilityStatus": {
+            "type": "string",
+            "enum": [
+                "visible"
+            ],
+            "x-enum-varnames": [
+                "VisibilityVisible"
+            ]
+        },
+        "myblogx_internal_social_domain.FansItem": {
+            "type": "object",
+            "properties": {
+                "fans_abstract": {
+                    "type": "string"
+                },
+                "fans_avatar": {
+                    "type": "string"
+                },
+                "fans_nickname": {
+                    "type": "string"
+                },
+                "fans_user_id": {
+                    "type": "integer"
+                },
+                "follow_time": {
+                    "type": "string"
+                },
+                "relation": {
+                    "type": "integer"
+                }
+            }
+        },
+        "myblogx_internal_social_domain.FollowingItem": {
+            "type": "object",
+            "properties": {
+                "follow_time": {
+                    "type": "string"
+                },
+                "followed_abstract": {
+                    "type": "string"
+                },
+                "followed_avatar": {
+                    "type": "string"
+                },
+                "followed_nickname": {
+                    "type": "string"
+                },
+                "followed_user_id": {
+                    "type": "integer"
+                },
+                "relation": {
+                    "type": "integer"
+                }
+            }
+        },
+        "myblogx_internal_user_app.DetailView": {
             "type": "object",
             "properties": {
                 "abstract": {
                     "type": "string"
                 },
-                "admin_top": {
-                    "type": "boolean"
-                },
-                "category_title": {
+                "avatar": {
                     "type": "string"
                 },
-                "comment_count": {
+                "avatar_image_id": {
                     "type": "integer"
                 },
-                "comments_toggle": {
-                    "type": "boolean"
+                "code_age": {
+                    "type": "integer"
                 },
-                "cover": {
-                    "type": "string"
+                "comment_notice_enabled": {
+                    "type": "boolean"
                 },
                 "created_at": {
                     "type": "string"
                 },
-                "digg_count": {
-                    "type": "integer"
+                "digg_notice_enabled": {
+                    "type": "boolean"
                 },
-                "favor_count": {
+                "email": {
+                    "type": "string"
+                },
+                "fans_visibility": {
+                    "type": "boolean"
+                },
+                "favor_notice_enabled": {
+                    "type": "boolean"
+                },
+                "favorites_visibility": {
+                    "type": "boolean"
+                },
+                "followers_visibility": {
+                    "type": "boolean"
+                },
+                "has_password": {
+                    "type": "boolean"
+                },
+                "home_style_id": {
                     "type": "integer"
                 },
                 "id": {
                     "type": "integer"
                 },
-                "status": {
-                    "$ref": "#/definitions/myblogx_models_enum.ArticleStatus"
+                "like_tag_ids": {
+                    "type": "array",
+                    "items": {
+                        "type": "integer"
+                    }
                 },
-                "tags": {
+                "like_tag_items": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/myblogx_internal_user_app.LikeTagItem"
+                    }
+                },
+                "nickname": {
+                    "type": "string"
+                },
+                "private_chat_notice_enabled": {
+                    "type": "boolean"
+                },
+                "register_source": {
+                    "type": "integer"
+                },
+                "stranger_msg_enabled": {
+                    "type": "boolean"
+                },
+                "updated_username_date": {
+                    "type": "string"
+                },
+                "username": {
+                    "type": "string"
+                }
+            }
+        },
+        "myblogx_internal_user_app.LikeTagItem": {
+            "type": "object",
+            "properties": {
+                "id": {
+                    "type": "integer"
+                },
+                "title": {
+                    "type": "string"
+                }
+            }
+        },
+        "myblogx_internal_user_app.PublicProfile": {
+            "type": "object",
+            "properties": {
+                "abstract": {
+                    "type": "string"
+                },
+                "avatar": {
+                    "type": "string"
+                },
+                "avatarImageID": {
+                    "description": "以下字段是主页展示需要的补充信息。",
+                    "type": "integer",
+                    "format": "int64"
+                },
+                "codeAge": {
+                    "type": "integer"
+                },
+                "fansVis": {
+                    "type": "boolean"
+                },
+                "favoritesVis": {
+                    "type": "boolean"
+                },
+                "followVis": {
+                    "type": "boolean"
+                },
+                "homeStyleID": {
+                    "type": "integer",
+                    "format": "int64"
+                },
+                "id": {
+                    "type": "integer",
+                    "format": "int64"
+                },
+                "nickname": {
+                    "type": "string"
+                },
+                "place": {
+                    "type": "string"
+                },
+                "relation": {
+                    "type": "integer",
+                    "format": "int32"
+                },
+                "stats": {
+                    "$ref": "#/definitions/myblogx_internal_user_domain.Stats"
+                },
+                "username": {
+                    "type": "string"
+                }
+            }
+        },
+        "myblogx_internal_user_app.UpdateResult": {
+            "type": "object",
+            "properties": {
+                "changed": {
                     "type": "array",
                     "items": {
                         "type": "string"
                     }
                 },
-                "title": {
-                    "type": "string"
-                },
-                "updated_at": {
-                    "type": "string"
-                },
-                "user_avatar": {
-                    "type": "string"
-                },
-                "user_nickname": {
-                    "type": "string"
-                },
-                "user_top": {
+                "snapshotSynced": {
                     "type": "boolean"
                 },
-                "view_count": {
+                "user": {
+                    "$ref": "#/definitions/myblogx_internal_user_domain.User"
+                }
+            }
+        },
+        "myblogx_internal_user_domain.RegisterSource": {
+            "type": "integer",
+            "format": "int32",
+            "enum": [
+                1,
+                2,
+                3,
+                4
+            ],
+            "x-enum-varnames": [
+                "SourceEmail",
+                "SourceQQ",
+                "SourceTerminal",
+                "SourceAdmin"
+            ]
+        },
+        "myblogx_internal_user_domain.Role": {
+            "type": "integer",
+            "format": "int32",
+            "enum": [
+                1,
+                2,
+                3
+            ],
+            "x-enum-varnames": [
+                "RoleAdmin",
+                "RoleUser",
+                "RoleGuest"
+            ]
+        },
+        "myblogx_internal_user_domain.Stats": {
+            "type": "object",
+            "properties": {
+                "articleCount": {
                     "type": "integer"
+                },
+                "articleVisitedCount": {
+                    "type": "integer"
+                },
+                "fansCount": {
+                    "type": "integer"
+                },
+                "followCount": {
+                    "type": "integer"
+                },
+                "userID": {
+                    "type": "integer",
+                    "format": "int64"
+                },
+                "viewCount": {
+                    "type": "integer"
+                }
+            }
+        },
+        "myblogx_internal_user_domain.Status": {
+            "type": "integer",
+            "format": "int32",
+            "enum": [
+                1,
+                2,
+                3
+            ],
+            "x-enum-varnames": [
+                "StatusActive",
+                "StatusDisabled",
+                "StatusBanned"
+            ]
+        },
+        "myblogx_internal_user_domain.User": {
+            "type": "object",
+            "properties": {
+                "abstract": {
+                    "type": "string"
+                },
+                "addr": {
+                    "type": "string"
+                },
+                "avatar": {
+                    "type": "string"
+                },
+                "createdAt": {
+                    "type": "string"
+                },
+                "email": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "integer",
+                    "format": "int64"
+                },
+                "ip": {
+                    "type": "string"
+                },
+                "nickname": {
+                    "type": "string"
+                },
+                "openID": {
+                    "type": "string"
+                },
+                "passwordHash": {
+                    "type": "string"
+                },
+                "registerSource": {
+                    "$ref": "#/definitions/myblogx_internal_user_domain.RegisterSource"
+                },
+                "role": {
+                    "$ref": "#/definitions/myblogx_internal_user_domain.Role"
+                },
+                "status": {
+                    "$ref": "#/definitions/myblogx_internal_user_domain.Status"
+                },
+                "tokenVersion": {
+                    "type": "integer",
+                    "format": "int32"
+                },
+                "username": {
+                    "type": "string"
                 }
             }
         }

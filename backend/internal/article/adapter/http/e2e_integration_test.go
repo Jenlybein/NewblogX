@@ -21,6 +21,7 @@ import (
 	"myblogx/internal/article/domain/favorite"
 	redis_service "myblogx/internal/platform/redis"
 	"myblogx/internal/testkit/mysqlcontainer"
+	usermysql "myblogx/internal/user/adapter/mysql"
 	"myblogx/models"
 	"myblogx/models/ctype"
 	"myblogx/models/enum"
@@ -78,7 +79,7 @@ func newRouter(t *testing.T, db *gorm.DB, viewer domain.Viewer) *gin.Engine {
 func newRouterWithIDs(t *testing.T, db *gorm.DB, viewer domain.Viewer, idStart uint64) *gin.Engine {
 	t.Helper()
 
-	uow := articlemysql.NewTxManager(db, redis_service.Options{})
+	uow := articlemysql.NewTxManager(db, redis_service.Options{}, usermysql.ApplyArticleDelta)
 	svc := articleapp.New(uow, testClock{at: time.Date(2026, 1, 1, 12, 0, 0, 0, time.UTC)}, &testIDs{n: idStart})
 
 	h := articlehttp.NewHandler(svc, nil, nil, func(*gin.Context) domain.Viewer { return viewer }, nil)

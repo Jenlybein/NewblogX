@@ -20,6 +20,7 @@ import (
 	"myblogx/internal/article/domain/taxonomy"
 	redis_service "myblogx/internal/platform/redis"
 	"myblogx/internal/testkit/mysqlcontainer"
+	usermysql "myblogx/internal/user/adapter/mysql"
 	"myblogx/models"
 	"myblogx/models/ctype"
 )
@@ -380,7 +381,7 @@ func TestUoWCommitAndRollback(t *testing.T) {
 
 	db := migrate(t)
 	seedUsers(t, db)
-	uow := mysql.NewTxManager(db, redis_service.Options{})
+	uow := mysql.NewTxManager(db, redis_service.Options{}, usermysql.ApplyArticleDelta)
 	repo := mysql.NewArticleRepo(db)
 	ctx := context.Background()
 

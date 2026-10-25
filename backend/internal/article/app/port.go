@@ -99,7 +99,9 @@ type TxManager interface {
 
 // AuthorStatsPort 是跨模块写端口。
 //
-// 同步实现：adapter 转发给 user_service.StatApplyArticleDelta，复用同一事务。
+// 同步实现：由 adapter 把**当前事务句柄**交给装配层注入的写入函数
+// （internal/user/adapter/mysql.ApplyArticleDelta），因此仍然同事务，
+// 但 article 不 import user 模块的任何实现包。
 // 不做异步/outbox 的原因：会改变"删完文章作者文章数立刻减 1"的既有语义。
 type AuthorStatsPort interface {
 	ApplyArticleDelta(ctx context.Context, authorID domain.UserID, articleDelta, viewDelta int) error

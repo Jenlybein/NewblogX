@@ -45,7 +45,7 @@ func (u *UserModel) BeforeCreate(tx *gorm.DB) (err error) {
 }
 
 // AfterCreate 目前保留为兼容兜底。
-// 业务主路径已改为显式调用 user_service.InitUserDefaults，
+// 业务主路径已改为显式调用 internal/user/adapter/mysql.InitDefaults，
 // 这里仅保证旧测试和遗留直写 Create(&UserModel{}) 不会缺失用户默认行。
 func (u *UserModel) AfterCreate(tx *gorm.DB) error {
 	confModel := UserConfModel{

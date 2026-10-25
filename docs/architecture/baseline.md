@@ -1088,3 +1088,19 @@ S4.1d 把认证迁进 `internal/auth` 时，只换了**路由层**的 handler。
    **"不在黑名单、可以放行"**，命中黑名单返回 `false`，Redis 不可用/读取出错
    也返回 `false`（fail-closed）。按名字写成 `if black { 拒绝 }` 会把
    所有正常 token 拒掉。已在代码注释里写明。
+
+## 27. M5 收口补漏 · 阶段五：user_service 删除（跨模块写改函数注入）
+
+**2026-10-25**：`backend/service/user_service`（878 行）整体删除，`service/` 只剩 `cron_service` 与 `log_service`。
+
+- 统计写入迁进 **`internal/user/adapter/mysql/stat.go`**：
+  `ApplyArticleDelta` / `ApplyFollowDelta` / `EnsureStatRows` / `RecordViewDaily` / `InitDefaults`。
+- **article 的跨模块写改成函数注入**：`NewTxManager(db, counterOptions, AuthorStatsApplier)`。
+  article 侧出**当前事务句柄**，user 侧出**写入逻辑**，由装配层把两者接起来。
+  这样既保住"删文章与作者文章数 -1 同事务"（改成异步会让用户看到旧数字），
+  又让 article 不 import 任何 user 模块的实现包。
+- `stat_view.go` 的"主页浏览按天去重"拆成两段：Redis 挡板 + 数据库唯一索引兜底，
+  装配在 `app/user_wiring.go` 的 `homeViewBridge`；事务失败会回滚 Redis 标记，
+  否则用户当天第二次真正访问会被误判成"已看过"。
+- integration 测试传**真实**统计实现而不是 nil：传 nil 能让门禁变绿，
+  但那是把"删文章后作者文章数 -1"的覆盖悄悄丢掉。

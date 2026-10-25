@@ -8,19 +8,28 @@ import (
 	"myblogx/internal/article/app"
 	"myblogx/internal/article/domain"
 	"myblogx/models/ctype"
-	"myblogx/service/user_service"
 )
 
-// authorStats 是 app.AuthorStatsPort 的实现：转发给 user 模块。
+// authorStats 是 app.AuthorStatsPort 的实现。
 //
-// 这是唯一的跨模块**写**。刻意做成同步、同事务：
-// 改成异步会让"删完文章作者文章数还是旧的"成为用户可见的行为变化。
-type authorStats struct{ db *gorm.DB }
+// 这是唯一的跨模块**写**。模式是"本包出事务句柄，对方出写入逻辑"：
+// 同步、同事务，改成异步会让"删完文章作者文章数还是旧的"成为用户可见的行为变化。
+//
+// 具体 SQL 不在本包：写 user_stat 是 user 模块的知识。apply 由装配层注入，
+// 本包只把当前事务句柄递过去，因此不 import 任何 user 模块的实现包。
+type authorStats struct {
+	db    *gorm.DB
+	apply AuthorStatsApplier
+}
 
 // ApplyArticleDelta 更新作者的累计文章数与浏览量。
 func (a *authorStats) ApplyArticleDelta(ctx context.Context, authorID domain.UserID, articleDelta, viewDelta int) error {
 	_ = ctx
-	return user_service.StatApplyArticleDelta(a.db, fromUserID(authorID), articleDelta, viewDelta)
+	if a.apply == nil {
+		// 没装配就跳过：统计是附属信息，不该让删文章因为"统计没接上"而失败。
+		return nil
+	}
+	return a.apply(a.db, uint64(authorID), articleDelta, viewDelta)
 }
 
 // userPort 是 app.UserPort 的实现：只读用户展示信息。

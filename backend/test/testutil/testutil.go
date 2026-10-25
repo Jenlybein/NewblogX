@@ -6,9 +6,9 @@ import (
 	"myblogx/buildinfo"
 	"myblogx/conf"
 	"myblogx/internal/platform/idgen"
+	userAdapter "myblogx/internal/user/adapter/mysql"
 	blogmodels "myblogx/models"
 	"myblogx/models/ctype"
-	"myblogx/service/user_service"
 	"myblogx/utils/jwts"
 	"net/http"
 	"path/filepath"
@@ -191,7 +191,7 @@ func CreateUser(t *testing.T, db *gorm.DB, user *blogmodels.UserModel) {
 		if err := tx.Create(user).Error; err != nil {
 			return err
 		}
-		return user_service.InitUserDefaults(tx, user.ID)
+		return userAdapter.InitDefaults(tx, uint64(user.ID))
 	}); err != nil {
 		t.Fatalf("创建用户失败: %v", err)
 	}

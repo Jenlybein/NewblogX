@@ -64,9 +64,7 @@ func projectionRows() []struct {
 func TestProjectionRowsMatchDatabase(t *testing.T) {
 	db := mysqlcontainer.DB(t)
 
-	// 用 MigrateNoFK：本测试只比对**列**，不比对约束；
-	// 关掉外键能避开 article / chat 那几处的建表顺序问题。
-	schema.MigrateNoFK(t, db,
+	schema.Migrate(t, db,
 		schema.UserCore, schema.UserSession, schema.ArticleCore,
 		schema.ArticleReview, schema.Favorite, schema.UserReading,
 		schema.Comment, schema.Chat, schema.Outbox,
@@ -89,7 +87,7 @@ func TestProjectionRowsMatchDatabase(t *testing.T) {
 // 是因为后者的失败会把父测试一起标红，没法在同一测试里既造错又断言。
 func TestColumnsDiffCatchesDrift(t *testing.T) {
 	db := mysqlcontainer.DB(t)
-	schema.MigrateNoFK(t, db, schema.ImageAssets)
+	schema.Migrate(t, db, schema.ImageAssets)
 
 	// 正常结构体：必须先确认它对得上，否则下面的"能报错"毫无意义。
 	t.Run("字段对得上时不报差异", func(t *testing.T) {

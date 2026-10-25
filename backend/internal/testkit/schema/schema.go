@@ -262,32 +262,6 @@ func Migrate(t *testing.T, db *gorm.DB, groups ...Group) {
 	}
 }
 
-// MigrateNoFK 同 Migrate，但不创建外键约束。
-//
-// 只有确实被外键坑到才用它，用例见私信：
-//
-//	ChatMsgModel.SessionList 声明成 hasMany（foreignKey:SessionID），
-//	GORM 因此在 chat_session_models.session_id 上建了一条指向
-//	chat_msg_models.session_id 的外键。可是发第一条消息时**必须先有会话行、
-//	再有消息行**（SendMessage 就是这么写的），这条外键让第一步必然失败：
-//	Error 1452 fk_chat_msg_models_session_list。
-//
-// 也就是说这条约束在物理上不可能被满足，是建模的产物而不是业务规则
-// （chat_msg_models.session_id 也不是唯一键，本身就不该被引用）。
-// 真库若真带着它，私信从第一条消息起就是坏的。
-func MigrateNoFK(t *testing.T, db *gorm.DB, groups ...Group) {
-	t.Helper()
-	// 复制一份 Config 再改：直接改 db.Config 会污染并发测试共享的配置。
-	cfg := *db.Config
-	cfg.DisableForeignKeyConstraintWhenMigrating = true
-	noFK := db.Session(&gorm.Session{})
-	noFK.Config = &cfg
-
-	if err := noFK.AutoMigrate(Models(groups...)...); err != nil {
-		t.Fatalf("建表失败（组=%v，无外键）: %v", groups, err)
-	}
-}
-
 // ── 造数据 ──────────────────────────────────────────────────────
 
 // UserSpec 描述要插入的用户行。

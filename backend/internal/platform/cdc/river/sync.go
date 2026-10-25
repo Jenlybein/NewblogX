@@ -5,7 +5,7 @@ import (
 	"time"
 
 	"myblogx/internal/platform/es"
-	"myblogx/service/log_service"
+	"myblogx/internal/platform/log/writer"
 
 	"github.com/go-mysql-org/go-mysql/canal"
 	"github.com/go-mysql-org/go-mysql/mysql"
@@ -114,7 +114,7 @@ func (h *eventHandler) OnRow(e *canal.RowsEvent) error {
 
 	if err != nil {
 		pos := h.r.canal.SyncedPosition()
-		log_service.EmitCDCEvent(h.r.logOptions, log_service.CdcEventInput{
+		writer.EmitCDCEvent(h.r.logOptions, writer.CdcEventInput{
 			Level:        "error",
 			Message:      "river 构建批量请求失败",
 			ErrorCode:    "RIVER_BUILD_FAILED",

@@ -1,4 +1,4 @@
-package log_service
+package writer
 
 import (
 	"strings"
@@ -6,7 +6,7 @@ import (
 	platformlog "myblogx/internal/platform/log"
 )
 
-type CdcEvent struct {
+type ReplayEvent struct {
 	baseEvent
 	CdcJobID    string `json:"cdc_job_id,omitempty"`
 	Stream      string `json:"stream,omitempty"`
@@ -17,7 +17,7 @@ type CdcEvent struct {
 	Result      string `json:"result,omitempty"`
 }
 
-type CdcEventInput struct {
+type ReplayEventInput struct {
 	Level        string
 	Message      string
 	RequestID    string
@@ -40,12 +40,12 @@ type CdcEventInput struct {
 	Extra        map[string]any
 }
 
-func EmitCDCEvent(deps Options, input CdcEventInput) {
+func EmitReplayEvent(deps Options, input ReplayEventInput) {
 	level := strings.TrimSpace(strings.ToLower(input.Level))
 	if level == "" {
 		level = "info"
 	}
-	base := newBaseEvent(deps, "cdc_event", level, input.Message)
+	base := newBaseEvent(deps, "replay_event", level, input.Message)
 	base.RequestID = input.RequestID
 	base.TraceID = defaultIfEmptyString(input.TraceID, input.RequestID)
 	if base.RequestID == "" && base.TraceID != "" {
@@ -55,7 +55,7 @@ func EmitCDCEvent(deps Options, input CdcEventInput) {
 	base.ParentSpanID = input.ParentSpanID
 	base.EventName = input.EventName
 	if base.EventName == "" {
-		base.EventName = defaultCDCEventName(input)
+		base.EventName = defaultReplayEventName(input)
 	}
 	base.ErrorCode = input.ErrorCode
 	base.ErrorMessage = input.ErrorMessage
@@ -85,7 +85,7 @@ func EmitCDCEvent(deps Options, input CdcEventInput) {
 	}
 	base.ExtraJSON = marshalExtra(extra)
 
-	event := CdcEvent{
+	event := ReplayEvent{
 		baseEvent:   base,
 		CdcJobID:    input.CdcJobID,
 		Stream:      input.Stream,
@@ -95,18 +95,16 @@ func EmitCDCEvent(deps Options, input CdcEventInput) {
 		RetryCount:  input.RetryCount,
 		Result:      input.Result,
 	}
-	emitRow(deps, platformlog.KindCDC, parseLevel(base.Level), event)
+	emitRow(deps, platformlog.KindReplay, parseLevel(base.Level), event)
 }
 
-func defaultCDCEventName(input CdcEventInput) string {
+func defaultReplayEventName(input ReplayEventInput) string {
 	switch strings.ToLower(strings.TrimSpace(input.Result)) {
-	case "retry":
-		return "river_projection_retry"
-	case "dlq":
-		return "river_projection_dlq"
 	case "failed":
-		return "river_projection_failed"
+		return "replay_failed"
+	case "started":
+		return "replay_started"
 	default:
-		return "river_projection_success"
+		return "replay_success"
 	}
 }

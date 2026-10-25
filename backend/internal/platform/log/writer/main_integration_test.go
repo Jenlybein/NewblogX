@@ -1,6 +1,6 @@
 //go:build integration
 
-package log_service
+package writer
 
 import (
 	"context"

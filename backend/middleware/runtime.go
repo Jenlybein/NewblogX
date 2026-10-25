@@ -3,8 +3,8 @@ package middleware
 import (
 	"myblogx/conf"
 	sitecfg "myblogx/internal/platform/config"
+	"myblogx/internal/platform/log/writer"
 	"myblogx/internal/platform/redis"
-	"myblogx/service/log_service"
 
 	"github.com/gin-gonic/gin"
 	"github.com/mojocn/base64Captcha"
@@ -17,7 +17,7 @@ type Runtime struct {
 	LogConfig         conf.Logrus
 	Logger            *logrus.Logger
 	Redis             redis_service.Options
-	Log               log_service.Options
+	Log               writer.Options
 	RuntimeSite       *sitecfg.RuntimeConfigService
 	ImageCaptchaStore base64Captcha.Store
 	Verifier          TokenVerifier
@@ -33,7 +33,7 @@ func NewRuntime(opts RuntimeOptions) Runtime {
 		LogConfig: opts.Log,
 		Logger:    opts.Logger,
 		Redis:     redisOptions,
-		Log: log_service.Options{
+		Log: writer.Options{
 			LogConfig:        opts.Log,
 			SystemConfig:     opts.System,
 			ClickHouseEnable: opts.ClickHouseConfig.Enabled,

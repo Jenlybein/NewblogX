@@ -8,7 +8,7 @@
 //	go test -tags integration -run Integration ./service/log_service/
 //
 // 复用已有实例时设 BLOGX_CH_ADDR=host:9000。
-package log_service
+package writer
 
 import (
 	"context"

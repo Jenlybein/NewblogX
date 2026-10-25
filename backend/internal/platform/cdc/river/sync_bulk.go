@@ -10,7 +10,7 @@ import (
 
 	"myblogx/internal/platform/cdc/deadletter"
 	"myblogx/internal/platform/es"
-	"myblogx/service/log_service"
+	"myblogx/internal/platform/log/writer"
 
 	"github.com/go-mysql-org/go-mysql/canal"
 	"github.com/go-mysql-org/go-mysql/mysql"
@@ -94,7 +94,7 @@ func (r *River) doBulkWithRetry(tasks []cdcTask) error {
 		lastMsg = message
 		if len(failed) == 0 {
 			for _, task := range pending {
-				log_service.EmitCDCEvent(r.logOptions, log_service.CdcEventInput{
+				writer.EmitCDCEvent(r.logOptions, writer.CdcEventInput{
 					Level:       "info",
 					Message:     "river 执行成功",
 					CdcJobID:    task.CdcJobID,
@@ -111,7 +111,7 @@ func (r *River) doBulkWithRetry(tasks []cdcTask) error {
 
 		if attempt < maxAttempts {
 			for _, task := range failed {
-				log_service.EmitCDCEvent(r.logOptions, log_service.CdcEventInput{
+				writer.EmitCDCEvent(r.logOptions, writer.CdcEventInput{
 					Level:        "warn",
 					Message:      "river 执行失败，准备重试",
 					ErrorCode:    "RIVER_BULK_RETRY",
@@ -154,7 +154,7 @@ func (r *River) doBulkWithRetry(tasks []cdcTask) error {
 				ErrorMsg:    message,
 			})
 
-			log_service.EmitCDCEvent(r.logOptions, log_service.CdcEventInput{
+			writer.EmitCDCEvent(r.logOptions, writer.CdcEventInput{
 				Level:        "error",
 				Message:      "river 执行失败，已转入 DLQ",
 				ErrorCode:    "RIVER_BULK_DLQ",
@@ -240,7 +240,7 @@ func (r *River) saveProjectionErrorToDLQ(e *canal.RowsEvent, err error) {
 		ErrorMsg:    err.Error(),
 	}})
 
-	logInput := log_service.CdcEventInput{
+	logInput := writer.CdcEventInput{
 		Level:        "error",
 		Message:      "projection 同步失败，已转入 DLQ",
 		ErrorCode:    "RIVER_PROJECTION_DLQ",
@@ -259,7 +259,7 @@ func (r *River) saveProjectionErrorToDLQ(e *canal.RowsEvent, err error) {
 		logInput.ErrorMessage = saveErr.Error()
 		logInput.Result = "failed"
 	}
-	log_service.EmitCDCEvent(r.logOptions, logInput)
+	writer.EmitCDCEvent(r.logOptions, logInput)
 }
 
 // getFieldValue 获取mysql字段值并将其转换为特定的es值

@@ -12,7 +12,7 @@ import (
 
 	"myblogx/conf"
 	"myblogx/internal/platform/idgen"
-	"myblogx/service/log_service"
+	"myblogx/internal/platform/log/writer"
 	"myblogx/utils/jwts"
 	"myblogx/utils/requestmeta"
 
@@ -80,7 +80,7 @@ func (h Runtime) LogMiddleware(c *gin.Context) {
 		fields["user_id"] = uint64(claims.UserID)
 	}
 
-	entry := log_service.RuntimeEntry(h.Log, fields)
+	entry := writer.RuntimeEntry(h.Log, fields)
 	switch {
 	case c.Writer.Status() >= 500:
 		fields["error_code"] = fmt.Sprintf("HTTP_%d", c.Writer.Status())
@@ -89,14 +89,14 @@ func (h Runtime) LogMiddleware(c *gin.Context) {
 			errMsg = fmt.Sprintf("http_status_%d", c.Writer.Status())
 		}
 		fields["error_message"] = errMsg
-		if log_service.ShouldCaptureStack(h.LogConfig, "error") {
-			stack, truncated := log_service.TruncateByBytes(string(debug.Stack()), log_service.StackMaxBytes(h.LogConfig))
+		if writer.ShouldCaptureStack(h.LogConfig, "error") {
+			stack, truncated := writer.TruncateByBytes(string(debug.Stack()), writer.StackMaxBytes(h.LogConfig))
 			fields["error_stack"] = stack
 			if truncated {
 				fields["error_stack_truncated"] = true
 			}
 		}
-		entry = log_service.RuntimeEntry(h.Log, fields)
+		entry = writer.RuntimeEntry(h.Log, fields)
 		entry.Error("请求执行失败")
 	case c.Writer.Status() >= 400:
 		entry.Warn("请求执行完成")
@@ -114,19 +114,19 @@ func newRequestID() string {
 }
 
 func resolveRequestID(cfg conf.Logrus, traceID string) string {
-	if traceID != "" && log_service.RequestIDEqualsTraceID(cfg) {
+	if traceID != "" && writer.RequestIDEqualsTraceID(cfg) {
 		return traceID
 	}
 	return newRequestID()
 }
 
 func resolveTraceContext(c *gin.Context, cfg conf.Logrus) (traceID, spanID, parentSpanID string) {
-	if !log_service.TraceEnabled(cfg) {
+	if !writer.TraceEnabled(cfg) {
 		return "", "", ""
 	}
 
-	if log_service.InheritTraceFromGateway(cfg) && c != nil && c.Request != nil {
-		for _, header := range log_service.GatewayHeaderPriority(cfg) {
+	if writer.InheritTraceFromGateway(cfg) && c != nil && c.Request != nil {
+		for _, header := range writer.GatewayHeaderPriority(cfg) {
 			value := strings.TrimSpace(c.GetHeader(header))
 			if value == "" {
 				continue

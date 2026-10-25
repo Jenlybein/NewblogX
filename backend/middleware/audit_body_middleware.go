@@ -4,7 +4,7 @@ import (
 	"bytes"
 	"io"
 
-	"myblogx/service/log_service"
+	"myblogx/internal/platform/log/writer"
 
 	"github.com/gin-gonic/gin"
 	"github.com/sirupsen/logrus"
@@ -19,7 +19,7 @@ const maxCaptureBytes = 1 << 20 // 1MB
 // L.10 起不再采集 header：原始报文默认不入库（见 07 §0）。
 // 请求体用 io.LimitReader 限量读取，再交给 PrepareCapturedBody 做脱敏 + ≤16KB 截断；
 // 采集结果只会在**失败请求**时被写进审计日志。
-func CaptureLog(mode log_service.CaptureLogMode) gin.HandlerFunc {
+func CaptureLog(mode writer.CaptureLogMode) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		// 采集请求体（如果开启）
 		if mode.NeedRequestBody() && c.Request != nil && c.Request.Body != nil {
@@ -32,7 +32,7 @@ func CaptureLog(mode log_service.CaptureLogMode) gin.HandlerFunc {
 				if truncated {
 					rawRequestBody = rawRequestBody[:maxCaptureBytes]
 				}
-				log_service.SetCapturedRequestBody(c, log_service.PrepareCapturedBody(rawRequestBody, c.GetHeader("Content-Type")))
+				writer.SetCapturedRequestBody(c, writer.PrepareCapturedBody(rawRequestBody, c.GetHeader("Content-Type")))
 				// 重新封装请求体，不影响后续业务读取（业务拿到的是被 1MB 截断后的部分）。
 				c.Request.Body = io.NopCloser(bytes.NewBuffer(rawRequestBody))
 			}
@@ -57,23 +57,23 @@ func CaptureLog(mode log_service.CaptureLogMode) gin.HandlerFunc {
 
 const (
 	// None 表示不采集任何请求/响应体。
-	None = log_service.None
+	None = writer.None
 	// ReqBody 表示采集请求体。
-	ReqBody = log_service.ReqBody
+	ReqBody = writer.ReqBody
 	// RespBody 表示采集响应体。
-	RespBody = log_service.RespBody
+	RespBody = writer.RespBody
 	// BothBody 表示同时采集请求体和响应体。
-	BothBody = log_service.BothBody
+	BothBody = writer.BothBody
 	// All 是 BothBody 的别名。
-	All = log_service.All
+	All = writer.All
 )
 
 // auditBodyWriter 包装 Gin ResponseWriter，用于复制响应体内容供审计日志使用。
 type auditBodyWriter struct {
-	gin.ResponseWriter                            // 嵌入原始 ResponseWriter
-	ctx                *gin.Context               // Gin 上下文
-	mode               log_service.CaptureLogMode // 采集模式
-	body               bytes.Buffer               // 缓存响应体内容
+	gin.ResponseWriter                       // 嵌入原始 ResponseWriter
+	ctx                *gin.Context          // Gin 上下文
+	mode               writer.CaptureLogMode // 采集模式
+	body               bytes.Buffer          // 缓存响应体内容
 }
 
 // Write 在响应正常输出给客户端的同时，额外缓存一份响应体。
@@ -105,5 +105,5 @@ func (w *auditBodyWriter) syncCapturedResponseBody() {
 	if w == nil || w.ctx == nil {
 		return
 	}
-	log_service.SetCapturedResponseBody(w.ctx, log_service.PrepareCapturedBody(w.body.Bytes(), w.Header().Get("Content-Type")))
+	writer.SetCapturedResponseBody(w.ctx, writer.PrepareCapturedBody(w.body.Bytes(), w.Header().Get("Content-Type")))
 }

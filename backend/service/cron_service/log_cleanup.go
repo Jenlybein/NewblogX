@@ -8,7 +8,7 @@ import (
 	"strings"
 	"time"
 
-	"myblogx/service/log_service"
+	"myblogx/internal/platform/log/writer"
 
 	"github.com/go-co-op/gocron/v2"
 )
@@ -61,7 +61,7 @@ func (s *CronService) registerLogCleanupJob(scheduler gocron.Scheduler) {
 }
 
 func (s *CronService) cleanupExpiredLogs(retentionDays int) {
-	logRoot := log_service.ResolveLogDir(s.logConfig.Dir)
+	logRoot := writer.ResolveLogDir(s.logConfig.Dir)
 	if strings.TrimSpace(logRoot) == "" {
 		if s.log != nil {
 			s.log.Warnf("日志清理任务跳过：日志目录为空")
@@ -74,11 +74,11 @@ func (s *CronService) cleanupExpiredLogs(retentionDays int) {
 	totalRemoved := 0
 
 	logSubDirs := []string{
-		log_service.RuntimeLogDirName,
-		log_service.LoginEventLogDirName,
-		log_service.ActionAuditLogDirName,
-		log_service.CdcEventLogDirName,
-		log_service.ReplayEventLogDirName,
+		writer.RuntimeLogDirName,
+		writer.LoginEventLogDirName,
+		writer.ActionAuditLogDirName,
+		writer.CdcEventLogDirName,
+		writer.ReplayEventLogDirName,
 	}
 
 	for _, subDir := range logSubDirs {

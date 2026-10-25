@@ -7,8 +7,8 @@ import (
 
 	"myblogx/conf"
 	"myblogx/internal/platform/idgen"
+	"myblogx/internal/platform/log/writer"
 	"myblogx/models/ctype"
-	"myblogx/service/log_service"
 
 	"github.com/sirupsen/logrus"
 )
@@ -96,7 +96,7 @@ func (hook StructuredLogHook) Levels() []logrus.Level {
 
 // Fire 实现 logrus.Hook 接口：把条目交给结构化管道。
 func (hook StructuredLogHook) Fire(entry *logrus.Entry) error {
-	log_service.EmitRuntimeLog(hook.Dir, hook.App, entry)
+	writer.EmitRuntimeLog(hook.Dir, hook.App, entry)
 	return nil
 }
 
@@ -142,7 +142,7 @@ func InitLogrus(l *conf.Logrus, system *conf.System) *logrus.Logger {
 	}
 
 	// 注册公共字段钩子
-	serviceName := log_service.ResolveLogApp(l.App, l.App)
+	serviceName := writer.ResolveLogApp(l.App, l.App)
 	env := ""
 	instanceID := ""
 	if system != nil {
@@ -157,7 +157,7 @@ func InitLogrus(l *conf.Logrus, system *conf.System) *logrus.Logger {
 	// 注册结构化日志钩子：条目转交 log_service 的有界异步管道，
 	// 由管道决定落本地文件还是直接写 ClickHouse（见 log_service/pipeline.go）。
 	logger.AddHook(StructuredLogHook{
-		Dir: log_service.ResolveLogDir(l.Dir),
+		Dir: writer.ResolveLogDir(l.Dir),
 		App: serviceName,
 	})
 

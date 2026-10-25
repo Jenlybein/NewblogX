@@ -8,9 +8,9 @@ import (
 	"myblogx/conf"
 	"myblogx/internal/platform/cdc/canalbase"
 	"myblogx/internal/platform/cdc/deadletter"
+	"myblogx/internal/platform/log/writer"
 	"myblogx/models/ctype"
 	"myblogx/models/enum/image_ref_enum"
-	"myblogx/service/log_service"
 
 	"github.com/go-mysql-org/go-mysql/canal"
 	"github.com/go-mysql-org/go-mysql/mysql"
@@ -26,7 +26,7 @@ type River struct {
 	cfg        conf.ImageRefRiver
 	qiNiu      conf.QiNiu
 	log        *logrus.Logger
-	logOptions log_service.Options
+	logOptions writer.Options
 	db         *gorm.DB
 }
 
@@ -47,7 +47,7 @@ func NewRiver(config conf.ImageRefRiver, qiNiuConfig conf.QiNiu, logger *logrus.
 	return r, nil
 }
 
-func (r *River) SetLogOptions(deps log_service.Options) {
+func (r *River) SetLogOptions(deps writer.Options) {
 	r.logOptions = deps
 }
 
@@ -315,7 +315,7 @@ func (r *River) runTaskWithRetry(task imageRefTask, payload map[string]any, runn
 	for attempt := 1; attempt <= maxAttempts; attempt++ {
 		lastErr = runner()
 		if lastErr == nil {
-			log_service.EmitCDCEvent(r.logOptions, log_service.CdcEventInput{
+			writer.EmitCDCEvent(r.logOptions, writer.CdcEventInput{
 				Level:       "info",
 				Message:     "image_ref_river 同步成功",
 				CdcJobID:    task.CdcJobID,
@@ -331,7 +331,7 @@ func (r *River) runTaskWithRetry(task imageRefTask, payload map[string]any, runn
 		if attempt >= maxAttempts {
 			break
 		}
-		log_service.EmitCDCEvent(r.logOptions, log_service.CdcEventInput{
+		writer.EmitCDCEvent(r.logOptions, writer.CdcEventInput{
 			Level:        "warn",
 			Message:      "image_ref_river 同步失败，准备重试",
 			ErrorCode:    "IMAGE_REF_RIVER_RETRY",
@@ -363,7 +363,7 @@ func (r *River) runTaskWithRetry(task imageRefTask, payload map[string]any, runn
 		return err
 	}
 
-	log_service.EmitCDCEvent(r.logOptions, log_service.CdcEventInput{
+	writer.EmitCDCEvent(r.logOptions, writer.CdcEventInput{
 		Level:        "error",
 		Message:      "image_ref_river 同步失败，已转入 DLQ",
 		ErrorCode:    "IMAGE_REF_RIVER_DLQ",

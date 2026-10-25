@@ -396,7 +396,7 @@ func TestR9_日志输入禁any(t *testing.T) {
 	cases := []case_{
 		{
 			name: "审计输入带 any 字段",
-			rel:  "service/log_service/write_action_audit.go",
+			rel:  "internal/platform/log/writer/write_action_audit.go",
 			src: `package log_service
 
 type ActionAuditInput struct {
@@ -421,7 +421,7 @@ type GinAuditInput struct {
 		},
 		{
 			name: "普通业务结构体不误报",
-			rel:  "service/log_service/other.go",
+			rel:  "internal/platform/log/writer/other.go",
 			src: `package log_service
 
 type SomeInput struct {

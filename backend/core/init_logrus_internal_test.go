@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	"myblogx/service/log_service"
+	"myblogx/internal/platform/log/writer"
 
 	"github.com/sirupsen/logrus"
 )
@@ -61,7 +61,7 @@ func TestStructuredLogHookFireFallsBackToFile(t *testing.T) {
 	logger := logrus.New()
 
 	// 兜底出口会一直持有文件句柄，测试结束前必须收掉，否则临时目录删不掉。
-	t.Cleanup(func() { _ = log_service.CloseStructuredLog(context.Background()) })
+	t.Cleanup(func() { _ = writer.CloseStructuredLog(context.Background()) })
 
 	hook := StructuredLogHook{Dir: dir, App: "app"}
 

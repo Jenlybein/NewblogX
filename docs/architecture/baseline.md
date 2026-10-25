@@ -1212,3 +1212,37 @@ S4.1d 把认证迁进 `internal/auth` 时，只换了**路由层**的 handler。
   压缩它只能减测试量。
 - **合并测试包减少二进制数量**：能从根上省掉大部分链接时间，但需要把 80 个包重组，
   属于独立的工程改造，暂不做。
+
+## 30. M5 收口补漏 · 阶段六：log_service 迁入 platform/log/writer
+
+**2026-10-25**：`backend/service/log_service`（20 文件 / 2687 行）整体迁入
+`internal/platform/log/writer`，`service/` 只剩 `cron_service`。
+
+### 为什么是"子包"而不是并进 platform/log
+
+`internal/platform/log`（2132 行）是日志 SDK：`Event` / `Field` / `Emitter` / `Sink` / `Options`，
+对外只提供"造事件、发事件"的能力，不含"本项目有哪些日志"。
+
+`log_service` 是**建在它之上的写入层**：五类业务日志（runtime / login / action / cdc / replay）
+的字段组装、审计 body 裁剪、按天落文件、WAL、批量进 ClickHouse。
+
+放在 `platform/log/writer` 子包，依赖方向是 `writer → log`，符合项目既定的
+"子包可依赖父包、父包不得反向依赖子包"。并进同一个包会让 2132 + 2687 行混在一起，
+且写入层引用的 gorm/CH 客户端会污染 SDK 的依赖面。
+
+### 连带改动：规则的作用范围必须跟着代码走
+
+`archcheck` 的 R9（日志/审计层禁 `any`）原来用
+`strings.HasPrefix(rel, "service/log_service/")` 圈定范围。目录一搬，这层就**静默失去保护** ——
+规则不会报错，只是不再检查。已改为 `internal/platform/log/`，覆盖 SDK 与写入层整个子树。
+
+同时修正 `rules_test.go` 里 R9 的两条人造用例路径（它们用旧路径，改完立刻红了 ——
+说明规则自检确实在起作用，不是摆设）。
+
+### 其他
+
+- `docs/docs.go`（swagger 生成物）里的 21 处 `log_service.XxxRecord` 对齐为 `writer.`。
+  没有重跑 `swag init`：注解本身还不全（S2.8 遗留 118 个 operation），重生成的风险大于收益。
+- **本次集成测试未执行**：Docker Desktop 守护进程未运行，`check.sh` 按设计跳过并告警。
+  单元测试（`internal/platform/log/...` / `core` / `middleware` / `cdc`）全绿，
+  archcheck 0 违规。日志管道的端到端（CH 落盘、WAL 回放）待 Docker 恢复后补验。

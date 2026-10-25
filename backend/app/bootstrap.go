@@ -8,10 +8,10 @@ import (
 	"myblogx/conf"
 	"myblogx/core"
 	sitecfg "myblogx/internal/platform/config"
+	"myblogx/internal/platform/log/writer"
 	"myblogx/platform/cachex"
 	"myblogx/platform/dbx"
 	"myblogx/platform/searchx"
-	"myblogx/service/log_service"
 
 	"github.com/elastic/go-elasticsearch/v7"
 	"github.com/go-redis/redis/v8"
@@ -50,7 +50,7 @@ func InitInfra(cfg *conf.Config, configFile string, version string) (*Infra, err
 	clickHouse := core.InitClickHouse(&cfg.ClickHouse)
 	esClient := searchx.Init(&cfg.ES, logger)
 
-	logOptions := log_service.Options{
+	logOptions := writer.Options{
 		LogConfig:        cfg.Log,
 		SystemConfig:     cfg.System,
 		ClickHouseEnable: cfg.ClickHouse.Enabled,
@@ -58,14 +58,14 @@ func InitInfra(cfg *conf.Config, configFile string, version string) (*Infra, err
 		ClickHouse:       clickHouse,
 	}
 
-	if err := log_service.EnsureDailyLogFiles(logOptions); err != nil {
+	if err := writer.EnsureDailyLogFiles(logOptions); err != nil {
 		logger.Errorf("初始化结构化日志文件失败: %v", err)
 	}
 
 	// 安装结构化日志管道：五类日志各一条有界队列。
 	// 启用 ClickHouse 时直接写表、失败落本地 WAL；未启用时写每日文件
 	// （与改造前的落点完全一致，外部采集器无需调整）。
-	if err := log_service.InitStructuredLog(log_service.PipelineConfig{
+	if err := writer.InitStructuredLog(writer.PipelineConfig{
 		Options:    logOptions,
 		WALDir:     cfg.Log.WALDir,
 		ClickHouse: cfg.ClickHouse.Enabled,
@@ -139,7 +139,7 @@ func RegisterInfraCleanup(lc *Lifecycle, infra *Infra) {
 
 	// 日志管道最后注册 → 停机时最先执行：先把队列里剩下的日志刷完。
 	lc.OnStop("structured-log", func(ctx context.Context) error {
-		return log_service.CloseStructuredLog(ctx)
+		return writer.CloseStructuredLog(ctx)
 	})
 }
 

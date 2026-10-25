@@ -1,6 +1,6 @@
 import type { Ref } from "vue";
 
-import { getArticleScoreDetail, regenerateArticleScore } from "~/services/ai";
+import { getArticleScoreDetail } from "~/services/ai";
 
 // 文章质量评分弹窗的数据加载。
 //
@@ -26,7 +26,6 @@ export type Notifier = {
 export type StudioScoreDeps = {
   modalOpen: Ref<boolean>;
   loading: Ref<boolean>;
-  refreshing: Ref<boolean>;
   data: Ref<ArticleScore | null>;
   /** 当前编辑的文章 id（空串表示新建）。 */
   articleId: Ref<string>;
@@ -37,7 +36,6 @@ export function useStudioScore(deps: StudioScoreDeps) {
   const {
     modalOpen: articleScoreModalOpen,
     loading: articleScoreLoading,
-    refreshing: articleScoreRefreshing,
     data: articleScoreData,
     articleId: editArticleId,
     message,

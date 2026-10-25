@@ -9,6 +9,8 @@ import (
 	mediaapptest "myblogx/internal/media/apptest"
 	notificationhttp "myblogx/internal/notification/adapter/http"
 	notificationtest "myblogx/internal/notification/apptest"
+	sitehttp "myblogx/internal/site/adapter/http"
+	sitetest "myblogx/internal/site/apptest"
 	searchhttp "myblogx/internal/search/adapter/http"
 	userhttp "myblogx/internal/user/adapter/http"
 	userapptest "myblogx/internal/user/apptest"
@@ -28,11 +30,12 @@ func TestRegisterAllRoutes(t *testing.T) {
 	app := api2.New(mw.Deps{})
 	runtimeMw := mw.Runtime{}
 
-	router.SiteRouter(api, app, runtimeMw)
+	router.SetSiteHandler(sitehttp.NewHandler(sitetest.NewDefaultService()))
+	router.SiteRouter(api, runtimeMw)
 	router.LogRouter(api, app, runtimeMw)
 	router.SetImageHandler(mediahttp.NewHandler(mediaapptest.NewDefaultService()))
 	router.ImageRouter(api, runtimeMw)
-	router.BannerRouter(api, app, runtimeMw)
+	router.BannerRouter(api, runtimeMw)
 	router.CaptchaRouter(api, app, runtimeMw)
 	// 认证路由来自 internal/auth：这里用全空替身，仅验证路由表。
 	router.SetAuthHandler(authhttp.NewHandler(authapptest.NewRepos(time.Now()).Service(), nil, nil, nil, false, 0))

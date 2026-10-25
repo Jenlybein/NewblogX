@@ -5,8 +5,8 @@ import (
 	"myblogx/api/captcha_api"
 	"myblogx/conf"
 	confsite "myblogx/conf/site"
+	sitecfg "myblogx/internal/platform/config"
 	"myblogx/models"
-	"myblogx/service/site_service"
 	"myblogx/test/testutil"
 	"net/http/httptest"
 	"testing"
@@ -49,7 +49,7 @@ func setupCaptchaConfig(t *testing.T, enable bool) {
 
 func newCaptchaAPI(t *testing.T) captcha_api.ImageCaptchaApi {
 	t.Helper()
-	runtimeSvc := site_service.NewRuntimeConfigService(testutil.Config().Site, testutil.Config().AI, testutil.Logger(), testutil.DB(), "")
+	runtimeSvc := sitecfg.NewRuntimeConfigService(testutil.Config().Site, testutil.Config().AI, testutil.Logger(), testutil.DB(), "")
 	if err := runtimeSvc.InitRuntimeConfig(); err != nil {
 		t.Fatalf("初始化运行时配置失败: %v", err)
 	}

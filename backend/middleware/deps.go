@@ -5,7 +5,7 @@ import (
 
 	"myblogx/conf"
 	"myblogx/internal/platform/mysql"
-	"myblogx/service/site_service"
+	sitecfg "myblogx/internal/platform/config"
 
 	"github.com/elastic/go-elasticsearch/v7"
 	"github.com/go-redis/redis/v8"
@@ -40,7 +40,7 @@ type Deps struct {
 	Redis             *redis.Client
 	ClickHouse        *sql.DB
 	ESClient          *elasticsearch.Client
-	RuntimeSite       *site_service.RuntimeConfigService
+	RuntimeSite       *sitecfg.RuntimeConfigService
 	ImageCaptchaStore base64Captcha.Store
 
 	// Tx 是事务边界。业务层（尤其 M4 起的 internal/article/app）应依赖它，

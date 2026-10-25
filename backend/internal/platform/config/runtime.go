@@ -1,15 +1,20 @@
-package site_service
+// Package config 维护站点的"运行时配置"：数据库里的一份 JSON，进程内缓存。
+//
+// 与 conf 包的分工：conf 是启动时从 settings.yaml 读到的基线配置，
+// 本包是管理员在后台改过之后、覆盖在基线之上的那份（落 runtime_site_config_models 表）。
+// 两者结构相同，读取一律走本包，保证"改完立刻生效"。
+package config
 
 import (
 	"encoding/json"
 	"errors"
-	"fmt"
 	"os"
 	"path/filepath"
 	"sync"
 
 	"myblogx/conf"
 	siteconf "myblogx/conf/site"
+	"myblogx/internal/apperr"
 	"myblogx/models"
 	"myblogx/utils/envyaml"
 
@@ -17,14 +22,17 @@ import (
 	"gorm.io/gorm"
 )
 
+// runtimeConfigName 是运行时配置在表里的唯一键。
 const runtimeConfigName = "default"
 
+// RuntimeConfig 是一份完整的运行时配置。
 type RuntimeConfig struct {
 	Site conf.Site `json:"site"`
 	AI   conf.AI   `json:"ai"`
 }
 
 // RuntimeConfigService 负责运行时站点配置的加载、缓存与更新。
+//
 // 该服务通过构造器显式注入，避免 package 级全局状态。
 type RuntimeConfigService struct {
 	baseSite   conf.Site
@@ -37,6 +45,7 @@ type RuntimeConfigService struct {
 	cache *RuntimeConfig
 }
 
+// NewRuntimeConfigService 构造服务。
 func NewRuntimeConfigService(baseSite conf.Site, baseAI conf.AI, logger *logrus.Logger, db *gorm.DB, configFile string) *RuntimeConfigService {
 	return &RuntimeConfigService{
 		baseSite:   baseSite,
@@ -64,7 +73,7 @@ func (s *RuntimeConfigService) defaultRuntimeConfig() *RuntimeConfig {
 
 func (s *RuntimeConfigService) loadRuntimeDefaultConfigFromFile() (*RuntimeConfig, error) {
 	if s.configFile == "" {
-		return nil, errors.New("运行时站点默认配置路径未设置")
+		return nil, apperr.New(apperr.CodeRuntimeConfigPathMissing)
 	}
 	defaultFile := filepath.Join(filepath.Dir(s.configFile), "site_default_settings.yaml")
 	byteData, err := os.ReadFile(defaultFile)
@@ -74,7 +83,7 @@ func (s *RuntimeConfigService) loadRuntimeDefaultConfigFromFile() (*RuntimeConfi
 
 	var raw conf.RuntimeSiteDefault
 	if err = envyaml.Unmarshal(byteData, &raw); err != nil {
-		return nil, fmt.Errorf("解析运行时站点默认配置失败: %w", err)
+		return nil, apperr.Wrap(apperr.CodeRuntimeConfigDecodeFailed, err)
 	}
 	return &RuntimeConfig{
 		Site: raw.Site,
@@ -107,6 +116,7 @@ func (s *RuntimeConfigService) setRuntimeConfigCache(cfg *RuntimeConfig) {
 	s.cache = cloneRuntimeConfig(cfg)
 }
 
+// GetRuntimeConfig 返回当前生效的完整配置。
 func (s *RuntimeConfigService) GetRuntimeConfig() RuntimeConfig {
 	s.mu.RLock()
 	if s.cache != nil {
@@ -120,22 +130,27 @@ func (s *RuntimeConfigService) GetRuntimeConfig() RuntimeConfig {
 	return *cfg
 }
 
+// GetRuntimeSite 返回站点配置。
 func (s *RuntimeConfigService) GetRuntimeSite() conf.Site {
 	return s.GetRuntimeConfig().Site
 }
 
+// GetRuntimeLogin 返回登录方式开关。
 func (s *RuntimeConfigService) GetRuntimeLogin() siteconf.Login {
 	return s.GetRuntimeSite().Login
 }
 
+// GetRuntimeArticle 返回文章相关开关。
 func (s *RuntimeConfigService) GetRuntimeArticle() siteconf.Article {
 	return s.GetRuntimeSite().Article
 }
 
+// GetRuntimeComment 返回评论相关开关。
 func (s *RuntimeConfigService) GetRuntimeComment() siteconf.Comment {
 	return s.GetRuntimeSite().Comment
 }
 
+// GetRuntimeAI 返回 AI 配置。
 func (s *RuntimeConfigService) GetRuntimeAI() conf.AI {
 	return s.GetRuntimeConfig().AI
 }
@@ -147,11 +162,11 @@ func (s *RuntimeConfigService) applyRuntimeConfig(cfg *RuntimeConfig) {
 func marshalRuntimeConfig(cfg *RuntimeConfig) (siteJSON string, aiJSON string, err error) {
 	siteData, err := json.Marshal(cfg.Site)
 	if err != nil {
-		return "", "", fmt.Errorf("序列化站点配置失败: %w", err)
+		return "", "", apperr.Wrap(apperr.CodeRuntimeConfigDecodeFailed, err)
 	}
 	aiData, err := json.Marshal(cfg.AI)
 	if err != nil {
-		return "", "", fmt.Errorf("序列化 AI 配置失败: %w", err)
+		return "", "", apperr.Wrap(apperr.CodeRuntimeConfigDecodeFailed, err)
 	}
 	return string(siteData), string(aiData), nil
 }
@@ -163,12 +178,12 @@ func decodeRuntimeConfig(model *models.RuntimeSiteConfigModel) (*RuntimeConfig, 
 	}
 	if model.SiteJSON != "" {
 		if err := json.Unmarshal([]byte(model.SiteJSON), &cfg.Site); err != nil {
-			return nil, fmt.Errorf("解析站点配置失败: %w", err)
+			return nil, apperr.Wrap(apperr.CodeRuntimeConfigDecodeFailed, err)
 		}
 	}
 	if model.AIJSON != "" {
 		if err := json.Unmarshal([]byte(model.AIJSON), &cfg.AI); err != nil {
-			return nil, fmt.Errorf("解析 AI 配置失败: %w", err)
+			return nil, apperr.Wrap(apperr.CodeRuntimeConfigDecodeFailed, err)
 		}
 	}
 	return cfg, nil
@@ -214,10 +229,10 @@ func (s *RuntimeConfigService) ensureRuntimeConfigModel(tx *gorm.DB) (*models.Ru
 // 当数据库还没有初始化记录时，会使用 site_default_settings.yaml 中的默认值灌入数据库。
 func (s *RuntimeConfigService) InitRuntimeConfig() error {
 	if s.db == nil {
-		return errors.New("数据库未初始化")
+		return apperr.New(apperr.CodeRuntimeConfigDBMissing)
 	}
 	if !s.db.Migrator().HasTable(&models.RuntimeSiteConfigModel{}) {
-		return errors.New("运行时配置表不存在，请先执行数据库初始化命令：/app/server -db")
+		return apperr.New(apperr.CodeRuntimeConfigTableMissing)
 	}
 	var loaded *RuntimeConfig
 	if err := s.db.Transaction(func(tx *gorm.DB) error {
@@ -234,39 +249,20 @@ func (s *RuntimeConfigService) InitRuntimeConfig() error {
 	return nil
 }
 
+// UpdateRuntimeSite 覆盖站点配置并刷新缓存。
 func (s *RuntimeConfigService) UpdateRuntimeSite(site conf.Site) error {
-	if s.db == nil {
-		return errors.New("数据库未初始化")
-	}
-	var updated *RuntimeConfig
-	if err := s.db.Transaction(func(tx *gorm.DB) error {
-		model, cfg, err := s.ensureRuntimeConfigModel(tx)
-		if err != nil {
-			return err
-		}
-		cfg.Site = site
-		siteJSON, aiJSON, marshalErr := marshalRuntimeConfig(cfg)
-		if marshalErr != nil {
-			return marshalErr
-		}
-		if err = tx.Model(model).Updates(map[string]any{
-			"site_json": siteJSON,
-			"ai_json":   aiJSON,
-		}).Error; err != nil {
-			return err
-		}
-		updated = cfg
-		return nil
-	}); err != nil {
-		return err
-	}
-	s.applyRuntimeConfig(updated)
-	return nil
+	return s.update(func(cfg *RuntimeConfig) { cfg.Site = site })
 }
 
+// UpdateRuntimeAI 覆盖 AI 配置并刷新缓存。
 func (s *RuntimeConfigService) UpdateRuntimeAI(ai conf.AI) error {
+	return s.update(func(cfg *RuntimeConfig) { cfg.AI = ai })
+}
+
+// update 是两条更新路径的公共骨架：事务里改 JSON、提交后刷新内存缓存。
+func (s *RuntimeConfigService) update(mutate func(*RuntimeConfig)) error {
 	if s.db == nil {
-		return errors.New("数据库未初始化")
+		return apperr.New(apperr.CodeRuntimeConfigDBMissing)
 	}
 	var updated *RuntimeConfig
 	if err := s.db.Transaction(func(tx *gorm.DB) error {
@@ -274,7 +270,7 @@ func (s *RuntimeConfigService) UpdateRuntimeAI(ai conf.AI) error {
 		if err != nil {
 			return err
 		}
-		cfg.AI = ai
+		mutate(cfg)
 		siteJSON, aiJSON, marshalErr := marshalRuntimeConfig(cfg)
 		if marshalErr != nil {
 			return marshalErr

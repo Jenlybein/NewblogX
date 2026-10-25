@@ -1,0 +1,368 @@
+// Package http 是站点模块的 HTTP 适配器。
+package http
+
+import (
+	"fmt"
+	"strconv"
+
+	"github.com/gin-gonic/gin"
+
+	"myblogx/common/res"
+	"myblogx/conf"
+	"myblogx/internal/apperr"
+	"myblogx/internal/site/app"
+	"myblogx/internal/site/domain"
+	"myblogx/middleware"
+	"myblogx/models/ctype"
+)
+
+// Handler 聚合站点与轮播图的所有 HTTP 入口。
+type Handler struct {
+	svc *app.Service
+}
+
+// NewHandler 构造处理器。
+func NewHandler(svc *app.Service) *Handler {
+	if svc == nil {
+		panic("site/http: 用例服务未注入")
+	}
+	return &Handler{svc: svc}
+}
+
+// fail 交给统一响应层：apperr 自带中文文案。
+func fail(c *gin.Context, err error) {
+	if apperr.IsCode(err, apperr.CodeSiteConfigMissing) {
+		res.FailWithMsg("运行时配置服务未初始化", c)
+		return
+	}
+	res.FailWithError(err, c)
+}
+
+// ── 站点配置 ───────────────────────────────────────────────────
+
+// QQLoginURL 返回 QQ 登录跳转地址。
+// @Summary 获取 QQ 登录地址
+// @Tags site
+// @Produce json
+// @Success 200 {object} object{code=int,data=string,msg=string}
+// @Router /site/qq_url [get]
+func (h *Handler) QQLoginURL(c *gin.Context) {
+	res.OkWithData(h.svc.QQLoginURL(), c)
+}
+
+// SEO 返回站点 SEO 信息。
+// @Summary 获取站点 SEO 信息
+// @Tags site
+// @Produce json
+// @Success 200 {object} object{code=int,data=SEOResponse,msg=string}
+// @Router /site/seo [get]
+func (h *Handler) SEO(c *gin.Context) {
+	seo := h.svc.PublicSEO()
+	res.OkWithData(SEOResponse{
+		SiteTitle:    seo.SiteTitle,
+		ProjectTitle: seo.ProjectTitle,
+		Logo:         seo.Logo,
+		Icon:         seo.Icon,
+		Keywords:     seo.Keywords,
+		Description:  seo.Description,
+	}, c)
+}
+
+// AIInfo 返回站点 AI 信息。
+// @Summary 获取站点 AI 信息
+// @Tags site
+// @Produce json
+// @Success 200 {object} object{code=int,data=AIResponse,msg=string}
+// @Router /site/ai_info [get]
+func (h *Handler) AIInfo(c *gin.Context) {
+	ai := h.svc.PublicAI()
+	res.OkWithData(AIResponse{
+		Enable:   ai.Enable,
+		Nickname: ai.Nickname,
+		Avatar:   ai.Avatar,
+		Abstract: ai.Abstract,
+	}, c)
+}
+
+// PublicInfo 按名称返回公开配置。
+// @Summary 获取站点公开配置
+// @Tags site
+// @Produce json
+// @Param name path string true "站点信息名称：site 站点版本、seo SEO 信息"
+// @Success 200 {object} object{code=int,data=object{},msg=string}
+// @Router /site/{name} [get]
+func (h *Handler) PublicInfo(c *gin.Context) {
+	cr, ok := bindURI[SiteInfoRequest](c)
+	if !ok {
+		return
+	}
+	switch cr.Name {
+	case "site":
+		res.OkWithData(h.svc.PublicSite(), c)
+	case "seo":
+		seo := h.svc.PublicSEO()
+		res.OkWithData(SEOResponse{
+			SiteTitle:    seo.SiteTitle,
+			ProjectTitle: seo.ProjectTitle,
+			Logo:         seo.Logo,
+			Icon:         seo.Icon,
+			Keywords:     seo.Keywords,
+			Description:  seo.Description,
+		}, c)
+	default:
+		res.FailWithMsg("站点信息不存在", c)
+	}
+}
+
+// AdminInfo 按名称返回管理端配置。
+// @Summary 获取站点配置（管理员）
+// @Tags site
+// @Produce json
+// @Security BearerAuth
+// @Param name path string true "配置名称：site 站点配置、ai AI 配置"
+// @Success 200 {object} object{code=int,data=object{},msg=string}
+// @Router /site/admin/{name} [get]
+func (h *Handler) AdminInfo(c *gin.Context) {
+	cr, ok := bindURI[SiteInfoRequest](c)
+	if !ok {
+		return
+	}
+	switch cr.Name {
+	case "site":
+		res.OkWithData(h.svc.AdminSite(), c)
+	case "ai":
+		res.OkWithData(h.svc.AdminAI(), c)
+	default:
+		res.FailWithMsg("站点信息不存在", c)
+	}
+}
+
+// UpdateConfig 更新运行时配置（管理员）。
+//
+// 请求体结构随 name 变化，所以这里自己解析，不走通用绑定中间件。
+// @Summary 更新站点运行时配置（管理员）
+// @Tags site
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Param name path string true "配置名称：site 站点配置、ai AI 配置"
+// @Param body body object true "请求体"
+// @Success 200 {object} object{code=int,data=object{},msg=string}
+// @Router /site/{name} [put]
+func (h *Handler) UpdateConfig(c *gin.Context) {
+	cr, ok := bindURI[SiteInfoRequest](c)
+	if !ok {
+		return
+	}
+	switch cr.Name {
+	case "site":
+		var body conf.Site
+		if err := c.ShouldBindJSON(&body); err != nil {
+			res.FailWithError(err, c)
+			return
+		}
+		if err := h.svc.UpdateSite(body); err != nil {
+			fail(c, err)
+			return
+		}
+		res.OkWithMsg("站点配置更新成功", c)
+		middleware.EmitActionAuditFromGin(c, middleware.GinAuditInput{
+			ActionName: "site_runtime_update",
+			TargetType: "runtime_site_config",
+			TargetID:   "site",
+			Success:    true,
+			Message:    "更新站点运行时配置成功",
+		})
+	case "ai":
+		var body conf.AI
+		if err := c.ShouldBindJSON(&body); err != nil {
+			res.FailWithError(err, c)
+			return
+		}
+		if err := h.svc.UpdateAI(body); err != nil {
+			fail(c, err)
+			return
+		}
+		res.OkWithMsg("站点配置更新成功", c)
+		middleware.EmitActionAuditFromGin(c, middleware.GinAuditInput{
+			ActionName: "site_runtime_update",
+			TargetType: "runtime_site_config",
+			TargetID:   "ai",
+			Success:    true,
+			Message:    "更新 AI 运行时配置成功",
+		})
+	default:
+		res.FailWithMsg("站点信息不存在", c)
+	}
+}
+
+// ── 轮播图 ─────────────────────────────────────────────────────
+
+// BannerList 轮播图列表。
+// @Summary 轮播图列表
+// @Tags banner
+// @Produce json
+// @Param show query bool false "是否展示"
+// @Success 200 {object} object{code=int,data=object{list=[]BannerItem,has_more=bool},msg=string}
+// @Router /banners [get]
+func (h *Handler) BannerList(c *gin.Context) {
+	cr, ok := bindQuery[BannerListRequest](c)
+	if !ok {
+		return
+	}
+	if cr.Order != "" {
+		// 旧实现没有开放排序白名单，传 order 会直接报错。
+		res.FailWithMsg("排序字段错误", c)
+		return
+	}
+	rows, hasMore, err := h.svc.ListBanners(c.Request.Context(), domain.BannerQuery{
+		Page:  cr.Page,
+		Limit: cr.Limit,
+		Show:  cr.Show,
+	})
+	if err != nil {
+		fail(c, err)
+		return
+	}
+	list := make([]BannerItem, 0, len(rows))
+	for _, row := range rows {
+		list = append(list, toBannerItem(row))
+	}
+	res.OkWithHasMoreList(list, hasMore, c)
+}
+
+// BannerCreate 创建轮播图（管理员）。
+// @Summary 创建轮播图
+// @Tags banner
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Param body body BannerCreateRequest true "创建参数"
+// @Success 200 {object} object{code=int,data=BannerCreateResponse,msg=string}
+// @Router /banners [post]
+func (h *Handler) BannerCreate(c *gin.Context) {
+	cr, ok := bindJSON[BannerCreateRequest](c)
+	if !ok {
+		return
+	}
+	banner, err := h.svc.CreateBanner(c.Request.Context(), app.BannerInput{
+		CoverImageID: uint64(cr.CoverImageID),
+		Href:         cr.Href,
+		Show:         cr.Show,
+	})
+	if err != nil {
+		res.FailWithMsg(err.Error(), c)
+		return
+	}
+	res.OkWithData(BannerCreateResponse{
+		ID:           ctype.ID(banner.ID),
+		CoverImageID: cr.CoverImageID,
+		Cover:        banner.Cover,
+		Href:         banner.Href,
+		Show:         banner.Show,
+	}, c)
+	middleware.EmitActionAuditFromGin(c, middleware.GinAuditInput{
+		ActionName: "banner_create",
+		TargetType: "banner",
+		TargetID:   strconv.FormatUint(banner.ID, 10),
+		Success:    true,
+		Message:    "创建轮播图成功",
+	})
+}
+
+// BannerUpdate 更新轮播图（管理员）。
+// @Summary 更新轮播图
+// @Tags banner
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Param id path int true "轮播图 ID"
+// @Param body body BannerCreateRequest true "更新参数"
+// @Success 200 {object} object{code=int,data=object{},msg=string}
+// @Router /banners/{id} [put]
+func (h *Handler) BannerUpdate(c *gin.Context) {
+	id, ok := bindURI[IDRequest](c)
+	if !ok {
+		return
+	}
+	cr, ok := bindJSON[BannerCreateRequest](c)
+	if !ok {
+		return
+	}
+	err := h.svc.UpdateBanner(c.Request.Context(), uint64(id.ID), app.BannerInput{
+		CoverImageID: uint64(cr.CoverImageID),
+		Href:         cr.Href,
+		Show:         cr.Show,
+	})
+	if err != nil {
+		if apperr.IsCode(err, apperr.CodeBannerNotFound) {
+			res.FailWithMsg("轮播图不存在", c)
+			return
+		}
+		res.FailWithMsg(err.Error(), c)
+		return
+	}
+	res.OkWithMsg("更新轮播图成功", c)
+	middleware.EmitActionAuditFromGin(c, middleware.GinAuditInput{
+		ActionName: "banner_update",
+		TargetType: "banner",
+		TargetID:   strconv.FormatUint(uint64(id.ID), 10),
+		Success:    true,
+		Message:    "更新轮播图成功",
+	})
+}
+
+// BannerRemove 批量删除轮播图（管理员）。
+// @Summary 批量删除轮播图
+// @Tags banner
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Param body body IDListRequest true "ID 列表"
+// @Success 200 {object} object{code=int,data=object{},msg=string}
+// @Router /banners [delete]
+func (h *Handler) BannerRemove(c *gin.Context) {
+	cr, ok := bindJSON[IDListRequest](c)
+	if !ok {
+		return
+	}
+	count, err := h.svc.RemoveBanners(c.Request.Context(), toIDs(cr.IDList))
+	if err != nil {
+		fail(c, err)
+		return
+	}
+	msg := fmt.Sprintf("请求删除轮播图%d个, 成功%d条", len(cr.IDList), count)
+	res.OkWithMsg(msg, c)
+	middleware.EmitActionAuditFromGin(c, middleware.GinAuditInput{
+		ActionName: "banner_remove",
+		TargetType: "banner",
+		Success:    true,
+		Message:    msg,
+	})
+}
+
+// toBannerItem 把领域实体转成旧契约的 JSON 形状。
+func toBannerItem(b domain.Banner) BannerItem {
+	item := BannerItem{
+		ID:        ctype.ID(b.ID),
+		CreatedAt: b.CreatedAt,
+		UpdatedAt: b.UpdatedAt,
+		Show:      b.Show,
+		Cover:     b.Cover,
+		Href:      b.Href,
+	}
+	if b.CoverImageID != 0 {
+		id := ctype.ID(b.CoverImageID)
+		item.CoverImageID = &id
+	}
+	return item
+}
+
+// toIDs 把 ctype.ID 切片转成 uint64 切片。
+func toIDs(ids []ctype.ID) []uint64 {
+	out := make([]uint64, 0, len(ids))
+	for _, id := range ids {
+		out = append(out, uint64(id))
+	}
+	return out
+}

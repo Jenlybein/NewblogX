@@ -10,7 +10,7 @@ import (
 	"myblogx/middleware"
 	"myblogx/models"
 	"myblogx/models/enum"
-	"myblogx/service/site_service"
+	sitecfg "myblogx/internal/platform/config"
 	"myblogx/test/testutil"
 	"myblogx/utils/jwts"
 	"net/http"
@@ -91,7 +91,7 @@ func testRedisDeps() redis_service.Deps {
 
 func newMiddlewareRuntime(t *testing.T) middleware.Runtime {
 	t.Helper()
-	runtimeSvc := site_service.NewRuntimeConfigService(testutil.Config().Site, testutil.Config().AI, testutil.Logger(), testutil.DB(), "")
+	runtimeSvc := sitecfg.NewRuntimeConfigService(testutil.Config().Site, testutil.Config().AI, testutil.Logger(), testutil.DB(), "")
 	if err := runtimeSvc.InitRuntimeConfig(); err != nil {
 		t.Fatalf("初始化中间件运行时配置失败: %v", err)
 	}

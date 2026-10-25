@@ -4,19 +4,15 @@ package api
 
 import (
 	"myblogx/api/ai_api"
-	"myblogx/api/banner_api"
 	"myblogx/api/captcha_api"
 	"myblogx/api/data_api"
 	"myblogx/api/log_api"
-	"myblogx/api/site_api"
 	"myblogx/api/user_api"
 	"myblogx/middleware"
 )
 
 type Api struct {
-	SiteApi         site_api.SiteApi
 	LogApi          log_api.LogApi
-	BannerApi       banner_api.BannerApi
 	ImageCaptchaApi captcha_api.ImageCaptchaApi
 	UserApi         user_api.UserApi
 	AIApi           ai_api.AIApi
@@ -25,13 +21,6 @@ type Api struct {
 
 func New(deps middleware.Deps) Api {
 	return Api{
-		SiteApi: site_api.New(site_api.Deps{
-			Version:     deps.Version,
-			Logger:      deps.Logger,
-			Redis:       deps.Redis,
-			QQ:          deps.QQ,
-			RuntimeSite: deps.RuntimeSite,
-		}),
 		LogApi: log_api.New(log_api.Deps{
 			Log:              deps.Log,
 			System:           deps.System,
@@ -39,9 +28,6 @@ func New(deps middleware.Deps) Api {
 			Logger:           deps.Logger,
 			ClickHouse:       deps.ClickHouse,
 			DB:               deps.DB,
-		}),
-		BannerApi: banner_api.New(banner_api.Deps{
-			DB: deps.DB,
 		}),
 		ImageCaptchaApi: captcha_api.New(captcha_api.Deps{
 			RuntimeSite:       deps.RuntimeSite,

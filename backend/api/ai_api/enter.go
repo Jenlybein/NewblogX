@@ -2,7 +2,7 @@ package ai_api
 
 import (
 	"myblogx/conf"
-	"myblogx/service/site_service"
+	sitecfg "myblogx/internal/platform/config"
 
 	"github.com/elastic/go-elasticsearch/v7"
 	"github.com/go-redis/redis/v8"
@@ -16,7 +16,7 @@ type Deps struct {
 	Redis       *redis.Client
 	ESClient    *elasticsearch.Client
 	ES          conf.ES
-	RuntimeSite *site_service.RuntimeConfigService
+	RuntimeSite *sitecfg.RuntimeConfigService
 }
 
 type AIApi struct {

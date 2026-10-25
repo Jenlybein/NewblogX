@@ -47,6 +47,9 @@ func WireHTTP(infra *Infra, lc *Lifecycle) error {
 	// media 链路：图片能力改由 internal/media + platform/storage 提供。
 	WireMedia(infra)
 
+	// site 链路：站点配置与轮播图改由 internal/site 提供。
+	WireSite(infra)
+
 	// article 链路：启动时注入处理器。旧实现已删除，这是唯一路径。
 	WireArticle(infra)
 

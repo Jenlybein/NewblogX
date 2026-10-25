@@ -13,7 +13,7 @@ import (
 	"myblogx/middleware"
 	"myblogx/models"
 	"myblogx/models/ctype"
-	"myblogx/service/site_service"
+	sitecfg "myblogx/internal/platform/config"
 	"myblogx/utils/markdown"
 )
 
@@ -38,13 +38,13 @@ type ImageResolver interface {
 type Handler struct {
 	svc    *app.Service
 	logger *logrus.Logger
-	site   *site_service.RuntimeConfigService
+	site   *sitecfg.RuntimeConfigService
 	viewer ViewerResolver
 	images ImageResolver
 }
 
 // NewHandler 构造处理器。
-func NewHandler(svc *app.Service, logger *logrus.Logger, site *site_service.RuntimeConfigService, viewer ViewerResolver, images ImageResolver) *Handler {
+func NewHandler(svc *app.Service, logger *logrus.Logger, site *sitecfg.RuntimeConfigService, viewer ViewerResolver, images ImageResolver) *Handler {
 	if viewer == nil {
 		viewer = anonymousViewer
 	}

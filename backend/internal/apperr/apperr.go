@@ -177,6 +177,18 @@ const (
 	CodeNotifUserMissing      Code = "notif.user_missing"
 )
 
+// 站点配置与轮播图。
+const (
+	CodeSiteConfigMissing Code = "site.config_missing"
+	CodeSiteInfoNotFound  Code = "site.info_not_found"
+	CodeBannerNotFound    Code = "banner.not_found"
+
+	CodeRuntimeConfigDBMissing    Code = "runtimeconfig.db_missing"
+	CodeRuntimeConfigPathMissing  Code = "runtimeconfig.path_missing"
+	CodeRuntimeConfigDecodeFailed Code = "runtimeconfig.decode_failed"
+	CodeRuntimeConfigTableMissing Code = "runtimeconfig.table_missing"
+)
+
 // messages 是错误码到中文文案的唯一映射。
 //
 // 新增错误码时**必须**在这里补一行；缺了不会 panic，Error() 会退化成码本身，
@@ -301,6 +313,15 @@ var messages = map[Code]string{
 	CodeNotifExpireTooSoon:    "过期时间不能小于一天",
 	CodeNotifCreateFailed:     "全局通知创建失败",
 	CodeNotifUserMissing:      "用户不存在",
+
+	CodeSiteConfigMissing: "运行时配置服务未初始化",
+	CodeSiteInfoNotFound:  "站点信息不存在",
+	CodeBannerNotFound:    "轮播图不存在",
+
+	CodeRuntimeConfigDBMissing:    "数据库未初始化",
+	CodeRuntimeConfigPathMissing:  "运行时站点默认配置路径未设置",
+	CodeRuntimeConfigDecodeFailed: "运行时配置解析失败",
+	CodeRuntimeConfigTableMissing: "运行时配置表不存在，请先执行数据库初始化命令：/app/server -db",
 }
 
 // Error 是带错误码的应用错误。

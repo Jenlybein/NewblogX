@@ -4,7 +4,7 @@ import (
 	"myblogx/conf"
 	"myblogx/internal/platform/redis"
 	"myblogx/service/log_service"
-	"myblogx/service/site_service"
+	sitecfg "myblogx/internal/platform/config"
 	"myblogx/service/user_service"
 
 	"github.com/gin-gonic/gin"
@@ -19,7 +19,7 @@ type Runtime struct {
 	Logger            *logrus.Logger
 	Redis             redis_service.Deps
 	Log               log_service.Deps
-	RuntimeSite       *site_service.RuntimeConfigService
+	RuntimeSite       *sitecfg.RuntimeConfigService
 	ImageCaptchaStore base64Captcha.Store
 	Authenticator     *user_service.Authenticator
 }

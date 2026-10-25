@@ -12,7 +12,7 @@ import (
 	"myblogx/models/ctype"
 	"myblogx/models/enum"
 	"myblogx/service/ai_service/ai_scoring"
-	"myblogx/service/site_service"
+	sitecfg "myblogx/internal/platform/config"
 
 	"github.com/sirupsen/logrus"
 	"gorm.io/gorm"
@@ -20,7 +20,7 @@ import (
 
 const articleAIScoringPromptVersion = "article-scoring-v1"
 
-func EnsureArticleScoreIfMissingAsync(db *gorm.DB, logger *logrus.Logger, runtimeSite *site_service.RuntimeConfigService, articleID ctype.ID) {
+func EnsureArticleScoreIfMissingAsync(db *gorm.DB, logger *logrus.Logger, runtimeSite *sitecfg.RuntimeConfigService, articleID ctype.ID) {
 	if db == nil || runtimeSite == nil || articleID == 0 {
 		return
 	}
@@ -32,7 +32,7 @@ func EnsureArticleScoreIfMissingAsync(db *gorm.DB, logger *logrus.Logger, runtim
 	}()
 }
 
-func EnsureArticleScoreIfMissing(db *gorm.DB, runtimeSite *site_service.RuntimeConfigService, articleID ctype.ID) error {
+func EnsureArticleScoreIfMissing(db *gorm.DB, runtimeSite *sitecfg.RuntimeConfigService, articleID ctype.ID) error {
 	if db == nil || runtimeSite == nil || articleID == 0 {
 		return nil
 	}

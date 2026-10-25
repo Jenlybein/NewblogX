@@ -4,10 +4,10 @@ import (
 	"encoding/json"
 	"myblogx/api/ai_api"
 	"myblogx/conf"
+	sitecfg "myblogx/internal/platform/config"
 	"myblogx/models"
 	"myblogx/models/enum"
 	"myblogx/service/ai_service"
-	"myblogx/service/site_service"
 	"myblogx/test/testutil"
 	"myblogx/utils/jwts"
 	"net/http"
@@ -42,7 +42,7 @@ func newAIApi(t *testing.T) ai_api.AIApi {
 	} else if err := db.AutoMigrate(&models.RuntimeSiteConfigModel{}); err != nil {
 		t.Fatalf("迁移运行时配置表失败: %v", err)
 	}
-	runtimeSvc := site_service.NewRuntimeConfigService(testutil.Config().Site, testutil.Config().AI, testutil.Logger(), db, "")
+	runtimeSvc := sitecfg.NewRuntimeConfigService(testutil.Config().Site, testutil.Config().AI, testutil.Logger(), db, "")
 	if err := runtimeSvc.InitRuntimeConfig(); err != nil {
 		t.Fatalf("初始化 AI 运行时配置失败: %v", err)
 	}

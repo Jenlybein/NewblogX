@@ -447,7 +447,10 @@ func isLogLayer(rel string) bool {
 // 不加这条闸门，九个批次都会照抄 M4 的做法继续 import models，
 // 到 M6 删 models/ 时就从"删文件"变成"九次集体返工"。
 //
-// 为什么放行 models/ctype：它是值类型（ID），不是 row 结构，全仓 186 个文件在用；
+// 注意：ctype / enum 已迁到 internal/kernel（M6 ⑤），本规则现在只拦 models 与
+// models/*，是对"重新引入共享数据模型"的兜底。历史上的 models/ctype 放行已删除。
+//
+// 为什么当初放行 models/ctype：它是值类型（ID），不是 row 结构，全仓 186 个文件在用；
 // 搬它属于 M6 随 models 一起去 kernel 的事，与本规则主题无关。
 func ruleModuleNoModels() Rule {
 	return Rule{

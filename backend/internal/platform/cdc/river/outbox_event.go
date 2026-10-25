@@ -4,7 +4,6 @@ import (
 	"strings"
 
 	"myblogx/internal/platform/cdc/outboxrelay"
-	"myblogx/models"
 
 	"github.com/go-mysql-org/go-mysql/canal"
 )
@@ -21,7 +20,7 @@ func (r *River) handleOutboxEvent(e *canal.RowsEvent) bool {
 	if e == nil || e.Table == nil {
 		return false
 	}
-	if !strings.EqualFold(strings.TrimSpace(e.Table.Name), (&models.OutboxEventModel{}).TableName()) {
+	if !strings.EqualFold(strings.TrimSpace(e.Table.Name), outboxrelay.OutboxTableName) {
 		return false
 	}
 	if e.Action != canal.InsertAction {

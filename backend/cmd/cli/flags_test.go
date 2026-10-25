@@ -6,7 +6,10 @@ import (
 	"flag"
 	"io"
 	"myblogx/conf"
+	"myblogx/internal/kernel/ctype"
 	"myblogx/internal/kernel/enum"
+	"myblogx/internal/platform/es/articlesync"
+	"myblogx/internal/platform/mysql"
 	"myblogx/models"
 	"myblogx/test/testutil"
 	"myblogx/utils/markdown"
@@ -187,9 +190,9 @@ func writeESJSON(w http.ResponseWriter, code int, body string) {
 }
 
 func TestBuildArticleESDocument(t *testing.T) {
-	categoryID := models.Model{ID: 7}.ID
-	article := models.ArticleModel{
-		Model: models.Model{
+	categoryID := ctype.ID(7)
+	article := articlesync.ArticleRow{
+		BaseRow: mysql.BaseRow{
 			ID:        1,
 			CreatedAt: time.Unix(1710000000, 0),
 			UpdatedAt: time.Unix(1710003600, 0),
@@ -198,19 +201,19 @@ func TestBuildArticleESDocument(t *testing.T) {
 		Abstract:       "文章摘要",
 		Content:        "# 标题\n正文",
 		CategoryID:     &categoryID,
-		CategoryModel:  &models.CategoryModel{Model: models.Model{ID: categoryID}, Title: "后端"},
+		CategoryModel:  &articlesync.CategoryRow{BaseRow: mysql.BaseRow{ID: categoryID}, Title: "后端"},
 		Cover:          "/cover.png",
 		AuthorID:       9,
-		UserModel:      models.UserModel{Model: models.Model{ID: 9}, Nickname: "作者A", Avatar: "/avatar.png"},
+		UserModel:      articlesync.UserRow{BaseRow: mysql.BaseRow{ID: 9}, Nickname: "作者A", Avatar: "/avatar.png"},
 		ViewCount:      11,
 		DiggCount:      12,
 		CommentCount:   13,
 		FavorCount:     14,
 		CommentsToggle: true,
 		PublishStatus:  3,
-		Tags: []models.TagModel{
-			{Model: models.Model{ID: 1}, Title: "Go"},
-			{Model: models.Model{ID: 2}, Title: "Redis"},
+		Tags: []articlesync.TagRow{
+			{BaseRow: mysql.BaseRow{ID: 1}, Title: "Go"},
+			{BaseRow: mysql.BaseRow{ID: 2}, Title: "Redis"},
 		},
 	}
 
@@ -230,7 +233,7 @@ func TestBuildArticleESDocument(t *testing.T) {
 	if got, ok := doc["comments_toggle"].(bool); !ok || !got {
 		t.Fatalf("comments_toggle 应按 boolean mapping 转成 true, got=%#v", doc["comments_toggle"])
 	}
-	tags, ok := doc["tags"].([]models.ESTag)
+	tags, ok := doc["tags"].([]articlesync.ESTag)
 	if !ok || len(tags) != 2 || tags[0].Title != "Go" || tags[1].Title != "Redis" {
 		t.Fatalf("tags 同步结果不正确: %#v", doc["tags"])
 	}

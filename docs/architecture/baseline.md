@@ -1558,3 +1558,61 @@ nr := r.Group("/api")               // 其余全是 /api
   `syntax is ok / test is successful`。
 - `docker compose -f deploy/compose/local/docker-compose.yml config` 退出码 0。
 - `bash scripts/check.sh frontend`：两端 lint / typecheck / test / coverage 全绿（71 个前端用例）。
+
+## 37. M6 ④ 平台投影 row 各包自持（7 个包）
+
+**2026-10-25**：`internal/platform/` 下 7 个包不再 import `myblogx/models`。
+
+| 包 | 处理方式 | 新增类型 |
+| --- | --- | --- |
+| `cdc/deadletter` | 整行读写 | `Record`（导出的行类型；**无 DeletedAt**，与真表一致） |
+| `cdc/outboxrelay` | 整行读写 | `outboxRow` + 5 个状态常量 + `OutboxTableName` |
+| `cdc/river` | 只需表名 | 用 `outboxrelay.OutboxTableName`，不再持有行结构 |
+| `config` | 整行读写 | `runtimeSiteConfigRow` |
+| `es` | 只需 ES 文档形状 | `ArticleDoc`（**不是数据库行**，字段对应 `_source`） |
+| `es/articlesync` | 整行读取 + 构建文档 | `ArticleRow` / `TagRow` / `CategoryRow` / `UserRow` / `UserConfRow` / `ArticleTagRow` / `UserTopArticleRow` / `ESTag` + `mapping/` 两份 JSON |
+| `readmodel` | 显式列读写 | `userDisplayRow` / `articleBaseRow`（只含 SELECT 的列） |
+
+**关键取舍：不是所有场景都需要整行结构。**
+
+- `readmodel` 的快照同步全是 `Updates(map[string]any{...})`，只需要表名 →
+  改成 `db.Table("comment_models")`，**不需要任何行类型**；
+- `imageref` 的四个 `Rebuild*Refs` 原来收 `*models.XxxModel`，实际只读 1–2 个字段 →
+  签名收窄成 `(ownerID, content, cover)` 这类基本参数，**不需要行类型**；
+- 只有"整行读出来 / 整行插进去"的地方才建行（deadletter、outbox、config、imageRef、articlesync）。
+
+这条判据值得记住：**显式列（Select / Updates map / 表名）不会静默漂移，整行结构才会。**
+所以"必须有行类型 + 列名契约"的只有后者。
+
+### 顺手清掉的结构冗余
+
+`imageref` 里每个 `Rebuild*RefsByRow` 都转调一个 `Rebuild*Refs(*models.X)`，
+后者只被前者用 —— 是"为了收一个结构体而存在"的一层。收窄参数后这层自然消失。
+
+`models/es_settings/*.json` 与 `Index()/Mapping()/Pipeline()/PipelineName()`
+搬到 `articlesync`（`go:embed mapping/*.json`）—— ES 文档形状是投影的知识，不是数据模型。
+`DefaultArticleESIndex`/`ResolveArticleESIndex` 同步迁走。
+
+### 规则同步
+
+R10 自检里"模块 import `models/enum` 算违规"的用例改成**放行 `internal/kernel`** ——
+这正是 ctype/enum 迁出的验收点：迁完之后业务模块 import kernel 不该再被拦。
+
+### 剩余（⑤-b 起的明确清单）
+
+`models/` 仍在，非测试引用只剩 **6 个文件**：
+
+```
+app/outbox_wiring.go     读文章行发通知
+app/user_wiring.go       建用户
+cmd/cli/flag_db.go       本地建库（AutoMigrate 全表）
+cmd/cli/flag_user.go     命令行建用户
+test/testutil/testutil.go  CreateUser 等辅助
+internal/testkit/schema/schema.go  测试行别名（14 个类型）
+```
+
+删 models 需要一并解决三件事，否则会出现"代码对、库建不出来"：
+1. `flag_db` 拿不到全表行结构 → 建议改为执行一份 `go:embed` 的 `schema.sql`（一次性由
+   现模型生成，并用 information_schema 对比验证与 AutoMigrate 结果一致）；
+2. `testkit/schema` 的 14 个别名 → 改为自持行（它本来就是测试专用，由列名契约测试兜底）；
+3. `testutil.CreateUser` 的签名带走 `*models.UserModel` → 改为 `schema.UserSpec`。

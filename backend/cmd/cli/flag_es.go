@@ -5,7 +5,7 @@ import (
 	"myblogx/internal/kernel/ctype"
 	"myblogx/internal/platform/es"
 	"myblogx/internal/platform/es/articlesync"
-	"myblogx/models"
+	"strings"
 
 	"github.com/elastic/go-elasticsearch/v7"
 	"github.com/sirupsen/logrus"
@@ -16,8 +16,8 @@ func FlagESIndex(deps Options) error {
 	if deps.ESClient == nil {
 		return logESError(deps.Logger, "初始化索引失败: ES 客户端未初始化")
 	}
-	article := models.ArticleModel{}
-	index := models.ResolveArticleESIndex(deps.ESIndex)
+	article := articlesync.ArticleRow{}
+	index := resolveArticleESIndex(deps.ESIndex)
 	pipelineName := article.PipelineName()
 
 	fmt.Printf("正在初始化索引: %s\n", index)
@@ -41,8 +41,8 @@ func FlagESDelete(deps Options) error {
 	if deps.ESClient == nil {
 		return logESError(deps.Logger, "删除索引失败: ES 客户端未初始化")
 	}
-	article := models.ArticleModel{}
-	index := models.ResolveArticleESIndex(deps.ESIndex)
+	article := articlesync.ArticleRow{}
+	index := resolveArticleESIndex(deps.ESIndex)
 	pipelineName := article.PipelineName()
 
 	fmt.Printf("正在删除索引: %s\n", index)
@@ -66,8 +66,8 @@ func FlagESEnsure(deps Options) error {
 	if deps.ESClient == nil {
 		return logESError(deps.Logger, "确保索引失败: ES 客户端未初始化")
 	}
-	article := models.ArticleModel{}
-	index := models.ResolveArticleESIndex(deps.ESIndex)
+	article := articlesync.ArticleRow{}
+	index := resolveArticleESIndex(deps.ESIndex)
 	pipelineName := article.PipelineName()
 
 	if err := es_service.EnsureIndex(deps.ESClient, index, article.Mapping()); err != nil {
@@ -93,7 +93,7 @@ func FlagESArticleSync(deps Options) error {
 		return logESError(deps.Logger, "文章同步失败: ES 客户端未初始化")
 	}
 
-	index := models.ResolveArticleESIndex(deps.ESIndex)
+	index := resolveArticleESIndex(deps.ESIndex)
 	exists, err := es_service.ExistsIndex(deps.ESClient, index)
 	if err != nil {
 		return logESError(deps.Logger, "文章同步失败: 检查 ES 索引失败: %v", err)
@@ -118,10 +118,12 @@ func FlagESArticleSync(deps Options) error {
 // syncArticleDocuments 全量同步文章数据到 ES
 func syncArticleDocuments(db *gorm.DB, esClient *elasticsearch.Client, index string, batchSize int, logger *logrus.Logger) (int, error) {
 	_ = index // 目前批量同步仍复用 es_service 既有入口，索引名由 es_service 内部路由。
-	articles := make([]models.ArticleModel, 0, batchSize)
+	// 只需要 id：批量同步把 id 交给 articlesync，再由它自己批量装载文档。
+	// 用一个最小投影而不是整行，避免为了"拿个 id"把整张表的结构搬进来。
+	articles := make([]articleIDRow, 0, batchSize)
 	total := 0
 
-	result := db.Model(&models.ArticleModel{}).
+	result := db.Model(&articleIDRow{}).
 		Select("id").
 		Order("id asc").
 		FindInBatches(&articles, batchSize, func(tx *gorm.DB, batch int) error {
@@ -148,7 +150,15 @@ func syncArticleDocuments(db *gorm.DB, esClient *elasticsearch.Client, index str
 	return total, nil
 }
 
-func buildArticleESDocument(article models.ArticleModel, adminTop, authorTop bool) map[string]any {
+// articleIDRow 是"只选 id"的查询投影。
+type articleIDRow struct {
+	ID ctype.ID
+}
+
+// TableName 固定表名。
+func (articleIDRow) TableName() string { return "article_models" }
+
+func buildArticleESDocument(article articlesync.ArticleRow, adminTop, authorTop bool) map[string]any {
 	return articlesync.BuildArticleESDocument(article, adminTop, authorTop)
 }
 
@@ -166,4 +176,15 @@ func logESError(logger *logrus.Logger, format string, args ...any) error {
 	}
 	logger.Error(err)
 	return err
+}
+
+// resolveArticleESIndex 收敛索引名：空值回落默认索引。
+//
+// 原本在 models/es_index.go；索引名是 ES 投影的知识，跟着投影走。
+func resolveArticleESIndex(index string) string {
+	clean := strings.TrimSpace(index)
+	if clean == "" {
+		return articlesync.DefaultArticleESIndex
+	}
+	return clean
 }

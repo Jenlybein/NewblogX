@@ -12,7 +12,7 @@ import (
 	"myblogx/internal/kernel/ctype"
 	"myblogx/internal/kernel/enum"
 	"myblogx/internal/platform/es"
-	"myblogx/models"
+	"myblogx/internal/platform/mysql"
 )
 
 func collectArticleBulkFailures(data any, reqs []*es_service.BulkRequest, maxItems int) ([]articleBulkFailure, []ctype.ID) {
@@ -370,7 +370,7 @@ func parseTimeText(raw string) (time.Time, bool) {
 
 func loadArticleSnapshotsByIDs(db *gorm.DB, articleIDs []ctype.ID) ([]ArticleRowSnapshot, error) {
 	var snapshots []ArticleRowSnapshot
-	err := db.Model(&models.ArticleModel{}).Select(
+	err := db.Model(&ArticleRow{}).Select(
 		"id",
 		"created_at",
 		"updated_at",
@@ -398,7 +398,7 @@ func loadArticleProjectionOptions(db *gorm.DB, snapshots []ArticleRowSnapshot) (
 	deps := articleProjectionOptions{
 		CategoryTitleMap: map[ctype.ID]string{},
 		AuthorMap:        map[ctype.ID]authorSnapshot{},
-		ArticleTagsMap:   map[ctype.ID][]models.ESTag{},
+		ArticleTagsMap:   map[ctype.ID][]ESTag{},
 		TopMap:           map[ctype.ID]articleESTop{},
 	}
 	if len(snapshots) == 0 {
@@ -436,8 +436,8 @@ func loadArticleProjectionOptions(db *gorm.DB, snapshots []ArticleRowSnapshot) (
 	return deps, nil
 }
 
-func loadArticleESTagsMapByArticleIDs(db *gorm.DB, articleIDs []ctype.ID) (map[ctype.ID][]models.ESTag, error) {
-	result := make(map[ctype.ID][]models.ESTag)
+func loadArticleESTagsMapByArticleIDs(db *gorm.DB, articleIDs []ctype.ID) (map[ctype.ID][]ESTag, error) {
+	result := make(map[ctype.ID][]ESTag)
 	articleIDs = normalizeArticleIDs(articleIDs)
 	if len(articleIDs) == 0 {
 		return result, nil
@@ -460,7 +460,7 @@ func loadArticleESTagsMapByArticleIDs(db *gorm.DB, articleIDs []ctype.ID) (map[c
 	}
 
 	for _, row := range rows {
-		result[row.ArticleID] = append(result[row.ArticleID], models.ESTag{
+		result[row.ArticleID] = append(result[row.ArticleID], ESTag{
 			ID:    row.TagID,
 			Title: row.Title,
 		})
@@ -488,7 +488,7 @@ func loadArticleESTopMapBySnapshots(db *gorm.DB, snapshots []ArticleRowSnapshot)
 		Role      enum.RoleType
 	}
 	var rows []topRoleRow
-	if err := db.Model(&models.UserTopArticleModel{}).
+	if err := db.Model(&UserTopArticleRow{}).
 		Select("user_top_article_models.article_id", "user_top_article_models.user_id AS top_user_id", "user_models.role").
 		Joins("JOIN user_models ON user_models.id = user_top_article_models.user_id AND user_models.deleted_at IS NULL").
 		Where("user_top_article_models.article_id IN ?", articleIDs).
@@ -510,8 +510,8 @@ func loadArticleESTopMapBySnapshots(db *gorm.DB, snapshots []ArticleRowSnapshot)
 	return result, nil
 }
 
-func loadArticlesForESContentUpdate(db *gorm.DB, articleIDs []ctype.ID) ([]models.ArticleModel, error) {
-	var articleList []models.ArticleModel
+func loadArticlesForESContentUpdate(db *gorm.DB, articleIDs []ctype.ID) ([]ArticleRow, error) {
+	var articleList []ArticleRow
 	err := db.Select(
 		"id",
 		"updated_at",
@@ -537,8 +537,8 @@ func loadArticlesForESContentUpdate(db *gorm.DB, articleIDs []ctype.ID) ([]model
 	return articleList, err
 }
 
-func loadArticlesForESTags(db *gorm.DB, articleIDs []ctype.ID) ([]models.ArticleModel, error) {
-	var articleList []models.ArticleModel
+func loadArticlesForESTags(db *gorm.DB, articleIDs []ctype.ID) ([]ArticleRow, error) {
+	var articleList []ArticleRow
 	if err := db.Select("id", "updated_at").
 		Where("id IN ?", articleIDs).
 		Order("id asc").
@@ -554,7 +554,7 @@ func loadArticlesForESTags(db *gorm.DB, articleIDs []ctype.ID) ([]models.Article
 		TagID     ctype.ID
 	}
 	var relationList []relationRow
-	if err := db.Model(&models.ArticleTagModel{}).
+	if err := db.Model(&ArticleTagRow{}).
 		Select("article_id", "tag_id").
 		Where("article_id IN ?", articleIDs).
 		Order("article_id asc").
@@ -571,22 +571,22 @@ func loadArticlesForESTags(db *gorm.DB, articleIDs []ctype.ID) ([]models.Article
 	}
 	tagIDs = normalizeArticleIDs(tagIDs)
 
-	var tagList []models.TagModel
-	if err := db.Model(&models.TagModel{}).
+	var tagList []TagRow
+	if err := db.Model(&TagRow{}).
 		Select("id", "title", "sort").
 		Where("id IN ?", tagIDs).
 		Order("sort desc, id asc").
 		Find(&tagList).Error; err != nil {
 		return nil, err
 	}
-	tagMap := make(map[ctype.ID]models.TagModel, len(tagList))
+	tagMap := make(map[ctype.ID]TagRow, len(tagList))
 	for _, tag := range tagList {
 		tagMap[tag.ID] = tag
 	}
 
-	articleMap := make(map[ctype.ID]*models.ArticleModel, len(articleList))
+	articleMap := make(map[ctype.ID]*ArticleRow, len(articleList))
 	for index := range articleList {
-		articleList[index].Tags = []models.TagModel{}
+		articleList[index].Tags = []TagRow{}
 		articleMap[articleList[index].ID] = &articleList[index]
 	}
 	for _, relation := range relationList {
@@ -598,14 +598,14 @@ func loadArticlesForESTags(db *gorm.DB, articleIDs []ctype.ID) ([]models.Article
 		if !ok {
 			continue
 		}
-		article.Tags = append(article.Tags, models.TagModel{
-			Model: models.Model{ID: tag.ID},
-			Title: tag.Title,
-			Sort:  tag.Sort,
+		article.Tags = append(article.Tags, TagRow{
+			BaseRow: mysql.BaseRow{ID: tag.ID},
+			Title:   tag.Title,
+			Sort:    tag.Sort,
 		})
 	}
 	for index := range articleList {
-		slices.SortFunc(articleList[index].Tags, func(a, b models.TagModel) int {
+		slices.SortFunc(articleList[index].Tags, func(a, b TagRow) int {
 			if a.Sort != b.Sort {
 				if a.Sort > b.Sort {
 					return -1
@@ -637,7 +637,7 @@ func loadArticleESTopMap(db *gorm.DB, articleIDs []ctype.ID) (map[ctype.ID]artic
 	}
 
 	var topRows []topRow
-	err := db.Model(&models.UserTopArticleModel{}).
+	err := db.Model(&UserTopArticleRow{}).
 		Select("article_id", "user_id AS top_user_id").
 		Where("user_top_article_models.article_id IN ?", articleIDs).
 		Find(&topRows).Error
@@ -653,7 +653,7 @@ func loadArticleESTopMap(db *gorm.DB, articleIDs []ctype.ID) (map[ctype.ID]artic
 		AuthorID ctype.ID
 	}
 	var articleRows []articleAuthorRow
-	if err := db.Model(&models.ArticleModel{}).
+	if err := db.Model(&ArticleRow{}).
 		Select("id", "author_id").
 		Where("id IN ?", articleIDs).
 		Find(&articleRows).Error; err != nil {
@@ -675,7 +675,7 @@ func loadArticleESTopMap(db *gorm.DB, articleIDs []ctype.ID) (map[ctype.ID]artic
 		Role enum.RoleType
 	}
 	var userRows []userRoleRow
-	if err := db.Model(&models.UserModel{}).
+	if err := db.Model(&UserRow{}).
 		Select("id", "role").
 		Where("id IN ?", topUserIDs).
 		Find(&userRows).Error; err != nil {
@@ -706,8 +706,8 @@ func loadCategoryTitleMap(db *gorm.DB, categoryIDs []ctype.ID) (map[ctype.ID]str
 		return result, nil
 	}
 
-	var rows []models.CategoryModel
-	if err := db.Model(&models.CategoryModel{}).
+	var rows []CategoryRow
+	if err := db.Model(&CategoryRow{}).
 		Select("id", "title").
 		Where("id IN ?", categoryIDs).
 		Find(&rows).Error; err != nil {
@@ -737,7 +737,7 @@ func loadAuthorSnapshotMap(db *gorm.DB, authorIDs []ctype.ID) (map[ctype.ID]auth
 		Avatar   string
 	}
 	var rows []authorRow
-	if err := db.Model(&models.UserModel{}).
+	if err := db.Model(&UserRow{}).
 		Select("id", "nickname", "avatar").
 		Where("id IN ?", authorIDs).
 		Find(&rows).Error; err != nil {

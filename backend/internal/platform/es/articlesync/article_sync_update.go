@@ -9,7 +9,6 @@ import (
 	"gorm.io/gorm"
 	"myblogx/internal/kernel/ctype"
 	"myblogx/internal/platform/es"
-	"myblogx/models"
 	"myblogx/utils/markdown"
 )
 
@@ -74,9 +73,9 @@ func UpdateESDocsTags(db *gorm.DB, client *elasticsearch.Client, articleIDs []ct
 
 	reqs := make([]*es_service.BulkRequest, 0, len(articleList))
 	for _, article := range articleList {
-		tags := make([]models.ESTag, 0, len(article.Tags))
+		tags := make([]ESTag, 0, len(article.Tags))
 		for _, tag := range article.Tags {
-			tags = append(tags, models.ESTag{
+			tags = append(tags, ESTag{
 				ID:    tag.ID,
 				Title: tag.Title,
 			})
@@ -217,7 +216,7 @@ func SyncESDocsByCategoryIDs(db *gorm.DB, client *elasticsearch.Client, category
 		CategoryID *ctype.ID
 	}
 	var rows []articleCategoryRow
-	if err := db.Model(&models.ArticleModel{}).
+	if err := db.Model(&ArticleRow{}).
 		Select("id", "category_id").
 		Where("category_id IN ?", categoryIDs).
 		Order("id asc").
@@ -275,7 +274,7 @@ func SyncESDocsByAuthorIDs(db *gorm.DB, client *elasticsearch.Client, userIDs []
 		AuthorID ctype.ID
 	}
 	var rows []articleAuthorRow
-	if err := db.Model(&models.ArticleModel{}).
+	if err := db.Model(&ArticleRow{}).
 		Select("id", "author_id").
 		Where("author_id IN ?", userIDs).
 		Order("id asc").
@@ -325,7 +324,7 @@ func UpdateESDocsTagsByTagIDs(db *gorm.DB, client *elasticsearch.Client, tagIDs 
 	}
 
 	var articleIDs []ctype.ID
-	if err := db.Model(&models.ArticleTagModel{}).
+	if err := db.Model(&ArticleTagRow{}).
 		Select("article_id").
 		Where("tag_id IN ?", tagIDs).
 		Pluck("article_id", &articleIDs).Error; err != nil {
@@ -345,7 +344,7 @@ func UpdateESDocsTopByTopUserIDs(db *gorm.DB, client *elasticsearch.Client, user
 	}
 
 	var articleIDs []ctype.ID
-	if err := db.Model(&models.UserTopArticleModel{}).
+	if err := db.Model(&UserTopArticleRow{}).
 		Select("article_id").
 		Where("user_id IN ?", userIDs).
 		Pluck("article_id", &articleIDs).Error; err != nil {
@@ -367,7 +366,7 @@ func applyArticlePartialBulkUpdate(db *gorm.DB, client *elasticsearch.Client, re
 		return nil
 	}
 
-	resp := es_service.IndexBulk(client, models.ArticleModel{}.Index(), reqs)
+	resp := es_service.IndexBulk(client, DefaultArticleESIndex, reqs)
 	if !resp.Success {
 		return fmt.Errorf("%s: %s", errPrefix, resp.Msg)
 	}

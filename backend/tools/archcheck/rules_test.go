@@ -484,14 +484,17 @@ import "myblogx/models"
 			wantHits: 1,
 		},
 		{
-			name: "模块 domain import models 子包（非 ctype）",
+			// kernel 是**允许**的共享类型所在地（ctype / enum / 请求结构都在那里）。
+			// 这条用例从"违规"翻成"放行"，正是 ctype/enum 迁出 models 的验收点：
+			// 迁完之后业务模块 import kernel 不该再被 R10 拦。
+			name: "模块 domain import kernel（允许）",
 			rel:  "internal/comment/domain/comment.go",
 			src: `package domain
 
 import "myblogx/internal/kernel/enum"
 `,
 			ruleID:   "R10",
-			wantHits: 1,
+			wantHits: 0,
 		},
 		{
 			name: "import models/ctype 放行（值类型，M6 才搬）",

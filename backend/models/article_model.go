@@ -1,7 +1,6 @@
 package models
 
 import (
-	_ "embed"
 	"myblogx/internal/kernel/ctype"
 	"myblogx/internal/kernel/enum"
 	"time"
@@ -55,24 +54,6 @@ func (a ArticleModel) IsPublicVisible() bool {
 		a.EffectiveVisibilityStatus() == enum.ArticleVisibilityVisible
 }
 
-//go:embed es_settings/article_mapping.json
-var ArticleMapping string
-
-func (ArticleModel) Mapping() string {
-	return ArticleMapping
-}
-
-func (ArticleModel) Index() string {
-	return DefaultArticleESIndex
-}
-
-//go:embed es_settings/article_pipeline.json
-var ArticlePipeline string
-
-func (ArticleModel) Pipeline() string {
-	return ArticlePipeline
-}
-
-func (ArticleModel) PipelineName() string {
-	return "article_pipeline"
-}
+// 索引的 mapping / pipeline / 索引名已随 ES 投影迁到
+// internal/platform/es/articlesync（那是唯一关心文档形状的地方）。
+// 本结构体只剩"数据库行"这一职责，等 ⑤ 步删 models 时整体移除。

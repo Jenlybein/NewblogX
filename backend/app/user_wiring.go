@@ -32,9 +32,9 @@ import (
 	"myblogx/models"
 	"myblogx/models/ctype"
 	"myblogx/models/enum"
+	"myblogx/platform/mail"
+	"myblogx/platform/oauth"
 	"myblogx/router"
-	"myblogx/service/email_service"
-	"myblogx/service/qq_service"
 	"myblogx/service/user_service"
 	"myblogx/utils/jwts"
 	"myblogx/utils/requestmeta"
@@ -290,22 +290,22 @@ func (b *emailCodeBridge) Send(ctx context.Context, kind int8, email, ip string)
 	case 1: // 注册：邮箱必须不存在
 		shouldSend = !exists
 		if shouldSend {
-			err = email_service.SendRegisterCode(b.conf, email, code, timeout)
+			err = mail.SendRegisterCode(b.conf, email, code, timeout)
 		}
 	case 2: // 重置密码：邮箱必须存在
 		shouldSend = exists
 		if shouldSend {
-			err = email_service.SendResetPwdCode(b.conf, email, code, timeout)
+			err = mail.SendResetPwdCode(b.conf, email, code, timeout)
 		}
 	case 3: // 绑定邮箱：邮箱必须未被占用
 		shouldSend = !exists
 		if shouldSend {
-			err = email_service.SendBindEmailCode(b.conf, email, code, timeout)
+			err = mail.SendBindEmailCode(b.conf, email, code, timeout)
 		}
 	case 4: // 邮箱登录：邮箱必须存在
 		shouldSend = exists
 		if shouldSend {
-			err = email_service.SendLoginCode(b.conf, email, code, timeout)
+			err = mail.SendLoginCode(b.conf, email, code, timeout)
 		}
 	default:
 		return "", apperr.New(apperr.CodeUserMailSendFailed)
@@ -338,7 +338,7 @@ var _ authapp.OAuth = (*qqBridge)(nil)
 
 // Exchange 用授权码换 QQ 用户信息。
 func (b qqBridge) Exchange(_ context.Context, code string) (authapp.OAuthUser, error) {
-	info, err := qq_service.GetUserInfo(b.conf, code)
+	info, err := oauth.GetQQUserInfo(b.conf, code)
 	if err != nil {
 		return authapp.OAuthUser{}, err
 	}

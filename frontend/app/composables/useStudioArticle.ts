@@ -1,7 +1,7 @@
 import { computed, reactive, ref, watch, type Ref } from "vue";
 
 import type { ArticleHeadingAnchor } from "~/composables/useArticleMarkdown";
-import { createArticle, getArticleDetail, updateArticle } from "~/services/article";
+import { getArticleDetail } from "~/services/article";
 import { uploadImageByTask } from "~/services/image";
 import { getCategoryOptions, getTagOptions } from "~/services/search";
 import { useAuthStore } from "~/stores/auth";

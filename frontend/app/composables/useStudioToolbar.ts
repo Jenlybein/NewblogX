@@ -57,7 +57,6 @@ export function useStudioToolbar(deps: StudioToolbarDeps) {
     applyCodeBlockShortcut,
     applyUnorderedListShortcut,
     applyOrderedListShortcut,
-    applyHeadingShortcut,
     applyTableShortcut,
     applyStrikeShortcut,
   } = editor;

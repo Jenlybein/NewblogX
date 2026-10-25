@@ -152,7 +152,6 @@ const {
 const { handleOpenArticleScore } = useStudioScore({
   modalOpen: articleScoreModalOpen,
   loading: articleScoreLoading,
-  refreshing: articleScoreRefreshing,
   data: articleScoreData,
   articleId: editArticleId,
   message,

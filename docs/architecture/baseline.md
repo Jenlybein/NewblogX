@@ -879,3 +879,23 @@ T.4 里 `article`/`comment`/`user` 的 fake 依赖 domain 实体，属依赖顺�
   封面地址由图片 ID 解析，图片不可用时拒绝写入。
 - 审计事件（banner_create / banner_update / banner_remove / site_runtime_update）逐条保留。
 - 棘轮 **116 → 105**；`internal/site/...` 与 `internal/platform/config/...` 零违规。
+
+## 18. M5 交付记录 · S4.8（ai）
+
+**2026-10-25**：`api/ai_api` + `service/ai_service`（27 文件）已删，`service/search_service`
+兼容层也随之删除；`/ai` 6 条路由改由 `internal/ai` 提供。
+
+- 目录：`internal/ai`（LLM 客户端与 JSON 工具）+ `scoring` / `metainfo` / `overwrite` /
+  `diagnose` / `search` 五个子包（提示词与结果校验），加 `domain` / `app` / `adapter/{mysql,http}` / `apptest`。
+- **业务子包不再碰数据库**：元信息候选、标签标题、文章快照、评分记录全部改成端口注入，
+  SQL 只出现在 `internal/ai/adapter/mysql`。
+- 评分语义逐条保留：公开摘要隐去总分/文章类型/维度原因/评语，作者视图全量返回；
+  重新评分校验作者身份；`CreateIfAbsent` 把"查重 + 写入"收进同一个事务。
+- 智能搜索：先带标签搜一次、再不带标签搜一次、按 ID 去重——顺序与原实现一致；
+  直接复用 `internal/search/domain` 的请求/响应类型，因此 S4.4 留下的
+  `service/search_service` 兼容层被删除。
+- outbox 的"补评分"订阅改为调用 `aiService.EnsureScoreIfMissing`，AI 未启用时静默跳过。
+- 9 处中文 error 改为错误码，`internal/ai/...` 零违规。
+- **技术债**：`api/ai_api` 的 1181 行测试未迁移；新增的 app 层测试覆盖评分可见性、
+  作者校验、搜索去重与"AI 未启用不评分"，但 SSE 流式与真实 LLM 调用仍无回归保护。
+- 棘轮 **105 → 83**。

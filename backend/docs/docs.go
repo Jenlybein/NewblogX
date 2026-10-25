@@ -91,7 +91,7 @@ const docTemplate = `{
                                     "type": "integer"
                                 },
                                 "data": {
-                                    "$ref": "#/definitions/myblogx_service_ai_service_ai_metainfo.MetainfoResponse"
+                                    "$ref": "#/definitions/myblogx_service_ai_service_metainfo.MetainfoResponse"
                                 },
                                 "msg": {
                                     "type": "string"
@@ -6638,7 +6638,7 @@ const docTemplate = `{
                 "main_issues": {
                     "type": "array",
                     "items": {
-                        "$ref": "#/definitions/myblogx_service_ai_service_ai_scoring.ArticleScoreIssue"
+                        "$ref": "#/definitions/myblogx_service_ai_service_scoring.ArticleScoreIssue"
                     }
                 },
                 "overall_comment": {
@@ -8844,19 +8844,19 @@ const docTemplate = `{
                 "SystemType"
             ]
         },
-        "myblogx_service_ai_service_ai_metainfo.MetainfoResponse": {
+        "myblogx_service_ai_service_metainfo.MetainfoResponse": {
             "type": "object",
             "properties": {
                 "abstract": {
                     "type": "string"
                 },
                 "category": {
-                    "$ref": "#/definitions/myblogx_service_ai_service_ai_metainfo.Metainfos"
+                    "$ref": "#/definitions/myblogx_service_ai_service_metainfo.Metainfos"
                 },
                 "tags": {
                     "type": "array",
                     "items": {
-                        "$ref": "#/definitions/myblogx_service_ai_service_ai_metainfo.Metainfos"
+                        "$ref": "#/definitions/myblogx_service_ai_service_metainfo.Metainfos"
                     }
                 },
                 "title": {
@@ -8864,7 +8864,7 @@ const docTemplate = `{
                 }
             }
         },
-        "myblogx_service_ai_service_ai_metainfo.Metainfos": {
+        "myblogx_service_ai_service_metainfo.Metainfos": {
             "type": "object",
             "properties": {
                 "id": {
@@ -8875,13 +8875,13 @@ const docTemplate = `{
                 }
             }
         },
-        "myblogx_service_ai_service_ai_scoring.ArticleScoreIssue": {
+        "myblogx_service_ai_service_scoring.ArticleScoreIssue": {
             "type": "object",
             "properties": {
                 "positions": {
                     "type": "array",
                     "items": {
-                        "$ref": "#/definitions/myblogx_service_ai_service_ai_scoring.ArticleScorePosition"
+                        "$ref": "#/definitions/myblogx_service_ai_service_scoring.ArticleScorePosition"
                     }
                 },
                 "reason": {
@@ -8892,7 +8892,7 @@ const docTemplate = `{
                 }
             }
         },
-        "myblogx_service_ai_service_ai_scoring.ArticleScorePosition": {
+        "myblogx_service_ai_service_scoring.ArticleScorePosition": {
             "type": "object",
             "properties": {
                 "paragraph": {

@@ -17,6 +17,8 @@ package mysqlcontainer
 
 import (
 	"context"
+	crand "crypto/rand"
+	"encoding/hex"
 	"fmt"
 	"net"
 	"os"
@@ -117,6 +119,23 @@ func Terminate(_ context.Context) {
 func ensureAddr(t *testing.T) string {
 	t.Helper()
 
+	// 外部共享实例优先。
+	//
+	// 为什么需要它：sync.Once 是**包级**的，而 go test ./... 每个包编译成独立进程，
+	// 于是 N 个包就起 N 个 MySQL 容器。并行时这些容器互相抢资源（Windows 的
+	// Docker Desktop 上实测约五成概率把就绪检测拖到超时），串行时又要为每个包
+	// 重复付 12-15 秒启动开销（12 个包累计约 3 分钟）。
+	//
+	// 指到同一个已存在的实例后：每个测试仍然各建各的独立 schema（见 DSN），
+	// 不会相互污染，但省掉全部容器启动开销，并行也就安全了。
+	//
+	//	docker run -d --name blogx-it-mysql -p 3306:3306 \
+	//	  -e MYSQL_ROOT_PASSWORD=root -e TZ=Asia/Shanghai mysql:8.0
+	//	export BLOGX_MYSQL_ADDR=127.0.0.1:3306
+	if shared := os.Getenv("BLOGX_MYSQL_ADDR"); shared != "" {
+		return shared
+	}
+
 	once.Do(func() {
 		addr, container, startErr = start()
 	})
@@ -151,9 +170,18 @@ func start() (string, *tcmsql.MySQLContainer, error) {
 	return net.JoinHostPort(host, port.Port()), ctr, nil
 }
 
-// createSchema 建一个空库。用 baseSchema 作为入口，避免依赖容器初始化时机。
+// createSchema 建一个空库。
+//
+// 连接串**不带库名**：testcontainers 起的实例有 baseSchema，外部共享实例则
+// 可能一个业务库都没有。连到默认库再把库建出来，两种来源都能用。
+//
+// 先 DROP 再 CREATE 而不是 CREATE IF NOT EXISTS：共享实例上库会跨进程残留，
+// 复用一个带上次数据的库会让"期望 1 条实际 2 条"这类断言随机失败。
+// 库名现在是进程唯一的（见 schemaName），所以 DROP 不会碰到别人正在用的库。
 func createSchema(host, name string) error {
-	db, err := gorm.Open(mysql.Open(buildDSN(host, baseSchema)), &gorm.Config{
+	db, err := gorm.Open(mysql.Open(fmt.Sprintf(
+		"%s:%s@tcp(%s)/?charset=utf8mb4&parseTime=True&loc=Asia%%2FShanghai",
+		rootUser, rootPass, host)), &gorm.Config{
 		Logger: logger.Discard,
 	})
 	if err != nil {
@@ -165,7 +193,10 @@ func createSchema(host, name string) error {
 	}
 	defer func() { _ = sqlDB.Close() }()
 
-	return db.Exec("CREATE DATABASE IF NOT EXISTS `" + name + "`").Error
+	if err := db.Exec("DROP DATABASE IF EXISTS `" + name + "`").Error; err != nil {
+		return err
+	}
+	return db.Exec("CREATE DATABASE `" + name + "`").Error
 }
 
 // buildDSN 拼 DSN。
@@ -178,14 +209,26 @@ func buildDSN(host, schema string) string {
 }
 
 // schemaName 生成合法且唯一的库名（MySQL 库名上限 64 字符）。
+//
+// token 必须跨进程唯一。sync.Once 与 seq 都是**包级**的，而每个测试包是独立进程，
+// 共享实例（BLOGX_MYSQL_ADDR）下多个包会并行建库 —— 只用 seq 的话各包都从
+// test_1_ 开始，撞名后表现为"表已存在"或数据串台。
 func schemaName(t *testing.T) string {
 	base := sanitize(t.Name())
-	name := fmt.Sprintf("test_%d_%s", seq.Add(1), base)
+	name := fmt.Sprintf("test_%s_%d_%s", schemaToken(), seq.Add(1), base)
 	if len(name) > 60 {
 		name = name[:60]
 	}
 	return name
 }
+
+// schemaToken 每次进程启动生成一次，8 位十六进制。
+var schemaToken = func() func() string {
+	var b [4]byte
+	_, _ = crand.Read(b[:])
+	token := hex.EncodeToString(b[:])
+	return func() string { return token }
+}()
 
 func sanitize(name string) string {
 	const maxLen = 40

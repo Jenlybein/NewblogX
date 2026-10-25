@@ -24,7 +24,7 @@ export interface paths {
             /** @description 请求体 */
             requestBody: {
                 content: {
-                    "application/json": components["schemas"]["api_ai_api.AIDiagnoseRequest"];
+                    "application/json": components["schemas"]["internal_ai_adapter_http.DiagnoseRequest"];
                 };
             };
             responses: {
@@ -62,7 +62,7 @@ export interface paths {
                 path?: never;
                 cookie?: never;
             };
-            requestBody: components["requestBodies"]["api_ai_api.AIBaseRequest"];
+            requestBody: components["requestBodies"]["internal_ai_adapter_http.BaseRequest"];
             responses: {
                 /** @description OK */
                 200: {
@@ -72,7 +72,7 @@ export interface paths {
                     content: {
                         "application/json": {
                             code?: number;
-                            data?: components["schemas"]["myblogx_service_ai_service_ai_metainfo.MetainfoResponse"];
+                            data?: components["schemas"]["internal_ai_adapter_http.MetaInfoResponse"];
                             msg?: string;
                         };
                     };
@@ -105,7 +105,7 @@ export interface paths {
             /** @description 请求体 */
             requestBody: {
                 content: {
-                    "application/json": components["schemas"]["api_ai_api.AIOverwriteRequest"];
+                    "application/json": components["schemas"]["internal_ai_adapter_http.OverwriteRequest"];
                 };
             };
             responses: {
@@ -146,7 +146,7 @@ export interface paths {
             /** @description 请求体 */
             requestBody: {
                 content: {
-                    "application/json": components["schemas"]["api_ai_api.AIArticleScoringRequest"];
+                    "application/json": components["schemas"]["internal_ai_adapter_http.ScoringRequest"];
                 };
             };
             responses: {
@@ -158,7 +158,7 @@ export interface paths {
                     content: {
                         "application/json": {
                             code?: number;
-                            data?: components["schemas"]["api_ai_api.AIArticleScoringResponse"];
+                            data?: components["schemas"]["internal_ai_adapter_http.ScoringResponse"];
                             msg?: string;
                         };
                     };
@@ -188,7 +188,7 @@ export interface paths {
                 path?: never;
                 cookie?: never;
             };
-            requestBody: components["requestBodies"]["api_ai_api.AIBaseRequest"];
+            requestBody: components["requestBodies"]["internal_ai_adapter_http.BaseRequest"];
             responses: {
                 /** @description OK */
                 200: {
@@ -198,7 +198,7 @@ export interface paths {
                     content: {
                         "application/json": {
                             code?: number;
-                            data?: components["schemas"]["myblogx_service_search_service.ArticleSearchResponse"];
+                            data?: Record<string, never>;
                             msg?: string;
                         };
                     };
@@ -228,7 +228,7 @@ export interface paths {
                 path?: never;
                 cookie?: never;
             };
-            requestBody: components["requestBodies"]["api_ai_api.AIBaseRequest"];
+            requestBody: components["requestBodies"]["internal_ai_adapter_http.BaseRequest"];
             responses: {
                 /** @description SSE 流 */
                 200: {
@@ -258,12 +258,12 @@ export interface paths {
         get: {
             parameters: {
                 query?: {
+                    /** @description 任务状态 */
+                    status?: string;
                     /** @description 页码 */
                     page?: number;
-                    /** @description 每页条数 */
+                    /** @description 每页数量 */
                     limit?: number;
-                    /** @description 审核状态(pending/approved/rejected/canceled) */
-                    status?: string;
                 };
                 header?: never;
                 path?: never;
@@ -279,7 +279,7 @@ export interface paths {
                     content: {
                         "application/json": {
                             code?: number;
-                            data?: components["schemas"]["api_article_api.ArticleReviewTaskListResponse"];
+                            data?: components["schemas"]["internal_article_adapter_http.ArticleReviewTaskListResponse"];
                             msg?: string;
                         };
                     };
@@ -309,7 +309,7 @@ export interface paths {
                 query?: never;
                 header?: never;
                 path: {
-                    /** @description 审核任务 ID */
+                    /** @description 任务 ID */
                     id: number;
                 };
                 cookie?: never;
@@ -317,7 +317,7 @@ export interface paths {
             /** @description 请求体 */
             requestBody: {
                 content: {
-                    "application/json": components["schemas"]["api_article_api.ArticleReviewHandleRequest"];
+                    "application/json": components["schemas"]["internal_article_adapter_http.ArticleReviewHandleRequest"];
                 };
             };
             responses: {
@@ -362,7 +362,7 @@ export interface paths {
             /** @description 请求体 */
             requestBody: {
                 content: {
-                    "application/json": components["schemas"]["api_article_api.ArticleCreateRequest"];
+                    "application/json": components["schemas"]["internal_article_adapter_http.ArticleCreateRequest"];
                 };
             };
             responses: {
@@ -374,7 +374,7 @@ export interface paths {
                     content: {
                         "application/json": {
                             code?: number;
-                            data?: components["schemas"]["api_article_api.ArticleCreateResponse"];
+                            data?: components["schemas"]["internal_article_adapter_http.ArticleCreateResponse"];
                             msg?: string;
                         };
                     };
@@ -389,7 +389,7 @@ export interface paths {
                 path?: never;
                 cookie?: never;
             };
-            requestBody: components["requestBodies"]["models.IDListRequest2"];
+            requestBody: components["requestBodies"]["myblogx_internal_kernel.IDListRequest"];
             responses: {
                 /** @description OK */
                 200: {
@@ -418,7 +418,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** 查询作者信息 */
+        /** 作者信息 */
         get: {
             parameters: {
                 query: {
@@ -439,7 +439,7 @@ export interface paths {
                     content: {
                         "application/json": {
                             code?: number;
-                            data?: components["schemas"]["api_article_api.ArticleAuthorInfoResponse"];
+                            data?: Record<string, never>;
                             msg?: string;
                         };
                     };
@@ -464,19 +464,9 @@ export interface paths {
         /** 分类列表 */
         get: {
             parameters: {
-                query: {
-                    /** @description 页码 */
-                    page?: number;
-                    /** @description 每页条数 */
-                    limit?: number;
-                    /** @description 关键词 */
-                    key?: string;
-                    /** @description 排序 */
-                    order?: string;
-                    /** @description 目标用户 ID */
+                query?: {
+                    /** @description 用户 ID */
                     user_id?: number;
-                    /** @description 查询类型(1:自己 2:别人 3:管理员) */
-                    type: number;
                 };
                 header?: never;
                 path?: never;
@@ -494,7 +484,7 @@ export interface paths {
                             code?: number;
                             data?: {
                                 count?: number;
-                                list?: components["schemas"]["api_article_api_category.CategoryListResponse"][];
+                                list?: Record<string, never>[];
                             };
                             msg?: string;
                         };
@@ -503,7 +493,7 @@ export interface paths {
             };
         };
         put?: never;
-        /** 创建/更新分类 */
+        /** 保存分类 */
         post: {
             parameters: {
                 query?: never;
@@ -514,7 +504,7 @@ export interface paths {
             /** @description 请求体 */
             requestBody: {
                 content: {
-                    "application/json": components["schemas"]["api_article_api_category.CategoryRequest"];
+                    "application/json": components["schemas"]["internal_article_adapter_http.CategoryRequest"];
                 };
             };
             responses: {
@@ -526,14 +516,14 @@ export interface paths {
                     content: {
                         "application/json": {
                             code?: number;
-                            data?: components["schemas"]["api_article_api_category.CategoryCreateResponse"];
+                            data?: Record<string, never>;
                             msg?: string;
                         };
                     };
                 };
             };
         };
-        /** 批量删除分类 */
+        /** 删除分类 */
         delete: {
             parameters: {
                 query?: never;
@@ -544,7 +534,7 @@ export interface paths {
             /** @description 分类 ID 列表 */
             requestBody: {
                 content: {
-                    "application/json": components["schemas"]["models.IDListRequest"];
+                    "application/json": components["schemas"]["myblogx_internal_kernel.IDListRequest"];
                 };
             };
             responses: {
@@ -575,12 +565,12 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** 分类选项 */
+        /** 分类下拉 */
         get: {
             parameters: {
-                query: {
+                query?: {
                     /** @description 用户 ID */
-                    user_id: number;
+                    user_id?: number;
                 };
                 header?: never;
                 path?: never;
@@ -597,11 +587,9 @@ export interface paths {
                         "application/json": {
                             code?: number;
                             data?: {
-                                id?: number;
-                                label?: string;
-                                title?: string;
-                                value?: number;
-                            }[];
+                                count?: number;
+                                list?: Record<string, never>[];
+                            };
                             msg?: string;
                         };
                     };
@@ -626,21 +614,9 @@ export interface paths {
         /** 收藏夹列表 */
         get: {
             parameters: {
-                query: {
-                    /** @description 页码 */
-                    page?: number;
-                    /** @description 每页条数 */
-                    limit?: number;
-                    /** @description 关键词 */
-                    key?: string;
-                    /** @description 排序 */
-                    order?: string;
-                    /** @description 目标用户 ID */
+                query?: {
+                    /** @description 用户 ID */
                     user_id?: number;
-                    /** @description 文章 ID */
-                    article_id?: number;
-                    /** @description 查询类型(1:自己 2:别人 3:管理员) */
-                    type: number;
                 };
                 header?: never;
                 path?: never;
@@ -658,7 +634,7 @@ export interface paths {
                             code?: number;
                             data?: {
                                 count?: number;
-                                list?: components["schemas"]["myblogx_service_favorite_service.FavoriteListItem"][];
+                                list?: Record<string, never>[];
                             };
                             msg?: string;
                         };
@@ -666,7 +642,7 @@ export interface paths {
                 };
             };
         };
-        /** 创建/更新收藏夹 */
+        /** 保存收藏夹 */
         put: {
             parameters: {
                 query?: never;
@@ -677,37 +653,7 @@ export interface paths {
             /** @description 请求体 */
             requestBody: {
                 content: {
-                    "application/json": components["schemas"]["api_article_api_favorite.FavoriteRequest"];
-                };
-            };
-            responses: {
-                /** @description OK */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": {
-                            code?: number;
-                            data?: components["schemas"]["api_article_api_favorite.FavoriteCreateResponse"];
-                            msg?: string;
-                        };
-                    };
-                };
-            };
-        };
-        /** 收藏/取消收藏文章 */
-        post: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path?: never;
-                cookie?: never;
-            };
-            /** @description 请求体 */
-            requestBody: {
-                content: {
-                    "application/json": components["schemas"]["api_article_api.ArticleFavoriteRequest"];
+                    "application/json": components["schemas"]["internal_article_adapter_http.FavoriteRequest"];
                 };
             };
             responses: {
@@ -726,7 +672,37 @@ export interface paths {
                 };
             };
         };
-        /** 批量删除收藏夹 */
+        /** 收藏文章 */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            /** @description 请求体 */
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["internal_article_adapter_http.ArticleFavoriteRequest"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            code?: number;
+                            data?: Record<string, never>;
+                            msg?: string;
+                        };
+                    };
+                };
+            };
+        };
+        /** 删除收藏夹 */
         delete: {
             parameters: {
                 query?: never;
@@ -737,7 +713,7 @@ export interface paths {
             /** @description 收藏夹 ID 列表 */
             requestBody: {
                 content: {
-                    "application/json": components["schemas"]["models.IDListRequest"];
+                    "application/json": components["schemas"]["myblogx_internal_kernel.IDListRequest"];
                 };
             };
             responses: {
@@ -768,20 +744,16 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** 收藏夹文章列表 */
+        /** 收藏夹内容 */
         get: {
             parameters: {
                 query: {
+                    /** @description 收藏夹 ID */
+                    favor_id: number;
                     /** @description 页码 */
                     page?: number;
-                    /** @description 每页条数 */
+                    /** @description 每页数量 */
                     limit?: number;
-                    /** @description 关键词 */
-                    key?: string;
-                    /** @description 排序 */
-                    order?: string;
-                    /** @description 收藏夹 ID */
-                    favorite_id: number;
                 };
                 header?: never;
                 path?: never;
@@ -798,8 +770,8 @@ export interface paths {
                         "application/json": {
                             code?: number;
                             data?: {
-                                has_more?: boolean;
-                                list?: components["schemas"]["myblogx_service_favorite_service.FavoriteArticleItem"][];
+                                count?: number;
+                                list?: Record<string, never>[];
                             };
                             msg?: string;
                         };
@@ -809,7 +781,7 @@ export interface paths {
         };
         put?: never;
         post?: never;
-        /** 批量取消收藏 */
+        /** 取消收藏 */
         delete: {
             parameters: {
                 query?: never;
@@ -820,7 +792,7 @@ export interface paths {
             /** @description 请求体 */
             requestBody: {
                 content: {
-                    "application/json": components["schemas"]["api_article_api_favorite.FavoriteRemovePatchModel"];
+                    "application/json": components["schemas"]["internal_article_adapter_http.FavoriteRemovePatchModel"];
                 };
             };
             responses: {
@@ -851,22 +823,14 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** 文章浏览历史 */
+        /** 浏览历史 */
         get: {
             parameters: {
-                query: {
+                query?: {
                     /** @description 页码 */
                     page?: number;
-                    /** @description 每页条数 */
+                    /** @description 每页数量 */
                     limit?: number;
-                    /** @description 关键词 */
-                    key?: string;
-                    /** @description 排序 */
-                    order?: string;
-                    /** @description 目标用户 ID(type=2 时使用) */
-                    user_id?: number;
-                    /** @description 查询类型(1:自己 2:别人) */
-                    type: number;
                 };
                 header?: never;
                 path?: never;
@@ -883,8 +847,8 @@ export interface paths {
                         "application/json": {
                             code?: number;
                             data?: {
-                                has_more?: boolean;
-                                list?: components["schemas"]["api_article_api_view_history.ArticleViewHistoryResponse"][];
+                                count?: number;
+                                list?: Record<string, never>[];
                             };
                             msg?: string;
                         };
@@ -902,12 +866,7 @@ export interface paths {
                 path?: never;
                 cookie?: never;
             };
-            /** @description 文章 ID 列表 */
-            requestBody: {
-                content: {
-                    "application/json": components["schemas"]["models.IDListRequest"];
-                };
-            };
+            requestBody: components["requestBodies"]["myblogx_internal_kernel.IDListRequest"];
             responses: {
                 /** @description OK */
                 200: {
@@ -940,16 +899,8 @@ export interface paths {
         get: {
             parameters: {
                 query?: {
-                    /** @description 页码 */
-                    page?: number;
-                    /** @description 每页条数 */
-                    limit?: number;
-                    /** @description 关键词 */
-                    key?: string;
-                    /** @description 排序 */
-                    order?: string;
-                    /** @description 是否启用 */
-                    is_enabled?: boolean;
+                    /** @description 是否包含停用 */
+                    include_disabled?: boolean;
                 };
                 header?: never;
                 path?: never;
@@ -967,7 +918,7 @@ export interface paths {
                             code?: number;
                             data?: {
                                 count?: number;
-                                list?: components["schemas"]["api_article_api_tags.TagListResponse"][];
+                                list?: Record<string, never>[];
                             };
                             msg?: string;
                         };
@@ -975,7 +926,7 @@ export interface paths {
                 };
             };
         };
-        /** 创建/更新标签 */
+        /** 保存标签 */
         put: {
             parameters: {
                 query?: never;
@@ -986,7 +937,7 @@ export interface paths {
             /** @description 请求体 */
             requestBody: {
                 content: {
-                    "application/json": components["schemas"]["api_article_api_tags.TagRequest"];
+                    "application/json": components["schemas"]["internal_article_adapter_http.TagRequest"];
                 };
             };
             responses: {
@@ -998,7 +949,7 @@ export interface paths {
                     content: {
                         "application/json": {
                             code?: number;
-                            data?: components["schemas"]["api_article_api_tags.TagCreateResponse"];
+                            data?: Record<string, never>;
                             msg?: string;
                         };
                     };
@@ -1006,7 +957,7 @@ export interface paths {
             };
         };
         post?: never;
-        /** 批量删除标签 */
+        /** 删除标签 */
         delete: {
             parameters: {
                 query?: never;
@@ -1017,7 +968,7 @@ export interface paths {
             /** @description 标签 ID 列表 */
             requestBody: {
                 content: {
-                    "application/json": components["schemas"]["models.IDListRequest"];
+                    "application/json": components["schemas"]["myblogx_internal_kernel.IDListRequest"];
                 };
             };
             responses: {
@@ -1048,7 +999,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** 标签选项 */
+        /** 标签下拉 */
         get: {
             parameters: {
                 query?: never;
@@ -1067,11 +1018,9 @@ export interface paths {
                         "application/json": {
                             code?: number;
                             data?: {
-                                id?: number;
-                                label?: string;
-                                title?: string;
-                                value?: number;
-                            }[];
+                                count?: number;
+                                list?: Record<string, never>[];
+                            };
                             msg?: string;
                         };
                     };
@@ -1093,13 +1042,11 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** 置顶文章列表 */
+        /** 置顶列表 */
         get: {
             parameters: {
-                query: {
-                    /** @description 置顶类型(1:用户 2:管理员) */
-                    type: number;
-                    /** @description 用户 ID(type=1 时必填) */
+                query?: {
+                    /** @description 用户 ID */
                     user_id?: number;
                 };
                 header?: never;
@@ -1118,7 +1065,7 @@ export interface paths {
                             code?: number;
                             data?: {
                                 count?: number;
-                                list?: components["schemas"]["myblogx_service_top_service.ArticleTopListItem"][];
+                                list?: Record<string, never>[];
                             };
                             msg?: string;
                         };
@@ -1127,7 +1074,7 @@ export interface paths {
             };
         };
         put?: never;
-        /** 设置文章置顶 */
+        /** 设置置顶 */
         post: {
             parameters: {
                 query?: never;
@@ -1135,7 +1082,7 @@ export interface paths {
                 path?: never;
                 cookie?: never;
             };
-            requestBody: components["requestBodies"]["api_article_api_top.ArticleTopSetRequest"];
+            requestBody: components["requestBodies"]["internal_article_adapter_http.ArticleTopSetRequest"];
             responses: {
                 /** @description OK */
                 200: {
@@ -1152,7 +1099,7 @@ export interface paths {
                 };
             };
         };
-        /** 取消文章置顶 */
+        /** 取消置顶 */
         delete: {
             parameters: {
                 query?: never;
@@ -1160,7 +1107,7 @@ export interface paths {
                 path?: never;
                 cookie?: never;
             };
-            requestBody: components["requestBodies"]["api_article_api_top.ArticleTopSetRequest"];
+            requestBody: components["requestBodies"]["internal_article_adapter_http.ArticleTopSetRequest"];
             responses: {
                 /** @description OK */
                 200: {
@@ -1191,7 +1138,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** 记录文章访问量 */
+        /** 记录文章浏览 */
         post: {
             parameters: {
                 query?: never;
@@ -1202,7 +1149,7 @@ export interface paths {
             /** @description 请求体 */
             requestBody: {
                 content: {
-                    "application/json": components["schemas"]["api_article_api.ArticleViewCountRequest"];
+                    "application/json": components["schemas"]["internal_article_adapter_http.ArticleViewCountRequest"];
                 };
             };
             responses: {
@@ -1255,7 +1202,7 @@ export interface paths {
                     content: {
                         "application/json": {
                             code?: number;
-                            data?: components["schemas"]["api_article_api.ArticleDetailResponse"];
+                            data?: components["schemas"]["internal_article_adapter_http.ArticleDetailResponse"];
                             msg?: string;
                         };
                     };
@@ -1276,7 +1223,7 @@ export interface paths {
             /** @description 请求体 */
             requestBody: {
                 content: {
-                    "application/json": components["schemas"]["api_article_api.ArticleUpdateRequest"];
+                    "application/json": components["schemas"]["internal_article_adapter_http.ArticleUpdateRequest"];
                 };
             };
             responses: {
@@ -1288,7 +1235,7 @@ export interface paths {
                     content: {
                         "application/json": {
                             code?: number;
-                            data?: Record<string, never>;
+                            data?: components["schemas"]["internal_article_adapter_http.ArticleDetailResponse"];
                             msg?: string;
                         };
                     };
@@ -1296,7 +1243,7 @@ export interface paths {
             };
         };
         post?: never;
-        /** 删除自己的文章 */
+        /** 删除文章 */
         delete: {
             parameters: {
                 query?: never;
@@ -1338,7 +1285,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** 设置文章可见性 */
+        /** 管理员设置文章可见性 */
         post: {
             parameters: {
                 query?: never;
@@ -1346,7 +1293,7 @@ export interface paths {
                 path: {
                     /** @description 文章 ID */
                     id: number;
-                    /** @description 可见性(hide/show) */
+                    /** @description hide 或 show */
                     visibility: string;
                 };
                 cookie?: never;
@@ -1382,7 +1329,7 @@ export interface paths {
             cookie?: never;
         };
         get?: never;
-        /** 文章点赞/取消点赞 */
+        /** 文章点赞 */
         put: {
             parameters: {
                 query?: never;
@@ -1403,7 +1350,9 @@ export interface paths {
                     content: {
                         "application/json": {
                             code?: number;
-                            data?: Record<string, never>;
+                            data?: {
+                                is_digg?: boolean;
+                            };
                             msg?: string;
                         };
                     };
@@ -1428,14 +1377,6 @@ export interface paths {
         get: {
             parameters: {
                 query?: {
-                    /** @description 每页条数 */
-                    limit?: number;
-                    /** @description 页码 */
-                    page?: number;
-                    /** @description 关键词 */
-                    key?: string;
-                    /** @description 排序 */
-                    order?: string;
                     /** @description 是否展示 */
                     show?: boolean;
                 };
@@ -1455,7 +1396,7 @@ export interface paths {
                             code?: number;
                             data?: {
                                 has_more?: boolean;
-                                list?: components["schemas"]["models.BannerModel"][];
+                                list?: components["schemas"]["internal_site_adapter_http.BannerItem"][];
                             };
                             msg?: string;
                         };
@@ -1475,7 +1416,7 @@ export interface paths {
             /** @description 创建参数 */
             requestBody: {
                 content: {
-                    "application/json": components["schemas"]["api_banner_api.BannerCreateRequest"];
+                    "application/json": components["schemas"]["internal_site_adapter_http.BannerCreateRequest"];
                 };
             };
             responses: {
@@ -1487,7 +1428,7 @@ export interface paths {
                     content: {
                         "application/json": {
                             code?: number;
-                            data?: components["schemas"]["api_banner_api.BannerCreateResponse"];
+                            data?: components["schemas"]["internal_site_adapter_http.BannerCreateResponse"];
                             msg?: string;
                         };
                     };
@@ -1502,7 +1443,12 @@ export interface paths {
                 path?: never;
                 cookie?: never;
             };
-            requestBody: components["requestBodies"]["models.IDListRequest2"];
+            /** @description ID 列表 */
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["internal_site_adapter_http.IDListRequest"];
+                };
+            };
             responses: {
                 /** @description OK */
                 200: {
@@ -1546,7 +1492,7 @@ export interface paths {
             /** @description 更新参数 */
             requestBody: {
                 content: {
-                    "application/json": components["schemas"]["api_banner_api.BannerCreateRequest"];
+                    "application/json": components["schemas"]["internal_site_adapter_http.BannerCreateRequest"];
                 };
             };
             responses: {
@@ -1582,22 +1528,7 @@ export interface paths {
         /** 会话消息列表 */
         get: {
             parameters: {
-                query: {
-                    /** @description 每页条数 */
-                    limit?: number;
-                    /** @description 页码 */
-                    page?: number;
-                    /** @description 关键词 */
-                    key?: string;
-                    /** @description 排序 */
-                    order?: string;
-                    /** @description 会话 ID */
-                    session_id: string;
-                    /** @description 用户 ID（type=2 时必填） */
-                    user_id?: number;
-                    /** @description 查询类型：1 我自己的消息 2 管理员查指定用户 */
-                    type: number;
-                };
+                query?: never;
                 header?: never;
                 path?: never;
                 cookie?: never;
@@ -1614,7 +1545,7 @@ export interface paths {
                             code?: number;
                             data?: {
                                 count?: number;
-                                list?: components["schemas"]["api_chat_api.ChatMsgResponse"][];
+                                list?: components["schemas"]["myblogx_internal_chat_domain.MessageItem"][];
                             };
                             msg?: string;
                         };
@@ -1632,12 +1563,7 @@ export interface paths {
                 path?: never;
                 cookie?: never;
             };
-            /** @description 请求体 */
-            requestBody: {
-                content: {
-                    "application/json": components["schemas"]["api_chat_api.ChatMsgDeleteUserRequest"];
-                };
-            };
+            requestBody?: never;
             responses: {
                 /** @description OK */
                 200: {
@@ -1676,12 +1602,7 @@ export interface paths {
                 path?: never;
                 cookie?: never;
             };
-            /** @description 请求体 */
-            requestBody: {
-                content: {
-                    "application/json": components["schemas"]["api_chat_api.ChatMsgReadUserRequest"];
-                };
-            };
+            requestBody?: never;
             responses: {
                 /** @description OK */
                 200: {
@@ -1714,20 +1635,7 @@ export interface paths {
         /** 会话列表 */
         get: {
             parameters: {
-                query: {
-                    /** @description 每页条数 */
-                    limit?: number;
-                    /** @description 页码 */
-                    page?: number;
-                    /** @description 关键词 */
-                    key?: string;
-                    /** @description 排序 */
-                    order?: string;
-                    /** @description 用户 ID（type=2 时必填） */
-                    user_id?: number;
-                    /** @description 查询类型：1 我自己的会话 2 管理员查指定用户 */
-                    type: number;
-                };
+                query?: never;
                 header?: never;
                 path?: never;
                 cookie?: never;
@@ -1744,7 +1652,7 @@ export interface paths {
                             code?: number;
                             data?: {
                                 count?: number;
-                                list?: components["schemas"]["myblogx_service_chat_service.SessionListItem"][];
+                                list?: components["schemas"]["myblogx_internal_chat_domain.SessionItem"][];
                             };
                             msg?: string;
                         };
@@ -1762,12 +1670,7 @@ export interface paths {
                 path?: never;
                 cookie?: never;
             };
-            /** @description 请求体 */
-            requestBody: {
-                content: {
-                    "application/json": components["schemas"]["api_chat_api.ChatSessionDeleteUserRequest"];
-                };
-            };
+            requestBody?: never;
             responses: {
                 /** @description OK */
                 200: {
@@ -1799,10 +1702,7 @@ export interface paths {
         /** 聊天 WebSocket 长连接 */
         get: {
             parameters: {
-                query?: {
-                    /** @description WS 票据（未携带 Authorization 头时使用） */
-                    ticket?: string;
-                };
+                query?: never;
                 header?: never;
                 path?: never;
                 cookie?: never;
@@ -1883,14 +1783,6 @@ export interface paths {
         get: {
             parameters: {
                 query: {
-                    /** @description 每页条数 */
-                    limit?: number;
-                    /** @description 页码 */
-                    page?: number;
-                    /** @description 关键词 */
-                    key?: string;
-                    /** @description 排序 */
-                    order?: string;
                     /** @description 文章 ID */
                     article_id: number;
                 };
@@ -1908,7 +1800,10 @@ export interface paths {
                     content: {
                         "application/json": {
                             code?: number;
-                            data?: Record<string, never>;
+                            data?: {
+                                has_more?: boolean;
+                                list?: components["schemas"]["myblogx_internal_comment_app.RootItem"][];
+                            };
                             msg?: string;
                         };
                     };
@@ -1927,7 +1822,7 @@ export interface paths {
             /** @description 请求体 */
             requestBody: {
                 content: {
-                    "application/json": components["schemas"]["api_comment_api.CommentCreateRequest"];
+                    "application/json": components["schemas"]["internal_comment_adapter_http.CreateRequest"];
                 };
             };
             responses: {
@@ -1939,7 +1834,7 @@ export interface paths {
                     content: {
                         "application/json": {
                             code?: number;
-                            data?: components["schemas"]["api_comment_api.CommentCreateResponse"];
+                            data?: components["schemas"]["myblogx_internal_comment_app.CreateResult"];
                             msg?: string;
                         };
                     };
@@ -1962,24 +1857,7 @@ export interface paths {
         /** 评论管理列表 */
         get: {
             parameters: {
-                query: {
-                    /** @description 每页条数 */
-                    limit?: number;
-                    /** @description 页码 */
-                    page?: number;
-                    /** @description 关键词 */
-                    key?: string;
-                    /** @description 排序 */
-                    order?: string;
-                    /** @description 文章 ID */
-                    article_id?: number;
-                    /** @description 用户 ID（type=2 时忽略，取当前登录用户） */
-                    user_id?: number;
-                    /** @description 评论状态：1 审核中 2 已发布 3 已删除 */
-                    status?: number;
-                    /** @description 查询类型：1 我文章下的评论 2 我发的评论 3 管理员查所有评论 */
-                    type: number;
-                };
+                query?: never;
                 header?: never;
                 path?: never;
                 cookie?: never;
@@ -1996,7 +1874,7 @@ export interface paths {
                             code?: number;
                             data?: {
                                 count?: number;
-                                list?: components["schemas"]["myblogx_service_comment_service.ManageCommentItem"][];
+                                list?: components["schemas"]["myblogx_internal_comment_app.ManageItem"][];
                             };
                             msg?: string;
                         };
@@ -2022,20 +1900,7 @@ export interface paths {
         /** 二级评论列表 */
         get: {
             parameters: {
-                query: {
-                    /** @description 每页条数 */
-                    limit?: number;
-                    /** @description 页码 */
-                    page?: number;
-                    /** @description 关键词 */
-                    key?: string;
-                    /** @description 排序 */
-                    order?: string;
-                    /** @description 文章 ID */
-                    article_id: number;
-                    /** @description 一级评论 ID */
-                    root_id: number;
-                };
+                query?: never;
                 header?: never;
                 path?: never;
                 cookie?: never;
@@ -2176,7 +2041,7 @@ export interface paths {
                     content: {
                         "application/json": {
                             code?: number;
-                            data?: components["schemas"]["api_data_api.ArticleYearDataResponse"];
+                            data?: components["schemas"]["internal_analytics_adapter_http.ArticleYearDataResponse"];
                             msg?: string;
                         };
                     };
@@ -2219,7 +2084,7 @@ export interface paths {
                     content: {
                         "application/json": {
                             code?: number;
-                            data?: components["schemas"]["api_data_api.GrowthDataResponse"];
+                            data?: components["schemas"]["internal_analytics_adapter_http.GrowthDataResponse"];
                             msg?: string;
                         };
                     };
@@ -2259,7 +2124,7 @@ export interface paths {
                     content: {
                         "application/json": {
                             code?: number;
-                            data?: components["schemas"]["api_data_api.SumResponse"];
+                            data?: components["schemas"]["internal_analytics_adapter_http.SumResponse"];
                             msg?: string;
                         };
                     };
@@ -2284,20 +2149,7 @@ export interface paths {
         /** 粉丝列表 */
         get: {
             parameters: {
-                query?: {
-                    /** @description 每页条数 */
-                    limit?: number;
-                    /** @description 页码 */
-                    page?: number;
-                    /** @description 关键词 */
-                    key?: string;
-                    /** @description 排序 */
-                    order?: string;
-                    /** @description 目标用户 ID，缺省为当前登录用户 */
-                    user_id?: number;
-                    /** @description 只查与指定粉丝用户相关的记录 */
-                    fans_user_id?: number;
-                };
+                query?: never;
                 header?: never;
                 path?: never;
                 cookie?: never;
@@ -2314,7 +2166,7 @@ export interface paths {
                             code?: number;
                             data?: {
                                 has_more?: boolean;
-                                list?: components["schemas"]["myblogx_service_follow_service.FansListItem"][];
+                                list?: components["schemas"]["myblogx_internal_social_domain.FansItem"][];
                             };
                             msg?: string;
                         };
@@ -2340,20 +2192,7 @@ export interface paths {
         /** 关注列表 */
         get: {
             parameters: {
-                query?: {
-                    /** @description 每页条数 */
-                    limit?: number;
-                    /** @description 页码 */
-                    page?: number;
-                    /** @description 关键词 */
-                    key?: string;
-                    /** @description 排序 */
-                    order?: string;
-                    /** @description 目标用户 ID，缺省为当前登录用户 */
-                    user_id?: number;
-                    /** @description 只查与指定被关注用户相关的记录 */
-                    followed_user_id?: number;
-                };
+                query?: never;
                 header?: never;
                 path?: never;
                 cookie?: never;
@@ -2370,7 +2209,7 @@ export interface paths {
                             code?: number;
                             data?: {
                                 has_more?: boolean;
-                                list?: components["schemas"]["myblogx_service_follow_service.FollowListItem"][];
+                                list?: components["schemas"]["myblogx_internal_social_domain.FollowingItem"][];
                             };
                             msg?: string;
                         };
@@ -2467,14 +2306,6 @@ export interface paths {
         get: {
             parameters: {
                 query: {
-                    /** @description 每页条数 */
-                    limit?: number;
-                    /** @description 页码 */
-                    page?: number;
-                    /** @description 关键词 */
-                    key?: string;
-                    /** @description 排序 */
-                    order?: string;
                     /** @description 查询类型：1 普通用户可见通知 2 管理员查全部通知 */
                     type: number;
                 };
@@ -2494,7 +2325,7 @@ export interface paths {
                             code?: number;
                             data?: {
                                 has_more?: boolean;
-                                list?: components["schemas"]["api_global_notif_api.GlobalNotifListResponse"][];
+                                list?: components["schemas"]["internal_notification_adapter_http.GlobalListResponse"][];
                             };
                             msg?: string;
                         };
@@ -2514,7 +2345,7 @@ export interface paths {
             /** @description 请求体 */
             requestBody: {
                 content: {
-                    "application/json": components["schemas"]["api_global_notif_api.GlobalNotifCreateRequest"];
+                    "application/json": components["schemas"]["internal_notification_adapter_http.GlobalCreateRequest"];
                 };
             };
             responses: {
@@ -2526,7 +2357,7 @@ export interface paths {
                     content: {
                         "application/json": {
                             code?: number;
-                            data?: components["schemas"]["api_global_notif_api.GlobalNotifCreateResponse"];
+                            data?: components["schemas"]["internal_notification_adapter_http.GlobalCreateResponse"];
                             msg?: string;
                         };
                     };
@@ -2541,7 +2372,7 @@ export interface paths {
                 path?: never;
                 cookie?: never;
             };
-            requestBody: components["requestBodies"]["models.IDListRequest"];
+            requestBody: components["requestBodies"]["internal_notification_adapter_http.IDListRequest"];
             responses: {
                 /** @description OK */
                 200: {
@@ -2580,7 +2411,7 @@ export interface paths {
                 path?: never;
                 cookie?: never;
             };
-            requestBody: components["requestBodies"]["models.IDListRequest"];
+            requestBody: components["requestBodies"]["internal_notification_adapter_http.IDListRequest"];
             responses: {
                 /** @description OK */
                 200: {
@@ -2621,7 +2452,7 @@ export interface paths {
                 path?: never;
                 cookie?: never;
             };
-            requestBody: components["requestBodies"]["models.IDListRequest"];
+            requestBody: components["requestBodies"]["internal_notification_adapter_http.IDListRequest"];
             responses: {
                 /** @description OK */
                 200: {
@@ -2668,7 +2499,7 @@ export interface paths {
                     content: {
                         "application/json": {
                             code?: number;
-                            data?: components["schemas"]["api_captcha_api.ImageCaptchaResponse"];
+                            data?: components["schemas"]["internal_platform_captcha.ImageResponse"];
                             msg?: string;
                         };
                     };
@@ -2693,16 +2524,7 @@ export interface paths {
         /** 图片列表 */
         get: {
             parameters: {
-                query?: {
-                    /** @description 每页条数 */
-                    limit?: number;
-                    /** @description 页码 */
-                    page?: number;
-                    /** @description 关键词 */
-                    key?: string;
-                    /** @description 排序 */
-                    order?: string;
-                };
+                query?: never;
                 header?: never;
                 path?: never;
                 cookie?: never;
@@ -2719,7 +2541,7 @@ export interface paths {
                             code?: number;
                             data?: {
                                 count?: number;
-                                list?: components["schemas"]["models.ImageModel"][];
+                                list?: components["schemas"]["internal_media_adapter_http.ImageItem"][];
                             };
                             msg?: string;
                         };
@@ -2740,7 +2562,7 @@ export interface paths {
             /** @description 图片 ID 列表 */
             requestBody: {
                 content: {
-                    "application/json": components["schemas"]["models.IDListRequest"];
+                    "application/json": components["schemas"]["internal_media_adapter_http.RemoveRequest"];
                 };
             };
             responses: {
@@ -2781,12 +2603,7 @@ export interface paths {
                 path?: never;
                 cookie?: never;
             };
-            /** @description 七牛审核回调 JSON */
-            requestBody: {
-                content: {
-                    "application/json": Record<string, never>;
-                };
-            };
+            requestBody?: never;
             responses: {
                 /** @description OK */
                 200: {
@@ -2826,12 +2643,7 @@ export interface paths {
                 path?: never;
                 cookie?: never;
             };
-            /** @description 七牛回调 JSON：key、hash、bucket、fsize */
-            requestBody: {
-                content: {
-                    "application/json": Record<string, never>;
-                };
-            };
+            requestBody?: never;
             responses: {
                 /** @description OK */
                 200: {
@@ -2841,7 +2653,7 @@ export interface paths {
                     content: {
                         "application/json": {
                             code?: number;
-                            data?: components["schemas"]["api_image_api.CompleteImageUploadTaskResponse"];
+                            data?: components["schemas"]["internal_media_adapter_http.CompleteTaskResponse"];
                             msg?: string;
                         };
                     };
@@ -2874,7 +2686,7 @@ export interface paths {
             /** @description 请求体 */
             requestBody: {
                 content: {
-                    "application/json": components["schemas"]["api_image_api.CreateImageUploadTaskRequest"];
+                    "application/json": components["schemas"]["internal_media_adapter_http.CreateTaskRequest"];
                 };
             };
             responses: {
@@ -2886,7 +2698,7 @@ export interface paths {
                     content: {
                         "application/json": {
                             code?: number;
-                            data?: components["schemas"]["api_image_api.CreateImageUploadTaskResponse"];
+                            data?: components["schemas"]["internal_media_adapter_http.CreateTaskResponse"];
                             msg?: string;
                         };
                     };
@@ -2919,7 +2731,7 @@ export interface paths {
             /** @description 请求体 */
             requestBody: {
                 content: {
-                    "application/json": components["schemas"]["api_image_api.CompleteImageUploadTaskRequest"];
+                    "application/json": components["schemas"]["internal_media_adapter_http.CompleteTaskRequest"];
                 };
             };
             responses: {
@@ -2931,7 +2743,7 @@ export interface paths {
                     content: {
                         "application/json": {
                             code?: number;
-                            data?: components["schemas"]["api_image_api.CompleteImageUploadTaskResponse"];
+                            data?: components["schemas"]["internal_media_adapter_http.CompleteTaskResponse"];
                             msg?: string;
                         };
                     };
@@ -2972,7 +2784,7 @@ export interface paths {
                     content: {
                         "application/json": {
                             code?: number;
-                            data?: components["schemas"]["api_image_api.UploadTaskStatusResponse"];
+                            data?: components["schemas"]["internal_media_adapter_http.TaskStatusResponse"];
                             msg?: string;
                         };
                     };
@@ -3055,7 +2867,7 @@ export interface paths {
                             code?: number;
                             data?: {
                                 count?: number;
-                                list?: components["schemas"]["myblogx_service_log_service.ActionAuditRecord"][];
+                                list?: components["schemas"]["myblogx_internal_analytics_adapter_clickhouse.ActionAuditRecord"][];
                             };
                             msg?: string;
                         };
@@ -3099,7 +2911,7 @@ export interface paths {
                     content: {
                         "application/json": {
                             code?: number;
-                            data?: components["schemas"]["myblogx_service_log_service.ActionAuditRecord"];
+                            data?: components["schemas"]["myblogx_internal_analytics_adapter_clickhouse.ActionAuditRecord"];
                             msg?: string;
                         };
                     };
@@ -3184,7 +2996,7 @@ export interface paths {
                             code?: number;
                             data?: {
                                 count?: number;
-                                list?: components["schemas"]["myblogx_service_log_service.CdcEventRecord"][];
+                                list?: components["schemas"]["myblogx_internal_analytics_adapter_clickhouse.CdcEventRecord"][];
                             };
                             msg?: string;
                         };
@@ -3228,7 +3040,7 @@ export interface paths {
                     content: {
                         "application/json": {
                             code?: number;
-                            data?: components["schemas"]["myblogx_service_log_service.CdcEventRecord"];
+                            data?: components["schemas"]["myblogx_internal_analytics_adapter_clickhouse.CdcEventRecord"];
                             msg?: string;
                         };
                     };
@@ -3291,7 +3103,7 @@ export interface paths {
                     content: {
                         "application/json": {
                             code?: number;
-                            data?: components["schemas"]["api_log_api.ChainQueryResponse"];
+                            data?: components["schemas"]["internal_analytics_adapter_http.ChainQueryResponse"];
                             msg?: string;
                         };
                     };
@@ -3370,7 +3182,7 @@ export interface paths {
                             code?: number;
                             data?: {
                                 count?: number;
-                                list?: components["schemas"]["myblogx_service_log_service.LoginEventRecord"][];
+                                list?: components["schemas"]["myblogx_internal_analytics_adapter_clickhouse.LoginEventRecord"][];
                             };
                             msg?: string;
                         };
@@ -3414,7 +3226,7 @@ export interface paths {
                     content: {
                         "application/json": {
                             code?: number;
-                            data?: components["schemas"]["myblogx_service_log_service.LoginEventRecord"];
+                            data?: components["schemas"]["myblogx_internal_analytics_adapter_clickhouse.LoginEventRecord"];
                             msg?: string;
                         };
                     };
@@ -3499,7 +3311,7 @@ export interface paths {
                             code?: number;
                             data?: {
                                 count?: number;
-                                list?: components["schemas"]["myblogx_service_log_service.ReplayEventRecord"][];
+                                list?: components["schemas"]["myblogx_internal_analytics_adapter_clickhouse.ReplayEventRecord"][];
                             };
                             msg?: string;
                         };
@@ -3543,7 +3355,7 @@ export interface paths {
                     content: {
                         "application/json": {
                             code?: number;
-                            data?: components["schemas"]["myblogx_service_log_service.ReplayEventRecord"];
+                            data?: components["schemas"]["myblogx_internal_analytics_adapter_clickhouse.ReplayEventRecord"];
                             msg?: string;
                         };
                     };
@@ -3626,7 +3438,7 @@ export interface paths {
                             code?: number;
                             data?: {
                                 count?: number;
-                                list?: components["schemas"]["myblogx_service_log_service.RuntimeLogRecord"][];
+                                list?: components["schemas"]["myblogx_internal_analytics_adapter_clickhouse.RuntimeLogRecord"][];
                             };
                             msg?: string;
                         };
@@ -3670,7 +3482,7 @@ export interface paths {
                     content: {
                         "application/json": {
                             code?: number;
-                            data?: components["schemas"]["myblogx_service_log_service.RuntimeLogRecord"];
+                            data?: components["schemas"]["myblogx_internal_analytics_adapter_clickhouse.RuntimeLogRecord"];
                             msg?: string;
                         };
                     };
@@ -3695,28 +3507,7 @@ export interface paths {
         /** 文章搜索 */
         get: {
             parameters: {
-                query?: {
-                    /** @description 搜索类型：1 公共文章 2 猜你喜欢 3 作者文章 4 自己文章 5 管理员搜索 */
-                    type?: number;
-                    /** @description 排序：1 默认 2 最新发布 3 最多回复 4 最多点赞 5 最多收藏 6 最多浏览 */
-                    sort?: number;
-                    /** @description 分页模式 */
-                    page_mode?: string;
-                    /** @description 页码 */
-                    page?: number;
-                    /** @description 每页数量 */
-                    limit?: number;
-                    /** @description 搜索关键词 */
-                    key?: string;
-                    /** @description 分类 ID */
-                    category_id?: number;
-                    /** @description 作者 ID */
-                    author_id?: number;
-                    /** @description 文章状态 */
-                    status?: number;
-                    /** @description 标签 ID 列表，支持逗号分隔 */
-                    tag_ids?: string;
-                };
+                query?: never;
                 header?: never;
                 path?: never;
                 cookie?: never;
@@ -3731,7 +3522,7 @@ export interface paths {
                     content: {
                         "application/json": {
                             code?: number;
-                            data?: components["schemas"]["myblogx_service_search_service.ArticleSearchResponse"];
+                            data?: components["schemas"]["myblogx_internal_search_domain.Response"];
                             msg?: string;
                         };
                     };
@@ -3814,7 +3605,7 @@ export interface paths {
                     content: {
                         "application/json": {
                             code?: number;
-                            data?: components["schemas"]["api_site_api.SiteAIResponse"];
+                            data?: components["schemas"]["internal_site_adapter_http.AIResponse"];
                             msg?: string;
                         };
                     };
@@ -3894,7 +3685,7 @@ export interface paths {
                     content: {
                         "application/json": {
                             code?: number;
-                            data?: components["schemas"]["api_site_api.SiteSEOResponse"];
+                            data?: components["schemas"]["internal_site_adapter_http.SEOResponse"];
                             msg?: string;
                         };
                     };
@@ -3955,7 +3746,7 @@ export interface paths {
                 };
                 cookie?: never;
             };
-            /** @description 请求体，name=site 时为 conf.Site，name=ai 时为 conf.AI */
+            /** @description 请求体 */
             requestBody: {
                 content: {
                     "application/json": Record<string, never>;
@@ -3997,10 +3788,6 @@ export interface paths {
                 query: {
                     /** @description 消息类型：1 评论和回复 2 点赞和收藏 3 系统通知 */
                     t: number;
-                    /** @description 页码 */
-                    page?: number;
-                    /** @description 每页数量 */
-                    limit?: number;
                 };
                 header?: never;
                 path?: never;
@@ -4018,7 +3805,7 @@ export interface paths {
                             code?: number;
                             data?: {
                                 has_more?: boolean;
-                                list?: components["schemas"]["models.ArticleMessageModel"][];
+                                list?: components["schemas"]["internal_notification_adapter_http.MessageItem"][];
                             };
                             msg?: string;
                         };
@@ -4035,12 +3822,7 @@ export interface paths {
                 path?: never;
                 cookie?: never;
             };
-            /** @description 请求体 */
-            requestBody: {
-                content: {
-                    "application/json": components["schemas"]["api_sitemsg_api.SitemsgReadRequest"];
-                };
-            };
+            requestBody: components["requestBodies"]["internal_notification_adapter_http.MessageSelectRequest"];
             responses: {
                 /** @description OK */
                 200: {
@@ -4065,12 +3847,7 @@ export interface paths {
                 path?: never;
                 cookie?: never;
             };
-            /** @description 请求体 */
-            requestBody: {
-                content: {
-                    "application/json": components["schemas"]["api_sitemsg_api.SitemsgRemoveRequest"];
-                };
-            };
+            requestBody: components["requestBodies"]["internal_notification_adapter_http.MessageSelectRequest"];
             responses: {
                 /** @description OK */
                 200: {
@@ -4117,7 +3894,7 @@ export interface paths {
                     content: {
                         "application/json": {
                             code?: number;
-                            data?: components["schemas"]["api_sitemsg_api.UserMsgConfResponseAndRequest"];
+                            data?: components["schemas"]["internal_notification_adapter_http.ConfRequest"];
                             msg?: string;
                         };
                     };
@@ -4135,7 +3912,7 @@ export interface paths {
             /** @description 请求体 */
             requestBody: {
                 content: {
-                    "application/json": components["schemas"]["api_sitemsg_api.UserMsgConfResponseAndRequest"];
+                    "application/json": components["schemas"]["internal_notification_adapter_http.ConfRequest"];
                 };
             };
             responses: {
@@ -4186,7 +3963,7 @@ export interface paths {
                     content: {
                         "application/json": {
                             code?: number;
-                            data?: components["schemas"]["api_sitemsg_api.SitemsgUserResponse"];
+                            data?: components["schemas"]["internal_notification_adapter_http.UnreadResponse"];
                             msg?: string;
                         };
                     };
@@ -4195,6 +3972,98 @@ export interface paths {
         };
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/users": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 用户列表 */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            code?: number;
+                            data?: {
+                                list?: components["schemas"]["myblogx_internal_user_domain.User"][];
+                                /** Format: int64 */
+                                total?: number;
+                            };
+                            msg?: string;
+                        };
+                    };
+                };
+            };
+        };
+        /** 更新用户资料 */
+        put: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            code?: number;
+                            data?: components["schemas"]["myblogx_internal_user_app.UpdateResult"];
+                            msg?: string;
+                        };
+                    };
+                };
+            };
+        };
+        /** 创建用户 */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            code?: number;
+                            data?: components["schemas"]["myblogx_internal_user_domain.User"];
+                            msg?: string;
+                        };
+                    };
+                };
+            };
+        };
         delete?: never;
         options?: never;
         head?: never;
@@ -4221,7 +4090,7 @@ export interface paths {
             /** @description 请求体 */
             requestBody: {
                 content: {
-                    "application/json": components["schemas"]["api_user_api_user_man_api.AdminUserCreateRequest"];
+                    "application/json": components["schemas"]["internal_user_adapter_http.AdminCreateRequest"];
                 };
             };
             responses: {
@@ -4233,7 +4102,7 @@ export interface paths {
                     content: {
                         "application/json": {
                             code?: number;
-                            data?: components["schemas"]["api_user_api_user_man_api.AdminUserCreateResponse"];
+                            data?: components["schemas"]["internal_user_adapter_http.AdminCreateResponse"];
                             msg?: string;
                         };
                     };
@@ -4265,7 +4134,7 @@ export interface paths {
             /** @description 请求体 */
             requestBody: {
                 content: {
-                    "application/json": components["schemas"]["api_user_api_profile_api.AdminUserInfoUpdateRequest"];
+                    "application/json": components["schemas"]["internal_user_adapter_http.AdminUpdateRequest"];
                 };
             };
             responses: {
@@ -4301,16 +4170,7 @@ export interface paths {
         /** 用户列表 */
         get: {
             parameters: {
-                query?: {
-                    /** @description 每页条数 */
-                    limit?: number;
-                    /** @description 页码 */
-                    page?: number;
-                    /** @description 关键词 */
-                    key?: string;
-                    /** @description 排序 */
-                    order?: string;
-                };
+                query?: never;
                 header?: never;
                 path?: never;
                 cookie?: never;
@@ -4327,7 +4187,7 @@ export interface paths {
                             code?: number;
                             data?: {
                                 count?: number;
-                                list?: components["schemas"]["api_user_api_user_man_api.UserListResponse"][];
+                                list?: components["schemas"]["internal_user_adapter_http.AdminUserItemResponse"][];
                             };
                             msg?: string;
                         };
@@ -4371,7 +4231,7 @@ export interface paths {
                     content: {
                         "application/json": {
                             code?: number;
-                            data?: components["schemas"]["api_user_api_profile_api.UserBaseInfoResponse"];
+                            data?: components["schemas"]["internal_user_adapter_http.BaseInfoResponse"];
                             msg?: string;
                         };
                     };
@@ -4411,7 +4271,7 @@ export interface paths {
                     content: {
                         "application/json": {
                             code?: number;
-                            data?: components["schemas"]["api_user_api_profile_api.UserDetailResponse"];
+                            data?: components["schemas"]["myblogx_internal_user_app.DetailView"];
                             msg?: string;
                         };
                     };
@@ -4526,7 +4386,7 @@ export interface paths {
             /** @description 请求体 */
             requestBody: {
                 content: {
-                    "application/json": components["schemas"]["api_user_api_auth_api.RegisterEmailRequest"];
+                    "application/json": components["schemas"]["internal_auth_adapter_http.RegisterEmailRequest"];
                 };
             };
             responses: {
@@ -4571,7 +4431,7 @@ export interface paths {
             /** @description 请求体 */
             requestBody: {
                 content: {
-                    "application/json": components["schemas"]["api_user_api_auth_api.SendEmailRequest"];
+                    "application/json": components["schemas"]["internal_auth_adapter_http.SendEmailRequest"];
                 };
             };
             responses: {
@@ -4583,7 +4443,7 @@ export interface paths {
                     content: {
                         "application/json": {
                             code?: number;
-                            data?: components["schemas"]["api_user_api_auth_api.SendEmailResponse"];
+                            data?: components["schemas"]["internal_auth_adapter_http.SendEmailResponse"];
                             msg?: string;
                         };
                     };
@@ -4615,7 +4475,7 @@ export interface paths {
             /** @description 请求体 */
             requestBody: {
                 content: {
-                    "application/json": components["schemas"]["api_user_api_profile_api.UserInfoUpdateRequest"];
+                    "application/json": components["schemas"]["internal_user_adapter_http.UpdateInfoRequest"];
                 };
             };
             responses: {
@@ -4661,7 +4521,7 @@ export interface paths {
             /** @description 请求体 */
             requestBody: {
                 content: {
-                    "application/json": components["schemas"]["api_user_api_auth_api.PwdLoginRequest"];
+                    "application/json": components["schemas"]["internal_auth_adapter_http.PwdLoginRequest"];
                 };
             };
             responses: {
@@ -4732,7 +4592,7 @@ export interface paths {
                             code?: number;
                             data?: {
                                 count?: number;
-                                list?: components["schemas"]["myblogx_service_log_service.LoginEventRecord"][];
+                                list?: components["schemas"]["myblogx_internal_analytics_adapter_clickhouse.LoginEventRecord"][];
                             };
                             msg?: string;
                         };
@@ -4847,7 +4707,7 @@ export interface paths {
             /** @description 请求体 */
             requestBody: {
                 content: {
-                    "application/json": components["schemas"]["api_user_api_auth_api.ResetPasswordRequest"];
+                    "application/json": components["schemas"]["internal_auth_adapter_http.ResetPasswordRequest"];
                 };
             };
             responses: {
@@ -4892,7 +4752,7 @@ export interface paths {
             /** @description 请求体 */
             requestBody: {
                 content: {
-                    "application/json": components["schemas"]["api_user_api_auth_api.UpdatePasswordRequest"];
+                    "application/json": components["schemas"]["internal_auth_adapter_http.UpdatePasswordRequest"];
                 };
             };
             responses: {
@@ -4938,7 +4798,7 @@ export interface paths {
             /** @description 请求体 */
             requestBody: {
                 content: {
-                    "application/json": components["schemas"]["api_user_api_auth_api.QQLoginRequest"];
+                    "application/json": components["schemas"]["internal_auth_adapter_http.QQLoginRequest"];
                 };
             };
             responses: {
@@ -5013,16 +4873,7 @@ export interface paths {
         /** 登录会话列表 */
         get: {
             parameters: {
-                query?: {
-                    /** @description 每页条数 */
-                    limit?: number;
-                    /** @description 页码 */
-                    page?: number;
-                    /** @description 关键词 */
-                    key?: string;
-                    /** @description 排序 */
-                    order?: string;
-                };
+                query?: never;
                 header?: never;
                 path?: never;
                 cookie?: never;
@@ -5039,7 +4890,7 @@ export interface paths {
                             code?: number;
                             data?: {
                                 count?: number;
-                                list?: components["schemas"]["api_user_api_auth_api.UserSessionItem"][];
+                                list?: components["schemas"]["internal_auth_adapter_http.SessionItem"][];
                             };
                             msg?: string;
                         };
@@ -5098,45 +4949,152 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/users/settings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** 更新用户偏好 */
+        put: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            code?: number;
+                            data?: string;
+                            msg?: string;
+                        };
+                    };
+                };
+            };
+        };
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/users/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 用户公开主页 */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    /** @description 用户 ID */
+                    id: number;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            code?: number;
+                            data?: components["schemas"]["myblogx_internal_user_app.PublicProfile"];
+                            msg?: string;
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/users/{id}/status": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** 修改账号状态 */
+        put: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    /** @description 用户 ID */
+                    id: number;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            code?: number;
+                            data?: string;
+                            msg?: string;
+                        };
+                    };
+                };
+            };
+        };
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
-        "api_ai_api.AIArticleScoreDimension": {
-            name?: string;
-            reason?: string;
-            score?: number;
-        };
-        "api_ai_api.AIArticleScoringRequest": {
-            article_id?: number;
-            content?: string;
-            title?: string;
-            /** @enum {integer} */
-            type: 1 | 2 | 3;
-        };
-        "api_ai_api.AIArticleScoringResponse": {
-            ai_total_score?: number;
-            article_id?: number;
-            article_type?: string;
-            created_at?: string;
-            dimensions?: components["schemas"]["api_ai_api.AIArticleScoreDimension"][];
-            has_score?: boolean;
-            main_issues?: components["schemas"]["myblogx_service_ai_service_ai_scoring.ArticleScoreIssue"][];
-            overall_comment?: string;
-            record_id?: number;
-            score_level?: string;
-            total_score?: number;
-        };
-        "api_ai_api.AIBaseRequest": {
+        "internal_ai_adapter_http.BaseRequest": {
             content: string;
         };
-        "api_ai_api.AIDiagnoseRequest": {
+        "internal_ai_adapter_http.DiagnoseRequest": {
             article_title: string;
             prefix_text?: string;
             selection_text: string;
             suffix_text?: string;
         };
-        "api_ai_api.AIOverwriteRequest": {
+        "internal_ai_adapter_http.MetaInfoResponse": {
+            abstract?: string;
+            category?: components["schemas"]["myblogx_internal_ai_metainfo.Metainfos"];
+            tags?: components["schemas"]["myblogx_internal_ai_metainfo.Metainfos"][];
+            title?: string;
+        };
+        "internal_ai_adapter_http.OverwriteRequest": {
             article_title: string;
             /** @enum {string} */
             mode: "polish" | "grammar_fix" | "style_transform";
@@ -5145,13 +5103,75 @@ export interface components {
             suffix_text?: string;
             target_style?: string;
         };
-        "api_article_api.ArticleAuthorInfoResponse": {
-            article_count?: number;
-            article_visited_count?: number;
-            author_id?: string;
-            fans_count?: number;
+        "internal_ai_adapter_http.ScoreDimension": {
+            name?: string;
+            reason?: string;
+            score?: number;
         };
-        "api_article_api.ArticleCreateRequest": {
+        "internal_ai_adapter_http.ScoringRequest": {
+            article_id?: number;
+            content?: string;
+            title?: string;
+            /** @enum {integer} */
+            type: 1 | 2 | 3;
+        };
+        "internal_ai_adapter_http.ScoringResponse": {
+            ai_total_score?: number;
+            article_id?: number;
+            article_type?: string;
+            created_at?: string;
+            dimensions?: components["schemas"]["internal_ai_adapter_http.ScoreDimension"][];
+            has_score?: boolean;
+            main_issues?: components["schemas"]["myblogx_internal_ai_scoring.ArticleScoreIssue"][];
+            overall_comment?: string;
+            record_id?: number;
+            score_level?: string;
+            total_score?: number;
+        };
+        "internal_analytics_adapter_http.ArticleYearDataResponse": {
+            date_count_list?: components["schemas"]["internal_analytics_adapter_http.DateCountItem"][];
+        };
+        "internal_analytics_adapter_http.ChainDeadLetterRecord": {
+            action?: string;
+            cdc_job_id?: string;
+            created_at?: string;
+            error_code?: string;
+            error_msg?: string;
+            id?: number;
+            retry_count?: number;
+            source_table?: string;
+            status?: string;
+            stream?: string;
+            target_key?: string;
+            updated_at?: string;
+        };
+        "internal_analytics_adapter_http.ChainQueryResponse": {
+            action_logs?: components["schemas"]["myblogx_internal_analytics_adapter_clickhouse.ActionAuditRecord"][];
+            cdc_logs?: components["schemas"]["myblogx_internal_analytics_adapter_clickhouse.CdcEventRecord"][];
+            dlq?: components["schemas"]["internal_analytics_adapter_http.ChainDeadLetterRecord"][];
+            login_logs?: components["schemas"]["myblogx_internal_analytics_adapter_clickhouse.LoginEventRecord"][];
+            replay_logs?: components["schemas"]["myblogx_internal_analytics_adapter_clickhouse.ReplayEventRecord"][];
+            runtime_logs?: components["schemas"]["myblogx_internal_analytics_adapter_clickhouse.RuntimeLogRecord"][];
+        };
+        "internal_analytics_adapter_http.DateCountItem": {
+            count?: number;
+            date?: string;
+        };
+        "internal_analytics_adapter_http.GrowthDataResponse": {
+            date_count_list?: components["schemas"]["internal_analytics_adapter_http.DateCountItem"][];
+            growth_num?: number;
+            growth_rate?: number;
+        };
+        "internal_analytics_adapter_http.SumResponse": {
+            article_count?: number;
+            comment_count?: number;
+            flow_count?: number;
+            message_count?: number;
+            new_login_count?: number;
+            new_sign_count?: number;
+            user_count?: number;
+        };
+        "internal_article_adapter_http.ArticleCreateRequest": {
             abstract?: string;
             category_id?: number;
             comments_toggle?: boolean;
@@ -5164,18 +5184,18 @@ export interface components {
             /** @enum {unknown} */
             visibility_status?: "visible" | "user_hidden";
         };
-        "api_article_api.ArticleCreateResponse": {
+        "internal_article_adapter_http.ArticleCreateResponse": {
             category_id?: number;
             comments_toggle?: boolean;
             cover_image_id?: number;
             id?: number;
-            publish_status?: components["schemas"]["myblogx_models_enum.ArticleStatus"];
-            status?: components["schemas"]["myblogx_models_enum.ArticleStatus"];
+            publish_status?: components["schemas"]["internal_article_adapter_http.ArticleStatus"];
+            status?: components["schemas"]["internal_article_adapter_http.ArticleStatus"];
             tag_ids?: number[];
             title?: string;
-            visibility_status?: components["schemas"]["myblogx_models_enum.ArticleVisibilityStatus"];
+            visibility_status?: components["schemas"]["internal_article_adapter_http.ArticleVisibility"];
         };
-        "api_article_api.ArticleDetailResponse": {
+        "internal_article_adapter_http.ArticleDetailResponse": {
             abstract?: string;
             author_abstract?: string;
             author_avatar?: string;
@@ -5197,44 +5217,52 @@ export interface components {
             id?: number;
             is_digg?: boolean;
             is_favor?: boolean;
-            publish_status?: components["schemas"]["myblogx_models_enum.ArticleStatus"];
-            status?: components["schemas"]["myblogx_models_enum.ArticleStatus"];
+            publish_status?: components["schemas"]["internal_article_adapter_http.ArticleStatus"];
+            status?: components["schemas"]["internal_article_adapter_http.ArticleStatus"];
             tag_ids?: number[];
             tags?: string[];
             title?: string;
             updated_at?: string;
             view_count?: number;
-            visibility_status?: components["schemas"]["myblogx_models_enum.ArticleVisibilityStatus"];
+            visibility_status?: components["schemas"]["internal_article_adapter_http.ArticleVisibility"];
         };
-        "api_article_api.ArticleFavoriteRequest": {
+        "internal_article_adapter_http.ArticleFavoriteRequest": {
             article_id: number;
             favor_id?: number;
         };
-        "api_article_api.ArticleReviewHandleRequest": {
+        "internal_article_adapter_http.ArticleReviewHandleRequest": {
             reason?: string;
             /** @enum {unknown} */
             status: 3 | 4;
         };
-        "api_article_api.ArticleReviewTaskItem": {
+        "internal_article_adapter_http.ArticleReviewTaskItem": {
             article_id?: number;
             article_title?: string;
             author_id?: number;
             author_name?: string;
             created_at?: string;
             id?: number;
-            publish_status?: components["schemas"]["myblogx_models_enum.ArticleStatus"];
+            publish_status?: components["schemas"]["internal_article_adapter_http.ArticleStatus"];
             reason?: string;
             reviewed_at?: string;
             reviewed_by?: number;
-            source?: components["schemas"]["models.ArticleReviewTaskSource"];
-            stage?: components["schemas"]["models.ArticleReviewTaskStage"];
-            status?: components["schemas"]["models.ArticleReviewTaskStatus"];
+            source?: components["schemas"]["internal_article_adapter_http.ReviewTaskSource"];
+            stage?: components["schemas"]["internal_article_adapter_http.ReviewTaskStage"];
+            status?: components["schemas"]["internal_article_adapter_http.ReviewTaskStatus"];
         };
-        "api_article_api.ArticleReviewTaskListResponse": {
+        "internal_article_adapter_http.ArticleReviewTaskListResponse": {
             count?: number;
-            list?: components["schemas"]["api_article_api.ArticleReviewTaskItem"][];
+            list?: components["schemas"]["internal_article_adapter_http.ArticleReviewTaskItem"][];
         };
-        "api_article_api.ArticleUpdateRequest": {
+        /**
+         * Format: int32
+         * @enum {integer}
+         */
+        "internal_article_adapter_http.ArticleStatus": 1 | 2 | 3 | 4;
+        "internal_article_adapter_http.ArticleTopSetRequest": {
+            article_ids: number[];
+        };
+        "internal_article_adapter_http.ArticleUpdateRequest": {
             abstract?: string;
             category_id?: number;
             comments_toggle?: boolean;
@@ -5247,208 +5275,97 @@ export interface components {
             /** @enum {unknown} */
             visibility_status?: "visible" | "user_hidden";
         };
-        "api_article_api.ArticleViewCountRequest": {
+        "internal_article_adapter_http.ArticleViewCountRequest": {
             article_id: number;
         };
-        "api_article_api_category.CategoryCreateResponse": {
-            id?: number;
-            title?: string;
-        };
-        "api_article_api_category.CategoryListResponse": {
-            article_count?: number;
-            avatar?: string;
-            created_at?: string;
-            deleted_at?: components["schemas"]["gorm.DeletedAt"];
-            id?: number;
-            nickname?: string;
-            title?: string;
-            updated_at?: string;
-            user_id?: number;
-        };
-        "api_article_api_category.CategoryRequest": {
+        /** @enum {string} */
+        "internal_article_adapter_http.ArticleVisibility": "visible" | "user_hidden" | "admin_hidden";
+        "internal_article_adapter_http.CategoryRequest": {
             id?: number;
             title: string;
         };
-        "api_article_api_favorite.FavoriteCreateResponse": {
-            abstract?: string;
-            article_count?: number;
-            cover?: string;
-            id?: number;
-            is_default?: boolean;
-            title?: string;
-            user_id?: number;
-        };
-        "api_article_api_favorite.FavoriteRemovePatchModel": {
+        "internal_article_adapter_http.FavoriteRemovePatchModel": {
+            /** @description 字段名沿用旧契约 articles / favorite_id。 */
             articles: number[];
-            favorite_id: number;
+            favorite_id?: number;
         };
-        "api_article_api_favorite.FavoriteRequest": {
-            abstract: string;
+        "internal_article_adapter_http.FavoriteRequest": {
+            abstract?: string;
             cover?: string;
             id?: number;
             title: string;
         };
-        "api_article_api_tags.TagCreateResponse": {
+        /** @enum {string} */
+        "internal_article_adapter_http.ReviewTaskSource": "create" | "edit" | "resubmit";
+        /** @enum {string} */
+        "internal_article_adapter_http.ReviewTaskStage": "manual";
+        /** @enum {string} */
+        "internal_article_adapter_http.ReviewTaskStatus": "pending" | "approved" | "rejected" | "canceled";
+        "internal_article_adapter_http.TagRequest": {
             description?: string;
             id?: number;
             is_enabled?: boolean;
             sort?: number;
-            title?: string;
+            title: string;
         };
-        "api_article_api_tags.TagListResponse": {
-            article_count?: number;
+        "internal_auth_adapter_http.PwdLoginRequest": {
+            password: string;
+            username: string;
+        };
+        "internal_auth_adapter_http.QQLoginRequest": {
+            code: string;
+        };
+        "internal_auth_adapter_http.RegisterEmailRequest": {
+            pwd: string;
+        };
+        "internal_auth_adapter_http.ResetPasswordRequest": {
+            new_password: string;
+        };
+        "internal_auth_adapter_http.SendEmailRequest": {
+            email: string;
+            /** @description Type：1 注册、2 重置密码、3 绑定邮箱、4 邮箱登录。 */
+            type?: number;
+        };
+        "internal_auth_adapter_http.SendEmailResponse": {
+            id?: string;
+        };
+        "internal_auth_adapter_http.SessionItem": {
+            addr?: string;
             created_at?: string;
-            created_by?: number;
-            deleted_at?: components["schemas"]["gorm.DeletedAt"];
-            description?: string;
+            expires_at?: string;
             id?: number;
-            is_enabled?: boolean;
-            sort?: number;
-            title?: string;
-            updated_at?: string;
+            ip?: string;
+            is_current?: boolean;
+            last_seen_at?: string;
+            ua?: string;
         };
-        "api_article_api_tags.TagRequest": {
-            description?: string;
-            id?: number;
-            is_enabled?: boolean;
-            /** @default 0 */
-            sort: number;
-            title: string;
+        "internal_auth_adapter_http.UpdatePasswordRequest": {
+            new_password: string;
+            old_password: string;
         };
-        "api_article_api_top.ArticleTopSetRequest": {
-            article_id?: number;
-            /** @enum {integer} */
-            type: 1 | 2;
-        };
-        "api_article_api_view_history.ArticleViewHistoryResponse": {
-            article_id?: number;
-            avatar?: string;
-            cover?: string;
-            nickname?: string;
-            title?: string;
-            updated_at?: string;
-            user_id?: number;
-        };
-        "api_banner_api.BannerCreateRequest": {
-            cover_image_id: number;
-            href?: string;
-            show?: boolean;
-        };
-        "api_banner_api.BannerCreateResponse": {
-            cover?: string;
-            cover_image_id?: number;
-            href?: string;
-            id?: number;
-            show?: boolean;
-        };
-        "api_captcha_api.ImageCaptchaResponse": {
-            base64?: string;
-            captcha_id?: string;
-        };
-        "api_chat_api.ChatMsgDeleteUserRequest": {
-            msg_id_list: number[];
-        };
-        "api_chat_api.ChatMsgReadUserRequest": {
-            msg_id_list: number[];
-        };
-        "api_chat_api.ChatMsgResponse": {
-            content?: string;
-            deleted_at?: string;
-            id?: number;
-            is_read?: boolean;
-            is_self?: boolean;
-            msg_status?: components["schemas"]["myblogx_models_enum_chat_msg_enum.MsgStatus"];
-            msg_type?: components["schemas"]["myblogx_models_enum_chat_msg_enum.MsgType"];
-            receiver_id?: number;
-            send_time?: string;
-            sender_id?: number;
-            session_id?: string;
-        };
-        "api_chat_api.ChatSessionDeleteUserRequest": {
-            session_id_list: string[];
-        };
-        "api_comment_api.CommentCreateRequest": {
+        "internal_comment_adapter_http.CreateRequest": {
             article_id: number;
             content: string;
             reply_id?: number;
         };
-        "api_comment_api.CommentCreateResponse": {
-            article_id?: number;
-            content?: string;
-            id?: number;
-            reply_id?: number;
-            root_id?: number;
-            status?: components["schemas"]["myblogx_models_enum.CommentStatus"];
-        };
-        "api_data_api.ArticleYearDataResponse": {
-            date_count_list?: components["schemas"]["api_data_api.DateCountItem"][];
-        };
-        "api_data_api.DateCountItem": {
-            count?: number;
-            date?: string;
-        };
-        "api_data_api.GrowthDataResponse": {
-            date_count_list?: components["schemas"]["api_data_api.DateCountItem"][];
-            growth_num?: number;
-            growth_rate?: number;
-        };
-        "api_data_api.SumResponse": {
-            article_count?: number;
-            comment_count?: number;
-            flow_count?: number;
-            message_count?: number;
-            new_login_count?: number;
-            new_sign_count?: number;
-            user_count?: number;
-        };
-        "api_global_notif_api.GlobalNotifCreateRequest": {
-            content: string;
-            expire_time?: string;
-            href?: string;
-            icon?: string;
-            title: string;
-            user_visible_rule?: components["schemas"]["myblogx_models_enum_global_notif_enum.Type"];
-        };
-        "api_global_notif_api.GlobalNotifCreateResponse": {
-            content?: string;
-            expire_time?: string;
-            href?: string;
-            icon?: string;
-            id?: number;
-            title?: string;
-            user_visible_rule?: components["schemas"]["myblogx_models_enum_global_notif_enum.Type"];
-        };
-        "api_global_notif_api.GlobalNotifListResponse": {
-            /** @description 通知内容 */
-            content?: string;
-            create_at?: string;
-            /** @description 通知链接 */
-            herf?: string;
-            /** @description 通知图标 */
-            icon?: string;
-            id?: number;
-            is_read?: boolean;
-            /** @description 通知标题 */
-            title?: string;
-        };
-        "api_image_api.CompleteImageUploadTaskRequest": {
+        "internal_media_adapter_http.CompleteTaskRequest": {
             object_key: string;
             upload_id: number;
         };
-        "api_image_api.CompleteImageUploadTaskResponse": {
+        "internal_media_adapter_http.CompleteTaskResponse": {
             error_msg?: string;
             image_id?: number;
             status?: string;
             upload_id?: number;
             url?: string;
         };
-        "api_image_api.CreateImageUploadTaskRequest": {
+        "internal_media_adapter_http.CreateTaskRequest": {
             file_name: string;
             hash: string;
             mime_type: string;
             size: number;
         };
-        "api_image_api.CreateImageUploadTaskResponse": {
+        "internal_media_adapter_http.CreateTaskResponse": {
             bucket?: string;
             expire_at?: string;
             hash?: string;
@@ -5463,7 +5380,26 @@ export interface components {
             upload_token?: string;
             url?: string;
         };
-        "api_image_api.UploadTaskStatusResponse": {
+        "internal_media_adapter_http.ImageItem": {
+            bucket?: string;
+            created_at?: string;
+            file_name?: string;
+            hash?: string;
+            height?: number;
+            id?: number;
+            mime_type?: string;
+            object_key?: string;
+            provider?: string;
+            size?: number;
+            status?: number;
+            url?: string;
+            user_id?: number;
+            width?: number;
+        };
+        "internal_media_adapter_http.RemoveRequest": {
+            id_list: number[];
+        };
+        "internal_media_adapter_http.TaskStatusResponse": {
             error_msg?: string;
             hash?: string;
             image_id?: number;
@@ -5471,35 +5407,108 @@ export interface components {
             upload_id?: number;
             url?: string;
         };
-        "api_log_api.ChainDeadLetterRecord": {
-            action?: string;
-            cdc_job_id?: string;
-            created_at?: string;
-            error_code?: string;
-            error_msg?: string;
+        "internal_notification_adapter_http.ConfRequest": {
+            comment_notice_enabled?: boolean;
+            digg_notice_enabled?: boolean;
+            favor_notice_enabled?: boolean;
+            private_chat_notice_enabled?: boolean;
+        };
+        "internal_notification_adapter_http.GlobalCreateRequest": {
+            content: string;
+            expire_time?: string;
+            href?: string;
+            icon?: string;
+            title: string;
+            user_visible_rule?: number;
+        };
+        "internal_notification_adapter_http.GlobalCreateResponse": {
+            content?: string;
+            expire_time?: string;
+            href?: string;
+            icon?: string;
             id?: number;
-            retry_count?: number;
-            source_table?: string;
-            status?: string;
-            stream?: string;
-            target_key?: string;
+            title?: string;
+            user_visible_rule?: number;
+        };
+        "internal_notification_adapter_http.GlobalListResponse": {
+            content?: string;
+            create_at?: string;
+            herf?: string;
+            icon?: string;
+            id?: number;
+            is_read?: boolean;
+            title?: string;
+        };
+        "internal_notification_adapter_http.IDListRequest": {
+            id_list: number[];
+        };
+        "internal_notification_adapter_http.MessageItem": {
+            action_user_avatar?: string;
+            action_user_id?: number;
+            action_user_nickname?: string;
+            article_id?: number;
+            article_title?: string;
+            comment_id?: number;
+            content?: string;
+            created_at?: string;
+            deleted_at?: string;
+            id?: number;
+            is_read?: boolean;
+            link_herf?: string;
+            link_title?: string;
+            read_at?: string;
+            receiver_id?: number;
+            type?: number;
             updated_at?: string;
         };
-        "api_log_api.ChainQueryResponse": {
-            action_logs?: components["schemas"]["myblogx_service_log_service.ActionAuditRecord"][];
-            cdc_logs?: components["schemas"]["myblogx_service_log_service.CdcEventRecord"][];
-            dlq?: components["schemas"]["api_log_api.ChainDeadLetterRecord"][];
-            login_logs?: components["schemas"]["myblogx_service_log_service.LoginEventRecord"][];
-            replay_logs?: components["schemas"]["myblogx_service_log_service.ReplayEventRecord"][];
-            runtime_logs?: components["schemas"]["myblogx_service_log_service.RuntimeLogRecord"][];
+        "internal_notification_adapter_http.MessageSelectRequest": {
+            id?: number;
+            /** @enum {integer} */
+            t?: 1 | 2 | 3;
         };
-        "api_site_api.SiteAIResponse": {
+        "internal_notification_adapter_http.UnreadResponse": {
+            comment_msg_count?: number;
+            digg_favor_msg_count?: number;
+            global_msg_count?: number;
+            private_msg_count?: number;
+            system_msg_count?: number;
+        };
+        "internal_platform_captcha.ImageResponse": {
+            base64?: string;
+            captcha_id?: string;
+        };
+        "internal_site_adapter_http.AIResponse": {
             abstract?: string;
             avatar?: string;
             enable?: boolean;
             nickname?: string;
         };
-        "api_site_api.SiteSEOResponse": {
+        "internal_site_adapter_http.BannerCreateRequest": {
+            cover_image_id: number;
+            href?: string;
+            show?: boolean;
+        };
+        "internal_site_adapter_http.BannerCreateResponse": {
+            cover?: string;
+            cover_image_id?: number;
+            href?: string;
+            id?: number;
+            show?: boolean;
+        };
+        "internal_site_adapter_http.BannerItem": {
+            cover?: string;
+            cover_image_id?: number;
+            created_at?: string;
+            deleted_at?: string;
+            href?: string;
+            id?: number;
+            show?: boolean;
+            updated_at?: string;
+        };
+        "internal_site_adapter_http.IDListRequest": {
+            id_list: number[];
+        };
+        "internal_site_adapter_http.SEOResponse": {
             description?: string;
             icon?: string;
             keywords?: string;
@@ -5507,81 +5516,41 @@ export interface components {
             project_title?: string;
             site_title?: string;
         };
-        "api_sitemsg_api.SitemsgReadRequest": {
-            id?: number;
-            /**
-             * @description 批量已读的类型
-             * @enum {integer}
-             */
-            t?: 1 | 2 | 3;
-        };
-        "api_sitemsg_api.SitemsgRemoveRequest": {
-            id?: number;
-            /**
-             * @description 批量已读的类型
-             * @enum {integer}
-             */
-            t?: 1 | 2 | 3;
-        };
-        "api_sitemsg_api.SitemsgUserResponse": {
-            comment_msg_count?: number;
-            digg_favor_msg_count?: number;
-            global_msg_count?: number;
-            private_msg_count?: number;
-            system_msg_count?: number;
-        };
-        "api_sitemsg_api.UserMsgConfResponseAndRequest": {
-            comment_notice_enabled?: boolean;
-            digg_notice_enabled?: boolean;
-            favor_notice_enabled?: boolean;
-            private_chat_notice_enabled?: boolean;
-        };
-        "api_user_api_auth_api.PwdLoginRequest": {
+        "internal_user_adapter_http.AdminCreateRequest": {
+            email?: string;
+            nickname?: string;
             password: string;
-            /** @description 用户名或邮箱 */
             username: string;
         };
-        "api_user_api_auth_api.QQLoginRequest": {
-            code: string;
-        };
-        "api_user_api_auth_api.RegisterEmailRequest": {
-            pwd: string;
-        };
-        "api_user_api_auth_api.ResetPasswordRequest": {
-            new_password: string;
-        };
-        "api_user_api_auth_api.SendEmailRequest": {
-            email: string;
-            /** @description 1:注册 2:重置密码 3:绑定邮箱 4:邮箱登录 */
-            type?: number;
-        };
-        "api_user_api_auth_api.SendEmailResponse": {
-            id?: string;
-        };
-        "api_user_api_auth_api.UpdatePasswordRequest": {
-            new_password: string;
-            old_password: string;
-        };
-        "api_user_api_auth_api.UserSessionItem": {
-            addr?: string;
-            created_at?: string;
-            expires_at?: string;
+        "internal_user_adapter_http.AdminCreateResponse": {
+            email?: string;
             id?: number;
-            ip?: string;
-            is_current?: boolean;
-            last_seen_at?: string;
-            ua?: string;
+            nickname?: string;
+            register_source?: number;
+            role?: number;
+            status?: number;
+            username?: string;
         };
-        "api_user_api_profile_api.AdminUserInfoUpdateRequest": {
+        "internal_user_adapter_http.AdminUpdateRequest": {
             abstract?: string;
             avatar_image_id?: number;
             nickname?: string;
-            role?: components["schemas"]["myblogx_models_enum.RoleType"];
-            status?: components["schemas"]["myblogx_models_enum.UserStatus"];
+            role?: number;
+            status?: number;
             user_id: number;
             username?: string;
         };
-        "api_user_api_profile_api.UserBaseInfoResponse": {
+        "internal_user_adapter_http.AdminUserItemResponse": {
+            addr?: string;
+            avatar?: string;
+            created_at?: string;
+            id?: number;
+            ip?: string;
+            last_login_at?: string;
+            nickname?: string;
+            username?: string;
+        };
+        "internal_user_adapter_http.BaseInfoResponse": {
             abstract?: string;
             article_count?: number;
             article_visited_count?: number;
@@ -5600,32 +5569,7 @@ export interface components {
             relation?: number;
             view_count?: number;
         };
-        "api_user_api_profile_api.UserDetailResponse": {
-            abstract?: string;
-            avatar?: string;
-            avatar_image_id?: number;
-            code_age?: number;
-            comment_notice_enabled?: boolean;
-            created_at?: string;
-            digg_notice_enabled?: boolean;
-            email?: string;
-            fans_visibility?: boolean;
-            favor_notice_enabled?: boolean;
-            favorites_visibility?: boolean;
-            followers_visibility?: boolean;
-            has_password?: boolean;
-            home_style_id?: number;
-            id?: number;
-            like_tag_ids?: number[];
-            like_tag_items?: components["schemas"]["api_user_api_profile_api.UserLikeTagItem"][];
-            nickname?: string;
-            private_chat_notice_enabled?: boolean;
-            register_source?: components["schemas"]["myblogx_models_enum.RegisterSourceType"];
-            stranger_msg_enabled?: boolean;
-            updated_username_date?: string;
-            username?: string;
-        };
-        "api_user_api_profile_api.UserInfoUpdateRequest": {
+        "internal_user_adapter_http.UpdateInfoRequest": {
             abstract?: string;
             avatar_image_id?: number;
             fans_visibility?: boolean;
@@ -5636,252 +5580,20 @@ export interface components {
             nickname?: string;
             username?: string;
         };
-        "api_user_api_profile_api.UserLikeTagItem": {
+        "myblogx_internal_ai_metainfo.Metainfos": {
             id?: number;
             title?: string;
         };
-        "api_user_api_user_man_api.AdminUserCreateRequest": {
-            email?: string;
-            nickname?: string;
-            password: string;
-            username: string;
-        };
-        "api_user_api_user_man_api.AdminUserCreateResponse": {
-            email?: string;
-            id?: number;
-            nickname?: string;
-            register_source?: components["schemas"]["myblogx_models_enum.RegisterSourceType"];
-            role?: components["schemas"]["myblogx_models_enum.RoleType"];
-            status?: components["schemas"]["myblogx_models_enum.UserStatus"];
-            username?: string;
-        };
-        "api_user_api_user_man_api.UserListResponse": {
-            addr?: string;
-            avatar?: string;
-            /** @description 注册时间 */
-            created_at?: string;
-            id?: number;
-            /**
-             * @description ArticleCount int       `json:"article_count"`
-             *     FansCount    int       `json:"fans_count"`
-             *     FollowCount  int       `json:"follow_count"`
-             */
-            ip?: string;
-            /** @description 最后登录时间 */
-            last_login_at?: string;
-            nickname?: string;
-            username?: string;
-        };
-        "gorm.DeletedAt": {
-            time?: string;
-            /** @description Valid is true if Time is not NULL */
-            valid?: boolean;
-        };
-        "models.ArticleMessageModel": {
-            action_user_avatar?: string;
-            action_user_id?: number;
-            action_user_nickname?: string;
-            /** @description 记录触发的业务对象 */
-            article_id?: number;
-            article_title?: string;
-            comment_id?: number;
-            content?: string;
-            created_at?: string;
-            deleted_at?: components["schemas"]["gorm.DeletedAt"];
-            id?: number;
-            /** @description 是否已读 */
-            is_read?: boolean;
-            link_herf?: string;
-            /** @description 额外提示的链接 */
-            link_title?: string;
-            read_at?: string;
-            receiver_id?: number;
-            type?: components["schemas"]["myblogx_models_enum_message_enum.Type"];
-            updated_at?: string;
-        };
-        /** @enum {string} */
-        "models.ArticleReviewTaskSource": "create" | "edit" | "resubmit";
-        /** @enum {string} */
-        "models.ArticleReviewTaskStage": "manual";
-        /** @enum {string} */
-        "models.ArticleReviewTaskStatus": "pending" | "approved" | "rejected" | "canceled";
-        "models.BannerModel": {
-            /** @description 封面图片链接 */
-            cover?: string;
-            /** @description 封面图片 ID，用于前端编辑回填 */
-            cover_image_id?: number;
-            created_at?: string;
-            deleted_at?: components["schemas"]["gorm.DeletedAt"];
-            /** @description 跳转链接 */
-            href?: string;
-            id?: number;
-            /** @description 是否显示 */
-            show?: boolean;
-            updated_at?: string;
-        };
-        "models.IDListRequest": {
-            id_list: number[];
-        };
-        "models.ImageModel": {
-            bucket?: string;
-            created_at?: string;
-            deleted_at?: components["schemas"]["gorm.DeletedAt"];
-            file_name?: string;
-            hash?: string;
-            height?: number;
-            id?: number;
-            mime_type?: string;
-            object_key?: string;
-            provider?: components["schemas"]["myblogx_models_enum.ImageProvider"];
-            size?: number;
-            status?: components["schemas"]["myblogx_models_enum.ImageStatus"];
-            updated_at?: string;
-            url?: string;
-            user_id?: number;
-            width?: number;
-        };
-        /**
-         * Format: int32
-         * @enum {integer}
-         */
-        "myblogx_models_enum.ArticleStatus": 1 | 2 | 3 | 4;
-        /** @enum {string} */
-        "myblogx_models_enum.ArticleVisibilityStatus": "visible" | "user_hidden" | "admin_hidden";
-        /**
-         * Format: int32
-         * @enum {integer}
-         */
-        "myblogx_models_enum.CommentStatus": 1 | 2 | 3;
-        /** @enum {string} */
-        "myblogx_models_enum.ImageProvider": "qiniu";
-        /** @enum {integer} */
-        "myblogx_models_enum.ImageStatus": 0 | 1 | 2 | 3 | 4 | 5;
-        /**
-         * Format: int32
-         * @enum {integer}
-         */
-        "myblogx_models_enum.RegisterSourceType": 1 | 2 | 3 | 4;
-        /**
-         * Format: int32
-         * @enum {integer}
-         */
-        "myblogx_models_enum.RoleType": 1 | 2 | 3;
-        /**
-         * Format: int32
-         * @enum {integer}
-         */
-        "myblogx_models_enum.UserStatus": 1 | 2 | 3;
-        /**
-         * Format: int32
-         * @enum {integer}
-         */
-        "myblogx_models_enum_chat_msg_enum.MsgStatus": 1 | 2 | 3 | 4 | 5;
-        /**
-         * Format: int32
-         * @enum {integer}
-         */
-        "myblogx_models_enum_chat_msg_enum.MsgType": 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8;
-        /**
-         * Format: int32
-         * @enum {integer}
-         */
-        "myblogx_models_enum_global_notif_enum.Type": 1 | 2 | 3;
-        /**
-         * Format: int32
-         * @enum {integer}
-         */
-        "myblogx_models_enum_message_enum.Type": 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9;
-        "myblogx_service_ai_service_ai_metainfo.MetainfoResponse": {
-            abstract?: string;
-            category?: components["schemas"]["myblogx_service_ai_service_ai_metainfo.Metainfos"];
-            tags?: components["schemas"]["myblogx_service_ai_service_ai_metainfo.Metainfos"][];
-            title?: string;
-        };
-        "myblogx_service_ai_service_ai_metainfo.Metainfos": {
-            id?: number;
-            title?: string;
-        };
-        "myblogx_service_ai_service_ai_scoring.ArticleScoreIssue": {
-            positions?: components["schemas"]["myblogx_service_ai_service_ai_scoring.ArticleScorePosition"][];
+        "myblogx_internal_ai_scoring.ArticleScoreIssue": {
+            positions?: components["schemas"]["myblogx_internal_ai_scoring.ArticleScorePosition"][];
             reason?: string;
             suggestion?: string;
         };
-        "myblogx_service_ai_service_ai_scoring.ArticleScorePosition": {
+        "myblogx_internal_ai_scoring.ArticleScorePosition": {
             paragraph?: number;
             quote?: string;
         };
-        "myblogx_service_chat_service.SessionListItem": {
-            deleted_at?: string;
-            is_mute?: boolean;
-            is_top?: boolean;
-            last_msg_content?: string;
-            last_msg_time?: string;
-            receiver_avatar?: string;
-            receiver_id?: number;
-            receiver_nickname?: string;
-            relation?: number;
-            session_id?: string;
-            unread_count?: number;
-        };
-        "myblogx_service_comment_service.ManageCommentItem": {
-            article_cover?: string;
-            article_id?: number;
-            article_title?: string;
-            content?: string;
-            created_at?: string;
-            digg_count?: number;
-            id?: number;
-            relation?: number;
-            reply_count?: number;
-            user_avatar?: string;
-            user_id?: number;
-            user_nickname?: string;
-        };
-        "myblogx_service_favorite_service.FavoriteArticleItem": {
-            abstract?: string;
-            article_id?: number;
-            article_status?: components["schemas"]["myblogx_models_enum.ArticleStatus"];
-            comment_count?: number;
-            cover?: string;
-            digg_count?: number;
-            favor_count?: number;
-            favorited_at?: string;
-            title?: string;
-            user_avatar?: string;
-            user_nickname?: string;
-            view_count?: number;
-        };
-        "myblogx_service_favorite_service.FavoriteListItem": {
-            abstract?: string;
-            article_count?: number;
-            avatar?: string;
-            cover?: string;
-            created_at?: string;
-            has_article?: boolean;
-            id?: number;
-            is_default?: boolean;
-            nickname?: string;
-            title?: string;
-            updated_at?: string;
-            user_id?: number;
-        };
-        "myblogx_service_follow_service.FansListItem": {
-            fans_abstract?: string;
-            fans_avatar?: string;
-            fans_nickname?: string;
-            fans_user_id?: number;
-            follow_time?: string;
-            relation?: number;
-        };
-        "myblogx_service_follow_service.FollowListItem": {
-            follow_time?: string;
-            followed_abstract?: string;
-            followed_avatar?: string;
-            followed_nickname?: string;
-            followed_user_id?: number;
-            relation?: number;
-        };
-        "myblogx_service_log_service.ActionAuditRecord": {
+        "myblogx_internal_analytics_adapter_clickhouse.ActionAuditRecord": {
             action_name?: string;
             env?: string;
             error_code?: string;
@@ -5907,7 +5619,7 @@ export interface components {
             ts?: string;
             user_id?: number;
         };
-        "myblogx_service_log_service.CdcEventRecord": {
+        "myblogx_internal_analytics_adapter_clickhouse.CdcEventRecord": {
             action?: string;
             cdc_job_id?: string;
             env?: string;
@@ -5930,7 +5642,7 @@ export interface components {
             trace_id?: string;
             ts?: string;
         };
-        "myblogx_service_log_service.LoginEventRecord": {
+        "myblogx_internal_analytics_adapter_clickhouse.LoginEventRecord": {
             addr?: string;
             env?: string;
             error_code?: string;
@@ -5954,7 +5666,7 @@ export interface components {
             user_id?: number;
             username?: string;
         };
-        "myblogx_service_log_service.ReplayEventRecord": {
+        "myblogx_internal_analytics_adapter_clickhouse.ReplayEventRecord": {
             action?: string;
             cdc_job_id?: string;
             env?: string;
@@ -5977,7 +5689,7 @@ export interface components {
             trace_id?: string;
             ts?: string;
         };
-        "myblogx_service_log_service.RuntimeLogRecord": {
+        "myblogx_internal_analytics_adapter_clickhouse.RuntimeLogRecord": {
             env?: string;
             error_code?: string;
             error_message?: string;
@@ -6003,108 +5715,293 @@ export interface components {
             ts?: string;
             user_id?: number;
         };
-        "myblogx_service_search_service.ArticleSearchResponse": {
-            list?: components["schemas"]["myblogx_service_search_service.SearchListResponse"][];
-            pagination?: components["schemas"]["myblogx_service_search_service.SearchPagination"];
+        "myblogx_internal_chat_domain.MessageItem": {
+            content?: string;
+            deleted_at?: string;
+            id?: number;
+            is_read?: boolean;
+            is_self?: boolean;
+            msg_status?: components["schemas"]["myblogx_internal_chat_domain.MsgStatus"];
+            msg_type?: components["schemas"]["myblogx_internal_chat_domain.MsgType"];
+            receiver_id?: number;
+            send_time?: string;
+            sender_id?: number;
+            session_id?: string;
         };
-        /** @enum {string} */
-        "myblogx_service_search_service.PageMode": "has_more" | "count";
-        "myblogx_service_search_service.SearchAuthor": {
+        /**
+         * Format: int32
+         * @enum {integer}
+         */
+        "myblogx_internal_chat_domain.MsgStatus": 1 | 2 | 3 | 4 | 5;
+        /**
+         * Format: int32
+         * @enum {integer}
+         */
+        "myblogx_internal_chat_domain.MsgType": 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8;
+        "myblogx_internal_chat_domain.SessionItem": {
+            deleted_at?: string;
+            is_mute?: boolean;
+            is_top?: boolean;
+            last_msg_content?: string;
+            last_msg_time?: string;
+            receiver_avatar?: string;
+            receiver_id?: number;
+            receiver_nickname?: string;
+            relation?: number;
+            session_id?: string;
+            unread_count?: number;
+        };
+        "myblogx_internal_comment_app.CreateResult": {
+            article_id?: number;
+            content?: string;
+            id?: number;
+            reply_id?: number;
+            root_id?: number;
+            status?: number;
+        };
+        "myblogx_internal_comment_app.ManageItem": {
+            article_cover?: string;
+            article_id?: number;
+            article_title?: string;
+            content?: string;
+            created_at?: string;
+            digg_count?: number;
+            id?: number;
+            relation?: number;
+            reply_count?: number;
+            user_avatar?: string;
+            user_id?: number;
+            user_nickname?: string;
+        };
+        "myblogx_internal_comment_app.RootItem": {
+            content?: string;
+            created_at?: string;
+            digg_count?: number;
+            id?: number;
+            is_digg?: boolean;
+            relation?: number;
+            reply_count?: number;
+            reply_id?: number;
+            root_id?: number;
+            status?: number;
+            user_avatar?: string;
+            user_id?: number;
+            user_nickname?: string;
+        };
+        "myblogx_internal_kernel.IDListRequest": {
+            id_list: number[];
+        };
+        /**
+         * Format: int32
+         * @enum {integer}
+         */
+        "myblogx_internal_search_domain.ArticleStatus": 1 | 2 | 3 | 4;
+        "myblogx_internal_search_domain.Author": {
             avatar?: string;
             id?: number;
             nickname?: string;
         };
-        "myblogx_service_search_service.SearchCategory": {
+        "myblogx_internal_search_domain.Category": {
             id?: number;
             title?: string;
         };
-        "myblogx_service_search_service.SearchHighlight": {
+        "myblogx_internal_search_domain.Highlight": {
             abstract?: string;
             title?: string;
         };
-        "myblogx_service_search_service.SearchListResponse": {
+        "myblogx_internal_search_domain.Item": {
             abstract?: string;
-            author?: components["schemas"]["myblogx_service_search_service.SearchAuthor"];
-            category?: components["schemas"]["myblogx_service_search_service.SearchCategory"];
+            author?: components["schemas"]["myblogx_internal_search_domain.Author"];
+            category?: components["schemas"]["myblogx_internal_search_domain.Category"];
             comment_count?: number;
             comments_toggle?: boolean;
             cover?: string;
             created_at?: string;
             digg_count?: number;
             favor_count?: number;
-            highlight?: components["schemas"]["myblogx_service_search_service.SearchHighlight"];
+            highlight?: components["schemas"]["myblogx_internal_search_domain.Highlight"];
             id?: number;
-            publish_status?: components["schemas"]["myblogx_models_enum.ArticleStatus"];
+            publish_status?: components["schemas"]["myblogx_internal_search_domain.ArticleStatus"];
             score?: number;
-            tags?: components["schemas"]["myblogx_service_search_service.SearchTag"][];
+            tags?: components["schemas"]["myblogx_internal_search_domain.Tag"][];
             title?: string;
-            top?: components["schemas"]["myblogx_service_search_service.SearchTop"];
+            top?: components["schemas"]["myblogx_internal_search_domain.Top"];
             updated_at?: string;
             view_count?: number;
-            visibility_status?: components["schemas"]["myblogx_models_enum.ArticleVisibilityStatus"];
+            visibility_status?: components["schemas"]["myblogx_internal_search_domain.VisibilityStatus"];
         };
-        "myblogx_service_search_service.SearchPagination": {
+        /** @enum {string} */
+        "myblogx_internal_search_domain.PageMode": "has_more" | "count";
+        "myblogx_internal_search_domain.Pagination": {
             has_more?: boolean;
             limit?: number;
-            mode?: components["schemas"]["myblogx_service_search_service.PageMode"];
+            mode?: components["schemas"]["myblogx_internal_search_domain.PageMode"];
             page?: number;
             total?: number;
             total_pages?: number;
         };
-        "myblogx_service_search_service.SearchTag": {
+        "myblogx_internal_search_domain.Response": {
+            list?: components["schemas"]["myblogx_internal_search_domain.Item"][];
+            pagination?: components["schemas"]["myblogx_internal_search_domain.Pagination"];
+        };
+        "myblogx_internal_search_domain.Tag": {
             id?: number;
             title?: string;
         };
-        "myblogx_service_search_service.SearchTop": {
+        "myblogx_internal_search_domain.Top": {
             admin?: boolean;
             user?: boolean;
         };
-        "myblogx_service_top_service.ArticleTopListItem": {
+        /** @enum {string} */
+        "myblogx_internal_search_domain.VisibilityStatus": "visible";
+        "myblogx_internal_social_domain.FansItem": {
+            fans_abstract?: string;
+            fans_avatar?: string;
+            fans_nickname?: string;
+            fans_user_id?: number;
+            follow_time?: string;
+            relation?: number;
+        };
+        "myblogx_internal_social_domain.FollowingItem": {
+            follow_time?: string;
+            followed_abstract?: string;
+            followed_avatar?: string;
+            followed_nickname?: string;
+            followed_user_id?: number;
+            relation?: number;
+        };
+        "myblogx_internal_user_app.DetailView": {
             abstract?: string;
-            admin_top?: boolean;
-            category_title?: string;
-            comment_count?: number;
-            comments_toggle?: boolean;
-            cover?: string;
+            avatar?: string;
+            avatar_image_id?: number;
+            code_age?: number;
+            comment_notice_enabled?: boolean;
             created_at?: string;
-            digg_count?: number;
-            favor_count?: number;
+            digg_notice_enabled?: boolean;
+            email?: string;
+            fans_visibility?: boolean;
+            favor_notice_enabled?: boolean;
+            favorites_visibility?: boolean;
+            followers_visibility?: boolean;
+            has_password?: boolean;
+            home_style_id?: number;
             id?: number;
-            status?: components["schemas"]["myblogx_models_enum.ArticleStatus"];
-            tags?: string[];
+            like_tag_ids?: number[];
+            like_tag_items?: components["schemas"]["myblogx_internal_user_app.LikeTagItem"][];
+            nickname?: string;
+            private_chat_notice_enabled?: boolean;
+            register_source?: number;
+            stranger_msg_enabled?: boolean;
+            updated_username_date?: string;
+            username?: string;
+        };
+        "myblogx_internal_user_app.LikeTagItem": {
+            id?: number;
             title?: string;
-            updated_at?: string;
-            user_avatar?: string;
-            user_nickname?: string;
-            user_top?: boolean;
-            view_count?: number;
+        };
+        "myblogx_internal_user_app.PublicProfile": {
+            abstract?: string;
+            avatar?: string;
+            /**
+             * Format: int64
+             * @description 以下字段是主页展示需要的补充信息。
+             */
+            avatarImageID?: number;
+            codeAge?: number;
+            fansVis?: boolean;
+            favoritesVis?: boolean;
+            followVis?: boolean;
+            /** Format: int64 */
+            homeStyleID?: number;
+            /** Format: int64 */
+            id?: number;
+            nickname?: string;
+            place?: string;
+            /** Format: int32 */
+            relation?: number;
+            stats?: components["schemas"]["myblogx_internal_user_domain.Stats"];
+            username?: string;
+        };
+        "myblogx_internal_user_app.UpdateResult": {
+            changed?: string[];
+            snapshotSynced?: boolean;
+            user?: components["schemas"]["myblogx_internal_user_domain.User"];
+        };
+        /**
+         * Format: int32
+         * @enum {integer}
+         */
+        "myblogx_internal_user_domain.RegisterSource": 1 | 2 | 3 | 4;
+        /**
+         * Format: int32
+         * @enum {integer}
+         */
+        "myblogx_internal_user_domain.Role": 1 | 2 | 3;
+        "myblogx_internal_user_domain.Stats": {
+            articleCount?: number;
+            articleVisitedCount?: number;
+            fansCount?: number;
+            followCount?: number;
+            /** Format: int64 */
+            userID?: number;
+            viewCount?: number;
+        };
+        /**
+         * Format: int32
+         * @enum {integer}
+         */
+        "myblogx_internal_user_domain.Status": 1 | 2 | 3;
+        "myblogx_internal_user_domain.User": {
+            abstract?: string;
+            addr?: string;
+            avatar?: string;
+            createdAt?: string;
+            email?: string;
+            /** Format: int64 */
+            id?: number;
+            ip?: string;
+            nickname?: string;
+            openID?: string;
+            passwordHash?: string;
+            registerSource?: components["schemas"]["myblogx_internal_user_domain.RegisterSource"];
+            role?: components["schemas"]["myblogx_internal_user_domain.Role"];
+            status?: components["schemas"]["myblogx_internal_user_domain.Status"];
+            /** Format: int32 */
+            tokenVersion?: number;
+            username?: string;
         };
     };
     responses: never;
     parameters: never;
     requestBodies: {
         /** @description 请求体 */
-        "api_ai_api.AIBaseRequest": {
+        "internal_article_adapter_http.ArticleTopSetRequest": {
             content: {
-                "application/json": components["schemas"]["api_ai_api.AIBaseRequest"];
-            };
-        };
-        /** @description 通知 ID 列表 */
-        "models.IDListRequest": {
-            content: {
-                "application/json": components["schemas"]["models.IDListRequest"];
-            };
-        };
-        /** @description ID 列表 */
-        "models.IDListRequest2": {
-            content: {
-                "application/json": components["schemas"]["models.IDListRequest"];
+                "application/json": components["schemas"]["internal_article_adapter_http.ArticleTopSetRequest"];
             };
         };
         /** @description 请求体 */
-        "api_article_api_top.ArticleTopSetRequest": {
+        "internal_ai_adapter_http.BaseRequest": {
             content: {
-                "application/json": components["schemas"]["api_article_api_top.ArticleTopSetRequest"];
+                "application/json": components["schemas"]["internal_ai_adapter_http.BaseRequest"];
+            };
+        };
+        /** @description 文章 ID 列表 */
+        "myblogx_internal_kernel.IDListRequest": {
+            content: {
+                "application/json": components["schemas"]["myblogx_internal_kernel.IDListRequest"];
+            };
+        };
+        /** @description 通知 ID 列表 */
+        "internal_notification_adapter_http.IDListRequest": {
+            content: {
+                "application/json": components["schemas"]["internal_notification_adapter_http.IDListRequest"];
+            };
+        };
+        /** @description 请求体 */
+        "internal_notification_adapter_http.MessageSelectRequest": {
+            content: {
+                "application/json": components["schemas"]["internal_notification_adapter_http.MessageSelectRequest"];
             };
         };
     };

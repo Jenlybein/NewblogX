@@ -7,7 +7,7 @@ import (
 )
 
 // EmitLoginEvent 写入一条登录事件日志，并根据成功状态推导默认级别与消息。
-func EmitLoginEvent(deps Deps, input LoginEventInput) {
+func EmitLoginEvent(deps Options, input LoginEventInput) {
 	// 自动补齐基础字段
 	base := newBaseEvent(deps, "login_event", loginLevel(input.Success), loginMessage(input))
 	base.UserID = uint64(input.UserID)

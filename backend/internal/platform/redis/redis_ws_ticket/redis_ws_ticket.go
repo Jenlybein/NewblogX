@@ -22,7 +22,7 @@ type TicketPayload struct {
 }
 
 // Store 存储票据到 Redis
-func Store(deps redis_service.Deps, ticket string, payload TicketPayload, ttl time.Duration) error {
+func Store(deps redis_service.Options, ticket string, payload TicketPayload, ttl time.Duration) error {
 	//	ticket - 一次性随机票据字符串
 	//	payload - 票据携带的用户信息
 	//	ttl - 过期时间（一次性票据建议设置较短，如 10 秒）
@@ -42,7 +42,7 @@ func Store(deps redis_service.Deps, ticket string, payload TicketPayload, ttl ti
 // Consume 消费票据（一次性使用，获取后立即删除）
 // 成功：返回票据中的用户信息
 // 失败：返回错误（票据不存在/已过期/非法）
-func Consume(deps redis_service.Deps, ticket string) (*TicketPayload, error) {
+func Consume(deps redis_service.Options, ticket string) (*TicketPayload, error) {
 	if deps.Client == nil {
 		return nil, fmt.Errorf("redis 未初始化")
 	}

@@ -12,7 +12,7 @@ import (
 	"gorm.io/gorm"
 )
 
-func FlagESIndex(deps Deps) error {
+func FlagESIndex(deps Options) error {
 	if deps.ESClient == nil {
 		return logESError(deps.Logger, "初始化索引失败: ES 客户端未初始化")
 	}
@@ -37,7 +37,7 @@ func FlagESIndex(deps Deps) error {
 }
 
 // FlagESDelete 非交互地删除 ES 索引和流水线。
-func FlagESDelete(deps Deps) error {
+func FlagESDelete(deps Options) error {
 	if deps.ESClient == nil {
 		return logESError(deps.Logger, "删除索引失败: ES 客户端未初始化")
 	}
@@ -62,7 +62,7 @@ func FlagESDelete(deps Deps) error {
 }
 
 // FlagESEnsure 非交互地确保 ES 索引和流水线存在。
-func FlagESEnsure(deps Deps) error {
+func FlagESEnsure(deps Options) error {
 	if deps.ESClient == nil {
 		return logESError(deps.Logger, "确保索引失败: ES 客户端未初始化")
 	}
@@ -85,7 +85,7 @@ func FlagESEnsure(deps Deps) error {
 }
 
 // FlagESArticleSync 全量同步文章数据到 ES。
-func FlagESArticleSync(deps Deps) error {
+func FlagESArticleSync(deps Options) error {
 	if deps.DB == nil {
 		return logESError(deps.Logger, "文章同步失败: 数据库未初始化")
 	}

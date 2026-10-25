@@ -8,13 +8,13 @@ import (
 	"testing"
 )
 
-func testRedisDeps() redis_service.Deps {
-	return redis_service.Deps{Client: testutil.Redis(), Logger: testutil.Logger()}
+func testRedisOptions() redis_service.Options {
+	return redis_service.Options{Client: testutil.Redis(), Logger: testutil.Logger()}
 }
 
 func TestArticleCacheCounters(t *testing.T) {
 	_ = testutil.SetupMiniRedis(t)
-	deps := testRedisDeps()
+	deps := testRedisOptions()
 
 	if err := redis_article.SetCacheView(deps, 1, 3); err != nil {
 		t.Fatalf("SetCacheView 失败: %v", err)
@@ -59,7 +59,7 @@ func TestArticleCacheCounters(t *testing.T) {
 
 func TestGetBatchCounters(t *testing.T) {
 	_ = testutil.SetupMiniRedis(t)
-	deps := testRedisDeps()
+	deps := testRedisOptions()
 
 	if err := redis_article.SetCacheView(deps, 1, 3); err != nil {
 		t.Fatalf("SetCacheView 失败: %v", err)
@@ -94,7 +94,7 @@ func TestGetBatchCounters(t *testing.T) {
 
 func TestArticleHistoryCache(t *testing.T) {
 	_ = testutil.SetupMiniRedis(t)
-	deps := testRedisDeps()
+	deps := testRedisOptions()
 
 	redis_article.SetUserArticleHistoryCache(deps, 10, 20)
 	if !redis_article.GetUserArticleHistoryCache(deps, 10, 20) {

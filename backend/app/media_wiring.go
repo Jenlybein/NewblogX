@@ -20,12 +20,12 @@ func WireMedia(infra *Infra) {
 		return
 	}
 	qiniuCfg := infra.Config.QiNiu
-	redisDeps := redis_service.NewDeps(infra.Redis, infra.Logger)
+	redisOptions := redis_service.NewOptions(infra.Redis, infra.Logger)
 
 	svc := mediaapp.New(
 		mediamysql.New(infra.DB),
-		mediaredis.NewTaskStore(redisDeps),
-		mediaredis.NewAuditStore(redisDeps),
+		mediaredis.NewTaskStore(redisOptions),
+		mediaredis.NewAuditStore(redisOptions),
 		&qiniuStorage{inner: qiniu.New(qiniuCfg)},
 		mediaIDs{},
 		realClock{},

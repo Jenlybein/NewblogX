@@ -5,7 +5,6 @@ import (
 	"fmt"
 
 	"myblogx/api"
-	"myblogx/internal/platform/mysql"
 	"myblogx/middleware"
 	"myblogx/router"
 
@@ -14,34 +13,25 @@ import (
 
 // WireHTTP 集中组装 HTTP handler 与 router。
 //
-// 依赖只拼一份（middleware.Deps），同时交给 router 与 api.New 使用，
-// 避免过去 apideps.Deps + api.Deps 两份字段完全重复的字面量。
+// 依赖只拼一份（middleware.Options），同时交给 router 与 api.New 使用，
+// 避免过去 apideps.Options + api.Options 两份字段完全重复的字面量。
 func WireHTTP(infra *Infra, lc *Lifecycle) error {
 	if err := validateInfra(infra); err != nil {
 		return err
 	}
 
 	cfg := infra.Config
-	deps := middleware.Deps{
-		Version:           infra.Version,
-		ConfigFile:        infra.ConfigFile,
+	opts := middleware.RuntimeOptions{
 		System:            cfg.System,
 		JWT:               cfg.Jwt,
 		Log:               cfg.Log,
 		ClickHouseConfig:  cfg.ClickHouse,
-		ES:                cfg.ES,
-		QQ:                cfg.QQ,
-		Email:             cfg.Email,
-		QiNiu:             cfg.QiNiu,
-		Upload:            cfg.Upload,
 		Logger:            infra.Logger,
 		DB:                infra.DB,
 		Redis:             infra.Redis,
 		ClickHouse:        infra.ClickHouse,
-		ESClient:          infra.ESClient,
 		RuntimeSite:       infra.RuntimeSite,
 		ImageCaptchaStore: base64Captcha.DefaultMemStore,
-		Tx:                mysql.NewTxManager(infra.DB),
 	}
 
 	// media 链路：图片能力改由 internal/media + platform/storage 提供。
@@ -79,7 +69,7 @@ func WireHTTP(infra *Infra, lc *Lifecycle) error {
 	// 必须在 WireUser 之后：用户列表的"最后登录"依赖同一份日志查询配置。
 	WireAnalytics(infra)
 
-	srv, err := router.Run(deps, api.New(deps))
+	srv, err := router.Run(opts, api.New(opts.RuntimeSite, opts.ImageCaptchaStore))
 	if err != nil {
 		return fmt.Errorf("启动 HTTP 服务失败: %w", err)
 	}

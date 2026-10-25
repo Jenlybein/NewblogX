@@ -8,13 +8,13 @@ import (
 	"time"
 )
 
-func testRedisDeps() redis_service.Deps {
-	return redis_service.Deps{Client: testutil.Redis(), Logger: testutil.Logger()}
+func testRedisOptions() redis_service.Options {
+	return redis_service.Options{Client: testutil.Redis(), Logger: testutil.Logger()}
 }
 
 func TestEmailVerifyStoreSuccess(t *testing.T) {
 	_ = testutil.SetupMiniRedis(t)
-	deps := testRedisDeps()
+	deps := testRedisOptions()
 	if err := redis_email.Store(deps, "id1", "a@example.com", "123456", 1, 3); err != nil {
 		t.Fatalf("存储验证码失败: %v", err)
 	}
@@ -37,7 +37,7 @@ func TestEmailVerifyStoreSuccess(t *testing.T) {
 
 func TestEmailVerifyStoreFailCount(t *testing.T) {
 	_ = testutil.SetupMiniRedis(t)
-	deps := testRedisDeps()
+	deps := testRedisOptions()
 	if err := redis_email.Store(deps, "id2", "b@example.com", "654321", 1, 2); err != nil {
 		t.Fatalf("存储验证码失败: %v", err)
 	}
@@ -55,7 +55,7 @@ func TestEmailVerifyStoreFailCount(t *testing.T) {
 
 func TestEmailVerifyStoreTimeoutAndDelete(t *testing.T) {
 	_ = testutil.SetupMiniRedis(t)
-	deps := testRedisDeps()
+	deps := testRedisOptions()
 	if err := redis_email.Store(deps, "id3", "c@example.com", "111111", 0, 3); err != nil {
 		t.Fatalf("存储验证码失败: %v", err)
 	}

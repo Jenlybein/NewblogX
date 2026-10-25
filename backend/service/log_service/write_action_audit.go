@@ -53,7 +53,7 @@ type ActionAuditInput struct {
 // EmitActionAudit 写入一条操作审计日志，并自动补齐基础字段与默认级别。
 // 核心函数：统一处理操作审计日志的组装、序列化、文件写入
 // 参数：input - 业务层传入的审计日志输入参数
-func EmitActionAudit(deps Deps, input ActionAuditInput) {
+func EmitActionAudit(deps Options, input ActionAuditInput) {
 	// 自动设置日志级别：未指定时，成功=info，失败=warn
 	level := input.Level
 	if level == "" {

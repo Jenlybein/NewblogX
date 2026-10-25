@@ -9,7 +9,7 @@ import (
 
 func TestArticleCacheCounters(t *testing.T) {
 	_ = testutil.SetupMiniRedis(t)
-	deps := redis_service.Deps{Client: testutil.Redis(), Logger: testutil.Logger()}
+	deps := redis_service.Options{Client: testutil.Redis(), Logger: testutil.Logger()}
 
 	if err := redis_article.SetCacheView(deps, 1, 3); err != nil {
 		t.Fatalf("SetCacheView 失败: %v", err)
@@ -54,7 +54,7 @@ func TestArticleCacheCounters(t *testing.T) {
 
 func TestArticleHistoryCache(t *testing.T) {
 	_ = testutil.SetupMiniRedis(t)
-	deps := redis_service.Deps{Client: testutil.Redis(), Logger: testutil.Logger()}
+	deps := redis_service.Options{Client: testutil.Redis(), Logger: testutil.Logger()}
 
 	redis_article.SetUserArticleHistoryCache(deps, 10, 20)
 	if !redis_article.GetUserArticleHistoryCache(deps, 10, 20) {

@@ -37,7 +37,7 @@ return {1, email or ""}
 `)
 
 // Store 保存邮箱验证码，timeoutMinute 为过期分钟，maxFailCount 为最大失败次数。
-func Store(deps redis_service.Deps, id, email, code string, timeoutMinute, maxFailCount int) error {
+func Store(deps redis_service.Options, id, email, code string, timeoutMinute, maxFailCount int) error {
 	if deps.Client == nil {
 		return fmt.Errorf("redis 未初始化")
 	}
@@ -62,7 +62,7 @@ func Store(deps redis_service.Deps, id, email, code string, timeoutMinute, maxFa
 	return nil
 }
 
-func Delete(deps redis_service.Deps, id string) error {
+func Delete(deps redis_service.Options, id string) error {
 	if deps.Client == nil {
 		return fmt.Errorf("redis 未初始化")
 	}
@@ -76,7 +76,7 @@ func Delete(deps redis_service.Deps, id string) error {
 }
 
 // Verify 校验验证码，成功后返回邮箱并删除该验证码记录（一次性消费）。
-func Verify(deps redis_service.Deps, id, code string) (email string, ok bool, err error) {
+func Verify(deps redis_service.Options, id, code string) (email string, ok bool, err error) {
 	if deps.Client == nil {
 		return "", false, fmt.Errorf("redis 未初始化")
 	}

@@ -78,7 +78,7 @@ type ArticleRowSnapshot struct {
 	VisibilityStatus enum.ArticleVisibilityStatus
 }
 
-type articleProjectionDeps struct {
+type articleProjectionOptions struct {
 	CategoryTitleMap map[ctype.ID]string
 	AuthorMap        map[ctype.ID]authorSnapshot
 	ArticleTagsMap   map[ctype.ID][]models.ESTag
@@ -291,7 +291,7 @@ func BuildArticleESDocument(article models.ArticleModel, adminTop, authorTop boo
 		VisibilityStatus: article.VisibilityStatus,
 	}
 
-	deps := articleProjectionDeps{
+	deps := articleProjectionOptions{
 		CategoryTitleMap: map[ctype.ID]string{},
 		AuthorMap:        map[ctype.ID]authorSnapshot{},
 		ArticleTagsMap:   map[ctype.ID][]models.ESTag{article.ID: tags},
@@ -314,7 +314,7 @@ func BuildArticleESDocument(article models.ArticleModel, adminTop, authorTop boo
 	return buildArticleESDocumentFromSnapshot(snapshot, deps)
 }
 
-func buildArticleESDocumentFromSnapshot(snapshot ArticleRowSnapshot, deps articleProjectionDeps) map[string]any {
+func buildArticleESDocumentFromSnapshot(snapshot ArticleRowSnapshot, deps articleProjectionOptions) map[string]any {
 	categoryIDValue := toESNullableID(snapshot.CategoryID)
 	var categoryTitle string
 	if snapshot.CategoryID != nil {
@@ -409,7 +409,7 @@ func indexArticleSnapshots(db *gorm.DB, client *elasticsearch.Client, snapshots 
 		return nil
 	}
 
-	deps, err := loadArticleProjectionDeps(db, snapshots)
+	deps, err := loadArticleProjectionOptions(db, snapshots)
 	if err != nil {
 		return err
 	}

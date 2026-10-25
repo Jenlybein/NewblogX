@@ -50,7 +50,7 @@ type baseEvent struct {
 }
 
 // newBaseEvent 构造一条基础日志事件，并补齐 event_id、时间、环境和实例信息。
-func newBaseEvent(deps Deps, logKind, level, message string) baseEvent {
+func newBaseEvent(deps Options, logKind, level, message string) baseEvent {
 	eventID, err := idgen.Next()
 	if err != nil {
 		eventID = ctype.ID(time.Now().UnixNano())
@@ -71,10 +71,10 @@ func newBaseEvent(deps Deps, logKind, level, message string) baseEvent {
 	}
 }
 
-func runtimeEnv(deps Deps) string {
+func runtimeEnv(deps Options) string {
 	return deps.SystemConfig.Env
 }
 
-func runtimeServerID(deps Deps) uint32 {
+func runtimeServerID(deps Options) uint32 {
 	return deps.SystemConfig.ServerID
 }

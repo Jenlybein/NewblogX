@@ -33,8 +33,8 @@ func WireArticle(infra *Infra) {
 	// 事件出口不再在这里装配：写侧只往事务内的 outbox 表插行，
 	// 真正的下游订阅者（评分 / 系统通知）挂在 outbox 中继上，
 	// 见 app/outbox_wiring.go 的 WireOutboxRelay。
-	counterDeps := redis_service.Deps{Client: infra.Redis, Logger: infra.Logger}
-	uow := mysql.NewTxManager(infra.DB, counterDeps)
+	counterOptions := redis_service.Options{Client: infra.Redis, Logger: infra.Logger}
+	uow := mysql.NewTxManager(infra.DB, counterOptions)
 	svc := articleapp.New(uow, realClock{}, snowflakeIDs{})
 
 	h := articlehttp.NewHandler(

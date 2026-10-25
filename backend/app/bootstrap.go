@@ -50,7 +50,7 @@ func InitInfra(cfg *conf.Config, configFile string, version string) (*Infra, err
 	clickHouse := core.InitClickHouse(&cfg.ClickHouse)
 	esClient := searchx.Init(&cfg.ES, logger)
 
-	logDeps := log_service.Deps{
+	logOptions := log_service.Options{
 		LogConfig:        cfg.Log,
 		SystemConfig:     cfg.System,
 		ClickHouseEnable: cfg.ClickHouse.Enabled,
@@ -58,7 +58,7 @@ func InitInfra(cfg *conf.Config, configFile string, version string) (*Infra, err
 		ClickHouse:       clickHouse,
 	}
 
-	if err := log_service.EnsureDailyLogFiles(logDeps); err != nil {
+	if err := log_service.EnsureDailyLogFiles(logOptions); err != nil {
 		logger.Errorf("初始化结构化日志文件失败: %v", err)
 	}
 
@@ -66,7 +66,7 @@ func InitInfra(cfg *conf.Config, configFile string, version string) (*Infra, err
 	// 启用 ClickHouse 时直接写表、失败落本地 WAL；未启用时写每日文件
 	// （与改造前的落点完全一致，外部采集器无需调整）。
 	if err := log_service.InitStructuredLog(log_service.PipelineConfig{
-		Deps:       logDeps,
+		Options:    logOptions,
 		WALDir:     cfg.Log.WALDir,
 		ClickHouse: cfg.ClickHouse.Enabled,
 	}); err != nil {

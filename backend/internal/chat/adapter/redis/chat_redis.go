@@ -15,13 +15,13 @@ import (
 
 // Limiter 实现 domain.Limiter。
 type Limiter struct {
-	deps redis_service.Deps
+	deps redis_service.Options
 }
 
 var _ domain.Limiter = (*Limiter)(nil)
 
 // NewLimiter 构造限流器。
-func NewLimiter(deps redis_service.Deps) *Limiter { return &Limiter{deps: deps} }
+func NewLimiter(deps redis_service.Options) *Limiter { return &Limiter{deps: deps} }
 
 // Reserve 预占发送额度。
 func (l *Limiter) Reserve(_ context.Context, senderID, receiverID ctype.ID, relation int8) (domain.Reservation, error) {
@@ -81,7 +81,7 @@ type reservation struct {
 	senderID      ctype.ID
 	receiverID    ctype.ID
 	now           time.Time
-	deps          redis_service.Deps
+	deps          redis_service.Options
 }
 
 // Commit 发送成功后提交；单向关系顺手清掉对向周配额（表示对方已回复）。
@@ -110,11 +110,11 @@ func (r *reservation) Rollback() error {
 
 // Tickets 实现 WS 票据存取。
 type Tickets struct {
-	deps redis_service.Deps
+	deps redis_service.Options
 }
 
 // NewTickets 构造票据存储。
-func NewTickets(deps redis_service.Deps) *Tickets { return &Tickets{deps: deps} }
+func NewTickets(deps redis_service.Options) *Tickets { return &Tickets{deps: deps} }
 
 // Store 存票据。
 func (t *Tickets) Store(_ context.Context, ticket string, userID, sessionID uint64, ttl time.Duration) error {

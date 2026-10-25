@@ -12,7 +12,7 @@ func TestLockArticleSync(t *testing.T) {
 	_ = testutil.SetupMiniRedis(t)
 	ctx := context.Background()
 	key := "lock:article:sync"
-	deps := redis_service.Deps{Client: testutil.Redis(), Logger: testutil.Logger()}
+	deps := redis_service.Options{Client: testutil.Redis(), Logger: testutil.Logger()}
 
 	unlock, err := redis_service.LockArticleSync(deps, ctx, key, 5*time.Second)
 	if err != nil {

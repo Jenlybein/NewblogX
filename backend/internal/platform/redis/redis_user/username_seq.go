@@ -14,7 +14,7 @@ const (
 
 // NextAutoUsername 从 Redis 中申请下一个系统用户名。
 // 约定初始化值为 100000，因此首个自动发放的用户名是 100001。
-func NextAutoUsername(deps redis_service.Deps) (string, error) {
+func NextAutoUsername(deps redis_service.Options) (string, error) {
 	if deps.Client == nil {
 		return "", fmt.Errorf("redis 未初始化，无法生成用户名")
 	}

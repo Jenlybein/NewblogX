@@ -380,7 +380,7 @@ func TestUoWCommitAndRollback(t *testing.T) {
 
 	db := migrate(t)
 	seedUsers(t, db)
-	uow := mysql.NewTxManager(db, redis_service.Deps{})
+	uow := mysql.NewTxManager(db, redis_service.Options{})
 	repo := mysql.NewArticleRepo(db)
 	ctx := context.Background()
 

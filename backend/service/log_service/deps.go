@@ -8,7 +8,7 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
-type Deps struct {
+type Options struct {
 	LogConfig        conf.Logrus
 	SystemConfig     conf.System
 	ClickHouseEnable bool
@@ -16,8 +16,8 @@ type Deps struct {
 	ClickHouse       *sql.DB
 }
 
-func NewDeps(logConfig conf.Logrus, systemConfig conf.System, clickHouseEnable bool, logger *logrus.Logger, clickHouse *sql.DB) Deps {
-	return Deps{
+func NewOptions(logConfig conf.Logrus, systemConfig conf.System, clickHouseEnable bool, logger *logrus.Logger, clickHouse *sql.DB) Options {
+	return Options{
 		LogConfig:        logConfig,
 		SystemConfig:     systemConfig,
 		ClickHouseEnable: clickHouseEnable,

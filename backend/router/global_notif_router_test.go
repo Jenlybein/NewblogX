@@ -64,7 +64,7 @@ func newGlobalNotifRouterEngine() *gin.Engine {
 	gin.SetMode(gin.TestMode)
 	r := gin.New()
 	apiGroup := r.Group("/api")
-	runtimeMw := mw.NewRuntime(mw.Deps{
+	runtimeMw := mw.NewRuntime(mw.RuntimeOptions{
 		DB:               testutil.DB(),
 		Redis:            testutil.Redis(),
 		JWT:              testutil.Config().Jwt,

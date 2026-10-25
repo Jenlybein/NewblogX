@@ -15,12 +15,12 @@ type CommentBatchCounters struct {
 }
 
 type CommentCounterReader struct {
-	Cache cachex.Deps
+	Cache cachex.Options
 }
 
-func NewCommentCounterReader(cacheDeps cachex.Deps) CommentCounterReader {
+func NewCommentCounterReader(cacheOptions cachex.Options) CommentCounterReader {
 	return CommentCounterReader{
-		Cache: cacheDeps,
+		Cache: cacheOptions,
 	}
 }
 

@@ -571,7 +571,7 @@ func (e *Enricher) TagTitles(_ context.Context, ids []uint64) (map[uint64]string
 // 装配
 // ------------------------------------------------------------------
 
-// Repos 把全部 fake 聚成一套 app.Deps。
+// Repos 把全部 fake 聚成一套 app.Options。
 type Repos struct {
 	users     *Users
 	settings  *Settings

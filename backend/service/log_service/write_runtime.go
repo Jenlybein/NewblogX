@@ -7,7 +7,7 @@ import (
 )
 
 // RuntimeEntry 基于公共字段创建一条运行日志 entry，供业务模块继续补充字段后输出。
-func RuntimeEntry(deps Deps, fields logrus.Fields) *logrus.Entry {
+func RuntimeEntry(deps Options, fields logrus.Fields) *logrus.Entry {
 	// 空值处理：传入字段为nil时，初始化空字段map
 	if fields == nil {
 		fields = logrus.Fields{}

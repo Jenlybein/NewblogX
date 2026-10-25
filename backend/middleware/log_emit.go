@@ -28,7 +28,7 @@ type GinAuditInput struct {
 
 // EmitActionAuditFromGin 从 Gin 上下文提取请求元信息并写入操作审计日志。
 func EmitActionAuditFromGin(c *gin.Context, input GinAuditInput) {
-	deps := logDepsFromContext(c)
+	deps := logOptionsFromContext(c)
 	if c == nil {
 		log_service.EmitActionAudit(deps, log_service.ActionAuditInput{
 			Level:      input.Level,
@@ -103,7 +103,7 @@ func EmitActionAuditFromGin(c *gin.Context, input GinAuditInput) {
 
 // EmitLoginEventFromGin 基于 Gin 请求上下文补齐 IP、地域、UA 和 request_id 后记录登录事件。
 func EmitLoginEventFromGin(c *gin.Context, eventName string, loginType enum.LoginType, success bool, username string, userID ctype.ID, reason string, extra map[string]any) {
-	deps := logDepsFromContext(c)
+	deps := logOptionsFromContext(c)
 	meta := requestmeta.BuildSessionMeta(c)
 
 	log_service.EmitLoginEvent(deps, log_service.LoginEventInput{
@@ -146,14 +146,14 @@ func buildLoginErrorCode(success bool) string {
 	return "AUTH_FAILED"
 }
 
-func logDepsFromContext(c *gin.Context) log_service.Deps {
+func logOptionsFromContext(c *gin.Context) log_service.Options {
 	if c == nil {
-		return log_service.Deps{}
+		return log_service.Options{}
 	}
 	value, ok := c.Get("_log_deps")
 	if !ok {
-		return log_service.Deps{}
+		return log_service.Options{}
 	}
-	deps, _ := value.(log_service.Deps)
+	deps, _ := value.(log_service.Options)
 	return deps
 }

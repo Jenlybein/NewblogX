@@ -15,14 +15,14 @@ import (
 // 为什么计数不写文章表：点赞/浏览是高频写，直接更 MySQL 会成为热点行。
 // 既有设计就是"Redis 累加 + 定时落库"，这里保持一致。
 type counterPort struct {
-	deps redis_service.Deps
+	deps redis_service.Options
 }
 
 // NewCounterPort 构造计数端口。
 //
 // 传入的 deps.Client 为 nil 时退化为 no-op：本地单测/无 Redis 环境下
 // 文章功能仍可用，只是计数不增长（与改造前的降级行为一致）。
-func NewCounterPort(deps redis_service.Deps) app.CounterPort {
+func NewCounterPort(deps redis_service.Options) app.CounterPort {
 	return &counterPort{deps: deps}
 }
 

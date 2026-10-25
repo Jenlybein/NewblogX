@@ -37,9 +37,9 @@ var routes = []route{
 
 // PipelineConfig 是结构化日志管道的构造参数。
 type PipelineConfig struct {
-	Deps       Deps   // 日志目录/应用名 + ClickHouse 连接
-	WALDir     string // 本地兜底目录；为空时用 <日志目录>/wal
-	ClickHouse bool   // 是否把日志直接写进 ClickHouse
+	Options    Options // 日志目录/应用名 + ClickHouse 连接
+	WALDir     string  // 本地兜底目录；为空时用 <日志目录>/wal
+	ClickHouse bool    // 是否把日志直接写进 ClickHouse
 }
 
 // pipeline 持有五条独立管道，一条对应一张日志表。
@@ -143,8 +143,8 @@ func WALPending() map[string]int {
 
 // newPipeline 按配置逐类构造管道。
 func newPipeline(cfg PipelineConfig) (*pipeline, error) {
-	rootDir := ResolveLogDir(cfg.Deps.LogConfig.Dir)
-	appName := ResolveLogApp("", cfg.Deps.LogConfig.App)
+	rootDir := ResolveLogDir(cfg.Options.LogConfig.Dir)
+	appName := ResolveLogApp("", cfg.Options.LogConfig.App)
 
 	walRoot := strings.TrimSpace(cfg.WALDir)
 	if walRoot == "" {
@@ -152,18 +152,18 @@ func newPipeline(cfg PipelineConfig) (*pipeline, error) {
 	}
 
 	// 唯一判定点：出口选择与告警文案都以它为准，避免两处条件漂移。
-	withCH := cfg.ClickHouse && cfg.Deps.ClickHouse != nil
+	withCH := cfg.ClickHouse && cfg.Options.ClickHouse != nil
 
 	p := &pipeline{walDir: walRoot}
 
 	opts := platformlog.Options{
 		Service:    appName,
-		Env:        runtimeEnv(cfg.Deps),
-		InstanceID: strconv.Itoa(int(runtimeServerID(cfg.Deps))),
+		Env:        runtimeEnv(cfg.Options),
+		InstanceID: strconv.Itoa(int(runtimeServerID(cfg.Options))),
 	}
 
 	for _, rt := range routes {
-		sink, err := buildSink(cfg.Deps, withCH, rootDir, appName, walRoot, rt)
+		sink, err := buildSink(cfg.Options, withCH, rootDir, appName, walRoot, rt)
 		if err != nil {
 			// 已经建好的管道要收掉，避免泄漏 goroutine。
 			_ = p.close(context.Background())
@@ -175,7 +175,7 @@ func newPipeline(cfg PipelineConfig) (*pipeline, error) {
 }
 
 // buildSink 装配一类日志的出口：主出口 + （仅 ClickHouse 模式下的）本地 WAL 兜底。
-func buildSink(deps Deps, withCH bool, rootDir, appName, walRoot string, rt route) (platformlog.Sink, error) {
+func buildSink(deps Options, withCH bool, rootDir, appName, walRoot string, rt route) (platformlog.Sink, error) {
 	walDir := filepath.Join(walRoot, rt.dir)
 
 	var primary platformlog.Sink
@@ -235,7 +235,7 @@ func (p *pipeline) emit(kind platformlog.Kind, level platformlog.Level, line []b
 // 为什么会走到惰性分支：单测与命令行工具不会执行 app.InitInfra，
 // 但它们仍会调用 EmitActionAudit。此时退化成原来的行为（写本地文件），
 // 不 panic、不丢日志，也不需要每处调用都先初始化。
-func getPipeline(deps Deps) *pipeline {
+func getPipeline(deps Options) *pipeline {
 	pipelineMu.RLock()
 	p := activePipe
 	pipelineMu.RUnlock()
@@ -253,7 +253,7 @@ func getPipeline(deps Deps) *pipeline {
 		return p
 	}
 
-	p, err := newPipeline(PipelineConfig{Deps: deps})
+	p, err := newPipeline(PipelineConfig{Options: deps})
 	if err != nil {
 		warnf(deps, "初始化兜底日志管道失败，日志将被丢弃: %v", err)
 		return nil
@@ -274,7 +274,7 @@ func getPipeline(deps Deps) *pipeline {
 //
 // 真正从请求路径上被移除的是文件写、全局锁与 fsync——这些才是阻塞项；
 // json.Marshal 是纯 CPU、无锁、微秒级，留在原地不构成瓶颈。
-func emitRow(deps Deps, kind platformlog.Kind, level platformlog.Level, row any) {
+func emitRow(deps Options, kind platformlog.Kind, level platformlog.Level, row any) {
 	if row == nil {
 		return
 	}
@@ -303,13 +303,13 @@ func parseLevel(level string) platformlog.Level {
 }
 
 // warnf / errorf 在 logger 为空时静默降级，避免日志管道自身引发 panic。
-func warnf(deps Deps, format string, args ...any) {
+func warnf(deps Options, format string, args ...any) {
 	if deps.Logger != nil {
 		deps.Logger.Warnf(format, args...)
 	}
 }
 
-func errorf(deps Deps, format string, args ...any) {
+func errorf(deps Options, format string, args ...any) {
 	if deps.Logger != nil {
 		deps.Logger.Errorf(format, args...)
 	}

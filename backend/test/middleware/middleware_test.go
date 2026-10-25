@@ -4,13 +4,13 @@ import (
 	"encoding/json"
 	"myblogx/conf"
 	confsite "myblogx/conf/site"
+	sitecfg "myblogx/internal/platform/config"
 	"myblogx/internal/platform/redis"
 	redis_email "myblogx/internal/platform/redis/redis_email"
 	redis_jwt "myblogx/internal/platform/redis/redis_jwt"
 	"myblogx/middleware"
 	"myblogx/models"
 	"myblogx/models/enum"
-	sitecfg "myblogx/internal/platform/config"
 	"myblogx/test/testutil"
 	"myblogx/utils/jwts"
 	"net/http"
@@ -85,8 +85,8 @@ func setupAuthEnv(t *testing.T) {
 	})
 }
 
-func testRedisDeps() redis_service.Deps {
-	return redis_service.Deps{Client: testutil.Redis(), Logger: testutil.Logger()}
+func testRedisOptions() redis_service.Options {
+	return redis_service.Options{Client: testutil.Redis(), Logger: testutil.Logger()}
 }
 
 func newMiddlewareRuntime(t *testing.T) middleware.Runtime {
@@ -95,7 +95,7 @@ func newMiddlewareRuntime(t *testing.T) middleware.Runtime {
 	if err := runtimeSvc.InitRuntimeConfig(); err != nil {
 		t.Fatalf("初始化中间件运行时配置失败: %v", err)
 	}
-	return middleware.NewRuntime(middleware.Deps{
+	return middleware.NewRuntime(middleware.RuntimeOptions{
 		DB:                testutil.DB(),
 		Redis:             testutil.Redis(),
 		JWT:               testutil.Config().Jwt,
@@ -184,7 +184,7 @@ func TestAuthAndAdminMiddleware(t *testing.T) {
 	}
 
 	{
-		redis_jwt.SetTokenBlack(testRedisDeps(), testutil.Config().Jwt, userToken, redis_jwt.UserBlackType)
+		redis_jwt.SetTokenBlack(testRedisOptions(), testutil.Config().Jwt, userToken, redis_jwt.UserBlackType)
 		w := httptest.NewRecorder()
 		req := httptest.NewRequest(http.MethodGet, "/auth", nil)
 		req.Header.Set("token", userToken)
@@ -239,7 +239,7 @@ func TestCaptchaAndEmailVerifyMiddleware(t *testing.T) {
 		}
 	}
 
-	if err := redis_email.Store(testRedisDeps(), "eid", "u@example.com", "8888", 1, 3); err != nil {
+	if err := redis_email.Store(testRedisOptions(), "eid", "u@example.com", "8888", 1, 3); err != nil {
 		t.Fatalf("存储邮箱验证码失败: %v", err)
 	}
 	{

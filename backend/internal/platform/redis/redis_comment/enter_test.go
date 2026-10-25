@@ -8,13 +8,13 @@ import (
 	"testing"
 )
 
-func testRedisDeps() redis_service.Deps {
-	return redis_service.Deps{Client: testutil.Redis(), Logger: testutil.Logger()}
+func testRedisOptions() redis_service.Options {
+	return redis_service.Options{Client: testutil.Redis(), Logger: testutil.Logger()}
 }
 
 func TestReplyCacheCounters(t *testing.T) {
 	_ = testutil.SetupMiniRedis(t)
-	deps := testRedisDeps()
+	deps := testRedisOptions()
 
 	if err := redis_comment.SetCacheReply(deps, 1, 3); err != nil {
 		t.Fatalf("SetCacheReply 失败: %v", err)
@@ -50,7 +50,7 @@ func TestReplyCacheCounters(t *testing.T) {
 
 func TestDiggCacheCounters(t *testing.T) {
 	_ = testutil.SetupMiniRedis(t)
-	deps := testRedisDeps()
+	deps := testRedisOptions()
 
 	if err := redis_comment.SetCacheDigg(deps, 1, 2); err != nil {
 		t.Fatalf("SetCacheDigg 失败: %v", err)

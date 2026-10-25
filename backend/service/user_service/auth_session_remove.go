@@ -10,7 +10,7 @@ import (
 
 // RevokeSessionByID 吊销单个会话
 // 用于：退出登录、指定设备下线
-func RevokeSessionByID(deps Deps, userID, sessionID ctype.ID) error {
+func RevokeSessionByID(deps Options, userID, sessionID ctype.ID) error {
 	if deps.DB == nil {
 		return ErrAuthInvalid
 	}
@@ -26,7 +26,7 @@ func RevokeSessionByID(deps Deps, userID, sessionID ctype.ID) error {
 
 // RevokeAllUserSessions 吊销用户所有会话
 // 用于：用户修改密码、管理员强制踢人、全局注销
-func RevokeAllUserSessions(deps Deps, userID ctype.ID) error {
+func RevokeAllUserSessions(deps Options, userID ctype.ID) error {
 	if deps.DB == nil {
 		return ErrAuthInvalid
 	}
@@ -41,7 +41,7 @@ func RevokeAllUserSessions(deps Deps, userID ctype.ID) error {
 
 // UpdatePasswordAndRevokeSessions 修改密码并吊销所有会话
 // 事务保证：密码更新 + 所有旧会话失效 原子性执行
-func UpdatePasswordAndRevokeSessions(deps Deps, user *models.UserModel, hashedPassword string) error {
+func UpdatePasswordAndRevokeSessions(deps Options, user *models.UserModel, hashedPassword string) error {
 	if deps.DB == nil {
 		return ErrAuthInvalid
 	}
@@ -78,7 +78,7 @@ func UpdatePasswordAndRevokeSessions(deps Deps, user *models.UserModel, hashedPa
 // InvalidateUserAuthState 使用户所有认证状态失效
 // 不修改密码，只吊销所有会话 + 升级令牌版本
 // 用于：账号异常、风控、强制重新登录
-func InvalidateUserAuthState(deps Deps, user *models.UserModel) error {
+func InvalidateUserAuthState(deps Options, user *models.UserModel) error {
 	if deps.DB == nil {
 		return ErrAuthInvalid
 	}

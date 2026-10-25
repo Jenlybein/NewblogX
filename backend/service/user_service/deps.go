@@ -9,24 +9,24 @@ import (
 	"gorm.io/gorm"
 )
 
-type Deps struct {
+type Options struct {
 	JWT    conf.Jwt
 	Env    string
 	DB     *gorm.DB
 	Logger *logrus.Logger
-	Redis  redis_service.Deps
+	Redis  redis_service.Options
 }
 
-func NewDeps(jwt conf.Jwt, env string, db *gorm.DB, logger *logrus.Logger, redisDeps redis_service.Deps) Deps {
-	return Deps{
+func NewOptions(jwt conf.Jwt, env string, db *gorm.DB, logger *logrus.Logger, redisOptions redis_service.Options) Options {
+	return Options{
 		JWT:    jwt,
 		Env:    env,
 		DB:     db,
 		Logger: logger,
-		Redis:  redisDeps,
+		Redis:  redisOptions,
 	}
 }
 
-func NewDepsWithRedis(jwt conf.Jwt, env string, db *gorm.DB, logger *logrus.Logger, redisClient *redis.Client) Deps {
-	return NewDeps(jwt, env, db, logger, redis_service.NewDeps(redisClient, logger))
+func NewOptionsWithRedis(jwt conf.Jwt, env string, db *gorm.DB, logger *logrus.Logger, redisClient *redis.Client) Options {
+	return NewOptions(jwt, env, db, logger, redis_service.NewOptions(redisClient, logger))
 }

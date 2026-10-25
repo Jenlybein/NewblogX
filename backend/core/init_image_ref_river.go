@@ -10,7 +10,7 @@ import (
 	"gorm.io/gorm"
 )
 
-type ImageRefRiverDeps struct {
+type ImageRefRiverOptions struct {
 	ImageRefRiverConfig conf.ImageRefRiver
 	QiNiuConfig         conf.QiNiu
 	LogConfig           conf.Logrus
@@ -20,7 +20,7 @@ type ImageRefRiverDeps struct {
 	DB                  *gorm.DB
 }
 
-func InitImageRefRiver(deps ImageRefRiverDeps) {
+func InitImageRefRiver(deps ImageRefRiverOptions) {
 	if !deps.ImageRefRiverConfig.Enabled {
 		deps.Logger.Infof("配置中未启用图片引用监听")
 		return
@@ -30,7 +30,7 @@ func InitImageRefRiver(deps ImageRefRiverDeps) {
 	if err != nil {
 		deps.Logger.Fatal(err)
 	}
-	r.SetLogDeps(log_service.NewDeps(deps.LogConfig, deps.System, deps.ClickHouseEnabled, deps.Logger, nil))
+	r.SetLogOptions(log_service.NewOptions(deps.LogConfig, deps.System, deps.ClickHouseEnabled, deps.Logger, nil))
 	safego.Go(func(recovered any, stack []byte) {
 		deps.Logger.Errorf("图片引用监听 panic: %v\n%s", recovered, stack)
 	}, func() {

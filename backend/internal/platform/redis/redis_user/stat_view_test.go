@@ -10,7 +10,7 @@ import (
 
 func TestTryMarkUserHomeViewed(t *testing.T) {
 	mr := testutil.SetupMiniRedis(t)
-	deps := redis_service.Deps{Client: testutil.Redis(), Logger: testutil.Logger()}
+	deps := redis_service.Options{Client: testutil.Redis(), Logger: testutil.Logger()}
 	now := time.Date(2026, 3, 30, 21, 30, 0, 0, time.Local)
 
 	marked, err := redis_user.TryMarkUserHomeViewed(deps, 2, 1, now)
@@ -49,7 +49,7 @@ func TestTryMarkUserHomeViewed(t *testing.T) {
 
 func TestRollbackUserHomeViewed(t *testing.T) {
 	_ = testutil.SetupMiniRedis(t)
-	deps := redis_service.Deps{Client: testutil.Redis(), Logger: testutil.Logger()}
+	deps := redis_service.Options{Client: testutil.Redis(), Logger: testutil.Logger()}
 	now := time.Date(2026, 3, 30, 21, 0, 0, 0, time.Local)
 
 	marked, err := redis_user.TryMarkUserHomeViewed(deps, 2, 1, now)

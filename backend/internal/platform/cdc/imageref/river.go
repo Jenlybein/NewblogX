@@ -22,12 +22,12 @@ import (
 // River 基于 MySQL Binlog 的图片引用关系监听服务
 // 作用：监听文章/用户/横幅/收藏表的数据变化，自动维护图片引用关系
 type River struct {
-	canal   *canal.Canal
-	cfg     conf.ImageRefRiver
-	qiNiu   conf.QiNiu
-	log     *logrus.Logger
-	logDeps log_service.Deps
-	db      *gorm.DB
+	canal      *canal.Canal
+	cfg        conf.ImageRefRiver
+	qiNiu      conf.QiNiu
+	log        *logrus.Logger
+	logOptions log_service.Options
+	db         *gorm.DB
 }
 
 // NewRiver 初始化图片引用关系监听服务
@@ -47,8 +47,8 @@ func NewRiver(config conf.ImageRefRiver, qiNiuConfig conf.QiNiu, logger *logrus.
 	return r, nil
 }
 
-func (r *River) SetLogDeps(deps log_service.Deps) {
-	r.logDeps = deps
+func (r *River) SetLogOptions(deps log_service.Options) {
+	r.logOptions = deps
 }
 
 // imageRefTables 是图片引用需要监听的四张核心业务表
@@ -315,7 +315,7 @@ func (r *River) runTaskWithRetry(task imageRefTask, payload map[string]any, runn
 	for attempt := 1; attempt <= maxAttempts; attempt++ {
 		lastErr = runner()
 		if lastErr == nil {
-			log_service.EmitCDCEvent(r.logDeps, log_service.CdcEventInput{
+			log_service.EmitCDCEvent(r.logOptions, log_service.CdcEventInput{
 				Level:       "info",
 				Message:     "image_ref_river 同步成功",
 				CdcJobID:    task.CdcJobID,
@@ -331,7 +331,7 @@ func (r *River) runTaskWithRetry(task imageRefTask, payload map[string]any, runn
 		if attempt >= maxAttempts {
 			break
 		}
-		log_service.EmitCDCEvent(r.logDeps, log_service.CdcEventInput{
+		log_service.EmitCDCEvent(r.logOptions, log_service.CdcEventInput{
 			Level:        "warn",
 			Message:      "image_ref_river 同步失败，准备重试",
 			ErrorCode:    "IMAGE_REF_RIVER_RETRY",
@@ -363,7 +363,7 @@ func (r *River) runTaskWithRetry(task imageRefTask, payload map[string]any, runn
 		return err
 	}
 
-	log_service.EmitCDCEvent(r.logDeps, log_service.CdcEventInput{
+	log_service.EmitCDCEvent(r.logOptions, log_service.CdcEventInput{
 		Level:        "error",
 		Message:      "image_ref_river 同步失败，已转入 DLQ",
 		ErrorCode:    "IMAGE_REF_RIVER_DLQ",

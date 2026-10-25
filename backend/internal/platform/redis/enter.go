@@ -9,13 +9,13 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
-type Deps struct {
+type Options struct {
 	Client *redis.Client
 	Logger *logrus.Logger
 }
 
-func NewDeps(client *redis.Client, logger *logrus.Logger) Deps {
-	return Deps{
+func NewOptions(client *redis.Client, logger *logrus.Logger) Options {
+	return Options{
 		Client: client,
 		Logger: logger,
 	}
@@ -33,7 +33,7 @@ return 0
 )
 
 // lockArticleSync 尝试加锁，成功返回解锁函数；若锁已被占用返回 nil,nil。
-func LockArticleSync(deps Deps, ctx context.Context, lockKey string, lockTTL time.Duration) (func(), error) {
+func LockArticleSync(deps Options, ctx context.Context, lockKey string, lockTTL time.Duration) (func(), error) {
 	if deps.Client == nil {
 		return nil, redis.Nil
 	}

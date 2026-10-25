@@ -57,7 +57,7 @@ func WireUser(infra *Infra) {
 		return
 	}
 	cfg := infra.Config
-	redisDeps := redis_service.NewDeps(infra.Redis, infra.Logger)
+	redisOptions := redis_service.NewOptions(infra.Redis, infra.Logger)
 
 	// ── user 模块 ──
 	usersRepo := usermysql.New(infra.DB)
@@ -84,10 +84,10 @@ func WireUser(infra *Infra) {
 		realClock{},
 		usersec.Hasher{},
 		infra.Logger,
-		userapp.WithUsernameAllocator(userredis.NewUsernameAllocator(redisDeps)),
+		userapp.WithUsernameAllocator(userredis.NewUsernameAllocator(redisOptions)),
 		userapp.WithIntegrations(userapp.Integrations{
 			Relation:  &relationBridge{},
-			HomeView:  &homeViewBridge{deps: user_service.NewDepsWithRedis(cfg.Jwt, cfg.System.Env, infra.DB, infra.Logger, infra.Redis)},
+			HomeView:  &homeViewBridge{deps: user_service.NewOptionsWithRedis(cfg.Jwt, cfg.System.Env, infra.DB, infra.Logger, infra.Redis)},
 			Sessions:  sessionRevoker,
 			LastLogin: &lastLoginBridge{opts: analyticsLogOptions(infra)},
 			Tags:      &tagBridge{db: infra.DB},
@@ -104,7 +104,7 @@ func WireUser(infra *Infra) {
 		authsec.NewSecrets(),
 		authsec.NewHasher(),
 		authredis.NewBlacklist(infra.Redis),
-		authredis.NewLoginGuard(redisDeps, loginConf),
+		authredis.NewLoginGuard(redisOptions, loginConf),
 		&credentialBridge{svc: userSvc},
 		realClock{},
 		infra.Logger,
@@ -114,11 +114,11 @@ func WireUser(infra *Infra) {
 		},
 		authapp.WithDirectory(&directoryBridge{svc: userSvc}),
 		authapp.WithEmailCodes(&emailCodeBridge{
-			users:     usersRepo,
-			conf:      cfg.Email,
-			redisDeps: redisDeps,
-			loginConf: loginConf,
-			logger:    infra.Logger,
+			users:        usersRepo,
+			conf:         cfg.Email,
+			redisOptions: redisOptions,
+			loginConf:    loginConf,
+			logger:       infra.Logger,
 		}),
 		authapp.WithOAuth(qqBridge{conf: cfg.QQ}),
 	)
@@ -258,11 +258,11 @@ func (b *directoryBridge) BindEmail(ctx context.Context, userID uint64, email st
 // 「是否真的发」是按旧实现的刻意设计：注册时邮箱已存在就不发，但接口照样返回
 // 成功和 id——否则任何人都能拿这个接口批量探测哪些邮箱已注册。
 type emailCodeBridge struct {
-	users     userdomain.Repository
-	conf      conf.Email
-	redisDeps redis_service.Deps
-	loginConf func() siteconf.Login
-	logger    *logrus.Logger
+	users        userdomain.Repository
+	conf         conf.Email
+	redisOptions redis_service.Options
+	loginConf    func() siteconf.Login
+	logger       *logrus.Logger
 }
 
 var _ authapp.EmailCodes = (*emailCodeBridge)(nil)
@@ -270,7 +270,7 @@ var _ authapp.EmailCodes = (*emailCodeBridge)(nil)
 // Send 实现 authapp.EmailCodes。
 func (b *emailCodeBridge) Send(ctx context.Context, kind int8, email, ip string) (string, error) {
 	lc := b.loginConf()
-	if !redis_user.AllowEmailSend(b.redisDeps, lc, email, ip, kind) {
+	if !redis_user.AllowEmailSend(b.redisOptions, lc, email, ip, kind) {
 		return "", apperr.New(apperr.CodeAuthTooFrequent)
 	}
 
@@ -319,7 +319,7 @@ func (b *emailCodeBridge) Send(ctx context.Context, kind int8, email, ip string)
 
 	id := base64Captcha.RandomId()
 	if shouldSend {
-		if err := redis_email.Store(b.redisDeps, id, email, code, timeout, 3); err != nil {
+		if err := redis_email.Store(b.redisOptions, id, email, code, timeout, 3); err != nil {
 			if b.logger != nil {
 				b.logger.Errorf("邮件验证码存储失败: %v", err)
 			}
@@ -447,7 +447,7 @@ func (b *relationBridge) Relation(ctx context.Context, viewer, target userdomain
 
 // homeViewBridge 实现 app.HomeViewRecorder。
 type homeViewBridge struct {
-	deps user_service.Deps
+	deps user_service.Options
 }
 
 // Record 记录主页浏览（带去重）。

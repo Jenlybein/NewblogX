@@ -4,18 +4,17 @@ package api
 
 import (
 	"myblogx/api/captcha_api"
-	"myblogx/middleware"
+	sitecfg "myblogx/internal/platform/config"
+
+	"github.com/mojocn/base64Captcha"
 )
 
 type Api struct {
 	ImageCaptchaApi captcha_api.ImageCaptchaApi
 }
 
-func New(deps middleware.Deps) Api {
+func New(runtimeSite *sitecfg.RuntimeConfigService, captchaStore base64Captcha.Store) Api {
 	return Api{
-		ImageCaptchaApi: captcha_api.New(captcha_api.Deps{
-			RuntimeSite:       deps.RuntimeSite,
-			ImageCaptchaStore: deps.ImageCaptchaStore,
-		}),
+		ImageCaptchaApi: captcha_api.New(runtimeSite, captchaStore),
 	}
 }

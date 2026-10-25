@@ -28,12 +28,12 @@ var ErrRuleNotExist = apperr.New(apperr.CodeCdcRuleNotExist)
 type River struct {
 	canal *canal.Canal // MySQL的canal实例
 
-	rules   map[string]*rule.Rule // 规则映射
-	cfg     conf.River
-	log     *logrus.Logger
-	logDeps log_service.Deps
-	db      *gorm.DB
-	es      *elasticsearch.Client
+	rules      map[string]*rule.Rule // 规则映射
+	cfg        conf.River
+	log        *logrus.Logger
+	logOptions log_service.Options
+	db         *gorm.DB
+	es         *elasticsearch.Client
 
 	ctx    context.Context    // 上下文
 	cancel context.CancelFunc // 取消函数
@@ -45,8 +45,8 @@ type River struct {
 	syncCh chan interface{} // 同步通道
 }
 
-func (r *River) SetLogDeps(deps log_service.Deps) {
-	r.logDeps = deps
+func (r *River) SetLogOptions(deps log_service.Options) {
+	r.logOptions = deps
 }
 
 // NewRiver 根据配置创建 River 实例

@@ -57,14 +57,14 @@ func (b *Blacklist) Contains(ctx context.Context, token string) (bool, error) {
 // 限流阈值来自站点运行时配置，所以这里注一个取配置的函数而不是把配置拷贝进来：
 // 管理员在后台改阈值后应立刻生效，而不是等重启。
 type LoginGuard struct {
-	deps redis_service.Deps
+	deps redis_service.Options
 	conf func() siteconf.Login
 }
 
 var _ domain.LoginGuard = (*LoginGuard)(nil)
 
 // NewLoginGuard 构造登录限流器。
-func NewLoginGuard(deps redis_service.Deps, conf func() siteconf.Login) *LoginGuard {
+func NewLoginGuard(deps redis_service.Options, conf func() siteconf.Login) *LoginGuard {
 	return &LoginGuard{deps: deps, conf: conf}
 }
 

@@ -11,7 +11,7 @@ import (
 
 func TestTagArticleCountCache(t *testing.T) {
 	_ = testutil.SetupMiniRedis(t)
-	deps := redis_service.Deps{Client: testutil.Redis(), Logger: testutil.Logger()}
+	deps := redis_service.Options{Client: testutil.Redis(), Logger: testutil.Logger()}
 
 	if err := redis_tag.SetCacheArticleCount(deps, 1, 3); err != nil {
 		t.Fatalf("SetCacheArticleCount 失败: %v", err)

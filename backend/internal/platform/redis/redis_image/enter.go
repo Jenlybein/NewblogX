@@ -22,7 +22,7 @@ return 0
 `)
 
 // StoreTask 存储图片上传任务数据（事务操作，保证原子性）
-func StoreTask(deps redis_service.Deps, taskID ctype.ID, objectKey string, data []byte, ttl time.Duration) error {
+func StoreTask(deps redis_service.Options, taskID ctype.ID, objectKey string, data []byte, ttl time.Duration) error {
 	//	taskID - 任务唯一ID
 	//	objectKey - 对象存储的key
 	//	data - 任务数据（字节数组）
@@ -46,7 +46,7 @@ func StoreTask(deps redis_service.Deps, taskID ctype.ID, objectKey string, data 
 }
 
 // GetTaskDataByID 根据任务ID获取任务原始数据
-func GetTaskDataByID(deps redis_service.Deps, taskID ctype.ID) ([]byte, error) {
+func GetTaskDataByID(deps redis_service.Options, taskID ctype.ID) ([]byte, error) {
 	// 从Redis获取字节数据
 	if deps.Client == nil {
 		return nil, fmt.Errorf("redis 未初始化")
@@ -56,7 +56,7 @@ func GetTaskDataByID(deps redis_service.Deps, taskID ctype.ID) ([]byte, error) {
 
 // GetTaskIDByObjectKey 根据对象key反向查询对应的任务ID
 // 返回：任务ID、查询/解析错误
-func GetTaskIDByObjectKey(deps redis_service.Deps, objectKey string) (ctype.ID, error) {
+func GetTaskIDByObjectKey(deps redis_service.Options, objectKey string) (ctype.ID, error) {
 	client := deps.Client
 	if client == nil {
 		return 0, fmt.Errorf("redis 未初始化")
@@ -77,7 +77,7 @@ func GetTaskIDByObjectKey(deps redis_service.Deps, objectKey string) (ctype.ID, 
 }
 
 // LockTask 对图片上传任务加分布式锁（防并发冲突）
-func LockTask(deps redis_service.Deps, taskID ctype.ID, ttl time.Duration) (unlock func(), locked bool, err error) {
+func LockTask(deps redis_service.Options, taskID ctype.ID, ttl time.Duration) (unlock func(), locked bool, err error) {
 	//	taskID - 要加锁的任务ID
 	//	ttl - 锁过期时间，<=0时默认30秒
 	//	unlock - 解锁函数
@@ -108,7 +108,7 @@ func LockTask(deps redis_service.Deps, taskID ctype.ID, ttl time.Duration) (unlo
 }
 
 // StoreAuditStatus 暂存图片审核状态，兜住“审核回调先到、图片记录后建”的情况。
-func StoreAuditStatus(deps redis_service.Deps, objectKey string, status string, ttl time.Duration) error {
+func StoreAuditStatus(deps redis_service.Options, objectKey string, status string, ttl time.Duration) error {
 	if ttl <= 0 {
 		ttl = 24 * time.Hour
 	}
@@ -119,7 +119,7 @@ func StoreAuditStatus(deps redis_service.Deps, objectKey string, status string, 
 }
 
 // ConsumeAuditStatus 读取并删除暂存的图片审核状态。
-func ConsumeAuditStatus(deps redis_service.Deps, objectKey string) (string, error) {
+func ConsumeAuditStatus(deps redis_service.Options, objectKey string) (string, error) {
 	if deps.Client == nil {
 		return "", fmt.Errorf("redis 未初始化")
 	}

@@ -4,8 +4,6 @@ import { useRequestHeaders, useRuntimeConfig } from "#imports";
 import { loginWithEmailCode, loginWithPassword, logoutCurrentSession, registerWithEmail } from "~/services/auth";
 import { isAuthLikeError } from "~/services/http/errors";
 import { getSelfUserDetail } from "~/services/user";
-import { useChatStore } from "~/stores/chat";
-import { useMessageStore } from "~/stores/message";
 import type { UserSelfDetail } from "~/types/api";
 import { resolveAvatarUrl } from "~/utils/avatar";
 
@@ -113,8 +111,11 @@ export const useAuthStore = defineStore("auth", () => {
       localStorage.removeItem(tokenStorageKey);
       localStorage.removeItem(profileStorageKey);
     }
-    useMessageStore().clear();
-    useChatStore().resetSocketState();
+    // 这里**不再**去清 message / chat 两个 store。
+    //
+    // 它们自己 watch 本 store 的 isLoggedIn：变成 false 时清未读数、重置连接状态。
+    // 方向因此是单向的（message/chat 依赖 auth），本文件不需要知道谁在关心登录态。
+    // 见 docs/architecture/baseline.md §42。
   }
 
   async function fetchCurrentUser(options: { throwOnError?: boolean } = {}) {
@@ -161,7 +162,6 @@ export const useAuthStore = defineStore("auth", () => {
 
         setAccessToken(response.data);
         await fetchCurrentUser();
-        await useMessageStore().refreshSummary().catch(() => undefined);
         return true;
       } catch {
         clearSession();
@@ -231,7 +231,6 @@ export const useAuthStore = defineStore("auth", () => {
       const token = await loginWithPassword(payload);
       setAccessToken(token);
       await fetchCurrentUser();
-      await useMessageStore().refreshSummary().catch(() => undefined);
       initialized.value = true;
       return true;
     } finally {
@@ -245,7 +244,6 @@ export const useAuthStore = defineStore("auth", () => {
       const token = await loginWithEmailCode(payload);
       setAccessToken(token);
       await fetchCurrentUser();
-      await useMessageStore().refreshSummary().catch(() => undefined);
       initialized.value = true;
       return true;
     } finally {
@@ -259,7 +257,6 @@ export const useAuthStore = defineStore("auth", () => {
       const token = await registerWithEmail(payload);
       setAccessToken(token);
       await fetchCurrentUser();
-      await useMessageStore().refreshSummary().catch(() => undefined);
       initialized.value = true;
       return true;
     } finally {

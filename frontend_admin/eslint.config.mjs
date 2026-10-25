@@ -14,6 +14,19 @@ export default withNuxt(
     },
   },
   {
+    // S5.6 的验收口径（单个文件 ≤800 行）落到门禁上，与读者站同一把尺子。
+    // 为什么是 error：warn 不会让 `eslint .` 失败，等于没有这道门。
+    // 现状：最大的 `app/pages/media/index.vue` 328 行，余量充足。
+    files: ["app/**/*.ts", "app/**/*.vue"],
+    ignores: [
+      // openapi 生成的类型声明（改不了也不该手改）
+      "app/types/openapi.d.ts",
+    ],
+    rules: {
+      "max-lines": ["error", { max: 800 }],
+    },
+  },
+  {
     ignores: [
       ".nuxt/**",
       ".output/**",

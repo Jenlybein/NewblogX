@@ -1722,7 +1722,10 @@ compose 引用了它们，但样例文件里没有，属于"照文档配完仍�
 
 ## 39. M6 剩余清单（唯一口径）
 
-**2026-10-26** 全项核对。M6 共 10 项，8 项完成，2 项有偏差。
+**2026-10-26** 全项核对。M6 共 10 项，**10 项落地**；其中两项的记录在实施中改过口径：
+
+- S5.6 的验收由 `<200 行` 修正为 `≤800 行`（用户拍板，见 §41）；
+- S5.7 的结论由「5 个 store 零互引」更正为「无环，但 auth 有两条单向调用」。
 
 ### 一、补掉的一项：swagger 契约重新生成
 
@@ -1740,39 +1743,50 @@ compose 引用了它们，但样例文件里没有，属于"照文档配完仍�
 两端 `openapi:types` 重跑后 typecheck 均通过 —— 前端引用的是 operation 路径
 而不是 definition 名，所以命名变化不影响业务代码。
 
-### 二、剩两项
+### 二、两项口径修正（原记录作废，以本节为准）
 
-**S5.6 `write.vue`：未达 <200 行**（实际 1,270）。
+**S5.6 `write.vue`：2,045 → 361 行，按 `≤800` 判定为达标。**
 
-已完成 2,045 → 1,270：编辑器命令 composable（462）、主题表（118）、
-工具栏常量（154）、header 组件（295）。理由与「<200 这个口径为什么有问题」
-见 §38 末尾。
+> 下面这段是当时（口径还是 `<200`）写的记录，保留是因为它解释了「为什么再往下拆不划算」，
+> 结论已被 §41 取代，不要再按 `<200` 去验收。
 
-要真正达标，前置条件是**按子域拆状态**：现在 `form` / `pendingState` /
-`editingArticle` / `coverPreviewUrl` 等被所有函数共享，`handleRefreshArticleScore`
-一个函数就依赖 7 个外部符号。拆状态 = 草稿、元信息、封面、发布各一套，
-属独立重构，不属于 M6。
+原记录（2026-10-26 中午，口径 `<200`）：已完成 2,045 → 1,270，抽出编辑器命令 composable、
+主题表、工具栏常量、header 组件；要真正达标的前置条件是**按子域拆状态**（`form` /
+`pendingState` / `editingArticle` / `coverPreviewUrl` 被所有函数共享，
+`handleRefreshArticleScore` 一个函数依赖 7 个外部符号）。
 
-**S5.7 stores 循环依赖：无环已达成，但不是「事件驱动」**。
+事实部分仍然成立，但**结论变了**：既然 `≤800` 就够，那就不需要再做 provide/inject ——
+那条路只能把页面降到约 250 行，代价是 8 个组件变成隐式依赖（编译期不再检查 prop 名、
+组件失去独立 mount 的能力、"谁改了这个字段"重新变成需要通读才能回答）。**为了一个
+已经满足的指标去付这个代价，是把可维护性往反方向推**。详见 §41。
 
-依赖图（实测）：
+**S5.7 stores 依赖：已按方案 B 解耦（2026-10-26）**，详见 §42。
+
+依赖图（实测，改之前）：
 
 ```
-auth  →  chat
-auth  →  message
-chat / message / site / ui    零出边
+静态 import 图：  auth  →  chat           ← 只有这两条
+                  auth  →  message
+                  chat / message / site / ui  零出边
+
+运行期调用图：    auth  ⇄  message         ← message.refreshSummary 里也调 useAuthStore()
 ```
 
-无环，所以不会有初始化死锁 —— 原始问题（循环依赖）确实不存在。
-但 `auth` 仍直接调用另外两个 store：logout 时 `messageStore.clear()` +
-`chatStore.resetSocketState()`，登录后 4 处 `messageStore.refreshSummary()`。
+**之前写的「无环」只对了一半**：两个文件确实没有互相 `import`，但 `message.ts` 里
+`useAuthStore()` 是靠 Nuxt 自动导入（文件里没有 import 语句），所以运行期是**双向**的。
+双向不会死锁（Pinia 支持在 action 里取另一个 store），但「单向」这个结论站不住。
 
-改事件驱动（auth 发 `auth:logout`，各 store 自己订阅）能去掉这条直接依赖，
-代价是引入订阅生命周期管理（订阅泄漏比直接调用更难查）。属于可选优化，
-不是遗留缺陷。
+> 更早一版文档写的是「5 个 store 零互引」，那是错的。已按实测改正两次。
 
-> 上一版文档写的是「5 个 store 零互引」，那是错的 —— 结论（无环）对，
-> 论证不完整。已按实测改正。
+改法（方案 B，2026-10-26 拍板）：删掉 auth 里那 6 处调用，`message` / `chat` 各自
+`watch(() => useAuthStore().isLoggedIn)`。效果：
+
+| | 改之前 | 改之后 |
+| --- | --- | --- |
+| auth 的 import | `message`、`chat` | **无**（不 import 任何 store） |
+| 登出清未读数 / 重置连接 | auth 顺手做 | 各自 watch 到 `isLoggedIn=false` 时自己做 |
+| 登录后拉未读数 | auth `await` 4 次 | message watch 到 `true` 时自己拉 |
+| auth 的单测 | 必须 mock 两个 store | **不需要**（mock 已删，测试仍绿） |
 
 ### 三、不属于 M6 的待办（记录，避免混淆）
 
@@ -1806,7 +1820,7 @@ chat / message / site / ui    零出边
 
 页面：2045 → **361**（script 225 / template 135 / style 1）。
 
-### 为什么停在 361 而不是 <200
+### 为什么停在 361（口径当时是 <200，现已改为 ≤800）
 
 剩下的 361 行不是"没抽干净"，是**结构决定的**：
 
@@ -1816,18 +1830,22 @@ chat / message / site / ui    零出边
 - template 135 行里大部分是 props 传递（Header 14 个、PublishDialog 16 个）。
 
 再往下只有一条路：**页面 `provide` 上下文，所有子组件 `inject` 自取**。
-那样页面变成纯布局（约 40 行），代价是：
+那样页面变成纯布局（**当时估"约 40 行"，实测重算约 250 行 —— 那个估计是错的**），
+代价是：
 - 8 个组件的 props 全部改成 inject（含 4 个已有组件，如 ArticleScoreModal）；
 - 依赖关系从"显式 props"变成"隐式上下文"，编译期不再检查；
 - 属于**架构重写**而不是拆分。
 
+**这一步没有做**，因为口径改成了 `≤800`，361 已达标（§41）。
+
 ### 测试补齐情况（决策四的前置条件）
 
-新增 3 个测试文件、24 个用例（前端 71 → 95）：
+新增 4 个测试文件、33 个用例（前端 71 → 104）：
 
 - `useStudioPublish.test.ts`（7）：4 条主路径的文案与跳转、两条拦截、失败复位
 - `useStudioToolbar.test.ts`（9）：插入片段内容、非法 key 回落、主题只改主题
 - `useStudioEditorCommands.test.ts`（8）：词边界、光标落点、连按不嵌套
+- `studioArticlePayload.test.ts`（9）：空摘要 → `undefined`、空分类 → `null`、封面三态
 
 **测试发现的真实语义**（原来没有文档、也没人验证过）：
 `findWordRangeAtCursor` 在光标**紧贴词尾**时应当选中该词（返回 `{start,end}` 而不是
@@ -1837,12 +1855,140 @@ chat / message / site / ui    零出边
 另一个坑：`focusEditor` 走 `nextTick`，测试里不 `await nextTick` 断言光标，
 拿到的是旧值（第一次写测试就是这么挂的）。
 
-### 口径修正建议
+### 口径演进（最终以 §41 为准）
 
-S5.6 的验收写"主文件 <200 行"，但没写"拆成什么"。这个数字假设"页面的行数大头
+S5.6 的验收原来写"主文件 <200 行"，但没写"拆成什么"。这个数字假设"页面的行数大头
 是重复模板"，实测是**逻辑 + 解构**（script 1250 / template 293 / style 474）。
-更可执行的验收应该是：
 
-- 不存在 >300 行的模块；
-- 每个 composable 的入参不超过 5 个；
-- 写作页的关键分支（提交、快捷键、AI 落回正文）有测试。
+当时提过一组替代口径（不存在 >300 行的模块 / 每个 composable 入参不超过 5 个 /
+关键分支有测试）。**最终没有采用这组**，而是用了一个更简单、可自动校验的：
+**单文件 ≤800 行**。理由见 §41。
+
+## 41. S5.6 验收口径定为「单文件 ≤800 行」（2026-10-26 拍板）
+
+用户拍板：`write.vue` 不必再往下拆，**800 行以内就够**。实测 361 行，达标。
+
+### 这个口径怎么落地的
+
+不是只改文档里的数字 —— 那个数字如果不进门禁，六个月后同一件事会原样再来一遍
+（写作页长到 2,045 行时，恰恰没有任何一道门禁拦过它）。所以：
+
+**两端 `eslint.config.mjs` 加 `max-lines`（error，max: 800）**，作用于 `app/**/*.{ts,vue}`，
+排除 `app/types/openapi.d.ts`（openapi 生成的声明，6,000+ 行，改不了也不该手改）。
+
+三个刻意的选择：
+
+| 选择 | 理由 |
+| --- | --- |
+| `error` 而非 `warn` | `warn` 不会让 `eslint .` 失败，等于这道门不存在 |
+| 原始行数（空行、注释照算） | 与后端 R6「单文件 ≤800 行」同一把尺子，读文档不用换算 |
+| 用 `max-lines` 而非自定义脚本 | 已经在 CI 的 lint 步骤里，零额外维护 |
+
+验证这道门真的会红（项目的既有要求：门禁必须能证明自己会失败）：
+
+```
+$ 生成 801 行 → eslint --stdin --stdin-filename app/pages/__probe.vue
+  801:1  error  File has too many lines (801). Maximum allowed is 800  max-lines
+```
+
+用 `--stdin` 造虚拟文件而不是写临时文件，测完不留在磁盘上。
+
+### 现状余量
+
+| 文件 | 行数 | 余量 |
+| --- | --- | --- |
+| `app/pages/studio/write.vue` | 361 | 439 |
+| `frontend/app/pages/article/[id].vue` | **791** | **9** |
+| `frontend/app/pages/studio/settings.vue` | 549 | 251 |
+| `frontend_admin/app/pages/media/index.vue` | 328 | 472 |
+
+`article/[id].vue` 只剩 9 行 —— 下次再往里加东西就会红。**这是有意的**：
+红的时候正确的动作是把 `<style>` 外移（写作页正是这么从 2,045 降到 361 的），
+而不是把上限调高。
+
+### 没有做的事（以及为什么不算欠账）
+
+- **provide/inject 重写**：只能降到约 250 行，代价是 8 个组件变成隐式依赖
+  （编译期不再检查 prop 名、组件失去独立 mount 的能力、"谁改了这个字段"重新需要通读）。
+  指标已满足，不必付这个代价。
+- **`<200 行` 原口径**：作废。它假设"行数大头是重复模板"，实测是"逻辑 + 解构"；
+  而且当时的拆分已经证明了它逼人做假拆分（把逻辑搬进收 12 个参数的 composable）。
+
+## 42. S5.7 解耦落地：下游 watch 上游，auth 不再调其他 store
+
+**2026-10-26 拍板并实施（方案 B）。**
+
+### 决策：四个方案里为什么选 B
+
+| 方案 | 做法 | 判定 |
+| --- | --- | --- |
+| A 不动 | auth 继续顺手清/刷 | 可行，但 `auth` 与两个 store 纠缠不清 |
+| **B 下游 watch 上游** | 删 auth 的调用；`message`/`chat` 自己盯 `isLoggedIn` | **选用**：删代码、无新机制、SSR 安全 |
+| C 事件总线 | auth 发事件，下游订阅 | **否决**：SSR 每个请求一个新 Pinia，而事件总线是模块级的 → 订阅跨请求累积（泄漏） |
+| D 回调注入 | auth 暴露 `registerSessionListeners` | 否决：多一层"忘了注册就静默不刷新"，且 auth 的导出面变大 |
+
+选 B 的直接收益：`auth.ts` 从 310 → 307 行，**少 2 个 import、6 行调用**，而且方向变成
+严格的 `message → auth`、`chat → auth`（下游依赖上游）。
+
+### 改了哪些文件
+
+| 文件 | 改动 |
+| --- | --- |
+| `app/stores/auth.ts` | 删 `useMessageStore`/`useChatStore` 两个 import；`clearSession` 里的 2 行清空、4 处 `await refreshSummary()` 全删 |
+| `app/stores/message.ts` | 新增 `watch(() => useAuthStore().isLoggedIn, ...)`；`refreshSummary` 加在途请求复用 + 登出丢弃 |
+| `app/stores/chat.ts` | 新增同样的 watch；**补上显式 import**（原来 `defineStore`/`shallowRef` 全靠自动导入） |
+| `test/stores/auth.test.ts` | 删掉两个 store 的 mock（它们不再被 auth 引用） |
+| `test/stores/message.test.ts` | 重写：登录态换成真 ref，新增 4 个用例 |
+| `test/stores/chat.test.ts` | **新增 5 个用例**（这个 store 之前一个测试都没有） |
+
+### 三个必须一起做的细节
+
+**1. `flush: "sync"`**
+登出时要在界面重渲染之前就把未读数清掉，否则会闪一帧上一个账号的数字。
+用默认的 `flush: "pre"`（下一个 tick）就会闪。测试里靠"不 await 直接断言"守住这条 ——
+哪天有人把 flush 改回默认值，那条用例会红。
+
+**2. 在途请求复用（顺带修的）**
+删掉 auth 的 4 处 `await` 之后，登录瞬间可能有三处同时要做这件事（本 store 的 watch、
+`layouts/studio.vue` 的 `!fetched` 兜底、收件箱页面的主动刷新）。不合并就会对
+`/message/summary` 连打三个一模一样的 GET。现在用 `inflight` 复用同一个 Promise。
+
+**3. 登出时丢弃在途结果（顺手修的一个真 bug）**
+`getMessageSummary()` 还在路上时用户登出了 —— 结果回来后会把上一个账号的未读数
+写进 `summary`。原来就有这个隐患（只是 `await` 顺序让它很难触发，改成 watch 后
+窗口变大）。现在结果落地前再查一次 `isLoggedIn`，不通过就丢弃。
+
+配套：`clear()` 里把 `inflight` 置空（登出后立刻换账号登录，不该复用那个"注定被丢弃"的请求），
+而 `finally` 里只在自己仍是当前登记时才置空 —— 无脑置空会把新请求的登记抹掉，
+导致下一次又多打一个请求。
+
+### 行为差异（唯一一处，可接受）
+
+`await login()` 返回时，未读数**可能还没刷新完**（以前是 `await` 保证的）。
+影响面：侧边栏 badge 晚一拍（几十毫秒），且 badge 是响应式的。
+已确认没有任何代码依赖"登录返回即有未读数"；带 token 直接进站的场景仍有
+`layouts/studio.vue` 的 `!fetched` 兜底。
+
+### 踩坑
+
+**测试里共用同一个 `loggedIn` ref，会把所有旧 store 实例的 watch 一起唤醒。**
+`vi.resetModules()` 只重置模块缓存，**不会销毁之前创建的 Pinia store 实例**，
+它们的 watch 还挂在同一个 ref 上。表现：期望"调用 1 次"实际"3 次"；
+更隐蔽的是用例结束后旧 watch 又被触发，此时 `afterEach` 已撤掉全局桩 →
+报 `useAuthStore is not defined`。
+解法：`beforeEach` 里**换一份新 ref**，旧 watch 追的是旧 ref，互不干扰。
+
+**`chat.ts` 之前一个测试都没有，原因是它连 `defineStore` 都没显式 import。**
+全靠 Nuxt 自动导入，在 vitest 里 `import` 它就 `defineStore is not defined` ——
+所以"这个 store 没测试"不是没人写，是写不了。补上 import 后立刻能测。
+
+### 覆盖率（顺带上升）
+
+| | 之前 | 之后 |
+| --- | --- | --- |
+| statements | 57.21 | **58.30** |
+| branches | 47.16 | **47.66** |
+| functions | 63.46 | **65.15** |
+| lines | 57.14 | **58.18** |
+
+用例总数 104 → 113。门槛（57/47/63/57）不必再调。

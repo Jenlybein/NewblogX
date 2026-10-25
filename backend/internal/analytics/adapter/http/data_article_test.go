@@ -4,8 +4,7 @@ import (
 	"encoding/json"
 	"myblogx/internal/analytics/adapter/clickhouse"
 	analyticsmysql "myblogx/internal/analytics/adapter/mysql"
-	"myblogx/models"
-	"myblogx/models/enum"
+	"myblogx/internal/testkit/schema"
 	"myblogx/test/testutil"
 	"net/http/httptest"
 	"testing"
@@ -24,7 +23,9 @@ func newDataCtx() (*gin.Context, *httptest.ResponseRecorder) {
 // newDataHandler 用真实 sqlite 组装统计处理器。
 func newDataHandler(t *testing.T) *Handler {
 	t.Helper()
-	db := testutil.SetupSQLite(t, &models.ArticleModel{}, &models.UserModel{}, &models.CommentModel{}, &models.ChatMsgModel{})
+	db := testutil.SetupSQLite(t, schema.Models(
+		schema.UserCore, schema.ArticleCore, schema.Comment, schema.Chat,
+	)...)
 	return NewHandler(
 		clickhouse.Options{},
 		analyticsmysql.NewStats(db),
@@ -51,18 +52,13 @@ func readDataResponse[T any](t *testing.T, w *httptest.ResponseRecorder) T {
 
 func createPublishedByPublishStatusOnlyArticle(t *testing.T, createdAt time.Time) {
 	t.Helper()
-	article := models.ArticleModel{
-		Model: models.Model{
-			CreatedAt: createdAt,
-		},
+	schema.InsertArticle(t, testutil.DB(), schema.ArticleSpec{
 		Title:         "publish-status-only",
 		Content:       "content",
 		AuthorID:      1,
-		PublishStatus: enum.ArticleStatusPublished,
-	}
-	if err := testutil.DB().Create(&article).Error; err != nil {
-		t.Fatalf("创建文章失败: %v", err)
-	}
+		PublishStatus: schema.ArticleStatusPublished,
+		CreatedAt:     createdAt,
+	})
 }
 
 func TestGrowthDataViewCountsEffectivePublishedArticles(t *testing.T) {

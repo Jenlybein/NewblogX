@@ -5,6 +5,7 @@ package mysql_test
 import (
 	"context"
 	"errors"
+	"myblogx/internal/testkit/schema"
 	"testing"
 	"time"
 
@@ -20,37 +21,19 @@ import (
 	"myblogx/internal/article/domain/taxonomy"
 	redis_service "myblogx/internal/platform/redis"
 	"myblogx/internal/testkit/mysqlcontainer"
-	"myblogx/models"
-	"myblogx/models/ctype"
 )
 
-// migrate 按业务依赖顺序建表。
+// migrate 按业务依赖顺序建表（表结构来源见 internal/testkit/schema）。
 //
-// 不能用 AutoMigrate 一次性传入全部模型：MySQL 会因外键顺序报错。
+// 顺序不能随意：MySQL 下 AutoMigrate 会建外键，被引用的表必须先存在。
 func migrate(t *testing.T) *gorm.DB {
 	t.Helper()
 	db := mysqlcontainer.DB(t)
-	if err := db.AutoMigrate(
-		&models.UserModel{},
-		&models.UserConfModel{},
-		&models.UserStatModel{},
-		&models.UserSessionModel{},
-		&models.CategoryModel{},
-		&models.TagModel{},
-		&models.ArticleModel{},
-		&models.ArticleTagModel{},
-		&models.ArticleDiggModel{},
-		&models.FavoriteModel{},
-		&models.UserArticleFavorModel{},
-		&models.UserTopArticleModel{},
-		&models.UserArticleViewHistoryModel{},
-		&models.ArticleReviewTaskModel{},
-		&models.CommentModel{},
-		// 写侧会把领域事件插进 outbox 表，缺表会让整笔事务失败。
-		&models.OutboxEventModel{},
-	); err != nil {
-		t.Fatalf("建表失败: %v", err)
-	}
+	schema.Migrate(t, db,
+		schema.UserCore, schema.UserSession, schema.ArticleCore,
+		schema.Favorite, schema.UserReading, schema.ArticleReview,
+		schema.Comment, schema.Outbox,
+	)
 	return db
 }
 
@@ -67,14 +50,11 @@ func seedUsers(t *testing.T, db *gorm.DB) {
 // 不先插用户就没有作者可引用。真库里也一样。
 func seedUser(t *testing.T, db *gorm.DB, id uint64) {
 	t.Helper()
-	u := models.UserModel{}
-	u.ID = ctype.ID(id)
-	u.Username = "user" + strconv.FormatUint(id, 10)
-	u.Nickname = "用户" + strconv.FormatUint(id, 10)
-	u.Password = "x"
-	if err := db.Create(&u).Error; err != nil {
-		t.Fatalf("插入用户 %d 失败: %v", id, err)
-	}
+	schema.InsertUser(t, db, schema.UserSpec{
+		ID:       id,
+		Username: "user" + strconv.FormatUint(id, 10),
+		Nickname: "用户" + strconv.FormatUint(id, 10),
+	})
 }
 
 func newArticle(t *testing.T, id domain.ArticleID, author domain.UserID, status domain.Status) *domain.Article {
@@ -153,7 +133,7 @@ func TestArticleRepoCRUD(t *testing.T) {
 
 	// 硬查确认行还在（软删不是物理删除）
 	var n int64
-	if err := db.Model(&models.ArticleModel{}).Unscoped().Where("id = ?", 1001).Count(&n).Error; err != nil {
+	if err := db.Model(&schema.ArticleRow{}).Unscoped().Where("id = ?", 1001).Count(&n).Error; err != nil {
 		t.Fatalf("统计失败: %v", err)
 	}
 	if n != 1 {

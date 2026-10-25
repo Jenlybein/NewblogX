@@ -122,6 +122,15 @@ jobs:
           cd backend
           go run ./tools/archcheck --mode=error --max-violations="$ARCH_MAX_VIOLATIONS" .
 
+      # 第二遍包含 _test.go：默认的 -skip-tests 会跳过测试文件，
+      # 而测试里 import models 会卡住 M6 的"删 models"，那种违规别处不报警。
+      - name: archcheck (ratchet, 含测试文件)
+        working-directory: .
+        run: |
+          . scripts/arch-baseline.env
+          cd backend
+          go run ./tools/archcheck --mode=error --skip-tests=false --max-violations="$ARCH_MAX_VIOLATIONS" .
+
   # ── 前端 lint（两端解耦，矩阵并行）────────────────────────────────
   frontend-lint:
     name: ${{ matrix.app }} (lint)

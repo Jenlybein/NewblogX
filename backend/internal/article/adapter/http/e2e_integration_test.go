@@ -5,6 +5,7 @@ package http_test
 import (
 	"bytes"
 	"encoding/json"
+	"myblogx/internal/testkit/schema"
 	"net/http"
 	"net/http/httptest"
 	"strconv"
@@ -21,9 +22,7 @@ import (
 	"myblogx/internal/article/domain/favorite"
 	redis_service "myblogx/internal/platform/redis"
 	"myblogx/internal/testkit/mysqlcontainer"
-	"myblogx/models"
 	"myblogx/models/ctype"
-	"myblogx/models/enum"
 	"myblogx/utils/jwts"
 )
 
@@ -44,27 +43,11 @@ func (g *testIDs) NextFolderID() favorite.ID       { return favorite.ID(g.next()
 func migrate(t *testing.T) *gorm.DB {
 	t.Helper()
 	db := mysqlcontainer.DB(t)
-	if err := db.AutoMigrate(
-		&models.UserModel{},
-		&models.UserConfModel{},
-		&models.UserStatModel{},
-		&models.UserSessionModel{},
-		&models.ArticleModel{},
-		&models.ArticleTagModel{},
-		&models.TagModel{},
-		&models.CategoryModel{},
-		&models.ArticleDiggModel{},
-		&models.FavoriteModel{},
-		&models.UserArticleFavorModel{},
-		&models.UserTopArticleModel{},
-		&models.UserArticleViewHistoryModel{},
-		&models.ArticleReviewTaskModel{},
-		&models.CommentModel{},
-		// 写侧会把领域事件插进 outbox 表，缺表会让整笔事务失败。
-		&models.OutboxEventModel{},
-	); err != nil {
-		t.Fatalf("建表失败: %v", err)
-	}
+	schema.Migrate(t, db,
+		schema.UserCore, schema.UserSession, schema.ArticleCore,
+		schema.Favorite, schema.UserReading, schema.ArticleReview,
+		schema.Comment, schema.Outbox,
+	)
 	return db
 }
 
@@ -90,7 +73,7 @@ func newRouterWithIDs(t *testing.T, db *gorm.DB, viewer domain.Viewer, idStart u
 	// 因为 AdminMiddleware 会直接读上下文里的 claims（MustGet 不存在会 panic）。
 	// 实际操作者仍由上面的 viewer 闭包决定，两者互不影响。
 	auth := func(c *gin.Context) {
-		c.Set("claims", &jwts.MyClaims{Claims: jwts.Claims{UserID: ctype.ID(900), Role: enum.RoleAdmin}})
+		c.Set("claims", &jwts.MyClaims{Claims: jwts.Claims{UserID: ctype.ID(900), Role: schema.RoleAdmin}})
 		c.Next()
 	}
 	h.Register(api, auth, auth)
@@ -117,18 +100,16 @@ func rawRequest(t *testing.T, r *gin.Engine, method, path string, body []byte) [
 // seedAuthor 插入作者行（article.author_id 有外键）。
 func seedAuthor(t *testing.T, db *gorm.DB, id uint64) {
 	t.Helper()
-	u := models.UserModel{}
-	u.ID = ctype.ID(id)
-	u.Username = "author"
-	u.Nickname = "作者"
-	u.Password = "x"
 	// 固定时间：作者创建时间会进详情响应（author_created_time），
 	// 不定死的话 golden 每次都变。
-	u.CreatedAt = time.Date(2026, 1, 1, 12, 0, 0, 0, time.UTC)
-	u.UpdatedAt = u.CreatedAt
-	if err := db.Create(&u).Error; err != nil {
-		t.Fatalf("建用户失败: %v", err)
-	}
+	at := time.Date(2026, 1, 1, 12, 0, 0, 0, time.UTC)
+	schema.InsertUser(t, db, schema.UserSpec{
+		ID:        id,
+		Username:  "author",
+		Nickname:  "作者",
+		CreatedAt: at,
+		UpdatedAt: at,
+	})
 }
 
 func do(t *testing.T, r *gin.Engine, method, path string, body []byte) map[string]any {
@@ -156,19 +137,9 @@ func TestDetailEndToEnd(t *testing.T) {
 
 	db := migrate(t)
 
-	// 造作者
-	u := models.UserModel{}
-	u.ID = ctype.ID(100)
-	u.Username = "author"
-	u.Nickname = "作者"
-	u.Password = "x"
-	// 固定时间：作者创建时间会进详情响应（author_created_time），
+	// 造作者。固定时间：作者创建时间会进详情响应（author_created_time），
 	// 不定死的话 golden 每次都变。
-	u.CreatedAt = time.Date(2026, 1, 1, 12, 0, 0, 0, time.UTC)
-	u.UpdatedAt = u.CreatedAt
-	if err := db.Create(&u).Error; err != nil {
-		t.Fatalf("建用户失败: %v", err)
-	}
+	seedAuthor(t, db, 100)
 
 	// 造一篇已发布文章（走真实 app 用例）
 	r := newRouter(t, db, domain.NormalUser(100))

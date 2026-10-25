@@ -40,6 +40,8 @@ func ruleAPINoGorm() Rule {
 		ID:    "R1",
 		Title: "api 层禁止直接使用 *gorm.DB",
 		Level: "error",
+		// 只查生产代码：e2e/golden 测试要建表造数据，天然会拿 *gorm.DB。
+		ProductionOnly: true,
 		Check: func(fset *token.FileSet, file *ast.File, rel string) []Violation {
 			if !isAPILayer(rel) {
 				return nil
@@ -251,6 +253,8 @@ func ruleNoBareGo() Rule {
 		ID:    "R7",
 		Title: "禁止裸 go 语句（应使用 safego.Go）",
 		Level: "warn",
+		// 只查生产代码：测试里的裸 goroutine panic 只会让这个测试失败，不影响线上。
+		ProductionOnly: true,
 		Check: func(fset *token.FileSet, file *ast.File, rel string) []Violation {
 			// safego 是这条规则的正解实现地：启动裸 goroutine 的那一行必然
 			// 出现在它内部。若连它自己也被拦，规则将无解。豁免范围**精确**
@@ -286,6 +290,9 @@ func ruleNoChineseErrorsNew() Rule {
 		ID:    "R8",
 		Title: "禁止 errors.New 使用中文字面量（应使用 apperr 错误码）",
 		Level: "warn",
+		// 只查生产代码：测试里的中文 errors.New 常是断言用的哨兵错误，
+		// 它不会到达前端，套用错误码只会让测试更难读。
+		ProductionOnly: true,
 		Check: func(fset *token.FileSet, file *ast.File, rel string) []Violation {
 			var out []Violation
 			ast.Inspect(file, func(n ast.Node) bool {

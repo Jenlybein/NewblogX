@@ -5,13 +5,13 @@ package mysql_test
 import (
 	"context"
 	"errors"
+	"myblogx/internal/testkit/schema"
 	"testing"
 
 	"gorm.io/gorm"
 
 	articlemysql "myblogx/internal/article/adapter/mysql"
 	"myblogx/internal/article/app"
-	"myblogx/models"
 )
 
 // TestOutboxWriterTxCommit 事务提交后，事件行必须存在。
@@ -31,15 +31,15 @@ func TestOutboxWriterTxCommit(t *testing.T) {
 		t.Fatalf("提交事务失败: %v", err)
 	}
 
-	var row models.OutboxEventModel
+	var row schema.OutboxRow
 	if err := db.Where("aggregate_id = ?", 7001).Take(&row).Error; err != nil {
 		t.Fatalf("提交后查不到事件行: %v", err)
 	}
 	if row.EventName != app.EventArticlePublished {
 		t.Fatalf("事件名: got=%q want=%q", row.EventName, app.EventArticlePublished)
 	}
-	if row.Status != models.OutboxStatusPending {
-		t.Fatalf("初始状态: got=%s want=%s", row.Status, models.OutboxStatusPending)
+	if row.Status != schema.OutboxStatusPending {
+		t.Fatalf("初始状态: got=%s want=%s", row.Status, schema.OutboxStatusPending)
 	}
 	if row.Payload != `{"article_id":7001}` {
 		t.Fatalf("payload: got=%q", row.Payload)
@@ -70,7 +70,7 @@ func TestOutboxWriterTxRollback(t *testing.T) {
 	}
 
 	var count int64
-	if err := db.Model(&models.OutboxEventModel{}).
+	if err := db.Model(&schema.OutboxRow{}).
 		Where("aggregate_id = ?", 7002).Count(&count).Error; err != nil {
 		t.Fatalf("查询失败: %v", err)
 	}

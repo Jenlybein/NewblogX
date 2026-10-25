@@ -10,7 +10,7 @@ import (
 	"gorm.io/gorm"
 
 	"myblogx/internal/article/domain"
-	"myblogx/models/enum"
+	"myblogx/internal/testkit/schema"
 )
 
 // TestSubdomainEndpointsEndToEnd 逐个子域端点走真实 HTTP + 真 MySQL。
@@ -20,9 +20,9 @@ import (
 // 管理员改可见性、审核任务通过、删除文章。
 func TestSubdomainEndpointsEndToEnd(t *testing.T) {
 	db := migrate(t)
-	seedGoldenUser(t, db, 100, "sd_author", "作者甲", "", "", enum.RoleUser)
-	seedGoldenUser(t, db, 200, "sd_reader", "读者", "", "", enum.RoleUser)
-	seedGoldenUser(t, db, 900, "sd_admin", "管理员", "", "", enum.RoleAdmin)
+	seedGoldenUser(t, db, 100, "sd_author", "作者甲", "", "", schema.RoleUser)
+	seedGoldenUser(t, db, 200, "sd_reader", "读者", "", "", schema.RoleUser)
+	seedGoldenUser(t, db, 900, "sd_admin", "管理员", "", "", schema.RoleAdmin)
 
 	author := newRouterWithIDs(t, db, domain.NormalUser(100), 1000)
 	reader := newRouterWithIDs(t, db, domain.NormalUser(200), 2000)

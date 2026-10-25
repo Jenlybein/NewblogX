@@ -372,7 +372,13 @@ func extraBody(sortField, key string) map[string]any {
 	}
 }
 
-func execute(counters domain.CounterReader, esClient *elasticsearch.Client, req domain.Request, query map[string]any, extra map[string]any, index string) (domain.Response, error) {
+// buildBody 组装发给 ES 的请求体。
+//
+// 单独抽出来是为了能对"最终发出去的 JSON"做 golden：
+// 分页、排序、_source 字段表、highlight 配置分散在几个函数里，
+// 任何一处写错都不会报错，只表现为"某些字段搜不出来 / 高亮没了"。
+// 只测 buildDSL 覆盖不到这些，测整个 body 才算守住契约。
+func buildBody(req domain.Request, query, extra map[string]any) map[string]any {
 	page := req.NormalizePage()
 	limit := req.GetLimit()
 
@@ -386,8 +392,16 @@ func execute(counters domain.CounterReader, esClient *elasticsearch.Client, req 
 		body[k] = v
 	}
 	if req.PageMode == domain.PageModeHasMore {
+		// 多取一条：用来判断"还有没有下一页"，比再查一次总数便宜。
 		body["size"] = limit + 1
 	}
+	return body
+}
+
+func execute(counters domain.CounterReader, esClient *elasticsearch.Client, req domain.Request, query map[string]any, extra map[string]any, index string) (domain.Response, error) {
+	body := buildBody(req, query, extra)
+	// 页面/条数在后面解析响应时还要用（算总页数、拼 has_more），这里再取一次。
+	page, limit := req.NormalizePage(), req.GetLimit()
 
 	resp := es_service.SearchBody(esClient, index, body)
 	if !resp.Success {

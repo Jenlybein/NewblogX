@@ -1399,8 +1399,8 @@ hasMany（`foreignKey:SessionID;references:SessionID`），GORM 因此在
 `chat_session_models.session_id` 上建了一条指向 `chat_msg_models.session_id` 的外键。
 可发第一条消息时"先有会话、后有消息"，这条外键**物理上不可能满足**
 （`chat_msg_models.session_id` 也不是唯一键，本不该被引用）。
-真库若真带着它，私信从第一条起就是坏的。测试里用 `schema.MigrateNoFK` 绕开，
-根治需要改模型声明（属零 DDL 约束范围之外，留待确认）。
+真库若真带着它，私信从第一条起就是坏的。
+**已处理（2026-10-25，见 §35）**：删除该字段，测试改回带真实外键建表。
 
 ### 五、`models/` 还剩什么
 

@@ -305,6 +305,27 @@ type ArticleAuthorInfoResponse struct {
 	Username string   `json:"username"`
 	Nickname string   `json:"nickname"`
 	Avatar   string   `json:"avatar"`
+
+	// 作者卡展示的三项累计值。之前注解写的是空 data、实际也只返回上面四个字段，
+	// 而前端在渲染「文章数 / 访问量 / 粉丝数」，于是这三处恒显示 0。
+	ArticleCount        int `json:"article_count"`
+	ArticleVisitedCount int `json:"article_visited_count"`
+	FansCount           int `json:"fans_count"`
+}
+
+// ArticleTopCardResponse 是「热门置顶」区块的一张卡片。
+//
+// 之前 `/articles/top` 只返回文章 ID 数组，前端却按对象渲染
+// （article.id / article.cover / article.title），于是那块区域整块是空的、
+// 链接指向 /article/undefined。这里补上渲染真正需要的字段。
+type ArticleTopCardResponse struct {
+	ID             ctype.ID `json:"id"`
+	Title          string   `json:"title"`
+	Abstract       string   `json:"abstract"`
+	Cover          string   `json:"cover"`
+	ViewCount      int      `json:"view_count"`
+	AuthorNickname string   `json:"author_nickname"`
+	CategoryTitle  string   `json:"category_title"`
 }
 
 // ArticleDiggResponse 点赞结果。

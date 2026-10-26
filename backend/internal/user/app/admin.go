@@ -158,6 +158,10 @@ type AdminUserItem struct {
 	IP          string
 	Addr        string
 	LastLoginAt time.Time
+	// Role / Status 来自 domain.User。之前没带出去，管理端的「角色」列于是
+	// 永远是空的 —— 列表里看不到，编辑弹窗却能改，两处对不上。
+	Role   domain.Role
+	Status domain.Status
 }
 
 // AdminList 分页查询用户，并附带最后登录信息。
@@ -184,6 +188,8 @@ func (s *Service) AdminList(ctx context.Context, viewer domain.Viewer, q domain.
 			Avatar:    u.Avatar,
 			Username:  u.Username,
 			CreatedAt: u.CreatedAt,
+			Role:      u.Role,
+			Status:    u.Status,
 		}
 		if l, ok := last[u.ID.Uint64()]; ok {
 			item.IP = l.IP

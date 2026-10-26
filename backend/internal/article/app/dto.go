@@ -95,6 +95,13 @@ type AuthorView struct {
 	Avatar    string
 	Abstract  string
 	CreatedAt time.Time
+
+	// 以下三项来自 user_stat_models。文章页右侧的作者卡要显示
+	// 「文章数 / 访问量 / 粉丝数」，之前没有这三个字段，前端拿到的恒为 undefined
+	// （模板里有 `|| 0` 兜底，所以不报错、只是永远显示 0）。
+	ArticleCount        int
+	ArticleVisitedCount int
+	FansCount           int
 }
 
 // TagView 是标签展示信息。

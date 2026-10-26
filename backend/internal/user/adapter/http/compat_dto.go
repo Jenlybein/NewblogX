@@ -100,6 +100,10 @@ type AdminUserItemResponse struct {
 	IP          string    `json:"ip"`
 	Addr        string    `json:"addr"`
 	LastLoginAt time.Time `json:"last_login_at"`
+	// 角色与状态：管理端列表要显示「角色」列，编辑弹窗也要用它回填。
+	// swaggertype 让契约印成 integer 而不是引用一个没有枚举的具名类型。
+	Role   int8 `json:"role" swaggertype:"integer"`
+	Status int8 `json:"status" swaggertype:"integer"`
 }
 
 // AdminCreateResponse 管理员创建用户的返回（旧契约字段名）。

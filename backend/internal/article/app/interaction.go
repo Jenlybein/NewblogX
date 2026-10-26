@@ -208,6 +208,20 @@ func (s *Service) RemoveViewHistory(ctx context.Context, viewer domain.Viewer, a
 	})
 }
 
+// ListTopCards 列出某用户置顶文章的展示卡片。
+//
+// 与 ListTops 的区别：那个只给 ID（设置置顶时前端只需要 ID），
+// 这个给首页「热门置顶」区块直接可渲染的字段。
+func (s *Service) ListTopCards(ctx context.Context, userID domain.UserID) ([]top.Card, error) {
+	var cards []top.Card
+	err := s.tx.WithinTx(ctx, func(ctx context.Context, r Repos) error {
+		var err error
+		cards, err = r.Tops().ListCards(ctx, userID)
+		return err
+	})
+	return cards, err
+}
+
 // ListTops 列出某用户置顶的文章 ID。
 func (s *Service) ListTops(ctx context.Context, userID domain.UserID) ([]domain.ArticleID, error) {
 	var ids []domain.ArticleID

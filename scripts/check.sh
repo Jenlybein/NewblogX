@@ -270,12 +270,21 @@ if [ "$TARGET" = "all" ] || [ "$TARGET" = "frontend" ]; then
       exit "$FAILED"
     ) || FAILED=1
   done
-  # 覆盖率门槛只在读者站生效（管理后台暂无测试）
-  (
-    cd frontend
-    run "frontend: coverage 门槛" corepack pnpm test:coverage
-    exit "$FAILED"
-  ) || FAILED=1
+  # 覆盖率门槛两端都要跑。
+  #
+  # 曾经只跑读者站，注释写着"管理后台暂无测试"—— 那等于 `frontend_admin: test`
+  # 那一项是空转的（vitest 输出 No test files found 并 exit 0），门禁给了
+  # 一个它并没有提供的保障。现在 admin 有了第一批用例，就按同样的口径卡住。
+  #
+  # 注意两端统计范围不同：读者站覆盖 app/ 全量，admin 只覆盖 app/utils/**
+  # （纯逻辑层）。含义是"已测过的不许退化"，而不是拿虚高数字粉饰整站。
+  for app in frontend frontend_admin; do
+    (
+      cd "$app"
+      run "$app: coverage 门槛" corepack pnpm test:coverage
+      exit "$FAILED"
+    ) || FAILED=1
+  done
 fi
 
 if [ "$TARGET" = "all" ] || [ "$TARGET" = "gates" ]; then

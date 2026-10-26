@@ -427,6 +427,26 @@ func (r *TopRepo) ListArticleIDs(_ context.Context, userID domain.UserID) ([]dom
 	return out, nil
 }
 
+// ListCards 列出置顶卡片。
+//
+// 内存实现没有文章表可 join，所以只返回置顶 ID 与 Title 占位——
+// 覆盖的是"接口形状与调用路径"，具体 SQL 投影由集成测试保证。
+func (r *TopRepo) ListCards(_ context.Context, userID domain.UserID) ([]top.Card, error) {
+	r.count.inc("ListCards")
+	if err := r.fault.take("ListCards"); err != nil {
+		return nil, err
+	}
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	var out []top.Card
+	for k := range r.entries {
+		if k.userID == userID {
+			out = append(out, top.Card{ArticleID: k.articleID})
+		}
+	}
+	return out, nil
+}
+
 // Exists 判断是否已置顶。
 func (r *TopRepo) Exists(_ context.Context, userID domain.UserID, articleID domain.ArticleID) (bool, error) {
 	r.count.inc("Exists")

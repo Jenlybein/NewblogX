@@ -4,6 +4,7 @@ import { NAvatar, NButton, NCard, NDataTable, NForm, NFormItem, NGrid, NGridItem
 import { createAdminUser, getAdminUsers, updateAdminUser } from '~/services/admin'
 import type { UserListItem } from '~/types/api'
 import { formatDateTime } from '~/utils/format'
+import { ROLE_USER, roleLabel, roleOptions, statusLabel, statusOptions } from '~/utils/roles'
 
 const message = useMessage()
 const loading = ref(false)
@@ -17,7 +18,7 @@ const editForm = reactive({
   username: '',
   nickname: '',
   abstract: '',
-  role: 1,
+  role: ROLE_USER,
   status: 1,
 })
 
@@ -27,18 +28,6 @@ const createForm = reactive({
   nickname: '',
   email: '',
 })
-
-const roleOptions = [
-  { label: '普通用户', value: 1 },
-  { label: '管理员', value: 2 },
-  { label: '超级管理员', value: 3 },
-]
-
-const statusOptions = [
-  { label: '正常', value: 1 },
-  { label: '禁用', value: 2 },
-  { label: '封禁', value: 3 },
-]
 
 const columns = [
   {
@@ -85,21 +74,14 @@ const columns = [
   },
 ]
 
-function roleLabel(value?: number) {
-  return ({ 1: '用户', 2: '管理员', 3: '超管' } as Record<number, string>)[value || 1] || '用户'
-}
-
-function statusLabel(value?: number) {
-  return ({ 1: '正常', 2: '禁用', 3: '封禁' } as Record<number, string>)[value || 1] || '正常'
-}
-
 function selectUser(row: UserListItem) {
   selected.value = row
   editForm.user_id = row.id
   editForm.username = row.username
   editForm.nickname = row.nickname
   editForm.abstract = ''
-  editForm.role = row.role || 1
+  // 缺省按注册用户，绝不默认成管理员。
+  editForm.role = row.role || ROLE_USER
   editForm.status = row.status || 1
 }
 

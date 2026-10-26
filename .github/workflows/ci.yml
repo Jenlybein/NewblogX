@@ -131,6 +131,44 @@ jobs:
           cd backend
           go run ./tools/archcheck --mode=error --skip-tests=false --max-violations="$ARCH_MAX_VIOLATIONS" .
 
+  # ── 契约：生成产物必须与代码注解一致 ────────────────────────────────
+  # 为什么需要这个 job：契约是前后端唯一的耦合点。有人改了 Go 注解却忘了
+  # 跑 `make openapi`，docs/swagger.json 就会静默过期，前端类型照着过期契约
+  # 生成 —— 门禁全绿，但契约是错的，而且没有任何信号。
+  #
+  # 判据是"重新生成后 git 无差异"，而不是"能生成"。
+  contract:
+    name: backend (contract up-to-date)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache-dependency-path: backend/go.sum
+
+      # 必须与 Makefile 注释里写的版本一致，否则产物格式会漂移。
+      - name: 安装 swag v2
+        run: go install github.com/swaggo/swag/v2/cmd/swag@v2.0.0-rc6
+
+      - name: 重新生成契约
+        run: make openapi
+
+      - name: 契约必须与提交内容一致
+        working-directory: .
+        run: |
+          if ! git diff --exit-code backend/docs/swagger.json; then
+            echo ""
+            echo "✗ docs/swagger.json 与代码注解不一致。"
+            echo "  请在本地执行 cd backend && make openapi 并提交产物。"
+            echo "  否则前端类型会照着过期契约生成，门禁却全绿。"
+            exit 1
+          fi
+
   # ── 前端 lint（两端解耦，矩阵并行）────────────────────────────────
   frontend-lint:
     name: ${{ matrix.app }} (lint)
@@ -214,9 +252,10 @@ jobs:
 
       - run: pnpm install --frozen-lockfile
 
-      # 管理后台当前 0 用例，vitest 配置里开了 passWithNoTests，
-      # 保证"还没有测试"不会挡住流水线，但一旦有人加测试就必须通过。
-      - run: pnpm test
+      # 跑测试并卡覆盖率门槛（两端配置各自的统计范围）。
+      # 曾经这里只跑 `pnpm test`：管理后台 0 用例 + passWithNoTests，
+      # 那一项等于空转 —— 门禁给了一个它并没有提供的保障。
+      - run: pnpm test:coverage
 
   # ── 门禁自检：故意注入失败，CI 必须变红 ───────────────────────────
   # 这个 job 存在的意义：证明上面所有 job 真的会失败。

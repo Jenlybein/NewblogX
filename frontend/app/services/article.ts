@@ -1,7 +1,10 @@
-import type { ArticleAuthorInfo, ArticleCreateResult, ArticleDetail, ArticleTopItem, ArticleWritePayload } from "~/types/api";
+import type { RequiredSchema } from "~/types/contract";
+import type { ArticleAuthorInfo, ArticleCreateResult, ArticleDetail, ArticleWritePayload } from "~/types/api";
 
 export function getTopArticles() {
-  return useNuxtApp().$api.request<{ list: ArticleTopItem[]; count: number }>("/api/articles/top", {
+  return useNuxtApp().$api.request<
+    RequiredSchema<"myblogx_internal_kernel.ListData-internal_article_adapter_http_ArticleTopCardResponse">
+  >("/api/articles/top", {
     auth: false,
     query: {
       type: 2,

@@ -714,7 +714,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["myblogx_internal_kernel.Envelope-myblogx_internal_kernel_ListData-internal_article_adapter_http_FavoriteArticleListItem"];
+                        "application/json": components["schemas"]["myblogx_internal_kernel.Envelope-myblogx_internal_kernel_HasMoreListData-internal_article_adapter_http_FavoriteArticleListItem"];
                     };
                 };
             };
@@ -780,7 +780,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["myblogx_internal_kernel.Envelope-myblogx_internal_kernel_ListData-internal_article_adapter_http_ArticleViewHistoryItem"];
+                        "application/json": components["schemas"]["myblogx_internal_kernel.Envelope-myblogx_internal_kernel_HasMoreListData-internal_article_adapter_http_ArticleViewHistoryItem"];
                     };
                 };
             };
@@ -969,7 +969,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["myblogx_internal_kernel.Envelope-myblogx_internal_kernel_ListData-string"];
+                        "application/json": components["schemas"]["myblogx_internal_kernel.Envelope-myblogx_internal_kernel_ListData-internal_article_adapter_http_ArticleTopCardResponse"];
                     };
                 };
             };
@@ -1595,7 +1595,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["myblogx_internal_kernel.Envelope-myblogx_internal_kernel_EmptyData"];
+                        "application/json": components["schemas"]["myblogx_internal_kernel.Envelope-internal_chat_adapter_http_WsTicketResponse"];
                     };
                 };
             };
@@ -1731,7 +1731,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["myblogx_internal_kernel.Envelope-myblogx_internal_kernel_EmptyData"];
+                        "application/json": components["schemas"]["myblogx_internal_kernel.Envelope-internal_comment_adapter_http_ReplyListResponse"];
                     };
                 };
             };
@@ -3237,7 +3237,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["myblogx_internal_kernel.Envelope-myblogx_internal_kernel_EmptyData"];
+                        "application/json": components["schemas"]["myblogx_internal_kernel.Envelope-myblogx_internal_kernel_SiteConfigData"];
                     };
                 };
             };
@@ -3384,7 +3384,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["myblogx_internal_kernel.Envelope-myblogx_internal_kernel_EmptyData"];
+                        "application/json": components["schemas"]["myblogx_internal_kernel.Envelope-myblogx_internal_kernel_SiteConfigData"];
                     };
                 };
             };
@@ -4705,7 +4705,14 @@ export interface components {
             user_count?: number;
         };
         "internal_article_adapter_http.ArticleAuthorInfoResponse": {
+            /**
+             * @description 作者卡展示的三项累计值。之前注解写的是空 data、实际也只返回上面四个字段，
+             *     而前端在渲染「文章数 / 访问量 / 粉丝数」，于是这三处恒显示 0。
+             */
+            article_count?: number;
+            article_visited_count?: number;
             avatar?: string;
+            fans_count?: number;
             id?: string;
             nickname?: string;
             username?: string;
@@ -4798,6 +4805,15 @@ export interface components {
         };
         /** @enum {integer} */
         "internal_article_adapter_http.ArticleStatus": 1 | 2 | 3 | 4;
+        "internal_article_adapter_http.ArticleTopCardResponse": {
+            abstract?: string;
+            author_nickname?: string;
+            category_title?: string;
+            cover?: string;
+            id?: string;
+            title?: string;
+            view_count?: number;
+        };
         "internal_article_adapter_http.ArticleTopSetRequest": {
             article_ids: string[];
         };
@@ -4942,10 +4958,19 @@ export interface components {
             new_password: string;
             old_password: string;
         };
+        "internal_chat_adapter_http.WsTicketResponse": {
+            ticket?: string;
+        };
         "internal_comment_adapter_http.CreateRequest": {
             article_id: string;
             content: string;
             reply_id?: string;
+        };
+        "internal_comment_adapter_http.ReplyListResponse": {
+            has_more?: boolean;
+            list?: components["schemas"]["myblogx_internal_comment_app.ReplyItem"][];
+            reply_count?: number;
+            root_id?: string;
         };
         "internal_media_adapter_http.CompleteTaskRequest": {
             object_key: string;
@@ -5147,6 +5172,12 @@ export interface components {
             ip?: string;
             last_login_at?: string;
             nickname?: string;
+            /**
+             * @description 角色与状态：管理端列表要显示「角色」列，编辑弹窗也要用它回填。
+             *     swaggertype 让契约印成 integer 而不是引用一个没有枚举的具名类型。
+             */
+            role?: number;
+            status?: number;
             username?: string;
         };
         "internal_user_adapter_http.BaseInfoResponse": {
@@ -5366,6 +5397,21 @@ export interface components {
             user_id?: string;
             user_nickname?: string;
         };
+        "myblogx_internal_comment_app.ReplyItem": {
+            content?: string;
+            created_at?: string;
+            digg_count?: number;
+            id?: string;
+            is_digg?: boolean;
+            relation?: number;
+            reply_count?: number;
+            reply_id?: string;
+            reply_user_nickname?: string;
+            status?: number;
+            user_avatar?: string;
+            user_id?: string;
+            user_nickname?: string;
+        };
         "myblogx_internal_comment_app.RootItem": {
             content?: string;
             created_at?: string;
@@ -5440,6 +5486,16 @@ export interface components {
         "myblogx_internal_kernel.Envelope-internal_auth_adapter_http_SendEmailResponse": {
             code?: number;
             data?: components["schemas"]["internal_auth_adapter_http.SendEmailResponse"];
+            msg?: string;
+        };
+        "myblogx_internal_kernel.Envelope-internal_chat_adapter_http_WsTicketResponse": {
+            code?: number;
+            data?: components["schemas"]["internal_chat_adapter_http.WsTicketResponse"];
+            msg?: string;
+        };
+        "myblogx_internal_kernel.Envelope-internal_comment_adapter_http_ReplyListResponse": {
+            code?: number;
+            data?: components["schemas"]["internal_comment_adapter_http.ReplyListResponse"];
             msg?: string;
         };
         "myblogx_internal_kernel.Envelope-internal_media_adapter_http_CompleteTaskResponse": {
@@ -5537,6 +5593,16 @@ export interface components {
             data?: components["schemas"]["myblogx_internal_kernel.EmptyData"];
             msg?: string;
         };
+        "myblogx_internal_kernel.Envelope-myblogx_internal_kernel_HasMoreListData-internal_article_adapter_http_ArticleViewHistoryItem": {
+            code?: number;
+            data?: components["schemas"]["myblogx_internal_kernel.HasMoreListData-internal_article_adapter_http_ArticleViewHistoryItem"];
+            msg?: string;
+        };
+        "myblogx_internal_kernel.Envelope-myblogx_internal_kernel_HasMoreListData-internal_article_adapter_http_FavoriteArticleListItem": {
+            code?: number;
+            data?: components["schemas"]["myblogx_internal_kernel.HasMoreListData-internal_article_adapter_http_FavoriteArticleListItem"];
+            msg?: string;
+        };
         "myblogx_internal_kernel.Envelope-myblogx_internal_kernel_HasMoreListData-internal_notification_adapter_http_GlobalListResponse": {
             code?: number;
             data?: components["schemas"]["myblogx_internal_kernel.HasMoreListData-internal_notification_adapter_http_GlobalListResponse"];
@@ -5567,19 +5633,14 @@ export interface components {
             data?: components["schemas"]["myblogx_internal_kernel.HasMoreListData-myblogx_internal_social_domain_FollowingItem"];
             msg?: string;
         };
-        "myblogx_internal_kernel.Envelope-myblogx_internal_kernel_ListData-internal_article_adapter_http_ArticleViewHistoryItem": {
+        "myblogx_internal_kernel.Envelope-myblogx_internal_kernel_ListData-internal_article_adapter_http_ArticleTopCardResponse": {
             code?: number;
-            data?: components["schemas"]["myblogx_internal_kernel.ListData-internal_article_adapter_http_ArticleViewHistoryItem"];
+            data?: components["schemas"]["myblogx_internal_kernel.ListData-internal_article_adapter_http_ArticleTopCardResponse"];
             msg?: string;
         };
         "myblogx_internal_kernel.Envelope-myblogx_internal_kernel_ListData-internal_article_adapter_http_CategoryListItem": {
             code?: number;
             data?: components["schemas"]["myblogx_internal_kernel.ListData-internal_article_adapter_http_CategoryListItem"];
-            msg?: string;
-        };
-        "myblogx_internal_kernel.Envelope-myblogx_internal_kernel_ListData-internal_article_adapter_http_FavoriteArticleListItem": {
-            code?: number;
-            data?: components["schemas"]["myblogx_internal_kernel.ListData-internal_article_adapter_http_FavoriteArticleListItem"];
             msg?: string;
         };
         "myblogx_internal_kernel.Envelope-myblogx_internal_kernel_ListData-internal_article_adapter_http_FavoriteListItem": {
@@ -5652,9 +5713,9 @@ export interface components {
             data?: components["schemas"]["myblogx_internal_kernel.ListData-myblogx_internal_user_domain_User"];
             msg?: string;
         };
-        "myblogx_internal_kernel.Envelope-myblogx_internal_kernel_ListData-string": {
+        "myblogx_internal_kernel.Envelope-myblogx_internal_kernel_SiteConfigData": {
             code?: number;
-            data?: components["schemas"]["myblogx_internal_kernel.ListData-string"];
+            data?: components["schemas"]["myblogx_internal_kernel.SiteConfigData"];
             msg?: string;
         };
         "myblogx_internal_kernel.Envelope-myblogx_internal_search_domain_Response": {
@@ -5687,6 +5748,14 @@ export interface components {
             data?: string;
             msg?: string;
         };
+        "myblogx_internal_kernel.HasMoreListData-internal_article_adapter_http_ArticleViewHistoryItem": {
+            has_more?: boolean;
+            list?: components["schemas"]["internal_article_adapter_http.ArticleViewHistoryItem"][];
+        };
+        "myblogx_internal_kernel.HasMoreListData-internal_article_adapter_http_FavoriteArticleListItem": {
+            has_more?: boolean;
+            list?: components["schemas"]["internal_article_adapter_http.FavoriteArticleListItem"][];
+        };
         "myblogx_internal_kernel.HasMoreListData-internal_notification_adapter_http_GlobalListResponse": {
             has_more?: boolean;
             list?: components["schemas"]["internal_notification_adapter_http.GlobalListResponse"][];
@@ -5714,17 +5783,13 @@ export interface components {
         "myblogx_internal_kernel.IDListRequest": {
             id_list: string[];
         };
-        "myblogx_internal_kernel.ListData-internal_article_adapter_http_ArticleViewHistoryItem": {
+        "myblogx_internal_kernel.ListData-internal_article_adapter_http_ArticleTopCardResponse": {
             count?: number;
-            list?: components["schemas"]["internal_article_adapter_http.ArticleViewHistoryItem"][];
+            list?: components["schemas"]["internal_article_adapter_http.ArticleTopCardResponse"][];
         };
         "myblogx_internal_kernel.ListData-internal_article_adapter_http_CategoryListItem": {
             count?: number;
             list?: components["schemas"]["internal_article_adapter_http.CategoryListItem"][];
-        };
-        "myblogx_internal_kernel.ListData-internal_article_adapter_http_FavoriteArticleListItem": {
-            count?: number;
-            list?: components["schemas"]["internal_article_adapter_http.FavoriteArticleListItem"][];
         };
         "myblogx_internal_kernel.ListData-internal_article_adapter_http_FavoriteListItem": {
             count?: number;
@@ -5782,9 +5847,8 @@ export interface components {
             count?: number;
             list?: components["schemas"]["myblogx_internal_user_domain.User"][];
         };
-        "myblogx_internal_kernel.ListData-string": {
-            count?: number;
-            list?: string[];
+        "myblogx_internal_kernel.SiteConfigData": {
+            [key: string]: unknown;
         };
         /** @enum {integer} */
         "myblogx_internal_search_domain.ArticleStatus": 1 | 2 | 3 | 4;
@@ -5845,7 +5909,7 @@ export interface components {
             user?: boolean;
         };
         /** @enum {string} */
-        "myblogx_internal_search_domain.VisibilityStatus": "visible";
+        "myblogx_internal_search_domain.VisibilityStatus": "visible" | "user_hidden" | "admin_hidden";
         "myblogx_internal_social_domain.FansItem": {
             fans_abstract?: string;
             fans_avatar?: string;

@@ -406,7 +406,7 @@ func (h *Handler) RemoveFavoriteItems(c *gin.Context) {
 // @Tags article
 // @Produce json
 // @Param user_id query string false "用户 ID"
-// @Success 200 {object} kernel.Envelope[kernel.ListData[string]]
+// @Success 200 {object} kernel.Envelope[kernel.ListData[ArticleTopCardResponse]]
 // @Router /articles/top [get]
 func (h *Handler) Tops(c *gin.Context) {
 	cr := middleware.GetBindQuery[ArticleTopListRequest](c)
@@ -415,12 +415,24 @@ func (h *Handler) Tops(c *gin.Context) {
 	if target.IsZero() {
 		target = h.viewerOf(c).UserID
 	}
-	ids, err := h.svc.ListTops(c.Request.Context(), target)
+	cards, err := h.svc.ListTopCards(c.Request.Context(), target)
 	if err != nil {
 		h.fail(c, err)
 		return
 	}
-	res.OkWithList(ids, len(ids), c)
+	out := make([]ArticleTopCardResponse, 0, len(cards))
+	for _, card := range cards {
+		out = append(out, ArticleTopCardResponse{
+			ID:             ctype.ID(card.ArticleID),
+			Title:          card.Title,
+			Abstract:       card.Abstract,
+			Cover:          card.Cover,
+			ViewCount:      card.ViewCount,
+			AuthorNickname: card.AuthorNickname,
+			CategoryTitle:  card.CategoryTitle,
+		})
+	}
+	res.OkWithList(out, len(out), c)
 }
 
 // SetTop 批量置顶。
@@ -620,10 +632,13 @@ func (h *Handler) AuthorInfo(c *gin.Context) {
 		return
 	}
 	res.OkWithData(ArticleAuthorInfoResponse{
-		ID:       profile.ID,
-		Username: profile.Username,
-		Nickname: profile.Nickname,
-		Avatar:   profile.Avatar,
+		ID:                  profile.ID,
+		Username:            profile.Username,
+		Nickname:            profile.Nickname,
+		Avatar:              profile.Avatar,
+		ArticleCount:        profile.ArticleCount,
+		ArticleVisitedCount: profile.ArticleVisitedCount,
+		FansCount:           profile.FansCount,
 	}, c)
 }
 

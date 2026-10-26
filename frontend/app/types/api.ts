@@ -107,21 +107,15 @@ export type SearchArticleItem = RequiredSchema<"myblogx_internal_search_domain.I
 
 export type SearchArticleResponse = RequiredSchema<"myblogx_internal_search_domain.Response">;
 
-export interface ArticleTopItem {
-  id: string;
-  title: string;
-  abstract: string;
-  cover: string;
-  view_count: number;
-  digg_count: number;
-  comment_count: number;
-  favor_count: number;
-  tags: string[];
-  user_nickname: string;
-  user_avatar: string;
-  category_title: string;
-}
-
+/**
+ * 首页「热门置顶」区块的一张卡片。
+ *
+ * 之前这里写着 12 个字段（含 tags / digg_count 等），但 `/articles/top` 实际
+ * 返回的是**文章 ID 字符串数组**，于是模板里的 `article.id`、`article.cover`、
+ * `article.title` 全是 undefined，整块区域是空的、链接指向 `/article/undefined`。
+ * 现在后端改返回卡片，类型直接派生自契约。
+ */
+export type ArticleTopItem = RequiredSchema<"internal_article_adapter_http.ArticleTopCardResponse">;
 // ArticleUpdateRequest 全是指针（PATCH 语义：null 表示清空该字段）。
 export type ArticleWritePayload = Nullable<
   Schema<"internal_article_adapter_http.ArticleUpdateRequest">,
@@ -149,35 +143,27 @@ export type CommentReplyListData = RequiredSchema<"internal_comment_adapter_http
 /**
  * 用户主页的展示信息。
  *
- * 契约里 `BaseInfoResponse` 有 21 个字段，但**没有** `digg_count` /
- * `favor_count` / `comment_count` —— 而 `ProfileHeroCard.vue` 会渲染
- * 「点赞 / 收藏 / 评论」三个数字。于是这三项**恒显示 0**。
- * 这里显式标成可选并注明"后端不返回"，不擅自删 UI，等产品决定是补后端聚合还是撤掉这三项。
+ * `avatar_image_id` 必须放回可选：它在 Go 里是 `*ctype.ID` 且带 `omitempty`，
+ * 空值时**字段整个不出现在 JSON 里**（不是 `null`）。这类"omitempty 指针"字段
+ * 用 `RequiredSchema` 会导致构造对象字面量时被迫编造一个值。
+ *
+ * 曾经这里还挂着 `digg_count` / `favor_count` / `comment_count` 三个可选字段，
+ * 用来迁就 `ProfileHeroCard` 的三项展示。但后端从来没有这三个累计值，
+ * 那三项于是恒显示 0；现已撤掉 UI 与这三个字段，不再在类型里留缺口。
  */
-// 注意不能用 OptionalFields 包那三个——它会要求 K 是契约里已有的键，而它们本来就不存在。
-//
-// `avatar_image_id` 必须放回可选：它在 Go 里是 `*ctype.ID` 且带 `omitempty`，
-// 空值时**字段整个不出现在 JSON 里**（不是 `null`）。这类"omitempty 指针"字段
-// 用 `RequiredSchema` 会导致构造对象字面量时被迫编造一个值。
 export type UserBaseInfo = OptionalFields<
   RequiredSchema<"internal_user_adapter_http.BaseInfoResponse">,
   "avatar_image_id"
-> & {
-  /** 后端当前不返回，恒为 undefined（模板里有 `|| 0` 兜底）。 */
-  digg_count?: number
-  /** 后端当前不返回，恒为 undefined。 */
-  favor_count?: number
-  /** 后端当前不返回，恒为 undefined。 */
-  comment_count?: number
-}
+>
 
-export interface ArticleAuthorInfo {
-  author_id: string;
-  article_count: number;
-  article_visited_count: number;
-  fans_count: number;
-}
-
+/**
+ * 文章页右侧的作者卡。
+ *
+ * 后端现在返回 `{id, username, nickname, avatar, article_count,
+ * article_visited_count, fans_count}`；之前只返回前四个，而页面在渲染
+ * 「文章数 / 访问量 / 粉丝数」，所以那三项恒为 0。
+ */
+export type ArticleAuthorInfo = RequiredSchema<"internal_article_adapter_http.ArticleAuthorInfoResponse">;
 export type UserSelfDetail = RequiredSchema<"myblogx_internal_user_app.DetailView">;
 
 /**

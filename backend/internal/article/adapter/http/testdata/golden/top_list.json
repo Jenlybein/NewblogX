@@ -1,1 +1,1 @@
-{"code":0,"data":{"count":3,"list":["1019","1011","1003"]},"msg":"成功"}
+{"code":0,"data":{"count":3,"list":[{"id":"1019","title":"文章19","abstract":"摘要19","cover":"","view_count":180,"author_nickname":"作者乙","category_title":"后端"},{"id":"1011","title":"文章11","abstract":"摘要11","cover":"","view_count":100,"author_nickname":"作者甲","category_title":"前端"},{"id":"1003","title":"文章03","abstract":"摘要03","cover":"","view_count":20,"author_nickname":"作者甲","category_title":"其他"}]},"msg":"成功"}

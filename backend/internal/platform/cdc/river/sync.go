@@ -87,9 +87,25 @@ func (h *eventHandler) OnRow(e *canal.RowsEvent) error {
 
 	if handled, err := h.r.handleArticleSearchProjectionEvent(e); handled {
 		if err != nil {
+			// 记死信后**继续跑**，不 cancel、也不把 error 抛给 canal。
+			//
+			// 以前是"失败即停"（saveProjectionErrorToDLQ + cancel + return error）：
+			// 因为投影死信里只有表名和行数、没有主键，补不回来 —— 停下来是当时唯一能
+			// 保证"这次变更不丢"的办法。代价是**一篇文章失败，整条 MySQL→ES 同步永久停摆**
+			// （River.Run 只在装配时调用一次，没有重启监督），而 API 还照常服务、
+			// 没人会知道。
+			//
+			// 现在死信带着行主键，可以按主键重算（ProjectionReplayer）。所以取舍变了：
+			// 从"全站搜索停止更新"降到"这几篇文档晚几分钟才正确"。
+			//
+			// 两个细节都不能省：
+			//   1. 必须返回 nil —— OnRow 返回 error 会让 canal 整体退出，和 cancel 一样是停摆；
+			//   2. 必须留一条 error 日志 —— 死信页是"事后"看的，日志是"当时"看的。
 			h.r.saveProjectionErrorToDLQ(e, err)
-			h.r.cancel()
-			return errors.Errorf("处理文章搜索读模型事件失败: 表=%s 动作=%s 错误=%v", e.Table.Name, e.Action, err)
+			if h.r.log != nil {
+				h.r.log.Errorf("文章搜索投影失败，已写入 DLQ 并继续同步: 表=%s 动作=%s 错误=%v",
+					e.Table.Name, e.Action, err)
+			}
 		}
 		return h.r.ctx.Err()
 	}

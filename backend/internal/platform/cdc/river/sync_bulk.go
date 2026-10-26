@@ -228,11 +228,19 @@ func (r *River) saveProjectionErrorToDLQ(e *canal.RowsEvent, err error) {
 	sourceTable := schemaName + "." + tableName
 	cdcJobID := buildCDCJobID(stream, schemaName, tableName, pos, 0)
 
+	// ids 是**重投的定位依据**：没有它，死信只知道"这张表出过错"，不知道是哪几行，
+	// 于是只能全量重建索引（几分钟、期间新旧文档混杂）。
+	//
+	// 为什么在落死信时就记、而不是重投时再猜：binlog 事件此刻才在手，
+	// 重投发生在几小时后，那时再从"表名+动作+时间"反推是不可能可靠的。
+	ids := collectRowsIDs(e, projectionIDColumn(tableName))
+
 	payload := map[string]any{
 		"schema":   schemaName,
 		"table":    tableName,
 		"action":   e.Action,
 		"rowCount": len(e.Rows),
+		"ids":      ids,
 	}
 
 	saveErr := deadletter.SaveBatch(r.db, []deadletter.Item{{

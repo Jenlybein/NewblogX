@@ -8,7 +8,7 @@ require (
 	github.com/blackstork-io/goldmark-markdown v0.1.3
 	github.com/bwmarrin/snowflake v0.3.0
 	github.com/elastic/go-elasticsearch/v7 v7.17.10
-	github.com/gabriel-vasile/mimetype v1.4.12
+	github.com/gabriel-vasile/mimetype v1.4.12 // indirect
 	github.com/gin-contrib/cors v1.7.6
 	github.com/gin-gonic/gin v1.11.0
 	github.com/go-co-op/gocron/v2 v2.19.1
@@ -27,11 +27,10 @@ require (
 	github.com/mojocn/base64Captcha v1.3.8
 	github.com/pingcap/errors v0.11.5-0.20250318082626-8f80e5cb09ec
 	github.com/qiniu/go-sdk/v7 v7.25.5
-	github.com/segmentio/kafka-go v0.4.50
 	github.com/sirupsen/logrus v1.9.3
 	github.com/yuin/goldmark v1.7.16
 	golang.org/x/crypto v0.46.0
-	golang.org/x/image v0.34.0
+	golang.org/x/image v0.34.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1
 	gorm.io/driver/mysql v1.6.0
 	gorm.io/driver/sqlite v1.6.0

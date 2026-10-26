@@ -55,9 +55,10 @@ func WireAnalytics(infra *Infra) {
 //
 // 两个执行器分别负责一类 stream：
 //   - es_river：用死信里的 ES bulk body 重投（幂等，按文档 ID）
+//   - es_projection：按死信里的行主键重算投影（重算到当前正确状态，幂等）
 //   - outbox_relay：把发件箱行退回 pending，交给中继按自己的退避重投
 //   - image_ref_river：只支持删除类（payload 里有 owner_id + ref_type），
-//     新增/更新类的行数据经 JSON 往返后类型不可靠，执行器会明确拒绝
+//     新增/更新类的行数据经 JSON 往返后类型不可靠，执行器会返回 ErrUnsupported
 //
 // 回放日志通过 Emit 接到统一的日志管道（ClickHouse），这样管理端的
 // 「回放日志」页第一次真正有数据，且同一条死信有完整时间线。
@@ -77,6 +78,7 @@ func newDeadLetterReplayer(infra *Infra) *dlq.Service {
 		},
 		Replayers: []dlq.Replayer{
 			river.NewESReplayer(infra.ESClient),
+			river.NewProjectionReplayer(infra.DB, infra.ESClient),
 			outboxrelay.NewReplayer(infra.DB),
 			imageref.NewReplayer(infra.DB),
 		},

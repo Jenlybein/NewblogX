@@ -319,27 +319,28 @@ jobs:
       - uses: actions/setup-go@v5
         with:
           go-version: ${{ env.GO_VERSION }}
+          cache-dependency-path: backend/go.sum
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
 
       # 只有在 PR 标题带 [canary] 时才验证"能变红"，
-      # 避免每次 PR 都付出额外 5 分钟。
+      # 避免每次 PR 都付出额外几分钟。
+      #
+      # 这里**调用与本地同一个脚本**，而不是在 YAML 里另写一份注入逻辑。
+      # 之前 CI 只注入了"一个必败测试"，等于 11 道门禁里只验证了 1 道 ——
+      # 而两处各写一份的必然结果是口径漂移（本地 11 道、CI 1 道，没人知道该信哪个）。
       - name: 仅在 canary PR 上验证门禁有效性
         if: contains(github.event.pull_request.title, '[canary]')
-        working-directory: backend
+        env:
+          CGO_ENABLED: "1"
         run: |
-          echo "== 注入一个必然失败的测试，若 CI 仍绿说明门禁失效 =="
-          mkdir -p internal/canary
-          cat > internal/canary/canary_test.go <<'EOF'
-          package canary
-
-          import "testing"
-
-          func TestMustFail(t *testing.T) {
-          	t.Fatal("canary: 这个测试必须失败，否则说明 CI 门禁没有生效")
-          }
-          EOF
-          if go test ./internal/canary/... ; then
-            echo "::error::门禁失效：注入的失败测试竟然通过了"
-            exit 1
-          else
-            echo "门禁有效：失败测试被正确捕获"
-          fi
+          go install github.com/swaggo/swag/v2/cmd/swag@v2.0.0-rc6
+          ( cd frontend && pnpm install --frozen-lockfile )
+          ( cd frontend_admin && pnpm install --frozen-lockfile )
+          bash scripts/verify-gates.sh

@@ -22,7 +22,7 @@
 #
 services:
   mysql-master:
-    image: mysql:5.7
+    image: mysql:8.0
     container_name: mysql-master
     restart: always
     privileged: true
@@ -35,8 +35,23 @@ services:
       BLOGX_DB_REPL_USER: ${BLOGX_DB_REPL_USER}
       BLOGX_DB_REPL_PASSWORD: ${BLOGX_DB_REPL_PASSWORD}
     command: null
+    # my.cnf 必须先复制成 644 再让 MySQL 读，不能直接挂到 /etc/mysql/my.cnf。
+    #
+    # MySQL 会**忽略**"所有用户可写"的配置文件，而且只打一行警告不报错：
+    #   World-writable config file '/etc/mysql/my.cnf' is ignored
+    # 被忽略的后果不是"少个优化项"，而是 gtid_mode=ON 静默失效 →
+    # 从库那条 SOURCE_AUTO_POSITION=1 直接报 1777，主从复制起不来。
+    # Windows 上 Docker Desktop 把挂载文件映射成 777，本地必踩；
+    # 复制到容器内再 chmod 644 后，Windows 与 Linux 行为一致。
+    entrypoint:
+    - /bin/sh
+    - -c
+    - |
+      cp /etc/mysql/my.cnf.from-host /etc/mysql/my.cnf
+      chmod 644 /etc/mysql/my.cnf
+      exec docker-entrypoint.sh mysqld
     volumes:
-    - ../../docker/mysql/master/my.cnf:/etc/mysql/my.cnf
+    - ../../docker/mysql/master/my.cnf:/etc/mysql/my.cnf.from-host:ro
     - ../../state/mysql/master/mysql-files:/var/lib/mysql-files
     - ../../state/mysql/master/data:/var/lib/mysql
     - ../../state/mysql/master/log:/var/log/
@@ -62,7 +77,7 @@ services:
           cpus: '2.0'
           memory: 2G
   mysql-slave:
-    image: mysql:5.7
+    image: mysql:8.0
     container_name: mysql-slave
     restart: always
     privileged: true
@@ -75,8 +90,16 @@ services:
       BLOGX_DB_REPL_USER: ${BLOGX_DB_REPL_USER}
       BLOGX_DB_REPL_PASSWORD: ${BLOGX_DB_REPL_PASSWORD}
     command: null
+    # 与 mysql-master 同款包装，理由见上面的注释（world-writable 会被忽略）。
+    entrypoint:
+    - /bin/sh
+    - -c
+    - |
+      cp /etc/mysql/my.cnf.from-host /etc/mysql/my.cnf
+      chmod 644 /etc/mysql/my.cnf
+      exec docker-entrypoint.sh mysqld
     volumes:
-    - ../../docker/mysql/slave/my.cnf:/etc/mysql/my.cnf
+    - ../../docker/mysql/slave/my.cnf:/etc/mysql/my.cnf.from-host:ro
     - ../../state/mysql/slave/mysql-files:/var/lib/mysql-files
     - ../../state/mysql/slave/data:/var/lib/mysql
     - ../../state/mysql/slave/log:/var/log/
@@ -253,11 +276,6 @@ services:
       BLOGX_REDIS_USERNAME: ${BLOGX_REDIS_USERNAME}
       BLOGX_REDIS_PASSWORD: ${BLOGX_REDIS_PASSWORD}
       BLOGX_REDIS_DB: ${BLOGX_REDIS_DB}
-      BLOGX_KAFKA_BROKERS: ${BLOGX_KAFKA_BROKERS}
-      BLOGX_KAFKA_TOPIC: ${BLOGX_KAFKA_TOPIC}
-      BLOGX_KAFKA_GROUP_ID: ${BLOGX_KAFKA_GROUP_ID}
-      BLOGX_KAFKA_USERNAME: ${BLOGX_KAFKA_USERNAME}
-      BLOGX_KAFKA_PASSWORD: ${BLOGX_KAFKA_PASSWORD}
       BLOGX_ES_URL: http://es:9200
       BLOGX_ES_ADDR: es:9200
       BLOGX_ES_INDEX: ${BLOGX_ES_INDEX}

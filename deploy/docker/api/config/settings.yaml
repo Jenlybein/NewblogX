@@ -135,22 +135,6 @@ redis:
   # Redis 逻辑库编号
   db: ${BLOGX_REDIS_DB}
 
-# Kafka 配置。
-# 当前主程序默认未启用 Kafka 客户端初始化，这里作为预留配置保留。
-kafka:
-  mysql:
-    # Kafka Broker 地址列表
-    brokers:
-      - "${BLOGX_KAFKA_BROKERS}"
-    # MySQL 相关消息使用的 Topic 名
-    topic: "${BLOGX_KAFKA_TOPIC}"
-    # 消费组 ID
-    group_id: "${BLOGX_KAFKA_GROUP_ID}"
-    # SASL 用户名；如 Broker 未开启认证，可留空
-    username: "${BLOGX_KAFKA_USERNAME}"
-    # SASL 密码；如 Broker 未开启认证，可留空
-    password: "${BLOGX_KAFKA_PASSWORD}"
-
 # Elasticsearch 配置
 es:
   # Elasticsearch 地址列表；Go 客户端会优先使用这里

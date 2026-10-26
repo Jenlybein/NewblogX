@@ -8,7 +8,6 @@ type Config struct {
 	DB            []DB          `yaml:"db"`
 	GORM          GormConf      `yaml:"gorm"`
 	Redis         Redis         `yaml:"redis"`
-	Kafka         Kafka         `yaml:"kafka"`
 	ES            ES            `yaml:"es"`
 	ClickHouse    ClickHouse    `yaml:"clickhouse"`
 	River         River         `yaml:"river"`

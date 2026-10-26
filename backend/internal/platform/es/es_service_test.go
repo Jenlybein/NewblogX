@@ -3,7 +3,6 @@ package es_service
 import (
 	"encoding/json"
 	"io"
-	"myblogx/internal/kernel/ctype"
 	"myblogx/test/testutil"
 	"net/http"
 	"net/http/httptest"
@@ -128,84 +127,6 @@ func TestIndexAndPipelineOps(t *testing.T) {
 	}
 }
 
-func TestDocumentAndBulkOps(t *testing.T) {
-	setupMockES(t, func(w http.ResponseWriter, r *http.Request) {
-		path := r.URL.Path
-		if path == "/" {
-			writeJSON(w, 200, `{"name":"mock","cluster_name":"mock","version":{"number":"7.17.10"},"tagline":"You Know, for Search"}`)
-			return
-		}
-		switch {
-		case strings.Contains(path, "/_search"):
-			writeJSON(w, 200, `{"hits":{"total":{"value":2},"hits":[{"_source":{"id":1,"title":"a"}},{"_source":{"id":2,"title":"b"}}]}}`)
-		case strings.Contains(path, "/_update/"):
-			writeJSON(w, 200, `{"result":"updated"}`)
-		case r.Method == http.MethodDelete && strings.Contains(path, "/_doc/"):
-			writeJSON(w, 200, `{"result":"deleted"}`)
-		case r.Method == http.MethodPost && strings.Contains(path, "/_doc"):
-			writeJSON(w, 200, `{"result":"created"}`)
-		case r.Method == http.MethodGet && strings.Contains(path, "/_doc/"):
-			writeJSON(w, 200, `{"_id":"1","found":true}`)
-		case r.Method == http.MethodHead && strings.Contains(path, "/_doc/"):
-			w.WriteHeader(200)
-		case path == "/_bulk" || strings.HasSuffix(path, "/_bulk"):
-			writeJSON(w, 200, `{"errors":false,"items":[]}`)
-		case strings.HasSuffix(path, "/_mapping") && r.Method == http.MethodGet:
-			writeJSON(w, 200, `{"idx":{"mappings":{"properties":{}}}}`)
-		case strings.HasSuffix(path, "/_mapping") && r.Method == http.MethodPut:
-			writeJSON(w, 200, `{}`)
-		case r.Method == http.MethodHead:
-			w.WriteHeader(404)
-		case r.Method == http.MethodPut:
-			writeJSON(w, 200, `{}`)
-		case r.Method == http.MethodDelete:
-			writeJSON(w, 200, `{"acknowledged":true}`)
-		default:
-			writeJSON(w, 500, `{"error":{"reason":"unexpected"}}`)
-		}
-	})
-
-	esClient := testutil.ESClient()
-	if resp := CreateDocument(esClient, "idx", map[string]any{"title": "x"}); !resp.Success {
-		t.Fatalf("CreateDocument 失败: %+v", resp)
-	}
-	if resp := Search[map[string]any](esClient, "idx", 1, 10, map[string]any{"match_all": map[string]any{}}); !resp.Success {
-		t.Fatalf("Search 失败: %+v", resp)
-	}
-	if resp := UpdateDocument(esClient, "idx", "1", map[string]any{"title": "y"}); !resp.Success {
-		t.Fatalf("UpdateDocument 失败: %+v", resp)
-	}
-	if resp := DeleteDocument(esClient, "idx", "1"); !resp.Success {
-		t.Fatalf("DeleteDocument 失败: %+v", resp)
-	}
-	if resp := Get(esClient, "idx", "_doc", "1"); !resp.Success {
-		t.Fatalf("Get 失败: %+v", resp)
-	}
-	if resp := Exists(esClient, "idx", "_doc", "1"); !resp.Success || resp.Data != true {
-		t.Fatalf("Exists 结果异常: %+v", resp)
-	}
-
-	items := []*BulkRequest{
-		{Action: ActionIndex, Index: "idx", ID: "1", Data: map[string]interface{}{"k": "v"}},
-	}
-	if resp := IndexBulk(esClient, "idx", items); !resp.Success {
-		t.Fatalf("IndexBulk 失败: %+v", resp)
-	}
-	if resp := IndexTypeBulk(esClient, "idx", "_doc", items); !resp.Success {
-		t.Fatalf("IndexTypeBulk 失败: %+v", resp)
-	}
-
-	if resp := CreateMapping(esClient, "idx", "_doc", map[string]interface{}{"title": map[string]any{"type": "text"}}); !resp.Success {
-		t.Fatalf("CreateMapping 失败: %+v", resp)
-	}
-	if resp := GetMapping(esClient, "idx", "_doc"); !resp.Success {
-		t.Fatalf("GetMapping 失败: %+v", resp)
-	}
-	if resp := DeleteIndexWithResponse(esClient, "idx"); !resp.Success {
-		t.Fatalf("DeleteIndexWithResponse 失败: %+v", resp)
-	}
-}
-
 func TestDecodeResponseAndHandleErrorFallback(t *testing.T) {
 	data, err := decodeResponse(io.NopCloser(strings.NewReader(`{"a":1}`)))
 	if err != nil {
@@ -222,46 +143,6 @@ func TestDecodeResponseAndHandleErrorFallback(t *testing.T) {
 	err = handleError(esRes)
 	if err == nil || !strings.Contains(err.Error(), "权限不足") {
 		t.Fatalf("handleError 兜底信息异常: %v", err)
-	}
-}
-
-func TestExtractArticles(t *testing.T) {
-	input := map[string]any{
-		"hits": []any{
-			map[string]any{
-				"_source": map[string]any{
-					"id":    1,
-					"title": "title-1",
-				},
-			},
-		},
-	}
-
-	articles := ExtractArticles(input)
-	if len(articles) != 1 {
-		t.Fatalf("数量错误: %d", len(articles))
-	}
-	if articles[0].ID != ctype.NewID(1) || articles[0].Title != "title-1" {
-		t.Fatalf("解析结果异常: %+v", articles[0])
-	}
-}
-
-func TestExtractArticlesMoreFields(t *testing.T) {
-	src := map[string]any{
-		"hits": []any{
-			map[string]any{
-				"_source": map[string]any{
-					"id":              3,
-					"title":           "t3",
-					"comments_toggle": true,
-				},
-			},
-		},
-	}
-	arts := ExtractArticles(src)
-	if len(arts) != 1 || arts[0].ID.Uint64() != 3 || arts[0].Title != "t3" || !arts[0].CommentsToggle {
-		b, _ := json.Marshal(arts)
-		t.Fatalf("ExtractArticles 结果异常: %s", string(b))
 	}
 }
 

@@ -422,14 +422,5 @@ func indexArticleSnapshots(db *gorm.DB, client *elasticsearch.Client, snapshots 
 		})
 	}
 
-	resp := es_service.IndexBulk(client, IndexName(), reqs)
-	if !resp.Success {
-		return fmt.Errorf("%s: %s", errPrefix, resp.Msg)
-	}
-	if data, ok := resp.Data.(map[string]any); ok {
-		if hasErrors, ok := data["errors"].(bool); ok && hasErrors {
-			return fmt.Errorf("%s: bulk errors", errPrefix)
-		}
-	}
-	return nil
+	return bulkWriteError(bulkWriteWithRetry(client, reqs, 3, defaultBulkRetryPolicy), errPrefix)
 }

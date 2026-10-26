@@ -366,20 +366,11 @@ func applyArticlePartialBulkUpdate(db *gorm.DB, client *elasticsearch.Client, re
 		return nil
 	}
 
-	resp := es_service.IndexBulk(client, IndexName(), reqs)
-	if !resp.Success {
-		return fmt.Errorf("%s: %s", errPrefix, resp.Msg)
-	}
-
-	failures, missingUpdateIDs := collectArticleBulkFailures(resp.Data, reqs, 3)
-	if len(missingUpdateIDs) > 0 {
-		if err := SyncESDocs(db, client, missingUpdateIDs); err != nil {
+	out := bulkWriteWithRetry(client, reqs, 3, defaultBulkRetryPolicy)
+	if len(out.missingIDs) > 0 {
+		if err := SyncESDocs(db, client, out.missingIDs); err != nil {
 			return fmt.Errorf("%s: 文档缺失后补建失败: %w", errPrefix, err)
 		}
 	}
-
-	if len(failures) > 0 {
-		return fmt.Errorf("%s: %s", errPrefix, formatArticleBulkFailureSummary(failures))
-	}
-	return nil
+	return bulkWriteError(out, errPrefix)
 }

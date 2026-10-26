@@ -1,7 +1,6 @@
 package articlesync
 
 import (
-	"encoding/json"
 	"fmt"
 	"slices"
 	"strconv"
@@ -15,123 +14,65 @@ import (
 	"myblogx/internal/platform/mysql"
 )
 
-func collectArticleBulkFailures(data any, reqs []*es_service.BulkRequest, maxItems int) ([]articleBulkFailure, []ctype.ID) {
-	root, ok := data.(map[string]any)
-	if !ok {
+// collectArticleBulkFailures 把 ES 的逐条失败翻译成"文章视角"的失败，
+// 并挑出"update 时文档已不存在"的那批 —— 后者不是错误，是需要补建。
+//
+// 解析由 es_service.IndexBulk 统一做了（BulkResult）；这里只做业务判断：
+//   - 删除时命中 document_missing_exception → 目的已达成，不算失败；
+//   - 更新时命中 document_missing_exception → 文档没了，交给调用方按 id 重建。
+func collectArticleBulkFailures(result es_service.BulkResult, reqs []*es_service.BulkRequest, maxItems int) ([]articleBulkFailure, []ctype.ID) {
+	if !result.HasFailure() {
 		return nil, nil
-	}
-	hasErrors, ok := root["errors"].(bool)
-	if !ok || !hasErrors {
-		return nil, nil
-	}
-
-	items, ok := root["items"].([]any)
-	if !ok || len(items) == 0 {
-		return []articleBulkFailure{{Reason: "bulk errors"}}, nil
 	}
 
 	failures := make([]articleBulkFailure, 0, maxItems)
 	missingUpdateIDs := make([]ctype.ID, 0)
 	seenMissing := make(map[ctype.ID]struct{})
 
-	for index, item := range items {
-		itemMap, ok := item.(map[string]any)
-		if !ok {
+	for _, item := range result.Failures {
+		action := item.Action
+		docID := item.ID
+		if item.Index >= 0 && item.Index < len(reqs) && reqs[item.Index] != nil {
+			if reqs[item.Index].Action != "" {
+				action = reqs[item.Index].Action
+			}
+			if docID == "" {
+				docID = reqs[item.Index].ID
+			}
+		}
+
+		reason := strings.TrimSpace(strings.Join([]string{item.Type, item.Reason}, ": "))
+		if reason == "" || reason == ":" {
+			reason = "unknown"
+		}
+
+		if action == es_service.ActionDelete && item.Type == "document_missing_exception" {
 			continue
 		}
-		for rawAction, rawResult := range itemMap {
-			result, ok := rawResult.(map[string]any)
-			if !ok {
+		if action == es_service.ActionUpdate && item.Type == "document_missing_exception" {
+			var articleID ctype.ID
+			if err := articleID.UnmarshalText([]byte(docID)); err == nil && !articleID.IsZero() {
+				if _, ok := seenMissing[articleID]; !ok {
+					seenMissing[articleID] = struct{}{}
+					missingUpdateIDs = append(missingUpdateIDs, articleID)
+				}
 				continue
 			}
-			status := parseBulkStatusValue(result["status"])
-			if status >= 200 && status < 300 {
-				continue
-			}
+		}
 
-			action := rawAction
-			if index < len(reqs) && reqs[index] != nil && reqs[index].Action != "" {
-				action = reqs[index].Action
-			}
-			docID, _ := result["_id"].(string)
-			reason := "unknown"
-			errType := ""
-			if errObj, ok := result["error"].(map[string]any); ok {
-				errType, _ = errObj["type"].(string)
-				errReason, _ := errObj["reason"].(string)
-				reason = strings.TrimSpace(strings.Join([]string{errType, errReason}, ": "))
-				if reason == ":" || reason == "" {
-					reason = "unknown"
-				}
-				if causedBy, ok := errObj["caused_by"].(map[string]any); ok {
-					if cbReason, ok := causedBy["reason"].(string); ok && cbReason != "" {
-						reason += " (caused_by: " + cbReason + ")"
-					}
-				}
-			}
-
-			if action == es_service.ActionDelete && errType == "document_missing_exception" {
-				continue
-			}
-			if action == es_service.ActionUpdate && errType == "document_missing_exception" {
-				var articleID ctype.ID
-				if err := articleID.UnmarshalText([]byte(docID)); err == nil && !articleID.IsZero() {
-					if _, ok := seenMissing[articleID]; !ok {
-						seenMissing[articleID] = struct{}{}
-						missingUpdateIDs = append(missingUpdateIDs, articleID)
-					}
-					continue
-				}
-			}
-
-			failures = append(failures, articleBulkFailure{
-				Action:    action,
-				ID:        docID,
-				Status:    status,
-				ErrorType: errType,
-				Reason:    reason,
-			})
-			if len(failures) >= maxItems {
-				return failures, missingUpdateIDs
-			}
+		failures = append(failures, articleBulkFailure{
+			Action:    action,
+			ID:        docID,
+			Status:    item.Status,
+			ErrorType: item.Type,
+			Reason:    reason,
+		})
+		if len(failures) >= maxItems {
+			break
 		}
 	}
 
 	return failures, missingUpdateIDs
-}
-
-func parseBulkStatusValue(raw any) int {
-	switch value := raw.(type) {
-	case int:
-		return value
-	case int8:
-		return int(value)
-	case int16:
-		return int(value)
-	case int32:
-		return int(value)
-	case int64:
-		return int(value)
-	case uint:
-		return int(value)
-	case uint8:
-		return int(value)
-	case uint16:
-		return int(value)
-	case uint32:
-		return int(value)
-	case uint64:
-		return int(value)
-	case float32:
-		return int(value)
-	case float64:
-		return int(value)
-	case json.Number:
-		if parsed, err := value.Int64(); err == nil {
-			return int(parsed)
-		}
-	}
-	return 0
 }
 
 func formatArticleBulkFailureSummary(failures []articleBulkFailure) string {

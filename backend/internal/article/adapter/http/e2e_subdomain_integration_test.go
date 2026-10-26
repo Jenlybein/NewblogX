@@ -227,6 +227,11 @@ func containsArticleID(items []map[string]any, id string) bool {
 }
 
 // containsNumericID 判断 list 里是否有该数字 ID（置顶接口返回的是 ID 数组）。
+// containsNumericID 判断列表里是否含指定 ID。
+//
+// 三种形态都要认：裸数字（旧接口）、裸字符串、以及对象里的 "id" 字段。
+// `/articles/top` 已从"ID 数组"改成"卡片数组"（首页要渲染标题/封面），
+// 所以这里必须能读对象；保留前两种是为了其它仍返回 ID 列表的接口还能复用。
 func containsNumericID(t *testing.T, resp map[string]any, id string) bool {
 	t.Helper()
 	raw, _ := dataOf(t, resp)["list"].([]any)
@@ -238,6 +243,10 @@ func containsNumericID(t *testing.T, resp map[string]any, id string) bool {
 			}
 		case string:
 			if n == id {
+				return true
+			}
+		case map[string]any:
+			if got, ok := n["id"].(string); ok && got == id {
 				return true
 			}
 		}

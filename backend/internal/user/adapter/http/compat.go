@@ -145,6 +145,8 @@ func (h *Handler) AdminList(c *gin.Context) {
 			IP:          it.IP,
 			Addr:        it.Addr,
 			LastLoginAt: it.LastLoginAt,
+			Role:        int8(it.Role),
+			Status:      int8(it.Status),
 		})
 	}
 	res.OkWithList(out, int(total), c)

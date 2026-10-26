@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { IconEye, IconHeart, IconMessageCircle2, IconThumbUp } from "@tabler/icons-vue";
+import { IconEye } from "@tabler/icons-vue";
 import { NButton } from "naive-ui";
 import AppAvatar from "~/components/common/AppAvatar.vue";
 import type { UserBaseInfo } from "~/types/api";
@@ -31,10 +31,14 @@ const emit = defineEmits<{
           {{ props.abstractText || "这位作者暂未补充个人简介。" }}
         </p>
         <div class="mt-4 flex flex-wrap items-center gap-4 text-sm muted">
-          <span class="inline-flex items-center gap-1.5"><IconThumbUp :size="16" /> 点赞 {{ formatCount(profile.digg_count || 0) }}</span>
+          <!--
+            「点赞 / 收藏 / 评论」三项曾经也在这里展示，但后端 user_stat 里根本没有这三个
+            累计值（BaseInfoResponse 只返回 view_count / fans_count / follow_count 等），
+            于是它们恒显示 0。零 DDL 约束下 user_stat 也加不了列，为三个虚荣指标做跨模块
+            聚合同样不划算 —— 所以撤掉这三项，只保留有真实数据的「阅读」。
+            若要恢复，先在后端 user_stat 建模（或由 article 模块提供聚合）。
+          -->
           <span class="inline-flex items-center gap-1.5"><IconEye :size="16" /> 阅读 {{ formatCount(profile.view_count) }}</span>
-          <span class="inline-flex items-center gap-1.5"><IconHeart :size="16" /> 收藏 {{ formatCount(profile.favor_count || 0) }}</span>
-          <span class="inline-flex items-center gap-1.5"><IconMessageCircle2 :size="16" /> 评论 {{ formatCount(profile.comment_count || 0) }}</span>
         </div>
       </div>
     </div>

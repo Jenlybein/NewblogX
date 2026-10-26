@@ -3,6 +3,7 @@ import { h } from 'vue'
 import { NButton, NCard, NDataTable, NInput, NSpace, NTag, useDialog, useMessage } from 'naive-ui'
 import { deleteAdminArticles, searchAdminArticles, setArticleAdminVisibility } from '~/services/admin'
 import type { SearchArticleItem } from '~/types/api'
+import { isAdminHidden, publishLabel, visibilityLabel } from '~/utils/articleLabels'
 import { formatDateTime } from '~/utils/format'
 
 const message = useMessage()
@@ -58,7 +59,7 @@ const columns = [
     render: (row: SearchArticleItem) =>
       h(
         NTag,
-        { size: 'small', type: row.visibility_status === 'admin_hidden' ? 'error' : 'success' },
+        { size: 'small', type: isAdminHidden(row.visibility_status) ? 'error' : 'success' },
         { default: () => visibilityLabel(row.visibility_status) },
       ),
   },
@@ -80,10 +81,10 @@ const columns = [
             {
               size: 'small',
               tertiary: true,
-              type: row.visibility_status === 'admin_hidden' ? 'primary' : 'warning',
+              type: isAdminHidden(row.visibility_status) ? 'primary' : 'warning',
               onClick: () => toggleVisibility(row),
             },
-            { default: () => (row.visibility_status === 'admin_hidden' ? '恢复' : '隐藏') },
+            { default: () => (isAdminHidden(row.visibility_status) ? '恢复' : '隐藏') },
           ),
           h(
             NButton,
@@ -99,14 +100,6 @@ const columns = [
       }),
   },
 ]
-
-function publishLabel(value?: number) {
-  return ({ 1: '草稿', 2: '待审核', 3: '已发布', 4: '已驳回' } as Record<number, string>)[value || 0] || String(value ?? '-')
-}
-
-function visibilityLabel(value?: string) {
-  return ({ visible: '公开', user_hidden: '作者隐藏', admin_hidden: '后台隐藏' } as Record<string, string>)[value || ''] || '公开'
-}
 
 async function refresh() {
   loading.value = true
@@ -127,7 +120,7 @@ function search() {
 }
 
 function toggleVisibility(row: SearchArticleItem) {
-  const next = row.visibility_status === 'admin_hidden' ? 'show' : 'hide'
+  const next = isAdminHidden(row.visibility_status) ? 'show' : 'hide'
   dialog.warning({
     title: next === 'hide' ? '隐藏文章' : '恢复文章',
     content: `确认${next === 'hide' ? '隐藏' : '恢复'}「${row.title}」？`,

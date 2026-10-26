@@ -116,7 +116,7 @@ async function handleNextLatestPage() {
                 <div class="text-lg font-semibold leading-snug">{{ article.title }}</div>
                 <p class="mt-2 line-clamp-2 text-sm leading-7 muted">{{ article.abstract }}</p>
                 <div class="mt-3 flex flex-wrap items-center gap-3 text-sm muted">
-                  <span>{{ article.user_nickname }}</span>
+                  <span>{{ article.author_nickname }}</span>
                   <span>{{ article.category_title || "未分类" }}</span>
                   <span>{{ formatCount(article.view_count) }} 阅读</span>
                 </div>

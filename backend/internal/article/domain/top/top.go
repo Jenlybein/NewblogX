@@ -30,6 +30,21 @@ func (e *Entry) UserID() domain.UserID { return e.userID }
 // ArticleID 返回文章。
 func (e *Entry) ArticleID() domain.ArticleID { return e.articleID }
 
+// Card 是置顶文章的展示卡片。
+//
+// 为什么这里要一个"展示投影"而不是只给 ID：`/articles/top` 是首页「热门置顶」
+// 区块的数据源，只给 ID 的话前端得逐篇再查详情（N+1），而它实际渲染只需要
+// 下面这几个字段。加一个窄投影，一次查询解决。
+type Card struct {
+	ArticleID      domain.ArticleID
+	Title          string
+	Abstract       string
+	Cover          string
+	ViewCount      int
+	AuthorNickname string
+	CategoryTitle  string
+}
+
 // Repository 是置顶关系的持久化契约。
 type Repository interface {
 	// Save 新增置顶；已存在视为成功（幂等）。
@@ -38,6 +53,9 @@ type Repository interface {
 	Delete(ctx context.Context, userID domain.UserID, articleID domain.ArticleID) error
 	// ListArticleIDs 列出某用户置顶的文章，按置顶时间倒序。
 	ListArticleIDs(ctx context.Context, userID domain.UserID) ([]domain.ArticleID, error)
+	// ListCards 列出某用户置顶文章的展示卡片（同为置顶时间倒序）。
+	// 已软删的文章不会出现在结果里。
+	ListCards(ctx context.Context, userID domain.UserID) ([]Card, error)
 	// Exists 判断是否已置顶。
 	Exists(ctx context.Context, userID domain.UserID, articleID domain.ArticleID) (bool, error)
 	// DeleteByArticle 删除某文章的全部置顶（删文章级联用）。

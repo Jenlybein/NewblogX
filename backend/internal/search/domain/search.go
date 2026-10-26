@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"myblogx/internal/kernel/ctype"
+	"myblogx/internal/kernel/enum"
 	"myblogx/utils/markdown"
 )
 
@@ -34,10 +35,16 @@ const (
 )
 
 // VisibilityStatus 是文章可见性（ES 里存字符串）。
-type VisibilityStatus string
+//
+// 这里**别名**到 kernel/enum 的完整枚举，不再自己重新声明一份。
+// 之前只在这一处声明了 `visible` 一个值，于是 swag 生成的契约枚举也就只有
+// `"visible"` —— 而 ES 文档里明明还存着 user_hidden / admin_hidden
+// （管理端 type=5 的查询不带可见性过滤，就是要用它们）。
+// 结果是契约把一个"三值"字段印成单值，前端只好手写一个类型把它放宽。
+type VisibilityStatus = enum.ArticleVisibilityStatus
 
 // VisibilityVisible 公开可见。
-const VisibilityVisible VisibilityStatus = "visible"
+const VisibilityVisible = enum.ArticleVisibilityVisible
 
 // PageInfo 是分页参数。
 type PageInfo struct {

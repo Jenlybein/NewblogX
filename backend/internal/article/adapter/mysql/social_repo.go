@@ -371,6 +371,49 @@ func (r *TopRepo) ListArticleIDs(ctx context.Context, userID domain.UserID) ([]d
 	return out, nil
 }
 
+// ListCards 列出置顶文章的展示卡片。
+//
+// 一次 join 拿全展示字段：置顶表 → 文章表（排除软删）→ 用户（昵称）→ 分类（标题）。
+// 只给 ID 的话首页要逐篇再查详情，N+1。字段名与 ArticleTopCardResponse 一一对应。
+func (r *TopRepo) ListCards(ctx context.Context, userID domain.UserID) ([]top.Card, error) {
+	type row struct {
+		ArticleID      ctype.ID
+		Title          string
+		Abstract       string
+		Cover          string
+		ViewCount      int
+		AuthorNickname string
+		CategoryTitle  string
+	}
+	var rows []row
+	err := r.db.WithContext(ctx).
+		Table("user_top_article_models AS t").
+		Select("a.id AS article_id, a.title, a.abstract, a.cover, a.view_count, "+
+			"COALESCE(u.nickname, '') AS author_nickname, COALESCE(c.title, '') AS category_title").
+		Joins("JOIN article_models AS a ON a.id = t.article_id AND a.deleted_at IS NULL").
+		Joins("LEFT JOIN user_models AS u ON u.id = a.author_id").
+		Joins("LEFT JOIN category_models AS c ON c.id = a.category_id").
+		Where("t.user_id = ? AND t.deleted_at IS NULL", fromUserID(userID)).
+		Order("t.created_at DESC, t.id DESC").
+		Scan(&rows).Error
+	if err != nil {
+		return nil, err
+	}
+	out := make([]top.Card, 0, len(rows))
+	for _, m := range rows {
+		out = append(out, top.Card{
+			ArticleID:      domain.ArticleID(m.ArticleID),
+			Title:          m.Title,
+			Abstract:       m.Abstract,
+			Cover:          m.Cover,
+			ViewCount:      m.ViewCount,
+			AuthorNickname: m.AuthorNickname,
+			CategoryTitle:  m.CategoryTitle,
+		})
+	}
+	return out, nil
+}
+
 // Exists 判断是否已置顶。
 func (r *TopRepo) Exists(ctx context.Context, userID domain.UserID, articleID domain.ArticleID) (bool, error) {
 	var n int64

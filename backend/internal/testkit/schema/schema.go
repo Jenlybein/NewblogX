@@ -33,6 +33,7 @@ import (
 	"myblogx/internal/platform/cdc/outboxrelay"
 
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 // ── 类型别名：让调用方不必 import models ──────────────────────────
@@ -310,6 +311,37 @@ func InsertUser(t *testing.T, db *gorm.DB, spec UserSpec) {
 	u.UpdatedAt = spec.UpdatedAt
 	if err := db.Create(&u).Error; err != nil {
 		t.Fatalf("插入用户 %d 失败: %v", spec.ID, err)
+	}
+}
+
+// UserStatSpec 描述要插入的用户统计行。
+type UserStatSpec struct {
+	UserID              uint64
+	ViewCount           int
+	FansCount           int
+	FollowCount         int
+	ArticleVisitedCount int
+	ArticleCount        int
+}
+
+// InsertUserStat 写入一行用户统计（存在则覆盖）。
+//
+// 为什么用 upsert 而不是 Create：InsertUser 会通过 GORM 关联顺带建出一行
+// 零值统计，直接 Create 会主键冲突。凡是断言统计字段的测试都必须显式写入
+// 非零值——否则读到的全是零值，"字段没接上"和"统计真的是 0"无法区分。
+func InsertUserStat(t *testing.T, db *gorm.DB, spec UserStatSpec) {
+	t.Helper()
+	m := UserStatRow{
+		UserID:              ctype.NewID(spec.UserID),
+		ViewCount:           spec.ViewCount,
+		FansCount:           spec.FansCount,
+		FollowCount:         spec.FollowCount,
+		ArticleVisitedCount: spec.ArticleVisitedCount,
+		ArticleCount:        spec.ArticleCount,
+	}
+	err := db.Omit("UserModel").Clauses(clause.OnConflict{UpdateAll: true}).Create(&m).Error
+	if err != nil {
+		t.Fatalf("写入用户统计 %d 失败: %v", spec.UserID, err)
 	}
 }
 

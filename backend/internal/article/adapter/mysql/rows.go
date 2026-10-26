@@ -125,6 +125,21 @@ type userRow struct {
 // TableName 固定表名。
 func (userRow) TableName() string { return "user_models" }
 
+// userStatRow 对应 user_stat_models（只读展示需要的三项累计值）。
+//
+// 为什么由 article 模块读 user 的表：作者卡属于文章页的展示需求，
+// 为了三个计数再走一次跨模块调用不值得。这是**只读**的窄行结构，
+// 与 userRow 读 user_models 是同一套做法；写侧仍然只走 user 模块。
+type userStatRow struct {
+	UserID              ctype.ID `gorm:"column:user_id;primaryKey"`
+	ArticleCount        int      `gorm:"column:article_count"`
+	ArticleVisitedCount int      `gorm:"column:article_visited_count"`
+	FansCount           int      `gorm:"column:fans_count"`
+}
+
+// TableName 固定表名。
+func (userStatRow) TableName() string { return "user_stat_models" }
+
 // favoriteRow 对应 favorite_models。
 type favoriteRow struct {
 	BaseRow

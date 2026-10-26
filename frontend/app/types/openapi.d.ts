@@ -969,7 +969,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["myblogx_internal_kernel.Envelope-myblogx_internal_kernel_ListData-string"];
+                        "application/json": components["schemas"]["myblogx_internal_kernel.Envelope-myblogx_internal_kernel_ListData-internal_article_adapter_http_ArticleTopCardResponse"];
                     };
                 };
             };
@@ -4705,7 +4705,14 @@ export interface components {
             user_count?: number;
         };
         "internal_article_adapter_http.ArticleAuthorInfoResponse": {
+            /**
+             * @description 作者卡展示的三项累计值。之前注解写的是空 data、实际也只返回上面四个字段，
+             *     而前端在渲染「文章数 / 访问量 / 粉丝数」，于是这三处恒显示 0。
+             */
+            article_count?: number;
+            article_visited_count?: number;
             avatar?: string;
+            fans_count?: number;
             id?: string;
             nickname?: string;
             username?: string;
@@ -4798,6 +4805,15 @@ export interface components {
         };
         /** @enum {integer} */
         "internal_article_adapter_http.ArticleStatus": 1 | 2 | 3 | 4;
+        "internal_article_adapter_http.ArticleTopCardResponse": {
+            abstract?: string;
+            author_nickname?: string;
+            category_title?: string;
+            cover?: string;
+            id?: string;
+            title?: string;
+            view_count?: number;
+        };
         "internal_article_adapter_http.ArticleTopSetRequest": {
             article_ids: string[];
         };
@@ -5156,6 +5172,12 @@ export interface components {
             ip?: string;
             last_login_at?: string;
             nickname?: string;
+            /**
+             * @description 角色与状态：管理端列表要显示「角色」列，编辑弹窗也要用它回填。
+             *     swaggertype 让契约印成 integer 而不是引用一个没有枚举的具名类型。
+             */
+            role?: number;
+            status?: number;
             username?: string;
         };
         "internal_user_adapter_http.BaseInfoResponse": {
@@ -5611,6 +5633,11 @@ export interface components {
             data?: components["schemas"]["myblogx_internal_kernel.HasMoreListData-myblogx_internal_social_domain_FollowingItem"];
             msg?: string;
         };
+        "myblogx_internal_kernel.Envelope-myblogx_internal_kernel_ListData-internal_article_adapter_http_ArticleTopCardResponse": {
+            code?: number;
+            data?: components["schemas"]["myblogx_internal_kernel.ListData-internal_article_adapter_http_ArticleTopCardResponse"];
+            msg?: string;
+        };
         "myblogx_internal_kernel.Envelope-myblogx_internal_kernel_ListData-internal_article_adapter_http_CategoryListItem": {
             code?: number;
             data?: components["schemas"]["myblogx_internal_kernel.ListData-internal_article_adapter_http_CategoryListItem"];
@@ -5686,11 +5713,6 @@ export interface components {
             data?: components["schemas"]["myblogx_internal_kernel.ListData-myblogx_internal_user_domain_User"];
             msg?: string;
         };
-        "myblogx_internal_kernel.Envelope-myblogx_internal_kernel_ListData-string": {
-            code?: number;
-            data?: components["schemas"]["myblogx_internal_kernel.ListData-string"];
-            msg?: string;
-        };
         "myblogx_internal_kernel.Envelope-myblogx_internal_kernel_SiteConfigData": {
             code?: number;
             data?: components["schemas"]["myblogx_internal_kernel.SiteConfigData"];
@@ -5761,6 +5783,10 @@ export interface components {
         "myblogx_internal_kernel.IDListRequest": {
             id_list: string[];
         };
+        "myblogx_internal_kernel.ListData-internal_article_adapter_http_ArticleTopCardResponse": {
+            count?: number;
+            list?: components["schemas"]["internal_article_adapter_http.ArticleTopCardResponse"][];
+        };
         "myblogx_internal_kernel.ListData-internal_article_adapter_http_CategoryListItem": {
             count?: number;
             list?: components["schemas"]["internal_article_adapter_http.CategoryListItem"][];
@@ -5820,10 +5846,6 @@ export interface components {
         "myblogx_internal_kernel.ListData-myblogx_internal_user_domain_User": {
             count?: number;
             list?: components["schemas"]["myblogx_internal_user_domain.User"][];
-        };
-        "myblogx_internal_kernel.ListData-string": {
-            count?: number;
-            list?: string[];
         };
         "myblogx_internal_kernel.SiteConfigData": {
             [key: string]: unknown;
@@ -5887,7 +5909,7 @@ export interface components {
             user?: boolean;
         };
         /** @enum {string} */
-        "myblogx_internal_search_domain.VisibilityStatus": "visible";
+        "myblogx_internal_search_domain.VisibilityStatus": "visible" | "user_hidden" | "admin_hidden";
         "myblogx_internal_social_domain.FansItem": {
             fans_abstract?: string;
             fans_avatar?: string;

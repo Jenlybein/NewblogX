@@ -338,8 +338,18 @@
             },
             "internal_article_adapter_http.ArticleAuthorInfoResponse": {
                 "properties": {
+                    "article_count": {
+                        "description": "作者卡展示的三项累计值。之前注解写的是空 data、实际也只返回上面四个字段，\n而前端在渲染「文章数 / 访问量 / 粉丝数」，于是这三处恒显示 0。",
+                        "type": "integer"
+                    },
+                    "article_visited_count": {
+                        "type": "integer"
+                    },
                     "avatar": {
                         "type": "string"
+                    },
+                    "fans_count": {
+                        "type": "integer"
                     },
                     "id": {
                         "type": "string"
@@ -651,6 +661,32 @@
                     "ArticleStatusPublished",
                     "ArticleStatusRejected"
                 ]
+            },
+            "internal_article_adapter_http.ArticleTopCardResponse": {
+                "properties": {
+                    "abstract": {
+                        "type": "string"
+                    },
+                    "author_nickname": {
+                        "type": "string"
+                    },
+                    "category_title": {
+                        "type": "string"
+                    },
+                    "cover": {
+                        "type": "string"
+                    },
+                    "id": {
+                        "type": "string"
+                    },
+                    "title": {
+                        "type": "string"
+                    },
+                    "view_count": {
+                        "type": "integer"
+                    }
+                },
+                "type": "object"
             },
             "internal_article_adapter_http.ArticleTopSetRequest": {
                 "properties": {
@@ -1815,6 +1851,13 @@
                     },
                     "nickname": {
                         "type": "string"
+                    },
+                    "role": {
+                        "description": "角色与状态：管理端列表要显示「角色」列，编辑弹窗也要用它回填。\nswaggertype 让契约印成 integer 而不是引用一个没有枚举的具名类型。",
+                        "type": "integer"
+                    },
+                    "status": {
+                        "type": "integer"
                     },
                     "username": {
                         "type": "string"
@@ -3160,6 +3203,20 @@
                 },
                 "type": "object"
             },
+            "myblogx_internal_kernel.Envelope-myblogx_internal_kernel_ListData-internal_article_adapter_http_ArticleTopCardResponse": {
+                "properties": {
+                    "code": {
+                        "type": "integer"
+                    },
+                    "data": {
+                        "$ref": "#/components/schemas/myblogx_internal_kernel.ListData-internal_article_adapter_http_ArticleTopCardResponse"
+                    },
+                    "msg": {
+                        "type": "string"
+                    }
+                },
+                "type": "object"
+            },
             "myblogx_internal_kernel.Envelope-myblogx_internal_kernel_ListData-internal_article_adapter_http_CategoryListItem": {
                 "properties": {
                     "code": {
@@ -3363,20 +3420,6 @@
                     },
                     "data": {
                         "$ref": "#/components/schemas/myblogx_internal_kernel.ListData-myblogx_internal_user_domain_User"
-                    },
-                    "msg": {
-                        "type": "string"
-                    }
-                },
-                "type": "object"
-            },
-            "myblogx_internal_kernel.Envelope-myblogx_internal_kernel_ListData-string": {
-                "properties": {
-                    "code": {
-                        "type": "integer"
-                    },
-                    "data": {
-                        "$ref": "#/components/schemas/myblogx_internal_kernel.ListData-string"
                     },
                     "msg": {
                         "type": "string"
@@ -3617,6 +3660,21 @@
                 ],
                 "type": "object"
             },
+            "myblogx_internal_kernel.ListData-internal_article_adapter_http_ArticleTopCardResponse": {
+                "properties": {
+                    "count": {
+                        "type": "integer"
+                    },
+                    "list": {
+                        "items": {
+                            "$ref": "#/components/schemas/internal_article_adapter_http.ArticleTopCardResponse"
+                        },
+                        "type": "array",
+                        "uniqueItems": false
+                    }
+                },
+                "type": "object"
+            },
             "myblogx_internal_kernel.ListData-internal_article_adapter_http_CategoryListItem": {
                 "properties": {
                     "count": {
@@ -3842,21 +3900,6 @@
                 },
                 "type": "object"
             },
-            "myblogx_internal_kernel.ListData-string": {
-                "properties": {
-                    "count": {
-                        "type": "integer"
-                    },
-                    "list": {
-                        "items": {
-                            "type": "string"
-                        },
-                        "type": "array",
-                        "uniqueItems": false
-                    }
-                },
-                "type": "object"
-            },
             "myblogx_internal_kernel.SiteConfigData": {
                 "additionalProperties": {},
                 "type": "object"
@@ -4051,11 +4094,15 @@
             },
             "myblogx_internal_search_domain.VisibilityStatus": {
                 "enum": [
-                    "visible"
+                    "visible",
+                    "user_hidden",
+                    "admin_hidden"
                 ],
                 "type": "string",
                 "x-enum-varnames": [
-                    "VisibilityVisible"
+                    "ArticleVisibilityVisible",
+                    "ArticleVisibilityUserHidden",
+                    "ArticleVisibilityAdminHidden"
                 ]
             },
             "myblogx_internal_social_domain.FansItem": {
@@ -5430,7 +5477,7 @@
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "$ref": "#/components/schemas/myblogx_internal_kernel.Envelope-myblogx_internal_kernel_ListData-string"
+                                    "$ref": "#/components/schemas/myblogx_internal_kernel.Envelope-myblogx_internal_kernel_ListData-internal_article_adapter_http_ArticleTopCardResponse"
                                 }
                             }
                         },

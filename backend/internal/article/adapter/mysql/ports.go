@@ -32,6 +32,12 @@ func (a *authorStats) ApplyArticleDelta(ctx context.Context, authorID domain.Use
 	return a.apply(a.db, authorID.Uint64(), articleDelta, viewDelta)
 }
 
+// NewUserPort 构造只读用户端口。
+//
+// 导出是为了让集成测试能单独验证"作者信息 + 三项统计"的组装，
+// 而不必为了一个只读查询把整个 Service 的依赖都装配起来。
+func NewUserPort(db *gorm.DB) app.UserPort { return &userPort{db: db} }
+
 // userPort 是 app.UserPort 的实现：只读用户展示信息。
 type userPort struct{ db *gorm.DB }
 
@@ -78,7 +84,16 @@ func (u *userPort) one(ctx context.Context, id ctype.ID) (app.AuthorView, error)
 		}
 		return app.AuthorView{}, err
 	}
-	return toAuthorView(m), nil
+	v := toAuthorView(m)
+
+	// 统计缺失不是错误：新用户可能还没有 user_stat 行，此时保持零值即可。
+	var st userStatRow
+	if err := u.db.WithContext(ctx).Take(&st, "user_id = ?", id).Error; err == nil {
+		v.ArticleCount = st.ArticleCount
+		v.ArticleVisitedCount = st.ArticleVisitedCount
+		v.FansCount = st.FansCount
+	}
+	return v, nil
 }
 
 func toAuthorView(m userRow) app.AuthorView {

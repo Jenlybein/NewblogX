@@ -74,37 +74,19 @@ export type UserListResponseData = LogListData<UserListItem>
 /**
  * 用户列表项。
  *
- * **契约里没有 `role` / `status`**：后端 `AdminUserItemResponse` 只返回
- * `id/nickname/avatar/username/created_at/ip/addr/last_login_at`，
- * 而 `users/index.vue` 渲染了「角色」列并支持编辑它 —— 于是这一列**永远是空的**。
- * 这是契约与页面的真实不一致，需要在后端补字段或前端撤掉该列之间做产品决策，
- * 所以这里如实标注为「后端不返回」，不擅自改成 `RequiredSchema` 把缺口藏起来。
+ * 后端 `AdminUserItemResponse` 现已包含 `role` / `status`（之前没有，
+ * 导致列表「角色」列恒空、编辑弹窗却能改）。类型因此可以纯派生自契约。
  */
-export type UserListItem = RequiredSchema<"internal_user_adapter_http.AdminUserItemResponse"> & {
-  /** 后端当前不返回，恒为 undefined。 */
-  role?: number
-  /** 后端当前不返回，恒为 undefined。 */
-  status?: number
-}
-
+export type UserListItem = RequiredSchema<"internal_user_adapter_http.AdminUserItemResponse">;
 /**
  * 搜索文章项。
  *
- * **不能直接用契约**：`myblogx_internal_search_domain.Item.visibility_status`
- * 的枚举只有 `"visible"`（搜索引擎只索引可见文章），而文章管理页要按
- * `"admin_hidden"` 判断是否显示「恢复」按钮。直接派生会让那几处比较编译不过。
- *
- * 这暴露了一个真实缺陷：**管理端文章列表用的是 `/search/articles`，而它永远只返回
- * 可见文章，所以「恢复已隐藏文章」这个流程根本走不到。** 需要先定方案
- * （给管理端单独的文章列表接口，或让搜索对管理员返回全部），再改类型。
+ * 之前这里用 `Omit<..., "visibility_status">` 把枚举放宽回三值，因为契约里
+ * `myblogx_internal_search_domain.VisibilityStatus` 只声明了 `"visible"`。
+ * 根因是搜索模块自己重新声明了一份单值枚举；现已改为别名到
+ * `kernel/enum.ArticleVisibilityStatus`，契约因此有三个值，这里不再需要放宽。
  */
-export type SearchArticleItem = Omit<
-  RequiredSchema<"myblogx_internal_search_domain.Item">,
-  "visibility_status"
-> & {
-  visibility_status: "visible" | "user_hidden" | "admin_hidden"
-}
-
+export type SearchArticleItem = RequiredSchema<"myblogx_internal_search_domain.Item">;
 export type SearchPagination = RequiredSchema<"myblogx_internal_search_domain.Pagination">;
 
 export type ArticleSearchResponseData = Omit<

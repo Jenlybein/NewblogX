@@ -4,7 +4,7 @@
 # 2. 把每个变量改成真实值
 # 3. 进入目录后执行 `direnv allow`
 # 4. 看到 `direnv: export ...` 才表示变量已经真正注入当前 shell
-# 5. 如果当前 bash 还没接入 direnv hook，可直接用 `direnv exec . go run main.go`
+# 5. 如果当前 bash 还没接入 direnv hook，可直接用 `direnv exec . go run ./cmd/server`
 #
 # 说明：
 # 1. .envrc 已在 .gitignore 中忽略，真实密钥不会进仓库
@@ -12,6 +12,12 @@
 # 3. 如果想让 `cd` 进入目录时自动加载，需要在 `~/.bashrc` 里加入：
 #    `eval "$(direnv hook bash)"`
 # 4. 所有带 ****** 和 127.0.0.1 的值都只是示例，不能直接用于生产
+#
+# ⚠️ 本文件给**宿主机**上的后端进程用（go run），所以 BLOGX_APP_HOST 是 127.0.0.1。
+#    容器内那份（deploy/compose/production/env.example）必须是 0.0.0.0 ——
+#    否则 nginx 经 blogx_network 访问 blogx_server:8080 会被拒，/api 全 502，
+#    而 docker compose ps 里所有容器仍是 healthy（健康检查走容器内回环，看不出来）。
+#    两份键名一致，改密码或 JWT 时记得同步另一份。
 
 # 基础运行参数
 export TZ='Asia/Shanghai'
@@ -79,9 +85,9 @@ export BLOGX_GORM_MAX_IDLE_CONNS='100'
 export BLOGX_GORM_MAX_OPEN_CONNS='100'
 export BLOGX_GORM_CONN_MAX_LIFETIME_HOURS='1'
 
-# 给 docker-compose / 初始化脚本复用的别名
-export MYSQL_ROOT_PASSWORD="$BLOGX_DB_PASSWORD"
-export MYSQL_DATABASE="$BLOGX_DB_NAME"
+# 给 docker-compose 用的 MYSQL_ROOT_PASSWORD / ELASTIC_PASSWORD 等别名不在这里定义：
+# 那几个值是容器编排的事，写在 deploy/compose/production/env.example 里。
+# 宿主机进程只读下面这些 BLOGX_*，不需要别名。
 
 # Redis
 export BLOGX_REDIS_HOST='127.0.0.1'
@@ -89,13 +95,6 @@ export BLOGX_REDIS_PORT='6379'
 export BLOGX_REDIS_USERNAME='******'
 export BLOGX_REDIS_PASSWORD='******'
 export BLOGX_REDIS_DB='0'
-
-# Kafka
-export BLOGX_KAFKA_BROKERS='127.0.0.1:19092'
-export BLOGX_KAFKA_TOPIC='blogx-mysql'
-export BLOGX_KAFKA_GROUP_ID='logistics_group'
-export BLOGX_KAFKA_USERNAME='logistics'
-export BLOGX_KAFKA_PASSWORD='******'
 
 # Elasticsearch
 export BLOGX_ES_URL='http://127.0.0.1:9200'
@@ -106,9 +105,6 @@ export BLOGX_ES_USERNAME='elastic'
 export BLOGX_ES_PASSWORD='******'
 export BLOGX_ES_USE_HTTPS='false'
 
-# 给 docker-compose 复用的别名
-export ELASTIC_PASSWORD="$BLOGX_ES_PASSWORD"
-
 # ClickHouse
 export BLOGX_CLICKHOUSE_ADDR='127.0.0.1:9000'
 export BLOGX_CLICKHOUSE_DB='blogx_logs'
@@ -117,11 +113,6 @@ export BLOGX_CLICKHOUSE_PASSWORD='******'
 export BLOGX_CLICKHOUSE_DIAL_TIMEOUT_SEC='5'
 export BLOGX_CLICKHOUSE_MAX_OPEN_CONNS='10'
 export BLOGX_CLICKHOUSE_MAX_IDLE_CONNS='5'
-
-# 给 docker-compose 复用的别名
-export CLICKHOUSE_DB="$BLOGX_CLICKHOUSE_DB"
-export CLICKHOUSE_PASSWORD="$BLOGX_CLICKHOUSE_PASSWORD"
-export CLICKHOUSE_DEFAULT_ACCESS_MANAGEMENT='1'
 
 # MySQL -> ES 同步
 export BLOGX_RIVER_ENABLED='true'
@@ -157,8 +148,8 @@ export BLOGX_QQ_APP_KEY='******'
 export BLOGX_QQ_REDIRECT='https://example.com/api/user/qq/callback'
 export BLOGX_LOGIN_QQ_ENABLED='false'
 
-# 七牛云
-export BLOGX_QINIU_ENABLED='true'
+# 七牛云（图片上传的唯一落地方式；关掉不会存本地，上传接口会直接报"站点未启用图片上传"）
+export BLOGX_QINIU_ENABLED='false'
 export BLOGX_QINIU_ACCESS_KEY='******'
 export BLOGX_QINIU_SECRET_KEY='******'
 export BLOGX_QINIU_BUCKET='your-bucket'

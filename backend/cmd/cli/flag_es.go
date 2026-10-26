@@ -164,10 +164,6 @@ type articleIDRow struct {
 // TableName 固定表名。
 func (articleIDRow) TableName() string { return "article_models" }
 
-func buildArticleESDocument(article articlesync.ArticleRow, adminTop, authorTop bool) map[string]any {
-	return articlesync.BuildArticleESDocument(article, adminTop, authorTop)
-}
-
 func logESInfo(logger *logrus.Logger, format string, args ...any) {
 	if logger == nil {
 		return

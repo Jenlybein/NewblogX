@@ -451,33 +451,6 @@ func loadArticleESTopMapBySnapshots(db *gorm.DB, snapshots []ArticleRowSnapshot)
 	return result, nil
 }
 
-func loadArticlesForESContentUpdate(db *gorm.DB, articleIDs []ctype.ID) ([]ArticleRow, error) {
-	var articleList []ArticleRow
-	err := db.Select(
-		"id",
-		"updated_at",
-		"title",
-		"abstract",
-		"content",
-		"category_id",
-		"cover",
-		"author_id",
-		"publish_status",
-		"visibility_status",
-		"comments_toggle",
-	).
-		Where("id IN ?", articleIDs).
-		Preload("CategoryModel", func(db *gorm.DB) *gorm.DB {
-			return db.Select("id", "title")
-		}).
-		Preload("UserModel", func(db *gorm.DB) *gorm.DB {
-			return db.Select("id", "nickname", "avatar")
-		}).
-		Order("id asc").
-		Find(&articleList).Error
-	return articleList, err
-}
-
 func loadArticlesForESTags(db *gorm.DB, articleIDs []ctype.ID) ([]ArticleRow, error) {
 	var articleList []ArticleRow
 	if err := db.Select("id", "updated_at").

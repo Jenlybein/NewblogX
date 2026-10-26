@@ -261,58 +261,6 @@ func UpdateESDocsByArticleDeltas(db *gorm.DB, client *elasticsearch.Client, delt
 	return applyArticlePartialBulkUpdate(db, client, reqs, "按 article_models 差异更新 ES 文档失败")
 }
 
-// BuildArticleESDocument 将文章及其聚合字段转换为 ES 文档。
-func BuildArticleESDocument(article ArticleRow, adminTop, authorTop bool) map[string]any {
-	tags := make([]ESTag, 0, len(article.Tags))
-	for _, tag := range article.Tags {
-		tags = append(tags, ESTag{
-			ID:    tag.ID,
-			Title: tag.Title,
-		})
-	}
-
-	snapshot := ArticleRowSnapshot{
-		ID:               article.ID,
-		CreatedAt:        article.CreatedAt,
-		UpdatedAt:        article.UpdatedAt,
-		Title:            article.Title,
-		Abstract:         article.Abstract,
-		Content:          article.Content,
-		CategoryID:       article.CategoryID,
-		Cover:            article.Cover,
-		AuthorID:         article.AuthorID,
-		ViewCount:        article.ViewCount,
-		DiggCount:        article.DiggCount,
-		CommentCount:     article.CommentCount,
-		FavorCount:       article.FavorCount,
-		CommentsToggle:   article.CommentsToggle,
-		PublishStatus:    article.PublishStatus,
-		VisibilityStatus: article.VisibilityStatus,
-	}
-
-	deps := articleProjectionOptions{
-		CategoryTitleMap: map[ctype.ID]string{},
-		AuthorMap:        map[ctype.ID]authorSnapshot{},
-		ArticleTagsMap:   map[ctype.ID][]ESTag{article.ID: tags},
-		TopMap: map[ctype.ID]articleESTop{
-			article.ID: {
-				AdminTop:  adminTop,
-				AuthorTop: authorTop,
-			},
-		},
-	}
-	if article.CategoryModel != nil && article.CategoryID != nil {
-		deps.CategoryTitleMap[*article.CategoryID] = article.CategoryModel.Title
-	}
-	if !article.UserModel.ID.IsZero() {
-		deps.AuthorMap[article.AuthorID] = authorSnapshot{
-			Nickname: article.UserModel.Nickname,
-			Avatar:   article.UserModel.Avatar,
-		}
-	}
-	return buildArticleESDocumentFromSnapshot(snapshot, deps)
-}
-
 func buildArticleESDocumentFromSnapshot(snapshot ArticleRowSnapshot, deps articleProjectionOptions) map[string]any {
 	categoryIDValue := toESNullableID(snapshot.CategoryID)
 	var categoryTitle string

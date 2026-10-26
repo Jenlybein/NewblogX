@@ -9,7 +9,6 @@ import (
 	"gorm.io/gorm"
 	"myblogx/internal/kernel/ctype"
 	"myblogx/internal/platform/es"
-	"myblogx/utils/markdown"
 )
 
 func collectMissingArticleIDs(requested []ctype.ID, snapshots []ArticleRowSnapshot) []ctype.ID {
@@ -91,66 +90,6 @@ func UpdateESDocsTags(db *gorm.DB, client *elasticsearch.Client, articleIDs []ct
 	}
 
 	return applyArticlePartialBulkUpdate(db, client, reqs, "更新文章 ES 标签失败")
-}
-
-// UpdateESDocsContent 在文章正文变化后刷新对应文章的 ES 文档。
-func UpdateESDocsContent(db *gorm.DB, client *elasticsearch.Client, articleIDs []ctype.ID) error {
-	articleIDs = normalizeArticleIDs(articleIDs)
-	if len(articleIDs) == 0 || db == nil || client == nil {
-		return nil
-	}
-
-	articleList, err := loadArticlesForESContentUpdate(db, articleIDs)
-	if err != nil {
-		return err
-	}
-
-	reqs := make([]*es_service.BulkRequest, 0, len(articleList))
-	for _, article := range articleList {
-		reqs = append(reqs, &es_service.BulkRequest{
-			Action: es_service.ActionUpdate,
-			ID:     strconv.FormatUint(article.ID.Uint64(), 10),
-			Data: map[string]any{
-				"updated_at":    article.UpdatedAt,
-				"title":         article.Title,
-				"abstract":      article.Abstract,
-				"content_parts": markdown.MdToContentParts(article.Content),
-				"content_head":  markdown.ExtractText(markdown.MdToTextParagraph(article.Content), 150),
-				"category_id":   toESNullableID(article.CategoryID),
-				"category": map[string]any{
-					"id": toESNullableID(article.CategoryID),
-					"title": func() string {
-						if article.CategoryModel == nil {
-							return ""
-						}
-						return article.CategoryModel.Title
-					}(),
-				},
-				"cover":     article.Cover,
-				"author_id": toESID(article.AuthorID),
-				"author": map[string]any{
-					"id": toESID(article.AuthorID),
-					"nickname": func() string {
-						if article.UserModel.ID.IsZero() {
-							return ""
-						}
-						return article.UserModel.Nickname
-					}(),
-					"avatar": func() string {
-						if article.UserModel.ID.IsZero() {
-							return ""
-						}
-						return article.UserModel.Avatar
-					}(),
-				},
-				"publish_status":    article.PublishStatus,
-				"visibility_status": article.VisibilityStatus,
-				"comments_toggle":   article.CommentsToggle,
-			},
-		})
-	}
-
-	return applyArticlePartialBulkUpdate(db, client, reqs, "更新文章 ES 正文失败")
 }
 
 // UpdateESDocsTop 在文章置顶状态变化后刷新对应文章的 ES 文档。

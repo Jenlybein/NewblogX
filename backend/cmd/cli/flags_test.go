@@ -6,19 +6,14 @@ import (
 	"flag"
 	"io"
 	"myblogx/conf"
-	"myblogx/internal/kernel/ctype"
 	"myblogx/internal/kernel/enum"
-	"myblogx/internal/platform/es/articlesync"
-	"myblogx/internal/platform/mysql"
 	"myblogx/internal/testkit/schema"
 	"myblogx/test/testutil"
-	"myblogx/utils/markdown"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"strings"
 	"testing"
-	"time"
 
 	"github.com/elastic/go-elasticsearch/v7"
 )
@@ -173,71 +168,6 @@ func writeESJSON(w http.ResponseWriter, code int, body string) {
 	w.Header().Set("X-Elastic-Product", "Elasticsearch")
 	w.WriteHeader(code)
 	_, _ = w.Write([]byte(body))
-}
-
-func TestBuildArticleESDocument(t *testing.T) {
-	categoryID := ctype.NewID(7)
-	article := articlesync.ArticleRow{
-		BaseRow: mysql.BaseRow{
-			ID:        ctype.NewID(1),
-			CreatedAt: time.Unix(1710000000, 0),
-			UpdatedAt: time.Unix(1710003600, 0),
-		},
-		Title:          "文章标题",
-		Abstract:       "文章摘要",
-		Content:        "# 标题\n正文",
-		CategoryID:     &categoryID,
-		CategoryModel:  &articlesync.CategoryRow{BaseRow: mysql.BaseRow{ID: categoryID}, Title: "后端"},
-		Cover:          "/cover.png",
-		AuthorID:       ctype.NewID(9),
-		UserModel:      articlesync.UserRow{BaseRow: mysql.BaseRow{ID: ctype.NewID(9)}, Nickname: "作者A", Avatar: "/avatar.png"},
-		ViewCount:      11,
-		DiggCount:      12,
-		CommentCount:   13,
-		FavorCount:     14,
-		CommentsToggle: true,
-		PublishStatus:  3,
-		Tags: []articlesync.TagRow{
-			{BaseRow: mysql.BaseRow{ID: ctype.NewID(1)}, Title: "Go"},
-			{BaseRow: mysql.BaseRow{ID: ctype.NewID(2)}, Title: "Redis"},
-		},
-	}
-
-	doc := buildArticleESDocument(article, true, false)
-
-	if _, ok := doc["content"]; ok {
-		t.Fatal("content 不应被同步到 ES 文档")
-	}
-	if got, ok := doc["content_head"].(string); !ok || got == "" {
-		t.Fatalf("content_head 应被生成, got=%#v", doc["content_head"])
-	}
-	if parts, ok := doc["content_parts"].([]markdown.ContentPart); !ok || len(parts) == 0 {
-		t.Fatalf("content_parts 应被生成, got=%#v", doc["content_parts"])
-	} else if strings.Contains(parts[0].Content, "# ") {
-		t.Fatalf("content_parts 应存纯文本内容, got=%q", parts[0].Content)
-	}
-	if got, ok := doc["comments_toggle"].(bool); !ok || !got {
-		t.Fatalf("comments_toggle 应按 boolean mapping 转成 true, got=%#v", doc["comments_toggle"])
-	}
-	tags, ok := doc["tags"].([]articlesync.ESTag)
-	if !ok || len(tags) != 2 || tags[0].Title != "Go" || tags[1].Title != "Redis" {
-		t.Fatalf("tags 同步结果不正确: %#v", doc["tags"])
-	}
-	category, ok := doc["category"].(map[string]any)
-	if !ok || category["id"] != categoryID.String() || category["title"] != "后端" {
-		t.Fatalf("分类字段同步结果不正确: %#v", doc["category"])
-	}
-	author, ok := doc["author"].(map[string]any)
-	if !ok || author["id"] != article.AuthorID.String() || author["nickname"] != "作者A" || author["avatar"] != "/avatar.png" {
-		t.Fatalf("作者字段同步结果不正确: %#v", doc["author"])
-	}
-	if doc["admin_top"] != true || doc["author_top"] != false {
-		t.Fatalf("置顶字段同步结果不正确: admin=%#v author=%#v", doc["admin_top"], doc["author_top"])
-	}
-	const expectedFieldCount = 23
-	if len(doc) != expectedFieldCount {
-		t.Fatalf("ES 文档字段数不正确, got=%d want=%d", len(doc), expectedFieldCount)
-	}
 }
 
 func TestSyncArticleDocuments(t *testing.T) {

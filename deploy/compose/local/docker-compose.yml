@@ -1,6 +1,6 @@
 ﻿services:
   mysql-master:
-    image: "mysql:5.7"
+    image: "mysql:8.0"
     container_name: mysql-master
     restart: unless-stopped
     privileged: true
@@ -13,10 +13,21 @@
       BLOGX_DB_REPL_USER: "${BLOGX_DB_REPL_USER}"
       BLOGX_DB_REPL_PASSWORD: "${BLOGX_DB_REPL_PASSWORD}"
     command:
+    # my.cnf 必须先复制成 644 再让 MySQL 读：MySQL 会忽略"所有用户可写"的
+    # 配置文件（只警告不报错），Windows 上 Docker Desktop 把挂载文件映射成 777，
+    # 于是 gtid_mode=ON 静默失效、从库 SOURCE_AUTO_POSITION=1 直接报 1777。
+    # 详见 production compose 里的同一段注释。
+    entrypoint:
+      - /bin/sh
+      - -c
+      - |
+        cp /etc/mysql/my.cnf.from-host /etc/mysql/my.cnf
+        chmod 644 /etc/mysql/my.cnf
+        exec docker-entrypoint.sh mysqld
     ports:
       - "${BLOGX_DB_MASTER_PORT}:3306"
     volumes:
-      - ../../docker/mysql/master/my.cnf:/etc/mysql/my.cnf
+      - ../../docker/mysql/master/my.cnf:/etc/mysql/my.cnf.from-host:ro
       - ../../state/mysql/master/mysql-files:/var/lib/mysql-files
       - ../../state/mysql/master/data:/var/lib/mysql
       - ../../state/mysql/master/log:/var/log/
@@ -35,7 +46,7 @@
       - blogx_network
 
   mysql-slave:
-    image: "mysql:5.7"
+    image: "mysql:8.0"
     container_name: mysql-slave
     restart: unless-stopped
     privileged: true
@@ -48,10 +59,18 @@
       BLOGX_DB_REPL_USER: "${BLOGX_DB_REPL_USER}"
       BLOGX_DB_REPL_PASSWORD: "${BLOGX_DB_REPL_PASSWORD}"
     command:
+    # 与 mysql-master 同款包装，理由见上面的注释。
+    entrypoint:
+      - /bin/sh
+      - -c
+      - |
+        cp /etc/mysql/my.cnf.from-host /etc/mysql/my.cnf
+        chmod 644 /etc/mysql/my.cnf
+        exec docker-entrypoint.sh mysqld
     ports:
       - "${BLOGX_DB_REPLICA_PORT}:3306"
     volumes:
-      - ../../docker/mysql/slave/my.cnf:/etc/mysql/my.cnf
+      - ../../docker/mysql/slave/my.cnf:/etc/mysql/my.cnf.from-host:ro
       - ../../state/mysql/slave/mysql-files:/var/lib/mysql-files
       - ../../state/mysql/slave/data:/var/lib/mysql
       - ../../state/mysql/slave/log:/var/log/
@@ -130,139 +149,6 @@
     networks:
       - blogx_network
 
-    # kafka:
-  #   image: apache/kafka:3.9.0
-  #   container_name: kafka
-  #   hostname: kafka
-  #   privileged: true
-  #   restart: unless-stopped
-
-  #   # 对外只暴露 EXTERNAL 端口：避免容器内服务绕公网回环、也减少暴露面
-  #   ports:
-  #     - "19092:19092"
-
-  #   # entrypoint: ["/bin/sh", "/start.sh"]
-
-  #   # KRaft 元数据 + 日志数据必须持久化，否则容器重建会丢集群状态
-  #   volumes:
-  #     - ./kafka/data:/var/lib/kafka/data
-  #     - ./kafka/start.sh:/start.sh:ro
-
-  #   environment:
-  #     # ===== KRaft combined 单节点必需项 =====
-  #     # 节点角色：同时作为控制器(controller)和 broker
-  #     # 在KRaft模式下，节点可以是纯控制器、纯broker或混合角色
-  #     - KAFKA_PROCESS_ROLES=broker,controller
-
-  #     # 节点ID：在集群中唯一标识当前节点，取值范围1-255
-  #     - KAFKA_NODE_ID=1
-
-  #     # controller quorum：单节点指向自己（用容器 hostname 更稳）
-  #     - KAFKA_CONTROLLER_QUORUM_VOTERS=1@kafka:9093
-
-  #     # 指定控制器使用的监听器名称（需与下方 LISTENERS 配置对应）
-  #     - KAFKA_CONTROLLER_LISTENER_NAMES=CONTROLLER
-
-  #     # 指定 broker 之间通信使用的监听器名称
-  #     # 必须与 ADVERTISED_LISTENERS 中定义的监听器名称一致
-  #     - KAFKA_INTER_BROKER_LISTENER_NAME=INTERNAL
-
-  #     # ===== listeners / advertised.listeners =====
-  #     # 配置Kafka监听的网络接口和端口
-  #     # 格式：监听器名称://绑定地址:端口
-  #     #
-  #     # INTERNAL：给 docker 网络内使用（容器/服务名访问，如 kafka:9092）
-  #     # EXTERNAL：给宿主机/公网使用（公网IP访问，如 106.53.184.85:19092）
-  #     # CONTROLLER：KRaft 控制器（仅内部使用，不对外暴露）
-  #     #
-  #     # 注意：
-  #     # - listener 绑定用 0.0.0.0 监听所有网卡是最稳的做法（对外真实地址由 advertised.listeners 决定）
-  #     - KAFKA_LISTENERS=INTERNAL://0.0.0.0:9092,EXTERNAL://0.0.0.0:19092,CONTROLLER://0.0.0.0:9093
-
-  #     # 配置对外公告的监听器地址（客户端实际连接的地址）
-  #     # 当客户端连接Kafka时，Kafka会返回此地址给客户端
-  #     - KAFKA_ADVERTISED_LISTENERS=INTERNAL://kafka:9092,EXTERNAL://106.53.184.85:19092,CONTROLLER://kafka:9093
-
-  #     # 配置监听器的安全协议映射
-  #     # 格式：监听器名称:协议类型
-  #     # INTERNAL（容器内）：PLAINTEXT（无认证）
-  #     # EXTERNAL（外部）：SASL_PLAINTEXT（有认证）
-  #     # CONTROLLER（KRaft内部）：SASL_PLAINTEXT（KRaft controller 也启用认证 - 方案B）
-  #     - KAFKA_LISTENER_SECURITY_PROTOCOL_MAP=INTERNAL:PLAINTEXT,EXTERNAL:SASL_PLAINTEXT,CONTROLLER:SASL_PLAINTEXT
-
-  #     # ===== 单节点必须把这些 replication/minISR 设成 1 =====
-  #     # （否则 Kafka 默认可能是 3，会导致创建内部主题/事务相关功能异常）
-  #     - KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR=1
-  #     - KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR=1
-  #     - KAFKA_TRANSACTION_STATE_LOG_MIN_ISR=1
-  #     - KAFKA_DEFAULT_REPLICATION_FACTOR=1
-  #     - KAFKA_MIN_INSYNC_REPLICAS=1
-
-  #     # ===== 生产常见建议项（按需）=====
-  #     - KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS=0
-
-  #     # 建议关闭自动建 topic，避免拼错 topic 名也“写成功”
-  #     - KAFKA_AUTO_CREATE_TOPICS_ENABLE=false
-
-  #     # ===== 数据目录持久化 =====
-  #     # server.properties: log.dirs
-  #     - KAFKA_LOG_DIRS=/var/lib/kafka/data
-
-  #     # ===== cluster id（建议显式写定）=====
-  #     # 官方 usage guide：CLUSTER_ID 可选（容器里有默认），但生产建议你自己固定下来
-  #     - CLUSTER_ID=kafka-single-prod-G86wewKeSvqCK-yU4sWNIA
-
-  #     # ===== （可选）JVM 堆大小 =====
-  #     - KAFKA_HEAP_OPTS=-Xms1g -Xmx1g
-
-  #     # ===== SASL认证配置 =====
-  #     - KAFKA_SASL_ENABLED_MECHANISMS=PLAIN
-
-  #     # 显式声明每个 listener 支持的机制（避免默认值导致不匹配）
-  #     - KAFKA_LISTENER_NAME_EXTERNAL_SASL_ENABLED_MECHANISMS=PLAIN
-  #     - KAFKA_LISTENER_NAME_CONTROLLER_SASL_ENABLED_MECHANISMS=PLAIN
-
-  #     # 显式指定 controller 通信的 SASL 机制（因为 CONTROLLER listener 是 SASL_PLAINTEXT）
-  #     - KAFKA_SASL_MECHANISM_CONTROLLER_PROTOCOL=PLAIN
-
-  #     # 注意：INTER_BROKER 用的是 INTERNAL（PLAINTEXT），所以不要配置 inter-broker SASL 机制
-  #     # - KAFKA_SASL_MECHANISM_INTER_BROKER_PROTOCOL=PLAIN
-
-  #     # ===== JAAS 配置（关键）=====
-  #     # 不要用 KAFKA_SASL_JAAS_CONFIG（你之前就是这行被 Kafka 忽略导致崩溃）
-  #     # 改为 listener + mechanism 级别配置：
-  #     # 1) EXTERNAL 给外部客户端认证（logistics/logistics123）
-  #     # 2) CONTROLLER 给 KRaft 内部认证（broker/controller 自己用 kafka_admin 登录）
-  #     #
-  #     # username/password：Kafka 内部（broker/controller）通信的账号
-  #     # user_<用户名>="<密码>"：允许的客户端用户（固定格式）
-  #     - >-
-  #       KAFKA_LISTENER_NAME_EXTERNAL_PLAIN_SASL_JAAS_CONFIG=org.apache.kafka.common.security.plain.PlainLoginModule required
-  #       username="kafka_admin"
-  #       password="kafka_admin123"
-  #       user_kafka_admin="kafka_admin123"
-  #       user_logistics="logistics123";
-
-  #     - >-
-  #       KAFKA_LISTENER_NAME_CONTROLLER_PLAIN_SASL_JAAS_CONFIG=org.apache.kafka.common.security.plain.PlainLoginModule required
-  #       username="kafka_admin"
-  #       password="kafka_admin123"
-  #       user_kafka_admin="kafka_admin123"
-  #       user_logistics="logistics123";
-
-  #   healthcheck:
-  #     test:
-  #       [
-  #         "CMD-SHELL",
-  #         "/opt/kafka/bin/kafka-broker-api-versions.sh --bootstrap-server localhost:9092 > /dev/null 2>&1 || exit 1",
-  #       ]
-  #     interval: 10s
-  #     timeout: 10s
-  #     retries: 20
-  #     start_period: 20s
-  #   networks:
-  #     - blogx_network
-
   clickhouse:
     image: clickhouse/clickhouse-server:25.3
     container_name: clickhouse
@@ -335,11 +221,6 @@
       BLOGX_REDIS_USERNAME: "${BLOGX_REDIS_USERNAME}"
       BLOGX_REDIS_PASSWORD: "${BLOGX_REDIS_PASSWORD}"
       BLOGX_REDIS_DB: "${BLOGX_REDIS_DB}"
-      BLOGX_KAFKA_BROKERS: "${BLOGX_KAFKA_BROKERS}"
-      BLOGX_KAFKA_TOPIC: "${BLOGX_KAFKA_TOPIC}"
-      BLOGX_KAFKA_GROUP_ID: "${BLOGX_KAFKA_GROUP_ID}"
-      BLOGX_KAFKA_USERNAME: "${BLOGX_KAFKA_USERNAME}"
-      BLOGX_KAFKA_PASSWORD: "${BLOGX_KAFKA_PASSWORD}"
       BLOGX_ES_URL: "http://es:9200"
       BLOGX_ES_ADDR: "es:9200"
       BLOGX_ES_INDEX: "${BLOGX_ES_INDEX}"

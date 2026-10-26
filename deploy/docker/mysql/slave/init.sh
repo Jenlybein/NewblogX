@@ -49,20 +49,23 @@ main() (
   db_name_escaped="$(sql_escape_identifier "${BLOGX_DB_NAME}")"
 
   echo "开始配置从库..."
+  # 8.0.23 起复制术语改名：CHANGE MASTER TO → CHANGE REPLICATION SOURCE TO、
+  # START/STOP/SHOW SLAVE → START/STOP/SHOW REPLICA。旧语法在 8.0 仍可用但会打
+  # deprecation 警告，8.4 起移除；这里直接用新语法，与 mysql:8.0 镜像保持一致。
   run_local_mysql <<SQL
 SET GLOBAL read_only = 0;
-STOP SLAVE;
-RESET SLAVE ALL;
-CHANGE MASTER TO
-MASTER_HOST='mysql-master',
-MASTER_USER='${repl_user_escaped}',
-MASTER_PASSWORD='${repl_password_escaped}',
-MASTER_PORT=3306,
-MASTER_AUTO_POSITION=1,
-MASTER_CONNECT_RETRY=10;
-START SLAVE;
+STOP REPLICA;
+RESET REPLICA ALL;
+CHANGE REPLICATION SOURCE TO
+SOURCE_HOST='mysql-master',
+SOURCE_USER='${repl_user_escaped}',
+SOURCE_PASSWORD='${repl_password_escaped}',
+SOURCE_PORT=3306,
+SOURCE_AUTO_POSITION=1,
+SOURCE_CONNECT_RETRY=10;
+START REPLICA;
 SET GLOBAL read_only = 1;
-SHOW SLAVE STATUS\G;
+SHOW REPLICA STATUS\G;
 SQL
 
   run_master_mysql -e "CREATE DATABASE IF NOT EXISTS \`${db_name_escaped}\` DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci;"

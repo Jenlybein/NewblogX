@@ -3,6 +3,7 @@ package dlq_test
 import (
 	"context"
 	"errors"
+	"fmt"
 	"strings"
 	"testing"
 
@@ -187,6 +188,38 @@ func TestReplayHonoursSkipped(t *testing.T) {
 	}
 	if got := mustLoad(t, db, id); got.Status != deadletter.StatusPending {
 		t.Fatalf("skipped 不应改动状态，实际 %s", got.Status)
+	}
+}
+
+// 执行器说"这条语义上不能重投"：算 unsupported（不是 failed），不改库。
+//
+// 这是 image_ref 新增/更新类的真实形态：它永远补不上，人该去重新保存对象。
+// 记成 failed 的后果是运维反复点、retry_count 一路上涨，而结果不会变。
+func TestReplayHonoursUnsupported(t *testing.T) {
+	db := testutil.SetupSQLite(t, &schema.DeadLetterRow{})
+	id := seed(t, db, "image_ref_river", "img:1", deadletter.StatusPending)
+
+	var logs []writer.ReplayEventInput
+	r := &fakeReplayer{
+		streams: []string{"image_ref_river"},
+		err:     fmt.Errorf("只支持删除类死信: %w", dlq.ErrUnsupported),
+	}
+	svc := dlq.New(dlq.Options{DB: db, Replayers: []dlq.Replayer{r}, Emit: captureEmitter(&logs)})
+
+	results, _ := svc.Replay(context.Background(), []ctype.ID{id})
+	if results[0].Result != dlq.ResultUnsupported {
+		t.Fatalf("期望 unsupported，实际 %+v", results)
+	}
+	// 文案必须用执行器给的那句（它知道该改用别的什么办法），不能被通用话覆盖。
+	if !strings.Contains(results[0].Message, "只支持删除类死信") {
+		t.Fatalf("应保留执行器给的说明，实际 %q", results[0].Message)
+	}
+	got := mustLoad(t, db, id)
+	if got.Status != deadletter.StatusPending || got.RetryCount != 0 {
+		t.Fatalf("不支持时不应改动记录: %+v", got)
+	}
+	if len(logs) != 1 || logs[0].Result != dlq.ResultUnsupported {
+		t.Fatalf("应记一条 unsupported 回放日志，实际 %+v", logs)
 	}
 }
 

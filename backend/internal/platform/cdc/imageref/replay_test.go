@@ -2,6 +2,7 @@ package imageref_test
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 	"testing"
@@ -74,6 +75,11 @@ func TestReplayInsertIsRejected(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "重新保存") {
 		t.Fatalf("应给出替代动作，实际 %q", err.Error())
+	}
+	// 必须是 ErrUnsupported 而不是普通 error：编排层据此判"不支持"（不涨 retry_count、
+	// 不改状态、前端显示橙色"不支持重投"），而不是红色"失败"。
+	if !errors.Is(err, deadletter.ErrUnsupported) {
+		t.Fatalf("应包装 deadletter.ErrUnsupported，实际 %v", err)
 	}
 }
 

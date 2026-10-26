@@ -8,8 +8,13 @@ import (
 	analyticshttp "myblogx/internal/analytics/adapter/http"
 	analyticsmysql "myblogx/internal/analytics/adapter/mysql"
 	"myblogx/internal/analytics/domain"
+	"myblogx/internal/kernel/ctype"
 	"myblogx/internal/platform/cdc/deadletter"
+	"myblogx/internal/platform/cdc/dlq"
+	"myblogx/internal/platform/cdc/outboxrelay"
+	"myblogx/internal/platform/cdc/river"
 	"myblogx/internal/platform/http/router"
+	"myblogx/internal/platform/log/writer"
 	redis_service "myblogx/internal/platform/redis"
 	"myblogx/internal/platform/redis/redis_site"
 
@@ -40,8 +45,75 @@ func WireAnalytics(infra *Infra) {
 		analyticsmysql.NewStats(infra.DB),
 		&analyticsFlow{deps: redisOptions},
 		&analyticsDeadLetters{db: infra.DB},
+		&analyticsReplayer{svc: newDeadLetterReplayer(infra)},
 	)
 	router.SetAnalyticsHandler(h)
+}
+
+// newDeadLetterReplayer 组装"死信重投"的编排服务。
+//
+// 两个执行器分别负责一类 stream：
+//   - es_river：用死信里的 ES bulk body 重投（幂等，按文档 ID）
+//   - outbox_relay：把发件箱行退回 pending，交给中继按自己的退避重投
+//
+// 回放日志通过 Emit 接到统一的日志管道（ClickHouse），这样管理端的
+// 「回放日志」页第一次真正有数据，且同一条死信有完整时间线。
+func newDeadLetterReplayer(infra *Infra) *dlq.Service {
+	logOptions := writer.NewOptions(
+		infra.Config.Log,
+		infra.Config.System,
+		infra.Config.ClickHouse.Enabled,
+		infra.Logger,
+		infra.ClickHouse,
+	)
+	return dlq.New(dlq.Options{
+		DB:     infra.DB,
+		Logger: infra.Logger,
+		Emit: func(input writer.ReplayEventInput) {
+			writer.EmitReplayEvent(logOptions, input)
+		},
+		Replayers: []dlq.Replayer{
+			river.NewESReplayer(infra.ESClient),
+			outboxrelay.NewReplayer(infra.DB),
+		},
+	})
+}
+
+// analyticsReplayer 把平台层的重投编排适配成统计模块的端口。
+type analyticsReplayer struct {
+	svc *dlq.Service
+}
+
+var _ domain.DeadLetterReplayer = (*analyticsReplayer)(nil)
+
+// SupportedStreams 实现 domain.DeadLetterReplayer。
+func (r *analyticsReplayer) SupportedStreams() []string {
+	if r == nil || r.svc == nil {
+		return nil
+	}
+	return r.svc.SupportedStreams()
+}
+
+// Replay 实现 domain.DeadLetterReplayer。
+func (r *analyticsReplayer) Replay(ctx context.Context, ids []ctype.ID) ([]domain.DeadLetterReplayResult, error) {
+	if r == nil || r.svc == nil {
+		return nil, nil
+	}
+	results, err := r.svc.Replay(ctx, ids)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]domain.DeadLetterReplayResult, 0, len(results))
+	for _, item := range results {
+		out = append(out, domain.DeadLetterReplayResult{
+			ID:      item.ID,
+			Stream:  item.Stream,
+			Status:  item.Status,
+			Result:  item.Result,
+			Message: item.Message,
+		})
+	}
+	return out, nil
 }
 
 // analyticsFlow 把 Redis 的访问量计数适配成统计端口。
@@ -83,6 +155,7 @@ func (d *analyticsDeadLetters) Query(ctx context.Context, q domain.DeadLetterQue
 		CdcJobIDPrefix: q.CdcJobIDPrefix,
 		CdcJobIDs:      q.CdcJobIDs,
 		Limit:          q.Limit,
+		Offset:         q.Offset,
 	})
 	if err != nil {
 		return nil, err
@@ -105,6 +178,18 @@ func (d *analyticsDeadLetters) Query(ctx context.Context, q domain.DeadLetterQue
 		})
 	}
 	return out, nil
+}
+
+// Count 实现 domain.DeadLetterReader。
+func (d *analyticsDeadLetters) Count(ctx context.Context, q domain.DeadLetterQuery) (int64, error) {
+	_ = ctx
+	return deadletter.Count(d.db, deadletter.QueryOption{
+		Stream:         q.Stream,
+		Status:         q.Status,
+		CdcJobID:       q.CdcJobID,
+		CdcJobIDPrefix: q.CdcJobIDPrefix,
+		CdcJobIDs:      q.CdcJobIDs,
+	})
 }
 
 // 保证 time 包被使用（更新时间格式化在适配器内完成）。

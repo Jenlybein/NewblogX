@@ -105,10 +105,6 @@ func causeChainDepth(cfg conf.Logrus) int {
 	return cfg.Error.CauseChainDepth
 }
 
-func CauseChainDepth(cfg conf.Logrus) int {
-	return causeChainDepth(cfg)
-}
-
 func stringsToRank(level string) int {
 	switch strings.ToLower(strings.TrimSpace(level)) {
 	case "debug":

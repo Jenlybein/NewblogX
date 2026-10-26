@@ -2,7 +2,6 @@ package readmodel
 
 import (
 	"sort"
-	"time"
 
 	"myblogx/internal/kernel/ctype"
 	"myblogx/internal/kernel/enum"
@@ -16,23 +15,6 @@ type UserDisplay struct {
 	Avatar   string
 	Abstract string
 	Role     enum.RoleType
-}
-
-type ArticleBase struct {
-	ID             ctype.ID
-	CreatedAt      time.Time
-	UpdatedAt      time.Time
-	Title          string
-	Abstract       string
-	Cover          string
-	AuthorID       ctype.ID
-	CategoryID     *ctype.ID
-	ViewCount      int
-	DiggCount      int
-	CommentCount   int
-	FavorCount     int
-	CommentsToggle bool
-	PublishStatus  enum.ArticleStatus
 }
 
 func NormalizeIDs(ids []ctype.ID) []ctype.ID {
@@ -82,54 +64,6 @@ func LoadUserDisplayMap(db *gorm.DB, userIDs []ctype.ID) (map[ctype.ID]UserDispl
 	return result, nil
 }
 
-func LoadArticleBaseMap(db *gorm.DB, articleIDs []ctype.ID) (map[ctype.ID]ArticleBase, error) {
-	result := make(map[ctype.ID]ArticleBase)
-	articleIDs = NormalizeIDs(articleIDs)
-	if len(articleIDs) == 0 {
-		return result, nil
-	}
-
-	var rows []articleBaseRow
-	if err := db.Select(
-		"id",
-		"created_at",
-		"updated_at",
-		"title",
-		"abstract",
-		"cover",
-		"author_id",
-		"category_id",
-		"view_count",
-		"digg_count",
-		"comment_count",
-		"favor_count",
-		"comments_toggle",
-		"publish_status",
-	).Where("id IN ?", articleIDs).Find(&rows).Error; err != nil {
-		return result, err
-	}
-
-	for _, row := range rows {
-		result[row.ID] = ArticleBase{
-			ID:             row.ID,
-			CreatedAt:      row.CreatedAt,
-			UpdatedAt:      row.UpdatedAt,
-			Title:          row.Title,
-			Abstract:       row.Abstract,
-			Cover:          row.Cover,
-			AuthorID:       row.AuthorID,
-			CategoryID:     row.CategoryID,
-			ViewCount:      row.ViewCount,
-			DiggCount:      row.DiggCount,
-			CommentCount:   row.CommentCount,
-			FavorCount:     row.FavorCount,
-			CommentsToggle: row.CommentsToggle,
-			PublishStatus:  row.PublishStatus,
-		}
-	}
-	return result, nil
-}
-
 // userDisplayRow 是 LoadUserDisplayMap 的查询投影。
 //
 // 只有 SELECT 里那几列 —— 这里刻意不用整行结构：列名写在这里，
@@ -144,24 +78,3 @@ type userDisplayRow struct {
 
 // TableName 固定表名。
 func (userDisplayRow) TableName() string { return "user_models" }
-
-// articleBaseRow 是 LoadArticleBaseMap 的查询投影（同上，只含被选中的列）。
-type articleBaseRow struct {
-	ID             ctype.ID
-	CreatedAt      time.Time
-	UpdatedAt      time.Time
-	Title          string
-	Abstract       string
-	Cover          string
-	AuthorID       ctype.ID
-	CategoryID     *ctype.ID
-	ViewCount      int
-	DiggCount      int
-	CommentCount   int
-	FavorCount     int
-	CommentsToggle bool
-	PublishStatus  enum.ArticleStatus
-}
-
-// TableName 固定表名。
-func (articleBaseRow) TableName() string { return "article_models" }

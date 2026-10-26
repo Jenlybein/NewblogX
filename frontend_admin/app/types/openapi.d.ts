@@ -2829,6 +2829,94 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/logs/dead-letter": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 死信列表 */
+        get: {
+            parameters: {
+                query?: {
+                    /** @description 页码 */
+                    page?: number;
+                    /** @description 每页条数 */
+                    limit?: number;
+                    /** @description Stream 名称 */
+                    stream?: string;
+                    /** @description 状态：pending 待处理 / resolved 已解决 */
+                    status?: string;
+                    /** @description CDC 任务 ID（前缀匹配） */
+                    cdc_job_id?: string;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["myblogx_internal_kernel.Envelope-myblogx_internal_kernel_ListData-internal_analytics_adapter_http_DeadLetterItemResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/logs/dead-letter/replay": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 重投死信 */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            /** @description 死信 ID 列表 */
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["internal_analytics_adapter_http.DeadLetterReplayRequest"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["myblogx_internal_kernel.Envelope-myblogx_internal_kernel_ListData-internal_analytics_adapter_http_DeadLetterReplayResultResponse"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/logs/login": {
         parameters: {
             query?: never;
@@ -3606,90 +3694,6 @@ export interface paths {
         };
         put?: never;
         post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/users": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** 用户列表 */
-        get: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path?: never;
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description OK */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["myblogx_internal_kernel.Envelope-myblogx_internal_kernel_ListData-myblogx_internal_user_domain_User"];
-                    };
-                };
-            };
-        };
-        /** 更新用户资料 */
-        put: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path?: never;
-                cookie?: never;
-            };
-            requestBody?: {
-                content: {
-                    "application/json": Record<string, never>;
-                };
-            };
-            responses: {
-                /** @description OK */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["myblogx_internal_kernel.Envelope-myblogx_internal_user_app_UpdateResult"];
-                    };
-                };
-            };
-        };
-        /** 创建用户 */
-        post: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path?: never;
-                cookie?: never;
-            };
-            requestBody?: {
-                content: {
-                    "application/json": Record<string, never>;
-                };
-            };
-            responses: {
-                /** @description OK */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["myblogx_internal_kernel.Envelope-myblogx_internal_user_domain_User"];
-                    };
-                };
-            };
-        };
         delete?: never;
         options?: never;
         head?: never;
@@ -4486,128 +4490,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/users/settings": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        /** 更新用户偏好 */
-        put: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path?: never;
-                cookie?: never;
-            };
-            requestBody?: {
-                content: {
-                    "application/json": Record<string, never>;
-                };
-            };
-            responses: {
-                /** @description OK */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["myblogx_internal_kernel.Envelope-string"];
-                    };
-                };
-            };
-        };
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/users/{id}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** 用户公开主页 */
-        get: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path: {
-                    /** @description 用户 ID */
-                    id: string;
-                };
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description OK */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["myblogx_internal_kernel.Envelope-myblogx_internal_user_app_PublicProfile"];
-                    };
-                };
-            };
-        };
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/users/{id}/status": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        /** 修改账号状态 */
-        put: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path: {
-                    /** @description 用户 ID */
-                    id: string;
-                };
-                cookie?: never;
-            };
-            requestBody?: {
-                content: {
-                    "application/json": Record<string, never>;
-                };
-            };
-            responses: {
-                /** @description OK */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["myblogx_internal_kernel.Envelope-string"];
-                    };
-                };
-            };
-        };
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -4689,6 +4571,30 @@ export interface components {
         "internal_analytics_adapter_http.DateCountItem": {
             count?: number;
             date?: string;
+        };
+        "internal_analytics_adapter_http.DeadLetterItemResponse": {
+            action?: string;
+            cdc_job_id?: string;
+            created_at?: string;
+            error_code?: string;
+            error_msg?: string;
+            id?: string;
+            retry_count?: number;
+            source_table?: string;
+            status?: string;
+            stream?: string;
+            target_key?: string;
+            updated_at?: string;
+        };
+        "internal_analytics_adapter_http.DeadLetterReplayRequest": {
+            id_list: string[];
+        };
+        "internal_analytics_adapter_http.DeadLetterReplayResultResponse": {
+            id?: string;
+            message?: string;
+            result?: string;
+            status?: string;
+            stream?: string;
         };
         "internal_analytics_adapter_http.GrowthDataResponse": {
             date_count_list?: components["schemas"]["internal_analytics_adapter_http.DateCountItem"][];
@@ -5633,6 +5539,16 @@ export interface components {
             data?: components["schemas"]["myblogx_internal_kernel.HasMoreListData-myblogx_internal_social_domain_FollowingItem"];
             msg?: string;
         };
+        "myblogx_internal_kernel.Envelope-myblogx_internal_kernel_ListData-internal_analytics_adapter_http_DeadLetterItemResponse": {
+            code?: number;
+            data?: components["schemas"]["myblogx_internal_kernel.ListData-internal_analytics_adapter_http_DeadLetterItemResponse"];
+            msg?: string;
+        };
+        "myblogx_internal_kernel.Envelope-myblogx_internal_kernel_ListData-internal_analytics_adapter_http_DeadLetterReplayResultResponse": {
+            code?: number;
+            data?: components["schemas"]["myblogx_internal_kernel.ListData-internal_analytics_adapter_http_DeadLetterReplayResultResponse"];
+            msg?: string;
+        };
         "myblogx_internal_kernel.Envelope-myblogx_internal_kernel_ListData-internal_article_adapter_http_ArticleTopCardResponse": {
             code?: number;
             data?: components["schemas"]["myblogx_internal_kernel.ListData-internal_article_adapter_http_ArticleTopCardResponse"];
@@ -5708,11 +5624,6 @@ export interface components {
             data?: components["schemas"]["myblogx_internal_kernel.ListData-myblogx_internal_comment_app_ManageItem"];
             msg?: string;
         };
-        "myblogx_internal_kernel.Envelope-myblogx_internal_kernel_ListData-myblogx_internal_user_domain_User": {
-            code?: number;
-            data?: components["schemas"]["myblogx_internal_kernel.ListData-myblogx_internal_user_domain_User"];
-            msg?: string;
-        };
         "myblogx_internal_kernel.Envelope-myblogx_internal_kernel_SiteConfigData": {
             code?: number;
             data?: components["schemas"]["myblogx_internal_kernel.SiteConfigData"];
@@ -5726,21 +5637,6 @@ export interface components {
         "myblogx_internal_kernel.Envelope-myblogx_internal_user_app_DetailView": {
             code?: number;
             data?: components["schemas"]["myblogx_internal_user_app.DetailView"];
-            msg?: string;
-        };
-        "myblogx_internal_kernel.Envelope-myblogx_internal_user_app_PublicProfile": {
-            code?: number;
-            data?: components["schemas"]["myblogx_internal_user_app.PublicProfile"];
-            msg?: string;
-        };
-        "myblogx_internal_kernel.Envelope-myblogx_internal_user_app_UpdateResult": {
-            code?: number;
-            data?: components["schemas"]["myblogx_internal_user_app.UpdateResult"];
-            msg?: string;
-        };
-        "myblogx_internal_kernel.Envelope-myblogx_internal_user_domain_User": {
-            code?: number;
-            data?: components["schemas"]["myblogx_internal_user_domain.User"];
             msg?: string;
         };
         "myblogx_internal_kernel.Envelope-string": {
@@ -5782,6 +5678,14 @@ export interface components {
         };
         "myblogx_internal_kernel.IDListRequest": {
             id_list: string[];
+        };
+        "myblogx_internal_kernel.ListData-internal_analytics_adapter_http_DeadLetterItemResponse": {
+            count?: number;
+            list?: components["schemas"]["internal_analytics_adapter_http.DeadLetterItemResponse"][];
+        };
+        "myblogx_internal_kernel.ListData-internal_analytics_adapter_http_DeadLetterReplayResultResponse": {
+            count?: number;
+            list?: components["schemas"]["internal_analytics_adapter_http.DeadLetterReplayResultResponse"][];
         };
         "myblogx_internal_kernel.ListData-internal_article_adapter_http_ArticleTopCardResponse": {
             count?: number;
@@ -5842,10 +5746,6 @@ export interface components {
         "myblogx_internal_kernel.ListData-myblogx_internal_comment_app_ManageItem": {
             count?: number;
             list?: components["schemas"]["myblogx_internal_comment_app.ManageItem"][];
-        };
-        "myblogx_internal_kernel.ListData-myblogx_internal_user_domain_User": {
-            count?: number;
-            list?: components["schemas"]["myblogx_internal_user_domain.User"][];
         };
         "myblogx_internal_kernel.SiteConfigData": {
             [key: string]: unknown;
@@ -5954,59 +5854,6 @@ export interface components {
         "myblogx_internal_user_app.LikeTagItem": {
             id?: string;
             title?: string;
-        };
-        "myblogx_internal_user_app.PublicProfile": {
-            abstract?: string;
-            avatar?: string;
-            /** @description 以下字段是主页展示需要的补充信息。 */
-            avatarImageID?: string;
-            codeAge?: number;
-            fansVis?: boolean;
-            favoritesVis?: boolean;
-            followVis?: boolean;
-            homeStyleID?: string;
-            id?: string;
-            nickname?: string;
-            place?: string;
-            relation?: number;
-            stats?: components["schemas"]["myblogx_internal_user_domain.Stats"];
-            username?: string;
-        };
-        "myblogx_internal_user_app.UpdateResult": {
-            changed?: string[];
-            snapshotSynced?: boolean;
-            user?: components["schemas"]["myblogx_internal_user_domain.User"];
-        };
-        /** @enum {integer} */
-        "myblogx_internal_user_domain.RegisterSource": 1 | 2 | 3 | 4;
-        /** @enum {integer} */
-        "myblogx_internal_user_domain.Role": 1 | 2 | 3;
-        "myblogx_internal_user_domain.Stats": {
-            articleCount?: number;
-            articleVisitedCount?: number;
-            fansCount?: number;
-            followCount?: number;
-            userID?: string;
-            viewCount?: number;
-        };
-        /** @enum {integer} */
-        "myblogx_internal_user_domain.Status": 1 | 2 | 3;
-        "myblogx_internal_user_domain.User": {
-            abstract?: string;
-            addr?: string;
-            avatar?: string;
-            createdAt?: string;
-            email?: string;
-            id?: string;
-            ip?: string;
-            nickname?: string;
-            openID?: string;
-            passwordHash?: string;
-            registerSource?: components["schemas"]["myblogx_internal_user_domain.RegisterSource"];
-            role?: components["schemas"]["myblogx_internal_user_domain.Role"];
-            status?: components["schemas"]["myblogx_internal_user_domain.Status"];
-            tokenVersion?: number;
-            username?: string;
         };
     };
     responses: never;

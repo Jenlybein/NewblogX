@@ -69,26 +69,6 @@ func RewriteArticleSearch(tagList []string, aiConf conf.AI, content string) (*Ar
 	return normalizeArticleSearchRewrite(reply, content, tagList)
 }
 
-func AnalyzeArticleSearchIntent(aiConf conf.AI, content string) (*ArticleSearchRewrite, error) {
-	msgList := []ai.Message{
-		{
-			Role:    "system",
-			Content: articleSearchPrompt,
-		},
-		{
-			Role:    "user",
-			Content: strings.TrimSpace(content),
-		},
-	}
-
-	reply, err := ai.Chat(aiConf, msgList)
-	if err != nil {
-		return nil, apperr.Wrap(apperr.CodeAIRequestFailed, err)
-	}
-
-	return normalizeArticleSearchRewrite(reply, content, nil)
-}
-
 func normalizeArticleSearchRewrite(raw, fallbackContent string, validTags []string) (*ArticleSearchRewrite, error) {
 	start := strings.Index(raw, "{")
 	end := strings.LastIndex(raw, "}")

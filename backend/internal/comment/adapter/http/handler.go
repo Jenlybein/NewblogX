@@ -64,10 +64,10 @@ type ReplyListRequest struct {
 // 之前注解写的是空 data（object{}），但 handler 实际返回这四项 —— 契约在说谎，
 // 前端只能照自己的猜测写类型。现在如实描述。
 type ReplyListResponse struct {
-	RootID     ctype.ID       `json:"root_id"`
-	ReplyCount int            `json:"reply_count"`
+	RootID     ctype.ID        `json:"root_id"`
+	ReplyCount int             `json:"reply_count"`
 	List       []app.ReplyItem `json:"list"`
-	HasMore    bool           `json:"has_more"`
+	HasMore    bool            `json:"has_more"`
 }
 
 // ManListRequest 管理端评论列表。

@@ -107,19 +107,19 @@ func main() {
 		lifecycle.WaitForShutdown()
 		return
 	case "cron":
-		if err := app.WireCron(infra); err != nil {
+		if err := app.WireCron(infra, lifecycle); err != nil {
 			infra.Logger.Fatalf("Cron 组装失败: %v", err)
 		}
 		lifecycle.WaitForShutdown()
 		return
 	case "worker":
-		if err := app.WireWorker(infra); err != nil {
+		if err := app.WireWorker(infra, lifecycle); err != nil {
 			infra.Logger.Fatalf("Worker 组装失败: %v", err)
 		}
 		lifecycle.WaitForShutdown()
 		return
 	case "all":
-		if err := app.WireWorker(infra); err != nil {
+		if err := app.WireWorker(infra, lifecycle); err != nil {
 			infra.Logger.Fatalf("Worker 组装失败: %v", err)
 		}
 		if err := app.WireHTTP(infra, lifecycle); err != nil {

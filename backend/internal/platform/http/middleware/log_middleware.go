@@ -21,11 +21,6 @@ import (
 )
 
 // LogMiddleware 运行日志中间件
-func LogMiddleware(c *gin.Context) {
-	runtimeFromContext(c).LogMiddleware(c)
-}
-
-// LogMiddleware 运行日志中间件
 func (h Runtime) LogMiddleware(c *gin.Context) {
 	traceID, spanID, parentSpanID := resolveTraceContext(c, h.LogConfig)
 	requestID := resolveRequestID(h.LogConfig, traceID)

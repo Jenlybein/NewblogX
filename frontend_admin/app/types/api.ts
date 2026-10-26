@@ -24,8 +24,8 @@ export interface HasMoreList<T> {
   has_more: boolean
 }
 
-/** 本地列表泛型（带总数）。 */
-export interface LogListData<T> {
+/** 本地列表泛型（带总数）：对应 `kernel.ListData`，即 `res.OkWithList` 的形状。 */
+export interface ListData<T> {
   list: T[]
   count: number
 }
@@ -40,7 +40,15 @@ export type GrowthDataResponseData = RequiredSchema<"internal_analytics_adapter_
 
 export type ArticleYearDataResponseData = RequiredSchema<"internal_analytics_adapter_http.ArticleYearDataResponse">;
 
-export type UserDetailResponseData = RequiredSchema<"myblogx_internal_user_domain.User">;
+/**
+ * 当前登录用户详情（`GET /users/detail`）。
+ *
+ * 之前这里写的是 `RequiredSchema<"myblogx_internal_user_domain.User">` —— 那是用户**实体**，
+ * 而该接口返回的是用例层的 `app.DetailView`。之所以没报错，是因为 `domain.User`
+ * 当时还被 `/users`（管理端列表）那批**死代码**的注解引用着、恰好留在契约里。
+ * 删掉那批幽灵端点后 `domain.User` 从契约消失，这里立刻编译不过，才暴露出接错了对象。
+ */
+export type UserDetailResponseData = RequiredSchema<"myblogx_internal_user_app.DetailView">;
 
 export type ArticleReviewTaskItem = RequiredSchema<"internal_article_adapter_http.ArticleReviewTaskItem">;
 
@@ -67,7 +75,25 @@ export type CreateImageUploadTaskResponseData = RequiredSchema<"internal_media_a
 
 export type UploadTaskStatusResponseData = RequiredSchema<"internal_media_adapter_http.TaskStatusResponse">;
 
-export type UserListResponseData = LogListData<UserListItem>
+export type UserListResponseData = ListData<UserListItem>
+
+// ── 死信（DLQ）与回放日志 ──────────────────────────────────────
+
+/** 一条死信：某次同步失败留下的证据。字段与 `cdc_dead_letter` 表一一对应。 */
+export type DeadLetterItem = RequiredSchema<"internal_analytics_adapter_http.DeadLetterItemResponse">;
+
+export type DeadLetterListData = ListData<DeadLetterItem>;
+
+/** 重投单条结果。result 取值 success / failed / skipped / unsupported。 */
+export type DeadLetterReplayResult = RequiredSchema<"internal_analytics_adapter_http.DeadLetterReplayResultResponse">;
+
+/** 回放日志（ClickHouse replay_event_logs）：每次重投尝试的时间线。 */
+export type ReplayLogRecord = RequiredSchema<"myblogx_internal_analytics_adapter_clickhouse.ReplayEventRecord">;
+
+export type ImageListItem = RequiredSchema<"internal_media_adapter_http.ImageItem">;
+
+/** 图片列表载荷。后端 `res.OkWithList` 返回 `{list, count}`，**没有 `has_more`**。 */
+export type ImageListResponseData = ListData<ImageListItem>;
 
 // ── 保留手写的部分（每条都写了理由） ──────────────────────────
 
@@ -140,15 +166,4 @@ export interface AIRuntimeConfig {
   abstract: string
   nickname: string
   avatar: string
-}
-
-/** 媒体库列表项。后端返回的是原始对象（无固定 schema），加索引签名以便透传扩展字段。 */
-export interface ImageListItem {
-  id?: string
-  url?: string
-  path?: string
-  name?: string
-  status?: string
-  created_at?: string
-  [key: string]: unknown
 }

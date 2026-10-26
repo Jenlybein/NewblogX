@@ -3,12 +3,9 @@ package testutil
 import (
 	"fmt"
 	"io"
-	"myblogx/buildinfo"
 	"myblogx/conf"
-	"myblogx/internal/kernel/ctype"
 	"myblogx/internal/platform/idgen"
 	"myblogx/internal/testkit/schema"
-	userAdapter "myblogx/internal/user/adapter/mysql"
 	"myblogx/utils/jwts"
 	"net/http"
 	"path/filepath"
@@ -113,10 +110,6 @@ func ImageCaptchaStore() base64Captcha.Store {
 	return testImageCaptchaStore
 }
 
-func Version() string {
-	return buildinfo.Version
-}
-
 func defaultTestLogDir() string {
 	_, filename, _, ok := runtime.Caller(0)
 	if !ok {
@@ -189,18 +182,6 @@ func SetupSQLite(t *testing.T, rows ...any) *gorm.DB {
 	return db
 }
 
-func CreateUser(t *testing.T, db *gorm.DB, user *schema.UserRow) {
-	t.Helper()
-	if err := db.Transaction(func(tx *gorm.DB) error {
-		if err := tx.Create(user).Error; err != nil {
-			return err
-		}
-		return userAdapter.InitDefaults(tx, user.ID.Uint64())
-	}); err != nil {
-		t.Fatalf("创建用户失败: %v", err)
-	}
-}
-
 // appendDependentRows 补齐"建表顺序上必须先存在"的依赖表。
 //
 // # 为什么不再用 reflect.TypeOf 判断
@@ -259,6 +240,13 @@ func NewJSONRequest(method, target, body string) *http.Request {
 	return req
 }
 
+func effectiveTokenVersion(user *schema.UserRow) uint32 {
+	if user == nil || user.TokenVersion == 0 {
+		return 1
+	}
+	return user.TokenVersion
+}
+
 func IssueAccessToken(t *testing.T, user *schema.UserRow) string {
 	t.Helper()
 	sessionID, err := idgen.Next()
@@ -296,26 +284,4 @@ func IssueAccessToken(t *testing.T, user *schema.UserRow) string {
 		t.Fatalf("签发测试访问令牌失败: %v", err)
 	}
 	return token
-}
-
-func effectiveTokenVersion(user *schema.UserRow) uint32 {
-	if user == nil || user.TokenVersion == 0 {
-		return 1
-	}
-	return user.TokenVersion
-}
-
-func NewClaims(user *schema.UserRow) *jwts.MyClaims {
-	if user == nil {
-		return &jwts.MyClaims{}
-	}
-	return &jwts.MyClaims{
-		Claims: jwts.Claims{
-			UserID:       user.ID,
-			SessionID:    ctype.NewID(0),
-			TokenVersion: effectiveTokenVersion(user),
-			Username:     user.Username,
-			Role:         user.Role,
-		},
-	}
 }

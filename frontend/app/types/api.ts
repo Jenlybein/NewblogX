@@ -43,6 +43,9 @@ export type SiteAiInfo = RequiredSchema<"internal_site_adapter_http.AIResponse">
 
 export type BannerItem = RequiredSchema<"internal_site_adapter_http.BannerItem">;
 
+/** 轮播图列表载荷。之前服务层手写了同名形状（`{list, has_more}`），漏了契约里的 `count`。 */
+export type BannerListData = RequiredSchema<"myblogx_internal_kernel.HasMoreListData-internal_site_adapter_http_BannerItem">;
+
 export interface OptionItem {
   label: string;
   value: string;

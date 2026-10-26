@@ -2,6 +2,8 @@ package app
 
 import (
 	"context"
+	redis_service "myblogx/internal/platform/redis"
+	"myblogx/internal/platform/redis/redis_site"
 
 	"myblogx/conf"
 	"myblogx/internal/apperr"
@@ -28,7 +30,11 @@ func WireSite(infra *Infra) {
 		infra.Config.QQ.Url(),
 		infra.Logger,
 	)
-	router.SetSiteHandler(sitehttp.NewHandler(svc))
+	// 站点访问量：每次读取公开配置记一次（口径与迁移前一致）。
+	redisOpts := redis_service.Options{Client: infra.Redis, Logger: infra.Logger}
+	router.SetSiteHandler(sitehttp.NewHandler(svc, func() {
+		redis_site.SetFlow(redisOpts)
+	}))
 }
 
 // siteImageResolver 把 media 模块的图片查询适配成站点模块的端口。

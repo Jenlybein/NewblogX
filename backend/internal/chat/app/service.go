@@ -276,9 +276,6 @@ func (s *Service) DeleteSessions(ctx context.Context, userID ctype.ID, sessionID
 	return len(deleted), nil
 }
 
-// Hub 返回在线连接池（WS 层用）。
-func (s *Service) Hub() domain.Hub { return s.hub }
-
 func (s *Service) relationBatch(ctx context.Context, viewerID ctype.ID, ids []ctype.ID) map[ctype.ID]int8 {
 	out := make(map[ctype.ID]int8, len(ids))
 	if viewerID.IsZero() || s.relations == nil {

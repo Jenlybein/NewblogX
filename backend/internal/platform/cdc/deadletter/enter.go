@@ -36,7 +36,7 @@ func SaveBatch(db *gorm.DB, items []Item) error {
 			}
 			status := item.Status
 			if status == "" {
-				status = "pending"
+				status = StatusPending
 			}
 			record := Record{
 				Stream:      item.Stream,
@@ -62,7 +62,7 @@ func SaveBatch(db *gorm.DB, items []Item) error {
 					"target_key":   record.TargetKey,
 					"payload_json": record.PayloadJSON,
 					"retry_count":  gorm.Expr("GREATEST(retry_count, ?)", record.RetryCount),
-					"status":       "pending",
+					"status":       StatusPending,
 					"error_code":   record.ErrorCode,
 					"error_msg":    record.ErrorMsg,
 					"updated_at":   record.UpdatedAt,

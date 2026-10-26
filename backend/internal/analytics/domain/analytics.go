@@ -66,9 +66,31 @@ type DeadLetterQuery struct {
 	CdcJobIDPrefix bool
 	CdcJobIDs      []string
 	Limit          int
+	Offset         int
 }
 
 // DeadLetterReader 查死信队列。
 type DeadLetterReader interface {
 	Query(ctx context.Context, q DeadLetterQuery) ([]DeadLetter, error)
+	Count(ctx context.Context, q DeadLetterQuery) (int64, error)
+}
+
+// DeadLetterReplayResult 是一条死信的重投结果。
+//
+// 词表与回放日志（replay_event_logs 的 result 列）一致：success / failed / skipped / unsupported。
+type DeadLetterReplayResult struct {
+	ID      ctype.ID
+	Stream  string
+	Status  string
+	Result  string
+	Message string
+}
+
+// DeadLetterReplayer 把死信重投一次。
+//
+// 由平台层的 dlq.Service 实现：这里只声明"能重投、能报出支持哪些流"，
+// 具体怎么重投（ES bulk / 退回发件箱）属于基础设施，不进统计模块的领域。
+type DeadLetterReplayer interface {
+	SupportedStreams() []string
+	Replay(ctx context.Context, ids []ctype.ID) ([]DeadLetterReplayResult, error)
 }

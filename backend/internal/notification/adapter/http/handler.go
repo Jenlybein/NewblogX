@@ -486,12 +486,3 @@ func toMessageItem(m domain.Message) MessageItem {
 	}
 	return item
 }
-
-// toIDs 把 ctype.ID 切片转成 uint64 切片。
-func toIDs(ids []ctype.ID) []uint64 {
-	out := make([]uint64, 0, len(ids))
-	for _, id := range ids {
-		out = append(out, id.Uint64())
-	}
-	return out
-}

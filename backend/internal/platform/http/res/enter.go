@@ -38,14 +38,6 @@ func (r Response) Json(c *gin.Context) {
 	c.JSON(200, r)
 }
 
-func Ok(data any, msg string, c *gin.Context) {
-	Response{
-		Code: SuccessCode,
-		Data: data,
-		Msg:  msg,
-	}.Json(c)
-}
-
 func OkWithData(data any, c *gin.Context) {
 	Response{
 		Code: SuccessCode,
@@ -97,14 +89,6 @@ func FailWithData(data any, msg string, c *gin.Context) {
 		Code: FailServiceCode,
 		Data: data,
 		Msg:  msg,
-	}.Json(c)
-}
-
-func FailWithCode(code Code, c *gin.Context) {
-	Response{
-		Code: code,
-		Data: map[string]any{},
-		Msg:  code.String(),
 	}.Json(c)
 }
 

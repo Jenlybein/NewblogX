@@ -292,6 +292,82 @@
                 },
                 "type": "object"
             },
+            "internal_analytics_adapter_http.DeadLetterItemResponse": {
+                "properties": {
+                    "action": {
+                        "type": "string"
+                    },
+                    "cdc_job_id": {
+                        "type": "string"
+                    },
+                    "created_at": {
+                        "type": "string"
+                    },
+                    "error_code": {
+                        "type": "string"
+                    },
+                    "error_msg": {
+                        "type": "string"
+                    },
+                    "id": {
+                        "type": "string"
+                    },
+                    "retry_count": {
+                        "type": "integer"
+                    },
+                    "source_table": {
+                        "type": "string"
+                    },
+                    "status": {
+                        "type": "string"
+                    },
+                    "stream": {
+                        "type": "string"
+                    },
+                    "target_key": {
+                        "type": "string"
+                    },
+                    "updated_at": {
+                        "type": "string"
+                    }
+                },
+                "type": "object"
+            },
+            "internal_analytics_adapter_http.DeadLetterReplayRequest": {
+                "properties": {
+                    "id_list": {
+                        "items": {
+                            "type": "string"
+                        },
+                        "type": "array",
+                        "uniqueItems": false
+                    }
+                },
+                "required": [
+                    "id_list"
+                ],
+                "type": "object"
+            },
+            "internal_analytics_adapter_http.DeadLetterReplayResultResponse": {
+                "properties": {
+                    "id": {
+                        "type": "string"
+                    },
+                    "message": {
+                        "type": "string"
+                    },
+                    "result": {
+                        "type": "string"
+                    },
+                    "status": {
+                        "type": "string"
+                    },
+                    "stream": {
+                        "type": "string"
+                    }
+                },
+                "type": "object"
+            },
             "internal_analytics_adapter_http.GrowthDataResponse": {
                 "properties": {
                     "date_count_list": {
@@ -3203,6 +3279,34 @@
                 },
                 "type": "object"
             },
+            "myblogx_internal_kernel.Envelope-myblogx_internal_kernel_ListData-internal_analytics_adapter_http_DeadLetterItemResponse": {
+                "properties": {
+                    "code": {
+                        "type": "integer"
+                    },
+                    "data": {
+                        "$ref": "#/components/schemas/myblogx_internal_kernel.ListData-internal_analytics_adapter_http_DeadLetterItemResponse"
+                    },
+                    "msg": {
+                        "type": "string"
+                    }
+                },
+                "type": "object"
+            },
+            "myblogx_internal_kernel.Envelope-myblogx_internal_kernel_ListData-internal_analytics_adapter_http_DeadLetterReplayResultResponse": {
+                "properties": {
+                    "code": {
+                        "type": "integer"
+                    },
+                    "data": {
+                        "$ref": "#/components/schemas/myblogx_internal_kernel.ListData-internal_analytics_adapter_http_DeadLetterReplayResultResponse"
+                    },
+                    "msg": {
+                        "type": "string"
+                    }
+                },
+                "type": "object"
+            },
             "myblogx_internal_kernel.Envelope-myblogx_internal_kernel_ListData-internal_article_adapter_http_ArticleTopCardResponse": {
                 "properties": {
                     "code": {
@@ -3413,20 +3517,6 @@
                 },
                 "type": "object"
             },
-            "myblogx_internal_kernel.Envelope-myblogx_internal_kernel_ListData-myblogx_internal_user_domain_User": {
-                "properties": {
-                    "code": {
-                        "type": "integer"
-                    },
-                    "data": {
-                        "$ref": "#/components/schemas/myblogx_internal_kernel.ListData-myblogx_internal_user_domain_User"
-                    },
-                    "msg": {
-                        "type": "string"
-                    }
-                },
-                "type": "object"
-            },
             "myblogx_internal_kernel.Envelope-myblogx_internal_kernel_SiteConfigData": {
                 "properties": {
                     "code": {
@@ -3462,48 +3552,6 @@
                     },
                     "data": {
                         "$ref": "#/components/schemas/myblogx_internal_user_app.DetailView"
-                    },
-                    "msg": {
-                        "type": "string"
-                    }
-                },
-                "type": "object"
-            },
-            "myblogx_internal_kernel.Envelope-myblogx_internal_user_app_PublicProfile": {
-                "properties": {
-                    "code": {
-                        "type": "integer"
-                    },
-                    "data": {
-                        "$ref": "#/components/schemas/myblogx_internal_user_app.PublicProfile"
-                    },
-                    "msg": {
-                        "type": "string"
-                    }
-                },
-                "type": "object"
-            },
-            "myblogx_internal_kernel.Envelope-myblogx_internal_user_app_UpdateResult": {
-                "properties": {
-                    "code": {
-                        "type": "integer"
-                    },
-                    "data": {
-                        "$ref": "#/components/schemas/myblogx_internal_user_app.UpdateResult"
-                    },
-                    "msg": {
-                        "type": "string"
-                    }
-                },
-                "type": "object"
-            },
-            "myblogx_internal_kernel.Envelope-myblogx_internal_user_domain_User": {
-                "properties": {
-                    "code": {
-                        "type": "integer"
-                    },
-                    "data": {
-                        "$ref": "#/components/schemas/myblogx_internal_user_domain.User"
                     },
                     "msg": {
                         "type": "string"
@@ -3658,6 +3706,36 @@
                 "required": [
                     "id_list"
                 ],
+                "type": "object"
+            },
+            "myblogx_internal_kernel.ListData-internal_analytics_adapter_http_DeadLetterItemResponse": {
+                "properties": {
+                    "count": {
+                        "type": "integer"
+                    },
+                    "list": {
+                        "items": {
+                            "$ref": "#/components/schemas/internal_analytics_adapter_http.DeadLetterItemResponse"
+                        },
+                        "type": "array",
+                        "uniqueItems": false
+                    }
+                },
+                "type": "object"
+            },
+            "myblogx_internal_kernel.ListData-internal_analytics_adapter_http_DeadLetterReplayResultResponse": {
+                "properties": {
+                    "count": {
+                        "type": "integer"
+                    },
+                    "list": {
+                        "items": {
+                            "$ref": "#/components/schemas/internal_analytics_adapter_http.DeadLetterReplayResultResponse"
+                        },
+                        "type": "array",
+                        "uniqueItems": false
+                    }
+                },
                 "type": "object"
             },
             "myblogx_internal_kernel.ListData-internal_article_adapter_http_ArticleTopCardResponse": {
@@ -3878,21 +3956,6 @@
                     "list": {
                         "items": {
                             "$ref": "#/components/schemas/myblogx_internal_comment_app.ManageItem"
-                        },
-                        "type": "array",
-                        "uniqueItems": false
-                    }
-                },
-                "type": "object"
-            },
-            "myblogx_internal_kernel.ListData-myblogx_internal_user_domain_User": {
-                "properties": {
-                    "count": {
-                        "type": "integer"
-                    },
-                    "list": {
-                        "items": {
-                            "$ref": "#/components/schemas/myblogx_internal_user_domain.User"
                         },
                         "type": "array",
                         "uniqueItems": false
@@ -4239,185 +4302,6 @@
                         "type": "string"
                     },
                     "title": {
-                        "type": "string"
-                    }
-                },
-                "type": "object"
-            },
-            "myblogx_internal_user_app.PublicProfile": {
-                "properties": {
-                    "abstract": {
-                        "type": "string"
-                    },
-                    "avatar": {
-                        "type": "string"
-                    },
-                    "avatarImageID": {
-                        "description": "以下字段是主页展示需要的补充信息。",
-                        "type": "string"
-                    },
-                    "codeAge": {
-                        "type": "integer"
-                    },
-                    "fansVis": {
-                        "type": "boolean"
-                    },
-                    "favoritesVis": {
-                        "type": "boolean"
-                    },
-                    "followVis": {
-                        "type": "boolean"
-                    },
-                    "homeStyleID": {
-                        "type": "string"
-                    },
-                    "id": {
-                        "type": "string"
-                    },
-                    "nickname": {
-                        "type": "string"
-                    },
-                    "place": {
-                        "type": "string"
-                    },
-                    "relation": {
-                        "type": "integer"
-                    },
-                    "stats": {
-                        "$ref": "#/components/schemas/myblogx_internal_user_domain.Stats"
-                    },
-                    "username": {
-                        "type": "string"
-                    }
-                },
-                "type": "object"
-            },
-            "myblogx_internal_user_app.UpdateResult": {
-                "properties": {
-                    "changed": {
-                        "items": {
-                            "type": "string"
-                        },
-                        "type": "array"
-                    },
-                    "snapshotSynced": {
-                        "type": "boolean"
-                    },
-                    "user": {
-                        "$ref": "#/components/schemas/myblogx_internal_user_domain.User"
-                    }
-                },
-                "type": "object"
-            },
-            "myblogx_internal_user_domain.RegisterSource": {
-                "enum": [
-                    1,
-                    2,
-                    3,
-                    4
-                ],
-                "type": "integer",
-                "x-enum-varnames": [
-                    "SourceEmail",
-                    "SourceQQ",
-                    "SourceTerminal",
-                    "SourceAdmin"
-                ]
-            },
-            "myblogx_internal_user_domain.Role": {
-                "enum": [
-                    1,
-                    2,
-                    3
-                ],
-                "type": "integer",
-                "x-enum-varnames": [
-                    "RoleAdmin",
-                    "RoleUser",
-                    "RoleGuest"
-                ]
-            },
-            "myblogx_internal_user_domain.Stats": {
-                "properties": {
-                    "articleCount": {
-                        "type": "integer"
-                    },
-                    "articleVisitedCount": {
-                        "type": "integer"
-                    },
-                    "fansCount": {
-                        "type": "integer"
-                    },
-                    "followCount": {
-                        "type": "integer"
-                    },
-                    "userID": {
-                        "type": "string"
-                    },
-                    "viewCount": {
-                        "type": "integer"
-                    }
-                },
-                "type": "object"
-            },
-            "myblogx_internal_user_domain.Status": {
-                "enum": [
-                    1,
-                    2,
-                    3
-                ],
-                "type": "integer",
-                "x-enum-varnames": [
-                    "StatusActive",
-                    "StatusDisabled",
-                    "StatusBanned"
-                ]
-            },
-            "myblogx_internal_user_domain.User": {
-                "properties": {
-                    "abstract": {
-                        "type": "string"
-                    },
-                    "addr": {
-                        "type": "string"
-                    },
-                    "avatar": {
-                        "type": "string"
-                    },
-                    "createdAt": {
-                        "type": "string"
-                    },
-                    "email": {
-                        "type": "string"
-                    },
-                    "id": {
-                        "type": "string"
-                    },
-                    "ip": {
-                        "type": "string"
-                    },
-                    "nickname": {
-                        "type": "string"
-                    },
-                    "openID": {
-                        "type": "string"
-                    },
-                    "passwordHash": {
-                        "type": "string"
-                    },
-                    "registerSource": {
-                        "$ref": "#/components/schemas/myblogx_internal_user_domain.RegisterSource"
-                    },
-                    "role": {
-                        "$ref": "#/components/schemas/myblogx_internal_user_domain.Role"
-                    },
-                    "status": {
-                        "$ref": "#/components/schemas/myblogx_internal_user_domain.Status"
-                    },
-                    "tokenVersion": {
-                        "type": "integer"
-                    },
-                    "username": {
                         "type": "string"
                     }
                 },
@@ -7490,6 +7374,111 @@
                 ]
             }
         },
+        "/logs/dead-letter": {
+            "get": {
+                "parameters": [
+                    {
+                        "description": "页码",
+                        "in": "query",
+                        "name": "page",
+                        "schema": {
+                            "type": "integer"
+                        }
+                    },
+                    {
+                        "description": "每页条数",
+                        "in": "query",
+                        "name": "limit",
+                        "schema": {
+                            "type": "integer"
+                        }
+                    },
+                    {
+                        "description": "Stream 名称",
+                        "in": "query",
+                        "name": "stream",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "description": "状态：pending 待处理 / resolved 已解决",
+                        "in": "query",
+                        "name": "status",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "description": "CDC 任务 ID（前缀匹配）",
+                        "in": "query",
+                        "name": "cdc_job_id",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/myblogx_internal_kernel.Envelope-myblogx_internal_kernel_ListData-internal_analytics_adapter_http_DeadLetterItemResponse"
+                                }
+                            }
+                        },
+                        "description": "OK"
+                    }
+                },
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "summary": "死信列表",
+                "tags": [
+                    "log"
+                ]
+            }
+        },
+        "/logs/dead-letter/replay": {
+            "post": {
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/internal_analytics_adapter_http.DeadLetterReplayRequest",
+                                "summary": "body",
+                                "description": "死信 ID 列表"
+                            }
+                        }
+                    },
+                    "description": "死信 ID 列表",
+                    "required": true
+                },
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/myblogx_internal_kernel.Envelope-myblogx_internal_kernel_ListData-internal_analytics_adapter_http_DeadLetterReplayResultResponse"
+                                }
+                            }
+                        },
+                        "description": "OK"
+                    }
+                },
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "summary": "重投死信",
+                "tags": [
+                    "log"
+                ]
+            }
+        },
         "/logs/login": {
             "get": {
                 "parameters": [
@@ -8543,95 +8532,6 @@
                 ]
             }
         },
-        "/users": {
-            "get": {
-                "responses": {
-                    "200": {
-                        "content": {
-                            "application/json": {
-                                "schema": {
-                                    "$ref": "#/components/schemas/myblogx_internal_kernel.Envelope-myblogx_internal_kernel_ListData-myblogx_internal_user_domain_User"
-                                }
-                            }
-                        },
-                        "description": "OK"
-                    }
-                },
-                "security": [
-                    {
-                        "BearerAuth": []
-                    }
-                ],
-                "summary": "用户列表",
-                "tags": [
-                    "user"
-                ]
-            },
-            "post": {
-                "requestBody": {
-                    "content": {
-                        "application/json": {
-                            "schema": {
-                                "type": "object"
-                            }
-                        }
-                    }
-                },
-                "responses": {
-                    "200": {
-                        "content": {
-                            "application/json": {
-                                "schema": {
-                                    "$ref": "#/components/schemas/myblogx_internal_kernel.Envelope-myblogx_internal_user_domain_User"
-                                }
-                            }
-                        },
-                        "description": "OK"
-                    }
-                },
-                "security": [
-                    {
-                        "BearerAuth": []
-                    }
-                ],
-                "summary": "创建用户",
-                "tags": [
-                    "user"
-                ]
-            },
-            "put": {
-                "requestBody": {
-                    "content": {
-                        "application/json": {
-                            "schema": {
-                                "type": "object"
-                            }
-                        }
-                    }
-                },
-                "responses": {
-                    "200": {
-                        "content": {
-                            "application/json": {
-                                "schema": {
-                                    "$ref": "#/components/schemas/myblogx_internal_kernel.Envelope-myblogx_internal_user_app_UpdateResult"
-                                }
-                            }
-                        },
-                        "description": "OK"
-                    }
-                },
-                "security": [
-                    {
-                        "BearerAuth": []
-                    }
-                ],
-                "summary": "更新用户资料",
-                "tags": [
-                    "user"
-                ]
-            }
-        },
         "/users/admin": {
             "post": {
                 "requestBody": {
@@ -9301,116 +9201,6 @@
                     }
                 ],
                 "summary": "下线指定会话",
-                "tags": [
-                    "user"
-                ]
-            }
-        },
-        "/users/settings": {
-            "put": {
-                "requestBody": {
-                    "content": {
-                        "application/json": {
-                            "schema": {
-                                "type": "object"
-                            }
-                        }
-                    }
-                },
-                "responses": {
-                    "200": {
-                        "content": {
-                            "application/json": {
-                                "schema": {
-                                    "$ref": "#/components/schemas/myblogx_internal_kernel.Envelope-string"
-                                }
-                            }
-                        },
-                        "description": "OK"
-                    }
-                },
-                "security": [
-                    {
-                        "BearerAuth": []
-                    }
-                ],
-                "summary": "更新用户偏好",
-                "tags": [
-                    "user"
-                ]
-            }
-        },
-        "/users/{id}": {
-            "get": {
-                "parameters": [
-                    {
-                        "description": "用户 ID",
-                        "in": "path",
-                        "name": "id",
-                        "required": true,
-                        "schema": {
-                            "type": "string"
-                        }
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "content": {
-                            "application/json": {
-                                "schema": {
-                                    "$ref": "#/components/schemas/myblogx_internal_kernel.Envelope-myblogx_internal_user_app_PublicProfile"
-                                }
-                            }
-                        },
-                        "description": "OK"
-                    }
-                },
-                "summary": "用户公开主页",
-                "tags": [
-                    "user"
-                ]
-            }
-        },
-        "/users/{id}/status": {
-            "put": {
-                "parameters": [
-                    {
-                        "description": "用户 ID",
-                        "in": "path",
-                        "name": "id",
-                        "required": true,
-                        "schema": {
-                            "type": "string"
-                        }
-                    }
-                ],
-                "requestBody": {
-                    "content": {
-                        "application/json": {
-                            "schema": {
-                                "type": "object"
-                            }
-                        }
-                    }
-                },
-                "responses": {
-                    "200": {
-                        "content": {
-                            "application/json": {
-                                "schema": {
-                                    "$ref": "#/components/schemas/myblogx_internal_kernel.Envelope-string"
-                                }
-                            }
-                        },
-                        "description": "OK"
-                    }
-                },
-                "security": [
-                    {
-                        "BearerAuth": []
-                    }
-                ],
-                "summary": "修改账号状态",
                 "tags": [
                     "user"
                 ]

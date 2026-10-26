@@ -44,16 +44,6 @@ func NewReplayer(db *gorm.DB) *Replayer {
 // Streams 实现 dlq.Replayer。
 func (r *Replayer) Streams() []string { return []string{ReplayStream} }
 
-// imageRefReplayPayload 是 image_ref_river 死信 payload 的形状（三种动作的字段并集）。
-type imageRefReplayPayload struct {
-	OwnerID string          `json:"owner_id"`
-	RefType string          `json:"ref_type"`
-	Table   string          `json:"table"`
-	Row     json.RawMessage `json:"row"`
-	Before  json.RawMessage `json:"before"`
-	After   json.RawMessage `json:"after"`
-}
-
 // Replay 实现 dlq.Replayer。
 func (r *Replayer) Replay(ctx context.Context, record deadletter.Record) error {
 	if r == nil || r.db == nil {
@@ -65,7 +55,7 @@ func (r *Replayer) Replay(ctx context.Context, record deadletter.Record) error {
 		}
 	}
 
-	var payload imageRefReplayPayload
+	var payload replayPayload
 	raw := strings.TrimSpace(record.PayloadJSON)
 	if raw == "" || raw == "{}" {
 		return fmt.Errorf("imageref: 死信 payload 为空，无法重投（cdc_job_id=%s）", record.CdcJobID)
@@ -74,9 +64,17 @@ func (r *Replayer) Replay(ctx context.Context, record deadletter.Record) error {
 		return fmt.Errorf("imageref: 死信 payload 不是合法 JSON: %w", err)
 	}
 
-	if payload.OwnerID == "" || payload.RefType == "" {
-		return fmt.Errorf("imageref: 只支持删除类死信的重投（需要 owner_id 与 ref_type）；" +
-			"新增/更新类的行数据经 JSON 往返后类型无法可靠还原，请重新保存该业务对象触发重建")
+	// 新增/更新类：payload 里是 binlog 原始行，经 JSON 往返后数字变 float64、
+	// 时间变字符串，重建行快照会**静默算错**候选图（比重投失败可怕得多）。
+	// 用 ErrUnsupported 而不是普通 error：这不是"这次没成功"，而是"这条不该重投"，
+	// 编排层不会把它记成失败、也不会涨 retry_count。
+	if payload.isRowBased() {
+		return fmt.Errorf("imageref: 新增/更新类死信不能重投（行数据经 JSON 往返后类型不可靠），"+
+			"请重新保存该业务对象触发重建: %w", deadletter.ErrUnsupported)
+	}
+	if !payload.isDelete() {
+		return fmt.Errorf("imageref: 死信 payload 既不是删除类、也没有行数据，无法判断该重算什么（cdc_job_id=%s）",
+			record.CdcJobID)
 	}
 
 	refType, err := image_ref_enum.ParseRefType(payload.RefType)

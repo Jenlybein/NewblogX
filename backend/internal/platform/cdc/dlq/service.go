@@ -36,6 +36,10 @@ import (
 // 语义定义在 deadletter 包（执行器与编排层的公共依赖），这里只是给调用方一个就近的名字。
 var ErrSkipped = deadletter.ErrSkipped
 
+// ErrUnsupported 由执行器返回，表示"这条记录语义上不能重投"（= 不是失败）。
+// 与"没有注册执行器"那一支同属 unsupported，区别只在这句话是执行器看完 payload 之后说的。
+var ErrUnsupported = deadletter.ErrUnsupported
+
 // 重投结果的取值。前三个与回放日志的 result 字段共用一套词。
 const (
 	ResultSuccess     = "success"
@@ -188,6 +192,16 @@ func (s *Service) replayOne(ctx context.Context, record deadletter.Record) Resul
 		s.emit(record, out, "")
 		return out
 
+	case errors.Is(err, ErrUnsupported):
+		// 不写库：status 与 retry_count 保持原样。
+		// 理由同"没有注册执行器"那一支 —— 这不是一次失败的尝试，而是"这条不该被重投"；
+		// 记成 failed 会让运维把它当成"再点几次就好了"，而它点一百次也是同一个结果。
+		// 文案用执行器给的那句（它知道该改用什么办法），不用 unsupportedMessage 的通用话。
+		out.Result = ResultUnsupported
+		out.Message = err.Error()
+		s.emit(record, out, err.Error())
+		return out
+
 	default:
 		out.Result = ResultFailed
 		out.Status = deadletter.StatusPending
@@ -210,9 +224,10 @@ func (s *Service) unsupportedMessage(stream string) string {
 	}
 	switch strings.TrimSpace(stream) {
 	case "es_projection":
-		return "该流程的死信只记录了表名与动作、没有主键，无法定位到具体行。" +
-			"可靠的补法是用运维命令全量重建文章搜索投影：" +
-			"`./server -es -s article-sync`（索引需已存在，否则先 -es -s init）。" +
+		// 正常情况下这条走不到：投影执行器已在装配层注册，旧记录会由它返回 ErrUnsupported
+		// 并给出自己的说明。走到这里说明装配缺了一环（比如某个部署漏调了 WireAnalytics）。
+		return "当前部署没有注册投影重投执行器（装配缺失），无法就地重算；" +
+			"临时办法：`./server -es -s article-sync` 全量重建文章搜索投影。" +
 			"当前支持重投的流：" + supported
 	default:
 		return "没有为该 stream 注册重投执行器。当前支持重投的流：" + supported

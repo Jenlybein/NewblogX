@@ -14,11 +14,16 @@ type Item struct {
 	SourceTable string
 	Action      string
 	TargetKey   string
-	Payload     map[string]any
-	RetryCount  int
-	Status      string
-	ErrorCode   string
-	ErrorMsg    string
+	// Payload 是**各条链路自己的**载荷形状，这里只负责序列化。
+	//
+	// 类型是 any 而不是 map[string]any：写入端应当传一个与重投端共用的结构体
+	// （见 cdc/imageref/payload.go），这样字段名漂移会在编译期就报错。
+	// 传 map 也仍然允许 —— 历史代码就是那么写的，序列化结果一样。
+	Payload    any
+	RetryCount int
+	Status     string
+	ErrorCode  string
+	ErrorMsg   string
 }
 
 func SaveBatch(db *gorm.DB, items []Item) error {
@@ -29,9 +34,13 @@ func SaveBatch(db *gorm.DB, items []Item) error {
 	return db.Transaction(func(tx *gorm.DB) error {
 		for _, item := range items {
 			payloadJSON := "{}"
-			if len(item.Payload) > 0 {
+			if item.Payload != nil {
 				if byteData, err := json.Marshal(item.Payload); err == nil {
-					payloadJSON = string(byteData)
+					// nil map / 空结构体会序列化成 "null" / "{}"，统一落成 "{}"：
+					// 重投端把 "{}" 当"没有载荷"处理，两种写法不该有两种语义。
+					if text := string(byteData); text != "null" && text != "{}" {
+						payloadJSON = text
+					}
 				}
 			}
 			status := item.Status

@@ -18,6 +18,20 @@ import (
 // 这个哨兵不需要暴露给用户，只用于 errors.Is 判定。
 var ErrSkipped = errors.New("deadletter: no replay needed")
 
+// ErrUnsupported 由重投执行器返回，表示"这条记录**语义上**不能重投"。
+//
+// 它和普通 error 的区别必须显式表达，因为两者的 UI 含义完全不同：
+//   - 普通 error = 这次没成功（状态仍 pending、retry_count+1、红色"失败"）→ 可以再点；
+//   - 本哨兵 = 重投这个动作对它不成立（状态与 retry_count 都不动、橙色"不支持重投"）
+//     → 再点一百次也一样，人该换个办法。
+//
+// 混在一起的后果是真实发生过的：image_ref_river 的新增/更新类死信明明只能"重新保存
+// 业务对象"，却被记成失败，运维会反复点，越点越困惑。
+//
+// 与"没有为该 stream 注册执行器"同属 unsupported，但来源不同：
+// 那一支是编排层按 stream 名判断的，这一支是执行器看过 payload 之后判断的。
+var ErrUnsupported = errors.New("deadletter: replay unsupported")
+
 // 死信的状态机。
 //
 //	pending ──人工重投成功──> resolved（终态，不再参与重投）

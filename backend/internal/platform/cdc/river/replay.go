@@ -109,14 +109,25 @@ type esReplayPayload struct {
 
 // replayAction 决定这条死信要用哪个 ES 动作重投。
 //
-// 优先用 payload 里的动作：一次 update 改文档 ID 会拆成"删旧 + 写新"两条请求，
-// 两者在死信记录里的 canal 动作都是 update，只有 payload 能区分。
-// 老记录没有该字段时退回按 canal 动作推断（delete→删除，其余→索引）。
+// 优先用 payload 里的动作，原因有两个，都不是"顺手"：
+//
+//  1. 一次 update 改文档 ID 会拆成"删旧 + 写新"两条 bulk 请求，两者在死信记录里的
+//     canal 动作**都是 update**，只有 payload 记得住哪条是删除。
+//  2. update 携带的 data 是**只含变更列的局部文档**。把它当 index 重发，等于用
+//     局部文档整篇覆盖 —— 没变的字段会从索引里静默消失。所以 update 必须保留
+//     update 动作（es_service.Bulk 会包成 {"doc": ...}）。
+//
+// 老记录（payload 里没有 action）退回按 canal 动作推断：delete→删除，其余→索引。
+// 那种情况下 update 会被当成索引覆盖 —— 这是历史遗留的已知偏差，没法补救
+// （老 payload 里确实没有区分信息）。它现在不造成实际影响：能产生 es_river 死信的
+// 那张表当前走的是投影分支（通用规则路径对它不可达），见 ADR-008。
 func replayAction(payload, recordAction string) string {
 	switch strings.ToLower(strings.TrimSpace(payload)) {
 	case es_service.ActionDelete:
 		return es_service.ActionDelete
-	case es_service.ActionIndex, es_service.ActionCreate, es_service.ActionUpdate:
+	case es_service.ActionUpdate:
+		return es_service.ActionUpdate
+	case es_service.ActionIndex, es_service.ActionCreate:
 		return es_service.ActionIndex
 	}
 	if strings.EqualFold(strings.TrimSpace(recordAction), "delete") {
@@ -127,8 +138,8 @@ func replayAction(payload, recordAction string) string {
 
 // buildReplayRequest 把死信 payload 还原成一条 ES bulk 请求。
 //
-// 动作从**死信记录的 Action 列**还原，因为 payload 里没有 action：
-// canal 的 delete 对应 ES 的 delete，insert/update 都走 index（覆盖写，幂等）。
+// 动作优先取 payload 里的 `action`（写入端在落死信时记下了这条 bulk 请求自己的
+// ES 动作）；老记录没有该字段时按 Record.Action 兜底，见 replayAction。
 func buildReplayRequest(record deadletter.Record) (*es_service.BulkRequest, error) {
 	var payload esReplayPayload
 	raw := strings.TrimSpace(record.PayloadJSON)

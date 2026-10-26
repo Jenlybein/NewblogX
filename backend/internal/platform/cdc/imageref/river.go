@@ -116,9 +116,9 @@ func (h *eventHandler) OnRow(e *canal.RowsEvent) error {
 		// 删除操作：删除该业务对象关联的所有图片引用
 		for index, ownerID := range extractRowIDs(e) {
 			task := newImageRefTask(h.river, e, index, fmt.Sprintf("owner_id=%s", ownerID))
-			if err := h.river.runTaskWithRetry(task, map[string]any{
-				"owner_id": ownerID,
-				"ref_type": refType.String(),
+			if err := h.river.runTaskWithRetry(task, replayPayload{
+				OwnerID: ownerID.String(),
+				RefType: refType.String(),
 			}, func() error {
 				return DeleteOwnerRefs(h.river.db, refType, ownerID)
 			}); err != nil {
@@ -131,9 +131,9 @@ func (h *eventHandler) OnRow(e *canal.RowsEvent) error {
 			rowSnapshot := newRowSnapshot(layout, row)
 			targetKey := fmt.Sprintf("owner_id=%s", snapshotIDString(rowSnapshot))
 			task := newImageRefTask(h.river, e, index, targetKey)
-			if err := h.river.runTaskWithRetry(task, map[string]any{
-				"table": e.Table.Name,
-				"row":   row,
+			if err := h.river.runTaskWithRetry(task, replayPayload{
+				Table: e.Table.Name,
+				Row:   row,
 			}, func() error {
 				return rebuildByRow(h.river.db, h.river.qiNiu, rowSnapshot)
 			}); err != nil {
@@ -151,10 +151,10 @@ func (h *eventHandler) OnRow(e *canal.RowsEvent) error {
 			rowIndex := i / 2
 			targetKey := fmt.Sprintf("owner_id=%s", snapshotIDString(after))
 			task := newImageRefTask(h.river, e, rowIndex, targetKey)
-			if err := h.river.runTaskWithRetry(task, map[string]any{
-				"table":  e.Table.Name,
-				"before": e.Rows[i-1],
-				"after":  e.Rows[i],
+			if err := h.river.runTaskWithRetry(task, replayPayload{
+				Table:  e.Table.Name,
+				Before: e.Rows[i-1],
+				After:  e.Rows[i],
 			}, func() error {
 				return rebuildByRow(h.river.db, h.river.qiNiu, after)
 			}); err != nil {
@@ -302,7 +302,11 @@ func snapshotIDString(snapshot rowSnapshot) string {
 	return fmt.Sprintf("%s", id)
 }
 
-func (r *River) runTaskWithRetry(task imageRefTask, payload map[string]any, runner func() error) error {
+// runTaskWithRetry 带重试地执行一次重建；重试耗尽后把**原始 payload** 写进死信。
+//
+// payload 的类型是 any 而不是 map[string]any：写入端要能直接传 replayPayload
+// （与重投端共用同一个结构体，见 payload.go 的说明）。
+func (r *River) runTaskWithRetry(task imageRefTask, payload any, runner func() error) error {
 	maxAttempts := r.cfg.Retry.MaxAttempts
 	if maxAttempts <= 0 {
 		maxAttempts = 2

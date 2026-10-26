@@ -92,6 +92,29 @@ func TestBuildReplayRequestUpdateDeleteHalf(t *testing.T) {
 	}
 }
 
+// update 必须按 update 重投，不能折叠成 index。
+//
+// 理由：update 的 data 是**只含变更列**的局部文档。当 index 重发等于整篇覆盖，
+// 没变的字段会从索引里静默消失 —— 不报错、只是数据慢慢不对。
+// 当前没有规则走这条分支（配置里唯一的表走投影，通用路径对它不可达），
+// 所以这是个"一旦有人加非投影表就会咬人"的保护，靠用例钉住。
+func TestBuildReplayRequestKeepsUpdateAction(t *testing.T) {
+	req, err := buildReplayRequest(deadletter.Record{
+		Action:      "update",
+		CdcJobID:    "es_river:db.other_models:bin.1:4:0",
+		PayloadJSON: `{"action":"update","index":"other_index","id":"7","data":{"title":"只改了标题"}}`,
+	})
+	if err != nil {
+		t.Fatalf("update 重投不应报错: %v", err)
+	}
+	if req.Action != "update" {
+		t.Fatalf("update 必须保留原动作（局部文档），实际 %s", req.Action)
+	}
+	if len(req.Data) != 1 || req.Data["title"] != "只改了标题" {
+		t.Fatalf("data 应原样保留，实际 %+v", req.Data)
+	}
+}
+
 // 老记录（payload 里没有 action）仍按 canal 动作兜底，行为与之前一致。
 func TestReplayActionFallsBackToRecordAction(t *testing.T) {
 	cases := []struct{ payload, record, want string }{

@@ -75,11 +75,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": {
-                            code?: number;
-                            data?: components["schemas"]["internal_ai_adapter_http.MetaInfoResponse"];
-                            msg?: string;
-                        };
+                        "application/json": components["schemas"]["myblogx_internal_kernel.Envelope-internal_ai_adapter_http_MetaInfoResponse"];
                     };
                 };
             };
@@ -161,11 +157,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": {
-                            code?: number;
-                            data?: components["schemas"]["internal_ai_adapter_http.ScoringResponse"];
-                            msg?: string;
-                        };
+                        "application/json": components["schemas"]["myblogx_internal_kernel.Envelope-internal_ai_adapter_http_ScoringResponse"];
                     };
                 };
             };
@@ -206,11 +198,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": {
-                            code?: number;
-                            data?: Record<string, never>;
-                            msg?: string;
-                        };
+                        "application/json": components["schemas"]["myblogx_internal_kernel.Envelope-myblogx_internal_search_domain_Response"];
                     };
                 };
             };
@@ -292,11 +280,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": {
-                            code?: number;
-                            data?: components["schemas"]["internal_article_adapter_http.ArticleReviewTaskListResponse"];
-                            msg?: string;
-                        };
+                        "application/json": components["schemas"]["myblogx_internal_kernel.Envelope-internal_article_adapter_http_ArticleReviewTaskListResponse"];
                     };
                 };
             };
@@ -342,11 +326,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": {
-                            code?: number;
-                            data?: Record<string, never>;
-                            msg?: string;
-                        };
+                        "application/json": components["schemas"]["myblogx_internal_kernel.Envelope-myblogx_internal_kernel_EmptyData"];
                     };
                 };
             };
@@ -387,11 +367,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": {
-                            code?: number;
-                            data?: components["schemas"]["internal_article_adapter_http.ArticleCreateResponse"];
-                            msg?: string;
-                        };
+                        "application/json": components["schemas"]["myblogx_internal_kernel.Envelope-internal_article_adapter_http_ArticleCreateResponse"];
                     };
                 };
             };
@@ -417,11 +393,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": {
-                            code?: number;
-                            data?: Record<string, never>;
-                            msg?: string;
-                        };
+                        "application/json": components["schemas"]["myblogx_internal_kernel.Envelope-myblogx_internal_kernel_EmptyData"];
                     };
                 };
             };
@@ -457,11 +429,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": {
-                            code?: number;
-                            data?: Record<string, never>;
-                            msg?: string;
-                        };
+                        "application/json": components["schemas"]["myblogx_internal_kernel.Envelope-internal_article_adapter_http_ArticleAuthorInfoResponse"];
                     };
                 };
             };
@@ -500,14 +468,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": {
-                            code?: number;
-                            data?: {
-                                count?: number;
-                                list?: Record<string, never>[];
-                            };
-                            msg?: string;
-                        };
+                        "application/json": components["schemas"]["myblogx_internal_kernel.Envelope-myblogx_internal_kernel_ListData-internal_article_adapter_http_CategoryListItem"];
                     };
                 };
             };
@@ -534,11 +495,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": {
-                            code?: number;
-                            data?: Record<string, never>;
-                            msg?: string;
-                        };
+                        "application/json": components["schemas"]["myblogx_internal_kernel.Envelope-myblogx_internal_kernel_EmptyData"];
                     };
                 };
             };
@@ -564,11 +521,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": {
-                            code?: number;
-                            data?: Record<string, never>;
-                            msg?: string;
-                        };
+                        "application/json": components["schemas"]["myblogx_internal_kernel.Envelope-myblogx_internal_kernel_EmptyData"];
                     };
                 };
             };
@@ -604,14 +557,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": {
-                            code?: number;
-                            data?: {
-                                count?: number;
-                                list?: Record<string, never>[];
-                            };
-                            msg?: string;
-                        };
+                        "application/json": components["schemas"]["myblogx_internal_kernel.Envelope-myblogx_internal_kernel_ListData-internal_article_adapter_http_CategoryListItem"];
                     };
                 };
             };
@@ -650,14 +596,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": {
-                            code?: number;
-                            data?: {
-                                count?: number;
-                                list?: Record<string, never>[];
-                            };
-                            msg?: string;
-                        };
+                        "application/json": components["schemas"]["myblogx_internal_kernel.Envelope-myblogx_internal_kernel_ListData-internal_article_adapter_http_FavoriteListItem"];
                     };
                 };
             };
@@ -683,11 +622,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": {
-                            code?: number;
-                            data?: Record<string, never>;
-                            msg?: string;
-                        };
+                        "application/json": components["schemas"]["myblogx_internal_kernel.Envelope-myblogx_internal_kernel_EmptyData"];
                     };
                 };
             };
@@ -713,11 +648,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": {
-                            code?: number;
-                            data?: Record<string, never>;
-                            msg?: string;
-                        };
+                        "application/json": components["schemas"]["myblogx_internal_kernel.Envelope-myblogx_internal_kernel_EmptyData"];
                     };
                 };
             };
@@ -743,11 +674,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": {
-                            code?: number;
-                            data?: Record<string, never>;
-                            msg?: string;
-                        };
+                        "application/json": components["schemas"]["myblogx_internal_kernel.Envelope-myblogx_internal_kernel_EmptyData"];
                     };
                 };
             };
@@ -787,14 +714,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": {
-                            code?: number;
-                            data?: {
-                                count?: number;
-                                list?: Record<string, never>[];
-                            };
-                            msg?: string;
-                        };
+                        "application/json": components["schemas"]["myblogx_internal_kernel.Envelope-myblogx_internal_kernel_HasMoreListData-internal_article_adapter_http_FavoriteArticleListItem"];
                     };
                 };
             };
@@ -822,11 +742,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": {
-                            code?: number;
-                            data?: Record<string, never>;
-                            msg?: string;
-                        };
+                        "application/json": components["schemas"]["myblogx_internal_kernel.Envelope-myblogx_internal_kernel_EmptyData"];
                     };
                 };
             };
@@ -864,14 +780,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": {
-                            code?: number;
-                            data?: {
-                                count?: number;
-                                list?: Record<string, never>[];
-                            };
-                            msg?: string;
-                        };
+                        "application/json": components["schemas"]["myblogx_internal_kernel.Envelope-myblogx_internal_kernel_HasMoreListData-internal_article_adapter_http_ArticleViewHistoryItem"];
                     };
                 };
             };
@@ -899,11 +808,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": {
-                            code?: number;
-                            data?: Record<string, never>;
-                            msg?: string;
-                        };
+                        "application/json": components["schemas"]["myblogx_internal_kernel.Envelope-myblogx_internal_kernel_EmptyData"];
                     };
                 };
             };
@@ -939,14 +844,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": {
-                            code?: number;
-                            data?: {
-                                count?: number;
-                                list?: Record<string, never>[];
-                            };
-                            msg?: string;
-                        };
+                        "application/json": components["schemas"]["myblogx_internal_kernel.Envelope-myblogx_internal_kernel_ListData-internal_article_adapter_http_TagListItem"];
                     };
                 };
             };
@@ -972,11 +870,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": {
-                            code?: number;
-                            data?: Record<string, never>;
-                            msg?: string;
-                        };
+                        "application/json": components["schemas"]["myblogx_internal_kernel.Envelope-myblogx_internal_kernel_EmptyData"];
                     };
                 };
             };
@@ -1003,11 +897,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": {
-                            code?: number;
-                            data?: Record<string, never>;
-                            msg?: string;
-                        };
+                        "application/json": components["schemas"]["myblogx_internal_kernel.Envelope-myblogx_internal_kernel_EmptyData"];
                     };
                 };
             };
@@ -1040,14 +930,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": {
-                            code?: number;
-                            data?: {
-                                count?: number;
-                                list?: Record<string, never>[];
-                            };
-                            msg?: string;
-                        };
+                        "application/json": components["schemas"]["myblogx_internal_kernel.Envelope-myblogx_internal_kernel_ListData-internal_article_adapter_http_TagListItem"];
                     };
                 };
             };
@@ -1086,14 +969,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": {
-                            code?: number;
-                            data?: {
-                                count?: number;
-                                list?: string[];
-                            };
-                            msg?: string;
-                        };
+                        "application/json": components["schemas"]["myblogx_internal_kernel.Envelope-myblogx_internal_kernel_ListData-string"];
                     };
                 };
             };
@@ -1120,11 +996,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": {
-                            code?: number;
-                            data?: Record<string, never>;
-                            msg?: string;
-                        };
+                        "application/json": components["schemas"]["myblogx_internal_kernel.Envelope-myblogx_internal_kernel_EmptyData"];
                     };
                 };
             };
@@ -1150,11 +1022,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": {
-                            code?: number;
-                            data?: Record<string, never>;
-                            msg?: string;
-                        };
+                        "application/json": components["schemas"]["myblogx_internal_kernel.Envelope-myblogx_internal_kernel_EmptyData"];
                     };
                 };
             };
@@ -1194,11 +1062,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": {
-                            code?: number;
-                            data?: Record<string, never>;
-                            msg?: string;
-                        };
+                        "application/json": components["schemas"]["myblogx_internal_kernel.Envelope-myblogx_internal_kernel_EmptyData"];
                     };
                 };
             };
@@ -1235,11 +1099,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": {
-                            code?: number;
-                            data?: components["schemas"]["internal_article_adapter_http.ArticleDetailResponse"];
-                            msg?: string;
-                        };
+                        "application/json": components["schemas"]["myblogx_internal_kernel.Envelope-internal_article_adapter_http_ArticleDetailResponse"];
                     };
                 };
             };
@@ -1268,11 +1128,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": {
-                            code?: number;
-                            data?: components["schemas"]["internal_article_adapter_http.ArticleDetailResponse"];
-                            msg?: string;
-                        };
+                        "application/json": components["schemas"]["myblogx_internal_kernel.Envelope-internal_article_adapter_http_ArticleDetailResponse"];
                     };
                 };
             };
@@ -1297,11 +1153,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": {
-                            code?: number;
-                            data?: Record<string, never>;
-                            msg?: string;
-                        };
+                        "application/json": components["schemas"]["myblogx_internal_kernel.Envelope-myblogx_internal_kernel_EmptyData"];
                     };
                 };
             };
@@ -1341,11 +1193,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": {
-                            code?: number;
-                            data?: Record<string, never>;
-                            msg?: string;
-                        };
+                        "application/json": components["schemas"]["myblogx_internal_kernel.Envelope-myblogx_internal_kernel_EmptyData"];
                     };
                 };
             };
@@ -1383,13 +1231,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": {
-                            code?: number;
-                            data?: {
-                                is_digg?: boolean;
-                            };
-                            msg?: string;
-                        };
+                        "application/json": components["schemas"]["myblogx_internal_kernel.Envelope-internal_article_adapter_http_ArticleDiggResponse"];
                     };
                 };
             };
@@ -1427,14 +1269,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": {
-                            code?: number;
-                            data?: {
-                                has_more?: boolean;
-                                list?: components["schemas"]["internal_site_adapter_http.BannerItem"][];
-                            };
-                            msg?: string;
-                        };
+                        "application/json": components["schemas"]["myblogx_internal_kernel.Envelope-myblogx_internal_kernel_HasMoreListData-internal_site_adapter_http_BannerItem"];
                     };
                 };
             };
@@ -1461,11 +1296,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": {
-                            code?: number;
-                            data?: components["schemas"]["internal_site_adapter_http.BannerCreateResponse"];
-                            msg?: string;
-                        };
+                        "application/json": components["schemas"]["myblogx_internal_kernel.Envelope-internal_site_adapter_http_BannerCreateResponse"];
                     };
                 };
             };
@@ -1491,11 +1322,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": {
-                            code?: number;
-                            data?: Record<string, never>;
-                            msg?: string;
-                        };
+                        "application/json": components["schemas"]["myblogx_internal_kernel.Envelope-myblogx_internal_kernel_EmptyData"];
                     };
                 };
             };
@@ -1537,11 +1364,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": {
-                            code?: number;
-                            data?: Record<string, never>;
-                            msg?: string;
-                        };
+                        "application/json": components["schemas"]["myblogx_internal_kernel.Envelope-myblogx_internal_kernel_EmptyData"];
                     };
                 };
             };
@@ -1576,14 +1399,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": {
-                            code?: number;
-                            data?: {
-                                count?: number;
-                                list?: components["schemas"]["myblogx_internal_chat_domain.MessageItem"][];
-                            };
-                            msg?: string;
-                        };
+                        "application/json": components["schemas"]["myblogx_internal_kernel.Envelope-myblogx_internal_kernel_ListData-myblogx_internal_chat_domain_MessageItem"];
                     };
                 };
             };
@@ -1610,11 +1426,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": {
-                            code?: number;
-                            data?: Record<string, never>;
-                            msg?: string;
-                        };
+                        "application/json": components["schemas"]["myblogx_internal_kernel.Envelope-myblogx_internal_kernel_EmptyData"];
                     };
                 };
             };
@@ -1653,11 +1465,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": {
-                            code?: number;
-                            data?: Record<string, never>;
-                            msg?: string;
-                        };
+                        "application/json": components["schemas"]["myblogx_internal_kernel.Envelope-myblogx_internal_kernel_EmptyData"];
                     };
                 };
             };
@@ -1691,14 +1499,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": {
-                            code?: number;
-                            data?: {
-                                count?: number;
-                                list?: components["schemas"]["myblogx_internal_chat_domain.SessionItem"][];
-                            };
-                            msg?: string;
-                        };
+                        "application/json": components["schemas"]["myblogx_internal_kernel.Envelope-myblogx_internal_kernel_ListData-myblogx_internal_chat_domain_SessionItem"];
                     };
                 };
             };
@@ -1725,11 +1526,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": {
-                            code?: number;
-                            data?: Record<string, never>;
-                            msg?: string;
-                        };
+                        "application/json": components["schemas"]["myblogx_internal_kernel.Envelope-myblogx_internal_kernel_EmptyData"];
                     };
                 };
             };
@@ -1762,11 +1559,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": {
-                            code?: number;
-                            data?: Record<string, never>;
-                            msg?: string;
-                        };
+                        "application/json": components["schemas"]["myblogx_internal_kernel.Envelope-myblogx_internal_kernel_EmptyData"];
                     };
                 };
             };
@@ -1802,11 +1595,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": {
-                            code?: number;
-                            data?: Record<string, never>;
-                            msg?: string;
-                        };
+                        "application/json": components["schemas"]["myblogx_internal_kernel.Envelope-internal_chat_adapter_http_WsTicketResponse"];
                     };
                 };
             };
@@ -1845,14 +1634,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": {
-                            code?: number;
-                            data?: {
-                                has_more?: boolean;
-                                list?: components["schemas"]["myblogx_internal_comment_app.RootItem"][];
-                            };
-                            msg?: string;
-                        };
+                        "application/json": components["schemas"]["myblogx_internal_kernel.Envelope-myblogx_internal_kernel_HasMoreListData-myblogx_internal_comment_app_RootItem"];
                     };
                 };
             };
@@ -1879,11 +1661,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": {
-                            code?: number;
-                            data?: components["schemas"]["myblogx_internal_comment_app.CreateResult"];
-                            msg?: string;
-                        };
+                        "application/json": components["schemas"]["myblogx_internal_kernel.Envelope-myblogx_internal_comment_app_CreateResult"];
                     };
                 };
             };
@@ -1917,14 +1695,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": {
-                            code?: number;
-                            data?: {
-                                count?: number;
-                                list?: components["schemas"]["myblogx_internal_comment_app.ManageItem"][];
-                            };
-                            msg?: string;
-                        };
+                        "application/json": components["schemas"]["myblogx_internal_kernel.Envelope-myblogx_internal_kernel_ListData-myblogx_internal_comment_app_ManageItem"];
                     };
                 };
             };
@@ -1960,11 +1731,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": {
-                            code?: number;
-                            data?: Record<string, never>;
-                            msg?: string;
-                        };
+                        "application/json": components["schemas"]["myblogx_internal_kernel.Envelope-internal_comment_adapter_http_ReplyListResponse"];
                     };
                 };
             };
@@ -2006,11 +1773,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": {
-                            code?: number;
-                            data?: Record<string, never>;
-                            msg?: string;
-                        };
+                        "application/json": components["schemas"]["myblogx_internal_kernel.Envelope-myblogx_internal_kernel_EmptyData"];
                     };
                 };
             };
@@ -2048,11 +1811,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": {
-                            code?: number;
-                            data?: Record<string, never>;
-                            msg?: string;
-                        };
+                        "application/json": components["schemas"]["myblogx_internal_kernel.Envelope-myblogx_internal_kernel_EmptyData"];
                     };
                 };
             };
@@ -2086,11 +1845,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": {
-                            code?: number;
-                            data?: components["schemas"]["internal_analytics_adapter_http.ArticleYearDataResponse"];
-                            msg?: string;
-                        };
+                        "application/json": components["schemas"]["myblogx_internal_kernel.Envelope-internal_analytics_adapter_http_ArticleYearDataResponse"];
                     };
                 };
             };
@@ -2129,11 +1884,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": {
-                            code?: number;
-                            data?: components["schemas"]["internal_analytics_adapter_http.GrowthDataResponse"];
-                            msg?: string;
-                        };
+                        "application/json": components["schemas"]["myblogx_internal_kernel.Envelope-internal_analytics_adapter_http_GrowthDataResponse"];
                     };
                 };
             };
@@ -2169,11 +1920,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": {
-                            code?: number;
-                            data?: components["schemas"]["internal_analytics_adapter_http.SumResponse"];
-                            msg?: string;
-                        };
+                        "application/json": components["schemas"]["myblogx_internal_kernel.Envelope-internal_analytics_adapter_http_SumResponse"];
                     };
                 };
             };
@@ -2209,14 +1956,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": {
-                            code?: number;
-                            data?: {
-                                has_more?: boolean;
-                                list?: components["schemas"]["myblogx_internal_social_domain.FansItem"][];
-                            };
-                            msg?: string;
-                        };
+                        "application/json": components["schemas"]["myblogx_internal_kernel.Envelope-myblogx_internal_kernel_HasMoreListData-myblogx_internal_social_domain_FansItem"];
                     };
                 };
             };
@@ -2252,14 +1992,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": {
-                            code?: number;
-                            data?: {
-                                has_more?: boolean;
-                                list?: components["schemas"]["myblogx_internal_social_domain.FollowingItem"][];
-                            };
-                            msg?: string;
-                        };
+                        "application/json": components["schemas"]["myblogx_internal_kernel.Envelope-myblogx_internal_kernel_HasMoreListData-myblogx_internal_social_domain_FollowingItem"];
                     };
                 };
             };
@@ -2300,11 +2033,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": {
-                            code?: number;
-                            data?: Record<string, never>;
-                            msg?: string;
-                        };
+                        "application/json": components["schemas"]["myblogx_internal_kernel.Envelope-myblogx_internal_kernel_EmptyData"];
                     };
                 };
             };
@@ -2328,11 +2057,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": {
-                            code?: number;
-                            data?: Record<string, never>;
-                            msg?: string;
-                        };
+                        "application/json": components["schemas"]["myblogx_internal_kernel.Envelope-myblogx_internal_kernel_EmptyData"];
                     };
                 };
             };
@@ -2368,14 +2093,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": {
-                            code?: number;
-                            data?: {
-                                has_more?: boolean;
-                                list?: components["schemas"]["internal_notification_adapter_http.GlobalListResponse"][];
-                            };
-                            msg?: string;
-                        };
+                        "application/json": components["schemas"]["myblogx_internal_kernel.Envelope-myblogx_internal_kernel_HasMoreListData-internal_notification_adapter_http_GlobalListResponse"];
                     };
                 };
             };
@@ -2402,11 +2120,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": {
-                            code?: number;
-                            data?: components["schemas"]["internal_notification_adapter_http.GlobalCreateResponse"];
-                            msg?: string;
-                        };
+                        "application/json": components["schemas"]["myblogx_internal_kernel.Envelope-internal_notification_adapter_http_GlobalCreateResponse"];
                     };
                 };
             };
@@ -2432,11 +2146,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": {
-                            code?: number;
-                            data?: Record<string, never>;
-                            msg?: string;
-                        };
+                        "application/json": components["schemas"]["myblogx_internal_kernel.Envelope-myblogx_internal_kernel_EmptyData"];
                     };
                 };
             };
@@ -2476,11 +2186,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": {
-                            code?: number;
-                            data?: Record<string, never>;
-                            msg?: string;
-                        };
+                        "application/json": components["schemas"]["myblogx_internal_kernel.Envelope-myblogx_internal_kernel_EmptyData"];
                     };
                 };
             };
@@ -2522,11 +2228,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": {
-                            code?: number;
-                            data?: Record<string, never>;
-                            msg?: string;
-                        };
+                        "application/json": components["schemas"]["myblogx_internal_kernel.Envelope-myblogx_internal_kernel_EmptyData"];
                     };
                 };
             };
@@ -2559,11 +2261,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": {
-                            code?: number;
-                            data?: components["schemas"]["internal_platform_captcha.ImageResponse"];
-                            msg?: string;
-                        };
+                        "application/json": components["schemas"]["myblogx_internal_kernel.Envelope-internal_platform_captcha_ImageResponse"];
                     };
                 };
             };
@@ -2599,14 +2297,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": {
-                            code?: number;
-                            data?: {
-                                count?: number;
-                                list?: components["schemas"]["internal_media_adapter_http.ImageItem"][];
-                            };
-                            msg?: string;
-                        };
+                        "application/json": components["schemas"]["myblogx_internal_kernel.Envelope-myblogx_internal_kernel_ListData-internal_media_adapter_http_ImageItem"];
                     };
                 };
             };
@@ -2634,11 +2325,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": {
-                            code?: number;
-                            data?: string;
-                            msg?: string;
-                        };
+                        "application/json": components["schemas"]["myblogx_internal_kernel.Envelope-string"];
                     };
                 };
             };
@@ -2677,11 +2364,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": {
-                            code?: number;
-                            data?: Record<string, never>;
-                            msg?: string;
-                        };
+                        "application/json": components["schemas"]["myblogx_internal_kernel.Envelope-myblogx_internal_kernel_EmptyData"];
                     };
                 };
             };
@@ -2721,11 +2404,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": {
-                            code?: number;
-                            data?: components["schemas"]["internal_media_adapter_http.CompleteTaskResponse"];
-                            msg?: string;
-                        };
+                        "application/json": components["schemas"]["myblogx_internal_kernel.Envelope-internal_media_adapter_http_CompleteTaskResponse"];
                     };
                 };
             };
@@ -2766,11 +2445,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": {
-                            code?: number;
-                            data?: components["schemas"]["internal_media_adapter_http.CreateTaskResponse"];
-                            msg?: string;
-                        };
+                        "application/json": components["schemas"]["myblogx_internal_kernel.Envelope-internal_media_adapter_http_CreateTaskResponse"];
                     };
                 };
             };
@@ -2811,11 +2486,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": {
-                            code?: number;
-                            data?: components["schemas"]["internal_media_adapter_http.CompleteTaskResponse"];
-                            msg?: string;
-                        };
+                        "application/json": components["schemas"]["myblogx_internal_kernel.Envelope-internal_media_adapter_http_CompleteTaskResponse"];
                     };
                 };
             };
@@ -2852,11 +2523,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": {
-                            code?: number;
-                            data?: components["schemas"]["internal_media_adapter_http.TaskStatusResponse"];
-                            msg?: string;
-                        };
+                        "application/json": components["schemas"]["myblogx_internal_kernel.Envelope-internal_media_adapter_http_TaskStatusResponse"];
                     };
                 };
             };
@@ -2933,14 +2600,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": {
-                            code?: number;
-                            data?: {
-                                count?: number;
-                                list?: components["schemas"]["myblogx_internal_analytics_adapter_clickhouse.ActionAuditRecord"][];
-                            };
-                            msg?: string;
-                        };
+                        "application/json": components["schemas"]["myblogx_internal_kernel.Envelope-myblogx_internal_kernel_ListData-myblogx_internal_analytics_adapter_clickhouse_ActionAuditRecord"];
                     };
                 };
             };
@@ -2979,11 +2639,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": {
-                            code?: number;
-                            data?: components["schemas"]["myblogx_internal_analytics_adapter_clickhouse.ActionAuditRecord"];
-                            msg?: string;
-                        };
+                        "application/json": components["schemas"]["myblogx_internal_kernel.Envelope-myblogx_internal_analytics_adapter_clickhouse_ActionAuditRecord"];
                     };
                 };
             };
@@ -3062,14 +2718,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": {
-                            code?: number;
-                            data?: {
-                                count?: number;
-                                list?: components["schemas"]["myblogx_internal_analytics_adapter_clickhouse.CdcEventRecord"][];
-                            };
-                            msg?: string;
-                        };
+                        "application/json": components["schemas"]["myblogx_internal_kernel.Envelope-myblogx_internal_kernel_ListData-myblogx_internal_analytics_adapter_clickhouse_CdcEventRecord"];
                     };
                 };
             };
@@ -3108,11 +2757,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": {
-                            code?: number;
-                            data?: components["schemas"]["myblogx_internal_analytics_adapter_clickhouse.CdcEventRecord"];
-                            msg?: string;
-                        };
+                        "application/json": components["schemas"]["myblogx_internal_kernel.Envelope-myblogx_internal_analytics_adapter_clickhouse_CdcEventRecord"];
                     };
                 };
             };
@@ -3171,11 +2816,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": {
-                            code?: number;
-                            data?: components["schemas"]["internal_analytics_adapter_http.ChainQueryResponse"];
-                            msg?: string;
-                        };
+                        "application/json": components["schemas"]["myblogx_internal_kernel.Envelope-internal_analytics_adapter_http_ChainQueryResponse"];
                     };
                 };
             };
@@ -3248,14 +2889,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": {
-                            code?: number;
-                            data?: {
-                                count?: number;
-                                list?: components["schemas"]["myblogx_internal_analytics_adapter_clickhouse.LoginEventRecord"][];
-                            };
-                            msg?: string;
-                        };
+                        "application/json": components["schemas"]["myblogx_internal_kernel.Envelope-myblogx_internal_kernel_ListData-myblogx_internal_analytics_adapter_clickhouse_LoginEventRecord"];
                     };
                 };
             };
@@ -3294,11 +2928,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": {
-                            code?: number;
-                            data?: components["schemas"]["myblogx_internal_analytics_adapter_clickhouse.LoginEventRecord"];
-                            msg?: string;
-                        };
+                        "application/json": components["schemas"]["myblogx_internal_kernel.Envelope-myblogx_internal_analytics_adapter_clickhouse_LoginEventRecord"];
                     };
                 };
             };
@@ -3377,14 +3007,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": {
-                            code?: number;
-                            data?: {
-                                count?: number;
-                                list?: components["schemas"]["myblogx_internal_analytics_adapter_clickhouse.ReplayEventRecord"][];
-                            };
-                            msg?: string;
-                        };
+                        "application/json": components["schemas"]["myblogx_internal_kernel.Envelope-myblogx_internal_kernel_ListData-myblogx_internal_analytics_adapter_clickhouse_ReplayEventRecord"];
                     };
                 };
             };
@@ -3423,11 +3046,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": {
-                            code?: number;
-                            data?: components["schemas"]["myblogx_internal_analytics_adapter_clickhouse.ReplayEventRecord"];
-                            msg?: string;
-                        };
+                        "application/json": components["schemas"]["myblogx_internal_kernel.Envelope-myblogx_internal_analytics_adapter_clickhouse_ReplayEventRecord"];
                     };
                 };
             };
@@ -3504,14 +3123,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": {
-                            code?: number;
-                            data?: {
-                                count?: number;
-                                list?: components["schemas"]["myblogx_internal_analytics_adapter_clickhouse.RuntimeLogRecord"][];
-                            };
-                            msg?: string;
-                        };
+                        "application/json": components["schemas"]["myblogx_internal_kernel.Envelope-myblogx_internal_kernel_ListData-myblogx_internal_analytics_adapter_clickhouse_RuntimeLogRecord"];
                     };
                 };
             };
@@ -3550,11 +3162,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": {
-                            code?: number;
-                            data?: components["schemas"]["myblogx_internal_analytics_adapter_clickhouse.RuntimeLogRecord"];
-                            msg?: string;
-                        };
+                        "application/json": components["schemas"]["myblogx_internal_kernel.Envelope-myblogx_internal_analytics_adapter_clickhouse_RuntimeLogRecord"];
                     };
                 };
             };
@@ -3590,11 +3198,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": {
-                            code?: number;
-                            data?: components["schemas"]["myblogx_internal_search_domain.Response"];
-                            msg?: string;
-                        };
+                        "application/json": components["schemas"]["myblogx_internal_kernel.Envelope-myblogx_internal_search_domain_Response"];
                     };
                 };
             };
@@ -3633,11 +3237,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": {
-                            code?: number;
-                            data?: Record<string, never>;
-                            msg?: string;
-                        };
+                        "application/json": components["schemas"]["myblogx_internal_kernel.Envelope-myblogx_internal_kernel_SiteConfigData"];
                     };
                 };
             };
@@ -3673,11 +3273,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": {
-                            code?: number;
-                            data?: components["schemas"]["internal_site_adapter_http.AIResponse"];
-                            msg?: string;
-                        };
+                        "application/json": components["schemas"]["myblogx_internal_kernel.Envelope-internal_site_adapter_http_AIResponse"];
                     };
                 };
             };
@@ -3713,11 +3309,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": {
-                            code?: number;
-                            data?: string;
-                            msg?: string;
-                        };
+                        "application/json": components["schemas"]["myblogx_internal_kernel.Envelope-string"];
                     };
                 };
             };
@@ -3753,11 +3345,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": {
-                            code?: number;
-                            data?: components["schemas"]["internal_site_adapter_http.SEOResponse"];
-                            msg?: string;
-                        };
+                        "application/json": components["schemas"]["myblogx_internal_kernel.Envelope-internal_site_adapter_http_SEOResponse"];
                     };
                 };
             };
@@ -3796,11 +3384,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": {
-                            code?: number;
-                            data?: Record<string, never>;
-                            msg?: string;
-                        };
+                        "application/json": components["schemas"]["myblogx_internal_kernel.Envelope-myblogx_internal_kernel_SiteConfigData"];
                     };
                 };
             };
@@ -3830,11 +3414,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": {
-                            code?: number;
-                            data?: Record<string, never>;
-                            msg?: string;
-                        };
+                        "application/json": components["schemas"]["myblogx_internal_kernel.Envelope-myblogx_internal_kernel_EmptyData"];
                     };
                 };
             };
@@ -3872,14 +3452,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": {
-                            code?: number;
-                            data?: {
-                                has_more?: boolean;
-                                list?: components["schemas"]["internal_notification_adapter_http.MessageItem"][];
-                            };
-                            msg?: string;
-                        };
+                        "application/json": components["schemas"]["myblogx_internal_kernel.Envelope-myblogx_internal_kernel_HasMoreListData-internal_notification_adapter_http_MessageItem"];
                     };
                 };
             };
@@ -3906,11 +3479,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": {
-                            code?: number;
-                            data?: Record<string, never>;
-                            msg?: string;
-                        };
+                        "application/json": components["schemas"]["myblogx_internal_kernel.Envelope-myblogx_internal_kernel_EmptyData"];
                     };
                 };
             };
@@ -3936,11 +3505,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": {
-                            code?: number;
-                            data?: Record<string, never>;
-                            msg?: string;
-                        };
+                        "application/json": components["schemas"]["myblogx_internal_kernel.Envelope-myblogx_internal_kernel_EmptyData"];
                     };
                 };
             };
@@ -3973,11 +3538,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": {
-                            code?: number;
-                            data?: components["schemas"]["internal_notification_adapter_http.ConfRequest"];
-                            msg?: string;
-                        };
+                        "application/json": components["schemas"]["myblogx_internal_kernel.Envelope-internal_notification_adapter_http_ConfRequest"];
                     };
                 };
             };
@@ -4003,11 +3564,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": {
-                            code?: number;
-                            data?: Record<string, never>;
-                            msg?: string;
-                        };
+                        "application/json": components["schemas"]["myblogx_internal_kernel.Envelope-myblogx_internal_kernel_EmptyData"];
                     };
                 };
             };
@@ -4042,11 +3599,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": {
-                            code?: number;
-                            data?: components["schemas"]["internal_notification_adapter_http.UnreadResponse"];
-                            msg?: string;
-                        };
+                        "application/json": components["schemas"]["myblogx_internal_kernel.Envelope-internal_notification_adapter_http_UnreadResponse"];
                     };
                 };
             };
@@ -4082,14 +3635,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": {
-                            code?: number;
-                            data?: {
-                                list?: components["schemas"]["myblogx_internal_user_domain.User"][];
-                                total?: number;
-                            };
-                            msg?: string;
-                        };
+                        "application/json": components["schemas"]["myblogx_internal_kernel.Envelope-myblogx_internal_kernel_ListData-myblogx_internal_user_domain_User"];
                     };
                 };
             };
@@ -4114,11 +3660,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": {
-                            code?: number;
-                            data?: components["schemas"]["myblogx_internal_user_app.UpdateResult"];
-                            msg?: string;
-                        };
+                        "application/json": components["schemas"]["myblogx_internal_kernel.Envelope-myblogx_internal_user_app_UpdateResult"];
                     };
                 };
             };
@@ -4143,11 +3685,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": {
-                            code?: number;
-                            data?: components["schemas"]["myblogx_internal_user_domain.User"];
-                            msg?: string;
-                        };
+                        "application/json": components["schemas"]["myblogx_internal_kernel.Envelope-myblogx_internal_user_domain_User"];
                     };
                 };
             };
@@ -4188,11 +3726,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": {
-                            code?: number;
-                            data?: components["schemas"]["internal_user_adapter_http.AdminCreateResponse"];
-                            msg?: string;
-                        };
+                        "application/json": components["schemas"]["myblogx_internal_kernel.Envelope-internal_user_adapter_http_AdminCreateResponse"];
                     };
                 };
             };
@@ -4232,11 +3766,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": {
-                            code?: number;
-                            data?: Record<string, never>;
-                            msg?: string;
-                        };
+                        "application/json": components["schemas"]["myblogx_internal_kernel.Envelope-myblogx_internal_kernel_EmptyData"];
                     };
                 };
             };
@@ -4271,14 +3801,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": {
-                            code?: number;
-                            data?: {
-                                count?: number;
-                                list?: components["schemas"]["internal_user_adapter_http.AdminUserItemResponse"][];
-                            };
-                            msg?: string;
-                        };
+                        "application/json": components["schemas"]["myblogx_internal_kernel.Envelope-myblogx_internal_kernel_ListData-internal_user_adapter_http_AdminUserItemResponse"];
                     };
                 };
             };
@@ -4317,11 +3840,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": {
-                            code?: number;
-                            data?: components["schemas"]["internal_user_adapter_http.BaseInfoResponse"];
-                            msg?: string;
-                        };
+                        "application/json": components["schemas"]["myblogx_internal_kernel.Envelope-internal_user_adapter_http_BaseInfoResponse"];
                     };
                 };
             };
@@ -4357,11 +3876,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": {
-                            code?: number;
-                            data?: components["schemas"]["myblogx_internal_user_app.DetailView"];
-                            msg?: string;
-                        };
+                        "application/json": components["schemas"]["myblogx_internal_kernel.Envelope-myblogx_internal_user_app_DetailView"];
                     };
                 };
             };
@@ -4398,11 +3913,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": {
-                            code?: number;
-                            data?: Record<string, never>;
-                            msg?: string;
-                        };
+                        "application/json": components["schemas"]["myblogx_internal_kernel.Envelope-myblogx_internal_kernel_EmptyData"];
                     };
                 };
             };
@@ -4439,11 +3950,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": {
-                            code?: number;
-                            data?: string;
-                            msg?: string;
-                        };
+                        "application/json": components["schemas"]["myblogx_internal_kernel.Envelope-string"];
                     };
                 };
             };
@@ -4484,11 +3991,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": {
-                            code?: number;
-                            data?: string;
-                            msg?: string;
-                        };
+                        "application/json": components["schemas"]["myblogx_internal_kernel.Envelope-string"];
                     };
                 };
             };
@@ -4529,11 +4032,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": {
-                            code?: number;
-                            data?: components["schemas"]["internal_auth_adapter_http.SendEmailResponse"];
-                            msg?: string;
-                        };
+                        "application/json": components["schemas"]["myblogx_internal_kernel.Envelope-internal_auth_adapter_http_SendEmailResponse"];
                     };
                 };
             };
@@ -4573,11 +4072,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": {
-                            code?: number;
-                            data?: Record<string, never>;
-                            msg?: string;
-                        };
+                        "application/json": components["schemas"]["myblogx_internal_kernel.Envelope-myblogx_internal_kernel_EmptyData"];
                     };
                 };
             };
@@ -4619,11 +4114,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": {
-                            code?: number;
-                            data?: string;
-                            msg?: string;
-                        };
+                        "application/json": components["schemas"]["myblogx_internal_kernel.Envelope-string"];
                     };
                 };
             };
@@ -4676,14 +4167,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": {
-                            code?: number;
-                            data?: {
-                                count?: number;
-                                list?: components["schemas"]["myblogx_internal_analytics_adapter_clickhouse.LoginEventRecord"][];
-                            };
-                            msg?: string;
-                        };
+                        "application/json": components["schemas"]["myblogx_internal_kernel.Envelope-myblogx_internal_kernel_ListData-myblogx_internal_analytics_adapter_clickhouse_LoginEventRecord"];
                     };
                 };
             };
@@ -4721,11 +4205,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": {
-                            code?: number;
-                            data?: Record<string, never>;
-                            msg?: string;
-                        };
+                        "application/json": components["schemas"]["myblogx_internal_kernel.Envelope-myblogx_internal_kernel_EmptyData"];
                     };
                 };
             };
@@ -4761,11 +4241,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": {
-                            code?: number;
-                            data?: Record<string, never>;
-                            msg?: string;
-                        };
+                        "application/json": components["schemas"]["myblogx_internal_kernel.Envelope-myblogx_internal_kernel_EmptyData"];
                     };
                 };
             };
@@ -4805,11 +4281,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": {
-                            code?: number;
-                            data?: Record<string, never>;
-                            msg?: string;
-                        };
+                        "application/json": components["schemas"]["myblogx_internal_kernel.Envelope-myblogx_internal_kernel_EmptyData"];
                     };
                 };
             };
@@ -4850,11 +4322,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": {
-                            code?: number;
-                            data?: Record<string, never>;
-                            msg?: string;
-                        };
+                        "application/json": components["schemas"]["myblogx_internal_kernel.Envelope-myblogx_internal_kernel_EmptyData"];
                     };
                 };
             };
@@ -4896,11 +4364,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": {
-                            code?: number;
-                            data?: string;
-                            msg?: string;
-                        };
+                        "application/json": components["schemas"]["myblogx_internal_kernel.Envelope-string"];
                     };
                 };
             };
@@ -4936,11 +4400,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": {
-                            code?: number;
-                            data?: string;
-                            msg?: string;
-                        };
+                        "application/json": components["schemas"]["myblogx_internal_kernel.Envelope-string"];
                     };
                 };
             };
@@ -4974,14 +4434,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": {
-                            code?: number;
-                            data?: {
-                                count?: number;
-                                list?: components["schemas"]["internal_auth_adapter_http.SessionItem"][];
-                            };
-                            msg?: string;
-                        };
+                        "application/json": components["schemas"]["myblogx_internal_kernel.Envelope-myblogx_internal_kernel_ListData-internal_auth_adapter_http_SessionItem"];
                     };
                 };
             };
@@ -5023,11 +4476,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": {
-                            code?: number;
-                            data?: Record<string, never>;
-                            msg?: string;
-                        };
+                        "application/json": components["schemas"]["myblogx_internal_kernel.Envelope-myblogx_internal_kernel_EmptyData"];
                     };
                 };
             };
@@ -5065,11 +4514,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": {
-                            code?: number;
-                            data?: string;
-                            msg?: string;
-                        };
+                        "application/json": components["schemas"]["myblogx_internal_kernel.Envelope-string"];
                     };
                 };
             };
@@ -5107,11 +4552,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": {
-                            code?: number;
-                            data?: components["schemas"]["myblogx_internal_user_app.PublicProfile"];
-                            msg?: string;
-                        };
+                        "application/json": components["schemas"]["myblogx_internal_kernel.Envelope-myblogx_internal_user_app_PublicProfile"];
                     };
                 };
             };
@@ -5155,11 +4596,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": {
-                            code?: number;
-                            data?: string;
-                            msg?: string;
-                        };
+                        "application/json": components["schemas"]["myblogx_internal_kernel.Envelope-string"];
                     };
                 };
             };
@@ -5267,6 +4704,12 @@ export interface components {
             new_sign_count?: number;
             user_count?: number;
         };
+        "internal_article_adapter_http.ArticleAuthorInfoResponse": {
+            avatar?: string;
+            id?: string;
+            nickname?: string;
+            username?: string;
+        };
         "internal_article_adapter_http.ArticleCreateRequest": {
             abstract?: string;
             category_id?: string;
@@ -5322,6 +4765,9 @@ export interface components {
             view_count?: number;
             visibility_status?: components["schemas"]["internal_article_adapter_http.ArticleVisibility"];
         };
+        "internal_article_adapter_http.ArticleDiggResponse": {
+            is_digg?: boolean;
+        };
         "internal_article_adapter_http.ArticleFavoriteRequest": {
             article_id: string;
             favor_id?: string;
@@ -5371,11 +4817,59 @@ export interface components {
         "internal_article_adapter_http.ArticleViewCountRequest": {
             article_id: string;
         };
+        "internal_article_adapter_http.ArticleViewHistoryItem": {
+            article_id?: string;
+            avatar?: string;
+            cover?: string;
+            nickname?: string;
+            title?: string;
+            updated_at?: string;
+            user_id?: string;
+        };
         /** @enum {string} */
         "internal_article_adapter_http.ArticleVisibility": "visible" | "user_hidden" | "admin_hidden";
+        "internal_article_adapter_http.CategoryListItem": {
+            article_count?: number;
+            avatar?: string;
+            created_at?: string;
+            deleted_at?: string;
+            id?: string;
+            nickname?: string;
+            title?: string;
+            updated_at?: string;
+            user_id?: string;
+        };
         "internal_article_adapter_http.CategoryRequest": {
             id?: string;
             title: string;
+        };
+        "internal_article_adapter_http.FavoriteArticleListItem": {
+            abstract?: string;
+            article_id?: string;
+            article_status?: components["schemas"]["internal_article_adapter_http.ArticleStatus"];
+            comment_count?: number;
+            cover?: string;
+            digg_count?: number;
+            favor_count?: number;
+            favorited_at?: string;
+            title?: string;
+            user_avatar?: string;
+            user_nickname?: string;
+            view_count?: number;
+        };
+        "internal_article_adapter_http.FavoriteListItem": {
+            abstract?: string;
+            article_count?: number;
+            avatar?: string;
+            cover?: string;
+            created_at?: string;
+            has_article?: boolean;
+            id?: string;
+            is_default?: boolean;
+            nickname?: string;
+            title?: string;
+            updated_at?: string;
+            user_id?: string;
         };
         "internal_article_adapter_http.FavoriteRemovePatchModel": {
             /** @description 字段名沿用旧契约 articles / favorite_id。 */
@@ -5394,6 +4888,18 @@ export interface components {
         "internal_article_adapter_http.ReviewTaskStage": "manual";
         /** @enum {string} */
         "internal_article_adapter_http.ReviewTaskStatus": "pending" | "approved" | "rejected" | "canceled";
+        "internal_article_adapter_http.TagListItem": {
+            article_count?: number;
+            created_at?: string;
+            created_by?: string;
+            deleted_at?: string;
+            description?: string;
+            id?: string;
+            is_enabled?: boolean;
+            sort?: number;
+            title?: string;
+            updated_at?: string;
+        };
         "internal_article_adapter_http.TagRequest": {
             description?: string;
             id?: string;
@@ -5436,10 +4942,19 @@ export interface components {
             new_password: string;
             old_password: string;
         };
+        "internal_chat_adapter_http.WsTicketResponse": {
+            ticket?: string;
+        };
         "internal_comment_adapter_http.CreateRequest": {
             article_id: string;
             content: string;
             reply_id?: string;
+        };
+        "internal_comment_adapter_http.ReplyListResponse": {
+            has_more?: boolean;
+            list?: components["schemas"]["myblogx_internal_comment_app.ReplyItem"][];
+            reply_count?: number;
+            root_id?: string;
         };
         "internal_media_adapter_http.CompleteTaskRequest": {
             object_key: string;
@@ -5860,6 +5375,21 @@ export interface components {
             user_id?: string;
             user_nickname?: string;
         };
+        "myblogx_internal_comment_app.ReplyItem": {
+            content?: string;
+            created_at?: string;
+            digg_count?: number;
+            id?: string;
+            is_digg?: boolean;
+            relation?: number;
+            reply_count?: number;
+            reply_id?: string;
+            reply_user_nickname?: string;
+            status?: number;
+            user_avatar?: string;
+            user_id?: string;
+            user_nickname?: string;
+        };
         "myblogx_internal_comment_app.RootItem": {
             content?: string;
             created_at?: string;
@@ -5875,8 +5405,428 @@ export interface components {
             user_id?: string;
             user_nickname?: string;
         };
+        "myblogx_internal_kernel.EmptyData": Record<string, never>;
+        "myblogx_internal_kernel.Envelope-internal_ai_adapter_http_MetaInfoResponse": {
+            code?: number;
+            data?: components["schemas"]["internal_ai_adapter_http.MetaInfoResponse"];
+            msg?: string;
+        };
+        "myblogx_internal_kernel.Envelope-internal_ai_adapter_http_ScoringResponse": {
+            code?: number;
+            data?: components["schemas"]["internal_ai_adapter_http.ScoringResponse"];
+            msg?: string;
+        };
+        "myblogx_internal_kernel.Envelope-internal_analytics_adapter_http_ArticleYearDataResponse": {
+            code?: number;
+            data?: components["schemas"]["internal_analytics_adapter_http.ArticleYearDataResponse"];
+            msg?: string;
+        };
+        "myblogx_internal_kernel.Envelope-internal_analytics_adapter_http_ChainQueryResponse": {
+            code?: number;
+            data?: components["schemas"]["internal_analytics_adapter_http.ChainQueryResponse"];
+            msg?: string;
+        };
+        "myblogx_internal_kernel.Envelope-internal_analytics_adapter_http_GrowthDataResponse": {
+            code?: number;
+            data?: components["schemas"]["internal_analytics_adapter_http.GrowthDataResponse"];
+            msg?: string;
+        };
+        "myblogx_internal_kernel.Envelope-internal_analytics_adapter_http_SumResponse": {
+            code?: number;
+            data?: components["schemas"]["internal_analytics_adapter_http.SumResponse"];
+            msg?: string;
+        };
+        "myblogx_internal_kernel.Envelope-internal_article_adapter_http_ArticleAuthorInfoResponse": {
+            code?: number;
+            data?: components["schemas"]["internal_article_adapter_http.ArticleAuthorInfoResponse"];
+            msg?: string;
+        };
+        "myblogx_internal_kernel.Envelope-internal_article_adapter_http_ArticleCreateResponse": {
+            code?: number;
+            data?: components["schemas"]["internal_article_adapter_http.ArticleCreateResponse"];
+            msg?: string;
+        };
+        "myblogx_internal_kernel.Envelope-internal_article_adapter_http_ArticleDetailResponse": {
+            code?: number;
+            data?: components["schemas"]["internal_article_adapter_http.ArticleDetailResponse"];
+            msg?: string;
+        };
+        "myblogx_internal_kernel.Envelope-internal_article_adapter_http_ArticleDiggResponse": {
+            code?: number;
+            data?: components["schemas"]["internal_article_adapter_http.ArticleDiggResponse"];
+            msg?: string;
+        };
+        "myblogx_internal_kernel.Envelope-internal_article_adapter_http_ArticleReviewTaskListResponse": {
+            code?: number;
+            data?: components["schemas"]["internal_article_adapter_http.ArticleReviewTaskListResponse"];
+            msg?: string;
+        };
+        "myblogx_internal_kernel.Envelope-internal_auth_adapter_http_SendEmailResponse": {
+            code?: number;
+            data?: components["schemas"]["internal_auth_adapter_http.SendEmailResponse"];
+            msg?: string;
+        };
+        "myblogx_internal_kernel.Envelope-internal_chat_adapter_http_WsTicketResponse": {
+            code?: number;
+            data?: components["schemas"]["internal_chat_adapter_http.WsTicketResponse"];
+            msg?: string;
+        };
+        "myblogx_internal_kernel.Envelope-internal_comment_adapter_http_ReplyListResponse": {
+            code?: number;
+            data?: components["schemas"]["internal_comment_adapter_http.ReplyListResponse"];
+            msg?: string;
+        };
+        "myblogx_internal_kernel.Envelope-internal_media_adapter_http_CompleteTaskResponse": {
+            code?: number;
+            data?: components["schemas"]["internal_media_adapter_http.CompleteTaskResponse"];
+            msg?: string;
+        };
+        "myblogx_internal_kernel.Envelope-internal_media_adapter_http_CreateTaskResponse": {
+            code?: number;
+            data?: components["schemas"]["internal_media_adapter_http.CreateTaskResponse"];
+            msg?: string;
+        };
+        "myblogx_internal_kernel.Envelope-internal_media_adapter_http_TaskStatusResponse": {
+            code?: number;
+            data?: components["schemas"]["internal_media_adapter_http.TaskStatusResponse"];
+            msg?: string;
+        };
+        "myblogx_internal_kernel.Envelope-internal_notification_adapter_http_ConfRequest": {
+            code?: number;
+            data?: components["schemas"]["internal_notification_adapter_http.ConfRequest"];
+            msg?: string;
+        };
+        "myblogx_internal_kernel.Envelope-internal_notification_adapter_http_GlobalCreateResponse": {
+            code?: number;
+            data?: components["schemas"]["internal_notification_adapter_http.GlobalCreateResponse"];
+            msg?: string;
+        };
+        "myblogx_internal_kernel.Envelope-internal_notification_adapter_http_UnreadResponse": {
+            code?: number;
+            data?: components["schemas"]["internal_notification_adapter_http.UnreadResponse"];
+            msg?: string;
+        };
+        "myblogx_internal_kernel.Envelope-internal_platform_captcha_ImageResponse": {
+            code?: number;
+            data?: components["schemas"]["internal_platform_captcha.ImageResponse"];
+            msg?: string;
+        };
+        "myblogx_internal_kernel.Envelope-internal_site_adapter_http_AIResponse": {
+            code?: number;
+            data?: components["schemas"]["internal_site_adapter_http.AIResponse"];
+            msg?: string;
+        };
+        "myblogx_internal_kernel.Envelope-internal_site_adapter_http_BannerCreateResponse": {
+            code?: number;
+            data?: components["schemas"]["internal_site_adapter_http.BannerCreateResponse"];
+            msg?: string;
+        };
+        "myblogx_internal_kernel.Envelope-internal_site_adapter_http_SEOResponse": {
+            code?: number;
+            data?: components["schemas"]["internal_site_adapter_http.SEOResponse"];
+            msg?: string;
+        };
+        "myblogx_internal_kernel.Envelope-internal_user_adapter_http_AdminCreateResponse": {
+            code?: number;
+            data?: components["schemas"]["internal_user_adapter_http.AdminCreateResponse"];
+            msg?: string;
+        };
+        "myblogx_internal_kernel.Envelope-internal_user_adapter_http_BaseInfoResponse": {
+            code?: number;
+            data?: components["schemas"]["internal_user_adapter_http.BaseInfoResponse"];
+            msg?: string;
+        };
+        "myblogx_internal_kernel.Envelope-myblogx_internal_analytics_adapter_clickhouse_ActionAuditRecord": {
+            code?: number;
+            data?: components["schemas"]["myblogx_internal_analytics_adapter_clickhouse.ActionAuditRecord"];
+            msg?: string;
+        };
+        "myblogx_internal_kernel.Envelope-myblogx_internal_analytics_adapter_clickhouse_CdcEventRecord": {
+            code?: number;
+            data?: components["schemas"]["myblogx_internal_analytics_adapter_clickhouse.CdcEventRecord"];
+            msg?: string;
+        };
+        "myblogx_internal_kernel.Envelope-myblogx_internal_analytics_adapter_clickhouse_LoginEventRecord": {
+            code?: number;
+            data?: components["schemas"]["myblogx_internal_analytics_adapter_clickhouse.LoginEventRecord"];
+            msg?: string;
+        };
+        "myblogx_internal_kernel.Envelope-myblogx_internal_analytics_adapter_clickhouse_ReplayEventRecord": {
+            code?: number;
+            data?: components["schemas"]["myblogx_internal_analytics_adapter_clickhouse.ReplayEventRecord"];
+            msg?: string;
+        };
+        "myblogx_internal_kernel.Envelope-myblogx_internal_analytics_adapter_clickhouse_RuntimeLogRecord": {
+            code?: number;
+            data?: components["schemas"]["myblogx_internal_analytics_adapter_clickhouse.RuntimeLogRecord"];
+            msg?: string;
+        };
+        "myblogx_internal_kernel.Envelope-myblogx_internal_comment_app_CreateResult": {
+            code?: number;
+            data?: components["schemas"]["myblogx_internal_comment_app.CreateResult"];
+            msg?: string;
+        };
+        "myblogx_internal_kernel.Envelope-myblogx_internal_kernel_EmptyData": {
+            code?: number;
+            data?: components["schemas"]["myblogx_internal_kernel.EmptyData"];
+            msg?: string;
+        };
+        "myblogx_internal_kernel.Envelope-myblogx_internal_kernel_HasMoreListData-internal_article_adapter_http_ArticleViewHistoryItem": {
+            code?: number;
+            data?: components["schemas"]["myblogx_internal_kernel.HasMoreListData-internal_article_adapter_http_ArticleViewHistoryItem"];
+            msg?: string;
+        };
+        "myblogx_internal_kernel.Envelope-myblogx_internal_kernel_HasMoreListData-internal_article_adapter_http_FavoriteArticleListItem": {
+            code?: number;
+            data?: components["schemas"]["myblogx_internal_kernel.HasMoreListData-internal_article_adapter_http_FavoriteArticleListItem"];
+            msg?: string;
+        };
+        "myblogx_internal_kernel.Envelope-myblogx_internal_kernel_HasMoreListData-internal_notification_adapter_http_GlobalListResponse": {
+            code?: number;
+            data?: components["schemas"]["myblogx_internal_kernel.HasMoreListData-internal_notification_adapter_http_GlobalListResponse"];
+            msg?: string;
+        };
+        "myblogx_internal_kernel.Envelope-myblogx_internal_kernel_HasMoreListData-internal_notification_adapter_http_MessageItem": {
+            code?: number;
+            data?: components["schemas"]["myblogx_internal_kernel.HasMoreListData-internal_notification_adapter_http_MessageItem"];
+            msg?: string;
+        };
+        "myblogx_internal_kernel.Envelope-myblogx_internal_kernel_HasMoreListData-internal_site_adapter_http_BannerItem": {
+            code?: number;
+            data?: components["schemas"]["myblogx_internal_kernel.HasMoreListData-internal_site_adapter_http_BannerItem"];
+            msg?: string;
+        };
+        "myblogx_internal_kernel.Envelope-myblogx_internal_kernel_HasMoreListData-myblogx_internal_comment_app_RootItem": {
+            code?: number;
+            data?: components["schemas"]["myblogx_internal_kernel.HasMoreListData-myblogx_internal_comment_app_RootItem"];
+            msg?: string;
+        };
+        "myblogx_internal_kernel.Envelope-myblogx_internal_kernel_HasMoreListData-myblogx_internal_social_domain_FansItem": {
+            code?: number;
+            data?: components["schemas"]["myblogx_internal_kernel.HasMoreListData-myblogx_internal_social_domain_FansItem"];
+            msg?: string;
+        };
+        "myblogx_internal_kernel.Envelope-myblogx_internal_kernel_HasMoreListData-myblogx_internal_social_domain_FollowingItem": {
+            code?: number;
+            data?: components["schemas"]["myblogx_internal_kernel.HasMoreListData-myblogx_internal_social_domain_FollowingItem"];
+            msg?: string;
+        };
+        "myblogx_internal_kernel.Envelope-myblogx_internal_kernel_ListData-internal_article_adapter_http_CategoryListItem": {
+            code?: number;
+            data?: components["schemas"]["myblogx_internal_kernel.ListData-internal_article_adapter_http_CategoryListItem"];
+            msg?: string;
+        };
+        "myblogx_internal_kernel.Envelope-myblogx_internal_kernel_ListData-internal_article_adapter_http_FavoriteListItem": {
+            code?: number;
+            data?: components["schemas"]["myblogx_internal_kernel.ListData-internal_article_adapter_http_FavoriteListItem"];
+            msg?: string;
+        };
+        "myblogx_internal_kernel.Envelope-myblogx_internal_kernel_ListData-internal_article_adapter_http_TagListItem": {
+            code?: number;
+            data?: components["schemas"]["myblogx_internal_kernel.ListData-internal_article_adapter_http_TagListItem"];
+            msg?: string;
+        };
+        "myblogx_internal_kernel.Envelope-myblogx_internal_kernel_ListData-internal_auth_adapter_http_SessionItem": {
+            code?: number;
+            data?: components["schemas"]["myblogx_internal_kernel.ListData-internal_auth_adapter_http_SessionItem"];
+            msg?: string;
+        };
+        "myblogx_internal_kernel.Envelope-myblogx_internal_kernel_ListData-internal_media_adapter_http_ImageItem": {
+            code?: number;
+            data?: components["schemas"]["myblogx_internal_kernel.ListData-internal_media_adapter_http_ImageItem"];
+            msg?: string;
+        };
+        "myblogx_internal_kernel.Envelope-myblogx_internal_kernel_ListData-internal_user_adapter_http_AdminUserItemResponse": {
+            code?: number;
+            data?: components["schemas"]["myblogx_internal_kernel.ListData-internal_user_adapter_http_AdminUserItemResponse"];
+            msg?: string;
+        };
+        "myblogx_internal_kernel.Envelope-myblogx_internal_kernel_ListData-myblogx_internal_analytics_adapter_clickhouse_ActionAuditRecord": {
+            code?: number;
+            data?: components["schemas"]["myblogx_internal_kernel.ListData-myblogx_internal_analytics_adapter_clickhouse_ActionAuditRecord"];
+            msg?: string;
+        };
+        "myblogx_internal_kernel.Envelope-myblogx_internal_kernel_ListData-myblogx_internal_analytics_adapter_clickhouse_CdcEventRecord": {
+            code?: number;
+            data?: components["schemas"]["myblogx_internal_kernel.ListData-myblogx_internal_analytics_adapter_clickhouse_CdcEventRecord"];
+            msg?: string;
+        };
+        "myblogx_internal_kernel.Envelope-myblogx_internal_kernel_ListData-myblogx_internal_analytics_adapter_clickhouse_LoginEventRecord": {
+            code?: number;
+            data?: components["schemas"]["myblogx_internal_kernel.ListData-myblogx_internal_analytics_adapter_clickhouse_LoginEventRecord"];
+            msg?: string;
+        };
+        "myblogx_internal_kernel.Envelope-myblogx_internal_kernel_ListData-myblogx_internal_analytics_adapter_clickhouse_ReplayEventRecord": {
+            code?: number;
+            data?: components["schemas"]["myblogx_internal_kernel.ListData-myblogx_internal_analytics_adapter_clickhouse_ReplayEventRecord"];
+            msg?: string;
+        };
+        "myblogx_internal_kernel.Envelope-myblogx_internal_kernel_ListData-myblogx_internal_analytics_adapter_clickhouse_RuntimeLogRecord": {
+            code?: number;
+            data?: components["schemas"]["myblogx_internal_kernel.ListData-myblogx_internal_analytics_adapter_clickhouse_RuntimeLogRecord"];
+            msg?: string;
+        };
+        "myblogx_internal_kernel.Envelope-myblogx_internal_kernel_ListData-myblogx_internal_chat_domain_MessageItem": {
+            code?: number;
+            data?: components["schemas"]["myblogx_internal_kernel.ListData-myblogx_internal_chat_domain_MessageItem"];
+            msg?: string;
+        };
+        "myblogx_internal_kernel.Envelope-myblogx_internal_kernel_ListData-myblogx_internal_chat_domain_SessionItem": {
+            code?: number;
+            data?: components["schemas"]["myblogx_internal_kernel.ListData-myblogx_internal_chat_domain_SessionItem"];
+            msg?: string;
+        };
+        "myblogx_internal_kernel.Envelope-myblogx_internal_kernel_ListData-myblogx_internal_comment_app_ManageItem": {
+            code?: number;
+            data?: components["schemas"]["myblogx_internal_kernel.ListData-myblogx_internal_comment_app_ManageItem"];
+            msg?: string;
+        };
+        "myblogx_internal_kernel.Envelope-myblogx_internal_kernel_ListData-myblogx_internal_user_domain_User": {
+            code?: number;
+            data?: components["schemas"]["myblogx_internal_kernel.ListData-myblogx_internal_user_domain_User"];
+            msg?: string;
+        };
+        "myblogx_internal_kernel.Envelope-myblogx_internal_kernel_ListData-string": {
+            code?: number;
+            data?: components["schemas"]["myblogx_internal_kernel.ListData-string"];
+            msg?: string;
+        };
+        "myblogx_internal_kernel.Envelope-myblogx_internal_kernel_SiteConfigData": {
+            code?: number;
+            data?: components["schemas"]["myblogx_internal_kernel.SiteConfigData"];
+            msg?: string;
+        };
+        "myblogx_internal_kernel.Envelope-myblogx_internal_search_domain_Response": {
+            code?: number;
+            data?: components["schemas"]["myblogx_internal_search_domain.Response"];
+            msg?: string;
+        };
+        "myblogx_internal_kernel.Envelope-myblogx_internal_user_app_DetailView": {
+            code?: number;
+            data?: components["schemas"]["myblogx_internal_user_app.DetailView"];
+            msg?: string;
+        };
+        "myblogx_internal_kernel.Envelope-myblogx_internal_user_app_PublicProfile": {
+            code?: number;
+            data?: components["schemas"]["myblogx_internal_user_app.PublicProfile"];
+            msg?: string;
+        };
+        "myblogx_internal_kernel.Envelope-myblogx_internal_user_app_UpdateResult": {
+            code?: number;
+            data?: components["schemas"]["myblogx_internal_user_app.UpdateResult"];
+            msg?: string;
+        };
+        "myblogx_internal_kernel.Envelope-myblogx_internal_user_domain_User": {
+            code?: number;
+            data?: components["schemas"]["myblogx_internal_user_domain.User"];
+            msg?: string;
+        };
+        "myblogx_internal_kernel.Envelope-string": {
+            code?: number;
+            data?: string;
+            msg?: string;
+        };
+        "myblogx_internal_kernel.HasMoreListData-internal_article_adapter_http_ArticleViewHistoryItem": {
+            has_more?: boolean;
+            list?: components["schemas"]["internal_article_adapter_http.ArticleViewHistoryItem"][];
+        };
+        "myblogx_internal_kernel.HasMoreListData-internal_article_adapter_http_FavoriteArticleListItem": {
+            has_more?: boolean;
+            list?: components["schemas"]["internal_article_adapter_http.FavoriteArticleListItem"][];
+        };
+        "myblogx_internal_kernel.HasMoreListData-internal_notification_adapter_http_GlobalListResponse": {
+            has_more?: boolean;
+            list?: components["schemas"]["internal_notification_adapter_http.GlobalListResponse"][];
+        };
+        "myblogx_internal_kernel.HasMoreListData-internal_notification_adapter_http_MessageItem": {
+            has_more?: boolean;
+            list?: components["schemas"]["internal_notification_adapter_http.MessageItem"][];
+        };
+        "myblogx_internal_kernel.HasMoreListData-internal_site_adapter_http_BannerItem": {
+            has_more?: boolean;
+            list?: components["schemas"]["internal_site_adapter_http.BannerItem"][];
+        };
+        "myblogx_internal_kernel.HasMoreListData-myblogx_internal_comment_app_RootItem": {
+            has_more?: boolean;
+            list?: components["schemas"]["myblogx_internal_comment_app.RootItem"][];
+        };
+        "myblogx_internal_kernel.HasMoreListData-myblogx_internal_social_domain_FansItem": {
+            has_more?: boolean;
+            list?: components["schemas"]["myblogx_internal_social_domain.FansItem"][];
+        };
+        "myblogx_internal_kernel.HasMoreListData-myblogx_internal_social_domain_FollowingItem": {
+            has_more?: boolean;
+            list?: components["schemas"]["myblogx_internal_social_domain.FollowingItem"][];
+        };
         "myblogx_internal_kernel.IDListRequest": {
             id_list: string[];
+        };
+        "myblogx_internal_kernel.ListData-internal_article_adapter_http_CategoryListItem": {
+            count?: number;
+            list?: components["schemas"]["internal_article_adapter_http.CategoryListItem"][];
+        };
+        "myblogx_internal_kernel.ListData-internal_article_adapter_http_FavoriteListItem": {
+            count?: number;
+            list?: components["schemas"]["internal_article_adapter_http.FavoriteListItem"][];
+        };
+        "myblogx_internal_kernel.ListData-internal_article_adapter_http_TagListItem": {
+            count?: number;
+            list?: components["schemas"]["internal_article_adapter_http.TagListItem"][];
+        };
+        "myblogx_internal_kernel.ListData-internal_auth_adapter_http_SessionItem": {
+            count?: number;
+            list?: components["schemas"]["internal_auth_adapter_http.SessionItem"][];
+        };
+        "myblogx_internal_kernel.ListData-internal_media_adapter_http_ImageItem": {
+            count?: number;
+            list?: components["schemas"]["internal_media_adapter_http.ImageItem"][];
+        };
+        "myblogx_internal_kernel.ListData-internal_user_adapter_http_AdminUserItemResponse": {
+            count?: number;
+            list?: components["schemas"]["internal_user_adapter_http.AdminUserItemResponse"][];
+        };
+        "myblogx_internal_kernel.ListData-myblogx_internal_analytics_adapter_clickhouse_ActionAuditRecord": {
+            count?: number;
+            list?: components["schemas"]["myblogx_internal_analytics_adapter_clickhouse.ActionAuditRecord"][];
+        };
+        "myblogx_internal_kernel.ListData-myblogx_internal_analytics_adapter_clickhouse_CdcEventRecord": {
+            count?: number;
+            list?: components["schemas"]["myblogx_internal_analytics_adapter_clickhouse.CdcEventRecord"][];
+        };
+        "myblogx_internal_kernel.ListData-myblogx_internal_analytics_adapter_clickhouse_LoginEventRecord": {
+            count?: number;
+            list?: components["schemas"]["myblogx_internal_analytics_adapter_clickhouse.LoginEventRecord"][];
+        };
+        "myblogx_internal_kernel.ListData-myblogx_internal_analytics_adapter_clickhouse_ReplayEventRecord": {
+            count?: number;
+            list?: components["schemas"]["myblogx_internal_analytics_adapter_clickhouse.ReplayEventRecord"][];
+        };
+        "myblogx_internal_kernel.ListData-myblogx_internal_analytics_adapter_clickhouse_RuntimeLogRecord": {
+            count?: number;
+            list?: components["schemas"]["myblogx_internal_analytics_adapter_clickhouse.RuntimeLogRecord"][];
+        };
+        "myblogx_internal_kernel.ListData-myblogx_internal_chat_domain_MessageItem": {
+            count?: number;
+            list?: components["schemas"]["myblogx_internal_chat_domain.MessageItem"][];
+        };
+        "myblogx_internal_kernel.ListData-myblogx_internal_chat_domain_SessionItem": {
+            count?: number;
+            list?: components["schemas"]["myblogx_internal_chat_domain.SessionItem"][];
+        };
+        "myblogx_internal_kernel.ListData-myblogx_internal_comment_app_ManageItem": {
+            count?: number;
+            list?: components["schemas"]["myblogx_internal_comment_app.ManageItem"][];
+        };
+        "myblogx_internal_kernel.ListData-myblogx_internal_user_domain_User": {
+            count?: number;
+            list?: components["schemas"]["myblogx_internal_user_domain.User"][];
+        };
+        "myblogx_internal_kernel.ListData-string": {
+            count?: number;
+            list?: string[];
+        };
+        "myblogx_internal_kernel.SiteConfigData": {
+            [key: string]: unknown;
         };
         /** @enum {integer} */
         "myblogx_internal_search_domain.ArticleStatus": 1 | 2 | 3 | 4;

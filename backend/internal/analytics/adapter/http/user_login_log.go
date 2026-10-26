@@ -9,6 +9,8 @@ import (
 	"myblogx/utils/jwts"
 
 	"github.com/gin-gonic/gin"
+	// 供 swag 注解里的 kernel.Envelope 解析用（代码里不直接引用）。
+	_ "myblogx/internal/kernel"
 )
 
 type UserLoginListRequest struct {
@@ -34,7 +36,7 @@ type UserLoginListRequest struct {
 // @Param start_at query string false "开始时间"
 // @Param end_at query string false "结束时间"
 // @Param type query int true "查询类型：1 用户查自己，2 管理员查任意用户"
-// @Success 200 {object} object{code=int,data=object{list=[]clickhouse.LoginEventRecord,count=int},msg=string}
+// @Success 200 {object} kernel.Envelope[kernel.ListData[clickhouse.LoginEventRecord]]
 // @Router /users/login/log [get]
 func (h *Handler) UserLoginLogList(c *gin.Context) {
 	cr := middleware.GetBindQuery[UserLoginListRequest](c)

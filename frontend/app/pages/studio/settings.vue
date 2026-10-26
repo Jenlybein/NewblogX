@@ -90,10 +90,10 @@ watch(
   () => preference.value,
   (value) => {
     if (!value) return;
-    preferenceForm.digg_notice_enabled = value.digg_notice_enabled;
-    preferenceForm.comment_notice_enabled = value.comment_notice_enabled;
-    preferenceForm.favor_notice_enabled = value.favor_notice_enabled;
-    preferenceForm.private_chat_notice_enabled = value.private_chat_notice_enabled;
+    preferenceForm.digg_notice_enabled = value.digg_notice_enabled ?? false;
+    preferenceForm.comment_notice_enabled = value.comment_notice_enabled ?? false;
+    preferenceForm.favor_notice_enabled = value.favor_notice_enabled ?? false;
+    preferenceForm.private_chat_notice_enabled = value.private_chat_notice_enabled ?? false;
   },
   { immediate: true },
 );

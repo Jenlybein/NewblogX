@@ -12,6 +12,8 @@ import (
 	"myblogx/internal/user/app"
 	"myblogx/internal/user/domain"
 	"myblogx/utils/jwts"
+	// 供 swag 注解里的 kernel.Envelope 解析用（代码里不直接引用）。
+	_ "myblogx/internal/kernel"
 )
 
 // Handler 是用户模块的 HTTP 处理器。
@@ -55,7 +57,7 @@ func fail(c *gin.Context, err error) {
 // @Tags user
 // @Produce json
 // @Security BearerAuth
-// @Success 200 {object} object{code=int,data=app.DetailView,msg=string}
+// @Success 200 {object} kernel.Envelope[app.DetailView]
 // @Router /users/detail [get]
 func (h *Handler) Detail(c *gin.Context) {
 	view, err := h.svc.Detail(c.Request.Context(), viewer(c))
@@ -71,7 +73,7 @@ func (h *Handler) Detail(c *gin.Context) {
 // @Tags user
 // @Produce json
 // @Param id path string true "用户 ID"
-// @Success 200 {object} object{code=int,data=app.PublicProfile,msg=string}
+// @Success 200 {object} kernel.Envelope[app.PublicProfile]
 // @Router /users/{id} [get]
 func (h *Handler) PublicProfile(c *gin.Context) {
 	uri := mustURI(c)
@@ -92,7 +94,7 @@ func (h *Handler) PublicProfile(c *gin.Context) {
 // @Accept json
 // @Produce json
 // @Security BearerAuth
-// @Success 200 {object} object{code=int,data=app.UpdateResult,msg=string}
+// @Success 200 {object} kernel.Envelope[app.UpdateResult]
 // @Router /users [put]
 func (h *Handler) Update(c *gin.Context) {
 	req, ok := bindJSON[UpdateRequest](c)
@@ -113,7 +115,7 @@ func (h *Handler) Update(c *gin.Context) {
 // @Accept json
 // @Produce json
 // @Security BearerAuth
-// @Success 200 {object} object{code=int,data=string,msg=string}
+// @Success 200 {object} kernel.Envelope[string]
 // @Router /users/settings [put]
 func (h *Handler) UpdateSettings(c *gin.Context) {
 	req, ok := bindJSON[SettingsRequest](c)
@@ -132,7 +134,7 @@ func (h *Handler) UpdateSettings(c *gin.Context) {
 // @Tags user
 // @Produce json
 // @Security BearerAuth
-// @Success 200 {object} object{code=int,data=object{list=[]domain.User,total=int64},msg=string}
+// @Success 200 {object} kernel.Envelope[kernel.ListData[domain.User]]
 // @Router /users [get]
 func (h *Handler) List(c *gin.Context) {
 	req, ok := bindQuery[ListRequest](c)
@@ -153,7 +155,7 @@ func (h *Handler) List(c *gin.Context) {
 // @Accept json
 // @Produce json
 // @Security BearerAuth
-// @Success 200 {object} object{code=int,data=domain.User,msg=string}
+// @Success 200 {object} kernel.Envelope[domain.User]
 // @Router /users [post]
 func (h *Handler) Create(c *gin.Context) {
 	req, ok := bindJSON[CreateRequest](c)
@@ -175,7 +177,7 @@ func (h *Handler) Create(c *gin.Context) {
 // @Produce json
 // @Security BearerAuth
 // @Param id path string true "用户 ID"
-// @Success 200 {object} object{code=int,data=string,msg=string}
+// @Success 200 {object} kernel.Envelope[string]
 // @Router /users/{id}/status [put]
 func (h *Handler) ChangeStatus(c *gin.Context) {
 	uri := mustURI(c)

@@ -10,6 +10,8 @@ import (
 	"myblogx/internal/social/app"
 	"myblogx/internal/social/domain"
 	"myblogx/utils/jwts"
+	// 供 swag 注解里的 kernel.Envelope 解析用（代码里不直接引用）。
+	_ "myblogx/internal/kernel"
 )
 
 // Handler 是社交 HTTP 处理器。
@@ -55,7 +57,7 @@ type FansQuery struct {
 // @Produce json
 // @Security BearerAuth
 // @Param id path string true "被关注用户 ID"
-// @Success 200 {object} object{code=int,data=object{},msg=string}
+// @Success 200 {object} kernel.Envelope[kernel.EmptyData]
 // @Router /follow/{id} [post]
 func (h *Handler) Follow(c *gin.Context) {
 	id, ok := pathID(c)
@@ -75,7 +77,7 @@ func (h *Handler) Follow(c *gin.Context) {
 // @Produce json
 // @Security BearerAuth
 // @Param id path string true "被取消关注的用户 ID"
-// @Success 200 {object} object{code=int,data=object{},msg=string}
+// @Success 200 {object} kernel.Envelope[kernel.EmptyData]
 // @Router /follow/{id} [delete]
 func (h *Handler) Unfollow(c *gin.Context) {
 	id, ok := pathID(c)
@@ -94,7 +96,7 @@ func (h *Handler) Unfollow(c *gin.Context) {
 // @Tags follow
 // @Produce json
 // @Security BearerAuth
-// @Success 200 {object} object{code=int,data=object{list=[]domain.FollowingItem,has_more=bool},msg=string}
+// @Success 200 {object} kernel.Envelope[kernel.HasMoreListData[domain.FollowingItem]]
 // @Router /follow [get]
 func (h *Handler) ListFollowing(c *gin.Context) {
 	var q FollowingQuery
@@ -115,7 +117,7 @@ func (h *Handler) ListFollowing(c *gin.Context) {
 // @Tags follow
 // @Produce json
 // @Security BearerAuth
-// @Success 200 {object} object{code=int,data=object{list=[]domain.FansItem,has_more=bool},msg=string}
+// @Success 200 {object} kernel.Envelope[kernel.HasMoreListData[domain.FansItem]]
 // @Router /fans [get]
 func (h *Handler) ListFans(c *gin.Context) {
 	var q FansQuery

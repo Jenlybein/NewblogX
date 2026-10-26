@@ -21,6 +21,8 @@ import (
 	"myblogx/internal/platform/http/ws"
 	"myblogx/internal/platform/safego"
 	"myblogx/utils/jwts"
+	// 供 swag 注解里的 kernel.Envelope 解析用（代码里不直接引用）。
+	_ "myblogx/internal/kernel"
 )
 
 const (
@@ -112,7 +114,7 @@ type ChatRequest struct {
 // @Tags chat
 // @Produce json
 // @Security BearerAuth
-// @Success 200 {object} object{code=int,data=object{list=[]domain.SessionItem,count=int},msg=string}
+// @Success 200 {object} kernel.Envelope[kernel.ListData[domain.SessionItem]]
 // @Router /chat/sessions [get]
 func (h *Handler) Sessions(c *gin.Context) {
 	var q SessionListQuery
@@ -148,7 +150,7 @@ func (h *Handler) Sessions(c *gin.Context) {
 // @Tags chat
 // @Produce json
 // @Security BearerAuth
-// @Success 200 {object} object{code=int,data=object{list=[]domain.MessageItem,count=int},msg=string}
+// @Success 200 {object} kernel.Envelope[kernel.ListData[domain.MessageItem]]
 // @Router /chat/messages [get]
 func (h *Handler) Messages(c *gin.Context) {
 	var q MessageListQuery
@@ -185,7 +187,7 @@ func (h *Handler) Messages(c *gin.Context) {
 // @Accept json
 // @Produce json
 // @Security BearerAuth
-// @Success 200 {object} object{code=int,data=object{},msg=string}
+// @Success 200 {object} kernel.Envelope[kernel.EmptyData]
 // @Router /chat/read [post]
 func (h *Handler) Read(c *gin.Context) {
 	var req IDListRequest
@@ -235,7 +237,7 @@ func (h *Handler) Read(c *gin.Context) {
 // @Accept json
 // @Produce json
 // @Security BearerAuth
-// @Success 200 {object} object{code=int,data=object{},msg=string}
+// @Success 200 {object} kernel.Envelope[kernel.EmptyData]
 // @Router /chat/messages [delete]
 func (h *Handler) DeleteMessages(c *gin.Context) {
 	var req IDListRequest
@@ -258,7 +260,7 @@ func (h *Handler) DeleteMessages(c *gin.Context) {
 // @Accept json
 // @Produce json
 // @Security BearerAuth
-// @Success 200 {object} object{code=int,data=object{},msg=string}
+// @Success 200 {object} kernel.Envelope[kernel.EmptyData]
 // @Router /chat/sessions [delete]
 func (h *Handler) DeleteSessions(c *gin.Context) {
 	var req SessionIDListRequest
@@ -280,7 +282,7 @@ func (h *Handler) DeleteSessions(c *gin.Context) {
 // @Tags chat
 // @Produce json
 // @Security BearerAuth
-// @Success 200 {object} object{code=int,data=object{},msg=string}
+// @Success 200 {object} kernel.Envelope[WsTicketResponse]
 // @Router /chat/ws-ticket [get]
 func (h *Handler) WsTicket(c *gin.Context) {
 	cl := jwts.GetClaimsByGin(c)
@@ -298,14 +300,14 @@ func (h *Handler) WsTicket(c *gin.Context) {
 		res.FailWithMsg("生成 ws 票据失败", c)
 		return
 	}
-	res.OkWithData(gin.H{"ticket": ticket}, c)
+	res.OkWithData(WsTicketResponse{Ticket: ticket}, c)
 }
 
 // Ws 聊天长连接。
 // @Summary 聊天 WebSocket 长连接
 // @Tags chat
 // @Produce json
-// @Success 200 {object} object{code=int,data=object{},msg=string}
+// @Success 200 {object} kernel.Envelope[kernel.EmptyData]
 // @Router /chat/ws [get]
 func (h *Handler) Ws(c *gin.Context) {
 	ctx := c.Request.Context()
@@ -421,4 +423,9 @@ func toIDs(ids []uint64) []ctype.ID {
 		out = append(out, ctype.NewID(id))
 	}
 	return out
+}
+
+// WsTicketResponse 是 WebSocket 握手用的临时票据。
+type WsTicketResponse struct {
+	Ticket string `json:"ticket"`
 }

@@ -11,6 +11,11 @@ import (
 	"myblogx/internal/kernel/ctype"
 	"myblogx/internal/platform/http/res"
 	"myblogx/utils/jwts"
+	// 供 swag 注解里的 kernel.Envelope 解析用（代码里不直接引用）。
+	_ "myblogx/internal/kernel"
+
+	// 供 swag 注解里的 domain.Response 解析用（代码里不直接引用）。
+	_ "myblogx/internal/search/domain"
 )
 
 // Handler 聚合 AI 相关接口。
@@ -50,7 +55,7 @@ func prepareSSE(c *gin.Context) {
 // @Accept json
 // @Produce json
 // @Param body body ScoringRequest true "请求体"
-// @Success 200 {object} object{code=int,data=ScoringResponse,msg=string}
+// @Success 200 {object} kernel.Envelope[ScoringResponse]
 // @Router /ai/scoring/article [post]
 func (h *Handler) Scoring(c *gin.Context) {
 	cr, ok := bindJSON[ScoringRequest](c)
@@ -127,7 +132,7 @@ func failScore(c *gin.Context, err error) {
 // @Produce json
 // @Security BearerAuth
 // @Param body body BaseRequest true "请求体"
-// @Success 200 {object} object{code=int,data=MetaInfoResponse,msg=string}
+// @Success 200 {object} kernel.Envelope[MetaInfoResponse]
 // @Router /ai/metainfo [post]
 func (h *Handler) MetaInfo(c *gin.Context) {
 	cr, ok := bindJSON[BaseRequest](c)
@@ -209,7 +214,7 @@ func (h *Handler) Diagnose(c *gin.Context) {
 // @Produce json
 // @Security BearerAuth
 // @Param body body BaseRequest true "请求体"
-// @Success 200 {object} object{code=int,data=object,msg=string}
+// @Success 200 {object} kernel.Envelope[domain.Response]
 // @Router /ai/search/list [post]
 func (h *Handler) SearchList(c *gin.Context) {
 	cr, ok := bindJSON[BaseRequest](c)

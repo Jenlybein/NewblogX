@@ -16,6 +16,8 @@ import (
 	"myblogx/internal/kernel/ctype"
 	"myblogx/internal/platform/http/res"
 	"myblogx/utils/jwts"
+	// 供 swag 注解里的 kernel.Envelope 解析用（代码里不直接引用）。
+	_ "myblogx/internal/kernel"
 )
 
 // LoginPolicy 是站点登录方式开关（运行时配置）。
@@ -99,7 +101,7 @@ func claims(c *gin.Context) *jwts.MyClaims { return jwts.GetClaimsByGin(c) }
 // @Accept json
 // @Produce json
 // @Param body body PwdLoginRequest true "请求体"
-// @Success 200 {object} object{code=int,data=string,msg=string}
+// @Success 200 {object} kernel.Envelope[string]
 // @Router /users/login [post]
 func (h *Handler) PwdLogin(c *gin.Context) {
 	if !h.passwordEnabled() {
@@ -131,7 +133,7 @@ func (h *Handler) PwdLogin(c *gin.Context) {
 // @Summary 刷新访问令牌
 // @Tags user
 // @Produce json
-// @Success 200 {object} object{code=int,data=string,msg=string}
+// @Success 200 {object} kernel.Envelope[string]
 // @Router /users/refresh [post]
 func (h *Handler) Refresh(c *gin.Context) {
 	token := refreshFromRequest(c.Request)
@@ -152,7 +154,7 @@ func (h *Handler) Refresh(c *gin.Context) {
 // @Tags user
 // @Produce json
 // @Security BearerAuth
-// @Success 200 {object} object{code=int,data=object{},msg=string}
+// @Success 200 {object} kernel.Envelope[kernel.EmptyData]
 // @Router /users/logout [post]
 func (h *Handler) Logout(c *gin.Context) {
 	cl := claims(c)
@@ -181,7 +183,7 @@ func (h *Handler) Logout(c *gin.Context) {
 // @Tags user
 // @Produce json
 // @Security BearerAuth
-// @Success 200 {object} object{code=int,data=object{},msg=string}
+// @Success 200 {object} kernel.Envelope[kernel.EmptyData]
 // @Router /users/logout/all [post]
 func (h *Handler) LogoutAll(c *gin.Context) {
 	cl := claims(c)
@@ -204,7 +206,7 @@ func (h *Handler) LogoutAll(c *gin.Context) {
 // @Tags user
 // @Produce json
 // @Security BearerAuth
-// @Success 200 {object} object{code=int,data=object{list=[]SessionItem,count=int},msg=string}
+// @Success 200 {object} kernel.Envelope[kernel.ListData[SessionItem]]
 // @Router /users/sessions [get]
 func (h *Handler) Sessions(c *gin.Context) {
 	cl := claims(c)
@@ -240,7 +242,7 @@ func (h *Handler) Sessions(c *gin.Context) {
 // @Produce json
 // @Security BearerAuth
 // @Param id path string true "ID"
-// @Success 200 {object} object{code=int,data=object{},msg=string}
+// @Success 200 {object} kernel.Envelope[kernel.EmptyData]
 // @Router /users/sessions/{id} [delete]
 func (h *Handler) DeleteSession(c *gin.Context) {
 	cl := claims(c)
@@ -276,7 +278,7 @@ func (h *Handler) DeleteSession(c *gin.Context) {
 // @Accept json
 // @Produce json
 // @Param body body SendEmailRequest true "请求体"
-// @Success 200 {object} object{code=int,data=SendEmailResponse,msg=string}
+// @Success 200 {object} kernel.Envelope[SendEmailResponse]
 // @Router /users/email/verify [post]
 func (h *Handler) SendEmail(c *gin.Context) {
 	if !h.emailEnabled() {
@@ -300,7 +302,7 @@ func (h *Handler) SendEmail(c *gin.Context) {
 // @Summary 邮箱验证码登录
 // @Tags user
 // @Produce json
-// @Success 200 {object} object{code=int,data=string,msg=string}
+// @Success 200 {object} kernel.Envelope[string]
 // @Router /users/email/login [post]
 func (h *Handler) EmailLogin(c *gin.Context) {
 	if !h.emailEnabled() {
@@ -326,7 +328,7 @@ func (h *Handler) EmailLogin(c *gin.Context) {
 // @Accept json
 // @Produce json
 // @Param body body RegisterEmailRequest true "请求体"
-// @Success 200 {object} object{code=int,data=string,msg=string}
+// @Success 200 {object} kernel.Envelope[string]
 // @Router /users/email/register [post]
 func (h *Handler) RegisterEmail(c *gin.Context) {
 	if !h.emailEnabled() {
@@ -357,7 +359,7 @@ func (h *Handler) RegisterEmail(c *gin.Context) {
 // @Accept json
 // @Produce json
 // @Param body body QQLoginRequest true "请求体"
-// @Success 200 {object} object{code=int,data=string,msg=string}
+// @Success 200 {object} kernel.Envelope[string]
 // @Router /users/qq [post]
 func (h *Handler) QQLogin(c *gin.Context) {
 	if !h.qqEnabled() {
@@ -387,7 +389,7 @@ func (h *Handler) QQLogin(c *gin.Context) {
 // @Accept json
 // @Produce json
 // @Param body body ResetPasswordRequest true "请求体"
-// @Success 200 {object} object{code=int,data=object{},msg=string}
+// @Success 200 {object} kernel.Envelope[kernel.EmptyData]
 // @Router /users/password/recovery/email [put]
 func (h *Handler) ResetPassword(c *gin.Context) {
 	var req ResetPasswordRequest
@@ -410,7 +412,7 @@ func (h *Handler) ResetPassword(c *gin.Context) {
 // @Produce json
 // @Security BearerAuth
 // @Param body body UpdatePasswordRequest true "请求体"
-// @Success 200 {object} object{code=int,data=object{},msg=string}
+// @Success 200 {object} kernel.Envelope[kernel.EmptyData]
 // @Router /users/password/renewal/email [put]
 func (h *Handler) UpdatePassword(c *gin.Context) {
 	cl := claims(c)
@@ -436,7 +438,7 @@ func (h *Handler) UpdatePassword(c *gin.Context) {
 // @Tags user
 // @Produce json
 // @Security BearerAuth
-// @Success 200 {object} object{code=int,data=object{},msg=string}
+// @Success 200 {object} kernel.Envelope[kernel.EmptyData]
 // @Router /users/email/bind [put]
 func (h *Handler) BindEmail(c *gin.Context) {
 	cl := claims(c)

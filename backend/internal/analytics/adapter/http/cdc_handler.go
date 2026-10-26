@@ -12,6 +12,8 @@ import (
 	"myblogx/internal/platform/http/res"
 
 	"github.com/gin-gonic/gin"
+	// 供 swag 注解里的 kernel.Envelope 解析用（代码里不直接引用）。
+	_ "myblogx/internal/kernel"
 )
 
 type CdcEventListRequest struct {
@@ -124,7 +126,7 @@ type ChainQueryResponse struct {
 // @Param error_message query string false "错误信息"
 // @Param event_name query string false "事件名"
 // @Param module query string false "模块"
-// @Success 200 {object} object{code=int,data=object{list=[]clickhouse.CdcEventRecord,count=int},msg=string}
+// @Success 200 {object} kernel.Envelope[kernel.ListData[clickhouse.CdcEventRecord]]
 // @Router /logs/cdc [get]
 func (h *Handler) CdcEventListView(c *gin.Context) {
 	cr := middleware.GetBindQuery[CdcEventListRequest](c)
@@ -168,7 +170,7 @@ func (h *Handler) CdcEventListView(c *gin.Context) {
 // @Produce json
 // @Security BearerAuth
 // @Param id path string true "日志 ID"
-// @Success 200 {object} object{code=int,data=clickhouse.CdcEventRecord,msg=string}
+// @Success 200 {object} kernel.Envelope[clickhouse.CdcEventRecord]
 // @Router /logs/cdc/{id} [get]
 func (h *Handler) CdcEventDetailView(c *gin.Context) {
 	cr := middleware.GetBindUri[IDRequest](c)
@@ -210,7 +212,7 @@ func (h *Handler) CdcEventDetailView(c *gin.Context) {
 // @Param error_message query string false "错误信息"
 // @Param event_name query string false "事件名"
 // @Param module query string false "模块"
-// @Success 200 {object} object{code=int,data=object{list=[]clickhouse.ReplayEventRecord,count=int},msg=string}
+// @Success 200 {object} kernel.Envelope[kernel.ListData[clickhouse.ReplayEventRecord]]
 // @Router /logs/replay [get]
 func (h *Handler) ReplayEventListView(c *gin.Context) {
 	cr := middleware.GetBindQuery[ReplayEventListRequest](c)
@@ -254,7 +256,7 @@ func (h *Handler) ReplayEventListView(c *gin.Context) {
 // @Produce json
 // @Security BearerAuth
 // @Param id path string true "日志 ID"
-// @Success 200 {object} object{code=int,data=clickhouse.ReplayEventRecord,msg=string}
+// @Success 200 {object} kernel.Envelope[clickhouse.ReplayEventRecord]
 // @Router /logs/replay/{id} [get]
 func (h *Handler) ReplayEventDetailView(c *gin.Context) {
 	cr := middleware.GetBindUri[IDRequest](c)
@@ -286,7 +288,7 @@ func (h *Handler) ReplayEventDetailView(c *gin.Context) {
 // @Param limit query int false "返回条数上限（默认 50，最大 200）"
 // @Param request_id_prefix query bool false "请求 ID 前缀匹配"
 // @Param trace_id_prefix query bool false "链路 ID 前缀匹配"
-// @Success 200 {object} object{code=int,data=ChainQueryResponse,msg=string}
+// @Success 200 {object} kernel.Envelope[ChainQueryResponse]
 // @Router /logs/chain [get]
 func (h *Handler) ChainQueryView(c *gin.Context) {
 	cr := middleware.GetBindQuery[ChainQueryRequest](c)

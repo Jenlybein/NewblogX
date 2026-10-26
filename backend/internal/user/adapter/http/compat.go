@@ -9,6 +9,8 @@ import (
 	"myblogx/internal/platform/http/res"
 	"myblogx/internal/user/app"
 	"myblogx/internal/user/domain"
+	// 供 swag 注解里的 kernel.Envelope 解析用（代码里不直接引用）。
+	_ "myblogx/internal/kernel"
 )
 
 // 本文件是旧路径的兼容 handler：路径与字段不变，内部换成新用例。
@@ -18,7 +20,7 @@ import (
 // @Tags user
 // @Produce json
 // @Param id query string true "ID"
-// @Success 200 {object} object{code=int,data=BaseInfoResponse,msg=string}
+// @Success 200 {object} kernel.Envelope[BaseInfoResponse]
 // @Router /users/base [get]
 func (h *Handler) BaseInfo(c *gin.Context) {
 	id, err := strconv.ParseUint(c.Query("id"), 10, 64)
@@ -59,7 +61,7 @@ func (h *Handler) BaseInfo(c *gin.Context) {
 // @Produce json
 // @Security BearerAuth
 // @Param body body UpdateInfoRequest true "请求体"
-// @Success 200 {object} object{code=int,data=object{},msg=string}
+// @Success 200 {object} kernel.Envelope[kernel.EmptyData]
 // @Router /users/info [put]
 func (h *Handler) UpdateInfo(c *gin.Context) {
 	var req UpdateInfoRequest
@@ -81,7 +83,7 @@ func (h *Handler) UpdateInfo(c *gin.Context) {
 // @Produce json
 // @Security BearerAuth
 // @Param body body AdminUpdateRequest true "请求体"
-// @Success 200 {object} object{code=int,data=object{},msg=string}
+// @Success 200 {object} kernel.Envelope[kernel.EmptyData]
 // @Router /users/admin/info [put]
 func (h *Handler) AdminUpdate(c *gin.Context) {
 	var req AdminUpdateRequest
@@ -115,7 +117,7 @@ func (h *Handler) AdminUpdate(c *gin.Context) {
 // @Tags user
 // @Produce json
 // @Security BearerAuth
-// @Success 200 {object} object{code=int,data=object{list=[]AdminUserItemResponse,count=int},msg=string}
+// @Success 200 {object} kernel.Envelope[kernel.ListData[AdminUserItemResponse]]
 // @Router /users/admin/list [get]
 func (h *Handler) AdminList(c *gin.Context) {
 	var req AdminListRequest
@@ -155,7 +157,7 @@ func (h *Handler) AdminList(c *gin.Context) {
 // @Produce json
 // @Security BearerAuth
 // @Param body body AdminCreateRequest true "请求体"
-// @Success 200 {object} object{code=int,data=AdminCreateResponse,msg=string}
+// @Success 200 {object} kernel.Envelope[AdminCreateResponse]
 // @Router /users/admin [post]
 func (h *Handler) AdminCreate(c *gin.Context) {
 	var req AdminCreateRequest

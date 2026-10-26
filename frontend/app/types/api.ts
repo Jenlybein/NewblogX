@@ -1,3 +1,5 @@
+import type { Nullable, OptionalFields, RequiredSchema, Schema } from "./contract";
+
 export type ThemeMode = "light" | "dark";
 
 export interface ApiEnvelope<T> {
@@ -10,14 +12,7 @@ export interface ApiEmptyObject {
   [key: string]: never;
 }
 
-export interface SiteSeoData {
-  site_title: string;
-  project_title: string;
-  logo: string;
-  icon: string;
-  keywords: string;
-  description: string;
-}
+export type SiteSeoData = RequiredSchema<"internal_site_adapter_http.SEOResponse">;
 
 export interface SiteRuntimeConfig {
   site_info: {
@@ -48,91 +43,28 @@ export interface SiteRuntimeConfig {
   };
 }
 
-export interface SiteAiInfo {
-  enable: boolean;
-  nickname: string;
-  avatar: string;
-  abstract: string;
-}
+export type SiteAiInfo = RequiredSchema<"internal_site_adapter_http.AIResponse">;
 
-export interface BannerItem {
-  id: string;
-  cover: string;
-  href: string;
-  show: boolean;
-  created_at?: string;
-  updated_at?: string;
-  deleted_at?: string | null;
-  cover_image_id?: string;
-}
+export type BannerItem = RequiredSchema<"internal_site_adapter_http.BannerItem">;
 
 export interface OptionItem {
   label: string;
   value: string;
 }
 
-export interface CreateImageUploadTaskRequest {
-  file_name: string;
-  size: number;
-  mime_type: string;
-  hash: string;
-}
+export type CreateImageUploadTaskRequest = Schema<"internal_media_adapter_http.CreateTaskRequest">;
 
-export interface CreateImageUploadTaskResponseData {
-  skip_upload: boolean;
-  upload_id?: string;
-  provider?: string;
-  bucket?: string;
-  object_key?: string;
-  upload_token?: string;
-  region?: string;
-  expire_at?: string;
-  max_size?: number;
-  image_id?: string;
-  status?: string;
-  url?: string;
-  hash?: string;
-}
+export type CreateImageUploadTaskResponseData = RequiredSchema<"internal_media_adapter_http.CreateTaskResponse">;
 
-export interface UploadTaskStatusResponseData {
-  upload_id: string;
-  image_id?: string;
-  status: string;
-  url?: string;
-  error_msg?: string;
-  hash?: string;
-}
+export type UploadTaskStatusResponseData = RequiredSchema<"internal_media_adapter_http.TaskStatusResponse">;
 
-export interface AiArticleMetainfo {
-  title: string;
-  abstract: string;
-  category?: {
-    id: string;
-    title: string;
-  } | null;
-  tags: Array<{
-    id: string;
-    title: string;
-  }>;
-}
+export type AiArticleMetainfo = RequiredSchema<"internal_ai_adapter_http.MetaInfoResponse">;
 
 export type AiOverwriteMode = "polish" | "grammar_fix" | "style_transform";
 
-export interface AiOverwriteRequest {
-  mode: AiOverwriteMode;
-  selection_text: string;
-  prefix_text?: string;
-  suffix_text?: string;
-  article_title: string;
-  target_style?: string;
-}
+export type AiOverwriteRequest = Schema<"internal_ai_adapter_http.OverwriteRequest">;
 
-export interface AiDiagnoseRequest {
-  selection_text: string;
-  prefix_text?: string;
-  suffix_text?: string;
-  article_title: string;
-}
+export type AiDiagnoseRequest = Schema<"internal_ai_adapter_http.DiagnoseRequest">;
 
 export type AiDiagnoseIssueType = "可读性" | "逻辑" | "完整度" | "结构" | "重复" | "语言" | "语气";
 export type AiDiagnoseSeverity = "低" | "中" | "高";
@@ -182,12 +114,7 @@ export type AiArticleScoreDimensionName =
   | "persuasiveness"
   | "language";
 
-export interface AiArticleScoringRequest {
-  type: AiArticleScoringType;
-  article_id: string;
-  title?: string;
-  content?: string;
-}
+export type AiArticleScoringRequest = Schema<"internal_ai_adapter_http.ScoringRequest">;
 
 export interface AiArticleScoringPosition {
   paragraph: number;
@@ -206,19 +133,7 @@ export interface AiArticleScoringDimension {
   reason?: string;
 }
 
-export interface AiArticleScoringResponseData {
-  has_score: boolean;
-  record_id?: string;
-  article_id: string;
-  created_at?: string;
-  ai_total_score?: number;
-  total_score?: number;
-  score_level?: AiArticleScoreLevel;
-  article_type?: AiArticleType;
-  dimensions?: AiArticleScoringDimension[];
-  main_issues?: AiArticleScoringIssue[];
-  overall_comment?: string;
-}
+export type AiArticleScoringResponseData = RequiredSchema<"internal_ai_adapter_http.ScoringResponse">;
 
 export interface FavoriteFolderItem {
   id: string;
@@ -233,10 +148,7 @@ export interface FavoriteFolderItem {
   has_article: boolean;
 }
 
-export interface FavoriteFolderListData {
-  list: FavoriteFolderItem[];
-  count: number;
-}
+export type FavoriteFolderListData = RequiredSchema<"myblogx_internal_kernel.ListData-internal_article_adapter_http_FavoriteListItem">;
 
 export interface FavoriteFolderCreatePayload {
   id: string;
@@ -264,44 +176,11 @@ export interface SearchAuthor {
   avatar: string;
 }
 
-export interface SearchPagination {
-  mode: "has_more" | "count";
-  page: number;
-  limit: number;
-  has_more: boolean;
-  total?: number;
-  total_pages?: number;
-}
+export type SearchPagination = RequiredSchema<"myblogx_internal_search_domain.Pagination">;
 
-export interface SearchArticleItem {
-  id: string;
-  created_at: string;
-  updated_at: string;
-  title: string;
-  abstract?: string;
-  cover: string;
-  view_count: number;
-  digg_count: number;
-  comment_count: number;
-  favor_count: number;
-  comments_toggle: boolean;
-  publish_status: number;
-  visibility_status: "visible" | "user_hidden" | "admin_hidden";
-  tags: SearchTag[];
-  category?: SearchCategory;
-  author: SearchAuthor;
-  highlight?: {
-    title?: string;
-    abstract?: string;
-  };
-  top?: { admin: boolean; user: boolean };
-  score?: number;
-}
+export type SearchArticleItem = RequiredSchema<"myblogx_internal_search_domain.Item">;
 
-export interface SearchArticleResponse {
-  list: SearchArticleItem[];
-  pagination: SearchPagination;
-}
+export type SearchArticleResponse = RequiredSchema<"myblogx_internal_search_domain.Response">;
 
 export interface ArticleTopItem {
   id: string;
@@ -318,77 +197,21 @@ export interface ArticleTopItem {
   category_title: string;
 }
 
-export interface ArticleWritePayload {
-  title: string;
-  abstract?: string;
-  content: string;
-  category_id?: string | null;
-  tag_ids?: string[];
-  cover_image_id?: string | null;
-  comments_toggle?: boolean;
-  visibility_status?: "visible" | "user_hidden";
-  status: 1 | 2;
-}
+// ArticleUpdateRequest 全是指针（PATCH 语义：null 表示清空该字段）。
+export type ArticleWritePayload = Nullable<
+  Schema<"internal_article_adapter_http.ArticleUpdateRequest">,
+  "title" | "abstract" | "content" | "category_id" | "tag_ids" | "cover_image_id"
+  | "comments_toggle"
+>;
 
-export interface ArticleCreateResult {
-  id: string;
-  title: string;
-  category_id?: string | null;
-  tag_ids?: string[];
-  cover_image_id?: string | null;
-  comments_toggle: boolean;
-  status: number;
-  publish_status: number;
-  visibility_status: "visible" | "user_hidden" | "admin_hidden";
-}
+export type ArticleCreateResult = RequiredSchema<"internal_article_adapter_http.ArticleCreateResponse">;
 
-export interface ArticleDetail {
-  id: string;
-  created_at: string;
-  updated_at: string;
-  title: string;
-  abstract: string;
-  content: string;
-  cover: string;
-  cover_image_id?: string | null;
-  view_count: number;
-  digg_count: number;
-  comment_count: number;
-  favor_count: number;
-  comments_toggle: boolean;
-  status: number;
-  tags: string[];
-  author_id: string;
-  author_avatar_image_id?: string | null;
-  author_avatar: string;
-  author_abstract: string;
-  author_created_time: string;
-  author_name: string;
-  author_username: string;
-  category_name: string;
-  category_id?: string | null;
-  tag_ids?: string[];
-  is_digg: boolean;
-  is_favor: boolean;
-  publish_status: number;
-  visibility_status: "visible" | "user_hidden" | "admin_hidden";
-}
+export type ArticleDetail = Nullable<
+  RequiredSchema<"internal_article_adapter_http.ArticleDetailResponse">,
+  "category_id" | "cover_image_id" | "author_avatar_image_id"
+>;
 
-export interface CommentRootItem {
-  id: string;
-  created_at: string;
-  content: string;
-  user_id: string;
-  reply_id: string;
-  root_id: string;
-  digg_count: number;
-  reply_count: number;
-  is_digg: boolean;
-  relation: number;
-  status: number;
-  user_nickname: string;
-  user_avatar: string;
-}
+export type CommentRootItem = RequiredSchema<"myblogx_internal_comment_app.RootItem">;
 
 export interface CommentRootListData {
   list: CommentRootItem[];
@@ -411,13 +234,7 @@ export interface CommentReplyItem {
   reply_user_nickname: string;
 }
 
-export interface CommentReplyListData {
-  root_id: string;
-  reply_count: number;
-  list: CommentReplyItem[];
-  count?: number;
-  has_more: boolean;
-}
+export type CommentReplyListData = RequiredSchema<"internal_comment_adapter_http.ReplyListResponse">;
 
 export interface UserBaseInfo {
   id: string;
@@ -449,31 +266,7 @@ export interface ArticleAuthorInfo {
   fans_count: number;
 }
 
-export interface UserSelfDetail {
-  id: string;
-  created_at: string;
-  username: string;
-  nickname: string;
-  avatar: string;
-  avatar_image_id?: string | null;
-  abstract: string;
-  register_source: number;
-  code_age: number;
-  favorites_visibility?: boolean;
-  followers_visibility?: boolean;
-  fans_visibility?: boolean;
-  home_style_id?: string | null;
-  like_tag_ids?: string[];
-  like_tag_items?: UserLikeTagItem[];
-  updated_username_date?: string | null;
-  email?: string;
-  has_password?: boolean;
-  stranger_msg_enabled?: boolean;
-  digg_notice_enabled?: boolean;
-  comment_notice_enabled?: boolean;
-  favor_notice_enabled?: boolean;
-  private_chat_notice_enabled?: boolean;
-}
+export type UserSelfDetail = RequiredSchema<"myblogx_internal_user_app.DetailView">;
 
 export interface UserLikeTagItem {
   id: string;
@@ -527,53 +320,17 @@ export interface HistoryArticleListData {
   has_more: boolean;
 }
 
-export interface CommentManageItem {
-  id: string;
-  created_at: string;
-  content: string;
-  digg_count: number;
-  reply_count: number;
-  user_id: string;
-  user_nickname: string;
-  user_avatar: string;
-  article_id: string;
-  article_title: string;
-  article_cover: string;
-  relation?: number;
-}
+export type CommentManageItem = RequiredSchema<"myblogx_internal_comment_app.ManageItem">;
 
-export interface CommentManageListData {
-  list: CommentManageItem[];
-  count: number;
-}
+export type CommentManageListData = RequiredSchema<"myblogx_internal_kernel.ListData-myblogx_internal_comment_app_ManageItem">;
 
-export interface FollowUserItem {
-  followed_user_id: string;
-  followed_nickname: string;
-  followed_avatar: string;
-  followed_abstract: string;
-  follow_time: string;
-  relation: number;
-}
+export type FollowUserItem = RequiredSchema<"myblogx_internal_social_domain.FollowingItem">;
 
-export interface FollowUserListData {
-  list: FollowUserItem[];
-  has_more: boolean;
-}
+export type FollowUserListData = RequiredSchema<"myblogx_internal_kernel.HasMoreListData-myblogx_internal_social_domain_FollowingItem">;
 
-export interface FanUserItem {
-  fans_user_id: string;
-  fans_nickname: string;
-  fans_avatar: string;
-  fans_abstract: string;
-  follow_time: string;
-  relation: number;
-}
+export type FanUserItem = RequiredSchema<"myblogx_internal_social_domain.FansItem">;
 
-export interface FanUserListData {
-  list: FanUserItem[];
-  has_more: boolean;
-}
+export type FanUserListData = RequiredSchema<"myblogx_internal_kernel.HasMoreListData-myblogx_internal_social_domain_FansItem">;
 
 export interface FavoriteArticleItem {
   favorited_at: string;
@@ -612,119 +369,43 @@ export interface LoginLogListData {
   count: number;
 }
 
-export interface UserSessionItem {
-  id: string;
-  ip: string;
-  addr: string;
-  ua: string;
-  created_at: string;
-  last_seen_at?: string | null;
-  expires_at: string;
-  is_current: boolean;
-}
+export type UserSessionItem = RequiredSchema<"internal_auth_adapter_http.SessionItem">;
 
-export interface UserSessionListData {
-  list: UserSessionItem[];
-  count: number;
-}
+export type UserSessionListData = RequiredSchema<"myblogx_internal_kernel.ListData-internal_auth_adapter_http_SessionItem">;
 
-export interface MessageSummary {
-  comment_msg_count: number;
-  digg_favor_msg_count: number;
-  private_msg_count: number;
-  system_msg_count: number;
-  global_msg_count: number;
-}
+export type MessageSummary = RequiredSchema<"internal_notification_adapter_http.UnreadResponse">;
 
-export interface MessagePreference {
-  digg_notice_enabled: boolean;
-  comment_notice_enabled: boolean;
-  favor_notice_enabled: boolean;
-  private_chat_notice_enabled: boolean;
-}
+export type MessagePreference = Schema<"internal_notification_adapter_http.ConfRequest">;
 
-export interface SiteMessageItem {
-  id: string;
-  created_at: string;
-  updated_at: string;
-  type: number;
-  receiver_id: string;
-  action_user_id: string | null;
-  action_user_nickname: string | null;
-  action_user_avatar: string | null;
-  content: string;
-  article_id: string;
-  comment_id: string;
-  article_title: string;
-  link_title: string;
-  link_herf: string;
-  is_read: boolean;
-  read_at: string | null;
-  deleted_at?: string | null;
-}
+// deleted_at 只在软删后才有；操作人/已读时间可能为 null（Go 侧是指针）。
+export type SiteMessageItem = Nullable<
+  OptionalFields<RequiredSchema<"internal_notification_adapter_http.MessageItem">, "deleted_at">,
+  "action_user_id" | "action_user_avatar" | "read_at"
+>;
 
-export interface SiteMessageListData {
-  list: SiteMessageItem[];
-  has_more: boolean;
-}
+export type SiteMessageListData = RequiredSchema<"myblogx_internal_kernel.HasMoreListData-internal_notification_adapter_http_MessageItem">;
 
-export interface GlobalNoticeItem {
-  id: string;
-  create_at: string;
-  title: string;
-  icon: string;
-  content: string;
-  herf: string;
-  is_read: boolean;
-}
+export type GlobalNoticeItem = RequiredSchema<"internal_notification_adapter_http.GlobalListResponse">;
 
-export interface GlobalNoticeListData {
-  list: GlobalNoticeItem[];
-  has_more: boolean;
-}
+export type GlobalNoticeListData = RequiredSchema<"myblogx_internal_kernel.HasMoreListData-internal_notification_adapter_http_GlobalListResponse">;
 
-export interface ChatSessionItem {
-  session_id: string;
-  receiver_id: string;
-  receiver_nickname: string;
-  receiver_avatar: string;
-  relation: number;
-  last_msg_content: string;
-  last_msg_time: string | null;
-  unread_count: number;
-  is_top: boolean;
-  is_mute: boolean;
-  deleted_at?: string | null;
-}
+// 没有消息时后端返回 last_msg_time: null；deleted_at 只在软删后才有。
+export type ChatSessionItem = OptionalFields<
+  Nullable<RequiredSchema<"myblogx_internal_chat_domain.SessionItem">, "last_msg_time">,
+  "deleted_at"
+>;
 
-export interface ChatSessionListData {
-  list: ChatSessionItem[];
-  count: number;
-}
+export type ChatSessionListData = RequiredSchema<"myblogx_internal_kernel.ListData-myblogx_internal_chat_domain_SessionItem">;
 
-export interface ChatMessageItem {
-  id: string;
-  sender_id: string;
-  receiver_id: string;
-  session_id: string;
-  content: string;
-  send_time: string;
-  msg_status: number;
-  msg_type: number;
-  is_self: boolean;
-  is_read: boolean;
-  deleted_at?: string | null;
-}
+// deleted_at 只在软删后才有，后端可能不返回。
+export type ChatMessageItem = OptionalFields<
+  RequiredSchema<"myblogx_internal_chat_domain.MessageItem">,
+  "deleted_at"
+>;
 
-export interface ChatMessageListData {
-  list: ChatMessageItem[];
-  count: number;
-}
+export type ChatMessageListData = RequiredSchema<"myblogx_internal_kernel.ListData-myblogx_internal_chat_domain_MessageItem">;
 
-export interface ChatWsTicketData {
-  ticket?: string;
-  [key: string]: unknown;
-}
+export type ChatWsTicketData = RequiredSchema<"internal_chat_adapter_http.WsTicketResponse">;
 
 export interface ChatSocketEnvelope<TData = unknown> {
   code: number;
@@ -738,14 +419,9 @@ export interface ChatSocketOutgoingMessage {
   content: string;
 }
 
-export interface UserProfileUpdatePayload {
-  username?: string | null;
-  nickname?: string | null;
-  avatar_image_id?: string | null;
-  abstract?: string | null;
-  like_tag_ids?: string[];
-  favorites_visibility?: boolean | null;
-  followers_visibility?: boolean | null;
-  fans_visibility?: boolean | null;
-  home_style_id?: string | null;
-}
+// UpdateInfoRequest 的字段在 Go 里全是 *指针（`*string` / `*ctype.ID`），
+// JSON 里可以是 null；但 swag 把指针印成非空类型，所以这里显式补 null。
+export type UserProfileUpdatePayload = Nullable<
+  Schema<"internal_user_adapter_http.UpdateInfoRequest">,
+  "username" | "nickname" | "abstract" | "avatar_image_id" | "home_style_id"
+>;

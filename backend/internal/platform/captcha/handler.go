@@ -17,6 +17,8 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/mojocn/base64Captcha"
+	// 供 swag 注解里的 kernel.Envelope 解析用（代码里不直接引用）。
+	_ "myblogx/internal/kernel"
 )
 
 // Settings 读站点是否启用验证码。
@@ -51,7 +53,7 @@ type ImageResponse struct {
 // @Summary 获取图片验证码
 // @Tags captcha
 // @Produce json
-// @Success 200 {object} object{code=int,data=ImageResponse,msg=string}
+// @Success 200 {object} kernel.Envelope[ImageResponse]
 // @Router /imagecaptcha [get]
 func (h *Handler) Image(c *gin.Context) {
 	if h.settings == nil || !h.settings.CaptchaEnabled() {

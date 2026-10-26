@@ -14,6 +14,8 @@ import (
 	"myblogx/internal/search/app"
 	"myblogx/internal/search/domain"
 	"myblogx/utils/jwts"
+	// 供 swag 注解里的 kernel.Envelope 解析用（代码里不直接引用）。
+	_ "myblogx/internal/kernel"
 )
 
 // Verifier 校验访问令牌并返回操作者。
@@ -55,7 +57,7 @@ type ArticleSearchQuery struct {
 // @Summary 文章搜索
 // @Tags search
 // @Produce json
-// @Success 200 {object} object{code=int,data=domain.Response,msg=string}
+// @Success 200 {object} kernel.Envelope[domain.Response]
 // @Router /search/articles [get]
 func (h *Handler) ArticleSearch(c *gin.Context) {
 	var q ArticleSearchQuery

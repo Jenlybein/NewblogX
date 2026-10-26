@@ -21,7 +21,7 @@ import (
 // @Tags article
 // @Produce json
 // @Param user_id query string false "用户 ID"
-// @Success 200 {object} object{code=int,data=object{list=[]object{},count=int},msg=string}
+// @Success 200 {object} kernel.Envelope[kernel.ListData[CategoryListItem]]
 // @Router /articles/category [get]
 func (h *Handler) Categories(c *gin.Context) {
 	cr := middleware.GetBindQuery[CategoryListRequest](c)
@@ -36,7 +36,7 @@ func (h *Handler) Categories(c *gin.Context) {
 // @Produce json
 // @Security BearerAuth
 // @Param body body CategoryRequest true "请求体"
-// @Success 200 {object} object{code=int,data=object{},msg=string}
+// @Success 200 {object} kernel.Envelope[kernel.EmptyData]
 // @Router /articles/category [post]
 func (h *Handler) SaveCategory(c *gin.Context) {
 	cr := middleware.GetBindJson[CategoryRequest](c)
@@ -57,7 +57,7 @@ func (h *Handler) SaveCategory(c *gin.Context) {
 // @Produce json
 // @Security BearerAuth
 // @Param body body kernel.IDListRequest true "分类 ID 列表"
-// @Success 200 {object} object{code=int,data=object{},msg=string}
+// @Success 200 {object} kernel.Envelope[kernel.EmptyData]
 // @Router /articles/category [delete]
 func (h *Handler) DeleteCategories(c *gin.Context) {
 	cr := middleware.GetBindJson[kernel.IDListRequest](c)
@@ -80,7 +80,7 @@ func (h *Handler) DeleteCategories(c *gin.Context) {
 // @Tags article
 // @Produce json
 // @Param user_id query string false "用户 ID"
-// @Success 200 {object} object{code=int,data=object{list=[]object{},count=int},msg=string}
+// @Success 200 {object} kernel.Envelope[kernel.ListData[CategoryListItem]]
 // @Router /articles/category/options [get]
 func (h *Handler) CategoryOptions(c *gin.Context) {
 	// 不能复用 Categories：两个路由绑定的请求类型不同，
@@ -120,7 +120,7 @@ func (h *Handler) listCategories(c *gin.Context, userID ctype.ID) {
 // @Tags article
 // @Produce json
 // @Param include_disabled query bool false "是否包含停用"
-// @Success 200 {object} object{code=int,data=object{list=[]object{},count=int},msg=string}
+// @Success 200 {object} kernel.Envelope[kernel.ListData[TagListItem]]
 // @Router /articles/tags [get]
 func (h *Handler) Tags(c *gin.Context) {
 	cr := middleware.GetBindQuery[TagListRequest](c)
@@ -132,7 +132,7 @@ func (h *Handler) Tags(c *gin.Context) {
 // @Summary 标签下拉
 // @Tags article
 // @Produce json
-// @Success 200 {object} object{code=int,data=object{list=[]object{},count=int},msg=string}
+// @Success 200 {object} kernel.Envelope[kernel.ListData[TagListItem]]
 // @Router /articles/tags/options [get]
 func (h *Handler) TagOptions(c *gin.Context) {
 	h.listTags(c, false)
@@ -170,7 +170,7 @@ func (h *Handler) listTags(c *gin.Context, includeDisabled bool) {
 // @Produce json
 // @Security BearerAuth
 // @Param body body TagRequest true "请求体"
-// @Success 200 {object} object{code=int,data=object{},msg=string}
+// @Success 200 {object} kernel.Envelope[kernel.EmptyData]
 // @Router /articles/tags [put]
 func (h *Handler) SaveTag(c *gin.Context) {
 	cr := middleware.GetBindJson[TagRequest](c)
@@ -197,7 +197,7 @@ func (h *Handler) SaveTag(c *gin.Context) {
 // @Produce json
 // @Security BearerAuth
 // @Param body body kernel.IDListRequest true "标签 ID 列表"
-// @Success 200 {object} object{code=int,data=object{},msg=string}
+// @Success 200 {object} kernel.Envelope[kernel.EmptyData]
 // @Router /articles/tags [delete]
 func (h *Handler) DeleteTags(c *gin.Context) {
 	cr := middleware.GetBindJson[kernel.IDListRequest](c)
@@ -222,7 +222,7 @@ func (h *Handler) DeleteTags(c *gin.Context) {
 // @Tags article
 // @Produce json
 // @Param user_id query string false "用户 ID"
-// @Success 200 {object} object{code=int,data=object{list=[]object{},count=int},msg=string}
+// @Success 200 {object} kernel.Envelope[kernel.ListData[FavoriteListItem]]
 // @Router /articles/favorite [get]
 func (h *Handler) Folders(c *gin.Context) {
 	cr := middleware.GetBindQuery[FavoriteListRequest](c)
@@ -264,7 +264,7 @@ func (h *Handler) Folders(c *gin.Context) {
 // @Produce json
 // @Security BearerAuth
 // @Param body body FavoriteRequest true "请求体"
-// @Success 200 {object} object{code=int,data=object{},msg=string}
+// @Success 200 {object} kernel.Envelope[kernel.EmptyData]
 // @Router /articles/favorite [put]
 func (h *Handler) SaveFolder(c *gin.Context) {
 	cr := middleware.GetBindJson[FavoriteRequest](c)
@@ -290,7 +290,7 @@ func (h *Handler) SaveFolder(c *gin.Context) {
 // @Produce json
 // @Security BearerAuth
 // @Param body body kernel.IDListRequest true "收藏夹 ID 列表"
-// @Success 200 {object} object{code=int,data=object{},msg=string}
+// @Success 200 {object} kernel.Envelope[kernel.EmptyData]
 // @Router /articles/favorite [delete]
 func (h *Handler) DeleteFolders(c *gin.Context) {
 	cr := middleware.GetBindJson[kernel.IDListRequest](c)
@@ -315,7 +315,7 @@ func (h *Handler) DeleteFolders(c *gin.Context) {
 // @Param favor_id query string true "收藏夹 ID"
 // @Param page query int false "页码"
 // @Param limit query int false "每页数量"
-// @Success 200 {object} object{code=int,data=object{list=[]object{},count=int},msg=string}
+// @Success 200 {object} kernel.Envelope[kernel.HasMoreListData[FavoriteArticleListItem]]
 // @Router /articles/favorite/contents [get]
 func (h *Handler) FavoriteItems(c *gin.Context) {
 	cr := middleware.GetBindQuery[FavoriteArticlesRequest](c)
@@ -355,7 +355,7 @@ func (h *Handler) FavoriteItems(c *gin.Context) {
 // @Produce json
 // @Security BearerAuth
 // @Param body body ArticleFavoriteRequest true "请求体"
-// @Success 200 {object} object{code=int,data=object{},msg=string}
+// @Success 200 {object} kernel.Envelope[kernel.EmptyData]
 // @Router /articles/favorite [post]
 func (h *Handler) SaveFavorite(c *gin.Context) {
 	cr := middleware.GetBindJson[ArticleFavoriteRequest](c)
@@ -380,7 +380,7 @@ func (h *Handler) SaveFavorite(c *gin.Context) {
 // @Produce json
 // @Security BearerAuth
 // @Param body body FavoriteRemovePatchModel true "请求体"
-// @Success 200 {object} object{code=int,data=object{},msg=string}
+// @Success 200 {object} kernel.Envelope[kernel.EmptyData]
 // @Router /articles/favorite/contents [delete]
 func (h *Handler) RemoveFavoriteItems(c *gin.Context) {
 	cr := middleware.GetBindJson[FavoriteRemovePatchModel](c)
@@ -406,7 +406,7 @@ func (h *Handler) RemoveFavoriteItems(c *gin.Context) {
 // @Tags article
 // @Produce json
 // @Param user_id query string false "用户 ID"
-// @Success 200 {object} object{code=int,data=object{list=[]string,count=int},msg=string}
+// @Success 200 {object} kernel.Envelope[kernel.ListData[string]]
 // @Router /articles/top [get]
 func (h *Handler) Tops(c *gin.Context) {
 	cr := middleware.GetBindQuery[ArticleTopListRequest](c)
@@ -431,7 +431,7 @@ func (h *Handler) Tops(c *gin.Context) {
 // @Produce json
 // @Security BearerAuth
 // @Param body body ArticleTopSetRequest true "请求体"
-// @Success 200 {object} object{code=int,data=object{},msg=string}
+// @Success 200 {object} kernel.Envelope[kernel.EmptyData]
 // @Router /articles/top [post]
 func (h *Handler) SetTop(c *gin.Context) {
 	cr := middleware.GetBindJson[ArticleTopSetRequest](c)
@@ -446,7 +446,7 @@ func (h *Handler) SetTop(c *gin.Context) {
 // @Produce json
 // @Security BearerAuth
 // @Param body body ArticleTopSetRequest true "请求体"
-// @Success 200 {object} object{code=int,data=object{},msg=string}
+// @Success 200 {object} kernel.Envelope[kernel.EmptyData]
 // @Router /articles/top [delete]
 func (h *Handler) RemoveTop(c *gin.Context) {
 	cr := middleware.GetBindJson[ArticleTopSetRequest](c)
@@ -483,7 +483,7 @@ func (h *Handler) toggleTops(c *gin.Context, ids []ctype.ID, remove bool) {
 // @Security BearerAuth
 // @Param page query int false "页码"
 // @Param limit query int false "每页数量"
-// @Success 200 {object} object{code=int,data=object{list=[]object{},count=int},msg=string}
+// @Success 200 {object} kernel.Envelope[kernel.HasMoreListData[ArticleViewHistoryItem]]
 // @Router /articles/history [get]
 func (h *Handler) History(c *gin.Context) {
 	cr := middleware.GetBindQuery[ArticleViewHistoryRequest](c)
@@ -518,7 +518,7 @@ func (h *Handler) History(c *gin.Context) {
 // @Produce json
 // @Security BearerAuth
 // @Param body body kernel.IDListRequest true "文章 ID 列表"
-// @Success 200 {object} object{code=int,data=object{},msg=string}
+// @Success 200 {object} kernel.Envelope[kernel.EmptyData]
 // @Router /articles/history [delete]
 func (h *Handler) RemoveHistory(c *gin.Context) {
 	cr := middleware.GetBindJson[kernel.IDListRequest](c)
@@ -546,7 +546,7 @@ func (h *Handler) RemoveHistory(c *gin.Context) {
 // @Param status query string false "任务状态"
 // @Param page query int false "页码"
 // @Param limit query int false "每页数量"
-// @Success 200 {object} object{code=int,data=ArticleReviewTaskListResponse,msg=string}
+// @Success 200 {object} kernel.Envelope[ArticleReviewTaskListResponse]
 // @Router /article-review [get]
 func (h *Handler) ReviewTasks(c *gin.Context) {
 	cr := middleware.GetBindQuery[ArticleReviewTaskListRequest](c)
@@ -580,7 +580,7 @@ func (h *Handler) ReviewTasks(c *gin.Context) {
 // @Security BearerAuth
 // @Param id path string true "任务 ID"
 // @Param body body ArticleReviewHandleRequest true "请求体"
-// @Success 200 {object} object{code=int,data=object{},msg=string}
+// @Success 200 {object} kernel.Envelope[kernel.EmptyData]
 // @Router /article-review-tasks/{id}/review [post]
 func (h *Handler) HandleReviewTask(c *gin.Context) {
 	uri := middleware.GetBindUri[kernel.IDRequest](c)
@@ -603,7 +603,7 @@ func (h *Handler) HandleReviewTask(c *gin.Context) {
 // @Tags article
 // @Produce json
 // @Param author_id query string true "作者 ID"
-// @Success 200 {object} object{code=int,data=object{},msg=string}
+// @Success 200 {object} kernel.Envelope[ArticleAuthorInfoResponse]
 // @Router /articles/author_info [get]
 func (h *Handler) AuthorInfo(c *gin.Context) {
 	cr := middleware.GetBindQuery[ArticleAuthorInfoBindRequest](c)
@@ -619,11 +619,11 @@ func (h *Handler) AuthorInfo(c *gin.Context) {
 		res.FailWithMsg("用户不存在", c)
 		return
 	}
-	res.OkWithData(map[string]any{
-		"id":       profile.ID.Uint64(),
-		"username": profile.Username,
-		"nickname": profile.Nickname,
-		"avatar":   profile.Avatar,
+	res.OkWithData(ArticleAuthorInfoResponse{
+		ID:       profile.ID,
+		Username: profile.Username,
+		Nickname: profile.Nickname,
+		Avatar:   profile.Avatar,
 	}, c)
 }
 

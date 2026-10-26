@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"strings"
 
 	"github.com/elastic/go-elasticsearch/v7"
 	"github.com/elastic/go-elasticsearch/v7/esapi"
@@ -146,56 +147,8 @@ type Mapping map[string]struct {
 // --- 业务操作封装 ---
 
 // 创建通用文档（泛型）
-func CreateDocument(client *elasticsearch.Client, index string, data any) ESResponse {
-	body, _ := json.Marshal(data)
-	req := esapi.IndexRequest{
-		Index: index,
-		Body:  bytes.NewReader(body),
-	}
-
-	res, err := doRequest(client, req)
-	if err != nil {
-		return ESResponse{Success: false, Msg: err.Error()}
-	}
-	defer closeResponse(res)
-
-	return ESResponse{Success: true, Msg: "创建成功", Data: res.String()}
-}
 
 // Search 分页查询封装
-func Search[T any](client *elasticsearch.Client, index string, page, limit int, query map[string]any, extraBody ...map[string]any) ESResponse {
-	from := (page - 1) * limit
-	searchBody := map[string]any{"from": from, "size": limit, "query": query}
-	if len(extraBody) > 0 {
-		for key, value := range extraBody[0] {
-			searchBody[key] = value
-		}
-	}
-	body, _ := json.Marshal(searchBody)
-
-	req := esapi.SearchRequest{
-		Index: []string{index},
-		Body:  bytes.NewReader(body),
-	}
-
-	res, err := doRequest(client, req)
-	if err != nil {
-		return ESResponse{Success: false, Msg: err.Error()}
-	}
-
-	// 这里的 map[string]any 可以根据 ES 返回结构定义更精确的 struct
-	result, _ := decodeResponse(res.Body)
-	hitsObj := result["hits"].(map[string]any)
-
-	return ESResponse{
-		Success: true,
-		Msg:     "查询成功",
-		Data: map[string]any{
-			"total": hitsObj["total"].(map[string]any)["value"],
-			"hits":  hitsObj["hits"], // 保持原始 hits 供上层解析，或在此处进一步泛型转换
-		},
-	}
-}
 
 // SearchBody 允许上层直接传入完整搜索请求体。
 // 适合需要自定义 size、track_total_hits 或 has_more 语义的读服务。
@@ -242,40 +195,8 @@ func SearchBody(client *elasticsearch.Client, index string, body map[string]any)
 }
 
 // 更新通用文档
-func UpdateDocument(client *elasticsearch.Client, index, docID string, updateData map[string]any) ESResponse {
-	body, _ := json.Marshal(map[string]any{"doc": updateData})
-	req := esapi.UpdateRequest{
-		Index:      index,
-		DocumentID: docID,
-		Body:       bytes.NewReader(body),
-		Refresh:    "true",
-	}
-
-	res, err := doRequest(client, req)
-	if err != nil {
-		return ESResponse{Success: false, Msg: err.Error()}
-	}
-
-	result, _ := decodeResponse(res.Body)
-	return ESResponse{Success: true, Msg: "更新成功", Data: result}
-}
 
 // DeleteDocument 删除通用文档
-func DeleteDocument(client *elasticsearch.Client, index, docID string) ESResponse {
-	req := esapi.DeleteRequest{
-		Index:      index,
-		DocumentID: docID,
-		Refresh:    "true",
-	}
-
-	res, err := doRequest(client, req)
-	if err != nil {
-		return ESResponse{Success: false, Msg: err.Error()}
-	}
-
-	result, _ := decodeResponse(res.Body)
-	return ESResponse{Success: true, Msg: "删除成功", Data: result}
-}
 
 // --- 批量操作函数 ---
 
@@ -335,7 +256,37 @@ func buildBulkBody(items []*BulkRequest) ([]byte, error) {
 	return buf.Bytes(), nil
 }
 
-// IndexBulk 发送针对索引的批量请求
+// BulkFailure 是 bulk 响应里**单条文档**的失败。
+//
+// 为什么要有这个类型：ES 的 bulk 是"HTTP 200 + 逐条结果"。
+// 一个请求里 127 条成功、1 条因 mapping 冲突失败，HTTP 状态码完全正常，
+// 只有响应体的 `items` 能看出来。以前这个判断散在各个调用方，
+// 有的只回一句 "bulk errors"（不知道是哪篇、为什么），有的根本没判断。
+// 现在由 IndexBulk 统一解析成结构，领域规则（404 视为删除成功、
+// 404 的更新要补建）仍然留在调用方 —— 那是业务判断，不该下沉到 ES 封装里。
+type BulkFailure struct {
+	// Index 是这条在本次请求里的位置（0 起），调用方可据此回查文档 id 与动作。
+	Index  int
+	Action string // ES 返回的动作名：index / update / delete
+	ID     string // 文档 id（ES 一般都会给）
+	Status int    // 400 / 409 / 429 / 503 ...
+	Type   string // error.type，例如 mapper_parsing_exception
+	Reason string // 人看的原因（已拼上 caused_by）
+}
+
+// BulkResult 是一次 bulk 的逐条结果，放在 ESResponse.Data 里。
+type BulkResult struct {
+	Total    int           // 本次请求的条数
+	Failures []BulkFailure // 失败的条目（成功的不在里面）
+}
+
+// HasFailure 表示这次 bulk 有没有任何一条失败。
+func (r BulkResult) HasFailure() bool { return len(r.Failures) > 0 }
+
+// IndexBulk 发送针对索引的批量请求。
+//
+// 返回的 Success 表示**每一条都写成功**：HTTP 200 但响应体 errors=true 也算失败，
+// 并把失败明细放进 Data（BulkResult）。调用方据此决定是重试、补建还是落死信。
 func IndexBulk(client *elasticsearch.Client, index string, items []*BulkRequest) ESResponse {
 	body, err := buildBulkBody(items)
 	if err != nil {
@@ -349,146 +300,112 @@ func IndexBulk(client *elasticsearch.Client, index string, items []*BulkRequest)
 
 	res, err := doRequest(client, req)
 	if err != nil {
+		// 传输层/整请求失败：没有逐条信息，调用方只能整批重试。
 		return ESResponse{Success: false, Msg: err.Error()}
 	}
 
-	result, _ := decodeResponse(res.Body)
+	decoded, err := decodeResponse(res.Body)
+	if err != nil {
+		return ESResponse{Success: false, Msg: fmt.Sprintf("解析 bulk 响应失败: %v", err)}
+	}
+
+	result := parseBulkResult(decoded, len(items))
+	if result.HasFailure() {
+		return ESResponse{
+			Success: false,
+			Msg:     fmt.Sprintf("bulk 有 %d/%d 条写入失败: %s", len(result.Failures), result.Total, summarizeBulkFailures(result.Failures, 3)),
+			Data:    result,
+		}
+	}
 	return ESResponse{Success: true, Msg: "索引批量操作成功", Data: result}
 }
 
-// IndexTypeBulk 发送针对索引和文档类型的批量请求
-func IndexTypeBulk(client *elasticsearch.Client, index, docType string, items []*BulkRequest) ESResponse {
-	body, err := buildBulkBody(items)
-	if err != nil {
-		return ESResponse{Success: false, Msg: err.Error()}
+// parseBulkResult 把 bulk 响应体解析成逐条结果。
+func parseBulkResult(root map[string]any, requested int) BulkResult {
+	result := BulkResult{Total: requested}
+	items, _ := root["items"].([]any)
+	if len(items) > 0 {
+		result.Total = len(items)
 	}
-
-	req := esapi.BulkRequest{
-		Index: index,
-		Body:  bytes.NewReader(body),
+	for index, item := range items {
+		itemMap, ok := item.(map[string]any)
+		if !ok {
+			continue
+		}
+		for action, raw := range itemMap {
+			detail, ok := raw.(map[string]any)
+			if !ok {
+				continue
+			}
+			status := parseBulkStatus(detail["status"])
+			if status >= 200 && status < 300 {
+				continue
+			}
+			failure := BulkFailure{Index: index, Action: action, Status: status}
+			failure.ID, _ = detail["_id"].(string)
+			if errObj, ok := detail["error"].(map[string]any); ok {
+				failure.Type, _ = errObj["type"].(string)
+				failure.Reason, _ = errObj["reason"].(string)
+				if causedBy, ok := errObj["caused_by"].(map[string]any); ok {
+					if cbReason, ok := causedBy["reason"].(string); ok && cbReason != "" {
+						failure.Reason += " (caused_by: " + cbReason + ")"
+					}
+				}
+			}
+			result.Failures = append(result.Failures, failure)
+		}
 	}
-
-	res, err := doRequest(client, req)
-	if err != nil {
-		return ESResponse{Success: false, Msg: err.Error()}
-	}
-
-	result, _ := decodeResponse(res.Body)
-	return ESResponse{Success: true, Msg: "索引类型批量操作成功", Data: result}
+	return result
 }
+
+// parseBulkStatus 兼容 json.Number 与各种整型（decodeResponse 用了 UseNumber）。
+func parseBulkStatus(raw any) int {
+	switch value := raw.(type) {
+	case json.Number:
+		if parsed, err := value.Int64(); err == nil {
+			return int(parsed)
+		}
+	case int:
+		return value
+	case int64:
+		return int(value)
+	case float64:
+		return int(value)
+	}
+	return 0
+}
+
+// summarizeBulkFailures 取前几条拼成人话，用于错误信息与死信。
+func summarizeBulkFailures(failures []BulkFailure, limit int) string {
+	parts := make([]string, 0, limit)
+	for index, failure := range failures {
+		if index >= limit {
+			parts = append(parts, fmt.Sprintf("…另有 %d 条", len(failures)-limit))
+			break
+		}
+		reason := failure.Reason
+		if failure.Type != "" && reason == "" {
+			reason = failure.Type
+		}
+		parts = append(parts, fmt.Sprintf("%s id=%s status=%d reason=%s", failure.Action, failure.ID, failure.Status, reason))
+	}
+	return strings.Join(parts, " | ")
+}
+
+// IndexTypeBulk 发送针对索引和文档类型的批量请求
 
 // --- 映射管理函数 ---
 
 // CreateMapping 创建ES映射
-func CreateMapping(client *elasticsearch.Client, index, docType string, mapping map[string]interface{}) ESResponse {
-	// 先检查索引是否存在
-	existsReq := esapi.IndicesExistsRequest{
-		Index: []string{index},
-	}
-	existsRes, err := existsReq.Do(context.Background(), client)
-	if err != nil {
-		return ESResponse{Success: false, Msg: err.Error()}
-	}
-	defer closeResponse(existsRes)
-
-	// 如果索引不存在，创建索引
-	if existsRes.IsError() {
-		createReq := esapi.IndicesCreateRequest{
-			Index: index,
-		}
-		var createRes *esapi.Response
-		var createErr error
-		createRes, createErr = createReq.Do(context.Background(), client)
-		if createErr != nil {
-			return ESResponse{Success: false, Msg: createErr.Error()}
-		}
-		defer closeResponse(createRes)
-		if createRes.IsError() {
-			return ESResponse{Success: false, Msg: handleError(createRes).Error()}
-		}
-	}
-
-	// 创建映射
-	mappingJSON, _ := json.Marshal(mapping)
-	mapReq := esapi.IndicesPutMappingRequest{
-		Index: []string{index},
-		Body:  bytes.NewReader([]byte(fmt.Sprintf(`{"properties":%s}`, string(mappingJSON)))),
-	}
-	mapRes, err := mapReq.Do(context.Background(), client)
-	if err != nil {
-		return ESResponse{Success: false, Msg: err.Error()}
-	}
-	defer closeResponse(mapRes)
-
-	if mapRes.IsError() {
-		return ESResponse{Success: false, Msg: handleError(mapRes).Error()}
-	}
-
-	return ESResponse{Success: true, Msg: "映射创建成功"}
-}
 
 // GetMapping 获取映射
-func GetMapping(client *elasticsearch.Client, index, docType string) ESResponse {
-	req := esapi.IndicesGetMappingRequest{
-		Index: []string{index},
-	}
-
-	res, err := doRequest(client, req)
-	if err != nil {
-		return ESResponse{Success: false, Msg: err.Error()}
-	}
-
-	result, _ := decodeResponse(res.Body)
-	return ESResponse{Success: true, Msg: "获取映射成功", Data: result}
-}
 
 // --- 索引管理函数 ---
 
 // DeleteIndexWithResponse 删除索引并返回响应
-func DeleteIndexWithResponse(client *elasticsearch.Client, index string) ESResponse {
-	req := esapi.IndicesDeleteRequest{
-		Index: []string{index},
-	}
-
-	res, err := doRequest(client, req)
-	if err != nil {
-		return ESResponse{Success: false, Msg: err.Error()}
-	}
-
-	result, _ := decodeResponse(res.Body)
-	return ESResponse{Success: true, Msg: "删除索引成功", Data: result}
-}
 
 // --- 文档操作函数 ---
 
 // Get 根据ID获取文档
-func Get(client *elasticsearch.Client, index, docType, id string) ESResponse {
-	req := esapi.GetRequest{
-		Index:      index,
-		DocumentID: id,
-	}
-
-	res, err := doRequest(client, req)
-	if err != nil {
-		return ESResponse{Success: false, Msg: err.Error()}
-	}
-
-	result, _ := decodeResponse(res.Body)
-	return ESResponse{Success: true, Msg: "获取文档成功", Data: result}
-}
 
 // Exists 检查文档是否存在
-func Exists(client *elasticsearch.Client, index, docType, id string) ESResponse {
-	req := esapi.ExistsRequest{
-		Index:      index,
-		DocumentID: id,
-	}
-
-	res, err := req.Do(context.Background(), client)
-	if err != nil {
-		return ESResponse{Success: false, Msg: err.Error()}
-	}
-	defer closeResponse(res)
-
-	return ESResponse{Success: true, Msg: "检查文档存在性成功", Data: !res.IsError()}
-}

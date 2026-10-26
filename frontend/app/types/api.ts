@@ -8,10 +8,6 @@ export interface ApiEnvelope<T> {
   data: T;
 }
 
-export interface ApiEmptyObject {
-  [key: string]: never;
-}
-
 export type SiteSeoData = RequiredSchema<"internal_site_adapter_http.SEOResponse">;
 
 export interface SiteRuntimeConfig {
@@ -82,101 +78,30 @@ export interface AiDiagnoseResponseData {
   issues: AiDiagnoseIssue[];
 }
 
-export type AiArticleScoringType = 1 | 2 | 3;
-export type AiArticleScoreLevel = "较差文章" | "不合格文章" | "常规文章" | "优质文章" | "精品文章";
-export type AiArticleType =
-  | "散文"
-  | "小说"
-  | "诗歌"
-  | "剧本"
-  | "童话"
-  | "传说"
-  | "记叙文"
-  | "日记"
-  | "新闻"
-  | "说明文"
-  | "教程"
-  | "科普"
-  | "报告"
-  | "邮件"
-  | "通知"
-  | "发言稿"
-  | "议论文"
-  | "评论"
-  | "文案"
-  | "网文";
-
-export type AiArticleScoreDimensionName =
-  | "clarity"
-  | "structure"
-  | "completeness"
-  | "readability"
-  | "persuasiveness"
-  | "language";
-
 export type AiArticleScoringRequest = Schema<"internal_ai_adapter_http.ScoringRequest">;
 
-export interface AiArticleScoringPosition {
-  paragraph: number;
-  quote: string;
-}
+export type AiArticleScoringPosition = RequiredSchema<"myblogx_internal_ai_scoring.ArticleScorePosition">;
 
-export interface AiArticleScoringIssue {
-  positions: AiArticleScoringPosition[];
-  reason: string;
-  suggestion: string;
-}
 
-export interface AiArticleScoringDimension {
-  name: AiArticleScoreDimensionName;
-  score: number;
-  reason?: string;
-}
+export type AiArticleScoringIssue = RequiredSchema<"myblogx_internal_ai_scoring.ArticleScoreIssue">;
+
 
 export type AiArticleScoringResponseData = RequiredSchema<"internal_ai_adapter_http.ScoringResponse">;
 
-export interface FavoriteFolderItem {
-  id: string;
-  user_id: string;
-  title: string;
-  cover: string;
-  abstract: string;
-  is_default: boolean;
-  article_count: number;
-  nickname?: string;
-  avatar?: string;
-  has_article: boolean;
-}
+export type FavoriteFolderItem = RequiredSchema<"internal_article_adapter_http.FavoriteListItem">;
+
 
 export type FavoriteFolderListData = RequiredSchema<"myblogx_internal_kernel.ListData-internal_article_adapter_http_FavoriteListItem">;
 
-export interface FavoriteFolderCreatePayload {
-  id: string;
-  user_id: string;
-  title: string;
-  cover: string;
-  abstract: string;
-  is_default: boolean;
-  article_count: number;
-}
-
-export interface SearchTag {
-  id: string;
-  title: string;
-}
-
-export interface SearchCategory {
-  id: string;
-  title: string;
-}
-
-export interface SearchAuthor {
-  id: string;
-  nickname: string;
-  avatar: string;
-}
-
-export type SearchPagination = RequiredSchema<"myblogx_internal_search_domain.Pagination">;
+/**
+ * 收藏夹写操作（创建 / 更新共用）的请求体。
+ *
+ * 之前叫 `FavoriteFolderCreatePayload` 且被当成**返回值**用，还混进了
+ * `article_count / is_default / user_id` 这类只属于响应的字段。
+ * 后端 `PUT /articles/favorite` 实际只接收 `{id, title, cover, abstract}`，
+ * 且**不返回任何数据**。
+ */
+export type FavoriteFolderWritePayload = Schema<"internal_article_adapter_http.FavoriteRequest">;
 
 export type SearchArticleItem = RequiredSchema<"myblogx_internal_search_domain.Item">;
 
@@ -213,50 +138,37 @@ export type ArticleDetail = Nullable<
 
 export type CommentRootItem = RequiredSchema<"myblogx_internal_comment_app.RootItem">;
 
-export interface CommentRootListData {
-  list: CommentRootItem[];
-  count?: number;
-  has_more: boolean;
-}
+export type CommentRootListData = RequiredSchema<"myblogx_internal_kernel.HasMoreListData-myblogx_internal_comment_app_RootItem">;
 
-export interface CommentReplyItem {
-  created_at: string;
-  content: string;
-  user_id: string;
-  reply_id: string;
-  digg_count: number;
-  reply_count: number;
-  is_digg: boolean;
-  relation: number;
-  status: number;
-  user_nickname: string;
-  user_avatar: string;
-  reply_user_nickname: string;
-}
+
+export type CommentReplyItem = RequiredSchema<"myblogx_internal_comment_app.ReplyItem">;
+
 
 export type CommentReplyListData = RequiredSchema<"internal_comment_adapter_http.ReplyListResponse">;
 
-export interface UserBaseInfo {
-  id: string;
-  code_age: number;
-  avatar: string;
-  avatar_image_id?: string | null;
-  nickname: string;
-  abstract?: string;
-  view_count: number;
-  fans_count: number;
-  follow_count: number;
-  article_visited_count: number;
-  article_count: number;
-  favor_count?: number;
-  digg_count?: number;
-  comment_count?: number;
-  favorites_visibility: boolean;
-  followers_visibility: boolean;
-  fans_visibility: boolean;
-  home_style_id: string | null;
-  relation: number;
-  place: string;
+/**
+ * 用户主页的展示信息。
+ *
+ * 契约里 `BaseInfoResponse` 有 21 个字段，但**没有** `digg_count` /
+ * `favor_count` / `comment_count` —— 而 `ProfileHeroCard.vue` 会渲染
+ * 「点赞 / 收藏 / 评论」三个数字。于是这三项**恒显示 0**。
+ * 这里显式标成可选并注明"后端不返回"，不擅自删 UI，等产品决定是补后端聚合还是撤掉这三项。
+ */
+// 注意不能用 OptionalFields 包那三个——它会要求 K 是契约里已有的键，而它们本来就不存在。
+//
+// `avatar_image_id` 必须放回可选：它在 Go 里是 `*ctype.ID` 且带 `omitempty`，
+// 空值时**字段整个不出现在 JSON 里**（不是 `null`）。这类"omitempty 指针"字段
+// 用 `RequiredSchema` 会导致构造对象字面量时被迫编造一个值。
+export type UserBaseInfo = OptionalFields<
+  RequiredSchema<"internal_user_adapter_http.BaseInfoResponse">,
+  "avatar_image_id"
+> & {
+  /** 后端当前不返回，恒为 undefined（模板里有 `|| 0` 兜底）。 */
+  digg_count?: number
+  /** 后端当前不返回，恒为 undefined。 */
+  favor_count?: number
+  /** 后端当前不返回，恒为 undefined。 */
+  comment_count?: number
 }
 
 export interface ArticleAuthorInfo {
@@ -268,61 +180,20 @@ export interface ArticleAuthorInfo {
 
 export type UserSelfDetail = RequiredSchema<"myblogx_internal_user_app.DetailView">;
 
-export interface UserLikeTagItem {
-  id: string;
-  title: string;
-}
+/**
+ * 发送邮箱验证码的响应。
+ *
+ * 后端返回的是 `{"id": "..."}`（见 `auth/adapter/http/dto.go` 的 `SendEmailResponse`）。
+ * 之前这里手写成 `{email_id, email}`，于是三个调用点读的 `payload.email_id` **恒为 undefined**，
+ * 邮箱验证码登录/注册/绑定全部会卡在"请先发送验证码"。已按契约改成 `id`。
+ */
+export type EmailVerifyResponse = RequiredSchema<"internal_auth_adapter_http.SendEmailResponse">;
 
-export interface EmailVerifyPayload {
-  email_id: string;
-  email: string;
-}
+export type HistoryArticleItem = RequiredSchema<"internal_article_adapter_http.ArticleViewHistoryItem">;
 
-export interface ArticleListItem {
-  id: string;
-  created_at: string;
-  updated_at: string;
-  title: string;
-  abstract: string;
-  content: string;
-  cover: string;
-  view_count: number;
-  digg_count: number;
-  comment_count: number;
-  favor_count: number;
-  comments_toggle: boolean;
-  status: number;
-  tags: string[];
-  user_top: boolean;
-  admin_top: boolean;
-  category_title: string;
-  user_nickname: string;
-  user_avatar: string;
-}
 
-export interface ArticleListResponse {
-  list: ArticleListItem[];
-  count: number;
-}
+export type HistoryArticleListData = RequiredSchema<"myblogx_internal_kernel.HasMoreListData-internal_article_adapter_http_ArticleViewHistoryItem">;
 
-export interface HistoryArticleItem {
-  updated_at: string;
-  title: string;
-  cover: string;
-  nickname: string;
-  avatar: string;
-  user_id: string;
-  article_id: string;
-}
-
-export interface HistoryArticleListData {
-  list: HistoryArticleItem[];
-  has_more: boolean;
-}
-
-export type CommentManageItem = RequiredSchema<"myblogx_internal_comment_app.ManageItem">;
-
-export type CommentManageListData = RequiredSchema<"myblogx_internal_kernel.ListData-myblogx_internal_comment_app_ManageItem">;
 
 export type FollowUserItem = RequiredSchema<"myblogx_internal_social_domain.FollowingItem">;
 
@@ -332,44 +203,11 @@ export type FanUserItem = RequiredSchema<"myblogx_internal_social_domain.FansIte
 
 export type FanUserListData = RequiredSchema<"myblogx_internal_kernel.HasMoreListData-myblogx_internal_social_domain_FansItem">;
 
-export interface FavoriteArticleItem {
-  favorited_at: string;
-  article_id: string;
-  title: string;
-  abstract: string;
-  cover: string;
-  view_count: number;
-  digg_count: number;
-  comment_count: number;
-  favor_count: number;
-  user_nickname: string;
-  user_avatar: string;
-  article_status: number;
-}
+export type FavoriteArticleItem = RequiredSchema<"internal_article_adapter_http.FavoriteArticleListItem">;
 
-export interface FavoriteArticleListData {
-  list: FavoriteArticleItem[];
-  has_more: boolean;
-}
 
-export interface LoginLogItem {
-  id: string;
-  created_at: string;
-  updated_at: string;
-  user_id: string;
-  ip: string;
-  addr: string;
-  ua: string;
-  user_nickname: string;
-  user_avatar: string;
-}
+export type FavoriteArticleListData = RequiredSchema<"myblogx_internal_kernel.HasMoreListData-internal_article_adapter_http_FavoriteArticleListItem">;
 
-export interface LoginLogListData {
-  list: LoginLogItem[];
-  count: number;
-}
-
-export type UserSessionItem = RequiredSchema<"internal_auth_adapter_http.SessionItem">;
 
 export type UserSessionListData = RequiredSchema<"myblogx_internal_kernel.ListData-internal_auth_adapter_http_SessionItem">;
 

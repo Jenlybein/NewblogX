@@ -1,4 +1,4 @@
-import type { EmailVerifyPayload } from "~/types/api";
+import type { EmailVerifyResponse } from "~/types/api";
 
 export function loginWithPassword(payload: { username: string; password: string }) {
   return useNuxtApp().$api.request<string>("/api/users/login", {
@@ -10,7 +10,7 @@ export function loginWithPassword(payload: { username: string; password: string 
 }
 
 export function sendEmailCode(payload: { email: string; type: 1 | 2 | 3 | 4 }) {
-  return useNuxtApp().$api.request<EmailVerifyPayload>("/api/users/email/verify", {
+  return useNuxtApp().$api.request<EmailVerifyResponse>("/api/users/email/verify", {
     method: "POST",
     body: payload,
     auth: false,

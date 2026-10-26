@@ -101,14 +101,21 @@ async function handleCreateFolder() {
 
   createPending.value = true;
   try {
-    const created = await createFavoriteFolder({
+    // 后端 `PUT /articles/favorite` 只返回消息、**不返回新收藏夹的 id**
+    // （注解是 `Envelope[EmptyData]`，handler 走 `OkWithMsg`）。
+    // 所以必须重新拉一次列表再按标题找回来——之前这里读 `created.id`，
+    // 拿到的永远是 undefined，于是"创建并收藏"实际收藏进了**默认收藏夹**。
+    await createFavoriteFolder({
       title,
       abstract: newFolderAbstract.value.trim() || `${title} 收藏夹`,
     });
-    await favoriteArticle(props.articleId, created.id);
-    resetCreateForm();
     await loadFolders();
-    message.success(`已创建“${title}”并完成收藏`);
+    const created = folders.value.find((item) => item.title === title);
+    if (created) {
+      await favoriteArticle(props.articleId, created.id);
+    }
+    resetCreateForm();
+    message.success(created ? `已创建“${title}”并完成收藏` : `已创建“${title}”`);
     emit("updated");
   } catch (error) {
     message.error(error instanceof Error ? error.message : "创建收藏夹失败");

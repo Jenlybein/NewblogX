@@ -1,6 +1,7 @@
 import type {
   FavoriteArticleListData,
-  FavoriteFolderCreatePayload,
+  FavoriteFolderWritePayload,
+  FavoriteFolderItem,
   FavoriteFolderListData,
 } from "~/types/api";
 
@@ -16,16 +17,11 @@ export function getOwnFavoriteFolders(articleId?: string | number) {
 }
 
 export function getPublicFavoriteFolders(userId: string | number) {
+  // 与 getOwnFavoriteFolders 打的是同一个接口（只差 type 参数），所以响应类型也一样。
+  // 之前这里手写了一份匿名的 4 字段类型，等于把 FavoriteFolderItem 抄了一遍还不完整，
+  // 导致同一份数据在两个调用路径上是两个不同的类型。
   return useNuxtApp()
-    .$api.request<{
-      list: Array<{
-        id?: string;
-        user_id?: string;
-        title?: string;
-        article_count?: number;
-      }>;
-      count: number;
-    }>("/api/articles/favorite", {
+    .$api.request<FavoriteFolderListData>("/api/articles/favorite", {
       auth: false,
       query: {
         type: 2,
@@ -36,21 +32,26 @@ export function getPublicFavoriteFolders(userId: string | number) {
     })
     .then((payload) => ({
       count: payload.count,
-      list: payload.list.map((item) => ({
+      list: payload.list.map<FavoriteFolderItem>((item) => ({
         id: item.id ?? "",
         user_id: item.user_id ?? String(userId),
         title: item.title ?? "未命名收藏夹",
-        cover: "",
-        abstract: "",
-        is_default: false,
+        cover: item.cover ?? "",
+        abstract: item.abstract ?? "",
+        is_default: item.is_default ?? false,
         article_count: item.article_count ?? 0,
-        has_article: false,
+        has_article: item.has_article ?? false,
+        nickname: item.nickname ?? "",
+        avatar: item.avatar ?? "",
+        created_at: item.created_at ?? "",
+        updated_at: item.updated_at ?? "",
       })),
     }));
 }
 
-export function createFavoriteFolder(payload: { title: string; abstract: string; cover?: string }) {
-  return useNuxtApp().$api.request<FavoriteFolderCreatePayload>("/api/articles/favorite", {
+export function createFavoriteFolder(payload: FavoriteFolderWritePayload) {
+  // 后端返回 `Envelope[EmptyData]`（只有消息，没有 data），所以这里不声明返回对象。
+  return useNuxtApp().$api.request<unknown>("/api/articles/favorite", {
     method: "PUT",
     body: {
       title: payload.title,

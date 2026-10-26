@@ -285,7 +285,7 @@ async function sendBindCode() {
       email: emailBindForm.email.trim(),
       type: 4,
     });
-    emailBindForm.email_id = payload.email_id;
+    emailBindForm.email_id = payload.id;
     message.success("邮箱验证码已发送");
   } catch (error) {
     message.error(error instanceof Error ? error.message : "发送验证码失败");

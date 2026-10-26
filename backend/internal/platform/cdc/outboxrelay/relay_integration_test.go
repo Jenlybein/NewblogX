@@ -60,6 +60,32 @@ func reload(t *testing.T, db *gorm.DB, id ctype.ID) schema.OutboxRow {
 	return row
 }
 
+// waitClaimable 等到这一行真的可以被再次领取。
+//
+// 为什么必须有这一步：失败后 markFailed 会把 available_at 设成
+// now + BackoffMS*attempts，而领取条件是 available_at <= now。
+// 本组测试用 BackoffMS=1 想让重试"几乎立刻"发生，但第二次失败后的窗口是 2ms ——
+// 往往比"读一次行 + 发一次投递"还短，于是第三次 Dispatch 直接落空
+// （它返回 nil 且不改状态，这是注释里写明的正常竞争，不是故障）。
+// 结果是状态停在 failed，看起来像"重试耗尽没转 dead"。
+// 这类竞态在慢机器上不容易撞到，CI 上却会稳定复现，所以显式把窗口等过去。
+func waitClaimable(t *testing.T, db *gorm.DB, id ctype.ID) {
+	t.Helper()
+
+	deadline := time.Now().Add(3 * time.Second)
+	for {
+		row := reload(t, db, id)
+		if !row.AvailableAt.After(time.Now()) {
+			return
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("事件 %s 在 3s 内始终不可领取（available_at=%s）",
+				id, row.AvailableAt.Format(time.RFC3339Nano))
+		}
+		time.Sleep(time.Millisecond)
+	}
+}
+
 // TestRelayDispatchSuccess 成功投递：订阅者被调用一次，事件标记为 done。
 func TestRelayDispatchSuccess(t *testing.T) {
 	db := migrate(t)
@@ -150,6 +176,10 @@ func TestRelayRetryThenDeadLetter(t *testing.T) {
 	id := seedEvent(t, db, "article.published", 1004)
 
 	for i := 1; i <= 2; i++ {
+		// 第二次之前要等第一次失败的退避窗口过去，否则这次投递会落空
+		if i > 1 {
+			waitClaimable(t, db, id)
+		}
 		if err := relay.Dispatch(context.Background(), id); err != nil {
 			t.Fatalf("第 %d 次投递返回错误: %v", i, err)
 		}
@@ -163,6 +193,7 @@ func TestRelayRetryThenDeadLetter(t *testing.T) {
 	}
 
 	// 第三次：重试耗尽 → dead + 死信
+	waitClaimable(t, db, id)
 	if err := relay.Dispatch(context.Background(), id); err != nil {
 		t.Fatalf("第 3 次投递返回错误: %v", err)
 	}

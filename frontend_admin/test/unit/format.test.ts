@@ -14,8 +14,13 @@ describe('formatDateTime', () => {
   })
 
   it('合法时间按 zh-CN + 24 小时制格式化', () => {
-    // 用带时区偏移的固定时间，避免受运行环境时区影响。
-    const out = formatDateTime('2026-01-02T03:04:05+08:00')
+    // 不要用带时区偏移的输入（如 2026-01-02T03:04:05+08:00）。
+    // formatDateTime 走的是 toLocaleString 且没指定 timeZone，会把时刻换算成
+    // **运行环境**所在时区：同一份 +08:00 的时间，在 UTC 的 CI 上会变成前一天 19:04，
+    // 于是"输入 3 点、输出含 3 点"这个断言只在东八区机器上成立 —— 它曾在本地绿、
+    // 在 GitHub Actions 上红，就是这么来的。
+    // 不带偏移的字符串在各环境下都按本地时间解析，时间数字保持不变，因此确定。
+    const out = formatDateTime('2026-01-02T03:04:05')
     expect(out).toContain('2026')
     expect(out).toMatch(/0?3:04/)
   })

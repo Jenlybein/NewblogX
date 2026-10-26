@@ -96,6 +96,9 @@ const (
 	CodeAuthTooFrequent    Code = "auth.too_frequent"
 	CodeAuthRefreshInvalid Code = "auth.refresh_invalid"
 	CodeAuthLoginDisabled  Code = "auth.login_disabled"
+	// CodeAuthAdminRequired 表示"密码对了，但这个账号不是管理员"。
+	// 只在管理后台的登录入口（scope=admin）返回，读者站不会出现。
+	CodeAuthAdminRequired Code = "auth.admin_required"
 )
 
 // 评论。
@@ -322,6 +325,7 @@ var messages = map[Code]string{
 	CodeAuthTooFrequent:    "登录失败次数过多，请稍后再试",
 	CodeAuthRefreshInvalid: "刷新令牌无效或已过期，请重新登录",
 	CodeAuthLoginDisabled:  "站点未启用该登录方式",
+	CodeAuthAdminRequired:  "该账号没有后台权限",
 
 	CodeCommentNotFound:       "评论不存在",
 	CodeCommentClosed:         "该文章已关闭评论",

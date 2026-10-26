@@ -118,6 +118,9 @@ func (h *Handler) PwdLogin(c *gin.Context) {
 		Account:  req.Username,
 		Password: req.Password,
 		Meta:     h.sessionMeta(c),
+		// scope=admin：管理后台的登录入口，非管理员在服务层就被拒（不建会话、不发 cookie）。
+		// 读者站不传 scope，行为与以前完全一致。
+		RequireAdmin: req.Scope == "admin",
 	})
 	if err != nil {
 		h.emit(c, "login_fail", "password", false, req.Username, 0, err.Error())

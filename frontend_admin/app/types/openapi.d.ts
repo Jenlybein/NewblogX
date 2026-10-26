@@ -4831,6 +4831,15 @@ export interface components {
         };
         "internal_auth_adapter_http.PwdLoginRequest": {
             password: string;
+            /**
+             * @description Scope 指定登录入口。空 = 读者站（行为与以前完全一致）；
+             *     "admin" = 管理后台，密码验证通过后还要校验角色，非管理员不签发令牌。
+             *
+             *     用 oneof 收窄而不是自由字符串：拼错（比如 "Admin"）会直接 400，
+             *     而不是静默按读者站登录 —— 后者会让"后台登录拦不住非管理员"这个洞悄悄回来。
+             * @enum {string}
+             */
+            scope?: "admin";
             username: string;
         };
         "internal_auth_adapter_http.QQLoginRequest": {

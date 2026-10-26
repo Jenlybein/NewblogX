@@ -11,8 +11,10 @@ import {
   IconShieldCheck,
   IconUsers,
 } from '@tabler/icons-vue'
-import type { IconHome } from '@tabler/icons-vue'
 import { NuxtLink } from '#components'
+import type { IconHome } from '@tabler/icons-vue'
+import { ADMIN_NAV } from '~/utils/menu'
+import type { AdminNavIcon } from '~/utils/menu'
 import {
   NAvatar,
   NButton,
@@ -34,23 +36,30 @@ interface NavItem {
   icon: typeof IconHome
 }
 
+// 图标在这里映射，清单在 ~/utils/menu.ts（唯一来源，另有单测对账页面文件）。
+const ICONS: Record<AdminNavIcon, typeof IconHome> = {
+  chart: IconChartBar,
+  shield: IconShieldCheck,
+  article: IconArticle,
+  users: IconUsers,
+  settings: IconSettings,
+  photo: IconPhoto,
+  bell: IconBell,
+  database: IconDatabase,
+  alert: IconAlertTriangle,
+}
+
+const navItems: NavItem[] = ADMIN_NAV.map(item => ({
+  label: item.label,
+  path: item.path,
+  icon: ICONS[item.icon],
+}))
+
 const route = useRoute()
 const router = useRouter()
 const config = useRuntimeConfig()
 const auth = useAuthStore()
 const message = useMessage()
-
-const navItems: NavItem[] = [
-  { label: '数据概览', path: '/', icon: IconChartBar },
-  { label: '文章审核', path: '/review', icon: IconShieldCheck },
-  { label: '文章管理', path: '/articles', icon: IconArticle },
-  { label: '用户管理', path: '/users', icon: IconUsers },
-  { label: '站点配置', path: '/site', icon: IconSettings },
-  { label: '媒体运营', path: '/media', icon: IconPhoto },
-  { label: '全局通知', path: '/notifications', icon: IconBell },
-  { label: '日志中心', path: '/logs', icon: IconDatabase },
-  { label: '同步死信', path: '/logs/dead-letter', icon: IconAlertTriangle },
-]
 
 const fallbackNav = navItems[0]!
 const routeMeta = computed<NavItem>(() => navItems.find(item => item.path === route.path) ?? fallbackNav)

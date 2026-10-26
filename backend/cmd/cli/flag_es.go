@@ -106,6 +106,10 @@ func FlagESArticleSync(deps Options) error {
 		batchSize = deps.RiverConfig.BulkSize
 	}
 
+	// 全量重建走的是同一个写入入口，索引名必须一并注入 ——
+	// 否则配了自定义索引名时，会"检查的是新索引、写进的是默认索引"。
+	articlesync.SetIndexName(index)
+
 	total, err := syncArticleDocuments(deps.DB, deps.ESClient, index, batchSize, deps.Logger)
 	if err != nil {
 		return logESError(deps.Logger, "文章同步失败: %v", err)
@@ -116,7 +120,10 @@ func FlagESArticleSync(deps Options) error {
 
 // syncArticleDocuments 全量同步文章数据到 ES
 func syncArticleDocuments(db *gorm.DB, esClient *elasticsearch.Client, index string, batchSize int, logger *logrus.Logger) (int, error) {
-	_ = index // 目前批量同步仍复用 es_service 既有入口，索引名由 es_service 内部路由。
+	// 索引名不从这里往下传：写入入口统一读 articlesync.IndexName()，
+	// 由调用方在开始前用 SetIndexName 注入（见 FlagESArticleSync）。
+	// 保留参数是为了让日志与"检查索引存在"沿用同一个名字。
+	_ = index
 	// 只需要 id：批量同步把 id 交给 articlesync，再由它自己批量装载文档。
 	// 用一个最小投影而不是整行，避免为了"拿个 id"把整张表的结构搬进来。
 	articles := make([]articleIDRow, 0, batchSize)

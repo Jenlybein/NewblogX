@@ -8,6 +8,7 @@ import (
 	"myblogx/conf"
 	"myblogx/core"
 	sitecfg "myblogx/internal/platform/config"
+	"myblogx/internal/platform/es/articlesync"
 	"myblogx/internal/platform/log/writer"
 
 	"github.com/elastic/go-elasticsearch/v7"
@@ -77,6 +78,13 @@ func InitInfra(cfg *conf.Config, configFile string, version string) (*Infra, err
 	}); err != nil {
 		return nil, fmt.Errorf("初始化结构化日志管道失败: %w", err)
 	}
+
+	// 把索引名注入投影写入侧，让"写"和"读"（搜索/AI 检索/CLI 建索引）用同一个名字。
+	//
+	// 这一步不能省：写入曾经硬编码 "article_index"，两边默认值恰好相同才没出事；
+	// 一旦 `es.index` 配成别的值，就会"建在新索引、搜在新索引、增量写进旧索引"，
+	// 而且不报错。只在这里注入一次，之后全链路只读（见 articlesync.SetIndexName 的说明）。
+	articlesync.SetIndexName(cfg.ES.Index)
 
 	return &Infra{
 		Version:    version,

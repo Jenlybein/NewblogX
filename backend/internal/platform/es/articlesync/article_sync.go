@@ -422,7 +422,7 @@ func indexArticleSnapshots(db *gorm.DB, client *elasticsearch.Client, snapshots 
 		})
 	}
 
-	resp := es_service.IndexBulk(client, DefaultArticleESIndex, reqs)
+	resp := es_service.IndexBulk(client, IndexName(), reqs)
 	if !resp.Success {
 		return fmt.Errorf("%s: %s", errPrefix, resp.Msg)
 	}

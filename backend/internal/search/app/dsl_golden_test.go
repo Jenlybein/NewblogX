@@ -30,8 +30,8 @@ func TestSearchDSLGolden(t *testing.T) {
 	t.Parallel()
 
 	update := os.Getenv(testkit.UpdateGoldenEnv) == "1"
-	user := &domain.Viewer{ID: 100}
-	admin := &domain.Viewer{ID: 900, Admin: true}
+	user := &domain.Viewer{ID: ctype.NewID(100)}
+	admin := &domain.Viewer{ID: ctype.NewID(900), Admin: true}
 
 	cases := []struct {
 		name    string
@@ -57,7 +57,7 @@ func TestSearchDSLGolden(t *testing.T) {
 		},
 		{
 			name: "type1-标签过滤（新格式 tag_ids）",
-			req:  domain.Request{Type: 1, Sort: 1, PageMode: domain.PageModeCount, TagIDs: []ctype.ID{1, 2}},
+			req:  domain.Request{Type: 1, Sort: 1, PageMode: domain.PageModeCount, TagIDs: []ctype.ID{ctype.NewID(1), ctype.NewID(2)}},
 		},
 		{
 			name: "type1-标签过滤（旧格式 tag_list）",
@@ -65,13 +65,13 @@ func TestSearchDSLGolden(t *testing.T) {
 		},
 		{
 			name: "type1-分类过滤+分页",
-			req:  domain.Request{Type: 1, Sort: 1, PageMode: domain.PageModeCount, CategoryID: 7, PageInfo: domain.PageInfo{Page: 3, Limit: 15}},
+			req:  domain.Request{Type: 1, Sort: 1, PageMode: domain.PageModeCount, CategoryID: ctype.NewID(7), PageInfo: domain.PageInfo{Page: 3, Limit: 15}},
 		},
 		{
 			name:    "type2-猜你喜欢-带偏好标签",
 			req:     domain.Request{Type: 2, Sort: 1, PageMode: domain.PageModeCount},
 			viewer:  user,
-			likeTag: []ctype.ID{3, 5},
+			likeTag: []ctype.ID{ctype.NewID(3), ctype.NewID(5)},
 		},
 		{
 			name:   "type2-猜你喜欢-无偏好标签（不能出现 tags filter）",
@@ -80,7 +80,7 @@ func TestSearchDSLGolden(t *testing.T) {
 		},
 		{
 			name:   "type3-作者文章",
-			req:    domain.Request{Type: 3, Sort: 2, PageMode: domain.PageModeCount, AuthorID: 100},
+			req:    domain.Request{Type: 3, Sort: 2, PageMode: domain.PageModeCount, AuthorID: ctype.NewID(100)},
 			viewer: user,
 		},
 		{
@@ -153,7 +153,7 @@ func TestPageModeFallsBackNotRejects(t *testing.T) {
 		c := c
 		t.Run(c.name, func(t *testing.T) {
 			t.Parallel()
-			got, err := normalize(c.req, &domain.Viewer{ID: 100, Admin: true})
+			got, err := normalize(c.req, &domain.Viewer{ID: ctype.NewID(100), Admin: true})
 			if err != nil {
 				t.Fatalf("非法分页模式不该被拒绝: %v", err)
 			}
@@ -171,7 +171,7 @@ func TestPageModeFallsBackNotRejects(t *testing.T) {
 func TestSearchDSLRejectsInvalid(t *testing.T) {
 	t.Parallel()
 
-	user := &domain.Viewer{ID: 100}
+	user := &domain.Viewer{ID: ctype.NewID(100)}
 	cases := []struct {
 		name    string
 		req     domain.Request

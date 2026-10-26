@@ -10,6 +10,7 @@ package apptest
 
 import (
 	"context"
+	"myblogx/internal/kernel/ctype"
 	"sync"
 	"time"
 
@@ -77,7 +78,7 @@ type Users struct {
 
 // NewUsers 构造空仓储。
 func NewUsers() *Users {
-	return &Users{byID: map[domain.UserID]domain.User{}, nextID: 1000}
+	return &Users{byID: map[domain.UserID]domain.User{}, nextID: ctype.NewID(1000)}
 }
 
 // FailNext 让下一次写操作失败一次（用于测试失败分支）。
@@ -99,7 +100,7 @@ func (u *Users) Seed(user domain.User) domain.User {
 	u.mu.Lock()
 	defer u.mu.Unlock()
 	if user.ID.IsZero() {
-		u.nextID++
+		u.nextID = ctype.NewID(u.nextID.Uint64() + 1)
 		user.ID = u.nextID
 	}
 	u.byID[user.ID] = user
@@ -205,7 +206,7 @@ func (u *Users) Create(_ context.Context, user *domain.User) error {
 	if err := u.takeErr(); err != nil {
 		return err
 	}
-	u.nextID++
+	u.nextID = ctype.NewID(u.nextID.Uint64() + 1)
 	user.ID = u.nextID
 	u.byID[user.ID] = *user
 	return nil
@@ -531,23 +532,23 @@ func (s *Snapshots) SyncDisplay(_ context.Context, id domain.UserID) error {
 //
 // 用指针接收，测试可以先 NewRepos 再往里塞数据。
 type Enricher struct {
-	TagTitleMap map[uint64]string
-	AvatarIDMap map[string]uint64
+	TagTitleMap map[ctype.ID]string
+	AvatarIDMap map[string]ctype.ID
 }
 
 // NewEnricher 构造空增强器。
 func NewEnricher() *Enricher {
-	return &Enricher{TagTitleMap: map[uint64]string{}, AvatarIDMap: map[string]uint64{}}
+	return &Enricher{TagTitleMap: map[ctype.ID]string{}, AvatarIDMap: map[string]ctype.ID{}}
 }
 
 // AvatarIDByURL 实现 app.DetailEnricher。
-func (e *Enricher) AvatarIDByURL(_ context.Context, url string) (uint64, bool, error) {
+func (e *Enricher) AvatarIDByURL(_ context.Context, url string) (ctype.ID, bool, error) {
 	id, ok := e.AvatarIDMap[url]
 	return id, ok, nil
 }
 
 // AvatarURLByID 实现 app.DetailEnricher。
-func (e *Enricher) AvatarURLByID(_ context.Context, id uint64) (string, error) {
+func (e *Enricher) AvatarURLByID(_ context.Context, id ctype.ID) (string, error) {
 	for url, got := range e.AvatarIDMap {
 		if got == id {
 			return url, nil
@@ -557,8 +558,8 @@ func (e *Enricher) AvatarURLByID(_ context.Context, id uint64) (string, error) {
 }
 
 // TagTitles 实现 app.DetailEnricher。
-func (e *Enricher) TagTitles(_ context.Context, ids []uint64) (map[uint64]string, error) {
-	out := make(map[uint64]string, len(ids))
+func (e *Enricher) TagTitles(_ context.Context, ids []ctype.ID) (map[ctype.ID]string, error) {
+	out := make(map[ctype.ID]string, len(ids))
 	for _, id := range ids {
 		if title, ok := e.TagTitleMap[id]; ok {
 			out[id] = title

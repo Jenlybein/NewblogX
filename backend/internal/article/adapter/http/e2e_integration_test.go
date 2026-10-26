@@ -36,9 +36,9 @@ type testIDs struct{ n uint64 }
 
 func (g *testIDs) next() uint64 { g.n++; return g.n }
 
-func (g *testIDs) NextArticleID() domain.ArticleID { return domain.ArticleID(g.next()) }
+func (g *testIDs) NextArticleID() domain.ArticleID { return ctype.NewID(g.next()) }
 func (g *testIDs) NextReviewTaskID() uint64        { return g.next() }
-func (g *testIDs) NextFolderID() favorite.ID       { return favorite.ID(g.next()) }
+func (g *testIDs) NextFolderID() favorite.ID       { return ctype.NewID(g.next()) }
 
 func migrate(t *testing.T) *gorm.DB {
 	t.Helper()
@@ -73,7 +73,7 @@ func newRouterWithIDs(t *testing.T, db *gorm.DB, viewer domain.Viewer, idStart u
 	// 因为 AdminMiddleware 会直接读上下文里的 claims（MustGet 不存在会 panic）。
 	// 实际操作者仍由上面的 viewer 闭包决定，两者互不影响。
 	auth := func(c *gin.Context) {
-		c.Set("claims", &jwts.MyClaims{Claims: jwts.Claims{UserID: ctype.ID(900), Role: schema.RoleAdmin}})
+		c.Set("claims", &jwts.MyClaims{Claims: jwts.Claims{UserID: ctype.NewID(900), Role: schema.RoleAdmin}})
 		c.Next()
 	}
 	h.Register(api, auth, auth)
@@ -142,7 +142,7 @@ func TestDetailEndToEnd(t *testing.T) {
 	seedAuthor(t, db, 100)
 
 	// 造一篇已发布文章（走真实 app 用例）
-	r := newRouter(t, db, domain.NormalUser(100))
+	r := newRouter(t, db, domain.NormalUser(ctype.NewID(100)))
 	createResp := do(t, r, http.MethodPost, "/api/articles", []byte(`{
 		"title":"端到端文章","content":"正文","status":2,"visibility_status":"visible"
 	}`))
@@ -165,7 +165,7 @@ func TestDetailEndToEnd(t *testing.T) {
 	}
 
 	// 作者读自己的草稿：应可见。
-	authorRouter := newRouter(t, db, domain.NormalUser(100))
+	authorRouter := newRouter(t, db, domain.NormalUser(ctype.NewID(100)))
 	detail := do(t, authorRouter, http.MethodGet, "/api/articles/"+idStr, nil)
 
 	t.Logf("detail 响应: %#v", detail)

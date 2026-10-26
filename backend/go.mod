@@ -130,7 +130,6 @@ require (
 	github.com/shoenig/go-m1cpu v0.1.6 // indirect
 	github.com/shopspring/decimal v1.4.0 // indirect
 	github.com/stretchr/testify v1.11.1 // indirect
-	github.com/swaggo/swag v1.16.6 // indirect
 	github.com/testcontainers/testcontainers-go v0.35.0 // indirect
 	github.com/testcontainers/testcontainers-go/modules/clickhouse v0.35.0 // indirect
 	github.com/testcontainers/testcontainers-go/modules/mysql v0.35.0 // indirect

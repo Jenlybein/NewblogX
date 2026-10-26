@@ -167,12 +167,12 @@ func (h *Handler) CdcEventListView(c *gin.Context) {
 // @Tags log
 // @Produce json
 // @Security BearerAuth
-// @Param id path int true "日志 ID"
+// @Param id path string true "日志 ID"
 // @Success 200 {object} object{code=int,data=clickhouse.CdcEventRecord,msg=string}
 // @Router /logs/cdc/{id} [get]
 func (h *Handler) CdcEventDetailView(c *gin.Context) {
 	cr := middleware.GetBindUri[IDRequest](c)
-	item, err := clickhouse.GetCdcEvent(h.logs, uint64(cr.ID))
+	item, err := clickhouse.GetCdcEvent(h.logs, cr.ID.Uint64())
 	if err != nil {
 		if err == sql.ErrNoRows {
 			res.FailWithMsg("CDC 执行日志不存在", c)
@@ -253,12 +253,12 @@ func (h *Handler) ReplayEventListView(c *gin.Context) {
 // @Tags log
 // @Produce json
 // @Security BearerAuth
-// @Param id path int true "日志 ID"
+// @Param id path string true "日志 ID"
 // @Success 200 {object} object{code=int,data=clickhouse.ReplayEventRecord,msg=string}
 // @Router /logs/replay/{id} [get]
 func (h *Handler) ReplayEventDetailView(c *gin.Context) {
 	cr := middleware.GetBindUri[IDRequest](c)
-	item, err := clickhouse.GetReplayEvent(h.logs, uint64(cr.ID))
+	item, err := clickhouse.GetReplayEvent(h.logs, cr.ID.Uint64())
 	if err != nil {
 		if err == sql.ErrNoRows {
 			res.FailWithMsg("回放日志不存在", c)
@@ -420,7 +420,7 @@ func (h *Handler) ChainQueryView(c *gin.Context) {
 	dlq := make([]ChainDeadLetterRecord, 0, len(dlqList))
 	for _, item := range dlqList {
 		dlq = append(dlq, ChainDeadLetterRecord{
-			ID:          ctype.ID(item.ID),
+			ID:          item.ID,
 			Stream:      item.Stream,
 			CdcJobID:    item.CdcJobID,
 			SourceTable: item.SourceTable,

@@ -7,13 +7,14 @@ import (
 	"myblogx/internal/notification/domain"
 
 	"gorm.io/gorm"
+	"myblogx/internal/kernel/ctype"
 )
 
 // confRow 对应 user_conf_models 表里通知开关相关的列。
 //
 // 该表还有收藏可见性、首页样式等字段，本模块只关心这四个开关。
 type confRow struct {
-	UserID                   uint64 `gorm:"primaryKey;autoIncrement:false"`
+	UserID                   ctype.ID `gorm:"primaryKey;autoIncrement:false"`
 	DiggNoticeEnabled        bool
 	CommentNoticeEnabled     bool
 	FavorNoticeEnabled       bool

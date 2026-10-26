@@ -12,6 +12,7 @@ import (
 
 	articlemysql "myblogx/internal/article/adapter/mysql"
 	"myblogx/internal/article/app"
+	"myblogx/internal/kernel/ctype"
 )
 
 // TestOutboxWriterTxCommit 事务提交后，事件行必须存在。
@@ -23,7 +24,7 @@ func TestOutboxWriterTxCommit(t *testing.T) {
 		return w.Emit(context.Background(), app.Event{
 			Name:          app.EventArticlePublished,
 			Payload:       []byte(`{"article_id":7001}`),
-			AggregateID:   7001,
+			AggregateID:   ctype.NewID(7001),
 			AggregateType: "article",
 		})
 	})
@@ -59,7 +60,7 @@ func TestOutboxWriterTxRollback(t *testing.T) {
 		if emitErr := w.Emit(context.Background(), app.Event{
 			Name:        app.EventArticleDeleted,
 			Payload:     []byte(`{"article_id":7002}`),
-			AggregateID: 7002,
+			AggregateID: ctype.NewID(7002),
 		}); emitErr != nil {
 			return emitErr
 		}

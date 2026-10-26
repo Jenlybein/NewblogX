@@ -56,7 +56,7 @@ func normalize(req domain.Request, viewer *domain.Viewer) (domain.Request, error
 			return req, apperr.New(apperr.CodeSearchStatusRestrict)
 		}
 	case 3:
-		if req.AuthorID == 0 {
+		if req.AuthorID.IsZero() {
 			return req, apperr.New(apperr.CodeSearchAuthorRequired)
 		}
 		if req.Status == 0 {
@@ -104,7 +104,7 @@ func buildDSL(req domain.Request, viewer *domain.Viewer, likeTagIDs []ctype.ID) 
 	} else if len(req.LegacyTagList) > 0 {
 		query = tagListQuery(query, req.LegacyTagList)
 	}
-	if req.CategoryID != 0 {
+	if !req.CategoryID.IsZero() {
 		query = categoryQuery(query, req.CategoryID)
 	}
 	return query, nil
@@ -206,7 +206,7 @@ func likeTagsQuery(query map[string]any, tagIDs []ctype.ID) map[string]any {
 }
 
 func authorQuery(query map[string]any, authorID ctype.ID) map[string]any {
-	if authorID == 0 {
+	if authorID.IsZero() {
 		return query
 	}
 	boolQuery, ok := extractBool(query)
@@ -248,7 +248,7 @@ func tagIDsQuery(query map[string]any, tagIDs []ctype.ID) map[string]any {
 	normalized := make([]ctype.ID, 0, len(tagIDs))
 	seen := make(map[ctype.ID]struct{}, len(tagIDs))
 	for _, item := range tagIDs {
-		if item == 0 {
+		if item.IsZero() {
 			continue
 		}
 		if _, ok := seen[item]; ok {
@@ -270,7 +270,7 @@ func tagIDsQuery(query map[string]any, tagIDs []ctype.ID) map[string]any {
 }
 
 func categoryQuery(query map[string]any, categoryID ctype.ID) map[string]any {
-	if categoryID == 0 {
+	if categoryID.IsZero() {
 		return query
 	}
 	boolQuery, ok := extractBool(query)
@@ -583,7 +583,7 @@ func highlightValues(highlightMap map[string]any, field string) []string {
 func idValues(ids []ctype.ID) []string {
 	out := make([]string, 0, len(ids))
 	for _, id := range ids {
-		if id == 0 {
+		if id.IsZero() {
 			continue
 		}
 		out = append(out, id.String())
@@ -608,11 +608,11 @@ func sourceID(source map[string]any, key string) ctype.ID {
 	case string:
 		var id ctype.ID
 		if err := id.UnmarshalText([]byte(value)); err != nil {
-			return 0
+			return ""
 		}
 		return id
 	default:
-		return 0
+		return ""
 	}
 }
 
@@ -784,7 +784,7 @@ func sourceTags(source map[string]any, key string) []domain.Tag {
 		}
 		title := sourceString(itemMap, "title")
 		id := sourceID(itemMap, "id")
-		if title == "" && id == 0 {
+		if title == "" && id.IsZero() {
 			continue
 		}
 		out = append(out, domain.Tag{ID: id, Title: title})

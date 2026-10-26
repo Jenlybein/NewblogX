@@ -76,7 +76,7 @@ func GetAllCacheArticleCount(deps redis_service.Options) map[ctype.ID]int {
 		if err != nil {
 			continue
 		}
-		numMap[ctype.ID(tagID)] = num
+		numMap[ctype.NewID(uint64(tagID))] = num
 	}
 	return numMap
 }

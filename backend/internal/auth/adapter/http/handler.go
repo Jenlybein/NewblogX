@@ -13,6 +13,7 @@ import (
 	"myblogx/internal/apperr"
 	"myblogx/internal/auth/app"
 	"myblogx/internal/auth/domain"
+	"myblogx/internal/kernel/ctype"
 	"myblogx/internal/platform/http/res"
 	"myblogx/utils/jwts"
 )
@@ -122,7 +123,7 @@ func (h *Handler) PwdLogin(c *gin.Context) {
 		return
 	}
 	setRefreshCookie(c.Writer, result.Tokens.Refresh, h.cookieDuration(), h.secureCookie)
-	h.emit(c, "login_success", "password", true, result.Account.Username, result.Account.ID, "")
+	h.emit(c, "login_success", "password", true, result.Account.Username, result.Account.ID.Uint64(), "")
 	res.OkWithData(result.Tokens.Access, c)
 }
 
@@ -160,18 +161,18 @@ func (h *Handler) Logout(c *gin.Context) {
 		return
 	}
 	principal := &domain.Principal{
-		UserID:    uint64(cl.UserID),
-		SessionID: uint64(cl.SessionID),
+		UserID:    cl.UserID,
+		SessionID: cl.SessionID,
 		Username:  cl.Username,
 		Role:      int8(cl.Role),
 	}
 	if err := h.svc.Logout(c.Request.Context(), principal, jwts.GetTokenByGin(c)); err != nil {
-		h.emit(c, "logout", "logout", false, cl.Username, uint64(cl.UserID), err.Error())
+		h.emit(c, "logout", "logout", false, cl.Username, cl.UserID.Uint64(), err.Error())
 		fail(c, err)
 		return
 	}
 	clearRefreshCookie(c.Writer, h.secureCookie)
-	h.emit(c, "logout", "logout", true, cl.Username, uint64(cl.UserID), "")
+	h.emit(c, "logout", "logout", true, cl.Username, cl.UserID.Uint64(), "")
 	res.OkWithMsg("退出登录成功", c)
 }
 
@@ -188,13 +189,13 @@ func (h *Handler) LogoutAll(c *gin.Context) {
 		fail(c, apperr.New(apperr.CodeAuthRequired))
 		return
 	}
-	if err := h.svc.RevokeAll(c.Request.Context(), uint64(cl.UserID)); err != nil {
-		h.emit(c, "logout_all", "logout", false, cl.Username, uint64(cl.UserID), err.Error())
+	if err := h.svc.RevokeAll(c.Request.Context(), cl.UserID); err != nil {
+		h.emit(c, "logout_all", "logout", false, cl.Username, cl.UserID.Uint64(), err.Error())
 		fail(c, err)
 		return
 	}
 	clearRefreshCookie(c.Writer, h.secureCookie)
-	h.emit(c, "logout_all", "logout", true, cl.Username, uint64(cl.UserID), "")
+	h.emit(c, "logout_all", "logout", true, cl.Username, cl.UserID.Uint64(), "")
 	res.OkWithMsg("已退出全部设备", c)
 }
 
@@ -211,16 +212,16 @@ func (h *Handler) Sessions(c *gin.Context) {
 		fail(c, apperr.New(apperr.CodeAuthRequired))
 		return
 	}
-	list, err := h.svc.ListSessions(c.Request.Context(), uint64(cl.UserID))
+	list, err := h.svc.ListSessions(c.Request.Context(), cl.UserID)
 	if err != nil {
 		fail(c, err)
 		return
 	}
-	current := uint64(cl.SessionID)
+	current := cl.SessionID.Uint64()
 	items := make([]SessionItem, 0, len(list))
 	for _, s := range list {
 		items = append(items, SessionItem{
-			ID:         s.ID.Uint64(),
+			ID:         s.ID,
 			IP:         s.IP,
 			Addr:       s.Addr,
 			UA:         s.UA,
@@ -238,7 +239,7 @@ func (h *Handler) Sessions(c *gin.Context) {
 // @Tags user
 // @Produce json
 // @Security BearerAuth
-// @Param id path int true "ID"
+// @Param id path string true "ID"
 // @Success 200 {object} object{code=int,data=object{},msg=string}
 // @Router /users/sessions/{id} [delete]
 func (h *Handler) DeleteSession(c *gin.Context) {
@@ -252,14 +253,14 @@ func (h *Handler) DeleteSession(c *gin.Context) {
 		failBind(c)
 		return
 	}
-	if err := h.svc.RevokeSession(c.Request.Context(), uint64(cl.UserID), id); err != nil {
+	if err := h.svc.RevokeSession(c.Request.Context(), cl.UserID.Uint64(), id); err != nil {
 		fail(c, err)
 		return
 	}
-	if id == uint64(cl.SessionID) {
+	if id == cl.SessionID.Uint64() {
 		if token := jwts.GetTokenByGin(c); token != "" {
 			_ = h.svc.Logout(c.Request.Context(), &domain.Principal{
-				UserID: uint64(cl.UserID), SessionID: id, Username: cl.Username, Role: int8(cl.Role),
+				UserID: cl.UserID, SessionID: ctype.NewID(id), Username: cl.Username, Role: int8(cl.Role),
 			}, token)
 		}
 		clearRefreshCookie(c.Writer, h.secureCookie)
@@ -315,7 +316,7 @@ func (h *Handler) EmailLogin(c *gin.Context) {
 		return
 	}
 	setRefreshCookie(c.Writer, result.Tokens.Refresh, h.cookieDuration(), h.secureCookie)
-	h.emit(c, "login_success", "email", true, result.Account.Username, result.Account.ID, "")
+	h.emit(c, "login_success", "email", true, result.Account.Username, result.Account.ID.Uint64(), "")
 	res.OkWithData(result.Tokens.Access, c)
 }
 
@@ -345,8 +346,8 @@ func (h *Handler) RegisterEmail(c *gin.Context) {
 		return
 	}
 	setRefreshCookie(c.Writer, result.Tokens.Refresh, h.cookieDuration(), h.secureCookie)
-	h.emit(c, "register_success", "email", true, result.Account.Username, result.Account.ID, "")
-	h.emit(c, "login_success", "email", true, result.Account.Username, result.Account.ID, "")
+	h.emit(c, "register_success", "email", true, result.Account.Username, result.Account.ID.Uint64(), "")
+	h.emit(c, "login_success", "email", true, result.Account.Username, result.Account.ID.Uint64(), "")
 	res.OkWithData(result.Tokens.Access, c)
 }
 
@@ -376,7 +377,7 @@ func (h *Handler) QQLogin(c *gin.Context) {
 		return
 	}
 	setRefreshCookie(c.Writer, result.Tokens.Refresh, h.cookieDuration(), h.secureCookie)
-	h.emit(c, "login_success", "qq", true, result.Account.Username, result.Account.ID, "")
+	h.emit(c, "login_success", "qq", true, result.Account.Username, result.Account.ID.Uint64(), "")
 	res.OkWithData(result.Tokens.Access, c)
 }
 
@@ -422,7 +423,7 @@ func (h *Handler) UpdatePassword(c *gin.Context) {
 		failBind(c)
 		return
 	}
-	if err := h.svc.ChangePassword(c.Request.Context(), uint64(cl.UserID), req.OldPassword, req.NewPassword); err != nil {
+	if err := h.svc.ChangePassword(c.Request.Context(), cl.UserID.Uint64(), req.OldPassword, req.NewPassword); err != nil {
 		fail(c, err)
 		return
 	}
@@ -443,7 +444,7 @@ func (h *Handler) BindEmail(c *gin.Context) {
 		fail(c, apperr.New(apperr.CodeAuthRequired))
 		return
 	}
-	if err := h.svc.BindEmail(c.Request.Context(), uint64(cl.UserID), c.GetString("email")); err != nil {
+	if err := h.svc.BindEmail(c.Request.Context(), cl.UserID.Uint64(), c.GetString("email")); err != nil {
 		fail(c, err)
 		return
 	}

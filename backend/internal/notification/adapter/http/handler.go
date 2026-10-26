@@ -33,7 +33,7 @@ func userID(c *gin.Context) uint64 {
 	if claims == nil {
 		return 0
 	}
-	return uint64(claims.UserID)
+	return claims.UserID.Uint64()
 }
 
 // isAdmin 判断当前用户是否管理员。
@@ -96,7 +96,7 @@ func (h *Handler) GlobalList(c *gin.Context) {
 	list := make([]GlobalListResponse, 0, len(items))
 	for _, item := range items {
 		list = append(list, GlobalListResponse{
-			ID:       ctype.ID(item.ID),
+			ID:       item.ID,
 			CreateAt: item.CreatedAt,
 			Title:    item.Title,
 			Icon:     item.Icon,
@@ -146,7 +146,7 @@ func (h *Handler) GlobalCreate(c *gin.Context) {
 		return
 	}
 	res.OkWithData(GlobalCreateResponse{
-		ID:              ctype.ID(notif.ID),
+		ID:              notif.ID,
 		ExpireTime:      notif.ExpireAt,
 		UserVisibleRule: int8(notif.VisibleRule),
 		Title:           notif.Title,
@@ -174,7 +174,7 @@ func (h *Handler) GlobalRead(c *gin.Context) {
 		res.FailWithMsg("请输入要读取的消息 id 列表", c)
 		return
 	}
-	count, err := h.svc.MarkGlobalRead(c.Request.Context(), userID(c), toIDs(cr.IDList))
+	count, err := h.svc.MarkGlobalRead(c.Request.Context(), userID(c), cr.IDList)
 	if err != nil {
 		switch {
 		case apperr.IsCode(err, apperr.CodeNotifNotFound):
@@ -210,7 +210,7 @@ func (h *Handler) GlobalUserRemove(c *gin.Context) {
 		res.OkWithMsg("请求删除公告0个，成功0条", c)
 		return
 	}
-	count, err := h.svc.DeleteGlobalForUser(c.Request.Context(), userID(c), toIDs(cr.IDList))
+	count, err := h.svc.DeleteGlobalForUser(c.Request.Context(), userID(c), cr.IDList)
 	if err != nil {
 		if apperr.IsCode(err, apperr.CodeNotifUserMissing) {
 			res.FailWithMsg("用户不存在", c)
@@ -240,7 +240,7 @@ func (h *Handler) GlobalAdminRemove(c *gin.Context) {
 		res.FailWithMsg("请输入要删除的公告 id 列表", c)
 		return
 	}
-	count, err := h.svc.DeleteGlobal(c.Request.Context(), toIDs(cr.IDList))
+	count, err := h.svc.DeleteGlobal(c.Request.Context(), cr.IDList)
 	if err != nil {
 		if apperr.IsCode(err, apperr.CodeNotifNotFound) {
 			res.FailWithMsg("未找到需要删除的公告", c)
@@ -300,14 +300,14 @@ func (h *Handler) MessageRead(c *gin.Context) {
 	if !ok {
 		return
 	}
-	if cr.ID == 0 && cr.T == 0 {
+	if cr.ID.IsZero() && cr.T == 0 {
 		res.FailWithMsg("id 和 t 不能同时为空", c)
 		return
 	}
 	ctx := c.Request.Context()
 	uid := userID(c)
-	if cr.ID != 0 {
-		err := h.svc.MarkMessageRead(ctx, uid, uint64(cr.ID))
+	if !cr.ID.IsZero() {
+		err := h.svc.MarkMessageRead(ctx, uid, cr.ID.Uint64())
 		if err != nil {
 			switch {
 			case apperr.IsCode(err, apperr.CodeMessageNotFound):
@@ -344,14 +344,14 @@ func (h *Handler) MessageRemove(c *gin.Context) {
 	if !ok {
 		return
 	}
-	if cr.ID == 0 && cr.T == 0 {
+	if cr.ID.IsZero() && cr.T == 0 {
 		res.FailWithMsg("id 和 t 不能同时为空", c)
 		return
 	}
 	ctx := c.Request.Context()
 	uid := userID(c)
-	if cr.ID != 0 {
-		err := h.svc.DeleteMessage(ctx, uid, uint64(cr.ID))
+	if !cr.ID.IsZero() {
+		err := h.svc.DeleteMessage(ctx, uid, cr.ID.Uint64())
 		if err != nil {
 			if apperr.IsCode(err, apperr.CodeMessageNotFound) {
 				res.FailWithMsg("消息不存在", c)
@@ -456,14 +456,14 @@ func (h *Handler) Unread(c *gin.Context) {
 // toMessageItem 把领域实体转成旧契约的 JSON 形状。
 func toMessageItem(m domain.Message) MessageItem {
 	item := MessageItem{
-		ID:           ctype.ID(m.ID),
+		ID:           m.ID,
 		CreatedAt:    m.CreatedAt,
 		UpdatedAt:    m.UpdatedAt,
 		Type:         int8(m.Type),
-		ReceiverID:   ctype.ID(m.Receiver),
+		ReceiverID:   ctype.NewID(m.Receiver),
 		Content:      m.Content,
-		ArticleID:    ctype.ID(m.ArticleID),
-		CommentID:    ctype.ID(m.CommentID),
+		ArticleID:    m.ArticleID,
+		CommentID:    m.CommentID,
 		ArticleTitle: m.ArticleTitle,
 		LinkTitle:    m.LinkTitle,
 		LinkHerf:     m.LinkHref,
@@ -471,7 +471,7 @@ func toMessageItem(m domain.Message) MessageItem {
 		ReadAt:       m.ReadAt,
 	}
 	if m.ActionUser != 0 {
-		id := ctype.ID(m.ActionUser)
+		id := ctype.NewID(m.ActionUser)
 		item.ActionUserID = &id
 	}
 	if m.ActionUserNickname != "" {
@@ -489,7 +489,7 @@ func toMessageItem(m domain.Message) MessageItem {
 func toIDs(ids []ctype.ID) []uint64 {
 	out := make([]uint64, 0, len(ids))
 	for _, id := range ids {
-		out = append(out, uint64(id))
+		out = append(out, id.Uint64())
 	}
 	return out
 }

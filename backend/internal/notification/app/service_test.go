@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"myblogx/internal/apperr"
+	"myblogx/internal/kernel/ctype"
 	"myblogx/internal/notification/app"
 	"myblogx/internal/notification/apptest"
 	"myblogx/internal/notification/domain"
@@ -31,11 +32,11 @@ func TestNotifyCommentSnapshotsActionUser(t *testing.T) {
 	env.Users.Put(7, apptest.User{Nickname: "小明", Avatar: "a.png"})
 
 	err := svc.NotifyComment(ctx, app.CommentNotice{
-		CommentID:    11,
+		CommentID:    ctype.NewID(11),
 		Content:      "写得不错",
 		Receiver:     1,
 		ActionUser:   7,
-		ArticleID:    100,
+		ArticleID:    ctype.NewID(100),
 		ArticleTitle: "标题",
 	})
 	if err != nil {
@@ -57,7 +58,7 @@ func TestNotifyCommentSnapshotsActionUser(t *testing.T) {
 func TestNotifyArticleDiggDeduplicates(t *testing.T) {
 	svc, env := newService(time.Now())
 	ctx := context.Background()
-	in := app.InteractionNotice{Receiver: 1, ActionUser: 7, ArticleID: 100, ArticleTitle: "标题"}
+	in := app.InteractionNotice{Receiver: 1, ActionUser: 7, ArticleID: ctype.NewID(100), ArticleTitle: "标题"}
 
 	if err := svc.NotifyArticleDigg(ctx, in); err != nil {
 		t.Fatalf("首次点赞通知失败: %v", err)
@@ -151,13 +152,13 @@ func TestMarkMessageReadTwice(t *testing.T) {
 	if err := env.Messages.Create(ctx, &msg); err != nil {
 		t.Fatalf("构造消息失败: %v", err)
 	}
-	if err := svc.MarkMessageRead(ctx, 1, msg.ID); err != nil {
+	if err := svc.MarkMessageRead(ctx, 1, msg.ID.Uint64()); err != nil {
 		t.Fatalf("首次已读失败: %v", err)
 	}
-	if err := svc.MarkMessageRead(ctx, 1, msg.ID); !apperr.IsCode(err, apperr.CodeMessageAlreadyRead) {
+	if err := svc.MarkMessageRead(ctx, 1, msg.ID.Uint64()); !apperr.IsCode(err, apperr.CodeMessageAlreadyRead) {
 		t.Fatalf("重复已读应返回已读错误，得到 %v", err)
 	}
-	if err := svc.MarkMessageRead(ctx, 2, msg.ID); !apperr.IsCode(err, apperr.CodeMessageNotFound) {
+	if err := svc.MarkMessageRead(ctx, 2, msg.ID.Uint64()); !apperr.IsCode(err, apperr.CodeMessageNotFound) {
 		t.Fatalf("他人消息应不可见，得到 %v", err)
 	}
 }
@@ -191,7 +192,7 @@ func TestCreateGlobalRules(t *testing.T) {
 	}
 
 	// 管理员删除后列表为空。
-	if n, err := svc.DeleteGlobal(ctx, []uint64{notif.ID}); err != nil || n != 1 {
+	if n, err := svc.DeleteGlobal(ctx, []ctype.ID{notif.ID}); err != nil || n != 1 {
 		t.Fatalf("删除公告失败: n=%d err=%v", n, err)
 	}
 	if len(env.Globals.Rows()) != 0 {
@@ -206,7 +207,7 @@ func TestGlobalReadAndUserDelete(t *testing.T) {
 	user := uint64(1)
 	env.Users.Put(user, apptest.User{CreatedAt: now.Add(-48 * time.Hour)})
 
-	var ids []uint64
+	var ids []ctype.ID
 	for i := 0; i < 2; i++ {
 		n := domain.GlobalNotif{
 			VisibleRule: domain.VisibleAll,

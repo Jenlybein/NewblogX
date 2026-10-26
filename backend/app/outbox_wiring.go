@@ -71,8 +71,8 @@ func relayOptions(infra *Infra) outboxrelay.Options {
 // 该操作天然幂等（"缺失时才生成"），重复投递不会产生重复评分记录。
 func scoreSubscriber(infra *Infra) outboxrelay.Subscriber {
 	return func(ctx context.Context, e outboxrelay.Event) error {
-		articleID := ctype.ID(e.AggregateID)
-		if articleID == 0 {
+		articleID := e.AggregateID
+		if articleID.IsZero() {
 			return nil
 		}
 
@@ -90,7 +90,7 @@ func scoreSubscriber(infra *Infra) outboxrelay.Subscriber {
 		if aiService == nil {
 			return nil
 		}
-		return aiService.EnsureScoreIfMissing(ctx, uint64(articleID))
+		return aiService.EnsureScoreIfMissing(ctx, articleID.Uint64())
 	}
 }
 
@@ -100,8 +100,8 @@ func scoreSubscriber(infra *Infra) outboxrelay.Subscriber {
 // 避免用户可见内容发生变化。
 func notifySubscriber(infra *Infra) outboxrelay.Subscriber {
 	return func(ctx context.Context, e outboxrelay.Event) error {
-		articleID := ctype.ID(e.AggregateID)
-		if articleID == 0 {
+		articleID := e.AggregateID
+		if articleID.IsZero() {
 			return nil
 		}
 
@@ -121,7 +121,7 @@ func notifySubscriber(infra *Infra) outboxrelay.Subscriber {
 			return nil
 		}
 
-		linkHref := fmt.Sprintf("/article/%d", articleID)
+		linkHref := fmt.Sprintf("/article/%s", articleID)
 
 		// 幂等保护：中继是 at-least-once，崩溃重放可能让同一条事件再投一次。
 		// 消息表不能加去重列（零 DDL 约束禁止改动既有表），
@@ -141,8 +141,8 @@ func notifySubscriber(infra *Infra) outboxrelay.Subscriber {
 		}
 		authorID := article.AuthorID
 		return notificationService.NotifySystem(ctx, notificationapp.SystemNotice{
-			Receiver:   uint64(authorID),
-			ActionUser: uint64(authorID),
+			Receiver:   authorID.Uint64(),
+			ActionUser: authorID.Uint64(),
 			Content:    content,
 			LinkTitle:  article.Title,
 			LinkHref:   linkHref,
@@ -152,8 +152,8 @@ func notifySubscriber(infra *Infra) outboxrelay.Subscriber {
 
 // interactionPayload 是点赞/收藏事件体（article_id + actor_id）。
 type interactionPayload struct {
-	ArticleID uint64 `json:"article_id"`
-	ActorID   uint64 `json:"actor_id"`
+	ArticleID ctype.ID `json:"article_id"`
+	ActorID   ctype.ID `json:"actor_id"`
 }
 
 // loadInteraction 读出互动通知需要的信息：文章（作者、标题）与操作者。
@@ -163,16 +163,16 @@ type interactionPayload struct {
 func loadInteraction(ctx context.Context, infra *Infra, e outboxrelay.Event) (article noticeArticleRow, actorID ctype.ID, ok bool) {
 	var payload interactionPayload
 	if err := json.Unmarshal([]byte(e.Payload), &payload); err != nil {
-		return noticeArticleRow{}, 0, false
+		return noticeArticleRow{}, "", false
 	}
-	if e.AggregateID == 0 || payload.ActorID == 0 {
-		return noticeArticleRow{}, 0, false
+	if e.AggregateID.IsZero() || payload.ActorID.IsZero() {
+		return noticeArticleRow{}, "", false
 	}
-	if err := infra.DB.WithContext(ctx).Where("id = ?", ctype.ID(e.AggregateID)).
+	if err := infra.DB.WithContext(ctx).Where("id = ?", e.AggregateID).
 		Take(&article).Error; err != nil {
-		return noticeArticleRow{}, 0, false
+		return noticeArticleRow{}, "", false
 	}
-	return article, ctype.ID(payload.ActorID), true
+	return article, payload.ActorID, true
 }
 
 // diggNotifySubscriber 点赞通知：告诉作者"某某赞了你的文章"。
@@ -188,9 +188,9 @@ func diggNotifySubscriber(infra *Infra) outboxrelay.Subscriber {
 		// 通知服务内部按 (操作者, 类型, 文章) 查重，
 		// 中继重复投递不会产生重复消息，所以这里不用再做幂等。
 		return notificationService.NotifyArticleDigg(ctx, notificationapp.InteractionNotice{
-			Receiver:     uint64(article.AuthorID),
-			ActionUser:   uint64(actorID),
-			ArticleID:    uint64(article.ID),
+			Receiver:     article.AuthorID.Uint64(),
+			ActionUser:   actorID.Uint64(),
+			ArticleID:    article.ID,
 			ArticleTitle: article.Title,
 		})
 	}
@@ -207,9 +207,9 @@ func favorNotifySubscriber(infra *Infra) outboxrelay.Subscriber {
 			return nil
 		}
 		return notificationService.NotifyArticleFavor(ctx, notificationapp.InteractionNotice{
-			Receiver:     uint64(article.AuthorID),
-			ActionUser:   uint64(actorID),
-			ArticleID:    uint64(article.ID),
+			Receiver:     article.AuthorID.Uint64(),
+			ActionUser:   actorID.Uint64(),
+			ArticleID:    article.ID,
 			ArticleTitle: article.Title,
 		})
 	}

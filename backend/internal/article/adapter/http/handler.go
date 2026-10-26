@@ -85,13 +85,13 @@ func (h *Handler) fail(c *gin.Context, err error) {
 // @Summary 文章详情
 // @Tags article
 // @Produce json
-// @Param id path int true "文章 ID"
+// @Param id path string true "文章 ID"
 // @Success 200 {object} object{code=int,data=ArticleDetailResponse,msg=string}
 // @Router /articles/{id} [get]
 func (h *Handler) Detail(c *gin.Context) {
 	cr := middleware.GetBindUri[kernel.IDRequest](c)
 
-	view, err := h.svc.Detail(c.Request.Context(), domain.ArticleID(cr.ID), h.viewerOf(c))
+	view, err := h.svc.Detail(c.Request.Context(), cr.ID, h.viewerOf(c))
 	if err != nil {
 		h.fail(c, err)
 		return
@@ -161,7 +161,7 @@ func (h *Handler) Create(c *gin.Context) {
 // @Accept json
 // @Produce json
 // @Security BearerAuth
-// @Param id path int true "文章 ID"
+// @Param id path string true "文章 ID"
 // @Param body body ArticleUpdateRequest true "请求体"
 // @Success 200 {object} object{code=int,data=ArticleDetailResponse,msg=string}
 // @Router /articles/{id} [put]
@@ -214,7 +214,7 @@ func (h *Handler) Update(c *gin.Context) {
 
 	_, err := h.svc.Update(c.Request.Context(), app.UpdateArticleCmd{
 		Actor:          h.viewerOf(c),
-		ArticleID:      domain.ArticleID(uri.ID),
+		ArticleID:      uri.ID,
 		Title:          cr.Title,
 		Abstract:       abstract,
 		Content:        content,
@@ -232,8 +232,8 @@ func (h *Handler) Update(c *gin.Context) {
 		return
 	}
 
-	h.audit(c, "article_update", domain.ArticleID(uri.ID), true, "更新文章")
-	view, err := h.svc.Detail(c.Request.Context(), domain.ArticleID(uri.ID), h.viewerOf(c))
+	h.audit(c, "article_update", uri.ID, true, "更新文章")
+	view, err := h.svc.Detail(c.Request.Context(), uri.ID, h.viewerOf(c))
 	if err != nil {
 		res.OkWithMsg("更新成功", c)
 		return
@@ -249,7 +249,7 @@ func (h *Handler) Update(c *gin.Context) {
 // @Tags article
 // @Produce json
 // @Security BearerAuth
-// @Param id path int true "文章 ID"
+// @Param id path string true "文章 ID"
 // @Success 200 {object} object{code=int,data=object{},msg=string}
 // @Router /articles/{id} [delete]
 func (h *Handler) Remove(c *gin.Context) {
@@ -257,12 +257,12 @@ func (h *Handler) Remove(c *gin.Context) {
 
 	if _, err := h.svc.Delete(c.Request.Context(), app.DeleteCmd{
 		Actor:     h.viewerOf(c),
-		ArticleID: domain.ArticleID(uri.ID),
+		ArticleID: uri.ID,
 	}); err != nil {
 		h.fail(c, err)
 		return
 	}
-	h.audit(c, "article_delete", domain.ArticleID(uri.ID), true, "删除文章")
+	h.audit(c, "article_delete", uri.ID, true, "删除文章")
 	res.OkWithMsg("删除成功", c)
 }
 
@@ -283,14 +283,14 @@ func (h *Handler) RemoveBatch(c *gin.Context) {
 	for i := range cr.IDList {
 		if _, err := h.svc.Delete(c.Request.Context(), app.DeleteCmd{
 			Actor:     h.viewerOf(c),
-			ArticleID: domain.ArticleID(cr.IDList[i]),
+			ArticleID: cr.IDList[i],
 		}); err != nil {
-			h.logger.Warnf("批量删除文章 %d 失败: %v", cr.IDList[i], err)
+			h.logger.Warnf("批量删除文章 %s 失败: %v", cr.IDList[i], err)
 			continue
 		}
 		deleted++
 	}
-	h.audit(c, "article_delete_batch", 0, true, "批量删除文章")
+	h.audit(c, "article_delete_batch", "", true, "批量删除文章")
 	res.OkWithMsg("删除成功", c)
 }
 
@@ -302,7 +302,7 @@ func (h *Handler) RemoveBatch(c *gin.Context) {
 // @Tags article
 // @Produce json
 // @Security BearerAuth
-// @Param id path int true "文章 ID"
+// @Param id path string true "文章 ID"
 // @Param visibility path string true "hide 或 show"
 // @Success 200 {object} object{code=int,data=object{},msg=string}
 // @Router /articles/{id}/admin/{visibility} [post]
@@ -350,13 +350,13 @@ func (h *Handler) Visit(c *gin.Context) {
 // @Tags article
 // @Produce json
 // @Security BearerAuth
-// @Param id path int true "文章 ID"
+// @Param id path string true "文章 ID"
 // @Success 200 {object} object{code=int,data=object{is_digg=bool},msg=string}
 // @Router /articles/{id}/digg [put]
 func (h *Handler) Digg(c *gin.Context) {
 	uri := middleware.GetBindUri[kernel.IDRequest](c)
 
-	liked, err := h.svc.Digg(c.Request.Context(), domain.ArticleID(uri.ID), h.viewerOf(c))
+	liked, err := h.svc.Digg(c.Request.Context(), uri.ID, h.viewerOf(c))
 	if err != nil {
 		h.fail(c, err)
 		return
@@ -388,7 +388,7 @@ func (h *Handler) resolveCover(ctx context.Context, imageID *ctype.ID) (string, 
 func (h *Handler) audit(c *gin.Context, action string, id domain.ArticleID, success bool, msg string) {
 	targetID := ""
 	if !id.IsZero() {
-		targetID = strconv.FormatUint(uint64(id), 10)
+		targetID = strconv.FormatUint(id.Uint64(), 10)
 	}
 	middleware.EmitActionAuditFromGin(c, middleware.GinAuditInput{
 		ActionName: action,

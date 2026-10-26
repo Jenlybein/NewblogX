@@ -12,16 +12,17 @@ import (
 	"myblogx/internal/platform/idgen"
 
 	"gorm.io/gorm"
+	"myblogx/internal/kernel/ctype"
 )
 
 // scoreRow 对应 article_ai_score_record_models 表。
 type scoreRow struct {
-	ID                       uint64 `gorm:"primaryKey;autoIncrement:false"`
+	ID                       ctype.ID `gorm:"primaryKey;autoIncrement:false"`
 	CreatedAt                time.Time
 	UpdatedAt                time.Time
 	DeletedAt                gorm.DeletedAt
-	ArticleID                uint64
-	UserID                   uint64
+	ArticleID                ctype.ID
+	UserID                   ctype.ID
 	TitleSnapshot            string
 	ContentHash              string
 	ContentLength            int
@@ -43,8 +44,8 @@ func (scoreRow) TableName() string { return "article_ai_score_record_models" }
 
 // articleRow 是评分需要读的文章片段。
 type articleRow struct {
-	ID            uint64 `gorm:"primaryKey;autoIncrement:false"`
-	AuthorID      uint64
+	ID            ctype.ID `gorm:"primaryKey;autoIncrement:false"`
+	AuthorID      ctype.ID
 	Title         string
 	Content       string
 	UpdatedAt     time.Time
@@ -112,12 +113,12 @@ func (r *Repo) CreateIfAbsent(ctx context.Context, record *domain.ScoreRecord) (
 	if record == nil {
 		return false, apperr.New(apperr.CodeAIScoreSaveFailed)
 	}
-	if record.ID == 0 {
+	if record.ID.IsZero() {
 		next, err := idgen.Next()
 		if err != nil {
 			return false, err
 		}
-		record.ID = next.Uint64()
+		record.ID = next
 	}
 	created := false
 	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
@@ -209,7 +210,7 @@ func (c *Catalog) Tags(ctx context.Context) ([]domain.Option, error) {
 // options 是两类候选的共同查询。
 func (c *Catalog) options(ctx context.Context, table, where string, arg any) ([]domain.Option, error) {
 	var rows []struct {
-		ID    uint64
+		ID    ctype.ID
 		Title string
 	}
 	order := "id asc"

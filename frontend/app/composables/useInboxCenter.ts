@@ -13,6 +13,7 @@ import {
   markGlobalNoticeRead,
   markSiteMessageRead,
 } from "~/services/inbox";
+import { uploadImageByTask } from "~/services/image";
 import type {
   ChatMessageItem,
   ChatSessionItem,
@@ -24,6 +25,7 @@ import {
   isDraftChatSessionId,
   type InboxDraftSessionSeed,
 } from "~/utils/chat";
+import type { ChatSendType } from "~/utils/chatMessage";
 
 export type InboxTab = "site" | "global" | "chat";
 export type SiteMessageGroup = 1 | 2 | 3;
@@ -56,6 +58,9 @@ export function useInboxCenter(options: UseInboxCenterOptions = {}) {
   const chatMessages = ref<ChatMessageItem[]>([]);
   const chatKeyword = shallowRef("");
   const chatDraft = shallowRef("");
+  // 草稿的发送类型：1 文本 / 7 Markdown。图片不走草稿，走 sendChatImage。
+  const chatDraftType = shallowRef<ChatSendType>(1);
+  const imagePending = shallowRef(false);
 
   const sitePending = shallowRef(false);
   const globalPending = shallowRef(false);
@@ -282,10 +287,17 @@ export function useInboxCenter(options: UseInboxCenterOptions = {}) {
     await Promise.all([messageStore.refreshSummary(), loadChatMessages()]);
   }
 
-  async function sendCurrentChatMessage(): Promise<false | SendCurrentChatMessageResult> {
-    const content = chatDraft.value.trim();
+  // 发送的统一出口：乐观插入 → 调发送 → 刷新会话与消息。
+  //
+  // 以前只支持文本，msg_type 写死在两处（乐观消息和请求体各一次）。
+  // 加图片消息时要同步改两遍，漏一处就会出现"本地显示图片、对方收到文本"。
+  // 三种类型现在共用一个出口，类型只传一次。
+  async function deliverChatMessage(
+    content: string,
+    msgType: ChatSendType,
+  ): Promise<false | SendCurrentChatMessageResult> {
     const currentSession = activeSession.value;
-    if (!content || !currentSession) {
+    if (!content.trim() || !currentSession) {
       return false;
     }
 
@@ -298,18 +310,17 @@ export function useInboxCenter(options: UseInboxCenterOptions = {}) {
       content,
       send_time: new Date().toISOString(),
       msg_status: 1,
-      msg_type: 1,
+      msg_type: msgType,
       is_self: true,
       is_read: false,
     };
 
     chatMessages.value = [...chatMessages.value, optimisticMessage];
-    chatDraft.value = "";
 
     try {
       await sendMessage({
         receiver_id: currentSession.receiver_id,
-        msg_type: 1,
+        msg_type: msgType,
         content,
       });
 
@@ -338,9 +349,48 @@ export function useInboxCenter(options: UseInboxCenterOptions = {}) {
         resolvedSessionId: currentSession.session_id,
       };
     } catch (error) {
-      chatDraft.value = content;
       chatMessages.value = chatMessages.value.filter((item) => item.id !== optimisticMessage.id);
       throw error;
+    }
+  }
+
+  /** 发送草稿框里的内容；类型由 chatDraftType 决定（文本或 Markdown）。 */
+  async function sendCurrentChatMessage(): Promise<false | SendCurrentChatMessageResult> {
+    const content = chatDraft.value.trim();
+    if (!content) {
+      return false;
+    }
+
+    chatDraft.value = "";
+    try {
+      return await deliverChatMessage(content, chatDraftType.value);
+    } catch (error) {
+      chatDraft.value = content;
+      throw error;
+    }
+  }
+
+  /**
+   * 发一张图片。
+   *
+   * 顺序是"先上传、再把地址当消息发出"：后端收到 msg_type=2 时会把 content
+   * 包装成 {"kind":"image","image_url":...} 落库，所以前端这里传**裸地址**即可，
+   * 不要自己拼那段 JSON（拼了就会被包两层，解析出来是 JSON 文本）。
+   */
+  async function sendChatImage(file: File): Promise<false | SendCurrentChatMessageResult> {
+    if (!activeSession.value) {
+      return false;
+    }
+
+    imagePending.value = true;
+    try {
+      const uploaded = await uploadImageByTask(file);
+      if (!uploaded.url) {
+        throw new Error("上传成功但未返回图片地址");
+      }
+      return await deliverChatMessage(uploaded.url, 2);
+    } finally {
+      imagePending.value = false;
     }
   }
 
@@ -443,6 +493,8 @@ export function useInboxCenter(options: UseInboxCenterOptions = {}) {
     chatMessages,
     chatKeyword,
     chatDraft,
+    chatDraftType,
+    imagePending,
     sitePending,
     globalPending,
     sessionPending,
@@ -462,6 +514,7 @@ export function useInboxCenter(options: UseInboxCenterOptions = {}) {
     removeChatSession,
     removeChatMessage,
     sendCurrentChatMessage,
+    sendChatImage,
     connectSocket: connect,
   };
 }

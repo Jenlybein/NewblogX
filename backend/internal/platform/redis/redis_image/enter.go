@@ -59,19 +59,19 @@ func GetTaskDataByID(deps redis_service.Options, taskID ctype.ID) ([]byte, error
 func GetTaskIDByObjectKey(deps redis_service.Options, objectKey string) (ctype.ID, error) {
 	client := deps.Client
 	if client == nil {
-		return 0, fmt.Errorf("redis 未初始化")
+		return "", fmt.Errorf("redis 未初始化")
 	}
 
 	// 获取字符串格式的taskID
 	rawID, err := client.Get(context.Background(), uploadTaskObjectKey(objectKey)).Result()
 	if err != nil {
-		return 0, err
+		return "", err
 	}
 
 	// 反序列化为自定义ID类型
 	var taskID ctype.ID
 	if err = taskID.UnmarshalText([]byte(rawID)); err != nil {
-		return 0, err
+		return "", err
 	}
 	return taskID, nil
 }

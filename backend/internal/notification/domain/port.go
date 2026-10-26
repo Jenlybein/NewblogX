@@ -3,6 +3,8 @@ package domain
 import (
 	"context"
 	"time"
+
+	"myblogx/internal/kernel/ctype"
 )
 
 // MessageRepository 是站内信的持久化端口。
@@ -36,13 +38,13 @@ type GlobalRepository interface {
 	// ListAll 分页查全部公告（管理员视角）。
 	ListAll(ctx context.Context, page Page) ([]GlobalNotif, bool, error)
 	// FindVisible 在给定 ID 中筛出该用户可见的公告。
-	FindVisible(ctx context.Context, userID uint64, ids []uint64, userCreatedAt time.Time) ([]GlobalNotif, error)
+	FindVisible(ctx context.Context, userID uint64, ids []ctype.ID, userCreatedAt time.Time) ([]GlobalNotif, error)
 	// MarkRead 批量标记已读，返回真正发生变化的条数。
-	MarkRead(ctx context.Context, userID uint64, ids []uint64) (int, error)
+	MarkRead(ctx context.Context, userID uint64, ids []ctype.ID) (int, error)
 	// DeleteForUser 批量对用户隐藏公告，返回实际条数。
-	DeleteForUser(ctx context.Context, userID uint64, ids []uint64) (int, error)
+	DeleteForUser(ctx context.Context, userID uint64, ids []ctype.ID) (int, error)
 	// ReadSet 返回这批公告里用户已读的集合。
-	ReadSet(ctx context.Context, userID uint64, ids []uint64) (map[uint64]bool, error)
+	ReadSet(ctx context.Context, userID uint64, ids []ctype.ID) (map[ctype.ID]bool, error)
 	// CountUnread 统计该用户可见且未读的公告数。
 	CountUnread(ctx context.Context, userID uint64, userCreatedAt time.Time) (int64, error)
 	// Create 新建公告。
@@ -50,7 +52,7 @@ type GlobalRepository interface {
 	// ExistsTitle 判断标题是否已被占用。
 	ExistsTitle(ctx context.Context, title string) (bool, error)
 	// DeleteMany 管理员批量删除公告，连同所有用户的状态一起清掉。
-	DeleteMany(ctx context.Context, ids []uint64) (int, error)
+	DeleteMany(ctx context.Context, ids []ctype.ID) (int, error)
 }
 
 // ConfRepository 是用户通知开关的持久化端口。

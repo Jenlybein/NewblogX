@@ -43,25 +43,28 @@ export default defineConfig({
       //
       // 演进：
       //   2026-10-24 实测 62.47 / 50.96 / 67.14 / 62.62 → 门槛 60 / 50 / 65 / 60
-      //   2026-10-26 **下调**到 57 / 47 / 63 / 57，原因见下 —— 这是一次有意的例外。
+      //   2026-10-26 **下调**到 57 / 47 / 63 / 57 —— 一次有意的例外，原因见下
+      //   2026-10-26 补完两个写作页 composable 后**上调**到 60 / 50 / 66 / 60
       //
-      // 为什么下调：M6 把写作页 2045 行拆成 361 行页面 + 约 2400 行模块
+      // 为什么曾下调：M6 把写作页 2045 行拆成 361 行页面 + 约 2400 行模块
       // （6 个 composable + 4 个组件 + 2 张常量表）。拆分前那一整块在分母里且
       // 部分被间接触及；拆分后新增模块独立成文件、几乎全是 0 覆盖，于是整体
       // 掉 3 个百分点。**这不是测试被删，是分母变大。**
       //
-      // 待补清单（补完就上调，不要长期停留在 57）：
-      //   useStudioArticle —— 依赖 useRoute/useAuthStore/useAsyncData，需要先补 mock
-      //   useStudioAiAssist —— 依赖两个 selection composable，同上
+      // 为什么现在能上调：useStudioArticle（26 用例）与 useStudioAiAssist（23 用例）
+      // 这两块约 560 行曾经零覆盖，是门槛卡在 57 的直接原因。补完后实测
+      // 63.02 / 51.83 / 67.85 / 62.89，用例数 125 → 174。
+      //
+      // 剩下的待补清单（补完继续上调）：
       //   StudioWriteHeader / StudioWritePublishDialog —— 展示组件，靠 e2e 更划算
       //
       // 反例（不要这么做）：把 components/pages 从统计里排除来凑数字 ——
       // 实测排除后反而更低（52%），因为那两个目录原本的覆盖率高于 composables。
       thresholds: {
-        statements: 57,
-        branches: 47,
-        functions: 63,
-        lines: 57,
+        statements: 60,
+        branches: 50,
+        functions: 66,
+        lines: 60,
       },
     },
   },

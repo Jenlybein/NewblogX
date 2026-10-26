@@ -6,7 +6,6 @@ import (
 	"time"
 
 	"myblogx/conf"
-	"myblogx/internal/kernel/ctype"
 	"myblogx/internal/platform/idgen"
 	"myblogx/internal/platform/log/writer"
 
@@ -39,9 +38,9 @@ func (hook CommonFieldsHook) Fire(entry *logrus.Entry) error {
 	if _, ok := entry.Data["event_id"]; !ok {
 		eventID, err := idgen.Next()
 		if err == nil {
-			entry.Data["event_id"] = uint64(eventID)
+			entry.Data["event_id"] = eventID.Uint64()
 		} else {
-			entry.Data["event_id"] = uint64(ctype.ID(time.Now().UnixNano()))
+			entry.Data["event_id"] = uint64(time.Now().UnixNano())
 		}
 	}
 

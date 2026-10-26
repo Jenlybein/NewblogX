@@ -20,7 +20,7 @@ type BaseRequest struct {
 
 // ScoringRequest 对应 POST /ai/scoring/article。
 type ScoringRequest struct {
-	Type      int       `json:"type" binding:"required,oneof=1 2 3"`
+	Type      int       `json:"type" binding:"required,oneof=1 2 3" enums:"1,2,3"`
 	ArticleID *ctype.ID `json:"article_id"`
 	Title     string    `json:"title"`
 	Content   string    `json:"content"`
@@ -28,7 +28,7 @@ type ScoringRequest struct {
 
 // OverwriteRequest 对应 POST /ai/overwrite。
 type OverwriteRequest struct {
-	Mode          string `json:"mode" binding:"required,oneof=polish grammar_fix style_transform"`
+	Mode          string `json:"mode" binding:"required,oneof=polish grammar_fix style_transform" enums:"polish,grammar_fix,style_transform"`
 	SelectionText string `json:"selection_text" binding:"required,max=3500"`
 	PrefixText    string `json:"prefix_text" binding:"max=800"`
 	SuffixText    string `json:"suffix_text" binding:"max=800"`

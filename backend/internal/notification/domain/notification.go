@@ -5,7 +5,10 @@
 //   - GlobalNotif：管理员发布的全局公告，每个用户各自有已读/删除状态。
 package domain
 
-import "time"
+import (
+	"myblogx/internal/kernel/ctype"
+	"time"
+)
 
 // MessageType 是站内信类型。
 //
@@ -52,7 +55,7 @@ func (g Group) Types() []MessageType {
 
 // Message 是一条站内信。
 type Message struct {
-	ID       uint64
+	ID       ctype.ID
 	Type     MessageType
 	Receiver uint64
 
@@ -64,8 +67,8 @@ type Message struct {
 	Content string
 
 	// 触发的业务对象，前端据此跳转。
-	ArticleID    uint64
-	CommentID    uint64
+	ArticleID    ctype.ID
+	CommentID    ctype.ID
 	ArticleTitle string
 
 	// 额外提示链接（系统通知用）。
@@ -99,7 +102,7 @@ func (r VisibleRule) Effective() VisibleRule {
 
 // GlobalNotif 是管理员发布的全局公告。
 type GlobalNotif struct {
-	ID          uint64
+	ID          ctype.ID
 	VisibleRule VisibleRule
 	ExpireAt    time.Time
 	ActionUser  uint64

@@ -3,6 +3,7 @@ package app_test
 import (
 	"context"
 	"errors"
+	"myblogx/internal/kernel/ctype"
 	"testing"
 
 	"myblogx/internal/article/app"
@@ -13,9 +14,9 @@ import (
 )
 
 const (
-	author   = domain.UserID(100)
-	stranger = domain.UserID(200)
-	admin    = domain.UserID(900)
+	author   = ctype.ID("100")
+	stranger = ctype.ID("200")
+	admin    = ctype.ID("900")
 )
 
 func newService(t *testing.T) (*app.Service, *apptest.Repos, *apptest.Tx) {
@@ -138,8 +139,8 @@ func TestCreateRejectsForeignCategory(t *testing.T) {
 	svc, repos, _ := newService(t)
 	ctx := context.Background()
 
-	other := domain.UserID(777)
-	cid := domain.CategoryID(5)
+	other := ctype.NewID(777)
+	cid := ctype.NewID(5)
 	repos.FakeCategories().Seed(apptest.NewCategoryForTest(cid, other, "别人的分类"))
 
 	_, err := svc.Create(ctx, app.CreateArticleCmd{
@@ -160,14 +161,14 @@ func TestCreateRejectsDisabledTag(t *testing.T) {
 	svc, repos, tx := newService(t)
 	ctx := context.Background()
 
-	tag := apptest.NewTagForTest(1, "废弃", false)
+	tag := apptest.NewTagForTest(ctype.NewID(1), "废弃", false)
 	repos.FakeTags().Seed(tag)
 
 	_, err := svc.Create(ctx, app.CreateArticleCmd{
 		Actor:        authorViewer(),
 		Title:        "x",
 		Content:      "y",
-		TagIDs:       []domain.TagID{1},
+		TagIDs:       []domain.TagID{ctype.NewID(1)},
 		TargetStatus: domain.StatusDraft,
 	})
 	if err == nil {
@@ -218,12 +219,12 @@ func TestUpdateForbiddenForStranger(t *testing.T) {
 
 	svc, repos, _ := newService(t)
 	ctx := context.Background()
-	seedArticle(t, repos, 1, author, domain.StatusDraft)
+	seedArticle(t, repos, ctype.NewID(1), author, domain.StatusDraft)
 
 	title := "改标题"
 	_, err := svc.Update(ctx, app.UpdateArticleCmd{
 		Actor:     strangerViewer(),
-		ArticleID: 1,
+		ArticleID: ctype.NewID(1),
 		Title:     &title,
 	})
 	if !errors.Is(err, domain.ErrArticleNotFound) {
@@ -236,12 +237,12 @@ func TestUpdateNoopDoesNotWrite(t *testing.T) {
 
 	svc, repos, _ := newService(t)
 	ctx := context.Background()
-	seedArticle(t, repos, 1, author, domain.StatusDraft)
+	seedArticle(t, repos, ctype.NewID(1), author, domain.StatusDraft)
 
 	same := "测试文章"
 	res, err := svc.Update(ctx, app.UpdateArticleCmd{
 		Actor:     authorViewer(),
-		ArticleID: 1,
+		ArticleID: ctype.NewID(1),
 		Title:     &same,
 	})
 	if err != nil {
@@ -261,12 +262,12 @@ func TestUpdatePublishedTriggersReReview(t *testing.T) {
 
 	svc, repos, _ := newService(t)
 	ctx := context.Background()
-	seedArticle(t, repos, 1, author, domain.StatusPublished)
+	seedArticle(t, repos, ctype.NewID(1), author, domain.StatusPublished)
 
 	content := "改过的正文"
 	res, err := svc.Update(ctx, app.UpdateArticleCmd{
 		Actor:     authorViewer(),
-		ArticleID: 1,
+		ArticleID: ctype.NewID(1),
 		Content:   &content,
 	})
 	if err != nil {
@@ -278,7 +279,7 @@ func TestUpdatePublishedTriggersReReview(t *testing.T) {
 	if res.Article.Status() != domain.StatusExamining {
 		t.Fatalf("状态应为审核中，实际 %s", res.Article.Status())
 	}
-	tasks, _ := repos.FakeReviews().ListPendingByArticle(ctx, 1)
+	tasks, _ := repos.FakeReviews().ListPendingByArticle(ctx, ctype.NewID(1))
 	if len(tasks) != 1 || tasks[0].Source() != review.SourceEdit {
 		t.Fatalf("应建 1 条 edit 来源任务，实际 %d", len(tasks))
 	}
@@ -290,12 +291,12 @@ func TestUpdateVisibilityOnlyDoesNotReReview(t *testing.T) {
 
 	svc, repos, _ := newService(t)
 	ctx := context.Background()
-	seedArticle(t, repos, 1, author, domain.StatusPublished)
+	seedArticle(t, repos, ctype.NewID(1), author, domain.StatusPublished)
 
 	hidden := domain.VisibilityUserHidden
 	res, err := svc.Update(ctx, app.UpdateArticleCmd{
 		Actor:      authorViewer(),
-		ArticleID:  1,
+		ArticleID:  ctype.NewID(1),
 		Visibility: &hidden,
 	})
 	if err != nil {
@@ -314,13 +315,13 @@ func TestUpdateBackToDraftCancelsTask(t *testing.T) {
 
 	svc, repos, _ := newService(t)
 	ctx := context.Background()
-	a := seedArticle(t, repos, 1, author, domain.StatusExamining)
+	a := seedArticle(t, repos, ctype.NewID(1), author, domain.StatusExamining)
 	repos.FakeReviews().Seed(apptest.NewTaskForTest(1, a.ID(), author, review.StatusPending))
 
 	draft := domain.StatusDraft
 	res, err := svc.Update(ctx, app.UpdateArticleCmd{
 		Actor:        authorViewer(),
-		ArticleID:    1,
+		ArticleID:    ctype.NewID(1),
 		TargetStatus: &draft,
 	})
 	if err != nil {
@@ -329,7 +330,7 @@ func TestUpdateBackToDraftCancelsTask(t *testing.T) {
 	if res.Article.Status() != domain.StatusDraft {
 		t.Fatalf("状态应为草稿，实际 %s", res.Article.Status())
 	}
-	pending, _ := repos.FakeReviews().ListPendingByArticle(ctx, 1)
+	pending, _ := repos.FakeReviews().ListPendingByArticle(ctx, ctype.NewID(1))
 	if len(pending) != 0 {
 		t.Fatalf("退回草稿应撤销待审任务，实际还剩 %d 条", len(pending))
 	}
@@ -342,9 +343,9 @@ func TestExamineRequiresAdmin(t *testing.T) {
 
 	svc, repos, _ := newService(t)
 	ctx := context.Background()
-	seedArticle(t, repos, 1, author, domain.StatusExamining)
+	seedArticle(t, repos, ctype.NewID(1), author, domain.StatusExamining)
 
-	_, err := svc.Examine(ctx, app.ExamineCmd{Actor: authorViewer(), ArticleID: 1, Approve: true})
+	_, err := svc.Examine(ctx, app.ExamineCmd{Actor: authorViewer(), ArticleID: ctype.NewID(1), Approve: true})
 	if !errors.Is(err, domain.ErrForbidden) {
 		t.Fatalf("作者不能审核自己的文章，期望 ErrForbidden，实际 %v", err)
 	}
@@ -355,9 +356,9 @@ func TestExamineRequiresExaminingStatus(t *testing.T) {
 
 	svc, repos, _ := newService(t)
 	ctx := context.Background()
-	seedArticle(t, repos, 1, author, domain.StatusDraft)
+	seedArticle(t, repos, ctype.NewID(1), author, domain.StatusDraft)
 
-	_, err := svc.Examine(ctx, app.ExamineCmd{Actor: adminViewer(), ArticleID: 1, Approve: true})
+	_, err := svc.Examine(ctx, app.ExamineCmd{Actor: adminViewer(), ArticleID: ctype.NewID(1), Approve: true})
 	if !errors.Is(err, domain.ErrInvalidTransition) {
 		t.Fatalf("草稿不能审核，期望 ErrInvalidTransition，实际 %v", err)
 	}
@@ -368,10 +369,10 @@ func TestExamineApprove(t *testing.T) {
 
 	svc, repos, _ := newService(t)
 	ctx := context.Background()
-	a := seedArticle(t, repos, 1, author, domain.StatusExamining)
+	a := seedArticle(t, repos, ctype.NewID(1), author, domain.StatusExamining)
 	repos.FakeReviews().Seed(apptest.NewTaskForTest(1, a.ID(), author, review.StatusPending))
 
-	got, err := svc.Examine(ctx, app.ExamineCmd{Actor: adminViewer(), ArticleID: 1, Approve: true})
+	got, err := svc.Examine(ctx, app.ExamineCmd{Actor: adminViewer(), ArticleID: ctype.NewID(1), Approve: true})
 	if err != nil {
 		t.Fatalf("审核通过失败: %v", err)
 	}
@@ -399,11 +400,11 @@ func TestExamineReject(t *testing.T) {
 
 	svc, repos, _ := newService(t)
 	ctx := context.Background()
-	a := seedArticle(t, repos, 1, author, domain.StatusExamining)
+	a := seedArticle(t, repos, ctype.NewID(1), author, domain.StatusExamining)
 	repos.FakeReviews().Seed(apptest.NewTaskForTest(1, a.ID(), author, review.StatusPending))
 
 	got, err := svc.Examine(ctx, app.ExamineCmd{
-		Actor: adminViewer(), ArticleID: 1, Approve: false, Reason: "内容不完整",
+		Actor: adminViewer(), ArticleID: ctype.NewID(1), Approve: false, Reason: "内容不完整",
 	})
 	if err != nil {
 		t.Fatalf("审核拒绝失败: %v", err)
@@ -424,18 +425,18 @@ func TestDeleteCascade(t *testing.T) {
 
 	svc, repos, _ := newService(t)
 	ctx := context.Background()
-	a := seedArticle(t, repos, 1, author, domain.StatusPublished)
+	a := seedArticle(t, repos, ctype.NewID(1), author, domain.StatusPublished)
 
 	repos.FakeComments().Seed(a.ID(), 3)
 	repos.FakeDiggs().Add(ctx, a.ID(), stranger)
 	repos.FakeFavorites().SeedFolder(
-		favorite.RestoreFolder(favorite.RestoreFolderParams{ID: 1, UserID: stranger, Title: "默认", IsDefault: true}),
+		favorite.RestoreFolder(favorite.RestoreFolderParams{ID: ctype.NewID(1), UserID: stranger, Title: "默认", IsDefault: true}),
 	)
-	repos.FakeTags().Seed(apptest.NewTagForTest(7, "Go", true))
-	repos.FakeTags().SeedArticleTags(a.ID(), 7)
+	repos.FakeTags().Seed(apptest.NewTagForTest(ctype.NewID(7), "Go", true))
+	repos.FakeTags().SeedArticleTags(a.ID(), ctype.NewID(7))
 	repos.FakeTops().Save(ctx, apptest.NewTopEntryForTest(stranger, a.ID()))
 
-	res, err := svc.Delete(ctx, app.DeleteCmd{Actor: authorViewer(), ArticleID: 1})
+	res, err := svc.Delete(ctx, app.DeleteCmd{Actor: authorViewer(), ArticleID: ctype.NewID(1)})
 	if err != nil {
 		t.Fatalf("删除失败: %v", err)
 	}
@@ -451,7 +452,7 @@ func TestDeleteCascade(t *testing.T) {
 	}
 
 	// 文章变不可见
-	if _, err := repos.FakeArticles().Find(ctx, 1); !errors.Is(err, domain.ErrArticleNotFound) {
+	if _, err := repos.FakeArticles().Find(ctx, ctype.NewID(1)); !errors.Is(err, domain.ErrArticleNotFound) {
 		t.Fatalf("删除后应查不到，实际 %v", err)
 	}
 	if ad, _ := repos.FakeAuthorStats().Delta(author); ad != -1 {
@@ -467,13 +468,13 @@ func TestDeleteByStrangerForbidden(t *testing.T) {
 
 	svc, repos, _ := newService(t)
 	ctx := context.Background()
-	seedArticle(t, repos, 1, author, domain.StatusPublished)
+	seedArticle(t, repos, ctype.NewID(1), author, domain.StatusPublished)
 
-	_, err := svc.Delete(ctx, app.DeleteCmd{Actor: strangerViewer(), ArticleID: 1})
+	_, err := svc.Delete(ctx, app.DeleteCmd{Actor: strangerViewer(), ArticleID: ctype.NewID(1)})
 	if !errors.Is(err, domain.ErrArticleNotFound) {
 		t.Fatalf("他人不能删，期望 ErrArticleNotFound，实际 %v", err)
 	}
-	if _, err := repos.FakeArticles().Find(ctx, 1); err != nil {
+	if _, err := repos.FakeArticles().Find(ctx, ctype.NewID(1)); err != nil {
 		t.Fatalf("文章应仍然存在: %v", err)
 	}
 }
@@ -483,9 +484,9 @@ func TestDeleteByAdminAllowed(t *testing.T) {
 
 	svc, repos, _ := newService(t)
 	ctx := context.Background()
-	seedArticle(t, repos, 1, author, domain.StatusPublished)
+	seedArticle(t, repos, ctype.NewID(1), author, domain.StatusPublished)
 
-	if _, err := svc.Delete(ctx, app.DeleteCmd{Actor: adminViewer(), ArticleID: 1}); err != nil {
+	if _, err := svc.Delete(ctx, app.DeleteCmd{Actor: adminViewer(), ArticleID: ctype.NewID(1)}); err != nil {
 		t.Fatalf("管理员应能删他人文章: %v", err)
 	}
 }
@@ -497,13 +498,13 @@ func TestDeleteRollsBackOnCommentFailure(t *testing.T) {
 
 	svc, repos, tx := newService(t)
 	ctx := context.Background()
-	a := seedArticle(t, repos, 1, author, domain.StatusPublished)
+	a := seedArticle(t, repos, ctype.NewID(1), author, domain.StatusPublished)
 	repos.FakeComments().Seed(a.ID(), 2)
 	repos.FakeDiggs().Add(ctx, a.ID(), stranger)
 	boom := errors.New("comment 模块挂了")
 	repos.FakeComments().FailNext("DeleteByArticle", boom)
 
-	_, err := svc.Delete(ctx, app.DeleteCmd{Actor: authorViewer(), ArticleID: 1})
+	_, err := svc.Delete(ctx, app.DeleteCmd{Actor: authorViewer(), ArticleID: ctype.NewID(1)})
 	if !errors.Is(err, boom) {
 		t.Fatalf("应返回原始错误，实际 %v", err)
 	}
@@ -511,11 +512,11 @@ func TestDeleteRollsBackOnCommentFailure(t *testing.T) {
 		t.Fatalf("应回滚 1 次，实际 %d", tx.Rollbacks())
 	}
 	// 文章还在
-	if _, err := repos.FakeArticles().Find(ctx, 1); err != nil {
+	if _, err := repos.FakeArticles().Find(ctx, ctype.NewID(1)); err != nil {
 		t.Fatalf("回滚后文章应仍存在: %v", err)
 	}
 	// 点赞没被删
-	if n := repos.FakeDiggs().Count(1); n != 1 {
+	if n := repos.FakeDiggs().Count(ctype.NewID(1)); n != 1 {
 		t.Fatalf("回滚后点赞应仍是 1，实际 %d", n)
 	}
 	// 作者统计没变
@@ -531,13 +532,13 @@ func TestDetailHidesDraftFromAnonymous(t *testing.T) {
 
 	svc, repos, _ := newService(t)
 	ctx := context.Background()
-	seedArticle(t, repos, 1, author, domain.StatusDraft)
+	seedArticle(t, repos, ctype.NewID(1), author, domain.StatusDraft)
 
-	_, err := svc.Detail(ctx, 1, domain.Anonymous())
+	_, err := svc.Detail(ctx, ctype.NewID(1), domain.Anonymous())
 	if !errors.Is(err, domain.ErrArticleNotFound) {
 		t.Fatalf("匿名看草稿应报不存在，实际 %v", err)
 	}
-	if _, err := svc.Detail(ctx, 1, authorViewer()); err != nil {
+	if _, err := svc.Detail(ctx, ctype.NewID(1), authorViewer()); err != nil {
 		t.Fatalf("作者应能看自己的草稿: %v", err)
 	}
 }
@@ -547,11 +548,11 @@ func TestDetailMergesCountersAndFlags(t *testing.T) {
 
 	svc, repos, _ := newService(t)
 	ctx := context.Background()
-	seedArticle(t, repos, 1, author, domain.StatusPublished)
-	repos.FakeCounters().Add(ctx, 1, domain.Counters{View: 5, Digg: 2})
-	repos.FakeDiggs().Add(ctx, 1, stranger)
+	seedArticle(t, repos, ctype.NewID(1), author, domain.StatusPublished)
+	repos.FakeCounters().Add(ctx, ctype.NewID(1), domain.Counters{View: 5, Digg: 2})
+	repos.FakeDiggs().Add(ctx, ctype.NewID(1), stranger)
 
-	view, err := svc.Detail(ctx, 1, strangerViewer())
+	view, err := svc.Detail(ctx, ctype.NewID(1), strangerViewer())
 	if err != nil {
 		t.Fatalf("查详情失败: %v", err)
 	}
@@ -571,14 +572,14 @@ func TestListAnonymousForcesOnlyPublic(t *testing.T) {
 
 	svc, repos, _ := newService(t)
 	ctx := context.Background()
-	seedArticle(t, repos, 1, author, domain.StatusPublished)
-	seedArticle(t, repos, 2, author, domain.StatusDraft)
+	seedArticle(t, repos, ctype.NewID(1), author, domain.StatusPublished)
+	seedArticle(t, repos, ctype.NewID(2), author, domain.StatusDraft)
 
 	views, total, err := svc.List(ctx, domain.Filter{}, domain.Page{Limit: 10}, domain.Anonymous())
 	if err != nil {
 		t.Fatalf("查询失败: %v", err)
 	}
-	if total != 1 || len(views) != 1 || views[0].Article.ID() != 1 {
+	if total != 1 || len(views) != 1 || views[0].Article.ID().Uint64() != 1 {
 		t.Fatalf("匿名只能看到已发布的 1 篇，实际 total=%d", total)
 	}
 }
@@ -590,12 +591,12 @@ func TestFavoriteAndUnfavorite(t *testing.T) {
 
 	svc, repos, _ := newService(t)
 	ctx := context.Background()
-	seedArticle(t, repos, 1, author, domain.StatusPublished)
+	seedArticle(t, repos, ctype.NewID(1), author, domain.StatusPublished)
 
-	if err := svc.Favorite(ctx, app.FavoriteCmd{Actor: strangerViewer(), ArticleID: 1}); err != nil {
+	if err := svc.Favorite(ctx, app.FavoriteCmd{Actor: strangerViewer(), ArticleID: ctype.NewID(1)}); err != nil {
 		t.Fatalf("收藏失败: %v", err)
 	}
-	if got := repos.FakeCounters().Get(1).Favor; got != 1 {
+	if got := repos.FakeCounters().Get(ctype.NewID(1)).Favor; got != 1 {
 		t.Fatalf("收藏增量应为 1，实际 %d", got)
 	}
 	// 收藏必须发事件：旧代码在这里会通知作者"有人收藏了你的文章"，
@@ -604,14 +605,14 @@ func TestFavoriteAndUnfavorite(t *testing.T) {
 		t.Fatalf("应发收藏事件，实际 %v", names)
 	}
 	// 重复收藏应报错
-	if err := svc.Favorite(ctx, app.FavoriteCmd{Actor: strangerViewer(), ArticleID: 1}); !errors.Is(err, favorite.ErrItemExists) {
+	if err := svc.Favorite(ctx, app.FavoriteCmd{Actor: strangerViewer(), ArticleID: ctype.NewID(1)}); !errors.Is(err, favorite.ErrItemExists) {
 		t.Fatalf("重复收藏应报 ErrItemExists，实际 %v", err)
 	}
 
-	if err := svc.Unfavorite(ctx, app.FavoriteCmd{Actor: strangerViewer(), ArticleID: 1}); err != nil {
+	if err := svc.Unfavorite(ctx, app.FavoriteCmd{Actor: strangerViewer(), ArticleID: ctype.NewID(1)}); err != nil {
 		t.Fatalf("取消收藏失败: %v", err)
 	}
-	if got := repos.FakeCounters().Get(1).Favor; got != 0 {
+	if got := repos.FakeCounters().Get(ctype.NewID(1)).Favor; got != 0 {
 		t.Fatalf("取消后收藏增量应回到 0，实际 %d", got)
 	}
 }
@@ -621,9 +622,9 @@ func TestFavoriteOwnArticleRejected(t *testing.T) {
 
 	svc, repos, _ := newService(t)
 	ctx := context.Background()
-	seedArticle(t, repos, 1, author, domain.StatusPublished)
+	seedArticle(t, repos, ctype.NewID(1), author, domain.StatusPublished)
 
-	err := svc.Favorite(ctx, app.FavoriteCmd{Actor: authorViewer(), ArticleID: 1})
+	err := svc.Favorite(ctx, app.FavoriteCmd{Actor: authorViewer(), ArticleID: ctype.NewID(1)})
 	if !errors.Is(err, favorite.ErrSelfFavorite) {
 		t.Fatalf("不能收藏自己的文章，期望 ErrSelfFavorite，实际 %v", err)
 	}
@@ -634,26 +635,26 @@ func TestDiggToggle(t *testing.T) {
 
 	svc, repos, _ := newService(t)
 	ctx := context.Background()
-	seedArticle(t, repos, 1, author, domain.StatusPublished)
+	seedArticle(t, repos, ctype.NewID(1), author, domain.StatusPublished)
 
-	liked, err := svc.Digg(ctx, 1, strangerViewer())
+	liked, err := svc.Digg(ctx, ctype.NewID(1), strangerViewer())
 	if err != nil {
 		t.Fatalf("点赞失败: %v", err)
 	}
-	if !liked || repos.FakeCounters().Get(1).Digg != 1 {
-		t.Fatalf("首次点赞应 liked=true 且增量 1，实际 liked=%v delta=%d", liked, repos.FakeCounters().Get(1).Digg)
+	if !liked || repos.FakeCounters().Get(ctype.NewID(1)).Digg != 1 {
+		t.Fatalf("首次点赞应 liked=true 且增量 1，实际 liked=%v delta=%d", liked, repos.FakeCounters().Get(ctype.NewID(1)).Digg)
 	}
 	// 点赞必须发事件（旧代码在这里通知作者）；取消点赞不应再发。
 	if names := repos.FakeOutbox().Names(); len(names) != 1 || names[0] != app.EventArticleDigg {
 		t.Fatalf("应发点赞事件，实际 %v", names)
 	}
 
-	liked, err = svc.Digg(ctx, 1, strangerViewer())
+	liked, err = svc.Digg(ctx, ctype.NewID(1), strangerViewer())
 	if err != nil {
 		t.Fatalf("取消点赞失败: %v", err)
 	}
-	if liked || repos.FakeCounters().Get(1).Digg != 0 {
-		t.Fatalf("再次点击应取消，实际 liked=%v delta=%d", liked, repos.FakeCounters().Get(1).Digg)
+	if liked || repos.FakeCounters().Get(ctype.NewID(1)).Digg != 0 {
+		t.Fatalf("再次点击应取消，实际 liked=%v delta=%d", liked, repos.FakeCounters().Get(ctype.NewID(1)).Digg)
 	}
 	// 取消点赞不应再发事件（与旧实现一致：只在新增加点赞时通知）
 	if names := repos.FakeOutbox().Names(); len(names) != 1 {
@@ -666,12 +667,12 @@ func TestRecordViewWritesHistoryOnlyForLoggedIn(t *testing.T) {
 
 	svc, repos, _ := newService(t)
 	ctx := context.Background()
-	seedArticle(t, repos, 1, author, domain.StatusPublished)
+	seedArticle(t, repos, ctype.NewID(1), author, domain.StatusPublished)
 
-	if err := svc.RecordView(ctx, 1, domain.Anonymous()); err != nil {
+	if err := svc.RecordView(ctx, ctype.NewID(1), domain.Anonymous()); err != nil {
 		t.Fatalf("匿名浏览失败: %v", err)
 	}
-	if got := repos.FakeCounters().Get(1).View; got != 1 {
+	if got := repos.FakeCounters().Get(ctype.NewID(1)).View; got != 1 {
 		t.Fatalf("浏览增量应为 1，实际 %d", got)
 	}
 	records, total, err := svc.ListViewHistory(ctx, strangerViewer(), domain.Page{Limit: 10})
@@ -682,14 +683,14 @@ func TestRecordViewWritesHistoryOnlyForLoggedIn(t *testing.T) {
 		t.Fatalf("匿名浏览不应写历史，实际 %d 条", total)
 	}
 
-	if err := svc.RecordView(ctx, 1, strangerViewer()); err != nil {
+	if err := svc.RecordView(ctx, ctype.NewID(1), strangerViewer()); err != nil {
 		t.Fatalf("登录用户浏览失败: %v", err)
 	}
 	records, total, err = svc.ListViewHistory(ctx, strangerViewer(), domain.Page{Limit: 10})
 	if err != nil {
 		t.Fatalf("查历史失败: %v", err)
 	}
-	if total != 1 || len(records) != 1 || records[0].ArticleID() != 1 {
+	if total != 1 || len(records) != 1 || records[0].ArticleID().Uint64() != 1 {
 		t.Fatalf("登录用户应写入历史，实际 %d 条", total)
 	}
 }

@@ -70,7 +70,7 @@ func (h *Handler) Detail(c *gin.Context) {
 // @Summary 用户公开主页
 // @Tags user
 // @Produce json
-// @Param id path int true "用户 ID"
+// @Param id path string true "用户 ID"
 // @Success 200 {object} object{code=int,data=app.PublicProfile,msg=string}
 // @Router /users/{id} [get]
 func (h *Handler) PublicProfile(c *gin.Context) {
@@ -78,7 +78,7 @@ func (h *Handler) PublicProfile(c *gin.Context) {
 	if uri == nil {
 		return
 	}
-	profile, err := h.svc.PublicProfile(c.Request.Context(), domain.UserID(uri.ID))
+	profile, err := h.svc.PublicProfile(c.Request.Context(), uri.ID)
 	if err != nil {
 		fail(c, err)
 		return
@@ -174,7 +174,7 @@ func (h *Handler) Create(c *gin.Context) {
 // @Accept json
 // @Produce json
 // @Security BearerAuth
-// @Param id path int true "用户 ID"
+// @Param id path string true "用户 ID"
 // @Success 200 {object} object{code=int,data=string,msg=string}
 // @Router /users/{id}/status [put]
 func (h *Handler) ChangeStatus(c *gin.Context) {
@@ -186,7 +186,7 @@ func (h *Handler) ChangeStatus(c *gin.Context) {
 	if !ok {
 		return
 	}
-	if err := h.svc.ChangeStatus(c.Request.Context(), viewer(c), domain.UserID(uri.ID), domain.Status(req.Status)); err != nil {
+	if err := h.svc.ChangeStatus(c.Request.Context(), viewer(c), uri.ID, domain.Status(req.Status)); err != nil {
 		fail(c, err)
 		return
 	}

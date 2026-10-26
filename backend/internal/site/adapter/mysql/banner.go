@@ -10,11 +10,12 @@ import (
 	"myblogx/internal/site/domain"
 
 	"gorm.io/gorm"
+	"myblogx/internal/kernel/ctype"
 )
 
 // bannerRow 对应 banner_models 表。
 type bannerRow struct {
-	ID        uint64 `gorm:"primaryKey;autoIncrement:false"`
+	ID        ctype.ID `gorm:"primaryKey;autoIncrement:false"`
 	CreatedAt time.Time
 	UpdatedAt time.Time
 	DeletedAt gorm.DeletedAt
@@ -77,12 +78,12 @@ func (r *BannerRepo) Create(ctx context.Context, b *domain.Banner) error {
 	if b == nil {
 		return apperr.New(apperr.CodeBannerNotFound)
 	}
-	if b.ID == 0 {
+	if b.ID.IsZero() {
 		next, err := idgen.Next()
 		if err != nil {
 			return err
 		}
-		b.ID = next.Uint64()
+		b.ID = next
 	}
 	now := time.Now()
 	row := bannerRow{

@@ -22,8 +22,8 @@ type ArticleCreateRequest struct {
 	TagIDs           []ctype.ID        `json:"tag_ids"`
 	CoverImageID     *ctype.ID         `json:"cover_image_id"`
 	CommentsToggle   bool              `json:"comments_toggle"`
-	Status           ArticleStatus     `json:"status" binding:"required,oneof=1 2"`
-	VisibilityStatus ArticleVisibility `json:"visibility_status" binding:"omitempty,oneof=visible user_hidden"`
+	Status           ArticleStatus     `json:"status" binding:"required,oneof=1 2" swaggertype:"integer" enums:"1,2"`
+	VisibilityStatus ArticleVisibility `json:"visibility_status" binding:"omitempty,oneof=visible user_hidden" swaggertype:"string" enums:"visible,user_hidden"`
 }
 
 // ArticleUpdateRequest 更新文章；nil 表示不修改。
@@ -35,8 +35,8 @@ type ArticleUpdateRequest struct {
 	TagIDs           *[]ctype.ID        `json:"tag_ids"`
 	CoverImageID     *ctype.ID          `json:"cover_image_id"`
 	CommentsToggle   *bool              `json:"comments_toggle"`
-	Status           *ArticleStatus     `json:"status" binding:"omitempty,oneof=1 2"`
-	VisibilityStatus *ArticleVisibility `json:"visibility_status" binding:"omitempty,oneof=visible user_hidden"`
+	Status           *ArticleStatus     `json:"status" binding:"omitempty,oneof=1 2" swaggertype:"integer" enums:"1,2"`
+	VisibilityStatus *ArticleVisibility `json:"visibility_status" binding:"omitempty,oneof=visible user_hidden" swaggertype:"string" enums:"visible,user_hidden"`
 }
 
 // ArticleCreateResponse 创建结果。
@@ -95,7 +95,7 @@ type ArticleFavoriteRequest struct {
 type ArticleReviewTaskListRequest struct {
 	Page   int              `form:"page"`
 	Limit  int              `form:"limit"`
-	Status ReviewTaskStatus `form:"status" binding:"omitempty,oneof=pending approved rejected canceled"`
+	Status ReviewTaskStatus `form:"status" binding:"omitempty,oneof=pending approved rejected canceled" enums:"pending,approved,rejected,canceled"`
 }
 
 // ArticleReviewTaskItem 审核任务项。
@@ -123,14 +123,14 @@ type ArticleReviewTaskListResponse struct {
 
 // ArticleReviewHandleRequest 处理审核任务。
 type ArticleReviewHandleRequest struct {
-	Status ArticleStatus `json:"status" binding:"required,oneof=3 4"`
+	Status ArticleStatus `json:"status" binding:"required,oneof=3 4" swaggertype:"integer" enums:"3,4"`
 	Reason string        `json:"reason"`
 }
 
 // ArticleAdminVisibilityURI 管理员改可见性。
 type ArticleAdminVisibilityURI struct {
 	ID         ctype.ID `uri:"id" binding:"required"`
-	Visibility string   `uri:"visibility" binding:"required,oneof=hide show"`
+	Visibility string   `uri:"visibility" binding:"required,oneof=hide show" enums:"hide,show"`
 }
 
 // ArticleViewCountRequest 浏览上报。

@@ -1999,6 +1999,10 @@ $ 生成 801 行 → eslint --stdin --stdin-filename app/pages/__probe.vue
 
 ## 43. 契约终于"被使用"：ID 类型修正 + 编译期守卫（M6 之后第 1 件事）
 
+> ⚠️ **本节"做法 B（流水线修补脚本）"已被 §44 取代**（2026-10-26，M7 方案 E）。
+> 保留原文是为了留下决策轨迹：B 是"这次对了"，E 是"以后都对"。
+> 现在的做法是 ID 类型底层改 string，`fix-openapi-id-types.mjs` 与 `.swaggo` 均已删除。
+
 **2026-10-26**。收尾时发现的最大洞：`swagger.json → openapi.d.ts` 链路是通的，
 但**业务代码一个都没用**（`contract.ts` 零引用，38 处业务全走手写 `api.ts`）。
 后果：后端改字段名/删字段，前端不会有任何报错，只会在运行时静默拿到 `undefined`。
@@ -2070,3 +2074,104 @@ contract-guard.ts(65,38): error TS2344:
 
 `03-物理目录与映射.md` 原来写"删除 `api.ts`，改用生成类型"，与 `contract.ts` 注释里
 "api.ts 是视图模型/适配层"冲突。现统一为后者，并补上"必须被 `contract-guard.ts` 断言"。
+
+---
+
+## 44. M7 结束：ID 类型即真相（方案 E 落地，2026-10-26）
+
+§43 的"做法 B"把契约修对了，但修的是**产物**：`ctype.ID` 底层还是 `uint64`，
+靠 `MarshalJSON` 偷偷输出字符串，swag 读 Go 类型照样印 `integer`，
+只能靠生成后的脚本再改一遍。谁新写一个裸 `uint64` ID 字段，契约会再错一次。
+
+M7 改成修**根因**：`ctype.ID` 底层就是 `string`。
+
+### 一、核心改动
+
+| 改动 | 内容 |
+| --- | --- |
+| `kernel/ctype/id.go` | `type ID string`；新增 `NewID(uint64)` / `ParseID(string)` / `Uint64()` / `IsZero()`；`Value`/`Scan` 仍走 int64（**零 DDL**） |
+| 10 个 ID 类型统一 | `favorite.ID` / `auth.SessionID` / `comment.CommentID` / `media.ImageID` / `user.UserID` / `article.{ArticleID,UserID,TagID,CategoryID}` 全部改为 `= ctype.ID` 别名 |
+| 裸整型 ID 字段收编 | 全仓 175 处 → 收编 149 处；26 处按理由豁免 |
+| 契约 | 41 个 ID 字段 + 32 个 `@Param` 从 integer/int 转 string |
+
+### 二、两条禁令（写进 `id.go` 的注释）
+
+1. **不要拿 ID 直接比大小**：字符串下 `"10" < "9"` 成立，数值排序会乱。要比较用 `Uint64()`。
+2. **不要用 `ID(123)` 构造**：integer→string 转换在 Go 里合法（得到码点字符），编译器不报错。一律 `NewID(123)`。
+
+第 2 条只有 `go vet` 的 `stringintconv` 能抓——本轮它暴露并修掉约 194 处"编译器不管、值完全错"的构造。
+这也说明 **`go build` 不够，`go vet` 才是测试文件的编译闸门**（`go build` 完全不编译 `_test.go`）。
+
+### 三、26 个按理由豁免
+
+| 范围 | 数量 | 理由 |
+| --- | --- | --- |
+| `internal/platform/log/**` | 6 | 对应 ClickHouse `UInt64` 列，外部真相在 `01-logs.sql`。改 string 会与列类型不一致，且可能让 `JSONEachRow` 摄入失败 |
+| `internal/testkit/schema/**` | 17 | 同上 |
+| `ServerID`（conf ×3 + canalbase ×1） | 4 | MySQL 复制协议 `server_id` / 雪花机器号，uint32 节点编号，非业务 ID |
+| `initializedID`（platform/idgen） | 1 | 雪花 worker 编号 |
+
+**原则**："类型即真相"要对齐的是**各自的外部真相**。HTTP 契约的真相是"JSON 里 ID 是字符串"，
+所以 DTO 用 `ctype.ID`；日志表的真相是"CH 列是 UInt64"，所以落盘结构保持 `uint64`。
+两者都对齐了，就不存在"两套说法"。
+
+### 四、新守卫 R12（`tools/archcheck/rules_id.go`）
+
+字段名以 `ID` / `IDs` / `Id` / `Ids` 结尾且类型是原生整型（含 `*` / `[]`）→ 违规。
+7 条人造用例（4 正例 + 3 豁免反例），由 `TestAllRulesHaveSelfCheck` 元测试强制要求存在。基线 **0**。
+
+**上线当天就抓出 1 处真漏网**：`site/domain/site.go` 的 `Banner.CoverImageID uint64`。
+人工审计脚本因为该行行尾有 `//` 注释而漏掉——说明"靠人扫"不可靠，靠 AST 才可靠。
+
+### 五、顺带修掉的隐性 bug
+
+| 位置 | 问题 | 严重性 |
+| --- | --- | --- |
+| `chat/domain/chat.go` `BuildSessionID` | 字符串比较下双方算出不同 `session_id` | **私信串号** |
+| `site/domain/site.go` `Banner.CoverImageID` | 裸 uint64，前端丢精度 | 契约错误（R12 抓出） |
+| `auth/apptest/repos.go` `Sscanf("%d", &c.UserID)` | `%d` 扫进 string 会运行时报错，`vet` 不报 | 测试全红（本轮实测） |
+
+### 六、验收（已全绿）
+
+```
+swag init 直出：ID 字段 integer = 0，@Param integer = 0
+go build ./...                          通过
+go vet ./...                            0 告警
+CGO_ENABLED=1 go test ./... -count=1    82 包全绿
+archcheck --skip-tests=false            0 违规（R12 基线 0）
+frontend typecheck / vitest             通过 / 30 文件 185 用例
+frontend_admin typecheck                通过
+两端 eslint                             0 error
+bash scripts/check.sh                   通过
+```
+
+### 七、流水线：4 步 → 3 步 → 2 步
+
+```
+M7 之前：swag v1 → swagger2openapi → fix-openapi-id-types.mjs → openapi-typescript
+M7 E5  ：swag v1 → swagger2openapi → openapi-typescript
+换 v2 后：swag v2 --v3.1 → openapi-typescript          ← 现在
+```
+
+`swag` 换成 **v2**（`--v3.1` 直出 OpenAPI 3.1），`swagger2openapi` 这一层删掉了。
+切换前做了逐 schema/逐字段比对：107 schemas、94 paths 名字全一致，字段集合 0 差异；
+5 处枚举被 `$ref` 放松，用 `swaggertype` 修回（详见 ADR-007「追加决策」）。
+
+顺带删掉两个**无人消费**的产物：`docs.go`（gin 没挂 `/swagger` 路由、全仓无人 import）
+与 `swagger.yaml`（无脚本读它）。于是 `go.mod` 里的 `swag v1.16.6 // indirect` 一起移除。
+`docs/` 现在只有 `swagger.json` 一个文件。
+
+### 八、golden 与 integration 测试
+
+**32 个 golden 只有 1 个变**：`top_list.json` 从 `[1019,1011,1003]` 变 `["1019","1011","1003"]`，
+顺序完全一致，其余 31 个逐字节未变。原因：`ctype.ID.MarshalJSON` 本来就输出字符串，
+DTO 层 JSON 形态前后一样——变的只是"Go 类型"与"JSON 形态"是否一致。
+唯一变的那处是裸 `[]uint64` 收编成 `[]ctype.ID`（修正，不是回归）。
+
+**一个差点漏网的盲区**：`go vet ./...` 默认不编译 `//go:build integration` 的文件，
+`go build` 也不编译 `_test.go`。所以第一轮"全绿"是假的，真跑 `check.sh` 时
+`go vet` 与 `go test -tags integration` 同时红了约 **90 处**，全在 integration 测试里。
+
+- 验证口径必须与门禁一致：本地至少要把 `-tags integration` 带上
+- 收集全量错误的最快方式：`go test -tags integration -run='^$' -gcflags=-e ./...`
+  （不跑用例只编译，`-e` 不让编译器截断）。`go vet` 每包只报前几条，收敛极慢

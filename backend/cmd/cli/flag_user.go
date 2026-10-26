@@ -53,7 +53,7 @@ func (u *FlagUser) Create(db *gorm.DB, logger *logrus.Logger, opts UserCreateOpt
 	fmt.Scanln(&username)
 
 	repo := usermysql.New(db)
-	if exists, err := repo.ExistsUsername(context.Background(), username, 0); err != nil || exists {
+	if exists, err := repo.ExistsUsername(context.Background(), username, ""); err != nil || exists {
 		fmt.Printf("用户名 %s 已存在\n", username)
 		return
 	}
@@ -135,7 +135,7 @@ func (u *FlagUser) createNonInteractive(db *gorm.DB, logger *logrus.Logger, opts
 	}
 
 	repo := usermysql.New(db)
-	if exists, err := repo.ExistsUsername(context.Background(), username, 0); err != nil || exists {
+	if exists, err := repo.ExistsUsername(context.Background(), username, ""); err != nil || exists {
 		fmt.Printf("用户名 %s 已存在\n", username)
 		return
 	}

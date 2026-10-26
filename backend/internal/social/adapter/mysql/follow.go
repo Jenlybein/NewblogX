@@ -10,19 +10,20 @@ import (
 	"myblogx/internal/social/domain"
 
 	"gorm.io/gorm"
+	"myblogx/internal/kernel/ctype"
 )
 
 // followRow 对应 user_follow_models 表。
 type followRow struct {
-	ID               uint64 `gorm:"primaryKey;autoIncrement:false"`
+	ID               ctype.ID `gorm:"primaryKey;autoIncrement:false"`
 	CreatedAt        time.Time
 	UpdatedAt        time.Time
 	DeletedAt        gorm.DeletedAt
-	FollowedUserID   uint64
+	FollowedUserID   ctype.ID
 	FollowedNickname string
 	FollowedAvatar   string
 	FollowedAbstract string
-	FansUserID       uint64
+	FansUserID       ctype.ID
 	FansNickname     string
 	FansAvatar       string
 	FansAbstract     string
@@ -54,7 +55,7 @@ func (r *Repo) Follow(ctx context.Context, f *domain.Follow) (bool, error) {
 		FansAbstract:     f.FansAbstract,
 	}
 	if next, err := idgen.Next(); err == nil {
-		row.ID = next.Uint64()
+		row.ID = next
 	}
 	return platformmysql.RestoreOrCreateUnique(r.db.WithContext(ctx), row, []string{"followed_user_id", "fans_user_id"})
 }
@@ -139,10 +140,10 @@ func (r *Repo) RelationBatch(ctx context.Context, viewerID uint64, ids []uint64)
 	state := make(map[uint64]uint8, len(ids))
 	for _, row := range rows {
 		switch {
-		case row.FansUserID == viewerID:
-			state[row.FollowedUserID] |= iFollow
-		case row.FollowedUserID == viewerID:
-			state[row.FansUserID] |= heFollow
+		case row.FansUserID.Uint64() == viewerID:
+			state[row.FollowedUserID.Uint64()] |= iFollow
+		case row.FollowedUserID.Uint64() == viewerID:
+			state[row.FansUserID.Uint64()] |= heFollow
 		}
 	}
 	for other, s := range state {

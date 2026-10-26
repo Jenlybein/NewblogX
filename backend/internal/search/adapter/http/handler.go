@@ -44,9 +44,9 @@ type ArticleSearchQuery struct {
 	Type       int8     `form:"type"`
 	Sort       int8     `form:"sort"`
 	PageMode   string   `form:"page_mode"`
-	CategoryID uint64   `form:"category_id"`
-	AuthorID   uint64   `form:"author_id"`
-	UserID     uint64   `form:"user_id"`
+	CategoryID ctype.ID `form:"category_id"`
+	AuthorID   ctype.ID `form:"author_id"`
+	UserID     ctype.ID `form:"user_id"`
 	Status     int8     `form:"status"`
 	TagList    []string `form:"tag_list"`
 }
@@ -70,11 +70,11 @@ func (h *Handler) ArticleSearch(c *gin.Context) {
 		Sort:          q.Sort,
 		PageMode:      domain.PageMode(q.PageMode),
 		TagIDs:        parseTagIDs(c),
-		CategoryID:    ctype.ID(q.CategoryID),
-		AuthorID:      ctype.ID(q.AuthorID),
+		CategoryID:    q.CategoryID,
+		AuthorID:      q.AuthorID,
 		Status:        domain.ArticleStatus(q.Status),
 		Key:           q.Key,
-		LegacyUserID:  ctype.ID(q.UserID),
+		LegacyUserID:  q.UserID,
 		LegacyTagList: q.TagList,
 	}
 
@@ -115,7 +115,7 @@ func parseTagIDs(c *gin.Context) []ctype.ID {
 		if err != nil || id == 0 {
 			continue
 		}
-		value := ctype.ID(id)
+		value := ctype.NewID(id)
 		if _, ok := seen[value]; ok {
 			continue
 		}

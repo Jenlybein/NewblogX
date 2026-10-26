@@ -8,33 +8,34 @@ import (
 
 	"myblogx/internal/apperr"
 	"myblogx/internal/comment/domain"
+	"myblogx/internal/kernel/ctype"
 )
 
 // CreateInput 是发表评论的输入。
 type CreateInput struct {
 	Content   string
-	ArticleID uint64
-	ReplyID   *uint64
+	ArticleID ctype.ID
+	ReplyID   *ctype.ID
 }
 
 // CreateResult 是发表评论的结果（字段名与旧契约一致）。
 type CreateResult struct {
-	ID        uint64 `json:"id"`
-	ArticleID uint64 `json:"article_id"`
-	ReplyID   uint64 `json:"reply_id"`
-	RootID    uint64 `json:"root_id"`
-	Status    int8   `json:"status"`
-	Content   string `json:"content"`
+	ID        ctype.ID `json:"id"`
+	ArticleID ctype.ID `json:"article_id"`
+	ReplyID   ctype.ID `json:"reply_id"`
+	RootID    ctype.ID `json:"root_id"`
+	Status    int8     `json:"status"`
+	Content   string   `json:"content"`
 }
 
 // RootItem 是一级评论列表项（字段名与旧契约逐字一致）。
 type RootItem struct {
-	ID           uint64    `json:"id"`
+	ID           ctype.ID  `json:"id"`
 	CreatedAt    time.Time `json:"created_at"`
 	Content      string    `json:"content"`
-	UserID       uint64    `json:"user_id"`
-	ReplyID      uint64    `json:"reply_id"`
-	RootID       uint64    `json:"root_id"`
+	UserID       ctype.ID  `json:"user_id"`
+	ReplyID      ctype.ID  `json:"reply_id"`
+	RootID       ctype.ID  `json:"root_id"`
 	DiggCount    int       `json:"digg_count"`
 	ReplyCount   int       `json:"reply_count"`
 	IsDigg       bool      `json:"is_digg"`
@@ -46,11 +47,11 @@ type RootItem struct {
 
 // ReplyItem 是二级评论列表项。
 type ReplyItem struct {
-	ID                uint64    `json:"id"`
+	ID                ctype.ID  `json:"id"`
 	CreatedAt         time.Time `json:"created_at"`
 	Content           string    `json:"content"`
-	UserID            uint64    `json:"user_id"`
-	ReplyID           uint64    `json:"reply_id"`
+	UserID            ctype.ID  `json:"user_id"`
+	ReplyID           ctype.ID  `json:"reply_id"`
 	DiggCount         int       `json:"digg_count"`
 	ReplyCount        int       `json:"reply_count"`
 	IsDigg            bool      `json:"is_digg"`
@@ -63,26 +64,26 @@ type ReplyItem struct {
 
 // ManageItem 是管理端列表项。
 type ManageItem struct {
-	ID           uint64 `json:"id"`
-	CreatedAt    string `json:"created_at"`
-	Content      string `json:"content"`
-	DiggCount    int    `json:"digg_count"`
-	ReplyCount   int    `json:"reply_count"`
-	UserID       uint64 `json:"user_id"`
-	UserNickname string `json:"user_nickname"`
-	UserAvatar   string `json:"user_avatar"`
-	Relation     int8   `json:"relation,omitempty"`
-	ArticleID    uint64 `json:"article_id"`
-	ArticleTitle string `json:"article_title"`
-	ArticleCover string `json:"article_cover"`
+	ID           ctype.ID `json:"id"`
+	CreatedAt    string   `json:"created_at"`
+	Content      string   `json:"content"`
+	DiggCount    int      `json:"digg_count"`
+	ReplyCount   int      `json:"reply_count"`
+	UserID       ctype.ID `json:"user_id"`
+	UserNickname string   `json:"user_nickname"`
+	UserAvatar   string   `json:"user_avatar"`
+	Relation     int8     `json:"relation,omitempty"`
+	ArticleID    ctype.ID `json:"article_id"`
+	ArticleTitle string   `json:"article_title"`
+	ArticleCover string   `json:"article_cover"`
 }
 
 // ManagedInput 是管理端查询输入。
 type ManagedInput struct {
 	Type      int8
 	Status    int8
-	ArticleID uint64
-	UserID    uint64
+	ArticleID ctype.ID
+	UserID    ctype.ID
 	Page      domain.Page
 }
 
@@ -150,7 +151,7 @@ func (s *Service) Create(ctx context.Context, viewer domain.Viewer, in CreateInp
 	if strings.TrimSpace(in.Content) == "" {
 		return nil, apperr.New(apperr.CodeCommentContentEmpty)
 	}
-	article, err := s.articles.ByID(ctx, in.ArticleID)
+	article, err := s.articles.ByID(ctx, in.ArticleID.Uint64())
 	if err != nil {
 		return nil, apperr.New(apperr.CodeArticleNotFound)
 	}
@@ -158,7 +159,7 @@ func (s *Service) Create(ctx context.Context, viewer domain.Viewer, in CreateInp
 		return nil, apperr.New(apperr.CodeCommentClosed)
 	}
 
-	display := s.display(ctx, viewer.ID)
+	display := s.display(ctx, viewer.ID.Uint64())
 	c := domain.Comment{
 		Content:      in.Content,
 		UserID:       viewer.ID,
@@ -169,8 +170,8 @@ func (s *Service) Create(ctx context.Context, viewer domain.Viewer, in CreateInp
 	}
 
 	var replyUserID uint64
-	if in.ReplyID != nil && *in.ReplyID != 0 {
-		reply, err := s.repo.FindPublished(ctx, domain.CommentID(*in.ReplyID), in.ArticleID)
+	if in.ReplyID != nil && !(*in.ReplyID).IsZero() {
+		reply, err := s.repo.FindPublished(ctx, *in.ReplyID, in.ArticleID.Uint64())
 		if err != nil {
 			return nil, apperr.New(apperr.CodeCommentReplyInvalid)
 		}
@@ -178,14 +179,14 @@ func (s *Service) Create(ctx context.Context, viewer domain.Viewer, in CreateInp
 		c.ReplyUserID = reply.UserID
 		c.ReplyUserNickname = reply.UserNickname
 		if c.ReplyUserNickname == "" {
-			c.ReplyUserNickname = s.display(ctx, reply.UserID).Nickname
+			c.ReplyUserNickname = s.display(ctx, reply.UserID.Uint64()).Nickname
 		}
-		if reply.RootID != 0 {
+		if !reply.RootID.IsZero() {
 			c.RootID = reply.RootID
 		} else {
-			c.RootID = reply.ID.Uint64()
+			c.RootID = reply.ID
 		}
-		replyUserID = reply.UserID
+		replyUserID = reply.UserID.Uint64()
 	}
 
 	if err := s.repo.Create(ctx, &c); err != nil {
@@ -198,18 +199,18 @@ func (s *Service) Create(ctx context.Context, viewer domain.Viewer, in CreateInp
 			return nil, err
 		}
 		c.Status = domain.StatusPublished
-		s.addArticleComments(ctx, c.ArticleID, 1)
-		if c.RootID != 0 {
-			s.addReply(ctx, c.RootID, 1)
+		s.addArticleComments(ctx, c.ArticleID.Uint64(), 1)
+		if !c.RootID.IsZero() {
+			s.addReply(ctx, c.RootID.Uint64(), 1)
 		}
 		s.notifyComment(ctx, c, article)
-		if c.RootID != 0 && replyUserID != 0 {
+		if !c.RootID.IsZero() && replyUserID != 0 {
 			s.notifyReply(ctx, c, article, replyUserID)
 		}
 	}
 
 	return &CreateResult{
-		ID:        c.ID.Uint64(),
+		ID:        c.ID,
 		ArticleID: c.ArticleID,
 		ReplyID:   c.ReplyID,
 		RootID:    c.RootID,
@@ -223,17 +224,17 @@ func (s *Service) ToggleDigg(ctx context.Context, viewer domain.Viewer, commentI
 	if viewer.IsZero() {
 		return false, apperr.New(apperr.CodeAuthRequired)
 	}
-	comment, err := s.repo.FindPublishedByID(ctx, domain.CommentID(commentID))
+	comment, err := s.repo.FindPublishedByID(ctx, ctype.NewID(commentID))
 	if err != nil {
 		return false, err
 	}
 
-	exists, err := s.diggs.Exists(ctx, commentID, viewer.ID)
+	exists, err := s.diggs.Exists(ctx, commentID, viewer.ID.Uint64())
 	if err != nil {
 		return false, err
 	}
 	if exists {
-		removed, err := s.diggs.Delete(ctx, commentID, viewer.ID)
+		removed, err := s.diggs.Delete(ctx, commentID, viewer.ID.Uint64())
 		if err != nil {
 			return false, err
 		}
@@ -244,7 +245,7 @@ func (s *Service) ToggleDigg(ctx context.Context, viewer domain.Viewer, commentI
 		return false, nil
 	}
 
-	created, err := s.diggs.Create(ctx, commentID, viewer.ID)
+	created, err := s.diggs.Create(ctx, commentID, viewer.ID.Uint64())
 	if err != nil {
 		return false, err
 	}
@@ -252,7 +253,7 @@ func (s *Service) ToggleDigg(ctx context.Context, viewer domain.Viewer, commentI
 		return false, apperr.New(apperr.CodeCommentDiggDuplicated)
 	}
 	s.addDigg(ctx, commentID, 1)
-	s.notifyDigg(ctx, comment, viewer.ID)
+	s.notifyDigg(ctx, comment, viewer.ID.Uint64())
 	return true, nil
 }
 
@@ -261,15 +262,15 @@ func (s *Service) Remove(ctx context.Context, viewer domain.Viewer, commentID ui
 	if viewer.IsZero() {
 		return apperr.New(apperr.CodeAuthRequired)
 	}
-	target, err := s.repo.FindByID(ctx, domain.CommentID(commentID))
+	target, err := s.repo.FindByID(ctx, ctype.NewID(commentID))
 	if err != nil {
 		return err
 	}
-	article, err := s.articles.ByID(ctx, target.ArticleID)
+	article, err := s.articles.ByID(ctx, target.ArticleID.Uint64())
 	if err != nil {
 		return apperr.New(apperr.CodeArticleNotFound)
 	}
-	if !target.CanDelete(viewer.ID, viewer.Admin, article.AuthorID) {
+	if !target.CanDelete(viewer.ID.Uint64(), viewer.Admin, article.AuthorID.Uint64()) {
 		return apperr.New(apperr.CodeCommentForbidden)
 	}
 
@@ -303,22 +304,22 @@ func (s *Service) Remove(ctx context.Context, viewer domain.Viewer, commentID ui
 		s.delDigg(ctx, id)
 	}
 	if articleDelta != 0 {
-		s.addArticleComments(ctx, target.ArticleID, articleDelta)
+		s.addArticleComments(ctx, target.ArticleID.Uint64(), articleDelta)
 	}
 	if target.IsRoot() {
 		s.delReply(ctx, target.ID.Uint64())
-	} else if target.Status.IsPublished() && target.RootID != 0 {
-		s.addReply(ctx, target.RootID, -1)
+	} else if target.Status.IsPublished() && !target.RootID.IsZero() {
+		s.addReply(ctx, target.RootID.Uint64(), -1)
 	}
 	return nil
 }
 
 // ListRoot 一级评论列表。
-func (s *Service) ListRoot(ctx context.Context, articleID uint64, page domain.Page, viewerID uint64) ([]RootItem, bool, error) {
-	if _, err := s.articles.ByID(ctx, articleID); err != nil {
+func (s *Service) ListRoot(ctx context.Context, articleID ctype.ID, page domain.Page, viewerID ctype.ID) ([]RootItem, bool, error) {
+	if _, err := s.articles.ByID(ctx, articleID.Uint64()); err != nil {
 		return nil, false, apperr.New(apperr.CodeArticleNotFound)
 	}
-	rows, hasMore, err := s.repo.ListRoot(ctx, articleID, page)
+	rows, hasMore, err := s.repo.ListRoot(ctx, articleID.Uint64(), page)
 	if err != nil {
 		return nil, false, err
 	}
@@ -328,13 +329,13 @@ func (s *Service) ListRoot(ctx context.Context, articleID uint64, page domain.Pa
 
 	ids, userIDs := splitIDs(rows)
 	diggDelta, replyDelta := s.counterBatch(ctx, ids)
-	digged := s.diggedSet(ctx, viewerID, ids)
-	relations := s.relationBatch(ctx, viewerID, userIDs)
+	digged := s.diggedSet(ctx, viewerID.Uint64(), ids)
+	relations := s.relationBatch(ctx, viewerID.Uint64(), userIDs)
 
 	items := make([]RootItem, 0, len(rows))
 	for _, row := range rows {
 		items = append(items, RootItem{
-			ID:           row.ID.Uint64(),
+			ID:           row.ID,
 			CreatedAt:    row.CreatedAt,
 			Content:      row.Content,
 			UserID:       row.UserID,
@@ -343,7 +344,7 @@ func (s *Service) ListRoot(ctx context.Context, articleID uint64, page domain.Pa
 			DiggCount:    row.DiggCount + diggDelta[row.ID.Uint64()],
 			ReplyCount:   row.ReplyCount + replyDelta[row.ID.Uint64()],
 			IsDigg:       digged[row.ID.Uint64()],
-			Relation:     relations[row.UserID],
+			Relation:     relations[row.UserID.Uint64()],
 			Status:       int8(row.Status),
 			UserNickname: row.UserNickname,
 			UserAvatar:   row.UserAvatar,
@@ -353,8 +354,8 @@ func (s *Service) ListRoot(ctx context.Context, articleID uint64, page domain.Pa
 }
 
 // ListReplies 二级评论列表；第二个返回值是根评论的总回复数。
-func (s *Service) ListReplies(ctx context.Context, articleID, rootID uint64, page domain.Page, viewerID uint64) ([]ReplyItem, int, bool, error) {
-	root, err := s.repo.FindPublished(ctx, domain.CommentID(rootID), articleID)
+func (s *Service) ListReplies(ctx context.Context, articleID, rootID ctype.ID, page domain.Page, viewerID ctype.ID) ([]ReplyItem, int, bool, error) {
+	root, err := s.repo.FindPublished(ctx, rootID, articleID.Uint64())
 	if err != nil {
 		return nil, 0, false, apperr.New(apperr.CodeCommentNotFound)
 	}
@@ -362,7 +363,7 @@ func (s *Service) ListReplies(ctx context.Context, articleID, rootID uint64, pag
 		return nil, 0, false, apperr.New(apperr.CodeCommentReplyInvalid)
 	}
 
-	rows, hasMore, err := s.repo.ListReplies(ctx, articleID, rootID, page)
+	rows, hasMore, err := s.repo.ListReplies(ctx, articleID.Uint64(), rootID.Uint64(), page)
 	if err != nil {
 		return nil, 0, false, err
 	}
@@ -372,13 +373,13 @@ func (s *Service) ListReplies(ctx context.Context, articleID, rootID uint64, pag
 
 	ids, userIDs := splitIDs(rows)
 	diggDelta, replyDelta := s.counterBatch(ctx, ids)
-	digged := s.diggedSet(ctx, viewerID, ids)
-	relations := s.relationBatch(ctx, viewerID, userIDs)
+	digged := s.diggedSet(ctx, viewerID.Uint64(), ids)
+	relations := s.relationBatch(ctx, viewerID.Uint64(), userIDs)
 
 	items := make([]ReplyItem, 0, len(rows))
 	for _, row := range rows {
 		items = append(items, ReplyItem{
-			ID:                row.ID.Uint64(),
+			ID:                row.ID,
 			CreatedAt:         row.CreatedAt,
 			Content:           row.Content,
 			UserID:            row.UserID,
@@ -386,7 +387,7 @@ func (s *Service) ListReplies(ctx context.Context, articleID, rootID uint64, pag
 			DiggCount:         row.DiggCount + diggDelta[row.ID.Uint64()],
 			ReplyCount:        row.ReplyCount + replyDelta[row.ID.Uint64()],
 			IsDigg:            digged[row.ID.Uint64()],
-			Relation:          relations[row.UserID],
+			Relation:          relations[row.UserID.Uint64()],
 			Status:            int8(row.Status),
 			UserNickname:      row.UserNickname,
 			UserAvatar:        row.UserAvatar,
@@ -394,11 +395,11 @@ func (s *Service) ListReplies(ctx context.Context, articleID, rootID uint64, pag
 		})
 	}
 
-	_, rootReplyDelta := s.counterBatch(ctx, []uint64{rootID})
+	_, rootReplyDelta := s.counterBatch(ctx, []uint64{rootID.Uint64()})
 	if rootReplyDelta == nil {
 		rootReplyDelta = map[uint64]int{}
 	}
-	return items, root.ReplyCount + rootReplyDelta[rootID], hasMore, nil
+	return items, root.ReplyCount + rootReplyDelta[rootID.Uint64()], hasMore, nil
 }
 
 // ListManaged 管理端评论列表。
@@ -440,7 +441,7 @@ func (s *Service) ListManaged(ctx context.Context, viewer domain.Viewer, in Mana
 	diggDelta, replyDelta := s.counterBatch(ctx, ids)
 	articleIDs := make([]uint64, 0, len(rows))
 	for _, row := range rows {
-		articleIDs = append(articleIDs, row.ArticleID)
+		articleIDs = append(articleIDs, row.ArticleID.Uint64())
 	}
 	var articleMap map[uint64]domain.Article
 	if s.articles != nil && len(articleIDs) > 0 {
@@ -448,14 +449,14 @@ func (s *Service) ListManaged(ctx context.Context, viewer domain.Viewer, in Mana
 	}
 	var relations map[uint64]int8
 	if in.Type == 1 {
-		relations = s.relationBatch(ctx, viewer.ID, userIDs)
+		relations = s.relationBatch(ctx, viewer.ID.Uint64(), userIDs)
 	}
 
 	items := make([]ManageItem, 0, len(rows))
 	for _, row := range rows {
-		article := articleMap[row.ArticleID]
+		article := articleMap[row.ArticleID.Uint64()]
 		items = append(items, ManageItem{
-			ID:           row.ID.Uint64(),
+			ID:           row.ID,
 			CreatedAt:    row.CreatedAt.Format("2006-01-02 15:04:05"),
 			Content:      row.Content,
 			DiggCount:    row.DiggCount + diggDelta[row.ID.Uint64()],
@@ -463,7 +464,7 @@ func (s *Service) ListManaged(ctx context.Context, viewer domain.Viewer, in Mana
 			UserID:       row.UserID,
 			UserNickname: row.UserNickname,
 			UserAvatar:   row.UserAvatar,
-			Relation:     relations[row.UserID],
+			Relation:     relations[row.UserID.Uint64()],
 			ArticleID:    row.ArticleID,
 			ArticleTitle: article.Title,
 			ArticleCover: article.Cover,
@@ -484,13 +485,13 @@ func (s *Service) hydrate(ctx context.Context, rows []domain.Comment) error {
 	var replyUserIDs []uint64
 	for _, row := range rows {
 		if row.UserNickname == "" || row.UserAvatar == "" {
-			userIDs = append(userIDs, row.UserID)
+			userIDs = append(userIDs, row.UserID.Uint64())
 		}
-		if row.ReplyID != 0 && row.ReplyUserNickname == "" {
-			if row.ReplyUserID != 0 {
-				replyUserIDs = append(replyUserIDs, row.ReplyUserID)
+		if !row.ReplyID.IsZero() && row.ReplyUserNickname == "" {
+			if !row.ReplyUserID.IsZero() {
+				replyUserIDs = append(replyUserIDs, row.ReplyUserID.Uint64())
 			} else {
-				replyIDs = append(replyIDs, row.ReplyID)
+				replyIDs = append(replyIDs, row.ReplyID.Uint64())
 			}
 		}
 	}
@@ -499,7 +500,7 @@ func (s *Service) hydrate(ctx context.Context, rows []domain.Comment) error {
 	if len(replyIDs) > 0 {
 		ids := make([]domain.CommentID, 0, len(replyIDs))
 		for _, id := range replyIDs {
-			ids = append(ids, domain.CommentID(id))
+			ids = append(ids, ctype.NewID(id))
 		}
 		got, err := s.repo.FindByIDs(ctx, ids)
 		if err != nil {
@@ -508,7 +509,7 @@ func (s *Service) hydrate(ctx context.Context, rows []domain.Comment) error {
 		for _, item := range got {
 			replyMap[item.ID.Uint64()] = item
 			if item.UserNickname == "" {
-				replyUserIDs = append(replyUserIDs, item.UserID)
+				replyUserIDs = append(replyUserIDs, item.UserID.Uint64())
 			}
 		}
 	}
@@ -525,7 +526,7 @@ func (s *Service) hydrate(ctx context.Context, rows []domain.Comment) error {
 
 	for i := range rows {
 		if rows[i].UserNickname == "" || rows[i].UserAvatar == "" {
-			if user, ok := displays[rows[i].UserID]; ok {
+			if user, ok := displays[rows[i].UserID.Uint64()]; ok {
 				if rows[i].UserNickname == "" {
 					rows[i].UserNickname = user.Nickname
 				}
@@ -534,22 +535,22 @@ func (s *Service) hydrate(ctx context.Context, rows []domain.Comment) error {
 				}
 			}
 		}
-		if rows[i].ReplyID == 0 || rows[i].ReplyUserNickname != "" {
+		if rows[i].ReplyID.IsZero() || rows[i].ReplyUserNickname != "" {
 			continue
 		}
-		if rows[i].ReplyUserID != 0 {
-			if user, ok := displays[rows[i].ReplyUserID]; ok {
+		if !rows[i].ReplyUserID.IsZero() {
+			if user, ok := displays[rows[i].ReplyUserID.Uint64()]; ok {
 				rows[i].ReplyUserNickname = user.Nickname
 			}
 			continue
 		}
-		if reply, ok := replyMap[rows[i].ReplyID]; ok {
+		if reply, ok := replyMap[rows[i].ReplyID.Uint64()]; ok {
 			rows[i].ReplyUserID = reply.UserID
 			if reply.UserNickname != "" {
 				rows[i].ReplyUserNickname = reply.UserNickname
 				continue
 			}
-			if user, ok := displays[reply.UserID]; ok {
+			if user, ok := displays[reply.UserID.Uint64()]; ok {
 				rows[i].ReplyUserNickname = user.Nickname
 			}
 		}
@@ -644,7 +645,7 @@ func (s *Service) notifyComment(ctx context.Context, c domain.Comment, article d
 		return
 	}
 	if err := s.notifier.CommentCreated(ctx, domain.CommentNotice{
-		CommentID:    c.ID.Uint64(),
+		CommentID:    c.ID,
 		Content:      c.Content,
 		ReceiverID:   article.AuthorID,
 		ActionUserID: c.UserID,
@@ -660,9 +661,9 @@ func (s *Service) notifyReply(ctx context.Context, c domain.Comment, article dom
 		return
 	}
 	if err := s.notifier.ReplyCreated(ctx, domain.ReplyNotice{
-		CommentID:    c.ID.Uint64(),
+		CommentID:    c.ID,
 		Content:      c.Content,
-		ReceiverID:   receiverID,
+		ReceiverID:   ctype.NewID(receiverID),
 		ActionUserID: c.UserID,
 		ArticleID:    article.ID,
 		ArticleTitle: article.Title,
@@ -675,12 +676,12 @@ func (s *Service) notifyDigg(ctx context.Context, c domain.Comment, actionUserID
 	if s.notifier == nil {
 		return
 	}
-	article, _ := s.articles.ByID(ctx, c.ArticleID)
+	article, _ := s.articles.ByID(ctx, c.ArticleID.Uint64())
 	if err := s.notifier.DiggCreated(ctx, domain.DiggNotice{
-		CommentID:    c.ID.Uint64(),
+		CommentID:    c.ID,
 		Content:      c.Content,
 		ReceiverID:   c.UserID,
-		ActionUserID: actionUserID,
+		ActionUserID: ctype.NewID(actionUserID),
 		ArticleID:    c.ArticleID,
 		ArticleTitle: article.Title,
 	}); err != nil {
@@ -699,7 +700,7 @@ func splitIDs(rows []domain.Comment) ([]uint64, []uint64) {
 	userIDs := make([]uint64, 0, len(rows))
 	for _, row := range rows {
 		ids = append(ids, row.ID.Uint64())
-		userIDs = append(userIDs, row.UserID)
+		userIDs = append(userIDs, row.UserID.Uint64())
 	}
 	return ids, userIDs
 }

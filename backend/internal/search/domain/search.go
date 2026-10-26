@@ -114,7 +114,7 @@ func (r Request) NormalizePageMode() PageMode {
 
 // NormalizeAuthorID 兼容旧 user_id 参数。
 func (r Request) NormalizeAuthorID() ctype.ID {
-	if r.AuthorID != 0 {
+	if !r.AuthorID.IsZero() {
 		return r.AuthorID
 	}
 	return r.LegacyUserID
@@ -215,4 +215,4 @@ type Viewer struct {
 }
 
 // IsZero 判断是否匿名。
-func (v Viewer) IsZero() bool { return v.ID == 0 }
+func (v Viewer) IsZero() bool { return v.ID.IsZero() }

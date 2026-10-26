@@ -1,8 +1,8 @@
 /**
  * OpenAPI 契约类型入口（S2.9）。
  *
- * 链路：backend/docs/swagger.json（swag 从代码注解生成）
- *   → `pnpm openapi:types`（swagger2openapi 转 3.0 + openapi-typescript）
+ * 链路：backend/docs/swagger.json（swag v2 从代码注解直出 OpenAPI 3.1）
+ *   → `pnpm openapi:types`（openapi-typescript 一步生成）
  *   → ./openapi.d.ts（自动生成，勿手改）
  *
  * 约定：

@@ -6,6 +6,7 @@ package mysql
 
 import (
 	"context"
+	"myblogx/internal/kernel/ctype"
 	"time"
 
 	"myblogx/internal/apperr"
@@ -20,11 +21,11 @@ import (
 // 与 testkit/schema.UserSessionRow 的差别：这里不带 User 关联字段——认证只用
 // user_id，关联预加载既浪费一次查询，也会让两个模块的表结构耦合。
 type sessionRow struct {
-	ID               uint64 `gorm:"primaryKey;autoIncrement:false"`
+	ID               ctype.ID `gorm:"primaryKey;autoIncrement:false"`
 	CreatedAt        time.Time
 	UpdatedAt        time.Time
 	DeletedAt        gorm.DeletedAt
-	UserID           uint64
+	UserID           ctype.ID
 	RefreshTokenHash string
 	IP               string
 	Addr             string
@@ -57,12 +58,12 @@ func (r *SessionRepo) Create(ctx context.Context, s *domain.Session) error {
 		if err != nil {
 			return err
 		}
-		s.ID = domain.SessionID(next.Uint64())
+		s.ID = ctype.NewID(next.Uint64())
 	}
 
 	now := time.Now()
 	row := sessionRow{
-		ID:               s.ID.Uint64(),
+		ID:               s.ID,
 		CreatedAt:        now,
 		UserID:           s.UserID,
 		RefreshTokenHash: s.RefreshTokenHash,
@@ -174,7 +175,7 @@ func translate(err error) error {
 // toSession 把 row 映射成领域实体。
 func toSession(row sessionRow) domain.Session {
 	return domain.Session{
-		ID:               domain.SessionID(row.ID),
+		ID:               ctype.NewID(row.ID.Uint64()),
 		UserID:           row.UserID,
 		RefreshTokenHash: row.RefreshTokenHash,
 		IP:               row.IP,

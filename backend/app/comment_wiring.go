@@ -54,7 +54,7 @@ func (commentIDs) NextCommentID() domain.CommentID {
 	if err != nil {
 		panic("comment: 雪花 ID 生成失败: " + err.Error())
 	}
-	return domain.CommentID(next.Uint64())
+	return ctype.NewID(next.Uint64())
 }
 
 // counterBridge 读评论计数的 Redis 增量。
@@ -71,10 +71,10 @@ func (b *counterBridge) Batch(_ context.Context, ids []uint64) (map[uint64]int, 
 	digg := make(map[uint64]int, len(got.DiggMap))
 	reply := make(map[uint64]int, len(got.ReplyMap))
 	for id, v := range got.DiggMap {
-		digg[uint64(id)] = v
+		digg[id.Uint64()] = v
 	}
 	for id, v := range got.ReplyMap {
-		reply[uint64(id)] = v
+		reply[id.Uint64()] = v
 	}
 	return digg, reply
 }
@@ -117,15 +117,15 @@ func (b *userDirBridge) Displays(_ context.Context, ids []uint64) (map[uint64]do
 	}
 	out := make(map[uint64]domain.Display, len(raw))
 	for id, item := range raw {
-		out[uint64(id)] = domain.Display{Nickname: item.Nickname, Avatar: item.Avatar}
+		out[id.Uint64()] = domain.Display{Nickname: item.Nickname, Avatar: item.Avatar}
 	}
 	return out, nil
 }
 
 // articleRow 是评论模块读取文章所需的最小列。
 type articleRow struct {
-	ID             uint64 `gorm:"primaryKey;autoIncrement:false"`
-	AuthorID       uint64
+	ID             ctype.ID `gorm:"primaryKey;autoIncrement:false"`
+	AuthorID       ctype.ID
 	Title          string
 	Cover          string
 	CommentsToggle bool
@@ -159,21 +159,21 @@ func (b *articleBridge) BaseMap(_ context.Context, ids []uint64) (map[uint64]dom
 		return nil, err
 	}
 	for _, row := range rows {
-		out[row.ID] = toArticle(row)
+		out[row.ID.Uint64()] = toArticle(row)
 	}
 	return out, nil
 }
 
 // IDsByAuthor 查某作者的文章 ID 列表。
-func (b *articleBridge) IDsByAuthor(_ context.Context, authorID, articleID uint64) ([]uint64, error) {
-	if authorID == 0 {
+func (b *articleBridge) IDsByAuthor(_ context.Context, authorID, articleID ctype.ID) ([]ctype.ID, error) {
+	if authorID.IsZero() {
 		return nil, nil
 	}
 	tx := b.db.Model(&articleRow{}).Select("id").Where("author_id = ?", authorID)
-	if articleID != 0 {
+	if !articleID.IsZero() {
 		tx = tx.Where("id = ?", articleID)
 	}
-	var ids []uint64
+	var ids []ctype.ID
 	if err := tx.Order("id asc").Pluck("id", &ids).Error; err != nil {
 		return nil, err
 	}
@@ -187,27 +187,27 @@ type cacheBridge struct {
 
 // AddArticleComments 文章评论数增量。
 func (b *cacheBridge) AddArticleComments(_ context.Context, articleID uint64, delta int) error {
-	return redis_article.SetCacheComment(b.deps, ctype.ID(articleID), delta)
+	return redis_article.SetCacheComment(b.deps, ctype.NewID(articleID), delta)
 }
 
 // AddReply 根评论回复数增量。
 func (b *cacheBridge) AddReply(_ context.Context, rootID uint64, delta int) error {
-	return redis_comment.SetCacheReply(b.deps, ctype.ID(rootID), delta)
+	return redis_comment.SetCacheReply(b.deps, ctype.NewID(rootID), delta)
 }
 
 // DelReply 删除根评论回复缓存。
 func (b *cacheBridge) DelReply(_ context.Context, rootID uint64) error {
-	return redis_comment.DelCacheReply(b.deps, ctype.ID(rootID))
+	return redis_comment.DelCacheReply(b.deps, ctype.NewID(rootID))
 }
 
 // AddDigg 评论点赞数增量。
 func (b *cacheBridge) AddDigg(_ context.Context, commentID uint64, delta int) error {
-	return redis_comment.SetCacheDigg(b.deps, ctype.ID(commentID), delta)
+	return redis_comment.SetCacheDigg(b.deps, ctype.NewID(commentID), delta)
 }
 
 // DelDigg 删除评论点赞缓存。
 func (b *cacheBridge) DelDigg(_ context.Context, commentID uint64) error {
-	return redis_comment.DelCacheDigg(b.deps, ctype.ID(commentID))
+	return redis_comment.DelCacheDigg(b.deps, ctype.NewID(commentID))
 }
 
 // notifierBridge 把评论事件翻译成站内信。
@@ -225,8 +225,8 @@ func (notifierBridge) CommentCreated(ctx context.Context, in domain.CommentNotic
 	return notificationService.NotifyComment(ctx, notificationapp.CommentNotice{
 		CommentID:    in.CommentID,
 		Content:      in.Content,
-		Receiver:     in.ReceiverID,
-		ActionUser:   in.ActionUserID,
+		Receiver:     in.ReceiverID.Uint64(),
+		ActionUser:   in.ActionUserID.Uint64(),
 		ArticleID:    in.ArticleID,
 		ArticleTitle: in.ArticleTitle,
 	})
@@ -240,8 +240,8 @@ func (notifierBridge) ReplyCreated(ctx context.Context, in domain.ReplyNotice) e
 	return notificationService.NotifyReply(ctx, notificationapp.ReplyNotice{
 		CommentID:    in.CommentID,
 		Content:      in.Content,
-		Receiver:     in.ReceiverID,
-		ActionUser:   in.ActionUserID,
+		Receiver:     in.ReceiverID.Uint64(),
+		ActionUser:   in.ActionUserID.Uint64(),
 		ArticleID:    in.ArticleID,
 		ArticleTitle: in.ArticleTitle,
 	})
@@ -255,8 +255,8 @@ func (notifierBridge) DiggCreated(ctx context.Context, in domain.DiggNotice) err
 	return notificationService.NotifyCommentDigg(ctx, notificationapp.CommentDiggNotice{
 		CommentID:    in.CommentID,
 		Content:      in.Content,
-		Receiver:     in.ReceiverID,
-		ActionUser:   in.ActionUserID,
+		Receiver:     in.ReceiverID.Uint64(),
+		ActionUser:   in.ActionUserID.Uint64(),
 		ArticleID:    in.ArticleID,
 		ArticleTitle: in.ArticleTitle,
 	})
@@ -275,7 +275,7 @@ func toArticle(row articleRow) domain.Article {
 func toCtypeIDs(ids []uint64) []ctype.ID {
 	out := make([]ctype.ID, 0, len(ids))
 	for _, id := range ids {
-		out = append(out, ctype.ID(id))
+		out = append(out, ctype.NewID(id))
 	}
 	return out
 }

@@ -160,7 +160,7 @@ func TestGlobalNotifRouterDeletePaths(t *testing.T) {
 	userNotif = list[0]
 	adminNotif = list[1]
 
-	userReq := testutil.NewJSONRequest(http.MethodDelete, "/api/global_notif/user", fmt.Sprintf(`{"id_list":[%d]}`, userNotif.ID))
+	userReq := testutil.NewJSONRequest(http.MethodDelete, "/api/global_notif/user", fmt.Sprintf(`{"id_list":[%s]}`, userNotif.ID))
 	userReq.Header.Set("token", userToken)
 
 	userW := httptest.NewRecorder()
@@ -177,7 +177,7 @@ func TestGlobalNotifRouterDeletePaths(t *testing.T) {
 		t.Fatalf("用户删除通知后应存在软删除标记: %+v", userState)
 	}
 
-	adminReq := testutil.NewJSONRequest(http.MethodDelete, "/api/global_notif", fmt.Sprintf(`{"id_list":[%d]}`, adminNotif.ID))
+	adminReq := testutil.NewJSONRequest(http.MethodDelete, "/api/global_notif", fmt.Sprintf(`{"id_list":[%s]}`, adminNotif.ID))
 	adminReq.Header.Set("token", adminToken)
 
 	adminW := httptest.NewRecorder()
@@ -211,7 +211,7 @@ func TestGlobalNotifRouterReadPath(t *testing.T) {
 		t.Fatalf("创建通知失败: %v", err)
 	}
 
-	req := testutil.NewJSONRequest(http.MethodPost, "/api/global_notif/read", fmt.Sprintf(`{"id_list":[%d]}`, notif.ID))
+	req := testutil.NewJSONRequest(http.MethodPost, "/api/global_notif/read", fmt.Sprintf(`{"id_list":[%s]}`, notif.ID))
 	req.Header.Set("token", userToken)
 
 	w := httptest.NewRecorder()

@@ -6,6 +6,7 @@ import (
 
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
+	"myblogx/internal/kernel/ctype"
 )
 
 // 本文件承载「跨模块写用户统计」的能力。
@@ -78,7 +79,7 @@ func EnsureStatRows(tx *gorm.DB, userIDs ...uint64) error {
 			continue
 		}
 		seen[id] = struct{}{}
-		rows = append(rows, UserStatRow{UserID: id})
+		rows = append(rows, UserStatRow{UserID: ctype.NewID(id)})
 	}
 	if len(rows) == 0 {
 		return nil
@@ -137,11 +138,11 @@ func InitDefaults(tx *gorm.DB, userID uint64) error {
 	}
 
 	conf := UserConfRow{
-		UserID:                   userID,
+		UserID:                   ctype.NewID(userID),
 		FavoritesVisibility:      true,
 		FollowVisibility:         true,
 		FansVisibility:           true,
-		HomeStyleID:              1,
+		HomeStyleID:              ctype.NewID(1),
 		DiggNoticeEnabled:        true,
 		CommentNoticeEnabled:     true,
 		FavorNoticeEnabled:       true,
@@ -152,7 +153,7 @@ func InitDefaults(tx *gorm.DB, userID uint64) error {
 		return err
 	}
 
-	stat := UserStatRow{UserID: userID}
+	stat := UserStatRow{UserID: ctype.NewID(userID)}
 	return tx.Clauses(clause.OnConflict{DoNothing: true}).Create(&stat).Error
 }
 
@@ -170,8 +171,8 @@ func RecordViewDaily(tx *gorm.DB, targetID, viewerID uint64, viewDate time.Time)
 	}
 
 	row := UserViewDailyRow{
-		UserID:       targetID,
-		ViewerUserID: viewerID,
+		UserID:       ctype.NewID(targetID),
+		ViewerUserID: ctype.NewID(viewerID),
 		ViewDate:     viewDate,
 	}
 	created := tx.Clauses(clause.OnConflict{DoNothing: true}).Create(&row)

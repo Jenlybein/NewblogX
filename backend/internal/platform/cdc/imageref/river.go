@@ -115,7 +115,7 @@ func (h *eventHandler) OnRow(e *canal.RowsEvent) error {
 	case canal.DeleteAction:
 		// 删除操作：删除该业务对象关联的所有图片引用
 		for index, ownerID := range extractRowIDs(e) {
-			task := newImageRefTask(h.river, e, index, fmt.Sprintf("owner_id=%d", ownerID))
+			task := newImageRefTask(h.river, e, index, fmt.Sprintf("owner_id=%s", ownerID))
 			if err := h.river.runTaskWithRetry(task, map[string]any{
 				"owner_id": ownerID,
 				"ref_type": refType.String(),
@@ -267,8 +267,8 @@ func findIDColumnIndex(e *canal.RowsEvent) int {
 func rowValueToID(value any) (ctype.ID, bool) {
 	var id ctype.ID
 	// 扫描值到自定义 ID 类型
-	if err := id.Scan(value); err != nil || id == 0 {
-		return 0, false
+	if err := id.Scan(value); err != nil || id.IsZero() {
+		return "", false
 	}
 	return id, true
 }
@@ -299,7 +299,7 @@ func snapshotIDString(snapshot rowSnapshot) string {
 	if err != nil {
 		return "0"
 	}
-	return fmt.Sprintf("%d", id)
+	return fmt.Sprintf("%s", id)
 }
 
 func (r *River) runTaskWithRetry(task imageRefTask, payload map[string]any, runner func() error) error {

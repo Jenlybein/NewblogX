@@ -19,8 +19,8 @@ import (
 func newEnv() *apptest.Env {
 	env := apptest.NewEnv(conf.AI{Enable: true, ChatModel: "test-model"})
 	env.Scores.Articles[100] = domain.ArticleSnapshot{
-		ID:        100,
-		AuthorID:  7,
+		ID:        ctype.NewID(100),
+		AuthorID:  ctype.NewID(7),
 		Title:     "标题",
 		Content:   "正文内容",
 		UpdatedAt: time.Now(),
@@ -35,7 +35,7 @@ func TestScoreSummaryWithoutRecord(t *testing.T) {
 	if err != nil {
 		t.Fatalf("读评分摘要失败: %v", err)
 	}
-	if view.HasScore || view.ArticleID != 100 {
+	if view.HasScore || view.ArticleID.Uint64() != 100 {
 		t.Fatalf("无记录时应返回 has_score=false 且带上文章 ID: %+v", view)
 	}
 }
@@ -61,9 +61,9 @@ func TestSummaryHidesAdvice(t *testing.T) {
 	dimensions, _ := json.Marshal([]map[string]any{{"name": "结构", "score": 80, "reason": "原因"}})
 	issues, _ := json.Marshal([]map[string]any{{"title": "问题"}})
 	env.Scores.Seed(domain.ScoreRecord{
-		ID:             1,
-		ArticleID:      100,
-		UserID:         7,
+		ID:             ctype.NewID(1),
+		ArticleID:      ctype.NewID(100),
+		UserID:         ctype.NewID(7),
 		AITotalScore:   85,
 		TotalScore:     82,
 		ScoreLevel:     "B",
@@ -131,7 +131,7 @@ func TestEnsureScoreIfMissingSkips(t *testing.T) {
 
 	t.Run("AI 未启用", func(t *testing.T) {
 		env := apptest.NewEnv(conf.AI{Enable: false})
-		env.Scores.Articles[100] = domain.ArticleSnapshot{ID: 100, AuthorID: 7, Published: true}
+		env.Scores.Articles[100] = domain.ArticleSnapshot{ID: ctype.NewID(100), AuthorID: ctype.NewID(7), Published: true}
 		if err := env.Service.EnsureScoreIfMissing(ctx, 100); err != nil {
 			t.Fatalf("AI 未启用不应报错: %v", err)
 		}
@@ -153,11 +153,11 @@ func TestSearchArticlesDeduplicates(t *testing.T) {
 	env.Searcher.Results = func(req searchdomain.Request) searchdomain.Response {
 		if len(req.LegacyTagList) > 0 {
 			return searchdomain.Response{List: []searchdomain.Item{
-				{ID: ctype.ID(1)}, {ID: ctype.ID(2)},
+				{ID: ctype.NewID(1)}, {ID: ctype.NewID(2)},
 			}}
 		}
 		return searchdomain.Response{List: []searchdomain.Item{
-			{ID: ctype.ID(2)}, {ID: ctype.ID(3)},
+			{ID: ctype.NewID(2)}, {ID: ctype.NewID(3)},
 		}}
 	}
 	rewrite := aisearchRewrite("Go", []string{"Go"}, 2)

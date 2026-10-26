@@ -91,7 +91,7 @@ func GetAll(deps redis_service.Options, t ArticleCacheType) map[ctype.ID]int {
 		if err != nil {
 			continue
 		}
-		numMap[ctype.ID(ik)] = num
+		numMap[ctype.NewID(uint64(ik))] = num
 	}
 
 	return numMap

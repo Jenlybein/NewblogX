@@ -296,7 +296,7 @@ type UserSpec struct {
 func InsertUser(t *testing.T, db *gorm.DB, spec UserSpec) {
 	t.Helper()
 	u := UserRow{}
-	u.ID = ctype.ID(spec.ID)
+	u.ID = ctype.NewID(spec.ID)
 	u.Username = spec.Username
 	u.Nickname = spec.Nickname
 	u.Avatar = spec.Avatar
@@ -343,7 +343,7 @@ func InsertArticle(t *testing.T, db *gorm.DB, spec ArticleSpec) {
 	t.Helper()
 	m := ArticleRow{
 		BaseRow: BaseRow{
-			ID:        ctype.ID(spec.ID),
+			ID:        ctype.NewID(spec.ID),
 			CreatedAt: spec.CreatedAt,
 			UpdatedAt: spec.UpdatedAt,
 		},
@@ -351,7 +351,7 @@ func InsertArticle(t *testing.T, db *gorm.DB, spec ArticleSpec) {
 		Abstract:         spec.Abstract,
 		Content:          spec.Content,
 		CategoryID:       spec.CategoryID,
-		AuthorID:         ctype.ID(spec.AuthorID),
+		AuthorID:         ctype.NewID(spec.AuthorID),
 		ViewCount:        spec.ViewCount,
 		DiggCount:        spec.DiggCount,
 		CommentCount:     spec.CommentCount,
@@ -369,9 +369,9 @@ func InsertArticle(t *testing.T, db *gorm.DB, spec ArticleSpec) {
 func InsertCategory(t *testing.T, db *gorm.DB, id, userID uint64, title string, at time.Time) {
 	t.Helper()
 	m := CategoryRow{
-		BaseRow: BaseRow{ID: ctype.ID(id), CreatedAt: at, UpdatedAt: at},
+		BaseRow: BaseRow{ID: ctype.NewID(id), CreatedAt: at, UpdatedAt: at},
 		Title:   title,
-		UserID:  ctype.ID(userID),
+		UserID:  ctype.NewID(userID),
 	}
 	if err := db.Omit("UserModel", "ArticleList").Create(&m).Error; err != nil {
 		t.Fatalf("插入分类 %d 失败: %v", id, err)
@@ -395,12 +395,12 @@ type TagSpec struct {
 func InsertTag(t *testing.T, db *gorm.DB, spec TagSpec) {
 	t.Helper()
 	m := TagRow{
-		BaseRow:      BaseRow{ID: ctype.ID(spec.ID), CreatedAt: spec.At, UpdatedAt: spec.At},
+		BaseRow:      BaseRow{ID: ctype.NewID(spec.ID), CreatedAt: spec.At, UpdatedAt: spec.At},
 		Title:        spec.Title,
 		Sort:         spec.Sort,
 		ArticleCount: spec.ArticleCount,
 		IsEnabled:    spec.Enabled,
-		CreatedBy:    ctype.ID(spec.CreatedBy),
+		CreatedBy:    ctype.NewID(spec.CreatedBy),
 	}
 	if err := db.Omit("ArticleList").Create(&m).Error; err != nil {
 		t.Fatalf("插入标签 %d 失败: %v", spec.ID, err)
@@ -446,8 +446,8 @@ type FavoriteSpec struct {
 func InsertFavorite(t *testing.T, db *gorm.DB, spec FavoriteSpec) {
 	t.Helper()
 	m := FavoriteRow{
-		BaseRow:      BaseRow{ID: ctype.ID(spec.ID), CreatedAt: spec.At, UpdatedAt: spec.At},
-		UserID:       ctype.ID(spec.UserID),
+		BaseRow:      BaseRow{ID: ctype.NewID(spec.ID), CreatedAt: spec.At, UpdatedAt: spec.At},
+		UserID:       ctype.NewID(spec.UserID),
 		Title:        spec.Title,
 		IsDefault:    spec.IsDefault,
 		ArticleCount: spec.ArticleCount,
@@ -475,14 +475,14 @@ type UserArticleFavorSpec struct {
 func InsertUserArticleFavor(t *testing.T, db *gorm.DB, spec UserArticleFavorSpec) {
 	t.Helper()
 	m := UserArticleFavorRow{
-		BaseRow:               BaseRow{ID: ctype.ID(spec.ID), CreatedAt: spec.At, UpdatedAt: spec.At},
-		ArticleID:             ctype.ID(spec.ArticleID),
-		UserID:                ctype.ID(spec.UserID),
-		FavorID:               ctype.ID(spec.FavorID),
+		BaseRow:               BaseRow{ID: ctype.NewID(spec.ID), CreatedAt: spec.At, UpdatedAt: spec.At},
+		ArticleID:             ctype.NewID(spec.ArticleID),
+		UserID:                ctype.NewID(spec.UserID),
+		FavorID:               ctype.NewID(spec.FavorID),
 		ArticleTitle:          spec.ArticleTitle,
 		ArticleAbstract:       spec.ArticleAbstract,
 		ArticleStatus:         spec.ArticleStatus,
-		ArticleAuthorID:       ctype.ID(spec.ArticleAuthorID),
+		ArticleAuthorID:       ctype.NewID(spec.ArticleAuthorID),
 		ArticleAuthorNickname: spec.ArticleAuthorNickname,
 	}
 	if err := db.Omit("UserModel", "ArticleModel", "FavoriteModel").Create(&m).Error; err != nil {
@@ -494,9 +494,9 @@ func InsertUserArticleFavor(t *testing.T, db *gorm.DB, spec UserArticleFavorSpec
 func InsertUserTopArticle(t *testing.T, db *gorm.DB, id, userID, articleID uint64, at time.Time) {
 	t.Helper()
 	m := UserTopArticleRow{
-		BaseRow:   BaseRow{ID: ctype.ID(id), CreatedAt: at, UpdatedAt: at},
-		UserID:    ctype.ID(userID),
-		ArticleID: ctype.ID(articleID),
+		BaseRow:   BaseRow{ID: ctype.NewID(id), CreatedAt: at, UpdatedAt: at},
+		UserID:    ctype.NewID(userID),
+		ArticleID: ctype.NewID(articleID),
 	}
 	if err := db.Omit("UserModel", "ArticleModel").Create(&m).Error; err != nil {
 		t.Fatalf("插入置顶 %d 失败: %v", id, err)
@@ -507,9 +507,9 @@ func InsertUserTopArticle(t *testing.T, db *gorm.DB, id, userID, articleID uint6
 func InsertViewHistory(t *testing.T, db *gorm.DB, id, userID, articleID uint64, at time.Time) {
 	t.Helper()
 	m := UserArticleViewHistoryRow{
-		BaseRow:   BaseRow{ID: ctype.ID(id), CreatedAt: at, UpdatedAt: at},
-		UserID:    ctype.ID(userID),
-		ArticleID: ctype.ID(articleID),
+		BaseRow:   BaseRow{ID: ctype.NewID(id), CreatedAt: at, UpdatedAt: at},
+		UserID:    ctype.NewID(userID),
+		ArticleID: ctype.NewID(articleID),
 	}
 	if err := db.Omit("UserModel", "ArticleModel").Create(&m).Error; err != nil {
 		t.Fatalf("插入浏览历史 %d 失败: %v", id, err)
@@ -535,9 +535,9 @@ type ReviewTaskSpec struct {
 func InsertReviewTask(t *testing.T, db *gorm.DB, spec ReviewTaskSpec) {
 	t.Helper()
 	m := ArticleReviewTaskRow{
-		BaseRow:              BaseRow{ID: ctype.ID(spec.ID), CreatedAt: spec.CreatedAt, UpdatedAt: spec.UpdatedAt},
-		ArticleID:            ctype.ID(spec.ArticleID),
-		AuthorID:             ctype.ID(spec.AuthorID),
+		BaseRow:              BaseRow{ID: ctype.NewID(spec.ID), CreatedAt: spec.CreatedAt, UpdatedAt: spec.UpdatedAt},
+		ArticleID:            ctype.NewID(spec.ArticleID),
+		AuthorID:             ctype.NewID(spec.AuthorID),
 		ArticleTitle:         spec.ArticleTitle,
 		AuthorName:           spec.AuthorName,
 		ArticlePublishStatus: spec.ArticlePublishStatus,

@@ -10,12 +10,13 @@ import (
 	"myblogx/internal/auth/app"
 	"myblogx/internal/auth/apptest"
 	"myblogx/internal/auth/domain"
+	"myblogx/internal/kernel/ctype"
 )
 
 var baseTime = time.Date(2026, 10, 25, 12, 0, 0, 0, time.UTC)
 
 const (
-	aliceID = 1001
+	aliceID = ctype.ID("1001")
 	alicePw = "secret123"
 )
 
@@ -211,7 +212,7 @@ func TestAuthenticate(t *testing.T) {
 		if err != nil {
 			t.Fatalf("鉴权失败: %v", err)
 		}
-		if p.UserID != aliceID || p.SessionID != res.Session.ID.Uint64() {
+		if p.UserID != aliceID || p.SessionID.Uint64() != res.Session.ID.Uint64() {
 			t.Fatalf("操作者信息不对: %+v", p)
 		}
 	})
@@ -320,7 +321,7 @@ func TestRevokeAllAndList(t *testing.T) {
 	t.Run("空用户 ID 不查列表", func(t *testing.T) {
 		t.Parallel()
 		r := setup(t)
-		_, err := r.Service().ListSessions(context.Background(), 0)
+		_, err := r.Service().ListSessions(context.Background(), ctype.NewID(0))
 		assertCode(t, err, apperr.CodeAuthRequired)
 	})
 }

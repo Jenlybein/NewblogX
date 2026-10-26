@@ -134,7 +134,7 @@ func UpdateESDocsByArticleDeltas(db *gorm.DB, client *elasticsearch.Client, delt
 			}
 		}
 		if rawAuthorID, ok := delta.Changed["author_id"]; ok {
-			if authorID, ok := scanIDValue(rawAuthorID); ok && authorID != 0 {
+			if authorID, ok := scanIDValue(rawAuthorID); ok && !authorID.IsZero() {
 				authorIDs = append(authorIDs, authorID)
 				topRecalcArticleIDs = append(topRecalcArticleIDs, delta.ArticleID)
 			}
@@ -253,7 +253,7 @@ func UpdateESDocsByArticleDeltas(db *gorm.DB, client *elasticsearch.Client, delt
 		}
 		reqs = append(reqs, &es_service.BulkRequest{
 			Action: es_service.ActionUpdate,
-			ID:     strconv.FormatUint(uint64(delta.ArticleID), 10),
+			ID:     strconv.FormatUint(delta.ArticleID.Uint64(), 10),
 			Data:   data,
 		})
 	}
@@ -304,7 +304,7 @@ func BuildArticleESDocument(article ArticleRow, adminTop, authorTop bool) map[st
 	if article.CategoryModel != nil && article.CategoryID != nil {
 		deps.CategoryTitleMap[*article.CategoryID] = article.CategoryModel.Title
 	}
-	if article.UserModel.ID != 0 {
+	if !article.UserModel.ID.IsZero() {
 		deps.AuthorMap[article.AuthorID] = authorSnapshot{
 			Nickname: article.UserModel.Nickname,
 			Avatar:   article.UserModel.Avatar,
@@ -417,7 +417,7 @@ func indexArticleSnapshots(db *gorm.DB, client *elasticsearch.Client, snapshots 
 	for _, snapshot := range snapshots {
 		reqs = append(reqs, &es_service.BulkRequest{
 			Action: es_service.ActionIndex,
-			ID:     strconv.FormatUint(uint64(snapshot.ID), 10),
+			ID:     strconv.FormatUint(snapshot.ID.Uint64(), 10),
 			Data:   buildArticleESDocumentFromSnapshot(snapshot, deps),
 		})
 	}

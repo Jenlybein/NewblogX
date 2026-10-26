@@ -11,11 +11,12 @@ import (
 
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
+	"myblogx/internal/kernel/ctype"
 )
 
 // globalRow 对应 global_notif_models 表。
 type globalRow struct {
-	ID              uint64 `gorm:"primaryKey;autoIncrement:false"`
+	ID              ctype.ID `gorm:"primaryKey;autoIncrement:false"`
 	CreatedAt       time.Time
 	UpdatedAt       time.Time
 	DeletedAt       gorm.DeletedAt
@@ -33,12 +34,12 @@ func (globalRow) TableName() string { return "global_notif_models" }
 
 // userStateRow 对应 user_global_notif_models 表（每个用户各自的已读/删除状态）。
 type userStateRow struct {
-	ID        uint64 `gorm:"primaryKey;autoIncrement:false"`
+	ID        ctype.ID `gorm:"primaryKey;autoIncrement:false"`
 	CreatedAt time.Time
 	UpdatedAt time.Time
 	DeletedAt gorm.DeletedAt
-	MsgID     uint64
-	UserID    uint64
+	MsgID     ctype.ID
+	UserID    ctype.ID
 	IsRead    bool
 	ReadAt    *time.Time
 }
@@ -95,7 +96,7 @@ func (r *GlobalRepo) ListAll(ctx context.Context, page domain.Page) ([]domain.Gl
 }
 
 // FindVisible 实现 domain.GlobalRepository。
-func (r *GlobalRepo) FindVisible(ctx context.Context, userID uint64, ids []uint64, userCreatedAt time.Time) ([]domain.GlobalNotif, error) {
+func (r *GlobalRepo) FindVisible(ctx context.Context, userID uint64, ids []ctype.ID, userCreatedAt time.Time) ([]domain.GlobalNotif, error) {
 	if len(ids) == 0 {
 		return nil, nil
 	}
@@ -113,7 +114,7 @@ func (r *GlobalRepo) FindVisible(ctx context.Context, userID uint64, ids []uint6
 //
 // 只处理"可见且未删除且未读"的记录；没有个人态记录时补一条已读记录。
 // 逐条处理是有意的：公告条数很少，换来的是与旧实现完全一致的计数语义。
-func (r *GlobalRepo) MarkRead(ctx context.Context, userID uint64, ids []uint64) (int, error) {
+func (r *GlobalRepo) MarkRead(ctx context.Context, userID uint64, ids []ctype.ID) (int, error) {
 	if len(ids) == 0 {
 		return 0, nil
 	}
@@ -125,14 +126,14 @@ func (r *GlobalRepo) MarkRead(ctx context.Context, userID uint64, ids []uint64) 
 	}
 	stateMap := make(map[uint64]userStateRow, len(states))
 	for _, st := range states {
-		stateMap[st.MsgID] = st
+		stateMap[st.MsgID.Uint64()] = st
 	}
 
 	success := 0
 	now := time.Now()
 	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		for _, id := range ids {
-			st, ok := stateMap[id]
+			st, ok := stateMap[id.Uint64()]
 			if ok && !st.DeletedAt.Valid {
 				if st.IsRead {
 					continue
@@ -156,9 +157,9 @@ func (r *GlobalRepo) MarkRead(ctx context.Context, userID uint64, ids []uint64) 
 				Columns:   []clause.Column{{Name: "msg_id"}, {Name: "user_id"}},
 				DoNothing: true,
 			}).Create(&userStateRow{
-				ID:        newStateID(),
+				ID:        ctype.NewID(newStateID()),
 				MsgID:     id,
-				UserID:    userID,
+				UserID:    ctype.NewID(userID),
 				IsRead:    true,
 				ReadAt:    &now,
 				CreatedAt: now,
@@ -180,7 +181,7 @@ func (r *GlobalRepo) MarkRead(ctx context.Context, userID uint64, ids []uint64) 
 }
 
 // DeleteForUser 实现 domain.GlobalRepository。
-func (r *GlobalRepo) DeleteForUser(ctx context.Context, userID uint64, ids []uint64) (int, error) {
+func (r *GlobalRepo) DeleteForUser(ctx context.Context, userID uint64, ids []ctype.ID) (int, error) {
 	if len(ids) == 0 {
 		return 0, nil
 	}
@@ -192,14 +193,14 @@ func (r *GlobalRepo) DeleteForUser(ctx context.Context, userID uint64, ids []uin
 	}
 	stateMap := make(map[uint64]userStateRow, len(states))
 	for _, st := range states {
-		stateMap[st.MsgID] = st
+		stateMap[st.MsgID.Uint64()] = st
 	}
 
 	success := 0
 	now := time.Now()
 	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		for _, id := range ids {
-			st, ok := stateMap[id]
+			st, ok := stateMap[id.Uint64()]
 			if ok && !st.DeletedAt.Valid {
 				res := tx.Unscoped().Model(&userStateRow{}).
 					Where("msg_id = ? AND user_id = ? AND deleted_at IS NULL", id, userID).
@@ -220,12 +221,12 @@ func (r *GlobalRepo) DeleteForUser(ctx context.Context, userID uint64, ids []uin
 				Columns:   []clause.Column{{Name: "msg_id"}, {Name: "user_id"}},
 				DoNothing: true,
 			}).Create(&userStateRow{
-				ID:        newStateID(),
+				ID:        ctype.NewID(newStateID()),
 				CreatedAt: now,
 				UpdatedAt: now,
 				DeletedAt: gorm.DeletedAt{Time: now, Valid: true},
 				MsgID:     id,
-				UserID:    userID,
+				UserID:    ctype.NewID(userID),
 			})
 			if res.Error != nil {
 				return res.Error
@@ -243,8 +244,8 @@ func (r *GlobalRepo) DeleteForUser(ctx context.Context, userID uint64, ids []uin
 }
 
 // ReadSet 实现 domain.GlobalRepository。
-func (r *GlobalRepo) ReadSet(ctx context.Context, userID uint64, ids []uint64) (map[uint64]bool, error) {
-	out := make(map[uint64]bool, len(ids))
+func (r *GlobalRepo) ReadSet(ctx context.Context, userID uint64, ids []ctype.ID) (map[ctype.ID]bool, error) {
+	out := make(map[ctype.ID]bool, len(ids))
 	if len(ids) == 0 {
 		return out, nil
 	}
@@ -276,12 +277,12 @@ func (r *GlobalRepo) Create(ctx context.Context, n *domain.GlobalNotif) error {
 	if n == nil {
 		return apperr.New(apperr.CodeNotifCreateFailed)
 	}
-	if n.ID == 0 {
+	if n.ID.IsZero() {
 		next, err := idgen.Next()
 		if err != nil {
 			return err
 		}
-		n.ID = next.Uint64()
+		n.ID = next
 	}
 	now := time.Now()
 	row := globalRow{
@@ -317,7 +318,7 @@ func (r *GlobalRepo) ExistsTitle(ctx context.Context, title string) (bool, error
 //
 // 旧的 BeforeDelete 钩子会连带删除用户状态；适配器不能用 models，
 // 所以这里在一个事务里显式做同样的事。
-func (r *GlobalRepo) DeleteMany(ctx context.Context, ids []uint64) (int, error) {
+func (r *GlobalRepo) DeleteMany(ctx context.Context, ids []ctype.ID) (int, error) {
 	if len(ids) == 0 {
 		return 0, nil
 	}

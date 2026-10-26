@@ -112,7 +112,7 @@ func (r *FavoriteRepo) ListFolders(ctx context.Context, userID domain.UserID) ([
 func (r *FavoriteRepo) ExistsFolderTitle(ctx context.Context, userID domain.UserID, title string, excludeID favorite.ID) (bool, error) {
 	q := r.db.WithContext(ctx).Model(&favoriteRow{}).
 		Where("user_id = ? AND title = ?", fromUserID(userID), title)
-	if excludeID != 0 {
+	if !excludeID.IsZero() {
 		q = q.Where("id <> ?", ctype.ID(excludeID))
 	}
 	var n int64
@@ -502,7 +502,7 @@ func NewReviewRepo(db *gorm.DB) *ReviewRepo { return &ReviewRepo{db: db} }
 // Save 新建任务。
 func (r *ReviewRepo) Save(ctx context.Context, t *review.Task) error {
 	m := toReviewRow(t)
-	if m.ID == 0 {
+	if m.ID.IsZero() {
 		return r.db.WithContext(ctx).Create(m).Error
 	}
 	return r.db.WithContext(ctx).Create(m).Error
@@ -532,7 +532,7 @@ func (r *ReviewRepo) Update(ctx context.Context, t *review.Task) error {
 // Find 读取任务。
 func (r *ReviewRepo) Find(ctx context.Context, id uint64) (*review.Task, error) {
 	var m reviewTaskRow
-	if err := r.db.WithContext(ctx).Take(&m, "id = ?", ctype.ID(id)).Error; err != nil {
+	if err := r.db.WithContext(ctx).Take(&m, "id = ?", ctype.NewID(id)).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, review.ErrTaskNotFound
 		}
@@ -596,13 +596,13 @@ func toReviewRow(t *review.Task) *reviewTaskRow {
 		ReviewedAt:           t.ReviewedAt(),
 		ReviewedBy:           fromReviewerID(t.ReviewedBy()),
 	}
-	m.ID = ctype.ID(t.ID())
+	m.ID = ctype.NewID(t.ID())
 	return m
 }
 
 func toDomainTask(m reviewTaskRow) *review.Task {
 	return review.RestoreTask(review.RestoreTaskParams{
-		ID:            uint64(m.ID),
+		ID:            m.ID,
 		ArticleID:     domain.ArticleID(m.ArticleID),
 		AuthorID:      domain.UserID(m.AuthorID),
 		ArticleTitle:  m.ArticleTitle,

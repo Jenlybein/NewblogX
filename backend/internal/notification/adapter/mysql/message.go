@@ -10,22 +10,23 @@ import (
 	"myblogx/internal/platform/idgen"
 
 	"gorm.io/gorm"
+	"myblogx/internal/kernel/ctype"
 )
 
 // messageRow 对应 article_message_models 表。
 type messageRow struct {
-	ID                 uint64 `gorm:"primaryKey;autoIncrement:false"`
+	ID                 ctype.ID `gorm:"primaryKey;autoIncrement:false"`
 	CreatedAt          time.Time
 	UpdatedAt          time.Time
 	DeletedAt          gorm.DeletedAt
 	Type               int8
-	ReceiverID         uint64
-	ActionUserID       *uint64
+	ReceiverID         ctype.ID
+	ActionUserID       *ctype.ID
 	ActionUserNickname *string
 	ActionUserAvatar   *string
 	Content            string
-	ArticleID          uint64
-	CommentID          uint64
+	ArticleID          ctype.ID
+	CommentID          ctype.ID
 	ArticleTitle       string
 	LinkTitle          string
 	LinkHerf           string
@@ -124,12 +125,12 @@ func (r *MessageRepo) Create(ctx context.Context, m *domain.Message) error {
 	if m == nil {
 		return apperr.New(apperr.CodeMessageNotFound)
 	}
-	if m.ID == 0 {
+	if m.ID.IsZero() {
 		next, err := idgen.Next()
 		if err != nil {
 			return err
 		}
-		m.ID = next.Uint64()
+		m.ID = next
 	}
 	now := time.Now()
 	row := messageRow{
@@ -137,7 +138,7 @@ func (r *MessageRepo) Create(ctx context.Context, m *domain.Message) error {
 		CreatedAt:    now,
 		UpdatedAt:    now,
 		Type:         int8(m.Type),
-		ReceiverID:   m.Receiver,
+		ReceiverID:   ctype.NewID(m.Receiver),
 		Content:      m.Content,
 		ArticleID:    m.ArticleID,
 		CommentID:    m.CommentID,
@@ -147,7 +148,7 @@ func (r *MessageRepo) Create(ctx context.Context, m *domain.Message) error {
 		IsRead:       false,
 	}
 	if m.ActionUser != 0 {
-		actionUser := m.ActionUser
+		actionUser := ctype.NewID(m.ActionUser)
 		nickname := m.ActionUserNickname
 		avatar := m.ActionUserAvatar
 		row.ActionUserID = &actionUser
@@ -207,7 +208,7 @@ func toMessage(row messageRow) domain.Message {
 	out := domain.Message{
 		ID:           row.ID,
 		Type:         domain.MessageType(row.Type),
-		Receiver:     row.ReceiverID,
+		Receiver:     row.ReceiverID.Uint64(),
 		Content:      row.Content,
 		ArticleID:    row.ArticleID,
 		CommentID:    row.CommentID,
@@ -220,7 +221,7 @@ func toMessage(row messageRow) domain.Message {
 		UpdatedAt:    row.UpdatedAt,
 	}
 	if row.ActionUserID != nil {
-		out.ActionUser = *row.ActionUserID
+		out.ActionUser = (*row.ActionUserID).Uint64()
 	}
 	if row.ActionUserNickname != nil {
 		out.ActionUserNickname = *row.ActionUserNickname

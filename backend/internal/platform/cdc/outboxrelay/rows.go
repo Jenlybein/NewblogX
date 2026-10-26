@@ -3,6 +3,7 @@ package outboxrelay
 import (
 	"time"
 
+	"myblogx/internal/kernel/ctype"
 	"myblogx/internal/platform/mysql"
 )
 
@@ -34,7 +35,7 @@ type outboxRow struct {
 
 	EventName     string    `gorm:"size:64;not null;index"`
 	AggregateType string    `gorm:"size:64;not null"`
-	AggregateID   uint64    `gorm:"not null;index"`
+	AggregateID   ctype.ID  `gorm:"not null;index"`
 	Payload       string    `gorm:"type:longtext"`
 	Status        string    `gorm:"size:16;not null;index"`
 	Attempts      int       `gorm:"not null;default:0"`

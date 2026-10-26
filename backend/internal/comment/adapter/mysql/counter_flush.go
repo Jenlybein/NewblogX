@@ -2,6 +2,7 @@ package mysql
 
 import (
 	"gorm.io/gorm"
+	"myblogx/internal/kernel/ctype"
 )
 
 // FlushCommentCount 按增量更新一条评论的计数列。
@@ -9,7 +10,7 @@ import (
 // 与文章侧同一套约定：列名用类型约束（会被拼进 SQL 表达式），
 // hit=false 表示评论已不存在 —— 调用方应丢弃增量而不是回补重试，
 // 否则一条已删除的评论会让任务无限撞同一行。
-func FlushCommentCount(db *gorm.DB, col CommentCounter, commentID uint64, delta int) (hit bool, err error) {
+func FlushCommentCount(db *gorm.DB, col CommentCounter, commentID ctype.ID, delta int) (hit bool, err error) {
 	if db == nil {
 		return false, nil
 	}

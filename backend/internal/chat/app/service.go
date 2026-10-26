@@ -59,7 +59,7 @@ func (s *Service) Send(ctx context.Context, senderID, receiverID ctype.ID, msgTy
 		}
 		content = string(payload)
 	}
-	if senderID == 0 || receiverID == 0 {
+	if senderID.IsZero() || receiverID.IsZero() {
 		return nil, apperr.New(apperr.CodeChatUserNotFound)
 	}
 
@@ -127,7 +127,7 @@ func (s *Service) Send(ctx context.Context, senderID, receiverID ctype.ID, msgTy
 
 // Sessions 会话列表。
 func (s *Service) Sessions(ctx context.Context, viewerID, targetID ctype.ID, admin bool, page domain.Page) ([]domain.SessionItem, int, error) {
-	if targetID == 0 {
+	if targetID.IsZero() {
 		targetID = viewerID
 	}
 	if targetID != viewerID && !admin {
@@ -189,7 +189,7 @@ func (s *Service) Sessions(ctx context.Context, viewerID, targetID ctype.ID, adm
 
 // Messages 消息列表。
 func (s *Service) Messages(ctx context.Context, viewerID, targetID ctype.ID, sessionID string, admin bool, page domain.Page) ([]domain.MessageItem, int, error) {
-	if targetID == 0 {
+	if targetID.IsZero() {
 		targetID = viewerID
 	}
 	if targetID != viewerID && !admin {
@@ -281,7 +281,7 @@ func (s *Service) Hub() domain.Hub { return s.hub }
 
 func (s *Service) relationBatch(ctx context.Context, viewerID ctype.ID, ids []ctype.ID) map[ctype.ID]int8 {
 	out := make(map[ctype.ID]int8, len(ids))
-	if viewerID == 0 || s.relations == nil {
+	if viewerID.IsZero() || s.relations == nil {
 		for _, id := range ids {
 			out[id] = 1
 		}

@@ -2,6 +2,7 @@ package domain
 
 import (
 	"context"
+	"myblogx/internal/kernel/ctype"
 	"time"
 )
 
@@ -36,11 +37,11 @@ type ManagedQuery struct {
 	// Type：1 我文章下的评论、2 我发的评论、3 管理员查全部。
 	Type      int8
 	Status    Status
-	ViewerID  uint64
-	ArticleID uint64
-	UserID    uint64
+	ViewerID  ctype.ID
+	ArticleID ctype.ID
+	UserID    ctype.ID
 	// ArticleIDs 仅 Type=1 使用（该用户的文章 ID 列表）。
-	ArticleIDs []uint64
+	ArticleIDs []ctype.ID
 	Page       Page
 }
 
@@ -82,8 +83,8 @@ type Display struct {
 
 // Article 是评论模块需要的最小文章信息。
 type Article struct {
-	ID             uint64
-	AuthorID       uint64
+	ID             ctype.ID
+	AuthorID       ctype.ID
 	Title          string
 	Cover          string
 	CommentsToggle bool
@@ -93,7 +94,7 @@ type Article struct {
 type ArticleInfo interface {
 	ByID(ctx context.Context, id uint64) (Article, error)
 	BaseMap(ctx context.Context, ids []uint64) (map[uint64]Article, error)
-	IDsByAuthor(ctx context.Context, authorID, articleID uint64) ([]uint64, error)
+	IDsByAuthor(ctx context.Context, authorID, articleID ctype.ID) ([]ctype.ID, error)
 }
 
 // CacheWriter 回写评论相关的计数缓存。
@@ -107,31 +108,31 @@ type CacheWriter interface {
 
 // CommentNotice 是"有人评论了你的文章"。
 type CommentNotice struct {
-	CommentID    uint64
+	CommentID    ctype.ID
 	Content      string
-	ReceiverID   uint64
-	ActionUserID uint64
-	ArticleID    uint64
+	ReceiverID   ctype.ID
+	ActionUserID ctype.ID
+	ArticleID    ctype.ID
 	ArticleTitle string
 }
 
 // ReplyNotice 是"有人回复了你"。
 type ReplyNotice struct {
-	CommentID    uint64
+	CommentID    ctype.ID
 	Content      string
-	ReceiverID   uint64
-	ActionUserID uint64
-	ArticleID    uint64
+	ReceiverID   ctype.ID
+	ActionUserID ctype.ID
+	ArticleID    ctype.ID
 	ArticleTitle string
 }
 
 // DiggNotice 是"有人点赞了你的评论"。
 type DiggNotice struct {
-	CommentID    uint64
+	CommentID    ctype.ID
 	Content      string
-	ReceiverID   uint64
-	ActionUserID uint64
-	ArticleID    uint64
+	ReceiverID   ctype.ID
+	ActionUserID ctype.ID
+	ArticleID    ctype.ID
 	ArticleTitle string
 }
 

@@ -1,12 +1,26 @@
 <script setup lang="ts">
-import { computed } from "vue";
-import { IconLoader2, IconPlugConnected, IconPlugConnectedX } from "@tabler/icons-vue";
+import { computed, defineAsyncComponent, ref } from "vue";
+import { IconLoader2, IconPhoto, IconPlugConnected, IconPlugConnectedX } from "@tabler/icons-vue";
 import { NButton, NInput, NSpace, NTag } from "naive-ui";
 import AppAvatar from "~/components/common/AppAvatar.vue";
 import type { ChatMessageItem, ChatSessionItem } from "~/types/api";
 import { isDraftChatSessionId } from "~/utils/chat";
+import { resolveChatMessageContent, type ChatSendType } from "~/utils/chatMessage";
 import { formatDateTimeLabel } from "~/utils/format";
 import { getRelationLabel } from "~/utils/relation";
+
+import githubMarkdownCssUrl from "github-markdown-css/github-markdown-light.css?url";
+import highlightCssUrl from "highlight.js/styles/github.min.css?url";
+import katexCssUrl from "katex/dist/katex.min.css?url";
+
+// 私信面板。
+//
+// 消息**内容怎么显示**不在这里判断，而是交给 utils/chatMessage 的纯函数：
+// 后端把图片消息的 content 包装成了 JSON，这个约定属于"传输格式"，
+// 散在模板里用 v-if 处理的话，每加一种消息类型就要改所有渲染点。
+const ChatMarkdownRenderer = defineAsyncComponent(() => import("~/components/common/MarkdownRenderSurface.vue"));
+const markdownThemeHref = computed(() => githubMarkdownCssUrl);
+const markdownSupportStyleHrefs = [katexCssUrl, highlightCssUrl];
 
 const props = defineProps<{
   sessions: ChatSessionItem[];
@@ -15,9 +29,13 @@ const props = defineProps<{
   items: ChatMessageItem[];
   keyword: string;
   draft: string;
+  /** 草稿的发送类型：1 文本 / 7 Markdown。 */
+  draftType: ChatSendType;
   preparedSession?: boolean;
   sessionPending: boolean;
   messagePending: boolean;
+  /** 图片上传中（上传完成前不能重复点）。 */
+  imagePending: boolean;
   socketStatus: string;
   socketError: string;
 }>();
@@ -26,7 +44,9 @@ const emit = defineEmits<{
   "update:activeSessionId": [value: string];
   "update:keyword": [value: string];
   "update:draft": [value: string];
+  "update:draftType": [value: ChatSendType];
   send: [];
+  sendImage: [file: File];
   removeSession: [sessionId: string];
   removeMessage: [id: string];
   reconnect: [];
@@ -35,6 +55,32 @@ const emit = defineEmits<{
 const isPreparedSession = computed(() =>
   props.preparedSession ?? (props.currentSession ? isDraftChatSessionId(props.currentSession.session_id) : false),
 );
+
+const isMarkdownDraft = computed(() => props.draftType === 7);
+
+/** 预先解析好每条消息的内容，避免在模板里对同一条消息反复解析。 */
+const renderedItems = computed(() =>
+  props.items.map((item) => ({ item, resolved: resolveChatMessageContent(item) })),
+);
+
+const imageInputRef = ref<HTMLInputElement | null>(null);
+
+function openImagePicker() {
+  if (props.imagePending) {
+    return;
+  }
+  imageInputRef.value?.click();
+}
+
+function handleImagePicked(event: Event) {
+  const input = event.target as HTMLInputElement;
+  const file = input.files?.[0];
+  if (file) {
+    emit("sendImage", file);
+  }
+  // 清空以便连发同一张图
+  input.value = "";
+}
 </script>
 
 <template>
@@ -118,28 +164,41 @@ const isPreparedSession = computed(() =>
         </div>
 
         <div v-if="currentSession" class="studio-chat-thread">
-          <div v-if="items.length" class="space-y-3">
+          <div v-if="renderedItems.length" class="space-y-3">
             <article
-              v-for="item in items"
-              :key="item.id"
+              v-for="entry in renderedItems"
+              :key="entry.item.id"
               class="studio-chat-bubble"
-              :class="{ 'is-self': item.is_self }"
+              :class="{ 'is-self': entry.item.is_self }"
             >
               <div class="studio-chat-bubble__content">
-                <p class="leading-7">{{ item.content }}</p>
+                <img
+                  v-if="entry.resolved.kind === 'image'"
+                  :src="entry.resolved.imageUrl"
+                  alt="图片消息"
+                  class="max-h-60 max-w-full rounded-lg object-contain"
+                />
+                <ChatMarkdownRenderer
+                  v-else-if="entry.resolved.kind === 'markdown'"
+                  :source="entry.resolved.text"
+                  :theme-href="markdownThemeHref"
+                  :extra-style-hrefs="markdownSupportStyleHrefs"
+                  article-class="markdown-body"
+                />
+                <p v-else class="leading-7">{{ entry.resolved.text }}</p>
                 <div class="studio-list-meta mt-3">
-                  <span>{{ formatDateTimeLabel(item.send_time) }}</span>
-                  <span>{{ item.is_read ? "已读" : "未读" }}</span>
+                  <span>{{ formatDateTimeLabel(entry.item.send_time) }}</span>
+                  <span>{{ entry.item.is_read ? "已读" : "未读" }}</span>
                 </div>
               </div>
-              <NButton quaternary size="tiny" @click="emit('removeMessage', item.id)">删除</NButton>
+              <NButton quaternary size="tiny" @click="emit('removeMessage', entry.item.id)">删除</NButton>
             </article>
           </div>
 
           <StudioEmptyState
             v-else
             title="这个会话还没有消息"
-            :description="messagePending ? '正在拉取消息记录…' : isPreparedSession ? '先发出第一条消息，这里就会切换成真实会话。' : '可以先发送一条文本消息验证链路。'"
+            :description="messagePending ? '正在拉取消息记录…' : isPreparedSession ? '先发出第一条消息，这里就会切换成真实会话。' : '可以发一段文本、一张图片，或切到 Markdown 发送富文本。'"
           />
 
           <div class="studio-chat-composer">
@@ -147,17 +206,40 @@ const isPreparedSession = computed(() =>
               :value="draft"
               type="textarea"
               :autosize="{ minRows: 3, maxRows: 6 }"
-              placeholder="输入文本消息…"
+              :placeholder="isMarkdownDraft ? '输入 Markdown，支持标题、列表、代码块…' : '输入文本消息…'"
               name="chat-draft"
               @update:value="emit('update:draft', $event)"
             />
             <div class="flex flex-wrap items-center justify-between gap-3">
               <NSpace>
-                <NButton type="primary" :loading="messagePending" @click="emit('send')">发送文本</NButton>
+                <NButton type="primary" :loading="messagePending" @click="emit('send')">
+                  {{ isMarkdownDraft ? "发送 Markdown" : "发送文本" }}
+                </NButton>
+                <NButton :loading="imagePending" @click="openImagePicker()">
+                  <template #icon>
+                    <IconPhoto :size="16" />
+                  </template>
+                  发送图片
+                </NButton>
+                <NButton
+                  quaternary
+                  :type="isMarkdownDraft ? 'primary' : 'default'"
+                  @click="emit('update:draftType', isMarkdownDraft ? 1 : 7)"
+                >
+                  {{ isMarkdownDraft ? "Markdown" : "纯文本" }}
+                </NButton>
                 <NButton v-if="!isPreparedSession" quaternary @click="emit('removeSession', currentSession.session_id)">删除会话</NButton>
               </NSpace>
-              <span class="muted text-sm">{{ isPreparedSession ? "这个预备会话只保存在前端，首条消息发出前不会请求后端。" : "当前仅接入文本发送，图片与 Markdown 仍待补协议联调。" }}</span>
+              <span class="muted text-sm">{{ isPreparedSession ? "这个预备会话只保存在前端，首条消息发出前不会请求后端。" : "文本与 Markdown 走草稿框，图片会先上传到对象存储再发出。" }}</span>
             </div>
+            <input
+              ref="imageInputRef"
+              type="file"
+              accept="image/*"
+              class="hidden"
+              name="chat-image"
+              @change="handleImagePicked"
+            />
           </div>
         </div>
 

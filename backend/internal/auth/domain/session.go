@@ -5,19 +5,14 @@
 package domain
 
 import (
+	"myblogx/internal/kernel/ctype"
 	"time"
 
 	"myblogx/internal/apperr"
 )
 
 // SessionID 是会话标识。
-type SessionID uint64
-
-// IsZero 判断 ID 是否为空。
-func (id SessionID) IsZero() bool { return id == 0 }
-
-// Uint64 返回底层值。
-func (id SessionID) Uint64() uint64 { return uint64(id) }
+type SessionID = ctype.ID
 
 // Session 是一次登录产生的服务端会话。
 //
@@ -25,7 +20,7 @@ func (id SessionID) Uint64() uint64 { return uint64(id) }
 // 一个 Refresh Token 对应一条 Session，用户每设备登录一次生成一条。
 type Session struct {
 	ID               SessionID
-	UserID           uint64
+	UserID           ctype.ID
 	RefreshTokenHash string
 	IP               string
 	Addr             string
@@ -90,8 +85,8 @@ type Tokens struct {
 // 只放"鉴权当场要用"的字段：多放一个字段就多一份过期数据，
 // 而且令牌体积会跟着涨。
 type Claims struct {
-	UserID       uint64
-	SessionID    uint64
+	UserID       ctype.ID
+	SessionID    ctype.ID
 	TokenVersion uint32
 	Username     string
 	Role         int8
@@ -101,8 +96,8 @@ type Claims struct {
 //
 // 中间件拿它往 gin.Context 里塞，业务层拿它判断"你是谁、什么角色"。
 type Principal struct {
-	UserID    uint64
-	SessionID uint64
+	UserID    ctype.ID
+	SessionID ctype.ID
 	Username  string
 	Role      int8
 }

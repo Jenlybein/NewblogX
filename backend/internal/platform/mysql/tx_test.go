@@ -9,11 +9,12 @@ import (
 	"myblogx/internal/testkit"
 
 	"gorm.io/gorm"
+	"myblogx/internal/kernel/ctype"
 )
 
 // item 是事务测试用表。
 type item struct {
-	ID   uint `gorm:"primaryKey"`
+	ID   ctype.ID `gorm:"primaryKey"`
 	Name string
 }
 

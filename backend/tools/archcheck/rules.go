@@ -27,6 +27,7 @@ func rules() []Rule {
 		ruleLogNoAny(),
 		ruleModuleNoModels(),
 		ruleModuleNoCrossAdapter(),
+		ruleIDMustBeCtype(),
 	}
 }
 

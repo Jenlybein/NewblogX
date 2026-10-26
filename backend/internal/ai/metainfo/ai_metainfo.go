@@ -63,7 +63,7 @@ func loadOptions(load func() ([]domain.Option, error), what string, logger *logr
 	}
 	out := make([]Metainfos, 0, len(options))
 	for _, option := range options {
-		out = append(out, Metainfos{ID: ctype.ID(option.ID), Title: option.Title})
+		out = append(out, Metainfos{ID: ctype.NewID(option.ID.Uint64()), Title: option.Title})
 	}
 	return out, nil
 }

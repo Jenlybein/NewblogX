@@ -1,6 +1,7 @@
 package app
 
 import (
+	"myblogx/internal/kernel/ctype"
 	"net/http"
 
 	mediahttp "myblogx/internal/media/adapter/http"
@@ -53,7 +54,7 @@ func (mediaIDs) NextImageID() domain.ImageID {
 	if err != nil {
 		panic("media: 雪花 ID 生成失败: " + err.Error())
 	}
-	return domain.ImageID(next.Uint64())
+	return ctype.NewID(next.Uint64())
 }
 
 // NextTaskID 返回下一个上传任务 ID。

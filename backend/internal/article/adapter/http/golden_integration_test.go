@@ -48,12 +48,12 @@ func TestArticleGolden(t *testing.T) {
 	db := migrate(t)
 	seedGoldenDataset(t, db)
 
-	authorA := newRouterWithIDs(t, db, domain.NormalUser(100), 100)
-	authorB := newRouterWithIDs(t, db, domain.NormalUser(101), 200)
+	authorA := newRouterWithIDs(t, db, domain.NormalUser(ctype.NewID(100)), 100)
+	authorB := newRouterWithIDs(t, db, domain.NormalUser(ctype.NewID(101)), 200)
 	anon := newRouterWithIDs(t, db, domain.Anonymous(), 300)
-	admin := newRouterWithIDs(t, db, domain.AdminUser(900), 400)
+	admin := newRouterWithIDs(t, db, domain.AdminUser(ctype.NewID(900)), 400)
 	// 创建接口用独立 ID 起点，避免与种子文章 1001–1020 撞号。
-	creator := newRouterWithIDs(t, db, domain.NormalUser(100), 2000)
+	creator := newRouterWithIDs(t, db, domain.NormalUser(ctype.NewID(100)), 2000)
 
 	update := os.Getenv(testkit.UpdateGoldenEnv) == "1"
 
@@ -242,7 +242,7 @@ func seedGoldenDataset(t *testing.T, db *gorm.DB) {
 
 		var categoryID *ctype.ID
 		if i%4 != 3 {
-			id := ctype.ID(i%3 + 1)
+			id := ctype.NewID(uint64(i%3 + 1))
 			categoryID = &id
 		}
 

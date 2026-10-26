@@ -3,6 +3,7 @@ package app_test
 import (
 	"context"
 	"errors"
+	"myblogx/internal/kernel/ctype"
 	"testing"
 	"time"
 
@@ -14,8 +15,8 @@ import (
 
 var (
 	baseTime = time.Date(2026, 10, 25, 12, 0, 0, 0, time.UTC)
-	aliceID  = domain.UserID(1001)
-	adminID  = domain.UserID(9001)
+	aliceID  = ctype.NewID(1001)
+	adminID  = ctype.NewID(9001)
 	alice    = domain.Viewer{ID: aliceID, Role: domain.RoleUser}
 	admin    = domain.Viewer{ID: adminID, Role: domain.RoleAdmin}
 )
@@ -54,9 +55,9 @@ func TestDetail(t *testing.T) {
 		t.Parallel()
 		r := apptest.NewRepos(baseTime)
 		seed(t, r)
-		r.Enricher().TagTitleMap[7] = "Go"
+		r.Enricher().TagTitleMap[ctype.NewID(7)] = "Go"
 		_ = r.Settings().Save(testCtx(), domain.Settings{
-			UserID: aliceID, LikeTagIDs: []uint64{7}, FavoritesVisibility: true,
+			UserID: aliceID, LikeTagIDs: []ctype.ID{ctype.NewID(7)}, FavoritesVisibility: true,
 		})
 
 		view, err := r.Service().Detail(testCtx(), alice)
@@ -81,7 +82,7 @@ func TestDetail(t *testing.T) {
 		t.Parallel()
 		r := apptest.NewRepos(baseTime)
 		seed(t, r)
-		_ = r.Settings().Save(testCtx(), domain.Settings{UserID: aliceID, LikeTagIDs: []uint64{404}})
+		_ = r.Settings().Save(testCtx(), domain.Settings{UserID: aliceID, LikeTagIDs: []ctype.ID{ctype.NewID(404)}})
 
 		view, err := r.Service().Detail(testCtx(), alice)
 		if err != nil {
@@ -100,15 +101,15 @@ func TestPublicProfile(t *testing.T) {
 	t.Run("不存在的用户", func(t *testing.T) {
 		t.Parallel()
 		r := apptest.NewRepos(baseTime)
-		_, err := r.Service().PublicProfile(testCtx(), 404)
+		_, err := r.Service().PublicProfile(testCtx(), ctype.NewID(404))
 		assertCode(t, err, apperr.CodeUserNotFound)
 	})
 
 	t.Run("被禁用的用户主页仍可看", func(t *testing.T) {
 		t.Parallel()
 		r := apptest.NewRepos(baseTime)
-		r.Users().Seed(domain.User{ID: 2002, Username: "bob", Status: domain.StatusBanned})
-		profile, err := r.Service().PublicProfile(testCtx(), 2002)
+		r.Users().Seed(domain.User{ID: ctype.NewID(2002), Username: "bob", Status: domain.StatusBanned})
+		profile, err := r.Service().PublicProfile(testCtx(), ctype.NewID(2002))
 		if err != nil {
 			t.Fatalf("封禁用户主页应可看: %v", err)
 		}
@@ -124,7 +125,7 @@ func TestUpdate(t *testing.T) {
 		r := apptest.NewRepos(baseTime)
 		seed(t, r)
 		nick := "hacked"
-		_, err := r.Service().Update(testCtx(), domain.Viewer{ID: 2002, Role: domain.RoleUser}, aliceID,
+		_, err := r.Service().Update(testCtx(), domain.Viewer{ID: ctype.NewID(2002), Role: domain.RoleUser}, aliceID,
 			domain.ProfileUpdate{Nickname: &nick})
 		assertCode(t, err, apperr.CodeUserForbidden)
 	})
@@ -142,7 +143,7 @@ func TestUpdate(t *testing.T) {
 		t.Parallel()
 		r := apptest.NewRepos(baseTime)
 		seed(t, r)
-		r.Users().Seed(domain.User{ID: 3003, Username: "taken"})
+		r.Users().Seed(domain.User{ID: ctype.NewID(3003), Username: "taken"})
 		next := "taken"
 		_, err := r.Service().Update(testCtx(), alice, aliceID, domain.ProfileUpdate{Username: &next})
 		assertCode(t, err, apperr.CodeUserUsernameTaken)
@@ -257,7 +258,7 @@ func TestUpdateSettings(t *testing.T) {
 		r := apptest.NewRepos(baseTime)
 		seed(t, r)
 		off := false
-		err := r.Service().UpdateSettings(testCtx(), domain.Viewer{ID: 2002, Role: domain.RoleUser}, aliceID,
+		err := r.Service().UpdateSettings(testCtx(), domain.Viewer{ID: ctype.NewID(2002), Role: domain.RoleUser}, aliceID,
 			app.SettingsPatch{DiggNoticeEnabled: &off})
 		assertCode(t, err, apperr.CodeUserForbidden)
 	})
@@ -369,7 +370,7 @@ func TestCreate(t *testing.T) {
 		t.Parallel()
 		r := apptest.NewRepos(baseTime)
 		email := "dup@example.com"
-		r.Users().Seed(domain.User{ID: 5005, Username: "old", Email: &email})
+		r.Users().Seed(domain.User{ID: ctype.NewID(5005), Username: "old", Email: &email})
 		_, err := r.Service().Create(testCtx(), admin, app.CreateInput{
 			Username: "newbie", Nickname: "新人", Password: "p", Email: &email,
 		})
@@ -410,7 +411,7 @@ func TestStatsAndDisplay(t *testing.T) {
 		t.Parallel()
 		r := apptest.NewRepos(baseTime)
 		seed(t, r)
-		snaps, err := r.Service().LoadDisplays(testCtx(), []domain.UserID{aliceID, 404})
+		snaps, err := r.Service().LoadDisplays(testCtx(), []domain.UserID{aliceID, ctype.NewID(404)})
 		if err != nil {
 			t.Fatalf("读取失败: %v", err)
 		}
@@ -422,8 +423,8 @@ func TestStatsAndDisplay(t *testing.T) {
 	t.Run("禁用账号 EnsureUsable 报错", func(t *testing.T) {
 		t.Parallel()
 		r := apptest.NewRepos(baseTime)
-		r.Users().Seed(domain.User{ID: 6006, Username: "dis", Status: domain.StatusDisabled})
-		assertCode(t, r.Service().EnsureUsable(testCtx(), 6006), apperr.CodeUserAccountDisabled)
+		r.Users().Seed(domain.User{ID: ctype.NewID(6006), Username: "dis", Status: domain.StatusDisabled})
+		assertCode(t, r.Service().EnsureUsable(testCtx(), ctype.NewID(6006)), apperr.CodeUserAccountDisabled)
 	})
 }
 

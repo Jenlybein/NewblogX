@@ -386,12 +386,12 @@ func TestRelayCleanup(t *testing.T) {
 
 	for _, id := range []ctype.ID{expiredDone, expiredDead} {
 		if got := countUnscoped(id); got != 0 {
-			t.Fatalf("过期的终结行未被物理删除: id=%d count=%d", id, got)
+			t.Fatalf("过期的终结行未被物理删除: id=%s count=%d", id, got)
 		}
 	}
 	for _, id := range []ctype.ID{obsoleteDone, obsoleteDead, oldPending, oldFailed, oldProcessing} {
 		if got := countUnscoped(id); got != 1 {
-			t.Fatalf("行被误删: id=%d count=%d", id, got)
+			t.Fatalf("行被误删: id=%s count=%d", id, got)
 		}
 	}
 }

@@ -8,6 +8,7 @@ import (
 	"context"
 	"time"
 
+	"myblogx/internal/kernel/ctype"
 	"myblogx/internal/user/domain"
 )
 
@@ -29,11 +30,11 @@ type PasswordHasher interface {
 // 所以合成一个可选端口——查不到就降级，不让详情接口失败。
 type DetailEnricher interface {
 	// AvatarIDByURL 由头像 URL 反查图片表 ID。
-	AvatarIDByURL(ctx context.Context, url string) (uint64, bool, error)
+	AvatarIDByURL(ctx context.Context, url string) (ctype.ID, bool, error)
 	// AvatarURLByID 由图片 ID 取头像 URL（前端传的是图片 ID）。
-	AvatarURLByID(ctx context.Context, id uint64) (string, error)
+	AvatarURLByID(ctx context.Context, id ctype.ID) (string, error)
 	// TagTitles 批量取标签标题。
-	TagTitles(ctx context.Context, ids []uint64) (map[uint64]string, error)
+	TagTitles(ctx context.Context, ids []ctype.ID) (map[ctype.ID]string, error)
 }
 
 // Logger 是窄日志接口，避免整个用例层依赖 logrus。
@@ -64,17 +65,17 @@ type HomeViewRecorder interface {
 
 // SessionRevoker 让某用户全部会话失效（管理员改角色/状态时）。
 type SessionRevoker interface {
-	RevokeAll(ctx context.Context, userID uint64) error
+	RevokeAll(ctx context.Context, userID ctype.ID) error
 }
 
 // SessionRevokerFunc 让函数实现 SessionRevoker。
 //
 // 用来打破装配期的循环依赖：user 服务先建、auth 服务后建，
 // 用一个闭包把"后建的 auth 服务"延迟绑定进来。
-type SessionRevokerFunc func(ctx context.Context, userID uint64) error
+type SessionRevokerFunc func(ctx context.Context, userID ctype.ID) error
 
 // RevokeAll 实现 SessionRevoker。
-func (f SessionRevokerFunc) RevokeAll(ctx context.Context, userID uint64) error {
+func (f SessionRevokerFunc) RevokeAll(ctx context.Context, userID ctype.ID) error {
 	return f(ctx, userID)
 }
 
@@ -92,7 +93,7 @@ type LastLoginReader interface {
 
 // TagValidator 校验偏好标签都存在且启用。
 type TagValidator interface {
-	Validate(ctx context.Context, ids []uint64) error
+	Validate(ctx context.Context, ids []ctype.ID) error
 }
 
 // Integrations 是用户模块的可选外部能力集合。

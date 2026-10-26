@@ -8,10 +8,10 @@ import (
 )
 
 func TestBuildSessionID(t *testing.T) {
-	if got := domain.BuildSessionID(2, 10); got != "chat:2:10" {
+	if got := domain.BuildSessionID(ctype.NewID(2), ctype.NewID(10)); got != "chat:2:10" {
 		t.Fatalf("got %s", got)
 	}
-	if domain.BuildSessionID(10, 2) != domain.BuildSessionID(2, 10) {
+	if domain.BuildSessionID(ctype.NewID(10), ctype.NewID(2)) != domain.BuildSessionID(ctype.NewID(2), ctype.NewID(10)) {
 		t.Fatal("会话 ID 必须与双方顺序无关")
 	}
 }
@@ -25,5 +25,5 @@ func TestSummary(t *testing.T) {
 	if len([]rune(got)) > 23 {
 		t.Fatalf("摘要未截断: %s", got)
 	}
-	_ = ctype.ID(0)
+	_ = ctype.NewID(0)
 }

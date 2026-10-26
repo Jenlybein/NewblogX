@@ -4,7 +4,6 @@ import (
 	"context"
 
 	"myblogx/internal/apperr"
-	"myblogx/internal/kernel/ctype"
 	"myblogx/internal/kernel/enum"
 	"myblogx/utils/jwts"
 )
@@ -33,8 +32,8 @@ func (authVerifier) VerifyAccessToken(ctx context.Context, raw string) (*jwts.My
 		return nil, err
 	}
 	return &jwts.MyClaims{Claims: jwts.Claims{
-		UserID:    ctype.ID(p.UserID),
-		SessionID: ctype.ID(p.SessionID),
+		UserID:    p.UserID,
+		SessionID: p.SessionID,
 		Role:      enum.RoleType(p.Role),
 		Username:  p.Username,
 	}}, nil

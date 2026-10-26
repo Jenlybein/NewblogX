@@ -367,10 +367,10 @@ func LoadLatestLoginMap(opts Options, userIDs []ctype.ID) (map[ctype.ID]LoginEve
 
 	values := make([]uint64, 0, len(userIDs))
 	for _, userID := range userIDs {
-		if userID == 0 {
+		if userID.IsZero() {
 			continue
 		}
-		values = append(values, uint64(userID))
+		values = append(values, userID.Uint64())
 	}
 	if len(values) == 0 {
 		return result, nil
@@ -457,9 +457,9 @@ func buildRuntimeWhere(query RuntimeLogQuery) (string, []any, error) {
 	appendLike(&where, &args, "event_name", query.EventName)
 	appendLike(&where, &args, "path", query.Path)
 	appendModuleLike(&where, &args, query.Module)
-	if query.UserID > 0 {
+	if !query.UserID.IsZero() {
 		where = append(where, "AND user_id = ?")
-		args = append(args, uint64(query.UserID))
+		args = append(args, query.UserID.Uint64())
 	}
 	appendKeyword(&where, &args, query.Key, "message", "path", "request_id", "trace_id", "error_message", "event_name")
 	return strings.Join(where, " "), args, nil
@@ -475,9 +475,9 @@ func buildLoginWhere(query LoginEventQuery) (string, []any, error) {
 	if err := appendTimeRange(&where, &args, query.LogTimeRange); err != nil {
 		return "", nil, err
 	}
-	if query.UserID > 0 {
+	if !query.UserID.IsZero() {
 		where = append(where, "AND user_id = ?")
-		args = append(args, uint64(query.UserID))
+		args = append(args, query.UserID.Uint64())
 	}
 	appendEqual(&where, &args, "ip", query.IP)
 	appendLike(&where, &args, "username", query.Username)
@@ -506,9 +506,9 @@ func buildActionWhere(query ActionAuditQuery) (string, []any, error) {
 	if err := appendTimeRange(&where, &args, query.LogTimeRange); err != nil {
 		return "", nil, err
 	}
-	if query.UserID > 0 {
+	if !query.UserID.IsZero() {
 		where = append(where, "AND user_id = ?")
-		args = append(args, uint64(query.UserID))
+		args = append(args, query.UserID.Uint64())
 	}
 	appendEqual(&where, &args, "ip", query.IP)
 	appendEqual(&where, &args, "action_name", query.ActionName)

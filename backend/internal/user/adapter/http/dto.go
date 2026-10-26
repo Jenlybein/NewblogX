@@ -4,6 +4,7 @@ import (
 	"github.com/gin-gonic/gin"
 
 	"myblogx/internal/kernel"
+	"myblogx/internal/kernel/ctype"
 	"myblogx/internal/platform/http/middleware"
 	"myblogx/internal/user/app"
 	"myblogx/internal/user/domain"
@@ -34,16 +35,16 @@ func (r UpdateRequest) toDomain() domain.ProfileUpdate {
 
 // SettingsRequest 是更新偏好的请求体。
 type SettingsRequest struct {
-	LikeTagIDs               *[]uint64 `json:"like_tag_ids"`
-	FavoritesVisibility      *bool     `json:"favorites_visibility"`
-	FollowVisibility         *bool     `json:"followers_visibility"`
-	FansVisibility           *bool     `json:"fans_visibility"`
-	HomeStyleID              *uint64   `json:"home_style_id"`
-	DiggNoticeEnabled        *bool     `json:"digg_notice_enabled"`
-	CommentNoticeEnabled     *bool     `json:"comment_notice_enabled"`
-	FavorNoticeEnabled       *bool     `json:"favor_notice_enabled"`
-	PrivateChatNoticeEnabled *bool     `json:"private_chat_notice_enabled"`
-	StrangerChatEnabled      *bool     `json:"stranger_msg_enabled"`
+	LikeTagIDs               *[]ctype.ID `json:"like_tag_ids"`
+	FavoritesVisibility      *bool       `json:"favorites_visibility"`
+	FollowVisibility         *bool       `json:"followers_visibility"`
+	FansVisibility           *bool       `json:"fans_visibility"`
+	HomeStyleID              *ctype.ID   `json:"home_style_id"`
+	DiggNoticeEnabled        *bool       `json:"digg_notice_enabled"`
+	CommentNoticeEnabled     *bool       `json:"comment_notice_enabled"`
+	FavorNoticeEnabled       *bool       `json:"favor_notice_enabled"`
+	PrivateChatNoticeEnabled *bool       `json:"private_chat_notice_enabled"`
+	StrangerChatEnabled      *bool       `json:"stranger_msg_enabled"`
 }
 
 // toApp 转成用例层的补丁对象。
@@ -176,7 +177,7 @@ func mustURI(c *gin.Context) *kernel.IDRequest {
 		return nil
 	}
 	typed, ok := raw.(kernel.IDRequest)
-	if !ok || typed.ID == 0 {
+	if !ok || typed.ID.IsZero() {
 		failInvalid(c)
 		return nil
 	}

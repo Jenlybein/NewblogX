@@ -1,22 +1,23 @@
 package domain_test
 
 import (
+	"myblogx/internal/kernel/ctype"
 	"testing"
 
 	"myblogx/internal/article/domain"
 )
 
 const (
-	authorID   = domain.UserID(1001)
-	strangerID = domain.UserID(2002)
-	adminID    = domain.UserID(9001)
+	authorID   = ctype.ID("1001")
+	strangerID = ctype.ID("2002")
+	adminID    = ctype.ID("9001")
 )
 
 // newArticle 造一个测试用文章（走 Restore，绕开创建校验以便构造任意状态）。
 func newArticle(t *testing.T, status domain.Status, visibility domain.Visibility, deleted bool) *domain.Article {
 	t.Helper()
 	return domain.Restore(domain.RestoreParams{
-		ID:         domain.ArticleID(1),
+		ID:         ctype.NewID(1),
 		AuthorID:   authorID,
 		Title:      "测试文章",
 		Content:    "正文",

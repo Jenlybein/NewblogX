@@ -66,7 +66,7 @@ func WireUser(infra *Infra) {
 	// 但 userSvc 的"管理员改角色/状态要吊销会话"又需要 authSvc。
 	// 用闭包延迟绑定打破这个环。
 	var authSvc *authapp.Service
-	sessionRevoker := userapp.SessionRevokerFunc(func(ctx context.Context, userID uint64) error {
+	sessionRevoker := userapp.SessionRevokerFunc(func(ctx context.Context, userID ctype.ID) error {
 		if authSvc == nil {
 			return nil
 		}
@@ -150,8 +150,8 @@ var _ authdomain.TokenIssuer = (*jwtIssuer)(nil)
 // Issue 签发访问令牌。
 func (i *jwtIssuer) Issue(c authdomain.Claims) (string, error) {
 	return jwts.GetToken(i.cfg, jwts.Claims{
-		UserID:       ctype.ID(c.UserID),
-		SessionID:    ctype.ID(c.SessionID),
+		UserID:       c.UserID,
+		SessionID:    c.SessionID,
 		TokenVersion: c.TokenVersion,
 		Username:     c.Username,
 		Role:         enum.RoleType(c.Role),
@@ -165,8 +165,8 @@ func (i *jwtIssuer) Parse(token string) (authdomain.Claims, error) {
 		return authdomain.Claims{}, err
 	}
 	return authdomain.Claims{
-		UserID:       uint64(mc.UserID),
-		SessionID:    uint64(mc.SessionID),
+		UserID:       mc.UserID,
+		SessionID:    mc.SessionID,
 		TokenVersion: mc.TokenVersion,
 		Username:     mc.Username,
 		Role:         int8(mc.Role),
@@ -191,7 +191,7 @@ func (b *credentialBridge) VerifyPassword(ctx context.Context, identifier, plain
 
 // FindAccount 实现 authapp.Credentials。
 func (b *credentialBridge) FindAccount(ctx context.Context, userID uint64) (authapp.Account, error) {
-	u, err := b.svc.FindForAuth(ctx, userdomain.UserID(userID))
+	u, err := b.svc.FindForAuth(ctx, ctype.NewID(userID))
 	if err != nil {
 		return authapp.Account{}, err
 	}
@@ -243,12 +243,12 @@ func (b *directoryBridge) ResetPasswordByEmail(ctx context.Context, email, newPa
 
 // ChangePassword 实现 authapp.Directory。
 func (b *directoryBridge) ChangePassword(ctx context.Context, userID uint64, oldPassword, newPassword string) error {
-	return b.svc.ChangePassword(ctx, userdomain.UserID(userID), oldPassword, newPassword)
+	return b.svc.ChangePassword(ctx, ctype.NewID(userID), oldPassword, newPassword)
 }
 
 // BindEmail 实现 authapp.Directory。
 func (b *directoryBridge) BindEmail(ctx context.Context, userID uint64, email string) error {
-	return b.svc.BindEmail(ctx, userdomain.UserID(userID), email)
+	return b.svc.BindEmail(ctx, ctype.NewID(userID), email)
 }
 
 // emailCodeBridge 实现 authapp.EmailCodes：频控 + 按场景决定是否真的发信。
@@ -272,7 +272,7 @@ func (b *emailCodeBridge) Send(ctx context.Context, kind int8, email, ip string)
 		return "", apperr.New(apperr.CodeAuthTooFrequent)
 	}
 
-	exists, err := b.users.ExistsEmail(ctx, email, 0)
+	exists, err := b.users.ExistsEmail(ctx, email, "")
 	if err != nil {
 		return "", err
 	}
@@ -368,7 +368,7 @@ type loginEmitter struct{}
 
 // Login 记录登录事件。kind 到枚举的映射放在装配层，认证适配器不 import models。
 func (loginEmitter) Login(c *gin.Context, event, kind string, success bool, username string, userID uint64, reason string) {
-	middleware.EmitLoginEventFromGin(c, event, loginTypeOf(kind), success, username, ctype.ID(userID), reason, nil)
+	middleware.EmitLoginEventFromGin(c, event, loginTypeOf(kind), success, username, ctype.NewID(userID), reason, nil)
 }
 
 // loginTypeOf 把字符串类别映射成登录类型枚举。
@@ -388,7 +388,7 @@ func loginTypeOf(kind string) enum.LoginType {
 // toAuthAccount 把 user 实体裁剪成认证需要的五个字段。
 func toAuthAccount(u userdomain.User) authapp.Account {
 	return authapp.Account{
-		ID:           u.ID.Uint64(),
+		ID:           u.ID,
 		Username:     u.Username,
 		Role:         int8(u.Role),
 		TokenVersion: u.TokenVersion,
@@ -403,27 +403,33 @@ type userEnricher struct {
 }
 
 // AvatarIDByURL 由头像 URL 反查图片 ID。
-func (e *userEnricher) AvatarIDByURL(_ context.Context, url string) (uint64, bool, error) {
-	return mediamysql.FindIDByURL(e.db, url)
+func (e *userEnricher) AvatarIDByURL(_ context.Context, url string) (ctype.ID, bool, error) {
+	id, ok, err := mediamysql.FindIDByURL(e.db, url)
+	return ctype.NewID(id), ok, err
 }
 
 // AvatarURLByID 由图片 ID 取 URL。
-func (e *userEnricher) AvatarURLByID(_ context.Context, id uint64) (string, error) {
-	return mediamysql.ResolveURLByID(e.db, id)
+func (e *userEnricher) AvatarURLByID(_ context.Context, id ctype.ID) (string, error) {
+	return mediamysql.ResolveURLByID(e.db, id.Uint64())
 }
 
 // TagTitles 批量取标签标题。
-func (e *userEnricher) TagTitles(_ context.Context, ids []uint64) (map[uint64]string, error) {
-	out := make(map[uint64]string, len(ids))
+func (e *userEnricher) TagTitles(_ context.Context, ids []ctype.ID) (map[ctype.ID]string, error) {
+	out := make(map[ctype.ID]string, len(ids))
 	if len(ids) == 0 {
 		return out, nil
 	}
+	// 标签表的主键仍是整型，查询前转回数值；结果再按 ID 语义返回给用例层。
+	raw := make([]uint64, 0, len(ids))
+	for _, id := range ids {
+		raw = append(raw, id.Uint64())
+	}
 	var rows []tagTitleRow
-	if err := e.db.Select("id", "title").Find(&rows, "id IN ?", ids).Error; err != nil {
+	if err := e.db.Select("id", "title").Find(&rows, "id IN ?", raw).Error; err != nil {
 		return nil, err
 	}
 	for _, row := range rows {
-		out[uint64(row.ID)] = row.Title
+		out[row.ID] = row.Title
 	}
 	return out, nil
 }
@@ -469,7 +475,7 @@ func (b *homeViewBridge) Record(_ context.Context, target, viewer userdomain.Use
 
 	// Redis 挡板：能挡住绝大多数重复访问。
 	reservedByRedis := false
-	marked, markErr := redis_user.TryMarkUserHomeViewed(b.redis, ctype.ID(targetID), ctype.ID(viewerID), now)
+	marked, markErr := redis_user.TryMarkUserHomeViewed(b.redis, ctype.NewID(targetID), ctype.NewID(viewerID), now)
 	if markErr != nil {
 		// 降级到数据库兜底，不因为缓存不可用就丢掉计数。
 		if b.logger != nil {
@@ -489,7 +495,7 @@ func (b *homeViewBridge) Record(_ context.Context, target, viewer userdomain.Use
 		return err
 	})
 	if err != nil && reservedByRedis {
-		if rollbackErr := redis_user.RollbackUserHomeViewed(b.redis, ctype.ID(targetID), ctype.ID(viewerID), now); rollbackErr != nil {
+		if rollbackErr := redis_user.RollbackUserHomeViewed(b.redis, ctype.NewID(targetID), ctype.NewID(viewerID), now); rollbackErr != nil {
 			if b.logger != nil {
 				b.logger.Warnf("主页浏览 Redis 判重回滚失败: target=%d viewer=%d err=%v", targetID, viewerID, rollbackErr)
 			}
@@ -511,7 +517,7 @@ func (b *lastLoginBridge) Latest(_ context.Context, ids []uint64) (map[uint64]us
 	}
 	raw := make([]ctype.ID, 0, len(ids))
 	for _, id := range ids {
-		raw = append(raw, ctype.ID(id))
+		raw = append(raw, ctype.NewID(id))
 	}
 	got, err := analyticsch.LoadLatestLoginMap(b.opts, raw)
 	if err != nil {
@@ -519,7 +525,7 @@ func (b *lastLoginBridge) Latest(_ context.Context, ids []uint64) (map[uint64]us
 	}
 	for id, rec := range got {
 		at, _ := time.ParseInLocation("2006-01-02 15:04:05.000", rec.TS, time.Local)
-		out[uint64(id)] = userapp.LastLogin{IP: rec.IP, Addr: rec.Addr, At: at}
+		out[id.Uint64()] = userapp.LastLogin{IP: rec.IP, Addr: rec.Addr, At: at}
 	}
 	return out, nil
 }
@@ -530,8 +536,12 @@ type tagBridge struct {
 }
 
 // Validate 校验标签都存在且启用。
-func (b *tagBridge) Validate(_ context.Context, ids []uint64) error {
-	normalized := normalizeTagIDs(ids)
+func (b *tagBridge) Validate(_ context.Context, ids []ctype.ID) error {
+	raw := make([]uint64, 0, len(ids))
+	for _, id := range ids {
+		raw = append(raw, id.Uint64())
+	}
+	normalized := normalizeTagIDs(raw)
 	if len(normalized) == 0 {
 		return nil
 	}

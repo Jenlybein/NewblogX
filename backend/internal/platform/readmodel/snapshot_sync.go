@@ -7,7 +7,7 @@ import (
 )
 
 func SyncUserDisplaySnapshots(db *gorm.DB, userID ctype.ID) error {
-	if db == nil || userID == 0 {
+	if db == nil || userID.IsZero() {
 		return nil
 	}
 

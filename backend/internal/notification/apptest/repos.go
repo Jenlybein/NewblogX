@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"myblogx/internal/apperr"
+	"myblogx/internal/kernel/ctype"
 	"myblogx/internal/notification/app"
 	"myblogx/internal/notification/domain"
 )
@@ -62,7 +63,7 @@ func (m *Messages) Find(_ context.Context, receiver, id uint64) (domain.Message,
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	for _, row := range m.rows {
-		if row.ID == id && row.Receiver == receiver {
+		if row.ID.Uint64() == id && row.Receiver == receiver {
 			return row, nil
 		}
 	}
@@ -74,7 +75,7 @@ func (m *Messages) MarkRead(_ context.Context, receiver, id uint64) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	for i := range m.rows {
-		if m.rows[i].ID == id && m.rows[i].Receiver == receiver {
+		if m.rows[i].ID.Uint64() == id && m.rows[i].Receiver == receiver {
 			now := time.Now()
 			m.rows[i].IsRead = true
 			m.rows[i].ReadAt = &now
@@ -110,7 +111,7 @@ func (m *Messages) Delete(_ context.Context, receiver, id uint64) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	for i := range m.rows {
-		if m.rows[i].ID == id && m.rows[i].Receiver == receiver {
+		if m.rows[i].ID.Uint64() == id && m.rows[i].Receiver == receiver {
 			m.rows = append(m.rows[:i], m.rows[i+1:]...)
 			return nil
 		}
@@ -145,8 +146,8 @@ func (m *Messages) Create(_ context.Context, msg *domain.Message) error {
 	}
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	if msg.ID == 0 {
-		msg.ID = m.next
+	if msg.ID.IsZero() {
+		msg.ID = ctype.NewID(m.next)
 		m.next++
 	}
 	now := time.Now()
@@ -165,12 +166,12 @@ func (m *Messages) ExistsDigg(_ context.Context, actionUser uint64, typ domain.M
 			continue
 		}
 		if commentID != 0 {
-			if row.CommentID == commentID {
+			if row.CommentID.Uint64() == commentID {
 				return true, nil
 			}
 			continue
 		}
-		if row.ArticleID == articleID {
+		if row.ArticleID.Uint64() == articleID {
 			return true, nil
 		}
 	}
@@ -229,7 +230,7 @@ func (g *Globals) ListVisible(_ context.Context, userID uint64, userCreatedAt ti
 	now := g.now()
 	var hit []domain.GlobalNotif
 	for _, row := range g.rows {
-		if g.deleted[userID][row.ID] {
+		if g.deleted[userID][row.ID.Uint64()] {
 			continue
 		}
 		if row.VisibleAt(userCreatedAt, now) && matchKey(row, page.Key) {
@@ -253,20 +254,20 @@ func (g *Globals) ListAll(_ context.Context, page domain.Page) ([]domain.GlobalN
 }
 
 // FindVisible 实现 domain.GlobalRepository。
-func (g *Globals) FindVisible(_ context.Context, userID uint64, ids []uint64, userCreatedAt time.Time) ([]domain.GlobalNotif, error) {
+func (g *Globals) FindVisible(_ context.Context, userID uint64, ids []ctype.ID, userCreatedAt time.Time) ([]domain.GlobalNotif, error) {
 	g.mu.Lock()
 	defer g.mu.Unlock()
 	now := g.now()
 	want := make(map[uint64]struct{}, len(ids))
 	for _, id := range ids {
-		want[id] = struct{}{}
+		want[id.Uint64()] = struct{}{}
 	}
 	var out []domain.GlobalNotif
 	for _, row := range g.rows {
-		if _, ok := want[row.ID]; !ok {
+		if _, ok := want[row.ID.Uint64()]; !ok {
 			continue
 		}
-		if g.deleted[userID][row.ID] {
+		if g.deleted[userID][row.ID.Uint64()] {
 			continue
 		}
 		if row.VisibleAt(userCreatedAt, now) {
@@ -277,7 +278,7 @@ func (g *Globals) FindVisible(_ context.Context, userID uint64, ids []uint64, us
 }
 
 // MarkRead 实现 domain.GlobalRepository。
-func (g *Globals) MarkRead(_ context.Context, userID uint64, ids []uint64) (int, error) {
+func (g *Globals) MarkRead(_ context.Context, userID uint64, ids []ctype.ID) (int, error) {
 	g.mu.Lock()
 	defer g.mu.Unlock()
 	if g.read[userID] == nil {
@@ -285,17 +286,17 @@ func (g *Globals) MarkRead(_ context.Context, userID uint64, ids []uint64) (int,
 	}
 	count := 0
 	for _, id := range ids {
-		if g.read[userID][id] || g.deleted[userID][id] {
+		if g.read[userID][id.Uint64()] || g.deleted[userID][id.Uint64()] {
 			continue
 		}
-		g.read[userID][id] = true
+		g.read[userID][id.Uint64()] = true
 		count++
 	}
 	return count, nil
 }
 
 // DeleteForUser 实现 domain.GlobalRepository。
-func (g *Globals) DeleteForUser(_ context.Context, userID uint64, ids []uint64) (int, error) {
+func (g *Globals) DeleteForUser(_ context.Context, userID uint64, ids []ctype.ID) (int, error) {
 	g.mu.Lock()
 	defer g.mu.Unlock()
 	if g.deleted[userID] == nil {
@@ -303,22 +304,22 @@ func (g *Globals) DeleteForUser(_ context.Context, userID uint64, ids []uint64) 
 	}
 	count := 0
 	for _, id := range ids {
-		if g.deleted[userID][id] {
+		if g.deleted[userID][id.Uint64()] {
 			continue
 		}
-		g.deleted[userID][id] = true
+		g.deleted[userID][id.Uint64()] = true
 		count++
 	}
 	return count, nil
 }
 
 // ReadSet 实现 domain.GlobalRepository。
-func (g *Globals) ReadSet(_ context.Context, userID uint64, ids []uint64) (map[uint64]bool, error) {
+func (g *Globals) ReadSet(_ context.Context, userID uint64, ids []ctype.ID) (map[ctype.ID]bool, error) {
 	g.mu.Lock()
 	defer g.mu.Unlock()
-	out := make(map[uint64]bool, len(ids))
+	out := make(map[ctype.ID]bool, len(ids))
 	for _, id := range ids {
-		if g.read[userID][id] {
+		if g.read[userID][id.Uint64()] {
 			out[id] = true
 		}
 	}
@@ -332,7 +333,7 @@ func (g *Globals) CountUnread(_ context.Context, userID uint64, userCreatedAt ti
 	now := g.now()
 	var count int64
 	for _, row := range g.rows {
-		if g.deleted[userID][row.ID] || g.read[userID][row.ID] {
+		if g.deleted[userID][row.ID.Uint64()] || g.read[userID][row.ID.Uint64()] {
 			continue
 		}
 		if row.VisibleAt(userCreatedAt, now) {
@@ -349,8 +350,8 @@ func (g *Globals) Create(_ context.Context, n *domain.GlobalNotif) error {
 	}
 	g.mu.Lock()
 	defer g.mu.Unlock()
-	if n.ID == 0 {
-		n.ID = g.next
+	if n.ID.IsZero() {
+		n.ID = ctype.NewID(g.next)
 		g.next++
 	}
 	n.CreatedAt = g.now()
@@ -371,10 +372,10 @@ func (g *Globals) ExistsTitle(_ context.Context, title string) (bool, error) {
 }
 
 // DeleteMany 实现 domain.GlobalRepository。
-func (g *Globals) DeleteMany(_ context.Context, ids []uint64) (int, error) {
+func (g *Globals) DeleteMany(_ context.Context, ids []ctype.ID) (int, error) {
 	g.mu.Lock()
 	defer g.mu.Unlock()
-	want := make(map[uint64]struct{}, len(ids))
+	want := make(map[ctype.ID]struct{}, len(ids))
 	for _, id := range ids {
 		want[id] = struct{}{}
 	}

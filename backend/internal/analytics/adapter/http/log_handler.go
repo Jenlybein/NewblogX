@@ -90,7 +90,7 @@ type ActionAuditListRequest struct {
 // @Param host query string false "主机"
 // @Param method query string false "HTTP 方法"
 // @Param path query string false "请求路径"
-// @Param user_id query int false "用户 ID"
+// @Param user_id query string false "用户 ID"
 // @Param request_id query string false "请求 ID"
 // @Param request_id_prefix query bool false "请求 ID 前缀匹配"
 // @Param trace_id query string false "链路 ID"
@@ -141,12 +141,12 @@ func (h *Handler) RuntimeLogListView(c *gin.Context) {
 // @Tags log
 // @Produce json
 // @Security BearerAuth
-// @Param id path int true "日志 ID"
+// @Param id path string true "日志 ID"
 // @Success 200 {object} object{code=int,data=clickhouse.RuntimeLogRecord,msg=string}
 // @Router /logs/runtime/{id} [get]
 func (h *Handler) RuntimeLogDetailView(c *gin.Context) {
 	cr := middleware.GetBindUri[IDRequest](c)
-	item, err := clickhouse.GetRuntimeLog(h.logs, uint64(cr.ID))
+	item, err := clickhouse.GetRuntimeLog(h.logs, cr.ID.Uint64())
 	if err != nil {
 		if err == sql.ErrNoRows {
 			res.FailWithMsg("运行日志不存在", c)
@@ -167,7 +167,7 @@ func (h *Handler) RuntimeLogDetailView(c *gin.Context) {
 // @Param page query int false "页码"
 // @Param start_at query string false "开始时间"
 // @Param end_at query string false "结束时间"
-// @Param user_id query int false "用户 ID"
+// @Param user_id query string false "用户 ID"
 // @Param ip query string false "IP 地址"
 // @Param username query string false "用户名"
 // @Param login_type query string false "登录方式"
@@ -222,12 +222,12 @@ func (h *Handler) LoginLogListView(c *gin.Context) {
 // @Tags log
 // @Produce json
 // @Security BearerAuth
-// @Param id path int true "日志 ID"
+// @Param id path string true "日志 ID"
 // @Success 200 {object} object{code=int,data=clickhouse.LoginEventRecord,msg=string}
 // @Router /logs/login/{id} [get]
 func (h *Handler) LoginLogDetailView(c *gin.Context) {
 	cr := middleware.GetBindUri[IDRequest](c)
-	item, err := clickhouse.GetLoginEvent(h.logs, uint64(cr.ID))
+	item, err := clickhouse.GetLoginEvent(h.logs, cr.ID.Uint64())
 	if err != nil {
 		if err == sql.ErrNoRows {
 			res.FailWithMsg("登录事件不存在", c)
@@ -248,7 +248,7 @@ func (h *Handler) LoginLogDetailView(c *gin.Context) {
 // @Param page query int false "页码"
 // @Param start_at query string false "开始时间"
 // @Param end_at query string false "结束时间"
-// @Param user_id query int false "用户 ID"
+// @Param user_id query string false "用户 ID"
 // @Param ip query string false "IP 地址"
 // @Param action_name query string false "操作名"
 // @Param target_type query string false "目标类型"
@@ -309,12 +309,12 @@ func (h *Handler) ActionAuditListView(c *gin.Context) {
 // @Tags log
 // @Produce json
 // @Security BearerAuth
-// @Param id path int true "日志 ID"
+// @Param id path string true "日志 ID"
 // @Success 200 {object} object{code=int,data=clickhouse.ActionAuditRecord,msg=string}
 // @Router /logs/action/{id} [get]
 func (h *Handler) ActionAuditDetailView(c *gin.Context) {
 	cr := middleware.GetBindUri[IDRequest](c)
-	item, err := clickhouse.GetActionAudit(h.logs, uint64(cr.ID))
+	item, err := clickhouse.GetActionAudit(h.logs, cr.ID.Uint64())
 	if err != nil {
 		if err == sql.ErrNoRows {
 			res.FailWithMsg("操作审计日志不存在", c)

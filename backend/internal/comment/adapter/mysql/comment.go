@@ -6,6 +6,7 @@ package mysql
 
 import (
 	"context"
+	"myblogx/internal/kernel/ctype"
 	"time"
 
 	"myblogx/internal/apperr"
@@ -18,19 +19,19 @@ import (
 
 // commentRow 对应 comment_models 表。
 type commentRow struct {
-	ID                uint64 `gorm:"primaryKey;autoIncrement:false"`
+	ID                ctype.ID `gorm:"primaryKey;autoIncrement:false"`
 	CreatedAt         time.Time
 	UpdatedAt         time.Time
 	DeletedAt         gorm.DeletedAt
 	Content           string
-	UserID            uint64
+	UserID            ctype.ID
 	UserNickname      string
 	UserAvatar        string
-	ArticleID         uint64
-	ReplyID           uint64
-	ReplyUserID       uint64
+	ArticleID         ctype.ID
+	ReplyID           ctype.ID
+	ReplyUserID       ctype.ID
 	ReplyUserNickname string
-	RootID            uint64
+	RootID            ctype.ID
 	DiggCount         int
 	ReplyCount        int
 	Status            int8
@@ -41,12 +42,12 @@ func (commentRow) TableName() string { return "comment_models" }
 
 // diggRow 对应 comment_digg_models 表。
 type diggRow struct {
-	ID        uint64 `gorm:"primaryKey;autoIncrement:false"`
+	ID        ctype.ID `gorm:"primaryKey;autoIncrement:false"`
 	CreatedAt time.Time
 	UpdatedAt time.Time
 	DeletedAt gorm.DeletedAt
-	CommentID uint64
-	UserID    uint64
+	CommentID ctype.ID
+	UserID    ctype.ID
 }
 
 // TableName 固定表名。
@@ -85,11 +86,11 @@ func (r *Repo) Create(ctx context.Context, c *domain.Comment) error {
 		if err != nil {
 			return err
 		}
-		c.ID = domain.CommentID(next.Uint64())
+		c.ID = ctype.NewID(next.Uint64())
 	}
 	now := time.Now()
 	row := commentRow{
-		ID:                c.ID.Uint64(),
+		ID:                c.ID,
 		CreatedAt:         now,
 		Content:           c.Content,
 		UserID:            c.UserID,
@@ -225,10 +226,10 @@ func (r *Repo) ListManaged(ctx context.Context, q domain.ManagedQuery) ([]domain
 		case 2:
 			tx = tx.Where("user_id = ?", q.ViewerID)
 		}
-		if q.ArticleID != 0 && q.Type != 1 {
+		if !q.ArticleID.IsZero() && q.Type != 1 {
 			tx = tx.Where("article_id = ?", q.ArticleID)
 		}
-		if q.UserID != 0 {
+		if !q.UserID.IsZero() {
 			tx = tx.Where("user_id = ?", q.UserID)
 		}
 		if q.Status != 0 && q.Type != 1 {
@@ -299,9 +300,9 @@ func (d *DiggRepo) Delete(ctx context.Context, commentID, userID uint64) (bool, 
 
 // Create 实现 domain.DiggRepository。
 func (d *DiggRepo) Create(ctx context.Context, commentID, userID uint64) (bool, error) {
-	row := &diggRow{CommentID: commentID, UserID: userID}
+	row := &diggRow{CommentID: ctype.NewID(commentID), UserID: ctype.NewID(userID)}
 	if next, err := idgen.Next(); err == nil {
-		row.ID = next.Uint64()
+		row.ID = next
 	}
 	return platformmysql.RestoreOrCreateUnique(d.db.WithContext(ctx), row, []string{"comment_id", "user_id"})
 }
@@ -327,7 +328,7 @@ func (d *DiggRepo) DiggedSet(ctx context.Context, viewerID uint64, commentIDs []
 		return out, err
 	}
 	for _, row := range rows {
-		out[row.CommentID] = true
+		out[row.CommentID.Uint64()] = true
 	}
 	return out, nil
 }
@@ -343,7 +344,7 @@ func translate(err error) error {
 // toComment 把 row 映射成领域实体。
 func toComment(row commentRow) domain.Comment {
 	return domain.Comment{
-		ID:                domain.CommentID(row.ID),
+		ID:                row.ID,
 		CreatedAt:         row.CreatedAt,
 		Content:           row.Content,
 		UserID:            row.UserID,

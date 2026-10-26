@@ -11,36 +11,85 @@ import (
 	"gorm.io/gorm/schema"
 )
 
-// ID 统一使用字符串 JSON 语义，避免雪花 ID 经过前端 Number 后丢失精度。
-type ID uint64
+// ID 统一使用字符串语义，避免雪花 ID 经过前端 Number 后丢失精度。
+//
+// **底层就是 string**（曾经是 uint64）。这一层改动的意义：
+//
+//	以前：类型是 uint64，但 MarshalJSON 会把它输出成字符串。
+//	      "Go 类型"与"JSON 里的样子"是两个东西，靠一个 MarshalJSON 偷偷转换。
+//	      swag 读的是 Go 类型，于是契约里印成 integer，与实际传输不符，
+//	      只能靠生成后的脚本再把 integer 改成 string。
+//
+//	现在：类型与 JSON 是同一个东西。swag 读类型声明得到 string，不可能印错。
+//
+// 数据库侧不受影响：Value/Scan 仍然按 int64 读写，DDL 一行未改（零 DDL）。
+//
+// 代价（使用时必须知道）：
+//  1. **不要拿 ID 直接比大小**。string 比较下 "10" < "9" 成立，数值排序会乱。
+//     需要比较/排序时用 Uint64()。
+//  2. **不要用 ID(123) 构造**。integer→string 转换在 Go 里是合法的
+//     （得到的是该码点对应的字符），编译器不会报错但值是错的。
+//     一律用 NewID(123)。
+type ID string
 
-// Uint64 将雪花 ID 转换为 uint64
+// NewID 由数值构造 ID。0 会得到零值（空串），保证 IsZero 与 JSON 往返一致。
+func NewID(v uint64) ID {
+	if v == 0 {
+		return ID("")
+	}
+	return ID(strconv.FormatUint(v, 10))
+}
+
+// ParseID 解析字符串形式的 ID；空串得到零值。
+func ParseID(raw string) (ID, error) {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return ID(""), nil
+	}
+	num, err := strconv.ParseUint(raw, 10, 64)
+	if err != nil {
+		return ID(""), fmt.Errorf("id 不是合法的数字: %q", raw)
+	}
+	return NewID(num), nil
+}
+
+// Uint64 将雪花 ID 转回数值。
+//
+// 解析失败（脏数据）时返回 0 而不是 panic：ID 可能来自 URL 参数或外部 JSON，
+// 让一处坏数据拖垮整个列表渲染不划算。
 func (id ID) Uint64() uint64 {
-	return uint64(id)
+	num, err := strconv.ParseUint(string(id), 10, 64)
+	if err != nil {
+		return 0
+	}
+	return num
 }
 
-// IsZero 判断雪花 ID 是否为零
+// IsZero 判断雪花 ID 是否为零。
 func (id ID) IsZero() bool {
-	return id == 0
+	return id == ""
 }
 
-// String 实现 fmt.Stringer 接口
+// String 实现 fmt.Stringer 接口。零值返回空串。
 func (id ID) String() string {
-	return strconv.FormatUint(uint64(id), 10)
+	return string(id)
 }
 
 // MarshalJSON 实现 json.Marshaler 接口
 func (id ID) MarshalJSON() ([]byte, error) {
-	return json.Marshal(id.String())
+	return json.Marshal(string(id))
 }
 
 // UnmarshalJSON 实现 json.Unmarshaler 接口
+//
+// 同时接受字符串与数字两种形态：字符串是现在的正式形态，数字要兼容
+// 存量数据、数据库导出与测试夹具（那里的 ID 还是数字）。
 func (id *ID) UnmarshalJSON(data []byte) error {
 	if id == nil {
 		return fmt.Errorf("id 不能为空")
 	}
 	if string(data) == "null" {
-		*id = 0
+		*id = ID("")
 		return nil
 	}
 
@@ -56,7 +105,7 @@ func (id *ID) UnmarshalJSON(data []byte) error {
 	if err := json.Unmarshal(data, &num); err != nil {
 		return err
 	}
-	*id = ID(num)
+	*id = NewID(num)
 	return nil
 }
 
@@ -70,27 +119,22 @@ func (id *ID) UnmarshalText(text []byte) error {
 
 // MarshalText 实现 encoding.TextMarshaler 接口
 func (id ID) MarshalText() ([]byte, error) {
-	return []byte(id.String()), nil
+	return []byte(string(id)), nil
 }
 
 // parse 解析字符串
 func (id *ID) parse(raw string) error {
-	raw = strings.TrimSpace(raw)
-	if raw == "" {
-		*id = 0
-		return nil
-	}
-	num, err := strconv.ParseUint(raw, 10, 64)
+	parsed, err := ParseID(raw)
 	if err != nil {
 		return err
 	}
-	*id = ID(num)
+	*id = parsed
 	return nil
 }
 
-// Value 实现 driver.Valuer 接口
+// Value 实现 driver.Valuer 接口（落库仍是 int64）
 func (id ID) Value() (driver.Value, error) {
-	return int64(id), nil
+	return int64(id.Uint64()), nil
 }
 
 // Scan 实现 sql.Scanner 接口
@@ -100,25 +144,25 @@ func (id *ID) Scan(value any) error {
 	}
 	switch v := value.(type) {
 	case nil:
-		*id = 0
+		*id = ID("")
 		return nil
 	case int64:
-		*id = ID(v)
+		*id = NewID(uint64(v))
 		return nil
 	case int32:
-		*id = ID(v)
+		*id = NewID(uint64(v))
 		return nil
 	case int:
-		*id = ID(v)
+		*id = NewID(uint64(v))
 		return nil
 	case uint64:
-		*id = ID(v)
+		*id = NewID(v)
 		return nil
 	case uint32:
-		*id = ID(v)
+		*id = NewID(uint64(v))
 		return nil
 	case uint:
-		*id = ID(v)
+		*id = NewID(uint64(v))
 		return nil
 	case []byte:
 		return id.parse(string(v))

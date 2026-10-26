@@ -1,9 +1,9 @@
 package apptest
 
 import (
-	"time"
-
 	"myblogx/internal/article/domain"
+	"myblogx/internal/kernel/ctype"
+	"time"
 )
 
 // DefaultTime 是测试统一使用的"现在"。
@@ -24,8 +24,8 @@ type ArticleBuilder struct {
 // NewArticle 返回一个默认草稿的构造器。
 func NewArticle() *ArticleBuilder {
 	return &ArticleBuilder{p: domain.RestoreParams{
-		ID:             1,
-		AuthorID:       100,
+		ID:             ctype.NewID(1),
+		AuthorID:       ctype.NewID(100),
 		Title:          "测试文章",
 		Abstract:       "摘要",
 		Content:        "正文内容",

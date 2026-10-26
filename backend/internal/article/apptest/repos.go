@@ -2,6 +2,7 @@ package apptest
 
 import (
 	"context"
+	"myblogx/internal/kernel/ctype"
 	"sync"
 	"time"
 
@@ -383,7 +384,7 @@ func (g *IDGen) NextArticleID() domain.ArticleID {
 	g.mu.Lock()
 	defer g.mu.Unlock()
 	g.article++
-	return domain.ArticleID(g.article)
+	return ctype.NewID(g.article)
 }
 
 // NextReviewTaskID 返回下一个审核任务 ID。
@@ -399,5 +400,5 @@ func (g *IDGen) NextFolderID() favorite.ID {
 	g.mu.Lock()
 	defer g.mu.Unlock()
 	g.folder++
-	return favorite.ID(g.folder)
+	return ctype.NewID(g.folder)
 }

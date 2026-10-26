@@ -144,7 +144,7 @@ func collectRowsIDs(e *canal.RowsEvent, columnName string) []ctype.ID {
 			continue
 		}
 		var id ctype.ID
-		if err := id.Scan(row[columnIndex]); err != nil || id == 0 {
+		if err := id.Scan(row[columnIndex]); err != nil || id.IsZero() {
 			continue
 		}
 		idSet[id] = struct{}{}
@@ -183,8 +183,8 @@ func collectArticleModelDeltas(e *canal.RowsEvent) []articlesync.ArticleModelDel
 		}
 
 		var articleID ctype.ID
-		if err := articleID.Scan(after[idColumnIndex]); err != nil || articleID == 0 {
-			if err = articleID.Scan(before[idColumnIndex]); err != nil || articleID == 0 {
+		if err := articleID.Scan(after[idColumnIndex]); err != nil || articleID.IsZero() {
+			if err = articleID.Scan(before[idColumnIndex]); err != nil || articleID.IsZero() {
 				continue
 			}
 		}

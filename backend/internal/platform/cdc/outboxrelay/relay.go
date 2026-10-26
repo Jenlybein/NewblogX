@@ -40,7 +40,7 @@ type Event struct {
 	ID            ctype.ID
 	EventName     string
 	AggregateType string
-	AggregateID   uint64
+	AggregateID   ctype.ID
 	Payload       string
 	// Attempts 本次是第几次尝试（从 1 开始）。
 	Attempts int
@@ -254,7 +254,7 @@ func (r *Relay) worker() {
 		select {
 		case id := <-r.queue:
 			if err := r.Dispatch(r.ctx, id); err != nil && r.log != nil {
-				r.log.Errorf("outbox 投递失败: id=%d 错误=%v", id, err)
+				r.log.Errorf("outbox 投递失败: id=%s 错误=%v", id, err)
 			}
 		case <-r.ctx.Done():
 			return
@@ -536,10 +536,10 @@ func (r *Relay) markFailed(ctx context.Context, row outboxRow, dispatchErr error
 func (r *Relay) saveDeadLetter(row outboxRow, attempts int, msg string) error {
 	return deadletter.SaveBatch(r.db, []deadletter.Item{{
 		Stream:      "outbox_relay",
-		CdcJobID:    fmt.Sprintf("outbox:%d", row.ID),
+		CdcJobID:    fmt.Sprintf("outbox:%s", row.ID),
 		SourceTable: "outbox_event_models",
 		Action:      row.EventName,
-		TargetKey:   fmt.Sprintf("%s:%d", row.AggregateType, row.AggregateID),
+		TargetKey:   fmt.Sprintf("%s:%s", row.AggregateType, row.AggregateID),
 		Payload:     map[string]any{"payload": row.Payload},
 		RetryCount:  attempts,
 		Status:      "pending",

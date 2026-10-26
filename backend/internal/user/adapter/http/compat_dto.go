@@ -3,6 +3,7 @@ package http
 import (
 	"time"
 
+	"myblogx/internal/kernel/ctype"
 	"myblogx/internal/user/app"
 	"myblogx/internal/user/domain"
 )
@@ -12,15 +13,15 @@ import (
 
 // UpdateInfoRequest 更新当前用户资料 + 偏好。
 type UpdateInfoRequest struct {
-	Username            *string   `json:"username"`
-	Nickname            *string   `json:"nickname"`
-	AvatarImageID       *uint64   `json:"avatar_image_id"`
-	Abstract            *string   `json:"abstract"`
-	LikeTagIDs          *[]uint64 `json:"like_tag_ids"`
-	FavoritesVisibility *bool     `json:"favorites_visibility"`
-	FollowVisibility    *bool     `json:"followers_visibility"`
-	FansVisibility      *bool     `json:"fans_visibility"`
-	HomeStyleID         *uint64   `json:"home_style_id"`
+	Username            *string     `json:"username"`
+	Nickname            *string     `json:"nickname"`
+	AvatarImageID       *ctype.ID   `json:"avatar_image_id"`
+	Abstract            *string     `json:"abstract"`
+	LikeTagIDs          *[]ctype.ID `json:"like_tag_ids"`
+	FavoritesVisibility *bool       `json:"favorites_visibility"`
+	FollowVisibility    *bool       `json:"followers_visibility"`
+	FansVisibility      *bool       `json:"fans_visibility"`
+	HomeStyleID         *ctype.ID   `json:"home_style_id"`
 }
 
 // toApp 转成用例输入。
@@ -44,13 +45,13 @@ func (r UpdateInfoRequest) toApp() app.UpdateInfoInput {
 
 // AdminUpdateRequest 管理员更新指定用户。
 type AdminUpdateRequest struct {
-	UserID        uint64  `json:"user_id" binding:"required"`
-	Username      *string `json:"username"`
-	Nickname      *string `json:"nickname"`
-	AvatarImageID *uint64 `json:"avatar_image_id"`
-	Abstract      *string `json:"abstract"`
-	Role          *int8   `json:"role"`
-	Status        *int8   `json:"status"`
+	UserID        ctype.ID  `json:"user_id" binding:"required"`
+	Username      *string   `json:"username"`
+	Nickname      *string   `json:"nickname"`
+	AvatarImageID *ctype.ID `json:"avatar_image_id"`
+	Abstract      *string   `json:"abstract"`
+	Role          *int8     `json:"role"`
+	Status        *int8     `json:"status"`
 }
 
 // AdminListRequest 管理端用户列表查询参数（沿用 page/limit/key）。
@@ -70,28 +71,28 @@ type AdminCreateRequest struct {
 
 // BaseInfoResponse 主页基础信息（旧契约字段名）。
 type BaseInfoResponse struct {
-	ID                  uint64  `json:"id"`
-	CodeAge             int     `json:"code_age"`
-	AvatarImageID       *uint64 `json:"avatar_image_id,omitempty"`
-	Avatar              string  `json:"avatar"`
-	Nickname            string  `json:"nickname"`
-	Abstract            string  `json:"abstract"`
-	ViewCount           int     `json:"view_count"`
-	FansCount           int     `json:"fans_count"`
-	FollowCount         int     `json:"follow_count"`
-	ArticleVisitedCount int     `json:"article_visited_count"`
-	ArticleCount        int     `json:"article_count"`
-	FavoritesVisibility bool    `json:"favorites_visibility"`
-	FollowVisibility    bool    `json:"followers_visibility"`
-	FansVisibility      bool    `json:"fans_visibility"`
-	HomeStyleID         uint64  `json:"home_style_id"`
-	Relation            int8    `json:"relation"`
-	Place               string  `json:"place"`
+	ID                  ctype.ID  `json:"id"`
+	CodeAge             int       `json:"code_age"`
+	AvatarImageID       *ctype.ID `json:"avatar_image_id,omitempty"`
+	Avatar              string    `json:"avatar"`
+	Nickname            string    `json:"nickname"`
+	Abstract            string    `json:"abstract"`
+	ViewCount           int       `json:"view_count"`
+	FansCount           int       `json:"fans_count"`
+	FollowCount         int       `json:"follow_count"`
+	ArticleVisitedCount int       `json:"article_visited_count"`
+	ArticleCount        int       `json:"article_count"`
+	FavoritesVisibility bool      `json:"favorites_visibility"`
+	FollowVisibility    bool      `json:"followers_visibility"`
+	FansVisibility      bool      `json:"fans_visibility"`
+	HomeStyleID         ctype.ID  `json:"home_style_id"`
+	Relation            int8      `json:"relation"`
+	Place               string    `json:"place"`
 }
 
 // AdminUserItemResponse 管理端用户列表的一行（旧契约字段名）。
 type AdminUserItemResponse struct {
-	ID          uint64    `json:"id"`
+	ID          ctype.ID  `json:"id"`
 	Nickname    string    `json:"nickname"`
 	Avatar      string    `json:"avatar"`
 	Username    string    `json:"username"`
@@ -103,11 +104,11 @@ type AdminUserItemResponse struct {
 
 // AdminCreateResponse 管理员创建用户的返回（旧契约字段名）。
 type AdminCreateResponse struct {
-	ID             uint64  `json:"id"`
-	Username       string  `json:"username"`
-	Nickname       string  `json:"nickname"`
-	Email          *string `json:"email"`
-	Role           int8    `json:"role"`
-	Status         int8    `json:"status"`
-	RegisterSource int8    `json:"register_source"`
+	ID             ctype.ID `json:"id"`
+	Username       string   `json:"username"`
+	Nickname       string   `json:"nickname"`
+	Email          *string  `json:"email"`
+	Role           int8     `json:"role"`
+	Status         int8     `json:"status"`
+	RegisterSource int8     `json:"register_source"`
 }

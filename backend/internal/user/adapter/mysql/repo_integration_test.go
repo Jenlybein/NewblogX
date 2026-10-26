@@ -14,6 +14,7 @@ import (
 	"myblogx/internal/user/domain"
 
 	"gorm.io/gorm"
+	"myblogx/internal/kernel/ctype"
 )
 
 // 这些是契约测试：打真 MySQL，验证 row 结构与真实表结构一致。
@@ -117,7 +118,7 @@ func TestRepoFindMissing(t *testing.T) {
 	t.Parallel()
 	e := setup(t)
 	repo, ctx := e.repo, e.ctx
-	_, err := repo.FindByID(ctx, 999999)
+	_, err := repo.FindByID(ctx, ctype.NewID(999999))
 	if code, ok := apperr.CodeOf(err); !ok || code != apperr.CodeUserNotFound {
 		t.Fatalf("不存在时应返回 CodeUserNotFound，实际: %v", err)
 	}
@@ -132,16 +133,16 @@ func TestRepoExists(t *testing.T) {
 		t.Fatalf("创建失败: %v", err)
 	}
 
-	if ok, err := repo.ExistsUsername(ctx, "bob", 0); err != nil || !ok {
+	if ok, err := repo.ExistsUsername(ctx, "bob", ctype.NewID(0)); err != nil || !ok {
 		t.Fatalf("应判定为已占用: ok=%v err=%v", ok, err)
 	}
 	if ok, _ := repo.ExistsUsername(ctx, "bob", u.ID); ok {
 		t.Fatal("排除自己时应判定为未占用")
 	}
-	if ok, _ := repo.ExistsUsername(ctx, "nobody", 0); ok {
+	if ok, _ := repo.ExistsUsername(ctx, "nobody", ctype.NewID(0)); ok {
 		t.Fatal("不存在的用户名不该占用")
 	}
-	if ok, _ := repo.ExistsEmail(ctx, "bob@example.com", 0); !ok {
+	if ok, _ := repo.ExistsEmail(ctx, "bob@example.com", ctype.NewID(0)); !ok {
 		t.Fatal("邮箱应判定为已占用")
 	}
 }
@@ -198,7 +199,7 @@ func TestRepoUpdateStatus(t *testing.T) {
 	if got.Status != domain.StatusBanned {
 		t.Fatalf("状态未更新: %v", got.Status)
 	}
-	if err := repo.UpdateStatus(ctx, 999999, domain.StatusActive); err == nil {
+	if err := repo.UpdateStatus(ctx, ctype.NewID(999999), domain.StatusActive); err == nil {
 		t.Fatal("不存在的用户应报错")
 	}
 }
@@ -251,7 +252,7 @@ func TestSettingsAndStats(t *testing.T) {
 		if err != nil {
 			t.Fatalf("读默认偏好失败: %v", err)
 		}
-		if !s.FavoritesVisibility || s.HomeStyleID != 1 {
+		if !s.FavoritesVisibility || s.HomeStyleID.Uint64() != 1 {
 			t.Fatalf("默认值不对: %+v", s)
 		}
 	})
@@ -267,13 +268,13 @@ func TestSettingsAndStats(t *testing.T) {
 
 	t.Run("保存后能读回", func(t *testing.T) {
 		s, _ := settings.Find(ctx, u.ID)
-		s.LikeTagIDs = []uint64{3, 1, 2}
+		s.LikeTagIDs = []ctype.ID{ctype.NewID(3), ctype.NewID(1), ctype.NewID(2)}
 		s.DiggNoticeEnabled = false
 		if err := settings.Save(ctx, s); err != nil {
 			t.Fatalf("保存失败: %v", err)
 		}
 		got, _ := settings.Find(ctx, u.ID)
-		if len(got.LikeTagIDs) != 3 || got.LikeTagIDs[0] != 3 {
+		if len(got.LikeTagIDs) != 3 || got.LikeTagIDs[0].Uint64() != 3 {
 			t.Fatalf("标签顺序应保持: %+v", got.LikeTagIDs)
 		}
 		if got.DiggNoticeEnabled {
@@ -304,7 +305,7 @@ func TestLoadDisplays(t *testing.T) {
 		t.Fatalf("创建失败: %v", err)
 	}
 
-	got, err := repo.LoadDisplays(ctx, []domain.UserID{u.ID, u.ID, 999999})
+	got, err := repo.LoadDisplays(ctx, []domain.UserID{u.ID, u.ID, ctype.NewID(999999)})
 	if err != nil {
 		t.Fatalf("批量读取失败: %v", err)
 	}

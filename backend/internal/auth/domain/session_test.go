@@ -1,6 +1,7 @@
 package domain_test
 
 import (
+	"myblogx/internal/kernel/ctype"
 	"testing"
 	"time"
 
@@ -21,11 +22,11 @@ func TestSessionIsActive(t *testing.T) {
 		session domain.Session
 		want    bool
 	}{
-		{"正常会话", domain.Session{ID: 1, ExpiresAt: now.Add(time.Hour)}, true},
-		{"已吊销", domain.Session{ID: 1, ExpiresAt: now.Add(time.Hour), RevokedAt: revoked(now.Add(-time.Minute))}, false},
-		{"已过期", domain.Session{ID: 1, ExpiresAt: now.Add(-time.Second)}, false},
-		{"恰好到期（不算有效）", domain.Session{ID: 1, ExpiresAt: now}, false},
-		{"已吊销且已过期", domain.Session{ID: 1, ExpiresAt: now.Add(-time.Hour), RevokedAt: revoked(now)}, false},
+		{"正常会话", domain.Session{ID: ctype.NewID(1), ExpiresAt: now.Add(time.Hour)}, true},
+		{"已吊销", domain.Session{ID: ctype.NewID(1), ExpiresAt: now.Add(time.Hour), RevokedAt: revoked(now.Add(-time.Minute))}, false},
+		{"已过期", domain.Session{ID: ctype.NewID(1), ExpiresAt: now.Add(-time.Second)}, false},
+		{"恰好到期（不算有效）", domain.Session{ID: ctype.NewID(1), ExpiresAt: now}, false},
+		{"已吊销且已过期", domain.Session{ID: ctype.NewID(1), ExpiresAt: now.Add(-time.Hour), RevokedAt: revoked(now)}, false},
 		{"零值会话", domain.Session{}, false},
 		{"无 ID 但有过期时间", domain.Session{ExpiresAt: now.Add(time.Hour)}, false},
 	}
@@ -44,12 +45,12 @@ func TestSessionIsActive(t *testing.T) {
 }
 
 func TestSessionEnsureActive(t *testing.T) {
-	active := domain.Session{ID: 1, ExpiresAt: now.Add(time.Hour)}
+	active := domain.Session{ID: ctype.NewID(1), ExpiresAt: now.Add(time.Hour)}
 	if err := active.EnsureActive(now); err != nil {
 		t.Fatalf("有效会话不该报错: %v", err)
 	}
 
-	expired := domain.Session{ID: 1, ExpiresAt: now.Add(-time.Hour)}
+	expired := domain.Session{ID: ctype.NewID(1), ExpiresAt: now.Add(-time.Hour)}
 	err := expired.EnsureActive(now)
 	if err == nil {
 		t.Fatal("过期会话必须报错")
@@ -62,11 +63,11 @@ func TestSessionEnsureActive(t *testing.T) {
 
 func TestSessionExpiredBy(t *testing.T) {
 	// ExpiredBy 只看时间，不看吊销：清理任务要留审计期。
-	revokedButFuture := domain.Session{ID: 1, ExpiresAt: now.Add(time.Hour), RevokedAt: revoked(now)}
+	revokedButFuture := domain.Session{ID: ctype.NewID(1), ExpiresAt: now.Add(time.Hour), RevokedAt: revoked(now)}
 	if revokedButFuture.ExpiredBy(now) {
 		t.Fatal("未到期但已吊销的会话不该被清理任务删掉")
 	}
-	past := domain.Session{ID: 1, ExpiresAt: now.Add(-time.Hour)}
+	past := domain.Session{ID: ctype.NewID(1), ExpiresAt: now.Add(-time.Hour)}
 	if !past.ExpiredBy(now) {
 		t.Fatal("已过期会话应被判定为可清理")
 	}

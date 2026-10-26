@@ -16,6 +16,7 @@ import (
 	"myblogx/internal/article/domain/taxonomy"
 	"myblogx/internal/article/domain/top"
 	"myblogx/internal/article/domain/viewhistory"
+	"myblogx/internal/kernel/ctype"
 )
 
 // Repos 是"一次事务内可用的全部仓储"。
@@ -125,7 +126,7 @@ type Event struct {
 	//
 	// 单独带一份而不是让消费者去解 payload：outbox 表要按它建索引，
 	// 运维排查"这篇文章的事件卡在哪一步"时可以直接查。
-	AggregateID uint64
+	AggregateID ctype.ID
 	// AggregateType 是聚合类型，当前只有 "article"。
 	AggregateType string
 }

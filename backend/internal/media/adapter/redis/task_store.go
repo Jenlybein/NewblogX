@@ -31,12 +31,12 @@ func (s *TaskStore) Save(_ context.Context, task *domain.Task, ttl time.Duration
 	if err != nil {
 		return err
 	}
-	return redis_image.StoreTask(s.deps, ctype.ID(task.ID), task.ObjectKey, data, ttl)
+	return redis_image.StoreTask(s.deps, ctype.NewID(task.ID.Uint64()), task.ObjectKey, data, ttl)
 }
 
 // Get 按任务 ID 取任务。
 func (s *TaskStore) Get(_ context.Context, id uint64) (*domain.Task, error) {
-	data, err := redis_image.GetTaskDataByID(s.deps, ctype.ID(id))
+	data, err := redis_image.GetTaskDataByID(s.deps, ctype.NewID(id))
 	if err != nil {
 		if err == goredis.Nil {
 			return nil, apperr.New(apperr.CodeImageTaskNotFound)
@@ -59,12 +59,12 @@ func (s *TaskStore) GetIDByObjectKey(_ context.Context, objectKey string) (uint6
 		}
 		return 0, err
 	}
-	return uint64(id), nil
+	return id.Uint64(), nil
 }
 
 // Lock 对任务加锁。
 func (s *TaskStore) Lock(_ context.Context, id uint64, ttl time.Duration) (func(), bool, error) {
-	return redis_image.LockTask(s.deps, ctype.ID(id), ttl)
+	return redis_image.LockTask(s.deps, ctype.NewID(id), ttl)
 }
 
 // AuditStore 实现 domain.AuditStore。

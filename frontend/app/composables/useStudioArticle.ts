@@ -1,3 +1,4 @@
+import { useAsyncData, useRoute } from "#imports";
 import { computed, reactive, ref, watch, type Ref } from "vue";
 
 import type { ArticleHeadingAnchor } from "~/composables/useArticleMarkdown";

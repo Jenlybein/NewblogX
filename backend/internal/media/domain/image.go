@@ -3,19 +3,14 @@ package domain
 
 import (
 	"context"
+	"myblogx/internal/kernel/ctype"
 	"net/http"
 	"strings"
 	"time"
 )
 
 // ImageID 是图片标识。
-type ImageID uint64
-
-// Uint64 返回底层值。
-func (id ImageID) Uint64() uint64 { return uint64(id) }
-
-// IsZero 判断是否为空。
-func (id ImageID) IsZero() bool { return id == 0 }
+type ImageID = ctype.ID
 
 // Status 是图片审核状态。
 type Status uint
@@ -93,7 +88,7 @@ const (
 type Image struct {
 	ID        ImageID
 	CreatedAt time.Time
-	UserID    uint64
+	UserID    ctype.ID
 	Provider  Provider
 	Bucket    string
 	ObjectKey string
@@ -109,8 +104,8 @@ type Image struct {
 
 // Task 是一次直传上传任务。
 type Task struct {
-	ID           uint64
-	UserID       uint64
+	ID           ctype.ID
+	UserID       ctype.ID
 	Provider     Provider
 	Status       TaskStatus
 	Bucket       string
@@ -126,7 +121,7 @@ type Task struct {
 	ErrorMsg     string
 	ExpiresAt    time.Time
 	ConfirmedAt  *time.Time
-	ImageID      *uint64
+	ImageID      *ctype.ID
 	ImageURL     string
 }
 

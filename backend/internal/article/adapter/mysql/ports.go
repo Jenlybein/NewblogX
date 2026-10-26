@@ -29,7 +29,7 @@ func (a *authorStats) ApplyArticleDelta(ctx context.Context, authorID domain.Use
 		// 没装配就跳过：统计是附属信息，不该让删文章因为"统计没接上"而失败。
 		return nil
 	}
-	return a.apply(a.db, uint64(authorID), articleDelta, viewDelta)
+	return a.apply(a.db, authorID.Uint64(), articleDelta, viewDelta)
 }
 
 // userPort 是 app.UserPort 的实现：只读用户展示信息。

@@ -587,7 +587,7 @@ func (u *UserRow) AfterCreate(tx *gorm.DB) error {
 		FavoritesVisibility:      true,
 		FollowVisibility:         true,
 		FansVisibility:           true,
-		HomeStyleID:              1,
+		HomeStyleID:              ctype.NewID(1),
 		DiggNoticeEnabled:        true,
 		CommentNoticeEnabled:     true,
 		FavorNoticeEnabled:       true,

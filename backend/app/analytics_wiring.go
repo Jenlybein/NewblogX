@@ -90,7 +90,7 @@ func (d *analyticsDeadLetters) Query(ctx context.Context, q domain.DeadLetterQue
 	out := make([]domain.DeadLetter, 0, len(list))
 	for _, item := range list {
 		out = append(out, domain.DeadLetter{
-			ID:          uint64(item.ID),
+			ID:          item.ID,
 			Stream:      item.Stream,
 			CdcJobID:    item.CdcJobID,
 			SourceTable: item.SourceTable,

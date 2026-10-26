@@ -2,6 +2,7 @@ package app
 
 import (
 	"context"
+	"myblogx/internal/kernel/ctype"
 
 	"myblogx/internal/article/domain"
 	"myblogx/internal/article/domain/favorite"
@@ -41,7 +42,7 @@ func (s *Service) SaveCategory(ctx context.Context, viewer domain.Viewer, id dom
 
 	var saved *taxonomy.Category
 	err := s.tx.WithinTx(ctx, func(ctx context.Context, r Repos) error {
-		if id == 0 {
+		if id.IsZero() {
 			id = s.nextCategoryID()
 		} else {
 			// 更新前确认归属，避免改到他人分类。
@@ -104,7 +105,7 @@ func (s *Service) DeleteCategories(ctx context.Context, viewer domain.Viewer, id
 // 分类没有独立的 ID 服务：旧实现依赖雪花在 BeforeCreate 时生成。
 // 这里复用同一个序列，保证全局唯一即可。
 func (s *Service) nextCategoryID() domain.CategoryID {
-	return domain.CategoryID(s.ids.NextArticleID().Uint64())
+	return ctype.NewID(s.ids.NextArticleID().Uint64())
 }
 
 // ── 标签 ──
@@ -129,8 +130,8 @@ func (s *Service) SaveTag(ctx context.Context, viewer domain.Viewer, in TagInput
 	var saved *taxonomy.Tag
 	err := s.tx.WithinTx(ctx, func(ctx context.Context, r Repos) error {
 		id := in.ID
-		if id == 0 {
-			id = domain.TagID(s.ids.NextArticleID().Uint64())
+		if id.IsZero() {
+			id = ctype.NewID(s.ids.NextArticleID().Uint64())
 		}
 
 		dup, err := r.Tags().ExistsTitle(ctx, in.Title, id)
@@ -344,14 +345,14 @@ func (s *Service) ListReviewTasks(ctx context.Context, viewer domain.Viewer, sta
 //
 // 与 Examine 的区别：Examine 是按文章审核，这里是按任务审核（管理后台的队列视图）。
 // 两者最终都改文章状态，只是入口不同。
-func (s *Service) HandleReviewTask(ctx context.Context, viewer domain.Viewer, taskID uint64, approve bool, reason string) (*domain.Article, error) {
+func (s *Service) HandleReviewTask(ctx context.Context, viewer domain.Viewer, taskID ctype.ID, approve bool, reason string) (*domain.Article, error) {
 	if !viewer.IsAdmin() {
 		return nil, domain.ErrForbidden
 	}
 
 	var result *domain.Article
 	err := s.tx.WithinTx(ctx, func(ctx context.Context, r Repos) error {
-		task, err := r.Reviews().Find(ctx, taskID)
+		task, err := r.Reviews().Find(ctx, taskID.Uint64())
 		if err != nil {
 			return err
 		}

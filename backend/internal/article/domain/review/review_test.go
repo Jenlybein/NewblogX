@@ -2,6 +2,7 @@ package review_test
 
 import (
 	"errors"
+	"myblogx/internal/kernel/ctype"
 	"testing"
 	"time"
 
@@ -13,9 +14,9 @@ var now = time.Date(2026, 1, 1, 12, 0, 0, 0, time.UTC)
 
 func newTask() *review.Task {
 	return review.NewTask(review.NewTaskParams{
-		ID:            1,
-		ArticleID:     domain.ArticleID(10),
-		AuthorID:      domain.UserID(100),
+		ID:            ctype.NewID(1),
+		ArticleID:     ctype.NewID(10),
+		AuthorID:      ctype.NewID(100),
 		ArticleTitle:  "待审文章",
 		AuthorName:    "作者",
 		PublishStatus: domain.StatusExamining,
@@ -43,20 +44,20 @@ func TestTaskStateMachine(t *testing.T) {
 	t.Run("通过", func(t *testing.T) {
 		t.Parallel()
 		task := newTask()
-		if err := task.Approve(domain.UserID(900), now); err != nil {
+		if err := task.Approve(ctype.NewID(900), now); err != nil {
 			t.Fatalf("不应报错: %v", err)
 		}
 		if task.Status() != review.StatusApproved {
 			t.Fatalf("状态应为 approved，实际 %s", task.Status())
 		}
-		if task.ReviewedBy() == nil || *task.ReviewedBy() != domain.UserID(900) {
+		if task.ReviewedBy() == nil || *task.ReviewedBy() != ctype.NewID(900) {
 			t.Fatal("应记录审核人")
 		}
 		if task.ReviewedAt() == nil {
 			t.Fatal("应记录审核时间")
 		}
 		// 重复处理
-		if err := task.Approve(domain.UserID(900), now); !errors.Is(err, review.ErrTaskHandled) {
+		if err := task.Approve(ctype.NewID(900), now); !errors.Is(err, review.ErrTaskHandled) {
 			t.Fatalf("重复通过应报 ErrTaskHandled，实际 %v", err)
 		}
 	})
@@ -64,7 +65,7 @@ func TestTaskStateMachine(t *testing.T) {
 	t.Run("拒绝带原因", func(t *testing.T) {
 		t.Parallel()
 		task := newTask()
-		if err := task.Reject(domain.UserID(900), "内容不完整", now); err != nil {
+		if err := task.Reject(ctype.NewID(900), "内容不完整", now); err != nil {
 			t.Fatalf("不应报错: %v", err)
 		}
 		if task.Status() != review.StatusRejected {
@@ -82,7 +83,7 @@ func TestTaskStateMachine(t *testing.T) {
 			t.Fatalf("状态应为 canceled，实际 %s", task.Status())
 		}
 		// 撤销后不能再通过
-		if err := task.Approve(domain.UserID(900), now); !errors.Is(err, review.ErrTaskHandled) {
+		if err := task.Approve(ctype.NewID(900), now); !errors.Is(err, review.ErrTaskHandled) {
 			t.Fatalf("撤销后通过应报错，实际 %v", err)
 		}
 	})
@@ -90,7 +91,7 @@ func TestTaskStateMachine(t *testing.T) {
 	t.Run("无审核人不允许通过", func(t *testing.T) {
 		t.Parallel()
 		task := newTask()
-		if err := task.Approve(0, now); !errors.Is(err, review.ErrTaskForbidden) {
+		if err := task.Approve("", now); !errors.Is(err, review.ErrTaskForbidden) {
 			t.Fatalf("期望 ErrTaskForbidden，实际 %v", err)
 		}
 	})

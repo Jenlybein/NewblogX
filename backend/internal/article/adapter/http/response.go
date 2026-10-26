@@ -17,7 +17,7 @@ func (h *Handler) toDetailResponse(ctx context.Context, v *app.ArticleView) Arti
 	a := v.Article
 
 	resp := ArticleDetailResponse{
-		ID:               ctype.ID(a.ID().Uint64()),
+		ID:               ctype.NewID(a.ID().Uint64()),
 		CreatedAt:        a.CreatedAt(),
 		UpdatedAt:        a.UpdatedAt(),
 		Title:            a.Title(),
@@ -33,7 +33,7 @@ func (h *Handler) toDetailResponse(ctx context.Context, v *app.ArticleView) Arti
 		Status:           ArticleStatus(a.Status()),
 		PublishStatus:    ArticleStatus(a.Status()),
 		VisibilityStatus: ArticleVisibility(a.Visibility()),
-		AuthorID:         ctype.ID(v.Author.ID.Uint64()),
+		AuthorID:         ctype.NewID(v.Author.ID.Uint64()),
 		AuthorAvatar:     v.Author.Avatar,
 		AuthorAbstract:   v.Author.Abstract,
 		AuthorCreatedAt:  v.Author.CreatedAt,
@@ -45,7 +45,7 @@ func (h *Handler) toDetailResponse(ctx context.Context, v *app.ArticleView) Arti
 	}
 
 	for _, t := range v.Tags {
-		resp.TagIDs = append(resp.TagIDs, ctype.ID(t.ID.Uint64()))
+		resp.TagIDs = append(resp.TagIDs, ctype.NewID(t.ID.Uint64()))
 		resp.Tags = append(resp.Tags, t.Title)
 	}
 
@@ -70,7 +70,7 @@ func (h *Handler) toDetailResponse(ctx context.Context, v *app.ArticleView) Arti
 func toCreateResponse(a app.ArticleView, coverImageID *ctype.ID) ArticleCreateResponse {
 	art := a.Article
 	resp := ArticleCreateResponse{
-		ID:               ctype.ID(art.ID().Uint64()),
+		ID:               ctype.NewID(art.ID().Uint64()),
 		Title:            art.Title(),
 		CategoryID:       toCtypeIDPtr(art.CategoryID()),
 		CoverImageID:     coverImageID,
@@ -80,7 +80,7 @@ func toCreateResponse(a app.ArticleView, coverImageID *ctype.ID) ArticleCreateRe
 		VisibilityStatus: ArticleVisibility(art.Visibility()),
 	}
 	for _, t := range a.Tags {
-		resp.TagIDs = append(resp.TagIDs, ctype.ID(t.ID.Uint64()))
+		resp.TagIDs = append(resp.TagIDs, ctype.NewID(t.ID.Uint64()))
 	}
 	return resp
 }
@@ -89,9 +89,9 @@ func toCreateResponse(a app.ArticleView, coverImageID *ctype.ID) ArticleCreateRe
 func toTaskItem(t app.ReviewTaskView) ArticleReviewTaskItem {
 	task := t.Task
 	item := ArticleReviewTaskItem{
-		ID:            ctype.ID(task.ID()),
-		ArticleID:     ctype.ID(task.ArticleID().Uint64()),
-		AuthorID:      ctype.ID(task.AuthorID().Uint64()),
+		ID:            ctype.NewID(task.ID()),
+		ArticleID:     ctype.NewID(task.ArticleID().Uint64()),
+		AuthorID:      ctype.NewID(task.AuthorID().Uint64()),
 		ArticleTitle:  task.ArticleTitle(),
 		AuthorName:    task.AuthorName(),
 		PublishStatus: ArticleStatus(task.PublishStatus()),
@@ -103,7 +103,7 @@ func toTaskItem(t app.ReviewTaskView) ArticleReviewTaskItem {
 		ReviewedAt:    task.ReviewedAt(),
 	}
 	if by := task.ReviewedBy(); by != nil {
-		id := ctype.ID(by.Uint64())
+		id := ctype.NewID(by.Uint64())
 		item.ReviewedBy = &id
 	}
 	return item
@@ -114,6 +114,6 @@ func toCtypeIDPtr(id *domain.CategoryID) *ctype.ID {
 	if id == nil {
 		return nil
 	}
-	v := ctype.ID(id.Uint64())
+	v := ctype.NewID(id.Uint64())
 	return &v
 }

@@ -8,13 +8,14 @@ import (
 	"context"
 	"time"
 
+	"myblogx/internal/kernel/ctype"
 	searchdomain "myblogx/internal/search/domain"
 )
 
 // ArticleSnapshot 是评分需要的文章片段。
 type ArticleSnapshot struct {
-	ID        uint64
-	AuthorID  uint64
+	ID        ctype.ID
+	AuthorID  ctype.ID
 	Title     string
 	Content   string
 	UpdatedAt time.Time
@@ -23,9 +24,9 @@ type ArticleSnapshot struct {
 
 // ScoreRecord 是一条文章质量评分记录。
 type ScoreRecord struct {
-	ID               uint64
-	ArticleID        uint64
-	UserID           uint64
+	ID               ctype.ID
+	ArticleID        ctype.ID
+	UserID           ctype.ID
 	TitleSnapshot    string
 	ContentHash      string
 	ContentLength    int
@@ -45,7 +46,7 @@ type ScoreRecord struct {
 
 // Option 是分类或标签候选项。
 type Option struct {
-	ID    uint64
+	ID    ctype.ID
 	Title string
 }
 

@@ -38,7 +38,7 @@ func collectArticleRowSnapshots(e *canal.RowsEvent) ([]articlesync.ArticleRowSna
 		if err != nil {
 			return nil, err
 		}
-		if snapshot.ID == 0 {
+		if snapshot.ID.IsZero() {
 			continue
 		}
 		snapshots = append(snapshots, snapshot)
@@ -132,11 +132,11 @@ func scanArticleDeletedAt(layout articleRowLayout, row []any) (bool, error) {
 func scanArticleID(layout articleRowLayout, row []any, column string) (ctype.ID, error) {
 	value, err := layout.requireValue(row, column)
 	if err != nil {
-		return 0, err
+		return "", err
 	}
 	var id ctype.ID
-	if err = id.Scan(value); err != nil || id == 0 {
-		return 0, fmt.Errorf("canal 行数据 %s 解析失败", column)
+	if err = id.Scan(value); err != nil || id.IsZero() {
+		return "", fmt.Errorf("canal 行数据 %s 解析失败", column)
 	}
 	return id, nil
 }

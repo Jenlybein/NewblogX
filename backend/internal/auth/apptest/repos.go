@@ -6,7 +6,9 @@ package apptest
 
 import (
 	"context"
+
 	"fmt"
+	"myblogx/internal/kernel/ctype"
 	"sync"
 	"time"
 
@@ -98,7 +100,7 @@ func (s *Sessions) Create(_ context.Context, v *domain.Session) error {
 	if err := s.takeErr(); err != nil {
 		return err
 	}
-	s.nextID++
+	s.nextID = ctype.NewID(s.nextID.Uint64() + 1)
 	v.ID = s.nextID
 	s.byID[v.ID] = *v
 	return nil
@@ -121,7 +123,7 @@ func (s *Sessions) FindActive(_ context.Context, id domain.SessionID, userID uin
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	v, ok := s.byID[id]
-	if !ok || v.UserID != userID || !v.IsActive(s.clock.Now()) {
+	if !ok || v.UserID.Uint64() != userID || !v.IsActive(s.clock.Now()) {
 		return domain.Session{}, apperr.New(apperr.CodeUserSessionExpired)
 	}
 	return v, nil
@@ -169,7 +171,7 @@ func (s *Sessions) RevokeAllForUser(_ context.Context, userID uint64, at time.Ti
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	for id, v := range s.byID {
-		if v.UserID != userID || v.RevokedAt != nil {
+		if v.UserID.Uint64() != userID || v.RevokedAt != nil {
 			continue
 		}
 		v.RevokedAt = &at
@@ -196,7 +198,7 @@ func (s *Sessions) ListActive(_ context.Context, userID uint64) ([]domain.Sessio
 	defer s.mu.Unlock()
 	out := make([]domain.Session, 0, len(s.byID))
 	for _, v := range s.byID {
-		if v.UserID == userID && v.IsActive(s.clock.Now()) {
+		if v.UserID.Uint64() == userID && v.IsActive(s.clock.Now()) {
 			out = append(out, v)
 		}
 	}
@@ -231,7 +233,7 @@ func (i *Issuer) Issue(c domain.Claims) (string, error) {
 	if i.fail != nil {
 		return "", i.fail
 	}
-	token := fmt.Sprintf("access:%d:%d:%d", c.UserID, c.SessionID, c.TokenVersion)
+	token := fmt.Sprintf("access:%s:%s:%d", c.UserID, c.SessionID, c.TokenVersion)
 	i.issued = append(i.issued, token)
 	return token, nil
 }
@@ -239,11 +241,13 @@ func (i *Issuer) Issue(c domain.Claims) (string, error) {
 // Parse 实现 domain.TokenIssuer。
 func (i *Issuer) Parse(token string) (domain.Claims, error) {
 	var c domain.Claims
-	var sessionID uint64
-	if _, err := fmt.Sscanf(token, "access:%d:%d:%d", &c.UserID, &sessionID, &c.TokenVersion); err != nil {
+	// 令牌是纯数字格式，这里先用数值变量接，再转成 ID 语义。
+	var userID, sessionID uint64
+	if _, err := fmt.Sscanf(token, "access:%d:%d:%d", &userID, &sessionID, &c.TokenVersion); err != nil {
 		return domain.Claims{}, fmt.Errorf("非法令牌: %w", err)
 	}
-	c.SessionID = sessionID
+	c.UserID = ctype.NewID(userID)
+	c.SessionID = ctype.NewID(sessionID)
 	return c, nil
 }
 
@@ -413,7 +417,7 @@ func (c *Credentials) Seed(a app.Account, plain string) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	c.byName[a.Username] = a
-	c.byID[a.ID] = a
+	c.byID[a.ID.Uint64()] = a
 	c.passwd[a.Username] = plain
 }
 

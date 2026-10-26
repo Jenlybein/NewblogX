@@ -4,6 +4,7 @@ package app
 import (
 	"context"
 	"myblogx/internal/kernel/ctype"
+	"myblogx/internal/kernel/enum"
 	"time"
 
 	"myblogx/internal/apperr"
@@ -141,6 +142,15 @@ type LoginInput struct {
 	Account  string
 	Password string
 	Meta     domain.Meta
+	// RequireAdmin 表示这次登录来自管理后台，只有管理员才允许签发令牌。
+	//
+	// 检查放在**会话创建之前**（VerifyPassword 之后、startSession 之前），
+	// 这样被拒的账号不会留下一条孤儿 session，refresh cookie 也不会被写出去。
+	//
+	// 注意它的作用边界：只能在"登录那一刻"拦住非管理员。Refresh 读的是 session 表、
+	// 不读 claims，而零 DDL 口径下没法给 session 加一列记 scope —— 所以刷新之后
+	// 拿到的就是普通令牌。真正的授权判断始终在 AdminMiddleware（每请求查库取 role）。
+	RequireAdmin bool
 }
 
 // LoginResult 是登录/刷新的结果。
@@ -191,6 +201,13 @@ func (s *Service) Login(ctx context.Context, in LoginInput) (*LoginResult, error
 		if err := s.guard.Reset(ctx, in.Account, in.Meta.IP); err != nil {
 			s.logError("重置登录失败次数出错: account=%s err=%v", in.Account, err)
 		}
+	}
+
+	// 管理后台登录：密码已经验证通过了，这里再判断角色。
+	// 放在 startSession 之前是刻意的 —— 否则会先建出一条 session、再返回"无权限"，
+	// 库里留下一条没人用的会话记录，refresh cookie 也已经写出去了。
+	if in.RequireAdmin && account.Role != int8(enum.RoleAdmin) {
+		return nil, apperr.New(apperr.CodeAuthAdminRequired)
 	}
 
 	return s.startSession(ctx, account, in.Meta)

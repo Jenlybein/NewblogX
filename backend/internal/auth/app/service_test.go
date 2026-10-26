@@ -78,6 +78,51 @@ func TestLogin(t *testing.T) {
 		}
 	})
 
+	t.Run("管理入口拒绝非管理员且不建会话", func(t *testing.T) {
+		t.Parallel()
+		r := setup(t) // alice 的 Role = 2（普通用户）
+		_, err := r.Service().Login(context.Background(), app.LoginInput{
+			Account: "alice", Password: alicePw, Meta: meta(),
+			RequireAdmin: true,
+		})
+		assertCode(t, err, apperr.CodeAuthAdminRequired)
+		// 关键：拒绝必须发生在 startSession 之前。
+		// 否则库里会留下一条孤儿会话、refresh cookie 也已经写出去 ——
+		// 那等于"告诉你没权限，同时还发了一张票"。
+		if r.Sessions().Count() != 0 {
+			t.Fatalf("被拒的管理登录不该建会话，实际 %d 条", r.Sessions().Count())
+		}
+	})
+
+	t.Run("管理入口放行管理员", func(t *testing.T) {
+		t.Parallel()
+		r := setup(t)
+		const rootPw = "root-secret"
+		r.Credentials().Seed(app.Account{
+			ID: ctype.ID("1002"), Username: "root", Role: 1, TokenVersion: 1, // 1 = 管理员
+		}, rootPw)
+		res, err := r.Service().Login(context.Background(), app.LoginInput{
+			Account: "root", Password: rootPw, Meta: meta(),
+			RequireAdmin: true,
+		})
+		if err != nil {
+			t.Fatalf("管理员应能登录: %v", err)
+		}
+		if res.Tokens.Access == "" || r.Sessions().Count() != 1 {
+			t.Fatal("管理员登录应正常签发令牌并建会话")
+		}
+	})
+
+	t.Run("读者入口不校验角色", func(t *testing.T) {
+		t.Parallel()
+		r := setup(t)
+		// 同一个普通账号，不传 scope 时必须照旧登录成功 ——
+		// 否则"后台加门禁"会顺手把读者站的登录弄坏。
+		if res := login(t, r); res.Tokens.Access == "" {
+			t.Fatal("读者入口不应受 scope 影响")
+		}
+	})
+
 	t.Run("密码错时记失败且不建会话", func(t *testing.T) {
 		t.Parallel()
 		r := setup(t)

@@ -35,10 +35,10 @@ func NormalUser(id UserID) Viewer { return Viewer{UserID: id, Role: RoleUser} }
 func AdminUser(id UserID) Viewer { return Viewer{UserID: id, Role: RoleAdmin} }
 
 // IsAnonymous 判断是否未登录。
-func (v Viewer) IsAnonymous() bool { return v.UserID == 0 && v.Role == RoleAnonymous }
+func (v Viewer) IsAnonymous() bool { return v.UserID.IsZero() && v.Role == RoleAnonymous }
 
 // IsAdmin 判断是否管理员。
 func (v Viewer) IsAdmin() bool { return v.Role == RoleAdmin }
 
 // IsLoggedIn 判断是否已登录。
-func (v Viewer) IsLoggedIn() bool { return v.UserID != 0 }
+func (v Viewer) IsLoggedIn() bool { return !v.UserID.IsZero() }

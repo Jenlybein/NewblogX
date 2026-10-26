@@ -6,12 +6,13 @@ import (
 	"testing"
 	"time"
 
+	"myblogx/internal/kernel/ctype"
 	"myblogx/internal/testkit"
 )
 
 // row 是隔离测试用的最小表结构。
 type row struct {
-	ID   uint `gorm:"primaryKey"`
+	ID   ctype.ID `gorm:"primaryKey"`
 	Name string
 }
 

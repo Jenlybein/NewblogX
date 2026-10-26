@@ -1,6 +1,7 @@
 package domain_test
 
 import (
+	"myblogx/internal/kernel/ctype"
 	"strings"
 	"testing"
 	"time"
@@ -16,9 +17,9 @@ import (
 
 var (
 	now       = time.Date(2026, 10, 25, 12, 0, 0, 0, time.UTC)
-	aliceID   = domain.UserID(1001)
-	bobID     = domain.UserID(1002)
-	adminID   = domain.UserID(9001)
+	aliceID   = ctype.NewID(1001)
+	bobID     = ctype.NewID(1002)
+	adminID   = ctype.NewID(9001)
 	aliceView = domain.Viewer{ID: aliceID, Role: domain.RoleUser}
 	bobView   = domain.Viewer{ID: bobID, Role: domain.RoleUser}
 	adminView = domain.Viewer{ID: adminID, Role: domain.RoleAdmin}

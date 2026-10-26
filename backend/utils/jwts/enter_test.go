@@ -2,6 +2,7 @@ package jwts_test
 
 import (
 	"myblogx/conf"
+	"myblogx/internal/kernel/ctype"
 	"myblogx/internal/kernel/enum"
 	"myblogx/test/testutil"
 	"myblogx/utils/jwts"
@@ -24,7 +25,7 @@ func TestJWTGetAndParse(t *testing.T) {
 	jwtConf := testutil.Config().Jwt
 
 	token, err := jwts.GetToken(jwtConf, jwts.Claims{
-		UserID:   100,
+		UserID:   ctype.NewID(100),
 		Role:     enum.RoleAdmin,
 		Username: "root",
 	})
@@ -36,7 +37,7 @@ func TestJWTGetAndParse(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ParseToken 失败: %v", err)
 	}
-	if claims.UserID != 100 || claims.Username != "root" {
+	if claims.UserID.Uint64() != 100 || claims.Username != "root" {
 		t.Fatalf("claims 异常: %+v", claims)
 	}
 }
@@ -53,7 +54,7 @@ func TestParseTokenByGin(t *testing.T) {
 	jwtConf := testutil.Config().Jwt
 
 	token, err := jwts.GetToken(jwtConf, jwts.Claims{
-		UserID:   10,
+		UserID:   ctype.NewID(10),
 		Role:     enum.RoleUser,
 		Username: "u10",
 	})

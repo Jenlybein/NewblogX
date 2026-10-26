@@ -47,8 +47,8 @@ func setup(t *testing.T) (*mysql.Repo, *gorm.DB) {
 func sendText(t *testing.T, repo *mysql.Repo, from, to uint64, content string, at time.Time) *domain.Message {
 	t.Helper()
 	msg := &domain.Message{
-		SenderID:   ctype.ID(from),
-		ReceiverID: ctype.ID(to),
+		SenderID:   ctype.NewID(from),
+		ReceiverID: ctype.NewID(to),
 		Content:    content,
 		SendTime:   at,
 		MsgStatus:  domain.StatusSent,
@@ -70,7 +70,7 @@ func sessionOf(t *testing.T, db *gorm.DB, userID uint64, sessionID string) (unre
 	var row struct {
 		UnreadCount    int
 		LastMsgContent string
-		LastMsgID      uint64
+		LastMsgID      ctype.ID
 		DeletedAt      *time.Time
 	}
 	err := db.Table("chat_session_models").
@@ -80,7 +80,7 @@ func sessionOf(t *testing.T, db *gorm.DB, userID uint64, sessionID string) (unre
 	if err != nil {
 		t.Fatalf("读会话失败 user=%d session=%s: %v", userID, sessionID, err)
 	}
-	return row.UnreadCount, row.LastMsgContent, row.LastMsgID, row.DeletedAt != nil
+	return row.UnreadCount, row.LastMsgContent, row.LastMsgID.Uint64(), row.DeletedAt != nil
 }
 
 // TestSendMessageCreatesBothSidesAndCountsUnread 发一条消息应同时：
@@ -95,9 +95,9 @@ func TestSendMessageCreatesBothSidesAndCountsUnread(t *testing.T) {
 	at := time.Date(2026, 1, 1, 10, 0, 0, 0, time.UTC)
 	msg := sendText(t, repo, 100, 200, "在吗", at)
 
-	sessionID := domain.BuildSessionID(100, 200)
+	sessionID := domain.BuildSessionID(ctype.NewID(100), ctype.NewID(200))
 	// session_id 与方向无关：双方看到的是同一个 id。
-	if sessionID != domain.BuildSessionID(200, 100) {
+	if sessionID != domain.BuildSessionID(ctype.NewID(200), ctype.NewID(100)) {
 		t.Fatalf("session_id 应双向一致，got=%s", sessionID)
 	}
 
@@ -117,7 +117,7 @@ func TestSendMessageCreatesBothSidesAndCountsUnread(t *testing.T) {
 		t.Fatalf("接收方 last_msg_content 应为原文，实际 %q", contentReceiver)
 	}
 	if lastID != msg.ID.Uint64() {
-		t.Fatalf("接收方 last_msg_id 应为新消息 id=%d，实际 %d", msg.ID, lastID)
+		t.Fatalf("接收方 last_msg_id 应为新消息 id=%s，实际 %d", msg.ID, lastID)
 	}
 
 	unreadSender, _, _, _ := sessionOf(t, db, 100, sessionID)
@@ -146,7 +146,7 @@ func TestSendMessageTwiceReusesSession(t *testing.T) {
 		t.Fatalf("重复发送不该新增会话行，实际 %d 条（期望 2）", count)
 	}
 
-	unread, content, _, _ := sessionOf(t, db, 200, domain.BuildSessionID(100, 200))
+	unread, content, _, _ := sessionOf(t, db, 200, domain.BuildSessionID(ctype.NewID(100), ctype.NewID(200)))
 	if unread != 2 {
 		t.Fatalf("接收方未读应累计到 2，实际 %d", unread)
 	}
@@ -169,7 +169,7 @@ func TestSendMessageRevivesDeletedSession(t *testing.T) {
 	sendText(t, repo, 100, 200, "第一条", base)
 	sendText(t, repo, 100, 200, "第二条", base.Add(time.Minute))
 
-	sessionID := domain.BuildSessionID(100, 200)
+	sessionID := domain.BuildSessionID(ctype.NewID(100), ctype.NewID(200))
 	// 接收方软删会话。
 	if err := db.Exec("UPDATE chat_session_models SET deleted_at = ? WHERE user_id = ? AND session_id = ?",
 		base, 200, sessionID).Error; err != nil {
@@ -203,9 +203,9 @@ func TestMarkReadDecreasesUnreadAndIsIdempotent(t *testing.T) {
 	m2 := sendText(t, repo, 100, 200, "二", base.Add(time.Minute))
 
 	ctx := context.Background()
-	sessionID := domain.BuildSessionID(100, 200)
+	sessionID := domain.BuildSessionID(ctype.NewID(100), ctype.NewID(200))
 
-	affected, err := repo.MarkRead(ctx, 200, []ctype.ID{m1.ID, m2.ID})
+	affected, err := repo.MarkRead(ctx, ctype.NewID(200), []ctype.ID{m1.ID, m2.ID})
 	if err != nil {
 		t.Fatalf("标记已读失败: %v", err)
 	}
@@ -218,7 +218,7 @@ func TestMarkReadDecreasesUnreadAndIsIdempotent(t *testing.T) {
 	}
 
 	// 再来一次：已读消息不该被重新计入。
-	again, err := repo.MarkRead(ctx, 200, []ctype.ID{m1.ID, m2.ID})
+	again, err := repo.MarkRead(ctx, ctype.NewID(200), []ctype.ID{m1.ID, m2.ID})
 	if err != nil {
 		t.Fatalf("重复标记已读失败: %v", err)
 	}
@@ -242,7 +242,7 @@ func TestMarkReadIgnoresOthersMessages(t *testing.T) {
 	msg := sendText(t, repo, 100, 200, "给乙的", base)
 
 	// 让 300 去标记一条不是发给他的消息。
-	affected, err := repo.MarkRead(context.Background(), 300, []ctype.ID{msg.ID})
+	affected, err := repo.MarkRead(context.Background(), ctype.NewID(300), []ctype.ID{msg.ID})
 	if err != nil {
 		t.Fatalf("标记已读失败: %v", err)
 	}
@@ -251,7 +251,7 @@ func TestMarkReadIgnoresOthersMessages(t *testing.T) {
 	}
 
 	// 接收方未读仍在。
-	unread, _, _, _ := sessionOf(t, db, 200, domain.BuildSessionID(100, 200))
+	unread, _, _, _ := sessionOf(t, db, 200, domain.BuildSessionID(ctype.NewID(100), ctype.NewID(200)))
 	if unread != 1 {
 		t.Fatalf("越权标记不该影响接收方未读，实际 %d", unread)
 	}
@@ -270,7 +270,7 @@ func TestListSessionsOrdersByLastMsgTime(t *testing.T) {
 	sendText(t, repo, 100, 200, "老对话", base)
 	sendText(t, repo, 100, 300, "新对话", base.Add(time.Hour))
 
-	rows, total, err := repo.ListSessions(context.Background(), 100, false, domain.Page{Page: 1, Limit: 10})
+	rows, total, err := repo.ListSessions(context.Background(), ctype.NewID(100), false, domain.Page{Page: 1, Limit: 10})
 	if err != nil {
 		t.Fatalf("查会话列表失败: %v", err)
 	}
@@ -280,8 +280,8 @@ func TestListSessionsOrdersByLastMsgTime(t *testing.T) {
 	if len(rows) != 2 {
 		t.Fatalf("应返回 2 条，实际 %d", len(rows))
 	}
-	if rows[0].ReceiverID != 300 {
-		t.Fatalf("最新对话应排第一（receiver=300），实际 receiver=%d", rows[0].ReceiverID)
+	if rows[0].ReceiverID.Uint64() != 300 {
+		t.Fatalf("最新对话应排第一（receiver=300），实际 receiver=%s", rows[0].ReceiverID)
 	}
 	_ = db
 }

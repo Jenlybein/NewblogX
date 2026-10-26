@@ -53,7 +53,7 @@ type chatRelationBridge struct{}
 // Batch 实现 domain.RelationReader。
 func (b *chatRelationBridge) Batch(ctx context.Context, viewer ctype.ID, ids []ctype.ID) (map[ctype.ID]int8, error) {
 	out := make(map[ctype.ID]int8, len(ids))
-	if socialService == nil || viewer == 0 {
+	if socialService == nil || viewer.IsZero() {
 		for _, id := range ids {
 			out[id] = 1
 		}
@@ -61,14 +61,14 @@ func (b *chatRelationBridge) Batch(ctx context.Context, viewer ctype.ID, ids []c
 	}
 	raw := make([]uint64, 0, len(ids))
 	for _, id := range ids {
-		raw = append(raw, uint64(id))
+		raw = append(raw, id.Uint64())
 	}
-	got, err := socialService.RelationBatch(ctx, uint64(viewer), raw)
+	got, err := socialService.RelationBatch(ctx, viewer.Uint64(), raw)
 	if err != nil {
 		return nil, err
 	}
 	for id, rel := range got {
-		out[ctype.ID(id)] = rel.Int8()
+		out[ctype.NewID(id)] = rel.Int8()
 	}
 	return out, nil
 }
@@ -93,7 +93,7 @@ func (b *chatUserBridge) Displays(_ context.Context, ids []ctype.ID) (map[ctype.
 
 // strangerConfRow 对应 user_conf_models 的陌生人私信开关。
 type strangerConfRow struct {
-	UserID              uint64 `gorm:"primaryKey;autoIncrement:false"`
+	UserID              ctype.ID `gorm:"primaryKey;autoIncrement:false"`
 	StrangerChatEnabled bool
 }
 
@@ -109,7 +109,7 @@ type strangerBridge struct {
 func (b *strangerBridge) StrangerEnabled(ctx context.Context, userID ctype.ID) (bool, error) {
 	var row strangerConfRow
 	if err := b.db.WithContext(ctx).Select("user_id", "stranger_chat_enabled").
-		Take(&row, "user_id = ?", uint64(userID)).Error; err != nil {
+		Take(&row, "user_id = ?", userID.Uint64()).Error; err != nil {
 		// 老账号没有 conf 行时按"未开启"处理，与旧实现一致。
 		return false, nil
 	}
@@ -130,7 +130,7 @@ func (b chatAuthBridge) Authenticate(ctx context.Context, token string) (uint64,
 	if err != nil {
 		return 0, 0, false, false
 	}
-	return principal.UserID, principal.SessionID, principal.Role == int8(enum.RoleAdmin), true
+	return principal.UserID.Uint64(), principal.SessionID.Uint64(), principal.Role == int8(enum.RoleAdmin), true
 }
 
 // SessionActive 实现 chathttp.Authenticator（票据换会话时校验会话仍有效）。
@@ -138,7 +138,7 @@ func (b chatAuthBridge) SessionActive(ctx context.Context, userID, sessionID uin
 	if b.svc == nil {
 		return false, nil
 	}
-	sessions, err := b.svc.ListSessions(ctx, userID)
+	sessions, err := b.svc.ListSessions(ctx, ctype.NewID(userID))
 	if err != nil {
 		return false, err
 	}
@@ -156,7 +156,7 @@ type chatHub struct {
 }
 
 // IsOnline 实现 domain.Hub。
-func (h chatHub) IsOnline(userID ctype.ID) bool { return h.inner.IsOnline(uint64(userID)) }
+func (h chatHub) IsOnline(userID ctype.ID) bool { return h.inner.IsOnline(userID.Uint64()) }
 
 // PushJSON 实现 domain.Hub。
-func (h chatHub) PushJSON(userID ctype.ID, v any) int { return h.inner.PushJSON(uint64(userID), v) }
+func (h chatHub) PushJSON(userID ctype.ID, v any) int { return h.inner.PushJSON(userID.Uint64(), v) }

@@ -73,9 +73,9 @@ func Next() (ctype.ID, error) {
 	mu.Unlock()
 
 	if current == nil {
-		return 0, fmt.Errorf("idgen: not initialized, call idgen.Init first")
+		return "", fmt.Errorf("idgen: not initialized, call idgen.Init first")
 	}
-	return ctype.ID(current.Generate().Int64()), nil
+	return ctype.NewID(uint64(current.Generate().Int64())), nil
 }
 
 // MustReady 报告生成器是否已就绪，供启动自检使用。

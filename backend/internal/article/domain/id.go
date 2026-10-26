@@ -1,42 +1,29 @@
 package domain
 
-import "strconv"
+import (
+	"myblogx/internal/kernel/ctype"
+)
 
 // 聚合内用到的各类 ID。
 //
-// 定义独立类型而不是裸 uint64：一旦把 CategoryID 传进需要 TagID 的位置，
-// 编译期就会报错。与 models/ctype.ID 的转换放在 adapter 层做。
+// 全部是 ctype.ID 的别名，不是独立类型。
+//
+// 为什么改成别名：以前这里是 4 个独立的 `uint64` 类型，与 ctype.ID 之间
+// 要靠显式强转互相倒腾（全后端 192 处）。改成别名后它们是同一个类型，
+// 那 192 处转换直接消失；同时 ID 底层变成 string，契约里 swag 读到的
+// 就是 string，不需要生成后再修补。
+//
+// 代价：ArticleID 与 UserID 之间不再有编译期区分。这两个类型本来就靠
+// uint64 强转互通，保护形同虚设，不值得为它保留 192 处噪音。
+//
+// 方法（IsZero / Uint64 / String）都由 ctype.ID 提供，不再重复定义。
 type (
 	// ArticleID 是文章聚合根的标识。
-	ArticleID uint64
+	ArticleID = ctype.ID
 	// UserID 是文章作者或操作者的标识。
-	UserID uint64
+	UserID = ctype.ID
 	// TagID 是标签标识。
-	TagID uint64
+	TagID = ctype.ID
 	// CategoryID 是分类标识。
-	CategoryID uint64
+	CategoryID = ctype.ID
 )
-
-// IsZero 判断 ID 是否为空。
-func (id ArticleID) IsZero() bool { return id == 0 }
-
-// Uint64 返回底层值，供 adapter 写库使用。
-func (id ArticleID) Uint64() uint64 { return uint64(id) }
-
-// String 便于日志与错误信息输出。
-func (id ArticleID) String() string { return strconv.FormatUint(uint64(id), 10) }
-
-// IsZero 判断 ID 是否为空。
-func (id UserID) IsZero() bool { return id == 0 }
-
-// Uint64 返回底层值。
-func (id UserID) Uint64() uint64 { return uint64(id) }
-
-// String 便于日志与错误信息输出。
-func (id UserID) String() string { return strconv.FormatUint(uint64(id), 10) }
-
-// Uint64 返回底层值。
-func (id TagID) Uint64() uint64 { return uint64(id) }
-
-// Uint64 返回底层值。
-func (id CategoryID) Uint64() uint64 { return uint64(id) }

@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"io"
+	"myblogx/internal/kernel/ctype"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -37,44 +38,44 @@ type CreateTaskRequest struct {
 
 // CreateTaskResponse 上传任务信息。
 type CreateTaskResponse struct {
-	SkipUpload  bool   `json:"skip_upload"`
-	UploadID    uint64 `json:"upload_id"`
-	Provider    string `json:"provider"`
-	Bucket      string `json:"bucket"`
-	ObjectKey   string `json:"object_key"`
-	UploadToken string `json:"upload_token"`
-	Region      string `json:"region"`
-	ExpireAt    string `json:"expire_at"`
-	MaxSize     int64  `json:"max_size"`
-	ImageID     uint64 `json:"image_id"`
-	Status      string `json:"status"`
-	URL         string `json:"url"`
-	Hash        string `json:"hash"`
+	SkipUpload  bool     `json:"skip_upload"`
+	UploadID    ctype.ID `json:"upload_id"`
+	Provider    string   `json:"provider"`
+	Bucket      string   `json:"bucket"`
+	ObjectKey   string   `json:"object_key"`
+	UploadToken string   `json:"upload_token"`
+	Region      string   `json:"region"`
+	ExpireAt    string   `json:"expire_at"`
+	MaxSize     int64    `json:"max_size"`
+	ImageID     ctype.ID `json:"image_id"`
+	Status      string   `json:"status"`
+	URL         string   `json:"url"`
+	Hash        string   `json:"hash"`
 }
 
 // CompleteTaskRequest 手动完成上传。
 type CompleteTaskRequest struct {
-	UploadID  uint64 `json:"upload_id" binding:"required"`
-	ObjectKey string `json:"object_key" binding:"required"`
+	UploadID  ctype.ID `json:"upload_id" binding:"required"`
+	ObjectKey string   `json:"object_key" binding:"required"`
 }
 
 // CompleteTaskResponse 完成结果。
 type CompleteTaskResponse struct {
-	UploadID uint64 `json:"upload_id"`
-	ImageID  uint64 `json:"image_id"`
-	Status   string `json:"status"`
-	URL      string `json:"url"`
-	ErrorMsg string `json:"error_msg,omitempty"`
+	UploadID ctype.ID `json:"upload_id"`
+	ImageID  ctype.ID `json:"image_id"`
+	Status   string   `json:"status"`
+	URL      string   `json:"url"`
+	ErrorMsg string   `json:"error_msg,omitempty"`
 }
 
 // TaskStatusResponse 任务状态。
 type TaskStatusResponse struct {
-	UploadID uint64 `json:"upload_id"`
-	ImageID  uint64 `json:"image_id"`
-	Status   string `json:"status"`
-	URL      string `json:"url"`
-	ErrorMsg string `json:"error_msg,omitempty"`
-	Hash     string `json:"hash"`
+	UploadID ctype.ID `json:"upload_id"`
+	ImageID  ctype.ID `json:"image_id"`
+	Status   string   `json:"status"`
+	URL      string   `json:"url"`
+	ErrorMsg string   `json:"error_msg,omitempty"`
+	Hash     string   `json:"hash"`
 }
 
 // callbackRequest 七牛上传回调。
@@ -87,9 +88,9 @@ type callbackRequest struct {
 
 // ImageItem 图片列表项（字段名与旧契约一致）。
 type ImageItem struct {
-	ID        uint64    `json:"id"`
+	ID        ctype.ID  `json:"id"`
 	CreatedAt time.Time `json:"created_at"`
-	UserID    uint64    `json:"user_id"`
+	UserID    ctype.ID  `json:"user_id"`
 	Provider  string    `json:"provider"`
 	Bucket    string    `json:"bucket"`
 	ObjectKey string    `json:"object_key"`
@@ -142,7 +143,7 @@ func (h *Handler) CreateUploadTask(c *gin.Context) {
 	if result.SkipUpload && result.Image != nil {
 		res.OkWithData(CreateTaskResponse{
 			SkipUpload: true,
-			ImageID:    result.Image.ID.Uint64(),
+			ImageID:    result.Image.ID,
 			Status:     result.Image.Status.String(),
 			URL:        result.Image.URL,
 			Hash:       result.Image.Hash,
@@ -186,14 +187,14 @@ func (h *Handler) CompleteUploadTask(c *gin.Context) {
 	if !ok {
 		return
 	}
-	result, err := h.svc.ConfirmByUser(c.Request.Context(), req.UploadID, userID, req.ObjectKey)
+	result, err := h.svc.ConfirmByUser(c.Request.Context(), req.UploadID.Uint64(), userID, req.ObjectKey)
 	if err != nil {
 		res.FailWithError(err, c)
 		return
 	}
 	res.OkWithData(CompleteTaskResponse{
 		UploadID: result.Task.ID,
-		ImageID:  result.Image.ID.Uint64(),
+		ImageID:  result.Image.ID,
 		Status:   string(result.Task.Status),
 		URL:      result.Image.URL,
 	}, c)
@@ -204,7 +205,7 @@ func (h *Handler) CompleteUploadTask(c *gin.Context) {
 // @Tags image
 // @Produce json
 // @Security BearerAuth
-// @Param id path int true "上传任务 ID"
+// @Param id path string true "上传任务 ID"
 // @Success 200 {object} object{code=int,data=TaskStatusResponse,msg=string}
 // @Router /images/upload-tasks/{id} [get]
 func (h *Handler) UploadTaskStatus(c *gin.Context) {
@@ -228,7 +229,7 @@ func (h *Handler) UploadTaskStatus(c *gin.Context) {
 		Hash:     result.Task.Hash,
 	}
 	if result.Image != nil {
-		resp.ImageID = result.Image.ID.Uint64()
+		resp.ImageID = result.Image.ID
 		resp.URL = result.Image.URL
 	}
 	res.OkWithData(resp, c)
@@ -272,7 +273,7 @@ func (h *Handler) QiniuCallback(c *gin.Context) {
 	}
 	res.OkWithData(CompleteTaskResponse{
 		UploadID: result.Task.ID,
-		ImageID:  result.Image.ID.Uint64(),
+		ImageID:  result.Image.ID,
 		Status:   string(result.Task.Status),
 		URL:      result.Image.URL,
 		ErrorMsg: result.Task.ErrorMsg,
@@ -327,7 +328,7 @@ func (h *Handler) List(c *gin.Context) {
 	items := make([]ImageItem, 0, len(images))
 	for _, img := range images {
 		items = append(items, ImageItem{
-			ID:        img.ID.Uint64(),
+			ID:        img.ID,
 			CreatedAt: img.CreatedAt,
 			UserID:    img.UserID,
 			Provider:  string(img.Provider),
@@ -363,7 +364,7 @@ func (h *Handler) Remove(c *gin.Context) {
 	}
 	ids := make([]domain.ImageID, 0, len(req.IDList))
 	for _, id := range req.IDList {
-		ids = append(ids, domain.ImageID(id))
+		ids = append(ids, ctype.NewID(id))
 	}
 	count, err := h.svc.Remove(c.Request.Context(), ids)
 	if err != nil {

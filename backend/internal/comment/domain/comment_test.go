@@ -4,27 +4,28 @@ import (
 	"testing"
 
 	"myblogx/internal/comment/domain"
+	"myblogx/internal/kernel/ctype"
 )
 
 func TestCanDelete(t *testing.T) {
-	comment := domain.Comment{UserID: 10, ArticleID: 99}
+	comment := domain.Comment{UserID: ctype.NewID(10), ArticleID: ctype.NewID(99)}
 
 	cases := []struct {
 		name      string
-		viewerID  uint64
+		viewerID  ctype.ID
 		admin     bool
-		authorID  uint64
+		authorID  ctype.ID
 		wantAllow bool
 	}{
-		{name: "管理员可删", viewerID: 1, admin: true, authorID: 2, wantAllow: true},
-		{name: "评论作者可删", viewerID: 10, authorID: 2, wantAllow: true},
-		{name: "文章作者可删", viewerID: 2, authorID: 2, wantAllow: true},
-		{name: "路人不可删", viewerID: 3, authorID: 2, wantAllow: false},
-		{name: "匿名不可删", viewerID: 0, authorID: 2, wantAllow: false},
+		{name: "管理员可删", viewerID: ctype.NewID(1), admin: true, authorID: ctype.NewID(2), wantAllow: true},
+		{name: "评论作者可删", viewerID: ctype.NewID(10), authorID: ctype.NewID(2), wantAllow: true},
+		{name: "文章作者可删", viewerID: ctype.NewID(2), authorID: ctype.NewID(2), wantAllow: true},
+		{name: "路人不可删", viewerID: ctype.NewID(3), authorID: ctype.NewID(2), wantAllow: false},
+		{name: "匿名不可删", viewerID: ctype.NewID(0), authorID: ctype.NewID(2), wantAllow: false},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			if got := comment.CanDelete(tc.viewerID, tc.admin, tc.authorID); got != tc.wantAllow {
+			if got := comment.CanDelete(tc.viewerID.Uint64(), tc.admin, tc.authorID.Uint64()); got != tc.wantAllow {
 				t.Fatalf("CanDelete=%v want %v", got, tc.wantAllow)
 			}
 		})
@@ -35,10 +36,10 @@ func TestIsRoot(t *testing.T) {
 	if !(domain.Comment{}).IsRoot() {
 		t.Fatal("ReplyID/RootID 都为 0 应是一级评论")
 	}
-	if (domain.Comment{ReplyID: 1}).IsRoot() {
+	if (domain.Comment{ReplyID: ctype.NewID(1)}).IsRoot() {
 		t.Fatal("有 ReplyID 不是一级评论")
 	}
-	if (domain.Comment{RootID: 1}).IsRoot() {
+	if (domain.Comment{RootID: ctype.NewID(1)}).IsRoot() {
 		t.Fatal("有 RootID 不是一级评论")
 	}
 }

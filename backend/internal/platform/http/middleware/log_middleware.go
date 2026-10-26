@@ -77,7 +77,7 @@ func (h Runtime) LogMiddleware(c *gin.Context) {
 	}
 
 	if claims, err := jwts.ParseToken(h.JWT, jwts.GetTokenByGin(c)); err == nil {
-		fields["user_id"] = uint64(claims.UserID)
+		fields["user_id"] = claims.UserID.Uint64()
 	}
 
 	entry := writer.RuntimeEntry(h.Log, fields)
@@ -108,7 +108,7 @@ func (h Runtime) LogMiddleware(c *gin.Context) {
 // newRequestID 生成唯一请求ID
 func newRequestID() string {
 	if id, err := idgen.Next(); err == nil {
-		return strconv.FormatUint(uint64(id), 10)
+		return strconv.FormatUint(id.Uint64(), 10)
 	}
 	return strconv.FormatInt(time.Now().UnixNano(), 10)
 }

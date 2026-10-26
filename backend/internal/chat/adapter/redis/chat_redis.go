@@ -119,8 +119,8 @@ func NewTickets(deps redis_service.Options) *Tickets { return &Tickets{deps: dep
 // Store 存票据。
 func (t *Tickets) Store(_ context.Context, ticket string, userID, sessionID uint64, ttl time.Duration) error {
 	return redis_ws_ticket.Store(t.deps, ticket, redis_ws_ticket.TicketPayload{
-		UserID:    ctype.ID(userID),
-		SessionID: ctype.ID(sessionID),
+		UserID:    ctype.NewID(userID),
+		SessionID: ctype.NewID(sessionID),
 	}, ttl)
 }
 
@@ -130,5 +130,5 @@ func (t *Tickets) Consume(_ context.Context, ticket string) (uint64, uint64, boo
 	if err != nil {
 		return 0, 0, false, err
 	}
-	return uint64(payload.UserID), uint64(payload.SessionID), true, nil
+	return payload.UserID.Uint64(), payload.SessionID.Uint64(), true, nil
 }

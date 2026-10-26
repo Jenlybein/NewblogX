@@ -26,6 +26,7 @@ import (
 
 	clickhouse "github.com/ClickHouse/clickhouse-go/v2"
 	"github.com/sirupsen/logrus"
+	"myblogx/internal/kernel/ctype"
 )
 
 func openIntegrationCH(t *testing.T) *sql.DB {
@@ -105,7 +106,7 @@ func TestIntegrationPipelineWritesAllKinds(t *testing.T) {
 			Path:       "/api/articles",
 			StatusCode: 200,
 			Success:    true,
-			UserID:     7,
+			UserID:     ctype.NewID(7),
 			IP:         "127.0.0.1",
 			RequestID:  fmt.Sprintf("%s-%d", marker, i),
 		})
@@ -115,7 +116,7 @@ func TestIntegrationPipelineWritesAllKinds(t *testing.T) {
 		EventName: marker,
 		Username:  "alice",
 		Success:   true,
-		UserID:    7,
+		UserID:    ctype.NewID(7),
 		IP:        "127.0.0.1",
 	})
 	EmitCDCEvent(deps, CdcEventInput{

@@ -83,7 +83,7 @@ func EmitActionAudit(deps Options, input ActionAuditInput) {
 	}
 	base.ErrorCode = input.ErrorCode
 	base.ErrorMessage = input.ErrorMessage
-	base.UserID = uint64(input.UserID)
+	base.UserID = input.UserID.Uint64()
 	base.IP = input.IP
 	if !input.Success && base.ErrorCode == "" {
 		base.ErrorCode = fmt.Sprintf("HTTP_%d", input.StatusCode)

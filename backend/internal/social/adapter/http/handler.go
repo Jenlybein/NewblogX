@@ -5,6 +5,7 @@ import (
 	"github.com/gin-gonic/gin"
 
 	"myblogx/internal/apperr"
+	"myblogx/internal/kernel/ctype"
 	"myblogx/internal/platform/http/res"
 	"myblogx/internal/social/app"
 	"myblogx/internal/social/domain"
@@ -29,23 +30,23 @@ func viewerID(c *gin.Context) uint64 {
 	if cl == nil {
 		return 0
 	}
-	return uint64(cl.UserID)
+	return cl.UserID.Uint64()
 }
 
 // FollowingQuery 关注列表查询。
 type FollowingQuery struct {
-	Page           int    `form:"page"`
-	Limit          int    `form:"limit"`
-	UserID         uint64 `form:"user_id"`
-	FollowedUserID uint64 `form:"followed_user_id"`
+	Page           int      `form:"page"`
+	Limit          int      `form:"limit"`
+	UserID         ctype.ID `form:"user_id"`
+	FollowedUserID ctype.ID `form:"followed_user_id"`
 }
 
 // FansQuery 粉丝列表查询。
 type FansQuery struct {
-	Page       int    `form:"page"`
-	Limit      int    `form:"limit"`
-	UserID     uint64 `form:"user_id"`
-	FansUserID uint64 `form:"fans_user_id"`
+	Page       int      `form:"page"`
+	Limit      int      `form:"limit"`
+	UserID     ctype.ID `form:"user_id"`
+	FansUserID ctype.ID `form:"fans_user_id"`
 }
 
 // Follow 关注用户。
@@ -53,7 +54,7 @@ type FansQuery struct {
 // @Tags follow
 // @Produce json
 // @Security BearerAuth
-// @Param id path int true "被关注用户 ID"
+// @Param id path string true "被关注用户 ID"
 // @Success 200 {object} object{code=int,data=object{},msg=string}
 // @Router /follow/{id} [post]
 func (h *Handler) Follow(c *gin.Context) {
@@ -73,7 +74,7 @@ func (h *Handler) Follow(c *gin.Context) {
 // @Tags follow
 // @Produce json
 // @Security BearerAuth
-// @Param id path int true "被取消关注的用户 ID"
+// @Param id path string true "被取消关注的用户 ID"
 // @Success 200 {object} object{code=int,data=object{},msg=string}
 // @Router /follow/{id} [delete]
 func (h *Handler) Unfollow(c *gin.Context) {
@@ -101,7 +102,7 @@ func (h *Handler) ListFollowing(c *gin.Context) {
 		res.FailWithMsg("参数错误", c)
 		return
 	}
-	list, hasMore, err := h.svc.ListFollowing(c.Request.Context(), viewerID(c), q.UserID, q.FollowedUserID, domain.Page{Page: q.Page, Limit: q.Limit})
+	list, hasMore, err := h.svc.ListFollowing(c.Request.Context(), viewerID(c), q.UserID.Uint64(), q.FollowedUserID.Uint64(), domain.Page{Page: q.Page, Limit: q.Limit})
 	if err != nil {
 		res.FailWithError(err, c)
 		return
@@ -122,7 +123,7 @@ func (h *Handler) ListFans(c *gin.Context) {
 		res.FailWithMsg("参数错误", c)
 		return
 	}
-	list, hasMore, err := h.svc.ListFans(c.Request.Context(), viewerID(c), q.UserID, q.FansUserID, domain.Page{Page: q.Page, Limit: q.Limit})
+	list, hasMore, err := h.svc.ListFans(c.Request.Context(), viewerID(c), q.UserID.Uint64(), q.FansUserID.Uint64(), domain.Page{Page: q.Page, Limit: q.Limit})
 	if err != nil {
 		res.FailWithError(err, c)
 		return

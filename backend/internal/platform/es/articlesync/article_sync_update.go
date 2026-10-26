@@ -37,7 +37,7 @@ func normalizeArticleSnapshots(snapshots []ArticleRowSnapshot) []ArticleRowSnaps
 
 	merged := make(map[ctype.ID]ArticleRowSnapshot, len(snapshots))
 	for _, snapshot := range snapshots {
-		if snapshot.ID == 0 {
+		if snapshot.ID.IsZero() {
 			continue
 		}
 		merged[snapshot.ID] = snapshot
@@ -82,7 +82,7 @@ func UpdateESDocsTags(db *gorm.DB, client *elasticsearch.Client, articleIDs []ct
 		}
 		reqs = append(reqs, &es_service.BulkRequest{
 			Action: es_service.ActionUpdate,
-			ID:     strconv.FormatUint(uint64(article.ID), 10),
+			ID:     strconv.FormatUint(article.ID.Uint64(), 10),
 			Data: map[string]any{
 				"tags":       tags,
 				"updated_at": article.UpdatedAt,
@@ -109,7 +109,7 @@ func UpdateESDocsContent(db *gorm.DB, client *elasticsearch.Client, articleIDs [
 	for _, article := range articleList {
 		reqs = append(reqs, &es_service.BulkRequest{
 			Action: es_service.ActionUpdate,
-			ID:     strconv.FormatUint(uint64(article.ID), 10),
+			ID:     strconv.FormatUint(article.ID.Uint64(), 10),
 			Data: map[string]any{
 				"updated_at":    article.UpdatedAt,
 				"title":         article.Title,
@@ -131,13 +131,13 @@ func UpdateESDocsContent(db *gorm.DB, client *elasticsearch.Client, articleIDs [
 				"author": map[string]any{
 					"id": toESID(article.AuthorID),
 					"nickname": func() string {
-						if article.UserModel.ID == 0 {
+						if article.UserModel.ID.IsZero() {
 							return ""
 						}
 						return article.UserModel.Nickname
 					}(),
 					"avatar": func() string {
-						if article.UserModel.ID == 0 {
+						if article.UserModel.ID.IsZero() {
 							return ""
 						}
 						return article.UserModel.Avatar
@@ -170,7 +170,7 @@ func UpdateESDocsTop(db *gorm.DB, client *elasticsearch.Client, articleIDs []cty
 		top := topMap[articleID]
 		reqs = append(reqs, &es_service.BulkRequest{
 			Action: es_service.ActionUpdate,
-			ID:     strconv.FormatUint(uint64(articleID), 10),
+			ID:     strconv.FormatUint(articleID.Uint64(), 10),
 			Data: map[string]any{
 				"top": map[string]any{
 					"user":  top.AuthorTop,
@@ -196,7 +196,7 @@ func DeleteESDocs(_ *gorm.DB, client *elasticsearch.Client, articleIDs []ctype.I
 	for _, articleID := range articleIDs {
 		reqs = append(reqs, &es_service.BulkRequest{
 			Action: es_service.ActionDelete,
-			ID:     strconv.FormatUint(uint64(articleID), 10),
+			ID:     strconv.FormatUint(articleID.Uint64(), 10),
 		})
 	}
 	return applyArticlePartialBulkUpdate(nil, client, reqs, "删除文章 ES 文档失败")
@@ -247,7 +247,7 @@ func SyncESDocsByCategoryIDs(db *gorm.DB, client *elasticsearch.Client, category
 		}
 		reqs = append(reqs, &es_service.BulkRequest{
 			Action: es_service.ActionUpdate,
-			ID:     strconv.FormatUint(uint64(row.ID), 10),
+			ID:     strconv.FormatUint(row.ID.Uint64(), 10),
 			Data: map[string]any{
 				"category_id": categoryIDValue,
 				"category": map[string]any{
@@ -299,7 +299,7 @@ func SyncESDocsByAuthorIDs(db *gorm.DB, client *elasticsearch.Client, userIDs []
 		author := authorMap[row.AuthorID]
 		reqs = append(reqs, &es_service.BulkRequest{
 			Action: es_service.ActionUpdate,
-			ID:     strconv.FormatUint(uint64(row.ID), 10),
+			ID:     strconv.FormatUint(row.ID.Uint64(), 10),
 			Data: map[string]any{
 				"author_id": toESID(row.AuthorID),
 				"author": map[string]any{

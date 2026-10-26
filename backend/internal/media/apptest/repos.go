@@ -3,6 +3,7 @@ package apptest
 
 import (
 	"context"
+	"myblogx/internal/kernel/ctype"
 	"net/http"
 	"time"
 
@@ -60,7 +61,7 @@ func (r *Repo) FindByIDs(_ context.Context, ids []domain.ImageID) ([]domain.Imag
 // Create 实现 domain.Repository。
 func (r *Repo) Create(_ context.Context, img *domain.Image) error {
 	r.next++
-	img.ID = domain.ImageID(r.next)
+	img.ID = ctype.NewID(r.next)
 	r.byID[img.ID] = *img
 	r.byHash[img.Hash] = img.ID
 	return nil
@@ -105,7 +106,7 @@ func NewTaskStore() *TaskStore { return &TaskStore{byID: map[uint64]*domain.Task
 // Save 实现 domain.TaskStore。
 func (s *TaskStore) Save(_ context.Context, task *domain.Task, _ time.Duration) error {
 	copied := *task
-	s.byID[task.ID] = &copied
+	s.byID[task.ID.Uint64()] = &copied
 	return nil
 }
 
@@ -184,7 +185,7 @@ func (Storage) ObjectURL(key string) string { return "https://example.com/" + ke
 type IDs struct{ n uint64 }
 
 // NextImageID 实现 domain.IDGenerator。
-func (i *IDs) NextImageID() domain.ImageID { i.n++; return domain.ImageID(i.n) }
+func (i *IDs) NextImageID() domain.ImageID { i.n++; return ctype.NewID(i.n) }
 
 // NextTaskID 实现 domain.IDGenerator。
 func (i *IDs) NextTaskID() uint64 { i.n++; return i.n }

@@ -20,6 +20,7 @@ import (
 	searchdomain "myblogx/internal/search/domain"
 
 	"github.com/sirupsen/logrus"
+	"myblogx/internal/kernel/ctype"
 )
 
 // scoringPromptVersion 是评分提示词的版本号，落库用于回溯。
@@ -206,8 +207,8 @@ type ScoreDimension struct {
 // ScoreView 是评分的展示视图。
 type ScoreView struct {
 	HasScore       bool
-	RecordID       uint64
-	ArticleID      uint64
+	RecordID       ctype.ID
+	ArticleID      ctype.ID
 	AITotalScore   int
 	TotalScore     int
 	ScoreLevel     string
@@ -225,7 +226,7 @@ func (s *Service) ScoreSummary(ctx context.Context, articleID uint64) (ScoreView
 		return ScoreView{}, apperr.Wrap(apperr.CodeAIScoreMissing, err)
 	}
 	if record == nil {
-		return ScoreView{ArticleID: articleID}, nil
+		return ScoreView{ArticleID: ctype.NewID(articleID)}, nil
 	}
 	return buildScoreView(record, false)
 }
@@ -240,21 +241,21 @@ func (s *Service) ScoreDetail(ctx context.Context, viewerID, articleID uint64) (
 		return ScoreView{}, apperr.Wrap(apperr.CodeAIScoreMissing, err)
 	}
 	if record == nil {
-		return ScoreView{ArticleID: articleID}, nil
+		return ScoreView{ArticleID: ctype.NewID(articleID)}, nil
 	}
 	return buildScoreView(record, true)
 }
 
 // RescoreInput 是重新评分的入参。
 type RescoreInput struct {
-	ArticleID uint64
+	ArticleID ctype.ID
 	Title     string
 	Content   string
 }
 
 // Rescore 重新评分并落库。
 func (s *Service) Rescore(ctx context.Context, viewerID uint64, in RescoreInput) (ScoreView, error) {
-	article, err := s.requireAuthor(ctx, viewerID, in.ArticleID)
+	article, err := s.requireAuthor(ctx, viewerID, in.ArticleID.Uint64())
 	if err != nil {
 		return ScoreView{}, err
 	}
@@ -333,7 +334,7 @@ func (s *Service) requireAuthor(ctx context.Context, viewerID, articleID uint64)
 	if err != nil {
 		return domain.ArticleSnapshot{}, err
 	}
-	if article.AuthorID != viewerID {
+	if article.AuthorID.Uint64() != viewerID {
 		return domain.ArticleSnapshot{}, apperr.New(apperr.CodeAIPermissionDenied)
 	}
 	return article, nil
@@ -448,7 +449,7 @@ func buildSearchKey(queryList []string) string {
 // appendUnique 按 ID 去重追加。
 func appendUnique(list []searchdomain.Item, seen map[uint64]struct{}, extra []searchdomain.Item) []searchdomain.Item {
 	for _, item := range extra {
-		id := uint64(item.ID)
+		id := item.ID.Uint64()
 		if _, ok := seen[id]; ok {
 			continue
 		}

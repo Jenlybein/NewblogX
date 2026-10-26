@@ -4,37 +4,38 @@ import (
 	"time"
 
 	"myblogx/internal/apperr"
+	"myblogx/internal/kernel/ctype"
 	"myblogx/internal/user/domain"
 )
 
 // LikeTagItem 是"偏好标签"的展示项（ID + 标题）。
 type LikeTagItem struct {
-	ID    uint64 `json:"id"`
-	Title string `json:"title"`
+	ID    ctype.ID `json:"id"`
+	Title string   `json:"title"`
 }
 
 // DetailView 是当前登录用户的详细资料。
 //
 // 字段名与既有前端契约逐字一致——改一个名字前端就白屏，所以这里不做"美化"。
 type DetailView struct {
-	ID                       uint64        `json:"id"`
+	ID                       ctype.ID      `json:"id"`
 	CreatedAt                time.Time     `json:"created_at"`
 	Username                 string        `json:"username"`
 	Nickname                 string        `json:"nickname"`
-	AvatarImageID            *uint64       `json:"avatar_image_id,omitempty"`
+	AvatarImageID            *ctype.ID     `json:"avatar_image_id,omitempty"`
 	Avatar                   string        `json:"avatar"`
 	Abstract                 string        `json:"abstract"`
 	Email                    *string       `json:"email"`
 	HasPassword              bool          `json:"has_password"`
 	RegisterSource           int8          `json:"register_source"`
 	CodeAge                  int           `json:"code_age"`
-	LikeTagIDs               []uint64      `json:"like_tag_ids"`
+	LikeTagIDs               []ctype.ID    `json:"like_tag_ids"`
 	LikeTagItems             []LikeTagItem `json:"like_tag_items"`
 	UpdatedUsernameDate      *time.Time    `json:"updated_username_date"`
 	FavoritesVisibility      bool          `json:"favorites_visibility"`
 	FollowVisibility         bool          `json:"followers_visibility"`
 	FansVisibility           bool          `json:"fans_visibility"`
-	HomeStyleID              uint64        `json:"home_style_id"`
+	HomeStyleID              ctype.ID      `json:"home_style_id"`
 	DiggNoticeEnabled        bool          `json:"digg_notice_enabled"`
 	CommentNoticeEnabled     bool          `json:"comment_notice_enabled"`
 	FavorNoticeEnabled       bool          `json:"favor_notice_enabled"`
@@ -46,11 +47,11 @@ type DetailView struct {
 //
 // 全是指针：false 是合法值（关闭通知），用 bool 判断"没传"和"关掉"就分不清了。
 type SettingsPatch struct {
-	LikeTagIDs               *[]uint64
+	LikeTagIDs               *[]ctype.ID
 	FavoritesVisibility      *bool
 	FollowVisibility         *bool
 	FansVisibility           *bool
-	HomeStyleID              *uint64
+	HomeStyleID              *ctype.ID
 	DiggNoticeEnabled        *bool
 	CommentNoticeEnabled     *bool
 	FavorNoticeEnabled       *bool

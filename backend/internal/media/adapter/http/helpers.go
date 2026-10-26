@@ -17,7 +17,7 @@ func userIDFrom(c *gin.Context) (uint64, bool) {
 		res.FailWithMsg("请先登录", c)
 		return 0, false
 	}
-	return uint64(cl.UserID), true
+	return cl.UserID.Uint64(), true
 }
 
 // pathID 解析路径里的数字 ID。

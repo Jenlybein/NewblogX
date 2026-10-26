@@ -3,6 +3,7 @@ package apptest_test
 import (
 	"context"
 	"errors"
+	"myblogx/internal/kernel/ctype"
 	"testing"
 
 	"myblogx/internal/article/app"
@@ -20,14 +21,14 @@ func TestTxRollbackRestoresRepos(t *testing.T) {
 	tx := apptest.NewTx(repos)
 	ctx := context.Background()
 
-	existing := apptest.NewArticle().ID(1).Author(100).Build()
+	existing := apptest.NewArticle().ID(ctype.NewID(1)).Author(ctype.NewID(100)).Build()
 	repos.FakeArticles().Seed(existing)
 
 	boom := errors.New("下游失败")
 
 	err := tx.WithinTx(ctx, func(ctx context.Context, r app.Repos) error {
 		// 改一篇已有的
-		a, err := r.Articles().Find(ctx, 1)
+		a, err := r.Articles().Find(ctx, ctype.NewID(1))
 		if err != nil {
 			return err
 		}
@@ -36,7 +37,7 @@ func TestTxRollbackRestoresRepos(t *testing.T) {
 			return err
 		}
 		// 再新建一篇
-		if err := r.Articles().Create(ctx, apptest.NewArticle().ID(2).Build()); err != nil {
+		if err := r.Articles().Create(ctx, apptest.NewArticle().ID(ctype.NewID(2)).Build()); err != nil {
 			return err
 		}
 		return boom
@@ -50,11 +51,11 @@ func TestTxRollbackRestoresRepos(t *testing.T) {
 	}
 
 	// 删除被撤销：文章 1 仍可读
-	if _, err := repos.FakeArticles().Find(ctx, 1); err != nil {
+	if _, err := repos.FakeArticles().Find(ctx, ctype.NewID(1)); err != nil {
 		t.Fatalf("回滚后文章 1 应仍可读: %v", err)
 	}
 	// 新建被撤销：文章 2 不存在
-	if _, err := repos.FakeArticles().Find(ctx, 2); !errors.Is(err, domain.ErrArticleNotFound) {
+	if _, err := repos.FakeArticles().Find(ctx, ctype.NewID(2)); !errors.Is(err, domain.ErrArticleNotFound) {
 		t.Fatalf("回滚后文章 2 不应存在，实际 err=%v", err)
 	}
 }
@@ -67,7 +68,7 @@ func TestTxCommitKeepsChanges(t *testing.T) {
 	ctx := context.Background()
 
 	err := tx.WithinTx(ctx, func(ctx context.Context, r app.Repos) error {
-		return r.Articles().Create(ctx, apptest.NewArticle().ID(7).Build())
+		return r.Articles().Create(ctx, apptest.NewArticle().ID(ctype.NewID(7)).Build())
 	})
 	if err != nil {
 		t.Fatalf("不应报错: %v", err)
@@ -75,7 +76,7 @@ func TestTxCommitKeepsChanges(t *testing.T) {
 	if tx.Commits() != 1 || tx.Rollbacks() != 0 {
 		t.Fatalf("应提交 1 次、回滚 0 次，实际 提交=%d 回滚=%d", tx.Commits(), tx.Rollbacks())
 	}
-	if _, err := repos.FakeArticles().Find(ctx, 7); err != nil {
+	if _, err := repos.FakeArticles().Find(ctx, ctype.NewID(7)); err != nil {
 		t.Fatalf("提交后应能读到文章 7: %v", err)
 	}
 }
@@ -110,7 +111,7 @@ func TestArticleRepoConflict(t *testing.T) {
 
 	repo := apptest.NewArticleRepo()
 	ctx := context.Background()
-	a := apptest.NewArticle().ID(1).Build()
+	a := apptest.NewArticle().ID(ctype.NewID(1)).Build()
 
 	if err := repo.Create(ctx, a); err != nil {
 		t.Fatalf("首次创建应成功: %v", err)
@@ -126,10 +127,10 @@ func TestArticleRepoConflict(t *testing.T) {
 func TestSnapshotIsolation(t *testing.T) {
 	t.Parallel()
 
-	repo := apptest.NewArticleRepo().Seed(apptest.NewArticle().ID(1).Title("原始").Build())
+	repo := apptest.NewArticleRepo().Seed(apptest.NewArticle().ID(ctype.NewID(1)).Title("原始").Build())
 	ctx := context.Background()
 
-	got, err := repo.Find(ctx, 1)
+	got, err := repo.Find(ctx, ctype.NewID(1))
 	if err != nil {
 		t.Fatalf("读取失败: %v", err)
 	}
@@ -138,7 +139,7 @@ func TestSnapshotIsolation(t *testing.T) {
 		t.Fatalf("改标题失败: %v", err)
 	}
 
-	again, err := repo.Find(ctx, 1)
+	again, err := repo.Find(ctx, ctype.NewID(1))
 	if err != nil {
 		t.Fatalf("再读失败: %v", err)
 	}
@@ -152,9 +153,9 @@ func TestListFilterOnlyPublic(t *testing.T) {
 	t.Parallel()
 
 	repo := apptest.NewArticleRepo().Seed(
-		apptest.NewArticle().ID(1).Status(domain.StatusPublished).Build(),
-		apptest.NewArticle().ID(2).Status(domain.StatusDraft).Build(),
-		apptest.NewArticle().ID(3).Status(domain.StatusPublished).Visibility(domain.VisibilityUserHidden).Build(),
+		apptest.NewArticle().ID(ctype.NewID(1)).Status(domain.StatusPublished).Build(),
+		apptest.NewArticle().ID(ctype.NewID(2)).Status(domain.StatusDraft).Build(),
+		apptest.NewArticle().ID(ctype.NewID(3)).Status(domain.StatusPublished).Visibility(domain.VisibilityUserHidden).Build(),
 	)
 
 	ctx := context.Background()
@@ -162,7 +163,7 @@ func TestListFilterOnlyPublic(t *testing.T) {
 	if err != nil {
 		t.Fatalf("查询失败: %v", err)
 	}
-	if total != 1 || len(got) != 1 || got[0].ID() != 1 {
+	if total != 1 || len(got) != 1 || got[0].ID().Uint64() != 1 {
 		t.Fatalf("只应返回已发布且可见的文章 1，实际 total=%d ids=%v", total, idsOf(got))
 	}
 }
@@ -171,13 +172,13 @@ func TestListFilterByAuthorAndKeyword(t *testing.T) {
 	t.Parallel()
 
 	repo := apptest.NewArticleRepo().Seed(
-		apptest.NewArticle().ID(1).Author(100).Title("Go 并发").Build(),
-		apptest.NewArticle().ID(2).Author(100).Title("Vue 入门").Build(),
-		apptest.NewArticle().ID(3).Author(200).Title("Go 泛型").Build(),
+		apptest.NewArticle().ID(ctype.NewID(1)).Author(ctype.NewID(100)).Title("Go 并发").Build(),
+		apptest.NewArticle().ID(ctype.NewID(2)).Author(ctype.NewID(100)).Title("Vue 入门").Build(),
+		apptest.NewArticle().ID(ctype.NewID(3)).Author(ctype.NewID(200)).Title("Go 泛型").Build(),
 	)
 
 	ctx := context.Background()
-	author := domain.UserID(100)
+	author := ctype.NewID(100)
 
 	got, total, err := repo.List(ctx, domain.Filter{AuthorID: &author}, domain.Page{Limit: 10})
 	if err != nil {
@@ -204,11 +205,11 @@ func TestFaultInjection(t *testing.T) {
 	boom := errors.New("DB 挂了")
 	repo.FailNext("Create", boom)
 
-	if err := repo.Create(ctx, apptest.NewArticle().ID(1).Build()); !errors.Is(err, boom) {
+	if err := repo.Create(ctx, apptest.NewArticle().ID(ctype.NewID(1)).Build()); !errors.Is(err, boom) {
 		t.Fatalf("应命中注入故障，实际 %v", err)
 	}
 	// 一次性：第二次应成功
-	if err := repo.Create(ctx, apptest.NewArticle().ID(1).Build()); err != nil {
+	if err := repo.Create(ctx, apptest.NewArticle().ID(ctype.NewID(1)).Build()); err != nil {
 		t.Fatalf("故障应只触发一次，第二次实际 %v", err)
 	}
 }
@@ -219,20 +220,20 @@ func TestDefaultFolderAutoCreated(t *testing.T) {
 	repo := apptest.NewFavoriteRepo()
 	ctx := context.Background()
 
-	f, err := repo.DefaultFolder(ctx, 100)
+	f, err := repo.DefaultFolder(ctx, ctype.NewID(100))
 	if err != nil {
 		t.Fatalf("应自动创建默认收藏夹: %v", err)
 	}
-	if !f.IsDefault() || f.UserID() != 100 {
+	if !f.IsDefault() || f.UserID().Uint64() != 100 {
 		t.Fatalf("默认收藏夹属性不对: %+v", f)
 	}
 	// 第二次取到同一个
-	again, err := repo.DefaultFolder(ctx, 100)
+	again, err := repo.DefaultFolder(ctx, ctype.NewID(100))
 	if err != nil {
 		t.Fatalf("第二次取默认夹失败: %v", err)
 	}
 	if again.ID() != f.ID() {
-		t.Fatalf("应复用同一收藏夹，实际 %d vs %d", again.ID(), f.ID())
+		t.Fatalf("应复用同一收藏夹，实际 %s vs %s", again.ID(), f.ID())
 	}
 }
 

@@ -20,7 +20,7 @@ import (
 // @Summary 分类列表
 // @Tags article
 // @Produce json
-// @Param user_id query int false "用户 ID"
+// @Param user_id query string false "用户 ID"
 // @Success 200 {object} object{code=int,data=object{list=[]object{},count=int},msg=string}
 // @Router /articles/category [get]
 func (h *Handler) Categories(c *gin.Context) {
@@ -45,7 +45,7 @@ func (h *Handler) SaveCategory(c *gin.Context) {
 		h.fail(c, err)
 		return
 	}
-	h.audit(c, "category_save", 0, true, "保存分类")
+	h.audit(c, "category_save", "", true, "保存分类")
 	res.OkWithMsg("保存成功", c)
 }
 
@@ -64,13 +64,13 @@ func (h *Handler) DeleteCategories(c *gin.Context) {
 
 	ids := make([]domain.CategoryID, 0, len(cr.IDList))
 	for _, id := range cr.IDList {
-		ids = append(ids, domain.CategoryID(id))
+		ids = append(ids, id)
 	}
 	if _, err := h.svc.DeleteCategories(c.Request.Context(), h.viewerOf(c), ids); err != nil {
 		h.fail(c, err)
 		return
 	}
-	h.audit(c, "category_delete", 0, true, "删除分类")
+	h.audit(c, "category_delete", "", true, "删除分类")
 	res.OkWithMsg("删除成功", c)
 }
 
@@ -79,7 +79,7 @@ func (h *Handler) DeleteCategories(c *gin.Context) {
 // @Summary 分类下拉
 // @Tags article
 // @Produce json
-// @Param user_id query int false "用户 ID"
+// @Param user_id query string false "用户 ID"
 // @Success 200 {object} object{code=int,data=object{list=[]object{},count=int},msg=string}
 // @Router /articles/category/options [get]
 func (h *Handler) CategoryOptions(c *gin.Context) {
@@ -185,7 +185,7 @@ func (h *Handler) SaveTag(c *gin.Context) {
 		h.fail(c, err)
 		return
 	}
-	h.audit(c, "tag_save", 0, true, "保存标签")
+	h.audit(c, "tag_save", "", true, "保存标签")
 	res.OkWithMsg("保存成功", c)
 }
 
@@ -204,13 +204,13 @@ func (h *Handler) DeleteTags(c *gin.Context) {
 
 	ids := make([]domain.TagID, 0, len(cr.IDList))
 	for _, id := range cr.IDList {
-		ids = append(ids, domain.TagID(id))
+		ids = append(ids, id)
 	}
 	if _, err := h.svc.DeleteTags(c.Request.Context(), h.viewerOf(c), ids); err != nil {
 		h.fail(c, err)
 		return
 	}
-	h.audit(c, "tag_delete", 0, true, "删除标签")
+	h.audit(c, "tag_delete", "", true, "删除标签")
 	res.OkWithMsg("删除成功", c)
 }
 
@@ -221,7 +221,7 @@ func (h *Handler) DeleteTags(c *gin.Context) {
 // @Summary 收藏夹列表
 // @Tags article
 // @Produce json
-// @Param user_id query int false "用户 ID"
+// @Param user_id query string false "用户 ID"
 // @Success 200 {object} object{code=int,data=object{list=[]object{},count=int},msg=string}
 // @Router /articles/favorite [get]
 func (h *Handler) Folders(c *gin.Context) {
@@ -278,7 +278,7 @@ func (h *Handler) SaveFolder(c *gin.Context) {
 		h.fail(c, err)
 		return
 	}
-	h.audit(c, "favorite_folder_save", 0, true, "保存收藏夹")
+	h.audit(c, "favorite_folder_save", "", true, "保存收藏夹")
 	res.OkWithMsg("保存成功", c)
 }
 
@@ -297,13 +297,13 @@ func (h *Handler) DeleteFolders(c *gin.Context) {
 
 	ids := make([]favorite.ID, 0, len(cr.IDList))
 	for _, id := range cr.IDList {
-		ids = append(ids, favorite.ID(id))
+		ids = append(ids, id)
 	}
 	if _, err := h.svc.DeleteFolders(c.Request.Context(), h.viewerOf(c), ids); err != nil {
 		h.fail(c, err)
 		return
 	}
-	h.audit(c, "favorite_folder_delete", 0, true, "删除收藏夹")
+	h.audit(c, "favorite_folder_delete", "", true, "删除收藏夹")
 	res.OkWithMsg("删除成功", c)
 }
 
@@ -312,7 +312,7 @@ func (h *Handler) DeleteFolders(c *gin.Context) {
 // @Summary 收藏夹内容
 // @Tags article
 // @Produce json
-// @Param favor_id query int true "收藏夹 ID"
+// @Param favor_id query string true "收藏夹 ID"
 // @Param page query int false "页码"
 // @Param limit query int false "每页数量"
 // @Success 200 {object} object{code=int,data=object{list=[]object{},count=int},msg=string}
@@ -391,10 +391,10 @@ func (h *Handler) RemoveFavoriteItems(c *gin.Context) {
 			ArticleID: domain.ArticleID(id),
 			FolderID:  favorite.ID(cr.FavorID),
 		}); err != nil {
-			h.logger.Warnf("取消收藏文章 %d 失败: %v", id, err)
+			h.logger.Warnf("取消收藏文章 %s 失败: %v", id, err)
 		}
 	}
-	h.audit(c, "article_unfavorite", 0, true, "取消收藏")
+	h.audit(c, "article_unfavorite", "", true, "取消收藏")
 	res.OkWithMsg("取消成功", c)
 }
 
@@ -405,8 +405,8 @@ func (h *Handler) RemoveFavoriteItems(c *gin.Context) {
 // @Summary 置顶列表
 // @Tags article
 // @Produce json
-// @Param user_id query int false "用户 ID"
-// @Success 200 {object} object{code=int,data=object{list=[]object{},count=int},msg=string}
+// @Param user_id query string false "用户 ID"
+// @Success 200 {object} object{code=int,data=object{list=[]string,count=int},msg=string}
 // @Router /articles/top [get]
 func (h *Handler) Tops(c *gin.Context) {
 	cr := middleware.GetBindQuery[ArticleTopListRequest](c)
@@ -462,10 +462,10 @@ func (h *Handler) toggleTops(c *gin.Context, ids []ctype.ID, remove bool) {
 			Remove:    remove,
 		}); err != nil {
 			failed++
-			h.logger.Warnf("置顶操作失败 article=%d remove=%v: %v", id, remove, err)
+			h.logger.Warnf("置顶操作失败 article=%s remove=%v: %v", id, remove, err)
 		}
 	}
-	h.audit(c, "article_top", 0, failed == 0, "设置置顶")
+	h.audit(c, "article_top", "", failed == 0, "设置置顶")
 	if failed > 0 && failed == len(ids) {
 		res.FailWithMsg("设置置顶失败", c)
 		return
@@ -525,13 +525,13 @@ func (h *Handler) RemoveHistory(c *gin.Context) {
 
 	ids := make([]domain.ArticleID, 0, len(cr.IDList))
 	for _, id := range cr.IDList {
-		ids = append(ids, domain.ArticleID(id))
+		ids = append(ids, id)
 	}
 	if err := h.svc.RemoveViewHistory(c.Request.Context(), h.viewerOf(c), ids); err != nil {
 		h.fail(c, err)
 		return
 	}
-	h.audit(c, "view_history_delete", 0, true, "删除浏览历史")
+	h.audit(c, "view_history_delete", "", true, "删除浏览历史")
 	res.OkWithMsg("删除成功", c)
 }
 
@@ -578,7 +578,7 @@ func (h *Handler) ReviewTasks(c *gin.Context) {
 // @Accept json
 // @Produce json
 // @Security BearerAuth
-// @Param id path int true "任务 ID"
+// @Param id path string true "任务 ID"
 // @Param body body ArticleReviewHandleRequest true "请求体"
 // @Success 200 {object} object{code=int,data=object{},msg=string}
 // @Router /article-review-tasks/{id}/review [post]
@@ -587,11 +587,11 @@ func (h *Handler) HandleReviewTask(c *gin.Context) {
 	cr := middleware.GetBindJson[ArticleReviewHandleRequest](c)
 
 	approve := cr.Status == ArticleStatusPublished
-	if _, err := h.svc.HandleReviewTask(c.Request.Context(), h.viewerOf(c), uint64(uri.ID), approve, cr.Reason); err != nil {
+	if _, err := h.svc.HandleReviewTask(c.Request.Context(), h.viewerOf(c), uri.ID, approve, cr.Reason); err != nil {
 		h.fail(c, err)
 		return
 	}
-	h.audit(c, "article_review_handle", 0, true, "处理审核任务")
+	h.audit(c, "article_review_handle", "", true, "处理审核任务")
 	res.OkWithMsg("处理成功", c)
 }
 
@@ -602,7 +602,7 @@ func (h *Handler) HandleReviewTask(c *gin.Context) {
 // @Summary 作者信息
 // @Tags article
 // @Produce json
-// @Param author_id query int true "作者 ID"
+// @Param author_id query string true "作者 ID"
 // @Success 200 {object} object{code=int,data=object{},msg=string}
 // @Router /articles/author_info [get]
 func (h *Handler) AuthorInfo(c *gin.Context) {

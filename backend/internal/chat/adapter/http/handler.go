@@ -66,7 +66,7 @@ func viewer(c *gin.Context) (ctype.ID, bool) {
 	cl := jwts.GetClaimsByGin(c)
 	if cl == nil {
 		res.FailWithMsg("请先登录", c)
-		return 0, false
+		return "", false
 	}
 	return cl.UserID, cl.IsAdmin()
 }
@@ -75,19 +75,19 @@ func viewer(c *gin.Context) (ctype.ID, bool) {
 
 // SessionListQuery 会话列表查询。
 type SessionListQuery struct {
-	Page   int    `form:"page"`
-	Limit  int    `form:"limit"`
-	UserID uint64 `form:"user_id"`
-	Type   int8   `form:"type" binding:"required,oneof=1 2"`
+	Page   int      `form:"page"`
+	Limit  int      `form:"limit"`
+	UserID ctype.ID `form:"user_id"`
+	Type   int8     `form:"type" binding:"required,oneof=1 2" enums:"1,2"`
 }
 
 // MessageListQuery 消息列表查询。
 type MessageListQuery struct {
-	Page      int    `form:"page"`
-	Limit     int    `form:"limit"`
-	SessionID string `form:"session_id" binding:"required"`
-	UserID    uint64 `form:"user_id"`
-	Type      int8   `form:"type" binding:"required,oneof=1 2"`
+	Page      int      `form:"page"`
+	Limit     int      `form:"limit"`
+	SessionID string   `form:"session_id" binding:"required"`
+	UserID    ctype.ID `form:"user_id"`
+	Type      int8     `form:"type" binding:"required,oneof=1 2" enums:"1,2"`
 }
 
 // IDListRequest 是一批消息 ID。
@@ -102,9 +102,9 @@ type SessionIDListRequest struct {
 
 // ChatRequest 是 WS 上行消息。
 type ChatRequest struct {
-	ReceiverID uint64 `json:"receiver_id" binding:"required"`
-	MsgType    int8   `json:"msg_type" binding:"required,oneof=1 2 7"`
-	Content    string `json:"content" binding:"required"`
+	ReceiverID ctype.ID `json:"receiver_id" binding:"required"`
+	MsgType    int8     `json:"msg_type" binding:"required,oneof=1 2 7" enums:"1,2,7"`
+	Content    string   `json:"content" binding:"required"`
 }
 
 // Sessions 会话列表。
@@ -121,7 +121,7 @@ func (h *Handler) Sessions(c *gin.Context) {
 		return
 	}
 	uid, admin := viewer(c)
-	target := ctype.ID(q.UserID)
+	target := q.UserID
 	switch q.Type {
 	case 1:
 		target = uid
@@ -130,7 +130,7 @@ func (h *Handler) Sessions(c *gin.Context) {
 			res.FailWithError(apperr.New(apperr.CodeChatNoPermission), c)
 			return
 		}
-		if target == 0 {
+		if target.IsZero() {
 			res.FailWithMsg("user_id 不能为 0", c)
 			return
 		}
@@ -157,7 +157,7 @@ func (h *Handler) Messages(c *gin.Context) {
 		return
 	}
 	uid, admin := viewer(c)
-	target := ctype.ID(q.UserID)
+	target := q.UserID
 	switch q.Type {
 	case 1:
 		target = uid
@@ -166,7 +166,7 @@ func (h *Handler) Messages(c *gin.Context) {
 			res.FailWithError(apperr.New(apperr.CodeChatNoPermission), c)
 			return
 		}
-		if target == 0 {
+		if target.IsZero() {
 			res.FailWithMsg("user_id 不能为 0", c)
 			return
 		}
@@ -217,7 +217,7 @@ func (h *Handler) Read(c *gin.Context) {
 	}
 	for senderID, sessions := range grouped {
 		for sessionID, msgIDs := range sessions {
-			h.hub.PushJSON(uint64(senderID), domain.ReadPush{
+			h.hub.PushJSON(senderID.Uint64(), domain.ReadPush{
 				MsgType:   domain.TypeRead,
 				SessionID: sessionID,
 				ReaderID:  uid,
@@ -294,7 +294,7 @@ func (h *Handler) WsTicket(c *gin.Context) {
 		return
 	}
 	ticket := base64.RawURLEncoding.EncodeToString(raw)
-	if err := h.tickets.Store(c.Request.Context(), ticket, uint64(cl.UserID), uint64(cl.SessionID), time.Minute); err != nil {
+	if err := h.tickets.Store(c.Request.Context(), ticket, cl.UserID.Uint64(), cl.SessionID.Uint64(), time.Minute); err != nil {
 		res.FailWithMsg("生成 ws 票据失败", c)
 		return
 	}
@@ -318,7 +318,7 @@ func (h *Handler) Ws(c *gin.Context) {
 	if err != nil {
 		return
 	}
-	conn := ws.NewConn(uint64(userID), raw)
+	conn := ws.NewConn(userID.Uint64(), raw)
 	h.hub.Register(conn)
 
 	defer func() {
@@ -354,7 +354,7 @@ func (h *Handler) Ws(c *gin.Context) {
 			continue
 		}
 
-		msg, err := h.svc.Send(ctx, userID, ctype.ID(req.ReceiverID), domain.MsgType(req.MsgType), req.Content)
+		msg, err := h.svc.Send(ctx, userID, req.ReceiverID, domain.MsgType(req.MsgType), req.Content)
 		if err != nil {
 			if werr := res.SendConnFailWithMsg(err.Error(), conn, wsWriteWait); werr != nil {
 				return
@@ -374,15 +374,15 @@ func (h *Handler) Ws(c *gin.Context) {
 			IsSelf:     false,
 			IsRead:     false,
 		}
-		if req.ReceiverID == uint64(userID) {
-			if success := h.hub.PushJSON(uint64(msg.ReceiverID), item); success == 0 {
+		if req.ReceiverID.Uint64() == userID.Uint64() {
+			if success := h.hub.PushJSON(msg.ReceiverID.Uint64(), item); success == 0 {
 				if err := res.SendConnOkWithMsg("给自己发送消息", conn, wsWriteWait); err != nil {
 					return
 				}
 			}
 			continue
 		}
-		if success := h.hub.PushJSON(uint64(msg.ReceiverID), item); success == 0 {
+		if success := h.hub.PushJSON(msg.ReceiverID.Uint64(), item); success == 0 {
 			if err := res.SendConnFailWithMsg("接收人不在线", conn, wsWriteWait); err != nil {
 				return
 			}
@@ -394,31 +394,31 @@ func (h *Handler) Ws(c *gin.Context) {
 func (h *Handler) authenticateWS(ctx context.Context, c *gin.Context) (ctype.ID, uint64, bool) {
 	if token := jwts.GetTokenByGin(c); token != "" && h.auth != nil {
 		if uid, sid, _, ok := h.auth.Authenticate(ctx, token); ok {
-			return ctype.ID(uid), sid, true
+			return ctype.NewID(uid), sid, true
 		}
 	}
 	ticket := c.Query("ticket")
 	if ticket == "" || h.auth == nil {
 		res.FailWithError(apperr.New(apperr.CodeAuthRequired), c)
-		return 0, 0, false
+		return "", 0, false
 	}
 	uid, sid, ok, err := h.tickets.Consume(ctx, ticket)
 	if err != nil || !ok {
 		res.FailWithError(apperr.New(apperr.CodeUserTokenInvalid), c)
-		return 0, 0, false
+		return "", 0, false
 	}
 	active, err := h.auth.SessionActive(ctx, uid, sid)
 	if err != nil || !active {
 		res.FailWithError(apperr.New(apperr.CodeUserSessionExpired), c)
-		return 0, 0, false
+		return "", 0, false
 	}
-	return ctype.ID(uid), sid, true
+	return ctype.NewID(uid), sid, true
 }
 
 func toIDs(ids []uint64) []ctype.ID {
 	out := make([]ctype.ID, 0, len(ids))
 	for _, id := range ids {
-		out = append(out, ctype.ID(id))
+		out = append(out, ctype.NewID(id))
 	}
 	return out
 }

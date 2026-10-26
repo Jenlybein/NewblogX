@@ -2,6 +2,7 @@ package apptest
 
 import (
 	"context"
+	"myblogx/internal/kernel/ctype"
 	"sort"
 	"sync"
 
@@ -44,7 +45,7 @@ func (r *FavoriteRepo) SeedFolder(f *favorite.Folder) *FavoriteRepo {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	r.folders[f.ID()] = cloneFolder(f)
-	if f.ID() > r.nextID {
+	if f.ID().Uint64() > r.nextID.Uint64() {
 		r.nextID = f.ID()
 	}
 	return r
@@ -86,7 +87,7 @@ func (r *FavoriteRepo) DefaultFolder(_ context.Context, userID domain.UserID) (*
 		}
 	}
 
-	r.nextID++
+	r.nextID = ctype.NewID(r.nextID.Uint64() + 1)
 	id := r.nextID
 	created := favorite.RestoreFolder(favorite.RestoreFolderParams{
 		ID: id, UserID: userID, Title: "默认收藏", IsDefault: true,
@@ -109,7 +110,7 @@ func (r *FavoriteRepo) ListFolders(_ context.Context, userID domain.UserID) ([]*
 			out = append(out, cloneFolder(f))
 		}
 	}
-	sort.Slice(out, func(i, j int) bool { return out[i].ID() < out[j].ID() })
+	sort.Slice(out, func(i, j int) bool { return out[i].ID().Uint64() < out[j].ID().Uint64() })
 	return out, nil
 }
 
@@ -149,7 +150,7 @@ func (r *FavoriteRepo) SaveFolder(_ context.Context, f *favorite.Folder) error {
 		}
 	}
 	r.folders[f.ID()] = cloneFolder(f)
-	if f.ID() > r.nextID {
+	if f.ID().Uint64() > r.nextID.Uint64() {
 		r.nextID = f.ID()
 	}
 	return nil
@@ -268,7 +269,7 @@ func (r *FavoriteRepo) ListItems(_ context.Context, folderID favorite.ID, offset
 			all = append(all, cloneItem(it))
 		}
 	}
-	sort.Slice(all, func(i, j int) bool { return all[i].ArticleID() > all[j].ArticleID() })
+	sort.Slice(all, func(i, j int) bool { return all[i].ArticleID().Uint64() > all[j].ArticleID().Uint64() })
 
 	total := int64(len(all))
 	if offset > len(all) {
@@ -742,7 +743,7 @@ func cloneTask(t *review.Task) *review.Task {
 		return nil
 	}
 	return review.RestoreTask(review.RestoreTaskParams{
-		ID:            t.ID(),
+		ID:            ctype.NewID(t.ID()),
 		ArticleID:     t.ArticleID(),
 		AuthorID:      t.AuthorID(),
 		ArticleTitle:  t.ArticleTitle(),

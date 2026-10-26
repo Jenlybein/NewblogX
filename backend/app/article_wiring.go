@@ -77,7 +77,7 @@ func (snowflakeIDs) NextReviewTaskID() uint64 {
 	if err != nil {
 		panic("article: 雪花 ID 生成失败: " + err.Error())
 	}
-	return uint64(id)
+	return id.Uint64()
 }
 
 // NextFolderID 返回下一个收藏夹 ID。
@@ -118,12 +118,12 @@ func (r *imageResolver) FindImageIDByURL(ctx context.Context, url string) (*ctyp
 	if err != nil || !ok {
 		return nil, err
 	}
-	value := ctype.ID(id)
+	value := ctype.NewID(id)
 	return &value, nil
 }
 
 // ResolveImageURLByID 取图片 URL。
 func (r *imageResolver) ResolveImageURLByID(ctx context.Context, id ctype.ID) (string, error) {
 	_ = ctx
-	return mediamysql.ResolveURLByID(r.db, uint64(id))
+	return mediamysql.ResolveURLByID(r.db, id.Uint64())
 }

@@ -66,7 +66,7 @@ func TestRestoreOrCreateUnique(t *testing.T) {
 
 	t.Run("创建新记录", func(t *testing.T) {
 		ok, err := RestoreOrCreateUnique(db, &softDeleteUniqueRow{
-			UserID: 1,
+			UserID: ctype.NewID(1),
 			Title:  "created",
 			Remark: "v1",
 		}, []string{"user_id", "title"})
@@ -80,7 +80,7 @@ func TestRestoreOrCreateUnique(t *testing.T) {
 
 	t.Run("恢复软删记录", func(t *testing.T) {
 		row := softDeleteUniqueRow{
-			UserID:    2,
+			UserID:    ctype.NewID(2),
 			Title:     "restored",
 			Remark:    "old",
 			Sort:      99,
@@ -94,7 +94,7 @@ func TestRestoreOrCreateUnique(t *testing.T) {
 		}
 
 		ok, err := RestoreOrCreateUnique(db, &softDeleteUniqueRow{
-			UserID:    2,
+			UserID:    ctype.NewID(2),
 			Title:     "restored",
 			Remark:    "",
 			Sort:      0,
@@ -127,7 +127,7 @@ func TestRestoreOrCreateUnique(t *testing.T) {
 
 	t.Run("活记录已存在时返回 false", func(t *testing.T) {
 		row := softDeleteUniqueRow{
-			UserID: 3,
+			UserID: ctype.NewID(3),
 			Title:  "existing",
 			Remark: "keep",
 		}
@@ -136,7 +136,7 @@ func TestRestoreOrCreateUnique(t *testing.T) {
 		}
 
 		ok, err := RestoreOrCreateUnique(db, &softDeleteUniqueRow{
-			UserID: 3,
+			UserID: ctype.NewID(3),
 			Title:  "existing",
 			Remark: "new",
 		}, []string{"user_id", "title"})
@@ -159,7 +159,7 @@ func TestRestoreOrCreateUnique(t *testing.T) {
 
 	t.Run("空匹配字段应报错", func(t *testing.T) {
 		ok, err := RestoreOrCreateUnique(db, &softDeleteUniqueRow{
-			UserID: 4,
+			UserID: ctype.NewID(4),
 			Title:  "invalid",
 		}, nil)
 		if err == nil {

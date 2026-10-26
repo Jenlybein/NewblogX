@@ -21,7 +21,7 @@ type GlobalListRequest struct {
 	Page  int    `form:"page"`
 	Key   string `form:"key"`
 	Order string `form:"order"`
-	Type  int8   `form:"type" binding:"required,oneof=1 2"`
+	Type  int8   `form:"type" binding:"required,oneof=1 2" enums:"1,2"`
 }
 
 // GlobalCreateRequest 对应 POST /global_notif。
@@ -45,13 +45,13 @@ type MessageListRequest struct {
 	Page  int    `form:"page"`
 	Key   string `form:"key"`
 	Order string `form:"order"`
-	T     int8   `form:"t" binding:"required,oneof=1 2 3"`
+	T     int8   `form:"t" binding:"required,oneof=1 2 3" enums:"1,2,3"`
 }
 
 // MessageSelectRequest 对应 POST/DELETE /sitemsg：按 id 或按分组 t 操作。
 type MessageSelectRequest struct {
 	ID ctype.ID `json:"id"`
-	T  int8     `json:"t" binding:"omitempty,oneof=1 2 3"`
+	T  int8     `json:"t" binding:"omitempty,oneof=1 2 3" enums:"1,2,3"`
 }
 
 // ConfRequest 对应 GET/PUT /sitemsg/conf。

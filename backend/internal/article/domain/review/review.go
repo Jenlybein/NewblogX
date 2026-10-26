@@ -11,6 +11,7 @@ import (
 
 	"myblogx/internal/apperr"
 	"myblogx/internal/article/domain"
+	"myblogx/internal/kernel/ctype"
 )
 
 // 子域错误。文案统一在 internal/apperr 的消息表里。
@@ -74,7 +75,7 @@ type Task struct {
 
 // NewTaskParams 是创建审核任务的输入。
 type NewTaskParams struct {
-	ID            uint64
+	ID            ctype.ID
 	ArticleID     domain.ArticleID
 	AuthorID      domain.UserID
 	ArticleTitle  string
@@ -87,7 +88,7 @@ type NewTaskParams struct {
 // NewTask 创建待审核任务。
 func NewTask(p NewTaskParams) *Task {
 	return &Task{
-		id:            p.ID,
+		id:            p.ID.Uint64(),
 		articleID:     p.ArticleID,
 		authorID:      p.AuthorID,
 		articleTitle:  p.ArticleTitle,
@@ -102,7 +103,7 @@ func NewTask(p NewTaskParams) *Task {
 
 // RestoreTaskParams 是重建审核任务的输入。
 type RestoreTaskParams struct {
-	ID            uint64
+	ID            ctype.ID
 	ArticleID     domain.ArticleID
 	AuthorID      domain.UserID
 	ArticleTitle  string
@@ -120,7 +121,7 @@ type RestoreTaskParams struct {
 // RestoreTask 从持久化数据重建。
 func RestoreTask(p RestoreTaskParams) *Task {
 	return &Task{
-		id:            p.ID,
+		id:            p.ID.Uint64(),
 		articleID:     p.ArticleID,
 		authorID:      p.AuthorID,
 		articleTitle:  p.ArticleTitle,

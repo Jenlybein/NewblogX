@@ -32,7 +32,7 @@ func userID(c *gin.Context) uint64 {
 	if claims == nil {
 		return 0
 	}
-	return uint64(claims.UserID)
+	return claims.UserID.Uint64()
 }
 
 // prepareSSE 设置 SSE 响应头。
@@ -57,11 +57,11 @@ func (h *Handler) Scoring(c *gin.Context) {
 	if !ok {
 		return
 	}
-	if cr.ArticleID == nil || *cr.ArticleID == 0 {
+	if cr.ArticleID == nil || cr.ArticleID.IsZero() {
 		res.FailWithMsg("article_id 不能为空", c)
 		return
 	}
-	articleID := uint64(*cr.ArticleID)
+	articleID := cr.ArticleID.Uint64()
 	ctx := c.Request.Context()
 
 	switch cr.Type {
@@ -81,7 +81,7 @@ func (h *Handler) Scoring(c *gin.Context) {
 		res.OkWithData(toScoringResponse(view), c)
 	case 3:
 		view, err := h.svc.Rescore(ctx, userID(c), app.RescoreInput{
-			ArticleID: articleID,
+			ArticleID: ctype.NewID(articleID),
 			Title:     cr.Title,
 			Content:   cr.Content,
 		})
@@ -305,15 +305,15 @@ func toScoringResponse(view app.ScoreView) ScoringResponse {
 		MainIssues:     view.MainIssues,
 		OverallComment: view.OverallComment,
 	}
-	if view.ArticleID != 0 {
-		id := ctype.ID(view.ArticleID)
+	if !view.ArticleID.IsZero() {
+		id := view.ArticleID
 		resp.ArticleID = &id
 	}
 	if view.HasScore {
 		resp.AITotalScore = view.AITotalScore
 		resp.ArticleType = view.ArticleType
-		if view.RecordID != 0 {
-			id := ctype.ID(view.RecordID)
+		if !view.RecordID.IsZero() {
+			id := view.RecordID
 			resp.RecordID = &id
 		}
 		if !view.CreatedAt.IsZero() {

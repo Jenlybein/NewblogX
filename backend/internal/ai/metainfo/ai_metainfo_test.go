@@ -1,18 +1,21 @@
 package metainfo
 
-import "testing"
+import (
+	"myblogx/internal/kernel/ctype"
+	"testing"
+)
 
 func TestNormalizeArticleMetainfoReply(t *testing.T) {
 	raw := "```json\n{\n  \"title\": \"Go 中间件实践总结\",\n  \"abstract\": \"文章围绕 Gin 中间件设计、日志链路与鉴权流程展开。\",\n  \"category\": {\"id\": 8, \"title\": \"Go 后端\"},\n  \"tags\": [\n    {\"id\": 1, \"title\": \"Go\"},\n    {\"id\": 2, \"title\": \"Gin\"},\n    {\"id\": 4, \"title\": \"无效标签\"}\n  ]\n}\n```"
 
 	categoryOptions := []Metainfos{
-		{ID: 8, Title: "Go 后端"},
-		{ID: 9, Title: "Redis"},
+		{ID: ctype.NewID(8), Title: "Go 后端"},
+		{ID: ctype.NewID(9), Title: "Redis"},
 	}
 	tagOptions := []Metainfos{
-		{ID: 1, Title: "Go"},
-		{ID: 2, Title: "Gin"},
-		{ID: 3, Title: "中间件"},
+		{ID: ctype.NewID(1), Title: "Go"},
+		{ID: ctype.NewID(2), Title: "Gin"},
+		{ID: ctype.NewID(3), Title: "中间件"},
 	}
 
 	result, err := normalizeArticleMetainfoReply(raw, categoryOptions, tagOptions)
@@ -26,13 +29,13 @@ func TestNormalizeArticleMetainfoReply(t *testing.T) {
 	if result.Abstract != "文章围绕 Gin 中间件设计、日志链路与鉴权流程展开。" {
 		t.Fatalf("摘要解析错误: %q", result.Abstract)
 	}
-	if result.Category == nil || result.Category.ID != 8 {
+	if result.Category == nil || result.Category.ID.Uint64() != 8 {
 		t.Fatalf("分类匹配错误: %+v", result.Category)
 	}
 	if len(result.Tags) != 2 {
 		t.Fatalf("标签数量错误: %+v", result.Tags)
 	}
-	if result.Tags[0].ID != 1 || result.Tags[1].ID != 2 {
+	if result.Tags[0].ID.Uint64() != 1 || result.Tags[1].ID.Uint64() != 2 {
 		t.Fatalf("标签匹配错误: %+v", result.Tags)
 	}
 }

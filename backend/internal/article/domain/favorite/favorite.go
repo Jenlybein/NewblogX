@@ -7,6 +7,7 @@ package favorite
 
 import (
 	"context"
+	"myblogx/internal/kernel/ctype"
 	"strings"
 	"time"
 
@@ -33,13 +34,7 @@ var (
 )
 
 // ID 是收藏夹标识。
-type ID uint64
-
-// Uint64 返回底层值。
-func (id ID) Uint64() uint64 { return uint64(id) }
-
-// IsZero 判断是否为空。
-func (id ID) IsZero() bool { return id == 0 }
+type ID = ctype.ID
 
 // Folder 是收藏夹。
 //

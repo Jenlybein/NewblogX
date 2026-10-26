@@ -5,6 +5,7 @@ import (
 	"context"
 
 	"myblogx/internal/apperr"
+	"myblogx/internal/kernel/ctype"
 	"myblogx/internal/social/domain"
 )
 
@@ -48,11 +49,11 @@ func (s *Service) Follow(ctx context.Context, viewerID, targetID uint64) error {
 	fans := displays[viewerID]
 
 	created, err := s.repo.Follow(ctx, &domain.Follow{
-		FollowedUserID:   targetID,
+		FollowedUserID:   ctype.NewID(targetID),
 		FollowedNickname: followed.Nickname,
 		FollowedAvatar:   followed.Avatar,
 		FollowedAbstract: followed.Abstract,
-		FansUserID:       viewerID,
+		FansUserID:       ctype.NewID(viewerID),
 		FansNickname:     fans.Nickname,
 		FansAvatar:       fans.Avatar,
 		FansAbstract:     fans.Abstract,
@@ -121,7 +122,7 @@ func (s *Service) ListFollowing(ctx context.Context, viewerID, ownerID, followed
 
 	ids := make([]uint64, 0, len(rows))
 	for _, row := range rows {
-		ids = append(ids, row.FollowedUserID)
+		ids = append(ids, row.FollowedUserID.Uint64())
 	}
 	relations := s.relationBatch(ctx, viewerID, ids)
 	items := make([]domain.FollowingItem, 0, len(rows))
@@ -132,7 +133,7 @@ func (s *Service) ListFollowing(ctx context.Context, viewerID, ownerID, followed
 			FollowedAvatar:   row.FollowedAvatar,
 			FollowedAbstract: row.FollowedAbstract,
 			FollowTime:       row.CreatedAt,
-			Relation:         relations[row.FollowedUserID],
+			Relation:         relations[row.FollowedUserID.Uint64()],
 		})
 	}
 	return items, hasMore, nil
@@ -162,7 +163,7 @@ func (s *Service) ListFans(ctx context.Context, viewerID, ownerID, fansFilter ui
 
 	ids := make([]uint64, 0, len(rows))
 	for _, row := range rows {
-		ids = append(ids, row.FansUserID)
+		ids = append(ids, row.FansUserID.Uint64())
 	}
 	relations := s.relationBatch(ctx, viewerID, ids)
 	items := make([]domain.FansItem, 0, len(rows))
@@ -173,7 +174,7 @@ func (s *Service) ListFans(ctx context.Context, viewerID, ownerID, fansFilter ui
 			FansAvatar:   row.FansAvatar,
 			FansAbstract: row.FansAbstract,
 			FollowTime:   row.CreatedAt,
-			Relation:     relations[row.FansUserID],
+			Relation:     relations[row.FansUserID.Uint64()],
 		})
 	}
 	return items, hasMore, nil
@@ -241,7 +242,7 @@ func (s *Service) hydrateFollowed(ctx context.Context, rows []domain.Follow) {
 	ids := make([]uint64, 0, len(rows))
 	for _, row := range rows {
 		if row.FollowedNickname == "" || row.FollowedAvatar == "" || row.FollowedAbstract == "" {
-			ids = append(ids, row.FollowedUserID)
+			ids = append(ids, row.FollowedUserID.Uint64())
 		}
 	}
 	if len(ids) == 0 {
@@ -252,7 +253,7 @@ func (s *Service) hydrateFollowed(ctx context.Context, rows []domain.Follow) {
 		return
 	}
 	for i := range rows {
-		if user, ok := got[rows[i].FollowedUserID]; ok {
+		if user, ok := got[rows[i].FollowedUserID.Uint64()]; ok {
 			if rows[i].FollowedNickname == "" {
 				rows[i].FollowedNickname = user.Nickname
 			}
@@ -271,7 +272,7 @@ func (s *Service) hydrateFans(ctx context.Context, rows []domain.Follow) {
 	ids := make([]uint64, 0, len(rows))
 	for _, row := range rows {
 		if row.FansNickname == "" || row.FansAvatar == "" || row.FansAbstract == "" {
-			ids = append(ids, row.FansUserID)
+			ids = append(ids, row.FansUserID.Uint64())
 		}
 	}
 	if len(ids) == 0 {
@@ -282,7 +283,7 @@ func (s *Service) hydrateFans(ctx context.Context, rows []domain.Follow) {
 		return
 	}
 	for i := range rows {
-		if user, ok := got[rows[i].FansUserID]; ok {
+		if user, ok := got[rows[i].FansUserID.Uint64()]; ok {
 			if rows[i].FansNickname == "" {
 				rows[i].FansNickname = user.Nickname
 			}

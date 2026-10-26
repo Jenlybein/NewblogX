@@ -3,6 +3,7 @@ package mysql
 import (
 	"testing"
 
+	"myblogx/internal/kernel/ctype"
 	"myblogx/test/testutil"
 )
 
@@ -11,7 +12,7 @@ import (
 func TestFlushCommentCountApplies(t *testing.T) {
 	db := testutil.SetupSQLite(t, &commentRow{})
 
-	row := commentRow{Content: "c1", ArticleID: 1, UserID: 1}
+	row := commentRow{Content: "c1", ArticleID: ctype.NewID(1), UserID: ctype.NewID(1)}
 	if err := db.Create(&row).Error; err != nil {
 		t.Fatalf("创建评论失败: %v", err)
 	}
@@ -37,7 +38,7 @@ func TestFlushCommentCountApplies(t *testing.T) {
 func TestFlushCommentCountFloorAtZero(t *testing.T) {
 	db := testutil.SetupSQLite(t, &commentRow{})
 
-	row := commentRow{Content: "c1", ArticleID: 1, UserID: 1}
+	row := commentRow{Content: "c1", ArticleID: ctype.NewID(1), UserID: ctype.NewID(1)}
 	if err := db.Create(&row).Error; err != nil {
 		t.Fatalf("创建评论失败: %v", err)
 	}
@@ -64,7 +65,7 @@ func TestFlushCommentCountFloorAtZero(t *testing.T) {
 func TestFlushCommentCountMissingRow(t *testing.T) {
 	db := testutil.SetupSQLite(t, &commentRow{})
 
-	hit, err := FlushCommentCount(db, CommentReplyCount, 999999, 1)
+	hit, err := FlushCommentCount(db, CommentReplyCount, ctype.NewID(999999), 1)
 	if err != nil {
 		t.Fatalf("评论不存在不应返回 error，实际=%v", err)
 	}

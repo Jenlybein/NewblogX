@@ -164,7 +164,7 @@ func getAll(deps redis_service.Options, key string) map[ctype.ID]int {
 		if err != nil {
 			continue
 		}
-		numMap[ctype.ID(commentID)] = num
+		numMap[ctype.NewID(commentID)] = num
 	}
 	return numMap
 }

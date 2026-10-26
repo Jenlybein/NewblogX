@@ -32,7 +32,7 @@ func (c *counterPort) Add(ctx context.Context, id domain.ArticleID, delta domain
 	if c.deps.Client == nil {
 		return nil
 	}
-	aid := ctype.ID(id.Uint64())
+	aid := ctype.NewID(id.Uint64())
 	if delta.View != 0 {
 		if err := redis_article.SetCacheView(c.deps, aid, delta.View); err != nil {
 			return err
@@ -66,11 +66,11 @@ func (c *counterPort) Load(ctx context.Context, ids []domain.ArticleID) (map[dom
 
 	raw := make([]ctype.ID, 0, len(ids))
 	for _, id := range ids {
-		raw = append(raw, ctype.ID(id.Uint64()))
+		raw = append(raw, ctype.NewID(id.Uint64()))
 	}
 	batch := redis_article.GetBatchCounters(c.deps, raw)
 	for _, id := range ids {
-		key := ctype.ID(id.Uint64())
+		key := ctype.NewID(id.Uint64())
 		out[id] = domain.Counters{
 			View:    batch.ViewMap[key],
 			Digg:    batch.DiggMap[key],

@@ -6,6 +6,7 @@ import (
 	"myblogx/internal/platform/idgen"
 
 	"gorm.io/gorm"
+	"myblogx/internal/kernel/ctype"
 )
 
 // 本文件是本模块的 row 结构。
@@ -20,22 +21,22 @@ import (
 // 必须导出：GORM 通过反射读取匿名字段，非导出类型会被整体忽略，
 // 表现为主键列不参与 INSERT，然后 MySQL 报 "Field 'id' doesn't have a default value"。
 type BaseRow struct {
-	ID        uint64 `gorm:"primaryKey;autoIncrement:false"`
+	ID        ctype.ID `gorm:"primaryKey;autoIncrement:false"`
 	CreatedAt time.Time
 	UpdatedAt time.Time
 	DeletedAt gorm.DeletedAt
 }
 
 // beforeCreate 生成雪花 ID：与 platform/mysql.BaseRow 的钩子行为一致。
-func beforeCreate(id *uint64) error {
-	if *id != 0 {
+func beforeCreate(id *ctype.ID) error {
+	if !id.IsZero() {
 		return nil
 	}
 	next, err := idgen.Next()
 	if err != nil {
 		return err
 	}
-	*id = next.Uint64()
+	*id = next
 	return nil
 }
 
@@ -74,13 +75,13 @@ func (r *UserRow) BeforeCreate(_ *gorm.DB) error {
 
 // UserConfRow 对应 user_conf_models 表。
 type UserConfRow struct {
-	UserID                   uint64   `gorm:"primaryKey;autoIncrement:false"`
-	LikeTags                 []uint64 `gorm:"type:longtext;serializer:json"`
+	UserID                   ctype.ID   `gorm:"primaryKey;autoIncrement:false"`
+	LikeTags                 []ctype.ID `gorm:"type:longtext;serializer:json"`
 	UpdatedUsernameDate      *time.Time
 	FavoritesVisibility      bool
 	FollowVisibility         bool
 	FansVisibility           bool
-	HomeStyleID              uint64
+	HomeStyleID              ctype.ID
 	DiggNoticeEnabled        bool
 	CommentNoticeEnabled     bool
 	FavorNoticeEnabled       bool
@@ -93,12 +94,12 @@ func (UserConfRow) TableName() string { return "user_conf_models" }
 
 // UserStatRow 对应 user_stat_models 表。
 type UserStatRow struct {
-	UserID              uint64 `gorm:"primaryKey;autoIncrement:false"`
-	ViewCount           int    `gorm:"default:0"`
-	FansCount           int    `gorm:"default:0"`
-	FollowCount         int    `gorm:"default:0"`
-	ArticleVisitedCount int    `gorm:"default:0"`
-	ArticleCount        int    `gorm:"default:0"`
+	UserID              ctype.ID `gorm:"primaryKey;autoIncrement:false"`
+	ViewCount           int      `gorm:"default:0"`
+	FansCount           int      `gorm:"default:0"`
+	FollowCount         int      `gorm:"default:0"`
+	ArticleVisitedCount int      `gorm:"default:0"`
+	ArticleCount        int      `gorm:"default:0"`
 }
 
 // TableName 固定表名。
@@ -110,8 +111,8 @@ func (UserStatRow) TableName() string { return "user_stat_models" }
 // 的数据库兜底 —— Redis 挡板失效或缓存被清时，靠它防重复计数。
 type UserViewDailyRow struct {
 	BaseRow
-	UserID       uint64    `gorm:"uniqueIndex:uk_user_view_daily,priority:1"`
-	ViewerUserID uint64    `gorm:"uniqueIndex:uk_user_view_daily,priority:2"`
+	UserID       ctype.ID  `gorm:"uniqueIndex:uk_user_view_daily,priority:1"`
+	ViewerUserID ctype.ID  `gorm:"uniqueIndex:uk_user_view_daily,priority:2"`
 	ViewDate     time.Time `gorm:"type:date;uniqueIndex:uk_user_view_daily,priority:3"`
 }
 

@@ -9,6 +9,7 @@ import (
 	"myblogx/internal/ai/app"
 	"myblogx/internal/ai/domain"
 	"myblogx/internal/apperr"
+	"myblogx/internal/kernel/ctype"
 	searchdomain "myblogx/internal/search/domain"
 )
 
@@ -44,7 +45,7 @@ func (s *Scores) Latest(_ context.Context, articleID uint64) (*domain.ScoreRecor
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	for i := len(s.records) - 1; i >= 0; i-- {
-		if s.records[i].ArticleID == articleID {
+		if s.records[i].ArticleID.Uint64() == articleID {
 			record := s.records[i]
 			return &record, nil
 		}
@@ -61,8 +62,8 @@ func (s *Scores) CreateIfAbsent(_ context.Context, record *domain.ScoreRecord) (
 			return false, nil
 		}
 	}
-	if record.ID == 0 {
-		record.ID = s.next
+	if record.ID.IsZero() {
+		record.ID = ctype.NewID(s.next)
 		s.next++
 	}
 	s.records = append(s.records, *record)
@@ -73,8 +74,8 @@ func (s *Scores) CreateIfAbsent(_ context.Context, record *domain.ScoreRecord) (
 func (s *Scores) Seed(record domain.ScoreRecord) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if record.ID == 0 {
-		record.ID = s.next
+	if record.ID.IsZero() {
+		record.ID = ctype.NewID(s.next)
 		s.next++
 	}
 	s.records = append(s.records, record)

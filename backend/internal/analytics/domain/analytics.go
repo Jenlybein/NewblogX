@@ -3,6 +3,7 @@ package domain
 
 import (
 	"context"
+	"myblogx/internal/kernel/ctype"
 	"time"
 )
 
@@ -43,7 +44,7 @@ type StatsRepository interface {
 
 // DeadLetter 是一条死信记录。
 type DeadLetter struct {
-	ID          uint64
+	ID          ctype.ID
 	Stream      string
 	CdcJobID    string
 	SourceTable string

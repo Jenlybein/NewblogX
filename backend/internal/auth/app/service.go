@@ -3,6 +3,7 @@ package app
 
 import (
 	"context"
+	"myblogx/internal/kernel/ctype"
 	"time"
 
 	"myblogx/internal/apperr"
@@ -15,7 +16,7 @@ import (
 // 简介、偏好）传进来既没必要，也会让两个模块的实体耦在一起。
 // 由装配层把 user/app 的结果转换成本结构。
 type Account struct {
-	ID           uint64
+	ID           ctype.ID
 	Username     string
 	Role         int8
 	TokenVersion uint32
@@ -250,7 +251,7 @@ func (s *Service) Refresh(ctx context.Context, refreshToken string, meta domain.
 		return nil, err
 	}
 
-	account, err := s.creds.FindAccount(ctx, session.UserID)
+	account, err := s.creds.FindAccount(ctx, session.UserID.Uint64())
 	if err != nil {
 		return nil, apperr.New(apperr.CodeAuthRefreshInvalid)
 	}
@@ -291,7 +292,7 @@ func (s *Service) Authenticate(ctx context.Context, accessToken string) (*domain
 	if err != nil {
 		return nil, apperr.New(apperr.CodeUserTokenInvalid)
 	}
-	if claims.SessionID == 0 {
+	if claims.SessionID.IsZero() {
 		return nil, apperr.New(apperr.CodeUserTokenInvalid)
 	}
 
@@ -308,7 +309,7 @@ func (s *Service) Authenticate(ctx context.Context, accessToken string) (*domain
 		}
 	}
 
-	account, err := s.creds.FindAccount(ctx, claims.UserID)
+	account, err := s.creds.FindAccount(ctx, claims.UserID.Uint64())
 	if err != nil {
 		return nil, apperr.New(apperr.CodeUserTokenInvalid)
 	}
@@ -317,7 +318,7 @@ func (s *Service) Authenticate(ctx context.Context, accessToken string) (*domain
 		return nil, apperr.New(apperr.CodeUserSessionExpired)
 	}
 
-	session, err := s.sessions.FindActive(ctx, domain.SessionID(claims.SessionID), claims.UserID)
+	session, err := s.sessions.FindActive(ctx, ctype.NewID(claims.SessionID.Uint64()), claims.UserID.Uint64())
 	if err != nil {
 		return nil, apperr.New(apperr.CodeUserSessionExpired)
 	}
@@ -329,7 +330,7 @@ func (s *Service) Authenticate(ctx context.Context, accessToken string) (*domain
 
 	return &domain.Principal{
 		UserID:    account.ID,
-		SessionID: session.ID.Uint64(),
+		SessionID: session.ID,
 		Username:  account.Username,
 		Role:      account.Role,
 	}, nil
@@ -344,7 +345,7 @@ func (s *Service) Logout(ctx context.Context, principal *domain.Principal, acces
 		return apperr.New(apperr.CodeAuthRequired)
 	}
 	now := s.clock.Now()
-	if err := s.sessions.Revoke(ctx, domain.SessionID(principal.SessionID), now); err != nil {
+	if err := s.sessions.Revoke(ctx, ctype.NewID(principal.SessionID.Uint64()), now); err != nil {
 		return err
 	}
 	if s.blacklist != nil && accessToken != "" {
@@ -357,19 +358,19 @@ func (s *Service) Logout(ctx context.Context, principal *domain.Principal, acces
 }
 
 // RevokeAll 吊销某用户的全部会话（改密码、封号、踢下线时调用）。
-func (s *Service) RevokeAll(ctx context.Context, userID uint64) error {
-	if userID == 0 {
+func (s *Service) RevokeAll(ctx context.Context, userID ctype.ID) error {
+	if userID.IsZero() {
 		return nil
 	}
-	return s.sessions.RevokeAllForUser(ctx, userID, s.clock.Now())
+	return s.sessions.RevokeAllForUser(ctx, userID.Uint64(), s.clock.Now())
 }
 
 // ListSessions 列出某用户当前所有有效会话（登录设备管理）。
-func (s *Service) ListSessions(ctx context.Context, userID uint64) ([]domain.Session, error) {
-	if userID == 0 {
+func (s *Service) ListSessions(ctx context.Context, userID ctype.ID) ([]domain.Session, error) {
+	if userID.IsZero() {
 		return nil, apperr.New(apperr.CodeAuthRequired)
 	}
-	return s.sessions.ListActive(ctx, userID)
+	return s.sessions.ListActive(ctx, userID.Uint64())
 }
 
 // RevokeSession 吊销指定会话（登录设备管理里的"下线该设备"）。
@@ -380,17 +381,17 @@ func (s *Service) RevokeSession(ctx context.Context, userID, sessionID uint64) e
 	if userID == 0 || sessionID == 0 {
 		return apperr.New(apperr.CodeAuthRequired)
 	}
-	if _, err := s.sessions.FindActive(ctx, domain.SessionID(sessionID), userID); err != nil {
+	if _, err := s.sessions.FindActive(ctx, ctype.NewID(sessionID), userID); err != nil {
 		return err
 	}
-	return s.sessions.Revoke(ctx, domain.SessionID(sessionID), s.clock.Now())
+	return s.sessions.Revoke(ctx, ctype.NewID(sessionID), s.clock.Now())
 }
 
 // claimsOf 组装访问令牌载荷。
 func (s *Service) claimsOf(account Account, sessionID domain.SessionID) domain.Claims {
 	return domain.Claims{
 		UserID:       account.ID,
-		SessionID:    sessionID.Uint64(),
+		SessionID:    sessionID,
 		TokenVersion: account.TokenVersion,
 		Username:     account.Username,
 		Role:         account.Role,

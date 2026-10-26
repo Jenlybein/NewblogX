@@ -4,7 +4,10 @@
 // 配置本体（conf.Site / conf.AI）由 conf 与 platform/config 定义，这里只做透传。
 package domain
 
-import "time"
+import (
+	"myblogx/internal/kernel/ctype"
+	"time"
+)
 
 // SensitivePlaceholder 是管理员接口回显敏感字段时用的占位符。
 //
@@ -13,10 +16,10 @@ const SensitivePlaceholder = "******"
 
 // Banner 是首页轮播图。
 type Banner struct {
-	ID           uint64
+	ID           ctype.ID
 	Show         bool
 	Cover        string
-	CoverImageID uint64 // 0 表示没反查到图片 ID（封面可能已被删除）
+	CoverImageID ctype.ID // 零值表示没反查到图片 ID（封面可能已被删除）
 	Href         string
 	CreatedAt    time.Time
 	UpdatedAt    time.Time

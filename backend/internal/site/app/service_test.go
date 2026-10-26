@@ -7,6 +7,7 @@ import (
 	"myblogx/conf"
 	confsite "myblogx/conf/site"
 	"myblogx/internal/apperr"
+	"myblogx/internal/kernel/ctype"
 	"myblogx/internal/site/app"
 	"myblogx/internal/site/apptest"
 	"myblogx/internal/site/domain"
@@ -108,7 +109,7 @@ func TestBannerLifecycle(t *testing.T) {
 	if err != nil {
 		t.Fatalf("创建轮播图失败: %v", err)
 	}
-	if created.Cover != "/a.png" || created.ID == 0 {
+	if created.Cover != "/a.png" || created.ID.IsZero() {
 		t.Fatalf("创建结果错误: %+v", created)
 	}
 
@@ -123,12 +124,12 @@ func TestBannerLifecycle(t *testing.T) {
 	if len(rows) != 2 || hasMore {
 		t.Fatalf("展示中的轮播图应有 2 条，得到 %d hasMore=%v", len(rows), hasMore)
 	}
-	if rows[0].CoverImageID == 0 {
+	if rows[0].CoverImageID.IsZero() {
 		t.Fatalf("列表应回填封面图片 ID: %+v", rows[0])
 	}
 
 	// 隐藏后不再出现在 show=true 的列表里。
-	if err := env.Service.UpdateBanner(ctx, created.ID, apptestInput(12, "/b2", false)); err != nil {
+	if err := env.Service.UpdateBanner(ctx, created.ID.Uint64(), apptestInput(12, "/b2", false)); err != nil {
 		t.Fatalf("更新轮播图失败: %v", err)
 	}
 	rows, _, err = env.Service.ListBanners(ctx, domain.BannerQuery{Show: true})
@@ -139,7 +140,7 @@ func TestBannerLifecycle(t *testing.T) {
 		t.Fatalf("隐藏后应只剩 1 条展示中的，得到 %d", len(rows))
 	}
 
-	n, err := env.Service.RemoveBanners(ctx, []uint64{created.ID})
+	n, err := env.Service.RemoveBanners(ctx, []uint64{created.ID.Uint64()})
 	if err != nil || n != 1 {
 		t.Fatalf("删除轮播图失败: n=%d err=%v", n, err)
 	}
@@ -173,5 +174,5 @@ func TestBannerUpdateMissing(t *testing.T) {
 
 // apptestInput 构造轮播图入参。
 func apptestInput(imageID uint64, href string, show bool) app.BannerInput {
-	return app.BannerInput{CoverImageID: imageID, Href: href, Show: show}
+	return app.BannerInput{CoverImageID: ctype.NewID(imageID), Href: href, Show: show}
 }

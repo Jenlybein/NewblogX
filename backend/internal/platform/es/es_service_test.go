@@ -244,7 +244,7 @@ func TestExtractArticles(t *testing.T) {
 	if len(articles) != 1 {
 		t.Fatalf("数量错误: %d", len(articles))
 	}
-	if articles[0].ID != ctype.ID(1) || articles[0].Title != "title-1" {
+	if articles[0].ID != ctype.NewID(1) || articles[0].Title != "title-1" {
 		t.Fatalf("解析结果异常: %+v", articles[0])
 	}
 }
@@ -262,7 +262,7 @@ func TestExtractArticlesMoreFields(t *testing.T) {
 		},
 	}
 	arts := ExtractArticles(src)
-	if len(arts) != 1 || arts[0].ID != 3 || arts[0].Title != "t3" || !arts[0].CommentsToggle {
+	if len(arts) != 1 || arts[0].ID.Uint64() != 3 || arts[0].Title != "t3" || !arts[0].CommentsToggle {
 		b, _ := json.Marshal(arts)
 		t.Fatalf("ExtractArticles 结果异常: %s", string(b))
 	}

@@ -10,7 +10,7 @@ import (
 func EmitLoginEvent(deps Options, input LoginEventInput) {
 	// 自动补齐基础字段
 	base := newBaseEvent(deps, "login_event", loginLevel(input.Success), loginMessage(input))
-	base.UserID = uint64(input.UserID)
+	base.UserID = input.UserID.Uint64()
 	base.IP = input.IP
 	base.RequestID = input.RequestID
 	base.TraceID = defaultIfEmptyString(input.TraceID, input.RequestID)

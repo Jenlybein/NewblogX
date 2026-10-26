@@ -79,7 +79,7 @@ func (r *CategoryRepo) ListByUser(ctx context.Context, userID domain.UserID) ([]
 func (r *CategoryRepo) ExistsTitle(ctx context.Context, userID domain.UserID, title string, excludeID domain.CategoryID) (bool, error) {
 	q := r.db.WithContext(ctx).Model(&categoryRow{}).
 		Where("user_id = ? AND title = ?", fromUserID(userID), title)
-	if excludeID != 0 {
+	if !excludeID.IsZero() {
 		q = q.Where("id <> ?", ctype.ID(excludeID))
 	}
 	var n int64
@@ -176,7 +176,7 @@ func (r *TagRepo) List(ctx context.Context, includeDisabled bool) ([]*taxonomy.T
 // ExistsTitle 判断标签名是否重复。
 func (r *TagRepo) ExistsTitle(ctx context.Context, title string, excludeID domain.TagID) (bool, error) {
 	q := r.db.WithContext(ctx).Model(&tagRow{}).Where("title = ?", title)
-	if excludeID != 0 {
+	if !excludeID.IsZero() {
 		q = q.Where("id <> ?", ctype.ID(excludeID))
 	}
 	var n int64
@@ -244,8 +244,8 @@ func (r *TagRepo) ReplaceArticleTags(ctx context.Context, articleID domain.Artic
 			return err
 		}
 		rows = append(rows, map[string]any{
-			"id":         uint64(pk),
-			"article_id": uint64(aid),
+			"id":         pk.Uint64(),
+			"article_id": aid.Uint64(),
 			"tag_id":     id.Uint64(),
 		})
 	}

@@ -1,4 +1,4 @@
-import type { Ref } from "vue";
+import { nextTick, watch, type Ref } from "vue";
 
 import { useStudioAiSelection } from "~/composables/useStudioAiSelection";
 import { useTextareaSelectionOverlay } from "~/composables/useTextareaSelectionOverlay";

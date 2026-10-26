@@ -34,7 +34,7 @@ type BaseRow struct {
 
 // BeforeCreate 生成雪花主键。
 func (b *BaseRow) BeforeCreate(tx *gorm.DB) error {
-	if b.ID != 0 {
+	if !b.ID.IsZero() {
 		return nil
 	}
 	next, err := idgen.Next()
@@ -241,7 +241,7 @@ type outboxRow struct {
 	BaseRow
 	EventName     string
 	AggregateType string
-	AggregateID   uint64
+	AggregateID   ctype.ID
 	Payload       string `gorm:"type:longtext"`
 	Status        string `gorm:"size:16"`
 	Attempts      int

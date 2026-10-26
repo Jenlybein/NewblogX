@@ -4,7 +4,6 @@ import (
 	"context"
 
 	authapp "myblogx/internal/auth/app"
-	"myblogx/internal/kernel/ctype"
 	"myblogx/internal/kernel/enum"
 	"myblogx/internal/platform/http/router"
 	redis_service "myblogx/internal/platform/redis"
@@ -45,7 +44,7 @@ func (v tokenVerifier) Verify(ctx context.Context, token string) (domain.Viewer,
 		return domain.Viewer{}, false
 	}
 	return domain.Viewer{
-		ID:    ctype.ID(principal.UserID),
+		ID:    principal.UserID,
 		Admin: principal.Role == int8(enum.RoleAdmin),
 	}, true
 }

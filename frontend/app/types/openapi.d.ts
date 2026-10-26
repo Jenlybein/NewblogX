@@ -62,7 +62,12 @@ export interface paths {
                 path?: never;
                 cookie?: never;
             };
-            requestBody: components["requestBodies"]["internal_ai_adapter_http.BaseRequest"];
+            /** @description 请求体 */
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["internal_ai_adapter_http.BaseRequest"];
+                };
+            };
             responses: {
                 /** @description OK */
                 200: {
@@ -188,7 +193,12 @@ export interface paths {
                 path?: never;
                 cookie?: never;
             };
-            requestBody: components["requestBodies"]["internal_ai_adapter_http.BaseRequest"];
+            /** @description 请求体 */
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["internal_ai_adapter_http.BaseRequest"];
+                };
+            };
             responses: {
                 /** @description OK */
                 200: {
@@ -228,7 +238,12 @@ export interface paths {
                 path?: never;
                 cookie?: never;
             };
-            requestBody: components["requestBodies"]["internal_ai_adapter_http.BaseRequest"];
+            /** @description 请求体 */
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["internal_ai_adapter_http.BaseRequest"];
+                };
+            };
             responses: {
                 /** @description SSE 流 */
                 200: {
@@ -389,7 +404,12 @@ export interface paths {
                 path?: never;
                 cookie?: never;
             };
-            requestBody: components["requestBodies"]["myblogx_internal_kernel.IDListRequest"];
+            /** @description 文章 ID 列表 */
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["myblogx_internal_kernel.IDListRequest"];
+                };
+            };
             responses: {
                 /** @description OK */
                 200: {
@@ -866,7 +886,12 @@ export interface paths {
                 path?: never;
                 cookie?: never;
             };
-            requestBody: components["requestBodies"]["myblogx_internal_kernel.IDListRequest"];
+            /** @description 文章 ID 列表 */
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["myblogx_internal_kernel.IDListRequest"];
+                };
+            };
             responses: {
                 /** @description OK */
                 200: {
@@ -1065,7 +1090,7 @@ export interface paths {
                             code?: number;
                             data?: {
                                 count?: number;
-                                list?: Record<string, never>[];
+                                list?: string[];
                             };
                             msg?: string;
                         };
@@ -1082,7 +1107,12 @@ export interface paths {
                 path?: never;
                 cookie?: never;
             };
-            requestBody: components["requestBodies"]["internal_article_adapter_http.ArticleTopSetRequest"];
+            /** @description 请求体 */
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["internal_article_adapter_http.ArticleTopSetRequest"];
+                };
+            };
             responses: {
                 /** @description OK */
                 200: {
@@ -1107,7 +1137,12 @@ export interface paths {
                 path?: never;
                 cookie?: never;
             };
-            requestBody: components["requestBodies"]["internal_article_adapter_http.ArticleTopSetRequest"];
+            /** @description 请求体 */
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["internal_article_adapter_http.ArticleTopSetRequest"];
+                };
+            };
             responses: {
                 /** @description OK */
                 200: {
@@ -1563,7 +1598,11 @@ export interface paths {
                 path?: never;
                 cookie?: never;
             };
-            requestBody?: never;
+            requestBody?: {
+                content: {
+                    "application/json": Record<string, never>;
+                };
+            };
             responses: {
                 /** @description OK */
                 200: {
@@ -1602,7 +1641,11 @@ export interface paths {
                 path?: never;
                 cookie?: never;
             };
-            requestBody?: never;
+            requestBody?: {
+                content: {
+                    "application/json": Record<string, never>;
+                };
+            };
             responses: {
                 /** @description OK */
                 200: {
@@ -1670,7 +1713,11 @@ export interface paths {
                 path?: never;
                 cookie?: never;
             };
-            requestBody?: never;
+            requestBody?: {
+                content: {
+                    "application/json": Record<string, never>;
+                };
+            };
             responses: {
                 /** @description OK */
                 200: {
@@ -2372,7 +2419,12 @@ export interface paths {
                 path?: never;
                 cookie?: never;
             };
-            requestBody: components["requestBodies"]["internal_notification_adapter_http.IDListRequest"];
+            /** @description 通知 ID 列表 */
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["internal_notification_adapter_http.IDListRequest"];
+                };
+            };
             responses: {
                 /** @description OK */
                 200: {
@@ -2411,7 +2463,12 @@ export interface paths {
                 path?: never;
                 cookie?: never;
             };
-            requestBody: components["requestBodies"]["internal_notification_adapter_http.IDListRequest"];
+            /** @description 通知 ID 列表 */
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["internal_notification_adapter_http.IDListRequest"];
+                };
+            };
             responses: {
                 /** @description OK */
                 200: {
@@ -2452,7 +2509,12 @@ export interface paths {
                 path?: never;
                 cookie?: never;
             };
-            requestBody: components["requestBodies"]["internal_notification_adapter_http.IDListRequest"];
+            /** @description 通知 ID 列表 */
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["internal_notification_adapter_http.IDListRequest"];
+                };
+            };
             responses: {
                 /** @description OK */
                 200: {
@@ -2603,7 +2665,11 @@ export interface paths {
                 path?: never;
                 cookie?: never;
             };
-            requestBody?: never;
+            requestBody?: {
+                content: {
+                    "application/json": Record<string, never>;
+                };
+            };
             responses: {
                 /** @description OK */
                 200: {
@@ -2643,7 +2709,11 @@ export interface paths {
                 path?: never;
                 cookie?: never;
             };
-            requestBody?: never;
+            requestBody?: {
+                content: {
+                    "application/json": Record<string, never>;
+                };
+            };
             responses: {
                 /** @description OK */
                 200: {
@@ -3750,6 +3820,7 @@ export interface paths {
             requestBody: {
                 content: {
                     "application/json": Record<string, never>;
+                    "text/plain": Record<string, never>;
                 };
             };
             responses: {
@@ -3822,7 +3893,12 @@ export interface paths {
                 path?: never;
                 cookie?: never;
             };
-            requestBody: components["requestBodies"]["internal_notification_adapter_http.MessageSelectRequest"];
+            /** @description 请求体 */
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["internal_notification_adapter_http.MessageSelectRequest"];
+                };
+            };
             responses: {
                 /** @description OK */
                 200: {
@@ -3847,7 +3923,12 @@ export interface paths {
                 path?: never;
                 cookie?: never;
             };
-            requestBody: components["requestBodies"]["internal_notification_adapter_http.MessageSelectRequest"];
+            /** @description 请求体 */
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["internal_notification_adapter_http.MessageSelectRequest"];
+                };
+            };
             responses: {
                 /** @description OK */
                 200: {
@@ -4005,7 +4086,6 @@ export interface paths {
                             code?: number;
                             data?: {
                                 list?: components["schemas"]["myblogx_internal_user_domain.User"][];
-                                /** Format: int64 */
                                 total?: number;
                             };
                             msg?: string;
@@ -4022,7 +4102,11 @@ export interface paths {
                 path?: never;
                 cookie?: never;
             };
-            requestBody?: never;
+            requestBody?: {
+                content: {
+                    "application/json": Record<string, never>;
+                };
+            };
             responses: {
                 /** @description OK */
                 200: {
@@ -4047,7 +4131,11 @@ export interface paths {
                 path?: never;
                 cookie?: never;
             };
-            requestBody?: never;
+            requestBody?: {
+                content: {
+                    "application/json": Record<string, never>;
+                };
+            };
             responses: {
                 /** @description OK */
                 200: {
@@ -4965,7 +5053,11 @@ export interface paths {
                 path?: never;
                 cookie?: never;
             };
-            requestBody?: never;
+            requestBody?: {
+                content: {
+                    "application/json": Record<string, never>;
+                };
+            };
             responses: {
                 /** @description OK */
                 200: {
@@ -5051,7 +5143,11 @@ export interface paths {
                 };
                 cookie?: never;
             };
-            requestBody?: never;
+            requestBody?: {
+                content: {
+                    "application/json": Record<string, never>;
+                };
+            };
             responses: {
                 /** @description OK */
                 200: {
@@ -5177,11 +5273,11 @@ export interface components {
             comments_toggle?: boolean;
             content: string;
             cover_image_id?: string;
-            /** @enum {unknown} */
+            /** @enum {integer} */
             status: 1 | 2;
             tag_ids?: string[];
             title: string;
-            /** @enum {unknown} */
+            /** @enum {string} */
             visibility_status?: "visible" | "user_hidden";
         };
         "internal_article_adapter_http.ArticleCreateResponse": {
@@ -5232,7 +5328,7 @@ export interface components {
         };
         "internal_article_adapter_http.ArticleReviewHandleRequest": {
             reason?: string;
-            /** @enum {unknown} */
+            /** @enum {integer} */
             status: 3 | 4;
         };
         "internal_article_adapter_http.ArticleReviewTaskItem": {
@@ -5245,7 +5341,7 @@ export interface components {
             publish_status?: components["schemas"]["internal_article_adapter_http.ArticleStatus"];
             reason?: string;
             reviewed_at?: string;
-            reviewed_by?: number;
+            reviewed_by?: string;
             source?: components["schemas"]["internal_article_adapter_http.ReviewTaskSource"];
             stage?: components["schemas"]["internal_article_adapter_http.ReviewTaskStage"];
             status?: components["schemas"]["internal_article_adapter_http.ReviewTaskStatus"];
@@ -5254,10 +5350,7 @@ export interface components {
             count?: number;
             list?: components["schemas"]["internal_article_adapter_http.ArticleReviewTaskItem"][];
         };
-        /**
-         * Format: int32
-         * @enum {integer}
-         */
+        /** @enum {integer} */
         "internal_article_adapter_http.ArticleStatus": 1 | 2 | 3 | 4;
         "internal_article_adapter_http.ArticleTopSetRequest": {
             article_ids: string[];
@@ -5268,11 +5361,11 @@ export interface components {
             comments_toggle?: boolean;
             content?: string;
             cover_image_id?: string;
-            /** @enum {unknown} */
+            /** @enum {integer} */
             status?: 1 | 2;
             tag_ids?: string[];
             title?: string;
-            /** @enum {unknown} */
+            /** @enum {string} */
             visibility_status?: "visible" | "user_hidden";
         };
         "internal_article_adapter_http.ArticleViewCountRequest": {
@@ -5286,7 +5379,7 @@ export interface components {
         };
         "internal_article_adapter_http.FavoriteRemovePatchModel": {
             /** @description 字段名沿用旧契约 articles / favorite_id。 */
-            articles: number[];
+            articles: string[];
             favorite_id?: string;
         };
         "internal_article_adapter_http.FavoriteRequest": {
@@ -5440,7 +5533,7 @@ export interface components {
             title?: string;
         };
         "internal_notification_adapter_http.IDListRequest": {
-            id_list: number[];
+            id_list: string[];
         };
         "internal_notification_adapter_http.MessageItem": {
             action_user_avatar?: string;
@@ -5506,7 +5599,7 @@ export interface components {
             updated_at?: string;
         };
         "internal_site_adapter_http.IDListRequest": {
-            id_list: number[];
+            id_list: string[];
         };
         "internal_site_adapter_http.SEOResponse": {
             description?: string;
@@ -5728,15 +5821,9 @@ export interface components {
             sender_id?: string;
             session_id?: string;
         };
-        /**
-         * Format: int32
-         * @enum {integer}
-         */
+        /** @enum {integer} */
         "myblogx_internal_chat_domain.MsgStatus": 1 | 2 | 3 | 4 | 5;
-        /**
-         * Format: int32
-         * @enum {integer}
-         */
+        /** @enum {integer} */
         "myblogx_internal_chat_domain.MsgType": 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8;
         "myblogx_internal_chat_domain.SessionItem": {
             deleted_at?: string;
@@ -5789,12 +5876,9 @@ export interface components {
             user_nickname?: string;
         };
         "myblogx_internal_kernel.IDListRequest": {
-            id_list: number[];
+            id_list: string[];
         };
-        /**
-         * Format: int32
-         * @enum {integer}
-         */
+        /** @enum {integer} */
         "myblogx_internal_search_domain.ArticleStatus": 1 | 2 | 3 | 4;
         "myblogx_internal_search_domain.Author": {
             avatar?: string;
@@ -5912,7 +5996,6 @@ export interface components {
             id?: string;
             nickname?: string;
             place?: string;
-            /** Format: int32 */
             relation?: number;
             stats?: components["schemas"]["myblogx_internal_user_domain.Stats"];
             username?: string;
@@ -5922,15 +6005,9 @@ export interface components {
             snapshotSynced?: boolean;
             user?: components["schemas"]["myblogx_internal_user_domain.User"];
         };
-        /**
-         * Format: int32
-         * @enum {integer}
-         */
+        /** @enum {integer} */
         "myblogx_internal_user_domain.RegisterSource": 1 | 2 | 3 | 4;
-        /**
-         * Format: int32
-         * @enum {integer}
-         */
+        /** @enum {integer} */
         "myblogx_internal_user_domain.Role": 1 | 2 | 3;
         "myblogx_internal_user_domain.Stats": {
             articleCount?: number;
@@ -5940,10 +6017,7 @@ export interface components {
             userID?: string;
             viewCount?: number;
         };
-        /**
-         * Format: int32
-         * @enum {integer}
-         */
+        /** @enum {integer} */
         "myblogx_internal_user_domain.Status": 1 | 2 | 3;
         "myblogx_internal_user_domain.User": {
             abstract?: string;
@@ -5959,45 +6033,13 @@ export interface components {
             registerSource?: components["schemas"]["myblogx_internal_user_domain.RegisterSource"];
             role?: components["schemas"]["myblogx_internal_user_domain.Role"];
             status?: components["schemas"]["myblogx_internal_user_domain.Status"];
-            /** Format: int32 */
             tokenVersion?: number;
             username?: string;
         };
     };
     responses: never;
     parameters: never;
-    requestBodies: {
-        /** @description 请求体 */
-        "internal_article_adapter_http.ArticleTopSetRequest": {
-            content: {
-                "application/json": components["schemas"]["internal_article_adapter_http.ArticleTopSetRequest"];
-            };
-        };
-        /** @description 请求体 */
-        "internal_ai_adapter_http.BaseRequest": {
-            content: {
-                "application/json": components["schemas"]["internal_ai_adapter_http.BaseRequest"];
-            };
-        };
-        /** @description 文章 ID 列表 */
-        "myblogx_internal_kernel.IDListRequest": {
-            content: {
-                "application/json": components["schemas"]["myblogx_internal_kernel.IDListRequest"];
-            };
-        };
-        /** @description 通知 ID 列表 */
-        "internal_notification_adapter_http.IDListRequest": {
-            content: {
-                "application/json": components["schemas"]["internal_notification_adapter_http.IDListRequest"];
-            };
-        };
-        /** @description 请求体 */
-        "internal_notification_adapter_http.MessageSelectRequest": {
-            content: {
-                "application/json": components["schemas"]["internal_notification_adapter_http.MessageSelectRequest"];
-            };
-        };
-    };
+    requestBodies: never;
     headers: never;
     pathItems: never;
 }

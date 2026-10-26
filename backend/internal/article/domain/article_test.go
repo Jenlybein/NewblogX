@@ -2,6 +2,7 @@ package domain_test
 
 import (
 	"errors"
+	"myblogx/internal/kernel/ctype"
 	"testing"
 	"time"
 
@@ -13,7 +14,7 @@ var baseTime = time.Date(2026, 1, 1, 12, 0, 0, 0, time.UTC)
 func newDraft(t *testing.T) *domain.Article {
 	t.Helper()
 	a, err := domain.NewArticle(domain.NewArticleParams{
-		ID:       domain.ArticleID(10),
+		ID:       ctype.NewID(10),
 		AuthorID: authorID,
 		Title:    "标题",
 		Content:  "正文",
@@ -36,7 +37,7 @@ func TestNewArticleValidation(t *testing.T) {
 	}{
 		{
 			name:    "缺作者",
-			params:  domain.NewArticleParams{AuthorID: 0, Title: "t", Status: domain.StatusDraft},
+			params:  domain.NewArticleParams{AuthorID: "", Title: "t", Status: domain.StatusDraft},
 			wantErr: domain.ErrForbidden,
 		},
 		{
@@ -241,9 +242,9 @@ func TestApplyEdit(t *testing.T) {
 
 	t.Run("清空分类", func(t *testing.T) {
 		t.Parallel()
-		cid := domain.CategoryID(7)
+		cid := ctype.NewID(7)
 		a := domain.Restore(domain.RestoreParams{
-			ID: domain.ArticleID(1), AuthorID: authorID, Title: "t",
+			ID: ctype.NewID(1), AuthorID: authorID, Title: "t",
 			CategoryID: &cid, Status: domain.StatusDraft, CreatedAt: baseTime, UpdatedAt: baseTime,
 		})
 		flags, err := a.ApplyEdit(domain.EditPatch{CategorySet: true, CategoryID: nil}, baseTime)
@@ -273,8 +274,8 @@ func TestRestoreDoesNotValidate(t *testing.T) {
 	t.Parallel()
 
 	a := domain.Restore(domain.RestoreParams{
-		ID:         1,
-		AuthorID:   0,         // 非法：无作者
+		ID:         ctype.NewID(1),
+		AuthorID:   "",        // 非法：无作者
 		Title:      "",        // 非法：空标题
 		Visibility: "garbage", // 非法：未知可见性
 		Status:     domain.StatusPublished,

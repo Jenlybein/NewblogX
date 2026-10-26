@@ -164,7 +164,7 @@ func (r *ArticleRepo) applyFilter(q *gorm.DB, f domain.Filter) *gorm.DB {
 		q = q.Where("author_id = ?", fromUserID(*f.AuthorID))
 	}
 	if f.CategoryID != nil {
-		q = q.Where("category_id = ?", uint64(*f.CategoryID))
+		q = q.Where("category_id = ?", f.CategoryID.Uint64())
 	}
 	if len(f.Statuses) > 0 {
 		statuses := make([]int8, 0, len(f.Statuses))

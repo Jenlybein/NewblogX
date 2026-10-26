@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"myblogx/internal/apperr"
+	"myblogx/internal/kernel/ctype"
 	"myblogx/internal/notification/domain"
 )
 
@@ -15,31 +16,31 @@ import (
 
 // CommentNotice 是"文章收到评论"的入参。
 type CommentNotice struct {
-	CommentID    uint64
+	CommentID    ctype.ID
 	Content      string
 	Receiver     uint64
 	ActionUser   uint64
-	ArticleID    uint64
+	ArticleID    ctype.ID
 	ArticleTitle string
 }
 
 // ReplyNotice 是"评论收到回复"的入参。
 type ReplyNotice struct {
-	CommentID    uint64
+	CommentID    ctype.ID
 	Content      string
 	Receiver     uint64
 	ActionUser   uint64
-	ArticleID    uint64
+	ArticleID    ctype.ID
 	ArticleTitle string
 }
 
 // CommentDiggNotice 是"评论被点赞"的入参。
 type CommentDiggNotice struct {
-	CommentID    uint64
+	CommentID    ctype.ID
 	Content      string
 	Receiver     uint64
 	ActionUser   uint64
-	ArticleID    uint64
+	ArticleID    ctype.ID
 	ArticleTitle string
 }
 
@@ -47,7 +48,7 @@ type CommentDiggNotice struct {
 type InteractionNotice struct {
 	Receiver     uint64
 	ActionUser   uint64
-	ArticleID    uint64
+	ArticleID    ctype.ID
 	ArticleTitle string
 }
 
@@ -96,7 +97,7 @@ func (s *Service) NotifyCommentDigg(ctx context.Context, in CommentDiggNotice) e
 		CommentID:    in.CommentID,
 		ArticleID:    in.ArticleID,
 		ArticleTitle: in.ArticleTitle,
-	}, true, in.CommentID)
+	}, true, in.CommentID.Uint64())
 }
 
 // NotifyArticleDigg 通知作者"有人赞了你的文章"。
@@ -145,7 +146,7 @@ func (s *Service) deliver(ctx context.Context, msg domain.Message, dedupe bool, 
 		return nil
 	}
 	if dedupe && msg.ActionUser != 0 {
-		exists, err := s.messages.ExistsDigg(ctx, msg.ActionUser, msg.Type, msg.ArticleID, commentID)
+		exists, err := s.messages.ExistsDigg(ctx, msg.ActionUser, msg.Type, msg.ArticleID.Uint64(), commentID)
 		if err != nil {
 			return err
 		}

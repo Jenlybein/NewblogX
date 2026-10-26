@@ -42,7 +42,7 @@ func EmitActionAuditFromGin(c *gin.Context, input GinAuditInput) {
 		return
 	}
 
-	userID := ctype.ID(0)
+	userID := ctype.NewID(0)
 	if c.Request != nil {
 		if claims := jwts.GetClaimsByGin(c); claims != nil {
 			userID = claims.UserID

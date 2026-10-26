@@ -75,7 +75,7 @@ func collectArticleBulkFailures(data any, reqs []*es_service.BulkRequest, maxIte
 			}
 			if action == es_service.ActionUpdate && errType == "document_missing_exception" {
 				var articleID ctype.ID
-				if err := articleID.UnmarshalText([]byte(docID)); err == nil && articleID != 0 {
+				if err := articleID.UnmarshalText([]byte(docID)); err == nil && !articleID.IsZero() {
 					if _, ok := seenMissing[articleID]; !ok {
 						seenMissing[articleID] = struct{}{}
 						missingUpdateIDs = append(missingUpdateIDs, articleID)
@@ -160,7 +160,7 @@ func normalizeArticleModelDeltas(deltas []ArticleModelDelta) []ArticleModelDelta
 
 	mergedChangedMap := make(map[ctype.ID]map[string]any, len(deltas))
 	for _, delta := range deltas {
-		if delta.ArticleID == 0 || len(delta.Changed) == 0 {
+		if delta.ArticleID.IsZero() || len(delta.Changed) == 0 {
 			continue
 		}
 		if _, ok := mergedChangedMap[delta.ArticleID]; !ok {
@@ -203,7 +203,7 @@ func normalizeArticleIDs(articleIDs []ctype.ID) []ctype.ID {
 	result := make([]ctype.ID, 0, len(articleIDs))
 	seen := make(map[ctype.ID]struct{}, len(articleIDs))
 	for _, articleID := range articleIDs {
-		if articleID == 0 {
+		if articleID.IsZero() {
 			continue
 		}
 		if _, ok := seen[articleID]; ok {
@@ -229,8 +229,8 @@ func scanStringValue(raw any) (string, bool) {
 
 func scanIDValue(raw any) (ctype.ID, bool) {
 	var id ctype.ID
-	if err := id.Scan(raw); err != nil || id == 0 {
-		return 0, false
+	if err := id.Scan(raw); err != nil || id.IsZero() {
+		return "", false
 	}
 	return id, true
 }
@@ -612,10 +612,10 @@ func loadArticlesForESTags(db *gorm.DB, articleIDs []ctype.ID) ([]ArticleRow, er
 				}
 				return 1
 			}
-			if a.ID < b.ID {
+			if a.ID.Uint64() < b.ID.Uint64() {
 				return -1
 			}
-			if a.ID > b.ID {
+			if a.ID.Uint64() > b.ID.Uint64() {
 				return 1
 			}
 			return 0

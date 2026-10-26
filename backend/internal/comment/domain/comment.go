@@ -3,16 +3,13 @@
 // 只管"评论是什么、谁能删、什么时候计数"，不碰数据库、不碰 HTTP。
 package domain
 
-import "time"
+import (
+	"myblogx/internal/kernel/ctype"
+	"time"
+)
 
 // CommentID 是评论标识。
-type CommentID uint64
-
-// IsZero 判断 ID 是否为空。
-func (id CommentID) IsZero() bool { return id == 0 }
-
-// Uint64 返回底层值。
-func (id CommentID) Uint64() uint64 { return uint64(id) }
+type CommentID = ctype.ID
 
 // Status 是评论状态。
 type Status int8
@@ -40,21 +37,21 @@ type Comment struct {
 	ID                CommentID
 	CreatedAt         time.Time
 	Content           string
-	UserID            uint64
+	UserID            ctype.ID
 	UserNickname      string
 	UserAvatar        string
-	ArticleID         uint64
-	ReplyID           uint64
-	ReplyUserID       uint64
+	ArticleID         ctype.ID
+	ReplyID           ctype.ID
+	ReplyUserID       ctype.ID
 	ReplyUserNickname string
-	RootID            uint64
+	RootID            ctype.ID
 	DiggCount         int
 	ReplyCount        int
 	Status            Status
 }
 
 // IsRoot 判断是否一级评论。
-func (c Comment) IsRoot() bool { return c.ReplyID == 0 && c.RootID == 0 }
+func (c Comment) IsRoot() bool { return c.ReplyID.IsZero() && c.RootID.IsZero() }
 
 // CanDelete 判断操作者能否删除这条评论。
 //
@@ -67,17 +64,17 @@ func (c Comment) CanDelete(viewerID uint64, admin bool, articleAuthorID uint64) 
 	if viewerID == 0 {
 		return false
 	}
-	return c.UserID == viewerID || articleAuthorID == viewerID
+	return c.UserID.Uint64() == viewerID || articleAuthorID == viewerID
 }
 
 // Viewer 是评论操作者。
 type Viewer struct {
-	ID    uint64
+	ID    ctype.ID
 	Admin bool
 }
 
 // IsZero 判断是否匿名。
-func (v Viewer) IsZero() bool { return v.ID == 0 }
+func (v Viewer) IsZero() bool { return v.ID.IsZero() }
 
 // Page 是评论列表分页参数。
 type Page struct {

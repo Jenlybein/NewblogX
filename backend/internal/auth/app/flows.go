@@ -114,7 +114,7 @@ func (s *Service) ResetPasswordByEmail(ctx context.Context, email, newPassword s
 	if err != nil {
 		return err
 	}
-	return s.sessions.RevokeAllForUser(ctx, account.ID, s.clock.Now())
+	return s.sessions.RevokeAllForUser(ctx, account.ID.Uint64(), s.clock.Now())
 }
 
 // ChangePassword 已登录用户改密码，成功后吊销全部会话（含当前设备）。

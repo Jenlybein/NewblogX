@@ -5,6 +5,7 @@ import (
 	"myblogx/internal/article/domain/review"
 	"myblogx/internal/article/domain/taxonomy"
 	"myblogx/internal/article/domain/top"
+	"myblogx/internal/kernel/ctype"
 )
 
 // 本文件是"少写点样板"的构造助手。
@@ -27,7 +28,7 @@ func NewTagForTest(id domain.TagID, title string, enabled bool) *taxonomy.Tag {
 // NewTaskForTest 构造审核任务。
 func NewTaskForTest(id uint64, articleID domain.ArticleID, authorID domain.UserID, status review.Status) *review.Task {
 	return review.RestoreTask(review.RestoreTaskParams{
-		ID:        id,
+		ID:        ctype.NewID(id),
 		ArticleID: articleID,
 		AuthorID:  authorID,
 		Stage:     review.StageManual,

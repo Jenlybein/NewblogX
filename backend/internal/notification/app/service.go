@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"myblogx/internal/apperr"
+	"myblogx/internal/kernel/ctype"
 	"myblogx/internal/notification/domain"
 )
 
@@ -233,7 +234,7 @@ func (s *Service) ListGlobal(ctx context.Context, userID uint64, admin bool, pag
 	if len(rows) == 0 {
 		return items, hasMore, nil
 	}
-	ids := make([]uint64, 0, len(rows))
+	ids := make([]ctype.ID, 0, len(rows))
 	for _, row := range rows {
 		ids = append(ids, row.ID)
 	}
@@ -248,7 +249,7 @@ func (s *Service) ListGlobal(ctx context.Context, userID uint64, admin bool, pag
 }
 
 // MarkGlobalRead 批量标记公告已读，返回条数。
-func (s *Service) MarkGlobalRead(ctx context.Context, userID uint64, ids []uint64) (int, error) {
+func (s *Service) MarkGlobalRead(ctx context.Context, userID uint64, ids []ctype.ID) (int, error) {
 	if userID == 0 {
 		return 0, apperr.New(apperr.CodeAuthRequired)
 	}
@@ -267,7 +268,7 @@ func (s *Service) MarkGlobalRead(ctx context.Context, userID uint64, ids []uint6
 	if len(visible) == 0 {
 		return 0, apperr.New(apperr.CodeNotifNotFound)
 	}
-	visibleIDs := make([]uint64, 0, len(visible))
+	visibleIDs := make([]ctype.ID, 0, len(visible))
 	for _, n := range visible {
 		visibleIDs = append(visibleIDs, n.ID)
 	}
@@ -284,7 +285,7 @@ func (s *Service) MarkGlobalRead(ctx context.Context, userID uint64, ids []uint6
 // DeleteGlobalForUser 对某用户隐藏公告，返回条数。
 //
 // 用户只能删自己"当前本来就看得见"的公告；不可见/已过期/不存在的一律忽略。
-func (s *Service) DeleteGlobalForUser(ctx context.Context, userID uint64, ids []uint64) (int, error) {
+func (s *Service) DeleteGlobalForUser(ctx context.Context, userID uint64, ids []ctype.ID) (int, error) {
 	if userID == 0 {
 		return 0, apperr.New(apperr.CodeAuthRequired)
 	}
@@ -303,7 +304,7 @@ func (s *Service) DeleteGlobalForUser(ctx context.Context, userID uint64, ids []
 	if len(visible) == 0 {
 		return 0, nil
 	}
-	visibleIDs := make([]uint64, 0, len(visible))
+	visibleIDs := make([]ctype.ID, 0, len(visible))
 	for _, n := range visible {
 		visibleIDs = append(visibleIDs, n.ID)
 	}
@@ -359,7 +360,7 @@ func (s *Service) CreateGlobal(ctx context.Context, adminID uint64, in CreateGlo
 }
 
 // DeleteGlobal 管理员批量删除公告。
-func (s *Service) DeleteGlobal(ctx context.Context, ids []uint64) (int, error) {
+func (s *Service) DeleteGlobal(ctx context.Context, ids []ctype.ID) (int, error) {
 	ids = normalizeIDs(ids)
 	if len(ids) == 0 {
 		return 0, apperr.New(apperr.CodeMessageSelectionEmpty)
@@ -385,11 +386,11 @@ func (s *Service) userCreatedAt(ctx context.Context, userID uint64) (time.Time, 
 }
 
 // normalizeIDs 去零去重。
-func normalizeIDs(ids []uint64) []uint64 {
-	out := make([]uint64, 0, len(ids))
-	seen := make(map[uint64]struct{}, len(ids))
+func normalizeIDs(ids []ctype.ID) []ctype.ID {
+	out := make([]ctype.ID, 0, len(ids))
+	seen := make(map[ctype.ID]struct{}, len(ids))
 	for _, id := range ids {
-		if id == 0 {
+		if id.IsZero() {
 			continue
 		}
 		if _, ok := seen[id]; ok {

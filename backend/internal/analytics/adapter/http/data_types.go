@@ -12,7 +12,7 @@ type SumResponse struct {
 
 type GrowthDataRequest struct {
 	// 1 网站流量 2 文章发布 3 用户注册
-	Type int8 `form:"type" binding:"required,oneof=1 2 3"`
+	Type int8 `form:"type" binding:"required,oneof=1 2 3" enums:"1,2,3"`
 }
 
 type DateCountItem struct {

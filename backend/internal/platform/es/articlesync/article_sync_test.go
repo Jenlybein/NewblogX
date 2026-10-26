@@ -325,7 +325,7 @@ func TestSyncESDocsByArticleSnapshots(t *testing.T) {
 		t.Fatalf("创建标签失败: %v", err)
 	}
 
-	articleID := ctype.ID(301900000000000001)
+	articleID := ctype.NewID(301900000000000001)
 	if err := db.Exec("INSERT INTO article_tag_models(article_id, tag_id) VALUES (?, ?)", articleID, tag.ID).Error; err != nil {
 		t.Fatalf("创建文章标签关系失败: %v", err)
 	}
@@ -518,7 +518,7 @@ func TestSyncESDocsReturnsErrorWhenArticlesMissing(t *testing.T) {
 		}
 	})
 
-	missingID := ctype.ID(301829212698841088)
+	missingID := ctype.NewID(301829212698841088)
 	err := SyncESDocs(db, testutil.ESClient(), []ctype.ID{missingID})
 	if err == nil {
 		t.Fatal("文章不存在时应返回错误，避免 river 静默吞掉 upsert 事件")

@@ -6,6 +6,7 @@ import (
 
 	"myblogx/conf"
 	"myblogx/internal/apperr"
+	"myblogx/internal/kernel/ctype"
 	"myblogx/internal/site/domain"
 )
 
@@ -129,7 +130,7 @@ func (s *Service) UpdateAI(ai conf.AI) error {
 
 // BannerInput 是创建/更新轮播图的入参。
 type BannerInput struct {
-	CoverImageID uint64
+	CoverImageID ctype.ID
 	Href         string
 	Show         bool
 }
@@ -146,7 +147,7 @@ func (s *Service) ListBanners(ctx context.Context, q domain.BannerQuery) ([]doma
 
 // CreateBanner 新建轮播图。
 func (s *Service) CreateBanner(ctx context.Context, in BannerInput) (domain.Banner, error) {
-	cover, err := s.resolveCover(ctx, in.CoverImageID)
+	cover, err := s.resolveCover(ctx, in.CoverImageID.Uint64())
 	if err != nil {
 		return domain.Banner{}, err
 	}
@@ -166,7 +167,7 @@ func (s *Service) CreateBanner(ctx context.Context, in BannerInput) (domain.Bann
 //
 // 先解析封面再查存在性，与旧实现顺序一致：封面 ID 非法时优先报图片错误。
 func (s *Service) UpdateBanner(ctx context.Context, id uint64, in BannerInput) error {
-	cover, err := s.resolveCover(ctx, in.CoverImageID)
+	cover, err := s.resolveCover(ctx, in.CoverImageID.Uint64())
 	if err != nil {
 		return err
 	}
@@ -225,7 +226,7 @@ func (s *Service) attachCoverImageIDs(ctx context.Context, rows []domain.Banner)
 	}
 	for i := range rows {
 		if id, ok := idByURL[rows[i].Cover]; ok {
-			rows[i].CoverImageID = id
+			rows[i].CoverImageID = ctype.NewID(id)
 		}
 	}
 }

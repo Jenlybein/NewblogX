@@ -246,7 +246,7 @@ func (h *Handler) BannerCreate(c *gin.Context) {
 		return
 	}
 	banner, err := h.svc.CreateBanner(c.Request.Context(), app.BannerInput{
-		CoverImageID: uint64(cr.CoverImageID),
+		CoverImageID: cr.CoverImageID,
 		Href:         cr.Href,
 		Show:         cr.Show,
 	})
@@ -255,7 +255,7 @@ func (h *Handler) BannerCreate(c *gin.Context) {
 		return
 	}
 	res.OkWithData(BannerCreateResponse{
-		ID:           ctype.ID(banner.ID),
+		ID:           banner.ID,
 		CoverImageID: cr.CoverImageID,
 		Cover:        banner.Cover,
 		Href:         banner.Href,
@@ -264,7 +264,7 @@ func (h *Handler) BannerCreate(c *gin.Context) {
 	middleware.EmitActionAuditFromGin(c, middleware.GinAuditInput{
 		ActionName: "banner_create",
 		TargetType: "banner",
-		TargetID:   strconv.FormatUint(banner.ID, 10),
+		TargetID:   strconv.FormatUint(banner.ID.Uint64(), 10),
 		Success:    true,
 		Message:    "创建轮播图成功",
 	})
@@ -276,7 +276,7 @@ func (h *Handler) BannerCreate(c *gin.Context) {
 // @Accept json
 // @Produce json
 // @Security BearerAuth
-// @Param id path int true "轮播图 ID"
+// @Param id path string true "轮播图 ID"
 // @Param body body BannerCreateRequest true "更新参数"
 // @Success 200 {object} object{code=int,data=object{},msg=string}
 // @Router /banners/{id} [put]
@@ -289,8 +289,8 @@ func (h *Handler) BannerUpdate(c *gin.Context) {
 	if !ok {
 		return
 	}
-	err := h.svc.UpdateBanner(c.Request.Context(), uint64(id.ID), app.BannerInput{
-		CoverImageID: uint64(cr.CoverImageID),
+	err := h.svc.UpdateBanner(c.Request.Context(), id.ID.Uint64(), app.BannerInput{
+		CoverImageID: cr.CoverImageID,
 		Href:         cr.Href,
 		Show:         cr.Show,
 	})
@@ -306,7 +306,7 @@ func (h *Handler) BannerUpdate(c *gin.Context) {
 	middleware.EmitActionAuditFromGin(c, middleware.GinAuditInput{
 		ActionName: "banner_update",
 		TargetType: "banner",
-		TargetID:   strconv.FormatUint(uint64(id.ID), 10),
+		TargetID:   strconv.FormatUint(id.ID.Uint64(), 10),
 		Success:    true,
 		Message:    "更新轮播图成功",
 	})
@@ -344,15 +344,15 @@ func (h *Handler) BannerRemove(c *gin.Context) {
 // toBannerItem 把领域实体转成旧契约的 JSON 形状。
 func toBannerItem(b domain.Banner) BannerItem {
 	item := BannerItem{
-		ID:        ctype.ID(b.ID),
+		ID:        b.ID,
 		CreatedAt: b.CreatedAt,
 		UpdatedAt: b.UpdatedAt,
 		Show:      b.Show,
 		Cover:     b.Cover,
 		Href:      b.Href,
 	}
-	if b.CoverImageID != 0 {
-		id := ctype.ID(b.CoverImageID)
+	if !b.CoverImageID.IsZero() {
+		id := b.CoverImageID
 		item.CoverImageID = &id
 	}
 	return item
@@ -362,7 +362,7 @@ func toBannerItem(b domain.Banner) BannerItem {
 func toIDs(ids []ctype.ID) []uint64 {
 	out := make([]uint64, 0, len(ids))
 	for _, id := range ids {
-		out = append(out, uint64(id))
+		out = append(out, id.Uint64())
 	}
 	return out
 }

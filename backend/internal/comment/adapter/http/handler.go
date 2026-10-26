@@ -6,6 +6,7 @@ import (
 
 	"myblogx/internal/comment/app"
 	"myblogx/internal/comment/domain"
+	"myblogx/internal/kernel/ctype"
 	"myblogx/internal/platform/http/res"
 	"myblogx/utils/jwts"
 )
@@ -29,42 +30,42 @@ func viewer(c *gin.Context) domain.Viewer {
 	if cl == nil {
 		return domain.Viewer{}
 	}
-	return domain.Viewer{ID: uint64(cl.UserID), Admin: cl.IsAdmin()}
+	return domain.Viewer{ID: cl.UserID, Admin: cl.IsAdmin()}
 }
 
 // CreateRequest 发表评论。
 type CreateRequest struct {
-	Content   string  `json:"content" binding:"required"`
-	ArticleID uint64  `json:"article_id" binding:"required"`
-	ReplyID   *uint64 `json:"reply_id"`
+	Content   string    `json:"content" binding:"required"`
+	ArticleID ctype.ID  `json:"article_id" binding:"required"`
+	ReplyID   *ctype.ID `json:"reply_id"`
 }
 
 // RootListRequest 一级评论列表。
 type RootListRequest struct {
-	Page      int    `form:"page"`
-	Limit     int    `form:"limit"`
-	Key       string `form:"key"`
-	ArticleID uint64 `form:"article_id" binding:"required"`
+	Page      int      `form:"page"`
+	Limit     int      `form:"limit"`
+	Key       string   `form:"key"`
+	ArticleID ctype.ID `form:"article_id" binding:"required"`
 }
 
 // ReplyListRequest 二级评论列表。
 type ReplyListRequest struct {
-	Page      int    `form:"page"`
-	Limit     int    `form:"limit"`
-	Key       string `form:"key"`
-	ArticleID uint64 `form:"article_id" binding:"required"`
-	RootID    uint64 `form:"root_id" binding:"required"`
+	Page      int      `form:"page"`
+	Limit     int      `form:"limit"`
+	Key       string   `form:"key"`
+	ArticleID ctype.ID `form:"article_id" binding:"required"`
+	RootID    ctype.ID `form:"root_id" binding:"required"`
 }
 
 // ManListRequest 管理端评论列表。
 type ManListRequest struct {
-	Page      int    `form:"page"`
-	Limit     int    `form:"limit"`
-	Key       string `form:"key"`
-	ArticleID uint64 `form:"article_id"`
-	UserID    uint64 `form:"user_id"`
-	Status    int8   `form:"status"`
-	Type      int8   `form:"type" binding:"required"`
+	Page      int      `form:"page"`
+	Limit     int      `form:"limit"`
+	Key       string   `form:"key"`
+	ArticleID ctype.ID `form:"article_id"`
+	UserID    ctype.ID `form:"user_id"`
+	Status    int8     `form:"status"`
+	Type      int8     `form:"type" binding:"required"`
 }
 
 func pageOf(p, limit int, key string) domain.Page {
@@ -103,7 +104,7 @@ func (h *Handler) Create(c *gin.Context) {
 // @Tags comment
 // @Produce json
 // @Security BearerAuth
-// @Param id path int true "评论 ID"
+// @Param id path string true "评论 ID"
 // @Success 200 {object} object{code=int,data=object{},msg=string}
 // @Router /comments/{id}/digg [post]
 func (h *Handler) Digg(c *gin.Context) {
@@ -128,7 +129,7 @@ func (h *Handler) Digg(c *gin.Context) {
 // @Tags comment
 // @Produce json
 // @Security BearerAuth
-// @Param id path int true "评论 ID"
+// @Param id path string true "评论 ID"
 // @Success 200 {object} object{code=int,data=object{},msg=string}
 // @Router /comments/{id} [delete]
 func (h *Handler) Remove(c *gin.Context) {
@@ -147,7 +148,7 @@ func (h *Handler) Remove(c *gin.Context) {
 // @Summary 一级评论列表
 // @Tags comment
 // @Produce json
-// @Param article_id query int true "文章 ID"
+// @Param article_id query string true "文章 ID"
 // @Success 200 {object} object{code=int,data=object{list=[]app.RootItem,has_more=bool},msg=string}
 // @Router /comments [get]
 func (h *Handler) ListRoot(c *gin.Context) {

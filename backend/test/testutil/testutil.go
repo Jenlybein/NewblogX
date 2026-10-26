@@ -195,7 +195,7 @@ func CreateUser(t *testing.T, db *gorm.DB, user *schema.UserRow) {
 		if err := tx.Create(user).Error; err != nil {
 			return err
 		}
-		return userAdapter.InitDefaults(tx, uint64(user.ID))
+		return userAdapter.InitDefaults(tx, user.ID.Uint64())
 	}); err != nil {
 		t.Fatalf("创建用户失败: %v", err)
 	}
@@ -312,7 +312,7 @@ func NewClaims(user *schema.UserRow) *jwts.MyClaims {
 	return &jwts.MyClaims{
 		Claims: jwts.Claims{
 			UserID:       user.ID,
-			SessionID:    ctype.ID(0),
+			SessionID:    ctype.NewID(0),
 			TokenVersion: effectiveTokenVersion(user),
 			Username:     user.Username,
 			Role:         user.Role,

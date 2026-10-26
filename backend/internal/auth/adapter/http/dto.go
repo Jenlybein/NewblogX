@@ -1,6 +1,9 @@
 package http
 
-import "time"
+import (
+	"myblogx/internal/kernel/ctype"
+	"time"
+)
 
 // 本文件是认证 HTTP 层的请求/响应结构。
 // 字段名与旧接口保持一致，前端不需要改。
@@ -46,7 +49,7 @@ type UpdatePasswordRequest struct {
 
 // SessionItem 是登录设备列表的一行。
 type SessionItem struct {
-	ID         uint64     `json:"id"`
+	ID         ctype.ID   `json:"id"`
 	IP         string     `json:"ip"`
 	Addr       string     `json:"addr"`
 	UA         string     `json:"ua"`

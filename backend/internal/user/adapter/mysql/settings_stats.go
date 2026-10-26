@@ -99,7 +99,7 @@ func (r *StatsRepo) Find(ctx context.Context, id domain.UserID) (domain.Stats, e
 		return domain.Stats{}, translate(err)
 	}
 	return domain.Stats{
-		UserID:              domain.UserID(row.UserID),
+		UserID:              row.UserID,
 		ViewCount:           row.ViewCount,
 		FansCount:           row.FansCount,
 		FollowCount:         row.FollowCount,
@@ -110,7 +110,7 @@ func (r *StatsRepo) Find(ctx context.Context, id domain.UserID) (domain.Stats, e
 
 // Init 实现 domain.StatsRepository。
 func (r *StatsRepo) Init(ctx context.Context, id domain.UserID) error {
-	row := UserStatRow{UserID: id.Uint64()}
+	row := UserStatRow{UserID: id}
 	if err := r.db.WithContext(ctx).
 		Clauses(clause.OnConflict{DoNothing: true}).
 		Create(&row).Error; err != nil {
@@ -126,7 +126,7 @@ func (r *StatsRepo) Add(ctx context.Context, id domain.UserID, delta domain.Stat
 	}
 	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		// 先确保行存在，否则 UPDATE 影响 0 行、增量静默丢失。
-		row := UserStatRow{UserID: id.Uint64()}
+		row := UserStatRow{UserID: id}
 		if err := tx.Clauses(clause.OnConflict{DoNothing: true}).Create(&row).Error; err != nil {
 			return translate(err)
 		}

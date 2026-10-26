@@ -53,6 +53,8 @@ const {
   chatMessages,
   chatKeyword,
   chatDraft,
+  chatDraftType,
+  imagePending,
   sitePending,
   globalPending,
   sessionPending,
@@ -70,6 +72,7 @@ const {
   removeChatSession,
   removeChatMessage,
   sendCurrentChatMessage,
+  sendChatImage,
   connectSocket,
 } = inbox;
 
@@ -251,6 +254,20 @@ async function handleSend() {
   }
 }
 
+// 发图片：先上传再发消息，两步都在 useInboxCenter 里，这里只管提示。
+// 上传失败与发送失败给不同的文案——用户要能分清"图没传上去"和"图传了但消息没发出去"。
+async function handleSendImage(file: File) {
+  try {
+    const result = await sendChatImage(file);
+    if (result && result.usedPreparedSession && result.resolvedSessionId) {
+      await clearDraftSessionQuery();
+    }
+    message.success("图片已发送");
+  } catch (error) {
+    message.error(error instanceof Error ? error.message : "发送图片失败");
+  }
+}
+
 async function handleReconnect() {
   await connectSocket();
 }
@@ -280,10 +297,11 @@ useSeoMeta({
 
     <InboxChatPanel v-else :sessions="filteredChatSessions" :active-session-id="activeSessionId ?? null"
       :current-session="activeSession" :items="chatMessages" :keyword="chatKeyword" :draft="chatDraft"
-      :prepared-session="isPreparedSession"
+      :prepared-session="isPreparedSession" :draft-type="chatDraftType" :image-pending="imagePending"
       :session-pending="sessionPending" :message-pending="messagePending" :socket-status="socketStatus"
       :socket-error="socketError" @update:active-session-id="activeSessionId = $event"
-      @update:keyword="chatKeyword = $event" @update:draft="chatDraft = $event" @send="handleSend()"
+      @update:keyword="chatKeyword = $event" @update:draft="chatDraft = $event"
+      @update:draft-type="chatDraftType = $event" @send="handleSend()" @send-image="handleSendImage($event)"
       @remove-session="removeChatSession($event)" @remove-message="removeChatMessage($event)"
       @reconnect="handleReconnect()" />
 

@@ -2,6 +2,7 @@ package redis_jwt_test
 
 import (
 	"myblogx/conf"
+	"myblogx/internal/kernel/ctype"
 	"myblogx/internal/kernel/enum"
 	"myblogx/internal/platform/redis"
 	redis_jwt "myblogx/internal/platform/redis/redis_jwt"
@@ -43,7 +44,7 @@ func TestTokenBlacklistFlow(t *testing.T) {
 	deps := redis_service.Options{Client: testutil.Redis(), Logger: testutil.Logger()}
 
 	token, err := jwts.GetToken(jwtConf, jwts.Claims{
-		UserID:   1,
+		UserID:   ctype.NewID(1),
 		Role:     enum.RoleUser,
 		Username: "u1",
 	})

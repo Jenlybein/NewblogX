@@ -54,7 +54,7 @@ func (s MsgStatus) IsRead() bool { return s >= StatusRead }
 
 // Session 是一条会话（双方各存一份）。
 type Session struct {
-	ID               uint64
+	ID               ctype.ID
 	SessionID        string
 	UserID           ctype.ID
 	ReceiverID       ctype.ID
@@ -158,10 +158,10 @@ type MessageQuery struct {
 
 // BuildSessionID 生成会话 ID（小 ID 在前，保证双方一致）。
 func BuildSessionID(a, b ctype.ID) string {
-	if a < b {
-		return fmt.Sprintf("chat:%d:%d", a, b)
+	if a.Uint64() < b.Uint64() {
+		return fmt.Sprintf("chat:%s:%s", a, b)
 	}
-	return fmt.Sprintf("chat:%d:%d", b, a)
+	return fmt.Sprintf("chat:%s:%s", b, a)
 }
 
 // Summary 生成会话列表的最后一条消息摘要。

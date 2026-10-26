@@ -1,6 +1,7 @@
 package http
 
 import (
+	"myblogx/internal/kernel/ctype"
 	"strconv"
 
 	"github.com/gin-gonic/gin"
@@ -16,7 +17,7 @@ import (
 // @Summary 用户基础信息
 // @Tags user
 // @Produce json
-// @Param id query int true "ID"
+// @Param id query string true "ID"
 // @Success 200 {object} object{code=int,data=BaseInfoResponse,msg=string}
 // @Router /users/base [get]
 func (h *Handler) BaseInfo(c *gin.Context) {
@@ -25,7 +26,7 @@ func (h *Handler) BaseInfo(c *gin.Context) {
 		res.FailWithMsg("参数错误", c)
 		return
 	}
-	p, err := h.svc.BaseInfo(c.Request.Context(), viewer(c).ID, domain.UserID(id))
+	p, err := h.svc.BaseInfo(c.Request.Context(), viewer(c).ID, ctype.NewID(id))
 	if err != nil {
 		fail(c, err)
 		return
@@ -102,7 +103,7 @@ func (h *Handler) AdminUpdate(c *gin.Context) {
 		status := domain.Status(*req.Status)
 		patch.Status = &status
 	}
-	if err := h.svc.AdminUpdate(c.Request.Context(), viewer(c), domain.UserID(req.UserID), patch); err != nil {
+	if err := h.svc.AdminUpdate(c.Request.Context(), viewer(c), req.UserID, patch); err != nil {
 		fail(c, err)
 		return
 	}
@@ -183,7 +184,7 @@ func (h *Handler) AdminCreate(c *gin.Context) {
 		return
 	}
 	res.OkWithData(AdminCreateResponse{
-		ID:             u.ID.Uint64(),
+		ID:             u.ID,
 		Username:       u.Username,
 		Nickname:       u.Nickname,
 		Email:          u.Email,

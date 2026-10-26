@@ -12,6 +12,7 @@ import (
 	usermysql "myblogx/internal/user/adapter/mysql"
 
 	"gorm.io/gorm"
+	"myblogx/internal/kernel/ctype"
 )
 
 // socialService 供 user/comment 模块读取关注关系。
@@ -59,14 +60,14 @@ func (b *displayBridge) Displays(_ context.Context, ids []uint64) (map[uint64]do
 	}
 	out := make(map[uint64]domain.Display, len(raw))
 	for id, item := range raw {
-		out[uint64(id)] = domain.Display{Nickname: item.Nickname, Avatar: item.Avatar, Abstract: item.Abstract}
+		out[id.Uint64()] = domain.Display{Nickname: item.Nickname, Avatar: item.Avatar, Abstract: item.Abstract}
 	}
 	return out, nil
 }
 
 // confPrivacyRow 对应 user_conf_models 的可见性列。
 type confPrivacyRow struct {
-	UserID           uint64 `gorm:"primaryKey;autoIncrement:false"`
+	UserID           ctype.ID `gorm:"primaryKey;autoIncrement:false"`
 	FollowVisibility bool
 	FansVisibility   bool
 }

@@ -3,6 +3,7 @@ package writer
 import (
 	"context"
 	"encoding/json"
+	"myblogx/internal/kernel/ctype"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -49,7 +50,7 @@ func TestPipelineWritesAuditToDailyFile(t *testing.T) {
 		Path:       "/api/articles",
 		StatusCode: 201,
 		Success:    true,
-		UserID:     7,
+		UserID:     ctype.NewID(7),
 		IP:         "1.2.3.4",
 		RequestID:  "req-1",
 	})

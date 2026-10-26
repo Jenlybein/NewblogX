@@ -90,7 +90,7 @@ func (s *Service) RegisterByEmail(ctx context.Context, email, plainPassword stri
 		return domain.User{}, apperr.New(apperr.CodeUserRegisterDisabled)
 	}
 
-	taken, err := s.users.ExistsEmail(ctx, email, 0)
+	taken, err := s.users.ExistsEmail(ctx, email, "")
 	if err != nil {
 		return domain.User{}, err
 	}
@@ -123,7 +123,7 @@ func (s *Service) RegisterByEmail(ctx context.Context, email, plainPassword stri
 		}
 		if err := s.users.Create(ctx, &u); err != nil {
 			// 邮箱并发抢注：另一个请求刚建好，直接报"已被使用"。
-			if taken, _ := s.users.ExistsEmail(ctx, email, 0); taken {
+			if taken, _ := s.users.ExistsEmail(ctx, email, ""); taken {
 				return domain.User{}, apperr.New(apperr.CodeUserEmailTaken)
 			}
 			continue

@@ -115,7 +115,7 @@ func (r *Repo) Create(ctx context.Context, user *domain.User) error {
 	if err := r.db.WithContext(ctx).Create(&row).Error; err != nil {
 		return translate(err)
 	}
-	user.ID = domain.UserID(row.ID)
+	user.ID = row.ID
 	user.CreatedAt = row.CreatedAt
 	return nil
 }
@@ -321,8 +321,8 @@ func (r *Repo) LoadDisplays(ctx context.Context, ids []domain.UserID) (map[domai
 		return nil, translate(err)
 	}
 	for _, row := range rows {
-		out[domain.UserID(row.ID)] = domain.Display{
-			ID:       domain.UserID(row.ID),
+		out[row.ID] = domain.Display{
+			ID:       row.ID,
 			Nickname: row.Nickname,
 			Avatar:   row.Avatar,
 			Abstract: row.Abstract,
@@ -350,7 +350,7 @@ func translate(err error) error {
 
 func toUser(row UserRow) domain.User {
 	return domain.User{
-		ID:             domain.UserID(row.ID),
+		ID:             row.ID,
 		CreatedAt:      row.CreatedAt,
 		Username:       row.Username,
 		Nickname:       row.Nickname,
@@ -370,7 +370,7 @@ func toUser(row UserRow) domain.User {
 
 func fromUser(u domain.User) UserRow {
 	return UserRow{
-		BaseRow:        BaseRow{ID: u.ID.Uint64(), CreatedAt: u.CreatedAt},
+		BaseRow:        BaseRow{ID: u.ID, CreatedAt: u.CreatedAt},
 		Username:       u.Username,
 		Nickname:       u.Nickname,
 		Avatar:         u.Avatar,
@@ -389,7 +389,7 @@ func fromUser(u domain.User) UserRow {
 
 func toSettings(row UserConfRow) domain.Settings {
 	return domain.Settings{
-		UserID:                   domain.UserID(row.UserID),
+		UserID:                   row.UserID,
 		LikeTagIDs:               row.LikeTags,
 		UpdatedUsernameAt:        row.UpdatedUsernameDate,
 		FavoritesVisibility:      row.FavoritesVisibility,
@@ -406,7 +406,7 @@ func toSettings(row UserConfRow) domain.Settings {
 
 func fromSettings(s domain.Settings) UserConfRow {
 	return UserConfRow{
-		UserID:                   s.UserID.Uint64(),
+		UserID:                   s.UserID,
 		LikeTags:                 s.LikeTagIDs,
 		UpdatedUsernameDate:      s.UpdatedUsernameAt,
 		FavoritesVisibility:      s.FavoritesVisibility,

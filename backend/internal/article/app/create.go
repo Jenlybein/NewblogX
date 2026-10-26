@@ -9,6 +9,7 @@ import (
 	"myblogx/internal/article/domain"
 	"myblogx/internal/article/domain/review"
 	"myblogx/internal/article/domain/taxonomy"
+	"myblogx/internal/kernel/ctype"
 )
 
 // 事件名。adapter 侧按名字分发到下游（ES 投影、通知、评分）。
@@ -163,7 +164,7 @@ func createReviewTask(ctx context.Context, s *Service, r Repos, a *domain.Articl
 		authorName = u.Nickname
 	}
 	task := review.NewTask(review.NewTaskParams{
-		ID:            s.ids.NextReviewTaskID(),
+		ID:            ctype.NewID(s.ids.NextReviewTaskID()),
 		ArticleID:     a.ID(),
 		AuthorID:      a.AuthorID(),
 		ArticleTitle:  a.Title(),
@@ -204,7 +205,7 @@ func emit(ctx context.Context, r Repos, name string, articleID domain.ArticleID)
 	return r.Outbox().Emit(ctx, Event{
 		Name:          name,
 		Payload:       payload,
-		AggregateID:   articleID.Uint64(),
+		AggregateID:   articleID,
 		AggregateType: "article",
 	})
 }
@@ -224,7 +225,7 @@ func emitWithActor(ctx context.Context, r Repos, name string, articleID domain.A
 	return r.Outbox().Emit(ctx, Event{
 		Name:          name,
 		Payload:       payload,
-		AggregateID:   articleID.Uint64(),
+		AggregateID:   articleID,
 		AggregateType: "article",
 	})
 }

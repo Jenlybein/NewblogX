@@ -17,11 +17,11 @@ import (
 
 // imageRow 对应 image_models 表。
 type imageRow struct {
-	ID        uint64 `gorm:"primaryKey;autoIncrement:false"`
+	ID        ctype.ID `gorm:"primaryKey;autoIncrement:false"`
 	CreatedAt time.Time
 	UpdatedAt time.Time
 	DeletedAt gorm.DeletedAt
-	UserID    uint64
+	UserID    ctype.ID
 	Provider  string
 	Bucket    string
 	ObjectKey string
@@ -71,11 +71,11 @@ func (r *Repo) Create(ctx context.Context, img *domain.Image) error {
 		if err != nil {
 			return err
 		}
-		img.ID = domain.ImageID(next.Uint64())
+		img.ID = ctype.NewID(next.Uint64())
 	}
 	now := time.Now()
 	row := imageRow{
-		ID:        img.ID.Uint64(),
+		ID:        img.ID,
 		CreatedAt: now,
 		UserID:    img.UserID,
 		Provider:  string(img.Provider),
@@ -179,7 +179,7 @@ func (r *Repo) DeleteWithRefs(ctx context.Context, ids []domain.ImageID) error {
 	raw := toRawIDs(ids)
 	ctypeIDs := make([]ctype.ID, 0, len(raw))
 	for _, id := range raw {
-		ctypeIDs = append(ctypeIDs, ctype.ID(id))
+		ctypeIDs = append(ctypeIDs, ctype.NewID(id))
 	}
 	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		if err := imageref.DeleteImageRefsByImageIDs(tx, ctypeIDs); err != nil {
@@ -222,7 +222,7 @@ func FindIDByURL(db *gorm.DB, rawURL string) (uint64, bool, error) {
 		}
 		return 0, false, err
 	}
-	return row.ID, true, nil
+	return row.ID.Uint64(), true, nil
 }
 
 func translate(err error) error {
@@ -244,7 +244,7 @@ func toRawIDs(ids []domain.ImageID) []uint64 {
 
 func toImage(row imageRow) domain.Image {
 	return domain.Image{
-		ID:        domain.ImageID(row.ID),
+		ID:        ctype.NewID(row.ID.Uint64()),
 		CreatedAt: row.CreatedAt,
 		UserID:    row.UserID,
 		Provider:  domain.Provider(row.Provider),

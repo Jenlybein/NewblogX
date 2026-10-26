@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"myblogx/internal/apperr"
+	"myblogx/internal/kernel/ctype"
 	"myblogx/internal/user/domain"
 )
 
@@ -44,7 +45,7 @@ func (s *Service) BaseInfo(ctx context.Context, viewer, target domain.UserID) (*
 // UpdateInfoInput 是"资料 + 偏好"合并更新的输入。
 type UpdateInfoInput struct {
 	Profile       domain.ProfileUpdate
-	AvatarImageID *uint64
+	AvatarImageID *ctype.ID
 	Settings      SettingsPatch
 }
 
@@ -75,7 +76,7 @@ type AdminPatchInput struct {
 	Username      *string
 	Nickname      *string
 	Abstract      *string
-	AvatarImageID *uint64
+	AvatarImageID *ctype.ID
 	Role          *domain.Role
 	Status        *domain.Status
 }
@@ -139,7 +140,7 @@ func (s *Service) AdminUpdate(ctx context.Context, viewer domain.Viewer, target 
 			return err
 		}
 		if s.sessions != nil {
-			if err := s.sessions.RevokeAll(ctx, target.Uint64()); err != nil {
+			if err := s.sessions.RevokeAll(ctx, target); err != nil {
 				s.logError("吊销用户会话失败: user=%s err=%v", target.String(), err)
 			}
 		}
@@ -149,7 +150,7 @@ func (s *Service) AdminUpdate(ctx context.Context, viewer domain.Viewer, target 
 
 // AdminUserItem 是管理端用户列表的一行。
 type AdminUserItem struct {
-	ID          uint64
+	ID          ctype.ID
 	Nickname    string
 	Avatar      string
 	Username    string
@@ -178,7 +179,7 @@ func (s *Service) AdminList(ctx context.Context, viewer domain.Viewer, q domain.
 	items := make([]AdminUserItem, 0, len(page.Items))
 	for _, u := range page.Items {
 		item := AdminUserItem{
-			ID:        u.ID.Uint64(),
+			ID:        u.ID,
 			Nickname:  u.Nickname,
 			Avatar:    u.Avatar,
 			Username:  u.Username,

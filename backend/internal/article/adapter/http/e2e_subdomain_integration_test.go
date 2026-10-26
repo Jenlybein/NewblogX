@@ -10,6 +10,7 @@ import (
 	"gorm.io/gorm"
 
 	"myblogx/internal/article/domain"
+	"myblogx/internal/kernel/ctype"
 	"myblogx/internal/testkit/schema"
 )
 
@@ -24,9 +25,9 @@ func TestSubdomainEndpointsEndToEnd(t *testing.T) {
 	seedGoldenUser(t, db, 200, "sd_reader", "读者", "", "", schema.RoleUser)
 	seedGoldenUser(t, db, 900, "sd_admin", "管理员", "", "", schema.RoleAdmin)
 
-	author := newRouterWithIDs(t, db, domain.NormalUser(100), 1000)
-	reader := newRouterWithIDs(t, db, domain.NormalUser(200), 2000)
-	admin := newRouterWithIDs(t, db, domain.AdminUser(900), 3000)
+	author := newRouterWithIDs(t, db, domain.NormalUser(ctype.NewID(100)), 1000)
+	reader := newRouterWithIDs(t, db, domain.NormalUser(ctype.NewID(200)), 2000)
+	admin := newRouterWithIDs(t, db, domain.AdminUser(ctype.NewID(900)), 3000)
 
 	// ── 分类：建 → 列表 → 删 ──
 	respCode(t, do(t, author, http.MethodPost, "/api/articles/category",

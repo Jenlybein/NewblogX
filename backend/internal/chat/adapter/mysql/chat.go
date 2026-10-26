@@ -17,19 +17,19 @@ import (
 
 // sessionRow 对应 chat_session_models。
 type sessionRow struct {
-	ID               uint64 `gorm:"primaryKey;autoIncrement:false"`
+	ID               ctype.ID `gorm:"primaryKey;autoIncrement:false"`
 	CreatedAt        time.Time
 	UpdatedAt        time.Time
 	DeletedAt        gorm.DeletedAt
 	SessionID        string
-	UserID           uint64
-	ReceiverID       uint64
+	UserID           ctype.ID
+	ReceiverID       ctype.ID
 	ReceiverNickname string
 	ReceiverAvatar   string
-	LastMsgID        uint64
+	LastMsgID        ctype.ID
 	LastMsgContent   string
 	LastMsgTime      *time.Time
-	ClearBeforeMsgID uint64
+	ClearBeforeMsgID ctype.ID
 	UnreadCount      int
 	IsTop            bool
 	IsMute           bool
@@ -40,12 +40,12 @@ func (sessionRow) TableName() string { return "chat_session_models" }
 
 // msgRow 对应 chat_msg_models。
 type msgRow struct {
-	ID         uint64 `gorm:"primaryKey;autoIncrement:false"`
+	ID         ctype.ID `gorm:"primaryKey;autoIncrement:false"`
 	CreatedAt  time.Time
 	UpdatedAt  time.Time
 	DeletedAt  gorm.DeletedAt
-	SenderID   uint64
-	ReceiverID uint64
+	SenderID   ctype.ID
+	ReceiverID ctype.ID
 	SessionID  string
 	Content    string
 	SendTime   time.Time
@@ -59,12 +59,12 @@ func (msgRow) TableName() string { return "chat_msg_models" }
 
 // stateRow 对应 chat_msg_user_states。
 type stateRow struct {
-	ID        uint64 `gorm:"primaryKey;autoIncrement:false"`
+	ID        ctype.ID `gorm:"primaryKey;autoIncrement:false"`
 	CreatedAt time.Time
 	UpdatedAt time.Time
 	DeletedAt gorm.DeletedAt
-	MsgID     uint64
-	UserID    uint64
+	MsgID     ctype.ID
+	UserID    ctype.ID
 	SessionID string
 }
 
@@ -83,28 +83,28 @@ func New(db *gorm.DB) *Repo { return &Repo{db: db} }
 
 // SendMessage 实现 domain.Repository。
 func (r *Repo) SendMessage(ctx context.Context, msg *domain.Message, senderDisplay, receiverDisplay domain.Display, summary string) error {
-	if msg.ID == 0 {
+	if msg.ID.IsZero() {
 		next, err := idgen.Next()
 		if err != nil {
 			return err
 		}
-		msg.ID = ctype.ID(next.Uint64())
+		msg.ID = ctype.NewID(next.Uint64())
 	}
 	msg.SessionID = domain.BuildSessionID(msg.SenderID, msg.ReceiverID)
 
 	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		sessions := []sessionRow{{
 			SessionID:        msg.SessionID,
-			UserID:           uint64(msg.SenderID),
-			ReceiverID:       uint64(msg.ReceiverID),
+			UserID:           msg.SenderID,
+			ReceiverID:       msg.ReceiverID,
 			ReceiverNickname: receiverDisplay.Nickname,
 			ReceiverAvatar:   receiverDisplay.Avatar,
 		}}
 		if msg.SenderID != msg.ReceiverID {
 			sessions = append(sessions, sessionRow{
 				SessionID:        msg.SessionID,
-				UserID:           uint64(msg.ReceiverID),
-				ReceiverID:       uint64(msg.SenderID),
+				UserID:           msg.ReceiverID,
+				ReceiverID:       msg.SenderID,
 				ReceiverNickname: senderDisplay.Nickname,
 				ReceiverAvatar:   senderDisplay.Avatar,
 			})
@@ -149,9 +149,9 @@ func (r *Repo) SendMessage(ctx context.Context, msg *domain.Message, senderDispl
 		}
 
 		row := msgRow{
-			ID:         msg.ID.Uint64(),
-			SenderID:   uint64(msg.SenderID),
-			ReceiverID: uint64(msg.ReceiverID),
+			ID:         msg.ID,
+			SenderID:   msg.SenderID,
+			ReceiverID: msg.ReceiverID,
 			SessionID:  msg.SessionID,
 			Content:    msg.Content,
 			SendTime:   msg.SendTime,
@@ -161,7 +161,7 @@ func (r *Repo) SendMessage(ctx context.Context, msg *domain.Message, senderDispl
 		if err := tx.Create(&row).Error; err != nil {
 			return err
 		}
-		msg.ID = ctype.ID(row.ID)
+		msg.ID = ctype.NewID(row.ID.Uint64())
 
 		updates := map[string]any{
 			"last_msg_id":      msg.ID,
@@ -199,14 +199,14 @@ func (r *Repo) SendMessage(ctx context.Context, msg *domain.Message, senderDispl
 // 而 ON DUPLICATE KEY UPDATE 会把它变成 update，最终全站只剩一条会话。
 func fillRowIDs(rows []sessionRow) error {
 	for i := range rows {
-		if rows[i].ID != 0 {
+		if !rows[i].ID.IsZero() {
 			continue
 		}
 		id, err := idgen.Next()
 		if err != nil {
 			return err
 		}
-		rows[i].ID = id.Uint64()
+		rows[i].ID = id
 	}
 	return nil
 }
@@ -215,7 +215,7 @@ func fillRowIDs(rows []sessionRow) error {
 func (r *Repo) ListSessions(ctx context.Context, userID ctype.ID, unscoped bool, page domain.Page) ([]domain.Session, int, error) {
 	page = page.Normalize()
 	base := func() *gorm.DB {
-		tx := r.db.WithContext(ctx).Model(&sessionRow{}).Where("user_id = ?", uint64(userID))
+		tx := r.db.WithContext(ctx).Model(&sessionRow{}).Where("user_id = ?", userID.Uint64())
 		if unscoped {
 			tx = tx.Unscoped()
 		}
@@ -250,7 +250,7 @@ func (r *Repo) FindSession(ctx context.Context, sessionID string, userID ctype.I
 	}
 	var row sessionRow
 	if err := tx.Select("session_id", "clear_before_msg_id").
-		Take(&row, "session_id = ? AND user_id = ?", sessionID, uint64(userID)).Error; err != nil {
+		Take(&row, "session_id = ? AND user_id = ?", sessionID, userID.Uint64()).Error; err != nil {
 		return domain.Session{}, apperr.New(apperr.CodeChatSessionNotFound)
 	}
 	return toSession(row), nil
@@ -264,13 +264,13 @@ func (r *Repo) ListMessages(ctx context.Context, q domain.MessageQuery) ([]domai
 		if q.Unscoped {
 			tx = tx.Unscoped()
 		}
-		if q.ClearBefore > 0 {
-			tx = tx.Where("id > ?", uint64(q.ClearBefore))
+		if !q.ClearBefore.IsZero() {
+			tx = tx.Where("id > ?", q.ClearBefore.Uint64())
 		}
 		if !q.Unscoped {
 			sub := r.db.WithContext(ctx).Unscoped().Model(&stateRow{}).
 				Select("msg_id").
-				Where("user_id = ? AND session_id = ? AND deleted_at IS NOT NULL", uint64(q.UserID), q.SessionID)
+				Where("user_id = ? AND session_id = ? AND deleted_at IS NOT NULL", q.UserID.Uint64(), q.SessionID)
 			tx = tx.Where("id NOT IN (?)", sub)
 		}
 		return tx
@@ -301,13 +301,13 @@ func (r *Repo) UserDeletedAt(ctx context.Context, userID ctype.ID, sessionID str
 	raw := toRawIDs(ids)
 	var rows []stateRow
 	if err := r.db.WithContext(ctx).Unscoped().
-		Where("user_id = ? AND session_id = ? AND msg_id IN ? AND deleted_at IS NOT NULL", uint64(userID), sessionID, raw).
+		Where("user_id = ? AND session_id = ? AND msg_id IN ? AND deleted_at IS NOT NULL", userID.Uint64(), sessionID, raw).
 		Find(&rows).Error; err != nil {
 		return nil, err
 	}
 	for _, row := range rows {
 		if row.DeletedAt.Valid {
-			out[ctype.ID(row.MsgID)] = row.DeletedAt.Time
+			out[ctype.NewID(row.MsgID.Uint64())] = row.DeletedAt.Time
 		}
 	}
 	return out, nil
@@ -323,7 +323,7 @@ func (r *Repo) MarkRead(ctx context.Context, userID ctype.ID, ids []ctype.ID) ([
 	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		var rows []msgRow
 		if err := tx.Select("id", "session_id", "sender_id", "receiver_id").
-			Where("id IN ? AND receiver_id = ? AND msg_status < ?", toRawIDs(ids), uint64(userID), int8(domain.StatusRead)).
+			Where("id IN ? AND receiver_id = ? AND msg_status < ?", toRawIDs(ids), userID.Uint64(), int8(domain.StatusRead)).
 			Find(&rows).Error; err != nil {
 			return err
 		}
@@ -333,7 +333,7 @@ func (r *Repo) MarkRead(ctx context.Context, userID ctype.ID, ids []ctype.ID) ([
 		msgIDs := make([]uint64, 0, len(rows))
 		sessionDelta := make(map[string]int, len(rows))
 		for _, row := range rows {
-			msgIDs = append(msgIDs, row.ID)
+			msgIDs = append(msgIDs, row.ID.Uint64())
 			sessionDelta[row.SessionID]++
 			affected = append(affected, toMessage(row))
 		}
@@ -356,7 +356,7 @@ func (r *Repo) DeleteMessagesForUser(ctx context.Context, userID ctype.ID, ids [
 	}
 	var rows []msgRow
 	if err := r.db.WithContext(ctx).Select("id", "session_id").
-		Where("id IN ? AND (sender_id = ? OR receiver_id = ?)", toRawIDs(ids), uint64(userID), uint64(userID)).
+		Where("id IN ? AND (sender_id = ? OR receiver_id = ?)", toRawIDs(ids), userID.Uint64(), userID.Uint64()).
 		Find(&rows).Error; err != nil {
 		return nil, err
 	}
@@ -370,7 +370,7 @@ func (r *Repo) DeleteMessagesForUser(ctx context.Context, userID ctype.ID, ids [
 		states = append(states, stateRow{
 			DeletedAt: gorm.DeletedAt{Time: now, Valid: true},
 			MsgID:     row.ID,
-			UserID:    uint64(userID),
+			UserID:    userID,
 			SessionID: row.SessionID,
 		})
 		out = append(out, toMessage(row))
@@ -381,7 +381,7 @@ func (r *Repo) DeleteMessagesForUser(ctx context.Context, userID ctype.ID, ids [
 		if genErr != nil {
 			return nil, genErr
 		}
-		states[i].ID = id.Uint64()
+		states[i].ID = id
 	}
 	if err := r.db.WithContext(ctx).Clauses(clause.OnConflict{
 		Columns:   []clause.Column{{Name: "msg_id"}, {Name: "user_id"}},
@@ -401,7 +401,7 @@ func (r *Repo) DeleteSessions(ctx context.Context, userID ctype.ID, sessionIDs [
 	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		var rows []sessionRow
 		if err := tx.Select("id", "session_id", "clear_before_msg_id").
-			Where("user_id = ? AND session_id IN ?", uint64(userID), sessionIDs).
+			Where("user_id = ? AND session_id IN ?", userID.Uint64(), sessionIDs).
 			Find(&rows).Error; err != nil {
 			return err
 		}
@@ -417,10 +417,10 @@ func (r *Repo) DeleteSessions(ctx context.Context, userID ctype.ID, sessionIDs [
 		args := make([]any, 0, len(rows)*2)
 		for _, row := range rows {
 			clear := row.ClearBeforeMsgID
-			if maxIDs[row.SessionID] > clear {
-				clear = maxIDs[row.SessionID]
+			if maxIDs[row.SessionID] > clear.Uint64() {
+				clear = ctype.NewID(maxIDs[row.SessionID])
 			}
-			idList = append(idList, row.ID)
+			idList = append(idList, row.ID.Uint64())
 			caseSQL += " WHEN ? THEN ?"
 			args = append(args, row.ID, clear)
 			deleted = append(deleted, row.SessionID)
@@ -455,14 +455,14 @@ func decreaseUnread(tx *gorm.DB, userID ctype.ID, delta map[string]int) error {
 	}
 	caseSQL += " ELSE unread_count END"
 	return tx.Unscoped().Model(&sessionRow{}).
-		Where("user_id = ? AND session_id IN ?", uint64(userID), sessionIDs).
+		Where("user_id = ? AND session_id IN ?", userID.Uint64(), sessionIDs).
 		Update("unread_count", gorm.Expr(caseSQL, args...)).Error
 }
 
 func loadMaxMsgIDs(tx *gorm.DB, sessionIDs []string) (map[string]uint64, error) {
 	var rows []struct {
 		SessionID string
-		MaxMsgID  uint64
+		MaxMsgID  ctype.ID
 	}
 	if err := tx.Model(&msgRow{}).
 		Select("session_id, MAX(id) AS max_msg_id").
@@ -473,7 +473,7 @@ func loadMaxMsgIDs(tx *gorm.DB, sessionIDs []string) (map[string]uint64, error) 
 	}
 	out := make(map[string]uint64, len(rows))
 	for _, row := range rows {
-		out[row.SessionID] = row.MaxMsgID
+		out[row.SessionID] = row.MaxMsgID.Uint64()
 	}
 	return out, nil
 }
@@ -481,8 +481,8 @@ func loadMaxMsgIDs(tx *gorm.DB, sessionIDs []string) (map[string]uint64, error) 
 func toRawIDs(ids []ctype.ID) []uint64 {
 	out := make([]uint64, 0, len(ids))
 	for _, id := range ids {
-		if id != 0 {
-			out = append(out, uint64(id))
+		if !id.IsZero() {
+			out = append(out, id.Uint64())
 		}
 	}
 	return out
@@ -492,13 +492,13 @@ func toSession(row sessionRow) domain.Session {
 	return domain.Session{
 		ID:               row.ID,
 		SessionID:        row.SessionID,
-		UserID:           ctype.ID(row.UserID),
-		ReceiverID:       ctype.ID(row.ReceiverID),
+		UserID:           ctype.NewID(row.UserID.Uint64()),
+		ReceiverID:       ctype.NewID(row.ReceiverID.Uint64()),
 		ReceiverNickname: row.ReceiverNickname,
 		ReceiverAvatar:   row.ReceiverAvatar,
 		LastMsgContent:   row.LastMsgContent,
 		LastMsgTime:      row.LastMsgTime,
-		ClearBeforeMsgID: ctype.ID(row.ClearBeforeMsgID),
+		ClearBeforeMsgID: ctype.NewID(row.ClearBeforeMsgID.Uint64()),
 		UnreadCount:      row.UnreadCount,
 		IsTop:            row.IsTop,
 		IsMute:           row.IsMute,
@@ -508,9 +508,9 @@ func toSession(row sessionRow) domain.Session {
 
 func toMessage(row msgRow) domain.Message {
 	return domain.Message{
-		ID:         ctype.ID(row.ID),
-		SenderID:   ctype.ID(row.SenderID),
-		ReceiverID: ctype.ID(row.ReceiverID),
+		ID:         ctype.NewID(row.ID.Uint64()),
+		SenderID:   ctype.NewID(row.SenderID.Uint64()),
+		ReceiverID: ctype.NewID(row.ReceiverID.Uint64()),
 		SessionID:  row.SessionID,
 		Content:    row.Content,
 		SendTime:   row.SendTime,

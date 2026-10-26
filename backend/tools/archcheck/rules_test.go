@@ -518,7 +518,7 @@ func TestAllRulesHaveSelfCheck(t *testing.T) {
 	covered := map[string]bool{
 		"R1": true, "R2": true, "R3": true, "R4": true,
 		"R5": true, "R6": true, "R7": true, "R8": true, "R9": true,
-		"R10": true, "R11": true,
+		"R10": true, "R11": true, "R12": true,
 	}
 	for _, r := range rules() {
 		if !covered[r.ID] {

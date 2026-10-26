@@ -9,6 +9,7 @@ import (
 
 	"myblogx/conf"
 	"myblogx/internal/apperr"
+	"myblogx/internal/kernel/ctype"
 	"myblogx/internal/site/app"
 	"myblogx/internal/site/domain"
 )
@@ -55,7 +56,7 @@ func (b *Banners) Find(_ context.Context, id uint64) (domain.Banner, error) {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 	for _, row := range b.rows {
-		if row.ID == id {
+		if row.ID.Uint64() == id {
 			return row, nil
 		}
 	}
@@ -66,8 +67,8 @@ func (b *Banners) Find(_ context.Context, id uint64) (domain.Banner, error) {
 func (b *Banners) Create(_ context.Context, banner *domain.Banner) error {
 	b.mu.Lock()
 	defer b.mu.Unlock()
-	if banner.ID == 0 {
-		banner.ID = b.next
+	if banner.ID.IsZero() {
+		banner.ID = ctype.NewID(b.next)
 		b.next++
 	}
 	now := time.Now()
@@ -82,7 +83,7 @@ func (b *Banners) Update(_ context.Context, id uint64, cover, href string, show 
 	b.mu.Lock()
 	defer b.mu.Unlock()
 	for i := range b.rows {
-		if b.rows[i].ID == id {
+		if b.rows[i].ID.Uint64() == id {
 			b.rows[i].Cover = cover
 			b.rows[i].Href = href
 			b.rows[i].Show = show
@@ -104,7 +105,7 @@ func (b *Banners) Delete(_ context.Context, ids []uint64) (int, error) {
 	kept := make([]domain.Banner, 0, len(b.rows))
 	count := 0
 	for _, row := range b.rows {
-		if _, ok := want[row.ID]; ok {
+		if _, ok := want[row.ID.Uint64()]; ok {
 			count++
 			continue
 		}

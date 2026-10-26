@@ -5,12 +5,13 @@ import (
 	"time"
 
 	"myblogx/internal/apperr"
+	"myblogx/internal/kernel/ctype"
 	"myblogx/internal/user/domain"
 )
 
 // PublicProfile 是公开主页展示的信息（不含邮箱、通知开关等私密项）。
 type PublicProfile struct {
-	ID           uint64
+	ID           ctype.ID
 	Username     string
 	Nickname     string
 	Avatar       string
@@ -22,8 +23,8 @@ type PublicProfile struct {
 	FansVis      bool
 
 	// 以下字段是主页展示需要的补充信息。
-	AvatarImageID *uint64
-	HomeStyleID   uint64
+	AvatarImageID *ctype.ID
+	HomeStyleID   ctype.ID
 	Place         string
 	Relation      int8
 }
@@ -46,7 +47,7 @@ func (s *Service) Detail(ctx context.Context, viewer domain.Viewer) (*DetailView
 	}
 
 	view := &DetailView{
-		ID:                       u.ID.Uint64(),
+		ID:                       u.ID,
 		CreatedAt:                u.CreatedAt,
 		Username:                 u.Username,
 		Nickname:                 u.Nickname,
@@ -105,7 +106,7 @@ func (s *Service) PublicProfile(ctx context.Context, target domain.UserID) (*Pub
 		return nil, err
 	}
 	return &PublicProfile{
-		ID:           u.ID.Uint64(),
+		ID:           u.ID,
 		Username:     u.Username,
 		Nickname:     u.Nickname,
 		Avatar:       u.Avatar,
@@ -253,7 +254,7 @@ func (s *Service) Create(ctx context.Context, viewer domain.Viewer, in CreateInp
 	if err := domain.ValidateNickname(in.Nickname); err != nil {
 		return domain.User{}, err
 	}
-	taken, err := s.users.ExistsUsername(ctx, in.Username, 0)
+	taken, err := s.users.ExistsUsername(ctx, in.Username, "")
 	if err != nil {
 		return domain.User{}, err
 	}
@@ -261,7 +262,7 @@ func (s *Service) Create(ctx context.Context, viewer domain.Viewer, in CreateInp
 		return domain.User{}, apperr.New(apperr.CodeUserUsernameTaken)
 	}
 	if in.Email != nil && *in.Email != "" {
-		emailTaken, err := s.users.ExistsEmail(ctx, *in.Email, 0)
+		emailTaken, err := s.users.ExistsEmail(ctx, *in.Email, "")
 		if err != nil {
 			return domain.User{}, err
 		}
@@ -335,7 +336,7 @@ func (s *Service) logError(format string, args ...any) {
 }
 
 // orderTagItems 按传入顺序组装标签项，保证前端展示顺序稳定。
-func orderTagItems(ids []uint64, titles map[uint64]string) []LikeTagItem {
+func orderTagItems(ids []ctype.ID, titles map[ctype.ID]string) []LikeTagItem {
 	out := make([]LikeTagItem, 0, len(ids))
 	for _, id := range ids {
 		title, ok := titles[id]

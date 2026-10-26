@@ -1,6 +1,7 @@
 package service_test
 
 import (
+	"myblogx/internal/kernel/ctype"
 	"myblogx/internal/platform/redis"
 	"myblogx/internal/platform/redis/redis_article"
 	"myblogx/test/testutil"
@@ -11,30 +12,30 @@ func TestArticleCacheCounters(t *testing.T) {
 	_ = testutil.SetupMiniRedis(t)
 	deps := redis_service.Options{Client: testutil.Redis(), Logger: testutil.Logger()}
 
-	if err := redis_article.SetCacheView(deps, 1, 3); err != nil {
+	if err := redis_article.SetCacheView(deps, ctype.NewID(1), 3); err != nil {
 		t.Fatalf("SetCacheView 失败: %v", err)
 	}
-	if err := redis_article.SetCacheDigg(deps, 1, 2); err != nil {
+	if err := redis_article.SetCacheDigg(deps, ctype.NewID(1), 2); err != nil {
 		t.Fatalf("SetCacheDigg 失败: %v", err)
 	}
-	if err := redis_article.SetCacheFavorite(deps, 1, 1); err != nil {
+	if err := redis_article.SetCacheFavorite(deps, ctype.NewID(1), 1); err != nil {
 		t.Fatalf("SetCacheFavorite 失败: %v", err)
 	}
-	if err := redis_article.SetCacheComment(deps, 1, 4); err != nil {
+	if err := redis_article.SetCacheComment(deps, ctype.NewID(1), 4); err != nil {
 		t.Fatalf("SetCacheComment 失败: %v", err)
 	}
 
-	if redis_article.GetCacheView(deps, 1) != 3 {
-		t.Fatalf("view 计数错误: %d", redis_article.GetCacheView(deps, 1))
+	if redis_article.GetCacheView(deps, ctype.NewID(1)) != 3 {
+		t.Fatalf("view 计数错误: %d", redis_article.GetCacheView(deps, ctype.NewID(1)))
 	}
-	if redis_article.GetCacheDigg(deps, 1) != 2 {
-		t.Fatalf("digg 计数错误: %d", redis_article.GetCacheDigg(deps, 1))
+	if redis_article.GetCacheDigg(deps, ctype.NewID(1)) != 2 {
+		t.Fatalf("digg 计数错误: %d", redis_article.GetCacheDigg(deps, ctype.NewID(1)))
 	}
-	if redis_article.GetCacheFavorite(deps, 1) != 1 {
-		t.Fatalf("favorite 计数错误: %d", redis_article.GetCacheFavorite(deps, 1))
+	if redis_article.GetCacheFavorite(deps, ctype.NewID(1)) != 1 {
+		t.Fatalf("favorite 计数错误: %d", redis_article.GetCacheFavorite(deps, ctype.NewID(1)))
 	}
-	if redis_article.GetCacheComment(deps, 1) != 4 {
-		t.Fatalf("comment 计数错误: %d", redis_article.GetCacheComment(deps, 1))
+	if redis_article.GetCacheComment(deps, ctype.NewID(1)) != 4 {
+		t.Fatalf("comment 计数错误: %d", redis_article.GetCacheComment(deps, ctype.NewID(1)))
 	}
 
 	if len(redis_article.GetAllCacheView(deps)) != 1 {
@@ -44,10 +45,10 @@ func TestArticleCacheCounters(t *testing.T) {
 	if err := redis_article.ClearAllCacheArticle(deps); err != nil {
 		t.Fatalf("ClearAllCacheArticle 失败: %v", err)
 	}
-	if redis_article.GetCacheView(deps, 1) != 0 ||
-		redis_article.GetCacheDigg(deps, 1) != 0 ||
-		redis_article.GetCacheFavorite(deps, 1) != 0 ||
-		redis_article.GetCacheComment(deps, 1) != 0 {
+	if redis_article.GetCacheView(deps, ctype.NewID(1)) != 0 ||
+		redis_article.GetCacheDigg(deps, ctype.NewID(1)) != 0 ||
+		redis_article.GetCacheFavorite(deps, ctype.NewID(1)) != 0 ||
+		redis_article.GetCacheComment(deps, ctype.NewID(1)) != 0 {
 		t.Fatal("清理后计数应为 0")
 	}
 }

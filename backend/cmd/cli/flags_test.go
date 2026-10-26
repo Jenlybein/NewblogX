@@ -176,10 +176,10 @@ func writeESJSON(w http.ResponseWriter, code int, body string) {
 }
 
 func TestBuildArticleESDocument(t *testing.T) {
-	categoryID := ctype.ID(7)
+	categoryID := ctype.NewID(7)
 	article := articlesync.ArticleRow{
 		BaseRow: mysql.BaseRow{
-			ID:        1,
+			ID:        ctype.NewID(1),
 			CreatedAt: time.Unix(1710000000, 0),
 			UpdatedAt: time.Unix(1710003600, 0),
 		},
@@ -189,8 +189,8 @@ func TestBuildArticleESDocument(t *testing.T) {
 		CategoryID:     &categoryID,
 		CategoryModel:  &articlesync.CategoryRow{BaseRow: mysql.BaseRow{ID: categoryID}, Title: "后端"},
 		Cover:          "/cover.png",
-		AuthorID:       9,
-		UserModel:      articlesync.UserRow{BaseRow: mysql.BaseRow{ID: 9}, Nickname: "作者A", Avatar: "/avatar.png"},
+		AuthorID:       ctype.NewID(9),
+		UserModel:      articlesync.UserRow{BaseRow: mysql.BaseRow{ID: ctype.NewID(9)}, Nickname: "作者A", Avatar: "/avatar.png"},
 		ViewCount:      11,
 		DiggCount:      12,
 		CommentCount:   13,
@@ -198,8 +198,8 @@ func TestBuildArticleESDocument(t *testing.T) {
 		CommentsToggle: true,
 		PublishStatus:  3,
 		Tags: []articlesync.TagRow{
-			{BaseRow: mysql.BaseRow{ID: 1}, Title: "Go"},
-			{BaseRow: mysql.BaseRow{ID: 2}, Title: "Redis"},
+			{BaseRow: mysql.BaseRow{ID: ctype.NewID(1)}, Title: "Go"},
+			{BaseRow: mysql.BaseRow{ID: ctype.NewID(2)}, Title: "Redis"},
 		},
 	}
 

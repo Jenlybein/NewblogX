@@ -35,11 +35,11 @@ func newRowSnapshot(layout rowLayout, row []any) rowSnapshot {
 func (r rowSnapshot) ID() (ctype.ID, error) {
 	value, ok := r.value("id")
 	if !ok {
-		return 0, fmt.Errorf("canal 行数据缺少 id 列")
+		return "", fmt.Errorf("canal 行数据缺少 id 列")
 	}
 	var id ctype.ID
-	if err := id.Scan(value); err != nil || id == 0 {
-		return 0, fmt.Errorf("canal 行数据 id 解析失败")
+	if err := id.Scan(value); err != nil || id.IsZero() {
+		return "", fmt.Errorf("canal 行数据 id 解析失败")
 	}
 	return id, nil
 }

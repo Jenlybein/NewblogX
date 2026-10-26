@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"myblogx/internal/kernel/ctype"
 	"net/http"
 	"strings"
 	"time"
@@ -45,8 +46,8 @@ type uploadedMeta struct {
 }
 
 type verifiedImage struct {
-	TaskID             uint64
-	UserID             uint64
+	TaskID             ctype.ID
+	UserID             ctype.ID
 	Bucket             string
 	ObjectKey          string
 	FileName           string
@@ -131,8 +132,8 @@ func (s *Service) CreateTask(ctx context.Context, userID uint64, fileName string
 
 	now := s.clock.Now()
 	task := &domain.Task{
-		ID:           s.ids.NextTaskID(),
-		UserID:       userID,
+		ID:           ctype.NewID(s.ids.NextTaskID()),
+		UserID:       ctype.NewID(userID),
 		Provider:     domain.ProviderQiniu,
 		Status:       domain.TaskPending,
 		Bucket:       q.Bucket,
@@ -164,7 +165,7 @@ func (s *Service) CreateTask(ctx context.Context, userID uint64, fileName string
 // ConfirmByUser 用户手动确认上传完成。
 func (s *Service) ConfirmByUser(ctx context.Context, taskID, userID uint64, objectKey string) (*ConfirmResult, error) {
 	return s.confirm(ctx, taskID, nil, func(task *domain.Task) error {
-		if task.UserID != userID {
+		if task.UserID.Uint64() != userID {
 			return apperr.New(apperr.CodeImageTaskNotFound)
 		}
 		if objectKey != "" && task.ObjectKey != objectKey {
@@ -194,16 +195,16 @@ func (s *Service) GetStatus(ctx context.Context, taskID, userID uint64) (*Confir
 	if err != nil {
 		return nil, err
 	}
-	if task.UserID != userID {
+	if task.UserID.Uint64() != userID {
 		return nil, apperr.New(apperr.CodeImageTaskNotFound)
 	}
 	result := &ConfirmResult{Task: task}
 	if task.ImageID != nil {
 		if task.ImageURL != "" {
-			result.Image = &domain.Image{ID: domain.ImageID(*task.ImageID), URL: task.ImageURL}
+			result.Image = &domain.Image{ID: ctype.NewID((*task.ImageID).Uint64()), URL: task.ImageURL}
 			return result, nil
 		}
-		if image, err := s.repo.FindByID(ctx, domain.ImageID(*task.ImageID)); err == nil {
+		if image, err := s.repo.FindByID(ctx, ctype.NewID((*task.ImageID).Uint64())); err == nil {
 			result.Image = &image
 		}
 	}
@@ -230,7 +231,7 @@ func (s *Service) confirm(ctx context.Context, taskID uint64, meta *uploadedMeta
 		}
 	}
 	if task.Status == domain.TaskReady && task.ImageID != nil {
-		image, err := s.repo.FindByID(ctx, domain.ImageID(*task.ImageID))
+		image, err := s.repo.FindByID(ctx, ctype.NewID((*task.ImageID).Uint64()))
 		if err != nil {
 			return nil, err
 		}
@@ -360,7 +361,7 @@ func (s *Service) persist(ctx context.Context, task *domain.Task, verified *veri
 	task.Height = verified.Height
 	task.Hash = verified.Hash
 	task.ConfirmedAt = &now
-	imageID := image.ID.Uint64()
+	imageID := image.ID
 	task.ImageID = &imageID
 	task.ImageURL = image.URL
 

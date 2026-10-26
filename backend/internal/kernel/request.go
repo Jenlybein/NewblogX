@@ -4,17 +4,21 @@
 // 的判断，它就属于某个模块，不该放在这里。
 package kernel
 
+import (
+	"myblogx/internal/kernel/ctype"
+)
+
 // IDRequest 是"路径里带一个 ID"的通用绑定结构。
 //
 // 从 models 搬过来（S4.1）。它不含任何用户/文章语义，纯粹是 HTTP 绑定的形状，
 // 所以适合放 kernel：否则每个模块都要复制一份完全相同的结构体。
 type IDRequest struct {
-	ID uint64 `json:"id" form:"id" uri:"id" binding:"required"`
+	ID ctype.ID `json:"id" form:"id" uri:"id" binding:"required"`
 }
 
 // IDListRequest 是"请求体里带一批 ID"的通用绑定结构。
 type IDListRequest struct {
-	IDList []uint64 `json:"id_list" binding:"required"`
+	IDList []ctype.ID `json:"id_list" binding:"required"`
 }
 
 // PagedRequest 是通用分页参数。

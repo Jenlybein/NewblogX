@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/gorilla/websocket"
+	"myblogx/internal/kernel/ctype"
 )
 
 const (
@@ -42,14 +43,14 @@ func Upgrade(w http.ResponseWriter, r *http.Request, checkOrigin func(*http.Requ
 // 写锁和连接绑定：心跳与业务推送可能并发写同一条连接，gorilla 不允许并发写。
 type Conn struct {
 	raw         *websocket.Conn
-	UserID      uint64
+	UserID      ctype.ID
 	ConnectedAt time.Time
 	writeMu     sync.Mutex
 }
 
 // NewConn 包装一条已升级的连接。
 func NewConn(userID uint64, raw *websocket.Conn) *Conn {
-	return &Conn{raw: raw, UserID: userID, ConnectedAt: time.Now()}
+	return &Conn{raw: raw, UserID: ctype.NewID(userID), ConnectedAt: time.Now()}
 }
 
 // SetReadLimit 设置单帧大小上限。
@@ -131,10 +132,10 @@ func NewHub() *Hub {
 func (h *Hub) Register(conn *Conn) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
-	set, ok := h.users[conn.UserID]
+	set, ok := h.users[conn.UserID.Uint64()]
 	if !ok {
 		set = make(map[*Conn]struct{})
-		h.users[conn.UserID] = set
+		h.users[conn.UserID.Uint64()] = set
 	}
 	set[conn] = struct{}{}
 }
@@ -143,13 +144,13 @@ func (h *Hub) Register(conn *Conn) {
 func (h *Hub) Unregister(conn *Conn) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
-	set, ok := h.users[conn.UserID]
+	set, ok := h.users[conn.UserID.Uint64()]
 	if !ok {
 		return
 	}
 	delete(set, conn)
 	if len(set) == 0 {
-		delete(h.users, conn.UserID)
+		delete(h.users, conn.UserID.Uint64())
 	}
 }
 

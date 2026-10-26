@@ -6,6 +6,7 @@ import (
 
 	"myblogx/internal/article/app"
 	"myblogx/internal/article/domain"
+	"myblogx/internal/kernel/ctype"
 )
 
 // Counters 是 app.CounterPort 的内存实现。
@@ -74,7 +75,7 @@ type Comments struct {
 	byArticle map[domain.ArticleID][]uint64
 	fault     fault
 	count     counter
-	nextID    uint64
+	nextID    ctype.ID
 }
 
 // NewComments 构造空的评论 fake。
@@ -87,8 +88,8 @@ func (c *Comments) Seed(articleID domain.ArticleID, n int) *Comments {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	for i := 0; i < n; i++ {
-		c.nextID++
-		c.byArticle[articleID] = append(c.byArticle[articleID], c.nextID)
+		c.nextID = ctype.NewID(c.nextID.Uint64() + 1)
+		c.byArticle[articleID] = append(c.byArticle[articleID], c.nextID.Uint64())
 	}
 	return c
 }

@@ -6,6 +6,7 @@ import (
 
 	articlemysql "myblogx/internal/article/adapter/mysql"
 	commentmysql "myblogx/internal/comment/adapter/mysql"
+	"myblogx/internal/kernel/ctype"
 	"myblogx/internal/platform/log/writer"
 	"myblogx/internal/platform/redis/redis_article"
 	"myblogx/internal/platform/redis/redis_comment"
@@ -172,7 +173,7 @@ func WireCron(infra *Infra) error {
 					SyncKey:   m.syncKey,
 					IDName:    "comment_id",
 					ApplyDelta: func(id uint64, delta int) error {
-						hit, err := commentmysql.FlushCommentCount(db, m.col, id, delta)
+						hit, err := commentmysql.FlushCommentCount(db, m.col, ctype.NewID(id), delta)
 						if err != nil {
 							return err
 						}

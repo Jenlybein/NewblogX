@@ -2,6 +2,7 @@ package taxonomy_test
 
 import (
 	"errors"
+	"myblogx/internal/kernel/ctype"
 	"testing"
 
 	"myblogx/internal/article/domain"
@@ -11,11 +12,11 @@ import (
 func TestNewCategoryRequiresTitle(t *testing.T) {
 	t.Parallel()
 
-	if _, err := taxonomy.NewCategory(1, domain.UserID(1), "   "); !errors.Is(err, taxonomy.ErrTitleRequired) {
+	if _, err := taxonomy.NewCategory(ctype.NewID(1), domain.UserID(ctype.NewID(1)), "   "); !errors.Is(err, taxonomy.ErrTitleRequired) {
 		t.Fatalf("空标题应报 ErrTitleRequired，实际 %v", err)
 	}
 
-	c, err := taxonomy.NewCategory(1, domain.UserID(1), "  技术  ")
+	c, err := taxonomy.NewCategory(ctype.NewID(1), domain.UserID(ctype.NewID(1)), "  技术  ")
 	if err != nil {
 		t.Fatalf("不应报错: %v", err)
 	}
@@ -33,9 +34,9 @@ func TestNewCategoryRequiresTitle(t *testing.T) {
 func TestFilterUsable(t *testing.T) {
 	t.Parallel()
 
-	ok1, _ := taxonomy.NewTag(1, "Go", 1)
-	ok2, _ := taxonomy.NewTag(2, "Vue", 1)
-	disabled, _ := taxonomy.NewTag(3, "废弃", 1)
+	ok1, _ := taxonomy.NewTag(ctype.NewID(1), "Go", ctype.NewID(1))
+	ok2, _ := taxonomy.NewTag(ctype.NewID(2), "Vue", ctype.NewID(1))
+	disabled, _ := taxonomy.NewTag(ctype.NewID(3), "废弃", ctype.NewID(1))
 	disabled.Disable()
 
 	got, err := taxonomy.FilterUsable([]*taxonomy.Tag{ok1, ok2})
@@ -54,7 +55,7 @@ func TestFilterUsable(t *testing.T) {
 func TestTagToggle(t *testing.T) {
 	t.Parallel()
 
-	tag, _ := taxonomy.NewTag(1, "Go", 1)
+	tag, _ := taxonomy.NewTag(ctype.NewID(1), "Go", ctype.NewID(1))
 	if !tag.Usable() {
 		t.Fatal("新建标签默认可用")
 	}

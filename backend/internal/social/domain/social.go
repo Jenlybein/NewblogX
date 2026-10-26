@@ -1,7 +1,10 @@
 // Package domain 是社交（关注关系）模块的领域层。
 package domain
 
-import "time"
+import (
+	"myblogx/internal/kernel/ctype"
+	"time"
+)
 
 // Relation 是两人之间的关系。
 type Relation int8
@@ -23,11 +26,11 @@ func (r Relation) Int8() int8 { return int8(r) }
 // Follow 是一条关注记录（含双方展示快照）。
 type Follow struct {
 	CreatedAt        time.Time
-	FollowedUserID   uint64
+	FollowedUserID   ctype.ID
 	FollowedNickname string
 	FollowedAvatar   string
 	FollowedAbstract string
-	FansUserID       uint64
+	FansUserID       ctype.ID
 	FansNickname     string
 	FansAvatar       string
 	FansAbstract     string
@@ -35,7 +38,7 @@ type Follow struct {
 
 // FollowingItem 是关注列表的一行（字段名与旧契约一致）。
 type FollowingItem struct {
-	FollowedUserID   uint64    `json:"followed_user_id"`
+	FollowedUserID   ctype.ID  `json:"followed_user_id"`
 	FollowedNickname string    `json:"followed_nickname"`
 	FollowedAvatar   string    `json:"followed_avatar"`
 	FollowedAbstract string    `json:"followed_abstract"`
@@ -45,7 +48,7 @@ type FollowingItem struct {
 
 // FansItem 是粉丝列表的一行。
 type FansItem struct {
-	FansUserID   uint64    `json:"fans_user_id"`
+	FansUserID   ctype.ID  `json:"fans_user_id"`
 	FansNickname string    `json:"fans_nickname"`
 	FansAvatar   string    `json:"fans_avatar"`
 	FansAbstract string    `json:"fans_abstract"`

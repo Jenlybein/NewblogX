@@ -42,7 +42,7 @@ func NormalizeIDs(ids []ctype.ID) []ctype.ID {
 	seen := make(map[ctype.ID]struct{}, len(ids))
 	result := make([]ctype.ID, 0, len(ids))
 	for _, id := range ids {
-		if id == 0 {
+		if id.IsZero() {
 			continue
 		}
 		if _, ok := seen[id]; ok {

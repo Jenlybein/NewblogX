@@ -5,7 +5,7 @@
 package domain
 
 import (
-	"strconv"
+	"myblogx/internal/kernel/ctype"
 	"strings"
 	"time"
 )
@@ -14,16 +14,7 @@ import (
 //
 // 独立类型而不是裸 uint64：把 UserID 传到需要 ArticleID 的位置会编译期报错。
 // 与 models/ctype.ID 的转换只在 adapter 层做。
-type UserID uint64
-
-// IsZero 判断 ID 是否为空。
-func (id UserID) IsZero() bool { return id == 0 }
-
-// Uint64 返回底层值，供 adapter 写库使用。
-func (id UserID) Uint64() uint64 { return uint64(id) }
-
-// String 便于日志与错误信息输出。
-func (id UserID) String() string { return strconv.FormatUint(uint64(id), 10) }
+type UserID = ctype.ID
 
 // Status 是账号状态。
 type Status int8
@@ -147,12 +138,12 @@ func (u User) IsZero() bool { return u.ID.IsZero() }
 // Settings 是用户偏好设置（对应 user_conf 表）。
 type Settings struct {
 	UserID                   UserID
-	LikeTagIDs               []uint64
+	LikeTagIDs               []ctype.ID
 	UpdatedUsernameAt        *time.Time
 	FavoritesVisibility      bool
 	FollowVisibility         bool
 	FansVisibility           bool
-	HomeStyleID              uint64
+	HomeStyleID              ctype.ID
 	DiggNoticeEnabled        bool
 	CommentNoticeEnabled     bool
 	FavorNoticeEnabled       bool
@@ -169,7 +160,7 @@ func DefaultSettings(userID UserID) Settings {
 		FavoritesVisibility:      true,
 		FollowVisibility:         true,
 		FansVisibility:           true,
-		HomeStyleID:              1,
+		HomeStyleID:              ctype.NewID(1),
 		DiggNoticeEnabled:        true,
 		CommentNoticeEnabled:     true,
 		FavorNoticeEnabled:       true,

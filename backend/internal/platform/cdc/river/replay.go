@@ -93,13 +93,36 @@ func (r *ESReplayer) Replay(ctx context.Context, record deadletter.Record) error
 }
 
 // esReplayPayload 是 es_river 死信 payload 的形状。
+//
+// Action 是**这条 bulk 请求本身的 ES 动作**（index/create/delete）。
+// 老记录里没有这个字段（当时落死信漏了），那种情况按 Record.Action 兜底，
+// 见 replayAction。
 type esReplayPayload struct {
+	Action   string         `json:"action"`
 	Index    string         `json:"index"`
 	Type     string         `json:"type"`
 	ID       string         `json:"id"`
 	Parent   string         `json:"parent"`
 	Pipeline string         `json:"pipeline"`
 	Data     map[string]any `json:"data"`
+}
+
+// replayAction 决定这条死信要用哪个 ES 动作重投。
+//
+// 优先用 payload 里的动作：一次 update 改文档 ID 会拆成"删旧 + 写新"两条请求，
+// 两者在死信记录里的 canal 动作都是 update，只有 payload 能区分。
+// 老记录没有该字段时退回按 canal 动作推断（delete→删除，其余→索引）。
+func replayAction(payload, recordAction string) string {
+	switch strings.ToLower(strings.TrimSpace(payload)) {
+	case es_service.ActionDelete:
+		return es_service.ActionDelete
+	case es_service.ActionIndex, es_service.ActionCreate, es_service.ActionUpdate:
+		return es_service.ActionIndex
+	}
+	if strings.EqualFold(strings.TrimSpace(recordAction), "delete") {
+		return es_service.ActionDelete
+	}
+	return es_service.ActionIndex
 }
 
 // buildReplayRequest 把死信 payload 还原成一条 ES bulk 请求。
@@ -122,10 +145,7 @@ func buildReplayRequest(record deadletter.Record) (*es_service.BulkRequest, erro
 		return nil, fmt.Errorf("river: 死信 payload 缺少文档 ID，无法重投")
 	}
 
-	action := es_service.ActionIndex
-	if strings.EqualFold(strings.TrimSpace(record.Action), "delete") {
-		action = es_service.ActionDelete
-	}
+	action := replayAction(payload.Action, record.Action)
 	if action != es_service.ActionDelete && len(payload.Data) == 0 {
 		return nil, fmt.Errorf("river: 死信 payload 缺少 data，无法重建文档")
 	}

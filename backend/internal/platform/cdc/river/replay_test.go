@@ -75,3 +75,42 @@ func TestESReplayerStreams(t *testing.T) {
 		t.Fatalf("stream 声明不对: %v", got)
 	}
 }
+
+// 改文档 ID 的 update 会拆成"删旧 + 写新"两条请求，两者的 canal 动作都是 update。
+// 删除那条没有 data —— 必须靠 payload 里的 action 才能正确重投（回归：这条曾经永远失败）。
+func TestBuildReplayRequestUpdateDeleteHalf(t *testing.T) {
+	req, err := buildReplayRequest(deadletter.Record{
+		Action:      "update", // canal 的动作，看不出这条是删除
+		CdcJobID:    "es_river:db.article_models:bin.1:4:0",
+		PayloadJSON: `{"action":"delete","index":"article_index","id":"old-id"}`,
+	})
+	if err != nil {
+		t.Fatalf("删除半条不应因为没有 data 报错: %v", err)
+	}
+	if req.Action != "delete" || req.ID != "old-id" {
+		t.Fatalf("应为 delete old-id，实际 %+v", req)
+	}
+}
+
+// 老记录（payload 里没有 action）仍按 canal 动作兜底，行为与之前一致。
+func TestReplayActionFallsBackToRecordAction(t *testing.T) {
+	cases := []struct{ payload, record, want string }{
+		{"", "delete", "delete"},
+		{"", "insert", "index"},
+		{"index", "delete", "index"},  // payload 优先
+		{"create", "update", "index"}, // create 归一到 index
+		{"weird", "delete", "delete"}, // 认不出的值退回记录动作
+	}
+	for _, c := range cases {
+		req, err := buildReplayRequest(deadletter.Record{
+			Action:      c.record,
+			PayloadJSON: `{"action":"` + c.payload + `","index":"i","id":"1","data":{"a":1}}`,
+		})
+		if err != nil {
+			t.Fatalf("%+v 不应报错: %v", c, err)
+		}
+		if req.Action != c.want {
+			t.Fatalf("%+v: 期望 %s，实际 %s", c, c.want, req.Action)
+		}
+	}
+}

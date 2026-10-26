@@ -2312,3 +2312,19 @@ logs
 
 **为什么这条值得记**：它和"读端活、写端没了""菜单指向空页面"是同一族问题的第三种形态——
 **写入被静默丢弃**。前两种能靠运行/对账发现，这一种连 `git status` 都不提示。
+
+### 七、修完 .gitignore 才暴露的第二层：lint 也在跳过它们
+
+**ESLint v9 默认把 `.gitignore` 当作忽略源**（v8 之前是 `.eslintignore`）。
+所以那两条 `logs` 页面文件：
+
+- 进不了版本库（`git status` 不显示）；
+- **也从来没被 lint 检查过**（`eslint .` 静默跳过它们）。
+
+已验证：把 `logs` 规则改回裸形式后，`eslint .` 只报 3 个无关 warning；
+显式 `eslint app/pages/logs/dead-letter.vue` 才提示
+`File ignored because of a matching ignore pattern`。规则一改回 `/logs`，
+立刻报出一个真实错误（未使用的 import）。
+
+**一条 .gitignore 写错，同时关掉两道门禁**：版本控制不提示、lint 也不提示。
+以后遇到"某个文件改了没反应/没检查"，先确认它没被 git 忽略。

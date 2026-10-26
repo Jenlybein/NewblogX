@@ -42,6 +42,14 @@ func InitInfra(cfg *conf.Config, configFile string, version string) (*Infra, err
 	}
 
 	logger := core.InitLogrus(&cfg.Log, &cfg.System)
+
+	// IP 归属地库。之前这里漏了这一步，而 requestmeta 一直在调 GetAddr，
+	// 于是登录日志和用户列表的 addr 恒为「未知地址」。
+	// 失败只告警不中断：addr 是展示字段，缺库时 GetAddr 自己会降级。
+	if err := core.InitIPDB(); err != nil {
+		logger.Warnf("IP 归属地库加载失败，addr 将显示为「未知地址」: %v", err)
+	}
+
 	redisClient := core.InitRedis(&cfg.Redis, logger)
 	db := core.InitDB(cfg.DB, cfg.GORM, cfg.Log, logger, redisClient)
 	clickHouse := core.InitClickHouse(&cfg.ClickHouse)

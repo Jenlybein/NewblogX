@@ -162,8 +162,9 @@ func TestReplayUnsupportedStream(t *testing.T) {
 	if results[0].Result != dlq.ResultUnsupported {
 		t.Fatalf("期望 unsupported，实际 %+v", results)
 	}
-	if results[0].Message == "" || !strings.Contains(results[0].Message, "重建搜索投影") {
-		t.Fatalf("应给出替代动作，实际 %q", results[0].Message)
+	// 断言里要出现"具体可执行的命令"，而不是一句"请重建投影" —— 后者等于让人回来问代码。
+	if results[0].Message == "" || !strings.Contains(results[0].Message, "-es -s article-sync") {
+		t.Fatalf("应给出可执行的替代动作，实际 %q", results[0].Message)
 	}
 	// 不改库：不支持不是"处理失败"，记录要原样留给人工。
 	got := mustLoad(t, db, id)

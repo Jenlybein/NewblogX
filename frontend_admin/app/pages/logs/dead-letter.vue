@@ -18,7 +18,7 @@ import type { DataTableColumns } from 'naive-ui'
 import { getDeadLetters, replayDeadLetters } from '~/services/admin'
 import type { DeadLetterItem } from '~/types/api'
 import { formatDateTime } from '~/utils/format'
-import { canReplay, deadLetterStatusLabel, replayResultLabel, replayResultTagType, streamLabel } from '~/utils/deadLetters'
+import { canReplay, deadLetterStatusLabel, replayResultLabel, streamLabel } from '~/utils/deadLetters'
 import { hasNextPage } from '~/utils/pagination'
 
 const PAGE_SIZE = 10

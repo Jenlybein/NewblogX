@@ -11,6 +11,7 @@ package http
 // 重投的语义与支持范围见 docs/architecture/adr/ADR-008-死信重投闭环.md。
 
 import (
+	"fmt"
 	"time"
 
 	"myblogx/internal/analytics/domain"
@@ -23,6 +24,9 @@ import (
 	// 供 swag 注解里的 kernel.Envelope 解析用（代码里不直接引用）。
 	_ "myblogx/internal/kernel"
 )
+
+// maxReplayBatch 是单次重投的条数上限。
+const maxReplayBatch = 100
 
 // DeadLetterListRequest 是死信列表的查询参数。
 type DeadLetterListRequest struct {
@@ -134,6 +138,12 @@ func (h *Handler) DeadLetterReplayView(c *gin.Context) {
 	cr := middleware.GetBindJson[DeadLetterReplayRequest](c)
 	if h.replayer == nil {
 		res.FailWithMsg("死信重投未启用（未注册任何重投执行器）", c)
+		return
+	}
+	// 一次一批的硬上限：重投是同步逐个执行的，一批一千条会把 HTTP 请求挂在那儿，
+	// 而且在 ES 抖动时会放大故障。管理端一页 10 条，正常用法远低于这个数。
+	if len(cr.IDList) > maxReplayBatch {
+		res.FailWithMsg(fmt.Sprintf("一次最多重投 %d 条，请分批操作", maxReplayBatch), c)
 		return
 	}
 

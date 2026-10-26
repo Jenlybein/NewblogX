@@ -210,11 +210,10 @@ func (s *Service) unsupportedMessage(stream string) string {
 	}
 	switch strings.TrimSpace(stream) {
 	case "es_projection":
-		return "该流程的死信只记录了表名与动作、没有主键，无法定位到具体行；" +
-			"请按文章重建搜索投影后忽略本条。当前支持重投的流：" + supported
-	case "image_ref_river":
-		return "该流程的死信里是 binlog 原始行数据，JSON 往返后数值类型无法可靠还原；" +
-			"请重新保存对应业务对象触发重建。当前支持重投的流：" + supported
+		return "该流程的死信只记录了表名与动作、没有主键，无法定位到具体行。" +
+			"可靠的补法是用运维命令全量重建文章搜索投影：" +
+			"`./server -es -s article-sync`（索引需已存在，否则先 -es -s init）。" +
+			"当前支持重投的流：" + supported
 	default:
 		return "没有为该 stream 注册重投执行器。当前支持重投的流：" + supported
 	}

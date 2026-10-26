@@ -133,7 +133,15 @@ func (r *River) doBulkWithRetry(tasks []cdcTask) error {
 
 		dlqItems := make([]deadletter.Item, 0, len(failed))
 		for _, task := range failed {
+			// 把**这条 bulk 请求自身的动作**也存下来。
+			//
+			// 为什么 payload 里必须有 action：一次 update 如果改了文档 ID，会被拆成
+			// 「删旧文档（无 data）」+「写新文档（有 data）」两条请求，而它们的
+			// cdcTask.Action 都是 canal 的 "update"。重投时只看 cdcTask.Action 的话，
+			// 那条删除会被当成索引、然后因为缺 data 而永远失败（死信只能一直躺着）。
+			// 以 payload 里的 ES 动作为准，cdcTask.Action 只作旧记录的兜底。
 			payload := map[string]any{
+				"action":   task.Request.Action,
 				"index":    task.Request.Index,
 				"type":     task.Request.Type,
 				"id":       task.Request.ID,

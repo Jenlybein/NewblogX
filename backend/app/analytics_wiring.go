@@ -11,6 +11,7 @@ import (
 	"myblogx/internal/kernel/ctype"
 	"myblogx/internal/platform/cdc/deadletter"
 	"myblogx/internal/platform/cdc/dlq"
+	"myblogx/internal/platform/cdc/imageref"
 	"myblogx/internal/platform/cdc/outboxrelay"
 	"myblogx/internal/platform/cdc/river"
 	"myblogx/internal/platform/http/router"
@@ -55,6 +56,8 @@ func WireAnalytics(infra *Infra) {
 // 两个执行器分别负责一类 stream：
 //   - es_river：用死信里的 ES bulk body 重投（幂等，按文档 ID）
 //   - outbox_relay：把发件箱行退回 pending，交给中继按自己的退避重投
+//   - image_ref_river：只支持删除类（payload 里有 owner_id + ref_type），
+//     新增/更新类的行数据经 JSON 往返后类型不可靠，执行器会明确拒绝
 //
 // 回放日志通过 Emit 接到统一的日志管道（ClickHouse），这样管理端的
 // 「回放日志」页第一次真正有数据，且同一条死信有完整时间线。
@@ -75,6 +78,7 @@ func newDeadLetterReplayer(infra *Infra) *dlq.Service {
 		Replayers: []dlq.Replayer{
 			river.NewESReplayer(infra.ESClient),
 			outboxrelay.NewReplayer(infra.DB),
+			imageref.NewReplayer(infra.DB),
 		},
 	})
 }

@@ -355,22 +355,6 @@ func (r *TopRepo) Delete(ctx context.Context, userID domain.UserID, articleID do
 		Delete(&userTopArticleRow{}).Error
 }
 
-// ListArticleIDs 列出置顶文章。
-func (r *TopRepo) ListArticleIDs(ctx context.Context, userID domain.UserID) ([]domain.ArticleID, error) {
-	var rows []userTopArticleRow
-	if err := r.db.WithContext(ctx).
-		Where("user_id = ?", fromUserID(userID)).
-		Order("created_at desc, id desc").
-		Find(&rows).Error; err != nil {
-		return nil, err
-	}
-	out := make([]domain.ArticleID, 0, len(rows))
-	for _, m := range rows {
-		out = append(out, domain.ArticleID(m.ArticleID))
-	}
-	return out, nil
-}
-
 // ListCards 列出置顶文章的展示卡片。
 //
 // 一次 join 拿全展示字段：置顶表 → 文章表（排除软删）→ 用户（昵称）→ 分类（标题）。

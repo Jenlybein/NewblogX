@@ -42,10 +42,6 @@ func TestArticleCacheCounters(t *testing.T) {
 		t.Fatalf("comment 计数错误: %d", redis_article.GetCacheComment(deps, ctype.NewID(1)))
 	}
 
-	if len(redis_article.GetAllCacheView(deps)) != 1 {
-		t.Fatal("GetAllCacheView 长度异常")
-	}
-
 	if err := redis_article.ClearAllCacheArticle(deps); err != nil {
 		t.Fatalf("ClearAllCacheArticle 失败: %v", err)
 	}

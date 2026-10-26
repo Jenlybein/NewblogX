@@ -59,40 +59,6 @@ func GetBatchCacheDigg(deps redis_service.Options, commentIDs []ctype.ID) map[ct
 	return getBatch(deps, DiggCountCacheKey, commentIDs)
 }
 
-func GetBatchCounters(deps redis_service.Options, commentIDs []ctype.ID) BatchCounters {
-	counters := BatchCounters{
-		ReplyMap: make(map[ctype.ID]int),
-		DiggMap:  make(map[ctype.ID]int),
-	}
-	if deps.Client == nil || len(commentIDs) == 0 {
-		return counters
-	}
-
-	fields := make([]string, 0, len(commentIDs))
-	for _, commentID := range commentIDs {
-		fields = append(fields, commentID.String())
-	}
-
-	ctx := context.Background()
-	pipe := deps.Client.Pipeline()
-	defer pipe.Close()
-
-	replyCmd := pipe.HMGet(ctx, ReplyCountCacheKey, fields...)
-	diggCmd := pipe.HMGet(ctx, DiggCountCacheKey, fields...)
-
-	if _, err := pipe.Exec(ctx); err != nil {
-		return counters
-	}
-
-	if values, err := replyCmd.Result(); err == nil {
-		counters.ReplyMap = decodeBatchValues(commentIDs, values)
-	}
-	if values, err := diggCmd.Result(); err == nil {
-		counters.DiggMap = decodeBatchValues(commentIDs, values)
-	}
-	return counters
-}
-
 func GetAllCacheDigg(deps redis_service.Options) map[ctype.ID]int {
 	return getAll(deps, DiggCountCacheKey)
 }

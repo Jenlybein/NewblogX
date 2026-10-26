@@ -21,14 +21,22 @@ import (
 // Handler 聚合站点与轮播图的所有 HTTP 入口。
 type Handler struct {
 	svc *app.Service
+
+	// onPublicSiteView 在公开配置（`GET /site/site`）被读取时调用一次，
+	// 用来累计站点访问量（Redis 里的 total + 按天 hash）。
+	//
+	// 为什么放在 HTTP 层而不是用例层：这是"一次页面加载算一次访问"的埋点口径，
+	// 属于接入层的事；用例层不需要知道流量是怎么计的。
+	// 为 nil 时跳过（单测/路由表测试不关心计数）。
+	onPublicSiteView func()
 }
 
-// NewHandler 构造处理器。
-func NewHandler(svc *app.Service) *Handler {
+// NewHandler 构造处理器。onPublicSiteView 可为 nil。
+func NewHandler(svc *app.Service, onPublicSiteView func()) *Handler {
 	if svc == nil {
 		panic("site/http: 用例服务未注入")
 	}
-	return &Handler{svc: svc}
+	return &Handler{svc: svc, onPublicSiteView: onPublicSiteView}
 }
 
 // fail 交给统一响应层：apperr 自带中文文案。
@@ -100,6 +108,11 @@ func (h *Handler) PublicInfo(c *gin.Context) {
 	}
 	switch cr.Name {
 	case "site":
+		// 访问量埋点。迁移到 internal/site 时漏了这一行，导致站点访问量恒为 0，
+		// 而管理端首页（/data/sum 的 flow）一直在读它。
+		if h.onPublicSiteView != nil {
+			h.onPublicSiteView()
+		}
 		res.OkWithData(h.svc.PublicSite(), c)
 	case "seo":
 		seo := h.svc.PublicSEO()

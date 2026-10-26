@@ -21,22 +21,9 @@ type IDListRequest struct {
 	IDList []ctype.ID `json:"id_list" binding:"required"`
 }
 
-// PagedRequest 是通用分页参数。
-type PagedRequest struct {
-	Page int `json:"page" form:"page"`
-	Size int `json:"size" form:"size"`
-}
-
-// Normalize 把分页参数收敛到安全范围（与 domain.Query.Normalize 保持一致的口径）。
-func (p PagedRequest) Normalize() PagedRequest {
-	if p.Page <= 0 {
-		p.Page = 1
-	}
-	if p.Size <= 0 {
-		p.Size = 20
-	}
-	if p.Size > 100 {
-		p.Size = 100
-	}
-	return p
-}
+// 关于分页参数：没有 `PagedRequest` 这个通用结构了。
+//
+// 它曾经存在（Page/Size 两个字段 + 一个 Normalize 方法），但代码里零引用：
+// 各模块的分页请求结构都带自己的过滤字段（关键字、状态、类型……），
+// 嵌一个通用体反而要多写一层映射。
+// 分页收敛口径**只有一处**：各模块 `domain.Query.Normalize`。

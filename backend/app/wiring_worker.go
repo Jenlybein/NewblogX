@@ -70,12 +70,12 @@ func WireImageRef(infra *Infra) error {
 // 调度器已经分到各自的包里，装配层只负责把"哪个 key 刷到哪张表"接起来）。
 
 // WireWorker 组装并启动所有后台 worker（river + image-ref + cron）。
-func WireWorker(infra *Infra) error {
+func WireWorker(infra *Infra, lifecycle *Lifecycle) error {
 	if err := WireRiver(infra); err != nil {
 		return err
 	}
 	if err := WireImageRef(infra); err != nil {
 		return err
 	}
-	return WireCron(infra)
+	return WireCron(infra, lifecycle)
 }

@@ -26,24 +26,6 @@ var articleSearchAnswerPrompt = `
 搜索结果(JSON)：%s
 `
 
-func AnalyzeArticleSearch(aiConf conf.AI, question string, list []searchdomain.Item) (string, error) {
-	msgList, err := buildArticleSearchAnalyzeMessages(question, list)
-	if err != nil {
-		return "", err
-	}
-
-	reply, err := ai.Chat(aiConf, msgList)
-	if err != nil {
-		return "", fmt.Errorf("文章搜索结果分析失败: %w", err)
-	}
-
-	reply = strings.TrimSpace(reply)
-	if reply == "" {
-		return "", apperr.New(apperr.CodeAIResultEmpty)
-	}
-	return reply, nil
-}
-
 func AnalyzeArticleSearchStream(aiConf conf.AI, question string, list []searchdomain.Item) (chan string, chan error, error) {
 	msgList, err := buildArticleSearchAnalyzeMessages(question, list)
 	if err != nil {

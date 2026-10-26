@@ -9,8 +9,11 @@ import type {
   GlobalNotifListItem,
   GrowthDataResponseData,
   HasMoreList,
-  ImageListItem,
-  LogListData,
+  DeadLetterListData,
+  DeadLetterReplayResult,
+  ImageListResponseData,
+  ListData,
+  ReplayLogRecord,
   LoginEventRecord,
   RuntimeLogRecord,
   SiteRuntimeConfig,
@@ -120,7 +123,7 @@ export function deleteBanners(id_list: string[]) {
 }
 
 export function getImages(query: { page?: number; limit?: number }) {
-  return api().request<{ list?: ImageListItem[]; count?: number; has_more?: boolean }>('/images', { query })
+  return api().request<ImageListResponseData>('/images', { query })
 }
 
 export function deleteImages(id_list: string[]) {
@@ -148,10 +151,39 @@ export function deleteGlobalNotifications(id_list: string[]) {
 
 export type LogKind = 'runtime' | 'action' | 'login' | 'cdc'
 
-export function getLogs(kind: 'runtime', query: Record<string, unknown>): Promise<LogListData<RuntimeLogRecord>>
-export function getLogs(kind: 'action', query: Record<string, unknown>): Promise<LogListData<ActionAuditRecord>>
-export function getLogs(kind: 'login', query: Record<string, unknown>): Promise<LogListData<LoginEventRecord>>
-export function getLogs(kind: 'cdc', query: Record<string, unknown>): Promise<LogListData<CdcEventRecord>>
+export function getLogs(kind: 'runtime', query: Record<string, unknown>): Promise<ListData<RuntimeLogRecord>>
+export function getLogs(kind: 'action', query: Record<string, unknown>): Promise<ListData<ActionAuditRecord>>
+export function getLogs(kind: 'login', query: Record<string, unknown>): Promise<ListData<LoginEventRecord>>
+export function getLogs(kind: 'cdc', query: Record<string, unknown>): Promise<ListData<CdcEventRecord>>
 export function getLogs(kind: LogKind, query: Record<string, unknown>) {
   return api().request(`/logs/${kind}`, { query })
+}
+
+// ── 死信（DLQ）与回放日志 ─────────────────────────────────────
+
+export function getDeadLetters(query: {
+  page?: number
+  limit?: number
+  stream?: string
+  status?: string
+  cdc_job_id?: string
+}) {
+  return api().request<DeadLetterListData>('/logs/dead-letter', { query })
+}
+
+/**
+ * 重投若干条死信。
+ *
+ * 逐条返回结果（success / failed / skipped / unsupported），一条失败不影响同批其他记录。
+ */
+export function replayDeadLetters(idList: string[]) {
+  return api().request<ListData<DeadLetterReplayResult>, { id_list: string[] }>('/logs/dead-letter/replay', {
+    method: 'POST',
+    body: { id_list: idList },
+  })
+}
+
+/** 回放日志：每次重投尝试的时间线（含跳过与不支持）。 */
+export function getReplayLogs(query: { page?: number; limit?: number; stream?: string; result?: string }) {
+  return api().request<ListData<ReplayLogRecord>>('/logs/replay', { query })
 }

@@ -2175,3 +2175,140 @@ DTO 层 JSON 形态前后一样——变的只是"Go 类型"与"JSON 形态"是�
 - 验证口径必须与门禁一致：本地至少要把 `-tags integration` 带上
 - 收集全量错误的最快方式：`go test -tags integration -run='^$' -gcflags=-e ./...`
   （不跑用例只编译，`-e` 不让编译器截断）。`go vet` 每包只报前几条，收敛极慢
+
+---
+
+## 45. 第三轮复查：契约说真话的最后一块（2026-10-26 晚）
+
+12 号文档交付后又跑了一轮工具，找到 4 类遗漏。完整记录在 [12 §7](./12-重构收尾审查.md)，
+这里只留会影响后续判断的事实与口径。
+
+### 一、`deadcode` 从 88 → 36，但重点不是条数
+
+54 条生产条目里，**最危险的一条是"整套 handler 没人调"**：
+`user/adapter/http/handler.go` + `dto.go`（389 行）的 6 个方法零调用，
+而它们带着 swag 注解 → 契约里凭空多了 6 个运行时 404 的 operation。
+其余 50 多条是零散 helper（`res.Ok`、`redis_article` 批量缓存读、`PagedRequest.Normalize` 之类）。
+**只数条数会漏掉前者**，所以本轮是按文件读过去、逐条判断"删 / 接线 / 待决策"。
+
+判断口径（本轮实际用的）：
+
+| 情况 | 处理 |
+| --- | --- |
+| 重复实现（另有一份活着的同类逻辑） | 删。如 `kernel.PagedRequest.Normalize`（`domain.Query.Normalize` 才是唯一口径）、`enum.ImageStatusMapString`（域里已有 `StatusFromSuggestion`） |
+| 被新版本取代（旧的非流式 / 旧签名） | 删。如 `AnalyzeArticleSearch`（活的是 `...Stream`）、`user/mysql.InitDefaults`（活的是 `SettingsRepo.InitDefaults`） |
+| 装机路径漏了一根线 | **接线**。如 `Scheduler.Shutdown`（补 `OnStop`）、`redis_site.SetFlow`（见下） |
+| 功能实现了但从没接进业务流程 | **不擅自删，也不擅自接** → 列为决策项。本轮只剩 `EmitReplayEvent` 一条 |
+
+### 二、`SetFlow` 是"迁移时漏了一行"的典型
+
+`git log -S "redis_site.SetFlow"` 直接定位到 `da64eeb`（S4.7 site 迁移）：老代码在
+`GET /site/site` 里记一次站点访问量，搬迁到 `internal/site` 时这一行没了。
+后果是管理端首页的访问量恒为 0——而**读端一直在读**，所以它不报错、不 panic，
+只是永远是 0。这类缺陷的特征：**读端活着、写端消失**，工具全绿。
+
+已在 `Handler.PublicInfo` 的 `case "site"` 恢复，用注入的 `onPublicSiteView func()`
+（HTTP 层负责埋点口径，用例层不需要知道流量怎么算），并补 `TestPublicSiteRecordsVisit`。
+
+### 三、契约门禁现在是"两层"
+
+```
+Go 注解 ──make openapi──→ docs/swagger.json ──pnpm openapi:types──→ app/types/openapi.d.ts
+              ↑ CI contract job 校验                          ↑ 本轮新增 contract-types job 校验
+```
+
+只校验第一层时，"改了注解 → 生成契约 → 忘了重生成 d.ts"会全绿通过。
+两处比对都是**重新生成到临时文件再 diff**，不绑工作区是否干净——
+否则改完还没提交时会一直红，人就会习惯性忽略这一项。
+
+### 四、新增的第三条门禁：注解 ↔ 路由表
+
+```go
+// backend/internal/platform/http/router/contract_routes_test.go
+engine := router.NewEngine(mw.RuntimeOptions{})   // 与生产同一个挂载函数
+// 方向一（严格）：契约里每个 operation 必须真注册 → 不满足就是"契约在说谎"
+// 方向二（棘轮）：注册了但没进契约的，必须登记在 allowNotInContract 并写理由
+```
+
+为此把 `router.Run` 拆成 `NewEngine`（只建树）+ `Run`（监听）。
+**不能让测试自己再抄一遍挂载顺序**——那样新增 Router 时测试不会跟上，
+于是"少挂的那部分没人对账"，测试变成假绿。
+
+这条测试上线时确实是红的，报的正是那 6 个幽灵端点；先红后修，才证明它有效。
+
+### 五、口径修正：仓库里没有 e2e
+
+`frontend_admin/vitest.config.ts` 曾用"读者站那边这类展示组件也是靠 e2e 覆盖的"
+来解释"admin 只覆盖 `app/utils`"。实测：无 playwright/cypress 依赖、CI 也没有 e2e job。
+已把注释改成事实——**页面层的自动化保障目前是 0，回归靠手测**。
+要补 e2e 是独立的一件事（还需要先有稳定的种子数据与登录态），不在重构范围内。
+
+---
+
+## 46. 死信重投落地（2026-10-26 深夜，ADR-008）
+
+### 一、零 DDL 怎么做到"有状态机"
+
+`cdc_dead_letter` 表早就有一列 `status`（值 `pending`），只是从来没人改过。
+所以这轮没有加列、没有改列：
+
+```
+pending ──重投成功──> resolved
+pending ──重投失败──> pending（retry_count+1、error_code/error_msg 覆盖为本次）
+```
+
+`retry_count` / `error_code` / `error_msg` / `updated_at` 也都是现成的列。
+**"零 DDL"不是限制，它逼出了更简单的设计**：没有多余状态、没有迁移、回滚只要 revert 代码。
+
+### 二、为什么没有 `replaying` 中间态
+
+一开始想加（"正在重投"），写完执行器后发现不需要：
+
+- 两个执行器都幂等：ES 按文档 ID index/delete；outbox 重置是纯状态写；
+- 重投是**人工点按钮**，不是高频接口，两个管理员同时点同一条最多重投两次，无害；
+- 引入中间态就要写"进程崩溃后残留 replaying 怎么恢复"，那是一整块新的复杂度。
+
+**用幂等执行器换掉分布式互斥**，这是本轮最省事也最稳的一个决定。
+代价：`Resolved` 之后重复点会 `skipped`，所以页面把已解决行的复选框禁用掉。
+
+### 三、`ErrSkipped` 为什么放在 `deadletter` 而不是 `dlq`
+
+执行器（river / outboxrelay）要返回"这条不用重投"，编排层（dlq）要识别它。
+如果哨兵错误定义在 `dlq`，就变成"适配器反过来 import 编排层"——依赖方向倒了。
+放到两者共同依赖的 `deadletter` 最自然。
+
+### 四、重投日志为什么用注入的 `Emit` 而不是直接调 writer
+
+`dlq.Service` 的 Options 里是 `Emit func(writer.ReplayEventInput)`，装配层传
+`writer.EmitReplayEvent(logOptions, input)`。两个理由：
+
+1. 单测不该往磁盘/ClickHouse 写日志（否则跑测试会生成日志文件，还会污染覆盖率）；
+2. "日志去哪"是装配层的事，编排层不该知道 ClickHouse 存不存在。
+
+### 五、`/logs` 页面从来没存在过
+
+侧边栏第 9 项「日志中心 → /logs」指向的页面文件**一直不存在**，点进去 404。
+本轮把它建起来（五类日志共用一个表，按 kind 换列），并把「同步死信」独立成
+`/logs/dead-letter` —— 因为它有写操作（勾选重投），交互和只读列表不是一回事。
+
+**待办（本轮没做）**：加一条门禁校验"菜单里的每个 path 都有对应页面文件"。
+这类"入口存在、目标不存在"的问题没有任何检查会报错，和"读端活、写端没了"同源。
+
+### 六、一个更阴的坑：`.gitignore` 里的裸 `logs`
+
+`frontend_admin/.gitignore` 与 `frontend/.gitignore` 里都写着：
+
+```gitignore
+# Logs
+logs
+```
+
+裸 `logs` 匹配**任意层级**的同名目录，于是 `app/pages/logs/` 被静默忽略：
+本地能跑、`git status` 什么都不显示，**CI/别人 clone 上就是 404**。
+页面文件根本没进版本库，谁也不会发现。
+
+已改成 `/logs`（只忽略项目根目录的运行时日志目录），并写了注释说明原因。
+两个前端都改了——读者站现在没有 `logs/` 目录，但下次有人建就是同一个坑。
+
+**为什么这条值得记**：它和"读端活、写端没了""菜单指向空页面"是同一族问题的第三种形态——
+**写入被静默丢弃**。前两种能靠运行/对账发现，这一种连 `git status` 都不提示。

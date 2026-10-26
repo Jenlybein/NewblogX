@@ -12,6 +12,7 @@ type Handler struct {
 	stats       domain.StatsRepository
 	flow        domain.FlowCounter
 	deadLetters domain.DeadLetterReader
+	replayer    domain.DeadLetterReplayer
 }
 
 // NewHandler 构造处理器。
@@ -20,9 +21,10 @@ func NewHandler(
 	stats domain.StatsRepository,
 	flow domain.FlowCounter,
 	deadLetters domain.DeadLetterReader,
+	replayer domain.DeadLetterReplayer,
 ) *Handler {
 	if stats == nil {
 		panic("analytics/http: 统计仓储未注入")
 	}
-	return &Handler{logs: logs, stats: stats, flow: flow, deadLetters: deadLetters}
+	return &Handler{logs: logs, stats: stats, flow: flow, deadLetters: deadLetters, replayer: replayer}
 }

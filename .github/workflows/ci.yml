@@ -226,6 +226,55 @@ jobs:
 
       - run: pnpm typecheck
 
+  # ── 契约 → 前端派生类型：必须重新生成过 ──────────────────────────
+  # 上一个 job 保证 swagger.json 与 Go 注解一致；这个 job 保证两个 app 的
+  # app/types/openapi.d.ts 是从这份 swagger.json 生成的。
+  #
+  # 为什么需要两个 job：只校验 swagger.json 时，改了注解 → 生成契约 → 忘了
+  # `pnpm openapi:types`，门禁全绿而前端仍照着旧类型编译。
+  # 那正是"契约过期"的失效模式，只是下移了一层（从 .go 移到 .d.ts）。
+  contract-types:
+    name: ${{ matrix.app }} (contract types up-to-date)
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        app: [frontend, frontend_admin]
+    defaults:
+      run:
+        working-directory: ${{ matrix.app }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+          cache-dependency-path: ${{ matrix.app }}/pnpm-lock.yaml
+
+      - run: pnpm install --frozen-lockfile
+
+      # 重新生成到临时文件再比对（不是在原地生成后 git diff）：
+      # 后者把结论绑在工作区状态上，且会改动被检查的文件。
+      - name: 重新生成契约类型到临时文件
+        run: pnpm exec openapi-typescript ../backend/docs/swagger.json -o /tmp/openapi.d.ts
+
+      - name: 必须与提交内容一致
+        run: |
+          if ! diff -q /tmp/openapi.d.ts app/types/openapi.d.ts; then
+            echo ""
+            echo "✗ app/types/openapi.d.ts 与 backend/docs/swagger.json 不一致。"
+            echo "  请在本地执行 cd ${{ matrix.app }} && pnpm openapi:types 并把产物一起提交。"
+            echo "  否则前端会照着过期契约编译，而门禁却全绿。"
+            echo ""
+            diff -u app/types/openapi.d.ts /tmp/openapi.d.ts | head -40
+            exit 1
+          fi
+
   # ── 前端单测 ──────────────────────────────────────────────────────
   frontend-test:
     name: ${{ matrix.app }} (test)

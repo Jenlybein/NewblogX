@@ -31,15 +31,6 @@ type WriterSink struct {
 	closed bool
 }
 
-// NewWriterSink 包装一个 io.Writer（例如 bytes.Buffer、os.File）。
-func NewWriterSink(w io.Writer) *WriterSink {
-	s := &WriterSink{w: w}
-	if c, ok := w.(io.Closer); ok {
-		s.closer = c
-	}
-	return s
-}
-
 // NewFileSink 以追加方式打开文件并返回 sink。
 func NewFileSink(path string, perm os.FileMode) (*WriterSink, error) {
 	f, err := os.OpenFile(path, os.O_CREATE|os.O_WRONLY|os.O_APPEND, perm)

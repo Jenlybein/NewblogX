@@ -29,8 +29,9 @@ func newDataHandler(t *testing.T) *Handler {
 	return NewHandler(
 		clickhouse.Options{},
 		analyticsmysql.NewStats(db),
-		nil,
-		nil,
+		nil, // flow
+		nil, // deadLetters
+		nil, // replayer
 	)
 }
 

@@ -95,5 +95,5 @@ func (r *repos) AuthorStats() app.AuthorStatsPort {
 func (r *repos) Outbox() app.OutboxPort    { return NewOutboxWriter(r.db) }
 func (r *repos) Counters() app.CounterPort { return r.counter }
 func (r *repos) Comments() app.CommentPort { return &commentPort{db: r.db} }
-func (r *repos) Users() app.UserPort       { return &userPort{db: r.db} }
+func (r *repos) Users() app.UserPort       { return NewUserPort(r.db) }
 func (r *repos) Diggs() app.DiggPort       { return &diggPort{db: r.db} }

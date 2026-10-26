@@ -65,7 +65,12 @@ var ArticleCounterMetrics = []CounterMetric{
 //
 // 之前这些全在 service/cron_service 一个包里，既写 SQL 又管调度，
 // 于是"改一个列名"和"调一次调度间隔"要在同一个文件里动。
-func WireCron(infra *Infra) error {
+//
+// lifecycle 用来登记停机钩子：调度器必须在 DB/Redis 关闭**之前**停下，
+// 否则在途任务的 SQL 会打到已关闭的连接上（日志里出现一堆无意义的报错）。
+// Lifecycle 的 stop hook 是后进先出，而 main 里先注册了基础设施清理，
+// 所以这里注册的会先执行。
+func WireCron(infra *Infra, lifecycle *Lifecycle) error {
 	if err := validateInfra(infra); err != nil {
 		return err
 	}
@@ -191,6 +196,12 @@ func WireCron(infra *Infra) error {
 
 	// ── 每日日志清理 ──
 	registerLogCleanup(infra, sch)
+
+	if lifecycle != nil {
+		lifecycle.OnStop("scheduler", func(context.Context) error {
+			return sch.Shutdown()
+		})
+	}
 
 	sch.Start()
 	return nil

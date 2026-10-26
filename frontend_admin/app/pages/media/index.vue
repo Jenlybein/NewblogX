@@ -5,15 +5,18 @@ import { createBanner, deleteBanners, deleteImages, getBanners, getImages } from
 import { uploadImageByTask } from '~/services/image'
 import type { BannerModel, ImageListItem } from '~/types/api'
 import { formatDateTime } from '~/utils/format'
+import { hasNextPage } from '~/utils/pagination'
 
 const message = useMessage()
 const dialog = useDialog()
 const loadingBanners = ref(false)
 const loadingImages = ref(false)
+const IMAGE_PAGE_SIZE = 10
 const bannerPage = ref(1)
 const imagePage = ref(1)
 const hasMoreBanners = ref(false)
 const hasMoreImages = ref(false)
+const imageTotal = ref(0)
 const banners = ref<BannerModel[]>([])
 const images = ref<ImageListItem[]>([])
 const bannerFileInputRef = ref<HTMLInputElement | null>(null)
@@ -63,11 +66,11 @@ const imageColumns = [
     key: 'url',
     width: 180,
     render: (row: ImageListItem) => {
-      const src = String(row.url || row.path || '')
-      return h('div', { class: 'admin-cover' }, src ? [h('img', { src, alt: String(row.name || row.id || '') })] : [])
+      const src = String(row.url || '')
+      return h('div', { class: 'admin-cover' }, src ? [h('img', { src, alt: String(row.file_name || row.id || '') })] : [])
     },
   },
-  { title: '状态', key: 'status', width: 120, render: (row: ImageListItem) => h(NTag, { size: 'small' }, { default: () => String(row.status || '-') }) },
+  { title: '状态', key: 'status', width: 120, render: (row: ImageListItem) => h(NTag, { size: 'small' }, { default: () => String(row.status ?? '-') }) },
   {
     title: '创建时间',
     key: 'created_at',
@@ -103,9 +106,12 @@ async function refreshBanners() {
 async function refreshImages() {
   loadingImages.value = true
   try {
-    const data = await getImages({ page: imagePage.value, limit: 10 })
+    const data = await getImages({ page: imagePage.value, limit: IMAGE_PAGE_SIZE })
     images.value = data.list || []
-    hasMoreImages.value = Boolean(data.has_more)
+    // `/images` 是 page/count 分页（后端 `res.OkWithList` → `{list, count}`），没有 has_more。
+    // 这里曾经写 `Boolean(data.has_more)`，字段恒为 undefined → 按钮永久禁用、只能看第一页。
+    imageTotal.value = data.count ?? 0
+    hasMoreImages.value = hasNextPage(imagePage.value, IMAGE_PAGE_SIZE, imageTotal.value)
   } catch {
     message.error('图片资源加载失败')
   } finally {

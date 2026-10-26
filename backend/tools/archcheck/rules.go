@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"go/ast"
 	"go/token"
-	"path"
 	"strconv"
 	"strings"
 )
@@ -366,9 +365,6 @@ func hasChinese(s string) bool {
 	}
 	return false
 }
-
-// base 返回路径最后一段（便于测试）。
-func base(p string) string { return path.Base(p) }
 
 // ── R9：日志输入的类型约束（L.9 / L.10 闸门）────────────────────
 //

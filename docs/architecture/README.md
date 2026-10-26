@@ -1,8 +1,9 @@
 # blogx_monorepo 架构评审与重构设计
 
-> 仓库：待重建（旧 `blogx_monorepo` 已废弃，重建为解耦的 `backend` / `frontend` / `frontend_admin` / `deploy`）
+> 仓库：`backend` / `frontend` / `frontend_admin` / `deploy` 四目录解耦（旧 `blogx_monorepo` 已废弃）
 > 规模：约 **76,000 行**（Go 58.5k / Nuxt 20k；prototype 7.3k 在 S0 删除）
-> 文档状态：**提案（Proposed）**，决策已收敛
+> 文档状态：**已交付（M0–M7 全部完成）**。本文件保留为"为什么这么设计"的原始论证；
+> 执行结果与踩坑记录见 [baseline.md](./baseline.md)，最后一次遗漏盘点见 [12](./12-重构收尾审查.md)。
 
 ---
 
@@ -95,6 +96,7 @@
 | [ADR-005](./adr/ADR-005-日志有界异步管道.md) | 日志改为有界异步管道 + 类型化事件 |
 | [ADR-006](./adr/ADR-006-测试体系分层.md) | 测试改为金字塔 + testkit + 有状态 fake |
 | [ADR-007](./adr/ADR-007-ID类型统一为string底层.md) | ID 类型底层改 string（"类型即真相"），契约一次生成就对 |
+| [ADR-008](./adr/ADR-008-死信重投闭环.md) | 死信重投：让"同步失败"有闭环（状态机 / 支持范围 / 幂等边界） |
 
 ---
 

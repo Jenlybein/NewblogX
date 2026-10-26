@@ -22,17 +22,3 @@ func SendConnOkWithMsg(msg string, conn *ws.Conn, wait time.Duration) error {
 	byteData, _ := json.Marshal(resp)
 	return conn.WriteMessageTimeout(websocket.TextMessage, byteData, wait)
 }
-
-// SendConnOkWithData 给单条连接回成功数据。
-func SendConnOkWithData(data any, conn *ws.Conn, wait time.Duration) error {
-	resp := Response{SuccessCode, data, "成功"}
-	byteData, _ := json.Marshal(resp)
-	return conn.WriteMessageTimeout(websocket.TextMessage, byteData, wait)
-}
-
-// SendWsMsg 给某个用户所有在线连接推消息；返回成功条数。
-func SendWsMsg(data any, hub *ws.Hub, receiverID uint64) int {
-	resp := Response{SuccessCode, data, "成功"}
-	byteData, _ := json.Marshal(resp)
-	return hub.Push(receiverID, websocket.TextMessage, byteData)
-}

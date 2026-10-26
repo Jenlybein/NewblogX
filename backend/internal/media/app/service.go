@@ -451,12 +451,6 @@ func (s *Service) VerifyCallback(req *http.Request) (bool, error) {
 	return s.storage.VerifyCallback(req)
 }
 
-// ConfigRegion 返回存储区域（响应展示用）。
-func (s *Service) ConfigRegion() string { return s.cfg.Region }
-
-// ConfigMaxSize 返回单文件大小上限（字节）。
-func (s *Service) ConfigMaxSize() int64 { return s.cfg.MaxSize() }
-
 func buildObjectKey(prefix, hash string, now time.Time) string {
 	prefix = strings.Trim(prefix, "/")
 	if prefix == "" {

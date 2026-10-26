@@ -34,9 +34,9 @@ func TestRegisterAllRoutes(t *testing.T) {
 	api := r.Group("/api")
 	runtimeMw := mw.Runtime{}
 
-	router.SetSiteHandler(sitehttp.NewHandler(sitetest.NewDefaultService()))
+	router.SetSiteHandler(sitehttp.NewHandler(sitetest.NewDefaultService(), nil))
 	router.SiteRouter(api, runtimeMw)
-	router.SetAnalyticsHandler(analyticshttp.NewHandler(analyticsch.Options{}, analyticsmysql.NewStats(testutil.DB()), nil, nil))
+	router.SetAnalyticsHandler(analyticshttp.NewHandler(analyticsch.Options{}, analyticsmysql.NewStats(testutil.DB()), nil, nil, nil))
 	router.LogRouter(api, runtimeMw)
 	router.SetImageHandler(mediahttp.NewHandler(mediaapptest.NewDefaultService()))
 	router.ImageRouter(api, runtimeMw)

@@ -51,8 +51,6 @@ type Repository interface {
 	Save(ctx context.Context, e *Entry) error
 	// Delete 取消置顶；不存在视为成功（幂等）。
 	Delete(ctx context.Context, userID domain.UserID, articleID domain.ArticleID) error
-	// ListArticleIDs 列出某用户置顶的文章，按置顶时间倒序。
-	ListArticleIDs(ctx context.Context, userID domain.UserID) ([]domain.ArticleID, error)
 	// ListCards 列出某用户置顶文章的展示卡片（同为置顶时间倒序）。
 	// 已软删的文章不会出现在结果里。
 	ListCards(ctx context.Context, userID domain.UserID) ([]Card, error)

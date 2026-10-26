@@ -11,7 +11,10 @@ coverage
 node_modules
 
 # Logs
-logs
+# 注意：这里必须写成 `/logs`（只忽略项目根目录下的运行时日志目录）。
+# 写成裸 `logs` 会匹配**任意层级**的同名目录——`app/pages/logs/` 会被静默忽略，
+# 于是"日志中心页面"永远提交不进去（本地能跑、CI 上 404，而且 git status 什么都不显示）。
+/logs
 *.log
 
 # Misc

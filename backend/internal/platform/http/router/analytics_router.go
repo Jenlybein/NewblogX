@@ -58,4 +58,8 @@ func LogRouter(r *gin.RouterGroup, runtimeMw mw.Runtime) {
 	group.GET("replay/:id", mw.BindUri[analyticshttp.IDRequest], app.ReplayEventDetailView)
 
 	group.GET("chain", mw.BindQuery[analyticshttp.ChainQueryRequest], app.ChainQueryView)
+
+	// 死信（DLQ）：看得见 + 补得上。重投是写操作，天然落在这个 admin 分组里。
+	group.GET("dead-letter", mw.BindQuery[analyticshttp.DeadLetterListRequest], app.DeadLetterListView)
+	group.POST("dead-letter/replay", mw.BindJson[analyticshttp.DeadLetterReplayRequest], app.DeadLetterReplayView)
 }

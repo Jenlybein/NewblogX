@@ -2,12 +2,18 @@
 //
 // 只做三件事：绑定参数、调用用例、把结果/错误翻译成响应。
 // 这里不允许出现 SQL（archcheck R1 会拦）。
+//
+// 本包只保留**路由真实注册**的处理器：公开路径（base/detail/info/admin*）在
+// compat.go 里（旧路径、新用例），本文件只放它们共用的装配与助手。
+// 曾经这里还有一整套 Update/UpdateSettings/List/Create/ChangeStatus/PublicProfile，
+// 迁移到 compat 之后没人调用，但 swag 注解仍然生效——契约因此长出了 6 个
+// 运行时 404 的 operation。现在由 router 包的 TestContractMatchesRoutes 兜住这类回潮：
+// 注解 != 路由，就必须红。
 package http
 
 import (
 	"github.com/gin-gonic/gin"
 
-	"myblogx/internal/apperr"
 	"myblogx/internal/platform/http/res"
 	"myblogx/internal/user/app"
 	"myblogx/internal/user/domain"
@@ -66,136 +72,4 @@ func (h *Handler) Detail(c *gin.Context) {
 		return
 	}
 	res.OkWithData(view, c)
-}
-
-// PublicProfile 返回指定用户的公开信息。
-// @Summary 用户公开主页
-// @Tags user
-// @Produce json
-// @Param id path string true "用户 ID"
-// @Success 200 {object} kernel.Envelope[app.PublicProfile]
-// @Router /users/{id} [get]
-func (h *Handler) PublicProfile(c *gin.Context) {
-	uri := mustURI(c)
-	if uri == nil {
-		return
-	}
-	profile, err := h.svc.PublicProfile(c.Request.Context(), uri.ID)
-	if err != nil {
-		fail(c, err)
-		return
-	}
-	res.OkWithData(profile, c)
-}
-
-// Update 更新当前用户资料。
-// @Summary 更新用户资料
-// @Tags user
-// @Accept json
-// @Produce json
-// @Security BearerAuth
-// @Success 200 {object} kernel.Envelope[app.UpdateResult]
-// @Router /users [put]
-func (h *Handler) Update(c *gin.Context) {
-	req, ok := bindJSON[UpdateRequest](c)
-	if !ok {
-		return
-	}
-	res2, err := h.svc.Update(c.Request.Context(), viewer(c), userID(c), req.toDomain())
-	if err != nil {
-		fail(c, err)
-		return
-	}
-	res.OkWithData(res2, c)
-}
-
-// UpdateSettings 更新当前用户偏好设置。
-// @Summary 更新用户偏好
-// @Tags user
-// @Accept json
-// @Produce json
-// @Security BearerAuth
-// @Success 200 {object} kernel.Envelope[string]
-// @Router /users/settings [put]
-func (h *Handler) UpdateSettings(c *gin.Context) {
-	req, ok := bindJSON[SettingsRequest](c)
-	if !ok {
-		return
-	}
-	if err := h.svc.UpdateSettings(c.Request.Context(), viewer(c), userID(c), req.toApp()); err != nil {
-		fail(c, err)
-		return
-	}
-	res.OkWithMsg("更新成功", c)
-}
-
-// List 分页查询用户（管理端）。
-// @Summary 用户列表
-// @Tags user
-// @Produce json
-// @Security BearerAuth
-// @Success 200 {object} kernel.Envelope[kernel.ListData[domain.User]]
-// @Router /users [get]
-func (h *Handler) List(c *gin.Context) {
-	req, ok := bindQuery[ListRequest](c)
-	if !ok {
-		return
-	}
-	page, err := h.svc.List(c.Request.Context(), viewer(c), req.toDomain())
-	if err != nil {
-		fail(c, err)
-		return
-	}
-	res.OkWithList(page.Items, int(page.Total), c)
-}
-
-// Create 创建用户（管理端）。
-// @Summary 创建用户
-// @Tags user
-// @Accept json
-// @Produce json
-// @Security BearerAuth
-// @Success 200 {object} kernel.Envelope[domain.User]
-// @Router /users [post]
-func (h *Handler) Create(c *gin.Context) {
-	req, ok := bindJSON[CreateRequest](c)
-	if !ok {
-		return
-	}
-	u, err := h.svc.Create(c.Request.Context(), viewer(c), req.toApp(c.ClientIP()))
-	if err != nil {
-		fail(c, err)
-		return
-	}
-	res.OkWithData(u, c)
-}
-
-// ChangeStatus 修改账号状态（管理端）。
-// @Summary 修改账号状态
-// @Tags user
-// @Accept json
-// @Produce json
-// @Security BearerAuth
-// @Param id path string true "用户 ID"
-// @Success 200 {object} kernel.Envelope[string]
-// @Router /users/{id}/status [put]
-func (h *Handler) ChangeStatus(c *gin.Context) {
-	uri := mustURI(c)
-	if uri == nil {
-		return
-	}
-	req, ok := bindJSON[StatusRequest](c)
-	if !ok {
-		return
-	}
-	if err := h.svc.ChangeStatus(c.Request.Context(), viewer(c), uri.ID, domain.Status(req.Status)); err != nil {
-		fail(c, err)
-		return
-	}
-	res.OkWithMsg("操作成功", c)
-}
-
-// failInvalid 用于绑定失败：参数错不查库，直接返回。
-func failInvalid(c *gin.Context) {
-	res.FailWithError(apperr.New(apperr.CodeUserUsernameInvalid), c)
 }

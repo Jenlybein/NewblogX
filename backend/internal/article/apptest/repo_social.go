@@ -409,24 +409,6 @@ func (r *TopRepo) Delete(_ context.Context, userID domain.UserID, articleID doma
 	return nil
 }
 
-// ListArticleIDs 列出置顶文章。
-func (r *TopRepo) ListArticleIDs(_ context.Context, userID domain.UserID) ([]domain.ArticleID, error) {
-	r.count.inc("ListArticleIDs")
-	if err := r.fault.take("ListArticleIDs"); err != nil {
-		return nil, err
-	}
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	var out []domain.ArticleID
-	for k := range r.entries {
-		if k.userID == userID {
-			out = append(out, k.articleID)
-		}
-	}
-	sort.Slice(out, func(i, j int) bool { return out[i] < out[j] })
-	return out, nil
-}
-
 // ListCards 列出置顶卡片。
 //
 // 内存实现没有文章表可 join，所以只返回置顶 ID 与 Title 占位——

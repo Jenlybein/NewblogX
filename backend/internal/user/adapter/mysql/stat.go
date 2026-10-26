@@ -129,34 +129,6 @@ func ApplyFollowDelta(tx *gorm.DB, fansUserID, followedUserID uint64, delta int)
 	return nil
 }
 
-// InitDefaults 为新用户建默认的偏好与统计行。
-//
-// OnConflict DoNothing：重复调用（比如注册重试）不应失败，也不该覆盖用户已改的设置。
-func InitDefaults(tx *gorm.DB, userID uint64) error {
-	if tx == nil || userID == 0 {
-		return nil
-	}
-
-	conf := UserConfRow{
-		UserID:                   ctype.NewID(userID),
-		FavoritesVisibility:      true,
-		FollowVisibility:         true,
-		FansVisibility:           true,
-		HomeStyleID:              ctype.NewID(1),
-		DiggNoticeEnabled:        true,
-		CommentNoticeEnabled:     true,
-		FavorNoticeEnabled:       true,
-		PrivateChatNoticeEnabled: true,
-		StrangerChatEnabled:      true,
-	}
-	if err := tx.Clauses(clause.OnConflict{DoNothing: true}).Create(&conf).Error; err != nil {
-		return err
-	}
-
-	stat := UserStatRow{UserID: ctype.NewID(userID)}
-	return tx.Clauses(clause.OnConflict{DoNothing: true}).Create(&stat).Error
-}
-
 // RecordViewDaily 记录一次"某访客浏览某主页"，返回本次是否真正计入。
 //
 // 靠唯一索引去重：插入成功才算 +1，冲突（同一访客当天已看过）返回 false。

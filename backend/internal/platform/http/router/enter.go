@@ -13,16 +13,13 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-// Run 组装路由并启动 HTTP 服务。
+// NewEngine 组装完整路由树，但不监听端口。
 //
-// 返回 *http.Server 供上层注册到 Lifecycle.OnStop，实现优雅停机：
-// 收到退出信号后先 Shutdown（停止接收新请求并等待在途请求结束），
-// 而不是过去直接 r.Run(...) 阻塞、进程被信号硬杀。
-//
-// 监听句柄在返回前同步创建，端口被占用等绑定错误会直接返回 error，
-// 避免"后台 goroutine 启动失败、主流程却挂着等信号"的假活状态。
-func Run(opts middleware.RuntimeOptions) (*http.Server, error) {
-	gin.SetMode(opts.System.GinMode)
+// 为什么要单独抽出来：`contract_routes_test.go` 要拿真实路由表和契约对账。
+// 如果测试里另抄一份挂载顺序，将来在这里加了个 Router 而测试没跟上，
+// 测试就会给出假绿（少挂的那部分没人对账）或假红（对着旧清单比）。
+// 让生产与测试走同一个函数，是这类"清单必须与代码同步"的唯一可靠做法。
+func NewEngine(opts middleware.RuntimeOptions) *gin.Engine {
 	r := gin.New()
 	r.Use(gin.LoggerWithConfig(gin.LoggerConfig{
 		SkipPaths: []string{"/health"},
@@ -52,6 +49,21 @@ func Run(opts middleware.RuntimeOptions) (*http.Server, error) {
 	SearchRouter(nr, mwRuntime)
 	AIRouter(nr, mwRuntime)
 	DataRouter(nr, mwRuntime)
+
+	return r
+}
+
+// Run 组装路由并启动 HTTP 服务。
+//
+// 返回 *http.Server 供上层注册到 Lifecycle.OnStop，实现优雅停机：
+// 收到退出信号后先 Shutdown（停止接收新请求并等待在途请求结束），
+// 而不是过去直接 r.Run(...) 阻塞、进程被信号硬杀。
+//
+// 监听句柄在返回前同步创建，端口被占用等绑定错误会直接返回 error，
+// 避免"后台 goroutine 启动失败、主流程却挂着等信号"的假活状态。
+func Run(opts middleware.RuntimeOptions) (*http.Server, error) {
+	gin.SetMode(opts.System.GinMode)
+	r := NewEngine(opts)
 
 	ln, err := net.Listen("tcp", opts.System.Addr())
 	if err != nil {

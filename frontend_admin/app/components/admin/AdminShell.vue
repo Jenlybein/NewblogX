@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, h } from 'vue'
 import {
+  IconAlertTriangle,
   IconArticle,
   IconBell,
   IconChartBar,
@@ -48,6 +49,7 @@ const navItems: NavItem[] = [
   { label: '媒体运营', path: '/media', icon: IconPhoto },
   { label: '全局通知', path: '/notifications', icon: IconBell },
   { label: '日志中心', path: '/logs', icon: IconDatabase },
+  { label: '同步死信', path: '/logs/dead-letter', icon: IconAlertTriangle },
 ]
 
 const fallbackNav = navItems[0]!

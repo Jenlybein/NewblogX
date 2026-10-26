@@ -76,53 +76,6 @@ func GetCacheComment(deps redis_service.Options, articleID ctype.ID) int {
 	return get(deps, ArticleCacheComment, articleID)
 }
 
-func GetAll(deps redis_service.Options, t ArticleCacheType) map[ctype.ID]int {
-	if deps.Client == nil {
-		return nil
-	}
-	res, err := deps.Client.HGetAll(context.Background(), string(t)).Result()
-	if err != nil {
-		return nil
-	}
-	numMap := make(map[ctype.ID]int)
-	for k, v := range res {
-		ik, err := strconv.Atoi(k)
-		num, err := strconv.Atoi(v)
-		if err != nil {
-			continue
-		}
-		numMap[ctype.NewID(uint64(ik))] = num
-	}
-
-	return numMap
-}
-
-func getBatch(deps redis_service.Options, t ArticleCacheType, articleIDs []ctype.ID) map[ctype.ID]int {
-	result := make(map[ctype.ID]int, len(articleIDs))
-	if deps.Client == nil || len(articleIDs) == 0 {
-		return result
-	}
-
-	values, err := deps.Client.HMGet(context.Background(), string(t), buildBatchFields(articleIDs)...).Result()
-	if err != nil {
-		return result
-	}
-	return decodeBatchValues(articleIDs, values)
-}
-
-func GetBatchCacheView(deps redis_service.Options, articleIDs []ctype.ID) map[ctype.ID]int {
-	return getBatch(deps, ArticleCacheView, articleIDs)
-}
-func GetBatchCacheDigg(deps redis_service.Options, articleIDs []ctype.ID) map[ctype.ID]int {
-	return getBatch(deps, ArticleCacheDigg, articleIDs)
-}
-func GetBatchCacheFavorite(deps redis_service.Options, articleIDs []ctype.ID) map[ctype.ID]int {
-	return getBatch(deps, ArticleCacheFavorite, articleIDs)
-}
-func GetBatchCacheComment(deps redis_service.Options, articleIDs []ctype.ID) map[ctype.ID]int {
-	return getBatch(deps, ArticleCacheComment, articleIDs)
-}
-
 // GetBatchCounters 通过一次 Redis Pipeline 批量读取文章的四类计数增量，
 // 减少搜索列表阶段的 Redis 往返次数。
 func GetBatchCounters(deps redis_service.Options, articleIDs []ctype.ID) BatchCounters {
@@ -187,19 +140,6 @@ func decodeBatchValues(articleIDs []ctype.ID, values []any) map[ctype.ID]int {
 		result[articleIDs[i]] = num
 	}
 	return result
-}
-
-func GetAllCacheView(deps redis_service.Options) map[ctype.ID]int {
-	return GetAll(deps, ArticleCacheView)
-}
-func GetAllCacheDigg(deps redis_service.Options) map[ctype.ID]int {
-	return GetAll(deps, ArticleCacheDigg)
-}
-func GetAllCacheFavorite(deps redis_service.Options) map[ctype.ID]int {
-	return GetAll(deps, ArticleCacheFavorite)
-}
-func GetAllCacheComment(deps redis_service.Options) map[ctype.ID]int {
-	return GetAll(deps, ArticleCacheComment)
 }
 
 func ClearAllCacheArticle(deps redis_service.Options) error {

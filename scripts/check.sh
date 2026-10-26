@@ -258,7 +258,44 @@ if [ "$TARGET" = "all" ] || [ "$TARGET" = "backend" ]; then
   ) || FAILED=1
 fi
 
+# 契约 → 前端派生类型必须同步。
+#
+# CI 的 contract job 只保证 swagger.json 与 Go 注解一致；这一步保证两个 app 的
+# app/types/openapi.d.ts 也确实是从这份 swagger.json 重新生成的。
+#
+# 为什么必须分开做：少了这一步，"改了注解 → 生成契约 → 忘了 pnpm openapi:types"
+# 会全绿通过，而前端仍按旧类型编译。那正是契约门禁要拦的失效模式，只是下移了一层。
+#
+# 实现上**重新生成到临时文件再比对**，而不是生成到原地再 `git diff`：
+# 后者把结论绑在"工作区干净"上，改完还没提交时会一直红，人会习惯性忽略它。
+run_contract_types() {
+  local app="$1"
+  local logf="/tmp/openapi-types-$app.log"
+  local tmpf="/tmp/openapi-types-$app.d.ts"
+  echo ""
+  echo "──── $app: 契约类型未过期 ────"
+  if ! ( cd "$ROOT/$app" && corepack pnpm exec openapi-typescript \
+        ../backend/docs/swagger.json -o "$tmpf" ) >"$logf" 2>&1; then
+    echo "✗ $app: 生成契约类型失败"
+    tail -15 "$logf"
+    FAILED=1
+    return 1
+  fi
+  if ! diff -q "$tmpf" "$ROOT/$app/app/types/openapi.d.ts" >/dev/null 2>&1; then
+    echo "✗ $app: app/types/openapi.d.ts 与 backend/docs/swagger.json 不一致"
+    echo "  差异（重新生成 vs 已提交）如下，确认无误后重新生成并提交："
+    diff -u "$ROOT/$app/app/types/openapi.d.ts" "$tmpf" | head -20 | sed 's/^/  /'
+    FAILED=1
+    return 1
+  fi
+  rm -f "$logf" "$tmpf"
+  echo "✓ $app: 契约类型未过期"
+}
+
 if [ "$TARGET" = "all" ] || [ "$TARGET" = "frontend" ]; then
+  for app in frontend frontend_admin; do
+    run_contract_types "$app"
+  done
   for app in frontend frontend_admin; do
     (
       cd "$app"

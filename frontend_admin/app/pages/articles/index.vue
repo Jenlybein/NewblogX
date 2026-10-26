@@ -43,7 +43,7 @@ const columns = [
     title: '作者',
     key: 'author',
     width: 150,
-    render: (row: SearchArticleItem) => row.author?.nickname || row.author?.username || '-',
+    render: (row: SearchArticleItem) => row.author?.nickname || '-',
   },
   {
     title: '发布态',

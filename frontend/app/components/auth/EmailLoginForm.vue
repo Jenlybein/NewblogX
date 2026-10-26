@@ -59,7 +59,7 @@ async function handleSendCode() {
       email: values.email,
       type: 1,
     });
-    emailId.value = payload.email_id;
+    emailId.value = payload.id;
     startCountdown();
     message.success("验证码已发送");
   } catch (error) {

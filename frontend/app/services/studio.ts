@@ -2,7 +2,6 @@ import type {
   FanUserListData,
   FollowUserListData,
   HistoryArticleListData,
-  LoginLogListData,
   MessagePreference,
   UserSessionListData,
   UserProfileUpdatePayload,
@@ -41,14 +40,6 @@ export function getFanUsers(params: { page?: number; limit?: number }) {
     query: {
       page: params.page ?? 1,
       limit: params.limit ?? 20,
-    },
-  });
-}
-
-export function getLoginLogs(params: { type?: 1 | 2 }) {
-  return useNuxtApp().$api.request<LoginLogListData>("/api/users/login/log", {
-    query: {
-      ...(params.type ? { type: String(params.type) } : {}),
     },
   });
 }

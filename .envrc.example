@@ -129,7 +129,6 @@ export BLOGX_RIVER_SERVER_ID='1001'
 export BLOGX_RIVER_MYSQL_ADDR='127.0.0.1:3306'
 export BLOGX_RIVER_MYSQL_USER='admin'
 export BLOGX_RIVER_MYSQL_PASSWORD='******'
-export BLOGX_RIVER_INDEX='article_index'
 
 # 图片引用关系同步
 export BLOGX_IMAGE_REF_RIVER_ENABLED='true'

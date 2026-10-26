@@ -188,9 +188,6 @@ func TestDocumentAndBulkOps(t *testing.T) {
 	items := []*BulkRequest{
 		{Action: ActionIndex, Index: "idx", ID: "1", Data: map[string]interface{}{"k": "v"}},
 	}
-	if resp := Bulk(esClient, items); !resp.Success {
-		t.Fatalf("Bulk 失败: %+v", resp)
-	}
 	if resp := IndexBulk(esClient, "idx", items); !resp.Success {
 		t.Fatalf("IndexBulk 失败: %+v", resp)
 	}

@@ -3,32 +3,11 @@ package service_test
 import (
 	"myblogx/internal/kernel/ctype"
 	"myblogx/internal/platform/cdc/river"
-	"myblogx/internal/platform/cdc/river/rule"
 	"myblogx/internal/platform/es"
 	"os"
 	"path/filepath"
 	"testing"
 )
-
-func TestRulePrepareAndFilter(t *testing.T) {
-	r := rule.NewDefaultRule("db1", "ArticleTable")
-	if r.Index != "articletable" || r.Type != "articletable" {
-		t.Fatalf("默认规则大小写处理异常: index=%s type=%s", r.Index, r.Type)
-	}
-
-	r.Index = ""
-	r.Type = ""
-	r.Filter = []string{"id", "title"}
-	if err := r.Prepare(); err != nil {
-		t.Fatalf("Prepare 失败: %v", err)
-	}
-	if r.Index != "articletable" || r.Type != "articletable" {
-		t.Fatalf("Prepare 默认值异常: index=%s type=%s", r.Index, r.Type)
-	}
-	if !r.CheckFilter("id") || r.CheckFilter("content") {
-		t.Fatal("CheckFilter 结果异常")
-	}
-}
 
 func TestWriteFileAtomic(t *testing.T) {
 	dir := t.TempDir()

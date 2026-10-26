@@ -218,30 +218,6 @@ river:
         - tag_models
         - article_tag_models
         - user_top_article_models
-  rule:
-    # 库表到 ES 索引的映射规则
-    -
-      # 源库名
-      schema: blogx
-      # 源表名
-      table: article_models
-      # 目标 ES 索引名
-      index: "${BLOGX_RIVER_INDEX}"
-      # ES 文档类型；ES 7+ 中基本固定为 _doc，主要兼容旧写法
-      type: _doc
-      field:
-        # MySQL 中可能是 tinyint(1) 的 1/0，写 ES 时显式转为 boolean
-        comments_toggle: ",bool"
-      filter:
-        # 允许同步到 ES 的字段白名单
-        - id
-        - created_at
-        - updated_at
-        - title
-        - abstract
-        - category_id
-        - cover
-        - comments_toggle
   # 与 MySQL 通信使用的字符集
   charset: "utf8mb4"
   # mysqldump 可执行文件名或路径
@@ -250,14 +226,6 @@ river:
   skip_master_data: true
   # 批量写入 ES 的单批文档数
   bulk_size: 128
-  # 批量刷新 ES 的时间间隔，单位：毫秒
-  flush_bulk_time: 200
-  # 固定间隔重试配置
-  retry:
-    # 最大尝试次数（包含首次）
-    max_attempts: 2
-    # 固定重试间隔（毫秒）
-    delay_ms: 200
 
 # 图片引用关系同步配置。
 # 该模块会监听指定库中与图片引用相关的数据变更，用来维护图片引用关系。

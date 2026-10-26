@@ -335,29 +335,6 @@ func buildBulkBody(items []*BulkRequest) ([]byte, error) {
 	return buf.Bytes(), nil
 }
 
-// Bulk 发送批量请求
-func Bulk(client *elasticsearch.Client, items []*BulkRequest) ESResponse {
-	body, err := buildBulkBody(items)
-	if err != nil {
-		return ESResponse{Success: false, Msg: err.Error()}
-	}
-
-	req := esapi.BulkRequest{
-		Body: bytes.NewReader(body),
-	}
-
-	res, err := doRequest(client, req)
-	if err != nil {
-		return ESResponse{Success: false, Msg: err.Error()}
-	}
-
-	result, _ := decodeResponse(res.Body)
-	if errorsValue, ok := result["errors"].(bool); ok && errorsValue {
-		return ESResponse{Success: false, Msg: "bulk 响应包含失败项（errors=true）", Data: result}
-	}
-	return ESResponse{Success: true, Msg: "批量操作成功", Data: result}
-}
-
 // IndexBulk 发送针对索引的批量请求
 func IndexBulk(client *elasticsearch.Client, index string, items []*BulkRequest) ESResponse {
 	body, err := buildBulkBody(items)

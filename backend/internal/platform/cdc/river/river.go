@@ -1,18 +1,31 @@
 package river
 
+// River：MySQL binlog → 文章搜索投影。
+//
+// # 它现在只负责"接线"
+//
+// canal 连上 MySQL、把行事件交给 eventHandler；真正的翻译（哪张表变了 → 要重算哪些文档）
+// 在 article_search_projection.go，拼文档写 ES 在 articlesync 包里。
+//
+// # 关于被删掉的"通用规则"路径
+//
+// 这里原来有一套 `rule` 机制：从配置读 `表 → 索引 + 字段白名单`，把行事件一行一行搬进 ES。
+// 2026-10-26 整条删除 —— 它对本项目配置里的每一张表都不可达，而且拼不出搜索文档。
+// 删除依据与代价见 ADR-008 与 sync.go 的包注释。
+//
+// 保留的内容里，`master`（位点）与 canal 的 dump 配置仍然必要：全量转储会把表里的行
+// 按 INSERT 重放一遍，投影分支会照常把它们变成 ES 文档 —— 这就是首次部署的数据初始化。
+
 import (
 	"context"
-	"fmt"
-	"myblogx/conf"
-	"myblogx/internal/apperr"
-	"myblogx/internal/platform/cdc/canalbase"
-	"myblogx/internal/platform/cdc/outboxrelay"
-	"myblogx/internal/platform/cdc/river/rule"
-	"myblogx/internal/platform/log/writer"
-	"myblogx/internal/platform/safego"
-	"regexp"
 	"strings"
 	"sync"
+
+	"myblogx/conf"
+	"myblogx/internal/platform/cdc/canalbase"
+	"myblogx/internal/platform/cdc/outboxrelay"
+	"myblogx/internal/platform/log/writer"
+	"myblogx/internal/platform/safego"
 
 	"github.com/elastic/go-elasticsearch/v7"
 	"github.com/go-mysql-org/go-mysql/canal"
@@ -21,30 +34,27 @@ import (
 	"gorm.io/gorm"
 )
 
-// ErrRuleNotExist 是规则不存在的错误
-var ErrRuleNotExist = apperr.New(apperr.CodeCdcRuleNotExist)
-
-// River 是一个可插拔的服务，它从Elasticsearch中拉取数据然后将其索引到Elasticsearch中。
+// River 从 MySQL 的 binlog 增量维护文章搜索投影。
 type River struct {
-	canal *canal.Canal // MySQL的canal实例
+	canal *canal.Canal // MySQL 的 canal 实例
 
-	rules      map[string]*rule.Rule // 规则映射
 	cfg        conf.River
 	log        *logrus.Logger
 	logOptions writer.Options
 	db         *gorm.DB
 	es         *elasticsearch.Client
 
-	ctx    context.Context    // 上下文
-	cancel context.CancelFunc // 取消函数
+	ctx    context.Context
+	cancel context.CancelFunc
 
-	wg sync.WaitGroup // 等待组
+	wg sync.WaitGroup
 
-	master *masterInfo // 主库信息
+	master *masterInfo // 位点
 
-	syncCh chan interface{} // 同步通道
+	syncCh chan posSaver // 位点落盘通道
 }
 
+// SetLogOptions 注入日志选项（装配层调用）。
 func (r *River) SetLogOptions(deps writer.Options) {
 	r.logOptions = deps
 }
@@ -52,12 +62,11 @@ func (r *River) SetLogOptions(deps writer.Options) {
 // NewRiver 根据配置创建 River 实例
 func NewRiver(config conf.River, logger *logrus.Logger, db *gorm.DB, esClient *elasticsearch.Client) (*River, error) {
 	r := &River{
-		rules:  make(map[string]*rule.Rule),
 		cfg:    config,
 		log:    logger,
 		db:     db,
 		es:     esClient,
-		syncCh: make(chan interface{}, 4096),
+		syncCh: make(chan posSaver, 4096),
 	}
 	r.ctx, r.cancel = context.WithCancel(context.Background())
 
@@ -70,15 +79,9 @@ func NewRiver(config conf.River, logger *logrus.Logger, db *gorm.DB, esClient *e
 		return nil, errors.Trace(err)
 	}
 
-	if err = r.prepareRule(); err != nil {
-		return nil, errors.Trace(err)
-	}
+	r.prepareCanal()
 
-	if err = r.prepareCanal(); err != nil {
-		return nil, errors.Trace(err)
-	}
-
-	// We must use binlog full row image
+	// 必须拿到完整行镜像：投影要靠行里的列值算文章 ID / 标签关联 / 置顶状态。
 	if err = r.canal.CheckBinlogRowImage("FULL"); err != nil {
 		return nil, errors.Trace(err)
 	}
@@ -86,9 +89,8 @@ func NewRiver(config conf.River, logger *logrus.Logger, db *gorm.DB, esClient *e
 	return r, nil
 }
 
-// newCanal 创建canal实例
+// newCanal 创建 canal 实例（监听范围来自配置的 Sources）
 func (r *River) newCanal() error {
-	// 监听范围来自配置的 Sources（可能与下面的 Rules 不同：一个管"看哪些表"，一个管"怎么映射"）
 	listen := canalbase.Spec{Tables: map[string][]string{}}
 	for _, s := range r.cfg.Sources {
 		listen.Tables[s.Schema] = append(listen.Tables[s.Schema], s.Tables...)
@@ -112,207 +114,28 @@ func (r *River) newCanal() error {
 	return nil
 }
 
-// prepareCanal 注册事件处理器并设置全量转储范围
-func (r *River) prepareCanal() error {
+// prepareCanal 注册事件处理器并设置全量转储范围。
+//
+// 转储范围直接取配置的 Sources（以前绕了一圈从 rule 里取，rule 删掉后没必要了），
+// 但要排除 outbox：转储会把表里所有历史行按 INSERT 重放一遍，
+// 而那些行绝大多数早就投递完成（原子领取会挡掉，但仍是无谓的全表扫描）。
+// 它的积压恢复交给中继自己的补偿扫描（有 LIMIT、按 id 升序，可控）。
+func (r *River) prepareCanal() {
 	dump := canalbase.Spec{Tables: map[string][]string{}}
-	outboxTable := outboxrelay.OutboxTableName
-	for _, rule := range r.rules {
-		// outbox 表**不参与全量转储**：
-		// 转储会把表里所有历史行按 INSERT 重放一遍，
-		// 而这些行绝大多数早就投递完成（原子领取会挡掉，但仍是无谓的全表扫描）。
-		// 它的积压恢复交给中继自己的补偿扫描（有 LIMIT、按 id 升序，可控）。
-		if strings.EqualFold(rule.Table, outboxTable) {
-			continue
+	for _, s := range r.cfg.Sources {
+		for _, table := range s.Tables {
+			if strings.EqualFold(table, outboxrelay.OutboxTableName) {
+				continue
+			}
+			dump.Tables[s.Schema] = append(dump.Tables[s.Schema], table)
 		}
-		dump.Tables[rule.Schema] = append(dump.Tables[rule.Schema], rule.Table)
 	}
 
 	canalbase.PrepareDump(r.canal, dump)
 	r.canal.SetEventHandler(&eventHandler{r})
-
-	return nil
 }
 
-// newRule 创建新规则
-func (r *River) newRule(schema, table string) error {
-	key := ruleKey(schema, table)
-
-	if _, ok := r.rules[key]; ok {
-		return errors.Errorf("重复的数据源 %s, %s 已在配置中定义", schema, table)
-	}
-
-	r.rules[key] = rule.NewDefaultRule(schema, table)
-	return nil
-}
-
-// updateRule 更新规则
-func (r *River) updateRule(schema, table string) error {
-	rule, ok := r.rules[ruleKey(schema, table)]
-	if !ok {
-		return ErrRuleNotExist
-	}
-
-	tableInfo, err := r.canal.GetTable(schema, table)
-	if err != nil {
-		return errors.Trace(err)
-	}
-
-	rule.TableInfo = tableInfo
-
-	return nil
-}
-
-// parseSource 解析数据源
-func (r *River) parseSource() (map[string][]string, error) {
-	// 存储通配符表的映射关系，key为 schema.table，value为匹配的表名列表
-	wildTables := make(map[string][]string, len(r.cfg.Sources))
-
-	// 解析数据源，获取通配符表的映射关系
-	for _, s := range r.cfg.Sources {
-		if !isValidTables(s.Tables) {
-			return nil, errors.Errorf("不允许在多个表中使用通配符 *")
-		}
-
-		// 检查数据库名是否为空
-		if len(s.Schema) == 0 {
-			return nil, errors.Errorf("数据源中不允许为空的数据库名")
-		}
-
-		// 解析各个表
-		for _, table := range s.Tables {
-			// 检查表名是否包含正则表达式特殊字符（即是否为通配符表）
-			if regexp.QuoteMeta(table) != table {
-				if _, ok := wildTables[ruleKey(s.Schema, table)]; ok {
-					return nil, errors.Errorf("数据源中定义了重复的通配符表 %s.%s", s.Schema, table)
-				}
-
-				// 执行查询获取匹配的表名，将结果存储在tables切片中
-				tables := []string{} // 存储匹配的表名列表（通配符存在导致可能有多个匹配）
-
-				sql := fmt.Sprintf(`SELECT table_name FROM information_schema.tables WHERE
-					table_name RLIKE "%s" AND table_schema = "%s";`, buildTable(table), s.Schema)
-
-				res, err := r.canal.Execute(sql)
-				if err != nil {
-					return nil, errors.Trace(err)
-				}
-
-				for i := 0; i < res.Resultset.RowNumber(); i++ {
-					f, _ := res.GetString(i, 0)
-					err := r.newRule(s.Schema, f)
-					if err != nil {
-						return nil, errors.Trace(err)
-					}
-
-					tables = append(tables, f)
-				}
-
-				wildTables[ruleKey(s.Schema, table)] = tables
-			} else {
-				err := r.newRule(s.Schema, table)
-				if err != nil {
-					return nil, errors.Trace(err)
-				}
-			}
-		}
-	}
-
-	if len(r.rules) == 0 {
-		return nil, errors.Errorf("未定义可同步的数据源")
-	}
-
-	return wildTables, nil
-}
-
-// prepareRule 准备规则 - 初始化和配置用于数据同步的规则
-func (r *River) prepareRule() error {
-	// 解析数据源，获取通配符表的映射关系
-	wildtables, err := r.parseSource()
-	if err != nil {
-		return errors.Trace(err)
-	}
-
-	// 如果配置了自定义规则，则应用这些规则
-	if r.cfg.Rules != nil {
-		// 遍历所有自定义规则
-		for _, rule := range r.cfg.Rules {
-			// 检查规则的数据库名是否为空
-			if len(rule.Schema) == 0 {
-				return errors.Errorf("自定义规则中不允许为空的数据库名")
-			}
-
-			// 检查表名是否包含正则表达式特殊字符（即是否为通配符表）
-			if regexp.QuoteMeta(rule.Table) != rule.Table {
-				// 处理通配符表的情况
-				tables, ok := wildtables[ruleKey(rule.Schema, rule.Table)]
-				if !ok {
-					return errors.Errorf("通配符表 %s.%s 在数据源中未定义", rule.Schema, rule.Table)
-				}
-
-				// 通配符规则必须指定索引名称
-				if len(rule.Index) == 0 {
-					return errors.Errorf("通配符表规则 %s.%s 必须指定索引名称，不能为空", rule.Schema, rule.Table)
-				}
-
-				// 准备规则（预处理操作）
-				rule.Prepare()
-
-				// 将当前规则的配置应用到所有匹配的表上
-				for _, table := range tables {
-					// 获取对应表的规则对象
-					rr := r.rules[ruleKey(rule.Schema, table)]
-					// 应用索引、类型、父级等配置
-					rr.Index = rule.Index
-					rr.Type = rule.Type
-					rr.Parent = rule.Parent
-					rr.ID = rule.ID
-					rr.FieldMapping = rule.FieldMapping
-				}
-			} else {
-				// 处理非通配符表（精确匹配）的情况
-				key := ruleKey(rule.Schema, rule.Table)
-				// 检查该表是否已在源配置中定义
-				if _, ok := r.rules[key]; !ok {
-					return errors.Errorf("规则 %s.%s 在数据源中未定义", rule.Schema, rule.Table)
-				}
-				// 准备规则
-				rule.Prepare()
-				// 替换原有的默认规则为自定义规则
-				r.rules[key] = rule
-			}
-		}
-	}
-
-	// 创建新的规则映射，过滤掉没有主键的表
-	rules := make(map[string]*rule.Rule)
-	for key, rule := range r.rules {
-		// 从MySQL获取表结构信息
-		if rule.TableInfo, err = r.canal.GetTable(rule.Schema, rule.Table); err != nil {
-			return errors.Trace(err)
-		}
-
-		// 检查表是否有主键，没有主键的表会被忽略（因为无法进行有效的同步）
-		if len(rule.TableInfo.PKColumns) == 0 {
-			if r.log != nil {
-				r.log.Errorf("忽略未配置主键的数据表: %s", rule.TableInfo.Name)
-			}
-		} else {
-			// 只保留有主键的表规则
-			rules[key] = rule
-		}
-	}
-	// 更新规则映射
-	r.rules = rules
-
-	return nil
-}
-
-// ruleKey 生成规则键
-func ruleKey(schema string, table string) string {
-	return strings.ToLower(fmt.Sprintf("%s:%s", schema, table))
-}
-
-// Run 从MySQL同步数据并插入到ES中
+// Run 从上次位点开始消费 binlog。
 func (r *River) Run() error {
 	r.wg.Add(1)
 	safego.Go(func(recovered any, stack []byte) {
@@ -337,7 +160,7 @@ func (r *River) Ctx() context.Context {
 	return r.ctx
 }
 
-// Close 关闭River
+// Close 关闭 River
 func (r *River) Close() {
 	if r.log != nil {
 		r.log.Infof("开始关闭 River 同步服务")
@@ -350,24 +173,4 @@ func (r *River) Close() {
 	r.master.Close()
 
 	r.wg.Wait()
-}
-
-// isValidTables 检查表名是否有效
-func isValidTables(tables []string) bool {
-	if len(tables) > 1 {
-		for _, table := range tables {
-			if table == "*" {
-				return false
-			}
-		}
-	}
-	return true
-}
-
-// buildTable 构建表名
-func buildTable(table string) string {
-	if table == "*" {
-		return "." + table
-	}
-	return table
 }

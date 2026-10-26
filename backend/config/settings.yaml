@@ -221,30 +221,6 @@ river:
         # 事务型发件箱：领域事件落在这里，由 outbox 中继订阅投递。
         # 它不参与全量转储（river 里已排除），积压由中继的补偿扫描兜底。
         - outbox_event_models
-  rule:
-    # 库表到 ES 索引的映射规则
-    -
-      # 源库名
-      schema: blogx
-      # 源表名
-      table: article_models
-      # 目标 ES 索引名
-      index: "${BLOGX_RIVER_INDEX}"
-      # ES 文档类型；ES 7+ 中基本固定为 _doc，主要兼容旧写法
-      type: _doc
-      field:
-        # MySQL 中可能是 tinyint(1) 的 1/0，写 ES 时显式转为 boolean
-        comments_toggle: ",bool"
-      filter:
-        # 允许同步到 ES 的字段白名单
-        - id
-        - created_at
-        - updated_at
-        - title
-        - abstract
-        - category_id
-        - cover
-        - comments_toggle
   # 与 MySQL 通信使用的字符集
   charset: "utf8mb4"
   # mysqldump 可执行文件名或路径
@@ -253,14 +229,6 @@ river:
   skip_master_data: true
   # 批量写入 ES 的单批文档数
   bulk_size: 128
-  # 批量刷新 ES 的时间间隔，单位：毫秒
-  flush_bulk_time: 200
-  # 固定间隔重试配置
-  retry:
-    # 最大尝试次数（包含首次）
-    max_attempts: 2
-    # 固定重试间隔（毫秒）
-    delay_ms: 200
 
 # 事务型发件箱（outbox_event_models）的保留期配置。
 # 中继只清理已终结的事件行（done / dead）；pending / failed / processing

@@ -39,13 +39,6 @@ func normalizeConfig(cfg *conf.Config) {
 		cfg.Log.Cleanup.RunAt = "03:30:00"
 	}
 
-	if cfg.River.Retry.MaxAttempts <= 0 {
-		cfg.River.Retry.MaxAttempts = 2
-	}
-	if cfg.River.Retry.DelayMS <= 0 {
-		cfg.River.Retry.DelayMS = 200
-	}
-
 	if cfg.ImageRefRiver.Retry.MaxAttempts <= 0 {
 		cfg.ImageRefRiver.Retry.MaxAttempts = 2
 	}

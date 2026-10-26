@@ -14,6 +14,8 @@ export const DEAD_LETTER_STATUS = {
 
 /** stream 的中文名。新增 CDC 流时要同步这里，否则页面会显示原始值。 */
 const STREAM_LABELS: Record<string, string> = {
+  // es_river 这条流对应的后端同步路径已删除（ADR-009），词条**故意保留**：
+  // 历史死信记录里还会出现这个值，删掉只会让页面显示原始字符串。
   es_river: '搜索同步（ES 直投）',
   outbox_relay: '领域事件（发件箱）',
   es_projection: '文章搜索投影',

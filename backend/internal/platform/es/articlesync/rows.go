@@ -123,27 +123,6 @@ type UserRow struct {
 
 // TableName 固定表名。
 func (UserRow) TableName() string { return "user_models" }
-
-// UserConfRow 是 user_conf_models 的行。
-type UserConfRow struct {
-	UserID ctype.ID `gorm:"primaryKey;autoIncrement:false"`
-	// LikeTags 用 JSON 序列化存，与真表一致。
-	LikeTags                 []ctype.ID `gorm:"type:longtext;serializer:json"`
-	UpdatedUsernameDate      *time.Time
-	FavoritesVisibility      bool
-	FollowVisibility         bool
-	FansVisibility           bool
-	HomeStyleID              ctype.ID
-	DiggNoticeEnabled        bool
-	CommentNoticeEnabled     bool
-	FavorNoticeEnabled       bool
-	PrivateChatNoticeEnabled bool
-	StrangerChatEnabled      bool
-}
-
-// TableName 固定表名。
-func (UserConfRow) TableName() string { return "user_conf_models" }
-
 // ArticleTagRow 是文章与标签的关系行。
 type ArticleTagRow struct {
 	mysql.BaseRow

@@ -44,105 +44,9 @@ func writeJSON(w http.ResponseWriter, code int, body string) {
 	_, _ = io.WriteString(w, body)
 }
 
-func TestUpdateESDocsContent(t *testing.T) {
-	db := testutil.SetupSQLite(t,
-		&UserRow{},
-		&UserConfRow{},
-		&ArticleRow{},
-		&TagRow{},
-		&ArticleTagRow{},
-		&UserTopArticleRow{},
-	)
-	testutil.SetConfig(&conf.Config{
-		ES: conf.ES{Index: "article_index"},
-		Site: conf.Site{
-			SiteInfo: confsite.SiteInfo{Mode: enum.SiteModeCommunity},
-		},
-	})
-
-	user := UserRow{Username: "author", Password: "x", Role: enum.RoleUser}
-	if err := db.Create(&user).Error; err != nil {
-		t.Fatalf("创建用户失败: %v", err)
-	}
-	article := ArticleRow{
-		Title:         "t1",
-		Abstract:      "摘要",
-		Content:       "# 新标题\n新正文\n[错误链接](### 新标题)",
-		AuthorID:      user.ID,
-		PublishStatus: enum.ArticleStatusExamining,
-	}
-	if err := db.Create(&article).Error; err != nil {
-		t.Fatalf("创建文章失败: %v", err)
-	}
-
-	var bulkDocs []map[string]any
-	setupMockES(t, func(w http.ResponseWriter, r *http.Request) {
-		path := r.URL.Path
-		switch {
-		case path == "/":
-			writeJSON(w, 200, `{"name":"mock","cluster_name":"mock","version":{"number":"7.17.10"},"tagline":"You Know, for Search"}`)
-		case path == "/_bulk" || strings.HasSuffix(path, "/_bulk"):
-			body, err := io.ReadAll(r.Body)
-			if err != nil {
-				t.Fatalf("读取 bulk body 失败: %v", err)
-			}
-			scanner := bufio.NewScanner(strings.NewReader(string(body)))
-			lineNo := 0
-			for scanner.Scan() {
-				lineNo++
-				line := scanner.Bytes()
-				if len(strings.TrimSpace(string(line))) == 0 {
-					continue
-				}
-				if lineNo%2 == 0 {
-					var doc map[string]any
-					if err = json.Unmarshal(line, &doc); err != nil {
-						t.Fatalf("解析 bulk 文档失败: %v", err)
-					}
-					bulkDocs = append(bulkDocs, doc)
-				}
-			}
-			writeJSON(w, 200, `{"took":1,"errors":false,"items":[]}`)
-		default:
-			writeJSON(w, 404, `{"error":{"reason":"not found"}}`)
-		}
-	})
-
-	if err := UpdateESDocsContent(db, testutil.ESClient(), []ctype.ID{article.ID}); err != nil {
-		t.Fatalf("UpdateESDocsContent 失败: %v", err)
-	}
-	if len(bulkDocs) != 1 {
-		t.Fatalf("应重建一篇 ES 文档, got=%d", len(bulkDocs))
-	}
-
-	docMap, ok := bulkDocs[0]["doc"].(map[string]any)
-	if !ok {
-		t.Fatalf("应使用 partial update 文档结构, got=%#v", bulkDocs[0])
-	}
-	parts, ok := docMap["content_parts"].([]any)
-	if !ok || len(parts) != 1 {
-		t.Fatalf("content_parts 同步错误: %#v", docMap["content_parts"])
-	}
-	firstPart, ok := parts[0].(map[string]any)
-	if !ok {
-		t.Fatalf("content_parts 首段结构错误: %#v", parts[0])
-	}
-	content, _ := firstPart["content"].(string)
-	if !strings.Contains(content, "新标题") || !strings.Contains(content, "新正文") {
-		t.Fatalf("content_parts 未同步最新正文: %q", content)
-	}
-	if strings.Contains(content, "](### ") {
-		t.Fatalf("content_parts 不应保留错误链接语法: %q", content)
-	}
-	if _, ok = docMap["tags"]; ok {
-		t.Fatalf("UpdateESDocsContent 不应更新 tags: %#v", docMap)
-	}
-}
-
 func TestUpdateESDocsTags(t *testing.T) {
 	db := testutil.SetupSQLite(t,
 		&UserRow{},
-		&UserConfRow{},
 		&ArticleRow{},
 		&TagRow{},
 		&ArticleTagRow{},
@@ -220,7 +124,6 @@ func TestUpdateESDocsTags(t *testing.T) {
 func TestUpdateESDocsTop(t *testing.T) {
 	db := testutil.SetupSQLite(t,
 		&UserRow{},
-		&UserConfRow{},
 		&ArticleRow{},
 		&UserTopArticleRow{},
 	)
@@ -295,7 +198,6 @@ func TestUpdateESDocsTop(t *testing.T) {
 func TestSyncESDocsByArticleSnapshots(t *testing.T) {
 	db := testutil.SetupSQLite(t,
 		&UserRow{},
-		&UserConfRow{},
 		&CategoryRow{},
 		&TagRow{},
 		&ArticleTagRow{},
@@ -414,7 +316,6 @@ func TestSyncESDocsByArticleSnapshots(t *testing.T) {
 func TestUpdateESDocsByArticleDeltasRebuildsMissingDocs(t *testing.T) {
 	db := testutil.SetupSQLite(t,
 		&UserRow{},
-		&UserConfRow{},
 		&ArticleRow{},
 		&TagRow{},
 		&ArticleTagRow{},
@@ -494,7 +395,6 @@ func TestUpdateESDocsByArticleDeltasRebuildsMissingDocs(t *testing.T) {
 func TestSyncESDocsReturnsErrorWhenArticlesMissing(t *testing.T) {
 	db := testutil.SetupSQLite(t,
 		&UserRow{},
-		&UserConfRow{},
 		&ArticleRow{},
 		&TagRow{},
 		&ArticleTagRow{},

@@ -7,6 +7,8 @@ import (
 	"myblogx/internal/platform/http/res"
 
 	"github.com/gin-gonic/gin"
+	// 供 swag 注解里的 kernel.Envelope 解析用（代码里不直接引用）。
+	_ "myblogx/internal/kernel"
 )
 
 // SumView 站点汇总统计（管理员）。
@@ -14,7 +16,7 @@ import (
 // @Tags data
 // @Produce json
 // @Security BearerAuth
-// @Success 200 {object} object{code=int,data=SumResponse,msg=string}
+// @Success 200 {object} kernel.Envelope[SumResponse]
 // @Router /data/sum [get]
 func (h *Handler) SumView(c *gin.Context) {
 	var data SumResponse

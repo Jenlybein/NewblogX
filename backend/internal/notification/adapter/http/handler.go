@@ -12,6 +12,8 @@ import (
 	"myblogx/internal/notification/domain"
 	"myblogx/internal/platform/http/res"
 	"myblogx/utils/jwts"
+	// 供 swag 注解里的 kernel.Envelope 解析用（代码里不直接引用）。
+	_ "myblogx/internal/kernel"
 )
 
 // Handler 聚合通知模块的所有 HTTP 入口。
@@ -55,7 +57,7 @@ func fail(c *gin.Context, err error) {
 // @Produce json
 // @Security BearerAuth
 // @Param type query int true "查询类型：1 普通用户可见通知 2 管理员查全部通知"
-// @Success 200 {object} object{code=int,data=object{list=[]GlobalListResponse,has_more=bool},msg=string}
+// @Success 200 {object} kernel.Envelope[kernel.HasMoreListData[GlobalListResponse]]
 // @Router /global_notif [get]
 func (h *Handler) GlobalList(c *gin.Context) {
 	cr, ok := bindQuery[GlobalListRequest](c)
@@ -115,7 +117,7 @@ func (h *Handler) GlobalList(c *gin.Context) {
 // @Produce json
 // @Security BearerAuth
 // @Param body body GlobalCreateRequest true "请求体"
-// @Success 200 {object} object{code=int,data=GlobalCreateResponse,msg=string}
+// @Success 200 {object} kernel.Envelope[GlobalCreateResponse]
 // @Router /global_notif [post]
 func (h *Handler) GlobalCreate(c *gin.Context) {
 	if !isAdmin(c) {
@@ -163,7 +165,7 @@ func (h *Handler) GlobalCreate(c *gin.Context) {
 // @Produce json
 // @Security BearerAuth
 // @Param body body IDListRequest true "通知 ID 列表"
-// @Success 200 {object} object{code=int,data=object{},msg=string}
+// @Success 200 {object} kernel.Envelope[kernel.EmptyData]
 // @Router /global_notif/read [post]
 func (h *Handler) GlobalRead(c *gin.Context) {
 	cr, ok := bindJSON[IDListRequest](c)
@@ -198,7 +200,7 @@ func (h *Handler) GlobalRead(c *gin.Context) {
 // @Produce json
 // @Security BearerAuth
 // @Param body body IDListRequest true "通知 ID 列表"
-// @Success 200 {object} object{code=int,data=object{},msg=string}
+// @Success 200 {object} kernel.Envelope[kernel.EmptyData]
 // @Router /global_notif/user [delete]
 func (h *Handler) GlobalUserRemove(c *gin.Context) {
 	cr, ok := bindJSON[IDListRequest](c)
@@ -229,7 +231,7 @@ func (h *Handler) GlobalUserRemove(c *gin.Context) {
 // @Produce json
 // @Security BearerAuth
 // @Param body body IDListRequest true "通知 ID 列表"
-// @Success 200 {object} object{code=int,data=object{},msg=string}
+// @Success 200 {object} kernel.Envelope[kernel.EmptyData]
 // @Router /global_notif [delete]
 func (h *Handler) GlobalAdminRemove(c *gin.Context) {
 	cr, ok := bindJSON[IDListRequest](c)
@@ -260,7 +262,7 @@ func (h *Handler) GlobalAdminRemove(c *gin.Context) {
 // @Produce json
 // @Security BearerAuth
 // @Param t query int true "消息类型：1 评论和回复 2 点赞和收藏 3 系统通知"
-// @Success 200 {object} object{code=int,data=object{list=[]MessageItem,has_more=bool},msg=string}
+// @Success 200 {object} kernel.Envelope[kernel.HasMoreListData[MessageItem]]
 // @Router /sitemsg [get]
 func (h *Handler) Messages(c *gin.Context) {
 	cr, ok := bindQuery[MessageListRequest](c)
@@ -293,7 +295,7 @@ func (h *Handler) Messages(c *gin.Context) {
 // @Produce json
 // @Security BearerAuth
 // @Param body body MessageSelectRequest true "请求体"
-// @Success 200 {object} object{code=int,data=object{},msg=string}
+// @Success 200 {object} kernel.Envelope[kernel.EmptyData]
 // @Router /sitemsg [post]
 func (h *Handler) MessageRead(c *gin.Context) {
 	cr, ok := bindJSON[MessageSelectRequest](c)
@@ -337,7 +339,7 @@ func (h *Handler) MessageRead(c *gin.Context) {
 // @Produce json
 // @Security BearerAuth
 // @Param body body MessageSelectRequest true "请求体"
-// @Success 200 {object} object{code=int,data=object{},msg=string}
+// @Success 200 {object} kernel.Envelope[kernel.EmptyData]
 // @Router /sitemsg [delete]
 func (h *Handler) MessageRemove(c *gin.Context) {
 	cr, ok := bindJSON[MessageSelectRequest](c)
@@ -376,7 +378,7 @@ func (h *Handler) MessageRemove(c *gin.Context) {
 // @Tags sitemsg
 // @Produce json
 // @Security BearerAuth
-// @Success 200 {object} object{code=int,data=ConfRequest,msg=string}
+// @Success 200 {object} kernel.Envelope[ConfRequest]
 // @Router /sitemsg/conf [get]
 func (h *Handler) Conf(c *gin.Context) {
 	conf, err := h.svc.GetConf(c.Request.Context(), userID(c))
@@ -403,7 +405,7 @@ func (h *Handler) Conf(c *gin.Context) {
 // @Produce json
 // @Security BearerAuth
 // @Param body body ConfRequest true "请求体"
-// @Success 200 {object} object{code=int,data=object{},msg=string}
+// @Success 200 {object} kernel.Envelope[kernel.EmptyData]
 // @Router /sitemsg/conf [put]
 func (h *Handler) ConfUpdate(c *gin.Context) {
 	cr, ok := bindJSON[ConfRequest](c)
@@ -432,7 +434,7 @@ func (h *Handler) ConfUpdate(c *gin.Context) {
 // @Tags sitemsg
 // @Produce json
 // @Security BearerAuth
-// @Success 200 {object} object{code=int,data=UnreadResponse,msg=string}
+// @Success 200 {object} kernel.Envelope[UnreadResponse]
 // @Router /sitemsg/user [get]
 func (h *Handler) Unread(c *gin.Context) {
 	counts, err := h.svc.UnreadCounts(c.Request.Context(), userID(c))

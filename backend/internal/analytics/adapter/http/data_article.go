@@ -5,6 +5,8 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+	// 供 swag 注解里的 kernel.Envelope 解析用（代码里不直接引用）。
+	_ "myblogx/internal/kernel"
 )
 
 // ArticleYearDataView 近十二月文章发布数据（管理员）。
@@ -12,7 +14,7 @@ import (
 // @Tags data
 // @Produce json
 // @Security BearerAuth
-// @Success 200 {object} object{code=int,data=ArticleYearDataResponse,msg=string}
+// @Success 200 {object} kernel.Envelope[ArticleYearDataResponse]
 // @Router /data/article-year [get]
 func (h *Handler) ArticleYearDataView(c *gin.Context) {
 	var resp ArticleYearDataResponse

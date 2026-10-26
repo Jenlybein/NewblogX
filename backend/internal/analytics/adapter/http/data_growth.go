@@ -8,6 +8,8 @@ import (
 	"myblogx/internal/platform/http/res"
 
 	"github.com/gin-gonic/gin"
+	// 供 swag 注解里的 kernel.Envelope 解析用（代码里不直接引用）。
+	_ "myblogx/internal/kernel"
 )
 
 // GrowthDataView 近七日增长数据（管理员）。
@@ -16,7 +18,7 @@ import (
 // @Produce json
 // @Security BearerAuth
 // @Param type query int true "统计类型：1 网站流量 2 文章发布 3 用户注册"
-// @Success 200 {object} object{code=int,data=GrowthDataResponse,msg=string}
+// @Success 200 {object} kernel.Envelope[GrowthDataResponse]
 // @Router /data/growth [get]
 func (h *Handler) GrowthDataView(c *gin.Context) {
 	cr := middleware.GetBindQuery[GrowthDataRequest](c)

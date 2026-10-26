@@ -9,6 +9,8 @@ import (
 	"myblogx/internal/kernel/ctype"
 	"myblogx/internal/platform/http/res"
 	"myblogx/utils/jwts"
+	// 供 swag 注解里的 kernel.Envelope 解析用（代码里不直接引用）。
+	_ "myblogx/internal/kernel"
 )
 
 // Handler 是评论 HTTP 处理器。
@@ -57,6 +59,17 @@ type ReplyListRequest struct {
 	RootID    ctype.ID `form:"root_id" binding:"required"`
 }
 
+// ReplyListResponse 是回复列表的 data 载荷。
+//
+// 之前注解写的是空 data（object{}），但 handler 实际返回这四项 —— 契约在说谎，
+// 前端只能照自己的猜测写类型。现在如实描述。
+type ReplyListResponse struct {
+	RootID     ctype.ID       `json:"root_id"`
+	ReplyCount int            `json:"reply_count"`
+	List       []app.ReplyItem `json:"list"`
+	HasMore    bool           `json:"has_more"`
+}
+
 // ManListRequest 管理端评论列表。
 type ManListRequest struct {
 	Page      int      `form:"page"`
@@ -79,7 +92,7 @@ func pageOf(p, limit int, key string) domain.Page {
 // @Produce json
 // @Security BearerAuth
 // @Param body body CreateRequest true "请求体"
-// @Success 200 {object} object{code=int,data=app.CreateResult,msg=string}
+// @Success 200 {object} kernel.Envelope[app.CreateResult]
 // @Router /comments [post]
 func (h *Handler) Create(c *gin.Context) {
 	var req CreateRequest
@@ -105,7 +118,7 @@ func (h *Handler) Create(c *gin.Context) {
 // @Produce json
 // @Security BearerAuth
 // @Param id path string true "评论 ID"
-// @Success 200 {object} object{code=int,data=object{},msg=string}
+// @Success 200 {object} kernel.Envelope[kernel.EmptyData]
 // @Router /comments/{id}/digg [post]
 func (h *Handler) Digg(c *gin.Context) {
 	id, ok := pathID(c)
@@ -130,7 +143,7 @@ func (h *Handler) Digg(c *gin.Context) {
 // @Produce json
 // @Security BearerAuth
 // @Param id path string true "评论 ID"
-// @Success 200 {object} object{code=int,data=object{},msg=string}
+// @Success 200 {object} kernel.Envelope[kernel.EmptyData]
 // @Router /comments/{id} [delete]
 func (h *Handler) Remove(c *gin.Context) {
 	id, ok := pathID(c)
@@ -149,7 +162,7 @@ func (h *Handler) Remove(c *gin.Context) {
 // @Tags comment
 // @Produce json
 // @Param article_id query string true "文章 ID"
-// @Success 200 {object} object{code=int,data=object{list=[]app.RootItem,has_more=bool},msg=string}
+// @Success 200 {object} kernel.Envelope[kernel.HasMoreListData[app.RootItem]]
 // @Router /comments [get]
 func (h *Handler) ListRoot(c *gin.Context) {
 	var req RootListRequest
@@ -169,7 +182,7 @@ func (h *Handler) ListRoot(c *gin.Context) {
 // @Summary 二级评论列表
 // @Tags comment
 // @Produce json
-// @Success 200 {object} object{code=int,data=object{},msg=string}
+// @Success 200 {object} kernel.Envelope[ReplyListResponse]
 // @Router /comments/replies [get]
 func (h *Handler) ListReplies(c *gin.Context) {
 	var req ReplyListRequest
@@ -182,11 +195,11 @@ func (h *Handler) ListReplies(c *gin.Context) {
 		res.FailWithError(err, c)
 		return
 	}
-	res.OkWithData(map[string]any{
-		"root_id":     req.RootID,
-		"reply_count": replyCount,
-		"list":        items,
-		"has_more":    hasMore,
+	res.OkWithData(ReplyListResponse{
+		RootID:     req.RootID,
+		ReplyCount: replyCount,
+		List:       items,
+		HasMore:    hasMore,
 	}, c)
 }
 
@@ -195,7 +208,7 @@ func (h *Handler) ListReplies(c *gin.Context) {
 // @Tags comment
 // @Produce json
 // @Security BearerAuth
-// @Success 200 {object} object{code=int,data=object{list=[]app.ManageItem,count=int},msg=string}
+// @Success 200 {object} kernel.Envelope[kernel.ListData[app.ManageItem]]
 // @Router /comments/man [get]
 func (h *Handler) ListManaged(c *gin.Context) {
 	var req ManListRequest

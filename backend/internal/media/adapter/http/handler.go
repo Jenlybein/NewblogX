@@ -13,6 +13,8 @@ import (
 	"myblogx/internal/media/app"
 	"myblogx/internal/media/domain"
 	"myblogx/internal/platform/http/res"
+	// 供 swag 注解里的 kernel.Envelope 解析用（代码里不直接引用）。
+	_ "myblogx/internal/kernel"
 )
 
 // Handler 是媒体 HTTP 处理器。
@@ -123,7 +125,7 @@ type RemoveRequest struct {
 // @Produce json
 // @Security BearerAuth
 // @Param body body CreateTaskRequest true "请求体"
-// @Success 200 {object} object{code=int,data=CreateTaskResponse,msg=string}
+// @Success 200 {object} kernel.Envelope[CreateTaskResponse]
 // @Router /images/upload-tasks [post]
 func (h *Handler) CreateUploadTask(c *gin.Context) {
 	var req CreateTaskRequest
@@ -175,7 +177,7 @@ func (h *Handler) CreateUploadTask(c *gin.Context) {
 // @Produce json
 // @Security BearerAuth
 // @Param body body CompleteTaskRequest true "请求体"
-// @Success 200 {object} object{code=int,data=CompleteTaskResponse,msg=string}
+// @Success 200 {object} kernel.Envelope[CompleteTaskResponse]
 // @Router /images/upload-tasks/complete [post]
 func (h *Handler) CompleteUploadTask(c *gin.Context) {
 	var req CompleteTaskRequest
@@ -206,7 +208,7 @@ func (h *Handler) CompleteUploadTask(c *gin.Context) {
 // @Produce json
 // @Security BearerAuth
 // @Param id path string true "上传任务 ID"
-// @Success 200 {object} object{code=int,data=TaskStatusResponse,msg=string}
+// @Success 200 {object} kernel.Envelope[TaskStatusResponse]
 // @Router /images/upload-tasks/{id} [get]
 func (h *Handler) UploadTaskStatus(c *gin.Context) {
 	id, ok := pathID(c)
@@ -240,7 +242,7 @@ func (h *Handler) UploadTaskStatus(c *gin.Context) {
 // @Tags image
 // @Accept json
 // @Produce json
-// @Success 200 {object} object{code=int,data=CompleteTaskResponse,msg=string}
+// @Success 200 {object} kernel.Envelope[CompleteTaskResponse]
 // @Router /images/qiniu/callback [post]
 func (h *Handler) QiniuCallback(c *gin.Context) {
 	body, err := io.ReadAll(c.Request.Body)
@@ -285,7 +287,7 @@ func (h *Handler) QiniuCallback(c *gin.Context) {
 // @Tags image
 // @Accept json
 // @Produce json
-// @Success 200 {object} object{code=int,data=object{},msg=string}
+// @Success 200 {object} kernel.Envelope[kernel.EmptyData]
 // @Router /images/qiniu/audit/callback [post]
 func (h *Handler) QiniuAuditCallback(c *gin.Context) {
 	body, err := io.ReadAll(c.Request.Body)
@@ -312,7 +314,7 @@ func (h *Handler) QiniuAuditCallback(c *gin.Context) {
 // @Tags image
 // @Produce json
 // @Security BearerAuth
-// @Success 200 {object} object{code=int,data=object{list=[]ImageItem,count=int},msg=string}
+// @Success 200 {object} kernel.Envelope[kernel.ListData[ImageItem]]
 // @Router /images [get]
 func (h *Handler) List(c *gin.Context) {
 	var req ListRequest
@@ -354,7 +356,7 @@ func (h *Handler) List(c *gin.Context) {
 // @Produce json
 // @Security BearerAuth
 // @Param body body RemoveRequest true "图片 ID 列表"
-// @Success 200 {object} object{code=int,data=string,msg=string}
+// @Success 200 {object} kernel.Envelope[string]
 // @Router /images [delete]
 func (h *Handler) Remove(c *gin.Context) {
 	var req RemoveRequest

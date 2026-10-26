@@ -290,3 +290,24 @@ type ArticleViewHistoryItem struct {
 	UserID    ctype.ID  `json:"user_id"`
 	ArticleID ctype.ID  `json:"article_id"`
 }
+
+// ── 以下两个响应类型是 P1 补上的：之前注解手写 object{...}，与真实返回不符 ──
+
+// ArticleAuthorInfoResponse 作者展示信息。
+//
+// 注意：前端 `api.ts` 里的 `ArticleAuthorInfo` 期望的是
+// `author_id / article_count / article_visited_count / fans_count`，
+// 与这里的真实返回（id/username/nickname/avatar）**字段名和内容都不一致**，
+// 是一个既有缺陷（页面上"文章数/访问量/粉丝数"因此恒为 0）。
+// 这里只如实反映后端返回，不擅自改业务行为，待决策。
+type ArticleAuthorInfoResponse struct {
+	ID       ctype.ID `json:"id"`
+	Username string   `json:"username"`
+	Nickname string   `json:"nickname"`
+	Avatar   string   `json:"avatar"`
+}
+
+// ArticleDiggResponse 点赞结果。
+type ArticleDiggResponse struct {
+	IsDigg bool `json:"is_digg"`
+}

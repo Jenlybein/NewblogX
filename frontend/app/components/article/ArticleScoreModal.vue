@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { AiArticleScoringDimension, AiArticleScoringIssue, AiArticleScoringResponseData } from "~/types/api";
+import type { AiArticleScoringIssue, AiArticleScoringResponseData } from "~/types/api";
 import { computed } from "vue";
 import { NButton, NCard, NEmpty, NModal, NProgress, NTag } from "naive-ui";
 import { formatDateTimeLabel } from "~/utils/format";
@@ -20,7 +20,10 @@ const emit = defineEmits<{
   refresh: [];
 }>();
 
-const dimensionMetaMap: Record<AiArticleScoringDimension["name"], { label: string; color: string; railColor: string }> = {
+// 契约里 dimension.name 是 string（后端是 string，没有枚举约束），
+// 所以 map 用 string 做 key，查不到时用下面的兜底值。
+const dimensionFallback = { label: "其他", color: "#64748b", railColor: "rgba(100, 116, 139, 0.12)" };
+const dimensionMetaMap: Record<string, { label: string; color: string; railColor: string }> = {
   clarity: { label: "清晰度", color: "#0f766e", railColor: "rgba(15, 118, 110, 0.14)" },
   structure: { label: "结构性", color: "#1d4ed8", railColor: "rgba(29, 78, 216, 0.12)" },
   completeness: { label: "完整度", color: "#7c3aed", railColor: "rgba(124, 58, 237, 0.12)" },
@@ -44,8 +47,8 @@ function close() {
   emit("update:show", false);
 }
 
-function getDimensionMeta(name: AiArticleScoringDimension["name"]) {
-  return dimensionMetaMap[name];
+function getDimensionMeta(name: string) {
+  return dimensionMetaMap[name] ?? dimensionFallback;
 }
 
 function resolveIssueAnchor(issue: AiArticleScoringIssue) {

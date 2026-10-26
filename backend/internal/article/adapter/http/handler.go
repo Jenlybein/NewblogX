@@ -86,7 +86,7 @@ func (h *Handler) fail(c *gin.Context, err error) {
 // @Tags article
 // @Produce json
 // @Param id path string true "文章 ID"
-// @Success 200 {object} object{code=int,data=ArticleDetailResponse,msg=string}
+// @Success 200 {object} kernel.Envelope[ArticleDetailResponse]
 // @Router /articles/{id} [get]
 func (h *Handler) Detail(c *gin.Context) {
 	cr := middleware.GetBindUri[kernel.IDRequest](c)
@@ -109,7 +109,7 @@ func (h *Handler) Detail(c *gin.Context) {
 // @Produce json
 // @Security BearerAuth
 // @Param body body ArticleCreateRequest true "请求体"
-// @Success 200 {object} object{code=int,data=ArticleCreateResponse,msg=string}
+// @Success 200 {object} kernel.Envelope[ArticleCreateResponse]
 // @Router /articles [post]
 func (h *Handler) Create(c *gin.Context) {
 	cr := middleware.GetBindJson[ArticleCreateRequest](c)
@@ -163,7 +163,7 @@ func (h *Handler) Create(c *gin.Context) {
 // @Security BearerAuth
 // @Param id path string true "文章 ID"
 // @Param body body ArticleUpdateRequest true "请求体"
-// @Success 200 {object} object{code=int,data=ArticleDetailResponse,msg=string}
+// @Success 200 {object} kernel.Envelope[ArticleDetailResponse]
 // @Router /articles/{id} [put]
 func (h *Handler) Update(c *gin.Context) {
 	uri := middleware.GetBindUri[kernel.IDRequest](c)
@@ -250,7 +250,7 @@ func (h *Handler) Update(c *gin.Context) {
 // @Produce json
 // @Security BearerAuth
 // @Param id path string true "文章 ID"
-// @Success 200 {object} object{code=int,data=object{},msg=string}
+// @Success 200 {object} kernel.Envelope[kernel.EmptyData]
 // @Router /articles/{id} [delete]
 func (h *Handler) Remove(c *gin.Context) {
 	uri := middleware.GetBindUri[kernel.IDRequest](c)
@@ -274,7 +274,7 @@ func (h *Handler) Remove(c *gin.Context) {
 // @Produce json
 // @Security BearerAuth
 // @Param body body kernel.IDListRequest true "文章 ID 列表"
-// @Success 200 {object} object{code=int,data=object{},msg=string}
+// @Success 200 {object} kernel.Envelope[kernel.EmptyData]
 // @Router /articles [delete]
 func (h *Handler) RemoveBatch(c *gin.Context) {
 	cr := middleware.GetBindJson[kernel.IDListRequest](c)
@@ -304,7 +304,7 @@ func (h *Handler) RemoveBatch(c *gin.Context) {
 // @Security BearerAuth
 // @Param id path string true "文章 ID"
 // @Param visibility path string true "hide 或 show"
-// @Success 200 {object} object{code=int,data=object{},msg=string}
+// @Success 200 {object} kernel.Envelope[kernel.EmptyData]
 // @Router /articles/{id}/admin/{visibility} [post]
 func (h *Handler) AdminVisibility(c *gin.Context) {
 	uri := middleware.GetBindUri[ArticleAdminVisibilityURI](c)
@@ -330,7 +330,7 @@ func (h *Handler) AdminVisibility(c *gin.Context) {
 // @Accept json
 // @Produce json
 // @Param body body ArticleViewCountRequest true "请求体"
-// @Success 200 {object} object{code=int,data=object{},msg=string}
+// @Success 200 {object} kernel.Envelope[kernel.EmptyData]
 // @Router /articles/view [post]
 func (h *Handler) Visit(c *gin.Context) {
 	cr := middleware.GetBindJson[ArticleViewCountRequest](c)
@@ -351,7 +351,7 @@ func (h *Handler) Visit(c *gin.Context) {
 // @Produce json
 // @Security BearerAuth
 // @Param id path string true "文章 ID"
-// @Success 200 {object} object{code=int,data=object{is_digg=bool},msg=string}
+// @Success 200 {object} kernel.Envelope[ArticleDiggResponse]
 // @Router /articles/{id}/digg [put]
 func (h *Handler) Digg(c *gin.Context) {
 	uri := middleware.GetBindUri[kernel.IDRequest](c)
@@ -361,7 +361,7 @@ func (h *Handler) Digg(c *gin.Context) {
 		h.fail(c, err)
 		return
 	}
-	res.OkWithData(gin.H{"is_digg": liked}, c)
+	res.OkWithData(ArticleDiggResponse{IsDigg: liked}, c)
 }
 
 // ── 内部助手 ──

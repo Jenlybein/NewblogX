@@ -14,6 +14,8 @@ import (
 	"myblogx/internal/platform/http/res"
 	"myblogx/internal/site/app"
 	"myblogx/internal/site/domain"
+	// 供 swag 注解里的 kernel.Envelope 解析用（代码里不直接引用）。
+	_ "myblogx/internal/kernel"
 )
 
 // Handler 聚合站点与轮播图的所有 HTTP 入口。
@@ -44,7 +46,7 @@ func fail(c *gin.Context, err error) {
 // @Summary 获取 QQ 登录地址
 // @Tags site
 // @Produce json
-// @Success 200 {object} object{code=int,data=string,msg=string}
+// @Success 200 {object} kernel.Envelope[string]
 // @Router /site/qq_url [get]
 func (h *Handler) QQLoginURL(c *gin.Context) {
 	res.OkWithData(h.svc.QQLoginURL(), c)
@@ -54,7 +56,7 @@ func (h *Handler) QQLoginURL(c *gin.Context) {
 // @Summary 获取站点 SEO 信息
 // @Tags site
 // @Produce json
-// @Success 200 {object} object{code=int,data=SEOResponse,msg=string}
+// @Success 200 {object} kernel.Envelope[SEOResponse]
 // @Router /site/seo [get]
 func (h *Handler) SEO(c *gin.Context) {
 	seo := h.svc.PublicSEO()
@@ -72,7 +74,7 @@ func (h *Handler) SEO(c *gin.Context) {
 // @Summary 获取站点 AI 信息
 // @Tags site
 // @Produce json
-// @Success 200 {object} object{code=int,data=AIResponse,msg=string}
+// @Success 200 {object} kernel.Envelope[AIResponse]
 // @Router /site/ai_info [get]
 func (h *Handler) AIInfo(c *gin.Context) {
 	ai := h.svc.PublicAI()
@@ -89,7 +91,7 @@ func (h *Handler) AIInfo(c *gin.Context) {
 // @Tags site
 // @Produce json
 // @Param name path string true "站点信息名称：site 站点版本、seo SEO 信息"
-// @Success 200 {object} object{code=int,data=object{},msg=string}
+// @Success 200 {object} kernel.Envelope[kernel.SiteConfigData]
 // @Router /site/{name} [get]
 func (h *Handler) PublicInfo(c *gin.Context) {
 	cr, ok := bindURI[SiteInfoRequest](c)
@@ -120,7 +122,7 @@ func (h *Handler) PublicInfo(c *gin.Context) {
 // @Produce json
 // @Security BearerAuth
 // @Param name path string true "配置名称：site 站点配置、ai AI 配置"
-// @Success 200 {object} object{code=int,data=object{},msg=string}
+// @Success 200 {object} kernel.Envelope[kernel.SiteConfigData]
 // @Router /site/admin/{name} [get]
 func (h *Handler) AdminInfo(c *gin.Context) {
 	cr, ok := bindURI[SiteInfoRequest](c)
@@ -147,7 +149,7 @@ func (h *Handler) AdminInfo(c *gin.Context) {
 // @Security BearerAuth
 // @Param name path string true "配置名称：site 站点配置、ai AI 配置"
 // @Param body body object true "请求体"
-// @Success 200 {object} object{code=int,data=object{},msg=string}
+// @Success 200 {object} kernel.Envelope[kernel.EmptyData]
 // @Router /site/{name} [put]
 func (h *Handler) UpdateConfig(c *gin.Context) {
 	cr, ok := bindURI[SiteInfoRequest](c)
@@ -203,7 +205,7 @@ func (h *Handler) UpdateConfig(c *gin.Context) {
 // @Tags banner
 // @Produce json
 // @Param show query bool false "是否展示"
-// @Success 200 {object} object{code=int,data=object{list=[]BannerItem,has_more=bool},msg=string}
+// @Success 200 {object} kernel.Envelope[kernel.HasMoreListData[BannerItem]]
 // @Router /banners [get]
 func (h *Handler) BannerList(c *gin.Context) {
 	cr, ok := bindQuery[BannerListRequest](c)
@@ -238,7 +240,7 @@ func (h *Handler) BannerList(c *gin.Context) {
 // @Produce json
 // @Security BearerAuth
 // @Param body body BannerCreateRequest true "创建参数"
-// @Success 200 {object} object{code=int,data=BannerCreateResponse,msg=string}
+// @Success 200 {object} kernel.Envelope[BannerCreateResponse]
 // @Router /banners [post]
 func (h *Handler) BannerCreate(c *gin.Context) {
 	cr, ok := bindJSON[BannerCreateRequest](c)
@@ -278,7 +280,7 @@ func (h *Handler) BannerCreate(c *gin.Context) {
 // @Security BearerAuth
 // @Param id path string true "轮播图 ID"
 // @Param body body BannerCreateRequest true "更新参数"
-// @Success 200 {object} object{code=int,data=object{},msg=string}
+// @Success 200 {object} kernel.Envelope[kernel.EmptyData]
 // @Router /banners/{id} [put]
 func (h *Handler) BannerUpdate(c *gin.Context) {
 	id, ok := bindURI[IDRequest](c)
@@ -319,7 +321,7 @@ func (h *Handler) BannerUpdate(c *gin.Context) {
 // @Produce json
 // @Security BearerAuth
 // @Param body body IDListRequest true "ID 列表"
-// @Success 200 {object} object{code=int,data=object{},msg=string}
+// @Success 200 {object} kernel.Envelope[kernel.EmptyData]
 // @Router /banners [delete]
 func (h *Handler) BannerRemove(c *gin.Context) {
 	cr, ok := bindJSON[IDListRequest](c)

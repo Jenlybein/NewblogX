@@ -10,6 +10,8 @@ import (
 	"myblogx/internal/platform/http/res"
 
 	"github.com/gin-gonic/gin"
+	// 供 swag 注解里的 kernel.Envelope 解析用（代码里不直接引用）。
+	_ "myblogx/internal/kernel"
 )
 
 type RuntimeLogListRequest struct {
@@ -99,7 +101,7 @@ type ActionAuditListRequest struct {
 // @Param error_message query string false "错误信息"
 // @Param event_name query string false "事件名"
 // @Param module query string false "模块"
-// @Success 200 {object} object{code=int,data=object{list=[]clickhouse.RuntimeLogRecord,count=int},msg=string}
+// @Success 200 {object} kernel.Envelope[kernel.ListData[clickhouse.RuntimeLogRecord]]
 // @Router /logs/runtime [get]
 func (h *Handler) RuntimeLogListView(c *gin.Context) {
 	cr := middleware.GetBindQuery[RuntimeLogListRequest](c)
@@ -142,7 +144,7 @@ func (h *Handler) RuntimeLogListView(c *gin.Context) {
 // @Produce json
 // @Security BearerAuth
 // @Param id path string true "日志 ID"
-// @Success 200 {object} object{code=int,data=clickhouse.RuntimeLogRecord,msg=string}
+// @Success 200 {object} kernel.Envelope[clickhouse.RuntimeLogRecord]
 // @Router /logs/runtime/{id} [get]
 func (h *Handler) RuntimeLogDetailView(c *gin.Context) {
 	cr := middleware.GetBindUri[IDRequest](c)
@@ -181,7 +183,7 @@ func (h *Handler) RuntimeLogDetailView(c *gin.Context) {
 // @Param error_code query string false "错误码"
 // @Param error_message query string false "错误信息"
 // @Param module query string false "模块"
-// @Success 200 {object} object{code=int,data=object{list=[]clickhouse.LoginEventRecord,count=int},msg=string}
+// @Success 200 {object} kernel.Envelope[kernel.ListData[clickhouse.LoginEventRecord]]
 // @Router /logs/login [get]
 func (h *Handler) LoginLogListView(c *gin.Context) {
 	cr := middleware.GetBindQuery[LoginLogListRequest](c)
@@ -223,7 +225,7 @@ func (h *Handler) LoginLogListView(c *gin.Context) {
 // @Produce json
 // @Security BearerAuth
 // @Param id path string true "日志 ID"
-// @Success 200 {object} object{code=int,data=clickhouse.LoginEventRecord,msg=string}
+// @Success 200 {object} kernel.Envelope[clickhouse.LoginEventRecord]
 // @Router /logs/login/{id} [get]
 func (h *Handler) LoginLogDetailView(c *gin.Context) {
 	cr := middleware.GetBindUri[IDRequest](c)
@@ -264,7 +266,7 @@ func (h *Handler) LoginLogDetailView(c *gin.Context) {
 // @Param event_name query string false "事件名（模糊匹配）"
 // @Param event_name_like query string false "事件名（模糊匹配，event_name 为空时生效）"
 // @Param module query string false "模块"
-// @Success 200 {object} object{code=int,data=object{list=[]clickhouse.ActionAuditRecord,count=int},msg=string}
+// @Success 200 {object} kernel.Envelope[kernel.ListData[clickhouse.ActionAuditRecord]]
 // @Router /logs/action [get]
 func (h *Handler) ActionAuditListView(c *gin.Context) {
 	cr := middleware.GetBindQuery[ActionAuditListRequest](c)
@@ -310,7 +312,7 @@ func (h *Handler) ActionAuditListView(c *gin.Context) {
 // @Produce json
 // @Security BearerAuth
 // @Param id path string true "日志 ID"
-// @Success 200 {object} object{code=int,data=clickhouse.ActionAuditRecord,msg=string}
+// @Success 200 {object} kernel.Envelope[clickhouse.ActionAuditRecord]
 // @Router /logs/action/{id} [get]
 func (h *Handler) ActionAuditDetailView(c *gin.Context) {
 	cr := middleware.GetBindUri[IDRequest](c)

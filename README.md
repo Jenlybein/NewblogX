@@ -797,6 +797,9 @@ ls ../../state/api/logs/
 docker compose exec es curl -s -u "elastic:$BLOGX_ES_PASSWORD" \
   'http://127.0.0.1:9200/article_index/_count?pretty'
 
+# ES 有没有挂过 / 重启过（由容器内的看门狗记录，只在状态变化时写）
+docker compose logs blogx_server | grep '\[es-watch\]'
+
 # 查表行数
 docker compose exec mysql-master mysql -u"$BLOGX_DB_USER" -p"$BLOGX_DB_PASSWORD" \
   "$BLOGX_DB_NAME" -e "SELECT COUNT(*) FROM article_models"
@@ -892,6 +895,19 @@ BLOGX_LOG_CLEANUP_RUN_AT='03:30:00'
   「非空」判定的，写 `'false'` 也照样触发，想关掉只能删掉整行。
 - `max virtual memory areas vm.max_map_count [...] is too low` —— Linux 上内核参数太小，见 [10.1](#101-前置条件)。
 - OOM / `Killed` —— 内存上限小于 512 MB。`ES_JAVA_OPTS` 已经是 `-Xms512m -Xmx512m`，上限再小就会 OOM。
+
+**怎么知道 ES 中途挂过 / 重启过**
+`docker compose ps` 看不出来：`restart: always` 会把它自己拉回来，重启完照样 healthy。
+`entrypoint.sh` 会在 `blogx_server` 里拉起一个看门狗（`deploy/docker/api/es-watch.sh`），
+每 60 秒采一次 `_cluster/health` 和 JVM uptime，**只在状态变化时**写一行，前缀 `[es-watch]`：
+
+```bash
+docker compose logs blogx_server | grep '\[es-watch\]'
+```
+
+会看到 `检测到 ES 重启：JVM uptime ... -> ...`、`集群状态变化 green -> yellow`、
+`ES 不可达` 这类行。uptime 倒退是唯一可靠的“重启过”信号——即使重启正好发生在两次采样之间也能发现。
+它只记录、不干预；要主动通知得另接外部监控。
 
 **搜索搜不到文章，但数据库里明明有**
 按顺序查：`BLOGX_RIVER_ENABLED` 是否为 `true` → river 日志有没有报 binlog 权限 → 索引是否存在（`-es -s ensure`）→ 手动回填一次（`-es -s article-sync`）。注意写库后在 ES 里能搜到**有几秒延迟是正常的**。

@@ -138,7 +138,13 @@ docker compose exec blogx_server /app/server -f config/settings.yaml \
 
 访问 `https://你的域名` 与 `https://你的域名/admin/`。
 
-域名和 `render-config.sh` 里的默认值（`blogx.gentlybeing.cn`）不同也能跑——nginx 只有一个 server 块，会响应任意 Host；但**证书必须与域名匹配**，否则浏览器报警告。想彻底对齐就改 `deploy/docker/nginx/render-config.sh` 里 production 段的 `BLOGX_NGINX_SERVER_NAME`。
+域名和 `render-config.sh` 里的默认值（`blogx.gentlybeing.cn`）不同也能跑——nginx 只有一个 server 块，会响应任意 Host；但**证书必须与域名匹配**，否则浏览器报警告。想彻底对齐就在 `.env` 里加一行：
+
+```ini
+BLOGX_NGINX_SERVER_NAME='你的域名'
+```
+
+compose 已经把它透传进 nginx 容器，留空则回退到模板默认值（所以不加这行也不会有问题，只是日志里的域名不对）。**不要去改 `render-config.sh`** —— 那是仓库里的文件，`git pull` 时你的改动会和上游冲突。
 
 ### 3. 服务器无域名 Docker 拉起
 
@@ -286,6 +292,7 @@ corepack prepare pnpm@10.33.0 --activate
 | `BLOGX_GIN_MODE` | `debug` / `release` | 生产用 `debug` 会打印大量 SQL 与调试信息 |
 | `BLOGX_APP_HOST` | 监听地址 | **容器内必须是 `0.0.0.0`**（见下方陷阱） |
 | `BLOGX_NGINX_ENV` | 部署形态开关，见 [10.2](#102-nginx-的四种形态) | 决定 nginx 是否要求域名与证书 |
+| `BLOGX_NGINX_SERVER_NAME` | 覆盖 nginx `server_name`，留空用形态默认值 | 只影响日志与 `nginx -T` 里的域名；单 server 块下不影响访问 |
 
 还有两条**联动关系**，不填错也不报错，只表现为"某个功能莫名其妙不工作"：
 
@@ -600,8 +607,14 @@ bash scripts/check.sh gates      # 只做门禁自检（证明门禁真的会红
 | 系统 | Linux（x86_64），Docker 24+ 与 Compose v2 |
 | 内存 | **8 GB 起步，16 GB 更稳**。compose 里各服务 limits 合计约 9.8 GB（那是上限不是占用） |
 | 磁盘 | 40 GB+（MySQL 数据 + ES 索引 + ClickHouse 日志 + 上传图片） |
-| 端口 | 只开放 80 / 443，其余一律不开 |
+| 端口 | 80 **和** 443，其余一律不开（见下面那条最容易漏的） |
 | 域名 | 已解析到服务器 IP，证书已备好 |
+
+> **80 和 443 是两条独立的安全组规则，要分别放行。**
+> 云平台（腾讯云 / 阿里云 / 轻量应用服务器各自叫安全组或防火墙）里放行 80 **不等于**放行 443。
+> 只放 80 的症状很具体：`http://域名` 正常、`https://域名` 死活打不开，浏览器通常是「连接超时」而不是证书错误。
+> 这种情况下服务器侧一切正常（`curl -kI https://127.0.0.1/` 返回 200），**包在到达服务器之前就被丢了**，
+> 排查路径见[常见问题](#十三常见问题)里「HTTP 能打开、HTTPS 打不开」。
 
 Linux 上 ES 还需要（否则容器反复重启，日志里是 `max virtual memory areas vm.max_map_count [65530] is too low`）：
 
@@ -621,7 +634,8 @@ echo 'vm.max_map_count=262144' | sudo tee -a /etc/sysctl.conf
 | `production` | `blogx.gentlybeing.cn` | 是 | 读者站 | 后台 |
 | `api-only` | `blog.gentlybeing.cn` | 是 | 404 | 404 |
 
-要换域名，改的是 `deploy/docker/nginx/render-config.sh` 里的默认值，或者直接在同名环境变量里覆盖（显式传入优先）。
+要换域名，在 `.env` 里加 `BLOGX_NGINX_SERVER_NAME='你的域名'`（compose 已透传，留空回退默认值）。
+改 `render-config.sh` 里的默认值也能生效，但那是仓库文件，`git pull` 会和上游冲突，不推荐。
 
 ### 10.3 首次部署
 
@@ -687,6 +701,8 @@ docker compose up -d --build
 
 这带来一个副作用要知道：**想重新初始化，得先把这张表删掉**（或手动执行 `-db`），否则 entrypoint 永远认为"已经初始化过了"。
 
+**启动要多久**：首次 `up` 含构建，几分钟；之后重启约 **40 秒**，其中大头是 ES 自己的冷启动（entrypoint 的 `wait_for_es` 每 3 秒探一次），应用连上 Redis/MySQL/ES 本身只要几毫秒。`blogx_server` 的探针间隔是 10s，所以"进程就绪"到"被判定 healthy"最多再差 10 秒。
+
 ```bash
 # 5. 确认状态
 docker compose ps                       # 全部 Up (healthy)
@@ -698,8 +714,32 @@ docker compose exec blogx_server /app/server \
   -user-role admin -user-username admin -user-password '<强密码>'
 
 # 7. 冒烟测试
-curl -k https://你的域名/health
+curl -sI https://你的域名/health    | head -1
+curl -sI https://你的域名/          | head -1
+curl -sI https://你的域名/admin/    | head -1
+curl -s  https://你的域名/api/site/seo | head -c 200; echo
 ```
+
+顺带查一下集群状态，正常应是 `green`：
+
+```bash
+docker compose exec es sh -c 'curl -s -u elastic:$ELASTIC_PASSWORD \
+  "http://127.0.0.1:9200/_cluster/health?pretty"' | head -6
+```
+
+单节点也是 `green` 才对：索引定义里用的是 `auto_expand_replicas: "0-1"`（按数据节点数自动取值，1 节点 → 0 副本），所以不会再出现"永远 yellow"。
+
+另外 `entrypoint.sh` 会在 `blogx_server` 里拉起一个 ES 看门狗（`deploy/docker/api/es-watch.sh`），每 60 秒采样一次、**只在状态变化时**写日志，前缀 `[es-watch]`。它记录的正是 `docker compose ps` 看不见的东西——ES 中途挂过、重启过。用法见[常见问题](#十三常见问题)。
+
+`api/site/seo` 那条最有价值：它同时穿过 nginx 反代、Go 服务、MySQL 连接三件事，而前三条任何一条挂了都可能只是缓存或纯前端的问题。
+
+**但上面这四条在服务器上跑，只能证明"nginx 和后端活着"，证明不了"公网能进来"** —— 它们走的是 127.0.0.1，根本不经过安全组。真正的上线判定必须从外部做一次：
+
+- 手机流量（关掉 WiFi）打开 `https://你的域名`，或
+- 从任意另一台机器访问，或
+- 用外部探测（SSL Labs、`curl` 一台别的服务器）
+
+这一步不过，基本就是安全组没放行 443，跟证书、nginx、后端都无关。
 
 浏览器访问 `https://你的域名`（读者站）与 `https://你的域名/admin/`（后台）。
 
@@ -752,8 +792,10 @@ docker tag blogx-admin:production  blogx-admin:2026-10-26
 - [ ] `BLOGX_APP_HOST=0.0.0.0`、`BLOGX_NGINX_ENV=production`、`BLOGX_GIN_MODE=release`
 - [ ] 五个密码全部换成强密码，`BLOGX_JWT_SECRET` 已重新生成
 - [ ] 证书放在 `deploy/state/nginx/cert/domain.pem` / `domain.key`，私钥权限 600
-- [ ] 防火墙只放 80/443；`docker compose ps` 里 mysql/redis/es/clickhouse **没有**宿主机端口映射
-- [ ] `curl https://域名/health` 返回 200
+- [ ] 安全组/防火墙**分别**放行了 80 与 443；`docker compose ps` 里 mysql/redis/es/clickhouse **没有**宿主机端口映射
+- [ ] `curl https://域名/health` 返回 200（服务器上跑，只证明进程活着）
+- [ ] **从外网访问一次 `https://域名` 成功**（手机流量 / 另一台机器）。服务器上 curl 127.0.0.1 永远通，它不过安全组，证明不了公网可达
+- [ ] ES 集群 `"status": "green"`（单节点靠 `auto_expand_replicas: "0-1"`，不该是 yellow）
 - [ ] `/` 与 `/admin/` 都能打开，后台能登录（已用命令行建号）
 - [ ] 上传一张图片，确认返回七牛 CDN 域名且能打开。**没配七牛时这一项会报「站点未启用图片上传」，属预期**
 - [ ] 发一篇文章，等几秒后在站内搜索能搜到（验证 river 链路）
@@ -779,6 +821,8 @@ docker tag blogx-admin:production  blogx-admin:2026-10-26
 
 需要临时连进去排查时，用 `docker compose exec` 而不是改 compose 加端口——改端口意味着把数据库暴露到公网。
 
+`nginx` 那行的 80 / 443 是**容器侧**的映射，宿主机外面还有一层云平台的安全组/防火墙，两边都要放开才算通。只开 80 的典型表现见[常见问题](#十三常见问题)「HTTP 能打开、HTTPS 打不开」。
+
 ### 11.2 常见运维命令
 
 ```bash
@@ -797,8 +841,17 @@ ls ../../state/api/logs/
 docker compose exec es curl -s -u "elastic:$BLOGX_ES_PASSWORD" \
   'http://127.0.0.1:9200/article_index/_count?pretty'
 
+# 集群状态：正常应是 green；yellow 说明有副本分不出去（见常见问题）
+docker compose exec es sh -c 'curl -s -u elastic:$ELASTIC_PASSWORD \
+  "http://127.0.0.1:9200/_cluster/health?pretty"' | head -6
+
+# 索引是不是"正规建出来的"：数一下 IK 分词器出现次数，0 = 裸索引（搜索会不准）
+docker compose exec es sh -c 'curl -s -u elastic:$ELASTIC_PASSWORD \
+  "http://127.0.0.1:9200/article_index/_mapping"' | grep -c ik_max_word
+
 # ES 有没有挂过 / 重启过（由容器内的看门狗记录，只在状态变化时写）
-docker compose logs blogx_server | grep '\[es-watch\]'
+# 用 -F 按纯字符串匹配：方括号和反斜杠都不用转义，复制粘贴不会走样
+docker compose logs blogx_server | grep -F 'es-watch'
 
 # 查表行数
 docker compose exec mysql-master mysql -u"$BLOGX_DB_USER" -p"$BLOGX_DB_PASSWORD" \
@@ -902,15 +955,70 @@ BLOGX_LOG_CLEANUP_RUN_AT='03:30:00'
 每 60 秒采一次 `_cluster/health` 和 JVM uptime，**只在状态变化时**写一行，前缀 `[es-watch]`：
 
 ```bash
-docker compose logs blogx_server | grep '\[es-watch\]'
+docker compose logs blogx_server | grep -F 'es-watch'
 ```
 
 会看到 `检测到 ES 重启：JVM uptime ... -> ...`、`集群状态变化 green -> yellow`、
 `ES 不可达` 这类行。uptime 倒退是唯一可靠的“重启过”信号——即使重启正好发生在两次采样之间也能发现。
 它只记录、不干预；要主动通知得另接外部监控。
 
+**HTTP 能打开、HTTPS 打不开**
+最典型的原因是**云平台只放行了 80、没放行 443**，不是证书也不是 nginx 的问题。按这个顺序定位，三步就能定性：
+
+```bash
+# ① 服务器上直连 443：通，说明 nginx + 证书 + 端口映射全都是对的
+curl -sI https://127.0.0.1/ | head -1
+curl -I --resolve 你的域名:443:127.0.0.1 https://你的域名/    # 不加 -k，顺便验证证书与域名匹配
+
+# ② 抓包看外部请求的 SYN 到底有没有到网卡（跑起来后用浏览器访问一次）
+sudo timeout 40 tcpdump -ni any 'tcp port 443 and tcp[tcpflags] & tcp-syn != 0'
+
+# ③ nginx 有没有收到握手痕迹
+docker compose exec nginx tail -20 /var/log/nginx/error.log
+```
+
+**②③ 都是空的时候（`0 packets captured`、error.log 没有新内容）= 包在到达服务器之前就被丢了**，那只可能是安全组/防火墙。去控制台放行 `TCP:443`，几秒生效，不用重启任何服务。
+
+两个容易把自己带进坑里的点：
+
+- **别用本机的 `Test-NetConnection` / `curl` 判断公网可达性**。开着 Clash 之类的代理（TUN 模式 + fake-ip）时，域名会解析成 `198.18.x.x`，你测到的是本机代理的监听口，返回 `TcpTestSucceeded: True` 也说明不了任何事。要么用手机流量（关 WiFi），要么在服务器上抓包。
+- 浏览器报错要分清：`连接超时` = 包被丢（防火墙）；`ERR_SSL_PROTOCOL_ERROR` / 证书告警 = 通了但握手或证书有问题（先确认访问的不是 `www.` 前缀，证书 SAN 里可能只有裸域名）。
+
+**集群一直是 yellow / `unassigned_shards` 大于 0**
+单节点集群里索引默认 1 副本，那份副本永远分配不出去，状态就卡在 yellow。项目里的索引定义用的是 `auto_expand_replicas: "0-1"`（1 个数据节点 → 0 副本 → green；多节点 → 1 副本 → 有冗余），所以**新建的索引不会再 yellow**。
+
+已存在的索引要单独改，不重建、不丢数据：
+
+```bash
+docker compose exec es sh -c 'curl -XPUT -u elastic:$ELASTIC_PASSWORD \
+  -H "Content-Type: application/json" \
+  "http://127.0.0.1:9200/article_index/_settings" \
+  -d "{\"index\":{\"auto_expand_replicas\":\"0-1\"}}"'
+```
+
+yellow 本身不影响读写，但它会让"颜色"这个最直观的信号失效——将来真出问题（主分片丢失是 red、副本缺失是 yellow）时你分辨不出来。别把它当常态放着。
+
 **搜索搜不到文章，但数据库里明明有**
-按顺序查：`BLOGX_RIVER_ENABLED` 是否为 `true` → river 日志有没有报 binlog 权限 → 索引是否存在（`-es -s ensure`）→ 手动回填一次（`-es -s article-sync`）。注意写库后在 ES 里能搜到**有几秒延迟是正常的**。
+按顺序查：`BLOGX_RIVER_ENABLED` 是否为 `true` → river 日志有没有报 binlog 权限 → 索引是否存在 → 手动回填一次（`-es -s article-sync`）。注意写库后在 ES 里能搜到**有几秒延迟是正常的**。
+
+还有一种更隐蔽的可能：**索引被删过，ES 自己建了个裸索引补上**。判断方法：
+
+```bash
+docker compose exec es sh -c 'curl -s -u elastic:$ELASTIC_PASSWORD \
+  "http://127.0.0.1:9200/article_index/_mapping"' | grep -c ik_max_word
+```
+
+返回 `0` 就是裸索引——没有 IK 分词器（中文按单字切）、没有 `index.default_pipeline`、字段类型是动态推断的。表现是"能搜到但搜不准"或者干脆搜不到，而 `/health` 照样 200、容器照样 healthy。
+
+之所以会这样：`-es -s ensure` 只在**首次初始化那天**跑过一次（`entrypoint.sh` 用 `runtime_site_config_models` 表是否存在判断），之后启动都不再建索引，服务运行期也没有任何索引存在性检查。这时要手工修：
+
+```bash
+docker compose exec blogx_server /app/server -f /app/config/settings.yaml -es -s delete   # 删掉裸索引
+docker compose exec blogx_server /app/server -f /app/config/settings.yaml -es -s ensure   # 按 mapping 重建
+docker compose exec blogx_server /app/server -f /app/config/settings.yaml -es -s article-sync   # 全量回填
+```
+
+`delete` 是破坏性的，只删 ES 里的索引，**不动 MySQL 数据**，所以 `article-sync` 能原样灌回来。
 
 **后台登录报 401 / 打开 `/admin/` 是 404**
 401：账号没建，用 `-t user -s create` 建一个。404：少了尾斜杠，或者 `BLOGX_ADMIN_BASE_URL` 与 nginx 的 `location /admin/` 对不上。
@@ -954,6 +1062,9 @@ README 只能回答"怎么用"。更细的东西都在代码库里，而且它�
 | 表结构 | `backend/internal/platform/mysql/ddl/schema.sql` |
 | 接口清单与出入参结构 | `backend/docs/swagger.json`，或前端 `app/types/openapi.d.ts` |
 | nginx 的路由与反代规则 | `deploy/docker/nginx/nginx.conf.tmpl`；变量推导在 `render-config.sh` |
+| 容器启动前做了什么（初始化、等 ES、拉起看门狗） | `deploy/docker/api/entrypoint.sh` |
+| ES 状态变化的判定逻辑（uptime 倒退 = 重启过） | `deploy/docker/api/es-watch.sh` 顶部注释 |
+| ES 索引的 mapping 与那两条"改错不报错"的约定 | `backend/internal/platform/es/articlesync/mapping/article_mapping.json` + `rows.go` 里的 embed 注释 |
 | 容器编排、依赖顺序、资源上限 | `deploy/compose/production/docker-compose.yml` |
 | 门禁到底检查了什么 | `scripts/check.sh` 顶部注释（每个检查项都写了为什么） |
 | 架构守卫规则与当前基线 | `backend/tools/archcheck/`、`scripts/arch-baseline.env` |

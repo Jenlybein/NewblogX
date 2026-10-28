@@ -36,7 +36,7 @@
       test:
         [
           "CMD-SHELL",
-          'mysql -h127.0.0.1 -P3306 --protocol=TCP --skip-ssl -u"$${BLOGX_DB_USER}" -p"$${BLOGX_DB_PASSWORD}" -D"$${MYSQL_DATABASE}" -e "SELECT 1" > /dev/null 2>&1 || exit 1',
+          'mysql -h127.0.0.1 -P3306 --protocol=TCP --ssl-mode=DISABLED -u"$${BLOGX_DB_USER}" -p"$${BLOGX_DB_PASSWORD}" -D"$${MYSQL_DATABASE}" -e "SELECT 1" > /dev/null 2>&1 || exit 1',
         ]
       interval: 30s
       timeout: 5s
@@ -82,7 +82,7 @@
       test:
         [
           "CMD-SHELL",
-          'mysql -h127.0.0.1 -P3306 --protocol=TCP --skip-ssl -u"$${BLOGX_DB_USER}" -p"$${BLOGX_DB_PASSWORD}" -D"$${BLOGX_DB_NAME}" -e "SELECT 1" > /dev/null 2>&1 || exit 1',
+          'mysql -h127.0.0.1 -P3306 --protocol=TCP --ssl-mode=DISABLED -u"$${BLOGX_DB_USER}" -p"$${BLOGX_DB_PASSWORD}" -D"$${BLOGX_DB_NAME}" -e "SELECT 1" > /dev/null 2>&1 || exit 1',
         ]
       interval: 30s
       timeout: 5s

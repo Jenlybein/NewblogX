@@ -1,6 +1,7 @@
 package diagnose
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"myblogx/conf"
@@ -11,13 +12,13 @@ import (
 
 const selectionTooShortMsg = "内容过短，建议选中完整句或完整段落"
 
-func DiagnoseSelectedText(aiConf conf.AI, req DiagnoseRequest) (*DiagnoseResponse, error) {
+func DiagnoseSelectedText(ctx context.Context, aiConf conf.AI, req DiagnoseRequest) (*DiagnoseResponse, error) {
 	normalized, err := normalizeDiagnoseRequest(req)
 	if err != nil {
 		return nil, err
 	}
 
-	reply, err := ai.Chat(aiConf, []ai.Message{
+	reply, err := ai.Chat(ctx, aiConf, []ai.Message{
 		{
 			Role:    "system",
 			Content: buildDiagnosePrompt(),

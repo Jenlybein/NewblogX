@@ -135,6 +135,8 @@ const (
 	Social Group = "social"
 	// DeadLetter 是 CDC 死信。
 	DeadLetter Group = "dead_letter"
+	// AIProvider 是启用中的模型配置（AI 调用方读的那张表）。
+	AIProvider Group = "ai_provider"
 	// All 是全部表（仅用于结构一致性契约测试）。
 	All Group = "all"
 )
@@ -205,7 +207,10 @@ var groupModels = map[Group][]any{
 	DeadLetter: {
 		&CdcDeadLetterRow{},
 	},
-	// All 是**全部 32 张表**，只用于"schema.sql 与自持行是否一致"的契约测试。
+	AIProvider: {
+		&AIProviderRow{},
+	},
+	// All 是**全部 33 张表**，只用于"schema.sql 与自持行是否一致"的契约测试。
 	//
 	// 为什么不复用上面那些组拼起来：拼装顺序一变，这个测试就变成
 	// "测拼装顺序"而不是"测结构一致性"。这里写死一份，顺序沿用当年
@@ -243,6 +248,7 @@ var groupModels = map[Group][]any{
 		&ChatMsgUserStateRow{},
 		&CdcDeadLetterRow{},
 		&OutboxEventRow{},
+		&AIProviderRow{},
 	},
 }
 

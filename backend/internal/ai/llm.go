@@ -2,8 +2,11 @@ package ai
 
 import (
 	"context"
+	"strconv"
+	"time"
 
 	"myblogx/conf"
+	"myblogx/internal/apperr"
 	"myblogx/internal/platform/llm"
 )
 
@@ -17,25 +20,72 @@ type (
 	Request = llm.Request
 )
 
-// newClient 根据配置构造 AI 客户端。
+// specFromConfig 把 conf.AI 里的 Active 投影成 llm 层的输入。
 //
-// 真正的 HTTP 细节（超时 / ctx / 重试 / 连接池）在 internal/platform/llm，
-// 本包只负责把 conf.AI 映射成 llm.Config。
-func newClient(aiConf conf.AI) *llm.Client {
-	return llm.NewClient(llm.Config{
-		Enable:    aiConf.Enable,
-		BaseURL:   aiConf.BaseURL,
-		SecretKey: aiConf.SecretKey,
-		ChatModel: aiConf.ChatModel,
-	})
+// 这里做的是"领域字段 → 供应商字段"的翻译：配置表里 Fields 是
+// map[string]string（键由供应商元数据定义），llm 层则要强类型的字段。
+func specFromConfig(aiConf conf.AI) (llm.ProviderSpec, error) {
+	active := aiConf.Active
+	if active == nil {
+		return llm.ProviderSpec{}, apperr.New(apperr.CodeAIProviderMissing)
+	}
+	fields := active.Fields
+	return llm.ProviderSpec{
+		Vendor:      active.Vendor,
+		Model:       active.Model,
+		APIKey:      fields["api_key"],
+		BaseURL:     fields["base_url"],
+		Region:      fields["region"],
+		AccessKey:   fields["access_key"],
+		SecretKey:   fields["secret_key"],
+		MaxTokens:   atoiOrZero(fields["max_tokens"]),
+		Temperature: aiConf.Temperature,
+		Timeout:     time.Duration(aiConf.TimeoutSec) * time.Second,
+	}, nil
 }
 
 // Chat 非流式 AI 对话。
-func Chat(aiConf conf.AI, msgList []Message) (string, error) {
-	return newClient(aiConf).Chat(context.Background(), msgList)
+//
+// ctx 由调用方一路传进来：客户端断开时上游请求要能一起取消，否则一次点开
+// 又关掉的对话会让上游白跑满整个超时。
+func Chat(ctx context.Context, aiConf conf.AI, msgList []Message) (string, error) {
+	if !aiConf.Enable {
+		return "", apperr.New(apperr.CodeAIServiceOff)
+	}
+	spec, err := specFromConfig(aiConf)
+	if err != nil {
+		return "", err
+	}
+	return llm.Chat(ctx, llm.SharedFactory(), spec, msgList)
 }
 
 // ChatStream 流式 AI 对话，返回内容通道与错误通道。
-func ChatStream(aiConf conf.AI, msgList []Message) (chan string, chan error) {
-	return newClient(aiConf).ChatStream(context.Background(), msgList)
+func ChatStream(ctx context.Context, aiConf conf.AI, msgList []Message) (chan string, chan error) {
+	if !aiConf.Enable {
+		contentChan := make(chan string)
+		errChan := make(chan error, 1)
+		errChan <- apperr.New(apperr.CodeAIServiceOff)
+		close(contentChan)
+		close(errChan)
+		return contentChan, errChan
+	}
+	spec, err := specFromConfig(aiConf)
+	if err != nil {
+		contentChan := make(chan string)
+		errChan := make(chan error, 1)
+		errChan <- err
+		close(contentChan)
+		close(errChan)
+		return contentChan, errChan
+	}
+	return llm.ChatStream(ctx, llm.SharedFactory(), spec, msgList)
+}
+
+// atoiOrZero 解析可选的数字字段；解析不了就当作"没填"。
+func atoiOrZero(raw string) int {
+	value, err := strconv.Atoi(raw)
+	if err != nil || value < 0 {
+		return 0
+	}
+	return value
 }

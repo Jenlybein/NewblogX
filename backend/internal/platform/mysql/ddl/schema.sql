@@ -10,6 +10,20 @@
 -- 一致性保障：internal/platform/mysql/schema_contract_integration_test.go 会把本文件
 -- 应用到一个空库，再与各模块自持的行结构逐列比对。
 
+CREATE TABLE IF NOT EXISTS `ai_provider_models` (
+  `id` bigint unsigned NOT NULL,
+  `created_at` datetime(3) DEFAULT NULL,
+  `updated_at` datetime(3) DEFAULT NULL,
+  `deleted_at` datetime(3) DEFAULT NULL,
+  `name` varchar(64) NOT NULL,
+  `vendor` varchar(32) NOT NULL,
+  `model` varchar(128) NOT NULL,
+  `enabled` tinyint(1) DEFAULT NULL,
+  `config` longtext NOT NULL,
+  PRIMARY KEY (`id`),
+  KEY `idx_ai_provider_models_enabled` (`enabled`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
 CREATE TABLE IF NOT EXISTS `article_ai_score_record_models` (
   `id` bigint unsigned NOT NULL,
   `created_at` datetime(3) DEFAULT NULL,

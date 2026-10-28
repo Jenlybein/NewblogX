@@ -94,21 +94,21 @@ func (s *Service) Metainfo(ctx context.Context, userID uint64, content string) (
 // ── 文本改写与诊断 ──────────────────────────────────────────────
 
 // RewriteStream 流式改写选中文本。
-func (s *Service) RewriteStream(req overwrite.RewriteRequest) (chan string, chan error, error) {
+func (s *Service) RewriteStream(ctx context.Context, req overwrite.RewriteRequest) (chan string, chan error, error) {
 	aiConf, err := s.config()
 	if err != nil {
 		return nil, nil, err
 	}
-	return overwrite.RewriteContentStream(aiConf, req)
+	return overwrite.RewriteContentStream(ctx, aiConf, req)
 }
 
 // Diagnose 诊断选中文本。
-func (s *Service) Diagnose(req diagnose.DiagnoseRequest) (*diagnose.DiagnoseResponse, error) {
+func (s *Service) Diagnose(ctx context.Context, req diagnose.DiagnoseRequest) (*diagnose.DiagnoseResponse, error) {
 	aiConf, err := s.config()
 	if err != nil {
 		return nil, err
 	}
-	return diagnose.DiagnoseSelectedText(aiConf, req)
+	return diagnose.DiagnoseSelectedText(ctx, aiConf, req)
 }
 
 // ── 智能搜索 ────────────────────────────────────────────────────
@@ -123,7 +123,7 @@ func (s *Service) RewriteSearch(ctx context.Context, content string) (*aisearch.
 	if err != nil {
 		return nil, err
 	}
-	return aisearch.RewriteArticleSearch(tags, aiConf, content)
+	return aisearch.RewriteArticleSearch(ctx, tags, aiConf, content)
 }
 
 // SearchArticles 用改写结果执行文章搜索。
@@ -187,12 +187,12 @@ func (s *Service) SearchArticles(ctx context.Context, rewrite *aisearch.ArticleS
 }
 
 // StreamAnswer 基于检索结果让 LLM 生成回答（流式）。
-func (s *Service) StreamAnswer(question string, list []searchdomain.Item) (chan string, chan error, error) {
+func (s *Service) StreamAnswer(ctx context.Context, question string, list []searchdomain.Item) (chan string, chan error, error) {
 	aiConf, err := s.config()
 	if err != nil {
 		return nil, nil, err
 	}
-	return aisearch.AnalyzeArticleSearchStream(aiConf, question, list)
+	return aisearch.AnalyzeArticleSearchStream(ctx, aiConf, question, list)
 }
 
 // ── 文章质量评分 ────────────────────────────────────────────────
@@ -273,7 +273,7 @@ func (s *Service) Rescore(ctx context.Context, viewerID uint64, in RescoreInput)
 		content = strings.TrimSpace(article.Content)
 	}
 
-	scoreResp, err := scoring.ScoreArticleQuality(aiConf, scoring.ArticleScoreRequest{Title: title, Content: content})
+	scoreResp, err := scoring.ScoreArticleQuality(ctx, aiConf, scoring.ArticleScoreRequest{Title: title, Content: content})
 	if err != nil {
 		return ScoreView{}, err
 	}
@@ -317,7 +317,7 @@ func (s *Service) EnsureScoreIfMissing(ctx context.Context, articleID uint64) er
 
 	title := strings.TrimSpace(article.Title)
 	content := strings.TrimSpace(article.Content)
-	scoreResp, err := scoring.ScoreArticleQuality(aiConf, scoring.ArticleScoreRequest{Title: title, Content: content})
+	scoreResp, err := scoring.ScoreArticleQuality(ctx, aiConf, scoring.ArticleScoreRequest{Title: title, Content: content})
 	if err != nil {
 		return err
 	}
@@ -378,7 +378,7 @@ func persistScore(
 		MainIssuesJSON:   string(mainIssuesJSON),
 		OverallComment:   resp.OverallComment,
 		Provider:         "llm",
-		ModelName:        strings.TrimSpace(aiConf.ChatModel),
+		ModelName:        activeModelName(aiConf),
 		PromptVersion:    scoringPromptVersion,
 	}
 	if _, err := repo.CreateIfAbsent(ctx, record); err != nil {
@@ -457,4 +457,15 @@ func appendUnique(list []searchdomain.Item, seen map[uint64]struct{}, extra []se
 		list = append(list, item)
 	}
 	return list
+}
+
+// activeModelName 取当前启用配置的模型名，用于评分记录回溯。
+//
+// 不能直接读 conf.AI 的某个字段：模型名现在挂在 ai_provider_models 表里，
+// 由装配层投影到 AI.Active。
+func activeModelName(aiConf conf.AI) string {
+	if aiConf.Active == nil {
+		return ""
+	}
+	return strings.TrimSpace(aiConf.Active.Model)
 }

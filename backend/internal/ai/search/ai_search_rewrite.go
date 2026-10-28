@@ -1,6 +1,7 @@
 package aisearch
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"strings"
@@ -45,7 +46,7 @@ var articleSearchPrompt = `
 // RewriteArticleSearch 判断输入是不是文章搜索意图，并把搜索条件改写成结构化结果。
 //
 // 标签候选由调用方传入：本包只做提示词与结果校验，不碰数据库。
-func RewriteArticleSearch(tagList []string, aiConf conf.AI, content string) (*ArticleSearchRewrite, error) {
+func RewriteArticleSearch(ctx context.Context, tagList []string, aiConf conf.AI, content string) (*ArticleSearchRewrite, error) {
 	if strings.TrimSpace(content) == "" {
 		return nil, apperr.New(apperr.CodeAIContentRequired)
 	}
@@ -61,7 +62,7 @@ func RewriteArticleSearch(tagList []string, aiConf conf.AI, content string) (*Ar
 		},
 	}
 
-	reply, err := ai.Chat(aiConf, msgList)
+	reply, err := ai.Chat(ctx, aiConf, msgList)
 	if err != nil {
 		return nil, apperr.Wrap(apperr.CodeAIRequestFailed, err)
 	}

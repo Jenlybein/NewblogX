@@ -1,6 +1,7 @@
 package metainfo
 
 import (
+	"context"
 	"fmt"
 	"myblogx/conf"
 	"myblogx/internal/ai"
@@ -24,7 +25,7 @@ var articleMetainfoPrompt = `
 }
 `
 
-func requestArticleMetainfoFromAI(aiConf conf.AI, article string, categoryOptions, tagOptions []Metainfos) (string, error) {
+func requestArticleMetainfoFromAI(ctx context.Context, aiConf conf.AI, article string, categoryOptions, tagOptions []Metainfos) (string, error) {
 	prompt := fmt.Sprintf(
 		articleMetainfoPrompt,
 		ai.MustJSONString(categoryOptions),
@@ -42,7 +43,7 @@ func requestArticleMetainfoFromAI(aiConf conf.AI, article string, categoryOption
 		},
 	}
 
-	reply, err := ai.Chat(aiConf, msgList)
+	reply, err := ai.Chat(ctx, aiConf, msgList)
 	if err != nil {
 		return "", fmt.Errorf("文章元信息请求失败: %w", err)
 	}

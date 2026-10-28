@@ -9,6 +9,7 @@ import (
 	aiapp "myblogx/internal/ai/app"
 	"myblogx/internal/ai/domain"
 	"myblogx/internal/platform/http/router"
+	"myblogx/internal/platform/llm"
 	redis_service "myblogx/internal/platform/redis"
 	searchredis "myblogx/internal/search/adapter/redis"
 	searchapp "myblogx/internal/search/app"
@@ -27,6 +28,19 @@ func WireAI(infra *Infra) {
 	}
 	redisOptions := redis_service.NewOptions(infra.Redis, infra.Logger)
 	catalog := aimysql.NewCatalog(infra.DB)
+
+	// 模型配置列表 + 内存快照。
+	//
+	// onChange 挂到 factory.Invalidate 上：配置一改就把 eino 的模型缓存清掉，
+	// 否则旧的连接与旧的密钥还会被用一阵子。
+	providers := aiapp.NewProviderService(aimysql.NewProvider(infra.DB), infra.Logger).
+		WithOnChange(llm.SharedFactory().Invalidate)
+	// 加载失败不阻断启动：AI 会返回"还没有启用的模型配置"，其它功能照常。
+	// 最常见的原因是部署时忘了跑一次 -db（新表不会被 entrypoint 自动创建）。
+	if err := providers.Load(context.Background()); err != nil {
+		infra.Logger.Errorf("加载模型配置失败（AI 将不可用，检查是否已建 ai_provider_models 表）: %v", err)
+	}
+
 	svc := aiapp.New(
 		aimysql.New(infra.DB),
 		catalog,
@@ -40,13 +54,17 @@ func WireAI(infra *Infra) {
 			if infra.RuntimeSite == nil {
 				return conf.AI{}
 			}
-			return infra.RuntimeSite.GetRuntimeAI()
+			cfg := infra.RuntimeSite.GetRuntimeAI()
+			// 每次现填而不是缓存整份 conf.AI：站点级设置与"用哪条模型"是
+			// 两处数据源，任一处改了都要立刻生效。
+			cfg.Active = providers.Active()
+			return cfg
 		},
 		infra.Logger,
 	).WithRawLogger(infra.Logger)
 
 	aiService = svc
-	router.SetAIHandler(aihttp.NewHandler(svc))
+	router.SetAIHandler(aihttp.NewHandler(svc, providers))
 }
 
 // aiSearcher 把 search 模块的用例适配成 AI 模块的搜索端口。

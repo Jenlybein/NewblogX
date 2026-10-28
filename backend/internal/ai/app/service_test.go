@@ -17,7 +17,10 @@ import (
 
 // newEnv 构造带一篇文章的替身。
 func newEnv() *apptest.Env {
-	env := apptest.NewEnv(conf.AI{Enable: true, ChatModel: "test-model"})
+	env := apptest.NewEnv(conf.AI{Enable: true, Active: &conf.AIProvider{
+		Vendor: "openai", Model: "test-model",
+		Fields: map[string]string{"api_key": "test-key"},
+	}})
 	env.Scores.Articles[100] = domain.ArticleSnapshot{
 		ID:        ctype.NewID(100),
 		AuthorID:  ctype.NewID(7),

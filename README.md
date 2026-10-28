@@ -4,7 +4,7 @@
 
 **这不是 monorepo**——仓库里没有 workspace、没有 turbo、没有共享代码包。三个应用各自装依赖、各自构建，唯一的耦合点是后端生成的 OpenAPI 契约（见[契约](#七前后端契约唯一耦合点)）。
 
-**只想尽快上线？** 直接跳到[第一章：快速开始](#一快速开始)，八步把整套服务跑在一台 Ubuntu 上。
+**只想尽快跑起来？** 直接跳到[第一章：快速开始](#一快速开始)——本地、服务器 HTTPS、服务器无域名三种场景，各一套复制粘贴的命令。
 
 ---
 
@@ -29,37 +29,31 @@
 
 ## 一、快速开始
 
-在 **Ubuntu** 上用 **Docker** 把整套服务跑起来，全程复制粘贴。想先本地开发、或者想了解每步在做什么，看[第六章](#六本地开发)与[第十章](#十部署到服务器)。
+照你的情况选一条，全程复制粘贴。
 
-**准备**：Ubuntu 22.04 / 24.04，内存 8 GB 起（ES 与 ClickHouse 比较吃内存），域名已解析到这台机器，80 / 443 可访问。
+| 场景 | 用在什么时候 | 起来之后访问 |
+| --- | --- | --- |
+| **1. 本地 Docker** | 在自己电脑上看效果、改样式 | `http://localhost` |
+| **2. 服务器 HTTPS** | 域名已备案、有证书，正式对外 | `https://你的域名` |
+| **3. 服务器无域名** | 备案审核中，或只想先验证功能 | `http://服务器IP` |
 
-### 1. 装 Docker
+三条路的开头一样：装 Docker、取代码、把密钥填进 `.env`。差别只在"站点地址"那几个变量，以及要不要证书。
+
+### 准备（三条路都做）
 
 ```bash
+# 装 Docker（已装可跳过）
 curl -fsSL https://get.docker.com | sudo sh
-sudo usermod -aG docker "$USER"
-newgrp docker                 # 让当前终端立刻拿到 docker 权限（或退出重登）
-docker compose version        # 看到 v2.x 才继续
-```
+sudo usermod -aG docker "$USER" && newgrp docker
+docker compose version                  # 输出 v2.x 才继续
 
-### 2. 取代码
+# 取代码，进入编排目录
+git clone <仓库地址> blogx && cd blogx/deploy/compose/production
 
-```bash
-sudo apt-get update && sudo apt-get install -y git
-sudo mkdir -p /opt/blogx && sudo chown "$USER:$USER" /opt/blogx
-git clone <仓库地址> /opt/blogx
-cd /opt/blogx/deploy/compose/production
-```
-
-### 3. 生成 .env
-
-```bash
+# 生成 .env 并填好所有密钥（这一段与域名无关）
 cp env.example .env
-
-DOMAIN=blog.example.com       # ← 改成你的域名
 rand() { openssl rand -base64 24 | tr -d '/+=' ; }
-DBPASS="$(rand)"              # river 要用同一个密码连库，先存下来
-
+DBPASS="$(rand)"
 sed -i \
   -e "s|^BLOGX_JWT_SECRET=.*|BLOGX_JWT_SECRET='$(openssl rand -base64 36 | tr -d '/+=')'|" \
   -e "s|^BLOGX_JWT_ISSUER=.*|BLOGX_JWT_ISSUER='blogx'|" \
@@ -71,77 +65,116 @@ sed -i \
   -e "s|^BLOGX_REDIS_PASSWORD=.*|BLOGX_REDIS_PASSWORD='$(rand)'|" \
   -e "s|^BLOGX_ES_PASSWORD=.*|BLOGX_ES_PASSWORD='$(rand)'|" \
   -e "s|^BLOGX_CLICKHOUSE_PASSWORD=.*|BLOGX_CLICKHOUSE_PASSWORD='$(rand)'|" \
-  -e "s|^BLOGX_APP_ENV=.*|BLOGX_APP_ENV='production'|" \
-  -e "s|^BLOGX_NGINX_ENV=.*|BLOGX_NGINX_ENV='production'|" \
-  -e "s|^BLOGX_WEB_ENV_PROFILE=.*|BLOGX_WEB_ENV_PROFILE='production'|" \
-  -e "s|^BLOGX_ADMIN_ENV_PROFILE=.*|BLOGX_ADMIN_ENV_PROFILE='production'|" \
-  -e "s|^BLOGX_WEB_SITE_URL=.*|BLOGX_WEB_SITE_URL='https://$DOMAIN'|" \
-  -e "s|^BLOGX_ADMIN_SITE_URL=.*|BLOGX_ADMIN_SITE_URL='https://$DOMAIN/admin'|" \
-  -e "s|^BLOGX_ADMIN_WEB_SITE_URL=.*|BLOGX_ADMIN_WEB_SITE_URL='https://$DOMAIN'|" \
   -e "s|^BLOGX_LOGIN_EMAIL_ENABLED=.*|BLOGX_LOGIN_EMAIL_ENABLED='false'|" \
   -e "s|^BLOGX_AI_ENABLED=.*|BLOGX_AI_ENABLED='false'|" \
   .env
 ```
 
-几点说明：
+几条注意事项：
 
-- `BLOGX_APP_HOST` 不用动，模板里已经是容器必需的 `0.0.0.0`。
-- `BLOGX_REDIS_USERNAME` 必须留空。Redis 这边只配了 `requirepass`（没有 ACL 账号），填任何名字都会认证失败。
-- 三个 `*_RIVER_MYSQL_PASSWORD` 必须与 `BLOGX_DB_PASSWORD` 相同，所以用变量 `$DBPASS` 一把填完。填错的表现很阴：**服务一切正常，只是搜索永远搜不到新文章**。
+- `BLOGX_REDIS_USERNAME` 必须留空（Redis 只配了 `requirepass`，没有 ACL 账号），上面已经处理。
+- 两个 `*_RIVER_MYSQL_PASSWORD` 必须等于 `BLOGX_DB_PASSWORD`。填错**不报错**，只表现为"搜索永远搜不到新文章"。
 - 剩下的 `******` 只有邮件、QQ 登录、七牛凭据，用不到就保持关闭（模板默认已关）。
+- 首次启动要构建 ES 分词插件和三个应用镜像，约 5~10 分钟，之后不再等。
 
-### 4. 系统参数
+### 1. 本地 Docker 拉起
 
-Elasticsearch 必需，否则容器会反复重启：
+在自己电脑上跑（Windows / macOS 的 Docker Desktop，或 Linux 的 Docker）。**不用改任何配置**——模板默认就是 `local` 形态、`dev` 环境、`localhost` 地址。
 
 ```bash
+# Linux 本机需要放开 ES 要求的内核参数；Docker Desktop 一般不用管
 sudo sysctl -w vm.max_map_count=262144
-echo 'vm.max_map_count=262144' | sudo tee -a /etc/sysctl.conf
-```
 
-### 5. 放证书
-
-```bash
-mkdir -p /opt/blogx/deploy/state/nginx/cert
-cp 你的证书.pem /opt/blogx/deploy/state/nginx/cert/domain.pem
-cp 你的证书.key /opt/blogx/deploy/state/nginx/cert/domain.key
-chmod 600 /opt/blogx/deploy/state/nginx/cert/domain.key
-```
-
-还没有证书？把 `.env` 里的 `BLOGX_NGINX_ENV` 改成 `local`，先用 `http://服务器IP` 跑通，拿到证书再改回 `production`。
-
-域名和默认值（`blogx.gentlybeing.cn`）不同？改 `deploy/docker/nginx/render-config.sh` 里 production 段的 `BLOGX_NGINX_SERVER_NAME`。
-
-### 6. 启动
-
-```bash
 docker compose up -d --build
-docker compose ps             # 等到全部 healthy
+docker compose ps                        # 等全部 healthy
 ```
 
-首次要编译 ES 分词插件和三个应用镜像，约 5~10 分钟；同时会自动建表、建 ES 索引。之后再启动会跳过这些。
+访问 `http://localhost`（读者站）与 `http://localhost/admin/`（后台，**注意尾斜杠**）。
 
-### 7. 建管理员
-
-系统没有默认账号，必须建一个才能进后台：
+再建一个管理员——系统没有默认账号：
 
 ```bash
 docker compose exec blogx_server /app/server -f config/settings.yaml \
   -t user -s create -user-role admin -user-username admin -user-password '换成你的密码'
 ```
 
-### 8. 打开
+数据落在 `deploy/state/`：`docker compose down` 只是停止，数据还在；想彻底重置就 `down` 之后删掉这个目录。
 
-- 读者站：`https://你的域名`
-- 后台：`https://你的域名/admin/`（**注意尾斜杠**）
+### 2. 服务器 HTTPS Docker 拉起
 
-日常操作：
+前提：域名已备案并解析到这台机器，证书已拿到，安全组放开 80 / 443，内存 8 GB 起。
+
+**改 `.env`**（把域名换成你的）：
 
 ```bash
-docker compose logs -f blogx_server     # 看日志
-docker compose restart blogx_server     # 重启后端
-docker compose down                     # 停止；数据在 deploy/state/，不会丢
+DOMAIN=blog.example.com
+sed -i \
+  -e "s|^BLOGX_NGINX_ENV=.*|BLOGX_NGINX_ENV='production'|" \
+  -e "s|^BLOGX_APP_ENV=.*|BLOGX_APP_ENV='prod'|" \
+  -e "s|^BLOGX_WEB_ENV_PROFILE=.*|BLOGX_WEB_ENV_PROFILE='production'|" \
+  -e "s|^BLOGX_ADMIN_ENV_PROFILE=.*|BLOGX_ADMIN_ENV_PROFILE='production'|" \
+  -e "s|^BLOGX_WEB_SITE_URL=.*|BLOGX_WEB_SITE_URL='https://$DOMAIN'|" \
+  -e "s|^BLOGX_ADMIN_SITE_URL=.*|BLOGX_ADMIN_SITE_URL='https://$DOMAIN/admin'|" \
+  -e "s|^BLOGX_ADMIN_WEB_SITE_URL=.*|BLOGX_ADMIN_WEB_SITE_URL='https://$DOMAIN'|" \
+  .env
 ```
+
+`BLOGX_APP_ENV` 写的是 `prod` 而不是 `production`，这不是笔误：代码里唯一的判断是 `Env == "prod"`，只有它会给 refresh Cookie 加 `Secure`。
+
+**放证书、起服务**：
+
+```bash
+sudo sysctl -w vm.max_map_count=262144
+
+mkdir -p ../../state/nginx/cert
+cp 你的证书.pem ../../state/nginx/cert/domain.pem
+cp 你的证书.key ../../state/nginx/cert/domain.key
+chmod 600 ../../state/nginx/cert/domain.key
+
+docker compose up -d --build
+docker compose exec blogx_server /app/server -f config/settings.yaml \
+  -t user -s create -user-role admin -user-username admin -user-password '换成你的密码'
+```
+
+访问 `https://你的域名` 与 `https://你的域名/admin/`。
+
+域名和 `render-config.sh` 里的默认值（`blogx.gentlybeing.cn`）不同也能跑——nginx 只有一个 server 块，会响应任意 Host；但**证书必须与域名匹配**，否则浏览器报警告。想彻底对齐就改 `deploy/docker/nginx/render-config.sh` 里 production 段的 `BLOGX_NGINX_SERVER_NAME`。
+
+### 3. 服务器无域名 Docker 拉起
+
+域名还在备案、或者根本没有域名时用这条：**公网 IP + http**，能验证绝大部分功能。
+
+前提：安全组放开 80，内存 8 GB 起。
+
+**改 `.env`**（把 IP 换成你的公网 IP）：
+
+```bash
+IP=1.2.3.4
+sed -i \
+  -e "s|^BLOGX_NGINX_ENV=.*|BLOGX_NGINX_ENV='local'|" \
+  -e "s|^BLOGX_APP_ENV=.*|BLOGX_APP_ENV='dev'|" \
+  -e "s|^BLOGX_WEB_SITE_URL=.*|BLOGX_WEB_SITE_URL='http://$IP'|" \
+  -e "s|^BLOGX_ADMIN_SITE_URL=.*|BLOGX_ADMIN_SITE_URL='http://$IP/admin'|" \
+  -e "s|^BLOGX_ADMIN_WEB_SITE_URL=.*|BLOGX_ADMIN_WEB_SITE_URL='http://$IP'|" \
+  .env
+```
+
+`BLOGX_APP_ENV` 必须是 `dev`：写 `prod` 会给 Cookie 加 `Secure`，而 http 下浏览器不保存它，表现是"能登录，刷新后掉登录"。
+
+```bash
+sudo sysctl -w vm.max_map_count=262144
+docker compose up -d --build
+docker compose exec blogx_server /app/server -f config/settings.yaml \
+  -t user -s create -user-role admin -user-username admin -user-password '换成你的密码'
+```
+
+访问 `http://你的公网IP` 与 `http://你的公网IP/admin/`。
+
+能用的：读者站、后台、搜索、评论、聊天、发文。**受影响的只有依赖域名的部分**——QQ 登录回跳、七牛上传回调（多数场景要求域名，图片上传可能暂时不可用）、邮件正文里的链接（用 `site_url` 拼，填 IP 也能跳）。
+
+备案下来后，把上面那段 sed 换成场景 2 的（`production` / `prod` / `https://域名`），放好证书再 `docker compose up -d`，账号和数据都还在。
+
+> 别把未备案的域名解析到大陆机房的 IP 上对外开 80/443——云厂商会阻断并要求整改，这是审核期最常见的停机原因。想先看域名效果，只能在本机 `hosts` 里指向 IP（仅本机生效），或把服务器放到香港 / 境外。
 
 ---
 
@@ -217,7 +250,7 @@ corepack prepare pnpm@10.33.0 --activate
 
 配置分三层，每层管的事情不一样。搞清楚这三层，比死记变量名有用得多。
 
-### 4.1 三层配置的分工
+### 5.1 三层配置的分工
 
 ```
 第一层  BLOGX_* 环境变量         ← 密钥、地址、开关，随环境变化
@@ -236,7 +269,7 @@ corepack prepare pnpm@10.33.0 --activate
 - **`site_default_settings.yaml` 只在数据库还没有运行时配置记录时作为初始值写入**。之后在后台改过的值以数据库为准；想回到默认值，得清掉对应的运行时配置记录。
 - **`.env` / `.envrc` 都不进仓库**（`.gitignore` 已排除），模板是 `.envrc.example`（跑在宿主机上，带 `export` 前缀）和 `deploy/compose/production/env.example`（跑在容器里，无前缀）。两份键名一致，**唯一必须不同的一项是 `BLOGX_APP_HOST`**：宿主机用 `127.0.0.1`，容器内必须 `0.0.0.0`。改密码或 JWT 时两处要一起改。
 
-### 4.2 后端必填变量
+### 5.2 后端必填变量
 
 完整清单见 `deploy/compose/production/env.example`（约 100 项，含注释）。**真正必须自己填的只有下面这些**，其余可以照抄示例值：
 
@@ -249,7 +282,7 @@ corepack prepare pnpm@10.33.0 --activate
 | `BLOGX_REDIS_PASSWORD` | Redis 密码 | 容器渲染配置时用到 |
 | `BLOGX_ES_PASSWORD` | ES `elastic` 用户密码 | 健康检查、river 都会失败 |
 | `BLOGX_CLICKHOUSE_PASSWORD` | ClickHouse 密码 | 日志写不进去（会落本地 WAL） |
-| `BLOGX_APP_ENV` | 运行环境（`dev` / `test` / `production`） | 影响日志字段与部分 Cookie 行为 |
+| `BLOGX_APP_ENV` | `dev` / `test` / **`prod`** | 只认字面量 `prod`：它给 refresh Cookie 加 `Secure`。写 `production` 不会开启 Secure（两个名字不等价）；http 环境必须是 `dev` |
 | `BLOGX_GIN_MODE` | `debug` / `release` | 生产用 `debug` 会打印大量 SQL 与调试信息 |
 | `BLOGX_APP_HOST` | 监听地址 | **容器内必须是 `0.0.0.0`**（见下方陷阱） |
 | `BLOGX_NGINX_ENV` | 部署形态开关，见 [10.2](#102-nginx-的四种形态) | 决定 nginx 是否要求域名与证书 |
@@ -273,7 +306,7 @@ head -c 48 /dev/urandom | base64
 > 显示所有容器都 healthy（健康检查是容器内回环发起的，看不出来）。`env.example` 已默认写成
 > `0.0.0.0`；`.envrc.example` 保持 `127.0.0.1`，因为那是宿主机上的 `go run`。
 
-### 4.3 第三方服务（按需开启）
+### 5.3 第三方服务（按需开启）
 
 不配也能跑，只是对应功能不可用：
 
@@ -288,7 +321,7 @@ head -c 48 /dev/urandom | base64
 
 `BLOGX_AI_BASE_URL` 是 **Chat Completions 风格**的完整地址（例如 `https://api.openai.com/v1/chat/completions`），不是 base 域名——填错表现为 404 而不是参数错误。
 
-### 4.4 前端配置：profile 机制
+### 5.4 前端配置：profile 机制
 
 两个前端都不读 `.env`，而是读 `env/<profile>.env`，并叠加 `env/common.env` 的公共默认值。**profile 由 `pnpm dev` / `pnpm build` 脚本注入**：
 
@@ -331,7 +364,7 @@ pnpm build:production
 
 有两种玩法，**推荐第二种**：基础设施用 Docker，应用在宿主机跑。改代码能热更新，断点也能打。
 
-### 5.1 第一步：起基础设施
+### 6.1 第一步：起基础设施
 
 ```bash
 cd deploy/compose/local
@@ -357,7 +390,7 @@ docker compose ps          # 全部 healthy 才继续
 docker compose logs -f es  # ES 最后一个就绪，约 40 秒
 ```
 
-### 5.2 第二步：注入后端环境变量
+### 6.2 第二步：注入后端环境变量
 
 ```bash
 cd <仓库根目录>
@@ -373,7 +406,7 @@ set -a && . ./.envrc && set +a
 # 或者：direnv exec . go run ./cmd/server
 ```
 
-### 5.3 第三步：初始化数据库与索引
+### 6.3 第三步：初始化数据库与索引
 
 ```bash
 cd backend
@@ -391,7 +424,7 @@ go run ./cmd/server -f config/settings.yaml -db          # 只建表
 go run ./cmd/server -f config/settings.yaml -es -s ensure # 只建索引/流水线
 ```
 
-### 5.4 第四步：创建管理员账号
+### 6.4 第四步：创建管理员账号
 
 **没有默认账号**，第一次必须用命令行创建，否则后台登录不上：
 
@@ -410,7 +443,7 @@ go run ./cmd/server -f config/settings.yaml -t user -s create \
 > **别被数字骗了**：后端 `RoleAdmin=1`、`RoleUser=2`、`RoleGuest=3`，而管理后台前端下拉框的显示顺序是「普通用户 / 管理员 / 访客」。
 > 这个方向历史上是反的，曾在后台造成"选普通用户、结果设成管理员"的提权事故。现在前端已收口到 `frontend_admin/app/utils/roles.ts` 并有单测钉住数字。**用命令行建号时请用文字角色名，别用数字。**
 
-### 5.5 第五步：启动两个前端
+### 6.5 第五步：启动两个前端
 
 ```bash
 # 终端 A —— 读者站
@@ -424,7 +457,7 @@ corepack pnpm install
 corepack pnpm dev            # http://localhost:3001/admin/
 ```
 
-### 5.6 访问地址
+### 6.6 访问地址
 
 | 地址 | 是什么 |
 | --- | --- |
@@ -436,7 +469,7 @@ corepack pnpm dev            # http://localhost:3001/admin/
 
 注意后台的**尾斜杠**：`/admin` 在 nginx 里是 301 跳到 `/admin/`，本地直连 3001 时也要带 `/admin/`，否则 404。
 
-### 5.7 只想全部跑在 Docker 里？
+### 6.7 只想全部跑在 Docker 里？
 
 ```bash
 cd deploy/compose/production     # 生产编排同样能本地跑
@@ -605,7 +638,7 @@ vi .env
 `.env` 里**必须改**的（其余可留示例值）：
 
 ```ini
-BLOGX_APP_ENV='production'
+BLOGX_APP_ENV='prod'              # 走 https 才写 prod（开 Secure Cookie）；http 环境写 dev
 BLOGX_GIN_MODE='release'
 BLOGX_APP_HOST='0.0.0.0'          # ← 最容易漏，漏了 /api 全 502
 

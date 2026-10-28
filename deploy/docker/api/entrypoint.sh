@@ -56,7 +56,9 @@ wait_for_es() {
   es_user="${BLOGX_ES_USERNAME:-elastic}"
   auth_header="Authorization: Basic $(printf '%s:%s' "$es_user" "${BLOGX_ES_PASSWORD:-}" | base64 | tr -d '\n')"
 
-  until wget -q --header="$auth_header" -O /dev/null "${es_url}/_cluster/health?wait_for_status=yellow&timeout=5s"; do
+  # -T 15：端口拒绝会立刻失败，但 ES 接受了连接却不响应（GC 卡死、磁盘挂起）时
+  # 没有超时就会永远挂在这里，容器永远起不来。
+  until wget -q -T 15 --header="$auth_header" -O /dev/null "${es_url}/_cluster/health?wait_for_status=yellow&timeout=5s"; do
     echo "等待 ES 完整启动..."
     sleep 3
   done
@@ -101,4 +103,12 @@ if [ -z "$table_name" ]; then
 fi
 
 wait_for_es
+
+# 后台看门狗：depends_on 只保证"启动那一刻"依赖是好的，ES 之后重启我们无从得知。
+# 放后台是为了不阻塞下面的 exec；脚本自己做了所有兜底，任何一次采样失败都不会
+# 影响主进程。挂载缺失时静默跳过，保证镜像单独跑也能正常启动。
+if [ -f /app/es-watch.sh ]; then
+  /bin/sh /app/es-watch.sh &
+fi
+
 exec "$@"

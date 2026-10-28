@@ -310,6 +310,7 @@
       - ../../state/api/logs:/app/logs
       - ../../state/api/var:/app/var
       - ../../docker/api/entrypoint.sh:/app/entrypoint.sh:ro
+      - ../../docker/api/es-watch.sh:/app/es-watch.sh:ro
     healthcheck:
       test:
         [

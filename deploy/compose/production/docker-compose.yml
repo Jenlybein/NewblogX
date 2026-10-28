@@ -375,6 +375,7 @@ services:
     - ../../state/api/logs:/app/logs
     - ../../state/api/var:/app/var
     - ../../docker/api/entrypoint.sh:/app/entrypoint.sh:ro
+    - ../../docker/api/es-watch.sh:/app/es-watch.sh:ro
     healthcheck:
       # interval 原来是 60s:探针跑得比启动还慢,进程 30s 就绪也得等到下一个整分钟才被
       # 判定为 healthy,而 nginx 又 depends_on 它 service_healthy —— 一个探针间隔把整条

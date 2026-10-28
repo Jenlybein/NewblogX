@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"myblogx/conf"
 	"myblogx/internal/ai"
-	"myblogx/test/testutil"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -52,16 +51,16 @@ func TestScoreArticleQualityShortArticle(t *testing.T) {
 	}))
 	defer server.Close()
 
-	testutil.SetConfig(&conf.Config{
-		AI: conf.AI{
-			Enable:    true,
-			SecretKey: "test-key",
-			BaseURL:   server.URL,
-			ChatModel: "test-model",
-		},
-	})
+	// AI 段现在是运行时配置（存在数据库里），不再经过 conf.Config 的 yaml 段。
+	// 这里直接构造一份交给待测函数：测试要验证的是"拿到这样的配置会怎么发请求"。
+	aiConf := conf.AI{
+		Enable:    true,
+		SecretKey: "test-key",
+		BaseURL:   server.URL,
+		ChatModel: "test-model",
+	}
 
-	resp, err := ScoreArticleQuality(testutil.Config().AI, ArticleScoreRequest{
+	resp, err := ScoreArticleQuality(aiConf, ArticleScoreRequest{
 		Title:   "Go 写作实践",
 		Content: "# Go 写作实践\n\n这是一篇完整的文章。\n\n它讨论了表达、结构和示例。",
 	})
@@ -195,14 +194,14 @@ func TestScoreArticleQualityLongArticle(t *testing.T) {
 	}))
 	defer server.Close()
 
-	testutil.SetConfig(&conf.Config{
-		AI: conf.AI{
-			Enable:    true,
-			SecretKey: "test-key",
-			BaseURL:   server.URL,
-			ChatModel: "test-model",
-		},
-	})
+	// AI 段现在是运行时配置（存在数据库里），不再经过 conf.Config 的 yaml 段。
+	// 这里直接构造一份交给待测函数：测试要验证的是"拿到这样的配置会怎么发请求"。
+	aiConf := conf.AI{
+		Enable:    true,
+		SecretKey: "test-key",
+		BaseURL:   server.URL,
+		ChatModel: "test-model",
+	}
 
 	var builder strings.Builder
 	builder.WriteString("# 超长文章标题\n\n")
@@ -210,7 +209,7 @@ func TestScoreArticleQualityLongArticle(t *testing.T) {
 		builder.WriteString("这是用于测试超长文章评分流程的段落内容，它会重复出现以触发长文模式，并验证多轮状态收口是否正常。\n")
 	}
 
-	resp, err := ScoreArticleQuality(testutil.Config().AI, ArticleScoreRequest{
+	resp, err := ScoreArticleQuality(aiConf, ArticleScoreRequest{
 		Title:   "超长文章标题",
 		Content: builder.String(),
 	})

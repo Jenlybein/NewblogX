@@ -1,8 +1,13 @@
 ﻿# 站点运行时默认配置。
 # 说明：
-# 1. 系统启动时会尝试读取此文件，并在数据库还没有运行时配置记录时把这里的值写入数据库。
-# 2. 后台后续修改站点设置 / AI 设置时，实际生效值以数据库中的运行时配置为准。
+# 1. 系统启动时会读取此文件，并在数据库还没有运行时配置记录时把这里的值写入数据库。
+# 2. 后台「站点」页里的七个 Tab 改的就是这份配置，实际生效值以数据库为准。
 # 3. 当数据库中的运行时配置缺失或回退时，这里也会作为默认值来源。
+# 4. 这里的值全部是字面量，不再接受环境变量 —— 想让某个功能可用，
+#    请去管理员后台填写（第一次进入后台时设置管理员密码）。
+#
+# 安全默认值：邮件登录、AI、QQ 登录、对象存储默认都是关闭的，
+# 因为它们都需要额外的密钥与外部账号，没填就打开只会让用户点出报错。
 
 # 站点展示与登录策略
 site:
@@ -15,7 +20,7 @@ site:
     beian: ""
     # 站点模式；1 = 社区模式，2 = 博客模式
     # 博客模式下，普通用户发布文章会受到更严格的限制
-    mode: ${BLOGX_SITE_MODE}
+    mode: 1
   project:
     # 前端项目名称；通常用于页面标题、SEO 和管理端展示
     title: 技术博客
@@ -42,58 +47,60 @@ site:
     # GitHub 主页地址
     github: ""
   login:
-    # 是否启用 QQ 登录；启用前还需要在 settings.yaml 中配置 qq.app_id / app_key / redirect
-    qq_login: ${BLOGX_LOGIN_QQ_ENABLED}
+    # 是否启用 QQ 登录；启用前还需要在「第三方登录」里填好 AppID / AppKey / 回调地址
+    qq_login: false
     # 是否启用用户名密码登录
-    username_pwd_login: ${BLOGX_LOGIN_USERNAME_PASSWORD_ENABLED}
-    # 是否启用邮箱验证码登录
-    email_login: ${BLOGX_LOGIN_EMAIL_ENABLED}
+    username_pwd_login: true
+    # 是否启用邮箱验证码登录；启用前需要先在「邮件」里配好腾讯云 SES，
+    # 否则用户点「获取验证码」会直接报错
+    email_login: false
     # 登录和发送邮箱验证码接口是否启用图形验证码中间件
-    captcha: ${BLOGX_LOGIN_CAPTCHA_ENABLED}
+    captcha: false
     # 邮箱验证码有效期，单位：分钟
-    email_code_timeout: ${BLOGX_EMAIL_CODE_TIMEOUT_MIN}
+    email_code_timeout: 5
     # 登录失败统计窗口，单位：分钟
-    login_fail_window_minute: ${BLOGX_LOGIN_FAIL_WINDOW_MIN}
+    login_fail_window_minute: 15
     # 单个账号在统计窗口内允许的最大失败次数
-    login_fail_user_max: ${BLOGX_LOGIN_FAIL_USER_MAX}
+    login_fail_user_max: 5
     # 单个 IP 在统计窗口内允许的最大失败次数
-    login_fail_ip_max: ${BLOGX_LOGIN_FAIL_IP_MAX}
+    login_fail_ip_max: 20
     # 邮件发送限流窗口，单位：秒
-    email_send_window_second: ${BLOGX_EMAIL_SEND_WINDOW_SEC}
+    email_send_window_second: 60
     # 单个邮箱在限流窗口内允许的最大发送次数
-    email_send_per_email_max: ${BLOGX_EMAIL_SEND_PER_EMAIL_MAX}
+    email_send_per_email_max: 1
     # 单个 IP 在限流窗口内允许的最大发送次数
-    email_send_per_ip_max: ${BLOGX_EMAIL_SEND_PER_IP_MAX}
+    email_send_per_ip_max: 10
   index_right:
     # 首页右侧组件列表；每项结构为 {title: 组件标题, enable: 是否启用}
     list: []
   article:
     # 是否允许文章发布后直接跳过审核
-    skip_examining: ${BLOGX_ARTICLE_SKIP_EXAMINING}
+    skip_examining: true
   comment:
     # 是否允许评论发布后直接跳过审核
-    skip_examining: ${BLOGX_COMMENT_SKIP_EXAMINING}
+    skip_examining: true
 
-# 站点 AI 助手配置
+# 站点 AI 助手配置。
+# 默认关闭：模板里的占位 token 会被上游拒绝，开着只会让读者点到报错。
 ai:
   # 是否启用 AI 能力
-  enable: ${BLOGX_AI_ENABLED}
-  # AI 服务访问密钥 / Bearer Token
-  secret: "${BLOGX_AI_SECRET}"
+  enable: false
+  # AI 服务访问密钥 / Bearer Token（敏感，后台回显时为占位符）
+  secret: ""
   # Chat Completions 风格的接口地址
-  base_url: "${BLOGX_AI_BASE_URL}"
+  base_url: ""
   # 默认聊天/生成模型名；当前代码实际使用的就是这个字段
-  chat_model: "${BLOGX_AI_CHAT_MODEL}"
+  chat_model: "gpt-4.1-mini"
   # 推理模型名预留字段；当前服务未单独读取，留空表示不额外指定
-  reason_model: "${BLOGX_AI_REASON_MODEL}"
-  # 请求超时时间，单位：秒；当前服务端代码未直接使用，留空表示预留
-  timeout_sec: ${BLOGX_AI_TIMEOUT_SEC}
+  reason_model: ""
+  # 请求超时时间，单位：秒
+  timeout_sec: 60
   # 单次送入 AI 的最大输入字符数；过长内容会先截断或归一化
-  max_input_chars: ${BLOGX_AI_MAX_INPUT_CHARS}
-  # 采样温度；当前服务端代码未直接下发，留空表示预留
-  temperature: ${BLOGX_AI_TEMPERATURE}
-  # 每日调用额度预留字段；当前服务端代码未直接使用，留空表示不限制
-  daily_quota: ${BLOGX_AI_DAILY_QUOTA}
+  max_input_chars: 100000
+  # 采样温度
+  temperature: 0.7
+  # 每日调用额度，0 表示不限制
+  daily_quota: 0
   # 对外展示给用户的 AI 助手简介
   abstract: "你好！我是我的博客的AI助手，可以帮助你找到喜欢的文章！"
   # 对外展示给用户的 AI 助手昵称
@@ -103,7 +110,7 @@ ai:
 
 # 邮件发送（腾讯云 SES）。
 # 后台「邮件」页填的就是这一段；默认全空 + 模板 ID 为 0，
-# 此时邮箱登录必须保持关闭，否则用户点「获取验证码」会直接报错。
+# 此时邮箱登录必须保持关闭（见 site.login.email_login）。
 mail:
   # 腾讯云 API 密钥（敏感，后台回显时为占位符）
   secret_id: ""
@@ -159,4 +166,3 @@ upload:
     - png
     - gif
     - webp
-

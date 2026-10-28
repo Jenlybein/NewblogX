@@ -158,7 +158,11 @@ services:
     healthcheck:
       test:
       - CMD-SHELL
-      - curl -fsS -u elastic:$${ELASTIC_PASSWORD} http://127.0.0.1:9200/_cluster/health?wait_for_status=green&timeout=5s > /dev/null || exit 1
+      # 单节点集群 + 索引默认 1 副本 = 副本永远无法分配,集群状态只会停在 yellow。
+      # 原来写 wait_for_status=green,ES 必然等满 5s 才带着 timed_out 返回 200,
+      # curl 仍然成功 —— 于是这个探针既慢(每次 5s)又没在测它声称要测的东西。
+      # 用 yellow:状态一到就立刻返回,同时仍能挡住"还没起来"的情况。
+      - curl -fsS -u elastic:$${ELASTIC_PASSWORD} http://127.0.0.1:9200/_cluster/health?wait_for_status=yellow&timeout=5s > /dev/null || exit 1
       interval: 30s
       timeout: 10s
       retries: 12
@@ -372,13 +376,16 @@ services:
     - ../../state/api/var:/app/var
     - ../../docker/api/entrypoint.sh:/app/entrypoint.sh:ro
     healthcheck:
+      # interval 原来是 60s:探针跑得比启动还慢,进程 30s 就绪也得等到下一个整分钟才被
+      # 判定为 healthy,而 nginx 又 depends_on 它 service_healthy —— 一个探针间隔把整条
+      # 启动链拖住。10s 之后最坏只多等 10s,稳态成本可忽略(/health 是空 handler)。
       test:
       - CMD-SHELL
       - wget -q -O /dev/null http://127.0.0.1:$${BLOGX_APP_PORT}/health || exit 1
-      interval: 60s
+      interval: 10s
       timeout: 5s
       retries: 10
-      start_period: 20s
+      start_period: 30s
     entrypoint:
     - /bin/sh
     - /app/entrypoint.sh

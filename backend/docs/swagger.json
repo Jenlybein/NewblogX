@@ -2004,6 +2004,47 @@
                 },
                 "type": "object"
             },
+            "internal_user_adapter_http.SetupAdminRequest": {
+                "properties": {
+                    "email": {
+                        "type": "string"
+                    },
+                    "nickname": {
+                        "type": "string"
+                    },
+                    "password": {
+                        "type": "string"
+                    },
+                    "username": {
+                        "type": "string"
+                    }
+                },
+                "required": [
+                    "password",
+                    "username"
+                ],
+                "type": "object"
+            },
+            "internal_user_adapter_http.SetupAdminResponse": {
+                "properties": {
+                    "id": {
+                        "type": "string"
+                    },
+                    "username": {
+                        "type": "string"
+                    }
+                },
+                "type": "object"
+            },
+            "internal_user_adapter_http.SetupStatusResponse": {
+                "properties": {
+                    "needs_admin": {
+                        "description": "NeedsAdmin 为真表示库里还没有管理员，初始化入口开放。",
+                        "type": "boolean"
+                    }
+                },
+                "type": "object"
+            },
             "internal_user_adapter_http.UpdateInfoRequest": {
                 "properties": {
                     "abstract": {
@@ -3069,6 +3110,34 @@
                     },
                     "data": {
                         "$ref": "#/components/schemas/internal_user_adapter_http.BaseInfoResponse"
+                    },
+                    "msg": {
+                        "type": "string"
+                    }
+                },
+                "type": "object"
+            },
+            "myblogx_internal_kernel.Envelope-internal_user_adapter_http_SetupAdminResponse": {
+                "properties": {
+                    "code": {
+                        "type": "integer"
+                    },
+                    "data": {
+                        "$ref": "#/components/schemas/internal_user_adapter_http.SetupAdminResponse"
+                    },
+                    "msg": {
+                        "type": "string"
+                    }
+                },
+                "type": "object"
+            },
+            "myblogx_internal_kernel.Envelope-internal_user_adapter_http_SetupStatusResponse": {
+                "properties": {
+                    "code": {
+                        "type": "integer"
+                    },
+                    "data": {
+                        "$ref": "#/components/schemas/internal_user_adapter_http.SetupStatusResponse"
                     },
                     "msg": {
                         "type": "string"
@@ -8164,6 +8233,59 @@
                 "summary": "文章搜索",
                 "tags": [
                     "search"
+                ]
+            }
+        },
+        "/setup/admin": {
+            "post": {
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/internal_user_adapter_http.SetupAdminRequest",
+                                "summary": "body",
+                                "description": "管理员账号"
+                            }
+                        }
+                    },
+                    "description": "管理员账号",
+                    "required": true
+                },
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/myblogx_internal_kernel.Envelope-internal_user_adapter_http_SetupAdminResponse"
+                                }
+                            }
+                        },
+                        "description": "OK"
+                    }
+                },
+                "summary": "创建第一个管理员（仅首次初始化可用）",
+                "tags": [
+                    "setup"
+                ]
+            }
+        },
+        "/setup/status": {
+            "get": {
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/myblogx_internal_kernel.Envelope-internal_user_adapter_http_SetupStatusResponse"
+                                }
+                            }
+                        },
+                        "description": "OK"
+                    }
+                },
+                "summary": "查询首次初始化状态",
+                "tags": [
+                    "setup"
                 ]
             }
         },

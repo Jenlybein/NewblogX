@@ -69,15 +69,20 @@ describe('后台菜单', () => {
     }
   })
 
-  it('每个页面都能从菜单到达（除登录页）', () => {
-    // 反向检查：有页面但没入口 = 藏起来的死页面。登录页是例外（它不该出现在菜单里）。
+  it('每个页面都能从菜单到达（除登录页与初始化页）', () => {
+    // 反向检查：有页面但没入口 = 藏起来的死页面。
+    // 两个例外，都是"不该出现在菜单里"而不是"忘了加菜单"：
+    //   - login：登录页
+    //   - setup：首次初始化页，只在库里还没有管理员时可达
     const reachable = new Set<string>()
     for (const item of ADMIN_NAV) {
       for (const candidate of pageFileCandidates(item.path)) {
         reachable.add(candidate)
       }
     }
-    const unreachable = pageFiles.filter(file => file !== 'login' && !reachable.has(file))
+    const unreachable = pageFiles.filter(
+      file => file !== 'login' && file !== 'setup' && !reachable.has(file),
+    )
     expect(unreachable, `这些页面没有任何菜单入口：\n${unreachable.join('\n')}`).toEqual([])
   })
 })

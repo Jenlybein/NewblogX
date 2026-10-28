@@ -241,13 +241,22 @@ func (s *Service) ChangeStatus(ctx context.Context, viewer domain.Viewer, target
 }
 
 // Create 创建用户（管理端）。
-//
-// 建档三件套（用户行 + 偏好行 + 统计行）必须全部成功，否则会出现
-// "能登录但主页 500"的半成品账号，所以这里不吞错误。
 func (s *Service) Create(ctx context.Context, viewer domain.Viewer, in CreateInput) (domain.User, error) {
 	if err := domain.CanManageUsers(viewer); err != nil {
 		return domain.User{}, err
 	}
+	return s.create(ctx, in)
+}
+
+// create 是创建用户的实现，不含权限校验。
+//
+// 单独拆出来是为了让首次初始化（SetupFirstAdmin）复用同一套校验与
+// 建档三件套 —— 那时还没有任何管理员可以"校验"。权限检查必须留在
+// 导出的 Create 里，别让调用方绕过。
+//
+// 建档三件套（用户行 + 偏好行 + 统计行）必须全部成功，否则会出现
+// "能登录但主页 500"的半成品账号，所以这里不吞错误。
+func (s *Service) create(ctx context.Context, in CreateInput) (domain.User, error) {
 	if err := domain.ValidateUsername(in.Username); err != nil {
 		return domain.User{}, err
 	}

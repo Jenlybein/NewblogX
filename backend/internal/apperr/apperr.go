@@ -230,6 +230,11 @@ const (
 	CodeAIStatusError    Code = "ai.status_error"
 	CodeAIChoicesEmpty   Code = "ai.choices_empty"
 	CodeAIReplyEmpty     Code = "ai.reply_empty"
+
+	// 模型配置化之后新增：调用方拿到的是"没有可用的模型配置"，而不是字段缺失。
+	CodeAIProviderMissing   Code = "ai.provider_missing"
+	CodeAIVendorUnsupported Code = "ai.vendor_unsupported"
+	CodeAIProviderInvalid   Code = "ai.provider_invalid"
 )
 
 // 通用工具与基础设施。
@@ -435,6 +440,10 @@ var messages = map[Code]string{
 	CodeAIStatusError:    "请求失败，响应状态码异常",
 	CodeAIChoicesEmpty:   "AI响应无有效Choices数据",
 	CodeAIReplyEmpty:     "AI回复内容为空",
+
+	CodeAIProviderMissing:   "还没有启用的模型配置",
+	CodeAIVendorUnsupported: "不支持的模型供应商",
+	CodeAIProviderInvalid:   "模型配置不完整",
 
 	CodeCommonInvalidOrder: "排序字段错误",
 	CodeCommonDBRequired:   "缺少查询数据库依赖",

@@ -60,6 +60,22 @@ func (ArticleRow) Index() string { return DefaultArticleESIndex }
 // 索引的 mapping 与 ingest pipeline 跟着投影走：
 // 它们是"文档长什么样"的一部分，不属于任何数据模型。
 //
+// 这份 JSON 里有两条**不能随便改回去**的约定（它们都曾经是错的）：
+//
+//  1. 副本数用 auto_expand_replicas: "0-1"，不写死 number_of_replicas。
+//     单节点集群里写死 1 会让副本永远分配不出去、集群永远 yellow；而写死 0
+//     又等于放弃了多节点时的冗余。ES 的 auto_expand_replicas 按数据节点数
+//     自动取值（1 节点 -> 0，2 节点及以上 -> 1），两种情况都正确。
+//     注意它只影响**新建**索引：已存在的索引要单独 PUT _settings。
+//
+//  2. date 字段不写 null_value。
+//     null_value 对 date 类型必须是一个合法日期，"null" 不是 —— ES 7 会打一条
+//     DEPRECATION 然后**忽略**它（于是这个配置从来没有生效过），ES 8 会直接
+//     报错导致索引建不出来。真需要给空日期一个可检索的占位值，就写
+//     "1970-01-01T00:00:00Z" 这类真实日期，别写字符串 "null"。
+//
+// 这两条都属于"写错了也不报错、只是安静地不对"的类型，所以在加载处留注释。
+//
 //go:embed mapping/article_mapping.json
 var articleMapping string
 

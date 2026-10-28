@@ -8171,7 +8171,7 @@
             "get": {
                 "parameters": [
                     {
-                        "description": "配置名称：site 站点配置、ai AI 配置",
+                        "description": "配置名称：site 站点 / ai AI / mail 邮件 / storage 对象存储 / oauth 第三方登录 / log 日志 / upload 上传策略",
                         "in": "path",
                         "name": "name",
                         "required": true,
@@ -8296,7 +8296,7 @@
             "put": {
                 "parameters": [
                     {
-                        "description": "配置名称：site 站点配置、ai AI 配置",
+                        "description": "配置名称：site 站点 / ai AI / mail 邮件 / storage 对象存储 / oauth 第三方登录 / log 日志 / upload 上传策略",
                         "in": "path",
                         "name": "name",
                         "required": true,
@@ -8319,7 +8319,7 @@
                             }
                         }
                     },
-                    "description": "请求体",
+                    "description": "请求体：与对应配置段的结构一致",
                     "required": true
                 },
                 "responses": {

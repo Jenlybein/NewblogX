@@ -133,6 +133,98 @@ func (s *Service) UpdateAI(ai conf.AI) error {
 	return s.runtime.UpdateAI(ai)
 }
 
+// AdminMail 返回管理端的邮件配置，密钥用占位符遮蔽。
+func (s *Service) AdminMail() conf.Mail {
+	mail := s.runtime.Mail()
+	mail.SecretKey = domain.SensitivePlaceholder
+	return mail
+}
+
+// UpdateMail 覆盖邮件配置。
+//
+// 密钥回传占位符表示"没改"，此时沿用当前值 —— 否则前端每次保存都会把
+// 刚填好的密钥写成 ******，下一次发信就失败。
+func (s *Service) UpdateMail(mail conf.Mail) error {
+	if s.runtime == nil {
+		return apperr.New(apperr.CodeSiteConfigMissing)
+	}
+	if mail.SecretKey == domain.SensitivePlaceholder {
+		mail.SecretKey = s.runtime.Mail().SecretKey
+	}
+	return s.runtime.UpdateMail(mail)
+}
+
+// AdminStorage 返回管理端的对象存储配置，密钥用占位符遮蔽。
+func (s *Service) AdminStorage() conf.QiNiu {
+	storage := s.runtime.Storage()
+	storage.SecretKey = domain.SensitivePlaceholder
+	return storage
+}
+
+// UpdateStorage 覆盖对象存储配置。
+func (s *Service) UpdateStorage(storage conf.QiNiu) error {
+	if s.runtime == nil {
+		return apperr.New(apperr.CodeSiteConfigMissing)
+	}
+	if storage.SecretKey == domain.SensitivePlaceholder {
+		storage.SecretKey = s.runtime.Storage().SecretKey
+	}
+	return s.runtime.UpdateStorage(storage)
+}
+
+// AdminOAuth 返回管理端的第三方登录配置，AppKey 用占位符遮蔽。
+func (s *Service) AdminOAuth() conf.QQ {
+	oauth := s.runtime.OAuth()
+	oauth.AppKey = domain.SensitivePlaceholder
+	return oauth
+}
+
+// UpdateOAuth 覆盖第三方登录配置。
+func (s *Service) UpdateOAuth(oauth conf.QQ) error {
+	if s.runtime == nil {
+		return apperr.New(apperr.CodeSiteConfigMissing)
+	}
+	if oauth.AppKey == domain.SensitivePlaceholder {
+		oauth.AppKey = s.runtime.OAuth().AppKey
+	}
+	return s.runtime.UpdateOAuth(oauth)
+}
+
+// AdminLog 返回管理端的日志配置。
+func (s *Service) AdminLog() conf.Logrus { return s.runtime.Log() }
+
+// UpdateLog 覆盖日志配置，但**只接受可以在后台改的那部分**。
+//
+// App / Dir / WALDir / StdoutFormat 是进程级配置：日志写到哪个目录、
+// 用什么格式、服务名是什么，都由部署时的 settings.yaml 决定。
+// 让后台改它们会出两种事故：
+//   - 改了 Dir 而清理任务仍按旧目录算保留窗口，等于日志无人清理；
+//   - 改了 Dir 之后容器里的路径不存在，写入直接失败，而失败日志也一起消失。
+//
+// 所以这几个字段一律用当前值覆盖回去，前端即使提交了也不生效。
+func (s *Service) UpdateLog(log conf.Logrus) error {
+	if s.runtime == nil {
+		return apperr.New(apperr.CodeSiteConfigMissing)
+	}
+	current := s.runtime.Log()
+	log.App = current.App
+	log.Dir = current.Dir
+	log.WALDir = current.WALDir
+	log.StdoutFormat = current.StdoutFormat
+	return s.runtime.UpdateLog(log)
+}
+
+// AdminUpload 返回管理端的上传策略。
+func (s *Service) AdminUpload() conf.Upload { return s.runtime.Upload() }
+
+// UpdateUpload 覆盖上传策略。
+func (s *Service) UpdateUpload(upload conf.Upload) error {
+	if s.runtime == nil {
+		return apperr.New(apperr.CodeSiteConfigMissing)
+	}
+	return s.runtime.UpdateUpload(upload)
+}
+
 // ── 轮播图 ──────────────────────────────────────────────────────
 
 // BannerInput 是创建/更新轮播图的入参。

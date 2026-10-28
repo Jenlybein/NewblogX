@@ -7,7 +7,6 @@ import (
 
 	"github.com/gin-gonic/gin"
 
-	"myblogx/conf"
 	"myblogx/internal/apperr"
 	"myblogx/internal/kernel/ctype"
 	"myblogx/internal/platform/http/middleware"
@@ -134,7 +133,7 @@ func (h *Handler) PublicInfo(c *gin.Context) {
 // @Tags site
 // @Produce json
 // @Security BearerAuth
-// @Param name path string true "配置名称：site 站点配置、ai AI 配置"
+// @Param name path string true "配置名称：site 站点 / ai AI / mail 邮件 / storage 对象存储 / oauth 第三方登录 / log 日志 / upload 上传策略"
 // @Success 200 {object} kernel.Envelope[kernel.SiteConfigData]
 // @Router /site/admin/{name} [get]
 func (h *Handler) AdminInfo(c *gin.Context) {
@@ -142,13 +141,36 @@ func (h *Handler) AdminInfo(c *gin.Context) {
 	if !ok {
 		return
 	}
-	switch cr.Name {
-	case "site":
-		res.OkWithData(h.svc.AdminSite(), c)
-	case "ai":
-		res.OkWithData(h.svc.AdminAI(), c)
-	default:
+	data, found := h.adminConfigByName(cr.Name)
+	if !found {
 		res.FailWithMsg("站点信息不存在", c)
+		return
+	}
+	res.OkWithData(data, c)
+}
+
+// adminConfigByName 按段名取管理端配置块。
+//
+// 返回 any 而不是拆成七个 handler：这七段共用同一条路由，
+// 拆开只会让路由表多出六行、而契约里仍然是同一个 map。
+func (h *Handler) adminConfigByName(name string) (any, bool) {
+	switch name {
+	case "site":
+		return h.svc.AdminSite(), true
+	case "ai":
+		return h.svc.AdminAI(), true
+	case "mail":
+		return h.svc.AdminMail(), true
+	case "storage":
+		return h.svc.AdminStorage(), true
+	case "oauth":
+		return h.svc.AdminOAuth(), true
+	case "log":
+		return h.svc.AdminLog(), true
+	case "upload":
+		return h.svc.AdminUpload(), true
+	default:
+		return nil, false
 	}
 }
 
@@ -160,8 +182,8 @@ func (h *Handler) AdminInfo(c *gin.Context) {
 // @Accept json
 // @Produce json
 // @Security BearerAuth
-// @Param name path string true "配置名称：site 站点配置、ai AI 配置"
-// @Param body body object true "请求体"
+// @Param name path string true "配置名称：site 站点 / ai AI / mail 邮件 / storage 对象存储 / oauth 第三方登录 / log 日志 / upload 上传策略"
+// @Param body body object true "请求体：与对应配置段的结构一致"
 // @Success 200 {object} kernel.Envelope[kernel.EmptyData]
 // @Router /site/{name} [put]
 func (h *Handler) UpdateConfig(c *gin.Context) {
@@ -169,46 +191,54 @@ func (h *Handler) UpdateConfig(c *gin.Context) {
 	if !ok {
 		return
 	}
+
+	var err error
 	switch cr.Name {
 	case "site":
-		var body conf.Site
-		if err := c.ShouldBindJSON(&body); err != nil {
-			res.FailWithError(err, c)
-			return
-		}
-		if err := h.svc.UpdateSite(body); err != nil {
-			fail(c, err)
-			return
-		}
-		res.OkWithMsg("站点配置更新成功", c)
-		middleware.EmitActionAuditFromGin(c, middleware.GinAuditInput{
-			ActionName: "site_runtime_update",
-			TargetType: "runtime_site_config",
-			TargetID:   "site",
-			Success:    true,
-			Message:    "更新站点运行时配置成功",
-		})
+		err = updateSectionBody(c, h.svc.UpdateSite)
 	case "ai":
-		var body conf.AI
-		if err := c.ShouldBindJSON(&body); err != nil {
-			res.FailWithError(err, c)
-			return
-		}
-		if err := h.svc.UpdateAI(body); err != nil {
-			fail(c, err)
-			return
-		}
-		res.OkWithMsg("站点配置更新成功", c)
-		middleware.EmitActionAuditFromGin(c, middleware.GinAuditInput{
-			ActionName: "site_runtime_update",
-			TargetType: "runtime_site_config",
-			TargetID:   "ai",
-			Success:    true,
-			Message:    "更新 AI 运行时配置成功",
-		})
+		err = updateSectionBody(c, h.svc.UpdateAI)
+	case "mail":
+		err = updateSectionBody(c, h.svc.UpdateMail)
+	case "storage":
+		err = updateSectionBody(c, h.svc.UpdateStorage)
+	case "oauth":
+		err = updateSectionBody(c, h.svc.UpdateOAuth)
+	case "log":
+		err = updateSectionBody(c, h.svc.UpdateLog)
+	case "upload":
+		err = updateSectionBody(c, h.svc.UpdateUpload)
 	default:
 		res.FailWithMsg("站点信息不存在", c)
+		return
 	}
+	if err != nil {
+		// 绑定错误（JSON 语法/类型不符）与业务错误都走同一个出口：
+		// res.FailWithError 会按错误类型给出可读文案。
+		fail(c, err)
+		return
+	}
+
+	res.OkWithMsg("配置更新成功", c)
+	middleware.EmitActionAuditFromGin(c, middleware.GinAuditInput{
+		ActionName: "runtime_config_update",
+		TargetType: "runtime_config",
+		TargetID:   cr.Name,
+		Success:    true,
+		Message:    "更新运行时配置成功: " + cr.Name,
+	})
+}
+
+// updateSectionBody 解析请求体并交给对应的更新方法。
+//
+// 泛型让七个配置段共用一份"绑定 → 更新"的代码：类型由方法签名推出来，
+// 不需要为每一段写一遍 var body conf.Xxx + ShouldBindJSON。
+func updateSectionBody[T any](c *gin.Context, update func(T) error) error {
+	var body T
+	if err := c.ShouldBindJSON(&body); err != nil {
+		return err
+	}
+	return update(body)
 }
 
 // ── 轮播图 ─────────────────────────────────────────────────────

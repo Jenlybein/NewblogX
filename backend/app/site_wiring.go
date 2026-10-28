@@ -101,5 +101,85 @@ func (b siteRuntimeBridge) UpdateAI(ai conf.AI) error {
 	return b.inner.UpdateAI(ai)
 }
 
+// Mail 返回当前邮件配置。
+func (b siteRuntimeBridge) Mail() conf.Mail {
+	if b.inner == nil {
+		return conf.Mail{}
+	}
+	return b.inner.GetRuntimeMail()
+}
+
+// Storage 返回当前对象存储配置。
+func (b siteRuntimeBridge) Storage() conf.QiNiu {
+	if b.inner == nil {
+		return conf.QiNiu{}
+	}
+	return b.inner.GetRuntimeStorage()
+}
+
+// OAuth 返回当前第三方登录配置。
+func (b siteRuntimeBridge) OAuth() conf.QQ {
+	if b.inner == nil {
+		return conf.QQ{}
+	}
+	return b.inner.GetRuntimeOAuth()
+}
+
+// Log 返回当前日志配置。
+func (b siteRuntimeBridge) Log() conf.Logrus {
+	if b.inner == nil {
+		return conf.Logrus{}
+	}
+	return b.inner.GetRuntimeLog()
+}
+
+// Upload 返回当前上传策略。
+func (b siteRuntimeBridge) Upload() conf.Upload {
+	if b.inner == nil {
+		return conf.Upload{}
+	}
+	return b.inner.GetRuntimeUpload()
+}
+
+// UpdateMail 覆盖邮件配置。
+func (b siteRuntimeBridge) UpdateMail(mail conf.Mail) error {
+	if b.inner == nil {
+		return errSiteRuntimeMissing()
+	}
+	return b.inner.UpdateMail(mail)
+}
+
+// UpdateStorage 覆盖对象存储配置。
+func (b siteRuntimeBridge) UpdateStorage(storage conf.QiNiu) error {
+	if b.inner == nil {
+		return errSiteRuntimeMissing()
+	}
+	return b.inner.UpdateStorage(storage)
+}
+
+// UpdateOAuth 覆盖第三方登录配置。
+func (b siteRuntimeBridge) UpdateOAuth(oauth conf.QQ) error {
+	if b.inner == nil {
+		return errSiteRuntimeMissing()
+	}
+	return b.inner.UpdateOAuth(oauth)
+}
+
+// UpdateLog 覆盖日志配置。
+func (b siteRuntimeBridge) UpdateLog(log conf.Logrus) error {
+	if b.inner == nil {
+		return errSiteRuntimeMissing()
+	}
+	return b.inner.UpdateLog(log)
+}
+
+// UpdateUpload 覆盖上传策略。
+func (b siteRuntimeBridge) UpdateUpload(upload conf.Upload) error {
+	if b.inner == nil {
+		return errSiteRuntimeMissing()
+	}
+	return b.inner.UpdateUpload(upload)
+}
+
 // errSiteRuntimeMissing 表示运行时配置服务没装配。
 func errSiteRuntimeMissing() error { return apperr.New(apperr.CodeSiteConfigMissing) }

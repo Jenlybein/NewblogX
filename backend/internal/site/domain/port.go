@@ -33,15 +33,37 @@ type ImageResolver interface {
 
 // RuntimeConfig 是运行时站点配置的读写端口。
 //
-// 具体实现是 platform/config 的 RuntimeConfigService，
-// 这里只暴露站点模块真正用到的四个方法。
+// 具体实现是 platform/config 的 RuntimeConfigService。
+// 七个配置段都从这里走：站点模块是"配置"这件事的唯一归属，
+// 其它模块只消费、不写。
 type RuntimeConfig interface {
 	// Site 返回当前生效的站点配置。
 	Site() conf.Site
 	// AI 返回当前生效的 AI 配置。
 	AI() conf.AI
+	// Mail 返回当前邮件（腾讯云 SES）配置。
+	Mail() conf.Mail
+	// Storage 返回当前对象存储配置。
+	Storage() conf.QiNiu
+	// OAuth 返回当前第三方登录配置。
+	OAuth() conf.QQ
+	// Log 返回当前日志配置。
+	Log() conf.Logrus
+	// Upload 返回当前上传策略。
+	Upload() conf.Upload
+
 	// UpdateSite 覆盖站点配置。
 	UpdateSite(site conf.Site) error
 	// UpdateAI 覆盖 AI 配置。
 	UpdateAI(ai conf.AI) error
+	// UpdateMail 覆盖邮件配置。
+	UpdateMail(mail conf.Mail) error
+	// UpdateStorage 覆盖对象存储配置。
+	UpdateStorage(storage conf.QiNiu) error
+	// UpdateOAuth 覆盖第三方登录配置。
+	UpdateOAuth(oauth conf.QQ) error
+	// UpdateLog 覆盖日志配置。
+	UpdateLog(log conf.Logrus) error
+	// UpdateUpload 覆盖上传策略。
+	UpdateUpload(upload conf.Upload) error
 }

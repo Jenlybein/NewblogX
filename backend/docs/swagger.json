@@ -96,6 +96,62 @@
                 ],
                 "type": "object"
             },
+            "internal_ai_adapter_http.ProviderItem": {
+                "properties": {
+                    "enabled": {
+                        "type": "boolean"
+                    },
+                    "fields": {
+                        "additionalProperties": {
+                            "type": "string"
+                        },
+                        "type": "object"
+                    },
+                    "id": {
+                        "type": "string"
+                    },
+                    "model": {
+                        "type": "string"
+                    },
+                    "name": {
+                        "type": "string"
+                    },
+                    "vendor": {
+                        "type": "string"
+                    }
+                },
+                "type": "object"
+            },
+            "internal_ai_adapter_http.ProviderPayload": {
+                "properties": {
+                    "enabled": {
+                        "type": "boolean"
+                    },
+                    "fields": {
+                        "additionalProperties": {
+                            "type": "string"
+                        },
+                        "type": "object"
+                    },
+                    "model": {
+                        "maxLength": 128,
+                        "type": "string"
+                    },
+                    "name": {
+                        "maxLength": 64,
+                        "type": "string"
+                    },
+                    "vendor": {
+                        "maxLength": 32,
+                        "type": "string"
+                    }
+                },
+                "required": [
+                    "model",
+                    "vendor"
+                ],
+                "type": "object"
+            },
             "internal_ai_adapter_http.ScoreDimension": {
                 "properties": {
                     "name": {
@@ -177,6 +233,50 @@
                     },
                     "total_score": {
                         "type": "integer"
+                    }
+                },
+                "type": "object"
+            },
+            "internal_ai_adapter_http.VendorFieldItem": {
+                "properties": {
+                    "default": {
+                        "type": "string"
+                    },
+                    "key": {
+                        "type": "string"
+                    },
+                    "label": {
+                        "type": "string"
+                    },
+                    "placeholder": {
+                        "type": "string"
+                    },
+                    "required": {
+                        "type": "boolean"
+                    },
+                    "secret": {
+                        "type": "boolean"
+                    }
+                },
+                "type": "object"
+            },
+            "internal_ai_adapter_http.VendorItem": {
+                "properties": {
+                    "fields": {
+                        "items": {
+                            "$ref": "#/components/schemas/internal_ai_adapter_http.VendorFieldItem"
+                        },
+                        "type": "array",
+                        "uniqueItems": false
+                    },
+                    "id": {
+                        "type": "string"
+                    },
+                    "name": {
+                        "type": "string"
+                    },
+                    "note": {
+                        "type": "string"
                     }
                 },
                 "type": "object"
@@ -2767,6 +2867,20 @@
                 },
                 "type": "object"
             },
+            "myblogx_internal_kernel.Envelope-internal_ai_adapter_http_ProviderItem": {
+                "properties": {
+                    "code": {
+                        "type": "integer"
+                    },
+                    "data": {
+                        "$ref": "#/components/schemas/internal_ai_adapter_http.ProviderItem"
+                    },
+                    "msg": {
+                        "type": "string"
+                    }
+                },
+                "type": "object"
+            },
             "myblogx_internal_kernel.Envelope-internal_ai_adapter_http_ScoringResponse": {
                 "properties": {
                     "code": {
@@ -3355,6 +3469,34 @@
                 },
                 "type": "object"
             },
+            "myblogx_internal_kernel.Envelope-myblogx_internal_kernel_ListData-internal_ai_adapter_http_ProviderItem": {
+                "properties": {
+                    "code": {
+                        "type": "integer"
+                    },
+                    "data": {
+                        "$ref": "#/components/schemas/myblogx_internal_kernel.ListData-internal_ai_adapter_http_ProviderItem"
+                    },
+                    "msg": {
+                        "type": "string"
+                    }
+                },
+                "type": "object"
+            },
+            "myblogx_internal_kernel.Envelope-myblogx_internal_kernel_ListData-internal_ai_adapter_http_VendorItem": {
+                "properties": {
+                    "code": {
+                        "type": "integer"
+                    },
+                    "data": {
+                        "$ref": "#/components/schemas/myblogx_internal_kernel.ListData-internal_ai_adapter_http_VendorItem"
+                    },
+                    "msg": {
+                        "type": "string"
+                    }
+                },
+                "type": "object"
+            },
             "myblogx_internal_kernel.Envelope-myblogx_internal_kernel_ListData-internal_analytics_adapter_http_DeadLetterItemResponse": {
                 "properties": {
                     "code": {
@@ -3782,6 +3924,36 @@
                 "required": [
                     "id_list"
                 ],
+                "type": "object"
+            },
+            "myblogx_internal_kernel.ListData-internal_ai_adapter_http_ProviderItem": {
+                "properties": {
+                    "count": {
+                        "type": "integer"
+                    },
+                    "list": {
+                        "items": {
+                            "$ref": "#/components/schemas/internal_ai_adapter_http.ProviderItem"
+                        },
+                        "type": "array",
+                        "uniqueItems": false
+                    }
+                },
+                "type": "object"
+            },
+            "myblogx_internal_kernel.ListData-internal_ai_adapter_http_VendorItem": {
+                "properties": {
+                    "count": {
+                        "type": "integer"
+                    },
+                    "list": {
+                        "items": {
+                            "$ref": "#/components/schemas/internal_ai_adapter_http.VendorItem"
+                        },
+                        "type": "array",
+                        "uniqueItems": false
+                    }
+                },
                 "type": "object"
             },
             "myblogx_internal_kernel.ListData-internal_analytics_adapter_http_DeadLetterItemResponse": {
@@ -4511,6 +4683,211 @@
                     }
                 ],
                 "summary": "AI 文本改写（SSE 流式）",
+                "tags": [
+                    "ai"
+                ]
+            }
+        },
+        "/ai/providers": {
+            "get": {
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/myblogx_internal_kernel.Envelope-myblogx_internal_kernel_ListData-internal_ai_adapter_http_ProviderItem"
+                                }
+                            }
+                        },
+                        "description": "OK"
+                    }
+                },
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "summary": "模型配置列表",
+                "tags": [
+                    "ai"
+                ]
+            },
+            "post": {
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/internal_ai_adapter_http.ProviderPayload",
+                                "summary": "body",
+                                "description": "配置内容"
+                            }
+                        }
+                    },
+                    "description": "配置内容",
+                    "required": true
+                },
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/myblogx_internal_kernel.Envelope-internal_ai_adapter_http_ProviderItem"
+                                }
+                            }
+                        },
+                        "description": "OK"
+                    }
+                },
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "summary": "新增模型配置",
+                "tags": [
+                    "ai"
+                ]
+            }
+        },
+        "/ai/providers/vendors": {
+            "get": {
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/myblogx_internal_kernel.Envelope-myblogx_internal_kernel_ListData-internal_ai_adapter_http_VendorItem"
+                                }
+                            }
+                        },
+                        "description": "OK"
+                    }
+                },
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "summary": "供应商元数据",
+                "tags": [
+                    "ai"
+                ]
+            }
+        },
+        "/ai/providers/{id}": {
+            "delete": {
+                "parameters": [
+                    {
+                        "description": "配置 ID",
+                        "in": "path",
+                        "name": "id",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/myblogx_internal_kernel.Envelope-myblogx_internal_kernel_EmptyData"
+                                }
+                            }
+                        },
+                        "description": "OK"
+                    }
+                },
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "summary": "删除模型配置",
+                "tags": [
+                    "ai"
+                ]
+            },
+            "put": {
+                "parameters": [
+                    {
+                        "description": "配置 ID",
+                        "in": "path",
+                        "name": "id",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/internal_ai_adapter_http.ProviderPayload",
+                                "summary": "body",
+                                "description": "配置内容"
+                            }
+                        }
+                    },
+                    "description": "配置内容",
+                    "required": true
+                },
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/myblogx_internal_kernel.Envelope-myblogx_internal_kernel_EmptyData"
+                                }
+                            }
+                        },
+                        "description": "OK"
+                    }
+                },
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "summary": "修改模型配置",
+                "tags": [
+                    "ai"
+                ]
+            }
+        },
+        "/ai/providers/{id}/enable": {
+            "post": {
+                "parameters": [
+                    {
+                        "description": "配置 ID",
+                        "in": "path",
+                        "name": "id",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/myblogx_internal_kernel.Envelope-myblogx_internal_kernel_EmptyData"
+                                }
+                            }
+                        },
+                        "description": "OK"
+                    }
+                },
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "summary": "启用模型配置",
                 "tags": [
                     "ai"
                 ]

@@ -209,8 +209,14 @@ river:
   charset: "utf8mb4"
   # mysqldump 可执行文件名或路径
   mysqldump: "mysqldump"
-  # 是否跳过 mysqldump 的 master-data 信息
-  skip_master_data: true
+  # 是否跳过 mysqldump 的 master-data 信息。
+  # 必须为 false：master-data 会在 dump 输出里带一句
+  #     CHANGE MASTER TO MASTER_LOG_FILE=..., MASTER_LOG_POS=...;
+  # 这是 canal 拿到 binlog 起点的唯一来源 —— 设为 true 时，冷启动（没有历史位点文件）
+  # 会在 dump 之后拿着空位点去连 binlog，MySQL 直接报 1236，同步仍然起不来。
+  # admin 账号已具备 REPLICATION CLIENT，实测 MariaDB 客户端输出的该行格式与
+  # go-mysql 的解析正则逐字一致。
+  skip_master_data: false
   # 批量写入 ES 的单批文档数
   bulk_size: 128
 
@@ -250,8 +256,14 @@ image_ref_river:
   charset: "utf8mb4"
   # mysqldump 可执行文件名或路径
   mysqldump: "mysqldump"
-  # 是否跳过 mysqldump 的 master-data 信息
-  skip_master_data: true
+  # 是否跳过 mysqldump 的 master-data 信息。
+  # 必须为 false：master-data 会在 dump 输出里带一句
+  #     CHANGE MASTER TO MASTER_LOG_FILE=..., MASTER_LOG_POS=...;
+  # 这是 canal 拿到 binlog 起点的唯一来源 —— 设为 true 时，冷启动（没有历史位点文件）
+  # 会在 dump 之后拿着空位点去连 binlog，MySQL 直接报 1236，同步仍然起不来。
+  # admin 账号已具备 REPLICATION CLIENT，实测 MariaDB 客户端输出的该行格式与
+  # go-mysql 的解析正则逐字一致。
+  skip_master_data: false
   # 固定间隔重试配置
   retry:
     # 最大尝试次数（包含首次）

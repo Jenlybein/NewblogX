@@ -49,7 +49,7 @@ func projectionRows() []struct {
 		{"outbox_event", schema.OutboxRow{}},
 
 		// 站点运行时配置
-		{"runtime_site_config", schema.RuntimeSiteConfigRow{}},
+		{"runtime_config", schema.RuntimeConfigRow{}},
 	}
 }
 

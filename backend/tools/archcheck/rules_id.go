@@ -32,6 +32,8 @@ import (
 //     MySQL 复制协议的 server_id，uint32，不是雪花 ID。
 //  3. initializedID（platform/idgen）
 //     雪花 worker 编号，不是业务 ID。
+//  4. TemplateID（conf/conf_mail.go）
+//     腾讯云 SES 的邮件模板编号，控制台分配的小整数，类型由 SDK 决定。
 func ruleIDMustBeCtype() Rule {
 	return Rule{
 		ID:    "R12",
@@ -100,6 +102,12 @@ func isExemptIDField(rel string, field *ast.Field) bool {
 	case "initializedID":
 		// 雪花生成器的 worker 编号（未导出字段）。
 		return rel == "internal/platform/idgen/idgen.go"
+	case "TemplateID":
+		// 腾讯云 SES 的邮件模板编号：由控制台分配的小整数，不是雪花 ID，
+		// 也不会参与 ctype.ID 那套"底层为字符串"的精度保护。
+		// 类型由 SDK 决定（SendEmail 的入参是 *uint64），改成 ctype.ID
+		// 反而要在每处调用点来回转换。
+		return rel == "conf/conf_mail.go"
 	}
 	return false
 }

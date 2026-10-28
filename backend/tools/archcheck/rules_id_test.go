@@ -96,6 +96,18 @@ type node struct {
 			ruleID:   "R12",
 			wantHits: 1, // initializedID 豁免，MaxID 仍该报
 		},
+		{
+			name: "腾讯云 SES 模板编号豁免",
+			rel:  "conf/conf_mail.go",
+			src: `package conf
+type Mail struct {
+	TemplateID uint64
+	FromID     uint64
+}
+`,
+			ruleID:   "R12",
+			wantHits: 1, // TemplateID 豁免，FromID 仍该报
+		},
 	}
 	for _, c := range cases {
 		c := c

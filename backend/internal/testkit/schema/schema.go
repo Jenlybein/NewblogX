@@ -197,7 +197,7 @@ var groupModels = map[Group][]any{
 	},
 	Site: {
 		&BannerRow{},
-		&RuntimeSiteConfigRow{},
+		&RuntimeConfigRow{},
 	},
 	Social: {
 		&UserFollowRow{},
@@ -230,7 +230,7 @@ var groupModels = map[Group][]any{
 		&UserTopArticleRow{},
 		&ImageRow{},
 		&ImageRefRow{},
-		&RuntimeSiteConfigRow{},
+		&RuntimeConfigRow{},
 		&CommentRow{},
 		&BannerRow{},
 		&GlobalNotifRow{},

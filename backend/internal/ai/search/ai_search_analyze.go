@@ -1,6 +1,7 @@
 package aisearch
 
 import (
+	"context"
 	"fmt"
 	"myblogx/conf"
 	"myblogx/internal/ai"
@@ -26,12 +27,12 @@ var articleSearchAnswerPrompt = `
 搜索结果(JSON)：%s
 `
 
-func AnalyzeArticleSearchStream(aiConf conf.AI, question string, list []searchdomain.Item) (chan string, chan error, error) {
+func AnalyzeArticleSearchStream(ctx context.Context, aiConf conf.AI, question string, list []searchdomain.Item) (chan string, chan error, error) {
 	msgList, err := buildArticleSearchAnalyzeMessages(question, list)
 	if err != nil {
 		return nil, nil, err
 	}
-	contentChan, errChan := ai.ChatStream(aiConf, msgList)
+	contentChan, errChan := ai.ChatStream(ctx, aiConf, msgList)
 	return contentChan, errChan, nil
 }
 

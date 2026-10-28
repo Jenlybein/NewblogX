@@ -1,6 +1,7 @@
 package overwrite
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"myblogx/conf"
@@ -12,7 +13,7 @@ import (
 const selectionTooShortMsg = "内容过短，建议选中完整句或完整段落"
 
 // RewriteContentStream 对选中内容执行改写，并直接返回 AI 原始 token 流。
-func RewriteContentStream(aiConf conf.AI, req RewriteRequest) (chan string, chan error, error) {
+func RewriteContentStream(ctx context.Context, aiConf conf.AI, req RewriteRequest) (chan string, chan error, error) {
 	normalized, err := normalizeRewriteRequest(req)
 	if err != nil {
 		return nil, nil, err
@@ -29,7 +30,7 @@ func RewriteContentStream(aiConf conf.AI, req RewriteRequest) (chan string, chan
 		},
 	}
 
-	contentChan, errChan := ai.ChatStream(aiConf, msgList)
+	contentChan, errChan := ai.ChatStream(ctx, aiConf, msgList)
 	return contentChan, errChan, nil
 }
 

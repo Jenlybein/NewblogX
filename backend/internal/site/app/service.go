@@ -105,12 +105,12 @@ func (s *Service) PublicAI() AIInfo {
 // AdminSite 返回管理端的站点配置。
 func (s *Service) AdminSite() conf.Site { return s.PublicSite() }
 
-// AdminAI 返回管理端的 AI 配置，密钥用占位符遮蔽。
-func (s *Service) AdminAI() conf.AI {
-	ai := s.runtime.AI()
-	ai.SecretKey = domain.SensitivePlaceholder
-	return ai
-}
+// AdminAI 返回管理端的 AI 配置。
+//
+// 这一段只剩站点级设置（总闸、展示信息、输入限制）：模型密钥与接口地址已经
+// 搬到 ai_provider_models 表，由 AI 模块自己的接口管理并做遮蔽。
+// 所以这里不再需要"遮蔽 + 占位符回滚"那一套。
+func (s *Service) AdminAI() conf.AI { return s.runtime.AI() }
 
 // UpdateSite 覆盖站点配置。
 func (s *Service) UpdateSite(site conf.Site) error {
@@ -120,15 +120,10 @@ func (s *Service) UpdateSite(site conf.Site) error {
 	return s.runtime.UpdateSite(site)
 }
 
-// UpdateAI 覆盖 AI 配置。
-//
-// 密钥传回占位符表示"没改"，此时沿用当前值——否则前端每次保存都会把密钥写成 ******。
+// UpdateAI 覆盖站点级 AI 设置。
 func (s *Service) UpdateAI(ai conf.AI) error {
 	if s.runtime == nil {
 		return apperr.New(apperr.CodeSiteConfigMissing)
-	}
-	if ai.SecretKey == domain.SensitivePlaceholder {
-		ai.SecretKey = s.runtime.AI().SecretKey
 	}
 	return s.runtime.UpdateAI(ai)
 }

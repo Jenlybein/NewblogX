@@ -20,15 +20,16 @@ import (
 
 // Handler 聚合 AI 相关接口。
 type Handler struct {
-	svc *app.Service
+	svc       *app.Service
+	providers *app.ProviderService
 }
 
 // NewHandler 构造处理器。
-func NewHandler(svc *app.Service) *Handler {
+func NewHandler(svc *app.Service, providers *app.ProviderService) *Handler {
 	if svc == nil {
 		panic("ai/http: 用例服务未注入")
 	}
-	return &Handler{svc: svc}
+	return &Handler{svc: svc, providers: providers}
 }
 
 // userID 从 claims 取当前登录用户。
@@ -163,7 +164,7 @@ func (h *Handler) Overwrite(c *gin.Context) {
 	}
 	prepareSSE(c)
 
-	contentChan, errChan, err := h.svc.RewriteStream(overwrite.RewriteRequest{
+	contentChan, errChan, err := h.svc.RewriteStream(c.Request.Context(), overwrite.RewriteRequest{
 		Mode:          cr.Mode,
 		SelectionText: cr.SelectionText,
 		PrefixText:    cr.PrefixText,
@@ -194,7 +195,7 @@ func (h *Handler) Diagnose(c *gin.Context) {
 	}
 	prepareSSE(c)
 
-	data, err := h.svc.Diagnose(diagnose.DiagnoseRequest{
+	data, err := h.svc.Diagnose(c.Request.Context(), diagnose.DiagnoseRequest{
 		SelectionText: cr.SelectionText,
 		PrefixText:    cr.PrefixText,
 		SuffixText:    cr.SuffixText,
@@ -270,7 +271,7 @@ func (h *Handler) SearchLLM(c *gin.Context) {
 		res.SSEFail(err.Error(), c)
 		return
 	}
-	contentChan, errChan, err := h.svc.StreamAnswer(cr.Content, result.List)
+	contentChan, errChan, err := h.svc.StreamAnswer(c.Request.Context(), cr.Content, result.List)
 	if err != nil {
 		res.SSEFail(err.Error(), c)
 		return

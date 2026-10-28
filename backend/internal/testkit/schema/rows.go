@@ -672,3 +672,24 @@ type DeadLetterRow = CdcDeadLetterRow
 //
 // 发件箱在业务侧一直叫 outbox，类型名沿用 models 的 OutboxEvent* 只为对齐表名。
 type OutboxRow = OutboxEventRow
+
+// AIProviderRow 对应 ai_provider_models 表。
+//
+// 字段与 internal/ai/adapter/mysql/provider.go 的 aiProviderRow 必须逐字一致：
+// schema_sql_integration_test 会把这个结构 AutoMigrate 出来的表与 schema.sql
+// 逐列比对（含类型与 IS_NULLABLE），差一个 tag 就红。
+//
+// config 存该供应商全部字段的 JSON（api_key / base_url / region …）：
+// 各家需要的字段不同，列化意味着每加一个供应商就要一次 DDL，而本项目没有
+// ALTER 通道。
+type AIProviderRow struct {
+	BaseRow
+	Name    string `gorm:"type:varchar(64)" json:"name"`
+	Vendor  string `gorm:"type:varchar(32)" json:"vendor"`
+	Model   string `gorm:"type:varchar(128)" json:"model"`
+	Enabled bool   `gorm:"index" json:"enabled"`
+	Config  string `gorm:"type:longtext" json:"config"`
+}
+
+// TableName 固定表名。
+func (AIProviderRow) TableName() string { return "ai_provider_models" }

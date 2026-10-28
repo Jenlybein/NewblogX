@@ -21,12 +21,11 @@ func newEnv() *apptest.Env {
 		Seo:      confsite.Seo{Keywords: "go,blog", Description: "站点描述"},
 	}
 	ai := conf.AI{
-		Enable:    true,
-		SecretKey: "ai-secret-origin",
-		BaseURL:   "https://ai.example.com/v1/chat/completions",
-		Nickname:  "AI 助手",
-		Avatar:    "/ai.png",
-		Abstract:  "你好",
+		Enable:     true,
+		TimeoutSec: 60,
+		Nickname:   "AI 助手",
+		Avatar:     "/ai.png",
+		Abstract:   "你好",
 	}
 	return apptest.NewEnv(site, ai, "v1.2.3", "https://graph.qq.com/oauth2.0/show?client_id=x")
 }
@@ -52,35 +51,33 @@ func TestPublicViews(t *testing.T) {
 
 func TestAdminViewsMaskSecret(t *testing.T) {
 	env := newEnv()
-	if got := env.Service.AdminAI().SecretKey; got != domain.SensitivePlaceholder {
-		t.Fatalf("管理端应遮蔽密钥，得到 %s", got)
+	// AI 段已经不含密钥了（模型密钥搬到 ai_provider_models 表，由 AI 模块自己
+	// 的接口遮蔽），所以这里只确认它仍原样透传、公开接口也照常。
+	if got := env.Service.AdminAI().Nickname; got != "AI 助手" {
+		t.Fatalf("管理端 AI 配置应有昵称，得到 %q", got)
 	}
-	// 公开接口不带密钥字段，这里只确认它没有意外暴露。
 	if env.Service.PublicAI().Nickname == "" {
 		t.Fatal("公开 AI 信息应包含昵称")
 	}
+	if got := env.Service.AdminMail().SecretKey; got != domain.SensitivePlaceholder {
+		t.Fatalf("邮件密钥仍应遮蔽，得到 %s", got)
+	}
 }
 
-func TestUpdateAIKeepsSecretOnPlaceholder(t *testing.T) {
+func TestUpdateAIUpdatesSiteLevelSettings(t *testing.T) {
 	env := newEnv()
-	ctx := context.Background()
 	err := env.Service.UpdateAI(conf.AI{
-		Enable:    true,
-		SecretKey: domain.SensitivePlaceholder,
-		BaseURL:   "https://new-ai.example.com",
-		Nickname:  "新助手",
+		Enable:     true,
+		Nickname:   "新助手",
+		TimeoutSec: 30,
 	})
 	if err != nil {
 		t.Fatalf("更新 AI 配置失败: %v", err)
 	}
 	current := env.Runtime.AI()
-	if current.SecretKey != "ai-secret-origin" {
-		t.Fatalf("占位符应保留原密钥，得到 %s", current.SecretKey)
-	}
-	if current.BaseURL != "https://new-ai.example.com" || current.Nickname != "新助手" {
+	if current.Nickname != "新助手" || current.TimeoutSec != 30 {
 		t.Fatalf("AI 配置未更新: %+v", current)
 	}
-	_ = ctx
 }
 
 func TestUpdateSitePersists(t *testing.T) {

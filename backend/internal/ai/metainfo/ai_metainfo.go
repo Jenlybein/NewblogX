@@ -44,7 +44,7 @@ func GenerateArticleMetainfo(ctx context.Context, catalog domain.Catalog, logger
 		return nil, apperr.New(apperr.CodeAIContentEmpty)
 	}
 
-	reply, err := requestArticleMetainfoFromAI(aiConf, plainText, categoryOptions, tagOptions)
+	reply, err := requestArticleMetainfoFromAI(ctx, aiConf, plainText, categoryOptions, tagOptions)
 	if err != nil {
 		return nil, err
 	}

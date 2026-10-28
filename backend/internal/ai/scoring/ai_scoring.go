@@ -1,6 +1,7 @@
 package scoring
 
 import (
+	"context"
 	"fmt"
 	"myblogx/conf"
 	"myblogx/internal/ai"
@@ -8,20 +9,20 @@ import (
 )
 
 // ScoreArticleQuality 对整篇文章做质量评分与写作建议分析。
-func ScoreArticleQuality(aiConf conf.AI, req ArticleScoreRequest) (*ArticleScoreResponse, error) {
+func ScoreArticleQuality(ctx context.Context, aiConf conf.AI, req ArticleScoreRequest) (*ArticleScoreResponse, error) {
 	title, content, headings := prepareArticleForScoring(req.Title, req.Content)
 	if len([]rune(strings.TrimSpace(content))) < articleScoringMinChars {
 		return nil, fmt.Errorf("文章内容过短，建议补充完整后再评分")
 	}
 
 	if len([]rune(content)) <= articleScoringDirectMaxChars {
-		return scoreShortArticle(aiConf, title, content, headings)
+		return scoreShortArticle(ctx, aiConf, title, content, headings)
 	}
-	return scoreLongArticle(aiConf, title, content, headings)
+	return scoreLongArticle(ctx, aiConf, title, content, headings)
 }
 
-func scoreShortArticle(aiConf conf.AI, title string, content string, headings []string) (*ArticleScoreResponse, error) {
-	reply, err := ai.Chat(aiConf, []ai.Message{
+func scoreShortArticle(ctx context.Context, aiConf conf.AI, title string, content string, headings []string) (*ArticleScoreResponse, error) {
+	reply, err := ai.Chat(ctx, aiConf, []ai.Message{
 		{
 			Role:    "system",
 			Content: buildFullArticlePrompt(title, content, headings),
@@ -38,14 +39,14 @@ func scoreShortArticle(aiConf conf.AI, title string, content string, headings []
 	return normalizeFinalResponse(&response, ""), nil
 }
 
-func scoreLongArticle(aiConf conf.AI, title string, content string, headings []string) (*ArticleScoreResponse, error) {
+func scoreLongArticle(ctx context.Context, aiConf conf.AI, title string, content string, headings []string) (*ArticleScoreResponse, error) {
 	chunkList := splitArticleChunks(content)
 	if len(chunkList) == 0 {
 		return nil, fmt.Errorf("文章内容过短，建议补充完整后再评分")
 	}
 
 	totalChunks := len(chunkList)
-	reply, err := ai.Chat(aiConf, []ai.Message{
+	reply, err := ai.Chat(ctx, aiConf, []ai.Message{
 		{
 			Role:    "system",
 			Content: buildFirstChunkPrompt(title, chunkList[0], totalChunks),
@@ -62,7 +63,7 @@ func scoreLongArticle(aiConf conf.AI, title string, content string, headings []s
 	statePtr := normalizeState(&state, "", 1, totalChunks)
 
 	for index := 1; index < totalChunks-1; index++ {
-		reply, err = ai.Chat(aiConf, []ai.Message{
+		reply, err = ai.Chat(ctx, aiConf, []ai.Message{
 			{
 				Role:    "system",
 				Content: buildMiddleChunkPrompt(title, chunkList[index], totalChunks, statePtr),
@@ -80,7 +81,7 @@ func scoreLongArticle(aiConf conf.AI, title string, content string, headings []s
 	}
 
 	finalChunk := chunkList[totalChunks-1]
-	reply, err = ai.Chat(aiConf, []ai.Message{
+	reply, err = ai.Chat(ctx, aiConf, []ai.Message{
 		{
 			Role:    "system",
 			Content: buildFinalChunkPrompt(title, finalChunk, totalChunks, statePtr, headings),

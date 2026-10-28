@@ -101,6 +101,9 @@
     restart: unless-stopped
     privileged: true
     environment:
+      # 同生产编排：TAKE_FILE_OWNERSHIP 是官方给 bind mount 场景准备的开关，
+      # 非空时 entrypoint 会先 chown -R 1000:0 data/logs 再降权运行 ES。
+      TAKE_FILE_OWNERSHIP: "true"
       discovery.type: single-node
       ES_JAVA_OPTS: "-Xms512m -Xmx512m"
       xpack.security.enabled: "true"

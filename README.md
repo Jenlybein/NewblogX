@@ -883,7 +883,15 @@ BLOGX_LOG_CLEANUP_RUN_AT='03:30:00'
 `my.cnf` 被挂载成 777，MySQL 会**忽略所有用户可写的配置文件**（只打一行警告），于是 `gtid_mode=ON` 静默失效。compose 里已经用 entrypoint 先复制再 `chmod 644` 规避了（Windows 上 Docker Desktop 必踩）。如果你改了自己的挂载方式，这个坑会回来。
 
 **ES 容器反复重启**
-Linux 上是 `vm.max_map_count` 太小（见 [10.1](#101-前置条件)）；或者给它的内存上限小于 512 MB——`ES_JAVA_OPTS` 已经是 `-Xms512m -Xmx512m`，上限再小就会 OOM。
+先看日志判定是哪一类，三种现象完全不同：
+
+- `AccessDeniedException ... /usr/share/elasticsearch/data/nodes` —— 宿主机上数据目录的属主不是 uid 1000。
+  compose 的 `es` 服务已经设了 `TAKE_FILE_OWNERSHIP: 'true'`，官方 entrypoint 会在启动前
+  `chown -R 1000:0` 修掉，**正常不该再出现**；真出现了说明这一步本身失败（宿主机挂载只读、NFS
+  `root_squash`、磁盘满），`docker compose logs es | head -5` 能看到那一行报错。注意这个变量是按
+  「非空」判定的，写 `'false'` 也照样触发，想关掉只能删掉整行。
+- `max virtual memory areas vm.max_map_count [...] is too low` —— Linux 上内核参数太小，见 [10.1](#101-前置条件)。
+- OOM / `Killed` —— 内存上限小于 512 MB。`ES_JAVA_OPTS` 已经是 `-Xms512m -Xmx512m`，上限再小就会 OOM。
 
 **搜索搜不到文章，但数据库里明明有**
 按顺序查：`BLOGX_RIVER_ENABLED` 是否为 `true` → river 日志有没有报 binlog 权限 → 索引是否存在（`-es -s ensure`）→ 手动回填一次（`-es -s article-sync`）。注意写库后在 ES 里能搜到**有几秒延迟是正常的**。

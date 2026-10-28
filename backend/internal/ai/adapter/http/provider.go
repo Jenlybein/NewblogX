@@ -9,7 +9,7 @@ import (
 	// 供 swag 注解里的 kernel.Envelope 解析用。
 	// swag 是按**文件**解析 import 的：注解写在本文件，就必须本文件有这条 import，
 	// 否则报 "cannot find type definition" 并整份跳过写入（exit code 仍是 0）。
-	_ "myblogx/internal/kernel"
+	"myblogx/internal/kernel"
 
 	"github.com/gin-gonic/gin"
 )
@@ -90,7 +90,7 @@ func (h *Handler) ProviderVendors(c *gin.Context) {
 		}
 		out = append(out, VendorItem{ID: spec.ID, Name: spec.Name, Note: spec.Note, Fields: fields})
 	}
-	res.OkWithData(out, c)
+	res.OkWithData(kernel.ListData[VendorItem]{List: out, Count: len(out)}, c)
 }
 
 // ProviderList 返回全部模型配置（密钥遮蔽）。
@@ -110,7 +110,7 @@ func (h *Handler) ProviderList(c *gin.Context) {
 	for _, item := range items {
 		out = append(out, toProviderItem(item))
 	}
-	res.OkWithData(out, c)
+	res.OkWithData(kernel.ListData[ProviderItem]{List: out, Count: len(out)}, c)
 }
 
 // ProviderCreate 新增一条模型配置。

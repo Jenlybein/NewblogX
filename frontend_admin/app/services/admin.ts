@@ -1,5 +1,8 @@
 import type {
   AIRuntimeConfig,
+  AIProviderItem,
+  AIProviderPayload,
+  VendorItem,
   ActionAuditRecord,
   ArticleReviewTaskListResponseData,
   ArticleSearchResponseData,
@@ -108,6 +111,42 @@ export function getSiteRuntimeConfig() {
 
 export function getAiRuntimeConfig() {
   return api().request<AIRuntimeConfig>('/site/admin/ai')
+}
+
+/*
+ * 模型配置列表。
+ *
+ * 列表接口的 data 是 {list, count}（后端用 kernel.ListData 包了一层），
+ * 所以这里取 .list 再返回，页面拿到的就是数组。
+ */
+export function getAiVendors() {
+  return api().request<ListData<VendorItem>>('/ai/providers/vendors').then(res => res.list)
+}
+
+export function getAiProviders() {
+  return api().request<ListData<AIProviderItem>>('/ai/providers').then(res => res.list)
+}
+
+export function createAiProvider(payload: AIProviderPayload) {
+  return api().request<AIProviderItem, AIProviderPayload>('/ai/providers', {
+    method: 'POST',
+    body: payload,
+  })
+}
+
+export function updateAiProvider(id: string, payload: AIProviderPayload) {
+  return api().request<unknown, AIProviderPayload>(`/ai/providers/${id}`, {
+    method: 'PUT',
+    body: payload,
+  })
+}
+
+export function enableAiProvider(id: string) {
+  return api().request<unknown>(`/ai/providers/${id}/enable`, { method: 'POST' })
+}
+
+export function removeAiProvider(id: string) {
+  return api().request<unknown>(`/ai/providers/${id}`, { method: 'DELETE' })
 }
 
 export function updateSiteRuntimeConfig(payload: SiteRuntimeConfig) {

@@ -175,20 +175,60 @@ export interface SiteLoginRuntimeConfig {
   email_send_per_ip_max: number
 }
 
-/** AI 运行时配置。同上：由多块 `/site/{name}` 拼装，契约里没有对应 schema。 */
+/**
+ * 站点级 AI 设置。同上：由 `/site/admin/ai` 返回，契约里没有对应 schema。
+ *
+ * 只保留"站点怎么用 AI"：总闸、展示信息、输入限制。
+ * 用哪家模型、密钥、接口地址都在 ai_provider_models 表里，由
+ * `/ai/providers` 系列接口单独管理。
+ */
 export interface AIRuntimeConfig {
   enable: boolean
-  secret: string
-  base_url: string
-  chat_model: string
-  reason_model: string
-  timeout_sec: number
   max_input_chars: number
   temperature: number
+  timeout_sec: number
   daily_quota: number
-  abstract: string
   nickname: string
   avatar: string
+  abstract: string
+}
+
+/** 一条模型配置（密钥字段已被后端遮蔽为 ******）。 */
+export interface AIProviderItem {
+  id: string
+  name: string
+  vendor: string
+  model: string
+  enabled: boolean
+  fields: Record<string, string>
+}
+
+/** 供应商需要的单个配置项定义（后端下发，前端据此渲染表单）。 */
+export interface VendorFieldItem {
+  key: string
+  label: string
+  required: boolean
+  /** 敏感字段：用密码框，回显时是占位符 */
+  secret: boolean
+  placeholder: string
+  default: string
+}
+
+/** 供应商元数据。 */
+export interface VendorItem {
+  id: string
+  name: string
+  note: string
+  fields: VendorFieldItem[]
+}
+
+/** 新增 / 修改模型配置的请求体。 */
+export interface AIProviderPayload {
+  name: string
+  vendor: string
+  model: string
+  fields: Record<string, string>
+  enabled: boolean
 }
 
 /**

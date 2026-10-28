@@ -4,6 +4,7 @@ package router
 
 import (
 	"errors"
+	"myblogx/internal/platform/health"
 	"myblogx/internal/platform/safego"
 	"net"
 	"net/http"
@@ -19,7 +20,10 @@ import (
 // 如果测试里另抄一份挂载顺序，将来在这里加了个 Router 而测试没跟上，
 // 测试就会给出假绿（少挂的那部分没人对账）或假红（对着旧清单比）。
 // 让生产与测试走同一个函数，是这类"清单必须与代码同步"的唯一可靠做法。
-func NewEngine(opts middleware.RuntimeOptions) *gin.Engine {
+// registry 是后台组件的健康状态注册表，/health/ready 读它。
+// 单独传而不是塞进 RuntimeOptions：那个结构体是 NewRuntime 的构造参数，
+// 塞进去就成了"顺手抓一把依赖往下传"，正是 R2 要消灭的形状。
+func NewEngine(opts middleware.RuntimeOptions, registry *health.Registry) *gin.Engine {
 	r := gin.New()
 	r.Use(gin.LoggerWithConfig(gin.LoggerConfig{
 		SkipPaths: []string{"/health"},
@@ -29,7 +33,7 @@ func NewEngine(opts middleware.RuntimeOptions) *gin.Engine {
 	mwRuntime := middleware.NewRuntime(opts)
 
 	r.Static("/uploads", "./uploads")
-	HealthRouter(r)
+	HealthRouter(r, registry)
 
 	nr := r.Group("/api")
 	nr.Use(mwRuntime.LogMiddleware)
@@ -61,9 +65,9 @@ func NewEngine(opts middleware.RuntimeOptions) *gin.Engine {
 //
 // 监听句柄在返回前同步创建，端口被占用等绑定错误会直接返回 error，
 // 避免"后台 goroutine 启动失败、主流程却挂着等信号"的假活状态。
-func Run(opts middleware.RuntimeOptions) (*http.Server, error) {
+func Run(opts middleware.RuntimeOptions, registry *health.Registry) (*http.Server, error) {
 	gin.SetMode(opts.System.GinMode)
-	r := NewEngine(opts)
+	r := NewEngine(opts, registry)
 
 	ln, err := net.Listen("tcp", opts.System.Addr())
 	if err != nil {

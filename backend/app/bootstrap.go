@@ -9,6 +9,7 @@ import (
 	"myblogx/core"
 	sitecfg "myblogx/internal/platform/config"
 	"myblogx/internal/platform/es/articlesync"
+	"myblogx/internal/platform/health"
 	"myblogx/internal/platform/log/writer"
 
 	"github.com/elastic/go-elasticsearch/v7"
@@ -29,6 +30,10 @@ type Infra struct {
 	ESClient    *elasticsearch.Client
 	ClickHouse  *sql.DB
 	RuntimeSite *sitecfg.RuntimeConfigService
+
+	// Health 汇总后台组件状态，供 /health/ready 读取。
+	// 见 internal/platform/health 的包注释：它存在的理由是一次"组件死了但探针全绿"的线上事故。
+	Health *health.Registry
 }
 
 // InitInfra 初始化不依赖业务表的基础设施。
@@ -95,6 +100,9 @@ func InitInfra(cfg *conf.Config, configFile string, version string) (*Infra, err
 		Redis:      redisClient,
 		ESClient:   esClient,
 		ClickHouse: clickHouse,
+		// 后台组件（river / image-ref / cron）在这里登记运行状态，
+		// 由 /health/ready 汇总暴露。没有它，组件死掉后进程仍是"健康"的。
+		Health: health.New(),
 	}, nil
 }
 

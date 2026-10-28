@@ -12,6 +12,7 @@ import (
 	notificationhttp "myblogx/internal/notification/adapter/http"
 	notificationtest "myblogx/internal/notification/apptest"
 	"myblogx/internal/platform/captcha"
+	"myblogx/internal/platform/health"
 	mw "myblogx/internal/platform/http/middleware"
 	"myblogx/internal/platform/http/router"
 	searchhttp "myblogx/internal/search/adapter/http"
@@ -30,7 +31,7 @@ import (
 func TestRegisterAllRoutes(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	r := gin.New()
-	router.HealthRouter(r)
+	router.HealthRouter(r, health.New())
 	api := r.Group("/api")
 	runtimeMw := mw.Runtime{}
 
@@ -69,6 +70,7 @@ func TestRegisterAllRoutes(t *testing.T) {
 
 	expect := []string{
 		"GET /health",
+		"GET /health/ready",
 		"GET /api/site/qq_url",
 		"GET /api/site/:name",
 		"GET /api/imagecaptcha",

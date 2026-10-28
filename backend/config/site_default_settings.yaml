@@ -101,3 +101,62 @@ ai:
   # 对外展示给用户的 AI 助手头像地址
   avatar: ""
 
+# 邮件发送（腾讯云 SES）。
+# 后台「邮件」页填的就是这一段；默认全空 + 模板 ID 为 0，
+# 此时邮箱登录必须保持关闭，否则用户点「获取验证码」会直接报错。
+mail:
+  # 腾讯云 API 密钥（敏感，后台回显时为占位符）
+  secret_id: ""
+  secret_key: ""
+  # 地域：只支持 ap-guangzhou / ap-hongkong
+  region: "ap-guangzhou"
+  # 国际站账号需要覆盖成 ses.intl.tencentcloudapi.com；留空用默认
+  endpoint: ""
+  # 发信地址，必须已在控制台验证通过
+  from_address: ""
+  # 发件人显示名
+  from_name: "技术博客"
+  # 验证码模板 ID；模板变量为 action / code / timeout
+  template_id: 0
+  # 单次调用超时（秒）；<=0 按 10 秒处理
+  timeout_sec: 10
+
+# 对象存储（七牛云）。
+# 这是图片上传的唯一落地方式：关掉之后上传接口直接返回「站点未启用图片上传」，
+# 不会退化成存本地。
+storage:
+  enable: false
+  access_key: ""
+  secret_key: ""
+  bucket: ""
+  # 资源访问域名；留空时返回的图片地址不完整
+  uri: ""
+  # 存储区域标识
+  region: "z2"
+  # 对象 key 前缀；image-ref 同步靠它从 URL 反解 object key，改了会影响引用关系
+  prefix: "myblogx"
+  # 单张图片大小上限（MB）
+  size: 5
+  # 上传凭证有效期（秒）
+  expiry: 1800
+  # 上传成功后的服务端回调地址；留空表示不启用
+  callback_url: ""
+
+# 第三方登录（QQ 互联）。
+# 注意：读者站目前没有 QQ 登录入口，这段配好了也不会生效（链路待补）。
+oauth:
+  app_id: ""
+  app_key: ""
+  redirect: ""
+
+# 上传策略。
+# 只保留白名单：历史字段 size / upload_dir 全仓零读取，已删除。
+upload:
+  whitelist:
+    - bmp
+    - jpg
+    - jpeg
+    - png
+    - gif
+    - webp
+

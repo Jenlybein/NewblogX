@@ -401,16 +401,20 @@ CREATE TABLE IF NOT EXISTS `outbox_event_models` (
   KEY `idx_outbox_event_models_available_at` (`available_at`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
-CREATE TABLE IF NOT EXISTS `runtime_site_config_models` (
+-- 站点运行时配置：一段一行。
+-- name 取值固定为 site / ai / mail / storage / oauth / log / upload。
+-- 之所以不拆成"一段一列"或"一个设置一列"：本目录的 DDL 只做
+-- CREATE TABLE IF NOT EXISTS，生产上没有任何 ALTER 通道，
+-- 列化会让每加一个配置字段都变成一次表结构变更。
+CREATE TABLE IF NOT EXISTS `runtime_config_models` (
   `id` bigint unsigned NOT NULL,
   `created_at` datetime(3) DEFAULT NULL,
   `updated_at` datetime(3) DEFAULT NULL,
   `deleted_at` datetime(3) DEFAULT NULL,
   `name` varchar(32) NOT NULL,
-  `site_json` longtext NOT NULL,
-  `ai_json` longtext NOT NULL,
+  `payload` longtext NOT NULL,
   PRIMARY KEY (`id`),
-  UNIQUE KEY `idx_runtime_site_config_models_name` (`name`)
+  UNIQUE KEY `idx_runtime_config_models_name` (`name`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 CREATE TABLE IF NOT EXISTS `tag_models` (

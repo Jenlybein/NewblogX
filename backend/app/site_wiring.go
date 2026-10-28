@@ -90,7 +90,7 @@ func (b siteRuntimeBridge) UpdateSite(site conf.Site) error {
 	if b.inner == nil {
 		return errSiteRuntimeMissing()
 	}
-	return b.inner.UpdateRuntimeSite(site)
+	return b.inner.UpdateSite(site)
 }
 
 // UpdateAI 覆盖 AI 配置。
@@ -98,7 +98,7 @@ func (b siteRuntimeBridge) UpdateAI(ai conf.AI) error {
 	if b.inner == nil {
 		return errSiteRuntimeMissing()
 	}
-	return b.inner.UpdateRuntimeAI(ai)
+	return b.inner.UpdateAI(ai)
 }
 
 // errSiteRuntimeMissing 表示运行时配置服务没装配。

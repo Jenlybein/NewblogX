@@ -436,16 +436,17 @@ type OutboxEventRow struct {
 // TableName 固定表名。
 func (OutboxEventRow) TableName() string { return "outbox_event_models" }
 
-// RuntimeSiteConfigRow 对应表 runtime_site_config_models。
-type RuntimeSiteConfigRow struct {
+// RuntimeConfigRow 对应表 runtime_config_models。
+//
+// 一段一行：name 是段名，payload 是该段的完整 JSON。
+type RuntimeConfigRow struct {
 	BaseRow
-	Name     string `gorm:"size:32;uniqueIndex;not null" json:"name"`
-	SiteJSON string `gorm:"type:longtext;not null" json:"site_json"`
-	AIJSON   string `gorm:"type:longtext;not null" json:"ai_json"`
+	Name    string `gorm:"size:32;uniqueIndex;not null" json:"name"`
+	Payload string `gorm:"type:longtext;not null" json:"payload"`
 }
 
 // TableName 固定表名。
-func (RuntimeSiteConfigRow) TableName() string { return "runtime_site_config_models" }
+func (RuntimeConfigRow) TableName() string { return "runtime_config_models" }
 
 // UserStatRow 对应表 user_stat_models。
 type UserStatRow struct {

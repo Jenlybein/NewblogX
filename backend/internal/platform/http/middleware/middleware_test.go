@@ -84,7 +84,7 @@ func TestBindMiddlewares(t *testing.T) {
 func setupAuthEnv(t *testing.T) {
 	t.Helper()
 	_ = testutil.SetupMiniRedis(t)
-	_ = testutil.SetupSQLite(t, &schema.UserRow{}, &schema.RuntimeSiteConfigRow{})
+	_ = testutil.SetupSQLite(t, &schema.UserRow{}, &schema.RuntimeConfigRow{})
 	testutil.SetConfig(&conf.Config{
 		Jwt: conf.Jwt{
 			Expire: 1,
@@ -103,7 +103,18 @@ func testRedisOptions() redis_service.Options {
 
 func newMiddlewareRuntime(t *testing.T) middleware.Runtime {
 	t.Helper()
-	runtimeSvc := sitecfg.NewRuntimeConfigService(testutil.Config().Site, testutil.Config().AI, testutil.Logger(), testutil.DB(), "")
+	baseCfg := testutil.Config()
+	// testutil.DB() 只有一个槽位，同一用例里可能多次建引擎，而运行时配置表
+	// 是进程级单例 —— 不清空的话第二次建引擎会读到上一次灌进去的旧值，
+	// 配置看起来"改了不生效"。这里显式清空，模拟"这个引擎刚启动、库是空的"。
+	if err := testutil.DB().Unscoped().Where("1 = 1").Delete(&schema.RuntimeConfigRow{}).Error; err != nil {
+		t.Fatalf("清空运行时配置失败: %v", err)
+	}
+	runtimeSvc := sitecfg.NewRuntimeConfigService(
+		conf.RuntimeDefaults{Site: baseCfg.Site, AI: baseCfg.AI, Log: baseCfg.Log},
+		testutil.Logger(),
+		testutil.DB(),
+	)
 	if err := runtimeSvc.InitRuntimeConfig(); err != nil {
 		t.Fatalf("初始化中间件运行时配置失败: %v", err)
 	}

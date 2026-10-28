@@ -81,7 +81,7 @@ runtime_table_exists() {
     -p"${BLOGX_DB_PASSWORD}" \
     --skip-ssl \
     -D"${BLOGX_DB_NAME}" \
-    -Nse "SHOW TABLES LIKE 'runtime_site_config_models';"
+    -Nse "SHOW TABLES LIKE 'runtime_config_models';"
 }
 
 if [ "$#" -eq 0 ]; then

@@ -167,3 +167,102 @@ export interface AIRuntimeConfig {
   nickname: string
   avatar: string
 }
+
+/**
+ * 邮件（腾讯云 SES）运行时配置。
+ *
+ * secret_key 由后端用 `******` 遮蔽；保存时原样回传即表示"没改"。
+ * secret_id 不遮蔽 —— 它是"用哪个密钥"，不是密钥本身，
+ * 遮起来管理员没法确认自己正在改哪个账号。
+ */
+export interface MailRuntimeConfig {
+  secret_id: string
+  secret_key: string
+  /** 只支持 ap-guangzhou / ap-hongkong */
+  region: string
+  /** 国际站账号需要填 ses.intl.tencentcloudapi.com，留空用默认 */
+  endpoint: string
+  from_address: string
+  from_name: string
+  /** 控制台里的模板 ID；模板变量为 action / code / timeout */
+  template_id: number
+  timeout_sec: number
+}
+
+/** 对象存储（七牛云）运行时配置。secret_key 同样以占位符回显。 */
+export interface StorageRuntimeConfig {
+  enable: boolean
+  access_key: string
+  secret_key: string
+  bucket: string
+  /** 资源访问域名 */
+  uri: string
+  region: string
+  /** 对象 key 前缀；图片引用关系靠它从 URL 反解 */
+  prefix: string
+  /** 单张图片大小上限（MB） */
+  size: number
+  /** 上传凭证有效期（秒） */
+  expiry: number
+  callback_url: string
+}
+
+/** 第三方登录（QQ 互联）运行时配置。app_key 以占位符回显。 */
+export interface OAuthRuntimeConfig {
+  app_id: string
+  app_key: string
+  redirect: string
+}
+
+/**
+ * 日志运行时配置。
+ *
+ * 后端只接受可改的那部分：app / dir / wal_dir / stdout_format 属于进程级
+ * 配置，提交了也会被覆盖回当前值（日志写哪儿不该由网页决定）。
+ */
+export interface LogRuntimeConfig {
+  app: string
+  dir: string
+  wal_dir: string
+  level: string
+  stdout_format: string
+  request_log_enabled: boolean
+  query_default_limit: number
+  query_max_limit: number
+  error: {
+    capture_stack: boolean
+    capture_min_level: string
+    stack_max_bytes: number
+    cause_chain_depth: number
+  }
+  trace: {
+    enabled: boolean
+    request_id_equals_trace_id: boolean
+    inherit_from_gateway: boolean
+    gateway_header_priority: string
+  }
+  cleanup: {
+    enabled: boolean
+    retention_days: number
+    run_at: string
+  }
+}
+
+/** 上传策略。白名单是整体替换，不是追加。 */
+export interface UploadRuntimeConfig {
+  whitelist: string[]
+}
+
+/** 首次初始化状态。 */
+export interface SetupStatusData {
+  /** 为真表示库里还没有管理员，初始化入口开放 */
+  needs_admin: boolean
+}
+
+/** 创建第一个管理员的请求体。 */
+export interface SetupAdminPayload {
+  username: string
+  password: string
+  email?: string
+  nickname?: string
+}

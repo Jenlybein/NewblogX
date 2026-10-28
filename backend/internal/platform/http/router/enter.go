@@ -43,6 +43,9 @@ func NewEngine(opts middleware.RuntimeOptions, registry *health.Registry) *gin.E
 	ImageRouter(nr, mwRuntime)
 	BannerRouter(nr, mwRuntime)
 	CaptchaRouter(nr)
+	// 初始化路由紧邻那几个"还没有账号"的公开接口，
+	// 便于一眼看到"哪些接口是不需要登录的"。
+	SetupRouter(nr, mwRuntime)
 	UserRouter(nr, mwRuntime)
 	ArticleRouter(nr, mwRuntime)
 	CommentRouter(nr, mwRuntime)

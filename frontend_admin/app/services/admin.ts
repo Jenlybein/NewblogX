@@ -16,10 +16,18 @@ import type {
   ReplayLogRecord,
   LoginEventRecord,
   RuntimeLogRecord,
+  LogRuntimeConfig,
+  MailRuntimeConfig,
+  OAuthRuntimeConfig,
   SiteRuntimeConfig,
+  StorageRuntimeConfig,
   SumResponseData,
+  UploadRuntimeConfig,
   UserListResponseData,
 } from '~/types/api'
+
+/** 可读写的配置段。与后端 platform/config 的段名常量一一对应。 */
+export type RuntimeSectionName = 'site' | 'ai' | 'mail' | 'storage' | 'oauth' | 'log' | 'upload'
 
 function api() {
   return useNuxtApp().$api
@@ -186,4 +194,58 @@ export function replayDeadLetters(idList: string[]) {
 /** 回放日志：每次重投尝试的时间线（含跳过与不支持）。 */
 export function getReplayLogs(query: { page?: number; limit?: number; stream?: string; result?: string }) {
   return api().request<ListData<ReplayLogRecord>>('/logs/replay', { query })
+}
+
+// ── 其余配置段 ────────────────────────────────────────────────
+//
+// 七个段共用同一条路由（`GET /site/admin/{name}` / `PUT /site/{name}`），
+// 请求体与响应结构随 name 变。所以这里用泛型包一层，再给出具名包装 ——
+// 具名的那几个让页面里的调用点能一眼看出在读写哪一段。
+
+export function getRuntimeSection<T>(name: RuntimeSectionName) {
+  return api().request<T>(`/site/admin/${name}`)
+}
+
+export function updateRuntimeSection<T>(name: RuntimeSectionName, payload: T) {
+  return api().request<unknown, T>(`/site/${name}`, { method: 'PUT', body: payload })
+}
+
+export function getMailRuntimeConfig() {
+  return getRuntimeSection<MailRuntimeConfig>('mail')
+}
+
+export function updateMailRuntimeConfig(payload: MailRuntimeConfig) {
+  return updateRuntimeSection('mail', payload)
+}
+
+export function getStorageRuntimeConfig() {
+  return getRuntimeSection<StorageRuntimeConfig>('storage')
+}
+
+export function updateStorageRuntimeConfig(payload: StorageRuntimeConfig) {
+  return updateRuntimeSection('storage', payload)
+}
+
+export function getOAuthRuntimeConfig() {
+  return getRuntimeSection<OAuthRuntimeConfig>('oauth')
+}
+
+export function updateOAuthRuntimeConfig(payload: OAuthRuntimeConfig) {
+  return updateRuntimeSection('oauth', payload)
+}
+
+export function getLogRuntimeConfig() {
+  return getRuntimeSection<LogRuntimeConfig>('log')
+}
+
+export function updateLogRuntimeConfig(payload: LogRuntimeConfig) {
+  return updateRuntimeSection('log', payload)
+}
+
+export function getUploadRuntimeConfig() {
+  return getRuntimeSection<UploadRuntimeConfig>('upload')
+}
+
+export function updateUploadRuntimeConfig(payload: UploadRuntimeConfig) {
+  return updateRuntimeSection('upload', payload)
 }

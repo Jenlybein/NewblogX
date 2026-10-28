@@ -189,6 +189,10 @@ const (
 	CodeRuntimeConfigDBMissing    Code = "runtimeconfig.db_missing"
 	CodeRuntimeConfigPathMissing  Code = "runtimeconfig.path_missing"
 	CodeRuntimeConfigDecodeFailed Code = "runtimeconfig.decode_failed"
+
+	// 首次初始化。闸门是"库里还没有管理员"：一旦有了管理员，
+	// 这两个接口就永久关闭，避免成为绕过鉴权的后门。
+	CodeSetupAlreadyDone Code = "setup.already_done"
 	CodeRuntimeConfigTableMissing Code = "runtimeconfig.table_missing"
 )
 
@@ -391,6 +395,8 @@ var messages = map[Code]string{
 	CodeSiteConfigMissing: "运行时配置服务未初始化",
 	CodeSiteInfoNotFound:  "站点信息不存在",
 	CodeBannerNotFound:    "轮播图不存在",
+
+	CodeSetupAlreadyDone: "站点已初始化完成，该入口已关闭",
 
 	CodeRuntimeConfigDBMissing:    "数据库未初始化",
 	CodeRuntimeConfigPathMissing:  "运行时站点默认配置路径未设置",

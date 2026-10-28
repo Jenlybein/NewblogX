@@ -2,6 +2,7 @@
 import { IconLock, IconUser } from '@tabler/icons-vue'
 import { NButton, NCard, NCheckbox, NInput, NSpace, useMessage } from 'naive-ui'
 import { isApiBusinessError } from '~/services/http/errors'
+import { getSetupStatus } from '~/services/setup'
 
 definePageMeta({ layout: 'auth' })
 
@@ -9,6 +10,21 @@ const route = useRoute()
 const router = useRouter()
 const auth = useAuthStore()
 const message = useMessage()
+
+// 库里还没有管理员时，登录必然失败 —— 直接把人送到初始化页。
+// 判断放在这里而不是全局守卫里：只有未登录的人会落到这个页面，
+// 所以整站只在必要时多发这一个请求。
+onMounted(async () => {
+  try {
+    const status = await getSetupStatus()
+    if (status.needs_admin) {
+      await router.replace('/setup')
+    }
+  } catch {
+    // 查不到就正常显示登录表单：后端没起来时，报"无法连接"比
+    // 跳到一个同样连不上的初始化页更有用。
+  }
+})
 
 const form = reactive({
   username: '',

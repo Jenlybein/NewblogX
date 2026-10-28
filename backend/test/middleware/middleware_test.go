@@ -79,9 +79,6 @@ func setupAuthEnv(t *testing.T) {
 			Secret: "secret",
 			Issuer: "issuer",
 		},
-		Site: conf.Site{
-			Login: confsite.Login{Captcha: false},
-		},
 	})
 }
 
@@ -89,7 +86,7 @@ func testRedisOptions() redis_service.Options {
 	return redis_service.Options{Client: testutil.Redis(), Logger: testutil.Logger()}
 }
 
-func newMiddlewareRuntime(t *testing.T) middleware.Runtime {
+func newMiddlewareRuntime(t *testing.T, site conf.Site) middleware.Runtime {
 	t.Helper()
 	baseCfg := testutil.Config()
 	// testutil.DB() 只有一个槽位，同一用例里可能多次建引擎，而运行时配置表
@@ -99,7 +96,7 @@ func newMiddlewareRuntime(t *testing.T) middleware.Runtime {
 		t.Fatalf("清空运行时配置失败: %v", err)
 	}
 	runtimeSvc := sitecfg.NewRuntimeConfigService(
-		conf.RuntimeDefaults{Site: baseCfg.Site, AI: baseCfg.AI, Log: baseCfg.Log},
+		conf.RuntimeDefaults{Log: baseCfg.Log, Site: site},
 		testutil.Logger(),
 		testutil.DB(),
 	)
@@ -121,8 +118,16 @@ func newMiddlewareRuntime(t *testing.T) middleware.Runtime {
 }
 
 func newMiddlewareEngine(t *testing.T) *gin.Engine {
+	return newMiddlewareEngineWithSite(t, conf.Site{})
+}
+
+// newMiddlewareEngineWithSite 造一个把站点段灌进运行时配置表的引擎。
+//
+// 站点配置（含登录验证码开关）已经是运行时配置，不再来自 conf.Config，
+// 所以"验证码开着"这类场景只能从默认值注入。
+func newMiddlewareEngineWithSite(t *testing.T, site conf.Site) *gin.Engine {
 	t.Helper()
-	runtimeMw := newMiddlewareRuntime(t)
+	runtimeMw := newMiddlewareRuntime(t, site)
 	gin.SetMode(gin.TestMode)
 	r := gin.New()
 	r.Use(func(c *gin.Context) {
@@ -213,7 +218,6 @@ func TestCaptchaAndEmailVerifyMiddleware(t *testing.T) {
 	registerCaptchaEmailRoutes(r)
 
 	// 关闭验证码时直接通过
-	testutil.Config().Site.Login.Captcha = false
 	{
 		w := httptest.NewRecorder()
 		req := httptest.NewRequest(http.MethodPost, "/captcha", strings.NewReader(`{}`))
@@ -225,8 +229,7 @@ func TestCaptchaAndEmailVerifyMiddleware(t *testing.T) {
 	}
 
 	// 开启验证码 + 正确验证码
-	testutil.Config().Site.Login.Captcha = true
-	r = newMiddlewareEngine(t)
+	r = newMiddlewareEngineWithSite(t, conf.Site{Login: confsite.Login{Captcha: true}})
 	registerCaptchaEmailRoutes(r)
 	_ = testutil.ImageCaptchaStore().Set("cid", "1234")
 	{

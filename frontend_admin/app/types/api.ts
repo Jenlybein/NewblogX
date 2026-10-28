@@ -146,10 +146,33 @@ export interface SiteRuntimeConfig {
     description: string
   }
   about: Record<string, string>
-  login: Record<string, boolean | number>
+  login: SiteLoginRuntimeConfig
   index_right: { list: unknown[] }
   article: { skip_examining: boolean }
   comment: { skip_examining: boolean }
+}
+
+/**
+ * 站点配置里的「登录策略」子块。
+ *
+ * 它属于 site 段，所以保存时是和站点基础信息一起整段提交的——
+ * 后台把它们放在同一个 Tab 里，避免两个组件各存一份 site 段互相覆盖。
+ */
+export interface SiteLoginRuntimeConfig {
+  qq_login: boolean
+  username_pwd_login: boolean
+  email_login: boolean
+  captcha: boolean
+  /** 邮箱验证码有效期，单位：分钟 */
+  email_code_timeout: number
+  /** 登录失败统计窗口，单位：分钟 */
+  login_fail_window_minute: number
+  login_fail_user_max: number
+  login_fail_ip_max: number
+  /** 邮件发送限流窗口，单位：秒 */
+  email_send_window_second: number
+  email_send_per_email_max: number
+  email_send_per_ip_max: number
 }
 
 /** AI 运行时配置。同上：由多块 `/site/{name}` 拼装，契约里没有对应 schema。 */

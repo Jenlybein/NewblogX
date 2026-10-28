@@ -65,8 +65,6 @@ sed -i \
   -e "s|^BLOGX_REDIS_PASSWORD=.*|BLOGX_REDIS_PASSWORD='$(rand)'|" \
   -e "s|^BLOGX_ES_PASSWORD=.*|BLOGX_ES_PASSWORD='$(rand)'|" \
   -e "s|^BLOGX_CLICKHOUSE_PASSWORD=.*|BLOGX_CLICKHOUSE_PASSWORD='$(rand)'|" \
-  -e "s|^BLOGX_LOGIN_EMAIL_ENABLED=.*|BLOGX_LOGIN_EMAIL_ENABLED='false'|" \
-  -e "s|^BLOGX_AI_ENABLED=.*|BLOGX_AI_ENABLED='false'|" \
   .env
 ```
 
@@ -74,7 +72,8 @@ sed -i \
 
 - `BLOGX_REDIS_USERNAME` 必须留空（Redis 只配了 `requirepass`，没有 ACL 账号），上面已经处理。
 - 两个 `*_RIVER_MYSQL_PASSWORD` 必须等于 `BLOGX_DB_PASSWORD`。填错**不报错**，只表现为"搜索永远搜不到新文章"。
-- 剩下的 `******` 只有邮件、QQ 登录、七牛凭据，用不到就保持关闭（模板默认已关）。
+- 邮件、AI、七牛、QQ 登录的凭据**不在 `.env` 里**，容器起来后去后台「站点」页填。
+  这几项默认都是关闭的：没配密钥就打开开关，用户点下去只会看到报错。
 - 首次启动要构建 ES 分词插件和三个应用镜像，约 5~10 分钟，之后不再等。
 
 ### 1. 本地 Docker 拉起
@@ -254,30 +253,33 @@ corepack prepare pnpm@10.33.0 --activate
 
 ## 五、配置
 
-配置分三层，每层管的事情不一样。搞清楚这三层，比死记变量名有用得多。
+配置分三层，判据只有一句：**改它会不会影响"进程怎么跑"**。
 
 ### 5.1 三层配置的分工
 
 ```
-第一层  BLOGX_* 环境变量         ← 密钥、地址、开关，随环境变化
+第一层  BLOGX_* 环境变量         ← 基础设施与进程级：库、缓存、JWT、监听地址、日志目录、CDC
             │
             ▼  占位符替换（${VAR}）
-第二层  backend/config/settings.yaml     ← 进程级配置：库、缓存、日志、对象存储
-        backend/config/site_default_settings.yaml ← 站点展示类默认值
+第二层  backend/config/settings.yaml            ← 进程级基线（不含业务配置）
+        backend/config/site_default_settings.yaml ← 站点业务默认值（字面量，无环境变量）
             │
             ▼  首次启动写入数据库
-第三层  数据库里的运行时配置      ← 后台改站点设置 / AI 设置，改的是这里，以此为准
+第三层  数据库 runtime_config_models 表         ← 后台「站点」页七个 Tab 改的是这里，以此为准
 ```
 
 关键点：
 
-- **`settings.yaml` 里全是 `${BLOGX_*}` 占位符**。变量没设，进程启动时会直接 panic 并告诉你缺哪几个——这是特性，不是 bug，避免带着半套配置跑起来。
-- **`site_default_settings.yaml` 只在数据库还没有运行时配置记录时作为初始值写入**。之后在后台改过的值以数据库为准；想回到默认值，得清掉对应的运行时配置记录。
+- **业务配置不在环境变量里**。邮件（腾讯云 SES）、AI、对象存储、QQ 登录、登录策略、日志策略、上传策略，一共 52 个 `BLOGX_*` 已删除，改成在**管理员后台**配置：容器拉起来 → 打开后台 → 第一次进后台时设置管理员密码 → 「站点」页七个 Tab 里填。改完即时生效，不用重启容器。
+- **`settings.yaml` 里剩下的全是 `${BLOGX_*}` 占位符**，没设变量会直接 panic 并告诉你缺哪几个——这是特性：宁可起不来，也别带着半套配置跑。剩下的是自举必需项（没有 DB 地址就连不上装配置的那张表）。
+- **`site_default_settings.yaml` 全是字面量**，只在数据库还没有该配置段时作为初始值写入。之后以数据库为准；想回到默认值，清掉对应的运行时配置记录（`runtime_config_models` 里按 `name` 删一行）。
 - **`.env` / `.envrc` 都不进仓库**（`.gitignore` 已排除），模板是 `.envrc.example`（跑在宿主机上，带 `export` 前缀）和 `deploy/compose/production/env.example`（跑在容器里，无前缀）。两份键名一致，**唯一必须不同的一项是 `BLOGX_APP_HOST`**：宿主机用 `127.0.0.1`，容器内必须 `0.0.0.0`。改密码或 JWT 时两处要一起改。
+
+设计说明与代价见 [`docs/architecture/v2/02-配置分层与后台化.md`](docs/architecture/v2/02-配置分层与后台化.md)。
 
 ### 5.2 后端必填变量
 
-完整清单见 `deploy/compose/production/env.example`（约 100 项，含注释）。**真正必须自己填的只有下面这些**，其余可以照抄示例值：
+完整清单见 `deploy/compose/production/env.example`（约 50 项，含注释）。**真正必须自己填的只有下面这些**，其余可以照抄示例值：
 
 | 变量 | 作用 | 不填的后果 |
 | --- | --- | --- |
@@ -315,18 +317,30 @@ head -c 48 /dev/urandom | base64
 
 ### 5.3 第三方服务（按需开启）
 
-不配也能跑，只是对应功能不可用：
+这一组**不再用环境变量**，全部在管理员后台「站点」页配置。不配也能跑，只是对应功能不可用：
 
-| 变量组 | 功能 | 关闭后 |
+| 后台 Tab | 功能 | 关闭 / 未配时 |
 | --- | --- | --- |
-| `BLOGX_SMTP_*` | 邮箱验证码登录 / 注册 | 邮箱登录报错，用户名密码登录仍可用 |
-| `BLOGX_QQ_*` + `BLOGX_LOGIN_QQ_ENABLED` | QQ 登录 | 登录页不显示 QQ 入口 |
-| `BLOGX_QINIU_*` + `BLOGX_QINIU_ENABLED` | 图片上传（文章配图） | 上传接口返回「站点未启用图片上传」。**没有本地上传兜底**：`/uploads` 只是静态路由，代码里没有写入它的逻辑 |
-| `BLOGX_AI_*` + `BLOGX_AI_ENABLED` | 站内 AI 助手（搜索/润色） | AI 相关入口报"未启用" |
+| 邮件（腾讯云 SES） | 邮箱验证码登录、注册、绑定邮箱 | 「站点 → 登录策略」里的邮箱登录默认是**关的**；没配 SES 就打开，用户点「获取验证码」会直接报错 |
+| 第三方登录（QQ 互联） | QQ 登录 | 读者站目前没有 QQ 登录入口，配好也不生效（链路待补） |
+| 对象存储（七牛云） | 图片上传（文章配图） | 上传接口返回「站点未启用图片上传」。**没有本地上传兜底**：`/uploads` 只是静态路由，代码里没有写入它的逻辑 |
+| AI 助手 | 站内 AI 助手（搜索/润色） | AI 相关入口报"未启用"。默认关闭——模板里那个 token 是假的，开着只会被上游拒 |
+| 站点 → 登录策略 | 登录方式、验证码、限流与失败锁定 | 只留用户名密码登录也能正常用 |
+| 日志 | 日志级别、请求日志、查询限额、清理窗口 | 级别即时生效；日志**目录**与输出格式是进程级的，UI 上只读 |
+| 上传策略 | 允许上传的图片格式白名单 | 白名单是整体替换，删一项保存后该格式立刻不能传 |
+
+邮件用的是腾讯云 SES 的 `SendEmail`，**只支持模板发信**：正文由控制台审核过的模板渲染，
+后台只填模板 ID。四个场景（注册 / 重置密码 / 绑定邮箱 / 邮箱登录）共用同一模板，
+变量是 `action` / `code` / `timeout`。地域只支持 `ap-guangzhou` / `ap-hongkong`。
+
+AI 的 Base URL 必须是 **Chat Completions 风格**的完整地址（例如 `https://api.openai.com/v1/chat/completions`），不是 base 域名——填错表现为 404 而不是参数错误。
+
+还有两个 CDC（MySQL → ES / 图片引用）**仍然由环境变量控制**，因为它们决定要不要起一个 binlog 消费者，属于"进程怎么跑"：
+
+| 变量 | 作用 | 关闭后 |
+| --- | --- | --- |
 | `BLOGX_RIVER_ENABLED` | MySQL → ES 同步 | 搜索功能不可用（索引不会更新） |
 | `BLOGX_IMAGE_REF_RIVER_ENABLED` | 图片引用关系同步 | 图片引用统计不准 |
-
-`BLOGX_AI_BASE_URL` 是 **Chat Completions 风格**的完整地址（例如 `https://api.openai.com/v1/chat/completions`），不是 base 域名——填错表现为 404 而不是参数错误。
 
 ### 5.4 前端配置：profile 机制
 
@@ -431,9 +445,16 @@ go run ./cmd/server -f config/settings.yaml -db          # 只建表
 go run ./cmd/server -f config/settings.yaml -es -s ensure # 只建索引/流水线
 ```
 
-### 6.4 第四步：创建管理员账号
+### 6.4 第四步：设置管理员密码
 
-**没有默认账号**，第一次必须用命令行创建，否则后台登录不上：
+**没有默认账号**。第一次打开后台（`http://localhost:3001/admin/`）会被跳到 `/setup`，
+在那里设用户名和密码——这是现在的主路径，不需要记任何命令。
+
+这个入口只在**库里一个管理员都没有**时开放：判断只看角色不看状态（一个被禁用的管理员
+也算"已经初始化过"，否则停用账号会让入口重新对所有人开放）。调用时角色被强制写成管理员，
+请求体里的 role 一律忽略。
+
+想用命令行建号也可以（适合自动化部署）：
 
 ```bash
 cd backend
@@ -1021,15 +1042,14 @@ docker compose exec blogx_server /app/server -f /app/config/settings.yaml -es -s
 `delete` 是破坏性的，只删 ES 里的索引，**不动 MySQL 数据**，所以 `article-sync` 能原样灌回来。
 
 **后台登录报 401 / 打开 `/admin/` 是 404**
-401：账号没建，用 `-t user -s create` 建一个。404：少了尾斜杠，或者 `BLOGX_ADMIN_BASE_URL` 与 nginx 的 `location /admin/` 对不上。
+401：账号没建——第一次打开后台会自动跳到 `/setup` 设密码；想用命令行就 `-t user -s create`。404：少了尾斜杠，或者 `BLOGX_ADMIN_BASE_URL` 与 nginx 的 `location /admin/` 对不上。
 
 **上传图片报「站点未启用图片上传」**
-不是 bug，是没配七牛。图片上传只有七牛这一条落地路径（`BLOGX_QINIU_ENABLED` + 四个 key + bucket），
-**没有"存本地"的兜底**——`/uploads` 只是静态路由，代码里没有任何写入它的逻辑，
-`upload_dir` 配置项是预留字段、未被读取。要用文章配图就先去七牛建空间。
+不是 bug，是没配七牛。图片上传只有七牛这一条落地路径（后台「站点 → 对象存储」页：开关 + AK/SK + bucket + 访问域名），
+**没有"存本地"的兜底**——`/uploads` 只是静态路由，代码里没有任何写入它的逻辑。要用文章配图就先去七牛建空间。
 
 **图片上传成功但页面显示不出来**
-先看接口返回的 URL 是不是 CDN 域名（`BLOGX_QINIU_DOMAIN`，要带 `https://`）。浏览器侧只经 nginx 的
+先看接口返回的 URL 是不是 CDN 域名（后台「对象存储」里的访问域名，要带 `https://`）。浏览器侧只经 nginx 的
 `/uploads/` 与后端静态路由走本地文件，CDN 图片是直连的，跟容器无关——所以"容器里看不到图"是正常的。
 前端还有 `BLOGX_WEB_ASSET_PROXY_BASE`（默认 `/uploads`）这个前缀，改错会让所有本地图片 404。
 
@@ -1059,6 +1079,7 @@ README 只能回答"怎么用"。更细的东西都在代码库里，而且它�
 | 全部环境变量、默认值、哪些必须改 | `deploy/compose/production/env.example`（带注释的完整清单） |
 | 后端每个配置项什么意思 | `backend/config/settings.yaml`（逐字段中文注释） |
 | 站点标题 / 备案号 / 登录开关的默认值 | `backend/config/site_default_settings.yaml` |
+| 为什么某些配置在后台改、某些必须在环境变量里 | `docs/architecture/v2/02-配置分层与后台化.md` |
 | 表结构 | `backend/internal/platform/mysql/ddl/schema.sql` |
 | 接口清单与出入参结构 | `backend/docs/swagger.json`，或前端 `app/types/openapi.d.ts` |
 | nginx 的路由与反代规则 | `deploy/docker/nginx/nginx.conf.tmpl`；变量推导在 `render-config.sh` |

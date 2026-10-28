@@ -3299,6 +3299,83 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/setup/admin": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 创建第一个管理员（仅首次初始化可用） */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            /** @description 管理员账号 */
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["internal_user_adapter_http.SetupAdminRequest"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["myblogx_internal_kernel.Envelope-internal_user_adapter_http_SetupAdminResponse"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/setup/status": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 查询首次初始化状态 */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["myblogx_internal_kernel.Envelope-internal_user_adapter_http_SetupStatusResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/site/admin/{name}": {
         parameters: {
             query?: never;
@@ -3312,7 +3389,7 @@ export interface paths {
                 query?: never;
                 header?: never;
                 path: {
-                    /** @description 配置名称：site 站点配置、ai AI 配置 */
+                    /** @description 配置名称：site 站点 / ai AI / mail 邮件 / storage 对象存储 / oauth 第三方登录 / log 日志 / upload 上传策略 */
                     name: string;
                 };
                 cookie?: never;
@@ -3483,12 +3560,12 @@ export interface paths {
                 query?: never;
                 header?: never;
                 path: {
-                    /** @description 配置名称：site 站点配置、ai AI 配置 */
+                    /** @description 配置名称：site 站点 / ai AI / mail 邮件 / storage 对象存储 / oauth 第三方登录 / log 日志 / upload 上传策略 */
                     name: string;
                 };
                 cookie?: never;
             };
-            /** @description 请求体 */
+            /** @description 请求体：与对应配置段的结构一致 */
             requestBody: {
                 content: {
                     "application/json": Record<string, never>;
@@ -5114,6 +5191,20 @@ export interface components {
             relation?: number;
             view_count?: number;
         };
+        "internal_user_adapter_http.SetupAdminRequest": {
+            email?: string;
+            nickname?: string;
+            password: string;
+            username: string;
+        };
+        "internal_user_adapter_http.SetupAdminResponse": {
+            id?: string;
+            username?: string;
+        };
+        "internal_user_adapter_http.SetupStatusResponse": {
+            /** @description NeedsAdmin 为真表示库里还没有管理员，初始化入口开放。 */
+            needs_admin?: boolean;
+        };
         "internal_user_adapter_http.UpdateInfoRequest": {
             abstract?: string;
             avatar_image_id?: string;
@@ -5471,6 +5562,16 @@ export interface components {
         "myblogx_internal_kernel.Envelope-internal_user_adapter_http_BaseInfoResponse": {
             code?: number;
             data?: components["schemas"]["internal_user_adapter_http.BaseInfoResponse"];
+            msg?: string;
+        };
+        "myblogx_internal_kernel.Envelope-internal_user_adapter_http_SetupAdminResponse": {
+            code?: number;
+            data?: components["schemas"]["internal_user_adapter_http.SetupAdminResponse"];
+            msg?: string;
+        };
+        "myblogx_internal_kernel.Envelope-internal_user_adapter_http_SetupStatusResponse": {
+            code?: number;
+            data?: components["schemas"]["internal_user_adapter_http.SetupStatusResponse"];
             msg?: string;
         };
         "myblogx_internal_kernel.Envelope-myblogx_internal_analytics_adapter_clickhouse_ActionAuditRecord": {

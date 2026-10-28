@@ -39,23 +39,23 @@ log:
   # 等恢复后自动重放；留空则使用 <dir>/wal
   wal_dir: ./logs/wal
   # 日志级别；常见取值：trace / debug / info / warn / error
-  level: "${BLOGX_LOG_LEVEL}"
+  level: "info"
   # 标准输出格式；支持 text / json，推荐生产环境使用 json
   stdout_format: json
   # 是否记录请求访问日志
-  request_log_enabled: ${BLOGX_LOG_REQUEST_LOG_ENABLED}
+  request_log_enabled: true
   # 后台日志查询接口的默认分页条数
-  query_default_limit: ${BLOGX_LOG_QUERY_DEFAULT_LIMIT}
+  query_default_limit: 20
   # 后台日志查询接口允许的最大分页条数
-  query_max_limit: ${BLOGX_LOG_QUERY_MAX_LIMIT}
+  query_max_limit: 200
   # 本地日志文件清理策略
   cleanup:
     # 是否启用按天清理过期日志目录
-    enabled: ${BLOGX_LOG_CLEANUP_ENABLED:-true}
+    enabled: true
     # 保留天数（包含当天）；例如 7 表示保留最近 7 天
-    retention_days: ${BLOGX_LOG_RETENTION_DAYS:-7}
+    retention_days: 7
     # 每日执行时间，格式 HH:MM:SS（24 小时制）
-    run_at: "${BLOGX_LOG_CLEANUP_RUN_AT:-03:30:00}"
+    run_at: "03:30:00"
   # 错误日志扩展配置
   error:
     # 总开关：false 时任何级别都不记录 error.stack
@@ -275,69 +275,3 @@ image_ref_river:
 replay:
   # 单批回放条数
   batch_size: 100
-
-# 上传相关的通用配置。
-# 当前代码里实际生效的主要是图片格式白名单；size 和 upload_dir 更偏向预留/兼容字段。
-upload:
-  # 预留的上传大小限制，单位：MB；当前核心上传流程未直接读取该值
-  size: ${BLOGX_UPLOAD_SIZE_MB}
-  whitelist:
-    # 允许上传的图片后缀白名单
-    - bmp
-    - jpg
-    - jpeg
-    - png
-    - gif
-    - webp
-  # 预留的上传目录标识；当前核心上传流程未直接读取该值
-  upload_dir: "${BLOGX_UPLOAD_DIR}"
-
-# 邮件发送配置
-email:
-  # SMTP 服务器域名
-  domain: "${BLOGX_SMTP_HOST}"
-  # SMTP 端口
-  port: ${BLOGX_SMTP_PORT}
-  # 发件邮箱
-  send_email: "${BLOGX_SMTP_USERNAME}"
-  # SMTP 授权码/应用专用密码，不是邮箱登录密码
-  auth_code: "${BLOGX_SMTP_AUTH_CODE}"
-  # 发件人昵称
-  send_nickname: "${BLOGX_SMTP_FROM_NAME}"
-  # 是否启用 SSL 直连
-  ssl: ${BLOGX_SMTP_SSL}
-  # 是否启用 STARTTLS / TLS
-  tls: ${BLOGX_SMTP_TLS}
-
-# QQ 登录开放平台配置
-qq:
-  # QQ 互联应用 AppID
-  app_id: "${BLOGX_QQ_APP_ID}"
-  # QQ 互联应用 AppKey
-  app_key: "${BLOGX_QQ_APP_KEY}"
-  # QQ 登录回调地址；需要与 QQ 开放平台后台配置一致
-  redirect: "${BLOGX_QQ_REDIRECT}"
-
-# 七牛云对象存储配置
-qiniu:
-  # 是否启用七牛上传
-  enable: ${BLOGX_QINIU_ENABLED}
-  # 七牛 AccessKey
-  access_key: "${BLOGX_QINIU_ACCESS_KEY}"
-  # 七牛 SecretKey
-  secret_key: "${BLOGX_QINIU_SECRET_KEY}"
-  # 存储空间 bucket 名
-  bucket: "${BLOGX_QINIU_BUCKET}"
-  # 资源访问域名；返回图片 URL 时会用到
-  uri: "${BLOGX_QINIU_DOMAIN}"
-  # 七牛存储区域标识
-  region: "${BLOGX_QINIU_REGION}"
-  # 对象 key 前缀；最终对象路径会在此前缀下继续拼接日期和 images 子目录
-  prefix: "${BLOGX_QINIU_PREFIX}"
-  # 七牛上传允许的图片大小上限，单位：MB
-  size: ${BLOGX_QINIU_MAX_SIZE_MB}
-  # 上传凭证有效期，单位：秒
-  expiry: ${BLOGX_QINIU_TOKEN_EXPIRY_SEC}
-  # 七牛上传成功后的服务端回调地址；通常形如 https://你的域名/api/images/qiniu/callback
-  # 留空表示不启用回调
-  callback_url: "${BLOGX_QINIU_CALLBACK_URL}"

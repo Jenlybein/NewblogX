@@ -27,15 +27,8 @@ export BLOGX_APP_PORT='8080'
 export BLOGX_APP_ENV='dev'
 export BLOGX_GIN_MODE='release'
 export BLOGX_LOG_APP='blogx_server'
-export BLOGX_LOG_LEVEL='info'
-export BLOGX_LOG_REQUEST_LOG_ENABLED='true'
-export BLOGX_LOG_QUERY_DEFAULT_LIMIT='20'
-export BLOGX_LOG_QUERY_MAX_LIMIT='200'
 # 日志清理（settings.yaml 里的默认值是 true / 7 / 03:30:00，生产建议显式写出来：
 # 默认值改了不会通知你，而"日志被悄悄提前删掉"这种事很难事后发现）
-export BLOGX_LOG_CLEANUP_ENABLED='true'
-export BLOGX_LOG_RETENTION_DAYS='7'
-export BLOGX_LOG_CLEANUP_RUN_AT='03:30:00'
 
 
 # Nginx 固定配置选择：
@@ -129,59 +122,9 @@ export BLOGX_IMAGE_REF_RIVER_MYSQL_ADDR='127.0.0.1:3306'
 export BLOGX_IMAGE_REF_RIVER_MYSQL_USER='admin'
 export BLOGX_IMAGE_REF_RIVER_MYSQL_PASSWORD='******'
 
-# 上传
-export BLOGX_UPLOAD_SIZE_MB='3'
-export BLOGX_UPLOAD_DIR='images001'
-
-# 邮件
-export BLOGX_SMTP_HOST='smtp.qq.com'
-export BLOGX_SMTP_PORT='587'
-export BLOGX_SMTP_USERNAME='your-email@example.com'
-export BLOGX_SMTP_AUTH_CODE='******'
-export BLOGX_SMTP_FROM_NAME='我的博客'
-export BLOGX_SMTP_SSL='false'
-export BLOGX_SMTP_TLS='false'
-
-# QQ 登录
-export BLOGX_QQ_APP_ID='123456'
-export BLOGX_QQ_APP_KEY='******'
-export BLOGX_QQ_REDIRECT='https://example.com/api/user/qq/callback'
-export BLOGX_LOGIN_QQ_ENABLED='false'
-
-# 七牛云（图片上传的唯一落地方式；关掉不会存本地，上传接口会直接报"站点未启用图片上传"）
-export BLOGX_QINIU_ENABLED='false'
-export BLOGX_QINIU_ACCESS_KEY='******'
-export BLOGX_QINIU_SECRET_KEY='******'
-export BLOGX_QINIU_BUCKET='your-bucket'
-export BLOGX_QINIU_DOMAIN='https://cdn.example.com'
-export BLOGX_QINIU_REGION='z2'
-export BLOGX_QINIU_PREFIX='myblogx'
-export BLOGX_QINIU_MAX_SIZE_MB='5'
-export BLOGX_QINIU_TOKEN_EXPIRY_SEC='1800'
-export BLOGX_QINIU_CALLBACK_URL='https://api.example.com/api/images/qiniu/callback'
-
-# 运行时默认站点开关
-export BLOGX_SITE_MODE='1'
-export BLOGX_LOGIN_USERNAME_PASSWORD_ENABLED='true'
-export BLOGX_LOGIN_EMAIL_ENABLED='true'
-export BLOGX_LOGIN_CAPTCHA_ENABLED='false'
-export BLOGX_EMAIL_CODE_TIMEOUT_MIN='5'
-export BLOGX_LOGIN_FAIL_WINDOW_MIN='15'
-export BLOGX_LOGIN_FAIL_USER_MAX='5'
-export BLOGX_LOGIN_FAIL_IP_MAX='20'
-export BLOGX_EMAIL_SEND_WINDOW_SEC='60'
-export BLOGX_EMAIL_SEND_PER_EMAIL_MAX='1'
-export BLOGX_EMAIL_SEND_PER_IP_MAX='10'
-export BLOGX_ARTICLE_SKIP_EXAMINING='true'
-export BLOGX_COMMENT_SKIP_EXAMINING='true'
-
-# AI
-export BLOGX_AI_ENABLED='true'
-export BLOGX_AI_SECRET='sk-example-your-ai-token'
-export BLOGX_AI_BASE_URL='https://api.openai.com/v1/chat/completions'
-export BLOGX_AI_CHAT_MODEL='gpt-4.1-mini'
-export BLOGX_AI_REASON_MODEL=''
-export BLOGX_AI_TIMEOUT_SEC=''
-export BLOGX_AI_MAX_INPUT_CHARS='100000'
-export BLOGX_AI_TEMPERATURE=''
-export BLOGX_AI_DAILY_QUOTA=''
+# 邮件 / AI / 对象存储 / QQ 登录 / 站点与登录策略 / 上传策略 / 日志策略
+#
+# 这 52 个 BLOGX_* 变量已经全部删除：它们改由数据库里的运行时配置承载，
+# 在管理员后台「站点」页的七个 Tab 里配置（第一次进后台时设置管理员密码），
+# 改完即时生效，不需要重启进程。
+# 下面只剩基础设施与进程级参数。

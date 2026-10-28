@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"io"
 	"myblogx/conf"
-	confsite "myblogx/conf/site"
 	"myblogx/internal/kernel/ctype"
 	"myblogx/internal/kernel/enum"
 	"myblogx/test/testutil"
@@ -205,9 +204,6 @@ func TestSyncESDocsByArticleSnapshots(t *testing.T) {
 	)
 	testutil.SetConfig(&conf.Config{
 		ES: conf.ES{Index: "article_index"},
-		Site: conf.Site{
-			SiteInfo: confsite.SiteInfo{Mode: enum.SiteModeCommunity},
-		},
 	})
 
 	admin := UserRow{Username: "admin", Password: "x", Role: enum.RoleAdmin, Nickname: "管理员"}
@@ -323,9 +319,6 @@ func TestUpdateESDocsByArticleDeltasRebuildsMissingDocs(t *testing.T) {
 	)
 	testutil.SetConfig(&conf.Config{
 		ES: conf.ES{Index: "article_index"},
-		Site: conf.Site{
-			SiteInfo: confsite.SiteInfo{Mode: enum.SiteModeCommunity},
-		},
 	})
 
 	user := UserRow{Username: "author", Password: "x", Role: enum.RoleUser, Nickname: "作者", Avatar: "/avatar.png"}
@@ -402,9 +395,6 @@ func TestSyncESDocsReturnsErrorWhenArticlesMissing(t *testing.T) {
 	)
 	testutil.SetConfig(&conf.Config{
 		ES: conf.ES{Index: "article_index"},
-		Site: conf.Site{
-			SiteInfo: confsite.SiteInfo{Mode: enum.SiteModeCommunity},
-		},
 	})
 
 	setupMockES(t, func(w http.ResponseWriter, r *http.Request) {

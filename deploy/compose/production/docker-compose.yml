@@ -501,6 +501,11 @@ services:
         condition: service_healthy
     environment:
       BLOGX_NGINX_ENV: ${BLOGX_NGINX_ENV:-production}
+      # server_name 是唯一需要按域名覆盖的项。默认值（production 段推导出 blogx.gentlybeing.cn）
+      # 只是示例：单 server 块会响应任意 Host，不改也能访问，但日志里全是别人的域名，排查时
+      # 容易看糊涂。留空时 render-config.sh 的 `${VAR:=默认值}` 生效（:= 判定「未设置或为空」，
+      # 所以这里传空串是安全的，不会渲染出空的 server_name）。
+      BLOGX_NGINX_SERVER_NAME: ${BLOGX_NGINX_SERVER_NAME:-}
     volumes:
     - ../../docker/nginx/nginx.conf.tmpl:/etc/nginx/nginx.conf.tmpl:ro
     - ../../docker/nginx/render-config.sh:/etc/nginx/render-config.sh:ro

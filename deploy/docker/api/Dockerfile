@@ -16,10 +16,15 @@ COPY backend/go.mod backend/go.sum ./
 RUN go mod download
 
 # 再复制应用源码并编译服务入口
-# cli 一起编译：ES 索引的建/删/全量同步只有 cli 能做（服务端启动不会建索引），
-# 没它就会出现"索引由首次写入自动建出来、没有中文分词"的裸索引。
+#
+# 注意：这里**只**编 cmd/server。cmd/cli 不是 main 包（它是 package cli，
+# 由 main.go 里的 cli.Parse() / cli.Run() 调用），所以 ES 索引的建/删/全量同步
+# 这些运维能力就长在 server 二进制上，用法是
+#     /app/server -f config/settings.yaml -es -s ensure
+# 曾经试过额外 go build ./cmd/cli，产物是 .a 归档（文件头 !<arch>），
+# 执行时报 "syntax error: unexpected newline" —— 拿库当程序编了。
 COPY backend ./
-RUN go build -o /build/out/server ./cmd/server && go build -o /build/out/cli ./cmd/cli
+RUN go build -o /build/out/server ./cmd/server
 
 # 阶段 2：基于固定版本的 Alpine 镜像创建运行环境
 FROM alpine:3.22
@@ -29,7 +34,6 @@ WORKDIR /app
 
 # 拷贝编译产物和应用默认资源
 COPY --from=builder /build/out/server /app/server
-COPY --from=builder /build/out/cli /app/cli
 COPY --from=builder /build/backend/config /app/config
 COPY --from=builder /build/backend/resources /app/resources
 
@@ -80,7 +84,6 @@ RUN printf '%s\n' \
 	&& cp /usr/local/bin/mariadb-dump-wrapper /usr/local/bin/mysqldump \
 	&& chmod +x /usr/local/bin/mariadb-dump-wrapper \
 	&& chmod +x /usr/local/bin/mysqldump \
-	&& chmod +x /app/cli \
 	&& mkdir -p /app/logs /app/uploads /app/var
 
 # 容器默认只执行服务进程；部署层可按需覆盖配置文件与角色。

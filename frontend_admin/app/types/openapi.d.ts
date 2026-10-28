@@ -127,6 +127,209 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/ai/providers": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 模型配置列表 */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["myblogx_internal_kernel.Envelope-myblogx_internal_kernel_ListData-internal_ai_adapter_http_ProviderItem"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        /** 新增模型配置 */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            /** @description 配置内容 */
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["internal_ai_adapter_http.ProviderPayload"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["myblogx_internal_kernel.Envelope-internal_ai_adapter_http_ProviderItem"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/ai/providers/vendors": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 供应商元数据 */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["myblogx_internal_kernel.Envelope-myblogx_internal_kernel_ListData-internal_ai_adapter_http_VendorItem"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/ai/providers/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** 修改模型配置 */
+        put: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    /** @description 配置 ID */
+                    id: string;
+                };
+                cookie?: never;
+            };
+            /** @description 配置内容 */
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["internal_ai_adapter_http.ProviderPayload"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["myblogx_internal_kernel.Envelope-myblogx_internal_kernel_EmptyData"];
+                    };
+                };
+            };
+        };
+        post?: never;
+        /** 删除模型配置 */
+        delete: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    /** @description 配置 ID */
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["myblogx_internal_kernel.Envelope-myblogx_internal_kernel_EmptyData"];
+                    };
+                };
+            };
+        };
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/ai/providers/{id}/enable": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 启用模型配置 */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    /** @description 配置 ID */
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["myblogx_internal_kernel.Envelope-myblogx_internal_kernel_EmptyData"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/ai/scoring/article": {
         parameters: {
             query?: never;
@@ -4595,6 +4798,25 @@ export interface components {
             suffix_text?: string;
             target_style?: string;
         };
+        "internal_ai_adapter_http.ProviderItem": {
+            enabled?: boolean;
+            fields?: {
+                [key: string]: string;
+            };
+            id?: string;
+            model?: string;
+            name?: string;
+            vendor?: string;
+        };
+        "internal_ai_adapter_http.ProviderPayload": {
+            enabled?: boolean;
+            fields?: {
+                [key: string]: string;
+            };
+            model: string;
+            name?: string;
+            vendor: string;
+        };
         "internal_ai_adapter_http.ScoreDimension": {
             name?: string;
             reason?: string;
@@ -4619,6 +4841,20 @@ export interface components {
             record_id?: string;
             score_level?: string;
             total_score?: number;
+        };
+        "internal_ai_adapter_http.VendorFieldItem": {
+            default?: string;
+            key?: string;
+            label?: string;
+            placeholder?: string;
+            required?: boolean;
+            secret?: boolean;
+        };
+        "internal_ai_adapter_http.VendorItem": {
+            fields?: components["schemas"]["internal_ai_adapter_http.VendorFieldItem"][];
+            id?: string;
+            name?: string;
+            note?: string;
         };
         "internal_analytics_adapter_http.ArticleYearDataResponse": {
             date_count_list?: components["schemas"]["internal_analytics_adapter_http.DateCountItem"][];
@@ -5439,6 +5675,11 @@ export interface components {
             data?: components["schemas"]["internal_ai_adapter_http.MetaInfoResponse"];
             msg?: string;
         };
+        "myblogx_internal_kernel.Envelope-internal_ai_adapter_http_ProviderItem": {
+            code?: number;
+            data?: components["schemas"]["internal_ai_adapter_http.ProviderItem"];
+            msg?: string;
+        };
         "myblogx_internal_kernel.Envelope-internal_ai_adapter_http_ScoringResponse": {
             code?: number;
             data?: components["schemas"]["internal_ai_adapter_http.ScoringResponse"];
@@ -5649,6 +5890,16 @@ export interface components {
             data?: components["schemas"]["myblogx_internal_kernel.HasMoreListData-myblogx_internal_social_domain_FollowingItem"];
             msg?: string;
         };
+        "myblogx_internal_kernel.Envelope-myblogx_internal_kernel_ListData-internal_ai_adapter_http_ProviderItem": {
+            code?: number;
+            data?: components["schemas"]["myblogx_internal_kernel.ListData-internal_ai_adapter_http_ProviderItem"];
+            msg?: string;
+        };
+        "myblogx_internal_kernel.Envelope-myblogx_internal_kernel_ListData-internal_ai_adapter_http_VendorItem": {
+            code?: number;
+            data?: components["schemas"]["myblogx_internal_kernel.ListData-internal_ai_adapter_http_VendorItem"];
+            msg?: string;
+        };
         "myblogx_internal_kernel.Envelope-myblogx_internal_kernel_ListData-internal_analytics_adapter_http_DeadLetterItemResponse": {
             code?: number;
             data?: components["schemas"]["myblogx_internal_kernel.ListData-internal_analytics_adapter_http_DeadLetterItemResponse"];
@@ -5788,6 +6039,14 @@ export interface components {
         };
         "myblogx_internal_kernel.IDListRequest": {
             id_list: string[];
+        };
+        "myblogx_internal_kernel.ListData-internal_ai_adapter_http_ProviderItem": {
+            count?: number;
+            list?: components["schemas"]["internal_ai_adapter_http.ProviderItem"][];
+        };
+        "myblogx_internal_kernel.ListData-internal_ai_adapter_http_VendorItem": {
+            count?: number;
+            list?: components["schemas"]["internal_ai_adapter_http.VendorItem"][];
         };
         "myblogx_internal_kernel.ListData-internal_analytics_adapter_http_DeadLetterItemResponse": {
             count?: number;

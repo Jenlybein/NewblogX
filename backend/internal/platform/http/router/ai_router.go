@@ -22,6 +22,7 @@ func AIRouter(r *gin.RouterGroup, runtimeMw mw.Runtime) {
 
 	group := r.Group("ai")
 	authGroup := group.Group("", runtimeMw.AuthMiddleware)
+	adminGroup := authGroup.Group("", mw.AdminMiddleware)
 
 	group.POST("scoring/article", runtimeMw.OptionalAuthMiddleware, mw.BindJson[aihttp.ScoringRequest], app.Scoring)
 	authGroup.POST("metainfo", mw.BindJson[aihttp.BaseRequest], app.MetaInfo)
@@ -29,4 +30,12 @@ func AIRouter(r *gin.RouterGroup, runtimeMw mw.Runtime) {
 	authGroup.POST("diagnose", mw.BindJson[aihttp.DiagnoseRequest], app.Diagnose)
 	authGroup.POST("search/list", mw.BindJson[aihttp.BaseRequest], app.SearchList)
 	authGroup.POST("search/llm", mw.BindJson[aihttp.BaseRequest], app.SearchLLM)
+
+	// 模型配置列表（管理员）：静态路径必须先于 :id 注册，否则会被通配吃掉。
+	adminGroup.GET("providers/vendors", app.ProviderVendors)
+	adminGroup.GET("providers", app.ProviderList)
+	adminGroup.POST("providers", mw.CaptureLog(mw.ReqBody), app.ProviderCreate)
+	adminGroup.PUT("providers/:id", mw.CaptureLog(mw.ReqBody), mw.BindUri[aihttp.ProviderIDRequest], app.ProviderUpdate)
+	adminGroup.POST("providers/:id/enable", mw.CaptureLog(mw.ReqBody), mw.BindUri[aihttp.ProviderIDRequest], app.ProviderEnable)
+	adminGroup.DELETE("providers/:id", mw.CaptureLog(mw.ReqBody), mw.BindUri[aihttp.ProviderIDRequest], app.ProviderRemove)
 }

@@ -197,8 +197,12 @@ type Clock struct{}
 func (Clock) Now() time.Time { return time.Unix(1700000000, 0) }
 
 // NewService 组装一个可用的内存服务。
+//
+// 配置包成函数是为了对齐生产装配：媒体服务每次用时现读配置，
+// 后台改完立即生效。测试里这个函数始终返回同一份值。
 func NewService(cfg domain.Config) *app.Service {
-	return app.New(NewRepo(), NewTaskStore(), NewAuditStore(), Storage{}, &IDs{}, Clock{}, nil, cfg)
+	return app.New(NewRepo(), NewTaskStore(), NewAuditStore(), Storage{}, &IDs{}, Clock{}, nil,
+		func() domain.Config { return cfg })
 }
 
 // NewDefaultService 用空配置组装服务（路由表测试用）。

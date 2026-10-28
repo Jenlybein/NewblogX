@@ -20,7 +20,6 @@ require (
 	github.com/go-redis/redis/v8 v8.11.5
 	github.com/golang-jwt/jwt v3.2.2+incompatible
 	github.com/gorilla/websocket v1.5.3
-	github.com/jordan-wright/email v4.0.1-0.20210109023952-943e75fe5223+incompatible
 	github.com/lionsoul2014/ip2region/binding/golang v0.0.0-20251023062652-029a5578aa01
 	github.com/litao91/goldmark-mathjax v0.0.0-20210217064022-a43cf739a50f
 	github.com/microcosm-cc/bluemonday v1.0.27
@@ -28,6 +27,8 @@ require (
 	github.com/pingcap/errors v0.11.5-0.20250318082626-8f80e5cb09ec
 	github.com/qiniu/go-sdk/v7 v7.25.5
 	github.com/sirupsen/logrus v1.9.3
+	github.com/tencentcloud/tencentcloud-sdk-go/tencentcloud/common v1.3.136
+	github.com/tencentcloud/tencentcloud-sdk-go/tencentcloud/ses v1.3.136
 	github.com/yuin/goldmark v1.7.16
 	golang.org/x/crypto v0.46.0
 	golang.org/x/image v0.34.0 // indirect

@@ -57,6 +57,12 @@ type RuntimeConfigService struct {
 	logger   *logrus.Logger
 	db       *gorm.DB
 
+	// logApplier 在日志配置被改动后调用，用来把级别真正下发给 logger。
+	//
+	// 做成回调而不是直接调 core：平台包不能依赖 core（core 依赖本包，会成环）。
+	// 也不能自己 SetLevel —— logger 实例是别人的，本包只是存配置。
+	logApplier func(conf.Logrus)
+
 	mu    sync.RWMutex
 	cache *RuntimeConfig
 }
@@ -70,6 +76,16 @@ func NewRuntimeConfigService(defaults conf.RuntimeDefaults, logger *logrus.Logge
 		logger:   logger,
 		db:       db,
 	}
+}
+
+// SetLogApplier 注册日志配置的下发回调。
+//
+// 装配层在构造后立刻调用；不注册时 UpdateLog 只落库 + 刷缓存，
+// 日志级别要等重启才对新的日志语句生效。
+func (s *RuntimeConfigService) SetLogApplier(fn func(conf.Logrus)) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.logApplier = fn
 }
 
 // LoadDefaults 从 site_default_settings.yaml 读业务配置默认值。
@@ -335,12 +351,20 @@ func (s *RuntimeConfigService) UpdateOAuth(oauth conf.QQ) error {
 	return updateSection(s, SectionOAuth, oauth)
 }
 
-// UpdateLog 覆盖日志配置并刷新缓存。
+// UpdateLog 覆盖日志配置并刷新缓存，并把级别下发给 logger。
 //
-// 注意：这里只改"存下来的值"，日志级别真正生效要调用方自己 SetLevel，
-// 因为 logger 实例不归本包管。
+// 本包不持有 logger，所以下发通过构造时注册的回调完成（见 SetLogApplier）。
 func (s *RuntimeConfigService) UpdateLog(log conf.Logrus) error {
-	return updateSection(s, SectionLog, log)
+	if err := updateSection(s, SectionLog, log); err != nil {
+		return err
+	}
+	s.mu.RLock()
+	apply := s.logApplier
+	s.mu.RUnlock()
+	if apply != nil {
+		apply(log)
+	}
+	return nil
 }
 
 // UpdateUpload 覆盖上传策略并刷新缓存。

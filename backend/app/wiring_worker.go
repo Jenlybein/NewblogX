@@ -2,6 +2,8 @@ package app
 
 import (
 	"fmt"
+
+	"myblogx/conf"
 	"myblogx/internal/platform/cdc/imageref"
 	"myblogx/internal/platform/cdc/river"
 	"myblogx/internal/platform/health"
@@ -92,7 +94,7 @@ func WireImageRef(infra *Infra) error {
 		return nil
 	}
 
-	r, err := imageref.NewRiver(infra.Config.ImageRefRiver, infra.Config.QiNiu, infra.Logger, infra.DB)
+	r, err := imageref.NewRiver(infra.Config.ImageRefRiver, func() conf.QiNiu { return infra.RuntimeSite.GetRuntimeStorage() }, infra.Logger, infra.DB)
 	if err != nil {
 		infra.Health.Set(componentImageRef, health.StateFailed, err)
 		return fmt.Errorf("创建 ImageRef River 失败: %w", err)

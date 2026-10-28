@@ -113,12 +113,14 @@ func WireUser(infra *Infra) {
 		authapp.WithDirectory(&directoryBridge{svc: userSvc}),
 		authapp.WithEmailCodes(&emailCodeBridge{
 			users:        usersRepo,
-			conf:         cfg.Email,
+			mailer:       mail.New(),
+			mailConf:     func() conf.Mail { return infra.RuntimeSite.GetRuntimeMail() },
 			redisOptions: redisOptions,
 			loginConf:    loginConf,
 			logger:       infra.Logger,
 		}),
-		authapp.WithOAuth(qqBridge{conf: cfg.QQ}),
+		// QQ 配置每次现读：后台改 AppID / 回调地址后立刻生效，不用重启。
+		authapp.WithOAuth(qqBridge{conf: func() conf.QQ { return infra.RuntimeSite.GetRuntimeOAuth() }}),
 	)
 
 	h := authhttp.NewHandler(
@@ -257,7 +259,8 @@ func (b *directoryBridge) BindEmail(ctx context.Context, userID uint64, email st
 // 成功和 id——否则任何人都能拿这个接口批量探测哪些邮箱已注册。
 type emailCodeBridge struct {
 	users        userdomain.Repository
-	conf         conf.Email
+	mailer       *mail.Service
+	mailConf     func() conf.Mail
 	redisOptions redis_service.Options
 	loginConf    func() siteconf.Login
 	logger       *logrus.Logger
@@ -283,36 +286,26 @@ func (b *emailCodeBridge) Send(ctx context.Context, kind int8, email, ip string)
 	}
 	code := base64Captcha.RandText(4, "0123456789")
 
+	// 是否真的发信取决于邮箱是否已存在：
+	// 注册/绑定要求不存在，重置密码/登录要求存在。
 	shouldSend := false
 	switch kind {
-	case 1: // 注册：邮箱必须不存在
+	case 1, 3:
 		shouldSend = !exists
-		if shouldSend {
-			err = mail.SendRegisterCode(b.conf, email, code, timeout)
-		}
-	case 2: // 重置密码：邮箱必须存在
+	case 2, 4:
 		shouldSend = exists
-		if shouldSend {
-			err = mail.SendResetPwdCode(b.conf, email, code, timeout)
-		}
-	case 3: // 绑定邮箱：邮箱必须未被占用
-		shouldSend = !exists
-		if shouldSend {
-			err = mail.SendBindEmailCode(b.conf, email, code, timeout)
-		}
-	case 4: // 邮箱登录：邮箱必须存在
-		shouldSend = exists
-		if shouldSend {
-			err = mail.SendLoginCode(b.conf, email, code, timeout)
-		}
 	default:
 		return "", apperr.New(apperr.CodeUserMailSendFailed)
 	}
-	if err != nil {
-		if b.logger != nil {
-			b.logger.Errorf("邮件发送失败: to=%s err=%v", email, err)
+
+	if shouldSend {
+		// 四种场景共用同一个 SES 模板，靠 action 变量区分文案。
+		if err := b.mailer.SendCode(ctx, b.mailConf(), email, mail.Kind(kind), code, timeout); err != nil {
+			if b.logger != nil {
+				b.logger.Errorf("邮件发送失败: to=%s err=%v", email, err)
+			}
+			return "", apperr.New(apperr.CodeUserMailSendFailed)
 		}
-		return "", apperr.New(apperr.CodeUserMailSendFailed)
 	}
 
 	id := base64Captcha.RandomId()
@@ -329,14 +322,14 @@ func (b *emailCodeBridge) Send(ctx context.Context, kind int8, email, ip string)
 
 // qqBridge 实现 authapp.OAuth。
 type qqBridge struct {
-	conf conf.QQ
+	conf func() conf.QQ
 }
 
 var _ authapp.OAuth = (*qqBridge)(nil)
 
 // Exchange 用授权码换 QQ 用户信息。
 func (b qqBridge) Exchange(_ context.Context, code string) (authapp.OAuthUser, error) {
-	info, err := oauth.GetQQUserInfo(b.conf, code)
+	info, err := oauth.GetQQUserInfo(b.conf(), code)
 	if err != nil {
 		return authapp.OAuthUser{}, err
 	}

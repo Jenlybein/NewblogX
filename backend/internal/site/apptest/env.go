@@ -240,7 +240,7 @@ func NewEnv(site conf.Site, ai conf.AI, version, qqURL string) *Env {
 		Banners: banners,
 		Images:  images,
 		Runtime: runtime,
-		Service: app.New(banners, images, runtime, version, qqURL, nil),
+		Service: app.New(banners, images, runtime, version, func() string { return qqURL }, nil),
 	}
 }
 

@@ -22,8 +22,11 @@ import (
 
 // LogMiddleware 运行日志中间件
 func (h Runtime) LogMiddleware(c *gin.Context) {
-	traceID, spanID, parentSpanID := resolveTraceContext(c, h.LogConfig)
-	requestID := resolveRequestID(h.LogConfig, traceID)
+	// 一次请求只解析一次：这些字段（trace 开关、请求日志开关、堆栈策略）
+	// 在后台改完要立刻生效，而反复读缓存没有意义。
+	logCfg := h.logConfig()
+	traceID, spanID, parentSpanID := resolveTraceContext(c, logCfg)
+	requestID := resolveRequestID(logCfg, traceID)
 
 	c.Set("_log_deps", h.Log)
 	c.Set("_jwt_config", h.JWT)
@@ -40,7 +43,7 @@ func (h Runtime) LogMiddleware(c *gin.Context) {
 	start := time.Now()
 	c.Next()
 
-	if !h.LogConfig.RequestLogEnabled {
+	if !logCfg.RequestLogEnabled {
 		return
 	}
 
@@ -84,8 +87,8 @@ func (h Runtime) LogMiddleware(c *gin.Context) {
 			errMsg = fmt.Sprintf("http_status_%d", c.Writer.Status())
 		}
 		fields["error_message"] = errMsg
-		if writer.ShouldCaptureStack(h.LogConfig, "error") {
-			stack, truncated := writer.TruncateByBytes(string(debug.Stack()), writer.StackMaxBytes(h.LogConfig))
+		if writer.ShouldCaptureStack(logCfg, "error") {
+			stack, truncated := writer.TruncateByBytes(string(debug.Stack()), writer.StackMaxBytes(logCfg))
 			fields["error_stack"] = stack
 			if truncated {
 				fields["error_stack_truncated"] = true

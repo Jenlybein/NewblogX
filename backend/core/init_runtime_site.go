@@ -35,6 +35,18 @@ func InitRuntimeSite(baseConfig *conf.Config, logger *logrus.Logger, db *gorm.DB
 	if err := runtimeService.InitRuntimeConfig(); err != nil {
 		return nil, err
 	}
+
+	// 后台改日志级别要立刻生效：把"下发到 logger"的能力交回去。
+	if logger != nil {
+		runtimeService.SetLogApplier(func(log conf.Logrus) {
+			ApplyLogLevel(logger, log.Level)
+			logger.Infof("日志级别已更新为 %s", log.Level)
+		})
+	}
+	// 启动时也按库里的值对齐一次：库里可能存着上次在后台改过的级别，
+	// 而 logger 此时还是 settings.yaml 的基线。
+	ApplyLogLevel(logger, runtimeService.GetRuntimeLog().Level)
+
 	return runtimeService, nil
 }
 

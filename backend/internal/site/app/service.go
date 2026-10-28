@@ -39,7 +39,7 @@ type Service struct {
 	images  domain.ImageResolver
 	runtime domain.RuntimeConfig
 	version string
-	qqURL   string
+	qqURL   func() string
 	logger  Logger
 }
 
@@ -49,7 +49,7 @@ func New(
 	images domain.ImageResolver,
 	runtime domain.RuntimeConfig,
 	version string,
-	qqURL string,
+	qqURL func() string,
 	logger Logger,
 ) *Service {
 	return &Service{
@@ -63,7 +63,14 @@ func New(
 }
 
 // QQLoginURL 返回 QQ 登录跳转地址。
-func (s *Service) QQLoginURL() string { return s.qqURL }
+//
+// 每次现算：AppID 与回调地址都可能在后台被改，缓存住会让跳转指向旧地址。
+func (s *Service) QQLoginURL() string {
+	if s.qqURL == nil {
+		return ""
+	}
+	return s.qqURL()
+}
 
 // ── 公开配置 ────────────────────────────────────────────────────
 

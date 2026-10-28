@@ -212,16 +212,10 @@ func WireCron(infra *Infra, lifecycle *Lifecycle) error {
 // 配置非法时不静默兜底成默认值就当成功：先记一条 Error，
 // 让人知道"你配的那个时间没生效"，然后用默认时间跑。
 func registerLogCleanup(infra *Infra, sch *scheduler.Scheduler) {
+	// 开关与保留天数都**每次现读**运行时配置：这样在后台打开/关闭清理、
+	// 调整保留天数都不必重启。只有"每天几点跑"仍取启动时的基线
+	// —— 那是调度注册参数，改它需要重新 CreateJob。
 	cfg := infra.Config.Log.Cleanup
-	if !cfg.Enabled {
-		infra.Logger.Infof("日志清理任务未启用，跳过注册")
-		return
-	}
-
-	retentionDays := cfg.RetentionDays
-	if retentionDays < 1 {
-		retentionDays = defaultLogRetentionDay
-	}
 
 	hour, minute, second, err := writer.ParseDailyAt(cfg.RunAt)
 	if err != nil {
@@ -232,12 +226,21 @@ func registerLogCleanup(infra *Infra, sch *scheduler.Scheduler) {
 	if err := sch.Daily(hour, minute, second, scheduler.Job{
 		Name: "日志清理",
 		Run: func(ctx context.Context) (int, error) {
-			return writer.CleanupExpiredLogs(infra.Config.Log.Dir, retentionDays, infra.Logger)
+			liveLog := infra.RuntimeSite.GetRuntimeLog()
+			// 未启用时返回 0：调度器只在 affected>0 时打日志，所以不会刷屏。
+			if !liveLog.Cleanup.Enabled {
+				return 0, nil
+			}
+			retentionDays := liveLog.Cleanup.RetentionDays
+			if retentionDays < 1 {
+				retentionDays = defaultLogRetentionDay
+			}
+			return writer.CleanupExpiredLogs(liveLog.Dir, retentionDays, infra.Logger)
 		},
 	}); err != nil {
 		infra.Logger.Errorf("注册日志清理任务失败: %v", err)
 		return
 	}
-	infra.Logger.Infof("已注册日志清理任务: 保留天数=%d 每日执行时间=%02d:%02d:%02d",
-		retentionDays, hour, minute, second)
+	infra.Logger.Infof("已注册日志清理任务: 每日执行时间=%02d:%02d:%02d（开关与保留天数按运行时配置现读）",
+		hour, minute, second)
 }

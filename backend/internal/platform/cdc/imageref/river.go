@@ -24,14 +24,16 @@ import (
 type River struct {
 	canal      *canal.Canal
 	cfg        conf.ImageRefRiver
-	qiNiu      conf.QiNiu
+	qiNiu      func() conf.QiNiu
 	log        *logrus.Logger
 	logOptions writer.Options
 	db         *gorm.DB
 }
 
 // NewRiver 初始化图片引用关系监听服务
-func NewRiver(config conf.ImageRefRiver, qiNiuConfig conf.QiNiu, logger *logrus.Logger, db *gorm.DB) (*River, error) {
+// qiNiuConfig 传函数：桶名/域名/前缀都可能在后台被改，
+// 而引用解析靠 prefix 从 URL 反解 object key，缓存旧值会让引用关系对不上。
+func NewRiver(config conf.ImageRefRiver, qiNiuConfig func() conf.QiNiu, logger *logrus.Logger, db *gorm.DB) (*River, error) {
 	r := &River{
 		cfg:   config,
 		qiNiu: qiNiuConfig,
@@ -135,7 +137,7 @@ func (h *eventHandler) OnRow(e *canal.RowsEvent) error {
 				Table: e.Table.Name,
 				Row:   row,
 			}, func() error {
-				return rebuildByRow(h.river.db, h.river.qiNiu, rowSnapshot)
+				return rebuildByRow(h.river.db, h.river.qiNiu(), rowSnapshot)
 			}); err != nil {
 				return err
 			}
@@ -156,7 +158,7 @@ func (h *eventHandler) OnRow(e *canal.RowsEvent) error {
 				Before: e.Rows[i-1],
 				After:  e.Rows[i],
 			}, func() error {
-				return rebuildByRow(h.river.db, h.river.qiNiu, after)
+				return rebuildByRow(h.river.db, h.river.qiNiu(), after)
 			}); err != nil {
 				return err
 			}

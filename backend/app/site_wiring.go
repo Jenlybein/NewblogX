@@ -27,7 +27,7 @@ func WireSite(infra *Infra) {
 		&siteImageResolver{db: infra.DB},
 		siteRuntimeBridge{inner: infra.RuntimeSite},
 		infra.Version,
-		infra.Config.QQ.Url(),
+		func() string { return infra.RuntimeSite.GetRuntimeOAuth().Url() },
 		infra.Logger,
 	)
 	// 站点访问量：每次读取公开配置记一次（口径与迁移前一致）。

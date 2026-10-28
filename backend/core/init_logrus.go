@@ -101,6 +101,22 @@ func (hook StructuredLogHook) Fire(entry *logrus.Entry) error {
 
 // InitLogrus 初始化日志系统（入口方法）
 // 作用：配置日志级别、输出格式、公共字段钩子、文件日志、初始化审计日志文件
+// ApplyLogLevel 按字符串设置日志级别，解析失败则退回 info。
+//
+// 单独抽出来是因为后台"日志设置"要能热改级别：改完立刻生效，
+// 不必重启进程。写在 InitLogrus 里就只有启动时能调。
+func ApplyLogLevel(logger *logrus.Logger, level string) {
+	if logger == nil {
+		return
+	}
+	parsed, err := logrus.ParseLevel(level)
+	if err != nil {
+		logger.SetLevel(logrus.InfoLevel)
+		return
+	}
+	logger.SetLevel(parsed)
+}
+
 func InitLogrus(l *conf.Logrus, system *conf.System) *logrus.Logger {
 	// 创建新的logrus日志实例
 	logger := logrus.New()
@@ -133,12 +149,7 @@ func InitLogrus(l *conf.Logrus, system *conf.System) *logrus.Logger {
 	}
 
 	// 配置日志级别，解析失败则默认info
-	level, err := logrus.ParseLevel(l.Level)
-	if err != nil {
-		logger.SetLevel(logrus.InfoLevel)
-	} else {
-		logger.SetLevel(level)
-	}
+	ApplyLogLevel(logger, l.Level)
 
 	// 注册公共字段钩子
 	serviceName := writer.ResolveLogApp(l.App, l.App)

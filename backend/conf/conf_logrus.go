@@ -10,9 +10,9 @@ package conf
 type Logrus struct {
 	App               string         `yaml:"app" json:"app"`
 	Dir               string         `yaml:"dir" json:"dir"`
-	WALDir            string         `yaml:"wal_dir" json:"wal_dir"`                     // 日志本地兜底目录，空则用 <dir>/wal
-	Level             string         `yaml:"level" json:"level"`                         // trace/debug/info/warn/error；改完立即生效
-	StdoutFormat      string         `yaml:"stdout_format" json:"stdout_format"`         // text/json，默认 json；改完需重启
+	WALDir            string         `yaml:"wal_dir" json:"wal_dir"`                         // 日志本地兜底目录，空则用 <dir>/wal
+	Level             string         `yaml:"level" json:"level"`                             // trace/debug/info/warn/error；改完立即生效
+	StdoutFormat      string         `yaml:"stdout_format" json:"stdout_format"`             // text/json，默认 json；改完需重启
 	RequestLogEnabled bool           `yaml:"request_log_enabled" json:"request_log_enabled"` // 是否记录请求访问日志
 	QueryDefaultLimit int            `yaml:"query_default_limit" json:"query_default_limit"` // 后台日志查询默认条数
 	QueryMaxLimit     int            `yaml:"query_max_limit" json:"query_max_limit"`         // 后台日志查询最大条数

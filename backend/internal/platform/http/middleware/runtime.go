@@ -46,6 +46,18 @@ func NewRuntime(opts RuntimeOptions) Runtime {
 	}
 }
 
+// logConfig 返回当前生效的日志配置。
+//
+// 优先读运行时配置：后台改"记录请求访问日志"或堆栈采集策略后应当立刻生效，
+// 不该等到下一次重启。RuntimeSite 没装配时（部分单测直接构造 Runtime）
+// 退回启动时的快照。
+func (h Runtime) logConfig() conf.Logrus {
+	if h.RuntimeSite != nil {
+		return h.RuntimeSite.GetRuntimeLog()
+	}
+	return h.LogConfig
+}
+
 func runtimeFromContext(c *gin.Context) Runtime {
 	if c == nil {
 		return Runtime{}

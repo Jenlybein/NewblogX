@@ -68,7 +68,7 @@ type Service struct {
 	ids     domain.IDGenerator
 	clock   domain.Clock
 	logger  domain.Logger
-	cfg     domain.Config
+	cfg     func() domain.Config
 }
 
 // New 构造媒体服务。
@@ -80,7 +80,7 @@ func New(
 	ids domain.IDGenerator,
 	clock domain.Clock,
 	logger domain.Logger,
-	cfg domain.Config,
+	cfg func() domain.Config,
 ) *Service {
 	if repo == nil {
 		panic("media/app: 图片仓储未注入")
@@ -94,12 +94,15 @@ func New(
 	if ids == nil {
 		panic("media/app: ID 生成器未注入")
 	}
+	if cfg == nil {
+		panic("media/app: 配置未注入")
+	}
 	return &Service{repo: repo, tasks: tasks, audits: audits, storage: storage, ids: ids, clock: clock, logger: logger, cfg: cfg}
 }
 
 // CreateTask 创建直传上传任务；相同哈希直接秒传。
 func (s *Service) CreateTask(ctx context.Context, userID uint64, fileName string, size int64, mimeType, hash string) (*CreateResult, error) {
-	q := s.cfg
+	q := s.cfg()
 	if !q.Enabled || q.Bucket == "" || q.SizeMB <= 0 || q.ExpirySeconds <= 0 {
 		return nil, apperr.New(apperr.CodeImageUploadDisabled)
 	}
@@ -300,7 +303,7 @@ func (s *Service) verify(ctx context.Context, task *domain.Task, meta *uploadedM
 		return nil, err
 	}
 	format := strings.ToLower(strings.TrimSpace(imageInfo.Format))
-	if !whitelistContains(s.cfg.Whitelist, format) {
+	if !whitelistContains(s.cfg().Whitelist, format) {
 		return nil, apperr.New(apperr.CodeImageInvalid)
 	}
 

@@ -317,12 +317,17 @@ export async function streamAiDiagnose(request: AiDiagnoseRequest, options: Stre
   return finalResult;
 }
 
+// AI 接口后面是真在调大模型，几十秒是常态，不能套用普通接口那个 15 秒超时。
+// 放宽只对这几个接口生效，其余仍走默认兜底。
+const AI_TIMEOUT_MS = 90_000;
+
 export function generateArticleMetainfo(content: string) {
   return useNuxtApp().$api.request<AiArticleMetainfo>("/api/ai/metainfo", {
     method: "POST",
     body: {
       content,
     },
+    timeoutMs: AI_TIMEOUT_MS,
   });
 }
 
@@ -333,6 +338,7 @@ export function getArticleScoreSummary(article_id: string) {
       type: 1,
       article_id,
     } satisfies AiArticleScoringRequest,
+    timeoutMs: AI_TIMEOUT_MS,
   });
 }
 
@@ -343,6 +349,7 @@ export function getArticleScoreDetail(article_id: string) {
       type: 2,
       article_id,
     } satisfies AiArticleScoringRequest,
+    timeoutMs: AI_TIMEOUT_MS,
   });
 }
 
@@ -353,5 +360,6 @@ export function regenerateArticleScore(request: Omit<AiArticleScoringRequest, "t
       type: 3,
       ...request,
     } satisfies AiArticleScoringRequest,
+    timeoutMs: AI_TIMEOUT_MS,
   });
 }

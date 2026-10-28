@@ -80,6 +80,7 @@ RUN printf '%s\n' \
 	&& cp /usr/local/bin/mariadb-dump-wrapper /usr/local/bin/mysqldump \
 	&& chmod +x /usr/local/bin/mariadb-dump-wrapper \
 	&& chmod +x /usr/local/bin/mysqldump \
+	&& chmod +x /app/cli \
 	&& mkdir -p /app/logs /app/uploads /app/var
 
 # 容器默认只执行服务进程；部署层可按需覆盖配置文件与角色。

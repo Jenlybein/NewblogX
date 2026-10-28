@@ -1,6 +1,7 @@
 {
   "settings": {
-    "index.default_pipeline": "article_pipeline"
+    "index.default_pipeline": "article_pipeline",
+    "auto_expand_replicas": "0-1"
   },
   "mappings": {
     "properties": {
@@ -8,12 +9,10 @@
         "type": "keyword"
       },
       "created_at": {
-        "type": "date",
-        "null_value": "null"
+        "type": "date"
       },
       "updated_at": {
-        "type": "date",
-        "null_value": "null"
+        "type": "date"
       },
       "title": {
         "type": "text",

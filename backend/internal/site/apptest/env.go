@@ -183,9 +183,14 @@ func (i *Images) IDsByURLs(_ context.Context, urls []string) (map[string]uint64,
 
 // Runtime 是运行时配置的内存实现。
 type Runtime struct {
-	mu   sync.Mutex
-	site conf.Site
-	ai   conf.AI
+	mu      sync.Mutex
+	site    conf.Site
+	ai      conf.AI
+	mail    conf.Mail
+	storage conf.QiNiu
+	oauth   conf.QQ
+	log     conf.Logrus
+	upload  conf.Upload
 }
 
 var _ domain.RuntimeConfig = (*Runtime)(nil)
@@ -220,6 +225,81 @@ func (r *Runtime) UpdateAI(ai conf.AI) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	r.ai = ai
+	return nil
+}
+
+// Mail 实现 domain.RuntimeConfig。
+func (r *Runtime) Mail() conf.Mail {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return r.mail
+}
+
+// Storage 实现 domain.RuntimeConfig。
+func (r *Runtime) Storage() conf.QiNiu {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return r.storage
+}
+
+// OAuth 实现 domain.RuntimeConfig。
+func (r *Runtime) OAuth() conf.QQ {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return r.oauth
+}
+
+// Log 实现 domain.RuntimeConfig。
+func (r *Runtime) Log() conf.Logrus {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return r.log
+}
+
+// Upload 实现 domain.RuntimeConfig。
+func (r *Runtime) Upload() conf.Upload {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return r.upload
+}
+
+// UpdateMail 实现 domain.RuntimeConfig。
+func (r *Runtime) UpdateMail(mail conf.Mail) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.mail = mail
+	return nil
+}
+
+// UpdateStorage 实现 domain.RuntimeConfig。
+func (r *Runtime) UpdateStorage(storage conf.QiNiu) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.storage = storage
+	return nil
+}
+
+// UpdateOAuth 实现 domain.RuntimeConfig。
+func (r *Runtime) UpdateOAuth(oauth conf.QQ) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.oauth = oauth
+	return nil
+}
+
+// UpdateLog 实现 domain.RuntimeConfig。
+func (r *Runtime) UpdateLog(log conf.Logrus) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.log = log
+	return nil
+}
+
+// UpdateUpload 实现 domain.RuntimeConfig。
+func (r *Runtime) UpdateUpload(upload conf.Upload) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.upload = upload
 	return nil
 }
 

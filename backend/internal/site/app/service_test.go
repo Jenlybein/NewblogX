@@ -176,3 +176,132 @@ func TestBannerUpdateMissing(t *testing.T) {
 func apptestInput(imageID uint64, href string, show bool) app.BannerInput {
 	return app.BannerInput{CoverImageID: ctype.NewID(imageID), Href: href, Show: show}
 }
+
+// ── 新增的五个配置段 ────────────────────────────────────────────
+
+func TestAdminViewsMaskNewSecrets(t *testing.T) {
+	env := newEnv()
+	if err := env.Service.UpdateMail(conf.Mail{SecretID: "id-1", SecretKey: "mail-secret"}); err != nil {
+		t.Fatalf("更新邮件配置失败: %v", err)
+	}
+	if err := env.Service.UpdateStorage(conf.QiNiu{AccessKey: "ak", SecretKey: "qiniu-secret"}); err != nil {
+		t.Fatalf("更新存储配置失败: %v", err)
+	}
+	if err := env.Service.UpdateOAuth(conf.QQ{AppID: "123", AppKey: "qq-secret"}); err != nil {
+		t.Fatalf("更新 QQ 配置失败: %v", err)
+	}
+
+	if got := env.Service.AdminMail().SecretKey; got != domain.SensitivePlaceholder {
+		t.Fatalf("邮件密钥应被遮蔽，得到 %s", got)
+	}
+	if got := env.Service.AdminStorage().SecretKey; got != domain.SensitivePlaceholder {
+		t.Fatalf("七牛密钥应被遮蔽，得到 %s", got)
+	}
+	if got := env.Service.AdminOAuth().AppKey; got != domain.SensitivePlaceholder {
+		t.Fatalf("QQ AppKey 应被遮蔽，得到 %s", got)
+	}
+
+	// 非密钥字段要如实回显，否则管理员没法确认自己填的是哪个号的密钥。
+	if got := env.Service.AdminMail().SecretID; got != "id-1" {
+		t.Fatalf("SecretID 不是密钥，应如实回显，得到 %s", got)
+	}
+	if got := env.Service.AdminStorage().AccessKey; got != "ak" {
+		t.Fatalf("AccessKey 应如实回显，得到 %s", got)
+	}
+}
+
+func TestUpdateNewSectionsKeepSecretOnPlaceholder(t *testing.T) {
+	// 前端每次保存都会把回显的占位符原样提交回来。
+	// 若不识别占位符，密钥就会被写成 "******"，下一次发信/上传直接失败。
+	env := newEnv()
+
+	if err := env.Service.UpdateMail(conf.Mail{SecretKey: "mail-secret", Region: "ap-guangzhou"}); err != nil {
+		t.Fatalf("更新邮件配置失败: %v", err)
+	}
+	if err := env.Service.UpdateMail(conf.Mail{SecretKey: domain.SensitivePlaceholder, Region: "ap-hongkong"}); err != nil {
+		t.Fatalf("更新邮件配置失败: %v", err)
+	}
+	if got := env.Runtime.Mail(); got.SecretKey != "mail-secret" || got.Region != "ap-hongkong" {
+		t.Fatalf("占位符应保留原密钥、其余字段应更新，得到 %+v", got)
+	}
+
+	if err := env.Service.UpdateStorage(conf.QiNiu{SecretKey: "qiniu-secret", Bucket: "b1"}); err != nil {
+		t.Fatalf("更新存储配置失败: %v", err)
+	}
+	if err := env.Service.UpdateStorage(conf.QiNiu{SecretKey: domain.SensitivePlaceholder, Bucket: "b2"}); err != nil {
+		t.Fatalf("更新存储配置失败: %v", err)
+	}
+	if got := env.Runtime.Storage(); got.SecretKey != "qiniu-secret" || got.Bucket != "b2" {
+		t.Fatalf("占位符应保留原密钥、其余字段应更新，得到 %+v", got)
+	}
+}
+
+func TestUpdateMailClearsSecretOnEmptyString(t *testing.T) {
+	// 空字符串与占位符语义不同：空字符串表示"我确实要清掉密钥"，
+	// 否则管理员没办法主动撤销一个已经泄露的密钥。
+	env := newEnv()
+	if err := env.Service.UpdateMail(conf.Mail{SecretKey: "mail-secret"}); err != nil {
+		t.Fatalf("更新失败: %v", err)
+	}
+	if err := env.Service.UpdateMail(conf.Mail{SecretKey: ""}); err != nil {
+		t.Fatalf("更新失败: %v", err)
+	}
+	if got := env.Runtime.Mail().SecretKey; got != "" {
+		t.Fatalf("空字符串应能清空密钥，得到 %q", got)
+	}
+}
+
+func TestUpdateLogPreservesProcessLevelFields(t *testing.T) {
+	// 日志目录/服务名/输出格式由部署时的 settings.yaml 决定。
+	// 允许后台改它们会造成两种事故：清理任务按旧目录算保留窗口、
+	// 或者目录不存在导致写入失败且失败日志一起消失。
+	env := newEnv()
+	// 进程级字段由启动时从 settings.yaml 播种（见 core.InitRuntimeSite）。
+	// 这里直接写替身来模拟"进程刚起来"的状态 —— 走服务方法的话，
+	// 这几个字段会被保护逻辑覆盖成"当前值"，而当前值此刻还是空的。
+	base := conf.Logrus{
+		App:          "blogx-api",
+		Dir:          "/app/logs",
+		WALDir:       "/app/logs/wal",
+		Level:        "info",
+		StdoutFormat: "json",
+	}
+	if err := env.Runtime.UpdateLog(base); err != nil {
+		t.Fatalf("播种日志配置失败: %v", err)
+	}
+
+	// 管理员提交了被禁止修改的字段。
+	if err := env.Service.UpdateLog(conf.Logrus{
+		App:               "hacked",
+		Dir:               "/tmp/elsewhere",
+		WALDir:            "/tmp/wal",
+		StdoutFormat:      "text",
+		Level:             "debug",
+		RequestLogEnabled: true,
+	}); err != nil {
+		t.Fatalf("更新日志配置失败: %v", err)
+	}
+
+	got := env.Runtime.Log()
+	if got.Dir != "/app/logs" || got.WALDir != "/app/logs/wal" || got.App != "blogx-api" || got.StdoutFormat != "json" {
+		t.Fatalf("进程级字段不该被后台改掉，得到 %+v", got)
+	}
+	if got.Level != "debug" || !got.RequestLogEnabled {
+		t.Fatalf("可改字段应生效，得到 %+v", got)
+	}
+}
+
+func TestUpdateUploadReplacesWhitelist(t *testing.T) {
+	// 白名单是整体替换而不是合并：合并会让"删掉一个后缀"永远删不掉。
+	env := newEnv()
+	if err := env.Service.UpdateUpload(conf.Upload{Whitelist: []string{"jpg", "png", "gif"}}); err != nil {
+		t.Fatalf("更新上传策略失败: %v", err)
+	}
+	if err := env.Service.UpdateUpload(conf.Upload{Whitelist: []string{"webp"}}); err != nil {
+		t.Fatalf("更新上传策略失败: %v", err)
+	}
+	got := env.Runtime.Upload().Whitelist
+	if len(got) != 1 || got[0] != "webp" {
+		t.Fatalf("白名单应整体替换，得到 %v", got)
+	}
+}

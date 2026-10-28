@@ -136,6 +136,15 @@ services:
     container_name: es
     restart: always
     environment:
+      # 官方镜像的 entrypoint 留了这个开关：非空时先以 root 执行
+      # chown -R 1000:0 /usr/share/elasticsearch/{data,logs}，再降权运行 ES
+      # （chroot --userspec=1000:0）。这是 bind mount 场景的官方解法：bind mount 会把
+      # 宿主机目录属主「原样透进」容器，覆盖镜像内已经 chown 好的 data 目录。宿主机上
+      # 该目录若是 root:root（首次 up 由 docker 自动创建，或删掉 deploy/state 重建后
+      # 就是），uid 1000 无法写 data/nodes，ES 启动即 AccessDenied，配合 restart: always
+      # 变成无限重启循环——表现为 es 永远 unhealthy、后端连不上 9200。
+      # 注意判定是「非空」而非「等于 true」：想关掉只能删掉这一行，写 'false' 照样生效。
+      TAKE_FILE_OWNERSHIP: 'true'
       discovery.type: single-node
       ES_JAVA_OPTS: -Xms512m -Xmx512m
       xpack.security.enabled: 'true'

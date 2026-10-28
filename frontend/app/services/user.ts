@@ -8,8 +8,16 @@ export function getUserBaseInfo(id: string | number) {
   });
 }
 
-export function getSelfUserDetail() {
-  return useNuxtApp().$api.request<UserSelfDetail>("/api/users/detail");
+/**
+ * 取当前登录用户详情。
+ *
+ * `retryAuth: false` 用于"刷新令牌之后立刻校验新令牌"这一步：那时刷新流程本身
+ * 还持有一个未完成的 Promise，若这里再触发一次自动刷新，就会 await 到自己。
+ */
+export function getSelfUserDetail(options: { retryAuth?: boolean } = {}) {
+  return useNuxtApp().$api.request<UserSelfDetail>("/api/users/detail", {
+    retryAuth: options.retryAuth,
+  });
 }
 
 export function getMessageSummary() {

@@ -142,4 +142,27 @@ describe("auth store", () => {
     expect(second).toBe(true);
     expect(getSelfUserDetailMock).toHaveBeenCalledTimes(1);
   });
+
+  it("刷新令牌后校验资料失败时不会 await 到自己（曾让点赞按钮永久转圈）", async () => {
+    localStorage.setItem("blogx_access_token", "token-5");
+    // 模拟"新令牌已经拿到，但拿它去查用户资料被判成鉴权失败"这一刻：
+    // 若这里再触发一次自动刷新，就会回到 refreshSession 里那个尚未完成的 Promise 上，
+    // 形成 Promise 等自己，永远不 settle（finally 也不会执行，refreshPromise 永久不清）。
+    const authError = new Error("登录凭证无效");
+    getSelfUserDetailMock.mockRejectedValue(authError);
+    isAuthLikeErrorMock.mockImplementation((error: unknown) => error === authError);
+    const fetchMock = vi.fn().mockResolvedValue({ code: 0, msg: "成功", data: "token-6" });
+    vi.stubGlobal("$fetch", fetchMock);
+
+    const authStore = await createAuthStore();
+    const refreshed = await authStore.refreshSession();
+
+    // 令牌确实轮换了，所以刷新算成功；资料没取到不该让整个刷新变成失败。
+    expect(refreshed).toBe(true);
+    expect(authStore.accessToken).toBe("token-6");
+    // 钉住解法：校验资料这一步必须关掉自动刷新。
+    expect(getSelfUserDetailMock).toHaveBeenCalledWith({ retryAuth: false });
+    // 刷新请求走的是裸 $fetch，超时只能自己带；缺了它服务端一停顿就会永久挂起。
+    expect(fetchMock).toHaveBeenCalledWith("/api/users/refresh", expect.objectContaining({ timeout: 15000 }));
+  });
 });

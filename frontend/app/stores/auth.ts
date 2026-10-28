@@ -7,6 +7,15 @@ import { getSelfUserDetail } from "~/services/user";
 import type { UserSelfDetail } from "~/types/api";
 import { resolveAvatarUrl } from "~/utils/avatar";
 
+/**
+ * 刷新令牌请求的超时上限（毫秒）。
+ *
+ * 与 `services/http/client.ts` 的 `DEFAULT_TIMEOUT_MS` 取同一个数量级，但**不能
+ * 直接复用**：那个常量属于 API 客户端，而这里走的是裸 `$fetch`（刻意如此——
+ * 刷新接口本身不能依赖"鉴权失败自动刷新"那套逻辑，否则递归）。所以超时要自己带一份。
+ */
+const refreshTimeoutMs = 15000;
+
 export const useAuthStore = defineStore("auth", () => {
   const tokenStorageKey = "blogx_access_token";
   const profileStorageKey = "blogx_profile_snapshot";
@@ -118,14 +127,14 @@ export const useAuthStore = defineStore("auth", () => {
     // 见 docs/architecture/baseline.md §42。
   }
 
-  async function fetchCurrentUser(options: { throwOnError?: boolean } = {}) {
+  async function fetchCurrentUser(options: { throwOnError?: boolean; retryAuth?: boolean } = {}) {
     if (!accessToken.value) {
       currentUser.value = null;
       return null;
     }
 
     try {
-      const detail = await getSelfUserDetail();
+      const detail = await getSelfUserDetail({ retryAuth: options.retryAuth });
       currentUser.value = {
         ...detail,
         avatar: pickAvatar(detail),
@@ -147,12 +156,16 @@ export const useAuthStore = defineStore("auth", () => {
       try {
         const config = useRuntimeConfig();
         const headers = import.meta.server ? useRequestHeaders(["cookie"]) : undefined;
+        // 这个请求绕过了 services/http/client.ts 的 withRequestTimeout，必须自带超时。
+        // 少了它，服务端连接一停顿这个 Promise 就永不 settle，下面 finally 里的
+        // refreshPromise = null 也永不执行，整个会话的自动刷新被永久毒化。
         const response = await $fetch<{ code: number; msg: string; data: string }>("/api/users/refresh", {
           baseURL: config.public.apiBase,
           method: "POST",
           credentials: "include",
           headers,
           retry: 0,
+          timeout: refreshTimeoutMs,
         });
 
         if (response.code !== 0 || !response.data) {
@@ -161,7 +174,10 @@ export const useAuthStore = defineStore("auth", () => {
         }
 
         setAccessToken(response.data);
-        await fetchCurrentUser();
+        // retryAuth: false 是死锁的唯一解法：此刻 refreshPromise 正指向当前这个
+        // 未完成的 Promise，若这次校验又走到自动刷新，就会 await 到自己，
+        // 表现是请求永远不返回（点赞按钮一直转圈、且不弹任何错误）。
+        await fetchCurrentUser({ retryAuth: false });
         return true;
       } catch {
         clearSession();

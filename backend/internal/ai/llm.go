@@ -9,11 +9,12 @@ import (
 
 // 这些类型以别名形式保留在 ai_service 下，调用方（ai_search / ai_scoring /
 // ai_diagnose / ai_metainfo / ai_overwrite …）无需改动。
+//
+// ChatCompletion 与 StreamData 已经删掉：报文解析现在归 eino 的组件，
+// 这两个类型原本只被自研的 SSE 解析器使用，业务侧从未引用。
 type (
-	Message        = llm.Message
-	Request        = llm.Request
-	ChatCompletion = llm.ChatCompletion
-	StreamData     = llm.StreamData
+	Message = llm.Message
+	Request = llm.Request
 )
 
 // newClient 根据配置构造 AI 客户端。

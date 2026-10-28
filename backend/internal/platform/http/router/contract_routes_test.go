@@ -52,6 +52,7 @@ import (
 // 每一条都要写清理由——这张表的目的是让缺口可见，不是让测试闭嘴。
 var allowNotInContract = map[string]string{
 	"GET /health":              "健康检查，基础设施探针用，不属于业务 API",
+	"GET /health/ready":        "就绪检查，暴露后台组件状态（见 platform/health），不属于业务 API",
 	"GET /uploads/{filepath}":  "静态资源（gin.Static），由 nginx 兜底，不是接口",
 	"HEAD /uploads/{filepath}": "同上，HEAD 是 gin 为静态目录自动注册的",
 }
@@ -77,7 +78,7 @@ func TestContractMatchesRoutes(t *testing.T) {
 	router.SetSearchHandler(&searchhttp.Handler{})
 	router.SetAIHandler(&aihttp.Handler{})
 
-	engine := router.NewEngine(mw.RuntimeOptions{})
+	engine := router.NewEngine(mw.RuntimeOptions{}, nil)
 	routes := engine.Routes()
 	if len(routes) == 0 {
 		t.Fatal("路由表为空：装配路径没有注册任何路由")

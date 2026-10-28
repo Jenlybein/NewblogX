@@ -76,7 +76,7 @@ func WireHTTP(infra *Infra, lc *Lifecycle) error {
 	// 必须在 WireUser 之后：用户列表的"最后登录"依赖同一份日志查询配置。
 	WireAnalytics(infra)
 
-	srv, err := router.Run(opts)
+	srv, err := router.Run(opts, infra.Health)
 	if err != nil {
 		return fmt.Errorf("启动 HTTP 服务失败: %w", err)
 	}

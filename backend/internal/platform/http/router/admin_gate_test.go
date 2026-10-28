@@ -142,7 +142,7 @@ func TestAdminRoutesRejectOrdinaryUser(t *testing.T) {
 	gin.DefaultErrorWriter = io.Discard
 
 	injectZeroHandlers()
-	engine := router.NewEngine(mw.RuntimeOptions{Verifier: userTokenVerifier{}})
+	engine := router.NewEngine(mw.RuntimeOptions{Verifier: userTokenVerifier{}}, nil)
 
 	for _, c := range adminOnly {
 		c := c
@@ -181,7 +181,7 @@ func TestProbeDistinguishesUnprotectedRoute(t *testing.T) {
 	gin.DefaultErrorWriter = io.Discard
 
 	injectZeroHandlers()
-	engine := router.NewEngine(mw.RuntimeOptions{Verifier: userTokenVerifier{}})
+	engine := router.NewEngine(mw.RuntimeOptions{Verifier: userTokenVerifier{}}, nil)
 
 	req := httptest.NewRequest("GET", "/api/users/detail", nil)
 	req.Header.Set("Authorization", "Bearer ordinary-user-token")

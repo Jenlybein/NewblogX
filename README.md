@@ -275,7 +275,9 @@ corepack prepare pnpm@10.33.0 --activate
 - **`site_default_settings.yaml` 全是字面量**，只在数据库还没有该配置段时作为初始值写入。之后以数据库为准；想回到默认值，清掉对应的运行时配置记录（`runtime_config_models` 里按 `name` 删一行）。
 - **`.env` / `.envrc` 都不进仓库**（`.gitignore` 已排除），模板是 `.envrc.example`（跑在宿主机上，带 `export` 前缀）和 `deploy/compose/production/env.example`（跑在容器里，无前缀）。两份键名一致，**唯一必须不同的一项是 `BLOGX_APP_HOST`**：宿主机用 `127.0.0.1`，容器内必须 `0.0.0.0`。改密码或 JWT 时两处要一起改。
 
-设计说明与代价见 [`docs/architecture/v2/02-配置分层与后台化.md`](docs/architecture/v2/02-配置分层与后台化.md)。
+设计说明与代价见 [`docs/architecture/v2/02-配置分层与后台化.md`](docs/architecture/v2/02-配置分层与后台化.md)；
+AI 的模型配置（多条供应商 + 启用其一）是独立一张表，见
+[`docs/architecture/v2/03-AI接入与模型配置.md`](docs/architecture/v2/03-AI接入与模型配置.md)。
 
 ### 5.2 后端必填变量
 
@@ -324,7 +326,8 @@ head -c 48 /dev/urandom | base64
 | 邮件（腾讯云 SES） | 邮箱验证码登录、注册、绑定邮箱 | 「站点 → 登录策略」里的邮箱登录默认是**关的**；没配 SES 就打开，用户点「获取验证码」会直接报错 |
 | 第三方登录（QQ 互联） | QQ 登录 | 读者站目前没有 QQ 登录入口，配好也不生效（链路待补） |
 | 对象存储（七牛云） | 图片上传（文章配图） | 上传接口返回「站点未启用图片上传」。**没有本地上传兜底**：`/uploads` 只是静态路由，代码里没有写入它的逻辑 |
-| AI 助手 | 站内 AI 助手（搜索/润色） | AI 相关入口报"未启用"。默认关闭——模板里那个 token 是假的，开着只会被上游拒 |
+| AI 助手 | 站内 AI 助手（搜索/润色/元信息/评分） | 默认关闭。这里有两层：**总闸**（启用 AI 助手）+ **模型配置列表**里启用其中一条，两者都满足才可用 |
+| AI 助手 → 模型配置 | 供应商与密钥 | 支持 OpenAI / Claude / Gemini / 火山方舟 / DeepSeek / 通义千问 / 百度千帆 / OpenRouter，可并存多条、启用一条。没有启用的配置时调用会报「还没有启用的模型配置」 |
 | 站点 → 登录策略 | 登录方式、验证码、限流与失败锁定 | 只留用户名密码登录也能正常用 |
 | 日志 | 日志级别、请求日志、查询限额、清理窗口 | 级别即时生效；日志**目录**与输出格式是进程级的，UI 上只读 |
 | 上传策略 | 允许上传的图片格式白名单 | 白名单是整体替换，删一项保存后该格式立刻不能传 |
@@ -1080,6 +1083,7 @@ README 只能回答"怎么用"。更细的东西都在代码库里，而且它�
 | 后端每个配置项什么意思 | `backend/config/settings.yaml`（逐字段中文注释） |
 | 站点标题 / 备案号 / 登录开关的默认值 | `backend/config/site_default_settings.yaml` |
 | 为什么某些配置在后台改、某些必须在环境变量里 | `docs/architecture/v2/02-配置分层与后台化.md` |
+| AI 用哪家模型、怎么再加一个供应商 | `docs/architecture/v2/03-AI接入与模型配置.md` |
 | 表结构 | `backend/internal/platform/mysql/ddl/schema.sql` |
 | 接口清单与出入参结构 | `backend/docs/swagger.json`，或前端 `app/types/openapi.d.ts` |
 | nginx 的路由与反代规则 | `deploy/docker/nginx/nginx.conf.tmpl`；变量推导在 `render-config.sh` |

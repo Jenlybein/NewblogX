@@ -22,6 +22,7 @@ func EnsureDailyLogFiles(deps Options) error {
 		ActionAuditLogDirName,
 		CdcEventLogDirName,
 		ReplayEventLogDirName,
+		AICallLogDirName,
 	} {
 		if err := touchDailyFile(rootDir, dirName, appName, now); err != nil {
 			return err

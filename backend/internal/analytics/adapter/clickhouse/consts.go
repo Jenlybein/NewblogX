@@ -7,6 +7,7 @@ const (
 	ActionAuditLogTableName = "action_audit_logs"
 	CdcEventLogTableName    = "cdc_event_logs"
 	ReplayEventLogTableName = "replay_event_logs"
+	AICallLogTableName      = "ai_call_logs"
 
 	// clickhouseTimeLayout 统一定义日志查询使用的时间格式（与写入侧一致）。
 	clickhouseTimeLayout = "2006-01-02 15:04:05.000"

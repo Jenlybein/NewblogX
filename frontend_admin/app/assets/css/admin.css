@@ -164,6 +164,43 @@
     color: var(--text-soft);
   }
 
+  /* AI token 用量折线图：点数超过 20 时用它替代柱状。
+     容器高度与 .admin-chart 对齐，切换形态时页面不会跳动。 */
+  .admin-token-line {
+    @apply flex flex-col border p-4;
+    height: 280px;
+    border-radius: 8px;
+    border-color: var(--line);
+    background: rgba(248, 250, 252, 0.76);
+  }
+
+  .admin-token-line__svg {
+    @apply w-full flex-1;
+    min-height: 0;
+    overflow: visible;
+  }
+
+  .admin-token-line__line {
+    fill: none;
+    stroke: #0f766e;
+    stroke-width: 2;
+    stroke-linejoin: round;
+    stroke-linecap: round;
+    /* table 里的 SVG 默认会被拉伸；non-scaling-stroke 已在标签上设了，
+       这里再兜一层是为了少数不支持该属性的浏览器不至于画出 10px 粗线。 */
+    vector-effect: non-scaling-stroke;
+  }
+
+  .admin-token-line__area {
+    fill: rgba(15, 118, 110, 0.12);
+    stroke: none;
+  }
+
+  .admin-token-line__axis {
+    @apply flex justify-between text-[10px] tabular-nums;
+    color: var(--text-soft);
+  }
+
   .admin-login-page {
     @apply flex min-h-screen items-center justify-center p-6;
   }

@@ -4,12 +4,15 @@ import (
 	"context"
 
 	"myblogx/conf"
+	"myblogx/internal/ai"
 	aihttp "myblogx/internal/ai/adapter/http"
 	aimysql "myblogx/internal/ai/adapter/mysql"
 	aiapp "myblogx/internal/ai/app"
 	"myblogx/internal/ai/domain"
+	"myblogx/internal/apperr"
 	"myblogx/internal/platform/http/router"
 	"myblogx/internal/platform/llm"
+	"myblogx/internal/platform/log/writer"
 	redis_service "myblogx/internal/platform/redis"
 	searchredis "myblogx/internal/search/adapter/redis"
 	searchapp "myblogx/internal/search/app"
@@ -65,6 +68,47 @@ func WireAI(infra *Infra) {
 
 	aiService = svc
 	router.SetAIHandler(aihttp.NewHandler(svc, providers))
+
+	// 安装 AI 调用上报：每次调用的场景、模型、token 用量、耗时都落
+	// ai_call_logs（ClickHouse + 每日文件）。
+	//
+	// 装在这里而不是 ai 包内部：internal/ai 只管"该记什么"，不 import
+	// 日志写入层（platform/log/writer）—— 落点属于装配层的决定。
+	installCallReporter(infra)
+}
+
+// installCallReporter 把 ai 包的上报出口接到日志管道上。
+func installCallReporter(infra *Infra) {
+	ai.SetCallReporter(func(ctx context.Context, res ai.CallResult) {
+		errCode := ""
+		errMessage := ""
+		if res.Err != nil {
+			if code, ok := apperr.CodeOf(res.Err); ok {
+				errCode = string(code)
+			}
+			errMessage = res.Err.Error()
+		}
+		writer.EmitAICallLog(infra.LogOptions, writer.AICallLogInput{
+			Scene:            res.Meta.Scene,
+			Vendor:           res.Usage.Vendor,
+			Model:            res.Usage.Model,
+			Stream:           res.Stream,
+			Success:          res.Err == nil,
+			Attempts:         res.Usage.Attempts,
+			UsageAvailable:   res.Usage.Available,
+			PromptTokens:     res.Usage.PromptTokens,
+			CompletionTokens: res.Usage.CompletionTokens,
+			TotalTokens:      res.Usage.Total(),
+			CachedTokens:     res.Usage.CachedTokens,
+			ReasoningTokens:  res.Usage.ReasoningTokens,
+			LatencyMS:        res.Usage.Duration.Milliseconds(),
+			UserID:           res.Meta.UserID,
+			RequestID:        res.Meta.RequestID,
+			TraceID:          res.Meta.TraceID,
+			ErrorCode:        errCode,
+			ErrorMessage:     errMessage,
+		})
+	})
 }
 
 // aiSearcher 把 search 模块的用例适配成 AI 模块的搜索端口。

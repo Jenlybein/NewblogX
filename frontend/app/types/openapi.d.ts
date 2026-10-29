@@ -2025,6 +2025,45 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/data/ai-usage": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** AI token 用量趋势 */
+        get: {
+            parameters: {
+                query?: {
+                    /** @description 周期：today / week / month / year，默认 week */
+                    range?: string;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["myblogx_internal_kernel.Envelope-myblogx_internal_analytics_adapter_clickhouse_AIUsageSummary"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/data/article-year": {
         parameters: {
             query?: never;
@@ -2843,6 +2882,102 @@ export interface paths {
                     };
                     content: {
                         "application/json": components["schemas"]["myblogx_internal_kernel.Envelope-myblogx_internal_analytics_adapter_clickhouse_ActionAuditRecord"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/logs/ai": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** AI 调用日志列表 */
+        get: {
+            parameters: {
+                query?: {
+                    /** @description 每页条数 */
+                    limit?: number;
+                    /** @description 页码 */
+                    page?: number;
+                    /** @description 开始时间 */
+                    start_at?: string;
+                    /** @description 结束时间 */
+                    end_at?: string;
+                    /** @description 用户 ID */
+                    user_id?: string;
+                    /** @description 场景：scoring / metainfo / overwrite / diagnose / search_rewrite / search_answer */
+                    scene?: string;
+                    /** @description 供应商 */
+                    vendor?: string;
+                    /** @description 模型 */
+                    model?: string;
+                    /** @description 是否成功 */
+                    success?: boolean;
+                    /** @description 错误码 */
+                    error_code?: string;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["myblogx_internal_kernel.Envelope-myblogx_internal_kernel_ListData-myblogx_internal_analytics_adapter_clickhouse_AICallRecord"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/logs/ai/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** AI 调用日志详情 */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    /** @description 日志 ID */
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["myblogx_internal_kernel.Envelope-myblogx_internal_analytics_adapter_clickhouse_AICallRecord"];
                     };
                 };
             };
@@ -5465,6 +5600,59 @@ export interface components {
             paragraph?: number;
             quote?: string;
         };
+        "myblogx_internal_analytics_adapter_clickhouse.AICallRecord": {
+            attempts?: number;
+            cached_tokens?: number;
+            completion_tokens?: number;
+            env?: string;
+            error_code?: string;
+            error_message?: string;
+            event_id?: string;
+            event_name?: string;
+            extra_json?: string;
+            host?: string;
+            instance_id?: string;
+            latency_ms?: number;
+            level?: string;
+            message?: string;
+            model?: string;
+            prompt_tokens?: number;
+            reasoning_tokens?: number;
+            request_id?: string;
+            scene?: string;
+            service?: string;
+            stream?: number;
+            success?: number;
+            total_tokens?: number;
+            trace_id?: string;
+            ts?: string;
+            usage_available?: number;
+            user_id?: string;
+            vendor?: string;
+        };
+        "myblogx_internal_analytics_adapter_clickhouse.AIUsagePoint": {
+            /** @description Bucket 与 ClickHouse 的分桶键同构（2026-10-29 13:00:00），便于直接对账。 */
+            bucket?: string;
+            calls?: number;
+            completion_tokens?: number;
+            failures?: number;
+            /** @description Label 是给人看的短标签：13:00 / 10-29 / 2026-10。 */
+            label?: string;
+            prompt_tokens?: number;
+            total_tokens?: number;
+        };
+        "myblogx_internal_analytics_adapter_clickhouse.AIUsageSummary": {
+            /** @description Available=false 表示日志库没启用，前端应显示空态而不是一条零线。 */
+            available?: boolean;
+            calls?: number;
+            completion_tokens?: number;
+            failures?: number;
+            granularity?: string;
+            points?: components["schemas"]["myblogx_internal_analytics_adapter_clickhouse.AIUsagePoint"][];
+            prompt_tokens?: number;
+            range?: string;
+            total_tokens?: number;
+        };
         "myblogx_internal_analytics_adapter_clickhouse.ActionAuditRecord": {
             action_name?: string;
             env?: string;
@@ -5815,6 +6003,16 @@ export interface components {
             data?: components["schemas"]["internal_user_adapter_http.SetupStatusResponse"];
             msg?: string;
         };
+        "myblogx_internal_kernel.Envelope-myblogx_internal_analytics_adapter_clickhouse_AICallRecord": {
+            code?: number;
+            data?: components["schemas"]["myblogx_internal_analytics_adapter_clickhouse.AICallRecord"];
+            msg?: string;
+        };
+        "myblogx_internal_kernel.Envelope-myblogx_internal_analytics_adapter_clickhouse_AIUsageSummary": {
+            code?: number;
+            data?: components["schemas"]["myblogx_internal_analytics_adapter_clickhouse.AIUsageSummary"];
+            msg?: string;
+        };
         "myblogx_internal_kernel.Envelope-myblogx_internal_analytics_adapter_clickhouse_ActionAuditRecord": {
             code?: number;
             data?: components["schemas"]["myblogx_internal_analytics_adapter_clickhouse.ActionAuditRecord"];
@@ -5943,6 +6141,11 @@ export interface components {
         "myblogx_internal_kernel.Envelope-myblogx_internal_kernel_ListData-internal_user_adapter_http_AdminUserItemResponse": {
             code?: number;
             data?: components["schemas"]["myblogx_internal_kernel.ListData-internal_user_adapter_http_AdminUserItemResponse"];
+            msg?: string;
+        };
+        "myblogx_internal_kernel.Envelope-myblogx_internal_kernel_ListData-myblogx_internal_analytics_adapter_clickhouse_AICallRecord": {
+            code?: number;
+            data?: components["schemas"]["myblogx_internal_kernel.ListData-myblogx_internal_analytics_adapter_clickhouse_AICallRecord"];
             msg?: string;
         };
         "myblogx_internal_kernel.Envelope-myblogx_internal_kernel_ListData-myblogx_internal_analytics_adapter_clickhouse_ActionAuditRecord": {
@@ -6083,6 +6286,10 @@ export interface components {
         "myblogx_internal_kernel.ListData-internal_user_adapter_http_AdminUserItemResponse": {
             count?: number;
             list?: components["schemas"]["internal_user_adapter_http.AdminUserItemResponse"][];
+        };
+        "myblogx_internal_kernel.ListData-myblogx_internal_analytics_adapter_clickhouse_AICallRecord": {
+            count?: number;
+            list?: components["schemas"]["myblogx_internal_analytics_adapter_clickhouse.AICallRecord"][];
         };
         "myblogx_internal_kernel.ListData-myblogx_internal_analytics_adapter_clickhouse_ActionAuditRecord": {
             count?: number;

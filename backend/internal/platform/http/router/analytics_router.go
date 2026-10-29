@@ -33,6 +33,8 @@ func DataRouter(r *gin.RouterGroup, runtimeMw mw.Runtime) {
 	adminGroup.GET("sum", app.SumView)
 	adminGroup.GET("growth", mw.BindQuery[analyticshttp.GrowthDataRequest], app.GrowthDataView)
 	adminGroup.GET("article-year", app.ArticleYearDataView)
+	// AI token 用量趋势：首页「今日/本周/本月/本年」切换都走它。
+	adminGroup.GET("ai-usage", mw.BindQuery[analyticshttp.AIUsageRequest], app.AIUsageView)
 }
 
 // LogRouter 注册日志查询路由。
@@ -58,6 +60,10 @@ func LogRouter(r *gin.RouterGroup, runtimeMw mw.Runtime) {
 	group.GET("replay/:id", mw.BindUri[analyticshttp.IDRequest], app.ReplayEventDetailView)
 
 	group.GET("chain", mw.BindQuery[analyticshttp.ChainQueryRequest], app.ChainQueryView)
+
+	// AI 调用用量：场景 / 模型 / token 数 / 耗时 / 失败原因。
+	group.GET("ai", mw.BindQuery[analyticshttp.AICallListRequest], app.AICallListView)
+	group.GET("ai/:id", mw.BindUri[analyticshttp.IDRequest], app.AICallDetailView)
 
 	// 死信（DLQ）：看得见 + 补得上。重投是写操作，天然落在这个 admin 分组里。
 	group.GET("dead-letter", mw.BindQuery[analyticshttp.DeadLetterListRequest], app.DeadLetterListView)

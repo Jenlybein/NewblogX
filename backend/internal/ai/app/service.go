@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"myblogx/conf"
+	aipkg "myblogx/internal/ai"
 	"myblogx/internal/ai/diagnose"
 	"myblogx/internal/ai/domain"
 	"myblogx/internal/ai/metainfo"
@@ -88,6 +89,9 @@ func (s *Service) Metainfo(ctx context.Context, userID uint64, content string) (
 	if err != nil {
 		return nil, err
 	}
+	// 场景标签在这里打而不是在 handler：SearchLLM 一个请求里会连调
+	// rewrite 与 answer 两个用例，按端点打标会把两者混成一个。
+	ctx = aipkg.WithCallMeta(ctx, aipkg.CallMeta{Scene: aipkg.SceneMetainfo})
 	return metainfo.GenerateArticleMetainfo(ctx, s.catalog, s.rawLog, aiConf, userID, content)
 }
 
@@ -99,6 +103,7 @@ func (s *Service) RewriteStream(ctx context.Context, req overwrite.RewriteReques
 	if err != nil {
 		return nil, nil, err
 	}
+	ctx = aipkg.WithCallMeta(ctx, aipkg.CallMeta{Scene: aipkg.SceneOverwrite})
 	return overwrite.RewriteContentStream(ctx, aiConf, req)
 }
 
@@ -108,6 +113,7 @@ func (s *Service) Diagnose(ctx context.Context, req diagnose.DiagnoseRequest) (*
 	if err != nil {
 		return nil, err
 	}
+	ctx = aipkg.WithCallMeta(ctx, aipkg.CallMeta{Scene: aipkg.SceneDiagnose})
 	return diagnose.DiagnoseSelectedText(ctx, aiConf, req)
 }
 
@@ -123,6 +129,7 @@ func (s *Service) RewriteSearch(ctx context.Context, content string) (*aisearch.
 	if err != nil {
 		return nil, err
 	}
+	ctx = aipkg.WithCallMeta(ctx, aipkg.CallMeta{Scene: aipkg.SceneSearchRewrite})
 	return aisearch.RewriteArticleSearch(ctx, tags, aiConf, content)
 }
 
@@ -192,6 +199,7 @@ func (s *Service) StreamAnswer(ctx context.Context, question string, list []sear
 	if err != nil {
 		return nil, nil, err
 	}
+	ctx = aipkg.WithCallMeta(ctx, aipkg.CallMeta{Scene: aipkg.SceneSearchAnswer})
 	return aisearch.AnalyzeArticleSearchStream(ctx, aiConf, question, list)
 }
 
@@ -273,7 +281,9 @@ func (s *Service) Rescore(ctx context.Context, viewerID uint64, in RescoreInput)
 		content = strings.TrimSpace(article.Content)
 	}
 
-	scoreResp, err := scoring.ScoreArticleQuality(ctx, aiConf, scoring.ArticleScoreRequest{Title: title, Content: content})
+	scoreResp, err := scoring.ScoreArticleQuality(
+		aipkg.WithCallMeta(ctx, aipkg.CallMeta{Scene: aipkg.SceneScoring}), aiConf,
+		scoring.ArticleScoreRequest{Title: title, Content: content})
 	if err != nil {
 		return ScoreView{}, err
 	}
@@ -317,7 +327,10 @@ func (s *Service) EnsureScoreIfMissing(ctx context.Context, articleID uint64) er
 
 	title := strings.TrimSpace(article.Title)
 	content := strings.TrimSpace(article.Content)
-	scoreResp, err := scoring.ScoreArticleQuality(ctx, aiConf, scoring.ArticleScoreRequest{Title: title, Content: content})
+	// 这条 ctx 来自 outbox 中继而不是 HTTP 请求，所以日志里的 user_id 恒为 0 ——
+	// 后台看到"scoring + user_id=0"就表示这是异步补评分，不是某个用户在操作。
+	scoreCtx := aipkg.WithCallMeta(ctx, aipkg.CallMeta{Scene: aipkg.SceneScoring})
+	scoreResp, err := scoring.ScoreArticleQuality(scoreCtx, aiConf, scoring.ArticleScoreRequest{Title: title, Content: content})
 	if err != nil {
 		return err
 	}

@@ -327,3 +327,80 @@ func (h *Handler) ActionAuditDetailView(c *gin.Context) {
 	}
 	res.OkWithData(item, c)
 }
+
+// AICallListRequest 是 AI 调用日志列表的筛选条件。
+type AICallListRequest struct {
+	page.PageInfo
+	StartAt   string   `form:"start_at"`
+	EndAt     string   `form:"end_at"`
+	UserID    ctype.ID `form:"user_id"`
+	Scene     string   `form:"scene"`
+	Vendor    string   `form:"vendor"`
+	Model     string   `form:"model"`
+	Success   *bool    `form:"success"`
+	ErrorCode string   `form:"error_code"`
+}
+
+// AICallListView AI 调用日志列表（管理员）。
+// @Summary AI 调用日志列表
+// @Tags log
+// @Produce json
+// @Security BearerAuth
+// @Param limit query int false "每页条数"
+// @Param page query int false "页码"
+// @Param start_at query string false "开始时间"
+// @Param end_at query string false "结束时间"
+// @Param user_id query string false "用户 ID"
+// @Param scene query string false "场景：scoring / metainfo / overwrite / diagnose / search_rewrite / search_answer"
+// @Param vendor query string false "供应商"
+// @Param model query string false "模型"
+// @Param success query bool false "是否成功"
+// @Param error_code query string false "错误码"
+// @Success 200 {object} kernel.Envelope[kernel.ListData[clickhouse.AICallRecord]]
+// @Router /logs/ai [get]
+func (h *Handler) AICallListView(c *gin.Context) {
+	cr := middleware.GetBindQuery[AICallListRequest](c)
+	list, count, err := clickhouse.ListAICalls(h.logs, clickhouse.AICallQuery{
+		PageInfo: page.PageInfo{
+			Limit: cr.Limit,
+			Page:  cr.Page,
+		},
+		LogTimeRange: clickhouse.LogTimeRange{
+			StartAt: cr.StartAt,
+			EndAt:   cr.EndAt,
+		},
+		UserID:    cr.UserID,
+		Scene:     cr.Scene,
+		Vendor:    cr.Vendor,
+		Model:     cr.Model,
+		Success:   cr.Success,
+		ErrorCode: cr.ErrorCode,
+	})
+	if err != nil {
+		res.FailWithError(err, c)
+		return
+	}
+	res.OkWithList(list, int(count), c)
+}
+
+// AICallDetailView AI 调用日志详情（管理员）。
+// @Summary AI 调用日志详情
+// @Tags log
+// @Produce json
+// @Security BearerAuth
+// @Param id path string true "日志 ID"
+// @Success 200 {object} kernel.Envelope[clickhouse.AICallRecord]
+// @Router /logs/ai/{id} [get]
+func (h *Handler) AICallDetailView(c *gin.Context) {
+	cr := middleware.GetBindUri[IDRequest](c)
+	item, err := clickhouse.GetAICall(h.logs, cr.ID.Uint64())
+	if err != nil {
+		if err == sql.ErrNoRows {
+			res.FailWithMsg("AI 调用记录不存在", c)
+			return
+		}
+		res.FailWithError(err, c)
+		return
+	}
+	res.OkWithData(item, c)
+}

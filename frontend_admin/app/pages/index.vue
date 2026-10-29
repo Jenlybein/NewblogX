@@ -1,10 +1,15 @@
 <script setup lang="ts">
-import { NCard, NGrid, NGridItem, NList, NListItem, NSpace, NTag, NThing, useMessage } from 'naive-ui'
-import { getArticleReviewTasks, getArticleYearData, getDashboardSum, getGrowthData } from '~/services/admin'
-import type { ArticleReviewTaskItem, DateCountItem, SumResponseData } from '~/types/api'
+import { NCard, NGrid, NGridItem, NList, NListItem, NRadioButton, NRadioGroup, NSpace, NTag, NThing, useMessage } from 'naive-ui'
+import { getAIUsage, getArticleReviewTasks, getArticleYearData, getDashboardSum, getGrowthData } from '~/services/admin'
+import type { AIUsageResponseData, ArticleReviewTaskItem, DateCountItem, SumResponseData } from '~/types/api'
 import { formatDateTime, formatNumber } from '~/utils/format'
+import { shortTokens } from '~/utils/aiTokens'
+// 显式 import：components/admin/ 下的组件自动注册名是 AdminTokenChart，
+// 模板里写 <TokenChart /> 会静默不渲染（这坑线上踩过一次）。
+import AdminTokenChart from '~/components/admin/TokenChart.vue'
 
 type GrowthType = 1 | 2 | 3
+type AIUsageRange = 'today' | 'week' | 'month' | 'year'
 
 const message = useMessage()
 const loading = ref(false)
@@ -24,6 +29,37 @@ const growthSeries = ref<Array<{ type: GrowthType; title: string; note: string; 
 ])
 const yearArticles = ref<DateCountItem[]>([])
 const pendingReviews = ref<ArticleReviewTaskItem[]>([])
+
+// AI 用量：四个周期共用一套响应形状，只换 range。
+// available=false 表示日志库没启用 —— 那时要显示空态而不是一条零线，
+// 否则会被读成"今天完全没用 AI"。
+const aiRange = ref<AIUsageRange>('week')
+const aiUsage = ref<AIUsageResponseData>({
+  available: false,
+  range: 'week',
+  granularity: 'day',
+  prompt_tokens: 0,
+  completion_tokens: 0,
+  total_tokens: 0,
+  calls: 0,
+  failures: 0,
+  points: [],
+})
+
+const AI_RANGE_NOTES: Record<AIUsageRange, string> = {
+  today: '今天 0 点起，按小时统计',
+  week: '本周一起，按天统计',
+  month: '本月 1 日起，按天统计',
+  year: '今年 1 月起，按月统计',
+}
+
+const aiMetrics = computed(() => [
+  { label: '总 token', value: shortTokens(aiUsage.value.total_tokens) },
+  { label: '提示 token', value: shortTokens(aiUsage.value.prompt_tokens) },
+  { label: '补全 token', value: shortTokens(aiUsage.value.completion_tokens) },
+  { label: '调用次数', value: formatNumber(aiUsage.value.calls) },
+  { label: '失败次数', value: formatNumber(aiUsage.value.failures) },
+])
 
 const metrics = computed(() => [
   { label: '总流量', value: sum.value.flow_count, note: 'flow_count' },
@@ -58,13 +94,14 @@ function setGrowthData(series: Array<{ type: GrowthType; title: string; note: st
 
 async function refresh() {
   loading.value = true
-  const [sumResult, flowGrowthResult, articleGrowthResult, userGrowthResult, articleYearResult, reviewResult] = await Promise.allSettled([
+  const [sumResult, flowGrowthResult, articleGrowthResult, userGrowthResult, articleYearResult, reviewResult, aiUsageResult] = await Promise.allSettled([
     getDashboardSum(),
     getGrowthData(1),
     getGrowthData(2),
     getGrowthData(3),
     getArticleYearData(),
     getArticleReviewTasks({ page: 1, limit: 5, status: 'pending' }),
+    getAIUsage(aiRange.value),
   ])
 
   if (sumResult.status === 'fulfilled') sum.value = sumResult.value
@@ -77,12 +114,34 @@ async function refresh() {
   if (reviewResult.status === 'fulfilled') {
     pendingReviews.value = reviewResult.value.list.slice(0, 5)
   }
+  if (aiUsageResult.status === 'fulfilled') aiUsage.value = aiUsageResult.value
 
   if ([sumResult, flowGrowthResult, articleGrowthResult, userGrowthResult, articleYearResult, reviewResult].some(result => result.status === 'rejected')) {
     message.warning('部分数据暂时无法加载')
   }
   loading.value = false
 }
+
+/**
+ * 单独加载 AI 用量。
+ *
+ * 切换周期时只重发这一个请求，不整页 refresh：其它卡片与周期无关，
+ * 重新拉一遍只会让整个页面闪一下。
+ */
+async function loadAIUsage() {
+  try {
+    aiUsage.value = await getAIUsage(aiRange.value)
+  } catch {
+    message.error('AI 用量加载失败')
+  }
+}
+
+/** 切换周期：NRadioGroup 的 update:value 是 string，这里收窄成联合类型再拉数据。 */
+function onAIUsageRangeChange(value: string) {
+  aiRange.value = value as AIUsageRange
+  loadAIUsage()
+}
+
 
 onMounted(refresh)
 </script>
@@ -98,6 +157,32 @@ onMounted(refresh)
         </div>
       </NGridItem>
     </NGrid>
+
+    <NCard class="admin-card" title="AI token 消耗">
+      <template #header-extra>
+        <NRadioGroup :value="aiRange" size="small" @update:value="onAIUsageRangeChange">
+          <NRadioButton value="today">今日</NRadioButton>
+          <NRadioButton value="week">本周</NRadioButton>
+          <NRadioButton value="month">本月</NRadioButton>
+          <NRadioButton value="year">本年</NRadioButton>
+        </NRadioGroup>
+      </template>
+
+      <p class="muted m-0 mb-3 text-xs">
+        {{ AI_RANGE_NOTES[aiRange] }}<template v-if="aiUsage.available && aiUsage.calls > aiUsage.failures"> · 每次请求计一次调用，长文评分会分块多次调用</template>
+      </p>
+
+      <div v-if="!aiUsage.available" class="admin-empty">日志库未启用，暂无 AI 用量数据</div>
+      <div v-else>
+        <div class="mb-4 flex flex-wrap gap-8">
+          <div v-for="item in aiMetrics" :key="item.label">
+            <p class="muted m-0 text-xs">{{ item.label }}</p>
+            <p class="m-0 text-xl font-semibold tabular-nums">{{ item.value }}</p>
+          </div>
+        </div>
+        <AdminTokenChart :points="aiUsage.points" />
+      </div>
+    </NCard>
 
     <NGrid :cols="24" :x-gap="20" :y-gap="20" responsive="screen">
       <NGridItem v-for="series in growthSeries" :key="series.type" :span="8">

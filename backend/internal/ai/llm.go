@@ -48,6 +48,10 @@ func specFromConfig(aiConf conf.AI) (llm.ProviderSpec, error) {
 //
 // ctx 由调用方一路传进来：客户端断开时上游请求要能一起取消，否则一次点开
 // 又关掉的对话会让上游白跑满整个超时。
+//
+// 每次调用都会向日志管道上报一条用量记录（成功/失败都报）。两个早退分支
+// （未开启、没有启用的模型配置）不报：它们没有真正打到上游，记进去只会
+// 把"调用次数"这个指标污染成"用户点了多少次"。
 func Chat(ctx context.Context, aiConf conf.AI, msgList []Message) (string, error) {
 	if !aiConf.Enable {
 		return "", apperr.New(apperr.CodeAIServiceOff)
@@ -56,7 +60,9 @@ func Chat(ctx context.Context, aiConf conf.AI, msgList []Message) (string, error
 	if err != nil {
 		return "", err
 	}
-	return llm.Chat(ctx, llm.SharedFactory(), spec, msgList)
+	content, usage, err := llm.ChatDetailed(ctx, llm.SharedFactory(), spec, msgList)
+	reportCall(ctx, usage, err, false)
+	return content, err
 }
 
 // ChatStream 流式 AI 对话，返回内容通道与错误通道。
@@ -78,7 +84,11 @@ func ChatStream(ctx context.Context, aiConf conf.AI, msgList []Message) (chan st
 		close(errChan)
 		return contentChan, errChan
 	}
-	return llm.ChatStream(ctx, llm.SharedFactory(), spec, msgList)
+	// 用量只能在流的写协程退出前拿到（收尾帧里），所以走回调而不是返回值。
+	return llm.ChatStreamDetailed(ctx, llm.SharedFactory(), spec, msgList,
+		func(usage llm.CallUsage, streamErr error) {
+			reportCall(ctx, usage, streamErr, true)
+		})
 }
 
 // atoiOrZero 解析可选的数字字段；解析不了就当作"没填"。

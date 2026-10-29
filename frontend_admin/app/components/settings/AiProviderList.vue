@@ -4,6 +4,8 @@ import { NButton, NDataTable, NPopconfirm, NTag, useMessage } from 'naive-ui'
 import type { DataTableColumns } from 'naive-ui'
 import { enableAiProvider, getAiProviders, getAiVendors, removeAiProvider } from '~/services/admin'
 import type { AIProviderItem, VendorItem } from '~/types/api'
+// 同上：自动注册名是 `SettingsAiProviderForm`，模板里写 `<AiProviderForm />` 会解析失败。
+import AiProviderForm from '~/components/settings/AiProviderForm.vue'
 
 const message = useMessage()
 const loading = ref(false)

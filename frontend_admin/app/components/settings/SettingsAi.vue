@@ -2,6 +2,9 @@
 import { NAlert, NButton, NDivider, NForm, NFormItem, NInput, NInputNumber, NSpace, NSwitch, useMessage } from 'naive-ui'
 import { getAiRuntimeConfig, updateAiRuntimeConfig } from '~/services/admin'
 import type { AIRuntimeConfig } from '~/types/api'
+// 必须显式 import：components/ 下的子目录会带路径前缀注册成 `SettingsAiProviderList`，
+// 模板里写 `<AiProviderList />` 解析不到（不报错、不渲染，整块 UI 静默消失）。
+import AiProviderList from '~/components/settings/AiProviderList.vue'
 
 const message = useMessage()
 const loading = ref(false)

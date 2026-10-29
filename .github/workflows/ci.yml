@@ -214,6 +214,14 @@ jobs:
       - name: pnpm lint
         run: pnpm lint
 
+      # 模板里的自定义组件能不能解析到。这类缺陷 lint / vue-tsc / vitest 都看不见：
+      # components/settings/AiProviderList.vue 实际注册名是 SettingsAiProviderList，
+      # 组件里写 <AiProviderList /> 编译与类型都不报错，只在运行时 resolveComponent
+      # 失败 → 整块 UI 静默不渲染（线上「AI 模型配置」就这样消失过）。
+      # 依赖 pnpm install 触发的 nuxt prepare 生成 .nuxt/components.d.ts。
+      - name: 模板组件解析检查
+        run: pnpm check:components
+
   # ── 前端类型检查 ──────────────────────────────────────────────────
   frontend-typecheck:
     name: ${{ matrix.app }} (typecheck)

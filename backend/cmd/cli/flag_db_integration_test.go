@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"myblogx/internal/testkit/mysqlcontainer"
+	"myblogx/internal/testkit/schema"
 
 	"gorm.io/gorm"
 )
@@ -25,18 +26,28 @@ func TestFlagDB(t *testing.T) {
 	}
 
 	tables := listTables(t, db)
-	if len(tables) != 32 {
-		t.Fatalf("建出 %d 张表，期望 32：%v", len(tables), tables)
+	// 期望表数从 testkit/schema 推导，不写死数字。
+	//
+	// 以前写死 32：加了 ai_provider_models 之后这条直接红，而红的唯一含义是
+	// "有人忘了改这个数字" —— 断言本身不带信息，只消耗一次往返。真正的
+	// "两边结构是否一致"由 schema_sql_integration_test 逐列比对，这里只兜
+	// "schema.sql 被截断，一张表都没建出来"这种灾难。
+	if want := len(schema.Models(schema.All)); len(tables) != want {
+		t.Fatalf("建出 %d 张表，testkit/schema 注册了 %d 张：%v", len(tables), want, tables)
 	}
 
 	// 抽查几张"最容易漏"的表：它们要么只被某个模块用，要么是后来加的。
+	//
+	// runtime_site_config_models 已随配置分层改造删除（七段配置合并进
+	// runtime_config_models），不要再把它加回来。
 	for _, want := range []string{
 		"article_models",
 		"user_models",
 		"chat_session_models",
 		"cdc_dead_letter",
 		"outbox_event_models",
-		"runtime_site_config_models",
+		"runtime_config_models",
+		"ai_provider_models",
 	} {
 		if !contains(tables, want) {
 			t.Errorf("缺表 %s", want)

@@ -9,6 +9,9 @@ import (
 	"myblogx/internal/kernel/ctype"
 	"myblogx/internal/testkit/schema"
 	"myblogx/test/testutil"
+
+	"gorm.io/gorm"
+	"gorm.io/plugin/dbresolver"
 )
 
 func newProviderRepo(t *testing.T) *ProviderRepo {
@@ -139,5 +142,45 @@ func TestProviderRepo_FieldsRoundTrip(t *testing.T) {
 		if got.Fields[key] != want {
 			t.Fatalf("字段 %s = %q，期望 %q", key, got.Fields[key], want)
 		}
+	}
+}
+
+// TestProviderRepo_ListReadsPrimary 钉住"读完必须走主库"这条要求。
+//
+// 背景是一起真实事故：线上是 gorm dbresolver 读写分离，读请求默认落到从库。
+// 服务层每次写完都会 reload（Create/Update/Delete/Enable 都调），而从库是
+// **异步复制** —— 刚插入的那行在主库可见、从库还没有。于是 reload 读到空，
+// 把内存快照覆盖成空，此后没有任何路径再刷新它。现象是后台"添加配置成功"
+// 但列表一直空着，直到重启进程。
+//
+// 这里用两个独立的内存库模拟主从：sources 建表并写入，replicas 也建表但
+// 永远不写数据（等价于"复制还没追上"）。如果有人去掉 dbresolver.Write，
+// List 会走 replicas 读到 0 条，本用例立刻失败。
+func TestProviderRepo_ListReadsPrimary(t *testing.T) {
+	primary := testutil.SetupSQLite(t, &schema.AIProviderRow{})
+	replica := testutil.SetupSQLite(t, &schema.AIProviderRow{})
+
+	if err := primary.Use(dbresolver.Register(dbresolver.Config{
+		Sources:  []gorm.Dialector{primary.Dialector},
+		Replicas: []gorm.Dialector{replica.Dialector},
+		Policy:   dbresolver.RandomPolicy{},
+	})); err != nil {
+		t.Fatalf("注册读写分离失败: %v", err)
+	}
+
+	repo := NewProvider(primary)
+	ctx := context.Background()
+
+	item := domain.AIProvider{Name: "主库读", Vendor: "openai", Model: "gpt-4.1-mini"}
+	if err := repo.Create(ctx, &item); err != nil {
+		t.Fatalf("新增失败: %v", err)
+	}
+
+	list, err := repo.List(ctx)
+	if err != nil {
+		t.Fatalf("列表失败: %v", err)
+	}
+	if len(list) != 1 {
+		t.Fatalf("写完后立刻读到 %d 条，期望 1 条：List 走了从库，会被复制延迟坑掉", len(list))
 	}
 }

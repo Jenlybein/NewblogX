@@ -52,6 +52,9 @@ const (
 	KindLogin
 	KindCDC
 	KindReplay
+	// KindAICall 是 AI 模型调用记录（场景、模型、token 用量、耗时）。
+	// 只能追加在末尾：已有值被写进了历史日志的 log_kind 字段，改值会让旧数据错位。
+	KindAICall
 )
 
 // String 返回可读分类名，直接用作 JSON 字段值。
@@ -69,6 +72,8 @@ func (k Kind) String() string {
 		return "cdc"
 	case KindReplay:
 		return "replay"
+	case KindAICall:
+		return "ai_call"
 	default:
 		return "unknown"
 	}

@@ -290,6 +290,22 @@ func TestIntegrationEventStructsMatchTableColumns(t *testing.T) {
 			RetryCount:  1,
 			Result:      "success",
 		}}},
+		{"ai_call_logs", []any{AICallEvent{
+			baseEvent:        fullBaseEventForTest(),
+			Scene:            "scoring",
+			Vendor:           "openai",
+			Model:            "gpt-4o-mini",
+			Stream:           1,
+			Success:          1,
+			Attempts:         1,
+			PromptTokens:     120,
+			CompletionTokens: 40,
+			TotalTokens:      160,
+			CachedTokens:     16,
+			ReasoningTokens:  4,
+			UsageAvailable:   1,
+			LatencyMS:        830,
+		}}},
 	}
 
 	for _, c := range cases {

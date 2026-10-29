@@ -34,6 +34,13 @@ type Infra struct {
 	// Health 汇总后台组件状态，供 /health/ready 读取。
 	// 见 internal/platform/health 的包注释：它存在的理由是一次"组件死了但探针全绿"的线上事故。
 	Health *health.Registry
+
+	// LogOptions 是结构化日志管道的依赖（日志目录 + ClickHouse 连接）。
+	//
+	// 保存下来而不是让各模块自己再拼一份：AI 用量上报要用它，一旦这里和
+	// InitInfra 里构造的那份不一致（比如 ClickHouseEnable 忘了同步），
+	// 表现会是"日志写到一半不见了"，而不会报错。
+	LogOptions writer.Options
 }
 
 // InitInfra 初始化不依赖业务表的基础设施。
@@ -73,7 +80,7 @@ func InitInfra(cfg *conf.Config, configFile string, version string) (*Infra, err
 		logger.Errorf("初始化结构化日志文件失败: %v", err)
 	}
 
-	// 安装结构化日志管道：五类日志各一条有界队列。
+	// 安装结构化日志管道：每类日志各一条有界队列。
 	// 启用 ClickHouse 时直接写表、失败落本地 WAL；未启用时写每日文件
 	// （与改造前的落点完全一致，外部采集器无需调整）。
 	if err := writer.InitStructuredLog(writer.PipelineConfig{
@@ -103,6 +110,8 @@ func InitInfra(cfg *conf.Config, configFile string, version string) (*Infra, err
 		// 后台组件（river / image-ref / cron）在这里登记运行状态，
 		// 由 /health/ready 汇总暴露。没有它，组件死掉后进程仍是"健康"的。
 		Health: health.New(),
+		// 供 AI 用量上报复用同一份日志依赖。
+		LogOptions: logOptions,
 	}, nil
 }
 

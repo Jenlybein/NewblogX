@@ -65,6 +65,11 @@ export type ActionAuditRecord = RequiredSchema<"myblogx_internal_analytics_adapt
 
 export type LoginEventRecord = RequiredSchema<"myblogx_internal_analytics_adapter_clickhouse.LoginEventRecord">;
 
+export type AICallRecord = RequiredSchema<"myblogx_internal_analytics_adapter_clickhouse.AICallRecord">;
+
+/** AI token 用量趋势：四个周期共用同一形状，只有 points 的内容随粒度变。 */
+export type AIUsageResponseData = RequiredSchema<"myblogx_internal_analytics_adapter_clickhouse.AIUsageSummary">;
+
 export type CdcEventRecord = RequiredSchema<"myblogx_internal_analytics_adapter_clickhouse.CdcEventRecord">;
 
 export type AnyLogRecord = RuntimeLogRecord | ActionAuditRecord | LoginEventRecord | CdcEventRecord;

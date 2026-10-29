@@ -30,6 +30,7 @@ var logSubDirs = []string{
 	ActionAuditLogDirName,
 	CdcEventLogDirName,
 	ReplayEventLogDirName,
+	AICallLogDirName,
 }
 
 // CleanupExpiredLogs 删除早于保留窗口的日志日期目录，返回删除的目录总数。

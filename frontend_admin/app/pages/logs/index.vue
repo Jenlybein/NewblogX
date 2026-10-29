@@ -2,8 +2,8 @@
 /**
  * 日志中心。
  *
- * 五类日志共用一张表，按 kind 换列：
- *   运行日志 runtime / 审计 action / 登录 login / CDC 事件 cdc / 回放 replay
+ * 六类日志共用一张表，按 kind 换列：
+ *   运行日志 runtime / 审计 action / 登录 login / CDC 事件 cdc / 回放 replay / AI 调用 ai
  *
  * 为什么做成"一个页面一个 kind 切换"而不是五个页面：五者的交互完全一样
  * （分页 + 关键字），只有列不同。五个页面等于把同一段分页逻辑抄五遍。
@@ -17,8 +17,9 @@ import { getLogs, getReplayLogs } from '~/services/admin'
 import type { DataTableColumns } from 'naive-ui'
 import { formatDateTime } from '~/utils/format'
 import { replayResultTagType } from '~/utils/deadLetters'
+import { aiResultLabel, sceneLabel } from '~/utils/aiTokens'
 
-type LogKind = 'runtime' | 'action' | 'login' | 'cdc' | 'replay'
+type LogKind = 'runtime' | 'action' | 'login' | 'cdc' | 'replay' | 'ai'
 
 const PAGE_SIZE = 20
 
@@ -36,6 +37,7 @@ const kindOptions = [
   { label: '登录日志', value: 'login' },
   { label: 'CDC 事件', value: 'cdc' },
   { label: '回放日志', value: 'replay' },
+  { label: 'AI 调用', value: 'ai' },
 ]
 
 const kindHints: Record<LogKind, string> = {
@@ -44,6 +46,7 @@ const kindHints: Record<LogKind, string> = {
   login: '登录事件：来源 IP/归属地、UA、失败原因。',
   cdc: 'MySQL → ES 的同步事件：成功/重试/进死信。',
   replay: '死信重投的时间线：每次人工重投的结果（含跳过与不支持）。',
+  ai: '模型调用用量：场景、模型、token 数与耗时；失败会带错误原因。',
 }
 
 const levelTagType = (level: string) => {
@@ -127,6 +130,41 @@ const columnsByKind: Record<LogKind, DataTableColumns<LogRow>> = {
     },
     { title: 'CDC 任务', key: 'cdc_job_id', minWidth: 240 },
   ],
+  ai: [
+    {
+      title: '场景',
+      key: 'scene',
+      width: 120,
+      render: row => h(NTag, { size: 'small', bordered: false }, { default: () => sceneLabel(text(row, 'scene')) }),
+    },
+    {
+      title: '模型',
+      key: 'model',
+      minWidth: 220,
+      render: row => `${text(row, 'vendor') || '-'} / ${text(row, 'model') || '-'}`,
+    },
+    {
+      title: 'Token（提示/补全/合计）',
+      key: 'total_tokens',
+      width: 200,
+      // 上游没回用量时显示 "-" 而不是 0：0 会被读成"这个模型不要钱"。
+      render: row => (Number(row.usage_available) === 1
+        ? `${text(row, 'prompt_tokens')} / ${text(row, 'completion_tokens')} / ${text(row, 'total_tokens')}`
+        : '-'),
+    },
+    { title: '耗时(ms)', key: 'latency_ms', width: 100 },
+    {
+      title: '结果',
+      key: 'success',
+      width: 90,
+      render: row =>
+        h(
+          NTag,
+          { size: 'small', type: Number(row.success) === 1 ? 'success' : 'error' },
+          { default: () => aiResultLabel(Number(row.success)) },
+        ),
+    },
+  ],
 }
 
 const columns = computed<DataTableColumns<LogRow>>(() => [tsColumn, levelColumn, ...columnsByKind[kind.value], msgColumn])
@@ -153,6 +191,10 @@ async function fetchPage(query: { page: number; limit: number }): Promise<{ list
     }
     case 'login': {
       const data = await getLogs('login', query)
+      return { list: data.list as unknown as LogRow[], count: data.count }
+    }
+    case 'ai': {
+      const data = await getLogs('ai', query)
       return { list: data.list as unknown as LogRow[], count: data.count }
     }
     default: {

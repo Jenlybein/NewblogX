@@ -2221,6 +2221,160 @@
                 },
                 "type": "object"
             },
+            "myblogx_internal_analytics_adapter_clickhouse.AICallRecord": {
+                "properties": {
+                    "attempts": {
+                        "type": "integer"
+                    },
+                    "cached_tokens": {
+                        "type": "integer"
+                    },
+                    "completion_tokens": {
+                        "type": "integer"
+                    },
+                    "env": {
+                        "type": "string"
+                    },
+                    "error_code": {
+                        "type": "string"
+                    },
+                    "error_message": {
+                        "type": "string"
+                    },
+                    "event_id": {
+                        "type": "string"
+                    },
+                    "event_name": {
+                        "type": "string"
+                    },
+                    "extra_json": {
+                        "type": "string"
+                    },
+                    "host": {
+                        "type": "string"
+                    },
+                    "instance_id": {
+                        "type": "string"
+                    },
+                    "latency_ms": {
+                        "type": "integer"
+                    },
+                    "level": {
+                        "type": "string"
+                    },
+                    "message": {
+                        "type": "string"
+                    },
+                    "model": {
+                        "type": "string"
+                    },
+                    "prompt_tokens": {
+                        "type": "integer"
+                    },
+                    "reasoning_tokens": {
+                        "type": "integer"
+                    },
+                    "request_id": {
+                        "type": "string"
+                    },
+                    "scene": {
+                        "type": "string"
+                    },
+                    "service": {
+                        "type": "string"
+                    },
+                    "stream": {
+                        "type": "integer"
+                    },
+                    "success": {
+                        "type": "integer"
+                    },
+                    "total_tokens": {
+                        "type": "integer"
+                    },
+                    "trace_id": {
+                        "type": "string"
+                    },
+                    "ts": {
+                        "type": "string"
+                    },
+                    "usage_available": {
+                        "type": "integer"
+                    },
+                    "user_id": {
+                        "type": "string"
+                    },
+                    "vendor": {
+                        "type": "string"
+                    }
+                },
+                "type": "object"
+            },
+            "myblogx_internal_analytics_adapter_clickhouse.AIUsagePoint": {
+                "properties": {
+                    "bucket": {
+                        "description": "Bucket 与 ClickHouse 的分桶键同构（2026-10-29 13:00:00），便于直接对账。",
+                        "type": "string"
+                    },
+                    "calls": {
+                        "type": "integer"
+                    },
+                    "completion_tokens": {
+                        "type": "integer"
+                    },
+                    "failures": {
+                        "type": "integer"
+                    },
+                    "label": {
+                        "description": "Label 是给人看的短标签：13:00 / 10-29 / 2026-10。",
+                        "type": "string"
+                    },
+                    "prompt_tokens": {
+                        "type": "integer"
+                    },
+                    "total_tokens": {
+                        "type": "integer"
+                    }
+                },
+                "type": "object"
+            },
+            "myblogx_internal_analytics_adapter_clickhouse.AIUsageSummary": {
+                "properties": {
+                    "available": {
+                        "description": "Available=false 表示日志库没启用，前端应显示空态而不是一条零线。",
+                        "type": "boolean"
+                    },
+                    "calls": {
+                        "type": "integer"
+                    },
+                    "completion_tokens": {
+                        "type": "integer"
+                    },
+                    "failures": {
+                        "type": "integer"
+                    },
+                    "granularity": {
+                        "type": "string"
+                    },
+                    "points": {
+                        "items": {
+                            "$ref": "#/components/schemas/myblogx_internal_analytics_adapter_clickhouse.AIUsagePoint"
+                        },
+                        "type": "array",
+                        "uniqueItems": false
+                    },
+                    "prompt_tokens": {
+                        "type": "integer"
+                    },
+                    "range": {
+                        "type": "string"
+                    },
+                    "total_tokens": {
+                        "type": "integer"
+                    }
+                },
+                "type": "object"
+            },
             "myblogx_internal_analytics_adapter_clickhouse.ActionAuditRecord": {
                 "properties": {
                     "action_name": {
@@ -3259,6 +3413,34 @@
                 },
                 "type": "object"
             },
+            "myblogx_internal_kernel.Envelope-myblogx_internal_analytics_adapter_clickhouse_AICallRecord": {
+                "properties": {
+                    "code": {
+                        "type": "integer"
+                    },
+                    "data": {
+                        "$ref": "#/components/schemas/myblogx_internal_analytics_adapter_clickhouse.AICallRecord"
+                    },
+                    "msg": {
+                        "type": "string"
+                    }
+                },
+                "type": "object"
+            },
+            "myblogx_internal_kernel.Envelope-myblogx_internal_analytics_adapter_clickhouse_AIUsageSummary": {
+                "properties": {
+                    "code": {
+                        "type": "integer"
+                    },
+                    "data": {
+                        "$ref": "#/components/schemas/myblogx_internal_analytics_adapter_clickhouse.AIUsageSummary"
+                    },
+                    "msg": {
+                        "type": "string"
+                    }
+                },
+                "type": "object"
+            },
             "myblogx_internal_kernel.Envelope-myblogx_internal_analytics_adapter_clickhouse_ActionAuditRecord": {
                 "properties": {
                     "code": {
@@ -3616,6 +3798,20 @@
                     },
                     "data": {
                         "$ref": "#/components/schemas/myblogx_internal_kernel.ListData-internal_user_adapter_http_AdminUserItemResponse"
+                    },
+                    "msg": {
+                        "type": "string"
+                    }
+                },
+                "type": "object"
+            },
+            "myblogx_internal_kernel.Envelope-myblogx_internal_kernel_ListData-myblogx_internal_analytics_adapter_clickhouse_AICallRecord": {
+                "properties": {
+                    "code": {
+                        "type": "integer"
+                    },
+                    "data": {
+                        "$ref": "#/components/schemas/myblogx_internal_kernel.ListData-myblogx_internal_analytics_adapter_clickhouse_AICallRecord"
                     },
                     "msg": {
                         "type": "string"
@@ -4084,6 +4280,21 @@
                     "list": {
                         "items": {
                             "$ref": "#/components/schemas/internal_user_adapter_http.AdminUserItemResponse"
+                        },
+                        "type": "array",
+                        "uniqueItems": false
+                    }
+                },
+                "type": "object"
+            },
+            "myblogx_internal_kernel.ListData-myblogx_internal_analytics_adapter_clickhouse_AICallRecord": {
+                "properties": {
+                    "count": {
+                        "type": "integer"
+                    },
+                    "list": {
+                        "items": {
+                            "$ref": "#/components/schemas/myblogx_internal_analytics_adapter_clickhouse.AICallRecord"
                         },
                         "type": "array",
                         "uniqueItems": false
@@ -6617,6 +6828,41 @@
                 ]
             }
         },
+        "/data/ai-usage": {
+            "get": {
+                "parameters": [
+                    {
+                        "description": "周期：today / week / month / year，默认 week",
+                        "in": "query",
+                        "name": "range",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/myblogx_internal_kernel.Envelope-myblogx_internal_analytics_adapter_clickhouse_AIUsageSummary"
+                                }
+                            }
+                        },
+                        "description": "OK"
+                    }
+                },
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "summary": "AI token 用量趋势",
+                "tags": [
+                    "data"
+                ]
+            }
+        },
         "/data/article-year": {
             "get": {
                 "responses": {
@@ -7476,6 +7722,149 @@
                     }
                 ],
                 "summary": "操作审计日志详情",
+                "tags": [
+                    "log"
+                ]
+            }
+        },
+        "/logs/ai": {
+            "get": {
+                "parameters": [
+                    {
+                        "description": "每页条数",
+                        "in": "query",
+                        "name": "limit",
+                        "schema": {
+                            "type": "integer"
+                        }
+                    },
+                    {
+                        "description": "页码",
+                        "in": "query",
+                        "name": "page",
+                        "schema": {
+                            "type": "integer"
+                        }
+                    },
+                    {
+                        "description": "开始时间",
+                        "in": "query",
+                        "name": "start_at",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "description": "结束时间",
+                        "in": "query",
+                        "name": "end_at",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "description": "用户 ID",
+                        "in": "query",
+                        "name": "user_id",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "description": "场景：scoring / metainfo / overwrite / diagnose / search_rewrite / search_answer",
+                        "in": "query",
+                        "name": "scene",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "description": "供应商",
+                        "in": "query",
+                        "name": "vendor",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "description": "模型",
+                        "in": "query",
+                        "name": "model",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "description": "是否成功",
+                        "in": "query",
+                        "name": "success",
+                        "schema": {
+                            "type": "boolean"
+                        }
+                    },
+                    {
+                        "description": "错误码",
+                        "in": "query",
+                        "name": "error_code",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/myblogx_internal_kernel.Envelope-myblogx_internal_kernel_ListData-myblogx_internal_analytics_adapter_clickhouse_AICallRecord"
+                                }
+                            }
+                        },
+                        "description": "OK"
+                    }
+                },
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "summary": "AI 调用日志列表",
+                "tags": [
+                    "log"
+                ]
+            }
+        },
+        "/logs/ai/{id}": {
+            "get": {
+                "parameters": [
+                    {
+                        "description": "日志 ID",
+                        "in": "path",
+                        "name": "id",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/myblogx_internal_kernel.Envelope-myblogx_internal_analytics_adapter_clickhouse_AICallRecord"
+                                }
+                            }
+                        },
+                        "description": "OK"
+                    }
+                },
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "summary": "AI 调用日志详情",
                 "tags": [
                     "log"
                 ]

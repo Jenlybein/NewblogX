@@ -2,8 +2,11 @@
 package http
 
 import (
+	"context"
+
 	"github.com/gin-gonic/gin"
 
+	"myblogx/internal/ai"
 	"myblogx/internal/ai/app"
 	"myblogx/internal/ai/diagnose"
 	"myblogx/internal/ai/overwrite"
@@ -11,6 +14,7 @@ import (
 	"myblogx/internal/kernel/ctype"
 	"myblogx/internal/platform/http/res"
 	"myblogx/utils/jwts"
+	"myblogx/utils/requestmeta"
 	// 供 swag 注解里的 kernel.Envelope 解析用（代码里不直接引用）。
 	_ "myblogx/internal/kernel"
 
@@ -41,6 +45,18 @@ func userID(c *gin.Context) uint64 {
 	return claims.UserID.Uint64()
 }
 
+// callCtx 给下游补上"谁在用 AI"。
+//
+// 场景标签由 app.Service 打（那里才知道具体是哪个用例），这里只补调用方身份
+// 与链路 ID —— handler 是唯一同时知道登录态和请求 ID 的地方。
+func callCtx(c *gin.Context) context.Context {
+	return ai.WithCallMeta(c.Request.Context(), ai.CallMeta{
+		UserID:    ctype.NewID(userID(c)),
+		RequestID: requestmeta.GetRequestID(c),
+		TraceID:   requestmeta.GetTraceID(c),
+	})
+}
+
 // prepareSSE 设置 SSE 响应头。
 func prepareSSE(c *gin.Context) {
 	c.Writer.Header().Set("Content-Type", "text/event-stream")
@@ -68,7 +84,7 @@ func (h *Handler) Scoring(c *gin.Context) {
 		return
 	}
 	articleID := cr.ArticleID.Uint64()
-	ctx := c.Request.Context()
+	ctx := callCtx(c)
 
 	switch cr.Type {
 	case 1:
@@ -140,7 +156,7 @@ func (h *Handler) MetaInfo(c *gin.Context) {
 	if !ok {
 		return
 	}
-	data, err := h.svc.Metainfo(c.Request.Context(), userID(c), cr.Content)
+	data, err := h.svc.Metainfo(callCtx(c), userID(c), cr.Content)
 	if err != nil {
 		res.FailWithMsg(err.Error(), c)
 		return
@@ -164,7 +180,7 @@ func (h *Handler) Overwrite(c *gin.Context) {
 	}
 	prepareSSE(c)
 
-	contentChan, errChan, err := h.svc.RewriteStream(c.Request.Context(), overwrite.RewriteRequest{
+	contentChan, errChan, err := h.svc.RewriteStream(callCtx(c), overwrite.RewriteRequest{
 		Mode:          cr.Mode,
 		SelectionText: cr.SelectionText,
 		PrefixText:    cr.PrefixText,
@@ -195,7 +211,7 @@ func (h *Handler) Diagnose(c *gin.Context) {
 	}
 	prepareSSE(c)
 
-	data, err := h.svc.Diagnose(c.Request.Context(), diagnose.DiagnoseRequest{
+	data, err := h.svc.Diagnose(callCtx(c), diagnose.DiagnoseRequest{
 		SelectionText: cr.SelectionText,
 		PrefixText:    cr.PrefixText,
 		SuffixText:    cr.SuffixText,
@@ -222,7 +238,7 @@ func (h *Handler) SearchList(c *gin.Context) {
 	if !ok {
 		return
 	}
-	ctx := c.Request.Context()
+	ctx := callCtx(c)
 	rewrite, err := h.svc.RewriteSearch(ctx, cr.Content)
 	if err != nil {
 		res.FailWithMsg(err.Error(), c)
@@ -255,7 +271,7 @@ func (h *Handler) SearchLLM(c *gin.Context) {
 		return
 	}
 	prepareSSE(c)
-	ctx := c.Request.Context()
+	ctx := callCtx(c)
 
 	rewrite, err := h.svc.RewriteSearch(ctx, cr.Content)
 	if err != nil {
@@ -271,7 +287,7 @@ func (h *Handler) SearchLLM(c *gin.Context) {
 		res.SSEFail(err.Error(), c)
 		return
 	}
-	contentChan, errChan, err := h.svc.StreamAnswer(c.Request.Context(), cr.Content, result.List)
+	contentChan, errChan, err := h.svc.StreamAnswer(callCtx(c), cr.Content, result.List)
 	if err != nil {
 		res.SSEFail(err.Error(), c)
 		return

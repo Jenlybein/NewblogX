@@ -35,73 +35,135 @@ func SharedFactory() *Factory {
 }
 
 // Chat 用给定配置发一次非流式对话，返回回复正文。
+//
+// 需要 token 用量的调用方用 ChatDetailed；这里保留原签名是为了不牵动
+// 上层与既有单测（llm_test.go 的 11 个用例）。
 func Chat(ctx context.Context, factory *Factory, spec ProviderSpec, msgList []Message) (string, error) {
+	content, _, err := ChatDetailed(ctx, factory, spec, msgList)
+	return content, err
+}
+
+// ChatDetailed 在 Chat 之上把用量与耗时一起带出。
+//
+// 用命名返回值 + defer 算 Duration：这函数有 5 个 return 点，逐个填迟早漏
+// 一个，漏了就是"耗时恒为 0"的脏数据，而且不会报错。
+func ChatDetailed(ctx context.Context, factory *Factory, spec ProviderSpec, msgList []Message) (content string, usage CallUsage, err error) {
+	usage.Model = spec.Model
+	usage.Vendor = spec.vendor()
+	started := time.Now()
+	defer func() { usage.Duration = time.Since(started) }()
+
 	if len(msgList) == 0 {
-		return "", apperr.New(apperr.CodeAIMessageEmpty)
+		return "", usage, apperr.New(apperr.CodeAIMessageEmpty)
 	}
-	chatModel, err := factory.ChatModel(ctx, spec)
-	if err != nil {
-		return "", err
+	chatModel, buildErr := factory.ChatModel(ctx, spec)
+	if buildErr != nil {
+		return "", usage, buildErr
 	}
 
 	var lastErr error
 	for attempt := 0; attempt <= defaultMaxRetries; attempt++ {
-		reply, err := chatModel.Generate(ctx, toSchemaMessages(msgList))
-		if err == nil {
+		usage.Attempts++
+		reply, genErr := chatModel.Generate(ctx, toSchemaMessages(msgList))
+		if genErr == nil {
+			// 先取用量再判空正文：空回复也是真花了 token 的，
+			// 先判空会把这一次的用量连同错误一起丢掉。
+			usage.mergeMessage(reply)
 			if reply == nil || strings.TrimSpace(reply.Content) == "" {
-				return "", apperr.New(apperr.CodeAIReplyEmpty)
+				return "", usage, apperr.New(apperr.CodeAIReplyEmpty)
 			}
-			return reply.Content, nil
+			return reply.Content, usage, nil
 		}
-		lastErr = err
+		lastErr = genErr
 
 		// 调用方取消 / 超时：不重试，直接返回上下文错误。
 		if ctxErr := ctx.Err(); ctxErr != nil {
-			return "", ctxErr
+			return "", usage, ctxErr
 		}
-		if !retryable(err) || attempt == defaultMaxRetries {
-			return "", wrapModelError(err)
+		if !retryable(genErr) || attempt == defaultMaxRetries {
+			return "", usage, wrapModelError(genErr)
 		}
 		if waitErr := sleepBackoff(ctx, attempt); waitErr != nil {
-			return "", waitErr
+			return "", usage, waitErr
 		}
 	}
-	return "", wrapModelError(lastErr)
+	return "", usage, wrapModelError(lastErr)
 }
 
 // ChatStream 发送流式对话，返回内容通道与错误通道。
 //
 // channel 契约与改造前一致（内容通道关闭即结束），所以上层 SSE 转发不用改。
-// 读取协程经 safego 启动：R7 规则因此不会把它算作裸 goroutine。
+// 需要 token 用量的调用方用 ChatStreamDetailed。
 func ChatStream(ctx context.Context, factory *Factory, spec ProviderSpec, msgList []Message) (chan string, chan error) {
+	return ChatStreamDetailed(ctx, factory, spec, msgList, nil)
+}
+
+// ChatStreamDetailed 与 ChatStream 行为一致，只在写协程退出前回调一次用量。
+//
+// 为什么用回调而不是多开一条 usage channel：channel 多一条就多一条"必须有人读"
+// 的契约，没人读时发送方要么阻塞泄漏、要么得加缓冲 + 非阻塞发送而丢数据；
+// 想稳妥还得再起一个读协程去 drain。回调只跑一次、在写协程退出路径上，
+// 天然不存在泄漏，也不需要调用方改 channel 消费逻辑。
+//
+// onDone 必须 O(1) 且不阻塞：它会被日志发射器直接调用（入队即返回）。
+func ChatStreamDetailed(ctx context.Context, factory *Factory, spec ProviderSpec, msgList []Message, onDone func(CallUsage, error)) (chan string, chan error) {
 	contentChan := make(chan string)
 	errChan := make(chan error, 1) // 带缓冲，防止 goroutine 阻塞
 
+	usage := CallUsage{Model: spec.Model, Vendor: spec.vendor()}
+	started := time.Now()
+
+	// 读取协程经 safego 启动：R7 规则因此不会把它算作裸 goroutine。
 	safego.Go(nil, func() {
+		// finalErr 是这次流式调用的终态，回调据此判定成功/失败。
+		var finalErr error
+		// defer 是 LIFO，这里注册顺序与执行顺序相反，最终执行序为：
+		//   回调 → close(errChan) → close(contentChan)
+		//
+		// 回调必须在关通道**之前**：调用方（drainStream / 单测）是用
+		// `for range contentChan` 判断结束的，一旦读到通道关闭就去看用量，
+		// 若回调排在后面，那时用量还是零值 —— 这是只有 -race 才稳定暴露的竞态。
+		//
+		// 反过来，回调 panic 也不会让下游卡死：defer 链在 panic 展开时仍会
+		// 继续执行，close 照常发生，最后由 safego 收掉 panic。
 		defer close(contentChan)
 		defer close(errChan)
+		defer func() {
+			usage.Duration = time.Since(started)
+			if onDone != nil {
+				onDone(usage, finalErr)
+			}
+		}()
+
+		// fail 记下终态并上报。errChan 容量 1 且每条路径最多 fail 一次，不会阻塞。
+		fail := func(e error) {
+			finalErr = e
+			errChan <- e
+		}
 
 		if len(msgList) == 0 {
-			errChan <- apperr.New(apperr.CodeAIMessageEmpty)
+			fail(apperr.New(apperr.CodeAIMessageEmpty))
 			return
 		}
 
 		chatModel, err := factory.ChatModel(ctx, spec)
 		if err != nil {
-			errChan <- err
+			fail(err)
 			return
 		}
 
 		stream, err := chatModel.Stream(ctx, toSchemaMessages(msgList))
 		if err != nil {
 			if ctxErr := ctx.Err(); ctxErr != nil {
-				errChan <- ctxErr
+				fail(ctxErr)
 				return
 			}
-			errChan <- wrapModelError(err)
+			fail(wrapModelError(err))
 			return
 		}
 		defer stream.Close()
+
+		usage.Attempts = 1
 
 		for {
 			chunk, recvErr := stream.Recv()
@@ -110,19 +172,26 @@ func ChatStream(ctx context.Context, factory *Factory, spec ProviderSpec, msgLis
 			}
 			if recvErr != nil {
 				if ctxErr := ctx.Err(); ctxErr != nil {
-					errChan <- ctxErr
+					fail(ctxErr)
 					return
 				}
-				errChan <- wrapModelError(recvErr)
+				fail(wrapModelError(recvErr))
 				return
 			}
-			if chunk == nil || chunk.Content == "" {
+			if chunk == nil {
+				continue
+			}
+			// 必须先取用量再判空正文：OpenAI 系（含 deepseek / ark / qwen 等
+			// 走同一组件的供应商）的收尾帧就是"Content 为空、只挂
+			// ResponseMeta.Usage"，先判空正好把它扔掉 —— 改造前就是这么丢的。
+			usage.mergeMessage(chunk)
+			if chunk.Content == "" {
 				continue
 			}
 			select {
 			case contentChan <- chunk.Content:
 			case <-ctx.Done():
-				errChan <- ctx.Err()
+				fail(ctx.Err())
 				return
 			}
 		}

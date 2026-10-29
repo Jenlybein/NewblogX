@@ -1,4 +1,6 @@
 import type {
+  AICallRecord,
+  AIUsageResponseData,
   AIRuntimeConfig,
   AIProviderItem,
   AIProviderPayload,
@@ -196,14 +198,20 @@ export function deleteGlobalNotifications(id_list: string[]) {
   return api().request<unknown, { id_list: string[] }>('/global_notif', { method: 'DELETE', body: { id_list } })
 }
 
-export type LogKind = 'runtime' | 'action' | 'login' | 'cdc'
+export type LogKind = 'runtime' | 'action' | 'login' | 'cdc' | 'ai'
 
 export function getLogs(kind: 'runtime', query: Record<string, unknown>): Promise<ListData<RuntimeLogRecord>>
 export function getLogs(kind: 'action', query: Record<string, unknown>): Promise<ListData<ActionAuditRecord>>
 export function getLogs(kind: 'login', query: Record<string, unknown>): Promise<ListData<LoginEventRecord>>
 export function getLogs(kind: 'cdc', query: Record<string, unknown>): Promise<ListData<CdcEventRecord>>
+export function getLogs(kind: 'ai', query: Record<string, unknown>): Promise<ListData<AICallRecord>>
 export function getLogs(kind: LogKind, query: Record<string, unknown>) {
   return api().request(`/logs/${kind}`, { query })
+}
+
+/** AI token 用量趋势：今日/本周/本月/本年共用这一个接口，只换 range。 */
+export function getAIUsage(range: 'today' | 'week' | 'month' | 'year') {
+  return api().request<AIUsageResponseData>('/data/ai-usage', { query: { range } })
 }
 
 // ── 死信（DLQ）与回放日志 ─────────────────────────────────────

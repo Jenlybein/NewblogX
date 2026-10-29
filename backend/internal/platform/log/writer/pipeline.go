@@ -14,7 +14,11 @@ import (
 )
 
 // kindCount 是平台日志类别的数量（Kind 是 0 起始的紧凑枚举）。
-const kindCount = 6
+//
+// 加新类别时必须同步改这里：emitters 是按 Kind 寻址的定长数组，
+// int(kind) >= kindCount 时 pipeline.emit 会直接丢弃（不报错、不记数），
+// 表现为"日志代码跑了但一条都没有"。
+const kindCount = 7
 
 // route 描述一类日志的落点：本地文件目录名与 ClickHouse 表名。
 // 两者同名是刻意的——排查时不必在两套命名之间来回翻译。
@@ -24,7 +28,7 @@ type route struct {
 	table string
 }
 
-// routes 是五类结构化日志的落点；emitters 按 Kind 直接寻址。
+// routes 是六类结构化日志的落点；emitters 按 Kind 直接寻址。
 // 用切片而不是定长数组：Kind 枚举里有一个 KindAccess 目前没有对应表，
 // 数组会留下一个零值坑（表名为空），切片则只列出真实存在的类别。
 var routes = []route{
@@ -33,6 +37,7 @@ var routes = []route{
 	{platformlog.KindLogin, LoginEventLogDirName, LoginEventLogTableName},
 	{platformlog.KindCDC, CdcEventLogDirName, CdcEventLogTableName},
 	{platformlog.KindReplay, ReplayEventLogDirName, ReplayEventLogTableName},
+	{platformlog.KindAICall, AICallLogDirName, AICallLogTableName},
 }
 
 // PipelineConfig 是结构化日志管道的构造参数。

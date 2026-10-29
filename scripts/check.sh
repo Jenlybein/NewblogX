@@ -301,6 +301,13 @@ if [ "$TARGET" = "all" ] || [ "$TARGET" = "frontend" ]; then
       cd "$app"
       # .nuxt 是生成产物，typecheck / lint 都依赖它先存在
       run_prepare "$app: nuxt prepare" corepack pnpm exec nuxt prepare
+      # 模板里的自定义组件能不能解析到。
+      #
+      # 这类缺陷 lint / vue-tsc / vitest 全都看不见：`<AiProviderList />` 在
+      # components/settings/ 下实际注册成 `SettingsAiProviderList`，编译不报错、
+      # 类型不报错，只在运行时 resolveComponent 失败 —— 整块 UI 静默不渲染。
+      # 线上「AI 模型配置」含「添加配置」按钮凭空消失就是这个原因。
+      run "$app: 组件解析"       corepack pnpm check:components
       run "$app: lint"         corepack pnpm lint
       run "$app: typecheck"    corepack pnpm typecheck
       run "$app: test"         corepack pnpm test

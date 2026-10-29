@@ -17,7 +17,8 @@
     "openapi:types": "openapi-typescript ../backend/docs/swagger.json -o app/types/openapi.d.ts",
     "postinstall": "nuxt prepare",
     "lint": "eslint .",
-    "lint:fix": "eslint . --fix"
+    "lint:fix": "eslint . --fix",
+    "check:components": "node ../scripts/check-components.mjs"
   },
   "dependencies": {
     "@css-render/vue3-ssr": "^0.15.14",

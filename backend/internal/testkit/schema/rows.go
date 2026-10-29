@@ -684,11 +684,11 @@ type OutboxRow = OutboxEventRow
 // ALTER 通道。
 type AIProviderRow struct {
 	BaseRow
-	Name    string `gorm:"type:varchar(64)" json:"name"`
-	Vendor  string `gorm:"type:varchar(32)" json:"vendor"`
-	Model   string `gorm:"type:varchar(128)" json:"model"`
+	Name    string `gorm:"type:varchar(64);not null" json:"name"`
+	Vendor  string `gorm:"type:varchar(32);not null" json:"vendor"`
+	Model   string `gorm:"type:varchar(128);not null" json:"model"`
 	Enabled bool   `gorm:"index" json:"enabled"`
-	Config  string `gorm:"type:longtext" json:"config"`
+	Config  string `gorm:"type:longtext;not null" json:"config"`
 }
 
 // TableName 固定表名。

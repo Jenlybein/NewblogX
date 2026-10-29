@@ -12,6 +12,7 @@ import (
 	"myblogx/internal/platform/idgen"
 
 	"gorm.io/gorm"
+	"gorm.io/plugin/dbresolver"
 )
 
 // aiProviderRow 对应 ai_provider_models 表。
@@ -23,11 +24,11 @@ type aiProviderRow struct {
 	CreatedAt time.Time
 	UpdatedAt time.Time
 	DeletedAt gorm.DeletedAt
-	Name      string `gorm:"type:varchar(64)"`
-	Vendor    string `gorm:"type:varchar(32)"`
-	Model     string `gorm:"type:varchar(128)"`
+	Name      string `gorm:"type:varchar(64);not null"`
+	Vendor    string `gorm:"type:varchar(32);not null"`
+	Model     string `gorm:"type:varchar(128);not null"`
 	Enabled   bool   `gorm:"index"`
-	Config    string `gorm:"type:longtext"`
+	Config    string `gorm:"type:longtext;not null"`
 }
 
 // TableName 固定表名。
@@ -44,9 +45,18 @@ var _ domain.AIProviderRepository = (*ProviderRepo)(nil)
 func NewProvider(db *gorm.DB) *ProviderRepo { return &ProviderRepo{db: db} }
 
 // List 实现 domain.AIProviderRepository。
+//
+// 必须钉主库（dbresolver.Write），不能走默认的从库：服务层"写完立刻 reload"
+// （Create/Update/Delete/Enable 都会调 reload），而从库是异步复制，刚插入的
+// 那行在主库可见、从库还没有。于是 reload 读到空列表，内存快照被写成空，
+// 且此后没有任何路径会再刷新它 —— 表现为后台"添加成功但列表一直空着"，
+// 直到重启进程。实测延迟窗口虽短，但 POST 后的 GET 恰好落在里面。
+//
+// 这张表是后台配置（个位数行），走主库没有压力；AI 调用读的是内存快照，
+// 根本不查库，所以这里钉主库不会给主库增加请求路径上的负载。
 func (r *ProviderRepo) List(ctx context.Context) ([]domain.AIProvider, error) {
 	var rows []aiProviderRow
-	if err := r.db.WithContext(ctx).Order("created_at asc").Find(&rows).Error; err != nil {
+	if err := r.db.Clauses(dbresolver.Write).WithContext(ctx).Order("created_at asc").Find(&rows).Error; err != nil {
 		return nil, err
 	}
 	out := make([]domain.AIProvider, 0, len(rows))
@@ -57,9 +67,11 @@ func (r *ProviderRepo) List(ctx context.Context) ([]domain.AIProvider, error) {
 }
 
 // Get 实现 domain.AIProviderRepository。
+//
+// 同样钉主库：它和 List 一样服务"改完立刻读回"的路径，走从库会读到旧值。
 func (r *ProviderRepo) Get(ctx context.Context, id ctype.ID) (domain.AIProvider, error) {
 	var row aiProviderRow
-	err := r.db.WithContext(ctx).Where("id = ?", id).Take(&row).Error
+	err := r.db.Clauses(dbresolver.Write).WithContext(ctx).Where("id = ?", id).Take(&row).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return domain.AIProvider{}, apperr.New(apperr.CodeAIProviderMissing)

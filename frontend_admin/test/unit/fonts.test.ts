@@ -3,7 +3,7 @@ import { join } from 'node:path'
 
 import { describe, expect, it } from 'vitest'
 
-import { buildNaiveThemeOverrides, parseRawPalette } from '../../app/utils/theme'
+import { buildNaiveThemeOverrides, parseThemePalette, parseThemeScale, parseThemeTriplets } from '../../app/utils/theme'
 
 // vitest 以 project root（frontend_admin/）为 cwd。
 const projectDir = process.cwd()
@@ -22,7 +22,11 @@ const readerTokensCss = readFileSync(
 )
 const readerFontsCss = readFileSync(join(repoRoot, 'frontend/app/assets/css/fonts.css'), 'utf8')
 
-const themeOverrides = buildNaiveThemeOverrides(parseRawPalette(tokensCss))
+const themeOverrides = buildNaiveThemeOverrides(
+  parseThemePalette(tokensCss, 'light'),
+  parseThemeTriplets(tokensCss, 'light'),
+  parseThemeScale(tokensCss),
+)
 
 const faces = [...fontsCss.matchAll(/@font-face\s*\{([^}]*)\}/gu)].map((match) => match[1].trim())
 

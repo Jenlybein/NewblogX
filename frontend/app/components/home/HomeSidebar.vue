@@ -67,7 +67,12 @@ const projectAbstract = computed(
 </script>
 
 <template>
-  <aside :class="sidebarClasses" :style="[sidebarStyle, revealStyle]" data-home-sidebar>
+  <aside
+    ref="revealTarget"
+    :class="sidebarClasses"
+    :style="[sidebarStyle, revealStyle]"
+    data-home-sidebar
+  >
     <section v-if="pending" class="blueprint-panel" data-home-section="sidebar-skeleton">
       <NSkeleton text width="96px" />
       <NSkeleton text class="mt-3" :repeat="2" />

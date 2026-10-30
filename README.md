@@ -300,45 +300,48 @@ AI 是**两层开关**，只开一层不生效：
 
 保存即生效（运行时配置现读，不用重启）。验证：后台「媒体运营」上传一张图，能显示且直链能打开就通了；文章封面 / 配图走同一条链路。
 
-#### 2.4.1 CDN 域名 HTTPS 与自动续期
+#### 2.4.1 七牛云域名配置 HTTPS
 
-HTTPS 读者站里的图片要求图片域名也是 HTTPS（否则会被 mixed content 拦掉），七牛回调地址也必须走 HTTPS，所以 CDN 域名最终要配证书。它 CNAME 到七牛，HTTP-01 的验证文件落不到你的服务器，只能用 **DNS-01**。仓库里带了推送脚本 `scripts/qiniu-cert-sync.sh`：第一次执行下面三步，之后续期全自动。
+注意，如果你的网站使用了 HTTPS ，那么图片链接就无法再使用 HTTP ，浏览器会强制升级使用 HTTPS（否则会被 mixed content 拦掉）。
+
+所以，七牛云的图片链接域名在这种情况下，最终要配证书。
+
+这次无法使用 HTTP-01 的方式来自动配置证书。（因为它 CNAME 到七牛，HTTP-01 的验证文件落不到你的服务器）
+
+只能用 **DNS-01** 方式：第一次执行下面三步，之后续期全自动（修改开头的变量，填入你的邮箱、七牛云获取的AK和SK、七牛云那么设置的第三方域名、：
 
 ```bash
+MYMAIL=你的邮箱
+MYDOMAIN=你七牛云设置的第三方域名
+MY_AK=七牛云获取的AK
+MY_SK=七牛云获取的SK
+
+
 # 0) 没装 acme.sh 先装（已装过跳过）
-curl https://get.acme.sh | sh -s email=you@example.com
+curl https://get.acme.sh | sh -s email=$MYMAIL
 
 # 1) DNS-01 签发；插件与 API 凭据见第十六章 16.5（示例用火山引擎，其它服务商换对应 --dns 插件）
-~/.acme.sh/acme.sh --issue --dns dns_volcengine -d image.example.com --keylength 2048
+~/.acme.sh/acme.sh --issue --dns dns_volcengine -d $MYDOMAIN --keylength 2048
 
 # 2) 凭据与证书路径放一个文件里（不进 git，权限 600）
 mkdir -p /etc/blogx/qiniu
 cat > /etc/blogx/qiniu/env <<'EOF'
-QINIU_AK=<七牛 AK>
-QINIU_SK=<七牛 SK>
-CDN_DOMAIN=image.example.com
+QINIU_AK=$MY_AK
+QINIU_SK=$MY_SK
+CDN_DOMAIN=$MYDOMAIN
 KEY_FILE=/etc/blogx/qiniu/image.key
 CHAIN_FILE=/etc/blogx/qiniu/image.pem
 EOF
 chmod 600 /etc/blogx/qiniu/env
 
 # 3) 落盘 + 立刻推给七牛并绑定；以后每次续期都会自动重跑这条 --reloadcmd
-~/.acme.sh/acme.sh --install-cert -d image.example.com \
+~/.acme.sh/acme.sh --install-cert -d $MYDOMAIN \
   --key-file       /etc/blogx/qiniu/image.key \
   --fullchain-file /etc/blogx/qiniu/image.pem \
   --reloadcmd      'set -a; . /etc/blogx/qiniu/env; bash /opt/blogx/scripts/qiniu-cert-sync.sh'
 ```
 
 路径里的 `/opt/blogx` 换成服务器上仓库的实际目录。
-
-**续期**：acme.sh 的 cron 每天检查，证书剩 30 天左右自动续期；续完执行上面的 `--reloadcmd` → 脚本重新上传证书 + `sslize` 绑定，全程无人值守。
-
-**验收**：等 5–10 分钟 CDN 生效后 `curl -sSI https://image.example.com/ | head -1`，再把后台「访问域名」改成 `https://image.example.com`。
-
-- 想手动重推一次：`set -a; . /etc/blogx/qiniu/env; bash /opt/blogx/scripts/qiniu-cert-sync.sh`。
-- 不想自建：控制台手动上传证书（一年一次），或用社区工具 CertBuddy。
-
-> 本地 / 无域名（http + IP）场景配七牛也能存图，但**七牛节点回调不到你的服务器**，上传会一直 pending——回调必须是一个公网可达的 HTTPS 域名。
 
 ### 2.5 邮件（腾讯云 SES，「邮件」Tab）
 

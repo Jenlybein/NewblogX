@@ -186,12 +186,20 @@ export function resolveMermaidTheme(
   return resolved;
 }
 
-/** mermaid initialize 的配置：theme: "base" 是 themeVariables 生效的前提。 */
+/**
+ * mermaid initialize 的配置。
+ *
+ * `theme` 与 `themeVariables` 是可选的：拿不到 token 源（SSR、或调用方没传 CSS 源）
+ * 时只保最低限度的安全配置、**不假装染色**——所以这两个字段不能是必填，否则调用点
+ * 只能靠塞空对象来满足类型，反而把"没染"伪装成"染过了"。
+ * 有 token 源时必须两份都给（见 buildMermaidConfig）：`theme: "base"` 是
+ * themeVariables 生效的前提。
+ */
 export interface MermaidRuntimeConfig {
   startOnLoad: boolean;
   securityLevel: string;
-  theme: string;
-  themeVariables: Record<MermaidThemeVariable, string>;
+  theme?: string;
+  themeVariables?: Record<MermaidThemeVariable, string>;
 }
 
 /**

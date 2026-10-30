@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed } from "vue";
+import { useRuntimeConfig } from "#imports";
 
 import { brandAssetUrl, brandFullName } from "~/utils/brand";
 

@@ -1,0 +1,258 @@
+# 功能回归复盘（2026-10-29）
+
+> **这份文档是什么**：v2 阶段第一批"架构改完之后功能失效"的完整复盘——现象、根因链条、
+> 修复动作、以及排查过程中被证实/被推翻的判断。写法延续 v1：只留能支撑决策的事实与数字，
+> 论证过程能砍就砍。
+>
+> **什么时候翻它**：
+> - 再遇到"接口返回成功但功能没生效" → 先看 §二 的失效形状表
+> - 要动健康检查 / 部署形态 → §四、§五
+> - 想在同类故障里快速定位 → §六 是可复用的手法，不是故事
+>
+> **历史文档在哪**：v1 归档在 [../archive/v1/](../archive/v1/)，现行设计见 [../architecture/](../architecture/)。
+> 本文只记录"改完之后坏了什么、为什么坏"，不重复设计说明。
+
+---
+
+## 一、这次坏了三处
+
+| # | 现象 | 用户能感知到的 | 根因层级 |
+| --- | --- | --- | --- |
+| 1 | 发文章成功，首页与个人主页都不出现 | 以为发布失败，反复重发 | ES 投影整条链路没跑（全量转储失败） |
+| 2 | 点赞按钮一直转圈，不弹任何错误 | 以为网络卡，反复点 | 前端 Promise 自等待死锁 |
+| 3 | 上面两个都"服务看着完全正常" | 没有任何地方报错 | 后台组件死亡不影响进程健康 |
+
+**共同形状**：写路径通、读路径不通、**失败不报错**。1 是"数据没进投影"，2 是
+"请求没发出去"，3 是"死了没人知道"。三个都不是崩溃，所以编译、vet、单测、
+门禁全绿。
+
+---
+
+## 二、根因一：CDC 全量转储失败（文章列表为空）
+
+### 2.1 失效链条
+
+每一环都在生产上实测确认过，不是推断：
+
+| 环 | 事实 |
+| --- | --- |
+| 1 | 镜像基础是 `alpine:3.22`，`apk add mysql-client` 装到的其实是 **MariaDB 客户端**；容器里的 `mysqldump` 实为 `mariadb-dump 11.4.13`（Dockerfile 里还建了软链接把两者接起来） |
+| 2 | canal（go-mysql v1.13.0）做全量转储时**固定传 `--skip-opt`** |
+| 3 | MariaDB 的 dump 在该开关下会额外下发 `SET SQL_QUOTE_SHOW_CREATE=1 /*!40102 ,SQL_MODE=concat(@@sql_mode,_utf8 ',NO_KEY_OPTIONS,NO_TABLE_OPTIONS,NO_FIELD_OPTIONS') */` |
+| 4 | `NO_KEY_OPTIONS` / `NO_TABLE_OPTIONS` / `NO_FIELD_OPTIONS` 是 **MariaDB 独有**的 `sql_mode` 取值，MySQL 8.0.46 不认识 → 报 **1231** → dump 以 **exit 2** 结束 |
+| 5 | canal 随之「启动 Canal 同步失败」，river 与图片引用监听**一起静默死掉** |
+| 6 | `/app/var/master.yaml` 从未被写入；ES 数据目录连 `indices/` 都没有 |
+
+**定位手法**：用与 canal 逐字相同的参数在容器里复现退出码 2，再逐项排除，确认
+`--skip-opt` 是唯一触发项（去掉它 → 退出码 0）。这类"上游固定传参 + 下游客户端换实现"
+的问题，读代码永远读不出来，只能复现。
+
+### 2.2 修复（改不掉上游传参，只能在转发层处理）
+
+| 动作 | 理由 |
+| --- | --- |
+| dump wrapper 在转发前**摘掉 `--skip-opt`** | 去掉后实测 6 张表全量 dump 退出码 0，输出只剩 `USE` / `INSERT` / `CHANGE MASTER` 三类语句，正是 canal 解析器期望的形状（解析器逐行正则匹配，不认识的行直接跳过） |
+| `skip_master_data` 由 `true` 改 **`false`** | 原本 dump 输出不带 binlog 坐标，冷启动时 canal 拿着空位点连 binlog，MySQL 报 **1236**，同步照样起不来。改后输出 `CHANGE MASTER TO MASTER_LOG_FILE='...', MASTER_LOG_POS=...;`，与 go-mysql 解析正则逐字一致 |
+| 把 `cmd/cli` **一起编进镜像** | ES 索引的建/删/全量同步只有 CLI 能做，服务端启动不会建索引。缺了它就会出现"索引由首次写入自动建出来、没有中文分词"的裸索引，事后只能删了重建 |
+
+### 2.3 为什么没人发现
+
+`river.Run()` 跑在 `safego.Go` 里，失败只写一行 `River 运行失败: %v`：
+
+```go
+safego.Go(panicHandler, func() {
+    if runErr := r.Run(); runErr != nil && infra.Logger != nil {
+        infra.Logger.Errorf("River 运行失败: %v", runErr)   // ← 全部痕迹就这一行
+    }
+})
+```
+
+进程继续监听端口，`/health` 继续返回 200，容器 healthcheck 继续 green。
+**日志写在没人盯的地方，等于没有。** 这一条单独处理，见 §四。
+
+---
+
+## 三、根因二：刷新令牌自等待死锁（点赞一直转圈）
+
+### 3.1 现象与反证
+
+- 按钮一直转圈、**不弹任何错误**、请求没落到后端（`digg_count` 始终 0）
+- 关键反证：同期 `POST /api/articles/view` 能让 `view_count` 从 **1 → 2**。
+  说明 **Redis 计数增量链路是通的**，不是"计数没显示"，而是"请求真的没完成"
+
+### 3.2 死锁链
+
+```
+refreshSession()  →  refreshPromise = P
+   P → POST /users/refresh 换到新令牌 ✅
+   P → await fetchCurrentUser()
+         → getSelfUserDetail()           ← 用默认鉴权选项查 /users/detail
+              → 被 isAuthLikeError 判成鉴权失败
+              → await refreshSession()
+                   → 发现 refreshPromise 已存在 → return P    ← P 在等自己
+```
+
+P 永不 settle，`finally { refreshPromise = null }` 也永不执行 → 这个卡死的 Promise
+被后续**每一次**自动刷新复用 → 整个会话被永久毒化。
+
+### 3.3 两个加重因素
+
+| 因素 | 后果 |
+| --- | --- |
+| 刷新请求走**裸 `$fetch`**，绕过了 `services/http/client.ts` 的 `withRequestTimeout` | 那段超时的注释原文写着它就是为了消灭"连接停顿导致界面一直转圈"，这里恰好绕过 |
+| `isAuthLikeError` 除 code 外还按**消息关键词**判断（登录 / token / expired / refresh） | 业务错误只要措辞里带这些词就会误触发刷新，扩大了死锁的触发面 |
+
+### 3.4 修复
+
+| 文件 | 改动 |
+| --- | --- |
+| `services/user.ts` | `getSelfUserDetail` 支持 `retryAuth`，允许调用方关掉自动刷新 |
+| `stores/auth.ts` | 刷新后校验资料传 **`retryAuth: false`**（断环的唯一解）；刷新请求自带 **15s 超时**，对面停顿也能让 `finally` 执行、把 `refreshPromise` 清掉 |
+| `test/stores/auth.test.ts` | 新增回归用例，钉住上面两条约定 |
+
+### 3.5 诚实的边界
+
+**这条链的触发条件没能在线下复现**——它需要真实登录态叠加"新令牌被 `/users/detail`
+判成鉴权失败"的那一刻。修的是**结构上必然存在的环**（一段代码 await 到自己），
+不是"复现了再做的手术"。所以：
+
+- 说"已修复"：成立（环已经不在了，且有测试钉住）
+- 说"就是你那次卡住的原因"：**未证实**。若重新部署后仍转圈，需要在浏览器
+  Network 里看那条 `PUT /api/articles/{id}/digg` 的状态——是红色失败、挂起、
+  还是压根没发出。这一条能把剩余可能性收干净。
+
+---
+
+## 四、本轮新增：让"静默失效"不再静默
+
+### 4.1 设计
+
+新增 `internal/platform/health`，一个进程内、并发安全、**只存状态不持有组件引用**的注册表：
+
+| 状态 | 含义 | 会不会让就绪检查变红 |
+| --- | --- | --- |
+| `starting` | 已开始启动，尚未确认进入正常循环 | 否 |
+| `running` | 正常运行中 | 否 |
+| `stopped` | 主动停止（优雅停机），不是故障 | 否 |
+| `failed` | 启动或运行失败 | **是（唯一）** |
+| `disabled` | 配置里没启用 | 否 |
+
+`disabled` 必须记：否则"CDC 没启用"和"CDC 挂了"在观测上**完全无法区分**。
+
+`Since` 只在**状态变化**时刷新——它的语义是"进入当前状态的时刻"，每次上报都覆盖
+会退化成"最后一次上报时间"，看不出故障持续了多久。
+
+### 4.2 两个端点，语义严格分工
+
+| 端点 | 语义 | 行为 |
+| --- | --- | --- |
+| `/health` | 存活（liveness） | 进程还能处理请求就是 200，**不看任何组件** |
+| `/health/ready` | 就绪（readiness） | 有 `failed` 组件 → **503** + 组件明细（名字 / 状态 / 原因 / 时间） |
+
+**为什么不合并**：合并只有两种选择，两种都错——
+
+- 都看组件状态 → CDC 挂掉让容器判定不健康，编排层可能重启进程。但重启解决不了
+  "复制账号密码错""dump 客户端不兼容"，只会放大故障。
+- 都不看组件状态 → 就是事故当时的样子：river 死了，探针全绿。
+
+### 4.3 登记点
+
+`app/wiring_worker.go` 里 river 与 image-ref 的每个失败出口都登记：
+
+- 未启用（配置）→ `disabled`
+- 构造失败（连不上 MySQL / 拿不到 FULL 行镜像）→ `failed`，且装配继续返回 error
+- goroutine 内 panic → `failed`
+- `Run()` 返回错误（全量转储失败就走这条）→ `failed`，带原始错误
+- `Run()` 正常返回（停机）→ `stopped`
+- 拉起 goroutine 后 → `running`（**乐观标注**：canal 在 `RunFrom` 里同步做完位点解析
+  与全量转储、中途不暴露钩子，所以没有更精确的"启动成功"信号；若立刻失败，
+  回调会紧接着把它改成 `failed`，窗口只有毫秒级）
+
+### 4.4 两个刻意的设计选择
+
+1. **没有把 `Health` 塞进 `middleware.RuntimeOptions`**。那个结构体的注释明确写着
+   "只保留 `NewRuntime` 真正读取的字段，多出来的正是 R2 要消灭的东西"。所以改成给
+   `NewEngine` / `Run` 单独加参数。
+2. **`/health/ready` 登记进了 `allowNotInContract` 棘轮表**，并写明理由——它不该进
+   OpenAPI 契约，但必须让缺口可见，而不是让对账测试闭嘴。
+
+### 4.5 部署验收：把"没人看日志"这个前提去掉
+
+光有端点还不够——**没人打它，它和那行日志没有区别**。所以加
+`scripts/verify-deploy.sh`，作为部署的最后一步：
+
+| 判定 | 说明 |
+| --- | --- |
+| `"healthy":true` | 没有 `failed` 组件 |
+| `"name":"cdc_river","state":"running"` | 光看 healthy 不够：`disabled` 也是 healthy，但 CDC 根本没在同步。生产部署要求它必须是 running |
+| 失败时打印逐项排查顺序 | 1) 看 river/canal 日志 2) exit 2 / 1231 → dump 客户端被换回 MariaDB 3) 确认 `-role=all` |
+
+`BLOGX_REQUIRE_CDC=0` 供只跑 `-role=api` 的部署关闭第一项检查。
+默认等待 30 秒——容器刚重建时 river 还在做位点解析或全量转储，立刻判失败会把
+正常启动当成故障。
+
+---
+
+## 五、线上环境事实（排查前必须先确认的东西）
+
+| 项 | 值 |
+| --- | --- |
+| 实例 | `lhins-dalwc1lc`，**ap-seoul-2**，公网 `43.155.228.146`，Ubuntu，2C4G，60G SSD |
+| 域名 | `gentlybeing.cn` → `43.155.228.146`（AliDNS / Cloudflare DoH 双验证） |
+| 部署目录 | `/opt/blogx`（git clone，分支 `main`，owner `ubuntu`） |
+| compose | 项目名 `production`，9 个容器，文件 `deploy/compose/production/docker-compose.yml` |
+| 后端角色 | 容器 `blogx-server` 启动参数 **`-role=all`** → 同进程跑 `WireWorker`（river + image-ref + cron）与 `WireHTTP` |
+| 容器 | `mysql-master` / `mysql-slave` / `es` / `redis` / `clickhouse` / `blogx-server` / `blogx-web` / `blogx-admin` / `nginx` |
+
+**关键推论**：CDC 消费者只在 worker 角色里启动。部署若只起 `-role=api`，
+**没有任何进程消费 binlog，新文章永远进不了 ES**——且同样不报错。
+
+**踩过的坑**：我一开始漏查了 `ap-seoul` 地域，看到广州那台轻量（`106.53.184.85`）
+只跑着 nginx + 一个 Python 服务，就得出了"博客不在我的实例上"的错误结论，白花一轮。
+**查实例必须把所有地域扫完**。
+
+---
+
+## 六、可复用的排查手法
+
+| 手法 | 这次的用法 |
+| --- | --- |
+| **用一个公开写接口做对照实验** | `POST /articles/view` 让 `view_count` 1→2，一举证明 Redis 计数链路通 → 反证点赞请求没到后端。比读十遍代码快 |
+| **先确认"错误会不会被吞"** | `search/app` 的 `execute` 在 `!resp.Success` 时直接返回 error，所以 `code:0` + 空列表 = **真的没文档**，不是错误被吞。这一步决定了往哪个方向查 |
+| **先看部署形态，再谈代码** | 容器重启时间（32–41 分钟前）+ 镜像构建时间，直接对上"文章为什么后来突然出现"——重启触发全量转储 |
+| **主动推翻自己的假设** | 两个"完美解释一切"的假设都被实测否掉：①运行时配置缓存为空导致 `skip_examining=false`（`InitRuntimeServices` 在 `main.go:65` 有调用）②新建文章 `visibility_status` 写空串（`NormalizeVisibility` 有兜底）。**代码推理给的是候选，运行时证据才给答案** |
+| **网络层证据优先于接口层** | 后端接口 0.2s 返回、前端按钮却转圈不停 → 矛盾点本身就在指认"请求没发出去" |
+
+---
+
+## 七、v2 新增 / 强化的约束
+
+| # | 约束 | 由什么守卫 | 违反的后果 |
+| --- | --- | --- | --- |
+| G1 | 后台组件（goroutine 里跑的）**必须**向 `health.Registry` 登记状态 | 人工 review | 组件死了探针全绿 |
+| G2 | 新增路由必须进契约，确实不该进的要写进 `allowNotInContract` 并给理由 | `TestContractMatchesRoutes` | 门禁红 |
+| G3 | 任何 HTTP 调用都要有超时上限；**不允许裸 `$fetch`** | 人工 review（`client.ts` 只覆盖走客户端的调用） | 连接停顿 → 界面永久转圈 |
+| G4 | 共享 Promise 去重（`refreshPromise` / `initPromise`）必须保证**能清空**：`finally` 要能执行到 | 单测钉住关键调用形态 | 一次卡死毒化整个会话 |
+| G5 | 判断"鉴权失败"不能只靠消息关键词 | 人工 review | 业务错误误触发刷新，扩大死锁面 |
+| G6 | 镜像里 dump / 客户端类工具的**实现来源**要显式确认（alpine 上 `mysql-client` ≠ Oracle MySQL） | 部署实测 | 全量转储 exit 2，投影永久空 |
+| G7 | 部署角色必须含 worker（当前 `-role=all`） | compose 文件 | CDC 不跑，新文章永不进 ES |
+
+---
+
+## 八、遗留项
+
+1. **运行期仍没有告警**。端点有了，`/health/ready` 也接进了部署验收
+   （`scripts/verify-deploy.sh`，不通过就不算部署成功），但**部署之后**若 CDC 才挂，
+   仍然只有人主动去看才发现。要补的是定时探测 + 告警，不是再写一个端点。
+2. **compose 的 healthcheck 保持指向 `/health`（存活）——这是决策，不是遗漏**。
+   nginx 是 `depends_on: blogx_server: condition: service_healthy`，若把 healthcheck
+   改成 `/health/ready`，CDC 一挂容器变 unhealthy，下次 `compose up` 会**连 nginx 一起
+   起不来**：CDC 坏了不该导致全站不可用。所以就绪判定放在部署流程，存活判定留在容器。
+3. **cron 组件未登记状态**。`WireCron` 的调度器失败同样只写日志，形状与 river 一致。
+4. **river 没有积压/位点指标**。现在只能从 `/app/var/master.yaml` 看位点，
+   看不出"落后主库多少"。要提前发现同步变慢，需要暴露位点差值。
+5. **`bad277c` 里 dump wrapper 的实现依赖 alpine 的包行为**。升级基础镜像或
+   `apk add mysql-client` 的包来源变化时，这条修复可能悄悄失效 —— 需要一条
+   "全量转储能跑通"的自检（CLI 里做，或部署后手工验一次）。
+6. **`/health/ready` 只允许内网访问**（nginx 不转发 `/health`），这是刻意的：
+   组件的 `Error` 字段会带出原始错误串，可能含账号、地址这类信息，不该公开。

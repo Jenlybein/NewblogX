@@ -13,7 +13,7 @@ import (
 
 // GinAuditInput 定义基于 Gin 上下文补充操作审计日志时的业务输入。
 //
-// 注意：这里不再接收请求/响应体。全量原始报文默认不入库（见 07 §0 / L.10）；
+// 注意：这里不再接收请求/响应体。全量原始报文默认不入库（见 docs/architecture/governance.md §4.2 / L.10）；
 // 需要排查时，请求/响应体由 CaptureLog 在 HTTP 边界采集「已脱敏 + ≤16KB」快照，
 // 且只在**失败请求**时写入审计日志。
 type GinAuditInput struct {

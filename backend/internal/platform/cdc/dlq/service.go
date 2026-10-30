@@ -14,7 +14,7 @@
 //   - 回放日志通过注入的 Emit 写，而不是直接调 writer：单测不该产生真实日志，
 //     而且"日志管道长什么样"是装配层的事。
 //
-// 决策背景见 docs/architecture/adr/ADR-008-死信重投闭环.md。
+// 决策背景见 docs/adr/0008-dead-letter-replay.md。
 package dlq
 
 import (

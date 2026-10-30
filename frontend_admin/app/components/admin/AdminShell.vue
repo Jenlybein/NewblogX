@@ -15,6 +15,7 @@ import { NuxtLink } from '#components'
 import type { IconHome } from '@tabler/icons-vue'
 import { ADMIN_NAV } from '~/utils/menu'
 import type { AdminNavIcon } from '~/utils/menu'
+import { BRAND } from '~/utils/brand'
 import {
   NAvatar,
   NButton,
@@ -64,6 +65,8 @@ const message = useMessage()
 const fallbackNav = navItems[0]!
 const routeMeta = computed<NavItem>(() => navItems.find(item => item.path === route.path) ?? fallbackNav)
 const selectedKey = computed(() => routeMeta.value.path)
+// 浏览器标签：具体页名由 app.vue 的 titleTemplate 统一补成「<页名> · JellyBin 管理后台」。
+useHead({ title: computed(() => routeMeta.value.label) })
 
 const menuOptions = computed<MenuOption[]>(() =>
   navItems.map(item => ({
@@ -111,10 +114,10 @@ async function handleUserCommand(key: string) {
   <NLayout has-sider class="admin-shell">
     <NLayoutSider :width="276" bordered collapse-mode="width" :native-scrollbar="false" class="admin-sider">
       <div class="admin-brand">
-        <div class="admin-brand__mark">BX</div>
+        <AdminBrandLogo :size="44" />
         <div class="min-w-0">
-          <div class="admin-brand__name">BlogX Admin</div>
-          <p class="m-0 truncate text-xs muted">内容运营与系统管理</p>
+          <AdminBrandWordmark size="sm" />
+          <p class="m-0 truncate text-xs muted">{{ BRAND.tagline }}</p>
         </div>
       </div>
 

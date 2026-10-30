@@ -13,7 +13,7 @@ system:
   # HTTP 服务监听端口
   port: ${BLOGX_APP_PORT}
   # 运行环境标识；当前代码会写入日志，并用于生产环境 Cookie 等行为判断
-  # 常见取值：dev / test / prod
+  # 常见取值：dev / test / production（旧写法 prod 仍兼容，但新配置不要再写）
   env: "${BLOGX_APP_ENV}"
   # Gin 运行模式；常见取值：debug / release / test
   gin_mode: "${BLOGX_GIN_MODE}"

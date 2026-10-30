@@ -165,7 +165,7 @@ useSeoMeta({
               <div
                 v-for="idx in 4"
                 :key="`folder-skeleton-${idx}`"
-                class="rounded-2xl border border-slate-200/70 bg-white/75 px-4 py-3"
+                class="rounded-2xl border border-line bg-surface px-4 py-3"
               >
                 <NSkeleton text width="70%" />
                 <NSkeleton text width="50%" class="mt-2" />
@@ -211,7 +211,7 @@ useSeoMeta({
           </section>
 
           <section class="studio-list-card !p-0">
-            <div class="studio-toolbar border-b border-slate-200/70 px-5 py-4 dark:border-slate-700/70">
+            <div class="studio-toolbar border-b border-line px-5 py-4">
               <div>
                 <h2 class="section-title">分组内容</h2>
                 <p class="muted">当前第 {{ contentPage }} 页</p>
@@ -299,6 +299,7 @@ useSeoMeta({
 </template>
 
 <style scoped>
+/* 颜色一律消费语义 token（票 #9 把创作区从旧青绿色板收敛到新体系）。 */
 .favorite-content-list {
   display: flex;
   flex-direction: column;
@@ -311,21 +312,24 @@ useSeoMeta({
   grid-template-columns: 176px minmax(0, 1fr) auto;
   gap: 14px;
   align-items: stretch;
-  border: 1px solid rgba(217, 226, 236, 0.8);
-  border-radius: 18px;
-  background: rgba(255, 255, 255, 0.84);
+  border: 1px solid var(--color-line);
+  border-radius: 0;
+  background: var(--color-surface);
   padding: 10px;
-  transition: border-color 0.2s ease, box-shadow 0.2s ease, transform 0.2s ease;
+  transition:
+    border-color var(--motion-fast) var(--motion-ease),
+    box-shadow var(--motion-fast) var(--motion-ease),
+    transform var(--motion-fast) var(--motion-ease);
 }
 
 .favorite-content-card:hover {
-  border-color: rgba(15, 118, 110, 0.24);
-  box-shadow: 0 10px 24px rgba(15, 23, 42, 0.08);
+  border-color: var(--color-line-strong);
+  box-shadow: 0 10px 24px var(--color-shadow);
   transform: translateY(-1px);
 }
 
 .favorite-content-card__cover-wrap {
-  border-radius: 14px;
+  border-radius: 0;
   overflow: hidden;
   display: block;
   height: 100%;
@@ -347,9 +351,9 @@ useSeoMeta({
   display: flex;
   align-items: center;
   justify-content: center;
-  border: 1px dashed rgba(148, 163, 184, 0.65);
-  border-radius: 14px;
-  color: #94a3b8;
+  border: 1px dashed var(--color-line);
+  border-radius: 0;
+  color: var(--color-ink-muted);
   font-size: 12px;
   letter-spacing: 0.14em;
 }
@@ -358,7 +362,7 @@ useSeoMeta({
   width: 100%;
   height: 100%;
   min-height: 112px;
-  border-radius: 14px;
+  border-radius: 0;
 }
 
 .favorite-content-card__main {
@@ -369,7 +373,7 @@ useSeoMeta({
 }
 
 .favorite-content-card__title {
-  color: #1e293b;
+  color: var(--color-ink);
   font-size: 18px;
   line-height: 1.35;
   font-weight: 700;
@@ -381,12 +385,12 @@ useSeoMeta({
 }
 
 .favorite-content-card__title:hover {
-  color: #0f766e;
+  color: var(--color-focus);
 }
 
 .favorite-content-card__abstract {
   margin: 0;
-  color: #64748b;
+  color: var(--color-ink-muted);
   font-size: 14px;
   line-height: 1.65;
   display: -webkit-box;
@@ -400,7 +404,7 @@ useSeoMeta({
   display: flex;
   flex-wrap: wrap;
   gap: 10px;
-  color: #64748b;
+  color: var(--color-ink-muted);
   font-size: 13px;
 }
 

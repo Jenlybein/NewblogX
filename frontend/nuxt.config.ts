@@ -145,7 +145,12 @@ export default defineNuxtConfig({
     '#markdown-it': resolve(appRoot, 'node_modules/markdown-it/index.mjs'),
     '#markdown-it-ins': resolve(appRoot, 'node_modules/markdown-it-ins/index.mjs'),
   },
-  modules: ["@pinia/nuxt", "@vueuse/nuxt", "@nuxtjs/tailwindcss", "@nuxt/eslint"],
+  modules: ["@pinia/nuxt", "@vueuse/nuxt", "@nuxtjs/tailwindcss", "@nuxt/eslint", "motion-v/nuxt"],
+  // 路由切换过渡：out-in 保证同一时刻文档流里只有一页（不会两页并排导致滚动条/高度跳变）。
+  // 过渡样式在 app/assets/css/tailwind.css 里（只动 opacity/transform，时长取自动效 token）。
+  app: {
+    pageTransition: { name: "page", mode: "out-in" },
+  },
   // 顺序有意义：tokens.css 定义全部颜色/排版 token，必须排在 tailwind.css 之前，
   // 否则旧样式的 var(--bg-page) 之类的过渡层变量会拿不到值。
   css: ["~/assets/css/fonts.css", "~/assets/css/tokens.css", "~/assets/css/tailwind.css"],
@@ -202,7 +207,9 @@ export default defineNuxtConfig({
       },
     },
     ssr: {
-      noExternal: ["naive-ui", "vueuc", "date-fns"],
+      // motion-v（含 framer-motion/motion-dom）是纯 ESM，生产构建时若走 external，
+      // Node 侧会按 CJS 去 require 而失败 —— 必须让 Vite 把它打进 SSR bundle。
+      noExternal: ["naive-ui", "vueuc", "date-fns", "motion-v"],
     },
   },
   runtimeConfig: {

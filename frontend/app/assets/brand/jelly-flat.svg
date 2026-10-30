@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 16 16" role="img" aria-labelledby="jelly-title">
+  <title id="jelly-title">JellyBin 果冻盒</title>
+  <!-- 扁平矢量果冻方块：克莱因蓝填充 + 奶油白 1px 结构线 + 包豪斯黄高光。
+       16px 下即为 1 设备像素，32/48px 等比放大；捏捏（Jelly）本体的形状也来自它。 -->
+  <rect x="1.5" y="1.5" width="13" height="13" rx="4" fill="#002FA7" />
+  <rect x="2.5" y="2.5" width="11" height="11" rx="3" fill="none" stroke="#FDFBF6" stroke-width="1" />
+  <rect x="4.5" y="4.5" width="3.5" height="3.5" rx="1" fill="#F5C518" />
+</svg>

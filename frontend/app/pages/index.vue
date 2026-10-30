@@ -9,6 +9,7 @@ import { getTopArticles } from "~/services/article";
 import { searchArticles } from "~/services/search";
 import { getBannerList } from "~/services/site";
 import { formatCount } from "~/utils/format";
+import { brandDescription, brandFullName } from "~/utils/brand";
 
 const siteStore = useSiteStore();
 const topRequestError = shallowRef<unknown>(null);
@@ -66,11 +67,11 @@ const latestPager = await usePagedResourceCache({
 });
 
 useSeoMeta({
-  title: siteStore.seo?.site_title || "BlogX",
-  description: siteStore.seo?.description || "开发者内容平台",
+  title: siteStore.seo?.site_title || brandFullName(),
+  description: brandDescription(siteStore.seo?.description),
   keywords: siteStore.seo?.keywords || "前端, Nuxt, Vue, OpenAPI",
-  ogTitle: siteStore.seo?.site_title || "BlogX",
-  ogDescription: siteStore.seo?.description || "开发者内容平台",
+  ogTitle: siteStore.seo?.site_title || brandFullName(),
+  ogDescription: brandDescription(siteStore.seo?.description),
 });
 
 const banners = computed(() => bannerData.value?.list || []);

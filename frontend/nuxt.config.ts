@@ -4,6 +4,8 @@ import { fileURLToPath } from 'node:url'
 
 import { defineNuxtConfig } from 'nuxt/config'
 
+import { BRAND, brandAssetUrl, brandFullName } from './app/utils/brand'
+
 const appRoot = dirname(fileURLToPath(import.meta.url))
 const hydratedEnvKeys = new Set<string>()
 
@@ -141,16 +143,29 @@ export default defineNuxtConfig({
   compatibilityDate: '2025-07-15',
   telemetry: false,
   devtools: { enabled: true },
+  // 品牌页头/图标在这里给全站兜底；OG / twitter 的绝对地址需要运行时 siteUrl，
+  // 放在 app.vue 的 useHead（见 app/utils/brand）。页面标题由 app.vue 的
+  // titleTemplate 统一补品牌后缀。
+  app: {
+    head: {
+      htmlAttrs: { lang: 'zh-CN' },
+      title: brandFullName(),
+      meta: [{ name: 'description', content: BRAND.description }],
+      link: [
+        { rel: 'icon', type: 'image/svg+xml', href: brandAssetUrl('/', 'flat') },
+        { rel: 'alternate icon', type: 'image/x-icon', href: brandAssetUrl('/', 'faviconRoot') },
+        { rel: 'apple-touch-icon', sizes: '180x180', href: brandAssetUrl('/', 'apple') },
+      ],
+    },
+    // 路由切换过渡：out-in 保证同一时刻文档流里只有一页（不会两页并排导致滚动条/高度跳变）。
+    // 过渡样式在 app/assets/css/tailwind.css 里（只动 opacity/transform，时长取自动效 token）。
+    pageTransition: { name: "page", mode: "out-in" },
+  },
   alias: {
     '#markdown-it': resolve(appRoot, 'node_modules/markdown-it/index.mjs'),
     '#markdown-it-ins': resolve(appRoot, 'node_modules/markdown-it-ins/index.mjs'),
   },
   modules: ["@pinia/nuxt", "@vueuse/nuxt", "@nuxtjs/tailwindcss", "@nuxt/eslint", "motion-v/nuxt"],
-  // 路由切换过渡：out-in 保证同一时刻文档流里只有一页（不会两页并排导致滚动条/高度跳变）。
-  // 过渡样式在 app/assets/css/tailwind.css 里（只动 opacity/transform，时长取自动效 token）。
-  app: {
-    pageTransition: { name: "page", mode: "out-in" },
-  },
   // 顺序有意义：tokens.css 定义全部颜色/排版 token，必须排在 tailwind.css 之前，
   // 否则旧样式的 var(--bg-page) 之类的过渡层变量会拿不到值。
   css: ["~/assets/css/fonts.css", "~/assets/css/tokens.css", "~/assets/css/tailwind.css"],

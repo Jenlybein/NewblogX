@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, ref, watch } from "vue";
+import { BRAND } from "~/utils/brand";
 
 const props = withDefaults(
   defineProps<{
@@ -10,7 +11,7 @@ const props = withDefaults(
   {
     src: "",
     title: "文章封面",
-    label: "BlogX",
+    label: BRAND.name.en,
   },
 );
 

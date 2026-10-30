@@ -3,6 +3,7 @@ import { computed, onBeforeUnmount, onMounted, ref } from "vue";
 
 import { useJellyAssistant } from "~/composables/useJellyAssistant";
 import type { JellyAssistantApi } from "~/composables/useJellyAssistant";
+import { usePointerSpecular } from "~/composables/usePointerSpecular";
 import { brandAiName, brandAssetUrl } from "~/utils/brand";
 
 // 「捏捏」的外观组件（票 #9）。
@@ -51,6 +52,9 @@ const DRAG_THRESHOLD_PX = 6;
 const assistantName = brandAiName();
 /** 扁平矢量果冻（读者站 baseURL 为根；后台不带捏捏，因此这里不需要 baseURL 拼接）。 */
 const glyphUrl = brandAssetUrl("/", "flat");
+
+/** 气泡上的指针镜面高光（移动端 / 减少动态时 composable 内部关闭）。 */
+const { handlePointerMove } = usePointerSpecular();
 
 const draggingByPointer = ref(false);
 let pressOrigin = { x: 0, y: 0 };
@@ -177,7 +181,13 @@ onBeforeUnmount(() => {
       </span>
     </button>
 
-    <button v-if="bubbleText" type="button" class="jelly-bubble" @click.stop="dismissBubble">
+    <button
+      v-if="bubbleText"
+      type="button"
+      class="jelly-bubble glass-thin"
+      @click.stop="dismissBubble"
+      @pointermove="handlePointerMove"
+    >
       {{ bubbleText }}
     </button>
 
@@ -288,7 +298,8 @@ onBeforeUnmount(() => {
   }
 }
 
-/* 气泡：直角、语义色纸面，点击即关；只动 transform/opacity。 */
+/* 气泡：薄玻璃胶囊，点击即关；只动 transform/opacity。
+ * 材料（填充/模糊/边缘/噪点）由 .glass-thin 提供，这里只留布局。 */
 .jelly-bubble {
   position: absolute;
   right: 0;
@@ -297,14 +308,11 @@ onBeforeUnmount(() => {
   max-width: 220px;
   margin: 0;
   padding: 10px 14px;
-  border: 1px solid var(--color-line);
-  border-radius: 0;
-  background: var(--color-surface);
+  border-radius: var(--radius-md);
   color: var(--color-ink);
   font-size: 13px;
   line-height: 1.6;
   text-align: left;
-  box-shadow: 0 12px 28px var(--color-shadow);
   cursor: pointer;
   pointer-events: auto;
   animation: jelly-bubble-in var(--motion-base) var(--motion-ease);
@@ -321,6 +329,7 @@ onBeforeUnmount(() => {
   margin: 0;
   padding: 8px 12px;
   border: 1px solid var(--color-line-strong);
+  border-radius: var(--radius-md);
   background: var(--color-bg-subtle);
   color: var(--color-ink-muted);
   font-size: 12px;

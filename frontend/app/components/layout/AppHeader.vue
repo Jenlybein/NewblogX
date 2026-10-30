@@ -16,9 +16,10 @@ import { navigateTo, useRoute, useRouter } from "#imports";
 import AppAvatar from "~/components/common/AppAvatar.vue";
 import BrandLogo from "~/components/brand/Logo.vue";
 import BrandWordmark from "~/components/brand/Wordmark.vue";
+import { usePointerSpecular } from "~/composables/usePointerSpecular";
+import { useScrollChrome } from "~/composables/useScrollChrome";
 import { useWriteEntry } from "~/composables/useWriteEntry";
 import { useAuthStore } from "~/stores/auth";
-import { useSiteStore } from "~/stores/site";
 import { useUiStore } from "~/stores/ui";
 import { BRAND } from "~/utils/brand";
 import {
@@ -32,22 +33,20 @@ import {
 const route = useRoute();
 const router = useRouter();
 const authStore = useAuthStore();
-const siteStore = useSiteStore();
 const uiStore = useUiStore();
 const { openWriteEntry } = useWriteEntry();
 
 const searchKeyword = ref("");
 const menuOpen = ref(false);
 
+// 吸顶玻璃导航：滚动方向/阈值判定与指针镜面高光都收在 composable 里（含降级）。
+// 「减少动态」下 useScrollChrome 直接不启用 → 页头保持静止的不透明面、不隐藏。
+const { scrolled, hidden } = useScrollChrome();
+const { handlePointerMove } = usePointerSpecular();
+
 const navItems = computed(() => headerNavItems(route.path));
 const themeLabel = computed(() => themeToggleLabel(uiStore.theme));
 const menuLabel = computed(() => mobileMenuLabel(menuOpen.value));
-const projectAbstract = computed(
-  () =>
-    siteStore.runtimeConfig?.project?.abstract ||
-    siteStore.runtimeConfig?.site_info?.subtitle ||
-    BRAND.tagline,
-);
 
 watch(
   () => route.query.key,
@@ -105,22 +104,20 @@ async function handleUserMenuSelect(key: string | number) {
 </script>
 
 <template>
-  <header class="site-header">
+  <header
+    class="site-header"
+    :class="{ 'is-scrolled': scrolled, 'is-hidden': hidden, 'glass-thin': scrolled }"
+    @pointermove="handlePointerMove"
+  >
     <a class="site-skip" href="#main-content" data-chrome="skip-link">跳到正文</a>
 
     <div class="page-shell site-header__inner">
       <div class="site-header__brand">
         <NuxtLink to="/" class="site-brand" :aria-label="`${BRAND.name.en}（${BRAND.name.zh}）首页`">
-          <!-- 包豪斯黄三角：图纸页头的几何标记（纯装饰，不参与读屏） -->
-          <span class="site-brand__mark" aria-hidden="true" />
-          <BrandLogo
-            :size="40"
-            :variant="uiStore.theme === 'dark' ? 'white' : 'render'"
-            decorative
-          />
+          <!-- 品牌资产不随主题切换：亮暗两态共用同一张透底 PNG（ADR-0012 约束 12） -->
+          <BrandLogo :size="40" decorative />
           <BrandWordmark size="md" />
         </NuxtLink>
-        <span class="site-header__abstract">{{ projectAbstract }}</span>
       </div>
 
       <!-- 手机端折叠、平板/桌面常显：单一 DOM 靠 CSS 断点切换，避免复制一份控件 -->
@@ -237,17 +234,51 @@ async function handleUserMenuSelect(key: string | number) {
 
 <style scoped>
 /*
- * 图纸式页头：1px 克莱因蓝结构线、几何标记、圆角归零，全部取语义 token。
- * 布局策略（三档）：
+ * 吸顶玻璃导航（ADR-0012 决策 6）：sticky + 高度 56–64px（--site-header-height 60px）。
+ * 静止态是不透明纸面；滚动超过阈值后由 .glass-thin 接管材料（模糊 + 边缘带 + 噪点），
+ * 并补一条底部 1px 边缘高光。滚动方向感知（下滚隐藏 / 上滚出现）由 useScrollChrome
+ * 的 state → class 映射，位移只走 transform，不碰布局。
+ * 「减少动态」下 composable 不启用 → 页头不转玻璃、不隐藏。
+ * 布局策略（三档）不变：
  *   < 640px  手机：品牌 + 动作一排；导航/搜索折叠进面板（菜单按钮展开）
  *   640–1023 平板：品牌 + 动作一排；导航/搜索第二行常显
  *   ≥ 1024px 桌面：品牌 / 导航+搜索 / 动作各占一列的单行
- * 页头**不是** fixed/sticky —— 滚动时永远不遮挡正文，也不会引入布局抖动。
  */
 .site-header {
-  position: relative;
+  position: sticky;
+  top: 0;
+  z-index: 30;
+  min-height: var(--site-header-height);
+  transition: transform var(--motion-base) var(--motion-ease);
+}
+
+/* 静止态（未滚动）才用不透明面 + 发丝结构线：滚动后材料交给 .glass-thin，
+ * 两套背景不会互相覆盖。 */
+.site-header:not(.is-scrolled) {
   background: var(--color-surface);
   border-bottom: 1px solid var(--color-line-strong);
+}
+
+/* 转玻璃后：底部 1px 边缘高光（叠在玻璃自己的抬升阴影上）。 */
+.site-header.is-scrolled {
+  box-shadow:
+    0 18px 44px -20px var(--color-shadow),
+    0 1px 0 var(--glass-rim);
+}
+
+/* 下滚隐藏 / 上滚出现：只动 transform（不给 sticky 带来任何布局变化）。 */
+.site-header.is-hidden {
+  transform: translateY(-100%);
+  transition: transform var(--motion-base) var(--motion-ease);
+}
+
+/* 减少动态：导航的隐藏/出现也不做过渡（全局 reduced-motion 已把时长归零，
+ * 这里再兜一层，避免"归零后仍有一次 transform 跳变"）。 */
+@media (prefers-reduced-motion: reduce) {
+  .site-header,
+  .site-header.is-hidden {
+    transition: none;
+  }
 }
 
 .site-header__inner {
@@ -258,8 +289,8 @@ async function handleUserMenuSelect(key: string | number) {
     "panel panel";
   align-items: center;
   gap: 0.5rem 1rem;
-  padding-top: 0.625rem;
-  padding-bottom: 0.625rem;
+  padding-top: 0.5rem;
+  padding-bottom: 0.5rem;
 }
 
 .site-header__brand {
@@ -280,28 +311,8 @@ async function handleUserMenuSelect(key: string | number) {
   text-decoration: none;
 }
 
-/* 包豪斯黄三角：形状语义「三角 = 装饰与编号标记」 */
-.site-brand__mark {
-  width: 0;
-  height: 0;
-  border-right: 5px solid transparent;
-  border-bottom: 9px solid var(--jelly-yellow);
-  border-left: 5px solid transparent;
-}
-
-.site-header__abstract {
-  display: none;
-  min-width: 0;
-  max-width: 22rem;
-  overflow: hidden;
-  color: var(--color-ink-muted);
-  font-size: 0.75rem;
-  letter-spacing: 0.08em;
-  text-overflow: ellipsis;
-  text-transform: uppercase;
-  white-space: nowrap;
-}
-
+/* 页头 = 语义纸面 + 发丝线；形状语义（黄三角）已随 #20 退役。
+ * logo 旁的介绍小字按 ADR-0013 决策 6 删除：主旨句不再重复三处。 */
 .site-header__panel {
   grid-area: panel;
   display: none;
@@ -329,6 +340,7 @@ async function handleUserMenuSelect(key: string | number) {
   min-height: 2.75rem;
   padding: 0 0.75rem;
   border: 0;
+  border-radius: var(--radius-sm);
   background: transparent;
   color: var(--color-ink-muted);
   font: inherit;
@@ -354,6 +366,8 @@ async function handleUserMenuSelect(key: string | number) {
   align-items: stretch;
   width: 100%;
   border: 1px solid var(--color-line-strong);
+  border-radius: var(--radius-md);
+  overflow: hidden;
   background: var(--color-surface);
 }
 
@@ -406,6 +420,7 @@ async function handleUserMenuSelect(key: string | number) {
   min-height: 2.75rem;
   padding: 0 0.5rem;
   border: 1px solid var(--color-line);
+  border-radius: var(--radius-sm);
   background: transparent;
   color: var(--color-ink);
   font: inherit;
@@ -436,7 +451,7 @@ async function handleUserMenuSelect(key: string | number) {
   white-space: nowrap;
 }
 
-/* 焦点环统一：可见、不用颜色之外的信息，暗色下 --color-focus 会自动换成奶油白 */
+/* 焦点环统一：功能蓝只用于焦点环与文字链接，暗色下自动换成暗色功能蓝。 */
 .site-header :is(a, button, input, [tabindex]):focus-visible {
   outline: 2px solid var(--color-focus);
   outline-offset: 2px;
@@ -449,6 +464,7 @@ async function handleUserMenuSelect(key: string | number) {
   left: 0.5rem;
   z-index: 2;
   padding: 0.5rem 0.75rem;
+  border-radius: var(--radius-sm);
   background: var(--color-surface-raised);
   border: 1px solid var(--color-line-strong);
   color: var(--color-ink);
@@ -461,10 +477,6 @@ async function handleUserMenuSelect(key: string | number) {
 }
 
 @media (min-width: 640px) {
-  .site-header__abstract {
-    display: block;
-  }
-
   .site-header__panel,
   .site-header__panel.is-open {
     display: flex;
@@ -492,8 +504,8 @@ async function handleUserMenuSelect(key: string | number) {
     grid-template-columns: auto minmax(0, 1fr) auto;
     grid-template-areas: "brand panel actions";
     gap: 2rem;
-    padding-top: 0.75rem;
-    padding-bottom: 0.75rem;
+    padding-top: 0.5rem;
+    padding-bottom: 0.5rem;
   }
 
   .site-header__panel {

@@ -108,7 +108,7 @@ useSeoMeta({
 .article-history-card__cover {
   width: 176px;
   height: 118px;
-  border-radius: 18px;
+  border-radius: var(--radius-lg);
 }
 
 @media (max-width: 768px) {

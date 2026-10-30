@@ -70,7 +70,7 @@
 
 :deep(.write-page__toc-item) {
   border: 1px solid transparent;
-  border-radius: 0;
+  border-radius: var(--radius-sm);
   padding: 8px 10px;
   text-align: left;
   color: var(--color-ink);
@@ -89,7 +89,7 @@
   transform: translateX(1px);
   background: var(--color-line-faint);
   border-color: var(--color-line);
-  color: var(--color-focus);
+  color: var(--color-ink);
 }
 
 :deep(.write-page__toc-item--level-2) {
@@ -142,9 +142,9 @@
   align-items: center;
   margin-bottom: 14px;
   padding: 4px 10px;
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   font-size: 12px;
-  color: var(--color-focus);
+  color: var(--color-ink);
   background: var(--color-line-faint);
 }
 
@@ -188,7 +188,7 @@
 }
 
 .publish-modal-card {
-  border-radius: 0;
+  border-radius: var(--radius-xl);
 }
 
 .publish-form {
@@ -236,7 +236,7 @@
   justify-content: center;
   gap: 10px;
   border: 1px dashed var(--color-line);
-  border-radius: 0;
+  border-radius: var(--radius-md);
   color: var(--color-ink-muted);
   background: var(--color-surface-raised);
   cursor: pointer;
@@ -268,7 +268,7 @@
 .publish-cover__stage {
   margin: 0;
   font-size: 12px;
-  color: var(--color-focus);
+  color: var(--color-ink);
 }
 
 .publish-summary {
@@ -290,7 +290,7 @@
   gap: 16px;
   padding: 14px 16px;
   border: 1px solid var(--color-line);
-  border-radius: 0;
+  border-radius: var(--radius-md);
   background: var(--color-surface-raised);
 }
 

@@ -6,7 +6,7 @@
  *      github.css），跟五色体系没关系；换肤只能换 `<link>`，切暗色会重新加载样式导致
  *      白块/跳版。这里改成**自有主题 + 语义 token**：shadow 内部的元素从宿主继承
  *      CSS 变量，站点根类切换明暗时颜色瞬间生效，不换链接。
- *   2. 主题取值可测。`resolveMarkdownTheme()` 把 tokens.css 里的 `var(--jelly-*)`
+ *   2. 主题取值可测。`resolveMarkdownTheme()` 把 tokens.css 里的 `var(--color-*)`
  *      间接引用解析成真实色值，单测可以断言"明暗两套取值确实翻转"，也给 #12 的暗色
  *      收口提供同一份接口。
  *
@@ -26,13 +26,12 @@ export const MARKDOWN_THEME_ROLES = {
   line: "--color-line",
   lineStrong: "--color-line-strong",
   lineFaint: "--color-line-faint",
-  accent: "--color-focus",
+  link: "--color-link",
   highlight: "--color-highlight",
   danger: "--color-danger",
   dangerInk: "--color-danger-ink",
   dangerSoft: "--color-danger-soft",
   dangerLine: "--color-danger-line",
-  focusSoft: "--color-focus-soft",
   onStrong: "--color-on-strong",
   onStrongMuted: "--color-on-strong-muted",
 } as const;
@@ -45,6 +44,12 @@ export interface TokenBlockPair {
 }
 
 const DECLARATION_RE = /(--[a-z0-9-]+)\s*:\s*([^;]+);/giu;
+
+/** 三元组派生写法：`rgb(var(--jelly-*-rgb) / α)`（#18 起语义层的统一写法）。 */
+const TRIPLET_REFERENCE_RE = /^rgb\(\s*var\(\s*(--[a-z0-9-]+)\s*\)\s*\/\s*([\d.]+)\s*\)$/u;
+
+/** 三元组基底的真实取值：形如 `0 47 167`（空格分隔的 RGB 三通道）。 */
+const TRIPLET_CHANNELS_RE = /^(\d{1,3})\s+(\d{1,3})\s+(\d{1,3})$/u;
 
 function readDeclarations(cssText: string, selectorPattern: RegExp): Record<string, string> {
   const block = selectorPattern.exec(cssText);
@@ -97,6 +102,19 @@ export function resolveTokenValue(
     return resolveTokenValue(blocks, mode, reference[1]!, [...seen, name]);
   }
 
+  // #18 起带透明度的语义色由 `--jelly-*-rgb` 三元组派生。对外仍返回"真实色值"
+  // （rgba 字符串），这样对比度计算与 mermaid themeVariables 不必认识 var()。
+  // 注意这不是写死常量：通道值来自 token 层，改色相时这里自动跟着变。
+  const triplet = TRIPLET_REFERENCE_RE.exec(raw);
+  if (triplet) {
+    const base = resolveTokenValue(blocks, mode, triplet[1]!, [...seen, name]);
+    const channels = TRIPLET_CHANNELS_RE.exec(base);
+    if (!channels) {
+      throw new Error(`token ${triplet[1]} 不是 "R G B" 三元组基底：${base}`);
+    }
+    return `rgba(${channels[1]}, ${channels[2]}, ${channels[3]}, ${triplet[2]})`;
+  }
+
   return raw;
 }
 
@@ -113,6 +131,93 @@ export function resolveMarkdownTheme(
   }
 
   return resolved;
+}
+
+/**
+ * mermaid themeVariables 的角色 → 语义 token 名。
+ *
+ * mermaid 把配色写死在自己的 themeVariables 里（theme: "base" 下不传就是第三方默认
+ * 浅紫），而它渲染出的 SVG 用的是内联样式 —— 既消费不了 var(--color-*)，也躲开了
+ * token 漂移门禁。所以这里从 tokens.css 的语义层把真实色值解析出来再喂给它：每个
+ * 变量都由 token 派生，改语义色时图表自动跟随，明暗两套也各拿第二份取值。
+ *
+ * 约束：这里只写"角色 → token 名"的映射，不出现任何颜色字面量。
+ */
+export const MERMAID_THEME_ROLES = {
+  background: "--color-surface",
+  primaryColor: "--color-bg-subtle",
+  primaryTextColor: "--color-ink",
+  primaryBorderColor: "--color-line-strong",
+  secondaryColor: "--color-surface-raised",
+  secondaryTextColor: "--color-ink",
+  secondaryBorderColor: "--color-line",
+  tertiaryColor: "--color-bg-page",
+  tertiaryTextColor: "--color-ink",
+  tertiaryBorderColor: "--color-line-faint",
+  lineColor: "--color-line",
+  textColor: "--color-ink",
+  mainBkg: "--color-surface",
+  nodeBorder: "--color-line-strong",
+  clusterBkg: "--color-bg-subtle",
+  clusterBorder: "--color-line",
+  titleColor: "--color-ink",
+  edgeLabelBackground: "--color-surface-raised",
+} as const;
+
+export type MermaidThemeVariable = keyof typeof MERMAID_THEME_ROLES;
+
+/**
+ * 解析出 mermaid 在某模式下需要的全部 themeVariables（真实色值，明暗两套）。
+ *
+ * 与 resolveMarkdownTheme 共用同一份 resolveTokenValue —— 这是"图表配色 = 语义 token
+ * 的第二张面孔"能成立的原因：token 改一处，正文与图表一起变。
+ */
+export function resolveMermaidTheme(
+  cssText: string,
+  mode: MarkdownThemeMode,
+): Record<MermaidThemeVariable, string> {
+  const blocks = parseTokenBlocks(cssText);
+  const resolved = {} as Record<MermaidThemeVariable, string>;
+
+  for (const [variable, tokenName] of Object.entries(MERMAID_THEME_ROLES)) {
+    resolved[variable as MermaidThemeVariable] = resolveTokenValue(blocks, mode, tokenName);
+  }
+
+  return resolved;
+}
+
+/**
+ * mermaid initialize 的配置。
+ *
+ * `theme` 与 `themeVariables` 是可选的：拿不到 token 源（SSR、或调用方没传 CSS 源）
+ * 时只保最低限度的安全配置、**不假装染色**——所以这两个字段不能是必填，否则调用点
+ * 只能靠塞空对象来满足类型，反而把"没染"伪装成"染过了"。
+ * 有 token 源时必须两份都给（见 buildMermaidConfig）：`theme: "base"` 是
+ * themeVariables 生效的前提。
+ */
+export interface MermaidRuntimeConfig {
+  startOnLoad: boolean;
+  securityLevel: string;
+  theme?: string;
+  themeVariables?: Record<MermaidThemeVariable, string>;
+}
+
+/**
+ * 组装 mermaid 的 initialize 配置。
+ *
+ * 为什么单独出这个函数：传参点只有一处，但"必须带 themeVariables"是 ADR-0012 决策
+ * #11 的硬要求 —— 抽成函数后单测可以直接断言这份契约，不需要挂载组件。
+ */
+export function buildMermaidConfig(
+  cssText: string,
+  mode: MarkdownThemeMode,
+): MermaidRuntimeConfig {
+  return {
+    startOnLoad: false,
+    securityLevel: "strict",
+    theme: "base",
+    themeVariables: resolveMermaidTheme(cssText, mode),
+  };
 }
 
 export const MARKDOWN_THEME_CSS_HEADER = `/* markdown 主题（JellyBin 自有）：由 app/utils/markdownTheme.ts 构建，注入 shadow root。
@@ -241,7 +346,7 @@ export const MARKDOWN_THEME_CSS = `/* ==========================================
 }
 
 .markdown-body a {
-  color: var(--color-focus);
+  color: var(--color-link);
   text-decoration: underline;
   text-decoration-thickness: 1px;
   text-underline-offset: 0.2em;
@@ -251,7 +356,7 @@ export const MARKDOWN_THEME_CSS = `/* ==========================================
 }
 
 .markdown-body a:hover {
-  color: var(--color-danger-ink);
+  color: var(--color-ink);
   text-decoration-thickness: 2px;
 }
 
@@ -286,7 +391,7 @@ export const MARKDOWN_THEME_CSS = `/* ==========================================
   color: var(--color-ink-muted);
 }
 
-/* ---- 引用：1px 蓝色结构线 + 次级纸面 ---- */
+/* ---- 引用：1px 中性结构线 + 次级纸面 ---- */
 .markdown-body blockquote {
   margin: 1.5em 0;
   padding: 0.75em 1.1em;
@@ -325,8 +430,8 @@ export const MARKDOWN_THEME_CSS = `/* ==========================================
 }
 
 .markdown-body .markdown-notice--tip {
-  border-left-color: var(--color-focus);
-  background: var(--color-focus-soft);
+  border-left-color: var(--color-line-strong);
+  background: var(--color-bg-subtle);
 }
 
 .markdown-body .markdown-notice--note {
@@ -410,7 +515,7 @@ export const MARKDOWN_THEME_CSS = `/* ==========================================
 .markdown-body .hljs-attr-value,
 .markdown-body .hljs-link,
 .markdown-body .hljs-regexp {
-  color: var(--color-focus);
+  color: var(--color-ink-muted);
   font-weight: 600;
 }
 
@@ -420,7 +525,7 @@ export const MARKDOWN_THEME_CSS = `/* ==========================================
 .markdown-body .hljs-section,
 .markdown-body .hljs-selector-id,
 .markdown-body .hljs-selector-class {
-  color: var(--color-focus);
+  color: var(--color-ink-muted);
   font-weight: 600;
 }
 
@@ -522,14 +627,35 @@ export const MARKDOWN_THEME_CSS = `/* ==========================================
   font-size: 0.85em;
 }
 
+/* ---- mermaid 图表 ----
+ * 配色不在这里给：mermaid 把颜色写死进 SVG 的内联样式，消费不了 var(--color-*)，
+ * 所以由 resolveMermaidTheme() 把语义 token 解析成真实色值、经 themeVariables
+ * 在 initialize 时喂给它（明暗两套各自的第二份取值）。这里只负责版式与横向溢出。
+ *
+ * .mermaid[data-processed] 是 mermaid 渲染完的样子；未渲染时（渲染失败降级为裸
+ * 定义文本）套代码块外观，避免中间态跳版。 */
 .markdown-body .mermaid {
+  display: block;
   margin: 1.5em 0;
   overflow-x: auto;
+  color: var(--color-ink);
+  font-family: var(--font-sans);
 }
 
 .markdown-body .mermaid svg {
+  display: block;
   max-width: 100%;
   height: auto;
+}
+
+.markdown-body .mermaid:not([data-processed]) {
+  padding: 1rem 1.15rem;
+  border: 1px solid var(--color-line);
+  background: var(--color-bg-subtle);
+  color: var(--color-ink);
+  font-family: var(--font-mono);
+  font-size: 14px;
+  line-height: 1.65;
 }
 
 .markdown-body details {

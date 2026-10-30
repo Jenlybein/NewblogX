@@ -49,13 +49,19 @@ useHead(() => {
 <style scoped>
 /*
  * 布局 = 页头 / 正文 / 页脚三段的纵向流。`site-layout__main` flex:1 让短内容页也把
- * 页脚压到底部（页脚是"滚动到底的结束锚点"）；页头不是 sticky，滚动不遮正文。
+ * 页脚压到底部（页脚是"滚动到底的结束锚点"）；页头是吸顶玻璃导航（ADR-0012 决策 6），
+ * 所以布局要补 scroll-padding-top：页内滚动容器跳锚点时不被页头盖住。
  * tabindex="-1" 让页头的 skip link 能把焦点真正移到正文。
  */
 .site-layout {
   display: flex;
   min-height: 100vh;
   flex-direction: column;
+  /* 首屏封面的 100vw bleed 会在桌面多出 1px 级横向溢出；在视口级容器统一兜住（ADR-0013 约束 3）。
+     用 clip 而不是 hidden：clip 不创建滚动容器，吸顶页头与锚点补偿都不受影响。 */
+  overflow-x: clip;
+  /* 整页滚动由 html 的 scroll-padding-top 兜底；这里给未来的页内滚动容器同一份安全区。 */
+  scroll-padding-top: calc(var(--site-header-height) + 0.5rem);
 }
 
 .site-layout__main {

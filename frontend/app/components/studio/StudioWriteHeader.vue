@@ -4,6 +4,7 @@ import { NButton, NInput, NPopover, NTooltip } from "naive-ui";
 import { LEFT_TOOLS, getToolTooltip, type ToolItem } from "~/constants/studioToolbar";
 import { IconColumns1, IconColumns2, IconListDetails } from "@tabler/icons-vue";
 import AppAvatar from "~/components/common/AppAvatar.vue";
+import { usePointerSpecular } from "~/composables/usePointerSpecular";
 
 // 写作页顶部：标题输入 + 操作按钮 + 工具栏。
 //
@@ -15,6 +16,9 @@ import AppAvatar from "~/components/common/AppAvatar.vue";
 // 调了哪个接口。
 
 const title = defineModel<string>("title", { required: true });
+
+// 写作页顶栏是导航层薄玻璃：指针镜面高光走统一 composable（移动端 / 减少动态关闭）。
+const { handlePointerMove } = usePointerSpecular();
 
 const props = defineProps<{
   /** 草稿保存中。 */
@@ -64,7 +68,7 @@ function handleRightToolClick(key: "toc" | "editor" | "preview") {
 </script>
 
 <template>
-<header class="write-page__header">
+<header class="write-page__header glass-thin" @pointermove="handlePointerMove">
 <div class="write-page__topbar">
 <NInput
 v-model:value="title" class="write-title-input" size="large" maxlength="120"
@@ -170,14 +174,13 @@ type="button" class="write-tool-button"
 </template>
 
 <style scoped>
-/* 颜色一律消费语义 token（票 #9 把创作区从旧青绿色板收敛到新体系）。 */
+/* 颜色一律消费语义 token（票 #9 把创作区从旧青绿色板收敛到新体系）。
+ * 顶栏是导航层薄玻璃：材料来自 .glass-thin（填充/模糊/边缘/噪点），这里只留布局；
+ * 吸顶位置让开全站吸顶页头，避免两条 sticky 打架。 */
 .write-page__header {
   position: sticky;
-  top: 0;
+  top: var(--site-header-height);
   z-index: 20;
-  backdrop-filter: blur(18px);
-  background: var(--color-surface);
-  border-bottom: 1px solid var(--color-line);
 }
 
 .write-page__topbar,
@@ -231,7 +234,7 @@ type="button" class="write-tool-button"
   min-width: 34px;
   min-height: 34px;
   border: 1px solid transparent;
-  border-radius: 0;
+  border-radius: var(--radius-sm);
   padding: 6px 8px;
   background: transparent;
   color: var(--color-ink);
@@ -254,13 +257,13 @@ type="button" class="write-tool-button"
 .write-tool-button:hover {
   background: var(--color-line-faint);
   border-color: var(--color-line);
-  color: var(--color-focus);
+  color: var(--color-ink);
 }
 
 .write-tool-button--active {
   background: var(--color-line-faint);
   border-color: var(--color-line);
-  color: var(--color-focus);
+  color: var(--color-ink);
 }
 
 .write-tool-popover {
@@ -289,12 +292,12 @@ type="button" class="write-tool-button"
 
 .write-tool-option:hover {
   background: var(--color-line-faint);
-  color: var(--color-focus);
+  color: var(--color-ink);
 }
 
 .write-tool-option--active {
   background: var(--color-line-faint);
-  color: var(--color-focus);
+  color: var(--color-ink);
   font-weight: 600;
 }
 

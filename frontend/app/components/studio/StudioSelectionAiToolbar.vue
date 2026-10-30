@@ -1,5 +1,9 @@
 <script setup lang="ts">
 import type { StudioAiAction } from "~/composables/useStudioAiSelection";
+import { usePointerSpecular } from "~/composables/usePointerSpecular";
+
+// 悬浮控件是薄玻璃：指针镜面高光走统一 composable（移动端 / 减少动态自动关闭）。
+const { handlePointerMove } = usePointerSpecular();
 
 defineProps<{
   show: boolean;
@@ -22,9 +26,10 @@ const actions: Array<{ key: StudioAiAction; label: string }> = [
 <template>
   <div
     v-show="show"
-    class="studio-selection-ai-toolbar"
+    class="studio-selection-ai-toolbar glass-thin"
     :style="{ top: `${top}px`, left: `${left}px` }"
-    @mousedown.prevent>
+    @mousedown.prevent
+    @pointermove="handlePointerMove">
     <button
       v-for="item in actions"
       :key="item.key"
@@ -37,7 +42,8 @@ const actions: Array<{ key: StudioAiAction; label: string }> = [
 </template>
 
 <style scoped>
-/* 颜色一律消费语义 token（票 #9 把创作区从旧青绿色板收敛到新体系）。 */
+/* 颜色一律消费语义 token（票 #9 把创作区从旧青绿色板收敛到新体系）。
+ * 悬浮控件用薄玻璃：材料（填充/模糊/边缘/噪点）来自 .glass-thin，这里只留布局。 */
 .studio-selection-ai-toolbar {
   position: fixed;
   z-index: 34;
@@ -46,16 +52,12 @@ const actions: Array<{ key: StudioAiAction; label: string }> = [
   gap: 8px;
   transform: translateX(-50%);
   padding: 8px;
-  border-radius: 0;
-  border: 1px solid var(--color-line);
-  background: var(--color-surface);
-  backdrop-filter: blur(18px);
-  box-shadow: 0 18px 42px var(--color-shadow);
+  border-radius: var(--radius-md);
 }
 
 .studio-selection-ai-toolbar__button {
   border: 0;
-  border-radius: 0;
+  border-radius: var(--radius-sm);
   padding: 9px 12px;
   background: var(--color-surface-raised);
   color: var(--color-ink-muted);
@@ -70,7 +72,7 @@ const actions: Array<{ key: StudioAiAction; label: string }> = [
 
 .studio-selection-ai-toolbar__button:hover {
   background: var(--color-line-faint);
-  color: var(--color-focus);
+  color: var(--color-ink);
   transform: translateY(-1px);
 }
 

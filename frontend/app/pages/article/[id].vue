@@ -10,7 +10,9 @@ import CommentComposer from "~/components/comment/CommentComposer.vue";
 import CommentThread from "~/components/comment/CommentThread.vue";
 import FavoriteFolderModal from "~/components/favorite/FavoriteFolderModal.vue";
 import { useArticleDigg } from "~/composables/useArticleDigg";
+import { useParallax } from "~/composables/useParallax";
 import { useReadingProgress } from "~/composables/useReadingProgress";
+import { useSectionReveal } from "~/composables/useSectionReveal";
 import { followUser, unfollowUser } from "~/services/follow";
 import { ApiBusinessError } from "~/services/http/errors";
 import { getArticleScoreSummary } from "~/services/ai";
@@ -42,6 +44,11 @@ const REPLY_COMMENT_PAGE_SIZE = 3;
 const ARTICLE_LIKE_DEBOUNCE_MS = 600;
 const favoriteModalOpen = ref(false);
 const articleScoreModalOpen = ref(false);
+
+// 动效档位 C：文章页首屏（hero）做一个区块进场；正文 markdown 段落一律不进场。
+// 装饰记号接一条 ≤10px 的视差（motion-v useScroll），减少动态下两者都归零。
+const { target: revealTarget, revealStyle } = useSectionReveal();
+const { parallaxStyle } = useParallax();
 
 const { data: article, error: articleError, refresh: refreshArticle } = await useAsyncData(
   () => `article-${articleId.value}`,
@@ -509,10 +516,10 @@ useSeoMeta({
     </section>
 
     <template v-else>
-      <header class="article-hero">
+      <header ref="revealTarget" class="article-hero motion-reveal" :style="revealStyle">
         <div class="article-hero__main">
           <p class="article-eyebrow">
-            <span class="article-eyebrow__mark" aria-hidden="true" />
+            <span class="article-eyebrow__mark motion-parallax" aria-hidden="true" :style="parallaxStyle" />
             Article / 阅读
           </p>
           <h1 class="article-hero__title">{{ article?.title }}</h1>

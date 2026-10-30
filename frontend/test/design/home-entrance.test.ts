@@ -6,12 +6,17 @@ import { describe, expect, it } from "vitest";
 import { staggerItemMotion } from "~/utils/motion";
 
 /**
- * 首页 "首屏 + 列表分级淡入" 的结构与降级断言。
+ * 首页 "首屏封面 + 列表分级淡入" 的结构与降级断言。
  *
- * 动效地基（#3）把"减少动态 = 归零，而不是变慢"定在 utils/motion；这里锁定三件事：
- *   1. 首页首屏与最新列表真的接了 useStaggerEntrance（而不是各写一套动画）；
- *   2. 每个入场元素都带 `.motion-stagger-item`（SSR initial 与 noscript 兜底依赖这个类）；
- *   3. reduce 下时长/延迟为 0，initial/animate 不变（不因 reduce 改 markup 而抖动 hydration）。
+ * 动效地基（#3）把"减少动态 = 归零，而不是变慢"定在 utils/motion；#23 又补了
+ * `useSectionReveal`（区块滚动进场）与 `useParallax`（视差 ≤10px）。#24 的首屏封面
+ * 是这两者的第一个"分层"消费者：装饰层走 reveal、文字层走 stagger、记号走视差，
+ * 所以这里锁定四件事：
+ *   1. 首页首屏、最新列表与右栏真的接了对应 composable（而不是各写一套动画）；
+ *   2. 每个入场元素都带 `.motion-stagger-item` / `.motion-reveal`（SSR initial 与
+ *      noscript 兜底依赖这些类）；
+ *   3. reduce 下时长/延迟为 0，initial/animate 不变（不因 reduce 改 markup 而抖动 hydration）；
+ *   4. 首屏封面没有自建关键帧动画（视差与进场都归口到 #3/#23 的预算）。
  */
 const projectDir = process.cwd();
 const read = (path: string) => readFileSync(join(projectDir, path), "utf8");
@@ -37,6 +42,27 @@ describe("首页分级淡入：首屏与列表", () => {
 
   it("无 JS 兜底：app.vue 的 noscript 样式把 stagger 条目直接置为可见", () => {
     expect(appSource).toContain("motion-stagger-item{opacity:1!important;transform:none!important}");
+  });
+});
+
+describe("首屏封面：分层进场与视差（#23 口径）", () => {
+  it("封面装饰层走 useSectionReveal（motion-reveal），文字层走 useStaggerEntrance", () => {
+    expect(pageSource).toContain("useSectionReveal");
+    expect(pageSource).toContain("revealStyle");
+    expect(pageSource).toContain("motion-reveal");
+    expect(pageSource).toContain("useStaggerEntrance");
+    expect(pageSource).toContain("motion-stagger-item");
+  });
+
+  it("封面记号接 useParallax（≤10px，reduced-motion 归零）", () => {
+    expect(pageSource).toContain("useParallax");
+    expect(pageSource).toContain("parallaxStyle");
+    expect(pageSource).toContain("motion-parallax");
+  });
+
+  it("封面不自己写关键帧动画", () => {
+    expect(pageSource).not.toContain("@keyframes");
+    expect(pageSource).not.toMatch(/animation(?:-name)?\s*:/u);
   });
 });
 

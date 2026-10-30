@@ -114,23 +114,7 @@ const componentFiles = {
   ...collectVueFiles(join(projectDir, "app/layouts"), projectDir),
 };
 
-const EXEMPTIONS: DarkSurfaceExemption[] = [
-  {
-    file: "app/components/article/ArticleCover.vue",
-    rule: "pure-white-hex",
-    reason: "封面图上的高光/网格叠层，是封面美术的一部分，不随站点明暗切换",
-  },
-  {
-    file: "app/components/article/ArticleCover.vue",
-    rule: "white-alpha",
-    reason: "同上：封面图叠层，落在图片之上而不是页面底色上",
-  },
-  {
-    file: "app/components/article/ArticleCover.vue",
-    rule: "light-gradient-stop",
-    reason: "同上：封面图上的白色高光渐变，属封面美术而非页面底色",
-  },
-];
+const EXEMPTIONS: DarkSurfaceExemption[] = [];
 
 describe("扫描器本身：人造违规 canary 必须被抓住", () => {
   it("四种规则都能命中（防止扫描器写成永远绿）", () => {
@@ -180,13 +164,8 @@ describe("真实组件：暗色下没有硬编码白/浅色块", () => {
     expect(scanDarkSurfaces(componentFiles, EXEMPTIONS)).toEqual([]);
   });
 
-  it("豁免只有一处，且必须写理由", () => {
-    const articleCover = EXEMPTIONS.filter((item) => item.file === "app/components/article/ArticleCover.vue");
-
-    expect(articleCover.length).toBe(3);
-    for (const item of EXEMPTIONS) {
-      expect(item.reason.length).toBeGreaterThan(8);
-    }
+  it("豁免清单为空：所有读者站组件都吃语义 token，#20 之后没有白名单", () => {
+    expect(EXEMPTIONS).toEqual([]);
   });
 });
 
@@ -231,17 +210,18 @@ describe("切换动效：走 motion token，减少动态时归零", () => {
     expect(bodyRule).not.toMatch(/0\.28s/u);
   });
 
-  it("减少动态时所有动效 token 归零：切换不产生过渡", () => {
+  it("减少动态时现存动效 token 归零：切换不产生过渡", () => {
     const reduceBlock =
       /@media \(prefers-reduced-motion: reduce\)\s*\{[\s\S]*?\n\}/u.exec(tokensCss)?.[0] ?? "";
 
-    for (const token of ["--motion-fast", "--motion-base", "--motion-slow", "--motion-stagger"]) {
-      expect(reduceBlock).toContain(`${token}: 0ms`);
+    // --motion-slow / --motion-stagger 已因零 var() 引用被删（spec A2），这里只断言现存的。
+    for (const token of ["--motion-fast", "--motion-base", "--motion-reveal-offset", "--parallax-max"]) {
+      expect(reduceBlock).toContain(`${token}: 0`);
     }
   });
 });
 
-describe("暗色铺色：克莱因蓝底 + 奶油白字（不是深灰/黑）", () => {
+describe("暗色铺色：中性石墨阶 + 浅石墨字（不是深蓝/暖黑）", () => {
   const tailwindCss = readFileSync(join(projectDir, "app/assets/css/tailwind.css"), "utf8");
 
   it("body 的暗色取值改吃语义 token，并覆盖水合前的 html.theme-dark", () => {

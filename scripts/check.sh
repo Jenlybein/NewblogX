@@ -296,6 +296,10 @@ if [ "$TARGET" = "all" ] || [ "$TARGET" = "frontend" ]; then
   for app in frontend frontend_admin; do
     run_contract_types "$app"
   done
+  # 两端 tokens.css 逐字节同源（ADR-0012 约束 14 / #22）。
+  # 这是仓库级判据（比较两份文件），与 app 无关，所以在循环外只跑一次；
+  # CI 的 frontend-lint job 跑同一条命令，避免"本地一份、CI 一份"的口径漂移。
+  run "两端 token 同源" node scripts/check-token-parity.mjs
   for app in frontend frontend_admin; do
     (
       cd "$app"

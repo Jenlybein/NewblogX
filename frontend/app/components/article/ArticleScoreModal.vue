@@ -3,6 +3,7 @@ import type { AiArticleScoringIssue, AiArticleScoringResponseData } from "~/type
 import { computed } from "vue";
 import { NButton, NCard, NEmpty, NModal, NProgress, NTag } from "naive-ui";
 import { formatDateTimeLabel } from "~/utils/format";
+import { usePointerSpecular } from "~/composables/usePointerSpecular";
 
 const props = defineProps<{
   show: boolean;
@@ -20,6 +21,9 @@ const emit = defineEmits<{
   refresh: [];
 }>();
 
+// 弹窗是厚玻璃浮层：指针镜面高光由统一 composable 写入 --mx/--my（移动端 / 减少动态关闭）。
+const { handlePointerMove } = usePointerSpecular();
+
 // 契约里 dimension.name 是 string（后端是 string，没有枚举约束），
 // 所以 map 用 string 做 key，查不到时用下面的兜底值。
 const dimensionFallback = {
@@ -29,10 +33,10 @@ const dimensionFallback = {
 };
 // 维度配色只消费语义 token（禁止第六个色相）；NProgress 接受 CSS 变量，明暗两态自动跟随。
 const dimensionMetaMap: Record<string, { label: string; color: string; railColor: string }> = {
-  clarity: { label: "清晰度", color: "var(--color-focus)", railColor: "var(--color-focus-soft)" },
+  clarity: { label: "清晰度", color: "var(--color-ink)", railColor: "var(--color-line-faint)" },
   structure: { label: "结构性", color: "var(--color-ink-muted)", railColor: "var(--color-line-faint)" },
-  completeness: { label: "完整度", color: "var(--color-focus)", railColor: "var(--color-focus-soft)" },
-  readability: { label: "可读性", color: "var(--color-highlight)", railColor: "var(--color-line-faint)" },
+  completeness: { label: "完整度", color: "var(--color-ink)", railColor: "var(--color-line-faint)" },
+  readability: { label: "可读性", color: "var(--color-ink-muted)", railColor: "var(--color-line-faint)" },
   persuasiveness: { label: "说服力", color: "var(--color-danger)", railColor: "var(--color-danger-soft)" },
   language: { label: "语言规范", color: "var(--color-ink-muted)", railColor: "var(--color-line-faint)" },
 };
@@ -70,7 +74,15 @@ function resolveIssueAnchor(issue: AiArticleScoringIssue) {
 
 <template>
   <NModal :show="show" class="article-score-modal" @update:show="emit('update:show', $event)">
-    <NCard :title="modalTitle" :bordered="false" closable class="article-score-card" @close="close">
+    <NCard
+      :title="modalTitle"
+      :bordered="false"
+      closable
+      class="article-score-card glass-thick"
+      :style="{ '--n-color': 'var(--glass-thick-fill)', '--n-border-radius': 'var(--radius-xl)' }"
+      @close="close"
+      @pointermove="handlePointerMove"
+    >
       <div v-if="loading" class="article-score-loading">
         <div class="article-score-loading__ring" />
         <span>{{ refreshing ? "正在重新获取最新评分…" : "正在读取评分内容…" }}</span>
@@ -163,9 +175,9 @@ function resolveIssueAnchor(issue: AiArticleScoringIssue) {
   width: min(980px, calc(100vw - 32px));
 }
 
-/* 结构件圆角 0（spec：只保留头像/胶囊/捏捏/圆形指示器）。 */
+/* 结构件圆角按阶梯取值：弹窗 28、卡片 20、控件/维度块 14。 */
 .article-score-card {
-  border-radius: 0;
+  border-radius: var(--radius-xl);
 }
 
 .article-score-loading,
@@ -185,9 +197,9 @@ function resolveIssueAnchor(issue: AiArticleScoringIssue) {
 .article-score-loading__ring {
   width: 30px;
   height: 30px;
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   border: 3px solid var(--color-line);
-  border-top-color: var(--color-focus);
+  border-top-color: var(--color-ink);
   animation: article-score-spin 0.9s linear infinite;
 }
 
@@ -203,7 +215,7 @@ function resolveIssueAnchor(issue: AiArticleScoringIssue) {
   justify-content: space-between;
   gap: 20px;
   padding: 20px 22px;
-  border-radius: 0;
+  border-radius: var(--radius-lg);
   background: var(--color-bg-subtle);
   border: 1px solid var(--color-line);
 }
@@ -241,7 +253,7 @@ function resolveIssueAnchor(issue: AiArticleScoringIssue) {
   gap: 6px;
   min-width: 110px;
   padding: 14px 16px;
-  border-radius: 0;
+  border-radius: var(--radius-md);
   background: var(--color-surface-raised);
   border: 1px solid var(--color-line-faint);
   color: var(--color-ink);
@@ -260,7 +272,7 @@ function resolveIssueAnchor(issue: AiArticleScoringIssue) {
 
 .article-score-dimension {
   padding: 16px 18px;
-  border-radius: 0;
+  border-radius: var(--radius-md);
   border: 1px solid var(--color-line-faint);
   background: var(--color-surface-raised);
 }
@@ -283,7 +295,7 @@ function resolveIssueAnchor(issue: AiArticleScoringIssue) {
 
 .article-score-section {
   padding: 20px 22px;
-  border-radius: 0;
+  border-radius: var(--radius-lg);
   border: 1px solid var(--color-line-faint);
   background: var(--color-surface-raised);
 }
@@ -316,7 +328,7 @@ function resolveIssueAnchor(issue: AiArticleScoringIssue) {
   grid-template-columns: 40px minmax(0, 1fr);
   gap: 14px;
   padding: 16px 18px;
-  border-radius: 0;
+  border-radius: var(--radius-md);
   background: var(--color-surface-raised);
 }
 
@@ -326,10 +338,10 @@ function resolveIssueAnchor(issue: AiArticleScoringIssue) {
   justify-content: center;
   width: 40px;
   height: 40px;
-  border-radius: 0;
+  border-radius: var(--radius-md);
   border: 1px solid var(--color-line-faint);
-  background: var(--color-focus-soft);
-  color: var(--color-focus);
+  background: var(--color-line-faint);
+  color: var(--color-ink);
   font-weight: 700;
 }
 

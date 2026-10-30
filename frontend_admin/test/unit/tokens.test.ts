@@ -26,9 +26,12 @@ describe('原始层：与读者站同源的五色锁死', () => {
     expect(tokensCss).toContain('--jelly-warm: #f2eee6')
   })
 
-  it('不新增第六个色相', () => {
+  it('不新增第六个色相（三元组基底同属已有色相）', () => {
     const hues = new Set(
-      [...tokensCss.matchAll(/--jelly-([a-z]+)[a-z0-9-]*\s*:/giu)].map((match) => match[1].toLowerCase()),
+      [...tokensCss.matchAll(/--jelly-([a-z0-9-]+)\s*:/giu)]
+        .map((match) => match[1]!.toLowerCase())
+        .filter((name) => !name.endsWith('-rgb'))
+        .map((name) => name.split('-')[0]!),
     )
 
     expect([...hues].sort()).toEqual(['blue', 'coral', 'cream', 'warm', 'yellow'])
@@ -156,5 +159,55 @@ describe('Tailwind 配置：色板与暗色策略', () => {
     expect(css).toContain('border-color: var(--color-line-faint)')
     expect(css).toMatch(/\.dark\\:bg-page:is\(\.dark \*\)/u)
     expect(css).not.toContain('prefers-color-scheme: dark')
+  })
+})
+
+describe('地基种子接线（#18：圆角 / 玻璃 / 字体分工键）', () => {
+  it('圆角五档、玻璃参数与字体键都从 token 取值', () => {
+    expect(extend.borderRadius).toEqual({
+      control: 'var(--radius-sm)',
+      field: 'var(--radius-md)',
+      card: 'var(--radius-lg)',
+      overlay: 'var(--radius-xl)',
+      pill: 'var(--radius-pill)',
+    })
+    expect(extend.colors.glass).toEqual({
+      thin: 'var(--glass-thin-fill)',
+      thick: 'var(--glass-thick-fill)',
+      rim: 'var(--glass-rim)',
+      'rim-warm': 'var(--glass-rim-warm)',
+    })
+    expect(extend.backdropBlur).toEqual({
+      'glass-thin': 'var(--glass-thin-blur)',
+      'glass-thick': 'var(--glass-thick-blur)',
+      'glass-mobile': 'var(--glass-blur-mobile)',
+    })
+    expect(extend.backdropSaturate).toEqual({
+      'glass-thin': 'var(--glass-thin-saturate)',
+      'glass-thick': 'var(--glass-thick-saturate)',
+    })
+    expect(extend.opacity).toEqual({ grain: 'var(--glass-grain-opacity)' })
+    expect(extend.fontFamily.display).toBe('var(--font-display)')
+    expect(extend.fontFamily.mono).toBe('var(--font-mono)')
+    expect(extend.fontFamily.title).toBe('var(--font-title)')
+  })
+
+  it('可编译：圆角 / 玻璃 / 字体类名真的生成 token 变量声明', async () => {
+    const css = await compileTailwindProbe({
+      projectDir,
+      html: '<div class="rounded-card rounded-field bg-glass-thick border-glass-rim backdrop-blur-glass-thick backdrop-saturate-glass-thick backdrop-blur-glass-mobile opacity-grain font-display font-mono font-title"></div>',
+    })
+
+    expect(css).toContain('border-radius: var(--radius-lg)')
+    expect(css).toContain('border-radius: var(--radius-md)')
+    expect(css).toContain('background-color: var(--glass-thick-fill)')
+    expect(css).toContain('border-color: var(--glass-rim)')
+    expect(css).toContain('blur(var(--glass-thick-blur))')
+    expect(css).toContain('saturate(var(--glass-thick-saturate))')
+    expect(css).toContain('blur(var(--glass-blur-mobile))')
+    expect(css).toContain('opacity: var(--glass-grain-opacity)')
+    expect(css).toContain('font-family: var(--font-display)')
+    expect(css).toContain('font-family: var(--font-mono)')
+    expect(css).toContain('font-family: var(--font-title)')
   })
 })

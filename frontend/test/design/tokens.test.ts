@@ -26,9 +26,12 @@ describe("原始层：五色锁死", () => {
     expect(tokensCss).toContain("--jelly-warm: #f2eee6");
   });
 
-  it("派生色只动同色相明度，不新增第六个色相", () => {
+  it("派生色只动同色相明度，不新增第六个色相（三元组基底同属已有色相）", () => {
     const hues = new Set(
-      [...tokensCss.matchAll(/--jelly-([a-z]+)[a-z0-9-]*\s*:/giu)].map((match) => match[1].toLowerCase()),
+      [...tokensCss.matchAll(/--jelly-([a-z0-9-]+)\s*:/giu)]
+        .map((match) => match[1]!.toLowerCase())
+        .filter((name) => !name.endsWith("-rgb"))
+        .map((name) => name.split("-")[0]!),
     );
 
     expect([...hues].sort()).toEqual(["blue", "coral", "cream", "warm", "yellow"]);

@@ -42,6 +42,13 @@ export default {
         },
         focus: "var(--color-focus)",
         shadow: "var(--color-shadow)",
+        // 玻璃层填充/边缘（ADR-0012 决策 5；本票只接线，实现留给批次 3）
+        glass: {
+          thin: "var(--glass-thin-fill)",
+          thick: "var(--glass-thick-fill)",
+          rim: "var(--glass-rim)",
+          "rim-warm": "var(--glass-rim-warm)",
+        },
         // 原始层：只给几何记号/装饰性铺色用（文字用 ink / danger-ink，永不用黄）
         jelly: {
           blue: "var(--jelly-blue)",
@@ -51,10 +58,34 @@ export default {
           warm: "var(--jelly-warm)",
         },
       },
+      borderRadius: {
+        // 圆角阶梯（ADR-0012 决策 4）：控件 / 输入 / 卡片 / 浮层 / 胶囊。
+        // 刻意不复用 Tailwind 默认的 sm/md/lg 键名，避免本票顺带把旧圆角改掉。
+        control: "var(--radius-sm)",
+        field: "var(--radius-md)",
+        card: "var(--radius-lg)",
+        overlay: "var(--radius-xl)",
+        pill: "var(--radius-pill)",
+      },
+      backdropBlur: {
+        "glass-thin": "var(--glass-thin-blur)",
+        "glass-thick": "var(--glass-thick-blur)",
+        "glass-mobile": "var(--glass-blur-mobile)",
+      },
+      backdropSaturate: {
+        "glass-thin": "var(--glass-thin-saturate)",
+        "glass-thick": "var(--glass-thick-saturate)",
+      },
+      opacity: {
+        grain: "var(--glass-grain-opacity)",
+      },
       fontFamily: {
         body: "var(--font-sans)",
         latin: "var(--font-latin)",
         cjk: "var(--font-cjk)",
+        display: "var(--font-display)",
+        mono: "var(--font-mono)",
+        title: "var(--font-title)",
       },
       fontWeight: {
         title: "var(--type-weight-title)",

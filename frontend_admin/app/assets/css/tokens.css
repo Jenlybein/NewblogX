@@ -43,7 +43,6 @@
 
   /* ---- 原始层：同色相明度/透明度派生（不引入新色相） ---- */
   --jelly-cream-050: #ffffff; /* 抬升纸面（比奶油白再亮一档） */
-  --jelly-warm-800: #e6e0d5; /* 暖灰加深：发丝线 / 分隔（保留的暖灰派生） */
   --jelly-coral-700: #c2401f; /* 派生暗橙：危险文字（AA：对纸面 5.0:1） */
   --jelly-coral-300: #ff9b85; /* 珊瑚橙浅明度：暗色下的危险文字（AA：对暗面 6.3:1） */
 
@@ -137,9 +136,7 @@
    * 只允许动 transform / opacity；下面 media 查询在「减少动态」时把它们全部归零。 */
   --motion-fast: 120ms; /* 微交互（hover/focus 反馈） */
   --motion-base: 200ms; /* 进出场 / 路由切换 */
-  --motion-slow: 320ms; /* 上限：结构级一次性过渡 */
   --motion-ease: cubic-bezier(0.2, 0.8, 0.2, 1); /* 全站唯一缓动曲线 */
-  --motion-stagger: 40ms; /* 列表相邻条目的错峰间隔 */
   --motion-reveal-offset: 12px; /* 区块级滚动进场位移上限（ADR-0012 决策 7） */
   --parallax-max: 10px; /* 视差上限 */
 }
@@ -207,8 +204,6 @@
   :root {
     --motion-fast: 0ms;
     --motion-base: 0ms;
-    --motion-slow: 0ms;
-    --motion-stagger: 0ms;
     --motion-reveal-offset: 0px;
     --parallax-max: 0px;
   }

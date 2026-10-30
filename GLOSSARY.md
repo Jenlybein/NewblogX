@@ -403,7 +403,7 @@ _Avoid_: 再造一张"暗色专用 Logo"——`logo-512-white.png` 是无 alpha 
 位置：`tokens.css` 动效层与 `frontend/app/utils/motion.ts`（同一份预算，两处必须同改）。
 _Avoid_: 用"档位 B"描述现状；在 `prefers-reduced-motion` 下仍保留进场。
 
-> 说明：本节新增词条（中性石墨阶、功能蓝、液态玻璃层、圆角阶梯、品牌资产例外、动效档位）出自 [ADR-0012](./docs/adr/0012-neutral-glass-visual-system.md)。该 ADR 状态是**已接受**、代码尚未按它改造，因此词条描述的是**目标口径**；「语义色 token」词条中关于两端逐字节同源的约定同样在批次 1 才落地。落地前两份 `tokens.css` 仍有差异，以代码为准。
+> 说明：本节新增词条（中性石墨阶、功能蓝、液态玻璃层、圆角阶梯、品牌资产例外、动效档位）出自 [ADR-0012](./docs/adr/0012-neutral-glass-visual-system.md)。该 ADR 已**交付**（落地分票 #18–#25 已全部合入），上述词条描述的都是当前生效的实现口径；「语义色 token」词条中两端逐字节同源的约定已由 `scripts/check-token-parity.mjs` 保证，两份 `tokens.css` 现逐字节一致。
 
 ---
 

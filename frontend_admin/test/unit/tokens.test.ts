@@ -131,14 +131,15 @@ describe('动效层：与读者站同一节奏（不接动效库）', () => {
     return declarations
   }
 
-  it('后台补齐三档时长 + 单一缓动，取值与读者站一致', () => {
+  it('后台补齐时长 + 单一缓动，取值与读者站一致', () => {
     const admin = motionDeclarations(tokensCss)
     const reader = motionDeclarations(readerTokensCss)
 
+    // --motion-slow / --motion-stagger 已因零 var() 引用从两份 tokens.css 删除，
+    // 现存的只有 fast / base / ease（stagger 的 delay 由 motion.ts 直接算毫秒）。
     expect(admin).toMatchObject({
       fast: '120ms',
       base: '200ms',
-      slow: '320ms',
       ease: 'cubic-bezier(0.2, 0.8, 0.2, 1)',
     })
     // 节奏必须两端同拍，否则同一套交互在两个应用里手感不同。
@@ -151,9 +152,9 @@ describe('动效层：与读者站同一节奏（不接动效库）', () => {
     const reduceBlock = /@media\s*\(prefers-reduced-motion:\s*reduce\)\s*\{([\s\S]*)$/u.exec(tokensCss)
 
     expect(reduceBlock).not.toBeNull()
+    // --motion-slow / --motion-stagger 已因零 var() 引用从两份 tokens.css 删除。
     expect(reduceBlock?.[1]).toMatch(/--motion-fast:\s*0ms/u)
     expect(reduceBlock?.[1]).toMatch(/--motion-base:\s*0ms/u)
-    expect(reduceBlock?.[1]).toMatch(/--motion-slow:\s*0ms/u)
   })
 
   it('admin.css 的过渡只消费 --motion-* 变量，没有滚动编排/关键帧', () => {

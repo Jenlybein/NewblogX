@@ -1,7 +1,10 @@
-import { readFileSync, readdirSync, statSync } from "node:fs";
+import { readFileSync } from "node:fs";
 import { join, relative, sep } from "node:path";
 
 import { describe, expect, it } from "vitest";
+
+// 目录遍历收进 helpers。
+import { collectFiles } from "../helpers/designFiles";
 
 // vitest 以 project root（frontend/）为 cwd。
 const projectDir = process.cwd();
@@ -86,16 +89,9 @@ function findLegacyPaletteClasses(source: string): Hit[] {
   return hits;
 }
 
-function walk(dir: string, files: string[] = []): string[] {
-  for (const name of readdirSync(dir)) {
-    const full = join(dir, name);
-    if (statSync(full).isDirectory()) {
-      walk(full, files);
-      continue;
-    }
-    files.push(full);
-  }
-  return files;
+// 原实现先全量收集再按后缀过滤，等价于"接受所有文件"。
+function walk(dir: string): string[] {
+  return collectFiles(dir, () => true);
 }
 
 function readAppSources(): { file: string; text: string }[] {

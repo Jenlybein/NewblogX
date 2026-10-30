@@ -1,7 +1,11 @@
-import { readFileSync, readdirSync, statSync } from "node:fs";
+import { readFileSync } from "node:fs";
 import { join, relative } from "node:path";
 
 import { describe, expect, it } from "vitest";
+
+// 遍历逻辑与其余 design 测试重复，收进 helpers。原实现没有跳过目录这一步，但 app/
+// 下并不存在 node_modules / .nuxt 之类的目录，显式跳过与否行为完全一致。
+import { collectFiles, extensionFilter } from "../helpers/designFiles";
 
 /**
  * #20「读者站视觉语言翻转」的验收断言（结构测试）：
@@ -15,21 +19,7 @@ import { describe, expect, it } from "vitest";
 const projectDir = process.cwd();
 const appDir = join(projectDir, "app");
 
-function walk(dir: string, files: string[] = []): string[] {
-  for (const name of readdirSync(dir)) {
-    const full = join(dir, name);
-    if (statSync(full).isDirectory()) {
-      walk(full, files);
-      continue;
-    }
-    if (/\.(?:vue|css|ts)$/u.test(name)) {
-      files.push(full);
-    }
-  }
-  return files;
-}
-
-const SOURCES = walk(appDir).map((absolute) => ({
+const SOURCES = collectFiles(appDir, extensionFilter("vue", "css", "ts")).map((absolute) => ({
   file: relative(projectDir, absolute).replace(/\\/gu, "/"),
   text: readFileSync(absolute, "utf8"),
 }));

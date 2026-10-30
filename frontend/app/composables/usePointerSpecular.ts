@@ -1,9 +1,12 @@
 import { computed, getCurrentScope, onScopeDispose, ref, type Ref } from "vue";
 
-import type { ReducedMotionMediaQuery } from "~/composables/useMotionPreference";
+import {
+  REDUCED_MOTION_QUERY,
+  defaultMatchMedia,
+  type ReducedMotionMediaQuery,
+} from "~/composables/useMotionPreference";
 import { specularPercentage, type SpecularRect } from "~/utils/specular";
 
-const REDUCED_MOTION_QUERY = "(prefers-reduced-motion: reduce)";
 const MOBILE_QUERY = "(max-width: 768px)";
 
 /** 指针事件里这里用到的元素接口（便于测试注入假元素）。 */
@@ -22,8 +25,6 @@ export interface PointerSpecularEvent {
 export interface UsePointerSpecularOptions {
   /** 注入 matchMedia（测试与 SSR 用）。 */
   matchMedia?: (query: string) => ReducedMotionMediaQuery | null | undefined;
-  /** 移动端断点查询，缺省 `(max-width: 768px)`。 */
-  mobileQuery?: string;
 }
 
 export interface PointerSpecular {
@@ -32,11 +33,6 @@ export interface PointerSpecular {
   /** 绑到玻璃元素的 `@pointermove`。 */
   handlePointerMove: (event: PointerSpecularEvent) => void;
   dispose: () => void;
-}
-
-function defaultMatchMedia(query: string): ReducedMotionMediaQuery | null {
-  if (typeof globalThis.matchMedia !== "function") return null;
-  return globalThis.matchMedia(query) as unknown as ReducedMotionMediaQuery;
 }
 
 /**
@@ -50,7 +46,7 @@ function defaultMatchMedia(query: string): ReducedMotionMediaQuery | null {
 export function usePointerSpecular(options: UsePointerSpecularOptions = {}): PointerSpecular {
   const getMediaQuery = options.matchMedia ?? defaultMatchMedia;
   const reducedQuery = getMediaQuery(REDUCED_MOTION_QUERY) ?? null;
-  const mobileQuery = getMediaQuery(options.mobileQuery ?? MOBILE_QUERY) ?? null;
+  const mobileQuery = getMediaQuery(MOBILE_QUERY) ?? null;
 
   const reducedMotion = ref(Boolean(reducedQuery?.matches));
   const mobile = ref(Boolean(mobileQuery?.matches));

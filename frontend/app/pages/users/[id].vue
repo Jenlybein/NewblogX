@@ -1,8 +1,9 @@
 <script setup lang="ts">
 import { computed } from "vue";
-import { NTag, useMessage } from "naive-ui";
+import { useMessage } from "naive-ui";
 import ArticleFeedItem from "~/components/article/ArticleFeedItem.vue";
 import ProfileCollectionShelf from "~/components/profile/ProfileCollectionShelf.vue";
+import ProfileEmptyState from "~/components/profile/ProfileEmptyState.vue";
 import ProfileHeroCard from "~/components/profile/ProfileHeroCard.vue";
 import ProfileRelationList from "~/components/profile/ProfileRelationList.vue";
 import { getPublicFavoriteFolders, getOwnFavoriteFolders, getFavoriteFolderArticles } from "~/services/favorite";
@@ -308,6 +309,13 @@ const tabLabels: Record<UserTab, string> = {
   fans: "粉丝",
 };
 
+const tabSummaryText = computed(() => {
+  if (activeTab.value === "articles") return `${articles.value.length} 篇文章`;
+  if (activeTab.value === "favorites") return favoriteSummaryText.value;
+  if (activeTab.value === "follow") return `${followData.value?.list?.length || 0} 个关注`;
+  return `${fansData.value?.list?.length || 0} 个粉丝`;
+});
+
 useSeoMeta({
   title: computed(() => `${profile.value?.nickname || "作者"} - 个人主页`),
   description: computed(() => profile.value?.abstract || "开发者个人主页"),
@@ -330,9 +338,9 @@ useSeoMeta({
           @message="handlePrivateMessage"
         />
 
-        <section class="surface-card p-5 md:p-6">
-          <div v-if="profileLoadFailed" class="mb-5 rounded-3xl border border-amber-200 bg-amber-50/85 px-4 py-3 text-sm text-amber-700">
-            作者资料暂时加载失败，部分关系操作已临时禁用。
+        <section class="blueprint-panel">
+          <div v-if="profileLoadFailed" class="notice mb-5">
+            作者资料暂时加载失败，部分关系操作已临时禁用。刷新页面或稍后再试。
           </div>
 
           <div class="mb-5 flex flex-wrap items-center justify-between gap-3">
@@ -346,8 +354,9 @@ useSeoMeta({
                 ]"
                 :key="item.value"
                 type="button"
-                class="soft-tab"
+                class="blueprint-tab"
                 :class="{ 'is-active': activeTab === item.value }"
+                :aria-pressed="activeTab === item.value"
                 @click="updateActiveTab(item.value as UserTab)"
               >
                 {{ item.label }}
@@ -355,9 +364,15 @@ useSeoMeta({
             </div>
 
             <div class="flex flex-wrap items-center gap-2">
-              <span class="glass-badge">{{ tabLabels[activeTab] }}</span>
-              <span class="glass-badge">{{ favoriteSummaryText }}</span>
+              <span class="blueprint-chip">{{ favoriteSummaryText }}</span>
+              <span class="blueprint-chip">{{ followData?.list?.length || 0 }} 关注</span>
+              <span class="blueprint-chip">{{ fansData?.list?.length || 0 }} 粉丝</span>
             </div>
+          </div>
+
+          <div class="mb-4 flex flex-wrap items-center justify-between gap-3 border-t border-line-faint pt-4">
+            <span class="text-sm text-ink-muted">{{ tabLabels[activeTab] }} · {{ tabSummaryText }}</span>
+            <NuxtLink to="/search" class="blueprint-link">搜索更多文章</NuxtLink>
           </div>
 
           <template v-if="activeTab === 'articles'">
@@ -366,13 +381,24 @@ useSeoMeta({
                 v-for="article in articles"
                 :key="article.id"
                 :article="article"
-                compact
+                variant="list"
                 :show-author="false"
               />
             </div>
-            <div v-else class="surface-section flex min-h-[220px] items-center justify-center p-6 text-sm muted">
-              {{ articlePending ? "正在加载作者文章…" : "这位作者还没有公开文章。" }}
-            </div>
+            <ProfileEmptyState
+              v-else
+              size="md"
+              :pending="articlePending"
+              :title="articlePending ? '正在加载作者文章' : '这位作者还没有公开文章'"
+              :description="
+                articlePending
+                  ? '文章流正在读取，稍候会自动出现。'
+                  : '作者还没有发布公开文章，可以先看收藏架或关注/粉丝列表。'
+              "
+              :hints="articlePending ? [] : ['公开文章才会出现在这里，草稿与私密文章不会展示。']"
+            >
+              <NuxtLink to="/search" class="blueprint-link">去搜索其他人的文章</NuxtLink>
+            </ProfileEmptyState>
           </template>
 
           <ProfileCollectionShelf
@@ -417,69 +443,74 @@ useSeoMeta({
             @toggle-follow="handleRelationToggle"
           />
 
-          <div v-else class="surface-section flex min-h-[280px] items-center justify-center p-6 text-sm muted">
-            当前分栏不可用，请切换到其他内容继续浏览。
-          </div>
+          <ProfileEmptyState
+            v-else
+            size="md"
+            title="当前分栏不可用"
+            description="这个分栏暂时没有内容，请切换到其他内容继续浏览。"
+            :hints="['文章、收藏、关注、粉丝四个分栏互不影响。']"
+          />
         </section>
       </div>
 
       <aside class="profile-sidebar">
-        <section class="surface-card p-5 md:p-6">
-          <div class="section-title">个人成就</div>
-          <div class="mt-4 line-divider">
+        <section class="blueprint-panel">
+          <div class="eyebrow">Profile</div>
+          <div class="section-title mt-2">个人成就</div>
+          <div class="mt-4 blueprint-divider">
             <div class="sidebar-list-row">
-              <span class="muted">关注了</span>
-              <strong>{{ profile?.follow_count || 0 }}</strong>
+              <span class="text-ink-muted">关注了</span>
+              <strong class="text-ink">{{ formatCount(profile?.follow_count || 0) }}</strong>
             </div>
-            <div class="sidebar-list-row">
-              <span class="muted">关注者</span>
-              <strong>{{ profile?.fans_count || 0 }}</strong>
+            <div class="sidebar-list-row blueprint-divider">
+              <span class="text-ink-muted">关注者</span>
+              <strong class="text-ink">{{ formatCount(profile?.fans_count || 0) }}</strong>
             </div>
-            <div class="sidebar-list-row">
-              <span class="muted">文章数</span>
-              <strong>{{ profile?.article_count || 0 }}</strong>
+            <div class="sidebar-list-row blueprint-divider">
+              <span class="text-ink-muted">文章数</span>
+              <strong class="text-ink">{{ formatCount(profile?.article_count || 0) }}</strong>
             </div>
-            <div class="sidebar-list-row">
-              <span class="muted">累计阅读</span>
-              <strong>{{ formatCount(profile?.view_count || 0) }}</strong>
+            <div class="sidebar-list-row blueprint-divider">
+              <span class="text-ink-muted">累计阅读</span>
+              <strong class="text-ink">{{ formatCount(profile?.view_count || 0) }}</strong>
             </div>
           </div>
         </section>
 
-        <section class="surface-card p-5 md:p-6">
-          <div class="section-title">公开设置</div>
+        <section class="blueprint-panel">
+          <div class="eyebrow">Visibility</div>
+          <div class="section-title mt-2">公开设置</div>
           <div class="mt-4 flex flex-wrap gap-2">
-            <NTag v-for="badge in visibilityBadges" :key="badge" size="small" round :bordered="false">
-              {{ badge }}
-            </NTag>
+            <span v-for="badge in visibilityBadges" :key="badge" class="blueprint-chip">{{ badge }}</span>
           </div>
-          <div class="mt-4 line-divider">
+          <div class="mt-4 blueprint-divider">
             <div class="sidebar-list-row">
-              <span class="muted">加入信息</span>
-              <strong>{{ profile?.place || "未填写地区" }}</strong>
+              <span class="text-ink-muted">加入信息</span>
+              <strong class="text-ink">{{ profile?.place || "未填写地区" }}</strong>
             </div>
-            <div class="sidebar-list-row line-divider">
-              <span class="muted">代码年龄</span>
-              <strong>{{ profile?.code_age || 0 }} 年</strong>
+            <div class="sidebar-list-row blueprint-divider">
+              <span class="text-ink-muted">代码年龄</span>
+              <strong class="text-ink">{{ profile?.code_age || 0 }} 年</strong>
             </div>
-            <div class="sidebar-list-row line-divider">
-              <span class="muted">关系状态</span>
-              <NTag size="small" round :bordered="false">{{ relationText }}</NTag>
+            <div class="sidebar-list-row blueprint-divider">
+              <span class="text-ink-muted">关系状态</span>
+              <span class="blueprint-chip">{{ relationText }}</span>
             </div>
           </div>
         </section>
 
-        <section class="surface-card p-5 md:p-6">
-          <div class="section-title">资料摘要</div>
-          <p class="mt-4 text-sm leading-7 muted">
+        <section class="blueprint-panel">
+          <div class="eyebrow">About</div>
+          <div class="section-title mt-2">资料摘要</div>
+          <p class="mt-4 text-sm leading-prose text-ink-muted">
             {{
               profileAbstractText ||
               "这位作者暂时还没有补充个人简介。你可以先从文章流、收藏夹或关系分栏了解他的内容偏好。"
             }}
           </p>
-          <div class="mt-4 flex flex-wrap gap-2">
-            <NuxtLink to="/search" class="glass-badge">回到文章流</NuxtLink>
-            <NuxtLink v-if="isSelf" to="/studio/dashboard" class="glass-badge">进入个人中心</NuxtLink>
+          <div class="mt-4 flex flex-wrap items-center gap-3">
+            <NuxtLink to="/search" class="blueprint-link">回到文章流</NuxtLink>
+            <NuxtLink v-if="isSelf" to="/studio/dashboard" class="blueprint-link">进入个人中心</NuxtLink>
           </div>
         </section>
       </aside>

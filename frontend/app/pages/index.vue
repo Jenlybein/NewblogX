@@ -103,27 +103,31 @@ const { entranceProps } = useStaggerEntrance();
 /**
  * 右栏线条场（纯装饰，aria-hidden）。
  *
- * 为什么用数据而不是十来个手写 span：线条的"凌乱感"来自**位置与长度互相错开**，
+ * 为什么用数据而不是十来个手写 span：线条的"凌乱感"来自**长度与位置互相错开**，
  * 一屏十几条写成数据后调起来是改数字，写死在模板里则要改十几块 DOM。
  *
- * 几何全部用百分比：左栏面板占 44%，所以 `left` 小于 44% 的线条就会**压到轮播面板上**
- * （用户要的"盖住一点轮播图"）。`tone` 只允许 ink / blue / coral / yellow 四种，
- * 前三种走语义反白色与首屏锁定的两个色相，yellow 用高亮黄——首屏之外不得复用。
+ * 两条几何约定（用户明确要求）：
+ * 1. **右端贴右**：所有线条用 `right` 定位（0–1.5% 的小抖动），右端点不许离开最右边太远；
+ * 2. **中间最长、上下渐短**：`width` 以垂直中位（≈50%）为峰值向两端递减，并掺入不规则的
+ *    抖动 —— 所以中段那几条最长的会**越过左栏面板的右沿、压在轮播上**（用户要的凌乱感）。
+ *
+ * `tone` 只允许 ink / blue / coral / yellow：ink 是反白细线，后三者是首屏锁定的色相。
  */
 const heroLines = [
-  { tone: "ink", style: { top: "4%", left: "47%", width: "53%", height: "1px" } },
-  { tone: "blue", style: { top: "13%", left: "30%", width: "58%", height: "4px" } },
-  { tone: "ink", style: { top: "20%", left: "62%", width: "26%", height: "1px" } },
-  { tone: "yellow", style: { top: "27%", left: "41%", width: "45%", height: "8px" } },
-  { tone: "ink", style: { top: "35%", left: "52%", width: "38%", height: "1px" } },
-  { tone: "coral", style: { top: "43%", left: "36%", width: "22%", height: "3px" } },
-  { tone: "ink", style: { top: "48%", left: "58%", width: "42%", height: "1px" } },
-  { tone: "ink", style: { top: "56%", left: "44%", width: "18%", height: "1px" } },
-  { tone: "blue", style: { top: "64%", left: "49%", width: "51%", height: "2px" } },
-  { tone: "ink", style: { top: "71%", left: "66%", width: "34%", height: "1px" } },
-  { tone: "ink", style: { top: "79%", left: "38%", width: "12%", height: "1px" } },
-  { tone: "yellow", style: { top: "86%", left: "55%", width: "45%", height: "3px" } },
-  { tone: "ink", style: { top: "92%", left: "43%", width: "20%", height: "1px" } },
+  { tone: "ink", style: { top: "4%", right: "0.5%", width: "18%", height: "1px" } },
+  { tone: "ink", style: { top: "11%", right: "0%", width: "25%", height: "1px" } },
+  { tone: "blue", style: { top: "18%", right: "1.5%", width: "31%", height: "3px" } },
+  { tone: "ink", style: { top: "25%", right: "0%", width: "44%", height: "1px" } },
+  { tone: "ink", style: { top: "32%", right: "0.5%", width: "51%", height: "1px" } },
+  { tone: "ink", style: { top: "39%", right: "0%", width: "57%", height: "1px" } },
+  { tone: "yellow", style: { top: "45%", right: "0%", width: "61%", height: "8px" } },
+  { tone: "ink", style: { top: "52%", right: "0.5%", width: "58%", height: "1px" } },
+  { tone: "coral", style: { top: "58%", right: "1%", width: "49%", height: "3px" } },
+  { tone: "ink", style: { top: "66%", right: "0%", width: "43%", height: "1px" } },
+  { tone: "blue", style: { top: "73%", right: "1.5%", width: "34%", height: "4px" } },
+  { tone: "ink", style: { top: "81%", right: "0%", width: "24%", height: "1px" } },
+  { tone: "ink", style: { top: "88%", right: "1%", width: "16%", height: "1px" } },
+  { tone: "ink", style: { top: "94%", right: "0%", width: "11%", height: "1px" } },
 ] as const;
 
 async function handlePreviousLatestPage() {
@@ -166,24 +170,24 @@ async function handleRetryLatest() {
         <span class="home-cover__grid-line home-cover__grid-line--c" />
       </div>
 
-      <!-- 4 超大 h1 + 5 记号；轮播是左栏的窄高面板，右栏是线条场（部分线条压过面板） -->
+      <!-- 4 超大 h1 在上；轮播是它下方偏右的面板，右栏线条场会压过面板 -->
       <div class="home-cover__inner">
+        <Motion v-bind="entranceProps(0)" class="motion-stagger-item home-cover__copy">
+          <div class="eyebrow home-cover__eyebrow">{{ BRAND.name.en }} · {{ BRAND.name.zh }}</div>
+          <h1 class="home-cover__title">
+            <span class="home-cover__title-name">{{ BRAND.name.en.toUpperCase() }}</span>
+            <span class="home-cover__title-bracket">[{{ BRAND.name.zh }}]</span>
+          </h1>
+        </Motion>
+
         <div class="home-cover__panel">
-          <!-- 0 底图 + 1 罩层 + 6 控件：轮播作为左栏面板（≥2 张才出现玻璃胶囊控件；空态沿用既有组件） -->
+          <!-- 0 底图 + 1 罩层 + 6 控件：轮播作为大字下方的面板（≥2 张才出现玻璃胶囊控件） -->
           <BannerCarousel
             class="home-cover__media"
             :banners="banners"
             :pending="bannerPending"
             :photo-style="parallaxStyle"
           />
-
-          <Motion v-bind="entranceProps(0)" class="motion-stagger-item home-cover__copy">
-            <div class="eyebrow home-cover__eyebrow">{{ BRAND.name.en }} · {{ BRAND.name.zh }}</div>
-            <h1 class="home-cover__title">
-              <span class="home-cover__title-name">{{ BRAND.name.en.toUpperCase() }}</span>
-              <span class="home-cover__title-bracket">[{{ BRAND.name.zh }}]</span>
-            </h1>
-          </Motion>
         </div>
 
         <!-- 右栏线条场：横跨整个内层，一小半线条压到轮播面板上（微微凌乱，但不遮标题） -->
@@ -358,28 +362,30 @@ async function handleRetryLatest() {
   height: 1px;
 }
 
-/* ---- 图层 4/5：左栏轮播面板（窄而高）+ 右栏线条场与刻度 + 跨栏超大 h1 ---- */
+/* ---- 图层 4/5：超大 h1 在上，轮播面板在它下方（略偏右），右栏线条场与刻度 ---- */
 .home-cover__inner {
   position: relative;
   z-index: 4;
   display: grid;
   grid-template-columns: minmax(0, 44%) minmax(0, 1fr);
+  grid-template-rows: auto auto;
   align-items: end;
   gap: clamp(1rem, 2.5vw, 2.5rem);
   width: 100%;
 }
 
-/* 左栏：轮播面板。这里同时是 .banner-stage（absolute inset: 0）的定位上下文 ——
-   给它 relative + 明确高度，内部底图 / 罩层 / 玻璃控件就自然填满这块面板。 */
+/* 左栏：轮播面板，位于大字下方并整体右移一点（margin 让它不贴左沿）。
+   它同时是 .banner-stage（absolute inset: 0）的定位上下文 —— 给 relative + 明确高度，
+   内部底图 / 罩层 / 玻璃控件就自然填满面板。 */
 .home-cover__panel {
   position: relative;
   z-index: 2;
   grid-column: 1;
-  grid-row: 1;
+  grid-row: 2;
+  margin-inline-start: clamp(1.5rem, 7vw, 7rem);
   overflow: clip;
-  aspect-ratio: 5 / 4;
-  min-height: clamp(280px, 38vh, 480px);
-  max-height: 33rem;
+  aspect-ratio: 16 / 10;
+  min-height: clamp(380px, 50vh, 600px);
   border-radius: var(--radius-lg);
   background: var(--color-surface-inverse);
 }
@@ -419,12 +425,12 @@ async function handleRetryLatest() {
   background: var(--jelly-yellow);
 }
 
-/* 跨栏标题：落在面板下方、占满整行（参考图那种"大字压横条"的重心位置）。 */
+/* 超大 h1：占满第一行（大字压在最上面，权重最高）。 */
 .home-cover__copy {
   position: relative;
   z-index: 4;
   grid-column: 1 / -1;
-  grid-row: 2;
+  grid-row: 1;
   min-width: 0;
 }
 
@@ -456,13 +462,13 @@ async function handleRetryLatest() {
   color: var(--color-on-inverse-muted);
 }
 
-/* 右栏：顶部空白留给线条场，记号与刻度压在面板同高的下沿。 */
+/* 右栏：与轮播面板同一行，记号与刻度压在面板下沿。 */
 .home-cover__aside {
   display: flex;
   position: relative;
   z-index: 4;
   grid-column: 2;
-  grid-row: 1;
+  grid-row: 2;
   min-width: 0;
   flex-direction: column;
   align-items: flex-end;
@@ -546,17 +552,18 @@ async function handleRetryLatest() {
     align-items: start;
   }
 
-  /* 窄屏：面板铺满整行（横向 4:3），标题落到面板下方，右栏记号排在最后。 */
-  .home-cover__panel {
-    grid-column: 1;
-    grid-row: 1;
-    aspect-ratio: 4 / 3;
-    max-height: none;
-  }
-
+  /* 窄屏：顺序仍是大字 → 面板 → 记号；面板铺满整行、不再右移。 */
   .home-cover__copy {
     grid-column: 1;
+    grid-row: 1;
+  }
+
+  .home-cover__panel {
+    grid-column: 1;
     grid-row: 2;
+    margin-inline-start: 0;
+    aspect-ratio: 4 / 3;
+    min-height: clamp(240px, 32vh, 420px);
   }
 
   .home-cover__title {

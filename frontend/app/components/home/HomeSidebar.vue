@@ -1,14 +1,11 @@
 <script setup lang="ts">
-import { computed, ref } from "vue";
+import { computed } from "vue";
 import type { StyleValue } from "vue";
-import { NButton, NSkeleton, NTag } from "naive-ui";
+import { NSkeleton, NTag } from "naive-ui";
 import AppAvatar from "~/components/common/AppAvatar.vue";
-import HomeAiChatDialog from "~/components/home/HomeAiChatDialog.vue";
-import { useAuthStore } from "~/stores/auth";
-import { useUiStore } from "~/stores/ui";
-import type { SearchArticleItem, SiteAiInfo, SiteRuntimeConfig } from "~/types/api";
-import { resolveAvatarInitial, resolveAvatarUrl } from "~/utils/avatar";
-import { brandAiName, brandProjectTitle } from "~/utils/brand";
+import type { SearchArticleItem, SiteRuntimeConfig } from "~/types/api";
+import { resolveAvatarUrl } from "~/utils/avatar";
+import { brandProjectTitle } from "~/utils/brand";
 import { useStaggerEntrance } from "~/composables/useStaggerEntrance";
 
 // 动效地基的第一个真实用例：热门标签列表错峰入场（40ms 一档，只动 opacity/translateY）。
@@ -18,7 +15,6 @@ const { entranceProps } = useStaggerEntrance();
 const props = withDefaults(defineProps<{
   pending?: boolean;
   runtimeConfig: SiteRuntimeConfig | null;
-  aiInfo: SiteAiInfo | null;
   articles: SearchArticleItem[];
   sticky?: boolean;
   stickyTop?: number | string;
@@ -130,29 +126,6 @@ const projectTitle = computed(() =>
 const projectAbstract = computed(
   () => props.runtimeConfig?.project?.abstract || props.runtimeConfig?.site_info?.subtitle || "为开发者写作、搜索与知识整理提供稳定的内容入口。",
 );
-const aiAvatarUrl = computed(() => resolveAvatarUrl(props.aiInfo?.avatar ?? ""));
-const authStore = useAuthStore();
-const uiStore = useUiStore();
-const aiDialogOpen = ref(false);
-const aiDisplayName = computed(() => brandAiName(props.aiInfo?.nickname));
-const aiDescription = computed(
-  () => props.aiInfo?.abstract || "可以直接提问文章搜索、写作改写、结构诊断与内容整理问题。",
-);
-const aiCapabilities = ["站内搜索", "写作建议", "结构诊断", "Markdown 回复"];
-
-async function handleOpenAiDialog() {
-  if (!props.aiInfo?.enable) {
-    return;
-  }
-
-  const isLoggedIn = await authStore.initializeSession();
-  if (!isLoggedIn) {
-    uiStore.openAuthModal();
-    return;
-  }
-
-  aiDialogOpen.value = true;
-}
 </script>
 
 <template>
@@ -232,121 +205,5 @@ async function handleOpenAiDialog() {
         </NuxtLink>
       </div>
     </section>
-
-    <section class="surface-card overflow-hidden p-0">
-      <div class="home-ai-card">
-        <div class="home-ai-card__glow" />
-        <div class="home-ai-card__inner">
-          <div class="flex items-start gap-4">
-            <NSkeleton v-if="pending" circle height="60px" width="60px" />
-            <div
-              v-else
-              class="home-ai-card__avatar"
-            >
-              <img
-                v-if="aiAvatarUrl"
-                :src="aiAvatarUrl"
-                :alt="aiDisplayName"
-                class="block h-full w-full object-cover object-center"
-              />
-              <div
-                v-else
-                class="flex h-full w-full items-center justify-center text-base font-semibold text-slate-700"
-              >
-                {{ resolveAvatarInitial(aiInfo?.nickname, "AI") }}
-              </div>
-            </div>
-
-            <div class="min-w-0 flex-1">
-              <template v-if="pending">
-                <NSkeleton text width="72px" />
-                <NSkeleton text width="128px" class="mt-3" />
-                <NSkeleton text class="mt-3" :repeat="2" />
-              </template>
-              <template v-else>
-                <div class="text-lg font-semibold text-slate-900">
-                  {{ aiDisplayName }}
-                </div>
-                <p class="mt-2 text-sm leading-7 text-slate-600">
-                  {{ aiDescription }}
-                </p>
-              </template>
-            </div>
-          </div>
-
-          <div v-if="!pending" class="mt-5 flex flex-wrap gap-2">
-            <span
-              v-for="capability in aiCapabilities"
-              :key="capability"
-              class="home-ai-card__chip"
-            >
-              {{ capability }}
-            </span>
-          </div>
-
-          <div class="mt-5 flex items-center justify-between gap-3">
-            <NButton
-              type="primary"
-              class="ml-auto shrink-0"
-              :disabled="pending || !aiInfo?.enable"
-              @click="handleOpenAiDialog"
-            >
-              进行对话
-            </NButton>
-          </div>
-        </div>
-      </div>
-    </section>
-
-    <HomeAiChatDialog v-model:show="aiDialogOpen" :ai-info="aiInfo" />
   </aside>
 </template>
-
-<style scoped>
-.home-ai-card {
-  position: relative;
-  overflow: hidden;
-  background: #ffffff;
-}
-
-.home-ai-card__glow {
-  position: absolute;
-  inset: auto -14% -34% auto;
-  width: 180px;
-  height: 180px;
-  border-radius: 999px;
-  background: radial-gradient(circle, rgb(20 184 166 / 0.08), transparent 68%);
-  pointer-events: none;
-}
-
-.home-ai-card__inner {
-  position: relative;
-  padding: 1.5rem;
-}
-
-.home-ai-card__avatar {
-  display: flex;
-  width: 60px;
-  height: 60px;
-  flex-shrink: 0;
-  align-items: center;
-  justify-content: center;
-  overflow: hidden;
-  border-radius: 1.25rem;
-  border: 1px solid rgb(226 232 240 / 0.88);
-  background: #ffffff;
-  box-shadow: 0 20px 40px rgb(15 23 42 / 0.08);
-}
-
-.home-ai-card__chip {
-  display: inline-flex;
-  align-items: center;
-  border-radius: 999px;
-  background: rgb(255 255 255 / 0.92);
-  border: 1px solid rgb(226 232 240 / 0.86);
-  padding: 0.42rem 0.72rem;
-  font-size: 0.74rem;
-  font-weight: 600;
-  color: rgb(51 65 85 / 0.92);
-}
-</style>

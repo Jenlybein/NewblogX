@@ -11,7 +11,6 @@
     "app/components/studio/StudioAiAssistPanel.vue",
     "app/components/studio/StudioSelectionAiToolbar.vue",
     "app/components/studio/StudioWriteHeader.vue",
-    "app/pages/article/[id].vue",
     "app/pages/studio/favorites.vue",
     "app/pages/studio/profile.vue"
   ],

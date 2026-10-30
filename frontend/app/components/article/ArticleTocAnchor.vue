@@ -2,6 +2,7 @@
 import { nextTick, ref, watch } from "vue";
 import { NAnchor, NAnchorLink } from "naive-ui";
 import type { ArticleHeadingAnchor } from "~/composables/useArticleMarkdown";
+import { formatProgressPercent, tocIndentLevel } from "~/utils/toc";
 
 const props = defineProps<{
   headings: ArticleHeadingAnchor[];
@@ -38,20 +39,25 @@ watch(
 </script>
 
 <template>
-  <section v-if="headings.length" class="surface-card p-5 md:p-6">
-    <div class="eyebrow">Contents</div>
-    <div class="mt-2 flex items-center justify-between gap-3">
-      <h2 class="section-title text-[18px] md:text-[20px]">目录</h2>
-      <div class="glass-badge">{{ Math.round(progressPercent) }}%</div>
+  <section v-if="headings.length" class="article-paper article-toc">
+    <div class="article-toc__head">
+      <p class="article-eyebrow"><span class="article-eyebrow__mark" aria-hidden="true" />Contents</p>
+      <h2 class="article-toc__title">目录</h2>
+      <span class="article-toc__progress">{{ formatProgressPercent(progressPercent) }}</span>
     </div>
 
-    <div class="mt-4">
-      <div class="article-reading-progress">
-        <div class="article-reading-progress__fill" :style="{ width: `${progressPercent}%` }" />
-      </div>
+    <div
+      class="article-reading-progress"
+      role="progressbar"
+      aria-label="阅读进度"
+      :aria-valuemin="0"
+      :aria-valuemax="100"
+      :aria-valuenow="Math.round(progressPercent)"
+    >
+      <span class="article-reading-progress__fill" :style="{ width: `${progressPercent}%` }" />
     </div>
 
-    <div ref="tocBodyRef" class="mt-4 article-toc-anchor">
+    <nav ref="tocBodyRef" class="article-toc__body" aria-label="文章目录">
       <NAnchor :bound="96" :show-rail="false" type="block">
         <NAnchorLink
           v-for="heading in headings"
@@ -59,15 +65,14 @@ watch(
           :href="heading.href"
           :title="heading.title"
           :data-heading-id="heading.id"
-          :class="{
-            'article-toc-link': true,
-            'is-active': activeHeadingId === heading.id,
-            'ml-3': heading.level === 3,
-            'ml-6': heading.level >= 4,
-          }"
+          :class="[
+            'article-toc-link',
+            `article-toc-link--indent-${tocIndentLevel(heading.level)}`,
+            { 'is-active': activeHeadingId === heading.id },
+          ]"
           @click.prevent="handleJump(heading.id)"
         />
       </NAnchor>
-    </div>
+    </nav>
   </section>
 </template>

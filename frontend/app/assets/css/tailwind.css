@@ -361,73 +361,64 @@
     @apply flex flex-wrap items-center gap-3;
   }
 
+  /* ---- 目录 / 阅读进度（#8：1px 结构线 + 克莱因蓝进度，圆角 0）---- */
   .article-reading-progress {
-    @apply h-2 overflow-hidden rounded-full;
-    background: rgba(203, 213, 225, 0.45);
-  }
-
-  .theme-dark .article-reading-progress {
-    background: rgba(51, 65, 85, 0.72);
+    @apply h-1 w-full overflow-hidden border border-line-faint bg-subtle;
   }
 
   .article-reading-progress__fill {
-    @apply h-full rounded-full transition-all duration-300;
-    background: linear-gradient(
-      90deg,
-      rgba(15, 118, 110, 0.82) 0%,
-      rgba(20, 184, 166, 0.96) 100%
-    );
+    @apply block h-full;
+    background: var(--color-focus);
+    transition: width var(--motion-base) var(--motion-ease);
   }
 
-  .article-toc-anchor {
-    @apply max-h-[380px] overflow-y-auto pr-2;
+  .article-toc {
+    @apply p-5 md:p-6;
+  }
+
+  .article-toc__head {
+    @apply grid grid-cols-[minmax(0,1fr)_auto] items-end gap-x-3 gap-y-1;
+  }
+
+  .article-toc__title {
+    @apply col-start-1 font-title text-[18px] leading-title tracking-title text-ink md:text-[20px];
+  }
+
+  .article-toc__progress {
+    @apply col-start-2 row-span-2 row-start-1 self-start border border-line-faint bg-subtle px-2 py-0.5 text-xs tabular-nums text-ink-muted;
+  }
+
+  .article-toc__body {
+    @apply mt-4 max-h-[380px] overflow-y-auto pr-1;
   }
 
   .article-toc-link {
-    @apply relative rounded-2xl transition-colors duration-200;
+    @apply relative block border-l-2 border-transparent transition-colors;
   }
 
-  .article-toc-link::before {
-    content: "";
-    position: absolute;
-    left: 0;
-    top: 8px;
-    bottom: 8px;
-    width: 3px;
-    border-radius: 999px;
-    background: rgba(15, 118, 110, 0.92);
-    opacity: 0;
-    transition: opacity 0.2s ease;
+  .article-toc-link--indent-1 {
+    padding-left: 1rem;
   }
 
-  .article-toc-link.is-active {
-    background: rgba(15, 118, 110, 0.1);
-  }
-
-  .article-toc-link.is-active::before {
-    opacity: 1;
+  .article-toc-link--indent-2 {
+    padding-left: 2rem;
   }
 
   .article-toc-link :where(.n-anchor-link__title) {
-    @apply rounded-2xl px-4 py-2 text-[13px] leading-6;
-    color: var(--text-soft);
+    @apply px-3 py-1.5 text-[13px] leading-6 text-ink-muted;
+  }
+
+  .article-toc-link:hover :where(.n-anchor-link__title) {
+    color: var(--color-ink);
+  }
+
+  .article-toc-link.is-active {
+    border-left-color: var(--color-focus);
   }
 
   .article-toc-link.is-active :where(.n-anchor-link__title) {
-    color: var(--accent);
+    color: var(--color-ink);
     font-weight: 600;
-  }
-
-  .theme-dark .article-toc-link.is-active {
-    background: rgba(15, 118, 110, 0.14);
-  }
-
-  .theme-dark .article-toc-link :where(.n-anchor-link__title) {
-    color: #9eb0c3;
-  }
-
-  .theme-dark .article-toc-link.is-active :where(.n-anchor-link__title) {
-    color: #67e8f9;
   }
 
   .page-stack {
@@ -618,20 +609,428 @@
   }
 
   .comment-thread {
+    @apply flex flex-col gap-4;
+  }
+
+  /* ==========================================================================
+   * 文章阅读页（#8）：图纸版面
+   *
+   * 只消费语义 token（--color-*）与排版/动效 token：圆角 0、1px 克莱因蓝结构线、
+   * 奶油白纸面；目录/进度/正文/评论层级由字号、结构线与留白区分。
+   * 这一段只服务 pages/article 与 article/comment 组件，不改其他页面的观感。
+   * ======================================================================== */
+  .article-page {
     @apply flex flex-col gap-5;
   }
 
-  .comment-item {
-    @apply flex gap-4;
+  .article-paper {
+    @apply border border-line bg-surface;
   }
 
-  .comment-subtree {
-    @apply ml-8 border-l pl-5;
-    border-color: rgba(217, 226, 236, 0.88);
+  .article-paper--state {
+    @apply p-6 md:p-8;
   }
 
-  .theme-dark .comment-subtree {
-    border-color: rgba(45, 59, 78, 0.88);
+  .article-paper--cover {
+    @apply overflow-hidden;
+  }
+
+  .article-paper--body {
+    @apply p-5 md:p-8;
+  }
+
+  .article-eyebrow {
+    @apply m-0 flex items-center gap-2 text-[11px] uppercase tracking-[0.24em] text-ink-muted;
+  }
+
+  .article-eyebrow__mark {
+    @apply inline-block h-3 w-3 shrink-0;
+    background: var(--color-highlight);
+  }
+
+  .article-hero {
+    @apply flex flex-col gap-6 border border-line bg-surface p-6 md:p-8 lg:flex-row lg:items-end lg:justify-between;
+  }
+
+  .article-hero__main {
+    @apply min-w-0 flex-1;
+  }
+
+  .article-hero__title {
+    @apply mt-3 font-title text-3xl leading-title tracking-title text-ink md:text-[2.6rem];
+  }
+
+  .article-hero__abstract {
+    @apply mt-4 max-w-[68ch] text-base leading-prose text-ink-muted;
+  }
+
+  .article-hero__taxonomy {
+    @apply mt-5 flex flex-wrap items-center gap-2;
+  }
+
+  .article-chip {
+    @apply inline-flex min-h-[28px] items-center border border-line px-2.5 text-xs text-ink-muted;
+  }
+
+  .article-chip--mark {
+    border-color: var(--color-line-faint);
+    background: var(--color-highlight);
+    color: var(--color-ink);
+  }
+
+  .article-meta {
+    @apply m-0 mt-5 flex flex-wrap items-center gap-x-5 gap-y-2 text-sm text-ink-muted;
+  }
+
+  .article-meta__item {
+    @apply m-0 inline-flex items-center gap-1.5;
+  }
+
+  .article-meta__item dt {
+    @apply m-0 inline-flex items-center gap-1 font-normal;
+  }
+
+  .article-meta__item dd {
+    @apply m-0 tabular-nums;
+  }
+
+  .article-actions {
+    @apply flex shrink-0 flex-wrap items-center gap-2.5 lg:justify-end;
+  }
+
+  .article-action {
+    @apply inline-flex min-h-[44px] items-center justify-center gap-2 border border-line bg-surface px-4 text-sm font-semibold text-ink transition-colors;
+  }
+
+  .article-action:hover {
+    border-color: var(--color-line-strong);
+    background: var(--color-focus-soft);
+  }
+
+  .article-action:focus-visible {
+    outline: 2px solid var(--color-focus);
+    outline-offset: 2px;
+  }
+
+  .article-action:disabled {
+    cursor: not-allowed;
+    opacity: 0.5;
+  }
+
+  .article-action--primary {
+    border-color: var(--color-focus);
+    background: var(--color-focus);
+    color: var(--color-bg-page);
+  }
+
+  .article-action--primary:hover {
+    border-color: var(--color-ink-muted);
+    background: var(--color-ink-muted);
+    color: var(--color-bg-page);
+  }
+
+  .article-action--danger {
+    border-color: var(--color-danger);
+    background: var(--color-danger);
+    color: var(--color-on-danger);
+  }
+
+  .article-action--danger:hover {
+    border-color: var(--color-danger-ink);
+    background: var(--color-danger-soft);
+    color: var(--color-danger-ink);
+  }
+
+  .article-action--compact {
+    min-height: 36px;
+    padding-inline: 0.75rem;
+    font-size: 0.8125rem;
+  }
+
+  .article-layout {
+    @apply grid gap-5 lg:grid-cols-[minmax(0,1fr)_320px];
+  }
+
+  .article-main {
+    @apply flex min-w-0 flex-col gap-5;
+  }
+
+  .article-aside {
+    @apply flex w-full min-w-0 flex-col gap-5 self-start;
+  }
+
+  .article-cover {
+    @apply block w-full object-cover;
+    height: clamp(220px, 38vw, 420px);
+  }
+
+  /* 正文行宽 = 排版 token 的 68ch；shadow 内的正文继承这个宽度，不再另设。 */
+  .article-body {
+    @apply mx-auto w-full;
+    max-width: var(--type-measure);
+  }
+
+  .article-state__title {
+    @apply mt-3 font-title text-3xl leading-title tracking-title text-ink;
+  }
+
+  .article-state__copy {
+    @apply mt-4 max-w-[68ch] text-sm leading-prose text-ink-muted;
+  }
+
+  .article-state__actions {
+    @apply mt-6 flex flex-wrap gap-3;
+  }
+
+  .article-author {
+    @apply p-5 md:p-6;
+  }
+
+  .article-author__head {
+    @apply mt-3 flex items-start gap-4;
+  }
+
+  .article-author__identity {
+    @apply min-w-0;
+  }
+
+  .article-author__name-row {
+    @apply flex flex-wrap items-center gap-2;
+  }
+
+  .article-author__name {
+    @apply truncate font-title text-[22px] leading-title tracking-title text-ink;
+  }
+
+  .article-author__handle {
+    @apply m-0 mt-1 truncate text-sm text-ink-muted;
+  }
+
+  .article-author__joined {
+    @apply m-0 mt-1 text-xs text-ink-muted;
+  }
+
+  .article-author__abstract {
+    @apply mt-4 text-sm leading-prose text-ink-muted;
+  }
+
+  .article-author__stats {
+    @apply m-0 mt-5 grid grid-cols-3 border border-line-faint;
+  }
+
+  .article-author__stat {
+    @apply border-r border-line-faint px-3 py-3 text-center;
+  }
+
+  .article-author__stat:last-child {
+    border-right-width: 0;
+  }
+
+  .article-author__stat dt {
+    @apply m-0 text-xs text-ink-muted;
+  }
+
+  .article-author__stat dd {
+    @apply m-0 mt-1 font-title text-xl leading-none tracking-title text-ink;
+  }
+
+  .article-author__actions {
+    @apply mt-5 grid grid-cols-2 gap-2;
+  }
+
+  .comment-panel {
+    @apply p-5 md:p-6;
+  }
+
+  .comment-panel__head {
+    @apply mb-5 flex flex-wrap items-end justify-between gap-3 border-b border-line pb-4;
+  }
+
+  .comment-panel__title {
+    @apply m-0 font-title text-xl leading-title tracking-title text-ink;
+  }
+
+  .comment-panel__count {
+    @apply inline-flex min-h-[24px] items-center border border-line-faint bg-subtle px-2 text-xs text-ink-muted;
+  }
+
+  .comment-panel__thread {
+    @apply mt-5;
+  }
+
+  .comment-panel__pagination {
+    @apply mt-5 flex flex-wrap items-center justify-between gap-3 border-t border-line pt-4 text-sm text-ink-muted;
+  }
+
+  .comment-panel__pagination-actions {
+    @apply flex items-center gap-2;
+  }
+
+  .comment-composer {
+    @apply border border-line bg-surface-raised p-5 md:p-6;
+  }
+
+  .comment-composer__head {
+    @apply mb-4 flex flex-wrap items-center justify-between gap-2;
+  }
+
+  .comment-composer__title {
+    @apply text-base font-semibold text-ink;
+  }
+
+  .comment-composer__status {
+    @apply border border-line-faint bg-subtle px-2 py-0.5 text-xs text-ink-muted;
+  }
+
+  .comment-composer__footer {
+    @apply mt-4 flex flex-wrap items-center justify-between gap-4;
+  }
+
+  .comment-composer__tags {
+    @apply flex flex-wrap gap-2;
+  }
+
+  .comment-tag {
+    @apply inline-flex min-h-[24px] items-center border border-line-faint px-2 text-xs text-ink-muted;
+  }
+
+  .comment-composer__actions {
+    @apply flex items-center gap-2;
+  }
+
+  .comment {
+    @apply border border-line-faint bg-surface-raised p-4 md:p-5;
+  }
+
+  .comment--reply {
+    @apply border-0 border-l bg-transparent p-0 pl-4;
+    border-color: var(--color-line);
+  }
+
+  .comment__head {
+    @apply flex items-start gap-3;
+  }
+
+  .comment__identity {
+    @apply min-w-0;
+  }
+
+  .comment__meta {
+    @apply flex flex-wrap items-center gap-x-3 gap-y-1;
+  }
+
+  .comment__author {
+    @apply text-base font-semibold text-ink;
+  }
+
+  .comment__time {
+    @apply text-sm text-ink-muted;
+  }
+
+  .comment__status {
+    @apply border border-danger-line bg-danger-soft px-1.5 text-xs text-danger-ink;
+  }
+
+  .comment__body {
+    @apply mt-3 flex-1;
+  }
+
+  .comment__content {
+    @apply m-0 text-[15px] leading-prose text-ink;
+  }
+
+  .comment__actions {
+    @apply mt-3 flex flex-wrap items-center gap-4 text-sm text-ink-muted;
+  }
+
+  .comment__count {
+    @apply text-sm text-ink-muted;
+  }
+
+  .comment-action {
+    @apply text-sm text-ink-muted underline-offset-4 transition-colors;
+  }
+
+  .comment-action:hover {
+    color: var(--color-ink);
+  }
+
+  .comment-action:focus-visible {
+    outline: 2px solid var(--color-focus);
+    outline-offset: 2px;
+  }
+
+  .comment__replies {
+    @apply mt-4 flex flex-col gap-3 border-t border-line pt-4;
+  }
+
+  .comment__pagination {
+    @apply flex flex-wrap items-center justify-between gap-3 text-xs text-ink-muted;
+  }
+
+  .comment__pagination-actions {
+    @apply flex items-center gap-2;
+  }
+
+  .comment-page-button {
+    @apply inline-flex min-h-[32px] items-center border border-line bg-surface px-2.5 text-xs font-semibold text-ink transition-colors;
+  }
+
+  .comment-page-button:hover {
+    border-color: var(--color-line-strong);
+  }
+
+  .comment-page-button:disabled {
+    cursor: not-allowed;
+    opacity: 0.5;
+  }
+
+  .comment-page-button:focus-visible {
+    outline: 2px solid var(--color-focus);
+    outline-offset: 2px;
+  }
+
+  .comment__empty-replies {
+    @apply mt-3;
+  }
+
+  @media (max-width: 1023px) {
+    .article-aside {
+      position: static;
+    }
+  }
+
+  @media (max-width: 640px) {
+    .article-hero__title {
+      @apply text-[1.7rem];
+    }
+
+    .article-actions {
+      @apply w-full;
+    }
+
+    .article-action {
+      @apply flex-1;
+    }
+
+    .comment {
+      @apply p-4;
+    }
+
+    .comment--reply {
+      @apply pl-3;
+    }
+
+    .article-author__stat dd {
+      @apply text-lg;
+    }
+  }
+
+  @media (min-width: 1024px) {
+    .article-aside {
+      position: sticky;
+      top: 88px;
+    }
   }
 
   .profile-hero {

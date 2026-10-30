@@ -16,6 +16,25 @@ func TestSystemAddr(t *testing.T) {
 	}
 }
 
+func TestSystemIsProduction(t *testing.T) {
+	cases := []struct {
+		env  string
+		want bool
+	}{
+		{conf.EnvProduction, true},
+		{conf.EnvProductionLegacy, true}, // 旧写法只在迁移期兼容
+		{"dev", false},
+		{"test", false},
+		{"", false},
+		{"Production", false},
+	}
+	for _, c := range cases {
+		if got := (conf.System{Env: c.env}).IsProduction(); got != c.want {
+			t.Fatalf("Env=%q 的 IsProduction()=%v，期望 %v", c.env, got, c.want)
+		}
+	}
+}
+
 func TestRedisGetAddr(t *testing.T) {
 	r := conf.Redis{
 		Addr: "localhost",

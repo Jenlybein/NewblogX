@@ -103,18 +103,18 @@
   --glass-grain-opacity: 0.055; /* feTurbulence 噪点层 */
   --glass-blur-mobile: 12px; /* max-width: 768px 下的模糊档 */
 
-  /* ---- 5. 排版层 ---- */
-  --font-display: "Sora", "Sora Fallback"; /* 字标 + 大标题（字体分工键） */
-  --font-latin: "Sora", "Sora Fallback"; /* 正文 / UI（换字体的票把这里改成 Inter） */
+  /* ---- 5. 排版层（ADR-0012 决策 8：Sora = 字标/大标题，Inter = 正文/UI，中文 Noto Sans SC）---- */
+  --font-display: "Sora", "Sora Fallback", var(--font-cjk); /* 字标 + 大标题；中文落到自托管 Noto */
+  --font-latin: "Inter", "Inter Fallback"; /* 正文 / UI（列表 / 表单 / 按钮） */
   --font-title: var(--font-display); /* 标题字体键（此前未定义，被 pages/index.vue 消费） */
   --font-cjk: "Noto Sans SC", "Noto Sans SC Fallback";
   --font-sans: var(--font-latin), var(--font-cjk), "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei",
     sans-serif;
-  --font-mono: "Cascadia Code", "JetBrains Mono", "Sofia Sans Mono", ui-monospace, monospace; /* 代码块 / 刻度 */
+  --font-mono: "Cascadia Code", "JetBrains Mono", "Sofia Sans Mono", ui-monospace, monospace; /* 代码块 / 行内代码 / 刻度 */
   --type-measure: 68ch; /* 正文行宽 */
   --type-leading-prose: 1.75; /* 中文正文行高 */
   --type-leading-title: 1.15; /* 标题行高 */
-  --type-tracking-title: -0.02em; /* 标题轻微负字距 */
+  --type-tracking-title: -0.03em; /* 大标题字距（苹果式紧凑档） */
   --type-tracking-dense: -0.01em; /* 小字收紧 */
   --type-weight-title: 700; /* 标题字重 */
 

@@ -24,7 +24,7 @@ const layoutClass = computed(() =>
 );
 const primaryClass = computed(() => [
   SIZE_CLASSES[props.size].primary,
-  "font-latin font-title leading-none tracking-title",
+  "font-display leading-none tracking-title",
   props.tone === "invert" ? "text-jelly-cream" : "text-ink",
 ]);
 const secondaryClass = computed(() => [

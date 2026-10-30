@@ -274,7 +274,7 @@ describe("字体分工键：display / title / mono 都有定义与真实消费�
   ])("%s定义 --font-display / --font-title / --font-mono", (_label, css) => {
     const root = rootBlock(css);
 
-    expect(declaration(root, "--font-display")).toBe('"Sora", "Sora Fallback"');
+    expect(declaration(root, "--font-display")).toBe('"Sora", "Sora Fallback", var(--font-cjk)');
     expect(declaration(root, "--font-title")).toBe("var(--font-display)");
     expect(declaration(root, "--font-mono")).toContain('"Cascadia Code"');
   });
@@ -304,8 +304,11 @@ describe("字体分工键：display / title / mono 都有定义与真实消费�
     expect(css).toContain("font-family: var(--font-title)");
   });
 
-  it("Latin 取值仍归 Sora（换字体的票还没到，本票只补键）", () => {
-    expect(declaration(rootBlock(tokensCss), "--font-latin")).toBe('"Sora", "Sora Fallback"');
+  it("#21 把拉丁正文/UI 交给 Inter（display 仍归 Sora）", () => {
+    expect(declaration(rootBlock(tokensCss), "--font-latin")).toBe('"Inter", "Inter Fallback"');
+    expect(declaration(rootBlock(adminTokensCss), "--font-latin")).toBe(
+      '"Inter", "Inter Fallback"',
+    );
   });
 });
 

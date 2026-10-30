@@ -178,11 +178,12 @@ describe("Naive themeOverrides：克莱因蓝主色 + 派生明度 + 圆角归�
     expect(overrides.Dialog?.borderRadius).toBe("0");
   });
 
-  it("字体栈含中文 fallback（英文 Sora 在前，中文 Noto 在系统中文之前）", () => {
+  it("字体栈含中文字体（英文 Inter 在前，中文 Noto 在系统中文之前）", () => {
     const stack = String(common.fontFamily);
 
     expect(stack).toBe(FONT_STACK);
-    expect(stack).toContain('"Sora"');
+    expect(stack).toContain('"Inter"');
+    expect(stack).not.toContain('"Sora"');
     expect(stack).toContain('"Noto Sans SC"');
     expect(stack).toContain('"Noto Sans SC Fallback"');
     expect(stack.indexOf('"Noto Sans SC"')).toBeLessThan(stack.indexOf('"PingFang SC"'));

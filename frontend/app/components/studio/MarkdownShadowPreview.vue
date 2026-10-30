@@ -1,18 +1,28 @@
 <script setup lang="ts">
 import { onMounted, ref, watch } from "vue";
 
+import { MARKDOWN_THEME_CSS, buildMarkdownThemeCss } from "~/utils/markdownTheme";
+
 const props = withDefaults(
   defineProps<{
     html: string;
-    themeHref: string;
+    /**
+     * 可选的外部主题（兼容创作区旧的 12 套预览样式 / 私信面板）。
+     * 正文阅读页不再传它：自有主题走 token，明暗切换不需要换 <link>。
+     */
+    themeHref?: string;
     extraStyleHrefs?: string[];
     articleClass?: string;
   }>(),
   {
+    themeHref: "",
     extraStyleHrefs: () => [],
     articleClass: "markdown-body",
   },
 );
+
+// 主题 CSS 在模块级构建一次；shadow root 里注入的是字符串，不产生全局样式。
+const MARKDOWN_THEME_STYLE = buildMarkdownThemeCss(MARKDOWN_THEME_CSS);
 
 const hostRef = ref<HTMLDivElement | null>(null);
 
@@ -25,6 +35,7 @@ type MermaidRuntime = {
 };
 
 let shadowRootRef: ShadowRoot | null = null;
+let themeStyleRef: HTMLStyleElement | null = null;
 let themeLinkRef: HTMLLinkElement | null = null;
 let articleRef: HTMLElement | null = null;
 let extraStyleLinks: HTMLLinkElement[] = [];
@@ -77,21 +88,40 @@ function ensureShadowRoot() {
     }
   `;
 
-  themeLinkRef = document.createElement("link");
-  themeLinkRef.rel = "stylesheet";
+  // 自有 markdown 主题（token 驱动，明暗自动跟随站点根类，不换 <link>）。
+  themeStyleRef = document.createElement("style");
+  themeStyleRef.dataset.jellyMarkdown = "theme";
+  themeStyleRef.textContent = MARKDOWN_THEME_STYLE;
 
   articleRef = document.createElement("article");
   articleRef.className = props.articleClass;
 
-  shadowRootRef.append(baseStyle, themeLinkRef, articleRef);
+  shadowRootRef.append(baseStyle, themeStyleRef, articleRef);
 }
 
 function syncThemeHref() {
   ensureShadowRoot();
-  if (!themeLinkRef) {
+  if (!shadowRootRef || !articleRef) {
     return;
   }
-  themeLinkRef.href = props.themeHref;
+
+  const href = props.themeHref?.trim() || "";
+  if (!href) {
+    themeLinkRef?.remove();
+    themeLinkRef = null;
+    return;
+  }
+
+  if (!themeLinkRef) {
+    themeLinkRef = document.createElement("link");
+    themeLinkRef.rel = "stylesheet";
+    themeLinkRef.dataset.jellyMarkdown = "external-theme";
+    shadowRootRef.insertBefore(themeLinkRef, articleRef);
+  }
+
+  if (themeLinkRef.getAttribute("href") !== href) {
+    themeLinkRef.setAttribute("href", href);
+  }
 }
 
 function syncExtraStyleHrefs() {

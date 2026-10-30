@@ -7,12 +7,14 @@ import type { ArticleHeadingAnchor } from "~/composables/useArticleMarkdown";
 const props = withDefaults(
   defineProps<{
     source?: string | null;
-    themeHref: string;
+    /** 可选外部主题：阅读页不传（自有 token 主题），创作区/私信保留旧的多主题选择。 */
+    themeHref?: string;
     extraStyleHrefs?: string[];
     articleClass?: string;
   }>(),
   {
     source: "",
+    themeHref: "",
     extraStyleHrefs: () => [],
     articleClass: "markdown-body",
   },

@@ -25,7 +25,10 @@ import markdownThemeCondensedNightPurpleCssUrl from "markdown-theme/themes/conde
 // 抽成独立模块后，可以单独加一条"每个 key 都有 href"的测试兜住。
 
 // 主题的 key。与 CSS 文件名一一对应，改名要同步改 mapping。
+// `jelly` 是 #8 的自有 markdown 主题（token 驱动、无外部 CSS 地址），作为默认值；
+// 其余 12 套通用主题保留给需要"别的样式"的场景（显式选择时才加载外部 <link>）。
 export type MarkdownThemeKey =
+  | "jelly"
   | "github"
   | "github-dark"
   | "github-colorblind"
@@ -58,6 +61,7 @@ export type ThemeOption = {
  * 但选中后没有 CSS"）。
  */
 export const MARKDOWN_THEME_OPTIONS: ThemeOption[] = [
+  { key: "jelly", label: "JellyBin 图纸（默认）" },
   { key: "github", label: "GitHub Light" },
   { key: "github-dark", label: "GitHub Dark" },
   { key: "github-colorblind", label: "GitHub Colorblind" },
@@ -73,20 +77,7 @@ export const MARKDOWN_THEME_OPTIONS: ThemeOption[] = [
 ];
 
 export function useStudioMarkdownTheme() {
-  const selectedMarkdownTheme = ref<
-    | "github"
-    | "github-dark"
-    | "github-colorblind"
-    | "github-dark-colorblind"
-    | "github-dark-dimmed"
-    | "github-dark-high-contrast"
-    | "shanyue"
-    | "vgreen"
-    | "chocolate"
-    | "shanchui"
-    | "menglv"
-    | "condensed-night-purple"
-  >("github");
+  const selectedMarkdownTheme = ref<MarkdownThemeKey>("jelly");
 
   const markdownThemeOptions = MARKDOWN_THEME_OPTIONS;
 
@@ -96,10 +87,12 @@ export function useStudioMarkdownTheme() {
   ];
 
   const selectedThemeLabel = computed(
-    () => markdownThemeOptions.find((item) => item.key === selectedMarkdownTheme.value)?.label || "GitHub Light",
+    () => markdownThemeOptions.find((item) => item.key === selectedMarkdownTheme.value)?.label || "JellyBin 图纸（默认）",
   );
 
   const markdownThemeHrefMap: Record<typeof selectedMarkdownTheme.value, string> = {
+    // 自有主题：不加载外部 CSS，配色完全由 shadow 内的 token 主题决定。
+    jelly: "",
     github: githubMarkdownCssUrl,
     "github-dark": githubMarkdownDarkCssUrl,
     "github-colorblind": githubMarkdownLightColorblindCssUrl,
@@ -115,7 +108,10 @@ export function useStudioMarkdownTheme() {
   };
 
   const activeMarkdownThemeHref = computed(() => markdownThemeHrefMap[selectedMarkdownTheme.value]);
-  const markdownSupportStyleHrefs = [katexCssUrl, highlightCssUrl];
+  // 自有主题自带代码高亮配色；只有显式选择 GitHub 等通用主题时才需要外部的 highlight.css。
+  const markdownSupportStyleHrefs = computed(() =>
+    selectedMarkdownTheme.value === "jelly" ? [katexCssUrl] : [katexCssUrl, highlightCssUrl],
+  );
 
   return {
     selectedMarkdownTheme,

@@ -1,10 +1,9 @@
 // 首页的纯逻辑（从模板里抽出来，便于单测）：右栏分区开关、标签/作者聚合、
-// 区块降级态、AI 占位文案、首屏指标与置顶条目视图。
+// 区块降级态、首屏指标与置顶条目视图。
 //
 // 为什么抽出来：首页是"接口失败也得体面"的地方，五种降级态散在模板里最容易漏；
 // 置顶/最新/右栏三块的数据聚合也不依赖 DOM。模板只做渲染。
-import type { SearchArticleItem, SiteAiInfo, SiteRuntimeConfig } from "~/types/api";
-import { brandAiName } from "~/utils/brand";
+import type { SearchArticleItem, SiteRuntimeConfig } from "~/types/api";
 import { buildSearchLocation } from "~/utils/chrome";
 
 export interface HomeSidebarVisibility {
@@ -153,31 +152,6 @@ export function resolveHomeSectionState(input: HomeSectionInput): HomeSectionSta
     title: "",
     description: "",
     hints: [],
-  };
-}
-
-export interface HomeAiPlaceholderCopy {
-  name: string;
-  description: string;
-  note: string;
-  capabilities: string[];
-  available: boolean;
-  actionLabel: string;
-}
-
-/**
- * AI 卡片本轮只做"占位"：保留旧对话框入口可用，但视觉与文案按占位处理。
- * 真正的入口替换（面板从右下角捏捏长出）由 #10 负责，这里不提前删。
- */
-export function homeAiPlaceholder(aiInfo: SiteAiInfo | null): HomeAiPlaceholderCopy {
-  const available = Boolean(aiInfo?.enable);
-  return {
-    name: brandAiName(aiInfo?.nickname),
-    description: aiInfo?.abstract || "可以直接提问文章搜索、写作改写、结构诊断与内容整理问题。",
-    note: "入口还是临时的：下一轮它会从右下角的「捏捏」长出来，这里先保留一个占位。",
-    capabilities: ["站内搜索", "写作建议", "结构诊断", "Markdown 回复"],
-    available,
-    actionLabel: available ? "打开对话框" : "AI 暂未启用",
   };
 }
 

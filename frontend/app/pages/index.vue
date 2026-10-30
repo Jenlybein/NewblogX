@@ -188,7 +188,6 @@ async function handleRetryLatest() {
       <HomeSidebar
         :pending="siteBootstrapPending || bannerPending"
         :runtime-config="siteStore.runtimeConfig"
-        :ai-info="siteStore.aiInfo"
         :articles="latestArticles"
         sticky
       />

@@ -3,11 +3,15 @@ import { join } from 'node:path'
 
 import { describe, expect, it } from 'vitest'
 
+import { buildNaiveThemeOverrides, parseRawPalette } from '../../app/utils/theme'
+
 // vitest 以 project root（frontend_admin/）为 cwd。
 const projectDir = process.cwd()
 const fontsCss = readFileSync(join(projectDir, 'app/assets/css/fonts.css'), 'utf8')
 const adminCss = readFileSync(join(projectDir, 'app/assets/css/admin.css'), 'utf8')
-const appVue = readFileSync(join(projectDir, 'app/app.vue'), 'utf8')
+const tokensCss = readFileSync(join(projectDir, 'app/assets/css/tokens.css'), 'utf8')
+
+const themeOverrides = buildNaiveThemeOverrides(parseRawPalette(tokensCss))
 
 const faces = [...fontsCss.matchAll(/@font-face\s*\{([^}]*)\}/gu)].map((match) => match[1].trim())
 
@@ -51,7 +55,8 @@ describe('后台中文自托管字体', () => {
   it('body 与 Naive themeOverrides 都消费中文组', () => {
     expect(adminCss).toMatch(/font-family:\s*var\(--font-sans\)/u)
 
-    const stack = appVue.slice(appVue.indexOf('fontFamily:'), appVue.indexOf('fontFamily:') + 320)
+    // 主题层由 app/utils/theme.ts 从 tokens.css 解析后组装（见 theme.test.ts）。
+    const stack = String(themeOverrides.common?.fontFamily)
     expect(stack).toContain('"Noto Sans SC"')
     expect(stack.indexOf('"Noto Sans SC"')).toBeLessThan(stack.indexOf('"PingFang SC"'))
   })

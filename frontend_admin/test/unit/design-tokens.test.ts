@@ -104,4 +104,21 @@ describe('设计 token 漂移门禁（后台）', () => {
     ])
     expect(result.ok).toBe(false)
   })
+
+  it('藏在 .ts 里的 CSS 字符串也会被报出（与读者站同一门禁）', () => {
+    const canaryProject = makeCanaryProject({
+      'app/utils/CanaryThemeCss.ts': [
+        'export const sheet = `',
+        '.canary { color: #0f766e; }',
+        '`;',
+      ].join('\n'),
+    })
+
+    const result = checkProject({ projectDir: canaryProject, baselineFiles: [] })
+
+    expect(result.violations).toEqual([
+      { file: 'app/utils/CanaryThemeCss.ts', line: 2, match: '#0f766e' },
+    ])
+    expect(result.ok).toBe(false)
+  })
 })

@@ -34,6 +34,12 @@ export default {
         },
         focus: "var(--color-focus)",
         shadow: "var(--color-shadow)",
+        glass: {
+          thin: "var(--glass-thin-fill)",
+          thick: "var(--glass-thick-fill)",
+          rim: "var(--glass-rim)",
+          "rim-warm": "var(--glass-rim-warm)",
+        },
         jelly: {
           blue: "var(--jelly-blue)",
           cream: "var(--jelly-cream)",
@@ -42,10 +48,33 @@ export default {
           warm: "var(--jelly-warm)",
         },
       },
+      borderRadius: {
+        // 圆角阶梯，键名不复用默认 sm/md/lg（本票只播种，不改既有圆角观感）。
+        control: "var(--radius-sm)",
+        field: "var(--radius-md)",
+        card: "var(--radius-lg)",
+        overlay: "var(--radius-xl)",
+        pill: "var(--radius-pill)",
+      },
+      backdropBlur: {
+        "glass-thin": "var(--glass-thin-blur)",
+        "glass-thick": "var(--glass-thick-blur)",
+        "glass-mobile": "var(--glass-blur-mobile)",
+      },
+      backdropSaturate: {
+        "glass-thin": "var(--glass-thin-saturate)",
+        "glass-thick": "var(--glass-thick-saturate)",
+      },
+      opacity: {
+        grain: "var(--glass-grain-opacity)",
+      },
       fontFamily: {
         body: "var(--font-sans)",
         latin: "var(--font-latin)",
         cjk: "var(--font-cjk)",
+        display: "var(--font-display)",
+        mono: "var(--font-mono)",
+        title: "var(--font-title)",
       },
       fontWeight: {
         title: "var(--type-weight-title)",

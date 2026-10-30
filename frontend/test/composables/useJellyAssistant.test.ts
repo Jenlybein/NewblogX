@@ -1,5 +1,6 @@
+import { mount } from "@vue/test-utils";
 import { describe, expect, it, vi } from "vitest";
-import { ref, type Ref } from "vue";
+import { defineComponent, h, ref, type Ref } from "vue";
 
 import {
   JELLY_BUBBLE_COUNT_KEY,
@@ -11,7 +12,9 @@ import {
   JELLY_LAUNCHER_SIZE,
   JELLY_POSITION_KEY,
   JELLY_VIEWPORT_MARGIN,
+  provideJellyAssistant,
   useJellyAssistant,
+  useJellyAssistantContext,
   type JellyAssistantOptions,
   type JellyPosition,
   type JellyStorageAdapter,
@@ -500,6 +503,55 @@ describe("useJellyAssistant · 减少动态", () => {
     motion.value = true;
     expect(api.shouldAnimate.value).toBe(false);
     expect(api.breathDurationMs.value).toBe(0);
+  });
+});
+
+describe("useJellyAssistant · 页面级共享实例（#10 的接缝）", () => {
+  it("provideJellyAssistant 提供的实例能被 useJellyAssistantContext 读到（同一对象）", () => {
+    let provided: ReturnType<typeof provideJellyAssistant> | null = null;
+    let injected: ReturnType<typeof useJellyAssistantContext> = null;
+
+    const Child = defineComponent({
+      setup() {
+        injected = useJellyAssistantContext();
+        return () => h("span");
+      },
+    });
+
+    const Parent = defineComponent({
+      setup() {
+        provided = provideJellyAssistant({
+          isAiEnabled: () => true,
+          isLoggedIn: () => true,
+          requestLogin: () => undefined,
+          isStudioRoute: () => false,
+          motion: { prefersReducedMotion: ref(false) },
+          localStore: memoryStorage(),
+          sessionStore: memoryStorage(),
+          viewport: () => ({ width: 1024, height: 768 }),
+        });
+        return () => h(Child);
+      },
+    });
+
+    mount(Parent);
+
+    expect(provided).not.toBeNull();
+    expect(injected).toBe(provided);
+  });
+
+  it("没有布局提供实例时返回 null（组件可以退回自己建一份）", () => {
+    let injected: ReturnType<typeof useJellyAssistantContext> = null;
+    const Standalone = defineComponent({
+      setup() {
+        injected = useJellyAssistantContext();
+        return () => h("span");
+      },
+    });
+
+    mount(Standalone);
+
+    expect(injected).toBeNull();
   });
 });
 

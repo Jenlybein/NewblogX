@@ -1,4 +1,13 @@
-import { computed, getCurrentScope, onScopeDispose, ref, type Ref } from "vue";
+import {
+  computed,
+  getCurrentScope,
+  inject,
+  onScopeDispose,
+  provide,
+  ref,
+  type InjectionKey,
+  type Ref,
+} from "vue";
 
 import { useMotionPreference } from "~/composables/useMotionPreference";
 
@@ -450,4 +459,29 @@ export function useJellyAssistant(options: JellyAssistantOptions = {}) {
     startSession,
     stopSession,
   };
+}
+
+/** composable 的对外类型：布局、角色组件、#10 的 AI 面板都消费同一份。 */
+export type JellyAssistantApi = ReturnType<typeof useJellyAssistant>;
+
+/**
+ * 页面级共享实例的 provide/inject 键。
+ *
+ * 为什么需要：状态是「唯一真相源」，同一页面里角色（捏捏）和它张开的 AI 面板（#10）
+ * 必须看**同一个实例** —— 两份各自 new 的话，角色以为面板开着、面板以为关着。
+ * 约定：布局里 `useJellyAssistant()` 建一次并 provide；组件优先用注入/传入的实例，
+ * 只有独立使用（比如单测）时才自己建一份。
+ */
+export const JELLY_ASSISTANT_KEY: InjectionKey<JellyAssistantApi> = Symbol("jelly-assistant");
+
+/** 读取布局提供的共享实例；不在组件上下文或没 provide 时返回 null。 */
+export function useJellyAssistantContext(): JellyAssistantApi | null {
+  return inject(JELLY_ASSISTANT_KEY, null);
+}
+
+/** 在布局里建一份并 provide：捏捏本体与 #10 的 AI 面板都消费这一份。 */
+export function provideJellyAssistant(options: JellyAssistantOptions = {}): JellyAssistantApi {
+  const assistant = useJellyAssistant(options);
+  provide(JELLY_ASSISTANT_KEY, assistant);
+  return assistant;
 }

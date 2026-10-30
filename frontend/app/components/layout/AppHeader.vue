@@ -16,6 +16,8 @@ import { navigateTo, useRoute, useRouter } from "#imports";
 import AppAvatar from "~/components/common/AppAvatar.vue";
 import BrandLogo from "~/components/brand/Logo.vue";
 import BrandWordmark from "~/components/brand/Wordmark.vue";
+import { usePointerSpecular } from "~/composables/usePointerSpecular";
+import { useScrollChrome } from "~/composables/useScrollChrome";
 import { useWriteEntry } from "~/composables/useWriteEntry";
 import { useAuthStore } from "~/stores/auth";
 import { useSiteStore } from "~/stores/site";
@@ -38,6 +40,11 @@ const { openWriteEntry } = useWriteEntry();
 
 const searchKeyword = ref("");
 const menuOpen = ref(false);
+
+// 吸顶玻璃导航：滚动方向/阈值判定与指针镜面高光都收在 composable 里（含降级）。
+// 「减少动态」下 useScrollChrome 直接不启用 → 页头保持静止的不透明面、不隐藏。
+const { scrolled, hidden } = useScrollChrome();
+const { handlePointerMove } = usePointerSpecular();
 
 const navItems = computed(() => headerNavItems(route.path));
 const themeLabel = computed(() => themeToggleLabel(uiStore.theme));
@@ -105,7 +112,11 @@ async function handleUserMenuSelect(key: string | number) {
 </script>
 
 <template>
-  <header class="site-header">
+  <header
+    class="site-header"
+    :class="{ 'is-scrolled': scrolled, 'is-hidden': hidden, 'glass-thin': scrolled }"
+    @pointermove="handlePointerMove"
+  >
     <a class="site-skip" href="#main-content" data-chrome="skip-link">跳到正文</a>
 
     <div class="page-shell site-header__inner">
@@ -232,17 +243,51 @@ async function handleUserMenuSelect(key: string | number) {
 
 <style scoped>
 /*
- * 图纸式页头：1px 中性石墨结构线、五档圆角，全部取语义 token。
- * 布局策略（三档）：
+ * 吸顶玻璃导航（ADR-0012 决策 6）：sticky + 高度 56–64px（--site-header-height 60px）。
+ * 静止态是不透明纸面；滚动超过阈值后由 .glass-thin 接管材料（模糊 + 边缘带 + 噪点），
+ * 并补一条底部 1px 边缘高光。滚动方向感知（下滚隐藏 / 上滚出现）由 useScrollChrome
+ * 的 state → class 映射，位移只走 transform，不碰布局。
+ * 「减少动态」下 composable 不启用 → 页头不转玻璃、不隐藏。
+ * 布局策略（三档）不变：
  *   < 640px  手机：品牌 + 动作一排；导航/搜索折叠进面板（菜单按钮展开）
  *   640–1023 平板：品牌 + 动作一排；导航/搜索第二行常显
  *   ≥ 1024px 桌面：品牌 / 导航+搜索 / 动作各占一列的单行
- * 页头**不是** fixed/sticky —— 滚动时永远不遮挡正文，也不会引入布局抖动。
  */
 .site-header {
-  position: relative;
+  position: sticky;
+  top: 0;
+  z-index: 30;
+  min-height: var(--site-header-height);
+  transition: transform var(--motion-base) var(--motion-ease);
+}
+
+/* 静止态（未滚动）才用不透明面 + 发丝结构线：滚动后材料交给 .glass-thin，
+ * 两套背景不会互相覆盖。 */
+.site-header:not(.is-scrolled) {
   background: var(--color-surface);
   border-bottom: 1px solid var(--color-line-strong);
+}
+
+/* 转玻璃后：底部 1px 边缘高光（叠在玻璃自己的抬升阴影上）。 */
+.site-header.is-scrolled {
+  box-shadow:
+    0 18px 44px -20px var(--color-shadow),
+    0 1px 0 var(--glass-rim);
+}
+
+/* 下滚隐藏 / 上滚出现：只动 transform（不给 sticky 带来任何布局变化）。 */
+.site-header.is-hidden {
+  transform: translateY(-100%);
+  transition: transform var(--motion-base) var(--motion-ease);
+}
+
+/* 减少动态：导航的隐藏/出现也不做过渡（全局 reduced-motion 已把时长归零，
+ * 这里再兜一层，避免"归零后仍有一次 transform 跳变"）。 */
+@media (prefers-reduced-motion: reduce) {
+  .site-header,
+  .site-header.is-hidden {
+    transition: none;
+  }
 }
 
 .site-header__inner {
@@ -253,8 +298,8 @@ async function handleUserMenuSelect(key: string | number) {
     "panel panel";
   align-items: center;
   gap: 0.5rem 1rem;
-  padding-top: 0.625rem;
-  padding-bottom: 0.625rem;
+  padding-top: 0.5rem;
+  padding-bottom: 0.5rem;
 }
 
 .site-header__brand {
@@ -483,8 +528,8 @@ async function handleUserMenuSelect(key: string | number) {
     grid-template-columns: auto minmax(0, 1fr) auto;
     grid-template-areas: "brand panel actions";
     gap: 2rem;
-    padding-top: 0.75rem;
-    padding-bottom: 0.75rem;
+    padding-top: 0.5rem;
+    padding-bottom: 0.5rem;
   }
 
   .site-header__panel {

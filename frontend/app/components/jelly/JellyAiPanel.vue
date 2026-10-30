@@ -5,6 +5,7 @@ import katexCssUrl from "katex/dist/katex.min.css?url";
 
 import MarkdownRenderSurface from "~/components/common/MarkdownRenderSurface.vue";
 import { useJellyPanel } from "~/composables/useJellyPanel";
+import { usePointerSpecular } from "~/composables/usePointerSpecular";
 import type { JellyAssistantApi } from "~/composables/useJellyAssistant";
 import type { SiteAiInfo } from "~/types/api";
 import { brandAiName, brandAssetUrl } from "~/utils/brand";
@@ -29,6 +30,8 @@ const props = defineProps<{
 }>();
 
 const panel = useJellyPanel({ assistant: props.assistant });
+// 面板是厚玻璃浮层：指针镜面高光走统一 composable（移动端 / 减少动态自动关闭）。
+const { handlePointerMove } = usePointerSpecular();
 const {
   isOpen,
   isAvailable,
@@ -157,7 +160,7 @@ onBeforeUnmount(() => {
     <Motion
       v-if="isOpen"
       key="jelly-panel"
-      class="jelly-panel"
+      class="jelly-panel glass-thick"
       :class="{ 'jelly-panel--mobile': isMobile }"
       :style="panelStyle"
       :initial="panelMotion.initial"
@@ -168,6 +171,7 @@ onBeforeUnmount(() => {
       aria-modal="false"
       :aria-label="`${assistantName} AI 对话面板`"
       @keydown.esc="closePanel()"
+      @pointermove="handlePointerMove"
     >
       <header class="jelly-panel__head">
         <img class="jelly-panel__glyph" :src="glyphUrl" alt="" aria-hidden="true" width="28" height="28">
@@ -274,11 +278,8 @@ onBeforeUnmount(() => {
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  border: 1px solid var(--color-line-strong);
   border-radius: var(--radius-xl);
-  background: var(--color-surface);
   color: var(--color-ink);
-  box-shadow: 0 24px 60px var(--color-shadow);
   font-family: var(--font-sans);
 }
 

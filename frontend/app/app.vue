@@ -94,12 +94,13 @@ useHead(() => ({
   // 服务端会先渲染浅色、水合后才变暗（闪白）。这段脚本在水合前把根类钉成最终值，
   // 颜色由 CSS 变量瞬间生效，不改字号/间距。
   script: [{ key: "jelly-theme-init", innerHTML: buildThemeInitScript() }],
-  // 无 JS（或脚本被拦）时兜底：入场动画的 initial 会把元素内联成 opacity:0，
+  // 无 JS（或脚本被拦）时兜底：入场动画/区块进场的 initial 会把元素内联成 opacity:0，
   // 这条 noscript 样式用 !important 盖过内联样式，保证内容仍然可读 ——
   // 博客内容不能因为动效在 JS 之前就凭空消失。
   noscript: [
     {
-      innerHTML: "<style>.motion-stagger-item{opacity:1!important;transform:none!important}</style>",
+      innerHTML:
+        "<style>.motion-stagger-item{opacity:1!important;transform:none!important}.motion-reveal{opacity:1!important;transform:none!important}</style>",
     },
   ],
 }));

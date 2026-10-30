@@ -2,6 +2,7 @@
 import { computed } from "vue";
 import ArticleFeedItem from "~/components/article/ArticleFeedItem.vue";
 import ProfileEmptyState from "~/components/profile/ProfileEmptyState.vue";
+import { useSectionReveal } from "~/composables/useSectionReveal";
 import { useStaggerEntrance } from "~/composables/useStaggerEntrance";
 import type { SearchArticleItem } from "~/types/api";
 import { homeSearchLocation, resolveHomeSectionState } from "~/utils/home";
@@ -22,6 +23,8 @@ const emit = defineEmits<{ retry: [] }>();
 // 列表入场：只动 opacity/translateY，错峰 40ms；减少动态时归零（静态出现）。
 // SSR 的 initial 会内联成 opacity:0，app.vue 的 <noscript> 兜底样式保证无 JS 仍可读。
 const { entranceProps } = useStaggerEntrance();
+// 区块级滚动进场：只给布局容器（段落/条目不动），位移 ≤12px、只进一次。
+const { target: revealTarget, revealStyle } = useSectionReveal();
 const state = computed(() =>
   resolveHomeSectionState({ pending: props.pending, failed: props.failed, itemCount: props.articles.length }),
 );
@@ -29,7 +32,12 @@ const searchTo = homeSearchLocation();
 </script>
 
 <template>
-  <section class="blueprint-panel" data-home-section="feed">
+  <section
+    ref="revealTarget"
+    class="blueprint-panel motion-reveal"
+    :style="revealStyle"
+    data-home-section="feed"
+  >
     <header class="mb-5 flex flex-wrap items-center justify-between gap-3">
       <div>
         <div class="eyebrow">{{ eyebrow }}</div>

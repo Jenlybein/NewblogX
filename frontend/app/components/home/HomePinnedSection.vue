@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed } from "vue";
 import ProfileEmptyState from "~/components/profile/ProfileEmptyState.vue";
+import { useSectionReveal } from "~/composables/useSectionReveal";
 import { formatCount } from "~/utils/format";
 import {
   pinnedArticleView,
@@ -20,6 +21,8 @@ const props = withDefaults(
 );
 
 const emit = defineEmits<{ retry: [] }>();
+// 区块级滚动进场：只动容器的 transform/opacity，卡片内容本身不进场。
+const { target: revealTarget, revealStyle } = useSectionReveal();
 const views = computed<PinnedArticleView[]>(() => props.articles.map((article) => pinnedArticleView(article)));
 const state = computed(() =>
   resolveHomeSectionState({ pending: props.pending, failed: props.failed, itemCount: views.value.length }),
@@ -27,7 +30,12 @@ const state = computed(() =>
 </script>
 
 <template>
-  <section class="blueprint-panel" data-home-section="pinned">
+  <section
+    ref="revealTarget"
+    class="blueprint-panel motion-reveal"
+    :style="revealStyle"
+    data-home-section="pinned"
+  >
     <header class="mb-5 flex flex-wrap items-center justify-between gap-3">
       <div>
         <div class="eyebrow">Pinned</div>

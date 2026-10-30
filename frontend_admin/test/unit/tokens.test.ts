@@ -70,11 +70,12 @@ describe('语义层：明暗两份映射 + 排版尺度', () => {
     }
   })
 
-  it('排版层同样携带中文尺度（68ch / 1.75 / 700 / 负字距）', () => {
+  it('排版层同样携带中文尺度（68ch / 1.75 / 700 / -0.03em 大标题字距）', () => {
     expect(tokensCss).toContain('--type-measure: 68ch')
     expect(tokensCss).toContain('--type-leading-prose: 1.75')
     expect(tokensCss).toContain('--type-weight-title: 700')
-    expect(tokensCss).toMatch(/--type-tracking-title:\s*-0\.0[0-9]em/u)
+    expect(tokensCss).toMatch(/--type-tracking-title:\s*-0\.03em/u)
+    expect(tokensCss).toContain('--font-latin: "Inter", "Inter Fallback"')
   })
 })
 

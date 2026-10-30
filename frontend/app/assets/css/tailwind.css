@@ -690,6 +690,9 @@
     @apply flex items-center justify-between gap-4 py-4 text-sm;
   }
 
+  /* 创作区（/studio/**）：颜色一律消费语义 token（票 #9 从旧青绿 + 石板灰收敛到
+   * 五色体系）；明暗切换由 token 的第二份映射自动承载，所以这里不再写
+   * `.theme-dark` 逐条覆盖。圆角按 spec 归零（头像/胶囊标签除外）。 */
   .studio-layout {
     @apply grid gap-5 lg:grid-cols-[300px_minmax(0,1fr)];
   }
@@ -703,13 +706,9 @@
   }
 
   .studio-sidebar__avatar {
-    @apply flex h-[72px] w-[72px] shrink-0 items-center justify-center overflow-hidden rounded-[26px] border text-xl font-semibold;
-    border-color: rgba(217, 226, 236, 0.88);
-    background: linear-gradient(
-      135deg,
-      rgba(15, 118, 110, 0.12),
-      rgba(217, 119, 6, 0.12)
-    );
+    @apply flex h-[72px] w-[72px] shrink-0 items-center justify-center overflow-hidden rounded-full border text-xl font-semibold;
+    border-color: var(--color-line);
+    background: var(--color-bg-subtle);
   }
 
   .studio-sidebar__avatar img {
@@ -725,28 +724,24 @@
   }
 
   .studio-sidebar__link {
-    @apply flex items-center justify-between rounded-[22px] px-4 py-3 text-sm transition;
-    color: var(--text-soft);
+    @apply flex items-center justify-between rounded-none px-4 py-3 text-sm transition;
+    color: var(--color-ink-muted);
     touch-action: manipulation;
   }
 
   .studio-sidebar__link:hover {
-    background: rgba(15, 118, 110, 0.08);
-    color: var(--accent);
+    background: var(--color-line-faint);
+    color: var(--color-focus);
   }
 
   .studio-sidebar__link:focus-visible {
-    outline: 2px solid rgba(15, 118, 110, 0.4);
+    outline: 2px solid var(--color-focus);
     outline-offset: 2px;
   }
 
   .studio-sidebar__link.is-active {
-    background: linear-gradient(
-      135deg,
-      rgba(15, 118, 110, 0.14),
-      rgba(217, 119, 6, 0.12)
-    );
-    color: var(--accent);
+    background: var(--color-line-faint);
+    color: var(--color-focus);
   }
 
   .studio-sidebar__link-main {
@@ -755,18 +750,18 @@
 
   .studio-sidebar__badge {
     @apply inline-flex min-w-7 items-center justify-center rounded-full px-2 py-1 text-xs font-semibold;
-    background: rgba(15, 118, 110, 0.14);
-    color: var(--accent);
+    background: var(--color-line-faint);
+    color: var(--color-focus);
   }
 
   .studio-sidebar__profile-link {
     @apply mt-6 inline-flex items-center gap-2 rounded-full border px-4 py-2 text-sm transition;
-    border-color: rgba(217, 226, 236, 0.88);
+    border-color: var(--color-line);
   }
 
   .studio-sidebar__profile-link:hover {
-    border-color: rgba(15, 118, 110, 0.24);
-    color: var(--accent);
+    border-color: var(--color-line-strong);
+    color: var(--color-focus);
   }
 
   .studio-hero {
@@ -778,10 +773,10 @@
   }
 
   .studio-empty-state__icon {
-    @apply flex h-14 w-14 items-center justify-center rounded-2xl border text-sm font-semibold tracking-[0.28em];
-    border-color: rgba(15, 118, 110, 0.24);
-    color: var(--accent);
-    background: rgba(15, 118, 110, 0.08);
+    @apply flex h-14 w-14 items-center justify-center rounded-none border text-sm font-semibold tracking-[0.28em];
+    border-color: var(--color-line);
+    color: var(--color-focus);
+    background: var(--color-line-faint);
   }
 
   .studio-toolbar {
@@ -797,14 +792,9 @@
   }
 
   .studio-metric-card {
-    @apply rounded-[24px] border p-4;
-    background: rgba(255, 255, 255, 0.58);
-    border-color: rgba(217, 226, 236, 0.88);
-  }
-
-  .theme-dark .studio-metric-card {
-    background: rgba(15, 23, 42, 0.54);
-    border-color: rgba(45, 59, 78, 0.88);
+    @apply rounded-none border p-4;
+    background: var(--color-surface);
+    border-color: var(--color-line);
   }
 
   .studio-list-card {
@@ -813,7 +803,7 @@
 
   .studio-list-meta {
     @apply flex flex-wrap items-center gap-3 text-xs;
-    color: var(--text-soft);
+    color: var(--color-ink-muted);
   }
 
   .studio-filter-row {
@@ -822,25 +812,25 @@
 
   .studio-filter-chip {
     @apply inline-flex items-center gap-2 rounded-full border px-4 py-2 text-sm transition;
-    border-color: rgba(217, 226, 236, 0.88);
-    background: rgba(255, 255, 255, 0.56);
+    border-color: var(--color-line);
+    background: var(--color-surface);
     touch-action: manipulation;
     margin-top: 0.25em;
   }
 
   .studio-filter-chip:hover {
-    border-color: rgba(15, 118, 110, 0.24);
-    color: var(--accent);
+    border-color: var(--color-line-strong);
+    color: var(--color-focus);
   }
 
   .studio-filter-chip.is-active {
-    border-color: rgba(15, 118, 110, 0.24);
-    background: rgba(15, 118, 110, 0.1);
-    color: var(--accent);
+    border-color: var(--color-line-strong);
+    background: var(--color-line-faint);
+    color: var(--color-focus);
   }
 
   .studio-filter-chip--stack {
-    @apply flex w-full items-start justify-between rounded-[22px] px-4 py-3 text-left;
+    @apply flex w-full items-start justify-between rounded-none px-4 py-3 text-left;
   }
 
   .studio-filter-chip__main {
@@ -849,7 +839,7 @@
 
   .studio-filter-chip__main small {
     @apply mt-1 text-xs;
-    color: var(--text-soft);
+    color: var(--color-ink-muted);
   }
 
   .studio-article-status {
@@ -857,14 +847,9 @@
   }
 
   .studio-notice-card {
-    @apply rounded-[24px] border p-5;
-    background: rgba(255, 255, 255, 0.58);
-    border-color: rgba(217, 226, 236, 0.88);
-  }
-
-  .theme-dark .studio-notice-card {
-    background: rgba(15, 23, 42, 0.54);
-    border-color: rgba(45, 59, 78, 0.88);
+    @apply rounded-none border p-5;
+    background: var(--color-surface);
+    border-color: var(--color-line);
   }
 
   .studio-notice-card__head {
@@ -882,13 +867,8 @@
 
   .studio-inbox-grid__aside {
     @apply border-b p-5 lg:border-b-0 lg:border-r;
-    border-color: rgba(217, 226, 236, 0.88);
-    background: rgba(255, 255, 255, 0.46);
-  }
-
-  .theme-dark .studio-inbox-grid__aside {
-    border-color: rgba(45, 59, 78, 0.88);
-    background: rgba(15, 23, 42, 0.42);
+    border-color: var(--color-line);
+    background: var(--color-surface-raised);
   }
 
   .studio-inbox-grid__main {
@@ -900,20 +880,16 @@
   }
 
   .studio-chat-session {
-    @apply flex w-full items-start gap-3 rounded-[22px] px-3 py-3 transition;
+    @apply flex w-full items-start gap-3 rounded-none px-3 py-3 transition;
     touch-action: manipulation;
   }
 
   .studio-chat-session:hover {
-    background: rgba(15, 118, 110, 0.08);
+    background: var(--color-line-faint);
   }
 
   .studio-chat-session.is-active {
-    background: linear-gradient(
-      135deg,
-      rgba(15, 118, 110, 0.12),
-      rgba(217, 119, 6, 0.1)
-    );
+    background: var(--color-line-faint);
   }
 
   .studio-chat-thread {
@@ -929,54 +905,44 @@
   }
 
   .studio-chat-bubble__content {
-    @apply max-w-[720px] rounded-[24px] border px-4 py-3;
-    background: rgba(255, 255, 255, 0.6);
-    border-color: rgba(217, 226, 236, 0.88);
+    @apply max-w-[720px] rounded-none border px-4 py-3;
+    background: var(--color-surface);
+    border-color: var(--color-line);
   }
 
   .studio-chat-bubble.is-self .studio-chat-bubble__content {
-    background: rgba(15, 118, 110, 0.12);
-    border-color: rgba(15, 118, 110, 0.24);
-  }
-
-  .theme-dark .studio-chat-bubble__content {
-    background: rgba(15, 23, 42, 0.58);
-    border-color: rgba(45, 59, 78, 0.88);
+    background: var(--color-line-faint);
+    border-color: var(--color-line);
   }
 
   .studio-chat-composer {
-    @apply mt-auto rounded-[24px] border p-4;
-    border-color: rgba(217, 226, 236, 0.88);
-    background: rgba(255, 255, 255, 0.52);
-  }
-
-  .theme-dark .studio-chat-composer {
-    border-color: rgba(45, 59, 78, 0.88);
-    background: rgba(15, 23, 42, 0.48);
+    @apply mt-auto rounded-none border p-4;
+    border-color: var(--color-line);
+    background: var(--color-surface);
   }
 
   .studio-socket-badge {
     @apply inline-flex items-center gap-2 rounded-full border px-3 py-2 text-xs;
-    border-color: rgba(217, 226, 236, 0.88);
+    border-color: var(--color-line);
   }
 
   .studio-socket-badge.is-connected {
-    border-color: rgba(15, 118, 110, 0.24);
-    color: var(--accent);
-    background: rgba(15, 118, 110, 0.08);
+    border-color: var(--color-line-strong);
+    color: var(--color-focus);
+    background: var(--color-line-faint);
   }
 
   .studio-socket-badge.is-connecting {
-    border-color: rgba(217, 119, 6, 0.24);
-    color: #b45309;
-    background: rgba(217, 119, 6, 0.08);
+    border-color: var(--color-line-strong);
+    color: var(--color-danger-ink);
+    background: var(--color-bg-subtle);
   }
 
   .studio-socket-badge.is-idle,
   .studio-socket-badge.is-error {
-    border-color: rgba(148, 163, 184, 0.3);
-    color: var(--text-soft);
-    background: rgba(255, 255, 255, 0.4);
+    border-color: var(--color-line);
+    color: var(--color-ink-muted);
+    background: var(--color-surface-raised);
   }
 
   @media (max-width: 1024px) {

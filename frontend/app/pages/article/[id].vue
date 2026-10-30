@@ -21,6 +21,7 @@ import type { CommentReplyItem } from "~/types/api";
 import { formatCount, formatDateTimeLabel } from "~/utils/format";
 import { getAuthorButtonLabel, isFollowing } from "~/utils/relation";
 import { resolveAvatarInitial } from "~/utils/avatar";
+import { brandDescription } from "~/utils/brand";
 import katexCssUrl from "katex/dist/katex.min.css?url";
 import highlightCssUrl from "highlight.js/styles/github.min.css?url";
 import githubMarkdownCssUrl from "github-markdown-css/github-markdown-light.css?url";
@@ -488,9 +489,9 @@ onUnmounted(() => {
 
 useSeoMeta({
   title: computed(() => article.value?.title || "文章详情"),
-  description: computed(() => article.value?.abstract || "BlogX 文章详情页"),
+  description: computed(() => brandDescription(article.value?.abstract)),
   ogTitle: computed(() => article.value?.title || "文章详情"),
-  ogDescription: computed(() => article.value?.abstract || "BlogX 文章详情页"),
+  ogDescription: computed(() => brandDescription(article.value?.abstract)),
   ogImage: computed(() => article.value?.cover || ""),
 });
 </script>

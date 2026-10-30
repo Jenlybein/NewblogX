@@ -8,6 +8,7 @@ import { useAuthStore } from "~/stores/auth";
 import { useUiStore } from "~/stores/ui";
 import type { SearchArticleItem, SiteAiInfo, SiteRuntimeConfig } from "~/types/api";
 import { resolveAvatarInitial, resolveAvatarUrl } from "~/utils/avatar";
+import { brandAiName, brandProjectTitle } from "~/utils/brand";
 
 const props = withDefaults(defineProps<{
   pending?: boolean;
@@ -118,7 +119,9 @@ const showNotice = computed(() => enabledModules.value.size === 0 || enabledModu
 const showTags = computed(() => enabledModules.value.size === 0 || enabledModules.value.has("hot_tags"));
 const showAuthors = computed(() => enabledModules.value.size === 0 || enabledModules.value.has("recommended_authors"));
 
-const projectTitle = computed(() => props.runtimeConfig?.project?.title || props.runtimeConfig?.site_info?.title || "BlogX");
+const projectTitle = computed(() =>
+  brandProjectTitle(props.runtimeConfig?.project?.title || props.runtimeConfig?.site_info?.title),
+);
 const projectAbstract = computed(
   () => props.runtimeConfig?.project?.abstract || props.runtimeConfig?.site_info?.subtitle || "为开发者写作、搜索与知识整理提供稳定的内容入口。",
 );
@@ -126,7 +129,7 @@ const aiAvatarUrl = computed(() => resolveAvatarUrl(props.aiInfo?.avatar ?? ""))
 const authStore = useAuthStore();
 const uiStore = useUiStore();
 const aiDialogOpen = ref(false);
-const aiDisplayName = computed(() => props.aiInfo?.nickname || "BlogX 助手");
+const aiDisplayName = computed(() => brandAiName(props.aiInfo?.nickname));
 const aiDescription = computed(
   () => props.aiInfo?.abstract || "可以直接提问文章搜索、写作改写、结构诊断与内容整理问题。",
 );

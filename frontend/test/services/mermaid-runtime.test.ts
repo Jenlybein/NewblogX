@@ -56,7 +56,7 @@ describe("mermaid runtime whitelist", () => {
   });
 
   it("rejects unsupported mermaid diagram families", () => {
-    expect(detectSupportedMermaidDiagram("mindmap\n  root((BlogX))")).toBeNull();
+    expect(detectSupportedMermaidDiagram("mindmap\n  root((JellyBin))")).toBeNull();
     expect(detectSupportedMermaidDiagram("architecture-beta\nservice api(cloud)[API]")).toBeNull();
     expect(detectSupportedMermaidDiagram("requirementDiagram\nrequirement demo")).toBeNull();
     expect(detectSupportedMermaidDiagram("sankey-beta\nA,B,1")).toBeNull();

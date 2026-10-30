@@ -7,6 +7,7 @@ import type {
   AiOverwriteRequest,
   ApiEnvelope,
 } from "~/types/api";
+import { brandFullName } from "~/utils/brand";
 
 export interface AiConversationMessage {
   role: "user" | "assistant";
@@ -66,7 +67,7 @@ export function buildAiConversationPrompt(history: AiConversationMessage[], late
     .join("\n");
 
   return [
-    "下面是 BlogX 首页 AI 对话的最近上下文，请延续语境回答最后一个用户问题。",
+    `下面是 ${brandFullName()} 首页 AI 对话的最近上下文，请延续语境回答最后一个用户问题。`,
     "如果用户是在找站内文章，请优先按文章搜索与推荐的方式回答。",
     transcript,
     `用户：${normalizedInput}`,

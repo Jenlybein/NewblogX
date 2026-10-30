@@ -2,11 +2,13 @@
 
 一个可以自己部署的博客 / 社区系统：Go 写的 API，两个独立的 Nuxt 前端（读者站、管理后台），外加 MySQL 主从、Redis、Elasticsearch、ClickHouse 这一套基础设施。
 
-> 站点显示名是 **JellyBin（果冻盒）**；仓库名、Go module、`BLOGX_*` 环境变量前缀、compose 服务名、既有 cookie 与 localStorage 键等内部标识仍叫 `blogx`，两者不互改。术语与用法见 [`GLOSSARY.md`](./GLOSSARY.md)。
-
 ---
 
 ## 一、快速开始
+
+可以选择让 agent 使用 ssh 的形式控制你的服务器，快速自动部署这个项目，并指引你去配置好各项配置。
+
+如果你想自己动手部署，则可以看以下指导内容进行部署。
 
 ### 准备工作
 
@@ -24,7 +26,7 @@ docker compose version                  # 输出 v2.x 才继续
 
 ```bash
 
-git clone <仓库地址> blogx
+git clone https://github.com/Jenlybein/NewblogX.git blogx
 cd blogx/deploy/compose/production
 ```
 
@@ -50,17 +52,12 @@ sed -i \
   .env
 ```
 
-
-
 几条注意事项：
 
 - `BLOGX_REDIS_USERNAME` 必须留空（Redis 只配了 `requirepass`，没有 ACL 账号），上面已经处理。
 - 两个 `*_RIVER_MYSQL_PASSWORD` 必须等于 `BLOGX_DB_PASSWORD`。填错**不报错**，只表现为"搜索永远搜不到新文章"。
-- 邮件、AI、七牛、QQ 登录的凭据**不在 `.env` 里**，容器起来后去后台「站点」页填。
-  这几项默认都是关闭的：没配密钥就打开开关，用户点下去只会看到报错。
-- 首次启动要构建 ES 分词插件和三个应用镜像，约 5~10 分钟，之后不再等。
 
-### 三条分岔路
+### 三条拉起服务的路
 
 三条路的开头一样：装 Docker、取代码、把密钥填进 `.env`。差别只在"站点地址"那几个变量，以及要不要证书。
 
@@ -74,7 +71,9 @@ sed -i \
 
 ### 1. 本地 Docker 拉起
 
-在自己电脑上跑（Windows / macOS 的 Docker Desktop，或 Linux 的 Docker）。**不用改任何配置**——模板默认就是 `local` 形态、`dev` 环境、`localhost` 地址。
+在自己电脑上本地运行（Windows / macOS 的 Docker Desktop，或 Linux 的 Docker）。
+
+**不用改任何配置**——模板默认就是 `local` 形态、`dev` 环境、`localhost` 地址。
 
 ```bash
 # Linux 本机需要放开 ES 要求的内核参数；Docker Desktop 一般不用管
@@ -84,25 +83,24 @@ docker compose up -d --build
 docker compose ps                        # 等全部 healthy
 ```
 
-访问 `http://localhost`（读者站）与 `http://localhost/admin/`（后台，**注意尾斜杠**）。
+等全部容器 healthy 之后，就可以：
 
-再建一个管理员——系统没有默认账号：
+- 访问 `http://localhost`（读者站）；
+- 访问 `http://localhost/admin/`（后台，**注意尾斜杠**）。
 
-```bash
-docker compose exec blogx_server /app/server -f config/settings.yaml \
-  -t user -s create -user-role admin -user-username admin -user-password '换成你的密码'
-```
+数据落在 `deploy/state/`，想彻底重置就 `down` 之后删掉这个目录。
 
-数据落在 `deploy/state/`：`docker compose down` 只是停止，数据还在；想彻底重置就 `down` 之后删掉这个目录。
+### 2. 服务器 HTTPS 拉起 Docker
 
-### 2. 服务器 HTTPS Docker 拉起
+前提：域名已备案，并解析到这台机器。服务器端开放 80 / 443 接口，内存 4 GB 起。
 
-前提：域名已备案并解析到这台机器，证书已拿到，安全组放开 80 / 443，内存 8 GB 起。
+#### 修改配置文件
 
-**改 `.env`**（把域名换成你的）：
+改 `.env`，以下命令中修改 `DOMAIN` 的值，把域名换成你的：
 
 ```bash
-DOMAIN=blog.example.com
+DOMAIN=写你的域名
+
 sed -i \
   -e "s|^BLOGX_NGINX_ENV=.*|BLOGX_NGINX_ENV='production'|" \
   -e "s|^BLOGX_APP_ENV=.*|BLOGX_APP_ENV='production'|" \
@@ -114,13 +112,15 @@ sed -i \
   .env
 ```
 
-`BLOGX_APP_ENV` 写 `production`：代码里唯一的判断就是它，只有生产环境会给 refresh Cookie 加 `Secure`。旧写法 `prod` 仍被兼容（启动日志会提示迁移），但新配置一律写 `production`。
+`BLOGX_APP_ENV` 写 `production`：代码里唯一的判断就是它，只有生产环境会给 refresh Cookie 加 `Secure`。
 
-#### 放证书、起服务
+#### 放证书
 
 nginx 只认 `deploy/state/nginx/cert/` 下的两个固定文件名：`domain.pem`（**fullchain**，含中间证书）和 `domain.key`（私钥）。证书来源二选一，放好后执行同一段「起服务」。
 
 ##### A. 自有证书（云厂商签发 / 已有 pem + key）
+
+这个方法适合你自己已经有证书了，只需要把证书放进对应位置即可：
 
 ```bash
 mkdir -p ../../state/nginx/cert
@@ -129,59 +129,70 @@ cp 你的证书.key ../../state/nginx/cert/domain.key
 chmod 600 ../../state/nginx/cert/domain.key
 ```
 
-> 证书的 SAN 必须覆盖你要访问的域名（`https://你的域名`），否则浏览器报"证书与域名不匹配"。
+证书的 SAN 必须覆盖你要访问的域名（`https://你的域名`），否则浏览器报"证书与域名不匹配"。
 
-##### B. 免费证书 + 自动续期（acme.sh）
+还有，需要自行维护证书是否过期！
 
-适合还没有证书、想免费部署的用户。仓库里带了签发脚本 `scripts/issue-cert.sh`：在仓库根目录用**部署用户**（能直接跑 `docker ps` 的那个）执行，邮箱和域名用参数传，多个域名就重复 `--domain`（第一个是主域名）：
+##### B. 免费证书 + 自动续期
+
+适合还没有证书、想免费部署的用户。
+
+仓库里带了签发脚本 `scripts/issue-cert.sh`，在仓库根目录用**部署用户**执行。
+
+邮箱和域名用参数传，多个域名就重复 `--domain`（第一个是主域名）：
 
 ```bash
-bash scripts/issue-cert.sh --email you@example.com --domain 你的域名
-bash scripts/issue-cert.sh --email you@example.com --domain 你的域名 --domain www.你的域名
+# 一般写法
+bash scripts/issue-cert.sh --email 你的邮箱地址 --domain 你的域名
+# 多域名写法
+bash scripts/issue-cert.sh --email 你的邮箱地址 --domain 你的域名 --domain www.你的域名
 ```
 
-脚本会：装 acme.sh（自动写每日 cron）→ 签发时先停 nginx 腾出 80（`--pre-hook`）、签完拉起来（`--post-hook`）→ 把 fullchain/key 装到 `deploy/state/nginx/cert/` → 注册续期成功后的 `docker exec nginx nginx -s reload`。后续续期由 cron 负责，不用再跑脚本。参数和环境变量（容器名、CA 等）用 `bash scripts/issue-cert.sh --help` 看。
+这个脚本会先装 `acme.sh`，再用 `Let's Encrypt` 签发免费证书；之后由 acme.sh 的每日定时任务检查、到期前自动续期。
 
-> 签发前必须：域名的 A/AAAA 解析指向这台服务器的公网 IP（`dig +short 你的域名` 可验证）、公网 80 放行、域名没有被 CDN/代理（如 Cloudflare 橙云）挡住 HTTP-01 校验。**脚本不会替你改 DNS。**
->
-> 首次执行时 nginx 可能还没起，脚本里的 reload 会被静默跳过；`docker compose up` 之后 nginx 第一次启动就会加载证书，不用重跑。
+证书签发时会暂停 nginx 腾出 80 接口，签完后再重新拉起来。后续续期由 cron 负责，不用再跑脚本。
 
-几条要知道的：
+**注意**：
 
-- **续期**：cron 每天检查，剩 < 30 天时停 nginx → 签发 → 起 nginx（这几秒访问会失败）→ 重载新证书。完全不想停 nginx 就用 DNS-01（`--issue --dns dns_<服务商>`，插件与 API 凭据见[第十五章](#十五七牛云接入与证书自动化)）；脚本只封装 standalone，DNS-01 按 15.5 手动执行。
-- standalone 依赖 `socat` 或 `python3`；Ubuntu 22.04 自带 python3，够用。
-- 检查续期有没有生效：`~/.acme.sh/acme.sh --list` 看下次续期时间；线上证书的日期用 `echo | openssl s_client -connect 你的域名:443 -servername 你的域名 2>/dev/null | openssl x509 -noout -dates`。
+- *续期时*：自动任务检查到证书过期时间小于 30 天时，会自动停 nginx → 签发 → 起 nginx（这几秒访问网站会失败）→ 重载新证书。这种情况出现，是因为脚本采用的是 HTTP-01 的方法。完全不想停 nginx 就请自行改用 DNS-01 方法。
+- *签发前必须*：域名的 A/AAAA 解析指向这台服务器的公网 IP、公网 80 放行、域名没有被 CDN/代理（如 Cloudflare 橙云）挡住 HTTP-01 校验。**脚本不会替你改 DNS！**
 
-##### 起服务
+#### 起服务
+
+首先构建容器：
 
 ```bash
 sudo sysctl -w vm.max_map_count=262144
 
 docker compose up -d --build
+```
+
+容器构建完成后，设置初始管理员账号：
+
+```bash
+MYID='换成你的账号名'
+MYPSD='换成你的密码'
+
 docker compose exec blogx_server /app/server -f config/settings.yaml \
-  -t user -s create -user-role admin -user-username admin -user-password '换成你的密码'
+  -t user -s create -user-role admin -user-username $MYID -user-password $MYPSD
 ```
 
-访问 `https://你的域名` 与 `https://你的域名/admin/`。
+等全部容器 healthy 之后，就可以：
 
-域名和 `render-config.sh` 里的默认值（`blogx.gentlybeing.cn`）不同也能跑——nginx 只有一个 server 块，会响应任意 Host；但**证书必须与域名匹配**，否则浏览器报警告。想彻底对齐就在 `.env` 里加一行：
-
-```ini
-BLOGX_NGINX_SERVER_NAME='你的域名'
-```
-
-compose 已经把它透传进 nginx 容器，留空则回退到模板默认值（所以不加这行也不会有问题，只是日志里的域名不对）。**不要去改 `render-config.sh`** —— 那是仓库里的文件，`git pull` 时你的改动会和上游冲突。
+- 访问 `https://你的域名`（读者站）；
+- 访问 `https://你的域名/admin/`（后台，**注意尾斜杠**）。
 
 ### 3. 服务器无域名 Docker 拉起
 
 域名还在备案、或者根本没有域名时用这条：**公网 IP + http**，能验证绝大部分功能。
 
-前提：安全组放开 80，内存 8 GB 起。
+#### 改配置文件
 
-**改 `.env`**（把 IP 换成你的公网 IP）：
+**改 `.env`**，把 IP 换成你的公网 IP：
 
 ```bash
 IP=1.2.3.4
+
 sed -i \
   -e "s|^BLOGX_NGINX_ENV=.*|BLOGX_NGINX_ENV='local'|" \
   -e "s|^BLOGX_APP_ENV=.*|BLOGX_APP_ENV='dev'|" \
@@ -193,20 +204,31 @@ sed -i \
 
 `BLOGX_APP_ENV` 必须是 `dev`：写 `production` 会给 Cookie 加 `Secure`，而 http 下浏览器不保存它，表现是"能登录，刷新后掉登录"。
 
+首先构建容器：
+
 ```bash
 sudo sysctl -w vm.max_map_count=262144
 docker compose up -d --build
-docker compose exec blogx_server /app/server -f config/settings.yaml \
-  -t user -s create -user-role admin -user-username admin -user-password '换成你的密码'
 ```
 
-访问 `http://你的公网IP` 与 `http://你的公网IP/admin/`。
+容器构建完成后，设置初始管理员账号：
+
+```bash
+MYID='换成你的账号名'
+MYPSD='换成你的密码'
+
+docker compose exec blogx_server /app/server -f config/settings.yaml \
+  -t user -s create -user-role admin -user-username $MYID -user-password $MYPSD
+```
+
+等全部容器 healthy 之后，就可以：
+
+- 访问 `http://你的公网IP`（读者站）；
+- 访问 `http://你的公网IP/admin/`（后台，**注意尾斜杠**）。
 
 能用的：读者站、后台、搜索、评论、聊天、发文。**受影响的只有依赖域名的部分**——QQ 登录回跳、七牛上传回调（多数场景要求域名，图片上传可能暂时不可用）、邮件正文里的链接（用 `site_url` 拼，填 IP 也能跳）。
 
 备案下来后，把上面那段 sed 换成场景 2 的（`BLOGX_NGINX_ENV` 与 `BLOGX_APP_ENV` 都写 `production`，站点 URL 用 `https://域名`），放好证书再 `docker compose up -d`，账号和数据都还在。
-
-> 别把未备案的域名解析到大陆机房的 IP 上对外开 80/443——云厂商会阻断并要求整改，这是审核期最常见的停机原因。想先看域名效果，只能在本机 `hosts` 里指向 IP（仅本机生效），或把服务器放到香港 / 境外。
 
 ---
 

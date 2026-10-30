@@ -1,13 +1,9 @@
 <script setup lang="ts">
-import { computed, ref } from "vue";
+import { computed } from "vue";
 import type { StyleValue } from "vue";
 import { NSkeleton } from "naive-ui";
 import AppAvatar from "~/components/common/AppAvatar.vue";
-import HomeAiChatDialog from "~/components/home/HomeAiChatDialog.vue";
-import HomeAiPlaceholder from "~/components/home/HomeAiPlaceholder.vue";
-import { useAuthStore } from "~/stores/auth";
-import { useUiStore } from "~/stores/ui";
-import type { SearchArticleItem, SiteAiInfo, SiteRuntimeConfig } from "~/types/api";
+import type { SearchArticleItem, SiteRuntimeConfig } from "~/types/api";
 import { resolveAvatarUrl } from "~/utils/avatar";
 import { brandProjectTitle } from "~/utils/brand";
 import { useStaggerEntrance } from "~/composables/useStaggerEntrance";
@@ -21,7 +17,6 @@ import {
 const props = withDefaults(defineProps<{
   pending?: boolean;
   runtimeConfig: SiteRuntimeConfig | null;
-  aiInfo: SiteAiInfo | null;
   articles: SearchArticleItem[];
   sticky?: boolean;
   stickyTop?: number | string;
@@ -64,24 +59,6 @@ const projectAbstract = computed(
     props.runtimeConfig?.site_info?.subtitle ||
     "为开发者写作、搜索与知识整理提供稳定的内容入口。",
 );
-
-const authStore = useAuthStore();
-const uiStore = useUiStore();
-const aiDialogOpen = ref(false);
-
-async function handleOpenAiDialog() {
-  if (!props.aiInfo?.enable) {
-    return;
-  }
-
-  const isLoggedIn = await authStore.initializeSession();
-  if (!isLoggedIn) {
-    uiStore.openAuthModal();
-    return;
-  }
-
-  aiDialogOpen.value = true;
-}
 </script>
 
 <template>
@@ -156,10 +133,6 @@ async function handleOpenAiDialog() {
       </div>
       <p v-else class="mt-3 text-xs leading-6 text-ink-muted">文章加载后，这里会按文章数推荐作者。</p>
     </section>
-
-    <HomeAiPlaceholder :ai-info="aiInfo" @open="handleOpenAiDialog" />
-
-    <HomeAiChatDialog v-model:show="aiDialogOpen" :ai-info="aiInfo" />
   </aside>
 </template>
 

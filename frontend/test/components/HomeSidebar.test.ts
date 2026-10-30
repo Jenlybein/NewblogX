@@ -1,18 +1,9 @@
 import { mount } from "@vue/test-utils";
 import { defineComponent, h } from "vue";
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it } from "vitest";
 
 import HomeSidebar from "~/components/home/HomeSidebar.vue";
-import type { SearchArticleItem, SiteAiInfo, SiteRuntimeConfig } from "~/types/api";
-
-// 侧栏只依赖两个 store 的动作，用 mock 收口：不需要 pinia/Nuxt 上下文，
-// 也不会真的去初始化会话（那属于登录票的行为）。
-vi.mock("~/stores/auth", () => ({
-  useAuthStore: () => ({ initializeSession: async () => true }),
-}));
-vi.mock("~/stores/ui", () => ({
-  useUiStore: () => ({ openAuthModal: () => {} }),
-}));
+import type { SearchArticleItem, SiteRuntimeConfig } from "~/types/api";
 
 const NuxtLinkStub = defineComponent({
   props: { to: { type: [String, Object], default: "" } },
@@ -57,31 +48,21 @@ const runtimeConfig = {
 
 function mountSidebar(props: Record<string, unknown> = {}) {
   return mount(HomeSidebar, {
-    props: {
-      runtimeConfig,
-      aiInfo: { enable: true, nickname: "助手" } as unknown as SiteAiInfo,
-      articles: [],
-      ...props,
-    },
-    global: {
-      stubs: {
-        NuxtLink: NuxtLinkStub,
-        Motion: MotionStub,
-        HomeAiChatDialog: true,
-      },
-    },
+    props: { runtimeConfig, articles: [], ...props },
+    global: { stubs: { NuxtLink: NuxtLinkStub, Motion: MotionStub } },
   });
 }
 
-describe("HomeSidebar：右栏（公告 / 热门标签 / 推荐作者 / AI 占位）", () => {
-  it("右栏结构完整：四块分区都在，AI 卡片是占位形态", () => {
+describe("HomeSidebar：右栏（公告 / 热门标签 / 推荐作者）", () => {
+  it("右栏三块分区都在，且不再有 AI 区块（入口已由右下角捏捏接管）", () => {
     const wrapper = mountSidebar();
 
     expect(wrapper.attributes("data-home-sidebar")).toBeDefined();
     expect(wrapper.find("[data-home-section='notice']").exists()).toBe(true);
     expect(wrapper.find("[data-home-section='tags']").exists()).toBe(true);
     expect(wrapper.find("[data-home-section='authors']").exists()).toBe(true);
-    expect(wrapper.find("[data-home-section='ai-placeholder']").exists()).toBe(true);
+    expect(wrapper.find("[data-home-section='ai-placeholder']").exists()).toBe(false);
+    expect(wrapper.text()).not.toContain("打开对话框");
     expect(wrapper.get("[data-home-section='notice']").text()).toContain("果冻盒");
     expect(wrapper.get("[data-home-section='notice']").text()).toContain("密码登录");
   });
@@ -103,9 +84,15 @@ describe("HomeSidebar：右栏（公告 / 热门标签 / 推荐作者 / AI 占�
     expect(wrapper.get("[data-home-section='authors']").text()).toContain("文章加载后");
   });
 
-    it("有文章：聚合出热门标签链接与作者行（整行可点）", () => {
+  it("有文章：聚合出热门标签链接与作者行（整行可点）", () => {
     const wrapper = mountSidebar({
-      articles: [article("a1"), article("a2", { author: { id: "u2", nickname: "作者乙", avatar: "" }, tags: [{ id: "t2", title: "部署" }] })],
+      articles: [
+        article("a1"),
+        article("a2", {
+          author: { id: "u2", nickname: "作者乙", avatar: "" },
+          tags: [{ id: "t2", title: "部署" }],
+        }),
+      ],
     });
 
     expect(wrapper.get("[data-home-section='tags']").text()).toContain("Nuxt");

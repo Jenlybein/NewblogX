@@ -1,10 +1,9 @@
 import { describe, expect, it } from "vitest";
 
-import type { SearchArticleItem, SiteAiInfo, SiteRuntimeConfig } from "~/types/api";
+import type { SearchArticleItem, SiteRuntimeConfig } from "~/types/api";
 import {
   aggregateHotTags,
   aggregateRecommendedAuthors,
-  homeAiPlaceholder,
   homeHeroFacts,
   homeLoginModes,
   homeSearchLocation,
@@ -123,22 +122,6 @@ describe("首页区块降级态", () => {
       kind: "ready",
       badge: "2 篇（缓存）",
     });
-  });
-});
-
-describe("AI 占位文案（不上新视觉，只降级）", () => {
-  it("启用时给出占位说明与打开入口；未启用时入口禁用", () => {
-    const enabled = homeAiPlaceholder({ enable: true, nickname: "小助手" } as unknown as SiteAiInfo);
-    expect(enabled.available).toBe(true);
-    expect(enabled.actionLabel).toBe("打开对话框");
-    expect(enabled.name).toBe("小助手");
-    expect(enabled.note).toContain("捏捏");
-    expect(enabled.capabilities.length).toBeGreaterThan(0);
-
-    const disabled = homeAiPlaceholder(null);
-    expect(disabled.available).toBe(false);
-    expect(disabled.name).toBe("捏捏");
-    expect(disabled.actionLabel).toBe("AI 暂未启用");
   });
 });
 

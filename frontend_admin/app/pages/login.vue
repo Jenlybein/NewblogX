@@ -6,6 +6,8 @@ import { getSetupStatus } from '~/services/setup'
 
 definePageMeta({ layout: 'auth' })
 
+useHead({ title: '后台登录' })
+
 const route = useRoute()
 const router = useRouter()
 const auth = useAuthStore()
@@ -53,10 +55,10 @@ async function submit() {
     <div class="admin-login-shell">
       <section class="admin-login-hero">
         <div class="flex items-center gap-3">
-          <div class="admin-brand__mark">BX</div>
+          <AdminBrandLogo :size="52" />
           <div>
-            <strong>BlogX Admin</strong>
-            <p class="muted m-0 text-sm">运营后台</p>
+            <AdminBrandWordmark size="lg" layout="stack" />
+            <p class="muted m-0 mt-1 text-sm">运营后台</p>
           </div>
         </div>
 

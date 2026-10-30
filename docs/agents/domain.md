@@ -23,7 +23,7 @@ Single-context repo:
 ├── GLOSSARY.md               ← domain vocabulary
 ├── docs/
 │   ├── agents/               ← this config (issue tracker / triage labels / domain docs)
-│   ├── adr/                  ← 0001-…-0009-…, one decision per file
+│   ├── adr/                  ← 0001-…-0011-…, one decision per file
 │   ├── architecture/         ← current design + rules
 │   ├── notes/                ← dated notes, memory/
 │   ├── archive/v1/           ← historical v1 archive

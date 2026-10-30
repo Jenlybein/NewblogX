@@ -3,6 +3,9 @@ import { join } from "node:path";
 
 import { describe, expect, it } from "vitest";
 
+// blockAfter 在多个 design 测试里逐字节相同，已收进 test/helpers/designFiles。
+import { blockAfter } from "../helpers/designFiles";
+
 import { MOTION_REVEAL_OFFSET_PX, PARALLAX_MAX_PX } from "~/utils/motion";
 
 /**
@@ -16,22 +19,6 @@ const read = (path: string) => readFileSync(join(projectDir, path), "utf8");
 const tailwindCss = read("app/assets/css/tailwind.css");
 const appVue = read("app/app.vue");
 const header = read("app/components/layout/AppHeader.vue");
-
-/** 取出某个选择器/at-rule 之后的第一个 `{...}` 块内容。 */
-function blockAfter(css: string, marker: string, last = false): string {
-  const start = last ? css.lastIndexOf(marker) : css.indexOf(marker);
-  expect(start, `找不到 ${marker}`).toBeGreaterThan(-1);
-  const open = css.indexOf("{", start);
-  let depth = 0;
-  for (let index = open; index < css.length; index += 1) {
-    if (css[index] === "{") depth += 1;
-    if (css[index] === "}") {
-      depth -= 1;
-      if (depth === 0) return css.slice(open + 1, index);
-    }
-  }
-  throw new Error(`${marker} 的块没有闭合`);
-}
 
 const LAYOUTS = ["app/layouts/default.vue", "app/layouts/studio.vue", "app/layouts/write.vue"];
 

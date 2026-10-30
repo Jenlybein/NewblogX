@@ -1,7 +1,11 @@
-import { readFileSync, readdirSync, statSync } from "node:fs";
+import { readFileSync } from "node:fs";
 import { join, relative } from "node:path";
 
 import { describe, expect, it } from "vitest";
+
+// 遍历逻辑与其余 design 测试重复，收进 helpers。原实现没有跳过目录这一步，但 app/
+// 下并不存在 node_modules / .nuxt 之类的目录，显式跳过与否行为完全一致。
+import { collectFiles, extensionFilter } from "../helpers/designFiles";
 
 // vitest 以 project root（frontend/）为 cwd。
 const projectDir = process.cwd();
@@ -21,25 +25,11 @@ const DIRECTIONAL_RE = new RegExp(
   "u",
 );
 
-function walk(dir: string, files: string[] = []): string[] {
-  for (const name of readdirSync(dir)) {
-    const full = join(dir, name);
-    if (statSync(full).isDirectory()) {
-      walk(full, files);
-      continue;
-    }
-    if (/\.(?:vue|css|ts)$/u.test(name)) {
-      files.push(full);
-    }
-  }
-  return files;
-}
-
 /** `.vue` 里的 `<style>` 块 + 纯 `.css` 文件 + `.ts` 里的 CSS 字符串，统一成 CSS 文本。 */
 function collectCssSources(): { file: string; css: string }[] {
   const sources: { file: string; css: string }[] = [];
 
-  for (const absolute of walk(appDir)) {
+  for (const absolute of collectFiles(appDir, extensionFilter("vue", "css", "ts"))) {
     const file = relative(projectDir, absolute).replace(/\\/gu, "/");
     const source = readFileSync(absolute, "utf8");
 
@@ -138,7 +128,7 @@ describe("全站圆角落位：反例字面量归零", () => {
 
   it("所有 rounded-* 工具类都在五档之内（`rounded-[18px]` / `rounded-2xl` / `rounded-full` 归零）", () => {
     // 组件模板与样式都在 CSS_SOURCES 里（.vue 的 <template> 不在此列，单独扫 .vue 全文）。
-    const vueSources = walk(appDir)
+    const vueSources = collectFiles(appDir, extensionFilter("vue"))
       .filter((file) => file.endsWith(".vue"))
       .map((file) => ({
         file: relative(projectDir, file).replace(/\\/gu, "/"),

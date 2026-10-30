@@ -2,7 +2,13 @@ import { getCurrentScope, onScopeDispose, ref, type Ref } from "vue";
 
 import { prefersReducedMotionFrom } from "~/utils/motion";
 
-const REDUCED_MOTION_QUERY = "(prefers-reduced-motion: reduce)";
+/**
+ * 「减少动态」的媒体查询串。
+ *
+ * 导出给需要自己再查一次 media 的组合式函数复用（比如 usePointerSpecular 还要查移动
+ * 端断点），避免各处重抄同一个字符串。
+ */
+export const REDUCED_MOTION_QUERY = "(prefers-reduced-motion: reduce)";
 
 /** matchMedia 返回值里这里用到的最小接口（便于测试注入假的 MediaQueryList）。 */
 export interface ReducedMotionMediaQuery {
@@ -21,8 +27,13 @@ export interface MotionPreference {
   dispose: () => void;
 }
 
-function defaultMatchMedia(query: string): ReducedMotionMediaQuery | null {
-  // SSR 没有 matchMedia：此时按"不减少动态"处理（动画仍由 CSS/客户端接管）。
+/**
+ * 默认的 matchMedia 取值器。
+ *
+ * 导出给同样需要读 media 的兄弟 composable（用同一个即可，不必各自再写一遍 SSR
+ * 兜底）。SSR 没有 matchMedia：此时按"不减少动态"处理（动画仍由 CSS/客户端接管）。
+ */
+export function defaultMatchMedia(query: string): ReducedMotionMediaQuery | null {
   if (typeof globalThis.matchMedia !== "function") return null;
   return globalThis.matchMedia(query) as unknown as ReducedMotionMediaQuery;
 }

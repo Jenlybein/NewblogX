@@ -1,16 +1,18 @@
 <script setup lang="ts">
 import { computed } from "vue";
 import type { StyleValue } from "vue";
-import { NSkeleton, NTag } from "naive-ui";
+import { NSkeleton } from "naive-ui";
 import AppAvatar from "~/components/common/AppAvatar.vue";
 import type { SearchArticleItem, SiteRuntimeConfig } from "~/types/api";
 import { resolveAvatarUrl } from "~/utils/avatar";
 import { brandProjectTitle } from "~/utils/brand";
 import { useStaggerEntrance } from "~/composables/useStaggerEntrance";
-
-// 动效地基的第一个真实用例：热门标签列表错峰入场（40ms 一档，只动 opacity/translateY）。
-// 后续票（列表页/用户页/文章页）直接复用 useStaggerEntrance + <Motion>，不要各写一套。
-const { entranceProps } = useStaggerEntrance();
+import {
+  aggregateHotTags,
+  aggregateRecommendedAuthors,
+  homeLoginModes,
+  homeSidebarVisibility,
+} from "~/utils/home";
 
 const props = withDefaults(defineProps<{
   pending?: boolean;
@@ -19,9 +21,13 @@ const props = withDefaults(defineProps<{
   sticky?: boolean;
   stickyTop?: number | string;
 }>(), {
+  pending: false,
   sticky: false,
   stickyTop: "0.5rem",
 });
+
+// 右栏只有标签是"非关键内容"：给它错峰入场（40ms 一档，只动 opacity/translateY）。
+const { entranceProps } = useStaggerEntrance();
 
 const sidebarClasses = computed(() => ({
   "profile-sidebar": true,
@@ -39,171 +45,114 @@ const sidebarStyle = computed<StyleValue>(() => {
   };
 });
 
-const enabledModules = computed(() => {
-  const source = props.runtimeConfig?.index_right?.list || [];
-  return new Set(
-    source
-      .map((item) => String(item.title || "").trim())
-      .filter(Boolean),
-  );
-});
-
-const loginModes = computed(() => {
-  const login = props.runtimeConfig?.login;
-  const result: string[] = [];
-
-  if (login?.pwd) result.push("密码登录");
-  if (login?.email) result.push("邮箱登录");
-  if (login?.qq) result.push("QQ 登录");
-
-  return result;
-});
-
-const hotTags = computed(() => {
-  const tagMap = new Map<string, { id: string; title: string; count: number }>();
-
-  for (const article of props.articles) {
-    for (const tag of article.tags || []) {
-      const current = tagMap.get(tag.id);
-      if (current) {
-        current.count += 1;
-      } else {
-        tagMap.set(tag.id, {
-          id: tag.id,
-          title: tag.title,
-          count: 1,
-        });
-      }
-    }
-  }
-
-  return [...tagMap.values()]
-    .sort((left, right) => right.count - left.count || left.id.localeCompare(right.id))
-    .slice(0, 8);
-});
-
-const recommendedAuthors = computed(() => {
-  const authorMap = new Map<
-    string,
-    {
-      id: string;
-      nickname: string;
-      avatar: string;
-      articleCount: number;
-      totalViews: number;
-    }
-  >();
-
-  for (const article of props.articles) {
-    const current = authorMap.get(article.author.id);
-    if (current) {
-      current.articleCount += 1;
-      current.totalViews += article.view_count;
-      continue;
-    }
-
-    authorMap.set(article.author.id, {
-      id: article.author.id,
-      nickname: article.author.nickname,
-      avatar: resolveAvatarUrl(article.author.avatar),
-      articleCount: 1,
-      totalViews: article.view_count,
-    });
-  }
-
-  return [...authorMap.values()]
-    .sort((left, right) => right.articleCount - left.articleCount || right.totalViews - left.totalViews)
-    .slice(0, 4);
-});
-
-const showNotice = computed(() => enabledModules.value.size === 0 || enabledModules.value.has("site_notice"));
-const showTags = computed(() => enabledModules.value.size === 0 || enabledModules.value.has("hot_tags"));
-const showAuthors = computed(() => enabledModules.value.size === 0 || enabledModules.value.has("recommended_authors"));
+const visibility = computed(() => homeSidebarVisibility(props.runtimeConfig));
+const loginModes = computed(() => homeLoginModes(props.runtimeConfig));
+const hotTags = computed(() => aggregateHotTags(props.articles, 8));
+const recommendedAuthors = computed(() => aggregateRecommendedAuthors(props.articles, 4));
 
 const projectTitle = computed(() =>
   brandProjectTitle(props.runtimeConfig?.project?.title || props.runtimeConfig?.site_info?.title),
 );
 const projectAbstract = computed(
-  () => props.runtimeConfig?.project?.abstract || props.runtimeConfig?.site_info?.subtitle || "为开发者写作、搜索与知识整理提供稳定的内容入口。",
+  () =>
+    props.runtimeConfig?.project?.abstract ||
+    props.runtimeConfig?.site_info?.subtitle ||
+    "为开发者写作、搜索与知识整理提供稳定的内容入口。",
 );
 </script>
 
 <template>
-  <aside :class="sidebarClasses" :style="sidebarStyle">
-    <section v-if="pending" class="surface-card p-5 md:p-6">
+  <aside :class="sidebarClasses" :style="sidebarStyle" data-home-sidebar>
+    <section v-if="pending" class="blueprint-panel" data-home-section="sidebar-skeleton">
       <NSkeleton text width="96px" />
       <NSkeleton text class="mt-3" :repeat="2" />
       <div class="mt-4 flex flex-wrap gap-2">
-        <NSkeleton v-for="idx in 3" :key="`notice-tag-${idx}`" round height="24px" width="64px" />
+        <NSkeleton v-for="idx in 3" :key="`notice-tag-${idx}`" height="24px" width="64px" />
       </div>
     </section>
 
-    <section v-if="showNotice" class="surface-card p-5 md:p-6">
-      <div class="text-base font-semibold">站点公告</div>
-      <p class="mt-2 text-sm leading-7 muted">
-        {{ projectAbstract }}
-      </p>
+    <section v-if="visibility.notice" class="blueprint-panel" data-home-section="notice">
+      <div class="eyebrow">Notice</div>
+      <h2 class="section-title mt-2">站点公告</h2>
+      <p class="mt-3 text-sm leading-prose text-ink-muted">{{ projectAbstract }}</p>
       <div class="mt-3 flex flex-wrap gap-2">
-        <NTag size="small" round :bordered="false">
-          {{ projectTitle }}
-        </NTag>
-        <NTag
-          v-for="mode in loginModes"
-          :key="mode"
-          size="small"
-          round
-          :bordered="false"
-          type="success"
-        >
-          {{ mode }}
-        </NTag>
+        <span class="blueprint-chip">{{ projectTitle }}</span>
+        <span v-for="mode in loginModes" :key="mode" class="blueprint-chip">{{ mode }}</span>
       </div>
     </section>
 
-    <section v-if="showTags && hotTags.length" class="surface-card p-5 md:p-6">
-      <div class="text-base font-semibold">热门标签</div>
-      <div class="mt-3 flex flex-wrap gap-2">
+    <section v-if="visibility.tags" class="blueprint-panel" data-home-section="tags">
+      <div class="flex flex-wrap items-center justify-between gap-2">
+        <div>
+          <div class="eyebrow">Tags</div>
+          <h2 class="section-title mt-2">热门标签</h2>
+        </div>
+        <span class="blueprint-chip">{{ hotTags.length }} 个</span>
+      </div>
+
+      <div v-if="hotTags.length" class="mt-3 flex flex-wrap gap-2">
         <Motion
           v-for="(tag, index) in hotTags"
           :key="tag.id"
           v-bind="entranceProps(index)"
           class="motion-stagger-item inline-flex"
         >
-          <NuxtLink
-            :to="{ path: '/search', query: { tag_ids: tag.id } }"
-            class="inline-flex"
-          >
-            <NTag
-              size="small"
-              round
-              :bordered="false"
-            >
-              {{ tag.title }}
-            </NTag>
+          <NuxtLink :to="{ path: '/search', query: { tag_ids: tag.id } }" class="blueprint-chip">
+            {{ tag.title }}
           </NuxtLink>
         </Motion>
       </div>
+      <p v-else class="mt-3 text-xs leading-6 text-ink-muted">文章加载后，这里会按出现次数排出热门标签。</p>
     </section>
 
-    <section v-if="showAuthors && recommendedAuthors.length" class="surface-card p-5 md:p-6">
-      <div class="text-base font-semibold">推荐作者</div>
-      <div class="mt-3 space-y-3">
+    <section v-if="visibility.authors" class="blueprint-panel" data-home-section="authors">
+      <div class="flex flex-wrap items-center justify-between gap-2">
+        <div>
+          <div class="eyebrow">Authors</div>
+          <h2 class="section-title mt-2">推荐作者</h2>
+        </div>
+        <span class="blueprint-chip">{{ recommendedAuthors.length }} 位</span>
+      </div>
+
+      <div v-if="recommendedAuthors.length" class="mt-3 flex flex-col">
         <NuxtLink
           v-for="author in recommendedAuthors"
           :key="author.id"
           :to="`/users/${author.id}`"
-          class="flex items-center justify-between gap-3 rounded-2xl px-1 py-1 transition hover:bg-slate-100/70 dark:hover:bg-slate-800/70"
+          class="home-author-row"
         >
-          <div class="flex items-center gap-3">
-            <AppAvatar :size="38" :src="author.avatar" :name="author.nickname" fallback="作" />
-            <div>
-              <div class="text-sm font-semibold">{{ author.nickname }}</div>
-              <div class="text-xs muted">{{ author.articleCount }} 篇文章</div>
+          <div class="flex min-w-0 items-center gap-3">
+            <AppAvatar :size="36" :src="resolveAvatarUrl(author.avatar)" :name="author.nickname" fallback="作" />
+            <div class="min-w-0">
+              <div class="truncate text-sm font-semibold text-ink">{{ author.nickname }}</div>
+              <div class="text-xs text-ink-muted">{{ author.articleCount }} 篇文章</div>
             </div>
           </div>
-          <span class="text-xs muted">{{ author.totalViews }} 阅读</span>
+          <span class="shrink-0 text-xs text-ink-muted">{{ author.totalViews }} 阅读</span>
         </NuxtLink>
       </div>
+      <p v-else class="mt-3 text-xs leading-6 text-ink-muted">文章加载后，这里会按文章数推荐作者。</p>
     </section>
   </aside>
 </template>
+
+<style scoped>
+/* 右栏作者行：整行可点（≥44px 触控区），1px 结构线分隔，不用阴影/圆角。 */
+.home-author-row {
+  display: flex;
+  min-height: 44px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  border-top: 1px solid var(--color-line-faint);
+  padding: 0.5rem 0;
+}
+
+.home-author-row:last-child {
+  border-bottom: 1px solid var(--color-line-faint);
+}
+
+.home-author-row:hover {
+  color: var(--color-ink);
+}
+</style>

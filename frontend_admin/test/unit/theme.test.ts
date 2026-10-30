@@ -217,4 +217,14 @@ describe("Naive themeOverrides：克莱因蓝主色 + 派生明度 + 圆角归�
     // 按下用派生暗橙（coral-700），此时奶油白字对比度 5.2:1 达标。
     expect(button.textColorPressedError).toBe(palette.cream);
   });
+
+  it("弹窗 / 全局消息的警示图标不落在黄或珊瑚橙上（非文本对比度 3:1）", () => {
+    const dialog = overrides.Dialog ?? {};
+    const message = overrides.Message ?? {};
+
+    expect(dialog.iconColorWarning).toBe(palette.blue900);
+    expect(dialog.iconColorError).toBe(palette.coral700);
+    expect(message.iconColorWarning).toBe(palette.blue900);
+    expect(message.iconColorError).toBe(palette.coral700);
+  });
 });

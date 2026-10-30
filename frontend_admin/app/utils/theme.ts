@@ -299,7 +299,23 @@ export function buildNaiveThemeOverrides(palette: RawPalette): GlobalThemeOverri
     Input: { borderRadius: "0" },
     Select: { peers: { InternalSelection: { borderRadius: "0" } } },
     Dropdown: { borderRadius: "0" },
-    Dialog: { borderRadius: "0" },
+    Dialog: {
+      borderRadius: "0",
+      // dialog.warning/error 的图标颜色默认直接取 warningColor/errorColor：
+      // 黄图标在奶油白上读不出来，珊瑚橙图标也不足 3:1，统一换墨色/暗橙。
+      iconColor: palette.blue,
+      iconColorInfo: palette.blue800,
+      iconColorSuccess: palette.blue800,
+      iconColorWarning: ink,
+      iconColorError: palette.coral700,
+    },
+    Message: {
+      borderRadius: "0",
+      iconColorWarning: ink,
+      iconColorError: palette.coral700,
+      iconColorInfo: palette.blue800,
+      iconColorSuccess: palette.blue800,
+    },
   };
 
   return overrides;

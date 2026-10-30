@@ -1,6 +1,6 @@
-# BlogX Admin
+# JellyBin Admin
 
-BlogX 后台管理端，默认挂载在 `/admin/`。
+JellyBin 后台管理端，默认挂载在 `/admin/`。内部标识仍叫 `blogx`（`BLOGX_ADMIN_*` 前缀、`blogx_admin` 服务名等），见根 [GLOSSARY](../GLOSSARY.md)。
 
 ## 开发
 

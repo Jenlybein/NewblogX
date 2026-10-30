@@ -9,8 +9,5 @@
     "app/components/home/HomeSidebar.vue",
     "app/pages/article/[id].vue"
   ],
-  "frontend_admin": [
-    "app/app.vue",
-    "app/assets/css/admin.css"
-  ]
+  "frontend_admin": []
 }

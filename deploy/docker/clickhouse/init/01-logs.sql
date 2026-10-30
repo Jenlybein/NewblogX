@@ -120,7 +120,7 @@ CREATE TABLE IF NOT EXISTS blogx_logs.action_audit_logs (
     target_type LowCardinality(String),
     target_id String,
     success UInt8,
-    -- 仅在失败请求时填充（success=0）；成功请求留空。见 docs/architecture/07 §0
+    -- 仅在失败请求时填充（success=0）；成功请求留空。见 docs/architecture/governance.md §4.2
     request_body String CODEC(ZSTD(9)),
     response_body String CODEC(ZSTD(9)),
     -- 预留：将来启用"原始报文冷存储"时，指向对象存储的取件码；默认不写

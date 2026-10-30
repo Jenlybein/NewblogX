@@ -1,4 +1,4 @@
-# 05 · 基线与过程（v1 归档）
+# 基线与过程（v1 归档）
 
 > 归档自 `baseline.md`（2330 行，对应提交 `8246bf2` / tag `refactor-start`）+ `04-迁移路线图.md` + `05-代码质量补审.md` + `08-重构任务清单.md` + `09-M6决策清单.md` + `10-M7决策清单.md`。
 > 压缩口径：**只保留关键数字与结论**。M3→M7 共 20 余节的逐步交付流水账整体丢弃，只留时间线。
@@ -8,7 +8,7 @@
 - **第一部分 基线**：起点时的真实数字，以及"这些数字是怎么量出来的"。
 - **第二部分 过程**：M0→M7 做了什么、两轮决策留档、提交规范、收尾状态。
 
-> **v2 硬约束见 [01-架构总纲](./01-架构总纲.md) §六**（A 组代码形状 + E 组提交协作），本文不再重复列清单。
+> **硬约束见 [overview](../../architecture/overview.md) §六**（A 组代码形状 + E 组提交协作），本文不再重复列清单。
 
 ---
 
@@ -234,7 +234,7 @@ corepack pnpm test:coverage
 | **`router/`**（1,298 行 / 17 文件）怎么收 | **A**（目录平移 `internal/platform/http/router`） | "router 认识所有模块"不是缺陷 —— composition root 本来就该认识所有人。B（注册下放各模块）的收益只是概念纯度，代价是引入一类**只有 e2e 能发现**的错误 |
 | **`write.vue`（2,045 行）拆到什么程度** | **A**（子组件 + composable） | 结果 2,045 → **361 行**；验收口径同轮由"主文件 <200 行"改为 **单文件 ≤800 行**，由两端 eslint `max-lines`(error) 兜住。否决 B（顺带换编辑器）：风险是 A 的数倍 |
 | **日志 `event_id` 用什么** | **A**（时间戳 + 进程内单调计数） | 单进程严格单调，多实例靠注入 `System.ServerID` 错开；零依赖几十行。保留雪花等于日志路径仍与 ID 服务耦合 —— 正是要解的问题 |
-| **零 DDL 口径** | **A2 零列变更** | 见 [01-架构总纲](./01-架构总纲.md) §六 A1 |
+| **零 DDL 口径** | **A2 零列变更** | 见 [overview](../../architecture/overview.md) §六 A1 |
 | **chat 假外键 `ChatMsgModel.SessionList`** | **B2**（直接删，零引用） | 库侧靠重建生效，不需要 `ALTER` |
 | **S5.7 stores 循环依赖** | **B**（下游 watch 上游） | 否决事件总线：SSR 下订阅会跨请求累积 |
 
@@ -242,7 +242,7 @@ corepack pnpm test:coverage
 
 ## 四、M7 决策留档：方案 E（ID 类型即真相）
 
-> 拍板时间 2026-10-26，P0 / E1–E6 全部交付。技术细节见 [03-契约](./03-契约.md) §7、[ADR-007](./04-ADR%20合集.md)。本节只留决策与数量账。
+> 拍板时间 2026-10-26，P0 / E1–E6 全部交付。技术细节见 [contracts](../../architecture/contracts.md) §7、[ADR-0007](../../adr/0007-id-string-type-as-truth.md)。本节只留决策与数量账。
 
 **一句话**：让 Go 里的 ID 类型和它在 JSON 里的样子是同一个东西 —— 类型是 `string`，JSON 就是 `"123"`，`swag` 读类型声明时不可能印错。数据库侧照旧走 int64，**零 DDL**。
 
@@ -316,7 +316,7 @@ S1.2: ci 跑 go vet + go test -race -short
 | S2.8 字段级注解（`@Param` 的 example/required） | ✅ 不再追：`required` 比例不作为目标（响应 struct 没有"一定返回"的表达载体） |
 | 换 swag v2 直出 OpenAPI 3.1 | ✅ 已完成：流水线 2 步，删掉 `docs.go` / `swagger.yaml` / `swag` 依赖 |
 
-**死信重投闭环**（M7 之后补的产品级决策，见 [ADR-008](./04-ADR%20合集.md)）：管理端「同步死信」页 → `POST /logs/dead-letter/replay` → `platform/cdc/dlq.Service` 按 stream 分派 → 更新 `cdc_dead_letter`（pending → resolved）→ `writer.EmitReplayEvent` → 管理端「日志中心 → 回放日志」看时间线。
+**死信重投闭环**（M7 之后补的产品级决策，见 [ADR-008](../../adr/0008-dead-letter-replay.md)）：管理端「同步死信」页 → `POST /logs/dead-letter/replay` → `platform/cdc/dlq.Service` 按 stream 分派 → 更新 `cdc_dead_letter`（pending → resolved）→ `writer.EmitReplayEvent` → 管理端「日志中心 → 回放日志」看时间线。
 
 仍有两类**无法自动重投**，接口返回原因与替代做法，**不静默失败**：
 

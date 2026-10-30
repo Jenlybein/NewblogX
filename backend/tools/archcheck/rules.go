@@ -369,7 +369,7 @@ func hasChinese(s string) bool {
 // ── R9：日志输入的类型约束（L.9 / L.10 闸门）────────────────────
 //
 // 老毛病：审计 body 曾用 `any` 接收任意结构体，进而在请求路径上反射整棵树，
-// 是内存/CPU 尖刺的根源（见 docs/architecture/07 §1.2）。
+// 是内存/CPU 尖刺的根源（见 docs/architecture/governance.md §4.2）。
 // 现在 body 只接受边界采集好的 []byte；这里从类型上堵死回归。
 //
 // 三条约束，都作用在"日志输入结构体"（名字以 Input / Event 结尾）上：

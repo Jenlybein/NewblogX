@@ -6,7 +6,7 @@ import (
 	"time"
 )
 
-// 默认缓冲参数。数值来自 docs/architecture/07 的设计：条目 8192、字节 8MB、
+// 默认缓冲参数。数值来自 docs/architecture/governance.md §4.3 的设计：条目 8192、字节 8MB、
 // 批量 500、间隔 1s。它们共同决定“内存上限”与“刷盘延迟”的折中。
 const (
 	DefaultBufferEntries = 8192

@@ -4,7 +4,7 @@
 //
 // 为什么不复用内存 sqlite：本项目大量使用 `ON CONFLICT`、`SELECT ... FOR UPDATE`、
 // 唯一键冲突与 `AUTO_INCREMENT`，这些在 sqlite 与 MySQL 上行为并不一致
-// （见 docs/architecture/baseline.md「这是假安全」一节）。契约测试必须打真库。
+// （见 docs/archive/v1/05-baseline-and-process.md「这是假安全」一节）。契约测试必须打真库。
 //
 // 用法：
 //

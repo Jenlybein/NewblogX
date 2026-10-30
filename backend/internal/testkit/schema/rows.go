@@ -262,7 +262,7 @@ type ChatMsgRow struct {
 	//      "先建会话行、再插消息行"，这条外键让第一步必然失败
 	//      （Error 1452）；删消息也会被它拦住；
 	//   3. chat_msg_models.session_id 不是唯一键，本来就不该被引用。
-	// 见 docs/architecture/09-M6决策清单.md 问题 2。
+	// 见 docs/archive/v1/05-baseline-and-process.md §三（M6 决策留档）「chat 假外键」条。
 }
 
 // TableName 固定表名。

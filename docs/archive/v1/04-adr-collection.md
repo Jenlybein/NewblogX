@@ -1,12 +1,14 @@
-# 04 · ADR 合集（v1 归档）
+# ADR 合集（v1 归档原文）
 
+> **已拆分**：9 条 ADR 已拆到 [docs/adr/](../../adr/)（编号 0001–0009），本文保留为合并稿原文；与 ADR 文件冲突时以 ADR 文件为准。
+>
 > 归档自 `docs/architecture/adr/` 下 9 份独立 ADR。合并口径：保留每条 ADR 的**决策骨架 + 关键参数 + 当前生效约束**；删除被否决方案的完整论证（压缩为一句理由）；删除与其他 v1 文档重复的长篇论述。
 >
 > **交叉索引（本节不展开的部分）**：
-> - ADR-003 / ADR-007 → 详述见 [03-契约](./03-契约.md)
-> - ADR-004 / ADR-005 / ADR-006 → 详述见 [02-治理与质量](./02-治理与质量.md)
-> - ADR-001 / ADR-002 → 与 [01-架构总纲](./01-架构总纲.md) 重叠，本节只保留骨架 + 总纲未写的部分（如为什么不上 wire/dig）
-> - **ADR-008 / ADR-009 → 仅本文收录，完整保留**
+> - ADR-003 / ADR-007 → 详述见 [contracts](../../architecture/contracts.md)
+> - ADR-004 / ADR-005 / ADR-006 → 详述见 [governance](../../architecture/governance.md)
+> - ADR-001 / ADR-002 → 与 [overview](../../architecture/overview.md) 重叠，本节只保留骨架 + 总纲未写的部分（如为什么不上 wire/dig）
+> - **ADR-008 / ADR-009 → 原文仅本文收录（已拆分到 [ADR-0008](../../adr/0008-dead-letter-replay.md) / [ADR-0009](../../adr/0009-es-sync-article-projection-only.md)）**
 
 ## 总览
 
@@ -22,7 +24,7 @@
 | 008 | 死信重投（DLQ Replay）闭环 | 人工触发、幂等执行器、`unsupported ≠ failed` | **本文** |
 | 009 | 删除"通用规则"同步路径 | ES 同步只留文章搜索投影 | **本文** |
 
-> 9 条全部**已交付**。v2 硬约束汇总见 [01-架构总纲](./01-架构总纲.md) §六，本文保留的是每条约束的**出处与理由**。
+> 9 条全部**已交付**。硬约束汇总见 [overview](../../architecture/overview.md) §六，本文保留的是每条约束的**出处与理由**。
 
 ---
 
@@ -151,7 +153,7 @@
 | R7 | `enter.go` ≤ 50 行 | 行数 | 65 |
 | R8 | `adapter` 之外不得调用 `Begin`/`Commit` | 调用图 | 12 |
 
-> 现状是 R1–R12，编号与含义已演进，以 `backend/tools/archcheck/rules.go` 为准，见 [02-治理与质量](./02-治理与质量.md) §二。
+> 现状是 R1–R12，编号与含义已演进，以 `backend/tools/archcheck/rules.go` 为准，见 [governance](../../architecture/governance.md) §二。
 
 **理由**：类型检查看的是实际类型而非字面量，别名绕不过；跨平台 `go run` 可进 CI；输出 `文件:行号` 可定位。
 - 否决「修 PowerShell」：仍是正则匹配符号名，且 Linux CI 跑不了；

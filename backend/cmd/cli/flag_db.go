@@ -18,7 +18,7 @@ import (
 //   - AutoMigrate 会为了对齐结构主动 ALTER 既有表，
 //     这在零列变更口径下是明确禁止的；
 //   - 它还会建出建模副产物，例如一条物理上无法满足的外键
-//     （见 docs/architecture/baseline.md §35）。
+//     （见 docs/archive/v1/05-baseline-and-process.md）。
 //
 // 语句都是 CREATE TABLE IF NOT EXISTS，可重复执行。
 func FlagDB(db *gorm.DB, logger *logrus.Logger) error {

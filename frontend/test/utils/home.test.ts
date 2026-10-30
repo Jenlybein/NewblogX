@@ -4,7 +4,6 @@ import type { SearchArticleItem, SiteRuntimeConfig } from "~/types/api";
 import {
   aggregateHotTags,
   aggregateRecommendedAuthors,
-  homeHeroFacts,
   homeLoginModes,
   homeSearchLocation,
   homeSidebarVisibility,
@@ -125,15 +124,7 @@ describe("首页区块降级态", () => {
   });
 });
 
-describe("首屏指标 / 搜索落点 / 置顶卡片视图", () => {
-  it("事实条数字来自真实数据", () => {
-    expect(homeHeroFacts({ topCount: 3, latestCount: 9, pageSize: 9 })).toEqual([
-      { label: "置顶", value: "3" },
-      { label: "本页最新", value: "9" },
-      { label: "每页", value: "9 篇" },
-    ]);
-  });
-
+describe("搜索落点 / 置顶卡片视图", () => {
   it("首页搜索落点复用页头契约：/search 且空关键词不带 ?key=", () => {
     expect(homeSearchLocation()).toEqual({ path: "/search", query: {} });
   });

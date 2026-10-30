@@ -262,7 +262,7 @@ describe("字体分工：Sora = 字标/大标题，Inter = 正文/UI，中文 = 
   });
 
   it("首屏标题 / 页面标题 / 区块标题 / 文章标题都取 display 族并走标题字距", () => {
-    expect(ruleBody(indexVue, ".home-hero__title")).toContain("font-family: var(--font-title)");
+    expect(ruleBody(indexVue, ".home-cover__title")).toContain("font-family: var(--font-title)");
     for (const selector of [".page-title", ".section-title", ".article-hero__title"]) {
       const body = ruleBody(tailwindCss, selector);
 

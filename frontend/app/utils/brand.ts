@@ -19,7 +19,6 @@ export const BRAND = {
   name: { en: "JellyBin", zh: "果冻盒" },
   wordmark: { primary: "JellyBin", secondary: "果冻盒" },
   assistant: "捏捏",
-  tagline: "一个会呼吸的个人博客",
   description: "JellyBin（果冻盒）是个人博客站：长文写作、站内搜索与 AI 助手「捏捏」。",
 } as const;
 

@@ -113,11 +113,8 @@ async function handleUserMenuSelect(key: string | number) {
         <NuxtLink to="/" class="site-brand" :aria-label="`${BRAND.name.en}（${BRAND.name.zh}）首页`">
           <!-- 包豪斯黄三角：图纸页头的几何标记（纯装饰，不参与读屏） -->
           <span class="site-brand__mark" aria-hidden="true" />
-          <BrandLogo
-            :size="40"
-            :variant="uiStore.theme === 'dark' ? 'white' : 'render'"
-            decorative
-          />
+          <!-- 品牌资产不随主题切换：亮暗两态共用同一张透底 PNG（ADR-0012 约束 12） -->
+          <BrandLogo :size="40" decorative />
           <BrandWordmark size="md" />
         </NuxtLink>
         <span class="site-header__abstract">{{ projectAbstract }}</span>

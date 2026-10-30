@@ -23,12 +23,11 @@ export const BRAND = {
   description: "JellyBin（果冻盒）是个人博客站：长文写作、站内搜索与 AI 助手「捏捏」。",
 } as const;
 
-export type BrandAssetKey = "flat" | "logo" | "logoWhite" | "apple" | "faviconRoot" | "og";
+export type BrandAssetKey = "flat" | "logo" | "apple" | "faviconRoot" | "og";
 
 export const BRAND_ASSETS: Record<BrandAssetKey, string> = {
   flat: "brand/jelly-flat.svg",
   logo: "brand/logo-256.png",
-  logoWhite: "brand/logo-512-white.png",
   apple: "brand/apple-touch-icon.png",
   faviconRoot: "favicon.ico",
   og: "brand/og-image.png",

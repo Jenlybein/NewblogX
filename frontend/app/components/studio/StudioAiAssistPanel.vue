@@ -259,7 +259,7 @@ function severityType(value: string): "error" | "warning" | "default" {
   word-break: break-word;
   line-height: 1.78;
   color: var(--color-ink);
-  font-family: "Maple Mono", "JetBrains Mono", "SFMono-Regular", Consolas, monospace;
+  font-family: var(--font-mono);
   font-size: 13.5px;
 }
 

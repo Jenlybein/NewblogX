@@ -22,7 +22,7 @@ const layoutClass = computed(() =>
 );
 const primaryClass = computed(() => [
   SIZE_CLASSES[props.size].primary,
-  "font-latin font-title leading-none tracking-title text-ink",
+  "font-display leading-none tracking-title text-ink",
 ]);
 const secondaryClass = computed(() => [
   SIZE_CLASSES[props.size].secondary,

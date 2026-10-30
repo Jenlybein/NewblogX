@@ -47,9 +47,9 @@ const RADIUS_VARS: Record<keyof ReaderThemeScale, string> = {
   pill: "--radius-pill",
 };
 
-/** 英文主字体 + 中文自托管字体 + 系统中文 fallback（顺序有意义）。 */
+/** 英文正文字体 Inter + 中文自托管字体 + 系统中文 fallback（顺序有意义）。 */
 export const READER_FONT_STACK =
-  '"Sora", "Sora Fallback", "Noto Sans SC", "Noto Sans SC Fallback", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif';
+  '"Inter", "Inter Fallback", "Noto Sans SC", "Noto Sans SC Fallback", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif';
 
 /**
  * 从 tokens.css 源码解析主题层色值；缺 token 直接抛错（不静默回落 Naive 默认青绿）。

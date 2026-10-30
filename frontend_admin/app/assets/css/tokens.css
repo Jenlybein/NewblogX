@@ -103,9 +103,9 @@
   --glass-grain-opacity: 0.055;
   --glass-blur-mobile: 12px;
 
-  /* ---- 5. 排版层 ---- */
-  --font-display: "Sora", "Sora Fallback";
-  --font-latin: "Sora", "Sora Fallback";
+  /* ---- 5. 排版层（与读者站同一分工：Sora = 字标/大标题，Inter = 正文/UI，中文 Noto）---- */
+  --font-display: "Sora", "Sora Fallback", var(--font-cjk);
+  --font-latin: "Inter", "Inter Fallback";
   --font-title: var(--font-display);
   --font-cjk: "Noto Sans SC", "Noto Sans SC Fallback";
   --font-sans: var(--font-latin), var(--font-cjk), "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei",
@@ -114,7 +114,7 @@
   --type-measure: 68ch;
   --type-leading-prose: 1.75;
   --type-leading-title: 1.15;
-  --type-tracking-title: -0.02em;
+  --type-tracking-title: -0.03em;
   --type-tracking-dense: -0.01em;
   --type-weight-title: 700;
 

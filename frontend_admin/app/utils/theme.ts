@@ -37,9 +37,9 @@ export const RAW_TOKEN_VARS = {
 export type RawTone = keyof typeof RAW_TOKEN_VARS;
 export type RawPalette = Record<RawTone, string>;
 
-/** 英文主字体 + 中文自托管字体 + 系统中文 fallback（顺序有意义）。 */
+/** 英文正文字体 Inter + 中文自托管字体 + 系统中文 fallback（顺序有意义）。 */
 export const FONT_STACK =
-  '"Sora", "Sora Fallback", "Noto Sans SC", "Noto Sans SC Fallback", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif';
+  '"Inter", "Inter Fallback", "Noto Sans SC", "Noto Sans SC Fallback", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif';
 
 export const FONT_MONO =
   '"Cascadia Code", "JetBrains Mono", "Sofia Sans Mono", ui-monospace, monospace';

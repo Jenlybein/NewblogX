@@ -3,9 +3,10 @@
 @tailwind utilities;
 
 @layer base {
-  /* 颜色与排版 token 全部在 app/assets/css/tokens.css（后台唯一颜色来源）。
-   * 本文件只消费语义层（--color-*）与排版/动效层，不写任何裸色值：
-   * `scripts/check-design-tokens.mjs` 会卡住裸 hex / rgba。 */
+  /* 颜色与排版 token 全部在 app/assets/css/tokens.css（两端同一份唯一颜色来源）。
+   * 本文件只消费语义层（--color-*）、圆角阶梯（--radius-*）与排版/动效层，
+   * 不写任何裸色值：`scripts/check-design-tokens.mjs` 会卡住裸 hex / rgba。
+   * #22 起后台与读者站同一套中性石墨阶，并且正式启用暗色（同一组语义 token 的第二份取值）。 */
 
   html,
   body,
@@ -25,7 +26,8 @@
     text-decoration: none;
   }
 
-  /* 焦点环是克莱因蓝：键盘用户在任何底色上都能看到自己停在哪。 */
+  /* 焦点环是功能蓝（ADR-0012 允许它承担的第二个角色）：键盘用户在任何底色上都能看到自己停在哪。
+   * 全文件只在这里消费 --color-focus —— 它不当按钮底色、不当悬停字色。 */
   :where(a, button, [tabindex]:not([tabindex="-1"])):focus-visible {
     outline: 2px solid var(--color-focus);
     outline-offset: 2px;
@@ -42,9 +44,9 @@
     min-height: 100vh;
   }
 
+  /* 后台不做玻璃（ADR-0012 约束 6：密集信息面以对比度为先）。侧栏是不透明纸面。 */
   .admin-sider {
-    background: var(--color-surface-glass);
-    backdrop-filter: blur(18px);
+    background: var(--color-surface);
   }
 
   .admin-brand {
@@ -57,11 +59,10 @@
 
   .admin-header {
     @apply mb-5 flex flex-col gap-4 border p-5 md:flex-row md:items-center md:justify-between;
-    border-radius: 0;
+    border-radius: var(--radius-lg);
     border-color: var(--color-line);
     background: var(--color-surface);
     box-shadow: 0 24px 60px var(--color-shadow);
-    backdrop-filter: blur(20px);
   }
 
   .admin-page-title {
@@ -80,7 +81,7 @@
   }
 
   .admin-card {
-    border-radius: 0;
+    border-radius: var(--radius-lg);
     border: 1px solid var(--color-line);
     background: var(--color-surface-raised);
     box-shadow: 0 24px 60px var(--color-shadow);
@@ -95,10 +96,11 @@
     @apply flex flex-wrap items-center justify-between gap-3;
   }
 
+  /* 统计卡是侧栏同款"半透明纸面"：只有色调差异，不上模糊（后台无玻璃）。 */
   .admin-stat-card {
     @apply border p-5;
     min-height: 128px;
-    border-radius: 0;
+    border-radius: var(--radius-lg);
     border-color: var(--color-line);
     background: var(--color-surface-glass);
   }
@@ -108,10 +110,11 @@
     letter-spacing: var(--type-tracking-title);
   }
 
-  /* 纯 CSS 趋势图（7 天 / 12 个月）：不引图表库，柱与线的颜色全部来自 token。 */
+  /* 纯 CSS 趋势图（7 天 / 12 个月）：不引图表库，柱与线的颜色全部来自 token。
+   * 柱是中性石墨阶（不是功能蓝、更不是克莱因蓝）。 */
   .admin-chart {
     @apply grid h-[280px] grid-flow-col auto-cols-fr items-stretch gap-2 border p-4;
-    border-radius: 0;
+    border-radius: var(--radius-lg);
     border-color: var(--color-line);
     background: var(--color-bg-subtle);
   }
@@ -132,7 +135,7 @@
   .admin-chart__bar {
     @apply w-full;
     min-height: 2px;
-    background: linear-gradient(180deg, var(--color-focus), var(--jelly-blue-400));
+    background: linear-gradient(180deg, var(--color-ink), var(--color-ink-muted));
     transition: height var(--motion-base) var(--motion-ease);
   }
 
@@ -157,7 +160,7 @@
   .admin-token-line {
     @apply flex flex-col border p-4;
     height: 280px;
-    border-radius: 0;
+    border-radius: var(--radius-lg);
     border-color: var(--color-line);
     background: var(--color-bg-subtle);
   }
@@ -170,7 +173,7 @@
 
   .admin-token-line__line {
     fill: none;
-    stroke: var(--color-focus);
+    stroke: var(--color-ink);
     stroke-width: 2;
     stroke-linejoin: round;
     stroke-linecap: round;
@@ -180,7 +183,7 @@
   }
 
   .admin-token-line__area {
-    fill: var(--color-focus-soft);
+    fill: var(--color-line-faint);
     stroke: none;
   }
 
@@ -198,23 +201,26 @@
     min-height: 640px;
   }
 
-  .admin-login-hero,
   .admin-login-card {
-    border-radius: 0;
+    border-radius: var(--radius-lg);
     border: 1px solid var(--color-line);
     background: var(--color-surface);
     box-shadow: 0 24px 60px var(--color-shadow);
-    backdrop-filter: blur(22px);
   }
 
   .admin-login-hero {
     @apply flex flex-col gap-8 p-8 md:p-10;
-    /* 整块克莱因蓝铺色（形状语义里的「圆」= 蓝铺色块） */
-    background: linear-gradient(135deg, var(--jelly-blue-900), var(--jelly-blue));
+    border-radius: var(--radius-lg);
+    border: 1px solid var(--color-line);
+    /* 中性石墨渐变：亮色是白字压深墨，暗色反转为深字压浅墨 —— 文字色与填充
+       一起翻转，所以同一个表达式在两态都成立（不再有克莱因蓝铺色块）。 */
+    background: linear-gradient(135deg, var(--color-ink) 0%, var(--color-ink-muted) 100%);
     color: var(--color-on-strong);
+    box-shadow: 0 24px 60px var(--color-shadow);
   }
 
-  .admin-login-hero .muted {
+  .admin-login-hero .muted,
+  .admin-login-hero .eyebrow {
     color: var(--color-on-strong-muted);
   }
 
@@ -225,10 +231,10 @@
 
   .admin-user-pill {
     @apply inline-flex items-center gap-2 border px-3 py-2 text-sm font-semibold;
-    border-radius: 0;
+    border-radius: var(--radius-pill);
     border-color: var(--color-line);
-    background: var(--color-focus-soft);
-    color: var(--color-focus);
+    background: var(--color-bg-subtle);
+    color: var(--color-ink);
     transition:
       border-color var(--motion-fast) var(--motion-ease),
       background-color var(--motion-fast) var(--motion-ease);
@@ -236,7 +242,7 @@
 
   .admin-user-pill:hover {
     border-color: var(--color-line-strong);
-    background: var(--color-highlight);
+    background: var(--color-surface-raised);
   }
 
   .admin-empty {
@@ -261,7 +267,7 @@
 
   .admin-cover {
     @apply h-20 w-28 shrink-0 overflow-hidden;
-    border-radius: 0;
+    border-radius: var(--radius-md);
     border: 1px solid var(--color-line-faint);
     background: var(--color-bg-subtle);
   }
@@ -270,12 +276,13 @@
     @apply block h-full w-full object-cover;
   }
 
+  /* 封面兜底：同一套中性石墨渐变 + 发丝网格（不再是「蓝 → 暖灰」的旧过渡层）。 */
   .admin-article-cover__fallback {
     @apply relative flex h-full w-full flex-col justify-end overflow-hidden p-2;
-    color: var(--color-on-strong);
     background:
       radial-gradient(circle at 20% 18%, var(--color-on-strong-soft), transparent 24%),
-      linear-gradient(135deg, var(--jelly-blue-900) 0%, var(--jelly-blue) 44%, var(--jelly-warm) 100%);
+      linear-gradient(135deg, var(--color-ink) 0%, var(--color-ink-muted) 100%);
+    color: var(--color-on-strong);
   }
 
   .admin-article-cover__fallback::before {
@@ -295,7 +302,7 @@
 
   .admin-article-cover__badge {
     @apply mb-1 w-fit border px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-[0.14em];
-    border-radius: 0;
+    border-radius: var(--radius-pill);
     border-color: var(--color-on-strong-line);
     background: var(--color-on-strong-soft);
   }
@@ -320,7 +327,7 @@
     @apply flex w-full flex-col gap-3;
     padding: 14px;
     border: 1px solid var(--color-line);
-    border-radius: 0;
+    border-radius: var(--radius-lg);
     background: linear-gradient(180deg, var(--color-surface-raised), var(--color-bg-subtle));
   }
 
@@ -348,7 +355,7 @@
     @apply flex w-full flex-col items-center justify-center gap-2 overflow-hidden border text-sm;
     min-height: 168px;
     aspect-ratio: 16 / 9;
-    border-radius: 0;
+    border-radius: var(--radius-md);
     border-style: dashed;
     border-color: var(--color-line);
     background: var(--color-surface-raised);
@@ -361,9 +368,9 @@
   }
 
   .admin-upload-panel__picker:hover {
-    border-color: var(--color-focus);
-    background: var(--color-focus-soft);
-    color: var(--color-focus);
+    border-color: var(--color-line-strong);
+    background: var(--color-bg-subtle);
+    color: var(--color-ink);
   }
 
   .admin-upload-panel__picker--busy {
@@ -385,14 +392,26 @@
 
   .admin-upload-panel__stage {
     @apply m-0 text-xs;
-    color: var(--color-focus);
+    color: var(--color-ink-muted);
   }
 
   .admin-switch-row {
     @apply flex w-full items-center justify-between gap-4 border px-4 py-3;
-    border-radius: 0;
+    border-radius: var(--radius-md);
     border-color: var(--color-line);
     background: var(--color-surface-raised);
+  }
+
+  /* 登录 / 初始化页的浮动开关：这两页没有 AdminShell 顶栏，但同样必须能切明暗。 */
+  .admin-auth-shell {
+    @apply relative min-h-screen;
+  }
+
+  .admin-auth-theme-toggle {
+    position: fixed;
+    top: 20px;
+    right: 24px;
+    z-index: 40;
   }
 
   @media (max-width: 1024px) {

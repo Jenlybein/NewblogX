@@ -134,6 +134,7 @@ async function handleUserCommand(key: string) {
           </div>
 
           <NSpace align="center">
+            <AdminThemeToggle />
             <NButton secondary @click="router.go(0)">刷新</NButton>
             <NDropdown :options="userOptions" trigger="click" @select="handleUserCommand">
               <button class="admin-user-pill" type="button">

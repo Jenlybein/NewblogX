@@ -29,6 +29,11 @@
 4. 一个业务拆出的多个文件收进子包；子包可依赖父包，反之不行。
 5. 单文件 ≤800 行，由两端 eslint `max-lines` 强制（`article/[id].vue` 791 行是下一个会红的）。
 6. 后台 handler 不得直接查库；HTTP 层零 SQL。
+7. **线上重建镜像必须串行**：先 `docker compose down`（全部容器）→ 然后**一条一条**
+   `docker compose build <svc>`（严禁并行、严禁 `up -d --build`）→ 全部构建完成后再
+   `docker compose up -d` 一次拉起。原因：生产机只有 **2C4G（实测 3.6Gi 可用）**，
+   并行构建会直接把机器压到重启——2026-10-31 用 `up -d --build` 上线视觉改造时就是这么
+   把服务器打重启的（容器靠重启策略回来，但跑的是旧镜像）。
 
 ## 配置分层（2026-10-29 定稿，见 `docs/architecture/configuration.md`）
 - **判据**：改它会不会影响"进程怎么跑"？会 → 环境变量；不会 → 后台。
@@ -69,9 +74,13 @@
   `.env` 在 compose 文件同目录（自动加载）。
 - 后端 `-role=all`（同进程跑 WireWorker + WireHTTP）。**只起 `-role=api` 就没有 CDC 消费者**，
   新文章永远进不了 ES 且不报错。
-- **部署流程**：`git pull --ff-only` → `docker compose -f <compose> build <svc>` → `up -d <svc>`
-  → **`./scripts/verify-deploy.sh`**（必须过：`healthy:true` 且 `cdc_river` 为 `running`）。
-  前端改动要重建 `blogx_web`（Nuxt 构建在 2C4G 上约数分钟，一次只建一个）。
+- **部署流程（顺序不可改，见「不可违背的约定」第 7 条）**：`git pull --ff-only` →
+  `docker compose down` → 逐条 `docker compose build blogx_web`（完了再 `build blogx_admin`；
+  后端没改就不建 `blogx_server`）→ `docker compose up -d` →
+  **`./scripts/verify-deploy.sh`**（必须过：`healthy:true` 且 `cdc_river` 为 `running`）。
+  **不要 `up -d --build`**：它会并行构建，2C4G 上会把机器压重启（2026-10-31 已发生过一次）。
+  单个 Nuxt 构建约 3–5 分钟；用 `nohup ... > /tmp/build-x.log 2>&1 &` 再轮询日志，
+  别把长构建挂在 SSH 通道上（会超时丢连接、看不到进度）。
 - **服务名是下划线、容器名是连字符**：`blogx_server`/`blogx_web`/`blogx_admin` 是 compose 服务名，
   `blogx-server`/`blogx-admin` 是容器名。`build blogx-server` → `no such service`；
   `exec blogx_server` → `No such container`。

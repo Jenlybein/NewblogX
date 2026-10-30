@@ -13,6 +13,7 @@ import {
 import sora400Woff2 from "@fontsource/sora/files/sora-latin-400-normal.woff2";
 import sora600Woff2 from "@fontsource/sora/files/sora-latin-600-normal.woff2";
 import sora700Woff2 from "@fontsource/sora/files/sora-latin-700-normal.woff2";
+import { themeBodyClass, themeRootClass } from "~/utils/themeClass";
 
 const uiStore = useUiStore();
 
@@ -43,7 +44,7 @@ useHead(() => ({
     },
   ],
   bodyAttrs: {
-    class: uiStore.theme === "dark" ? "theme-dark dark" : "theme-light",
+    class: themeBodyClass(uiStore.theme),
   },
 }));
 
@@ -54,7 +55,8 @@ const themeOverrides: GlobalThemeOverrides = {
     primaryColorPressed: "#0b5b55",
     borderRadius: "18px",
     borderRadiusSmall: "12px",
-    fontFamily: '"Sora", "Sora Fallback", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", "Noto Sans SC", sans-serif',
+    fontFamily:
+      '"Sora", "Sora Fallback", "Noto Sans SC", "Noto Sans SC Fallback", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif',
     fontFamilyMono: '"Cascadia Code", "JetBrains Mono", monospace',
   },
   Card: {
@@ -76,7 +78,7 @@ const themeOverrides: GlobalThemeOverrides = {
       <NMessageProvider>
         <NDialogProvider>
           <NLoadingBarProvider>
-            <div :class="['min-h-screen', uiStore.theme === 'dark' ? 'theme-dark' : 'theme-light']">
+            <div :class="['min-h-screen', themeRootClass(uiStore.theme)]">
               <NuxtLoadingIndicator color="#0f766e" />
               <NuxtRouteAnnouncer />
               <NuxtLayout>

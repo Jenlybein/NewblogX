@@ -1,8 +1,8 @@
 # ADR-0012：中性玻璃视觉系统（取代 ADR-0010 的色相、圆角、结构线与动效档位）
 
-- 状态：已接受
+- 状态：已交付
 - 日期：2026-10-31
-- 来源：2026-10-31 的 grilling 会话（用户反馈："当前主题不好看，蓝色作为主色调太伤眼"；目标：apple.com 式高级感美学 + 液态玻璃 + 圆角）。spec 已发布为 [issue #17](https://github.com/Jenlybein/NewblogX/issues/17)（`ready-for-agent`），落地分票待开；视觉解构见 [Apple 液态玻璃解构](../notes/2026-10-30-apple-liquid-glass-deconstruction.md)，改造方案见 [中性玻璃改造方案](../notes/2026-10-31-neutral-glass-redesign-plan.md)
+- 来源：2026-10-31 的 grilling 会话（用户反馈："当前主题不好看，蓝色作为主色调太伤眼"；目标：apple.com 式高级感美学 + 液态玻璃 + 圆角）。spec 为 [issue #17](https://github.com/Jenlybein/NewblogX/issues/17)（`ready-for-agent`），落地分票 #18–#25 已全部合入集成分支；视觉解构见 [Apple 液态玻璃解构](../notes/2026-10-30-apple-liquid-glass-deconstruction.md)，改造方案见 [中性玻璃改造方案](../notes/2026-10-31-neutral-glass-redesign-plan.md)
 
 ## 背景与问题
 

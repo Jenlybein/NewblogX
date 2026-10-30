@@ -2,18 +2,12 @@
   "$comment": "设计 token 漂移门禁的允许文件清单（存量债）。规则只有一条：只能收缩——文件清干净后必须删掉对应条目，否则门禁会红；清单外新增裸色值一律失败。",
   "frontend": [
     "app/app.vue",
-    "app/assets/css/studio-write.css",
     "app/assets/css/tailwind.css",
     "app/components/article/ArticleCover.vue",
     "app/components/article/ArticleScoreModal.vue",
     "app/components/home/HomeAiChatDialog.vue",
     "app/components/home/HomeSidebar.vue",
-    "app/components/studio/StudioAiAssistPanel.vue",
-    "app/components/studio/StudioSelectionAiToolbar.vue",
-    "app/components/studio/StudioWriteHeader.vue",
-    "app/pages/article/[id].vue",
-    "app/pages/studio/favorites.vue",
-    "app/pages/studio/profile.vue"
+    "app/pages/article/[id].vue"
   ],
   "frontend_admin": []
 }

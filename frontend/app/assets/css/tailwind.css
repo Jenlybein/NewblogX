@@ -18,17 +18,11 @@
   body {
     margin: 0;
     font-family: var(--font-sans);
-    color: var(--text-main);
-    background: var(--bg-page);
+    color: var(--color-ink);
+    background: var(--color-bg-page);
     transition:
-      background-color 0.28s ease,
-      color 0.28s ease,
-      background 0.28s ease;
-  }
-
-  body.theme-dark {
-    color: #e2e8f0;
-    background: var(--bg-page-dark);
+      color var(--motion-base) var(--motion-ease),
+      background-color var(--motion-base) var(--motion-ease);
   }
 
   a {
@@ -43,48 +37,29 @@
   }
 
   .surface-card {
-    @apply rounded-[28px] border backdrop-blur-xl;
-    background: var(--surface);
-    border-color: var(--line);
-    box-shadow: var(--shadow-soft);
-  }
-
-  .theme-dark .surface-card {
-    background: var(--surface-dark);
-    border-color: var(--line-dark);
-    box-shadow: var(--shadow-strong);
+    @apply rounded-none border backdrop-blur-xl;
+    background: var(--color-surface);
+    border-color: var(--color-line);
+    box-shadow: 0 24px 60px var(--color-shadow);
   }
 
   .surface-card--strong {
-    background: var(--surface-strong);
-  }
-
-  .theme-dark .surface-card--strong {
-    background: var(--surface-dark-strong);
+    background: var(--color-surface-raised);
   }
 
   .surface-section {
-    @apply rounded-[24px] border;
-    background: rgba(255, 255, 255, 0.72);
-    border-color: rgba(217, 226, 236, 0.88);
-  }
-
-  .theme-dark .surface-section {
-    background: rgba(12, 20, 31, 0.72);
-    border-color: rgba(45, 59, 78, 0.88);
+    @apply rounded-none border;
+    background: var(--color-surface-raised);
+    border-color: var(--color-line-faint);
   }
 
   .eyebrow {
     @apply text-[11px] uppercase tracking-[0.24em];
-    color: #d97706;
+    color: var(--color-ink-muted);
   }
 
   .muted {
-    color: var(--text-soft);
-  }
-
-  .theme-dark .muted {
-    color: #93a7bc;
+    color: var(--color-ink-muted);
   }
 
   .page-title {
@@ -93,13 +68,8 @@
 
   .glass-badge {
     @apply inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs font-medium;
-    background: rgba(255, 255, 255, 0.72);
-    border-color: rgba(217, 226, 236, 0.88);
-  }
-
-  .theme-dark .glass-badge {
-    background: rgba(15, 23, 42, 0.72);
-    border-color: rgba(45, 59, 78, 0.88);
+    background: var(--color-surface-raised);
+    border-color: var(--color-line-faint);
   }
 
   .section-title {
@@ -108,11 +78,7 @@
 
   .line-divider {
     @apply border-t;
-    border-color: rgba(217, 226, 236, 0.88);
-  }
-
-  .theme-dark .line-divider {
-    border-color: rgba(45, 59, 78, 0.88);
+    border-color: var(--color-line-faint);
   }
 
   /* ---- 文章条目：列表 / 搜索结果 / 收藏架三处同一形态（#7 卡片三处复用）----
@@ -256,14 +222,9 @@
   }
 
   .article-author-row {
-    @apply flex items-center justify-between gap-4 rounded-2xl px-4 py-3;
-    background: rgba(255, 255, 255, 0.58);
-    border: 1px solid rgba(217, 226, 236, 0.72);
-  }
-
-  .theme-dark .article-author-row {
-    background: rgba(15, 23, 42, 0.58);
-    border-color: rgba(45, 59, 78, 0.82);
+    @apply flex items-center justify-between gap-4 rounded-none border px-4 py-3;
+    background: var(--color-surface-raised);
+    border-color: var(--color-line-faint);
   }
 
   .profile-sidebar .glass-badge {
@@ -427,12 +388,12 @@
 
   .soft-tab {
     @apply inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm font-medium transition;
-    color: var(--text-soft);
+    color: var(--color-ink-muted);
   }
 
   .soft-tab.is-active {
-    background: var(--accent-soft);
-    color: var(--accent);
+    background: var(--color-focus-soft);
+    color: var(--color-focus);
   }
 
   .filter-card {

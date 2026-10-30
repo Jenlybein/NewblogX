@@ -20,7 +20,9 @@ const tailwindCss = read("app/assets/css/tailwind.css");
 const appVue = read("app/app.vue");
 const header = read("app/components/layout/AppHeader.vue");
 
-const LAYOUTS = ["app/layouts/default.vue", "app/layouts/studio.vue", "app/layouts/write.vue"];
+// 只有渲染站点页头的布局需要为它留 scroll-padding：创作页（write）刻意不渲染页头，
+// 它的开关在自己顶栏里，所以不在这个清单里。
+const LAYOUTS = ["app/layouts/default.vue", "app/layouts/studio.vue"];
 
 describe("吸顶玻璃导航", () => {
   it("页头改成 sticky，且贴顶（不再是非吸顶的相对定位）", () => {
@@ -76,7 +78,7 @@ describe("锚点补偿：全站 scroll-padding-top", () => {
     expect(htmlBlock).toContain("var(--site-header-height)");
   });
 
-  it("三套布局都声明 scroll-padding-top（页内滚动容器同样不被页头盖住）", () => {
+  it("渲染站点页头的两套布局都声明 scroll-padding-top（页内滚动容器同样不被页头盖住）", () => {
     for (const layout of LAYOUTS) {
       expect(read(layout), layout).toContain("scroll-padding-top");
     }

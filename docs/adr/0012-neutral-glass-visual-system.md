@@ -69,10 +69,10 @@ ADR-0010 在 2026-10-30 落地（ticket #1–#13 已合并），取向是"图纸
 5. 圆角只用 `--radius-sm/md/lg/xl/pill` 五档；嵌套层子圆角 = 父圆角 − 内边距。
 6. 液态玻璃只用于导航/控制层（导航、浮层、悬浮控件、胶囊）；正文、卡片、列表等内容面一律不透明；同屏可见玻璃层 ≤3。
 7. 玻璃必须带 `@supports not` 与 `prefers-reduced-transparency` 的不透明降级；移动端 `blur` ≤12px 且关闭指针镜面高光。
-8. 顶栏是吸顶玻璃导航 + 滚动方向感知（下滚隐藏、上滚出现），全站有 `scroll-padding-top`。
+8. 顶栏是吸顶玻璃导航 + 滚动方向感知（下滚隐藏、上滚出现），渲染站点页头的布局都要有 `scroll-padding-top`（创作页不渲染页头，因此不需要）。
 9. 动效三档 `120 / 200 / 320ms` + 单一 `cubic-bezier(.2,.8,.2,1)` + stagger `40ms`；滚动进场位移 ≤12px、视差 ≤10px、只动 `transform`/`opacity`，正文段落不进场；强制尊重 `prefers-reduced-motion`。
 10. 字体：Sora 用于字标与品牌记号 + 大标题（hero / 页面标题），Inter 负责正文与 UI，中文 Noto Sans SC；全站无衬线；不得使用未定义的字体 token。
-11. 后台启用暗色，且每个页面的导航/工具条上都必须有可见的主题开关（阅读站 `/studio/write` 必须补上）。
+11. 后台启用暗色，且每个页面的导航/工具条上都必须有可见的主题开关。读者站创作页 `/studio/write` 是例外形态：**它不渲染站点页头**（专心写的一屏，不要站点导航），开关落在创作页自己顶栏的最右端 —— 仍然满足"每页都能切"，只是落点不同。
 12. 品牌资产例外：`brand/logo-256.png`、`brand/jelly-flat.svg`、`apple-touch-icon.png`、`og-image.png` 可自带品牌色并由门禁豁免；不得再按主题切换 Logo 变体（禁止重新引入 `logoWhite`）。
 13. 门禁覆盖 `.vue`、`.css`、`.ts` 中的 CSS 字符串；hex 正则不得放过 `_` 转义；阅读站也要有 `legacy-colors` 测试。
 14. 两端 `tokens.css` 必须逐字节一致，由同步门禁保证。
@@ -84,8 +84,9 @@ ADR-0010 在 2026-10-30 落地（ticket #1–#13 已合并），取向是"图纸
 - 代码：[frontend/app/assets/css/tailwind.css](../../frontend/app/assets/css/tailwind.css)（组件类词汇表）；[frontend_admin/app/assets/css/admin.css](../../frontend_admin/app/assets/css/admin.css)
 - 代码：[frontend/app/utils/readerTheme.ts](../../frontend/app/utils/readerTheme.ts) · [frontend_admin/app/utils/theme.ts](../../frontend_admin/app/utils/theme.ts)（Naive 主题的平行颜色源）
 - 代码：[frontend/app/utils/markdownTheme.ts](../../frontend/app/utils/markdownTheme.ts)（573 行 CSS 字符串，门禁盲区）
-- 代码：[frontend/app/components/layout/AppHeader.vue](../../frontend/app/components/layout/AppHeader.vue)（`:118` 主题切换 Logo、`:245` 非吸顶注释、`:284-290` 黄三角）
-- 代码：[frontend/app/layouts/write.vue](../../frontend/app/layouts/write.vue)（`:6` 写死亮色渐变，无 `AppHeader`/无开关）
+- 代码：[frontend/app/components/layout/AppHeader.vue](../../frontend/app/components/layout/AppHeader.vue)（吸顶玻璃导航 + 滚动方向感知 + 主题开关的唯一落点；Logo 只保留透底一种形态）
+- 代码：[frontend/app/components/studio/StudioWriteHeader.vue](../../frontend/app/components/studio/StudioWriteHeader.vue)（创作页自己顶栏；主题开关在它的最右端）
+- 代码：[frontend/app/layouts/write.vue](../../frontend/app/layouts/write.vue)（创作页**不**渲染站点页头；背景与字色消费语义 token）
 - 代码：[frontend/app/utils/brand.ts](../../frontend/app/utils/brand.ts)（`logoWhite` 待删；`BRAND_ASSETS`）
 - 门禁：[scripts/check-design-tokens.mjs](../../scripts/check-design-tokens.mjs) · [scripts/design-token-baseline.json](../../scripts/design-token-baseline.json)
 - 测试：[frontend/test/design/](../../frontend/test/design/) · [frontend_admin/test/unit/](../../frontend_admin/test/unit/)

@@ -182,15 +182,34 @@ describe("原先直接消费原始色相的组件改走语义层", () => {
   });
 });
 
-describe("写作页：主题开关与暗色正确性", () => {
-  it("write 布局渲染 AppHeader（主题开关的唯一落点），且不写死亮色底", () => {
+describe("写作页：不渲染站点页头，主题开关在创作页自己顶栏的最右端", () => {
+  it("write 布局不渲染 AppHeader（创作页是专心写的一屏，不要站点导航）", () => {
     const source = read("app/layouts/write.vue");
 
-    expect(source).toMatch(/<AppHeader\b/u);
+    expect(source).not.toMatch(/<AppHeader\b/u);
+    expect(source).not.toMatch(/AppHeader/u);
+  });
+
+  it("write 布局仍不写死亮色底（暗色下不发白）", () => {
+    const source = read("app/layouts/write.vue");
+
     expect(source).toContain("bg-page");
     expect(source).toContain("text-ink");
     expect(source).not.toContain("#");
     expect(source).not.toContain("linear-gradient");
     expect(source).not.toMatch(/text-slate/iu);
+  });
+
+  it("主题开关落在 StudioWriteHeader 顶栏最右端：同一份 store、同一份文案、带无障碍标签", () => {
+    const source = read("app/components/studio/StudioWriteHeader.vue");
+
+    expect(source).toContain("useUiStore");
+    expect(source).toContain("themeToggleLabel");
+    expect(source).toContain("uiStore.toggleTheme()");
+    expect(source).toContain('data-chrome="theme-toggle"');
+    // 位置：在头像链接之后（模板里是 .write-page__actions 的最后一个元素）。
+    expect(source.indexOf('data-chrome="theme-toggle"')).toBeGreaterThan(
+      source.indexOf('class="write-avatar-link"'),
+    );
   });
 });

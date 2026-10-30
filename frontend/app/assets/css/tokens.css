@@ -7,18 +7,16 @@
  *
  * 三层结构，永远从上往下消费：
  *   1. 原始层 `--jelly-*`：五个锁定色相 + 同色相的明度/透明度派生。**禁止新增色相。**
+ *      克莱因蓝已在 #20 退役；现在的五色是奶油白、暖灰（含中性石墨阶派生）、
+ *      包豪斯黄（仅记号笔高亮底）、珊瑚橙、功能蓝（仅文字链接与焦点环）。
  *      派生规则：只在同一色相内动明度或透明度；黄永不做字色（只做记号笔高亮底）；
  *      珊瑚橙要当字色时用派生暗橙 `--jelly-coral-700` 才达 WCAG AA。
- *      带透明度的语义色一律从 `--jelly-*-rgb` 三元组基底派生（`rgb(var(--*-rgb) / α)`），
+ *      带透明度的语义色一律从三元组基底派生（`rgb(var(--*-rgb) / α)`），
  *      不再写死 `rgba(r,g,b,α)` 常量。
  *   2. 语义层 `--color-*`：组件唯一消费对象。明暗是**同一组名字的两份取值**，
  *      暗色映射挂在 `.dark` / `.theme-dark` 上（站点根类由 `app/utils/themeClass.ts` 给出）。
- *   3. 圆角 / 玻璃 / 排版 / 动效层：后续票（#20–#25）要用的种子。
- *      本票只**定义与接线**（Tailwind 类名映射），不把圆角/玻璃/新字体应用到全站，
- *      因此页面观感基本不变（唯一可见变化是代码块拿到等宽字体）。
- *
- * 过渡层的旧变量（`--bg-page` / `--surface` / `--line` / v1 青绿 `--accent` …）已在
- * 本票删除：无人消费，留着只会变成第二套颜色来源。
+ *      墨色/结构线一律走中性石墨阶，不再「每个黑都是深蓝」。
+ *   3. 圆角 / 玻璃 / 排版 / 动效层：组件与 Naive themeOverrides 都从这里取值。
  *
  * 注意：这里刻意**不包 `@layer base`**。自定义属性只需要稳定的源码顺序（本文件在
  * nuxt.config 的 css 数组里排在 tailwind.css 之前），包进 @layer 反而会依赖 Tailwind
@@ -28,61 +26,62 @@
 :root {
   color-scheme: light;
 
-  /* ---- 1. 原始层：五个锁定色相（Klein 蓝 / 奶油白 / 包豪斯黄 / 珊瑚橙 / 暖灰） ---- */
-  --jelly-blue: #002fa7; /* 克莱因蓝：主色、结构线、页脚铺色 */
-  --jelly-cream: #fdfbf6; /* 奶油白：页面底色、纸面 */
-  --jelly-yellow: #f5c518; /* 包豪斯黄：记号笔高亮、几何记号（永不做字色） */
-  --jelly-coral: #ff6b4a; /* 珊瑚橙：危险 / 重要状态 */
-  --jelly-warm: #f2eee6; /* 暖灰：次级底色、40px 网格底纹 */
+  /* ---- 1. 原始层：五个锁定色相（奶油白 / 暖灰 / 包豪斯黄 / 珊瑚橙 / 功能蓝） ---- */
+  --jelly-cream: #fdfbf6; /* 奶油白：纸面 */
+  --jelly-warm: #f2eee6; /* 暖灰：次级底色 */
+  --jelly-warm-100: #f5f3ee; /* 暖灰提亮派生：页面底 */
+  --jelly-yellow: #f5c518; /* 包豪斯黄：仅记号笔高亮底（永不做字色） */
+  --jelly-coral: #ff6b4a; /* 珊瑚橙：危险 / 重要状态填充 */
+  --jelly-interactive: #0066cc; /* 功能蓝：文字链接与焦点环（不做铺底/主色） */
 
   /* ---- 原始层：同色相明度/透明度派生（不引入新色相） ---- */
-  --jelly-blue-950: #00113d; /* 最深明度：暗色次级底色 */
-  --jelly-blue-900: #001b63; /* 墨色 / 暗色页面铺底 */
-  --jelly-blue-800: #001f70; /* 暗色纸面 */
-  --jelly-blue-700: #00227a; /* 按下态 / 暗色抬升纸面 */
-  --jelly-blue-600: #3a55a8; /* 次级墨色（AA：对奶油白 6.4:1） */
-  --jelly-blue-400: #6e86cf; /* 装饰线 / 非文字几何 */
-  --jelly-cream-050: #fffefb; /* 比纸面再亮一档（抬升纸面） */
-  --jelly-cream-700: #d9d3c6; /* 暗色下的次级字色（AA：对深蓝 10:1） */
-  --jelly-warm-800: #e6e0d5; /* 暖灰加深：网格线 / 分隔 */
-  --jelly-coral-700: #c2410c; /* 派生暗橙：危险文字（AA：对奶油白 5.0:1） */
-  --jelly-coral-300: #ff9b85; /* 珊瑚橙浅明度：暗色下的危险文字（AA：对深蓝 6.3:1） */
+  --jelly-cream-050: #ffffff; /* 抬升纸面（比奶油白再亮一档） */
+  --jelly-warm-800: #e6e0d5; /* 暖灰加深：发丝线 / 分隔（保留的暖灰派生） */
+  --jelly-coral-700: #c2401f; /* 派生暗橙：危险文字（AA：对纸面 5.0:1） */
+  --jelly-coral-300: #ff9b85; /* 珊瑚橙浅明度：暗色下的危险文字（AA：对暗面 6.3:1） */
 
   /* ---- 原始层：三元组基底（带透明度语义色的唯一派生源） ----
    * 与上面同色相 hex 是同一份取值的两种写法（hex 供 Naive themeOverrides 解析真色值，
    * 三元组供 CSS 透明度派生）。两者同值由 frontend/test/design/foundation-tokens.test.ts
-   * 交叉校验，改一处必须两处同改。 */
-  --jelly-blue-rgb: 0 47 167; /* = --jelly-blue */
-  --jelly-blue-900-rgb: 0 27 99; /* = --jelly-blue-900；亮色阴影基底 */
-  --jelly-blue-1000-rgb: 0 8 30; /* 暗色阴影基底（比 -950 更深一档，无对应 hex） */
+   * 交叉校验，改一处必须两处同改。
+   * 石墨阶（graphite）是暖灰去饱和后的墨色阶梯，属同色相派生而不是第六个色相；
+   * 它在暗色块里换第二份取值（浅石墨），所以结构线用同一个表达式就能明暗翻转。 */
   --jelly-cream-rgb: 253 251 246; /* = --jelly-cream */
   --jelly-yellow-rgb: 245 197 24; /* = --jelly-yellow */
   --jelly-coral-rgb: 255 107 74; /* = --jelly-coral */
+  --graphite-rgb: 28 27 25; /* 亮色石墨：墨色/结构线派生基底 */
+  --interactive-rgb: 0 102 204; /* 亮色功能蓝：焦点/链接透明度派生基底 */
+  --jelly-warm-1000-rgb: 0 0 0; /* 暗色阴影基底（最深一档，无对应 hex） */
 
   /* ---- 2. 语义层（浅色）：组件只消费这一层 ---- */
-  --color-bg-page: var(--jelly-cream); /* 页面底色 */
-  --color-bg-subtle: var(--jelly-warm); /* 次级底色 / 网格底纹底 */
-  --color-surface: var(--jelly-cream); /* 纸面 */
-  --color-surface-raised: var(--jelly-cream-050); /* 抬升纸面（卡片内嵌块） */
-  --color-ink: var(--jelly-blue-900); /* 墨色（正文） */
-  --color-ink-muted: var(--jelly-blue-600); /* 次级墨色 */
-  --color-line: rgb(var(--jelly-blue-rgb) / 0.32); /* 结构线（主） */
-  --color-line-strong: rgb(var(--jelly-blue-rgb) / 0.62); /* 结构线（强） */
-  --color-line-faint: rgb(var(--jelly-blue-rgb) / 0.14); /* 结构线（极淡） */
-  --color-highlight: rgb(var(--jelly-yellow-rgb) / 0.28); /* 高亮底（黄，只做底） */
-  --color-danger: var(--jelly-coral); /* 危险 / 重要状态填充 */
+  --color-bg-page: var(--jelly-warm-100); /* 页面底 #F5F3EE */
+  --color-bg-subtle: var(--jelly-warm); /* 次级底 #F2EEE6 */
+  --color-surface: var(--jelly-cream); /* 纸面 #FDFBF6 */
+  --color-surface-raised: var(--jelly-cream-050); /* 抬升面 #FFFFFF */
+  --color-ink: #1c1b19; /* 正文墨（暖石墨，对纸面 ≈16.9:1） */
+  --color-ink-muted: #625c52; /* 次级墨（≈5.9:1） */
+  --color-ink-faint: #8a8378; /* 极淡（仅大字 / 装饰） */
+  --color-line-faint: rgb(var(--graphite-rgb) / 0.10); /* 发丝线（极淡） */
+  --color-line: rgb(var(--graphite-rgb) / 0.16); /* 发丝线（默认） */
+  --color-line-strong: rgb(var(--graphite-rgb) / 0.32); /* 结构线（强） */
+  --color-link: var(--jelly-interactive); /* 文字链接（功能蓝，4.5:1） */
+  --color-focus: var(--jelly-interactive); /* 焦点环（功能蓝） */
+  --color-focus-soft: rgb(var(--interactive-rgb) / 0.10); /* 仅在焦点/选区附近的极淡底 */
+  --color-highlight: rgb(var(--jelly-yellow-rgb) / 0.22); /* 记号笔底（黄，只做底） */
+  --color-danger: var(--jelly-coral); /* 危险填充 */
   --color-danger-ink: var(--jelly-coral-700); /* 危险文字（派生暗橙） */
-  --color-focus: var(--jelly-blue); /* 焦点环 / 强调 */
-  --color-focus-soft: rgb(var(--jelly-blue-rgb) / 0.1); /* 强调底（悬停/提示块） */
-  --color-danger-soft: rgb(var(--jelly-coral-rgb) / 0.12); /* 危险底（提示块/错误态） */
-  --color-danger-line: rgb(var(--jelly-coral-rgb) / 0.4); /* 危险结构线 */
-  --color-on-strong: var(--jelly-cream); /* 蓝铺色块上的反白字 */
-  --color-on-strong-muted: rgb(var(--jelly-cream-rgb) / 0.78); /* 蓝底上的次级字 */
-  --color-on-danger: var(--jelly-blue-900); /* 珊瑚橙底上的字（对 coral 5.6:1） */
-  --color-shadow: rgb(var(--jelly-blue-900-rgb) / 0.16); /* 阴影（同色相明度 + 透明度） */
+  --color-danger-soft: rgb(var(--jelly-coral-rgb) / 0.12); /* 危险底（提示块 / 错误态） */
+  --color-danger-line: rgb(var(--jelly-coral-rgb) / 0.40); /* 危险结构线 */
+  --color-on-strong: #ffffff; /* 墨水实心 CTA 上的字 */
+  --color-on-strong-muted: rgb(var(--jelly-cream-rgb) / 0.78); /* 墨水实心块上的次级字 */
+  --color-on-danger: #1c1b19; /* 珊瑚橙底上的字（对 coral 5.6:1） */
+  --color-on-inverse: #ffffff; /* 深墨面（页脚 / 封面）上的反白字 */
+  --color-on-inverse-muted: rgb(var(--jelly-cream-rgb) / 0.72); /* 深墨面上的次级字 */
+  --color-surface-inverse: #1c1b19; /* 深墨面（页脚 / 封面兜底） */
+  --color-shadow: rgb(var(--graphite-rgb) / 0.12); /* 阴影（墨色 + 透明度） */
 
   /* ---- 3. 圆角阶梯（ADR-0012 决策 4）：控件 8–14 / 卡片 20 / 浮层 28 / 胶囊 pill ----
-   * 本票只播种，由 Tailwind 的 borderRadius 类名接线；全站应用留给批次 2。 */
+   * 全站只许这五档；子圆角 = 父圆角 − 内边距（同轴曲率，避免边缘高光错位）。 */
   --radius-sm: 8px;
   --radius-md: 14px;
   --radius-lg: 20px;
@@ -90,8 +89,7 @@
   --radius-pill: 999px;
 
   /* ---- 4. 液态玻璃组（ADR-0012 决策 5）：两档填充/模糊/饱和度 + 边缘/噪点/移动端档 ----
-   * 本票只播种（Tailwind backdropBlur / backdropSaturate / colors 接线）；
-   * 玻璃层的伪元素与降级实现留给批次 3。 */
+   * 本文件只定义与接线；玻璃层的伪元素与降级实现留给批次 3。 */
   --glass-thin-fill: rgb(255 255 255 / 0.72); /* 导航 / 胶囊 / 徽标 */
   --glass-thin-blur: 20px;
   --glass-thin-saturate: 180%;
@@ -131,30 +129,43 @@
   --parallax-max: 10px; /* 视差上限 */
 }
 
-/* ---- 暗色映射：同一组语义 token 的第二份取值（克莱因蓝铺底 + 奶油白字） ---- */
+/* ---- 暗色映射：同一组语义 token 的第二份取值（中性石墨阶，不取暖黑） ---- */
 .dark,
 .theme-dark {
   color-scheme: dark;
-  --color-bg-page: var(--jelly-blue-900);
-  --color-bg-subtle: var(--jelly-blue-950);
-  --color-surface: var(--jelly-blue-800);
-  --color-surface-raised: var(--jelly-blue-700);
-  --color-ink: var(--jelly-cream);
-  --color-ink-muted: var(--jelly-cream-700);
-  --color-line: rgb(var(--jelly-cream-rgb) / 0.22);
-  --color-line-strong: rgb(var(--jelly-cream-rgb) / 0.45);
-  --color-line-faint: rgb(var(--jelly-cream-rgb) / 0.1);
-  --color-highlight: rgb(var(--jelly-yellow-rgb) / 0.3);
+
+  /* 原始层里需要翻转的派生基底：石墨阶换成浅石墨、功能蓝换成苹果暗色蓝。
+   * 其余五色相（奶油白 / 暖灰 / 黄 / 珊瑚橙）在暗色下取值不变。 */
+  --graphite-rgb: 245 245 247;
+  --interactive-rgb: 41 151 255;
+  --jelly-interactive: #2997ff;
+
+  --color-bg-page: #161617;
+  --color-bg-subtle: #101011;
+  --color-surface: #1d1d1f;
+  --color-surface-raised: #2c2c2e;
+  --color-ink: #f5f5f7;
+  --color-ink-muted: #a1a1a6;
+  --color-ink-faint: #86868b;
+  --color-line-faint: rgb(var(--graphite-rgb) / 0.08);
+  --color-line: rgb(var(--graphite-rgb) / 0.14);
+  --color-line-strong: rgb(var(--graphite-rgb) / 0.28);
+  --color-link: var(--jelly-interactive);
+  --color-focus: var(--jelly-interactive);
+  --color-focus-soft: rgb(var(--interactive-rgb) / 0.16);
+  --color-highlight: rgb(var(--jelly-yellow-rgb) / 0.20);
   --color-danger: var(--jelly-coral);
   --color-danger-ink: var(--jelly-coral-300);
-  --color-focus: var(--jelly-cream);
-  --color-focus-soft: rgb(var(--jelly-cream-rgb) / 0.14);
   --color-danger-soft: rgb(var(--jelly-coral-rgb) / 0.18);
-  --color-danger-line: rgb(var(--jelly-coral-rgb) / 0.5);
-  --color-on-strong: var(--jelly-cream);
-  --color-on-strong-muted: rgb(var(--jelly-cream-rgb) / 0.78);
-  --color-on-danger: var(--jelly-blue-900);
-  --color-shadow: rgb(var(--jelly-blue-1000-rgb) / 0.55);
+  --color-danger-line: rgb(var(--jelly-coral-rgb) / 0.50);
+  /* 暗色下 CTA 反转为浅墨填充（深字压浅底），与亮色同一组名字。 */
+  --color-on-strong: #1d1d1f;
+  --color-on-strong-muted: rgb(var(--graphite-rgb) / 0.78);
+  --color-on-danger: #1c1b19;
+  --color-on-inverse: #f5f5f7;
+  --color-on-inverse-muted: rgb(var(--jelly-cream-rgb) / 0.72);
+  --color-surface-inverse: #101011;
+  --color-shadow: rgb(var(--jelly-warm-1000-rgb) / 0.55);
 
   /* 玻璃组暗色取值：填充换中性暗面，边缘带减弱，噪点略减（模糊/饱和度档不变）。 */
   --glass-thin-fill: rgb(22 22 23 / 0.72);

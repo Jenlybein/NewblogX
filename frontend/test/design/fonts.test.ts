@@ -3,7 +3,11 @@ import { join } from "node:path";
 
 import { describe, expect, it } from "vitest";
 
-import { buildReaderThemeOverrides, parseReaderThemePalette } from "~/utils/readerTheme";
+import {
+  buildReaderThemeOverrides,
+  parseReaderThemePalette,
+  parseReaderThemeScale,
+} from "~/utils/readerTheme";
 
 // vitest 以 project root（frontend/）为 cwd。
 const projectDir = process.cwd();
@@ -174,6 +178,21 @@ describe("Inter 自托管：正文 / UI 的拉丁字体", () => {
     );
   });
 
+  it("Naive UI 的 themeOverrides 字体栈把 Noto Sans SC 排在中文字体之前", () => {
+    // 主题栈由 app/utils/readerTheme.ts 从 tokens.css 解析后组装（见 readerTheme.test.ts）。
+    const tokensCss = readFileSync(join(projectDir, "app/assets/css/tokens.css"), "utf8");
+    const stack = String(
+      buildReaderThemeOverrides(
+        parseReaderThemePalette(tokensCss),
+        parseReaderThemeScale(tokensCss),
+      ).common?.fontFamily,
+    );
+
+    expect(stack).toContain('"Noto Sans SC"');
+    expect(stack).toContain('"Noto Sans SC Fallback"');
+    expect(stack.indexOf('"Noto Sans SC"')).toBeLessThan(stack.indexOf('"PingFang SC"'));
+  });
+
   it("Inter 的度量匹配 fallback 用 Arial 系替身 + 与 Inter 度量对齐的覆盖值", () => {
     const fallback = facesOfFamily(fontsCss, "Inter Fallback")[0];
 
@@ -261,7 +280,10 @@ describe("字体分工：Sora = 字标/大标题，Inter = 正文/UI，中文 = 
 
   it("Naive 主题的字体栈也切成 Inter（按钮/表单/弹层不再继承 Sora）", () => {
     const stack = String(
-      buildReaderThemeOverrides(parseReaderThemePalette(tokensCss)).common?.fontFamily,
+      buildReaderThemeOverrides(
+        parseReaderThemePalette(tokensCss),
+        parseReaderThemeScale(tokensCss),
+      ).common?.fontFamily,
     );
 
     expect(stack.startsWith('"Inter"')).toBe(true);

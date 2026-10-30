@@ -231,7 +231,7 @@ type="button" class="write-tool-button"
   min-width: 34px;
   min-height: 34px;
   border: 1px solid transparent;
-  border-radius: 0;
+  border-radius: var(--radius-sm);
   padding: 6px 8px;
   background: transparent;
   color: var(--color-ink);
@@ -254,13 +254,13 @@ type="button" class="write-tool-button"
 .write-tool-button:hover {
   background: var(--color-line-faint);
   border-color: var(--color-line);
-  color: var(--color-focus);
+  color: var(--color-ink);
 }
 
 .write-tool-button--active {
   background: var(--color-line-faint);
   border-color: var(--color-line);
-  color: var(--color-focus);
+  color: var(--color-ink);
 }
 
 .write-tool-popover {
@@ -289,12 +289,12 @@ type="button" class="write-tool-button"
 
 .write-tool-option:hover {
   background: var(--color-line-faint);
-  color: var(--color-focus);
+  color: var(--color-ink);
 }
 
 .write-tool-option--active {
   background: var(--color-line-faint);
-  color: var(--color-focus);
+  color: var(--color-ink);
   font-weight: 600;
 }
 

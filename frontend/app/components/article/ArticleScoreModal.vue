@@ -3,7 +3,6 @@ import type { AiArticleScoringIssue, AiArticleScoringResponseData } from "~/type
 import { computed } from "vue";
 import { NButton, NCard, NEmpty, NModal, NProgress, NTag } from "naive-ui";
 import { formatDateTimeLabel } from "~/utils/format";
-import { useUiStore } from "~/stores/ui";
 
 const props = defineProps<{
   show: boolean;
@@ -23,42 +22,21 @@ const emit = defineEmits<{
 
 // 契约里 dimension.name 是 string（后端是 string，没有枚举约束），
 // 所以 map 用 string 做 key，查不到时用下面的兜底值。
-const dimensionFallback = { label: "其他", color: "#64748b", railColor: "rgba(100, 116, 139, 0.12)" };
-const baseDimensionMetaMap: Record<string, { label: string; color: string; railColor: string }> = {
-  clarity: { label: "清晰度", color: "var(--color-focus)", railColor: "rgba(15, 118, 110, 0.14)" },
-  structure: { label: "结构性", color: "#1d4ed8", railColor: "rgba(29, 78, 216, 0.12)" },
-  completeness: { label: "完整度", color: "#7c3aed", railColor: "rgba(124, 58, 237, 0.12)" },
-  readability: { label: "可读性", color: "#ca8a04", railColor: "rgba(202, 138, 4, 0.12)" },
-  persuasiveness: { label: "说服力", color: "#dc2626", railColor: "rgba(220, 38, 38, 0.12)" },
-  language: { label: "语言规范", color: "var(--color-focus)", railColor: "rgba(15, 118, 110, 0.14)" },
+const dimensionFallback = {
+  label: "其他",
+  color: "var(--color-ink-muted)",
+  railColor: "var(--color-line-faint)",
+};
+// 维度配色只消费语义 token（禁止第六个色相）；NProgress 接受 CSS 变量，明暗两态自动跟随。
+const dimensionMetaMap: Record<string, { label: string; color: string; railColor: string }> = {
+  clarity: { label: "清晰度", color: "var(--color-focus)", railColor: "var(--color-focus-soft)" },
+  structure: { label: "结构性", color: "var(--color-ink-muted)", railColor: "var(--color-line-faint)" },
+  completeness: { label: "完整度", color: "var(--color-focus)", railColor: "var(--color-focus-soft)" },
+  readability: { label: "可读性", color: "var(--color-highlight)", railColor: "var(--color-line-faint)" },
+  persuasiveness: { label: "说服力", color: "var(--color-danger)", railColor: "var(--color-danger-soft)" },
+  language: { label: "语言规范", color: "var(--color-ink-muted)", railColor: "var(--color-line-faint)" },
 };
 
-// 图表色板按明暗两套：浅色卡片用深色系，暗色克莱因蓝卡片换成高亮浅色系
-// （否则深蓝条会糊进底色，图表看不清）。
-const DARK_DIMENSION_COLORS: Record<string, { color: string; railColor: string }> = {
-  clarity: { color: "#5eead4", railColor: "rgba(94, 234, 212, 0.16)" },
-  structure: { color: "#93c5fd", railColor: "rgba(147, 197, 253, 0.14)" },
-  completeness: { color: "#c4b5fd", railColor: "rgba(196, 181, 253, 0.14)" },
-  readability: { color: "#fde047", railColor: "rgba(253, 224, 71, 0.14)" },
-  persuasiveness: { color: "#fca5a5", railColor: "rgba(252, 165, 165, 0.16)" },
-  language: { color: "#5eead4", railColor: "rgba(94, 234, 212, 0.16)" },
-};
-const uiStore = useUiStore();
-const dimensionMetaMap = computed(() => {
-  if (uiStore.theme !== "dark") {
-    return baseDimensionMetaMap;
-  }
-  const themed: Record<string, { label: string; color: string; railColor: string }> = {};
-  for (const [key, meta] of Object.entries(baseDimensionMetaMap)) {
-    themed[key] = { ...meta, ...(DARK_DIMENSION_COLORS[key] ?? {}) };
-  }
-  return themed;
-});
-const dimensionFallbackMeta = computed(() =>
-  uiStore.theme === "dark"
-    ? { ...dimensionFallback, color: "#94a3b8", railColor: "rgba(148, 163, 184, 0.16)" }
-    : dimensionFallback,
-);
 const modalTitle = computed(() => props.title || "文章质量评分");
 const totalScoreLabel = computed(() => {
   if (!props.data?.has_score) {
@@ -75,7 +53,7 @@ function close() {
 }
 
 function getDimensionMeta(name: string) {
-  return dimensionMetaMap.value[name] ?? dimensionFallbackMeta.value;
+  return dimensionMetaMap[name] ?? dimensionFallback;
 }
 
 function resolveIssueAnchor(issue: AiArticleScoringIssue) {
@@ -185,8 +163,9 @@ function resolveIssueAnchor(issue: AiArticleScoringIssue) {
   width: min(980px, calc(100vw - 32px));
 }
 
+/* 结构件圆角 0（spec：只保留头像/胶囊/捏捏/圆形指示器）。 */
 .article-score-card {
-  border-radius: 28px;
+  border-radius: 0;
 }
 
 .article-score-loading,
@@ -207,7 +186,7 @@ function resolveIssueAnchor(issue: AiArticleScoringIssue) {
   width: 30px;
   height: 30px;
   border-radius: 999px;
-  border: 3px solid var(--color-focus-soft);
+  border: 3px solid var(--color-line);
   border-top-color: var(--color-focus);
   animation: article-score-spin 0.9s linear infinite;
 }
@@ -224,15 +203,15 @@ function resolveIssueAnchor(issue: AiArticleScoringIssue) {
   justify-content: space-between;
   gap: 20px;
   padding: 20px 22px;
-  border-radius: 24px;
-  background: linear-gradient(135deg, var(--color-surface), var(--color-focus-soft));
+  border-radius: 0;
+  background: var(--color-bg-subtle);
   border: 1px solid var(--color-line);
 }
 
 .article-score-hero__eyebrow {
   font-size: 12px;
   letter-spacing: 0.18em;
-  color: var(--color-focus);
+  color: var(--color-ink-muted);
 }
 
 .article-score-hero__total {
@@ -262,8 +241,9 @@ function resolveIssueAnchor(issue: AiArticleScoringIssue) {
   gap: 6px;
   min-width: 110px;
   padding: 14px 16px;
-  border-radius: 20px;
+  border-radius: 0;
   background: var(--color-surface-raised);
+  border: 1px solid var(--color-line-faint);
   color: var(--color-ink);
 }
 
@@ -280,9 +260,9 @@ function resolveIssueAnchor(issue: AiArticleScoringIssue) {
 
 .article-score-dimension {
   padding: 16px 18px;
-  border-radius: 20px;
-  border: 1px solid var(--color-line);
-  background: var(--color-bg-subtle);
+  border-radius: 0;
+  border: 1px solid var(--color-line-faint);
+  background: var(--color-surface-raised);
 }
 
 .article-score-dimension__top {
@@ -303,9 +283,9 @@ function resolveIssueAnchor(issue: AiArticleScoringIssue) {
 
 .article-score-section {
   padding: 20px 22px;
-  border-radius: 24px;
-  border: 1px solid var(--color-line);
-  background: var(--color-surface);
+  border-radius: 0;
+  border: 1px solid var(--color-line-faint);
+  background: var(--color-surface-raised);
 }
 
 .article-score-section--compact {
@@ -321,7 +301,7 @@ function resolveIssueAnchor(issue: AiArticleScoringIssue) {
 .article-score-section__comment {
   margin: 12px 0 0;
   line-height: 1.82;
-  color: var(--color-ink);
+  color: var(--color-ink-muted);
 }
 
 .article-score-issues {
@@ -336,8 +316,8 @@ function resolveIssueAnchor(issue: AiArticleScoringIssue) {
   grid-template-columns: 40px minmax(0, 1fr);
   gap: 14px;
   padding: 16px 18px;
-  border-radius: 20px;
-  background: var(--color-bg-subtle);
+  border-radius: 0;
+  background: var(--color-surface-raised);
 }
 
 .article-score-issue__index {
@@ -346,7 +326,8 @@ function resolveIssueAnchor(issue: AiArticleScoringIssue) {
   justify-content: center;
   width: 40px;
   height: 40px;
-  border-radius: 14px;
+  border-radius: 0;
+  border: 1px solid var(--color-line-faint);
   background: var(--color-focus-soft);
   color: var(--color-focus);
   font-weight: 700;
@@ -372,7 +353,7 @@ function resolveIssueAnchor(issue: AiArticleScoringIssue) {
 
 .article-score-issue__suggestion {
   margin-top: 6px;
-  color: var(--color-ink);
+  color: var(--color-ink-muted);
 }
 
 .article-score-footer {
@@ -387,6 +368,13 @@ function resolveIssueAnchor(issue: AiArticleScoringIssue) {
   }
 }
 
+/* 无限循环的加载指示器必须尊重「减少动态」：停在初始相位而不是继续转。 */
+@media (prefers-reduced-motion: reduce) {
+  .article-score-loading__ring {
+    animation: none;
+  }
+}
+
 @media (max-width: 820px) {
   .article-score-grid {
     grid-template-columns: 1fr;
@@ -398,3 +386,4 @@ function resolveIssueAnchor(issue: AiArticleScoringIssue) {
   }
 }
 </style>
+

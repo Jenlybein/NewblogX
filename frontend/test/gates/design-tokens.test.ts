@@ -155,11 +155,13 @@ describe("设计 token 漂移门禁：baseline 棘轮", () => {
 });
 
 describe("设计 token 漂移门禁：在真实文件系统上跑", () => {
-  it("真实项目当前处于 baseline 允许范围内（门禁为绿）", () => {
+  it("真实项目已归零：baseline 为空且 0 处裸色值（门禁为绿）", () => {
     const baselineFiles = loadBaseline(projectDir);
     const result = checkProject({ projectDir, baselineFiles });
 
-    expect(result.violations.length).toBeGreaterThan(0);
+    // #13 收口：允许清单必须为空，且项目里真的没有裸色值（不是靠清单藏起来）。
+    expect(baselineFiles).toEqual([]);
+    expect(result.violations).toEqual([]);
     expect(result.ok).toBe(true);
   });
 

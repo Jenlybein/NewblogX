@@ -67,12 +67,16 @@ function collectCssSources(): { file: string; css: string }[] {
 
 const CSS_SOURCES = collectCssSources();
 
-/** 正数字面量圆角：除了 0 与 `var(--radius-*)` 之外一律算逃逸。 */
+/** 正数字面量圆角：除了 0、`inherit`（继承父级阶梯，同轴曲率）与 `var(--radius-*)` 之外一律算逃逸。 */
 function findLiteralRadii(css: string): string[] {
   const offenders: string[] = [];
   for (const match of css.matchAll(/border-radius\s*:\s*([^;}\n]+)/gu)) {
     const value = match[1]!.trim();
-    if (value === "0" || /var\(--radius-(?:sm|md|lg|xl|pill)\)/u.test(value)) {
+    if (
+      value === "0" ||
+      value === "inherit" ||
+      /var\(--radius-(?:sm|md|lg|xl|pill)\)/u.test(value)
+    ) {
       continue;
     }
     offenders.push(value);

@@ -3,6 +3,7 @@ import type { AiArticleScoringIssue, AiArticleScoringResponseData } from "~/type
 import { computed } from "vue";
 import { NButton, NCard, NEmpty, NModal, NProgress, NTag } from "naive-ui";
 import { formatDateTimeLabel } from "~/utils/format";
+import { usePointerSpecular } from "~/composables/usePointerSpecular";
 
 const props = defineProps<{
   show: boolean;
@@ -19,6 +20,9 @@ const emit = defineEmits<{
   "update:show": [value: boolean];
   refresh: [];
 }>();
+
+// 弹窗是厚玻璃浮层：指针镜面高光由统一 composable 写入 --mx/--my（移动端 / 减少动态关闭）。
+const { handlePointerMove } = usePointerSpecular();
 
 // 契约里 dimension.name 是 string（后端是 string，没有枚举约束），
 // 所以 map 用 string 做 key，查不到时用下面的兜底值。
@@ -70,7 +74,15 @@ function resolveIssueAnchor(issue: AiArticleScoringIssue) {
 
 <template>
   <NModal :show="show" class="article-score-modal" @update:show="emit('update:show', $event)">
-    <NCard :title="modalTitle" :bordered="false" closable class="article-score-card" @close="close">
+    <NCard
+      :title="modalTitle"
+      :bordered="false"
+      closable
+      class="article-score-card glass-thick"
+      :style="{ '--n-color': 'var(--glass-thick-fill)', '--n-border-radius': 'var(--radius-xl)' }"
+      @close="close"
+      @pointermove="handlePointerMove"
+    >
       <div v-if="loading" class="article-score-loading">
         <div class="article-score-loading__ring" />
         <span>{{ refreshing ? "正在重新获取最新评分…" : "正在读取评分内容…" }}</span>

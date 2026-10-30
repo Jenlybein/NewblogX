@@ -2,6 +2,7 @@
 import { computed, defineAsyncComponent, ref } from "vue";
 import { NCard, NModal, NTabPane, NTabs } from "naive-ui";
 import { useUiStore } from "~/stores/ui";
+import { usePointerSpecular } from "~/composables/usePointerSpecular";
 import { BRAND } from "~/utils/brand";
 
 type AuthTabName = "password" | "email-login" | "register";
@@ -20,6 +21,8 @@ const EmailRegisterForm = defineAsyncComponent({
 });
 
 const uiStore = useUiStore();
+// 弹窗是厚玻璃浮层：指针镜面高光由统一 composable 写入 --mx/--my（移动端 / 减少动态关闭）。
+const { handlePointerMove } = usePointerSpecular();
 const activeTab = ref<AuthTabName>("password");
 const activatedTabs = ref<AuthTabName[]>(["password"]);
 const authTitle = computed(() => `加入 ${BRAND.name.en}`);
@@ -65,8 +68,10 @@ function closeModal() {
           :title="authTitle"
         :bordered="false"
         closable
-        class="surface-card surface-card--strong"
+        class="glass-thick"
+        :style="{ '--n-color': 'var(--glass-thick-fill)', '--n-border-radius': 'var(--radius-xl)' }"
         @close="closeModal"
+        @pointermove="handlePointerMove"
       >
         <div class="mb-5 text-sm muted">
           登录后即可继续创作、收藏、互动与查看消息。

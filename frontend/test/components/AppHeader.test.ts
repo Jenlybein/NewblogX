@@ -2,7 +2,8 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 
 import { mount } from "@vue/test-utils";
-import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
+import { nextTick } from "vue";
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
 import AppHeader from "~/components/layout/AppHeader.vue";
 
@@ -159,10 +160,13 @@ describe("页头：结构（三档都成立的必备能力）", () => {
     expect(wrapper.get("a[data-chrome=skip-link]").attributes("href")).toBe("#main-content");
   });
 
-  it("滚动不遮挡正文：页头不是 fixed/sticky，且没有走 JS 布局", () => {
+  it("页头是吸顶玻璃导航：sticky + 高度压在 56–64px（不再永远遮挡正文）", () => {
     const source = readFileSync(join(process.cwd(), FILENAME), "utf8");
 
-    expect(source).not.toMatch(/position:\s*(fixed|sticky)/u);
+    expect(source).toMatch(/position:\s*sticky/u);
+    expect(source).toContain("min-height: var(--site-header-height)");
+    // 隐藏/出现只动 transform（不碰会引起重排的属性）。
+    expect(source).toMatch(/translateY\(-100%\)/u);
   });
 
   it("三档响应式：手机折叠 + 平板两行 + 桌面单行（CSS 断点契约）", () => {
@@ -282,5 +286,60 @@ describe("页头：导航与账户", () => {
 
     await loggedOut.get("[data-chrome=account] button").trigger("click");
     expect(hub.openAuthModal).toHaveBeenCalledTimes(1);
+  });
+});
+
+/**
+ * 滚动方向感知与阈值（组件级）。
+ *
+ * 判定逻辑在 useScrollChrome（单测覆盖状态机），这里验证页头真的把状态接到
+ * class 上：阈值前不动、下滚隐藏、上滚出现、回到顶部退掉玻璃。
+ */
+describe("页头：滚动方向感知与阈值", () => {
+  function setScrollY(value: number) {
+    Object.defineProperty(window, "scrollY", { configurable: true, writable: true, value });
+  }
+
+  async function scrollTo(value: number) {
+    setScrollY(value);
+    window.dispatchEvent(new Event("scroll"));
+    await nextTick();
+  }
+
+  afterEach(() => setScrollY(0));
+
+  it("阈值之前保持静止：不转玻璃、不隐藏", async () => {
+    const wrapper = mountHeader();
+    await scrollTo(4);
+
+    const header = wrapper.get("header");
+    expect(header.classes()).not.toContain("is-scrolled");
+    expect(header.classes()).not.toContain("is-hidden");
+    expect(header.classes()).not.toContain("glass-thin");
+  });
+
+  it("下滚超阈值：转玻璃 + 隐藏；上滚超过迟滞量后重新出现", async () => {
+    const wrapper = mountHeader();
+    const header = wrapper.get("header");
+
+    await scrollTo(160);
+    expect(header.classes()).toContain("is-scrolled");
+    expect(header.classes()).toContain("glass-thin");
+    expect(header.classes()).toContain("is-hidden");
+
+    await scrollTo(90);
+    expect(header.classes()).not.toContain("is-hidden");
+    expect(header.classes()).toContain("is-scrolled");
+  });
+
+  it("回到顶部：玻璃退掉且页头永远可见", async () => {
+    const wrapper = mountHeader();
+    const header = wrapper.get("header");
+
+    await scrollTo(160);
+    await scrollTo(0);
+
+    expect(header.classes()).not.toContain("is-scrolled");
+    expect(header.classes()).not.toContain("is-hidden");
   });
 });

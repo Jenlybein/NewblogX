@@ -24,7 +24,8 @@ function tokenHex(name: string): string {
 
 function channelLuminance(channel: number): number {
   const value = channel / 255;
-  return value <= 0.03928 ? value / 12.92 : ((value + 0.05) / 0.0505) ** 2.4;
+  // WCAG 相对亮度：sRGB 线性化后 (value+0.05) / 1.05 再取 2.4 次方。
+  return value <= 0.03928 ? value / 12.92 : ((value + 0.05) / 1.05) ** 2.4;
 }
 
 function relativeLuminance(hex: string): number {

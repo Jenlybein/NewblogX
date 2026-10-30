@@ -63,9 +63,9 @@ watch(normalizedSrc, () => {
   position: relative;
   overflow: hidden;
   background:
-    radial-gradient(circle at 20% 18%, rgba(255, 255, 255, 0.78), transparent 22%),
-    linear-gradient(135deg, #123f3c 0%, #2d746c 42%, #f4e9d6 100%);
-  color: rgba(255, 255, 255, 0.92);
+    radial-gradient(circle at 20% 18%, var(--color-on-strong-soft), transparent 22%),
+    linear-gradient(135deg, var(--jelly-blue-900) 0%, var(--jelly-blue) 42%, var(--jelly-warm) 100%);
+  color: var(--color-on-strong);
 }
 
 .article-cover-default__grid {
@@ -73,8 +73,8 @@ watch(normalizedSrc, () => {
   inset: 0;
   opacity: 0.18;
   background-image:
-    linear-gradient(rgba(255, 255, 255, 0.5) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(255, 255, 255, 0.5) 1px, transparent 1px);
+    linear-gradient(var(--color-on-strong) 1px, transparent 1px),
+    linear-gradient(90deg, var(--color-on-strong) 1px, transparent 1px);
   background-size: 22px 22px;
   mask-image: linear-gradient(135deg, black, transparent 72%);
 }
@@ -90,7 +90,7 @@ watch(normalizedSrc, () => {
   top: -20px;
   width: 96px;
   height: 96px;
-  background: rgba(255, 255, 255, 0.3);
+  background: var(--color-on-strong-soft);
 }
 
 .article-cover-default__orb--two {
@@ -98,7 +98,7 @@ watch(normalizedSrc, () => {
   bottom: -38px;
   width: 120px;
   height: 120px;
-  background: rgba(217, 119, 6, 0.28);
+  background: var(--color-highlight);
 }
 
 .article-cover-default__content {
@@ -111,14 +111,14 @@ watch(normalizedSrc, () => {
 
 .article-cover-default__content span {
   width: fit-content;
-  border: 1px solid rgba(255, 255, 255, 0.38);
+  border: 1px solid var(--color-on-strong-line);
   border-radius: 999px;
   padding: 3px 8px;
   font-size: 10px;
   font-weight: 700;
   letter-spacing: 0.18em;
   text-transform: uppercase;
-  background: rgba(255, 255, 255, 0.14);
+  background: var(--color-on-strong-soft);
   backdrop-filter: blur(8px);
 }
 
@@ -126,6 +126,6 @@ watch(normalizedSrc, () => {
   font-size: 18px;
   line-height: 1;
   letter-spacing: -0.04em;
-  text-shadow: 0 8px 24px rgba(15, 23, 42, 0.2);
+  text-shadow: 0 8px 24px var(--color-shadow);
 }
 </style>

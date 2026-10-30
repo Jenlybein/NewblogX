@@ -9,7 +9,6 @@ import { resolveChatMessageContent, type ChatSendType } from "~/utils/chatMessag
 import { formatDateTimeLabel } from "~/utils/format";
 import { getRelationLabel } from "~/utils/relation";
 
-// markdown 渲染不再注入外部 light 主题：走 #8 的自有 token 主题（明暗自动跟随站点根类，不换 <link>）。
 import katexCssUrl from "katex/dist/katex.min.css?url";
 
 // 私信面板。
@@ -17,8 +16,12 @@ import katexCssUrl from "katex/dist/katex.min.css?url";
 // 消息**内容怎么显示**不在这里判断，而是交给 utils/chatMessage 的纯函数：
 // 后端把图片消息的 content 包装成了 JSON，这个约定属于"传输格式"，
 // 散在模板里用 v-if 处理的话，每加一种消息类型就要改所有渲染点。
+//
+// Markdown 主题：不再传 github-markdown-css 的 `<link>`。MarkdownRenderSurface
+// 的 shadow root 内置自有主题（消费 tokens.css 语义 token），明暗切换跟随站点
+// 根类自动生效 —— 暗色下不会再出现"私信白块"。
 const ChatMarkdownRenderer = defineAsyncComponent(() => import("~/components/common/MarkdownRenderSurface.vue"));
-// 只剩 katex 的数学字体样式（无底色，跟随正文墨色）。
+// katex 只保留基线布局样式（分数/根号），配色由自有主题覆盖。
 const markdownSupportStyleHrefs = [katexCssUrl];
 
 const props = defineProps<{

@@ -13,8 +13,10 @@ import {
 import sora400Woff2 from "@fontsource/sora/files/sora-latin-400-normal.woff2";
 import sora600Woff2 from "@fontsource/sora/files/sora-latin-600-normal.woff2";
 import sora700Woff2 from "@fontsource/sora/files/sora-latin-700-normal.woff2";
+import tokensCss from "~/assets/css/tokens.css?raw";
 import { themeBodyClass, themeHtmlClass, themeRootClass } from "~/utils/themeClass";
 import { buildThemeInitScript } from "~/utils/themePreference";
+import { buildReaderThemeOverrides, parseReaderThemePalette } from "~/utils/readerTheme";
 import {
   BRAND,
   brandAbsoluteAssetUrl,
@@ -93,28 +95,12 @@ useHead(() => ({
   ],
 }));
 
-const themeOverrides: GlobalThemeOverrides = {
-  common: {
-    primaryColor: "#0f766e",
-    primaryColorHover: "#115e59",
-    primaryColorPressed: "#0b5b55",
-    borderRadius: "18px",
-    borderRadiusSmall: "12px",
-    fontFamily:
-      '"Sora", "Sora Fallback", "Noto Sans SC", "Noto Sans SC Fallback", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif',
-    fontFamilyMono: '"Cascadia Code", "JetBrains Mono", monospace',
-  },
-  Card: {
-    borderRadius: "26px",
-  },
-  Button: {
-    borderRadiusSmall: "14px",
-    borderRadiusMedium: "16px",
-  },
-  Input: {
-    borderRadius: "16px",
-  },
-};
+// 主题覆盖：主色克莱因蓝 + 同色相派生明度 + 圆角 0 + 中文 fallback 字体栈。
+// 取值来自 tokens.css（颜色只有一个来源）；只覆盖主色族/圆角/字体，中性纸面与
+// 墨色交给 Naive 的 darkTheme 切换，否则静态浅色值会在暗色下变成白块。
+const themeOverrides: GlobalThemeOverrides = buildReaderThemeOverrides(
+  parseReaderThemePalette(tokensCss),
+);
 </script>
 
 <template>
@@ -126,7 +112,7 @@ const themeOverrides: GlobalThemeOverrides = {
           <NDialogProvider>
             <NLoadingBarProvider>
               <div :class="['min-h-screen', themeRootClass(uiStore.theme)]">
-                <NuxtLoadingIndicator color="#0f766e" />
+                <NuxtLoadingIndicator color="var(--color-focus)" />
                 <NuxtRouteAnnouncer />
                 <NuxtLayout>
                   <NuxtPage />

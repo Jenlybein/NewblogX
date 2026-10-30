@@ -3,11 +3,12 @@ import { join } from "node:path";
 
 import { describe, expect, it } from "vitest";
 
+import { buildReaderThemeOverrides, parseReaderThemePalette } from "~/utils/readerTheme";
+
 // vitest 以 project root（frontend/）为 cwd。
 const projectDir = process.cwd();
 const fontsCss = readFileSync(join(projectDir, "app/assets/css/fonts.css"), "utf8");
 const tailwindCss = readFileSync(join(projectDir, "app/assets/css/tailwind.css"), "utf8");
-const appVue = readFileSync(join(projectDir, "app/app.vue"), "utf8");
 
 const faces = [...fontsCss.matchAll(/@font-face\s*\{([^}]*)\}/gu)].map((match) => match[1].trim());
 
@@ -66,7 +67,9 @@ describe("字体栈的三个消费点都指向 Noto Sans SC", () => {
   });
 
   it("Naive UI 的 themeOverrides 字体栈把 Noto Sans SC 排在中文字体之前", () => {
-    const stack = appVue.slice(appVue.indexOf("fontFamily:"), appVue.indexOf("fontFamily:") + 320);
+    // 主题栈由 app/utils/readerTheme.ts 从 tokens.css 解析后组装（见 readerTheme.test.ts）。
+    const tokensCss = readFileSync(join(projectDir, "app/assets/css/tokens.css"), "utf8");
+    const stack = String(buildReaderThemeOverrides(parseReaderThemePalette(tokensCss)).common?.fontFamily);
 
     expect(stack).toContain('"Noto Sans SC"');
     expect(stack).toContain('"Noto Sans SC Fallback"');

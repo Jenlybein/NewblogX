@@ -18,6 +18,9 @@ import yaml from "highlight.js/lib/languages/yaml";
 import { computed, toRef, toValue } from "vue";
 import type { MaybeRefOrGetter } from "vue";
 
+import { splitNoticeSegments } from "~/utils/markdownNotice";
+import type { NoticeSegment } from "~/utils/markdownNotice";
+
 export interface ArticleHeadingAnchor {
   id: string;
   href: string;
@@ -137,26 +140,17 @@ function createHeadingId(title: string, serial: number, usedIds: Map<string, num
   return currentCount === 0 ? base : `${base}-${currentCount + 1}`;
 }
 
-function renderArticleMarkdown(source: string): RenderedArticleMarkdown {
-  if (!source.trim()) {
-    return {
-      html: "<p>暂无正文内容。</p>",
-      headings: [],
-    };
-  }
+interface RenderState {
+  headings: ArticleHeadingAnchor[];
+  usedIds: Map<string, number>;
+  headingSerial: number;
+}
 
-  const normalizedSource = source.replace(/<u>([\s\S]*?)<\/u>/gi, "++$1++");
-  const tokens = markdownRuntime.parse(normalizedSource, {});
-  const headings: ArticleHeadingAnchor[] = [];
-  const usedIds = new Map<string, number>();
-  let headingSerial = 0;
-
+/** 给标题 token 补 id 并登记目录项（h1~h4）。 */
+function collectHeadings(tokens: ReturnType<typeof markdownRuntime.parse>, state: RenderState) {
   for (let index = 0; index < tokens.length; index += 1) {
     const token = tokens[index];
-    if (!token) {
-      continue;
-    }
-    if (token.type !== "heading_open") {
+    if (!token || token.type !== "heading_open") {
       continue;
     }
 
@@ -165,14 +159,14 @@ function renderArticleMarkdown(source: string): RenderedArticleMarkdown {
       continue;
     }
 
-    headingSerial += 1;
+    state.headingSerial += 1;
     const level = Number(token.tag.slice(1));
-    const title = inlineToken.content.trim() || `章节 ${headingSerial}`;
-    const id = createHeadingId(title, headingSerial, usedIds);
+    const title = inlineToken.content.trim() || `章节 ${state.headingSerial}`;
+    const id = createHeadingId(title, state.headingSerial, state.usedIds);
     token.attrSet("id", id);
 
     if (level >= 1 && level <= 4) {
-      headings.push({
+      state.headings.push({
         id,
         href: `#${id}`,
         title,
@@ -180,10 +174,52 @@ function renderArticleMarkdown(source: string): RenderedArticleMarkdown {
       });
     }
   }
+}
+
+function renderSegment(segment: NoticeSegment, state: RenderState): string {
+  const tokens = markdownRuntime.parse(segment.source, {});
+  collectHeadings(tokens, state);
+  const rendered = markdownRuntime.renderer.render(tokens, markdownRuntime.options, {});
+
+  if (segment.type === "markdown") {
+    return rendered;
+  }
+
+  const title = segment.title
+    ? `<p class="markdown-notice__title">${escapeHtml(segment.title)}</p>`
+    : "";
+
+  return `<div class="markdown-notice markdown-notice--${segment.tone}">${title}${rendered}</div>\n`;
+}
+
+/**
+ * 把 markdown 源渲染成正文 HTML（导出供单测直接断言，不必挂载页面）。
+ *
+ * 提示块走 `splitNoticeSegments` 切分后逐段渲染；标题锚点在两条路径上都收集，
+ * 保证提示块里的标题也能进目录。
+ */
+export function renderArticleMarkdown(source: string): RenderedArticleMarkdown {
+  if (!source.trim()) {
+    return {
+      html: "<p>暂无正文内容。</p>",
+      headings: [],
+    };
+  }
+
+  const normalizedSource = source.replace(/<u>([\s\S]*?)<\/u>/gi, "++$1++");
+  const state: RenderState = {
+    headings: [],
+    usedIds: new Map<string, number>(),
+    headingSerial: 0,
+  };
+
+  const html = splitNoticeSegments(normalizedSource)
+    .map((segment) => renderSegment(segment, state))
+    .join("");
 
   return {
-    html: markdownRuntime.renderer.render(tokens, markdownRuntime.options, {}),
-    headings,
+    html,
+    headings: state.headings,
   };
 }
 

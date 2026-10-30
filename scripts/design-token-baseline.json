@@ -4,8 +4,7 @@
     "app/app.vue",
     "app/assets/css/tailwind.css",
     "app/components/article/ArticleCover.vue",
-    "app/components/article/ArticleScoreModal.vue",
-    "app/pages/article/[id].vue"
+    "app/components/article/ArticleScoreModal.vue"
   ],
   "frontend_admin": []
 }

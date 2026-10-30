@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref } from "vue";
-import { NButton, NInput, NTag } from "naive-ui";
+import { NInput } from "naive-ui";
 
 const props = defineProps<{
   loading?: boolean;
@@ -36,10 +36,12 @@ function handleSubmit() {
 </script>
 
 <template>
-  <div class="surface-section p-5 md:p-6">
-    <div class="mb-4 flex items-center justify-between">
-      <div class="text-base font-semibold">{{ props.title || "发表评论" }}</div>
-      <div class="glass-badge">{{ authStore.isLoggedIn ? "已登录，可直接评论" : "登录后可参与讨论" }}</div>
+  <div class="comment-composer">
+    <div class="comment-composer__head">
+      <div class="comment-composer__title">{{ props.title || "发表评论" }}</div>
+      <span class="comment-composer__status">
+        {{ authStore.isLoggedIn ? "已登录，可直接评论" : "登录后可参与讨论" }}
+      </span>
     </div>
 
     <NInput
@@ -50,21 +52,28 @@ function handleSubmit() {
       aria-label="评论输入框"
     />
 
-    <div class="mt-4 flex flex-wrap items-center justify-between gap-4">
-      <div v-if="props.showTags !== false" class="flex flex-wrap gap-2">
-        <NTag round size="small">接口设计</NTag>
-        <NTag round size="small">数据流</NTag>
-        <NTag round size="small">分页</NTag>
-        <NTag round size="small">鉴权</NTag>
+    <div class="comment-composer__footer">
+      <div v-if="props.showTags !== false" class="comment-composer__tags">
+        <span class="comment-tag">接口设计</span>
+        <span class="comment-tag">数据流</span>
+        <span class="comment-tag">分页</span>
+        <span class="comment-tag">鉴权</span>
       </div>
       <div v-else />
 
-      <div class="flex items-center gap-3">
-        <NButton v-if="props.canCancel" quaternary @click="emit('cancel')">取消</NButton>
-        <NButton v-else quaternary @click="content = ''">清空</NButton>
-        <NButton type="primary" :loading="props.loading" @click="handleSubmit">
-          {{ props.submitLabel || "发表评论" }}
-        </NButton>
+      <div class="comment-composer__actions">
+        <button v-if="props.canCancel" type="button" class="article-action article-action--compact" @click="emit('cancel')">
+          取消
+        </button>
+        <button v-else type="button" class="article-action article-action--compact" @click="content = ''">清空</button>
+        <button
+          type="button"
+          class="article-action article-action--primary article-action--compact"
+          :disabled="Boolean(props.loading)"
+          @click="handleSubmit"
+        >
+          {{ props.loading ? "发送中…" : props.submitLabel || "发表评论" }}
+        </button>
       </div>
     </div>
   </div>

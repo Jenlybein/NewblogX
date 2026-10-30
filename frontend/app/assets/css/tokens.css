@@ -62,7 +62,14 @@
   --color-highlight: var(--jelly-yellow-veil); /* 高亮底（黄，只做底） */
   --color-danger: var(--jelly-coral); /* 危险 / 重要状态填充 */
   --color-danger-ink: var(--jelly-coral-700); /* 危险文字（派生暗橙） */
-  --color-focus: var(--jelly-blue); /* 焦点环 */
+  --color-focus: var(--jelly-blue); /* 焦点环 / 强调 */
+  --color-focus-soft: rgba(0, 47, 167, 0.1); /* 强调底（悬停/提示块） */
+  --color-danger-soft: rgba(255, 107, 74, 0.12); /* 危险底（提示块/错误态） */
+  --color-danger-line: rgba(255, 107, 74, 0.4); /* 危险结构线 */
+  --color-on-strong: var(--jelly-cream); /* 蓝铺色块上的反白字 */
+  --color-on-strong-muted: rgba(253, 251, 246, 0.78); /* 蓝底上的次级字 */
+  --color-on-danger: var(--jelly-blue-900); /* 珊瑚橙底上的字（对 coral 5.6:1） */
+  --color-on-danger-pressed: var(--jelly-cream); /* 派生暗橙底上的字（5.2:1） */
   --color-shadow: rgba(0, 27, 99, 0.16); /* 阴影（同色相明度 + 透明度） */
 
   /* ---- 3. 排版层 ---- */
@@ -105,6 +112,13 @@
   --color-danger: var(--jelly-coral);
   --color-danger-ink: var(--jelly-coral-300);
   --color-focus: var(--jelly-cream);
+  --color-focus-soft: rgba(253, 251, 246, 0.14);
+  --color-danger-soft: rgba(255, 107, 74, 0.18);
+  --color-danger-line: rgba(255, 107, 74, 0.5);
+  --color-on-strong: var(--jelly-cream);
+  --color-on-strong-muted: rgba(253, 251, 246, 0.78);
+  --color-on-danger: var(--jelly-blue-900);
+  --color-on-danger-pressed: var(--jelly-cream);
   --color-shadow: rgba(0, 8, 30, 0.55);
 }
 

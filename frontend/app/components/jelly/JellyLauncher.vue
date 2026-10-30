@@ -2,6 +2,7 @@
 import { computed, onBeforeUnmount, onMounted, ref } from "vue";
 
 import { useJellyAssistant } from "~/composables/useJellyAssistant";
+import type { JellyAssistantApi } from "~/composables/useJellyAssistant";
 import { brandAiName, brandAssetUrl } from "~/utils/brand";
 
 // 「捏捏」的外观组件（票 #9）。
@@ -14,7 +15,11 @@ import { brandAiName, brandAssetUrl } from "~/utils/brand";
 // 形状来源是 #4 交付的扁平矢量果冻方块（`brand/jelly-flat.svg`），颜色全部来自
 // 语义 token（--color-*），本文件不出现任何裸色值（由漂移门禁卡住）。
 
-const assistant = useJellyAssistant();
+// 状态实例：布局会传入页面级共享实例（#10 的 AI 面板消费同一份）；
+// 不传时退回自己创建一份，让组件在独立使用/单测里也能跑。
+const props = defineProps<{ assistant?: JellyAssistantApi }>();
+
+const assistant = props.assistant ?? useJellyAssistant();
 const {
   state,
   isAvailable,

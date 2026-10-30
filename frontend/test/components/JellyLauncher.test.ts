@@ -154,6 +154,20 @@ describe("JellyLauncher · 渲染", () => {
     wrapper.unmount();
     expect(api.stopSession).toHaveBeenCalled();
   });
+
+  it("布局传入共享实例时优先用它（#10 的 AI 面板必须与角色共享同一份开关）", () => {
+    const shared = makeApi();
+    const fallback = makeApi();
+    apiRef.current = fallback;
+
+    const wrapper = mount(JellyLauncher, { props: { assistant: shared } });
+
+    expect(shared.startSession).toHaveBeenCalledTimes(1);
+    expect(fallback.startSession).not.toHaveBeenCalled();
+
+    wrapper.unmount();
+    expect(shared.stopSession).toHaveBeenCalled();
+  });
 });
 
 describe("JellyLauncher · 指针与拖拽", () => {

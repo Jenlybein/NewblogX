@@ -28,6 +28,19 @@ export const MOTION_STAGGER_MS = 40;
 /** 列表入场位移量（px）：只动 transform，不做布局动画。 */
 export const MOTION_ENTRANCE_OFFSET_PX = 8;
 
+/**
+ * 区块级滚动进场位移上限（px）：ADR-0012 决策 7 把它放宽到 ≤12px。
+ * 与 tokens.css 的 `--motion-reveal-offset` 是同一份预算（design 测试交叉校验）。
+ * 后续票用 motion-v 的 useInView 接进场时，一律从这里取上限，不写死数字。
+ */
+export const MOTION_REVEAL_OFFSET_PX = 12;
+
+/**
+ * 视差上限（px）：与 tokens.css 的 `--parallax-max` 同源。
+ * 视差只允许出现在首屏封面等布局级容器上，正文段落不进场。
+ */
+export const PARALLAX_MAX_PX = 10;
+
 /** 毫秒 → 秒（motion-v 的 duration 单位）。 */
 export function motionSeconds(ms: number): number {
   if (!Number.isFinite(ms) || ms <= 0) return 0;

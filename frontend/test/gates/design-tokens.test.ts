@@ -83,6 +83,20 @@ describe("设计 token 漂移门禁：扫描规则", () => {
     expect(findColorLiterals(source)).toEqual([]);
   });
 
+  it("Tailwind 任意值里用 `_` 转义的十六进制也要抓到（历史漏检）", () => {
+    // 旧正则把 `_` 当成标识符字符，于是 `#fefcf8_0%` 这种写法整类溜过扫描。
+    const source = [
+      "<template>",
+      '  <div class="bg-[linear-gradient(180deg,_#fefcf8_0%,_#f7fbff_100%)]" />',
+      "</template>",
+    ].join("\n");
+
+    expect(findColorLiterals(source)).toEqual([
+      { line: 2, match: "#fefcf8" },
+      { line: 2, match: "#f7fbff" },
+    ]);
+  });
+
   it("token 文件与品牌矢量/OG 生成物目录豁免，普通组件不豁免", () => {
     expect(isExemptPath("app/assets/css/tokens.css")).toBe(true);
     expect(isExemptPath("app/assets/brand/JellyMark.vue")).toBe(true);
@@ -175,7 +189,8 @@ describe("设计 token 漂移门禁：在真实文件系统上跑", () => {
         "  .canary { color: #ff0000; }",
         "</style>",
       ].join("\n"),
-      // 非 .vue/.css 文件即使含颜色字面量也不在扫描范围内。
+      // 非 CSS 的 TS 字面量（普通 JS 字符串 / 颜色构造函数）不在扫描范围内；
+      // .ts 里只有「CSS 字符串」才按样式判定（见下一条用例）。
       "app/utils/canary.ts": 'export const leaked = "#ff0000";\n',
       "README.md": "颜色 #ff0000\n",
     });
@@ -184,6 +199,29 @@ describe("设计 token 漂移门禁：在真实文件系统上跑", () => {
 
     expect(result.violations).toEqual([
       { file: "app/components/CanaryWidget.vue", line: 5, match: "#ff0000" },
+    ]);
+    expect(result.ok).toBe(false);
+  });
+
+  it("藏在 .ts 里的 CSS 字符串会被抓到（此前是整块盲区）", () => {
+    const canaryProject = makeCanaryProject({
+      // 样式表写在 TS 模板字符串里：`.ts` 文件也必须按样式扫描。
+      "app/utils/CanaryStyleSheet.ts": [
+        "export const sheet = `",
+        ".canary { color: #ff0000; }",
+        "`;",
+        "",
+        // 颜色构造函数不是 CSS 字符串，不该误报（否则后台 Naive 主题层会被全量标红）。
+        "export function withAlpha(red: number, green: number, blue: number, alpha: number) {",
+        "  return `rgba(${red}, ${green}, ${blue}, ${alpha})`;",
+        "}",
+      ].join("\n"),
+    });
+
+    const result = checkProject({ projectDir: canaryProject, baselineFiles: [] });
+
+    expect(result.violations).toEqual([
+      { file: "app/utils/CanaryStyleSheet.ts", line: 2, match: "#ff0000" },
     ]);
     expect(result.ok).toBe(false);
   });

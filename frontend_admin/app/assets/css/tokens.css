@@ -10,13 +10,16 @@
  *
  * 结构与读者站完全一致：
  *   1. 原始层 `--jelly-*`：五个锁定色相 + 同色相明度/透明度派生，**禁止新增色相**；
- *      黄永不做字色；珊瑚橙当字色时用 `--jelly-coral-700`（达 AA）。
+ *      黄永不做字色；珊瑚橙当字色时用 `--jelly-coral-700`（达 AA）。带透明度的语义色
+ *      一律从 `--jelly-*-rgb` 三元组基底派生（`rgb(var(--*-rgb) / α)`）。
  *   2. 语义层 `--color-*`：组件唯一消费对象；暗色是同一组名字的第二份取值。
  *      **后台目前没有暗色开关**（spec 明说后台暗色不做），这份映射先备着，
  *      由 `.dark` / `.theme-dark` 根类触发，等后续票接上时不用再改名字。
- *   3. 排版层 `--font-*` / `--type-*`：中文正文 68ch / 1.75、标题 700 + 负字距。
+ *   3. 圆角 / 玻璃 / 排版层：后续票要用的种子。本票只定义 + Tailwind 接线，
+ *      不把圆角/玻璃应用到全站，因此后台观感基本不变。
  *   4. 动效层 `--motion-*`：120 / 200 / 320ms 三档 + 单一缓动，与读者站同拍；
- *      后台只用 CSS 过渡与 Naive 内建过渡，不引入动效库。
+ *      后台只用 CSS 过渡与 Naive 内建过渡，不做滚动进场（因此不定义读者站那两档
+ *      滚动位移/视差上限 token，避免留下没有消费者的种子）。
  *
  * 过渡层的旧变量（--bg-page / --surface / --line / --accent …）已在本票删除：
  * admin.css 全部改为消费语义层后，旧变量无人消费，留着只会变成第二套颜色来源。
@@ -39,43 +42,71 @@
   --jelly-blue-700: #00227a;
   --jelly-blue-600: #3a55a8;
   --jelly-blue-400: #6e86cf;
-  --jelly-blue-200: #c3ceeb;
-  --jelly-blue-100: #e6eaf7;
   --jelly-cream-050: #fffefb;
   --jelly-cream-700: #d9d3c6;
   --jelly-warm-800: #e6e0d5;
-  --jelly-yellow-veil: rgba(245, 197, 24, 0.28);
-  --jelly-yellow-veil-dark: rgba(245, 197, 24, 0.3);
   --jelly-coral-700: #c2410c;
   --jelly-coral-300: #ff9b85;
+
+  /* ---- 原始层：三元组基底（带透明度语义色的唯一派生源） ----
+   * hex 供 Naive themeOverrides 解析真色值，三元组供 CSS 透明度派生；同值由
+   * frontend/test/design/foundation-tokens.test.ts 交叉校验，改一处必须两处同改。 */
+  --jelly-blue-rgb: 0 47 167; /* = --jelly-blue */
+  --jelly-blue-900-rgb: 0 27 99; /* = --jelly-blue-900；亮色阴影 / 暗色玻璃基底 */
+  --jelly-blue-1000-rgb: 0 8 30; /* 暗色阴影基底（比 -950 更深一档，无对应 hex） */
+  --jelly-cream-rgb: 253 251 246; /* = --jelly-cream */
+  --jelly-cream-050-rgb: 255 254 251; /* = --jelly-cream-050 */
+  --jelly-yellow-rgb: 245 197 24; /* = --jelly-yellow */
+  --jelly-coral-rgb: 255 107 74; /* = --jelly-coral */
 
   /* ---- 2. 语义层（浅色） ---- */
   --color-bg-page: var(--jelly-cream);
   --color-bg-subtle: var(--jelly-warm);
   --color-surface: var(--jelly-cream);
   --color-surface-raised: var(--jelly-cream-050);
-  --color-surface-glass: rgba(255, 254, 251, 0.78); /* 半透明纸面（侧栏 / 统计卡） */
+  --color-surface-glass: rgb(var(--jelly-cream-050-rgb) / 0.78); /* 半透明纸面（侧栏 / 统计卡） */
   --color-ink: var(--jelly-blue-900);
   --color-ink-muted: var(--jelly-blue-600);
-  --color-line: rgba(0, 47, 167, 0.32);
-  --color-line-strong: rgba(0, 47, 167, 0.62);
-  --color-line-faint: rgba(0, 47, 167, 0.14);
-  --color-highlight: var(--jelly-yellow-veil);
+  --color-line: rgb(var(--jelly-blue-rgb) / 0.32);
+  --color-line-strong: rgb(var(--jelly-blue-rgb) / 0.62);
+  --color-line-faint: rgb(var(--jelly-blue-rgb) / 0.14);
+  --color-highlight: rgb(var(--jelly-yellow-rgb) / 0.28);
   --color-danger: var(--jelly-coral);
   --color-danger-ink: var(--jelly-coral-700);
-  --color-danger-soft: rgba(255, 107, 74, 0.1);
-  --color-danger-line: rgba(255, 107, 74, 0.36);
+  --color-danger-soft: rgb(var(--jelly-coral-rgb) / 0.1);
+  --color-danger-line: rgb(var(--jelly-coral-rgb) / 0.36);
   --color-focus: var(--jelly-blue);
-  --color-focus-soft: rgba(0, 47, 167, 0.12);
-  --color-shadow: rgba(0, 27, 99, 0.16);
+  --color-focus-soft: rgb(var(--jelly-blue-rgb) / 0.12);
+  --color-shadow: rgb(var(--jelly-blue-900-rgb) / 0.16);
   /* 克莱因蓝铺色块（登录 hero / 封面兜底）上的反白层 */
   --color-on-strong: var(--jelly-cream);
-  --color-on-strong-muted: rgba(253, 251, 246, 0.78);
-  --color-on-strong-line: rgba(253, 251, 246, 0.36);
-  --color-on-strong-soft: rgba(253, 251, 246, 0.14);
+  --color-on-strong-muted: rgb(var(--jelly-cream-rgb) / 0.78);
+  --color-on-strong-line: rgb(var(--jelly-cream-rgb) / 0.36);
+  --color-on-strong-soft: rgb(var(--jelly-cream-rgb) / 0.14);
 
-  /* ---- 3. 排版层 ---- */
+  /* ---- 3. 圆角阶梯（ADR-0012 决策 4） ---- */
+  --radius-sm: 8px;
+  --radius-md: 14px;
+  --radius-lg: 20px;
+  --radius-xl: 28px;
+  --radius-pill: 999px;
+
+  /* ---- 4. 液态玻璃组（ADR-0012 决策 5）；本票只播种 + Tailwind 接线 ---- */
+  --glass-thin-fill: rgb(255 255 255 / 0.72);
+  --glass-thin-blur: 20px;
+  --glass-thin-saturate: 180%;
+  --glass-thick-fill: rgb(253 251 246 / 0.80);
+  --glass-thick-blur: 28px;
+  --glass-thick-saturate: 160%;
+  --glass-rim: rgb(255 255 255 / 0.62);
+  --glass-rim-warm: rgb(255 253 246 / 0.50);
+  --glass-grain-opacity: 0.055;
+  --glass-blur-mobile: 12px;
+
+  /* ---- 5. 排版层 ---- */
+  --font-display: "Sora", "Sora Fallback";
   --font-latin: "Sora", "Sora Fallback";
+  --font-title: var(--font-display);
   --font-cjk: "Noto Sans SC", "Noto Sans SC Fallback";
   --font-sans: var(--font-latin), var(--font-cjk), "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei",
     sans-serif;
@@ -87,9 +118,10 @@
   --type-tracking-dense: -0.01em;
   --type-weight-title: 700;
 
-  /* ---- 4. 动效层（spec 决策 3 / 7：后台只用 CSS 过渡 + Naive 内建）----
+  /* ---- 6. 动效层（spec 决策 3 / 7：后台只用 CSS 过渡 + Naive 内建）----
    * 三档时长与单缓动曲线与读者站完全同拍（tokens.test.ts 会交叉校验）；
-   * 组件消费时一律用变量，不写毫秒字面量；只动 transform / opacity / 颜色。 */
+   * 组件消费时一律用变量，不写毫秒字面量；只动 transform / opacity / 颜色。
+   * 后台不做滚动进场/视差，读者站那两档 token 不在这里定义。 */
   --motion-fast: 120ms; /* 微交互（hover/focus 反馈） */
   --motion-base: 200ms; /* 进出场（弹窗/抽屉） */
   --motion-slow: 320ms; /* 上限：结构级一次性过渡 */
@@ -104,24 +136,31 @@
   --color-bg-subtle: var(--jelly-blue-950);
   --color-surface: var(--jelly-blue-800);
   --color-surface-raised: var(--jelly-blue-700);
-  --color-surface-glass: rgba(0, 27, 99, 0.72);
+  --color-surface-glass: rgb(var(--jelly-blue-900-rgb) / 0.72);
   --color-ink: var(--jelly-cream);
   --color-ink-muted: var(--jelly-cream-700);
-  --color-line: rgba(253, 251, 246, 0.22);
-  --color-line-strong: rgba(253, 251, 246, 0.45);
-  --color-line-faint: rgba(253, 251, 246, 0.1);
-  --color-highlight: var(--jelly-yellow-veil-dark);
+  --color-line: rgb(var(--jelly-cream-rgb) / 0.22);
+  --color-line-strong: rgb(var(--jelly-cream-rgb) / 0.45);
+  --color-line-faint: rgb(var(--jelly-cream-rgb) / 0.1);
+  --color-highlight: rgb(var(--jelly-yellow-rgb) / 0.3);
   --color-danger: var(--jelly-coral);
   --color-danger-ink: var(--jelly-coral-300);
-  --color-danger-soft: rgba(255, 107, 74, 0.16);
-  --color-danger-line: rgba(255, 107, 74, 0.45);
+  --color-danger-soft: rgb(var(--jelly-coral-rgb) / 0.16);
+  --color-danger-line: rgb(var(--jelly-coral-rgb) / 0.45);
   --color-focus: var(--jelly-cream);
-  --color-focus-soft: rgba(253, 251, 246, 0.14);
-  --color-shadow: rgba(0, 8, 30, 0.55);
+  --color-focus-soft: rgb(var(--jelly-cream-rgb) / 0.14);
+  --color-shadow: rgb(var(--jelly-blue-1000-rgb) / 0.55);
   --color-on-strong: var(--jelly-cream);
-  --color-on-strong-muted: rgba(253, 251, 246, 0.78);
-  --color-on-strong-line: rgba(253, 251, 246, 0.36);
-  --color-on-strong-soft: rgba(253, 251, 246, 0.14);
+  --color-on-strong-muted: rgb(var(--jelly-cream-rgb) / 0.78);
+  --color-on-strong-line: rgb(var(--jelly-cream-rgb) / 0.36);
+  --color-on-strong-soft: rgb(var(--jelly-cream-rgb) / 0.14);
+
+  /* 玻璃组暗色取值（与读者站同值）。 */
+  --glass-thin-fill: rgb(22 22 23 / 0.72);
+  --glass-thick-fill: rgb(29 29 31 / 0.82);
+  --glass-rim: rgb(255 255 255 / 0.30);
+  --glass-rim-warm: rgb(255 253 246 / 0.22);
+  --glass-grain-opacity: 0.045;
 }
 
 /* ---- 「减少动态」的全局降级 ----

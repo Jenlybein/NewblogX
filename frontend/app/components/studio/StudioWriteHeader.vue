@@ -1,10 +1,20 @@
 <script setup lang="ts">
+import { computed } from "vue";
+
 import { NButton, NInput, NPopover, NTooltip } from "naive-ui";
 
 import { LEFT_TOOLS, getToolTooltip, type ToolItem } from "~/constants/studioToolbar";
-import { IconColumns1, IconColumns2, IconListDetails } from "@tabler/icons-vue";
+import {
+  IconColumns1,
+  IconColumns2,
+  IconListDetails,
+  IconMoonStars,
+  IconSunHigh,
+} from "@tabler/icons-vue";
 import AppAvatar from "~/components/common/AppAvatar.vue";
 import { usePointerSpecular } from "~/composables/usePointerSpecular";
+import { themeToggleLabel } from "~/utils/chrome";
+import { useUiStore } from "~/stores/ui";
 
 // 写作页顶部：标题输入 + 操作按钮 + 工具栏。
 //
@@ -19,6 +29,10 @@ const title = defineModel<string>("title", { required: true });
 
 // 写作页顶栏是导航层薄玻璃：指针镜面高光走统一 composable（移动端 / 减少动态关闭）。
 const { handlePointerMove } = usePointerSpecular();
+
+// 创作页不渲染站点页头，主题开关只能落在这里 —— 顶栏最右端（见模板末尾）。
+const uiStore = useUiStore();
+const themeLabel = computed(() => themeToggleLabel(uiStore.theme));
 
 const props = defineProps<{
   /** 草稿保存中。 */
@@ -94,6 +108,16 @@ class="write-avatar-link">
 :name="props.profileName"
 :fallback="props.profileInitial" />
 </NuxtLink>
+<!-- 创作页没有站点页头，亮暗切换是顶栏最右端的唯一开关（与页头同一份 store 与文案）。 -->
+<button
+type="button"
+class="write-theme-toggle"
+data-chrome="theme-toggle"
+:aria-label="themeLabel"
+:title="themeLabel"
+@click="uiStore.toggleTheme()">
+<component :is="uiStore.theme === 'dark' ? IconSunHigh : IconMoonStars" :size="18" />
+</button>
 </div>
 </div>
 
@@ -221,6 +245,35 @@ type="button" class="write-tool-button"
 
 .write-avatar-link {
   display: inline-flex;
+}
+
+/* 创作页不渲染站点页头，主题开关是这一页唯一的落点：放在顶栏最右端。
+   尺寸与工具栏按钮一致（34×34），配色全走语义 token。 */
+.write-theme-toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 34px;
+  min-height: 34px;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  padding: 6px 8px;
+  background: transparent;
+  color: var(--color-ink);
+  cursor: pointer;
+  transition:
+    background var(--motion-fast) var(--motion-ease),
+    border-color var(--motion-fast) var(--motion-ease);
+}
+
+.write-theme-toggle:hover {
+  background: var(--color-line-faint);
+  border-color: var(--color-line);
+}
+
+.write-theme-toggle:focus-visible {
+  outline: 2px solid var(--color-focus);
+  outline-offset: 2px;
 }
 
 .write-page__toolbar-group {

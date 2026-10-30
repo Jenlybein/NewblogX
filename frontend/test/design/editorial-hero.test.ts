@@ -1,7 +1,10 @@
-import { readFileSync, readdirSync, statSync } from "node:fs";
+import { readFileSync } from "node:fs";
 import { join, relative } from "node:path";
 
 import { describe, expect, it } from "vitest";
+
+// blockAfter / collectFiles / SOURCES 的遍历在多个 design 测试里重复，已收进 helpers。
+import { blockAfter, collectFiles, extensionFilter } from "../helpers/designFiles";
 
 /**
  * 首屏编辑部式封面（ADR-0013）的静态设计契约。
@@ -17,20 +20,7 @@ const projectDir = process.cwd();
 const appDir = join(projectDir, "app");
 const read = (path: string) => readFileSync(join(projectDir, path), "utf8");
 
-function walk(dir: string, files: string[] = []): string[] {
-  for (const name of readdirSync(dir)) {
-    const full = join(dir, name);
-    if (statSync(full).isDirectory()) {
-      if (["node_modules", ".nuxt", ".output", "coverage"].includes(name)) continue;
-      walk(full, files);
-      continue;
-    }
-    if (/\.(?:vue|ts|css)$/u.test(name)) files.push(full);
-  }
-  return files;
-}
-
-const SOURCES = walk(appDir).map((absolute) => ({
+const SOURCES = collectFiles(appDir, extensionFilter("vue", "ts", "css")).map((absolute) => ({
   file: relative(projectDir, absolute).replace(/\\/gu, "/"),
   text: readFileSync(absolute, "utf8"),
 }));
@@ -42,22 +32,6 @@ const footerVue = read("app/components/layout/AppFooter.vue");
 const layoutVue = read("app/layouts/default.vue");
 const brandTs = read("app/utils/brand.ts");
 const homeTs = read("app/utils/home.ts");
-
-/** 取出某个选择器之后的第一个 `{...}` 块内容（够用即可，不做完整 CSS 解析）。 */
-function blockAfter(source: string, marker: string, last = false): string {
-  const start = last ? source.lastIndexOf(marker) : source.indexOf(marker);
-  expect(start, `找不到 ${marker}`).toBeGreaterThan(-1);
-  const open = source.indexOf("{", start);
-  let depth = 0;
-  for (let index = open; index < source.length; index += 1) {
-    if (source[index] === "{") depth += 1;
-    if (source[index] === "}") {
-      depth -= 1;
-      if (depth === 0) return source.slice(open + 1, index);
-    }
-  }
-  throw new Error(`${marker} 的块没有闭合`);
-}
 
 /** 首屏 `<section class="home-cover">` 的模板片段（用来判断层级是否都在封面内）。 */
 function coverTemplate(source: string): string {

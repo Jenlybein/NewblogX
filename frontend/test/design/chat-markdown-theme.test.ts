@@ -3,6 +3,7 @@ import { join } from "node:path";
 
 import { describe, expect, it } from "vitest";
 
+import { stripComments } from "../helpers/designFiles";
 import { resolveMarkdownTheme } from "~/utils/markdownTheme";
 
 // vitest 以 project root（frontend/）为 cwd。
@@ -13,14 +14,6 @@ const chatSurfaces = ["app/components/inbox/InboxChatPanel.vue", "app/components
   file,
   text: readFileSync(join(projectDir, file), "utf8"),
 }));
-
-/** 断言只看真实代码：说明"不再引 github-markdown"的注释不该被当成引用。 */
-function stripComments(text: string): string {
-  return text
-    .replace(/<!--[\s\S]*?-->/gu, "")
-    .replace(/\/\*[\s\S]*?\*\//gu, "")
-    .replace(/^[ \t]*\/\/.*$/gmu, "");
-}
 
 describe("聊天面 markdown 主题收口（暗色下不许白块）", () => {
   it("自有主题在暗色下走中性暗面，而不是白色", () => {

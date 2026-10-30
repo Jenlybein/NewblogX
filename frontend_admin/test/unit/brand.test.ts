@@ -67,6 +67,18 @@ describe('admin brand：品牌单点定义', () => {
     expect(BRAND_ASSETS.apple).toBe('brand/apple-touch-icon.png')
   })
 
+  it('资产清单与读者站一致：不存在暗色专用的白色变体', () => {
+    expect(Object.keys(BRAND_ASSETS).sort()).toEqual([
+      'apple',
+      'faviconRoot',
+      'flat',
+      'logo',
+      'og',
+    ])
+    expect(BRAND_ASSETS).not.toHaveProperty('logoWhite')
+    expect(Object.values(BRAND_ASSETS)).not.toContain('brand/logo-512-white.png')
+  })
+
   it('绝对资产地址用于 OG / twitter（站点地址去尾部斜杠）', () => {
     expect(brandAbsoluteAssetUrl('https://blog.gentlybeing.cn/admin', 'og')).toBe(
       'https://blog.gentlybeing.cn/admin/brand/og-image.png',

@@ -1,6 +1,6 @@
 # ADR-0013：首屏编辑部式封面（满幅色带 + 超大字号，仅首屏例外）
 
-- 状态：已接受
+- 状态：已交付
 - 日期：2026-10-31
 - 来源：2026-10-31 的 grilling 会话（用户以瑞士/编辑部式版式参考图提出"首屏容器替换成类似风格"）；spec 为 [issue #17](https://github.com/Jenlybein/NewblogX/issues/17) 的一部分。上游决策为 [ADR-0012](./0012-neutral-glass-visual-system.md)，改造落点见 [中性玻璃改造方案](../notes/2026-10-31-neutral-glass-redesign-plan.md)
 

@@ -7,7 +7,7 @@ import { brandAssetUrl, brandFullName } from "~/utils/brand";
 const props = withDefaults(
   defineProps<{
     size?: number;
-    variant?: "render" | "flat";
+    variant?: "render" | "flat" | "white";
     decorative?: boolean;
   }>(),
   { size: 40, variant: "render", decorative: false },
@@ -16,7 +16,10 @@ const props = withDefaults(
 const config = useRuntimeConfig();
 const baseUrl = computed(() => String(config.app.baseURL || "/"));
 const dimension = computed(() => Math.max(8, Math.round(props.size)));
-const source = computed(() => brandAssetUrl(baseUrl.value, props.variant === "flat" ? "flat" : "logo"));
+const variantAsset = computed(() =>
+  props.variant === "flat" ? "flat" : props.variant === "white" ? "logoWhite" : "logo",
+);
+const source = computed(() => brandAssetUrl(baseUrl.value, variantAsset.value));
 const altText = computed(() => (props.decorative ? "" : `${brandFullName()} logo`));
 </script>
 

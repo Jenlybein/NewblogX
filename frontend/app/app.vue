@@ -14,7 +14,8 @@ import sora400Woff2 from "@fontsource/sora/files/sora-latin-400-normal.woff2";
 import sora600Woff2 from "@fontsource/sora/files/sora-latin-600-normal.woff2";
 import sora700Woff2 from "@fontsource/sora/files/sora-latin-700-normal.woff2";
 import tokensCss from "~/assets/css/tokens.css?raw";
-import { themeBodyClass, themeRootClass } from "~/utils/themeClass";
+import { themeBodyClass, themeHtmlClass, themeRootClass } from "~/utils/themeClass";
+import { buildThemeInitScript } from "~/utils/themePreference";
 import { buildReaderThemeOverrides, parseReaderThemePalette } from "~/utils/readerTheme";
 import {
   BRAND,
@@ -72,9 +73,18 @@ useHead(() => ({
       crossorigin: "anonymous",
     },
   ],
+  // html 与 body 同一组类：首屏脚本在水合前先钉一次，水合后这里跟着 store 更新，
+  // 保证用户切换后 html 上的旧类不会残留（否则 CSS 变量会一直停在暗/浅）。
+  htmlAttrs: {
+    class: themeHtmlClass(uiStore.theme),
+  },
   bodyAttrs: {
     class: themeBodyClass(uiStore.theme),
   },
+  // 首屏前置脚本：SSR 只认得 cookie、看不到系统偏好。没有 cookie 的新访客若系统是暗色，
+  // 服务端会先渲染浅色、水合后才变暗（闪白）。这段脚本在水合前把根类钉成最终值，
+  // 颜色由 CSS 变量瞬间生效，不改字号/间距。
+  script: [{ key: "jelly-theme-init", innerHTML: buildThemeInitScript() }],
   // 无 JS（或脚本被拦）时兜底：入场动画的 initial 会把元素内联成 opacity:0，
   // 这条 noscript 样式用 !important 盖过内联样式，保证内容仍然可读 ——
   // 博客内容不能因为动效在 JS 之前就凭空消失。

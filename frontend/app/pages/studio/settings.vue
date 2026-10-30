@@ -361,7 +361,7 @@ useSeoMeta({
             </label>
             <label class="space-y-2 md:col-span-2">
               <span class="text-sm font-medium">头像上传</span>
-              <div class="rounded-[18px] border px-4 py-4 bg-white/40">
+              <div class="rounded-[18px] border border-line bg-surface px-4 py-4">
                 <input
                   ref="avatarFileInputRef"
                   type="file"

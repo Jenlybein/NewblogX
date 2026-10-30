@@ -304,3 +304,49 @@ describe("例外边界：色带 / 刻度 / 记号类名只在首屏封面内", (
     expect(controls).toContain("var(--radius-pill)");
   });
 });
+
+describe("首屏版式复盘：窄高轮播面板 + 右栏线条场", () => {
+  it("删掉那句补充说明与两个入口按钮（顶栏已有入口）", () => {
+    expect(indexVue).not.toContain("搜索文章");
+    expect(indexVue).not.toContain("开始创作");
+    expect(indexVue).not.toContain("home-cover__lede");
+    expect(indexVue).not.toContain("home-cover__actions");
+  });
+
+  it("轮播被搬进左栏面板：BannerCarousel 在 .home-cover__panel 之内，面板自己有定位与高度", () => {
+    const panelIndex = indexVue.indexOf('class="home-cover__panel"');
+    const carouselIndex = indexVue.indexOf("<BannerCarousel");
+
+    expect(panelIndex).toBeGreaterThan(-1);
+    expect(carouselIndex).toBeGreaterThan(panelIndex);
+
+    const panel = blockAfter(indexVue, ".home-cover__panel {");
+    expect(panel).toContain("position: relative");
+    expect(panel).toContain("aspect-ratio");
+    expect(panel).toContain("min-height");
+    expect(panel).toContain("var(--radius-lg)");
+  });
+
+  it("线条场压过面板（z-index 高于面板、低于标题），且只在宽屏出现", () => {
+    const lines = blockAfter(indexVue, ".home-cover__lines {");
+    const panel = blockAfter(indexVue, ".home-cover__panel {");
+    const copy = blockAfter(indexVue, ".home-cover__copy {");
+    const zOf = (block: string) => Number(/z-index:\s*(\d+)/u.exec(block)?.[1] ?? "0");
+
+    expect(lines).toContain("position: absolute");
+    expect(lines).toContain("pointer-events: none");
+    expect(zOf(lines)).toBeGreaterThan(zOf(panel));
+    expect(zOf(copy)).toBeGreaterThan(zOf(lines));
+    expect(indexVue).toMatch(/@media \(max-width: 767px\)[\s\S]*\.home-cover__lines \{\s*display: none;/u);
+  });
+
+  it("线条只用四种调子（反白 / 功能蓝 / 珊瑚 / 高亮黄），且真的有条线压到面板上", () => {
+    const tones = [...indexVue.matchAll(/tone: "([a-z]+)"/gu)].map((match) => match[1]);
+
+    expect(tones.length).toBeGreaterThanOrEqual(10);
+    expect([...new Set(tones)].sort()).toEqual(["blue", "coral", "ink", "yellow"]);
+    // 面板占 44%，所以 left 小于 44% 的线条才是"盖在轮播上"的那几条。
+    expect(tones.length).toBeGreaterThan(0);
+    expect(indexVue).toMatch(/left: "(?:3[0-9]|4[0-3])%"/u);
+  });
+});

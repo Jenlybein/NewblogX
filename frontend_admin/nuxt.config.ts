@@ -3,6 +3,8 @@ import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { defineNuxtConfig } from "nuxt/config";
 
+import { BRAND, brandAbsoluteAssetUrl, brandAdminTitle, brandAssetUrl, brandFullName } from "./app/utils/brand";
+
 const appRoot = dirname(fileURLToPath(import.meta.url));
 const hydratedEnvKeys = new Set<string>();
 
@@ -130,6 +132,12 @@ const devProxy = apiBase.startsWith("/")
     }
   : {};
 
+const adminSiteUrl =
+  process.env.NUXT_PUBLIC_SITE_URL ||
+  process.env.BLOGX_ADMIN_SITE_URL ||
+  "http://localhost:3001/admin";
+const adminOgImage = brandAbsoluteAssetUrl(adminSiteUrl, "og");
+
 const naiveUiFoundationPackages = [
   "/node_modules/vueuc/",
   "/node_modules/seemly/",
@@ -144,8 +152,35 @@ export default defineNuxtConfig({
   compatibilityDate: "2025-07-15",
   telemetry: false,
   devtools: { enabled: true },
+  // 后台此前完全没有 app.head（标签页只有 URL、没有 title/lang/icon）。这里补齐：
+  // 标题 / 语言 / 描述 / 图标（含 /admin/ baseURL）；OG 绝对地址放在 app.vue 的
+  // useHead（需要运行时 siteUrl）。
   app: {
     baseURL: adminBaseURL,
+    head: {
+      htmlAttrs: { lang: "zh-CN" },
+      title: brandAdminTitle(),
+      meta: [
+        { name: "description", content: BRAND.description },
+        { property: "og:site_name", content: brandFullName() },
+        { property: "og:type", content: "website" },
+        { property: "og:title", content: brandFullName() },
+        { property: "og:description", content: BRAND.description },
+        { property: "og:image", content: adminOgImage },
+        { property: "og:image:width", content: "1200" },
+        { property: "og:image:height", content: "630" },
+        { property: "og:image:alt", content: brandFullName() },
+        { name: "twitter:card", content: "summary_large_image" },
+        { name: "twitter:title", content: brandFullName() },
+        { name: "twitter:description", content: BRAND.description },
+        { name: "twitter:image", content: adminOgImage },
+      ],
+      link: [
+        { rel: "icon", type: "image/svg+xml", href: brandAssetUrl(adminBaseURL, "flat") },
+        { rel: "alternate icon", type: "image/x-icon", href: brandAssetUrl(adminBaseURL, "faviconRoot") },
+        { rel: "apple-touch-icon", sizes: "180x180", href: brandAssetUrl(adminBaseURL, "apple") },
+      ],
+    },
   },
   modules: ["@pinia/nuxt", "@vueuse/nuxt", "@nuxtjs/tailwindcss", "@nuxt/eslint"],
   // 顺序有意义：tokens.css 定义全部颜色/排版 token，必须排在 admin.css 之前，
@@ -188,10 +223,7 @@ export default defineNuxtConfig({
     public: {
       envProfile,
       apiBase,
-      siteUrl:
-        process.env.NUXT_PUBLIC_SITE_URL ||
-        process.env.BLOGX_ADMIN_SITE_URL ||
-        "http://localhost:3001/admin",
+      siteUrl: adminSiteUrl,
       webSiteUrl:
         process.env.NUXT_PUBLIC_WEB_SITE_URL ||
         process.env.BLOGX_ADMIN_WEB_SITE_URL ||

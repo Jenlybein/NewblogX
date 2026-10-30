@@ -5,6 +5,7 @@ import { deleteAdminArticles, searchAdminArticles, setArticleAdminVisibility } f
 import type { SearchArticleItem } from '~/types/api'
 import { isAdminHidden, publishLabel, visibilityLabel } from '~/utils/articleLabels'
 import { formatDateTime } from '~/utils/format'
+import { BRAND } from '~/utils/brand'
 
 const message = useMessage()
 const dialog = useDialog()
@@ -20,7 +21,7 @@ function renderArticleCover(row: SearchArticleItem) {
     ? [h('img', { src: row.cover, alt: row.title })]
     : [
         h('div', { class: 'admin-article-cover__fallback', role: 'img', 'aria-label': `${row.title}暂无封面` }, [
-          h('span', { class: 'admin-article-cover__badge' }, 'BlogX'),
+          h('span', { class: 'admin-article-cover__badge' }, BRAND.name.en),
           h('strong', null, 'NO COVER'),
         ]),
       ])

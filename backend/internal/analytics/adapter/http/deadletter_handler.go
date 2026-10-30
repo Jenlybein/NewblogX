@@ -8,7 +8,7 @@ package http
 //	GET  /logs/dead-letter         列出待处理/已解决的死信
 //	POST /logs/dead-letter/replay  勾选若干条重投，逐条返回结果
 //
-// 重投的语义与支持范围见 docs/architecture/adr/ADR-008-死信重投闭环.md。
+// 重投的语义与支持范围见 docs/adr/0008-dead-letter-replay.md。
 
 import (
 	"fmt"

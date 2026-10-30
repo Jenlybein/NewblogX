@@ -2,7 +2,7 @@
 import type { ArticleHeadingAnchor } from "~/composables/useArticleMarkdown";
 import { computed, defineAsyncComponent, onMounted, onUnmounted, ref, shallowRef } from "vue";
 import { IconEye, IconHeart, IconMessageCircle2, IconShare2, IconThumbUp } from "@tabler/icons-vue";
-import { NButton, NTag, useMessage } from "naive-ui";
+import { useMessage } from "naive-ui";
 import ArticleScoreModal from "~/components/article/ArticleScoreModal.vue";
 import ArticleTocAnchor from "~/components/article/ArticleTocAnchor.vue";
 import AppAvatar from "~/components/common/AppAvatar.vue";
@@ -21,10 +21,8 @@ import type { CommentReplyItem } from "~/types/api";
 import { formatCount, formatDateTimeLabel } from "~/utils/format";
 import { getAuthorButtonLabel, isFollowing } from "~/utils/relation";
 import { resolveAvatarInitial } from "~/utils/avatar";
+import { brandDescription } from "~/utils/brand";
 import katexCssUrl from "katex/dist/katex.min.css?url";
-import highlightCssUrl from "highlight.js/styles/github.min.css?url";
-import githubMarkdownCssUrl from "github-markdown-css/github-markdown-light.css?url";
-import githubMarkdownDarkCssUrl from "github-markdown-css/github-markdown-dark.css?url";
 
 const route = useRoute();
 const router = useRouter();
@@ -165,8 +163,9 @@ function resetReplyState(rootId: string) {
   };
 }
 
-const articleThemeHref = computed(() => (uiStore.theme === "dark" ? githubMarkdownDarkCssUrl : githubMarkdownCssUrl));
-const markdownSupportStyleHrefs = [katexCssUrl, highlightCssUrl];
+// 正文主题由 MarkdownShadowPreview 内置（token 驱动，明暗自动跟随站点根类）；
+// katex 只保留基线布局样式（分数/根号/字体），配色由自有主题覆盖。
+const articleSupportStyleHrefs = [katexCssUrl];
 const { activeHeadingId, progressPercent } = useReadingProgress(
   computed(() => articleHeadings.value.map((heading) => heading.id)),
   (id) => shadowPreviewRef.value?.getHeadingElement(id) ?? null,
@@ -488,201 +487,217 @@ onUnmounted(() => {
 
 useSeoMeta({
   title: computed(() => article.value?.title || "文章详情"),
-  description: computed(() => article.value?.abstract || "BlogX 文章详情页"),
+  description: computed(() => brandDescription(article.value?.abstract)),
   ogTitle: computed(() => article.value?.title || "文章详情"),
-  ogDescription: computed(() => article.value?.abstract || "BlogX 文章详情页"),
+  ogDescription: computed(() => brandDescription(article.value?.abstract)),
   ogImage: computed(() => article.value?.cover || ""),
 });
 </script>
 
 <template>
-  <div class="page-stack">
-    <section v-if="articleLoadError" class="surface-card p-6 md:p-8">
-      <div class="eyebrow">Article</div>
-      <h1 class="section-title mt-2">文章详情暂不可用</h1>
-      <p class="mt-4 text-sm leading-7 muted">
+  <div class="article-page">
+    <section v-if="articleLoadError" class="article-paper article-paper--state">
+      <p class="article-eyebrow">Article</p>
+      <h1 class="article-state__title">文章详情暂不可用</h1>
+      <p class="article-state__copy">
         {{ articleLoadError === "文章不存在" ? "当前文章详情暂不可用，请稍后重试或返回列表选择其他文章。" : articleLoadError }}
       </p>
-      <div class="mt-5 flex flex-wrap gap-3">
-        <NButton secondary round @click="router.back()">返回上一页</NButton>
-        <NuxtLink to="/search" class="glass-badge">返回搜索页</NuxtLink>
+      <div class="article-state__actions">
+        <button type="button" class="article-action" @click="router.back()">返回上一页</button>
+        <NuxtLink to="/search" class="article-action">返回搜索页</NuxtLink>
       </div>
     </section>
 
     <template v-else>
-    <section class="surface-card p-6 md:p-8">
-      <div class="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
-        <div class="max-w-3xl flex-1">
-          <h1 class="page-title">{{ article?.title }}</h1>
-          <p class="mt-4 text-base leading-8 muted">{{ article?.abstract }}</p>
-          <div class="mt-5 flex flex-col gap-4">
-            <div class="flex flex-wrap items-center gap-2.5 text-sm muted">
-              <span
-                v-if="article?.category_name"
-                class="inline-flex items-center rounded-full bg-teal-50 px-3 py-1 text-sm font-medium text-teal-700 dark:bg-teal-500/10 dark:text-teal-200"
-              >
-                文章分类：{{ article.category_name }}
-              </span>
-              <NTag v-for="tag in article?.tags || []" :key="tag" round size="small" :bordered="false">{{ tag }}</NTag>
-            </div>
-            <div class="flex flex-wrap items-center gap-5 text-sm muted">
-              <span>{{ formatDateTimeLabel(article?.created_at) }}</span>
-              <span class="inline-flex items-center gap-1.5"><IconEye :size="16" /> {{ formatCount(article?.view_count || 0) }}</span>
-              <span class="inline-flex items-center gap-1.5"><IconThumbUp :size="16" /> {{ formatCount(articleDiggCount) }}</span>
-              <span class="inline-flex items-center gap-1.5"><IconHeart :size="16" /> {{ formatCount(article?.favor_count || 0) }}</span>
-              <span class="inline-flex items-center gap-1.5"><IconMessageCircle2 :size="16" /> {{ formatCount(article?.comment_count || 0) }}</span>
-            </div>
+      <header class="article-hero">
+        <div class="article-hero__main">
+          <p class="article-eyebrow">
+            <span class="article-eyebrow__mark" aria-hidden="true" />
+            Article / 阅读
+          </p>
+          <h1 class="article-hero__title">{{ article?.title }}</h1>
+          <p class="article-hero__abstract">{{ article?.abstract }}</p>
+
+          <div class="article-hero__taxonomy">
+            <span v-if="article?.category_name" class="article-chip article-chip--mark">
+              文章分类：{{ article.category_name }}
+            </span>
+            <span v-for="tag in article?.tags || []" :key="tag" class="article-chip">#{{ tag }}</span>
           </div>
+
+          <dl class="article-meta">
+            <div class="article-meta__item">
+              <dt>发布</dt>
+              <dd>{{ formatDateTimeLabel(article?.created_at) }}</dd>
+            </div>
+            <div class="article-meta__item">
+              <dt><IconEye :size="16" /><span class="sr-only">阅读数</span></dt>
+              <dd>{{ formatCount(article?.view_count || 0) }}</dd>
+            </div>
+            <div class="article-meta__item">
+              <dt><IconThumbUp :size="16" /><span class="sr-only">点赞数</span></dt>
+              <dd>{{ formatCount(articleDiggCount) }}</dd>
+            </div>
+            <div class="article-meta__item">
+              <dt><IconHeart :size="16" /><span class="sr-only">收藏数</span></dt>
+              <dd>{{ formatCount(article?.favor_count || 0) }}</dd>
+            </div>
+            <div class="article-meta__item">
+              <dt><IconMessageCircle2 :size="16" /><span class="sr-only">评论数</span></dt>
+              <dd>{{ formatCount(article?.comment_count || 0) }}</dd>
+            </div>
+          </dl>
         </div>
 
-        <div class="flex shrink-0 flex-wrap items-center gap-3 lg:justify-end">
-          <NButton round size="large" color="#0f172a" secondary @click="handleArticleScoreOpen">
+        <div class="article-actions">
+          <button type="button" class="article-action" @click="handleArticleScoreOpen">
             {{ articleScoreButtonLabel }}
-          </NButton>
-          <NButton
-            round
-            size="large"
-            color="#0f766e"
-            :loading="articleLikePending"
-            :disabled="articleLikeDebouncing"
+          </button>
+          <button
+            type="button"
+            class="article-action article-action--primary"
+            :disabled="articleLikePending || articleLikeDebouncing"
+            :aria-busy="articleLikePending"
             @click="handleLike"
           >
-            <template #icon>
-              <IconThumbUp :size="18" />
-            </template>
-            {{ articleIsDigged ? "已点赞" : "点赞" }}
-          </NButton>
-          <NButton round size="large" color="#b45309" @click="handleFavorite">
-            <template #icon>
-              <IconHeart :size="18" />
-            </template>
+            <IconThumbUp :size="18" />
+            {{ articleLikePending ? "点赞中…" : articleIsDigged ? "已点赞" : "点赞" }}
+          </button>
+          <button type="button" class="article-action article-action--danger" @click="handleFavorite">
+            <IconHeart :size="18" />
             收藏 {{ formatCount(article?.favor_count || 0) }}
-          </NButton>
-          <NButton round size="large" color="#475569" @click="handleShare">
-            <template #icon>
-              <IconShare2 :size="18" />
-            </template>
+          </button>
+          <button type="button" class="article-action" @click="handleShare">
+            <IconShare2 :size="18" />
             分享
-          </NButton>
+          </button>
         </div>
-      </div>
-    </section>
+      </header>
 
-    <div class="content-grid">
-      <div class="page-stack">
-        <section class="surface-card overflow-hidden">
-          <img v-if="article?.cover" :src="article.cover" :alt="article.title" class="h-[320px] w-full object-cover md:h-[420px]" />
-          <div class="p-6 md:p-8">
-            <ArticleMarkdownRenderer
-              ref="shadowPreviewRef"
-              :source="article?.content || ''"
-              :theme-href="articleThemeHref"
-              :extra-style-hrefs="markdownSupportStyleHrefs"
-              article-class="markdown-body"
-              @headings-change="handleArticleHeadingsChange"
-            />
-          </div>
-        </section>
+      <div class="article-layout">
+        <div class="article-main">
+          <section v-if="article?.cover" class="article-paper article-paper--cover">
+            <img :src="article.cover" :alt="article.title" class="article-cover" />
+          </section>
 
-        <section class="surface-card p-5 md:p-6">
-          <div class="mb-5 flex items-center justify-between">
-            <div class="section-title">评论区</div>
-            <div class="glass-badge">{{ formatCount(article?.comment_count || 0) }} 条评论</div>
-          </div>
-
-          <CommentComposer
-            :loading="commentsPending"
-            :title="replyTarget ? `回复 ${replyTarget.nickname}` : '发表评论'"
-            :placeholder="replyTarget ? '补充你的回复内容…' : '写下你的看法，帮助更多读者补齐思路。'"
-            :submit-label="replyTarget ? '发送回复' : '发表评论'"
-            :can-cancel="Boolean(replyTarget)"
-            @submit="handleCreateComment"
-            @cancel="replyTarget = null"
-          />
-
-          <div class="mt-6">
-            <CommentThread
-              :comments="comments"
-              :loading-replies="replyLoading"
-              :reply-pages="replyPages"
-              :reply-has-previous="replyHasPrevious"
-              :reply-has-next="replyHasNext"
-              :reply-loaded-pages="replyLoadedPages"
-              @reply="handleReply"
-              @digg="handleCommentDigg"
-              @load-replies="handleLoadReplies"
-              @next-replies="handleNextReplies"
-              @previous-replies="handlePreviousReplies"
-            />
-          </div>
-
-          <div
-            v-if="comments.length"
-            class="mt-6 flex flex-wrap items-center justify-between gap-3 border-t border-white/60 pt-5 text-sm muted"
-          >
-            <span>评论第 {{ commentPage }} 页，每页 7 条，已加载 {{ commentPagesLoaded }} 页。</span>
-            <div class="flex items-center gap-3">
-              <NButton quaternary :disabled="!hasPreviousCommentPage" @click="handlePreviousCommentPage">
-                上一页
-              </NButton>
-              <NButton
-                type="primary"
-                ghost
-                :disabled="!hasNextCommentPage"
-                :loading="commentsPending"
-                @click="handleNextCommentPage"
-              >
-                下一页
-              </NButton>
+          <section class="article-paper article-paper--body">
+            <div class="article-body">
+              <ArticleMarkdownRenderer
+                ref="shadowPreviewRef"
+                :source="article?.content || ''"
+                :extra-style-hrefs="articleSupportStyleHrefs"
+                article-class="markdown-body"
+                @headings-change="handleArticleHeadingsChange"
+              />
             </div>
-          </div>
-        </section>
-      </div>
+          </section>
 
-      <aside class="profile-sidebar home-sidebar page-sidebar--sticky" style="--page-sidebar-sticky-top: 88px;">
-        <div class="article-sidebar-stack">
-          <section class="surface-card p-5 md:p-6">
-            <div class="eyebrow">Author</div>
-            <div class="mt-3 flex items-start gap-4">
-              <AppAvatar :size="72" :src="article?.author_avatar" :name="article?.author_name" :fallback="authorInitial" />
-              <div class="min-w-0">
-                <div class="flex flex-wrap items-center gap-2">
-                  <div class="truncate text-[22px] font-semibold tracking-[-0.02em]">{{ article?.author_name }}</div>
-                  <span class="glass-badge">文章作者</span>
+          <section id="comments" class="article-paper comment-panel">
+            <div class="comment-panel__head">
+              <h2 class="comment-panel__title">评论区</h2>
+              <span class="comment-panel__count">{{ formatCount(article?.comment_count || 0) }} 条评论</span>
+            </div>
+
+            <CommentComposer
+              :loading="commentsPending"
+              :title="replyTarget ? `回复 ${replyTarget.nickname}` : '发表评论'"
+              :placeholder="replyTarget ? '补充你的回复内容…' : '写下你的看法，帮助更多读者补齐思路。'"
+              :submit-label="replyTarget ? '发送回复' : '发表评论'"
+              :can-cancel="Boolean(replyTarget)"
+              @submit="handleCreateComment"
+              @cancel="replyTarget = null"
+            />
+
+            <div class="comment-panel__thread">
+              <CommentThread
+                :comments="comments"
+                :loading-replies="replyLoading"
+                :reply-pages="replyPages"
+                :reply-has-previous="replyHasPrevious"
+                :reply-has-next="replyHasNext"
+                :reply-loaded-pages="replyLoadedPages"
+                @reply="handleReply"
+                @digg="handleCommentDigg"
+                @load-replies="handleLoadReplies"
+                @next-replies="handleNextReplies"
+                @previous-replies="handlePreviousReplies"
+              />
+            </div>
+
+            <div v-if="comments.length" class="comment-panel__pagination">
+              <span>评论第 {{ commentPage }} 页，每页 7 条，已加载 {{ commentPagesLoaded }} 页。</span>
+              <div class="comment-panel__pagination-actions">
+                <button
+                  type="button"
+                  class="article-action article-action--compact"
+                  :disabled="!hasPreviousCommentPage"
+                  @click="handlePreviousCommentPage"
+                >
+                  上一页
+                </button>
+                <button
+                  type="button"
+                  class="article-action article-action--compact"
+                  :disabled="!hasNextCommentPage || commentsPending"
+                  @click="handleNextCommentPage"
+                >
+                  下一页
+                </button>
+              </div>
+            </div>
+          </section>
+        </div>
+
+        <aside class="article-aside">
+          <section class="article-paper article-author">
+            <p class="article-eyebrow">
+              <span class="article-eyebrow__mark" aria-hidden="true" />
+              Author
+            </p>
+
+            <div class="article-author__head">
+              <AppAvatar
+                :size="64"
+                :src="article?.author_avatar"
+                :name="article?.author_name"
+                :fallback="authorInitial"
+              />
+              <div class="article-author__identity">
+                <div class="article-author__name-row">
+                  <span class="article-author__name">{{ article?.author_name }}</span>
+                  <span class="article-chip">文章作者</span>
                 </div>
-                <p class="mt-1 truncate text-sm muted">@{{ article?.author_username }}</p>
-                <p class="mt-1 text-xs muted">
+                <p class="article-author__handle">@{{ article?.author_username }}</p>
+                <p class="article-author__joined">
                   加入于 {{ formatDateTimeLabel(article?.author_created_time) || "暂未公开" }}
                 </p>
               </div>
             </div>
 
-            <p class="mt-4 text-sm leading-7 muted">
+            <p class="article-author__abstract">
               {{ article?.author_abstract || authorProfile?.abstract || `${article?.author_name} 持续分享前端工程化、接口设计与页面组织相关内容。` }}
             </p>
 
-            <div class="mt-5 grid grid-cols-3 gap-3 rounded-[24px] border border-white/60 bg-white/50 px-4 py-4 text-center dark:border-slate-700/70 dark:bg-slate-900/40">
-              <div>
-                <div class="text-[24px] font-semibold tracking-[-0.03em]">{{ formatCount(authorInfo?.article_count || 0) }}</div>
-                <div class="mt-1 text-xs muted">文章</div>
+            <dl class="article-author__stats">
+              <div class="article-author__stat">
+                <dt>文章</dt>
+                <dd>{{ formatCount(authorInfo?.article_count || 0) }}</dd>
               </div>
-              <div>
-                <div class="text-[24px] font-semibold tracking-[-0.03em]">{{ formatCount(authorInfo?.article_visited_count || 0) }}</div>
-                <div class="mt-1 text-xs muted">阅读</div>
+              <div class="article-author__stat">
+                <dt>阅读</dt>
+                <dd>{{ formatCount(authorInfo?.article_visited_count || 0) }}</dd>
               </div>
-              <div>
-                <div class="text-[24px] font-semibold tracking-[-0.03em]">{{ formatCount(authorInfo?.fans_count || 0) }}</div>
-                <div class="mt-1 text-xs muted">粉丝</div>
+              <div class="article-author__stat">
+                <dt>粉丝</dt>
+                <dd>{{ formatCount(authorInfo?.fans_count || 0) }}</dd>
               </div>
-            </div>
+            </dl>
 
-            <div class="mt-5 grid grid-cols-2 gap-3">
-              <NButton :type="isFollowing(authorProfile?.relation) ? 'default' : 'primary'" :secondary="isFollowing(authorProfile?.relation)" round block @click="handleAuthorFollow">
+            <div class="article-author__actions">
+              <button type="button" class="article-action" @click="handleAuthorFollow">
                 {{ isSelfAuthor ? "这是你" : authorRelationText }}
-              </NButton>
-              <NButton secondary round block @click="handlePrivateMessage">
-                私信
-              </NButton>
+              </button>
+              <button type="button" class="article-action" @click="handlePrivateMessage">私信</button>
             </div>
           </section>
 
@@ -692,9 +707,8 @@ useSeoMeta({
             :progress-percent="progressPercent"
             @jump="handleTocJump"
           />
-        </div>
-      </aside>
-    </div>
+        </aside>
+      </div>
     </template>
 
     <ArticleScoreModal

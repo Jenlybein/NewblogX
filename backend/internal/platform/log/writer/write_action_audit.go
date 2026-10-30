@@ -20,7 +20,7 @@ type ActionAuditEvent struct {
 	TargetID   string `json:"target_id,omitempty"`   // 操作目标ID
 	Success    uint8  `json:"success"`               // 操作是否成功
 	// 仅失败请求时填充（success=0）；内容来自边界采集的「已脱敏 + ≤16KB」串。
-	// 全量原始报文不再入库，见 docs/architecture/07 §0（L.10）。
+	// 全量原始报文不再入库，见 docs/architecture/governance.md §4.2（L.10）。
 	RequestBody  string `json:"request_body,omitempty"`
 	ResponseBody string `json:"response_body,omitempty"`
 }

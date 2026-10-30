@@ -30,3 +30,40 @@
   line-gap-override: 0%;
   size-adjust: 96%;
 }
+
+/* ---- 中文：Noto Sans SC（依赖 @fontsource/noto-sans-sc 早就在，但以前从未被
+ * @font-face 加载 —— 后台中文一直掉到系统字体上。补 400 / 700 两档，font-display: swap
+ * 先出字后换字，避免首屏白屏。---- */
+@font-face {
+  font-family: "Noto Sans SC";
+  font-style: normal;
+  font-display: swap;
+  font-weight: 400;
+  src: url("@fontsource/noto-sans-sc/files/noto-sans-sc-chinese-simplified-400-normal.woff2")
+    format("woff2");
+}
+
+@font-face {
+  font-family: "Noto Sans SC";
+  font-style: normal;
+  font-display: swap;
+  font-weight: 700;
+  src: url("@fontsource/noto-sans-sc/files/noto-sans-sc-chinese-simplified-700-normal.woff2")
+    format("woff2");
+}
+
+/* 中文的度量匹配 fallback：拿系统真实中文字族做替身，用 ascent/descent/size-adjust
+ * 覆盖成 Noto Sans SC 的度量（hhea 1160 / 320 / upem 1000，CJK 全角 1em，所以
+ * size-adjust 100%），换字时行盒高度不变。 */
+@font-face {
+  font-family: "Noto Sans SC Fallback";
+  src:
+    local("PingFang SC"),
+    local("Microsoft YaHei"),
+    local("Noto Sans SC"),
+    local("Source Han Sans SC");
+  ascent-override: 116%;
+  descent-override: 32%;
+  line-gap-override: 0%;
+  size-adjust: 100%;
+}

@@ -1,0 +1,248 @@
+# AI 接入与模型配置（2026-10-29 定稿）
+
+> **这份文档是什么**：模型调用从自研 HTTP 客户端换成 CloudWeGo eino 的经过，以及
+> "模型配置列表"这套设计的取舍——为什么存成表、为什么供应商元数据在后端、
+> 为什么有的供应商不能用自己的 SDK。
+>
+> **什么时候翻它**：
+> - 要加一个新供应商 → §四 的映射表 + §三 的元数据
+> - 调用报"还没有启用的模型配置" → §五 两层开关
+> - 想给 AI 加工具调用 / 多步编排 → §七 说明现在的边界
+> - 部署后 AI 不可用 → §八 第 2 步（新表不会被自动创建）
+
+---
+
+## 一、为什么换 eino
+
+改造前 `internal/platform/llm` 是 332 行手写实现：自己拼 `Authorization: Bearer`、
+自己 `bufio.Scanner` 扫 `data:` 行、自己算退避重试。能跑，但每加一家供应商就要
+在新协议上再写一遍这些。
+
+换成 eino 之后：
+
+| 关注点 | 改造前 | 改造后 |
+| --- | --- | --- |
+| 各家协议差异 | 每家的报文/鉴权/字段名都要手写 | eino-ext 的组件各自适配，本包只做配置映射 |
+| 报文解析 | 手写 SSE 扫描 + `[DONE]` 处理 | 组件内部消化，对外是 `StreamReader.Recv()` |
+| 新增供应商 | 复制一份 HTTP + 解析代码 | 在 `factory.go` 加一个 `case` |
+| 工具调用 / 编排 | 没有 | eino 有现成的 `ToolCallingChatModel`，暂未使用 |
+
+**没有改动的地方**（这也是能一次改完的原因）：全仓只有 `platform/llm` 真正发 HTTP，
+业务 6 个子包与 HTTP 层都经由 `internal/ai/llm.go` 的 `Chat` / `ChatStream` 两个函数。
+只要这两个签名不变，SSE 帧格式和前端一行都不用动。
+
+---
+
+## 二、调用链
+
+```
+业务子包（metainfo / diagnose / overwrite / scoring / search）
+    │  ai.Chat(ctx, conf.AI, msgs)
+    ▼
+internal/ai/llm.go          取 conf.AI.Active → 映射成 llm.ProviderSpec
+    ▼
+platform/llm/chat.go        Generate / Stream + 重试 + 错误码 + channel 契约
+    ▼
+platform/llm/factory.go     按 vendor 分发到 eino 组件，按配置指纹缓存
+    ▼
+eino-ext 组件               openai / claude / gemini / ark / deepseek / qwen
+```
+
+`Factory` 缓存的意义不只是省一次构造：eino 的组件各自持有 `http.Client`，
+每次重建等于连接池失效——**改造前就是这样**，每次 `newClient` 都新建 Transport，
+`MaxIdleConnsPerHost` 从来没生效过。现在连接池按超时值共享一份。
+
+顺带修掉一个更难察觉的问题：原来所有调用都用 `context.Background()`，客户端
+断开后上游请求仍会跑满 60 秒超时。现在 ctx 从 handler 一路传到 `Generate`。
+
+---
+
+## 三、模型配置存哪
+
+新建表 `ai_provider_models`：
+
+```sql
+`name` varchar(64)     -- 管理员起的备注名
+`vendor` varchar(32)    -- openai / claude / gemini / ark / deepseek / qwen / qianfan / openrouter
+`model` varchar(128)    -- 冗余一份，便于列表展示与排查
+`enabled` tinyint(1)    -- 全局只有一条为 1
+`config` longtext       -- JSON：该供应商的全部字段（api_key / base_url / region / access_key …）
+```
+
+**为什么字段进 JSON 而不是列化**：各家需要的字段不同——ark 要 region、还可用 AK/SK，
+gemini 要 project、qianfan 有自己的网关。而项目的 `-db` 只执行
+`CREATE TABLE IF NOT EXISTS`、没有 ALTER 通道，列化等于每加一个供应商就改一次表。
+
+**为什么 `name/vendor/model/enabled` 又列化了**：这四列是列表页要展示、且
+`WHERE enabled = 1` 要查的东西。把常用字段放进列，能让"这是哪家的哪个模型"
+直接用 SQL 看到，不必解 JSON。
+
+**启用唯一性靠服务层事务**：`SetEnabled` 在同一个事务里"先把所有行置 0、再把目标置 1"。
+不是数据库约束——并发两条同时启用理论上可能都成功，概率极低；要做强约束得加
+生成列 + UNIQUE，与零 DDL 冲突，暂不做。
+
+---
+
+## 四、八个供应商的映射与取舍
+
+| vendor | 用的组件 | 凭据 | 其它 | 备注 |
+| --- | --- | --- | --- | --- |
+| `openai` | `model/openai` | api_key | base_url / model / max_tokens | 兼作任何 OpenAI 兼容网关 |
+| `claude` | `model/claude` | api_key | model / **max_tokens（必填）** | 走 Anthropic Messages API，留空按 4096 |
+| `gemini` | `model/gemini` | api_key | model / base_url 可选 | **唯一要两步构造**：先 `genai.NewClient` 再 `gemini.NewChatModel` |
+| `ark` | `model/ark` | api_key 或 AK/SK | model（**推理接入点 ID**）/ region | 方舟的 model 填 `ep-xxx`，不是模型名 |
+| `deepseek` | `model/deepseek` | api_key | base_url / model | 专用组件能映射 reasoning_tokens |
+| `qwen` | `model/qwen` | api_key | base_url **必填** / model | DashScope 兼容模式 |
+| `qianfan` | **`model/openai`** | api_key | base_url 默认千帆 v2 | **不用千帆专用组件**（见下） |
+| `openrouter` | `model/openai` | api_key | base_url 默认 openrouter | 协议就是 OpenAI 兼容 |
+
+**千帆为什么不用自己的 SDK**：`qianfan.GetQianfanSingletonConfig()` 是**进程级单例**，
+AK/SK 写进去之后所有 `NewChatModel` 共用——在这套"多条配置并存"的设计里，
+第二条千帆配置会污染第一条。改用千帆 v2 的 OpenAI 兼容接口 + API Key 就没这个问题。
+代价是用不到 v1 的 AK/SK 认证；真需要时得加"只允许一条千帆配置"的额外约束。
+
+**BaseURL 语义**：历史配置填的是完整 endpoint（`.../v1/chat/completions`），
+而 eino 组件把它当 base、自己拼 `/chat/completions`。`spec.go` 的
+`NormalizeBaseURL` 会把尾巴去掉——不处理的话会拼成
+`.../chat/completions/chat/completions`，表现是 404，错误信息里看不出原因。
+
+---
+
+## 五、两层开关
+
+| 层 | 在哪 | 关掉之后 |
+| --- | --- | --- |
+| 站点总闸 `ai.enable` | runtime_config 的 `ai` 段 | 整站 AI 不可用，即使有启用的模型配置 |
+| 条目 `enabled` | `ai_provider_models` 表 | 站内 AI 报「还没有启用的模型配置」 |
+
+分开是有意的：想临时关掉 AI（比如费用失控）不该丢掉已配好的密钥与模型。
+后台把两者的区别写在提示里，否则用户会以为是同一个开关。
+
+---
+
+## 六、密钥的遮蔽与回滚
+
+配置列表里每条都有自己的密钥，所以不能像以前那样只处理一个 `secret` 字段：
+
+- 出边界时按**供应商元数据**把 `secret: true` 的字段统一替换成 `******`
+  （所以加一个供应商只要在元数据里标好哪些字段是敏感的，遮蔽自动生效）
+- 写回时若字段值等于占位符，按 provider id 找到旧值沿用
+
+漏掉回滚的后果很直接：管理员改一下备注名、顺手把密钥字段原样提交，
+密钥就被写成 `******`，下一次调用全部 401。
+
+---
+
+## 七、现在的边界（没做的部分）
+
+- **只有"一问一答"**：`Generate` / `Stream`，没有工具调用、没有多步编排、
+  没有多模型路由与降级。eino 的 `ToolCallingChatModel` 与 graph 编排都还没用上，
+  要做"AI 能查文章、能写草稿"那类功能时才是引入它们的时候。
+- **重试是自己写的**：eino 本身不做指数退避，`openai` 组件也没有 `RetryTimes`
+  （`ark` / `qianfan` 有）。所以退避统一放在 `chat.go`，判据是"网络错误或 429/5xx"，
+  4xx 一律不重试——把 401 重试三遍只会让用户多等两轮。
+- **`temperature` / `max_tokens` 是站点级 + 条目级的混合**：温度取站点级
+  （所有场景一致），`max_tokens` 取条目级（同一家不同模型上限不同）。
+
+---
+
+## 八、部署要点
+
+1. 常规：`git pull` → `build blogx_server` → `build blogx_admin`
+2. **手动建表**（这一步漏了 AI 就不可用，而且只会在日志里留一行 warning）：
+   ```bash
+   docker exec blogx-server /app/server -f /app/config/settings.yaml -db
+   ```
+   为什么不能靠自动：`entrypoint.sh` 只在 `runtime_config_models` 缺失时才跑 `-db`，
+   而这张表早就在了，所以新表不会被创建。
+3. `up -d blogx_server blogx_admin` → `scripts/verify-deploy.sh`
+4. 后台「AI 助手」页：添加一条配置 → 点「启用」→ 打开「启用 AI 助手」总闸 →
+   用写作页的 AI 改写做一次真实调用
+
+---
+
+## 九、这一轮的改动量
+
+| 项 | 数量 |
+| --- | --- |
+| 删掉的自研实现 | `platform/llm/llm.go` 332 行（HTTP + SSE + 退避） |
+| 新增后端文件 | spec / factory / chat / doc、domain/provider、adapter/mysql/provider、app/provider、app/vendors、adapter/http/provider（共 9 个） |
+| 新增接口 | 6 个（vendors / list / create / update / enable / delete） |
+| 新表 | 1 张（`ai_provider_models`） |
+| 供应商 | 8 家 |
+| 后台组件 | 3 个（容器 + 列表 + 动态表单）+ 1 个 utils |
+| 测试 | `platform/llm` 11 个用例（伪模型）、provider service 9 个、repo 4 个、前端 utils 4 个 |
+
+---
+
+## 十、token 用量日志（2026-10-29 晚补）
+
+### 数据从哪来
+
+eino 的用量挂在 `schema.Message.ResponseMeta.Usage`（`PromptTokens / CompletionTokens /
+TotalTokens / PromptTokenDetails.CachedTokens / CompletionTokensDetails.ReasoningTokens`）。
+改造前这两个位置都把用量丢了：非流式拿到 `reply` 只取 `Content`；流式那句
+`chunk.Content == "" { continue }` 正好跳过 OpenAI 系在流结束时补发的**空正文 + 只挂 usage**
+的收尾帧。
+
+`platform/llm` 现在有 `ChatDetailed` 与 `ChatStreamDetailed(..., onDone)`，原来的
+`Chat`/`ChatStream` 退化成薄包装（上层与 11 个单测零改动）。流式用回调而不是多开一条
+channel：多一条 channel 就多一条"必须有人读"的契约，没人读要么阻塞泄漏、要么丢数据。
+
+`merge` 用**非零字段覆盖**而不是整体覆盖：gemini 每个 chunk 都塞累计值、claude 只在
+`MessageDeltaEvent` 给累计值、openai 系在 EOF 补发一条 —— 取并集才兼容。
+
+### 谁在调、什么场景
+
+`ai.CallMeta` 走 ctx（`WithCallMeta`）：scene 在 `app/service.go` 的各用例入口打，
+user_id / request_id / trace_id 在 `adapter/http/handler.go` 的 `callCtx(c)` 打。
+不改 10 个调用点签名，是因为这些信息对业务毫无用途，纯粹给日志看。
+
+6 个场景：`scoring / metainfo / overwrite / diagnose / search_rewrite / search_answer`。
+`EnsureScoreIfMissing` 的 ctx 来自 outbox 中继，所以日志里 `scene=scoring, user_id=0`
+就是"异步补评分"。
+
+### 落到哪
+
+新增第 6 类平台日志 `KindAICall`：CH 表 `ai_call_logs` + 每日文件
+`logs/ai_call_logs/<日期>/<app>.log`。**不记 prompt 与回复正文** —— 管道有 32KB 单条上限
+（超限是整条丢弃），且正文属于用户内容。
+
+与其它 5 张 CH 表的两处刻意不同：
+
+- **TTL 400 天**（别人 120 天）：首页要出「本年」聚合，120 天会把前 8 个月抹平。
+- **ORDER BY 以 ts 打头**：这张表的查询全部带时间窗，没有"按维度前缀裁剪"的场景。
+
+新增一类日志要同步 5 处开关（漏 `kindCount` 会被静默丢弃，漏 `logSubDirs` 会永不清理）：
+`event.go` 的 Kind / `log_base.go` 的目录表名常量 / `pipeline.go` 的 kindCount 与 routes /
+`cleanup.go` 的 logSubDirs / `write_sink.go` 的预热目录。
+
+### 后台怎么看
+
+- 日志中心第 6 个 Tab「AI 调用」：`GET /logs/ai`（场景/模型/token/耗时/失败原因）。
+- 首页「AI token 消耗」：`GET /data/ai-usage?range=today|week|month|year`。
+  桶在 Go 里生成（`ai_usage_buckets.go`），CH 只返回有数据的桶，缺的补 0。
+  **图表形态随点数变**：≤20 点柱状、>20 点折线（`utils/aiTokens.ts` 的 `pickChartType`）。
+- 聚合查询带 `FINAL`：ReplacingMergeTree 是至少一次投递，WAL 重放会重复投递，
+  列表容忍重复、加总不行。
+
+### 部署多一步：CH 建表
+
+`docker-entrypoint-initdb.d` **只在数据目录为空时执行**，存量部署不会自动建新表：
+
+```bash
+docker exec clickhouse clickhouse-client --multiquery < deploy/docker/clickhouse/init/01-logs.sql
+docker exec clickhouse clickhouse-client -q "DESCRIBE TABLE blogx_logs.ai_call_logs" | wc -l  # 期望 31
+```
+
+漏了这步的表现：INSERT 全失败 → 全部进 WAL，`WALPending()` 持续上涨且没有告警。
+
+### 已知口径
+
+1. **上游不回 usage 时记 0 并标 `usage_available=0`**：自建 OpenAI 兼容网关
+   （vLLM / one-api / ollama）普遍忽略 `stream_options`。后台把"未知"显示成 `-`，
+   不能显示 0，否则会被读成"这个模型不要钱"。
+2. **重试的用量拿不到**：失败的 `Generate` 上游不回 token，只记 `attempts`。
+   `attempts=3` 的行真实成本可能是一次成功用量的 1~3 倍。流式没有重试。
+3. **长文评分分块**一次用户动作产生 N 行，首页「调用次数」因此大于"点击次数" ——
+   这是正确口径（一次请求一次计费）。

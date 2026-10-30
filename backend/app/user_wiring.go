@@ -123,6 +123,10 @@ func WireUser(infra *Infra) {
 		authapp.WithOAuth(qqBridge{conf: func() conf.QQ { return infra.RuntimeSite.GetRuntimeOAuth() }}),
 	)
 
+	if cfg.System.Env == conf.EnvProductionLegacy {
+		infra.Logger.Warn("BLOGX_APP_ENV=prod 是旧写法，已统一为 production：请把 .env 改成 production；本次仍按生产环境处理，refresh Cookie 继续带 Secure")
+	}
+
 	h := authhttp.NewHandler(
 		authSvc,
 		&policyBridge{site: infra.RuntimeSite},
@@ -131,7 +135,7 @@ func WireUser(infra *Infra) {
 			return authdomain.Meta{IP: m.IP, Addr: m.Addr, UA: m.UA}
 		},
 		loginEmitter{},
-		cfg.System.Env == "prod",
+		cfg.System.IsProduction(),
 		cfg.Jwt.RefreshExpire,
 	)
 	authService = authSvc

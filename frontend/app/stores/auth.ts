@@ -124,7 +124,7 @@ export const useAuthStore = defineStore("auth", () => {
     //
     // 它们自己 watch 本 store 的 isLoggedIn：变成 false 时清未读数、重置连接状态。
     // 方向因此是单向的（message/chat 依赖 auth），本文件不需要知道谁在关心登录态。
-    // 见 docs/architecture/baseline.md §42。
+    // 见 docs/archive/v1/05-baseline-and-process.md §三（M6 决策留档）。
   }
 
   async function fetchCurrentUser(options: { throwOnError?: boolean; retryAuth?: boolean } = {}) {

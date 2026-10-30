@@ -1,6 +1,6 @@
-# BlogX Web
+# JellyBin 读者站（Web）
 
-`apps/web` 是 BlogX 的公开站点与用户侧前端，基于 `Nuxt 4 + Vue 3 + Pinia + Naive UI + Tailwind CSS`。
+`frontend/` 是 **JellyBin（果冻盒）** 的公开站点与用户侧前端，基于 `Nuxt 4 + Vue 3 + Pinia + Naive UI + Tailwind CSS`；仓库与内部标识仍叫 `blogx`，见根 [GLOSSARY](../GLOSSARY.md)。
 
 ## 当前结论
 

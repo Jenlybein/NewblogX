@@ -170,13 +170,14 @@ type="button" class="write-tool-button"
 </template>
 
 <style scoped>
+/* 颜色一律消费语义 token（票 #9 把创作区从旧青绿色板收敛到新体系）。 */
 .write-page__header {
   position: sticky;
   top: 0;
   z-index: 20;
   backdrop-filter: blur(18px);
-  background: rgba(255, 251, 245, 0.9);
-  border-bottom: 1px solid rgba(217, 226, 236, 0.92);
+  background: var(--color-surface);
+  border-bottom: 1px solid var(--color-line);
 }
 
 .write-page__topbar,
@@ -191,7 +192,7 @@ type="button" class="write-tool-button"
 
 .write-page__toolbar,
 .write-page__statusbar {
-  border-top: 1px solid rgba(217, 226, 236, 0.72);
+  border-top: 1px solid var(--color-line);
 }
 
 .write-title-input {
@@ -230,12 +231,15 @@ type="button" class="write-tool-button"
   min-width: 34px;
   min-height: 34px;
   border: 1px solid transparent;
-  border-radius: 10px;
+  border-radius: 0;
   padding: 6px 8px;
   background: transparent;
-  color: #334155;
+  color: var(--color-ink);
   cursor: pointer;
-  transition: background 0.2s ease, color 0.2s ease, border-color 0.2s ease;
+  transition:
+    background var(--motion-fast) var(--motion-ease),
+    color var(--motion-fast) var(--motion-ease),
+    border-color var(--motion-fast) var(--motion-ease);
 }
 
 .write-tool-button__icon {
@@ -248,15 +252,15 @@ type="button" class="write-tool-button"
 }
 
 .write-tool-button:hover {
-  background: rgba(15, 118, 110, 0.08);
-  border-color: rgba(15, 118, 110, 0.12);
-  color: #0f766e;
+  background: var(--color-line-faint);
+  border-color: var(--color-line);
+  color: var(--color-focus);
 }
 
 .write-tool-button--active {
-  background: rgba(15, 118, 110, 0.12);
-  border-color: rgba(15, 118, 110, 0.2);
-  color: #0f766e;
+  background: var(--color-line-faint);
+  border-color: var(--color-line);
+  color: var(--color-focus);
 }
 
 .write-tool-popover {
@@ -276,19 +280,21 @@ type="button" class="write-tool-button"
   padding: 10px 14px;
   text-align: left;
   background: transparent;
-  color: #334155;
+  color: var(--color-ink);
   cursor: pointer;
-  transition: background 0.18s ease, color 0.18s ease;
+  transition:
+    background var(--motion-fast) var(--motion-ease),
+    color var(--motion-fast) var(--motion-ease);
 }
 
 .write-tool-option:hover {
-  background: rgba(15, 118, 110, 0.08);
-  color: #0f766e;
+  background: var(--color-line-faint);
+  color: var(--color-focus);
 }
 
 .write-tool-option--active {
-  background: rgba(15, 118, 110, 0.16);
-  color: #0f766e;
+  background: var(--color-line-faint);
+  color: var(--color-focus);
   font-weight: 600;
 }
 

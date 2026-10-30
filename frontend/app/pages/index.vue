@@ -1,14 +1,16 @@
 <script setup lang="ts">
-import ArticleFeedItem from "~/components/article/ArticleFeedItem.vue";
-import ArticleCover from "~/components/article/ArticleCover.vue";
-import BannerCarousel from "~/components/article/BannerCarousel.vue";
-import HomeSidebar from "~/components/home/HomeSidebar.vue";
 import { computed, shallowRef } from "vue";
-import { NButton, NSkeleton } from "naive-ui";
+import { NButton } from "naive-ui";
+import BannerCarousel from "~/components/article/BannerCarousel.vue";
+import HomeFeedSection from "~/components/home/HomeFeedSection.vue";
+import HomePinnedSection from "~/components/home/HomePinnedSection.vue";
+import HomeSidebar from "~/components/home/HomeSidebar.vue";
+import { useStaggerEntrance } from "~/composables/useStaggerEntrance";
 import { getTopArticles } from "~/services/article";
 import { searchArticles } from "~/services/search";
 import { getBannerList } from "~/services/site";
-import { formatCount } from "~/utils/format";
+import { BRAND, brandDescription, brandFullName } from "~/utils/brand";
+import { homeHeroFacts, homeSearchLocation } from "~/utils/home";
 
 const siteStore = useSiteStore();
 const topRequestError = shallowRef<unknown>(null);
@@ -22,19 +24,23 @@ function formatRequestError(error: unknown) {
   return String(error);
 }
 
+// 首页数据全部"失败降级不抛错"：区块组件拿到 pending/failed 后渲染统一空态，
+// 不会因为一个接口挂了就让整页白屏。
 const { data: bannerData, pending: bannerPending } = await useAsyncData("home-banners", () =>
   getBannerList().catch(() => ({ list: [], has_more: false })),
 );
-const { data: topData, pending: topPending } = await useAsyncData("home-top-articles", async () => {
-  try {
-    topRequestError.value = null;
-    return await getTopArticles();
-  } catch (error) {
-    topRequestError.value = error;
-    console.warn(`[home-top-articles] request failed, using fallback: ${formatRequestError(error)}`);
-    return { list: [], count: 0 };
-  }
-},
+const { data: topData, pending: topPending, refresh: refreshTop } = await useAsyncData(
+  "home-top-articles",
+  async () => {
+    try {
+      topRequestError.value = null;
+      return await getTopArticles();
+    } catch (error) {
+      topRequestError.value = error;
+      console.warn(`[home-top-articles] request failed, using fallback: ${formatRequestError(error)}`);
+      return { list: [], count: 0 };
+    }
+  },
 );
 
 const latestPager = await usePagedResourceCache({
@@ -66,18 +72,36 @@ const latestPager = await usePagedResourceCache({
 });
 
 useSeoMeta({
-  title: siteStore.seo?.site_title || "BlogX",
-  description: siteStore.seo?.description || "开发者内容平台",
+  title: siteStore.seo?.site_title || brandFullName(),
+  description: brandDescription(siteStore.seo?.description),
   keywords: siteStore.seo?.keywords || "前端, Nuxt, Vue, OpenAPI",
-  ogTitle: siteStore.seo?.site_title || "BlogX",
-  ogDescription: siteStore.seo?.description || "开发者内容平台",
+  ogTitle: siteStore.seo?.site_title || brandFullName(),
+  ogDescription: brandDescription(siteStore.seo?.description),
 });
 
 const banners = computed(() => bannerData.value?.list || []);
 const topArticles = computed(() => topData.value?.list || []);
 const latestArticles = computed(() => latestPager.currentItems.value);
 const latestPending = computed(() => latestPager.pending.value);
+const latestPage = computed(() => latestPager.currentPage.value);
+const latestHasPrevious = computed(() => latestPager.hasPreviousPage.value);
+const latestHasNext = computed(() => latestPager.hasNextPage.value);
 const siteBootstrapPending = computed(() => !siteStore.fetched);
+const topFailed = computed(() => Boolean(topRequestError.value));
+const latestFailed = computed(() => Boolean(latestRequestError.value));
+
+// 首屏 CTA 的搜索落点复用页头同一个 URL 契约（/search，空关键词不拼 ?key=）。
+const searchTo = homeSearchLocation();
+const heroFacts = computed(() =>
+  homeHeroFacts({
+    topCount: topArticles.value.length,
+    latestCount: latestArticles.value.length,
+    pageSize: 9,
+  }),
+);
+
+// 首屏分级入场：标题/CTA 与事实条错峰 40ms，只动 opacity/translateY；reduce 时归零。
+const { entranceProps } = useStaggerEntrance();
 
 async function handlePreviousLatestPage() {
   await latestPager.goToPreviousPage();
@@ -86,90 +110,70 @@ async function handlePreviousLatestPage() {
 async function handleNextLatestPage() {
   await latestPager.goToNextPage();
 }
+
+async function handleRetryTop() {
+  await refreshTop();
+}
+
+async function handleRetryLatest() {
+  await latestPager.refreshCurrentPage();
+}
 </script>
 
 <template>
-  <div class="page-stack">
+  <div class="page-stack" data-page="home">
+    <section class="home-hero" data-home-hero>
+      <div class="home-hero__intro">
+        <Motion v-bind="entranceProps(0)" class="motion-stagger-item">
+          <div class="eyebrow">{{ BRAND.name.en }} · {{ BRAND.name.zh }}</div>
+          <h1 class="home-hero__title">{{ BRAND.tagline }}</h1>
+          <p class="home-hero__lede">{{ brandDescription(siteStore.seo?.description) }}</p>
+        </Motion>
+
+        <Motion v-bind="entranceProps(1)" class="motion-stagger-item home-hero__actions">
+          <NuxtLink :to="searchTo" class="blueprint-tab">搜索文章</NuxtLink>
+          <NuxtLink to="/studio/write" class="blueprint-link">开始创作</NuxtLink>
+        </Motion>
+      </div>
+
+      <dl class="home-hero__facts">
+        <div v-for="fact in heroFacts" :key="fact.label" class="home-hero__fact">
+          <dt>{{ fact.label }}</dt>
+          <dd>{{ fact.value }}</dd>
+        </div>
+      </dl>
+    </section>
+
     <div class="hero-grid">
       <div class="page-stack">
-        <BannerCarousel :banners="banners" />
+        <BannerCarousel :banners="banners" :pending="bannerPending" />
 
-        <section v-if="topArticles.length" class="surface-card p-5 md:p-6">
-          <div class="mb-5 flex items-center justify-between">
-            <div>
-              <div class="eyebrow">Pinned</div>
-              <h2 class="section-title mt-2">热门置顶</h2>
-            </div>
-            <div class="glass-badge">{{ topArticles.length }} 篇</div>
-          </div>
+        <HomePinnedSection
+          :articles="topArticles"
+          :pending="topPending"
+          :failed="topFailed"
+          @retry="handleRetryTop"
+        />
 
-          <div class="space-y-4">
-            <article
-              v-for="article in topArticles"
-              :key="article.id"
-              class="home-pinned-article line-divider pt-4 first:border-0 first:pt-0"
+        <HomeFeedSection
+          :articles="latestArticles"
+          :pending="latestPending"
+          :failed="latestFailed"
+          @retry="handleRetryLatest"
+        >
+          <template #footer>
+            <div
+              v-if="latestPage > 1 || latestHasNext"
+              class="mt-6 flex flex-wrap items-center justify-between gap-3 border-t border-line-faint pt-3 text-sm text-ink-muted"
+              data-role="feed-pager"
             >
-              <NuxtLink :to="`/article/${article.id}`" class="home-pinned-article__cover">
-                <ArticleCover :src="article.cover" :title="article.title" label="Pinned" />
-              </NuxtLink>
-              <NuxtLink :to="`/article/${article.id}`" class="block min-w-0">
-                <div class="text-lg font-semibold leading-snug">{{ article.title }}</div>
-                <p class="mt-2 line-clamp-2 text-sm leading-7 muted">{{ article.abstract }}</p>
-                <div class="mt-3 flex flex-wrap items-center gap-3 text-sm muted">
-                  <span>{{ article.author_nickname }}</span>
-                  <span>{{ article.category_title || "未分类" }}</span>
-                  <span>{{ formatCount(article.view_count) }} 阅读</span>
-                </div>
-              </NuxtLink>
-            </article>
-          </div>
-        </section>
-        <section v-else-if="topPending" class="surface-card p-5 md:p-6">
-          <div class="mb-5 flex items-center justify-between">
-            <div>
-              <div class="eyebrow">Pinned</div>
-              <h2 class="section-title mt-2">热门置顶</h2>
-            </div>
-            <div class="glass-badge">加载中</div>
-          </div>
-          <div class="space-y-4">
-            <div v-for="idx in 3" :key="`top-skeleton-${idx}`" class="line-divider pt-4 first:border-0 first:pt-0">
-              <NSkeleton text width="80%" height="24px" />
-              <NSkeleton text class="mt-3" :repeat="2" />
-            </div>
-          </div>
-        </section>
-
-        <section class="surface-card p-5 md:p-6">
-          <div class="mb-5 flex items-center justify-between">
-            <div>
-              <div class="eyebrow">Latest</div>
-              <h2 class="section-title mt-2">最新文章</h2>
-            </div>
-            <div class="flex items-center gap-3">
-              <div class="glass-badge">第 {{ latestPager.currentPage }} 页</div>
-              <NuxtLink to="/search" class="glass-badge">进入搜索</NuxtLink>
-            </div>
-          </div>
-
-          <div v-if="latestArticles.length" class="space-y-4">
-            <ArticleFeedItem
-              v-for="article in latestArticles"
-              :key="article.id"
-              :article="article"
-              compact
-            />
-
-            <div class="flex flex-wrap items-center justify-between gap-3 border-t border-white/60 pt-5 text-sm muted">
-              <span>每页 9 篇，本次已缓存 {{ Object.keys(latestPager.pages).length }} 页。未刷新前会直接复用已访问页。</span>
-              <div class="flex items-center gap-3">
-                <NButton quaternary :disabled="!latestPager.hasPreviousPage" @click="handlePreviousLatestPage">
-                  上一页
-                </NButton>
+              <span>已访问页会复用缓存，翻页不重复请求旧页。</span>
+              <div class="flex items-center gap-3 blueprint-actions">
+                <NButton quaternary :disabled="!latestHasPrevious" @click="handlePreviousLatestPage">上一页</NButton>
                 <NButton
                   type="primary"
                   ghost
-                  :disabled="!latestPager.hasNextPage"
+                  :disabled="!latestHasNext"
                   :loading="latestPending"
                   @click="handleNextLatestPage"
                 >
@@ -177,60 +181,101 @@ async function handleNextLatestPage() {
                 </NButton>
               </div>
             </div>
-          </div>
-          <div v-else-if="latestPending" class="space-y-4">
-            <article
-              v-for="idx in 4"
-              :key="`latest-skeleton-${idx}`"
-              class="rounded-2xl border border-slate-200/70 bg-white/75 p-4"
-            >
-              <NSkeleton text width="66%" height="24px" />
-              <NSkeleton text class="mt-3" :repeat="2" />
-              <NSkeleton text width="50%" class="mt-2" />
-            </article>
-          </div>
-          <div v-else class="surface-section flex min-h-[220px] items-center justify-center p-6 text-sm muted">
-            {{
-              latestRequestError
-                ? "文章加载失败，请检查前端 API 地址或测试环境状态。"
-                : "暂时没有可展示的公开文章。"
-            }}
-          </div>
-        </section>
+          </template>
+        </HomeFeedSection>
       </div>
 
       <HomeSidebar
         :pending="siteBootstrapPending || bannerPending"
         :runtime-config="siteStore.runtimeConfig"
-        :ai-info="siteStore.aiInfo"
         :articles="latestArticles"
+        sticky
       />
     </div>
   </div>
 </template>
 
 <style scoped>
-.home-pinned-article {
+/* 首屏 = 图纸的第一格：一句主张 + 三格事实 + 两个入口；颜色全部来自 token。 */
+.home-hero {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1.25rem;
+  border: 1px solid var(--color-line);
+  background: var(--color-surface);
+  padding: 1.25rem;
+}
+
+.home-hero__intro {
+  flex: 1 1 320px;
+  min-width: 0;
+}
+
+.home-hero__title {
+  font-family: var(--font-title);
+  font-size: clamp(1.9rem, 4vw, 2.75rem);
+  font-weight: 400;
+  line-height: 1.12;
+  letter-spacing: var(--type-tracking-title);
+  color: var(--color-ink);
+  text-wrap: balance;
+}
+
+.home-hero__lede {
+  margin-top: 0.75rem;
+  max-width: 46rem;
+  font-size: 0.875rem;
+  line-height: 1.8;
+  color: var(--color-ink-muted);
+}
+
+.home-hero__actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.75rem;
+  margin-top: 1.25rem;
+}
+
+.home-hero__facts {
   display: grid;
-  grid-template-columns: 124px minmax(0, 1fr);
-  gap: 14px;
-  align-items: stretch;
+  width: 100%;
+  max-width: 22rem;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  align-self: flex-start;
+  border: 1px solid var(--color-line-faint);
 }
 
-.home-pinned-article__cover {
-  display: block;
-  min-height: 88px;
-  overflow: hidden;
-  border-radius: 16px;
+.home-hero__fact {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  border-inline-start: 1px solid var(--color-line-faint);
+  padding: 0.75rem 1rem;
 }
 
-@media (max-width: 640px) {
-  .home-pinned-article {
-    grid-template-columns: 1fr;
-  }
+.home-hero__fact:first-child {
+  border-inline-start: 0;
+}
 
-  .home-pinned-article__cover {
-    min-height: 164px;
+.home-hero__fact dt {
+  font-size: 0.75rem;
+  color: var(--color-ink-muted);
+}
+
+.home-hero__fact dd {
+  margin: 0;
+  font-family: var(--font-title);
+  font-size: 1.25rem;
+  line-height: 1.1;
+  color: var(--color-ink);
+}
+
+@media (min-width: 768px) {
+  .home-hero {
+    padding: 1.5rem;
   }
 }
 </style>

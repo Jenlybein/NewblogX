@@ -1,0 +1,146 @@
+/* ============================================================================
+ * JellyBin 设计 token（管理后台 / 与读者站同源）
+ *
+ * 后台与读者站共用同一套五色相与语义 token（spec 决策 1、7），只是后台的用法
+ * 更克制（不做捏捏、不做暗色、动效只到 hover/focus）。
+ *
+ * 这是**后台颜色的唯一来源**。组件里不许再出现裸 hex / rgba —— 由
+ * `scripts/check-design-tokens.mjs` 卡住（存量债在 scripts/design-token-baseline.json，
+ * 只许收缩）。
+ *
+ * 结构与读者站完全一致：
+ *   1. 原始层 `--jelly-*`：五个锁定色相 + 同色相明度/透明度派生，**禁止新增色相**；
+ *      黄永不做字色；珊瑚橙当字色时用 `--jelly-coral-700`（达 AA）。
+ *   2. 语义层 `--color-*`：组件唯一消费对象；暗色是同一组名字的第二份取值。
+ *      **后台目前没有暗色开关**（spec 明说后台暗色不做），这份映射先备着，
+ *      由 `.dark` / `.theme-dark` 根类触发，等后续票接上时不用再改名字。
+ *   3. 排版层 `--font-*` / `--type-*`：中文正文 68ch / 1.75、标题 700 + 负字距。
+ *   4. 动效层 `--motion-*`：120 / 200 / 320ms 三档 + 单一缓动，与读者站同拍；
+ *      后台只用 CSS 过渡与 Naive 内建过渡，不引入动效库。
+ *
+ * 过渡层的旧变量（--bg-page / --surface / --line / --accent …）已在本票删除：
+ * admin.css 全部改为消费语义层后，旧变量无人消费，留着只会变成第二套颜色来源。
+ * ========================================================================== */
+
+:root {
+  color-scheme: light;
+
+  /* ---- 1. 原始层：五个锁定色相 ---- */
+  --jelly-blue: #002fa7;
+  --jelly-cream: #fdfbf6;
+  --jelly-yellow: #f5c518; /* 永不做字色 */
+  --jelly-coral: #ff6b4a;
+  --jelly-warm: #f2eee6;
+
+  /* ---- 原始层：同色相明度/透明度派生 ---- */
+  --jelly-blue-950: #00113d;
+  --jelly-blue-900: #001b63;
+  --jelly-blue-800: #001f70;
+  --jelly-blue-700: #00227a;
+  --jelly-blue-600: #3a55a8;
+  --jelly-blue-400: #6e86cf;
+  --jelly-blue-200: #c3ceeb;
+  --jelly-blue-100: #e6eaf7;
+  --jelly-cream-050: #fffefb;
+  --jelly-cream-700: #d9d3c6;
+  --jelly-warm-800: #e6e0d5;
+  --jelly-yellow-veil: rgba(245, 197, 24, 0.28);
+  --jelly-yellow-veil-dark: rgba(245, 197, 24, 0.3);
+  --jelly-coral-700: #c2410c;
+  --jelly-coral-300: #ff9b85;
+
+  /* ---- 2. 语义层（浅色） ---- */
+  --color-bg-page: var(--jelly-cream);
+  --color-bg-subtle: var(--jelly-warm);
+  --color-surface: var(--jelly-cream);
+  --color-surface-raised: var(--jelly-cream-050);
+  --color-surface-glass: rgba(255, 254, 251, 0.78); /* 半透明纸面（侧栏 / 统计卡） */
+  --color-ink: var(--jelly-blue-900);
+  --color-ink-muted: var(--jelly-blue-600);
+  --color-line: rgba(0, 47, 167, 0.32);
+  --color-line-strong: rgba(0, 47, 167, 0.62);
+  --color-line-faint: rgba(0, 47, 167, 0.14);
+  --color-highlight: var(--jelly-yellow-veil);
+  --color-danger: var(--jelly-coral);
+  --color-danger-ink: var(--jelly-coral-700);
+  --color-danger-soft: rgba(255, 107, 74, 0.1);
+  --color-danger-line: rgba(255, 107, 74, 0.36);
+  --color-focus: var(--jelly-blue);
+  --color-focus-soft: rgba(0, 47, 167, 0.12);
+  --color-shadow: rgba(0, 27, 99, 0.16);
+  /* 克莱因蓝铺色块（登录 hero / 封面兜底）上的反白层 */
+  --color-on-strong: var(--jelly-cream);
+  --color-on-strong-muted: rgba(253, 251, 246, 0.78);
+  --color-on-strong-line: rgba(253, 251, 246, 0.36);
+  --color-on-strong-soft: rgba(253, 251, 246, 0.14);
+
+  /* ---- 3. 排版层 ---- */
+  --font-latin: "Sora", "Sora Fallback";
+  --font-cjk: "Noto Sans SC", "Noto Sans SC Fallback";
+  --font-sans: var(--font-latin), var(--font-cjk), "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei",
+    sans-serif;
+  --font-mono: "Cascadia Code", "JetBrains Mono", "Sofia Sans Mono", ui-monospace, monospace;
+  --type-measure: 68ch;
+  --type-leading-prose: 1.75;
+  --type-leading-title: 1.15;
+  --type-tracking-title: -0.02em;
+  --type-tracking-dense: -0.01em;
+  --type-weight-title: 700;
+
+  /* ---- 4. 动效层（spec 决策 3 / 7：后台只用 CSS 过渡 + Naive 内建）----
+   * 三档时长与单缓动曲线与读者站完全同拍（tokens.test.ts 会交叉校验）；
+   * 组件消费时一律用变量，不写毫秒字面量；只动 transform / opacity / 颜色。 */
+  --motion-fast: 120ms; /* 微交互（hover/focus 反馈） */
+  --motion-base: 200ms; /* 进出场（弹窗/抽屉） */
+  --motion-slow: 320ms; /* 上限：结构级一次性过渡 */
+  --motion-ease: cubic-bezier(0.2, 0.8, 0.2, 1); /* 后台唯一缓动曲线 */
+}
+
+/* ---- 暗色映射（后台暂不启用，取值先备好，名字与读者站一致） ---- */
+.dark,
+.theme-dark {
+  color-scheme: dark;
+  --color-bg-page: var(--jelly-blue-900);
+  --color-bg-subtle: var(--jelly-blue-950);
+  --color-surface: var(--jelly-blue-800);
+  --color-surface-raised: var(--jelly-blue-700);
+  --color-surface-glass: rgba(0, 27, 99, 0.72);
+  --color-ink: var(--jelly-cream);
+  --color-ink-muted: var(--jelly-cream-700);
+  --color-line: rgba(253, 251, 246, 0.22);
+  --color-line-strong: rgba(253, 251, 246, 0.45);
+  --color-line-faint: rgba(253, 251, 246, 0.1);
+  --color-highlight: var(--jelly-yellow-veil-dark);
+  --color-danger: var(--jelly-coral);
+  --color-danger-ink: var(--jelly-coral-300);
+  --color-danger-soft: rgba(255, 107, 74, 0.16);
+  --color-danger-line: rgba(255, 107, 74, 0.45);
+  --color-focus: var(--jelly-cream);
+  --color-focus-soft: rgba(253, 251, 246, 0.14);
+  --color-shadow: rgba(0, 8, 30, 0.55);
+  --color-on-strong: var(--jelly-cream);
+  --color-on-strong-muted: rgba(253, 251, 246, 0.78);
+  --color-on-strong-line: rgba(253, 251, 246, 0.36);
+  --color-on-strong-soft: rgba(253, 251, 246, 0.14);
+}
+
+/* ---- 「减少动态」的全局降级 ----
+ * 动效 token 归零 → 所有消费 `--motion-*` 的 CSS 过渡瞬间完成；
+ * 再兜一层全局覆盖，把 Naive 内建过渡也退化（812 / 450ms 之类是库里的默认值）。
+ * 用 0.01ms 而不是 0：保留 transitionend 事件（部分组件靠它收尾）。 */
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --motion-fast: 0ms;
+    --motion-base: 0ms;
+    --motion-slow: 0ms;
+  }
+
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}

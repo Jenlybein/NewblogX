@@ -17,9 +17,16 @@ async function loadComponent() {
   return module.default;
 }
 
+function getShadowRoot(wrapper: ReturnType<typeof mount>) {
+  return (wrapper.element as HTMLDivElement).shadowRoot;
+}
+
 function getShadowArticle(wrapper: ReturnType<typeof mount>) {
-  const host = wrapper.element as HTMLDivElement;
-  return host.shadowRoot?.querySelector("article");
+  return getShadowRoot(wrapper)?.querySelector("article");
+}
+
+function getThemeStyle(wrapper: ReturnType<typeof mount>) {
+  return getShadowRoot(wrapper)?.querySelector<HTMLStyleElement>('style[data-jelly-markdown="theme"]');
 }
 
 describe("MarkdownShadowPreview", () => {
@@ -33,7 +40,6 @@ describe("MarkdownShadowPreview", () => {
     const wrapper = mount(MarkdownShadowPreview, {
       props: {
         html: "<p>纯文本内容</p>",
-        themeHref: "/themes/github.css",
       },
     });
 
@@ -54,7 +60,6 @@ describe("MarkdownShadowPreview", () => {
     const wrapper = mount(MarkdownShadowPreview, {
       props: {
         html: '<div class="mermaid">flowchart TD\nA[开始] --> B[结束]</div>',
-        themeHref: "/themes/github.css",
       },
     });
 
@@ -72,5 +77,56 @@ describe("MarkdownShadowPreview", () => {
     await flushPromises();
 
     expect(runtimeRender).toHaveBeenCalledTimes(1);
+  });
+
+  it("注入自有 markdown 主题（token 驱动），不再依赖 github-markdown-css", async () => {
+    const MarkdownShadowPreview = await loadComponent();
+    const wrapper = mount(MarkdownShadowPreview, { props: { html: "<p>正文</p>" } });
+
+    await flushPromises();
+
+    const style = getThemeStyle(wrapper);
+    expect(style).toBeTruthy();
+    expect(style?.textContent).toContain("markdown 主题（JellyBin 自有）");
+    expect(style?.textContent).toContain(".markdown-body pre");
+    expect(style?.textContent).toContain("var(--color-ink)");
+    expect(style?.textContent).toContain("var(--type-leading-prose)");
+  });
+
+  it("默认不加载任何外部主题 <link>（明暗切换不换链接、不闪白）", async () => {
+    const MarkdownShadowPreview = await loadComponent();
+    const wrapper = mount(MarkdownShadowPreview, { props: { html: "<p>正文</p>" } });
+
+    await flushPromises();
+
+    expect(getShadowRoot(wrapper)?.querySelectorAll('link[rel="stylesheet"]').length).toBe(0);
+  });
+
+  it("显式传入 themeHref 时才注入外部主题（兼容创作区多主题预览）", async () => {
+    const MarkdownShadowPreview = await loadComponent();
+    const wrapper = mount(MarkdownShadowPreview, {
+      props: { html: "<p>正文</p>", themeHref: "/themes/github.css" },
+    });
+
+    await flushPromises();
+
+    const link = getShadowRoot(wrapper)?.querySelector<HTMLLinkElement>('link[data-jelly-markdown="external-theme"]');
+    expect(link?.getAttribute("href")).toBe("/themes/github.css");
+
+    await wrapper.setProps({ themeHref: "" });
+    await flushPromises();
+
+    expect(getShadowRoot(wrapper)?.querySelector('link[data-jelly-markdown="external-theme"]')).toBeNull();
+  });
+
+  it("样式不泄漏：宿主 light DOM 为空，主题只在 shadow root 里", async () => {
+    const MarkdownShadowPreview = await loadComponent();
+    const wrapper = mount(MarkdownShadowPreview, { props: { html: "<p>正文</p>", articleClass: "markdown-body" } });
+
+    await flushPromises();
+
+    expect((wrapper.element as HTMLDivElement).innerHTML).toBe("");
+    expect(document.querySelector("style[data-jelly-markdown]")).toBeNull();
+    expect(getShadowRoot(wrapper)?.querySelectorAll("article.markdown-body").length).toBe(1);
   });
 });

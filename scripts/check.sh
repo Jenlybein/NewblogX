@@ -308,6 +308,10 @@ if [ "$TARGET" = "all" ] || [ "$TARGET" = "frontend" ]; then
       # 类型不报错，只在运行时 resolveComponent 失败 —— 整块 UI 静默不渲染。
       # 线上「AI 模型配置」含「添加配置」按钮凭空消失就是这个原因。
       run "$app: 组件解析"       corepack pnpm check:components
+      # 颜色只有一个来源：app/** 不许出现裸 hex / rgba，只消费 tokens.css 的语义层。
+      # baseline 由 #13 清空为 0，之后新增裸色值即失败。
+      # CI 的 frontend-lint job 跑同一条命令，避免"本地一份、CI 一份"的口径漂移。
+      run "$app: token 漂移"     corepack pnpm check:tokens
       run "$app: lint"         corepack pnpm lint
       run "$app: typecheck"    corepack pnpm typecheck
       run "$app: test"         corepack pnpm test

@@ -85,6 +85,28 @@ describe("锚点补偿：全站 scroll-padding-top", () => {
   });
 });
 
+describe("创作页顶栏贴顶吸附（这一页没有站点页头）", () => {
+  const writeHeader = read("app/components/studio/StudioWriteHeader.vue");
+
+  it("吸顶位置是 top: 0，不再给站点页头留 60px 空隙", () => {
+    const block = blockAfter(writeHeader, ".write-page__header {");
+
+    expect(block).toContain("position: sticky");
+    expect(block).toContain("top: 0");
+    expect(block).not.toContain("--site-header-height");
+  });
+
+  it("创作页任何样式都不再按站点页头高度做补偿", () => {
+    for (const file of [
+      "app/components/studio/StudioWriteHeader.vue",
+      "app/layouts/write.vue",
+      "app/assets/css/studio-write.css",
+    ]) {
+      expect(read(file), file).not.toContain("--site-header-height");
+    }
+  });
+});
+
 describe("动效档位 C：区块滚动进场", () => {
   const revealConsumers = [
     "app/components/home/HomeFeedSection.vue",

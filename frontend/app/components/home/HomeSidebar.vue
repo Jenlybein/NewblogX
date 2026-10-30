@@ -9,6 +9,11 @@ import { useUiStore } from "~/stores/ui";
 import type { SearchArticleItem, SiteAiInfo, SiteRuntimeConfig } from "~/types/api";
 import { resolveAvatarInitial, resolveAvatarUrl } from "~/utils/avatar";
 import { brandAiName, brandProjectTitle } from "~/utils/brand";
+import { useStaggerEntrance } from "~/composables/useStaggerEntrance";
+
+// 动效地基的第一个真实用例：热门标签列表错峰入场（40ms 一档，只动 opacity/translateY）。
+// 后续票（列表页/用户页/文章页）直接复用 useStaggerEntrance + <Motion>，不要各写一套。
+const { entranceProps } = useStaggerEntrance();
 
 const props = withDefaults(defineProps<{
   pending?: boolean;
@@ -185,20 +190,25 @@ async function handleOpenAiDialog() {
     <section v-if="showTags && hotTags.length" class="surface-card p-5 md:p-6">
       <div class="text-base font-semibold">热门标签</div>
       <div class="mt-3 flex flex-wrap gap-2">
-        <NuxtLink
-          v-for="tag in hotTags"
+        <Motion
+          v-for="(tag, index) in hotTags"
           :key="tag.id"
-          :to="{ path: '/search', query: { tag_ids: tag.id } }"
-          class="inline-flex"
+          v-bind="entranceProps(index)"
+          class="motion-stagger-item inline-flex"
         >
-          <NTag
-            size="small"
-            round
-            :bordered="false"
+          <NuxtLink
+            :to="{ path: '/search', query: { tag_ids: tag.id } }"
+            class="inline-flex"
           >
-            {{ tag.title }}
-          </NTag>
-        </NuxtLink>
+            <NTag
+              size="small"
+              round
+              :bordered="false"
+            >
+              {{ tag.title }}
+            </NTag>
+          </NuxtLink>
+        </Motion>
       </div>
     </section>
 

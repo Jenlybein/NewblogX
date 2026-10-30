@@ -59,7 +59,7 @@ func (hook CommonFieldsHook) Fire(entry *logrus.Entry) error {
 		entry.Data["service"] = hook.Service
 	}
 
-	// 自动补充运行环境（dev/prod/test）
+	// 自动补充运行环境（dev/test/production）
 	if _, ok := entry.Data["env"]; !ok {
 		entry.Data["env"] = hook.Env
 	}

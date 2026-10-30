@@ -7,8 +7,7 @@
     "app/components/article/ArticleScoreModal.vue",
     "app/components/home/HomeAiChatDialog.vue",
     "app/components/home/HomeSidebar.vue",
-    "app/pages/article/[id].vue",
-    "app/pages/search.vue"
+    "app/pages/article/[id].vue"
   ],
   "frontend_admin": [
     "app/app.vue",

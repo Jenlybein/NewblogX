@@ -21,21 +21,21 @@ describe("token 解析：明暗是同一组名字的两份取值", () => {
   it("从 tokens.css 的 :root / .dark 两份块里读出取值", () => {
     const blocks = parseTokenBlocks(tokensCss);
 
-    expect(blocks.light["--color-ink"]).toBe("var(--jelly-blue-900)");
-    expect(blocks.light["--color-bg-page"]).toBe("var(--jelly-cream)");
-    expect(blocks.dark["--color-ink"]).toBe("var(--jelly-cream)");
-    expect(blocks.dark["--color-bg-page"]).toBe("var(--jelly-blue-900)");
+    expect(blocks.light["--color-ink"]).toBe("#1c1b19");
+    expect(blocks.light["--color-bg-page"]).toBe("var(--jelly-warm-100)");
+    expect(blocks.dark["--color-ink"]).toBe("#f5f5f7");
+    expect(blocks.dark["--color-bg-page"]).toBe("#161617");
   });
 
   it("var() 间接引用会被解析成真实色值（用于对比度/截图断言）", () => {
     const blocks = parseTokenBlocks(tokensCss);
 
-    expect(resolveTokenValue(blocks, "light", "--color-ink")).toBe("#001b63");
-    expect(resolveTokenValue(blocks, "dark", "--color-ink")).toBe("#fdfbf6");
+    expect(resolveTokenValue(blocks, "light", "--color-ink")).toBe("#1c1b19");
+    expect(resolveTokenValue(blocks, "dark", "--color-ink")).toBe("#f5f5f7");
     expect(resolveTokenValue(blocks, "light", "--color-surface")).toBe("#fdfbf6");
-    expect(resolveTokenValue(blocks, "dark", "--color-surface")).toBe("#001f70");
-    expect(resolveTokenValue(blocks, "light", "--color-line")).toBe("rgba(0, 47, 167, 0.32)");
-    expect(resolveTokenValue(blocks, "dark", "--color-line")).toBe("rgba(253, 251, 246, 0.22)");
+    expect(resolveTokenValue(blocks, "dark", "--color-surface")).toBe("#1d1d1f");
+    expect(resolveTokenValue(blocks, "light", "--color-line")).toBe("rgba(28, 27, 25, 0.16)");
+    expect(resolveTokenValue(blocks, "dark", "--color-line")).toBe("rgba(245, 245, 247, 0.14)");
   });
 
   it("未知 token 与循环引用直接抛错（避免静默回落到默认色）", () => {
@@ -73,15 +73,15 @@ describe("markdown 主题取值：明暗两套都来自语义层", () => {
   });
 
   it("明暗取值确实翻转：正文/纸面/危险文字在两种模式下不同", () => {
-    expect(light.body).toBe("#001b63");
-    expect(dark.body).toBe("#fdfbf6");
+    expect(light.body).toBe("#1c1b19");
+    expect(dark.body).toBe("#f5f5f7");
     expect(light.paper).toBe("#fdfbf6");
-    expect(dark.paper).toBe("#001f70");
-    expect(light.dangerInk).toBe("#c2410c");
+    expect(dark.paper).toBe("#1d1d1f");
+    expect(light.dangerInk).toBe("#c2401f");
     expect(dark.dangerInk).toBe("#ff9b85");
-    // 反白层（蓝底上的字）两种模式都是奶油白。
-    expect(light.onStrong).toBe("#fdfbf6");
-    expect(dark.onStrong).toBe("#fdfbf6");
+    // 反白层：亮色是白字配墨水实心 CTA，暗色反转为深字配浅墨填充。
+    expect(light.onStrong).toBe("#ffffff");
+    expect(dark.onStrong).toBe("#1d1d1f");
   });
 });
 

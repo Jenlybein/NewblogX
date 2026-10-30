@@ -6,7 +6,7 @@
  *      github.css），跟五色体系没关系；换肤只能换 `<link>`，切暗色会重新加载样式导致
  *      白块/跳版。这里改成**自有主题 + 语义 token**：shadow 内部的元素从宿主继承
  *      CSS 变量，站点根类切换明暗时颜色瞬间生效，不换链接。
- *   2. 主题取值可测。`resolveMarkdownTheme()` 把 tokens.css 里的 `var(--jelly-*)`
+ *   2. 主题取值可测。`resolveMarkdownTheme()` 把 tokens.css 里的 `var(--color-*)`
  *      间接引用解析成真实色值，单测可以断言"明暗两套取值确实翻转"，也给 #12 的暗色
  *      收口提供同一份接口。
  *
@@ -26,13 +26,12 @@ export const MARKDOWN_THEME_ROLES = {
   line: "--color-line",
   lineStrong: "--color-line-strong",
   lineFaint: "--color-line-faint",
-  accent: "--color-focus",
+  link: "--color-link",
   highlight: "--color-highlight",
   danger: "--color-danger",
   dangerInk: "--color-danger-ink",
   dangerSoft: "--color-danger-soft",
   dangerLine: "--color-danger-line",
-  focusSoft: "--color-focus-soft",
   onStrong: "--color-on-strong",
   onStrongMuted: "--color-on-strong-muted",
 } as const;
@@ -260,7 +259,7 @@ export const MARKDOWN_THEME_CSS = `/* ==========================================
 }
 
 .markdown-body a {
-  color: var(--color-focus);
+  color: var(--color-link);
   text-decoration: underline;
   text-decoration-thickness: 1px;
   text-underline-offset: 0.2em;
@@ -270,7 +269,7 @@ export const MARKDOWN_THEME_CSS = `/* ==========================================
 }
 
 .markdown-body a:hover {
-  color: var(--color-danger-ink);
+  color: var(--color-ink);
   text-decoration-thickness: 2px;
 }
 
@@ -305,7 +304,7 @@ export const MARKDOWN_THEME_CSS = `/* ==========================================
   color: var(--color-ink-muted);
 }
 
-/* ---- 引用：1px 蓝色结构线 + 次级纸面 ---- */
+/* ---- 引用：1px 中性结构线 + 次级纸面 ---- */
 .markdown-body blockquote {
   margin: 1.5em 0;
   padding: 0.75em 1.1em;
@@ -344,8 +343,8 @@ export const MARKDOWN_THEME_CSS = `/* ==========================================
 }
 
 .markdown-body .markdown-notice--tip {
-  border-left-color: var(--color-focus);
-  background: var(--color-focus-soft);
+  border-left-color: var(--color-line-strong);
+  background: var(--color-bg-subtle);
 }
 
 .markdown-body .markdown-notice--note {
@@ -429,7 +428,7 @@ export const MARKDOWN_THEME_CSS = `/* ==========================================
 .markdown-body .hljs-attr-value,
 .markdown-body .hljs-link,
 .markdown-body .hljs-regexp {
-  color: var(--color-focus);
+  color: var(--color-ink-muted);
   font-weight: 600;
 }
 
@@ -439,7 +438,7 @@ export const MARKDOWN_THEME_CSS = `/* ==========================================
 .markdown-body .hljs-section,
 .markdown-body .hljs-selector-id,
 .markdown-body .hljs-selector-class {
-  color: var(--color-focus);
+  color: var(--color-ink-muted);
   font-weight: 600;
 }
 

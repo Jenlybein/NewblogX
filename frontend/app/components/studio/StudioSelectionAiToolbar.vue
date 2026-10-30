@@ -46,7 +46,7 @@ const actions: Array<{ key: StudioAiAction; label: string }> = [
   gap: 8px;
   transform: translateX(-50%);
   padding: 8px;
-  border-radius: 0;
+  border-radius: var(--radius-md);
   border: 1px solid var(--color-line);
   background: var(--color-surface);
   backdrop-filter: blur(18px);
@@ -55,7 +55,7 @@ const actions: Array<{ key: StudioAiAction; label: string }> = [
 
 .studio-selection-ai-toolbar__button {
   border: 0;
-  border-radius: 0;
+  border-radius: var(--radius-sm);
   padding: 9px 12px;
   background: var(--color-surface-raised);
   color: var(--color-ink-muted);
@@ -70,7 +70,7 @@ const actions: Array<{ key: StudioAiAction; label: string }> = [
 
 .studio-selection-ai-toolbar__button:hover {
   background: var(--color-line-faint);
-  color: var(--color-focus);
+  color: var(--color-ink);
   transform: translateY(-1px);
 }
 

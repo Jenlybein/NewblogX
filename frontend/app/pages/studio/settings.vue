@@ -361,7 +361,7 @@ useSeoMeta({
             </label>
             <label class="space-y-2 md:col-span-2">
               <span class="text-sm font-medium">头像上传</span>
-              <div class="rounded-[18px] border border-line bg-surface px-4 py-4">
+              <div class="rounded-card border border-line bg-surface px-4 py-4">
                 <input
                   ref="avatarFileInputRef"
                   type="file"
@@ -425,7 +425,7 @@ useSeoMeta({
           <h2 class="section-title mt-2">绑定信息</h2>
 
           <div class="mt-5 space-y-3">
-            <div class="flex items-center justify-between rounded-[18px] border px-4 py-3">
+            <div class="flex items-center justify-between rounded-card border px-4 py-3">
               <div class="flex items-center gap-4">
                 <span class="text-sm font-medium">邮箱</span>
                 <span class="text-sm muted">{{ maskedEmailText }}</span>
@@ -434,7 +434,7 @@ useSeoMeta({
                 {{ hasBoundEmail ? "修改邮箱" : "绑定邮箱" }}
               </NButton>
             </div>
-            <div class="flex items-center justify-between rounded-[18px] border px-4 py-3">
+            <div class="flex items-center justify-between rounded-card border px-4 py-3">
               <div class="flex items-center gap-4">
                 <span class="text-sm font-medium">密码</span>
                 <span class="text-sm muted">{{ maskedPasswordText }}</span>
@@ -453,19 +453,19 @@ useSeoMeta({
           <h2 class="section-title mt-2">消息偏好</h2>
 
           <div class="mt-5 space-y-3">
-            <div class="flex items-center justify-between rounded-[18px] border px-4 py-3">
+            <div class="flex items-center justify-between rounded-card border px-4 py-3">
               <span>点赞提醒</span>
               <NSwitch v-model:value="preferenceForm.digg_notice_enabled" />
             </div>
-            <div class="flex items-center justify-between rounded-[18px] border px-4 py-3">
+            <div class="flex items-center justify-between rounded-card border px-4 py-3">
               <span>评论提醒</span>
               <NSwitch v-model:value="preferenceForm.comment_notice_enabled" />
             </div>
-            <div class="flex items-center justify-between rounded-[18px] border px-4 py-3">
+            <div class="flex items-center justify-between rounded-card border px-4 py-3">
               <span>收藏提醒</span>
               <NSwitch v-model:value="preferenceForm.favor_notice_enabled" />
             </div>
-            <div class="flex items-center justify-between rounded-[18px] border px-4 py-3">
+            <div class="flex items-center justify-between rounded-card border px-4 py-3">
               <span>私信提醒</span>
               <NSwitch v-model:value="preferenceForm.private_chat_notice_enabled" />
             </div>
@@ -480,15 +480,15 @@ useSeoMeta({
           <h2 class="section-title mt-2">可见性</h2>
 
           <div class="mt-5 space-y-3">
-            <div class="flex items-center justify-between rounded-[18px] border px-4 py-3">
+            <div class="flex items-center justify-between rounded-card border px-4 py-3">
               <span>收藏夹可见</span>
               <NSwitch v-model:value="profileForm.favorites_visibility" />
             </div>
-            <div class="flex items-center justify-between rounded-[18px] border px-4 py-3">
+            <div class="flex items-center justify-between rounded-card border px-4 py-3">
               <span>关注列表可见</span>
               <NSwitch v-model:value="profileForm.followers_visibility" />
             </div>
-            <div class="flex items-center justify-between rounded-[18px] border px-4 py-3">
+            <div class="flex items-center justify-between rounded-card border px-4 py-3">
               <span>粉丝列表可见</span>
               <NSwitch v-model:value="profileForm.fans_visibility" />
             </div>

@@ -343,9 +343,9 @@ compose 服务名用下划线（`blogx_server` / `blogx_web` / `blogx_admin`）�
 _Avoid_: 让前端读 `.env`（不读；且每份 env 只能写本应用前缀的键，白名单外直接忽略）。
 
 **BLOGX_APP_ENV**：
-环境标识 `dev` / `test` / `prod`；代码只认字面量 `prod`，它给 refresh Cookie 加 `Secure`。
+环境标识 `dev` / `test` / `production`；代码只把 `production` 当作生产，它给 refresh Cookie 加 `Secure`。
 位置：`deploy/compose/production/.env`。
-易混：写 `production` **不会**开启 Secure（两个名字不等价）；http 环境必须是 `dev`，否则表现是"能登录、刷新后掉登录"。
+易混：历史写法 `prod` 仍被兼容（启动日志会提示迁移），但新配置一律写 `production`；http 环境必须是 `dev`，否则表现是"能登录、刷新后掉登录"。
 
 ---
 

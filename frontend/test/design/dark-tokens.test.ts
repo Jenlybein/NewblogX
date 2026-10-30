@@ -163,4 +163,21 @@ describe("暗色对比度达 WCAG AA", () => {
     expect(contrastRatio(dark("--color-on-inverse"), inverseSurface)).toBeGreaterThanOrEqual(4.5);
     expect(contrastRatio(dark("--color-on-inverse-muted"), inverseSurface)).toBeGreaterThanOrEqual(4.5);
   });
+
+  it("激活态反白字（on-strong / ink 填充）明暗两态都 ≥ 4.5:1", () => {
+    for (const mode of ["light", "dark"] as const) {
+      const read = (name: string) => resolveTokenValue(blocks, mode, name);
+
+      expect(contrastRatio(read("--color-on-strong"), read("--color-ink"))).toBeGreaterThanOrEqual(4.5);
+    }
+  });
+
+  it("亮色：正文 / 次级墨 / 链接 / 焦点环同样达标", () => {
+    const page = light("--color-bg-page");
+
+    expect(contrastRatio(light("--color-ink"), page)).toBeGreaterThanOrEqual(4.5);
+    expect(contrastRatio(light("--color-ink-muted"), page)).toBeGreaterThanOrEqual(4.5);
+    expect(contrastRatio(light("--color-link"), page)).toBeGreaterThanOrEqual(4.5);
+    expect(contrastRatio(light("--color-focus"), page)).toBeGreaterThanOrEqual(3);
+  });
 });

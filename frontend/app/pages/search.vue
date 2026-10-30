@@ -2,7 +2,13 @@
 import { computed, ref, shallowRef, watch } from "vue";
 import { NButton, NInput } from "naive-ui";
 import ArticleFeedItem from "~/components/article/ArticleFeedItem.vue";
+import ProfileEmptyState from "~/components/profile/ProfileEmptyState.vue";
 import { getTagOptions, searchArticles, searchArticlesWithAi } from "~/services/search";
+import {
+  SEARCH_ACTION_LABELS,
+  resolveSearchEmptyState,
+  type SearchAction,
+} from "~/utils/searchState";
 
 type SearchMode = "normal" | "ai";
 
@@ -155,7 +161,6 @@ watch(
 
 const articles = computed(() => searchPager.currentItems.value);
 const pending = computed(() => searchPager.pending.value);
-const cachedPageCount = computed(() => Object.keys(searchPager.pages.value).length);
 const currentSearchPage = computed(() => searchPager.currentPage.value);
 const isAiMode = computed(() => mode.value === "ai");
 const searchPlaceholder = computed(() =>
@@ -165,15 +170,46 @@ const searchPlaceholder = computed(() =>
 );
 const searchModeToggleLabel = computed(() => (isAiMode.value ? "切换到普通搜索" : "切换到智能搜索"));
 const resultTitle = computed(() => (isAiMode.value ? "智能搜索结果" : "搜索结果"));
-const emptyText = computed(() => {
-  if (pending.value) {
-    return isAiMode.value ? "正在理解你的问题并搜索文章..." : "正在搜索中...";
+// 空态 / 错误态统一走纯函数（utils/searchState）：文案与"下一步该做什么"只写一处，
+// 页面只负责把 actions 渲染成按钮。
+const emptyState = computed(() =>
+  resolveSearchEmptyState({
+    mode: mode.value,
+    key: committedQuery.value.key,
+    tagId: committedQuery.value.tagId,
+    pending: pending.value,
+    failed: Boolean(requestError.value),
+  }),
+);
+const emptyActions = computed(() => emptyState.value.actions);
+const suggestionTags = computed(() => (tagOptions.value || []).slice(0, 6));
+
+async function handleEmptyAction(action: SearchAction) {
+  if (action === "retry") {
+    try {
+      await searchPager.refreshCurrentPage();
+    } catch {
+      // 失败状态已在 fetchPage 中收集，这里不重复抛出。
+    }
+    return;
   }
-  if (requestError.value) {
-    return isAiMode.value ? "智能搜索失败，请稍后重试或切换到普通搜索。" : "文章加载失败，请检查前端 API 地址或测试环境状态。";
+  if (action === "clear-filters") {
+    handleReset();
+    return;
   }
-  return isAiMode.value ? "没有找到合适的文章，试着换一种更具体的描述。" : "没有匹配结果，换个关键词或筛选条件试试。";
-});
+  if (action === "switch-mode") {
+    handleToggleSearchMode();
+    return;
+  }
+  await navigateTo("/");
+}
+
+function handleSuggestionTag(value: string) {
+  tagId.value = value;
+  key.value = "";
+  handleSearch();
+}
+
 const showPager = computed(() => !isAiMode.value && (totalResults.value > 0 || currentSearchPage.value > 1));
 
 function handleReset() {
@@ -260,15 +296,18 @@ watch(
       <div class="mb-5">
         <div class="eyebrow">Search</div>
         <h1 class="section-title mt-2">搜索文章</h1>
+        <p class="mt-2 text-sm leading-6 text-ink-muted">
+          关键词搜索标题、摘要与正文；也可以按标签筛选，或切到智能搜索用一句话描述。
+        </p>
       </div>
 
       <div class="space-y-4">
         <NInput
           v-model:value="key"
+          class="search-field"
           name="article-search"
           autocomplete="off"
           aria-label="搜索文章关键字"
-          round
           clearable
           :placeholder="searchPlaceholder"
           @keydown.enter.prevent="handleSearch"
@@ -276,7 +315,8 @@ watch(
 
         <div v-if="!isAiMode" class="grid gap-4 md:grid-cols-2">
           <label class="flex items-center">
-            <select v-model="tagId" name="tag_ids" aria-label="标签筛选" class="h-12 w-full rounded-full border border-white/70 bg-white/78 px-4 text-sm text-slate-700 shadow-[inset_0_1px_0_rgba(255,255,255,0.65)] backdrop-blur">
+            <span class="sr-only">标签筛选</span>
+            <select v-model="tagId" name="tag_ids" class="search-select" aria-label="标签筛选">
               <option value="">全部标签</option>
               <option v-for="option in tagOptions || []" :key="option.value" :value="String(option.value)">
                 {{ option.label }}
@@ -285,7 +325,8 @@ watch(
           </label>
 
           <label class="flex items-center">
-            <select v-model="sort" name="sort" aria-label="排序方式" class="h-12 w-full rounded-full border border-white/70 bg-white/78 px-4 text-sm text-slate-700 shadow-[inset_0_1px_0_rgba(255,255,255,0.65)] backdrop-blur">
+            <span class="sr-only">排序方式</span>
+            <select v-model="sort" name="sort" class="search-select" aria-label="排序方式">
               <option v-for="option in sortOptions" :key="option.value" :value="option.value">
                 {{ option.label }}
               </option>
@@ -294,25 +335,25 @@ watch(
         </div>
 
         <div class="flex flex-wrap items-center justify-between gap-3">
-          <NButton secondary round @click="handleToggleSearchMode">{{ searchModeToggleLabel }}</NButton>
-          <div class="flex items-center gap-3">
-            <NButton quaternary @click="handleReset">重置</NButton>
-            <NButton type="primary" @click="handleSearch">搜索</NButton>
+          <NButton secondary attr-type="button" @click="handleToggleSearchMode">{{ searchModeToggleLabel }}</NButton>
+          <div class="flex items-center gap-3 blueprint-actions">
+            <NButton quaternary attr-type="button" @click="handleReset">重置</NButton>
+            <NButton type="primary" attr-type="button" @click="handleSearch">搜索</NButton>
           </div>
         </div>
       </div>
     </section>
 
-    <section class="surface-card p-5 md:p-6">
-      <div class="mb-5 flex items-center justify-between">
-        <div class="section-title">{{ resultTitle }}</div>
-        <div class="text-sm muted">
-          <template v-if="isAiMode">
-            共 {{ totalResults }} 条结果。
-          </template>
+    <section class="blueprint-panel">
+      <div class="mb-5 flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <div class="eyebrow">Results</div>
+          <h2 class="section-title mt-2">{{ resultTitle }}</h2>
+        </div>
+        <div class="text-sm text-ink-muted">
+          <template v-if="isAiMode">共 {{ totalResults }} 条结果。</template>
           <template v-else>
-            共 {{ totalResults }} 条结果，每页 9 篇，当前第 {{ currentSearchPage }} / {{ Math.max(totalPages, 1) }} 页，本次已缓存
-            {{ cachedPageCount }} 页。
+            共 {{ totalResults }} 条结果，每页 9 篇，当前第 {{ currentSearchPage }} / {{ Math.max(totalPages, 1) }} 页
           </template>
         </div>
       </div>
@@ -322,18 +363,48 @@ watch(
           v-for="article in articles"
           :key="article.id"
           :article="article"
-          compact
+          variant="search"
         />
       </div>
 
-      <div v-else class="surface-section flex min-h-[240px] items-center justify-center p-6 text-sm muted">
-        {{ emptyText }}
+      <ProfileEmptyState
+        v-else
+        size="lg"
+        :pending="pending"
+        :title="emptyState.title"
+        :description="emptyState.description"
+        :hints="emptyState.hints"
+      >
+        <button
+          v-for="action in emptyActions"
+          :key="action"
+          type="button"
+          class="blueprint-tab"
+          @click="handleEmptyAction(action)"
+        >
+          {{ SEARCH_ACTION_LABELS[action] }}
+        </button>
+      </ProfileEmptyState>
+
+      <div v-if="suggestionTags.length && emptyState.kind === 'idle'" class="mt-5 border-t border-line-faint pt-4">
+        <p class="text-sm text-ink-muted">从标签开始浏览：</p>
+        <div class="mt-3 flex flex-wrap gap-2">
+          <button
+            v-for="tag in suggestionTags"
+            :key="tag.value"
+            type="button"
+            class="blueprint-tab"
+            @click="handleSuggestionTag(String(tag.value))"
+          >
+            {{ tag.label }}
+          </button>
+        </div>
       </div>
 
-      <div v-if="showPager" class="mt-6 flex flex-wrap items-center justify-between gap-3 border-t border-white/60 pt-5 text-sm muted">
+      <div v-if="showPager" class="mt-6 flex flex-wrap items-center justify-between gap-3 border-t border-line-faint pt-5 text-sm text-ink-muted">
         <span>未刷新前，已访问页会直接复用缓存。</span>
-        <div class="flex items-center gap-3">
-          <NButton quaternary :disabled="!searchPager.hasPreviousPage" @click="handlePageChange(currentSearchPage - 1)">
+        <div class="flex items-center gap-3 blueprint-actions">
+          <NButton quaternary :disabled="!searchPager.hasPreviousPage" attr-type="button" @click="handlePageChange(currentSearchPage - 1)">
             上一页
           </NButton>
           <NButton
@@ -341,6 +412,7 @@ watch(
             ghost
             :disabled="!searchPager.hasNextPage || currentSearchPage >= totalPages"
             :loading="pending"
+            attr-type="button"
             @click="handlePageChange(currentSearchPage + 1)"
           >
             下一页

@@ -43,6 +43,7 @@
     "markdown-styles": "^3.2.0",
     "markdown-theme": "^0.2.7",
     "mermaid": "^11.14.0",
+    "motion-v": "^2.9.0",
     "naive-ui": "^2.44.1",
     "nuxt": "^4.4.2",
     "ofetch": "^1.5.1",

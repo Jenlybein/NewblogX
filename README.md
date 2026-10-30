@@ -116,15 +116,46 @@ sed -i \
 
 `BLOGX_APP_ENV` 写 `production`：代码里唯一的判断就是它，只有生产环境会给 refresh Cookie 加 `Secure`。旧写法 `prod` 仍被兼容（启动日志会提示迁移），但新配置一律写 `production`。
 
-**放证书、起服务**：
+#### 放证书、起服务
+
+nginx 只认 `deploy/state/nginx/cert/` 下的两个固定文件名：`domain.pem`（**fullchain**，含中间证书）和 `domain.key`（私钥）。证书来源二选一，放好后执行同一段「起服务」。
+
+##### A. 自有证书（云厂商签发 / 已有 pem + key）
 
 ```bash
-sudo sysctl -w vm.max_map_count=262144
-
 mkdir -p ../../state/nginx/cert
 cp 你的证书.pem ../../state/nginx/cert/domain.pem
 cp 你的证书.key ../../state/nginx/cert/domain.key
 chmod 600 ../../state/nginx/cert/domain.key
+```
+
+> 证书的 SAN 必须覆盖你要访问的域名（`https://你的域名`），否则浏览器报"证书与域名不匹配"。
+
+##### B. 免费证书 + 自动续期（acme.sh）
+
+适合还没有证书、想免费部署的用户。仓库里带了签发脚本 `scripts/issue-cert.sh`：在仓库根目录用**部署用户**（能直接跑 `docker ps` 的那个）执行，邮箱和域名用参数传，多个域名就重复 `--domain`（第一个是主域名）：
+
+```bash
+bash scripts/issue-cert.sh --email you@example.com --domain 你的域名
+bash scripts/issue-cert.sh --email you@example.com --domain 你的域名 --domain www.你的域名
+```
+
+脚本会：装 acme.sh（自动写每日 cron）→ 签发时先停 nginx 腾出 80（`--pre-hook`）、签完拉起来（`--post-hook`）→ 把 fullchain/key 装到 `deploy/state/nginx/cert/` → 注册续期成功后的 `docker exec nginx nginx -s reload`。后续续期由 cron 负责，不用再跑脚本。参数和环境变量（容器名、CA 等）用 `bash scripts/issue-cert.sh --help` 看。
+
+> 签发前必须：域名的 A/AAAA 解析指向这台服务器的公网 IP（`dig +short 你的域名` 可验证）、公网 80 放行、域名没有被 CDN/代理（如 Cloudflare 橙云）挡住 HTTP-01 校验。**脚本不会替你改 DNS。**
+>
+> 首次执行时 nginx 可能还没起，脚本里的 reload 会被静默跳过；`docker compose up` 之后 nginx 第一次启动就会加载证书，不用重跑。
+
+几条要知道的：
+
+- **续期**：cron 每天检查，剩 < 30 天时停 nginx → 签发 → 起 nginx（这几秒访问会失败）→ 重载新证书。完全不想停 nginx 就用 DNS-01（`--issue --dns dns_<服务商>`，插件与 API 凭据见[第十五章](#十五七牛云接入与证书自动化)）；脚本只封装 standalone，DNS-01 按 15.5 手动执行。
+- standalone 依赖 `socat` 或 `python3`；Ubuntu 22.04 自带 python3，够用。
+- 检查续期有没有生效：`~/.acme.sh/acme.sh --list` 看下次续期时间；线上证书的日期用 `echo | openssl s_client -connect 你的域名:443 -servername 你的域名 2>/dev/null | openssl x509 -noout -dates`。
+
+##### 起服务
+
+```bash
+sudo sysctl -w vm.max_map_count=262144
 
 docker compose up -d --build
 docker compose exec blogx_server /app/server -f config/settings.yaml \
@@ -713,6 +744,8 @@ chmod 600 /opt/blogx/deploy/state/nginx/cert/domain.key
 # 4. 启动
 docker compose up -d --build
 ```
+
+> 不想手动准备证书：用 acme.sh 签发并自动续期（续期后自动重载 nginx），命令见[快速开始 · 场景 2](#2-服务器-https-docker-拉起)的 B 方案。
 
 首次启动会自动初始化，不用手动跑迁移。`deploy/docker/api/entrypoint.sh` 会先查 `runtime_site_config_models` 表：
 

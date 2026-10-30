@@ -96,7 +96,7 @@ async function submit() {
 
           <div class="flex items-center justify-between gap-3">
             <NCheckbox v-model:checked="form.remember">记住当前设备</NCheckbox>
-            <NuxtLink class="text-sm text-teal-700" to="/">返回仪表盘</NuxtLink>
+            <NuxtLink class="text-sm text-focus underline-offset-4 hover:underline" to="/">返回仪表盘</NuxtLink>
           </div>
 
           <NButton type="primary" size="large" block :loading="auth.pending" @click="submit">

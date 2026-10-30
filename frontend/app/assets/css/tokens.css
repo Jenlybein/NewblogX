@@ -76,6 +76,16 @@
   --type-tracking-title: -0.02em; /* 标题轻微负字距 */
   --type-tracking-dense: -0.01em; /* 小字收紧 */
   --type-weight-title: 700; /* 标题字重 */
+
+  /* ---- 4. 动效层（spec 决策 3：三档时长 + 单一缓动 + stagger 节奏）----
+   * 取值与 app/utils/motion.ts 里的常量是同一份预算，design 测试会交叉校验，
+   * 改一处必须两处同改。组件消费时一律用变量，不写死毫秒。
+   * 只允许动 transform / opacity；下面 media 查询在「减少动态」时把它们全部归零。 */
+  --motion-fast: 120ms; /* 微交互（hover/focus 反馈） */
+  --motion-base: 200ms; /* 进出场 / 路由切换 */
+  --motion-slow: 320ms; /* 上限：结构级一次性过渡 */
+  --motion-ease: cubic-bezier(0.2, 0.8, 0.2, 1); /* 全站唯一缓动曲线 */
+  --motion-stagger: 40ms; /* 列表相邻条目的错峰间隔 */
 }
 
 /* ---- 暗色映射：同一组语义 token 的第二份取值（克莱因蓝铺底 + 奶油白字） ---- */
@@ -96,6 +106,30 @@
   --color-danger-ink: var(--jelly-coral-300);
   --color-focus: var(--jelly-cream);
   --color-shadow: rgba(0, 8, 30, 0.55);
+}
+
+/* ---- 「减少动态」的全局降级 ----
+ * 1) 把四档动效 token 归零：所有消费 `--motion-*` 的 CSS 过渡变成瞬间完成（静态）；
+ * 2) 再兜一层全局 `*` 覆盖：Naive UI 内建过渡、第三方 CSS 动画、滚动行为一并退化。
+ * 用 0.01ms 而不是 0：既保证"实际不可感知"，又保留 transitionend/animationend
+ * 事件（很多组件靠它收尾，duration 0 时某些浏览器会跳过事件）。
+ */
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --motion-fast: 0ms;
+    --motion-base: 0ms;
+    --motion-slow: 0ms;
+    --motion-stagger: 0ms;
+  }
+
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }
 
 /* ==========================================================================

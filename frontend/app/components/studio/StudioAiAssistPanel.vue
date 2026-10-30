@@ -178,7 +178,7 @@ function severityType(value: string): "error" | "warning" | "default" {
 }
 
 .studio-ai-panel {
-  border-radius: 0;
+  border-radius: var(--radius-xl);
 }
 
 .studio-ai-panel__header {
@@ -220,7 +220,7 @@ function severityType(value: string): "error" | "warning" | "default" {
 .studio-ai-panel__error {
   margin-bottom: 16px;
   padding: 12px 14px;
-  border-radius: 0;
+  border-radius: var(--radius-md);
   border: 1px solid var(--color-line);
   background: var(--color-bg-subtle);
   color: var(--color-danger-ink);
@@ -236,7 +236,7 @@ function severityType(value: string): "error" | "warning" | "default" {
 .studio-ai-panel__section {
   min-height: 360px;
   border: 1px solid var(--color-line);
-  border-radius: 0;
+  border-radius: var(--radius-lg);
   background: var(--color-surface-raised);
   overflow: hidden;
 }
@@ -292,7 +292,7 @@ function severityType(value: string): "error" | "warning" | "default" {
 
 .studio-ai-diagnose__issue {
   padding: 14px 16px;
-  border-radius: 0;
+  border-radius: var(--radius-md);
   background: var(--color-surface);
   border: 1px solid var(--color-line);
 }

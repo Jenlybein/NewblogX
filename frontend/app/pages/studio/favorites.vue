@@ -165,7 +165,7 @@ useSeoMeta({
               <div
                 v-for="idx in 4"
                 :key="`folder-skeleton-${idx}`"
-                class="rounded-2xl border border-line bg-surface px-4 py-3"
+                class="rounded-card border border-line bg-surface px-4 py-3"
               >
                 <NSkeleton text width="70%" />
                 <NSkeleton text width="50%" class="mt-2" />
@@ -313,7 +313,7 @@ useSeoMeta({
   gap: 14px;
   align-items: stretch;
   border: 1px solid var(--color-line);
-  border-radius: 0;
+  border-radius: var(--radius-lg);
   background: var(--color-surface);
   padding: 10px;
   transition:
@@ -329,7 +329,7 @@ useSeoMeta({
 }
 
 .favorite-content-card__cover-wrap {
-  border-radius: 0;
+  border-radius: var(--radius-md);
   overflow: hidden;
   display: block;
   height: 100%;
@@ -352,7 +352,7 @@ useSeoMeta({
   align-items: center;
   justify-content: center;
   border: 1px dashed var(--color-line);
-  border-radius: 0;
+  border-radius: var(--radius-md);
   color: var(--color-ink-muted);
   font-size: 12px;
   letter-spacing: 0.14em;
@@ -362,7 +362,7 @@ useSeoMeta({
   width: 100%;
   height: 100%;
   min-height: 112px;
-  border-radius: 0;
+  border-radius: var(--radius-md);
 }
 
 .favorite-content-card__main {
@@ -385,7 +385,7 @@ useSeoMeta({
 }
 
 .favorite-content-card__title:hover {
-  color: var(--color-focus);
+  color: var(--color-ink);
 }
 
 .favorite-content-card__abstract {

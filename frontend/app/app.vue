@@ -16,7 +16,7 @@ import sora700Woff2 from "@fontsource/sora/files/sora-latin-700-normal.woff2";
 import tokensCss from "~/assets/css/tokens.css?raw";
 import { themeBodyClass, themeHtmlClass, themeRootClass } from "~/utils/themeClass";
 import { buildThemeInitScript } from "~/utils/themePreference";
-import { buildReaderThemeOverrides, parseReaderThemePalette } from "~/utils/readerTheme";
+import { buildReaderThemeOverrides, parseReaderThemePalette, parseReaderThemeScale } from "~/utils/readerTheme";
 import {
   BRAND,
   brandAbsoluteAssetUrl,
@@ -95,11 +95,12 @@ useHead(() => ({
   ],
 }));
 
-// 主题覆盖：主色克莱因蓝 + 同色相派生明度 + 圆角 0 + 中文 fallback 字体栈。
-// 取值来自 tokens.css（颜色只有一个来源）；只覆盖主色族/圆角/字体，中性纸面与
-// 墨色交给 Naive 的 darkTheme 切换，否则静态浅色值会在暗色下变成白块。
-const themeOverrides: GlobalThemeOverrides = buildReaderThemeOverrides(
-  parseReaderThemePalette(tokensCss),
+// 主题覆盖：主色墨色（CTA 实心胶囊）+ info 功能蓝 + 圆角阶梯 + 中文 fallback 字体栈。
+// 取值来自 tokens.css（颜色只有一个来源）；明暗各取同一组语义 token的第二份取值，
+// 随当前主题切换（否则静态浅色值会在暗色下变成白块）。
+const readerThemeScale = parseReaderThemeScale(tokensCss);
+const themeOverrides = computed<GlobalThemeOverrides>(() =>
+  buildReaderThemeOverrides(parseReaderThemePalette(tokensCss, uiStore.theme), readerThemeScale),
 );
 </script>
 
@@ -112,7 +113,7 @@ const themeOverrides: GlobalThemeOverrides = buildReaderThemeOverrides(
           <NDialogProvider>
             <NLoadingBarProvider>
               <div :class="['min-h-screen', themeRootClass(uiStore.theme)]">
-                <NuxtLoadingIndicator color="var(--color-focus)" />
+                <NuxtLoadingIndicator color="var(--color-ink)" />
                 <NuxtRouteAnnouncer />
                 <NuxtLayout>
                   <NuxtPage />

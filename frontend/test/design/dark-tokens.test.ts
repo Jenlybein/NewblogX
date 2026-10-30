@@ -6,7 +6,8 @@ import { describe, expect, it } from "vitest";
 import { parseTokenBlocks, resolveTokenValue } from "~/utils/markdownTheme";
 
 /**
- * 暗色取值本身：铺底是克莱因蓝族、墨色是奶油白、各项对比度达 WCAG AA。
+ * 暗色取值本身：铺底是**中性石墨阶**（不是克莱因蓝、也不是暖黑），墨色是浅石墨，
+ * 各项对比度达 WCAG AA。
  *
  * 取值全部从 tokens.css **真实解析**（不手抄 hex）：改 token 时这里会一起动，
  * 抄写漂移不会被放过。
@@ -63,25 +64,31 @@ function contrastRatio(foreground: string, background: string): number {
   return (lighter + 0.05) / (darker + 0.05);
 }
 
-describe("暗色铺底是克莱因蓝族，不是深灰/黑", () => {
-  it("页面底色 / 纸面 / 抬升纸面都在蓝族里（蓝通道最大、亮度很低）", () => {
+describe("暗色铺底：中性石墨阶（不是深蓝、不是暖黑）", () => {
+  it("四档底色取到 §3.3 规定的中性暗阶", () => {
+    expect(dark("--color-bg-page")).toBe("#161617");
+    expect(dark("--color-bg-subtle")).toBe("#101011");
+    expect(dark("--color-surface")).toBe("#1d1d1f");
+    expect(dark("--color-surface-raised")).toBe("#2c2c2e");
+  });
+
+  it("四档暗面确实是中性灰：三通道差 ≤3、亮度很低、没有蓝色偏置", () => {
     for (const token of ["--color-bg-page", "--color-surface", "--color-surface-raised", "--color-bg-subtle"]) {
       const { r, g, b } = hexToRgb(dark(token));
 
-      expect(b).toBeGreaterThan(g);
-      expect(g).toBeGreaterThanOrEqual(r);
-      expect(relativeLuminance(dark(token))).toBeLessThan(0.05);
-      expect(dark(token)).not.toMatch(/#(?:fff|fdfbf6)/u);
+      expect(Math.max(r, g, b) - Math.min(r, g, b)).toBeLessThanOrEqual(3);
+      expect(b - r).toBeLessThanOrEqual(2);
+      expect(relativeLuminance(dark(token))).toBeLessThan(0.06);
     }
   });
 
-  it("墨色是奶油白，不是纯白/纯黑", () => {
-    expect(dark("--color-ink")).toBe(light("--color-surface"));
-    expect(dark("--color-ink")).not.toBe("#ffffff");
-    expect(dark("--color-ink-muted")).not.toBe("#ffffff");
+  it("墨色是浅石墨 #F5F5F7，次级 #A1A1A6，极淡 #86868B（不是奶油白）", () => {
+    expect(dark("--color-ink")).toBe("#f5f5f7");
+    expect(dark("--color-ink-muted")).toBe("#a1a1a6");
+    expect(dark("--color-ink-faint")).toBe("#86868b");
   });
 
-  it("面/线/墨/高亮/危险五类都有暗色取值，且与浅色不同", () => {
+  it("面/线/墨/高亮/危险/链接/反白层都有暗色取值，且与浅色不同", () => {
     for (const token of [
       "--color-bg-page",
       "--color-bg-subtle",
@@ -89,6 +96,7 @@ describe("暗色铺底是克莱因蓝族，不是深灰/黑", () => {
       "--color-surface-raised",
       "--color-ink",
       "--color-ink-muted",
+      "--color-ink-faint",
       "--color-line",
       "--color-line-strong",
       "--color-line-faint",
@@ -97,8 +105,12 @@ describe("暗色铺底是克莱因蓝族，不是深灰/黑", () => {
       "--color-danger-soft",
       "--color-danger-line",
       "--color-danger-ink",
+      "--color-link",
       "--color-focus",
       "--color-focus-soft",
+      "--color-on-inverse",
+      "--color-on-inverse-muted",
+      "--color-surface-inverse",
       "--color-shadow",
     ]) {
       expect(dark(token)).toBeTruthy();
@@ -109,13 +121,26 @@ describe("暗色铺底是克莱因蓝族，不是深灰/黑", () => {
     expect(dark("--color-surface")).not.toBe(light("--color-surface"));
     expect(dark("--color-ink")).not.toBe(light("--color-ink"));
   });
+
+  it("功能蓝在暗色换成苹果暗色蓝 #2997FF，且只出现在链接与焦点环", () => {
+    expect(dark("--color-link")).toBe("#2997ff");
+    expect(dark("--color-focus")).toBe("#2997ff");
+    // 焦点环的浅色底（交互蓝 16%）在暗色块里是第二份取值。
+    expect(dark("--color-focus-soft")).toBe("rgba(41, 151, 255, 0.16)");
+  });
+
+  it("暗色不出现克莱因蓝的任何残留", () => {
+    expect(tokensCss).not.toMatch(/#002fa7/iu);
+    expect(dark("--color-line")).toBe("rgba(245, 245, 247, 0.14)");
+    expect(dark("--color-line-strong")).toBe("rgba(245, 245, 247, 0.28)");
+  });
 });
 
 describe("暗色对比度达 WCAG AA", () => {
   const surface = dark("--color-surface");
   const bgPage = dark("--color-bg-page");
 
-  it("正文墨色 / 页面底色 ≥ 4.5:1", () => {
+  it("正文墨色 / 页面底色 / 纸面 / 次底 ≥ 4.5:1", () => {
     expect(contrastRatio(dark("--color-ink"), bgPage)).toBeGreaterThanOrEqual(4.5);
     expect(contrastRatio(dark("--color-ink"), surface)).toBeGreaterThanOrEqual(4.5);
     expect(contrastRatio(dark("--color-ink"), dark("--color-bg-subtle"))).toBeGreaterThanOrEqual(4.5);
@@ -123,15 +148,19 @@ describe("暗色对比度达 WCAG AA", () => {
 
   it("次级墨色 / 危险文字 / 纸面 ≥ 4.5:1", () => {
     expect(contrastRatio(dark("--color-ink-muted"), surface)).toBeGreaterThanOrEqual(4.5);
+    expect(contrastRatio(dark("--color-ink-muted"), bgPage)).toBeGreaterThanOrEqual(4.5);
     expect(contrastRatio(dark("--color-danger-ink"), surface)).toBeGreaterThanOrEqual(4.5);
-    expect(contrastRatio(dark("--color-danger-ink"), dbg())).toBeGreaterThanOrEqual(4.5);
   });
 
-  it("焦点环（奶油白）在深蓝底上 ≥ 3:1（UI 组件边界）", () => {
+  it("文字链接与焦点环（功能蓝 #2997FF）在页底 ≥ 4.5:1 / 3:1", () => {
+    expect(contrastRatio(dark("--color-link"), bgPage)).toBeGreaterThanOrEqual(4.5);
     expect(contrastRatio(dark("--color-focus"), bgPage)).toBeGreaterThanOrEqual(3);
   });
-});
 
-function dbg(): string {
-  return dark("--color-bg-page");
-}
+  it("反白层（页脚 / 封面）在深墨面上 ≥ 4.5:1（含次级字）", () => {
+    const inverseSurface = dark("--color-surface-inverse");
+
+    expect(contrastRatio(dark("--color-on-inverse"), inverseSurface)).toBeGreaterThanOrEqual(4.5);
+    expect(contrastRatio(dark("--color-on-inverse-muted"), inverseSurface)).toBeGreaterThanOrEqual(4.5);
+  });
+});

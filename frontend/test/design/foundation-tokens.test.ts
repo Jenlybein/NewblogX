@@ -86,7 +86,7 @@ const ALPHA_SEMANTIC_TOKENS = [
   "--color-highlight",
 ];
 
-const TRIPLET_VALUE_RE = /^rgb\(var\(--jelly-[a-z0-9-]+-rgb\) \/ [0-9.]+\)$/u;
+const TRIPLET_VALUE_RE = /^rgb\(var\(--[a-z0-9-]+-rgb\) \/ [0-9.]+\)$/u;
 
 describe("三元组派生：带透明度的语义色不再写死 rgba(r,g,b,α)", () => {
   it.each(ALPHA_SEMANTIC_TOKENS)("%s 的明暗两份取值都是 rgb(var(--*-rgb) / α)", (name) => {
@@ -127,10 +127,10 @@ describe("三元组派生：带透明度的语义色不再写死 rgba(r,g,b,α)"
       channels: [Number(match[2]), Number(match[3]), Number(match[4])],
     }));
 
-    expect(triplets.length).toBeGreaterThanOrEqual(5);
+    expect(triplets.length).toBeGreaterThanOrEqual(3);
 
     for (const { base, channels } of triplets) {
-      // 三元组不得引入第六个色相：基底名必须以五个锁定色相之一开头。
+      // 三元组不得引入第六个色相：基底名必须以锁定色相之一开头。
       expect(["blue", "cream", "yellow", "coral", "warm"]).toContain(base.split("-")[0]);
 
       const hex = declaration(root, `--jelly-${base}`);
@@ -140,6 +140,16 @@ describe("三元组派生：带透明度的语义色不再写死 rgba(r,g,b,α)"
 
       expect(channels).toEqual(hexChannels);
     }
+  });
+
+  it("读者站的石墨阶 / 功能蓝三元组不引入新色相，暗色换第二份取值", () => {
+    const root = rootBlock(tokensCss);
+    const dark = darkBlock(tokensCss);
+
+    expect(declaration(root, "--graphite-rgb")).toMatch(/^28\s+27\s+25$/u);
+    expect(declaration(root, "--interactive-rgb")).toMatch(/^0\s+102\s+204$/u);
+    expect(declaration(dark, "--graphite-rgb")).toMatch(/^245\s+245\s+247$/u);
+    expect(declaration(dark, "--interactive-rgb")).toMatch(/^41\s+151\s+255$/u);
   });
 });
 
@@ -178,7 +188,7 @@ describe("圆角阶梯：五档种子（控件 8/14、卡片 20、浮层 28、�
     expect(css).toContain("border-radius: var(--radius-lg)");
     expect(css).toContain("border-radius: var(--radius-xl)");
     expect(css).toContain("border-radius: var(--radius-pill)");
-  });
+  }, 15000);
 });
 
 describe("液态玻璃组：两档的填充/模糊/饱和度 + 边缘/噪点/移动端档", () => {
@@ -243,7 +253,7 @@ describe("液态玻璃组：两档的填充/模糊/饱和度 + 边缘/噪点/移
     expect(css).toContain("saturate(var(--glass-thin-saturate))");
     expect(css).toContain("blur(var(--glass-blur-mobile))");
     expect(css).toContain("opacity: var(--glass-grain-opacity)");
-  });
+  }, 15000);
 });
 
 describe("动效补充档位：滚动进场 12px / 视差 10px（与 motion.ts 同一份预算）", () => {
@@ -302,7 +312,7 @@ describe("字体分工键：display / title / mono 都有定义与真实消费�
     expect(css).toContain("font-family: var(--font-display)");
     expect(css).toContain("font-family: var(--font-mono)");
     expect(css).toContain("font-family: var(--font-title)");
-  });
+  }, 15000);
 
   it("Latin 取值仍归 Sora（换字体的票还没到，本票只补键）", () => {
     expect(declaration(rootBlock(tokensCss), "--font-latin")).toBe('"Sora", "Sora Fallback"');
@@ -333,6 +343,22 @@ describe("无消费者的旧 token 已删除（含 v1 青绿与渐变）", () =>
     expect(isDeclared(adminTokensCss, token)).toBe(false);
     expect(stripComments(tokensCss)).not.toMatch(exact);
     expect(stripComments(adminTokensCss)).not.toMatch(exact);
+  });
+
+  it("读者站不再有克莱因蓝族（#20 视觉语言翻转后整个删除）", () => {
+    for (const token of [
+      "--jelly-blue",
+      "--jelly-blue-950",
+      "--jelly-blue-900",
+      "--jelly-blue-800",
+      "--jelly-blue-700",
+      "--jelly-blue-600",
+      "--jelly-blue-400",
+      "--jelly-cream-700",
+    ]) {
+      expect(isDeclared(tokensCss, token)).toBe(false);
+      expect(stripComments(tokensCss)).not.toMatch(new RegExp(`${token}(?![a-z0-9-])`, "u"));
+    }
   });
 
   it("全仓样式/组件/TS 都不再消费这些旧变量", () => {

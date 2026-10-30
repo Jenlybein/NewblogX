@@ -210,12 +210,13 @@ describe("切换动效：走 motion token，减少动态时归零", () => {
     expect(bodyRule).not.toMatch(/0\.28s/u);
   });
 
-  it("减少动态时所有动效 token 归零：切换不产生过渡", () => {
+  it("减少动态时现存动效 token 归零：切换不产生过渡", () => {
     const reduceBlock =
       /@media \(prefers-reduced-motion: reduce\)\s*\{[\s\S]*?\n\}/u.exec(tokensCss)?.[0] ?? "";
 
-    for (const token of ["--motion-fast", "--motion-base", "--motion-slow", "--motion-stagger"]) {
-      expect(reduceBlock).toContain(`${token}: 0ms`);
+    // --motion-slow / --motion-stagger 已因零 var() 引用被删（spec A2），这里只断言现存的。
+    for (const token of ["--motion-fast", "--motion-base", "--motion-reveal-offset", "--parallax-max"]) {
+      expect(reduceBlock).toContain(`${token}: 0`);
     }
   });
 });

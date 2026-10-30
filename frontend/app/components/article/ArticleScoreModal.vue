@@ -3,6 +3,7 @@ import type { AiArticleScoringIssue, AiArticleScoringResponseData } from "~/type
 import { computed } from "vue";
 import { NButton, NCard, NEmpty, NModal, NProgress, NTag } from "naive-ui";
 import { formatDateTimeLabel } from "~/utils/format";
+import { useUiStore } from "~/stores/ui";
 
 const props = defineProps<{
   show: boolean;
@@ -23,15 +24,41 @@ const emit = defineEmits<{
 // 契约里 dimension.name 是 string（后端是 string，没有枚举约束），
 // 所以 map 用 string 做 key，查不到时用下面的兜底值。
 const dimensionFallback = { label: "其他", color: "#64748b", railColor: "rgba(100, 116, 139, 0.12)" };
-const dimensionMetaMap: Record<string, { label: string; color: string; railColor: string }> = {
-  clarity: { label: "清晰度", color: "#0f766e", railColor: "rgba(15, 118, 110, 0.14)" },
+const baseDimensionMetaMap: Record<string, { label: string; color: string; railColor: string }> = {
+  clarity: { label: "清晰度", color: "var(--color-focus)", railColor: "rgba(15, 118, 110, 0.14)" },
   structure: { label: "结构性", color: "#1d4ed8", railColor: "rgba(29, 78, 216, 0.12)" },
   completeness: { label: "完整度", color: "#7c3aed", railColor: "rgba(124, 58, 237, 0.12)" },
   readability: { label: "可读性", color: "#ca8a04", railColor: "rgba(202, 138, 4, 0.12)" },
   persuasiveness: { label: "说服力", color: "#dc2626", railColor: "rgba(220, 38, 38, 0.12)" },
-  language: { label: "语言规范", color: "#0f766e", railColor: "rgba(15, 118, 110, 0.14)" },
+  language: { label: "语言规范", color: "var(--color-focus)", railColor: "rgba(15, 118, 110, 0.14)" },
 };
 
+// 图表色板按明暗两套：浅色卡片用深色系，暗色克莱因蓝卡片换成高亮浅色系
+// （否则深蓝条会糊进底色，图表看不清）。
+const DARK_DIMENSION_COLORS: Record<string, { color: string; railColor: string }> = {
+  clarity: { color: "#5eead4", railColor: "rgba(94, 234, 212, 0.16)" },
+  structure: { color: "#93c5fd", railColor: "rgba(147, 197, 253, 0.14)" },
+  completeness: { color: "#c4b5fd", railColor: "rgba(196, 181, 253, 0.14)" },
+  readability: { color: "#fde047", railColor: "rgba(253, 224, 71, 0.14)" },
+  persuasiveness: { color: "#fca5a5", railColor: "rgba(252, 165, 165, 0.16)" },
+  language: { color: "#5eead4", railColor: "rgba(94, 234, 212, 0.16)" },
+};
+const uiStore = useUiStore();
+const dimensionMetaMap = computed(() => {
+  if (uiStore.theme !== "dark") {
+    return baseDimensionMetaMap;
+  }
+  const themed: Record<string, { label: string; color: string; railColor: string }> = {};
+  for (const [key, meta] of Object.entries(baseDimensionMetaMap)) {
+    themed[key] = { ...meta, ...(DARK_DIMENSION_COLORS[key] ?? {}) };
+  }
+  return themed;
+});
+const dimensionFallbackMeta = computed(() =>
+  uiStore.theme === "dark"
+    ? { ...dimensionFallback, color: "#94a3b8", railColor: "rgba(148, 163, 184, 0.16)" }
+    : dimensionFallback,
+);
 const modalTitle = computed(() => props.title || "文章质量评分");
 const totalScoreLabel = computed(() => {
   if (!props.data?.has_score) {
@@ -48,7 +75,7 @@ function close() {
 }
 
 function getDimensionMeta(name: string) {
-  return dimensionMetaMap[name] ?? dimensionFallback;
+  return dimensionMetaMap.value[name] ?? dimensionFallbackMeta.value;
 }
 
 function resolveIssueAnchor(issue: AiArticleScoringIssue) {
@@ -173,15 +200,15 @@ function resolveIssueAnchor(issue: AiArticleScoringIssue) {
 }
 
 .article-score-loading {
-  color: rgba(71, 85, 105, 0.92);
+  color: var(--color-ink-muted);
 }
 
 .article-score-loading__ring {
   width: 30px;
   height: 30px;
   border-radius: 999px;
-  border: 3px solid rgba(15, 118, 110, 0.18);
-  border-top-color: #0f766e;
+  border: 3px solid var(--color-focus-soft);
+  border-top-color: var(--color-focus);
   animation: article-score-spin 0.9s linear infinite;
 }
 
@@ -198,14 +225,14 @@ function resolveIssueAnchor(issue: AiArticleScoringIssue) {
   gap: 20px;
   padding: 20px 22px;
   border-radius: 24px;
-  background: linear-gradient(135deg, rgba(240, 253, 250, 0.94), rgba(236, 253, 245, 0.72));
-  border: 1px solid rgba(167, 243, 208, 0.72);
+  background: linear-gradient(135deg, var(--color-surface), var(--color-focus-soft));
+  border: 1px solid var(--color-line);
 }
 
 .article-score-hero__eyebrow {
   font-size: 12px;
   letter-spacing: 0.18em;
-  color: #0f766e;
+  color: var(--color-focus);
 }
 
 .article-score-hero__total {
@@ -213,7 +240,7 @@ function resolveIssueAnchor(issue: AiArticleScoringIssue) {
   font-size: clamp(40px, 7vw, 62px);
   line-height: 1;
   font-weight: 800;
-  color: #0f172a;
+  color: var(--color-ink);
 }
 
 .article-score-hero__meta {
@@ -225,7 +252,7 @@ function resolveIssueAnchor(issue: AiArticleScoringIssue) {
 }
 
 .article-score-hero__time {
-  color: rgba(71, 85, 105, 0.88);
+  color: var(--color-ink-muted);
   font-size: 13px;
 }
 
@@ -236,13 +263,13 @@ function resolveIssueAnchor(issue: AiArticleScoringIssue) {
   min-width: 110px;
   padding: 14px 16px;
   border-radius: 20px;
-  background: rgba(255, 255, 255, 0.82);
-  color: #1f2937;
+  background: var(--color-surface-raised);
+  color: var(--color-ink);
 }
 
 .article-score-hero__side-label {
   font-size: 12px;
-  color: rgba(71, 85, 105, 0.88);
+  color: var(--color-ink-muted);
 }
 
 .article-score-grid {
@@ -254,8 +281,8 @@ function resolveIssueAnchor(issue: AiArticleScoringIssue) {
 .article-score-dimension {
   padding: 16px 18px;
   border-radius: 20px;
-  border: 1px solid rgba(221, 228, 239, 0.92);
-  background: rgba(248, 250, 252, 0.88);
+  border: 1px solid var(--color-line);
+  background: var(--color-bg-subtle);
 }
 
 .article-score-dimension__top {
@@ -264,37 +291,37 @@ function resolveIssueAnchor(issue: AiArticleScoringIssue) {
   justify-content: space-between;
   gap: 12px;
   margin-bottom: 10px;
-  color: #1f2937;
+  color: var(--color-ink);
 }
 
 .article-score-dimension__reason {
   margin: 10px 0 0;
   font-size: 13px;
   line-height: 1.75;
-  color: rgba(71, 85, 105, 0.92);
+  color: var(--color-ink-muted);
 }
 
 .article-score-section {
   padding: 20px 22px;
   border-radius: 24px;
-  border: 1px solid rgba(221, 228, 239, 0.92);
-  background: rgba(255, 255, 255, 0.92);
+  border: 1px solid var(--color-line);
+  background: var(--color-surface);
 }
 
 .article-score-section--compact {
-  background: rgba(248, 250, 252, 0.88);
+  background: var(--color-bg-subtle);
 }
 
 .article-score-section__title {
   font-size: 18px;
   font-weight: 700;
-  color: #1f2937;
+  color: var(--color-ink);
 }
 
 .article-score-section__comment {
   margin: 12px 0 0;
   line-height: 1.82;
-  color: rgba(51, 65, 85, 0.95);
+  color: var(--color-ink);
 }
 
 .article-score-issues {
@@ -310,7 +337,7 @@ function resolveIssueAnchor(issue: AiArticleScoringIssue) {
   gap: 14px;
   padding: 16px 18px;
   border-radius: 20px;
-  background: rgba(248, 250, 252, 0.86);
+  background: var(--color-bg-subtle);
 }
 
 .article-score-issue__index {
@@ -320,8 +347,8 @@ function resolveIssueAnchor(issue: AiArticleScoringIssue) {
   width: 40px;
   height: 40px;
   border-radius: 14px;
-  background: rgba(15, 118, 110, 0.12);
-  color: #0f766e;
+  background: var(--color-focus-soft);
+  color: var(--color-focus);
   font-weight: 700;
 }
 
@@ -333,19 +360,19 @@ function resolveIssueAnchor(issue: AiArticleScoringIssue) {
 }
 
 .article-score-issue__reason {
-  color: #1f2937;
+  color: var(--color-ink);
   font-weight: 600;
 }
 
 .article-score-issue__anchor {
   margin-top: 6px;
-  color: rgba(100, 116, 139, 0.94);
+  color: var(--color-ink-muted);
   font-size: 13px;
 }
 
 .article-score-issue__suggestion {
   margin-top: 6px;
-  color: rgba(51, 65, 85, 0.95);
+  color: var(--color-ink);
 }
 
 .article-score-footer {

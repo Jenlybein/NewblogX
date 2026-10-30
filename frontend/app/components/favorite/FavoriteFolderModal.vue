@@ -159,7 +159,7 @@ watch(
         <div class="glass-badge">{{ folderCountText }}</div>
       </div>
 
-      <div class="max-h-[360px] overflow-y-auto rounded-[22px] border border-slate-200/80 px-2 pt-2 pr-1 dark:border-slate-700/70">
+      <div class="max-h-[360px] overflow-y-auto rounded-[22px] border border-line px-2 pt-2 pr-1">
         <template v-if="pending">
           <div v-for="index in 3" :key="index" class="surface-section mb-3 p-4 last:mb-0">
             <NSkeleton text :repeat="2" />

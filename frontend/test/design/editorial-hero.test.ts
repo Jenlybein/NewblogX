@@ -313,18 +313,29 @@ describe("首屏版式复盘：窄高轮播面板 + 右栏线条场", () => {
     expect(indexVue).not.toContain("home-cover__actions");
   });
 
-  it("轮播被搬进左栏面板：BannerCarousel 在 .home-cover__panel 之内，面板自己有定位与高度", () => {
+  it("轮播面板在大字下方并整体右移；大字仍然排在它前面（不能把 h1 挤到看不见）", () => {
+    const copyIndex = indexVue.indexOf('class="motion-stagger-item home-cover__copy"');
     const panelIndex = indexVue.indexOf('class="home-cover__panel"');
     const carouselIndex = indexVue.indexOf("<BannerCarousel");
 
-    expect(panelIndex).toBeGreaterThan(-1);
+    expect(copyIndex).toBeGreaterThan(-1);
+    expect(panelIndex).toBeGreaterThan(copyIndex);
     expect(carouselIndex).toBeGreaterThan(panelIndex);
 
     const panel = blockAfter(indexVue, ".home-cover__panel {");
     expect(panel).toContain("position: relative");
-    expect(panel).toContain("aspect-ratio");
-    expect(panel).toContain("min-height");
+    expect(panel).toContain("grid-row: 2");
+    expect(panel).toContain("margin-inline-start");
     expect(panel).toContain("var(--radius-lg)");
+  });
+
+  it("面板够高：min-height 至少 380px（用户要求再拉高一点）", () => {
+    const panel = blockAfter(indexVue, ".home-cover__panel {");
+    const minHeight = /min-height:\s*clamp\((\d+)px/u.exec(panel)?.[1];
+
+    expect(Number(minHeight)).toBeGreaterThanOrEqual(380);
+    // 不再用 max-height 封顶，否则"拉高"会被上限吃掉。
+    expect(panel).not.toContain("max-height");
   });
 
   it("线条场压过面板（z-index 高于面板、低于标题），且只在宽屏出现", () => {
@@ -340,13 +351,43 @@ describe("首屏版式复盘：窄高轮播面板 + 右栏线条场", () => {
     expect(indexVue).toMatch(/@media \(max-width: 767px\)[\s\S]*\.home-cover__lines \{\s*display: none;/u);
   });
 
-  it("线条只用四种调子（反白 / 功能蓝 / 珊瑚 / 高亮黄），且真的有条线压到面板上", () => {
+  it("线条只用四种调子（反白 / 功能蓝 / 珊瑚 / 高亮黄），数量够密", () => {
     const tones = [...indexVue.matchAll(/tone: "([a-z]+)"/gu)].map((match) => match[1]);
 
-    expect(tones.length).toBeGreaterThanOrEqual(10);
+    expect(tones.length).toBeGreaterThanOrEqual(12);
     expect([...new Set(tones)].sort()).toEqual(["blue", "coral", "ink", "yellow"]);
-    // 面板占 44%，所以 left 小于 44% 的线条才是"盖在轮播上"的那几条。
-    expect(tones.length).toBeGreaterThan(0);
-    expect(indexVue).toMatch(/left: "(?:3[0-9]|4[0-3])%"/u);
+  });
+
+  it("线条右端点贴着最右边（用 right 定位，抖动 ≤2%）", () => {
+    const rights = [...indexVue.matchAll(/right: "([0-9.]+)%"/gu)].map((match) => Number(match[1]));
+
+    expect(rights.length).toBeGreaterThanOrEqual(12);
+    for (const right of rights) {
+      expect(right).toBeLessThanOrEqual(2);
+    }
+    // 右端定位后不再用 left 决定终点。
+    expect(indexVue).not.toMatch(/left: "\d+%",\s*width:/u);
+  });
+
+  it("长度分布：中间最长、上下渐短且不规则", () => {
+    const lines = [...indexVue.matchAll(/top: "(\d+)%"[^}]*width: "(\d+)%"/gu)].map((match) => ({
+      top: Number(match[1]),
+      width: Number(match[2]),
+    }));
+
+    expect(lines.length).toBeGreaterThanOrEqual(12);
+
+    const widest = lines.reduce((max, line) => (line.width > max.width ? line : max));
+    // 峰值落在垂直中段（而不是贴顶或贴底）。
+    expect(widest.top).toBeGreaterThanOrEqual(38);
+    expect(widest.top).toBeLessThanOrEqual(62);
+    // 中段最长的那条要越过左栏面板的右沿（44%），才谈得上"压住轮播"。
+    expect(widest.width).toBeGreaterThan(100 - 44);
+    // 两端明显更短。
+    expect(lines[0]!.width).toBeLessThan(25);
+    expect(lines.at(-1)!.width).toBeLessThan(25);
+    // 不规则：允许抖动，所以相邻两条的差不必相等（只要求整体趋势）。
+    const widths = lines.map((line) => line.width);
+    expect(widths).not.toEqual([...widths].sort((a, b) => b - a));
   });
 });

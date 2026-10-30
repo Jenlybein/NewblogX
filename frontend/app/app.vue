@@ -73,6 +73,14 @@ useHead(() => ({
   bodyAttrs: {
     class: themeBodyClass(uiStore.theme),
   },
+  // 无 JS（或脚本被拦）时兜底：入场动画的 initial 会把元素内联成 opacity:0，
+  // 这条 noscript 样式用 !important 盖过内联样式，保证内容仍然可读 ——
+  // 博客内容不能因为动效在 JS 之前就凭空消失。
+  noscript: [
+    {
+      innerHTML: "<style>.motion-stagger-item{opacity:1!important;transform:none!important}</style>",
+    },
+  ],
 }));
 
 const themeOverrides: GlobalThemeOverrides = {
@@ -101,20 +109,23 @@ const themeOverrides: GlobalThemeOverrides = {
 
 <template>
   <NConfigProvider :theme="theme" :theme-overrides="themeOverrides">
-    <NNotificationProvider>
-      <NMessageProvider>
-        <NDialogProvider>
-          <NLoadingBarProvider>
-            <div :class="['min-h-screen', themeRootClass(uiStore.theme)]">
-              <NuxtLoadingIndicator color="#0f766e" />
-              <NuxtRouteAnnouncer />
-              <NuxtLayout>
-                <NuxtPage />
-              </NuxtLayout>
-            </div>
-          </NLoadingBarProvider>
-        </NDialogProvider>
-      </NMessageProvider>
-    </NNotificationProvider>
+    <!-- 库级「减少动态」：reducedMotion="user" 跟随系统设置，退化为一次性淡入（不再位移/缩放）。 -->
+    <MotionConfig reduced-motion="user">
+      <NNotificationProvider>
+        <NMessageProvider>
+          <NDialogProvider>
+            <NLoadingBarProvider>
+              <div :class="['min-h-screen', themeRootClass(uiStore.theme)]">
+                <NuxtLoadingIndicator color="#0f766e" />
+                <NuxtRouteAnnouncer />
+                <NuxtLayout>
+                  <NuxtPage />
+                </NuxtLayout>
+              </div>
+            </NLoadingBarProvider>
+          </NDialogProvider>
+        </NMessageProvider>
+      </NNotificationProvider>
+    </MotionConfig>
   </NConfigProvider>
 </template>

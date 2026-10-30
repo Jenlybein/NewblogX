@@ -850,3 +850,32 @@
 
   }
 }
+
+
+/* ============================================================================
+ * 路由切换过渡（spec 决策 3：只做淡入 + 极轻微位移，不做转场动画）
+ *
+ * - 时长/缓动取自动效 token（tokens.css），不写死毫秒；
+ * - 只动 opacity 与 transform，不碰宽高/边距，所以过渡结束不会有布局抖动；
+ * - 配合 nuxt.config 的 `app.pageTransition: { mode: 'out-in' }`：旧页先离场、
+ *   新页再入场，同一时刻文档流里只有一页，避免两页并排导致的滚动条/高度跳变。
+ * ========================================================================== */
+.page-enter-active,
+.page-leave-active {
+  transition:
+    opacity var(--motion-base) var(--motion-ease),
+    transform var(--motion-base) var(--motion-ease);
+}
+
+.page-enter-from,
+.page-leave-to {
+  opacity: 0;
+  transform: translate3d(0, 4px, 0);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .page-enter-active,
+  .page-leave-active {
+    transition: none;
+  }
+}

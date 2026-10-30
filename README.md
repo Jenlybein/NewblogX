@@ -105,7 +105,7 @@ docker compose exec blogx_server /app/server -f config/settings.yaml \
 DOMAIN=blog.example.com
 sed -i \
   -e "s|^BLOGX_NGINX_ENV=.*|BLOGX_NGINX_ENV='production'|" \
-  -e "s|^BLOGX_APP_ENV=.*|BLOGX_APP_ENV='prod'|" \
+  -e "s|^BLOGX_APP_ENV=.*|BLOGX_APP_ENV='production'|" \
   -e "s|^BLOGX_WEB_ENV_PROFILE=.*|BLOGX_WEB_ENV_PROFILE='production'|" \
   -e "s|^BLOGX_ADMIN_ENV_PROFILE=.*|BLOGX_ADMIN_ENV_PROFILE='production'|" \
   -e "s|^BLOGX_WEB_SITE_URL=.*|BLOGX_WEB_SITE_URL='https://$DOMAIN'|" \
@@ -114,7 +114,7 @@ sed -i \
   .env
 ```
 
-`BLOGX_APP_ENV` 写的是 `prod` 而不是 `production`，这不是笔误：代码里唯一的判断是 `Env == "prod"`，只有它会给 refresh Cookie 加 `Secure`。
+`BLOGX_APP_ENV` 写 `production`：代码里唯一的判断就是它，只有生产环境会给 refresh Cookie 加 `Secure`。旧写法 `prod` 仍被兼容（启动日志会提示迁移），但新配置一律写 `production`。
 
 **放证书、起服务**：
 
@@ -160,7 +160,7 @@ sed -i \
   .env
 ```
 
-`BLOGX_APP_ENV` 必须是 `dev`：写 `prod` 会给 Cookie 加 `Secure`，而 http 下浏览器不保存它，表现是"能登录，刷新后掉登录"。
+`BLOGX_APP_ENV` 必须是 `dev`：写 `production` 会给 Cookie 加 `Secure`，而 http 下浏览器不保存它，表现是"能登录，刷新后掉登录"。
 
 ```bash
 sudo sysctl -w vm.max_map_count=262144
@@ -173,7 +173,7 @@ docker compose exec blogx_server /app/server -f config/settings.yaml \
 
 能用的：读者站、后台、搜索、评论、聊天、发文。**受影响的只有依赖域名的部分**——QQ 登录回跳、七牛上传回调（多数场景要求域名，图片上传可能暂时不可用）、邮件正文里的链接（用 `site_url` 拼，填 IP 也能跳）。
 
-备案下来后，把上面那段 sed 换成场景 2 的（`production` / `prod` / `https://域名`），放好证书再 `docker compose up -d`，账号和数据都还在。
+备案下来后，把上面那段 sed 换成场景 2 的（`BLOGX_NGINX_ENV` 与 `BLOGX_APP_ENV` 都写 `production`，站点 URL 用 `https://域名`），放好证书再 `docker compose up -d`，账号和数据都还在。
 
 > 别把未备案的域名解析到大陆机房的 IP 上对外开 80/443——云厂商会阻断并要求整改，这是审核期最常见的停机原因。想先看域名效果，只能在本机 `hosts` 里指向 IP（仅本机生效），或把服务器放到香港 / 境外。
 
@@ -288,7 +288,7 @@ AI 的模型配置（多条供应商 + 启用其一）是独立一张表，见
 | `BLOGX_REDIS_PASSWORD` | Redis 密码 | 容器渲染配置时用到 |
 | `BLOGX_ES_PASSWORD` | ES `elastic` 用户密码 | 健康检查、river 都会失败 |
 | `BLOGX_CLICKHOUSE_PASSWORD` | ClickHouse 密码 | 日志写不进去（会落本地 WAL） |
-| `BLOGX_APP_ENV` | `dev` / `test` / **`prod`** | 只认字面量 `prod`：它给 refresh Cookie 加 `Secure`。写 `production` 不会开启 Secure（两个名字不等价）；http 环境必须是 `dev` |
+| `BLOGX_APP_ENV` | `dev` / `test` / **`production`** | `production` 给 refresh Cookie 加 `Secure`；`prod` 是旧写法（仍兼容，启动日志会告警）；http 环境必须是 `dev` |
 | `BLOGX_GIN_MODE` | `debug` / `release` | 生产用 `debug` 会打印大量 SQL 与调试信息 |
 | `BLOGX_APP_HOST` | 监听地址 | **容器内必须是 `0.0.0.0`**（见下方陷阱） |
 | `BLOGX_NGINX_ENV` | 部署形态开关，见 [10.2](#102-nginx-的四种形态) | 决定 nginx 是否要求域名与证书 |
@@ -672,7 +672,7 @@ vi .env
 `.env` 里**必须改**的（其余可留示例值）：
 
 ```ini
-BLOGX_APP_ENV='prod'              # 走 https 才写 prod（开 Secure Cookie）；http 环境写 dev
+BLOGX_APP_ENV='production'              # 走 https 才写 production（开 Secure Cookie）；http 环境写 dev
 BLOGX_GIN_MODE='release'
 BLOGX_APP_HOST='0.0.0.0'          # ← 最容易漏，漏了 /api 全 502
 

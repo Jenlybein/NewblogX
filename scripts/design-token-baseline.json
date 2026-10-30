@@ -12,7 +12,6 @@
     "app/components/studio/StudioSelectionAiToolbar.vue",
     "app/components/studio/StudioWriteHeader.vue",
     "app/pages/article/[id].vue",
-    "app/pages/search.vue",
     "app/pages/studio/favorites.vue",
     "app/pages/studio/profile.vue"
   ],

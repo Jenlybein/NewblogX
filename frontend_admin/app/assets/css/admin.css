@@ -65,7 +65,7 @@
   }
 
   .admin-page-title {
-    @apply m-0 text-3xl font-semibold leading-tight;
+    @apply m-0 text-3xl font-title font-semibold leading-tight;
     letter-spacing: var(--type-tracking-title);
   }
 

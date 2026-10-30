@@ -3,21 +3,10 @@
 @tailwind utilities;
 
 @layer base {
-  :root {
-    color-scheme: light;
-    --bg-page:
-      radial-gradient(circle at top left, rgba(255, 243, 224, 0.82), transparent 30%),
-      linear-gradient(180deg, #f7f4eb 0%, #eef4fb 54%, #edf3f8 100%);
-    --surface: rgba(255, 255, 255, 0.84);
-    --surface-strong: rgba(255, 255, 255, 0.94);
-    --line: rgba(200, 214, 226, 0.78);
-    --text-main: #1f2937;
-    --text-soft: #64748b;
-    --accent: #0f766e;
-    --accent-soft: rgba(15, 118, 110, 0.12);
-    --warn-soft: rgba(217, 119, 6, 0.12);
-    --shadow-soft: 0 24px 60px rgba(15, 23, 42, 0.08);
-  }
+  /* 颜色与排版 token 全部在 app/assets/css/tokens.css（后台唯一颜色来源）：
+   * 原始层五色相 → 语义层 --color-* → 明暗两份映射。过渡期旧变量（--bg-page /
+   * --surface / --line / --accent …）也在那份文件末尾，供尚未迁移的旧样式继续使用。
+   */
 
   html,
   body,
@@ -29,9 +18,7 @@
     margin: 0;
     color: var(--text-main);
     background: var(--bg-page);
-    font-family:
-      "Sora", "Sora Fallback", "PingFang SC", "Hiragino Sans GB",
-      "Microsoft YaHei", "Noto Sans SC", sans-serif;
+    font-family: var(--font-sans);
   }
 
   a {

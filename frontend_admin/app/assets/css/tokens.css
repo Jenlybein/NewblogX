@@ -1,0 +1,116 @@
+/* ============================================================================
+ * JellyBin 设计 token（管理后台 / 与读者站同源）
+ *
+ * 后台与读者站共用同一套五色相与语义 token（spec 决策 1、7），只是后台的用法
+ * 更克制（不做捏捏、不做暗色、动效只到 hover/focus）。
+ *
+ * 这是**后台颜色的唯一来源**。组件里不许再出现裸 hex / rgba —— 由
+ * `scripts/check-design-tokens.mjs` 卡住（存量债在 scripts/design-token-baseline.json，
+ * 只许收缩）。
+ *
+ * 结构与读者站完全一致：
+ *   1. 原始层 `--jelly-*`：五个锁定色相 + 同色相明度/透明度派生，**禁止新增色相**；
+ *      黄永不做字色；珊瑚橙当字色时用 `--jelly-coral-700`（达 AA）。
+ *   2. 语义层 `--color-*`：组件唯一消费对象；暗色是同一组名字的第二份取值。
+ *      **后台目前没有暗色开关**（spec 明说后台暗色不做），这份映射先备着，
+ *      由 `.dark` / `.theme-dark` 根类触发，等后续票接上时不用再改名字。
+ *   3. 排版层 `--type-*` / `--font-*`：中文正文 68ch / 1.75、标题 700 + 负字距。
+ *
+ * 文件末尾是**过渡层旧变量**（`--bg-page` / `--surface` / `--line` / `--accent` …），
+ * 搬家前在 admin.css 的 `:root` 里；保留原值只为让旧组件观感不变，新代码不要用。
+ * ========================================================================== */
+
+:root {
+  color-scheme: light;
+
+  /* ---- 1. 原始层：五个锁定色相 ---- */
+  --jelly-blue: #002fa7;
+  --jelly-cream: #fdfbf6;
+  --jelly-yellow: #f5c518; /* 永不做字色 */
+  --jelly-coral: #ff6b4a;
+  --jelly-warm: #f2eee6;
+
+  /* ---- 原始层：同色相明度/透明度派生 ---- */
+  --jelly-blue-950: #00113d;
+  --jelly-blue-900: #001b63;
+  --jelly-blue-800: #001f70;
+  --jelly-blue-700: #00227a;
+  --jelly-blue-600: #3a55a8;
+  --jelly-blue-400: #6e86cf;
+  --jelly-blue-200: #c3ceeb;
+  --jelly-blue-100: #e6eaf7;
+  --jelly-cream-050: #fffefb;
+  --jelly-cream-700: #d9d3c6;
+  --jelly-warm-800: #e6e0d5;
+  --jelly-yellow-veil: rgba(245, 197, 24, 0.28);
+  --jelly-yellow-veil-dark: rgba(245, 197, 24, 0.3);
+  --jelly-coral-700: #c2410c;
+  --jelly-coral-300: #ff9b85;
+
+  /* ---- 2. 语义层（浅色） ---- */
+  --color-bg-page: var(--jelly-cream);
+  --color-bg-subtle: var(--jelly-warm);
+  --color-surface: var(--jelly-cream);
+  --color-surface-raised: var(--jelly-cream-050);
+  --color-ink: var(--jelly-blue-900);
+  --color-ink-muted: var(--jelly-blue-600);
+  --color-line: rgba(0, 47, 167, 0.32);
+  --color-line-strong: rgba(0, 47, 167, 0.62);
+  --color-line-faint: rgba(0, 47, 167, 0.14);
+  --color-highlight: var(--jelly-yellow-veil);
+  --color-danger: var(--jelly-coral);
+  --color-danger-ink: var(--jelly-coral-700);
+  --color-focus: var(--jelly-blue);
+  --color-shadow: rgba(0, 27, 99, 0.16);
+
+  /* ---- 3. 排版层 ---- */
+  --font-latin: "Sora", "Sora Fallback";
+  --font-cjk: "Noto Sans SC", "Noto Sans SC Fallback";
+  --font-sans: var(--font-latin), var(--font-cjk), "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei",
+    sans-serif;
+  --type-measure: 68ch;
+  --type-leading-prose: 1.75;
+  --type-leading-title: 1.15;
+  --type-tracking-title: -0.02em;
+  --type-tracking-dense: -0.01em;
+  --type-weight-title: 700;
+}
+
+/* ---- 暗色映射（后台暂不启用，取值先备好，名字与读者站一致） ---- */
+.dark,
+.theme-dark {
+  color-scheme: dark;
+  --color-bg-page: var(--jelly-blue-900);
+  --color-bg-subtle: var(--jelly-blue-950);
+  --color-surface: var(--jelly-blue-800);
+  --color-surface-raised: var(--jelly-blue-700);
+  --color-ink: var(--jelly-cream);
+  --color-ink-muted: var(--jelly-cream-700);
+  --color-line: rgba(253, 251, 246, 0.22);
+  --color-line-strong: rgba(253, 251, 246, 0.45);
+  --color-line-faint: rgba(253, 251, 246, 0.1);
+  --color-highlight: var(--jelly-yellow-veil-dark);
+  --color-danger: var(--jelly-coral);
+  --color-danger-ink: var(--jelly-coral-300);
+  --color-focus: var(--jelly-cream);
+  --color-shadow: rgba(0, 8, 30, 0.55);
+}
+
+/* ==========================================================================
+ * 过渡层（兼容 admin.css 里的旧样式，**新代码不要用**）
+ * 原样搬自 admin.css 的 `:root`（本票不追求可见变化）。
+ * ======================================================================== */
+:root {
+  --bg-page:
+    radial-gradient(circle at top left, rgba(255, 243, 224, 0.82), transparent 30%),
+    linear-gradient(180deg, #f7f4eb 0%, #eef4fb 54%, #edf3f8 100%);
+  --surface: rgba(255, 255, 255, 0.84);
+  --surface-strong: rgba(255, 255, 255, 0.94);
+  --line: rgba(200, 214, 226, 0.78);
+  --text-main: #1f2937;
+  --text-soft: #64748b;
+  --accent: #0f766e;
+  --accent-soft: rgba(15, 118, 110, 0.12);
+  --warn-soft: rgba(217, 119, 6, 0.12);
+  --shadow-soft: 0 24px 60px rgba(15, 23, 42, 0.08);
+}

@@ -148,7 +148,9 @@ export default defineNuxtConfig({
     baseURL: adminBaseURL,
   },
   modules: ["@pinia/nuxt", "@vueuse/nuxt", "@nuxtjs/tailwindcss", "@nuxt/eslint"],
-  css: ["~/assets/css/fonts.css", "~/assets/css/admin.css"],
+  // 顺序有意义：tokens.css 定义全部颜色/排版 token，必须排在 admin.css 之前，
+  // 否则 admin.css 里旧样式的 var(--bg-page) 之类的过渡层变量会拿不到值。
+  css: ["~/assets/css/fonts.css", "~/assets/css/tokens.css", "~/assets/css/admin.css"],
   build: {
     transpile: ["naive-ui", "vueuc", "date-fns"],
   },

@@ -1,7 +1,6 @@
 <script setup lang="ts">
-import { computed, ref } from "vue";
+import { computed, ref, type CSSProperties } from "vue";
 import { IconChevronLeft, IconChevronRight } from "@tabler/icons-vue";
-import { NButton } from "naive-ui";
 import ProfileEmptyState from "~/components/profile/ProfileEmptyState.vue";
 import type { BannerItem } from "~/types/api";
 
@@ -9,8 +8,10 @@ const props = withDefaults(
   defineProps<{
     banners: BannerItem[];
     pending?: boolean;
+    /** 首屏封面编排的媒体层视差（≤10px，来自 useParallax；只作用在底图上）。 */
+    photoStyle?: CSSProperties;
   }>(),
-  { pending: false },
+  { pending: false, photoStyle: () => ({}) },
 );
 
 const currentIndex = ref(0);
@@ -29,43 +30,71 @@ function goToBanner(index: number) {
 </script>
 
 <template>
-  <div class="banner-shell" data-home-section="banner">
-    <div v-if="currentBanner" class="banner-stage">
-      <NuxtLink v-if="currentBanner.href" :to="currentBanner.href" class="banner-link">
-        <img :src="currentBanner.cover" :alt="`首页轮播图 ${currentIndex + 1}`" />
+  <!--
+    轮播已并入首屏封面（ADR-0013 决策 8，GLOSSARY「首屏封面」）：
+    有图时它是封面最底一层的「媒体舞台」（底图 + 罩层 + 玻璃胶囊控件），
+    无图时退回既有空态组件（ProfileEmptyState），不渲染任何控件。
+    ≥2 张才出现控件（1 张 / 0 张都不该有可点的箭头与圆点）。
+  -->
+  <div
+    class="banner-carousel"
+    :class="currentBanner ? 'banner-stage' : 'banner-empty'"
+    data-home-section="banner"
+  >
+    <template v-if="currentBanner">
+      <NuxtLink v-if="currentBanner.href" :to="currentBanner.href" class="banner-photo">
+        <img
+          class="banner-photo__img"
+          :src="currentBanner.cover"
+          :alt="`首页轮播图 ${currentIndex + 1}`"
+          :style="photoStyle"
+        />
       </NuxtLink>
-      <img v-else :src="currentBanner.cover" :alt="`首页轮播图 ${currentIndex + 1}`" />
+      <img
+        v-else
+        class="banner-photo__img"
+        :src="currentBanner.cover"
+        :alt="`首页轮播图 ${currentIndex + 1}`"
+        :style="photoStyle"
+      />
 
-      <div v-if="banners.length > 1" class="banner-nav is-prev">
-        <NButton secondary :aria-label="`上一张轮播图（第 ${currentIndex + 1} 张）`" @click="switchBanner(-1)">
-          <template #icon>
-            <IconChevronLeft :size="18" aria-hidden="true" />
-          </template>
-        </NButton>
-      </div>
-      <div v-if="banners.length > 1" class="banner-nav is-next">
-        <NButton secondary :aria-label="`下一张轮播图（第 ${currentIndex + 1} 张）`" @click="switchBanner(1)">
-          <template #icon>
-            <IconChevronRight :size="18" aria-hidden="true" />
-          </template>
-        </NButton>
-      </div>
+      <span class="banner-scrim" aria-hidden="true" />
 
-      <div v-if="banners.length > 1" class="banner-dots">
+      <div v-if="banners.length > 1" class="banner-controls glass-thin" role="group" aria-label="轮播控件">
         <button
-          v-for="(banner, index) in banners"
-          :key="banner.id || index"
           type="button"
-          class="banner-dot"
-          :class="{ 'is-active': index === currentIndex }"
-          :aria-label="`切换到第 ${index + 1} 张轮播图`"
-          :aria-current="index === currentIndex ? 'true' : undefined"
-          @click="goToBanner(index)"
+          class="banner-arrow is-prev"
+          :aria-label="`上一张轮播图（第 ${currentIndex + 1} 张）`"
+          @click="switchBanner(-1)"
         >
-          <span aria-hidden="true" />
+          <IconChevronLeft :size="18" aria-hidden="true" />
+        </button>
+
+        <div class="banner-dots">
+          <button
+            v-for="(banner, index) in banners"
+            :key="banner.id || index"
+            type="button"
+            class="banner-dot"
+            :class="{ 'is-active': index === currentIndex }"
+            :aria-label="`切换到第 ${index + 1} 张轮播图`"
+            :aria-current="index === currentIndex ? 'true' : undefined"
+            @click="goToBanner(index)"
+          >
+            <span aria-hidden="true" />
+          </button>
+        </div>
+
+        <button
+          type="button"
+          class="banner-arrow is-next"
+          :aria-label="`下一张轮播图（第 ${currentIndex + 1} 张）`"
+          @click="switchBanner(1)"
+        >
+          <IconChevronRight :size="18" aria-hidden="true" />
         </button>
       </div>
-    </div>
+    </template>
 
     <ProfileEmptyState
       v-else
@@ -79,52 +108,87 @@ function goToBanner(index: number) {
 </template>
 
 <style scoped>
-/* Banner 是首页的一格：1px 结构线、卡片 20 / 舞台 8、不加阴影；图片自身承载颜色。 */
-.banner-shell {
-  border: 1px solid var(--color-line);
-  border-radius: var(--radius-lg);
-  background: var(--color-surface);
-  padding: 0.75rem;
-}
-
+/* 媒体舞台：铺满首屏封面（不设 z-index 的 auto 定位，控件的 z-index 才能回到封面那一层）。 */
 .banner-stage {
-  position: relative;
-  overflow: hidden;
-  border: 1px solid var(--color-line-faint);
-  border-radius: var(--radius-sm);
-  background: var(--color-bg-subtle);
-  aspect-ratio: 1.8 / 1;
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
 }
 
-.banner-stage img {
+/* 底图层（图层 0）：运营上传的首张轮播 cover，object-fit: cover，视差只动它的 transform。 */
+.banner-photo {
+  /* 四周各外扩 12px，给 ≤10px 的视差留余量：位移时不会从边缘漏出封面的兜底底色。 */
+  position: absolute;
+  inset: -12px;
+  z-index: 0;
+  display: block;
+  overflow: hidden;
+  pointer-events: auto;
+}
+
+.banner-photo__img {
   display: block;
   height: 100%;
   width: 100%;
   object-fit: cover;
 }
 
-.banner-nav {
+/*
+ * 罩层（图层 1）：中性石墨渐变，最浅一档压到 70%、底部到 95%，
+ * 让任意底图上的反白文字都 ≥4.5:1（ADR-0013 规格「罩层保证文字可读」）。
+ * 第一行是降级值（不支持 color-mix 的浏览器退化为不透明深墨面：图没了，字仍然可读）。
+ */
+.banner-scrim {
   position: absolute;
-  inset-block: 0;
+  inset: 0;
+  z-index: 1;
+  background: var(--color-surface-inverse);
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--color-surface-inverse) 70%, transparent) 0%,
+    color-mix(in srgb, var(--color-surface-inverse) 95%, transparent) 100%
+  );
+  pointer-events: none;
+}
+
+/* 无图时退回既有空态；它走正常文档流（封面文字仍在上方成立）。 */
+.banner-empty {
+  position: relative;
+  width: 100%;
+}
+
+/* 图层 6：玻璃胶囊控件（箭头 + 圆点在同一层薄玻璃里，1 张 / 0 张不渲染）。 */
+.banner-controls {
+  position: absolute;
+  left: 50%;
+  bottom: clamp(0.75rem, 3vw, 1.5rem);
+  z-index: 6;
   display: flex;
   align-items: center;
+  gap: 0.125rem;
+  padding: 0.125rem 0.375rem;
+  border-radius: var(--radius-pill);
+  transform: translateX(-50%);
+  pointer-events: auto;
 }
 
-.banner-nav.is-prev {
-  left: 0.75rem;
-}
-
-.banner-nav.is-next {
-  right: 0.75rem;
+.banner-arrow {
+  display: inline-flex;
+  min-height: 44px;
+  min-width: 44px;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  background: transparent;
+  color: var(--color-ink);
+  cursor: pointer;
+  touch-action: manipulation;
 }
 
 .banner-dots {
-  position: absolute;
-  inset-inline: 0;
-  bottom: 0.5rem;
   display: flex;
-  justify-content: center;
-  gap: 0.25rem;
+  align-items: center;
+  gap: 0;
 }
 
 /* 触控区 44px，视觉点用内部 span 表达 —— 不靠肉眼看不见的小按钮。 */
@@ -137,6 +201,7 @@ function goToBanner(index: number) {
   background: transparent;
   border: 0;
   padding: 0;
+  cursor: pointer;
   touch-action: manipulation;
 }
 
@@ -156,6 +221,7 @@ function goToBanner(index: number) {
   background: var(--color-ink);
 }
 
+.banner-arrow:focus-visible,
 .banner-dot:focus-visible span {
   outline: 2px solid var(--color-focus);
   outline-offset: 2px;

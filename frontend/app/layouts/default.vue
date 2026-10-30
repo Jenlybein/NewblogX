@@ -55,6 +55,9 @@ useHead(() => ({
   display: flex;
   min-height: 100vh;
   flex-direction: column;
+  /* 首屏封面的 100vw bleed 会在桌面多出 1px 级横向溢出；在视口级容器统一兜住（ADR-0013 约束 3）。
+     用 clip 而不是 hidden：clip 不创建滚动容器，吸顶页头与锚点补偿都不受影响。 */
+  overflow-x: clip;
   /* 整页滚动由 html 的 scroll-padding-top 兜底；这里给未来的页内滚动容器同一份安全区。 */
   scroll-padding-top: calc(var(--site-header-height) + 0.5rem);
 }

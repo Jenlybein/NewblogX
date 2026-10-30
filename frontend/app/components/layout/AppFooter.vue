@@ -4,7 +4,7 @@ import { computed } from "vue";
 import BrandLogo from "~/components/brand/Logo.vue";
 import BrandWordmark from "~/components/brand/Wordmark.vue";
 import { useMotionPreference } from "~/composables/useMotionPreference";
-import { BRAND, brandCopyright } from "~/utils/brand";
+import { brandCopyright } from "~/utils/brand";
 import { FOOTER_ICP, footerNavItems } from "~/utils/chrome";
 
 const links = footerNavItems();
@@ -28,7 +28,6 @@ function scrollToTop() {
         </span>
         <div class="site-footer__lockup">
           <BrandWordmark size="lg" tone="invert" layout="stack" />
-          <p class="site-footer__tagline">{{ BRAND.tagline }}</p>
         </div>
       </div>
 
@@ -91,13 +90,6 @@ function scrollToTop() {
 
 .site-footer__lockup {
   min-width: 0;
-}
-
-.site-footer__tagline {
-  margin-top: 0.375rem;
-  color: var(--color-on-inverse-muted);
-  font-size: 0.8125rem;
-  letter-spacing: 0.04em;
 }
 
 .site-footer__nav {

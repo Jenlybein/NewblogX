@@ -7,7 +7,7 @@
  *   2. 勾选后重投，逐条看结果；
  *   3. 右上有「回放日志」入口，看每次重投的时间线。
  *
- * 重投的语义与支持范围见 docs/architecture/adr/ADR-008-死信重投闭环.md：
+ * 重投的语义与支持范围见 docs/adr/0008-dead-letter-replay.md：
  *   - 能重投：es_river（搜索同步）、outbox_relay（领域事件）
  *   - 不能重投：es_projection（没有主键）、image_ref_river（行数据类型还原不了）
  *     —— 这类会带着"该改用别的什么办法"一起返回，不会假装成功。

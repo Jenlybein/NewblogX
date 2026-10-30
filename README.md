@@ -2,55 +2,35 @@
 
 一个可以自己部署的博客 / 社区系统：Go 写的 API，两个独立的 Nuxt 前端（读者站、管理后台），外加 MySQL 主从、Redis、Elasticsearch、ClickHouse 这一套基础设施。
 
-**这不是 monorepo**——仓库里没有 workspace、没有 turbo、没有共享代码包。三个应用各自装依赖、各自构建，唯一的耦合点是后端生成的 OpenAPI 契约（见[契约](#七前后端契约唯一耦合点)）。
-
-**只想尽快跑起来？** 直接跳到[第一章：快速开始](#一快速开始)——本地、服务器 HTTPS、服务器无域名三种场景，各一套复制粘贴的命令。
-
----
-
-## 目录
-
-- [一、快速开始](#一快速开始)
-- [二、它由什么组成](#二它由什么组成)
-- [三、请求是怎么流向的](#三请求是怎么流向的)
-- [四、环境准备](#四环境准备)
-- [五、配置](#五配置)
-- [六、本地开发](#六本地开发)
-- [七、前后端契约（唯一耦合点）](#七前后端契约唯一耦合点)
-- [八、后端命令行参考](#八后端命令行参考)
-- [九、门禁（提交前必跑）](#九门禁提交前必跑)
-- [十、部署到服务器](#十部署到服务器)
-- [十一、运维手册](#十一运维手册)
-- [十二、代码约定（改代码前请读）](#十二代码约定改代码前请读)
-- [十三、常见问题](#十三常见问题)
-- [十四、需要时可查的文件](#十四需要时可查的文件)
-
 ---
 
 ## 一、快速开始
 
-照你的情况选一条，全程复制粘贴。
+### 准备工作
 
-| 场景 | 用在什么时候 | 起来之后访问 |
-| --- | --- | --- |
-| **1. 本地 Docker** | 在自己电脑上看效果、改样式 | `http://localhost` |
-| **2. 服务器 HTTPS** | 域名已备案、有证书，正式对外 | `https://你的域名` |
-| **3. 服务器无域名** | 备案审核中，或只想先验证功能 | `http://服务器IP` |
+这次准备工作的允许环境为 `Ubutu 22.04 LTS`
 
-三条路的开头一样：装 Docker、取代码、把密钥填进 `.env`。差别只在"站点地址"那几个变量，以及要不要证书。
-
-### 准备（三条路都做）
+#### 装 Docker（已装可跳过）
 
 ```bash
-# 装 Docker（已装可跳过）
 curl -fsSL https://get.docker.com | sudo sh
 sudo usermod -aG docker "$USER" && newgrp docker
 docker compose version                  # 输出 v2.x 才继续
+```
 
-# 取代码，进入编排目录
-git clone <仓库地址> blogx && cd blogx/deploy/compose/production
+#### 拉取代码仓库，进入编排目录
 
-# 生成 .env 并填好所有密钥（这一段与域名无关）
+```bash
+
+git clone <仓库地址> blogx
+cd blogx/deploy/compose/production
+```
+
+#### 生成配置文件
+
+生成 .env 并填好所有密钥，这里可以修改各种密钥，默认是随机生成（数据库、redis、es、clickhouse）
+
+```bash
 cp env.example .env
 rand() { openssl rand -base64 24 | tr -d '/+=' ; }
 DBPASS="$(rand)"
@@ -68,6 +48,8 @@ sed -i \
   .env
 ```
 
+
+
 几条注意事项：
 
 - `BLOGX_REDIS_USERNAME` 必须留空（Redis 只配了 `requirepass`，没有 ACL 账号），上面已经处理。
@@ -75,6 +57,18 @@ sed -i \
 - 邮件、AI、七牛、QQ 登录的凭据**不在 `.env` 里**，容器起来后去后台「站点」页填。
   这几项默认都是关闭的：没配密钥就打开开关，用户点下去只会看到报错。
 - 首次启动要构建 ES 分词插件和三个应用镜像，约 5~10 分钟，之后不再等。
+
+### 三条分岔路
+
+三条路的开头一样：装 Docker、取代码、把密钥填进 `.env`。差别只在"站点地址"那几个变量，以及要不要证书。
+
+照你的情况选一条路，全程复制粘贴。
+
+| 场景                | 用在什么时候                 | 起来之后访问       |
+| ------------------- | ---------------------------- | ------------------ |
+| **1. 本地 Docker**  | 在自己电脑上看效果、改样式   | `http://localhost` |
+| **2. 服务器 HTTPS** | 域名已备案、有证书，正式对外 | `https://你的域名` |
+| **3. 服务器无域名** | 备案审核中，或只想先验证功能 | `http://服务器IP`  |
 
 ### 1. 本地 Docker 拉起
 
@@ -275,9 +269,9 @@ corepack prepare pnpm@10.33.0 --activate
 - **`site_default_settings.yaml` 全是字面量**，只在数据库还没有该配置段时作为初始值写入。之后以数据库为准；想回到默认值，清掉对应的运行时配置记录（`runtime_config_models` 里按 `name` 删一行）。
 - **`.env` / `.envrc` 都不进仓库**（`.gitignore` 已排除），模板是 `.envrc.example`（跑在宿主机上，带 `export` 前缀）和 `deploy/compose/production/env.example`（跑在容器里，无前缀）。两份键名一致，**唯一必须不同的一项是 `BLOGX_APP_HOST`**：宿主机用 `127.0.0.1`，容器内必须 `0.0.0.0`。改密码或 JWT 时两处要一起改。
 
-设计说明与代价见 [`docs/architecture/v2/02-配置分层与后台化.md`](docs/architecture/v2/02-配置分层与后台化.md)；
+设计说明与代价见 [`docs/architecture/configuration.md`](docs/architecture/configuration.md)；
 AI 的模型配置（多条供应商 + 启用其一）是独立一张表，见
-[`docs/architecture/v2/03-AI接入与模型配置.md`](docs/architecture/v2/03-AI接入与模型配置.md)。
+[`docs/architecture/ai-integration.md`](docs/architecture/ai-integration.md)。
 
 ### 5.2 后端必填变量
 
@@ -325,7 +319,7 @@ head -c 48 /dev/urandom | base64
 | --- | --- | --- |
 | 邮件（腾讯云 SES） | 邮箱验证码登录、注册、绑定邮箱 | 「站点 → 登录策略」里的邮箱登录默认是**关的**；没配 SES 就打开，用户点「获取验证码」会直接报错 |
 | 第三方登录（QQ 互联） | QQ 登录 | 读者站目前没有 QQ 登录入口，配好也不生效（链路待补） |
-| 对象存储（七牛云） | 图片上传（文章配图） | 上传接口返回「站点未启用图片上传」。**没有本地上传兜底**：`/uploads` 只是静态路由，代码里没有写入它的逻辑 |
+| 对象存储（七牛云） | 图片上传（文章配图） | 上传接口返回「站点未启用图片上传」。**没有本地上传兜底**：`/uploads` 只是静态路由，代码里没有写入它的逻辑。接入步骤与证书自动化见[第十五章](#十五七牛云接入与证书自动化) |
 | AI 助手 | 站内 AI 助手（搜索/润色/元信息/评分） | 默认关闭。这里有两层：**总闸**（启用 AI 助手）+ **模型配置列表**里启用其中一条，两者都满足才可用 |
 | AI 助手 → 模型配置 | 供应商与密钥 | 支持 OpenAI / Claude / Gemini / 火山方舟 / DeepSeek / 通义千问 / 百度千帆 / OpenRouter，可并存多条、启用一条。没有启用的配置时调用会报「还没有启用的模型配置」 |
 | 站点 → 登录策略 | 登录方式、验证码、限流与失败锁定 | 只留用户名密码登录也能正常用 |
@@ -1050,11 +1044,13 @@ docker compose exec blogx_server /app/server -f /app/config/settings.yaml -es -s
 **上传图片报「站点未启用图片上传」**
 不是 bug，是没配七牛。图片上传只有七牛这一条落地路径（后台「站点 → 对象存储」页：开关 + AK/SK + bucket + 访问域名），
 **没有"存本地"的兜底**——`/uploads` 只是静态路由，代码里没有任何写入它的逻辑。要用文章配图就先去七牛建空间。
+从建空间到验证连通的完整步骤（含证书自动上传与续期）见[第十五章](#十五七牛云接入与证书自动化)。
 
 **图片上传成功但页面显示不出来**
-先看接口返回的 URL 是不是 CDN 域名（后台「对象存储」里的访问域名，要带 `https://`）。浏览器侧只经 nginx 的
+先看接口返回的 URL 是不是 CDN 域名（后台「对象存储」里的访问域名，**要带协议头**：`https://` 或 `http://`；缺了会直接让上传任务失败，而不是显示问题）。浏览器侧只经 nginx 的
 `/uploads/` 与后端静态路由走本地文件，CDN 图片是直连的，跟容器无关——所以"容器里看不到图"是正常的。
 前端还有 `BLOGX_WEB_ASSET_PROXY_BASE`（默认 `/uploads`）这个前缀，改错会让所有本地图片 404。
+直链 **401** 是空间私有读；HTTPS 页面加载 HTTP 图片会被当 mixed content 拦掉——两类都见[15.7 常见故障对照](#157-常见故障对照)。
 
 **`pnpm install` 之后一堆模块找不到（Windows）**
 用了系统级 pnpm。`corepack prepare pnpm@10.33.0 --activate`，然后用 `corepack pnpm ...`。系统 12.x 在 Windows 上不建符号链接。
@@ -1082,8 +1078,8 @@ README 只能回答"怎么用"。更细的东西都在代码库里，而且它�
 | 全部环境变量、默认值、哪些必须改 | `deploy/compose/production/env.example`（带注释的完整清单） |
 | 后端每个配置项什么意思 | `backend/config/settings.yaml`（逐字段中文注释） |
 | 站点标题 / 备案号 / 登录开关的默认值 | `backend/config/site_default_settings.yaml` |
-| 为什么某些配置在后台改、某些必须在环境变量里 | `docs/architecture/v2/02-配置分层与后台化.md` |
-| AI 用哪家模型、怎么再加一个供应商 | `docs/architecture/v2/03-AI接入与模型配置.md` |
+| 为什么某些配置在后台改、某些必须在环境变量里 | `docs/architecture/configuration.md` |
+| AI 用哪家模型、怎么再加一个供应商 | `docs/architecture/ai-integration.md` |
 | 表结构 | `backend/internal/platform/mysql/ddl/schema.sql` |
 | 接口清单与出入参结构 | `backend/docs/swagger.json`，或前端 `app/types/openapi.d.ts` |
 | nginx 的路由与反代规则 | `deploy/docker/nginx/nginx.conf.tmpl`；变量推导在 `render-config.sh` |
@@ -1096,3 +1092,179 @@ README 只能回答"怎么用"。更细的东西都在代码库里，而且它�
 | CI 有哪些 job、各自拦什么 | `.github/workflows/ci.yml` |
 
 改代码前最该看的一处不是文档，是 `schema.sql` 和 `archcheck` 的规则——前者告诉你哪些字段不能动，后者告诉你哪些写法会被门禁拦下。
+
+---
+
+## 十五、七牛云接入与证书自动化
+
+图片上传**只有七牛一条落地路径**：`/uploads` 只是静态路由，代码里没有任何写入它的逻辑。所以"配好七牛"不是可选项，而是用文章配图的前提。这一章分两块：**15.1–15.3 接入平台**，**15.4–15.7 证书自动上传与自动续期**（七牛只给 API，不给续期，链路要自己编排）。
+
+### 15.1 七牛控制台侧（一次做完）
+
+| 步骤 | 做什么 | 容易错的地方 |
+| --- | --- | --- |
+| 建空间 | 对象存储 → 新建空间，记下空间名与**区域** | 区域要对应平台里的「存储区域」；错区上传会失败（`z2` = 华南） |
+| 访问控制 | 空间设**公开读**（或自己给直链加签名） | 平台返回的图片直链是**未签名 URL**；私有空间 → 浏览器 401 |
+| 密钥 | 个人中心 → 密钥管理 → AK / SK | SK 只填在后台，别写进仓库 |
+| 绑定加速域名 | 域名管理 → 添加域名（如 `image.example.com`）→ 复制 CNAME → 去 DNS 服务商加 CNAME 记录 → 回七牛点「验证」 | 只加解析不点验证 = 域名不生效；国内加速要求域名已备案 |
+| 协议 | 先只绑 HTTP 也能用，但**平台回调必须是 HTTPS** | 后台「访问域名」的协议头必须与七牛实际支持的协议一致，见 15.2 / 15.4 |
+
+七牛的 CDN 配置改动一般 **5–10 分钟**生效，别改完立刻判死。
+
+### 15.2 平台侧（后台「站点 → 对象存储」）
+
+| 字段 | 填什么 |
+| --- | --- |
+| 启用七牛云存储 | 开 |
+| AccessKey / SecretKey | 七牛 AK / SK。SK 保存后显示 `******`，**留 `******` = 不修改** |
+| Bucket | 空间名（如 `myblogx`） |
+| **访问域名** | 写 `https://image.example.com`（推荐）。后端会把裸域名 / `http://` / `//` 统一收敛成 `https://`（见 `qiniu.go` 的 `mediaBase`）；但**已经入库的旧 `http://` URL 不会自己变**，要按 15.7 单独批量修正。另外 CDN 域名必须真的配了 HTTPS 证书 |
+| 存储区域 | 与空间区域一致 |
+| 对象 key 前缀 | 默认 `myblogx`。image-ref 靠它从图片 URL 反解 object key，**改了已有图片的引用关系就对不上** |
+| 单图上限 / 凭证有效期 | 5MB / 60s 起。有效期是**上传凭证**的寿命，慢网大图容易过期（七牛回 401） |
+| 上传回调地址 | `https://<主域名>/api/images/qiniu/callback`。**必须 HTTPS 且证书覆盖该主机名**；**留空 = 不启用回调**，任务永远不会被确认（一直 pending，前端最后报"上传确认超时"） |
+
+保存即热生效（运行时配置现读，不用重启）。
+
+### 15.3 验收到什么程度算接通
+
+1. 后台上传一张图（媒体库或轮播图）。
+2. 服务器上看回调有没有到：
+   ```bash
+   grep 'qiniu/callback' /opt/blogx/deploy/state/nginx/logs/access.log | tail -3
+   ```
+   应出现**七牛节点 IP** 的 `POST /api/images/qiniu/callback`，状态 200。
+3. 数据库应该有行（图片记录 + 任务 ready）：
+   ```bash
+   docker exec mysql-master mysql -uroot -p"$MYSQL_ROOT_PASSWORD" -N \
+     -e "select count(*) from blogx.image_models; select count(*) from blogx.banner_models"
+   ```
+4. 拿返回的图片 URL 测直链：
+   ```bash
+   curl -sS -o /dev/null -w '%{http_code}\n' "https://image.example.com/<key>"
+   ```
+   200 才对；401 = 空间私有（回 15.1 改访问控制）。
+5. 后台是 HTTPS、图片域名还是 HTTP 时，图片会被浏览器拦掉——**那是预览被拦，不是上传失败**。彻底解决走 15.4 给图片域名绑 HTTPS。
+
+> **浏览器对 HTTPS 页面里的 HTTP 图片会"自动升级"成 HTTPS 再加载（Chrome / Firefox / Safari 都这样），这个行为没有开关，服务端也关不掉。** 所以只能让图片本身是 HTTPS；改配置、加 CSP 之类都没法"关闭"它。
+
+### 15.4 先弄清两件事
+
+- **七牛只有"上传 / 绑定"的 API，没有"续期"**。证书就是一段 PEM，续期要自己用 ACME 签发再推上去。
+- **图片域名走不了 HTTP-01**：它 CNAME 到七牛 CDN，ACME 的验证文件落不到我们服务器 → 必须 **DNS-01**（去 DNS 服务商加 TXT 记录）。而主站 DNS 在火山引擎，所以要一个火山引擎 DNS 插件。
+
+链路：
+
+```
+acme.sh（每天 cron，证书 <30 天自动续）
+  └ DNS-01：调火山引擎 API 加/删 TXT 记录
+      └ 续期成功 → --reloadcmd 触发 qiniu-cert-sync.sh
+          ├ POST fusion.qiniuapi.com/sslcert          （QBox 鉴权）→ 拿 certID
+          ├ PUT  api.qiniu.com/domain/<域名>/sslize   （Qiniu 鉴权）→ 绑定新证书
+          └ 校验 https 可用；旧证书确认解绑后再删
+```
+
+> ⚠️ **两套证书别混**：主站 nginx 用 `deploy/state/nginx/cert/domain.pem`（裸域 + www，certbot 签发，见第十/十一章），七牛 CDN 域名用的是**另一张**、只对这个 CDN 域名生效。主站证书**不能**拿去给七牛用（SAN 里没有 `image.*`）。
+
+### 15.5 签发（acme.sh + 火山引擎 DNS 插件）
+
+```bash
+curl https://get.acme.sh | sh -s email=you@example.com
+source ~/.bashrc
+
+# 火山引擎没有内置 DNS 插件，用社区脚本
+curl -sSfL https://raw.githubusercontent.com/mitkimi/acmesh_volcengine_api/main/dns_volcengine.sh \
+  > ~/.acme.sh/dnsapi/dns_volcengine.sh
+chmod +x ~/.acme.sh/dnsapi/dns_volcengine.sh
+
+# 火山引擎「访问控制 → API 访问密钥」拿 AK/SK；首次签发后 acme.sh 会加密存进 account.conf
+export VOLCENGINE_ACCESS_KEY_ID='<AK>'
+export VOLCENGINE_SECRET_ACCESS_KEY='<SK>'
+
+acme.sh --issue --dns dns_volcengine -d image.example.com --keylength 2048
+```
+
+### 15.6 推送到七牛（脚本模板）
+
+两个 API 用**两套鉴权**，别混：
+
+| API | 域名 | 鉴权头 | 签名串 |
+| --- | --- | --- | --- |
+| 证书管理（上传 / 列表 / 删除） | `fusion.qiniuapi.com` | `QBox <AK>:<tok>` | `<路径+query>\n` |
+| 域名配置（`sslize` 绑证书） | `api.qiniu.com` | `Qiniu <AK>:<tok>` + `X-Qiniu-Date` | `METHOD 路径+query\nHost\nContent-Type\nX-Qiniu-Date\n\nBody` |
+
+脚本模板（保存为 `scripts/qiniu-cert-sync.sh`，凭据从环境变量读，**不进 git**）：
+
+```bash
+#!/usr/bin/env bash
+# 把 acme.sh 刚续好的证书推给七牛并绑定；由 acme.sh --reloadcmd 调用
+set -euo pipefail
+: "${QINIU_AK:?}" "${QINIU_SK:?}" "${CDN_DOMAIN:?}" "${KEY_FILE:?}" "${CHAIN_FILE:?}"
+NAME="${CERT_NAME:-$CDN_DOMAIN}"
+
+b64url() { openssl base64 -A | tr '+/' '-_'; }
+hmac()   { openssl dgst -sha1 -hmac "$QINIU_SK" -binary | b64url; }
+
+# 1) 上传证书（QBox：JSON body 不进签名，只签路径）
+PAYLOAD=$(python3 -c 'import json,sys
+print(json.dumps({"name":sys.argv[1],"pri":open(sys.argv[2]).read(),"ca":open(sys.argv[3]).read()}))' \
+  "$NAME" "$KEY_FILE" "$CHAIN_FILE")
+RESP=$(curl -sS -X POST https://fusion.qiniuapi.com/sslcert \
+  -H "Authorization: QBox $QINIU_AK:$(printf '/sslcert\n' | hmac)" \
+  -H 'Content-Type: application/json' --data-binary "$PAYLOAD")
+CERT_ID=$(printf '%s' "$RESP" | python3 -c 'import json,sys;print(json.load(sys.stdin)["certID"])')
+
+# 2) 绑定到 CDN 域名（Qiniu 鉴权；body 必须与签名时字节一致）
+DATE=$(date -u +%Y%m%dT%H%M%SZ)
+BODY=$(printf '{"certId":"%s","forceHttps":true,"http2Enable":true}' "$CERT_ID")
+SIGN=$( { printf 'PUT /domain/%s/sslize\n' "$CDN_DOMAIN"
+          printf 'Host: api.qiniu.com\n'
+          printf 'Content-Type: application/json\n'
+          printf 'X-Qiniu-Date: %s\n\n' "$DATE"
+          printf '%s' "$BODY"; } | hmac )
+curl -sS -X PUT "https://api.qiniu.com/domain/$CDN_DOMAIN/sslize" \
+  -H "Authorization: Qiniu $QINIU_AK:$SIGN" \
+  -H "X-Qiniu-Date: $DATE" -H 'Content-Type: application/json' \
+  --data-binary "$BODY"
+
+# 3) 校验（CDN 配置 5-10 分钟生效，失败先等再重试）
+curl -sSI "https://$CDN_DOMAIN/" | head -1
+echo "bound certId=$CERT_ID"
+```
+
+挂到 acme.sh，让每次续期后自动推：
+
+```bash
+mkdir -p /etc/blogx/qiniu
+cat > /etc/blogx/qiniu/env <<'EOF'
+QINIU_AK=<AK>
+QINIU_SK=<SK>
+CDN_DOMAIN=image.example.com
+CERT_NAME=image.example.com
+KEY_FILE=/etc/blogx/qiniu/image.key
+CHAIN_FILE=/etc/blogx/qiniu/image.pem
+EOF
+chmod 600 /etc/blogx/qiniu/env
+
+acme.sh --install-cert -d image.example.com \
+  --key-file       /etc/blogx/qiniu/image.key \
+  --fullchain-file /etc/blogx/qiniu/image.pem \
+  --reloadcmd      'set -a; . /etc/blogx/qiniu/env; /opt/blogx/scripts/qiniu-cert-sync.sh'
+```
+
+`acme.sh` 安装时已往 crontab 写了 `acme.sh --cron`，每晚检查、剩 <30 天才续期，续完自动执行 `--reloadcmd`。全程无人值守（首次签发要人在场点一次）。
+
+不想自建也可以：控制台手动上传证书（一年一次）、或用社区工具 [CertBuddy](https://github.com/Jyonn/CertBuddy)（腾讯云申请 + 七牛部署）。
+
+### 15.7 常见故障对照
+
+| 现象 | 原因 | 处理 |
+| --- | --- | --- |
+| 浏览器报 **HTTP 579** | 七牛回调业务服务器失败（TLS 证书不匹配 / 域名不可达 / 回调路径 4xx-5xx） | 先自测回调：`curl -sS -o /dev/null -w '%{http_code}\n' -X POST https://<回调域名>/api/images/qiniu/callback -d '{}'`，能回 200 且 body 是业务码就说明网络与 TLS 通了 |
+| `unsupported protocol scheme ""` | 旧版本：访问域名缺协议头，后端直接把它拼进 URL | 当前版本已把裸域名 / `http://` / `//` 统一收敛成 `https://`（`qiniu.go` 的 `mediaBase`），不会再出这个错；还出现说明跑的是旧镜像 |
+| 上传后任务一直 pending / 前端报确认超时 | `callback_url` 空或不可达 | 看 nginx 有没有七牛的回调 POST；没有就是回调地址/证书问题 |
+| 图片直链 **401** | 空间是私有的，直链没签名 | 空间改公开读，或给直链加签名（平台目前没做签名） |
+| 图片 URL 能打开但页面不显示 | HTTPS 页面加载 HTTP 图片（mixed content），或前端 `BLOGX_WEB_ASSET_PROXY_BASE` 配错 | 给 CDN 域名绑 HTTPS 并把「访问域名」改 `https://`。浏览器的 HTTP→HTTPS **自动升级无法关闭**，所以不能保留 http 直链 |
+| 上传七牛返回 401 / 631 | 401 = 上传凭证无效或过期（有效期 < 上传耗时）；631 = 空间不存在（bucket 名或区域错） | 凭证有效期别低于 60s；bucket 名与「存储区域」和七牛空间对齐 |
+| `sslize` 回 500235 / 400302 | 域名未绑证书 / 域名未开 HTTPS | 顺序必须是**先上传证书拿 certID，再 sslize** |
+| 证书传上去但 https 不生效 | CDN 配置 5–10 分钟生效 | 等 10 分钟再验；`curl -sSI https://<CDN域名>/` 看证书 SAN |

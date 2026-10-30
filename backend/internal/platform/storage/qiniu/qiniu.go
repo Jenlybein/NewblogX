@@ -144,9 +144,27 @@ func (s *Storage) Delete(bucket, key string) error {
 	return getRuntime(s.cfg).bucketMgr.Delete(bucket, key)
 }
 
+// mediaBase 返回规范化后的资源访问域名：始终带 https:// 协议头。
+//
+// 站点在 HTTPS 下时，浏览器会把页面里 http 的图片"自动升级"成 https 再加载
+// （Chrome / Firefox / Safari 都这样，且没有开关），所以发出去的图片地址只能是
+// https。配置里写裸域名、写 http:// 或写 //，统一收敛成 https://。
+func (s *Storage) mediaBase() string {
+	domain := strings.TrimRight(strings.TrimSpace(s.cfg.Uri), "/")
+	if domain == "" {
+		return ""
+	}
+	if strings.HasPrefix(domain, "https://") {
+		return domain
+	}
+	domain = strings.TrimPrefix(domain, "http://")
+	domain = strings.TrimPrefix(domain, "//")
+	return "https://" + domain
+}
+
 // ImageInfo 读取图片尺寸（走七牛 imageInfo 接口）。
 func (s *Storage) ImageInfo(key string) (ImageInfo, error) {
-	domain := strings.TrimRight(strings.TrimSpace(s.cfg.Uri), "/")
+	domain := s.mediaBase()
 	if domain == "" {
 		return ImageInfo{}, apperr.New(apperr.CodeStorageDomainMissing)
 	}
@@ -180,12 +198,9 @@ func (s *Storage) ImageInfo(key string) (ImageInfo, error) {
 
 // ObjectURL 拼接公开访问地址。
 func (s *Storage) ObjectURL(key string) string {
-	domain := strings.TrimRight(strings.TrimSpace(s.cfg.Uri), "/")
+	domain := s.mediaBase()
 	if domain == "" {
 		return ""
-	}
-	if !strings.HasPrefix(domain, "http://") && !strings.HasPrefix(domain, "https://") {
-		domain = "https://" + domain
 	}
 	return storage.MakePublicURLv2(domain, key)
 }

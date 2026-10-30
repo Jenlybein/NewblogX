@@ -9,7 +9,7 @@ import (
 
 // ── R12：ID 语义的字段必须用 ctype.ID，禁止裸整型 ──────────────────
 //
-// 背景见 docs/architecture/adr/ADR-007。一句话版本：
+// 背景见 docs/adr/0007-id-string-type-as-truth.md。一句话版本：
 //
 //	雪花 ID 是 18 位十进制，超过 JS 的安全整数上限（16 位）。
 //	以前 ctype.ID 底层是 uint64，靠 MarshalJSON 偷偷输出字符串，

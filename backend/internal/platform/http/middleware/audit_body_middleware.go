@@ -16,7 +16,7 @@ const maxCaptureBytes = 1 << 20 // 1MB
 
 // CaptureLog 在请求进入业务前采集请求体，并在响应结束后采集响应体。
 //
-// L.10 起不再采集 header：原始报文默认不入库（见 07 §0）。
+// L.10 起不再采集 header：原始报文默认不入库（见 docs/architecture/governance.md §4.2）。
 // 请求体用 io.LimitReader 限量读取，再交给 PrepareCapturedBody 做脱敏 + ≤16KB 截断；
 // 采集结果只会在**失败请求**时被写进审计日志。
 func CaptureLog(mode writer.CaptureLogMode) gin.HandlerFunc {

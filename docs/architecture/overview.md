@@ -1,18 +1,20 @@
-# 01 · 架构总纲（v1 归档）
+# 架构总纲
 
-> **归档说明**：本文件是 blogx 架构文档 v1 阶段的压缩归档产物，由 `README.md` / `01-现状评审.md` / `02-目标架构.md` / `03-物理目录与映射.md` 四份文档合并压缩而来。
-> **状态**：v1 阶段**已交付（M0–M7 全部完成）**。本文不再作为执行计划，它的价值是记录**"当时为什么这么设计"**——决策背景、被否决的方案、以及曾经踩过的坑。
+> **来源**：v1 阶段压缩归档（2026-10-28，由 `README.md` / `01-现状评审.md` / `02-目标架构.md` / `03-物理目录与映射.md` 合并压缩）。v1 已交付（M0–M7 全部完成）；本文记录**"当时为什么这么设计"**——决策背景、被否决的方案、曾经踩过的坑。**§六 是当前仍生效的硬约束总表**。
 > 仓库形态：`backend` / `frontend` / `frontend_admin` / `deploy` 四目录解耦（旧 `blogx_monorepo` 已废弃）。
 
-**v1 归档共 5 份，本文件是入口**：
+**文档地图**（本目录是现行架构与治理文档的入口）：
 
 | 文件 | 内容 | 什么时候看 |
 | --- | --- | --- |
-| **01-架构总纲**（本文） | 诊断、目标架构、目录映射、10 条决策、**v2 硬约束总表** | v2 开工先看 §六 |
-| [02-治理与质量](./02-治理与质量.md) | 门禁、archcheck、测试体系、日志管道、7 个产品缺陷 | 改门禁 / 加测试 / 动日志时 |
-| [03-契约](./03-契约.md) | 契约流水线、swag v2 的坑、`contract.ts` 三层工具 | 动 API / 改注解 / 改前端类型时 |
-| [04-ADR 合集](./04-ADR%20合集.md) | 9 条 ADR 的决策骨架与依据 | 想改某条规则前，先读它为什么存在 |
-| [05-基线与过程](./05-基线与过程.md) | 起点数字、M0→M7 时间线、两轮决策留档 | 想知道"这个数字原来是多少" |
+| **overview**（本文） | 诊断、目标架构、目录映射、10 条决策、**硬约束总表** | 开工先看 §六 |
+| [governance](./governance.md) | 门禁、archcheck、测试体系、日志管道、产品缺陷 | 改门禁 / 加测试 / 动日志时 |
+| [contracts](./contracts.md) | 契约流水线、swag v2 的坑、`contract.ts` 三层工具 | 动 API / 改注解 / 改前端类型时 |
+| [configuration](./configuration.md) | 配置分层、后台可改配置、合并规则 | 加配置项 / 排查"改了不生效" |
+| [ai-integration](./ai-integration.md) | eino 调用链、模型配置表、供应商映射 | 加供应商 / AI 不可用 |
+| [ADR 索引](../adr/README.md) | 9 条 ADR 的决策骨架、理由与当前约束 | 想改某条规则前，先读它为什么存在 |
+| [v1 ADR 合集（归档原文）](../archive/v1/04-adr-collection.md) | 拆分前原文，保留合并口径与归档备注 | 需要对照历史时 |
+| [v1 基线与过程](../archive/v1/05-baseline-and-process.md) | 起点数字、M0→M7 时间线、两轮决策留档 | 想知道"这个数字原来是多少" |
 
 ---
 
@@ -30,7 +32,7 @@
 | `plugin/` | 1 | 711 | 仅 prototype 使用，**随 prototype 删除** |
 | **合计（含待删 prototype）** | — | **≈ 83,000** | prototype 7.3k 在 S0 删除后约 76,000（Go 58.5k / Nuxt 20k） |
 
-测试侧：117 个测试文件 / 20,577 行 / **2,357 处断言**；架构违规基线 **324 处**（见 [05](./05-基线与过程.md) §一.4）。
+测试侧：117 个测试文件 / 20,577 行 / **2,357 处断言**；架构违规基线 **324 处**（见 [05](../archive/v1/05-baseline-and-process.md) §一.4）。
 
 ### 1.2 一句话诊断
 
@@ -340,7 +342,7 @@ blogx/                              ← 仓库根（无 workspace / 无 turbo）
 │       ├── nginx.template.conf     # ★ 4 份合并为 1 模板 + envsubst
 │       └── envsubst.sh
 ├── .github/workflows/ci.yml        # ★ 新建（当时完全没有）
-├── docs/architecture/              # 本文档
+├── docs/                          # 文档入口（架构 / ADR / 笔记）
 └── README.md
 ```
 
@@ -491,7 +493,7 @@ blogx/                              ← 仓库根（无 workspace / 无 turbo）
 | `server/utils/upstreamProxy.ts` | `app/lib/http/upstream.ts`（本 app 内，不跨 app） |
 | `nuxt.config.ts` 手写 dotenv 解析（45 行） | 保留本 app 一份（不再跨 app 引用） |
 | `app/pages/studio/write.vue`（**2,043 行**，占 web app 13.7%） | **已完成（M6）**：`pages/studio/write.vue` **361 行** + `components/studio/{StudioWriteHeader,Toc,Preview,PublishDialog}.vue` + `composables/useStudio*.ts` + `constants/studioToolbar.ts` + `assets/css/studio-write.css`。验收口径：**单文件 ≤800 行**（原写的 `<200` 已作废） |
-| `app/types/api.ts`（736 行 / 80 个手写 interface） | **已完成（契约可用性改造）**：压到 **12 个**手写 interface，其余 50 个从契约派生。派生工具见 `app/types/contract.ts`：`RequiredSchema<K>` / `Nullable<T,K>` / `OptionalFields<T,K>`（详见 [03-契约](./03-契约.md)） |
+| `app/types/api.ts`（736 行 / 80 个手写 interface） | **已完成（契约可用性改造）**：压到 **12 个**手写 interface，其余 50 个从契约派生。派生工具见 `app/types/contract.ts`：`RequiredSchema<K>` / `Nullable<T,K>` / `OptionalFields<T,K>`（详见 [contracts](./contracts.md)） |
 | `app/services/http/*` | `app/lib/http/` |
 | `app/stores/{auth,chat,message}.ts`（循环依赖） | 改事件驱动，`auth` 只发事件不直接调用其他 store |
 
@@ -512,7 +514,7 @@ cd frontend_admin && pnpm openapi:types
 
 - 后端：handler 加 `// @Summary` / `// @Param` / `// @Success` 注解，`make openapi` 生成。**单一来源是后端代码**。
 - 前端：各自生成 `openapi.d.ts`，**禁止手改**；手写类型只允许纯前端状态（UI props、本地枚举）。
-- 完整流水线的坑与验证方法见 [03-契约](./03-契约.md)。
+- 完整流水线的坑与验证方法见 [contracts](./contracts.md)。
 
 **单一上游**：两个前端的 Nuxt server 只保留 `api/[...path].ts` 一个代理入口（→ `$API_BASE_URL`）；**反向代理的唯一 upstream 定义在 `deploy/nginx`**（基础设施层，不在 app 代码里）；`_origin` 不走 Nuxt 代理，由后端或 CDN 直出。
 
@@ -541,8 +543,8 @@ cd frontend_admin && pnpm openapi:types
 6. **前后端只保留单一上游**。两个前端各自只代理一个后端（`/api` → `API_BASE_URL` 环境变量），`_backend` / `_origin` 别名删除；反向代理的**唯一 upstream 定义在 `deploy/nginx`**（基础设施，不在 app 代码里）。
 7. **admin 与 web 不合并为一个 app**。两个 Nuxt app 保持独立；它们之间唯一的"共享"是各自从后端 openapi 生成的类型，不存在共享代码包。
 8. **重建 git 仓库**。删除旧 `.git`，重新 `git init`，首提交即目标形态，避免新旧仓库交叉。
-9. **测试体系完全重构**。改为测试金字塔：domain 纯单测穷举规则、app 用有状态 fake 测编排、adapter 用真 MySQL(testcontainers) 验 SQL、HTTP 契约测、E2E 只保主链路。配套 `testkit`（clock/id/http/fake/fixture/golden），全部测试可并行、可复现。详见 [02-治理与质量](./02-治理与质量.md) §三。
-10. **日志模块彻底治理**。禁止把结构体塞进日志（字段封闭类型、禁 `any`）；改为**有界异步管道**（双限额队列 + 单写协程批量 + ClickHouse 直写 + WAL 兜底），请求路径不序列化/不落盘；去掉每条日志调雪花 ID 与全量调用栈。详见 [02-治理与质量](./02-治理与质量.md) §四。
+9. **测试体系完全重构**。改为测试金字塔：domain 纯单测穷举规则、app 用有状态 fake 测编排、adapter 用真 MySQL(testcontainers) 验 SQL、HTTP 契约测、E2E 只保主链路。配套 `testkit`（clock/id/http/fake/fixture/golden），全部测试可并行、可复现。详见 [governance](./governance.md) §三。
+10. **日志模块彻底治理**。禁止把结构体塞进日志（字段封闭类型、禁 `any`）；改为**有界异步管道**（双限额队列 + 单写协程批量 + ClickHouse 直写 + WAL 兜底），请求路径不序列化/不落盘；去掉每条日志调雪花 ID 与全量调用栈。详见 [governance](./governance.md) §四。
 
 > **可测性是架构的属性，不是测试的属性**：只有当 handler 拿不到 `*gorm.DB`、domain 不依赖外部、时间/ID 可注入时，规则才能被穷举测试。这是"测试重构"必须与"架构重构"同步推进的原因。
 
@@ -629,7 +631,7 @@ cd frontend_admin && pnpm openapi:types
 | E2 | 新代码只能写新结构，禁止往 `api/` / `service/` / `models/` 加文件（这些目录已不存在） |
 | E3 | 规则先 `warn` 后 `error`，但必须设定转 `error` 的截止点 |
 | E4 | **不保留 pipeline 开关**（如 `BLOGX_<MODULE>_NEW_PIPELINE`）：一模块一 commit，出问题整模块回滚一个 commit |
-| E5 | 提交格式：`<任务ID>: <一句话>` + 可选"背景/取舍" + `验收：<跑过的命令/结果>`（详见 [05](./05-基线与过程.md) §五） |
+| E5 | 提交格式：`<任务ID>: <一句话>` + 可选"背景/取舍" + `验收：<跑过的命令/结果>`（详见 [05](../archive/v1/05-baseline-and-process.md) §五） |
 
 ---
 
@@ -646,7 +648,7 @@ cd frontend_admin && pnpm openapi:types
 | **可执行规则** | 能用 `go test` 或 CI 判定通过/失败的规则，而非文档约定 |
 | **archcheck** | Go AST 实现的架构检查工具（`backend/tools/archcheck`），替代 PowerShell 正则守卫 |
 | **有界异步管道** | 日志写入模型：双限额队列 + 单写协程批量 + ClickHouse 直写 + WAL 兜底，请求路径不阻塞 |
-| **死信重投** | CDC 失败的闭环处理（`platform/cdc/dlq`），见 [ADR-008](./04-ADR%20合集.md) |
+| **死信重投** | CDC 失败的闭环处理（`platform/cdc/dlq`），见 [ADR-008](../adr/0008-dead-letter-replay.md) |
 
 ---
 
@@ -656,5 +658,5 @@ cd frontend_admin && pnpm openapi:types
 2. **A1–A5 / B1–B10 / C1–C10 的问题编号与"归属阶段 S0-S5"列**。编号只服务于当时的迁移排期。
 3. **"五个 P0 / 三个看起来做了其实没做"中的修辞性段落**。它们的作用是当年说服团队接受重构，结论已固化在 §四 的 10 条决策里。
 4. **重复代码的逐对举例**（191 对 / 563 对的样本列表、`fans_list.go` vs `follow_list.go` 0.97 等）。具体文件已随迁移消失；保留"重复曾导致审计埋点只有 15% 覆盖"这个**机制性教训**就够了。
-5. **迁移顺序 R0 / S0–S5 的排期论证**。属于计划，不是约束；过程见 [05](./05-基线与过程.md)。
+5. **迁移顺序 R0 / S0–S5 的排期论证**。属于计划，不是约束；过程见 [05](../archive/v1/05-baseline-and-process.md)。
 6. **架构守卫的 PowerShell 实现细节**（`Assert-NoMatch` 用 `Select-String -Quiet`、`Get-GoFiles` 排除 `_test.go`）。脚本已删除，这些脆弱性描述只解释了"为什么改用 AST"。

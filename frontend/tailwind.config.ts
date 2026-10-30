@@ -9,8 +9,8 @@
 // 来源是 app/assets/css/tokens.css（原始层五色相 → 语义层 → 明暗两份映射）。
 // 组件消费语义层：bg-page / bg-subtle / bg-surface / text-ink / text-ink-muted /
 // border-line / border-line-strong / border-line-faint / bg-highlight /
-// bg-danger / text-danger-ink / ring-focus。原始层 `jelly-*` 只给装饰性记号
-// （三角/方/圆几何点缀）使用。
+// bg-danger / bg-danger-soft / border-danger-line / text-danger-ink / ring-focus。
+// 原始层 `jelly-*` 只给装饰性记号（三角/方/圆几何点缀）使用。
 //
 // 排版尺度同样来自 token：max-w-measure（68ch）、leading-prose（1.75）、
 // font-title（700 + 负字距由 tracking-title 表达）、font-cjk（中文整段字体栈）。
@@ -37,6 +37,8 @@ export default {
         danger: {
           DEFAULT: "var(--color-danger)",
           ink: "var(--color-danger-ink)",
+          soft: "var(--color-danger-soft)",
+          line: "var(--color-danger-line)",
         },
         focus: "var(--color-focus)",
         shadow: "var(--color-shadow)",

@@ -1,3 +1,5 @@
+import type { CSSProperties } from "vue";
+
 /**
  * 动效预算的唯一来源（spec 决策 3：统一三档时长 + 单一缓动 + stagger 节奏）。
  *
@@ -27,6 +29,19 @@ export const MOTION_STAGGER_MS = 40;
 
 /** 列表入场位移量（px）：只动 transform，不做布局动画。 */
 export const MOTION_ENTRANCE_OFFSET_PX = 8;
+
+/**
+ * 区块级滚动进场位移上限（px）：ADR-0012 决策 7 把它放宽到 ≤12px。
+ * 与 tokens.css 的 `--motion-reveal-offset` 是同一份预算（design 测试交叉校验）。
+ * 后续票用 motion-v 的 useInView 接进场时，一律从这里取上限，不写死数字。
+ */
+export const MOTION_REVEAL_OFFSET_PX = 12;
+
+/**
+ * 视差上限（px）：与 tokens.css 的 `--parallax-max` 同源。
+ * 视差只允许出现在首屏封面等布局级容器上，正文段落不进场。
+ */
+export const PARALLAX_MAX_PX = 10;
 
 /** 毫秒 → 秒（motion-v 的 duration 单位）。 */
 export function motionSeconds(ms: number): number {
@@ -93,4 +108,51 @@ export function prefersReducedMotionFrom(
   mediaQuery: { matches: boolean } | null | undefined,
 ): boolean {
   return Boolean(mediaQuery?.matches);
+}
+
+/** 区块进场的样式（只含 transform / opacity / transition 三个键）。 */
+export interface SectionRevealStyle extends CSSProperties {
+  opacity: string;
+  transform: string;
+  transition: string;
+}
+
+/** 进场位移钳到 [0, `--motion-reveal-offset`]（负值 / NaN 归零，不做反向进场）。 */
+export function clampRevealOffset(offsetPx: number): number {
+  if (!Number.isFinite(offsetPx) || offsetPx <= 0) return 0;
+  return Math.min(MOTION_REVEAL_OFFSET_PX, offsetPx);
+}
+
+/**
+ * 区块滚动进场的可观察样式（ADR-0012 决策 7：位移 ≤12px、只动 transform/opacity）。
+ *
+ * 用内联样式而不是 `@keyframes`：motion-v 的 `useInView` 只告诉我们"进没进视野"，
+ * 过渡交给 CSS 变量驱动，时长/缓动仍然只有 tokens.css 一个来源。
+ * 「减少动态」下直接可见且没有过渡 —— 不是放慢，是整段归零。
+ */
+export function sectionRevealStyle(
+  revealed: boolean,
+  prefersReducedMotion: boolean,
+  offsetPx: number = MOTION_REVEAL_OFFSET_PX,
+): SectionRevealStyle {
+  if (prefersReducedMotion) {
+    return { opacity: "1", transform: "none", transition: "none" };
+  }
+
+  return {
+    opacity: revealed ? "1" : "0",
+    transform: revealed ? "none" : `translateY(${clampRevealOffset(offsetPx)}px)`,
+    transition:
+      "opacity var(--motion-base) var(--motion-ease), transform var(--motion-base) var(--motion-ease)",
+  };
+}
+
+/**
+ * 视差位移钳到 ±`--parallax-max`（ADR-0012 决策 7：视差 ≤10px）。
+ * 「减少动态」归零（不做"慢速视差"）。
+ */
+export function clampParallaxOffset(offsetPx: number, prefersReducedMotion: boolean): number {
+  if (prefersReducedMotion) return 0;
+  if (!Number.isFinite(offsetPx)) return 0;
+  return Math.max(-PARALLAX_MAX_PX, Math.min(PARALLAX_MAX_PX, offsetPx));
 }

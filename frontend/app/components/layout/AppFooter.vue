@@ -4,7 +4,7 @@ import { computed } from "vue";
 import BrandLogo from "~/components/brand/Logo.vue";
 import BrandWordmark from "~/components/brand/Wordmark.vue";
 import { useMotionPreference } from "~/composables/useMotionPreference";
-import { BRAND, brandCopyright } from "~/utils/brand";
+import { brandCopyright } from "~/utils/brand";
 import { FOOTER_ICP, footerNavItems } from "~/utils/chrome";
 
 const links = footerNavItems();
@@ -22,13 +22,12 @@ function scrollToTop() {
   <footer class="site-footer">
     <div class="page-shell site-footer__inner">
       <div class="site-footer__brand">
-        <!-- 扁平矢量果冻方块放在奶油白方板上：蓝铺色上仍然清晰，不用再造一套白色 logo -->
+        <!-- 扁平矢量果冻方块放在反白方板上：深墨面铺色上仍然清晰 -->
         <span class="site-footer__plate">
           <BrandLogo variant="flat" :size="34" decorative />
         </span>
         <div class="site-footer__lockup">
           <BrandWordmark size="lg" tone="invert" layout="stack" />
-          <p class="site-footer__tagline">{{ BRAND.tagline }}</p>
         </div>
       </div>
 
@@ -56,14 +55,14 @@ function scrollToTop() {
 
 <style scoped>
 /*
- * 页脚 = 整块克莱因蓝铺色（形状语义「圆 = 克莱因蓝铺色块」），滚动到底的结束锚点。
- * 文字一律奶油白（主）/ 派生奶油白（次），对比度由组件测试用 WCAG 公式从
- * tokens.css 取真实色值计算（≥ 4.5:1）。
+ * 页脚 = 深墨面铺色（中性石墨阶的反白层），滚动到底的结束锚点。
+ * 文字一律取反白语义 token（主反白 / 次级反白），对比度由组件测试用 WCAG 公式
+ * 从 tokens.css 取真实色值计算（明暗两态 ≥ 4.5:1）。
  */
 .site-footer {
   margin-top: 3rem;
-  background: var(--jelly-blue);
-  color: var(--jelly-cream);
+  background: var(--color-surface-inverse);
+  color: var(--color-on-inverse);
 }
 
 .site-footer__inner {
@@ -85,18 +84,12 @@ function scrollToTop() {
   display: inline-flex;
   flex: none;
   padding: 0.3125rem;
-  background: var(--jelly-cream);
+  border-radius: var(--radius-sm);
+  background: var(--color-on-inverse);
 }
 
 .site-footer__lockup {
   min-width: 0;
-}
-
-.site-footer__tagline {
-  margin-top: 0.375rem;
-  color: var(--jelly-cream-700);
-  font-size: 0.8125rem;
-  letter-spacing: 0.04em;
 }
 
 .site-footer__nav {
@@ -114,7 +107,7 @@ function scrollToTop() {
   border: 0;
   border-bottom: 1px solid transparent;
   background: transparent;
-  color: var(--jelly-cream);
+  color: var(--color-on-inverse);
   font: inherit;
   font-size: 0.875rem;
   text-decoration: none;
@@ -124,7 +117,7 @@ function scrollToTop() {
 
 .site-footer__link:hover,
 .site-footer__link:focus-visible {
-  border-bottom-color: var(--jelly-cream);
+  border-bottom-color: var(--color-on-inverse);
 }
 
 .site-footer__top {
@@ -132,7 +125,7 @@ function scrollToTop() {
 }
 
 .site-footer :is(a, button):focus-visible {
-  outline: 2px solid var(--jelly-cream);
+  outline: 2px solid var(--color-on-inverse);
   outline-offset: 2px;
 }
 
@@ -141,8 +134,8 @@ function scrollToTop() {
   flex-wrap: wrap;
   gap: 0.375rem 1.25rem;
   padding-top: 0.875rem;
-  border-top: 1px solid var(--jelly-cream-700);
-  color: var(--jelly-cream-700);
+  border-top: 1px solid var(--color-on-inverse-muted);
+  color: var(--color-on-inverse-muted);
   font-size: 0.8125rem;
   letter-spacing: 0.02em;
 }

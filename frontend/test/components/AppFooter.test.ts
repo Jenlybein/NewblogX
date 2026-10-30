@@ -6,20 +6,31 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import AppFooter from "~/components/layout/AppFooter.vue";
 import { brandCopyright } from "~/utils/brand";
+import { parseTokenBlocks, resolveTokenValue } from "~/utils/markdownTheme";
 
 /**
- * 页脚测试：整块克莱因蓝铺色 + 品牌（倒色字标）+ 版权/备案/少量链接。
+ * 页脚测试：深墨面铺色（中性石墨阶）+ 品牌（倒色字标）+ 版权/备案/少量链接。
  *
  * 对比度用 WCAG 公式从 tokens.css 里**真实取色**算，而不是相信"看起来够黑"。
  */
 const projectDir = process.cwd();
 const footerSource = readFileSync(join(projectDir, "app/components/layout/AppFooter.vue"), "utf8");
 const tokensCss = readFileSync(join(projectDir, "app/assets/css/tokens.css"), "utf8");
+const tokenBlocks = parseTokenBlocks(tokensCss);
 
-function tokenHex(name: string): string {
-  const match = new RegExp(`${name}:\\s*(#[0-9a-fA-F]{6})`, "u").exec(tokensCss);
-  if (!match) throw new Error(`tokens.css 里找不到 ${name}`);
-  return match[1]!;
+function tokenHex(mode: "light" | "dark", name: string): string {
+  return resolveTokenValue(tokenBlocks, mode, name);
+}
+
+function compositeOver(foreground: string, background: string): string {
+  const rgba = /rgba\((\d+),\s*(\d+),\s*(\d+),\s*([\d.]+)\)/u.exec(foreground);
+  if (!rgba) return foreground;
+  const alpha = Number.parseFloat(rgba[4]!);
+  const base = background.replace("#", "");
+  const channels = [Number(rgba[1]), Number(rgba[2]), Number(rgba[3])].map((value, index) =>
+    Math.round(value * alpha + Number.parseInt(base.slice(index * 2, index * 2 + 2), 16) * (1 - alpha)),
+  );
+  return `#${channels.map((value) => value.toString(16).padStart(2, "0")).join("")}`;
 }
 
 function channelLuminance(channel: number): number {
@@ -41,7 +52,6 @@ function contrastRatio(foreground: string, background: string): number {
   const darker = Math.min(relativeLuminance(foreground), relativeLuminance(background));
   return (lighter + 0.05) / (darker + 0.05);
 }
-
 const stubs = {
   NuxtLink: {
     props: ["to"],
@@ -63,7 +73,7 @@ beforeEach(() => {
 });
 
 describe("页脚：品牌与文案", () => {
-  it("是 footer 地标，品牌字标用倒色（克莱因蓝底上的奶油白字）", () => {
+  it("是 footer 地标，品牌字标用倒色（深墨面上的反白字）", () => {
     const wrapper = mountFooter();
 
     expect(wrapper.element.tagName).toBe("FOOTER");
@@ -89,22 +99,26 @@ describe("页脚：品牌与文案", () => {
   });
 });
 
-describe("页脚：对比度达 WCAG AA", () => {
-  const blue = tokenHex("--jelly-blue");
-  const cream = tokenHex("--jelly-cream");
-  const creamMuted = tokenHex("--jelly-cream-700");
+describe("页脚：对比度达 WCAG AA（明暗两态）", () => {
+  it.each(["light", "dark"] as const)("%s：主文字（反白 / 深墨面）≥ 4.5:1", (mode) => {
+    const surface = tokenHex(mode, "--color-surface-inverse");
+    const ink = tokenHex(mode, "--color-on-inverse");
 
-  it("主文字（奶油白 / 克莱因蓝）≥ 4.5:1", () => {
-    expect(contrastRatio(cream, blue)).toBeGreaterThanOrEqual(4.5);
+    expect(contrastRatio(ink, surface)).toBeGreaterThanOrEqual(4.5);
   });
 
-  it("次级文字（派生奶油白 / 克莱因蓝）也 ≥ 4.5:1（不能靠降低不透明度糊过去）", () => {
-    expect(contrastRatio(creamMuted, blue)).toBeGreaterThanOrEqual(4.5);
+  it.each(["light", "dark"] as const)("%s：次级文字（半透明反白 / 深墨面）也 ≥ 4.5:1", (mode) => {
+    const surface = tokenHex(mode, "--color-surface-inverse");
+    const muted = tokenHex(mode, "--color-on-inverse-muted");
+
+    expect(contrastRatio(compositeOver(muted, surface), surface)).toBeGreaterThanOrEqual(4.5);
   });
 
-  it("铺色与字色都来自 token 变量，组件里没有裸色值", () => {
-    expect(footerSource).toContain("var(--jelly-blue)");
-    expect(footerSource).toContain("var(--jelly-cream)");
+  it("铺色与字色都来自语义 token，组件里没有裸色值 / 克莱因蓝", () => {
+    expect(footerSource).toContain("var(--color-surface-inverse)");
+    expect(footerSource).toContain("var(--color-on-inverse)");
+    expect(footerSource).toContain("var(--color-on-inverse-muted)");
+    expect(footerSource).not.toMatch(/--jelly-/u);
     expect(footerSource).not.toMatch(/#[0-9a-fA-F]{3,8}\b/u);
     expect(footerSource).not.toMatch(/rgba?\(/u);
   });

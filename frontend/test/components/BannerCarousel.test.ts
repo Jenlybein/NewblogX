@@ -15,7 +15,7 @@ const banners = [
   { id: "b3", cover: "https://image.example.com/b3.png", abstract: "第三张" },
 ];
 
-describe("BannerCarousel：首屏轮播（方角图纸 + 降级态）", () => {
+describe("BannerCarousel：首屏封面媒体层（底图 + 罩层 + 降级态）", () => {
   it("有轮播时渲染第一张，切换点有 44px 触控区与 aria 文案", () => {
     const wrapper = mount(BannerCarousel, {
       props: { banners: banners as never },
@@ -37,6 +37,28 @@ describe("BannerCarousel：首屏轮播（方角图纸 + 降级态）", () => {
 
     await wrapper.findAll(".banner-dot")[2]?.trigger("click");
     expect(wrapper.get(".banner-stage img").attributes("src")).toContain("b3.png");
+  });
+
+  it("只有 1 张时不渲染控件（没有可轮播的内容就不该出现箭头/圆点）", () => {
+    const wrapper = mount(BannerCarousel, {
+      props: { banners: banners.slice(0, 1) as never },
+      global: { stubs: { NuxtLink: NuxtLinkStub } },
+    });
+
+    expect(wrapper.findAll(".banner-dot")).toHaveLength(0);
+    expect(wrapper.find(".banner-controls").exists()).toBe(false);
+    expect(wrapper.get(".banner-stage img").attributes("src")).toContain("b1.png");
+  });
+
+  it("≥2 张才渲染玻璃胶囊控件（箭头 + 圆点在同一层薄玻璃里）", () => {
+    const wrapper = mount(BannerCarousel, {
+      props: { banners: banners.slice(0, 2) as never },
+      global: { stubs: { NuxtLink: NuxtLinkStub } },
+    });
+
+    expect(wrapper.findAll(".banner-dot")).toHaveLength(2);
+    expect(wrapper.findAll(".banner-arrow")).toHaveLength(2);
+    expect(wrapper.get(".banner-controls").classes()).toContain("glass-thin");
   });
 
   it("空轮播：降级为统一空态（不是空白/报错）", () => {

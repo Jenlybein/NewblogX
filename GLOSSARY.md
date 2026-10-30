@@ -362,9 +362,48 @@ _Avoid_: 叫它"AI 对话框""聊天机器人"（它是入口角色，不是对�
 _Avoid_: 把内部标识当展示名——仓库名 `blogx`、Go module `myblogx`、`BLOGX_*` 环境变量前缀、compose 服务名 `blogx_web` / `blogx_admin` / `blogx_server`、`blogx-theme` cookie 与 `blogx_access_token` / `blogx_profile_snapshot` 存储键都不改名。
 
 **语义色 token**：
-呈现层颜色的唯一消费口径，分两层：**原始层**锁死五个色相（克莱因蓝、奶油白、包豪斯黄、珊瑚橙、暖灰，各带品牌前缀，不新增第六个）→ **语义层**（底色、纸面、墨色、结构线、高亮底、危险、焦点环、阴影等），组件只消费语义层。暗色是同一组语义 token 的第二份取值，由站点根类承载，不是另一套色板。
-位置：读者站 `frontend/app/assets/css/tailwind.css` 的 `:root` 块（token 落点）、后台 `frontend_admin/app/assets/css/admin.css`；两端 Tailwind 配置承载色板类名，Naive `themeOverrides` 从 token 取值。漂移门禁扫描组件与样式里的裸色字面量。
-_Avoid_: 在组件或样式里写裸十六进制 / `rgba()`（token 文件、品牌标志矢量、OG 生成物除外）；在 `:root`、Naive `themeOverrides`、字面 `rgba()` 三处分别维护同一份颜色。
+呈现层颜色的唯一消费口径，分两层：**原始层**锁死五个色相（奶油白 `#FDFBF6`、暖灰 `#F2EEE6`、包豪斯黄 `#F5C518`、珊瑚橙 `#FF6B4A`、功能蓝 `#0066CC`/`#2997FF`，各带品牌前缀，不新增第六个）→ **语义层**（底色、纸面、墨色、结构线、高亮底、危险、链接、焦点环、阴影、玻璃、圆角等），组件只消费语义层。暗色是同一组语义 token 的第二份取值，由站点根类承载，不是另一套色板；带透明度的取值一律由 `rgb(var(--*-rgb) / α)` 三元组派生。
+位置：`frontend/app/assets/css/tokens.css` 与 `frontend_admin/app/assets/css/tokens.css`（两端**逐字节同源**，由同步门禁保证）；两端 Tailwind 配置承载色板类名，Naive `themeOverrides` 从 token 取值。漂移门禁扫描组件与样式里的裸色字面量（含 `.ts` 里的 CSS 字符串）。
+_Avoid_: 在组件或样式里写裸十六进制 / `rgba()`（token 文件、品牌资产、OG 生成物除外）；写死 `rgba(r,g,b,α)` 常量而不走 `--*-rgb` 三元组；只改一端 token 而不走同步门禁。
+易混：旧口径"克莱因蓝作主色、结构线一律 1px 蓝"已退役（见 [ADR-0012](./docs/adr/0012-neutral-glass-visual-system.md)），不要再用它描述主色。
+
+**中性石墨阶（graphite scale）**：
+语义层里墨色与结构线所用的无彩灰阶，由暖灰去彩派生，因此**不算新增色相**；亮色是暖石墨，暗色是同一条明度阶梯上的中性暗阶（刻意不取暖黑，暖黑压上白玻璃会发浊）。
+位置：`tokens.css` 语义层的 `--color-ink` / `--color-ink-muted` / `--color-ink-faint` 与 `--color-line` 三档。
+_Avoid_: 把它当成第六个色相（它是暖灰的派生层级）；继续用"黑 = 深蓝"的旧取值。
+
+**功能蓝（interactive blue）**：
+只承担"这里可以点"的交互指向——文字链接与焦点环；不做铺底、不做 CTA 填充、不做墨色。亮色 `#0066CC`（对白 4.5:1）、暗色 `#2997FF`（苹果只在暗色用它，对白底仅 2.7:1，不能作亮色链接文字）。
+位置：语义层 `--color-link` / `--color-focus`，取值见 `tokens.css` 原始层。
+_Avoid_: 把它当品牌色或主色；把 `#2997FF` 用在亮色下的文字上。
+
+**液态玻璃层（glass layer）**：
+只允许出现在**导航/控制层**的半透明材质（顶栏、浮层、抽屉、捏捏面板、胶囊、悬浮控件），两档 `--glass-thin` / `--glass-thick`；正文、卡片、列表等内容面一律不透明实体面。
+位置：`tokens.css` 的玻璃组 token；取舍与降级规则见 [ADR-0012](./docs/adr/0012-neutral-glass-visual-system.md) 与改造方案第 3 批。
+_Avoid_: 在内容面/正文上叠玻璃；把玻璃当成"装饰性半透明"到处铺（`backdrop-filter` 会让元素成为 backdrop root，嵌套玻璃只会读成平灰）。
+易混：玻璃层 ≠ 半透明卡片——前者是控制层材质，后者是非法用法。
+
+**圆角阶梯（radius scale）**：
+五个圆角档位 `--radius-sm/md/lg/xl/pill` 的统一口径（控件 8–14、卡片 20、浮层 28、胶囊 pill），取代旧的"圆角归零"；嵌套层的子圆角 = 父圆角 − 内边距。
+位置：`tokens.css` 的圆角组；Naive `themeOverrides` 的 `borderRadius` 从它取值。
+_Avoid_: 在组件里写 `rounded-[18px]` 一类裸圆角字面量。
+
+**首屏封面（editorial hero）**：
+首页顶部的**满幅图形封面**，是全站唯一的"编辑部式例外区"：横向色带、超大 h1、细网格与下沿刻度、方括号/箭头记号、胶囊小签，视觉素材取自运营上传的首张轮播图。它没有卡片边框与纸面底色，轮播控件并入其中。
+位置：`frontend/app/pages/index.vue` 首屏区块与 `frontend/app/components/article/BannerCarousel.vue`；取舍见 [ADR-0013](./docs/adr/0013-editorial-hero-cover.md)。
+_Avoid_: 叫它"首屏卡片 / hero 卡片"（卡片形态已废）；把它当成可复用的版式模板（只允许出现在首页首屏）。
+
+**品牌资产例外（brand asset exception）**：
+`brand/logo-256.png`、`brand/jelly-flat.svg`、`apple-touch-icon.png`、`og-image.png` 允许自带品牌色，不受"只消费语义色 token"与漂移门禁约束（同 App 图标惯例）；但品牌资产**不随主题切换变体**。
+位置：`frontend/app/utils/brand.ts` 的 `BRAND_ASSETS`（`logoWhite` 按 ADR-0012 批次 0 删除）。
+_Avoid_: 再造一张"暗色专用 Logo"——`logo-512-white.png` 是无 alpha 通道的白底方块，正是不透明白边的来源。
+
+**动效档位（motion tier）**：
+动效预算的分级名字，现行是**档位 C**：三档时长 120 / 200 / 320ms + 单一缓动 + stagger 40ms，允许全站区块级滚动进场（位移 ≤12px）、视差 ≤10px、导航随滚动转玻璃；正文段落不进场，且强制尊重 `prefers-reduced-motion`。
+位置：`tokens.css` 动效层与 `frontend/app/utils/motion.ts`（同一份预算，两处必须同改）。
+_Avoid_: 用"档位 B"描述现状；在 `prefers-reduced-motion` 下仍保留进场。
+
+> 说明：本节新增词条（中性石墨阶、功能蓝、液态玻璃层、圆角阶梯、品牌资产例外、动效档位）出自 [ADR-0012](./docs/adr/0012-neutral-glass-visual-system.md)。该 ADR 已**交付**（落地分票 #18–#25 已全部合入），上述词条描述的都是当前生效的实现口径；「语义色 token」词条中两端逐字节同源的约定已由 `scripts/check-token-parity.mjs` 保证，两份 `tokens.css` 现逐字节一致。
 
 ---
 

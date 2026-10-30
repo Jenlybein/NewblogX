@@ -13,10 +13,11 @@ import {
 import sora400Woff2 from "@fontsource/sora/files/sora-latin-400-normal.woff2";
 import sora600Woff2 from "@fontsource/sora/files/sora-latin-600-normal.woff2";
 import sora700Woff2 from "@fontsource/sora/files/sora-latin-700-normal.woff2";
+import interWoff2 from "@fontsource-variable/inter/files/inter-latin-wght-normal.woff2";
 import tokensCss from "~/assets/css/tokens.css?raw";
 import { themeBodyClass, themeHtmlClass, themeRootClass } from "~/utils/themeClass";
 import { buildThemeInitScript } from "~/utils/themePreference";
-import { buildReaderThemeOverrides, parseReaderThemePalette } from "~/utils/readerTheme";
+import { buildReaderThemeOverrides, parseReaderThemePalette, parseReaderThemeScale } from "~/utils/readerTheme";
 import {
   BRAND,
   brandAbsoluteAssetUrl,
@@ -72,6 +73,14 @@ useHead(() => ({
       href: sora700Woff2,
       crossorigin: "anonymous",
     },
+    {
+      // 正文/UI 的 Inter 是可变的：一条 woff2 覆盖 100–900，首屏只需预加载这一条。
+      rel: "preload",
+      as: "font",
+      type: "font/woff2",
+      href: interWoff2,
+      crossorigin: "anonymous",
+    },
   ],
   // html 与 body 同一组类：首屏脚本在水合前先钉一次，水合后这里跟着 store 更新，
   // 保证用户切换后 html 上的旧类不会残留（否则 CSS 变量会一直停在暗/浅）。
@@ -85,21 +94,23 @@ useHead(() => ({
   // 服务端会先渲染浅色、水合后才变暗（闪白）。这段脚本在水合前把根类钉成最终值，
   // 颜色由 CSS 变量瞬间生效，不改字号/间距。
   script: [{ key: "jelly-theme-init", innerHTML: buildThemeInitScript() }],
-  // 无 JS（或脚本被拦）时兜底：入场动画的 initial 会把元素内联成 opacity:0，
+  // 无 JS（或脚本被拦）时兜底：入场动画/区块进场的 initial 会把元素内联成 opacity:0，
   // 这条 noscript 样式用 !important 盖过内联样式，保证内容仍然可读 ——
   // 博客内容不能因为动效在 JS 之前就凭空消失。
   noscript: [
     {
-      innerHTML: "<style>.motion-stagger-item{opacity:1!important;transform:none!important}</style>",
+      innerHTML:
+        "<style>.motion-stagger-item{opacity:1!important;transform:none!important}.motion-reveal{opacity:1!important;transform:none!important}</style>",
     },
   ],
 }));
 
-// 主题覆盖：主色克莱因蓝 + 同色相派生明度 + 圆角 0 + 中文 fallback 字体栈。
-// 取值来自 tokens.css（颜色只有一个来源）；只覆盖主色族/圆角/字体，中性纸面与
-// 墨色交给 Naive 的 darkTheme 切换，否则静态浅色值会在暗色下变成白块。
-const themeOverrides: GlobalThemeOverrides = buildReaderThemeOverrides(
-  parseReaderThemePalette(tokensCss),
+// 主题覆盖：主色墨色（CTA 实心胶囊）+ info 功能蓝 + 圆角阶梯 + 中文 fallback 字体栈。
+// 取值来自 tokens.css（颜色只有一个来源）；明暗各取同一组语义 token的第二份取值，
+// 随当前主题切换（否则静态浅色值会在暗色下变成白块）。
+const readerThemeScale = parseReaderThemeScale(tokensCss);
+const themeOverrides = computed<GlobalThemeOverrides>(() =>
+  buildReaderThemeOverrides(parseReaderThemePalette(tokensCss, uiStore.theme), readerThemeScale),
 );
 </script>
 
@@ -112,7 +123,7 @@ const themeOverrides: GlobalThemeOverrides = buildReaderThemeOverrides(
           <NDialogProvider>
             <NLoadingBarProvider>
               <div :class="['min-h-screen', themeRootClass(uiStore.theme)]">
-                <NuxtLoadingIndicator color="var(--color-focus)" />
+                <NuxtLoadingIndicator color="var(--color-ink)" />
                 <NuxtRouteAnnouncer />
                 <NuxtLayout>
                   <NuxtPage />

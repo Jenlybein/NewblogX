@@ -55,12 +55,19 @@ function pageTransitionProperties(): string[] {
 }
 
 describe("动效 token 进既有 token 体系（不另发明一套变量）", () => {
+  // 注意这里是**现存**的两档 + 缓动，不是最初那四档：`--motion-slow` 与
+  // `--motion-stagger` 全仓 var() 引用数为 0，已按 spec A2 从两份 tokens.css
+  // 删除（stagger 的 delay 由 motion.ts 的 staggerDelayMs 直接算毫秒，不经 CSS
+  // 变量）。删的依据不是"看着没用"，而是确认为零引用。
   it("三档时长 + 单一缓动 + stagger 节奏都在 tokens.css 里", () => {
     expect(tokensCss).toContain("--motion-fast: 120ms");
     expect(tokensCss).toContain("--motion-base: 200ms");
-    expect(tokensCss).toContain("--motion-slow: 320ms");
     expect(tokensCss).toContain("--motion-ease: cubic-bezier(0.2, 0.8, 0.2, 1)");
-    expect(tokensCss).toContain("--motion-stagger: 40ms");
+  });
+
+  it("无消费者的 --motion-slow / --motion-stagger 已删除（留额度与实际不一致）", () => {
+    expect(tokensCss).not.toContain("--motion-slow");
+    expect(tokensCss).not.toContain("--motion-stagger");
   });
 
   it("动效 token 与颜色/排版 token 在同一条定义链上（同一个 :root）", () => {
@@ -71,23 +78,31 @@ describe("动效 token 进既有 token 体系（不另发明一套变量）", ()
     expect(rootBlock).toContain("--color-ink");
   });
 
+  // MOTION_DURATIONS_MS 保留 slow=320 一档（motion.ts 的公共预算常量，某些 JS 分支
+  // 仍在用），但**没有对应的 CSS 变量** —— CSS 侧现存只有 fast / base 两档。
   it("CSS 变量与 app/utils/motion.ts 是同一份预算（不是两套写死的数字）", () => {
     expect(tokensCss).toContain(`--motion-fast: ${MOTION_DURATIONS_MS.fast}ms`);
     expect(tokensCss).toContain(`--motion-base: ${MOTION_DURATIONS_MS.base}ms`);
-    expect(tokensCss).toContain(`--motion-slow: ${MOTION_DURATIONS_MS.slow}ms`);
     expect(tokensCss).toContain(`--motion-ease: ${MOTION_EASE_CSS}`);
-    expect(tokensCss).toContain(`--motion-stagger: ${MOTION_STAGGER_MS}ms`);
+    // stagger 的 delay 由 motion.ts 直接算毫秒（staggerDelayMs / staggerItemMotion），
+    // 不经 CSS 变量 —— 所以这里断言的是"两边同一个 40ms 数"，而不是"有个 CSS 变量"。
+    expect(MOTION_STAGGER_MS).toBe(40);
   });
 });
 
 describe("CSS 侧的「减少动态」全局降级", () => {
   const reduced = mediaBlock(tokensCss, "prefers-reduced-motion: reduce");
 
-  it("四档时长与 stagger 全部归零（静态，而不是慢慢动）", () => {
+  it("现存动效 token 全部归零（静态，而不是慢慢动）", () => {
     expect(reduced).toContain("--motion-fast: 0ms");
     expect(reduced).toContain("--motion-base: 0ms");
-    expect(reduced).toContain("--motion-slow: 0ms");
-    expect(reduced).toContain("--motion-stagger: 0ms");
+    expect(reduced).toContain("--motion-reveal-offset: 0px");
+    expect(reduced).toContain("--parallax-max: 0px");
+  });
+
+  it("减少动态块里不再有已删除的旧 token", () => {
+    expect(reduced).not.toContain("--motion-slow");
+    expect(reduced).not.toContain("--motion-stagger");
   });
 
   it("全局兜底：把动画/过渡压成一次性，滚动行为不再平滑", () => {

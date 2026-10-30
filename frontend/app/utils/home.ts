@@ -155,20 +155,6 @@ export function resolveHomeSectionState(input: HomeSectionInput): HomeSectionSta
   };
 }
 
-export interface HomeHeroFact {
-  label: string;
-  value: string;
-}
-
-/** 首屏右侧的三格事实条（数字只来自真实数据，不写死趋势）。 */
-export function homeHeroFacts(input: { topCount: number; latestCount: number; pageSize: number }): HomeHeroFact[] {
-  return [
-    { label: "置顶", value: String(input.topCount) },
-    { label: "本页最新", value: String(input.latestCount) },
-    { label: "每页", value: `${input.pageSize} 篇` },
-  ];
-}
-
 /** 首页"去搜索"的固定落点：复用页头同一个 URL 契约（/search，空关键词不拼 ?key=）。 */
 export function homeSearchLocation(): ReturnType<typeof buildSearchLocation> {
   return buildSearchLocation("");

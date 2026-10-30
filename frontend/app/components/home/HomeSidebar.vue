@@ -7,6 +7,7 @@ import type { SearchArticleItem, SiteRuntimeConfig } from "~/types/api";
 import { resolveAvatarUrl } from "~/utils/avatar";
 import { brandProjectTitle } from "~/utils/brand";
 import { useStaggerEntrance } from "~/composables/useStaggerEntrance";
+import { useSectionReveal } from "~/composables/useSectionReveal";
 import {
   aggregateHotTags,
   aggregateRecommendedAuthors,
@@ -28,11 +29,15 @@ const props = withDefaults(defineProps<{
 
 // 右栏只有标签是"非关键内容"：给它错峰入场（40ms 一档，只动 opacity/translateY）。
 const { entranceProps } = useStaggerEntrance();
+// 右栏整体作为一个区块进场（内部条目用 stagger，正文段落不动）。
+const { target: revealTarget, revealStyle } = useSectionReveal();
 
 const sidebarClasses = computed(() => ({
   "profile-sidebar": true,
   "home-sidebar": true,
   "page-sidebar--sticky": props.sticky,
+  // 区块进场的静态类：给 noscript / 减少动态下的 CSS 覆盖用（见 app.vue 与 tailwind.css）。
+  "motion-reveal": true,
 }));
 
 const sidebarStyle = computed<StyleValue>(() => {
@@ -62,7 +67,12 @@ const projectAbstract = computed(
 </script>
 
 <template>
-  <aside :class="sidebarClasses" :style="sidebarStyle" data-home-sidebar>
+  <aside
+    ref="revealTarget"
+    :class="sidebarClasses"
+    :style="[sidebarStyle, revealStyle]"
+    data-home-sidebar
+  >
     <section v-if="pending" class="blueprint-panel" data-home-section="sidebar-skeleton">
       <NSkeleton text width="96px" />
       <NSkeleton text class="mt-3" :repeat="2" />

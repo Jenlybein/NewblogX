@@ -204,7 +204,7 @@ useSeoMeta({
               v-model="statusFilter"
               name="status"
               aria-label="文章状态"
-              class="h-12 w-full rounded-none border border-line bg-surface px-4 text-sm text-ink backdrop-blur"
+              class="h-12 w-full rounded-field border border-line bg-surface px-4 text-sm text-ink"
             >
               <option v-for="option in statusOptions" :key="option.value" :value="option.value">
                 {{ option.label }}
@@ -217,7 +217,7 @@ useSeoMeta({
               v-model="tagId"
               name="tag_ids"
               aria-label="标签筛选"
-              class="h-12 w-full rounded-none border border-line bg-surface px-4 text-sm text-ink backdrop-blur"
+              class="h-12 w-full rounded-field border border-line bg-surface px-4 text-sm text-ink"
             >
               <option value="">全部标签</option>
               <option v-for="option in tagOptions || []" :key="option.value" :value="String(option.value)">
@@ -231,7 +231,7 @@ useSeoMeta({
               v-model="sort"
               name="sort"
               aria-label="排序方式"
-              class="h-12 w-full rounded-none border border-line bg-surface px-4 text-sm text-ink backdrop-blur"
+              class="h-12 w-full rounded-field border border-line bg-surface px-4 text-sm text-ink"
             >
               <option v-for="option in sortOptions" :key="option.value" :value="option.value">
                 {{ option.label }}
@@ -252,7 +252,7 @@ useSeoMeta({
         <article
           v-for="item in articles"
           :key="item.id"
-          class="rounded-none border border-line bg-surface p-4 shadow-[0_18px_50px_var(--color-shadow)] backdrop-blur"
+          class="rounded-card border border-line bg-surface p-4 shadow-[0_18px_50px_var(--color-shadow)]"
         >
           <div class="mb-3 flex flex-wrap items-center justify-between gap-3">
             <div class="flex flex-wrap items-center gap-2">

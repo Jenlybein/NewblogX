@@ -1,81 +1,99 @@
 <script setup lang="ts">
-import { NTag, NThing } from "naive-ui";
-import ArticleCover from "~/components/article/ArticleCover.vue";
+import { computed } from "vue";
+import ArticleFeedItem from "~/components/article/ArticleFeedItem.vue";
+import ProfileEmptyState from "~/components/profile/ProfileEmptyState.vue";
 import type { FavoriteArticleItem, FavoriteFolderItem } from "~/types/api";
-import { formatCount, formatDateTimeLabel } from "~/utils/format";
+import { fromFavoriteArticle } from "~/utils/articleEntry";
 
-defineProps<{
-  folders: FavoriteFolderItem[];
-  activeFolderId: string;
-  articles: FavoriteArticleItem[];
-  pending?: boolean;
-  locked?: boolean;
-  lockedTitle?: string;
-  lockedDescription?: string;
-}>();
+const props = withDefaults(
+  defineProps<{
+    folders: FavoriteFolderItem[];
+    activeFolderId: string;
+    articles: FavoriteArticleItem[];
+    pending?: boolean;
+    locked?: boolean;
+    lockedTitle?: string;
+    lockedDescription?: string;
+  }>(),
+  { pending: false, locked: false, lockedTitle: "", lockedDescription: "" },
+);
 
 const emit = defineEmits<{
   "update:activeFolderId": [value: string];
 }>();
+
+// 收藏架与列表/搜索结果复用同一个条目组件（#7 的卡片三处复用）。
+const shelfEntries = computed(() => props.articles.map((article) => fromFavoriteArticle(article)));
+const activeFolder = computed(() => props.folders.find((folder) => folder.id === props.activeFolderId) || null);
 </script>
 
 <template>
   <div class="profile-collection-layout">
-    <aside class="profile-collection-layout__folders">
+    <aside class="profile-collection-layout__folders" aria-label="公开收藏夹">
+      <div v-if="locked" class="profile-folder-note">
+        收藏夹未公开，这里只展示文章流与基础成就。
+      </div>
+      <div v-else-if="!folders.length" class="profile-folder-note">这个用户还没有公开收藏夹。</div>
+
       <button
         v-for="folder in folders"
+        v-else
         :key="folder.id"
         type="button"
         class="profile-folder-card"
         :class="{ 'is-active': activeFolderId === folder.id }"
+        :aria-pressed="activeFolderId === folder.id"
         @click="emit('update:activeFolderId', folder.id)"
       >
-        <div class="profile-folder-card__title-row">
-          <strong class="truncate">{{ folder.title }}</strong>
-          <span class="glass-badge">{{ folder.article_count }}</span>
-        </div>
-        <p class="muted mt-2 text-sm leading-6">
+        <span class="profile-folder-card__title-row">
+          <strong class="profile-folder-card__title">{{ folder.title }}</strong>
+          <span class="blueprint-chip">{{ folder.article_count }}</span>
+        </span>
+        <span class="profile-folder-card__abstract">
           {{ folder.abstract || "这个收藏夹还没有补充简介。" }}
-        </p>
+        </span>
       </button>
     </aside>
 
-    <section class="profile-collection-layout__content">
-      <div v-if="locked" class="surface-section flex min-h-[280px] flex-col items-center justify-center p-6 text-center">
-        <h3 class="section-title">{{ lockedTitle }}</h3>
-        <p class="mt-3 max-w-xl text-sm leading-7 muted">{{ lockedDescription }}</p>
+    <section class="profile-collection-layout__content" aria-label="收藏架内容">
+      <ProfileEmptyState
+        v-if="locked"
+        size="lg"
+        :title="lockedTitle || '收藏架暂未公开'"
+        :description="lockedDescription || '这位作者把收藏夹设成了私密状态，目前只能查看文章流与基础成就。'"
+      />
+
+      <ProfileEmptyState
+        v-else-if="pending && !shelfEntries.length"
+        size="lg"
+        pending
+        title="正在读取收藏内容"
+        description="系统正在读取公开收藏，稍后会自动出现。"
+      />
+
+      <div v-else-if="shelfEntries.length" class="profile-shelf-list">
+        <div v-if="activeFolder" class="profile-shelf-heading">
+          <span class="profile-shelf-heading__title">{{ activeFolder.title }}</span>
+          <span class="blueprint-chip">{{ shelfEntries.length }} 篇</span>
+        </div>
+        <ArticleFeedItem
+          v-for="entry in shelfEntries"
+          :key="entry.id || entry.href"
+          :entry="entry"
+          variant="shelf"
+        />
       </div>
 
-      <div v-else-if="articles.length" class="space-y-4">
-        <article v-for="article in articles" :key="article.article_id" class="article-feed-item">
-          <NuxtLink :to="`/article/${article.article_id}`" class="article-feed-cover">
-            <ArticleCover :src="article.cover" :title="article.title" />
-          </NuxtLink>
-
-          <div class="article-feed-body">
-            <NThing :title="article.title" :description="article.abstract">
-              <template #header-extra>
-                <NTag size="small">{{ article.article_status === 3 ? "已发布" : `状态 ${article.article_status}` }}</NTag>
-              </template>
-              <template #footer>
-                <div class="article-feed-meta">
-                  <span>{{ article.user_nickname }}</span>
-                  <span>{{ formatDateTimeLabel(article.favorited_at) }}</span>
-                  <span>{{ formatCount(article.view_count) }} 阅读</span>
-                  <span>{{ formatCount(article.favor_count) }} 收藏</span>
-                </div>
-              </template>
-            </NThing>
-          </div>
-        </article>
-      </div>
-
-      <div v-else class="surface-section flex min-h-[280px] flex-col items-center justify-center p-6 text-center">
-        <h3 class="section-title">{{ pending ? "正在加载收藏内容…" : "这个收藏夹还是空的" }}</h3>
-        <p class="mt-3 max-w-xl text-sm leading-7 muted">
-          {{ pending ? "系统正在读取公开收藏内容。" : "当前分组还没有公开文章，换一个收藏夹继续看看。" }}
-        </p>
-      </div>
+      <ProfileEmptyState
+        v-else
+        size="lg"
+        title="这个收藏夹还是空的"
+        description="当前分组还没有公开文章，换一个收藏夹继续看看。"
+        :hints="['空的收藏夹不会展示任何条目，但布局会保留完整占位。', '想看更多公开文章，可以回到文章流或搜索页。']"
+      >
+        <NuxtLink to="/search" class="blueprint-link">去搜索文章</NuxtLink>
+        <NuxtLink to="/" class="blueprint-link">回到首页文章流</NuxtLink>
+      </ProfileEmptyState>
     </section>
   </div>
 </template>

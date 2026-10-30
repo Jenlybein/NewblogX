@@ -25,6 +25,13 @@
       background-color var(--motion-base) var(--motion-ease);
   }
 
+  /* 水合前首屏脚本会先在 html 上钉 theme-dark（防闪白）；这里保证那一刻
+     body 立刻用暗色语义 token，而不是等 JS 把类挂到 body 上才切换。 */
+  html.theme-dark body {
+    color: var(--color-ink);
+    background: var(--color-bg-page);
+  }
+
   a {
     color: inherit;
     text-decoration: none;

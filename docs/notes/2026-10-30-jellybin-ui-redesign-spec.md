@@ -1,6 +1,6 @@
 # JellyBin / 果冻盒：双前端视觉体系重构与「捏捏」AI 入口
 
-> 状态：spec，待发布到 issue tracker（`Jenlybein/NewblogX`）并打 `ready-for-agent`。
+> 状态：**已实现并上线**（PR #15 于 2026-10-30 合并进 `main`，CI 13/13 绿，已部署生产并通过部署后验收）；票 #2–#14 均已关闭，本文件保留为设计依据。
 > 来源：2026-10-30 一轮 20 个决策的 grilling 会话 + 三个只读探查 Agent 的事实报告。
 > 适用边界：只碰 `frontend/` 与 `frontend_admin/` 的呈现层，后端与契约不动。
 

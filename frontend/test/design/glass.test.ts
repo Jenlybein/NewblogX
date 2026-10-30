@@ -1,7 +1,10 @@
-import { readFileSync, readdirSync, statSync } from "node:fs";
+import { readFileSync } from "node:fs";
 import { join, relative, sep } from "node:path";
 
 import { describe, expect, it } from "vitest";
+
+// blockAfter 与 collectFiles 在多个 design 测试里逐字节重复，已收进 helpers。
+import { blockAfter, collectFiles, extensionFilter } from "../helpers/designFiles";
 
 /**
  * 液态玻璃层的作用域 / 材料 / 降级设计测试（ADR-0012 决策 5 与约束 6–7）。
@@ -15,36 +18,8 @@ const projectDir = process.cwd();
 const read = (path: string) => readFileSync(join(projectDir, path), "utf8");
 const tailwindCss = read("app/assets/css/tailwind.css");
 
-/** 取出某个选择器/at-rule 之后的第一个 `{...}` 块内容（够用即可，不做完整 CSS 解析）。 */
-function blockAfter(css: string, marker: string, last = false): string {
-  const start = last ? css.lastIndexOf(marker) : css.indexOf(marker);
-  expect(start, `找不到 ${marker}`).toBeGreaterThan(-1);
-  const open = css.indexOf("{", start);
-  let depth = 0;
-  for (let index = open; index < css.length; index += 1) {
-    if (css[index] === "{") depth += 1;
-    if (css[index] === "}") {
-      depth -= 1;
-      if (depth === 0) return css.slice(open + 1, index);
-    }
-  }
-  throw new Error(`${marker} 的块没有闭合`);
-}
-
-function walk(dir: string, files: string[] = []): string[] {
-  for (const name of readdirSync(dir)) {
-    const full = join(dir, name);
-    if (statSync(full).isDirectory()) {
-      if (["node_modules", ".nuxt", ".output", "coverage"].includes(name)) continue;
-      walk(full, files);
-      continue;
-    }
-    if (full.endsWith(".vue")) files.push(full);
-  }
-  return files;
-}
-
-const appFiles = walk(join(projectDir, "app")).map((file) => ({
+// 只扫 .vue：玻璃层断言面向组件，不是样式表。
+const appFiles = collectFiles(join(projectDir, "app"), extensionFilter("vue")).map((file) => ({
   file: relative(projectDir, file).split(sep).join("/"),
   text: readFileSync(file, "utf8"),
 }));

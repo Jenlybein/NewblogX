@@ -1,30 +1,19 @@
-import { readFileSync, readdirSync, statSync } from "node:fs";
+import { readFileSync } from "node:fs";
 import { join, relative } from "node:path";
 
 import { describe, expect, it } from "vitest";
+
+// 目录遍历收进 helpers。注意这里扫的是**两个端**的 app，且要跳过 node_modules
+// 之类的目录（admin 的 app 下没有这些，但 frontend/app 链路上保留原跳过清单不动）。
+import { collectFiles, extensionFilter } from "../helpers/designFiles";
 
 // vitest 以 project root（frontend/）为 cwd。
 const projectDir = process.cwd();
 const repoRoot = join(projectDir, "..");
 const appRoots = [join(projectDir, "app"), join(repoRoot, "frontend_admin/app")];
 
-function walk(dir: string, files: string[] = []): string[] {
-  for (const name of readdirSync(dir)) {
-    const full = join(dir, name);
-    if (statSync(full).isDirectory()) {
-      if (["node_modules", ".nuxt", ".output", "coverage"].includes(name)) continue;
-      walk(full, files);
-      continue;
-    }
-    if (full.endsWith(".vue") || full.endsWith(".css")) {
-      files.push(full);
-    }
-  }
-  return files;
-}
-
 const sources = appRoots.flatMap((root) =>
-  walk(root)
+  collectFiles(root, extensionFilter("vue", "css"))
     .map((file) => ({
       file: relative(repoRoot, file).replace(/\\/gu, "/"),
       text: readFileSync(file, "utf8"),

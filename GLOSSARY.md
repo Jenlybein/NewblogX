@@ -349,6 +349,25 @@ _Avoid_: 让前端读 `.env`（不读；且每份 env 只能写本应用前缀�
 
 ---
 
+## 八、前端呈现与品牌
+
+**Jelly（捏捏）**：
+读者站右下角常驻的果冻方块软体角色，同时是读者站 **AI 的唯一入口**：点它打开 AI 面板，面板从它所在的位置生长出来、打开期间它被压成面板右下角的把手（非遮罩，可边读边问）；创作区 `/studio/**` 不渲染它，后台也没有它。
+位置：读者站 `frontend/app/` 下的角色组件（只负责外观与指针交互）与状态 composable（唯一状态真相源，在 `composables/`）；AI 面板复用既有 `frontend/app/services/ai.ts` 流式服务层。取舍见 [ADR-0011](./docs/adr/0011-jelly-replaces-traditional-ai-entry.md)。
+_Avoid_: 叫它"AI 对话框""聊天机器人"（它是入口角色，不是对话组件）；旧入口"首页右栏 AI 卡片 + 居中模态框"也不指代它。
+
+**JellyBin（果冻盒）**：
+读者站与后台的**用户可见品牌名**（英文 JellyBin、中文副标「果冻盒」）；旧展示名 `BlogX` 不再使用。
+位置：两端各一份品牌模块（读者站 `frontend/app/`、后台 `frontend_admin/app/`），集中导出英文名、中文名、字标结构、助手显示名、站点一句话介绍与版权行；改造前这些品牌串仍是散落硬编码。
+_Avoid_: 把内部标识当展示名——仓库名 `blogx`、Go module `myblogx`、`BLOGX_*` 环境变量前缀、compose 服务名 `blogx_web` / `blogx_admin` / `blogx_server`、`blogx-theme` cookie 与 `blogx_access_token` / `blogx_profile_snapshot` 存储键都不改名。
+
+**语义色 token**：
+呈现层颜色的唯一消费口径，分两层：**原始层**锁死五个色相（克莱因蓝、奶油白、包豪斯黄、珊瑚橙、暖灰，各带品牌前缀，不新增第六个）→ **语义层**（底色、纸面、墨色、结构线、高亮底、危险、焦点环、阴影等），组件只消费语义层。暗色是同一组语义 token 的第二份取值，由站点根类承载，不是另一套色板。
+位置：读者站 `frontend/app/assets/css/tailwind.css` 的 `:root` 块（token 落点）、后台 `frontend_admin/app/assets/css/admin.css`；两端 Tailwind 配置承载色板类名，Naive `themeOverrides` 从 token 取值。漂移门禁扫描组件与样式里的裸色字面量。
+_Avoid_: 在组件或样式里写裸十六进制 / `rgba()`（token 文件、品牌标志矢量、OG 生成物除外）；在 `:root`、Naive `themeOverrides`、字面 `rgba()` 三处分别维护同一份颜色。
+
+---
+
 ## 维护规则
 
 1. **什么时候新增词条**：一个词开始被多处代码或文档引用、且读者可能叫错它时（出现同义词、旧名、缩写）才加。一次性数字、某次故障的过程、实现细节都不进本文。

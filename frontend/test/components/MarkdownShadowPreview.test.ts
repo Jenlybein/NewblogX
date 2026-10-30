@@ -1,5 +1,11 @@
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import { flushPromises, mount } from "@vue/test-utils";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+
+import { resolveMermaidTheme } from "~/utils/markdownTheme";
+
+const tokensCss = readFileSync(join(process.cwd(), "app/assets/css/tokens.css"), "utf8");
 
 const runtimeInitialize = vi.fn();
 const runtimeRender = vi.fn();
@@ -128,5 +134,67 @@ describe("MarkdownShadowPreview", () => {
     expect((wrapper.element as HTMLDivElement).innerHTML).toBe("");
     expect(document.querySelector("style[data-jelly-markdown]")).toBeNull();
     expect(getShadowRoot(wrapper)?.querySelectorAll("article.markdown-body").length).toBe(1);
+  });
+
+  // ADR-0012 决策 #11：图表配色也走 token。这条链路上最容易断的环是"组件有没有真的
+  // 把 themeVariables 传下去" —— 上面的单测只覆盖 buildMermaidConfig，这里补连线。
+  it("mermaid 初始化带 token 派生的 themeVariables（不是第三方默认配色）", async () => {
+    const MarkdownShadowPreview = await loadComponent();
+    mount(MarkdownShadowPreview, {
+      props: {
+        html: '<div class="mermaid">flowchart TD\nA --> B</div>',
+        tokensCss,
+        themeMode: "dark",
+      },
+    });
+
+    await flushPromises();
+
+    expect(runtimeInitialize).toHaveBeenCalledTimes(1);
+    const config = runtimeInitialize.mock.calls[0]?.[0];
+    expect(config.theme).toBe("base");
+    expect(config.themeVariables).toEqual(resolveMermaidTheme(tokensCss, "dark"));
+    // 第三方默认主色（浅紫）—— 留着就说明没接上。
+    expect(JSON.stringify(config.themeVariables)).not.toContain("#ECECFF");
+  });
+
+  it("明暗切换时重新 initialize 并清掉旧 SVG 缓存（图表配色跟着翻）", async () => {
+    const MarkdownShadowPreview = await loadComponent();
+    const wrapper = mount(MarkdownShadowPreview, {
+      props: {
+        html: '<div class="mermaid">flowchart TD\nA --> B</div>',
+        tokensCss,
+        themeMode: "light",
+      },
+    });
+
+    await flushPromises();
+    const lightConfig = runtimeInitialize.mock.calls[0]?.[0];
+    expect(lightConfig.themeVariables).toEqual(resolveMermaidTheme(tokensCss, "light"));
+    expect(runtimeRender).toHaveBeenCalledTimes(1);
+
+    await wrapper.setProps({ themeMode: "dark" });
+    await flushPromises();
+
+    expect(runtimeInitialize).toHaveBeenCalledTimes(2);
+    const darkConfig = runtimeInitialize.mock.calls[1]?.[0];
+    expect(darkConfig.themeVariables).toEqual(resolveMermaidTheme(tokensCss, "dark"));
+    expect(darkConfig.themeVariables).not.toEqual(lightConfig.themeVariables);
+    // 缓存清了才会重渲染：否则图表会一直停在上一个模式的配色上。
+    expect(runtimeRender).toHaveBeenCalledTimes(2);
+  });
+
+  it("没传 tokensCss 时不假装染色（SSR / 拿不到 CSS 源的调用方）", async () => {
+    const MarkdownShadowPreview = await loadComponent();
+    mount(MarkdownShadowPreview, {
+      props: { html: '<div class="mermaid">flowchart TD\nA --> B</div>' },
+    });
+
+    await flushPromises();
+
+    const config = runtimeInitialize.mock.calls[0]?.[0];
+    expect(config.startOnLoad).toBe(false);
+    expect(config.securityLevel).toBe("strict");
+    expect(config.themeVariables).toBeUndefined();
   });
 });

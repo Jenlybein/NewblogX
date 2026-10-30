@@ -203,7 +203,6 @@ async function handleNextLatestPage() {
       <HomeSidebar
         :pending="siteBootstrapPending || bannerPending"
         :runtime-config="siteStore.runtimeConfig"
-        :ai-info="siteStore.aiInfo"
         :articles="latestArticles"
       />
     </div>

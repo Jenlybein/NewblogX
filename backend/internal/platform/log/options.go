@@ -22,7 +22,7 @@ const (
 // Options 是管道的构造参数。零值可用，缺省项会被补全。
 type Options struct {
 	Service    string // 服务名，写入每条日志
-	Env        string // 环境名，如 dev / prod
+	Env        string // 环境名，如 dev / production
 	InstanceID string // 实例标识，默认 hostname-pid
 	Level      Level  // 最低输出级别
 

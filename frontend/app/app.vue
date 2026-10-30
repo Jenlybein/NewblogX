@@ -14,12 +14,39 @@ import sora400Woff2 from "@fontsource/sora/files/sora-latin-400-normal.woff2";
 import sora600Woff2 from "@fontsource/sora/files/sora-latin-600-normal.woff2";
 import sora700Woff2 from "@fontsource/sora/files/sora-latin-700-normal.woff2";
 import { themeBodyClass, themeRootClass } from "~/utils/themeClass";
+import {
+  BRAND,
+  brandAbsoluteAssetUrl,
+  brandFullName,
+  brandTitle,
+} from "~/utils/brand";
 
 const uiStore = useUiStore();
 
 const theme = computed<GlobalTheme | null>(() => (uiStore.theme === "dark" ? darkTheme : null));
 
+const runtimeConfig = useRuntimeConfig();
+const ogImage = computed(() =>
+  brandAbsoluteAssetUrl(String(runtimeConfig.public.siteUrl || ""), "og"),
+);
+
 useHead(() => ({
+  titleTemplate: (chunk?: string) => brandTitle(chunk),
+  meta: [
+    { name: "description", content: BRAND.description },
+    { property: "og:site_name", content: brandFullName() },
+    { property: "og:type", content: "website" },
+    { property: "og:title", content: brandFullName() },
+    { property: "og:description", content: BRAND.description },
+    { property: "og:image", content: ogImage.value },
+    { property: "og:image:width", content: "1200" },
+    { property: "og:image:height", content: "630" },
+    { property: "og:image:alt", content: brandFullName() },
+    { name: "twitter:card", content: "summary_large_image" },
+    { name: "twitter:title", content: brandFullName() },
+    { name: "twitter:description", content: BRAND.description },
+    { name: "twitter:image", content: ogImage.value },
+  ],
   link: [
     {
       rel: "preload",

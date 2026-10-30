@@ -6,6 +6,8 @@ import { isApiBusinessError } from '~/services/http/errors'
 
 definePageMeta({ layout: 'auth' })
 
+useHead({ title: '初始化' })
+
 // 这个页面只在"库里还没有管理员"时可达。一旦初始化完成就跳回登录页 ——
 // 不是靠隐藏入口，而是靠后端的闸门（接口会返回 setup.already_done）。
 const router = useRouter()
@@ -75,10 +77,10 @@ async function submit() {
     <div class="admin-login-shell">
       <section class="admin-login-hero">
         <div class="flex items-center gap-3">
-          <div class="admin-brand__mark">BX</div>
+          <AdminBrandLogo :size="52" />
           <div>
-            <strong>BlogX Admin</strong>
-            <p class="muted m-0 text-sm">运营后台</p>
+            <AdminBrandWordmark size="lg" layout="stack" />
+            <p class="muted m-0 mt-1 text-sm">运营后台</p>
           </div>
         </div>
 

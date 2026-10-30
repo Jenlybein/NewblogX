@@ -1,7 +1,8 @@
 <script setup lang="ts">
-import { defineAsyncComponent, ref } from "vue";
+import { computed, defineAsyncComponent, ref } from "vue";
 import { NCard, NModal, NTabPane, NTabs } from "naive-ui";
 import { useUiStore } from "~/stores/ui";
+import { BRAND } from "~/utils/brand";
 
 type AuthTabName = "password" | "email-login" | "register";
 
@@ -21,6 +22,7 @@ const EmailRegisterForm = defineAsyncComponent({
 const uiStore = useUiStore();
 const activeTab = ref<AuthTabName>("password");
 const activatedTabs = ref<AuthTabName[]>(["password"]);
+const authTitle = computed(() => `加入 ${BRAND.name.en}`);
 
 function normalizeTabName(value: string | number): AuthTabName {
   return value === "email-login" || value === "register" ? value : "password";
@@ -60,7 +62,7 @@ function closeModal() {
     <NModal :show="uiStore.authModalOpen" :mask-closable="true" @update:show="handleModalVisibility">
       <div class="mx-auto w-full max-w-[560px] px-4">
         <NCard
-          title="加入 BlogX"
+          :title="authTitle"
         :bordered="false"
         closable
         class="surface-card surface-card--strong"

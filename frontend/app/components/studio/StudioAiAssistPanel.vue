@@ -172,12 +172,13 @@ function severityType(value: string): "error" | "warning" | "default" {
 </template>
 
 <style scoped>
+/* 颜色一律消费语义 token（票 #9 把创作区从旧青绿色板收敛到新体系）。 */
 .studio-ai-modal {
   width: min(1040px, calc(100vw - 48px));
 }
 
 .studio-ai-panel {
-  border-radius: 28px;
+  border-radius: 0;
 }
 
 .studio-ai-panel__header {
@@ -194,13 +195,13 @@ function severityType(value: string): "error" | "warning" | "default" {
 }
 
 .studio-ai-panel__desc {
-  color: rgba(89, 100, 122, 0.92);
+  color: var(--color-ink-muted);
   line-height: 1.7;
 }
 
 .studio-ai-panel__meta {
   margin-top: 6px;
-  color: rgba(110, 122, 142, 0.82);
+  color: var(--color-ink-muted);
   font-size: 13px;
 }
 
@@ -213,15 +214,16 @@ function severityType(value: string): "error" | "warning" | "default" {
   margin-bottom: 8px;
   font-size: 13px;
   font-weight: 600;
-  color: rgba(44, 58, 84, 0.92);
+  color: var(--color-ink);
 }
 
 .studio-ai-panel__error {
   margin-bottom: 16px;
   padding: 12px 14px;
-  border-radius: 16px;
-  background: rgba(255, 96, 96, 0.08);
-  color: #b03c4b;
+  border-radius: 0;
+  border: 1px solid var(--color-line);
+  background: var(--color-bg-subtle);
+  color: var(--color-danger-ink);
   line-height: 1.7;
 }
 
@@ -233,17 +235,17 @@ function severityType(value: string): "error" | "warning" | "default" {
 
 .studio-ai-panel__section {
   min-height: 360px;
-  border: 1px solid rgba(215, 223, 235, 0.92);
-  border-radius: 22px;
-  background: rgba(248, 251, 255, 0.72);
+  border: 1px solid var(--color-line);
+  border-radius: 0;
+  background: var(--color-surface-raised);
   overflow: hidden;
 }
 
 .studio-ai-panel__section-title {
   padding: 14px 18px;
-  border-bottom: 1px solid rgba(215, 223, 235, 0.92);
+  border-bottom: 1px solid var(--color-line);
   font-weight: 700;
-  color: rgba(33, 44, 65, 0.94);
+  color: var(--color-ink);
 }
 
 .studio-ai-panel__scroll {
@@ -256,7 +258,7 @@ function severityType(value: string): "error" | "warning" | "default" {
   white-space: pre-wrap;
   word-break: break-word;
   line-height: 1.78;
-  color: rgba(38, 48, 68, 0.95);
+  color: var(--color-ink);
   font-family: "Maple Mono", "JetBrains Mono", "SFMono-Regular", Consolas, monospace;
   font-size: 13.5px;
 }
@@ -267,7 +269,7 @@ function severityType(value: string): "error" | "warning" | "default" {
   align-items: center;
   justify-content: center;
   padding: 20px;
-  color: rgba(110, 122, 142, 0.86);
+  color: var(--color-ink-muted);
 }
 
 .studio-ai-diagnose {
@@ -278,7 +280,7 @@ function severityType(value: string): "error" | "warning" | "default" {
 .studio-ai-diagnose__issue p {
   margin: 8px 0 0;
   line-height: 1.72;
-  color: rgba(46, 56, 75, 0.95);
+  color: var(--color-ink);
 }
 
 .studio-ai-diagnose__issues {
@@ -290,9 +292,9 @@ function severityType(value: string): "error" | "warning" | "default" {
 
 .studio-ai-diagnose__issue {
   padding: 14px 16px;
-  border-radius: 18px;
-  background: rgba(255, 255, 255, 0.92);
-  border: 1px solid rgba(220, 228, 240, 0.9);
+  border-radius: 0;
+  background: var(--color-surface);
+  border: 1px solid var(--color-line);
 }
 
 .studio-ai-diagnose__issue-top {

@@ -37,6 +37,7 @@ const actions: Array<{ key: StudioAiAction; label: string }> = [
 </template>
 
 <style scoped>
+/* 颜色一律消费语义 token（票 #9 把创作区从旧青绿色板收敛到新体系）。 */
 .studio-selection-ai-toolbar {
   position: fixed;
   z-index: 34;
@@ -45,32 +46,37 @@ const actions: Array<{ key: StudioAiAction; label: string }> = [
   gap: 8px;
   transform: translateX(-50%);
   padding: 8px;
-  border-radius: 18px;
-  border: 1px solid rgba(204, 215, 230, 0.95);
-  background: rgba(255, 252, 247, 0.96);
+  border-radius: 0;
+  border: 1px solid var(--color-line);
+  background: var(--color-surface);
   backdrop-filter: blur(18px);
-  box-shadow: 0 18px 42px rgba(15, 23, 42, 0.18);
+  box-shadow: 0 18px 42px var(--color-shadow);
 }
 
 .studio-selection-ai-toolbar__button {
   border: 0;
-  border-radius: 12px;
+  border-radius: 0;
   padding: 9px 12px;
-  background: rgba(241, 247, 246, 0.9);
-  color: #365466;
+  background: var(--color-surface-raised);
+  color: var(--color-ink-muted);
   font-size: 13px;
   font-weight: 600;
   cursor: pointer;
   transition:
-    background 0.18s ease,
-    color 0.18s ease,
-    transform 0.18s ease;
+    background var(--motion-fast) var(--motion-ease),
+    color var(--motion-fast) var(--motion-ease),
+    transform var(--motion-fast) var(--motion-ease);
 }
 
 .studio-selection-ai-toolbar__button:hover {
-  background: rgba(15, 118, 110, 0.14);
-  color: #0f766e;
+  background: var(--color-line-faint);
+  color: var(--color-focus);
   transform: translateY(-1px);
+}
+
+.studio-selection-ai-toolbar__button:focus-visible {
+  outline: 2px solid var(--color-focus);
+  outline-offset: 1px;
 }
 
 @media (max-width: 820px) {

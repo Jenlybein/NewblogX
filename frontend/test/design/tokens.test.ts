@@ -126,15 +126,15 @@ describe("语义层：组件唯一消费对象", () => {
 });
 
 describe("排版层：中文尺度 token 化", () => {
-  it("行宽 68ch、正文行高 1.75、标题字重与轻微负字距", () => {
+  it("行宽 68ch、正文行高 1.75、标题字重与 -0.03em 大标题字距", () => {
     expect(tokensCss).toContain("--type-measure: 68ch");
     expect(tokensCss).toContain("--type-leading-prose: 1.75");
     expect(tokensCss).toContain("--type-weight-title: 700");
-    expect(tokensCss).toMatch(/--type-tracking-title:\s*-0\.0[0-9]em/u);
+    expect(tokensCss).toMatch(/--type-tracking-title:\s*-0\.03em/u);
   });
 
   it("字体族拆成拉丁/中日韩两段，中文排在系统中文回退之前", () => {
-    expect(tokensCss).toContain('--font-latin: "Sora", "Sora Fallback"');
+    expect(tokensCss).toContain('--font-latin: "Inter", "Inter Fallback"');
     expect(tokensCss).toContain('--font-cjk: "Noto Sans SC", "Noto Sans SC Fallback"');
 
     const stack = tokensCss.slice(tokensCss.indexOf("--font-sans:"), tokensCss.indexOf("--font-sans:") + 260);

@@ -13,6 +13,7 @@ import {
 import sora400Woff2 from "@fontsource/sora/files/sora-latin-400-normal.woff2";
 import sora600Woff2 from "@fontsource/sora/files/sora-latin-600-normal.woff2";
 import sora700Woff2 from "@fontsource/sora/files/sora-latin-700-normal.woff2";
+import interWoff2 from "@fontsource-variable/inter/files/inter-latin-wght-normal.woff2";
 import tokensCss from "~/assets/css/tokens.css?raw";
 import { themeBodyClass, themeHtmlClass, themeRootClass } from "~/utils/themeClass";
 import { buildThemeInitScript } from "~/utils/themePreference";
@@ -70,6 +71,14 @@ useHead(() => ({
       as: "font",
       type: "font/woff2",
       href: sora700Woff2,
+      crossorigin: "anonymous",
+    },
+    {
+      // 正文/UI 的 Inter 是可变的：一条 woff2 覆盖 100–900，首屏只需预加载这一条。
+      rel: "preload",
+      as: "font",
+      type: "font/woff2",
+      href: interWoff2,
       crossorigin: "anonymous",
     },
   ],

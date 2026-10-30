@@ -39,6 +39,36 @@
   size-adjust: 96%;
 }
 
+/* ---- 拉丁正文/UI：Inter（可变字体，一条文件覆盖 100–900）----
+ * ADR-0012 决策 8：Sora 只留给字标与大标题，正文/列表/表单/按钮换 Inter。
+ * 用 @fontsource-variable/inter 的 wght 轴文件：一条 woff2 覆盖全部字重，
+ * 比逐档加载（400/500/600/700 四条）省三次请求；font-display: swap 保证
+ * 字体到之前先用度量匹配 fallback 出字，不白屏。 */
+@font-face {
+  font-family: "Inter";
+  font-style: normal;
+  font-display: swap;
+  font-weight: 100 900;
+  src: url("@fontsource-variable/inter/files/inter-latin-wght-normal.woff2")
+    format("woff2-variations");
+}
+
+/* Inter 的度量匹配 fallback：Arial / Liberation Sans 与 Inter 的 xWidthAvg
+ * 接近（913 vs 978/2048 em）。覆盖值按 Inter v4 的 head/hhea 度量计算：
+ *   ascent 1984 / descent 494（upem 2048）→ 96.88% / 24.12%，line-gap 0；
+ *   size-adjust = 978 / 913 = 107.12%。
+ * 换字时行盒高度与平均字宽不变，正文不跳版。 */
+@font-face {
+  font-family: "Inter Fallback";
+  src:
+    local("Arial"),
+    local("Liberation Sans");
+  ascent-override: 96.88%;
+  descent-override: 24.12%;
+  line-gap-override: 0%;
+  size-adjust: 107.12%;
+}
+
 /* ---- 中文：Noto Sans SC（依赖 @fontsource/noto-sans-sc 早就在 package.json 里，
  * 但以前从未被 @font-face 加载 —— 中文实际掉到了系统 PingFang / 微软雅黑拼出来的
  * 字形上。这里补上 400（正文）与 700（标题）两档，用 font-display: swap：先出字、

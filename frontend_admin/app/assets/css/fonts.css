@@ -31,6 +31,32 @@
   size-adjust: 96%;
 }
 
+/* ---- 拉丁正文/UI：Inter 可变字体（与读者站同一份资产）----
+ * 后台的表单、表格、按钮密度高，正文字宽稳定比字标气质更重要；
+ * 一条 wght 轴 woff2 覆盖 100–900，font-display: swap 先出字。 */
+@font-face {
+  font-family: "Inter";
+  font-style: normal;
+  font-display: swap;
+  font-weight: 100 900;
+  src: url("@fontsource-variable/inter/files/inter-latin-wght-normal.woff2")
+    format("woff2-variations");
+}
+
+/* Inter 的度量匹配 fallback：按 Inter v4 head/hhea（upem 2048 / ascent 1984 /
+ * descent 494）与 xWidthAvg 978 对齐 Arial（913）：96.88% / 24.12% / 0% / 107.12%。
+ * 与读者站逐条一致（fonts.test.ts 交叉校验）。 */
+@font-face {
+  font-family: "Inter Fallback";
+  src:
+    local("Arial"),
+    local("Liberation Sans");
+  ascent-override: 96.88%;
+  descent-override: 24.12%;
+  line-gap-override: 0%;
+  size-adjust: 107.12%;
+}
+
 /* ---- 中文：Noto Sans SC（依赖 @fontsource/noto-sans-sc 早就在，但以前从未被
  * @font-face 加载 —— 后台中文一直掉到系统字体上。补 400 / 700 两档，font-display: swap
  * 先出字后换字，避免首屏白屏。---- */

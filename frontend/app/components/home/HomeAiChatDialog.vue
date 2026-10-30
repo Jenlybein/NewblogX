@@ -12,6 +12,7 @@ import { useAuthStore } from "~/stores/auth";
 import { useUiStore } from "~/stores/ui";
 import type { SiteAiInfo } from "~/types/api";
 import { resolveAvatarUrl } from "~/utils/avatar";
+import { brandAiName } from "~/utils/brand";
 
 type ChatRole = "user" | "assistant";
 
@@ -40,7 +41,7 @@ const messages = ref<ChatMessage[]>([]);
 const threadViewportRef = ref<HTMLElement | null>(null);
 const activeRequest = ref<AbortController | null>(null);
 
-const aiDisplayName = computed(() => props.aiInfo?.nickname || "BlogX 助手");
+const aiDisplayName = computed(() => brandAiName(props.aiInfo?.nickname));
 const aiAvatarUrl = computed(() => resolveAvatarUrl(props.aiInfo?.avatar || ""));
 const markdownThemeHref = computed(() => githubMarkdownCssUrl);
 const markdownSupportStyleHrefs = [katexCssUrl, highlightCssUrl];

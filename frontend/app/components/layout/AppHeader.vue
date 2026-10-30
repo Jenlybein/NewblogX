@@ -11,6 +11,7 @@ import {
 } from "@tabler/icons-vue";
 import { NButton, NDropdown, NInput, NSkeleton } from "naive-ui";
 import AppAvatar from "~/components/common/AppAvatar.vue";
+import { BRAND } from "~/utils/brand";
 
 const route = useRoute();
 const router = useRouter();
@@ -21,6 +22,12 @@ const { openWriteEntry } = useWriteEntry();
 
 const searchKeyword = ref("");
 const authActionWidthClass = "w-[132px] md:w-[148px]";
+const projectAbstract = computed(
+  () =>
+    siteStore.runtimeConfig?.project?.abstract ||
+    siteStore.runtimeConfig?.site_info?.subtitle ||
+    BRAND.tagline,
+);
 
 watch(
   () => route.query.key,
@@ -76,14 +83,10 @@ async function handleUserMenuSelect(key: string | number) {
   <header class="page-shell pb-0">
     <div class="surface-card surface-card--strong flex flex-wrap items-center gap-4 px-5 py-4 md:px-6">
       <NuxtLink to="/" class="flex items-center gap-3">
-        <div class="flex h-12 w-12 items-center justify-center rounded-2xl bg-teal-800 text-white shadow-lg">
-          <span class="text-lg font-bold">BX</span>
-        </div>
+        <BrandLogo :size="48" />
         <div class="min-w-0">
-          <div class="truncate text-lg font-semibold">{{ siteStore.seo?.project_title || "BlogX" }}</div>
-          <div class="truncate text-sm muted">
-            {{ siteStore.runtimeConfig?.project?.abstract || "为开发者写作而生的内容平台" }}
-          </div>
+          <BrandWordmark size="lg" />
+          <div class="truncate text-sm muted">{{ projectAbstract }}</div>
         </div>
       </NuxtLink>
 

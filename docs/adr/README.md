@@ -15,14 +15,16 @@
 | [0007](./0007-id-string-type-as-truth.md) | ID 类型统一为 string 底层（类型即真相） | `ctype.ID` 底层改 string，R12 守卫 | [契约 §7](../architecture/contracts.md) · [治理 §2.2](../architecture/governance.md) |
 | [0008](./0008-dead-letter-replay.md) | 死信重投（DLQ Replay）闭环 | 人工触发、幂等执行器、`unsupported ≠ failed` | [契约](../architecture/contracts.md) · 原文仅收录于归档 |
 | [0009](./0009-es-sync-article-projection-only.md) | 删除"通用规则"同步路径 | ES 同步只留文章搜索投影 | [ADR-0008](./0008-dead-letter-replay.md) · 原文仅收录于归档 |
-| [0010](./0010-visual-system-and-motion-budget.md) | 双前端视觉系统与动效预算 | 五色相锁死 + 两层语义 token；圆角 0；动效 120 / 200 / 320ms | [GLOSSARY · 语义色 token](../../GLOSSARY.md) · 无 `architecture/` 专篇 |
+| [0010](./0010-visual-system-and-motion-budget.md) | 双前端视觉系统与动效预算 | 五色相锁死 + 两层语义 token；圆角 0；动效 120 / 200 / 320ms —— **已被 [0012](./0012-neutral-glass-visual-system.md) 取代** | [GLOSSARY · 语义色 token](../../GLOSSARY.md) · 无 `architecture/` 专篇 |
 | [0011](./0011-jelly-replaces-traditional-ai-entry.md) | 捏捏（Jelly）常驻角色取代传统 AI 入口 | 角色常驻 + 面板同源生长，非遮罩 | [ADR-0010](./0010-visual-system-and-motion-budget.md) · [GLOSSARY · Jelly](../../GLOSSARY.md) |
+| [0012](./0012-neutral-glass-visual-system.md) | 中性玻璃视觉系统 | 克莱因蓝退役为主色；中性石墨阶 + 功能蓝；圆角阶梯；液态玻璃仅用于导航/控制层；动效档位 C + 吸顶玻璃顶栏 | [GLOSSARY · 语义色 token](../../GLOSSARY.md) · [Apple 液态玻璃解构](../notes/2026-10-30-apple-liquid-glass-deconstruction.md) · [改造方案](../notes/2026-10-31-neutral-glass-redesign-plan.md) |
+| [0013](./0013-editorial-hero-cover.md) | 首屏编辑部式封面 | 满幅色带 + 超大 h1 + 网格刻度，仅首页首屏例外；删 tagline 与三格事实，轮播并入首屏 | [ADR-0012](./0012-neutral-glass-visual-system.md) · [改造方案](../notes/2026-10-31-neutral-glass-redesign-plan.md) · [GLOSSARY · 首屏封面](../../GLOSSARY.md) |
 
 ## 来源与拆分说明
 
 - **ADR-0001–0009** 原本是 v1 时期 `docs/architecture/adr/` 下的独立文件；v1 收尾时被合并进 [04 · ADR 合集（v1 归档）](../archive/v1/04-adr-collection.md)。那次合并的口径是：**只保留每条 ADR 的决策骨架 + 关键参数 + 当前生效约束**，被否决方案的长篇论证压缩为一句理由，与其他 v1 文档重复的论述删除。
-- **ADR-0001–0009** 是**按"一条决策一个文件"从该合集重新拆出的**，正文以归档合集为准（未新增事实、未删"当前生效约束"）；归档合集仍在 `docs/archive/v1/` 保留原样，作为这些文件的出处。**ADR-0010 / 0011** 是 v2 前端视觉重构新增的决策（2026-10-30），直接写在本目录，不来自 v1 归档，也**没有对应的 `docs/architecture/` 专篇**——它们的正文链接落在 spec 笔记与 GLOSSARY。
-- 前 9 条在 v1 判定下全部**已交付**。文件头 `- 状态：已交付` 表示决策已落地且当前生效，不是提案；ADR-0010 / 0011 当前状态是**已接受**（落地分票 #2–#13，交付后改状态为已交付，不改结论）。
+- **ADR-0001–0009** 是**按"一条决策一个文件"从该合集重新拆出的**，正文以归档合集为准（未新增事实、未删"当前生效约束"）；归档合集仍在 `docs/archive/v1/` 保留原样，作为这些文件的出处。**ADR-0010 / 0011** 是 v2 前端视觉重构新增的决策（2026-10-30），直接写在本目录，不来自 v1 归档，也**没有对应的 `docs/architecture/` 专篇**——它们的正文链接落在 spec 笔记与 GLOSSARY；**ADR-0012**（2026-10-31）取代 ADR-0010 的视觉立场，同样走"无 architecture 专篇、链接 spec 笔记与 GLOSSARY"的口径。
+- 前 9 条在 v1 判定下全部**已交付**。文件头 `- 状态：已交付` 表示决策已落地且当前生效，不是提案；ADR-0010 已落地（分票 #2–#13）但于 **2026-10-31 被 ADR-0012 取代**（状态改为 `已取代`，正文标注仍生效的条款）；ADR-0011 状态是**已接受**；ADR-0012 与 ADR-0013 状态是**已接受**（落地分票待开，交付后改状态为已交付，不改结论）；ADR-0013 是 ADR-0012 首页首屏的例外区，两者同时生效。
 - ADR-008 / ADR-009 在 v1 归档时没有被其他文档展开，是合集里"完整保留"的两条，因此这两份文件的信息量明显大于前七条。
 - 每条 ADR 记录的是**当时的判断**；现状若有偏离，以 `docs/architecture/` 与代码为准，并考虑补一条新 ADR 而不是改写历史。
 

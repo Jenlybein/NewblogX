@@ -12,7 +12,7 @@
 | [contracts](./contracts.md) | 契约流水线、swag v2 的坑、`contract.ts` 三层工具 | 动 API / 改注解 / 改前端类型时 |
 | [configuration](./configuration.md) | 配置分层、后台可改配置、合并规则 | 加配置项 / 排查"改了不生效" |
 | [ai-integration](./ai-integration.md) | eino 调用链、模型配置表、供应商映射 | 加供应商 / AI 不可用 |
-| [ADR 索引](../adr/README.md) | 9 条 ADR 的决策骨架、理由与当前约束 | 想改某条规则前，先读它为什么存在 |
+| [ADR 索引](../adr/README.md) | 11 条 ADR 的决策骨架、理由与当前约束（0010–0011 为前端呈现层） | 想改某条规则前，先读它为什么存在 |
 | [v1 ADR 合集（归档原文）](../archive/v1/04-adr-collection.md) | 拆分前原文，保留合并口径与归档备注 | 需要对照历史时 |
 | [v1 基线与过程](../archive/v1/05-baseline-and-process.md) | 起点数字、M0→M7 时间线、两轮决策留档 | 想知道"这个数字原来是多少" |
 

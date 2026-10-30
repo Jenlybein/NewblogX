@@ -1,6 +1,6 @@
 # 架构决策记录（ADR）
 
-本目录是 v2 阶段的架构决策入口，**一条决策一个文件**。需要改某条规则或某个取舍前，先读这里对应的 ADR；`docs/architecture/overview.md` §六 是硬约束总表，ADR 记录的是每条约束的**出处与理由**。
+本目录是 v2 阶段的决策入口，**一条决策一个文件**：0001–0009 是 v1 后端架构决策，0010–0011 是 v2 前端呈现层决策。需要改某条规则或某个取舍前，先读这里对应的 ADR；后端架构的硬约束总表是 `docs/architecture/overview.md` §六，ADR 记录的是每条约束的**出处与理由**；前端呈现层的约束写在各自 ADR 的「当前生效约束」里。
 
 ## 索引
 
@@ -15,12 +15,14 @@
 | [0007](./0007-id-string-type-as-truth.md) | ID 类型统一为 string 底层（类型即真相） | `ctype.ID` 底层改 string，R12 守卫 | [契约 §7](../architecture/contracts.md) · [治理 §2.2](../architecture/governance.md) |
 | [0008](./0008-dead-letter-replay.md) | 死信重投（DLQ Replay）闭环 | 人工触发、幂等执行器、`unsupported ≠ failed` | [契约](../architecture/contracts.md) · 原文仅收录于归档 |
 | [0009](./0009-es-sync-article-projection-only.md) | 删除"通用规则"同步路径 | ES 同步只留文章搜索投影 | [ADR-0008](./0008-dead-letter-replay.md) · 原文仅收录于归档 |
+| [0010](./0010-visual-system-and-motion-budget.md) | 双前端视觉系统与动效预算 | 五色相锁死 + 两层语义 token；圆角 0；动效 120 / 200 / 320ms | [GLOSSARY · 语义色 token](../../GLOSSARY.md) · 无 `architecture/` 专篇 |
+| [0011](./0011-jelly-replaces-traditional-ai-entry.md) | 捏捏（Jelly）常驻角色取代传统 AI 入口 | 角色常驻 + 面板同源生长，非遮罩 | [ADR-0010](./0010-visual-system-and-motion-budget.md) · [GLOSSARY · Jelly](../../GLOSSARY.md) |
 
 ## 来源与拆分说明
 
-- 这 9 条 ADR 原本是 v1 时期 `docs/architecture/adr/` 下的独立文件；v1 收尾时被合并进 [04 · ADR 合集（v1 归档）](../archive/v1/04-adr-collection.md)。那次合并的口径是：**只保留每条 ADR 的决策骨架 + 关键参数 + 当前生效约束**，被否决方案的长篇论证压缩为一句理由，与其他 v1 文档重复的论述删除。
-- 本目录是**按"一条决策一个文件"从该合集重新拆出的**，正文以归档合集为准（未新增事实、未删"当前生效约束"）；归档合集仍在 `docs/archive/v1/` 保留原样，作为这些文件的出处。
-- 9 条在 v1 判定下全部**已交付**。文件头 `- 状态：已交付` 表示决策已落地且当前生效，不是提案。
+- **ADR-0001–0009** 原本是 v1 时期 `docs/architecture/adr/` 下的独立文件；v1 收尾时被合并进 [04 · ADR 合集（v1 归档）](../archive/v1/04-adr-collection.md)。那次合并的口径是：**只保留每条 ADR 的决策骨架 + 关键参数 + 当前生效约束**，被否决方案的长篇论证压缩为一句理由，与其他 v1 文档重复的论述删除。
+- **ADR-0001–0009** 是**按"一条决策一个文件"从该合集重新拆出的**，正文以归档合集为准（未新增事实、未删"当前生效约束"）；归档合集仍在 `docs/archive/v1/` 保留原样，作为这些文件的出处。**ADR-0010 / 0011** 是 v2 前端视觉重构新增的决策（2026-10-30），直接写在本目录，不来自 v1 归档，也**没有对应的 `docs/architecture/` 专篇**——它们的正文链接落在 spec 笔记与 GLOSSARY。
+- 前 9 条在 v1 判定下全部**已交付**。文件头 `- 状态：已交付` 表示决策已落地且当前生效，不是提案；ADR-0010 / 0011 当前状态是**已接受**（落地分票 #2–#13，交付后改状态为已交付，不改结论）。
 - ADR-008 / ADR-009 在 v1 归档时没有被其他文档展开，是合集里"完整保留"的两条，因此这两份文件的信息量明显大于前七条。
 - 每条 ADR 记录的是**当时的判断**；现状若有偏离，以 `docs/architecture/` 与代码为准，并考虑补一条新 ADR 而不是改写历史。
 
@@ -48,4 +50,4 @@
    6. `## 代价 / 不做什么`
    7. `## 当前生效约束`（不得为空）
    8. `## 相关代码与文档`（链接到对应的 `../architecture/` 文档与具体代码路径）
-5. **登记**：新增后在本文索引表补一行，并在"关联文档"列写清它落在 `docs/architecture/` 的哪一篇。
+5. **登记**：新增后在本文索引表补一行，并在"关联文档"列写清它落在 `docs/architecture/` 的哪一篇。呈现层等没有 `architecture/` 专篇的决策，链接到 spec 笔记与根 `GLOSSARY.md`，**不要**为它另造一篇 architecture 文档——概念只在 GLOSSARY 定义一次，避免两处漂移。

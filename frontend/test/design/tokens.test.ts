@@ -61,7 +61,12 @@ describe("语义层：组件唯一消费对象", () => {
       "--color-highlight",
       "--color-danger",
       "--color-danger-ink",
+      "--color-danger-soft",
+      "--color-danger-line",
       "--color-focus",
+      "--color-focus-soft",
+      "--color-on-strong",
+      "--color-on-danger",
       "--color-shadow",
     ]) {
       expect(tokensCss).toContain(`${name}:`);
@@ -115,6 +120,8 @@ describe("Tailwind 配置：色板与暗色策略", () => {
     expect(extend.colors.danger).toEqual({
       DEFAULT: "var(--color-danger)",
       ink: "var(--color-danger-ink)",
+      soft: "var(--color-danger-soft)",
+      line: "var(--color-danger-line)",
     });
     expect(JSON.stringify(tailwindConfig)).not.toMatch(/#[0-9a-f]{3,8}/iu);
   });

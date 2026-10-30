@@ -1,6 +1,8 @@
 import { onBeforeUnmount, onMounted, ref, toRef, toValue, watch } from "vue";
 import type { MaybeRefOrGetter } from "vue";
 
+import { resolveActiveHeading, resolveProgressPercent } from "~/utils/readingProgress";
+
 type HeadingResolver = (id: string) => HTMLElement | null;
 
 export function useReadingProgress(headingIds: MaybeRefOrGetter<string[]>, resolveHeadingElement?: HeadingResolver) {
@@ -21,27 +23,21 @@ export function useReadingProgress(headingIds: MaybeRefOrGetter<string[]>, resol
       return;
     }
 
-    const threshold = 164;
-    let currentActive = ids[0] || "";
-
+    // DOM 测量留在 composable，判定规则在 utils/readingProgress（可单测）。
+    const tops: Record<string, number> = {};
     for (const id of ids) {
       const element = resolveHeadingElement?.(id) || document.getElementById(id);
-      if (!element) {
-        continue;
-      }
-
-      if (element.getBoundingClientRect().top - threshold <= 0) {
-        currentActive = id;
-      } else {
-        break;
+      if (element) {
+        tops[id] = element.getBoundingClientRect().top;
       }
     }
 
-    activeHeadingId.value = currentActive;
-
-    const scrollTop = window.scrollY || window.pageYOffset || 0;
-    const maxScrollable = Math.max(document.documentElement.scrollHeight - window.innerHeight, 0);
-    progressPercent.value = maxScrollable > 0 ? Math.min(100, Math.max(0, (scrollTop / maxScrollable) * 100)) : 0;
+    activeHeadingId.value = resolveActiveHeading(ids, tops);
+    progressPercent.value = resolveProgressPercent(
+      window.scrollY || window.pageYOffset || 0,
+      document.documentElement.scrollHeight,
+      window.innerHeight,
+    );
   }
 
   function scheduleMeasure() {

@@ -228,6 +228,14 @@ jobs:
       - name: 设计 token 漂移检查
         run: pnpm check:tokens
 
+      # 两端 tokens.css 逐字节一致（ADR-0012 约束 14 / #22）。
+      # 这是仓库级判据（比较两份文件），与矩阵里的 app 无关，只跑一份即可；
+      # 命令与本地 scripts/check.sh 的「两端 token 同源」完全同一条。
+      - name: 两端 token 同源检查
+        if: matrix.app == 'frontend'
+        working-directory: .
+        run: node scripts/check-token-parity.mjs
+
   # ── 前端类型检查 ──────────────────────────────────────────────────
   frontend-typecheck:
     name: ${{ matrix.app }} (typecheck)

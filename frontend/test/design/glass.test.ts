@@ -60,6 +60,7 @@ const GLASS_CLASS_RE = /\bglass-(thin|thick)\b/gu;
  */
 const GLASS_LAYERS: Record<string, number> = {
   "app/components/layout/AppHeader.vue": 1,
+  "app/components/article/BannerCarousel.vue": 1,
   "app/components/jelly/JellyLauncher.vue": 1,
   "app/components/jelly/JellyAiPanel.vue": 1,
   "app/components/auth/AuthModal.vue": 1,

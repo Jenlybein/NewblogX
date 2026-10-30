@@ -20,7 +20,6 @@ import { usePointerSpecular } from "~/composables/usePointerSpecular";
 import { useScrollChrome } from "~/composables/useScrollChrome";
 import { useWriteEntry } from "~/composables/useWriteEntry";
 import { useAuthStore } from "~/stores/auth";
-import { useSiteStore } from "~/stores/site";
 import { useUiStore } from "~/stores/ui";
 import { BRAND } from "~/utils/brand";
 import {
@@ -34,7 +33,6 @@ import {
 const route = useRoute();
 const router = useRouter();
 const authStore = useAuthStore();
-const siteStore = useSiteStore();
 const uiStore = useUiStore();
 const { openWriteEntry } = useWriteEntry();
 
@@ -49,12 +47,6 @@ const { handlePointerMove } = usePointerSpecular();
 const navItems = computed(() => headerNavItems(route.path));
 const themeLabel = computed(() => themeToggleLabel(uiStore.theme));
 const menuLabel = computed(() => mobileMenuLabel(menuOpen.value));
-const projectAbstract = computed(
-  () =>
-    siteStore.runtimeConfig?.project?.abstract ||
-    siteStore.runtimeConfig?.site_info?.subtitle ||
-    BRAND.tagline,
-);
 
 watch(
   () => route.query.key,
@@ -126,7 +118,6 @@ async function handleUserMenuSelect(key: string | number) {
           <BrandLogo :size="40" decorative />
           <BrandWordmark size="md" />
         </NuxtLink>
-        <span class="site-header__abstract">{{ projectAbstract }}</span>
       </div>
 
       <!-- 手机端折叠、平板/桌面常显：单一 DOM 靠 CSS 断点切换，避免复制一份控件 -->
@@ -320,19 +311,8 @@ async function handleUserMenuSelect(key: string | number) {
   text-decoration: none;
 }
 
-/* 页头 = 语义纸面 + 发丝线；形状语义（黄三角）已随 #20 退役。 */.site-header__abstract {
-  display: none;
-  min-width: 0;
-  max-width: 22rem;
-  overflow: hidden;
-  color: var(--color-ink-muted);
-  font-size: 0.75rem;
-  letter-spacing: 0.08em;
-  text-overflow: ellipsis;
-  text-transform: uppercase;
-  white-space: nowrap;
-}
-
+/* 页头 = 语义纸面 + 发丝线；形状语义（黄三角）已随 #20 退役。
+ * logo 旁的介绍小字按 ADR-0013 决策 6 删除：主旨句不再重复三处。 */
 .site-header__panel {
   grid-area: panel;
   display: none;
@@ -497,10 +477,6 @@ async function handleUserMenuSelect(key: string | number) {
 }
 
 @media (min-width: 640px) {
-  .site-header__abstract {
-    display: block;
-  }
-
   .site-header__panel,
   .site-header__panel.is-open {
     display: flex;

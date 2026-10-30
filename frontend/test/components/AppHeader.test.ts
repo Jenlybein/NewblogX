@@ -210,6 +210,26 @@ describe("页头：明暗切换", () => {
 
     expect(wrapper.get('button[aria-label="切换到浅色主题"]').exists()).toBe(true);
   });
+
+  it("亮暗两态使用同一张透底 logo，不随主题切换资产", () => {
+    for (const theme of ["light", "dark"] as const) {
+      hub.themeRef!.value = theme;
+      const wrapper = mountHeader();
+      const src = wrapper.get("img.brand-logo").attributes("src");
+
+      expect(src).toContain("logo-256.png");
+      expect(src).not.toContain("logo-512-white.png");
+    }
+  });
+
+  it("源码里没有按主题挑 logo 的逻辑（白瓷砖形态不会回来）", () => {
+    const source = readFileSync(join(process.cwd(), FILENAME), "utf8");
+    const brandLogoTag = source.match(/<BrandLogo[\s\S]*?\/>/u)?.[0] ?? "";
+
+    expect(brandLogoTag).not.toMatch(/variant/u);
+    expect(source).not.toMatch(/logoWhite|logo-512-white/u);
+    expect(source).not.toMatch(/theme\s*===\s*["']dark["'][^\n]*["']white["']/u);
+  });
 });
 
 describe("页头：搜索", () => {

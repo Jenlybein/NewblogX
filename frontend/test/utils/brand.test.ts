@@ -61,6 +61,18 @@ describe("brand：品牌单点定义", () => {
     expect(brandCopyright(2027)).toBe("© 2027 JellyBin（果冻盒）");
   });
 
+  it("资产清单只有通用与扁平两套形态：不存在暗色专用的白色变体", () => {
+    expect(Object.keys(BRAND_ASSETS).sort()).toEqual([
+      "apple",
+      "faviconRoot",
+      "flat",
+      "logo",
+      "og",
+    ]);
+    expect(BRAND_ASSETS).not.toHaveProperty("logoWhite");
+    expect(Object.values(BRAND_ASSETS)).not.toContain("brand/logo-512-white.png");
+  });
+
   it("站内资产路径跟随 app.baseURL（读者站是 /）", () => {
     expect(brandAssetUrl("/", "logo")).toBe("/brand/logo-256.png");
     expect(brandAssetUrl("", "flat")).toBe("/brand/jelly-flat.svg");

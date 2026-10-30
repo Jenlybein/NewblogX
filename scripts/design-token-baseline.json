@@ -5,8 +5,6 @@
     "app/assets/css/tailwind.css",
     "app/components/article/ArticleCover.vue",
     "app/components/article/ArticleScoreModal.vue",
-    "app/components/home/HomeAiChatDialog.vue",
-    "app/components/home/HomeSidebar.vue",
     "app/pages/article/[id].vue"
   ],
   "frontend_admin": []

@@ -200,10 +200,11 @@ type="button" class="write-tool-button"
 <style scoped>
 /* 颜色一律消费语义 token（票 #9 把创作区从旧青绿色板收敛到新体系）。
  * 顶栏是导航层薄玻璃：材料来自 .glass-thin（填充/模糊/边缘/噪点），这里只留布局；
- * 吸顶位置让开全站吸顶页头，避免两条 sticky 打架。 */
+ * 创作页**不渲染站点页头**，所以它直接贴顶吸附（top: 0）——曾经为了给站点页头让位把
+ * 吸顶位置整体下移了一个页头高度，页头一去掉就在顶部空出一条白带。 */
 .write-page__header {
   position: sticky;
-  top: var(--site-header-height);
+  top: 0;
   z-index: 20;
 }
 

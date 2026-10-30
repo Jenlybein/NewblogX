@@ -234,26 +234,25 @@ docker compose exec blogx_server /app/server -f config/settings.yaml \
 
 ## 二、快速配置服务
 
-服务起来之后，"站点能不能用"的开关基本都不在 `.env` 里，而在**管理后台**：
+服务起来之后，"站点能不能用"的开关基本都不在 `.env` 里，而在**管理后台**（地址：`https://你的域名/admin/`）：
 
-- 地址：`https://你的域名/admin/`（本地 `http://localhost/admin/`，**注意尾斜杠**）
 - 入口：左侧「站点配置」页，七个 Tab：**站点 / AI 助手 / 邮件 / 对象存储 / 第三方登录 / 日志 / 上传策略**
-- 改完点各自的「保存」，**下一次请求就生效，不用重启容器**（这些配置存在数据库 `runtime_config_models`，后台是唯一入口，见[第六章](#六配置)）
+- 改完点各自的「保存」，**下一次请求就生效，不用重启容器**
 
-这一章只走最短路径：管理员 → 站点信息 → AI → 七牛 → 邮件。每一块的完整细节在后面的章节，正文里会标出来。
+这一章只走最短路径：管理员 → 站点信息 → AI → 七牛 → 邮件。
 
 ### 2.1 第一次进后台：创建管理员
 
-**没有默认账号**。第一次打开 `/admin/` 会被跳到 `/setup`：
+如果你一开始跳过了创建默认管理员那一步，就会**没有默认账号**。这时，第一次打开 `/admin/` 会被跳到 `/setup`：
 
 1. 填用户名、密码（**至少 8 位**）、可选邮箱（用于找回密码）；
 2. 点「创建并进入登录页」，再用刚才的账号登录。
 
-这个入口**只开放一次**：库里一旦有管理员（判断只看角色，哪怕账号被禁用），`/setup` 就永久关闭；之后加账号去「用户管理」页，或用命令行建号（见[后端命令行参考](#九后端命令行参考)）。
+这个入口**只开放一次**：库里一旦有管理员（判断只看角色，哪怕账号被禁用），`/setup` 就永久关闭。
 
 > 如果你是按前面「快速开始」用命令行建的号，`/setup` 已经关闭，直接登录即可。
 
-### 2.2 站点配置（「站点」Tab）
+### 2.2 站点配置
 
 这一页的三组设置（基础信息 / 登录策略 / 内容审核）属于同一段配置，**改完点一次「保存站点配置」**即可：
 
@@ -273,22 +272,11 @@ AI 是**两层开关**，只开一层不生效：
 2. 在那条配置上点「**启用**」——同一时刻只有一条生效；
 3. 回到上半部分打开「**启用 AI 助手**」总闸，顺手填昵称 / 头像 / 简介。
 
-供应商共 8 家：OpenAI、Anthropic Claude、Google Gemini、火山引擎方舟、DeepSeek、通义千问、百度千帆、OpenRouter。表单顶部会按供应商给出提示，几个容易填错的点：
+站点级参数（上半部分）可以修改模型的使用配置：请求超时、最大输入字符、每日配额（`0` = 不限）、采样温度。
 
-| 供应商 | 注意 |
-| --- | --- |
-| OpenAI / DeepSeek / 通义千问 / 百度千帆 / OpenRouter | 填 API Key 与「模型」；接口地址有默认值。用 OpenAI 兼容网关（one-api、自建代理、硅基流动等）就选 OpenAI，改接口地址 |
-| 火山引擎方舟 | 「模型」填**推理接入点 ID**（`ep-xxxx`），不是模型名；认证可用 API Key，也可留空后填 AK/SK；地域默认 `cn-beijing` |
-| Anthropic Claude | 「最大输出 tokens」是必填项，留空按 4096 处理 |
-| Google Gemini | 一般只填 Key 与模型名，走代理时才改接口地址 |
-
-站点级参数（上半部分）：请求超时、最大输入字符、每日配额（`0` = 不限）、采样温度。**密钥保存后显示 `******`，原样保存 = 不修改。**
+**密钥保存后显示 `******`，原样保存 = 不修改。**
 
 验证：打开读者站，点右下角的**捏捏（Jelly）**问一句，能流式回答就通了；后台「数据概览」的 AI token 消耗、日志中心「AI 调用」Tab 也能看到调用记录。
-
-> 从老版本升级：`ai_provider_models` 是新增表，不会自动建，要手动跑一次
-> `docker exec blogx-server /app/server -f /app/config/settings.yaml -db`。
-> 漏了这步的表现是保存模型配置时报错 / AI 不可用，细节见 [`docs/architecture/ai-integration.md`](docs/architecture/ai-integration.md)。
 
 ### 2.4 七牛云对象存储（「对象存储」Tab）
 
@@ -310,7 +298,45 @@ AI 是**两层开关**，只开一层不生效：
 | 单图上限 / 凭证有效期 | 默认 5 MB / 1800 秒；有效期别低于上传耗时，慢网大图可调大（过期会回 401） |
 | 上传回调地址 | `https://你的域名/api/images/qiniu/callback`，**必须 HTTPS 且证书覆盖该域名**；留空 = 不启用回调，上传任务会一直 pending |
 
-保存即生效（运行时配置现读，不用重启）。验证：后台「媒体运营」上传一张图，能显示且直链能打开就通了；文章封面 / 配图走同一条链路。七牛 CDN 域名的 HTTPS 证书、自动上传与续期、常见故障见[第十六章](#十六七牛云接入与证书自动化)。
+保存即生效（运行时配置现读，不用重启）。验证：后台「媒体运营」上传一张图，能显示且直链能打开就通了；文章封面 / 配图走同一条链路。
+
+#### 2.4.1 CDN 域名 HTTPS 与自动续期
+
+HTTPS 读者站里的图片要求图片域名也是 HTTPS（否则会被 mixed content 拦掉），七牛回调地址也必须走 HTTPS，所以 CDN 域名最终要配证书。它 CNAME 到七牛，HTTP-01 的验证文件落不到你的服务器，只能用 **DNS-01**。仓库里带了推送脚本 `scripts/qiniu-cert-sync.sh`：第一次执行下面三步，之后续期全自动。
+
+```bash
+# 0) 没装 acme.sh 先装（已装过跳过）
+curl https://get.acme.sh | sh -s email=you@example.com
+
+# 1) DNS-01 签发；插件与 API 凭据见第十六章 16.5（示例用火山引擎，其它服务商换对应 --dns 插件）
+~/.acme.sh/acme.sh --issue --dns dns_volcengine -d image.example.com --keylength 2048
+
+# 2) 凭据与证书路径放一个文件里（不进 git，权限 600）
+mkdir -p /etc/blogx/qiniu
+cat > /etc/blogx/qiniu/env <<'EOF'
+QINIU_AK=<七牛 AK>
+QINIU_SK=<七牛 SK>
+CDN_DOMAIN=image.example.com
+KEY_FILE=/etc/blogx/qiniu/image.key
+CHAIN_FILE=/etc/blogx/qiniu/image.pem
+EOF
+chmod 600 /etc/blogx/qiniu/env
+
+# 3) 落盘 + 立刻推给七牛并绑定；以后每次续期都会自动重跑这条 --reloadcmd
+~/.acme.sh/acme.sh --install-cert -d image.example.com \
+  --key-file       /etc/blogx/qiniu/image.key \
+  --fullchain-file /etc/blogx/qiniu/image.pem \
+  --reloadcmd      'set -a; . /etc/blogx/qiniu/env; bash /opt/blogx/scripts/qiniu-cert-sync.sh'
+```
+
+路径里的 `/opt/blogx` 换成服务器上仓库的实际目录。
+
+**续期**：acme.sh 的 cron 每天检查，证书剩 30 天左右自动续期；续完执行上面的 `--reloadcmd` → 脚本重新上传证书 + `sslize` 绑定，全程无人值守。
+
+**验收**：等 5–10 分钟 CDN 生效后 `curl -sSI https://image.example.com/ | head -1`，再把后台「访问域名」改成 `https://image.example.com`。
+
+- 想手动重推一次：`set -a; . /etc/blogx/qiniu/env; bash /opt/blogx/scripts/qiniu-cert-sync.sh`。
+- 不想自建：控制台手动上传证书（一年一次），或用社区工具 CertBuddy。
 
 > 本地 / 无域名（http + IP）场景配七牛也能存图，但**七牛节点回调不到你的服务器**，上传会一直 pending——回调必须是一个公网可达的 HTTPS 域名。
 
@@ -1339,7 +1365,7 @@ export VOLCENGINE_SECRET_ACCESS_KEY='<SK>'
 acme.sh --issue --dns dns_volcengine -d image.example.com --keylength 2048
 ```
 
-### 16.6 推送到七牛（脚本模板）
+### 16.6 推送到七牛（scripts/qiniu-cert-sync.sh）
 
 两个 API 用**两套鉴权**，别混：
 
@@ -1348,44 +1374,16 @@ acme.sh --issue --dns dns_volcengine -d image.example.com --keylength 2048
 | 证书管理（上传 / 列表 / 删除） | `fusion.qiniuapi.com` | `QBox <AK>:<tok>` | `<路径+query>\n` |
 | 域名配置（`sslize` 绑证书） | `api.qiniu.com` | `Qiniu <AK>:<tok>` + `X-Qiniu-Date` | `METHOD 路径+query\nHost\nContent-Type\nX-Qiniu-Date\n\nBody` |
 
-脚本模板（保存为 `scripts/qiniu-cert-sync.sh`，凭据从环境变量读，**不进 git**）：
+脚本在仓库里：`scripts/qiniu-cert-sync.sh`。它从环境变量读凭据（**不进 git**），依次调上表两个接口，最后 `curl -sSI` 校验一次：
 
-```bash
-#!/usr/bin/env bash
-# 把 acme.sh 刚续好的证书推给七牛并绑定；由 acme.sh --reloadcmd 调用
-set -euo pipefail
-: "${QINIU_AK:?}" "${QINIU_SK:?}" "${CDN_DOMAIN:?}" "${KEY_FILE:?}" "${CHAIN_FILE:?}"
-NAME="${CERT_NAME:-$CDN_DOMAIN}"
+| 变量 | 作用 |
+| --- | --- |
+| `QINIU_AK` / `QINIU_SK` | 七牛密钥 |
+| `CDN_DOMAIN` | 要绑证书的 CDN 域名 |
+| `KEY_FILE` / `CHAIN_FILE` | acme.sh 落盘的私钥 / 证书链路径 |
+| `CERT_NAME` | 可选，七牛控制台里的证书名（默认用 `CDN_DOMAIN`） |
 
-b64url() { openssl base64 -A | tr '+/' '-_'; }
-hmac()   { openssl dgst -sha1 -hmac "$QINIU_SK" -binary | b64url; }
-
-# 1) 上传证书（QBox：JSON body 不进签名，只签路径）
-PAYLOAD=$(python3 -c 'import json,sys
-print(json.dumps({"name":sys.argv[1],"pri":open(sys.argv[2]).read(),"ca":open(sys.argv[3]).read()}))' \
-  "$NAME" "$KEY_FILE" "$CHAIN_FILE")
-RESP=$(curl -sS -X POST https://fusion.qiniuapi.com/sslcert \
-  -H "Authorization: QBox $QINIU_AK:$(printf '/sslcert\n' | hmac)" \
-  -H 'Content-Type: application/json' --data-binary "$PAYLOAD")
-CERT_ID=$(printf '%s' "$RESP" | python3 -c 'import json,sys;print(json.load(sys.stdin)["certID"])')
-
-# 2) 绑定到 CDN 域名（Qiniu 鉴权；body 必须与签名时字节一致）
-DATE=$(date -u +%Y%m%dT%H%M%SZ)
-BODY=$(printf '{"certId":"%s","forceHttps":true,"http2Enable":true}' "$CERT_ID")
-SIGN=$( { printf 'PUT /domain/%s/sslize\n' "$CDN_DOMAIN"
-          printf 'Host: api.qiniu.com\n'
-          printf 'Content-Type: application/json\n'
-          printf 'X-Qiniu-Date: %s\n\n' "$DATE"
-          printf '%s' "$BODY"; } | hmac )
-curl -sS -X PUT "https://api.qiniu.com/domain/$CDN_DOMAIN/sslize" \
-  -H "Authorization: Qiniu $QINIU_AK:$SIGN" \
-  -H "X-Qiniu-Date: $DATE" -H 'Content-Type: application/json' \
-  --data-binary "$BODY"
-
-# 3) 校验（CDN 配置 5-10 分钟生效，失败先等再重试）
-curl -sSI "https://$CDN_DOMAIN/" | head -1
-echo "bound certId=$CERT_ID"
-```
+手动重跑一次：`set -a; . /etc/blogx/qiniu/env; bash /opt/blogx/scripts/qiniu-cert-sync.sh`。
 
 挂到 acme.sh，让每次续期后自动推：
 
@@ -1404,7 +1402,7 @@ chmod 600 /etc/blogx/qiniu/env
 acme.sh --install-cert -d image.example.com \
   --key-file       /etc/blogx/qiniu/image.key \
   --fullchain-file /etc/blogx/qiniu/image.pem \
-  --reloadcmd      'set -a; . /etc/blogx/qiniu/env; /opt/blogx/scripts/qiniu-cert-sync.sh'
+  --reloadcmd      'set -a; . /etc/blogx/qiniu/env; bash /opt/blogx/scripts/qiniu-cert-sync.sh'
 ```
 
 `acme.sh` 安装时已往 crontab 写了 `acme.sh --cron`，每晚检查、剩 <30 天才续期，续完自动执行 `--reloadcmd`。全程无人值守（首次签发要人在场点一次）。

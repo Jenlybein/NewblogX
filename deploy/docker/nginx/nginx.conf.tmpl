@@ -106,6 +106,18 @@ http {
         add_header Cache-Control "no-cache" always;
      }
 
+     # 存活检查：README §10.6 的 `curl https://域名/health` 就是打这条。
+     # 后端在容器内另有 `/health/ready`（CDC 就绪判定），**刻意不对外**：
+     # 它一旦被外部监控当成存活探针，CDC 故障会连带判死整个站点（理由见 verify-deploy.sh 注释）。
+     location = /health {
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header X-Forwarded-Host $host;
+        proxy_pass http://blogx_api_upstream/health;
+     }
+
      location = /api/chat/ws {
        proxy_pass http://blogx_api_upstream/api/chat/ws;
        proxy_http_version 1.1;

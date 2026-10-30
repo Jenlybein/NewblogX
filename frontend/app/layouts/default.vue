@@ -5,6 +5,7 @@ import DeferredAuthModal from "~/components/auth/DeferredAuthModal.vue";
 import JellyLauncher from "~/components/jelly/JellyLauncher.vue";
 import JellyAiPanel from "~/components/jelly/JellyAiPanel.vue";
 import { provideJellyAssistant } from "~/composables/useJellyAssistant";
+import { isPlaceholderSiteIcon, siteIconType } from "~/utils/siteIcon";
 
 const siteStore = useSiteStore();
 
@@ -14,16 +15,17 @@ const jellyAssistant = provideJellyAssistant();
 
 void siteStore.ensurePublicBootstrap();
 
-useHead(() => ({
-  link: siteStore.seo?.icon
-    ? [
-        {
-          rel: "icon",
-          href: siteStore.seo.icon,
-        },
-      ]
-    : [],
-}));
+// 图标：品牌图标已由 `nuxt.config` 的 `app.head` 统一发出（品牌 SVG + .ico 兜底 +
+// apple-touch-icon）。后端 `/site/seo` 的 `icon` 只是可覆盖入口，默认值是占位串
+// `/xxx.png`——直接照发会让 favicon 404 并盖掉品牌图标（线上实测过），所以这里：
+// 占位/空值一律不发（交给 app.head），真实值才作为管理员覆盖发出。
+useHead(() => {
+  const raw = siteStore.seo?.icon ?? "";
+  if (isPlaceholderSiteIcon(raw)) return {};
+  const href = raw.trim();
+  const type = siteIconType(href);
+  return type ? { link: [{ rel: "icon", type, href }] } : { link: [{ rel: "icon", href }] };
+});
 </script>
 
 <template>

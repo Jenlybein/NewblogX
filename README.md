@@ -2,6 +2,8 @@
 
 一个可以自己部署的博客 / 社区系统：Go 写的 API，两个独立的 Nuxt 前端（读者站、管理后台），外加 MySQL 主从、Redis、Elasticsearch、ClickHouse 这一套基础设施。
 
+> 站点显示名是 **JellyBin（果冻盒）**；仓库名、Go module、`BLOGX_*` 环境变量前缀、compose 服务名、既有 cookie 与 localStorage 键等内部标识仍叫 `blogx`，两者不互改。术语与用法见 [`GLOSSARY.md`](./GLOSSARY.md)。
+
 ---
 
 ## 一、快速开始

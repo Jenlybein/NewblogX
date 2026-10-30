@@ -6,6 +6,10 @@
  * 仍然带 scoped：页面通过 <style scoped src> 引入，Vue 会把它当页面的样式块处理。
  * 各子组件（Header / Toc / Preview / PublishDialog）的根元素会带父组件的
  * scope id，所以这里的规则照旧能命中它们；组件的内部元素用 :deep() 选择。
+ *
+ * 颜色（票 #9）：全部改为消费语义 token（`var(--color-*)`），不再出现旧青绿
+ * 色值与石板灰字面量 —— 这些文件曾挂在 scripts/design-token-baseline.json 的
+ * 存量债清单里，清干净后条目已删除（清单只许收缩，由 check:design-tokens 门禁守着）。
  */
 
 .write-page {
@@ -44,9 +48,8 @@
 }
 
 .write-page__toc {
-  border-right: 1px solid rgba(217, 226, 236, 0.92);
-  background:
-    linear-gradient(180deg, rgba(245, 248, 252, 0.96) 0%, rgba(241, 245, 249, 0.86) 100%);
+  border-right: 1px solid var(--color-line);
+  background: var(--color-bg-subtle);
 }
 
 :deep(.write-page__toc-header) {
@@ -55,7 +58,7 @@
   font-weight: 700;
   letter-spacing: 0.08em;
   text-transform: uppercase;
-  color: #475569;
+  color: var(--color-ink-muted);
 }
 
 :deep(.write-page__toc-list) {
@@ -67,45 +70,46 @@
 
 :deep(.write-page__toc-item) {
   border: 1px solid transparent;
-  border-radius: 10px;
+  border-radius: 0;
   padding: 8px 10px;
   text-align: left;
-  color: #334155;
-  background: rgba(255, 255, 255, 0.62);
+  color: var(--color-ink);
+  background: var(--color-surface);
   cursor: pointer;
   font-size: 13px;
   line-height: 1.35;
   transition:
-    background 0.18s ease,
-    color 0.18s ease,
-    border-color 0.18s ease,
-    transform 0.18s ease;
+    background var(--motion-fast) var(--motion-ease),
+    color var(--motion-fast) var(--motion-ease),
+    border-color var(--motion-fast) var(--motion-ease),
+    transform var(--motion-fast) var(--motion-ease);
 }
 
 :deep(.write-page__toc-item:hover) {
   transform: translateX(1px);
-  background: rgba(15, 118, 110, 0.1);
-  border-color: rgba(15, 118, 110, 0.18);
-  color: #0f766e;
+  background: var(--color-line-faint);
+  border-color: var(--color-line);
+  color: var(--color-focus);
 }
 
 :deep(.write-page__toc-item--level-2) {
   padding-left: 24px;
-  color: #475569;
+  color: var(--color-ink-muted);
 }
 
 :deep(.write-page__toc-item--level-3) {
   padding-left: 36px;
-  color: #64748b;
+  color: var(--color-ink-muted);
 }
 
 :deep(.write-page__toc-item--level-4) {
   padding-left: 48px;
-  color: #94a3b8;
+  color: var(--color-ink-muted);
+  opacity: 0.78;
 }
 
 .write-page__pane--editor {
-  border-right: 1px solid rgba(217, 226, 236, 0.92);
+  border-right: 1px solid var(--color-line);
 }
 
 .write-page__body--editor-only .write-page__pane--preview,
@@ -123,7 +127,7 @@
   font: inherit;
   font-size: 17px;
   line-height: 1.9;
-  color: #102031;
+  color: var(--color-ink);
   background: transparent;
   outline: none;
 }
@@ -140,8 +144,8 @@
   padding: 4px 10px;
   border-radius: 999px;
   font-size: 12px;
-  color: #0f766e;
-  background: rgba(15, 118, 110, 0.08);
+  color: var(--color-focus);
+  background: var(--color-line-faint);
 }
 
 .write-page__markdown {
@@ -157,21 +161,25 @@
   align-items: center;
   justify-content: center;
   gap: 10px;
-  color: #6b7f95;
+  color: var(--color-ink-muted);
 }
 
 :deep(.write-page__preview-empty p) {
   margin: 0;
   font-size: 18px;
-  color: #334155;
+  color: var(--color-ink);
 }
 
 .write-page__statusbar {
-  justify-content: flex-start;
-  gap: 18px;
-  color: #6b7f95;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  padding: 14px 24px;
+  border-top: 1px solid var(--color-line);
+  color: var(--color-ink-muted);
   font-size: 13px;
-  background: rgba(255, 251, 245, 0.84);
+  background: var(--color-surface);
 }
 
 .publish-modal-shell {
@@ -180,7 +188,7 @@
 }
 
 .publish-modal-card {
-  border-radius: 20px;
+  border-radius: 0;
 }
 
 .publish-form {
@@ -202,7 +210,7 @@
 
 .publish-form__label {
   font-size: 14px;
-  color: #334155;
+  color: var(--color-ink);
 }
 
 .publish-form__control {
@@ -227,10 +235,10 @@
   align-items: center;
   justify-content: center;
   gap: 10px;
-  border: 1px dashed rgba(148, 163, 184, 0.7);
-  border-radius: 16px;
-  color: #64748b;
-  background: rgba(248, 250, 252, 0.8);
+  border: 1px dashed var(--color-line);
+  border-radius: 0;
+  color: var(--color-ink-muted);
+  background: var(--color-surface-raised);
   cursor: pointer;
   overflow: hidden;
 }
@@ -260,7 +268,7 @@
 .publish-cover__stage {
   margin: 0;
   font-size: 12px;
-  color: #0f766e;
+  color: var(--color-focus);
 }
 
 .publish-summary {
@@ -272,7 +280,7 @@
   right: 12px;
   bottom: 10px;
   font-size: 12px;
-  color: #f97316;
+  color: var(--color-danger-ink);
 }
 
 .publish-form__switch {
@@ -281,9 +289,9 @@
   justify-content: space-between;
   gap: 16px;
   padding: 14px 16px;
-  border: 1px solid rgba(217, 226, 236, 0.82);
-  border-radius: 16px;
-  background: rgba(248, 250, 252, 0.8);
+  border: 1px solid var(--color-line);
+  border-radius: 0;
+  background: var(--color-surface-raised);
 }
 
 .publish-modal__footer {
@@ -357,12 +365,4 @@
   .publish-modal-shell {
     width: calc(100vw - 28px) !important;
   }
-}
-.write-page__statusbar {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 20px;
-  padding: 14px 24px;
-  border-top: 1px solid rgba(217, 226, 236, 0.72);
 }

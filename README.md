@@ -131,40 +131,25 @@ chmod 600 ../../state/nginx/cert/domain.key
 
 > 证书的 SAN 必须覆盖你要访问的域名（`https://你的域名`），否则浏览器报"证书与域名不匹配"。
 
-##### B. 免费证书 + 自动续期（Let's Encrypt / acme.sh）
+##### B. 免费证书 + 自动续期（acme.sh）
 
-> 仓库里没有取证书的脚本（`scripts/` 只放门禁与部署验收）。下面这段在服务器上执行一次；之后 acme.sh 的每日 cron 会自动续期，续完自动重载 nginx。
-
-用**部署用户**（能直接跑 `docker ps` 的那个）执行，acme.sh 的 cron 也会写在这个用户下：
+适合还没有证书、想免费部署的用户。仓库里带了签发脚本 `scripts/issue-cert.sh`：在仓库根目录用**部署用户**（能直接跑 `docker ps` 的那个）执行，邮箱和域名用参数传，多个域名就重复 `--domain`（第一个是主域名）：
 
 ```bash
-cd deploy/compose/production                  # 以下相对路径以这个目录为基准
-mkdir -p ../../state/nginx/cert
-CERT_DIR="$(pwd)/../../state/nginx/cert"      # 续期 cron 在别的目录跑，必须用绝对路径
-
-# 1) 安装 acme.sh（会根据当前用户自动写每日 cron）
-curl https://get.acme.sh | sh -s email=you@example.com
-
-# 2) 首次签发。standalone 要临时占用 80，钩子负责停/起 nginx 容器；
-#    --server letsencrypt 固定用 Let's Encrypt（不加会走 acme.sh 的默认 CA）；
-#    要 www 再加 -d www.你的域名（DNS 也得有对应解析）
-~/.acme.sh/acme.sh --issue --standalone -d 你的域名 --server letsencrypt \
-  --pre-hook  'docker stop nginx 2>/dev/null || true' \
-  --post-hook 'docker start nginx 2>/dev/null || true'
-
-# 3) 证书落到 nginx 的固定路径；--reloadcmd 在每次续期成功后重载 nginx
-~/.acme.sh/acme.sh --install-cert -d 你的域名 \
-  --key-file        "$CERT_DIR/domain.key" \
-  --fullchain-file  "$CERT_DIR/domain.pem" \
-  --reloadcmd       'docker exec nginx nginx -s reload 2>/dev/null || true'
-chmod 600 "$CERT_DIR/domain.key"
+bash scripts/issue-cert.sh --email you@example.com --domain 你的域名
+bash scripts/issue-cert.sh --email you@example.com --domain 你的域名 --domain www.你的域名
 ```
+
+脚本会：装 acme.sh（自动写每日 cron）→ 签发时先停 nginx 腾出 80（`--pre-hook`）、签完拉起来（`--post-hook`）→ 把 fullchain/key 装到 `deploy/state/nginx/cert/` → 注册续期成功后的 `docker exec nginx nginx -s reload`。后续续期由 cron 负责，不用再跑脚本。参数和环境变量（容器名、CA 等）用 `bash scripts/issue-cert.sh --help` 看。
+
+> 签发前必须：域名的 A/AAAA 解析指向这台服务器的公网 IP（`dig +short 你的域名` 可验证）、公网 80 放行、域名没有被 CDN/代理（如 Cloudflare 橙云）挡住 HTTP-01 校验。**脚本不会替你改 DNS。**
+>
+> 首次执行时 nginx 可能还没起，脚本里的 reload 会被静默跳过；`docker compose up` 之后 nginx 第一次启动就会加载证书，不用重跑。
 
 几条要知道的：
 
-- **首次**执行第 3 步时 nginx 还没起（容器不存在），`|| true` 会让 reload 静默跳过：证书已经写盘，`docker compose up` 之后 nginx 第一次启动就会加载，不用重跑。
-- **续期**：cron 每天检查，剩 < 30 天时按 `--pre-hook` 停 nginx → 签发 → 按 `--post-hook` 起 nginx（这几秒访问会失败）→ 按 `--reloadcmd` 重载新证书。完全不想停 nginx 就改用 DNS 验证：`--issue --dns dns_<服务商> -d 你的域名`（插件与 API 凭据见[第十五章](#十五七牛云接入与证书自动化)），那时不需要 pre/post hook。
-- standalone 模式依赖 `socat` 或 `python3`；Ubuntu 22.04 自带 python3，够用。
+- **续期**：cron 每天检查，剩 < 30 天时停 nginx → 签发 → 起 nginx（这几秒访问会失败）→ 重载新证书。完全不想停 nginx 就用 DNS-01（`--issue --dns dns_<服务商>`，插件与 API 凭据见[第十五章](#十五七牛云接入与证书自动化)）；脚本只封装 standalone，DNS-01 按 15.5 手动执行。
+- standalone 依赖 `socat` 或 `python3`；Ubuntu 22.04 自带 python3，够用。
 - 检查续期有没有生效：`~/.acme.sh/acme.sh --list` 看下次续期时间；线上证书的日期用 `echo | openssl s_client -connect 你的域名:443 -servername 你的域名 2>/dev/null | openssl x509 -noout -dates`。
 
 ##### 起服务

@@ -13,6 +13,7 @@
 
 <script setup lang="ts">
 import { NConfigProvider, NDialogProvider, NMessageProvider } from 'naive-ui'
+import interWoff2 from '@fontsource-variable/inter/files/inter-latin-wght-normal.woff2'
 import tokensCss from '~/assets/css/tokens.css?raw'
 import { brandTitle } from '~/utils/brand'
 import { buildNaiveThemeOverrides, parseRawPalette } from '~/utils/theme'
@@ -21,6 +22,16 @@ import { buildNaiveThemeOverrides, parseRawPalette } from '~/utils/theme'
 // 的 app.head 里（SPA 的骨架 HTML 也会带上静态 head）；这里只补标题的品牌后缀。
 useHead(() => ({
   titleTemplate: (chunk?: string) => brandTitle(chunk),
+  link: [
+    {
+      // 正文/UI 的 Inter 是可变的：一条 woff2 覆盖 100–900；后台没有 Sora 800 预加载。
+      rel: "preload",
+      as: "font",
+      type: "font/woff2",
+      href: interWoff2,
+      crossorigin: "anonymous",
+    },
+  ],
 }))
 
 // Naive 主题覆盖：主色克莱因蓝 + 同色相派生明度、危险珊瑚橙、圆角 0、字体栈含中文

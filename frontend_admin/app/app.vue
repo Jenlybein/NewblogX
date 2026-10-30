@@ -22,7 +22,7 @@ const themeOverrides: GlobalThemeOverrides = {
     primaryColorPressed: '#134e4a',
     borderRadius: '8px',
     fontFamily:
-      '"Sora", "Sora Fallback", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", "Noto Sans SC", sans-serif',
+      '"Sora", "Sora Fallback", "Noto Sans SC", "Noto Sans SC Fallback", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif',
   },
   Button: {
     borderRadiusMedium: '8px',

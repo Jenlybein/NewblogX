@@ -3,31 +3,11 @@
 @tailwind utilities;
 
 @layer base {
-  :root {
-    color-scheme: light;
-    --bg-page:
-      radial-gradient(
-        circle at top,
-        rgba(255, 243, 224, 0.95),
-        transparent 34%
-      ),
-      linear-gradient(180deg, #f7f4eb 0%, #eef4fb 52%, #edf3f8 100%);
-    --bg-page-dark:
-      radial-gradient(circle at top, rgba(22, 57, 93, 0.72), transparent 30%),
-      linear-gradient(180deg, #0d1522 0%, #0b1420 48%, #0a1118 100%);
-    --surface: rgba(255, 255, 255, 0.8);
-    --surface-strong: rgba(255, 255, 255, 0.92);
-    --surface-dark: rgba(10, 18, 29, 0.82);
-    --surface-dark-strong: rgba(10, 18, 29, 0.94);
-    --line: rgba(200, 214, 226, 0.7);
-    --line-dark: rgba(57, 72, 92, 0.86);
-    --text-main: #1f2937;
-    --text-soft: #64748b;
-    --accent: #0f766e;
-    --accent-soft: rgba(15, 118, 110, 0.12);
-    --shadow-soft: 0 24px 60px rgba(15, 23, 42, 0.08);
-    --shadow-strong: 0 26px 70px rgba(5, 15, 30, 0.18);
-  }
+  /* 颜色与排版 token 全部搬到了 app/assets/css/tokens.css（唯一颜色来源）：
+   * 原始层五色相 → 语义层 --color-* → 明暗两份映射。本文件不再定义任何颜色字面量
+   * 以外的东西，也不该新增颜色定义。过渡期的旧变量（--bg-page / --surface / --line …）
+   * 同样在 tokens.css 末尾，供尚未迁移的旧样式继续使用。
+   */
 
   html,
   body,
@@ -37,9 +17,7 @@
 
   body {
     margin: 0;
-    font-family:
-      "Sora", "Sora Fallback", "PingFang SC", "Hiragino Sans GB",
-      "Microsoft YaHei", "Noto Sans SC", sans-serif;
+    font-family: var(--font-sans);
     color: var(--text-main);
     background: var(--bg-page);
     transition:

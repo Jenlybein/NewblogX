@@ -46,6 +46,12 @@ export interface TokenBlockPair {
 
 const DECLARATION_RE = /(--[a-z0-9-]+)\s*:\s*([^;]+);/giu;
 
+/** 三元组派生写法：`rgb(var(--jelly-*-rgb) / α)`（#18 起语义层的统一写法）。 */
+const TRIPLET_REFERENCE_RE = /^rgb\(\s*var\(\s*(--[a-z0-9-]+)\s*\)\s*\/\s*([\d.]+)\s*\)$/u;
+
+/** 三元组基底的真实取值：形如 `0 47 167`（空格分隔的 RGB 三通道）。 */
+const TRIPLET_CHANNELS_RE = /^(\d{1,3})\s+(\d{1,3})\s+(\d{1,3})$/u;
+
 function readDeclarations(cssText: string, selectorPattern: RegExp): Record<string, string> {
   const block = selectorPattern.exec(cssText);
   if (!block) {
@@ -95,6 +101,19 @@ export function resolveTokenValue(
   const reference = /^var\(\s*(--[a-z0-9-]+)\s*\)$/u.exec(raw);
   if (reference) {
     return resolveTokenValue(blocks, mode, reference[1]!, [...seen, name]);
+  }
+
+  // #18 起带透明度的语义色由 `--jelly-*-rgb` 三元组派生。对外仍返回"真实色值"
+  // （rgba 字符串），这样对比度计算与 mermaid themeVariables 不必认识 var()。
+  // 注意这不是写死常量：通道值来自 token 层，改色相时这里自动跟着变。
+  const triplet = TRIPLET_REFERENCE_RE.exec(raw);
+  if (triplet) {
+    const base = resolveTokenValue(blocks, mode, triplet[1]!, [...seen, name]);
+    const channels = TRIPLET_CHANNELS_RE.exec(base);
+    if (!channels) {
+      throw new Error(`token ${triplet[1]} 不是 "R G B" 三元组基底：${base}`);
+    }
+    return `rgba(${channels[1]}, ${channels[2]}, ${channels[3]}, ${triplet[2]})`;
   }
 
   return raw;

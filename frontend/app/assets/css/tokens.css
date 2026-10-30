@@ -9,16 +9,19 @@
  *   1. 原始层 `--jelly-*`：五个锁定色相 + 同色相的明度/透明度派生。**禁止新增色相。**
  *      派生规则：只在同一色相内动明度或透明度；黄永不做字色（只做记号笔高亮底）；
  *      珊瑚橙要当字色时用派生暗橙 `--jelly-coral-700` 才达 WCAG AA。
+ *      带透明度的语义色一律从 `--jelly-*-rgb` 三元组基底派生（`rgb(var(--*-rgb) / α)`），
+ *      不再写死 `rgba(r,g,b,α)` 常量。
  *   2. 语义层 `--color-*`：组件唯一消费对象。明暗是**同一组名字的两份取值**，
  *      暗色映射挂在 `.dark` / `.theme-dark` 上（站点根类由 `app/utils/themeClass.ts` 给出）。
- *   3. 排版层 `--type-*` / `--font-*`：中文正文行宽 68ch、行高 1.75、标题 700 + 负字距。
+ *   3. 圆角 / 玻璃 / 排版 / 动效层：后续票（#20–#25）要用的种子。
+ *      本票只**定义与接线**（Tailwind 类名映射），不把圆角/玻璃/新字体应用到全站，
+ *      因此页面观感基本不变（唯一可见变化是代码块拿到等宽字体）。
  *
- * 文件末尾还有一段**过渡层的旧变量**（`--bg-page` / `--surface` / `--line` …）。
- * 它们是为了"本轮可见变化接近 0"而保留的兼容层：旧样式继续按旧取值渲染，等后续
- * 逐面收敛的票把组件改成消费语义层后删掉。新代码不要再用它们。
+ * 过渡层的旧变量（`--bg-page` / `--surface` / `--line` / v1 青绿 `--accent` …）已在
+ * 本票删除：无人消费，留着只会变成第二套颜色来源。
  *
  * 注意：这里刻意**不包 `@layer base`**。自定义属性只需要稳定的源码顺序（本文件在
- * nuxt.config 的 css 数组里排在 tailwind.css 之前），包进 layer 反而会依赖 Tailwind
+ * nuxt.config 的 css 数组里排在 tailwind.css 之前），包进 @layer 反而会依赖 Tailwind
  * 对 @layer 的处理路径，容易出现"token 定义了但没生效"这种查不出来的问题。
  * ========================================================================== */
 
@@ -39,15 +42,22 @@
   --jelly-blue-700: #00227a; /* 按下态 / 暗色抬升纸面 */
   --jelly-blue-600: #3a55a8; /* 次级墨色（AA：对奶油白 6.4:1） */
   --jelly-blue-400: #6e86cf; /* 装饰线 / 非文字几何 */
-  --jelly-blue-200: #c3ceeb; /* 极淡结构线 */
-  --jelly-blue-100: #e6eaf7; /* 极淡底 */
   --jelly-cream-050: #fffefb; /* 比纸面再亮一档（抬升纸面） */
   --jelly-cream-700: #d9d3c6; /* 暗色下的次级字色（AA：对深蓝 10:1） */
   --jelly-warm-800: #e6e0d5; /* 暖灰加深：网格线 / 分隔 */
-  --jelly-yellow-veil: rgba(245, 197, 24, 0.28); /* 包豪斯黄的记号笔底（浅色） */
-  --jelly-yellow-veil-dark: rgba(245, 197, 24, 0.3); /* 同上，暗色下略加强 */
   --jelly-coral-700: #c2410c; /* 派生暗橙：危险文字（AA：对奶油白 5.0:1） */
   --jelly-coral-300: #ff9b85; /* 珊瑚橙浅明度：暗色下的危险文字（AA：对深蓝 6.3:1） */
+
+  /* ---- 原始层：三元组基底（带透明度语义色的唯一派生源） ----
+   * 与上面同色相 hex 是同一份取值的两种写法（hex 供 Naive themeOverrides 解析真色值，
+   * 三元组供 CSS 透明度派生）。两者同值由 frontend/test/design/foundation-tokens.test.ts
+   * 交叉校验，改一处必须两处同改。 */
+  --jelly-blue-rgb: 0 47 167; /* = --jelly-blue */
+  --jelly-blue-900-rgb: 0 27 99; /* = --jelly-blue-900；亮色阴影基底 */
+  --jelly-blue-1000-rgb: 0 8 30; /* 暗色阴影基底（比 -950 更深一档，无对应 hex） */
+  --jelly-cream-rgb: 253 251 246; /* = --jelly-cream */
+  --jelly-yellow-rgb: 245 197 24; /* = --jelly-yellow */
+  --jelly-coral-rgb: 255 107 74; /* = --jelly-coral */
 
   /* ---- 2. 语义层（浅色）：组件只消费这一层 ---- */
   --color-bg-page: var(--jelly-cream); /* 页面底色 */
@@ -56,27 +66,51 @@
   --color-surface-raised: var(--jelly-cream-050); /* 抬升纸面（卡片内嵌块） */
   --color-ink: var(--jelly-blue-900); /* 墨色（正文） */
   --color-ink-muted: var(--jelly-blue-600); /* 次级墨色 */
-  --color-line: rgba(0, 47, 167, 0.32); /* 结构线（主） */
-  --color-line-strong: rgba(0, 47, 167, 0.62); /* 结构线（强） */
-  --color-line-faint: rgba(0, 47, 167, 0.14); /* 结构线（极淡） */
-  --color-highlight: var(--jelly-yellow-veil); /* 高亮底（黄，只做底） */
+  --color-line: rgb(var(--jelly-blue-rgb) / 0.32); /* 结构线（主） */
+  --color-line-strong: rgb(var(--jelly-blue-rgb) / 0.62); /* 结构线（强） */
+  --color-line-faint: rgb(var(--jelly-blue-rgb) / 0.14); /* 结构线（极淡） */
+  --color-highlight: rgb(var(--jelly-yellow-rgb) / 0.28); /* 高亮底（黄，只做底） */
   --color-danger: var(--jelly-coral); /* 危险 / 重要状态填充 */
   --color-danger-ink: var(--jelly-coral-700); /* 危险文字（派生暗橙） */
   --color-focus: var(--jelly-blue); /* 焦点环 / 强调 */
-  --color-focus-soft: rgba(0, 47, 167, 0.1); /* 强调底（悬停/提示块） */
-  --color-danger-soft: rgba(255, 107, 74, 0.12); /* 危险底（提示块/错误态） */
-  --color-danger-line: rgba(255, 107, 74, 0.4); /* 危险结构线 */
+  --color-focus-soft: rgb(var(--jelly-blue-rgb) / 0.1); /* 强调底（悬停/提示块） */
+  --color-danger-soft: rgb(var(--jelly-coral-rgb) / 0.12); /* 危险底（提示块/错误态） */
+  --color-danger-line: rgb(var(--jelly-coral-rgb) / 0.4); /* 危险结构线 */
   --color-on-strong: var(--jelly-cream); /* 蓝铺色块上的反白字 */
-  --color-on-strong-muted: rgba(253, 251, 246, 0.78); /* 蓝底上的次级字 */
+  --color-on-strong-muted: rgb(var(--jelly-cream-rgb) / 0.78); /* 蓝底上的次级字 */
   --color-on-danger: var(--jelly-blue-900); /* 珊瑚橙底上的字（对 coral 5.6:1） */
-  --color-on-danger-pressed: var(--jelly-cream); /* 派生暗橙底上的字（5.2:1） */
-  --color-shadow: rgba(0, 27, 99, 0.16); /* 阴影（同色相明度 + 透明度） */
+  --color-shadow: rgb(var(--jelly-blue-900-rgb) / 0.16); /* 阴影（同色相明度 + 透明度） */
 
-  /* ---- 3. 排版层 ---- */
-  --font-latin: "Sora", "Sora Fallback";
+  /* ---- 3. 圆角阶梯（ADR-0012 决策 4）：控件 8–14 / 卡片 20 / 浮层 28 / 胶囊 pill ----
+   * 本票只播种，由 Tailwind 的 borderRadius 类名接线；全站应用留给批次 2。 */
+  --radius-sm: 8px;
+  --radius-md: 14px;
+  --radius-lg: 20px;
+  --radius-xl: 28px;
+  --radius-pill: 999px;
+
+  /* ---- 4. 液态玻璃组（ADR-0012 决策 5）：两档填充/模糊/饱和度 + 边缘/噪点/移动端档 ----
+   * 本票只播种（Tailwind backdropBlur / backdropSaturate / colors 接线）；
+   * 玻璃层的伪元素与降级实现留给批次 3。 */
+  --glass-thin-fill: rgb(255 255 255 / 0.72); /* 导航 / 胶囊 / 徽标 */
+  --glass-thin-blur: 20px;
+  --glass-thin-saturate: 180%;
+  --glass-thick-fill: rgb(253 251 246 / 0.80); /* 弹窗 / 抽屉 / 捏捏面板 */
+  --glass-thick-blur: 28px;
+  --glass-thick-saturate: 160%;
+  --glass-rim: rgb(255 255 255 / 0.62); /* 1px 折射边缘带 */
+  --glass-rim-warm: rgb(255 253 246 / 0.50); /* 明暗色温断层的暖白接缝 */
+  --glass-grain-opacity: 0.055; /* feTurbulence 噪点层 */
+  --glass-blur-mobile: 12px; /* max-width: 768px 下的模糊档 */
+
+  /* ---- 5. 排版层 ---- */
+  --font-display: "Sora", "Sora Fallback"; /* 字标 + 大标题（字体分工键） */
+  --font-latin: "Sora", "Sora Fallback"; /* 正文 / UI（换字体的票把这里改成 Inter） */
+  --font-title: var(--font-display); /* 标题字体键（此前未定义，被 pages/index.vue 消费） */
   --font-cjk: "Noto Sans SC", "Noto Sans SC Fallback";
   --font-sans: var(--font-latin), var(--font-cjk), "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei",
     sans-serif;
+  --font-mono: "Cascadia Code", "JetBrains Mono", "Sofia Sans Mono", ui-monospace, monospace; /* 代码块 / 刻度 */
   --type-measure: 68ch; /* 正文行宽 */
   --type-leading-prose: 1.75; /* 中文正文行高 */
   --type-leading-title: 1.15; /* 标题行高 */
@@ -84,7 +118,7 @@
   --type-tracking-dense: -0.01em; /* 小字收紧 */
   --type-weight-title: 700; /* 标题字重 */
 
-  /* ---- 4. 动效层（spec 决策 3：三档时长 + 单一缓动 + stagger 节奏）----
+  /* ---- 6. 动效层（spec 决策 3：三档时长 + 单一缓动 + stagger 节奏）----
    * 取值与 app/utils/motion.ts 里的常量是同一份预算，design 测试会交叉校验，
    * 改一处必须两处同改。组件消费时一律用变量，不写死毫秒。
    * 只允许动 transform / opacity；下面 media 查询在「减少动态」时把它们全部归零。 */
@@ -93,6 +127,8 @@
   --motion-slow: 320ms; /* 上限：结构级一次性过渡 */
   --motion-ease: cubic-bezier(0.2, 0.8, 0.2, 1); /* 全站唯一缓动曲线 */
   --motion-stagger: 40ms; /* 列表相邻条目的错峰间隔 */
+  --motion-reveal-offset: 12px; /* 区块级滚动进场位移上限（ADR-0012 决策 7） */
+  --parallax-max: 10px; /* 视差上限 */
 }
 
 /* ---- 暗色映射：同一组语义 token 的第二份取值（克莱因蓝铺底 + 奶油白字） ---- */
@@ -105,25 +141,32 @@
   --color-surface-raised: var(--jelly-blue-700);
   --color-ink: var(--jelly-cream);
   --color-ink-muted: var(--jelly-cream-700);
-  --color-line: rgba(253, 251, 246, 0.22);
-  --color-line-strong: rgba(253, 251, 246, 0.45);
-  --color-line-faint: rgba(253, 251, 246, 0.1);
-  --color-highlight: var(--jelly-yellow-veil-dark);
+  --color-line: rgb(var(--jelly-cream-rgb) / 0.22);
+  --color-line-strong: rgb(var(--jelly-cream-rgb) / 0.45);
+  --color-line-faint: rgb(var(--jelly-cream-rgb) / 0.1);
+  --color-highlight: rgb(var(--jelly-yellow-rgb) / 0.3);
   --color-danger: var(--jelly-coral);
   --color-danger-ink: var(--jelly-coral-300);
   --color-focus: var(--jelly-cream);
-  --color-focus-soft: rgba(253, 251, 246, 0.14);
-  --color-danger-soft: rgba(255, 107, 74, 0.18);
-  --color-danger-line: rgba(255, 107, 74, 0.5);
+  --color-focus-soft: rgb(var(--jelly-cream-rgb) / 0.14);
+  --color-danger-soft: rgb(var(--jelly-coral-rgb) / 0.18);
+  --color-danger-line: rgb(var(--jelly-coral-rgb) / 0.5);
   --color-on-strong: var(--jelly-cream);
-  --color-on-strong-muted: rgba(253, 251, 246, 0.78);
+  --color-on-strong-muted: rgb(var(--jelly-cream-rgb) / 0.78);
   --color-on-danger: var(--jelly-blue-900);
-  --color-on-danger-pressed: var(--jelly-cream);
-  --color-shadow: rgba(0, 8, 30, 0.55);
+  --color-shadow: rgb(var(--jelly-blue-1000-rgb) / 0.55);
+
+  /* 玻璃组暗色取值：填充换中性暗面，边缘带减弱，噪点略减（模糊/饱和度档不变）。 */
+  --glass-thin-fill: rgb(22 22 23 / 0.72);
+  --glass-thick-fill: rgb(29 29 31 / 0.82);
+  --glass-rim: rgb(255 255 255 / 0.30);
+  --glass-rim-warm: rgb(255 253 246 / 0.22);
+  --glass-grain-opacity: 0.045;
 }
 
 /* ---- 「减少动态」的全局降级 ----
- * 1) 把四档动效 token 归零：所有消费 `--motion-*` 的 CSS 过渡变成瞬间完成（静态）；
+ * 1) 把动效 token 归零：所有消费 `--motion-*` 的 CSS 过渡变成瞬间完成（静态）；
+ *    滚动进场位移与视差上限同样归零（不是放慢，而是不动）。
  * 2) 再兜一层全局 `*` 覆盖：Naive UI 内建过渡、第三方 CSS 动画、滚动行为一并退化。
  * 用 0.01ms 而不是 0：既保证"实际不可感知"，又保留 transitionend/animationend
  * 事件（很多组件靠它收尾，duration 0 时某些浏览器会跳过事件）。
@@ -134,6 +177,8 @@
     --motion-base: 0ms;
     --motion-slow: 0ms;
     --motion-stagger: 0ms;
+    --motion-reveal-offset: 0px;
+    --parallax-max: 0px;
   }
 
   *,
@@ -144,36 +189,4 @@
     transition-duration: 0.01ms !important;
     scroll-behavior: auto !important;
   }
-}
-
-/* ==========================================================================
- * 过渡层（兼容旧样式，**新代码不要用**）
- *
- * 这一组是重构前 `tailwind.css:6-30` 的 `:root` 取值，原样搬过来只为让旧组件
- * 的观感保持不变（本票不追求可见变化）。后续逐面收敛的票把组件改用语义层后，
- * 这里整段删除，并且不需要动其它文件。
- * ======================================================================== */
-:root {
-  --bg-page:
-    radial-gradient(
-      circle at top,
-      rgba(255, 243, 224, 0.95),
-      transparent 34%
-    ),
-    linear-gradient(180deg, #f7f4eb 0%, #eef4fb 52%, #edf3f8 100%);
-  --bg-page-dark:
-    radial-gradient(circle at top, rgba(22, 57, 93, 0.72), transparent 30%),
-    linear-gradient(180deg, #0d1522 0%, #0b1420 48%, #0a1118 100%);
-  --surface: rgba(255, 255, 255, 0.8);
-  --surface-strong: rgba(255, 255, 255, 0.92);
-  --surface-dark: rgba(10, 18, 29, 0.82);
-  --surface-dark-strong: rgba(10, 18, 29, 0.94);
-  --line: rgba(200, 214, 226, 0.7);
-  --line-dark: rgba(57, 72, 92, 0.86);
-  --text-main: #1f2937;
-  --text-soft: #64748b;
-  --accent: #0f766e;
-  --accent-soft: rgba(15, 118, 110, 0.12);
-  --shadow-soft: 0 24px 60px rgba(15, 23, 42, 0.08);
-  --shadow-strong: 0 26px 70px rgba(5, 15, 30, 0.18);
 }

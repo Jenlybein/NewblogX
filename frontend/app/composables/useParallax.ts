@@ -21,8 +21,6 @@ interface MotionNumberValue {
 }
 
 export interface UseParallaxOptions {
-  /** 滚动距离换算比例，缺省 0.02。 */
-  strength?: number;
   /** 注入「减少动态」的 media（测试与 SSR 用）。 */
   motion?: UseMotionPreferenceOptions;
 }
@@ -43,7 +41,6 @@ export interface Parallax {
  * 只给布局级装饰元素用：正文段落 / 卡片面不接视差。
  */
 export function useParallax(options: UseParallaxOptions = {}): Parallax {
-  const strength = options.strength ?? PARALLAX_STRENGTH;
   const { prefersReducedMotion } = useMotionPreference(options.motion);
   const { scrollY } = useScroll();
   const scrollValue = scrollY as unknown as MotionNumberValue;
@@ -54,7 +51,7 @@ export function useParallax(options: UseParallaxOptions = {}): Parallax {
   function apply(value: number) {
     const current = Number.isFinite(value) ? value : 0;
     lastScrollY = current;
-    offset.value = clampParallaxOffset(current * strength, prefersReducedMotion.value);
+    offset.value = clampParallaxOffset(current * PARALLAX_STRENGTH, prefersReducedMotion.value);
   }
 
   apply(lastScrollY);

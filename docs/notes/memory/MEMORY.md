@@ -4,7 +4,7 @@
 - 入口：`docs/README.md`（文档地图）。架构与治理在 `docs/architecture/`：
   `overview.md`（**§六 是硬约束总表**）/ `governance.md` / `contracts.md` /
   `configuration.md` / `ai-integration.md`。
-- 决策：`docs/adr/0001-0009`（从 v1 ADR 合集拆出）；归档原文在 `docs/archive/v1/`。
+- 决策：`docs/adr/0001-0011`（0001–0009 从 v1 ADR 合集拆出，0010–0011 为 v2 前端视觉与 AI 入口）；归档原文在 `docs/archive/v1/`。
 - 笔记：`docs/notes/`（`memory/` 是历史记忆）；待办：`docs/TODO.md`。
 - 词汇表：根目录 `GLOSSARY.md`；agent 技能配置：`docs/agents/`。
 - 历史 v1 文档（01-12 / ADR-00x / baseline）已删除，需要时 `git checkout` 旧提交。

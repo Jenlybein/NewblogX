@@ -146,7 +146,9 @@ export default defineNuxtConfig({
     '#markdown-it-ins': resolve(appRoot, 'node_modules/markdown-it-ins/index.mjs'),
   },
   modules: ["@pinia/nuxt", "@vueuse/nuxt", "@nuxtjs/tailwindcss", "@nuxt/eslint"],
-  css: ["~/assets/css/fonts.css", "~/assets/css/tailwind.css"],
+  // 顺序有意义：tokens.css 定义全部颜色/排版 token，必须排在 tailwind.css 之前，
+  // 否则旧样式的 var(--bg-page) 之类的过渡层变量会拿不到值。
+  css: ["~/assets/css/fonts.css", "~/assets/css/tokens.css", "~/assets/css/tailwind.css"],
   build: {
     transpile: ["naive-ui", "vueuc", "date-fns"],
   },

@@ -49,11 +49,10 @@ describe("ProfileEmptyState：统一空态结构", () => {
     expect(wrapper.get(".empty-state__actions").text()).toContain("去搜索文章");
   });
 
-  it("几何记号只用于装饰（aria-hidden），不参与语义", () => {
+  it("几何记号已退役：空态不再渲染三角/方/圆三色 SVG", () => {
     const wrapper = mountEmptyState();
 
-    const mark = wrapper.get(".empty-state__mark");
-    expect(mark.attributes("aria-hidden")).toBe("true");
-    expect(wrapper.findAll(".empty-state__mark svg")).toHaveLength(3);
+    expect(wrapper.find(".empty-state__mark").exists()).toBe(false);
+    expect(wrapper.findAll("svg")).toHaveLength(0);
   });
 });

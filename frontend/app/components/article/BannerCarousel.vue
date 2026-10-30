@@ -79,9 +79,10 @@ function goToBanner(index: number) {
 </template>
 
 <style scoped>
-/* Banner 是图纸里的一格：1px 结构线、方角、不加阴影；图片自身承载颜色。 */
+/* Banner 是首页的一格：1px 结构线、卡片 20 / 舞台 8、不加阴影；图片自身承载颜色。 */
 .banner-shell {
   border: 1px solid var(--color-line);
+  border-radius: var(--radius-lg);
   background: var(--color-surface);
   padding: 0.75rem;
 }
@@ -90,6 +91,7 @@ function goToBanner(index: number) {
   position: relative;
   overflow: hidden;
   border: 1px solid var(--color-line-faint);
+  border-radius: var(--radius-sm);
   background: var(--color-bg-subtle);
   aspect-ratio: 1.8 / 1;
 }
@@ -143,14 +145,15 @@ function goToBanner(index: number) {
   height: 8px;
   width: 8px;
   border: 1px solid var(--color-line-strong);
+  border-radius: var(--radius-pill);
   background: var(--color-surface);
   transition: width var(--motion-fast) var(--motion-ease);
 }
 
 .banner-dot.is-active span {
   width: 28px;
-  border-color: var(--color-focus);
-  background: var(--color-focus);
+  border-color: var(--color-ink);
+  background: var(--color-ink);
 }
 
 .banner-dot:focus-visible span {

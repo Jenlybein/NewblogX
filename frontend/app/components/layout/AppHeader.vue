@@ -111,8 +111,6 @@ async function handleUserMenuSelect(key: string | number) {
     <div class="page-shell site-header__inner">
       <div class="site-header__brand">
         <NuxtLink to="/" class="site-brand" :aria-label="`${BRAND.name.en}（${BRAND.name.zh}）首页`">
-          <!-- 包豪斯黄三角：图纸页头的几何标记（纯装饰，不参与读屏） -->
-          <span class="site-brand__mark" aria-hidden="true" />
           <!-- 品牌资产不随主题切换：亮暗两态共用同一张透底 PNG（ADR-0012 约束 12） -->
           <BrandLogo :size="40" decorative />
           <BrandWordmark size="md" />
@@ -234,7 +232,7 @@ async function handleUserMenuSelect(key: string | number) {
 
 <style scoped>
 /*
- * 图纸式页头：1px 克莱因蓝结构线、几何标记、圆角归零，全部取语义 token。
+ * 图纸式页头：1px 中性石墨结构线、五档圆角，全部取语义 token。
  * 布局策略（三档）：
  *   < 640px  手机：品牌 + 动作一排；导航/搜索折叠进面板（菜单按钮展开）
  *   640–1023 平板：品牌 + 动作一排；导航/搜索第二行常显
@@ -277,16 +275,7 @@ async function handleUserMenuSelect(key: string | number) {
   text-decoration: none;
 }
 
-/* 包豪斯黄三角：形状语义「三角 = 装饰与编号标记」 */
-.site-brand__mark {
-  width: 0;
-  height: 0;
-  border-right: 5px solid transparent;
-  border-bottom: 9px solid var(--jelly-yellow);
-  border-left: 5px solid transparent;
-}
-
-.site-header__abstract {
+/* 页头 = 语义纸面 + 发丝线；形状语义（黄三角）已随 #20 退役。 */.site-header__abstract {
   display: none;
   min-width: 0;
   max-width: 22rem;
@@ -326,6 +315,7 @@ async function handleUserMenuSelect(key: string | number) {
   min-height: 2.75rem;
   padding: 0 0.75rem;
   border: 0;
+  border-radius: var(--radius-sm);
   background: transparent;
   color: var(--color-ink-muted);
   font: inherit;
@@ -351,6 +341,8 @@ async function handleUserMenuSelect(key: string | number) {
   align-items: stretch;
   width: 100%;
   border: 1px solid var(--color-line-strong);
+  border-radius: var(--radius-md);
+  overflow: hidden;
   background: var(--color-surface);
 }
 
@@ -403,6 +395,7 @@ async function handleUserMenuSelect(key: string | number) {
   min-height: 2.75rem;
   padding: 0 0.5rem;
   border: 1px solid var(--color-line);
+  border-radius: var(--radius-sm);
   background: transparent;
   color: var(--color-ink);
   font: inherit;
@@ -433,7 +426,7 @@ async function handleUserMenuSelect(key: string | number) {
   white-space: nowrap;
 }
 
-/* 焦点环统一：可见、不用颜色之外的信息，暗色下 --color-focus 会自动换成奶油白 */
+/* 焦点环统一：功能蓝只用于焦点环与文字链接，暗色下自动换成暗色功能蓝。 */
 .site-header :is(a, button, input, [tabindex]):focus-visible {
   outline: 2px solid var(--color-focus);
   outline-offset: 2px;
@@ -446,6 +439,7 @@ async function handleUserMenuSelect(key: string | number) {
   left: 0.5rem;
   z-index: 2;
   padding: 0.5rem 0.75rem;
+  border-radius: var(--radius-sm);
   background: var(--color-surface-raised);
   border: 1px solid var(--color-line-strong);
   color: var(--color-ink);

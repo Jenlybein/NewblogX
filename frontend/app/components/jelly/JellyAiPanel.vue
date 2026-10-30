@@ -266,7 +266,7 @@ onBeforeUnmount(() => {
 </template>
 
 <style scoped>
-/* 颜色只用语义 token（check:design-tokens 会卡住裸色值）；圆角归零。 */
+/* 颜色只用语义 token（check:design-tokens 会卡住裸色值）；圆角按阶梯取值（浮层 28）。 */
 .jelly-panel {
   position: fixed;
   /* 低于角色(#40)：打开时捏捏仍是面板右下角的可见把手。 */
@@ -275,7 +275,7 @@ onBeforeUnmount(() => {
   flex-direction: column;
   overflow: hidden;
   border: 1px solid var(--color-line-strong);
-  border-radius: 0;
+  border-radius: var(--radius-xl);
   background: var(--color-surface);
   color: var(--color-ink);
   box-shadow: 0 24px 60px var(--color-shadow);
@@ -327,7 +327,7 @@ onBeforeUnmount(() => {
 
 .jelly-panel__clear {
   border: 1px solid var(--color-line);
-  border-radius: 0;
+  border-radius: var(--radius-sm);
   padding: 5px 9px;
   background: transparent;
   color: var(--color-ink-muted);
@@ -353,7 +353,7 @@ onBeforeUnmount(() => {
   width: 26px;
   height: 26px;
   border: 0;
-  border-radius: 0;
+  border-radius: var(--radius-pill);
   background: transparent;
   color: var(--color-ink);
   font-size: 18px;
@@ -362,7 +362,7 @@ onBeforeUnmount(() => {
 }
 
 .jelly-panel__close:hover {
-  color: var(--color-focus);
+  color: var(--color-ink);
 }
 
 .jelly-panel__thread {
@@ -389,7 +389,7 @@ onBeforeUnmount(() => {
   max-width: 88%;
   padding: 10px 12px;
   border: 1px solid var(--color-line);
-  border-radius: 0;
+  border-radius: var(--radius-md);
   background: var(--color-surface-raised);
   font-size: 13px;
   line-height: 1.7;
@@ -417,7 +417,7 @@ onBeforeUnmount(() => {
   height: 14px;
   margin-left: 2px;
   vertical-align: text-bottom;
-  background: var(--color-focus);
+  background: var(--color-ink);
   animation: jelly-caret-blink 1s steps(2, start) infinite;
 }
 
@@ -454,7 +454,7 @@ onBeforeUnmount(() => {
 
 .jelly-panel__chip {
   border: 1px solid var(--color-line);
-  border-radius: 0;
+  border-radius: var(--radius-md);
   padding: 9px 11px;
   background: var(--color-surface-raised);
   color: var(--color-ink);
@@ -466,7 +466,7 @@ onBeforeUnmount(() => {
 
 .jelly-panel__chip:hover {
   border-color: var(--color-line-strong);
-  color: var(--color-focus);
+  color: var(--color-ink);
 }
 
 .jelly-panel__composer {
@@ -481,7 +481,7 @@ onBeforeUnmount(() => {
   box-sizing: border-box;
   resize: vertical;
   border: 1px solid var(--color-line);
-  border-radius: 0;
+  border-radius: var(--radius-md);
   padding: 10px 12px;
   background: var(--color-surface-raised);
   color: var(--color-ink);
@@ -505,7 +505,7 @@ onBeforeUnmount(() => {
 
 .jelly-panel__stop {
   border: 1px solid var(--color-line);
-  border-radius: 0;
+  border-radius: var(--radius-sm);
   padding: 8px 12px;
   background: transparent;
   color: var(--color-ink-muted);
@@ -519,11 +519,11 @@ onBeforeUnmount(() => {
 }
 
 .jelly-panel__send {
-  border: 1px solid var(--color-focus);
-  border-radius: 0;
+  border: 1px solid var(--color-ink);
+  border-radius: var(--radius-md);
   padding: 8px 16px;
-  background: var(--color-focus);
-  color: var(--color-surface);
+  background: var(--color-ink);
+  color: var(--color-on-strong);
   font-size: 12px;
   font-weight: 600;
   cursor: pointer;

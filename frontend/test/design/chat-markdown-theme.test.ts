@@ -23,15 +23,15 @@ function stripComments(text: string): string {
 }
 
 describe("聊天面 markdown 主题收口（暗色下不许白块）", () => {
-  it("自有主题在暗色下走深蓝纸面，而不是白色", () => {
+  it("自有主题在暗色下走中性暗面，而不是白色", () => {
     const light = resolveMarkdownTheme(tokensCss, "light");
     const dark = resolveMarkdownTheme(tokensCss, "dark");
 
-    // 明暗两套取值确实翻转：正文由蓝墨变奶油白，纸面由奶油白变深蓝。
-    expect(light.body).toBe("#001b63");
-    expect(dark.body).toBe("#fdfbf6");
+    // 明暗两套取值确实翻转：正文由中性墨变浅石墨，纸面由奶油白变中性暗面。
+    expect(light.body).toBe("#1c1b19");
+    expect(dark.body).toBe("#f5f5f7");
     expect(light.paper).toBe("#fdfbf6");
-    expect(dark.paper).toBe("#001f70");
+    expect(dark.paper).toBe("#1d1d1f");
     expect(light.paperRaised).not.toBe(dark.paperRaised);
 
     // 暗色下任何"纸面/正文底"都不能是纯白（否则就是聊天面白块）。

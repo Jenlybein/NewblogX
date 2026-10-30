@@ -178,7 +178,7 @@ function handleImagePicked(event: Event) {
                   v-if="entry.resolved.kind === 'image'"
                   :src="entry.resolved.imageUrl"
                   alt="图片消息"
-                  class="max-h-60 max-w-full rounded-lg object-contain"
+                  class="max-h-60 max-w-full rounded-field object-contain"
                 />
                 <ChatMarkdownRenderer
                   v-else-if="entry.resolved.kind === 'markdown'"

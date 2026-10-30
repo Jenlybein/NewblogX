@@ -222,6 +222,12 @@ jobs:
       - name: 模板组件解析检查
         run: pnpm check:components
 
+      # 设计 token 漂移门禁：app/** 不许出现裸 hex / rgba，颜色只能来自 tokens.css
+      # 的语义层。baseline 已在 #13 清空为 0 —— 此后任何新增裸色值直接失败。
+      # 与本地 scripts/check.sh 的 frontend 段保持同一口径（不在这里另写一份规则）。
+      - name: 设计 token 漂移检查
+        run: pnpm check:tokens
+
   # ── 前端类型检查 ──────────────────────────────────────────────────
   frontend-typecheck:
     name: ${{ matrix.app }} (typecheck)

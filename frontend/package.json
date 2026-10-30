@@ -18,7 +18,8 @@
     "postinstall": "nuxt prepare",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
-    "check:components": "node ../scripts/check-components.mjs"
+    "check:components": "node ../scripts/check-components.mjs",
+    "check:tokens": "node ../scripts/check-design-tokens.mjs frontend"
   },
   "dependencies": {
     "@css-render/vue3-ssr": "^0.15.14",

@@ -17,6 +17,7 @@
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
     "check:components": "node ../scripts/check-components.mjs",
+    "check:tokens": "node ../scripts/check-design-tokens.mjs frontend_admin",
     "test": "vitest run",
     "test:coverage": "vitest run --coverage",
     "test:watch": "vitest"

@@ -1316,3 +1316,164 @@
     transition: none;
   }
 }
+
+/* ============================================================================
+ * Һ̬�����㣨ADR-0012 ���� 5������ 3��
+ *
+ * ֻ������ / ���� / �����ؼ� / �����á����ġ���Ƭ���б��������һ�ɲ�͸��ʵ���棺
+ * `backdrop-filter` ����Ԫ�س�Ϊ backdrop root�����������ϼ��˿ɶ�������Ƕ�ײ���
+ * ����ƽ�ҡ�ͬ���ɼ������� ��3 �� test/design/glass.test.ts �������嵥��ס��
+ *
+ * �����䷽��������Ӧ Apple ʵ����������
+ *   - ��� + ģ�� + ���Ͷȣ��������� tokens.css �� `--glass-*` ȡ����д�����֣�
+ *   - 1px �����Ե��αԪ�� `padding: 1px` + `mask-composite: exclude`������ `border`
+ *     ��border ��� `overflow: hidden` һ��Ѹ߹�õ��Ҳ���ٲ���Բ�ǣ���
+ *   - ���㣺���� `feTurbulence` �� data-URI SVG��ѹס 8-bit �����ɫ�״���
+ *   - ָ�뾵�棺`--mx/--my` �����ľ��򽥱䣨ֻд CSS ���������Ĳ��֣���
+ *
+ * �������ࣨȱһ���ɣ���
+ *   �� ��֧�� backdrop-filter �� �˻�Ϊ��͸���棻
+ *   �� ϵͳ������͸���ȡ��� ��͸���� + ��ģ����
+ *   �� ϵͳ�����ٶ�̬���� ��ָ��߹⣨���������� .motion-reveal �е�����
+ *   �� �ƶ��ˣ���768px���� ģ������ 12px �ҹ�ָ��߹⡣
+ * ========================================================================== */
+
+/* ����ҳͷ�߶ȣ�ҳͷ������ȫվ scroll-padding-top ����ͬһ��ֵ��56�C64px ����ȡ 60px���� */
+:root {
+  --site-header-height: 3.75rem;
+}
+
+/* ê����ת��������ҳͷ�ڵ���html ����ҳ�Ĺ������������������������ȡ� */
+html {
+  scroll-padding-top: calc(var(--site-header-height) + 0.5rem);
+}
+
+.glass-thin,
+.glass-thick {
+  position: relative;
+  isolation: isolate;
+  background: var(--glass-thin-fill);
+  -webkit-backdrop-filter: saturate(var(--glass-thin-saturate)) blur(var(--glass-thin-blur));
+  backdrop-filter: saturate(var(--glass-thin-saturate)) blur(var(--glass-thin-blur));
+  box-shadow: 0 18px 44px -20px var(--color-shadow);
+  /* ָ�뾵���Ĭ��ʵ�֣�Բ������ --mx/--my��usePointerSpecular д�룩��
+   * ��Ҫ�ر�ʱ���ƶ��� / ���ٶ�̬ / ����͸���ȣ��������Զ��������ó� none�� */
+  --glass-specular: radial-gradient(
+    240px circle at var(--mx, 50%) var(--my, 0%),
+    var(--glass-rim),
+    transparent 62%
+  );
+  /* �̶����α�Ե��һ�����϶��µ�ů�� + ��������߹⣬��"����"һ��ͳһ��Դ�� */
+  --glass-rim-layer: linear-gradient(180deg, var(--glass-rim-warm), transparent 42%),
+    linear-gradient(90deg, var(--glass-rim), transparent 20%, transparent 80%, var(--glass-rim));
+}
+
+.glass-thick {
+  background: var(--glass-thick-fill);
+  -webkit-backdrop-filter: saturate(var(--glass-thick-saturate)) blur(var(--glass-thick-blur));
+  backdrop-filter: saturate(var(--glass-thick-saturate)) blur(var(--glass-thick-blur));
+}
+
+/* 1px �����Ե�������� border box �ڲ��һȦ��mask ���м��ڿա� */
+.glass-thin::before,
+.glass-thick::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  padding: 1px;
+  border-radius: inherit;
+  background:
+    var(
+      --glass-specular,
+      radial-gradient(
+        240px circle at var(--mx, 50%) var(--my, 0%),
+        var(--glass-rim),
+        transparent 62%
+      )
+    ),
+    var(--glass-rim-layer);
+  -webkit-mask:
+    linear-gradient(var(--color-ink), var(--color-ink)) content-box,
+    linear-gradient(var(--color-ink), var(--color-ink));
+  mask:
+    linear-gradient(var(--color-ink), var(--color-ink)) content-box,
+    linear-gradient(var(--color-ink), var(--color-ink));
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  pointer-events: none;
+  opacity: 0.85;
+}
+
+/* ���㣺���� feTurbulence��ѹסģ������� 8-bit ɫ�״��� */
+.glass-thin::after,
+.glass-thick::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 4;
+  border-radius: inherit;
+  pointer-events: none;
+  opacity: var(--glass-grain-opacity);
+  mix-blend-mode: overlay;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.8' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='160' height='160' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+
+/* ---- �� ��֧�ֱ���ģ������͸��ʵ���棨��������ѹ��"��͸����û��"�ĵ��ϣ� ---- */
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  .glass-thin,
+  .glass-thick {
+    background: var(--color-surface);
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+  }
+}
+
+/* ---- �� ϵͳ������͸���ȡ� ---- */
+@media (prefers-reduced-transparency: reduce) {
+  .glass-thin,
+  .glass-thick {
+    background: var(--color-surface);
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+    --glass-specular: none;
+  }
+}
+
+/* ---- �� ϵͳ�����ٶ�̬������ָ��߹⣻����/�Ӳ����ι��� ---- */
+@media (prefers-reduced-motion: reduce) {
+  .glass-thin,
+  .glass-thick {
+    --glass-specular: none;
+  }
+
+  .motion-reveal {
+    opacity: 1 !important;
+    transform: none !important;
+    transition: none !important;
+  }
+
+  .motion-parallax {
+    transform: none !important;
+  }
+}
+
+/* ---- �� �ƶ��ˣ�ģ������ --glass-blur-mobile��12px���ҹ�ָ��߹� ---- */
+@media (max-width: 768px) {
+  .glass-thin {
+    -webkit-backdrop-filter: saturate(var(--glass-thin-saturate))
+      blur(var(--glass-blur-mobile));
+    backdrop-filter: saturate(var(--glass-thin-saturate)) blur(var(--glass-blur-mobile));
+  }
+
+  .glass-thick {
+    -webkit-backdrop-filter: saturate(var(--glass-thick-saturate))
+      blur(var(--glass-blur-mobile));
+    backdrop-filter: saturate(var(--glass-thick-saturate)) blur(var(--glass-blur-mobile));
+  }
+
+  .glass-thin,
+  .glass-thick {
+    --glass-specular: none;
+  }
+}

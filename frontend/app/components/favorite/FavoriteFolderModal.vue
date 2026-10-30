@@ -4,12 +4,16 @@ import { NButton, NCard, NEmpty, NInput, NModal, NSkeleton, useMessage } from "n
 import type { FavoriteFolderItem } from "~/types/api";
 import { createFavoriteFolder, getOwnFavoriteFolders } from "~/services/favorite";
 import { favoriteArticle } from "~/services/article";
+import { usePointerSpecular } from "~/composables/usePointerSpecular";
 
 const props = defineProps<{
   show: boolean;
   articleId: string;
   articleTitle: string;
 }>();
+
+// 弹窗是厚玻璃浮层：指针镜面高光由统一 composable 写入 --mx/--my（移动端 / 减少动态关闭）。
+const { handlePointerMove } = usePointerSpecular();
 
 const emit = defineEmits<{
   "update:show": [value: boolean];
@@ -140,16 +144,23 @@ watch(
 <template>
   <NModal
     :show="modalOpen"
-    preset="card"
-    style="max-width: 640px; margin: 0 auto;"
     :mask-closable="!pending && !createPending"
     @update:show="modalOpen = $event"
   >
     <NCard
       title="选择收藏夹"
       :bordered="false"
-      class="surface-card surface-card--strong"
+      closable
+      class="glass-thick"
+      :style="{
+        '--n-color': 'var(--glass-thick-fill)',
+        '--n-border-radius': 'var(--radius-xl)',
+        maxWidth: '640px',
+        width: 'calc(100% - 32px)',
+        margin: '0 auto',
+      }"
       @close="closeModal"
+      @pointermove="handlePointerMove"
     >
       <div class="mb-5 flex flex-wrap items-start justify-between gap-3">
         <div>

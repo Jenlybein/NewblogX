@@ -80,12 +80,15 @@ describe('设计 token 漂移门禁（后台）', () => {
     expect(result.failures).toEqual([{ kind: 'baseline-should-shrink', file: 'app/components/admin/OldDirty.vue' }])
   })
 
-  it('真实后台当前处于 baseline 允许范围内（门禁为绿）', () => {
-    const result = checkProject({ projectDir, baselineFiles: loadBaseline(projectDir) })
+  it('真实后台当前已无裸色值（门禁为绿且 baseline 已清空）', () => {
+    const baselineFiles = loadBaseline(projectDir)
+    const result = checkProject({ projectDir, baselineFiles })
 
-    // 后台现在只剩 2 个存量文件；断言 >0 是为了确保这条用例真的在扫东西，
-    // 否则"扫描器返回空 → 门禁绿"这种失效模式会被漏掉。
-    expect(result.violations.length).toBeGreaterThan(0)
+    // #11 之后后台的颜色只剩 tokens.css / 语义 token 一条来源：
+    // baseline 必须收缩到空，扫描到的文件数 > 0 保证这条用例真的在扫东西。
+    expect(baselineFiles).toEqual([])
+    expect(result.scannedFiles.length).toBeGreaterThanOrEqual(25)
+    expect(result.violations).toEqual([])
     expect(result.ok).toBe(true)
   })
 

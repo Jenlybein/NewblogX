@@ -2,6 +2,8 @@ import { computed, ref } from "vue";
 
 import katexCssUrl from "katex/dist/katex.min.css?url";
 import highlightCssUrl from "highlight.js/styles/github.min.css?url";
+import githubDarkHighlightCssUrl from "highlight.js/styles/github-dark.min.css?url";
+import { useUiStore } from "~/stores/ui";
 import githubMarkdownCssUrl from "github-markdown-css/github-markdown-light.css?url";
 import githubMarkdownDarkCssUrl from "github-markdown-css/github-markdown-dark.css?url";
 import githubMarkdownLightColorblindCssUrl from "github-markdown-css/github-markdown-light-colorblind.css?url";
@@ -77,6 +79,7 @@ export const MARKDOWN_THEME_OPTIONS: ThemeOption[] = [
 ];
 
 export function useStudioMarkdownTheme() {
+  const uiStore = useUiStore();
   const selectedMarkdownTheme = ref<MarkdownThemeKey>("jelly");
 
   const markdownThemeOptions = MARKDOWN_THEME_OPTIONS;
@@ -107,10 +110,19 @@ export function useStudioMarkdownTheme() {
     "condensed-night-purple": markdownThemeCondensedNightPurpleCssUrl,
   };
 
-  const activeMarkdownThemeHref = computed(() => markdownThemeHrefMap[selectedMarkdownTheme.value]);
+  // 站点暗色时，默认的 GitHub Light 预览换成配套 dark 资源（避免预览里出现白块）；
+  // 其它第三方主题是用户显式选择，保持原样。
+  const activeMarkdownThemeHref = computed(() => {
+    if (uiStore.theme === "dark" && selectedMarkdownTheme.value === "github") {
+      return githubMarkdownDarkCssUrl;
+    }
+    return markdownThemeHrefMap[selectedMarkdownTheme.value];
+  });
   // 自有主题自带代码高亮配色；只有显式选择 GitHub 等通用主题时才需要外部的 highlight.css。
   const markdownSupportStyleHrefs = computed(() =>
-    selectedMarkdownTheme.value === "jelly" ? [katexCssUrl] : [katexCssUrl, highlightCssUrl],
+    selectedMarkdownTheme.value === "jelly"
+      ? [katexCssUrl]
+      : [katexCssUrl, uiStore.theme === "dark" ? githubDarkHighlightCssUrl : highlightCssUrl],
   );
 
   return {

@@ -165,7 +165,7 @@ useSeoMeta({
               <div
                 v-for="idx in 4"
                 :key="`folder-skeleton-${idx}`"
-                class="rounded-2xl border border-slate-200/70 bg-white/75 px-4 py-3"
+                class="rounded-2xl border border-line bg-surface px-4 py-3"
               >
                 <NSkeleton text width="70%" />
                 <NSkeleton text width="50%" class="mt-2" />
@@ -211,7 +211,7 @@ useSeoMeta({
           </section>
 
           <section class="studio-list-card !p-0">
-            <div class="studio-toolbar border-b border-slate-200/70 px-5 py-4 dark:border-slate-700/70">
+            <div class="studio-toolbar border-b border-line px-5 py-4">
               <div>
                 <h2 class="section-title">分组内容</h2>
                 <p class="muted">当前第 {{ contentPage }} 页</p>

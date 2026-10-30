@@ -1,9 +1,8 @@
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import { AnimatePresence, Motion } from "motion-v";
-import githubMarkdownCssUrl from "github-markdown-css/github-markdown-light.css?url";
+// markdown 渲染走自有 token 主题（明暗自动跟随），外部只留 katex 的数学字体样式。
 import katexCssUrl from "katex/dist/katex.min.css?url";
-import highlightCssUrl from "highlight.js/styles/github.css?url";
 
 import MarkdownRenderSurface from "~/components/common/MarkdownRenderSurface.vue";
 import { useJellyPanel } from "~/composables/useJellyPanel";
@@ -53,8 +52,7 @@ const assistantTagline = computed(
   () => props.aiInfo?.abstract || "问文章、问写法、问站内内容都可以；回答支持 Markdown。",
 );
 const glyphUrl = brandAssetUrl("/", "flat");
-const markdownThemeHref = githubMarkdownCssUrl;
-const markdownExtraStyleHrefs = [katexCssUrl, highlightCssUrl];
+const markdownExtraStyleHrefs = [katexCssUrl];
 
 // 客户端挂载守卫：AnimatePresence / 视口测量都只在浏览器里有意义。
 const hydrated = ref(false);
@@ -213,8 +211,7 @@ onBeforeUnmount(() => {
               <MarkdownRenderSurface
                 v-else
                 :source="message.content"
-                :theme-href="markdownThemeHref"
-                :extra-style-hrefs="markdownExtraStyleHrefs"
+                        :extra-style-hrefs="markdownExtraStyleHrefs"
                  article-class="jelly-panel__markdown markdown-body"
               />
               <span v-if="message.streaming" class="jelly-panel__caret" aria-hidden="true" />

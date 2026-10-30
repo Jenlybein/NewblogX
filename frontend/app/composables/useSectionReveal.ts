@@ -1,12 +1,11 @@
-import { computed, getCurrentScope, onScopeDispose, ref, type ComputedRef, type Ref } from "vue";
+import { computed, ref, type ComputedRef, type Ref } from "vue";
 import { useInView } from "motion-v";
 
 import {
   useMotionPreference,
   type UseMotionPreferenceOptions,
 } from "~/composables/useMotionPreference";
-import { MOTION_REVEAL_OFFSET_PX } from "~/utils/motion";
-import { sectionRevealStyle } from "~/utils/motion";
+import { MOTION_REVEAL_OFFSET_PX, sectionRevealStyle } from "~/utils/motion";
 
 export interface UseSectionRevealOptions {
   /** 注入「减少动态」的 media（测试与 SSR 用）。 */

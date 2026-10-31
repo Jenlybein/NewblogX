@@ -83,7 +83,7 @@ export const DECO_IDLE_SWAY_AMP_MIN = 0
 /** 静止摆动幅度上限（px/s²）。 */
 export const DECO_IDLE_SWAY_AMP_MAX = 40
 
-/** 静止摆动幅度默认值（px/s²），作用在自由端。 */
+/** 静止摆动幅度默认值（px/s²），作用在自由端（逐节点加权，指针端为 0、尾端为 1）。 */
 export const DECO_IDLE_SWAY_AMP_DEFAULT = 20
 
 /** 一个数值参数的元数据；表单与测试都只认这个形状。 */
@@ -131,7 +131,7 @@ export const DECO_ROPE_LENGTH_PARAM: DecoNumberParamMeta = {
   key: 'rope_length',
   label: '挂绳长度',
   unit: 'px',
-  hint: '挂绳总长，同时是松垂阈值：比指针到站标的实际距离长，绳子才会弯出弧线。',
+  hint: '挂绳总长，同时是松垂阈值：比指针到站标的实际距离长，挂绳才会弯出弧线。',
   min: DECO_ROPE_LENGTH_MIN,
   max: DECO_ROPE_LENGTH_MAX,
   step: 1,
@@ -143,7 +143,7 @@ export const DECO_SEGMENTS_PARAM: DecoNumberParamMeta = {
   key: 'segments',
   label: '链节点数',
   unit: '节',
-  hint: '绳子由多少个节点串成：越多摆动越顺滑，也越费 CPU；必须是整数。',
+  hint: '挂绳由多少个节点串成：越多摆动越顺滑，也越费 CPU；必须是整数。',
   min: DECO_SEGMENTS_MIN,
   max: DECO_SEGMENTS_MAX,
   step: 1,
@@ -157,7 +157,7 @@ export const DECO_GRAVITY_PARAM: DecoNumberParamMeta = {
   key: 'gravity',
   label: '重力',
   unit: 'px/s²',
-  hint: '重力加速度：只影响甩动时的摆动速度与滞后感，不会让绳子下垂（弧垂来自绳长）。',
+  hint: '重力加速度：只影响甩动时的摆动速度与滞后感，不会让挂绳下垂（弧垂来自绳长）。',
   min: DECO_GRAVITY_MIN,
   max: DECO_GRAVITY_MAX,
   step: 10,
@@ -277,7 +277,9 @@ export function clampDecoLineWidth(value: number): number {
     DECO_LINE_WIDTH_MAX,
     DECO_LINE_WIDTH_DEFAULT,
   )
-  return Number(clamped.toFixed(1))
+  // 与后端 `math.Round(v*10)/10` 同一条规则：toFixed 在半值上的舍入与
+  // math.Round 不同（2.55 → "2.5" vs 2.6），跨端共享夹具会抓住这种漂移。
+  return Math.round(clamped * 10) / 10
 }
 
 /** 「0 有合法含义」的数值参数共用钳位规则：0 原样保留，负数与非法回落默认。 */

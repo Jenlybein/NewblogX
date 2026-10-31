@@ -215,7 +215,7 @@ _Avoid_: 把基线数字写死在别处（曾出现"本地降到 0、CI 还停�
 位置：`backend/tools/archcheck/rules_test.go`；新增规则必须同时补人造用例。
 
 **门禁自检（verify-gates.sh）**：
-主动注入违规来证明每道门禁真的会红（11 道 canary），而不是永远绿。
+主动注入违规来证明每道门禁真的会红（13 道 canary），而不是永远绿。
 位置：`bash scripts/verify-gates.sh`；CI 里由 `gates-canary` job 调用同一脚本，不另写一份注入逻辑。
 
 **假绿 / 门禁撒谎**：

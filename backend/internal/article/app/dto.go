@@ -106,6 +106,13 @@ type AuthorView struct {
 	Abstract  string
 	CreatedAt time.Time
 
+	// Admin 表示作者是不是管理员（来自 user_models.role）。
+	//
+	// 读面过滤要用它：「显示非管理员发布文章」开关关闭时，非管理员作者的文章
+	// 在详情页按 404 处理（ADR-0017 决策 4）。放在作者视图里而不是让 handler
+	// 自己 join，是为了让 article 模块仍然只通过 UserPort 认识用户模块。
+	Admin bool
+
 	// 以下三项来自 user_stat_models。文章页右侧的作者卡要显示
 	// 「文章数 / 访问量 / 粉丝数」，之前没有这三个字段，前端拿到的恒为 undefined
 	// （模板里有 `|| 0` 兜底，所以不报错、只是永远显示 0）。

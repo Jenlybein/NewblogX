@@ -52,7 +52,7 @@ func TestRegisterAllRoutes(t *testing.T) {
 	// 仅验证路由表，不发起真实请求。
 	router.SetArticleHandler(articlehttp.NewHandler(nil, nil, nil, nil, nil))
 	router.ArticleRouter(api, runtimeMw)
-	router.SetSearchHandler(searchhttp.NewHandler(nil, nil, nil, "", nil))
+	router.SetSearchHandler(searchhttp.NewHandler(nil, nil, nil, "", nil, nil))
 	router.SearchRouter(api, runtimeMw)
 	router.SetNotificationHandler(notificationhttp.NewHandler(notificationtest.NewDefaultService()))
 	router.SitemsgRouter(api, runtimeMw)

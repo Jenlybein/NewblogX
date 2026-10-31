@@ -13,6 +13,7 @@ import (
 	"myblogx/internal/article/domain/top"
 	"myblogx/internal/article/domain/viewhistory"
 	"myblogx/internal/kernel/ctype"
+	"myblogx/internal/kernel/enum"
 )
 
 // FavoriteRepo 是 favorite.Repository 的 MySQL 实现。
@@ -221,10 +222,21 @@ func (r *FavoriteRepo) DeleteItemsByArticle(ctx context.Context, articleID domai
 //
 // 收藏快照 + 文章实时计数一次查出：列表页要展示 view/digg/comment/favor，
 // 快照里没有这些会变的数字，只能 join 文章表取当前值。
-func (r *FavoriteRepo) ListItems(ctx context.Context, folderID favorite.ID, offset, limit int) ([]*favorite.Item, int64, error) {
+//
+// onlyAdminAuthors 为真时（「显示非管理员发布文章」开关关闭）再 join 作者行，
+// 只保留 role = 管理员的条目。join 必须同时作用于 count 与当页查询：
+// 只过滤当页会让 total 变成全量，前端分页直接错乱。
+// 用快照里的 article_author_id 而不是文章表的 author_id：作者角色是**现读**的
+// （用户改角色后立刻生效），文章归属则取收藏时的快照，与列表展示一致。
+func (r *FavoriteRepo) ListItems(ctx context.Context, folderID favorite.ID, offset, limit int, onlyAdminAuthors bool) ([]*favorite.Item, int64, error) {
 	base := func() *gorm.DB {
-		return r.db.WithContext(ctx).Table("user_article_favor_models AS f").
+		q := r.db.WithContext(ctx).Table("user_article_favor_models AS f").
 			Where("f.favor_id = ? AND f.deleted_at IS NULL", ctype.ID(folderID))
+		if onlyAdminAuthors {
+			q = q.Joins("JOIN user_models AS author_u ON author_u.id = f.article_author_id AND author_u.role = ?",
+				int8(enum.RoleAdmin))
+		}
+		return q
 	}
 
 	var total int64
@@ -448,10 +460,20 @@ func (r *ViewHistoryRepo) Upsert(ctx context.Context, rec *viewhistory.Record) e
 // List 列出浏览历史。
 //
 // 一次 join 出列表页要的标题/封面与浏览者信息，避免 HTTP 层逐条回查。
-func (r *ViewHistoryRepo) List(ctx context.Context, userID domain.UserID, offset, limit int) ([]*viewhistory.Record, int64, error) {
+//
+// onlyAdminAuthors 为真时（「显示非管理员发布文章」开关关闭）再 join 文章作者行，
+// 只保留作者是管理员的记录；count 与当页查询共用同一组 join（理由同收藏内容）。
+// 历史表里没有作者快照，所以作者经由 article_models 现取。
+func (r *ViewHistoryRepo) List(ctx context.Context, userID domain.UserID, offset, limit int, onlyAdminAuthors bool) ([]*viewhistory.Record, int64, error) {
 	base := func() *gorm.DB {
-		return r.db.WithContext(ctx).Table("user_article_view_history_models AS h").
+		q := r.db.WithContext(ctx).Table("user_article_view_history_models AS h").
 			Where("h.user_id = ? AND h.deleted_at IS NULL", fromUserID(userID))
+		if onlyAdminAuthors {
+			q = q.Joins("JOIN article_models AS author_a ON author_a.id = h.article_id AND author_a.deleted_at IS NULL").
+				Joins("JOIN user_models AS author_u ON author_u.id = author_a.author_id AND author_u.role = ?",
+					int8(enum.RoleAdmin))
+		}
+		return q
 	}
 
 	var total int64

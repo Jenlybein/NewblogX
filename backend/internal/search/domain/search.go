@@ -85,6 +85,14 @@ type Request struct {
 	Key           string
 	LegacyUserID  ctype.ID
 	LegacyTagList []string
+
+	// OnlyAdminAuthors 为真时，公开读面（type 1/2/3）只返回管理员作者的文章。
+	//
+	// 它承载站点运行时配置 site.article.show_non_admin_articles 的**反面**，
+	// 由 adapter 每次请求现读后填入（见 ADR-0017 决策 4）。极性刻意选成
+	// "过滤开关"：零值 = 不过滤 = 与历史行为一致，漏填不会静默隐藏内容。
+	// type 4（自己的文章）与 type 5（后台）不受它影响。
+	OnlyAdminAuthors bool
 }
 
 // NormalizeType 默认公共搜索。

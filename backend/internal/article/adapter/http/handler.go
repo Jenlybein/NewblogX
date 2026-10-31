@@ -65,6 +65,18 @@ func (h *Handler) skipExamining() bool {
 	return h.site.GetRuntimeArticle().SkipExamining
 }
 
+// onlyAdminAuthors 取「显示非管理员发布文章」开关的反面，作为读面过滤开关。
+//
+// 做成方法而不是构造时的布尔：开关每请求现读，后台改完下一次请求即生效
+// （ADR-0017 决策 4 + house 的 provider 闭包模式）。没有配置服务时按默认值
+// true（展示）处理——宁可多出内容，也不要静默隐藏。
+func (h *Handler) onlyAdminAuthors() bool {
+	if h.site == nil {
+		return false
+	}
+	return !h.site.GetRuntimeArticle().ShowNonAdminArticles
+}
+
 // writePolicy 取站点「发布与展示」里与写作权限有关的两个开关（ADR-0017 决策 2）。
 //
 // 这里只负责"取值"，判定在 app/domain 层 —— HTTP 层不做权限决策，
@@ -110,7 +122,7 @@ func (h *Handler) fail(c *gin.Context, err error) {
 func (h *Handler) Detail(c *gin.Context) {
 	cr := middleware.GetBindUri[kernel.IDRequest](c)
 
-	view, err := h.svc.Detail(c.Request.Context(), cr.ID, h.viewerOf(c))
+	view, err := h.svc.Detail(c.Request.Context(), cr.ID, h.viewerOf(c), h.onlyAdminAuthors())
 	if err != nil {
 		h.fail(c, err)
 		return
@@ -254,7 +266,9 @@ func (h *Handler) Update(c *gin.Context) {
 	}
 
 	h.audit(c, "article_update", uri.ID, true, "更新文章")
-	view, err := h.svc.Detail(c.Request.Context(), uri.ID, h.viewerOf(c))
+	// 回读详情用于响应。作者本人不受显示开关影响（domain.CanBeSeenByReader），
+	// 所以自己的文章更新后照旧能拿到完整响应。
+	view, err := h.svc.Detail(c.Request.Context(), uri.ID, h.viewerOf(c), h.onlyAdminAuthors())
 	if err != nil {
 		res.OkWithMsg("更新成功", c)
 		return

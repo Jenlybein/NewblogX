@@ -512,7 +512,7 @@ func TestExistingDraftStillReadableAndDeletable(t *testing.T) {
 	svc, repos, _ := newService(t)
 	seedArticle(t, repos, ctype.NewID(1), author, domain.StatusDraft)
 
-	if _, err := svc.Detail(ctx, ctype.NewID(1), authorViewer()); err != nil {
+	if _, err := svc.Detail(ctx, ctype.NewID(1), authorViewer(), false); err != nil {
 		t.Fatalf("存量草稿应仍可打开: %v", err)
 	}
 	if _, err := svc.Delete(ctx, app.DeleteCmd{Actor: authorViewer(), ArticleID: ctype.NewID(1)}); err != nil {
@@ -718,11 +718,11 @@ func TestDetailHidesDraftFromAnonymous(t *testing.T) {
 	ctx := context.Background()
 	seedArticle(t, repos, ctype.NewID(1), author, domain.StatusDraft)
 
-	_, err := svc.Detail(ctx, ctype.NewID(1), domain.Anonymous())
+	_, err := svc.Detail(ctx, ctype.NewID(1), domain.Anonymous(), false)
 	if !errors.Is(err, domain.ErrArticleNotFound) {
 		t.Fatalf("匿名看草稿应报不存在，实际 %v", err)
 	}
-	if _, err := svc.Detail(ctx, ctype.NewID(1), authorViewer()); err != nil {
+	if _, err := svc.Detail(ctx, ctype.NewID(1), authorViewer(), false); err != nil {
 		t.Fatalf("作者应能看自己的草稿: %v", err)
 	}
 }
@@ -736,7 +736,7 @@ func TestDetailMergesCountersAndFlags(t *testing.T) {
 	repos.FakeCounters().Add(ctx, ctype.NewID(1), domain.Counters{View: 5, Digg: 2})
 	repos.FakeDiggs().Add(ctx, ctype.NewID(1), stranger)
 
-	view, err := svc.Detail(ctx, ctype.NewID(1), strangerViewer())
+	view, err := svc.Detail(ctx, ctype.NewID(1), strangerViewer(), false)
 	if err != nil {
 		t.Fatalf("查详情失败: %v", err)
 	}
@@ -859,7 +859,7 @@ func TestRecordViewWritesHistoryOnlyForLoggedIn(t *testing.T) {
 	if got := repos.FakeCounters().Get(ctype.NewID(1)).View; got != 1 {
 		t.Fatalf("浏览增量应为 1，实际 %d", got)
 	}
-	records, total, err := svc.ListViewHistory(ctx, strangerViewer(), domain.Page{Limit: 10})
+	records, total, err := svc.ListViewHistory(ctx, strangerViewer(), domain.Page{Limit: 10}, false)
 	if err != nil {
 		t.Fatalf("查历史失败: %v", err)
 	}
@@ -870,7 +870,7 @@ func TestRecordViewWritesHistoryOnlyForLoggedIn(t *testing.T) {
 	if err := svc.RecordView(ctx, ctype.NewID(1), strangerViewer()); err != nil {
 		t.Fatalf("登录用户浏览失败: %v", err)
 	}
-	records, total, err = svc.ListViewHistory(ctx, strangerViewer(), domain.Page{Limit: 10})
+	records, total, err = svc.ListViewHistory(ctx, strangerViewer(), domain.Page{Limit: 10}, false)
 	if err != nil {
 		t.Fatalf("查历史失败: %v", err)
 	}

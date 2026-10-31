@@ -32,7 +32,7 @@ async function save() {
   saving.value = true
   try {
     await updateAiRuntimeConfig(config.value)
-    message.success('站点级设置已保存')
+    message.success('AI 助手配置已保存')
   } catch {
     message.error('保存失败')
   } finally {
@@ -77,7 +77,7 @@ onMounted(load)
           <NInputNumber v-model:value="config.temperature" :min="0" :max="2" :step="0.1" />
         </NFormItem>
       </NSpace>
-      <NButton type="primary" :loading="saving" @click="save">保存站点级设置</NButton>
+      <NButton type="primary" :loading="saving" @click="save">保存 AI 助手配置</NButton>
     </NForm>
     <div v-else class="admin-empty">{{ loading ? '配置加载中' : '配置加载失败，刷新页面重试' }}</div>
 

@@ -321,6 +321,22 @@ export interface UploadRuntimeConfig {
   whitelist: string[]
 }
 
+/**
+ * 装饰配置（第 8 段 deco）。
+ *
+ * 本票只有光标挂件子块的两个参数：总开关与站标尺寸。
+ * 挂绳长度、节点数、重力、阻尼等留给票 #41 —— 届时在这里继续加字段，
+ * 段结构与路由都不用动（响应本来就是自由键值块）。
+ */
+export interface DecoRuntimeConfig {
+  charm: {
+    /** 光标挂件总开关；默认开。 */
+    enable: boolean
+    /** 站标显示尺寸，单位 px，合法区间 24–96。 */
+    logo_size: number
+  }
+}
+
 /** 首次初始化状态。 */
 export interface SetupStatusData {
   /** 为真表示库里还没有管理员，初始化入口开放 */

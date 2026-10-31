@@ -43,4 +43,10 @@ describe("兄弟 Tab 的文案句式（改动不能只落在 AI Tab 上）", () 
     expect(readComponent("SettingsMail.vue")).toContain("保存邮件配置");
     expect(readComponent("SettingsLog.vue")).toContain("保存日志配置");
   });
+
+  it("新增的装饰 Tab 也照同一句式（票 #40）", () => {
+    const source = readComponent("SettingsDeco.vue");
+    expect(source).toContain("保存装饰配置");
+    expect(source).toContain("装饰配置已保存");
+  });
 });

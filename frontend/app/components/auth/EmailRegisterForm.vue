@@ -60,7 +60,7 @@ async function handleSendCode() {
   try {
     const payload = await sendEmailCode({
       email: values.email,
-      type: 2,
+      purpose: "register",
     });
     emailId.value = payload.id;
     startCountdown();

@@ -257,10 +257,14 @@ func (b *directoryBridge) BindEmail(ctx context.Context, userID uint64, email st
 	return b.svc.BindEmail(ctx, ctype.NewID(userID), email)
 }
 
-// emailCodeBridge 实现 authapp.EmailCodes：频控 + 按场景决定是否真的发信。
+// emailCodeBridge 实现 authapp.EmailCodes：频控 + 按场景校验邮箱状态后发信。
 //
-// 「是否真的发」是按旧实现的刻意设计：注册时邮箱已存在就不发，但接口照样返回
-// 成功和 id——否则任何人都能拿这个接口批量探测哪些邮箱已注册。
+// 邮箱状态与四个场景必须匹配：注册/绑定要求邮箱**还没**被占用，重置密码/邮箱登录
+// 要求邮箱**已经**是某个账号的。不匹配时直接返回失败并说明原因，**不再"返回成功
+// 但不发信"**：那种静默失效最难排查——接口 200、前端提示"验证码已发送"，用户却
+// 永远收不到信，还会拿着一个没有对应记录的空 id 去提交（2026-10-31 线上事故：
+// 读者站注册表单误传了 2=重置密码）。代价是这个公开接口能被用来探测某个邮箱
+// 是否已注册，这是刻意接受的取舍，见 docs/adr/0014。
 type emailCodeBridge struct {
 	users        userdomain.Repository
 	mailer       *mail.Service
@@ -274,14 +278,33 @@ var _ authapp.EmailCodes = (*emailCodeBridge)(nil)
 
 // Send 实现 authapp.EmailCodes。
 func (b *emailCodeBridge) Send(ctx context.Context, kind int8, email, ip string) (string, error) {
-	lc := b.loginConf()
-	if !redis_user.AllowEmailSend(b.redisOptions, lc, email, ip, kind) {
-		return "", apperr.New(apperr.CodeAuthTooFrequent)
-	}
-
 	exists, err := b.users.ExistsEmail(ctx, email, "")
 	if err != nil {
 		return "", err
+	}
+
+	switch mail.Kind(kind) {
+	case mail.KindRegister:
+		if exists {
+			return "", apperr.New(apperr.CodeUserEmailRegistered)
+		}
+	case mail.KindBindEmail:
+		if exists {
+			return "", apperr.New(apperr.CodeUserEmailTaken)
+		}
+	case mail.KindResetPassword, mail.KindLogin:
+		if !exists {
+			return "", apperr.New(apperr.CodeUserEmailUnregistered)
+		}
+	default:
+		return "", apperr.New(apperr.CodeUserMailSendFailed)
+	}
+
+	// 频控放在状态校验之后：被拒的请求（比如拿已注册的邮箱去注册）不该
+	// 顺手烧掉同一邮箱的发码额度，否则用户按提示换个入口重试会被无谓地挡住。
+	lc := b.loginConf()
+	if !redis_user.AllowEmailSend(b.redisOptions, lc, email, ip, kind) {
+		return "", apperr.New(apperr.CodeUserMailTooFrequent)
 	}
 
 	timeout := lc.EmailCodeTimeout
@@ -290,36 +313,20 @@ func (b *emailCodeBridge) Send(ctx context.Context, kind int8, email, ip string)
 	}
 	code := base64Captcha.RandText(4, "0123456789")
 
-	// 是否真的发信取决于邮箱是否已存在：
-	// 注册/绑定要求不存在，重置密码/登录要求存在。
-	shouldSend := false
-	switch kind {
-	case 1, 3:
-		shouldSend = !exists
-	case 2, 4:
-		shouldSend = exists
-	default:
+	// 四种场景共用同一个 SES 模板，靠 action 变量区分文案。
+	if err := b.mailer.SendCode(ctx, b.mailConf(), email, mail.Kind(kind), code, timeout); err != nil {
+		if b.logger != nil {
+			b.logger.Errorf("邮件发送失败: to=%s err=%v", email, err)
+		}
 		return "", apperr.New(apperr.CodeUserMailSendFailed)
 	}
 
-	if shouldSend {
-		// 四种场景共用同一个 SES 模板，靠 action 变量区分文案。
-		if err := b.mailer.SendCode(ctx, b.mailConf(), email, mail.Kind(kind), code, timeout); err != nil {
-			if b.logger != nil {
-				b.logger.Errorf("邮件发送失败: to=%s err=%v", email, err)
-			}
-			return "", apperr.New(apperr.CodeUserMailSendFailed)
-		}
-	}
-
 	id := base64Captcha.RandomId()
-	if shouldSend {
-		if err := redis_email.Store(b.redisOptions, id, email, code, timeout, 3); err != nil {
-			if b.logger != nil {
-				b.logger.Errorf("邮件验证码存储失败: %v", err)
-			}
-			return "", apperr.New(apperr.CodeUserMailSendFailed)
+	if err := redis_email.Store(b.redisOptions, id, email, code, timeout, 3); err != nil {
+		if b.logger != nil {
+			b.logger.Errorf("邮件验证码存储失败: %v", err)
 		}
+		return "", apperr.New(apperr.CodeUserMailSendFailed)
 	}
 	return id, nil
 }

@@ -283,7 +283,7 @@ async function sendBindCode() {
   try {
     const payload = await sendEmailCode({
       email: emailBindForm.email.trim(),
-      type: 4,
+      purpose: "bindEmail",
     });
     emailBindForm.email_id = payload.id;
     message.success("邮箱验证码已发送");

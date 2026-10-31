@@ -14,8 +14,10 @@ type BannerRepository interface {
 	Find(ctx context.Context, id uint64) (Banner, error)
 	// Create 新建轮播图。
 	Create(ctx context.Context, b *Banner) error
-	// Update 覆盖封面/链接/展示状态。
-	Update(ctx context.Context, id uint64, cover, href string, show bool) error
+	// Update 覆盖封面/链接/展示状态，并整体替换取景参数。
+	//
+	// 取景也是整体替换：PUT 语义下"不传取景"等于回到缺省，而不是保留旧值。
+	Update(ctx context.Context, id uint64, cover, href string, show bool, crop Crop) error
 	// Delete 批量删除，返回实际删除条数。
 	Delete(ctx context.Context, ids []uint64) (int, error)
 }

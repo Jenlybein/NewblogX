@@ -185,6 +185,11 @@ const (
 	CodeSiteConfigMissing Code = "site.config_missing"
 	CodeSiteInfoNotFound  Code = "site.info_not_found"
 	CodeBannerNotFound    Code = "banner.not_found"
+	// CodeBannerCropInvalid 表示取景参数越界（焦点不在 0–1、缩放不在 1–2）。
+	//
+	// 越界一律拒绝而不是钳制：静默改值会让"运营看到的取景"与"读者看到的取景"
+	// 分家，而两边都没有任何提示。
+	CodeBannerCropInvalid Code = "banner.crop_invalid"
 
 	CodeRuntimeConfigDBMissing    Code = "runtimeconfig.db_missing"
 	CodeRuntimeConfigPathMissing  Code = "runtimeconfig.path_missing"
@@ -192,7 +197,7 @@ const (
 
 	// 首次初始化。闸门是"库里还没有管理员"：一旦有了管理员，
 	// 这两个接口就永久关闭，避免成为绕过鉴权的后门。
-	CodeSetupAlreadyDone Code = "setup.already_done"
+	CodeSetupAlreadyDone          Code = "setup.already_done"
 	CodeRuntimeConfigTableMissing Code = "runtimeconfig.table_missing"
 )
 
@@ -400,6 +405,7 @@ var messages = map[Code]string{
 	CodeSiteConfigMissing: "运行时配置服务未初始化",
 	CodeSiteInfoNotFound:  "站点信息不存在",
 	CodeBannerNotFound:    "轮播图不存在",
+	CodeBannerCropInvalid: "取景参数超出范围：焦点需在 0 到 1 之间，缩放需在 1 到 2 之间",
 
 	CodeSetupAlreadyDone: "站点已初始化完成，该入口已关闭",
 

@@ -5472,20 +5472,35 @@ export interface components {
         };
         "internal_site_adapter_http.BannerCreateRequest": {
             cover_image_id: string;
+            /**
+             * @description Crop 是可选取景参数：不传等于"居中、缩放 1"。
+             *
+             *     可选是为了让老调用方（还没接取景的后台）照旧能创建与更新；
+             *     但更新是整体替换，所以不传 = 回到缺省，而不是保留上一次的取景。
+             */
+            crop?: components["schemas"]["internal_site_adapter_http.BannerCrop"];
             href?: string;
             show?: boolean;
         };
         "internal_site_adapter_http.BannerCreateResponse": {
             cover?: string;
             cover_image_id?: string;
+            crop?: components["schemas"]["internal_site_adapter_http.BannerCrop"];
             href?: string;
             id?: string;
             show?: boolean;
+        };
+        "internal_site_adapter_http.BannerCrop": {
+            focus_x?: number;
+            focus_y?: number;
+            zoom?: number;
         };
         "internal_site_adapter_http.BannerItem": {
             cover?: string;
             cover_image_id?: string;
             created_at?: string;
+            /** @description Crop 总是有值：没有取景记录的历史图回传缺省（居中、缩放 1）。 */
+            crop?: components["schemas"]["internal_site_adapter_http.BannerCrop"];
             deleted_at?: string;
             href?: string;
             id?: string;

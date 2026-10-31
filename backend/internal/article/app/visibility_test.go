@@ -9,6 +9,7 @@ import (
 	"myblogx/internal/article/apptest"
 	"myblogx/internal/article/domain"
 	"myblogx/internal/article/domain/favorite"
+	"myblogx/internal/article/domain/hottop"
 	"myblogx/internal/article/domain/viewhistory"
 	"myblogx/internal/kernel/ctype"
 )
@@ -152,6 +153,48 @@ func TestViewHistoryThreadReadFilter(t *testing.T) {
 				t.Fatalf("列浏览历史失败: %v", err)
 			}
 			if got := repos.FakeHistory().ListOnlyAdminAuthors(); got != c.onlyAdminAuthors {
+				t.Fatalf("查询层收到的过滤应等于开关状态: got=%v want=%v", got, c.onlyAdminAuthors)
+			}
+		})
+	}
+}
+
+// TestHotTopCardsThreadReadFilter 证明首页「热门置顶」把开关交给了查询层。
+//
+// 热门置顶也是读者端公开读面（ADR-0017 决策 4）：开关关闭时，作者不是管理员的
+// 置顶卡片不能出现在首页。与收藏内容 / 浏览历史一样，真正的过滤在 SQL 里
+// （adapter/mysql 的集成测试守），这里只锁"开关确实传下去了"——
+// 漏传的表现是首页照样展示被隐藏作者的文章，而其它读面都正常，很难发现。
+func TestHotTopCardsThreadReadFilter(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+
+	cases := []struct {
+		name             string
+		onlyAdminAuthors bool
+	}{
+		{name: "开关打开", onlyAdminAuthors: false},
+		{name: "开关关闭", onlyAdminAuthors: true},
+	}
+
+	for _, c := range cases {
+		c := c
+		t.Run(c.name, func(t *testing.T) {
+			svc, repos, _ := newService(t)
+			repos.FakeHotTops().SeedCards(hottop.Card{
+				ArticleID: domain.ArticleID(ctype.NewID(1)),
+				Title:     "置顶卡片",
+			})
+
+			cards, err := svc.ListHotTopCards(ctx, c.onlyAdminAuthors)
+			if err != nil {
+				t.Fatalf("读热门置顶失败: %v", err)
+			}
+			if len(cards) != 1 {
+				t.Fatalf("预置的卡片应被透出，实际 %+v", cards)
+			}
+			if got := repos.FakeHotTops().ListCardsOnlyAdminAuthors(); got != c.onlyAdminAuthors {
 				t.Fatalf("查询层收到的过滤应等于开关状态: got=%v want=%v", got, c.onlyAdminAuthors)
 			}
 		})

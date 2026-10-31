@@ -23,11 +23,17 @@ import (
 
 var hotTopBaseTime = time.Date(2026, 1, 1, 12, 0, 0, 0, time.UTC)
 
-// seedHotTopArticle 插入一篇置顶候选文章。
+// seedHotTopArticle 插入一篇置顶候选文章（作者 100）。
 //
 // 直接写行而不是走 app 用例：本文件测仓储，种子数据的意图要一眼可见
 // （哪个状态、哪个可见性），走用例反而要反推作者/审核链路。
 func seedHotTopArticle(t *testing.T, db *gorm.DB, id uint64, status schema.ArticleStatus, visibility schema.ArticleVisibility, categoryID *ctype.ID) {
+	t.Helper()
+	seedHotTopArticleBy(t, db, id, 100, status, visibility, categoryID)
+}
+
+// seedHotTopArticleBy 同 seedHotTopArticle，但指定作者（用来验"只出管理员作者"）。
+func seedHotTopArticleBy(t *testing.T, db *gorm.DB, id, authorID uint64, status schema.ArticleStatus, visibility schema.ArticleVisibility, categoryID *ctype.ID) {
 	t.Helper()
 	schema.InsertArticle(t, db, schema.ArticleSpec{
 		ID:             id,
@@ -35,7 +41,7 @@ func seedHotTopArticle(t *testing.T, db *gorm.DB, id uint64, status schema.Artic
 		Abstract:       "摘要" + itoa(id),
 		Content:        "正文",
 		CategoryID:     categoryID,
-		AuthorID:       100,
+		AuthorID:       authorID,
 		ViewCount:      int(id * 10),
 		PublishStatus:  status,
 		Visibility:     visibility,
@@ -241,7 +247,7 @@ func TestHotTopRepo_ListCardsSkipsStale(t *testing.T) {
 		t.Fatalf("软删文章失败: %v", err)
 	}
 
-	cards, err := repo.ListCards(ctx)
+	cards, err := repo.ListCards(ctx, false)
 	if err != nil {
 		t.Fatalf("读公开卡片失败: %v", err)
 	}
@@ -263,6 +269,70 @@ func TestHotTopRepo_ListCardsSkipsStale(t *testing.T) {
 	}
 	if len(items) != 5 {
 		t.Fatalf("后台列表应含全部 5 行（含失效），实际 %d", len(items))
+	}
+}
+
+// TestHotTopRepo_ListCardsFiltersNonAdminAuthor 「显示非管理员发布文章」关闭时
+// 公开卡片只剩管理员作者的文章。
+//
+// 热门置顶是读者端公开读面（ADR-0017 决策 4），所以它不能只过滤"文章还在不在"：
+// 作者不是管理员时，即使文章仍"已发布 + visible"，首页运营位也不该出现它。
+// 没有这一条，关掉开关后首页仍会把被隐藏的文章顶在最上面。
+func TestHotTopRepo_ListCardsFiltersNonAdminAuthor(t *testing.T) {
+	t.Parallel()
+
+	db := migrate(t)
+	seedUser(t, db, 100) // 普通作者
+	schema.InsertUser(t, db, schema.UserSpec{
+		ID:       900,
+		Username: "hot_top_admin",
+		Nickname: "管理员作者",
+		Role:     schema.RoleAdmin,
+	})
+
+	// 两篇都是"已发布 + 可见"：唯一差别在作者角色。
+	seedHotTopArticleBy(t, db, 1, 100,
+		schema.ArticleStatusPublished, schema.VisibilityVisible, nil)
+	seedHotTopArticleBy(t, db, 2, 900,
+		schema.ArticleStatusPublished, schema.VisibilityVisible, nil)
+
+	repo := mysql.NewHotTopRepo(db)
+	ctx := context.Background()
+	for i := uint64(1); i <= 2; i++ {
+		if _, err := repo.Save(ctx, ctype.NewID(i)); err != nil {
+			t.Fatalf("置顶 %d 失败: %v", i, err)
+		}
+	}
+
+	// 开关打开：两篇都出，顺序不变（与改造前一致）。
+	all, err := repo.ListCards(ctx, false)
+	if err != nil {
+		t.Fatalf("开关打开时读公开卡片失败: %v", err)
+	}
+	if len(all) != 2 || all[0].ArticleID != ctype.NewID(1) || all[1].ArticleID != ctype.NewID(2) {
+		t.Fatalf("开关打开时应返回 [1 2]，实际 %+v", all)
+	}
+
+	// 开关关闭：只剩管理员作者那篇，且它的 join 字段照旧。
+	onlyAdmin, err := repo.ListCards(ctx, true)
+	if err != nil {
+		t.Fatalf("开关关闭时读公开卡片失败: %v", err)
+	}
+	if len(onlyAdmin) != 1 {
+		t.Fatalf("开关关闭时应只剩管理员作者那篇，实际 %+v", onlyAdmin)
+	}
+	card := onlyAdmin[0]
+	if card.ArticleID != ctype.NewID(2) || card.AuthorNickname != "管理员作者" {
+		t.Fatalf("保留下来的卡片不符: %+v", card)
+	}
+
+	// 后台列表不受开关影响：运营要能看见并清理全部置顶行。
+	items, err := repo.ListAdminItems(ctx)
+	if err != nil {
+		t.Fatalf("读后台列表失败: %v", err)
+	}
+	if len(items) != 2 {
+		t.Fatalf("后台列表应仍是 2 行，实际 %d", len(items))
 	}
 }
 

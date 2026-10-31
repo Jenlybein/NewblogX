@@ -276,6 +276,22 @@
     @apply block h-full w-full object-cover;
   }
 
+  /* 列表里的原图尺寸：宽高用等宽字体，比例标记交给 NTag；未知时只显示一行灰字。 */
+  .admin-cover-size {
+    @apply flex flex-col gap-1;
+  }
+
+  .admin-cover-size__pixels {
+    @apply text-xs;
+    font-family: var(--font-mono);
+    color: var(--color-ink);
+  }
+
+  .admin-cover-size__muted {
+    @apply text-xs;
+    color: var(--color-ink-muted);
+  }
+
   /* 封面兜底：同一套中性石墨渐变 + 发丝网格（不再是「蓝 → 暖灰」的旧过渡层）。 */
   .admin-article-cover__fallback {
     @apply relative flex h-full w-full flex-col justify-end overflow-hidden p-2;

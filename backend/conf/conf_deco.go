@@ -57,6 +57,28 @@ const (
 	CharmDampingMax = 0.995
 	// CharmDampingDefault 是默认阻尼。
 	CharmDampingDefault = 0.99
+
+	// CharmLineWidthMin 是描边起始宽度下限：1 px，再细就看不见了。
+	CharmLineWidthMin = 1.0
+	// CharmLineWidthMax 是描边起始宽度上限：6 px，再粗会抢正文。
+	CharmLineWidthMax = 6.0
+	// CharmLineWidthDefault 是默认描边起始宽度（收尾固定为它的 0.6 倍，不进配置）。
+	CharmLineWidthDefault = 2.5
+
+	// CharmIdleSwayHzMin 是静止摆动频率下限。**0 是合法值**：它表示关掉轻晃。
+	CharmIdleSwayHzMin = 0.0
+	// CharmIdleSwayHzMax 是静止摆动频率上限：再快就不是"轻晃"了。
+	CharmIdleSwayHzMax = 1.5
+	// CharmIdleSwayHzDefault 是默认静止摆动频率（0.8Hz 的周期是 1.25s）。
+	CharmIdleSwayHzDefault = 0.8
+
+	// CharmIdleSwayAmpMin 是静止摆动幅度下限（px/s²）。**0 是合法值**：
+	// 它让组合式退回"静止即停帧"的零帧车道（见票 #42 的实施裁决）。
+	CharmIdleSwayAmpMin = 0.0
+	// CharmIdleSwayAmpMax 是静止摆动幅度上限（px/s²）。
+	CharmIdleSwayAmpMax = 40.0
+	// CharmIdleSwayAmpDefault 是默认静止摆动幅度。
+	CharmIdleSwayAmpDefault = 20.0
 )
 
 // Deco 是装饰配置段。
@@ -67,8 +89,9 @@ type Deco struct {
 
 // Charm 是光标挂件的参数。
 //
-// 总开关 + 五个数值参数。挂绳长度、节点数、重力、阻尼由票 #41 接入物理；
-// 弧垂、静止摆动、线宽、恢复默认是票 #42 / #43，不在这里提前加字段。
+// 总开关 + 八个数值参数。票 #41 接入挂绳长度、节点数、重力、阻尼；
+// 票 #42 接入描边宽度、静止摆动频率与幅度（弧垂由"绳长 vs 实际距离"产生，
+// 没有单独的"sag"参数）。
 type Charm struct {
 	// Enable 是总开关。默认开着：功能上线后读者立刻就能看到。
 	Enable bool `yaml:"enable" json:"enable"`
@@ -78,10 +101,17 @@ type Charm struct {
 	RopeLength float64 `yaml:"rope_length" json:"rope_length"`
 	// Segments 是 Verlet 链的节点数（节），整数计数。
 	Segments int `yaml:"segments" json:"segments"`
+	// LineWidth 是描边起始宽度，单位 px（收尾宽度固定为它的 0.6 倍）。
+	LineWidth float64 `yaml:"line_width" json:"line_width"`
 	// Gravity 是重力加速度，单位 px/s²。
 	Gravity float64 `yaml:"gravity" json:"gravity"`
 	// Damping 是每个固定步长后保留的速度比例（无量纲，必须小于 1）。
 	Damping float64 `yaml:"damping" json:"damping"`
+	// IdleSwayHz 是静止摆动的频率，单位 Hz。0 表示关掉轻晃。
+	IdleSwayHz float64 `yaml:"idle_sway_hz" json:"idle_sway_hz"`
+	// IdleSwayAmp 是静止摆动的加速度幅度，单位 px/s²，作用在自由端。
+	// 0 表示关掉轻晃（读者站据此退回静止零帧车道）。
+	IdleSwayAmp float64 `yaml:"idle_sway_amp" json:"idle_sway_amp"`
 }
 
 // Normalize 把装饰配置收敛进合法范围，永不报错。
@@ -99,6 +129,11 @@ func (d Deco) Normalize() Deco {
 	d.Charm.RopeLength = normalizePositiveRange(d.Charm.RopeLength, CharmRopeLengthMin, CharmRopeLengthMax, CharmRopeLengthDefault)
 	d.Charm.Gravity = normalizePositiveRange(d.Charm.Gravity, CharmGravityMin, CharmGravityMax, CharmGravityDefault)
 	d.Charm.Damping = normalizePositiveRange(d.Charm.Damping, CharmDampingMin, CharmDampingMax, CharmDampingDefault)
+	d.Charm.LineWidth = normalizeLineWidth(d.Charm.LineWidth)
+	// 轻晃的两个参数把 0 当作"关掉轻晃"的合法意图（裁决要求 amp=0 能退回零帧），
+	// 所以它们走"非负区间"规则而不是"正数"规则。
+	d.Charm.IdleSwayHz = normalizeNonNegativeRange(d.Charm.IdleSwayHz, CharmIdleSwayHzMin, CharmIdleSwayHzMax, CharmIdleSwayHzDefault)
+	d.Charm.IdleSwayAmp = normalizeNonNegativeRange(d.Charm.IdleSwayAmp, CharmIdleSwayAmpMin, CharmIdleSwayAmpMax, CharmIdleSwayAmpDefault)
 	d.Charm.Segments = normalizeSegments(d.Charm.Segments)
 	return d
 }
@@ -116,6 +151,33 @@ func normalizePositiveRange(v, min, max, fallback float64) float64 {
 		return fallback
 	}
 	return math.Min(max, math.Max(min, v))
+}
+
+// normalizeNonNegativeRange 是"0 有合法含义"的数值参数（静止摆动频率 / 幅度）
+// 的钳位规则。
+//
+// 它和 normalizePositiveRange 只差一点：0 不回落默认值，而是原样保留 ——
+// 这是管理员"关掉轻晃"的明确意图。负数与 NaN 仍然回落默认，因为负数在这里
+// 没有物理意义（不是"更慢/更小"）。
+func normalizeNonNegativeRange(v, min, max, fallback float64) float64 {
+	if math.IsNaN(v) || math.IsInf(v, 0) {
+		return fallback
+	}
+	if v < 0 {
+		return fallback
+	}
+	return math.Min(max, math.Max(min, v))
+}
+
+// normalizeLineWidth 是描边起始宽度的钳位规则。
+//
+// 除了"跟其它正数参数一样"的越界钳位 / 缺省回落，它还多做一件事：
+// 保留一位小数。线宽是唯一一个"小数位有实际意义"的长度参数（2.5 与 2.56
+// 在 1px 级的细线上肉眼没差别），把库里的值收成 0.1 的整数倍，可以避免
+// 后台输入框回填出一串长浮点。
+func normalizeLineWidth(v float64) float64 {
+	v = normalizePositiveRange(v, CharmLineWidthMin, CharmLineWidthMax, CharmLineWidthDefault)
+	return math.Round(v*10) / 10
 }
 
 // normalizeSegments 是节点数的钳位规则：计数没有 NaN / Infinity，

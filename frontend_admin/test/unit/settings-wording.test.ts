@@ -50,3 +50,26 @@ describe("兄弟 Tab 的文案句式（改动不能只落在 AI Tab 上）", () 
     expect(source).toContain("装饰配置已保存");
   });
 });
+
+describe("装饰 Tab 的「恢复默认」（票 #42）", () => {
+  it("按钮存在，且重置只写本地表单、不自动保存到服务器", () => {
+    const source = readComponent("SettingsDeco.vue");
+
+    expect(source).toContain("恢复默认");
+    // 恢复默认的目标值由工具层统一提供（九个默认值），组件不自己写数字。
+    expect(source).toContain("defaultDecoConfig");
+    // 反例守卫：重置处理函数里不能出现任何写接口调用。切出 `resetDefaults`
+    // 的函数体，断言它没碰 updateDecoRuntimeConfig / save( )。
+    const resetBody = source.match(/function resetDefaults\(\) \{([\s\S]*?)\}/u)?.[1] ?? "";
+    expect(resetBody.length).toBeGreaterThan(0);
+    expect(resetBody).not.toContain("updateDecoRuntimeConfig");
+    expect(resetBody).not.toContain("save(");
+  });
+
+  it("数值输入行数由元数据驱动，不是手写固定五行", () => {
+    const source = readComponent("SettingsDeco.vue");
+
+    expect(source).toContain("v-for=\"param in numberParams\"");
+    expect(source).not.toContain("五行");
+  });
+});

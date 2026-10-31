@@ -59,10 +59,45 @@ export const DECO_DAMPING_MAX = 0.995
 /** 每步速度保持系数默认值（无量纲）。 */
 export const DECO_DAMPING_DEFAULT = 0.99
 
+/** 描边起始宽度下限（px）。 */
+export const DECO_LINE_WIDTH_MIN = 1
+
+/** 描边起始宽度上限（px）。 */
+export const DECO_LINE_WIDTH_MAX = 6
+
+/** 描边起始宽度默认值（px）；收尾固定为它的 0.6 倍（不是配置项）。 */
+export const DECO_LINE_WIDTH_DEFAULT = 2.5
+
+/** 静止摆动频率下限（Hz）。0 是合法值：表示关掉轻晃。 */
+export const DECO_IDLE_SWAY_HZ_MIN = 0
+
+/** 静止摆动频率上限（Hz）。 */
+export const DECO_IDLE_SWAY_HZ_MAX = 1.5
+
+/** 静止摆动频率默认值（Hz）。 */
+export const DECO_IDLE_SWAY_HZ_DEFAULT = 0.8
+
+/** 静止摆动幅度下限（px/s²）。0 是合法值：退回"静止即零帧"。 */
+export const DECO_IDLE_SWAY_AMP_MIN = 0
+
+/** 静止摆动幅度上限（px/s²）。 */
+export const DECO_IDLE_SWAY_AMP_MAX = 40
+
+/** 静止摆动幅度默认值（px/s²），作用在自由端。 */
+export const DECO_IDLE_SWAY_AMP_DEFAULT = 20
+
 /** 一个数值参数的元数据；表单与测试都只认这个形状。 */
 export interface DecoNumberParamMeta {
   /** 提交给后端的键名（snake_case，与 Go 的 json tag 一致）。 */
-  key: 'logo_size' | 'rope_length' | 'segments' | 'gravity' | 'damping'
+  key:
+    | 'logo_size'
+    | 'rope_length'
+    | 'segments'
+    | 'line_width'
+    | 'gravity'
+    | 'damping'
+    | 'idle_sway_hz'
+    | 'idle_sway_amp'
   /** 表单项标签。 */
   label: string
   /** 单位后缀，直接显示在输入框右侧。 */
@@ -141,8 +176,45 @@ export const DECO_DAMPING_PARAM: DecoNumberParamMeta = {
   defaultValue: DECO_DAMPING_DEFAULT,
 }
 
+/** 描边起始宽度（票 #42）。 */
+export const DECO_LINE_WIDTH_PARAM: DecoNumberParamMeta = {
+  key: 'line_width',
+  label: '描边宽度',
+  unit: 'px',
+  hint: '挂绳起始处的线宽：收尾固定为它的 0.6 倍，越细越像发丝；保留一位小数。',
+  min: DECO_LINE_WIDTH_MIN,
+  max: DECO_LINE_WIDTH_MAX,
+  step: 0.1,
+  defaultValue: DECO_LINE_WIDTH_DEFAULT,
+  precision: 1,
+}
+
+/** 静止摆动频率（票 #42）。 */
+export const DECO_IDLE_SWAY_HZ_PARAM: DecoNumberParamMeta = {
+  key: 'idle_sway_hz',
+  label: '静止摆动频率',
+  unit: 'Hz',
+  hint: '指针静止时轻晃的快慢：0.8Hz 约 1.25 秒一个来回；填 0 也可以（配合幅度 0 关掉轻晃）。',
+  min: DECO_IDLE_SWAY_HZ_MIN,
+  max: DECO_IDLE_SWAY_HZ_MAX,
+  step: 0.1,
+  defaultValue: DECO_IDLE_SWAY_HZ_DEFAULT,
+}
+
+/** 静止摆动幅度（票 #42）。 */
+export const DECO_IDLE_SWAY_AMP_PARAM: DecoNumberParamMeta = {
+  key: 'idle_sway_amp',
+  label: '静止摆动幅度',
+  unit: 'px/s²',
+  hint: '轻晃的加速度幅度：0 表示不轻晃（读者站回到静止即零帧的省电模式）；越大晃得越明显。',
+  min: DECO_IDLE_SWAY_AMP_MIN,
+  max: DECO_IDLE_SWAY_AMP_MAX,
+  step: 1,
+  defaultValue: DECO_IDLE_SWAY_AMP_DEFAULT,
+}
+
 /**
- * 装饰段的数值参数清单（表单按这个顺序渲染五行输入）。
+ * 装饰段的数值参数清单（表单按这个顺序渲染八行输入）。
  *
  * 总开关不是数值参数，单独一行。
  */
@@ -150,8 +222,11 @@ export const DECO_NUMBER_PARAMS: readonly DecoNumberParamMeta[] = [
   DECO_LOGO_SIZE_PARAM,
   DECO_ROPE_LENGTH_PARAM,
   DECO_SEGMENTS_PARAM,
+  DECO_LINE_WIDTH_PARAM,
   DECO_GRAVITY_PARAM,
   DECO_DAMPING_PARAM,
+  DECO_IDLE_SWAY_HZ_PARAM,
+  DECO_IDLE_SWAY_AMP_PARAM,
 ]
 
 /** 数值参数共用的钳位规则：越界钳到边界、非有限与零值回落默认。 */
@@ -190,6 +265,48 @@ export function clampDecoDamping(value: number): number {
 }
 
 /**
+ * 描边起始宽度归一化：越界钳到 1–6，零与非法值回落 2.5，并保留一位小数。
+ *
+ * 保留一位小数是为了让输入框回填的值和提交出去的值一致（2.5400000002
+ * 这种长浮点会让管理员以为是自己填错了）。
+ */
+export function clampDecoLineWidth(value: number): number {
+  const clamped = clampDecoPositiveRange(
+    value,
+    DECO_LINE_WIDTH_MIN,
+    DECO_LINE_WIDTH_MAX,
+    DECO_LINE_WIDTH_DEFAULT,
+  )
+  return Number(clamped.toFixed(1))
+}
+
+/** 「0 有合法含义」的数值参数共用钳位规则：0 原样保留，负数与非法回落默认。 */
+function clampDecoNonNegativeRange(value: number, min: number, max: number, fallback: number): number {
+  if (!Number.isFinite(value) || value < 0) return fallback
+  return Math.min(max, Math.max(min, value))
+}
+
+/** 静止摆动频率归一化：0 原样保留（= 关掉轻晃），越界钳到 1.5，负数/NaN 回落 0.8。 */
+export function clampDecoIdleSwayHz(value: number): number {
+  return clampDecoNonNegativeRange(
+    value,
+    DECO_IDLE_SWAY_HZ_MIN,
+    DECO_IDLE_SWAY_HZ_MAX,
+    DECO_IDLE_SWAY_HZ_DEFAULT,
+  )
+}
+
+/** 静止摆动幅度归一化：0 原样保留（= 零帧车道），越界钳到 40，负数/NaN 回落 20。 */
+export function clampDecoIdleSwayAmp(value: number): number {
+  return clampDecoNonNegativeRange(
+    value,
+    DECO_IDLE_SWAY_AMP_MIN,
+    DECO_IDLE_SWAY_AMP_MAX,
+    DECO_IDLE_SWAY_AMP_DEFAULT,
+  )
+}
+
+/**
  * 节点数归一化：计数先四舍五入，再钳到 4–24，零与非法值回落 10。
  *
  * 与读者站同一条规则；后台先钳一次，提交出去的就是整数。
@@ -205,13 +322,41 @@ export interface DecoCharmConfig {
   logo_size: number
   rope_length: number
   segments: number
+  line_width: number
   gravity: number
   damping: number
+  idle_sway_hz: number
+  idle_sway_amp: number
 }
 
 /** 装饰段（只含挂件子块）。 */
 export interface DecoRuntimeConfigShape {
   charm: DecoCharmConfig
+}
+
+/**
+ * 后台表单的"恢复默认"目标值：总开关 + 八个数值参数，全部来自上面那组常量。
+ *
+ * 为什么单独成一个函数而不是在组件里写九个字面量：恢复默认必须与后端
+ * `site_default_settings.yaml` 的九项逐项一致；把默认值只留在这里，后台
+ * 加参数时漏改"恢复默认"会立刻被工具层测试抓到。
+ *
+ * 注意它只构造表单值，**不写服务器** —— 恢复默认之后仍要管理员按保存。
+ */
+export function defaultDecoConfig(): DecoRuntimeConfigShape {
+  return {
+    charm: {
+      enable: true,
+      logo_size: DECO_LOGO_SIZE_DEFAULT,
+      rope_length: DECO_ROPE_LENGTH_DEFAULT,
+      segments: DECO_SEGMENTS_DEFAULT,
+      line_width: DECO_LINE_WIDTH_DEFAULT,
+      gravity: DECO_GRAVITY_DEFAULT,
+      damping: DECO_DAMPING_DEFAULT,
+      idle_sway_hz: DECO_IDLE_SWAY_HZ_DEFAULT,
+      idle_sway_amp: DECO_IDLE_SWAY_AMP_DEFAULT,
+    },
+  }
 }
 
 /**
@@ -229,8 +374,11 @@ export function normalizeDecoConfig(
       logo_size: clampDecoLogoSize(Number(config?.charm?.logo_size)),
       rope_length: clampDecoRopeLength(Number(config?.charm?.rope_length)),
       segments: clampDecoSegments(Number(config?.charm?.segments)),
+      line_width: clampDecoLineWidth(Number(config?.charm?.line_width)),
       gravity: clampDecoGravity(Number(config?.charm?.gravity)),
       damping: clampDecoDamping(Number(config?.charm?.damping)),
+      idle_sway_hz: clampDecoIdleSwayHz(Number(config?.charm?.idle_sway_hz)),
+      idle_sway_amp: clampDecoIdleSwayAmp(Number(config?.charm?.idle_sway_amp)),
     },
   }
 }

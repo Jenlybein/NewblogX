@@ -545,7 +545,10 @@ func TestUpdateDeco_落库并立刻生效(t *testing.T) {
 		Deco: conf.Deco{Charm: conf.Charm{
 			Enable: true, LogoSize: 48,
 			RopeLength: conf.CharmRopeLengthDefault, Segments: conf.CharmSegmentsDefault,
-			Gravity: conf.CharmGravityDefault, Damping: conf.CharmDampingDefault,
+			LineWidth: conf.CharmLineWidthDefault, Gravity: conf.CharmGravityDefault,
+			Damping:     conf.CharmDampingDefault,
+			IdleSwayHz:  conf.CharmIdleSwayHzDefault,
+			IdleSwayAmp: conf.CharmIdleSwayAmpDefault,
 		}},
 	}
 	svc, db := newTestService(t, defaults)
@@ -558,30 +561,37 @@ func TestUpdateDeco_落库并立刻生效(t *testing.T) {
 	// "结构体字段加了、yaml 默认值没加"，症状是默认补种成 0 后被钳成别的值。
 	seeded := readPayload(t, db, SectionDeco)
 	if !strings.Contains(seeded, `"enable":true`) || !strings.Contains(seeded, `"logo_size":48`) ||
-		!strings.Contains(seeded, `"rope_length":120`) {
+		!strings.Contains(seeded, `"rope_length":120`) || !strings.Contains(seeded, `"line_width":2.5`) ||
+		!strings.Contains(seeded, `"idle_sway_hz":0.8`) || !strings.Contains(seeded, `"idle_sway_amp":20`) {
 		t.Fatalf("deco 段的默认值没补进库，实际 %s", seeded)
 	}
 	if got := svc.GetRuntimeDeco(); !got.Charm.Enable || got.Charm.LogoSize != 48 ||
-		got.Charm.RopeLength != conf.CharmRopeLengthDefault {
+		got.Charm.RopeLength != conf.CharmRopeLengthDefault ||
+		got.Charm.LineWidth != conf.CharmLineWidthDefault ||
+		got.Charm.IdleSwayHz != conf.CharmIdleSwayHzDefault ||
+		got.Charm.IdleSwayAmp != conf.CharmIdleSwayAmpDefault {
 		t.Fatalf("补种后应读到默认值，实际 %+v", got)
 	}
 
 	// 2) 缓存立刻生效（热更新：不需要重启）。
 	if err := svc.UpdateDeco(conf.Deco{Charm: conf.Charm{
 		Enable: false, LogoSize: 72,
-		RopeLength: 200, Segments: 12, Gravity: 2000, Damping: 0.98,
+		RopeLength: 200, Segments: 12, LineWidth: 4.5, Gravity: 2000, Damping: 0.98,
+		IdleSwayHz: 0, IdleSwayAmp: 0,
 	}}); err != nil {
 		t.Fatalf("更新失败: %v", err)
 	}
 	if got := svc.GetRuntimeDeco(); got.Charm.Enable || got.Charm.LogoSize != 72 ||
-		got.Charm.RopeLength != 200 {
+		got.Charm.RopeLength != 200 || got.Charm.LineWidth != 4.5 ||
+		got.Charm.IdleSwayHz != 0 || got.Charm.IdleSwayAmp != 0 {
 		t.Fatalf("缓存未刷新，实际 %+v", got)
 	}
 
 	// 3) 库里也真的换了（不是只改内存）。
 	payload := readPayload(t, db, SectionDeco)
 	if !strings.Contains(payload, `"enable":false`) || !strings.Contains(payload, `"logo_size":72`) ||
-		!strings.Contains(payload, `"rope_length":200`) {
+		!strings.Contains(payload, `"rope_length":200`) || !strings.Contains(payload, `"line_width":4.5`) ||
+		!strings.Contains(payload, `"idle_sway_amp":0`) {
 		t.Fatalf("库里未写入新值，实际 %s", payload)
 	}
 
@@ -591,7 +601,8 @@ func TestUpdateDeco_落库并立刻生效(t *testing.T) {
 		t.Fatalf("重新加载失败: %v", err)
 	}
 	if reloaded := svc2.GetRuntimeDeco(); reloaded.Charm.Enable || reloaded.Charm.LogoSize != 72 ||
-		reloaded.Charm.RopeLength != 200 {
+		reloaded.Charm.RopeLength != 200 || reloaded.Charm.LineWidth != 4.5 ||
+		reloaded.Charm.IdleSwayHz != 0 || reloaded.Charm.IdleSwayAmp != 0 {
 		t.Fatalf("重新加载后应读到落库的值，实际 %+v", reloaded)
 	}
 }
@@ -659,5 +670,25 @@ func TestDefaultSettingsYaml_装饰段与常量对齐(t *testing.T) {
 	}
 	if file.Deco.Charm.Damping < conf.CharmDampingMin || file.Deco.Charm.Damping > conf.CharmDampingMax {
 		t.Fatalf("damping 默认值 %v 不在 [%v, %v] 内", file.Deco.Charm.Damping, conf.CharmDampingMin, conf.CharmDampingMax)
+	}
+
+	// 票 #42 的三个新参数：描边宽度、静止摆动频率与幅度。
+	if file.Deco.Charm.LineWidth != conf.CharmLineWidthDefault {
+		t.Fatalf("deco.charm.line_width 应为 %v，实际 %v", conf.CharmLineWidthDefault, file.Deco.Charm.LineWidth)
+	}
+	if file.Deco.Charm.LineWidth < conf.CharmLineWidthMin || file.Deco.Charm.LineWidth > conf.CharmLineWidthMax {
+		t.Fatalf("line_width 默认值 %v 不在 [%v, %v] 内", file.Deco.Charm.LineWidth, conf.CharmLineWidthMin, conf.CharmLineWidthMax)
+	}
+	if file.Deco.Charm.IdleSwayHz != conf.CharmIdleSwayHzDefault {
+		t.Fatalf("deco.charm.idle_sway_hz 应为 %v，实际 %v", conf.CharmIdleSwayHzDefault, file.Deco.Charm.IdleSwayHz)
+	}
+	if file.Deco.Charm.IdleSwayHz < conf.CharmIdleSwayHzMin || file.Deco.Charm.IdleSwayHz > conf.CharmIdleSwayHzMax {
+		t.Fatalf("idle_sway_hz 默认值 %v 不在 [%v, %v] 内", file.Deco.Charm.IdleSwayHz, conf.CharmIdleSwayHzMin, conf.CharmIdleSwayHzMax)
+	}
+	if file.Deco.Charm.IdleSwayAmp != conf.CharmIdleSwayAmpDefault {
+		t.Fatalf("deco.charm.idle_sway_amp 应为 %v，实际 %v", conf.CharmIdleSwayAmpDefault, file.Deco.Charm.IdleSwayAmp)
+	}
+	if file.Deco.Charm.IdleSwayAmp < conf.CharmIdleSwayAmpMin || file.Deco.Charm.IdleSwayAmp > conf.CharmIdleSwayAmpMax {
+		t.Fatalf("idle_sway_amp 默认值 %v 不在 [%v, %v] 内", file.Deco.Charm.IdleSwayAmp, conf.CharmIdleSwayAmpMin, conf.CharmIdleSwayAmpMax)
 	}
 }

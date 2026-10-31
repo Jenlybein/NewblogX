@@ -142,13 +142,19 @@ type Service struct{ cfg func() conf.Mail }
 | `oauth` | `conf.QQ` | QQ 登录回调 | 下一次登录 |
 | `log` | `conf.Logrus` | 日志级别、请求日志、查询限额、清理窗口 | 级别立即，其余下一次请求 |
 | `upload` | `conf.Upload` | 上传格式白名单 | 下一次上传 |
-| `deco` | `conf.Deco` | 光标挂件的开关、站标尺寸与挂绳物理参数 | 下一次页面请求 |
+| `deco` | `conf.Deco` | 光标挂件的开关、站标尺寸、挂绳几何与物理、描边与静止轻晃 | 下一次页面请求 |
 
 `deco`（装饰）不承载任何业务语义：它只影响"页面看起来怎样"。开这个独立段而不是把
 挂件参数塞进 `site`，是因为装饰会越来越多（背景、边框），而每开一段都要走一遍段注册的
-八个点——第 8 段把这笔成本一次付清。本票只有挂件子块 `deco.charm`：总开关 `enable`、
-站标尺寸 `logo_size`，以及票 #41 的四个挂绳物理参数 `rope_length`（px）/ `segments`（节）/
-`gravity`（px/s²）/ `damping`（无量纲）。`segments` 是计数，钳位时会先取整再夹到边界。
+八个点——第 8 段把这笔成本一次付清。本票只有挂件子块 `deco.charm`：总开关 `enable`，
+以及八个数值参数 —— 站标尺寸 `logo_size`（px）、挂绳长度 `rope_length`（px）、
+节点数 `segments`（节，计数）、描边起始宽度 `line_width`（px，收尾固定为起始的 0.6 倍）、
+重力 `gravity`（px/s²）、每步阻尼 `damping`（无量纲）、静止摆动频率 `idle_sway_hz`（Hz）、
+静止摆动幅度 `idle_sway_amp`（px/s²）。`segments` 是计数，钳位时会先取整再夹到边界；
+`line_width` 钳位后保留一位小数。`idle_sway_amp` 与 `idle_sway_hz` 把 0 当作合法值：
+幅度为 0 或系统开启「减少动态」时读者站走"静止即停帧"的零帧车道，只有幅度大于 0 才进入
+约 20fps 的怠速车道。弧垂没有单独参数，它来自真实松弛（绳长 `rope_length` 减去指针到
+站标的实际距离），调大 `gravity` 不会加深弧垂。
 
 这一段在**写入路径上钳位**：越界钳到边界、缺省补默认值、NaN/非法值回落默认，
 **不报错**（`conf.Deco.Normalize()`，在 `app` 层的 `UpdateDeco` 里调用）。理由：管理员改一半

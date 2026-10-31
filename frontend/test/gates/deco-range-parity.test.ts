@@ -4,8 +4,11 @@ import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 
 import {
+  DECO_FIXTURE_CONSUMERS,
+  DECO_FIXTURE_FILE,
   DECO_SOURCE_FILES,
   checkDecoRangeParity,
+  evaluateDecoFixture,
   evaluateDecoRangeParity,
 } from "../../../scripts/check-deco-range-parity.mjs";
 
@@ -65,6 +68,16 @@ describe("真实仓库为绿：三端范围与默认值一致", () => {
   it("未改动任何一端时纯函数判定为绿", () => {
     const result = evaluateDecoRangeParity(readSources());
     expect(result.ok).toBe(true);
+    expect(result.failures).toEqual([]);
+  });
+
+  it("共享归一化夹具存在、非空，并被后端 / 读者站 / 后台三套测试共同引用", () => {
+    const result = checkDecoRangeParity({ repoRoot });
+
+    expect(result.fixture).toMatchObject({ consumers: DECO_FIXTURE_CONSUMERS });
+    // 夹具本身必须真的被读到：空表或没人引用都等于没有这道防线。
+    expect(result.fixture.caseCount).toBeGreaterThan(40);
+    expect(result.fixture.parameters.length).toBeGreaterThanOrEqual(8);
     expect(result.failures).toEqual([]);
   });
 });
@@ -192,5 +205,68 @@ describe("canary：只改一端就必须红，并指出是哪两端、哪个参�
       "file-missing",
       "file-missing",
     ]);
+  });
+});
+
+/** 共享夹具与三套消费方的真实文本（canary 用人造文本调用纯判定函数）。 */
+function readFixture(): string {
+  return readFileSync(join(repoRoot, DECO_FIXTURE_FILE), "utf8");
+}
+
+function readConsumers(): Record<string, string> {
+  const texts: Record<string, string> = {};
+  for (const relativePath of DECO_FIXTURE_CONSUMERS) {
+    texts[relativePath] = readFileSync(join(repoRoot, relativePath), "utf8");
+  }
+  return texts;
+}
+
+describe("共享归一化夹具的 canary：没人用或没有文件都必须红", () => {
+  it("真实仓库：夹具存在且三套测试都引用它", () => {
+    const result = evaluateDecoFixture({
+      fixture: readFixture(),
+      consumers: readConsumers(),
+    });
+
+    expect(result.ok).toBe(true);
+    expect(result.failures).toEqual([]);
+    expect(result.caseCount).toBeGreaterThan(40);
+    expect(result.parameters).toHaveLength(8);
+  });
+
+  it("夹具文件缺失 → 报 fixture-missing，而不是当成「没有用例」", () => {
+    const result = evaluateDecoFixture({ fixture: null, consumers: readConsumers() });
+
+    expect(result.ok).toBe(false);
+    expect(result.failures.map((failure: { kind: string }) => failure.kind)).toContain(
+      "fixture-missing",
+    );
+  });
+
+  it("某套测试不再引用夹具 → 报 fixture-unreferenced 并点名该文件", () => {
+    const consumers = readConsumers();
+    const target = DECO_FIXTURE_CONSUMERS[1]!;
+    const mutated = consumers[target]!.replace(DECO_FIXTURE_FILE, "");    expect(mutated, `${target} 里没有夹具路径，canary 注入失败`).not.toBe(consumers[target]);
+
+    const result = evaluateDecoFixture({
+      fixture: readFixture(),
+      consumers: { ...consumers, [target]: mutated },
+    });
+
+    expect(result.ok).toBe(false);
+    const failure = result.failures.find(
+      (item: { kind: string }) => item.kind === "fixture-unreferenced",
+    );
+    expect(failure).toMatchObject({ path: target });
+    expect(failure.message).toContain(DECO_FIXTURE_FILE);
+  });
+
+  it("夹具不是合法 JSON → 报 fixture-invalid", () => {
+    const result = evaluateDecoFixture({ fixture: "{", consumers: readConsumers() });
+
+    expect(result.ok).toBe(false);
+    expect(result.failures.map((failure: { kind: string }) => failure.kind)).toContain(
+      "fixture-invalid",
+    );
   });
 });

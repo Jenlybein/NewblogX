@@ -1,3 +1,6 @@
+import { readFileSync } from 'node:fs'
+import { join } from 'node:path'
+
 import { describe, expect, it } from 'vitest'
 import {
   DECO_DAMPING_DEFAULT,
@@ -369,4 +372,63 @@ describe('normalizeDecoConfig', () => {
     } as never)
     expect(Object.keys(normalized)).toEqual(['charm'])
   })
+})
+
+/** 共享归一化用例表（后端 conf_deco_test.go 与读者站 decoCharm.test.ts 也读同一份）。 */
+const FIXTURE_RELATIVE_PATH = 'backend/conf/testdata/deco-charm-normalization.json'
+
+interface NormalizationCase {
+  parameter: string
+  input: number | string
+  expected: number
+  reason: string
+}
+
+function loadNormalizationCases(): NormalizationCase[] {
+  const fixture = JSON.parse(readFileSync(join(process.cwd(), '..', FIXTURE_RELATIVE_PATH), 'utf8')) as {
+    cases: NormalizationCase[]
+  }
+  return fixture.cases
+}
+
+/** JSON 没有 NaN 字面量：夹具用字符串表达，三端各自映射成同一个数值。 */
+function fixtureInput(input: number | string): number {
+  if (typeof input === 'number') return input
+  if (input === 'NaN') return Number.NaN
+  if (input === 'Infinity') return Number.POSITIVE_INFINITY
+  if (input === '-Infinity') return Number.NEGATIVE_INFINITY
+  throw new Error(`共享夹具里出现了不认识的 input: ${JSON.stringify(input)}`)
+}
+
+/** 参数键 → 后台的钳位函数（夹具按后端 snake_case 命名）。 */
+const DECO_CLAMPS: Record<string, (value: number) => number> = {
+  logo_size: clampDecoLogoSize,
+  rope_length: clampDecoRopeLength,
+  segments: clampDecoSegments,
+  line_width: clampDecoLineWidth,
+  gravity: clampDecoGravity,
+  damping: clampDecoDamping,
+  idle_sway_hz: clampDecoIdleSwayHz,
+  idle_sway_amp: clampDecoIdleSwayAmp,
+}
+
+describe('共享归一化用例表：后台与后端 / 读者站同一组输入同一组输出', () => {
+  it('夹具真的读到了，且覆盖全部八个数值参数', () => {
+    const cases = loadNormalizationCases()
+
+    expect(cases.length).toBeGreaterThan(40)
+    for (const parameter of Object.keys(DECO_CLAMPS)) {
+      expect(cases.some((testCase) => testCase.parameter === parameter), parameter).toBe(true)
+    }
+  })
+
+  const cases = loadNormalizationCases()
+  it.each(cases)(
+    '$parameter 输入 $input → $expected（$reason）',
+    (testCase: NormalizationCase) => {
+      const clamp = DECO_CLAMPS[testCase.parameter]
+      expect(clamp, `夹具里的参数 ${testCase.parameter} 没有对应的后台钳位函数`).toBeDefined()
+      expect(clamp!(fixtureInput(testCase.input))).toBe(testCase.expected)
+    },
+  )
 })

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, shallowRef } from "vue";
+import { computed, onMounted, ref, shallowRef } from "vue";
 import { NButton } from "naive-ui";
 import BannerCarousel from "~/components/article/BannerCarousel.vue";
 import HomeFeedSection from "~/components/home/HomeFeedSection.vue";
@@ -12,6 +12,7 @@ import { getTopArticles } from "~/services/article";
 import { searchArticles } from "~/services/search";
 import { getBannerList } from "~/services/site";
 import { BRAND, brandDescription, brandFullName } from "~/utils/brand";
+import { MOTION_STAGGER_MS } from "~/utils/motion";
 
 const siteStore = useSiteStore();
 const topRequestError = shallowRef<unknown>(null);
@@ -113,7 +114,7 @@ const { entranceProps } = useStaggerEntrance();
  *
  * `tone` 只允许 ink / blue / coral / yellow：ink 是反白细线，后三者是首屏锁定的色相。
  */
-const heroLines = [
+const RAW_HERO_LINES = [
   { tone: "ink", style: { top: "4%", right: "0.5%", width: "18%", height: "1px" } },
   { tone: "ink", style: { top: "11%", right: "0%", width: "25%", height: "1px" } },
   { tone: "blue", style: { top: "18%", right: "1.5%", width: "31%", height: "3px" } },
@@ -129,6 +130,45 @@ const heroLines = [
   { tone: "ink", style: { top: "88%", right: "1%", width: "16%", height: "1px" } },
   { tone: "ink", style: { top: "94%", right: "0%", width: "11%", height: "1px" } },
 ] as const;
+
+/**
+ * 入场节奏：**从中间向两端错峰**。
+ *
+ * 为什么不是自上而下：这套线条长度本身就是"中间最长、两端最短"，如果还按顺序自上而下
+ * 依次展开，会读成一条扫描线（廉价）。改成中线先出、向两端扩散，视觉上像"从轴心甩开"，
+ * 而且中段最长的几条先落位，正好先勾出压住轮播的那道主线 —— 这就是高级感的来源：
+ * 先是结构（中轴），再是细节（两端碎线）。
+ */
+const HERO_LINE_STAGGER_MS = MOTION_STAGGER_MS;
+const HERO_LINE_CENTER = (RAW_HERO_LINES.length - 1) / 2;
+
+const heroLines = RAW_HERO_LINES.map((line, index) => ({
+  ...line,
+  delay: `${Math.round(Math.abs(index - HERO_LINE_CENTER) * HERO_LINE_STAGGER_MS)}ms`,
+}));
+
+/**
+ * 线条的"从右端长出来"：先收起初态（is-armed），下一帧再置终态（is-drawn）。
+ *
+ * 为什么不纯靠 CSS 动画关键帧：全站约定装饰不得自写关键帧（有设计测试锁住），
+ * 入场一律用 transition + 状态类。arm 与 draw 分两帧，是为了让浏览器先绘制 scaleX(0)，
+ * 否则首帧就是终态、transition 不会跑起来。
+ *
+ * 无 JS / 减少动态时都不会 arm：线条直接是终态可见（装饰不该因为脚本没跑就消失）。
+ */
+const linesArmed = ref(false);
+const linesDrawn = ref(false);
+
+onMounted(() => {
+  if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+    return;
+  }
+
+  linesArmed.value = true;
+  requestAnimationFrame(() => {
+    linesDrawn.value = true;
+  });
+});
 
 async function handlePreviousLatestPage() {
   await latestPager.goToPreviousPage();
@@ -190,14 +230,18 @@ async function handleRetryLatest() {
           />
         </div>
 
-        <!-- 右栏线条场：横跨整个内层，一小半线条压到轮播面板上（微微凌乱，但不遮标题） -->
-        <div class="home-cover__lines motion-reveal" :style="revealStyle" aria-hidden="true">
+        <!-- 右栏线条场：从右端"长出来"（scaleX + transform-origin: right），中线先出、两端后出 -->
+        <div
+          class="home-cover__lines"
+          :class="{ 'is-armed': linesArmed, 'is-drawn': linesDrawn }"
+          aria-hidden="true"
+        >
           <span
             v-for="(line, index) in heroLines"
             :key="index"
             class="home-cover__line"
             :class="`home-cover__line--${line.tone}`"
-            :style="line.style"
+            :style="[line.style, { transitionDelay: line.delay }]"
           />
         </div>
 
@@ -404,13 +448,32 @@ async function handleRetryLatest() {
 .home-cover__line {
   position: absolute;
   display: block;
+  /* 入场：从**右端**长出来（缩放原点贴右），只动 transform/opacity，
+     时长/缓动全站同一份预算；交错延迟由数据按"中线→两端"算好，走内联 transition-delay。 */
+  --line-opacity: 1;
+  transform-origin: right center;
   border-radius: var(--radius-pill);
+  transition:
+    transform var(--motion-base) var(--motion-ease),
+    opacity var(--motion-base) var(--motion-ease);
 }
 
-/* 反白细线用 on-inverse + 透明度，避免为装饰再造一个新色。 */
+/* 只有 JS 就位后才收起初态：无 JS / 减少动态时线条直接是终态（装饰不该消失）。 */
+.home-cover__lines.is-armed:not(.is-drawn) .home-cover__line {
+  opacity: 0;
+  transform: scaleX(0);
+}
+
+.home-cover__lines.is-drawn .home-cover__line {
+  opacity: var(--line-opacity);
+  transform: scaleX(1);
+}
+
+/* 反白细线用 on-inverse + 透明度，避免为装饰再造一个新色。
+   透明度走 --line-opacity，这样"收起 / 展开"两个状态不会把调子覆盖掉。 */
 .home-cover__line--ink {
+  --line-opacity: 0.5;
   background: var(--color-on-inverse);
-  opacity: 0.5;
 }
 
 .home-cover__line--blue {
@@ -602,6 +665,18 @@ async function handleRetryLatest() {
 
   .home-cover__band--coral {
     display: none;
+  }
+}
+
+/* 减少动态：线条不做延展，直接静态到位（JS 那边也不会 arm，这里是兜底）。 */
+@media (prefers-reduced-motion: reduce) {
+  .home-cover__lines .home-cover__line {
+    transition: none;
+  }
+
+  .home-cover__lines.is-armed .home-cover__line {
+    opacity: var(--line-opacity);
+    transform: none;
   }
 }
 </style>

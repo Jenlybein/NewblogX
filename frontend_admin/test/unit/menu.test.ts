@@ -47,6 +47,16 @@ describe('后台菜单', () => {
     expect(missing, `菜单指向了不存在的页面：\n${missing.join('\n')}`).toEqual([])
   })
 
+  it('「热门置顶」紧跟「文章管理」（ADR-0017 决策 5 规定的位置）', () => {
+    const labels = ADMIN_NAV.map(item => item.label)
+    const articleIndex = labels.indexOf('文章管理')
+
+    expect(articleIndex, '菜单里必须有「文章管理」').toBeGreaterThanOrEqual(0)
+    const hotTop = ADMIN_NAV[articleIndex + 1]
+    expect(hotTop?.label).toBe('热门置顶')
+    expect(hotTop?.path).toBe('/articles/hot-top')
+  })
+
   it('pageFileCandidates 覆盖各种边界写法', () => {
     // 根路径
     expect(pageFileCandidates('/')).toEqual(['index'])

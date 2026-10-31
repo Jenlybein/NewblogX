@@ -229,13 +229,13 @@ export function framedImageRect(image: Size, frame: Size, framing: Framing): Rec
 }
 
 /**
- * 预览要用的三条 CSS 声明（读者站用同一套语义复现同一块取景）。
+ * 预览要用的四条 CSS 声明（读者站用同一套语义复现同一块取景）。
  *
  * 类型直接用 Vue 的 `CSSProperties`（只 import type，运行时没有依赖）：
- * 这三条本来就是"能贴到 :style 上"的东西，自带一个同形 interface 反而
+ * 这四条本来就是"能贴到 :style 上"的东西，自带一个同形 interface 反而
  * 在模板里赋不进 `:style`——类型系统会要求它跟 CSSProperties 逐键兼容。
  */
-export type FramingStyle = Pick<CSSProperties, 'objectPosition' | 'transformOrigin' | 'transform'>
+export type FramingStyle = Pick<CSSProperties, 'objectFit' | 'objectPosition' | 'transformOrigin' | 'transform'>
 
 /** 百分比字串：保留两位小数，顺手去掉 50.00 → 50 这类尾巴。 */
 function toPercent(value: number): string {
@@ -246,16 +246,18 @@ function toPercent(value: number): string {
  * 取景参数 → CSS 声明。这是"预览几何 = 最终渲染几何"的唯一出口：
  *
  * 只输出百分比与 `scale()`，**不含任何像素值**，所以同一组参数在预览框里和
- * 线上任意宽度的面板里得到的是同一块取景。读者站（#46）照抄这三条即可，
+ * 线上任意宽度的面板里得到的是同一块取景。读者站（#46）照抄这四条即可，
  * 不需要第二套算术。
  *
- * `object-position` 与 `transform-origin` 取同一个比例点：前者把图上这一点对到
- * 框内这一点，后者让放大围着这一点，于是"焦点钉住、图变大"。
+ * `object-fit: cover` 铺满、`object-position` 与 `transform-origin` 取同一个
+ * 比例点：前者把图上这一点对到框内这一点，后者让放大围着这一点，于是
+ * "焦点钉住、图变大"。
  */
 export function framingStyle(framing: Framing): FramingStyle {
   const { focus_x, focus_y, zoom } = clampFraming(framing)
   const position = `${toPercent(focus_x)} ${toPercent(focus_y)}`
   return {
+    objectFit: 'cover',
     objectPosition: position,
     transformOrigin: position,
     transform: `scale(${zoom})`,

@@ -13,6 +13,7 @@ describe("bannerFramingStyle：取景参数 → 样式对象", () => {
   it("缺省取景（无 crop / 空对象 / 历史数据）＝居中、缩放 1，与引入取景前一致", () => {
     const expected = {
       objectFit: "cover",
+      objectPosition: "50% 50%",
       transformOrigin: "50% 50%",
       transform: "scale(1)",
     };
@@ -22,10 +23,17 @@ describe("bannerFramingStyle：取景参数 → 样式对象", () => {
     expect(bannerFramingStyle({})).toMatchObject(expected);
   });
 
-  it("焦点是相对坐标：直接落成 transform-origin 的百分比", () => {
-    expect(bannerFramingStyle({ focus_x: 0.25, focus_y: 0.75 }).transformOrigin).toBe("25% 75%");
+  it("焦点是相对坐标：同时落成 object-position 与 transform-origin 的百分比", () => {
+    // 两个属性必须取同一个点：前者把图上焦点对到框内同一点，后者让缩放围着它，
+    // 这就是后台取景窗预览与阅读站线上渲染同一套几何的前提。
+    const quarters = bannerFramingStyle({ focus_x: 0.25, focus_y: 0.75 });
+    expect(quarters.objectPosition).toBe("25% 75%");
+    expect(quarters.transformOrigin).toBe("25% 75%");
+
     // 只缺一个分量时，另一个按居中缺省。
-    expect(bannerFramingStyle({ focus_x: 0.2 }).transformOrigin).toBe("20% 50%");
+    const half = bannerFramingStyle({ focus_x: 0.2 });
+    expect(half.objectPosition).toBe("20% 50%");
+    expect(half.transformOrigin).toBe("20% 50%");
   });
 
   it("缩放放大到 scale(zoom)", () => {
@@ -37,9 +45,11 @@ describe("bannerFramingStyle：取景参数 → 样式对象", () => {
     const low = bannerFramingStyle({ focus_x: -2, focus_y: -2, zoom: 0.2 });
     const high = bannerFramingStyle({ focus_x: 3, focus_y: 3, zoom: 5 });
 
+    expect(low.objectPosition).toBe("0% 0%");
     expect(low.transformOrigin).toBe("0% 0%");
     // 缩放的下界是 1：小于 1 才会露出面板底色。
     expect(low.transform).toBe("scale(1)");
+    expect(high.objectPosition).toBe("100% 100%");
     expect(high.transformOrigin).toBe("100% 100%");
     expect(high.transform).toBe("scale(2)");
   });

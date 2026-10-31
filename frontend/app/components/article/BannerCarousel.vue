@@ -141,7 +141,7 @@ function goToBanner(index: number) {
   pointer-events: auto;
 }
 
-/* 取景层：object-fit / transform-origin / scale 全部来自 bannerFramingStyle()。 */
+/* 取景层：object-fit / object-position / transform-origin / scale 全部来自 bannerFramingStyle()。 */
 .banner-photo__img {
   display: block;
   height: 100%;

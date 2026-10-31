@@ -27,12 +27,16 @@ const sidebarSource = read("app/components/home/HomeSidebar.vue");
 const appSource = read("app/app.vue");
 
 describe("首页分级淡入：首屏与列表", () => {
-  it("首屏与最新列表都走 useStaggerEntrance，且入场元素带 motion-stagger-item", () => {
-    for (const source of [pageSource, feedSource]) {
-      expect(source).toContain("useStaggerEntrance");
-      expect(source).toContain("entranceProps");
-      expect(source).toContain("motion-stagger-item");
-    }
+  it("列表区块走 useStaggerEntrance（非关键内容），入场元素带 motion-stagger-item", () => {
+    expect(feedSource).toContain("useStaggerEntrance");
+    expect(feedSource).toContain("entranceProps");
+    expect(feedSource).toContain("motion-stagger-item");
+  });
+
+  it("首屏不走进场动画：h1 是关键内容，不能带 SSR initial（opacity:0）", () => {
+    // 这条是从真实故障反推出来的：h1 曾被 stagger 包住，动画没跑起来时首页等于没有标题。
+    expect(pageSource).not.toContain("useStaggerEntrance");
+    expect(pageSource).not.toContain("motion-stagger-item");
   });
 
   it("右栏只有热门标签做错峰入场（非关键内容），其它区块不加", () => {
@@ -46,12 +50,11 @@ describe("首页分级淡入：首屏与列表", () => {
 });
 
 describe("首屏封面：分层进场与视差（#23 口径）", () => {
-  it("封面装饰层走 useSectionReveal（motion-reveal），文字层走 useStaggerEntrance", () => {
+  it("封面装饰层走 useSectionReveal（motion-reveal），文字层常显不走进场", () => {
     expect(pageSource).toContain("useSectionReveal");
     expect(pageSource).toContain("revealStyle");
     expect(pageSource).toContain("motion-reveal");
-    expect(pageSource).toContain("useStaggerEntrance");
-    expect(pageSource).toContain("motion-stagger-item");
+    expect(pageSource).not.toContain("motion-stagger-item");
   });
 
   it("封面记号接 useParallax（≤10px，reduced-motion 归零）", () => {

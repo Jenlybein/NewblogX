@@ -100,8 +100,15 @@ func buildDSL(req domain.Request, viewer *domain.Viewer, likeTagIDs []ctype.ID) 
 	// 「显示非管理员发布文章」开关关闭时，公开读面只保留管理员作者的文章
 	// （ADR-0017 决策 4）。type 4（自己的文章）与 type 5（后台）刻意不过滤：
 	// 作者要能继续编辑自己的稿子，管理员要能在后台看到全部内容。
+	//
+	// 这里必须处理返回的错误：这个过滤一旦被跳过，就是"开关关了但全量返回"，
+	// 而查询本身仍然合法、ES 不会报错——只能靠失败关闭挡住。
 	if req.OnlyAdminAuthors && isPublicReadType(req.Type) {
-		query = adminAuthorQuery(query)
+		filtered, err := adminAuthorQuery(query)
+		if err != nil {
+			return nil, err
+		}
+		query = filtered
 	}
 
 	if len(req.TagIDs) > 0 {
@@ -141,14 +148,25 @@ func isPublicReadType(articleType int8) bool {
 //
 // 字段 author_is_admin 是作者角色在 ES 文档里的投影（由 CDC 按 user_models.role
 // 重算），所以开关关掉之后不需要回库查作者角色，也不存在"文章数与实际不符"。
-func adminAuthorQuery(query map[string]any) map[string]any {
+//
+// **失败关闭**：取不到 bool 查询结构就返回错误，绝不原样放行。早先这里在
+// 结构对不上时 `return query`，等于开关关闭却静默地全量返回——ES 不会报错，
+// 只能靠这条错误把它暴露出来。错误码是内部不变量类的（不是调用方参数问题）。
+func adminAuthorQuery(query map[string]any) (map[string]any, error) {
 	boolQuery, ok := extractBool(query)
 	if !ok {
-		return query
+		return nil, apperr.New(apperr.CodeSearchQueryInvalid)
 	}
 	filters, _ := boolQuery["filter"].([]any)
-	boolQuery["filter"] = append(filters, map[string]any{"term": map[string]any{"author_is_admin": true}})
-	return query
+	boolQuery["filter"] = append(filters, adminAuthorFilter())
+	return query, nil
+}
+
+// adminAuthorFilter 是"只出管理员作者"的那个过滤子句。
+//
+// 单独抽出来是为了让调用点能断言"过滤确实加上了"，而不是比对整棵查询树。
+func adminAuthorFilter() map[string]any {
+	return map[string]any{"term": map[string]any{"author_is_admin": true}}
 }
 
 func selfQuery(key string, userID ctype.ID, status domain.ArticleStatus) map[string]any {

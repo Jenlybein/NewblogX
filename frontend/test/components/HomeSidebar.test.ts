@@ -112,7 +112,7 @@ describe("HomeSidebar：右栏（公告 / 热门标签 / 推荐作者）", () =>
 /**
  * 公告卡的简介来自哪里（#39）。
  *
- * 后端 `site` 段里没有任何"站点简介"字段：`SiteInfo` 只有 title / logo / beian / mode，
+ * 后端 `site` 段里没有任何"站点简介"字段：`SiteInfo` 只有 title / logo / beian，
  * `Project` 只有 title / icon / web_path。所以简介只能是一句固定文案 —— 之前这条链
  * 先挂 `project.abstract`、再挂 `site_info.subtitle`，两者后端都没有，读出来永远是空，
  * 于是整条链在生产里恒等于最后那句默认值（两个死分支）。下面两条用例把"死字段不再被消费"

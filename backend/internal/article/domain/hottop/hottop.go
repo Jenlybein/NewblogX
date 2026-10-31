@@ -175,7 +175,10 @@ type Repository interface {
 	// ListCards 列出**当前仍公开**的置顶卡片（按序号升序）。
 	//
 	// 失效的置顶行不出现：首页容器靠这条查询过滤，不靠前端判断。
-	ListCards(ctx context.Context) ([]Card, error)
+	//
+	// onlyAdminAuthors 为真时只返回"作者是管理员"的卡片（ADR-0017 决策 4：
+	// 热门置顶属于读者端公开读面，与收藏内容 / 浏览历史同一口径）。
+	ListCards(ctx context.Context, onlyAdminAuthors bool) ([]Card, error)
 	// ListAdminItems 列出**全部**置顶行（含已失效），按序号升序。
 	ListAdminItems(ctx context.Context) ([]AdminItem, error)
 	// UpdateSortOrder 按给定顺序把序号改成 1..n（调用方已用 CheckOrder 校验）。

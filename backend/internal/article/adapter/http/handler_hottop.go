@@ -22,13 +22,16 @@ import (
 // 只返回**仍然公开**的文章；文章后来被隐藏/退回草稿/删除的置顶行留在库里，
 // 首页这里直接查不到（过滤在仓储 SQL 里，不靠前端判断）。
 //
+// 「显示非管理员发布文章」关闭时，作者不是管理员的卡片同样查不到
+// （ADR-0017 决策 4：热门置顶是读者端公开读面）。
+//
 // @Summary 热门置顶列表
 // @Tags article
 // @Produce json
 // @Success 200 {object} kernel.Envelope[kernel.ListData[ArticleHotTopCardResponse]]
 // @Router /articles/hot-top [get]
 func (h *Handler) HotTops(c *gin.Context) {
-	cards, err := h.svc.ListHotTopCards(c.Request.Context())
+	cards, err := h.svc.ListHotTopCards(c.Request.Context(), h.onlyAdminAuthors())
 	if err != nil {
 		h.fail(c, err)
 		return

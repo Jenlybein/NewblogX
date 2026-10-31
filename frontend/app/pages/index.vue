@@ -434,8 +434,10 @@ async function handleRetryLatest() {
   justify-content: flex-start;
   padding: clamp(0.75rem, 1.4vw, 1.25rem);
   overflow: clip;
-  height: clamp(300px, 34vw, 460px);
-  min-height: clamp(300px, 34vw, 460px);
+  /* 固定宽高比：宽度由左栏决定，高度跟着算出来 —— 这样任何屏宽下比例都不变，
+     轮播图用 object-fit: cover 裁切，不会被拉扁或拉长。 */
+  width: 100%;
+  aspect-ratio: 16 / 10;
   border-radius: var(--radius-lg);
   /* 面板是"屏幕"而不是空白框：给一层极淡的反白染色，让它自己成立；
      不支持 color-mix 时退化为纯反白面（不依赖它也能看出边界）。 */
@@ -668,8 +670,6 @@ async function handleRetryLatest() {
     grid-column: 1;
     grid-row: 2;
     margin-inline-start: 0;
-    aspect-ratio: 4 / 3;
-    min-height: clamp(240px, 32vh, 420px);
   }
 
   .home-cover__title {

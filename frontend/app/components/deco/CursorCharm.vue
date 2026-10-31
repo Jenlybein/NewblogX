@@ -4,12 +4,7 @@ import { useRuntimeConfig } from "#imports";
 
 import { useCursorCharm } from "~/composables/useCursorCharm";
 import { brandAssetUrl } from "~/utils/brand";
-import {
-  CHARM_TETHER_LENGTH_PX,
-  charmLogoCenter,
-  charmTetherPath,
-  clampCharmLogoSize,
-} from "~/utils/decoCharm";
+import { clampCharmLogoSize } from "~/utils/decoCharm";
 
 /**
  * 光标挂件：一条挂绳把站标系在指针上（装饰层，不是功能入口）。
@@ -24,6 +19,9 @@ import {
  *
  * 为什么总开关关着时整个模板都不渲染：`v-if` 连 `<image>` 一起摘掉，
  * 于是关掉之后既没有站标素材请求，也没有任何逐帧计算。
+ *
+ * 渲染成本：物理状态在组合式里是非响应式普通对象；每帧只有两处可见输出 ——
+ * 一条路径的 `d` 与站标图像的一个 `transform`。不碰任何布局属性。
  */
 const siteStore = useSiteStore();
 
@@ -38,17 +36,24 @@ const logoSrc = computed(() => brandAssetUrl(String(runtimeConfig.app.baseURL ||
 const charmConfig = computed(() => siteStore.deco?.charm);
 const logoSize = computed(() => clampCharmLogoSize(Number(charmConfig.value?.logo_size)));
 
-const { enabled, visible, pointer } = useCursorCharm({
+const { enabled, visible, tetherPath, logoCenter } = useCursorCharm({
   configEnabled: () => Boolean(charmConfig.value?.enable),
+  // 四个物理参数每次建链 / 改参数时读一次；任何一个缺失都由
+  // normalizeCharmRopeConfig 回落默认值，不会因为配置没取回来就不建链。
+  config: () => ({
+    ropeLengthPx: Number(charmConfig.value?.rope_length),
+    segments: Number(charmConfig.value?.segments),
+    gravity: Number(charmConfig.value?.gravity),
+    damping: Number(charmConfig.value?.damping),
+  }),
 });
 
-// 本票不做物理：站标固定在指针下方一个绳长处，挂绳是一条直线。
-const logoCenter = computed(() => charmLogoCenter(pointer.value, CHARM_TETHER_LENGTH_PX));
-const tetherPath = computed(() => charmTetherPath(pointer.value, logoCenter.value));
-const logoBox = computed(() => ({
-  x: logoCenter.value.x - logoSize.value / 2,
-  y: logoCenter.value.y - logoSize.value / 2,
-}));
+/** 站标图像画在原点、只用一个 translate 定位（每帧只改这一个 transform）。 */
+const logoTransform = computed(() => {
+  const center = logoCenter.value;
+  const half = logoSize.value / 2;
+  return `translate(${(center.x - half).toFixed(1)} ${(center.y - half).toFixed(1)})`;
+});
 </script>
 
 <template>
@@ -64,8 +69,7 @@ const logoBox = computed(() => ({
       <image
         class="charm-layer__logo"
         :href="logoSrc"
-        :x="logoBox.x"
-        :y="logoBox.y"
+        :transform="logoTransform"
         :width="logoSize"
         :height="logoSize"
       />
@@ -107,6 +111,7 @@ const logoBox = computed(() => ({
   stroke: var(--color-ink-faint);
   stroke-width: 1.5;
   stroke-linecap: round;
+  stroke-linejoin: round;
 }
 
 .charm-layer__logo {

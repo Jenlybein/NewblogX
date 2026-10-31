@@ -12,6 +12,7 @@ import type {
   BannerModel,
   BannerWritePayload,
   CdcEventRecord,
+  DecoRuntimeConfig,
   GlobalNotifListItem,
   GrowthDataResponseData,
   HasMoreList,
@@ -32,8 +33,16 @@ import type {
   UserListResponseData,
 } from '~/types/api'
 
-/** 可读写的配置段。与后端 platform/config 的段名常量一一对应。 */
-export type RuntimeSectionName = 'site' | 'ai' | 'mail' | 'storage' | 'oauth' | 'log' | 'upload'
+/** 可读写的配置段。与后端 platform/config 的段名常量一一对应（八段）。 */
+export type RuntimeSectionName =
+  | 'site'
+  | 'ai'
+  | 'mail'
+  | 'storage'
+  | 'oauth'
+  | 'log'
+  | 'upload'
+  | 'deco'
 
 function api() {
   return useNuxtApp().$api
@@ -251,7 +260,7 @@ export function getReplayLogs(query: { page?: number; limit?: number; stream?: s
 
 // ── 其余配置段 ────────────────────────────────────────────────
 //
-// 七个段共用同一条路由（`GET /site/admin/{name}` / `PUT /site/{name}`），
+// 八个段共用同一条路由（`GET /site/admin/{name}` / `PUT /site/{name}`），
 // 请求体与响应结构随 name 变。所以这里用泛型包一层，再给出具名包装 ——
 // 具名的那几个让页面里的调用点能一眼看出在读写哪一段。
 
@@ -301,4 +310,13 @@ export function getUploadRuntimeConfig() {
 
 export function updateUploadRuntimeConfig(payload: UploadRuntimeConfig) {
   return updateRuntimeSection('upload', payload)
+}
+
+/** 装饰段（第 8 段 deco）：光标挂件的开关与八个数值参数。 */
+export function getDecoRuntimeConfig() {
+  return getRuntimeSection<DecoRuntimeConfig>('deco')
+}
+
+export function updateDecoRuntimeConfig(payload: DecoRuntimeConfig) {
+  return updateRuntimeSection('deco', payload)
 }

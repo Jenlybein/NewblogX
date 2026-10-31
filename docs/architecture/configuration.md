@@ -131,7 +131,7 @@ type Service struct{ cfg func() conf.Mail }
 
 ---
 
-## 五、七个配置段
+## 五、八个配置段
 
 | 段 | 类型 | 真正生效的地方 | 生效时机 |
 | --- | --- | --- | --- |
@@ -142,6 +142,25 @@ type Service struct{ cfg func() conf.Mail }
 | `oauth` | `conf.QQ` | QQ 登录回调 | 下一次登录 |
 | `log` | `conf.Logrus` | 日志级别、请求日志、查询限额、清理窗口 | 级别立即，其余下一次请求 |
 | `upload` | `conf.Upload` | 上传格式白名单 | 下一次上传 |
+| `deco` | `conf.Deco` | 光标挂件的开关、站标尺寸、挂绳几何与物理、描边与静止轻晃 | 下一次页面请求 |
+
+`deco`（装饰）不承载任何业务语义：它只影响"页面看起来怎样"。开这个独立段而不是把
+挂件参数塞进 `site`，是因为装饰会越来越多（背景、边框），而每开一段都要走一遍段注册的
+八个点——第 8 段把这笔成本一次付清。本票只有挂件子块 `deco.charm`：总开关 `enable`，
+以及八个数值参数 —— 站标尺寸 `logo_size`（px）、挂绳长度 `rope_length`（px）、
+节点数 `segments`（节，计数）、描边起始宽度 `line_width`（px，收尾固定为起始的 0.6 倍）、
+重力 `gravity`（px/s²）、每步阻尼 `damping`（无量纲）、静止摆动频率 `idle_sway_hz`（Hz）、
+静止摆动幅度 `idle_sway_amp`（px/s²）。`segments` 是计数，钳位时会先取整再夹到边界；
+`line_width` 钳位后保留一位小数。`idle_sway_amp` 与 `idle_sway_hz` 把 0 当作合法值：
+任一为 0 或系统开启「减少动态」时读者站走"静止即停帧"的零帧车道；两者都大于 0 时，
+指针停住后进入约 20fps 的怠速车道，指针仍在移动时走满速动画帧。弧垂没有单独参数，
+它来自真实松弛（绳长 `rope_length` 减去指针到站标的实际距离），调大 `gravity`
+不会加深弧垂。
+
+这一段在**写入路径上钳位**：越界钳到边界、缺省补默认值、NaN/非法值回落默认，
+**不报错**（`conf.Deco.Normalize()`，在 `app` 层的 `UpdateDeco` 里调用）。理由：管理员改一半
+被 400 打回只会让他猜哪里错了，而钳位保证库里永远存不下发散值。读者站与后台各自再做一次
+同样的钳位，作为最后一道防线。
 
 邮件从 SMTP 换成腾讯云 SES 的原因不是偏好：SES 官方 SDK 的 `SendEmail` **只支持模板发信**，
 模板已在控制台审核，代码里不可能被注入任意正文 —— 而验证码本来就只有一个模板。
@@ -150,11 +169,11 @@ type Service struct{ cfg func() conf.Mail }
 
 ---
 
-## 六、后台页面：七个 Tab，一个例外
+## 六、后台页面：八个 Tab，一个例外
 
-`frontend_admin/app/pages/site/index.vue` 是 `NTabs` 容器，七个子组件各读写自己那一段：
+`frontend_admin/app/pages/site/index.vue` 是 `NTabs` 容器，八个子组件各读写自己那一段：
 `SettingsSite` / `SettingsAi` / `SettingsMail` / `SettingsStorage` / `SettingsOAuth` /
-`SettingsLog` / `SettingsUpload`。
+`SettingsLog` / `SettingsUpload` / `SettingsDeco`。
 
 **唯一的例外**：「登录策略」它不是一段，而是 `site.login` 子对象。所以它和站点基础信息
 放在**同一个 Tab、同一次保存**里 —— 两个组件各自读写整段 `site` 会互相把对方刚保存的值
@@ -168,7 +187,7 @@ type Service struct{ cfg func() conf.Mail }
 | 写 | `PUT /site/{name}`，body 是 object | `object` —— 绑定时才按 name 决定类型 |
 
 前端的类型因此是**手写视图模型**（`app/types/api.ts`），不在契约棘轮的保护范围内。
-这是有意的取舍：七段共用一条路由，换来的是路由表短、审计日志统一（`runtime_config_update`
+这是有意的取舍：八段共用一条路由，换来的是路由表短、审计日志统一（`runtime_config_update`
 + `TargetID=段名`）；代价是这段类型没人替你检查，改字段要两边一起改。
 
 ### 6.1 一个真实的类型陷阱（实测数据）
@@ -212,8 +231,8 @@ const loaded = ref(false)
 ## 八、固有三处代价（不粉饰）
 
 1. **契约管不到这段**。`/site/admin/{name}` 的响应是 `map[string]any`，请求体是 `object`。
-   字段级类型只存在于前端手写的 `api.ts` 里，两端靠人同步。想根治要把七段拆成七组
-   路由 + 七个 DTO，代价是路由表变长、审计要多记一层。
+   字段级类型只存在于前端手写的 `api.ts` 里，两端靠人同步。想根治要把八段拆成八组
+   路由 + 八个 DTO，代价是路由表变长、审计要多记一层。
 2. **密钥明文入库**（§3.4）。它不会比 `.env` 更安全，只换来"改完即生效"。
 3. **有些字段提交了也不生效**。`log.app` / `log.dir` / `log.wal_dir` / `log.stdout_format`
    是进程级配置，`UpdateLog` 会把它们**覆盖回当前值**。UI 上必须做成只读并写明原因，
@@ -230,7 +249,7 @@ const loaded = ref(false)
 | `settings.yaml` 删掉的业务段 | 4（`upload` / `email` / `qq` / `qiniu`） |
 | `conf.Config` 删掉的字段 | 6（`Upload`/`Site`/`Email`/`QQ`/`QiNiu`/`AI`） |
 | 新增/改写的配置段类型 | `conf.Mail` 新建；`conf.Logrus` 补 11 个 json tag |
-| 后台新增 Tab | 7（一个页面 + 七个组件） |
+| 后台新增 Tab | 8（一个页面 + 八个组件） |
 | 新增接口 | `GET /site/admin/{name}`、`PUT /site/{name}`、`GET /setup/status`、`POST /setup/admin` |
 | 修复的既有缺陷 | 3（软删除行撞 `name` 唯一索引 / 重启后站点配置被重置 / 默认值回退成全零） |
 

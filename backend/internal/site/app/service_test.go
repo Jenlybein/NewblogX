@@ -573,3 +573,82 @@ func TestUpdateUploadReplacesWhitelist(t *testing.T) {
 		t.Fatalf("白名单应整体替换，得到 %v", got)
 	}
 }
+
+// ── 第 8 段 deco（装饰） ────────────────────────────────────────
+
+func TestUpdateDecoClampsIntoRange(t *testing.T) {
+	// 钳位规则本身在 conf.Deco.Normalize，但必须由服务层调用：
+	// 忘了这一步，后台就能存进 4000，读者站按 4000 渲染。
+	// 关键点：越界**不报错**，否则管理员改一半会被 400 打回、却不知道哪项错了。
+	cases := []struct {
+		name string
+		in   float64
+		want float64
+	}{
+		{"远超上限钳到 96", 4000, conf.CharmLogoSizeMax},
+		{"略低于下限钳到 24", 10, conf.CharmLogoSizeMin},
+		{"没填（零值）回落默认 48", 0, conf.CharmLogoSizeDefault},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			env := newEnv()
+			if err := env.Service.UpdateDeco(conf.Deco{Charm: conf.Charm{Enable: true, LogoSize: c.in}}); err != nil {
+				t.Fatalf("越界值不该报错（钳位而不是 400）: %v", err)
+			}
+			if got := env.Runtime.Deco().Charm.LogoSize; got != c.want {
+				t.Fatalf("落库值应为 %v，实际 %v", c.want, got)
+			}
+			if !env.Runtime.Deco().Charm.Enable {
+				t.Fatal("钳位不应顺手关掉总开关")
+			}
+		})
+	}
+}
+
+func TestUpdateDecoClampsPhysicsParams(t *testing.T) {
+	// 服务层必须把四个物理参数也交给 Normalize —— 只钳站标尺寸是票 #40 的
+	// 半成品形态；漏掉任何一个，后台就能存进 4000px 的绳子或阻尼 2
+	// （后者会让摆动越甩越大，是"发散值"而不是"难看值"）。
+	env := newEnv()
+	if err := env.Service.UpdateDeco(conf.Deco{Charm: conf.Charm{
+		Enable:     true,
+		RopeLength: 4000,
+		Segments:   100,
+		Gravity:    100000,
+		Damping:    2,
+	}}); err != nil {
+		t.Fatalf("越界值不该报错（钳位而不是 400）: %v", err)
+	}
+
+	got := env.Runtime.Deco().Charm
+	if got.RopeLength != conf.CharmRopeLengthMax {
+		t.Fatalf("rope_length 应钳到 %v，实际 %v", conf.CharmRopeLengthMax, got.RopeLength)
+	}
+	if got.Segments != conf.CharmSegmentsMax {
+		t.Fatalf("segments 应钳到 %v，实际 %v", conf.CharmSegmentsMax, got.Segments)
+	}
+	if got.Gravity != conf.CharmGravityMax {
+		t.Fatalf("gravity 应钳到 %v，实际 %v", conf.CharmGravityMax, got.Gravity)
+	}
+	if got.Damping != conf.CharmDampingMax {
+		t.Fatalf("damping 应钳到 %v，实际 %v", conf.CharmDampingMax, got.Damping)
+	}
+}
+
+func TestDecoReadsShareOneBlock(t *testing.T) {
+	// 装饰配置没有任何敏感字段，所以公开读与管理读返回同一份。
+	// 这条断言保证两条路由都接上了 deco 分支（漏一个就有一个读到零值）。
+	env := newEnv()
+	if err := env.Service.UpdateDeco(conf.Deco{Charm: conf.Charm{Enable: false, LogoSize: 30}}); err != nil {
+		t.Fatalf("更新装饰配置失败: %v", err)
+	}
+
+	pub := env.Service.PublicDeco()
+	adm := env.Service.AdminDeco()
+	if pub.Charm.Enable || pub.Charm.LogoSize != 30 {
+		t.Fatalf("公开读应拿到刚存的装饰配置，得到 %+v", pub)
+	}
+	if adm != pub {
+		t.Fatalf("管理读与公开读应一致，得到 %+v 与 %+v", adm, pub)
+	}
+}

@@ -108,7 +108,9 @@ describe("热门标签 / 推荐作者聚合", () => {
   });
 });
 
-describe("首页区块降级态", () => {
+// 这组降级态只属于首页「最新文章」区块：热门置顶是运营位，
+// 无数据 / 加载中 / 失败都整块不渲染（ADR-0017 决策 5），没有可测的降级态。
+describe("最新文章区块的降级态", () => {
   it("加载中：徽标显示加载中，不显示错误/空态文案", () => {
     const state = resolveHomeSectionState({ pending: true, failed: false, itemCount: 0 });
     expect(state.kind).toBe("loading");

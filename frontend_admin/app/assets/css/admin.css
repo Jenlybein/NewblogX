@@ -414,6 +414,110 @@
     z-index: 40;
   }
 
+  /* 取景窗（#45）：固定 16:9 的取景框 + 压暗的台面。
+   *
+   * 图片的几何（object-position / transform-origin / transform）不在这里，
+   * 而是由 `app/utils/framing.ts` 的 framingStyle() 以行内样式给出——那三条
+   * 就是读者站渲染同一张封面的方式，预览与线上因此是同一套几何。
+   *
+   * 按钮用原生 button 而不是 NButton：取景交互要能被组件测试单独驱动（不挂整套
+   * naive-ui 弹层），样式仍取同一套语义 token 与圆角档位。 */
+  .admin-framing {
+    @apply flex flex-col gap-3;
+  }
+
+  .admin-framing__hint {
+    @apply m-0 text-xs leading-5;
+    color: var(--color-ink-muted);
+  }
+
+  /* 台面就是遮罩：深墨底把取景框衬托成一块明亮的窗，框外的一切（弹窗纸面）
+   * 都落在暗处，视线只会停在框内。 */
+  .admin-framing__stage {
+    @apply flex w-full justify-center;
+    padding: 14px;
+    border-radius: var(--radius-lg);
+    background: var(--color-surface-inverse);
+  }
+
+  .admin-framing__frame {
+    position: relative;
+    @apply w-full overflow-hidden;
+    aspect-ratio: 16 / 9;
+    border-radius: var(--radius-md);
+    border: 1px solid var(--color-on-strong-line);
+    background: var(--color-bg-subtle);
+    cursor: grab;
+    touch-action: none;
+    user-select: none;
+  }
+
+  .admin-framing__frame--dragging {
+    cursor: grabbing;
+  }
+
+  .admin-framing__image {
+    @apply block h-full w-full;
+    object-fit: cover;
+    /* 让拖动始终落在取景框上，图片自己不吃指针事件（也不会被原生拖影拖走）。 */
+    pointer-events: none;
+  }
+
+  .admin-framing__controls {
+    @apply flex flex-wrap items-center gap-3;
+  }
+
+  .admin-framing__zoom {
+    @apply flex-1;
+    min-width: 160px;
+    /* 滑杆用墨色而不是功能蓝：蓝色在后台只承担"可以点"的焦点环与链接，
+     * 拿它当控件填充会把"可交互"的信号稀释掉（admin-flip 的结构断言也卡这条）。 */
+    accent-color: var(--color-ink);
+  }
+
+  .admin-framing__readout {
+    @apply whitespace-nowrap text-xs;
+    font-family: var(--font-mono);
+    color: var(--color-ink-muted);
+  }
+
+  .admin-framing__actions {
+    @apply flex flex-wrap justify-end gap-2;
+  }
+
+  .admin-framing__action {
+    @apply inline-flex items-center justify-center border text-sm;
+    min-height: 34px;
+    padding: 0 14px;
+    border-radius: var(--radius-md);
+    border-color: var(--color-line);
+    background: var(--color-surface-raised);
+    color: var(--color-ink);
+    transition:
+      background-color var(--motion-fast) var(--motion-ease),
+      border-color var(--motion-fast) var(--motion-ease);
+  }
+
+  .admin-framing__action:hover {
+    border-color: var(--color-line-strong);
+  }
+
+  .admin-framing__action:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+  }
+
+  .admin-framing__action--icon {
+    @apply p-0 text-base;
+    min-width: 36px;
+  }
+
+  .admin-framing__action--primary {
+    border-color: var(--color-ink);
+    background: var(--color-ink);
+    color: var(--color-on-strong);
+  }
+
   @media (max-width: 1024px) {
     .admin-main {
       @apply p-3;

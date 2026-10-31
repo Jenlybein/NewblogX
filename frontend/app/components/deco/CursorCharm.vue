@@ -21,7 +21,8 @@ import { clampCharmLogoSize } from "~/utils/decoCharm";
  * 于是关掉之后既没有站标素材请求，也没有任何逐帧计算。
  *
  * 渲染成本：物理状态在组合式里是非响应式普通对象；每帧只有两处可见输出 ——
- * 一条路径的 `d` 与站标图像的一个 `transform`。不碰任何布局属性。
+ * 一条路径的 `d`（带形多边形的填充）与站标图像的一个 `transform`。不碰任何
+ * 布局属性；轻晃开启时组合式还会把调度降到约 20fps。
  */
 const siteStore = useSiteStore();
 
@@ -38,13 +39,16 @@ const logoSize = computed(() => clampCharmLogoSize(Number(charmConfig.value?.log
 
 const { enabled, visible, tetherPath, logoCenter } = useCursorCharm({
   configEnabled: () => Boolean(charmConfig.value?.enable),
-  // 四个物理参数每次建链 / 改参数时读一次；任何一个缺失都由
+  // 七个数值参数每次建链 / 改参数时读一次；任何一个缺失都由
   // normalizeCharmRopeConfig 回落默认值，不会因为配置没取回来就不建链。
   config: () => ({
     ropeLengthPx: Number(charmConfig.value?.rope_length),
     segments: Number(charmConfig.value?.segments),
     gravity: Number(charmConfig.value?.gravity),
     damping: Number(charmConfig.value?.damping),
+    lineWidthPx: Number(charmConfig.value?.line_width),
+    idleSwayHz: Number(charmConfig.value?.idle_sway_hz),
+    idleSwayAmp: Number(charmConfig.value?.idle_sway_amp),
   }),
 });
 
@@ -105,13 +109,16 @@ const logoTransform = computed(() => {
   pointer-events: none;
 }
 
-/* 挂绳：极淡语义 token，它的既有定义就是"仅大字 / 装饰 / 控件边界"。 */
+/* 挂绳：极淡语义 token，它的既有定义就是"仅大字 / 装饰 / 控件边界"。
+ *
+ * 这里用 `fill` 而不是 `stroke`：一根等宽 stroke 变不了宽度，而挂绳要求
+ * 起始 → 0.6 倍的收尾。几何层每帧生成一条沿中心线两侧偏移半宽的带形
+ * 多边形（`charmTetherGeometry`），所以这里只负责填色。每帧 DOM 写入
+ * 仍然只有路径的一个 `d` 与站标的一个 `transform`，与票 #41 一致。 */
 .charm-layer__tether {
-  fill: none;
-  stroke: var(--color-ink-faint);
-  stroke-width: 1.5;
-  stroke-linecap: round;
-  stroke-linejoin: round;
+  fill: var(--color-ink-faint);
+  stroke: none;
+  pointer-events: none;
 }
 
 .charm-layer__logo {

@@ -31,22 +31,22 @@ export interface SiteRuntimeConfig {
   project: {
     title?: string;
   };
+  /**
+   * 登录方式开关。键名必须与 `backend/conf/site.enter.go` 的 `Login` json tag 一致：
+   * 后端发出的是 `qq_login` / `username_pwd_login` / `email_login`。
+   * 2026-10-31 之前这里写的是 `qq` / `email` / `pwd` —— 后端从来没有这三个键，
+   * 于是公告卡的登录方式 chips 在生产里恒为空（#56）；现在由
+   * `test/gates/site-runtime-config-parity.test.ts` 逐键比对守住。
+   */
   login: {
-    qq?: boolean;
-    email?: boolean;
-    pwd?: boolean;
+    qq_login?: boolean;
+    username_pwd_login?: boolean;
+    email_login?: boolean;
   };
   index_right: {
     list?: Array<{
       title: string;
-      abstract?: string;
     }>;
-  };
-  article: {
-    show_author?: boolean;
-  };
-  comment: {
-    toggle?: boolean;
   };
 }
 

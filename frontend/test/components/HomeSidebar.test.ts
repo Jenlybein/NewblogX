@@ -37,13 +37,14 @@ function article(id: string, overrides: Record<string, unknown> = {}): SearchArt
   } as unknown as SearchArticleItem;
 }
 
+// fixture 必须用后端真实发出的键（`conf/site.enter.go` 的 json tag）：
+// 之前这里是 `login: { pwd/email/qq }`，与后端 `qq_login` / `username_pwd_login` /
+// `email_login` 对不上，于是组件断言绿、线上 chips 永远空（#56）。
 const runtimeConfig = {
   site_info: { title: "站点" },
-  project: { title: "果冻盒", abstract: "项目摘要" },
-  login: { pwd: true, email: false, qq: false },
+  project: { title: "果冻盒" },
+  login: { username_pwd_login: true, email_login: false, qq_login: false },
   index_right: { list: [] },
-  article: {},
-  comment: {},
 } as unknown as SiteRuntimeConfig;
 
 function mountSidebar(props: Record<string, unknown> = {}) {

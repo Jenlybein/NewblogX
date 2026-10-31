@@ -336,6 +336,89 @@ func TestHotTopRepo_ListCardsFiltersNonAdminAuthor(t *testing.T) {
 	}
 }
 
+// TestHotTopRepo_ListCardsIgnoresSoftDeletedAdminAuthor 作者被软删的管理员
+// **不算**管理员作者。
+//
+// 角色过滤是 join `user_models.role` 做的，软删行物理上还在（文章外键仍指着
+// 它），漏掉 `u.deleted_at IS NULL` 的话，一个已注销管理员的历史文章会在
+// 「显示非管理员发布文章」关闭时被当成管理员作者放出来——正是这个开关要挡的。
+//
+// 三篇对照，缺一不可：
+//   - 普通作者（role=2）的文章：开关关闭时应在；
+//   - **在册**管理员（role=1）的文章：开关关闭时应留（证明"管理员"仍然算数）；
+//   - 已软删管理员（role=1）的文章：开关关闭时应走——这才是本测试的靶子。
+func TestHotTopRepo_ListCardsIgnoresSoftDeletedAdminAuthor(t *testing.T) {
+	t.Parallel()
+
+	db := migrate(t)
+	// 普通作者显式写 role=2：零值 role=0 不是"普通用户"，会被角色过滤一并挡掉，
+	// 那样这条测试就分不清"挡对了软删管理员"还是"谁都挡"。
+	schema.InsertUser(t, db, schema.UserSpec{
+		ID:       100,
+		Username: "hot_top_author",
+		Nickname: "用户100",
+		Role:     schema.RoleUser,
+	})
+	schema.InsertUser(t, db, schema.UserSpec{
+		ID:       900,
+		Username: "hot_top_deleted_admin",
+		Nickname: "已注销管理员",
+		Role:     schema.RoleAdmin,
+	})
+	schema.InsertUser(t, db, schema.UserSpec{
+		ID:       901,
+		Username: "hot_top_live_admin",
+		Nickname: "在册管理员",
+		Role:     schema.RoleAdmin,
+	})
+	// 软删管理员：行保留（外键还指着它），但角色不该再参与读面过滤。
+	if err := db.Table("user_models").Where("id = ?", 900).
+		Update("deleted_at", hotTopBaseTime).Error; err != nil {
+		t.Fatalf("软删管理员失败: %v", err)
+	}
+
+	seedHotTopArticleBy(t, db, 1, 100,
+		schema.ArticleStatusPublished, schema.VisibilityVisible, nil)
+	seedHotTopArticleBy(t, db, 2, 900,
+		schema.ArticleStatusPublished, schema.VisibilityVisible, nil)
+	seedHotTopArticleBy(t, db, 3, 901,
+		schema.ArticleStatusPublished, schema.VisibilityVisible, nil)
+
+	repo := mysql.NewHotTopRepo(db)
+	ctx := context.Background()
+	for i := uint64(1); i <= 3; i++ {
+		if _, err := repo.Save(ctx, ctype.NewID(i)); err != nil {
+			t.Fatalf("置顶 %d 失败: %v", i, err)
+		}
+	}
+
+	// 开关关闭：只剩在册管理员那篇。软删管理员那篇必须被过滤掉，
+	// 不能因为它行里还留着 role=1 就当成管理员作者。
+	onlyAdmin, err := repo.ListCards(ctx, true)
+	if err != nil {
+		t.Fatalf("开关关闭时读公开卡片失败: %v", err)
+	}
+	if len(onlyAdmin) != 1 || onlyAdmin[0].ArticleID != ctype.NewID(3) {
+		t.Fatalf("软删管理员的文章不应算管理员作者，实际 %+v", onlyAdmin)
+	}
+
+	// 开关打开：三篇都是"已发布 + 可见"，照旧都出；
+	// 软删只影响作者 join（昵称取不到），不影响文章本身是否公开。
+	all, err := repo.ListCards(ctx, false)
+	if err != nil {
+		t.Fatalf("开关打开时读公开卡片失败: %v", err)
+	}
+	if len(all) != 3 {
+		t.Fatalf("开关打开时应返回 3 篇，实际 %+v", all)
+	}
+	if all[1].ArticleID != ctype.NewID(2) || all[1].AuthorNickname != "" {
+		t.Fatalf("软删作者的昵称不应再 join 出来，实际 %+v", all[1])
+	}
+	if all[2].ArticleID != ctype.NewID(3) || all[2].AuthorNickname != "在册管理员" {
+		t.Fatalf("在册管理员的卡片应照旧 join 出昵称，实际 %+v", all[2])
+	}
+}
+
 // TestHotTopRepo_ListAdminItemsMarksStale 后台能报出「已失效」及原因。
 func TestHotTopRepo_ListAdminItemsMarksStale(t *testing.T) {
 	t.Parallel()

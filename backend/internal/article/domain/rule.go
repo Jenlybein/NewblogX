@@ -174,23 +174,29 @@ func writableRole(v Viewer) bool {
 
 // CheckWriteOnCreate 判断站点策略是否允许 viewer 以 target 状态新建文章。
 //
-// target 只可能是草稿或提交审核（其它值由调用方按非法迁移拒绝，这里不重复判断）。
+// target 只可能是草稿或提交审核。**其它值一律按非法迁移拒绝，且失败关闭**：
+// 早先这里对未知 target 直接 return nil，一旦上游多出第三种 target
+// （比如「直接发布」），站点开关就会被绕过且不报错。现在把校验放在管理员
+// 短路之前——非法 target 对任何角色都不是一次合法的建文请求，管理员要发布
+// 应当走明确的审核/发布路径，而不是靠这个函数兜底放行。
 func CheckWriteOnCreate(v Viewer, target Status, p WritePolicy) error {
+	if target != StatusDraft && target != StatusExamining {
+		return ErrInvalidTransition
+	}
 	if v.IsAdmin() {
 		return nil
 	}
 	if !writableRole(v) {
 		return ErrForbidden
 	}
-	switch target {
-	case StatusDraft:
+	if target == StatusDraft {
 		if !p.AllowNonAdminDraft {
 			return ErrDraftDisabledBySite
 		}
-	case StatusExamining:
-		if !p.AllowNonAdminPublish {
-			return ErrPublishDisabledBySite
-		}
+		return nil
+	}
+	if !p.AllowNonAdminPublish {
+		return ErrPublishDisabledBySite
 	}
 	return nil
 }

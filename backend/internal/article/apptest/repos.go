@@ -9,6 +9,7 @@ import (
 	"myblogx/internal/article/app"
 	"myblogx/internal/article/domain"
 	"myblogx/internal/article/domain/favorite"
+	"myblogx/internal/article/domain/hottop"
 	"myblogx/internal/article/domain/review"
 	"myblogx/internal/article/domain/taxonomy"
 	"myblogx/internal/article/domain/top"
@@ -28,6 +29,7 @@ type Repos struct {
 	tagRepo      *TagRepo
 	favoriteRepo *FavoriteRepo
 	topRepo      *TopRepo
+	hotTopRepo   *HotTopRepo
 	historyRepo  *ViewHistoryRepo
 	reviewRepo   *ReviewRepo
 	authorStats  *AuthorStats
@@ -46,6 +48,7 @@ func NewRepos() *Repos {
 		tagRepo:      NewTagRepo(),
 		favoriteRepo: NewFavoriteRepo(),
 		topRepo:      NewTopRepo(),
+		hotTopRepo:   NewHotTopRepo(),
 		historyRepo:  NewViewHistoryRepo(),
 		reviewRepo:   NewReviewRepo(),
 		authorStats:  NewAuthorStats(),
@@ -98,6 +101,9 @@ func (r *Repos) Favorites() favorite.Repository { return r.favoriteRepo }
 // Tops 返回置顶仓储。
 func (r *Repos) Tops() top.Repository { return r.topRepo }
 
+// HotTops 返回热门置顶仓储。
+func (r *Repos) HotTops() hottop.Repository { return r.hotTopRepo }
+
 // ViewHistory 返回浏览历史仓储。
 func (r *Repos) ViewHistory() viewhistory.Repository { return r.historyRepo }
 
@@ -127,6 +133,9 @@ func (r *Repos) FakeFavorites() *FavoriteRepo { return r.favoriteRepo }
 // FakeTops 返回置顶仓储 fake。
 func (r *Repos) FakeTops() *TopRepo { return r.topRepo }
 
+// FakeHotTops 返回热门置顶仓储 fake。
+func (r *Repos) FakeHotTops() *HotTopRepo { return r.hotTopRepo }
+
 // FakeHistory 返回浏览历史仓储 fake。
 func (r *Repos) FakeHistory() *ViewHistoryRepo { return r.historyRepo }
 
@@ -150,6 +159,7 @@ func (r *Repos) snapshotAll() map[string]any {
 		"tags":       r.tagRepo.Snapshot(),
 		"favorites":  r.favoriteRepo.Snapshot(),
 		"tops":       r.topRepo.Snapshot(),
+		"hottops":    r.hotTopRepo.Snapshot(),
 		"history":    r.historyRepo.Snapshot(),
 		"reviews":    r.reviewRepo.Snapshot(),
 		"stats":      r.authorStats.Snapshot(),
@@ -167,6 +177,7 @@ func (r *Repos) restoreAll(snaps map[string]any) {
 	r.tagRepo.RestoreState(snaps["tags"])
 	r.favoriteRepo.RestoreState(snaps["favorites"])
 	r.topRepo.RestoreState(snaps["tops"])
+	r.hotTopRepo.RestoreState(snaps["hottops"])
 	r.historyRepo.RestoreState(snaps["history"])
 	r.reviewRepo.RestoreState(snaps["reviews"])
 	r.authorStats.RestoreState(snaps["stats"])

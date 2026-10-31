@@ -12,6 +12,7 @@ import (
 
 	"myblogx/internal/article/domain"
 	"myblogx/internal/article/domain/favorite"
+	"myblogx/internal/article/domain/hottop"
 	"myblogx/internal/article/domain/review"
 	"myblogx/internal/article/domain/taxonomy"
 	"myblogx/internal/article/domain/top"
@@ -29,6 +30,9 @@ type Repos interface {
 	Tags() taxonomy.TagRepository
 	Favorites() favorite.Repository
 	Tops() top.Repository
+	// HotTops 是站点运营位「热门置顶」（表 article_hot_top_models）。
+	// 与 Tops（作者置顶）是两套数据，不要互相顶替。
+	HotTops() hottop.Repository
 	ViewHistory() viewhistory.Repository
 	Reviews() review.Repository
 	// AuthorStats 是唯一的跨模块写：删文章/浏览时更新作者统计。

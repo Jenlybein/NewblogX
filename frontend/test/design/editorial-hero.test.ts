@@ -391,3 +391,48 @@ describe("首屏版式复盘：窄高轮播面板 + 右栏线条场", () => {
     expect(widths).not.toEqual([...widths].sort((a, b) => b - a));
   });
 });
+
+describe("线条入场：从右端延展（只动 transform/opacity，不走 @keyframes）", () => {
+  const lineRule = blockAfter(indexVue, ".home-cover__line {");
+
+  it("缩放原点贴右：视觉上是从最右边长出来", () => {
+    expect(lineRule).toContain("transform-origin: right center");
+  });
+
+  it("用 scaleX(0) → scaleX(1) 的过渡，而不是改 width", () => {
+    expect(indexVue).toContain("transform: scaleX(0)");
+    expect(indexVue).toContain("transform: scaleX(1)");
+    // 布局属性不许过渡（也不许用来做展开）。
+    expect(indexVue).not.toMatch(/transition:[^;]*\bwidth/u);
+    expect(indexVue).not.toMatch(/transform:\s*scaleY/u);
+  });
+
+  it("状态类两段式（is-armed → is-drawn），保留无 JS 兜底", () => {
+    expect(indexVue).toContain("'is-armed': linesArmed");
+    expect(indexVue).toContain("'is-drawn': linesDrawn");
+    expect(indexVue).toMatch(/is-armed:not\(\.is-drawn\)/u);
+    // 只有 arm 成功后才收起初态，所以脚本没跑时线条仍是终态可见。
+    expect(indexVue).toMatch(/onMounted\([\s\S]*prefers-reduced-motion/u);
+    expect(indexVue).toContain("requestAnimationFrame");
+  });
+
+  it("交错由中线向两端扩散（不是自上而下的扫描线）", () => {
+    expect(indexVue).toContain("HERO_LINE_CENTER");
+    expect(indexVue).toMatch(/Math\.abs\(index - HERO_LINE_CENTER\)/u);
+    // 延迟来自数据、逐条内联，而不是统一写死一个 delay。
+    expect(indexVue).toMatch(/transitionDelay: line\.delay/u);
+    expect(indexVue).toMatch(/delay: `\$\{Math\.round\(/u);
+  });
+
+  it("时长与缓动走全站同一份预算（--motion-base + --motion-ease）", () => {
+    expect(lineRule).toContain("var(--motion-base)");
+    expect(lineRule).toContain("var(--motion-ease)");
+  });
+
+  it("减少动态下不延展、直接静态到位", () => {
+    const reduced = /@media \(prefers-reduced-motion: reduce\) \{([\s\S]*?)\n\}/u.exec(indexVue)?.[1] ?? "";
+
+    expect(reduced).toContain(".home-cover__line");
+    expect(reduced).toContain("transition: none");
+  });
+});

@@ -130,6 +130,11 @@ func (b chatAuthBridge) Authenticate(ctx context.Context, token string) (uint64,
 	if err != nil {
 		return 0, 0, false, false
 	}
+	// 与中间件同一条规则：受限访客 / 未知角色按未登录（否则 WS 直接读 header
+	// 令牌就能绕过 AuthMiddleware，guest 仍能收发私信）。
+	if err := requireWritablePrincipal(principal); err != nil {
+		return 0, 0, false, false
+	}
 	return principal.UserID.Uint64(), principal.SessionID.Uint64(), principal.Role == int8(enum.RoleAdmin), true
 }
 

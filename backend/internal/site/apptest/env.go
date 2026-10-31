@@ -142,7 +142,20 @@ func (b *Banners) Delete(_ context.Context, ids []uint64) (int, error) {
 		kept = append(kept, row)
 	}
 	b.rows = kept
+	// 与 MySQL 实现一致：取景表没有软删列，删除 banner 时连同 crop 行一起真删。
+	// 按 want 删而不是按实际命中的行删——MySQL 的 DELETE ... IN 也不会管行是否存在。
+	for id := range want {
+		delete(b.crops, id)
+	}
 	return count, nil
+}
+
+// HasCrop 报告某条轮播是否还有取景记录（测试断言用）。
+func (b *Banners) HasCrop(id uint64) bool {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	_, ok := b.crops[id]
+	return ok
 }
 
 // All 返回全部轮播图（测试断言用）。

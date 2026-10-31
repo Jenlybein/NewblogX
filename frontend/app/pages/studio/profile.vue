@@ -16,6 +16,8 @@ const route = useRoute();
 const router = useRouter();
 const message = useMessage();
 const { openWriteEntry } = useWriteEntry();
+// 站点发布开关关闭时，这里也不出现「创作文章」入口（与页头同一份判定）。
+const { entryVisible } = useArticleWritePolicy();
 
 const key = shallowRef("");
 const sort = shallowRef("2");
@@ -177,6 +179,7 @@ useSeoMeta({
         </div>
         <div class="flex flex-wrap items-center gap-3">
           <NuxtLink
+            v-if="entryVisible"
             to="/studio/write"
             target="_blank"
             rel="noopener noreferrer"

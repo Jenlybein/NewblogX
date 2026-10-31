@@ -189,6 +189,20 @@ type userTopArticleRow struct {
 // TableName 固定表名。
 func (userTopArticleRow) TableName() string { return "user_top_article_models" }
 
+// articleHotTopRow 对应 article_hot_top_models（热门置顶运营位）。
+//
+// 与 userTopArticleRow 长得像但**不是同一件事**：那张是作者置顶自己的文章
+// （个人主页），这张是管理员运营的首页位（ADR-0017 决策 5）。
+// article_id 唯一：一篇文章最多出现在运营位一次。
+type articleHotTopRow struct {
+	BaseRow
+	ArticleID ctype.ID `gorm:"uniqueIndex:uk_article_hot_top"`
+	SortOrder int      `gorm:"not null;default:0"`
+}
+
+// TableName 固定表名。
+func (articleHotTopRow) TableName() string { return "article_hot_top_models" }
+
 // userArticleViewHistoryRow 对应 user_article_view_history_models。
 type userArticleViewHistoryRow struct {
 	BaseRow

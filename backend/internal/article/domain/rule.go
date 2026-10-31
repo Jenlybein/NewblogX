@@ -135,3 +135,104 @@ func CanBeTopped(a *Article, viewer Viewer) bool {
 	}
 	return viewer.UserID == a.authorID
 }
+
+// ── 站点「发布与展示」开关（ADR-0017 决策 2）──
+
+// WritePolicy 是 `site.article` 里与写作权限有关的两个开关的取值快照。
+//
+// 为什么是"快照"而不是直接读配置：domain 不认识配置服务（也不该认识），
+// 判定保持纯函数，权限矩阵才能在毫秒级穷举；取值由 app 层的入参带进来，
+// 读的是运行时配置的现读闭包，所以后台改完下一次请求即生效。
+type WritePolicy struct {
+	// AllowNonAdminPublish 允许非管理员发布文章。
+	//
+	// 关掉后非管理员不能"创建即发布"、不能提交审核、不能发布自己的草稿，
+	// 也不能更新已发布（或审核中）的文章。
+	AllowNonAdminPublish bool
+	// AllowNonAdminDraft 允许非管理员创建草稿。
+	//
+	// 关掉后非管理员不能新建草稿、不能保存草稿；存量草稿仍可打开、可删除。
+	AllowNonAdminDraft bool
+}
+
+// OpenWritePolicy 返回"不限制非管理员"的策略，与两个开关的业务默认值一致（全 true）。
+//
+// 用在两处：装配层读不到运行时配置时兜底（不能因为配置服务缺席就把全站作者锁死），
+// 以及测试里显式表达"策略全开"。
+func OpenWritePolicy() WritePolicy {
+	return WritePolicy{AllowNonAdminPublish: true, AllowNonAdminDraft: true}
+}
+
+// writableRole 判断操作者是否有写权限的角色。
+//
+// 只有管理员（1）与注册用户（2）算"能写的人"。受限访客（3）与库里未入枚举的
+// role=0 在鉴权层已经按未登录处理（ADR-0017 决策 3），这里再兜一层：
+// 三个开关全开时也不能让它们借道写进来——它们连"非管理员作者"都不算。
+func writableRole(v Viewer) bool {
+	return v.IsLoggedIn() && (v.Role == RoleAdmin || v.Role == RoleUser)
+}
+
+// CheckWriteOnCreate 判断站点策略是否允许 viewer 以 target 状态新建文章。
+//
+// target 只可能是草稿或提交审核（其它值由调用方按非法迁移拒绝，这里不重复判断）。
+func CheckWriteOnCreate(v Viewer, target Status, p WritePolicy) error {
+	if v.IsAdmin() {
+		return nil
+	}
+	if !writableRole(v) {
+		return ErrForbidden
+	}
+	switch target {
+	case StatusDraft:
+		if !p.AllowNonAdminDraft {
+			return ErrDraftDisabledBySite
+		}
+	case StatusExamining:
+		if !p.AllowNonAdminPublish {
+			return ErrPublishDisabledBySite
+		}
+	}
+	return nil
+}
+
+// CheckWriteOnUpdate 判断站点策略是否允许 viewer 更新文章 a。
+//
+// target 为 nil 表示"只改内容、不改状态"，此时按文章当前所处阶段归属开关：
+//   - 已发布 / 审核中：属于发布链路（编辑审核中的文章会重新送审），看发布开关；
+//   - 草稿 / 已拒绝：属于准备阶段（存草稿），看草稿开关。
+//
+// 归属规则与 #64 验收标准逐条对应：关闭发布 → 不能更新已发布文章、不能发布草稿；
+// 关闭草稿 → 存量草稿可打开可删除但不可更新（打开与删除不经过本函数）。
+func CheckWriteOnUpdate(a *Article, v Viewer, target *Status, p WritePolicy) error {
+	if v.IsAdmin() {
+		return nil
+	}
+	if !writableRole(v) {
+		return ErrForbidden
+	}
+	if a == nil {
+		return ErrArticleNotFound
+	}
+
+	needsPublish := false
+	switch {
+	case target != nil && *target == StatusExamining:
+		needsPublish = true
+	case target != nil && *target == StatusDraft:
+		needsPublish = false
+	default:
+		// 不显式改状态：按现有状态判断这次编辑落在哪条链路。
+		needsPublish = a.status == StatusPublished || a.status == StatusExamining
+	}
+
+	if needsPublish {
+		if !p.AllowNonAdminPublish {
+			return ErrPublishDisabledBySite
+		}
+		return nil
+	}
+	if !p.AllowNonAdminDraft {
+		return ErrDraftDisabledBySite
+	}
+	return nil
+}

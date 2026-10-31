@@ -16,6 +16,7 @@ import { navigateTo, useRoute, useRouter } from "#imports";
 import AppAvatar from "~/components/common/AppAvatar.vue";
 import BrandLogo from "~/components/brand/Logo.vue";
 import BrandWordmark from "~/components/brand/Wordmark.vue";
+import { useArticleWritePolicy } from "~/composables/useArticleWritePolicy";
 import { usePointerSpecular } from "~/composables/usePointerSpecular";
 import { useScrollChrome } from "~/composables/useScrollChrome";
 import { useWriteEntry } from "~/composables/useWriteEntry";
@@ -35,6 +36,9 @@ const router = useRouter();
 const authStore = useAuthStore();
 const uiStore = useUiStore();
 const { openWriteEntry } = useWriteEntry();
+// 站点「发布与展示」开关：发布关闭时「写文章」入口不出现（ADR-0017 决策 2）。
+// 服务端判定仍是唯一边界，这里只保证界面不说谎。
+const { entryVisible } = useArticleWritePolicy();
 
 const searchKeyword = ref("");
 const menuOpen = ref(false);
@@ -44,7 +48,9 @@ const menuOpen = ref(false);
 const { scrolled, hidden } = useScrollChrome();
 const { handlePointerMove } = usePointerSpecular();
 
-const navItems = computed(() => headerNavItems(route.path));
+const navItems = computed(() =>
+  headerNavItems(route.path).filter((item) => item.key !== "write" || entryVisible.value),
+);
 const themeLabel = computed(() => themeToggleLabel(uiStore.theme));
 const menuLabel = computed(() => mobileMenuLabel(menuOpen.value));
 

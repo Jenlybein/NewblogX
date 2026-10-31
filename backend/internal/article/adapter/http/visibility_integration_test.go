@@ -11,7 +11,7 @@ import (
 	siteconf "myblogx/conf/site"
 	"myblogx/internal/article/domain"
 	"myblogx/internal/kernel/ctype"
-	sitecfg "myblogx/internal/platform/config"
+	"myblogx/internal/platform/config"
 	"myblogx/internal/testkit/schema"
 )
 
@@ -118,9 +118,9 @@ func TestVisibilitySwitchFiltersMySQLReadSurfaces(t *testing.T) {
 //
 // RuntimeConfigService 的缓存为空时 GetRuntimeArticle 回退到 defaults，
 // 所以这里不需要 MySQL：正是 App 里"配置没加载完"的同一形态。
-func siteConfigWithShowNonAdmin(t *testing.T, show bool) *sitecfg.RuntimeConfigService {
+func siteConfigWithShowNonAdmin(t *testing.T, show bool) *config.RuntimeConfigService {
 	t.Helper()
-	return sitecfg.NewRuntimeConfigService(
+	return config.NewRuntimeConfigService(
 		conf.RuntimeDefaults{Site: conf.Site{Article: siteconf.Article{ShowNonAdminArticles: show}}},
 		nil, nil,
 	)

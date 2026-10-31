@@ -334,6 +334,36 @@ func TestUpdateDecoClampsIntoRange(t *testing.T) {
 	}
 }
 
+func TestUpdateDecoClampsPhysicsParams(t *testing.T) {
+	// 服务层必须把四个物理参数也交给 Normalize —— 只钳站标尺寸是票 #40 的
+	// 半成品形态；漏掉任何一个，后台就能存进 4000px 的绳子或阻尼 2
+	// （后者会让摆动越甩越大，是"发散值"而不是"难看值"）。
+	env := newEnv()
+	if err := env.Service.UpdateDeco(conf.Deco{Charm: conf.Charm{
+		Enable:     true,
+		RopeLength: 4000,
+		Segments:   100,
+		Gravity:    100000,
+		Damping:    2,
+	}}); err != nil {
+		t.Fatalf("越界值不该报错（钳位而不是 400）: %v", err)
+	}
+
+	got := env.Runtime.Deco().Charm
+	if got.RopeLength != conf.CharmRopeLengthMax {
+		t.Fatalf("rope_length 应钳到 %v，实际 %v", conf.CharmRopeLengthMax, got.RopeLength)
+	}
+	if got.Segments != conf.CharmSegmentsMax {
+		t.Fatalf("segments 应钳到 %d，实际 %d", conf.CharmSegmentsMax, got.Segments)
+	}
+	if got.Gravity != conf.CharmGravityMax {
+		t.Fatalf("gravity 应钳到 %v，实际 %v", conf.CharmGravityMax, got.Gravity)
+	}
+	if got.Damping != conf.CharmDampingMax {
+		t.Fatalf("damping 应钳到 %v，实际 %v", conf.CharmDampingMax, got.Damping)
+	}
+}
+
 func TestDecoReadsShareOneBlock(t *testing.T) {
 	// 装饰配置没有任何敏感字段，所以公开读与管理读返回同一份。
 	// 这条断言保证两条路由都接上了 deco 分支（漏一个就有一个读到零值）。

@@ -306,7 +306,7 @@ export function updateUploadRuntimeConfig(payload: UploadRuntimeConfig) {
   return updateRuntimeSection('upload', payload)
 }
 
-/** 装饰段（第 8 段 deco）。本票只有光标挂件的开关与站标尺寸。 */
+/** 装饰段（第 8 段 deco）：光标挂件的开关与五个数值参数。 */
 export function getDecoRuntimeConfig() {
   return getRuntimeSection<DecoRuntimeConfig>('deco')
 }

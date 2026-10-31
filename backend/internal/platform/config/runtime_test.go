@@ -542,7 +542,11 @@ func TestAllSections_都有jsonTag(t *testing.T) {
 
 func TestUpdateDeco_落库并立刻生效(t *testing.T) {
 	defaults := conf.RuntimeDefaults{
-		Deco: conf.Deco{Charm: conf.Charm{Enable: true, LogoSize: 48}},
+		Deco: conf.Deco{Charm: conf.Charm{
+			Enable: true, LogoSize: 48,
+			RopeLength: conf.CharmRopeLengthDefault, Segments: conf.CharmSegmentsDefault,
+			Gravity: conf.CharmGravityDefault, Damping: conf.CharmDampingDefault,
+		}},
 	}
 	svc, db := newTestService(t, defaults)
 	if err := svc.InitRuntimeConfig(); err != nil {
@@ -550,25 +554,34 @@ func TestUpdateDeco_落库并立刻生效(t *testing.T) {
 	}
 
 	// 1) 缺失补种：deco 段应有一行完整默认值（漏了 seedMissing 这里就取不到行）。
+	// 这里同时钉一个新字段（rope_length）：票 #41 加字段时最容易漏的是
+	// "结构体字段加了、yaml 默认值没加"，症状是默认补种成 0 后被钳成别的值。
 	seeded := readPayload(t, db, SectionDeco)
-	if !strings.Contains(seeded, `"enable":true`) || !strings.Contains(seeded, `"logo_size":48`) {
+	if !strings.Contains(seeded, `"enable":true`) || !strings.Contains(seeded, `"logo_size":48`) ||
+		!strings.Contains(seeded, `"rope_length":120`) {
 		t.Fatalf("deco 段的默认值没补进库，实际 %s", seeded)
 	}
-	if got := svc.GetRuntimeDeco(); !got.Charm.Enable || got.Charm.LogoSize != 48 {
+	if got := svc.GetRuntimeDeco(); !got.Charm.Enable || got.Charm.LogoSize != 48 ||
+		got.Charm.RopeLength != conf.CharmRopeLengthDefault {
 		t.Fatalf("补种后应读到默认值，实际 %+v", got)
 	}
 
 	// 2) 缓存立刻生效（热更新：不需要重启）。
-	if err := svc.UpdateDeco(conf.Deco{Charm: conf.Charm{Enable: false, LogoSize: 72}}); err != nil {
+	if err := svc.UpdateDeco(conf.Deco{Charm: conf.Charm{
+		Enable: false, LogoSize: 72,
+		RopeLength: 200, Segments: 12, Gravity: 2000, Damping: 0.98,
+	}}); err != nil {
 		t.Fatalf("更新失败: %v", err)
 	}
-	if got := svc.GetRuntimeDeco(); got.Charm.Enable || got.Charm.LogoSize != 72 {
+	if got := svc.GetRuntimeDeco(); got.Charm.Enable || got.Charm.LogoSize != 72 ||
+		got.Charm.RopeLength != 200 {
 		t.Fatalf("缓存未刷新，实际 %+v", got)
 	}
 
 	// 3) 库里也真的换了（不是只改内存）。
 	payload := readPayload(t, db, SectionDeco)
-	if !strings.Contains(payload, `"enable":false`) || !strings.Contains(payload, `"logo_size":72`) {
+	if !strings.Contains(payload, `"enable":false`) || !strings.Contains(payload, `"logo_size":72`) ||
+		!strings.Contains(payload, `"rope_length":200`) {
 		t.Fatalf("库里未写入新值，实际 %s", payload)
 	}
 
@@ -577,7 +590,8 @@ func TestUpdateDeco_落库并立刻生效(t *testing.T) {
 	if err := svc2.InitRuntimeConfig(); err != nil {
 		t.Fatalf("重新加载失败: %v", err)
 	}
-	if reloaded := svc2.GetRuntimeDeco(); reloaded.Charm.Enable || reloaded.Charm.LogoSize != 72 {
+	if reloaded := svc2.GetRuntimeDeco(); reloaded.Charm.Enable || reloaded.Charm.LogoSize != 72 ||
+		reloaded.Charm.RopeLength != 200 {
 		t.Fatalf("重新加载后应读到落库的值，实际 %+v", reloaded)
 	}
 }
@@ -618,5 +632,32 @@ func TestDefaultSettingsYaml_装饰段与常量对齐(t *testing.T) {
 	// 补种值本身必须落在钳位区间内，否则"默认值"会被 Normalize 改掉。
 	if file.Deco.Charm.LogoSize < conf.CharmLogoSizeMin || file.Deco.Charm.LogoSize > conf.CharmLogoSizeMax {
 		t.Fatalf("默认值 %v 不在 [%v, %v] 区间内", file.Deco.Charm.LogoSize, conf.CharmLogoSizeMin, conf.CharmLogoSizeMax)
+	}
+
+	// 票 #41 的四个物理参数同样要与常量对齐：它们不是"反正钳位会兜底"就可以
+	// 留空的 —— yaml 里的默认值是补种进库的那一份，填错了库里的初始值就错了。
+	if file.Deco.Charm.RopeLength != conf.CharmRopeLengthDefault {
+		t.Fatalf("deco.charm.rope_length 应为 %v，实际 %v", conf.CharmRopeLengthDefault, file.Deco.Charm.RopeLength)
+	}
+	if file.Deco.Charm.Segments != conf.CharmSegmentsDefault {
+		t.Fatalf("deco.charm.segments 应为 %d，实际 %d", conf.CharmSegmentsDefault, file.Deco.Charm.Segments)
+	}
+	if file.Deco.Charm.Gravity != conf.CharmGravityDefault {
+		t.Fatalf("deco.charm.gravity 应为 %v，实际 %v", conf.CharmGravityDefault, file.Deco.Charm.Gravity)
+	}
+	if file.Deco.Charm.Damping != conf.CharmDampingDefault {
+		t.Fatalf("deco.charm.damping 应为 %v，实际 %v", conf.CharmDampingDefault, file.Deco.Charm.Damping)
+	}
+	if file.Deco.Charm.RopeLength < conf.CharmRopeLengthMin || file.Deco.Charm.RopeLength > conf.CharmRopeLengthMax {
+		t.Fatalf("rope_length 默认值 %v 不在 [%v, %v] 内", file.Deco.Charm.RopeLength, conf.CharmRopeLengthMin, conf.CharmRopeLengthMax)
+	}
+	if file.Deco.Charm.Segments < conf.CharmSegmentsMin || file.Deco.Charm.Segments > conf.CharmSegmentsMax {
+		t.Fatalf("segments 默认值 %d 不在 [%d, %d] 内", file.Deco.Charm.Segments, conf.CharmSegmentsMin, conf.CharmSegmentsMax)
+	}
+	if file.Deco.Charm.Gravity < conf.CharmGravityMin || file.Deco.Charm.Gravity > conf.CharmGravityMax {
+		t.Fatalf("gravity 默认值 %v 不在 [%v, %v] 内", file.Deco.Charm.Gravity, conf.CharmGravityMin, conf.CharmGravityMax)
+	}
+	if file.Deco.Charm.Damping < conf.CharmDampingMin || file.Deco.Charm.Damping > conf.CharmDampingMax {
+		t.Fatalf("damping 默认值 %v 不在 [%v, %v] 内", file.Deco.Charm.Damping, conf.CharmDampingMin, conf.CharmDampingMax)
 	}
 }

@@ -21,6 +21,7 @@ import { updateArticle } from "~/services/article";
 import type { getArticleScoreDetail } from "~/services/ai";
 import { regenerateArticleScore } from "~/services/ai";
 import { resolveAvatarInitial } from "~/utils/avatar";
+import { DRAFT_DISABLED_NOTICE } from "~/utils/writePolicy";
 
 definePageMeta({
   layout: "write",
@@ -174,8 +175,9 @@ async function handleRefreshArticleScore() {
   }
 
   // 自动保存草稿这一步也要尊重站点开关：草稿关闭时不能借"重新评分"偷偷保存。
+  // 文案复用编辑器顶部那条站点策略说明，避免同一件事两套说法。
   if (writeReadOnly.value) {
-    message.warning("站点当前不允许保存草稿，无法自动保存后再评分。");
+    message.warning(DRAFT_DISABLED_NOTICE);
     return;
   }
 

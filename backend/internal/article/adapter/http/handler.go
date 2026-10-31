@@ -68,8 +68,11 @@ func (h *Handler) skipExamining() bool {
 // onlyAdminAuthors 取「显示非管理员发布文章」开关的反面，作为读面过滤开关。
 //
 // 做成方法而不是构造时的布尔：开关每请求现读，后台改完下一次请求即生效
-// （ADR-0017 决策 4 + house 的 provider 闭包模式）。没有配置服务时按默认值
+// （ADR-0017 决策 4 + GLOSSARY 的「Provider 闭包（现读）」）。没有配置服务时按默认值
 // true（展示）处理——宁可多出内容，也不要静默隐藏。
+//
+// 与另外两处同改：backend/app/visibility_wiring.go 的 onlyAdminAuthors，
+// 以及 backend/internal/search/adapter/http/handler.go 的 onlyAdminAuthors 字段。
 func (h *Handler) onlyAdminAuthors() bool {
 	if h.site == nil {
 		return false

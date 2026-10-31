@@ -317,6 +317,48 @@ func writeActionsFor(v domain.Viewer) []writeAction {
 	}
 }
 
+// TestCheckWriteOnCreateFailsClosedOnUnsupportedTarget 未知/不可建文的 target 一律拒绝。
+//
+// 这条钉的是"失败关闭"：早先 CheckWriteOnCreate 的 switch 没有 default，
+// 既不是草稿也不是审核中的 target 会被静默放行——一旦上游多出第三种建文
+// 目标（比如「直接发布」），站点开关就被绕过了。管理员也要拒绝：非法
+// target 不属于"管理员豁免"的范围，它是一次非法迁移。
+func TestCheckWriteOnCreateFailsClosedOnUnsupportedTarget(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		name   string
+		viewer domain.Viewer
+		target domain.Status
+	}{
+		{"管理员/已发布", domain.AdminUser(adminID), domain.StatusPublished},
+		{"管理员/零值", domain.AdminUser(adminID), domain.Status(0)},
+		{"普通用户/已发布", domain.NormalUser(authorID), domain.StatusPublished},
+		{"普通用户/已拒绝", domain.NormalUser(authorID), domain.StatusRejected},
+		{"普通用户/零值", domain.NormalUser(authorID), domain.Status(0)},
+		{"普通用户/越界", domain.NormalUser(authorID), domain.Status(99)},
+		{"受限访客/已发布", domain.Viewer{UserID: authorID, Role: domain.RoleGuest}, domain.StatusPublished},
+	}
+
+	policies := []domain.WritePolicy{
+		domain.OpenWritePolicy(),
+		{AllowNonAdminPublish: false, AllowNonAdminDraft: false},
+	}
+
+	for _, c := range cases {
+		c := c
+		t.Run(c.name, func(t *testing.T) {
+			t.Parallel()
+			for _, p := range policies {
+				// 开关怎么配都不该改变结论：target 本身非法。
+				if err := domain.CheckWriteOnCreate(c.viewer, c.target, p); !errors.Is(err, domain.ErrInvalidTransition) {
+					t.Fatalf("target=%v 应返回 ErrInvalidTransition，实际 %v（策略=%+v）", c.target, err, p)
+				}
+			}
+		})
+	}
+}
+
 // TestWritePolicyMatrix 是「发布与展示」两个写作开关的权限矩阵：
 // 四种开关组合 × 七种写动作 × 四类操作者（管理员 / 普通用户 / 受限访客 / role=0）。
 //

@@ -27,6 +27,13 @@ const (
 	CodeArticleTitleRequired   Code = "article.title_required"
 	CodeArticleContentRequired Code = "article.content_required"
 	CodeArticleVersionConflict Code = "article.version_conflict"
+	// CodeArticlePublishDisabled / CodeArticleDraftDisabled 表示"站点策略关闭了这项能力"。
+	//
+	// 与 article.forbidden 的区别很重要：forbidden 是"你不能做这件事"（账号/归属问题），
+	// 这两个是"站点当前不允许任何人做这件事"。混用一个码会让用户去查自己的账号，
+	// 而正确动作是找管理员打开「发布与展示」开关。
+	CodeArticlePublishDisabled Code = "article.publish_disabled_by_site"
+	CodeArticleDraftDisabled   Code = "article.draft_disabled_by_site"
 )
 
 // 分类与标签。
@@ -305,6 +312,10 @@ var messages = map[Code]string{
 	CodeArticleTitleRequired:   "标题不能为空",
 	CodeArticleContentRequired: "正文不能为空",
 	CodeArticleVersionConflict: "文章已被他人修改，请刷新后重试",
+	// 这两条文案必须点明"站点策略"：用户看到后应知道去找管理员改站点开关，
+	// 而不是怀疑自己的账号被限制了。
+	CodeArticlePublishDisabled: "站点当前不允许发布文章（站点策略，不是账号问题），请联系管理员开启「允许非管理员发布文章」",
+	CodeArticleDraftDisabled:   "站点当前不允许保存草稿（站点策略，不是账号问题），请联系管理员开启「允许非管理员创建草稿」",
 
 	CodeTaxonomyTitleRequired: "名称不能为空",
 	CodeTaxonomyTitleExists:   "名称重复",

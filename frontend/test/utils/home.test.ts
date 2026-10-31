@@ -29,13 +29,15 @@ function article(overrides: Record<string, unknown> = {}): SearchArticleItem {
   } as unknown as SearchArticleItem;
 }
 
+// 运行时配置的 fixture 必须用**后端真实发出的键**（`backend/conf/site.enter.go` 的 json tag），
+// 不能用前端想象中的名字。2026-10-31 之前这里写的是 `login: { pwd/email/qq }`，
+// 与后端 `qq_login` / `username_pwd_login` / `email_login` 完全对不上，
+// 于是断言绿、线上 chips 永远为空（#56）。
 const runtimeConfig = {
   site_info: { title: "站点" },
-  project: { title: "项目", abstract: "项目摘要" },
-  login: { pwd: true, email: false, qq: true },
+  project: { title: "项目" },
+  login: { qq_login: true, username_pwd_login: true, email_login: false },
   index_right: { list: [{ title: "hot_tags" }] },
-  article: {},
-  comment: {},
 } as unknown as SiteRuntimeConfig;
 
 describe("homeSidebarVisibility / homeLoginModes", () => {
@@ -52,6 +54,22 @@ describe("homeSidebarVisibility / homeLoginModes", () => {
   it("登录方式只列已启用的", () => {
     expect(homeLoginModes(runtimeConfig)).toEqual(["密码登录", "QQ 登录"]);
     expect(homeLoginModes(null)).toEqual([]);
+  });
+
+  it("后端真实键（qq_login/username_pwd_login/email_login）必须能被读到（#56 回归）", () => {
+    // 喂的就是后端 `conf.Site.Login` 原样发出的形状；若前端又改回
+    // `qq/email/pwd` 这类自造键，这条会立刻红。
+    const backendShaped = {
+      login: { qq_login: true, username_pwd_login: true, email_login: true },
+    } as unknown as SiteRuntimeConfig;
+    expect(homeLoginModes(backendShaped)).toEqual(["密码登录", "邮箱登录", "QQ 登录"]);
+  });
+
+  it("三个开关全关时不展示任何登录方式", () => {
+    const allOff = {
+      login: { qq_login: false, username_pwd_login: false, email_login: false },
+    } as unknown as SiteRuntimeConfig;
+    expect(homeLoginModes(allOff)).toEqual([]);
   });
 });
 

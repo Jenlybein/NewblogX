@@ -30,13 +30,20 @@ export function homeSidebarVisibility(runtimeConfig: SiteRuntimeConfig | null): 
   };
 }
 
-/** 公告卡里展示的登录方式（只展示已启用的）。 */
+/**
+ * 公告卡里展示的登录方式（只展示已启用的）。
+ *
+ * 读的是后端 `conf.Site.Login` 的**真实 json tag**（`qq_login` /
+ * `username_pwd_login` / `email_login`）。这里曾按 `login.pwd` / `login.email` /
+ * `login.qq` 读——那三个键后端从不发出，于是函数恒返回 `[]`、公告卡 chips
+ * 在生产里永远不显示（#56）。
+ */
 export function homeLoginModes(runtimeConfig: SiteRuntimeConfig | null): string[] {
   const login = runtimeConfig?.login;
   const modes: string[] = [];
-  if (login?.pwd) modes.push("密码登录");
-  if (login?.email) modes.push("邮箱登录");
-  if (login?.qq) modes.push("QQ 登录");
+  if (login?.username_pwd_login) modes.push("密码登录");
+  if (login?.email_login) modes.push("邮箱登录");
+  if (login?.qq_login) modes.push("QQ 登录");
   return modes;
 }
 

@@ -39,6 +39,8 @@ func (h *Handler) Register(r *gin.RouterGroup, authMw, optionalMw gin.HandlerFun
 	group.GET("favorite", mw.BindQuery[FavoriteListRequest], h.Folders)
 	group.GET("favorite/contents", mw.BindQuery[FavoriteArticlesRequest], h.FavoriteItems)
 	group.GET("top", mw.BindQuery[ArticleTopListRequest], h.Tops)
+	// 热门置顶运营位（与上面的作者置顶是两套数据）。公开读：首页区块。
+	group.GET("hot-top", h.HotTops)
 	reviewAdminGroup.GET("", mw.BindQuery[ArticleReviewTaskListRequest], h.ReviewTasks)
 
 	// 登录用户写
@@ -60,6 +62,12 @@ func (h *Handler) Register(r *gin.RouterGroup, authMw, optionalMw gin.HandlerFun
 	// 管理员
 	adminGroup.DELETE("", mw.CaptureLog(mw.ReqBody), mw.BindJson[kernel.IDListRequest], h.RemoveBatch)
 	adminGroup.POST(":id/admin/:visibility", mw.BindUri[ArticleAdminVisibilityURI], h.AdminVisibility)
+	// 热门置顶的运营动作：设置/取消（幂等）与整表排序。
+	adminGroup.GET("hot-top/admin", h.AdminHotTops)
+	adminGroup.POST(":id/admin/hot-top", mw.BindUri[kernel.IDRequest], h.SetHotTop)
+	adminGroup.DELETE(":id/admin/hot-top", mw.BindUri[kernel.IDRequest], h.RemoveHotTop)
+	adminGroup.PATCH("hot-top/order", mw.CaptureLog(mw.ReqBody),
+		mw.BindJson[ArticleHotTopOrderRequest], h.ReplaceHotTopOrder)
 	adminGroup.PUT("tags", mw.CaptureLog(mw.ReqBody), mw.BindJson[TagRequest], h.SaveTag)
 	adminGroup.DELETE("tags", mw.CaptureLog(mw.ReqBody), mw.BindJson[kernel.IDListRequest], h.DeleteTags)
 	reviewTaskAdminGroup.POST(":id/review", mw.CaptureLog(mw.ReqBody), mw.BindUri[kernel.IDRequest],

@@ -89,6 +89,9 @@ var adminOnly = []struct {
 	// 全局通知的写操作（读是登录用户都有的）
 	{"POST", "/api/global_notif"},
 	{"DELETE", "/api/global_notif"},
+	// 热门置顶运营位：整表排序与全量列表（带 {id} 的设置/取消在下面"边界"之外）
+	{"PATCH", "/api/articles/hot-top/order"},
+	{"GET", "/api/articles/hot-top/admin"},
 }
 
 // adminAreaPrefixes 是"整段只给管理员"的路径前缀，用于完整性检查。

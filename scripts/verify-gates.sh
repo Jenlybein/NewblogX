@@ -329,15 +329,41 @@ rm -f "$CANARY_LINT"
 echo ""
 echo "===== 11/13 覆盖率门槛 ====="
 # 门禁原型：frontend_admin 的 vitest coverage thresholds（95/90/95/95，
-# 统计范围只有 app/utils/**）。现有 6 个文件都是 100%，加一个 0 覆盖文件
-# 会把整体拉到 85.7%，必须让 `test:coverage` 失败。
-printf 'export function canaryCov(flag: boolean): number {\n  if (flag) {\n    return 1\n  }\n  return 2\n}\n' > "$CANARY_COV"
-if ( cd frontend_admin && corepack pnpm test:coverage ) >"$CANARY_TMP/out.txt" 2>&1; then
-  bad "新增零覆盖文件后覆盖率门槛没有拦住"
+# 统计范围只有 app/utils/**）。
+#
+# 注入方式曾有一个**过期的前提假设**：「现有 6 个文件都是 100%，加一个 0 覆盖
+# 文件会把整体拉到 85.7%，必然失败」。实际 admin/app/utils 已达 12 个文件、
+# 语句覆盖 99.2%，注入一个 3 条语句的零覆盖文件只掉到 98.08% —— 远够不到
+# 95 门槛，于是自检把「门禁失效」判了出来（跑 check.sh 才暴露，CI 因为命令
+# 因别的原因返回非零反而"假绿"过）。这里改成与分母无关的注入：
+#   1) 仍然注入零覆盖文件（保留原本最真实的场景）；
+#   2) 同时把四道阈值临时抬到 100 —— 当前覆盖率远低于 100，必然判红，
+#      分母怎么长都不会让注入失效；
+#   3) 核对失败原因确实是"覆盖率不达阈值"，而不是 pnpm/node 不可用后
+#      因别的原因返回非零（后者是典型的假红，等于门禁不存在）。
+ADMIN_VITEST_CFG="frontend_admin/vitest.config.ts"
+if backup_file "$ADMIN_VITEST_CFG"; then
+  printf 'export function canaryCov(flag: boolean): number {\n  if (flag) {\n    return 1\n  }\n  return 2\n}\n' > "$CANARY_COV"
+  sed -i \
+    -e 's/^\( *\)statements: 95,$/\1statements: 100,/' \
+    -e 's/^\( *\)branches: 90,$/\1branches: 100,/' \
+    -e 's/^\( *\)functions: 95,$/\1functions: 100,/' \
+    -e 's/^\( *\)lines: 95,$/\1lines: 100,/' \
+    "$ADMIN_VITEST_CFG"
+  if ( cd frontend_admin && corepack pnpm test:coverage ) >"$CANARY_TMP/out.txt" 2>&1; then
+    bad "覆盖率低于阈值时门槛没有拦住"
+  elif grep -Eqi "does not meet|threshold|Coverage for" "$CANARY_TMP/out.txt"; then
+    ok "覆盖率跌破阈值会让门禁失败"
+  else
+    echo "✗ 覆盖率门禁没有按预期原因失败（pnpm/node 不可用？）"
+    tail -5 "$CANARY_TMP/out.txt"
+    FAIL=$((FAIL+1))
+  fi
+  rm -f "$CANARY_COV"
+  restore_file "$ADMIN_VITEST_CFG"
 else
-  ok "覆盖率跌破门槛会让门禁失败"
+  bad "无法备份 $ADMIN_VITEST_CFG，覆盖率自检无法进行"
 fi
-rm -f "$CANARY_COV"
 
 echo ""
 echo "===== 12/13 两端 tokens.css 同源门禁 ====="

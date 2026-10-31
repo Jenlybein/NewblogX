@@ -12,7 +12,7 @@ import (
 // 免得每处各写一次取反、也免得零值把内容静默隐藏。
 //
 // 返回取值函数而不是布尔：开关必须**每请求现读**，管理员在后台改完下一次请求
-// 即生效（house 的 provider 闭包模式）。没有配置服务时按默认值 true（展示）。
+// 即生效（GLOSSARY 的「Provider 闭包（现读）」）。没有配置服务时按默认值 true（展示）。
 func onlyAdminAuthors(site *sitecfg.RuntimeConfigService) func() bool {
 	return func() bool {
 		if site == nil {

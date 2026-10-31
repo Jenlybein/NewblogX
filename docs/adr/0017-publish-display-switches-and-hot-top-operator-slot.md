@@ -34,7 +34,7 @@
    - 新表 `article_hot_top_models`（`article_id` 唯一、`sort_order`、软删），与 ES 无关；最多 12 条，新置顶排末尾，取消后序号压实。
    - 只有"已发布且可见"的文章可置顶；文章后来被隐藏/退回草稿/删除时，置顶行**保留**、首页容器 JOIN 过滤掉，后台在热门置顶页标"已失效"并提供一键清理。
    - 接口：`GET /articles/hot-top`（公开，返回卡片列表）、`POST|DELETE /api/articles/{id}/admin/hot-top`（幂等开关）、`PATCH /api/articles/hot-top/order`（全量顺序替换）。
-   - 后台：文章管理列表每行加「热门置顶 / 取消」；左侧导航「内容」组新增「热门置顶」页负责排序（上移/下移/移除）、失效标记与清理。文章列表的置顶状态来自 `GET /articles/hot-top` 的 ID 集合，**不依赖 ES 字段**。
+   - 后台：文章管理列表每行加「热门置顶 / 取消」；后台侧边栏在「文章管理」之后新增「热门置顶」页（后台菜单是扁平清单，没有分组）负责排序（上移/下移/移除）、失效标记与清理。文章列表的置顶状态来自 `GET /articles/hot-top` 的 ID 集合，**不依赖 ES 字段**。
    - 首页「热门置顶」区块**只在有数据时渲染**：无数据、加载中、请求失败都整块不出现，同时删掉现有空态分支与文案。
 6. **清理 ES 里无人消费的置顶派生字段**：删除 `admin_top`、`author_top` 与搜索结果里的 `top` 对象（连同 `search/domain` 的 `Top`/`UserTop`/`AdminTop`）；作者置顶功能保留，继续走 `user_top_article_models` 与 `/articles/top?user_id`，只是不再进 ES。映射变更需要一次索引重建 + 全量回填（`-es` 后接 `-es -s article-sync`），期间搜索有短暂空窗。
 

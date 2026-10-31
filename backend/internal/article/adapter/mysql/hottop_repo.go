@@ -140,7 +140,9 @@ func (r *HotTopRepo) ListCards(ctx context.Context, onlyAdminAuthors bool) ([]ho
 		Select("a.id AS article_id, a.title, a.abstract, a.cover, a.view_count, "+
 			"COALESCE(u.nickname, '') AS author_nickname, COALESCE(c.title, '') AS category_title").
 		Joins("JOIN article_models AS a ON a.id = t.article_id AND a.deleted_at IS NULL").
-		Joins("LEFT JOIN user_models AS u ON u.id = a.author_id").
+		// 软删用户不参与 join：否则 u.role 仍会读到已注销管理员的行，
+		// 开关关闭时把"作者已不存在"的文章当成管理员作者放出来。
+		Joins("LEFT JOIN user_models AS u ON u.id = a.author_id AND u.deleted_at IS NULL").
 		Joins("LEFT JOIN category_models AS c ON c.id = a.category_id").
 		Where("t.deleted_at IS NULL AND a.publish_status = ? AND a.visibility_status = ?",
 			statusPublished, visibilityVisible)
@@ -243,13 +245,13 @@ func (r *HotTopRepo) UpdateSortOrder(ctx context.Context, ids []domain.ArticleID
 // 同号只会退化成"按加入顺序"，既不丢数据也不阻塞。上限 12 条的运营位是单人操作，
 // 为它引入 SELECT ... FOR UPDATE 不划算。
 func (r *HotTopRepo) nextSortOrder(db *gorm.DB) (int, error) {
-	var max int
+	var maxOrder int
 	if err := db.Model(&articleHotTopRow{}).
 		Select("COALESCE(MAX(sort_order), 0)").
-		Scan(&max).Error; err != nil {
+		Scan(&maxOrder).Error; err != nil {
 		return 0, err
 	}
-	return max + 1, nil
+	return maxOrder + 1, nil
 }
 
 // compact 把剩余置顶行的序号压实成 1..n。

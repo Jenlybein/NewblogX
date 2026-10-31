@@ -1,6 +1,7 @@
 package app
 
 import (
+	"strconv"
 	"testing"
 
 	"myblogx/internal/kernel/ctype"
@@ -115,6 +116,121 @@ func TestOnlyAdminAuthorsFilterValueIsTrue(t *testing.T) {
 		}
 	}
 	t.Fatalf("未找到 author_is_admin 过滤: %#v", query)
+}
+
+// TestOnlyAdminAuthorsFilterPresentForEveryShape 只要开关关闭，公开读面的
+// "只出管理员作者"过滤就必然在——与关键字、排序、标签、分类、分页怎么组合无关。
+//
+// 这条钉的是"失败关闭"：过滤只依赖 defaultQuery 造出的 bool 结构，任何一次
+// "结构对不上就原样返回"的实现都会让开关静默失效，而 ES 不会报错。
+func TestOnlyAdminAuthorsFilterPresentForEveryShape(t *testing.T) {
+	t.Parallel()
+
+	user := &domain.Viewer{ID: ctype.NewID(100)}
+
+	type shape struct {
+		name   string
+		req    domain.Request
+		viewer *domain.Viewer
+		like   []ctype.ID
+	}
+
+	mods := []struct {
+		name  string
+		apply func(domain.Request) domain.Request
+	}{
+		{"无额外条件", func(r domain.Request) domain.Request { return r }},
+		{"关键字", func(r domain.Request) domain.Request { r.Key = "golang 并发"; return r }},
+		{"新格式标签", func(r domain.Request) domain.Request {
+			r.TagIDs = []ctype.ID{ctype.NewID(1), ctype.NewID(2)}
+			return r
+		}},
+		{"旧格式标签", func(r domain.Request) domain.Request {
+			r.LegacyTagList = []string{"Go", "MySQL"}
+			return r
+		}},
+		{"分类+分页", func(r domain.Request) domain.Request {
+			r.CategoryID = ctype.NewID(7)
+			r.PageMode = domain.PageModeHasMore
+			r.PageInfo = domain.PageInfo{Page: 2, Limit: 20}
+			return r
+		}},
+	}
+
+	var shapes []shape
+	for _, articleType := range []int8{1, 2, 3} {
+		for sort := int8(1); sort <= 6; sort++ {
+			base := domain.Request{
+				Type:             articleType,
+				Sort:             sort,
+				PageMode:         domain.PageModeCount,
+				OnlyAdminAuthors: true,
+			}
+			if articleType == 3 {
+				base.AuthorID = ctype.NewID(100)
+			}
+			viewer := (*domain.Viewer)(nil)
+			var like []ctype.ID
+			if articleType == 2 {
+				viewer = user
+				like = []ctype.ID{ctype.NewID(3), ctype.NewID(5)}
+			}
+			for _, mod := range mods {
+				shapes = append(shapes, shape{
+					name:   "type" + itoa8(articleType) + "/sort" + itoa8(sort) + "/" + mod.name,
+					req:    mod.apply(base),
+					viewer: viewer,
+					like:   like,
+				})
+			}
+		}
+	}
+
+	for _, s := range shapes {
+		s := s
+		t.Run(s.name, func(t *testing.T) {
+			t.Parallel()
+
+			normalized, err := normalize(s.req, s.viewer)
+			if err != nil {
+				t.Fatalf("请求应通过归一化: %v", err)
+			}
+			query, err := buildDSL(normalized, s.viewer, s.like)
+			if err != nil {
+				t.Fatalf("编译 DSL 失败: %v", err)
+			}
+			if !hasTermFilter(query, "author_is_admin") {
+				t.Fatalf("开关关闭时过滤不能缺席，实际 DSL=%#v", query)
+			}
+		})
+	}
+}
+
+// itoa8 把 int8 写成名字片段（测试名用）。
+func itoa8(v int8) string { return strconv.Itoa(int(v)) }
+
+// TestAdminAuthorQueryFailsClosed 查询结构对不上时报错，绝不原样放行。
+//
+// 原实现是 `return query`：过滤消失、ES 照常返回全量结果，开关等于没关。
+func TestAdminAuthorQueryFailsClosed(t *testing.T) {
+	t.Parallel()
+
+	if _, err := adminAuthorQuery(map[string]any{"match_all": map[string]any{}}); err == nil {
+		t.Fatal("查询结构里没有 bool 时应返回错误（失败关闭），实际 nil")
+	}
+
+	// 正常结构：过滤被追加，原有 filter 一个不丢。
+	query := defaultQuery("")
+	got, err := adminAuthorQuery(query)
+	if err != nil {
+		t.Fatalf("正常结构不应报错: %v", err)
+	}
+	if !hasTermFilter(got, "author_is_admin") {
+		t.Fatalf("应追加 author_is_admin 过滤，实际 %#v", got)
+	}
+	if !hasTermFilter(got, "publish_status") || !hasTermFilter(got, "visibility_status") {
+		t.Fatalf("原有 filter 不能丢，实际 %#v", got)
+	}
 }
 
 // hasTermFilter 判断 bool 查询的 filter 列表里是否有针对某字段的 term 过滤。

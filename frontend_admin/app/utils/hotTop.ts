@@ -10,16 +10,21 @@
  *   - `PATCH /articles/hot-top/order` 是**全量替换**，漏掉失效项整单会被后端拒绝。
  */
 
+import type { HotTopAdminItem } from '~/types/api'
+
 /** 运营位上限（条）。后端同样有这条限制，这里只用于页面提示与按钮可用性。 */
 export const HOT_TOP_LIMIT = 12
 
 export type HotTopDirection = 'up' | 'down'
 
-/** 排序只看这两个字段：`/articles/hot-top/admin` 的列表项（stale 可能缺席）。 */
-export interface HotTopOrderItem {
-  article_id: string
-  stale?: boolean
-}
+/**
+ * 排序只看这两个字段，类型从契约派生（`HotTopAdminItem` 是 `RequiredSchema`，
+ * `article_id` 与 `stale` 都必有）。
+ *
+ * 不在这里另写一份同名结构：手写影子类型会与契约悄悄漂移——上一版就把契约里
+ * 必有的 `stale` 写成了可选，于是"失效项"在类型层面变成可以不存在。
+ */
+export type HotTopOrderItem = Pick<HotTopAdminItem, 'article_id' | 'stale'>
 
 /** 当前位置能否朝该方向移动（两端与空序列都为 false）。 */
 export function canMoveHotTop(index: number, length: number, direction: HotTopDirection): boolean {

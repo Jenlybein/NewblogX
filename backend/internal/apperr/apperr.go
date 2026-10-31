@@ -162,6 +162,9 @@ const (
 	CodeSearchUnauthorized    Code = "search.unauthorized"
 	CodeSearchForbidden       Code = "search.forbidden"
 	CodeSearchResultInvalid   Code = "search.result_invalid"
+	// CodeSearchQueryInvalid 查询构建失败：DSL 结构与预期不符，属内部不变量被破坏，
+	// 不是调用方的参数问题。失败关闭用它，避免"过滤加不上却静默全量返回"。
+	CodeSearchQueryInvalid Code = "search.query_invalid"
 )
 
 // 关注关系。
@@ -405,6 +408,7 @@ var messages = map[Code]string{
 	CodeSearchUnauthorized:    "请先登录",
 	CodeSearchForbidden:       "权限错误",
 	CodeSearchResultInvalid:   "搜索结果格式错误",
+	CodeSearchQueryInvalid:    "搜索查询构建失败",
 
 	CodeFollowSelf:           "不能关注自己",
 	CodeFollowTargetNotFound: "目标用户不存在",

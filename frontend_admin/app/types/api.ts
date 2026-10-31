@@ -134,6 +134,16 @@ export type UserListItem = RequiredSchema<"internal_user_adapter_http.AdminUserI
 export type SearchArticleItem = RequiredSchema<"myblogx_internal_search_domain.Item">;
 export type SearchPagination = RequiredSchema<"myblogx_internal_search_domain.Pagination">;
 
+// ── 热门置顶（运营位）─────────────────────────────────────────
+
+/**
+ * `/articles/hot-top/admin` 的列表项。
+ *
+ * 后台唯一的置顶状态来源（文章管理列表的按钮状态也用它）：带排序号与失效标记，
+ * 比公开接口多出 stale 行。**不要**改去读 ES 文档里的字段（ADR-0017 决策 5）。
+ */
+export type HotTopAdminItem = RequiredSchema<"internal_article_adapter_http.ArticleHotTopAdminItem">;
+
 export type ArticleSearchResponseData = Omit<
   RequiredSchema<"myblogx_internal_search_domain.Response">,
   "list"

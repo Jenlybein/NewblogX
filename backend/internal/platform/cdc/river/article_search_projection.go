@@ -24,8 +24,6 @@ func (r *River) handleArticleSearchProjectionEvent(e *canal.RowsEvent) (bool, er
 		return true, r.syncArticleDocsByTagRows(e)
 	case "article_tag_models":
 		return true, r.syncArticleDocsByArticleTagRows(e)
-	case "user_top_article_models":
-		return true, r.syncArticleDocsByTopRows(e)
 	default:
 		return false, nil
 	}
@@ -67,14 +65,10 @@ func (r *River) syncArticleDocsByUserRows(e *canal.RowsEvent) error {
 	if len(userIDs) == 0 {
 		return nil
 	}
-	if err := articlesync.SyncArticleSearchProjection(r.db, r.es, articlesync.ArticleSearchProjectionEvent{
-		Type: articlesync.ArticleSearchProjectionAuthorSnapshot,
-		IDs:  userIDs,
-	}); err != nil {
-		return err
-	}
+	// 一次事件只发一个投影事件：用户行影响的就是"作者快照"，
+	// 而角色变化投影成的 author_is_admin 也在同一条快照里（ADR-0017 决策 4）。
 	return articlesync.SyncArticleSearchProjection(r.db, r.es, articlesync.ArticleSearchProjectionEvent{
-		Type: articlesync.ArticleSearchProjectionTopUserChanged,
+		Type: articlesync.ArticleSearchProjectionAuthorSnapshot,
 		IDs:  userIDs,
 	})
 }
@@ -108,17 +102,6 @@ func (r *River) syncArticleDocsByArticleTagRows(e *canal.RowsEvent) error {
 	}
 	return articlesync.SyncArticleSearchProjection(r.db, r.es, articlesync.ArticleSearchProjectionEvent{
 		Type: articlesync.ArticleSearchProjectionArticleTagsChanged,
-		IDs:  articleIDs,
-	})
-}
-
-func (r *River) syncArticleDocsByTopRows(e *canal.RowsEvent) error {
-	articleIDs := collectRowsIDs(e, "article_id")
-	if len(articleIDs) == 0 {
-		return nil
-	}
-	return articlesync.SyncArticleSearchProjection(r.db, r.es, articlesync.ArticleSearchProjectionEvent{
-		Type: articlesync.ArticleSearchProjectionArticleTopChanged,
 		IDs:  articleIDs,
 	})
 }

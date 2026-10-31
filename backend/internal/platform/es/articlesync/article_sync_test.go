@@ -120,39 +120,19 @@ func TestUpdateESDocsTags(t *testing.T) {
 	}
 }
 
-func TestUpdateESDocsTop(t *testing.T) {
-	db := testutil.SetupSQLite(t,
-		&UserRow{},
-		&ArticleRow{},
-		&UserTopArticleRow{},
-	)
-	testutil.SetConfig(&conf.Config{ES: conf.ES{Index: "article_index"}})
+// setupMockESCollectingBulkDocs 起一个只负责记录 bulk 文档体的 mock ES。
+//
+// 与各用例里手写的那份相比，它只做"把发出去的文档收下来"这一件事，
+// 让新增用例的正文只剩下断言。
+func setupMockESCollectingBulkDocs(t *testing.T) *[]map[string]any {
+	t.Helper()
 
-	admin := UserRow{Username: "admin", Password: "x", Role: enum.RoleAdmin}
-	author := UserRow{Username: "author", Password: "x", Role: enum.RoleUser}
-	if err := db.Create(&admin).Error; err != nil {
-		t.Fatalf("创建管理员失败: %v", err)
-	}
-	if err := db.Create(&author).Error; err != nil {
-		t.Fatalf("创建作者失败: %v", err)
-	}
-	article := ArticleRow{Title: "t1", Content: "正文", AuthorID: author.ID, PublishStatus: enum.ArticleStatusExamining}
-	if err := db.Create(&article).Error; err != nil {
-		t.Fatalf("创建文章失败: %v", err)
-	}
-	if err := db.Create(&UserTopArticleRow{UserID: admin.ID, ArticleID: article.ID}).Error; err != nil {
-		t.Fatalf("创建管理员置顶失败: %v", err)
-	}
-	if err := db.Create(&UserTopArticleRow{UserID: author.ID, ArticleID: article.ID}).Error; err != nil {
-		t.Fatalf("创建作者置顶失败: %v", err)
-	}
-
-	var bulkDocs []map[string]any
+	docs := make([]map[string]any, 0, 2)
 	setupMockES(t, func(w http.ResponseWriter, r *http.Request) {
 		switch {
 		case r.URL.Path == "/":
 			writeJSON(w, 200, `{"name":"mock","cluster_name":"mock","version":{"number":"7.17.10"},"tagline":"You Know, for Search"}`)
-		case r.URL.Path == "/_bulk" || strings.HasSuffix(r.URL.Path, "/_bulk"):
+		case strings.HasSuffix(r.URL.Path, "/_bulk"):
 			body, _ := io.ReadAll(r.Body)
 			scanner := bufio.NewScanner(strings.NewReader(string(body)))
 			lineNo := 0
@@ -167,7 +147,7 @@ func TestUpdateESDocsTop(t *testing.T) {
 					if err := json.Unmarshal(line, &doc); err != nil {
 						t.Fatalf("解析 bulk 文档失败: %v", err)
 					}
-					bulkDocs = append(bulkDocs, doc)
+					docs = append(docs, doc)
 				}
 			}
 			writeJSON(w, 200, `{"took":1,"errors":false,"items":[]}`)
@@ -175,22 +155,116 @@ func TestUpdateESDocsTop(t *testing.T) {
 			writeJSON(w, 404, `{"error":{"reason":"not found"}}`)
 		}
 	})
+	return &docs
+}
 
-	if err := UpdateESDocsTop(db, testutil.ESClient(), []ctype.ID{article.ID}); err != nil {
-		t.Fatalf("UpdateESDocsTop 失败: %v", err)
+// 用户角色变更必须让该作者的文章文档重算 author_is_admin。
+//
+// 走的是已有分支：river 收到 user_models 行变更 → ArticleSearchProjectionAuthorSnapshot
+// → SyncESDocsByAuthorIDs（ADR-0017 决策 4 明确要复用这条路径，不新增事件）。
+func TestSyncArticleSearchProjectionRefreshesAuthorIsAdmin(t *testing.T) {
+	db := testutil.SetupSQLite(t,
+		&UserRow{},
+		&ArticleRow{},
+		&TagRow{},
+		&ArticleTagRow{},
+	)
+	testutil.SetConfig(&conf.Config{ES: conf.ES{Index: "article_index"}})
+
+	author := UserRow{Username: "author", Password: "x", Role: enum.RoleUser, Nickname: "作者", Avatar: "/avatar.png"}
+	if err := db.Create(&author).Error; err != nil {
+		t.Fatalf("创建作者失败: %v", err)
 	}
-	if len(bulkDocs) != 1 {
-		t.Fatalf("应更新一篇 ES 文档, got=%d", len(bulkDocs))
+	article := ArticleRow{Title: "t1", Content: "正文", AuthorID: author.ID, PublishStatus: enum.ArticleStatusPublished}
+	if err := db.Create(&article).Error; err != nil {
+		t.Fatalf("创建文章失败: %v", err)
 	}
-	docMap, ok := bulkDocs[0]["doc"].(map[string]any)
+
+	// 角色从注册用户升到管理员：文档里的 author_is_admin 必须跟着变。
+	if err := db.Model(&author).Update("role", enum.RoleAdmin).Error; err != nil {
+		t.Fatalf("升级作者为管理员失败: %v", err)
+	}
+
+	bulkDocs := setupMockESCollectingBulkDocs(t)
+
+	if err := SyncArticleSearchProjection(db, testutil.ESClient(), ArticleSearchProjectionEvent{
+		Type: ArticleSearchProjectionAuthorSnapshot,
+		IDs:  []ctype.ID{author.ID},
+	}); err != nil {
+		t.Fatalf("按用户行重算文章文档失败: %v", err)
+	}
+	if len(*bulkDocs) != 1 {
+		t.Fatalf("应更新一篇 ES 文档, got=%d", len(*bulkDocs))
+	}
+	docMap, ok := (*bulkDocs)[0]["doc"].(map[string]any)
 	if !ok {
-		t.Fatalf("应使用 partial update 文档结构, got=%#v", bulkDocs[0])
+		t.Fatalf("应使用 partial update 文档结构, got=%#v", (*bulkDocs)[0])
 	}
-	if docMap["admin_top"] != true || docMap["author_top"] != true {
-		t.Fatalf("置顶字段更新错误: %#v", docMap)
+	if got, ok := docMap["author_is_admin"].(bool); !ok || !got {
+		t.Fatalf("角色变更后 author_is_admin 应重算为 true, got=%#v", docMap["author_is_admin"])
 	}
-	if _, ok = docMap["tags"]; ok {
-		t.Fatalf("UpdateESDocsTop 不应更新其他字段: %#v", docMap)
+	authorDoc, ok := docMap["author"].(map[string]any)
+	if !ok || authorDoc["nickname"] != "作者" {
+		t.Fatalf("作者快照应一并刷新: %#v", docMap["author"])
+	}
+	for _, key := range []string{"top", "admin_top", "author_top"} {
+		if _, ok := docMap[key]; ok {
+			t.Fatalf("角色变更不应再写置顶字段 %q: %#v", key, docMap)
+		}
+	}
+}
+
+// 文章换作者时（增量路径）要重算 author_is_admin —— 以前这里重算的是 author_top。
+func TestUpdateESDocsByArticleDeltasAuthorChangeRefreshesAuthorIsAdmin(t *testing.T) {
+	db := testutil.SetupSQLite(t,
+		&UserRow{},
+		&ArticleRow{},
+		&TagRow{},
+		&ArticleTagRow{},
+	)
+	testutil.SetConfig(&conf.Config{ES: conf.ES{Index: "article_index"}})
+
+	oldAuthor := UserRow{Username: "old", Password: "x", Role: enum.RoleUser}
+	newAuthor := UserRow{Username: "new", Password: "x", Role: enum.RoleAdmin, Nickname: "新作者", Avatar: "/new.png"}
+	if err := db.Create(&oldAuthor).Error; err != nil {
+		t.Fatalf("创建原作者失败: %v", err)
+	}
+	if err := db.Create(&newAuthor).Error; err != nil {
+		t.Fatalf("创建新作者失败: %v", err)
+	}
+	article := ArticleRow{Title: "t1", Content: "正文", AuthorID: oldAuthor.ID, PublishStatus: enum.ArticleStatusPublished}
+	if err := db.Create(&article).Error; err != nil {
+		t.Fatalf("创建文章失败: %v", err)
+	}
+
+	bulkDocs := setupMockESCollectingBulkDocs(t)
+
+	if err := UpdateESDocsByArticleDeltas(db, testutil.ESClient(), []ArticleModelDelta{{
+		ArticleID: article.ID,
+		Changed:   map[string]any{"author_id": newAuthor.ID.String()},
+	}}); err != nil {
+		t.Fatalf("增量更新失败: %v", err)
+	}
+	if len(*bulkDocs) != 1 {
+		t.Fatalf("应更新一篇 ES 文档, got=%d", len(*bulkDocs))
+	}
+	docMap, ok := (*bulkDocs)[0]["doc"].(map[string]any)
+	if !ok {
+		t.Fatalf("应使用 partial update 文档结构, got=%#v", (*bulkDocs)[0])
+	}
+	if docMap["author_id"] != newAuthor.ID.String() {
+		t.Fatalf("作者 ID 应更新为新作者, got=%#v", docMap["author_id"])
+	}
+	if got, ok := docMap["author_is_admin"].(bool); !ok || !got {
+		t.Fatalf("换作者后 author_is_admin 应为 true, got=%#v", docMap["author_is_admin"])
+	}
+	for _, key := range []string{"top", "admin_top", "author_top"} {
+		if _, ok := docMap[key]; ok {
+			t.Fatalf("换作者不应再写置顶字段 %q: %#v", key, docMap)
+		}
+	}
+	if _, ok := docMap["tags"]; ok {
+		t.Fatalf("换作者不应更新其他字段: %#v", docMap)
 	}
 }
 
@@ -200,7 +274,6 @@ func TestSyncESDocsByArticleSnapshots(t *testing.T) {
 		&CategoryRow{},
 		&TagRow{},
 		&ArticleTagRow{},
-		&UserTopArticleRow{},
 	)
 	testutil.SetConfig(&conf.Config{
 		ES: conf.ES{Index: "article_index"},
@@ -226,12 +299,6 @@ func TestSyncESDocsByArticleSnapshots(t *testing.T) {
 	articleID := ctype.NewID(301900000000000001)
 	if err := db.Exec("INSERT INTO article_tag_models(article_id, tag_id) VALUES (?, ?)", articleID, tag.ID).Error; err != nil {
 		t.Fatalf("创建文章标签关系失败: %v", err)
-	}
-	if err := db.Create(&UserTopArticleRow{UserID: admin.ID, ArticleID: articleID}).Error; err != nil {
-		t.Fatalf("创建管理员置顶失败: %v", err)
-	}
-	if err := db.Create(&UserTopArticleRow{UserID: author.ID, ArticleID: articleID}).Error; err != nil {
-		t.Fatalf("创建作者置顶失败: %v", err)
 	}
 
 	var bulkDocs []map[string]any
@@ -304,8 +371,13 @@ func TestSyncESDocsByArticleSnapshots(t *testing.T) {
 	if !ok || len(tags) != 1 {
 		t.Fatalf("标签补齐失败: %#v", doc["tags"])
 	}
-	if doc["admin_top"] != true || doc["author_top"] != true {
-		t.Fatalf("置顶补齐失败: admin=%#v author=%#v", doc["admin_top"], doc["author_top"])
+	if got, ok := doc["author_is_admin"].(bool); !ok || got {
+		t.Fatalf("注册用户作者的 author_is_admin 应为 false, got=%#v", doc["author_is_admin"])
+	}
+	for _, key := range []string{"top", "admin_top", "author_top"} {
+		if _, ok := doc[key]; ok {
+			t.Fatalf("ES 文档不应再出现置顶字段 %q, got=%#v", key, doc[key])
+		}
 	}
 }
 
@@ -315,7 +387,6 @@ func TestUpdateESDocsByArticleDeltasRebuildsMissingDocs(t *testing.T) {
 		&ArticleRow{},
 		&TagRow{},
 		&ArticleTagRow{},
-		&UserTopArticleRow{},
 	)
 	testutil.SetConfig(&conf.Config{
 		ES: conf.ES{Index: "article_index"},
@@ -391,7 +462,6 @@ func TestSyncESDocsReturnsErrorWhenArticlesMissing(t *testing.T) {
 		&ArticleRow{},
 		&TagRow{},
 		&ArticleTagRow{},
-		&UserTopArticleRow{},
 	)
 	testutil.SetConfig(&conf.Config{
 		ES: conf.ES{Index: "article_index"},

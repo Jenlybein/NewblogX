@@ -66,6 +66,18 @@ CREATE TABLE IF NOT EXISTS `article_digg_models` (
   CONSTRAINT `fk_article_digg_models_user_model` FOREIGN KEY (`user_id`) REFERENCES `user_models` (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
+CREATE TABLE IF NOT EXISTS `article_hot_top_models` (
+  `id` bigint unsigned NOT NULL,
+  `created_at` datetime(3) DEFAULT NULL,
+  `updated_at` datetime(3) DEFAULT NULL,
+  `deleted_at` datetime(3) DEFAULT NULL,
+  `article_id` bigint unsigned NOT NULL,
+  `sort_order` bigint NOT NULL DEFAULT '0',
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uk_article_hot_top` (`article_id`),
+  CONSTRAINT `fk_article_hot_top_models_article_model` FOREIGN KEY (`article_id`) REFERENCES `article_models` (`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
 CREATE TABLE IF NOT EXISTS `article_message_models` (
   `id` bigint unsigned NOT NULL,
   `created_at` datetime(3) DEFAULT NULL,

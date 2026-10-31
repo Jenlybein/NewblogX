@@ -31,6 +31,25 @@ func CanBeViewedBy(a *Article, viewer Viewer) bool {
 	return a.IsPubliclyVisible()
 }
 
+// CanBeSeenByReader 判断「显示非管理员发布文章」开关是否放过这篇（给这个人读）。
+//
+// 这是 CanBeViewedBy 之上的**第二层**过滤（ADR-0017 决策 4）：开关关闭
+// （onlyAdminAuthors 为真）时，作者不是管理员的文章在公开读面一律读不出来。
+// 三个入参都是纯布尔，domain 不读配置、不认识 site 段。
+//
+// 两处豁免，各自有理由：
+//   - 管理员作者的文章：开关只拦"非管理员作者"，与文章本身质量无关；
+//   - 作者本人：与"作者能看到自己的草稿"同一条道理——studio 编辑器用
+//     GET /articles/{id} 取正文，作者连自己的稿子都打不开就没法继续写。
+//     注意它**不是**管理员例外：管理员读者看别人的非管理员文章仍然 404
+//     （ADR-0017 明确不做前台管理员例外，读者站缓存键不区分身份）。
+func CanBeSeenByReader(onlyAdminAuthors bool, authorIsAdmin bool, isAuthor bool) bool {
+	if !onlyAdminAuthors {
+		return true
+	}
+	return authorIsAdmin || isAuthor
+}
+
 // CanBeEditedBy 判断 viewer 能否修改文章内容。
 //
 // 旧实现用 `id = ? AND author_id = ?` 直接查，所以只有作者本人；
@@ -115,4 +134,111 @@ func CanBeTopped(a *Article, viewer Viewer) bool {
 		return false
 	}
 	return viewer.UserID == a.authorID
+}
+
+// ── 站点「发布与展示」开关（ADR-0017 决策 2）──
+
+// WritePolicy 是 `site.article` 里与写作权限有关的两个开关的取值快照。
+//
+// 为什么是"快照"而不是直接读配置：domain 不认识配置服务（也不该认识），
+// 判定保持纯函数，权限矩阵才能在毫秒级穷举；取值由 app 层的入参带进来，
+// 读的是运行时配置的现读闭包，所以后台改完下一次请求即生效。
+type WritePolicy struct {
+	// AllowNonAdminPublish 允许非管理员发布文章。
+	//
+	// 关掉后非管理员不能"创建即发布"、不能提交审核、不能发布自己的草稿，
+	// 也不能更新已发布（或审核中）的文章。
+	AllowNonAdminPublish bool
+	// AllowNonAdminDraft 允许非管理员创建草稿。
+	//
+	// 关掉后非管理员不能新建草稿、不能保存草稿；存量草稿仍可打开、可删除。
+	AllowNonAdminDraft bool
+}
+
+// OpenWritePolicy 返回"不限制非管理员"的策略，与两个开关的业务默认值一致（全 true）。
+//
+// 用在两处：装配层读不到运行时配置时兜底（不能因为配置服务缺席就把全站作者锁死），
+// 以及测试里显式表达"策略全开"。
+func OpenWritePolicy() WritePolicy {
+	return WritePolicy{AllowNonAdminPublish: true, AllowNonAdminDraft: true}
+}
+
+// writableRole 判断操作者是否有写权限的角色。
+//
+// 只有管理员（1）与注册用户（2）算"能写的人"。受限访客（3）与库里未入枚举的
+// role=0 在鉴权层已经按未登录处理（ADR-0017 决策 3），这里再兜一层：
+// 三个开关全开时也不能让它们借道写进来——它们连"非管理员作者"都不算。
+func writableRole(v Viewer) bool {
+	return v.IsLoggedIn() && (v.Role == RoleAdmin || v.Role == RoleUser)
+}
+
+// CheckWriteOnCreate 判断站点策略是否允许 viewer 以 target 状态新建文章。
+//
+// target 只可能是草稿或提交审核。**其它值一律按非法迁移拒绝，且失败关闭**：
+// 早先这里对未知 target 直接 return nil，一旦上游多出第三种 target
+// （比如「直接发布」），站点开关就会被绕过且不报错。现在把校验放在管理员
+// 短路之前——非法 target 对任何角色都不是一次合法的建文请求，管理员要发布
+// 应当走明确的审核/发布路径，而不是靠这个函数兜底放行。
+func CheckWriteOnCreate(v Viewer, target Status, p WritePolicy) error {
+	if target != StatusDraft && target != StatusExamining {
+		return ErrInvalidTransition
+	}
+	if v.IsAdmin() {
+		return nil
+	}
+	if !writableRole(v) {
+		return ErrForbidden
+	}
+	if target == StatusDraft {
+		if !p.AllowNonAdminDraft {
+			return ErrDraftDisabledBySite
+		}
+		return nil
+	}
+	if !p.AllowNonAdminPublish {
+		return ErrPublishDisabledBySite
+	}
+	return nil
+}
+
+// CheckWriteOnUpdate 判断站点策略是否允许 viewer 更新文章 a。
+//
+// target 为 nil 表示"只改内容、不改状态"，此时按文章当前所处阶段归属开关：
+//   - 已发布 / 审核中：属于发布链路（编辑审核中的文章会重新送审），看发布开关；
+//   - 草稿 / 已拒绝：属于准备阶段（存草稿），看草稿开关。
+//
+// 归属规则与 #64 验收标准逐条对应：关闭发布 → 不能更新已发布文章、不能发布草稿；
+// 关闭草稿 → 存量草稿可打开可删除但不可更新（打开与删除不经过本函数）。
+func CheckWriteOnUpdate(a *Article, v Viewer, target *Status, p WritePolicy) error {
+	if v.IsAdmin() {
+		return nil
+	}
+	if !writableRole(v) {
+		return ErrForbidden
+	}
+	if a == nil {
+		return ErrArticleNotFound
+	}
+
+	needsPublish := false
+	switch {
+	case target != nil && *target == StatusExamining:
+		needsPublish = true
+	case target != nil && *target == StatusDraft:
+		needsPublish = false
+	default:
+		// 不显式改状态：按现有状态判断这次编辑落在哪条链路。
+		needsPublish = a.status == StatusPublished || a.status == StatusExamining
+	}
+
+	if needsPublish {
+		if !p.AllowNonAdminPublish {
+			return ErrPublishDisabledBySite
+		}
+		return nil
+	}
+	if !p.AllowNonAdminDraft {
+		return ErrDraftDisabledBySite
+	}
+	return nil
 }

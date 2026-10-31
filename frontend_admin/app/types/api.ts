@@ -134,6 +134,16 @@ export type UserListItem = RequiredSchema<"internal_user_adapter_http.AdminUserI
 export type SearchArticleItem = RequiredSchema<"myblogx_internal_search_domain.Item">;
 export type SearchPagination = RequiredSchema<"myblogx_internal_search_domain.Pagination">;
 
+// ── 热门置顶（运营位）─────────────────────────────────────────
+
+/**
+ * `/articles/hot-top/admin` 的列表项。
+ *
+ * 后台唯一的置顶状态来源（文章管理列表的按钮状态也用它）：带排序号与失效标记，
+ * 比公开接口多出 stale 行。**不要**改去读 ES 文档里的字段（ADR-0017 决策 5）。
+ */
+export type HotTopAdminItem = RequiredSchema<"internal_article_adapter_http.ArticleHotTopAdminItem">;
+
 export type ArticleSearchResponseData = Omit<
   RequiredSchema<"myblogx_internal_search_domain.Response">,
   "list"
@@ -153,7 +163,6 @@ export interface SiteRuntimeConfig {
     title: string
     logo: string
     beian: string
-    mode: number
   }
   project: {
     title: string
@@ -167,7 +176,17 @@ export interface SiteRuntimeConfig {
   about: Record<string, string>
   login: SiteLoginRuntimeConfig
   index_right: { list: unknown[] }
-  article: { skip_examining: boolean }
+  article: {
+    skip_examining: boolean
+    /**
+     * 「发布与展示」三个开关（ADR-0017）。默认全开，由后端
+     * `site_default_settings.yaml` 的 site.article 段补种，前端不另写默认值。
+     * 判定在服务端（app 层与读过滤处），这里只负责编辑。
+     */
+    allow_non_admin_publish: boolean
+    allow_non_admin_draft: boolean
+    show_non_admin_articles: boolean
+  }
   comment: { skip_examining: boolean }
 }
 

@@ -26,6 +26,8 @@ const hub = vi.hoisted(() => {
     toggleTheme: vi.fn(),
     openAuthModal: vi.fn(),
     openWriteEntry: vi.fn(),
+    // 站点「发布与展示」开关（#64）：默认为空对象 → 读者站按默认值全开。
+    siteArticleConfig: {} as Record<string, boolean>,
     authState: {
       initialized: true,
       currentUser: { id: "u1", nickname: "JellyBean" },
@@ -77,20 +79,19 @@ vi.mock("~/stores/auth", async () => {
   };
 });
 
-vi.mock("~/stores/site", async () => {
-  const { ref } = await import("vue");
-  return {
-    useSiteStore: () => ({
-      runtimeConfig: ref({
-        project: { abstract: "一点点的个人写作现场" },
-        site_info: { subtitle: "" },
-      }),
-      seo: ref(null),
-      aiInfo: ref(null),
-      ensurePublicBootstrap: vi.fn(),
-    }),
-  };
-});
+vi.mock("~/stores/site", () => ({
+  // 与真实 Pinia store 一致：`useSiteStore().runtimeConfig` 是解包后的值。
+  useSiteStore: () => ({
+    runtimeConfig: {
+      project: { abstract: "一点点的个人写作现场" },
+      site_info: { subtitle: "" },
+      article: hub.siteArticleConfig,
+    },
+    seo: null,
+    aiInfo: null,
+    ensurePublicBootstrap: vi.fn(),
+  }),
+}));
 
 vi.mock("~/composables/useWriteEntry", () => ({
   useWriteEntry: () => ({ openWriteEntry: hub.openWriteEntry }),
@@ -124,6 +125,7 @@ beforeAll(() => {
 
 beforeEach(() => {
   hub.authLoggedIn!.value = false;
+  hub.siteArticleConfig = {};
   if (hub.themeRef) hub.themeRef.value = "light";
   vi.stubGlobal("__useRouterMock", () => ({ push: hub.push, replace: vi.fn() }));
   vi.stubGlobal("__useRouteMock", () => ({ path: "/", query: {}, fullPath: "/", params: {} }));
@@ -273,6 +275,17 @@ describe("页头：导航与账户", () => {
 
     await wrapper.get('nav[aria-label="主导航"] button').trigger("click");
     expect(hub.openWriteEntry).toHaveBeenCalledTimes(1);
+  });
+
+  it("站点关闭「允许非管理员发布文章」后，创作入口不出现（#64）", () => {
+    hub.siteArticleConfig = { allow_non_admin_publish: false };
+    const wrapper = mountHeader();
+    const nav = wrapper.get('nav[aria-label="主导航"]');
+
+    expect(nav.findAll("button")).toHaveLength(0);
+    expect(nav.text()).not.toContain("创作");
+    // 首页与搜索仍在：开关只影响写作入口，不接管整条导航。
+    expect(nav.findAll("a")).toHaveLength(2);
   });
 
   it("已登录时账户区是菜单按钮，未登录时是登录/注册", async () => {

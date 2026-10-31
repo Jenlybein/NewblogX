@@ -9,6 +9,7 @@ import (
 	"myblogx/internal/article/app"
 	"myblogx/internal/article/domain"
 	"myblogx/internal/article/domain/favorite"
+	"myblogx/internal/article/domain/hottop"
 	"myblogx/internal/article/domain/review"
 	"myblogx/internal/article/domain/taxonomy"
 	"myblogx/internal/article/domain/top"
@@ -85,6 +86,7 @@ func (r *repos) Categories() taxonomy.CategoryRepository { return NewCategoryRep
 func (r *repos) Tags() taxonomy.TagRepository            { return NewTagRepo(r.db) }
 func (r *repos) Favorites() favorite.Repository          { return NewFavoriteRepo(r.db) }
 func (r *repos) Tops() top.Repository                    { return NewTopRepo(r.db) }
+func (r *repos) HotTops() hottop.Repository              { return NewHotTopRepo(r.db) }
 func (r *repos) ViewHistory() viewhistory.Repository     { return NewViewHistoryRepo(r.db) }
 func (r *repos) Reviews() review.Repository              { return NewReviewRepo(r.db) }
 func (r *repos) AuthorStats() app.AuthorStatsPort {

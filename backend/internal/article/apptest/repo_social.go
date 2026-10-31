@@ -24,6 +24,8 @@ type FavoriteRepo struct {
 	nextID  favorite.ID
 	fault   fault
 	count   counter
+	// lastOnlyAdminAuthors 记录 ListItems 收到的读过滤开关（见该方法注释）。
+	lastOnlyAdminAuthors bool
 }
 
 type itemKey struct {
@@ -256,13 +258,18 @@ func (r *FavoriteRepo) DeleteItemsByArticle(_ context.Context, articleID domain.
 }
 
 // ListItems 分页列出某夹子的收藏。
-func (r *FavoriteRepo) ListItems(_ context.Context, folderID favorite.ID, offset, limit int) ([]*favorite.Item, int64, error) {
+//
+// 内存 fake 没有用户表，拿不到"作者是不是管理员"，所以它**不做**过滤，
+// 只把收到的过滤开关记下来供断言"app 把开关传给了查询层"；过滤语义本身
+// 由 MySQL 集成测试守（adapter/mysql/social_repo_integration_test.go）。
+func (r *FavoriteRepo) ListItems(_ context.Context, folderID favorite.ID, offset, limit int, onlyAdminAuthors bool) ([]*favorite.Item, int64, error) {
 	r.count.inc("ListItems")
 	if err := r.fault.take("ListItems"); err != nil {
 		return nil, 0, err
 	}
 	r.mu.Lock()
 	defer r.mu.Unlock()
+	r.lastOnlyAdminAuthors = onlyAdminAuthors
 	var all []*favorite.Item
 	for k, it := range r.items {
 		if k.folderID == folderID {
@@ -280,6 +287,13 @@ func (r *FavoriteRepo) ListItems(_ context.Context, folderID favorite.ID, offset
 		end = len(all)
 	}
 	return all[offset:end], total, nil
+}
+
+// ListItemsOnlyAdminAuthors 返回上一次 ListItems 收到的过滤开关。
+func (r *FavoriteRepo) ListItemsOnlyAdminAuthors() bool {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return r.lastOnlyAdminAuthors
 }
 
 // CountByArticle 统计某文章被收藏的次数。
@@ -483,6 +497,8 @@ type ViewHistoryRepo struct {
 	byKey map[itemKey2]*viewhistory.Record
 	fault fault
 	count counter
+	// lastOnlyAdminAuthors 记录 List 收到的读过滤开关（见该方法注释）。
+	lastOnlyAdminAuthors bool
 }
 
 // NewViewHistoryRepo 创建空仓储。
@@ -510,13 +526,17 @@ func (r *ViewHistoryRepo) Upsert(_ context.Context, rec *viewhistory.Record) err
 }
 
 // List 列出浏览历史。
-func (r *ViewHistoryRepo) List(_ context.Context, userID domain.UserID, offset, limit int) ([]*viewhistory.Record, int64, error) {
+//
+// 与收藏内容同理：fake 没有文章表，拿不到文章作者，所以不过滤、只记录开关；
+// 真实过滤由 MySQL 集成测试守。
+func (r *ViewHistoryRepo) List(_ context.Context, userID domain.UserID, offset, limit int, onlyAdminAuthors bool) ([]*viewhistory.Record, int64, error) {
 	r.count.inc("List")
 	if err := r.fault.take("List"); err != nil {
 		return nil, 0, err
 	}
 	r.mu.Lock()
 	defer r.mu.Unlock()
+	r.lastOnlyAdminAuthors = onlyAdminAuthors
 	var all []*viewhistory.Record
 	for k, v := range r.byKey {
 		if k.userID == userID {
@@ -534,6 +554,13 @@ func (r *ViewHistoryRepo) List(_ context.Context, userID domain.UserID, offset, 
 		end = len(all)
 	}
 	return all[offset:end], total, nil
+}
+
+// ListOnlyAdminAuthors 返回上一次 List 收到的过滤开关。
+func (r *ViewHistoryRepo) ListOnlyAdminAuthors() bool {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return r.lastOnlyAdminAuthors
 }
 
 // Delete 删除指定记录。

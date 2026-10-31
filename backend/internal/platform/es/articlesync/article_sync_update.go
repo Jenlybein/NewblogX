@@ -92,38 +92,6 @@ func UpdateESDocsTags(db *gorm.DB, client *elasticsearch.Client, articleIDs []ct
 	return applyArticlePartialBulkUpdate(db, client, reqs, "更新文章 ES 标签失败")
 }
 
-// UpdateESDocsTop 在文章置顶状态变化后刷新对应文章的 ES 文档。
-func UpdateESDocsTop(db *gorm.DB, client *elasticsearch.Client, articleIDs []ctype.ID) error {
-	articleIDs = normalizeArticleIDs(articleIDs)
-	if len(articleIDs) == 0 || db == nil || client == nil {
-		return nil
-	}
-
-	topMap, err := loadArticleESTopMap(db, articleIDs)
-	if err != nil {
-		return err
-	}
-
-	reqs := make([]*es_service.BulkRequest, 0, len(articleIDs))
-	for _, articleID := range articleIDs {
-		top := topMap[articleID]
-		reqs = append(reqs, &es_service.BulkRequest{
-			Action: es_service.ActionUpdate,
-			ID:     strconv.FormatUint(articleID.Uint64(), 10),
-			Data: map[string]any{
-				"top": map[string]any{
-					"user":  top.AuthorTop,
-					"admin": top.AdminTop,
-				},
-				"admin_top":  top.AdminTop,
-				"author_top": top.AuthorTop,
-			},
-		})
-	}
-
-	return applyArticlePartialBulkUpdate(db, client, reqs, "更新文章 ES 置顶字段失败")
-}
-
 // DeleteESDocs 按文章 ID 删除 ES 文档。
 func DeleteESDocs(_ *gorm.DB, client *elasticsearch.Client, articleIDs []ctype.ID) error {
 	articleIDs = normalizeArticleIDs(articleIDs)
@@ -246,6 +214,9 @@ func SyncESDocsByAuthorIDs(db *gorm.DB, client *elasticsearch.Client, userIDs []
 					"nickname": author.Nickname,
 					"avatar":   author.Avatar,
 				},
+				// 用户行变更既可能是改名/换头像，也可能是角色变化。
+				// 两者都在这里重算，所以"角色变更后相关文章文档被重算"不需要新增事件。
+				"author_is_admin": author.IsAdmin,
 			},
 		})
 	}
@@ -270,26 +241,6 @@ func UpdateESDocsTagsByTagIDs(db *gorm.DB, client *elasticsearch.Client, tagIDs 
 		return err
 	}
 	return UpdateESDocsTags(db, client, articleIDs)
-}
-
-// UpdateESDocsTopByTopUserIDs 在置顶用户信息变化后按 user_id 批量刷新相关文章 top 字段。
-func UpdateESDocsTopByTopUserIDs(db *gorm.DB, client *elasticsearch.Client, userIDs []ctype.ID) error {
-	if db == nil || client == nil {
-		return nil
-	}
-	userIDs = normalizeArticleIDs(userIDs)
-	if len(userIDs) == 0 {
-		return nil
-	}
-
-	var articleIDs []ctype.ID
-	if err := db.Model(&UserTopArticleRow{}).
-		Select("article_id").
-		Where("user_id IN ?", userIDs).
-		Pluck("article_id", &articleIDs).Error; err != nil {
-		return err
-	}
-	return UpdateESDocsTop(db, client, articleIDs)
 }
 
 type articleBulkFailure struct {

@@ -746,6 +746,67 @@
                 ],
                 "type": "object"
             },
+            "internal_article_adapter_http.ArticleHotTopAdminItem": {
+                "properties": {
+                    "article_id": {
+                        "type": "string"
+                    },
+                    "cover": {
+                        "type": "string"
+                    },
+                    "sort_order": {
+                        "type": "integer"
+                    },
+                    "stale": {
+                        "type": "boolean"
+                    },
+                    "title": {
+                        "type": "string"
+                    }
+                },
+                "type": "object"
+            },
+            "internal_article_adapter_http.ArticleHotTopCardResponse": {
+                "properties": {
+                    "abstract": {
+                        "type": "string"
+                    },
+                    "author_nickname": {
+                        "type": "string"
+                    },
+                    "category_title": {
+                        "type": "string"
+                    },
+                    "cover": {
+                        "type": "string"
+                    },
+                    "id": {
+                        "type": "string"
+                    },
+                    "title": {
+                        "type": "string"
+                    },
+                    "view_count": {
+                        "type": "integer"
+                    }
+                },
+                "type": "object"
+            },
+            "internal_article_adapter_http.ArticleHotTopOrderRequest": {
+                "properties": {
+                    "article_ids": {
+                        "items": {
+                            "type": "string"
+                        },
+                        "type": "array",
+                        "uniqueItems": false
+                    }
+                },
+                "required": [
+                    "article_ids"
+                ],
+                "type": "object"
+            },
             "internal_article_adapter_http.ArticleReviewHandleRequest": {
                 "properties": {
                     "reason": {
@@ -3739,6 +3800,34 @@
                 },
                 "type": "object"
             },
+            "myblogx_internal_kernel.Envelope-myblogx_internal_kernel_ListData-internal_article_adapter_http_ArticleHotTopAdminItem": {
+                "properties": {
+                    "code": {
+                        "type": "integer"
+                    },
+                    "data": {
+                        "$ref": "#/components/schemas/myblogx_internal_kernel.ListData-internal_article_adapter_http_ArticleHotTopAdminItem"
+                    },
+                    "msg": {
+                        "type": "string"
+                    }
+                },
+                "type": "object"
+            },
+            "myblogx_internal_kernel.Envelope-myblogx_internal_kernel_ListData-internal_article_adapter_http_ArticleHotTopCardResponse": {
+                "properties": {
+                    "code": {
+                        "type": "integer"
+                    },
+                    "data": {
+                        "$ref": "#/components/schemas/myblogx_internal_kernel.ListData-internal_article_adapter_http_ArticleHotTopCardResponse"
+                    },
+                    "msg": {
+                        "type": "string"
+                    }
+                },
+                "type": "object"
+            },
             "myblogx_internal_kernel.Envelope-myblogx_internal_kernel_ListData-internal_article_adapter_http_ArticleTopCardResponse": {
                 "properties": {
                     "code": {
@@ -4214,6 +4303,36 @@
                 },
                 "type": "object"
             },
+            "myblogx_internal_kernel.ListData-internal_article_adapter_http_ArticleHotTopAdminItem": {
+                "properties": {
+                    "count": {
+                        "type": "integer"
+                    },
+                    "list": {
+                        "items": {
+                            "$ref": "#/components/schemas/internal_article_adapter_http.ArticleHotTopAdminItem"
+                        },
+                        "type": "array",
+                        "uniqueItems": false
+                    }
+                },
+                "type": "object"
+            },
+            "myblogx_internal_kernel.ListData-internal_article_adapter_http_ArticleHotTopCardResponse": {
+                "properties": {
+                    "count": {
+                        "type": "integer"
+                    },
+                    "list": {
+                        "items": {
+                            "$ref": "#/components/schemas/internal_article_adapter_http.ArticleHotTopCardResponse"
+                        },
+                        "type": "array",
+                        "uniqueItems": false
+                    }
+                },
+                "type": "object"
+            },
             "myblogx_internal_kernel.ListData-internal_article_adapter_http_ArticleTopCardResponse": {
                 "properties": {
                     "count": {
@@ -4517,6 +4636,10 @@
                     "author": {
                         "$ref": "#/components/schemas/myblogx_internal_search_domain.Author"
                     },
+                    "author_is_admin": {
+                        "description": "AuthorIsAdmin 是作者角色的投影（来自 ES 文档的 author_is_admin）。",
+                        "type": "boolean"
+                    },
                     "category": {
                         "$ref": "#/components/schemas/myblogx_internal_search_domain.Category"
                     },
@@ -4559,9 +4682,6 @@
                     },
                     "title": {
                         "type": "string"
-                    },
-                    "top": {
-                        "$ref": "#/components/schemas/myblogx_internal_search_domain.Top"
                     },
                     "updated_at": {
                         "type": "string"
@@ -4631,17 +4751,6 @@
                     },
                     "title": {
                         "type": "string"
-                    }
-                },
-                "type": "object"
-            },
-            "myblogx_internal_search_domain.Top": {
-                "properties": {
-                    "admin": {
-                        "type": "boolean"
-                    },
-                    "user": {
-                        "type": "boolean"
                     }
                 },
                 "type": "object"
@@ -5882,6 +5991,89 @@
                 ]
             }
         },
+        "/articles/hot-top": {
+            "get": {
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/myblogx_internal_kernel.Envelope-myblogx_internal_kernel_ListData-internal_article_adapter_http_ArticleHotTopCardResponse"
+                                }
+                            }
+                        },
+                        "description": "OK"
+                    }
+                },
+                "summary": "热门置顶列表",
+                "tags": [
+                    "article"
+                ]
+            }
+        },
+        "/articles/hot-top/admin": {
+            "get": {
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/myblogx_internal_kernel.Envelope-myblogx_internal_kernel_ListData-internal_article_adapter_http_ArticleHotTopAdminItem"
+                                }
+                            }
+                        },
+                        "description": "OK"
+                    }
+                },
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "summary": "热门置顶全量列表（含失效）",
+                "tags": [
+                    "article"
+                ]
+            }
+        },
+        "/articles/hot-top/order": {
+            "patch": {
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/internal_article_adapter_http.ArticleHotTopOrderRequest",
+                                "summary": "body",
+                                "description": "请求体"
+                            }
+                        }
+                    },
+                    "description": "请求体",
+                    "required": true
+                },
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/myblogx_internal_kernel.Envelope-myblogx_internal_kernel_EmptyData"
+                                }
+                            }
+                        },
+                        "description": "OK"
+                    }
+                },
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "summary": "热门置顶排序",
+                "tags": [
+                    "article"
+                ]
+            }
+        },
         "/articles/tags": {
             "delete": {
                 "requestBody": {
@@ -6246,6 +6438,76 @@
                     }
                 ],
                 "summary": "更新文章",
+                "tags": [
+                    "article"
+                ]
+            }
+        },
+        "/articles/{id}/admin/hot-top": {
+            "delete": {
+                "parameters": [
+                    {
+                        "description": "文章 ID",
+                        "in": "path",
+                        "name": "id",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/myblogx_internal_kernel.Envelope-myblogx_internal_kernel_EmptyData"
+                                }
+                            }
+                        },
+                        "description": "OK"
+                    }
+                },
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "summary": "取消热门置顶",
+                "tags": [
+                    "article"
+                ]
+            },
+            "post": {
+                "parameters": [
+                    {
+                        "description": "文章 ID",
+                        "in": "path",
+                        "name": "id",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/myblogx_internal_kernel.Envelope-myblogx_internal_kernel_EmptyData"
+                                }
+                            }
+                        },
+                        "description": "OK"
+                    }
+                },
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "summary": "设置热门置顶",
                 "tags": [
                     "article"
                 ]

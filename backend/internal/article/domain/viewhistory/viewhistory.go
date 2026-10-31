@@ -83,7 +83,11 @@ type Repository interface {
 	// Upsert 写入或刷新一条浏览记录。
 	Upsert(ctx context.Context, r *Record) error
 	// List 分页列出某用户的浏览历史，按时间倒序。
-	List(ctx context.Context, userID domain.UserID, offset, limit int) ([]*Record, int64, error)
+	//
+	// onlyAdminAuthors 为真时只返回"文章作者是管理员"的记录（ADR-0017 决策 4：
+	// 「显示非管理员发布文章」开关关闭时浏览历史同步过滤）。与收藏内容一样
+	// 放在查询层，保证 total 与过滤后的可见条目一致。
+	List(ctx context.Context, userID domain.UserID, offset, limit int, onlyAdminAuthors bool) ([]*Record, int64, error)
 	// Delete 删除某用户指定的若干条记录。
 	Delete(ctx context.Context, userID domain.UserID, articleIDs []domain.ArticleID) error
 	// DeleteByArticle 删除某文章的全部记录（删文章级联用）。

@@ -122,8 +122,9 @@ func (r *ProjectionReplayer) Replay(ctx context.Context, record deadletter.Recor
 
 // projectionReplayEvents 把 (表, 动作) 翻译成要重算的投影事件。
 //
-// 一个表可能对应多个事件：用户行变化同时影响"作者快照"和"置顶作者名"，
-// 原链路就是连发两个事件，重投必须保持一致，否则会漏掉一半。
+// 用户行现在只对应一个事件：作者快照（昵称/头像/角色投影成的 author_is_admin）。
+// 以前还要连发"置顶用户变化"，那是因为 admin_top 由置顶人的角色推导；
+// ADR-0017 决策 6 删掉置顶派生字段后，这条就不再需要了。
 //
 // 文章表的 insert/update 都归一到 article_upsert：按 ID 重读整篇。
 // 只有 delete 需要区分——它要把文档从索引里删掉，用 upsert 会重新建出来。
@@ -141,7 +142,6 @@ func projectionReplayEvents(table, action string) ([]articlesync.ArticleSearchPr
 	case "user_models":
 		return []articlesync.ArticleSearchProjectionEventType{
 			articlesync.ArticleSearchProjectionAuthorSnapshot,
-			articlesync.ArticleSearchProjectionTopUserChanged,
 		}, nil
 	case "category_models":
 		return []articlesync.ArticleSearchProjectionEventType{
@@ -156,8 +156,11 @@ func projectionReplayEvents(table, action string) ([]articlesync.ArticleSearchPr
 			articlesync.ArticleSearchProjectionArticleTagsChanged,
 		}, nil
 	case "user_top_article_models":
+		// 这张表已不再走进 ES 投影（ADR-0017 决策 6），但历史死信里可能还留着它的行。
+		// 它影响的只是"这几篇文章的文档是否过期"，按文章 ID 整体重算一次即可；
+		// 注意不能用 delete（那会把文章文档删掉——置顶关系与文章本体是两件事）。
 		return []articlesync.ArticleSearchProjectionEventType{
-			articlesync.ArticleSearchProjectionArticleTopChanged,
+			articlesync.ArticleSearchProjectionArticleUpsert,
 		}, nil
 	default:
 		// 未知表：不能当成 unsupported 混过去 —— 这说明写入端与读取端对不上，
@@ -169,7 +172,8 @@ func projectionReplayEvents(table, action string) ([]articlesync.ArticleSearchPr
 // projectionIDColumn 返回各投影表里"要重算的主键列"。
 //
 // 关联表/置顶表的主键对重算没有意义——它们影响的是**文章**文档，
-// 所以取 article_id。原链路就是这么取的（见 article_search_projection.go）。
+// 所以取 article_id。原链路就是这么取的（见 article_search_projection.go）；
+// user_top_article_models 现在只为历史死信的重投保留。
 func projectionIDColumn(table string) string {
 	switch strings.ToLower(strings.TrimSpace(table)) {
 	case "article_tag_models", "user_top_article_models":

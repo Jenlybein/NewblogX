@@ -220,6 +220,26 @@ func (s *Service) UpdateUpload(upload conf.Upload) error {
 	return s.runtime.UpdateUpload(upload)
 }
 
+// PublicDeco 返回读者站要的装饰配置。
+//
+// 这段没有任何敏感字段，所以公开读与管理读返回同一份。
+func (s *Service) PublicDeco() conf.Deco { return s.runtime.Deco() }
+
+// AdminDeco 返回管理端的装饰配置。
+func (s *Service) AdminDeco() conf.Deco { return s.PublicDeco() }
+
+// UpdateDeco 覆盖装饰配置。
+//
+// 写入前先 Normalize：越界钳到边界、缺省补默认值、非法值回落，**不报错**。
+// 钳位放在用例层而不是 HTTP 层，是为了让"从哪条路径写进来"都受同一道防线
+// 保护 —— 将来若多了导入配置的入口，也不会绕过它。
+func (s *Service) UpdateDeco(deco conf.Deco) error {
+	if s.runtime == nil {
+		return apperr.New(apperr.CodeSiteConfigMissing)
+	}
+	return s.runtime.UpdateDeco(deco.Normalize())
+}
+
 // ── 轮播图 ──────────────────────────────────────────────────────
 
 // BannerInput 是创建/更新轮播图的入参。

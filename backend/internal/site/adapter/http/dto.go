@@ -6,6 +6,7 @@ import (
 	"myblogx/internal/kernel/ctype"
 	"myblogx/internal/platform/http/middleware"
 	"myblogx/internal/platform/http/res"
+	"myblogx/internal/site/domain"
 
 	"github.com/gin-gonic/gin"
 )
@@ -32,6 +33,34 @@ type BannerCreateRequest struct {
 	CoverImageID ctype.ID `json:"cover_image_id" binding:"required"`
 	Href         string   `json:"href"`
 	Show         bool     `json:"show"`
+	// Crop 是可选取景参数：不传等于"居中、缩放 1"。
+	//
+	// 可选是为了让老调用方（还没接取景的后台）照旧能创建与更新；
+	// 但更新是整体替换，所以不传 = 回到缺省，而不是保留上一次的取景。
+	Crop *BannerCrop `json:"crop"`
+}
+
+// BannerCrop 是取景参数的传输形状：焦点（图上 0–1 的相对坐标）+ 缩放（1–2）。
+//
+// 这里刻意不做范围校验：越界的拒绝发生在用例层（domain.Crop.Validate），
+// 免得"能不能过"取决于请求从哪个入口进来。
+type BannerCrop struct {
+	FocusX float64 `json:"focus_x"`
+	FocusY float64 `json:"focus_y"`
+	Zoom   float64 `json:"zoom"`
+}
+
+// toDomain 把请求里的取景转成领域值；nil 表示调用方没传。
+func (c *BannerCrop) toDomain() *domain.Crop {
+	if c == nil {
+		return nil
+	}
+	return &domain.Crop{FocusX: c.FocusX, FocusY: c.FocusY, Zoom: c.Zoom}
+}
+
+// fromDomainCrop 把领域取景转成传输形状。
+func fromDomainCrop(c domain.Crop) BannerCrop {
+	return BannerCrop{FocusX: c.FocusX, FocusY: c.FocusY, Zoom: c.Zoom}
 }
 
 // BannerListRequest 对应 GET /banners 的查询参数。
@@ -58,15 +87,18 @@ type BannerItem struct {
 	Cover        string     `json:"cover"`
 	CoverImageID *ctype.ID  `json:"cover_image_id"`
 	Href         string     `json:"href"`
+	// Crop 总是有值：没有取景记录的历史图回传缺省（居中、缩放 1）。
+	Crop BannerCrop `json:"crop"`
 }
 
 // BannerCreateResponse 是创建轮播图的返回。
 type BannerCreateResponse struct {
-	ID           ctype.ID `json:"id"`
-	CoverImageID ctype.ID `json:"cover_image_id"`
-	Cover        string   `json:"cover"`
-	Href         string   `json:"href"`
-	Show         bool     `json:"show"`
+	ID           ctype.ID   `json:"id"`
+	CoverImageID ctype.ID   `json:"cover_image_id"`
+	Cover        string     `json:"cover"`
+	Href         string     `json:"href"`
+	Show         bool       `json:"show"`
+	Crop         BannerCrop `json:"crop"`
 }
 
 // AIResponse 是公开的站点 AI 信息。

@@ -199,6 +199,7 @@ var groupModels = map[Group][]any{
 	},
 	Site: {
 		&BannerRow{},
+		&BannerCropRow{},
 		&RuntimeConfigRow{},
 	},
 	Social: {
@@ -210,7 +211,7 @@ var groupModels = map[Group][]any{
 	AIProvider: {
 		&AIProviderRow{},
 	},
-	// All 是**全部 33 张表**，只用于"schema.sql 与自持行是否一致"的契约测试。
+	// All 是**全部 34 张表**，只用于"schema.sql 与自持行是否一致"的契约测试。
 	//
 	// 为什么不复用上面那些组拼起来：拼装顺序一变，这个测试就变成
 	// "测拼装顺序"而不是"测结构一致性"。这里写死一份，顺序沿用当年
@@ -249,6 +250,7 @@ var groupModels = map[Group][]any{
 		&CdcDeadLetterRow{},
 		&OutboxEventRow{},
 		&AIProviderRow{},
+		&BannerCropRow{},
 	},
 }
 

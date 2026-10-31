@@ -294,6 +294,7 @@ func (h *Handler) BannerCreate(c *gin.Context) {
 		CoverImageID: cr.CoverImageID,
 		Href:         cr.Href,
 		Show:         cr.Show,
+		Crop:         cr.Crop.toDomain(),
 	})
 	if err != nil {
 		res.FailWithMsg(err.Error(), c)
@@ -305,6 +306,7 @@ func (h *Handler) BannerCreate(c *gin.Context) {
 		Cover:        banner.Cover,
 		Href:         banner.Href,
 		Show:         banner.Show,
+		Crop:         fromDomainCrop(banner.Crop),
 	}, c)
 	middleware.EmitActionAuditFromGin(c, middleware.GinAuditInput{
 		ActionName: "banner_create",
@@ -338,12 +340,15 @@ func (h *Handler) BannerUpdate(c *gin.Context) {
 		CoverImageID: cr.CoverImageID,
 		Href:         cr.Href,
 		Show:         cr.Show,
+		Crop:         cr.Crop.toDomain(),
 	})
 	if err != nil {
 		if apperr.IsCode(err, apperr.CodeBannerNotFound) {
 			res.FailWithMsg("轮播图不存在", c)
 			return
 		}
+		// 取景越界也走这里：统一响应壳里 "校验失败"（业务码 1001）就是接口层的 400，
+		// 请求被拒绝、什么都不落库，而不是被悄悄钳制。
 		res.FailWithMsg(err.Error(), c)
 		return
 	}
@@ -395,6 +400,7 @@ func toBannerItem(b domain.Banner) BannerItem {
 		Show:      b.Show,
 		Cover:     b.Cover,
 		Href:      b.Href,
+		Crop:      fromDomainCrop(b.Crop),
 	}
 	if !b.CoverImageID.IsZero() {
 		id := b.CoverImageID

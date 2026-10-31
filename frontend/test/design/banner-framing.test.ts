@@ -13,7 +13,7 @@ import { blockAfter } from "../helpers/designFiles";
  * 取同一段声明、逐字比较（不做语义/空白宽松，免得"看起来一样但实现已经漂了"）。
  *
  * 阅读站：首屏轮播面板（所有断点同一比例）。
- * 后台：上传面板里那块 16:9 的预览 / 取景框（#45 的取景窗长在同一个框里）。
+ * 后台：上传面板的预览框与取景窗的取景框（#45）：两个框各自都必须是 16:9。
  */
 const projectDir = process.cwd();
 const readerIndex = readFileSync(join(projectDir, "app/pages/index.vue"), "utf8");
@@ -45,10 +45,18 @@ describe("轮播面板固定 16:9：跨端只有一份定义、两端取值一�
     expect(readerIndex.match(/aspect-ratio\s*:/gu) ?? []).toHaveLength(1);
   });
 
-  it("后台取景 / 预览框与阅读站面板是同一个比例（跨端常量一致性）", () => {
-    const adminFrame = blockAfter(adminCss, ".admin-upload-panel__picker {");
+  it("后台的预览框与取景框都逐一与阅读站面板同一比例（跨端常量一致性）", () => {
+    const readerPanel = blockAfter(readerIndex, ".home-cover__panel {");
+    // 后台有两个会露出轮播封面的 16:9 框：上传预览框与取景窗的取景框。
+    // 只锁其中一个，另一个漂成 16/10 时这条断言仍会绿——所以必须逐个比对。
+    const adminBoxes = [
+      { name: "上传预览框", block: blockAfter(adminCss, ".admin-upload-panel__picker {") },
+      { name: "取景框", block: blockAfter(adminCss, ".admin-framing__frame {") },
+    ];
 
-    expect(aspectRatioOf(adminFrame)).toBe(SPEC_RATIO);
-    expect(aspectRatioOf(adminFrame)).toBe(aspectRatioOf(blockAfter(readerIndex, ".home-cover__panel {")));
+    for (const box of adminBoxes) {
+      expect(aspectRatioOf(box.block), `${box.name}应是 ${SPEC_RATIO}`).toBe(SPEC_RATIO);
+      expect(aspectRatioOf(box.block), `${box.name}应与阅读站面板一致`).toBe(aspectRatioOf(readerPanel));
+    }
   });
 });

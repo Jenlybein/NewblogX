@@ -27,6 +27,12 @@ function clamp(value: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, value));
 }
 
+/** 与后台 `clampFraming` 同一套精度：焦点 4 位、缩放 2 位，避免两端样式尾数不同。 */
+function roundTo(value: number, digits: number): number {
+  const factor = 10 ** digits;
+  return Math.round(value * factor) / factor;
+}
+
 /** 缺字段 / 非有限值（NaN、Infinity）= 缺省，而不是把坏值写进样式。 */
 function finiteOr(value: number | undefined, fallback: number): number {
   return typeof value === "number" && Number.isFinite(value) ? value : fallback;
@@ -44,22 +50,28 @@ function scale(value: number): string {
 /**
  * 取景参数 → 图片层的样式对象（组件只消费它，不自己算几何）。
  *
- * 三层职责叠起来就是最终效果，各层互不抢同一个属性：
- * - `object-fit: cover`：先按容器比例铺满并居中裁切；
- * - `transform-origin` 取焦点：缩放的锚点落在焦点上；
+ * 四层职责叠起来就是最终效果，后台取景窗的 `framingStyle()` 逐条相同：
+ * - `object-fit: cover`：先按容器比例铺满；
+ * - `object-position` 取焦点：把图上焦点对到框内同一比例点；
+ * - `transform-origin` 取焦点：缩放的锚点落在同一点上；
  * - `transform: scale(zoom)`：在锚点处放大，焦点那一块留在原处。
+ *
+ * 只输出百分比与 `scale()`、不含任何像素值，所以后台预览框与阅读站任意宽度的
+ * 面板得到的是同一块取景（#44 US9）。
  *
  * 钳制是"兜底"而不是"改写数据"：越界值仍由后端拒绝（ADR-0014 决策 4）。
  * 焦点恒在 0–1、缩放恒在 1–2，因此放大后的图始终盖满元素，不会露出面板底色。
  */
 export function bannerFramingStyle(crop?: BannerCrop | null): CSSProperties {
-  const focusX = clamp(finiteOr(crop?.focus_x, DEFAULT_FOCUS), MIN_FOCUS, MAX_FOCUS);
-  const focusY = clamp(finiteOr(crop?.focus_y, DEFAULT_FOCUS), MIN_FOCUS, MAX_FOCUS);
-  const zoom = clamp(finiteOr(crop?.zoom, DEFAULT_ZOOM), MIN_ZOOM, MAX_ZOOM);
+  const focusX = roundTo(clamp(finiteOr(crop?.focus_x, DEFAULT_FOCUS), MIN_FOCUS, MAX_FOCUS), 4);
+  const focusY = roundTo(clamp(finiteOr(crop?.focus_y, DEFAULT_FOCUS), MIN_FOCUS, MAX_FOCUS), 4);
+  const zoom = roundTo(clamp(finiteOr(crop?.zoom, DEFAULT_ZOOM), MIN_ZOOM, MAX_ZOOM), 2);
+  const position = `${percent(focusX)} ${percent(focusY)}`;
 
   return {
     objectFit: "cover",
-    transformOrigin: `${percent(focusX)} ${percent(focusY)}`,
+    objectPosition: position,
+    transformOrigin: position,
     transform: scale(zoom),
   };
 }

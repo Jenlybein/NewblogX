@@ -276,6 +276,7 @@ describe("framedImageRect", () => {
 describe("framingStyle", () => {
   it("缺省取景：居中、不放大", () => {
     expect(framingStyle(DEFAULT_FRAMING)).toEqual({
+      objectFit: "cover",
       objectPosition: "50% 50%",
       transformOrigin: "50% 50%",
       transform: "scale(1)",
@@ -291,15 +292,16 @@ describe("framingStyle", () => {
     expect(style.transform).toBe("scale(1.5)");
   });
 
-  it("只输出百分比与 scale，不含像素（预览才能与任意尺寸的最终渲染同一套几何）", () => {
+  it("只输出 cover、百分比与 scale，不含像素（预览才能与任意尺寸的最终渲染同一套几何）", () => {
     const style = framingStyle({ focus_x: 0.3333333, focus_y: 0.6666666, zoom: 2 });
     const serialized = Object.values(style).join(" ");
     expect(serialized).not.toMatch(/px/u);
-    expect(serialized).toBe("33.33% 66.67% 33.33% 66.67% scale(2)");
+    expect(serialized).toBe("cover 33.33% 66.67% 33.33% 66.67% scale(2)");
   });
 
   it("非法/越界参数先钳制再出样式", () => {
     expect(framingStyle({ focus_x: -3, focus_y: 9, zoom: 6 })).toEqual({
+      objectFit: "cover",
       objectPosition: "0% 100%",
       transformOrigin: "0% 100%",
       transform: "scale(2)",

@@ -20,7 +20,7 @@ import type { Framing, Size } from '~/utils/framing'
  * 16:9 取景窗（#45）。只管交互：算术全部在 `~/utils/framing`。
  *
  * 为什么图片用 `object-fit: cover` + `object-position` + `transform: scale()`
- * 而不是自绘一块画布：这三条声明就是读者站渲染同一张封面的方式。
+ * 而不是自绘一块画布：这四条声明就是读者站渲染同一张封面的方式。
  * 预览与线上用的是**同一组**百分比，于是"所见即最终效果"不是靠对齐两个实现，
  * 而是根本没有第二个实现（`framingStyle()` 是唯一出口）。
  *
@@ -59,7 +59,7 @@ watch(
   },
 )
 
-/** 三条内联声明：与线上渲染逐条相同，没有像素值。 */
+/** 四条内联声明：与线上渲染逐条相同，没有像素值。 */
 const imageStyle = computed(() => framingStyle(framing.value))
 
 /** 读数（只给人看）：焦点百分比与缩放倍数。 */

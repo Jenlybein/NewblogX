@@ -5473,10 +5473,11 @@ export interface components {
         "internal_site_adapter_http.BannerCreateRequest": {
             cover_image_id: string;
             /**
-             * @description Crop 是可选取景参数：不传等于"居中、缩放 1"。
+             * @description Crop 是可选取景参数。可选是为了让老调用方（还没接取景的后台）照旧能用。
              *
-             *     可选是为了让老调用方（还没接取景的后台）照旧能创建与更新；
-             *     但更新是整体替换，所以不传 = 回到缺省，而不是保留上一次的取景。
+             *     两种语义不同，别写混：
+             *       · 创建：不传 = 缺省（居中、缩放 1）—— 新建必须有一条确定的取景；
+             *       · 更新：不传 = **保留已存的取景** —— 否则改一个跳转链接就会静默抹掉运营调好的构图。
              */
             crop?: components["schemas"]["internal_site_adapter_http.BannerCrop"];
             href?: string;

@@ -33,11 +33,11 @@ const images = ref<ImageListItem[]>([])
 const bannerFileInputRef = ref<HTMLInputElement | null>(null)
 
 /**
- * 选好但还没上传的封面。
+ * 当前选好的封面（可能已经上传，也可能还在等取景确认）。
  *
- * 为什么先留在浏览器里：spec 要求"本地读像素尺寸、不合规不先传"。上传推迟到
- * 点「创建轮播」的那一刻，于是取景确认（或者手动取景）都发生在**占用存储之前**，
- * 取消时也就真的什么记录都没有。
+ * spec 要求"本地读像素尺寸、不合规不先传"：合规图判定后**立即上传**并持有
+ * `image_id`；不合规图在取景确认后自动上传。上传都发生在创建之前，点「创建轮播」
+ * 只创建 banner，不重复上传。取消强制取景仍中止本次上传。
  */
 interface PendingBannerCover {
   file: File
@@ -276,6 +276,8 @@ async function submitBanner() {
 
   bannerSubmitting.value = true
   try {
+    // 正常路径在选图（合规）或确认取景（不合规）时已经上传；这里只兜底重试
+    // （例如上传失败后运营直接点创建），已上传时不会再传一次。
     const cover = uploadedCover.value ?? (pending ? await uploadPendingBannerCover(pending) : null)
     if (!cover) return
 
@@ -304,8 +306,9 @@ async function submitBanner() {
   }
 }
 
-/** 上传待传封面；失败时保留本地文件，修正后可重试。 */
+/** 上传封面；失败时保留本地文件，修正后可重试。已上传则直接复用结果。 */
 async function uploadPendingBannerCover(pending: PendingBannerCover, nextStage = '封面上传完成') {
+  if (uploadedCover.value) return uploadedCover.value
   bannerUploading.value = true
   bannerUploadStage.value = '开始上传封面…'
   try {
@@ -374,7 +377,7 @@ async function handleBannerCoverFileChange(event: Event) {
     }
 
     const needsFraming = requiresFraming(size)
-    pendingCover.value = {
+    const pending: PendingBannerCover = {
       file,
       previewUrl,
       size,
@@ -382,12 +385,20 @@ async function handleBannerCoverFileChange(event: Event) {
       framing: needsFraming ? null : DEFAULT_FRAMING,
       adjusted: false,
     }
-    bannerUploadStage.value = needsFraming
-      ? '比例与 16:9 相差超过 1%，请先取景'
-      : `比例合规（${size.width} × ${size.height}），点击「创建轮播」直接上传`
+    pendingCover.value = pending
 
     if (needsFraming) {
+      bannerUploadStage.value = '比例与 16:9 相差超过 1%，请先取景'
       openPendingFraming(true)
+      return
+    }
+
+    // 合规＝直接上传（spec 字面要求），不推迟到点「创建轮播」。这样运营少点一次，
+    // 且上传失败时本地文件还在，点创建会走 submitBanner 的兜底重试。
+    bannerUploadStage.value = `比例合规（${size.width} × ${size.height}），正在上传封面…`
+    const uploaded = await uploadPendingBannerCover(pending, '封面上传完成，点击「创建轮播」保存')
+    if (!uploaded) {
+      bannerUploadStage.value = '封面上传失败，可点击「创建轮播」重试'
     }
   } catch (error) {
     URL.revokeObjectURL(previewUrl)
@@ -410,7 +421,7 @@ function openPendingFraming(required: boolean) {
   framingDialog.show = true
 }
 
-/** 「手动取景」：合规的图也能再调构图，调整发生在创建（上传）之前。 */
+/** 「手动取景」：已上传或待上传的合规图都能再调构图，保存时随 crop 创建。 */
 function openBannerFraming() {
   if (pendingCover.value) {
     openPendingFraming(false)
@@ -485,9 +496,9 @@ function handleFramingConfirm(framing: Framing) {
   pending.adjusted = true
   bannerForm.crop = safe
 
-  // 强制取景（比例不合规）在确认后就上传：这样"确认 → 上传图 → 创建 banner"
-  // 的顺序与运营的心智一致；合规图仍等点「创建轮播」才上传，好让手动取景先调。
-  if (pending.requiresFraming && !uploadedCover.value) {
+  // 没上传成功的图（强制取景确认 / 合规图上传失败后手动重试）在此自动补传；
+  // 已经上传过的图只更新本地取景参数，点「创建轮播」时随 crop 一次提交。
+  if (!uploadedCover.value) {
     bannerUploadStage.value = '取景已确认，正在上传封面…'
     void uploadPendingBannerCover(pending, '封面上传完成，点击「创建轮播」保存')
     return
@@ -561,7 +572,7 @@ onMounted(() => {
                 <div class="admin-upload-panel__head">
                   <div>
                     <div class="admin-upload-panel__title">封面图片</div>
-                    <p class="admin-upload-panel__hint">推荐比例 16:9：与 16:9 相差 ≤1% 可直接上传，超出会先让你取景</p>
+                    <p class="admin-upload-panel__hint">推荐比例 16:9：与 16:9 相差 ≤1% 会立即上传；超出 1% 先取景，确认后自动上传</p>
                   </div>
                   <div class="admin-upload-panel__actions">
                     <NButton

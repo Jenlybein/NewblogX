@@ -32,6 +32,7 @@ function harness(overrides: {
   canSubmit?: boolean;
   visibility?: "visible" | "user_hidden";
   coverUploading?: boolean;
+  policy?: { allowPublish: boolean; allowDraft: boolean };
 } = {}): Harness {
   const message = { success: vi.fn(), warning: vi.fn(), error: vi.fn() };
   const push = vi.fn(async () => undefined);
@@ -48,6 +49,7 @@ function harness(overrides: {
     buildPayload: (status) => ({ title: "t", content: "c", status }) as never,
     message,
     router: { push },
+    policy: overrides.policy ? { value: overrides.policy } : undefined,
   });
 
   return { publish, message, push, pendingState, publishVisible };
@@ -135,5 +137,38 @@ describe("useStudioPublish", () => {
     expect(h.message.error).toHaveBeenCalledWith("网络断开");
     expect(h.pendingState.draft).toBe(false);
     expect(h.pendingState.publish).toBe(false);
+  });
+
+  // ── 站点「发布与展示」开关（#64）──
+
+  it("站点关闭存草稿时，保存草稿在发请求之前就被拦下，并说明是站点策略", async () => {
+    const h = harness({ policy: { allowPublish: true, allowDraft: false } });
+
+    await h.publish.submitArticle(1);
+
+    expect(h.message.warning).toHaveBeenCalledWith(expect.stringContaining("站点策略"));
+    expect(createArticleMock).not.toHaveBeenCalled();
+    expect(updateArticleMock).not.toHaveBeenCalled();
+    expect(h.pendingState.draft).toBe(false);
+  });
+
+  it("站点关闭发布时，发布同样在发请求之前被拦下", async () => {
+    const h = harness({ policy: { allowPublish: false, allowDraft: true } });
+
+    await h.publish.submitArticle(2);
+
+    expect(h.message.warning).toHaveBeenCalledWith(expect.stringContaining("站点策略"));
+    expect(createArticleMock).not.toHaveBeenCalled();
+    expect(h.pendingState.publish).toBe(false);
+  });
+
+  it("站点开关全开时行为与没传 policy 一致", async () => {
+    createArticleMock.mockResolvedValue({ id: "42", publish_status: 1 });
+    const h = harness({ policy: { allowPublish: true, allowDraft: true } });
+
+    await h.publish.submitArticle(1);
+
+    expect(createArticleMock).toHaveBeenCalledTimes(1);
+    expect(h.message.success).toHaveBeenCalledWith("草稿已保存");
   });
 });

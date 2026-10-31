@@ -146,6 +146,32 @@ func TestBannerLifecycle(t *testing.T) {
 	}
 }
 
+// TestRemoveBannerClearsCropRecord 钉住假件与 MySQL 实现的一致：
+// MySQL 在删除 banner 时会把对应的 crop 行一起删掉，内存替身也必须清。
+func TestRemoveBannerClearsCropRecord(t *testing.T) {
+	env := newEnv()
+	ctx := context.Background()
+	env.Images.Put(11, "/a.png")
+
+	crop := domain.Crop{FocusX: 0.2, FocusY: 0.8, Zoom: 1.5}
+	in := apptestInput(11, "/a", true)
+	in.Crop = &crop
+	created, err := env.Service.CreateBanner(ctx, in)
+	if err != nil {
+		t.Fatalf("创建轮播图失败: %v", err)
+	}
+	if !env.Banners.HasCrop(created.ID.Uint64()) {
+		t.Fatal("创建后应存在取景记录")
+	}
+
+	if _, err := env.Service.RemoveBanners(ctx, []uint64{created.ID.Uint64()}); err != nil {
+		t.Fatalf("删除轮播图失败: %v", err)
+	}
+	if env.Banners.HasCrop(created.ID.Uint64()) {
+		t.Fatal("删除 banner 后取景记录应被清除（与 MySQL 实现一致）")
+	}
+}
+
 func TestBannerRejectsUnavailableImage(t *testing.T) {
 	env := newEnv()
 	ctx := context.Background()

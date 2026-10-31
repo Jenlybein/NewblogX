@@ -34,7 +34,7 @@ type ImageResolver interface {
 // RuntimeConfig 是运行时站点配置的读写端口。
 //
 // 具体实现是 platform/config 的 RuntimeConfigService。
-// 七个配置段都从这里走：站点模块是"配置"这件事的唯一归属，
+// 八个配置段都从这里走：站点模块是"配置"这件事的唯一归属，
 // 其它模块只消费、不写。
 type RuntimeConfig interface {
 	// Site 返回当前生效的站点配置。
@@ -51,6 +51,8 @@ type RuntimeConfig interface {
 	Log() conf.Logrus
 	// Upload 返回当前上传策略。
 	Upload() conf.Upload
+	// Deco 返回当前装饰配置。
+	Deco() conf.Deco
 
 	// UpdateSite 覆盖站点配置。
 	UpdateSite(site conf.Site) error
@@ -66,4 +68,6 @@ type RuntimeConfig interface {
 	UpdateLog(log conf.Logrus) error
 	// UpdateUpload 覆盖上传策略。
 	UpdateUpload(upload conf.Upload) error
+	// UpdateDeco 覆盖装饰配置。
+	UpdateDeco(deco conf.Deco) error
 }

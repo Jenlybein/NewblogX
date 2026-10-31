@@ -15,6 +15,7 @@ import sora600Woff2 from "@fontsource/sora/files/sora-latin-600-normal.woff2";
 import sora700Woff2 from "@fontsource/sora/files/sora-latin-700-normal.woff2";
 import interWoff2 from "@fontsource-variable/inter/files/inter-latin-wght-normal.woff2";
 import tokensCss from "~/assets/css/tokens.css?raw";
+import CursorCharm from "~/components/deco/CursorCharm.vue";
 import { themeBodyClass, themeHtmlClass, themeRootClass } from "~/utils/themeClass";
 import { buildThemeInitScript } from "~/utils/themePreference";
 import { buildReaderThemeOverrides, parseReaderThemePalette, parseReaderThemeScale } from "~/utils/readerTheme";
@@ -128,6 +129,12 @@ const themeOverrides = computed<GlobalThemeOverrides>(() =>
                 <NuxtLayout>
                   <NuxtPage />
                 </NuxtLayout>
+                <!-- 光标挂件挂在应用根层（不是页面布局层）：默认 / 创作 / 写作三个布局
+                     因此都被覆盖。ClientOnly：位置依赖指针、媒体查询依赖 window，
+                     SSR 渲染它只会产生一段无意义且会闪的标记。 -->
+                <ClientOnly>
+                  <CursorCharm />
+                </ClientOnly>
               </div>
             </NLoadingBarProvider>
           </NDialogProvider>

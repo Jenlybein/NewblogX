@@ -52,6 +52,24 @@ export interface SiteRuntimeConfig {
 
 export type SiteAiInfo = RequiredSchema<"internal_site_adapter_http.AIResponse">;
 
+/**
+ * 装饰配置（`GET /api/site/deco` 的 data，后端第 8 个运行时配置段）。
+ *
+ * 与 `SiteRuntimeConfig` 一样是手写的：契约里这条 data 是自由键值块，
+ * 派生不出逐字段类型。按 `backend/conf/conf_deco.go` 对齐 ——
+ * 本票只有 `charm.enable` / `charm.logo_size` 两个参数，
+ * 挂绳长度、节点数等留给票 #41。
+ *
+ * 字段全都可选：读者站不能假设某个后台版本一定发出了哪些键，
+ * 缺失时由 `clampCharmLogoSize` / 门控的默认值兜底。
+ */
+export interface SiteDecoConfig {
+  charm?: {
+    enable?: boolean;
+    logo_size?: number;
+  };
+}
+
 export type BannerItem = RequiredSchema<"internal_site_adapter_http.BannerItem">;
 
 /** 轮播图列表载荷。之前服务层手写了同名形状（`{list, has_more}`），漏了契约里的 `count`。 */

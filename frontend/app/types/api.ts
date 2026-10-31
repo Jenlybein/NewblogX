@@ -10,15 +10,26 @@ export interface ApiEnvelope<T> {
 
 export type SiteSeoData = RequiredSchema<"internal_site_adapter_http.SEOResponse">;
 
+/**
+ * 站点运行时配置（`GET /api/site/site` 的 data）。
+ *
+ * 契约里这条 data 是 `map[string]any`，派生不出类型，只能手写 —— 手写就会漂移：
+ * 这里曾声明后端不存在的 `site_info.subtitle` / `project.abstract`，又漏掉后端
+ * 真有的 `site_info.logo` / `beian`。现在按 `backend/conf/site/enter.go` 对齐，
+ * 并由 `test/gates/site-runtime-config-parity.test.ts` 逐字段比对，再漂就红。
+ *
+ * `site_info` 是完整投影（与 `site.SiteInfo` 逐字段相等）；`project` 等子块读者站
+ * 只用得到一部分，所以是子集 —— 但同样不许出现后端没有的字段。
+ */
 export interface SiteRuntimeConfig {
   site_info: {
     title?: string;
-    subtitle?: string;
+    logo?: string;
+    beian?: string;
     mode?: number;
   };
   project: {
     title?: string;
-    abstract?: string;
   };
   login: {
     qq?: boolean;
@@ -40,6 +51,37 @@ export interface SiteRuntimeConfig {
 }
 
 export type SiteAiInfo = RequiredSchema<"internal_site_adapter_http.AIResponse">;
+
+/**
+ * 装饰配置（`GET /api/site/deco` 的 data，后端第 8 个运行时配置段）。
+ *
+ * 与 `SiteRuntimeConfig` 一样是手写的：契约里这条 data 是自由键值块，
+ * 派生不出逐字段类型。按 `backend/conf/conf_deco.go` 对齐 ——
+ * `charm` 下是总开关与八个数值参数（站标尺寸 + 挂绳几何 / 物理 + 静止轻晃）。
+ *
+ * 字段全都可选：读者站不能假设某个后台版本一定发出了哪些键，
+ * 缺失时由各参数的钳位函数 / 门控的默认值兜底。
+ */
+export interface SiteDecoConfig {
+  charm?: {
+    enable?: boolean;
+    logo_size?: number;
+    /** 挂绳长度，px，合法区间 40–240。 */
+    rope_length?: number;
+    /** Verlet 链节点数，节，合法区间 4–24。 */
+    segments?: number;
+    /** 描边起始宽度，px，合法区间 1–6，保留一位小数；收尾固定为 0.6 倍。 */
+    line_width?: number;
+    /** 重力加速度，px/s²，合法区间 400–4000。 */
+    gravity?: number;
+    /** 每步速度保持系数，无量纲，合法区间 0.94–0.995。 */
+    damping?: number;
+    /** 静止摆动频率，Hz，合法区间 0–1.5；0 表示关掉轻晃。 */
+    idle_sway_hz?: number;
+    /** 静止摆动加速度幅度，px/s²，合法区间 0–40；0 表示退回零帧车道。 */
+    idle_sway_amp?: number;
+  };
+}
 
 export type BannerItem = RequiredSchema<"internal_site_adapter_http.BannerItem">;
 

@@ -97,7 +97,7 @@ func (h *Handler) AIInfo(c *gin.Context) {
 // @Summary 获取站点公开配置
 // @Tags site
 // @Produce json
-// @Param name path string true "站点信息名称：site 站点版本、seo SEO 信息"
+// @Param name path string true "站点信息名称：site 站点版本、seo SEO 信息、deco 装饰"
 // @Success 200 {object} kernel.Envelope[kernel.SiteConfigData]
 // @Router /site/{name} [get]
 func (h *Handler) PublicInfo(c *gin.Context) {
@@ -123,6 +123,10 @@ func (h *Handler) PublicInfo(c *gin.Context) {
 			Keywords:     seo.Keywords,
 			Description:  seo.Description,
 		}, c)
+	case "deco":
+		// 装饰段没有敏感字段，公开读与管理读返回同一份；读者站要和站点配置、
+		// SEO、AI 信息同一批取回，才知道挂件开没开。
+		res.OkWithData(h.svc.PublicDeco(), c)
 	default:
 		res.FailWithMsg("站点信息不存在", c)
 	}
@@ -133,7 +137,7 @@ func (h *Handler) PublicInfo(c *gin.Context) {
 // @Tags site
 // @Produce json
 // @Security BearerAuth
-// @Param name path string true "配置名称：site 站点 / ai AI / mail 邮件 / storage 对象存储 / oauth 第三方登录 / log 日志 / upload 上传策略"
+// @Param name path string true "配置名称：site 站点 / ai AI / mail 邮件 / storage 对象存储 / oauth 第三方登录 / log 日志 / upload 上传策略 / deco 装饰"
 // @Success 200 {object} kernel.Envelope[kernel.SiteConfigData]
 // @Router /site/admin/{name} [get]
 func (h *Handler) AdminInfo(c *gin.Context) {
@@ -151,8 +155,8 @@ func (h *Handler) AdminInfo(c *gin.Context) {
 
 // adminConfigByName 按段名取管理端配置块。
 //
-// 返回 any 而不是拆成七个 handler：这七段共用同一条路由，
-// 拆开只会让路由表多出六行、而契约里仍然是同一个 map。
+// 返回 any 而不是拆成八个 handler：这八段共用同一条路由，
+// 拆开只会让路由表多出七行、而契约里仍然是同一个 map。
 func (h *Handler) adminConfigByName(name string) (any, bool) {
 	switch name {
 	case "site":
@@ -169,6 +173,8 @@ func (h *Handler) adminConfigByName(name string) (any, bool) {
 		return h.svc.AdminLog(), true
 	case "upload":
 		return h.svc.AdminUpload(), true
+	case "deco":
+		return h.svc.AdminDeco(), true
 	default:
 		return nil, false
 	}
@@ -182,7 +188,7 @@ func (h *Handler) adminConfigByName(name string) (any, bool) {
 // @Accept json
 // @Produce json
 // @Security BearerAuth
-// @Param name path string true "配置名称：site 站点 / ai AI / mail 邮件 / storage 对象存储 / oauth 第三方登录 / log 日志 / upload 上传策略"
+// @Param name path string true "配置名称：site 站点 / ai AI / mail 邮件 / storage 对象存储 / oauth 第三方登录 / log 日志 / upload 上传策略 / deco 装饰"
 // @Param body body object true "请求体：与对应配置段的结构一致"
 // @Success 200 {object} kernel.Envelope[kernel.EmptyData]
 // @Router /site/{name} [put]
@@ -208,6 +214,8 @@ func (h *Handler) UpdateConfig(c *gin.Context) {
 		err = updateSectionBody(c, h.svc.UpdateLog)
 	case "upload":
 		err = updateSectionBody(c, h.svc.UpdateUpload)
+	case "deco":
+		err = updateSectionBody(c, h.svc.UpdateDeco)
 	default:
 		res.FailWithMsg("站点信息不存在", c)
 		return
@@ -231,7 +239,7 @@ func (h *Handler) UpdateConfig(c *gin.Context) {
 
 // updateSectionBody 解析请求体并交给对应的更新方法。
 //
-// 泛型让七个配置段共用一份"绑定 → 更新"的代码：类型由方法签名推出来，
+// 泛型让八个配置段共用一份"绑定 → 更新"的代码：类型由方法签名推出来，
 // 不需要为每一段写一遍 var body conf.Xxx + ShouldBindJSON。
 func updateSectionBody[T any](c *gin.Context, update func(T) error) error {
 	var body T

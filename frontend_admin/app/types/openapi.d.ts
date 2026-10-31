@@ -3727,7 +3727,7 @@ export interface paths {
                 query?: never;
                 header?: never;
                 path: {
-                    /** @description 配置名称：site 站点 / ai AI / mail 邮件 / storage 对象存储 / oauth 第三方登录 / log 日志 / upload 上传策略 */
+                    /** @description 配置名称：site 站点 / ai AI / mail 邮件 / storage 对象存储 / oauth 第三方登录 / log 日志 / upload 上传策略 / deco 装饰 */
                     name: string;
                 };
                 cookie?: never;
@@ -3874,7 +3874,7 @@ export interface paths {
                 query?: never;
                 header?: never;
                 path: {
-                    /** @description 站点信息名称：site 站点版本、seo SEO 信息 */
+                    /** @description 站点信息名称：site 站点版本、seo SEO 信息、deco 装饰 */
                     name: string;
                 };
                 cookie?: never;
@@ -3898,7 +3898,7 @@ export interface paths {
                 query?: never;
                 header?: never;
                 path: {
-                    /** @description 配置名称：site 站点 / ai AI / mail 邮件 / storage 对象存储 / oauth 第三方登录 / log 日志 / upload 上传策略 */
+                    /** @description 配置名称：site 站点 / ai AI / mail 邮件 / storage 对象存储 / oauth 第三方登录 / log 日志 / upload 上传策略 / deco 装饰 */
                     name: string;
                 };
                 cookie?: never;

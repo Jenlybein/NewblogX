@@ -335,6 +335,35 @@ export interface UploadRuntimeConfig {
   whitelist: string[]
 }
 
+/**
+ * 装饰配置（第 8 段 deco）。
+ *
+ * `charm` 下是一个总开关 + 八个数值参数（站标尺寸、挂绳几何 / 物理、描边与静止轻晃）。
+ * 段结构、路由与响应形状都不变（响应本来就是自由键值块）。
+ */
+export interface DecoRuntimeConfig {
+  charm: {
+    /** 光标挂件总开关；默认开。 */
+    enable: boolean
+    /** 站标显示尺寸，单位 px，合法区间 24–96。 */
+    logo_size: number
+    /** 挂绳长度，单位 px，合法区间 40–240。 */
+    rope_length: number
+    /** Verlet 链节点数，单位 节，合法区间 4–24（整数）。 */
+    segments: number
+    /** 描边起始宽度，单位 px，合法区间 1–6（保留一位小数）；收尾固定为 0.6 倍。 */
+    line_width: number
+    /** 重力加速度，单位 px/s²，合法区间 400–4000。 */
+    gravity: number
+    /** 每步速度保持系数，无量纲，合法区间 0.94–0.995。 */
+    damping: number
+    /** 静止摆动频率，单位 Hz，合法区间 0–1.5；0 表示关掉轻晃。 */
+    idle_sway_hz: number
+    /** 静止摆动加速度幅度，单位 px/s²，合法区间 0–40；0 表示退回零帧车道。 */
+    idle_sway_amp: number
+  }
+}
+
 /** 首次初始化状态。 */
 export interface SetupStatusData {
   /** 为真表示库里还没有管理员，初始化入口开放 */

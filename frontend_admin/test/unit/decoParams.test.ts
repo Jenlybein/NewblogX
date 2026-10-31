@@ -1,0 +1,434 @@
+import { readFileSync } from 'node:fs'
+import { join } from 'node:path'
+
+import { describe, expect, it } from 'vitest'
+import {
+  DECO_DAMPING_DEFAULT,
+  DECO_DAMPING_MAX,
+  DECO_DAMPING_MIN,
+  DECO_GRAVITY_DEFAULT,
+  DECO_GRAVITY_MAX,
+  DECO_GRAVITY_MIN,
+  DECO_IDLE_SWAY_AMP_DEFAULT,
+  DECO_IDLE_SWAY_AMP_MAX,
+  DECO_IDLE_SWAY_AMP_MIN,
+  DECO_IDLE_SWAY_HZ_DEFAULT,
+  DECO_IDLE_SWAY_HZ_MAX,
+  DECO_IDLE_SWAY_HZ_MIN,
+  DECO_LINE_WIDTH_DEFAULT,
+  DECO_LINE_WIDTH_MAX,
+  DECO_LINE_WIDTH_MIN,
+  DECO_LOGO_SIZE_DEFAULT,
+  DECO_LOGO_SIZE_MAX,
+  DECO_LOGO_SIZE_MIN,
+  DECO_LOGO_SIZE_PARAM,
+  DECO_NUMBER_PARAMS,
+  DECO_ROPE_LENGTH_DEFAULT,
+  DECO_ROPE_LENGTH_MAX,
+  DECO_ROPE_LENGTH_MIN,
+  DECO_SEGMENTS_DEFAULT,
+  DECO_SEGMENTS_MAX,
+  DECO_SEGMENTS_MIN,
+  clampDecoDamping,
+  clampDecoGravity,
+  clampDecoIdleSwayAmp,
+  clampDecoIdleSwayHz,
+  clampDecoLineWidth,
+  clampDecoLogoSize,
+  clampDecoRopeLength,
+  clampDecoSegments,
+  defaultDecoConfig,
+  normalizeDecoConfig,
+} from '~/utils/decoParams'
+
+/**
+ * 为什么值得测：后台这一层是"管理员填了离谱数值"的最后一道防线。
+ * 表单的 NInputNumber 只是 UI 约束（可以被粘贴、被 devtools 改掉），
+ * 真正保证库里存不下发散值的是这里的钳位；而元数据（标签/单位/范围/默认值）
+ * 一旦与后端漂移，就会出现"后台能填、读者站不认"。
+ *
+ * 票 #41 新增四个物理参数、票 #42 再新增三个（描边宽度 + 静止轻晃的两个）。
+ * 这里还保证三件事：参数清单 = 表单渲染的输入行；每个参数都有单位与一句
+ * 作用说明；「恢复默认」的九个值与规范默认逐项一致（且只是表单值）。
+ */
+
+/** 元数据表里的参数越多，后台可调的东西越多；缺单位/说明就没法看。 */
+const PHYSICS_PARAMS = DECO_NUMBER_PARAMS.filter((param) => param.key !== 'logo_size')
+
+describe('装饰参数元数据', () => {
+  it('站标尺寸带单位与一句作用说明（管理员不用读代码猜）', () => {
+    expect(DECO_LOGO_SIZE_PARAM.key).toBe('logo_size')
+    expect(DECO_LOGO_SIZE_PARAM.label).toBe('站标尺寸')
+    expect(DECO_LOGO_SIZE_PARAM.unit).toBe('px')
+    expect(DECO_LOGO_SIZE_PARAM.hint.length).toBeGreaterThan(8)
+  })
+
+  it('八个数值参数的标签 / 单位 / 作用说明齐全，且单位与量纲对应', () => {
+    const byKey = new Map(DECO_NUMBER_PARAMS.map((param) => [param.key, param]))
+
+    expect(byKey.get('rope_length')?.label).toBe('挂绳长度')
+    expect(byKey.get('rope_length')?.unit).toBe('px')
+    expect(byKey.get('segments')?.label).toBe('链节点数')
+    expect(byKey.get('segments')?.unit).toBe('节')
+    expect(byKey.get('line_width')?.label).toBe('描边宽度')
+    expect(byKey.get('line_width')?.unit).toBe('px')
+    expect(byKey.get('gravity')?.label).toBe('重力')
+    expect(byKey.get('gravity')?.unit).toBe('px/s²')
+    expect(byKey.get('damping')?.label).toBe('每步阻尼')
+    expect(byKey.get('damping')?.unit).toBe('无量纲')
+    expect(byKey.get('idle_sway_hz')?.label).toBe('静止摆动频率')
+    expect(byKey.get('idle_sway_hz')?.unit).toBe('Hz')
+    expect(byKey.get('idle_sway_amp')?.label).toBe('静止摆动幅度')
+    expect(byKey.get('idle_sway_amp')?.unit).toBe('px/s²')
+    for (const param of PHYSICS_PARAMS) {
+      // 一句说明就是"这个数影响什么"，不能只留标签。
+      expect(param.hint.length).toBeGreaterThan(8)
+      expect(param.max).toBeGreaterThan(param.min)
+      expect(param.step).toBeGreaterThan(0)
+    }
+  })
+
+  it('区间与默认值：24–96/48、40–240/120、4–24/10、1–6/2.5、400–4000/1600、0.94–0.995/0.99、0–1.5/0.8、0–40/20', () => {
+    // 这些数是跨端契约。本票不做一致性门禁（票 #43），所以在这里显式钉住：
+    // 改一端就必须同时改另一端，否则这条断言会逼你想一次。
+    expect(DECO_LOGO_SIZE_MIN).toBe(24)
+    expect(DECO_LOGO_SIZE_MAX).toBe(96)
+    expect(DECO_LOGO_SIZE_DEFAULT).toBe(48)
+
+    expect(DECO_ROPE_LENGTH_MIN).toBe(40)
+    expect(DECO_ROPE_LENGTH_MAX).toBe(240)
+    expect(DECO_ROPE_LENGTH_DEFAULT).toBe(120)
+
+    expect(DECO_SEGMENTS_MIN).toBe(4)
+    expect(DECO_SEGMENTS_MAX).toBe(24)
+    expect(DECO_SEGMENTS_DEFAULT).toBe(10)
+
+    expect(DECO_LINE_WIDTH_MIN).toBe(1)
+    expect(DECO_LINE_WIDTH_MAX).toBe(6)
+    expect(DECO_LINE_WIDTH_DEFAULT).toBe(2.5)
+
+    expect(DECO_GRAVITY_MIN).toBe(400)
+    expect(DECO_GRAVITY_MAX).toBe(4000)
+    expect(DECO_GRAVITY_DEFAULT).toBe(1600)
+
+    expect(DECO_DAMPING_MIN).toBe(0.94)
+    expect(DECO_DAMPING_MAX).toBe(0.995)
+    expect(DECO_DAMPING_DEFAULT).toBe(0.99)
+    // 阻尼上限必须小于 1：等于或大于 1 会让摆动越甩越大。
+    expect(DECO_DAMPING_MAX).toBeLessThan(1)
+
+    expect(DECO_IDLE_SWAY_HZ_MIN).toBe(0)
+    expect(DECO_IDLE_SWAY_HZ_MAX).toBe(1.5)
+    expect(DECO_IDLE_SWAY_HZ_DEFAULT).toBe(0.8)
+    expect(DECO_IDLE_SWAY_AMP_MIN).toBe(0)
+    expect(DECO_IDLE_SWAY_AMP_MAX).toBe(40)
+    expect(DECO_IDLE_SWAY_AMP_DEFAULT).toBe(20)
+    // 轻晃的两个下限是 0（合法的"关掉轻晃"），不是"缺省回默认"。
+    expect(DECO_IDLE_SWAY_HZ_MIN).toBe(0)
+    expect(DECO_IDLE_SWAY_AMP_MIN).toBe(0)
+  })
+
+  it('`参数清单就是表单要渲染的八行（开关不是数值参数）', () => {
+    expect(DECO_NUMBER_PARAMS.map((param) => param.key)).toEqual([
+      'logo_size',
+      'rope_length',
+      'segments',
+      'line_width',
+      'gravity',
+      'damping',
+      'idle_sway_hz',
+      'idle_sway_amp',
+    ])
+  })
+
+  it('每个参数的元数据区间与常量同源（表单不自己写数字）', () => {
+    const expected = {
+      logo_size: { min: DECO_LOGO_SIZE_MIN, max: DECO_LOGO_SIZE_MAX, defaultValue: DECO_LOGO_SIZE_DEFAULT },
+      rope_length: { min: DECO_ROPE_LENGTH_MIN, max: DECO_ROPE_LENGTH_MAX, defaultValue: DECO_ROPE_LENGTH_DEFAULT },
+      segments: { min: DECO_SEGMENTS_MIN, max: DECO_SEGMENTS_MAX, defaultValue: DECO_SEGMENTS_DEFAULT },
+      line_width: { min: DECO_LINE_WIDTH_MIN, max: DECO_LINE_WIDTH_MAX, defaultValue: DECO_LINE_WIDTH_DEFAULT },
+      gravity: { min: DECO_GRAVITY_MIN, max: DECO_GRAVITY_MAX, defaultValue: DECO_GRAVITY_DEFAULT },
+      damping: { min: DECO_DAMPING_MIN, max: DECO_DAMPING_MAX, defaultValue: DECO_DAMPING_DEFAULT },
+      idle_sway_hz: { min: DECO_IDLE_SWAY_HZ_MIN, max: DECO_IDLE_SWAY_HZ_MAX, defaultValue: DECO_IDLE_SWAY_HZ_DEFAULT },
+      idle_sway_amp: { min: DECO_IDLE_SWAY_AMP_MIN, max: DECO_IDLE_SWAY_AMP_MAX, defaultValue: DECO_IDLE_SWAY_AMP_DEFAULT },
+    } as const
+
+    for (const param of DECO_NUMBER_PARAMS) {
+      const contract = expected[param.key]
+      expect(param.min).toBe(contract.min)
+      expect(param.max).toBe(contract.max)
+      expect(param.defaultValue).toBe(contract.defaultValue)
+      expect(param.defaultValue).toBeGreaterThanOrEqual(contract.min)
+      expect(param.defaultValue).toBeLessThanOrEqual(contract.max)
+    }
+  })
+
+  it('节点数是计数、描边宽度锁一位小数：精度声明与量纲匹配', () => {
+    const segments = DECO_NUMBER_PARAMS.find((param) => param.key === 'segments')
+    const lineWidth = DECO_NUMBER_PARAMS.find((param) => param.key === 'line_width')
+
+    expect(segments?.integer).toBe(true)
+    expect(segments?.precision).toBe(0)
+    expect(lineWidth?.step).toBe(0.1)
+    expect(lineWidth?.precision).toBe(1)
+    // 其余参数允许小数（阻尼必须能填 0.97）。
+    expect(DECO_NUMBER_PARAMS.find((param) => param.key === 'damping')?.integer).toBeFalsy()
+  })
+})
+
+describe('clampDecoLogoSize', () => {
+  it('越界钳到边界', () => {
+    expect(clampDecoLogoSize(4000)).toBe(DECO_LOGO_SIZE_MAX)
+    expect(clampDecoLogoSize(96.5)).toBe(DECO_LOGO_SIZE_MAX)
+    expect(clampDecoLogoSize(10)).toBe(DECO_LOGO_SIZE_MIN)
+  })
+
+  it('区间内与边界值原样保留', () => {
+    expect(clampDecoLogoSize(60)).toBe(60)
+    expect(clampDecoLogoSize(24)).toBe(24)
+    expect(clampDecoLogoSize(96)).toBe(96)
+  })
+
+  it('缺省（0）与非法值回落默认值', () => {
+    expect(clampDecoLogoSize(0)).toBe(DECO_LOGO_SIZE_DEFAULT)
+    expect(clampDecoLogoSize(-5)).toBe(DECO_LOGO_SIZE_DEFAULT)
+    expect(clampDecoLogoSize(Number.NaN)).toBe(DECO_LOGO_SIZE_DEFAULT)
+    expect(clampDecoLogoSize(Number.POSITIVE_INFINITY)).toBe(DECO_LOGO_SIZE_DEFAULT)
+  })
+})
+
+describe('clampDecoRopeLength / clampDecoGravity / clampDecoDamping', () => {
+  it('挂绳长度：越界钳到 40/240，缺省与非法回落 120', () => {
+    expect(clampDecoRopeLength(4000)).toBe(DECO_ROPE_LENGTH_MAX)
+    expect(clampDecoRopeLength(10)).toBe(DECO_ROPE_LENGTH_MIN)
+    expect(clampDecoRopeLength(200)).toBe(200)
+    expect(clampDecoRopeLength(0)).toBe(DECO_ROPE_LENGTH_DEFAULT)
+    expect(clampDecoRopeLength(-5)).toBe(DECO_ROPE_LENGTH_DEFAULT)
+    expect(clampDecoRopeLength(Number.NaN)).toBe(DECO_ROPE_LENGTH_DEFAULT)
+  })
+
+  it('重力：越界钳到 400/4000，缺省与非法回落 1600', () => {
+    expect(clampDecoGravity(100000)).toBe(DECO_GRAVITY_MAX)
+    expect(clampDecoGravity(100)).toBe(DECO_GRAVITY_MIN)
+    expect(clampDecoGravity(1800)).toBe(1800)
+    expect(clampDecoGravity(0)).toBe(DECO_GRAVITY_DEFAULT)
+    expect(clampDecoGravity(-1)).toBe(DECO_GRAVITY_DEFAULT)
+    expect(clampDecoGravity(Number.NaN)).toBe(DECO_GRAVITY_DEFAULT)
+  })
+
+  it('阻尼：越界钳到 0.94/0.995，缺省与非法回落 0.99，等于 1 被钳回上限', () => {
+    expect(clampDecoDamping(2)).toBe(DECO_DAMPING_MAX)
+    expect(clampDecoDamping(1)).toBe(DECO_DAMPING_MAX)
+    expect(clampDecoDamping(0.5)).toBe(DECO_DAMPING_MIN)
+    expect(clampDecoDamping(0.97)).toBe(0.97)
+    expect(clampDecoDamping(0)).toBe(DECO_DAMPING_DEFAULT)
+    expect(clampDecoDamping(-0.2)).toBe(DECO_DAMPING_DEFAULT)
+    expect(clampDecoDamping(Number.NaN)).toBe(DECO_DAMPING_DEFAULT)
+  })
+})
+
+describe('票 #42 的三个新参数钳位', () => {
+  it('描边宽度：越界钳到 1/6 并保留一位小数，缺省与非法回落 2.5', () => {
+    expect(clampDecoLineWidth(10)).toBe(DECO_LINE_WIDTH_MAX)
+    expect(clampDecoLineWidth(0.2)).toBe(DECO_LINE_WIDTH_MIN)
+    expect(clampDecoLineWidth(2.54)).toBe(2.5)
+    expect(clampDecoLineWidth(2.56)).toBe(2.6)
+    expect(clampDecoLineWidth(2.5)).toBe(2.5)
+    expect(clampDecoLineWidth(0)).toBe(DECO_LINE_WIDTH_DEFAULT)
+    expect(clampDecoLineWidth(-1)).toBe(DECO_LINE_WIDTH_DEFAULT)
+    expect(clampDecoLineWidth(Number.NaN)).toBe(DECO_LINE_WIDTH_DEFAULT)
+  })
+
+  it('静止摆动频率：0 原样保留（= 关掉轻晃），越界钳到 1.5，负数/NaN 回落 0.8', () => {
+    expect(clampDecoIdleSwayHz(0)).toBe(0)
+    expect(clampDecoIdleSwayHz(9)).toBe(DECO_IDLE_SWAY_HZ_MAX)
+    expect(clampDecoIdleSwayHz(0.8)).toBe(0.8)
+    expect(clampDecoIdleSwayHz(-1)).toBe(DECO_IDLE_SWAY_HZ_DEFAULT)
+    expect(clampDecoIdleSwayHz(Number.NaN)).toBe(DECO_IDLE_SWAY_HZ_DEFAULT)
+  })
+
+  it('静止摆动幅度：0 原样保留（= 零帧车道），越界钳到 40，负数/NaN 回落 20', () => {
+    expect(clampDecoIdleSwayAmp(0)).toBe(0)
+    expect(clampDecoIdleSwayAmp(400)).toBe(DECO_IDLE_SWAY_AMP_MAX)
+    expect(clampDecoIdleSwayAmp(20)).toBe(20)
+    expect(clampDecoIdleSwayAmp(-5)).toBe(DECO_IDLE_SWAY_AMP_DEFAULT)
+    expect(clampDecoIdleSwayAmp(Number.NaN)).toBe(DECO_IDLE_SWAY_AMP_DEFAULT)
+  })
+})
+
+describe('clampDecoSegments', () => {
+  it('越界钳到 4/24，并四舍五入成整数（不接受"半节"）', () => {
+    expect(clampDecoSegments(100)).toBe(DECO_SEGMENTS_MAX)
+    expect(clampDecoSegments(1)).toBe(DECO_SEGMENTS_MIN)
+    expect(clampDecoSegments(10.7)).toBe(11)
+    expect(clampDecoSegments(4)).toBe(4)
+    expect(clampDecoSegments(24)).toBe(24)
+  })
+
+  it('缺省与非法值回落默认 10', () => {
+    expect(clampDecoSegments(0)).toBe(DECO_SEGMENTS_DEFAULT)
+    expect(clampDecoSegments(-3)).toBe(DECO_SEGMENTS_DEFAULT)
+    expect(clampDecoSegments(Number.NaN)).toBe(DECO_SEGMENTS_DEFAULT)
+    expect(clampDecoSegments(Number.POSITIVE_INFINITY)).toBe(DECO_SEGMENTS_DEFAULT)
+  })
+})
+
+describe('恢复默认（票 #42 验收项）', () => {
+  it('恰好是规范里的九个默认值（开关 + 八个数值）', () => {
+    expect(defaultDecoConfig()).toEqual({
+      charm: {
+        enable: true,
+        logo_size: DECO_LOGO_SIZE_DEFAULT,
+        rope_length: DECO_ROPE_LENGTH_DEFAULT,
+        segments: DECO_SEGMENTS_DEFAULT,
+        line_width: DECO_LINE_WIDTH_DEFAULT,
+        gravity: DECO_GRAVITY_DEFAULT,
+        damping: DECO_DAMPING_DEFAULT,
+        idle_sway_hz: DECO_IDLE_SWAY_HZ_DEFAULT,
+        idle_sway_amp: DECO_IDLE_SWAY_AMP_DEFAULT,
+      },
+    })
+  })
+
+  it('每个默认值都落在自己的合法区间内（恢复默认不会被钳位改动）', () => {
+    const defaults = defaultDecoConfig().charm
+    expect(defaults.logo_size).toBeGreaterThanOrEqual(DECO_LOGO_SIZE_MIN)
+    expect(defaults.logo_size).toBeLessThanOrEqual(DECO_LOGO_SIZE_MAX)
+    expect(defaults.rope_length).toBeGreaterThanOrEqual(DECO_ROPE_LENGTH_MIN)
+    expect(defaults.rope_length).toBeLessThanOrEqual(DECO_ROPE_LENGTH_MAX)
+    expect(defaults.segments).toBeGreaterThanOrEqual(DECO_SEGMENTS_MIN)
+    expect(defaults.segments).toBeLessThanOrEqual(DECO_SEGMENTS_MAX)
+    expect(defaults.line_width).toBeGreaterThanOrEqual(DECO_LINE_WIDTH_MIN)
+    expect(defaults.line_width).toBeLessThanOrEqual(DECO_LINE_WIDTH_MAX)
+    expect(defaults.gravity).toBeGreaterThanOrEqual(DECO_GRAVITY_MIN)
+    expect(defaults.gravity).toBeLessThanOrEqual(DECO_GRAVITY_MAX)
+    expect(defaults.damping).toBeGreaterThanOrEqual(DECO_DAMPING_MIN)
+    expect(defaults.damping).toBeLessThanOrEqual(DECO_DAMPING_MAX)
+    expect(defaults.idle_sway_hz).toBeGreaterThanOrEqual(DECO_IDLE_SWAY_HZ_MIN)
+    expect(defaults.idle_sway_hz).toBeLessThanOrEqual(DECO_IDLE_SWAY_HZ_MAX)
+    expect(defaults.idle_sway_amp).toBeGreaterThanOrEqual(DECO_IDLE_SWAY_AMP_MIN)
+    expect(defaults.idle_sway_amp).toBeLessThanOrEqual(DECO_IDLE_SWAY_AMP_MAX)
+    // 恢复默认的结果本身也必须能通过归一化（幂等）。
+    expect(normalizeDecoConfig(defaultDecoConfig())).toEqual(defaultDecoConfig())
+  })
+})
+
+describe('normalizeDecoConfig', () => {
+  it('缺子块时补默认值（开关默认开、八个数值都取默认）', () => {
+    expect(normalizeDecoConfig({} as never)).toEqual(defaultDecoConfig())
+  })
+
+  it('保留管理员显式关掉的开关，同时钳住全部八个数值', () => {
+    expect(
+      normalizeDecoConfig({
+        charm: {
+          enable: false,
+          logo_size: 999,
+          rope_length: 9999,
+          segments: 100,
+          line_width: 9,
+          gravity: 99999,
+          damping: 2,
+          idle_sway_hz: 9,
+          idle_sway_amp: 999,
+        },
+      }),
+    ).toEqual({
+      charm: {
+        enable: false,
+        logo_size: DECO_LOGO_SIZE_MAX,
+        rope_length: DECO_ROPE_LENGTH_MAX,
+        segments: DECO_SEGMENTS_MAX,
+        line_width: DECO_LINE_WIDTH_MAX,
+        gravity: DECO_GRAVITY_MAX,
+        damping: DECO_DAMPING_MAX,
+        idle_sway_hz: DECO_IDLE_SWAY_HZ_MAX,
+        idle_sway_amp: DECO_IDLE_SWAY_AMP_MAX,
+      },
+    })
+  })
+
+  it('部分字段缺失只影响它自己；轻晃填 0 时保留 0（不回落默认）', () => {
+    expect(
+      normalizeDecoConfig({ charm: { enable: true, rope_length: 80, idle_sway_hz: 0, idle_sway_amp: 0 } })
+        .charm,
+    ).toEqual({
+      enable: true,
+      logo_size: DECO_LOGO_SIZE_DEFAULT,
+      rope_length: 80,
+      segments: DECO_SEGMENTS_DEFAULT,
+      line_width: DECO_LINE_WIDTH_DEFAULT,
+      gravity: DECO_GRAVITY_DEFAULT,
+      damping: DECO_DAMPING_DEFAULT,
+      idle_sway_hz: 0,
+      idle_sway_amp: 0,
+    })
+  })
+
+  it('提交出去的形状只有 charm 子块（不夹带未知字段）', () => {
+    const normalized = normalizeDecoConfig({
+      charm: { enable: true, logo_size: 30 },
+      extra: 'x',
+    } as never)
+    expect(Object.keys(normalized)).toEqual(['charm'])
+  })
+})
+
+/** 共享归一化用例表（后端 conf_deco_test.go 与读者站 decoCharm.test.ts 也读同一份）。 */
+const FIXTURE_RELATIVE_PATH = 'backend/conf/testdata/deco-charm-normalization.json'
+
+interface NormalizationCase {
+  parameter: string
+  input: number | string
+  expected: number
+  reason: string
+}
+
+function loadNormalizationCases(): NormalizationCase[] {
+  const fixture = JSON.parse(readFileSync(join(process.cwd(), '..', FIXTURE_RELATIVE_PATH), 'utf8')) as {
+    cases: NormalizationCase[]
+  }
+  return fixture.cases
+}
+
+/** JSON 没有 NaN 字面量：夹具用字符串表达，三端各自映射成同一个数值。 */
+function fixtureInput(input: number | string): number {
+  if (typeof input === 'number') return input
+  if (input === 'NaN') return Number.NaN
+  if (input === 'Infinity') return Number.POSITIVE_INFINITY
+  if (input === '-Infinity') return Number.NEGATIVE_INFINITY
+  throw new Error(`共享夹具里出现了不认识的 input: ${JSON.stringify(input)}`)
+}
+
+/** 参数键 → 后台的钳位函数（夹具按后端 snake_case 命名）。 */
+const DECO_CLAMPS: Record<string, (value: number) => number> = {
+  logo_size: clampDecoLogoSize,
+  rope_length: clampDecoRopeLength,
+  segments: clampDecoSegments,
+  line_width: clampDecoLineWidth,
+  gravity: clampDecoGravity,
+  damping: clampDecoDamping,
+  idle_sway_hz: clampDecoIdleSwayHz,
+  idle_sway_amp: clampDecoIdleSwayAmp,
+}
+
+describe('共享归一化用例表：后台与后端 / 读者站同一组输入同一组输出', () => {
+  it('夹具真的读到了，且覆盖全部八个数值参数', () => {
+    const cases = loadNormalizationCases()
+
+    expect(cases.length).toBeGreaterThan(40)
+    for (const parameter of Object.keys(DECO_CLAMPS)) {
+      expect(cases.some((testCase) => testCase.parameter === parameter), parameter).toBe(true)
+    }
+  })
+
+  const cases = loadNormalizationCases()
+  it.each(cases)(
+    '$parameter 输入 $input → $expected（$reason）',
+    (testCase: NormalizationCase) => {
+      const clamp = DECO_CLAMPS[testCase.parameter]
+      expect(clamp, `夹具里的参数 ${testCase.parameter} 没有对应的后台钳位函数`).toBeDefined()
+      expect(clamp!(fixtureInput(testCase.input))).toBe(testCase.expected)
+    },
+  )
+})

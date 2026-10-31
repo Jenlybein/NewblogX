@@ -440,6 +440,30 @@ _Avoid_: 用"档位 B"描述现状；在 `prefers-reduced-motion` 下仍保留�
 
 ---
 
+## 九、文章发布与运营位
+
+**热门置顶（运营位）**：
+首页首屏之后由管理员挑选并手动排序的文章位，最多 12 条；唯一真相是 `article_hot_top_models`（`article_id` 唯一 + `sort_order` + 软删），**不进 ES**；文章后来不再公开时置顶行保留、首页不展示，后台标「已失效」并可一键清理。
+位置：表 `article_hot_top_models`；接口 `GET /articles/hot-top`、`POST|DELETE /articles/{id}/admin/hot-top`、`PATCH /articles/hot-top/order`；后台「热门置顶」页与文章管理列表的切换按钮；读者站 `frontend/app/components/home/HomePinnedSection.vue`。取舍见 [ADR-0017](./docs/adr/0017-publish-display-switches-and-hot-top-operator-slot.md)。
+_Avoid_: 「管理员置顶」（ES 旧派生字段 `admin_top` 的叫法，已删除）；「精选文章」（旧文案）；拿「热门置顶」指作者置顶。
+
+**作者置顶**：
+作者把自己的一篇文章钉在**个人主页**的置顶关系；只有作者本人能设置，与热门置顶是两套数据、两套存储。
+位置：表 `user_top_article_models`、`GET /articles/top?user_id=`、`backend/internal/article/domain/top`；规则 `domain.CanBeTopped`。
+_Avoid_: 裸词「置顶」（两种置顶都要带限定语：热门置顶 / 作者置顶）。
+
+**发布与展示开关（site.article 三布尔）**：
+控制「非管理员能不能发布 / 能不能存草稿 / 非管理员作者的文章是否展示」的三个布尔，全部默认 `true`，后台同一张「发布与展示」卡片维护；判定在 app 层与读过滤处，不靠前端隐藏。
+位置：`backend/conf/site/enter.go` 的 `Article`、`backend/config/site_default_settings.yaml`、`frontend_admin` 站点配置页；生效点 `internal/article/app/create.go`、`update.go`、`search/app/search.go`、`article/app/query.go`。
+_Avoid_: 「站点模式」（已删除的 1 社区 / 2 博客，从未生效）；把「允许发布」当成「允许存草稿」。
+
+**受限访客（guest / role=0）**：
+鉴权层视同未登录的账号：能浏览公开内容，不能创建、发布、互动，也看不到自己的历史内容；`role=3` 与库里未入枚举的 `role=0` 同待遇。
+位置：`backend/app/auth_verifier.go`（每请求重建身份的收敛点）、`backend/internal/article/domain/viewer.go` 的 `RoleGuest`。
+_Avoid_: 把 guest 当普通用户（旧行为，已废）。
+
+---
+
 ## 维护规则
 
 1. **什么时候新增词条**：一个词开始被多处代码或文档引用、且读者可能叫错它时（出现同义词、旧名、缩写）才加。一次性数字、某次故障的过程、实现细节都不进本文。

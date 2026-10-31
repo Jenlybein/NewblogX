@@ -336,16 +336,18 @@ describe("首屏版式复盘：窄高轮播面板 + 右栏线条场", () => {
     expect(panel).toContain("var(--radius-lg)");
   });
 
-  it("面板够高、够宽：固定高度档 + 占左栏过半宽度", () => {
+  it("面板占满左栏宽度、高度由宽高比算出：不写死高度，也不被 max-height 封顶", () => {
     const panel = blockAfter(indexVue, ".home-cover__panel {");
-    const height = /height:\s*clamp\((\d+)px/u.exec(panel)?.[1];
     const columns = /grid-template-columns:\s*minmax\(0,\s*(\d+)%\)/u.exec(
       blockAfter(indexVue, ".home-cover__inner {"),
     )?.[1];
 
-    expect(Number(height)).toBeGreaterThanOrEqual(300);
     expect(Number(columns)).toBeGreaterThanOrEqual(50);
-    // 不再用 max-height 封顶，否则"拉高"会被上限吃掉。
+    // 取景改造后高度不再写死（原 `height: clamp(300px…)` 已删）：宽度占满左栏，
+    // 高度由宽高比算出，任何屏宽下比例一致，图靠 object-fit 裁切。
+    // 这里只锁"用比例而不是固定高度"这一条，具体比例留给取景方案（ADR-0015）。
+    expect(panel).toContain("width: 100%");
+    expect(panel).toMatch(/aspect-ratio:\s*\d+\s*\/\s*\d+/u);
     expect(panel).not.toContain("max-height");
   });
 

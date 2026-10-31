@@ -1,3 +1,6 @@
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
+
 import { describe, expect, it } from "vitest";
 
 import {
@@ -31,9 +34,9 @@ import {
   CHARM_SEGMENTS_MIN,
   CHARM_TAPER_RATIO,
   advanceCharmRope,
+  charmIdleSwayEnabled,
   charmLayerEnabled,
   charmRopeEnergy,
-  charmRopePath,
   charmRopeSegmentLengths,
   charmRopeSettled,
   charmRopeTail,
@@ -343,7 +346,9 @@ describe("createCharmRope：静止姿态是确定的", () => {
     const state = createCharmRope({ x: Number.NaN, y: Number.POSITIVE_INFINITY }, ROPE);
 
     expect(allFinite(nodeCoords(state))).toBe(true);
-    expect(charmRopePath(state)).not.toContain("NaN");
+    expect(
+      charmTetherGeometry(state.nodes, ROPE.ropeLengthPx, ROPE.lineWidthPx).path,
+    ).not.toContain("NaN");
     expect(allFinite(charmTetherGeometry(state.nodes, ROPE.ropeLengthPx, 2.5).widths)).toBe(true);
   });
 });
@@ -416,7 +421,9 @@ describe("物理不变量（不断言某一帧的坐标，只断言性质）", (
     expect(allFinite(nodeCoords(state))).toBe(true);
     expect(Number.isFinite(peak)).toBe(true);
     expect(peak).toBeLessThan(1e9);
-    expect(charmRopePath(state)).not.toContain("NaN");
+    expect(
+      charmTetherGeometry(state.nodes, state.config.ropeLengthPx, state.config.lineWidthPx).path,
+    ).not.toContain("NaN");
   });
 
   it("节点间距始终在约束容差内，链长守恒（绳子不会被拉成弹弓）", () => {
@@ -531,21 +538,35 @@ describe("收尾描边：起始宽度 → 0.6 倍（票 #42 验收项）", () =>
     // 带形两侧各一条边：左 N−1 段 + 尾端连接 1 段 + 右 N−1 段 = 2N−1。
     expect(geometry.path.match(/L/gu)?.length).toBe(geometry.centerline.length * 2 - 1);
   });
-
-  it("渲染入口 charmRopePath 用的就是同一份几何（不是第二套画法）", () => {
-    const state = createCharmRope({ x: 10, y: 20 }, { ...ROPE, ropeLengthPx: 120, segments: 4 });
-
-    expect(charmRopePath(state)).toBe(
-      charmTetherGeometry(state.nodes, state.config.ropeLengthPx, state.config.lineWidthPx).path,
-    );
-  });
 });
 
 describe("静止轻晃：自由端的真实形变（票 #42 验收项）", () => {
+  it("轻晃加速度逐节点加权：指针端为 0、自由端为 1（作用在自由端）", () => {
+    // 在正弦相位峰值处只推进一个固定步长：节点初始竖直、约束修正只动 y，
+    // 所以这一步的横向位移直接等于"该节点分到的 swayStep"。旧实现给每个
+    // 自由节点同一个加速度，所有横向位移会相等（比值全是 1，本用例会红）。
+    const state = createCharmRope(
+      { x: 100, y: 100 },
+      { ...ROPE, idleSwayHz: CHARM_IDLE_SWAY_HZ_DEFAULT, idleSwayAmp: CHARM_IDLE_SWAY_AMP_MAX },
+    );
+    state.elapsedSeconds = 1 / (4 * state.config.idleSwayHz);
+    advanceCharmRope(state, FRAME_AT_120HZ, { x: 100, y: 100 });
+
+    const offsets = state.nodes.map((node) => node.x - 100);
+    expect(state.nodes[0]?.x).toBe(100);
+    expect(offsets.at(-1)).toBeGreaterThan(0);
+    for (let index = 1; index < offsets.length; index += 1) {
+      expect(offsets[index]! / offsets.at(-1)!).toBeCloseTo(
+        index / (offsets.length - 1),
+        2,
+      );
+    }
+  });
+
   it("idle_sway_amp > 0 时自由端真的横向摆动，指针端仍钉死", () => {
     const state = createCharmRope(
       { x: 0, y: 0 },
-      { ...ROPE, idleSwayHz: CHARM_IDLE_SWAY_HZ_DEFAULT, idleSwayAmp: CHARM_IDLE_SWAY_AMP_DEFAULT },
+      { ...ROPE, idleSwayHz: CHARM_IDLE_SWAY_HZ_DEFAULT, idleSwayAmp: CHARM_IDLE_SWAY_AMP_MAX },
     );
     let peakTailX = 0;
     let peakEnergy = 0;
@@ -570,4 +591,85 @@ describe("静止轻晃：自由端的真实形变（票 #42 验收项）", () =>
     expect(Math.abs(charmRopeTail(state).x)).toBeLessThan(1e-9);
     expect(charmRopeSettled(state)).toBe(true);
   });
+
+  it("idle_sway_hz == 0 时即使幅度 > 0 也没有横向形变（hz=0 就是关掉轻晃）", () => {
+    const state = createCharmRope(
+      { x: 0, y: 0 },
+      { ...ROPE, idleSwayAmp: CHARM_IDLE_SWAY_AMP_DEFAULT, idleSwayHz: 0 },
+    );
+    for (let step = 0; step < 720; step += 1) {
+      advanceCharmRope(state, FRAME_AT_120HZ, { x: 0, y: 0 });
+    }
+
+    expect(Math.abs(charmRopeTail(state).x)).toBeLessThan(1e-9);
+    expect(charmRopeSettled(state)).toBe(true);
+  });
+});
+
+describe("charmIdleSwayEnabled", () => {
+  it("幅度与频率都必须大于 0；任一是 0 都视为关掉轻晃", () => {
+    expect(charmIdleSwayEnabled({ idleSwayHz: 0.8, idleSwayAmp: 20 })).toBe(true);
+    expect(charmIdleSwayEnabled({ idleSwayHz: 0, idleSwayAmp: 20 })).toBe(false);
+    expect(charmIdleSwayEnabled({ idleSwayHz: 0.8, idleSwayAmp: 0 })).toBe(false);
+    expect(charmIdleSwayEnabled({ idleSwayHz: 0, idleSwayAmp: 0 })).toBe(false);
+  });
+});
+
+/** 共享归一化用例表（后端 conf_deco_test.go 与后台 decoParams.test.ts 也读同一份）。 */
+const FIXTURE_RELATIVE_PATH = "backend/conf/testdata/deco-charm-normalization.json";
+
+interface NormalizationCase {
+  parameter: string;
+  input: number | string;
+  expected: number;
+  reason: string;
+}
+
+function loadNormalizationCases(): NormalizationCase[] {
+  const fixture = JSON.parse(
+    readFileSync(join(process.cwd(), "..", FIXTURE_RELATIVE_PATH), "utf8"),
+  ) as { cases: NormalizationCase[] };
+  return fixture.cases;
+}
+
+/** JSON 没有 NaN 字面量：夹具用字符串表达，三端各自映射成同一个数值。 */
+function fixtureInput(input: number | string): number {
+  if (typeof input === "number") return input;
+  if (input === "NaN") return Number.NaN;
+  if (input === "Infinity") return Number.POSITIVE_INFINITY;
+  if (input === "-Infinity") return Number.NEGATIVE_INFINITY;
+  throw new Error(`共享夹具里出现了不认识的 input: ${JSON.stringify(input)}`);
+}
+
+/** 参数键 → 读者站的钳位函数（夹具按后端 snake_case 命名）。 */
+const CHARM_CLAMPS: Record<string, (value: number) => number> = {
+  logo_size: clampCharmLogoSize,
+  rope_length: clampCharmRopeLength,
+  segments: clampCharmSegments,
+  line_width: clampCharmLineWidth,
+  gravity: clampCharmGravity,
+  damping: clampCharmDamping,
+  idle_sway_hz: clampCharmIdleSwayHz,
+  idle_sway_amp: clampCharmIdleSwayAmp,
+};
+
+describe("共享归一化用例表：读者站与后端 / 后台同一组输入同一组输出", () => {
+  it("夹具真的读到了，且覆盖全部八个数值参数", () => {
+    const cases = loadNormalizationCases();
+
+    expect(cases.length).toBeGreaterThan(40);
+    for (const parameter of Object.keys(CHARM_CLAMPS)) {
+      expect(cases.some((testCase) => testCase.parameter === parameter), parameter).toBe(true);
+    }
+  });
+
+  const cases = loadNormalizationCases();
+  it.each(cases)(
+    "$parameter 输入 $input → $expected（$reason）",
+    (testCase: NormalizationCase) => {
+      const clamp = CHARM_CLAMPS[testCase.parameter];
+      expect(clamp, `夹具里的参数 ${testCase.parameter} 没有对应的读者站钳位函数`).toBeDefined();
+      expect(clamp!(fixtureInput(testCase.input))).toBe(testCase.expected);
+    },
+  );
 });

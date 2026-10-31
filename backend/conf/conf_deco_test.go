@@ -1,7 +1,9 @@
 package conf_test
 
 import (
+	"encoding/json"
 	"math"
+	"os"
 	"testing"
 
 	"myblogx/conf"
@@ -247,5 +249,110 @@ func TestDecoNormalize_幂等(t *testing.T) {
 	twice := once.Normalize()
 	if once != twice {
 		t.Fatalf("Normalize 应幂等，第一次 %+v，第二次 %+v", once, twice)
+	}
+}
+
+// decoNormalizationCase 是共享用例表的一行；三套实现（后端 Normalize、
+// 读者站、后台）都读同一份 testdata，任何一端改了取整或回落规则都会红。
+type decoNormalizationCase struct {
+	Parameter string          `json:"parameter"`
+	Input     json.RawMessage `json:"input"`
+	Expected  float64         `json:"expected"`
+	Reason    string          `json:"reason"`
+}
+
+// decoCaseInput 解析用例里的 input：普通数字直接取值，NaN/Infinity 用字符串
+// 表达（JSON 没有 NaN 字面量）。
+func decoCaseInput(t *testing.T, raw json.RawMessage) float64 {
+	t.Helper()
+	var number float64
+	if err := json.Unmarshal(raw, &number); err == nil {
+		return number
+	}
+	var token string
+	if err := json.Unmarshal(raw, &token); err != nil {
+		t.Fatalf("无法解析用例 input %s: %v", raw, err)
+	}
+	switch token {
+	case "NaN":
+		return math.NaN()
+	case "Infinity":
+		return math.Inf(1)
+	case "-Infinity":
+		return math.Inf(-1)
+	}
+	t.Fatalf("不认识的字符串输入 %q（只支持 NaN / Infinity / -Infinity）", token)
+	return 0
+}
+
+// TestDecoNormalize_共享归一化用例表 读 `testdata/deco-charm-normalization.json`。
+//
+// 为什么值得测：三端各自单测只能证明"自己和自己一致"；这张表是同一组输入
+// 在三端都必须给出的同一组输出。后端曾用 int 存 segments（10.6 直接 400），
+// 与读者站 / 后台的 Math.round 不一致，这里会先红。
+func TestDecoNormalize_共享归一化用例表(t *testing.T) {
+	raw, err := os.ReadFile("testdata/deco-charm-normalization.json")
+	if err != nil {
+		t.Fatalf("读不到共享归一化用例表: %v", err)
+	}
+	var fixture struct {
+		Cases []decoNormalizationCase `json:"cases"`
+	}
+	if err := json.Unmarshal(raw, &fixture); err != nil {
+		t.Fatalf("共享归一化用例表不是合法 JSON: %v", err)
+	}
+	if len(fixture.Cases) == 0 {
+		t.Fatal("共享归一化用例表是空的：三端夹具失效")
+	}
+
+	for _, c := range fixture.Cases {
+		c := c
+		t.Run(c.Parameter+"/"+c.Reason, func(t *testing.T) {
+			input := decoCaseInput(t, c.Input)
+			charm := conf.Charm{}
+			switch c.Parameter {
+			case "logo_size":
+				charm.LogoSize = input
+			case "rope_length":
+				charm.RopeLength = input
+			case "segments":
+				charm.Segments = input
+			case "line_width":
+				charm.LineWidth = input
+			case "gravity":
+				charm.Gravity = input
+			case "damping":
+				charm.Damping = input
+			case "idle_sway_hz":
+				charm.IdleSwayHz = input
+			case "idle_sway_amp":
+				charm.IdleSwayAmp = input
+			default:
+				t.Fatalf("共享用例表出现未知参数 %q", c.Parameter)
+			}
+			got := conf.Deco{Charm: charm}.Normalize().Charm
+			var actual float64
+			switch c.Parameter {
+			case "logo_size":
+				actual = got.LogoSize
+			case "rope_length":
+				actual = got.RopeLength
+			case "segments":
+				actual = got.Segments
+			case "line_width":
+				actual = got.LineWidth
+			case "gravity":
+				actual = got.Gravity
+			case "damping":
+				actual = got.Damping
+			case "idle_sway_hz":
+				actual = got.IdleSwayHz
+			case "idle_sway_amp":
+				actual = got.IdleSwayAmp
+			}
+			if actual != c.Expected {
+				t.Fatalf("%s 输入 %s 归一化后应为 %v，实际 %v", c.Parameter, c.Input, c.Expected, actual)
+			}
+		})
 	}
 }

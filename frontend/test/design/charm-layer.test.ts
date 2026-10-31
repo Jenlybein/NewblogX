@@ -10,35 +10,16 @@ import { describe, expect, it } from "vitest";
 // 某一次渲染的样子，证明不了下一个改这个组件的人不会把 `pointer-events: none`
 // 顺手删掉。静态扫描把四条性质钉在源码里，改坏了立刻红。
 //
+// 裸色值**不在本文件重复审计**：`scripts/check-design-tokens.mjs` 已经扫描
+// `app/**` 的 `.vue/.css/.ts`，并带 baseline 与 canary。这里只保留 token 门禁
+// 无法知道的一条 —— 挂绳必须消费 `--color-ink-faint`（而不是任意合规 token）。
+//
 // 扫描器本身也有"永远绿"的风险（文件挪走 / 正则写错 / 遍历空了），
 // 所以下面每条断言都配了人造违规用例：先证明它抓得住已知的坏，再去判真源码。
 
 const projectDir = process.cwd();
 const appDir = join(projectDir, "app");
 const charmComponent = join(appDir, "components/deco/CursorCharm.vue");
-
-/** 一行命中：行号 + 命中的字面量。 */
-interface Hit {
-  line: number;
-  match: string;
-}
-
-function lineOf(source: string, index: number): number {
-  return source.slice(0, index).split(/\r?\n/u).length;
-}
-
-// 裸色值：设计 token 门禁（scripts/check-design-tokens.mjs）拦的同一族。
-// 例外只有一个 —— 全透明的 `transparent` 关键字不是色值，fade 用它。
-const BARE_COLOR_RE = /#[0-9a-f]{3,8}\b|\b(?:rgb|rgba|hsl|hsla)\s*\(/giu;
-
-/** 找出源码里的裸色值（注释不参与审计，调用方先剥注释）。 */
-function findBareColors(source: string): Hit[] {
-  const hits: Hit[] = [];
-  for (const match of source.matchAll(BARE_COLOR_RE)) {
-    hits.push({ line: lineOf(source, match.index), match: match[0] });
-  }
-  return hits;
-}
 
 /** 挂件层必须同时具备的四条性质；返回缺失项（空数组 = 合规）。 */
 function findCharmLayerProblems(source: string): string[] {
@@ -48,9 +29,6 @@ function findCharmLayerProblems(source: string): string[] {
   if (!/z-index:\s*9999/u.test(source)) problems.push("缺 z-index: 9999（要压在弹窗与提示条之上）");
   if (!/var\(--color-ink-faint\)/u.test(source)) {
     problems.push("挂绳必须消费 var(--color-ink-faint)");
-  }
-  for (const hit of findBareColors(source)) {
-    problems.push(`第 ${hit.line} 行出现裸色值 ${hit.match}`);
   }
   return problems;
 }
@@ -66,16 +44,15 @@ function readCharmSource(): { file: string; text: string; code: string } {
 }
 
 describe("光标挂件层的设计门禁（canary 保证扫描器不是永远绿）", () => {
-  it("扫描器抓得住人造违规：缺无障碍属性、缺层级、写裸色值", () => {
+  it("扫描器抓得住人造违规：缺无障碍属性、缺层级、缺语义 token", () => {
     const canary = [
       "<template>",
       '  <div class="charm-layer">',
-      '    <svg><path d="M0 0L0 1" stroke="#8a8378" /></svg>',
+      '    <svg><path d="M0 0L0 1" stroke="var(--color-ink)" /></svg>',
       "  </div>",
       "</template>",
       "<style>",
       "  .charm-layer { position: fixed; inset: 0; }",
-      "  .charm-layer__tether { stroke: rgba(0, 0, 0, 0.2); }",
       "</style>",
     ].join("\n");
 
@@ -84,10 +61,7 @@ describe("光标挂件层的设计门禁（canary 保证扫描器不是永远绿
     expect(problems).toContain('缺 aria-hidden="true"（读屏不能读到它）');
     expect(problems).toContain("缺 pointer-events: none（不能拦截任何操作）");
     expect(problems).toContain("缺 z-index: 9999（要压在弹窗与提示条之上）");
-    expect(problems.some((problem) => problem.includes("裸色值 #8a8378"))).toBe(true);
-    expect(problems.some((problem) => problem.includes("rgba("))).toBe(true);
-    // 行号要指向真实位置（第 3 行那条 hex），否则定位信息没用。
-    expect(findBareColors(canary).map((hit) => hit.line)).toEqual([3, 8]);
+    expect(problems).toContain("挂绳必须消费 var(--color-ink-faint)");
   });
 
   it("消费语义 token 的写法算合规（不误报）", () => {
@@ -111,7 +85,7 @@ describe("光标挂件层的设计门禁（canary 保证扫描器不是永远绿
     expect(source.text.length).toBeGreaterThan(500);
   });
 
-  it("挂件层同时具备 aria-hidden + pointer-events: none + z-index: 9999，且不含裸色值", () => {
+  it("挂件层同时具备 aria-hidden + pointer-events: none + z-index: 9999", () => {
     const source = readCharmSource();
 
     expect(findCharmLayerProblems(source.code), source.file).toEqual([]);

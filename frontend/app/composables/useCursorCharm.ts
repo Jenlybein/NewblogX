@@ -8,7 +8,9 @@ import {
 import {
   CHARM_FINE_POINTER_QUERY,
   CHARM_IDLE_FRAME_INTERVAL_MS,
+  CHARM_POINTER_ACTIVE_WINDOW_MS,
   advanceCharmRope,
+  charmIdleSwayEnabled,
   charmLayerEnabled,
   charmRopeSettled,
   charmRopeTail,
@@ -78,12 +80,21 @@ export interface CursorCharm {
   pointer: Ref<CharmPoint>;
   /** 挂绳路径（SVG 的 `d`）；每帧只写这一个字符串。 */
   tetherPath: Ref<string>;
-  /** 本帧的挂绳几何（中心线 / 宽度 / 松弛 / 弧垂）；测试与调试用。 */
-  tetherGeometry: Ref<CharmTetherGeometry | null>;
+  /**
+   * 本帧的挂绳几何（中心线 / 宽度 / 松弛 / 弧垂）；测试与调试用。
+   *
+   * **不是 ref**：每帧重算几何是必须的，但把它推进响应式系统会让模板之外
+   * 的订阅者也被逐帧唤醒；测试读的是普通快照。
+   */
+  tetherGeometry: CharmTetherGeometry | null;
   /** 站标中心（最后一个链节点）；每帧只写这一个坐标。 */
   logoCenter: Ref<CharmPoint>;
-  /** 已经推进的物理帧数：怠速车道下约 20/s，满速车道下约 60/s。 */
-  physicsFrames: Ref<number>;
+  /**
+   * 已经推进的物理帧数：怠速车道下约 20/s，满速车道下约 60/s。
+   *
+   * **不是 ref**：它只给测试与调试看，不该每帧触发响应式失效；取值即时。
+   */
+  physicsFrames: number;
   dispose: () => void;
 }
 
@@ -169,24 +180,40 @@ export function useCursorCharm(options: UseCursorCharmOptions = {}): CursorCharm
   const pointer = ref<CharmPoint>({ x: 0, y: 0 });
   const visible = ref(false);
   const tetherPath = ref("");
-  const tetherGeometry = ref<CharmTetherGeometry | null>(null);
   const logoCenter = ref<CharmPoint>({ x: 0, y: 0 });
-  const physicsFrames = ref(0);
 
   // ── 物理状态：普通对象，不进响应式系统 ──────────────────────────
   let rope: CharmRopeState | null = null;
   let ropeSignature = "";
+  /** 最近一帧的几何快照：给测试与调试读，**不写响应式 ref**。 */
+  let lastGeometry: CharmTetherGeometry | null = null;
+  /** 已推进的物理帧数：普通计数，不触发响应式失效。 */
+  let physicsFrameCount = 0;
   /** 已请求、尚未执行（或正在执行）的帧 id；非 null 即"循环在跑"。 */
   let frameId: number | null = null;
   /** 当前待执行帧来自哪条车道：收敛 / 停用时按对应 API 取消。 */
   let frameKind: "raf" | "timer" = "raf";
   /** 上一帧的真实时间（ms）；null 表示循环没在跑。 */
   let lastFrameTime: number | null = null;
+  /** 指针最近一次主动移动的时间（ms）；怠速车道只在它足够久之前才生效。 */
+  let lastPointerMoveAt: number | null = null;
   let bound = false;
   let paused = Boolean(visibilityTarget?.hidden);
   /** 失焦 / 指针离开文档后冻结指针端：绝不瞬移，只让链自然收敛。 */
   let frozen = false;
   let disposed = false;
+
+  /**
+   * 指针是否正在主动驱动头节点。
+   *
+   * 怠速车道只适用于"指针停住、只剩轻晃"的场景；读者拖行指针时物理仍是
+   * 同一个积分器，但必须按满速动画帧推进，否则 20fps 的节流会让"被拖行、
+   * 带惯性摆动"读起来像掉帧。
+   */
+  function pointerActivelyDriving(): boolean {
+    if (lastPointerMoveAt === null) return false;
+    return now() - lastPointerMoveAt < CHARM_POINTER_ACTIVE_WINDOW_MS;
+  }
 
   const switchOn = computed(() => Boolean(configEnabled()));
   const enabled = computed(() =>
@@ -253,7 +280,9 @@ export function useCursorCharm(options: UseCursorCharmOptions = {}): CursorCharm
       state.config.ropeLengthPx,
       state.config.lineWidthPx,
     );
-    tetherGeometry.value = geometry;
+    // 每帧只写两个模板绑定的响应式值：路径与站标中心（组件把它换成
+    // 一个 `transform`）。几何与帧数留普通变量，避免逐帧响应式失效。
+    lastGeometry = geometry;
     tetherPath.value = geometry.path;
     logoCenter.value = charmRopeTail(state);
   }
@@ -271,12 +300,12 @@ export function useCursorCharm(options: UseCursorCharmOptions = {}): CursorCharm
   }
 
   /**
-   * 排下一帧：轻晃开启时走 ~20fps 的怠速车道（setTimeout 50ms），
-   * 否则走满速动画帧车道。裁决要求怠速车道不补帧追赶 —— 这里每次只排
-   * 一帧，时间差由固定步长累加器按真实流逝时间推进。
+   * 排下一帧：轻晃开启、且指针已经不再主动驱动头节点时，走 ~20fps 的怠速
+   * 车道（setTimeout 50ms）；否则走满速动画帧车道。裁决要求怠速车道不补帧
+   * 追赶 —— 这里每次只排一帧，时间差由固定步长累加器按真实流逝时间推进。
    */
   function scheduleNext(state: CharmRopeState | null) {
-    if (state && state.config.idleSwayAmp > 0 && setTimeoutFrame) {
+    if (state && charmIdleSwayEnabled(state.config) && !pointerActivelyDriving() && setTimeoutFrame) {
       frameKind = "timer";
       frameId = setTimeoutFrame(frame, CHARM_IDLE_FRAME_INTERVAL_MS);
       return;
@@ -313,9 +342,9 @@ export function useCursorCharm(options: UseCursorCharmOptions = {}): CursorCharm
     // 怠速车道的一帧是 50ms，会推进 6 个固定子步，同样不追赶。
     advanceCharmRope(state, deltaSeconds, pointer.value);
     publish(state);
-    physicsFrames.value += 1;
+    physicsFrameCount += 1;
 
-    const swayOn = state.config.idleSwayAmp > 0;
+    const swayOn = charmIdleSwayEnabled(state.config);
     // 轻晃开着时不停帧（那会把链冻在一个歪姿势上）；关掉后才允许按能量收敛。
     if (!swayOn && charmRopeSettled(state)) {
       stopLoop();
@@ -331,6 +360,7 @@ export function useCursorCharm(options: UseCursorCharmOptions = {}): CursorCharm
     if (frozen) return;
     const point = eventPoint(event);
     pointer.value = point;
+    lastPointerMoveAt = now();
     // 首次移动才淡入：页面刚打开时不该先冒出一个突兀的东西，
     // 触屏用户（永远匹配不上精确指针）也因此永远看不到它。
     if (!visible.value) visible.value = true;
@@ -432,9 +462,13 @@ export function useCursorCharm(options: UseCursorCharmOptions = {}): CursorCharm
     visible,
     pointer,
     tetherPath,
-    tetherGeometry,
     logoCenter,
-    physicsFrames,
+    get tetherGeometry() {
+      return lastGeometry;
+    },
+    get physicsFrames() {
+      return physicsFrameCount;
+    },
     dispose,
   };
 }

@@ -22,7 +22,7 @@ import { clampCharmLogoSize } from "~/utils/decoCharm";
  *
  * 渲染成本：物理状态在组合式里是非响应式普通对象；每帧只有两处可见输出 ——
  * 一条路径的 `d`（带形多边形的填充）与站标图像的一个 `transform`。不碰任何
- * 布局属性；轻晃开启时组合式还会把调度降到约 20fps。
+ * 布局属性；指针停住、只剩轻晃时组合式会把调度降到约 20fps，指针移动时仍满速。
  */
 const siteStore = useSiteStore();
 

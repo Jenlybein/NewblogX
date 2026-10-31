@@ -86,8 +86,8 @@ func (b *Banners) Create(_ context.Context, banner *domain.Banner) error {
 	return nil
 }
 
-// Update 实现 domain.BannerRepository。
-func (b *Banners) Update(_ context.Context, id uint64, cover, href string, show bool, crop domain.Crop) error {
+// Update 实现 domain.BannerRepository。crop 为 nil 表示没传取景：保留既有记录。
+func (b *Banners) Update(_ context.Context, id uint64, cover, href string, show bool, crop *domain.Crop) error {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 	for i := range b.rows {
@@ -96,7 +96,9 @@ func (b *Banners) Update(_ context.Context, id uint64, cover, href string, show 
 			b.rows[i].Href = href
 			b.rows[i].Show = show
 			b.rows[i].UpdatedAt = time.Now()
-			b.crops[id] = crop
+			if crop != nil {
+				b.crops[id] = *crop
+			}
 			return nil
 		}
 	}

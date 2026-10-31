@@ -121,8 +121,8 @@ func (r *BannerRepo) Create(ctx context.Context, b *domain.Banner) error {
 	return nil
 }
 
-// Update 实现 domain.BannerRepository。
-func (r *BannerRepo) Update(ctx context.Context, id uint64, cover, href string, show bool, crop domain.Crop) error {
+// Update 实现 domain.BannerRepository。crop 为 nil 表示调用方没传取景：保持既有记录不动。
+func (r *BannerRepo) Update(ctx context.Context, id uint64, cover, href string, show bool, crop *domain.Crop) error {
 	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		if err := tx.Model(&bannerRow{}).
 			Where("id = ?", id).
@@ -134,7 +134,10 @@ func (r *BannerRepo) Update(ctx context.Context, id uint64, cover, href string, 
 			}).Error; err != nil {
 			return err
 		}
-		return upsertCrop(tx, id, crop)
+		if crop == nil {
+			return nil
+		}
+		return upsertCrop(tx, id, *crop)
 	})
 }
 

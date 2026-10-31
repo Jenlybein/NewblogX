@@ -136,6 +136,17 @@ type TopCmd struct {
 	Remove bool
 }
 
+// HotTopCmd 是设置/取消「热门置顶」的输入（管理员运营位）。
+//
+// 与 TopCmd 分开而不是复用一个：作者置顶与热门置顶的权限、上限、
+// 副作用都不同，共用一个命令结构只会让调用点看不出自己在改哪一套数据。
+type HotTopCmd struct {
+	Actor     domain.Viewer
+	ArticleID domain.ArticleID
+	// Remove 为真表示取消置顶（幂等，且不要求文章仍然存在）。
+	Remove bool
+}
+
 // DeleteCmd 是删除文章的输入。
 //
 // 只支持软删：旧实现里 `DeleteArticles(tx, list, unscoped)` 的 unscoped 参数

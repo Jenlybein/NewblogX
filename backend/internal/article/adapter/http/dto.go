@@ -211,6 +211,14 @@ type ArticleTopListRequest struct {
 	UserID ctype.ID `form:"user_id"`
 }
 
+// ArticleHotTopOrderRequest 热门置顶的全量顺序替换。
+//
+// 传的是"完整的有序列表"而不是"把 A 移到 B 前面"：后台只有 12 条，
+// 整表替换让服务端不必推断意图，也让并发下的结果可预测（ADR-0017 决策 5）。
+type ArticleHotTopOrderRequest struct {
+	ArticleIDs []ctype.ID `json:"article_ids" binding:"required"`
+}
+
 // ArticleViewHistoryRequest 浏览历史。
 type ArticleViewHistoryRequest struct {
 	Page  int `form:"page"`
@@ -331,4 +339,35 @@ type ArticleTopCardResponse struct {
 // ArticleDiggResponse 点赞结果。
 type ArticleDiggResponse struct {
 	IsDigg bool `json:"is_digg"`
+}
+
+// ArticleHotTopCardResponse 是首页「热门置顶」运营位的一张卡片。
+//
+// 字段与 ArticleTopCardResponse（/articles/top，作者置顶）保持一致形状：
+// 两个区块的版式相同，前端可以复用同一套卡片渲染。
+type ArticleHotTopCardResponse struct {
+	ID             ctype.ID `json:"id"`
+	Title          string   `json:"title"`
+	Abstract       string   `json:"abstract"`
+	Cover          string   `json:"cover"`
+	ViewCount      int      `json:"view_count"`
+	AuthorNickname string   `json:"author_nickname"`
+	CategoryTitle  string   `json:"category_title"`
+}
+
+// ArticleHotTopAdminItem 是后台「热门置顶」页的一行。
+//
+// 与公开卡片分开：后台要看见**已失效**的行（文章被隐藏/退回草稿/删除），
+// 否则没法排序也没法清理。
+//
+// 这里刻意**不**返回 publish_status / visibility_status：Go 侧它们是可空指针，
+// 而 swag v2 会把指向具名枚举的指针印成不可空的 $ref —— 契约会撒谎
+// （详见 GLOSSARY「可空性三态」）。「为什么失效」由 stale 一字段回答，
+// 文章自身的状态在文章管理列表里已经有了。
+type ArticleHotTopAdminItem struct {
+	ArticleID ctype.ID `json:"article_id"`
+	SortOrder int      `json:"sort_order"`
+	Stale     bool     `json:"stale"`
+	Title     string   `json:"title"`
+	Cover     string   `json:"cover"`
 }

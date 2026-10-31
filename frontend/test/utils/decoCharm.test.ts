@@ -1,7 +1,6 @@
 import { describe, expect, it } from "vitest";
 
 import {
-  CHARM_ENERGY_EPSILON,
   CHARM_DAMPING_DEFAULT,
   CHARM_DAMPING_MAX,
   CHARM_DAMPING_MIN,
@@ -9,6 +8,16 @@ import {
   CHARM_GRAVITY_DEFAULT,
   CHARM_GRAVITY_MAX,
   CHARM_GRAVITY_MIN,
+  CHARM_IDLE_FRAME_INTERVAL_MS,
+  CHARM_IDLE_SWAY_AMP_DEFAULT,
+  CHARM_IDLE_SWAY_AMP_MAX,
+  CHARM_IDLE_SWAY_AMP_MIN,
+  CHARM_IDLE_SWAY_HZ_DEFAULT,
+  CHARM_IDLE_SWAY_HZ_MAX,
+  CHARM_IDLE_SWAY_HZ_MIN,
+  CHARM_LINE_WIDTH_DEFAULT,
+  CHARM_LINE_WIDTH_MAX,
+  CHARM_LINE_WIDTH_MIN,
   CHARM_LOGO_SIZE_DEFAULT,
   CHARM_LOGO_SIZE_MAX,
   CHARM_LOGO_SIZE_MIN,
@@ -20,6 +29,7 @@ import {
   CHARM_SEGMENTS_DEFAULT,
   CHARM_SEGMENTS_MAX,
   CHARM_SEGMENTS_MIN,
+  CHARM_TAPER_RATIO,
   advanceCharmRope,
   charmLayerEnabled,
   charmRopeEnergy,
@@ -27,22 +37,31 @@ import {
   charmRopeSegmentLengths,
   charmRopeSettled,
   charmRopeTail,
+  charmTetherGeometry,
   clampCharmDamping,
   clampCharmGravity,
+  clampCharmIdleSwayAmp,
+  clampCharmIdleSwayHz,
+  clampCharmLineWidth,
   clampCharmLogoSize,
   clampCharmRopeLength,
   clampCharmSegments,
   createCharmRope,
   normalizeCharmRopeConfig,
+  type CharmPoint,
   type CharmRopeConfig,
 } from "~/utils/decoCharm";
 
 /**
  * 为什么值得测：挂件里所有"算错就看得见"的决定都在这个模块 ——
- * 门控、参数钳位、固定步长积分、绳点→SVG 路径。物理部分尤其不能断言
+ * 门控、参数钳位、固定步长积分、弧垂与收尾描边。物理部分尤其不能断言
  * "某一帧的坐标"（那会把实现焊死在测试里），只能断言不变量：不 NaN、
  * 不发散、能量衰减、节点间距在容差内。积分器一旦依赖动画帧时序，
  * 120Hz 屏上的绳子就会比 60Hz 快一倍 —— 这是票面点名要防的真 bug。
+ *
+ * 票 #42 新增三条：收尾宽度恰好是起始的 0.6 倍（断言在几何里）、弧垂只由
+ * 真实松弛（绳长 − 实际距离）产生（重力不参与）、轻晃是自由端的真实形变
+ * 且必须能退回零帧。
  */
 
 const ROPE: CharmRopeConfig = {
@@ -50,6 +69,9 @@ const ROPE: CharmRopeConfig = {
   segments: CHARM_SEGMENTS_DEFAULT,
   gravity: CHARM_GRAVITY_DEFAULT,
   damping: 0.99,
+  lineWidthPx: CHARM_LINE_WIDTH_DEFAULT,
+  idleSwayHz: 0,
+  idleSwayAmp: 0,
 };
 
 /** 一次固定步长的帧间隔（积分器应当正好推进一个子步）。 */
@@ -81,6 +103,14 @@ function runFixedSequence(): { nodes: Array<{ x: number; y: number }>; energy: n
   return { nodes: state.nodes.map((node) => ({ x: node.x, y: node.y })), energy: charmRopeEnergy(state) };
 }
 
+/** 一条竖直的"几何链"：用于把弧垂 / 收尾宽度从物理里隔离出来断言。 */
+function straightPoints(chordPx: number, count = 11): CharmPoint[] {
+  return Array.from({ length: count }, (_, index) => ({
+    x: 0,
+    y: (chordPx * index) / (count - 1),
+  }));
+}
+
 describe("光标挂件的参数常量", () => {
   it("挂绳长度 40–240 px，默认 120（与后端 conf_deco.go 同一组数）", () => {
     expect(CHARM_ROPE_LENGTH_MIN).toBe(40);
@@ -105,6 +135,27 @@ describe("光标挂件的参数常量", () => {
     expect(CHARM_DAMPING_MAX).toBe(0.995);
     expect(CHARM_DAMPING_DEFAULT).toBe(0.99);
     expect(CHARM_DAMPING_MAX).toBeLessThan(1);
+  });
+
+  it("描边起始宽度 1–6 px，默认 2.5；收尾固定为起始的 0.6 倍（不进配置）", () => {
+    expect(CHARM_LINE_WIDTH_MIN).toBe(1);
+    expect(CHARM_LINE_WIDTH_MAX).toBe(6);
+    expect(CHARM_LINE_WIDTH_DEFAULT).toBe(2.5);
+    expect(CHARM_TAPER_RATIO).toBe(0.6);
+  });
+
+  it("静止摆动 0–1.5 Hz / 0–40 px/s²，默认 0.8 / 20；下限 0 是合法的「关掉轻晃」", () => {
+    expect(CHARM_IDLE_SWAY_HZ_MIN).toBe(0);
+    expect(CHARM_IDLE_SWAY_HZ_MAX).toBe(1.5);
+    expect(CHARM_IDLE_SWAY_HZ_DEFAULT).toBe(0.8);
+    expect(CHARM_IDLE_SWAY_AMP_MIN).toBe(0);
+    expect(CHARM_IDLE_SWAY_AMP_MAX).toBe(40);
+    expect(CHARM_IDLE_SWAY_AMP_DEFAULT).toBe(20);
+  });
+
+  it("怠速车道约 20fps（50ms 一帧），明显低于满速 60fps", () => {
+    expect(CHARM_IDLE_FRAME_INTERVAL_MS).toBe(50);
+    expect(1000 / CHARM_IDLE_FRAME_INTERVAL_MS).toBeLessThan(60);
   });
 
   it("固定步长是 1/120s、单帧最多 8 个子步、累加器上限 0.05s", () => {
@@ -145,7 +196,7 @@ describe("clampCharmLogoSize", () => {
   });
 });
 
-describe("四个物理参数钳位（读者站这最后一道防线）", () => {
+describe("挂绳物理参数钳位（读者站这最后一道防线）", () => {
   it("挂绳长度：越界钳到 40/240，零与非法回落 120", () => {
     expect(clampCharmRopeLength(4000)).toBe(CHARM_ROPE_LENGTH_MAX);
     expect(clampCharmRopeLength(10)).toBe(CHARM_ROPE_LENGTH_MIN);
@@ -182,6 +233,34 @@ describe("四个物理参数钳位（读者站这最后一道防线）", () => {
   });
 });
 
+describe("票 #42 的三个新参数钳位", () => {
+  it("描边宽度：钳到 1/6 并保留一位小数，零与非法回落 2.5", () => {
+    expect(clampCharmLineWidth(10)).toBe(CHARM_LINE_WIDTH_MAX);
+    expect(clampCharmLineWidth(0.2)).toBe(CHARM_LINE_WIDTH_MIN);
+    expect(clampCharmLineWidth(2.54)).toBe(2.5);
+    expect(clampCharmLineWidth(2.56)).toBe(2.6);
+    expect(clampCharmLineWidth(0)).toBe(CHARM_LINE_WIDTH_DEFAULT);
+    expect(clampCharmLineWidth(-1)).toBe(CHARM_LINE_WIDTH_DEFAULT);
+    expect(clampCharmLineWidth(Number.NaN)).toBe(CHARM_LINE_WIDTH_DEFAULT);
+  });
+
+  it("静止摆动频率：0 原样保留（= 关掉轻晃），越界钳到 1.5，负数/NaN 回落 0.8", () => {
+    expect(clampCharmIdleSwayHz(0)).toBe(0);
+    expect(clampCharmIdleSwayHz(9)).toBe(CHARM_IDLE_SWAY_HZ_MAX);
+    expect(clampCharmIdleSwayHz(0.8)).toBe(0.8);
+    expect(clampCharmIdleSwayHz(-1)).toBe(CHARM_IDLE_SWAY_HZ_DEFAULT);
+    expect(clampCharmIdleSwayHz(Number.NaN)).toBe(CHARM_IDLE_SWAY_HZ_DEFAULT);
+  });
+
+  it("静止摆动幅度：0 原样保留（= 零帧车道），越界钳到 40，负数/NaN 回落 20", () => {
+    expect(clampCharmIdleSwayAmp(0)).toBe(0);
+    expect(clampCharmIdleSwayAmp(400)).toBe(CHARM_IDLE_SWAY_AMP_MAX);
+    expect(clampCharmIdleSwayAmp(20)).toBe(20);
+    expect(clampCharmIdleSwayAmp(-5)).toBe(CHARM_IDLE_SWAY_AMP_DEFAULT);
+    expect(clampCharmIdleSwayAmp(Number.NaN)).toBe(CHARM_IDLE_SWAY_AMP_DEFAULT);
+  });
+});
+
 describe("normalizeCharmRopeConfig", () => {
   it("缺字段 / 全空时回落默认值（配置还没取回来也能建链）", () => {
     expect(normalizeCharmRopeConfig(undefined)).toEqual({
@@ -189,21 +268,40 @@ describe("normalizeCharmRopeConfig", () => {
       segments: CHARM_SEGMENTS_DEFAULT,
       gravity: CHARM_GRAVITY_DEFAULT,
       damping: 0.99,
+      lineWidthPx: CHARM_LINE_WIDTH_DEFAULT,
+      idleSwayHz: CHARM_IDLE_SWAY_HZ_DEFAULT,
+      idleSwayAmp: CHARM_IDLE_SWAY_AMP_DEFAULT,
     });
   });
 
-  it("每个字段各自钳位，部分缺失不影响其余", () => {
-    expect(normalizeCharmRopeConfig({ ropeLengthPx: 4000, segments: 100, gravity: 100000, damping: 2 })).toEqual({
+  it("每个字段各自钳位，部分缺失不影响其余（摆动为 0 时仍是 0）", () => {
+    expect(
+      normalizeCharmRopeConfig({
+        ropeLengthPx: 4000,
+        segments: 100,
+        gravity: 100000,
+        damping: 2,
+        lineWidthPx: 10,
+        idleSwayHz: 9,
+        idleSwayAmp: 0,
+      }),
+    ).toEqual({
       ropeLengthPx: CHARM_ROPE_LENGTH_MAX,
       segments: CHARM_SEGMENTS_MAX,
       gravity: CHARM_GRAVITY_MAX,
       damping: 0.995,
+      lineWidthPx: CHARM_LINE_WIDTH_MAX,
+      idleSwayHz: CHARM_IDLE_SWAY_HZ_MAX,
+      idleSwayAmp: 0,
     });
     expect(normalizeCharmRopeConfig({ ropeLengthPx: 80 })).toEqual({
       ropeLengthPx: 80,
       segments: CHARM_SEGMENTS_DEFAULT,
       gravity: CHARM_GRAVITY_DEFAULT,
       damping: 0.99,
+      lineWidthPx: CHARM_LINE_WIDTH_DEFAULT,
+      idleSwayHz: CHARM_IDLE_SWAY_HZ_DEFAULT,
+      idleSwayAmp: CHARM_IDLE_SWAY_AMP_DEFAULT,
     });
   });
 });
@@ -228,7 +326,7 @@ describe("charmLayerEnabled", () => {
   });
 });
 
-describe("createCharmRope / charmRopePath：静止姿态是确定的", () => {
+describe("createCharmRope：静止姿态是确定的", () => {
   it("初始链从指针垂直下垂，每节等长（总长 = 绳长）", () => {
     const state = createCharmRope({ x: 100, y: 200 }, { ...ROPE, ropeLengthPx: 120, segments: 4 });
 
@@ -237,12 +335,8 @@ describe("createCharmRope / charmRopePath：静止姿态是确定的", () => {
     expect(state.nodes[1]).toEqual({ x: 100, y: 230 });
     expect(state.nodes[4]).toEqual({ x: 100, y: 320 });
     expect(charmRopeTail(state)).toEqual({ x: 100, y: 320 });
-  });
-
-  it("路径按节点顺序画折线，坐标保留一位小数（d 字符串不逐帧漂移）", () => {
-    const state = createCharmRope({ x: 10.123, y: 20.987 }, { ...ROPE, ropeLengthPx: 120, segments: 4 });
-
-    expect(charmRopePath(state)).toBe("M10.1 21L10.1 51L10.1 81L10.1 111L10.1 141");
+    // 竖直悬挂、松弛为 0：收尾几何也必须是直的。
+    expect(charmTetherGeometry(state.nodes, 120, 2.5).maxDeviationPx).toBeLessThan(0.01);
   });
 
   it("非有限指针不产出 NaN 路径（SVG 会整条消失）", () => {
@@ -250,6 +344,7 @@ describe("createCharmRope / charmRopePath：静止姿态是确定的", () => {
 
     expect(allFinite(nodeCoords(state))).toBe(true);
     expect(charmRopePath(state)).not.toContain("NaN");
+    expect(allFinite(charmTetherGeometry(state.nodes, ROPE.ropeLengthPx, 2.5).widths)).toBe(true);
   });
 });
 
@@ -356,13 +451,123 @@ describe("物理不变量（不断言某一帧的坐标，只断言性质）", (
     expect(Number.isFinite(energyAt100)).toBe(true);
     expect(energyAt700).toBeLessThan(energyAt100 * 0.5);
     expect(charmRopeSettled(state)).toBe(true);
-    expect(charmRopeEnergy(state)).toBeLessThan(CHARM_ENERGY_EPSILON);
+    expect(charmRopeEnergy(state)).toBeLessThan(0.05);
   });
 
   it("收敛阈值是绝对下限：静止的竖直链一开始就算收敛（不空转）", () => {
     const state = createCharmRope({ x: 100, y: 100 }, ROPE);
 
     expect(charmRopeEnergy(state)).toBe(0);
+    expect(charmRopeSettled(state)).toBe(true);
+  });
+});
+
+describe("弧垂只来自真实松弛，不来自重力（票 #42 验收项）", () => {
+  it("两端距离恰好等于绳长（松弛 0）时是直线，横向偏移 ~0", () => {
+    const geometry = charmTetherGeometry(straightPoints(120), 120, CHARM_LINE_WIDTH_DEFAULT);
+
+    expect(geometry.slackPx).toBe(0);
+    expect(geometry.maxDeviationPx).toBeLessThan(0.01);
+  });
+
+  it("松弛越多弧越大（同样的两端方向，只让绳长超过实际距离）", () => {
+    const taut = charmTetherGeometry(straightPoints(120), 120, CHARM_LINE_WIDTH_DEFAULT);
+    const small = charmTetherGeometry(straightPoints(100), 120, CHARM_LINE_WIDTH_DEFAULT);
+    const big = charmTetherGeometry(straightPoints(80), 120, CHARM_LINE_WIDTH_DEFAULT);
+
+    expect(small.slackPx).toBe(20);
+    expect(big.slackPx).toBe(40);
+    expect(small.maxDeviationPx).toBeGreaterThan(taut.maxDeviationPx + 1);
+    expect(big.maxDeviationPx).toBeGreaterThan(small.maxDeviationPx + 1);
+  });
+
+  it("把 gravity 从最小调到最大，静止（无轻晃）链的弧垂都不加深", () => {
+    // 静止的竖直悬挂链：弦长 = 绳长 → 松弛 0 → 直线。重力只改变摆动瞬态，
+    // 不能被调成"下垂感"—— 这是票面点名的反"重力 = 下垂"回归测试。
+    function restingSag(gravity: number): number {
+      const state = createCharmRope(
+        { x: 100, y: 100 },
+        { ...ROPE, gravity, idleSwayAmp: 0 },
+      );
+      advanceCharmRope(state, CHARM_MAX_FRAME_SECONDS, { x: 160, y: 120 });
+      for (let step = 0; step < 2000; step += 1) {
+        advanceCharmRope(state, FRAME_AT_120HZ, { x: 160, y: 120 });
+      }
+      const geometry = charmTetherGeometry(state.nodes, state.config.ropeLengthPx, state.config.lineWidthPx);
+      return geometry.maxDeviationPx;
+    }
+
+    const low = restingSag(CHARM_GRAVITY_MIN);
+    const high = restingSag(CHARM_GRAVITY_MAX);
+
+    expect(low).toBeLessThan(1);
+    expect(high).toBeLessThan(1);
+    expect(Math.abs(high - low)).toBeLessThan(1);
+  });
+});
+
+describe("收尾描边：起始宽度 → 0.6 倍（票 #42 验收项）", () => {
+  it("起始宽度 = line_width，收尾恰好为 0.6 × line_width", () => {
+    const geometry = charmTetherGeometry(straightPoints(100), 120, 2.5);
+
+    expect(geometry.widths[0]).toBe(2.5);
+    expect(geometry.widths[geometry.widths.length - 1]).toBeCloseTo(1.5, 12);
+    expect(geometry.widths[geometry.widths.length - 1]! / geometry.widths[0]!).toBeCloseTo(0.6, 12);
+  });
+
+  it("换任意起始宽度，比例都还是 0.6（收尾不是第二个配置项）", () => {
+    for (const width of [1, 2.5, 4, 6]) {
+      const geometry = charmTetherGeometry(straightPoints(100), 120, width);
+      expect(geometry.widths.at(-1)! / geometry.widths[0]!).toBeCloseTo(CHARM_TAPER_RATIO, 12);
+    }
+  });
+
+  it("发出的是一条闭合带形多边形（单根 SVG stroke 变不了宽度）", () => {
+    const geometry = charmTetherGeometry(straightPoints(100), 120, 2.5);
+
+    expect(geometry.path.startsWith("M")).toBe(true);
+    expect(geometry.path).toContain("Z");
+    expect(geometry.path).not.toContain("NaN");
+    // 带形两侧各一条边：左 N−1 段 + 尾端连接 1 段 + 右 N−1 段 = 2N−1。
+    expect(geometry.path.match(/L/gu)?.length).toBe(geometry.centerline.length * 2 - 1);
+  });
+
+  it("渲染入口 charmRopePath 用的就是同一份几何（不是第二套画法）", () => {
+    const state = createCharmRope({ x: 10, y: 20 }, { ...ROPE, ropeLengthPx: 120, segments: 4 });
+
+    expect(charmRopePath(state)).toBe(
+      charmTetherGeometry(state.nodes, state.config.ropeLengthPx, state.config.lineWidthPx).path,
+    );
+  });
+});
+
+describe("静止轻晃：自由端的真实形变（票 #42 验收项）", () => {
+  it("idle_sway_amp > 0 时自由端真的横向摆动，指针端仍钉死", () => {
+    const state = createCharmRope(
+      { x: 0, y: 0 },
+      { ...ROPE, idleSwayHz: CHARM_IDLE_SWAY_HZ_DEFAULT, idleSwayAmp: CHARM_IDLE_SWAY_AMP_DEFAULT },
+    );
+    let peakTailX = 0;
+    let peakEnergy = 0;
+    for (let step = 0; step < 1440; step += 1) {
+      advanceCharmRope(state, FRAME_AT_120HZ, { x: 0, y: 0 });
+      peakTailX = Math.max(peakTailX, Math.abs(charmRopeTail(state).x));
+      peakEnergy = Math.max(peakEnergy, charmRopeEnergy(state));
+    }
+
+    expect(peakTailX).toBeGreaterThan(0.5);
+    expect(state.nodes[0]).toEqual({ x: 0, y: 0 });
+    // 轻晃期间能量反复越过收敛阈值：怠速车道必须持续跑（否则会"停在一个歪姿势上"）。
+    expect(peakEnergy).toBeGreaterThan(0.05);
+  });
+
+  it("idle_sway_amp == 0 时完全没有横向形变（可以退回零帧车道）", () => {
+    const state = createCharmRope({ x: 0, y: 0 }, { ...ROPE, idleSwayAmp: 0, idleSwayHz: 0 });
+    for (let step = 0; step < 720; step += 1) {
+      advanceCharmRope(state, FRAME_AT_120HZ, { x: 0, y: 0 });
+    }
+
+    expect(Math.abs(charmRopeTail(state).x)).toBeLessThan(1e-9);
     expect(charmRopeSettled(state)).toBe(true);
   });
 });

@@ -2,7 +2,7 @@
 import { NAlert, NButton, NForm, NFormItem, NInputNumber, NSwitch, useMessage } from 'naive-ui'
 import { getDecoRuntimeConfig, updateDecoRuntimeConfig } from '~/services/admin'
 import type { DecoRuntimeConfig } from '~/types/api'
-import { DECO_NUMBER_PARAMS, normalizeDecoConfig } from '~/utils/decoParams'
+import { DECO_NUMBER_PARAMS, defaultDecoConfig, normalizeDecoConfig } from '~/utils/decoParams'
 
 const message = useMessage()
 const loading = ref(false)
@@ -43,6 +43,17 @@ async function save() {
   }
 }
 
+/**
+ * 「恢复默认」：把整张表单填回规范的九个默认值（开关 + 八个数值）。
+ *
+ * 刻意**不自动保存** —— 恢复默认只是把表单改成一个已知良好的起点，
+ * 是否落库仍由管理员按「保存装饰配置」决定。这里只写本地 ref，不碰接口；
+ * 组件测试按源码断言 resetDefaults 函数体里没有 updateDecoRuntimeConfig。
+ */
+function resetDefaults() {
+  config.value = defaultDecoConfig()
+}
+
 onMounted(load)
 </script>
 
@@ -62,7 +73,7 @@ onMounted(load)
       <NFormItem label="启用光标挂件">
         <NSwitch v-model:value="config.charm.enable" />
       </NFormItem>
-      <!-- 五行数值输入由同一份元数据驱动：标签 / 单位 / 范围 / 步长 / 说明
+      <!-- 八行数值输入由同一份元数据驱动：标签 / 单位 / 范围 / 步长 / 说明
            都在 utils/decoParams 里，加参数时只改那一个文件。 -->
       <NFormItem
         v-for="param in numberParams"
@@ -85,7 +96,11 @@ onMounted(load)
           </template>
         </NInputNumber>
       </NFormItem>
-      <NButton type="primary" :loading="saving" @click="save">保存装饰配置</NButton>
+      <div class="deco-actions">
+        <NButton type="primary" :loading="saving" @click="save">保存装饰配置</NButton>
+        <!-- 只填表单、不保存：恢复默认之后管理员仍要自己按保存。 -->
+        <NButton quaternary :disabled="saving" @click="resetDefaults">恢复默认</NButton>
+      </div>
     </NForm>
     <div v-else class="admin-empty">{{ loading ? '配置加载中' : '配置加载失败，刷新页面重试' }}</div>
   </div>
@@ -101,5 +116,11 @@ onMounted(load)
 .deco-number-input__unit {
   color: var(--color-ink-muted);
   font-size: 12px;
+}
+
+/* 保存与「恢复默认」并排，用间距而不是靠两个按钮挤在一起。 */
+.deco-actions {
+  display: flex;
+  gap: 12px;
 }
 </style>

@@ -351,8 +351,7 @@ func extraBody(sortField, key string) map[string]any {
 		"id", "created_at", "updated_at", "title", "abstract", "cover",
 		"view_count", "digg_count", "comment_count", "favor_count",
 		"comments_toggle", "publish_status", "visibility_status",
-		"tags", "author_id", "author", "category_id", "category",
-		"admin_top", "author_top",
+		"tags", "author_id", "author", "author_is_admin", "category_id", "category",
 	}
 	highlightFields := map[string]any{}
 	if strings.TrimSpace(key) != "" {
@@ -457,7 +456,6 @@ func extract(counters domain.CounterReader, data map[string]any) []domain.Item {
 		articleID := sourceID(source, "id")
 		categoryMap, _ := source["category"].(map[string]any)
 		authorMap, _ := source["author"].(map[string]any)
-		topMap, _ := source["top"].(map[string]any)
 		highlight := buildHighlight(highlightMap)
 		contentHead := sourceString(source, "content_head")
 		if values := highlightValues(highlightMap, "content_head"); len(values) > 0 {
@@ -483,8 +481,7 @@ func extract(counters domain.CounterReader, data map[string]any) []domain.Item {
 			PublishStatus:    domain.ArticleStatus(sourceInt(source, "publish_status")),
 			VisibilityStatus: domain.VisibilityStatus(sourceString(source, "visibility_status")),
 			Tags:             sourceTags(source, "tags"),
-			UserTop:          sourceBool(topMap, "user") || sourceBool(source, "author_top"),
-			AdminTop:         sourceBool(topMap, "admin") || sourceBool(source, "admin_top"),
+			AuthorIsAdmin:    sourceBool(source, "author_is_admin"),
 			Category: &domain.Category{
 				ID:    sourceID(source, "category_id"),
 				Title: sourceString(categoryMap, "title"),
@@ -537,9 +534,6 @@ func normalizeMeta(counters domain.CounterReader, list []domain.Item) []domain.I
 		}
 		if list[i].UserAvatar == "" {
 			list[i].UserAvatar = list[i].Author.Avatar
-		}
-		if list[i].UserTop || list[i].AdminTop {
-			list[i].Top = &domain.Top{User: list[i].UserTop, Admin: list[i].AdminTop}
 		}
 	}
 	return list

@@ -27,15 +27,15 @@ func TestProjectionReplayEventsMapping(t *testing.T) {
 		{"article_models", "update", []articlesync.ArticleSearchProjectionEventType{articlesync.ArticleSearchProjectionArticleUpsert}},
 		// delete 必须区分：用 upsert 会把刚删掉的文档又建回来。
 		{"article_models", "delete", []articlesync.ArticleSearchProjectionEventType{articlesync.ArticleSearchProjectionArticleDelete}},
-		// 用户行同时影响"作者快照"和"置顶作者名"，原链路就是连发两个，少一个会漏一半。
+		// 用户行只影响"作者快照"（昵称/头像/角色投影的 author_is_admin）。
 		{"user_models", "insert", []articlesync.ArticleSearchProjectionEventType{
 			articlesync.ArticleSearchProjectionAuthorSnapshot,
-			articlesync.ArticleSearchProjectionTopUserChanged,
 		}},
 		{"category_models", "update", []articlesync.ArticleSearchProjectionEventType{articlesync.ArticleSearchProjectionCategorySnapshot}},
 		{"tag_models", "update", []articlesync.ArticleSearchProjectionEventType{articlesync.ArticleSearchProjectionTagSnapshot}},
 		{"article_tag_models", "insert", []articlesync.ArticleSearchProjectionEventType{articlesync.ArticleSearchProjectionArticleTagsChanged}},
-		{"user_top_article_models", "delete", []articlesync.ArticleSearchProjectionEventType{articlesync.ArticleSearchProjectionArticleTopChanged}},
+		// 作者置顶表已不进投影，但历史死信要能重投：按文章 ID 整体重算，绝不能用 delete。
+		{"user_top_article_models", "delete", []articlesync.ArticleSearchProjectionEventType{articlesync.ArticleSearchProjectionArticleUpsert}},
 		// 大小写/空格容错：payload 来自 JSON，不能假设写入端一定规范。
 		{" Article_Models ", "DELETE", []articlesync.ArticleSearchProjectionEventType{articlesync.ArticleSearchProjectionArticleDelete}},
 	}

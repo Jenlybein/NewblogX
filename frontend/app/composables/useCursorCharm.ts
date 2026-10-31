@@ -7,16 +7,18 @@ import {
 } from "~/composables/useMotionPreference";
 import {
   CHARM_FINE_POINTER_QUERY,
+  CHARM_IDLE_FRAME_INTERVAL_MS,
   advanceCharmRope,
   charmLayerEnabled,
-  charmRopePath,
   charmRopeSettled,
   charmRopeTail,
+  charmTetherGeometry,
   createCharmRope,
   normalizeCharmRopeConfig,
   type CharmPoint,
   type CharmRopeConfig,
   type CharmRopeState,
+  type CharmTetherGeometry,
 } from "~/utils/decoCharm";
 
 /** 指针事件里这里用到的最小结构（便于测试注入假事件）。 */
@@ -61,6 +63,9 @@ export interface UseCursorCharmOptions {
   /** 注入动画帧请求/取消与时钟（测试与 SSR 用）。 */
   requestAnimationFrame?: ((callback: HostListener) => number) | null;
   cancelAnimationFrame?: ((id: number) => void) | null;
+  /** 注入定时器（怠速车道用；测试里与动画帧共用同一个虚拟时钟）。 */
+  setTimeout?: ((callback: HostListener, delayMs: number) => number) | null;
+  clearTimeout?: ((id: number) => void) | null;
   now?: () => number;
 }
 
@@ -73,8 +78,12 @@ export interface CursorCharm {
   pointer: Ref<CharmPoint>;
   /** 挂绳路径（SVG 的 `d`）；每帧只写这一个字符串。 */
   tetherPath: Ref<string>;
+  /** 本帧的挂绳几何（中心线 / 宽度 / 松弛 / 弧垂）；测试与调试用。 */
+  tetherGeometry: Ref<CharmTetherGeometry | null>;
   /** 站标中心（最后一个链节点）；每帧只写这一个坐标。 */
   logoCenter: Ref<CharmPoint>;
+  /** 已经推进的物理帧数：怠速车道下约 20/s，满速车道下约 60/s。 */
+  physicsFrames: Ref<number>;
   dispose: () => void;
 }
 
@@ -97,6 +106,14 @@ function defaultRequestAnimationFrame(callback: HostListener): number {
 
 function defaultCancelAnimationFrame(id: number): void {
   globalThis.cancelAnimationFrame(id);
+}
+
+function defaultSetTimeout(callback: HostListener, delayMs: number): number {
+  return globalThis.setTimeout(callback as TimerHandler, delayMs);
+}
+
+function defaultClearTimeout(id: number): void {
+  globalThis.clearTimeout(id);
 }
 
 function defaultNow(): number {
@@ -138,6 +155,10 @@ export function useCursorCharm(options: UseCursorCharmOptions = {}): CursorCharm
     options.cancelAnimationFrame === undefined
       ? defaultCancelAnimationFrame
       : options.cancelAnimationFrame;
+  const setTimeoutFrame =
+    options.setTimeout === undefined ? defaultSetTimeout : options.setTimeout;
+  const clearTimeoutFrame =
+    options.clearTimeout === undefined ? defaultClearTimeout : options.clearTimeout;
   const now = options.now ?? defaultNow;
 
   const finePointerQuery = getMediaQuery(CHARM_FINE_POINTER_QUERY) ?? null;
@@ -148,13 +169,17 @@ export function useCursorCharm(options: UseCursorCharmOptions = {}): CursorCharm
   const pointer = ref<CharmPoint>({ x: 0, y: 0 });
   const visible = ref(false);
   const tetherPath = ref("");
+  const tetherGeometry = ref<CharmTetherGeometry | null>(null);
   const logoCenter = ref<CharmPoint>({ x: 0, y: 0 });
+  const physicsFrames = ref(0);
 
   // ── 物理状态：普通对象，不进响应式系统 ──────────────────────────
   let rope: CharmRopeState | null = null;
   let ropeSignature = "";
   /** 已请求、尚未执行（或正在执行）的帧 id；非 null 即"循环在跑"。 */
   let frameId: number | null = null;
+  /** 当前待执行帧来自哪条车道：收敛 / 停用时按对应 API 取消。 */
+  let frameKind: "raf" | "timer" = "raf";
   /** 上一帧的真实时间（ms）；null 表示循环没在跑。 */
   let lastFrameTime: number | null = null;
   let bound = false;
@@ -190,10 +215,12 @@ export function useCursorCharm(options: UseCursorCharmOptions = {}): CursorCharm
     reducedQuery?.removeEventListener?.("change", handleReducedChange);
   }
 
-  /** 建链 / 重建：只有拓扑（节点数、绳长）变了才重建，改重力与阻尼原地生效。 */
+  /** 建链 / 重建：只有拓扑（节点数、绳长）变了才重建，其余参数原地生效。 */
   function ensureRope(head: CharmPoint): CharmRopeState {
     const config = normalizeCharmRopeConfig(options.config?.());
-    const signature = `${config.ropeLengthPx}|${config.segments}|${config.gravity}|${config.damping}`;
+    const signature =
+      `${config.ropeLengthPx}|${config.segments}|${config.gravity}|${config.damping}` +
+      `|${config.lineWidthPx}|${config.idleSwayHz}|${config.idleSwayAmp}`;
     if (!rope) {
       rope = createCharmRope(head, config);
       ropeSignature = signature;
@@ -209,34 +236,67 @@ export function useCursorCharm(options: UseCursorCharmOptions = {}): CursorCharm
     } else {
       rope.config.gravity = config.gravity;
       rope.config.damping = config.damping;
+      // 线宽与轻晃参数也不改拓扑：原地换掉，下一帧的几何 / 力就用新值。
+      rope.config.lineWidthPx = config.lineWidthPx;
+      rope.config.idleSwayHz = config.idleSwayHz;
+      rope.config.idleSwayAmp = config.idleSwayAmp;
     }
     ropeSignature = signature;
     return rope;
   }
 
   function publish(state: CharmRopeState) {
-    tetherPath.value = charmRopePath(state);
+    // 每帧只产出一份几何：路径 `d` 与站标 `transform` 都从它来，
+    // 不会出现"画的是这一份、量的是另一份"。
+    const geometry = charmTetherGeometry(
+      state.nodes,
+      state.config.ropeLengthPx,
+      state.config.lineWidthPx,
+    );
+    tetherGeometry.value = geometry;
+    tetherPath.value = geometry.path;
     logoCenter.value = charmRopeTail(state);
   }
 
   function stopLoop() {
     if (frameId !== null) {
-      // 收敛时取消的是"刚执行完的那一帧"的 id：浏览器里对已触发的 id
-      // 调用 cancel 是空操作，但它让"停帧"这件事可被测试观察到。
-      cancelFrame?.(frameId);
+      // 按车道取消：满速车道是 cancelAnimationFrame，怠速车道是 clearTimeout。
+      // 浏览器里对已触发的 id 调用 cancel / clear 是空操作，但它让"停帧"
+      // 这件事可被测试观察到。两种都保证"待执行帧数归零"。
+      if (frameKind === "timer") clearTimeoutFrame?.(frameId);
+      else cancelFrame?.(frameId);
       frameId = null;
     }
     lastFrameTime = null;
   }
 
-  function startLoop() {
-    if (disposed || !enabled.value || paused || frameId !== null || !requestFrame) return;
-    lastFrameTime = now();
+  /**
+   * 排下一帧：轻晃开启时走 ~20fps 的怠速车道（setTimeout 50ms），
+   * 否则走满速动画帧车道。裁决要求怠速车道不补帧追赶 —— 这里每次只排
+   * 一帧，时间差由固定步长累加器按真实流逝时间推进。
+   */
+  function scheduleNext(state: CharmRopeState | null) {
+    if (state && state.config.idleSwayAmp > 0 && setTimeoutFrame) {
+      frameKind = "timer";
+      frameId = setTimeoutFrame(frame, CHARM_IDLE_FRAME_INTERVAL_MS);
+      return;
+    }
+    if (!requestFrame) {
+      frameId = null;
+      return;
+    }
+    frameKind = "raf";
     frameId = requestFrame(frame);
   }
 
+  function startLoop() {
+    if (disposed || !enabled.value || paused || frameId !== null) return;
+    lastFrameTime = now();
+    scheduleNext(rope);
+  }
+
   function frame() {
-    if (disposed || !requestFrame) {
+    if (disposed) {
       frameId = null;
       return;
     }
@@ -249,15 +309,19 @@ export function useCursorCharm(options: UseCursorCharmOptions = {}): CursorCharm
     lastFrameTime = time;
 
     const state = ensureRope(pointer.value);
-    // 掉帧 / 断点回来时由固定步长累加器截断，绝不会把十分钟后台时间补进物理。
+    // 掉帧 / 断点回来时由固定步长累加器截断，绝不会把十分钟后台时间补进物理；
+    // 怠速车道的一帧是 50ms，会推进 6 个固定子步，同样不追赶。
     advanceCharmRope(state, deltaSeconds, pointer.value);
     publish(state);
+    physicsFrames.value += 1;
 
-    if (charmRopeSettled(state)) {
+    const swayOn = state.config.idleSwayAmp > 0;
+    // 轻晃开着时不停帧（那会把链冻在一个歪姿势上）；关掉后才允许按能量收敛。
+    if (!swayOn && charmRopeSettled(state)) {
       stopLoop();
       return;
     }
-    frameId = requestFrame(frame);
+    scheduleNext(state);
   }
 
   function handlePointerMove(event?: unknown) {
@@ -363,5 +427,14 @@ export function useCursorCharm(options: UseCursorCharmOptions = {}): CursorCharm
   // 组件内自动清理；裸调用（测试）由调用方手动 dispose。
   if (getCurrentScope()) onScopeDispose(dispose);
 
-  return { enabled, visible, pointer, tetherPath, logoCenter, dispose };
+  return {
+    enabled,
+    visible,
+    pointer,
+    tetherPath,
+    tetherGeometry,
+    logoCenter,
+    physicsFrames,
+    dispose,
+  };
 }

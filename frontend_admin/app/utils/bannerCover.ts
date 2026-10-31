@@ -107,3 +107,84 @@ function isPositiveSize(size: Size): boolean {
     size.height > 0
   )
 }
+
+/** 列表里的"原图尺寸"：宽 × 高 + 比例是否合规；尺寸读不到时返回 null。 */
+export interface BannerCoverSizeView {
+  width: number
+  height: number
+  label: string
+  compliant: boolean
+}
+
+/**
+ * 把尺寸收成列表要显示的两个值。
+ *
+ * `compliant` 沿用与上传判定同一个 `isAspectCompliant`（±1%），所以列表里的
+ * "比例不合规"与上传时是否弹取景窗永远一致，不会出现两套口径。
+ */
+export function describeBannerCoverSize(
+  size: Size | null | undefined,
+): BannerCoverSizeView | null {
+  if (!size || !isPositiveSize(size)) return null
+  return {
+    width: size.width,
+    height: size.height,
+    label: `${size.width} × ${size.height}`,
+    compliant: isAspectCompliant(size.width, size.height),
+  }
+}
+
+/** 重新取景要回填的字段：更新接口是整体替换，所以 href / show 也必须带上。 */
+export interface BannerReframeSource {
+  id?: string | null
+  cover_image_id?: string | null
+  href?: string | null
+  show?: boolean | null
+}
+
+export interface BannerReframeWrite {
+  id: string
+  payload: BannerWritePayload
+}
+
+/**
+ * 生成 `PUT /banners/:id` 的请求体。
+ *
+ * `null` 表示这一行没有封面图片 ID（历史行或数据损坏）：更新接口要求
+ * cover_image_id，凭空编一个只会失败，页面据此提示而不是发一个坏请求。
+ */
+export function buildBannerReframePayload(
+  row: BannerReframeSource,
+  framing: Partial<Framing> | null,
+): BannerReframeWrite | null {
+  if (!row.id || !row.cover_image_id) return null
+  return {
+    id: row.id,
+    payload: {
+      cover_image_id: row.cover_image_id,
+      href: row.href ?? '',
+      show: Boolean(row.show),
+      crop: clampFraming(framing),
+    },
+  }
+}
+
+/** 更新器的最小契约：页面把它接到 `updateBanner`，测试里换成假实现。 */
+export type BannerUpdater = (id: string, payload: BannerWritePayload) => Promise<unknown>
+
+/**
+ * 保存一次重新取景。
+ *
+ * 返回 `false` 表示这一行没有封面 ID、**没有发任何写请求**；抛出则是更新接口
+ * 失败。取消路径完全不经过这个函数，因此不会产生写入。
+ */
+export async function saveBannerReframe(
+  row: BannerReframeSource,
+  framing: Partial<Framing> | null,
+  update: BannerUpdater,
+): Promise<boolean> {
+  const write = buildBannerReframePayload(row, framing)
+  if (!write) return false
+  await update(write.id, write.payload)
+  return true
+}

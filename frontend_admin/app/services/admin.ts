@@ -168,6 +168,11 @@ export function createBanner(payload: BannerWritePayload) {
   return api().request<unknown, BannerWritePayload>('/banners', { method: 'POST', body: payload })
 }
 
+/** 更新轮播（取景就靠它立即生效）。整体替换：href / show 也必须一起带上。 */
+export function updateBanner(id: string, payload: BannerWritePayload) {
+  return api().request<unknown, BannerWritePayload>(`/banners/${id}`, { method: 'PUT', body: payload })
+}
+
 export function deleteBanners(id_list: string[]) {
   return api().request<unknown, { id_list: string[] }>('/banners', { method: 'DELETE', body: { id_list } })
 }

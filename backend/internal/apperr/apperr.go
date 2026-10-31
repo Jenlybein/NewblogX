@@ -52,6 +52,15 @@ const (
 // 置顶。
 const (
 	CodeTopLimitExceeded Code = "top.limit_exceeded"
+
+	// 热门置顶（运营位）与上面的「作者置顶」是两套数据、两套规则，
+	// 错误码因此分开：日志里要能分辨是哪一种置顶，前端提示语也不同。
+	//
+	// 上限值是 article/domain/hottop.MaxItems（12），这里不能引用它——
+	// apperr 是最底层包，被 domain 引用，反向 import 会成环。
+	CodeHotTopLimitExceeded Code = "hot_top.limit_exceeded"
+	CodeHotTopNotPinnable   Code = "hot_top.not_pinnable"
+	CodeHotTopOrderMismatch Code = "hot_top.order_mismatch"
 )
 
 // 审核任务。
@@ -312,6 +321,10 @@ var messages = map[Code]string{
 	CodeFavoriteSelf:          "不能收藏自己的文章",
 
 	CodeTopLimitExceeded: "置顶数量已达上限",
+
+	CodeHotTopLimitExceeded: "热门置顶最多 12 条，请先取消一条再添加",
+	CodeHotTopNotPinnable:   "只有已发布且可见的文章可以设为热门置顶",
+	CodeHotTopOrderMismatch: "排序列表与当前热门置顶不一致，请刷新后重试",
 
 	CodeReviewTaskNotFound: "审核任务不存在",
 	CodeReviewTaskHandled:  "审核任务已处理",

@@ -120,6 +120,9 @@ const (
 	// Favorite 是收藏夹与收藏关系。
 	Favorite Group = "favorite"
 	// UserReading 是置顶与浏览历史。
+	//
+	// 含**两种**置顶：作者置顶（user_top_article_models）与热门置顶运营位
+	// （article_hot_top_models）。两者是两套数据，都归"读/写关系"这组。
 	UserReading Group = "user_reading"
 	// Comment 是评论表。
 	Comment Group = "comment"
@@ -175,6 +178,7 @@ var groupModels = map[Group][]any{
 	},
 	UserReading: {
 		&UserTopArticleRow{},
+		&ArticleHotTopRow{},
 		&UserArticleViewHistoryRow{},
 	},
 	Comment: {
@@ -211,7 +215,7 @@ var groupModels = map[Group][]any{
 	AIProvider: {
 		&AIProviderRow{},
 	},
-	// All 是**全部 34 张表**，只用于"schema.sql 与自持行是否一致"的契约测试。
+	// All 是**全部 35 张表**，只用于"schema.sql 与自持行是否一致"的契约测试。
 	//
 	// 为什么不复用上面那些组拼起来：拼装顺序一变，这个测试就变成
 	// "测拼装顺序"而不是"测结构一致性"。这里写死一份，顺序沿用当年
@@ -234,6 +238,7 @@ var groupModels = map[Group][]any{
 		&UserArticleFavorRow{},
 		&UserArticleViewHistoryRow{},
 		&UserTopArticleRow{},
+		&ArticleHotTopRow{},
 		&ImageRow{},
 		&ImageRefRow{},
 		&RuntimeConfigRow{},

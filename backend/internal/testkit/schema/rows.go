@@ -675,6 +675,20 @@ type UserTopArticleRow struct {
 // TableName 固定表名。
 func (UserTopArticleRow) TableName() string { return "user_top_article_models" }
 
+// ArticleHotTopRow 对应表 article_hot_top_models（热门置顶运营位）。
+//
+// 与 UserTopArticleRow（作者置顶）是两套数据：这里是管理员运营的首页位，
+// article_id 唯一、带序号。DDL 见 internal/platform/mysql/ddl/schema.sql。
+type ArticleHotTopRow struct {
+	BaseRow
+	ArticleID    ctype.ID   `gorm:"uniqueIndex:uk_article_hot_top;not null" json:"article_id"`
+	SortOrder    int        `gorm:"not null;default:0" json:"sort_order"`
+	ArticleModel ArticleRow `gorm:"foreignKey:ArticleID;references:ID" json:"-"`
+}
+
+// TableName 固定表名。
+func (ArticleHotTopRow) TableName() string { return "article_hot_top_models" }
+
 // DeadLetterRow 是 CdcDeadLetterRow 的别名。
 //
 // 保留它是因为"死信"在文档与调用方那边一直叫 DeadLetter，

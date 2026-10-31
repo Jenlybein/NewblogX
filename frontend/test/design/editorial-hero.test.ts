@@ -251,14 +251,21 @@ describe("窄屏 <768px：色带 ≤1 条、刻度/记号隐藏、标题收敛�
 });
 
 describe("动效：分层进场 + 视差只动 transform/opacity，reduced-motion 归零", () => {
-  it("首屏接 #23 的 useSectionReveal / useParallax，文字层走 useStaggerEntrance", () => {
+  it("首屏接 #23 的 useSectionReveal / useParallax（装饰层才进场）", () => {
     expect(indexVue).toContain("useSectionReveal");
     expect(indexVue).toContain("useParallax");
-    expect(indexVue).toContain("useStaggerEntrance");
     expect(indexVue).toContain("revealStyle");
     expect(indexVue).toContain("parallaxStyle");
     expect(indexVue).toContain("motion-reveal");
-    expect(indexVue).toContain("motion-stagger-item");
+  });
+
+  it("关键内容不进入场动画：h1 与记号不得被 entranceProps 包住（SSR 会内联 opacity:0）", () => {
+    // entranceProps 的初态是 opacity:0，靠客户端动画才显示；h1 一旦被包住，
+    // 动画没跑起来（减少动态 / 脚本异常 / 截图工具）就等于首页没有标题。
+    expect(indexVue).not.toContain("entranceProps");
+    expect(indexVue).not.toContain("useStaggerEntrance");
+    expect(indexVue).not.toContain("motion-stagger-item");
+    expect(indexVue).toMatch(/<h1 class="home-cover__title">/u);
   });
 
   it("视差只挂在图像层与装饰记号上（≤10px 由 composable 钳位）", () => {
@@ -314,7 +321,7 @@ describe("首屏版式复盘：窄高轮播面板 + 右栏线条场", () => {
   });
 
   it("轮播面板在大字下方并整体右移；大字仍然排在它前面（不能把 h1 挤到看不见）", () => {
-    const copyIndex = indexVue.indexOf('class="motion-stagger-item home-cover__copy"');
+    const copyIndex = indexVue.indexOf('class="home-cover__copy"');
     const panelIndex = indexVue.indexOf('class="home-cover__panel"');
     const carouselIndex = indexVue.indexOf("<BannerCarousel");
 
@@ -336,6 +343,13 @@ describe("首屏版式复盘：窄高轮播面板 + 右栏线条场", () => {
     expect(Number(minHeight)).toBeGreaterThanOrEqual(380);
     // 不再用 max-height 封顶，否则"拉高"会被上限吃掉。
     expect(panel).not.toContain("max-height");
+  });
+
+  it("面板底色与封面底同色，必须留一道内描边，否则空态看不出容器", () => {
+    const panel = blockAfter(indexVue, ".home-cover__panel {");
+
+    expect(panel).toContain("background: var(--color-surface-inverse)");
+    expect(panel).toContain("box-shadow: inset 0 0 0 1px var(--glass-rim)");
   });
 
   it("线条场压过面板（z-index 高于面板、低于标题），且只在宽屏出现", () => {

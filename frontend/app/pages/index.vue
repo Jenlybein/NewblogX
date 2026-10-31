@@ -7,7 +7,6 @@ import HomePinnedSection from "~/components/home/HomePinnedSection.vue";
 import HomeSidebar from "~/components/home/HomeSidebar.vue";
 import { useParallax } from "~/composables/useParallax";
 import { useSectionReveal } from "~/composables/useSectionReveal";
-import { useStaggerEntrance } from "~/composables/useStaggerEntrance";
 import { getTopArticles } from "~/services/article";
 import { searchArticles } from "~/services/search";
 import { getBannerList } from "~/services/site";
@@ -93,13 +92,13 @@ const topFailed = computed(() => Boolean(topRequestError.value));
 const latestFailed = computed(() => Boolean(latestRequestError.value));
 
 // 首屏封面的分层动效（ADR-0013 决策 9，全部归口 #23 的同一份预算）：
-//   · 装饰层（色带 / 网格刻度 / 线条场）走 useSectionReveal：只动 transform/opacity，位移 ≤12px；
-//   · 文字层（h1/记号）走 useStaggerEntrance：错峰 40ms；
-//   · 记号再加一条 useParallax：≤10px，reduced-motion 下两者都归零。
+//   · 装饰层（色带 / 网格刻度）走 useSectionReveal：只动 transform/opacity，位移 ≤12px；
+//   · 线条场自己从右端延展入场（见 heroLines / linesArmed）；
+//   · 文字层（h1/记号）**不做入场动画** —— 关键内容必须常显（详见模板里的注释）；
+//   · 记号挂一条 useParallax：≤10px，reduced-motion 下归零。
 // 首屏不自己写关键帧动画，也不对布局属性做过渡。
 const { target: coverRevealTarget, revealStyle } = useSectionReveal();
 const { parallaxStyle } = useParallax();
-const { entranceProps } = useStaggerEntrance();
 
 /**
  * 右栏线条场（纯装饰，aria-hidden）。
@@ -212,13 +211,15 @@ async function handleRetryLatest() {
 
       <!-- 4 超大 h1 在上；轮播是它下方偏右的面板，右栏线条场会压过面板 -->
       <div class="home-cover__inner">
-        <Motion v-bind="entranceProps(0)" class="motion-stagger-item home-cover__copy">
+        <!-- 关键内容不进入场动画：错峰入场的初态是 opacity:0（SSR 会内联），
+             标题一旦被包进去，动画没跑起来就等于整站首页没有 h1（减少动态的用户必现）。 -->
+        <div class="home-cover__copy">
           <div class="eyebrow home-cover__eyebrow">{{ BRAND.name.en }} · {{ BRAND.name.zh }}</div>
           <h1 class="home-cover__title">
             <span class="home-cover__title-name">{{ BRAND.name.en.toUpperCase() }}</span>
             <span class="home-cover__title-bracket">[{{ BRAND.name.zh }}]</span>
           </h1>
-        </Motion>
+        </div>
 
         <div class="home-cover__panel">
           <!-- 0 底图 + 1 罩层 + 6 控件：轮播作为大字下方的面板（≥2 张才出现玻璃胶囊控件） -->
@@ -245,7 +246,8 @@ async function handleRetryLatest() {
           />
         </div>
 
-        <Motion v-bind="entranceProps(1)" class="motion-stagger-item home-cover__aside">
+        <!-- 记号与刻度同样不进入场动画：它们是 aria-hidden 的装饰，但也没必要承担"可能不可见"的风险 -->
+        <div class="home-cover__aside">
           <ul class="home-cover__marks" aria-hidden="true">
             <li class="home-cover__mark home-cover__arrow motion-parallax" :style="parallaxStyle">↗</li>
             <li class="home-cover__mark home-cover__capsule">VOL. 01</li>
@@ -256,7 +258,7 @@ async function handleRetryLatest() {
               {{ tick }}
             </li>
           </ul>
-        </Motion>
+        </div>
       </div>
     </section>
 
@@ -432,6 +434,9 @@ async function handleRetryLatest() {
   min-height: clamp(380px, 50vh, 600px);
   border-radius: var(--radius-lg);
   background: var(--color-surface-inverse);
+  /* 面板底色和封面底同色：没有轮播图时会"看不出容器"。用玻璃边缘高光做一道内描边，
+     这样空态也是一块有边界的版面，而不是一张浮在黑底上的卡片。 */
+  box-shadow: inset 0 0 0 1px var(--glass-rim);
 }
 
 /* 线条场：铺满整个内层，因此 left < 44% 的线条会**压到轮播面板上**（用户要的凌乱感）。

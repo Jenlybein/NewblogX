@@ -57,16 +57,23 @@ export type SiteAiInfo = RequiredSchema<"internal_site_adapter_http.AIResponse">
  *
  * 与 `SiteRuntimeConfig` 一样是手写的：契约里这条 data 是自由键值块，
  * 派生不出逐字段类型。按 `backend/conf/conf_deco.go` 对齐 ——
- * 本票只有 `charm.enable` / `charm.logo_size` 两个参数，
- * 挂绳长度、节点数等留给票 #41。
+ * `charm` 下是总开关与五个数值参数（站标尺寸 + 票 #41 的四个物理参数）。
  *
  * 字段全都可选：读者站不能假设某个后台版本一定发出了哪些键，
- * 缺失时由 `clampCharmLogoSize` / 门控的默认值兜底。
+ * 缺失时由各参数的钳位函数 / 门控的默认值兜底。
  */
 export interface SiteDecoConfig {
   charm?: {
     enable?: boolean;
     logo_size?: number;
+    /** 挂绳长度，px，合法区间 40–240。 */
+    rope_length?: number;
+    /** Verlet 链节点数，节，合法区间 4–24。 */
+    segments?: number;
+    /** 重力加速度，px/s²，合法区间 400–4000。 */
+    gravity?: number;
+    /** 每步速度保持系数，无量纲，合法区间 0.94–0.995。 */
+    damping?: number;
   };
 }
 

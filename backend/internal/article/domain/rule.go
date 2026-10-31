@@ -31,6 +31,25 @@ func CanBeViewedBy(a *Article, viewer Viewer) bool {
 	return a.IsPubliclyVisible()
 }
 
+// CanBeSeenByReader 判断「显示非管理员发布文章」开关是否放过这篇（给这个人读）。
+//
+// 这是 CanBeViewedBy 之上的**第二层**过滤（ADR-0017 决策 4）：开关关闭
+// （onlyAdminAuthors 为真）时，作者不是管理员的文章在公开读面一律读不出来。
+// 三个入参都是纯布尔，domain 不读配置、不认识 site 段。
+//
+// 两处豁免，各自有理由：
+//   - 管理员作者的文章：开关只拦"非管理员作者"，与文章本身质量无关；
+//   - 作者本人：与"作者能看到自己的草稿"同一条道理——studio 编辑器用
+//     GET /articles/{id} 取正文，作者连自己的稿子都打不开就没法继续写。
+//     注意它**不是**管理员例外：管理员读者看别人的非管理员文章仍然 404
+//     （ADR-0017 明确不做前台管理员例外，读者站缓存键不区分身份）。
+func CanBeSeenByReader(onlyAdminAuthors bool, authorIsAdmin bool, isAuthor bool) bool {
+	if !onlyAdminAuthors {
+		return true
+	}
+	return authorIsAdmin || isAuthor
+}
+
 // CanBeEditedBy 判断 viewer 能否修改文章内容。
 //
 // 旧实现用 `id = ? AND author_id = ?` 直接查，所以只有作者本人；

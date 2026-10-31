@@ -12,7 +12,11 @@ import (
 //   - 不可见一律返回"文章不存在"（不区分"没有"与"无权"，避免探测草稿）；
 //   - 计数 = 库内快照 + 缓存增量；
 //   - 附带作者信息、分类名、标签、当前用户是否已赞/已收藏。
-func (s *Service) Detail(ctx context.Context, id domain.ArticleID, viewer domain.Viewer) (*ArticleView, error) {
+//
+// onlyAdminAuthors 是「显示非管理员发布文章」开关的反面，由 adapter 每请求
+// 从站点运行时配置现读后传入；开关关闭且作者不是管理员时同样返回"不存在"
+// （ADR-0017 决策 4，规则本身在 domain.CanBeSeenByReader）。
+func (s *Service) Detail(ctx context.Context, id domain.ArticleID, viewer domain.Viewer, onlyAdminAuthors bool) (*ArticleView, error) {
 	var view *ArticleView
 
 	err := s.tx.WithinTx(ctx, func(ctx context.Context, r Repos) error {
@@ -24,11 +28,20 @@ func (s *Service) Detail(ctx context.Context, id domain.ArticleID, viewer domain
 			return domain.ErrArticleNotFound
 		}
 
+		// 作者资料一次取全：既给可见性判定用（是否管理员），也给响应组装用。
+		author, err := r.Users().Profile(ctx, a.AuthorID())
+		if err != nil {
+			return err
+		}
+		if !domain.CanBeSeenByReader(onlyAdminAuthors, author.Admin, viewer.UserID == a.AuthorID()) {
+			return domain.ErrArticleNotFound
+		}
+
 		if err := enrichCounters(ctx, r, a); err != nil {
 			return err
 		}
 
-		v, err := buildView(ctx, r, a, viewer)
+		v, err := buildView(ctx, r, a, viewer, author)
 		if err != nil {
 			return err
 		}
@@ -150,12 +163,10 @@ func enrichCounters(ctx context.Context, r Repos, a *domain.Article) error {
 }
 
 // buildView 组装详情视图。
-func buildView(ctx context.Context, r Repos, a *domain.Article, viewer domain.Viewer) (*ArticleView, error) {
-	author, err := r.Users().Profile(ctx, a.AuthorID())
-	if err != nil {
-		return nil, err
-	}
-
+//
+// author 由调用方取好传进来：可见性判定（作者是否管理员）与响应组装
+// 需要同一份资料，取两次就是一次多余的查询。
+func buildView(ctx context.Context, r Repos, a *domain.Article, viewer domain.Viewer, author AuthorView) (*ArticleView, error) {
 	v := &ArticleView{Article: *a, Author: author}
 
 	if cm := a.CategoryID(); cm != nil {

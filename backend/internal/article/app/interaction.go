@@ -178,7 +178,11 @@ func (s *Service) RecordView(ctx context.Context, articleID domain.ArticleID, vi
 }
 
 // ListViewHistory 分页列出浏览历史。
-func (s *Service) ListViewHistory(ctx context.Context, viewer domain.Viewer, page domain.Page) ([]*viewhistory.Record, int64, error) {
+//
+// onlyAdminAuthors 是「显示非管理员发布文章」开关的反面：浏览历史同样属于
+// 公开读面，开关关闭时作者不是管理员的记录不再出现（ADR-0017 决策 4）。
+// 与收藏内容一致，过滤下推到查询层，保证 total 与可见条目对得上。
+func (s *Service) ListViewHistory(ctx context.Context, viewer domain.Viewer, page domain.Page, onlyAdminAuthors bool) ([]*viewhistory.Record, int64, error) {
 	if !viewer.IsLoggedIn() {
 		return nil, 0, domain.ErrForbidden
 	}
@@ -189,7 +193,7 @@ func (s *Service) ListViewHistory(ctx context.Context, viewer domain.Viewer, pag
 	err := s.tx.WithinTx(ctx, func(ctx context.Context, r Repos) error {
 		p := page.Normalize()
 		var err error
-		records, total, err = r.ViewHistory().List(ctx, viewer.UserID, p.Offset, p.Limit)
+		records, total, err = r.ViewHistory().List(ctx, viewer.UserID, p.Offset, p.Limit, onlyAdminAuthors)
 		return err
 	})
 	return records, total, err

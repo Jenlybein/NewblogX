@@ -322,7 +322,7 @@ func (h *Handler) FavoriteItems(c *gin.Context) {
 
 	offset := pageOffset(cr.Page, cr.Limit)
 	items, total, err := h.svc.ListFavoriteItems(c.Request.Context(), h.viewerOf(c),
-		favorite.ID(cr.FavorID), domain.Page{Offset: offset, Limit: cr.Limit})
+		favorite.ID(cr.FavorID), domain.Page{Offset: offset, Limit: cr.Limit}, h.onlyAdminAuthors())
 	if err != nil {
 		h.fail(c, err)
 		return
@@ -502,7 +502,7 @@ func (h *Handler) History(c *gin.Context) {
 
 	offset := pageOffset(cr.Page, cr.Limit)
 	records, total, err := h.svc.ListViewHistory(c.Request.Context(), h.viewerOf(c),
-		domain.Page{Offset: offset, Limit: cr.Limit})
+		domain.Page{Offset: offset, Limit: cr.Limit}, h.onlyAdminAuthors())
 	if err != nil {
 		h.fail(c, err)
 		return

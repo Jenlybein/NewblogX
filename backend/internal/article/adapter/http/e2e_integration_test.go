@@ -21,6 +21,7 @@ import (
 	"myblogx/internal/article/domain"
 	"myblogx/internal/article/domain/favorite"
 	"myblogx/internal/kernel/ctype"
+	sitecfg "myblogx/internal/platform/config"
 	redis_service "myblogx/internal/platform/redis"
 	"myblogx/internal/testkit/mysqlcontainer"
 	"myblogx/utils/jwts"
@@ -60,11 +61,21 @@ func newRouter(t *testing.T, db *gorm.DB, viewer domain.Viewer) *gin.Engine {
 // newRouterWithIDs 允许指定 ID 起点：golden 要可复现，ID 必须可预测。
 func newRouterWithIDs(t *testing.T, db *gorm.DB, viewer domain.Viewer, idStart uint64) *gin.Engine {
 	t.Helper()
+	return newRouterWithSite(t, db, viewer, idStart, nil)
+}
+
+// newRouterWithSite 额外允许注入站点运行时配置。
+//
+// site 为 nil 表示"没有配置服务"：handler 按默认值处理（发布与展示三开关都为
+// true），这也是 golden 走的那条路。需要验证「显示非管理员发布文章」关掉
+// 之后的读面行为时，传一份把 Article.ShowNonAdminArticles 置 false 的配置。
+func newRouterWithSite(t *testing.T, db *gorm.DB, viewer domain.Viewer, idStart uint64, site *sitecfg.RuntimeConfigService) *gin.Engine {
+	t.Helper()
 
 	uow := articlemysql.NewTxManager(db, redis_service.Options{}, nil /* 作者统计不在本测试断言范围 */)
 	svc := articleapp.New(uow, testClock{at: time.Date(2026, 1, 1, 12, 0, 0, 0, time.UTC)}, &testIDs{n: idStart})
 
-	h := articlehttp.NewHandler(svc, nil, nil, func(*gin.Context) domain.Viewer { return viewer }, nil)
+	h := articlehttp.NewHandler(svc, nil, site, func(*gin.Context) domain.Viewer { return viewer }, nil)
 
 	gin.SetMode(gin.TestMode)
 	r := gin.New()

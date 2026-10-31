@@ -23,7 +23,8 @@ type PwdLoginRequest struct {
 // SendEmailRequest 发送邮箱验证码。
 type SendEmailRequest struct {
 	// Type：1 注册、2 重置密码、3 绑定邮箱、4 邮箱登录。
-	Type  int8   `json:"type"`
+	// 越界值按参数错误拒绝（oneof），不要让它一路走到发信层才变成"邮件发送失败"。
+	Type  int8   `json:"type" binding:"required,oneof=1 2 3 4"`
 	Email string `json:"email" binding:"required,email"`
 }
 

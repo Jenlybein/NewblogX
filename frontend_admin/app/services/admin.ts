@@ -10,6 +10,7 @@ import type {
   ArticleSearchResponseData,
   ArticleYearDataResponseData,
   BannerModel,
+  BannerWritePayload,
   CdcEventRecord,
   DecoRuntimeConfig,
   GlobalNotifListItem,
@@ -172,8 +173,13 @@ export function getBanners(query: { page?: number; limit?: number; show?: boolea
   return api().request<HasMoreList<BannerModel>>('/banners', { query })
 }
 
-export function createBanner(payload: { cover_image_id?: string | null; href?: string; show?: boolean }) {
-  return api().request<unknown, typeof payload>('/banners', { method: 'POST', body: payload })
+export function createBanner(payload: BannerWritePayload) {
+  return api().request<unknown, BannerWritePayload>('/banners', { method: 'POST', body: payload })
+}
+
+/** 更新轮播（取景就靠它立即生效）。整体替换：href / show 也必须一起带上。 */
+export function updateBanner(id: string, payload: BannerWritePayload) {
+  return api().request<unknown, BannerWritePayload>(`/banners/${id}`, { method: 'PUT', body: payload })
 }
 
 export function deleteBanners(id_list: string[]) {

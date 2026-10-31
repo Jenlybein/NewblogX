@@ -146,6 +146,32 @@ func TestBannerLifecycle(t *testing.T) {
 	}
 }
 
+// TestRemoveBannerClearsCropRecord 钉住假件与 MySQL 实现的一致：
+// MySQL 在删除 banner 时会把对应的 crop 行一起删掉，内存替身也必须清。
+func TestRemoveBannerClearsCropRecord(t *testing.T) {
+	env := newEnv()
+	ctx := context.Background()
+	env.Images.Put(11, "/a.png")
+
+	crop := domain.Crop{FocusX: 0.2, FocusY: 0.8, Zoom: 1.5}
+	in := apptestInput(11, "/a", true)
+	in.Crop = &crop
+	created, err := env.Service.CreateBanner(ctx, in)
+	if err != nil {
+		t.Fatalf("创建轮播图失败: %v", err)
+	}
+	if !env.Banners.HasCrop(created.ID.Uint64()) {
+		t.Fatal("创建后应存在取景记录")
+	}
+
+	if _, err := env.Service.RemoveBanners(ctx, []uint64{created.ID.Uint64()}); err != nil {
+		t.Fatalf("删除轮播图失败: %v", err)
+	}
+	if env.Banners.HasCrop(created.ID.Uint64()) {
+		t.Fatal("删除 banner 后取景记录应被清除（与 MySQL 实现一致）")
+	}
+}
+
 func TestBannerRejectsUnavailableImage(t *testing.T) {
 	env := newEnv()
 	ctx := context.Background()
@@ -172,6 +198,251 @@ func TestBannerUpdateMissing(t *testing.T) {
 // apptestInput 构造轮播图入参。
 func apptestInput(imageID uint64, href string, show bool) app.BannerInput {
 	return app.BannerInput{CoverImageID: ctype.NewID(imageID), Href: href, Show: show}
+}
+
+// ── 取景参数（焦点 + 缩放）──────────────────────────────────────
+
+// TestCreateBannerDefaultsCropToCenter 钉住"没有取景记录 = 居中、缩放 1"。
+//
+// 历史图（取景表里没有行）与"新建时没传取景"走的是同一条缺省分支；
+// 一旦缺省值被改成 0/0 或 zoom 0，首屏裁切会整个塌掉。
+func TestCreateBannerDefaultsCropToCenter(t *testing.T) {
+	env := newEnv()
+	ctx := context.Background()
+	env.Images.Put(11, "/a.png")
+
+	created, err := env.Service.CreateBanner(ctx, apptestInput(11, "/a", true))
+	if err != nil {
+		t.Fatalf("创建轮播图失败: %v", err)
+	}
+	assertCrop(t, "创建返回", created.Crop, domain.DefaultCrop)
+
+	rows, _, err := env.Service.ListBanners(ctx, domain.BannerQuery{Show: true})
+	if err != nil {
+		t.Fatalf("查列表失败: %v", err)
+	}
+	if len(rows) != 1 {
+		t.Fatalf("应有 1 条轮播图，得到 %d", len(rows))
+	}
+	assertCrop(t, "列表回传", rows[0].Crop, domain.DefaultCrop)
+}
+
+// assertCrop 比对取景参数（浮点直接比：这些值都是字面量写入，不经过运算）。
+func assertCrop(t *testing.T, where string, got, want domain.Crop) {
+	t.Helper()
+	if got != want {
+		t.Fatalf("%s的取景参数应为 %+v，得到 %+v", where, want, got)
+	}
+}
+
+// TestCreateBannerStoresCrop 钉住"传了取景就按传的存、列表原样回传"。
+func TestCreateBannerStoresCrop(t *testing.T) {
+	env := newEnv()
+	ctx := context.Background()
+	env.Images.Put(11, "/a.png")
+
+	want := domain.Crop{FocusX: 0.2, FocusY: 0.8, Zoom: 1.5}
+	in := apptestInput(11, "/a", true)
+	in.Crop = &want
+
+	created, err := env.Service.CreateBanner(ctx, in)
+	if err != nil {
+		t.Fatalf("创建轮播图失败: %v", err)
+	}
+	assertCrop(t, "创建返回", created.Crop, want)
+
+	rows, _, err := env.Service.ListBanners(ctx, domain.BannerQuery{Show: true})
+	if err != nil {
+		t.Fatalf("查列表失败: %v", err)
+	}
+	if len(rows) != 1 {
+		t.Fatalf("应有 1 条轮播图，得到 %d", len(rows))
+	}
+	assertCrop(t, "列表回传", rows[0].Crop, want)
+}
+
+// TestBannerWithoutCropRecordFallsBackToDefault 钉住历史数据：
+// 取景表里没有这一行，读出来必须是缺省，而不是零值（零值等于焦点贴左上角、缩放 0）。
+func TestBannerWithoutCropRecordFallsBackToDefault(t *testing.T) {
+	env := newEnv()
+	ctx := context.Background()
+	env.Images.Put(11, "/a.png")
+
+	want := domain.Crop{FocusX: 0.1, FocusY: 0.9, Zoom: 2}
+	in := apptestInput(11, "/historical", true)
+	in.Crop = &want
+	created, err := env.Service.CreateBanner(ctx, in)
+	if err != nil {
+		t.Fatalf("创建轮播图失败: %v", err)
+	}
+	// 模拟加取景之前就存在的图：banner 行在，取景表里没有对应行。
+	env.Banners.DropCrop(created.ID.Uint64())
+
+	rows, _, err := env.Service.ListBanners(ctx, domain.BannerQuery{Show: true})
+	if err != nil {
+		t.Fatalf("查列表失败: %v", err)
+	}
+	if len(rows) != 1 {
+		t.Fatalf("应有 1 条轮播图，得到 %d", len(rows))
+	}
+	assertCrop(t, "无取景记录时", rows[0].Crop, domain.DefaultCrop)
+}
+
+// TestUpdateBannerReplacesCrop 钉住"重新取景"这条路：更新立即生效。
+func TestUpdateBannerReplacesCrop(t *testing.T) {
+	env := newEnv()
+	ctx := context.Background()
+	env.Images.Put(11, "/a.png")
+	env.Images.Put(12, "/b.png")
+
+	created, err := env.Service.CreateBanner(ctx, apptestInput(11, "/a", true))
+	if err != nil {
+		t.Fatalf("创建轮播图失败: %v", err)
+	}
+
+	want := domain.Crop{FocusX: 0.35, FocusY: 0.65, Zoom: 1.25}
+	in := apptestInput(12, "/b", true)
+	in.Crop = &want
+	if err := env.Service.UpdateBanner(ctx, created.ID.Uint64(), in); err != nil {
+		t.Fatalf("更新轮播图失败: %v", err)
+	}
+
+	rows, _, err := env.Service.ListBanners(ctx, domain.BannerQuery{Show: true})
+	if err != nil {
+		t.Fatalf("查列表失败: %v", err)
+	}
+	assertCrop(t, "更新后", rows[0].Crop, want)
+	if rows[0].Cover != "/b.png" {
+		t.Fatalf("封面应一起更新，得到 %q", rows[0].Cover)
+	}
+}
+
+// TestBannerRejectsOutOfRangeCrop 钉住"越界就拒绝，不静默钳制"。
+//
+// 钳制看起来更"友好"，但它把运营的意图悄悄改掉了：拖到边上的人以为
+// 焦点就在边上，实际被改成 0.5，而阅读站露出的又是另一块。
+func TestBannerRejectsOutOfRangeCrop(t *testing.T) {
+	ctx := context.Background()
+	cases := []struct {
+		name string
+		crop domain.Crop
+	}{
+		{"焦点 x 小于 0", domain.Crop{FocusX: -0.01, FocusY: 0.5, Zoom: 1}},
+		{"焦点 x 大于 1", domain.Crop{FocusX: 1.01, FocusY: 0.5, Zoom: 1}},
+		{"焦点 y 小于 0", domain.Crop{FocusX: 0.5, FocusY: -0.01, Zoom: 1}},
+		{"焦点 y 大于 1", domain.Crop{FocusX: 0.5, FocusY: 1.01, Zoom: 1}},
+		{"缩放小于 1", domain.Crop{FocusX: 0.5, FocusY: 0.5, Zoom: 0.99}},
+		{"缩放大于 2", domain.Crop{FocusX: 0.5, FocusY: 0.5, Zoom: 2.01}},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			env := newEnv()
+			env.Images.Put(11, "/a.png")
+			in := apptestInput(11, "/a", true)
+			crop := c.crop
+			in.Crop = &crop
+
+			_, err := env.Service.CreateBanner(ctx, in)
+			if !apperr.IsCode(err, apperr.CodeBannerCropInvalid) {
+				t.Fatalf("越界取景应被拒绝，得到 %v", err)
+			}
+			if got := len(env.Banners.All()); got != 0 {
+				t.Fatalf("越界时不该落库，实际建出 %d 条", got)
+			}
+
+			// 更新同样要拦：否则可以先建一张居中的图，再用越界参数改坏它。
+			created, err := env.Service.CreateBanner(ctx, apptestInput(11, "/ok", true))
+			if err != nil {
+				t.Fatalf("创建对照组失败: %v", err)
+			}
+			if err := env.Service.UpdateBanner(ctx, created.ID.Uint64(), in); !apperr.IsCode(err, apperr.CodeBannerCropInvalid) {
+				t.Fatalf("更新时越界取景也应被拒绝，得到 %v", err)
+			}
+			rows, _, err := env.Service.ListBanners(ctx, domain.BannerQuery{Show: true})
+			if err != nil {
+				t.Fatalf("查列表失败: %v", err)
+			}
+			assertCrop(t, "被拒绝的更新不该改动已存的取景", rows[0].Crop, domain.DefaultCrop)
+		})
+	}
+}
+
+// TestBannerAcceptsCropBoundaries 钉住闭区间：0 与 1 上的焦点、1 与 2 的缩放都合法。
+func TestBannerAcceptsCropBoundaries(t *testing.T) {
+	ctx := context.Background()
+	cases := []struct {
+		name string
+		crop domain.Crop
+	}{
+		{"左上角不放大", domain.Crop{FocusX: 0, FocusY: 0, Zoom: 1}},
+		{"右下角放大两倍", domain.Crop{FocusX: 1, FocusY: 1, Zoom: 2}},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			env := newEnv()
+			env.Images.Put(11, "/a.png")
+			in := apptestInput(11, "/a", true)
+			crop := c.crop
+			in.Crop = &crop
+
+			created, err := env.Service.CreateBanner(ctx, in)
+			if err != nil {
+				t.Fatalf("边界值应被接受: %v", err)
+			}
+			assertCrop(t, "创建返回", created.Crop, c.crop)
+		})
+	}
+}
+
+// TestUpdateBannerWithoutCropKeepsFraming 钉住更新时的部分更新语义：
+// 不传取景就保留已存的取景，而不是重置成居中 —— 老后台改一个链接不该抹掉取景。
+func TestUpdateBannerWithoutCropKeepsFraming(t *testing.T) {
+	env := newEnv()
+	ctx := context.Background()
+	env.Images.Put(11, "/a.png")
+
+	custom := domain.Crop{FocusX: 0.2, FocusY: 0.3, Zoom: 1.8}
+	in := apptestInput(11, "/a", true)
+	in.Crop = &custom
+	created, err := env.Service.CreateBanner(ctx, in)
+	if err != nil {
+		t.Fatalf("创建轮播图失败: %v", err)
+	}
+
+	if err := env.Service.UpdateBanner(ctx, created.ID.Uint64(), apptestInput(11, "/a2", true)); err != nil {
+		t.Fatalf("更新轮播图失败: %v", err)
+	}
+
+	rows, _, err := env.Service.ListBanners(ctx, domain.BannerQuery{Show: true})
+	if err != nil {
+		t.Fatalf("查列表失败: %v", err)
+	}
+	assertCrop(t, "不传取景时应保留原取景", rows[0].Crop, custom)
+}
+
+// TestUpdateBannerWithCropReplacesFraming 钉住另一端：传了就整体替换（重新取景这条路）。
+func TestUpdateBannerWithCropReplacesFraming(t *testing.T) {
+	env := newEnv()
+	ctx := context.Background()
+	env.Images.Put(11, "/a.png")
+
+	created, err := env.Service.CreateBanner(ctx, apptestInput(11, "/a", true))
+	if err != nil {
+		t.Fatalf("创建轮播图失败: %v", err)
+	}
+
+	next := domain.Crop{FocusX: 0.8, FocusY: 0.15, Zoom: 1.6}
+	in := apptestInput(11, "/a2", true)
+	in.Crop = &next
+	if err := env.Service.UpdateBanner(ctx, created.ID.Uint64(), in); err != nil {
+		t.Fatalf("更新轮播图失败: %v", err)
+	}
+
+	rows, _, err := env.Service.ListBanners(ctx, domain.BannerQuery{Show: true})
+	if err != nil {
+		t.Fatalf("查列表失败: %v", err)
+	}
+	assertCrop(t, "传了取景时应整体替换", rows[0].Crop, next)
 }
 
 // ── 新增的五个配置段 ────────────────────────────────────────────

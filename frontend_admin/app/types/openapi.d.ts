@@ -5301,8 +5301,12 @@ export interface components {
         };
         "internal_auth_adapter_http.SendEmailRequest": {
             email: string;
-            /** @description Type：1 注册、2 重置密码、3 绑定邮箱、4 邮箱登录。 */
-            type?: number;
+            /**
+             * @description Type：1 注册、2 重置密码、3 绑定邮箱、4 邮箱登录。
+             *     越界值按参数错误拒绝（oneof），不要让它一路走到发信层才变成"邮件发送失败"。
+             * @enum {integer}
+             */
+            type: 1 | 2 | 3 | 4;
         };
         "internal_auth_adapter_http.SendEmailResponse": {
             id?: string;
@@ -5472,20 +5476,36 @@ export interface components {
         };
         "internal_site_adapter_http.BannerCreateRequest": {
             cover_image_id: string;
+            /**
+             * @description Crop 是可选取景参数。可选是为了让老调用方（还没接取景的后台）照旧能用。
+             *
+             *     两种语义不同，别写混：
+             *       · 创建：不传 = 缺省（居中、缩放 1）—— 新建必须有一条确定的取景；
+             *       · 更新：不传 = **保留已存的取景** —— 否则改一个跳转链接就会静默抹掉运营调好的构图。
+             */
+            crop?: components["schemas"]["internal_site_adapter_http.BannerCrop"];
             href?: string;
             show?: boolean;
         };
         "internal_site_adapter_http.BannerCreateResponse": {
             cover?: string;
             cover_image_id?: string;
+            crop?: components["schemas"]["internal_site_adapter_http.BannerCrop"];
             href?: string;
             id?: string;
             show?: boolean;
+        };
+        "internal_site_adapter_http.BannerCrop": {
+            focus_x?: number;
+            focus_y?: number;
+            zoom?: number;
         };
         "internal_site_adapter_http.BannerItem": {
             cover?: string;
             cover_image_id?: string;
             created_at?: string;
+            /** @description Crop 总是有值：没有取景记录的历史图回传缺省（居中、缩放 1）。 */
+            crop?: components["schemas"]["internal_site_adapter_http.BannerCrop"];
             deleted_at?: string;
             href?: string;
             id?: string;

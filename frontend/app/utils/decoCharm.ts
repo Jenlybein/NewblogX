@@ -367,10 +367,10 @@ function substep(state: CharmRopeState, head: CharmPoint): void {
 
   const gravityStep = config.gravity * CHARM_FIXED_STEP_SECONDS * CHARM_FIXED_STEP_SECONDS;
 
-  // 静止轻晃：自由端的横向加速度，按 `idle_sway_hz` 做正弦。权重随节点
-  // 序号增大（尾端最大），所以它把链"拉弯"，而不是整层平移 —— 指针端
-  // 每步都被钉死，平移在这里没有意义。幅度为 0 时这一项恒等于 0，
-  // 物理就回到纯重力 + 阻尼，可以正常收敛。
+  // 静止轻晃：每个自由节点都受到**同一个**横向加速度，按 `idle_sway_hz` 做正弦。
+  // 没有逐节点权重（尾端不会更大）；但指针端每步都被钉死，所以整条链是被
+  // 距离约束"拉弯 / 侧摆"，而不是整层平移（平移在这里没有意义）。幅度为 0
+  // 时这一项恒等于 0，物理就回到纯重力 + 阻尼，可以正常收敛。
   const swayPhase = 2 * Math.PI * config.idleSwayHz * state.elapsedSeconds;
   const swayAccel = config.idleSwayAmp * Math.sin(swayPhase);
   const swayStep = swayAccel * CHARM_FIXED_STEP_SECONDS * CHARM_FIXED_STEP_SECONDS;

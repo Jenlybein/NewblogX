@@ -16,6 +16,7 @@ import type {
   GlobalNotifListItem,
   GrowthDataResponseData,
   HasMoreList,
+  HotTopAdminItem,
   DeadLetterListData,
   DeadLetterReplayResult,
   ImageListResponseData,
@@ -115,6 +116,39 @@ export function setArticleAdminVisibility(articleId: string, visibility: 'hide' 
 
 export function deleteAdminArticles(id_list: string[]) {
   return api().request<unknown, { id_list: string[] }>('/articles', { method: 'DELETE', body: { id_list } })
+}
+
+// ── 热门置顶（运营位，ADR-0017 决策 5）────────────────────────
+//
+// 唯一真相是 `article_hot_top_models`，与 ES 无关。后台两处消费：
+// 文章管理列表的行内开关、热门置顶页的排序 / 清理。
+
+/** 后台置顶序列：含序号与 stale 行（公开接口 `/articles/hot-top` 只在有数据时才返回）。 */
+export function getAdminHotTop() {
+  return api().request<ListData<HotTopAdminItem>>('/articles/hot-top/admin')
+}
+
+/** 置顶一篇文章（幂等：已置顶再调不会产生第二行）。 */
+export function addArticleHotTop(articleId: string) {
+  return api().request<unknown>(`/articles/${articleId}/admin/hot-top`, { method: 'POST' })
+}
+
+/** 取消置顶（幂等）；后端会把余下序号压实。 */
+export function removeArticleHotTop(articleId: string) {
+  return api().request<unknown>(`/articles/${articleId}/admin/hot-top`, { method: 'DELETE' })
+}
+
+/**
+ * 全量替换置顶顺序。
+ *
+ * 传的是**完整**序列（失效项也算）：后端在提交集合与库里的集合不一致时直接拒绝，
+ * 所以先在上移/下移后拿最新列表再提交，别只传变化的两条。
+ */
+export function updateHotTopOrder(articleIds: string[]) {
+  return api().request<unknown, { article_ids: string[] }>('/articles/hot-top/order', {
+    method: 'PATCH',
+    body: { article_ids: articleIds },
+  })
 }
 
 export function getSiteRuntimeConfig() {

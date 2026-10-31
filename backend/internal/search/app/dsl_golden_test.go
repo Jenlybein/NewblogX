@@ -38,6 +38,9 @@ func TestSearchDSLGolden(t *testing.T) {
 		req     domain.Request
 		viewer  *domain.Viewer
 		likeTag []ctype.ID
+		// onlyAdminAuthors 对应 site.article.show_non_admin_articles 关闭。
+		// 既有用例一律 false（开关默认开），所以它们的 golden 字节不变。
+		onlyAdminAuthors bool
 	}{
 		{
 			name: "type1-公共搜索-默认排序",
@@ -98,6 +101,26 @@ func TestSearchDSLGolden(t *testing.T) {
 			req:    domain.Request{Type: 5, Sort: 4, PageMode: domain.PageModeCount, Status: domain.StatusDraft},
 			viewer: admin,
 		},
+		// ── 显示开关关闭（ADR-0017 决策 4）：公开读面加 author_is_admin 过滤 ──
+		{
+			name:             "type1-公共搜索-显示开关关闭（只出管理员作者）",
+			req:              domain.Request{Type: 1, Sort: 1, PageMode: domain.PageModeCount, Key: "golang"},
+			onlyAdminAuthors: true,
+		},
+		{
+			// 作者页保留、列表空态：过滤条件加在 author_id 之后，作者页无需单独处理。
+			name:             "type3-作者文章-显示开关关闭（作者页列表为空）",
+			req:              domain.Request{Type: 3, Sort: 2, PageMode: domain.PageModeCount, AuthorID: ctype.NewID(100)},
+			viewer:           user,
+			onlyAdminAuthors: true,
+		},
+		{
+			// 后台不过滤：同一条 type5 请求，带上开关也**不能**出现 author_is_admin。
+			name:             "type5-管理员后台-显示开关关闭照旧（不过滤）",
+			req:              domain.Request{Type: 5, Sort: 1, PageMode: domain.PageModeCount},
+			viewer:           admin,
+			onlyAdminAuthors: true,
+		},
 	}
 
 	for _, c := range cases {
@@ -105,7 +128,9 @@ func TestSearchDSLGolden(t *testing.T) {
 		t.Run(c.name, func(t *testing.T) {
 			t.Parallel()
 
-			req, err := normalize(c.req, c.viewer)
+			req := c.req
+			req.OnlyAdminAuthors = c.onlyAdminAuthors
+			req, err := normalize(req, c.viewer)
 			if err != nil {
 				t.Fatalf("请求应通过归一化: %v", err)
 			}

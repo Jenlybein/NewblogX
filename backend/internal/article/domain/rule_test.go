@@ -228,6 +228,44 @@ func TestToggleCommentsPermission(t *testing.T) {
 	}
 }
 
+// TestCanBeSeenByReader 是「显示非管理员发布文章」开关的读面规则矩阵。
+//
+// ADR-0017 决策 4：开关关闭（onlyAdminAuthors 为真）时，作者不是管理员的文章
+// 在公开读面一律读不出来（详情按"不存在"处理）。两处豁免：管理员作者的文章，
+// 以及作者本人（studio 用同一个详情接口取正文）。
+// 开关状态由 adapter 从站点运行时配置现读后传入，domain 不读配置，所以这里
+// 只穷举 (开关, 作者是否管理员, 读者是否作者本人) 三个维度。
+func TestCanBeSeenByReader(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		name             string
+		onlyAdminAuthors bool
+		authorIsAdmin    bool
+		isAuthor         bool
+		want             bool
+	}{
+		{name: "开关打开×管理员作者×路人", onlyAdminAuthors: false, authorIsAdmin: true, want: true},
+		{name: "开关打开×普通作者×路人", onlyAdminAuthors: false, want: true},
+		{name: "开关关闭×管理员作者×路人", onlyAdminAuthors: true, authorIsAdmin: true, want: true},
+		{name: "开关关闭×普通作者×路人", onlyAdminAuthors: true, want: false},
+		{name: "开关关闭×普通作者×作者本人", onlyAdminAuthors: true, isAuthor: true, want: true},
+		{name: "开关打开×普通作者×作者本人", onlyAdminAuthors: false, isAuthor: true, want: true},
+	}
+	for _, c := range cases {
+		c := c
+		t.Run(c.name, func(t *testing.T) {
+			t.Parallel()
+			if got := domain.CanBeSeenByReader(c.onlyAdminAuthors, c.authorIsAdmin, c.isAuthor); got != c.want {
+				t.Fatalf("CanBeSeenByReader(%v, %v, %v) = %v, want %v",
+					c.onlyAdminAuthors, c.authorIsAdmin, c.isAuthor, got, c.want)
+			}
+		})
+	}
+}
+
+// ── 写作开关（#64）──
+
 // writeAction 是权限矩阵里的一行"写动作"，needs 说明它归哪个开关管。
 type writeAction struct {
 	name string

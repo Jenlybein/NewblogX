@@ -52,6 +52,8 @@ func WireAI(infra *Infra) {
 			counters: searchredis.NewCounters(redisOptions),
 			esClient: infra.ESClient,
 			index:    infra.Config.ES.Index,
+			// AI 搜索复用 type 1，因此同样受「显示非管理员发布文章」开关约束。
+			onlyAdminAuthors: onlyAdminAuthors(infra.RuntimeSite),
 		},
 		func() conf.AI {
 			if infra.RuntimeSite == nil {
@@ -113,11 +115,14 @@ func installCallReporter(infra *Infra) {
 
 // aiSearcher 把 search 模块的用例适配成 AI 模块的搜索端口。
 //
-// AI 搜索是匿名搜索（不关心 viewer 与偏好标签），所以中间两个参数固定为 nil。
+// AI 搜索是匿名搜索（不关心 viewer 与偏好标签），所以中间两个参数固定为 nil；
+// 但「显示非管理员发布文章」开关依旧生效（AI 搜出来的是公开读面）。
 type aiSearcher struct {
 	counters searchdomain.CounterReader
 	esClient *elasticsearch.Client
 	index    string
+	// onlyAdminAuthors 现读显示开关的反面（见 app.onlyAdminAuthors）。
+	onlyAdminAuthors func() bool
 }
 
 var _ domain.Searcher = (*aiSearcher)(nil)
@@ -125,5 +130,8 @@ var _ domain.Searcher = (*aiSearcher)(nil)
 // Search 实现 domain.Searcher。
 func (s *aiSearcher) Search(ctx context.Context, req searchdomain.Request) (searchdomain.Response, error) {
 	_ = ctx
+	if s.onlyAdminAuthors != nil {
+		req.OnlyAdminAuthors = s.onlyAdminAuthors()
+	}
 	return searchapp.Search(req, nil, nil, s.counters, s.esClient, s.index)
 }

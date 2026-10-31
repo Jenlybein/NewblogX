@@ -70,8 +70,9 @@ func newRouterWithIDs(t *testing.T, db *gorm.DB, viewer domain.Viewer, idStart u
 
 // newRouterWithSite 与 newRouterWithIDs 相同，但注入一份站点运行时配置。
 //
-// 传 nil 表示"读不到站点配置"：handler 按开关默认值（全开）兜底，
-// 这也是 golden 用例的装配方式。
+// 传 nil 表示"读不到站点配置"：handler 按开关默认值（发布与展示三开关全开）兜底，
+// 这也是 golden 用例的装配方式。需要验证「显示非管理员发布文章」关掉之后的
+// 读面行为时，传一份把 Article.ShowNonAdminArticles 置 false 的配置。
 func newRouterWithSite(
 	t *testing.T,
 	db *gorm.DB,

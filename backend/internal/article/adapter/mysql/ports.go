@@ -8,6 +8,7 @@ import (
 	"myblogx/internal/article/app"
 	"myblogx/internal/article/domain"
 	"myblogx/internal/kernel/ctype"
+	"myblogx/internal/kernel/enum"
 )
 
 // authorStats 是 app.AuthorStatsPort 的实现。
@@ -104,6 +105,7 @@ func toAuthorView(m userRow) app.AuthorView {
 		Avatar:    m.Avatar,
 		Abstract:  m.Abstract,
 		CreatedAt: m.CreatedAt,
+		Admin:     enum.RoleType(m.Role) == enum.RoleAdmin,
 	}
 }
 

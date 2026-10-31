@@ -6,13 +6,11 @@ import (
 	"errors"
 	"math"
 	"strings"
-	"time"
 
 	"myblogx/internal/apperr"
 	"myblogx/internal/kernel/ctype"
 	es_service "myblogx/internal/platform/es"
 	"myblogx/internal/search/domain"
-	"myblogx/utils/markdown"
 
 	"github.com/elastic/go-elasticsearch/v7"
 )
@@ -99,6 +97,13 @@ func buildDSL(req domain.Request, viewer *domain.Viewer, likeTagIDs []ctype.ID) 
 		return nil, apperr.New(apperr.CodeSearchTypeInvalid)
 	}
 
+	// 「显示非管理员发布文章」开关关闭时，公开读面只保留管理员作者的文章
+	// （ADR-0017 决策 4）。type 4（自己的文章）与 type 5（后台）刻意不过滤：
+	// 作者要能继续编辑自己的稿子，管理员要能在后台看到全部内容。
+	if req.OnlyAdminAuthors && isPublicReadType(req.Type) {
+		query = adminAuthorQuery(query)
+	}
+
 	if len(req.TagIDs) > 0 {
 		query = tagIDsQuery(query, req.TagIDs)
 	} else if len(req.LegacyTagList) > 0 {
@@ -122,6 +127,28 @@ func publishedFilter() map[string]any {
 
 func visibleFilter() map[string]any {
 	return map[string]any{"term": map[string]any{"visibility_status": domain.VisibilityVisible}}
+}
+
+// isPublicReadType 判断某个 type 是不是"公开读面"。
+//
+// 1 公共搜索（首页 / 搜索 / 标签 / 分类 / AI 搜索）、2 猜你喜欢、3 作者文章。
+// 4 自己的文章与 5 管理员后台不是公开读面，不受显示开关影响。
+func isPublicReadType(articleType int8) bool {
+	return articleType == 1 || articleType == 2 || articleType == 3
+}
+
+// adminAuthorQuery 追加"作者是管理员"的过滤。
+//
+// 字段 author_is_admin 是作者角色在 ES 文档里的投影（由 CDC 按 user_models.role
+// 重算），所以开关关掉之后不需要回库查作者角色，也不存在"文章数与实际不符"。
+func adminAuthorQuery(query map[string]any) map[string]any {
+	boolQuery, ok := extractBool(query)
+	if !ok {
+		return query
+	}
+	filters, _ := boolQuery["filter"].([]any)
+	boolQuery["filter"] = append(filters, map[string]any{"term": map[string]any{"author_is_admin": true}})
+	return query
 }
 
 func selfQuery(key string, userID ctype.ID, status domain.ArticleStatus) map[string]any {
@@ -591,197 +618,4 @@ func resolveIndex(index string) string {
 		return defaultArticleIndex
 	}
 	return clean
-}
-
-// ── ES _source 取值（容忍 ES 返回的数字/字符串类型差异） ──
-
-func sourceID(source map[string]any, key string) ctype.ID {
-	switch value := source[key].(type) {
-	case ctype.ID:
-		return value
-	case string:
-		var id ctype.ID
-		if err := id.UnmarshalText([]byte(value)); err != nil {
-			return ""
-		}
-		return id
-	default:
-		return ""
-	}
-}
-
-func sourceInt(source map[string]any, key string) int {
-	switch value := source[key].(type) {
-	case int:
-		return value
-	case int8:
-		return int(value)
-	case int16:
-		return int(value)
-	case int32:
-		return int(value)
-	case int64:
-		return int(value)
-	case uint:
-		return int(value)
-	case uint8:
-		return int(value)
-	case uint16:
-		return int(value)
-	case uint32:
-		return int(value)
-	case uint64:
-		return int(value)
-	case float32:
-		return int(value)
-	case float64:
-		return int(value)
-	case json.Number:
-		if parsed, err := value.Int64(); err == nil {
-			return int(parsed)
-		}
-		return 0
-	default:
-		return 0
-	}
-}
-
-func sourceString(source map[string]any, key string) string {
-	value, _ := source[key].(string)
-	return value
-}
-
-func sourceBool(source map[string]any, key string) bool {
-	switch value := source[key].(type) {
-	case bool:
-		return value
-	case int:
-		return value != 0
-	case int8:
-		return value != 0
-	case int16:
-		return value != 0
-	case int32:
-		return value != 0
-	case int64:
-		return value != 0
-	case uint:
-		return value != 0
-	case uint8:
-		return value != 0
-	case uint16:
-		return value != 0
-	case uint32:
-		return value != 0
-	case uint64:
-		return value != 0
-	case float32:
-		return value != 0
-	case float64:
-		return value != 0
-	case json.Number:
-		if parsed, err := value.Int64(); err == nil {
-			return parsed != 0
-		}
-		return false
-	default:
-		return false
-	}
-}
-
-func sourceTime(source map[string]any, key string) time.Time {
-	switch value := source[key].(type) {
-	case time.Time:
-		return value
-	case string:
-		if parsed, err := time.Parse(time.RFC3339Nano, value); err == nil {
-			return parsed
-		}
-		if parsed, err := time.Parse(time.RFC3339, value); err == nil {
-			return parsed
-		}
-	}
-	return time.Time{}
-}
-
-func sourceFloat(source map[string]any, key string) float64 {
-	switch value := source[key].(type) {
-	case float64:
-		return value
-	case float32:
-		return float64(value)
-	case int:
-		return float64(value)
-	case int64:
-		return float64(value)
-	case json.Number:
-		if parsed, err := value.Float64(); err == nil {
-			return parsed
-		}
-		return 0
-	default:
-		return 0
-	}
-}
-
-func sourceStringSlice(source map[string]any, key string) []string {
-	switch value := source[key].(type) {
-	case []string:
-		return append([]string(nil), value...)
-	case []any:
-		out := make([]string, 0, len(value))
-		for _, item := range value {
-			if text, ok := item.(string); ok {
-				out = append(out, text)
-			}
-		}
-		return out
-	default:
-		return nil
-	}
-}
-
-func sourceContentParts(source map[string]any, key string) []markdown.ContentPart {
-	rawList, ok := source[key].([]any)
-	if !ok {
-		return nil
-	}
-	out := make([]markdown.ContentPart, 0, len(rawList))
-	for _, raw := range rawList {
-		itemMap, ok := raw.(map[string]any)
-		if !ok {
-			continue
-		}
-		part := markdown.ContentPart{
-			Level: sourceInt(itemMap, "level"),
-			Title: sourceString(itemMap, "title"),
-			Path:  sourceStringSlice(itemMap, "path"),
-		}
-		if part.Title == "" && part.Content == "" && len(part.Path) == 0 && part.Order == 0 && part.Level == 0 {
-			continue
-		}
-		out = append(out, part)
-	}
-	return out
-}
-
-func sourceTags(source map[string]any, key string) []domain.Tag {
-	rawList, ok := source[key].([]any)
-	if !ok {
-		return nil
-	}
-	out := make([]domain.Tag, 0, len(rawList))
-	for _, raw := range rawList {
-		itemMap, ok := raw.(map[string]any)
-		if !ok {
-			continue
-		}
-		title := sourceString(itemMap, "title")
-		id := sourceID(itemMap, "id")
-		if title == "" && id.IsZero() {
-			continue
-		}
-		out = append(out, domain.Tag{ID: id, Title: title})
-	}
-	return out
 }

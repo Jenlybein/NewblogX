@@ -1,0 +1,129 @@
+{
+  "_source": [
+    "id",
+    "created_at",
+    "updated_at",
+    "title",
+    "abstract",
+    "cover",
+    "view_count",
+    "digg_count",
+    "comment_count",
+    "favor_count",
+    "comments_toggle",
+    "publish_status",
+    "visibility_status",
+    "tags",
+    "author_id",
+    "author",
+    "author_is_admin",
+    "category_id",
+    "category"
+  ],
+  "from": 0,
+  "highlight": {
+    "fields": {},
+    "post_tags": [
+      "\u003c/em\u003e"
+    ],
+    "pre_tags": [
+      "\u003cem\u003e"
+    ]
+  },
+  "query": {
+    "function_score": {
+      "boost_mode": "sum",
+      "functions": [
+        {
+          "gauss": {
+            "created_at": {
+              "decay": 0.5,
+              "offset": "7d",
+              "origin": "now",
+              "scale": "30d"
+            }
+          },
+          "weight": 0.22
+        },
+        {
+          "field_value_factor": {
+            "field": "digg_count",
+            "missing": 0,
+            "modifier": "log1p"
+          },
+          "weight": 0.21
+        },
+        {
+          "field_value_factor": {
+            "field": "comment_count",
+            "missing": 0,
+            "modifier": "log1p"
+          },
+          "weight": 0.2
+        },
+        {
+          "field_value_factor": {
+            "field": "favor_count",
+            "missing": 0,
+            "modifier": "log1p"
+          },
+          "weight": 0.18
+        },
+        {
+          "field_value_factor": {
+            "field": "view_count",
+            "missing": 0,
+            "modifier": "log1p"
+          },
+          "weight": 0.12
+        }
+      ],
+      "query": {
+        "bool": {
+          "filter": [
+            {
+              "term": {
+                "visibility_status": "visible"
+              }
+            },
+            {
+              "term": {
+                "publish_status": 3
+              }
+            },
+            {
+              "term": {
+                "author_id": "100"
+              }
+            },
+            {
+              "term": {
+                "author_is_admin": true
+              }
+            }
+          ],
+          "must": [
+            {
+              "match_all": {}
+            }
+          ]
+        }
+      },
+      "score_mode": "sum"
+    }
+  },
+  "size": 10,
+  "sort": [
+    {
+      "created_at": {
+        "order": "desc"
+      }
+    },
+    {
+      "_score": {
+        "order": "desc"
+      }
+    }
+  ],
+  "track_total_hits": true
+}

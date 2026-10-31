@@ -17,10 +17,10 @@ import (
 
 // 本文件验证「显示非管理员发布文章」开关在**真 MySQL** 上的读面效果
 // （ADR-0017 决策 4）。DSL 那一半由 search 模块的 golden 守；
-// 这里守三个 MySQL 读面：详情、收藏内容、浏览历史。
+// 这里守四个 MySQL 读面：详情、收藏内容、浏览历史、首页热门置顶。
 //
-// 为什么必须真库：收藏内容与浏览历史的过滤是 SQL（join user_models 判角色），
-// 用内存 fake 只能验证"开关传下去了"，验证不了 join 写对没有。
+// 为什么必须真库：收藏内容、浏览历史与热门置顶的过滤都是 SQL（join user_models
+// 判角色），用内存 fake 只能验证"开关传下去了"，验证不了 join 写对没有。
 
 // TestVisibilitySwitchFiltersMySQLReadSurfaces 走真 HTTP + 真 MySQL，跑开关的开/关两态。
 func TestVisibilitySwitchFiltersMySQLReadSurfaces(t *testing.T) {
@@ -77,6 +77,10 @@ func TestVisibilitySwitchFiltersMySQLReadSurfaces(t *testing.T) {
 		schema.InsertViewHistory(t, db, uint64(6000+k), 200, item.articleID.Uint64(), base)
 	}
 
+	// 首页运营位把这两篇都置顶：热门置顶也是读者端公开读面，同样受开关约束。
+	schema.InsertArticleHotTop(t, db, 7001, 1001, 1, base)
+	schema.InsertArticleHotTop(t, db, 7002, 1002, 2, base)
+
 	readerOn := newRouterWithSite(t, db, domain.NormalUser(ctype.NewID(200)), 100, nil)
 	readerOff := newRouterWithSite(t, db, domain.NormalUser(ctype.NewID(200)), 100,
 		siteConfigWithShowNonAdmin(t, false))
@@ -91,8 +95,11 @@ func TestVisibilitySwitchFiltersMySQLReadSurfaces(t *testing.T) {
 	if got := len(listOf(t, do(t, readerOn, http.MethodGet, "/api/articles/history", nil))); got != 2 {
 		t.Fatalf("开关打开时浏览历史应有 2 条，实际 %d", got)
 	}
+	if ids := hotTopIDs(t, readerOn); len(ids) != 2 || ids[0] != "1001" || ids[1] != "1002" {
+		t.Fatalf("开关打开时热门置顶应返回 [1001 1002]，实际 %v", ids)
+	}
 
-	// ── 开关关闭：非管理员作者的文章从三个读面一致消失 ──
+	// ── 开关关闭：非管理员作者的文章从四个读面一致消失 ──
 	gone := do(t, anonOff, http.MethodGet, "/api/articles/1001", nil)
 	if code, _ := gone["code"].(float64); code == 0 {
 		t.Fatalf("开关关闭时匿名不应读到普通作者的文章（应 404 语义）: %v", gone)
@@ -106,6 +113,10 @@ func TestVisibilitySwitchFiltersMySQLReadSurfaces(t *testing.T) {
 	history := listOf(t, do(t, readerOff, http.MethodGet, "/api/articles/history", nil))
 	if len(history) != 1 || !containsArticleID(history, "1002") {
 		t.Fatalf("开关关闭时浏览历史应只剩管理员作者那篇，实际 %v", history)
+	}
+	// 匿名读者看到的首页运营位同样只剩管理员作者那篇（卡片字段是 id，不是 article_id）。
+	if ids := hotTopIDs(t, anonOff); len(ids) != 1 || ids[0] != "1002" {
+		t.Fatalf("开关关闭时热门置顶应只剩管理员作者那篇，实际 %v", ids)
 	}
 
 	// ── 作者本人不受影响：studio 编辑器靠同一个详情接口取正文 ──

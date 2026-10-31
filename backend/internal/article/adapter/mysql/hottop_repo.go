@@ -9,6 +9,7 @@ import (
 	"myblogx/internal/article/domain"
 	"myblogx/internal/article/domain/hottop"
 	"myblogx/internal/kernel/ctype"
+	"myblogx/internal/kernel/enum"
 )
 
 // HotTopRepo 是 hottop.Repository 的 MySQL 实现。
@@ -116,9 +117,14 @@ func (r *HotTopRepo) ListIDs(ctx context.Context) ([]domain.ArticleID, error) {
 //   - 文章软删（a.deleted_at 非空）→ 过滤；
 //   - 不再是"已发布 + visible" → 过滤。
 //
+// onlyAdminAuthors 为真时（「显示非管理员发布文章」开关关闭）再按作者角色过滤：
+// 作者不是管理员的置顶卡片同样不出现。热门置顶是读者端公开读面，与首页列表、
+// 详情、收藏内容、浏览历史同一个口径（ADR-0017 决策 4），所以它不能只过滤
+// "文章还在不在"而不看作者是谁。
+//
 // 过滤放在 SQL 而不是 Go：置顶最多 12 条，但首页每次请求都读，
 // 且"公开可见"的口径必须与 domain.CanBePinned 一致，写在一处更好对齐。
-func (r *HotTopRepo) ListCards(ctx context.Context) ([]hottop.Card, error) {
+func (r *HotTopRepo) ListCards(ctx context.Context, onlyAdminAuthors bool) ([]hottop.Card, error) {
 	type row struct {
 		ArticleID      ctype.ID
 		Title          string
@@ -129,7 +135,7 @@ func (r *HotTopRepo) ListCards(ctx context.Context) ([]hottop.Card, error) {
 		CategoryTitle  string
 	}
 	var rows []row
-	err := r.db.WithContext(ctx).
+	q := r.db.WithContext(ctx).
 		Table("article_hot_top_models AS t").
 		Select("a.id AS article_id, a.title, a.abstract, a.cover, a.view_count, "+
 			"COALESCE(u.nickname, '') AS author_nickname, COALESCE(c.title, '') AS category_title").
@@ -137,10 +143,13 @@ func (r *HotTopRepo) ListCards(ctx context.Context) ([]hottop.Card, error) {
 		Joins("LEFT JOIN user_models AS u ON u.id = a.author_id").
 		Joins("LEFT JOIN category_models AS c ON c.id = a.category_id").
 		Where("t.deleted_at IS NULL AND a.publish_status = ? AND a.visibility_status = ?",
-			statusPublished, visibilityVisible).
-		Order("t.sort_order ASC, t.id ASC").
-		Scan(&rows).Error
-	if err != nil {
+			statusPublished, visibilityVisible)
+	if onlyAdminAuthors {
+		// 按作者**现读**的角色过滤（用户改角色后下一次请求即生效），
+		// 而不是把角色冗余进置顶表：那会变成第二份真相。
+		q = q.Where("u.role = ?", int8(enum.RoleAdmin))
+	}
+	if err := q.Order("t.sort_order ASC, t.id ASC").Scan(&rows).Error; err != nil {
 		return nil, err
 	}
 

@@ -548,6 +548,21 @@ func InsertUserTopArticle(t *testing.T, db *gorm.DB, id, userID, articleID uint6
 	}
 }
 
+// InsertArticleHotTop 插入一条热门置顶（首页运营位）。
+//
+// 与 InsertUserTopArticle（作者置顶）是两套数据：这里只有 article_id + 序号。
+func InsertArticleHotTop(t *testing.T, db *gorm.DB, id, articleID uint64, sortOrder int, at time.Time) {
+	t.Helper()
+	m := ArticleHotTopRow{
+		BaseRow:   BaseRow{ID: ctype.NewID(id), CreatedAt: at, UpdatedAt: at},
+		ArticleID: ctype.NewID(articleID),
+		SortOrder: sortOrder,
+	}
+	if err := db.Omit("ArticleModel").Create(&m).Error; err != nil {
+		t.Fatalf("插入热门置顶 %d 失败: %v", id, err)
+	}
+}
+
 // InsertViewHistory 插入一条浏览历史。
 func InsertViewHistory(t *testing.T, db *gorm.DB, id, userID, articleID uint64, at time.Time) {
 	t.Helper()

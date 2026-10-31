@@ -65,6 +65,25 @@ func (h *Handler) skipExamining() bool {
 	return h.site.GetRuntimeArticle().SkipExamining
 }
 
+// writePolicy 取站点「发布与展示」里与写作权限有关的两个开关（ADR-0017 决策 2）。
+//
+// 这里只负责"取值"，判定在 app/domain 层 —— HTTP 层不做权限决策，
+// 否则同一条规则会出现两份（一份在 handler、一份在用例里）。
+//
+// site 为 nil 时按默认值全开：三个开关的业务默认值本来就是 true，
+// 不能因为读不到运行时配置就把全站作者锁死（装配缺失应当由启动日志暴露，
+// 而不是表现为"站点忽然不能发文"）。
+func (h *Handler) writePolicy() domain.WritePolicy {
+	if h.site == nil {
+		return domain.OpenWritePolicy()
+	}
+	article := h.site.GetRuntimeArticle()
+	return domain.WritePolicy{
+		AllowNonAdminPublish: article.AllowNonAdminPublish,
+		AllowNonAdminDraft:   article.AllowNonAdminDraft,
+	}
+}
+
 // fail 统一错误出口：把领域错误码翻成 HTTP 响应。
 //
 // 不区分"不存在"与"无权"：两者在 domain 里本来就合并成 ErrArticleNotFound，
@@ -139,6 +158,7 @@ func (h *Handler) Create(c *gin.Context) {
 		TargetStatus:   domain.Status(cr.Status),
 		Visibility:     domain.Visibility(cr.VisibilityStatus),
 		SkipExamining:  h.skipExamining(),
+		Policy:         h.writePolicy(),
 	})
 	if err != nil {
 		h.fail(c, err)
@@ -226,6 +246,7 @@ func (h *Handler) Update(c *gin.Context) {
 		TagIDs:         tags,
 		TargetStatus:   target,
 		SkipExamining:  h.skipExamining(),
+		Policy:         h.writePolicy(),
 	})
 	if err != nil {
 		h.fail(c, err)

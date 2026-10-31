@@ -43,6 +43,10 @@ func (v tokenVerifier) Verify(ctx context.Context, token string) (domain.Viewer,
 	if err != nil {
 		return domain.Viewer{}, false
 	}
+	// 与中间件同一条规则：受限访客 / 未知角色按未登录，搜索按匿名处理。
+	if err := requireWritablePrincipal(principal); err != nil {
+		return domain.Viewer{}, false
+	}
 	return domain.Viewer{
 		ID:    principal.UserID,
 		Admin: principal.Role == int8(enum.RoleAdmin),

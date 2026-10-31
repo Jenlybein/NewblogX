@@ -21,8 +21,13 @@ type HotTopRepo struct {
 	states map[domain.ArticleID]*hottop.ArticleState
 	// cards 预置的读模型卡片，同时充当后台行的标题来源。
 	cards []hottop.Card
-	fault fault
-	count counter
+	// lastOnlyAdminAuthors 记录最近一次 ListCards 收到的过滤开关。
+	//
+	// 内存里没有 user_models 可 join，"作者是否管理员"没法真的过滤（那是
+	// adapter/mysql 集成测试的事）；这里只用来证明 app 把开关传下去了。
+	lastOnlyAdminAuthors bool
+	fault                fault
+	count                counter
 }
 
 // NewHotTopRepo 创建空仓储。
@@ -125,15 +130,23 @@ func (r *HotTopRepo) ListIDs(_ context.Context) ([]domain.ArticleID, error) {
 // ListCards 返回预置的读模型卡片。
 //
 // 真实实现的"只返回仍公开的文章"是 SQL join 的事，内存 fake 无法复现；
-// 集成测试（adapter/mysql）覆盖那部分。
-func (r *HotTopRepo) ListCards(_ context.Context) ([]hottop.Card, error) {
+// 集成测试（adapter/mysql）覆盖那部分。这里只记录收到的过滤开关。
+func (r *HotTopRepo) ListCards(_ context.Context, onlyAdminAuthors bool) ([]hottop.Card, error) {
 	r.count.inc("ListCards")
 	if err := r.fault.take("ListCards"); err != nil {
 		return nil, err
 	}
 	r.mu.Lock()
 	defer r.mu.Unlock()
+	r.lastOnlyAdminAuthors = onlyAdminAuthors
 	return append([]hottop.Card(nil), r.cards...), nil
+}
+
+// ListCardsOnlyAdminAuthors 返回最近一次 ListCards 收到的过滤开关。
+func (r *HotTopRepo) ListCardsOnlyAdminAuthors() bool {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return r.lastOnlyAdminAuthors
 }
 
 // ListAdminItems 由 orders + states + cards 拼出后台行。

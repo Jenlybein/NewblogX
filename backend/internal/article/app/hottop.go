@@ -17,11 +17,15 @@ import (
 //
 // 公开接口，不需要登录。过滤发生在仓储 SQL 里：文章后来不再公开的置顶行
 // 保留在表里（后台要能看见并清理），但不会出现在这里。
-func (s *Service) ListHotTopCards(ctx context.Context) ([]hottop.Card, error) {
+//
+// onlyAdminAuthors 是「显示非管理员发布文章」开关的反面，由 adapter 每请求
+// 从站点运行时配置现读后传入：开关关闭时只出"作者是管理员"的卡片
+// （ADR-0017 决策 4 —— 热门置顶与首页列表、详情、收藏内容、浏览历史同一口径）。
+func (s *Service) ListHotTopCards(ctx context.Context, onlyAdminAuthors bool) ([]hottop.Card, error) {
 	var cards []hottop.Card
 	err := s.tx.WithinTx(ctx, func(ctx context.Context, r Repos) error {
 		var err error
-		cards, err = r.HotTops().ListCards(ctx)
+		cards, err = r.HotTops().ListCards(ctx, onlyAdminAuthors)
 		return err
 	})
 	return cards, err

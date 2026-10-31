@@ -343,6 +343,8 @@ func TestReplaceHotTopOrderRequiresAdmin(t *testing.T) {
 }
 
 // TestListHotTopCards 公开读取直接把仓储的卡片列表透出（过滤已在仓储 SQL 里）。
+//
+// 开关关掉后的过滤形态见 visibility_test.go 的 TestHotTopCardsThreadReadFilter。
 func TestListHotTopCards(t *testing.T) {
 	t.Parallel()
 
@@ -354,7 +356,7 @@ func TestListHotTopCards(t *testing.T) {
 		ViewCount: 42,
 	})
 
-	cards, err := svc.ListHotTopCards(context.Background())
+	cards, err := svc.ListHotTopCards(context.Background(), false)
 	if err != nil {
 		t.Fatalf("读热门置顶失败: %v", err)
 	}

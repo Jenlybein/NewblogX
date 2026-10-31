@@ -2,7 +2,7 @@
 import { NAlert, NButton, NForm, NFormItem, NInputNumber, NSwitch, useMessage } from 'naive-ui'
 import { getDecoRuntimeConfig, updateDecoRuntimeConfig } from '~/services/admin'
 import type { DecoRuntimeConfig } from '~/types/api'
-import { DECO_LOGO_SIZE_PARAM, normalizeDecoConfig } from '~/utils/decoParams'
+import { DECO_NUMBER_PARAMS, normalizeDecoConfig } from '~/utils/decoParams'
 
 const message = useMessage()
 const loading = ref(false)
@@ -13,8 +13,8 @@ const saving = ref(false)
 const config = ref({} as DecoRuntimeConfig)
 const loaded = ref(false)
 
-/** 范围、单位、默认值一律来自 utils/decoParams，表单不自己写数字。 */
-const logoSize = DECO_LOGO_SIZE_PARAM
+/** 范围、单位、默认值、整数精度一律来自 utils/decoParams，表单不自己写数字。 */
+const numberParams = DECO_NUMBER_PARAMS
 
 async function load() {
   loading.value = true
@@ -62,21 +62,26 @@ onMounted(load)
       <NFormItem label="启用光标挂件">
         <NSwitch v-model:value="config.charm.enable" />
       </NFormItem>
+      <!-- 五行数值输入由同一份元数据驱动：标签 / 单位 / 范围 / 步长 / 说明
+           都在 utils/decoParams 里，加参数时只改那一个文件。 -->
       <NFormItem
-        :label="logoSize.label"
-        :feedback="logoSize.hint"
+        v-for="param in numberParams"
+        :key="param.key"
+        :label="param.label"
+        :feedback="param.hint"
         :show-feedback="true"
       >
         <NInputNumber
-          v-model:value="config.charm.logo_size"
-          :min="logoSize.min"
-          :max="logoSize.max"
-          :step="logoSize.step"
+          v-model:value="config.charm[param.key]"
+          :min="param.min"
+          :max="param.max"
+          :step="param.step"
+          :precision="param.precision"
           :disabled="!config.charm.enable"
-          class="deco-size-input"
+          class="deco-number-input"
         >
           <template #suffix>
-            <span class="deco-size-input__unit">{{ logoSize.unit }}</span>
+            <span class="deco-number-input__unit">{{ param.unit }}</span>
           </template>
         </NInputNumber>
       </NFormItem>
@@ -87,13 +92,13 @@ onMounted(load)
 </template>
 
 <style scoped>
-/* 只给尺寸输入一个可读宽度：数值框铺满整行会显得像文本框。 */
-.deco-size-input {
-  width: 160px;
+/* 只给数值输入一个可读宽度：铺满整行会显得像文本框。 */
+.deco-number-input {
+  width: 200px;
 }
 
 /* 单位后缀走次级墨色，不抢输入框里的数字。 */
-.deco-size-input__unit {
+.deco-number-input__unit {
   color: var(--color-ink-muted);
   font-size: 12px;
 }

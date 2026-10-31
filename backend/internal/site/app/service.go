@@ -227,6 +227,8 @@ type BannerInput struct {
 	CoverImageID ctype.ID
 	Href         string
 	Show         bool
+	// Crop 是可选取景参数；nil 表示调用方没传，按缺省（居中、缩放 1）处理。
+	Crop *domain.Crop
 }
 
 // ListBanners 分页查轮播图，并回填封面图片 ID。
@@ -241,6 +243,10 @@ func (s *Service) ListBanners(ctx context.Context, q domain.BannerQuery) ([]doma
 
 // CreateBanner 新建轮播图。
 func (s *Service) CreateBanner(ctx context.Context, in BannerInput) (domain.Banner, error) {
+	crop, err := resolveCrop(in.Crop)
+	if err != nil {
+		return domain.Banner{}, err
+	}
 	cover, err := s.resolveCover(ctx, in.CoverImageID.Uint64())
 	if err != nil {
 		return domain.Banner{}, err
@@ -250,6 +256,7 @@ func (s *Service) CreateBanner(ctx context.Context, in BannerInput) (domain.Bann
 		Cover:        cover,
 		CoverImageID: in.CoverImageID,
 		Href:         in.Href,
+		Crop:         crop,
 	}
 	if err := s.banners.Create(ctx, &banner); err != nil {
 		return domain.Banner{}, err
@@ -260,7 +267,13 @@ func (s *Service) CreateBanner(ctx context.Context, in BannerInput) (domain.Bann
 // UpdateBanner 更新轮播图。
 //
 // 先解析封面再查存在性，与旧实现顺序一致：封面 ID 非法时优先报图片错误。
+// 取景是"部分更新"语义：不传就**保持已存的取景**，而不是重置成居中 ——
+// 否则老后台改一个跳转链接就会静默把运营调好的取景抹掉。
 func (s *Service) UpdateBanner(ctx context.Context, id uint64, in BannerInput) error {
+	crop, err := validateCrop(in.Crop)
+	if err != nil {
+		return err
+	}
 	cover, err := s.resolveCover(ctx, in.CoverImageID.Uint64())
 	if err != nil {
 		return err
@@ -268,7 +281,34 @@ func (s *Service) UpdateBanner(ctx context.Context, id uint64, in BannerInput) e
 	if _, err := s.banners.Find(ctx, id); err != nil {
 		return err
 	}
-	return s.banners.Update(ctx, id, cover, in.Href, in.Show)
+	return s.banners.Update(ctx, id, cover, in.Href, in.Show, crop)
+}
+
+// validateCrop 校验可选取景：没传返回 nil（更新时"保持不变"），传了就必须在范围内。
+//
+// 校验放在这里而不是适配器：越界是业务规则（存进去会让阅读站露底），
+// 不该只有一个入口拦得住。
+func validateCrop(in *domain.Crop) (*domain.Crop, error) {
+	if in == nil {
+		return nil, nil
+	}
+	if err := in.Validate(); err != nil {
+		return nil, err
+	}
+	value := *in
+	return &value, nil
+}
+
+// resolveCrop 把"可选取景"收敛成一个确定值：没传就是缺省（居中、缩放 1）。
+// 只用于创建 —— 新建必须有一条确定的取景。
+func resolveCrop(in *domain.Crop) (domain.Crop, error) {
+	if in == nil {
+		return domain.DefaultCrop, nil
+	}
+	if err := in.Validate(); err != nil {
+		return domain.Crop{}, err
+	}
+	return *in, nil
 }
 
 // RemoveBanners 批量删除轮播图。

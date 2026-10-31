@@ -39,6 +39,12 @@ const props = defineProps<{
   draftPending: boolean;
   /** 草稿按钮文案（新建/编辑不同）。 */
   draftLabel: string;
+  /** 站点草稿开关关闭：保存草稿按钮禁用（服务端同样会拒绝）。 */
+  draftDisabled: boolean;
+  /** 站点发布开关关闭：发布按钮禁用（服务端同样会拒绝）。 */
+  publishDisabled: boolean;
+  /** 站点草稿开关关闭：标题也只读，避免"改了却存不下去"。 */
+  titleReadonly: boolean;
   /** 是否编辑已存在的文章。 */
   isEditMode: boolean;
   /** 是否已有可评分的文章。 */
@@ -86,6 +92,7 @@ function handleRightToolClick(key: "toc" | "editor" | "preview") {
 <div class="write-page__topbar">
 <NInput
 v-model:value="title" class="write-title-input" size="large" maxlength="120"
+:readonly="props.titleReadonly"
 placeholder="输入文章标题..." :bordered="false" />
 
 <div class="write-page__actions">
@@ -95,10 +102,16 @@ placeholder="输入文章标题..." :bordered="false" />
 </template>
 {{ props.canOpenScore ? "查看当前文章的历史评分，并可重新获取最新评分" : "请先保存为草稿，再发起文章质量评分" }}
 </NTooltip>
-<NButton quaternary :loading="props.draftPending" @click="emit('saveDraft')">{{ props.draftLabel }}</NButton>
+<NButton
+quaternary :loading="props.draftPending" :disabled="props.draftDisabled"
+:title="props.draftDisabled ? '站点当前不允许保存草稿（站点策略）' : undefined"
+@click="emit('saveDraft')">{{ props.draftLabel }}</NButton>
 <NButton quaternary @click="navigateTo('/')">返回首页</NButton>
 <NButton quaternary @click="navigateTo('/studio/profile')">草稿箱</NButton>
-<NButton type="primary" @click="emit('openPublish')">{{ props.isEditMode ? "更新" : "发布" }}</NButton>
+<NButton
+type="primary" :disabled="props.publishDisabled"
+:title="props.publishDisabled ? '站点当前不允许发布文章（站点策略）' : undefined"
+@click="emit('openPublish')">{{ props.isEditMode ? "更新" : "发布" }}</NButton>
 <NuxtLink
 :to="props.profileId ? `/users/${props.profileId}` : '/studio/profile'"
 class="write-avatar-link">

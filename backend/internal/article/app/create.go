@@ -51,6 +51,13 @@ func (s *Service) Create(ctx context.Context, cmd CreateArticleCmd) (*domain.Art
 		return nil, domain.ErrInvalidTransition
 	}
 
+	// 站点「发布与展示」开关：草稿看 draft 开关、提交审核/创建即发布看 publish 开关。
+	// 判定放在事务之前——被站点策略拦下的请求一个字节都不该落库。
+	// （ADR-0017 决策 2；管理员不受影响，见 domain.CheckWriteOnCreate。）
+	if err := domain.CheckWriteOnCreate(cmd.Actor, target, cmd.Policy); err != nil {
+		return nil, err
+	}
+
 	var created *domain.Article
 
 	err := s.tx.WithinTx(ctx, func(ctx context.Context, r Repos) error {

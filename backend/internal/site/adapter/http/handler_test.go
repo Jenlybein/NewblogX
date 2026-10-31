@@ -110,4 +110,23 @@ func TestDecoRoutedThroughNameSwitches(t *testing.T) {
 			t.Fatalf("9999 应被钳到 %v，实际 %v", conf.CharmLogoSizeMax, got.Charm.LogoSize)
 		}
 	})
+
+	t.Run("分数 segments 不再 400：绑定后由 Normalize 四舍五入成整数", func(t *testing.T) {
+		// 回归：Segments 曾是 Go 的 int，`{"segments":10.6}` 在 JSON 绑定阶段
+		// 就失败并返回 400，管理员根本到不了 Normalize —— 违反"永不报错"。
+		recorder := httptest.NewRecorder()
+		c, _ := gin.CreateTestContext(recorder)
+		c.Request = httptest.NewRequest("PUT", "/site/deco", strings.NewReader(`{"charm":{"segments":10.6}}`))
+		c.Request.Header.Set("Content-Type", "application/json")
+		c.Set("requestUri", sitehttp.SiteInfoRequest{Name: "deco"})
+		h.UpdateConfig(c)
+
+		if recorder.Code != 200 {
+			t.Fatalf("分数 segments 不应被拒绝，HTTP 状态 %d，body: %s", recorder.Code, recorder.Body.String())
+		}
+		got := env.Runtime.Deco()
+		if got.Charm.Segments != 11 {
+			t.Fatalf("10.6 节应四舍五入为 11，实际 %v", got.Charm.Segments)
+		}
+	})
 }

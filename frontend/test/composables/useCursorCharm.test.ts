@@ -1,4 +1,4 @@
-import { nextTick, ref } from "vue";
+import { isRef, nextTick, ref } from "vue";
 import { describe, expect, it, vi } from "vitest";
 
 import { useCursorCharm } from "~/composables/useCursorCharm";
@@ -6,16 +6,16 @@ import {
   CHARM_FINE_POINTER_QUERY,
   CHARM_IDLE_FRAME_INTERVAL_MS,
   CHARM_IDLE_SWAY_AMP_DEFAULT,
+  CHARM_IDLE_SWAY_AMP_MAX,
   CHARM_ROPE_LENGTH_DEFAULT,
-  CHARM_SEGMENTS_DEFAULT,
 } from "~/utils/decoCharm";
 
 /**
  * 为什么值得测：这段决定挂件"到底有没有开始工作、什么时候停、以多快的节奏跑"。
  * 物理模块的不变量已经单独测过；这里测的是接线 —— 首移才开跑、收敛就停帧、
  * 失焦冻结（绝不瞬移）、切后台暂停、卸载摘干净、重复初始化不叠第二份，
- * 以及票 #42 的两条车道：轻晃开启时走 ~20fps 的怠速车道，关闭 / 减少动态时
- * 必须能在有限时间内退回零帧。
+ * 以及票 #42 的两条车道：轻晃开启、指针停住时走 ~20fps 的怠速车道；
+ * 指针还在主动驱动时走满速 rAF；关闭 / 减少动态时能退回零帧。
  */
 
 const REDUCED = "(prefers-reduced-motion: reduce)";
@@ -296,12 +296,27 @@ describe("useCursorCharm：首次移动、绳链与淡入", () => {
     expect(charm.visible.value).toBe(true);
     expect(charm.pointer.value).toEqual({ x: 120, y: 240 });
     expect(charm.logoCenter.value).toEqual({ x: 120, y: 240 + CHARM_ROPE_LENGTH_DEFAULT });
-    expect(charm.tetherGeometry.value?.centerline[0]).toEqual({ x: 120, y: 240 });
+    expect(charm.tetherGeometry?.centerline[0]).toEqual({ x: 120, y: 240 });
     // 首次移动的链是竖直的、松弛为 0：几何上就是一条直线。
-    expect(charm.tetherGeometry.value?.maxDeviationPx).toBeLessThan(0.01);
+    expect(charm.tetherGeometry?.maxDeviationPx).toBeLessThan(0.01);
     // 第一次移动只是"手放上去"，物理从下一帧开始（此处是满速车道）。
     expect(frames.pending()).toBe(1);
     expect(frames.delays).toEqual([]);
+  });
+
+  it("每帧只更新模板绑定的两个值；几何与帧数是普通快照（不逐帧触发响应式失效）", () => {
+    const { charm, pointer, frames } = mount();
+    pointer.emit("pointermove", { clientX: 10, clientY: 20 });
+    frames.advance(20);
+
+    // 模板绑定：路径 `d` 与站标中心（组件把它换算成一个 transform）必须是 ref。
+    expect(isRef(charm.tetherPath)).toBe(true);
+    expect(isRef(charm.logoCenter)).toBe(true);
+    // 测试/调试用的几何与帧数：普通属性，每帧推进不会让任何订阅者失效。
+    expect(isRef(charm.tetherGeometry)).toBe(false);
+    expect(isRef(charm.physicsFrames)).toBe(false);
+    expect(charm.tetherGeometry).not.toBeNull();
+    expect(charm.physicsFrames).toBeGreaterThan(0);
   });
 
   it("后续移动只更新指针，不会来回切换可见性", () => {
@@ -336,12 +351,12 @@ describe("useCursorCharm：首次移动、绳链与淡入", () => {
       config: () => ({ segments: segments.value, ropeLengthPx: CHARM_ROPE_LENGTH_DEFAULT }),
     });
     pointer.emit("pointermove", { clientX: 0, clientY: 0 });
-    const centerlineBefore = charm.tetherGeometry.value?.centerline.length ?? 0;
+    const centerlineBefore = charm.tetherGeometry?.centerline.length ?? 0;
     expect(centerlineBefore).toBeGreaterThan(5);
 
     segments.value = 12;
     pointer.emit("pointermove", { clientX: 10, clientY: 0 });
-    expect(charm.tetherGeometry.value?.centerline.length).toBeGreaterThan(centerlineBefore);
+    expect(charm.tetherGeometry?.centerline.length).toBeGreaterThan(centerlineBefore);
   });
 });
 
@@ -354,7 +369,7 @@ describe("useCursorCharm：固定步长循环与停帧（满速车道）", () =>
 
     for (let i = 0; i < 6; i += 1) frames.advance(16.667);
 
-    expect(charm.tetherGeometry.value?.centerline[0]?.x).toBeCloseTo(60, 1);
+    expect(charm.tetherGeometry?.centerline[0]?.x).toBeCloseTo(60, 1);
     expect(Number(charm.logoCenter.value.x)).not.toBeNaN();
     // 头节点钉住、链被拖在后面：站标不会还停在旧位置。
     expect(charm.logoCenter.value.x).toBeGreaterThan(20);
@@ -387,28 +402,59 @@ describe("useCursorCharm：固定步长循环与停帧（满速车道）", () =>
 });
 
 describe("useCursorCharm：怠速车道（票 #42 裁决）", () => {
-  it("idle_sway_amp > 0 时按 ~20fps 调度（每帧 50ms，明显低于满速 60fps）", () => {
+  it("指针停住后进入 ~20fps 怠速车道（每帧 50ms，明显低于满速 60fps）", () => {
     const { charm, pointer, frames } = mount({
       config: () => ({ idleSwayAmp: CHARM_IDLE_SWAY_AMP_DEFAULT, idleSwayHz: 0.8 }),
     });
     pointer.emit("pointermove", { clientX: 0, clientY: 0 });
 
-    // 首次移动立刻画一次静止链，然后进入怠速车道（不是 rAF）。
-    expect(frames.requestAnimationFrame).not.toHaveBeenCalled();
-    expect(frames.delays).toEqual([CHARM_IDLE_FRAME_INTERVAL_MS]);
+    // 指针刚移动过：先按满速 rAF 走；停住超过活动窗口后才切到怠速车道。
+    expect(frames.requestAnimationFrame).toHaveBeenCalled();
 
     frames.advance(1000);
-    // 1 秒内物理实际推进 20 帧：满速是 60 帧，怠速必须明显更低。
-    expect(charm.physicsFrames.value).toBeGreaterThanOrEqual(18);
-    expect(charm.physicsFrames.value).toBeLessThanOrEqual(22);
-    expect(charm.physicsFrames.value).toBeLessThan(60);
-    // 每一次调度用的都是同一个节流间隔，不会偷偷补帧追赶。
+    // 1 秒内 6 帧满速 + 18 帧怠速，共约 24 帧：满速是 60 帧，怠速必须明显更低。
+    expect(charm.physicsFrames).toBeGreaterThanOrEqual(18);
+    expect(charm.physicsFrames).toBeLessThanOrEqual(26);
+    expect(charm.physicsFrames).toBeLessThan(60);
+    // 怠速车道的每一次调度用的都是同一个节流间隔，不会偷偷补帧追赶。
+    expect(frames.delays.length).toBeGreaterThan(0);
     expect(frames.delays.every((delay) => delay === CHARM_IDLE_FRAME_INTERVAL_MS)).toBe(true);
+  });
+
+  it("指针持续移动时保持满速 rAF（不被怠速车道节流）", () => {
+    const { charm, pointer, frames } = mount({
+      config: () => ({ idleSwayAmp: CHARM_IDLE_SWAY_AMP_DEFAULT, idleSwayHz: 0.8 }),
+    });
+    pointer.emit("pointermove", { clientX: 0, clientY: 0 });
+
+    // 每帧都移动指针：头部一直在被主动驱动，整秒都该是满速帧。
+    for (let index = 0; index < 60; index += 1) {
+      pointer.emit("pointermove", { clientX: index * 3, clientY: 0 });
+      frames.advance(16.667);
+    }
+
+    expect(charm.physicsFrames).toBeGreaterThanOrEqual(50);
+    expect(charm.physicsFrames).toBeLessThanOrEqual(60);
+    // 一次都没排过 50ms 的定时器：拖行时不应降频。
+    expect(frames.delays).toEqual([]);
+  });
+
+  it("idle_sway_hz = 0 视为关掉轻晃：幅度 > 0 也必须静止并退回零帧", () => {
+    const { pointer, frames } = mount({
+      // 默认幅度 20 + 频率 0：正面撞上"文档说能关但是一直空转"的旧行为。
+      config: () => ({ idleSwayAmp: CHARM_IDLE_SWAY_AMP_DEFAULT, idleSwayHz: 0 }),
+    });
+    pointer.emit("pointermove", { clientX: 0, clientY: 0 });
+    const framesRun = frames.runUntilIdle(1200);
+
+    expect(framesRun).toBeGreaterThan(0);
+    expect(frames.pending()).toBe(0);
+    expect(frames.delays).toEqual([]);
   });
 
   it("轻晃期间自由端真的在动（不是整层平移，头节点钉死）", () => {
     const { charm, pointer, frames } = mount({
-      config: () => ({ idleSwayAmp: CHARM_IDLE_SWAY_AMP_DEFAULT, idleSwayHz: 0.8 }),
+      config: () => ({ idleSwayAmp: CHARM_IDLE_SWAY_AMP_MAX, idleSwayHz: 0.8 }),
     });
     pointer.emit("pointermove", { clientX: 100, clientY: 100 });
 
@@ -419,12 +465,12 @@ describe("useCursorCharm：怠速车道（票 #42 裁决）", () => {
     for (let frame = 0; frame < 40; frame += 1) {
       frames.advance(CHARM_IDLE_FRAME_INTERVAL_MS);
       peakTailOffset = Math.max(peakTailOffset, Math.abs(charm.logoCenter.value.x - 100));
-      peakArc = Math.max(peakArc, charm.tetherGeometry.value?.maxDeviationPx ?? 0);
+      peakArc = Math.max(peakArc, charm.tetherGeometry?.maxDeviationPx ?? 0);
     }
 
     expect(peakTailOffset).toBeGreaterThan(1);
     expect(peakArc).toBeGreaterThan(0.5);
-    expect(charm.tetherGeometry.value?.centerline[0]?.x).toBeCloseTo(100, 1);
+    expect(charm.tetherGeometry?.centerline[0]?.x).toBeCloseTo(100, 1);
   });
 
   it("把 idle_sway_amp 调回 0 后有限时间内退回零帧（两条车道都能停）", () => {
@@ -457,7 +503,9 @@ describe("useCursorCharm：怠速车道（票 #42 裁决）", () => {
 
     amp.value = CHARM_IDLE_SWAY_AMP_DEFAULT;
     pointer.emit("pointermove", { clientX: 90, clientY: 0 });
+    // 刚移动过 → 先满速；停住超过活动窗口后回到怠速车道并持续排帧。
     expect(frames.pending()).toBe(1);
+    frames.advance(300);
     expect(frames.delays.at(-1)).toBe(CHARM_IDLE_FRAME_INTERVAL_MS);
   });
 });
@@ -468,7 +516,7 @@ describe("useCursorCharm：失焦冻结与切后台暂停", () => {
     pointer.emit("pointermove", { clientX: 100, clientY: 100 });
     pointer.emit("pointermove", { clientX: 160, clientY: 100 });
     frames.advance(20);
-    const headBefore = charm.tetherGeometry.value?.centerline[0];
+    const headBefore = charm.tetherGeometry?.centerline[0];
 
     pointer.emit("blur");
     // 冻结期间即使收到（浏览器不该发的）pointermove，也不能动头节点。
@@ -476,7 +524,7 @@ describe("useCursorCharm：失焦冻结与切后台暂停", () => {
     const framesRun = frames.runUntilIdle(1200);
 
     expect(framesRun).toBeGreaterThan(0);
-    expect(charm.tetherGeometry.value?.centerline[0]).toEqual(headBefore);
+    expect(charm.tetherGeometry?.centerline[0]).toEqual(headBefore);
     expect(charm.pointer.value).toEqual({ x: 160, y: 100 });
     expect(frames.pending()).toBe(0);
   });
@@ -485,13 +533,13 @@ describe("useCursorCharm：失焦冻结与切后台暂停", () => {
     const { charm, pointer, frames } = mount();
     pointer.emit("pointermove", { clientX: 100, clientY: 100 });
     frames.advance(20);
-    const headBefore = charm.tetherGeometry.value?.centerline[0];
+    const headBefore = charm.tetherGeometry?.centerline[0];
 
     pointer.emit("pointerout", { relatedTarget: null });
     pointer.emit("pointermove", { clientX: 500, clientY: 500 });
     frames.runUntilIdle(1200);
 
-    expect(charm.tetherGeometry.value?.centerline[0]).toEqual(headBefore);
+    expect(charm.tetherGeometry?.centerline[0]).toEqual(headBefore);
     expect(frames.pending()).toBe(0);
 
     // 指针重新进入（pointerover）后才接受新位置：从头节点原处继续，而不是冻结时瞬移。
@@ -525,7 +573,7 @@ describe("useCursorCharm：失焦冻结与切后台暂停", () => {
 
     // 恢复后继续推进，但不会先把 10 秒后台时间补上（路径不应瞬移）。
     frames.advance(16.667);
-    expect(charm.tetherGeometry.value?.centerline[0]?.x).toBeCloseTo(100, 1);
+    expect(charm.tetherGeometry?.centerline[0]?.x).toBeCloseTo(100, 1);
   });
 });
 
@@ -549,6 +597,9 @@ describe("useCursorCharm：清理", () => {
       config: () => ({ idleSwayAmp: CHARM_IDLE_SWAY_AMP_DEFAULT }),
     });
     pointer.emit("pointermove", { clientX: 10, clientY: 20 });
+    // 指针停住超过活动窗口后进入怠速车道，此时待执行的是 50ms 定时器。
+    frames.advance(300);
+    expect(frames.delays.length).toBeGreaterThan(0);
     expect(frames.pending()).toBe(1);
 
     charm.dispose();

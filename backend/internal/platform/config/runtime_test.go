@@ -651,7 +651,7 @@ func TestDefaultSettingsYaml_装饰段与常量对齐(t *testing.T) {
 		t.Fatalf("deco.charm.rope_length 应为 %v，实际 %v", conf.CharmRopeLengthDefault, file.Deco.Charm.RopeLength)
 	}
 	if file.Deco.Charm.Segments != conf.CharmSegmentsDefault {
-		t.Fatalf("deco.charm.segments 应为 %d，实际 %d", conf.CharmSegmentsDefault, file.Deco.Charm.Segments)
+		t.Fatalf("deco.charm.segments 应为 %v，实际 %v", conf.CharmSegmentsDefault, file.Deco.Charm.Segments)
 	}
 	if file.Deco.Charm.Gravity != conf.CharmGravityDefault {
 		t.Fatalf("deco.charm.gravity 应为 %v，实际 %v", conf.CharmGravityDefault, file.Deco.Charm.Gravity)
@@ -663,7 +663,7 @@ func TestDefaultSettingsYaml_装饰段与常量对齐(t *testing.T) {
 		t.Fatalf("rope_length 默认值 %v 不在 [%v, %v] 内", file.Deco.Charm.RopeLength, conf.CharmRopeLengthMin, conf.CharmRopeLengthMax)
 	}
 	if file.Deco.Charm.Segments < conf.CharmSegmentsMin || file.Deco.Charm.Segments > conf.CharmSegmentsMax {
-		t.Fatalf("segments 默认值 %d 不在 [%d, %d] 内", file.Deco.Charm.Segments, conf.CharmSegmentsMin, conf.CharmSegmentsMax)
+		t.Fatalf("segments 默认值 %v 不在 [%v, %v] 内", file.Deco.Charm.Segments, conf.CharmSegmentsMin, conf.CharmSegmentsMax)
 	}
 	if file.Deco.Charm.Gravity < conf.CharmGravityMin || file.Deco.Charm.Gravity > conf.CharmGravityMax {
 		t.Fatalf("gravity 默认值 %v 不在 [%v, %v] 内", file.Deco.Charm.Gravity, conf.CharmGravityMin, conf.CharmGravityMax)

@@ -177,6 +177,14 @@ CREATE TABLE IF NOT EXISTS `article_tag_models` (
   CONSTRAINT `fk_article_tag_models_tag` FOREIGN KEY (`tag_id`) REFERENCES `tag_models` (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
+CREATE TABLE IF NOT EXISTS `banner_crop_models` (
+  `banner_id` bigint unsigned NOT NULL,
+  `focus_x` double DEFAULT NULL,
+  `focus_y` double DEFAULT NULL,
+  `zoom` double DEFAULT NULL,
+  PRIMARY KEY (`banner_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
 CREATE TABLE IF NOT EXISTS `banner_models` (
   `id` bigint unsigned NOT NULL,
   `created_at` datetime(3) DEFAULT NULL,

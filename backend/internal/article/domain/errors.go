@@ -27,4 +27,11 @@ var (
 	ErrContentRequired = apperr.New(apperr.CodeArticleContentRequired)
 	// ErrVersionConflict 并发修改冲突（乐观锁）。
 	ErrVersionConflict = apperr.New(apperr.CodeArticleVersionConflict)
+	// ErrPublishDisabledBySite 站点策略关闭了非管理员的发布能力。
+	//
+	// 与 ErrForbidden 分开：后者是"你无权"，前者是"站点当前不允许发布"，
+	// 文案里要能看出该找管理员改开关（ADR-0017 决策 2）。
+	ErrPublishDisabledBySite = apperr.New(apperr.CodeArticlePublishDisabled)
+	// ErrDraftDisabledBySite 站点策略关闭了非管理员的存草稿能力。
+	ErrDraftDisabledBySite = apperr.New(apperr.CodeArticleDraftDisabled)
 )

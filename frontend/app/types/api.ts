@@ -47,6 +47,22 @@ export interface SiteRuntimeConfig {
       title: string;
     }>;
   };
+  /**
+   * 文章的「发布与展示」开关（`site.article` 段，ADR-0017 决策 2）。
+   *
+   * 键名必须与 `backend/conf/site/enter.go` 的 `Article` json tag 一致
+   * （后端发出 `allow_non_admin_publish` / `allow_non_admin_draft` /
+   * `show_non_admin_articles`）。读者站只消费前两个：
+   * 发布关闭 → 隐藏写文章入口；草稿关闭 → 编辑器只读并给出说明。
+   * 展示开关由服务端过滤（#65），前端不做过滤。
+   *
+   * 三个键都可选：老后台可能还没发出它们，缺失时按默认值 `true` 处理。
+   */
+  article: {
+    allow_non_admin_publish?: boolean;
+    allow_non_admin_draft?: boolean;
+    show_non_admin_articles?: boolean;
+  };
 }
 
 export type SiteAiInfo = RequiredSchema<"internal_site_adapter_http.AIResponse">;

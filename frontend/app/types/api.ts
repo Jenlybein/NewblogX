@@ -10,15 +10,26 @@ export interface ApiEnvelope<T> {
 
 export type SiteSeoData = RequiredSchema<"internal_site_adapter_http.SEOResponse">;
 
+/**
+ * 站点运行时配置（`GET /api/site/site` 的 data）。
+ *
+ * 契约里这条 data 是 `map[string]any`，派生不出类型，只能手写 —— 手写就会漂移：
+ * 这里曾声明后端不存在的 `site_info.subtitle` / `project.abstract`，又漏掉后端
+ * 真有的 `site_info.logo` / `beian`。现在按 `backend/conf/site/enter.go` 对齐，
+ * 并由 `test/gates/site-runtime-config-parity.test.ts` 逐字段比对，再漂就红。
+ *
+ * `site_info` 是完整投影（与 `site.SiteInfo` 逐字段相等）；`project` 等子块读者站
+ * 只用得到一部分，所以是子集 —— 但同样不许出现后端没有的字段。
+ */
 export interface SiteRuntimeConfig {
   site_info: {
     title?: string;
-    subtitle?: string;
+    logo?: string;
+    beian?: string;
     mode?: number;
   };
   project: {
     title?: string;
-    abstract?: string;
   };
   login: {
     qq?: boolean;

@@ -363,7 +363,7 @@ _Avoid_: 把内部标识当展示名——仓库名 `blogx`、Go module `myblogx
 
 **光标挂件（cursor charm）**：
 读者站的**纯装饰**角色：站标用一条「挂绳」系在指针上，随指针被拖行、摆动。它不响应点击、不抢焦点、不承载任何功能——读者站唯一的功能性入口仍是「捏捏」。
-位置：读者站 `frontend/app/` 下的挂件组件与驱动它的 composable（待落地）；素材复用 `utils/brand.ts` 的 `logo` 资产（与 `favicon.ico` 同一张画）。
+位置：读者站 `frontend/app/components/deco/CursorCharm.vue`（挂件组件）与 `frontend/app/composables/useCursorCharm.ts`（驱动它的 composable）；素材复用 `utils/brand.ts` 的 `logo` 资产（与 `favicon.ico` 同一张画）。
 _Avoid_: 叫它「鼠标挂件」（触控板用户没有鼠标，本仓库一律说「指针」）；用「鼠标追随特效」「cursor effect」指代它（通用词，也指 `usePointerSpecular` 那类非挂件效果）。
 
 **挂绳（tether）**：

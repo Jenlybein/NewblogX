@@ -152,9 +152,10 @@ type Service struct{ cfg func() conf.Mail }
 重力 `gravity`（px/s²）、每步阻尼 `damping`（无量纲）、静止摆动频率 `idle_sway_hz`（Hz）、
 静止摆动幅度 `idle_sway_amp`（px/s²）。`segments` 是计数，钳位时会先取整再夹到边界；
 `line_width` 钳位后保留一位小数。`idle_sway_amp` 与 `idle_sway_hz` 把 0 当作合法值：
-幅度为 0 或系统开启「减少动态」时读者站走"静止即停帧"的零帧车道，只有幅度大于 0 才进入
-约 20fps 的怠速车道。弧垂没有单独参数，它来自真实松弛（绳长 `rope_length` 减去指针到
-站标的实际距离），调大 `gravity` 不会加深弧垂。
+任一为 0 或系统开启「减少动态」时读者站走"静止即停帧"的零帧车道；两者都大于 0 时，
+指针停住后进入约 20fps 的怠速车道，指针仍在移动时走满速动画帧。弧垂没有单独参数，
+它来自真实松弛（绳长 `rope_length` 减去指针到站标的实际距离），调大 `gravity`
+不会加深弧垂。
 
 这一段在**写入路径上钳位**：越界钳到边界、缺省补默认值、NaN/非法值回落默认，
 **不报错**（`conf.Deco.Normalize()`，在 `app` 层的 `UpdateDeco` 里调用）。理由：管理员改一半
@@ -248,7 +249,7 @@ const loaded = ref(false)
 | `settings.yaml` 删掉的业务段 | 4（`upload` / `email` / `qq` / `qiniu`） |
 | `conf.Config` 删掉的字段 | 6（`Upload`/`Site`/`Email`/`QQ`/`QiNiu`/`AI`） |
 | 新增/改写的配置段类型 | `conf.Mail` 新建；`conf.Logrus` 补 11 个 json tag |
-| 后台新增 Tab | 7（一个页面 + 七个组件） |
+| 后台新增 Tab | 8（一个页面 + 八个组件） |
 | 新增接口 | `GET /site/admin/{name}`、`PUT /site/{name}`、`GET /setup/status`、`POST /setup/admin` |
 | 修复的既有缺陷 | 3（软删除行撞 `name` 唯一索引 / 重启后站点配置被重置 / 默认值回退成全零） |
 

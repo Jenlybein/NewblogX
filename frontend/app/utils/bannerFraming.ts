@@ -1,9 +1,9 @@
-import type { CSSProperties } from "vue";
+﻿import type { CSSProperties } from "vue";
 
 import type { Schema } from "~/types/contract";
 
 /**
- * 轮播取景（ADR-0014）：只看参数，不碰图片文件。
+ * 轮播取景（ADR-0015）：只看参数，不碰图片文件。
  *
  * 固定比例是设计常量（所有断点同一个 16:9），不进运行时配置：
  * 一旦可调，历史图的裁切会跟着配置漂移。跨端一致性由静态设计断言锁住。
@@ -59,7 +59,7 @@ function scale(value: number): string {
  * 只输出百分比与 `scale()`、不含任何像素值，所以后台预览框与阅读站任意宽度的
  * 面板得到的是同一块取景（#44 US9）。
  *
- * 钳制是"兜底"而不是"改写数据"：越界值仍由后端拒绝（ADR-0014 决策 4）。
+ * 钳制是"兜底"而不是"改写数据"：越界值仍由后端拒绝（ADR-0015 决策 4）。
  * 焦点恒在 0–1、缩放恒在 1–2，因此放大后的图始终盖满元素，不会露出面板底色。
  */
 export function bannerFramingStyle(crop?: BannerCrop | null): CSSProperties {

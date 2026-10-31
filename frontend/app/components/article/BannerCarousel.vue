@@ -1,4 +1,4 @@
-<script setup lang="ts">
+﻿<script setup lang="ts">
 import { computed, ref, type CSSProperties } from "vue";
 import { IconChevronLeft, IconChevronRight } from "@tabler/icons-vue";
 import ProfileEmptyState from "~/components/profile/ProfileEmptyState.vue";
@@ -47,7 +47,7 @@ function goToBanner(index: number) {
   >
     <template v-if="currentBanner">
       <!--
-        取景与视差分属两层（ADR-0014 决策 6）：两者都动 transform，不能落在同一个元素上。
+        取景与视差分属两层（ADR-0015 决策 6）：两者都动 transform，不能落在同一个元素上。
         外层 .banner-photo 只承担首屏视差（photoStyle）；内层图片只承担取景的缩放与焦点。
       -->
       <NuxtLink

@@ -1,4 +1,4 @@
-import { readFileSync } from "node:fs";
+﻿import { readFileSync } from "node:fs";
 import { join } from "node:path";
 
 import { describe, expect, it } from "vitest";
@@ -6,7 +6,7 @@ import { describe, expect, it } from "vitest";
 import { blockAfter } from "../helpers/designFiles";
 
 /**
- * 轮播取景的固定比例（ADR-0014 决策 3）：16:9 只在两端各定义一处，跨端锁定一致。
+ * 轮播取景的固定比例（ADR-0015 决策 3）：16:9 只在两端各定义一处，跨端锁定一致。
  *
  * 为什么是静态断言而不是运行时配置：比例一旦可调，历史图的裁切就会随配置漂移。
  * 这里沿用 tokens.css 同源门禁与 foundation-tokens.test.ts 的形式 —— 读两份源码、
@@ -62,7 +62,7 @@ describe("轮播面板固定 16:9：跨端只有一份定义、两端取值一�
 });
 
 /**
- * 视差外扩不能把容器的比例改掉（ADR-0014 决策 6 / US9「预览 = 线上」）。
+ * 视差外扩不能把容器的比例改掉（ADR-0015 决策 6 / US9「预览 = 线上」）。
  *
  * 底图比面板四边各外扩 12px 是为 ≤10px 视差留余量；四边**等量**外扩会让容器比例
  * 从 16:9 变成 1.7397，cover 之后线上可见的原图区域比取景框预览紧约 5% —— 于是

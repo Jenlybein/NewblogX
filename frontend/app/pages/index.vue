@@ -7,14 +7,13 @@ import HomePinnedSection from "~/components/home/HomePinnedSection.vue";
 import HomeSidebar from "~/components/home/HomeSidebar.vue";
 import { useParallax } from "~/composables/useParallax";
 import { useSectionReveal } from "~/composables/useSectionReveal";
-import { getTopArticles } from "~/services/article";
+import { getHotTopArticles } from "~/services/article";
 import { searchArticles } from "~/services/search";
 import { getBannerList } from "~/services/site";
 import { BRAND, brandDescription, brandFullName } from "~/utils/brand";
 import { MOTION_STAGGER_MS } from "~/utils/motion";
 
 const siteStore = useSiteStore();
-const topRequestError = shallowRef<unknown>(null);
 const latestRequestError = shallowRef<unknown>(null);
 
 function formatRequestError(error: unknown) {
@@ -25,24 +24,21 @@ function formatRequestError(error: unknown) {
   return String(error);
 }
 
-// 首页数据全部"失败降级不抛错"：区块组件拿到 pending/failed 后渲染统一空态，
+// 首页数据全部"失败降级不抛错"：区块组件拿不到数据就整块不渲染（ADR-0017 决策 5），
 // 不会因为一个接口挂了就让整页白屏。
 const { data: bannerData, pending: bannerPending } = await useAsyncData("home-banners", () =>
   getBannerList().catch(() => ({ list: [], has_more: false })),
 );
-const { data: topData, pending: topPending, refresh: refreshTop } = await useAsyncData(
-  "home-top-articles",
-  async () => {
-    try {
-      topRequestError.value = null;
-      return await getTopArticles();
-    } catch (error) {
-      topRequestError.value = error;
-      console.warn(`[home-top-articles] request failed, using fallback: ${formatRequestError(error)}`);
-      return { list: [], count: 0 };
-    }
-  },
-);
+// 热门置顶是运营位：无数据、加载中、请求失败都只是"不渲染这一块"，
+// 所以这里只保留静默兜底，不再往下传 pending/failed 状态。
+const { data: hotTopData } = await useAsyncData("home-hot-top", async () => {
+  try {
+    return await getHotTopArticles();
+  } catch (error) {
+    console.warn(`[home-hot-top] request failed, using fallback: ${formatRequestError(error)}`);
+    return { list: [], count: 0 };
+  }
+});
 
 const latestPager = await usePagedResourceCache({
   cacheKey: () => "home-latest-articles",
@@ -81,14 +77,13 @@ useSeoMeta({
 });
 
 const banners = computed(() => bannerData.value?.list || []);
-const topArticles = computed(() => topData.value?.list || []);
+const hotTopArticles = computed(() => hotTopData.value?.list || []);
 const latestArticles = computed(() => latestPager.currentItems.value);
 const latestPending = computed(() => latestPager.pending.value);
 const latestPage = computed(() => latestPager.currentPage.value);
 const latestHasPrevious = computed(() => latestPager.hasPreviousPage.value);
 const latestHasNext = computed(() => latestPager.hasNextPage.value);
 const siteBootstrapPending = computed(() => !siteStore.fetched);
-const topFailed = computed(() => Boolean(topRequestError.value));
 const latestFailed = computed(() => Boolean(latestRequestError.value));
 
 // 首屏封面的分层动效（ADR-0013 决策 9，全部归口 #23 的同一份预算）：
@@ -175,10 +170,6 @@ async function handleNextLatestPage() {
   await latestPager.goToNextPage();
 }
 
-async function handleRetryTop() {
-  await refreshTop();
-}
-
 async function handleRetryLatest() {
   await latestPager.refreshCurrentPage();
 }
@@ -262,12 +253,8 @@ async function handleRetryLatest() {
 
     <div class="hero-grid">
       <div class="page-stack">
-        <HomePinnedSection
-          :articles="topArticles"
-          :pending="topPending"
-          :failed="topFailed"
-          @retry="handleRetryTop"
-        />
+        <!-- 热门置顶运营位（ADR-0017）：无数据 / 加载中 / 失败都整块不渲染，组件内部控制。 -->
+        <HomePinnedSection :articles="hotTopArticles" />
 
         <HomeFeedSection
           :articles="latestArticles"

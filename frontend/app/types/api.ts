@@ -152,14 +152,15 @@ export type SearchArticleItem = RequiredSchema<"myblogx_internal_search_domain.I
 export type SearchArticleResponse = RequiredSchema<"myblogx_internal_search_domain.Response">;
 
 /**
- * 首页「热门置顶」区块的一张卡片。
+ * 首页「热门置顶」运营位的一张卡片（`GET /articles/hot-top`，公开读）。
  *
- * 之前这里写着 12 个字段（含 tags / digg_count 等），但 `/articles/top` 实际
- * 返回的是**文章 ID 字符串数组**，于是模板里的 `article.id`、`article.cover`、
- * `article.title` 全是 undefined，整块区域是空的、链接指向 `/article/undefined`。
- * 现在后端改返回卡片，类型直接派生自契约。
+ * 与作者置顶（`/articles/top?user_id=`）的卡片形状相同，但数据源不同：
+ * 前者是管理员挑选并手动排序的运营位，后者是作者钉在自己主页上的那一篇（ADR-0017）。
  */
-export type ArticleTopItem = RequiredSchema<"internal_article_adapter_http.ArticleTopCardResponse">;
+export type ArticleHotTopItem = RequiredSchema<"internal_article_adapter_http.ArticleHotTopCardResponse">;
+
+export type ArticleHotTopListData =
+  RequiredSchema<"myblogx_internal_kernel.ListData-internal_article_adapter_http_ArticleHotTopCardResponse">;
 // ArticleUpdateRequest 全是指针（PATCH 语义：null 表示清空该字段）。
 export type ArticleWritePayload = Nullable<
   Schema<"internal_article_adapter_http.ArticleUpdateRequest">,

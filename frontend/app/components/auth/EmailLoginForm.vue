@@ -57,7 +57,7 @@ async function handleSendCode() {
   try {
     const payload = await sendEmailCode({
       email: values.email,
-      type: 1,
+      purpose: "login",
     });
     emailId.value = payload.id;
     startCountdown();

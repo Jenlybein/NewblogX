@@ -1,4 +1,4 @@
-<script setup lang="ts">
+﻿<script setup lang="ts">
 import { computed, onMounted, ref, shallowRef } from "vue";
 import { NButton } from "naive-ui";
 import BannerCarousel from "~/components/article/BannerCarousel.vue";
@@ -421,8 +421,10 @@ async function handleRetryLatest() {
 }
 
 /* 左栏：轮播面板，位于大字下方并整体右移一点（margin 让它不贴左沿）。
-   它同时是 .banner-stage（absolute inset: 0）的定位上下文 —— 给 relative + 明确高度，
-   内部底图 / 罩层 / 玻璃控件就自然填满面板。 */
+   它同时是 .banner-stage（absolute inset: 0）的定位上下文 —— 给 relative + 固定比例，
+   内部底图 / 罩层 / 玻璃控件就自然填满面板。
+   比例锁死 16:9（ADR-0015 决策 3）：所有断点同一比例，不用高度档 ——
+   固定高度会随屏宽变化，同一张图在手机和显示器上就被裁成两种形状。 */
 .home-cover__panel {
   position: relative;
   z-index: 2;
@@ -432,10 +434,12 @@ async function handleRetryLatest() {
   display: flex;
   align-items: flex-end;
   justify-content: flex-start;
+  width: 100%;
+  /* 固定 16:9：宽度由左栏决定，高度跟着算出来 —— 任何屏宽下比例都不变，
+     轮播图用 object-fit: cover 裁切，不会被拉扁或拉长。 */
+  aspect-ratio: 16 / 9;
   padding: clamp(0.75rem, 1.4vw, 1.25rem);
   overflow: clip;
-  height: clamp(300px, 34vw, 460px);
-  min-height: clamp(300px, 34vw, 460px);
   border-radius: var(--radius-lg);
   /* 面板是"屏幕"而不是空白框：给一层极淡的反白染色，让它自己成立；
      不支持 color-mix 时退化为纯反白面（不依赖它也能看出边界）。 */
@@ -664,12 +668,12 @@ async function handleRetryLatest() {
     grid-row: 1;
   }
 
+  /* 窄屏：顺序仍是大字 → 面板 → 记号；面板铺满整行、不再右移。
+     比例不在这里改 —— 16:9 是所有断点同一份定义（ADR-0015）。 */
   .home-cover__panel {
     grid-column: 1;
     grid-row: 2;
     margin-inline-start: 0;
-    aspect-ratio: 4 / 3;
-    min-height: clamp(240px, 32vh, 420px);
   }
 
   .home-cover__title {

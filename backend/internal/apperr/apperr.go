@@ -63,18 +63,26 @@ const (
 
 // 用户资料与管理。
 const (
-	CodeUserNotFound          Code = "user.not_found"
-	CodeUserForbidden         Code = "user.forbidden"
-	CodeUserUsernameTaken     Code = "user.username_taken"
-	CodeUserUsernameCooldown  Code = "user.username_cooldown"
-	CodeUserUsernameInvalid   Code = "user.username_invalid"
-	CodeUserNicknameRequired  Code = "user.nickname_required"
-	CodeUserNicknameTooLong   Code = "user.nickname_too_long"
-	CodeUserAbstractTooLong   Code = "user.abstract_too_long"
-	CodeUserStatusInvalid     Code = "user.status_invalid"
-	CodeUserStatusSelfLocked  Code = "user.status_self_locked"
-	CodeUserEmailTaken        Code = "user.email_taken"
-	CodeUserEmailNotBound     Code = "user.email_not_bound"
+	CodeUserNotFound         Code = "user.not_found"
+	CodeUserForbidden        Code = "user.forbidden"
+	CodeUserUsernameTaken    Code = "user.username_taken"
+	CodeUserUsernameCooldown Code = "user.username_cooldown"
+	CodeUserUsernameInvalid  Code = "user.username_invalid"
+	CodeUserNicknameRequired Code = "user.nickname_required"
+	CodeUserNicknameTooLong  Code = "user.nickname_too_long"
+	CodeUserAbstractTooLong  Code = "user.abstract_too_long"
+	CodeUserStatusInvalid    Code = "user.status_invalid"
+	CodeUserStatusSelfLocked Code = "user.status_self_locked"
+	CodeUserEmailTaken       Code = "user.email_taken"
+	CodeUserEmailNotBound    Code = "user.email_not_bound"
+	// CodeUserEmailRegistered / CodeUserEmailUnregistered 只在"发验证码"时用：
+	// 邮箱的两种状态与四个发码场景不匹配时报错（注册/绑定要求未注册，
+	// 登录/重置要求已注册），而不是静默不发信——见 docs/adr/0014。
+	CodeUserEmailRegistered   Code = "user.email_registered"
+	CodeUserEmailUnregistered Code = "user.email_unregistered"
+	// CodeUserMailTooFrequent 是"发验证码太频繁"，与登录失败限流分开：
+	// 共用 auth.too_frequent 时文案是"登录失败次数过多"，会把用户引到错误的方向。
+	CodeUserMailTooFrequent   Code = "user.mail_too_frequent"
 	CodeUserInvalidCredential Code = "user.invalid_credential"
 	CodeUserAccountDisabled   Code = "user.account_disabled"
 	CodeUserAccountBanned     Code = "user.account_banned"
@@ -185,6 +193,11 @@ const (
 	CodeSiteConfigMissing Code = "site.config_missing"
 	CodeSiteInfoNotFound  Code = "site.info_not_found"
 	CodeBannerNotFound    Code = "banner.not_found"
+	// CodeBannerCropInvalid 表示取景参数越界（焦点不在 0–1、缩放不在 1–2）。
+	//
+	// 越界一律拒绝而不是钳制：静默改值会让"运营看到的取景"与"读者看到的取景"
+	// 分家，而两边都没有任何提示。
+	CodeBannerCropInvalid Code = "banner.crop_invalid"
 
 	CodeRuntimeConfigDBMissing    Code = "runtimeconfig.db_missing"
 	CodeRuntimeConfigPathMissing  Code = "runtimeconfig.path_missing"
@@ -192,7 +205,7 @@ const (
 
 	// 首次初始化。闸门是"库里还没有管理员"：一旦有了管理员，
 	// 这两个接口就永久关闭，避免成为绕过鉴权的后门。
-	CodeSetupAlreadyDone Code = "setup.already_done"
+	CodeSetupAlreadyDone          Code = "setup.already_done"
 	CodeRuntimeConfigTableMissing Code = "runtimeconfig.table_missing"
 )
 
@@ -316,6 +329,9 @@ var messages = map[Code]string{
 	CodeUserStatusSelfLocked:  "不能修改自己的账号状态",
 	CodeUserEmailTaken:        "邮箱已被使用",
 	CodeUserEmailNotBound:     "账号尚未绑定邮箱",
+	CodeUserEmailRegistered:   "该邮箱已注册，请直接登录或找回密码",
+	CodeUserEmailUnregistered: "该邮箱还没有注册，请先注册",
+	CodeUserMailTooFrequent:   "验证码发送太频繁，请稍后再试",
 	CodeUserInvalidCredential: "账号或密码错误",
 	CodeUserAccountDisabled:   "账号已被禁用",
 	CodeUserAccountBanned:     "账号已被封禁",
@@ -400,6 +416,7 @@ var messages = map[Code]string{
 	CodeSiteConfigMissing: "运行时配置服务未初始化",
 	CodeSiteInfoNotFound:  "站点信息不存在",
 	CodeBannerNotFound:    "轮播图不存在",
+	CodeBannerCropInvalid: "取景参数超出范围：焦点需在 0 到 1 之间，缩放需在 1 到 2 之间",
 
 	CodeSetupAlreadyDone: "站点已初始化完成，该入口已关闭",
 

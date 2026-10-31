@@ -7,7 +7,8 @@ package articlesync
 // 断言搬到这里，直接针对生产真正走的那条路：buildArticleESDocumentFromSnapshot。
 //
 // 盯的是"文档长什么样"——最容易被重构悄悄改掉、改错了还不报错的东西：
-// content 不该同步、content_parts 必须是纯文本、tags/category/author/top 的嵌套形状。
+// content 不该同步、content_parts 必须是纯文本、tags/category/author 的嵌套形状，
+// 以及 author_is_admin 必须来自作者角色（ADR-0017 决策 6 要求删掉三个置顶派生字段）。
 
 import (
 	"strings"
@@ -36,14 +37,15 @@ func TestArticleDocumentShape(t *testing.T) {
 	}
 	deps := articleProjectionOptions{
 		CategoryTitleMap: map[ctype.ID]string{categoryID: "后端"},
-		AuthorMap:        map[ctype.ID]authorSnapshot{authorID: {Nickname: "作者A", Avatar: "/avatar.png"}},
+		AuthorMap: map[ctype.ID]authorSnapshot{
+			authorID: {Nickname: "作者A", Avatar: "/avatar.png", IsAdmin: true},
+		},
 		ArticleTagsMap: map[ctype.ID][]ESTag{
 			articleID: {
 				{ID: ctype.NewID(1), Title: "Go"},
 				{ID: ctype.NewID(2), Title: "Redis"},
 			},
 		},
-		TopMap: map[ctype.ID]articleESTop{articleID: {AdminTop: true, AuthorTop: false}},
 	}
 
 	doc := buildArticleESDocumentFromSnapshot(snapshot, deps)
@@ -77,7 +79,13 @@ func TestArticleDocumentShape(t *testing.T) {
 	if !ok || author["id"] != authorID.String() || author["nickname"] != "作者A" || author["avatar"] != "/avatar.png" {
 		t.Fatalf("作者字段同步结果不正确: %#v", doc["author"])
 	}
-	if doc["admin_top"] != true || doc["author_top"] != false {
-		t.Fatalf("置顶字段同步结果不正确: admin=%#v author=%#v", doc["admin_top"], doc["author_top"])
+	if got, ok := doc["author_is_admin"].(bool); !ok || !got {
+		t.Fatalf("author_is_admin 应由作者角色投影为 true, got=%#v", doc["author_is_admin"])
+	}
+	// ADR-0017 决策 6：置顶派生字段全部删除（作者置顶功能保留，只是不再进 ES）。
+	for _, key := range []string{"top", "admin_top", "author_top"} {
+		if _, ok := doc[key]; ok {
+			t.Fatalf("ES 文档不应再出现置顶字段 %q, got=%#v", key, doc[key])
+		}
 	}
 }

@@ -340,7 +340,6 @@ func loadArticleProjectionOptions(db *gorm.DB, snapshots []ArticleRowSnapshot) (
 		CategoryTitleMap: map[ctype.ID]string{},
 		AuthorMap:        map[ctype.ID]authorSnapshot{},
 		ArticleTagsMap:   map[ctype.ID][]ESTag{},
-		TopMap:           map[ctype.ID]articleESTop{},
 	}
 	if len(snapshots) == 0 {
 		return deps, nil
@@ -367,10 +366,6 @@ func loadArticleProjectionOptions(db *gorm.DB, snapshots []ArticleRowSnapshot) (
 		return deps, err
 	}
 	deps.ArticleTagsMap, err = loadArticleESTagsMapByArticleIDs(db, articleIDs)
-	if err != nil {
-		return deps, err
-	}
-	deps.TopMap, err = loadArticleESTopMapBySnapshots(db, snapshots)
 	if err != nil {
 		return deps, err
 	}
@@ -405,48 +400,6 @@ func loadArticleESTagsMapByArticleIDs(db *gorm.DB, articleIDs []ctype.ID) (map[c
 			ID:    row.TagID,
 			Title: row.Title,
 		})
-	}
-	return result, nil
-}
-
-func loadArticleESTopMapBySnapshots(db *gorm.DB, snapshots []ArticleRowSnapshot) (map[ctype.ID]articleESTop, error) {
-	result := make(map[ctype.ID]articleESTop, len(snapshots))
-	if len(snapshots) == 0 {
-		return result, nil
-	}
-
-	articleIDs := make([]ctype.ID, 0, len(snapshots))
-	articleAuthorMap := make(map[ctype.ID]ctype.ID, len(snapshots))
-	for _, snapshot := range snapshots {
-		articleIDs = append(articleIDs, snapshot.ID)
-		articleAuthorMap[snapshot.ID] = snapshot.AuthorID
-	}
-	articleIDs = normalizeArticleIDs(articleIDs)
-
-	type topRoleRow struct {
-		ArticleID ctype.ID
-		TopUserID ctype.ID
-		Role      enum.RoleType
-	}
-	var rows []topRoleRow
-	if err := db.Model(&UserTopArticleRow{}).
-		Select("user_top_article_models.article_id", "user_top_article_models.user_id AS top_user_id", "user_models.role").
-		Joins("JOIN user_models ON user_models.id = user_top_article_models.user_id AND user_models.deleted_at IS NULL").
-		Where("user_top_article_models.article_id IN ?", articleIDs).
-		Order("user_top_article_models.article_id asc, user_top_article_models.user_id asc").
-		Find(&rows).Error; err != nil {
-		return result, err
-	}
-
-	for _, row := range rows {
-		state := result[row.ArticleID]
-		if row.Role == enum.RoleAdmin {
-			state.AdminTop = true
-		}
-		if row.TopUserID == articleAuthorMap[row.ArticleID] {
-			state.AuthorTop = true
-		}
-		result[row.ArticleID] = state
 	}
 	return result, nil
 }
@@ -539,80 +492,6 @@ func loadArticlesForESTags(db *gorm.DB, articleIDs []ctype.ID) ([]ArticleRow, er
 	return articleList, nil
 }
 
-func loadArticleESTopMap(db *gorm.DB, articleIDs []ctype.ID) (map[ctype.ID]articleESTop, error) {
-	topMap := make(map[ctype.ID]articleESTop, len(articleIDs))
-	if len(articleIDs) == 0 {
-		return topMap, nil
-	}
-
-	type topRow struct {
-		ArticleID ctype.ID
-		TopUserID ctype.ID
-	}
-
-	var topRows []topRow
-	err := db.Model(&UserTopArticleRow{}).
-		Select("article_id", "user_id AS top_user_id").
-		Where("user_top_article_models.article_id IN ?", articleIDs).
-		Find(&topRows).Error
-	if err != nil {
-		return topMap, err
-	}
-	if len(topRows) == 0 {
-		return topMap, nil
-	}
-
-	type articleAuthorRow struct {
-		ID       ctype.ID
-		AuthorID ctype.ID
-	}
-	var articleRows []articleAuthorRow
-	if err := db.Model(&ArticleRow{}).
-		Select("id", "author_id").
-		Where("id IN ?", articleIDs).
-		Find(&articleRows).Error; err != nil {
-		return topMap, err
-	}
-	articleAuthorMap := make(map[ctype.ID]ctype.ID, len(articleRows))
-	for _, row := range articleRows {
-		articleAuthorMap[row.ID] = row.AuthorID
-	}
-
-	topUserIDs := make([]ctype.ID, 0, len(topRows))
-	for _, row := range topRows {
-		topUserIDs = append(topUserIDs, row.TopUserID)
-	}
-	topUserIDs = normalizeArticleIDs(topUserIDs)
-
-	type userRoleRow struct {
-		ID   ctype.ID
-		Role enum.RoleType
-	}
-	var userRows []userRoleRow
-	if err := db.Model(&UserRow{}).
-		Select("id", "role").
-		Where("id IN ?", topUserIDs).
-		Find(&userRows).Error; err != nil {
-		return topMap, err
-	}
-	roleMap := make(map[ctype.ID]enum.RoleType, len(userRows))
-	for _, row := range userRows {
-		roleMap[row.ID] = row.Role
-	}
-
-	for _, row := range topRows {
-		state := topMap[row.ArticleID]
-		if roleMap[row.TopUserID] == enum.RoleAdmin {
-			state.AdminTop = true
-		}
-		if row.TopUserID == articleAuthorMap[row.ArticleID] {
-			state.AuthorTop = true
-		}
-		topMap[row.ArticleID] = state
-	}
-	return topMap, nil
-}
-
 func loadCategoryTitleMap(db *gorm.DB, categoryIDs []ctype.ID) (map[ctype.ID]string, error) {
 	result := make(map[ctype.ID]string)
 	categoryIDs = normalizeArticleIDs(categoryIDs)
@@ -633,9 +512,15 @@ func loadCategoryTitleMap(db *gorm.DB, categoryIDs []ctype.ID) (map[ctype.ID]str
 	return result, nil
 }
 
+// authorSnapshot 是文档里的作者快照。
+//
+// IsAdmin 是作者角色的投影（`user_models.role == 管理员`），不是"这条文章被谁置顶"：
+// 公开读面在「显示非管理员文章」关掉时按它过滤（ADR-0017 决策 4）。
+// 用户角色变更是靠"用户行 → 重算文章文档"这条既有分支刷新的，见 SyncESDocsByAuthorIDs。
 type authorSnapshot struct {
 	Nickname string
 	Avatar   string
+	IsAdmin  bool
 }
 
 func loadAuthorSnapshotMap(db *gorm.DB, authorIDs []ctype.ID) (map[ctype.ID]authorSnapshot, error) {
@@ -649,10 +534,11 @@ func loadAuthorSnapshotMap(db *gorm.DB, authorIDs []ctype.ID) (map[ctype.ID]auth
 		ID       ctype.ID
 		Nickname string
 		Avatar   string
+		Role     enum.RoleType
 	}
 	var rows []authorRow
 	if err := db.Model(&UserRow{}).
-		Select("id", "nickname", "avatar").
+		Select("id", "nickname", "avatar", "role").
 		Where("id IN ?", authorIDs).
 		Find(&rows).Error; err != nil {
 		return result, err
@@ -661,6 +547,7 @@ func loadAuthorSnapshotMap(db *gorm.DB, authorIDs []ctype.ID) (map[ctype.ID]auth
 		result[row.ID] = authorSnapshot{
 			Nickname: row.Nickname,
 			Avatar:   row.Avatar,
+			IsAdmin:  row.Role == enum.RoleAdmin,
 		}
 	}
 	return result, nil

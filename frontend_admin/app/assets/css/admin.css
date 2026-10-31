@@ -395,6 +395,11 @@
     color: var(--color-ink-muted);
   }
 
+  .admin-upload-panel__meta {
+    @apply flex flex-wrap items-center gap-2 text-xs;
+    color: var(--color-ink-muted);
+  }
+
   .admin-switch-row {
     @apply flex w-full items-center justify-between gap-4 border px-4 py-3;
     border-radius: var(--radius-md);

@@ -6,6 +6,15 @@ import {
   DECO_GRAVITY_DEFAULT,
   DECO_GRAVITY_MAX,
   DECO_GRAVITY_MIN,
+  DECO_IDLE_SWAY_AMP_DEFAULT,
+  DECO_IDLE_SWAY_AMP_MAX,
+  DECO_IDLE_SWAY_AMP_MIN,
+  DECO_IDLE_SWAY_HZ_DEFAULT,
+  DECO_IDLE_SWAY_HZ_MAX,
+  DECO_IDLE_SWAY_HZ_MIN,
+  DECO_LINE_WIDTH_DEFAULT,
+  DECO_LINE_WIDTH_MAX,
+  DECO_LINE_WIDTH_MIN,
   DECO_LOGO_SIZE_DEFAULT,
   DECO_LOGO_SIZE_MAX,
   DECO_LOGO_SIZE_MIN,
@@ -19,9 +28,13 @@ import {
   DECO_SEGMENTS_MIN,
   clampDecoDamping,
   clampDecoGravity,
+  clampDecoIdleSwayAmp,
+  clampDecoIdleSwayHz,
+  clampDecoLineWidth,
   clampDecoLogoSize,
   clampDecoRopeLength,
   clampDecoSegments,
+  defaultDecoConfig,
   normalizeDecoConfig,
 } from '~/utils/decoParams'
 
@@ -31,8 +44,9 @@ import {
  * 真正保证库里存不下发散值的是这里的钳位；而元数据（标签/单位/范围/默认值）
  * 一旦与后端漂移，就会出现"后台能填、读者站不认"。
  *
- * 票 #41 新增四个物理参数后，这里还要保证"参数清单 = 表单渲染的输入行"：
- * 少一项就是后台根本改不了，多项就是提交了读者站不认识的键。
+ * 票 #41 新增四个物理参数、票 #42 再新增三个（描边宽度 + 静止轻晃的两个）。
+ * 这里还保证三件事：参数清单 = 表单渲染的输入行；每个参数都有单位与一句
+ * 作用说明；「恢复默认」的九个值与规范默认逐项一致（且只是表单值）。
  */
 
 /** 元数据表里的参数越多，后台可调的东西越多；缺单位/说明就没法看。 */
@@ -46,17 +60,23 @@ describe('装饰参数元数据', () => {
     expect(DECO_LOGO_SIZE_PARAM.hint.length).toBeGreaterThan(8)
   })
 
-  it('四个物理参数的标签 / 单位 / 作用说明齐全，且单位与量纲对应', () => {
+  it('八个数值参数的标签 / 单位 / 作用说明齐全，且单位与量纲对应', () => {
     const byKey = new Map(DECO_NUMBER_PARAMS.map((param) => [param.key, param]))
 
     expect(byKey.get('rope_length')?.label).toBe('挂绳长度')
     expect(byKey.get('rope_length')?.unit).toBe('px')
     expect(byKey.get('segments')?.label).toBe('链节点数')
     expect(byKey.get('segments')?.unit).toBe('节')
+    expect(byKey.get('line_width')?.label).toBe('描边宽度')
+    expect(byKey.get('line_width')?.unit).toBe('px')
     expect(byKey.get('gravity')?.label).toBe('重力')
     expect(byKey.get('gravity')?.unit).toBe('px/s²')
     expect(byKey.get('damping')?.label).toBe('每步阻尼')
     expect(byKey.get('damping')?.unit).toBe('无量纲')
+    expect(byKey.get('idle_sway_hz')?.label).toBe('静止摆动频率')
+    expect(byKey.get('idle_sway_hz')?.unit).toBe('Hz')
+    expect(byKey.get('idle_sway_amp')?.label).toBe('静止摆动幅度')
+    expect(byKey.get('idle_sway_amp')?.unit).toBe('px/s²')
     for (const param of PHYSICS_PARAMS) {
       // 一句说明就是"这个数影响什么"，不能只留标签。
       expect(param.hint.length).toBeGreaterThan(8)
@@ -65,7 +85,7 @@ describe('装饰参数元数据', () => {
     }
   })
 
-  it('区间与默认值：24–96/48、40–240/120、4–24/10、400–4000/1600、0.94–0.995/0.99', () => {
+  it('区间与默认值：24–96/48、40–240/120、4–24/10、1–6/2.5、400–4000/1600、0.94–0.995/0.99、0–1.5/0.8、0–40/20', () => {
     // 这些数是跨端契约。本票不做一致性门禁（票 #43），所以在这里显式钉住：
     // 改一端就必须同时改另一端，否则这条断言会逼你想一次。
     expect(DECO_LOGO_SIZE_MIN).toBe(24)
@@ -80,6 +100,10 @@ describe('装饰参数元数据', () => {
     expect(DECO_SEGMENTS_MAX).toBe(24)
     expect(DECO_SEGMENTS_DEFAULT).toBe(10)
 
+    expect(DECO_LINE_WIDTH_MIN).toBe(1)
+    expect(DECO_LINE_WIDTH_MAX).toBe(6)
+    expect(DECO_LINE_WIDTH_DEFAULT).toBe(2.5)
+
     expect(DECO_GRAVITY_MIN).toBe(400)
     expect(DECO_GRAVITY_MAX).toBe(4000)
     expect(DECO_GRAVITY_DEFAULT).toBe(1600)
@@ -87,18 +111,30 @@ describe('装饰参数元数据', () => {
     expect(DECO_DAMPING_MIN).toBe(0.94)
     expect(DECO_DAMPING_MAX).toBe(0.995)
     expect(DECO_DAMPING_DEFAULT).toBe(0.99)
-
     // 阻尼上限必须小于 1：等于或大于 1 会让摆动越甩越大。
     expect(DECO_DAMPING_MAX).toBeLessThan(1)
+
+    expect(DECO_IDLE_SWAY_HZ_MIN).toBe(0)
+    expect(DECO_IDLE_SWAY_HZ_MAX).toBe(1.5)
+    expect(DECO_IDLE_SWAY_HZ_DEFAULT).toBe(0.8)
+    expect(DECO_IDLE_SWAY_AMP_MIN).toBe(0)
+    expect(DECO_IDLE_SWAY_AMP_MAX).toBe(40)
+    expect(DECO_IDLE_SWAY_AMP_DEFAULT).toBe(20)
+    // 轻晃的两个下限是 0（合法的"关掉轻晃"），不是"缺省回默认"。
+    expect(DECO_IDLE_SWAY_HZ_MIN).toBe(0)
+    expect(DECO_IDLE_SWAY_AMP_MIN).toBe(0)
   })
 
-  it('参数清单就是表单要渲染的五行（开关不是数值参数）', () => {
+  it('`参数清单就是表单要渲染的八行（开关不是数值参数）', () => {
     expect(DECO_NUMBER_PARAMS.map((param) => param.key)).toEqual([
       'logo_size',
       'rope_length',
       'segments',
+      'line_width',
       'gravity',
       'damping',
+      'idle_sway_hz',
+      'idle_sway_amp',
     ])
   })
 
@@ -107,8 +143,11 @@ describe('装饰参数元数据', () => {
       logo_size: { min: DECO_LOGO_SIZE_MIN, max: DECO_LOGO_SIZE_MAX, defaultValue: DECO_LOGO_SIZE_DEFAULT },
       rope_length: { min: DECO_ROPE_LENGTH_MIN, max: DECO_ROPE_LENGTH_MAX, defaultValue: DECO_ROPE_LENGTH_DEFAULT },
       segments: { min: DECO_SEGMENTS_MIN, max: DECO_SEGMENTS_MAX, defaultValue: DECO_SEGMENTS_DEFAULT },
+      line_width: { min: DECO_LINE_WIDTH_MIN, max: DECO_LINE_WIDTH_MAX, defaultValue: DECO_LINE_WIDTH_DEFAULT },
       gravity: { min: DECO_GRAVITY_MIN, max: DECO_GRAVITY_MAX, defaultValue: DECO_GRAVITY_DEFAULT },
       damping: { min: DECO_DAMPING_MIN, max: DECO_DAMPING_MAX, defaultValue: DECO_DAMPING_DEFAULT },
+      idle_sway_hz: { min: DECO_IDLE_SWAY_HZ_MIN, max: DECO_IDLE_SWAY_HZ_MAX, defaultValue: DECO_IDLE_SWAY_HZ_DEFAULT },
+      idle_sway_amp: { min: DECO_IDLE_SWAY_AMP_MIN, max: DECO_IDLE_SWAY_AMP_MAX, defaultValue: DECO_IDLE_SWAY_AMP_DEFAULT },
     } as const
 
     for (const param of DECO_NUMBER_PARAMS) {
@@ -121,11 +160,14 @@ describe('装饰参数元数据', () => {
     }
   })
 
-  it('节点数是计数：元数据标成整数并强制 0 位小数', () => {
+  it('节点数是计数、描边宽度锁一位小数：精度声明与量纲匹配', () => {
     const segments = DECO_NUMBER_PARAMS.find((param) => param.key === 'segments')
+    const lineWidth = DECO_NUMBER_PARAMS.find((param) => param.key === 'line_width')
 
     expect(segments?.integer).toBe(true)
     expect(segments?.precision).toBe(0)
+    expect(lineWidth?.step).toBe(0.1)
+    expect(lineWidth?.precision).toBe(1)
     // 其余参数允许小数（阻尼必须能填 0.97）。
     expect(DECO_NUMBER_PARAMS.find((param) => param.key === 'damping')?.integer).toBeFalsy()
   })
@@ -182,6 +224,35 @@ describe('clampDecoRopeLength / clampDecoGravity / clampDecoDamping', () => {
   })
 })
 
+describe('票 #42 的三个新参数钳位', () => {
+  it('描边宽度：越界钳到 1/6 并保留一位小数，缺省与非法回落 2.5', () => {
+    expect(clampDecoLineWidth(10)).toBe(DECO_LINE_WIDTH_MAX)
+    expect(clampDecoLineWidth(0.2)).toBe(DECO_LINE_WIDTH_MIN)
+    expect(clampDecoLineWidth(2.54)).toBe(2.5)
+    expect(clampDecoLineWidth(2.56)).toBe(2.6)
+    expect(clampDecoLineWidth(2.5)).toBe(2.5)
+    expect(clampDecoLineWidth(0)).toBe(DECO_LINE_WIDTH_DEFAULT)
+    expect(clampDecoLineWidth(-1)).toBe(DECO_LINE_WIDTH_DEFAULT)
+    expect(clampDecoLineWidth(Number.NaN)).toBe(DECO_LINE_WIDTH_DEFAULT)
+  })
+
+  it('静止摆动频率：0 原样保留（= 关掉轻晃），越界钳到 1.5，负数/NaN 回落 0.8', () => {
+    expect(clampDecoIdleSwayHz(0)).toBe(0)
+    expect(clampDecoIdleSwayHz(9)).toBe(DECO_IDLE_SWAY_HZ_MAX)
+    expect(clampDecoIdleSwayHz(0.8)).toBe(0.8)
+    expect(clampDecoIdleSwayHz(-1)).toBe(DECO_IDLE_SWAY_HZ_DEFAULT)
+    expect(clampDecoIdleSwayHz(Number.NaN)).toBe(DECO_IDLE_SWAY_HZ_DEFAULT)
+  })
+
+  it('静止摆动幅度：0 原样保留（= 零帧车道），越界钳到 40，负数/NaN 回落 20', () => {
+    expect(clampDecoIdleSwayAmp(0)).toBe(0)
+    expect(clampDecoIdleSwayAmp(400)).toBe(DECO_IDLE_SWAY_AMP_MAX)
+    expect(clampDecoIdleSwayAmp(20)).toBe(20)
+    expect(clampDecoIdleSwayAmp(-5)).toBe(DECO_IDLE_SWAY_AMP_DEFAULT)
+    expect(clampDecoIdleSwayAmp(Number.NaN)).toBe(DECO_IDLE_SWAY_AMP_DEFAULT)
+  })
+})
+
 describe('clampDecoSegments', () => {
   it('越界钳到 4/24，并四舍五入成整数（不接受"半节"）', () => {
     expect(clampDecoSegments(100)).toBe(DECO_SEGMENTS_MAX)
@@ -199,21 +270,52 @@ describe('clampDecoSegments', () => {
   })
 })
 
-describe('normalizeDecoConfig', () => {
-  it('缺子块时补默认值（开关默认开、五个数值都取默认）', () => {
-    expect(normalizeDecoConfig({} as never)).toEqual({
+describe('恢复默认（票 #42 验收项）', () => {
+  it('恰好是规范里的九个默认值（开关 + 八个数值）', () => {
+    expect(defaultDecoConfig()).toEqual({
       charm: {
         enable: true,
         logo_size: DECO_LOGO_SIZE_DEFAULT,
         rope_length: DECO_ROPE_LENGTH_DEFAULT,
         segments: DECO_SEGMENTS_DEFAULT,
+        line_width: DECO_LINE_WIDTH_DEFAULT,
         gravity: DECO_GRAVITY_DEFAULT,
         damping: DECO_DAMPING_DEFAULT,
+        idle_sway_hz: DECO_IDLE_SWAY_HZ_DEFAULT,
+        idle_sway_amp: DECO_IDLE_SWAY_AMP_DEFAULT,
       },
     })
   })
 
-  it('保留管理员显式关掉的开关，同时钳住全部五个数值', () => {
+  it('每个默认值都落在自己的合法区间内（恢复默认不会被钳位改动）', () => {
+    const defaults = defaultDecoConfig().charm
+    expect(defaults.logo_size).toBeGreaterThanOrEqual(DECO_LOGO_SIZE_MIN)
+    expect(defaults.logo_size).toBeLessThanOrEqual(DECO_LOGO_SIZE_MAX)
+    expect(defaults.rope_length).toBeGreaterThanOrEqual(DECO_ROPE_LENGTH_MIN)
+    expect(defaults.rope_length).toBeLessThanOrEqual(DECO_ROPE_LENGTH_MAX)
+    expect(defaults.segments).toBeGreaterThanOrEqual(DECO_SEGMENTS_MIN)
+    expect(defaults.segments).toBeLessThanOrEqual(DECO_SEGMENTS_MAX)
+    expect(defaults.line_width).toBeGreaterThanOrEqual(DECO_LINE_WIDTH_MIN)
+    expect(defaults.line_width).toBeLessThanOrEqual(DECO_LINE_WIDTH_MAX)
+    expect(defaults.gravity).toBeGreaterThanOrEqual(DECO_GRAVITY_MIN)
+    expect(defaults.gravity).toBeLessThanOrEqual(DECO_GRAVITY_MAX)
+    expect(defaults.damping).toBeGreaterThanOrEqual(DECO_DAMPING_MIN)
+    expect(defaults.damping).toBeLessThanOrEqual(DECO_DAMPING_MAX)
+    expect(defaults.idle_sway_hz).toBeGreaterThanOrEqual(DECO_IDLE_SWAY_HZ_MIN)
+    expect(defaults.idle_sway_hz).toBeLessThanOrEqual(DECO_IDLE_SWAY_HZ_MAX)
+    expect(defaults.idle_sway_amp).toBeGreaterThanOrEqual(DECO_IDLE_SWAY_AMP_MIN)
+    expect(defaults.idle_sway_amp).toBeLessThanOrEqual(DECO_IDLE_SWAY_AMP_MAX)
+    // 恢复默认的结果本身也必须能通过归一化（幂等）。
+    expect(normalizeDecoConfig(defaultDecoConfig())).toEqual(defaultDecoConfig())
+  })
+})
+
+describe('normalizeDecoConfig', () => {
+  it('缺子块时补默认值（开关默认开、八个数值都取默认）', () => {
+    expect(normalizeDecoConfig({} as never)).toEqual(defaultDecoConfig())
+  })
+
+  it('保留管理员显式关掉的开关，同时钳住全部八个数值', () => {
     expect(
       normalizeDecoConfig({
         charm: {
@@ -221,8 +323,11 @@ describe('normalizeDecoConfig', () => {
           logo_size: 999,
           rope_length: 9999,
           segments: 100,
+          line_width: 9,
           gravity: 99999,
           damping: 2,
+          idle_sway_hz: 9,
+          idle_sway_amp: 999,
         },
       }),
     ).toEqual({
@@ -231,20 +336,29 @@ describe('normalizeDecoConfig', () => {
         logo_size: DECO_LOGO_SIZE_MAX,
         rope_length: DECO_ROPE_LENGTH_MAX,
         segments: DECO_SEGMENTS_MAX,
+        line_width: DECO_LINE_WIDTH_MAX,
         gravity: DECO_GRAVITY_MAX,
         damping: DECO_DAMPING_MAX,
+        idle_sway_hz: DECO_IDLE_SWAY_HZ_MAX,
+        idle_sway_amp: DECO_IDLE_SWAY_AMP_MAX,
       },
     })
   })
 
-  it('部分字段缺失只影响它自己（其余保持传入值）', () => {
-    expect(normalizeDecoConfig({ charm: { enable: true, rope_length: 80 } }).charm).toEqual({
+  it('部分字段缺失只影响它自己；轻晃填 0 时保留 0（不回落默认）', () => {
+    expect(
+      normalizeDecoConfig({ charm: { enable: true, rope_length: 80, idle_sway_hz: 0, idle_sway_amp: 0 } })
+        .charm,
+    ).toEqual({
       enable: true,
       logo_size: DECO_LOGO_SIZE_DEFAULT,
       rope_length: 80,
       segments: DECO_SEGMENTS_DEFAULT,
+      line_width: DECO_LINE_WIDTH_DEFAULT,
       gravity: DECO_GRAVITY_DEFAULT,
       damping: DECO_DAMPING_DEFAULT,
+      idle_sway_hz: 0,
+      idle_sway_amp: 0,
     })
   })
 

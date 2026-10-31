@@ -12,7 +12,7 @@
 #   而后续几轮陆续新增了 7 道门禁 —— 契约未过期、契约类型未过期、契约↔路由对账、
 #   admin 鉴权探测、菜单↔页面对账、前端 lint、覆盖率门槛。
 #   它们一道都没进过自检，等于"新增的门禁是否有效"从来没被验证过。
-#   现在 12 道全覆盖。
+#   现在 13 道全覆盖（新增跨端装饰参数一致性）。
 #
 # 唯一的例外是 admin 鉴权（第 8 道）：
 #   要让它红，必须临时把某条后台路由的 AdminMiddleware 摘掉 —— 一旦脚本被中断
@@ -146,7 +146,7 @@ contract_types_stale() {
   return 0
 }
 
-echo "===== 1/12 后端单测门禁 ====="
+echo "===== 1/13 后端单测门禁 ====="
 mkdir -p backend/internal/canary
 cat > "$CANARY_TEST" <<'EOF'
 package canary
@@ -162,7 +162,7 @@ expect_fail "backend 单测" bash -c 'cd backend && go test ./internal/canary/'
 rm -f "$CANARY_TEST"; rmdir backend/internal/canary 2>/dev/null
 
 echo ""
-echo "===== 2/12 架构规则门禁（archcheck 棘轮） ====="
+echo "===== 2/13 架构规则门禁（archcheck 棘轮） ====="
 mkdir -p backend/api/zz_canary
 cat > "$CANARY_ARCH" <<'EOF'
 package zz_canary
@@ -182,12 +182,12 @@ expect_fail "archcheck 棘轮（新增违规即超阈值，基线 $ARCH_MAX_VIOL
 rm -f "$CANARY_ARCH"; rmdir backend/api/zz_canary 2>/dev/null
 
 echo ""
-echo "===== 3/12 archcheck 规则自检 ====="
+echo "===== 3/13 archcheck 规则自检 ====="
 # 规则自检本身也是门禁：如果把某条规则改坏（不再报错），rules_test 必须红。
 expect_pass "archcheck 规则自检" bash -c 'cd backend && go test ./tools/archcheck/...'
 
 echo ""
-echo "===== 4/12 前端类型门禁 ====="
+echo "===== 4/13 前端类型门禁 ====="
 cat > "$CANARY_TS" <<'EOF'
 // 故意制造类型错误：把一个字符串赋给 number。
 // typecheck 必须失败；如果通过，说明类型门禁是假的。
@@ -198,7 +198,7 @@ expect_fail "前端 typecheck" bash -c 'cd frontend && NODE_OPTIONS="--max-old-s
 rm -f "$CANARY_TS"
 
 echo ""
-echo "===== 5/12 契约未过期（注解 → swagger.json） ====="
+echo "===== 5/13 契约未过期（注解 → swagger.json） ====="
 # 门禁原型（CI 的 contract job）：改注解后忘了 `make openapi`，
 # `git diff --exit-code docs/swagger.json` 就会非零。
 #
@@ -231,7 +231,7 @@ else
 fi
 
 echo ""
-echo "===== 6/12 前端契约类型未过期 ====="
+echo "===== 6/13 前端契约类型未过期 ====="
 # 门禁原型（CI 的 contract-types job / check.sh 的 run_contract_types）：
 # swagger.json 更新了但 openapi.d.ts 忘了重新生成 → 前端按旧类型编译。
 # 注入：往已提交的 d.ts 里加一行，模拟"与契约不一致"。
@@ -251,7 +251,7 @@ else
 fi
 
 echo ""
-echo "===== 7/12 契约 ↔ 路由表对账 ====="
+echo "===== 7/13 契约 ↔ 路由表对账 ====="
 # 门禁原型：backend/internal/platform/http/router/contract_routes_test.go
 # 它双向对账：契约里有、路由里没有 = 契约说谎（严格失败）；
 # 路由里有、契约里没有 = 缺口（必须登记并写理由）。
@@ -284,7 +284,7 @@ else
 fi
 
 echo ""
-echo "===== 8/12 admin 鉴权门禁（不注入，理由见文件头） ====="
+echo "===== 8/13 admin 鉴权门禁（不注入，理由见文件头） ====="
 # 这三条用例自带反例：
 #   TestAdminRoutesRejectOrdinaryUser       普通用户令牌探 16 个后台操作，必须停在中间件
 #   TestProbeDistinguishesUnprotectedRoute  对照用例：放行与拦住必须能分辨
@@ -293,7 +293,7 @@ expect_pass "admin 鉴权探测 + 契约覆盖面" \
   bash -c "cd backend && go test ./internal/platform/http/router/ -run '^(TestAdminRoutesRejectOrdinaryUser|TestProbeDistinguishesUnprotectedRoute|TestAdminOnlyListCoversContract)\$' -count=1"
 
 echo ""
-echo "===== 9/12 菜单 ↔ 页面文件对账 ====="
+echo "===== 9/13 菜单 ↔ 页面文件对账 ====="
 # 门禁原型：frontend_admin/test/unit/menu.test.ts
 # 起因：侧边栏挂着「日志中心 → /logs」而 app/pages/logs/ 不存在，点进去 404。
 # 注入：往 ADMIN_NAV 里加一个没有对应页面文件的 path。
@@ -316,7 +316,7 @@ else
 fi
 
 echo ""
-echo "===== 10/12 前端 lint 门禁 ====="
+echo "===== 10/13 前端 lint 门禁 ====="
 # 注入一个 debugger：两端 eslint 都把 no-debugger 设为 error。
 printf 'export function canaryLint(): void {\n  debugger\n}\n' > "$CANARY_LINT"
 if ( cd frontend && corepack pnpm lint ) >"$CANARY_TMP/out.txt" 2>&1; then
@@ -327,7 +327,7 @@ fi
 rm -f "$CANARY_LINT"
 
 echo ""
-echo "===== 11/12 覆盖率门槛 ====="
+echo "===== 11/13 覆盖率门槛 ====="
 # 门禁原型：frontend_admin 的 vitest coverage thresholds（95/90/95/95，
 # 统计范围只有 app/utils/**）。现有 6 个文件都是 100%，加一个 0 覆盖文件
 # 会把整体拉到 85.7%，必须让 `test:coverage` 失败。
@@ -340,7 +340,7 @@ fi
 rm -f "$CANARY_COV"
 
 echo ""
-echo "===== 12/12 两端 tokens.css 同源门禁 ====="
+echo "===== 12/13 两端 tokens.css 同源门禁 ====="
 # 门禁原型：scripts/check-token-parity.mjs（ADR-0012 约束 14 / #22）
 # 判据是"两份文件逐字节相同"。注入：给后台那份末尾追加一个注释 —— 模拟最真实的
 # 事故：只改了读者站（或只改了后台），另一端忘记同步。门禁必须变红。
@@ -359,6 +359,34 @@ if backup_file "$ADMIN_TOKENS"; then
     FAIL=$((FAIL+1))
   fi
   restore_file "$ADMIN_TOKENS"
+else
+  echo "✗ 备份失败，跳过本节"
+  FAIL=$((FAIL+1))
+fi
+
+echo ""
+echo "===== 13/13 跨端装饰参数一致性门禁 ====="
+# 门禁原型：scripts/check-deco-range-parity.mjs（#43）
+# 判据是"deco.charm 的每个数值参数的 min/max/default 与布尔默认值在后端 Go /
+# 读者站 / 后台三处逐项一致"。注入：只改后台一个范围常量 —— 模拟最真实的
+# 漂移事故（只改一端、另一端忘记同步）。门禁必须变红，并指出是哪两端。
+ADMIN_DECO="frontend_admin/app/utils/decoParams.ts"
+if backup_file "$ADMIN_DECO"; then
+  sed -i 's|^export const DECO_ROPE_LENGTH_MAX = 240$|export const DECO_ROPE_LENGTH_MAX = 260|' "$ADMIN_DECO"
+  if ! grep -q "DECO_ROPE_LENGTH_MAX = 260" "$ADMIN_DECO"; then
+    echo "✗ 无法注入：decoParams.ts 里没找到预期的 DECO_ROPE_LENGTH_MAX 行"
+    FAIL=$((FAIL+1))
+  elif node scripts/check-deco-range-parity.mjs >"$CANARY_TMP/out.txt" 2>&1; then
+    bad "跨端装饰参数不一致时，门禁没有失败"
+  elif grep -q "跨端装饰参数一致性门禁失败" "$CANARY_TMP/out.txt"; then
+    # 必须确认"红"的原因是参数不一致，而不是 node 没被找到。
+    ok "只改后台一端会被判为不一致"
+  else
+    echo "✗ 跨端参数门禁没有按预期原因失败（node 不可用？）"
+    tail -5 "$CANARY_TMP/out.txt"
+    FAIL=$((FAIL+1))
+  fi
+  restore_file "$ADMIN_DECO"
 else
   echo "✗ 备份失败，跳过本节"
   FAIL=$((FAIL+1))

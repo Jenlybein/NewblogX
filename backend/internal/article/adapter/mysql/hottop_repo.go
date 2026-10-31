@@ -228,6 +228,11 @@ func (r *HotTopRepo) UpdateSortOrder(ctx context.Context, ids []domain.ArticleID
 }
 
 // nextSortOrder 返回下一个可用序号（当前最大 + 1，空表为 1）。
+//
+// 并发说明：两个管理员同时"加一条"可能算出同一个序号。这里刻意不加锁——
+// sort_order 上没有唯一索引（零 DDL 加不了），读出一律用 `sort_order, id` 兜底，
+// 同号只会退化成"按加入顺序"，既不丢数据也不阻塞。上限 12 条的运营位是单人操作，
+// 为它引入 SELECT ... FOR UPDATE 不划算。
 func (r *HotTopRepo) nextSortOrder(db *gorm.DB) (int, error) {
 	var max int
 	if err := db.Model(&articleHotTopRow{}).

@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"myblogx/conf"
+	siteconf "myblogx/conf/site"
 	sitehttp "myblogx/internal/site/adapter/http"
 	sitetest "myblogx/internal/site/apptest"
 
@@ -52,6 +53,38 @@ func TestPublicSiteRecordsVisit(t *testing.T) {
 		zero := sitehttp.NewHandler(sitetest.NewDefaultService(), nil)
 		zero.PublicInfo(newCtx("site"))
 	})
+}
+
+// 公开站点配置的形状：不再有站点模式，但有发布/展示三开关（#60 / ADR-0017）。
+//
+// 站点模式（site_info.mode）是死配置 —— 全仓没有一处读它，留着只会让读者站
+// 一直被一个无人消费的字段误导。三个开关在 site.article 段里，随同一份公开
+// 配置下发；键名与后端 json tag 一致，前端手写投影照它们绑定。
+func TestPublicSiteConfigSwitches(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	env := sitetest.NewEnv(conf.Site{Article: siteconf.Article{
+		AllowNonAdminPublish: true,
+		AllowNonAdminDraft:   true,
+		ShowNonAdminArticles: true,
+	}}, conf.AI{}, "test", "")
+	h := sitehttp.NewHandler(env.Service, nil)
+
+	recorder := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(recorder)
+	c.Request = httptest.NewRequest("GET", "/site/site", nil)
+	c.Set("requestUri", sitehttp.SiteInfoRequest{Name: "site"})
+	h.PublicInfo(c)
+
+	body := recorder.Body.String()
+	if strings.Contains(body, `"mode"`) {
+		t.Fatalf("公开站点配置不应再返回 mode，实际: %s", body)
+	}
+	for _, key := range []string{"allow_non_admin_publish", "allow_non_admin_draft", "show_non_admin_articles"} {
+		if !strings.Contains(body, `"`+key+`":true`) {
+			t.Fatalf("公开站点配置应带上 site.article.%s=true，实际: %s", key, body)
+		}
+	}
 }
 
 // 装饰段（deco）走的是既有的三条参数化 name 路由：公开读 GET /site/{name}、

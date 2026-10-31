@@ -58,7 +58,7 @@ const recommendedAuthors = computed(() => aggregateRecommendedAuthors(props.arti
 const projectTitle = computed(() =>
   brandProjectTitle(props.runtimeConfig?.project?.title || props.runtimeConfig?.site_info?.title),
 );
-// 站点简介：后端 `site` 段里没有这一项 —— `SiteInfo` 只有 title/logo/beian/mode，
+// 站点简介：后端 `site` 段里没有这一项 —— `SiteInfo` 只有 title/logo/beian，
 // `Project` 只有 title/icon/web_path。此前这里先挂 `project.abstract`、再挂
 // `site_info.subtitle`，两个后端都没有的字段，读出来永远为空，整条链在生产里
 // 恒等于这句默认值（#39 清掉了这两个死分支）。想让它可配置，得先在后端加字段。

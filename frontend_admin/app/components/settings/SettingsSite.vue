@@ -7,7 +7,6 @@ import {
   NFormItem,
   NInput,
   NInputNumber,
-  NSelect,
   NSpace,
   NSwitch,
   useMessage,
@@ -23,11 +22,6 @@ const saving = ref(false)
 // 丢掉 v-if 的窄化（第一次双向写之后就不再窄化），整份模板都会报可能为 null。
 const config = ref({} as SiteRuntimeConfig)
 const loaded = ref(false)
-
-const modeOptions = [
-  { label: '社区模式', value: 1 },
-  { label: '博客模式', value: 2 },
-]
 
 async function load() {
   loading.value = true
@@ -61,7 +55,7 @@ onMounted(load)
     <!-- 登录策略单独一块，但和基础信息同一个表单：它属于 site 段，
          拆成两个组件各自读写整段，会互相把对方刚存的值覆盖回去。 -->
     <NAlert type="info" :bordered="false" class="mb-4">
-      下面三组设置（基础信息 / 登录策略 / 内容审核）属于同一段配置，
+      下面四组设置（基础信息 / 登录策略 / 发布与展示 / 内容审核）属于同一段配置，
       改完点一次「保存站点配置」即可，不需要分别保存。
     </NAlert>
 
@@ -75,9 +69,6 @@ onMounted(load)
         </NFormItem>
         <NFormItem label="备案号">
           <NInput v-model:value="config.site_info.beian" />
-        </NFormItem>
-        <NFormItem label="站点模式">
-          <NSelect v-model:value="config.site_info.mode" :options="modeOptions" />
         </NFormItem>
         <NFormItem label="SEO 关键词">
           <NInput v-model:value="config.seo.keywords" placeholder="多个关键词用英文逗号分隔" />
@@ -129,6 +120,22 @@ onMounted(load)
             <NInputNumber v-model:value="config.login.login_fail_ip_max" :min="1" />
           </NFormItem>
         </NSpace>
+      </NCard>
+
+      <NCard class="admin-card mb-4" title="发布与展示" size="small">
+        <NAlert type="info" :bordered="false" class="mb-4">
+          这三个开关只管普通用户（非管理员）。两个发布/草稿开关都关掉时，
+          普通用户只能查看和删除自己的存量草稿，不能新建、不能保存、不能发布。
+        </NAlert>
+        <NFormItem label="允许非管理员发布文章">
+          <NSwitch v-model:value="config.article.allow_non_admin_publish" />
+        </NFormItem>
+        <NFormItem label="允许非管理员创建草稿">
+          <NSwitch v-model:value="config.article.allow_non_admin_draft" />
+        </NFormItem>
+        <NFormItem label="显示非管理员发布文章">
+          <NSwitch v-model:value="config.article.show_non_admin_articles" />
+        </NFormItem>
       </NCard>
 
       <NCard class="admin-card mb-4" title="内容审核" size="small">

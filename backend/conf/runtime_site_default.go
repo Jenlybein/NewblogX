@@ -15,4 +15,5 @@ type RuntimeDefaults struct {
 	OAuth   QQ     `yaml:"oauth"`
 	Log     Logrus `yaml:"log"`
 	Upload  Upload `yaml:"upload"`
+	Deco    Deco   `yaml:"deco"`
 }

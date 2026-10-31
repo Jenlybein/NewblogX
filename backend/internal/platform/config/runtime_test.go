@@ -152,8 +152,8 @@ func TestInitRuntimeConfig_给缺失段补默认行(t *testing.T) {
 	if err := db.Model(&runtimeConfigRow{}).Count(&count).Error; err != nil {
 		t.Fatalf("统计行数失败: %v", err)
 	}
-	if count != 7 {
-		t.Fatalf("七段都应补一行，实际 %d 行", count)
+	if count != 8 {
+		t.Fatalf("八段都应补一行，实际 %d 行", count)
 	}
 
 	// 补进去的内容必须是该段默认值的完整 JSON，不能是空字符串。
@@ -435,7 +435,7 @@ func TestDefaultSettingsYaml_段名与常量对齐(t *testing.T) {
 	// 故意不写在这里（见 InitRuntimeSite 的注释）。
 	want := []string{
 		SectionSite, SectionAI, SectionMail,
-		SectionStorage, SectionOAuth, SectionUpload,
+		SectionStorage, SectionOAuth, SectionUpload, SectionDeco,
 	}
 	for _, name := range want {
 		if _, ok := top[name]; !ok {
@@ -515,6 +515,7 @@ func TestAllSections_都有jsonTag(t *testing.T) {
 		SectionOAuth:   conf.QQ{},
 		SectionLog:     conf.Logrus{},
 		SectionUpload:  conf.Upload{},
+		SectionDeco:    conf.Deco{},
 	}
 	for name, value := range cases {
 		raw, err := json.Marshal(value)
@@ -530,5 +531,92 @@ func TestAllSections_都有jsonTag(t *testing.T) {
 				t.Errorf("段 %s 的字段 %q 缺 json tag（合并键名会与库里的 snake_case 对不上）", name, key)
 			}
 		}
+	}
+}
+
+// ── 第 8 段 deco：段注册的往返 ───────────────────────────────
+//
+// 这一组守的是"新增段却忘了加某个注册点"：漏掉段名常量 / 结构体字段 /
+// 全量解码 / 缺失补种 / 缓存回写 / 空缓存默认 里任何一处，症状都是
+// "后台改了没反应"或"读到零值"，而编译器一个字都不会说。
+
+func TestUpdateDeco_落库并立刻生效(t *testing.T) {
+	defaults := conf.RuntimeDefaults{
+		Deco: conf.Deco{Charm: conf.Charm{Enable: true, LogoSize: 48}},
+	}
+	svc, db := newTestService(t, defaults)
+	if err := svc.InitRuntimeConfig(); err != nil {
+		t.Fatalf("初始化失败: %v", err)
+	}
+
+	// 1) 缺失补种：deco 段应有一行完整默认值（漏了 seedMissing 这里就取不到行）。
+	seeded := readPayload(t, db, SectionDeco)
+	if !strings.Contains(seeded, `"enable":true`) || !strings.Contains(seeded, `"logo_size":48`) {
+		t.Fatalf("deco 段的默认值没补进库，实际 %s", seeded)
+	}
+	if got := svc.GetRuntimeDeco(); !got.Charm.Enable || got.Charm.LogoSize != 48 {
+		t.Fatalf("补种后应读到默认值，实际 %+v", got)
+	}
+
+	// 2) 缓存立刻生效（热更新：不需要重启）。
+	if err := svc.UpdateDeco(conf.Deco{Charm: conf.Charm{Enable: false, LogoSize: 72}}); err != nil {
+		t.Fatalf("更新失败: %v", err)
+	}
+	if got := svc.GetRuntimeDeco(); got.Charm.Enable || got.Charm.LogoSize != 72 {
+		t.Fatalf("缓存未刷新，实际 %+v", got)
+	}
+
+	// 3) 库里也真的换了（不是只改内存）。
+	payload := readPayload(t, db, SectionDeco)
+	if !strings.Contains(payload, `"enable":false`) || !strings.Contains(payload, `"logo_size":72`) {
+		t.Fatalf("库里未写入新值，实际 %s", payload)
+	}
+
+	// 4) 换成新进程重新加载，值仍然在（重启不丢，且 decodeAll 认得这一段）。
+	svc2 := NewRuntimeConfigService(conf.RuntimeDefaults{}, quietLogger(), db)
+	if err := svc2.InitRuntimeConfig(); err != nil {
+		t.Fatalf("重新加载失败: %v", err)
+	}
+	if reloaded := svc2.GetRuntimeDeco(); reloaded.Charm.Enable || reloaded.Charm.LogoSize != 72 {
+		t.Fatalf("重新加载后应读到落库的值，实际 %+v", reloaded)
+	}
+}
+
+func TestGetRuntimeDeco_未初始化时回退默认值(t *testing.T) {
+	// 缓存为空（InitRuntimeConfig 还没跑）时 snapshotLocked 要按默认值拼一份。
+	// 漏了这一处，只有这条路径读到的是零值 —— 表现是"站点刚起来时挂件消失"。
+	svc := NewRuntimeConfigService(conf.RuntimeDefaults{
+		Deco: conf.Deco{Charm: conf.Charm{Enable: true, LogoSize: 60}},
+	}, quietLogger(), nil)
+
+	if got := svc.GetRuntimeDeco(); !got.Charm.Enable || got.Charm.LogoSize != 60 {
+		t.Fatalf("缓存为空时应回退默认值，实际 %+v", got)
+	}
+}
+
+func TestDefaultSettingsYaml_装饰段与常量对齐(t *testing.T) {
+	// 常量是写入路径的钳位边界，yaml 是"库里缺这段"时的补种值。
+	// 两者漂移就会出现"后台没填过"和"填过默认值"渲染出不同尺寸。
+	raw, err := os.ReadFile("../../../config/site_default_settings.yaml")
+	if err != nil {
+		t.Fatalf("读取默认值文件失败: %v", err)
+	}
+
+	var file struct {
+		Deco conf.Deco `yaml:"deco"`
+	}
+	if err := yaml.Unmarshal(raw, &file); err != nil {
+		t.Fatalf("解析默认值文件失败: %v", err)
+	}
+
+	if !file.Deco.Charm.Enable {
+		t.Fatal("deco.charm.enable 在默认值文件里应为 true（上线即可见，不用先去后台打开）")
+	}
+	if file.Deco.Charm.LogoSize != conf.CharmLogoSizeDefault {
+		t.Fatalf("deco.charm.logo_size 应为 %v，实际 %v", conf.CharmLogoSizeDefault, file.Deco.Charm.LogoSize)
+	}
+	// 补种值本身必须落在钳位区间内，否则"默认值"会被 Normalize 改掉。
+	if file.Deco.Charm.LogoSize < conf.CharmLogoSizeMin || file.Deco.Charm.LogoSize > conf.CharmLogoSizeMax {
+		t.Fatalf("默认值 %v 不在 [%v, %v] 区间内", file.Deco.Charm.LogoSize, conf.CharmLogoSizeMin, conf.CharmLogoSizeMax)
 	}
 }

@@ -123,7 +123,7 @@ _Avoid_: 在代码里再写一份默认值（两份默认值会互相打架）�
 
 **运行时配置（runtime_config_models）**：
 管理员在后台改、下一次请求即生效的配置；表结构是 `(name, payload)`，**一段一行完整 JSON**。
-位置：表 `runtime_config_models`；七段 `site/ai/mail/storage/oauth/log/upload`。
+位置：表 `runtime_config_models`；八段 `site/ai/mail/storage/oauth/log/upload/deco`。
 _Avoid_: 旧表 `runtime_site_config_models`（已无代码读）、列化存储（零 DDL 下每加字段都要改表 = 不可行）。
 
 **Provider 闭包（现读）**：

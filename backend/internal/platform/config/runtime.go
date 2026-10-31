@@ -33,6 +33,7 @@ const (
 	SectionOAuth   = "oauth"
 	SectionLog     = "log"
 	SectionUpload  = "upload"
+	SectionDeco    = "deco"
 )
 
 // defaultSettingsFileName 是默认值文件名；与 settings.yaml 同目录。
@@ -47,6 +48,7 @@ type RuntimeConfig struct {
 	OAuth   conf.QQ
 	Log     conf.Logrus
 	Upload  conf.Upload
+	Deco    conf.Deco
 }
 
 // RuntimeConfigService 负责运行时配置的加载、缓存与更新。
@@ -90,7 +92,7 @@ func (s *RuntimeConfigService) SetLogApplier(fn func(conf.Logrus)) {
 
 // LoadDefaults 从 site_default_settings.yaml 读业务配置默认值。
 //
-// 只读业务段（site / ai / mail / storage / oauth / upload）；日志默认值
+// 只读业务段（site / ai / mail / storage / oauth / upload / deco）；日志默认值
 // 属于进程级配置，来自 settings.yaml，由装配层填进 RuntimeDefaults.Log。
 func LoadDefaults(configFile string) (conf.RuntimeDefaults, error) {
 	var out conf.RuntimeDefaults
@@ -167,6 +169,11 @@ func (s *RuntimeConfigService) GetRuntimeUpload() conf.Upload {
 	return s.GetRuntimeConfig().Upload
 }
 
+// GetRuntimeDeco 返回装饰配置。
+func (s *RuntimeConfigService) GetRuntimeDeco() conf.Deco {
+	return s.GetRuntimeConfig().Deco
+}
+
 // snapshotLocked 返回缓存的一份副本；缓存为空时回退到默认值。
 //
 // 返回副本而不是指针：调用方拼装响应时可能改字段（例如把密钥换成占位符），
@@ -184,6 +191,7 @@ func (s *RuntimeConfigService) snapshotLocked() *RuntimeConfig {
 		OAuth:   s.defaults.OAuth,
 		Log:     s.defaults.Log,
 		Upload:  s.defaults.Upload,
+		Deco:    s.defaults.Deco,
 	}
 }
 
@@ -245,6 +253,7 @@ func (s *RuntimeConfigService) decodeAll(payloads map[string]string) *RuntimeCon
 		OAuth:   decodeOrDefault(SectionOAuth, s.defaults.OAuth, payloads, s.logger),
 		Log:     decodeOrDefault(SectionLog, s.defaults.Log, payloads, s.logger),
 		Upload:  decodeOrDefault(SectionUpload, s.defaults.Upload, payloads, s.logger),
+		Deco:    decodeOrDefault(SectionDeco, s.defaults.Deco, payloads, s.logger),
 	}
 }
 
@@ -297,6 +306,7 @@ func (s *RuntimeConfigService) seedMissing(tx *gorm.DB, payloads map[string]stri
 		{SectionOAuth, s.defaults.OAuth},
 		{SectionLog, s.defaults.Log},
 		{SectionUpload, s.defaults.Upload},
+		{SectionDeco, s.defaults.Deco},
 	}
 	for _, seed := range seeds {
 		if _, ok := payloads[seed.name]; ok {
@@ -372,6 +382,11 @@ func (s *RuntimeConfigService) UpdateUpload(upload conf.Upload) error {
 	return updateSection(s, SectionUpload, upload)
 }
 
+// UpdateDeco 覆盖装饰配置并刷新缓存。
+func (s *RuntimeConfigService) UpdateDeco(deco conf.Deco) error {
+	return updateSection(s, SectionDeco, deco)
+}
+
 // updateSection 是各段更新的公共骨架：事务里 upsert 单行，提交后刷内存缓存。
 //
 // 泛型写成包级函数而不是方法：Go 的方法不能自带类型参数。
@@ -438,6 +453,8 @@ func (s *RuntimeConfigService) applySection(name string, value any) {
 		cfg.Log = typed
 	case conf.Upload:
 		cfg.Upload = typed
+	case conf.Deco:
+		cfg.Deco = typed
 	default:
 		// 只有本包自己会调用 applySection，走到这里说明新增了段却忘了加分支。
 		if s.logger != nil {

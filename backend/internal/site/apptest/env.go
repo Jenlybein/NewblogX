@@ -191,12 +191,22 @@ type Runtime struct {
 	oauth   conf.QQ
 	log     conf.Logrus
 	upload  conf.Upload
+	deco    conf.Deco
 }
 
 var _ domain.RuntimeConfig = (*Runtime)(nil)
 
 // NewRuntime 构造初始配置。
-func NewRuntime(site conf.Site, ai conf.AI) *Runtime { return &Runtime{site: site, ai: ai} }
+//
+// 装饰段给"上线即可见"的默认值，与 site_default_settings.yaml 一致：
+// 替身若用零值，任何依赖默认开着的用例都会悄悄变成反面。
+func NewRuntime(site conf.Site, ai conf.AI) *Runtime {
+	return &Runtime{
+		site: site,
+		ai:   ai,
+		deco: conf.Deco{Charm: conf.Charm{Enable: true, LogoSize: conf.CharmLogoSizeDefault}},
+	}
+}
 
 // Site 实现 domain.RuntimeConfig。
 func (r *Runtime) Site() conf.Site {
@@ -300,6 +310,21 @@ func (r *Runtime) UpdateUpload(upload conf.Upload) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	r.upload = upload
+	return nil
+}
+
+// Deco 实现 domain.RuntimeConfig。
+func (r *Runtime) Deco() conf.Deco {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return r.deco
+}
+
+// UpdateDeco 实现 domain.RuntimeConfig。
+func (r *Runtime) UpdateDeco(deco conf.Deco) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.deco = deco
 	return nil
 }
 

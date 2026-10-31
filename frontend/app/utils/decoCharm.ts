@@ -89,7 +89,7 @@ export const CHARM_IDLE_SWAY_HZ_DEFAULT = 0.8;
 export const CHARM_IDLE_SWAY_AMP_MIN = 0;
 /** 静止摆动幅度上限（px/s²）。 */
 export const CHARM_IDLE_SWAY_AMP_MAX = 40;
-/** 静止摆动幅度默认值（px/s²），作用在自由端。 */
+/** 静止摆动幅度默认值（px/s²），作用在自由端（逐节点加权，指针端为 0、尾端为 1）。 */
 export const CHARM_IDLE_SWAY_AMP_DEFAULT = 20;
 
 /**
@@ -100,6 +100,14 @@ export const CHARM_IDLE_SWAY_AMP_DEFAULT = 20;
  * "按节流后的帧率推进、每次只推进一个固定子步批次、不得补帧追赶"。
  */
 export const CHARM_IDLE_FRAME_INTERVAL_MS = 50;
+
+/**
+ * 指针"仍在主动驱动头节点"的时间窗（ms）。
+ *
+ * 指针在这个窗口内移动过 → 走满速动画帧车道；停住超过窗口 → 才允许进入
+ * 怠速车道。取两个怠速帧间隔，避免拖行时在两条车道之间来回切换。
+ */
+export const CHARM_POINTER_ACTIVE_WINDOW_MS = CHARM_IDLE_FRAME_INTERVAL_MS * 2;
 
 /**
  * 弧垂的几何系数。
@@ -167,7 +175,7 @@ export interface CharmRopeConfig {
   lineWidthPx: number;
   /** 静止摆动频率，Hz。0 表示关掉轻晃。 */
   idleSwayHz: number;
-  /** 静止摆动加速度幅度，px/s²，作用在自由端。0 表示关掉轻晃。 */
+  /** 静止摆动加速度幅度，px/s²，作用在自由端：逐节点加权（指针端 0、尾端 1）。0 表示关掉轻晃。 */
   idleSwayAmp: number;
 }
 
@@ -203,6 +211,19 @@ export interface CharmRopeState {
  */
 export function charmLayerEnabled(input: CharmGateInput): boolean {
   return input.finePointerHover && !input.prefersReducedMotion && input.configEnabled;
+}
+
+/**
+ * 静止轻晃是否开启：幅度与频率**都必须大于 0**。
+ *
+ * 频率 0 表示"没有摆动"，此时正弦项恒为 0，物理是静止的 —— 若只看幅度，
+ * 默认的幅度 20 会让组合式永远排着 20fps 的怠速帧，白白耗电。两个 0 都按
+ * 票面语义视为"关掉轻晃"（退回静止零帧车道）。
+ */
+export function charmIdleSwayEnabled(
+  config: Pick<CharmRopeConfig, "idleSwayHz" | "idleSwayAmp">,
+): boolean {
+  return config.idleSwayAmp > 0 && config.idleSwayHz > 0;
 }
 
 /** 数值参数共用的钳位规则：越界钳到边界、非有限与零值回落默认。 */
@@ -266,7 +287,9 @@ export function clampCharmLineWidth(value: number): number {
     CHARM_LINE_WIDTH_MAX,
     CHARM_LINE_WIDTH_DEFAULT,
   );
-  return Number(clamped.toFixed(1));
+  // 与后端 `math.Round(v*10)/10` 同一条规则：toFixed 在半值上的舍入与
+  // math.Round 不同（2.55 → "2.5" vs 2.6），跨端共享夹具会抓住这种漂移。
+  return Math.round(clamped * 10) / 10;
 }
 
 /**
@@ -367,10 +390,11 @@ function substep(state: CharmRopeState, head: CharmPoint): void {
 
   const gravityStep = config.gravity * CHARM_FIXED_STEP_SECONDS * CHARM_FIXED_STEP_SECONDS;
 
-  // 静止轻晃：每个自由节点都受到**同一个**横向加速度，按 `idle_sway_hz` 做正弦。
-  // 没有逐节点权重（尾端不会更大）；但指针端每步都被钉死，所以整条链是被
-  // 距离约束"拉弯 / 侧摆"，而不是整层平移（平移在这里没有意义）。幅度为 0
-  // 时这一项恒等于 0，物理就回到纯重力 + 阻尼，可以正常收敛。
+  // 静止轻晃：横向加速度按节点序号加权，**指针端为 0、自由端（尾节点）为 1**，
+  // 按 `idle_sway_hz` 做正弦 —— 票面裁决要求加速度"作用在自由端"，所以越靠
+  // 近指针施力越小、越靠尾端越大。指针端每步都被钉死，整条链因此是被距离
+  // 约束"拉弯 / 侧摆"，而不是整层平移。幅度为 0 时这一项恒等于 0，物理回到
+  // 纯重力 + 阻尼，可以正常收敛。
   const swayPhase = 2 * Math.PI * config.idleSwayHz * state.elapsedSeconds;
   const swayAccel = config.idleSwayAmp * Math.sin(swayPhase);
   const swayStep = swayAccel * CHARM_FIXED_STEP_SECONDS * CHARM_FIXED_STEP_SECONDS;
@@ -379,10 +403,8 @@ function substep(state: CharmRopeState, head: CharmPoint): void {
     const node = nodes[index];
     const previousNode = previous[index];
     if (!node || !previousNode) continue;
-    // 每个自由节点都感受到同样的横向加速度；指针端被钉死，所以整条链是
-    // "被拉弯 / 侧摆"，而不是整层平移。幅度为 0 时这一项恒为 0，物理回到
-    // 纯重力 + 阻尼，可以正常收敛到停。
-    const velocityX = (node.x - previousNode.x) * config.damping + swayStep;
+    const swayWeight = count > 1 ? index / (count - 1) : 0;
+    const velocityX = (node.x - previousNode.x) * config.damping + swayStep * swayWeight;
     const velocityY = (node.y - previousNode.y) * config.damping + gravityStep;
     previousNode.x = node.x;
     previousNode.y = node.y;
@@ -685,15 +707,4 @@ export function charmTetherGeometry(
     "Z";
 
   return { centerline, widths, slackPx, maxDeviationPx, path };
-}
-
-/**
- * 挂绳的 SVG `d`：闭合的填充带形多边形（不是一根等宽 `stroke`）。
- *
- * 单根 SVG `stroke` 无法变宽，所以用"沿中心线两侧偏移半宽"的带形多边形来
- * 表达收尾（起始 → 0.6 倍）。好处是每帧仍然只有一个 `d` 写入；代价是
- * `d` 比折线长一些（采样点 × 2 条边），不碰任何布局属性。
- */
-export function charmRopePath(state: CharmRopeState): string {
-  return charmTetherGeometry(state.nodes, state.config.ropeLengthPx, state.config.lineWidthPx).path;
 }

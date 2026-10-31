@@ -100,7 +100,11 @@ type Charm struct {
 	// RopeLength 是挂绳长度（松垂阈值），单位 px。
 	RopeLength float64 `yaml:"rope_length" json:"rope_length"`
 	// Segments 是 Verlet 链的节点数（节），整数计数。
-	Segments int `yaml:"segments" json:"segments"`
+	//
+	// 用 float64 而不是 int 是有意的：写入路径"永不报错"的承诺必须对数字成立。
+	// 用 int 时 `{"segments":10.6}` 会在 JSON 绑定时直接 400，管理员根本到不了
+	// Normalize；Normalize 里再做四舍五入，10.6 节就按 11 节落库。
+	Segments float64 `yaml:"segments" json:"segments"`
 	// LineWidth 是描边起始宽度，单位 px（收尾宽度固定为它的 0.6 倍）。
 	LineWidth float64 `yaml:"line_width" json:"line_width"`
 	// Gravity 是重力加速度，单位 px/s²。
@@ -109,8 +113,9 @@ type Charm struct {
 	Damping float64 `yaml:"damping" json:"damping"`
 	// IdleSwayHz 是静止摆动的频率，单位 Hz。0 表示关掉轻晃。
 	IdleSwayHz float64 `yaml:"idle_sway_hz" json:"idle_sway_hz"`
-	// IdleSwayAmp 是静止摆动的加速度幅度，单位 px/s²，作用在自由端。
-	// 0 表示关掉轻晃（读者站据此退回静止零帧车道）。
+	// IdleSwayAmp 是静止摆动的加速度幅度，单位 px/s²，作用在自由端：
+	// 横向加速度按节点序号加权（指针端 0、尾端 1），不是每个节点同一份。
+	// 0 表示关掉轻晃（读者站据此退回静止零帧车道）；频率为 0 同样视为关掉。
 	IdleSwayAmp float64 `yaml:"idle_sway_amp" json:"idle_sway_amp"`
 }
 
@@ -121,7 +126,7 @@ type Charm struct {
 //   - 非正值回落默认值：0 是 Go 的零值（= 字段没填），负值是明显的手滑，
 //     两者都不是"我想调到最小"的意图，钳成下限会把"没填"变成"填了最小值"；
 //   - 其余越界值钳到边界：保证库里永远存不下发散值；
-//   - 计数类（segments）钳成整数，不接受半节。
+//   - 计数类（segments）先四舍五入再钳到边界，不接受半节（但也不因小数报错）。
 //
 // 不返回 error 是有意的：管理员改一半被 400 打回只会让他猜哪里错了。
 func (d Deco) Normalize() Deco {
@@ -180,17 +185,16 @@ func normalizeLineWidth(v float64) float64 {
 	return math.Round(v*10) / 10
 }
 
-// normalizeSegments 是节点数的钳位规则：计数没有 NaN / Infinity，
-// 只有"没填（0 或负数）"与"越界"两种情况。
-func normalizeSegments(v int) int {
+// normalizeSegments 是节点数的钳位规则：计数没有整数边界输入，
+// 只有"没填（0 或负数）"与"越界 / 小数"三种情况。
+// 与读者站 / 后台的 `Math.round` 保持一致：先四舍五入再夹到 4–24。
+func normalizeSegments(v float64) float64 {
+	if math.IsNaN(v) || math.IsInf(v, 0) {
+		return CharmSegmentsDefault
+	}
 	if v <= 0 {
 		return CharmSegmentsDefault
 	}
-	if v < CharmSegmentsMin {
-		return CharmSegmentsMin
-	}
-	if v > CharmSegmentsMax {
-		return CharmSegmentsMax
-	}
-	return v
+	rounded := math.Round(v)
+	return math.Min(CharmSegmentsMax, math.Max(CharmSegmentsMin, rounded))
 }

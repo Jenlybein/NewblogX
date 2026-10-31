@@ -1,14 +1,21 @@
-import type { RequiredSchema } from "~/types/contract";
-import type { ArticleAuthorInfo, ArticleCreateResult, ArticleDetail, ArticleWritePayload } from "~/types/api";
+import { useNuxtApp } from "#imports";
+import type {
+  ArticleAuthorInfo,
+  ArticleCreateResult,
+  ArticleDetail,
+  ArticleHotTopListData,
+  ArticleWritePayload,
+} from "~/types/api";
 
-export function getTopArticles() {
-  return useNuxtApp().$api.request<
-    RequiredSchema<"myblogx_internal_kernel.ListData-internal_article_adapter_http_ArticleTopCardResponse">
-  >("/api/articles/top", {
+/**
+ * 首页「热门置顶」运营位（公开读）。
+ *
+ * 顺序由后端按管理员手动排的顺序返回，前端不排序。旧实现调 `/articles/top` 并塞
+ * `type: 2`（v1 的全站运营置顶参数，v2 后端根本不认），所以这个区块一直是空的（#67）。
+ */
+export function getHotTopArticles() {
+  return useNuxtApp().$api.request<ArticleHotTopListData>("/api/articles/hot-top", {
     auth: false,
-    query: {
-      type: 2,
-    },
   });
 }
 

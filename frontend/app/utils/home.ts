@@ -119,8 +119,11 @@ export interface HomeSectionInput {
 }
 
 /**
- * 首页各区块（置顶/最新）的降级态。顺序：加载中 → 失败 → 空 → 有数据。
+ * 首页「最新文章」区块的降级态。顺序：加载中 → 失败 → 空 → 有数据。
  * 失败但有缓存条目时仍算 ready，徽标说明是缓存，避免把已有内容整块替换成错误态。
+ *
+ * 只服务最新文章一块：热门置顶是运营位，无数据 / 加载中 / 失败一律整块不渲染
+ * （连标题与徽标都不出现），没有降级态可表达，见 ADR-0017 决策 5。
  */
 export function resolveHomeSectionState(input: HomeSectionInput): HomeSectionState {
   if (input.pending && input.itemCount === 0) {
@@ -178,7 +181,7 @@ export interface PinnedArticleView {
   viewCount: number;
 }
 
-/** 置顶卡片的视图（置顶接口只有 7 个字段，和列表卡片的数据源不同，单独归一化）。 */
+/** 置顶卡片的视图（热门置顶接口只有 7 个字段，和列表卡片的数据源不同，单独归一化）。 */
 export function pinnedArticleView(article: {
   id?: string;
   title?: string;

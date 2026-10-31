@@ -354,7 +354,7 @@ func TestUpdateDecoClampsPhysicsParams(t *testing.T) {
 		t.Fatalf("rope_length 应钳到 %v，实际 %v", conf.CharmRopeLengthMax, got.RopeLength)
 	}
 	if got.Segments != conf.CharmSegmentsMax {
-		t.Fatalf("segments 应钳到 %d，实际 %d", conf.CharmSegmentsMax, got.Segments)
+		t.Fatalf("segments 应钳到 %v，实际 %v", conf.CharmSegmentsMax, got.Segments)
 	}
 	if got.Gravity != conf.CharmGravityMax {
 		t.Fatalf("gravity 应钳到 %v，实际 %v", conf.CharmGravityMax, got.Gravity)

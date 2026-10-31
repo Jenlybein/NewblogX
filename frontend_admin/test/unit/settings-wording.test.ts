@@ -66,10 +66,15 @@ describe("装饰 Tab 的「恢复默认」（票 #42）", () => {
     expect(resetBody).not.toContain("save(");
   });
 
-  it("数值输入行数由元数据驱动，不是手写固定五行", () => {
+  it("数值输入行由元数据驱动，不是手写固定五行", () => {
     const source = readComponent("SettingsDeco.vue");
 
     expect(source).toContain("v-for=\"param in numberParams\"");
-    expect(source).not.toContain("五行");
+    // 行数由 DECO_NUMBER_PARAMS 决定；模板里不能出现逐字段的数值绑定，
+    // 否则参数清单与表单渲染就会有两份真相（加参数时只改元数据不再成立）。
+    expect(source).toContain("const numberParams = DECO_NUMBER_PARAMS");
+    expect(source).not.toMatch(
+      /config\.charm\.(logo_size|rope_length|segments|line_width|gravity|damping|idle_sway_hz|idle_sway_amp)/u,
+    );
   });
 });

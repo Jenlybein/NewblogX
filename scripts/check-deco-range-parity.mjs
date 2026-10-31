@@ -42,6 +42,25 @@ export const DECO_SOURCE_FILES = {
   admin: "frontend_admin/app/utils/decoParams.ts",
 };
 
+/**
+ * 共享归一化用例表（相对仓库根）：同一组输入在三端必须给出同一组输出。
+ *
+ * 范围门禁只比较 min/max/default，抓不到"三端都定义对了范围、但取整规则不同"
+ * 的漂移（segments 一端 math.Round、一端直接截断；line_width 一端 math.Round、
+ * 一端 toFixed —— 半值结果不同）。这张表把归一化本身也钉成同一份契约。
+ */
+export const DECO_FIXTURE_FILE = "backend/conf/testdata/deco-charm-normalization.json";
+
+/** 夹具文件名：Go 测试按包内相对路径（`testdata/...`）引用，比对文件名即可。 */
+export const DECO_FIXTURE_BASENAME = "deco-charm-normalization.json";
+
+/** 必须消费共享夹具的三套测试（少一套 = 那一端可以静默漂移）。 */
+export const DECO_FIXTURE_CONSUMERS = [
+  "backend/conf/conf_deco_test.go",
+  "frontend/test/utils/decoCharm.test.ts",
+  "frontend_admin/test/unit/decoParams.test.ts",
+];
+
 /** 三份**代码**源文件：min / max / default 都必须齐全。 */
 const CODE_SIDES = ["backend", "reader", "admin"];
 /** 默认值多一个 yaml 种子：默认是"票面参数表的出处"，它也参与比较。 */
@@ -434,6 +453,7 @@ export function checkDecoRangeParity({ repoRoot = findRepoRoot() } = {}) {
       parameters: {},
       booleanDefault: {},
       files: {},
+      fixture: { caseCount: 0, parameters: [], consumers: [] },
     };
   }
 
@@ -444,16 +464,132 @@ export function checkDecoRangeParity({ repoRoot = findRepoRoot() } = {}) {
     admin: contents.admin,
   });
 
+  // 共享归一化夹具：文件必须存在，且三套测试都必须引用它。
+  const fixturePath = join(repoRoot, DECO_FIXTURE_FILE);
+  const fixtureText = existsSync(fixturePath) ? readFileSync(fixturePath, "utf8") : null;
+  const consumerTexts = {};
+  for (const relativePath of DECO_FIXTURE_CONSUMERS) {
+    const fullPath = join(repoRoot, relativePath);
+    consumerTexts[relativePath] = existsSync(fullPath) ? readFileSync(fullPath, "utf8") : null;
+  }
+  const fixtureResult = evaluateDecoFixture({ fixture: fixtureText, consumers: consumerTexts });
+
+  // 夹具必须覆盖每一个被门禁发现的参数，不能只留几行应付检查。
+  const fixtureFailures = [...fixtureResult.failures];
+  for (const key of Object.keys(result.parameters)) {
+    if (!fixtureResult.parameters.includes(key)) {
+      fixtureFailures.push({
+        kind: "fixture-coverage",
+        parameter: `charm.${key}`,
+        path: DECO_FIXTURE_FILE,
+        message: `[charm.${key}] 共享归一化用例表 ${DECO_FIXTURE_FILE} 没有这个参数的用例：三端取整规则可以静默漂移`,
+      });
+    }
+  }
+
+  const allFailures = [...result.failures, ...fixtureFailures];
   return {
     ...result,
+    ok: result.ok && allFailures.length === 0,
+    failures: allFailures,
     files: Object.fromEntries(
       Object.entries(contents).map(([side, text]) => [side, Buffer.byteLength(text, "utf8")]),
     ),
+    fixture: {
+      caseCount: fixtureResult.caseCount,
+      parameters: fixtureResult.parameters,
+      consumers: DECO_FIXTURE_CONSUMERS,
+    },
   };
+}
+
+/**
+ * 判定共享归一化夹具：文件必须存在、是合法 JSON、用例字段齐全，且三套测试
+ * 的源码里真的出现夹具路径（"存在但没人读"等于没有）。
+ *
+ * 纯函数收文件文本，便于 canary：删文件 / 把某套测试里的引用拿掉，都必须红。
+ */
+export function evaluateDecoFixture({ fixture, consumers }) {
+  const failures = [];
+  let caseCount = 0;
+  const parameters = [];
+
+  if (fixture === null || fixture === undefined) {
+    failures.push({
+      kind: "fixture-missing",
+      path: DECO_FIXTURE_FILE,
+      message: `找不到共享归一化用例表 ${DECO_FIXTURE_FILE}：三端归一化规则没有共同的期望值`,
+    });
+  } else {
+    let parsed = null;
+    try {
+      parsed = JSON.parse(fixture);
+    } catch (error) {
+      failures.push({
+        kind: "fixture-invalid",
+        path: DECO_FIXTURE_FILE,
+        message: `共享归一化用例表 ${DECO_FIXTURE_FILE} 不是合法 JSON：${error.message}`,
+      });
+    }
+    if (parsed) {
+      const cases = Array.isArray(parsed.cases) ? parsed.cases : null;
+      if (!cases || cases.length === 0) {
+        failures.push({
+          kind: "fixture-empty",
+          path: DECO_FIXTURE_FILE,
+          message: `共享归一化用例表 ${DECO_FIXTURE_FILE} 没有 cases：三端夹具失效`,
+        });
+      } else {
+        caseCount = cases.length;
+        for (const [index, testCase] of cases.entries()) {
+          if (
+            !testCase ||
+            typeof testCase.parameter !== "string" ||
+            testCase.input === undefined ||
+            typeof testCase.expected !== "number"
+          ) {
+            failures.push({
+              kind: "fixture-case-invalid",
+              path: DECO_FIXTURE_FILE,
+              message:
+                `共享归一化用例表 ${DECO_FIXTURE_FILE} 第 ${index + 1} 行缺少 ` +
+                "parameter / input / expected，或 expected 不是数字",
+            });
+            continue;
+          }
+          if (!parameters.includes(testCase.parameter)) parameters.push(testCase.parameter);
+        }
+      }
+    }
+  }
+
+  for (const relativePath of DECO_FIXTURE_CONSUMERS) {
+    const text = consumers?.[relativePath];
+    if (text === null || text === undefined) {
+      failures.push({
+        kind: "fixture-consumer-missing",
+        path: relativePath,
+        message: `找不到共享归一化用例表的消费方 ${relativePath}：那一端的归一化规则不再被夹具约束`,
+      });
+      continue;
+    }
+    if (!text.includes(DECO_FIXTURE_BASENAME)) {
+      failures.push({
+        kind: "fixture-unreferenced",
+        path: relativePath,
+        message:
+          `${relativePath} 没有引用共享归一化用例表 ${DECO_FIXTURE_FILE}：` +
+          "该测试套件可以静默停用夹具而不被发现",
+      });
+    }
+  }
+
+  return { ok: failures.length === 0, failures, caseCount, parameters };
 }
 
 function printReport(result, repoRoot) {
   console.log(`跨端装饰参数（仓库根：${repoRoot}）`);
+  console.log(`共享归一化夹具：${DECO_FIXTURE_FILE}（${result.fixture.caseCount} 条用例）`);
   console.log(`参数 | 字段 | 后端 | 读者站 | 后台 | yaml 种子`);
   for (const [key, slots] of Object.entries(result.parameters)) {
     for (const field of ["min", "max", "default"]) {
@@ -486,7 +622,9 @@ function runCli(argv) {
   if (result.ok) {
     console.log(
       `✓ 跨端装饰参数一致性门禁通过（${parameterCount} 个数值参数 × min/max/default + ` +
-        "布尔默认值（后端种子 ↔ 后台恢复默认），三端逐项一致）",
+        "布尔默认值（后端种子 ↔ 后台恢复默认），三端逐项一致；" +
+        `共享归一化夹具 ${DECO_FIXTURE_FILE}（${result.fixture.caseCount} 条用例）` +
+        "被后端 / 读者站 / 后台三套测试共同消费）",
     );
     return 0;
   }

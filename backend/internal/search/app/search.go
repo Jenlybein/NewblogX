@@ -99,6 +99,13 @@ func buildDSL(req domain.Request, viewer *domain.Viewer, likeTagIDs []ctype.ID) 
 		return nil, apperr.New(apperr.CodeSearchTypeInvalid)
 	}
 
+	// 「显示非管理员发布文章」开关关闭时，公开读面只保留管理员作者的文章
+	// （ADR-0017 决策 4）。type 4（自己的文章）与 type 5（后台）刻意不过滤：
+	// 作者要能继续编辑自己的稿子，管理员要能在后台看到全部内容。
+	if req.OnlyAdminAuthors && isPublicReadType(req.Type) {
+		query = adminAuthorQuery(query)
+	}
+
 	if len(req.TagIDs) > 0 {
 		query = tagIDsQuery(query, req.TagIDs)
 	} else if len(req.LegacyTagList) > 0 {
@@ -122,6 +129,28 @@ func publishedFilter() map[string]any {
 
 func visibleFilter() map[string]any {
 	return map[string]any{"term": map[string]any{"visibility_status": domain.VisibilityVisible}}
+}
+
+// isPublicReadType 判断某个 type 是不是"公开读面"。
+//
+// 1 公共搜索（首页 / 搜索 / 标签 / 分类 / AI 搜索）、2 猜你喜欢、3 作者文章。
+// 4 自己的文章与 5 管理员后台不是公开读面，不受显示开关影响。
+func isPublicReadType(articleType int8) bool {
+	return articleType == 1 || articleType == 2 || articleType == 3
+}
+
+// adminAuthorQuery 追加"作者是管理员"的过滤。
+//
+// 字段 author_is_admin 是作者角色在 ES 文档里的投影（由 CDC 按 user_models.role
+// 重算），所以开关关掉之后不需要回库查作者角色，也不存在"文章数与实际不符"。
+func adminAuthorQuery(query map[string]any) map[string]any {
+	boolQuery, ok := extractBool(query)
+	if !ok {
+		return query
+	}
+	filters, _ := boolQuery["filter"].([]any)
+	boolQuery["filter"] = append(filters, map[string]any{"term": map[string]any{"author_is_admin": true}})
+	return query
 }
 
 func selfQuery(key string, userID ctype.ID, status domain.ArticleStatus) map[string]any {

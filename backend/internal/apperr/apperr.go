@@ -63,18 +63,26 @@ const (
 
 // 用户资料与管理。
 const (
-	CodeUserNotFound          Code = "user.not_found"
-	CodeUserForbidden         Code = "user.forbidden"
-	CodeUserUsernameTaken     Code = "user.username_taken"
-	CodeUserUsernameCooldown  Code = "user.username_cooldown"
-	CodeUserUsernameInvalid   Code = "user.username_invalid"
-	CodeUserNicknameRequired  Code = "user.nickname_required"
-	CodeUserNicknameTooLong   Code = "user.nickname_too_long"
-	CodeUserAbstractTooLong   Code = "user.abstract_too_long"
-	CodeUserStatusInvalid     Code = "user.status_invalid"
-	CodeUserStatusSelfLocked  Code = "user.status_self_locked"
-	CodeUserEmailTaken        Code = "user.email_taken"
-	CodeUserEmailNotBound     Code = "user.email_not_bound"
+	CodeUserNotFound         Code = "user.not_found"
+	CodeUserForbidden        Code = "user.forbidden"
+	CodeUserUsernameTaken    Code = "user.username_taken"
+	CodeUserUsernameCooldown Code = "user.username_cooldown"
+	CodeUserUsernameInvalid  Code = "user.username_invalid"
+	CodeUserNicknameRequired Code = "user.nickname_required"
+	CodeUserNicknameTooLong  Code = "user.nickname_too_long"
+	CodeUserAbstractTooLong  Code = "user.abstract_too_long"
+	CodeUserStatusInvalid    Code = "user.status_invalid"
+	CodeUserStatusSelfLocked Code = "user.status_self_locked"
+	CodeUserEmailTaken       Code = "user.email_taken"
+	CodeUserEmailNotBound    Code = "user.email_not_bound"
+	// CodeUserEmailRegistered / CodeUserEmailUnregistered 只在"发验证码"时用：
+	// 邮箱的两种状态与四个发码场景不匹配时报错（注册/绑定要求未注册，
+	// 登录/重置要求已注册），而不是静默不发信——见 docs/adr/0014。
+	CodeUserEmailRegistered   Code = "user.email_registered"
+	CodeUserEmailUnregistered Code = "user.email_unregistered"
+	// CodeUserMailTooFrequent 是"发验证码太频繁"，与登录失败限流分开：
+	// 共用 auth.too_frequent 时文案是"登录失败次数过多"，会把用户引到错误的方向。
+	CodeUserMailTooFrequent   Code = "user.mail_too_frequent"
 	CodeUserInvalidCredential Code = "user.invalid_credential"
 	CodeUserAccountDisabled   Code = "user.account_disabled"
 	CodeUserAccountBanned     Code = "user.account_banned"
@@ -192,7 +200,7 @@ const (
 
 	// 首次初始化。闸门是"库里还没有管理员"：一旦有了管理员，
 	// 这两个接口就永久关闭，避免成为绕过鉴权的后门。
-	CodeSetupAlreadyDone Code = "setup.already_done"
+	CodeSetupAlreadyDone          Code = "setup.already_done"
 	CodeRuntimeConfigTableMissing Code = "runtimeconfig.table_missing"
 )
 
@@ -316,6 +324,9 @@ var messages = map[Code]string{
 	CodeUserStatusSelfLocked:  "不能修改自己的账号状态",
 	CodeUserEmailTaken:        "邮箱已被使用",
 	CodeUserEmailNotBound:     "账号尚未绑定邮箱",
+	CodeUserEmailRegistered:   "该邮箱已注册，请直接登录或找回密码",
+	CodeUserEmailUnregistered: "该邮箱还没有注册，请先注册",
+	CodeUserMailTooFrequent:   "验证码发送太频繁，请稍后再试",
 	CodeUserInvalidCredential: "账号或密码错误",
 	CodeUserAccountDisabled:   "账号已被禁用",
 	CodeUserAccountBanned:     "账号已被封禁",

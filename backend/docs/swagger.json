@@ -1296,12 +1296,19 @@
                         "type": "string"
                     },
                     "type": {
-                        "description": "Type：1 注册、2 重置密码、3 绑定邮箱、4 邮箱登录。",
+                        "description": "Type：1 注册、2 重置密码、3 绑定邮箱、4 邮箱登录。\n越界值按参数错误拒绝（oneof），不要让它一路走到发信层才变成\"邮件发送失败\"。",
+                        "enum": [
+                            1,
+                            2,
+                            3,
+                            4
+                        ],
                         "type": "integer"
                     }
                 },
                 "required": [
-                    "email"
+                    "email",
+                    "type"
                 ],
                 "type": "object"
             },

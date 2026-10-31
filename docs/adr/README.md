@@ -19,6 +19,7 @@
 | [0011](./0011-jelly-replaces-traditional-ai-entry.md) | 捏捏（Jelly）常驻角色取代传统 AI 入口 | 角色常驻 + 面板同源生长，非遮罩 | [ADR-0010](./0010-visual-system-and-motion-budget.md) · [GLOSSARY · Jelly](../../GLOSSARY.md) |
 | [0012](./0012-neutral-glass-visual-system.md) | 中性玻璃视觉系统 | 克莱因蓝退役为主色；中性石墨阶 + 功能蓝；圆角阶梯；液态玻璃仅用于导航/控制层；动效档位 C + 吸顶玻璃顶栏 | [GLOSSARY · 语义色 token](../../GLOSSARY.md) · [Apple 液态玻璃解构](../notes/2026-10-30-apple-liquid-glass-deconstruction.md) · [改造方案](../notes/2026-10-31-neutral-glass-redesign-plan.md) |
 | [0013](./0013-editorial-hero-cover.md) | 首屏编辑部式封面 | 满幅色带 + 超大 h1 + 网格刻度，仅首页首屏例外；删 tagline 与三格事实，轮播并入首屏 | [ADR-0012](./0012-neutral-glass-visual-system.md) · [改造方案](../notes/2026-10-31-neutral-glass-redesign-plan.md) · [GLOSSARY · 首屏封面](../../GLOSSARY.md) |
+| [0014](./0014-email-code-refuse-instead-of-silent-skip.md) | 邮箱验证码"发不出就明说" | 放弃静默防枚举：状态与用途不匹配时返回明确错误码；前端只写用途名，数字只在一处映射 | 本 ADR · [README §2.5](../../README.md) |
 
 ## 来源与拆分说明
 

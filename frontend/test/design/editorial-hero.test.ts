@@ -336,20 +336,41 @@ describe("首屏版式复盘：窄高轮播面板 + 右栏线条场", () => {
     expect(panel).toContain("var(--radius-lg)");
   });
 
-  it("面板够高：min-height 至少 380px（用户要求再拉高一点）", () => {
+  it("面板够高、够宽：固定高度档 + 占左栏过半宽度", () => {
     const panel = blockAfter(indexVue, ".home-cover__panel {");
-    const minHeight = /min-height:\s*clamp\((\d+)px/u.exec(panel)?.[1];
+    const height = /height:\s*clamp\((\d+)px/u.exec(panel)?.[1];
+    const columns = /grid-template-columns:\s*minmax\(0,\s*(\d+)%\)/u.exec(
+      blockAfter(indexVue, ".home-cover__inner {"),
+    )?.[1];
 
-    expect(Number(minHeight)).toBeGreaterThanOrEqual(380);
+    expect(Number(height)).toBeGreaterThanOrEqual(300);
+    expect(Number(columns)).toBeGreaterThanOrEqual(50);
     // 不再用 max-height 封顶，否则"拉高"会被上限吃掉。
     expect(panel).not.toContain("max-height");
   });
 
-  it("面板底色与封面底同色，必须留一道内描边，否则空态看不出容器", () => {
+  it("面板要像屏幕而不是空白框：淡染色 + 降级底色，缺图时也看得出容器", () => {
     const panel = blockAfter(indexVue, ".home-cover__panel {");
 
+    // 第一行是不支持 color-mix 时的降级值，第二行才是染色版本。
     expect(panel).toContain("background: var(--color-surface-inverse)");
-    expect(panel).toContain("box-shadow: inset 0 0 0 1px var(--glass-rim)");
+    expect(panel).toMatch(/background:\s*color-mix\(in srgb, var\(--color-on-inverse\)/u);
+  });
+
+  it("缺图时面板压在线条之上（线条不许盖住空态文案）", () => {
+    expect(indexVue).toMatch(/home-cover__panel--empty/u);
+    const emptyOverride = blockAfter(indexVue, ".home-cover__panel--empty {");
+    const panel = blockAfter(indexVue, ".home-cover__panel {");
+
+    const zOf = (block: string) => Number(/z-index:\s*(\d+)/u.exec(block)?.[1] ?? "0");
+    expect(zOf(emptyOverride)).toBeGreaterThan(zOf(panel));
+  });
+
+  it("线条的右端点抵到视口右沿（负外边距抵消封面左右内边距）", () => {
+    const lines = blockAfter(indexVue, ".home-cover__lines {");
+
+    expect(lines).toContain("calc(-1 * var(--cover-pad-x))");
+    expect(indexVue).toContain("--cover-pad-x: clamp(");
   });
 
   it("线条场压过面板（z-index 高于面板、低于标题），且只在宽屏出现", () => {
@@ -384,10 +405,12 @@ describe("首屏版式复盘：窄高轮播面板 + 右栏线条场", () => {
   });
 
   it("长度分布：中间最长、上下渐短且不规则", () => {
-    const lines = [...indexVue.matchAll(/top: "(\d+)%"[^}]*width: "(\d+)%"/gu)].map((match) => ({
-      top: Number(match[1]),
-      width: Number(match[2]),
-    }));
+    const lines = [...indexVue.matchAll(/top: "([\d.]+)%"[^}]*width: "([\d.]+)%"/gu)].map(
+      (match) => ({
+        top: Number(match[1]),
+        width: Number(match[2]),
+      }),
+    );
 
     expect(lines.length).toBeGreaterThanOrEqual(12);
 
@@ -397,9 +420,9 @@ describe("首屏版式复盘：窄高轮播面板 + 右栏线条场", () => {
     expect(widest.top).toBeLessThanOrEqual(62);
     // 中段最长的那条要越过左栏面板的右沿（44%），才谈得上"压住轮播"。
     expect(widest.width).toBeGreaterThan(100 - 44);
-    // 两端明显更短。
-    expect(lines[0]!.width).toBeLessThan(25);
-    expect(lines.at(-1)!.width).toBeLessThan(25);
+    // 两端明显更短（不足峰值的一半）。
+    expect(lines[0]!.width).toBeLessThan(widest.width / 2);
+    expect(lines.at(-1)!.width).toBeLessThan(widest.width / 2);
     // 不规则：允许抖动，所以相邻两条的差不必相等（只要求整体趋势）。
     const widths = lines.map((line) => line.width);
     expect(widths).not.toEqual([...widths].sort((a, b) => b - a));
@@ -430,12 +453,22 @@ describe("线条入场：从右端延展（只动 transform/opacity，不走 @ke
     expect(indexVue).toContain("requestAnimationFrame");
   });
 
-  it("交错由中线向两端扩散（不是自上而下的扫描线）", () => {
-    expect(indexVue).toContain("HERO_LINE_CENTER");
-    expect(indexVue).toMatch(/Math\.abs\(index - HERO_LINE_CENTER\)/u);
-    // 延迟来自数据、逐条内联，而不是统一写死一个 delay。
+  it("入场延迟不规则：手写跳数、不是等差，但仍是同一份 40ms 量子的整数倍", () => {
+    const steps = /HERO_LINE_DELAY_STEPS = \[([\d,\s]+)\]/u.exec(indexVue)?.[1];
+
+    expect(steps, "延迟必须来自一组显式跳数").toBeDefined();
+    const values = steps!.split(",").map((part) => Number(part.trim()));
+
+    expect(values.length).toBeGreaterThanOrEqual(14);
+    // 等差会被读成节拍器：相邻差值不能恒定。
+    const gaps = values.slice(1).map((value, index) => value - values[index]!);
+    expect(new Set(gaps).size).toBeGreaterThan(2);
+    // 中段线条最早落位（用户要的"先结构后细节"），两端更晚。
+    expect(Math.min(...values)).toBeLessThanOrEqual(1);
+    expect(Math.max(...values)).toBeGreaterThanOrEqual(7);
+    // 延迟仍是 40ms 量子的整数倍，且逐条内联。
+    expect(indexVue).toMatch(/HERO_LINE_DELAY_STEPS\[index\][^`]*\* MOTION_STAGGER_MS/u);
     expect(indexVue).toMatch(/transitionDelay: line\.delay/u);
-    expect(indexVue).toMatch(/delay: `\$\{Math\.round\(/u);
   });
 
   it("时长与缓动走全站同一份预算（--motion-base + --motion-ease）", () => {

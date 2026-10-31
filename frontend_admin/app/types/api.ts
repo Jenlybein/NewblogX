@@ -324,9 +324,8 @@ export interface UploadRuntimeConfig {
 /**
  * 装饰配置（第 8 段 deco）。
  *
- * 本票只有光标挂件子块的两个参数：总开关与站标尺寸。
- * 挂绳长度、节点数、重力、阻尼等留给票 #41 —— 届时在这里继续加字段，
- * 段结构与路由都不用动（响应本来就是自由键值块）。
+ * `charm` 下是一个总开关 + 五个数值参数（站标尺寸与票 #41 的四个物理参数）。
+ * 段结构、路由与响应形状都不变（响应本来就是自由键值块）。
  */
 export interface DecoRuntimeConfig {
   charm: {
@@ -334,6 +333,14 @@ export interface DecoRuntimeConfig {
     enable: boolean
     /** 站标显示尺寸，单位 px，合法区间 24–96。 */
     logo_size: number
+    /** 挂绳长度，单位 px，合法区间 40–240。 */
+    rope_length: number
+    /** Verlet 链节点数，单位 节，合法区间 4–24（整数）。 */
+    segments: number
+    /** 重力加速度，单位 px/s²，合法区间 400–4000。 */
+    gravity: number
+    /** 每步速度保持系数，无量纲，合法区间 0.94–0.995。 */
+    damping: number
   }
 }
 

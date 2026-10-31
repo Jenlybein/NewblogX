@@ -72,13 +72,15 @@ describe("满幅：脱离 page-shell 的水平内边距", () => {
 });
 
 describe("分层：底图 → 罩层 → 色带 → 网格刻度 → h1 → 记号 → 控件", () => {
-  it("底图层来自运营上传的首张轮播 cover，object-fit: cover", () => {
+  it("底图层来自运营上传的首张轮播 cover，铺满面板", () => {
     expect(bannerVue).toContain('class="banner-photo"');
     expect(bannerVue).toMatch(/<img[\s\S]*:src="currentBanner\.cover"/u);
     const photo = blockAfter(bannerVue, ".banner-photo__img {");
-    expect(photo).toContain("object-fit: cover");
     expect(photo).toContain("height: 100%");
     expect(photo).toContain("width: 100%");
+    // object-fit 由取景纯函数产出（bannerFramingStyle），CSS 不再重复定义。
+    expect(photo).not.toContain("object-fit");
+    expect(read("app/utils/bannerFraming.ts")).toContain('objectFit: "cover"');
   });
 
   it("罩层是中性石墨渐变，保证反白文字的对比度 ≥4.5:1", () => {
@@ -271,9 +273,12 @@ describe("动效：分层进场 + 视差只动 transform/opacity，reduced-motio
   it("视差只挂在图像层与装饰记号上（≤10px 由 composable 钳位）", () => {
     expect(indexVue).toContain("motion-parallax");
     expect(indexVue).toMatch(/:style="parallaxStyle"/u);
-    // 底图的视差由首屏页编排、经 photoStyle 传给媒体层，只落在图片元素上。
+    // 视差由首屏页编排、经 photoStyle 传给媒体层的外层容器；
+    // 取景的缩放/焦点落在内层图片上 —— 两个 transform 分属不同层（ADR-0014 决策 6）。
     expect(indexVue).toContain(':photo-style="parallaxStyle"');
-    expect(bannerVue).toMatch(/<img[\s\S]*:style="photoStyle"/u);
+    expect(bannerVue).toMatch(/class="banner-photo"[\s\S]*?:style="photoStyle"/u);
+    expect(bannerVue).toMatch(/class="banner-photo__img"[\s\S]*?:style="framingStyle"/u);
+    expect(bannerVue).toContain("bannerFramingStyle");
   });
 
   it("首屏不自己写关键帧动画（归零由 #3 的动效预算统一负责）", () => {
@@ -336,17 +341,21 @@ describe("首屏版式复盘：窄高轮播面板 + 右栏线条场", () => {
     expect(panel).toContain("var(--radius-lg)");
   });
 
-  it("面板够高、够宽：固定高度档 + 占左栏过半宽度", () => {
+  it("面板固定 16:9（所有断点同一比例）并占左栏过半宽度", () => {
     const panel = blockAfter(indexVue, ".home-cover__panel {");
-    const height = /height:\s*clamp\((\d+)px/u.exec(panel)?.[1];
     const columns = /grid-template-columns:\s*minmax\(0,\s*(\d+)%\)/u.exec(
       blockAfter(indexVue, ".home-cover__inner {"),
     )?.[1];
 
-    expect(Number(height)).toBeGreaterThanOrEqual(300);
+    expect(panel).toContain("aspect-ratio: 16 / 9");
+    expect(panel).toContain("width: 100%");
+    // 不再用高度档（固定高度会随屏宽变化，破坏"同一张图同一形状"）。
+    expect(panel).not.toContain("height:");
     expect(Number(columns)).toBeGreaterThanOrEqual(50);
-    // 不再用 max-height 封顶，否则"拉高"会被上限吃掉。
-    expect(panel).not.toContain("max-height");
+    // 窄屏也不换比例（比例在基础规则里定义一次，断点只调栅格位置）。
+    const narrowPanel = blockAfter(blockAfter(indexVue, "@media (max-width: 767px)"), ".home-cover__panel {");
+    expect(narrowPanel).not.toContain("aspect-ratio");
+    expect(narrowPanel).not.toContain("height:");
   });
 
   it("面板要像屏幕而不是空白框：淡染色 + 降级底色，缺图时也看得出容器", () => {

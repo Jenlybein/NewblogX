@@ -1,8 +1,8 @@
-# 轮播封面取景：固定 16:9，后台上传即取景（存参数，不存第二份图）
+﻿# 轮播封面取景：固定 16:9，后台上传即取景（存参数，不存第二份图）
 
 - 状态：待实现
 - 日期：2026-10-31
-- 上游：[ADR-0012 中性玻璃视觉系统](../adr/0012-neutral-glass-visual-system.md)・[ADR-0013 首屏编辑部式封面](../adr/0013-editorial-hero-cover.md)（首屏封面例外区）；建议新提 ADR-0014「轮播取景存参数、CSS 渲染」
+- 上游：[ADR-0012 中性玻璃视觉系统](../adr/0012-neutral-glass-visual-system.md)・[ADR-0013 首屏编辑部式封面](../adr/0013-editorial-hero-cover.md)（首屏封面例外区）；建议新提 ADR-0015「轮播取景存参数、CSS 渲染」
 - 术语：取景 / 焦点 / 缩放 / 轮播封面（见 `GLOSSARY.md`）
 
 ## Problem Statement

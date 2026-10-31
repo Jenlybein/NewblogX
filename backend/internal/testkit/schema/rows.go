@@ -179,6 +179,19 @@ type BannerRow struct {
 // TableName 固定表名。
 func (BannerRow) TableName() string { return "banner_models" }
 
+// BannerCropRow 对应表 banner_crop_models：轮播图的取景参数（与 banner_models 一对一）。
+//
+// 单独一张表而不是给 banner_models 加列：本项目零 DDL 口径下既有表冻结。
+type BannerCropRow struct {
+	BannerID ctype.ID `gorm:"primaryKey;autoIncrement:false" json:"banner_id"` // 轮播图 ID
+	FocusX   float64  `json:"focus_x"`                                         // 焦点 x（0–1）
+	FocusY   float64  `json:"focus_y"`                                         // 焦点 y（0–1）
+	Zoom     float64  `json:"zoom"`                                            // 缩放（1–2）
+}
+
+// TableName 固定表名。
+func (BannerCropRow) TableName() string { return "banner_crop_models" }
+
 // CategoryRow 对应表 category_models。
 type CategoryRow struct {
 	BaseRow

@@ -1,8 +1,9 @@
-<script setup lang="ts">
+﻿<script setup lang="ts">
 import { computed, ref, type CSSProperties } from "vue";
 import { IconChevronLeft, IconChevronRight } from "@tabler/icons-vue";
 import ProfileEmptyState from "~/components/profile/ProfileEmptyState.vue";
 import type { BannerItem } from "~/types/api";
+import { bannerFramingStyle } from "~/utils/bannerFraming";
 
 const props = withDefaults(
   defineProps<{
@@ -17,6 +18,9 @@ const props = withDefaults(
 const currentIndex = ref(0);
 
 const currentBanner = computed(() => props.banners[currentIndex.value] ?? null);
+
+/** 取景（焦点 + 缩放）→ 图片层样式；历史图（无 crop）走居中、缩放 1。 */
+const framingStyle = computed(() => bannerFramingStyle(currentBanner.value?.crop));
 
 function switchBanner(step: number) {
   if (!props.banners.length) return;
@@ -42,21 +46,31 @@ function goToBanner(index: number) {
     data-home-section="banner"
   >
     <template v-if="currentBanner">
-      <NuxtLink v-if="currentBanner.href" :to="currentBanner.href" class="banner-photo">
+      <!--
+        取景与视差分属两层（ADR-0015 决策 6）：两者都动 transform，不能落在同一个元素上。
+        外层 .banner-photo 只承担首屏视差（photoStyle）；内层图片只承担取景的缩放与焦点。
+      -->
+      <NuxtLink
+        v-if="currentBanner.href"
+        :to="currentBanner.href"
+        class="banner-photo"
+        :style="photoStyle"
+      >
         <img
           class="banner-photo__img"
           :src="currentBanner.cover"
           :alt="`首页轮播图 ${currentIndex + 1}`"
-          :style="photoStyle"
+          :style="framingStyle"
         />
       </NuxtLink>
-      <img
-        v-else
-        class="banner-photo__img"
-        :src="currentBanner.cover"
-        :alt="`首页轮播图 ${currentIndex + 1}`"
-        :style="photoStyle"
-      />
+      <div v-else class="banner-photo" :style="photoStyle">
+        <img
+          class="banner-photo__img"
+          :src="currentBanner.cover"
+          :alt="`首页轮播图 ${currentIndex + 1}`"
+          :style="framingStyle"
+        />
+      </div>
 
       <span class="banner-scrim" aria-hidden="true" />
 
@@ -115,22 +129,26 @@ function goToBanner(index: number) {
   pointer-events: none;
 }
 
-/* 底图层（图层 0）：运营上传的首张轮播 cover，object-fit: cover，视差只动它的 transform。 */
+/* 底图层（图层 0）：运营上传的首张轮播 cover。
+   这一层只承担视差（photoStyle 的 translateY），取景的缩放/焦点在内层图片上。 */
 .banner-photo {
-  /* 四周各外扩 12px，给 ≤10px 的视差留余量：位移时不会从边缘漏出封面的兜底底色。 */
+  /* 外扩给 ≤10px 的视差留余量，但**必须保持 16:9 配比**：纵向 12px、横向 12 × 16/9 ≈ 21.33px。
+     四边等量外扩会把容器比例从 1.7778 改成 1.7397，于是 cover 后可见的原图区域
+     与后台取景框预览差约 5%（线上更紧），"预览＝线上"就只剩近似。
+     写成预计算数值而不是 calc() 里的乘法：`calc(长度 * 数字)` 在旧版 Safari 上会整条失效。 */
   position: absolute;
-  inset: -12px;
+  inset: -12px -21.3333px;
   z-index: 0;
   display: block;
   overflow: hidden;
   pointer-events: auto;
 }
 
+/* 取景层：object-fit / object-position / transform-origin / scale 全部来自 bannerFramingStyle()。 */
 .banner-photo__img {
   display: block;
   height: 100%;
   width: 100%;
-  object-fit: cover;
 }
 
 /*

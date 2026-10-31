@@ -1,4 +1,9 @@
 import { createArticle, updateArticle } from "~/services/article";
+import {
+  DRAFT_DISABLED_NOTICE,
+  PUBLISH_DISABLED_NOTICE,
+  type ArticleWritePolicy,
+} from "~/utils/writePolicy";
 
 // 文章提交：存草稿 / 发布 / 更新。
 //
@@ -35,6 +40,13 @@ export type StudioPublishDeps = {
   buildPayload: (status: 1 | 2) => ArticlePayload;
   message: Notifier;
   router: { push: (to: string) => Promise<unknown> };
+  /**
+   * 站点「发布与展示」的两个写作开关（可选）。
+   *
+   * 缺省视为全开：服务端才是判定边界，这里只是"点了立刻告诉用户为什么不行"，
+   * 不能因为调用方没传就改变原有行为。
+   */
+  policy?: { value: ArticleWritePolicy };
 };
 
 export function useStudioPublish(deps: StudioPublishDeps) {
@@ -48,7 +60,19 @@ export function useStudioPublish(deps: StudioPublishDeps) {
     buildPayload: buildArticlePayload,
     message,
     router,
+    policy,
   } = deps;
+
+  /** 站点策略是否允许这次提交（没传 policy 时按允许处理）。 */
+  function sitePolicyAllows(status: 1 | 2): boolean {
+    if (!policy) return true;
+    return status === 1 ? policy.value.allowDraft : policy.value.allowPublish;
+  }
+
+  /** 被站点策略拦下时的说明：说清是站点策略，不是账号问题。 */
+  function sitePolicyNotice(status: 1 | 2): string {
+    return status === 1 ? DRAFT_DISABLED_NOTICE : PUBLISH_DISABLED_NOTICE;
+  }
 
   // 页面里原本直接读 form.visibility_status，这里换成回调，避免把整个表单传进来。
   const form = {
@@ -65,6 +89,13 @@ export function useStudioPublish(deps: StudioPublishDeps) {
 
     if (pendingState.cover) {
       message.warning("封面仍在上传中，请稍后再提交。");
+      return;
+    }
+
+    // 站点策略：发布/草稿开关关闭时直接说明原因，不发请求。
+    // 这只是体验层，服务端仍会用自己的判定拒绝（唯一边界）。
+    if (!sitePolicyAllows(status)) {
+      message.warning(sitePolicyNotice(status));
       return;
     }
 

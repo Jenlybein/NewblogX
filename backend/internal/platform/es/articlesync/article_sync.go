@@ -13,11 +13,6 @@ import (
 	"myblogx/utils/markdown"
 )
 
-type articleESTop struct {
-	AdminTop  bool
-	AuthorTop bool
-}
-
 func toESID(id ctype.ID) string {
 	return id.String()
 }
@@ -39,8 +34,6 @@ const (
 	ArticleSearchProjectionCategorySnapshot   ArticleSearchProjectionEventType = "category_snapshot"
 	ArticleSearchProjectionTagSnapshot        ArticleSearchProjectionEventType = "tag_snapshot"
 	ArticleSearchProjectionArticleTagsChanged ArticleSearchProjectionEventType = "article_tags_changed"
-	ArticleSearchProjectionArticleTopChanged  ArticleSearchProjectionEventType = "article_top_changed"
-	ArticleSearchProjectionTopUserChanged     ArticleSearchProjectionEventType = "top_user_changed"
 )
 
 // ArticleSearchProjectionEvent 描述一次 ES 读模型同步事件。
@@ -81,7 +74,6 @@ type articleProjectionOptions struct {
 	CategoryTitleMap map[ctype.ID]string
 	AuthorMap        map[ctype.ID]authorSnapshot
 	ArticleTagsMap   map[ctype.ID][]ESTag
-	TopMap           map[ctype.ID]articleESTop
 }
 
 // SyncArticleSearchProjection 是文章搜索读模型的统一更新入口。
@@ -100,10 +92,6 @@ func SyncArticleSearchProjection(db *gorm.DB, client *elasticsearch.Client, even
 		return UpdateESDocsTagsByTagIDs(db, client, event.IDs)
 	case ArticleSearchProjectionArticleTagsChanged:
 		return UpdateESDocsTags(db, client, event.IDs)
-	case ArticleSearchProjectionArticleTopChanged:
-		return UpdateESDocsTop(db, client, event.IDs)
-	case ArticleSearchProjectionTopUserChanged:
-		return UpdateESDocsTopByTopUserIDs(db, client, event.IDs)
 	default:
 		return nil
 	}
@@ -111,9 +99,10 @@ func SyncArticleSearchProjection(db *gorm.DB, client *elasticsearch.Client, even
 
 // UpdateESDocsByArticleDeltas 按 article_models 的“变更列”做局部更新。
 // 说明：
-// 1. 仅更新真正变更的展示字段，避免每次 update 都整篇重建 ES 文档。
-// 2. 对 category/author 这类快照字段，会批量查询必要信息后再补齐。
-// 3. 当 author_id 变更时，会同步重算 top 字段，确保 author_top 语义正确。
+//  1. 仅更新真正变更的展示字段，避免每次 update 都整篇重建 ES 文档。
+//  2. 对 category/author 这类快照字段，会批量查询必要信息后再补齐。
+//  3. 当 author_id 变更时，会连同 author_is_admin（作者角色投影）一起重算，
+//     否则换作者后的文档会带着上一个作者的角色。
 func UpdateESDocsByArticleDeltas(db *gorm.DB, client *elasticsearch.Client, deltas []ArticleModelDelta) error {
 	if db == nil || client == nil {
 		return nil
@@ -126,7 +115,6 @@ func UpdateESDocsByArticleDeltas(db *gorm.DB, client *elasticsearch.Client, delt
 
 	categoryIDs := make([]ctype.ID, 0, len(deltas))
 	authorIDs := make([]ctype.ID, 0, len(deltas))
-	topRecalcArticleIDs := make([]ctype.ID, 0, len(deltas))
 	for _, delta := range deltas {
 		if rawCategoryID, ok := delta.Changed["category_id"]; ok {
 			if categoryID, ok := scanNullableIDValue(rawCategoryID); ok && categoryID != nil {
@@ -136,7 +124,6 @@ func UpdateESDocsByArticleDeltas(db *gorm.DB, client *elasticsearch.Client, delt
 		if rawAuthorID, ok := delta.Changed["author_id"]; ok {
 			if authorID, ok := scanIDValue(rawAuthorID); ok && !authorID.IsZero() {
 				authorIDs = append(authorIDs, authorID)
-				topRecalcArticleIDs = append(topRecalcArticleIDs, delta.ArticleID)
 			}
 		}
 	}
@@ -146,10 +133,6 @@ func UpdateESDocsByArticleDeltas(db *gorm.DB, client *elasticsearch.Client, delt
 		return err
 	}
 	authorMap, err := loadAuthorSnapshotMap(db, authorIDs)
-	if err != nil {
-		return err
-	}
-	topMap, err := loadArticleESTopMap(db, topRecalcArticleIDs)
 	if err != nil {
 		return err
 	}
@@ -206,6 +189,7 @@ func UpdateESDocsByArticleDeltas(db *gorm.DB, client *elasticsearch.Client, delt
 						"nickname": author.Nickname,
 						"avatar":   author.Avatar,
 					}
+					data["author_is_admin"] = author.IsAdmin
 				}
 			case "view_count":
 				if value, ok := scanIntValue(raw); ok {
@@ -238,16 +222,6 @@ func UpdateESDocsByArticleDeltas(db *gorm.DB, client *elasticsearch.Client, delt
 			}
 		}
 
-		if _, authorChanged := delta.Changed["author_id"]; authorChanged {
-			top := topMap[delta.ArticleID]
-			data["top"] = map[string]any{
-				"user":  top.AuthorTop,
-				"admin": top.AdminTop,
-			}
-			data["admin_top"] = top.AdminTop
-			data["author_top"] = top.AuthorTop
-		}
-
 		if len(data) == 0 {
 			continue
 		}
@@ -268,7 +242,6 @@ func buildArticleESDocumentFromSnapshot(snapshot ArticleRowSnapshot, deps articl
 		categoryTitle = deps.CategoryTitleMap[*snapshot.CategoryID]
 	}
 	author := deps.AuthorMap[snapshot.AuthorID]
-	top := deps.TopMap[snapshot.ID]
 	tags := deps.ArticleTagsMap[snapshot.ID]
 	if tags == nil {
 		tags = []ESTag{}
@@ -294,6 +267,8 @@ func buildArticleESDocumentFromSnapshot(snapshot ArticleRowSnapshot, deps articl
 			"nickname": author.Nickname,
 			"avatar":   author.Avatar,
 		},
+		// 作者角色投影：公开查询在“显示非管理员文章”关掉时按它过滤（ADR-0017 决策 4）。
+		"author_is_admin":   author.IsAdmin,
 		"view_count":        snapshot.ViewCount,
 		"digg_count":        snapshot.DiggCount,
 		"comment_count":     snapshot.CommentCount,
@@ -302,12 +277,6 @@ func buildArticleESDocumentFromSnapshot(snapshot ArticleRowSnapshot, deps articl
 		"visibility_status": snapshot.VisibilityStatus,
 		"comments_toggle":   snapshot.CommentsToggle,
 		"tags":              tags,
-		"top": map[string]any{
-			"user":  top.AuthorTop,
-			"admin": top.AdminTop,
-		},
-		"admin_top":  top.AdminTop,
-		"author_top": top.AuthorTop,
 	}
 }
 
@@ -325,7 +294,8 @@ func SyncESDocsByArticleSnapshots(db *gorm.DB, client *elasticsearch.Client, sna
 }
 
 // SyncESDocs 按文章 ID 批量重建 ES 文档。
-// 这里会从数据库重新读取文章、标签和置顶信息，再统一索引到 ES。
+// 这里会从数据库重新读取文章、标签与作者/分类快照，再统一索引到 ES。
+// 写入侧不再同步任何置顶派生字段（ADR-0017 决策 6），作者置顶只留在 MySQL。
 func SyncESDocs(db *gorm.DB, client *elasticsearch.Client, articleIDs []ctype.ID) error {
 	if db == nil || client == nil {
 		return nil

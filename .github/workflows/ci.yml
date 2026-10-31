@@ -422,6 +422,12 @@ jobs:
           CGO_ENABLED: "1"
         run: |
           go install github.com/swaggo/swag/v2/cmd/swag@v2.0.0-rc6
+          # 自检第 5 节会跑 `make openapi`，而 swag 带 --parseDependency 时自己会调
+          # `go list -deps`；若不先把模块下全，它会与下载并发、偶发报
+          # `cannot find all dependencies, <nil>`，让自检误判成"契约生成失败"。
+          # 常规 contract job 正是靠一个独立的 `go mod download` 步骤规避这一点
+          # （Makefile 上方注释也记了同一个坑）；自检 job 此前从未真跑过，所以没暴露。
+          ( cd backend && go mod download )
           ( cd frontend && pnpm install --frozen-lockfile )
           ( cd frontend_admin && pnpm install --frozen-lockfile )
           bash scripts/verify-gates.sh

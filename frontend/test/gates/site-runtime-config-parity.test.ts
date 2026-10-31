@@ -112,6 +112,24 @@ describe("读者站投影 site_info 与后端 SiteInfo 逐字段一致（真实�
     expect(tsKeys.filter((key) => !goKeys.includes(key))).toEqual([]);
     expect(tsKeys).not.toContain("abstract");
   });
+
+  it("article 投影覆盖「发布与展示」三个开关，且不出现后端没有的键（#64）", () => {
+    const goKeys = goStructJSONKeys(goSource, "Article");
+    const tsKeys = tsObjectKeys(tsSource, "article: {");
+
+    expect(goKeys.length).toBeGreaterThan(0);
+    expect(tsKeys.length).toBeGreaterThan(0);
+    // 与 site_info 一样按"逐键合法"检查：投影可以是子集（skip_examining 读者站不消费），
+    // 但出现后端没有的键就说明有人照着想象中的 json tag 在写前端。
+    expect(tsKeys.filter((key) => !goKeys.includes(key))).toEqual([]);
+    expect(tsKeys).toEqual(
+      expect.arrayContaining([
+        "allow_non_admin_publish",
+        "allow_non_admin_draft",
+        "show_non_admin_articles",
+      ]),
+    );
+  });
 });
 
 describe("canary：投影一旦漂移，门禁必须红", () => {

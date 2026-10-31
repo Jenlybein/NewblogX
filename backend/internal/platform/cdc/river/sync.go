@@ -80,7 +80,7 @@ func (h *eventHandler) OnXID(header *replication.EventHeader, nextPos mysql.Posi
 // 分派顺序是有讲究的：
 //  1. outbox 最先判断 —— 它是领域事件，与 ES 无关，必须命中后直接返回，
 //     否则会被后面的投影分支当成业务数据；
-//  2. 投影分支处理 6 张搜索相关表；
+//  2. 投影分支处理 5 张搜索相关表（作者置顶表已不再进 ES，见 ADR-0017 决策 6）；
 //  3. 其余表直接忽略（本服务只关心搜索投影）。
 func (h *eventHandler) OnRow(e *canal.RowsEvent) error {
 	if h.r.handleOutboxEvent(e) {

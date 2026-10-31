@@ -139,6 +139,7 @@ type UserRow struct {
 
 // TableName 固定表名。
 func (UserRow) TableName() string { return "user_models" }
+
 // ArticleTagRow 是文章与标签的关系行。
 type ArticleTagRow struct {
 	mysql.BaseRow
@@ -149,14 +150,3 @@ type ArticleTagRow struct {
 
 // TableName 固定表名。
 func (ArticleTagRow) TableName() string { return "article_tag_models" }
-
-// UserTopArticleRow 是用户置顶行。
-type UserTopArticleRow struct {
-	mysql.BaseRow
-
-	UserID    ctype.ID `gorm:"uniqueIndex:uk_user_top_article,priority:1"`
-	ArticleID ctype.ID `gorm:"uniqueIndex:uk_user_top_article,priority:2"`
-}
-
-// TableName 固定表名。
-func (UserTopArticleRow) TableName() string { return "user_top_article_models" }

@@ -6364,6 +6364,8 @@ export interface components {
         "myblogx_internal_search_domain.Item": {
             abstract?: string;
             author?: components["schemas"]["myblogx_internal_search_domain.Author"];
+            /** @description AuthorIsAdmin 是作者角色的投影（来自 ES 文档的 author_is_admin）。 */
+            author_is_admin?: boolean;
             category?: components["schemas"]["myblogx_internal_search_domain.Category"];
             comment_count?: number;
             comments_toggle?: boolean;
@@ -6377,7 +6379,6 @@ export interface components {
             score?: number;
             tags?: components["schemas"]["myblogx_internal_search_domain.Tag"][];
             title?: string;
-            top?: components["schemas"]["myblogx_internal_search_domain.Top"];
             updated_at?: string;
             view_count?: number;
             visibility_status?: components["schemas"]["myblogx_internal_search_domain.VisibilityStatus"];
@@ -6399,10 +6400,6 @@ export interface components {
         "myblogx_internal_search_domain.Tag": {
             id?: string;
             title?: string;
-        };
-        "myblogx_internal_search_domain.Top": {
-            admin?: boolean;
-            user?: boolean;
         };
         /** @enum {string} */
         "myblogx_internal_search_domain.VisibilityStatus": "visible" | "user_hidden" | "admin_hidden";

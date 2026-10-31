@@ -293,7 +293,12 @@ func (s *Service) DeleteFolders(ctx context.Context, viewer domain.Viewer, ids [
 // 若收藏夹是默认夹（is_default），额外交互性：返回前校验所属用户是否公开。
 // 旧实现有"收藏夹不公开"的报错，这里按同语义：非本人查看默认夹以外的情况
 // 需要目标用户允许（当前只允许看本人或默认夹）。
-func (s *Service) ListFavoriteItems(ctx context.Context, viewer domain.Viewer, folderID favorite.ID, page domain.Page) ([]*favorite.Item, int64, error) {
+//
+// onlyAdminAuthors 是「显示非管理员发布文章」开关的反面：收藏内容属于公开
+// 读面，开关关闭时作者不是管理员的收藏条目不再出现（ADR-0017 决策 4）。
+// 过滤下推到查询层（favorite.Repository.ListItems），否则当页条数与 total
+// 会与可见条目对不上。
+func (s *Service) ListFavoriteItems(ctx context.Context, viewer domain.Viewer, folderID favorite.ID, page domain.Page, onlyAdminAuthors bool) ([]*favorite.Item, int64, error) {
 	var (
 		items []*favorite.Item
 		total int64
@@ -308,7 +313,7 @@ func (s *Service) ListFavoriteItems(ctx context.Context, viewer domain.Viewer, f
 			return favorite.ErrFolderForbidden
 		}
 		p := page.Normalize()
-		items, total, err = r.Favorites().ListItems(ctx, folderID, p.Offset, p.Limit)
+		items, total, err = r.Favorites().ListItems(ctx, folderID, p.Offset, p.Limit, onlyAdminAuthors)
 		return err
 	})
 	return items, total, err

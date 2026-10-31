@@ -120,6 +120,11 @@ type userRow struct {
 	Nickname string
 	Avatar   string
 	Abstract string
+	// Role 是用户角色（1 管理员 / 2 普通 / 3 受限访客）。
+	//
+	// 只读：读面过滤要判断"作者是不是管理员"（ADR-0017 决策 4），
+	// 这是 article 模块唯一需要知道的用户角色信息。
+	Role int8 `gorm:"type:tinyint"`
 }
 
 // TableName 固定表名。

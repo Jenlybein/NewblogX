@@ -443,7 +443,7 @@ _Avoid_: 用"档位 B"描述现状；在 `prefers-reduced-motion` 下仍保留�
 ## 九、文章发布与运营位
 
 **热门置顶（运营位）**：
-首页首屏之后由管理员挑选并手动排序的文章位，最多 12 条；唯一真相是 `article_hot_top_models`（`article_id` 唯一 + `sort_order` + 软删），**不进 ES**；文章后来不再公开时置顶行保留、首页不展示，后台标「已失效」并可一键清理。公开读受「显示非管理员发布文章」开关约束：开关关闭时作者不是管理员的卡片不出现（与首页列表、搜索、详情同一口径）。
+首页首屏之后由管理员挑选并手动排序的文章位，最多 12 条；这 12 条按表里的行算，**失效行也占名额**（要在后台「热门置顶」页清理后才腾出来）。唯一真相是 `article_hot_top_models`（`article_id` 唯一 + `sort_order` + 软删），**不进 ES**；文章后来不再公开时置顶行保留、首页不展示，后台标「已失效」并可一键清理。公开读受「显示非管理员发布文章」开关约束：开关关闭时作者不是管理员的卡片不出现（与首页列表、搜索、详情同一口径）。
 位置：表 `article_hot_top_models`；接口 `GET /articles/hot-top`（公开读卡片）、`GET /articles/hot-top/admin`（管理端全量，含失效行）、`POST|DELETE /articles/{id}/admin/hot-top`、`PATCH /articles/hot-top/order`；后台「热门置顶」页与文章管理列表的切换按钮（两者都读 admin 那份全量列表）；读者站 `frontend/app/components/home/HomePinnedSection.vue`。取舍见 [ADR-0017](./docs/adr/0017-publish-display-switches-and-hot-top-operator-slot.md) 决策 4–5。
 _Avoid_: 「管理员置顶」（ES 旧派生字段 `admin_top` 的叫法，已删除）；「精选文章」（旧文案）；拿「热门置顶」指作者置顶。
 

@@ -5301,8 +5301,12 @@ export interface components {
         };
         "internal_auth_adapter_http.SendEmailRequest": {
             email: string;
-            /** @description Type：1 注册、2 重置密码、3 绑定邮箱、4 邮箱登录。 */
-            type?: number;
+            /**
+             * @description Type：1 注册、2 重置密码、3 绑定邮箱、4 邮箱登录。
+             *     越界值按参数错误拒绝（oneof），不要让它一路走到发信层才变成"邮件发送失败"。
+             * @enum {integer}
+             */
+            type: 1 | 2 | 3 | 4;
         };
         "internal_auth_adapter_http.SendEmailResponse": {
             id?: string;

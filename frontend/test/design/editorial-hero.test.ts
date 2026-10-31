@@ -1,4 +1,4 @@
-import { readFileSync } from "node:fs";
+﻿import { readFileSync } from "node:fs";
 import { join, relative } from "node:path";
 
 import { describe, expect, it } from "vitest";
@@ -274,7 +274,7 @@ describe("动效：分层进场 + 视差只动 transform/opacity，reduced-motio
     expect(indexVue).toContain("motion-parallax");
     expect(indexVue).toMatch(/:style="parallaxStyle"/u);
     // 视差由首屏页编排、经 photoStyle 传给媒体层的外层容器；
-    // 取景的缩放/焦点落在内层图片上 —— 两个 transform 分属不同层（ADR-0014 决策 6）。
+    // 取景的缩放/焦点落在内层图片上 —— 两个 transform 分属不同层（ADR-0015 决策 6）。
     expect(indexVue).toContain(':photo-style="parallaxStyle"');
     expect(bannerVue).toMatch(/class="banner-photo"[\s\S]*?:style="photoStyle"/u);
     expect(bannerVue).toMatch(/class="banner-photo__img"[\s\S]*?:style="framingStyle"/u);
@@ -349,8 +349,9 @@ describe("首屏版式复盘：窄高轮播面板 + 右栏线条场", () => {
 
     expect(panel).toContain("aspect-ratio: 16 / 9");
     expect(panel).toContain("width: 100%");
-    // 不再用高度档（固定高度会随屏宽变化，破坏"同一张图同一形状"）。
+    // 不再用高度档（固定高度会随屏宽变化，破坏"同一张图同一形状"），也不被 max-height 封顶。
     expect(panel).not.toContain("height:");
+    expect(panel).not.toContain("max-height");
     expect(Number(columns)).toBeGreaterThanOrEqual(50);
     // 窄屏也不换比例（比例在基础规则里定义一次，断点只调栅格位置）。
     const narrowPanel = blockAfter(blockAfter(indexVue, "@media (max-width: 767px)"), ".home-cover__panel {");

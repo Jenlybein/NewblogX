@@ -1,9 +1,9 @@
-import { describe, expect, it } from "vitest";
+﻿import { describe, expect, it } from "vitest";
 
 import { BANNER_FRAME_RATIO, bannerFramingStyle } from "~/utils/bannerFraming";
 
 /**
- * 取景参数 → 样式对象的纯函数（ADR-0014）。
+ * 取景参数 → 样式对象的纯函数（ADR-0015）。
  *
  * 这里只测"可观察的取值约定"，不测组件或 CSS 怎么写：
  * 缺省 = 居中、缩放 1；焦点落在 transform-origin（相对坐标 → 百分比）；

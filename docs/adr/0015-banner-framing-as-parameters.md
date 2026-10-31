@@ -1,6 +1,6 @@
-# ADR-0014：轮播取景存参数（焦点 + 缩放）、由 CSS 渲染，不存裁好的图、不做服务端裁切
+# ADR-0015：轮播取景存参数（焦点 + 缩放）、由 CSS 渲染，不存裁好的图、不做服务端裁切
 
-- 状态：已接受
+- 状态：已交付
 - 日期：2026-10-31
 - 来源：2026-10-31 的取景 spec（[issue #44](https://github.com/Jenlybein/NewblogX/issues/44)），术语落点见 [GLOSSARY · 取景](../../GLOSSARY.md)。上游决策为 [ADR-0013](./0013-editorial-hero-cover.md)（首屏轮播并入编辑部式封面）与 [ADR-0012](./0012-neutral-glass-visual-system.md)（全站视觉立场）
 

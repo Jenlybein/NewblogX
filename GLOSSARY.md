@@ -361,6 +361,16 @@ _Avoid_: 叫它"AI 对话框""聊天机器人"（它是入口角色，不是对�
 位置：两端各一份品牌模块（读者站 `frontend/app/`、后台 `frontend_admin/app/`），集中导出英文名、中文名、字标结构、助手显示名、站点一句话介绍与版权行；改造前这些品牌串仍是散落硬编码。
 _Avoid_: 把内部标识当展示名——仓库名 `blogx`、Go module `myblogx`、`BLOGX_*` 环境变量前缀、compose 服务名 `blogx_web` / `blogx_admin` / `blogx_server`、`blogx-theme` cookie 与 `blogx_access_token` / `blogx_profile_snapshot` 存储键都不改名。
 
+**光标挂件（cursor charm）**：
+读者站的**纯装饰**角色：站标用一条「挂绳」系在指针上，随指针被拖行、摆动。它不响应点击、不抢焦点、不承载任何功能——读者站唯一的功能性入口仍是「捏捏」。
+位置：读者站 `frontend/app/` 下的挂件组件与驱动它的 composable（待落地）；素材复用 `utils/brand.ts` 的 `logo` 资产（与 `favicon.ico` 同一张画）。
+_Avoid_: 叫它「鼠标挂件」（触控板用户没有鼠标，本仓库一律说「指针」）；用「鼠标追随特效」「cursor effect」指代它（通用词，也指 `usePointerSpecular` 那类非挂件效果）。
+
+**挂绳（tether）**：
+光标挂件里连接指针与站标的那条绳：指针端固定、站标端自由，形状与摆动由物理模拟逐帧求出，不是一条静态描边。
+位置：同「光标挂件」。
+_Avoid_: 把它当成挂件的描边或阴影；用「绳子」「线」当正式名。
+
 **语义色 token**：
 呈现层颜色的唯一消费口径，分两层：**原始层**锁死五个色相（奶油白 `#FDFBF6`、暖灰 `#F2EEE6`、包豪斯黄 `#F5C518`、珊瑚橙 `#FF6B4A`、功能蓝 `#0066CC`/`#2997FF`，各带品牌前缀，不新增第六个）→ **语义层**（底色、纸面、墨色、结构线、高亮底、危险、链接、焦点环、阴影、玻璃、圆角等），组件只消费语义层。暗色是同一组语义 token 的第二份取值，由站点根类承载，不是另一套色板；带透明度的取值一律由 `rgb(var(--*-rgb) / α)` 三元组派生。
 位置：`frontend/app/assets/css/tokens.css` 与 `frontend_admin/app/assets/css/tokens.css`（两端**逐字节同源**，由同步门禁保证）；两端 Tailwind 配置承载色板类名，Naive `themeOverrides` 从 token 取值。漂移门禁扫描组件与样式里的裸色字面量（含 `.ts` 里的 CSS 字符串）。
@@ -426,7 +436,7 @@ _Avoid_: 再造一张"暗色专用 Logo"——`logo-512-white.png` 是无 alpha 
 _Avoid_: 用"档位 B"描述现状；在 `prefers-reduced-motion` 下仍保留进场。
 
 > 说明：本节新增词条（中性石墨阶、功能蓝、液态玻璃层、圆角阶梯、品牌资产例外、动效档位）出自 [ADR-0012](./docs/adr/0012-neutral-glass-visual-system.md)。该 ADR 已**交付**（落地分票 #18–#25 已全部合入），上述词条描述的都是当前生效的实现口径；「语义色 token」词条中两端逐字节同源的约定已由 `scripts/check-token-parity.mjs` 保证，两份 `tokens.css` 现逐字节一致。
-> 「轮播封面 / 取景 / 焦点 / 缩放」四个词条出自 [ADR-0014](./docs/adr/0014-banner-framing-as-parameters.md)（状态**已接受**，按 spec 落地中）；词条只定义概念，取舍（为什么不存裁好的图、为什么渲染放在 CSS）见该 ADR。
+> 「轮播封面 / 取景 / 焦点 / 缩放」四个词条出自 [ADR-0015](./docs/adr/0015-banner-framing-as-parameters.md)（状态**已交付**）；词条只定义概念，取舍（为什么不存裁好的图、为什么渲染放在 CSS）见该 ADR。
 
 ---
 

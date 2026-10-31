@@ -1,4 +1,4 @@
-<script setup lang="ts">
+﻿<script setup lang="ts">
 import { computed, onMounted, ref, shallowRef } from "vue";
 import { NButton } from "naive-ui";
 import BannerCarousel from "~/components/article/BannerCarousel.vue";
@@ -423,7 +423,7 @@ async function handleRetryLatest() {
 /* 左栏：轮播面板，位于大字下方并整体右移一点（margin 让它不贴左沿）。
    它同时是 .banner-stage（absolute inset: 0）的定位上下文 —— 给 relative + 固定比例，
    内部底图 / 罩层 / 玻璃控件就自然填满面板。
-   比例锁死 16:9（ADR-0014 决策 3）：所有断点同一比例，不用高度档 ——
+   比例锁死 16:9（ADR-0015 决策 3）：所有断点同一比例，不用高度档 ——
    固定高度会随屏宽变化，同一张图在手机和显示器上就被裁成两种形状。 */
 .home-cover__panel {
   position: relative;
@@ -435,6 +435,8 @@ async function handleRetryLatest() {
   align-items: flex-end;
   justify-content: flex-start;
   width: 100%;
+  /* 固定 16:9：宽度由左栏决定，高度跟着算出来 —— 任何屏宽下比例都不变，
+     轮播图用 object-fit: cover 裁切，不会被拉扁或拉长。 */
   aspect-ratio: 16 / 9;
   padding: clamp(0.75rem, 1.4vw, 1.25rem);
   overflow: clip;
@@ -667,7 +669,7 @@ async function handleRetryLatest() {
   }
 
   /* 窄屏：顺序仍是大字 → 面板 → 记号；面板铺满整行、不再右移。
-     比例不在这里改 —— 16:9 是所有断点同一份定义（ADR-0014）。 */
+     比例不在这里改 —— 16:9 是所有断点同一份定义（ADR-0015）。 */
   .home-cover__panel {
     grid-column: 1;
     grid-row: 2;

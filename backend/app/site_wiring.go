@@ -141,6 +141,14 @@ func (b siteRuntimeBridge) Upload() conf.Upload {
 	return b.inner.GetRuntimeUpload()
 }
 
+// Deco 返回当前装饰配置。
+func (b siteRuntimeBridge) Deco() conf.Deco {
+	if b.inner == nil {
+		return conf.Deco{}
+	}
+	return b.inner.GetRuntimeDeco()
+}
+
 // UpdateMail 覆盖邮件配置。
 func (b siteRuntimeBridge) UpdateMail(mail conf.Mail) error {
 	if b.inner == nil {
@@ -179,6 +187,14 @@ func (b siteRuntimeBridge) UpdateUpload(upload conf.Upload) error {
 		return errSiteRuntimeMissing()
 	}
 	return b.inner.UpdateUpload(upload)
+}
+
+// UpdateDeco 覆盖装饰配置。
+func (b siteRuntimeBridge) UpdateDeco(deco conf.Deco) error {
+	if b.inner == nil {
+		return errSiteRuntimeMissing()
+	}
+	return b.inner.UpdateDeco(deco)
 }
 
 // errSiteRuntimeMissing 表示运行时配置服务没装配。

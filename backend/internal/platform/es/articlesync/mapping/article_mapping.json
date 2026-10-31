@@ -88,6 +88,9 @@
           }
         }
       },
+      "author_is_admin": {
+        "type": "boolean"
+      },
       "view_count": {
         "type": "integer"
       },
@@ -110,16 +113,6 @@
           }
         }
       },
-      "top": {
-        "properties": {
-          "user": {
-            "type": "boolean"
-          },
-          "admin": {
-            "type": "boolean"
-          }
-        }
-      },
       "publish_status": {
         "type": "integer"
       },
@@ -127,12 +120,6 @@
         "type": "keyword"
       },
       "comments_toggle": {
-        "type": "boolean"
-      },
-      "admin_top": {
-        "type": "boolean"
-      },
-      "author_top": {
         "type": "boolean"
       }
     }

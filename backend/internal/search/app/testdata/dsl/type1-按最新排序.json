@@ -16,10 +16,9 @@
     "tags",
     "author_id",
     "author",
+    "author_is_admin",
     "category_id",
     "category",
-    "admin_top",
-    "author_top",
     "content_head",
     "content_parts"
   ],

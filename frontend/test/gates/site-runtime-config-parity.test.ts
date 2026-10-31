@@ -84,6 +84,34 @@ describe("读者站投影 site_info 与后端 SiteInfo 逐字段一致（真实�
     expect(tsKeys.filter((key) => !goKeys.includes(key))).toEqual([]);
     expect(tsKeys).not.toContain("abstract");
   });
+
+  it("login 投影不出现后端没有的键（qq / email / pwd 这类自造名不许回来）", () => {
+    const goKeys = goStructJSONKeys(goSource, "Login");
+    const tsKeys = tsObjectKeys(tsSource, "login: {");
+
+    expect(goKeys.length).toBeGreaterThan(0);
+    expect(tsKeys.length).toBeGreaterThan(0);
+    expect(tsKeys.filter((key) => !goKeys.includes(key))).toEqual([]);
+    expect(tsKeys).not.toContain("qq");
+    expect(tsKeys).not.toContain("email");
+    expect(tsKeys).not.toContain("pwd");
+  });
+
+  it("login 投影覆盖公告卡实际读取的三个开关", () => {
+    expect(tsObjectKeys(tsSource, "login: {")).toEqual(
+      expect.arrayContaining(["qq_login", "username_pwd_login", "email_login"]),
+    );
+  });
+
+  it("index_right.list 的条目只声明后端 ComponentInfo 真有的字段（不再有 abstract）", () => {
+    const goKeys = goStructJSONKeys(goSource, "ComponentInfo");
+    const tsKeys = tsObjectKeys(tsSource, "list?: Array<{");
+
+    expect(goKeys.length).toBeGreaterThan(0);
+    expect(tsKeys.length).toBeGreaterThan(0);
+    expect(tsKeys.filter((key) => !goKeys.includes(key))).toEqual([]);
+    expect(tsKeys).not.toContain("abstract");
+  });
 });
 
 describe("canary：投影一旦漂移，门禁必须红", () => {
@@ -103,5 +131,17 @@ describe("canary：投影一旦漂移，门禁必须红", () => {
 
     expect(driftedKeys).not.toContain("logo");
     expect(driftedKeys).not.toEqual(goKeys);
+  });
+
+  it("把 login 改回 qq / email / pwd（#56 的真实事故）→ 三个自造键必须被抓出", () => {
+    const goKeys = goStructJSONKeys(goSource, "Login");
+    const drifted = tsSource.replace(
+      /( *)login: \{\n(?:.*\n)*? {2}\};/u,
+      "  login: {\n    qq?: boolean;\n    email?: boolean;\n    pwd?: boolean;\n  };\n",
+    );
+    const driftedKeys = tsObjectKeys(drifted, "login: {");
+
+    expect(driftedKeys).toEqual(["qq", "email", "pwd"]);
+    expect(driftedKeys.filter((key) => !goKeys.includes(key))).toEqual(["qq", "email", "pwd"]);
   });
 });

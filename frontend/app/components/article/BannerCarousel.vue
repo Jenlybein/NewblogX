@@ -132,9 +132,12 @@ function goToBanner(index: number) {
 /* 底图层（图层 0）：运营上传的首张轮播 cover。
    这一层只承担视差（photoStyle 的 translateY），取景的缩放/焦点在内层图片上。 */
 .banner-photo {
-  /* 四周各外扩 12px，给 ≤10px 的视差留余量：位移时不会从边缘漏出封面的兜底底色。 */
+  /* 外扩给 ≤10px 的视差留余量，但**必须保持 16:9 配比**：纵向 12px、横向 12 × 16/9 ≈ 21.33px。
+     四边等量外扩会把容器比例从 1.7778 改成 1.7397，于是 cover 后可见的原图区域
+     与后台取景框预览差约 5%（线上更紧），"预览＝线上"就只剩近似。
+     写成预计算数值而不是 calc() 里的乘法：`calc(长度 * 数字)` 在旧版 Safari 上会整条失效。 */
   position: absolute;
-  inset: -12px;
+  inset: -12px -21.3333px;
   z-index: 0;
   display: block;
   overflow: hidden;

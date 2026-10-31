@@ -60,3 +60,37 @@ describe("轮播面板固定 16:9：跨端只有一份定义、两端取值一�
     }
   });
 });
+
+/**
+ * 视差外扩不能把容器的比例改掉（ADR-0014 决策 6 / US9「预览 = 线上」）。
+ *
+ * 底图比面板四边各外扩 12px 是为 ≤10px 视差留余量；四边**等量**外扩会让容器比例
+ * 从 16:9 变成 1.7397，cover 之后线上可见的原图区域比取景框预览紧约 5% —— 于是
+ * "预览＝线上"只剩近似。正确做法是横向按比例多扩（12 × 16/9），容器仍是 16:9。
+ */
+describe("视差外扩保持 16:9 配比", () => {
+  const carousel = readFileSync(join(projectDir, "app/components/article/BannerCarousel.vue"), "utf8");
+  const photo = blockAfter(carousel, ".banner-photo {");
+  const insetDecl = (/inset:\s*([^;]+);/u.exec(photo)?.[1] ?? "").replace(/\s+/gu, " ").trim();
+  const [verticalPx, horizontalPx] = (insetDecl.match(/-?\d+(?:\.\d+)?/gu) ?? []).map((value) =>
+    Math.abs(Number(value)),
+  ) as [number, number];
+
+  it("横向外扩按 16/9 配比放大，而不是与纵向相同", () => {
+    // 等量外扩会把容器比例从 16:9 改成 1.7397，线上因此比取景预览紧约 5%。
+    expect(verticalPx).toBeGreaterThan(0);
+    expect(horizontalPx).toBeGreaterThan(verticalPx);
+    expect(horizontalPx / verticalPx).toBeCloseTo(16 / 9, 3);
+  });
+
+  it("纵向外扩不少于视差上限（位移不会从边缘漏出兜底底色）", () => {
+    // 上限来自 --parallax-max 的同源常量；位移是纵向 translateY。
+    const parallaxMax = Number(
+      /PARALLAX_MAX_PX = (\d+)/u.exec(
+        readFileSync(join(projectDir, "app/utils/motion.ts"), "utf8"),
+      )?.[1] ?? "0",
+    );
+
+    expect(verticalPx).toBeGreaterThanOrEqual(parallaxMax);
+  });
+});

@@ -50,7 +50,7 @@
 | 6 | `frontend-typecheck` | 矩阵两端：`pnpm typecheck` | 同上 |
 | 7 | `contract-types` | 矩阵两端：重新生成 d.ts 到 `/tmp` 再 `diff` `app/types/openapi.d.ts` | 补上 job 4 盖不到的那一层 |
 | 8 | `frontend-test` | 矩阵两端：`pnpm test:coverage` | 曾经只跑 `pnpm test`，admin 0 用例 + `passWithNoTests` = 空转 |
-| 9 | `gates-canary` | 仅当 PR 标题含 `[canary]` 时调用 `scripts/verify-gates.sh` | **必须调用与本地同一个脚本** |
+| 9 | `gates-canary` | 仅当「PR 标题含 `[canary]`」**或「本次 PR 改到门禁自身」**时调用 `scripts/verify-gates.sh`；门禁自身 = `scripts/` 下的门禁脚本与基线、`.github/workflows/`、任一路径的 `vitest.config.ts` | **必须调用与本地同一个脚本** |
 
 > job 数量演进：7（无一校验契约）→ 8（加 `contract`）→ 9（加 `contract-types`）。
 
@@ -92,6 +92,7 @@
 - 第 8 道不注入的理由：要让它红必须临时摘掉某条后台路由的 `AdminMiddleware`，脚本一旦被中断就留下"后台无鉴权"。它本身已带 `TestProbeDistinguishesUnprotectedRoute` 与 `TestAdminOnlyListCoversContract` 两条对照断言。
 - 验收：**11/11 全部正确报红，耗时 3 分 29 秒**；跑完 `git status` 与跑之前逐字节一致，无 canary 残留。
 - CI 的 `gates-canary` 曾经在 YAML 里另写一份注入逻辑、只验证 1 道 —— 两处各写一份的必然结果是"本地 11 道、CI 1 道，没人知道该信哪个"。
+- **门禁自检的触发条件曾经只看 PR 标题**：于是"改了门禁却没人验门禁"能一路飘过去。2026-10-31 实际发生过一次：`verify-gates.sh` 第 11 节（覆盖率门槛）的注入假设已过期（admin 覆盖率与文件数增长后，注入一个零覆盖文件掉不到 95 门槛），但因为没人跑它，PR 上的 `gates canary` 显示 pass 而 step 其实被 skip —— 门禁给了它并没有提供的保障。现在补了第二条触发：**本次 PR 改到门禁自身时无条件跑**。
 
 ---
 

@@ -1,36 +1,27 @@
 <script setup lang="ts">
 import { computed } from "vue";
-import ProfileEmptyState from "~/components/profile/ProfileEmptyState.vue";
 import { useSectionReveal } from "~/composables/useSectionReveal";
+import type { ArticleHotTopItem } from "~/types/api";
 import { formatCount } from "~/utils/format";
-import {
-  pinnedArticleView,
-  resolveHomeSectionState,
-  type PinnedArticleView,
-} from "~/utils/home";
+import { pinnedArticleView, type PinnedArticleView } from "~/utils/home";
 
-type TopArticleInput = Parameters<typeof pinnedArticleView>[0];
+const props = defineProps<{ articles: ArticleHotTopItem[] }>();
 
-const props = withDefaults(
-  defineProps<{
-    articles: TopArticleInput[];
-    pending?: boolean;
-    failed?: boolean;
-  }>(),
-  { pending: false, failed: false },
-);
-
-const emit = defineEmits<{ retry: [] }>();
 // 区块级滚动进场：只动容器的 transform/opacity，卡片内容本身不进场。
 const { target: revealTarget, revealStyle } = useSectionReveal();
+// 顺序就是运营位接口下发的顺序（后端按管理员手动排序返回），这里不重排、不排序。
 const views = computed<PinnedArticleView[]>(() => props.articles.map((article) => pinnedArticleView(article)));
-const state = computed(() =>
-  resolveHomeSectionState({ pending: props.pending, failed: props.failed, itemCount: views.value.length }),
-);
+const count = computed(() => views.value.length);
 </script>
 
 <template>
+  <!--
+    ADR-0017 决策 5：热门置顶只在**真有内容**时出现。
+    无置顶 / 加载中 / 请求失败一律走「整块不渲染」——连 eyebrow、标题、徽标都不出现，
+    所以这里刻意没有空态分支（也就没有可显示的空态文案与重试入口）。
+  -->
   <section
+    v-if="count > 0"
     ref="revealTarget"
     class="blueprint-panel motion-reveal"
     :style="revealStyle"
@@ -41,10 +32,10 @@ const state = computed(() =>
         <div class="eyebrow">Pinned</div>
         <h2 class="section-title mt-2">热门置顶</h2>
       </div>
-      <span class="blueprint-chip" data-role="pinned-badge">{{ state.badge }}</span>
+      <span class="blueprint-chip" data-role="pinned-badge">{{ count }} 篇</span>
     </header>
 
-    <div v-if="views.length" class="grid gap-4 md:grid-cols-2 xl:grid-cols-3" data-role="pinned-grid">
+    <div class="grid gap-4 md:grid-cols-2 xl:grid-cols-3" data-role="pinned-grid">
       <article v-for="(view, index) in views" :key="view.id" class="home-pinned-card">
         <div class="flex items-center justify-between gap-2">
           <span class="home-pinned-card__index" aria-hidden="true">{{ String(index + 1).padStart(2, "0") }}</span>
@@ -58,18 +49,6 @@ const state = computed(() =>
         </div>
       </article>
     </div>
-
-    <ProfileEmptyState
-      v-else
-      size="sm"
-      :pending="pending"
-      :title="state.title"
-      :description="state.description"
-      :hints="state.hints"
-    >
-      <button v-if="failed" type="button" class="blueprint-tab" @click="emit('retry')">重试</button>
-      <NuxtLink :to="{ path: '/search' }" class="blueprint-link">去搜索文章</NuxtLink>
-    </ProfileEmptyState>
   </section>
 </template>
 

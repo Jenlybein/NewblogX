@@ -21,6 +21,7 @@ import { updateArticle } from "~/services/article";
 import type { getArticleScoreDetail } from "~/services/ai";
 import { regenerateArticleScore } from "~/services/ai";
 import { resolveAvatarInitial } from "~/utils/avatar";
+import { DRAFT_DISABLED_NOTICE } from "~/utils/writePolicy";
 
 definePageMeta({
   layout: "write",
@@ -31,6 +32,13 @@ definePageMeta({
 const router = useRouter();
 const authStore = useAuthStore();
 const message = useMessage();
+// 站点「发布与展示」开关（ADR-0017 决策 2）。服务端判定是唯一边界，
+// 这里只做体验：发布关闭时说明原因、草稿关闭时编辑器只读。
+const {
+  policy: writePolicy,
+  readOnly: writeReadOnly,
+  notices: writePolicyNotices,
+} = useArticleWritePolicy();
 const editorTextareaRef = ref<HTMLTextAreaElement | null>(null);
 const shadowPreviewRef = ref<{ scrollToHeading: (id: string) => boolean } | null>(null);
 const previewHeadings = ref<ArticleHeadingAnchor[]>([]);
@@ -166,6 +174,13 @@ async function handleRefreshArticleScore() {
     return;
   }
 
+  // 自动保存草稿这一步也要尊重站点开关：草稿关闭时不能借"重新评分"偷偷保存。
+  // 文案复用编辑器顶部那条站点策略说明，避免同一件事两套说法。
+  if (writeReadOnly.value) {
+    message.warning(DRAFT_DISABLED_NOTICE);
+    return;
+  }
+
   articleScoreRefreshing.value = true;
   try {
     if (currentArticlePublishStatus.value !== 1) {
@@ -215,6 +230,8 @@ const { submitArticle } = useStudioPublish({
   buildPayload: buildArticlePayload,
   message,
   router,
+  // 站点策略：草稿/发布开关关闭时在这里拦一道，避免"点了才知道不行"。
+  policy: writePolicy,
 });
 
 // 工具栏分发见 composable（按钮 key → 插片段 / 改视图 / 开 AI）。
@@ -247,6 +264,9 @@ useSeoMeta({
       v-model:title="form.title"
       :draft-pending="pendingState.draft"
       :draft-label="draftActionLabel"
+      :draft-disabled="!writePolicy.allowDraft"
+      :publish-disabled="!writePolicy.allowPublish"
+      :title-readonly="writeReadOnly"
       :is-edit-mode="isEditMode"
       :can-open-score="canOpenArticleScore"
       :show-toc="showToc"
@@ -263,6 +283,12 @@ useSeoMeta({
       @tool-option="handleToolOption"
       @right-tool="handleRightToolClick" />
 
+    <!-- 站点策略说明：发布/草稿开关关闭时，先说清"为什么不能写"。
+         放在顶栏之下、正文之上，直接访问编辑器（入口已隐藏）时才看得到。 -->
+    <div v-if="writePolicyNotices.length" class="write-page__policy" role="status">
+      <p v-for="notice in writePolicyNotices" :key="notice">{{ notice }}</p>
+    </div>
+
     <main class="write-page__body" :class="writeBodyClass">
       <StudioWriteToc
         :visible="showToc"
@@ -272,6 +298,8 @@ useSeoMeta({
       <section class="write-page__pane write-page__pane--editor">
         <textarea
 ref="editorTextareaRef" v-model="form.content" class="write-page__textarea"
+          :readonly="writeReadOnly"
+          :aria-readonly="writeReadOnly"
           placeholder="从这里开始写作，把 API 能力、页面结构和组件关系整理清楚。"
           @keydown="handleEditorShortcuts"
           @keyup="handleEditorSelectionChange"
@@ -342,6 +370,8 @@ ref="editorTextareaRef" v-model="form.content" class="write-page__textarea"
       :locked="isPublishingLocked"
       :draft-pending="pendingState.draft"
       :publish-pending="pendingState.publish"
+      :draft-disabled="!writePolicy.allowDraft"
+      :publish-disabled="!writePolicy.allowPublish"
       :ai-pending="pendingState.ai"
       :cover-uploading="pendingState.cover"
       :cover-preview-url="coverPreviewUrl"

@@ -120,6 +120,9 @@ const (
 	// Favorite 是收藏夹与收藏关系。
 	Favorite Group = "favorite"
 	// UserReading 是置顶与浏览历史。
+	//
+	// 含**两种**置顶：作者置顶（user_top_article_models）与热门置顶运营位
+	// （article_hot_top_models）。两者是两套数据，都归"读/写关系"这组。
 	UserReading Group = "user_reading"
 	// Comment 是评论表。
 	Comment Group = "comment"
@@ -175,6 +178,7 @@ var groupModels = map[Group][]any{
 	},
 	UserReading: {
 		&UserTopArticleRow{},
+		&ArticleHotTopRow{},
 		&UserArticleViewHistoryRow{},
 	},
 	Comment: {
@@ -211,7 +215,7 @@ var groupModels = map[Group][]any{
 	AIProvider: {
 		&AIProviderRow{},
 	},
-	// All 是**全部 34 张表**，只用于"schema.sql 与自持行是否一致"的契约测试。
+	// All 是**全部 35 张表**，只用于"schema.sql 与自持行是否一致"的契约测试。
 	//
 	// 为什么不复用上面那些组拼起来：拼装顺序一变，这个测试就变成
 	// "测拼装顺序"而不是"测结构一致性"。这里写死一份，顺序沿用当年
@@ -234,6 +238,7 @@ var groupModels = map[Group][]any{
 		&UserArticleFavorRow{},
 		&UserArticleViewHistoryRow{},
 		&UserTopArticleRow{},
+		&ArticleHotTopRow{},
 		&ImageRow{},
 		&ImageRefRow{},
 		&RuntimeConfigRow{},
@@ -540,6 +545,21 @@ func InsertUserTopArticle(t *testing.T, db *gorm.DB, id, userID, articleID uint6
 	}
 	if err := db.Omit("UserModel", "ArticleModel").Create(&m).Error; err != nil {
 		t.Fatalf("插入置顶 %d 失败: %v", id, err)
+	}
+}
+
+// InsertArticleHotTop 插入一条热门置顶（首页运营位）。
+//
+// 与 InsertUserTopArticle（作者置顶）是两套数据：这里只有 article_id + 序号。
+func InsertArticleHotTop(t *testing.T, db *gorm.DB, id, articleID uint64, sortOrder int, at time.Time) {
+	t.Helper()
+	m := ArticleHotTopRow{
+		BaseRow:   BaseRow{ID: ctype.NewID(id), CreatedAt: at, UpdatedAt: at},
+		ArticleID: ctype.NewID(articleID),
+		SortOrder: sortOrder,
+	}
+	if err := db.Omit("ArticleModel").Create(&m).Error; err != nil {
+		t.Fatalf("插入热门置顶 %d 失败: %v", id, err)
 	}
 }
 

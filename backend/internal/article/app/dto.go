@@ -35,6 +35,11 @@ type CreateArticleCmd struct {
 	Visibility domain.Visibility
 	// SkipExamining 来自站点运行时配置：跳过审核时提交即发布。
 	SkipExamining bool
+	// Policy 是站点「发布与展示」两个写作开关的取值快照。
+	//
+	// 由 adapter 从运行时配置的现读闭包取值，判定在 app/domain 层完成
+	// （ADR-0017 当前生效约束 2）。零值 = 两项都关，所以调用方必须显式给出。
+	Policy domain.WritePolicy
 }
 
 // UpdateArticleCmd 是更新文章的输入；nil 表示该字段不修改。
@@ -56,6 +61,11 @@ type UpdateArticleCmd struct {
 	TargetStatus *domain.Status
 	// SkipExamining 站点配置。
 	SkipExamining bool
+	// Policy 是站点「发布与展示」两个写作开关的取值快照。
+	//
+	// 语义注意：这里同时决定"能不能更新这篇文章"——关闭发布开关时，
+	// 更新已发布（或审核中）的文章会被拒；关闭草稿开关时，保存草稿会被拒。
+	Policy domain.WritePolicy
 }
 
 // UpdateResult 是更新结果。
@@ -96,6 +106,13 @@ type AuthorView struct {
 	Abstract  string
 	CreatedAt time.Time
 
+	// Admin 表示作者是不是管理员（来自 user_models.role）。
+	//
+	// 读面过滤要用它：「显示非管理员发布文章」开关关闭时，非管理员作者的文章
+	// 在详情页按 404 处理（ADR-0017 决策 4）。放在作者视图里而不是让 handler
+	// 自己 join，是为了让 article 模块仍然只通过 UserPort 认识用户模块。
+	Admin bool
+
 	// 以下三项来自 user_stat_models。文章页右侧的作者卡要显示
 	// 「文章数 / 访问量 / 粉丝数」，之前没有这三个字段，前端拿到的恒为 undefined
 	// （模板里有 `|| 0` 兜底，所以不报错、只是永远显示 0）。
@@ -133,6 +150,17 @@ type TopCmd struct {
 	Actor     domain.Viewer
 	ArticleID domain.ArticleID
 	// Remove 为真表示取消置顶。
+	Remove bool
+}
+
+// HotTopCmd 是设置/取消「热门置顶」的输入（管理员运营位）。
+//
+// 与 TopCmd 分开而不是复用一个：作者置顶与热门置顶的权限、上限、
+// 副作用都不同，共用一个命令结构只会让调用点看不出自己在改哪一套数据。
+type HotTopCmd struct {
+	Actor     domain.Viewer
+	ArticleID domain.ArticleID
+	// Remove 为真表示取消置顶（幂等，且不要求文章仍然存在）。
 	Remove bool
 }
 

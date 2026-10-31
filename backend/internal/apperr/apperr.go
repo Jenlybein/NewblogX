@@ -27,6 +27,13 @@ const (
 	CodeArticleTitleRequired   Code = "article.title_required"
 	CodeArticleContentRequired Code = "article.content_required"
 	CodeArticleVersionConflict Code = "article.version_conflict"
+	// CodeArticlePublishDisabled / CodeArticleDraftDisabled 表示"站点策略关闭了这项能力"。
+	//
+	// 与 article.forbidden 的区别很重要：forbidden 是"你不能做这件事"（账号/归属问题），
+	// 这两个是"站点当前不允许任何人做这件事"。混用一个码会让用户去查自己的账号，
+	// 而正确动作是找管理员打开「发布与展示」开关。
+	CodeArticlePublishDisabled Code = "article.publish_disabled_by_site"
+	CodeArticleDraftDisabled   Code = "article.draft_disabled_by_site"
 )
 
 // 分类与标签。
@@ -52,6 +59,15 @@ const (
 // 置顶。
 const (
 	CodeTopLimitExceeded Code = "top.limit_exceeded"
+
+	// 热门置顶（运营位）与上面的「作者置顶」是两套数据、两套规则，
+	// 错误码因此分开：日志里要能分辨是哪一种置顶，前端提示语也不同。
+	//
+	// 上限值是 article/domain/hottop.MaxItems（12），这里不能引用它——
+	// apperr 是最底层包，被 domain 引用，反向 import 会成环。
+	CodeHotTopLimitExceeded Code = "hot_top.limit_exceeded"
+	CodeHotTopNotPinnable   Code = "hot_top.not_pinnable"
+	CodeHotTopOrderMismatch Code = "hot_top.order_mismatch"
 )
 
 // 审核任务。
@@ -146,6 +162,9 @@ const (
 	CodeSearchUnauthorized    Code = "search.unauthorized"
 	CodeSearchForbidden       Code = "search.forbidden"
 	CodeSearchResultInvalid   Code = "search.result_invalid"
+	// CodeSearchQueryInvalid 查询构建失败：DSL 结构与预期不符，属内部不变量被破坏，
+	// 不是调用方的参数问题。失败关闭用它，避免"过滤加不上却静默全量返回"。
+	CodeSearchQueryInvalid Code = "search.query_invalid"
 )
 
 // 关注关系。
@@ -296,6 +315,10 @@ var messages = map[Code]string{
 	CodeArticleTitleRequired:   "标题不能为空",
 	CodeArticleContentRequired: "正文不能为空",
 	CodeArticleVersionConflict: "文章已被他人修改，请刷新后重试",
+	// 这两条文案必须点明"站点策略"：用户看到后应知道去找管理员改站点开关，
+	// 而不是怀疑自己的账号被限制了。
+	CodeArticlePublishDisabled: "站点当前不允许发布文章（站点策略，不是账号问题），请联系管理员开启「允许非管理员发布文章」",
+	CodeArticleDraftDisabled:   "站点当前不允许保存草稿（站点策略，不是账号问题），请联系管理员开启「允许非管理员创建草稿」",
 
 	CodeTaxonomyTitleRequired: "名称不能为空",
 	CodeTaxonomyTitleExists:   "名称重复",
@@ -312,6 +335,10 @@ var messages = map[Code]string{
 	CodeFavoriteSelf:          "不能收藏自己的文章",
 
 	CodeTopLimitExceeded: "置顶数量已达上限",
+
+	CodeHotTopLimitExceeded: "热门置顶最多 12 条，请先取消一条再添加",
+	CodeHotTopNotPinnable:   "只有已发布且可见的文章可以设为热门置顶",
+	CodeHotTopOrderMismatch: "排序列表与当前热门置顶不一致，请刷新后重试",
 
 	CodeReviewTaskNotFound: "审核任务不存在",
 	CodeReviewTaskHandled:  "审核任务已处理",
@@ -381,6 +408,7 @@ var messages = map[Code]string{
 	CodeSearchUnauthorized:    "请先登录",
 	CodeSearchForbidden:       "权限错误",
 	CodeSearchResultInvalid:   "搜索结果格式错误",
+	CodeSearchQueryInvalid:    "搜索查询构建失败",
 
 	CodeFollowSelf:           "不能关注自己",
 	CodeFollowTargetNotFound: "目标用户不存在",

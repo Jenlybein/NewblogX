@@ -85,6 +85,14 @@ type Request struct {
 	Key           string
 	LegacyUserID  ctype.ID
 	LegacyTagList []string
+
+	// OnlyAdminAuthors 为真时，公开读面（type 1/2/3）只返回管理员作者的文章。
+	//
+	// 它承载站点运行时配置 site.article.show_non_admin_articles 的**反面**，
+	// 由 adapter 每次请求现读后填入（见 ADR-0017 决策 4）。极性刻意选成
+	// "过滤开关"：零值 = 不过滤 = 与历史行为一致，漏填不会静默隐藏内容。
+	// type 4（自己的文章）与 type 5（后台）不受它影响。
+	OnlyAdminAuthors bool
 }
 
 // NormalizeType 默认公共搜索。
@@ -156,12 +164,6 @@ type Author struct {
 	Avatar   string   `json:"avatar"`
 }
 
-// Top 是置顶标记。
-type Top struct {
-	User  bool `json:"user"`
-	Admin bool `json:"admin"`
-}
-
 // Highlight 是高亮片段。
 type Highlight struct {
 	Title    string `json:"title,omitempty"`
@@ -186,14 +188,13 @@ type Item struct {
 	Tags             []Tag            `json:"tags"`
 	Category         *Category        `json:"category,omitempty"`
 	Author           Author           `json:"author"`
-	Top              *Top             `json:"top,omitempty"`
-	Highlight        *Highlight       `json:"highlight,omitempty"`
-	Score            float64          `json:"score,omitempty"`
+	// AuthorIsAdmin 是作者角色的投影（来自 ES 文档的 author_is_admin）。
+	AuthorIsAdmin bool       `json:"author_is_admin"`
+	Highlight     *Highlight `json:"highlight,omitempty"`
+	Score         float64    `json:"score,omitempty"`
 
 	Content       string                 `json:"-"`
 	Part          []markdown.ContentPart `json:"-"`
-	UserTop       bool                   `json:"-"`
-	AdminTop      bool                   `json:"-"`
 	CategoryTitle string                 `json:"-"`
 	UserNickname  string                 `json:"-"`
 	UserAvatar    string                 `json:"-"`

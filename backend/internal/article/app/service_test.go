@@ -51,6 +51,7 @@ func TestCreateDraft(t *testing.T) {
 
 	a, err := svc.Create(ctx, app.CreateArticleCmd{
 		Actor:        authorViewer(),
+		Policy:       domain.OpenWritePolicy(),
 		Title:        "第一篇",
 		Content:      "正文",
 		TargetStatus: domain.StatusDraft,
@@ -84,6 +85,7 @@ func TestCreateSubmitGoesToReview(t *testing.T) {
 
 	a, err := svc.Create(ctx, app.CreateArticleCmd{
 		Actor:         authorViewer(),
+		Policy:        domain.OpenWritePolicy(),
 		Title:         "待审稿",
 		Content:       "正文",
 		TargetStatus:  domain.StatusExamining,
@@ -116,6 +118,7 @@ func TestCreateSkipExaminingPublishes(t *testing.T) {
 
 	a, err := svc.Create(ctx, app.CreateArticleCmd{
 		Actor:         authorViewer(),
+		Policy:        domain.OpenWritePolicy(),
 		Title:         "直发",
 		Content:       "正文",
 		TargetStatus:  domain.StatusExamining,
@@ -145,6 +148,7 @@ func TestCreateRejectsForeignCategory(t *testing.T) {
 
 	_, err := svc.Create(ctx, app.CreateArticleCmd{
 		Actor:        authorViewer(),
+		Policy:       domain.OpenWritePolicy(),
 		Title:        "x",
 		Content:      "y",
 		CategoryID:   &cid,
@@ -166,6 +170,7 @@ func TestCreateRejectsDisabledTag(t *testing.T) {
 
 	_, err := svc.Create(ctx, app.CreateArticleCmd{
 		Actor:        authorViewer(),
+		Policy:       domain.OpenWritePolicy(),
 		Title:        "x",
 		Content:      "y",
 		TagIDs:       []domain.TagID{ctype.NewID(1)},
@@ -194,6 +199,7 @@ func TestCreateRollsBackOnAuthorStatsFailure(t *testing.T) {
 
 	_, err := svc.Create(ctx, app.CreateArticleCmd{
 		Actor:        authorViewer(),
+		Policy:       domain.OpenWritePolicy(),
 		Title:        "x",
 		Content:      "y",
 		TargetStatus: domain.StatusDraft,
@@ -224,6 +230,7 @@ func TestUpdateForbiddenForStranger(t *testing.T) {
 	title := "改标题"
 	_, err := svc.Update(ctx, app.UpdateArticleCmd{
 		Actor:     strangerViewer(),
+		Policy:    domain.OpenWritePolicy(),
 		ArticleID: ctype.NewID(1),
 		Title:     &title,
 	})
@@ -242,6 +249,7 @@ func TestUpdateNoopDoesNotWrite(t *testing.T) {
 	same := "测试文章"
 	res, err := svc.Update(ctx, app.UpdateArticleCmd{
 		Actor:     authorViewer(),
+		Policy:    domain.OpenWritePolicy(),
 		ArticleID: ctype.NewID(1),
 		Title:     &same,
 	})
@@ -267,6 +275,7 @@ func TestUpdatePublishedTriggersReReview(t *testing.T) {
 	content := "改过的正文"
 	res, err := svc.Update(ctx, app.UpdateArticleCmd{
 		Actor:     authorViewer(),
+		Policy:    domain.OpenWritePolicy(),
 		ArticleID: ctype.NewID(1),
 		Content:   &content,
 	})
@@ -296,6 +305,7 @@ func TestUpdateVisibilityOnlyDoesNotReReview(t *testing.T) {
 	hidden := domain.VisibilityUserHidden
 	res, err := svc.Update(ctx, app.UpdateArticleCmd{
 		Actor:      authorViewer(),
+		Policy:     domain.OpenWritePolicy(),
 		ArticleID:  ctype.NewID(1),
 		Visibility: &hidden,
 	})
@@ -321,6 +331,7 @@ func TestUpdateBackToDraftCancelsTask(t *testing.T) {
 	draft := domain.StatusDraft
 	res, err := svc.Update(ctx, app.UpdateArticleCmd{
 		Actor:        authorViewer(),
+		Policy:       domain.OpenWritePolicy(),
 		ArticleID:    ctype.NewID(1),
 		TargetStatus: &draft,
 	})
@@ -534,11 +545,11 @@ func TestDetailHidesDraftFromAnonymous(t *testing.T) {
 	ctx := context.Background()
 	seedArticle(t, repos, ctype.NewID(1), author, domain.StatusDraft)
 
-	_, err := svc.Detail(ctx, ctype.NewID(1), domain.Anonymous())
+	_, err := svc.Detail(ctx, ctype.NewID(1), domain.Anonymous(), false)
 	if !errors.Is(err, domain.ErrArticleNotFound) {
 		t.Fatalf("匿名看草稿应报不存在，实际 %v", err)
 	}
-	if _, err := svc.Detail(ctx, ctype.NewID(1), authorViewer()); err != nil {
+	if _, err := svc.Detail(ctx, ctype.NewID(1), authorViewer(), false); err != nil {
 		t.Fatalf("作者应能看自己的草稿: %v", err)
 	}
 }
@@ -552,7 +563,7 @@ func TestDetailMergesCountersAndFlags(t *testing.T) {
 	repos.FakeCounters().Add(ctx, ctype.NewID(1), domain.Counters{View: 5, Digg: 2})
 	repos.FakeDiggs().Add(ctx, ctype.NewID(1), stranger)
 
-	view, err := svc.Detail(ctx, ctype.NewID(1), strangerViewer())
+	view, err := svc.Detail(ctx, ctype.NewID(1), strangerViewer(), false)
 	if err != nil {
 		t.Fatalf("查详情失败: %v", err)
 	}
@@ -675,7 +686,7 @@ func TestRecordViewWritesHistoryOnlyForLoggedIn(t *testing.T) {
 	if got := repos.FakeCounters().Get(ctype.NewID(1)).View; got != 1 {
 		t.Fatalf("浏览增量应为 1，实际 %d", got)
 	}
-	records, total, err := svc.ListViewHistory(ctx, strangerViewer(), domain.Page{Limit: 10})
+	records, total, err := svc.ListViewHistory(ctx, strangerViewer(), domain.Page{Limit: 10}, false)
 	if err != nil {
 		t.Fatalf("查历史失败: %v", err)
 	}
@@ -686,7 +697,7 @@ func TestRecordViewWritesHistoryOnlyForLoggedIn(t *testing.T) {
 	if err := svc.RecordView(ctx, ctype.NewID(1), strangerViewer()); err != nil {
 		t.Fatalf("登录用户浏览失败: %v", err)
 	}
-	records, total, err = svc.ListViewHistory(ctx, strangerViewer(), domain.Page{Limit: 10})
+	records, total, err = svc.ListViewHistory(ctx, strangerViewer(), domain.Page{Limit: 10}, false)
 	if err != nil {
 		t.Fatalf("查历史失败: %v", err)
 	}

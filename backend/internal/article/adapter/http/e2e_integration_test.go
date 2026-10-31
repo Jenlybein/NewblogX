@@ -9,18 +9,23 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"strconv"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/sirupsen/logrus"
 	"gorm.io/gorm"
 
+	conf "myblogx/conf"
+	siteconf "myblogx/conf/site"
 	articlehttp "myblogx/internal/article/adapter/http"
 	articlemysql "myblogx/internal/article/adapter/mysql"
 	articleapp "myblogx/internal/article/app"
 	"myblogx/internal/article/domain"
 	"myblogx/internal/article/domain/favorite"
 	"myblogx/internal/kernel/ctype"
+	"myblogx/internal/platform/config"
 	redis_service "myblogx/internal/platform/redis"
 	"myblogx/internal/testkit/mysqlcontainer"
 	"myblogx/utils/jwts"
@@ -60,11 +65,27 @@ func newRouter(t *testing.T, db *gorm.DB, viewer domain.Viewer) *gin.Engine {
 // newRouterWithIDs 允许指定 ID 起点：golden 要可复现，ID 必须可预测。
 func newRouterWithIDs(t *testing.T, db *gorm.DB, viewer domain.Viewer, idStart uint64) *gin.Engine {
 	t.Helper()
+	return newRouterWithSite(t, db, viewer, idStart, nil)
+}
+
+// newRouterWithSite 与 newRouterWithIDs 相同，但注入一份站点运行时配置。
+//
+// 传 nil 表示"读不到站点配置"：handler 按开关默认值（发布与展示三开关全开）兜底，
+// 这也是 golden 用例的装配方式。需要验证「显示非管理员发布文章」关掉之后的
+// 读面行为时，传一份把 Article.ShowNonAdminArticles 置 false 的配置。
+func newRouterWithSite(
+	t *testing.T,
+	db *gorm.DB,
+	viewer domain.Viewer,
+	idStart uint64,
+	site *config.RuntimeConfigService,
+) *gin.Engine {
+	t.Helper()
 
 	uow := articlemysql.NewTxManager(db, redis_service.Options{}, nil /* 作者统计不在本测试断言范围 */)
 	svc := articleapp.New(uow, testClock{at: time.Date(2026, 1, 1, 12, 0, 0, 0, time.UTC)}, &testIDs{n: idStart})
 
-	h := articlehttp.NewHandler(svc, nil, nil, func(*gin.Context) domain.Viewer { return viewer }, nil)
+	h := articlehttp.NewHandler(svc, nil, site, func(*gin.Context) domain.Viewer { return viewer }, nil)
 
 	gin.SetMode(gin.TestMode)
 	r := gin.New()
@@ -189,5 +210,46 @@ func TestDetailEndToEnd(t *testing.T) {
 	anonResp := do(t, anonRouter, http.MethodGet, "/api/articles/"+idStr, nil)
 	if code, _ := anonResp["code"].(float64); code == 0 {
 		t.Fatalf("匿名不应看到审核中的文章，实际: %v", anonResp)
+	}
+}
+
+// TestSitePolicyRejectsNormalUserWithReadableMessage 验证 HTTP 层真的把站点
+// 「发布与展示」开关带进了用例（#64）：
+//   - 关闭两个写作开关后，普通用户建草稿/提交审核都被拒，文案说清是站点策略；
+//   - 管理员同一请求照旧成功（开关只作用于非管理员）。
+//
+// 这里刻意走真实路由与真实 handler，而不是只测 app：handler 漏传 Policy 时，
+// 用例里全绿的权限矩阵在线上会完全不起作用。
+func TestSitePolicyRejectsNormalUserWithReadableMessage(t *testing.T) {
+	t.Parallel()
+
+	db := migrate(t)
+	seedAuthor(t, db, 100)
+
+	// 两个写作开关都关：普通用户只能查看与删除存量草稿。
+	closed := config.NewRuntimeConfigService(conf.RuntimeDefaults{
+		Site: conf.Site{Article: siteconf.Article{
+			AllowNonAdminPublish: false,
+			AllowNonAdminDraft:   false,
+		}},
+	}, logrus.New(), nil)
+
+	author := newRouterWithSite(t, db, domain.NormalUser(ctype.NewID(100)), 100, closed)
+
+	draftResp := do(t, author, http.MethodPost, "/api/articles", []byte(`{"title":"草稿","content":"正文","status":1}`))
+	if msg, _ := draftResp["msg"].(string); !strings.Contains(msg, "站点当前不允许保存草稿") {
+		t.Fatalf("关闭草稿时应返回站点策略文案，实际 %v", draftResp)
+	}
+
+	publishResp := do(t, author, http.MethodPost, "/api/articles", []byte(`{"title":"直发","content":"正文","status":2}`))
+	if msg, _ := publishResp["msg"].(string); !strings.Contains(msg, "站点当前不允许发布文章") {
+		t.Fatalf("关闭发布时应返回站点策略文案，实际 %v", publishResp)
+	}
+
+	// 管理员不受两个开关影响。
+	admin := newRouterWithSite(t, db, domain.AdminUser(ctype.NewID(100)), 300, closed)
+	adminResp := do(t, admin, http.MethodPost, "/api/articles", []byte(`{"title":"管理员草稿","content":"正文","status":1}`))
+	if code, _ := adminResp["code"].(float64); code != 0 {
+		t.Fatalf("管理员应不受站点开关影响，实际 %v", adminResp)
 	}
 }

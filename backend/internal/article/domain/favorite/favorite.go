@@ -313,7 +313,11 @@ type Repository interface {
 	// DeleteItemsByArticle 删除某文章的全部收藏（删文章级联用）。
 	DeleteItemsByArticle(ctx context.Context, articleID domain.ArticleID) error
 	// ListItems 分页列出某夹子里的收藏。
-	ListItems(ctx context.Context, folderID ID, offset, limit int) ([]*Item, int64, error)
+	//
+	// onlyAdminAuthors 为真时只返回"作者是管理员"的条目（ADR-0017 决策 4：
+	// 「显示非管理员发布文章」开关关闭时收藏内容同步过滤）。做成查询层条件
+	// 而不是调用方查完再筛：total 必须与过滤后的可见条目一致，否则前端分页错乱。
+	ListItems(ctx context.Context, folderID ID, offset, limit int, onlyAdminAuthors bool) ([]*Item, int64, error)
 	// CountByArticle 统计某文章被收藏的次数（删文章时用于审计与统计扣减）。
 	CountByArticle(ctx context.Context, articleID domain.ArticleID) (int, error)
 }

@@ -26,7 +26,6 @@ export interface SiteRuntimeConfig {
     title?: string;
     logo?: string;
     beian?: string;
-    mode?: number;
   };
   project: {
     title?: string;
@@ -47,6 +46,22 @@ export interface SiteRuntimeConfig {
     list?: Array<{
       title: string;
     }>;
+  };
+  /**
+   * 文章的「发布与展示」开关（`site.article` 段，ADR-0017 决策 2）。
+   *
+   * 键名必须与 `backend/conf/site/enter.go` 的 `Article` json tag 一致
+   * （后端发出 `allow_non_admin_publish` / `allow_non_admin_draft` /
+   * `show_non_admin_articles`）。读者站只消费前两个：
+   * 发布关闭 → 隐藏写文章入口；草稿关闭 → 编辑器只读并给出说明。
+   * 展示开关由服务端过滤（#65），前端不做过滤。
+   *
+   * 三个键都可选：老后台可能还没发出它们，缺失时按默认值 `true` 处理。
+   */
+  article: {
+    allow_non_admin_publish?: boolean;
+    allow_non_admin_draft?: boolean;
+    show_non_admin_articles?: boolean;
   };
 }
 
@@ -153,14 +168,15 @@ export type SearchArticleItem = RequiredSchema<"myblogx_internal_search_domain.I
 export type SearchArticleResponse = RequiredSchema<"myblogx_internal_search_domain.Response">;
 
 /**
- * 首页「热门置顶」区块的一张卡片。
+ * 首页「热门置顶」运营位的一张卡片（`GET /articles/hot-top`，公开读）。
  *
- * 之前这里写着 12 个字段（含 tags / digg_count 等），但 `/articles/top` 实际
- * 返回的是**文章 ID 字符串数组**，于是模板里的 `article.id`、`article.cover`、
- * `article.title` 全是 undefined，整块区域是空的、链接指向 `/article/undefined`。
- * 现在后端改返回卡片，类型直接派生自契约。
+ * 与作者置顶（`/articles/top?user_id=`）的卡片形状相同，但数据源不同：
+ * 前者是管理员挑选并手动排序的运营位，后者是作者钉在自己主页上的那一篇（ADR-0017）。
  */
-export type ArticleTopItem = RequiredSchema<"internal_article_adapter_http.ArticleTopCardResponse">;
+export type ArticleHotTopItem = RequiredSchema<"internal_article_adapter_http.ArticleHotTopCardResponse">;
+
+export type ArticleHotTopListData =
+  RequiredSchema<"myblogx_internal_kernel.ListData-internal_article_adapter_http_ArticleHotTopCardResponse">;
 // ArticleUpdateRequest 全是指针（PATCH 语义：null 表示清空该字段）。
 export type ArticleWritePayload = Nullable<
   Schema<"internal_article_adapter_http.ArticleUpdateRequest">,

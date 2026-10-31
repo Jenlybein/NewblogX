@@ -16,6 +16,7 @@ export type AdminNavIcon =
   | 'chart'
   | 'shield'
   | 'article'
+  | 'pin'
   | 'users'
   | 'settings'
   | 'photo'
@@ -33,6 +34,8 @@ export const ADMIN_NAV: AdminNavItem[] = [
   { label: '数据概览', path: '/', icon: 'chart' },
   { label: '文章审核', path: '/review', icon: 'shield' },
   { label: '文章管理', path: '/articles', icon: 'article' },
+  // 热门置顶是独立运营位（ADR-0017 决策 5），排在「文章管理」之后：先选文章，再排序。
+  { label: '热门置顶', path: '/articles/hot-top', icon: 'pin' },
   { label: '用户管理', path: '/users', icon: 'users' },
   { label: '站点配置', path: '/site', icon: 'settings' },
   { label: '媒体运营', path: '/media', icon: 'photo' },

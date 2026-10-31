@@ -1021,6 +1021,119 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/articles/hot-top": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 热门置顶列表 */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["myblogx_internal_kernel.Envelope-myblogx_internal_kernel_ListData-internal_article_adapter_http_ArticleHotTopCardResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/articles/hot-top/admin": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 热门置顶全量列表（含失效） */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["myblogx_internal_kernel.Envelope-myblogx_internal_kernel_ListData-internal_article_adapter_http_ArticleHotTopAdminItem"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/articles/hot-top/order": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** 热门置顶排序 */
+        patch: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            /** @description 请求体 */
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["internal_article_adapter_http.ArticleHotTopOrderRequest"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["myblogx_internal_kernel.Envelope-myblogx_internal_kernel_EmptyData"];
+                    };
+                };
+            };
+        };
+        trace?: never;
+    };
     "/articles/tags": {
         parameters: {
             query?: never;
@@ -1338,6 +1451,68 @@ export interface paths {
         };
         post?: never;
         /** 删除文章 */
+        delete: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    /** @description 文章 ID */
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["myblogx_internal_kernel.Envelope-myblogx_internal_kernel_EmptyData"];
+                    };
+                };
+            };
+        };
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/articles/{id}/admin/hot-top": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 设置热门置顶 */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    /** @description 文章 ID */
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["myblogx_internal_kernel.Envelope-myblogx_internal_kernel_EmptyData"];
+                    };
+                };
+            };
+        };
+        /** 取消热门置顶 */
         delete: {
             parameters: {
                 query?: never;
@@ -5133,6 +5308,25 @@ export interface components {
             article_id: string;
             favor_id?: string;
         };
+        "internal_article_adapter_http.ArticleHotTopAdminItem": {
+            article_id?: string;
+            cover?: string;
+            sort_order?: number;
+            stale?: boolean;
+            title?: string;
+        };
+        "internal_article_adapter_http.ArticleHotTopCardResponse": {
+            abstract?: string;
+            author_nickname?: string;
+            category_title?: string;
+            cover?: string;
+            id?: string;
+            title?: string;
+            view_count?: number;
+        };
+        "internal_article_adapter_http.ArticleHotTopOrderRequest": {
+            article_ids: string[];
+        };
         "internal_article_adapter_http.ArticleReviewHandleRequest": {
             reason?: string;
             /** @enum {integer} */
@@ -6128,6 +6322,16 @@ export interface components {
             data?: components["schemas"]["myblogx_internal_kernel.ListData-internal_analytics_adapter_http_DeadLetterReplayResultResponse"];
             msg?: string;
         };
+        "myblogx_internal_kernel.Envelope-myblogx_internal_kernel_ListData-internal_article_adapter_http_ArticleHotTopAdminItem": {
+            code?: number;
+            data?: components["schemas"]["myblogx_internal_kernel.ListData-internal_article_adapter_http_ArticleHotTopAdminItem"];
+            msg?: string;
+        };
+        "myblogx_internal_kernel.Envelope-myblogx_internal_kernel_ListData-internal_article_adapter_http_ArticleHotTopCardResponse": {
+            code?: number;
+            data?: components["schemas"]["myblogx_internal_kernel.ListData-internal_article_adapter_http_ArticleHotTopCardResponse"];
+            msg?: string;
+        };
         "myblogx_internal_kernel.Envelope-myblogx_internal_kernel_ListData-internal_article_adapter_http_ArticleTopCardResponse": {
             code?: number;
             data?: components["schemas"]["myblogx_internal_kernel.ListData-internal_article_adapter_http_ArticleTopCardResponse"];
@@ -6279,6 +6483,14 @@ export interface components {
             count?: number;
             list?: components["schemas"]["internal_analytics_adapter_http.DeadLetterReplayResultResponse"][];
         };
+        "myblogx_internal_kernel.ListData-internal_article_adapter_http_ArticleHotTopAdminItem": {
+            count?: number;
+            list?: components["schemas"]["internal_article_adapter_http.ArticleHotTopAdminItem"][];
+        };
+        "myblogx_internal_kernel.ListData-internal_article_adapter_http_ArticleHotTopCardResponse": {
+            count?: number;
+            list?: components["schemas"]["internal_article_adapter_http.ArticleHotTopCardResponse"][];
+        };
         "myblogx_internal_kernel.ListData-internal_article_adapter_http_ArticleTopCardResponse": {
             count?: number;
             list?: components["schemas"]["internal_article_adapter_http.ArticleTopCardResponse"][];
@@ -6364,6 +6576,8 @@ export interface components {
         "myblogx_internal_search_domain.Item": {
             abstract?: string;
             author?: components["schemas"]["myblogx_internal_search_domain.Author"];
+            /** @description AuthorIsAdmin 是作者角色的投影（来自 ES 文档的 author_is_admin）。 */
+            author_is_admin?: boolean;
             category?: components["schemas"]["myblogx_internal_search_domain.Category"];
             comment_count?: number;
             comments_toggle?: boolean;
@@ -6377,7 +6591,6 @@ export interface components {
             score?: number;
             tags?: components["schemas"]["myblogx_internal_search_domain.Tag"][];
             title?: string;
-            top?: components["schemas"]["myblogx_internal_search_domain.Top"];
             updated_at?: string;
             view_count?: number;
             visibility_status?: components["schemas"]["myblogx_internal_search_domain.VisibilityStatus"];
@@ -6399,10 +6612,6 @@ export interface components {
         "myblogx_internal_search_domain.Tag": {
             id?: string;
             title?: string;
-        };
-        "myblogx_internal_search_domain.Top": {
-            admin?: boolean;
-            user?: boolean;
         };
         /** @enum {string} */
         "myblogx_internal_search_domain.VisibilityStatus": "visible" | "user_hidden" | "admin_hidden";

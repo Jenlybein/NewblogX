@@ -30,11 +30,22 @@ type Handler struct {
 	es       *elasticsearch.Client
 	index    string
 	verifier Verifier
+	// onlyAdminAuthors 现读「显示非管理员发布文章」开关的反面：为真表示
+	// 公开搜索只出管理员作者的文章。做成取值函数而不是构造时的布尔快照，
+	// 后台改完下一次请求即生效（GLOSSARY 的「Provider 闭包（现读）」）。
+	//
+	// 与另外两处同改：backend/app/visibility_wiring.go 的 onlyAdminAuthors，
+	// 以及 backend/internal/article/adapter/http/handler.go 的 onlyAdminAuthors 方法。
+	onlyAdminAuthors func() bool
 }
 
 // NewHandler 构造处理器。
-func NewHandler(counters domain.CounterReader, prefs domain.UserPreferences, es *elasticsearch.Client, index string, verifier Verifier) *Handler {
-	return &Handler{counters: counters, prefs: prefs, es: es, index: index, verifier: verifier}
+func NewHandler(counters domain.CounterReader, prefs domain.UserPreferences, es *elasticsearch.Client, index string, verifier Verifier, onlyAdminAuthors func() bool) *Handler {
+	if onlyAdminAuthors == nil {
+		// 没有配置来源时按开关默认（开）处理：宁可多出内容，也不要静默隐藏。
+		onlyAdminAuthors = func() bool { return false }
+	}
+	return &Handler{counters: counters, prefs: prefs, es: es, index: index, verifier: verifier, onlyAdminAuthors: onlyAdminAuthors}
 }
 
 // ArticleSearchQuery 是搜索查询参数（与旧契约一致）。
@@ -78,6 +89,9 @@ func (h *Handler) ArticleSearch(c *gin.Context) {
 		Key:           q.Key,
 		LegacyUserID:  q.UserID,
 		LegacyTagList: q.TagList,
+		// 开关关闭时公开读面（type 1/2/3）由 app 层加 author_is_admin 过滤；
+		// type 4/5 由 app 层忽略这个字段。
+		OnlyAdminAuthors: h.onlyAdminAuthors(),
 	}
 
 	var viewer *domain.Viewer

@@ -171,7 +171,7 @@ func writeESJSON(w http.ResponseWriter, code int, body string) {
 }
 
 func TestSyncArticleDocuments(t *testing.T) {
-	db := testutil.SetupSQLite(t, &schema.UserRow{}, &schema.UserConfRow{}, &schema.ArticleRow{}, &schema.TagRow{}, &schema.ArticleTagRow{}, &schema.UserTopArticleRow{})
+	db := testutil.SetupSQLite(t, &schema.UserRow{}, &schema.UserConfRow{}, &schema.ArticleRow{}, &schema.TagRow{}, &schema.ArticleTagRow{})
 	testutil.InitGlobals()
 	testutil.SetConfig(&conf.Config{
 		ES:    conf.ES{Index: "article_index"},
@@ -180,7 +180,8 @@ func TestSyncArticleDocuments(t *testing.T) {
 
 	admin := schema.UserRow{Username: "admin", Password: "x", Role: enum.RoleAdmin}
 	author1 := schema.UserRow{Username: "author1", Password: "x", Role: enum.RoleUser}
-	author2 := schema.UserRow{Username: "author2", Password: "x", Role: enum.RoleUser}
+	// author2 是管理员：全量重建路径要能同时证明 author_is_admin 的两种取值。
+	author2 := schema.UserRow{Username: "author2", Password: "x", Role: enum.RoleAdmin}
 	if err := db.Create(&admin).Error; err != nil {
 		t.Fatalf("创建管理员失败: %v", err)
 	}
@@ -241,12 +242,6 @@ func TestSyncArticleDocuments(t *testing.T) {
 	}
 	if err := db.Create(&schema.ArticleTagRow{ArticleID: articles[1].ID, TagID: tagRedis.ID}).Error; err != nil {
 		t.Fatalf("创建文章2-Redis 标签关系失败: %v", err)
-	}
-	if err := db.Create(&schema.UserTopArticleRow{UserID: admin.ID, ArticleID: articles[0].ID}).Error; err != nil {
-		t.Fatalf("创建管理员置顶失败: %v", err)
-	}
-	if err := db.Create(&schema.UserTopArticleRow{UserID: author1.ID, ArticleID: articles[0].ID}).Error; err != nil {
-		t.Fatalf("创建作者置顶失败: %v", err)
 	}
 
 	var bulkDocs []map[string]any
@@ -310,7 +305,16 @@ func TestSyncArticleDocuments(t *testing.T) {
 	if !ok || author["id"] != author1.ID.String() {
 		t.Fatalf("作者字段应正确写入 ES, got=%#v", first["author"])
 	}
-	if first["admin_top"] != true || first["author_top"] != true {
-		t.Fatalf("置顶字段应正确写入 ES, got admin=%#v author=%#v", first["admin_top"], first["author_top"])
+	if got, ok := first["author_is_admin"].(bool); !ok || got {
+		t.Fatalf("注册用户作者的 author_is_admin 应为 false, got=%#v", first["author_is_admin"])
+	}
+	if got, ok := bulkDocs[1]["author_is_admin"].(bool); !ok || !got {
+		t.Fatalf("管理员作者的 author_is_admin 应为 true, got=%#v", bulkDocs[1]["author_is_admin"])
+	}
+	// ADR-0017 决策 6：三个置顶派生字段不再进 ES。
+	for _, key := range []string{"top", "admin_top", "author_top"} {
+		if _, ok := first[key]; ok {
+			t.Fatalf("全文重建不应再写置顶字段 %q, got=%#v", key, first[key])
+		}
 	}
 }

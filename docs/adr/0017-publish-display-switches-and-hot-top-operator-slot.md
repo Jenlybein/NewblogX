@@ -1,6 +1,6 @@
 # ADR-0017：站点发布/展示开关与热门置顶运营位
 
-- 状态：提议
+- 状态：已交付
 - 日期：2026-10-31
 - 来源：产品需求 + 设计对话（"站点模式和社区模式的区别是什么"引出的死配置排查）；落地票 [#54](https://github.com/Jenlybein/NewblogX/issues/54)
 
@@ -28,15 +28,18 @@
    - **不改登录与刷新链路**：本项目尚无 guest 与 role=0 存量数据，登录仍会成功，但令牌在鉴权层不被承认（写操作 401，公开页按匿名渲染）。将来真有 guest 时再补登录期拦截。`role=2`（普通用户）才是三个开关作用的"非管理员"。
 4. **"显示"开关在服务端实现**，不做前端隐藏：
    - ES 文章文档新增 `author_is_admin`（由作者 `user_models.role` 投影；用户角色变更走已有的"用户行 → 重算文章文档"分支），公开查询（type 1/2/3，含 AI 搜索）在开关关闭时加 `author_is_admin = true` 过滤；type 4（自己的文章）与 type 5（后台）不过滤。
-   - 文章详情在开关关闭且作者非管理员时返回 404；收藏夹内容、浏览历史同样过滤；非管理员作者主页保留页面但文章列表为空态。
+   - 文章详情在开关关闭且作者非管理员时返回 404；**作者本人豁免**——studio 编辑器靠同一个 `GET /articles/{id}` 取正文，开关关掉后作者仍要能继续编辑自己的文章。管理员读者**不**豁免：前台没有管理员例外，要看被隐藏的内容请去后台。
+   - 收藏夹内容、浏览历史同样过滤；**首页热门置顶（`GET /articles/hot-top`）同样过滤**：它也是读者端公开读面，开关关闭时只返回管理员作者的卡片（过滤在仓储 SQL 里 join `user_models.role`，不靠前端判断）。
+   - 非管理员作者主页保留页面但文章列表为空态。
+   - **不在本次范围**：作者置顶卡片 `GET /articles/top?user_id=`。读者站与后台都没有任何消费点（用户页 / 个人主页的文章列表走搜索 type 3 的 `author_id`，已由 ES 那条过滤覆盖），因此它不构成一个会露出的读面；将来若接回该接口，必须同时接上同一个过滤。
    - **不做前台管理员例外**：读者站列表是 `auth:false` 的公开请求、`useAsyncData` 缓存键不区分身份，加例外会让缓存串号。
 5. **热门置顶改为独立运营位**：
    - 新表 `article_hot_top_models`（`article_id` 唯一、`sort_order`、软删），与 ES 无关；最多 12 条，新置顶排末尾，取消后序号压实。
    - 只有"已发布且可见"的文章可置顶；文章后来被隐藏/退回草稿/删除时，置顶行**保留**、首页容器 JOIN 过滤掉，后台在热门置顶页标"已失效"并提供一键清理。
    - 接口：`GET /articles/hot-top`（公开，返回卡片列表）、`POST|DELETE /api/articles/{id}/admin/hot-top`（幂等开关）、`PATCH /api/articles/hot-top/order`（全量顺序替换）。
-   - 后台：文章管理列表每行加「热门置顶 / 取消」；后台侧边栏在「文章管理」之后新增「热门置顶」页（后台菜单是扁平清单，没有分组）负责排序（上移/下移/移除）、失效标记与清理。文章列表的置顶状态来自 `GET /articles/hot-top` 的 ID 集合，**不依赖 ES 字段**。
+   - 后台：文章管理列表每行加「热门置顶 / 取消」；后台侧边栏在「文章管理」之后新增「热门置顶」页（后台菜单是扁平清单，没有分组）负责排序（上移/下移/移除）、失效标记与清理。文章列表的置顶状态来自热门置顶接口的 ID 集合（管理端读**含失效行**的 `GET /articles/hot-top/admin`，后台「热门置顶」页读同一个接口），**不依赖 ES 字段**。
    - 首页「热门置顶」区块**只在有数据时渲染**：无数据、加载中、请求失败都整块不出现，同时删掉现有空态分支与文案。
-6. **清理 ES 里无人消费的置顶派生字段**：删除 `admin_top`、`author_top` 与搜索结果里的 `top` 对象（连同 `search/domain` 的 `Top`/`UserTop`/`AdminTop`）；作者置顶功能保留，继续走 `user_top_article_models` 与 `/articles/top?user_id`，只是不再进 ES。映射变更需要一次索引重建 + 全量回填（`-es` 后接 `-es -s article-sync`），期间搜索有短暂空窗。
+6. **清理 ES 里无人消费的置顶派生字段**：删除 `admin_top`、`author_top` 与搜索结果里的 `top` 对象（连同 `search/domain` 的 `Top`/`UserTop`/`AdminTop`）；作者置顶功能保留，继续走 `user_top_article_models` 与 `/articles/top?user_id`，只是不再进 ES（读者站当前不消费这两个接口，见决策 4）。映射变更需要一次索引重建 + 全量回填（`-es -s init` 后接 `-es -s article-sync`），期间搜索有短暂空窗。
 
 ## 理由与已否决方案
 
@@ -65,7 +68,7 @@
 
 1. `site` 配置段不得再出现 `mode`；新增的发布/展示开关必须放在 `site.article` 段、`bool`、默认 `true`，且同时带 `yaml` 与 `json` tag（`TestAllSections_都有jsonTag` 会拦）。
 2. 发布/草稿权限判定必须在 app 层（`internal/article/app/create.go`、`update.go`）实现，并配 `domain/rule.go` 的纯规则 + `rule_test.go` 用例；不得只靠路由中间件或前端隐藏。
-3. "显示"开关的过滤必须在服务端（ES DSL / MySQL 查询），禁止前端过滤；公开读面（type 1/2/3 + 详情 + 收藏内容 + 历史）一致，后台（type 5）与自己（type 4）不过滤。
+3. "显示"开关的过滤必须在服务端（ES DSL / MySQL 查询），禁止前端过滤；公开读面（type 1/2/3 + 详情 + 收藏内容 + 历史 + 首页热门置顶 `GET /articles/hot-top`）一致，后台（type 5）与自己（type 4）不过滤。详情上作者本人豁免（studio 编辑器要读正文），管理员读者不豁免。作者置顶卡片 `GET /articles/top?user_id=` 没有读者端消费点，不在本约束内（见决策 4）。
 4. 热门置顶的唯一真相是 `article_hot_top_models`；不得写入 `user_top_article_models`，不得写进 ES，也不得依赖任何 ES 字段表示置顶状态。
 5. 作者置顶的规则不变：只有作者本人能置顶自己的文章，且只影响个人页；它与热门置顶是两套数据。
 6. 首页热门置顶区块在无数据、加载中、失败时都不渲染（含标题与空态）。
@@ -75,7 +78,7 @@
 
 - 配置：[backend/conf/site/enter.go](../../backend/conf/site/enter.go)、[site_default_settings.yaml](../../backend/config/site_default_settings.yaml)、[platform/config/merge.go](../../backend/internal/platform/config/merge.go)、[SettingsSite.vue](../../frontend_admin/app/components/settings/SettingsSite.vue)
 - 发布权限：[article/app/create.go](../../backend/internal/article/app/create.go)、[article/app/update.go](../../backend/internal/article/app/update.go)、[article/domain/rule.go](../../backend/internal/article/domain/rule.go)、[article_wiring.go](../../backend/app/article_wiring.go)
-- 可见性：[search/app/search.go](../../backend/internal/search/app/search.go)、[articlesync/article_sync.go](../../backend/internal/platform/es/articlesync/article_sync.go)、[articlesync/mapping/article_mapping.json](../../backend/internal/platform/es/articlesync/mapping/article_mapping.json)、[article/app/query.go](../../backend/internal/article/app/query.go)
-- 热门置顶：[schema.sql](../../backend/internal/platform/mysql/ddl/schema.sql)（新表 DDL）、[article/adapter/http/router.go](../../backend/internal/article/adapter/http/router.go)、[article/domain/top](../../backend/internal/article/domain/top)、[index.vue](../../frontend/app/pages/index.vue)、[HomePinnedSection.vue](../../frontend/app/components/home/HomePinnedSection.vue)、[frontend_admin 文章管理](../../frontend_admin/app/pages/articles/index.vue)
-- 部署：[README §八](../../README.md)、[entrypoint.sh](../../deploy/docker/api/entrypoint.sh)
+- 可见性：[search/app/search.go](../../backend/internal/search/app/search.go)、[articlesync/article_sync.go](../../backend/internal/platform/es/articlesync/article_sync.go)、[articlesync/mapping/article_mapping.json](../../backend/internal/platform/es/articlesync/mapping/article_mapping.json)、[article/app/query.go](../../backend/internal/article/app/query.go)、[article/domain/rule.go](../../backend/internal/article/domain/rule.go)（`CanBeSeenByReader`）
+- 热门置顶：[schema.sql](../../backend/internal/platform/mysql/ddl/schema.sql)（新表 DDL）、[article/adapter/http/router.go](../../backend/internal/article/adapter/http/router.go)、[article/adapter/http/handler_hottop.go](../../backend/internal/article/adapter/http/handler_hottop.go)、[article/adapter/mysql/hottop_repo.go](../../backend/internal/article/adapter/mysql/hottop_repo.go)、[article/app/hottop.go](../../backend/internal/article/app/hottop.go)、[article/domain/top](../../backend/internal/article/domain/top)、[index.vue](../../frontend/app/pages/index.vue)、[HomePinnedSection.vue](../../frontend/app/components/home/HomePinnedSection.vue)、[frontend_admin 文章管理](../../frontend_admin/app/pages/articles/index.vue)
+- 部署：[README §十一](../../README.md)（建表与索引重建/回填两个升级步骤）、[entrypoint.sh](../../deploy/docker/api/entrypoint.sh)
 - 术语：[GLOSSARY · 热门置顶 / 作者置顶](../../GLOSSARY.md)

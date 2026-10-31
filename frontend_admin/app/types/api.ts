@@ -56,6 +56,20 @@ export type ArticleReviewTaskListResponseData = RequiredSchema<"internal_article
 
 export type BannerModel = RequiredSchema<"internal_site_adapter_http.BannerItem">;
 
+/** 轮播取景参数：创建 / 更新请求里的 `crop`。 */
+export type BannerCrop = RequiredSchema<"internal_site_adapter_http.BannerCrop">;
+
+/**
+ * 后台创建 / 更新轮播时使用的**完整**请求体。
+ *
+ * 契约把 `href` / `show` / `crop` 标成可选（为了兼容还没接取景的老调用方），
+ * 但后台写入时三个字段总是显式带上；这里收成必填，免得页面漏传 `crop` 时
+ * 悄悄退回居中。字段名仍全部派生自契约。
+ */
+export type BannerWritePayload = Required<Schema<"internal_site_adapter_http.BannerCreateRequest">> & {
+  crop: BannerCrop;
+};
+
 /** 全局通知项。契约里的 `herf` 拼写错误字段前端从未使用，故以契约（`href`）为准。 */
 export type GlobalNotifListItem = RequiredSchema<"internal_notification_adapter_http.GlobalListResponse">;
 

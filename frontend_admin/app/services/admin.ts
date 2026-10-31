@@ -10,6 +10,7 @@ import type {
   ArticleSearchResponseData,
   ArticleYearDataResponseData,
   BannerModel,
+  BannerWritePayload,
   CdcEventRecord,
   GlobalNotifListItem,
   GrowthDataResponseData,
@@ -163,8 +164,8 @@ export function getBanners(query: { page?: number; limit?: number; show?: boolea
   return api().request<HasMoreList<BannerModel>>('/banners', { query })
 }
 
-export function createBanner(payload: { cover_image_id?: string | null; href?: string; show?: boolean }) {
-  return api().request<unknown, typeof payload>('/banners', { method: 'POST', body: payload })
+export function createBanner(payload: BannerWritePayload) {
+  return api().request<unknown, BannerWritePayload>('/banners', { method: 'POST', body: payload })
 }
 
 export function deleteBanners(id_list: string[]) {

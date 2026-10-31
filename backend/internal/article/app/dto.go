@@ -35,6 +35,11 @@ type CreateArticleCmd struct {
 	Visibility domain.Visibility
 	// SkipExamining 来自站点运行时配置：跳过审核时提交即发布。
 	SkipExamining bool
+	// Policy 是站点「发布与展示」两个写作开关的取值快照。
+	//
+	// 由 adapter 从运行时配置的现读闭包取值，判定在 app/domain 层完成
+	// （ADR-0017 当前生效约束 2）。零值 = 两项都关，所以调用方必须显式给出。
+	Policy domain.WritePolicy
 }
 
 // UpdateArticleCmd 是更新文章的输入；nil 表示该字段不修改。
@@ -56,6 +61,11 @@ type UpdateArticleCmd struct {
 	TargetStatus *domain.Status
 	// SkipExamining 站点配置。
 	SkipExamining bool
+	// Policy 是站点「发布与展示」两个写作开关的取值快照。
+	//
+	// 语义注意：这里同时决定"能不能更新这篇文章"——关闭发布开关时，
+	// 更新已发布（或审核中）的文章会被拒；关闭草稿开关时，保存草稿会被拒。
+	Policy domain.WritePolicy
 }
 
 // UpdateResult 是更新结果。

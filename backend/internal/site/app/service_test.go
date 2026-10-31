@@ -368,9 +368,9 @@ func TestBannerAcceptsCropBoundaries(t *testing.T) {
 	}
 }
 
-// TestUpdateBannerWithoutCropResetsToDefault 钉住 PUT 语义：
-// 更新是整体替换，不传取景就回到缺省，而不是"保留上一次的取景"。
-func TestUpdateBannerWithoutCropResetsToDefault(t *testing.T) {
+// TestUpdateBannerWithoutCropKeepsFraming 钉住更新时的部分更新语义：
+// 不传取景就保留已存的取景，而不是重置成居中 —— 老后台改一个链接不该抹掉取景。
+func TestUpdateBannerWithoutCropKeepsFraming(t *testing.T) {
 	env := newEnv()
 	ctx := context.Background()
 	env.Images.Put(11, "/a.png")
@@ -391,7 +391,32 @@ func TestUpdateBannerWithoutCropResetsToDefault(t *testing.T) {
 	if err != nil {
 		t.Fatalf("查列表失败: %v", err)
 	}
-	assertCrop(t, "不传取景时", rows[0].Crop, domain.DefaultCrop)
+	assertCrop(t, "不传取景时应保留原取景", rows[0].Crop, custom)
+}
+
+// TestUpdateBannerWithCropReplacesFraming 钉住另一端：传了就整体替换（重新取景这条路）。
+func TestUpdateBannerWithCropReplacesFraming(t *testing.T) {
+	env := newEnv()
+	ctx := context.Background()
+	env.Images.Put(11, "/a.png")
+
+	created, err := env.Service.CreateBanner(ctx, apptestInput(11, "/a", true))
+	if err != nil {
+		t.Fatalf("创建轮播图失败: %v", err)
+	}
+
+	next := domain.Crop{FocusX: 0.8, FocusY: 0.15, Zoom: 1.6}
+	in := apptestInput(11, "/a2", true)
+	in.Crop = &next
+	if err := env.Service.UpdateBanner(ctx, created.ID.Uint64(), in); err != nil {
+		t.Fatalf("更新轮播图失败: %v", err)
+	}
+
+	rows, _, err := env.Service.ListBanners(ctx, domain.BannerQuery{Show: true})
+	if err != nil {
+		t.Fatalf("查列表失败: %v", err)
+	}
+	assertCrop(t, "传了取景时应整体替换", rows[0].Crop, next)
 }
 
 // ── 新增的五个配置段 ────────────────────────────────────────────

@@ -267,8 +267,10 @@ func (s *Service) CreateBanner(ctx context.Context, in BannerInput) (domain.Bann
 // UpdateBanner 更新轮播图。
 //
 // 先解析封面再查存在性，与旧实现顺序一致：封面 ID 非法时优先报图片错误。
+// 取景是"部分更新"语义：不传就**保持已存的取景**，而不是重置成居中 ——
+// 否则老后台改一个跳转链接就会静默把运营调好的取景抹掉。
 func (s *Service) UpdateBanner(ctx context.Context, id uint64, in BannerInput) error {
-	crop, err := resolveCrop(in.Crop)
+	crop, err := validateCrop(in.Crop)
 	if err != nil {
 		return err
 	}
@@ -282,10 +284,23 @@ func (s *Service) UpdateBanner(ctx context.Context, id uint64, in BannerInput) e
 	return s.banners.Update(ctx, id, cover, in.Href, in.Show, crop)
 }
 
-// resolveCrop 把"可选取景"收敛成一个确定值：没传就是缺省（居中、缩放 1）。
+// validateCrop 校验可选取景：没传返回 nil（更新时"保持不变"），传了就必须在范围内。
 //
 // 校验放在这里而不是适配器：越界是业务规则（存进去会让阅读站露底），
 // 不该只有一个入口拦得住。
+func validateCrop(in *domain.Crop) (*domain.Crop, error) {
+	if in == nil {
+		return nil, nil
+	}
+	if err := in.Validate(); err != nil {
+		return nil, err
+	}
+	value := *in
+	return &value, nil
+}
+
+// resolveCrop 把"可选取景"收敛成一个确定值：没传就是缺省（居中、缩放 1）。
+// 只用于创建 —— 新建必须有一条确定的取景。
 func resolveCrop(in *domain.Crop) (domain.Crop, error) {
 	if in == nil {
 		return domain.DefaultCrop, nil

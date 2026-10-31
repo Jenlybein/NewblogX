@@ -371,6 +371,10 @@ jobs:
     if: github.event_name == 'pull_request'
     steps:
       - uses: actions/checkout@v4
+        with:
+          # 下面"判断是否触到门禁自身"要跑 `git diff origin/<base>...HEAD`，
+          # 需要完整的 base 引用；只对这一个 job 打开全量历史（仓库不大）。
+          fetch-depth: 0
 
       - uses: actions/setup-go@v5
         with:
@@ -385,14 +389,35 @@ jobs:
         with:
           node-version: ${{ env.NODE_VERSION }}
 
-      # 只有在 PR 标题带 [canary] 时才验证"能变红"，
-      # 避免每次 PR 都付出额外几分钟。
+      # 门禁自检一次要跑好几分钟，所以只在两种情况下跑：
+      #   1) 作者在 PR 标题写 [canary] —— 人工指定"这次要验门禁"；
+      #   2) 本次 PR 改到了**门禁自身**（scripts/ 下的门禁与基线、workflow、vitest 阈值）。
       #
+      # 第 2 条是补一个真实漏洞：此前只看标题，于是"改了门禁却没人验门禁"能一路飘过去。
+      # 2026-10-31 实测：verify-gates.sh 第 11 节的注入假设已过期（admin 覆盖率与文件数
+      # 增长后，注入一个零覆盖文件掉不到 95 门槛），但因为没人跑它，PR 上的
+      # `gates canary` 显示 pass 而实际 step 被 skip —— 门禁给了它并没有提供的保障。
+      - name: 判断本次改动是否触到门禁自身
+        id: gate-changes
+        run: |
+          set -euo pipefail
+          base="origin/${{ github.base_ref }}"
+          changed="$(git diff --name-only "$base...HEAD" || true)"
+          printf '%s\n' "$changed" | sed 's/^/  改动: /'
+          if printf '%s\n' "$changed" \
+            | grep -Eq '^(scripts/|\.github/workflows/)|vitest\.config\.ts$'; then
+            echo "should_run=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "should_run=false" >> "$GITHUB_OUTPUT"
+          fi
+
       # 这里**调用与本地同一个脚本**，而不是在 YAML 里另写一份注入逻辑。
       # 之前 CI 只注入了"一个必败测试"，等于 11 道门禁里只验证了 1 道 ——
       # 而两处各写一份的必然结果是口径漂移（本地 11 道、CI 1 道，没人知道该信哪个）。
-      - name: 仅在 canary PR 上验证门禁有效性
-        if: contains(github.event.pull_request.title, '[canary]')
+      - name: 门禁自检（注入违规后门禁必须变红）
+        if: >-
+          contains(github.event.pull_request.title, '[canary]') ||
+          steps.gate-changes.outputs.should_run == 'true'
         env:
           CGO_ENABLED: "1"
         run: |

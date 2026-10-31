@@ -153,7 +153,6 @@ export interface SiteRuntimeConfig {
     title: string
     logo: string
     beian: string
-    mode: number
   }
   project: {
     title: string
@@ -167,7 +166,17 @@ export interface SiteRuntimeConfig {
   about: Record<string, string>
   login: SiteLoginRuntimeConfig
   index_right: { list: unknown[] }
-  article: { skip_examining: boolean }
+  article: {
+    skip_examining: boolean
+    /**
+     * 「发布与展示」三个开关（ADR-0017）。默认全开，由后端
+     * `site_default_settings.yaml` 的 site.article 段补种，前端不另写默认值。
+     * 判定在服务端（app 层与读过滤处），这里只负责编辑。
+     */
+    allow_non_admin_publish: boolean
+    allow_non_admin_draft: boolean
+    show_non_admin_articles: boolean
+  }
   comment: { skip_examining: boolean }
 }
 

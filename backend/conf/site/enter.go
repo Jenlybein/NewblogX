@@ -1,13 +1,14 @@
 package site
 
-import "myblogx/internal/kernel/enum"
-
 // 网站设置
+//
+// 曾经有一个 `mode`（1 社区 / 2 博客）：它只有枚举声明、默认值与后台下拉框，
+// 全仓没有一处读它，于是"切换站点定位"这个动作什么都不会发生。ADR-0017 决定
+// 删除，站点表达差异改由「发布与展示」三个布尔开关（见 Article）承担。
 type SiteInfo struct {
-	Title string        `yaml:"title" json:"title"`
-	Logo  string        `yaml:"logo" json:"logo"`
-	Beian string        `yaml:"beian" json:"beian"`
-	Mode  enum.SiteMode `yaml:"mode" json:"mode" oneof:"1 2"` // 1 社区模式 2 博客模式
+	Title string `yaml:"title" json:"title"`
+	Logo  string `yaml:"logo" json:"logo"`
+	Beian string `yaml:"beian" json:"beian"`
 }
 
 // 项目设置
@@ -64,6 +65,14 @@ type IndexRight struct {
 
 type Article struct {
 	SkipExamining bool `yaml:"skip_examining" json:"skip_examining"` // 免审核
+
+	// 「发布与展示」三个开关（ADR-0017 决策 2）。
+	// 它们只表达"允许什么"，判定点在 app 层与读过滤处，不靠前端隐藏；
+	// 默认值只写在 site_default_settings.yaml（这一段是自由键值块，
+	// 深度合并会把老库缺的键按默认值补齐，所以不需要数据迁移）。
+	AllowNonAdminPublish bool `yaml:"allow_non_admin_publish" json:"allow_non_admin_publish"` // 允许非管理员发布文章
+	AllowNonAdminDraft   bool `yaml:"allow_non_admin_draft" json:"allow_non_admin_draft"`     // 允许非管理员创建草稿
+	ShowNonAdminArticles bool `yaml:"show_non_admin_articles" json:"show_non_admin_articles"` // 显示非管理员发布的文章
 }
 
 type Comment struct {

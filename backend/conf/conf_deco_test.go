@@ -47,12 +47,15 @@ func TestDecoNormalize_越界钳位与非法值回落(t *testing.T) {
 // 物理参数表只改被测的那一项，才能证明 Normalize 不会把别的字段顺手改坏。
 func charmWith(mutate func(*conf.Charm)) conf.Charm {
 	c := conf.Charm{
-		Enable:     true,
-		LogoSize:   conf.CharmLogoSizeDefault,
-		RopeLength: conf.CharmRopeLengthDefault,
-		Segments:   conf.CharmSegmentsDefault,
-		Gravity:    conf.CharmGravityDefault,
-		Damping:    conf.CharmDampingDefault,
+		Enable:      true,
+		LogoSize:    conf.CharmLogoSizeDefault,
+		RopeLength:  conf.CharmRopeLengthDefault,
+		Segments:    conf.CharmSegmentsDefault,
+		LineWidth:   conf.CharmLineWidthDefault,
+		Gravity:     conf.CharmGravityDefault,
+		Damping:     conf.CharmDampingDefault,
+		IdleSwayHz:  conf.CharmIdleSwayHzDefault,
+		IdleSwayAmp: conf.CharmIdleSwayAmpDefault,
 	}
 	mutate(&c)
 	return c
@@ -162,6 +165,64 @@ func TestDecoNormalize_物理参数钳位(t *testing.T) {
 		{"阻尼 NaN 回落默认",
 			charmWith(func(c *conf.Charm) { c.Damping = math.NaN() }),
 			charmWith(func(c *conf.Charm) { c.Damping = conf.CharmDampingDefault })},
+
+		// 描边起始宽度：1–6 px（小数），默认 2.5；结果保留一位小数。
+		{"描边宽度远超上限钳到 6",
+			charmWith(func(c *conf.Charm) { c.LineWidth = 4000 }),
+			charmWith(func(c *conf.Charm) { c.LineWidth = conf.CharmLineWidthMax })},
+		{"描边宽度略低于下限钳到 1",
+			charmWith(func(c *conf.Charm) { c.LineWidth = 0.2 }),
+			charmWith(func(c *conf.Charm) { c.LineWidth = conf.CharmLineWidthMin })},
+		{"描边宽度四舍五入到一位小数（2.54→2.5）",
+			charmWith(func(c *conf.Charm) { c.LineWidth = 2.54 }),
+			charmWith(func(c *conf.Charm) { c.LineWidth = 2.5 })},
+		{"描边宽度四舍五入到一位小数（2.56→2.6）",
+			charmWith(func(c *conf.Charm) { c.LineWidth = 2.56 }),
+			charmWith(func(c *conf.Charm) { c.LineWidth = 2.6 })},
+		{"描边宽度缺省（零值）补默认 2.5",
+			charmWith(func(c *conf.Charm) { c.LineWidth = 0 }),
+			charmWith(func(c *conf.Charm) { c.LineWidth = conf.CharmLineWidthDefault })},
+		{"描边宽度负数回落默认",
+			charmWith(func(c *conf.Charm) { c.LineWidth = -1 }),
+			charmWith(func(c *conf.Charm) { c.LineWidth = conf.CharmLineWidthDefault })},
+		{"描边宽度 NaN 回落默认",
+			charmWith(func(c *conf.Charm) { c.LineWidth = math.NaN() }),
+			charmWith(func(c *conf.Charm) { c.LineWidth = conf.CharmLineWidthDefault })},
+
+		// 静止摆动频率：0–1.5 Hz，默认 0.8。**0 是合法值**：它是"关掉轻晃"的
+		// 明确意图（裁决要求 amp=0 能退回零帧），所以不能按"缺省"回落默认。
+		{"静止摆动频率 0 是合法的（关掉轻晃，不回落默认）",
+			charmWith(func(c *conf.Charm) { c.IdleSwayHz = 0 }),
+			charmWith(func(c *conf.Charm) { c.IdleSwayHz = 0 })},
+		{"静止摆动频率超上限钳到 1.5",
+			charmWith(func(c *conf.Charm) { c.IdleSwayHz = 9 }),
+			charmWith(func(c *conf.Charm) { c.IdleSwayHz = conf.CharmIdleSwayHzMax })},
+		{"静止摆动频率负数回落默认（负数不是合法意图）",
+			charmWith(func(c *conf.Charm) { c.IdleSwayHz = -1 }),
+			charmWith(func(c *conf.Charm) { c.IdleSwayHz = conf.CharmIdleSwayHzDefault })},
+		{"静止摆动频率 NaN 回落默认",
+			charmWith(func(c *conf.Charm) { c.IdleSwayHz = math.NaN() }),
+			charmWith(func(c *conf.Charm) { c.IdleSwayHz = conf.CharmIdleSwayHzDefault })},
+		{"静止摆动频率区间内原样保留",
+			charmWith(func(c *conf.Charm) { c.IdleSwayHz = 0.8 }),
+			charmWith(func(c *conf.Charm) { c.IdleSwayHz = 0.8 })},
+
+		// 静止摆动幅度：0–40 px/s²，默认 20。同样是"0 合法"。
+		{"静止摆动幅度 0 是合法的（零帧停摆，不回落默认）",
+			charmWith(func(c *conf.Charm) { c.IdleSwayAmp = 0 }),
+			charmWith(func(c *conf.Charm) { c.IdleSwayAmp = 0 })},
+		{"静止摆动幅度超上限钳到 40",
+			charmWith(func(c *conf.Charm) { c.IdleSwayAmp = 400 }),
+			charmWith(func(c *conf.Charm) { c.IdleSwayAmp = conf.CharmIdleSwayAmpMax })},
+		{"静止摆动幅度负数回落默认",
+			charmWith(func(c *conf.Charm) { c.IdleSwayAmp = -5 }),
+			charmWith(func(c *conf.Charm) { c.IdleSwayAmp = conf.CharmIdleSwayAmpDefault })},
+		{"静止摆动幅度 NaN 回落默认",
+			charmWith(func(c *conf.Charm) { c.IdleSwayAmp = math.NaN() }),
+			charmWith(func(c *conf.Charm) { c.IdleSwayAmp = conf.CharmIdleSwayAmpDefault })},
+		{"静止摆动幅度区间内原样保留",
+			charmWith(func(c *conf.Charm) { c.IdleSwayAmp = 20 }),
+			charmWith(func(c *conf.Charm) { c.IdleSwayAmp = 20 })},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {

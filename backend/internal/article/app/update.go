@@ -27,6 +27,14 @@ func (s *Service) Update(ctx context.Context, cmd UpdateArticleCmd) (*UpdateResu
 			return domain.ErrArticleNotFound
 		}
 
+		// 站点「发布与展示」开关（ADR-0017 决策 2）：
+		//   - 关闭发布 → 不能更新已发布/审核中的文章、不能发布自己的草稿；
+		//   - 关闭草稿 → 存量草稿可打开可删除，但保存（含退回草稿）会被拒。
+		// 判定必须在 ApplyEdit 之前：先改内存再报错会让聚合带上"被拒绝的修改"。
+		if err := domain.CheckWriteOnUpdate(a, cmd.Actor, cmd.TargetStatus, cmd.Policy); err != nil {
+			return err
+		}
+
 		if cmd.CategorySet && cmd.CategoryID != nil {
 			if err := ensureCategoryOwned(ctx, r, a.AuthorID(), *cmd.CategoryID); err != nil {
 				return err

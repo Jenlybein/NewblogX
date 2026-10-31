@@ -33,6 +33,10 @@ const props = defineProps<{
   visibilityOptions: { label: string; value: string }[];
   draftLabel: string;
   publishLabel: string;
+  /** 站点草稿开关关闭：保存草稿按钮禁用（服务端同样会拒绝）。 */
+  draftDisabled: boolean;
+  /** 站点发布开关关闭：发布按钮禁用（服务端同样会拒绝）。 */
+  publishDisabled: boolean;
   /** 封面上传（原生 change 事件原样交给父级，逻辑不在这里）。 */
   onCoverChange: (event: Event) => void;
   /** 移除已选封面。 */
@@ -146,10 +150,20 @@ v-model:value="abstractText" type="textarea" maxlength="180"
           <div class="publish-modal__footer">
             <NButton quaternary @click="show = false">取消</NButton>
             <NButton secondary :loading="props.aiPending" @click="emit('aiFill')">AI 填入</NButton>
-            <NButton quaternary :loading="props.draftPending" :disabled="props.coverUploading" @click="emit('submit', 1)">
+            <NButton
+              quaternary
+              :loading="props.draftPending"
+              :disabled="props.coverUploading || props.draftDisabled"
+              :title="props.draftDisabled ? '站点当前不允许保存草稿（站点策略）' : undefined"
+              @click="emit('submit', 1)">
               {{ props.draftLabel }}
             </NButton>
-            <NButton type="primary" :loading="props.publishPending" :disabled="props.coverUploading" @click="emit('submit', 2)">
+            <NButton
+              type="primary"
+              :loading="props.publishPending"
+              :disabled="props.coverUploading || props.publishDisabled"
+              :title="props.publishDisabled ? '站点当前不允许发布文章（站点策略）' : undefined"
+              @click="emit('submit', 2)">
               {{ props.publishLabel }}
             </NButton>
           </div>

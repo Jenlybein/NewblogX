@@ -43,10 +43,146 @@ func TestDecoNormalize_越界钳位与非法值回落(t *testing.T) {
 	}
 }
 
+// charmWith 返回一份"其余参数都在合法默认值上"的挂件配置。
+// 物理参数表只改被测的那一项，才能证明 Normalize 不会把别的字段顺手改坏。
+func charmWith(mutate func(*conf.Charm)) conf.Charm {
+	c := conf.Charm{
+		Enable:     true,
+		LogoSize:   conf.CharmLogoSizeDefault,
+		RopeLength: conf.CharmRopeLengthDefault,
+		Segments:   conf.CharmSegmentsDefault,
+		Gravity:    conf.CharmGravityDefault,
+		Damping:    conf.CharmDampingDefault,
+	}
+	mutate(&c)
+	return c
+}
+
+// 物理参数（挂绳长度 / 节点数 / 重力 / 阻尼）与站标尺寸共用同一条
+// "越界钳到边界、缺省与非法回落默认、永不报错"的规则；但它们是四种不同的
+// 量纲，所以各自一张表 —— 把阻尼的 0.94–0.995 错写成 0.94–1 会让摆动越甩越大，
+// 而这条错误在跨端手调时几乎看不出来，只能靠边界用例钉住。
+func TestDecoNormalize_物理参数钳位(t *testing.T) {
+	cases := []struct {
+		name string
+		in   conf.Charm
+		want conf.Charm
+	}{
+		// 挂绳长度：40–240 px，默认 120。
+		{"挂绳长度远超上限钳到 240",
+			charmWith(func(c *conf.Charm) { c.RopeLength = 4000 }),
+			charmWith(func(c *conf.Charm) { c.RopeLength = conf.CharmRopeLengthMax })},
+		{"挂绳长度略超上限也钳回边界",
+			charmWith(func(c *conf.Charm) { c.RopeLength = 241 }),
+			charmWith(func(c *conf.Charm) { c.RopeLength = conf.CharmRopeLengthMax })},
+		{"挂绳长度略低于下限钳到 40",
+			charmWith(func(c *conf.Charm) { c.RopeLength = 10 }),
+			charmWith(func(c *conf.Charm) { c.RopeLength = conf.CharmRopeLengthMin })},
+		{"挂绳长度边界值不漂移",
+			charmWith(func(c *conf.Charm) { c.RopeLength = 40 }),
+			charmWith(func(c *conf.Charm) { c.RopeLength = 40 })},
+		{"挂绳长度区间内原样保留",
+			charmWith(func(c *conf.Charm) { c.RopeLength = 200 }),
+			charmWith(func(c *conf.Charm) { c.RopeLength = 200 })},
+		{"挂绳长度缺省（零值）补默认 120",
+			charmWith(func(c *conf.Charm) { c.RopeLength = 0 }),
+			charmWith(func(c *conf.Charm) { c.RopeLength = conf.CharmRopeLengthDefault })},
+		{"挂绳长度负数回落默认而不是钳到 40",
+			charmWith(func(c *conf.Charm) { c.RopeLength = -5 }),
+			charmWith(func(c *conf.Charm) { c.RopeLength = conf.CharmRopeLengthDefault })},
+		{"挂绳长度 NaN 回落默认",
+			charmWith(func(c *conf.Charm) { c.RopeLength = math.NaN() }),
+			charmWith(func(c *conf.Charm) { c.RopeLength = conf.CharmRopeLengthDefault })},
+		{"挂绳长度 +Inf 回落默认",
+			charmWith(func(c *conf.Charm) { c.RopeLength = math.Inf(1) }),
+			charmWith(func(c *conf.Charm) { c.RopeLength = conf.CharmRopeLengthDefault })},
+
+		// 节点数：4–24 节，默认 10；是计数，钳位后必须是整数。
+		{"节点数远超上限钳到 24",
+			charmWith(func(c *conf.Charm) { c.Segments = 100 }),
+			charmWith(func(c *conf.Charm) { c.Segments = conf.CharmSegmentsMax })},
+		{"节点数略低于下限钳到 4",
+			charmWith(func(c *conf.Charm) { c.Segments = 1 }),
+			charmWith(func(c *conf.Charm) { c.Segments = conf.CharmSegmentsMin })},
+		{"节点数边界值不漂移",
+			charmWith(func(c *conf.Charm) { c.Segments = 4 }),
+			charmWith(func(c *conf.Charm) { c.Segments = 4 })},
+		{"节点数区间内原样保留",
+			charmWith(func(c *conf.Charm) { c.Segments = 16 }),
+			charmWith(func(c *conf.Charm) { c.Segments = 16 })},
+		{"节点数缺省（零值）补默认 10",
+			charmWith(func(c *conf.Charm) { c.Segments = 0 }),
+			charmWith(func(c *conf.Charm) { c.Segments = conf.CharmSegmentsDefault })},
+		{"节点数负数回落默认而不是钳到 4",
+			charmWith(func(c *conf.Charm) { c.Segments = -3 }),
+			charmWith(func(c *conf.Charm) { c.Segments = conf.CharmSegmentsDefault })},
+
+		// 重力：400–4000 px/s²，默认 1600。
+		{"重力远超上限钳到 4000",
+			charmWith(func(c *conf.Charm) { c.Gravity = 100000 }),
+			charmWith(func(c *conf.Charm) { c.Gravity = conf.CharmGravityMax })},
+		{"重力略低于下限钳到 400",
+			charmWith(func(c *conf.Charm) { c.Gravity = 100 }),
+			charmWith(func(c *conf.Charm) { c.Gravity = conf.CharmGravityMin })},
+		{"重力区间内原样保留",
+			charmWith(func(c *conf.Charm) { c.Gravity = 1600 }),
+			charmWith(func(c *conf.Charm) { c.Gravity = 1600 })},
+		{"重力缺省（零值）补默认 1600",
+			charmWith(func(c *conf.Charm) { c.Gravity = 0 }),
+			charmWith(func(c *conf.Charm) { c.Gravity = conf.CharmGravityDefault })},
+		{"重力负数回落默认而不是钳到 400",
+			charmWith(func(c *conf.Charm) { c.Gravity = -1 }),
+			charmWith(func(c *conf.Charm) { c.Gravity = conf.CharmGravityDefault })},
+		{"重力 NaN 回落默认",
+			charmWith(func(c *conf.Charm) { c.Gravity = math.NaN() }),
+			charmWith(func(c *conf.Charm) { c.Gravity = conf.CharmGravityDefault })},
+
+		// 阻尼：0.94–0.995（每步速度保持系数），默认 0.99。
+		{"阻尼超过 1 会被钳到 0.995（否则摆动越甩越大）",
+			charmWith(func(c *conf.Charm) { c.Damping = 2 }),
+			charmWith(func(c *conf.Charm) { c.Damping = conf.CharmDampingMax })},
+		{"阻尼略高于上限也钳回边界",
+			charmWith(func(c *conf.Charm) { c.Damping = 0.999 }),
+			charmWith(func(c *conf.Charm) { c.Damping = conf.CharmDampingMax })},
+		{"阻尼低于下限钳到 0.94",
+			charmWith(func(c *conf.Charm) { c.Damping = 0.5 }),
+			charmWith(func(c *conf.Charm) { c.Damping = conf.CharmDampingMin })},
+		{"阻尼边界值不漂移",
+			charmWith(func(c *conf.Charm) { c.Damping = 0.94 }),
+			charmWith(func(c *conf.Charm) { c.Damping = 0.94 })},
+		{"阻尼区间内原样保留",
+			charmWith(func(c *conf.Charm) { c.Damping = 0.99 }),
+			charmWith(func(c *conf.Charm) { c.Damping = 0.99 })},
+		{"阻尼缺省（零值）补默认 0.99",
+			charmWith(func(c *conf.Charm) { c.Damping = 0 }),
+			charmWith(func(c *conf.Charm) { c.Damping = conf.CharmDampingDefault })},
+		{"阻尼负数回落默认而不是钳到 0.94",
+			charmWith(func(c *conf.Charm) { c.Damping = -0.2 }),
+			charmWith(func(c *conf.Charm) { c.Damping = conf.CharmDampingDefault })},
+		{"阻尼 NaN 回落默认",
+			charmWith(func(c *conf.Charm) { c.Damping = math.NaN() }),
+			charmWith(func(c *conf.Charm) { c.Damping = conf.CharmDampingDefault })},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			got := conf.Deco{Charm: c.in}.Normalize().Charm
+			if got != c.want {
+				t.Fatalf("输入 %+v 归一化后应为 %+v，实际 %+v", c.in, c.want, got)
+			}
+		})
+	}
+}
+
 func TestDecoNormalize_幂等(t *testing.T) {
 	// 幂等是"读者站与后台再钳一次也是同一道防线"的前提：
 	// 第二次归一化必须与第一次结果相同，否则两端会来回抖动。
-	once := conf.Deco{Charm: conf.Charm{LogoSize: 9}}.Normalize()
+	once := conf.Deco{Charm: conf.Charm{
+		LogoSize:   9,
+		RopeLength: 4000,
+		Segments:   100,
+		Gravity:    100000,
+		Damping:    2,
+	}}.Normalize()
 	twice := once.Normalize()
 	if once != twice {
 		t.Fatalf("Normalize 应幂等，第一次 %+v，第二次 %+v", once, twice)

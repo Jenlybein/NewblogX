@@ -156,12 +156,6 @@ type Author struct {
 	Avatar   string   `json:"avatar"`
 }
 
-// Top 是置顶标记。
-type Top struct {
-	User  bool `json:"user"`
-	Admin bool `json:"admin"`
-}
-
 // Highlight 是高亮片段。
 type Highlight struct {
 	Title    string `json:"title,omitempty"`
@@ -186,14 +180,13 @@ type Item struct {
 	Tags             []Tag            `json:"tags"`
 	Category         *Category        `json:"category,omitempty"`
 	Author           Author           `json:"author"`
-	Top              *Top             `json:"top,omitempty"`
-	Highlight        *Highlight       `json:"highlight,omitempty"`
-	Score            float64          `json:"score,omitempty"`
+	// AuthorIsAdmin 是作者角色的投影（来自 ES 文档的 author_is_admin）。
+	AuthorIsAdmin bool       `json:"author_is_admin"`
+	Highlight     *Highlight `json:"highlight,omitempty"`
+	Score         float64    `json:"score,omitempty"`
 
 	Content       string                 `json:"-"`
 	Part          []markdown.ContentPart `json:"-"`
-	UserTop       bool                   `json:"-"`
-	AdminTop      bool                   `json:"-"`
 	CategoryTitle string                 `json:"-"`
 	UserNickname  string                 `json:"-"`
 	UserAvatar    string                 `json:"-"`

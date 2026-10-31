@@ -26,7 +26,6 @@ export interface SiteRuntimeConfig {
     title?: string;
     logo?: string;
     beian?: string;
-    mode?: number;
   };
   project: {
     title?: string;

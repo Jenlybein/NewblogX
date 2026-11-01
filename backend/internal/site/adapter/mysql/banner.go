@@ -41,11 +41,12 @@ func NewBanner(db *gorm.DB) *BannerRepo { return &BannerRepo{db: db} }
 func (r *BannerRepo) List(ctx context.Context, q domain.BannerQuery) ([]domain.Banner, bool, error) {
 	q = q.Normalize()
 	var rows []bannerRow
-	// show 是 MySQL 保留字，裸写会生成 `WHERE show = ?` 并触发 1064 语法错误，
-	// 必须用反引号包起来。GORM 只对结构体字段和传 map 的写法自动加引号，
-	// 手工拼在 Where 字符串里的列名它管不到。
-	err := r.db.WithContext(ctx).
-		Where("`show` = ?", q.Show).
+	query := r.db.WithContext(ctx)
+	if q.Show != nil {
+		// show 是 MySQL 保留字，手写列名必须用反引号包起来。
+		query = query.Where("`show` = ?", *q.Show)
+	}
+	err := query.
 		Order("created_at DESC, id DESC").
 		Limit(q.Limit + 1).
 		Offset(q.Offset()).

@@ -43,11 +43,58 @@ export function isApiTimeoutError(error: unknown): error is ApiTimeoutError {
   return error instanceof ApiTimeoutError;
 }
 
+/**
+ * 判断一次失败是否属于"登录态不可用"。
+ *
+ * # 判据顺序：先认码，文案只是兜底
+ *
+ * 后端对鉴权失败返回专属业务码（1003），这是稳定判据，文案改了也不受影响。
+ * 早期实现只按错误消息里的中文关键词匹配（"登录""令牌""expired"…），
+ * 文案一改就断，且会把"权限错误"这类措辞误判成需要刷新令牌 —— 那正是
+ * 一次点击产生两次请求的原因。
+ *
+ * 关键词匹配保留为兜底，仅用于后端尚未改用专属码的历史路径。
+ */
+const AUTH_BUSINESS_CODE = 1003;
+
 export function isAuthLikeError(error: unknown) {
   if (!(error instanceof Error)) return false;
-  if (error instanceof ApiBusinessError && [401, 403].includes(error.code)) return true;
+  if (error instanceof ApiBusinessError) {
+    // 专属码与历史 HTTP 状态码都认；其它业务码（如 1001 参数错误）不算。
+    if (error.code === AUTH_BUSINESS_CODE || [401, 403].includes(error.code)) {
+      return true;
+    }
+  }
   const message = error.message.toLowerCase();
   return ["登录", "未登录", "令牌", "token", "鉴权", "expired", "refresh"].some((keyword) =>
     message.includes(keyword.toLowerCase()),
   );
+}
+
+/**
+ * 刷新令牌之后是否值得重试本次请求。
+ *
+ * # 为什么写请求一律不重试
+ *
+ * 重试会把请求**重放**一遍。对读请求这只是多花一次往返；对写请求则是副作用
+ * 执行两次——线上实测点一次赞产生两次 `PUT /digg`，用户看到的是第一次的失败
+ * 提示，服务端却已经写成功了第二遍，进而撞上唯一索引。
+ *
+ * 判别依据只能放在**方法**这一侧：后端业务码只有 0 / 1001 / 1002 三个值，
+ * 所有业务失败都塌缩成 1001，无法据此区分"未登录"和"参数错误"。也因此
+ * {@link isAuthLikeError} 那套按中文关键词匹配的兜底仍然存在——它只用于决定
+ * "要不要刷新令牌"，不再独自决定"要不要重放写请求"。
+ *
+ * @param method 本次请求的方法；缺省按读请求处理。
+ * @param retryAuth 调用方显式关闭重试时传 false。
+ */
+export function shouldRetryAuth(
+  method: string | undefined,
+  error: unknown,
+  retryAuth?: boolean,
+): boolean {
+  if (retryAuth === false) return false;
+  if (!isAuthLikeError(error)) return false;
+  // 只有幂等的读可以安全重放；写请求重放等于重复执行副作用。
+  return (method ?? "GET").toUpperCase() === "GET";
 }

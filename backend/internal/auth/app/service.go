@@ -32,7 +32,11 @@ type Credentials interface {
 }
 
 // Logger 是窄日志接口。
+//
+// Infof 是 #99 加进来的：刷新路径要打印一次账号版本用于线上取证，
+// 那是常规路径上的记录，不该占用 Warn 级别（Warn 留给"需要人看一眼"的异常）。
 type Logger interface {
+	Infof(format string, args ...any)
 	Warnf(format string, args ...any)
 	Errorf(format string, args ...any)
 }
@@ -273,6 +277,15 @@ func (s *Service) Refresh(ctx context.Context, refreshToken string, meta domain.
 		return nil, apperr.New(apperr.CodeAuthRefreshInvalid)
 	}
 
+	// 诊断日志（#99）：区分"读到旧值"还是"签发丢值"。
+	//
+	// 线上实测"登录签发的令牌版本=1、刷新签发的=0"，而库里是 1。逐层排查
+	// 已排除映射与签发链路丢字段，所以这里打印**会话所属账号读到的版本**。
+	// 若这里打印的是 1 而签发出去是 0 → 丢值发生在 Issue；
+	// 若这里就是 0 → 读到的是陈旧副本。
+	s.logInfo("刷新读取账号版本(轮换前): session=%d user=%d token_version=%d",
+		session.ID.Uint64(), session.UserID.Uint64(), account.TokenVersion)
+
 	nextRefresh, err := s.secrets.NewRefreshToken()
 	if err != nil {
 		return nil, err
@@ -281,6 +294,32 @@ func (s *Service) Refresh(ctx context.Context, refreshToken string, meta domain.
 	if err := s.sessions.Rotate(ctx, session.ID, s.hashRefresh(nextRefresh), expiresAt, meta); err != nil {
 		return nil, err
 	}
+
+	// 签发前重新读取账号，版本只认这次读到的值（#99 的确定性加固）。
+	//
+	// 这条加固当初依赖一个隐式因果：上面那次读取可能命中查询缓存里的陈旧
+	// 副本，而轮换写库会触发缓存整体失效，所以**再读一次**拿到的必然是当前值。
+	// 那个因果已经不存在了 —— ORM 查询缓存插件已关闭（#132/#133），现在每次
+	// 读都是真库值，不会读到一个"形状不对的陈旧副本"。
+	//
+	// 加固本身仍然保留，理由变了：它把"签发用的版本"与"最后一次读到的值"
+	// 绑在一起，不再依赖任何中间层的隐式行为。缓存将来若以别的形式回来，
+	// 这里依然是最靠得住的一道。
+	//
+	// 两次结果不一致时只告警、不拒绝：不一致本身是取证线索（说明读取路径上
+	// 还有我们不知道的中间层）；而拒绝对用户没有任何好处 —— 他要的是一张
+	// 能用的令牌，不是一次"你的缓存脏了"的报错。
+	fresh, err := s.creds.FindAccount(ctx, session.UserID.Uint64())
+	if err != nil {
+		return nil, apperr.New(apperr.CodeAuthRefreshInvalid)
+	}
+	if fresh.TokenVersion != account.TokenVersion {
+		s.logWarn("刷新前后读到的账号版本不一致(曾读到陈旧副本): session=%d user=%d before=%d after=%d",
+			session.ID.Uint64(), session.UserID.Uint64(), account.TokenVersion, fresh.TokenVersion)
+	}
+	account = fresh
+	s.logInfo("刷新签发账号版本: session=%d user=%d token_version=%d",
+		session.ID.Uint64(), session.UserID.Uint64(), account.TokenVersion)
 
 	access, err := s.issuer.Issue(s.claimsOf(account, session.ID))
 	if err != nil {
@@ -429,5 +468,17 @@ func (s *Service) hashRefresh(raw string) string {
 func (s *Service) logError(format string, args ...any) {
 	if s.logger != nil {
 		s.logger.Errorf(format, args...)
+	}
+}
+
+func (s *Service) logWarn(format string, args ...any) {
+	if s.logger != nil {
+		s.logger.Warnf(format, args...)
+	}
+}
+
+func (s *Service) logInfo(format string, args ...any) {
+	if s.logger != nil {
+		s.logger.Infof(format, args...)
 	}
 }

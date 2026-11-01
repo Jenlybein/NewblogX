@@ -96,6 +96,56 @@ func TestUpdateSitePersists(t *testing.T) {
 	}
 }
 
+func TestListBannersFiltersByOptionalShow(t *testing.T) {
+	env := newEnv()
+	ctx := context.Background()
+	env.Images.Put(11, "/shown.png")
+	env.Images.Put(12, "/hidden.png")
+
+	if _, err := env.Service.CreateBanner(ctx, apptestInput(11, "/shown", true)); err != nil {
+		t.Fatalf("创建展示中的轮播图失败: %v", err)
+	}
+	if _, err := env.Service.CreateBanner(ctx, apptestInput(12, "/hidden", false)); err != nil {
+		t.Fatalf("创建隐藏轮播图失败: %v", err)
+	}
+
+	shown := true
+	hidden := false
+	cases := []struct {
+		name       string
+		show       *bool
+		wantShown  int
+		wantHidden int
+	}{
+		{name: "不传时不过滤", show: nil, wantShown: 1, wantHidden: 1},
+		{name: "传真时只看展示中", show: &shown, wantShown: 1},
+		{name: "传假时只看隐藏", show: &hidden, wantHidden: 1},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			rows, hasMore, err := env.Service.ListBanners(ctx, domain.BannerQuery{Show: tc.show})
+			if err != nil {
+				t.Fatalf("查轮播图失败: %v", err)
+			}
+			if hasMore {
+				t.Fatal("两条种子数据不应有下一页")
+			}
+			var gotShown, gotHidden int
+			for _, row := range rows {
+				if row.Show {
+					gotShown++
+				} else {
+					gotHidden++
+				}
+			}
+			if gotShown != tc.wantShown || gotHidden != tc.wantHidden {
+				t.Fatalf("筛选结果错误: 展示中=%d 隐藏=%d", gotShown, gotHidden)
+			}
+		})
+	}
+}
+
 func TestBannerLifecycle(t *testing.T) {
 	env := newEnv()
 	ctx := context.Background()
@@ -114,7 +164,7 @@ func TestBannerLifecycle(t *testing.T) {
 		t.Fatalf("创建第二张轮播图失败: %v", err)
 	}
 
-	rows, hasMore, err := env.Service.ListBanners(ctx, domain.BannerQuery{Show: true})
+	rows, hasMore, err := env.Service.ListBanners(ctx, domain.BannerQuery{Show: boolFilter(true)})
 	if err != nil {
 		t.Fatalf("查列表失败: %v", err)
 	}
@@ -129,7 +179,7 @@ func TestBannerLifecycle(t *testing.T) {
 	if err := env.Service.UpdateBanner(ctx, created.ID.Uint64(), apptestInput(12, "/b2", false)); err != nil {
 		t.Fatalf("更新轮播图失败: %v", err)
 	}
-	rows, _, err = env.Service.ListBanners(ctx, domain.BannerQuery{Show: true})
+	rows, _, err = env.Service.ListBanners(ctx, domain.BannerQuery{Show: boolFilter(true)})
 	if err != nil {
 		t.Fatalf("查列表失败: %v", err)
 	}
@@ -200,6 +250,8 @@ func apptestInput(imageID uint64, href string, show bool) app.BannerInput {
 	return app.BannerInput{CoverImageID: ctype.NewID(imageID), Href: href, Show: show}
 }
 
+func boolFilter(value bool) *bool { return &value }
+
 // ── 取景参数（焦点 + 缩放）──────────────────────────────────────
 
 // TestCreateBannerDefaultsCropToCenter 钉住"没有取景记录 = 居中、缩放 1"。
@@ -217,7 +269,7 @@ func TestCreateBannerDefaultsCropToCenter(t *testing.T) {
 	}
 	assertCrop(t, "创建返回", created.Crop, domain.DefaultCrop)
 
-	rows, _, err := env.Service.ListBanners(ctx, domain.BannerQuery{Show: true})
+	rows, _, err := env.Service.ListBanners(ctx, domain.BannerQuery{Show: boolFilter(true)})
 	if err != nil {
 		t.Fatalf("查列表失败: %v", err)
 	}
@@ -251,7 +303,7 @@ func TestCreateBannerStoresCrop(t *testing.T) {
 	}
 	assertCrop(t, "创建返回", created.Crop, want)
 
-	rows, _, err := env.Service.ListBanners(ctx, domain.BannerQuery{Show: true})
+	rows, _, err := env.Service.ListBanners(ctx, domain.BannerQuery{Show: boolFilter(true)})
 	if err != nil {
 		t.Fatalf("查列表失败: %v", err)
 	}
@@ -278,7 +330,7 @@ func TestBannerWithoutCropRecordFallsBackToDefault(t *testing.T) {
 	// 模拟加取景之前就存在的图：banner 行在，取景表里没有对应行。
 	env.Banners.DropCrop(created.ID.Uint64())
 
-	rows, _, err := env.Service.ListBanners(ctx, domain.BannerQuery{Show: true})
+	rows, _, err := env.Service.ListBanners(ctx, domain.BannerQuery{Show: boolFilter(true)})
 	if err != nil {
 		t.Fatalf("查列表失败: %v", err)
 	}
@@ -307,7 +359,7 @@ func TestUpdateBannerReplacesCrop(t *testing.T) {
 		t.Fatalf("更新轮播图失败: %v", err)
 	}
 
-	rows, _, err := env.Service.ListBanners(ctx, domain.BannerQuery{Show: true})
+	rows, _, err := env.Service.ListBanners(ctx, domain.BannerQuery{Show: boolFilter(true)})
 	if err != nil {
 		t.Fatalf("查列表失败: %v", err)
 	}
@@ -358,7 +410,7 @@ func TestBannerRejectsOutOfRangeCrop(t *testing.T) {
 			if err := env.Service.UpdateBanner(ctx, created.ID.Uint64(), in); !apperr.IsCode(err, apperr.CodeBannerCropInvalid) {
 				t.Fatalf("更新时越界取景也应被拒绝，得到 %v", err)
 			}
-			rows, _, err := env.Service.ListBanners(ctx, domain.BannerQuery{Show: true})
+			rows, _, err := env.Service.ListBanners(ctx, domain.BannerQuery{Show: boolFilter(true)})
 			if err != nil {
 				t.Fatalf("查列表失败: %v", err)
 			}
@@ -413,7 +465,7 @@ func TestUpdateBannerWithoutCropKeepsFraming(t *testing.T) {
 		t.Fatalf("更新轮播图失败: %v", err)
 	}
 
-	rows, _, err := env.Service.ListBanners(ctx, domain.BannerQuery{Show: true})
+	rows, _, err := env.Service.ListBanners(ctx, domain.BannerQuery{Show: boolFilter(true)})
 	if err != nil {
 		t.Fatalf("查列表失败: %v", err)
 	}
@@ -438,7 +490,7 @@ func TestUpdateBannerWithCropReplacesFraming(t *testing.T) {
 		t.Fatalf("更新轮播图失败: %v", err)
 	}
 
-	rows, _, err := env.Service.ListBanners(ctx, domain.BannerQuery{Show: true})
+	rows, _, err := env.Service.ListBanners(ctx, domain.BannerQuery{Show: boolFilter(true)})
 	if err != nil {
 		t.Fatalf("查列表失败: %v", err)
 	}

@@ -190,16 +190,27 @@ func (u *Users) Profiles(_ context.Context, ids []domain.UserID) (map[domain.Use
 }
 
 // Diggs 是 app.DiggPort 的内存实现。
+//
+// 与真库同构的关键：唯一索引 uk_article_digg 是 (article_id, user_id)，
+// **不含 deleted_at**，而取消点赞是软删。所以 fake 也保留软删标记：
+// Remove 之后行还在（软删），Add 再遇到它走"恢复"而不是"新建"。
+// 早期版本 Remove 直接 delete 掉 key，那样"取消后再点赞"在内存里永远成功，
+// 抓不到真正的问题（见 #96）。
 type Diggs struct {
-	mu    sync.Mutex
-	set   map[itemKey2]struct{}
-	fault fault
-	count counter
+	mu     sync.Mutex
+	live   map[itemKey2]struct{}
+	soft   map[itemKey2]struct{}
+	fault  fault
+	count  counter
+	events []string
 }
 
 // NewDiggs 构造空的点赞 fake。
 func NewDiggs() *Diggs {
-	return &Diggs{set: make(map[itemKey2]struct{})}
+	return &Diggs{
+		live: make(map[itemKey2]struct{}),
+		soft: make(map[itemKey2]struct{}),
+	}
 }
 
 // FailNext 注入一次性故障。
@@ -209,6 +220,8 @@ func (d *Diggs) FailNext(method string, err error) { d.fault.FailNext(method, er
 func (d *Diggs) Calls(method string) int { return d.count.Calls(method) }
 
 // Exists 判断是否已点赞。
+//
+// 与真库一致：软删的行不算"已点赞"（SQL 里带 deleted_at IS NULL 过滤）。
 func (d *Diggs) Exists(_ context.Context, articleID domain.ArticleID, userID domain.UserID) (bool, error) {
 	d.count.inc("Exists")
 	if err := d.fault.take("Exists"); err != nil {
@@ -216,11 +229,14 @@ func (d *Diggs) Exists(_ context.Context, articleID domain.ArticleID, userID dom
 	}
 	d.mu.Lock()
 	defer d.mu.Unlock()
-	_, ok := d.set[itemKey2{userID, articleID}]
+	_, ok := d.live[itemKey2{userID, articleID}]
 	return ok, nil
 }
 
 // Add 新增点赞；已存在返回 false。
+//
+// 与真库（RestoreOrCreateUnique）同构的三种结果：
+// 有活行 → 无变化（false）；有软删行 → 恢复（true）；都没有 → 新建（true）。
 func (d *Diggs) Add(_ context.Context, articleID domain.ArticleID, userID domain.UserID) (bool, error) {
 	d.count.inc("Add")
 	if err := d.fault.take("Add"); err != nil {
@@ -228,15 +244,23 @@ func (d *Diggs) Add(_ context.Context, articleID domain.ArticleID, userID domain
 	}
 	d.mu.Lock()
 	defer d.mu.Unlock()
+	d.events = append(d.events, "add")
 	key := itemKey2{userID, articleID}
-	if _, ok := d.set[key]; ok {
+	if _, ok := d.live[key]; ok {
 		return false, nil
 	}
-	d.set[key] = struct{}{}
+	if _, ok := d.soft[key]; ok {
+		delete(d.soft, key)
+		d.live[key] = struct{}{}
+		return true, nil
+	}
+	d.live[key] = struct{}{}
 	return true, nil
 }
 
 // Remove 取消点赞；本不存在返回 false。
+//
+// 软删：行从 live 挪到 soft，而不是消失 —— 这正是唯一索引会撞的那一行。
 func (d *Diggs) Remove(_ context.Context, articleID domain.ArticleID, userID domain.UserID) (bool, error) {
 	d.count.inc("Remove")
 	if err := d.fault.take("Remove"); err != nil {
@@ -244,15 +268,19 @@ func (d *Diggs) Remove(_ context.Context, articleID domain.ArticleID, userID dom
 	}
 	d.mu.Lock()
 	defer d.mu.Unlock()
+	d.events = append(d.events, "remove")
 	key := itemKey2{userID, articleID}
-	if _, ok := d.set[key]; !ok {
+	if _, ok := d.live[key]; !ok {
 		return false, nil
 	}
-	delete(d.set, key)
+	delete(d.live, key)
+	d.soft[key] = struct{}{}
 	return true, nil
 }
 
-// DeleteByArticle 删除某文章全部点赞，返回条数。
+// DeleteByArticle 删除某文章全部点赞，返回**活关系**条数。
+//
+// 与真库一致：级联是硬删，活行与软删残行一起清掉，但只报活关系条数。
 func (d *Diggs) DeleteByArticle(_ context.Context, articleID domain.ArticleID) (int, error) {
 	d.count.inc("DeleteByArticle")
 	if err := d.fault.take("DeleteByArticle"); err != nil {
@@ -261,10 +289,15 @@ func (d *Diggs) DeleteByArticle(_ context.Context, articleID domain.ArticleID) (
 	d.mu.Lock()
 	defer d.mu.Unlock()
 	n := 0
-	for k := range d.set {
+	for k := range d.live {
 		if k.articleID == articleID {
-			delete(d.set, k)
+			delete(d.live, k)
 			n++
+		}
+	}
+	for k := range d.soft {
+		if k.articleID == articleID {
+			delete(d.soft, k)
 		}
 	}
 	return n, nil
@@ -275,10 +308,33 @@ func (d *Diggs) Count(articleID domain.ArticleID) int {
 	d.mu.Lock()
 	defer d.mu.Unlock()
 	n := 0
-	for k := range d.set {
+	for k := range d.live {
 		if k.articleID == articleID {
 			n++
 		}
 	}
 	return n
+}
+
+// SoftCount 返回某文章被软删的残行数（测试断言用）。
+//
+// 断言"取消点赞后不留残行"必须看它：只查活行会把"行还占着唯一键"
+// 这种状态放过 —— 那正是 #96 的缺陷形态。
+func (d *Diggs) SoftCount(articleID domain.ArticleID) int {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	n := 0
+	for k := range d.soft {
+		if k.articleID == articleID {
+			n++
+		}
+	}
+	return n
+}
+
+// Events 返回 Add/Remove 的调用序列（测试断言用）。
+func (d *Diggs) Events() []string {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	return append([]string(nil), d.events...)
 }

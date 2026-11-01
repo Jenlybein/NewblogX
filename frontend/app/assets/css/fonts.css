@@ -69,43 +69,9 @@
   size-adjust: 107.12%;
 }
 
-/* ---- 中文：Noto Sans SC（依赖 @fontsource/noto-sans-sc 早就在 package.json 里，
- * 但以前从未被 @font-face 加载 —— 中文实际掉到了系统 PingFang / 微软雅黑拼出来的
- * 字形上。这里补上 400（正文）与 700（标题）两档，用 font-display: swap：先出字、
- * 字体到了再换，避免首屏白屏。---- */
-@font-face {
-  font-family: "Noto Sans SC";
-  font-style: normal;
-  font-display: swap;
-  font-weight: 400;
-  src: url("@fontsource/noto-sans-sc/files/noto-sans-sc-chinese-simplified-400-normal.woff2")
-    format("woff2");
-}
-
-@font-face {
-  font-family: "Noto Sans SC";
-  font-style: normal;
-  font-display: swap;
-  font-weight: 700;
-  src: url("@fontsource/noto-sans-sc/files/noto-sans-sc-chinese-simplified-700-normal.woff2")
-    format("woff2");
-}
-
-/* 中文的度量匹配 fallback：拿系统里真实存在的中文字族做替身，再用
- * ascent/descent/size-adjust 覆盖成 Noto Sans SC 的度量（Noto Sans SC 的
- * hhea 是 ascender 1160 / descender 320 / upem 1000，CJK 全角字身都是 1em，
- * 所以 size-adjust 保持 100%）。这样换字时行盒高度不变，不是"跳版"。
- * 注意顺序：PingFang（macOS 中文首选）→ 微软雅黑（Windows）→ 思源系。
- */
-@font-face {
-  font-family: "Noto Sans SC Fallback";
-  src:
-    local("PingFang SC"),
-    local("Microsoft YaHei"),
-    local("Noto Sans SC"),
-    local("Source Han Sans SC");
-  ascent-override: 116%;
-  descent-override: 32%;
-  line-gap-override: 0%;
-  size-adjust: 100%;
-}
+/* ---- 中文：不再自托管（ADR-0019 决策 2 / 约束 5，取代 ADR-0012 决策 8 的字体条款）----
+ * 首屏原来扛着 2.3 MB 的中文整包字体（两个约 1.1 MB 的字重），占子资源 77.7%；
+ * 这里删除全部中文 @font-face。中文改由 `--font-cjk` 的系统字体栈渲染
+ * （-apple-system / 苹方 / 冬青黑 / 微软雅黑 / 思源系），不同平台字形略有差异是
+ * 明示的取舍。Sora / Inter 继续自托管、继续做度量匹配；中文不再需要度量匹配
+ * fallback，因为根本不存在"换字"这一步。 */

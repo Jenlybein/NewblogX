@@ -116,13 +116,12 @@ function fontFamilyDeclarations(): { file: string; family: string }[] {
   return declarations
 }
 
-describe('后台中文自托管字体', () => {
-  it('Noto Sans SC 的 400 / 700 两档都有 @font-face', () => {
-    const weights = facesOfFamily(fontsCss, 'Noto Sans SC').map(
-      (face) => /\bfont-weight:\s*(\d+)/u.exec(face)?.[1] ?? '?',
-    )
-
-    expect(weights.sort()).toEqual(['400', '700'])
+describe('后台中文字体：跟随读者站走系统字体栈（token 同源）', () => {
+  it('fonts.css 不再有 CJK @font-face（Noto 两个整包已删除）', () => {
+    // 反向断言：把 Noto 两档 @font-face 加回来就会红。
+    expect(facesOfFamily(fontsCss, 'Noto Sans SC')).toHaveLength(0)
+    expect(facesOfFamily(fontsCss, 'Noto Sans SC Fallback')).toHaveLength(0)
+    expect(fontsCss).not.toMatch(/noto-sans-sc/iu)
   })
 
   it('src 指向的文件真实存在（拼错路径 = 字体静默不加载）', () => {
@@ -137,24 +136,14 @@ describe('后台中文自托管字体', () => {
     }
   })
 
-  it('配有度量匹配 fallback（换字不跳版）', () => {
-    const fallback = facesOfFamily(fontsCss, 'Noto Sans SC Fallback')[0]
-
-    expect(fallback).toBeDefined()
-    expect(fallback).toMatch(/src:\s*local\(/u)
-    expect(fallback).toMatch(/ascent-override:\s*[\d.]+%/u)
-    expect(fallback).toMatch(/descent-override:\s*[\d.]+%/u)
-    expect(fallback).toMatch(/line-gap-override:\s*0%/u)
-    expect(fallback).toMatch(/size-adjust:\s*100%/u)
-  })
-
-  it('body 与 Naive themeOverrides 都消费中文组', () => {
+  it('body 与 Naive themeOverrides 的中文都来自系统字体栈', () => {
     expect(adminCss).toMatch(/font-family:\s*var\(--font-sans\)/u)
 
     // 主题层由 app/utils/theme.ts 从 tokens.css 解析后组装（见 theme.test.ts）。
     const stack = String(themeOverrides.common?.fontFamily)
-    expect(stack).toContain('"Noto Sans SC"')
-    expect(stack.indexOf('"Noto Sans SC"')).toBeLessThan(stack.indexOf('"PingFang SC"'))
+    expect(stack).toContain('"PingFang SC"')
+    expect(stack).not.toContain('"Noto Sans SC Fallback"')
+    expect(stack.indexOf('"PingFang SC"')).toBeLessThan(stack.indexOf('"Noto Sans SC"'))
   })
 })
 
@@ -221,10 +210,10 @@ describe('后台字体分工 token（与读者站同源）', () => {
     }
   })
 
-  it('--font-sans 先 Inter 后 Noto，大标题字距 -0.03em', () => {
+  it('--font-sans 先 Inter 后系统中文，大标题字距 -0.03em', () => {
     const sans = declaration(tokensCss, '--font-sans')
 
-    expect(sans.startsWith('var(--font-latin), var(--font-cjk)')).toBe(true)
+    expect(sans).toBe('var(--font-latin), var(--font-cjk)')
     expect(declaration(tokensCss, '--type-tracking-title')).toBe('-0.03em')
   })
 
@@ -234,12 +223,12 @@ describe('后台字体分工 token（与读者站同源）', () => {
     expect(wordmarkVue).not.toContain('font-latin font-title')
   })
 
-  it('Naive 主题字体栈不再是 Sora（按钮/表单走 Inter）', () => {
+  it('Naive 主题字体栈不再是 Sora（按钮/表单走 Inter + 系统中文）', () => {
     const stack = String(themeOverrides.common?.fontFamily)
 
     expect(stack.startsWith('"Inter"')).toBe(true)
     expect(stack).not.toContain('"Sora"')
-    expect(stack.indexOf('"Inter"')).toBeLessThan(stack.indexOf('"Noto Sans SC"'))
+    expect(stack.indexOf('"Inter"')).toBeLessThan(stack.indexOf('"PingFang SC"'))
   })
 })
 

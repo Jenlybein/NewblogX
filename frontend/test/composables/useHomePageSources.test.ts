@@ -2,6 +2,7 @@ import { flushPromises } from "@vue/test-utils";
 import { effectScope } from "vue";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { useHomePageSources } from "~/composables/useHomePageSources";
+import { createReaderSwrCache } from "~/utils/readerSwrCache";
 import type { ArticleHotTopListData, BannerListData, SearchArticleItem } from "~/types/api";
 import { installAwaitableAsyncData } from "../mocks/awaitableAsyncData";
 
@@ -149,5 +150,119 @@ describe("useHomePageSources：首页三个数据源并行 + 骨架优先", () =
     latest.resolve({ items: [], hasMore: false });
     await flushPromises();
     expect(resolved).toBe(true);
+  });
+
+  // ---- 30s SWR（票 #85 验收项） ----
+  // 观众路径：首页 → 文章 → 返回首页。30 秒内三个数据源都不该再发请求；
+  // 超过 30 秒则旧值先上屏、后台静默刷新（界面不闪）。
+  it("30 秒内返回首页：三个数据源全部命中缓存，不再发请求", async () => {
+    installAwaitableAsyncData();
+    const cache = createReaderSwrCache({ now: () => 1_000 });
+    const bannerPayload: BannerListData = { list: [], has_more: false };
+    const hotTopPayload: ArticleHotTopListData = { list: [], count: 0 };
+    const latestPayload = {
+      items: [{ id: "cached-article" } as SearchArticleItem],
+      hasMore: false,
+    };
+
+    // 第一次进首页：三个源都真的取一次，把数据写进共享缓存。
+    await runInScope(() =>
+      useHomePageSources({
+        mode: "navigation",
+        swrCache: cache,
+        fetchBanners: async () => bannerPayload,
+        fetchHotTop: async () => hotTopPayload,
+        fetchLatest: async () => latestPayload,
+      }),
+    );
+    await flushPromises();
+    await flushPromises();
+
+    const fetchBanners = vi.fn(async () => ({ list: [], has_more: false }));
+    const fetchHotTop = vi.fn(async () => ({ list: [], count: 0 }));
+    const fetchLatest = vi.fn(async () => ({ items: [], hasMore: false }));
+    const second = await runInScope(() =>
+      useHomePageSources({
+        mode: "navigation",
+        swrCache: cache,
+        fetchBanners,
+        fetchHotTop,
+        fetchLatest,
+      }),
+    );
+    await flushPromises();
+
+    expect(fetchBanners).not.toHaveBeenCalled();
+    expect(fetchHotTop).not.toHaveBeenCalled();
+    expect(fetchLatest).not.toHaveBeenCalled();
+    expect(second.bannerData.value).toEqual(bannerPayload);
+    expect(second.hotTopData.value).toEqual(hotTopPayload);
+    expect(second.latestPager.currentItems.value).toEqual(latestPayload.items);
+    expect(second.latestPager.pending.value).toBe(false);
+  });
+
+  it("超过 30 秒返回首页：旧值先渲染，后台静默刷新（不闪）", async () => {
+    installAwaitableAsyncData();
+    let clock = 1_000;
+    const cache = createReaderSwrCache({ now: () => clock });
+    const bannerPayload: BannerListData = { list: [], has_more: false };
+    const hotTopPayload: ArticleHotTopListData = { list: [], count: 0 };
+    const latestPayload = {
+      items: [{ id: "old-article" } as SearchArticleItem],
+      hasMore: false,
+    };
+
+    await runInScope(() =>
+      useHomePageSources({
+        mode: "navigation",
+        swrCache: cache,
+        fetchBanners: async () => bannerPayload,
+        fetchHotTop: async () => hotTopPayload,
+        fetchLatest: async () => latestPayload,
+      }),
+    );
+    await flushPromises();
+    await flushPromises();
+
+    clock = 1_000 + 30_001;
+    const banners = deferred<BannerListData>();
+    const hotTop = deferred<ArticleHotTopListData>();
+    const latest = deferred<{ items: SearchArticleItem[]; hasMore: boolean }>();
+    const fetchBanners = vi.fn(() => banners.promise);
+    const fetchHotTop = vi.fn(() => hotTop.promise);
+    const fetchLatest = vi.fn(() => latest.promise);
+
+    const second = await runInScope(() =>
+      useHomePageSources({
+        mode: "navigation",
+        swrCache: cache,
+        fetchBanners,
+        fetchHotTop,
+        fetchLatest,
+      }),
+    );
+    await flushPromises();
+
+    // 旧值已经上屏；静默刷新在后台跑，pending 保持 false。
+    expect(second.bannerData.value).toEqual(bannerPayload);
+    expect(second.hotTopData.value).toEqual(hotTopPayload);
+    expect(second.latestPager.currentItems.value).toEqual(latestPayload.items);
+    expect(second.latestPager.pending.value).toBe(false);
+    expect(second.latestPager.revalidating.value).toBe(true);
+    expect(fetchBanners).toHaveBeenCalledTimes(1);
+    expect(fetchHotTop).toHaveBeenCalledTimes(1);
+    expect(fetchLatest).toHaveBeenCalledTimes(1);
+
+    const newBanner: BannerListData = { list: [], has_more: false };
+    const newHotTop: ArticleHotTopListData = { list: [], count: 0 };
+    const newLatest = { items: [{ id: "new-article" } as SearchArticleItem], hasMore: false };
+    banners.resolve(newBanner);
+    hotTop.resolve(newHotTop);
+    latest.resolve(newLatest);
+    await flushPromises();
+
+    expect(second.bannerData.value).toEqual(newBanner);
+    expect(second.latestPager.currentItems.value).toEqual(newLatest.items);
+    expect(second.latestPager.revalidating.value).toBe(false);
   });
 });

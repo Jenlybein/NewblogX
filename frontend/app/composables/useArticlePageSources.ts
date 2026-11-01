@@ -1,13 +1,15 @@
 import { computed, toValue } from "vue";
 import type { MaybeRefOrGetter } from "vue";
 import { usePagedResourceCache } from "~/composables/usePagedResourceCache";
+import { useReaderSwrAsyncData } from "~/composables/useReaderSwrAsyncData";
 import { getArticleScoreSummary } from "~/services/ai";
 import { getArticleAuthorInfo, getArticleDetail, getArticleDetailAnonymous } from "~/services/article";
 import { getRootComments } from "~/services/comment";
 import { getUserBaseInfo } from "~/services/user";
 import type { ArticleAuthorInfo, ArticleDetail, CommentRootItem } from "~/types/api";
 import { detectReaderRenderMode, type ReaderRenderMode } from "~/utils/readerRenderMode";
-import { anonymousArticleView, anonymousCommentView } from "~/utils/ssrAnonymity";
+import type { ReaderSwrCache } from "~/utils/readerSwrCache";
+import { withoutPrivateFields, withoutPrivateFieldsFromItems } from "~/utils/readerPrivateFields";
 
 export interface ArticleCommentsPage {
   items: CommentRootItem[];
@@ -27,6 +29,8 @@ export interface ArticlePageSourcesOptions {
   fetchComments?: (articleId: string, page: number, limit: number) => Promise<ArticleCommentsPage>;
   fetchAuthorInfo?: (authorId: string) => Promise<ArticleAuthorInfo>;
   fetchAuthorProfile?: (authorId: string) => Promise<ArticleAuthorProfile | null>;
+  /** 跨导航 30s SWR 缓存（单测注入假时钟实例；默认客户端共享实例、服务端禁用）。 */
+  swrCache?: ReaderSwrCache;
 }
 
 const ROOT_COMMENT_PAGE_SIZE = 7;
@@ -83,12 +87,21 @@ export async function useArticlePageSources(options: ArticlePageSourcesOptions) 
     options.fetchAuthorProfile ?? ((authorId: string) => getUserBaseInfo(authorId).catch(() => null));
 
   // 用户态只在服务端剔除；客户端（跳转 / 首屏 hydration）要原样保留，靠它渲染"已点赞"。
-  const articleForRender = (article: ArticleDetail) => (mode === "server" ? anonymousArticleView(article) : article);
+  // 私有字段清单来自 `readerPrivateFields.ts` —— 与客户端 30s 缓存用的是同一份（ADR-0019 约束 2）。
+  const articleForRender = (article: ArticleDetail) =>
+    mode === "server" ? withoutPrivateFields(article) : article;
 
   // 第一波：三个请求只依赖路由里的文章 id，**同时发起**。
-  const articleSource = useAsyncData(() => `article-${articleId.value}`, () =>
-    fetchArticle(articleId.value).then(articleForRender),
-  );
+  // 正文走 30s SWR（ADR-0019 决策 4）：30 秒内重进同一篇文章直接命中、不再请求；过期则
+  // 旧值先上屏、后台静默刷新。写缓存前剔除 `is_digg` / `is_favor`（私有字段不进缓存）；
+  // 服务端渲染的正文同样经过 `articleForRender` 剔除 —— 它要进按 URL 键的 30s 共享缓存。
+  const articleSource = useReaderSwrAsyncData({
+    key: () => `article-${articleId.value}`,
+    handler: () => fetchArticle(articleId.value).then(articleForRender),
+    mode,
+    cache: options.swrCache,
+    sanitizeForCache: withoutPrivateFields,
+  });
   const scoreSource = useAsyncData<ArticleScoreSummary | null>(
     () => `article-score-summary:${articleId.value}`,
     () => fetchScore(articleId.value),
@@ -114,16 +127,22 @@ export async function useArticlePageSources(options: ArticlePageSourcesOptions) 
   );
 
   // 评论分页首屏：客户端跳转时后台取（先出骨架），服务端与首屏 hydration 等它（SSR 内容 / 不闪）。
-  // 服务端的评论条目同样要匿名化：评论的"我点过赞""和作者的关系"都是登录用户私有状态。
+  // 服务端渲染的评论条目要匿名化：评论的"我点过赞""和作者的关系"都是登录用户私有状态；
+  // 客户端侧 30 秒内重进同一篇文章直接命中缓存（缓存里同样不含私有态）。
   const commentsPager = await usePagedResourceCache({
     cacheKey: () => `article-comments:${articleId.value}`,
     pageSize: () => ROOT_COMMENT_PAGE_SIZE,
     initialLoad: mode === "navigation" ? "background" : "block",
+    swrCache: mode === "server" ? null : options.swrCache,
+    sanitizeForCache: (page) => ({
+      ...page,
+      items: withoutPrivateFieldsFromItems(page.items),
+    }),
     fetchPage: async (page, limit) => {
       try {
         const payload = await fetchComments(articleId.value, page, limit);
         return mode === "server"
-          ? { items: payload.items.map((comment) => anonymousCommentView(comment)), hasMore: payload.hasMore }
+          ? { items: withoutPrivateFieldsFromItems(payload.items), hasMore: payload.hasMore }
           : payload;
       } catch {
         // 评论区失败不抛错：评论是次要数据，不能把整页带崩。

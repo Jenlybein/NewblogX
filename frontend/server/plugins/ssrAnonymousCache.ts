@@ -19,7 +19,7 @@ import {
  *
  * 为什么这一层不会串号：
  *   1. SSR 取数已匿名化（services/article 的 `getArticleDetailAnonymous` +
- *      `app/utils/ssrAnonymity` 剔除 is_digg / is_favor / relation），HTML 里没有用户态；
+ *      `app/utils/readerPrivateFields` 剔除 is_digg / is_favor / relation），HTML 里没有用户态；
  *   2. 缓存键只有 `pathname + search`（见 `anonymousCacheKey`），cookie/Authorization/UA
  *      在调用点根本没被读到；
  *   3. 只存 200 + text/html + 不带 Set-Cookie 的响应（`isStorableAnonymousSsrResponse`）。

@@ -66,11 +66,11 @@ const RAW = [
       pageErrors: 1,
     },
   }))),
-  // ④ 返回 · 文章页返回首页：P0 修复前是文档级重载，数据请求重新发起 -> 未命中
+  // ④ 返回 · 文章页返回首页：P0 修复前站内点击进不去文章，退化为文档级往返，数据请求重新发起 -> 未命中
   ...["cold", "warm"].flatMap(mode => [
-    { scenario: "backCache.articleToHome", mode, run: 1, ok: true, metrics: { documentNavigation: true, dataRequestCount: 3, dataWallMs: 271, allRequestCount: 66 } },
-    { scenario: "backCache.articleToHome", mode, run: 2, ok: true, metrics: { documentNavigation: true, dataRequestCount: 3, dataWallMs: 271, allRequestCount: 66 } },
-    { scenario: "backCache.articleToHome", mode, run: 3, ok: true, metrics: { documentNavigation: true, dataRequestCount: 3, dataWallMs: 271, allRequestCount: 66 } },
+    { scenario: "backCache.articleToHome", mode, run: 1, ok: true, metrics: { documentNavigation: true, dataRequestCount: 3, dataWallMs: 271, allRequestCount: 66, backFlow: "document", entryFlow: "document", clickToArticleMs: null } },
+    { scenario: "backCache.articleToHome", mode, run: 2, ok: true, metrics: { documentNavigation: true, dataRequestCount: 3, dataWallMs: 271, allRequestCount: 66, backFlow: "document", entryFlow: "document", clickToArticleMs: null } },
+    { scenario: "backCache.articleToHome", mode, run: 3, ok: true, metrics: { documentNavigation: true, dataRequestCount: 3, dataWallMs: 271, allRequestCount: 66, backFlow: "document", entryFlow: "document", clickToArticleMs: null } },
   ]),
 ];
 
@@ -129,7 +129,42 @@ test("返回：命中缓存按「无数据请求或数据耗时 < 50 ms」判定
   assert.equal(cold.aggregates.dataRequestCount.median, 3);
   assert.equal(cold.aggregates.dataWallMs.median, 271);
   assert.equal(cold.documentNavigation, "yes");
+  assert.equal(cold.backFlow, "document");
+  assert.equal(cold.entryFlow, "document");
   assert.equal(cold.cacheHitRuns, 0);
+});
+
+test("返回：站内点击后 SPA 返回命中 30s 客户端缓存（#87 口径修订）", () => {
+  const spaRuns = ["cold", "warm"].flatMap(mode =>
+    [1, 2, 3].map(run => ({
+      scenario: "backCache.articleToHome",
+      mode,
+      run,
+      ok: true,
+      metrics: {
+        documentNavigation: false,
+        dataRequestCount: 0,
+        dataWallMs: 0,
+        allRequestCount: 2,
+        pageErrors: 0,
+        backFlow: "spa",
+        entryFlow: "spa",
+        clickToArticleMs: 120,
+      },
+    })),
+  );
+  const spaReport = buildReport({ meta: { ...META, generatedAt: "2026-11-01T12:00:00.000Z" }, runs: spaRuns });
+  const cold = spaReport.scenarios["backCache.articleToHome"].modes.cold;
+
+  assert.equal(cold.backFlow, "spa");
+  assert.equal(cold.verdicts.cacheHit, "pass");
+  assert.ok(
+    renderMarkdown(spaReport).includes(
+      "| 首页 → 文章 → 返回首页 | 冷 | SPA 返回 | 否 | 0 | 0 ms | 命中 |\n",
+    ),
+  );
+  // 不能把「测不到」当成「没命中」：SPA 口径下不应出现文档级重载的备注。
+  assert.equal(renderMarkdown(spaReport).includes("表现为文档级重载"), false);
 });
 
 test("json 报告只保留标量指标（不把每次运行的字体明细塞进 runs，避免 diff 噪音）", () => {
@@ -156,7 +191,7 @@ test("markdown 报告：四节标题与表格逐行可预期", () => {
   assert.ok(md.includes("| noto-sans-sc-700.woff2 | 1172244 B |\n"));
   assert.ok(md.includes("| noto-sans-sc-400.woff2 | 1142552 B |\n"));
   assert.ok(md.includes("## ④ 返回上一页是否命中缓存\n"));
-  assert.ok(md.includes("| 文章页 → 首页 | 冷 | 是 | 3 | 271 ms | 未命中 |\n"));
+  assert.ok(md.includes("| 首页 → 文章 → 返回首页 | 冷 | 文档级重载 | 是 | 3 | 271 ms | 未命中 |\n"));
 });
 
 test("markdown 报告：不可测与无头返回重载都在备注里如实标注", () => {
@@ -165,6 +200,8 @@ test("markdown 报告：不可测与无头返回重载都在备注里如实标�
   assert.ok(md.includes("3/3 次点击后内容在 12000 ms 内从未出现"));
   assert.ok(md.includes("首次异常：TypeError: n.off is not a function"));
   assert.ok(md.includes("无头 Chromium 的「返回」表现为文档级重载"));
+  // P0 时代站内点击进不去文章：报告必须说明④退化为旧口径，不能把「测不到」当成「没命中」。
+  assert.ok(md.includes("进文章退化为文档级 goto（entryFlow=document）"));
 });
 
 test("可 diff：两次运行只有生成时间不同，JSON 去掉时间戳后逐字节一致", () => {

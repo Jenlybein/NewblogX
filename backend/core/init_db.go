@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"myblogx/conf"
+	platformmysql "myblogx/internal/platform/mysql"
 
 	"github.com/go-gorm/caches/v4"
 	"github.com/go-redis/redis/v8"
@@ -23,9 +24,22 @@ type redisCacher struct {
 	rdb *redis.Client
 }
 
+// cacheKey 把"目标结构体的形状"混进缓存键，避免不同形状的查询共用同一个键。
+//
+// 插件的缓存标识只由「SQL + 参数」组成，不含目标结构体类型，于是两个 SQL
+// 相同、形状不同的查询会共用同一个键：窄结构体查询存进去的 JSON 少了几列，
+// 整行查询命中它就会把缺失字段**静默归零**。
+// 实现在 platform/mysql：测试基建用的是同一份，不在这里另写一份。
+func cacheKey(key string, q *caches.Query[any]) string {
+	if q == nil {
+		return key
+	}
+	return platformmysql.QueryCacheKey(key, q.Dest)
+}
+
 // Get 从 Redis 中获取缓存数据
 func (c *redisCacher) Get(ctx context.Context, key string, q *caches.Query[any]) (*caches.Query[any], error) {
-	res, err := c.rdb.Get(ctx, key).Result()
+	res, err := c.rdb.Get(ctx, cacheKey(key, q)).Result()
 	if err == redis.Nil {
 		return nil, nil
 	}
@@ -48,7 +62,7 @@ func (c *redisCacher) Store(ctx context.Context, key string, val *caches.Query[a
 		return err
 	}
 
-	c.rdb.Set(ctx, key, res, 300*time.Second) // Set proper cache time
+	c.rdb.Set(ctx, cacheKey(key, val), res, 300*time.Second) // Set proper cache time
 	return nil
 }
 

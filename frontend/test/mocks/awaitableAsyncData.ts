@@ -8,6 +8,9 @@ import { vi } from "vitest";
  * - 支持 `immediate: false`：调用时不取数，`refresh()` 才发起并返回"这次取数"的 promise；
  * - 支持 `getCachedData`：首屏（cause `initial`）先问缓存，命中就不发起取数 ——
  *   这是 #85 的 SWR 接入点，不模拟它就没法验证"命中不重复请求"；
+ * - `refresh()` 与 Nuxt 4 的 `granularCachedData`（默认开）同口径：刷新时也先问
+ *   `getCachedData(key, nuxtApp, { cause: "refresh:manual" })`，命中就采用缓存、
+ *   不跑 handler —— 否则"过期后后台静默刷新"在测试里永远看起来是好的；
  * - 服务端渲染的 payload 可以注入（`hydrating` + `payloadData`），用来验证首屏优先用 payload。
  *
  * 为什么需要它：默认的 `#imports` mock（`test/mocks/nuxt-imports.ts`）拿到的是普通对象，
@@ -65,7 +68,17 @@ export function installAwaitableAsyncData(env: AwaitableAsyncDataEnv = {}) {
     const pending = ref(options.immediate === false ? false : !hasCachedData);
     const error = shallowRef<unknown>(null);
 
-    function execute() {
+    function execute(cause = "refresh:manual") {
+      // 与 Nuxt 4 的 granularCachedData 同口径：刷新时 getCachedData 命中就短路 handler。
+      // 真实实现里 cause 还有 "refresh:hook" / "watch"，这里只覆盖测试用到的两种。
+      const cachedData = options.getCachedData?.(keyValue(), nuxtApp, { cause });
+      if (cachedData !== undefined) {
+        data.value = cachedData;
+        error.value = null;
+        pending.value = false;
+        return Promise.resolve();
+      }
+
       pending.value = true;
       return Promise.resolve()
         .then(() => (handler ? handler() : null))

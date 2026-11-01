@@ -3,7 +3,7 @@
 - 状态：已交付
 - 日期：2026-10-31
 - 来源：2026-10-31 的 grilling 会话（用户反馈："当前主题不好看，蓝色作为主色调太伤眼"；目标：apple.com 式高级感美学 + 液态玻璃 + 圆角）。spec 为 [issue #17](https://github.com/Jenlybein/NewblogX/issues/17)（`ready-for-agent`），落地分票 #18–#25 已全部合入集成分支；视觉解构见 [Apple 液态玻璃解构](../notes/2026-10-30-apple-liquid-glass-deconstruction.md)，改造方案见 [中性玻璃改造方案](../notes/2026-10-31-neutral-glass-redesign-plan.md)
-- 后续修订：**决策 8 与约束 10 中"中文继续 Noto Sans SC"的部分已由 [ADR-0019](./0019-reader-rendering-and-cache-strategy.md)（提议，尚未实施）取代** —— 中文字体改为系统字体栈，以消除首屏 2.3 MB 自托管字体；Sora = 字标/大标题、Inter = 正文/UI、全站无衬线这些分工继续生效。差异表见文末「后续修订」。
+- 后续修订：**决策 8 与约束 10 中"中文继续 Noto Sans SC"的部分已由 [ADR-0019](./0019-reader-rendering-and-cache-strategy.md)（已交付，落地票 #80–#87）取代** —— 中文字体改为系统字体栈，以消除首屏 2.3 MB 自托管字体；Sora = 字标/大标题、Inter = 正文/UI、全站无衬线这些分工继续生效。差异表见文末「后续修订」。
 
 ## 背景与问题
 
@@ -95,7 +95,7 @@ ADR-0010 在 2026-10-30 落地（ticket #1–#13 已合并），取向是"图纸
 
 ## 后续修订（2026-11-01）
 
-[ADR-0019](./0019-reader-rendering-and-cache-strategy.md)（提议，尚未实施）取代本 ADR 的**两处字体条款**。按本目录的登记规则（"已交付的 ADR 不改结论，只追加后续修订"），正文原样保留，差异在此登记。
+[ADR-0019](./0019-reader-rendering-and-cache-strategy.md)（已交付，落地票 #80–#87）取代本 ADR 的**两处字体条款**。按本目录的登记规则（"已交付的 ADR 不改结论，只追加后续修订"），正文原样保留，差异在此登记。
 
 | 本 ADR 位置 | 原文口径 | 修订后 |
 | --- | --- | --- |

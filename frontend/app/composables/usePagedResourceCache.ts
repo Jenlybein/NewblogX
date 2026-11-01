@@ -98,6 +98,18 @@ export async function usePagedResourceCache<TItem>(options: UsePagedResourceCach
     revalidating.value = revalidatingCount > 0;
   }
 
+  // 页数据落地的唯一出口：命中（不写缓存）与首屏/重取（写缓存）都走这里，
+  // 避免"写内存表"和"写共享缓存"两条路径各自演进后漂移。
+  function commitPage(page: number, payload: PagedResourcePage<TItem>, { writeCache = true } = {}) {
+    pages.value = {
+      ...pages.value,
+      [page]: payload,
+    };
+    if (writeCache) {
+      writeSharedPage(page, payload);
+    }
+  }
+
   /**
    * 过期命中后的后台重取：**不置 pending、不清旧数据**，失败也不抛出。
    * 切换 key（换了文章）之后才落地的旧请求直接丢弃，不覆盖新页面的显示。
@@ -109,11 +121,7 @@ export async function usePagedResourceCache<TItem>(options: UsePagedResourceCach
       if (cacheKeyRef.value !== keyAtRequest) {
         return null;
       }
-      pages.value = {
-        ...pages.value,
-        [page]: payload,
-      };
-      writeSharedPage(page, payload);
+      commitPage(page, payload);
       return payload;
     } catch (requestError) {
       error.value = requestError;
@@ -133,10 +141,7 @@ export async function usePagedResourceCache<TItem>(options: UsePagedResourceCach
       const shared = readSharedPage(page);
       if (shared.state !== "miss") {
         // 命中即渲染：旧值先上屏，30 秒内不重复请求；过期才在后台静默刷新。
-        pages.value = {
-          ...pages.value,
-          [page]: shared.value,
-        };
+        commitPage(page, shared.value, { writeCache: false });
         currentPage.value = page;
         error.value = null;
         if (shared.state === "stale") {
@@ -157,12 +162,8 @@ export async function usePagedResourceCache<TItem>(options: UsePagedResourceCach
       if (cacheKeyRef.value !== keyAtRequest) {
         return payload;
       }
-      pages.value = {
-        ...pages.value,
-        [page]: payload,
-      };
       currentPage.value = page;
-      writeSharedPage(page, payload);
+      commitPage(page, payload);
       return payload;
     } catch (requestError) {
       if (cacheKeyRef.value === keyAtRequest) {

@@ -464,6 +464,32 @@ _Avoid_: 把 guest 当普通用户（旧行为，已废）。
 
 ---
 
+## 十、读者站渲染与缓存
+
+**渲染边界（rendering boundary）**：
+读者站"哪些页面付服务端渲染代价"的白名单，唯一来源是 `frontend/shared/readerRenderingBoundary.ts`：服务端渲染只保留 `/` 与 `/article/**`（首页是站点门面，文章页靠它出分享卡片与被收录）；`/users/**`、`/search`、`/studio/**` 显式 `ssr: false`；`/articles` 是服务端 301 到 `/search`。`nuxt.config.ts` 的 `routeRules`、匿名 SSR 缓存的缓存范围、两道渲染边界门禁都从这张表派生；新增 SSR 页面必须先改 [ADR-0019](./docs/adr/0019-reader-rendering-and-cache-strategy.md) 再进白名单。
+位置：`frontend/shared/readerRenderingBoundary.ts`、`frontend/nuxt.config.ts`（`routeRules`）、`frontend/test/gates/rendering-boundary.test.ts`。
+_Avoid_: 把它当成"哪些页面能进缓存"（缓存范围从它派生，但缓存另受"匿名 / TTL / 整页 HTML"三条约束）；按页面随手加 `ssr: true` 或随手删 `ssr: false`。
+
+**30s SWR（客户端 30 秒 SWR 缓存）**：
+"先给旧值、后台静默刷新"的客户端内存缓存：同一路由在 30 秒内返回或重进**直接命中、不再发请求**；超过 30 秒先把旧值渲染出来，再后台刷新、界面不闪。TTL 30 秒、不落盘、不做 per-user 持久化；缓存键含路由参数（文章 id、分页、搜索词）；写缓存前剔除 `is_digg` / `is_favor` / `relation` 等用户私有字段。
+位置：`frontend/app/utils/readerSwrCache.ts`（缓存实现）、`frontend/app/composables/useReaderSwrAsyncData.ts`（`useAsyncData` 接线）、`frontend/app/composables/usePagedResourceCache.ts`（分页列表接线）。
+_Avoid_: 说它"持久化 / 离线缓存"（它只在本页内存里、刷新即空）；把服务端那层也叫 SWR（那层见「匿名 SSR 缓存」）。
+
+**匿名 SSR 缓存（匿名服务端渲染缓存）**：
+对匿名 SSR 结果的**进程内 30 秒缓存**。前提是 SSR 的 HTML 只含匿名内容（点赞/收藏/关注等用户态一律客户端获取），因此登录读者与匿名读者命中同一份缓存，不需要按 cookie 分流、也不会串号。缓存键只有 `pathname + search`，只存 200 + `text/html` + 不带 `Set-Cookie` 的整页响应，TTL 30 秒、内存表上限 500 条；响应头 `x-ssr-cache: HIT/MISS` 供验收与排障。缓存范围从「渲染边界」派生。
+位置：`frontend/server/utils/ssrAnonymousCache.ts`、`frontend/server/plugins/ssrAnonymousCache.ts`（Nitro 的 `render:before` / `render:response` 钩子）；门禁 `frontend/test/gates/ssr-anonymous-cache.test.ts`、`ssr-anonymity.test.ts`。
+_Avoid_: 说它"按用户缓存"或"登录用户单独一份"（违反 ADR-0019 约束 3，等于把共享缓存变成串号缓存）；用 `routeRules` 的 `swr` 表达它（Nuxt 渲染器注册在 `/**`，node-server 预设下写 `swr` 不生效、只给"已缓存"的假信号）。
+
+**骨架优先（skeleton first）**：
+路由切换时**不等数据齐才挂新页**：先用与真实版式同构的骨架占位（`LoadingSkeleton` 的文本条 / 卡片块；文章页另有 `ArticlePageSkeleton`），数据到达后逐块替换。SSR 与首屏 hydration 仍等首屏数据（HTML 不能缺内容），客户端跳转不 await。骨架只吃语义 token、**不做动画**——数据到了就该立刻被真内容替换。
+位置：`frontend/app/components/common/LoadingSkeleton.vue`、`frontend/app/components/article/ArticlePageSkeleton.vue`；渲染环境判定在 `frontend/app/utils/readerRenderMode.ts`（`server` / `hydration` / `navigation`）；分页列表用 `usePagedResourceCache` 的 `initialLoad: block | background`。
+_Avoid_: 把骨架当装饰动效（闪动 / 渐变不是它，它一秒都不该多留）；用「加载中…」文案代替结构占位（版式会跳）。
+
+> 说明：本节四个词条出自 [ADR-0019](./docs/adr/0019-reader-rendering-and-cache-strategy.md)（状态**已交付**，落地票 #80–#87 已全部合入）；词条只定义概念，取舍（为什么只有首页与文章页保留 SSR、为什么两层缓存都取 30 秒、代价是什么）见该 ADR。
+
+---
+
 ## 维护规则
 
 1. **什么时候新增词条**：一个词开始被多处代码或文档引用、且读者可能叫错它时（出现同义词、旧名、缩写）才加。一次性数字、某次故障的过程、实现细节都不进本文。

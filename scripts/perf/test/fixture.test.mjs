@@ -32,8 +32,9 @@ test("fixture 自检：本地静态页能测出首屏/切页/字体字节/返回
 
     const options = { ...DEFAULT_RUN_OPTIONS, runs: 2 };
     const runs = await runSuite({ browser, base: site.base, articleUrl, options });
-    // 2 个模式 × （首屏 2 目标 + 切页 1 路径 + 返回 1 路径）× 2 次 = 16
-    assert.equal(runs.length, 16);
+    // 2 个模式 × （首屏 2 目标（fixture 没有 /users 链接，个人主页跳过）+ 切页 1 路径 +
+    // 返回 1 路径 + 重定向 1 路径）× 2 次 = 20
+    assert.equal(runs.length, 20);
 
     const report = buildReport({
       meta: {
@@ -78,7 +79,7 @@ test("fixture 自检：本地静态页能测出首屏/切页/字体字节/返回
       }
     }
 
-    // 报告落盘：JSON 可解析、Markdown 四节齐全、Markdown 不含时间戳因而两次渲染逐字节一致
+    // 报告落盘：JSON 可解析、Markdown 六节齐全、Markdown 不含时间戳因而两次渲染逐字节一致
     const dir = await mkdtemp(path.join(tmpdir(), "blogx-perf-selfcheck-"));
     await writeFile(path.join(dir, "report.json"), renderJson(report));
     await writeFile(path.join(dir, "report.md"), renderMarkdown(report));
@@ -93,9 +94,15 @@ test("fixture 自检：本地静态页能测出首屏/切页/字体字节/返回
       "## ② 切页内容可见（点击站内链接）",
       "## ③ 首屏字体下载字节",
       "## ④ 返回上一页是否命中缓存",
+      "## ⑤ 个人主页首屏（SPA，补充参考）",
+      "## ⑥ 历史入口 `/articles`：服务端 301 → `/search`",
     ]) {
       assert.ok(md.includes(heading), `Markdown 缺少小节：${heading}`);
     }
+    // fixture 没有 /users 链接 → 个人主页场景被跳过（⑤ 写"未运行"而不是伪造数据）
+    assert.equal(report.scenarios["firstScreen.userProfile"], undefined);
+    // fixture 不是真实站点，/articles 是 404 而不是 301：重定向判定必须是 fail，不能误判成 pass
+    assert.equal(report.scenarios["redirect.articles"].modes.cold.verdicts.redirect, "fail");
     const again = renderMarkdown(
       buildReport({ meta: { ...report.meta, generatedAt: "another-run" }, runs }),
     );

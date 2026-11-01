@@ -9,6 +9,7 @@ import (
 	"myblogx/internal/article/domain"
 	"myblogx/internal/kernel/ctype"
 	"myblogx/internal/kernel/enum"
+	platformmysql "myblogx/internal/platform/mysql"
 )
 
 // authorStats 是 app.AuthorStatsPort 的实现。
@@ -149,6 +150,12 @@ func (c *commentPort) CountByArticle(ctx context.Context, articleID domain.Artic
 // diggPort 是 app.DiggPort 的实现。
 type diggPort struct{ db *gorm.DB }
 
+// NewDiggPort 构造点赞关系端口。
+//
+// 导出是为了让集成测试能单独验证「软删行 + 唯一索引」的行为，而不必为了
+// 一个仓储把整个 Service 的依赖都装配起来（与 NewUserPort 同理）。
+func NewDiggPort(db *gorm.DB) app.DiggPort { return &diggPort{db: db} }
+
 // Exists 判断是否已点赞。
 func (d *diggPort) Exists(ctx context.Context, articleID domain.ArticleID, userID domain.UserID) (bool, error) {
 	var n int64
@@ -161,44 +168,56 @@ func (d *diggPort) Exists(ctx context.Context, articleID domain.ArticleID, userI
 }
 
 // Add 新增点赞；已存在返回 false。
+//
+// 必须走 RestoreOrCreateUnique 而不是裸 Create：唯一索引 uk_article_digg
+// 是 (article_id, user_id) —— **不含 deleted_at**，而 Remove 是软删，行留在表里。
+// 于是"取消点赞后再点赞"若走 INSERT 必然撞唯一索引，线上实测返回
+// Error 1062 / "duplicated key not allowed"（见 #96 与 grill 笔记 ⑳-B）。
+//
+// 定案口径：**软删行视作"这条关系以前存在过"，恢复它而不是新建**。
+// 与评论点赞（comment/adapter/mysql）用的是同一个平台助手，两张点赞表口径一致。
+//
+// 返回值语义不变：true = 发生了一次真实变化（恢复或新建），调用方据此 +1 计数、
+// 发点赞通知；false = 活关系已存在、什么都没做（并发下唯一键冲突等价于已存在）。
 func (d *diggPort) Add(ctx context.Context, articleID domain.ArticleID, userID domain.UserID) (bool, error) {
-	exists, err := d.Exists(ctx, articleID, userID)
-	if err != nil || exists {
-		return false, err
-	}
-	return true, d.db.WithContext(ctx).Create(&articleDiggRow{
+	row := &articleDiggRow{
 		ArticleID: fromArticleID(articleID),
 		UserID:    fromUserID(userID),
-	}).Error
+	}
+	return platformmysql.RestoreOrCreateUnique(
+		d.db.WithContext(ctx), row, []string{"article_id", "user_id"})
 }
 
 // Remove 取消点赞；本不存在返回 false。
+//
+// 软删（gorm 默认）——与 Add 的"恢复"是同一套口径的两半：行留着等下一次
+// 恢复，而不是消失。RowsAffected 直接给出"是否真的移除了"，不需要预查。
 func (d *diggPort) Remove(ctx context.Context, articleID domain.ArticleID, userID domain.UserID) (bool, error) {
-	exists, err := d.Exists(ctx, articleID, userID)
-	if err != nil || !exists {
-		return false, err
-	}
-	err = d.db.WithContext(ctx).
+	res := d.db.WithContext(ctx).
 		Where("article_id = ? AND user_id = ?", fromArticleID(articleID), fromUserID(userID)).
-		Delete(&articleDiggRow{}).Error
-	return err == nil, err
+		Delete(&articleDiggRow{})
+	if res.Error != nil {
+		return false, res.Error
+	}
+	return res.RowsAffected > 0, nil
 }
 
-// DeleteByArticle 删除某文章全部点赞。
+// DeleteByArticle 删除某文章全部点赞，返回被清理的条数。
+//
+// 用 Unscoped 硬删：文章都要删了，这些关系行没有再被恢复的意义，软删只是
+// 把行留在表里白占唯一键（先例见 platform/cdc/imageref 与 outbox 的清理）。
+// 返回值是**活关系**条数（用户看到的"清理掉几条点赞"），软删残行一并清掉但不计数。
 func (d *diggPort) DeleteByArticle(ctx context.Context, articleID domain.ArticleID) (int, error) {
 	q := d.db.WithContext(ctx).Model(&articleDiggRow{}).
 		Where("article_id = ?", fromArticleID(articleID))
-	var n int64
-	if err := q.Count(&n).Error; err != nil {
+	var live int64
+	if err := q.Count(&live).Error; err != nil {
 		return 0, err
 	}
-	if n == 0 {
-		return 0, nil
-	}
-	if err := d.db.WithContext(ctx).
+	if err := d.db.WithContext(ctx).Unscoped().
 		Where("article_id = ?", fromArticleID(articleID)).
 		Delete(&articleDiggRow{}).Error; err != nil {
 		return 0, err
 	}
-	return int(n), nil
+	return int(live), nil
 }

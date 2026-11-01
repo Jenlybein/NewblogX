@@ -70,7 +70,7 @@ type BannerListRequest struct {
 	Page  int    `form:"page"`
 	Key   string `form:"key"`
 	Order string `form:"order"`
-	Show  bool   `form:"show"`
+	Show  *bool  `form:"show"`
 }
 
 // ── 响应 ───────────────────────────────────────────────────────

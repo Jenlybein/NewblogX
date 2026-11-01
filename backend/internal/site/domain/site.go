@@ -73,11 +73,9 @@ func (c Crop) Validate() error {
 type BannerQuery struct {
 	Page  int
 	Limit int
-	// Show 对应旧接口的 show 过滤：true 只返回展示中的，false 只返回隐藏的。
-	//
-	// 注意这是"精确匹配"而不是"不过滤"——与旧实现一致，前端要全部数据时
-	// 会分别请求两次，或者由管理端直接看列表。
-	Show bool
+	// Show 是可选的展示状态过滤：nil 不过滤，true 只返回展示中的，
+	// false 只返回隐藏的。
+	Show *bool
 }
 
 // MaxLimit 是单页上限。

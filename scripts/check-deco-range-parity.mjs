@@ -1,7 +1,7 @@
-// 「跨端装饰参数一致性」门禁（#43）。
+// 「跨端装饰参数一致性」门禁（#43；#72 升级为键集合派生 + 锚点清单 + 负值支持）。
 //
-// 为什么必须有它（票 #35 用户故事 36/37）：`deco.charm` 的九个参数——一个布尔
-// 默认值 + 八个数值范围——现在有**三份独立定义**：
+// 为什么必须有它（票 #35 用户故事 36/37）：`deco.charm` 的每个数值参数（外加一个
+// 布尔总开关）都有**四份独立定义**：
 //   1. 后端 `backend/conf/conf_deco.go`：写入路径的钳位边界与缺省回落值；
 //   2. 读者站 `frontend/app/utils/decoCharm.ts`：第二道钳位与门控默认；
 //   3. 后台 `frontend_admin/app/utils/decoParams.ts`：表单元数据与"恢复默认"。
@@ -14,23 +14,29 @@
 //
 // 判据：**同一参数的 min / max / default 在每一端都必须相等**（布尔参数只有
 // 默认值）。不是"解析后看起来差不多"：浮点用字面量精确比较，任何一点差别都是
-// 有人只改了一端。
+// 有人只改了一端。数值字面量允许符号 —— 负区间（如指针端偏移的 `-24..24`）是
+// 合法取值，不是解析失败（ADR-0018 决策 9）。
 //
-// 刻意**不**维护第三张权威参数表：参数名从三份源文件里**发现**（Go 的
-// `CharmXxxMin`、读者站 `CHARM_XXX_MIN`、后台 `DECO_XXX_MIN` 按命名约定归一成
-// `xxx`），脚本只做比较。这样新增/删除参数时门禁自动跟着变，不会出现"门禁表
-// 和真表漂移"的第二层事故。参数完整性由 yaml 的 `deco.charm` 键集兜底：
-// 哪一端少了某个键，就报"缺少参数"，而不是静默跳过。
+// 刻意**不**维护第三张权威参数表，也**不**写死参数个数（#72）：参数名从四份源文件
+// 里**发现**（Go 的 `CharmXxxMin`、读者站 `CHARM_XXX_MIN`、后台 `DECO_XXX_MIN`
+// 按命名约定归一成 `xxx`），判定只有两条：
+//   1. **四源键集合相等**：某端整块少一个参数、或多出一个别端没有的参数，都报红并
+//      点名是哪一端、哪个参数（`key-set-mismatch`）；
+//   2. **锚点参数在场**：`rope_length` / `fps_cap` / `pointer_offset_x` /
+//      `pointer_offset_y`（`DECO_ANCHOR_PARAMETERS`）。键集合相等判不出"参数从四端
+//      同时消失"，锚点负责兜住；尚未实现的锚点在四端都不存在时不算失败（见该常量
+//      与 `evaluateAnchors` 的注释）。
 //
 // canary 由两处保证它会红：
 //   1. `frontend/test/gates/deco-range-parity.test.ts`：在内存里只改一端的文本，
-//      断言失败并点名"哪两端、哪个参数、差在哪"；
-//   2. `scripts/verify-gates.sh`：在真实仓库里故意只改后台一个常量，断言门禁红。
+//      断言失败并点名"哪两端、哪个参数、差在哪"（含负值、缺键、锚点丢失）；
+//   2. `scripts/verify-gates.sh`：在真实仓库里故意只改后台一个常量（含一个负值），
+//      断言门禁红。
 // 只有"真实仓库为绿 + 人造不一致为红"同时成立，这道门禁才算存在。
 //
 // 用法：node scripts/check-deco-range-parity.mjs [--report]
-//   --report：打印每个参数在每一端的取值（排查用，不做判定）
-// 退出码：0 = 全部一致；1 = 有不一致 / 缺参数 / 源文件缺失
+//   --report：打印每个参数在每一端的取值 + 锚点现状（排查用，不做判定）
+// 退出码：0 = 全部一致；1 = 有不一致 / 缺键 / 锚点丢失 / 源文件缺失
 import { existsSync, readFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 
@@ -93,10 +99,28 @@ export function findRepoRoot(fromDir = process.cwd()) {
   }
 }
 
-/** Go 的驼峰参数名 → 跨端统一键：`LogoSize` → `logo_size`，`IdleSwayHz` → `idle_sway_hz`。 */
+/**
+ * Go 的驼峰参数名 → 跨端统一键：`LogoSize` → `logo_size`，`IdleSwayHz` → `idle_sway_hz`。
+ *
+ * 缩写也要能被拆开（#72）：Go 习惯把 `FPS` 整段大写，朴素实现会得到 `f_p_s_cap`，
+ * 与 yaml 的 `fps_cap` 撞不上，于是锚点报"缺参数"却没人看得懂原因。这里先按
+ * "大写串 + 大写+小写" 断一次（`FPSCap` → `FPS_Cap`），再按"小写/数字 + 大写"断。
+ */
 function snakeKey(camel) {
-  return camel.replace(/[A-Z]/gu, (char) => `_${char.toLowerCase()}`).replace(/^_/u, "");
+  return camel
+    .replace(/([A-Z]+)([A-Z][a-z0-9])/gu, "$1_$2")
+    .replace(/([a-z0-9])([A-Z])/gu, "$1_$2")
+    .toLowerCase();
 }
+
+/**
+ * 数值字面量：允许符号（#72）。
+ *
+ * 不带符号时，`pointer_offset_x.min = -24` 这种源文件会**整行匹配不上**，于是该
+ * 取值被静默跳过、后续报 `missing-value` —— 看起来像"某端忘了定义"，实际是
+ * "门禁不认识负数"。允许负区间是 ADR-0018 决策 9 的硬要求。
+ */
+const NUMBER_TOKEN = String.raw`[+-]?[0-9]+(?:\.[0-9]*)?(?:[eE][+-]?[0-9]+)?`;
 
 /** 三端共用的"放进参数槽"逻辑：同一端同一参数同一字段出现两次是源文件写重了。 */
 function put(parameters, key, field, value, side, duplicates) {
@@ -123,9 +147,10 @@ export function parseBackendRanges(source) {
   const failures = [];
   const duplicates = [];
   for (const raw of source.split(/\r?\n/u)) {
-    const match = /^Charm([A-Z][A-Za-z0-9]*)(Min|Max|Default)\s*=\s*([0-9]+(?:\.[0-9]*)?(?:[eE][+-]?[0-9]+)?)/u.exec(
-      raw.trim(),
-    );
+    const match = new RegExp(
+      String.raw`^Charm([A-Z][A-Za-z0-9]*)(Min|Max|Default)\s*=\s*(${NUMBER_TOKEN})`,
+      "u",
+    ).exec(raw.trim());
     if (!match) continue;
     const [, camel, suffix, token] = match;
     const value = Number(token);
@@ -149,9 +174,10 @@ export function parseReaderRanges(source) {
   const failures = [];
   const duplicates = [];
   for (const raw of source.split(/\r?\n/u)) {
-    const match = /^export const CHARM_([A-Z0-9_]+)_(MIN|MAX|DEFAULT)\s*=\s*([0-9]+(?:\.[0-9]*)?(?:[eE][+-]?[0-9]+)?)/u.exec(
-      raw.trim(),
-    );
+    const match = new RegExp(
+      String.raw`^export const CHARM_([A-Z0-9_]+)_(MIN|MAX|DEFAULT)\s*=\s*(${NUMBER_TOKEN})`,
+      "u",
+    ).exec(raw.trim());
     if (!match) continue;
     const [, key, suffix, token] = match;
     const value = Number(token);
@@ -175,9 +201,10 @@ export function parseAdminRanges(source) {
   const failures = [];
   const duplicates = [];
   for (const raw of source.split(/\r?\n/u)) {
-    const match = /^export const DECO_([A-Z0-9_]+)_(MIN|MAX|DEFAULT)\s*=\s*([0-9]+(?:\.[0-9]*)?(?:[eE][+-]?[0-9]+)?)/u.exec(
-      raw.trim(),
-    );
+    const match = new RegExp(
+      String.raw`^export const DECO_([A-Z0-9_]+)_(MIN|MAX|DEFAULT)\s*=\s*(${NUMBER_TOKEN})`,
+      "u",
+    ).exec(raw.trim());
     if (!match) continue;
     const [, key, suffix, token] = match;
     const value = Number(token);
@@ -311,6 +338,147 @@ function buildMismatch({ parameter, field, values, order }) {
 }
 
 /**
+ * 键集合判定（#72）：四份源文件必须拥有**同一组参数键**。
+ *
+ * 为什么不能再靠"参数总数"：写死一个 8 既要每加参数改一串数字，又只能在
+ * "某处少了一个"时红，而任何"数字对得上、名字对不上"的漂移（一端改名、一端
+ * 加了一个别端没有的参数）它都看不见。
+ *
+ * 参照组取"签名相同的端里最多的那一组"：只改一端时另外几端形成多数，漂移端
+ * 会同时报缺键与多键；平票时按源文件顺序取第一个（与 buildMismatch 同一口径）。
+ */
+function buildKeySetFailures(sideKeys) {
+  const failures = [];
+  const signatures = DEFAULT_SIDES.map((side) => [...sideKeys[side]].sort().join(","));
+  const groups = new Map();
+  DEFAULT_SIDES.forEach((side, index) => {
+    const signature = signatures[index];
+    const group = groups.get(signature);
+    if (group) group.sides.push(side);
+    else groups.set(signature, { sides: [side], signature });
+  });
+  if (groups.size <= 1) return failures;
+
+  const grouped = [...groups.values()];
+  const reference = grouped.reduce((best, group) => {
+    if (group.sides.length > best.sides.length) return group;
+    if (group.sides.length < best.sides.length) return best;
+    return DEFAULT_SIDES.indexOf(group.sides[0]) < DEFAULT_SIDES.indexOf(best.sides[0])
+      ? group
+      : best;
+  });
+  const referenceKeys = new Set(reference.signature.split(",").filter(Boolean));
+
+  for (const side of DEFAULT_SIDES) {
+    if (reference.sides.includes(side)) continue;
+    const own = sideKeys[side];
+    const missingKeys = [...referenceKeys].filter((key) => !own.has(key)).sort();
+    const extraKeys = [...own].filter((key) => !referenceKeys.has(key)).sort();
+    if (missingKeys.length === 0 && extraKeys.length === 0) continue;
+
+    const parts = [];
+    if (missingKeys.length > 0) parts.push(`缺少 ${missingKeys.map((key) => `charm.${key}`).join(" / ")}`);
+    if (extraKeys.length > 0) parts.push(`多出 ${extraKeys.map((key) => `charm.${key}`).join(" / ")}`);
+    failures.push({
+      kind: "key-set-mismatch",
+      side,
+      path: DECO_SOURCE_FILES[side],
+      missingKeys,
+      extraKeys,
+      referenceSides: [...reference.sides],
+      message:
+        `[${[...missingKeys, ...extraKeys].map((key) => `charm.${key}`).join(" / ")}] ` +
+        `${SIDE_LABELS[side]} ${DECO_SOURCE_FILES[side]} 的参数键集合与其他端不一致：` +
+        `${parts.join("；")}（参照组：${reference.sides.map((item) => SIDE_LABELS[item]).join(" / ")}）。` +
+        "四源键集合必须相等 —— 缺参数或多参数都会让那一端读不到／多写一个取值。",
+    });
+  }
+  return failures;
+}
+
+/**
+ * 锚点参数清单（#72，ADR-0018 决策 10）：拦住"某个参数从四份源文件里同时消失"。
+ *
+ * 为什么键集合相等不够：键集合判的是"四端彼此一样"。真要有人把一个参数从四端
+ * 一起删干净，四份键集合还是相等的，门禁照样全绿。锚点就是那几张"这些参数必须
+ * 在场"的票根。
+ *
+ * 为什么还要 `status`：清单里含**将来才会存在**的参数（`fps_cap` 属 #74、
+ * `pointer_offset_*` 属 #75）。如果只认"必须在场"，本票落地当天门禁就会因为
+ * 这三个还没实现而变红，等于用门禁挡住正常交付顺序。所以：
+ *   - `pending`（尚未实现）：四端都没有 → **不算失败**，只在报告里列为"待交付"；
+ *   - `delivered`（已实现）：四端都没有 → **失败**（`anchor-missing`）；
+ *   - 两者共同的硬约束：只要在任意一端出现，四端就必须都有 —— 交付到一半是
+ *     漂移，由键集合判定报红（不会因为"它是新参数"被放过）。
+ * 一个 `pending` 锚点做到四端齐全后自动转正（结果里的 `anchors.delivered`），
+ * 状态位只是为了在它还没实现时不误伤；交付那一笔提交应顺手把 status 改成
+ * `delivered`，门禁会在 `anchors.notes` 里提醒这件事（但不是失败）。
+ */
+export const DECO_ANCHOR_PARAMETERS = [
+  { key: "rope_length", label: "挂绳长度", status: "delivered" },
+  { key: "fps_cap", label: "帧率上限", status: "pending", issue: "#74" },
+  { key: "pointer_offset_x", label: "指针端偏移 X", status: "pending", issue: "#75" },
+  { key: "pointer_offset_y", label: "指针端偏移 Y", status: "pending", issue: "#75" },
+];
+
+const EMPTY_ANCHORS = { delivered: [], pending: [], partial: [], notes: [] };
+
+/**
+ * 锚点判定（#72）：返回失败记录与"锚点现状"。
+ *
+ * 三种局面必须分得开，否则不是误红就是漏红：
+ *   1. 四端都有 → 普通参数（值一致性由主判定负责），记进 delivered；
+ *   2. 只有部分端有 → 交付到一半，键集合判定会报 key-set-mismatch，这里只记账，
+ *      不重复刷同一条红灯；
+ *   3. 四端都没有 → 看 status：`delivered` 是**丢了**（失败），`pending` 是
+ *      **还没交付**（不是失败）。
+ */
+function evaluateAnchors(sideKeys) {
+  const failures = [];
+  const anchors = { delivered: [], pending: [], partial: [], notes: [] };
+
+  for (const anchor of DECO_ANCHOR_PARAMETERS) {
+    const presentSides = DEFAULT_SIDES.filter((side) => sideKeys[side]?.has(anchor.key));
+
+    if (presentSides.length === DEFAULT_SIDES.length) {
+      anchors.delivered.push(anchor.key);
+      if (anchor.status !== "delivered") {
+        anchors.notes.push(
+          `charm.${anchor.key}（${anchor.label}）四端都已交付，但锚点清单里仍标 ${anchor.status}` +
+            "（预计 " +
+            (anchor.issue ?? "后续票") +
+            "）：交付那一笔提交里应把 status 改成 delivered。",
+        );
+      }
+      continue;
+    }
+
+    if (presentSides.length > 0) {
+      anchors.partial.push(anchor.key);
+      continue;
+    }
+
+    if (anchor.status === "delivered") {
+      failures.push({
+        kind: "anchor-missing",
+        parameter: `charm.${anchor.key}`,
+        missingSides: [...DEFAULT_SIDES],
+        message:
+          `[charm.${anchor.key}] 锚点参数（${anchor.label}）在四份源文件里都不存在：` +
+          DEFAULT_SIDES.map((side) => `${SIDE_LABELS[side]} ${DECO_SOURCE_FILES[side]}`).join("、") +
+          " 全都没有它。四源键集合仍然「相等」，所以只有锚点清单拦得住这种「参数从四端同时被删」的漂移；" +
+          "确实要删它，就得先把它从锚点清单里摘掉并说明理由。",
+      });
+      continue;
+    }
+
+    anchors.pending.push(anchor.key);
+  }
+
+  return { failures, anchors };
+}
+
+/**
  * 纯判定函数：收四份源文件的文本，断言同一参数在每一端的 min/max/default 一致。
  *
  * 参数名不是写死的清单，而是从四份源文件里发现出来的并集；某一端少了一个
@@ -348,9 +516,26 @@ export function evaluateDecoRangeParity({ backend, yaml, reader, admin }) {
   }
 
   const keys = new Set();
+  const sideKeys = {};
   for (const side of DEFAULT_SIDES) {
-    for (const key of Object.keys(parsed[side].parameters)) keys.add(key);
+    sideKeys[side] = new Set(Object.keys(parsed[side].parameters));
+    for (const key of sideKeys[side]) keys.add(key);
   }
+
+  // 键集合相等：整块缺参数 / 多参数在这里一次说清（见 buildKeySetFailures）。
+  // 一个参数都没解析到的端已经报过 source-unreadable，不再重复列全部键。
+  const readableSideKeys = {};
+  for (const side of DEFAULT_SIDES) {
+    if (Object.keys(parsed[side].parameters).length === 0) continue;
+    readableSideKeys[side] = sideKeys[side];
+  }
+  if (Object.keys(readableSideKeys).length >= 2) {
+    failures.push(...buildKeySetFailures(readableSideKeys));
+  }
+
+  // 锚点参数：拦住"键集合仍然相等、但参数从四端同时消失"（见 DECO_ANCHOR_PARAMETERS）。
+  const anchorResult = evaluateAnchors(sideKeys);
+  failures.push(...anchorResult.failures);
 
   const parameters = {};
   for (const key of [...keys].sort((left, right) => left.localeCompare(right))) {
@@ -365,7 +550,9 @@ export function evaluateDecoRangeParity({ backend, yaml, reader, admin }) {
       const values = {};
       for (const side of expectedSides) {
         const slot = parsed[side].parameters[key];
-        if (!slot || slot[field] === undefined) {
+        // 整个参数都不在这一端：已由 key-set-mismatch 点名，别再刷三条 missing-value。
+        if (!slot) continue;
+        if (slot[field] === undefined) {
           failures.push({
             kind: "missing-value",
             parameter: `charm.${key}`,
@@ -424,6 +611,7 @@ export function evaluateDecoRangeParity({ backend, yaml, reader, admin }) {
     failures,
     parameters,
     booleanDefault,
+    anchors: anchorResult.anchors,
   };
 }
 
@@ -452,6 +640,7 @@ export function checkDecoRangeParity({ repoRoot = findRepoRoot() } = {}) {
       failures,
       parameters: {},
       booleanDefault: {},
+      anchors: { ...EMPTY_ANCHORS },
       files: {},
       fixture: { caseCount: 0, parameters: [], consumers: [] },
     };
@@ -587,9 +776,20 @@ export function evaluateDecoFixture({ fixture, consumers }) {
   return { ok: failures.length === 0, failures, caseCount, parameters };
 }
 
+/** 锚点现状的一句话摘要（#72）：报告与成功提示共用，免得两处口径不同。 */
+function anchorSummary(anchors) {
+  const parts = [];
+  if (anchors.delivered.length > 0) parts.push(`已交付 ${anchors.delivered.join(" / ")}`);
+  if (anchors.pending.length > 0) parts.push(`待交付 ${anchors.pending.join(" / ")}`);
+  if (anchors.partial.length > 0) parts.push(`交付不完整 ${anchors.partial.join(" / ")}`);
+  return parts.length > 0 ? parts.join("；") : "无";
+}
+
 function printReport(result, repoRoot) {
   console.log(`跨端装饰参数（仓库根：${repoRoot}）`);
   console.log(`共享归一化夹具：${DECO_FIXTURE_FILE}（${result.fixture.caseCount} 条用例）`);
+  console.log(`锚点参数：${anchorSummary(result.anchors)}`);
+  for (const note of result.anchors.notes) console.log(`  提示：${note}`);
   console.log(`参数 | 字段 | 后端 | 读者站 | 后台 | yaml 种子`);
   for (const [key, slots] of Object.entries(result.parameters)) {
     for (const field of ["min", "max", "default"]) {
@@ -621,11 +821,13 @@ function runCli(argv) {
 
   if (result.ok) {
     console.log(
-      `✓ 跨端装饰参数一致性门禁通过（${parameterCount} 个数值参数 × min/max/default + ` +
-        "布尔默认值（后端种子 ↔ 后台恢复默认），三端逐项一致；" +
+      "✓ 跨端装饰参数一致性门禁通过（四源键集合相等：本次派生 " +
+        `${parameterCount} 个数值参数 × min/max/default + 布尔默认值（后端种子 ↔ 后台恢复默认）逐项一致；` +
+        `锚点参数 ${anchorSummary(result.anchors)}；` +
         `共享归一化夹具 ${DECO_FIXTURE_FILE}（${result.fixture.caseCount} 条用例）` +
         "被后端 / 读者站 / 后台三套测试共同消费）",
     );
+    for (const note of result.anchors.notes) console.log(`  提示：${note}`);
     return 0;
   }
 

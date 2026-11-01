@@ -377,19 +377,10 @@ function handleTocJump(id: string) {
     return;
   }
 
-  const scrolled = shadowPreviewRef.value?.scrollToHeading(id);
-  if (scrolled) {
-    return;
-  }
-
-  if (!import.meta.client) {
-    return;
-  }
-
-  document.getElementById(id)?.scrollIntoView({
-    behavior: "smooth",
-    block: "start",
-  });
+  // 标题渲染在正文的 shadow DOM 里，跳转必须经由预览组件提供的入口。
+  // 这里没有 document.getElementById 的回退：主文档里根本查不到这些 id，
+  // 写了也永远是 null（原实现留下的死代码，随目录滚动一并清理）。
+  shadowPreviewRef.value?.scrollToHeading(id);
 }
 
 function handleArticleHeadingsChange(nextHeadings: ArticleHeadingAnchor[]) {

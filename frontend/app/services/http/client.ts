@@ -161,7 +161,7 @@ export function createApiClient(baseURL: string) {
     } catch (error) {
       // 匿名请求没有令牌可刷新。
       //
-      // 写请求不重试（#98）：重放会重复执行副作用 —— 点一次赞产生两次 PUT，
+      // 写请求不重试：重放会重复执行副作用 —— 点一次赞产生两次 PUT，
       // 用户看到第一次的失败、服务端却写了第二遍，进而撞唯一索引。
       // 超时也不是重试的理由：连不上就是连不上，再试一次只是让用户多等一轮。
       if (options.auth === false || !shouldRetryAuth(options.method, error, options.retryAuth)) {

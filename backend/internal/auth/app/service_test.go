@@ -246,6 +246,56 @@ func TestRefresh(t *testing.T) {
 		_, err := r.Service().Refresh(context.Background(), "", meta())
 		assertCode(t, err, apperr.CodeAuthRefreshInvalid)
 	})
+
+	t.Run("账号版本被提升后刷新仍拿到正确版本", func(t *testing.T) {
+		t.Parallel()
+		r := setup(t)
+		first := login(t, r)
+		// 模拟改密码 / 踢下线：账号版本 +1。
+		r.Credentials().Seed(app.Account{ID: aliceID, Username: "alice", Role: 2, TokenVersion: 2}, alicePw)
+
+		second, err := r.Service().Refresh(context.Background(), first.Tokens.Refresh, meta())
+		if err != nil {
+			t.Fatalf("刷新失败: %v", err)
+		}
+		if got := tokenVersionOf(t, r, second.Tokens.Access); got != 2 {
+			t.Fatalf("刷新签发的令牌版本应等于账号当前版本: got=%d want=2", got)
+		}
+		// 端到端：新令牌必须立刻能用，不能被判成"状态已过期"。
+		if _, err := r.Service().Authenticate(context.Background(), second.Tokens.Access); err != nil {
+			t.Fatalf("刷新后的令牌应可直接通过鉴权: %v", err)
+		}
+	})
+
+	t.Run("读到陈旧账号副本时也要签发当前版本", func(t *testing.T) {
+		t.Parallel()
+		r := setup(t)
+		first := login(t, r)
+		r.Credentials().Seed(app.Account{ID: aliceID, Username: "alice", Role: 2, TokenVersion: 2}, alicePw)
+		// 这一次 FindAccount 会返回陈旧副本（版本 1）。
+		r.Credentials().StaleFindAccount(aliceID, 1)
+
+		second, err := r.Service().Refresh(context.Background(), first.Tokens.Refresh, meta())
+		if err != nil {
+			t.Fatalf("刷新失败: %v", err)
+		}
+		if got := tokenVersionOf(t, r, second.Tokens.Access); got != 2 {
+			t.Fatalf("读到陈旧副本时也应签发当前版本 2: got=%d", got)
+		}
+		if _, err := r.Service().Authenticate(context.Background(), second.Tokens.Access); err != nil {
+			t.Fatalf("刷新后的令牌应可直接通过鉴权: %v", err)
+		}
+	})
+}
+
+// tokenVersionOf 解析访问令牌里的版本号，作为断言的观测点。
+func tokenVersionOf(t *testing.T, r *apptest.Repos, access string) uint32 {
+	t.Helper()
+	claims, err := r.Issuer().Parse(access)
+	if err != nil {
+		t.Fatalf("解析令牌失败: %v", err)
+	}
+	return claims.TokenVersion
 }
 
 func TestAuthenticate(t *testing.T) {

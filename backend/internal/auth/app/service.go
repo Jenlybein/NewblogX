@@ -32,7 +32,11 @@ type Credentials interface {
 }
 
 // Logger 是窄日志接口。
+//
+// Infof 是 #99 加进来的：刷新路径要打印一次账号版本用于线上取证，
+// 那是常规路径上的记录，不该占用 Warn 级别（Warn 留给"需要人看一眼"的异常）。
 type Logger interface {
+	Infof(format string, args ...any)
 	Warnf(format string, args ...any)
 	Errorf(format string, args ...any)
 }
@@ -273,6 +277,15 @@ func (s *Service) Refresh(ctx context.Context, refreshToken string, meta domain.
 		return nil, apperr.New(apperr.CodeAuthRefreshInvalid)
 	}
 
+	// 诊断日志（#99）：区分"读到旧值"还是"签发丢值"。
+	//
+	// 线上实测"登录签发的令牌版本=1、刷新签发的=0"，而库里是 1。逐层排查
+	// 已排除映射与签发链路丢字段，所以这里打印**会话所属账号读到的版本**。
+	// 若这里打印的是 1 而签发出去是 0 → 丢值发生在 Issue；
+	// 若这里就是 0 → 读到的是陈旧副本。
+	s.logInfo("刷新读取账号版本(轮换前): session=%d user=%d token_version=%d",
+		session.ID.Uint64(), session.UserID.Uint64(), account.TokenVersion)
+
 	nextRefresh, err := s.secrets.NewRefreshToken()
 	if err != nil {
 		return nil, err
@@ -281,6 +294,27 @@ func (s *Service) Refresh(ctx context.Context, refreshToken string, meta domain.
 	if err := s.sessions.Rotate(ctx, session.ID, s.hashRefresh(nextRefresh), expiresAt, meta); err != nil {
 		return nil, err
 	}
+
+	// 签发前重新读取账号，版本只认这次读到的值（#99 的确定性加固）。
+	//
+	// 上面那次读取可能命中查询缓存里的陈旧副本 —— 线上"刷新签发的版本与库里
+	// 不一致"正是这个形状。这里在轮换之后再读一次：轮换写库会触发查询缓存
+	// 整体失效，所以这次读取拿到的必然是库里的当前值，不可能是陈旧副本。
+	//
+	// 两次结果不一致时只告警、不拒绝：不一致本身就是"曾经读到过陈旧值"的
+	// 证据，留这条日志给线上取证；而拒绝对用户没有任何好处 —— 他要的是一张
+	// 能用的令牌，不是一次"你的缓存脏了"的报错。
+	fresh, err := s.creds.FindAccount(ctx, session.UserID.Uint64())
+	if err != nil {
+		return nil, apperr.New(apperr.CodeAuthRefreshInvalid)
+	}
+	if fresh.TokenVersion != account.TokenVersion {
+		s.logWarn("刷新前后读到的账号版本不一致(曾读到陈旧副本): session=%d user=%d before=%d after=%d",
+			session.ID.Uint64(), session.UserID.Uint64(), account.TokenVersion, fresh.TokenVersion)
+	}
+	account = fresh
+	s.logInfo("刷新签发账号版本: session=%d user=%d token_version=%d",
+		session.ID.Uint64(), session.UserID.Uint64(), account.TokenVersion)
 
 	access, err := s.issuer.Issue(s.claimsOf(account, session.ID))
 	if err != nil {
@@ -429,5 +463,17 @@ func (s *Service) hashRefresh(raw string) string {
 func (s *Service) logError(format string, args ...any) {
 	if s.logger != nil {
 		s.logger.Errorf(format, args...)
+	}
+}
+
+func (s *Service) logWarn(format string, args ...any) {
+	if s.logger != nil {
+		s.logger.Warnf(format, args...)
+	}
+}
+
+func (s *Service) logInfo(format string, args ...any) {
+	if s.logger != nil {
+		s.logger.Infof(format, args...)
 	}
 }

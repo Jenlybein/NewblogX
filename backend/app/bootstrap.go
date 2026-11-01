@@ -64,7 +64,7 @@ func InitInfra(cfg *conf.Config, configFile string, version string) (*Infra, err
 	}
 
 	redisClient := core.InitRedis(&cfg.Redis, logger)
-	db := core.InitDB(cfg.DB, cfg.GORM, cfg.Log, logger, redisClient)
+	db := core.InitDB(cfg.DB, cfg.GORM, cfg.Log, logger)
 	clickHouse := core.InitClickHouse(&cfg.ClickHouse)
 	esClient := core.EsConnect(&cfg.ES, logger)
 

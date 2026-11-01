@@ -595,7 +595,11 @@ DDL 的 DROP 是 QUERY_EVENT，**不走 `OnRow`**（`imageref/river.go:117-129` 
 
 **修法**：Cacher 拿得到 `Dest`，在这一层把形状（类型名）补进键里——不改插件内部、不替换插件。实现放 `internal/platform/mysql/querycache.go` 并**只此一份**，生产 `core/init_db.go` 与测试基建 `testkit/mysqlcontainer` 共用（两份的话测试验证的就不是生产行为）。用类型名而不是值：值随行内容变化会让缓存永远命中不了。
 
-**成本评估结论：建议后续关闭该插件（未在本票内关闭）**。插件在 Create/Update/Delete 回调里无条件 `Invalidate`，而 `redisCacher` 的实现是 `SCAN gorm-caches::*` 全量扫描 + DEL —— **任何一次写都清空全部缓存**（已加 `TestAnyWriteWipesTheWholeCache` 钉住）。本站每次文章浏览都要写浏览计数，写极频繁 → 缓存刚存进去就被清空，命中率趋近于 0，却每次写都付一次 O(N) 的 Redis SCAN。关闭会改变生产读性能特征，故单独评估，不在本票一并处理。
+**成本评估结论：关闭该插件（已执行，提交 `5ad50ca`）**。插件在 Create/Update/Delete 回调里无条件 `Invalidate`，而 `redisCacher` 的实现是 `SCAN gorm-caches::*` 全量扫描 + DEL —— **任何一次写都清空全部缓存**（已加 `TestAnyWriteWipesTheWholeCache` 钉住）。本站每次文章浏览都要写浏览计数，写极频繁 → 缓存刚存进去就被清空，命中率趋近于 0，却每次写都付一次 O(N) 的 Redis SCAN。
+
+关闭内容：`InitDB` 不再装载插件；`redisCacher` 与其测试一并删除（无调用点）；`InitDB` 去掉 `redisClient` 参数（它原先只为该插件而传，Redis 客户端仍由 `InitRedis` 单独创建并交给需要它的组件）。
+
+**保留的护栏**：`platform/mysql.QueryCacheKey` 与 `testkit/mysqlcontainer.WithQueryCache` 保留 —— 若将来要重新启用插件，缓存键必须带上目标结构体形状，否则缺陷原样回来；`TestWholeRowIsNotPoisonedByNarrowRow` 等用例可直接用来验证。需要缓存的读接口将来应显式走应用层缓存（明确键、明确失效），而不是让 ORM 层无差别缓存全部查询。
 
 ### 附带修掉的既有基建缺陷（影响面超出 #96）
 

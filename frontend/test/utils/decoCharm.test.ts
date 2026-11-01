@@ -28,6 +28,12 @@ import {
   CHARM_LOGO_SIZE_MIN,
   CHARM_MAX_FRAME_SECONDS,
   CHARM_MAX_SUBSTEPS,
+  CHARM_POINTER_OFFSET_X_DEFAULT,
+  CHARM_POINTER_OFFSET_X_MAX,
+  CHARM_POINTER_OFFSET_X_MIN,
+  CHARM_POINTER_OFFSET_Y_DEFAULT,
+  CHARM_POINTER_OFFSET_Y_MAX,
+  CHARM_POINTER_OFFSET_Y_MIN,
   CHARM_ROPE_LENGTH_DEFAULT,
   CHARM_ROPE_LENGTH_MAX,
   CHARM_ROPE_LENGTH_MIN,
@@ -38,11 +44,11 @@ import {
   advanceCharmRope,
   charmIdleSwayEnabled,
   charmLayerEnabled,
+  charmPointerAnchor,
   charmRopeEnergy,
   charmRopeSegmentLengths,
   charmRopeSettled,
   charmRopeTail,
-  charmTetherGeometry,
   clampCharmDamping,
   clampCharmFpsCap,
   clampCharmGravity,
@@ -50,6 +56,8 @@ import {
   clampCharmIdleSwayHz,
   clampCharmLineWidth,
   clampCharmLogoSize,
+  clampCharmPointerOffsetX,
+  clampCharmPointerOffsetY,
   clampCharmRopeLength,
   clampCharmSegments,
   createCharmRope,
@@ -57,6 +65,7 @@ import {
   type CharmPoint,
   type CharmRopeConfig,
 } from "~/utils/decoCharm";
+import { charmTetherGeometry } from "~/utils/charmTether";
 
 /**
  * 为什么值得测：挂件里所有"算错就看得见"的决定都在这个模块 ——
@@ -79,6 +88,8 @@ const ROPE: CharmRopeConfig = {
   idleSwayHz: 0,
   idleSwayAmp: 0,
   fpsCap: CHARM_FPS_CAP_DEFAULT,
+  pointerOffsetX: CHARM_POINTER_OFFSET_X_DEFAULT,
+  pointerOffsetY: CHARM_POINTER_OFFSET_Y_DEFAULT,
 };
 
 /** 一次固定步长的帧间隔（积分器应当正好推进一个子步）。 */
@@ -185,6 +196,19 @@ describe("光标挂件的参数常量", () => {
     expect(CHARM_LOGO_SIZE_MIN).toBe(24);
     expect(CHARM_LOGO_SIZE_MAX).toBe(96);
     expect(CHARM_LOGO_SIZE_DEFAULT).toBe(48);
+  });
+
+  it("指针端偏移每轴 -24–24 px、默认 3，且下限为负（允许往左上偏）", () => {
+    expect(CHARM_POINTER_OFFSET_X_MIN).toBe(-24);
+    expect(CHARM_POINTER_OFFSET_X_MAX).toBe(24);
+    expect(CHARM_POINTER_OFFSET_X_DEFAULT).toBe(3);
+    expect(CHARM_POINTER_OFFSET_Y_MIN).toBe(-24);
+    expect(CHARM_POINTER_OFFSET_Y_MAX).toBe(24);
+    expect(CHARM_POINTER_OFFSET_Y_DEFAULT).toBe(3);
+    // 下限本身就是负数：这是"允许负数的区间"与"非负区间"的分水岭。
+    // 写成 0 会把负偏移静默夹回边界（ADR-0018 约束 8 点名禁止）。
+    expect(CHARM_POINTER_OFFSET_X_MIN).toBeLessThan(0);
+    expect(CHARM_POINTER_OFFSET_Y_MIN).toBeLessThan(0);
   });
 });
 
@@ -293,6 +317,74 @@ describe("票 #74 的帧率上限钳位", () => {
   });
 });
 
+describe("票 #75 的指针端偏移钳位（第四条规则：允许负数的区间）", () => {
+  /** X / Y 两轴共用同一张表：区间与默认值必须完全对称。 */
+  const SIGNED_CASES: { input: number; expectedX: number; expectedY: number; note: string }[] = [
+    { input: 3, expectedX: 3, expectedY: 3, note: "默认值原样保留" },
+    { input: 0, expectedX: 0, expectedY: 0, note: "0 是普通值，不回落默认" },
+    { input: 12, expectedX: 12, expectedY: 12, note: "区间内正值原样保留" },
+    { input: -6, expectedX: -6, expectedY: -6, note: "负值原样保留（往左上偏）" },
+    { input: 24, expectedX: 24, expectedY: 24, note: "上限本身不漂移" },
+    { input: -24, expectedX: -24, expectedY: -24, note: "下限本身不漂移" },
+    { input: 24.4, expectedX: 24, expectedY: 24, note: "先夹边界再取整（上）" },
+    { input: -24.4, expectedX: -24, expectedY: -24, note: "先夹边界再取整（下）" },
+    { input: 100, expectedX: 24, expectedY: 24, note: "远超上限钳到边界" },
+    { input: -100, expectedX: -24, expectedY: -24, note: "远超下限钳到边界" },
+    { input: 3.7, expectedX: 4, expectedY: 4, note: "取整（向上）" },
+    { input: -3.7, expectedX: -4, expectedY: -4, note: "负数取整（远离 0）" },
+    { input: 2.5, expectedX: 3, expectedY: 3, note: "正半值远离 0" },
+    // 负半值必须与 Go 的 math.Round 同口径（远离 0）；直接写 Math.round
+    // 会得到 -2，与后端分叉 —— 共享夹具里也有这一条。
+    { input: -2.5, expectedX: -3, expectedY: -3, note: "负半值远离 0" },
+  ];
+
+  it.each(SIGNED_CASES)("$note：输入 $input", ({ input, expectedX, expectedY }) => {
+    expect(clampCharmPointerOffsetX(input), `X 轴输入 ${input}`).toBe(expectedX);
+    expect(clampCharmPointerOffsetY(input), `Y 轴输入 ${input}`).toBe(expectedY);
+  });
+
+  it("NaN / ±Inf 回落默认值 3（两者序列化进 JSON 会直接失败）", () => {
+    for (const bad of [Number.NaN, Number.POSITIVE_INFINITY, Number.NEGATIVE_INFINITY]) {
+      expect(clampCharmPointerOffsetX(bad)).toBe(CHARM_POINTER_OFFSET_X_DEFAULT);
+      expect(clampCharmPointerOffsetY(bad)).toBe(CHARM_POINTER_OFFSET_Y_DEFAULT);
+    }
+  });
+});
+
+describe("charmPointerAnchor：指针端 = 指针热点 + 偏移（唯一真相）", () => {
+  it("默认偏移 (3, 3)：物理头节点从光标右下 3px 开始", () => {
+    expect(charmPointerAnchor({ x: 100, y: 200 }, ROPE)).toEqual({ x: 103, y: 203 });
+  });
+
+  it("负偏移把物理头节点推到光标左上（-6, -9）", () => {
+    expect(
+      charmPointerAnchor({ x: 100, y: 200 }, { ...ROPE, pointerOffsetX: -6, pointerOffsetY: -9 }),
+    ).toEqual({ x: 94, y: 191 });
+  });
+
+  it("0 偏移让头节点正好压在热点上（0 是普通值，不是缺省）", () => {
+    expect(
+      charmPointerAnchor({ x: 40, y: 50 }, { ...ROPE, pointerOffsetX: 0, pointerOffsetY: 0 }),
+    ).toEqual({ x: 40, y: 50 });
+  });
+
+  it("越界偏移先钳位再加：锚点不会把发散值带进物理", () => {
+    expect(
+      charmPointerAnchor({ x: 0, y: 0 }, { ...ROPE, pointerOffsetX: 1000, pointerOffsetY: -1000 }),
+    ).toEqual({ x: CHARM_POINTER_OFFSET_X_MAX, y: CHARM_POINTER_OFFSET_Y_MIN });
+  });
+
+  it("非有限指针坐标收敛成有限值（NaN 进 SVG 会让整条路径消失）", () => {
+    const anchor = charmPointerAnchor(
+      { x: Number.NaN, y: Number.POSITIVE_INFINITY },
+      { ...ROPE, pointerOffsetX: -6, pointerOffsetY: 0 },
+    );
+
+    expect(allFinite([anchor.x, anchor.y])).toBe(true);
+    expect(anchor).toEqual({ x: -6, y: 0 });
+  });
+});
+
 describe("normalizeCharmRopeConfig", () => {
   it("缺字段 / 全空时回落默认值（配置还没取回来也能建链）", () => {
     expect(normalizeCharmRopeConfig(undefined)).toEqual({
@@ -304,6 +396,8 @@ describe("normalizeCharmRopeConfig", () => {
       idleSwayHz: CHARM_IDLE_SWAY_HZ_DEFAULT,
       idleSwayAmp: CHARM_IDLE_SWAY_AMP_DEFAULT,
       fpsCap: CHARM_FPS_CAP_DEFAULT,
+      pointerOffsetX: CHARM_POINTER_OFFSET_X_DEFAULT,
+      pointerOffsetY: CHARM_POINTER_OFFSET_Y_DEFAULT,
     });
   });
 
@@ -318,6 +412,8 @@ describe("normalizeCharmRopeConfig", () => {
         idleSwayHz: 9,
         idleSwayAmp: 0,
         fpsCap: 10,
+        pointerOffsetX: 100,
+        pointerOffsetY: -100,
       }),
     ).toEqual({
       ropeLengthPx: CHARM_ROPE_LENGTH_MAX,
@@ -328,6 +424,8 @@ describe("normalizeCharmRopeConfig", () => {
       idleSwayHz: CHARM_IDLE_SWAY_HZ_MAX,
       idleSwayAmp: 0,
       fpsCap: CHARM_FPS_CAP_MIN,
+      pointerOffsetX: CHARM_POINTER_OFFSET_X_MAX,
+      pointerOffsetY: CHARM_POINTER_OFFSET_Y_MIN,
     });
     expect(normalizeCharmRopeConfig({ ropeLengthPx: 80 })).toEqual({
       ropeLengthPx: 80,
@@ -338,7 +436,23 @@ describe("normalizeCharmRopeConfig", () => {
       idleSwayHz: CHARM_IDLE_SWAY_HZ_DEFAULT,
       idleSwayAmp: CHARM_IDLE_SWAY_AMP_DEFAULT,
       fpsCap: CHARM_FPS_CAP_DEFAULT,
+      pointerOffsetX: CHARM_POINTER_OFFSET_X_DEFAULT,
+      pointerOffsetY: CHARM_POINTER_OFFSET_Y_DEFAULT,
     });
+  });
+
+  it("负偏移穿过归一化后仍然为负（不会被「非负规则」夹回边界）", () => {
+    const normalized = normalizeCharmRopeConfig({ pointerOffsetX: -6, pointerOffsetY: -12 });
+
+    expect(normalized.pointerOffsetX).toBe(-6);
+    expect(normalized.pointerOffsetY).toBe(-12);
+  });
+
+  it("0 偏移穿过归一化后仍然是 0（不是回落成默认的 3）", () => {
+    const normalized = normalizeCharmRopeConfig({ pointerOffsetX: 0, pointerOffsetY: 0 });
+
+    expect(normalized.pointerOffsetX).toBe(0);
+    expect(normalized.pointerOffsetY).toBe(0);
   });
 });
 
@@ -685,10 +799,12 @@ const CHARM_CLAMPS: Record<string, (value: number) => number> = {
   idle_sway_hz: clampCharmIdleSwayHz,
   idle_sway_amp: clampCharmIdleSwayAmp,
   fps_cap: clampCharmFpsCap,
+  pointer_offset_x: clampCharmPointerOffsetX,
+  pointer_offset_y: clampCharmPointerOffsetY,
 };
 
 describe("共享归一化用例表：读者站与后端 / 后台同一组输入同一组输出", () => {
-  it("夹具真的读到了，且覆盖全部九个数值参数", () => {
+  it("夹具真的读到了，且覆盖全部十一个数值参数", () => {
     const cases = loadNormalizationCases();
 
     expect(cases.length).toBeGreaterThan(40);

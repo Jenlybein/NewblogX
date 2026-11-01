@@ -24,6 +24,10 @@ import { clampCharmLogoSize } from "~/utils/decoCharm";
  * 一条路径的 `d`（带形多边形的填充）与站标图像的一个 `transform`。不碰任何
  * 布局属性；每秒画几次由后台 `deco.charm.fps_cap`（默认 60）门控，与指针是否
  * 在移动无关 —— 上限只影响"每秒画几次"，不影响绳子运动速度。
+ *
+ * 指针端偏移（`pointer_offset_x` / `pointer_offset_y`）**不在这里加**：它由组合式
+ * 换算进物理头节点，本组件的路径与 `transform` 直接读那份结果。渲染层再偏一次，
+ * 弧垂与张力就会算在错的原点上（ADR-0018 约束 7）。
  */
 const siteStore = useSiteStore();
 
@@ -40,8 +44,9 @@ const logoSize = computed(() => clampCharmLogoSize(Number(charmConfig.value?.log
 
 const { enabled, visible, tetherPath, logoCenter } = useCursorCharm({
   configEnabled: () => Boolean(charmConfig.value?.enable),
-  // 八个数值参数每次建链 / 改参数时读一次；任何一个缺失都由
+  // 十个数值参数每次建链 / 改参数时读一次；任何一个缺失都由
   // normalizeCharmRopeConfig 回落默认值，不会因为配置没取回来就不建链。
+  // 指针端偏移也走这里：组合式把它加到指针热点上算物理头节点，**渲染不再偏**。
   config: () => ({
     ropeLengthPx: Number(charmConfig.value?.rope_length),
     segments: Number(charmConfig.value?.segments),
@@ -51,6 +56,8 @@ const { enabled, visible, tetherPath, logoCenter } = useCursorCharm({
     idleSwayHz: Number(charmConfig.value?.idle_sway_hz),
     idleSwayAmp: Number(charmConfig.value?.idle_sway_amp),
     fpsCap: Number(charmConfig.value?.fps_cap),
+    pointerOffsetX: Number(charmConfig.value?.pointer_offset_x),
+    pointerOffsetY: Number(charmConfig.value?.pointer_offset_y),
   }),
 });
 

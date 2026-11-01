@@ -217,10 +217,9 @@ async function handleRetryLatest() {
           <template #footer>
             <div
               v-if="latestPage > 1 || latestHasNext"
-              class="mt-6 flex flex-wrap items-center justify-between gap-3 border-t border-line-faint pt-3 text-sm text-ink-muted"
+              class="mt-6 flex flex-wrap items-center justify-end gap-3 border-t border-line-faint pt-3 text-sm text-ink-muted"
               data-role="feed-pager"
             >
-              <span>已访问页会复用缓存，翻页不重复请求旧页。</span>
               <div class="flex items-center gap-3 blueprint-actions">
                 <NButton quaternary :disabled="!latestHasPrevious" @click="handlePreviousLatestPage">上一页</NButton>
                 <NButton

@@ -38,12 +38,13 @@ describe("searchState：搜索空态 / 错误态与下一步指引", () => {
     expect(ai.description).toContain("智能搜索");
   });
 
-  it("还没输入（普通搜索）：提醒输入关键词，并给到标签/智能搜索的指引", () => {
+  it("还没输入（普通搜索）：只留标题与下一步指引，不再复述顶部说明（#126）", () => {
     const state = resolveSearchEmptyState(baseContext);
 
     expect(state.kind).toBe("idle");
     expect(state.title).toBe("输入关键词开始搜索");
-    expect(state.description).toContain("标签");
+    // 与顶部说明重复的那句描述已删；引导由 hints + actions 承担。
+    expect(state.description).toBe("");
     expect(state.hints.length).toBeGreaterThan(0);
     expect(state.actions).toEqual(["switch-mode", "open-home"]);
   });

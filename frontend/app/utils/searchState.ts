@@ -74,7 +74,9 @@ export function resolveSearchEmptyState(context: SearchEmptyContext): SearchEmpt
     return {
       kind: "idle",
       title: "输入关键词开始搜索",
-      description: "可以搜标题、摘要或正文；也可以只选一个标签，或切到智能搜索。",
+      // 顶部说明段已删（#126）；这里不再复述"能搜标题/摘要/正文"与"切到智能搜索"，
+      // 引导交给下面的 hints 与 actions，空态只说下一步该做什么。
+      description: "",
       hints: ["关键词越具体，结果越准。", "标签筛选适合想按主题浏览时的场景。"],
       actions: ["switch-mode", "open-home"],
     };

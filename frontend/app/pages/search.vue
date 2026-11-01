@@ -299,11 +299,7 @@ watch(
   <div class="page-stack">
     <section class="filter-card">
       <div class="mb-5">
-        <div class="eyebrow">Search</div>
-        <h1 class="section-title mt-2">搜索文章</h1>
-        <p class="mt-2 text-sm leading-6 text-ink-muted">
-          关键词搜索标题、摘要与正文；也可以按标签筛选，或切到智能搜索用一句话描述。
-        </p>
+        <h1 class="section-title">搜索文章</h1>
       </div>
 
       <div class="space-y-4">
@@ -410,8 +406,7 @@ watch(
         </div>
       </div>
 
-      <div v-if="showPager" class="mt-6 flex flex-wrap items-center justify-between gap-3 border-t border-line-faint pt-5 text-sm text-ink-muted">
-        <span>未刷新前，已访问页会直接复用缓存。</span>
+      <div v-if="showPager" class="mt-6 flex flex-wrap items-center justify-end gap-3 border-t border-line-faint pt-5 text-sm text-ink-muted">
         <div class="flex items-center gap-3 blueprint-actions">
           <NButton quaternary :disabled="!searchPager.hasPreviousPage" attr-type="button" @click="handlePageChange(currentSearchPage - 1)">
             上一页

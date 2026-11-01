@@ -79,6 +79,60 @@ type cropPayload struct {
 	Zoom   float64 `json:"zoom"`
 }
 
+// TestBannerListOptionalShowQuery 钉住 GET 查询参数的三态绑定：
+// 省略 show 不是 Go 零值 false，而是明确的“不按展示状态过滤”。
+func TestBannerListOptionalShowQuery(t *testing.T) {
+	env := siteEnv()
+	env.Images.Put(12, "/b.png")
+	r := newBannerEngine(env)
+
+	for _, body := range []string{
+		`{"cover_image_id":"11","href":"/shown","show":true}`,
+		`{"cover_image_id":"12","href":"/hidden","show":false}`,
+	} {
+		got := doJSON(t, r, "POST", "/api/banners", body)
+		if got.Code != res.SuccessCode {
+			t.Fatalf("预置轮播图失败: code=%d msg=%s", got.Code, got.Msg)
+		}
+	}
+
+	cases := []struct {
+		name       string
+		path       string
+		wantShown  int
+		wantHidden int
+	}{
+		{name: "不传时不过滤", path: "/api/banners", wantShown: 1, wantHidden: 1},
+		{name: "传真时只看展示中", path: "/api/banners?show=true", wantShown: 1},
+		{name: "传假时只看隐藏", path: "/api/banners?show=false", wantHidden: 1},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			got := doJSON(t, r, "GET", tc.path, "")
+			if got.Code != res.SuccessCode {
+				t.Fatalf("列表应成功: code=%d msg=%s", got.Code, got.Msg)
+			}
+			page := decodeData[struct {
+				List []struct {
+					Show bool `json:"show"`
+				} `json:"list"`
+			}](t, got.Data)
+			var gotShown, gotHidden int
+			for _, row := range page.List {
+				if row.Show {
+					gotShown++
+				} else {
+					gotHidden++
+				}
+			}
+			if gotShown != tc.wantShown || gotHidden != tc.wantHidden {
+				t.Fatalf("筛选结果错误: 展示中=%d 隐藏=%d", gotShown, gotHidden)
+			}
+		})
+	}
+}
+
 // TestBannerCreateEchoesCrop 钉住"创建响应回传取景参数"。
 func TestBannerCreateEchoesCrop(t *testing.T) {
 	env := siteEnv()

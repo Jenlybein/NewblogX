@@ -1,72 +1,24 @@
-﻿<script setup lang="ts">
-import { computed, onMounted, ref, shallowRef } from "vue";
+<script setup lang="ts">
+import { computed, onMounted, ref } from "vue";
 import { NButton } from "naive-ui";
 import BannerCarousel from "~/components/article/BannerCarousel.vue";
 import HomeFeedSection from "~/components/home/HomeFeedSection.vue";
 import HomePinnedSection from "~/components/home/HomePinnedSection.vue";
 import HomeSidebar from "~/components/home/HomeSidebar.vue";
+import { useHomePageSources } from "~/composables/useHomePageSources";
 import { useParallax } from "~/composables/useParallax";
 import { useSectionReveal } from "~/composables/useSectionReveal";
-import { getHotTopArticles } from "~/services/article";
-import { searchArticles } from "~/services/search";
-import { getBannerList } from "~/services/site";
 import { BRAND, brandDescription, brandFullName } from "~/utils/brand";
 import { MOTION_STAGGER_MS } from "~/utils/motion";
 
 const siteStore = useSiteStore();
-const latestRequestError = shallowRef<unknown>(null);
 
-function formatRequestError(error: unknown) {
-  if (error instanceof Error) {
-    return error.message;
-  }
+// 首页三个数据源（轮播 / 热门置顶 / 最新文章）在 composable 里**同时发起**，
+// 并按渲染环境决定等谁：服务端等齐（SSR 的 HTML 里要有内容），
+// 客户端跳转一个都不等（先出骨架），首屏 hydration 只等不在 payload 里的分页首屏。
+const { bannerData, bannerPending, hotTopData, latestPager, latestRequestError } =
+  await useHomePageSources();
 
-  return String(error);
-}
-
-// 首页数据全部"失败降级不抛错"：区块组件拿不到数据就整块不渲染（ADR-0017 决策 5），
-// 不会因为一个接口挂了就让整页白屏。
-const { data: bannerData, pending: bannerPending } = await useAsyncData("home-banners", () =>
-  getBannerList().catch(() => ({ list: [], has_more: false })),
-);
-// 热门置顶是运营位：无数据、加载中、请求失败都只是"不渲染这一块"，
-// 所以这里只保留静默兜底，不再往下传 pending/failed 状态。
-const { data: hotTopData } = await useAsyncData("home-hot-top", async () => {
-  try {
-    return await getHotTopArticles();
-  } catch (error) {
-    console.warn(`[home-hot-top] request failed, using fallback: ${formatRequestError(error)}`);
-    return { list: [], count: 0 };
-  }
-});
-
-const latestPager = await usePagedResourceCache({
-  cacheKey: () => "home-latest-articles",
-  pageSize: () => 9,
-  fetchPage: async (page, limit) => {
-    try {
-      latestRequestError.value = null;
-      const payload = await searchArticles({
-        type: 1,
-        page,
-        limit,
-        page_mode: "has_more",
-        sort: 2,
-      });
-      return {
-        items: payload.list,
-        hasMore: payload.pagination.has_more,
-      };
-    } catch (error) {
-      latestRequestError.value = error;
-      console.warn(`[home-latest-articles] request failed, using fallback: ${formatRequestError(error)}`);
-      return {
-        items: [],
-        hasMore: false,
-      };
-    }
-  },
-});
 
 useSeoMeta({
   title: siteStore.seo?.site_title || brandFullName(),

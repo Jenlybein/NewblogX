@@ -23,6 +23,18 @@ export function getArticleDetail(id: string | number) {
   return useNuxtApp().$api.request<ArticleDetail>(`/api/articles/${id}`);
 }
 
+/**
+ * 文章详情的**匿名**取数（ADR-0019 决策 5 / 约束 2）。
+ *
+ * 返回体里可能带 `is_digg`（"我有没有点过赞"）。服务端渲染的 HTML 要进按 URL 键的
+ * 共享缓存，所以 SSR 取数必须显式匿名（`auth: false`），再叠加
+ * `withoutPrivateFields` 把用户态字段整个剔掉；客户端首屏/跳转仍走
+ * {@link getArticleDetail}，用真实登录态补齐。
+ */
+export function getArticleDetailAnonymous(id: string | number) {
+  return useNuxtApp().$api.request<ArticleDetail>(`/api/articles/${id}`, { auth: false });
+}
+
 export function getArticleAuthorInfo(authorId: string | number) {
   return useNuxtApp().$api.request<ArticleAuthorInfo>("/api/articles/author_info", {
     auth: false,

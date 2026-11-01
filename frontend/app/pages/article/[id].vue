@@ -3,6 +3,7 @@ import type { ArticleHeadingAnchor } from "~/composables/useArticleMarkdown";
 import { computed, defineAsyncComponent, onMounted, onUnmounted, ref, shallowRef } from "vue";
 import { IconEye, IconHeart, IconMessageCircle2, IconShare2, IconThumbUp } from "@tabler/icons-vue";
 import { useMessage } from "naive-ui";
+import ArticlePageSkeleton from "~/components/article/ArticlePageSkeleton.vue";
 import ArticleScoreModal from "~/components/article/ArticleScoreModal.vue";
 import ArticleTocAnchor from "~/components/article/ArticleTocAnchor.vue";
 import AppAvatar from "~/components/common/AppAvatar.vue";
@@ -10,15 +11,14 @@ import CommentComposer from "~/components/comment/CommentComposer.vue";
 import CommentThread from "~/components/comment/CommentThread.vue";
 import FavoriteFolderModal from "~/components/favorite/FavoriteFolderModal.vue";
 import { useArticleDigg } from "~/composables/useArticleDigg";
+import { useArticlePageSources } from "~/composables/useArticlePageSources";
 import { useParallax } from "~/composables/useParallax";
 import { useReadingProgress } from "~/composables/useReadingProgress";
 import { useSectionReveal } from "~/composables/useSectionReveal";
 import { followUser, unfollowUser } from "~/services/follow";
 import { ApiBusinessError } from "~/services/http/errors";
-import { getArticleScoreSummary } from "~/services/ai";
-import { getArticleAuthorInfo, getArticleDetail, markArticleViewed, toggleArticleDigg } from "~/services/article";
-import { createComment, diggComment, getReplyComments, getRootComments } from "~/services/comment";
-import { getUserBaseInfo } from "~/services/user";
+import { markArticleViewed, toggleArticleDigg } from "~/services/article";
+import { createComment, diggComment, getReplyComments } from "~/services/comment";
 import type { CommentReplyItem } from "~/types/api";
 import { formatCount, formatDateTimeLabel } from "~/utils/format";
 import { getAuthorButtonLabel, isFollowing } from "~/utils/relation";
@@ -39,7 +39,6 @@ const shadowPreviewRef = ref<{
 } | null>(null);
 const articleHeadings = ref<ArticleHeadingAnchor[]>([]);
 
-const ROOT_COMMENT_PAGE_SIZE = 7;
 const REPLY_COMMENT_PAGE_SIZE = 3;
 const ARTICLE_LIKE_DEBOUNCE_MS = 600;
 const favoriteModalOpen = ref(false);
@@ -50,10 +49,23 @@ const articleScoreModalOpen = ref(false);
 const { target: revealTarget, revealStyle } = useSectionReveal();
 const { parallaxStyle } = useParallax();
 
-const { data: article, error: articleError, refresh: refreshArticle } = await useAsyncData(
-  () => `article-${articleId.value}`,
-  () => getArticleDetail(articleId.value),
-);
+// 文章页取数编排（ADR-0019 决策 3）：正文 / 评论 / 评分在 composable 里同时发起，
+// 作者资料依赖正文里的 author_id、作为第二波；客户端跳转不等数据，先出骨架。
+const {
+  article,
+  articlePending,
+  articleError,
+  refreshArticle,
+  authorInfo,
+  refreshAuthorInfo,
+  authorProfile,
+  refreshAuthorProfile,
+  articleScoreSummary,
+  articleScoreSummaryPending,
+  refreshArticleScoreSummary,
+  commentsPager,
+} = await useArticlePageSources({ articleId: () => articleId.value });
+
 const articleLoadError = computed(() => {
   const error = articleError.value;
   if (!error) {
@@ -71,56 +83,8 @@ const articleLoadError = computed(() => {
   return "文章详情暂时无法加载。";
 });
 const authorId = computed(() => article.value?.author_id || "");
-
-const { data: authorInfo, refresh: refreshAuthorInfo } = await useAsyncData<Awaited<ReturnType<typeof getArticleAuthorInfo>> | null>(
-  () => `article-author-info-${authorId.value || articleId.value}`,
-  () => (authorId.value ? getArticleAuthorInfo(authorId.value) : Promise.resolve(null)),
-  {
-    watch: [authorId],
-  },
-);
-
-const { data: authorProfile, refresh: refreshAuthorProfile } = await useAsyncData<Awaited<ReturnType<typeof getUserBaseInfo>> | null>(
-  () => `article-author-base-${authorId.value || articleId.value}`,
-  () => (authorId.value ? getUserBaseInfo(authorId.value).catch(() => null) : Promise.resolve(null)),
-  {
-    watch: [authorId],
-    server: false,
-    lazy: true,
-  },
-);
-
-const {
-  data: articleScoreSummary,
-  pending: articleScoreSummaryPending,
-  refresh: refreshArticleScoreSummary,
-} = await useAsyncData(
-  () => `article-score-summary:${articleId.value}`,
-  () => getArticleScoreSummary(articleId.value).catch(() => null),
-  {
-    watch: [articleId],
-    lazy: true,
-  },
-);
-
-const commentsPager = await usePagedResourceCache({
-  cacheKey: () => `article-comments:${articleId.value}`,
-  pageSize: () => ROOT_COMMENT_PAGE_SIZE,
-  fetchPage: async (page, limit) => {
-    try {
-      const payload = await getRootComments(articleId.value, page, limit);
-      return {
-        items: payload.list,
-        hasMore: payload.has_more,
-      };
-    } catch {
-      return {
-        items: [],
-        hasMore: false,
-      };
-    }
-  },
-});
+// 切页时（还没有正文）先出骨架；重试（正文已在）不闪骨架。
+const articleSkeleton = computed(() => articlePending.value && !article.value);
 
 interface ReplyPagePayload {
   items: CommentReplyItem[];
@@ -503,7 +467,10 @@ useSeoMeta({
 
 <template>
   <div class="article-page">
-    <section v-if="articleLoadError" class="article-paper article-paper--state">
+    <!-- 切页先出骨架：正文还没到时按文章页版式占位，不再让 Suspense 等"数据齐了才切页"。 -->
+    <ArticlePageSkeleton v-if="articleSkeleton" />
+
+    <section v-else-if="articleLoadError" class="article-paper article-paper--state">
       <p class="article-eyebrow">Article</p>
       <h1 class="article-state__title">文章详情暂不可用</h1>
       <p class="article-state__copy">

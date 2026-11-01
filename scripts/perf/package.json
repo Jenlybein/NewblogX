@@ -1,0 +1,19 @@
+{
+  "name": "blogx-perf",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "读者站浏览器性能测量尺子（Playwright）：首屏内容可见 / 切页内容可见 / 首屏字体字节 / 返回是否命中缓存。默认不进 CI，按需手动跑。",
+  "scripts": {
+    "measure": "node measure.mjs",
+    "selfcheck": "node --test",
+    "selfcheck:pure": "node --test test/aggregate.test.mjs test/report.test.mjs",
+    "install:browsers": "playwright install chromium"
+  },
+  "dependencies": {
+    "playwright": "1.64.1"
+  },
+  "engines": {
+    "node": ">=20.12.0"
+  }
+}

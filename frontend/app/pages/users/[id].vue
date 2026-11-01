@@ -1,7 +1,8 @@
 <script setup lang="ts">
-import { computed } from "vue";
+import { computed, shallowRef } from "vue";
 import { useMessage } from "naive-ui";
 import ArticleFeedItem from "~/components/article/ArticleFeedItem.vue";
+import LoadingSkeleton from "~/components/common/LoadingSkeleton.vue";
 import ProfileCollectionShelf from "~/components/profile/ProfileCollectionShelf.vue";
 import ProfileEmptyState from "~/components/profile/ProfileEmptyState.vue";
 import ProfileHeroCard from "~/components/profile/ProfileHeroCard.vue";
@@ -51,7 +52,7 @@ const favoriteFolderId = computed<string>({
   },
 });
 
-const { data: profile, refresh: refreshProfile } = await useAsyncData(
+const { data: profile, pending: profilePending, refresh: refreshProfile } = useAsyncData(
   () => `user-base-${userId.value}`,
   () =>
     getUserBaseInfo(userId.value)
@@ -94,7 +95,7 @@ const { data: profile, refresh: refreshProfile } = await useAsyncData(
 const isSelf = computed(() => authStore.profileId != null && String(authStore.profileId) === profile.value?.id);
 const relationText = computed(() => getAuthorButtonLabel(profile.value?.relation));
 
-const { data: selfDetail } = await useAsyncData(
+const { data: selfDetail } = useAsyncData(
   () => `self-detail:${authStore.profileId || "guest"}:${isSelf.value ? "self" : "other"}`,
   () => (isSelf.value ? getSelfUserDetail() : Promise.resolve(null)),
   {
@@ -118,17 +119,28 @@ const articleQuery = computed(() => ({
   sort: 2 as const,
 }));
 
-const { articles, pending: articlePending } = await useArticleSearch(articleQuery, {
+// 文章流与下面几个源一起在 setup 里**并行发起**（ADR-0019 约束 6：不得串行 await）：
+// `useArticleSearch` 内部已经开始取数，这里只把它的句柄等回来，不阻塞 setup。
+const articleSearchPromise = useArticleSearch(articleQuery, {
   key: computed(() => `user-articles:${userId.value}`),
   server: false,
   lazy: true,
 });
+type UserArticlesState = Awaited<ReturnType<typeof useArticleSearch>>;
+const articleSearch = shallowRef<UserArticlesState | null>(null);
+void articleSearchPromise
+  .then((state) => {
+    articleSearch.value = state;
+  })
+  .catch(() => undefined);
+const articles = computed(() => articleSearch.value?.articles.value ?? []);
+const articlePending = computed(() => articleSearch.value?.pending.value ?? true);
 
 const favoriteLocked = computed(() => !isSelf.value && profile.value?.favorites_visibility === false);
 const followLocked = computed(() => !authStore.isLoggedIn || (!isSelf.value && profile.value?.followers_visibility === false));
 const fansLocked = computed(() => !authStore.isLoggedIn || (!isSelf.value && profile.value?.fans_visibility === false));
 
-const { data: favoriteFolders, pending: favoriteFoldersPending } = await useAsyncData(
+const { data: favoriteFolders, pending: favoriteFoldersPending } = useAsyncData(
   () => `user-favorite-folders:${userId.value}:${isSelf.value ? "self" : "public"}:${favoriteLocked.value ? "locked" : "open"}`,
   async () => {
     if (favoriteLocked.value) {
@@ -159,7 +171,7 @@ watch(
   { immediate: true },
 );
 
-const { data: favoriteArticles, pending: favoriteArticlesPending } = await useAsyncData(
+const { data: favoriteArticles, pending: favoriteArticlesPending } = useAsyncData(
   () => `user-favorite-articles:${favoriteFolderId.value || "empty"}:${favoriteLocked.value ? "locked" : "open"}`,
   async () => {
     if (favoriteLocked.value || !favoriteFolderId.value) {
@@ -177,7 +189,7 @@ const { data: favoriteArticles, pending: favoriteArticlesPending } = await useAs
   },
 );
 
-const { data: followData, pending: followPending, refresh: refreshFollowData } = await useAsyncData(
+const { data: followData, pending: followPending, refresh: refreshFollowData } = useAsyncData(
   () => `user-follow:${userId.value}:${authStore.profileId || "guest"}:${followLocked.value ? "locked" : "open"}`,
   async () => {
     if (followLocked.value) {
@@ -195,7 +207,7 @@ const { data: followData, pending: followPending, refresh: refreshFollowData } =
   },
 );
 
-const { data: fansData, pending: fansPending, refresh: refreshFansData } = await useAsyncData(
+const { data: fansData, pending: fansPending, refresh: refreshFansData } = useAsyncData(
   () => `user-fans:${userId.value}:${authStore.profileId || "guest"}:${fansLocked.value ? "locked" : "open"}`,
   async () => {
     if (fansLocked.value) {
@@ -326,6 +338,7 @@ useSeoMeta({
   <div class="page-stack">
     <div class="content-grid">
       <div class="page-stack">
+        <!-- 骨架优先（ADR-0019 约束 6）：所有源并行发起、setup 不等待；资料未到时先占位。 -->
         <ProfileHeroCard
           v-if="profile"
           :profile="profile"
@@ -336,6 +349,12 @@ useSeoMeta({
           :action-active="isFollowing(profile?.relation)"
           @follow="handleFollow"
           @message="handlePrivateMessage"
+        />
+        <LoadingSkeleton
+          v-else-if="profilePending"
+          :rows="3"
+          variant="card"
+          label="作者主页正在加载"
         />
 
         <section class="blueprint-panel">
@@ -376,7 +395,11 @@ useSeoMeta({
           </div>
 
           <template v-if="activeTab === 'articles'">
-            <div v-if="articles.length" class="space-y-4">
+            <!-- 结果区骨架优先：文章流还在路上时先出占位，不再用「加载中…」空态代替版式。 -->
+            <div v-if="articlePending && !articles.length" class="space-y-4">
+              <LoadingSkeleton :rows="3" variant="card" label="作者文章正在加载" />
+            </div>
+            <div v-else-if="articles.length" class="space-y-4">
               <ArticleFeedItem
                 v-for="article in articles"
                 :key="article.id"

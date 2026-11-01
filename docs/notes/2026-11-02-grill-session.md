@@ -583,6 +583,20 @@ DDL 的 DROP 是 QUERY_EVENT，**不走 `OnRow`**（`imageref/river.go:117-129` 
 **影响面**：不止令牌版本。任何"同表 + 同 WHERE + 不同目标结构体"的组合都会中招，且表现为**字段静默归零而非报错**。`Authenticate` 也走 `FindByID`，故 #97/#98 的登录态误判可能还有别的入口。
 → **#99 只修了 refresh 一条路径的后果，根因仍在**，故单开 #132（让缓存标识带上目标类型，或关闭该插件并评估其"写操作触发全表 SCAN 式失效"的成本）。
 
+### #132：查询缓存污染已修复（根因核实 + 红→绿实证）
+
+**根因成立并已实测复现**。`Take` 不带 Select 时生成的是 `SELECT *`，所以窄结构体查询缓存的 JSON **本来含全列**——这一点最初让我误以为根因不成立。真正的开关是**软删条件**：`deleted_at IS NULL` 是拼进 SQL 的，窄结构体若不带 `DeletedAt`，SQL 就不同、命中不到同一个键，污染复现不出来（**测试会假绿**）。真实的 article `userRow` 内嵌 `BaseRow`（含 `DeletedAt`），与整行结构体 SQL **完全一致**，所以线上会中招。护栏用例正是照这个形状构造的。
+
+复现输出（修复前）：
+```
+缓存 JSON = {"Dest":{"ID":"7201","Username":"cache_user","Nickname":"缓存用户","Role":0,...}}
+整行查询被窄行缓存污染：token_version 应为真实库值 7，实际 0
+```
+
+**修法**：Cacher 拿得到 `Dest`，在这一层把形状（类型名）补进键里——不改插件内部、不替换插件。实现放 `internal/platform/mysql/querycache.go` 并**只此一份**，生产 `core/init_db.go` 与测试基建 `testkit/mysqlcontainer` 共用（两份的话测试验证的就不是生产行为）。用类型名而不是值：值随行内容变化会让缓存永远命中不了。
+
+**成本评估结论：建议后续关闭该插件（未在本票内关闭）**。插件在 Create/Update/Delete 回调里无条件 `Invalidate`，而 `redisCacher` 的实现是 `SCAN gorm-caches::*` 全量扫描 + DEL —— **任何一次写都清空全部缓存**（已加 `TestAnyWriteWipesTheWholeCache` 钉住）。本站每次文章浏览都要写浏览计数，写极频繁 → 缓存刚存进去就被清空，命中率趋近于 0，却每次写都付一次 O(N) 的 Redis SCAN。关闭会改变生产读性能特征，故单独评估，不在本票一并处理。
+
 ### 附带修掉的既有基建缺陷（影响面超出 #96）
 
 `testkit/mysqlcontainer` 的 `DB()` 未开 `TranslateError`，而生产 `core/init_db.go:109` 是开的。后果：`RestoreOrCreateUnique` 靠 `gorm.ErrDuplicatedKey` 判别"唯一键冲突 == 已存在"，测试容器里该分支走不到，**在生产不会报错的地方假红**；同时让评论/关注模块的既有集成测试对唯一键行为失去保护。已修（1 行）。

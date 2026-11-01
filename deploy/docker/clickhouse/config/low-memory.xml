@@ -1,0 +1,34 @@
+<clickhouse>
+    <!-- 小机器(≤4 GB 内存 / 2 vCPU)的资源收敛 —— 服务器部分。
+
+         本目录(config.d/)只放"服务器级"设置,即出现在 system.server_settings
+         里的那些。会话级设置(profiler / max_memory_usage 等,出现在
+         system.settings)放在 ../users.d/ —— 放错目录会被静默忽略。
+
+         这套 compose 的各服务 limits 加起来远超一台 4 GB 机器能给的,
+         结果是 mysqld / ES / clickhouse 的热数据被换到 swap,
+         站点表现为"时快时慢"。这组配置不解决"机器太小"这个根因,
+         但能让 ClickHouse 这一侧的占用贴近它的真实配额。
+    -->
+
+    <!-- max_server_memory_usage 是服务器级的整体上限;
+         单查询上限 max_memory_usage 在 users.d/low-memory.xml -->
+    <max_server_memory_usage>1500000000</max_server_memory_usage>
+
+    <!-- 并发控制:小机器上不要让 IO 打满 -->
+    <max_concurrent_queries>20</max_concurrent_queries>
+    <max_concurrent_select_queries>10</max_concurrent_select_queries>
+
+    <!-- 各种 cache 上限 -->
+    <uncompressed_cache_size>67108864</uncompressed_cache_size>
+    <mark_cache_size>268435456</mark_cache_size>
+    <index_mark_cache_size>134217728</index_mark_cache_size>
+
+    <!-- 网络相关,顺便收紧 -->
+    <max_connections>256</max_connections>
+    <keep_alive_timeout>10</keep_alive_timeout>
+
+    <!-- 注意:background_pool_size 与 background_merges_mutations_concurrency_ratio
+         统一在 system-log-ttl.xml 里声明,这里不重复写,避免多份 config
+         互相覆盖后难以推理。 -->
+</clickhouse>

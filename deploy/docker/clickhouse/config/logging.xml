@@ -1,0 +1,37 @@
+<clickhouse>
+    <!-- ClickHouse 自身日志文件的轮转策略。
+
+         注意:这管的是容器内 /var/log/clickhouse-server/ 下那两个文件
+         (clickhouse-server.log / clickhouse-server.err.log),它们通过
+         compose 的 volumes 落在宿主机 state/clickhouse/logs/ 里。
+
+         它与另外两件事都不同,不要混淆:
+         - compose 的 `logging:` 选项只管容器 stdout(stderr 落到
+           /var/lib/docker/containers/...-json.log),管不到这里的文件;
+         - system.text_log 是数据库内部的表,归 TTL 管。
+
+         官方镜像默认值有多离谱:
+             <level>trace</level>     ← trace 级,极其啰嗦
+             <size>1000M</size>       ← 单个文件上限 1 GB
+             <count>10</count>        ← 保留 10 份
+         即单类日志理论上可堆到 10 GB。本项目实测 12 小时就攒了 731 MB
+         (clickhouse-server.log 75.8 MB + 8 个 gz 备份 ≈ 430 MB;
+          err.log 10.7 MB + 6 个 gz 备份 ≈ 225 MB)。
+
+         这里收紧:level 降到 warning、单文件 50 MB、保留 3 份。
+         最坏情况 50M × 3 × 2 个文件 = 300 MB,实际远低于此(warning 级
+         平时几乎不产出)。真要排查问题,error_log 表 + system.query_log
+         仍然完整可用,不受这里影响。
+
+         注意:以下 <log>/<errorlog> 路径必须写全。config.d 的合并语义在
+         不同版本上表现不一致,只写 level/size/count 有版本会整体替换
+         <logger> 节点,导致路径丢失、日志写到别处或干脆不写。
+    -->
+    <logger>
+        <level>warning</level>
+        <log>/var/log/clickhouse-server/clickhouse-server.log</log>
+        <errorlog>/var/log/clickhouse-server/clickhouse-server.err.log</errorlog>
+        <size>50M</size>
+        <count>3</count>
+    </logger>
+</clickhouse>

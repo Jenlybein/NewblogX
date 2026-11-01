@@ -1,4 +1,4 @@
-﻿services:
+services:
   mysql-master:
     image: "mysql:8.0"
     container_name: mysql-master
@@ -169,6 +169,13 @@
       - ../../state/clickhouse/data:/var/lib/clickhouse
       - ../../state/clickhouse/logs:/var/log/clickhouse-server
       - ../../docker/clickhouse/init:/docker-entrypoint-initdb.d
+      # 覆盖官方镜像默认配置:关 profiler、给 system.*_log 加 TTL、按小机收敛
+      # 详见 deploy/docker/clickhouse/config/README.md
+      - ../../docker/clickhouse/config:/etc/clickhouse-server/config.d:ro
+      # 会话级设置(profiles)必须挂到 users.d/,挂 config.d/ 会被静默忽略。
+      # 不能加 :ro —— entrypoint 每次启动都要写 default-user.xml(含密码),
+      # 只读挂载会报 "Read-only file system" 并以 Exit 1 无限重启。
+      - ../../docker/clickhouse/users.d:/etc/clickhouse-server/users.d
     healthcheck:
       test:
         [

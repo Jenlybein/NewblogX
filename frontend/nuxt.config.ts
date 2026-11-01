@@ -245,7 +245,14 @@ export default defineNuxtConfig({
     },
     devProxy,
   },
+  // 渲染边界是**白名单**（ADR-0019 决策 1 / 约束 1），不是"按页面随手加"：
+  // 服务端渲染只留给 `/` 与 `/article/**`（分享卡片与搜索引擎靠它）；列表页
+  // 与个人主页的抓取价值不足以抵消每次直达的服务端渲染代价，搜索页与创作区
+  // 维持 SPA。判定与"非白名单路由开 SSR 会红"的门禁在
+  // test/gates/rendering-boundary.test.ts —— 增删这条规则前先改 ADR。
   routeRules: {
+    "/articles": { ssr: false },
+    "/users/**": { ssr: false },
     "/search": { ssr: false },
     "/studio/**": { ssr: false },
   },

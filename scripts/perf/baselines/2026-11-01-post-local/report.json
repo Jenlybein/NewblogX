@@ -1,0 +1,840 @@
+{
+  "schemaVersion": 1,
+  "tool": "blogx-perf",
+  "meta": {
+    "base": "http://127.0.0.1:3000",
+    "label": "2026-11-01-post-local",
+    "runs": 3,
+    "modes": [
+      "cold",
+      "warm"
+    ],
+    "viewport": "1440x900",
+    "chromium": "156.0.8078.4",
+    "generatedAt": "2026-11-01T14:37:24.648Z"
+  },
+  "budgets": {
+    "firstScreenContentVisibleMs": 800,
+    "transitionContentVisibleMs": 300,
+    "firstScreenFontBytes": 102400,
+    "backCacheDataWallMs": 50
+  },
+  "scenarios": {
+    "firstScreen.home": {
+      "group": "firstScreen",
+      "label": "首页 `/`",
+      "modes": {
+        "cold": {
+          "runs": [
+            {
+              "run": 1,
+              "ok": true,
+              "contentVisibleMs": 435,
+              "fontBytes": 93108,
+              "requestCount": 70,
+              "totalBytes": 1634564,
+              "apiCount": 5,
+              "pageErrors": 0,
+              "contentSelector": ".feed-entry"
+            },
+            {
+              "run": 2,
+              "ok": true,
+              "contentVisibleMs": 314,
+              "fontBytes": 93108,
+              "requestCount": 70,
+              "totalBytes": 1634564,
+              "apiCount": 5,
+              "pageErrors": 0,
+              "contentSelector": ".feed-entry"
+            },
+            {
+              "run": 3,
+              "ok": true,
+              "contentVisibleMs": 281,
+              "fontBytes": 93108,
+              "requestCount": 70,
+              "totalBytes": 1634564,
+              "apiCount": 5,
+              "pageErrors": 0,
+              "contentSelector": ".feed-entry"
+            }
+          ],
+          "aggregates": {
+            "contentVisibleMs": {
+              "measured": 3,
+              "unmeasured": 0,
+              "median": 314,
+              "worst": 435
+            },
+            "fontBytes": {
+              "measured": 3,
+              "unmeasured": 0,
+              "median": 93108,
+              "worst": 93108
+            },
+            "requestCount": {
+              "measured": 3,
+              "unmeasured": 0,
+              "median": 70,
+              "worst": 70
+            },
+            "totalBytes": {
+              "measured": 3,
+              "unmeasured": 0,
+              "median": 1634564,
+              "worst": 1634564
+            },
+            "apiCount": {
+              "measured": 3,
+              "unmeasured": 0,
+              "median": 5,
+              "worst": 5
+            },
+            "pageErrors": {
+              "measured": 3,
+              "unmeasured": 0,
+              "median": 0,
+              "worst": 0
+            }
+          },
+          "verdicts": {
+            "contentVisibleMs": "pass"
+          }
+        },
+        "warm": {
+          "runs": [
+            {
+              "run": 1,
+              "ok": true,
+              "contentVisibleMs": 172,
+              "fontBytes": 93108,
+              "requestCount": 70,
+              "totalBytes": 1634564,
+              "apiCount": 5,
+              "pageErrors": 0,
+              "contentSelector": ".feed-entry"
+            },
+            {
+              "run": 2,
+              "ok": true,
+              "contentVisibleMs": 161,
+              "fontBytes": 93108,
+              "requestCount": 66,
+              "totalBytes": 1633208,
+              "apiCount": 1,
+              "pageErrors": 0,
+              "contentSelector": ".feed-entry"
+            },
+            {
+              "run": 3,
+              "ok": true,
+              "contentVisibleMs": 160,
+              "fontBytes": 93108,
+              "requestCount": 66,
+              "totalBytes": 1633208,
+              "apiCount": 1,
+              "pageErrors": 0,
+              "contentSelector": ".feed-entry"
+            }
+          ],
+          "aggregates": {
+            "contentVisibleMs": {
+              "measured": 3,
+              "unmeasured": 0,
+              "median": 161,
+              "worst": 172
+            },
+            "fontBytes": {
+              "measured": 3,
+              "unmeasured": 0,
+              "median": 93108,
+              "worst": 93108
+            },
+            "requestCount": {
+              "measured": 3,
+              "unmeasured": 0,
+              "median": 66,
+              "worst": 70
+            },
+            "totalBytes": {
+              "measured": 3,
+              "unmeasured": 0,
+              "median": 1633208,
+              "worst": 1634564
+            },
+            "apiCount": {
+              "measured": 3,
+              "unmeasured": 0,
+              "median": 1,
+              "worst": 5
+            },
+            "pageErrors": {
+              "measured": 3,
+              "unmeasured": 0,
+              "median": 0,
+              "worst": 0
+            }
+          },
+          "verdicts": {
+            "contentVisibleMs": "pass"
+          }
+        }
+      }
+    },
+    "firstScreen.article": {
+      "group": "firstScreen",
+      "label": "文章页",
+      "modes": {
+        "cold": {
+          "runs": [
+            {
+              "run": 1,
+              "ok": true,
+              "contentVisibleMs": 592,
+              "fontBytes": 93108,
+              "requestCount": 69,
+              "totalBytes": 1661917,
+              "apiCount": 3,
+              "pageErrors": 0,
+              "contentSelector": ".article-page h1"
+            },
+            {
+              "run": 2,
+              "ok": true,
+              "contentVisibleMs": 298,
+              "fontBytes": 93108,
+              "requestCount": 69,
+              "totalBytes": 1661917,
+              "apiCount": 3,
+              "pageErrors": 0,
+              "contentSelector": ".article-page h1"
+            },
+            {
+              "run": 3,
+              "ok": true,
+              "contentVisibleMs": 293,
+              "fontBytes": 93108,
+              "requestCount": 69,
+              "totalBytes": 1661917,
+              "apiCount": 3,
+              "pageErrors": 0,
+              "contentSelector": ".article-page h1"
+            }
+          ],
+          "aggregates": {
+            "contentVisibleMs": {
+              "measured": 3,
+              "unmeasured": 0,
+              "median": 298,
+              "worst": 592
+            },
+            "fontBytes": {
+              "measured": 3,
+              "unmeasured": 0,
+              "median": 93108,
+              "worst": 93108
+            },
+            "requestCount": {
+              "measured": 3,
+              "unmeasured": 0,
+              "median": 69,
+              "worst": 69
+            },
+            "totalBytes": {
+              "measured": 3,
+              "unmeasured": 0,
+              "median": 1661917,
+              "worst": 1661917
+            },
+            "apiCount": {
+              "measured": 3,
+              "unmeasured": 0,
+              "median": 3,
+              "worst": 3
+            },
+            "pageErrors": {
+              "measured": 3,
+              "unmeasured": 0,
+              "median": 0,
+              "worst": 0
+            }
+          },
+          "verdicts": {
+            "contentVisibleMs": "pass"
+          }
+        },
+        "warm": {
+          "runs": [
+            {
+              "run": 1,
+              "ok": true,
+              "contentVisibleMs": 167,
+              "fontBytes": 93108,
+              "requestCount": 69,
+              "totalBytes": 1661917,
+              "apiCount": 3,
+              "pageErrors": 0,
+              "contentSelector": ".article-page h1"
+            },
+            {
+              "run": 2,
+              "ok": true,
+              "contentVisibleMs": 184,
+              "fontBytes": 93108,
+              "requestCount": 69,
+              "totalBytes": 1661917,
+              "apiCount": 3,
+              "pageErrors": 0,
+              "contentSelector": ".article-page h1"
+            },
+            {
+              "run": 3,
+              "ok": true,
+              "contentVisibleMs": 164,
+              "fontBytes": 93108,
+              "requestCount": 69,
+              "totalBytes": 1661917,
+              "apiCount": 3,
+              "pageErrors": 0,
+              "contentSelector": ".article-page h1"
+            }
+          ],
+          "aggregates": {
+            "contentVisibleMs": {
+              "measured": 3,
+              "unmeasured": 0,
+              "median": 167,
+              "worst": 184
+            },
+            "fontBytes": {
+              "measured": 3,
+              "unmeasured": 0,
+              "median": 93108,
+              "worst": 93108
+            },
+            "requestCount": {
+              "measured": 3,
+              "unmeasured": 0,
+              "median": 69,
+              "worst": 69
+            },
+            "totalBytes": {
+              "measured": 3,
+              "unmeasured": 0,
+              "median": 1661917,
+              "worst": 1661917
+            },
+            "apiCount": {
+              "measured": 3,
+              "unmeasured": 0,
+              "median": 3,
+              "worst": 3
+            },
+            "pageErrors": {
+              "measured": 3,
+              "unmeasured": 0,
+              "median": 0,
+              "worst": 0
+            }
+          },
+          "verdicts": {
+            "contentVisibleMs": "pass"
+          }
+        }
+      }
+    },
+    "transition.homeToArticle": {
+      "group": "transition",
+      "label": "首页 → 文章",
+      "modes": {
+        "cold": {
+          "runs": [
+            {
+              "run": 1,
+              "ok": true,
+              "contentVisibleMs": 220,
+              "clickToUrlMs": 19,
+              "clickToErrorMs": null,
+              "timeoutMs": 12000,
+              "apiCount": 6,
+              "apiWallMs": 231,
+              "pageErrors": 0,
+              "errorMsg": null,
+              "pageErrorMsg": null
+            },
+            {
+              "run": 2,
+              "ok": true,
+              "contentVisibleMs": 230,
+              "clickToUrlMs": 29,
+              "clickToErrorMs": null,
+              "timeoutMs": 12000,
+              "apiCount": 6,
+              "apiWallMs": 225,
+              "pageErrors": 0,
+              "errorMsg": null,
+              "pageErrorMsg": null
+            },
+            {
+              "run": 3,
+              "ok": true,
+              "contentVisibleMs": 226,
+              "clickToUrlMs": 24,
+              "clickToErrorMs": null,
+              "timeoutMs": 12000,
+              "apiCount": 6,
+              "apiWallMs": 215,
+              "pageErrors": 0,
+              "errorMsg": null,
+              "pageErrorMsg": null
+            }
+          ],
+          "aggregates": {
+            "contentVisibleMs": {
+              "measured": 3,
+              "unmeasured": 0,
+              "median": 226,
+              "worst": 230
+            },
+            "clickToUrlMs": {
+              "measured": 3,
+              "unmeasured": 0,
+              "median": 24,
+              "worst": 29
+            },
+            "clickToErrorMs": {
+              "measured": 0,
+              "unmeasured": 3,
+              "median": null,
+              "worst": null
+            },
+            "timeoutMs": {
+              "measured": 3,
+              "unmeasured": 0,
+              "median": 12000,
+              "worst": 12000
+            },
+            "apiCount": {
+              "measured": 3,
+              "unmeasured": 0,
+              "median": 6,
+              "worst": 6
+            },
+            "apiWallMs": {
+              "measured": 3,
+              "unmeasured": 0,
+              "median": 225,
+              "worst": 231
+            },
+            "pageErrors": {
+              "measured": 3,
+              "unmeasured": 0,
+              "median": 0,
+              "worst": 0
+            }
+          },
+          "outcome": "visible",
+          "verdicts": {
+            "contentVisibleMs": "pass"
+          }
+        },
+        "warm": {
+          "runs": [
+            {
+              "run": 1,
+              "ok": true,
+              "contentVisibleMs": 233,
+              "clickToUrlMs": 32,
+              "clickToErrorMs": null,
+              "timeoutMs": 12000,
+              "apiCount": 6,
+              "apiWallMs": 254,
+              "pageErrors": 0,
+              "errorMsg": null,
+              "pageErrorMsg": null
+            },
+            {
+              "run": 2,
+              "ok": true,
+              "contentVisibleMs": 232,
+              "clickToUrlMs": 31,
+              "clickToErrorMs": null,
+              "timeoutMs": 12000,
+              "apiCount": 6,
+              "apiWallMs": 239,
+              "pageErrors": 0,
+              "errorMsg": null,
+              "pageErrorMsg": null
+            },
+            {
+              "run": 3,
+              "ok": true,
+              "contentVisibleMs": 231,
+              "clickToUrlMs": 30,
+              "clickToErrorMs": null,
+              "timeoutMs": 12000,
+              "apiCount": 6,
+              "apiWallMs": 250,
+              "pageErrors": 0,
+              "errorMsg": null,
+              "pageErrorMsg": null
+            }
+          ],
+          "aggregates": {
+            "contentVisibleMs": {
+              "measured": 3,
+              "unmeasured": 0,
+              "median": 232,
+              "worst": 233
+            },
+            "clickToUrlMs": {
+              "measured": 3,
+              "unmeasured": 0,
+              "median": 31,
+              "worst": 32
+            },
+            "clickToErrorMs": {
+              "measured": 0,
+              "unmeasured": 3,
+              "median": null,
+              "worst": null
+            },
+            "timeoutMs": {
+              "measured": 3,
+              "unmeasured": 0,
+              "median": 12000,
+              "worst": 12000
+            },
+            "apiCount": {
+              "measured": 3,
+              "unmeasured": 0,
+              "median": 6,
+              "worst": 6
+            },
+            "apiWallMs": {
+              "measured": 3,
+              "unmeasured": 0,
+              "median": 250,
+              "worst": 254
+            },
+            "pageErrors": {
+              "measured": 3,
+              "unmeasured": 0,
+              "median": 0,
+              "worst": 0
+            }
+          },
+          "outcome": "visible",
+          "verdicts": {
+            "contentVisibleMs": "pass"
+          }
+        }
+      }
+    },
+    "backCache.articleToHome": {
+      "group": "backCache",
+      "label": "首页 → 文章 → 返回首页",
+      "modes": {
+        "cold": {
+          "runs": [
+            {
+              "run": 1,
+              "ok": true,
+              "dataRequestCount": 0,
+              "dataWallMs": 0,
+              "allRequestCount": 0,
+              "pageErrors": 0,
+              "backFlow": "spa",
+              "entryFlow": "spa",
+              "clickToArticleMs": 230,
+              "documentNavigation": false
+            },
+            {
+              "run": 2,
+              "ok": true,
+              "dataRequestCount": 0,
+              "dataWallMs": 0,
+              "allRequestCount": 0,
+              "pageErrors": 0,
+              "backFlow": "spa",
+              "entryFlow": "spa",
+              "clickToArticleMs": 230,
+              "documentNavigation": false
+            },
+            {
+              "run": 3,
+              "ok": true,
+              "dataRequestCount": 0,
+              "dataWallMs": 0,
+              "allRequestCount": 0,
+              "pageErrors": 0,
+              "backFlow": "spa",
+              "entryFlow": "spa",
+              "clickToArticleMs": 225,
+              "documentNavigation": false
+            }
+          ],
+          "aggregates": {
+            "dataRequestCount": {
+              "measured": 3,
+              "unmeasured": 0,
+              "median": 0,
+              "worst": 0
+            },
+            "dataWallMs": {
+              "measured": 3,
+              "unmeasured": 0,
+              "median": 0,
+              "worst": 0
+            },
+            "allRequestCount": {
+              "measured": 3,
+              "unmeasured": 0,
+              "median": 0,
+              "worst": 0
+            },
+            "pageErrors": {
+              "measured": 3,
+              "unmeasured": 0,
+              "median": 0,
+              "worst": 0
+            }
+          },
+          "documentNavigation": "no",
+          "cacheHitRuns": 3,
+          "backFlow": "spa",
+          "entryFlow": "spa",
+          "verdicts": {
+            "cacheHit": "pass"
+          }
+        },
+        "warm": {
+          "runs": [
+            {
+              "run": 1,
+              "ok": true,
+              "dataRequestCount": 0,
+              "dataWallMs": 0,
+              "allRequestCount": 0,
+              "pageErrors": 0,
+              "backFlow": "spa",
+              "entryFlow": "spa",
+              "clickToArticleMs": 214,
+              "documentNavigation": false
+            },
+            {
+              "run": 2,
+              "ok": true,
+              "dataRequestCount": 0,
+              "dataWallMs": 0,
+              "allRequestCount": 0,
+              "pageErrors": 0,
+              "backFlow": "spa",
+              "entryFlow": "spa",
+              "clickToArticleMs": 217,
+              "documentNavigation": false
+            },
+            {
+              "run": 3,
+              "ok": true,
+              "dataRequestCount": 0,
+              "dataWallMs": 0,
+              "allRequestCount": 0,
+              "pageErrors": 0,
+              "backFlow": "spa",
+              "entryFlow": "spa",
+              "clickToArticleMs": 216,
+              "documentNavigation": false
+            }
+          ],
+          "aggregates": {
+            "dataRequestCount": {
+              "measured": 3,
+              "unmeasured": 0,
+              "median": 0,
+              "worst": 0
+            },
+            "dataWallMs": {
+              "measured": 3,
+              "unmeasured": 0,
+              "median": 0,
+              "worst": 0
+            },
+            "allRequestCount": {
+              "measured": 3,
+              "unmeasured": 0,
+              "median": 0,
+              "worst": 0
+            },
+            "pageErrors": {
+              "measured": 3,
+              "unmeasured": 0,
+              "median": 0,
+              "worst": 0
+            }
+          },
+          "documentNavigation": "no",
+          "cacheHitRuns": 3,
+          "backFlow": "spa",
+          "entryFlow": "spa",
+          "verdicts": {
+            "cacheHit": "pass"
+          }
+        }
+      }
+    }
+  },
+  "fonts": {
+    "home": {
+      "label": "首页",
+      "cold": {
+        "totalBytes": {
+          "measured": 3,
+          "unmeasured": 0,
+          "median": 93108,
+          "worst": 93108
+        },
+        "notoBytes": {
+          "measured": 3,
+          "unmeasured": 0,
+          "median": 0,
+          "worst": 0
+        },
+        "files": [
+          {
+            "file": "inter-latin-wght-normal.Dx4kXJAl.woff2",
+            "bytes": 48256
+          },
+          {
+            "file": "sora-latin-700-normal.9waGdLWo.woff2",
+            "bytes": 15128
+          },
+          {
+            "file": "sora-latin-600-normal.Cdg4DaK0.woff2",
+            "bytes": 15000
+          },
+          {
+            "file": "sora-latin-400-normal.CRt88UEn.woff2",
+            "bytes": 14724
+          }
+        ],
+        "verdicts": {
+          "totalBytes": "pass"
+        }
+      },
+      "warm": {
+        "totalBytes": {
+          "measured": 3,
+          "unmeasured": 0,
+          "median": 93108,
+          "worst": 93108
+        },
+        "notoBytes": {
+          "measured": 3,
+          "unmeasured": 0,
+          "median": 0,
+          "worst": 0
+        },
+        "files": [
+          {
+            "file": "inter-latin-wght-normal.Dx4kXJAl.woff2",
+            "bytes": 48256
+          },
+          {
+            "file": "sora-latin-700-normal.9waGdLWo.woff2",
+            "bytes": 15128
+          },
+          {
+            "file": "sora-latin-600-normal.Cdg4DaK0.woff2",
+            "bytes": 15000
+          },
+          {
+            "file": "sora-latin-400-normal.CRt88UEn.woff2",
+            "bytes": 14724
+          }
+        ],
+        "verdicts": {
+          "totalBytes": "pass"
+        }
+      }
+    },
+    "article": {
+      "label": "文章页",
+      "cold": {
+        "totalBytes": {
+          "measured": 3,
+          "unmeasured": 0,
+          "median": 93108,
+          "worst": 93108
+        },
+        "notoBytes": {
+          "measured": 3,
+          "unmeasured": 0,
+          "median": 0,
+          "worst": 0
+        },
+        "files": [
+          {
+            "file": "inter-latin-wght-normal.Dx4kXJAl.woff2",
+            "bytes": 48256
+          },
+          {
+            "file": "sora-latin-700-normal.9waGdLWo.woff2",
+            "bytes": 15128
+          },
+          {
+            "file": "sora-latin-600-normal.Cdg4DaK0.woff2",
+            "bytes": 15000
+          },
+          {
+            "file": "sora-latin-400-normal.CRt88UEn.woff2",
+            "bytes": 14724
+          }
+        ],
+        "verdicts": {
+          "totalBytes": "pass"
+        }
+      },
+      "warm": {
+        "totalBytes": {
+          "measured": 3,
+          "unmeasured": 0,
+          "median": 93108,
+          "worst": 93108
+        },
+        "notoBytes": {
+          "measured": 3,
+          "unmeasured": 0,
+          "median": 0,
+          "worst": 0
+        },
+        "files": [
+          {
+            "file": "inter-latin-wght-normal.Dx4kXJAl.woff2",
+            "bytes": 48256
+          },
+          {
+            "file": "sora-latin-700-normal.9waGdLWo.woff2",
+            "bytes": 15128
+          },
+          {
+            "file": "sora-latin-600-normal.Cdg4DaK0.woff2",
+            "bytes": 15000
+          },
+          {
+            "file": "sora-latin-400-normal.CRt88UEn.woff2",
+            "bytes": 14724
+          }
+        ],
+        "verdicts": {
+          "totalBytes": "pass"
+        }
+      }
+    }
+  },
+  "notes": [
+    "改后（最终）：集成分支 feat/reader-perf tip de433aa + 页面过渡 200ms→120ms（#87 收尾调档）的本地生产构建，127.0.0.1:3000，API 上游 gentlybeing.cn。生产站仍是旧构建，故改后只能在本地同脚本测量。",
+    "字体字节是资源计时里的体积（encodedBodySize）：热模式即便命中 HTTP 缓存，该体积仍会被报告，它不代表热启动的新增下载量；字体预算判定以冷模式为准（新增下载量看 transferSize，本报告未单列）。"
+  ]
+}

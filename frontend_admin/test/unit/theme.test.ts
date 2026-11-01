@@ -248,12 +248,14 @@ describe("字体与语义细节保持既有口径", () => {
   const button = lightOverrides.Button ?? {};
   const tag = lightOverrides.Tag ?? {};
 
-  it("字体栈含中文字体（英文 Inter 在前，中文 Noto 在系统中文之前）", () => {
+  it("字体栈含中文（英文 Inter 在前，中文走系统字体栈，不再自托管）", () => {
     const stack = String(common.fontFamily);
 
     expect(stack).toBe(FONT_STACK);
     expect(stack).not.toContain('"Sora"');
-    expect(stack.indexOf('"Noto Sans SC"')).toBeLessThan(stack.indexOf('"PingFang SC"'));
+    expect(stack).toContain('"PingFang SC"');
+    expect(stack).not.toContain('"Noto Sans SC Fallback"');
+    expect(stack.indexOf('"PingFang SC"')).toBeLessThan(stack.indexOf('"Noto Sans SC"'));
     expect(String(common.fontFamilyMono)).toBe(FONT_MONO);
   });
 

@@ -26,7 +26,7 @@ import { clampCharmLogoSize } from "~/utils/decoCharm";
  * 在移动无关 —— 上限只影响"每秒画几次"，不影响绳子运动速度。
  *
  * 指针端偏移（`pointer_offset_x` / `pointer_offset_y`）**不在这里加**：它由组合式
- * 换算进物理头节点，本组件的路径与 `transform` 直接读那份结果。渲染层再偏一次，
+ * 换算进指针端节点，本组件的路径与 `transform` 直接读那份结果。渲染层再偏一次，
  * 弧垂与张力就会算在错的原点上（ADR-0018 约束 7）。
  */
 const siteStore = useSiteStore();
@@ -40,24 +40,40 @@ const runtimeConfig = useRuntimeConfig();
 const logoSrc = computed(() => brandAssetUrl(String(runtimeConfig.app.baseURL || "/"), "logo"));
 
 const charmConfig = computed(() => siteStore.deco?.charm);
-const logoSize = computed(() => clampCharmLogoSize(Number(charmConfig.value?.logo_size)));
+const logoSize = computed(() => clampCharmLogoSize(charmNumber(charmConfig.value?.logo_size)));
+
+/**
+ * 读一个数值配置项：**`null` 与 `undefined` 一样**交给归一化去回落默认值。
+ *
+ * 为什么不能直接 `Number(...)`：`Number(null) === 0`，而 0 在轻晃的两个参数上
+ * 是"关掉轻晃"、在两轴指针端偏移上是"压在光标热点上" —— 都是**合法取值**。
+ * 于是"这个键根本没有值"会被读成"管理员明确设成了 0"，观感悄悄变掉
+ * （挂件不再轻晃 / 头节点不再偏 3px），而后台表单里看到的仍是默认数字。
+ *
+ * 给归一化层喂 NaN 而不是 0：四条钳位规则都把非有限值回落各自默认值，
+ * 显式 0 是数字、原样通过 —— 两件事因此互不干扰。
+ */
+function charmNumber(value: unknown): number {
+  return value === null || value === undefined ? Number.NaN : Number(value);
+}
 
 const { enabled, visible, tetherPath, logoCenter } = useCursorCharm({
   configEnabled: () => Boolean(charmConfig.value?.enable),
   // 十个数值参数每次建链 / 改参数时读一次；任何一个缺失都由
   // normalizeCharmRopeConfig 回落默认值，不会因为配置没取回来就不建链。
-  // 指针端偏移也走这里：组合式把它加到指针热点上算物理头节点，**渲染不再偏**。
+  // 指针端偏移也走这里：组合式把它加到指针热点上算指针端节点，**渲染不再偏**。
+  // 用 charmNumber 而不是 Number：null 必须回落默认值（见上）。
   config: () => ({
-    ropeLengthPx: Number(charmConfig.value?.rope_length),
-    segments: Number(charmConfig.value?.segments),
-    gravity: Number(charmConfig.value?.gravity),
-    damping: Number(charmConfig.value?.damping),
-    lineWidthPx: Number(charmConfig.value?.line_width),
-    idleSwayHz: Number(charmConfig.value?.idle_sway_hz),
-    idleSwayAmp: Number(charmConfig.value?.idle_sway_amp),
-    fpsCap: Number(charmConfig.value?.fps_cap),
-    pointerOffsetX: Number(charmConfig.value?.pointer_offset_x),
-    pointerOffsetY: Number(charmConfig.value?.pointer_offset_y),
+    ropeLengthPx: charmNumber(charmConfig.value?.rope_length),
+    segments: charmNumber(charmConfig.value?.segments),
+    gravity: charmNumber(charmConfig.value?.gravity),
+    damping: charmNumber(charmConfig.value?.damping),
+    lineWidthPx: charmNumber(charmConfig.value?.line_width),
+    idleSwayHz: charmNumber(charmConfig.value?.idle_sway_hz),
+    idleSwayAmp: charmNumber(charmConfig.value?.idle_sway_amp),
+    fpsCap: charmNumber(charmConfig.value?.fps_cap),
+    pointerOffsetX: charmNumber(charmConfig.value?.pointer_offset_x),
+    pointerOffsetY: charmNumber(charmConfig.value?.pointer_offset_y),
   }),
 });
 

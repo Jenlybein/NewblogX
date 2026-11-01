@@ -91,12 +91,12 @@ const (
 	CharmFpsCapDefault = 60.0
 
 	// CharmPointerOffsetXMin 是"指针端偏移"水平分量的下限，单位 px。
-	// **负数在这里是合法值**：它表示绳头挂在光标左侧（可往左上偏）。
+	// **负数在这里是合法值**：它表示指针端挂在光标左侧（可往左上偏）。
 	CharmPointerOffsetXMin = -24.0
-	// CharmPointerOffsetXMax 是水平偏移的上限（px）：再大绳头与光标热点就明显脱节，
+	// CharmPointerOffsetXMax 是水平偏移的上限（px）：再大指针端与光标热点就明显脱节，
 	// 看起来像"绳子断了"（ADR-0018 代价段）。
 	CharmPointerOffsetXMax = 24.0
-	// CharmPointerOffsetXDefault 是默认水平偏移（px）：绳头从光标右侧 3px 处悬挂。
+	// CharmPointerOffsetXDefault 是默认水平偏移（px）：指针端从光标右侧 3px 处悬挂。
 	CharmPointerOffsetXDefault = 3.0
 
 	// CharmPointerOffsetYMin 是垂直分量的下限（px，视口坐标系里向下为正）。
@@ -104,7 +104,7 @@ const (
 	CharmPointerOffsetYMin = -24.0
 	// CharmPointerOffsetYMax 是垂直偏移的上限（px）。
 	CharmPointerOffsetYMax = 24.0
-	// CharmPointerOffsetYDefault 是默认垂直偏移（px）：绳头从光标下方 3px 处悬挂。
+	// CharmPointerOffsetYDefault 是默认垂直偏移（px）：指针端从光标下方 3px 处悬挂。
 	CharmPointerOffsetYDefault = 3.0
 )
 
@@ -120,7 +120,7 @@ type Deco struct {
 // 票 #42 接入描边宽度、静止摆动频率与幅度（弧垂由"绳长 vs 实际距离"产生，
 // 没有单独的"sag"参数）；票 #74 接入帧率上限（自适应降速车道已删除，
 // 只剩一条动画帧调度，见 ADR-0018）；票 #75 接入指针端偏移 X / Y
-// （物理头节点 = 指针热点 + 偏移，渲染不再单独偏一次）。
+// （指针端节点 = 指针热点 + 偏移，渲染不再单独偏一次）。
 type Charm struct {
 	// Enable 是总开关。默认开着：功能上线后读者立刻就能看到。
 	Enable bool `yaml:"enable" json:"enable"`
@@ -155,7 +155,7 @@ type Charm struct {
 	// PointerOffsetX 是"指针端偏移"的水平分量，单位 CSS px（与 clientX 同一视口
 	// 坐标系，不随 DPI 缩放）。默认 3，区间 -24–24，**允许负值**（往左偏）。
 	//
-	// 语义是"物理头节点 = 指针热点 + (X, Y)"：挂绳的物理与渲染都从换算后的
+	// 语义是"指针端节点 = 指针热点 + (X, Y)"：挂绳的物理与渲染都从换算后的
 	// 头节点出发，渲染层不得再单独偏一次（ADR-0018 决策 8 / 约束 7）。
 	PointerOffsetX float64 `yaml:"pointer_offset_x" json:"pointer_offset_x"`
 	// PointerOffsetY 是指针端偏移的垂直分量，单位 CSS px（向下为正）。
@@ -235,7 +235,7 @@ func normalizeNonNegativeRange(v, min, max, fallback float64) float64 {
 //
 // 指针端偏移的 min 本来就是负数（-24），用前两条里的任何一条都会让"往左上偏"
 // 被静默吃掉（ADR-0018 决策 9 / 约束 8）。NaN / ±Inf 仍回落默认：它们序列化进
-// JSON 会直接失败。0 是合法值：绳头正好压在光标热点上，视觉上等于关掉偏移。
+// JSON 会直接失败。0 是合法值：指针端正好压在光标热点上，视觉上等于关掉偏移。
 func normalizeSignedRange(v, min, max, fallback float64) float64 {
 	if math.IsNaN(v) || math.IsInf(v, 0) {
 		return fallback

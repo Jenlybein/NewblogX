@@ -25,6 +25,13 @@ backend/var/*
 deploy/state/**/*
 !deploy/state/**/.gitkeep
 
+# ClickHouse entrypoint 每次启动生成的运行时文件（含数据库密码）。
+# 它由 CLICKHOUSE_PASSWORD 环境变量渲染，不该进仓库；
+# 一旦被 git 当作未跟踪文件，`git stash -u` / `git pull` 会把它删掉或拒收，
+# 而 ClickHouse 每 2 秒重载 users 配置 —— 文件一消失，密码立即失效，
+# 后端写日志全部鉴权失败（表现为日志停止、站点表面正常）。
+deploy/docker/clickhouse/users.d/default-user.xml
+
 # 环境变量与密钥
 .env
 .env.*

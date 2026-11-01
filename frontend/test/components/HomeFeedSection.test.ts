@@ -120,8 +120,12 @@ describe("HomeFeedSection：最新文章 + 分级淡入", () => {
     expect(wrapper.emitted("retry")).toHaveLength(1);
   });
 
-  it("加载中：pending 空态标记（页面不会先闪错误态）", () => {
+  it("加载中：先出骨架（页面不会先闪错误态，也不塌成空态文案）", () => {
     const wrapper = mountFeed({ articles: [], pending: true });
-    expect(wrapper.get("[data-empty-state='true']").attributes("data-state")).toBe("pending");
+
+    const skeleton = wrapper.get('[data-role="feed-skeleton"]');
+    expect(skeleton.attributes("data-state")).toBe("pending");
+    expect(wrapper.findAll("[data-role='skeleton-bar']")).toHaveLength(3);
+    expect(wrapper.find(".empty-state").exists()).toBe(false);
   });
 });

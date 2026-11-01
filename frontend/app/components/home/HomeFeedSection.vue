@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed } from "vue";
 import ArticleFeedItem from "~/components/article/ArticleFeedItem.vue";
+import LoadingSkeleton from "~/components/common/LoadingSkeleton.vue";
 import ProfileEmptyState from "~/components/profile/ProfileEmptyState.vue";
 import { useSectionReveal } from "~/composables/useSectionReveal";
 import { useStaggerEntrance } from "~/composables/useStaggerEntrance";
@@ -60,10 +61,22 @@ const searchTo = homeSearchLocation();
       </Motion>
     </div>
 
+    <!--
+      数据未到 = 先出骨架（ADR-0019 决策 3）：切页时列表不再是"一行加载中文案"，
+      而是按条目形状占位；数据一到即被真条目替换。失败态仍走下面的空态（带重试）。
+    -->
+    <div
+      v-else-if="pending"
+      class="flex flex-col gap-4"
+      data-role="feed-skeleton"
+      data-state="pending"
+    >
+      <LoadingSkeleton :rows="3" variant="card" label="正在读取最新文章" />
+    </div>
+
     <ProfileEmptyState
       v-else
       size="md"
-      :pending="pending"
       :title="state.title"
       :description="state.description"
       :hints="state.hints"

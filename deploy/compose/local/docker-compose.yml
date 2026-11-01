@@ -171,8 +171,16 @@ services:
       - ../../docker/clickhouse/init:/docker-entrypoint-initdb.d
       # 覆盖官方镜像默认配置:关 profiler、给 system.*_log 加 TTL、按小机收敛
       # 详见 deploy/docker/clickhouse/config/README.md
-      - ../../docker/clickhouse/config:/etc/clickhouse-server/config.d:ro
+      #
+      # 必须逐个文件挂载,不能挂整个目录 —— 挂目录会覆盖掉镜像自带的
+      # docker_related_config.xml(含 <listen_host>)。丢了它 ClickHouse
+      # 只监听 127.0.0.1,容器内健康检查照过,但其它容器连 9000 会
+      # connection refused:页面表面正常,日志全写失败落 WAL。
+      - ../../docker/clickhouse/config/logging.xml:/etc/clickhouse-server/config.d/logging.xml:ro
+      - ../../docker/clickhouse/config/low-memory.xml:/etc/clickhouse-server/config.d/low-memory.xml:ro
+      - ../../docker/clickhouse/config/system-log-ttl.xml:/etc/clickhouse-server/config.d/system-log-ttl.xml:ro
       # 会话级设置(profiles)必须挂到 users.d/,挂 config.d/ 会被静默忽略。
+      # 镜像的 users.d 本来是空的,可以整目录挂。
       # 不能加 :ro —— entrypoint 每次启动都要写 default-user.xml(含密码),
       # 只读挂载会报 "Read-only file system" 并以 Exit 1 无限重启。
       - ../../docker/clickhouse/users.d:/etc/clickhouse-server/users.d

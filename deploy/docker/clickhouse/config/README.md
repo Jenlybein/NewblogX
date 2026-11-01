@@ -53,6 +53,89 @@ cd deploy/compose/production
 docker compose up -d --force-recreate clickhouse
 ```
 
+## ⚠️ 挂载必须是「逐个文件」，不能挂整个目录
+
+这是本项目踩过最严重的一个坑，**症状极其隐蔽**：
+
+如果写成挂载目录：
+
+```yaml
+# ❌ 错误
+- ../../docker/clickhouse/config:/etc/clickhouse-server/config.d:ro
+```
+
+会**覆盖掉镜像自带的 `docker_related_config.xml`**（314 字节），
+而它里面的内容正是：
+
+```xml
+<listen_host>::</listen_host>
+<listen_host>0.0.0.0</listen_host>
+<listen_try>1</listen_try>
+```
+
+丢了它，ClickHouse **只监听 127.0.0.1**。后果链条：
+
+1. 容器内健康检查（`clickhouse-client --query "SELECT 1"` 走 localhost）**照样通过**；
+2. `docker compose ps` 显示 **healthy**；
+3. 站点页面 **HTTP 200 完全正常**（页面渲染不依赖 ClickHouse）；
+4. 但 `blogx-server` 从另一个容器连 `clickhouse:9000` → **connection refused**；
+5. 后端日志全部写失败 → 落本地 `logs/wal/runtime_logs/` 兜底。
+
+本项目实测：这套状态下跑了 **13 小时**才发现，WAL 积压
+**47825 个批次 / 65678 行**，磁盘块占用约 198 MB。
+**所有监控指标都是绿的，坏掉的只有日志。**
+
+正确写法：
+
+```yaml
+# ✅ 正确：逐个文件挂载，保留镜像自带的 docker_related_config.xml
+- ../../docker/clickhouse/config/logging.xml:/etc/clickhouse-server/config.d/logging.xml:ro
+- ../../docker/clickhouse/config/low-memory.xml:/etc/clickhouse-server/config.d/low-memory.xml:ro
+- ../../docker/clickhouse/config/system-log-ttl.xml:/etc/clickhouse-server/config.d/system-log-ttl.xml:ro
+```
+
+`users.d` 可以挂目录 —— 镜像的 `users.d` 本来是空的。
+
+### 怎么快速自检
+
+```bash
+# 容器内 config.d 必须同时看到镜像自带的那个文件
+docker exec clickhouse ls /etc/clickhouse-server/config.d/
+# 期望包含 docker_related_config.xml
+
+# 从同网络的其它容器测端口（不能只测 localhost）
+docker run --rm --network production_blogx_network busybox \
+  sh -c 'nc -z -w3 clickhouse 9000 && echo OK'
+```
+
+## WAL 积压怎么处理
+
+后端只在**启动时**重放 WAL（`persist.ReplayWAL` 在 `bootstrap.go` 的
+`InitStructuredLog` 内**同步**执行，且 HTTP 服务尚未监听）。
+所以：积压很多时**不要直接重启后端** —— 会卡在逐批 INSERT 上，
+期间站点 502。实测 47825 批逐批重放极其缓慢。
+
+推荐做法（本项目实际采用）：
+
+```bash
+# 1. 先备份
+docker exec blogx-server sh -c 'tar czf - -C /app/logs/wal runtime_logs' \
+  > /tmp/wal-backup.tar.gz
+
+# 2. 批量导入 ClickHouse（比逐批快几个数量级）
+docker exec blogx-server sh -c \
+  'find /app/logs/wal/runtime_logs -name "*.jsonl" | sort | xargs cat' \
+  | docker exec -i clickhouse clickhouse-client --user default --password "$PW" \
+      --input_format_skip_unknown_fields=1 --date_time_input_format=best_effort \
+      --query "INSERT INTO blogx_logs.runtime_logs FORMAT JSONEachRow"
+
+# 3. 核对行数无误后清空，再重启后端（此时启动很快）
+docker exec blogx-server sh -c 'find /app/logs/wal/runtime_logs -name "*.jsonl" -delete'
+docker compose restart blogx_server
+```
+
+表引擎是 `ReplacingMergeTree` + `event_id`，重复导入会自动去重。
+
 ## 四条硬约束(都踩过,改配置前必读)
 
 ### 1. `<ttl>` 与 `<engine>` 互斥

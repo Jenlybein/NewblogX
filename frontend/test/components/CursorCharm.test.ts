@@ -43,15 +43,12 @@ import {
  * 里加**一行** `{ field, param, sample, fallback }`，下面逐字段的几条用例都从这张
  * 表生成。`sample` 可以是负数（两个偏移量就是有符号的）。
  *
- * 已知偏差（曾存在，评审必修 2 已修）：字段为 `null` 时组件曾直接走
- * `Number(null) === 0`。五个"正值"参数（绳长 / 节点 / 重力 / 阻尼 / 线宽）的
- * 钳位规则把 0 当非法值回落默认，所以看不出问题；但两个轻晃参数走的是
- * `clampCharmIdleSwayAmp` / `clampCharmIdleSwayHz`（0 合法 = 关掉轻晃），
- * 指针端偏移走 `clampCharmPointerOffsetX/Y`（0 合法 = 压在热点上）——
- * 于是 `idle_sway_hz: null` 会被读成"关掉轻晃"而不是回落 0.8Hz。
- * 现在组件接线把 `null` 与 `undefined` 等同（读不到就给 NaN，交给归一化回落默认），
- * 显式 0 的语义不变；对应断言见下面「null 不等于显式 0」那组用例。
- */
+ * 票 #77 起，"`null` 与 `undefined` 都表示这个键没有值"这件事**只在归一化层**
+ * 处理：组件把运行时配置原样（可能是 null）交给 `normalizeCharmRopeConfig`，
+ * 由它折成 NaN 再按各自的钳位规则回落默认值。组件层不再自己做 `charmNumber`
+ * 之类的兜底 —— 两处兜底一旦分叉，就会重新退回 `Number(null) === 0`（轻晃被
+ * 读成"关掉"、指针端被读成"压在热点上"）。对应断言见下面「null 不等于显式 0」
+ * 那组用例。 */
 
 interface CapturedCharmOptions {
   configEnabled: () => boolean;
@@ -334,7 +331,7 @@ describe("挂件接线：配置没写对时的回落", () => {
 
     const raw = readConfig(options, `deco.charm.${field} 为 null`);
 
-    // 接线层对 null 交出去的是 NaN（"读不到值"，交给归一化回落默认），
+    // 接线层把 null 原样交出去（"这个键没有值"），由归一化层回落默认值；
     // 但**组合式每次使用前都会归一化**，所以 NaN 绝不该走到 SVG 里。
     let params: Partial<CharmRopeConfig> = {};
     expect(
@@ -352,13 +349,14 @@ describe("挂件接线：配置没写对时的回落", () => {
   });
 
   /**
-   * 评审必修 2：`null` 必须回落默认值，不能等同于显式 0。
+   * 票 #77：`null` 必须回落默认值，不能等同于显式 0。
    *
    * 挑出来的四个字段都走"0 是合法值"的钳位规则 —— 轻晃的两项（0 = 关掉轻晃）
-   * 与两轴偏移（0 = 压在热点上）。接线层若写成 `Number(charm.xxx)`，
-   * `Number(null) === 0` 就把"这个键没值"读成"管理员明确填了 0"，
-   * 读者站的观感会悄悄变掉（挂件不再轻晃 / 头节点不再偏 3px）。
-   * 其余五个正值参数由钳位规则顺手兜住了，这里不重复断言。
+   * 与两轴偏移（0 = 压在热点上）。链路里任何一层若写成 `Number(charm.xxx)`，
+   * `Number(null) === 0` 就把"这个键没值"读成"管理员明确填了 0"，读者站的观感
+   * 会悄悄变掉（挂件不再轻晃 / 头节点不再偏 3px）。现在兜底只在归一化层，
+   * 这组用例守的是"组件原样交出 null + 归一化层兜住"这条完整链路。
+   * 其余六个正值参数由钳位规则顺手兜住了，这里不重复断言。
    */
   const NULL_MUST_FALL_BACK = FIELD_WIRING.filter(({ field }) =>
     ["idle_sway_hz", "idle_sway_amp", "pointer_offset_x", "pointer_offset_y"].includes(field),

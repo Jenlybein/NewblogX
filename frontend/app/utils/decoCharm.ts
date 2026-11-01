@@ -24,9 +24,13 @@
  *   - 数值参数 0 是"配置字段没填"的零值，不是"我要最小"的意图 ——
  *     回落默认值，而不是钳到下限（**例外**是轻晃的两个参数与指针端偏移：
  *     它们的 0 有明确含义，走"0 合法"的规则）；
+ *   - JSON 里的 `null` 与缺键同义（票 #77）：归一化层把它折成 NaN 后回落
+ *     默认值，绝不能被 `Number(null) === 0` 读成"管理员明确填了 0"；
  *   - 距离约束在节点重合时 dx/dist 会炸，必须先做退化守卫；
  *   - 坐标保留一位小数：长浮点会让 `d` 字符串每帧都不同，白白制造 diff 噪声。
  */
+
+import type { SiteDecoConfig } from "~/types/api";
 
 /** 精确指针 + 可悬停设备的媒体查询：触屏与手写笔都匹配不上。 */
 export const CHARM_FINE_POINTER_QUERY = "(hover: hover) and (pointer: fine)";
@@ -218,6 +222,15 @@ export interface CharmRopeConfig {
   /** 指针端偏移的垂直分量，px，区间 -24–24（整数，允许负值）。 */
   pointerOffsetY: number;
 }
+
+/**
+ * 归一化层的输入形状：每个键可能是 `number | null | undefined`（票 #77）。
+ *
+ * 为什么把 `null` 写进类型：`/api/site/deco` 的载荷是自由 JSON，运营"清空"
+ * 一个字段时下发的就是 `null`。它和缺键同义 —— **这个键没有值**，不是
+ * "值等于 0"。而 0 在轻晃两项与两轴指针端偏移上是合法语义，两者不能混。
+ */
+export type CharmRopeConfigInput = Partial<Record<keyof CharmRopeConfig, number | null>>;
 
 /**
  * 挂绳的物理状态：**非响应式普通对象**。
@@ -437,26 +450,77 @@ export function clampCharmPointerOffsetY(value: number): number {
   );
 }
 
+/** 后端 `deco.charm` 上的数值键：直接取自读者站手写的 API 形状，不另抄一份。 */
+export type CharmStoreKey = Exclude<keyof NonNullable<SiteDecoConfig["charm"]>, "enable">;
+
+/**
+ * 挂绳参数接线表的一行：挂件参数名 ↔ 后端 `deco.charm` 键 ↔ 归一化规则（票 #78）。
+ */
+export interface CharmConfigField {
+  /** `CharmRopeConfig` 上的字段名（组合式消费的名字）。 */
+  configKey: keyof CharmRopeConfig;
+  /** 后端 `deco.charm` 的 snake_case 键（与 Go 的 json tag 一致）。 */
+  storeKey: CharmStoreKey;
+  /** 该参数的归一化规则（唯一落点）。 */
+  clamp: (value: number) => number;
+}
+
+/**
+ * 挂绳参数接线表 —— 读者站这一侧唯一的参数清单（票 #78）。
+ *
+ * 归一化（`normalizeCharmRopeConfig`）与组件接线（`CursorCharm.vue` 的
+ * `config()`）都遍历它：加一个参数只需「常量 + `CharmRopeConfig` 字段 + 本表
+ * 一行」。`logo_size` 不在表里：它不是挂绳物理参数，走 `clampCharmLogoSize` 单独归一化。
+ *
+ * `satisfies readonly CharmConfigField[]` 保证每个 `configKey` 都是
+ * `CharmRopeConfig` 的真实字段、每个 `storeKey` 都是后端 `deco.charm` 的真实键；
+ * 字段是否**齐全**由 `decoCharm.test.ts` 的守卫（registry 键集合 == 类型字段集合
+ * == 归一化输出键集合）盯住。
+ */
+export const CHARM_CONFIG_FIELDS = [
+  { configKey: "ropeLengthPx", storeKey: "rope_length", clamp: clampCharmRopeLength },
+  { configKey: "segments", storeKey: "segments", clamp: clampCharmSegments },
+  { configKey: "gravity", storeKey: "gravity", clamp: clampCharmGravity },
+  { configKey: "damping", storeKey: "damping", clamp: clampCharmDamping },
+  { configKey: "lineWidthPx", storeKey: "line_width", clamp: clampCharmLineWidth },
+  { configKey: "idleSwayHz", storeKey: "idle_sway_hz", clamp: clampCharmIdleSwayHz },
+  { configKey: "idleSwayAmp", storeKey: "idle_sway_amp", clamp: clampCharmIdleSwayAmp },
+  { configKey: "fpsCap", storeKey: "fps_cap", clamp: clampCharmFpsCap },
+  { configKey: "pointerOffsetX", storeKey: "pointer_offset_x", clamp: clampCharmPointerOffsetX },
+  { configKey: "pointerOffsetY", storeKey: "pointer_offset_y", clamp: clampCharmPointerOffsetY },
+] as const satisfies readonly CharmConfigField[];
+
+/**
+ * 读一个可能缺失 / 为 `null` 的数值字段：两者都折算成 NaN，交给四条钳位规则
+ * 回落各自的默认值（票 #77）。
+ *
+ * 为什么不能直接 `Number(value)`：`Number(null) === 0`，而 0 在轻晃两项与
+ * 两轴指针端偏移上是**合法取值** —— "这个键没有值"会被读成"明确填了 0"，
+ * 挂件悄悄变成停手即零帧 / 指针端压在热点上。其余值仍走 `Number(value)`：
+ * 字符串数字（旧库 / 手改 JSON）保持既有的宽容度。
+ */
+function charmConfigNumber(value: unknown): number {
+  return value === null || value === undefined ? Number.NaN : Number(value);
+}
+
 /**
  * 把任意来源的物理参数收敛成可以建链的形态。
  *
- * 每个字段各自独立钳位：某个键缺失或非法只影响它自己，不会把整份配置拖回默认。
+ * 每个字段各自独立钳位：某个键缺失、为 `null` 或非法只影响它自己，不会把
+ * 整份配置拖回默认。**这是挂件数值参数唯一的兜底点**：组件把原始值（可能是
+ * `null`）原样交进来，`null` / `undefined` 在这里折成 NaN 再回落默认值。
+ *
+ * 遍历 `CHARM_CONFIG_FIELDS`（票 #78）：键集合与钳位规则都只写一遍，加参数
+ * 不会出现"归一化漏了一个字段"这种沉默的洞。
  */
 export function normalizeCharmRopeConfig(
-  input: Partial<CharmRopeConfig> | null | undefined,
+  input: CharmRopeConfigInput | null | undefined,
 ): CharmRopeConfig {
-  return {
-    ropeLengthPx: clampCharmRopeLength(Number(input?.ropeLengthPx)),
-    segments: clampCharmSegments(Number(input?.segments)),
-    gravity: clampCharmGravity(Number(input?.gravity)),
-    damping: clampCharmDamping(Number(input?.damping)),
-    lineWidthPx: clampCharmLineWidth(Number(input?.lineWidthPx)),
-    idleSwayHz: clampCharmIdleSwayHz(Number(input?.idleSwayHz)),
-    idleSwayAmp: clampCharmIdleSwayAmp(Number(input?.idleSwayAmp)),
-    fpsCap: clampCharmFpsCap(Number(input?.fpsCap)),
-    pointerOffsetX: clampCharmPointerOffsetX(Number(input?.pointerOffsetX)),
-    pointerOffsetY: clampCharmPointerOffsetY(Number(input?.pointerOffsetY)),
-  };
+  const normalized = {} as CharmRopeConfig;
+  for (const field of CHARM_CONFIG_FIELDS) {
+    normalized[field.configKey] = field.clamp(charmConfigNumber(input?.[field.configKey]));
+  }
+  return normalized;
 }
 
 /** 把单个坐标收敛到有限值（非有限值一律当 0，避免 NaN 传进 SVG）。 */

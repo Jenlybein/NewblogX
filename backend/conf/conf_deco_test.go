@@ -354,6 +354,95 @@ func TestDecoNormalize_幂等(t *testing.T) {
 	}
 }
 
+// ── 票 #77：JSON null 与「这个键没有给」同义 ──────────────────
+//
+// 为什么必须在解码层测：Normalize 看到的是已经落成 float64 的 0，分不出
+// "键没有给"与"管理员明确填了 0"；而 0 在轻晃两项与两轴指针端偏移上都是
+// **合法语义**（关掉轻晃 / 指针端压在热点上）。指针解码是唯一能分开这两件事
+// 的时机，所以用例直接解码 JSON 再断言落值，而不是只测 Normalize。
+
+// TestCharmUnmarshalJSON_null回落默认值 钉住票 #77 的主症状：
+// `idle_sway_hz: null` 曾被解码成 0（= 关掉轻晃），而不是回落到默认的 0.8Hz。
+func TestCharmUnmarshalJSON_null回落默认值(t *testing.T) {
+	raw := `{"charm":{"idle_sway_hz":null,"idle_sway_amp":null,` +
+		`"pointer_offset_x":null,"pointer_offset_y":null,"fps_cap":null}}`
+
+	var deco conf.Deco
+	if err := json.Unmarshal([]byte(raw), &deco); err != nil {
+		t.Fatalf("解码失败: %v", err)
+	}
+	charm := deco.Charm
+
+	// 四个「0 合法」字段是主症状：默认值本身都不是 0，落成 0 就说明回落没生效。
+	if charm.IdleSwayHz != conf.CharmIdleSwayHzDefault {
+		t.Fatalf("idle_sway_hz=null 应回落默认值 %v（不是 0），实际 %v",
+			conf.CharmIdleSwayHzDefault, charm.IdleSwayHz)
+	}
+	if charm.IdleSwayAmp != conf.CharmIdleSwayAmpDefault {
+		t.Fatalf("idle_sway_amp=null 应回落默认值 %v（不是 0），实际 %v",
+			conf.CharmIdleSwayAmpDefault, charm.IdleSwayAmp)
+	}
+	if charm.PointerOffsetX != conf.CharmPointerOffsetXDefault {
+		t.Fatalf("pointer_offset_x=null 应回落默认值 %v（不是 0），实际 %v",
+			conf.CharmPointerOffsetXDefault, charm.PointerOffsetX)
+	}
+	if charm.PointerOffsetY != conf.CharmPointerOffsetYDefault {
+		t.Fatalf("pointer_offset_y=null 应回落默认值 %v（不是 0），实际 %v",
+			conf.CharmPointerOffsetYDefault, charm.PointerOffsetY)
+	}
+	// 正数规则里的字段同样走"缺键 = 默认值"：以前是靠 Normalize 对 0 回落，
+	// 现在解码层就直接给默认值（Normalize 再跑一次是幂等的）。
+	if charm.FpsCap != conf.CharmFpsCapDefault {
+		t.Fatalf("fps_cap=null 应回落默认值 %v（不是 0），实际 %v",
+			conf.CharmFpsCapDefault, charm.FpsCap)
+	}
+}
+
+// TestCharmUnmarshalJSON_显式0原样保留 守住票 #77 的另一半：
+// 回落默认值不能把"管理员明确填 0"也吃掉 —— 0 是关掉轻晃 / 指针端压在热点上。
+func TestCharmUnmarshalJSON_显式0原样保留(t *testing.T) {
+	var deco conf.Deco
+	if err := json.Unmarshal([]byte(`{"charm":{"idle_sway_hz":0,"pointer_offset_x":0}}`), &deco); err != nil {
+		t.Fatalf("解码失败: %v", err)
+	}
+	if got := deco.Charm.IdleSwayHz; got != 0 {
+		t.Fatalf("显式 idle_sway_hz=0 解码后应仍是 0（关掉轻晃），实际 %v", got)
+	}
+	if got := deco.Charm.PointerOffsetX; got != 0 {
+		t.Fatalf("显式 pointer_offset_x=0 解码后应仍是 0（指针端压在热点上），实际 %v", got)
+	}
+
+	// Normalize 也不能把它们抬回默认值（0 在这两个参数上是合法语义）。
+	normalized := deco.Normalize().Charm
+	if normalized.IdleSwayHz != 0 {
+		t.Fatalf("显式 idle_sway_hz=0 归一化后应仍是 0，实际 %v", normalized.IdleSwayHz)
+	}
+	if normalized.PointerOffsetX != 0 {
+		t.Fatalf("显式 pointer_offset_x=0 归一化后应仍是 0，实际 %v", normalized.PointerOffsetX)
+	}
+}
+
+// TestCharmUnmarshalJSON_缺enable默认为开启 记录票 #77 的行为变化：
+// 过去 body 里缺 enable 会落成 bool 零值 false，现在与 yaml 默认种子一致为 true。
+func TestCharmUnmarshalJSON_缺enable默认为开启(t *testing.T) {
+	var deco conf.Deco
+	if err := json.Unmarshal([]byte(`{"charm":{"logo_size":60}}`), &deco); err != nil {
+		t.Fatalf("解码失败: %v", err)
+	}
+	if !deco.Charm.Enable {
+		t.Fatal("body 里缺 enable 时应按默认种子视为开启（true）")
+	}
+
+	// 显式 false 是明确意图，不能被默认值覆盖。
+	var off conf.Deco
+	if err := json.Unmarshal([]byte(`{"charm":{"enable":false}}`), &off); err != nil {
+		t.Fatalf("解码失败: %v", err)
+	}
+	if off.Charm.Enable {
+		t.Fatal("显式 enable=false 解码后必须仍是 false")
+	}
+}
+
 // decoNormalizationCase 是共享用例表的一行；三套实现（后端 Normalize、
 // 读者站、后台）都读同一份 testdata，任何一端改了取整或回落规则都会红。
 type decoNormalizationCase struct {

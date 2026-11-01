@@ -1288,12 +1288,16 @@
  * - 只动 opacity 与 transform，不碰宽高/边距，所以过渡结束不会有布局抖动；
  * - 配合 nuxt.config 的 `app.pageTransition: { mode: 'out-in' }`：旧页先离场、
  *   新页再入场，同一时刻文档流里只有一页，避免两页并排导致的滚动条/高度跳变。
+ * - **时长取 fast 档（120ms），不是 base 档（200ms）**：out-in 的离场是可见的固定
+ *   开销，取数再快也要先等旧页离场；#87 实测把过渡关掉后切页可见从 ~300ms 降到
+ *   ~125ms，其中 ~170ms 就是这段过渡。按 ADR-0012 的三档预算下调到 120ms
+ *   （仍在 120/200/320 档位内），理由与回退方式见 ADR-0019「实施记录」（#87）。
  * ========================================================================== */
 .page-enter-active,
 .page-leave-active {
   transition:
-    opacity var(--motion-base) var(--motion-ease),
-    transform var(--motion-base) var(--motion-ease);
+    opacity var(--motion-fast) var(--motion-ease),
+    transform var(--motion-fast) var(--motion-ease);
 }
 
 .page-enter-from,

@@ -5,6 +5,7 @@ import {
   isApiBusinessError,
   isApiTimeoutError,
   isAuthLikeError,
+  shouldRetryAuth,
 } from "~/services/http/errors";
 
 describe("http error helpers", () => {
@@ -38,5 +39,35 @@ describe("http error helpers", () => {
   it("does not mistake a timeout for an auth failure", () => {
     // 超时不触发刷新令牌重试：连不上就是连不上，重试只是让用户多等一轮。
     expect(isAuthLikeError(new ApiTimeoutError("/api/x", 15000))).toBe(false);
+  });
+});
+
+// #98：刷新令牌后的自动重试**只能用于读请求**。
+//
+// 写请求重放会重复执行副作用——线上实测一次点赞产生两次 PUT /digg，
+// 用户看到的是第一次的失败，服务端却已经写了第二遍（进而撞唯一索引）。
+// 后端业务码只有 0/1001/1002 三个值，无法区分"未登录"与"参数错误"，
+// 所以判别依据不能靠错误码，只能靠**请求方法**这一侧的信息。
+describe("shouldRetryAuth", () => {
+  const authError = () => new ApiBusinessError("登录状态已过期，请重新登录", 1001);
+
+  it("retries idempotent reads after a refresh", () => {
+    expect(shouldRetryAuth("GET", authError())).toBe(true);
+  });
+
+  it("never retries writes, so a side effect cannot run twice", () => {
+    // 这是本票的核心：写请求一律不重试。
+    expect(shouldRetryAuth("POST", authError())).toBe(false);
+    expect(shouldRetryAuth("PUT", authError())).toBe(false);
+    expect(shouldRetryAuth("DELETE", authError())).toBe(false);
+    expect(shouldRetryAuth("PATCH", authError())).toBe(false);
+  });
+
+  it("still honours the explicit opt-out", () => {
+    expect(shouldRetryAuth("GET", authError(), false)).toBe(false);
+  });
+
+  it("does not retry when the failure is not auth-like at all", () => {
+    expect(shouldRetryAuth("GET", new Error("参数错误"))).toBe(false);
   });
 });

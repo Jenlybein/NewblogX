@@ -32,6 +32,11 @@ import {
  * 指针端偏移（`pointer_offset_x` / `pointer_offset_y`）**不在这里加**：它由组合式
  * 换算进指针端节点，本组件的路径与 `transform` 直接读那份结果。渲染层再偏一次，
  * 弧垂与张力就会算在错的原点上（ADR-0018 约束 7）。
+ *
+ * 进出场：指针移出窗口 → 立即离开可见态（快档渐隐），指针端在原处冻结、链自然
+ * 收敛、绝不瞬移；移回满 0.1 秒才渐显，0.1 秒内再次移出则取消这次显示（防抖，
+ * 沿窗口边缘反复划过因此不闪）。0.1 秒窗口是组合式里可见性状态机的事，本组件
+ * 只消费 `visible`（= 这一刻该不该在屏幕上），不自己计时。
  */
 const siteStore = useSiteStore();
 
@@ -97,6 +102,10 @@ const logoTransform = computed(() => {
  * 固定铺满视口的一层，只画不接：整层 pointer-events: none，
  * 子元素也一律 none（不需要任何"可交互的子元素"，这与捏捏正好相反）。
  * 层级 9999 是票面定的：压过 Naive 的弹窗/消息（2000+），低于浏览器扩展层。
+ *
+ * 透明度有两个方向、两个时长：移出走快档（越快越像"跟着指针一起离开窗口"），
+ * 渐显走 base 档。CSS 的过渡取"变化之后"那条声明，所以下面必须两处都写
+ * `transition` —— 只改基础声明会让 200ms 的渐显也变成快档。
  */
 .charm-layer {
   position: fixed;
@@ -104,12 +113,15 @@ const logoTransform = computed(() => {
   z-index: 9999;
   pointer-events: none;
   opacity: 0;
-  transition: opacity var(--motion-base) var(--motion-ease);
+  transition: opacity var(--motion-fast) var(--motion-ease);
 }
 
-/* 首次指针移动后淡入（200ms，base 档 + 全站唯一缓动）；不做位移或缩放。 */
+/* 渐显（首次登场 / 移回满 0.1 秒后）：200ms，base 档 + 全站唯一缓动；
+ * 不做位移或缩放。移回的 0.1 秒防抖在组合式里，不在 CSS 里 —— 它要能被
+ * 单测断言（"0.1 秒内再次移出就取消显示"）。 */
 .charm-layer--visible {
   opacity: 1;
+  transition: opacity var(--motion-base) var(--motion-ease);
 }
 
 .charm-layer__canvas {

@@ -116,7 +116,7 @@ export const CHARM_FPS_CAP_DEFAULT = 60;
 /**
  * 指针端偏移（票 #75）：每轴 -24–24 px、默认 3，**允许负值**。
  *
- * 语义是"物理头节点 = 指针热点 + (X, Y)"：默认 (3, 3) 让绳头从光标右下方
+ * 语义是"指针端节点 = 指针热点 + (X, Y)"：默认 (3, 3) 让指针端从光标右下方
  * 悬挂，快速拖行时不再像"绳子从指尖里长出来"。负值表示往左上偏。
  *
  * 因为区间含负数，钳位不能用 `clampPositiveRange`（<= 0 回落默认）或
@@ -124,16 +124,16 @@ export const CHARM_FPS_CAP_DEFAULT = 60;
  * 决策 9 / 约束 8 为此新增第四条规则 `clampSignedRange`。
  */
 export const CHARM_POINTER_OFFSET_X_MIN = -24;
-/** 水平偏移上限（px）：再大绳头与光标热点明显脱节，看起来像"断线"。 */
+/** 水平偏移上限（px）：再大指针端与光标热点明显脱节，看起来像"断线"。 */
 export const CHARM_POINTER_OFFSET_X_MAX = 24;
-/** 水平偏移默认值（px）：绳头从光标右侧 3px 处悬挂。 */
+/** 水平偏移默认值（px）：指针端从光标右侧 3px 处悬挂。 */
 export const CHARM_POINTER_OFFSET_X_DEFAULT = 3;
 
 /** 垂直偏移下限（px，视口坐标系里向下为正）：负数表示往上偏。 */
 export const CHARM_POINTER_OFFSET_Y_MIN = -24;
 /** 垂直偏移上限（px）。 */
 export const CHARM_POINTER_OFFSET_Y_MAX = 24;
-/** 垂直偏移默认值（px）：绳头从光标下方 3px 处悬挂。 */
+/** 垂直偏移默认值（px）：指针端从光标下方 3px 处悬挂。 */
 export const CHARM_POINTER_OFFSET_Y_DEFAULT = 3;
 
 /**
@@ -213,7 +213,7 @@ export interface CharmRopeConfig {
   idleSwayAmp: number;
   /** 最高渲染帧率，fps。只决定"每秒画几次"，不影响绳子运动速度（物理按真实时间推进）。 */
   fpsCap: number;
-  /** 指针端偏移的水平分量，px，区间 -24–24（整数，允许负值）。物理头节点 = 指针热点 + 它。 */
+  /** 指针端偏移的水平分量，px，区间 -24–24（整数，允许负值）。指针端节点 = 指针热点 + 它。 */
   pointerOffsetX: number;
   /** 指针端偏移的垂直分量，px，区间 -24–24（整数，允许负值）。 */
   pointerOffsetY: number;
@@ -231,7 +231,7 @@ export interface CharmRopeState {
   config: CharmRopeConfig;
   /** 每节的静止长度（px），= ropeLength / segments。 */
   restLengthPx: number;
-  /** 节点位置；nodes[0] 永远钉在**物理头节点**（指针热点 + 指针端偏移）上。 */
+  /** 节点位置；nodes[0] 永远钉在**指针端节点**（指针热点 + 指针端偏移）上。 */
   nodes: CharmPoint[];
   /** 上一步的位置，Verlet 用它算速度。 */
   previous: CharmPoint[];
@@ -303,6 +303,21 @@ function clampSignedRange(value: number, min: number, max: number, fallback: num
  */
 function roundHalfAwayFromZero(value: number): number {
   return Math.sign(value) * Math.round(Math.abs(value));
+}
+
+/**
+ * 指针端偏移单轴的钳位：先夹到 `[min, max]`、再半值远离 0 取整，非有限值回落 `fallback`。
+ *
+ * 两轴只差常量，所以合用一个参数化函数（`(value, min, max, fallback)`）——
+ * 形状与后端的 `normalizePointerOffset(v, min, max, fallback)` 完全对齐，
+ * 改规则时两轴不可能各走一套。顺序不能反：24.6 要先夹到 24 再取整，
+ * 反过来会得到 25（`normalizeFpsCap` 同一条口径）。
+ *
+ * 两个对外导出的 `clampCharmPointerOffsetX / Y` 只是把各自那组常量绑上去，
+ * 签名保持"单参数"不变（调用方不应该知道区间）。
+ */
+function clampPointerOffset(value: number, min: number, max: number, fallback: number): number {
+  return roundHalfAwayFromZero(clampSignedRange(value, min, max, fallback));
 }
 
 /**
@@ -400,29 +415,25 @@ export function clampCharmFpsCap(value: number): number {
 /**
  * 指针端水平偏移归一化：夹到 -24–24 后取整成整数。
  *
- * 0 与负值都是普通取值（0 = 绳头压在热点上，负值 = 往左偏），只有 NaN / ±Inf
+ * 0 与负值都是普通取值（0 = 指针端压在热点上，负值 = 往左偏），只有 NaN / ±Inf
  * 回落默认 3。顺序是"先夹边界再取整"，与后端的 `normalizePointerOffset` 一致。
  */
 export function clampCharmPointerOffsetX(value: number): number {
-  return roundHalfAwayFromZero(
-    clampSignedRange(
-      value,
-      CHARM_POINTER_OFFSET_X_MIN,
-      CHARM_POINTER_OFFSET_X_MAX,
-      CHARM_POINTER_OFFSET_X_DEFAULT,
-    ),
+  return clampPointerOffset(
+    value,
+    CHARM_POINTER_OFFSET_X_MIN,
+    CHARM_POINTER_OFFSET_X_MAX,
+    CHARM_POINTER_OFFSET_X_DEFAULT,
   );
 }
 
 /** 指针端垂直偏移归一化：与水平分量完全对称（夹到 -24–24、取整、非法值回落 3）。 */
 export function clampCharmPointerOffsetY(value: number): number {
-  return roundHalfAwayFromZero(
-    clampSignedRange(
-      value,
-      CHARM_POINTER_OFFSET_Y_MIN,
-      CHARM_POINTER_OFFSET_Y_MAX,
-      CHARM_POINTER_OFFSET_Y_DEFAULT,
-    ),
+  return clampPointerOffset(
+    value,
+    CHARM_POINTER_OFFSET_Y_MIN,
+    CHARM_POINTER_OFFSET_Y_MAX,
+    CHARM_POINTER_OFFSET_Y_DEFAULT,
   );
 }
 
@@ -454,26 +465,32 @@ function finite(value: number): number {
 }
 
 /**
- * 指针热点 + 偏移 = 物理头节点（票 #75 的唯一真相）。
+ * 指针热点 + 偏移 = 指针端节点（票 #75 的唯一真相）。
  *
- * 为什么偏移必须在这一处换算：链的头节点被钉死在这里，弧垂与张力都从这个点
+ * 为什么偏移必须在这一处换算：链的指针端节点被钉死在这里，弧垂与张力都从这个点
  * 算起。若改成"渲染时再把起点挪一下"，物理仍以光标为头，快速拉扯时起点与绳子
  * 会脱节（ADR-0018「已否决：偏移只挪渲染起点」）。所以渲染层**不得**再偏一次。
  *
- * 偏移在这里各自再钳一次：配置可能来自旧库、手改的 JSON 或别人直接调接口。
+ * **入参 `config` 必须来自 `normalizeCharmRopeConfig`（两轴偏移已在那里钳成
+ * [-24, 24] 的整数）**。这里**不再**钳一次：每帧对同一份已归一化的配置重复钳位
+ * 纯属重复劳动，还让"钳位到底发生在哪一层"变得说不清。传原始值（旧库、手改的
+ * JSON）进来会把发散值带进物理 —— 需要兜底就在归一化那一层兜。
+ *
+ * 仍然保留的只有"非有限值当 0"这一条：它防的是 NaN 进 SVG（整条路径会静默消失），
+ * 不是范围钳位。
  */
 export function charmPointerAnchor(
   pointer: CharmPoint,
   config: Pick<CharmRopeConfig, "pointerOffsetX" | "pointerOffsetY">,
 ): CharmPoint {
   return {
-    x: finite(pointer.x) + clampCharmPointerOffsetX(Number(config?.pointerOffsetX)),
-    y: finite(pointer.y) + clampCharmPointerOffsetY(Number(config?.pointerOffsetY)),
+    x: finite(pointer.x) + finite(config.pointerOffsetX),
+    y: finite(pointer.y) + finite(config.pointerOffsetY),
   };
 }
 
 /**
- * 建一条静止的链：节点 0 在物理头节点（指针热点 + 偏移）上，其余等距竖直下垂。
+ * 建一条静止的链：节点 0 在指针端节点（指针热点 + 偏移）上，其余等距竖直下垂。
  *
  * 初始是"竖直静止"而不是"从指针处拖一根弹簧"：这样第一帧的能量为零，
  * 不会在页面刚打开时先甩一下。真正的摆动从指针第一次移动开始。

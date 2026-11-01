@@ -75,7 +75,7 @@ export interface CursorCharm {
   /**
    * 指针热点当前视口坐标（**不含**指针端偏移）；首移之前是原点。
    *
-   * 物理头节点是 `charmPointerAnchor(pointer, config)` —— 偏移只在那一处加一次，
+   * 指针端节点是 `charmPointerAnchor(pointer, config)` —— 偏移只在那一处加一次，
    * 渲染不再单独偏（ADR-0018 约束 7）。
    */
   pointer: Ref<CharmPoint>;

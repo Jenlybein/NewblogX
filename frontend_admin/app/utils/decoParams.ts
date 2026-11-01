@@ -83,7 +83,7 @@ export const DECO_IDLE_SWAY_AMP_MIN = 0
 /** 静止摆动幅度上限（px/s²）。 */
 export const DECO_IDLE_SWAY_AMP_MAX = 40
 
-/** 静止摆动幅度默认值（px/s²），作用在自由端（逐节点加权，指针端为 0、尾端为 1）。 */
+/** 静止摆动幅度默认值（px/s²），作用在自由端（逐节点加权，指针端节点为 0、尾端为 1）。 */
 export const DECO_IDLE_SWAY_AMP_DEFAULT = 20
 
 /** 帧率上限下限（fps）。30 档一帧 33.3ms，仍在物理累加器 0.05s 的余量内。 */
@@ -95,13 +95,13 @@ export const DECO_FPS_CAP_MAX = 160
 /** 帧率上限默认值（fps）：与 60Hz 屏对齐（每帧一次）。 */
 export const DECO_FPS_CAP_DEFAULT = 60
 
-/** 指针端偏移水平分量下限（px）。**负数是合法值**：绳头挂到光标左侧。 */
+/** 指针端偏移水平分量下限（px）。**负数是合法值**：指针端挂到光标左侧。 */
 export const DECO_POINTER_OFFSET_X_MIN = -24
 
-/** 指针端偏移水平分量上限（px）：再大绳头与光标热点明显脱节。 */
+/** 指针端偏移水平分量上限（px）：再大指针端与光标热点明显脱节。 */
 export const DECO_POINTER_OFFSET_X_MAX = 24
 
-/** 指针端偏移水平分量默认值（px）：绳头从光标右侧 3px 处悬挂。 */
+/** 指针端偏移水平分量默认值（px）：指针端从光标右侧 3px 处悬挂。 */
 export const DECO_POINTER_OFFSET_X_DEFAULT = 3
 
 /** 指针端偏移垂直分量下限（px，向下为正）：负数表示往上偏。 */
@@ -110,7 +110,7 @@ export const DECO_POINTER_OFFSET_Y_MIN = -24
 /** 指针端偏移垂直分量上限（px）。 */
 export const DECO_POINTER_OFFSET_Y_MAX = 24
 
-/** 指针端偏移垂直分量默认值（px）：绳头从光标下方 3px 处悬挂。 */
+/** 指针端偏移垂直分量默认值（px）：指针端从光标下方 3px 处悬挂。 */
 export const DECO_POINTER_OFFSET_Y_DEFAULT = 3
 
 /** 一个数值参数的元数据；表单与测试都只认这个形状。 */
@@ -261,13 +261,13 @@ export const DECO_FPS_CAP_PARAM: DecoNumberParamMeta = {
  * 指针端偏移 X（票 #75）。
  *
  * 它和其余参数不同：**下限是负数**，所以 `NInputNumber` 的 `min` 就是 -24。
- * 语义是"物理头节点 = 指针热点 + 偏移"：默认的 3 让绳头从光标右下悬挂。
+ * 语义是"指针端节点 = 指针热点 + 偏移"：默认的 3 让指针端从光标右下悬挂。
  */
 export const DECO_POINTER_OFFSET_X_PARAM: DecoNumberParamMeta = {
   key: 'pointer_offset_x',
   label: '指针端偏移 X',
   unit: 'px',
-  hint: '绳头相对光标热点的水平偏移（可填负数往左）：默认 3px，让绳头从右下悬挂而不是压在指尖正中。',
+  hint: '指针端相对光标热点的水平偏移（可填负数往左）：默认 3px，让指针端从右下悬挂而不是压在指尖正中。',
   min: DECO_POINTER_OFFSET_X_MIN,
   max: DECO_POINTER_OFFSET_X_MAX,
   step: 1,
@@ -276,12 +276,12 @@ export const DECO_POINTER_OFFSET_X_PARAM: DecoNumberParamMeta = {
   precision: 0,
 }
 
-/** 指针端偏移 Y（票 #75）：负值往上偏；两轴到 ±24 时绳头与光标明显脱节。 */
+/** 指针端偏移 Y（票 #75）：负值往上偏；两轴到 ±24 时指针端与光标明显脱节。 */
 export const DECO_POINTER_OFFSET_Y_PARAM: DecoNumberParamMeta = {
   key: 'pointer_offset_y',
   label: '指针端偏移 Y',
   unit: 'px',
-  hint: '绳头相对光标热点的垂直偏移（可填负数往上）：默认 3px；它同样只加在物理头节点上。',
+  hint: '指针端相对光标热点的垂直偏移（可填负数往上）：默认 3px；它同样只加在指针端节点上。',
   min: DECO_POINTER_OFFSET_Y_MIN,
   max: DECO_POINTER_OFFSET_Y_MAX,
   step: 1,
@@ -424,27 +424,34 @@ function roundHalfAwayFromZero(value: number): number {
   return Math.sign(value) * Math.round(Math.abs(value))
 }
 
+/**
+ * 指针端偏移单轴的钳位：先夹到 `[min, max]`、再半值远离 0 取整，非有限值回落 `fallback`。
+ *
+ * 两轴只差常量，合用一个参数化函数（`(value, min, max, fallback)`），形状与后端
+ * `normalizePointerOffset` 对齐；对外导出的 `clampDecoPointerOffsetX / Y` 只绑常量，
+ * 签名不变。顺序不能反：24.6 要先夹到 24 再取整，反过来会得到 25。
+ */
+function clampPointerOffset(value: number, min: number, max: number, fallback: number): number {
+  return roundHalfAwayFromZero(clampDecoSignedRange(value, min, max, fallback))
+}
+
 /** 指针端水平偏移归一化：夹到 -24–24 后取整；0 与负值照常保留，非法值回落 3。 */
 export function clampDecoPointerOffsetX(value: number): number {
-  return roundHalfAwayFromZero(
-    clampDecoSignedRange(
-      value,
-      DECO_POINTER_OFFSET_X_MIN,
-      DECO_POINTER_OFFSET_X_MAX,
-      DECO_POINTER_OFFSET_X_DEFAULT,
-    ),
+  return clampPointerOffset(
+    value,
+    DECO_POINTER_OFFSET_X_MIN,
+    DECO_POINTER_OFFSET_X_MAX,
+    DECO_POINTER_OFFSET_X_DEFAULT,
   )
 }
 
 /** 指针端垂直偏移归一化：与水平分量完全对称（夹到 -24–24、取整、非法值回落 3）。 */
 export function clampDecoPointerOffsetY(value: number): number {
-  return roundHalfAwayFromZero(
-    clampDecoSignedRange(
-      value,
-      DECO_POINTER_OFFSET_Y_MIN,
-      DECO_POINTER_OFFSET_Y_MAX,
-      DECO_POINTER_OFFSET_Y_DEFAULT,
-    ),
+  return clampPointerOffset(
+    value,
+    DECO_POINTER_OFFSET_Y_MIN,
+    DECO_POINTER_OFFSET_Y_MAX,
+    DECO_POINTER_OFFSET_Y_DEFAULT,
   )
 }
 

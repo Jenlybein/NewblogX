@@ -352,11 +352,11 @@ describe("票 #75 的指针端偏移钳位（第四条规则：允许负数的�
 });
 
 describe("charmPointerAnchor：指针端 = 指针热点 + 偏移（唯一真相）", () => {
-  it("默认偏移 (3, 3)：物理头节点从光标右下 3px 开始", () => {
+  it("默认偏移 (3, 3)：指针端节点从光标右下 3px 开始", () => {
     expect(charmPointerAnchor({ x: 100, y: 200 }, ROPE)).toEqual({ x: 103, y: 203 });
   });
 
-  it("负偏移把物理头节点推到光标左上（-6, -9）", () => {
+  it("负偏移把指针端节点推到光标左上（-6, -9）", () => {
     expect(
       charmPointerAnchor({ x: 100, y: 200 }, { ...ROPE, pointerOffsetX: -6, pointerOffsetY: -9 }),
     ).toEqual({ x: 94, y: 191 });
@@ -368,10 +368,17 @@ describe("charmPointerAnchor：指针端 = 指针热点 + 偏移（唯一真相�
     ).toEqual({ x: 40, y: 50 });
   });
 
-  it("越界偏移先钳位再加：锚点不会把发散值带进物理", () => {
-    expect(
-      charmPointerAnchor({ x: 0, y: 0 }, { ...ROPE, pointerOffsetX: 1000, pointerOffsetY: -1000 }),
-    ).toEqual({ x: CHARM_POINTER_OFFSET_X_MAX, y: CHARM_POINTER_OFFSET_Y_MIN });
+  it("偏移的钳位发生在归一化那一层：锚点只做加法，不重复钳（评审必修 7）", () => {
+    // 越界值必须先经过 normalizeCharmRopeConfig —— 那是钳位的唯一落点，
+    // 也是组合式每帧喂给 charmPointerAnchor 的东西。
+    const normalized = normalizeCharmRopeConfig({ pointerOffsetX: 1000, pointerOffsetY: -1000 });
+    expect(normalized.pointerOffsetX).toBe(CHARM_POINTER_OFFSET_X_MAX);
+    expect(normalized.pointerOffsetY).toBe(CHARM_POINTER_OFFSET_Y_MIN);
+
+    expect(charmPointerAnchor({ x: 0, y: 0 }, normalized)).toEqual({
+      x: CHARM_POINTER_OFFSET_X_MAX,
+      y: CHARM_POINTER_OFFSET_Y_MIN,
+    });
   });
 
   it("非有限指针坐标收敛成有限值（NaN 进 SVG 会让整条路径消失）", () => {

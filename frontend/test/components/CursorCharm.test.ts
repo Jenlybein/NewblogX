@@ -43,12 +43,14 @@ import {
  * 里加**一行** `{ field, param, sample, fallback }`，下面逐字段的几条用例都从这张
  * 表生成。`sample` 可以是负数（两个偏移量就是有符号的）。
  *
- * 已知偏差（本票是纯测试票，不改生产代码，见本票报告）：字段为 `null` 时组件
- * 走 `Number(null) === 0`。五个"正值"参数（绳长 / 节点 / 重力 / 阻尼 / 线宽）的
- * 钳位规则把 0 当非法值回落默认；但两个轻晃参数用的是 `clampNonNegativeRange`，
- * 0 是合法值（= 关掉轻晃）——于是 `idle_sway_hz: null` 会被读成"关掉轻晃"，而不是
- * 回落到默认的 0.8Hz。所以 null 那一条只锁"不抛错 + 交出有限数值"，不锁具体取值，
- * 免得把偏差焊死；等哪天组件加了 null 兜底，这条不用改。
+ * 已知偏差（曾存在，评审必修 2 已修）：字段为 `null` 时组件曾直接走
+ * `Number(null) === 0`。五个"正值"参数（绳长 / 节点 / 重力 / 阻尼 / 线宽）的
+ * 钳位规则把 0 当非法值回落默认，所以看不出问题；但两个轻晃参数走的是
+ * `clampCharmIdleSwayAmp` / `clampCharmIdleSwayHz`（0 合法 = 关掉轻晃），
+ * 指针端偏移走 `clampCharmPointerOffsetX/Y`（0 合法 = 压在热点上）——
+ * 于是 `idle_sway_hz: null` 会被读成"关掉轻晃"而不是回落 0.8Hz。
+ * 现在组件接线把 `null` 与 `undefined` 等同（读不到就给 NaN，交给归一化回落默认），
+ * 显式 0 的语义不变；对应断言见下面「null 不等于显式 0」那组用例。
  */
 
 interface CapturedCharmOptions {
@@ -326,24 +328,75 @@ describe("挂件接线：配置没写对时的回落", () => {
     wrapper.unmount();
   });
 
-  it.each(FIELD_WIRING)("$field 为 null 时不抛错、也不交出 NaN", ({ field, param }) => {
+  it.each(FIELD_WIRING)("$field 为 null 时不抛错、归一化后也不是 NaN", ({ field, param }) => {
     const { wrapper, options } = mountCharm({ charm: { ...DEFAULT_CHARM } });
     charmBag()[field] = null;
 
-    const params = readConfig(options, `deco.charm.${field} 为 null`);
+    const raw = readConfig(options, `deco.charm.${field} 为 null`);
 
-    // 只锁"还能跑"：null 具体落到哪个值见文件头的偏差说明。
+    // 接线层对 null 交出去的是 NaN（"读不到值"，交给归一化回落默认），
+    // 但**组合式每次使用前都会归一化**，所以 NaN 绝不该走到 SVG 里。
+    let params: Partial<CharmRopeConfig> = {};
     expect(
-      Number.isFinite(params[param]),
-      `deco.charm.${field} 为 null 时 ${param} 必须是有限数值（NaN 进 SVG 会让整条路径消失），实际 ${String(params[param])}`,
-    ).toBe(true);
-    expect(
-      () => normalizeCharmRopeConfig(params),
+      () => {
+        params = normalizeCharmRopeConfig(raw);
+      },
       `deco.charm.${field} 为 null 时归一化抛错了`,
     ).not.toThrow();
+    expect(
+      Number.isFinite(params[param]),
+      `deco.charm.${field} 为 null 时归一化后的 ${param} 必须是有限数值（NaN 进 SVG 会让整条路径消失），实际 ${String(params[param])}`,
+    ).toBe(true);
 
     wrapper.unmount();
   });
+
+  /**
+   * 评审必修 2：`null` 必须回落默认值，不能等同于显式 0。
+   *
+   * 挑出来的四个字段都走"0 是合法值"的钳位规则 —— 轻晃的两项（0 = 关掉轻晃）
+   * 与两轴偏移（0 = 压在热点上）。接线层若写成 `Number(charm.xxx)`，
+   * `Number(null) === 0` 就把"这个键没值"读成"管理员明确填了 0"，
+   * 读者站的观感会悄悄变掉（挂件不再轻晃 / 头节点不再偏 3px）。
+   * 其余五个正值参数由钳位规则顺手兜住了，这里不重复断言。
+   */
+  const NULL_MUST_FALL_BACK = FIELD_WIRING.filter(({ field }) =>
+    ["idle_sway_hz", "idle_sway_amp", "pointer_offset_x", "pointer_offset_y"].includes(field),
+  );
+
+  it.each(NULL_MUST_FALL_BACK)(
+    "$field 为 null 时 $param 回落到默认值 $fallback（null ≠ 显式 0）",
+    ({ field, param, fallback }) => {
+      const { wrapper, options } = mountCharm({ charm: { ...DEFAULT_CHARM } });
+      charmBag()[field] = null;
+
+      const params = normalizeCharmRopeConfig(readConfig(options, `deco.charm.${field} 为 null`));
+
+      expect(
+        params[param],
+        `deco.charm.${field} 为 null 时 ${param} 应回落到默认值 ${fallback}，而不是被 Number(null) 读成 0（实际 ${params[param]}）`,
+      ).toBe(fallback);
+
+      wrapper.unmount();
+    },
+  );
+
+  it.each(NULL_MUST_FALL_BACK)(
+    "$field 显式填 0 时 $param 就是 0（回落规则不吃掉显式 0）",
+    ({ field, param }) => {
+      const { wrapper, options } = mountCharm({ charm: { ...DEFAULT_CHARM } });
+      charmBag()[field] = 0;
+
+      const params = normalizeCharmRopeConfig(readConfig(options, `deco.charm.${field} 显式 0`));
+
+      expect(
+        params[param],
+        `deco.charm.${field} 显式填 0 时 ${param} 必须保留 0（关轻晃 / 压在热点上是合法语义）`,
+      ).toBe(0);
+
+      wrapper.unmount();
+    },
+  );
 
   it.each([
     { label: "deco 整块为 null", deco: null },

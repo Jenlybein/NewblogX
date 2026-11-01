@@ -51,3 +51,31 @@ export function isAuthLikeError(error: unknown) {
     message.includes(keyword.toLowerCase()),
   );
 }
+
+/**
+ * 刷新令牌之后是否值得重试本次请求。
+ *
+ * # 为什么写请求一律不重试
+ *
+ * 重试会把请求**重放**一遍。对读请求这只是多花一次往返；对写请求则是副作用
+ * 执行两次——线上实测点一次赞产生两次 `PUT /digg`，用户看到的是第一次的失败
+ * 提示，服务端却已经写成功了第二遍，进而撞上唯一索引。
+ *
+ * 判别依据只能放在**方法**这一侧：后端业务码只有 0 / 1001 / 1002 三个值，
+ * 所有业务失败都塌缩成 1001，无法据此区分"未登录"和"参数错误"。也因此
+ * {@link isAuthLikeError} 那套按中文关键词匹配的兜底仍然存在——它只用于决定
+ * "要不要刷新令牌"，不再独自决定"要不要重放写请求"。
+ *
+ * @param method 本次请求的方法；缺省按读请求处理。
+ * @param retryAuth 调用方显式关闭重试时传 false。
+ */
+export function shouldRetryAuth(
+  method: string | undefined,
+  error: unknown,
+  retryAuth?: boolean,
+): boolean {
+  if (retryAuth === false) return false;
+  if (!isAuthLikeError(error)) return false;
+  // 只有幂等的读可以安全重放；写请求重放等于重复执行副作用。
+  return (method ?? "GET").toUpperCase() === "GET";
+}

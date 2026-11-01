@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>fixture home</title>
+<link rel="preload" href="/fonts/fixture.woff2" as="font" type="font/woff2" crossorigin>
+<style>
+  html, body { margin: 0; padding: 0; }
+  .feed-entry { display: block; width: 600px; margin: 16px; padding: 24px; background: #ececec; }
+  .article-page { padding: 24px; }
+</style>
+</head>
+<body>
+<main id="main">
+  <section class="feed-entry">
+    <a class="feed-entry__title" href="/article/fixture-1">fixture 文章标题</a>
+    <p>fixture 摘要文字</p>
+  </section>
+</main>
+<script>
+(function () {
+  // 自检用的数据请求：让"返回是否命中缓存"有东西可数。
+  fetch("/api/fixture").catch(function () {});
+  var main = document.getElementById("main");
+  var homeHtml = main.innerHTML;
+  function renderArticle() {
+    main.innerHTML = '<div class="article-page"><h1>fixture 文章标题</h1><p>fixture 正文</p></div>';
+  }
+  function renderHome() {
+    main.innerHTML = homeHtml;
+  }
+  window.__fixtureRender = { article: renderArticle, home: renderHome };
+  // 模拟"能用的"站内客户端跳转（#80 修复后的形态）：pushState + 延迟 40ms 渲染目标内容。
+  document.addEventListener("click", function (e) {
+    var link = e.target && e.target.closest ? e.target.closest('a[href^="/article/"]') : null;
+    if (!link) return;
+    e.preventDefault();
+    history.pushState({}, "", link.getAttribute("href"));
+    setTimeout(renderArticle, 40);
+  });
+  window.addEventListener("popstate", renderHome);
+})();
+</script>
+</body>
+</html>

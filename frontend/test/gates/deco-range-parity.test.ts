@@ -103,6 +103,20 @@ describe("真实仓库为绿：三端范围与默认值一致", () => {
       admin: { min: 40, max: 240, default: 120 },
       yaml: { default: 120 },
     });
+    // 负的下限也是普通字面量：门禁的数值正则必须接受符号，否则 -24 会被
+    // 静默跳过、后面报成"某端忘了定义"（#72 的 canary 就钉这一点）。
+    expect(result.parameters.pointer_offset_x).toMatchObject({
+      backend: { min: -24, max: 24, default: 3 },
+      reader: { min: -24, max: 24, default: 3 },
+      admin: { min: -24, max: 24, default: 3 },
+      yaml: { default: 3 },
+    });
+    expect(result.parameters.pointer_offset_y).toMatchObject({
+      backend: { min: -24, max: 24, default: 3 },
+      reader: { min: -24, max: 24, default: 3 },
+      admin: { min: -24, max: 24, default: 3 },
+      yaml: { default: 3 },
+    });
     expect(result.booleanDefault).toEqual({ yaml: true, admin: true });
   });
 
@@ -293,6 +307,29 @@ describe("负值：负数照常参与四端比较，不会被当成 missing-valu
     expect(result.parameters.idle_sway_amp?.reader?.min).toBe(-5);
     expect(result.parameters.idle_sway_amp?.admin?.min).toBe(-5);
   });
+
+  it("指针端偏移的负下限只改一端 → 报「-24 与 -12 不一致」（负数照常参与比较）", () => {
+    const sources = readSources();
+    const reader = mutate(
+      sources.reader!,
+      "export const CHARM_POINTER_OFFSET_X_MIN = -24;",
+      "export const CHARM_POINTER_OFFSET_X_MIN = -12;",
+    );
+    const result = evaluateDecoRangeParity({ ...sources, reader });
+
+    expect(result.ok).toBe(false);
+    expect(result.failures).toHaveLength(1);
+    expect(result.failures[0]).toMatchObject({
+      kind: "value-mismatch",
+      parameter: "charm.pointer_offset_x",
+      field: "min",
+      sides: { backend: -24, reader: -12, admin: -24 },
+    });
+    expect(result.failures[0].disagreeingSides).toEqual(["reader"]);
+    // 报错要能读出负号：否则"差在哪"这条线索对负数参数等于没说。
+    expect(result.failures[0].message).toContain("-24");
+    expect(result.failures[0].message).toContain("-12");
+  });
 });
 
 describe("键集合相等：判定不再依赖「参数总数」（#72）", () => {
@@ -367,16 +404,19 @@ describe("锚点参数：拦住「参数从四端同时消失」（#72）", () =
     }
   });
 
-  it("已交付的锚点在四源在场；未交付的锚点列进待交付（门禁仍为绿）", () => {
+  it("四个锚点都已交付（四源在场），待交付清单为空且没有状态位提醒", () => {
     const result = checkDecoRangeParity({ repoRoot });
 
     expect(result.failures).toEqual([]);
     expect(result.ok).toBe(true);
-    // #74 交付后 fps_cap 已转正：状态位必须跟着改，否则报告会一直提示"待交付"。
-    expect(result.anchors.delivered).toEqual(["rope_length", "fps_cap"]);
-    // pointer_offset_* 属 #75，还没实现；门禁必须能分辨"还没交付"与"已经丢了"，
-    // 而不是把两者一起报红。
-    expect(result.anchors.pending).toEqual(["pointer_offset_x", "pointer_offset_y"]);
+    // #74 / #75 交付后锚点全部转正：状态位必须跟着改，否则报告会一直提示"待交付"。
+    expect(result.anchors.delivered).toEqual([
+      "rope_length",
+      "fps_cap",
+      "pointer_offset_x",
+      "pointer_offset_y",
+    ]);
+    expect(result.anchors.pending).toEqual([]);
     expect(result.anchors.notes).toEqual([]);
   });
 

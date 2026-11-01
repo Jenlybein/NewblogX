@@ -10,6 +10,8 @@ import {
   CHARM_IDLE_SWAY_AMP_DEFAULT,
   CHARM_IDLE_SWAY_HZ_DEFAULT,
   CHARM_LINE_WIDTH_DEFAULT,
+  CHARM_POINTER_OFFSET_X_DEFAULT,
+  CHARM_POINTER_OFFSET_Y_DEFAULT,
   CHARM_ROPE_LENGTH_DEFAULT,
   CHARM_SEGMENTS_DEFAULT,
   normalizeCharmRopeConfig,
@@ -20,7 +22,7 @@ import {
  * 挂件组件（`CursorCharm.vue`）的**接线**测试 —— 票 #73。
  *
  * 为什么值得测：`deco.charm` 到组合式参数是逐字段手工赋值的
- * （`ropeLengthPx: Number(charm.rope_length)` 这样八连发）。复制粘贴接错
+ * （`ropeLengthPx: Number(charm.rope_length)` 这样十连发）。复制粘贴接错
  * ——比如把静止摆动频率接进摆动幅度——今天没有任何测试会变红，页面上只表现
  * 为"后台调了参数没反应"。组件层此前零覆盖，而 #74 / #75 还要往这条线上
  * 再加三个字段，先把地基按"名字对应"锁住。
@@ -137,6 +139,8 @@ const DEFAULT_CHARM: CharmBag = {
   idle_sway_hz: CHARM_IDLE_SWAY_HZ_DEFAULT,
   idle_sway_amp: CHARM_IDLE_SWAY_AMP_DEFAULT,
   fps_cap: CHARM_FPS_CAP_DEFAULT,
+  pointer_offset_x: CHARM_POINTER_OFFSET_X_DEFAULT,
+  pointer_offset_y: CHARM_POINTER_OFFSET_Y_DEFAULT,
 };
 
 /** 一份"没有这个键"的 `deco.charm`：模拟老库 / 旧后台根本没发这个字段。 */
@@ -171,6 +175,21 @@ const FIELD_WIRING: FieldWiring[] = [
   { field: "idle_sway_amp", param: "idleSwayAmp", sample: 32, fallback: CHARM_IDLE_SWAY_AMP_DEFAULT },
   // #74：帧率上限。120 与其余六个取样值都不同，接串了会立刻红。
   { field: "fps_cap", param: "fpsCap", sample: 120, fallback: CHARM_FPS_CAP_DEFAULT },
+  // #75：指针端偏移。`sample` 故意用负数 —— 这两个字段是有符号的，
+  // 一旦接线时被当成"非负参数"处理（负值回落默认）就会立刻对不上。
+  // 两轴取样值彼此不同，接串（X 接成 Y）也跑不掉。
+  {
+    field: "pointer_offset_x",
+    param: "pointerOffsetX",
+    sample: -6,
+    fallback: CHARM_POINTER_OFFSET_X_DEFAULT,
+  },
+  {
+    field: "pointer_offset_y",
+    param: "pointerOffsetY",
+    sample: -18,
+    fallback: CHARM_POINTER_OFFSET_Y_DEFAULT,
+  },
 ];
 
 beforeEach(() => {

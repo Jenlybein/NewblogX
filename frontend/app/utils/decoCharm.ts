@@ -2,8 +2,12 @@
  * 光标挂件（cursor charm）的参数、门控与挂绳物理（纯函数）。
  *
  * 为什么单独成模块：挂件里所有"算错就看得见"的决定都在这里 —— 门控三条件、
- * 参数钳位、固定步长的 Verlet 链、绳点→SVG 路径。它们全是纯函数，所以可以
- * 脱离浏览器逐点断言；组件与组合式只负责接线（事件、生命周期、停帧）。
+ * 参数钳位、固定步长的 Verlet 链。它们全是纯函数，所以可以脱离浏览器逐点断言；
+ * 组件与组合式只负责接线（事件、生命周期、停帧）。
+ *
+ * "绳点 → SVG 带形路径"那一层在 [`charmTether.ts`](./charmTether.ts)：它只吃
+ * 一串点、吐一个 `d`，不持有状态，所以单独成文件（也让本模块留在单文件 800 行
+ * 门槛内）。
  *
  * 物理为什么是 Verlet 链而不是解析悬链线：解析悬链线零抖动，但站标会"死跟"
  * 指针，失去"被一根绳子拖着"的惯性感。指针端钉死、其余节点自由的链，
@@ -18,7 +22,8 @@
  *   - 坐标可能是 NaN / Infinity（首帧、视口切换）：SVG 的 `d` 里出现 NaN 会
  *     让整条路径静默消失，所以一律收敛到 0；
  *   - 数值参数 0 是"配置字段没填"的零值，不是"我要最小"的意图 ——
- *     回落默认值，而不是钳到下限；
+ *     回落默认值，而不是钳到下限（**例外**是轻晃的两个参数与指针端偏移：
+ *     它们的 0 有明确含义，走"0 合法"的规则）；
  *   - 距离约束在节点重合时 dx/dist 会炸，必须先做退化守卫；
  *   - 坐标保留一位小数：长浮点会让 `d` 字符串每帧都不同，白白制造 diff 噪声。
  */
@@ -109,6 +114,29 @@ export const CHARM_FPS_CAP_MAX = 160;
 export const CHARM_FPS_CAP_DEFAULT = 60;
 
 /**
+ * 指针端偏移（票 #75）：每轴 -24–24 px、默认 3，**允许负值**。
+ *
+ * 语义是"物理头节点 = 指针热点 + (X, Y)"：默认 (3, 3) 让绳头从光标右下方
+ * 悬挂，快速拖行时不再像"绳子从指尖里长出来"。负值表示往左上偏。
+ *
+ * 因为区间含负数，钳位不能用 `clampPositiveRange`（<= 0 回落默认）或
+ * `clampNonNegativeRange`（负值夹回 min）：两者都会静默吃掉负偏移。ADR-0018
+ * 决策 9 / 约束 8 为此新增第四条规则 `clampSignedRange`。
+ */
+export const CHARM_POINTER_OFFSET_X_MIN = -24;
+/** 水平偏移上限（px）：再大绳头与光标热点明显脱节，看起来像"断线"。 */
+export const CHARM_POINTER_OFFSET_X_MAX = 24;
+/** 水平偏移默认值（px）：绳头从光标右侧 3px 处悬挂。 */
+export const CHARM_POINTER_OFFSET_X_DEFAULT = 3;
+
+/** 垂直偏移下限（px，视口坐标系里向下为正）：负数表示往上偏。 */
+export const CHARM_POINTER_OFFSET_Y_MIN = -24;
+/** 垂直偏移上限（px）。 */
+export const CHARM_POINTER_OFFSET_Y_MAX = 24;
+/** 垂直偏移默认值（px）：绳头从光标下方 3px 处悬挂。 */
+export const CHARM_POINTER_OFFSET_Y_DEFAULT = 3;
+
+/**
  * 门控的容差（ms）：判定写成 `now - lastPublishAt >= 1000 / fps_cap - 4`。
  *
  * 减 4ms 不是优化，是必需品：60Hz 屏上一帧是 16.6667ms，`1000/60` 也是
@@ -125,17 +153,6 @@ export const CHARM_FRAME_GATE_TOLERANCE_MS = 4;
 export function charmFrameIntervalMs(fpsCap: number): number {
   return 1000 / clampCharmFpsCap(fpsCap) - CHARM_FRAME_GATE_TOLERANCE_MS;
 }
-
-/**
- * 弧垂的几何系数。
- *
- * 松弛量与矢高不是线性关系：把绳子近似成一段圆弧 / 抛物线，弧长 L、弦长 c、
- * 矢高 s 满足 L − c ≈ (8/3) s² / c，所以 **s ≈ √(3 c (L − c) / 8)**。
- * 这解释了为什么"一点点松弛"就能看出一条明显的弧：松弛 0.1px 时矢高已有
- * 约 2px。松弛为 0 时矢高严格为 0（竖直悬挂就是直线）。
- */
-const CHARM_SAG_NUMERATOR = 3;
-const CHARM_SAG_DENOMINATOR = 8;
 
 /**
  * 物理固定步长：1/120 s。
@@ -196,6 +213,10 @@ export interface CharmRopeConfig {
   idleSwayAmp: number;
   /** 最高渲染帧率，fps。只决定"每秒画几次"，不影响绳子运动速度（物理按真实时间推进）。 */
   fpsCap: number;
+  /** 指针端偏移的水平分量，px，区间 -24–24（整数，允许负值）。物理头节点 = 指针热点 + 它。 */
+  pointerOffsetX: number;
+  /** 指针端偏移的垂直分量，px，区间 -24–24（整数，允许负值）。 */
+  pointerOffsetY: number;
 }
 
 /**
@@ -210,7 +231,7 @@ export interface CharmRopeState {
   config: CharmRopeConfig;
   /** 每节的静止长度（px），= ropeLength / segments。 */
   restLengthPx: number;
-  /** 节点位置；nodes[0] 永远钉在指针上。 */
+  /** 节点位置；nodes[0] 永远钉在**物理头节点**（指针热点 + 指针端偏移）上。 */
   nodes: CharmPoint[];
   /** 上一步的位置，Verlet 用它算速度。 */
   previous: CharmPoint[];
@@ -255,6 +276,33 @@ function clampPositiveRange(value: number, min: number, max: number, fallback: n
 function clampNonNegativeRange(value: number, min: number, max: number, fallback: number): number {
   if (!Number.isFinite(value) || value < 0) return fallback;
   return Math.min(max, Math.max(min, value));
+}
+
+/**
+ * 「0 与负数都是普通取值」的数值参数共用钳位规则 —— 第四条规则（票 #75）。
+ *
+ * 与另外两条的分界线只在"0 与负数怎么算"：
+ *   - `clampPositiveRange`：<= 0 一律回落默认值；
+ *   - `clampNonNegativeRange`：保留 0，但把负数夹回 min（这里的 min 是 -24，
+ *     等于把"往左上偏 6px"静默改成"往左上偏 24px"）；
+ *   - 这里：只夹到 [min, max]，0 与负数都不特殊对待。
+ *
+ * NaN / ±Inf 仍然回落默认值：它们序列化进 JSON 会直接失败。
+ */
+function clampSignedRange(value: number, min: number, max: number, fallback: number): number {
+  if (!Number.isFinite(value)) return fallback;
+  return Math.min(max, Math.max(min, value));
+}
+
+/**
+ * 取整成整数，半值远离 0（-2.5 → -3）。
+ *
+ * 为什么不直接用 `Math.round`：它对负半值往 +∞ 取整（-2.5 → -2），而后端用
+ * Go 的 `math.Round`（远离 0，-2.5 → -3）。指针端偏移是**有符号**参数，负半值
+ * 不是边角情形，跨端共享夹具里就钉着这一条。
+ */
+function roundHalfAwayFromZero(value: number): number {
+  return Math.sign(value) * Math.round(Math.abs(value));
 }
 
 /**
@@ -350,6 +398,35 @@ export function clampCharmFpsCap(value: number): number {
 }
 
 /**
+ * 指针端水平偏移归一化：夹到 -24–24 后取整成整数。
+ *
+ * 0 与负值都是普通取值（0 = 绳头压在热点上，负值 = 往左偏），只有 NaN / ±Inf
+ * 回落默认 3。顺序是"先夹边界再取整"，与后端的 `normalizePointerOffset` 一致。
+ */
+export function clampCharmPointerOffsetX(value: number): number {
+  return roundHalfAwayFromZero(
+    clampSignedRange(
+      value,
+      CHARM_POINTER_OFFSET_X_MIN,
+      CHARM_POINTER_OFFSET_X_MAX,
+      CHARM_POINTER_OFFSET_X_DEFAULT,
+    ),
+  );
+}
+
+/** 指针端垂直偏移归一化：与水平分量完全对称（夹到 -24–24、取整、非法值回落 3）。 */
+export function clampCharmPointerOffsetY(value: number): number {
+  return roundHalfAwayFromZero(
+    clampSignedRange(
+      value,
+      CHARM_POINTER_OFFSET_Y_MIN,
+      CHARM_POINTER_OFFSET_Y_MAX,
+      CHARM_POINTER_OFFSET_Y_DEFAULT,
+    ),
+  );
+}
+
+/**
  * 把任意来源的物理参数收敛成可以建链的形态。
  *
  * 每个字段各自独立钳位：某个键缺失或非法只影响它自己，不会把整份配置拖回默认。
@@ -366,6 +443,8 @@ export function normalizeCharmRopeConfig(
     idleSwayHz: clampCharmIdleSwayHz(Number(input?.idleSwayHz)),
     idleSwayAmp: clampCharmIdleSwayAmp(Number(input?.idleSwayAmp)),
     fpsCap: clampCharmFpsCap(Number(input?.fpsCap)),
+    pointerOffsetX: clampCharmPointerOffsetX(Number(input?.pointerOffsetX)),
+    pointerOffsetY: clampCharmPointerOffsetY(Number(input?.pointerOffsetY)),
   };
 }
 
@@ -374,13 +453,27 @@ function finite(value: number): number {
   return Number.isFinite(value) ? value : 0;
 }
 
-/** 保留一位小数，避免长浮点每帧写出不同的 `d` 字符串。 */
-function round1(value: number): number {
-  return Number(finite(value).toFixed(1));
+/**
+ * 指针热点 + 偏移 = 物理头节点（票 #75 的唯一真相）。
+ *
+ * 为什么偏移必须在这一处换算：链的头节点被钉死在这里，弧垂与张力都从这个点
+ * 算起。若改成"渲染时再把起点挪一下"，物理仍以光标为头，快速拉扯时起点与绳子
+ * 会脱节（ADR-0018「已否决：偏移只挪渲染起点」）。所以渲染层**不得**再偏一次。
+ *
+ * 偏移在这里各自再钳一次：配置可能来自旧库、手改的 JSON 或别人直接调接口。
+ */
+export function charmPointerAnchor(
+  pointer: CharmPoint,
+  config: Pick<CharmRopeConfig, "pointerOffsetX" | "pointerOffsetY">,
+): CharmPoint {
+  return {
+    x: finite(pointer.x) + clampCharmPointerOffsetX(Number(config?.pointerOffsetX)),
+    y: finite(pointer.y) + clampCharmPointerOffsetY(Number(config?.pointerOffsetY)),
+  };
 }
 
 /**
- * 建一条静止的链：节点 0 在指针上，其余等距竖直下垂。
+ * 建一条静止的链：节点 0 在物理头节点（指针热点 + 偏移）上，其余等距竖直下垂。
  *
  * 初始是"竖直静止"而不是"从指针处拖一根弹簧"：这样第一帧的能量为零，
  * 不会在页面刚打开时先甩一下。真正的摆动从指针第一次移动开始。
@@ -563,180 +656,4 @@ export function charmRopeSegmentLengths(state: CharmRopeState): number[] {
     lengths.push(Math.hypot(deltaX, deltaY));
   }
   return lengths;
-}
-
-/**
- * 中心线的采样密度：每个链节点区间取 4 个 Catmull-Rom 采样点。
- *
- * 4 段/区间已经让 10 节点的折线在 1px 级看不出棱角；再加密只是让每帧的
- * `d` 字符串变长，视觉收益为零。
- */
-const CHARM_CURVE_SAMPLES_PER_SEGMENT = 4;
-
-/** 挂绳的几何结果：中心线、每点宽度、松弛量、弧垂与可直接写进 SVG 的带形路径。 */
-export interface CharmTetherGeometry {
-  /** 平滑中心线（经过链节点；原始精度，不取整）。 */
-  centerline: CharmPoint[];
-  /** 每个中心线采样点处的描边宽度（px）；首项 = line_width，末项 = 0.6 × line_width。 */
-  widths: number[];
-  /** 松驰量（px）= max(0, 绳长 − 指针到站标的实际距离)。 */
-  slackPx: number;
-  /** 中心线相对头尾弦的最大横向偏移（px）：这就是肉眼看到的"弧垂"。 */
-  maxDeviationPx: number;
-  /** 闭合的带形多边形（SVG `<path d>` 用 `fill`，不是 `stroke`）。 */
-  path: string;
-}
-
-/** 单个 Catmull-Rom 采样点。 */
-function catmullRomPoint(p0: CharmPoint, p1: CharmPoint, p2: CharmPoint, p3: CharmPoint, t: number): CharmPoint {
-  const t2 = t * t;
-  const t3 = t2 * t;
-  return {
-    x:
-      0.5 *
-      (2 * p1.x +
-        (-p0.x + p2.x) * t +
-        (2 * p0.x - 5 * p1.x + 4 * p2.x - p3.x) * t2 +
-        (-p0.x + 3 * p1.x - 3 * p2.x + p3.x) * t3),
-    y:
-      0.5 *
-      (2 * p1.y +
-        (-p0.y + p2.y) * t +
-        (2 * p0.y - 5 * p1.y + 4 * p2.y - p3.y) * t2 +
-        (-p0.y + 3 * p1.y - 3 * p2.y + p3.y) * t3),
-  };
-}
-
-/**
- * 把链节点插值成一条经过每个节点的平滑折线（Catmull-Rom）。
- *
- * 为什么要插值而不直接连节点：10 个节点的折线在甩动时会露出棱角，
- * 而"有重量的绳子"读起来必须是连续的。采样点保留原始精度，取整只发生在
- * 写进 `d` 的那一刻。
- */
-function smoothCenterline(points: readonly CharmPoint[]): CharmPoint[] {
-  const count = points.length;
-  if (count === 0) return [];
-  if (count === 1) return [{ ...points[0]! }];
-  const samples: CharmPoint[] = [];
-  for (let index = 0; index < count - 1; index += 1) {
-    const p0 = points[Math.max(0, index - 1)]!;
-    const p1 = points[index]!;
-    const p2 = points[index + 1]!;
-    const p3 = points[Math.min(count - 1, index + 2)]!;
-    for (let sample = 0; sample < CHARM_CURVE_SAMPLES_PER_SEGMENT; sample += 1) {
-      samples.push(catmullRomPoint(p0, p1, p2, p3, sample / CHARM_CURVE_SAMPLES_PER_SEGMENT));
-    }
-  }
-  samples.push({ ...points[count - 1]! });
-  return samples;
-}
-
-/**
- * 挂绳的绘制几何。
- *
- * 三件事在这里同时决定，所以单独成一个纯函数、供测试直接喂"几何链"：
- *
- * 1. **弧垂只由松弛驱动，绝不来自重力**。松弛 = 绳长 − 指针到站标的实际
- *    距离；两端距离恰好等于绳长时矢高为 0（竖直悬挂就是一条直线），
- *    松弛越大中段偏离弦越多。重力只影响链的瞬态姿态（节点的实际位置），
- *    从不进入这个函数 —— 调大重力不会让静止的绳子弯下来。
- * 2. **收尾描边恰好是起始的 0.6 倍**。一根 `stroke` 变不了宽度，所以这里
- *    生成一条**填充的带形多边形**：两侧边界沿中心线法向各偏移半个宽度，
- *    宽度从 `line_width` 线性收到 `0.6 × line_width`。每帧仍然只写一个
- *    `d`，不增加 DOM 写入次数。
- * 3. 坐标保留一位小数，避免每帧写出长浮点制造 diff 噪声。
- */
-export function charmTetherGeometry(
-  points: readonly CharmPoint[],
-  ropeLengthPx: number,
-  lineWidthPx: number,
-): CharmTetherGeometry {
-  const widthStart = clampCharmLineWidth(lineWidthPx);
-  const ropeLength = Number.isFinite(ropeLengthPx) && ropeLengthPx > 0 ? ropeLengthPx : 0;
-  const centerline = smoothCenterline(points);
-  const count = centerline.length;
-  if (count === 0) {
-    return { centerline: [], widths: [], slackPx: 0, maxDeviationPx: 0, path: "" };
-  }
-
-  // 两端之间的弦：它是"实际距离"，弧垂的量尺。
-  const head = centerline[0]!;
-  const tail = centerline[count - 1]!;
-  const chordX = tail.x - head.x;
-  const chordY = tail.y - head.y;
-  const chord = Math.hypot(chordX, chordY);
-  const slackPx = Math.max(0, ropeLength - chord);
-
-  // 弧的方向：顺着链自己的横向偏移（物理形变的方向）；纯直线的合成几何
-  // 没有方向可说，就取弦的左侧作为确定性默认。两端点处权重为 0。
-  const normalX = chord > 1e-9 ? -chordY / chord : 0;
-  const normalY = chord > 1e-9 ? chordX / chord : 1;
-  let side = 0;
-  for (const point of centerline) {
-    side += (point.x - head.x) * normalX + (point.y - head.y) * normalY;
-  }
-  const direction = side < 0 ? -1 : 1;
-  // 松弛 → 矢高：s ≈ √(3 c slack / 8)。两端恰好等于绳长时 slack = 0 → 直线。
-  const sagPeakPx = Math.sqrt((CHARM_SAG_NUMERATOR * chord * slackPx) / CHARM_SAG_DENOMINATOR);
-
-  // 宽度与弧垂都按"沿链的归一化参数"插值：首尾宽度固定，中段弧垂最大。
-  const widths: number[] = [];
-  const offsetSamples: CharmPoint[] = [];
-  for (let index = 0; index < count; index += 1) {
-    const u = count > 1 ? index / (count - 1) : 1;
-    const point = centerline[index]!;
-    const bowPx = sagPeakPx * 4 * u * (1 - u);
-    const bowed = {
-      x: point.x + normalX * direction * bowPx,
-      y: point.y + normalY * direction * bowPx,
-    };
-    centerline[index] = bowed;
-    offsetSamples.push(bowed);
-    widths.push(widthStart * (1 - (1 - CHARM_TAPER_RATIO) * u));
-  }
-
-  // 弧垂 = 中心线相对弦的最大横向偏移（用同一把尺子量，测试与显示一致）。
-  let maxDeviationPx = 0;
-  const chordUnitX = chord > 1e-9 ? chordX / chord : 0;
-  const chordUnitY = chord > 1e-9 ? chordY / chord : 1;
-  for (const point of centerline) {
-    const dx = point.x - head.x;
-    const dy = point.y - head.y;
-    maxDeviationPx = Math.max(maxDeviationPx, Math.abs(dx * chordUnitY - dy * chordUnitX));
-  }
-
-  // 带形多边形：中心线两侧各偏移半个宽度。两侧各走一遍，尾端用一条
-  // `L` 连起来，首端由 `Z` 闭合。
-  const left: CharmPoint[] = [];
-  const right: CharmPoint[] = [];
-  for (let index = 0; index < count; index += 1) {
-    const point = centerline[index]!;
-    const previous = centerline[Math.max(0, index - 1)]!;
-    const next = centerline[Math.min(count - 1, index + 1)]!;
-    const tangentX = next.x - previous.x;
-    const tangentY = next.y - previous.y;
-    const tangentLength = Math.hypot(tangentX, tangentY);
-    const unitX = tangentLength > 1e-9 ? tangentX / tangentLength : 0;
-    const unitY = tangentLength > 1e-9 ? tangentY / tangentLength : 1;
-    const half = widths[index]! / 2;
-    const nx = -unitY * half;
-    const ny = unitX * half;
-    left.push({ x: point.x + nx, y: point.y + ny });
-    right.push({ x: point.x - nx, y: point.y - ny });
-  }
-
-  const leftCommands = left.slice(1).map((point) => `L${round1(point.x)} ${round1(point.y)}`);
-  const rightCommands = right
-    .slice(0, -1)
-    .reverse()
-    .map((point) => `L${round1(point.x)} ${round1(point.y)}`);
-  const path =
-    `M${round1(left[0]!.x)} ${round1(left[0]!.y)}` +
-    leftCommands.join("") +
-    `L${round1(right[right.length - 1]!.x)} ${round1(right[right.length - 1]!.y)}` +
-    rightCommands.join("") +
-    "Z";
-
-  return { centerline, widths, slackPx, maxDeviationPx, path };
 }

@@ -74,7 +74,7 @@ describe("装饰 Tab 的「恢复默认」（票 #42）", () => {
     // 否则参数清单与表单渲染就会有两份真相（加参数时只改元数据不再成立）。
     expect(source).toContain("const numberParams = DECO_NUMBER_PARAMS");
     expect(source).not.toMatch(
-      /config\.charm\.(logo_size|rope_length|segments|line_width|gravity|damping|idle_sway_hz|idle_sway_amp|fps_cap)/u,
+      /config\.charm\.(logo_size|rope_length|segments|line_width|gravity|damping|idle_sway_hz|idle_sway_amp|fps_cap|pointer_offset_x|pointer_offset_y)/u,
     );
   });
 });

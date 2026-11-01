@@ -245,7 +245,19 @@ export default defineNuxtConfig({
     },
     devProxy,
   },
+  // 渲染边界是**白名单**（ADR-0019 决策 1 / 约束 1），不是"按页面随手加"：
+  // 服务端渲染只留给 `/` 与 `/article/**`（分享卡片与搜索引擎靠它）；个人主页、
+  // 搜索页与创作区走 SPA。判定与"非白名单路由开 SSR 会红"的门禁在
+  // test/gates/rendering-boundary.test.ts —— 增删这条规则前先改 ADR。
   routeRules: {
+    // `/articles` 是并入 `/search` 的历史列表入口：必须**服务端 301**（渲染前就
+    // 重定向，不产生 SSR 渲染成本），把旧链接的权重合并过去。写成普通的
+    // `ssr: false` 会让爬虫/无 JS 客户端只拿到 200 空壳（SEO 退化，见 #83 复盘）；
+    // 站内客户端跳转由 app/pages/articles.vue 的页面中间件兜底。
+    "/articles": {
+      redirect: { to: "/search", statusCode: 301 },
+    },
+    "/users/**": { ssr: false },
     "/search": { ssr: false },
     "/studio/**": { ssr: false },
   },

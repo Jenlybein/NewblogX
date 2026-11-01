@@ -1,10 +1,12 @@
 import { shallowRef } from "vue";
 import { usePagedResourceCache } from "~/composables/usePagedResourceCache";
+import { useReaderSwrAsyncData } from "~/composables/useReaderSwrAsyncData";
 import { getHotTopArticles } from "~/services/article";
 import { searchArticles } from "~/services/search";
 import { getBannerList } from "~/services/site";
 import type { ArticleHotTopListData, BannerListData, SearchArticleItem } from "~/types/api";
 import { detectReaderRenderMode, type ReaderRenderMode } from "~/utils/readerRenderMode";
+import type { ReaderSwrCache } from "~/utils/readerSwrCache";
 
 export interface HomeLatestPage {
   items: SearchArticleItem[];
@@ -18,6 +20,8 @@ export interface HomePageSourcesOptions {
   fetchBanners?: () => Promise<BannerListData>;
   fetchHotTop?: () => Promise<ArticleHotTopListData>;
   fetchLatest?: (page: number, limit: number) => Promise<HomeLatestPage>;
+  /** 跨导航 30s SWR 缓存（单测注入假时钟实例；默认客户端共享实例、服务端禁用）。 */
+  swrCache?: ReaderSwrCache;
 }
 
 function formatRequestError(error: unknown) {
@@ -64,16 +68,26 @@ export async function useHomePageSources(options: HomePageSourcesOptions = {}) {
     });
 
   // 三个数据源在这里**同时发起**：顺序只决定谁先占 socket，不决定谁等谁。
-  const bannerSource = useAsyncData("home-banners", () =>
-    fetchBanners().catch(() => ({ list: [], has_more: false } satisfies BannerListData)),
-  );
-  const hotTopSource = useAsyncData("home-hot-top", async () => {
-    try {
-      return await fetchHotTop();
-    } catch (error) {
-      console.warn(`[home-hot-top] request failed, using fallback: ${formatRequestError(error)}`);
-      return { list: [], count: 0 } satisfies ArticleHotTopListData;
-    }
+  // 轮播 / 置顶走 30s SWR：返回首页 30 秒内直接命中缓存、不发请求；过期则旧值先上屏、
+  // 后台静默刷新（ADR-0019 决策 4）。
+  const bannerSource = useReaderSwrAsyncData({
+    key: "home-banners",
+    handler: () => fetchBanners().catch(() => ({ list: [], has_more: false } satisfies BannerListData)),
+    mode,
+    cache: options.swrCache,
+  });
+  const hotTopSource = useReaderSwrAsyncData({
+    key: "home-hot-top",
+    handler: async () => {
+      try {
+        return await fetchHotTop();
+      } catch (error) {
+        console.warn(`[home-hot-top] request failed, using fallback: ${formatRequestError(error)}`);
+        return { list: [], count: 0 } satisfies ArticleHotTopListData;
+      }
+    },
+    mode,
+    cache: options.swrCache,
   });
 
   const latestPager = await usePagedResourceCache({
@@ -81,6 +95,8 @@ export async function useHomePageSources(options: HomePageSourcesOptions = {}) {
     pageSize: () => 9,
     // 客户端路由跳转时首屏交给后台跑（先出骨架）；服务端与首屏 hydration 等它（SSR 内容 / 不闪）。
     initialLoad: mode === "navigation" ? "background" : "block",
+    // 分页缓存：30 秒内返回首页直接命中（含翻过的页）；服务端渲染禁用。
+    swrCache: mode === "server" ? null : options.swrCache,
     fetchPage: async (page, limit) => {
       try {
         latestRequestError.value = null;

@@ -1,12 +1,15 @@
 import { computed, toValue } from "vue";
 import type { MaybeRefOrGetter } from "vue";
 import { usePagedResourceCache } from "~/composables/usePagedResourceCache";
+import { useReaderSwrAsyncData } from "~/composables/useReaderSwrAsyncData";
 import { getArticleScoreSummary } from "~/services/ai";
 import { getArticleAuthorInfo, getArticleDetail } from "~/services/article";
 import { getRootComments } from "~/services/comment";
 import { getUserBaseInfo } from "~/services/user";
 import type { ArticleAuthorInfo, ArticleDetail, CommentRootItem } from "~/types/api";
 import { detectReaderRenderMode, type ReaderRenderMode } from "~/utils/readerRenderMode";
+import { withoutPrivateFields, withoutPrivateFieldsFromItems } from "~/utils/readerPrivateFields";
+import type { ReaderSwrCache } from "~/utils/readerSwrCache";
 
 export interface ArticleCommentsPage {
   items: CommentRootItem[];
@@ -26,6 +29,8 @@ export interface ArticlePageSourcesOptions {
   fetchComments?: (articleId: string, page: number, limit: number) => Promise<ArticleCommentsPage>;
   fetchAuthorInfo?: (authorId: string) => Promise<ArticleAuthorInfo>;
   fetchAuthorProfile?: (authorId: string) => Promise<ArticleAuthorProfile | null>;
+  /** 跨导航 30s SWR 缓存（单测注入假时钟实例；默认客户端共享实例、服务端禁用）。 */
+  swrCache?: ReaderSwrCache;
 }
 
 const ROOT_COMMENT_PAGE_SIZE = 7;
@@ -73,7 +78,15 @@ export async function useArticlePageSources(options: ArticlePageSourcesOptions) 
     options.fetchAuthorProfile ?? ((authorId: string) => getUserBaseInfo(authorId).catch(() => null));
 
   // 第一波：三个请求只依赖路由里的文章 id，**同时发起**。
-  const articleSource = useAsyncData(() => `article-${articleId.value}`, () => fetchArticle(articleId.value));
+  // 正文走 30s SWR：30 秒内重进同一篇文章直接命中、不再请求；过期则旧值先上屏、后台静默刷新。
+  // 写缓存前剔除 `is_digg` / `is_favor`：登录态私有字段不进缓存（ADR-0019 约束 2）。
+  const articleSource = useReaderSwrAsyncData({
+    key: () => `article-${articleId.value}`,
+    handler: () => fetchArticle(articleId.value),
+    mode,
+    cache: options.swrCache,
+    sanitizeForCache: withoutPrivateFields,
+  });
   const scoreSource = useAsyncData<ArticleScoreSummary | null>(
     () => `article-score-summary:${articleId.value}`,
     () => fetchScore(articleId.value),
@@ -99,10 +112,16 @@ export async function useArticlePageSources(options: ArticlePageSourcesOptions) 
   );
 
   // 评论分页首屏：客户端跳转时后台取（先出骨架），服务端与首屏 hydration 等它（SSR 内容 / 不闪）。
+  // 30 秒内重进同一篇文章的评论区直接命中缓存；评论的 `is_digg` / `relation` 私有态不落缓存。
   const commentsPager = await usePagedResourceCache({
     cacheKey: () => `article-comments:${articleId.value}`,
     pageSize: () => ROOT_COMMENT_PAGE_SIZE,
     initialLoad: mode === "navigation" ? "background" : "block",
+    swrCache: mode === "server" ? null : options.swrCache,
+    sanitizeForCache: (page) => ({
+      ...page,
+      items: withoutPrivateFieldsFromItems(page.items),
+    }),
     fetchPage: async (page, limit) => {
       try {
         return await fetchComments(articleId.value, page, limit);

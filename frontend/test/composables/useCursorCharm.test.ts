@@ -27,8 +27,18 @@ import {
 
 const REDUCED = "(prefers-reduced-motion: reduce)";
 
-/** 假动画帧回调是"下一次刷新"：固定 16.667ms 后到期（= 60Hz）。 */
+/** 假动画帧回调是"下一次刷新"：默认 16.667ms 后到期（= 60Hz）。 */
 const RAF_DELAY_MS = 16.667;
+
+/**
+ * 略小于 `1000 / 60 = 16.6667ms` 的刷新间隔（16.6ms ≈ 60.24Hz）。
+ *
+ * 为什么需要它：默认的 16.667ms 与 `1000/60` 只差 0.0003ms，**任何**门控写法
+ * （哪怕没有容差）都能判成"到点"，于是"不许删掉那 4ms 容差"这条约束在测试里
+ * 根本没有被锁住。这里把刷新间隔压到 `1000/60` 之下 0.07ms：只有容差存在时，
+ * `now - lastPublishAt >= 1000/60 - 4` 才会对每一帧都成立。
+ */
+const FRAME_INTERVAL_JUST_UNDER_60_HZ_MS = 16.6;
 
 type Listener = (event?: unknown) => void;
 
@@ -87,8 +97,11 @@ function fakeHost(initialHidden = false) {
  * 只有一条队列：挂件只剩 requestAnimationFrame 一种调度（票 #74）。
  * 这里**没有** setTimeout 槽位 —— 定时器驱动的帧已经不存在了，
  * 留一个空槽只会让人以为它还在。
+ *
+ * `frameDelayMs` 可调：默认就是"60Hz 显示器"，而要验证帧率门控的容差
+ * （ADR-0018 决策 3）就得喂一个**略小于 `1000/60`** 的刷新间隔。
  */
-function fakeFrames() {
+function fakeFrames(frameDelayMs: number = RAF_DELAY_MS) {
   interface Scheduled {
     id: number;
     due: number;
@@ -107,7 +120,7 @@ function fakeFrames() {
     requestAnimationFrame: vi.fn((callback: Listener) => {
       const id = nextId;
       nextId += 1;
-      queue.set(id, { id, due: clock.now + RAF_DELAY_MS, callback });
+      queue.set(id, { id, due: clock.now + frameDelayMs, callback });
       return id;
     }),
     cancelAnimationFrame: vi.fn((id: number) => {
@@ -134,7 +147,7 @@ function fakeFrames() {
     runUntilIdle(maxFrames = 4000): number {
       let frames = 0;
       while (queue.size > 0 && frames < maxFrames) {
-        this.advance(RAF_DELAY_MS);
+        this.advance(frameDelayMs);
         frames += 1;
       }
       return frames;
@@ -157,13 +170,15 @@ interface MountOverrides {
     pointerOffsetY?: number;
   } | null;
   media?: Record<string, boolean>;
+  /** 假刷新间隔（ms）；缺省 60Hz。要测门控容差时传略小于 `1000/60` 的值。 */
+  frameDelayMs?: number;
 }
 
 function mount(overrides: MountOverrides = {}) {
   const media = fakeMedia({ [CHARM_FINE_POINTER_QUERY]: true, ...overrides.media });
   const pointer = fakeHost();
   const doc = fakeHost();
-  const frames = fakeFrames();
+  const frames = fakeFrames(overrides.frameDelayMs);
   // 默认把轻晃关掉：多数用例测的是"静止即停帧"。
   // 需要持续跑帧的用例（帧率上限、轻晃）自己传 idleSwayAmp > 0。
   const config = overrides.config ?? (() => ({ idleSwayAmp: 0 }));
@@ -183,9 +198,9 @@ function mount(overrides: MountOverrides = {}) {
 const desktop = () => fakeMedia({ [CHARM_FINE_POINTER_QUERY]: true });
 
 /**
- * 默认指针端偏移（票 #75）：物理头节点 = 指针热点 + 这个偏移。
+ * 默认指针端偏移（票 #75）：指针端节点 = 指针热点 + 这个偏移。
  *
- * 组合式用例里凡是要断言"头节点在哪儿"的地方都带上它 —— 默认配置下绳头并不
+ * 组合式用例里凡是要断言"头节点在哪儿"的地方都带上它 —— 默认配置下指针端并不
  * 压在光标正中央，而是从右下 3px 悬挂；如果某处漏了偏移，那条断言会先红。
  */
 const DEFAULT_OFFSET = {
@@ -316,7 +331,7 @@ describe("useCursorCharm：首次移动、绳链与淡入", () => {
     frames.advance(RAF_DELAY_MS);
 
     expect(charm.tetherPath.value).not.toBe("");
-    // 头节点 = 指针热点 + 默认偏移（3, 3）：默认配置下绳头不压在光标正中央。
+    // 头节点 = 指针热点 + 默认偏移（3, 3）：默认配置下指针端不压在光标正中央。
     expect(charm.tetherGeometry?.centerline[0]?.x).toBeCloseTo(120 + DEFAULT_OFFSET.x, 1);
     expect(charm.tetherGeometry?.centerline[0]?.y).toBeCloseTo(240 + DEFAULT_OFFSET.y, 1);
     // 首次移动的链是竖直的、松弛为 0：几何上就是一条直线。
@@ -438,9 +453,17 @@ describe("useCursorCharm：固定步长循环与停帧", () => {
   });
 });
 
-/** 在 60Hz 虚拟时钟上跑 1 秒，返回"多少帧刷新"与"发布了几次"。 */
-function simulateOneSecond(fpsCap: number) {
-  const { charm, pointer, frames } = mount({ config: swaying(fpsCap) });
+/**
+ * 在虚拟时钟上跑 1 秒，返回"多少帧刷新"与"发布了几次"。
+ *
+ * `frameDelayMs` 缺省是 60Hz（16.667ms）；传略小于 `1000/60` 的值可以验证
+ * 帧率门控的 4ms 容差（见下面那条"略快于 60Hz"的用例）。
+ */
+function simulateOneSecond(fpsCap: number, frameDelayMs: number = RAF_DELAY_MS) {
+  const { charm, pointer, frames } = mount({
+    config: swaying(fpsCap),
+    frameDelayMs,
+  });
   pointer.emit("pointermove", { clientX: 0, clientY: 0 });
   frames.advance(1000);
 
@@ -453,6 +476,28 @@ describe("useCursorCharm：恒定帧率上限（票 #74 裁决）", () => {
 
     expect(refreshed).toBeGreaterThanOrEqual(58);
     expect(published, "上限 60 时不该有帧被门控挡掉").toBe(refreshed);
+  });
+
+  /**
+   * 决议要求门控写成 `now - lastPublishAt >= 1000/fps_cap - CHARM_FRAME_GATE_TOLERANCE_MS`
+   * （ADR-0018 决策 3，"不许删"）。但 60Hz 的 16.667ms 与 `1000/60` 差得只有
+   * 0.0003ms —— 把容差改成 0，上面那条用例照样全绿，等于这条约束没被锁住。
+   *
+   * 这里把刷新间隔压到 `1000/60` 以下 0.07ms：只有容差真的存在，每帧才会都判成
+   * "到点"。把 `CHARM_FRAME_GATE_TOLERANCE_MS` 改成 0 时这条会红（每两帧才发布
+   * 一次，60 档被打成 30 档），恢复后变绿 —— 本用例就是那条约束的守门人。
+   */
+  it("上限 60 在略快于 60Hz 的屏上（16.6ms/帧）仍然每帧发布：容差不是摆设", () => {
+    const { published, refreshed } = simulateOneSecond(
+      CHARM_FPS_CAP_DEFAULT,
+      FRAME_INTERVAL_JUST_UNDER_60_HZ_MS,
+    );
+
+    expect(refreshed).toBeGreaterThanOrEqual(58);
+    expect(
+      published,
+      "刷新间隔比 1000/fps_cap 略小时，4ms 容差必须让每一帧都算作到点（否则 60 档被打成 30 档）",
+    ).toBe(refreshed);
   });
 
   it("上限 30 在 60Hz 屏上：每 2 帧发布一次（约 30 次/秒）", () => {
@@ -532,7 +577,7 @@ describe("useCursorCharm：恒定帧率上限（票 #74 裁决）", () => {
   });
 });
 
-describe("useCursorCharm：指针端偏移（票 #75，物理头节点 = 指针热点 + 偏移）", () => {
+describe("useCursorCharm：指针端偏移（票 #75，指针端节点 = 指针热点 + 偏移）", () => {
   it("默认偏移：头节点在光标右下 3px，渲染拿到的就是它（没有第二次偏移）", () => {
     const { charm, pointer, frames } = mount();
     pointer.emit("pointermove", { clientX: 100, clientY: 100 });

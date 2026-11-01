@@ -2,6 +2,7 @@
 import { computed, ref, shallowRef, watch } from "vue";
 import { NButton, NInput } from "naive-ui";
 import ArticleFeedItem from "~/components/article/ArticleFeedItem.vue";
+import LoadingSkeleton from "~/components/common/LoadingSkeleton.vue";
 import ProfileEmptyState from "~/components/profile/ProfileEmptyState.vue";
 import { getTagOptions, searchArticles, searchArticlesWithAi } from "~/services/search";
 import {
@@ -62,7 +63,9 @@ watch(
   { immediate: true },
 );
 
-const { data: tagOptions } = await useAsyncData("search-tags", () => getTagOptions().catch(() => []));
+// 标签与结果**并行发起**（ADR-0019 约束 6：不得先 await 标签再建分页器）。
+// 标签不阻塞 setup：`useAsyncData` 立刻返回句柄，模板里用 `tagOptions` 响应式填充。
+const { data: tagOptions } = useAsyncData("search-tags", () => getTagOptions().catch(() => []));
 
 function formatRequestError(error: unknown) {
   if (error instanceof Error) {
@@ -81,6 +84,8 @@ const searchPager = await usePagedResourceCache({
     })}`,
   pageSize: () => 9,
   initialPage: () => committedQuery.value.page,
+  // 结果区先出骨架、请求后台跑（ADR-0019 决策 3 / 约束 6）：首页搜索词换了也不卡住 setup。
+  initialLoad: "background",
   fetchPage: async (nextPage, limit) => {
     try {
       requestError.value = null;
@@ -358,7 +363,11 @@ watch(
         </div>
       </div>
 
-      <div v-if="articles.length" class="space-y-4">
+      <!-- 结果区骨架优先：搜索/标签请求并行跑，结果未到时先出结构占位（不是「加载中…」文案）。 -->
+      <div v-if="pending && !articles.length" class="space-y-4">
+        <LoadingSkeleton :rows="3" variant="card" label="搜索结果正在加载" />
+      </div>
+      <div v-else-if="articles.length" class="space-y-4">
         <ArticleFeedItem
           v-for="article in articles"
           :key="article.id"

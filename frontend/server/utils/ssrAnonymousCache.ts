@@ -9,32 +9,23 @@
  * render:response 钩子 + 按 URL 键的内存表。
  *
  * 三条硬约束（判据见 test/gates/ssr-anonymous-cache.test.ts）：
- *   1. 只缓存 SSR 白名单 `/` 与 `/article/**`；
+ *   1. 只缓存 SSR 白名单 `/` 与 `/article/**`（白名单的唯一来源是
+ *      `shared/readerRenderingBoundary.ts`，这里只派生、不重复写表）；
  *   2. 缓存键只由 URL 决定，不含任何请求身份（cookie / Authorization / UA）；
  *   3. TTL 固定 30 秒，只存 200 + HTML + 不带 Set-Cookie 的匿名整页响应。
  *
  * 这个文件不依赖 Nuxt/Nitro 的任何自动导入，是纯逻辑 + 一个内存表，方便门禁直接单测。
+ * 门禁夹具（样例路由与策略判据）刻意放在测试里：生产模块只留运行时纯函数
+ * （键 / 可存性 / TTL / 上限），不背测试常量。
  */
+
+import { isSsrPagePath } from "../../shared/readerRenderingBoundary";
 
 /** 缓存 TTL：ADR-0019 决策 5 写死的 30 秒（内容最多滞后 30 秒，这是已知代价）。 */
 export const SSR_ANONYMOUS_CACHE_TTL_MS = 30_000;
 
 /** 内存表条数上限：爬虫可能带来无数个文章 id，过期条目又只在读时清理，必须封顶。 */
 export const SSR_ANONYMOUS_CACHE_MAX_ENTRIES = 500;
-
-/** 必须进缓存的样例路由（与 rendering-boundary 的 SSR 白名单同一张表）。 */
-export const SSR_SAMPLE_PATHS = ["/", "/article/a1"] as const;
-
-/** 绝不能进缓存的样例路由：列表页 / 个人主页 / 搜索页 / 创作区 / 数据端点 / 错误兜底。 */
-export const NON_SSR_SAMPLE_PATHS = [
-  "/articles",
-  "/search",
-  "/users/u1",
-  "/studio/write",
-  "/api/articles/a1",
-  "/article/a1/_payload.json",
-  "/__nuxt_error",
-] as const;
 
 /** 缓存键只接受 URL 成分 —— 请求身份在类型上就传不进来（约束 3 的第一道保险）。 */
 export interface AnonymousCacheUrl {
@@ -58,15 +49,7 @@ export function withoutBasePath(pathname: string, baseURL: string) {
 
 /** 路由是否属于 SSR 白名单且是整页 HTML 端点（`/` 与 `/article/<id>`）。 */
 export function isCacheableSsrPath(pathname: string) {
-  if (pathname === "/") {
-    return true;
-  }
-  if (!pathname.startsWith("/article/")) {
-    return false;
-  }
-  const articleId = pathname.slice("/article/".length);
-  // 只接受一段 id：`/article/a1/_payload.json` 是数据端点，`/article/` 是空 id。
-  return articleId.length > 0 && !articleId.includes("/");
+  return isSsrPagePath(pathname);
 }
 
 /** 一次请求是否允许查/写匿名缓存：读请求 + SSR 白名单路由。 */
@@ -209,59 +192,3 @@ export function createSsrAnonymousCacheStore(options: SsrAnonymousCacheStoreOpti
 
 export type SsrAnonymousCacheStore = ReturnType<typeof createSsrAnonymousCacheStore>;
 
-/** 缓存策略的判据入参：真实实现与"人造违规"都塞进来跑同一个判据。 */
-export interface SsrAnonymousCachePolicy {
-  ttlMs: number;
-  pathPredicate: (pathname: string) => boolean;
-  key: (request: AnonymousCacheUrl) => string;
-}
-
-export type SsrAnonymousCachePolicyViolation =
-  | { kind: "ttl-not-30s"; actual: number }
-  | { kind: "caches-non-ssr-path"; pathname: string }
-  | { kind: "ssr-path-not-cached"; pathname: string }
-  | { kind: "key-varies-by-request-identity"; pathname: string };
-
-/**
- * 缓存策略判据：返回全部违规（空数组 = 策略符合 ADR-0019 决策 5 / 约束 3）。
- *
- * 判据里包含两条"人造"检查：不同请求身份必须拿到同一个键、非白名单路由必须被拒绝。
- * 只断言当前实现的门禁是恒绿的，判据被改坏时没人会发现。
- */
-export function ssrAnonymousCachePolicyViolations(
-  policy: SsrAnonymousCachePolicy,
-): SsrAnonymousCachePolicyViolation[] {
-  const violations: SsrAnonymousCachePolicyViolation[] = [];
-
-  if (policy.ttlMs !== SSR_ANONYMOUS_CACHE_TTL_MS) {
-    violations.push({ kind: "ttl-not-30s", actual: policy.ttlMs });
-  }
-
-  for (const pathname of SSR_SAMPLE_PATHS) {
-    if (!policy.pathPredicate(pathname)) {
-      violations.push({ kind: "ssr-path-not-cached", pathname });
-    }
-  }
-
-  for (const pathname of NON_SSR_SAMPLE_PATHS) {
-    if (policy.pathPredicate(pathname)) {
-      violations.push({ kind: "caches-non-ssr-path", pathname });
-    }
-  }
-
-  // 请求身份只差这几样（cookie / Authorization / UA）；键必须一样，否则就是 per-user 缓存。
-  const anonymousRequest: AnonymousCacheUrl = { pathname: "/article/a1", search: "" };
-  const loggedInRequest = {
-    pathname: "/article/a1",
-    search: "",
-    cookie: "refresh=token",
-    authorization: "Bearer token",
-    "user-agent": "facebookexternalhit/1.1",
-  } as AnonymousCacheUrl;
-
-  if (policy.key(anonymousRequest) !== policy.key(loggedInRequest)) {
-    violations.push({ kind: "key-varies-by-request-identity", pathname: anonymousRequest.pathname });
-  }
-
-  return violations;
-}

@@ -28,7 +28,7 @@ export function getArticleDetail(id: string | number) {
  *
  * 返回体里可能带 `is_digg`（"我有没有点过赞"）。服务端渲染的 HTML 要进按 URL 键的
  * 共享缓存，所以 SSR 取数必须显式匿名（`auth: false`），再叠加
- * `withoutPrivateViewState` 把用户态字段整个剔掉；客户端首屏/跳转仍走
+ * `withoutPrivateFields` 把用户态字段整个剔掉；客户端首屏/跳转仍走
  * {@link getArticleDetail}，用真实登录态补齐。
  */
 export function getArticleDetailAnonymous(id: string | number) {

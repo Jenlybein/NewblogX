@@ -4,11 +4,18 @@ import { usePagedResourceCache } from "~/composables/usePagedResourceCache";
 import { useReaderSwrAsyncData } from "~/composables/useReaderSwrAsyncData";
 import { getArticleScoreSummary } from "~/services/ai";
 import { getArticleAuthorInfo, getArticleDetail, getArticleDetailAnonymous } from "~/services/article";
-import { getRootComments } from "~/services/comment";
+import { getRootComments, getRootCommentsAnonymous } from "~/services/comment";
 import { getUserBaseInfo } from "~/services/user";
 import type { ArticleAuthorInfo, ArticleDetail, CommentRootItem } from "~/types/api";
 import { detectReaderRenderMode, type ReaderRenderMode } from "~/utils/readerRenderMode";
 import type { ReaderSwrCache } from "~/utils/readerSwrCache";
+import {
+  readerArticleAuthorBaseCacheKey,
+  readerArticleAuthorInfoCacheKey,
+  readerArticleCacheKey,
+  readerArticleCommentsCacheKey,
+  readerArticleScoreCacheKey,
+} from "~/utils/readerCacheKeys";
 import { withoutPrivateFields, withoutPrivateFieldsFromItems } from "~/utils/readerPrivateFields";
 
 export interface ArticleCommentsPage {
@@ -47,6 +54,10 @@ const ROOT_COMMENT_PAGE_SIZE = 7;
  * - **第二波（作者资料）**：正文到达后拿到 author_id，才发起作者资料；
  *   首屏 hydration 时作者统计已在 payload 里，只补作者主页资料（它本来就不服务端渲染）。
  *
+ * 第一波与第二波的作者统计都走 30s SWR（ADR-0019 决策 4 / 约束 4）：30 秒内重进同一篇，
+ * 正文 / 评论 / 评分 / 作者统计都直接命中缓存、**请求数为 0**（作者主页资料因为不在
+ * payload 且 key 依赖第二波，不参与这条验收）。
+ *
  * 三种环境下的等待口径：
  * - 服务端：第一波等齐 + 第二波（作者统计）也等 —— SSR 的 HTML 不能缺内容；
  * - 首屏 hydration：只等评论分页（不在 payload 里，等不到会和 SSR 的列表打架）；
@@ -76,7 +87,10 @@ export async function useArticlePageSources(options: ArticlePageSourcesOptions) 
   const fetchComments =
     options.fetchComments ??
     (async (id: string, page: number, limit: number) => {
-      const payload = await getRootComments(id, page, limit);
+      // 服务端显式匿名：评论区里的 is_digg / relation 同样是登录用户私有状态，
+      // 不能进按 URL 键的共享缓存（ADR-0019 约束 2）。
+      const load = mode === "server" ? getRootCommentsAnonymous : getRootComments;
+      const payload = await load(id, page, limit);
       return {
         items: payload.list,
         hasMore: payload.has_more,
@@ -96,17 +110,20 @@ export async function useArticlePageSources(options: ArticlePageSourcesOptions) 
   // 旧值先上屏、后台静默刷新。写缓存前剔除 `is_digg` / `is_favor`（私有字段不进缓存）；
   // 服务端渲染的正文同样经过 `articleForRender` 剔除 —— 它要进按 URL 键的 30s 共享缓存。
   const articleSource = useReaderSwrAsyncData({
-    key: () => `article-${articleId.value}`,
+    key: () => readerArticleCacheKey(articleId.value),
     handler: () => fetchArticle(articleId.value).then(articleForRender),
     mode,
     cache: options.swrCache,
     sanitizeForCache: withoutPrivateFields,
   });
-  const scoreSource = useAsyncData<ArticleScoreSummary | null>(
-    () => `article-score-summary:${articleId.value}`,
-    () => fetchScore(articleId.value),
-    { watch: [articleId], lazy: true },
-  );
+  const scoreSource = useReaderSwrAsyncData<ArticleScoreSummary | null>({
+    key: () => readerArticleScoreCacheKey(articleId.value),
+    handler: () => fetchScore(articleId.value),
+    mode,
+    cache: options.swrCache,
+    lazy: true,
+    watch: [articleId],
+  });
 
   const authorId = computed(() => articleSource.data.value?.author_id || "");
 
@@ -115,13 +132,15 @@ export async function useArticlePageSources(options: ArticlePageSourcesOptions) 
   // 而跨过 `usePagedResourceCache` 的 await 再调用，服务端渲染里会丢上下文（实测 500）。
   // 另外它们都 `immediate: false`：key 依赖正文里的 author_id，让 key 变化/监听自动取数
   // 会和下面的显式第二波重复发请求（dedupe=cancel 只是把前一个取消掉）。
-  const authorInfoSource = useAsyncData<ArticleAuthorInfo | null>(
-    () => `article-author-info-${authorId.value || articleId.value}`,
-    () => (authorId.value ? fetchAuthorInfo(authorId.value) : Promise.resolve(null)),
-    { immediate: false },
-  );
+  const authorInfoSource = useReaderSwrAsyncData<ArticleAuthorInfo | null>({
+    key: () => readerArticleAuthorInfoCacheKey(authorId.value || articleId.value),
+    handler: () => (authorId.value ? fetchAuthorInfo(authorId.value) : Promise.resolve(null)),
+    mode,
+    cache: options.swrCache,
+    immediate: false,
+  });
   const authorProfileSource = useAsyncData<ArticleAuthorProfile | null>(
-    () => `article-author-base-${authorId.value || articleId.value}`,
+    () => readerArticleAuthorBaseCacheKey(authorId.value || articleId.value),
     () => (authorId.value ? fetchAuthorProfile(authorId.value) : Promise.resolve(null)),
     { server: false, lazy: true, immediate: false },
   );
@@ -130,7 +149,7 @@ export async function useArticlePageSources(options: ArticlePageSourcesOptions) 
   // 服务端渲染的评论条目要匿名化：评论的"我点过赞""和作者的关系"都是登录用户私有状态；
   // 客户端侧 30 秒内重进同一篇文章直接命中缓存（缓存里同样不含私有态）。
   const commentsPager = await usePagedResourceCache({
-    cacheKey: () => `article-comments:${articleId.value}`,
+    cacheKey: () => readerArticleCommentsCacheKey(articleId.value),
     pageSize: () => ROOT_COMMENT_PAGE_SIZE,
     initialLoad: mode === "navigation" ? "background" : "block",
     swrCache: mode === "server" ? null : options.swrCache,

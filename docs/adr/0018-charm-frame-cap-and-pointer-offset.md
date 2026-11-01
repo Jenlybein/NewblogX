@@ -1,6 +1,6 @@
 # ADR-0018：光标挂件的帧率上限交给后台，取消自适应降频，另加可配的指针端偏移
 
-- 状态：提议
+- 状态：已交付
 - 日期：2026-11-01
 - 来源：设计对话（"鼠标停止移动后看起来像换了帧率、瞬间很卡"的实测诊断）· spec [#71](https://github.com/Jenlybein/NewblogX/issues/71) · 修订 [ADR-0016](./0016-deco-segment-and-cursor-charm.md) 的决策 9 / 已否决段 / 代价段第 4 条 / 当前生效约束 8
 
@@ -78,4 +78,18 @@
 - 上游：[ADR-0016](./0016-deco-segment-and-cursor-charm.md)（本 ADR 取代其决策 9、已否决段的"永远开着的 rAF 轻晃"、代价段第 4 条、当前生效约束 8；其余条款继续生效）· [ADR-0012](./0012-neutral-glass-visual-system.md)（视觉与动效预算）
 - 词汇：[GLOSSARY · 光标挂件 / 挂绳](../../GLOSSARY.md)——实施时必须给「挂绳」词条补一句"指针端 = 指针热点 + 指针端偏移"，否则该词条在落地后就是错的。
 
-**落地顺序（状态为"提议"，尚未实施）**：① 本 ADR + ADR-0016 的后续修订（已完成）→ ② 门禁脚本：负号支持 + 键集合派生 + 锚点清单 → ③ 后端：`conf_deco.go` 三组常量 / 三个字段 / `normalizeSignedRange` + yaml 默认种子 + 夹具用例 + Go 测试 → ④ 读者站：`decoCharm.ts`（常量、配置形状、四条钳位）+ `useCursorCharm.ts`（删车道、加门控、指针端偏移）+ 单测改写 → ⑤ 后台：`decoParams.ts` 元数据与 clamp、`types/api.ts`、文案 → ⑥ 文档口径收尾：[configuration.md](../architecture/configuration.md) §五 的车道段与参数清单、yaml 里"怠速帧/车道"的注释、`CursorCharm.vue` 的成本注释、GLOSSARY「挂绳」、[docs/adr/README.md](./README.md) 的索引状态。
+**落地顺序（已全部落地）**：① 本 ADR + ADR-0016 的后续修订 → ② 门禁脚本：负号支持 + 键集合派生 + 锚点清单 → ③ 后端：`conf_deco.go` 三组常量 / 三个字段 / `normalizeSignedRange` + yaml 默认种子 + 夹具用例 + Go 测试 → ④ 读者站：`decoCharm.ts`（常量、配置形状、四条钳位）+ `useCursorCharm.ts`（删掉自适应降速、加门控、指针端偏移）+ 单测改写 → ⑤ 后台：`decoParams.ts` 元数据与 clamp、`types/api.ts`、文案 → ⑥ 文档口径收尾：[configuration.md](../architecture/configuration.md) §五 的降速段与参数清单、yaml 里关于旧降速策略的注释、`CursorCharm.vue` 的成本注释、GLOSSARY「挂绳」、[docs/adr/README.md](./README.md) 的索引状态。
+
+## 实施记录（2026-11-01）
+
+决策与约束正文一字未改（本目录规则：已交付的 ADR 不改结论）。上面「落地顺序」的六步已由分票 #72–#75 全部落地、#76 收尾文档口径；下面记录落地时与决策文字的偏离、以及最终形态，供之后读本 ADR 的人对照代码。
+
+1. **绘制几何整段拆到新文件 [`frontend/app/utils/charmTether.ts`](../../frontend/app/utils/charmTether.ts)**。计划里它留在 `decoCharm.ts`；实际落地时那个文件已经有 742 行，加完指针端偏移的相关代码会冲到约 864 行 —— 超过 `frontend/eslint.config.mjs` 给 `app/**/*.ts` 定的 `max-lines 800`（`error` 级，是 CI 门禁而不是告警）。于是把"链节点 → 带形路径"整段（`CharmTetherGeometry`、`charmTetherGeometry`、弧垂系数、中心线采样密度）搬到 `charmTether.ts`。依赖方向单向：`charmTether.ts` 只从 `decoCharm.ts` 取 `CHARM_TAPER_RATIO` / `clampCharmLineWidth` / `CharmPoint`，反向没有引用。**拆的是文件，不是行为**：发布路径仍是一次 `charmTetherGeometry` → 路径 `d` + 站标中心。
+2. **"整数"的统一口径 = 先夹边界、再取整**（`fps_cap` 与 `pointer_offset_x` / `pointer_offset_y` 同一条顺序）。取整是"半值远离 0"：`-2.5 → -3`；读者站 / 后台写成 `Math.sign(v) * Math.round(Math.abs(v))`，与 Go 的 `math.Round` 对齐（直接写 `Math.round` 会在负半值上与 Go 分叉）。顺序也不能反：`24.6` 先夹到 `24` 再取整，反过来会得到 `25`。这条口径由共享夹具钉住（见第 7 条）。
+3. **`0` 是合法偏移，不是缺陷**。偏移走 `normalizeSignedRange`（`0` 与负数都是普通值）：库里缺这两个键时钳出来就是 `0`，绳头正好压在指针热点上、等于关掉偏移；默认种子是 `3/3`，所以"新装即右下 3px"。想回到"压在热点上"就把两轴都填 0 —— 这与"填错被静默纠正"无关，是语义。
+4. **帧率门控的最终形态**：容差落成常量 `CHARM_FRAME_GATE_TOLERANCE_MS = 4`（判定是 `now - lastPublishAt >= 1000 / fps_cap - 4`，即决策里的字面 `-4` 被命名了）；`lastPublishAt` 初值 `null` 视为"已到点"，循环一启动的第一帧就发布、不空等一个间隔（决策 3 / 约束 5 括号里那句"初值不是例外"）；`deltaSeconds` 取**距上一次发布的真实流逝时间**（`lastFrameTime` 只在发布那一帧更新），因此被门控挡掉的帧不会让绳子慢放 —— 30 档一帧仍推进 33.3ms，且仍由 0.05s 累加器上限截断。
+5. **链在第一帧按当时的指针位置建立**。`pointermove` 只写 `pointer` 坐标与 `visible`，建链发生在门控帧的 `ensureRope(head, config)` 里（决策 5 / 约束 5 的直接后果）。连带影响是三条冻结 / 暂停用例的前提改了措辞：必须先跑一帧把链建起来、再跳指针，否则"冻结前后头节点不变"断言的是空链。这是**测试前提**的调整，不是行为妥协 —— 在事件里建链就等于给拖动开了发布口子。
+6. **跨端门禁的最终形态**：四源**键集合相等**（哪一端缺参数或多参数都报红，并点名是哪两端）+ **锚点参数清单带交付状态位**（`delivered` / `pending`）。四个锚点（`rope_length` / `fps_cap` / `pointer_offset_x` / `pointer_offset_y`）现在全是 `delivered`。状态位机制**有意保留**给下一批参数：新参数可以先标 `pending`（四端都没有也不算红），实现那一笔提交再把状态改成 `delivered`；反过来，标了 `delivered` 却从四端同时消失就是失败 —— 这是"参数被静默删掉"唯一的拦截点。
+7. **最终数字**：`deco.charm` = 总开关 `enable` + **11 个数值参数** —— `logo_size` / `rope_length` / `segments` / `line_width` / `gravity` / `damping` / `idle_sway_hz` / `idle_sway_amp`，加本 ADR 的三个新参数 `fps_cap`（默认 60、区间 30–160）、`pointer_offset_x` / `pointer_offset_y`（默认 3/3、每轴 -24–24）；共享归一化夹具 [deco-charm-normalization.json](../../backend/conf/testdata/deco-charm-normalization.json) **111 条用例**，后端 / 读者站 / 后台三套测试共同消费，与 [`scripts/check-deco-range-parity.mjs`](../../scripts/check-deco-range-parity.mjs) 的取值范围门禁不是同一道门（前者判取值、后者判四源一致）。
+
+**收尾校验（#76 实跑）**：`node scripts/check-deco-range-parity.mjs` 绿（派生出 11 个数值参数、111 条夹具被三套测试消费）；`frontend` 的 `test/gates` + `test/design` 与后台 `test/unit/settings-wording.test.ts` 全绿。文档口径同步见 [ADR-0016 后续修订](./0016-deco-segment-and-cursor-charm.md)、[ADR 索引](./README.md)、[配置分层 §五](../architecture/configuration.md)、[GLOSSARY · 挂绳](../../GLOSSARY.md)。

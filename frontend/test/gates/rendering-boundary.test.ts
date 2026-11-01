@@ -14,9 +14,12 @@ import nuxtConfig from "../../nuxt.config";
  *   1. 允许服务端渲染的只有 `/` 与 `/article/**`（分享卡片与搜索引擎靠它，
  *      ADR-0019 决策 1）；新增 SSR 页面必须先改 ADR 再加进白名单；
  *   2. 其余读者站路由必须在 `routeRules` 里显式 `ssr: false`；
- *   3. `app/pages` 下**每个**页面文件都要落在上面两类之一 —— 新加一个页面
- *      却不分类，默认就是 SSR，门禁必须把它抓出来。这正是"随手给列表页或
- *      详情页加 SSR"会漏网的地方。
+ *   3. `/articles` 例外：它是历史列表入口，已并入 `/search`，必须由**服务端
+ *      301**（`routeRules.redirect`）在渲染前把权重信号合并过去。写成普通
+ *      `ssr: false` 会让爬虫/无 JS 客户端只拿到 200 空壳，属于 SEO 退化；
+ *   4. `app/pages` 下**每个**页面文件都要落在上面三类之一 —— 新加一个页面却
+ *      不分类，默认就是 SSR，门禁必须把它抓出来。这正是"随手给列表页或详情
+ *      页加 SSR"会漏网的地方。
  *
  * 判据写成纯函数 + 人造违规用例（canary），而不是只断言当前配置：只断言
  * 现状的门禁是恒绿的，判据被改坏时没有人会发现。
@@ -26,17 +29,23 @@ const projectDir = process.cwd();
 /** 允许服务端渲染的读者站路由（ADR-0019 决策 1 / 约束 1：只能改 ADR，不能按页面随手加）。 */
 const SSR_WHITELIST = ["/", "/article/**"];
 
-/** 必须显式关掉 SSR 的读者站路由（ADR-0019 决策 1：列表页、个人主页、搜索页、创作区）。 */
-const CLIENT_ONLY_ROUTES = ["/articles", "/users/**", "/search", "/studio/**"];
+/** 必须显式关掉 SSR 的读者站路由（ADR-0019 决策 1：个人主页、搜索页、创作区）。 */
+const CLIENT_ONLY_ROUTES = ["/users/**", "/search", "/studio/**"];
 
-/** 归一化后的 routeRules：模式 → 规则对象（字符串简写视为"没有 ssr 声明"）。 */
+/** 必须由服务端 301 承担的历史入口（不能退化成 200 空壳或普通 SPA）。 */
+const SERVER_REDIRECT_ROUTES = [{ route: "/articles", to: "/search", statusCode: 301 }];
+
+/** 归一化后的 routeRules：模式 → 规则对象（字符串简写视为"没有 ssr/redirect 声明"）。 */
 type RouteRules = Record<string, Record<string, unknown>>;
+
+type Redirect = { to: string; statusCode: number };
 
 type Violation =
   | { kind: "ssr-enabled-off-whitelist"; route: string }
   | { kind: "whitelist-route-disabled"; route: string }
   | { kind: "client-only-not-registered"; route: string }
   | { kind: "client-only-missing"; route: string }
+  | { kind: "server-redirect-missing"; route: string; expected: Redirect; actual: Redirect | null }
   | { kind: "page-route-unclassified"; route: string };
 
 function routeRulesOf(config: { routeRules?: unknown }): RouteRules {
@@ -45,6 +54,16 @@ function routeRulesOf(config: { routeRules?: unknown }): RouteRules {
     rules[pattern] = typeof rule === "object" && rule !== null ? { ...(rule as Record<string, unknown>) } : {};
   }
   return rules;
+}
+
+/** 取一条规则里的重定向声明（Nuxt 允许字符串简写，这里按 302 归一化）。 */
+function redirectOf(rule: Record<string, unknown> | undefined): Redirect | null {
+  const redirect = rule?.redirect;
+  if (typeof redirect === "string") return { to: redirect, statusCode: 302 };
+  if (typeof redirect !== "object" || redirect === null) return null;
+  const value = redirect as { to?: unknown; statusCode?: unknown };
+  if (typeof value.to !== "string") return null;
+  return { to: value.to, statusCode: typeof value.statusCode === "number" ? value.statusCode : 302 };
 }
 
 /** `app/pages` 下的文件路径 → 路由模式（动态段统一写成 `*`，与 routeRules 的 `**` 通配对齐）。 */
@@ -104,28 +123,26 @@ function clientOnlyPatterns(rules: RouteRules): string[] {
     .map(([pattern]) => pattern);
 }
 
-function ssrEnabledPatterns(rules: RouteRules): string[] {
-  return Object.entries(rules)
-    .filter(([, rule]) => rule.ssr === true)
-    .map(([pattern]) => pattern);
-}
-
 /** 渲染边界判据：返回全部违规（空数组 = 边界符合白名单）。 */
 function renderingBoundaryViolations(rules: RouteRules, pages: string[] = pageRoutes()): Violation[] {
   const violations: Violation[] = [];
   const clientOnly = clientOnlyPatterns(rules);
+  const redirectPatterns = Object.entries(rules)
+    .filter(([, rule]) => redirectOf(rule) !== null)
+    .map(([pattern]) => pattern);
 
   for (const pattern of clientOnly) {
     if (SSR_WHITELIST.includes(pattern)) {
       violations.push({ kind: "whitelist-route-disabled", route: pattern });
     }
     if (!CLIENT_ONLY_ROUTES.includes(pattern)) {
+      // 覆盖 `/articles` 被写成普通 SPA 的情况：重定向路由不许混进 ssr:false 清单。
       violations.push({ kind: "client-only-not-registered", route: pattern });
     }
   }
 
-  for (const pattern of ssrEnabledPatterns(rules)) {
-    if (!SSR_WHITELIST.includes(pattern)) {
+  for (const pattern of Object.keys(rules)) {
+    if (rules[pattern]?.ssr === true && !SSR_WHITELIST.includes(pattern)) {
       violations.push({ kind: "ssr-enabled-off-whitelist", route: pattern });
     }
   }
@@ -136,10 +153,28 @@ function renderingBoundaryViolations(rules: RouteRules, pages: string[] = pageRo
     }
   }
 
+  for (const expected of SERVER_REDIRECT_ROUTES) {
+    const actual = redirectOf(rules[expected.route]);
+    const matches =
+      actual !== null &&
+      actual.to === expected.to &&
+      actual.statusCode === expected.statusCode &&
+      rules[expected.route]?.ssr !== false;
+    if (!matches) {
+      violations.push({
+        kind: "server-redirect-missing",
+        route: expected.route,
+        expected: { to: expected.to, statusCode: expected.statusCode },
+        actual,
+      });
+    }
+  }
+
   for (const page of pages) {
     const ssrWhitelisted = SSR_WHITELIST.some((pattern) => patternMatches(pattern, page));
     const explicitlyClientOnly = clientOnly.some((pattern) => patternMatches(pattern, page));
-    if (!ssrWhitelisted && !explicitlyClientOnly) {
+    const redirected = redirectPatterns.some((pattern) => patternMatches(pattern, page));
+    if (!ssrWhitelisted && !explicitlyClientOnly && !redirected) {
       violations.push({ kind: "page-route-unclassified", route: page });
     }
   }
@@ -156,11 +191,15 @@ describe("渲染边界白名单（ADR-0019 决策 1）", () => {
     expect(SSR_WHITELIST).toEqual(["/", "/article/**"]);
   });
 
-  it("/articles 与 /users/** 显式 ssr: false（列表页与个人主页改 SPA）", () => {
-    const rules = routeRulesOf(nuxtConfig);
+  it("/users/** 显式 ssr: false（个人主页改 SPA）", () => {
+    expect(routeRulesOf(nuxtConfig)["/users/**"]?.ssr).toBe(false);
+  });
 
-    expect(rules["/articles"]?.ssr).toBe(false);
-    expect(rules["/users/**"]?.ssr).toBe(false);
+  it("/articles 是服务端 301 到 /search，不是普通 SPA（爬虫/无 JS 客户端仍拿到 301）", () => {
+    const rule = routeRulesOf(nuxtConfig)["/articles"];
+
+    expect(redirectOf(rule)).toEqual({ to: "/search", statusCode: 301 });
+    expect(rule?.ssr).not.toBe(false);
   });
 
   it("搜索页与创作区维持现状：ssr: false（本票不改它们）", () => {
@@ -182,13 +221,49 @@ describe("渲染边界白名单（ADR-0019 决策 1）", () => {
 });
 
 describe("门禁不能恒绿：人造违规必须被抓到", () => {
-  it("给列表页开 SSR（/articles 从 ssr: false 改成 ssr: true）会红", () => {
-    const rules = { ...routeRulesOf(nuxtConfig), "/articles": { ssr: true } };
+  it("删掉 /articles 的服务端 301（直接删规则）会红", () => {
+    const rules = routeRulesOf(nuxtConfig);
+    delete rules["/articles"];
 
     expect(renderingBoundaryViolations(rules, [])).toContainEqual({
-      kind: "ssr-enabled-off-whitelist",
+      kind: "server-redirect-missing",
       route: "/articles",
+      expected: { to: "/search", statusCode: 301 },
+      actual: null,
     });
+  });
+
+  it("把 /articles 写成普通 SPA（ssr: false，301 丢了）会红", () => {
+    const rules = { ...routeRulesOf(nuxtConfig), "/articles": { ssr: false } };
+
+    expect(renderingBoundaryViolations(rules, [])).toEqual(
+      expect.arrayContaining([
+        { kind: "server-redirect-missing", route: "/articles", expected: { to: "/search", statusCode: 301 }, actual: null },
+        { kind: "client-only-not-registered", route: "/articles" },
+      ]),
+    );
+  });
+
+  it("重定向目标或状态码被改掉会红", () => {
+    const rules = { ...routeRulesOf(nuxtConfig), "/articles": { redirect: { to: "/search", statusCode: 302 } } };
+
+    expect(renderingBoundaryViolations(rules, [])).toContainEqual({
+      kind: "server-redirect-missing",
+      route: "/articles",
+      expected: { to: "/search", statusCode: 301 },
+      actual: { to: "/search", statusCode: 302 },
+    });
+  });
+
+  it("给列表页开 SSR（/users/** 从 ssr: false 改成 ssr: true）会红", () => {
+    const rules = { ...routeRulesOf(nuxtConfig), "/users/**": { ssr: true } };
+
+    expect(renderingBoundaryViolations(rules, [])).toEqual(
+      expect.arrayContaining([
+        { kind: "ssr-enabled-off-whitelist", route: "/users/**" },
+        { kind: "client-only-missing", route: "/users/**" },
+      ]),
+    );
   });
 
   it("漏掉 /users/** 的 ssr: false（默认重新变回 SSR）会红", () => {
@@ -233,17 +308,19 @@ describe("分享卡片契约：文章页的 og:* 仍由服务端输出", () => {
   });
 });
 
-describe("/articles 是历史跳转桩：SPA 下不能靠 setup 里的导航", () => {
-  it("跳转放在页面中间件里，而不是页面 setup 里 await 导航（后者会把客户端整页卡成空白）", () => {
-    // 改前后的证据：改前 SSR 直接 301 到 /search；改成 ssr: false 后，页面 setup 里
-    // `await` 一次路由替换会打断客户端的初始挂起，URL 变成 /search 但 #__nuxt 始终为空
-    // （#83 实测，无异常、无报错）。所以跳转搬到 app/middleware/articles-redirect.ts，
-    // 在组件创建之前改路由。这条锁住别再写回 setup 里。
+describe("/articles 客户端侧兜底：页面中间件跳转，而不是 setup 里的导航", () => {
+  it("跳转放在页面中间件里，页面 setup 不 await 导航（后者会把客户端整页卡成空白）", () => {
+    // 服务端 301 只覆盖文档请求；站内 router.push('/articles') 走的是客户端路由，
+    // 由这个页面中间件兜底。改前的证据：改成 ssr: false 后，页面 setup 里 await
+    // 一次路由替换会打断客户端初始挂起，URL 变成 /search 但 #__nuxt 始终为空
+    // （#83 实测，无异常、无报错）。所以跳转搬到
+    // app/middleware/articles-redirect.ts，在组件创建之前改路由。这条锁住别再写回 setup 里。
     const pageSource = readFileSync(join(projectDir, "app/pages/articles.vue"), "utf8");
     const middlewareSource = readFileSync(join(projectDir, "app/middleware/articles-redirect.ts"), "utf8");
 
     expect(pageSource).not.toMatch(/await navigateTo/u);
     expect(pageSource).toContain('middleware: ["articles-redirect"]');
     expect(middlewareSource).toContain('navigateTo("/search"');
+    expect(middlewareSource).toContain("redirectCode: 301");
   });
 });

@@ -22,7 +22,8 @@ import { clampCharmLogoSize } from "~/utils/decoCharm";
  *
  * 渲染成本：物理状态在组合式里是非响应式普通对象；每帧只有两处可见输出 ——
  * 一条路径的 `d`（带形多边形的填充）与站标图像的一个 `transform`。不碰任何
- * 布局属性；指针停住、只剩轻晃时组合式会把调度降到约 20fps，指针移动时仍满速。
+ * 布局属性；每秒画几次由后台 `deco.charm.fps_cap`（默认 60）门控，与指针是否
+ * 在移动无关 —— 上限只影响"每秒画几次"，不影响绳子运动速度。
  */
 const siteStore = useSiteStore();
 
@@ -39,7 +40,7 @@ const logoSize = computed(() => clampCharmLogoSize(Number(charmConfig.value?.log
 
 const { enabled, visible, tetherPath, logoCenter } = useCursorCharm({
   configEnabled: () => Boolean(charmConfig.value?.enable),
-  // 七个数值参数每次建链 / 改参数时读一次；任何一个缺失都由
+  // 八个数值参数每次建链 / 改参数时读一次；任何一个缺失都由
   // normalizeCharmRopeConfig 回落默认值，不会因为配置没取回来就不建链。
   config: () => ({
     ropeLengthPx: Number(charmConfig.value?.rope_length),
@@ -49,6 +50,7 @@ const { enabled, visible, tetherPath, logoCenter } = useCursorCharm({
     lineWidthPx: Number(charmConfig.value?.line_width),
     idleSwayHz: Number(charmConfig.value?.idle_sway_hz),
     idleSwayAmp: Number(charmConfig.value?.idle_sway_amp),
+    fpsCap: Number(charmConfig.value?.fps_cap),
   }),
 });
 

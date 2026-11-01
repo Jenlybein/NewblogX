@@ -93,21 +93,38 @@ export const CHARM_IDLE_SWAY_AMP_MAX = 40;
 export const CHARM_IDLE_SWAY_AMP_DEFAULT = 20;
 
 /**
- * 怠速车道的一帧间隔（ms）。
+ * 帧率上限的默认值与区间（fps）。
  *
- * 轻晃的周期由 `idle_sway_hz` 决定（0.8Hz ≈ 1.25s），50ms 一帧 ≈ 20fps：
- * 对这条慢摆动足够平滑，又只有满速 60fps 的三分之一开销。裁决明确要求
- * "按节流后的帧率推进、每次只推进一个固定子步批次、不得补帧追赶"。
+ * 语义是**最高渲染帧率**，不是保证：高于显示器刷新率时等价于"每帧"
+ * （160 档在 60Hz 屏上就等于不限，所以不需要再引入 `0 = 不限` 这种特殊值）。
+ *
+ * 下限为什么是 30：物理常量一律不动（1/120s 固定步长、0.05s 累加器上限），
+ * 30 档一帧 33.3ms 对 0.05s 还留了 16.7ms 余量；20 档一帧恰好 50ms、余量为零，
+ * 任何迟到都会被截断丢掉 —— 那会让绳子**慢放**，比"少画几次"糟得多。
  */
-export const CHARM_IDLE_FRAME_INTERVAL_MS = 50;
+export const CHARM_FPS_CAP_MIN = 30;
+/** 帧率上限的上限：再高在现实显示器上没有意义，只是让门控退化成"每帧"。 */
+export const CHARM_FPS_CAP_MAX = 160;
+/** 帧率上限默认值：与 60Hz 屏对齐（每帧一次）。 */
+export const CHARM_FPS_CAP_DEFAULT = 60;
 
 /**
- * 指针"仍在主动驱动头节点"的时间窗（ms）。
+ * 门控的容差（ms）：判定写成 `now - lastPublishAt >= 1000 / fps_cap - 4`。
  *
- * 指针在这个窗口内移动过 → 走满速动画帧车道；停住超过窗口 → 才允许进入
- * 怠速车道。取两个怠速帧间隔，避免拖行时在两条车道之间来回切换。
+ * 减 4ms 不是优化，是必需品：60Hz 屏上一帧是 16.6667ms，`1000/60` 也是
+ * 16.6667ms，严格比较会因浮点与时间戳抖动**间歇性判成未到点**，把 60 档
+ * 打成 30 档（ADR-0018 决策 3，不许删）。
  */
-export const CHARM_POINTER_ACTIVE_WINDOW_MS = CHARM_IDLE_FRAME_INTERVAL_MS * 2;
+export const CHARM_FRAME_GATE_TOLERANCE_MS = 4;
+
+/**
+ * 一帧最早可以发布的间隔（ms）：`1000 / fps_cap - 容差`。
+ *
+ * 门控与测试共用这一个公式，避免"实现里减 4、测试里不减"这种假绿。
+ */
+export function charmFrameIntervalMs(fpsCap: number): number {
+  return 1000 / clampCharmFpsCap(fpsCap) - CHARM_FRAME_GATE_TOLERANCE_MS;
+}
 
 /**
  * 弧垂的几何系数。
@@ -177,6 +194,8 @@ export interface CharmRopeConfig {
   idleSwayHz: number;
   /** 静止摆动加速度幅度，px/s²，作用在自由端：逐节点加权（指针端 0、尾端 1）。0 表示关掉轻晃。 */
   idleSwayAmp: number;
+  /** 最高渲染帧率，fps。只决定"每秒画几次"，不影响绳子运动速度（物理按真实时间推进）。 */
+  fpsCap: number;
 }
 
 /**
@@ -217,8 +236,8 @@ export function charmLayerEnabled(input: CharmGateInput): boolean {
  * 静止轻晃是否开启：幅度与频率**都必须大于 0**。
  *
  * 频率 0 表示"没有摆动"，此时正弦项恒为 0，物理是静止的 —— 若只看幅度，
- * 默认的幅度 20 会让组合式永远排着 20fps 的怠速帧，白白耗电。两个 0 都按
- * 票面语义视为"关掉轻晃"（退回静止零帧车道）。
+ * 默认的幅度 20 会让组合式永远排着帧，白白耗电。两个 0 都按票面语义视为
+ * "关掉轻晃"（收敛后即停帧）。
  */
 export function charmIdleSwayEnabled(
   config: Pick<CharmRopeConfig, "idleSwayHz" | "idleSwayAmp">,
@@ -306,7 +325,7 @@ export function clampCharmIdleSwayHz(value: number): number {
 }
 
 /**
- * 静止摆动幅度归一化：0 原样保留（= 退回零帧车道）；越界钳到 40，
+ * 静止摆动幅度归一化：0 原样保留（= 关掉轻晃，收敛后停帧）；越界钳到 40，
  * 负数与非法值回落 20。
  */
 export function clampCharmIdleSwayAmp(value: number): number {
@@ -315,6 +334,18 @@ export function clampCharmIdleSwayAmp(value: number): number {
     CHARM_IDLE_SWAY_AMP_MIN,
     CHARM_IDLE_SWAY_AMP_MAX,
     CHARM_IDLE_SWAY_AMP_DEFAULT,
+  );
+}
+
+/**
+ * 帧率上限归一化：越界钳到 30–160，零与非法值回落 60，最后取整成整数。
+ *
+ * 与后端 `normalizeFpsCap` 同一条规则（先夹边界、再 `math.Round`），
+ * 顺序不能反：160.6 要先被钳到 160 再取整，否则会得到 161。
+ */
+export function clampCharmFpsCap(value: number): number {
+  return Math.round(
+    clampPositiveRange(value, CHARM_FPS_CAP_MIN, CHARM_FPS_CAP_MAX, CHARM_FPS_CAP_DEFAULT),
   );
 }
 
@@ -334,6 +365,7 @@ export function normalizeCharmRopeConfig(
     lineWidthPx: clampCharmLineWidth(Number(input?.lineWidthPx)),
     idleSwayHz: clampCharmIdleSwayHz(Number(input?.idleSwayHz)),
     idleSwayAmp: clampCharmIdleSwayAmp(Number(input?.idleSwayAmp)),
+    fpsCap: clampCharmFpsCap(Number(input?.fpsCap)),
   };
 }
 

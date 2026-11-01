@@ -79,6 +79,11 @@ func DB(t *testing.T, models ...any) *gorm.DB {
 
 	db, err := gorm.Open(mysql.Open(DSN(t)), &gorm.Config{
 		Logger: logger.Discard, // 契约测试只看结果，不要 SQL 噪音
+		// 必须与生产一致（core/init_db.go 的 TranslateError: true）：
+		// 平台层的 RestoreOrCreateUnique 靠 gorm.ErrDuplicatedKey 判别
+		// "唯一键冲突 == 记录已存在"。不开翻译的话真库返回裸的 Error 1062，
+		// 这条分支走不到，测试就会在生产不会报错的地方报错（假红）。
+		TranslateError: true,
 	})
 	if err != nil {
 		t.Fatalf("mysqlcontainer: 连接 MySQL 失败: %v", err)

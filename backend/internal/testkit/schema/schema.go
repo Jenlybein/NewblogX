@@ -535,6 +535,50 @@ func InsertUserArticleFavor(t *testing.T, db *gorm.DB, spec UserArticleFavorSpec
 	}
 }
 
+// ArticleDiggSpec 描述要插入的点赞关系行。
+//
+// SoftDeleted 用于造"线上存量残行"：唯一索引 (article_id, user_id) 不含
+// deleted_at，取消点赞留下的软删行仍占着键。测试要能造出这种行，
+// 才能验证"老用户再次点赞不受历史残行影响"（#96 AC 第 3 条）。
+type ArticleDiggSpec struct {
+	ID          uint64
+	ArticleID   uint64
+	UserID      uint64
+	SoftDeleted bool
+	At          time.Time
+}
+
+// InsertArticleDigg 插入一条点赞关系行。
+//
+// deleted_at 只能靠插入后 UPDATE 写入：GORM 会把它当普通列处理，
+// 而 gorm.DeletedAt 是 sql.NullTime 的包装，直接给零值以外的初值
+// 在 Create 时不可靠。这里显式 UPDATE 一次，语义清楚且不依赖 GORM 行为。
+func InsertArticleDigg(t *testing.T, db *gorm.DB, spec ArticleDiggSpec) {
+	t.Helper()
+	at := spec.At
+	if at.IsZero() {
+		at = time.Date(2026, 1, 1, 12, 0, 0, 0, time.UTC)
+	}
+	m := ArticleDiggRow{
+		BaseRow:   BaseRow{ID: ctype.NewID(spec.ID), CreatedAt: at, UpdatedAt: at},
+		ArticleID: ctype.NewID(spec.ArticleID),
+		UserID:    ctype.NewID(spec.UserID),
+	}
+	if err := db.Omit("ArticleModel", "UserModel").Create(&m).Error; err != nil {
+		t.Fatalf("插入点赞关系 %d 失败: %v", spec.ID, err)
+	}
+	if !spec.SoftDeleted {
+		return
+	}
+	// 软删：填上 deleted_at。用 UPDATE 而不是 Delete，
+	// 是为了让"这行是历史残行"这件事在测试里显式可读。
+	if err := db.Model(&ArticleDiggRow{}).
+		Where("id = ?", ctype.NewID(spec.ID)).
+		Update("deleted_at", at).Error; err != nil {
+		t.Fatalf("软删点赞关系 %d 失败: %v", spec.ID, err)
+	}
+}
+
 // InsertUserTopArticle 插入一条置顶记录。
 func InsertUserTopArticle(t *testing.T, db *gorm.DB, id, userID, articleID uint64, at time.Time) {
 	t.Helper()

@@ -38,7 +38,7 @@ pnpm run measure -- --base https://gentlybeing.cn --label 2026-11-01-pre-p0 \
 | ① | `firstScreen.home` / `firstScreen.article` | 文档级直达的「首屏内容可见」 | < 800 ms |
 | ② | `transition.homeToArticle` | 首页点击文章链接的「切页内容可见」（点击 → 目标内容可见） | < 300 ms（3 次取最差作 P95 保守代理） |
 | ③ | `fonts`（由 ① 派生） | 首屏字体下载字节（按 URL 去重，含中文字体单独合计） | < 100 KB（102400 B） |
-| ④ | `backCache.articleToHome` | 浏览器返回上一页是否命中缓存（文档级重载？数据请求数 / 数据耗时） | 无数据请求或数据耗时 < 50 ms，且不能是文档级重载 |
+| ④ | `backCache.articleToHome` | 站内点击进文章后按浏览器「返回」首页是否命中 30s 客户端缓存（文档级重载？数据请求数 / 数据耗时） | 无数据请求或数据耗时 < 50 ms，且不能是文档级重载 |
 
 「内容可见」的判定是：目标元素存在、其祖先链上没有 `opacity:0` / `visibility:hidden` / `display:none`、在视口内、文本非空（选择器候选见 `lib/browser.mjs` 的 `DEFAULT_SELECTORS`）。首屏时间从文档起点（`performance.now`）算，切页时间从点击时刻算。
 
@@ -60,14 +60,30 @@ pnpm run measure -- --fixture --runs 1 --out results/fixture-smoke   # 用本地
 
 fixture 是 `fixture/` 下的两个静态页（模拟"能用的"站内跳转、一条数据请求、一个字体文件）。自检验证：尺子能测出四类指标、报告四节齐全、聚合口径（中位/最差/不可测）正确、两次渲染逐字节一致。`fixture/fonts/fixture.woff2` 是占位二进制（内容不是合法 WOFF2），只用于触发一次真实的字体下载并校验字节统计；`fixture/` 不是生产站点，不用于基线。
 
+## 收尾用的两个探针（`probes/`，默认不进 CI）
+
+#87 收口时用它们做了两件"尺子之外的确认"，需要时可直接复跑（同样复用本目录的 Playwright 依赖，只写 stdout、不落文件）：
+
+```bash
+node probes/transition-probe.mjs http://127.0.0.1:3000 3        # 冷/热 × 正常过渡/过渡关闭
+node probes/transition-probe.mjs http://127.0.0.1:3000 3 warm   # 只跑热
+node probes/hydration-probe.mjs http://127.0.0.1:3000           # 首页与文章页的 hydration 警告
+```
+
+- `transition-probe`：同一构建上分别测「正常过渡」与「注入 `.page-enter-active/.page-leave-active { transition-duration: 0 }`」的
+  点击→URL / 点击→骨架 / 点击→正文可见。用来量化 `pageTransition` 的固定开销，决定 ADR-0012 三档里页面过渡取哪一档。
+- `hydration-probe`：抓 `Hydration completed but contains mismatches`、`console.error` 与未捕获异常（spec #79 已登记的独立观察项）。
+
 ## 已知口径坑
 
-1. **无头 Chromium 的「返回」表现为文档级重载**（实测见上述笔记）。真实浏览器可能走 bfcache；对比改前/改后数据时不要把这一差异当成回归。报告会在备注里自动标注。
-2. **P0（#80）未修复前，② 切页内容可见不可测**：反复点击后目标视图从不出现，报告如实记为 `outcome=never` / `不可测（从不出现）`，并记录点击→URL 时间与首次异常；等待上限由 `--click-timeout` 控制（默认 12000 ms，站在崩溃状态时不要调长）。等 P0 合入后用同一命令补一次正常基线。
-3. **冷/热各 3 次仍会抖动**：中位/最差是保守口径，不要拿单次极端值做结论。
-4. 结果与网络、机器负载相关；基线存档必须带上 `--label` 与 `--note`，说明测的是哪个站点/哪个阶段。
-5. **字体字节是资源计时里的体积（`encodedBodySize`）**：热模式即便命中 HTTP 缓存，这个体积仍会被报告（`transferSize` 会归零），所以"热"那一行的字体字节不代表新增下载量。字体预算判定以冷模式为准；报告在字体热体积非零时会自动加一条备注。
-6. **内容选择器是测量定义的一部分**：`DEFAULT_SELECTORS` 指错（例如指到站点标题）会把"崩溃"测成"3 ms 可见"。改版后若选择器失效，报告会显示"不可测（从不出现）"而不是误报成功——先核对选择器再下结论。
+1. **④ 返回场景走的是真实用户路径（#87 口径修订）**：先在首页点击文章链接（客户端跳转）、再按浏览器「返回」。`performance.timeOrigin` 不变时才计入 SPA 返回；这样才能测到 30s 客户端 SWR 缓存是否命中。旧的实现用 `page.goto(articleUrl)` 进文章页，于是「返回」必然是文档级重载——那只是无头浏览器的口径坑，测不到客户端缓存。
+   **P0（#80）未修时**站内点击进不去文章页，此时 `entryFlow=document`：进文章退化为文档级 `goto`（报告「备注」会标注），返回本身仍可能是 SPA 返回或文档级重载（看 `backFlow` / 「返回方式」列）。改前基线就是这一形态，所以那行只作对照，不能直接当成「30s 客户端缓存未命中」的证据。
+2. **无头 Chromium 的「返回」仍可能表现为文档级重载**（真实浏览器可能走 bfcache）；报告在备注里自动标注。对比改前/改后数据时不要把这一差异当成回归。
+3. **P0（#80）未修复前，② 切页内容可见不可测**：反复点击后目标视图从不出现，报告如实记为 `outcome=never` / `不可测（从不出现）`，并记录点击→URL 时间与首次异常；等待上限由 `--click-timeout` 控制（默认 12000 ms，站在崩溃状态时不要调长）。等 P0 合入后用同一命令补一次正常基线。
+4. **冷/热各 3 次仍会抖动**：中位/最差是保守口径，不要拿单次极端值做结论。
+5. 结果与网络、机器负载相关；基线存档必须带上 `--label` 与 `--note`，说明测的是哪个站点/哪个阶段。
+6. **字体字节是资源计时里的体积（`encodedBodySize`）**：热模式即便命中 HTTP 缓存，这个体积仍会被报告（`transferSize` 会归零），所以"热"那一行的字体字节不代表新增下载量。字体预算判定以冷模式为准；报告在字体热体积非零时会自动加一条备注。
+7. **内容选择器是测量定义的一部分**：`DEFAULT_SELECTORS` 指错（例如指到站点标题）会把"崩溃"测成"3 ms 可见"。改版后若选择器失效，报告会显示"不可测（从不出现）"而不是误报成功——先核对选择器再下结论。
 
 ## 目录
 
@@ -81,6 +97,7 @@ scripts/perf/
   lib/report.mjs         固定格式 JSON / Markdown 报告与判定
   lib/fixture-site.mjs   自检用本地静态站点（不用于生产测量）
   fixture/              自检夹具
+  probes/               收尾用的过渡/水合探针（默认不进 CI）
   test/                 自检用例（node --test）
   baselines/            基线存档（report.json + report.md）
 ```

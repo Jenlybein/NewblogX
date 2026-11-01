@@ -8,10 +8,12 @@ import {
   CHARM_DAMPING_MAX,
   CHARM_DAMPING_MIN,
   CHARM_FIXED_STEP_SECONDS,
+  CHARM_FPS_CAP_DEFAULT,
+  CHARM_FPS_CAP_MAX,
+  CHARM_FPS_CAP_MIN,
   CHARM_GRAVITY_DEFAULT,
   CHARM_GRAVITY_MAX,
   CHARM_GRAVITY_MIN,
-  CHARM_IDLE_FRAME_INTERVAL_MS,
   CHARM_IDLE_SWAY_AMP_DEFAULT,
   CHARM_IDLE_SWAY_AMP_MAX,
   CHARM_IDLE_SWAY_AMP_MIN,
@@ -42,6 +44,7 @@ import {
   charmRopeTail,
   charmTetherGeometry,
   clampCharmDamping,
+  clampCharmFpsCap,
   clampCharmGravity,
   clampCharmIdleSwayAmp,
   clampCharmIdleSwayHz,
@@ -75,6 +78,7 @@ const ROPE: CharmRopeConfig = {
   lineWidthPx: CHARM_LINE_WIDTH_DEFAULT,
   idleSwayHz: 0,
   idleSwayAmp: 0,
+  fpsCap: CHARM_FPS_CAP_DEFAULT,
 };
 
 /** 一次固定步长的帧间隔（积分器应当正好推进一个子步）。 */
@@ -156,9 +160,14 @@ describe("光标挂件的参数常量", () => {
     expect(CHARM_IDLE_SWAY_AMP_DEFAULT).toBe(20);
   });
 
-  it("怠速车道约 20fps（50ms 一帧），明显低于满速 60fps", () => {
-    expect(CHARM_IDLE_FRAME_INTERVAL_MS).toBe(50);
-    expect(1000 / CHARM_IDLE_FRAME_INTERVAL_MS).toBeLessThan(60);
+  it("帧率上限 30–160 fps，默认 60（下限 30 由 0.05s 物理截断决定，不是随意挑的）", () => {
+    expect(CHARM_FPS_CAP_MIN).toBe(30);
+    expect(CHARM_FPS_CAP_MAX).toBe(160);
+    expect(CHARM_FPS_CAP_DEFAULT).toBe(60);
+    // 下限的物理依据：一帧 33.3ms，对 0.05s 的累加器上限留了 16.7ms 余量；
+    // 20 档一帧恰好 50ms、余量为零，任何迟到都会被截断丢掉（绳子会慢放）。
+    expect(1000 / CHARM_FPS_CAP_MIN).toBeLessThan(CHARM_MAX_FRAME_SECONDS * 1000);
+    expect(1000 / 20).toBeGreaterThanOrEqual(CHARM_MAX_FRAME_SECONDS * 1000);
   });
 
   it("固定步长是 1/120s、单帧最多 8 个子步、累加器上限 0.05s", () => {
@@ -167,7 +176,9 @@ describe("光标挂件的参数常量", () => {
     expect(CHARM_MAX_SUBSTEPS).toBe(8);
     expect(CHARM_MAX_FRAME_SECONDS).toBe(0.05);
     // 0.05s 内最多只会有 6 个子步，子步上限是给未来改步长留的保险。
+    // 这也正是帧率下限取 30 的依据：30 档一帧 33.3ms < 0.05s，永远不会被截断。
     expect(CHARM_MAX_FRAME_SECONDS / CHARM_FIXED_STEP_SECONDS).toBeLessThanOrEqual(CHARM_MAX_SUBSTEPS);
+    expect(1 / CHARM_FPS_CAP_MIN).toBeLessThan(CHARM_MAX_FRAME_SECONDS);
   });
 
   it("站标尺寸区间与默认值与后端一致（24–96，默认 48）", () => {
@@ -255,12 +266,30 @@ describe("票 #42 的三个新参数钳位", () => {
     expect(clampCharmIdleSwayHz(Number.NaN)).toBe(CHARM_IDLE_SWAY_HZ_DEFAULT);
   });
 
-  it("静止摆动幅度：0 原样保留（= 零帧车道），越界钳到 40，负数/NaN 回落 20", () => {
+  it("静止摆动幅度：0 原样保留（= 停帧），越界钳到 40，负数/NaN 回落 20", () => {
     expect(clampCharmIdleSwayAmp(0)).toBe(0);
     expect(clampCharmIdleSwayAmp(400)).toBe(CHARM_IDLE_SWAY_AMP_MAX);
     expect(clampCharmIdleSwayAmp(20)).toBe(20);
     expect(clampCharmIdleSwayAmp(-5)).toBe(CHARM_IDLE_SWAY_AMP_DEFAULT);
     expect(clampCharmIdleSwayAmp(Number.NaN)).toBe(CHARM_IDLE_SWAY_AMP_DEFAULT);
+  });
+});
+
+describe("票 #74 的帧率上限钳位", () => {
+  it("帧率上限：越界钳到 30/160，零与非法回落 60，并取整成整数", () => {
+    expect(clampCharmFpsCap(29)).toBe(CHARM_FPS_CAP_MIN);
+    expect(clampCharmFpsCap(30.4)).toBe(CHARM_FPS_CAP_MIN);
+    expect(clampCharmFpsCap(161)).toBe(CHARM_FPS_CAP_MAX);
+    expect(clampCharmFpsCap(160.6)).toBe(CHARM_FPS_CAP_MAX);
+    expect(clampCharmFpsCap(90)).toBe(90);
+    expect(clampCharmFpsCap(90.4)).toBe(90);
+    expect(clampCharmFpsCap(90.6)).toBe(91);
+    expect(clampCharmFpsCap(30)).toBe(30);
+    expect(clampCharmFpsCap(160)).toBe(160);
+    expect(clampCharmFpsCap(0)).toBe(CHARM_FPS_CAP_DEFAULT);
+    expect(clampCharmFpsCap(-30)).toBe(CHARM_FPS_CAP_DEFAULT);
+    expect(clampCharmFpsCap(Number.NaN)).toBe(CHARM_FPS_CAP_DEFAULT);
+    expect(clampCharmFpsCap(Number.POSITIVE_INFINITY)).toBe(CHARM_FPS_CAP_DEFAULT);
   });
 });
 
@@ -274,6 +303,7 @@ describe("normalizeCharmRopeConfig", () => {
       lineWidthPx: CHARM_LINE_WIDTH_DEFAULT,
       idleSwayHz: CHARM_IDLE_SWAY_HZ_DEFAULT,
       idleSwayAmp: CHARM_IDLE_SWAY_AMP_DEFAULT,
+      fpsCap: CHARM_FPS_CAP_DEFAULT,
     });
   });
 
@@ -287,6 +317,7 @@ describe("normalizeCharmRopeConfig", () => {
         lineWidthPx: 10,
         idleSwayHz: 9,
         idleSwayAmp: 0,
+        fpsCap: 10,
       }),
     ).toEqual({
       ropeLengthPx: CHARM_ROPE_LENGTH_MAX,
@@ -296,6 +327,7 @@ describe("normalizeCharmRopeConfig", () => {
       lineWidthPx: CHARM_LINE_WIDTH_MAX,
       idleSwayHz: CHARM_IDLE_SWAY_HZ_MAX,
       idleSwayAmp: 0,
+      fpsCap: CHARM_FPS_CAP_MIN,
     });
     expect(normalizeCharmRopeConfig({ ropeLengthPx: 80 })).toEqual({
       ropeLengthPx: 80,
@@ -305,6 +337,7 @@ describe("normalizeCharmRopeConfig", () => {
       lineWidthPx: CHARM_LINE_WIDTH_DEFAULT,
       idleSwayHz: CHARM_IDLE_SWAY_HZ_DEFAULT,
       idleSwayAmp: CHARM_IDLE_SWAY_AMP_DEFAULT,
+      fpsCap: CHARM_FPS_CAP_DEFAULT,
     });
   });
 });
@@ -578,11 +611,11 @@ describe("静止轻晃：自由端的真实形变（票 #42 验收项）", () =>
 
     expect(peakTailX).toBeGreaterThan(0.5);
     expect(state.nodes[0]).toEqual({ x: 0, y: 0 });
-    // 轻晃期间能量反复越过收敛阈值：怠速车道必须持续跑（否则会"停在一个歪姿势上"）。
+    // 轻晃期间能量反复越过收敛阈值：循环必须持续跑（否则会"停在一个歪姿势上"）。
     expect(peakEnergy).toBeGreaterThan(0.05);
   });
 
-  it("idle_sway_amp == 0 时完全没有横向形变（可以退回零帧车道）", () => {
+  it("idle_sway_amp == 0 时完全没有横向形变（收敛后可以停帧）", () => {
     const state = createCharmRope({ x: 0, y: 0 }, { ...ROPE, idleSwayAmp: 0, idleSwayHz: 0 });
     for (let step = 0; step < 720; step += 1) {
       advanceCharmRope(state, FRAME_AT_120HZ, { x: 0, y: 0 });
@@ -651,10 +684,11 @@ const CHARM_CLAMPS: Record<string, (value: number) => number> = {
   damping: clampCharmDamping,
   idle_sway_hz: clampCharmIdleSwayHz,
   idle_sway_amp: clampCharmIdleSwayAmp,
+  fps_cap: clampCharmFpsCap,
 };
 
 describe("共享归一化用例表：读者站与后端 / 后台同一组输入同一组输出", () => {
-  it("夹具真的读到了，且覆盖全部八个数值参数", () => {
+  it("夹具真的读到了，且覆盖全部九个数值参数", () => {
     const cases = loadNormalizationCases();
 
     expect(cases.length).toBeGreaterThan(40);

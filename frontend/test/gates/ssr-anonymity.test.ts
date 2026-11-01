@@ -69,8 +69,18 @@ describe("SSR 输出不得含用户态（ADR-0019 约束 2）", () => {
     );
 
     expect(composableSource).toContain("getArticleDetailAnonymous");
+    expect(composableSource).toContain("getRootCommentsAnonymous");
     expect(composableSource).toContain("withoutPrivateFields");
     expect(composableSource).toContain("withoutPrivateFieldsFromItems");
     expect(composableSource).toContain('mode === "server"');
+  });
+
+  it("接线：评论服务与文章详情一样，有一个服务端专用的匿名取数口径（auth: false）", () => {
+    // 只注解掉文章详情这一步还不够：评论条目里的 is_digg / relation 也会进 SSR 输出，
+    // 缓存键又只有 URL —— 所以评论取数也必须有匿名变体，且两个 service 都要锁住。
+    const commentServiceSource = readFileSync(join(projectDir, "app/services/comment.ts"), "utf8");
+
+    expect(commentServiceSource).toContain("getRootCommentsAnonymous");
+    expect(commentServiceSource).toContain("auth: false");
   });
 });

@@ -1,6 +1,6 @@
 # 读者站性能尺子（`scripts/perf`）
 
-用真实 Chromium（Playwright）测量读者站的四类指标，输出**固定格式**的两份报告（`report.json` 机器可读、`report.md` 人类可读），作为性能改动的验收依据与基线存档。测量口径来自实测笔记 [读者站性能实测](../../docs/notes/2026-11-01-reader-site-performance-probe.md)，预算口径来自 [ADR-0019](../../docs/adr/0019-reader-rendering-and-cache-strategy.md)。
+用真实 Chromium（Playwright）测量读者站的**四项硬指标**（首屏内容可见 / 切页内容可见 / 首屏字体下载 / 返回是否命中缓存）并补两个渲染边界场景（个人主页首屏参考值、`/articles` 服务端 301），输出**固定格式**的两份报告（`report.json` 机器可读、`report.md` 人类可读），作为性能改动的验收依据与基线存档。测量口径来自实测笔记 [读者站性能实测](../../docs/notes/2026-11-01-reader-site-performance-probe.md)，预算口径来自 [ADR-0019](../../docs/adr/0019-reader-rendering-and-cache-strategy.md)。
 
 **默认不进 CI 门禁**：它要打真实站点、耗时几分钟、结果受网络抖动影响，只按需手动跑。依赖也不放进 `frontend` 的依赖树，单独声明在本目录的 `package.json`。
 
@@ -21,7 +21,7 @@ pnpm run measure -- --base https://gentlybeing.cn --label 2026-11-01-pre-p0 \
   --note "P0（#80）未修复：线上站内跳转崩溃，切页内容可见不可测"
 ```
 
-也可以指向本地构建（`--base http://127.0.0.1:3000`）。文章页 URL 默认从首页第一条 `/article/` 链接自动发现，内容换了也不用改脚本；要指定就加 `--article`。
+也可以指向本地构建（`--base http://127.0.0.1:3000`）。文章页 URL 默认从首页第一条 `/article/` 链接自动发现；个人主页 URL（`/users/<id>`）默认从首页或文章页的作者链接自动发现（首页没有就退到文章页），要指定就加 `--article` / `--user`。找不到匿名可访问的 `/users/<id>` 时跳过个人主页场景（报告里 ⑤ 写「未运行」，不伪造数据）。
 
 输出：
 
@@ -31,7 +31,7 @@ pnpm run measure -- --base https://gentlybeing.cn --label 2026-11-01-pre-p0 \
 
 **可 diff**：场景/模式/表格行/字体文件/备注的顺序全部固定，数字一律整数，Markdown 不含时间戳；JSON 里唯一的易变字段是 `meta.generatedAt` 一行。所以两次运行可以直接 `diff`，关注点只会落在数字上。
 
-## 量什么（四个场景）
+## 量什么（六个场景）
 
 | 编号 | 场景 | 指标 | 预算（ADR-0019） |
 | --- | --- | --- | --- |
@@ -39,6 +39,11 @@ pnpm run measure -- --base https://gentlybeing.cn --label 2026-11-01-pre-p0 \
 | ② | `transition.homeToArticle` | 首页点击文章链接的「切页内容可见」（点击 → 目标内容可见） | < 300 ms（3 次取最差作 P95 保守代理） |
 | ③ | `fonts`（由 ① 派生） | 首屏字体下载字节（按 URL 去重，含中文字体单独合计） | < 100 KB（102400 B） |
 | ④ | `backCache.articleToHome` | 站内点击进文章后按浏览器「返回」首页是否命中 30s 客户端缓存（文档级重载？数据请求数 / 数据耗时） | 无数据请求或数据耗时 < 50 ms，且不能是文档级重载 |
+| ⑤ | `firstScreen.userProfile` | `/users/<id>` 直达的「首屏内容可见」 | **无预算**：个人主页是 SPA（`/users/**` 显式 `ssr:false`），这行只是"渲染边界收窄后 SPA 页的代价"参考值，不参与硬指标判定 |
+| ⑥ | `redirect.articles` | `/articles` 首个响应是否**服务端 301**、最终路径是否 `/search` | 301 + `/search`（渲染边界回归门禁） |
+
+⑤ 的内容锚点是 `.profile-hero-name`（作者名出现才算可见；骨架 `data-role="skeleton"` 不算内容）。
+⑥ 不做内容可见测量：它看的是 Playwright 跟随重定向后，**原始请求的响应用状态码**（`page.goto` 会跟随 301，所以要从请求链的链头取状态码）与最终落点；`/articles` 若退化成 200 空壳或 302，判定直接 `不达标` 并在备注里点出来。
 
 「内容可见」的判定是：目标元素存在、其祖先链上没有 `opacity:0` / `visibility:hidden` / `display:none`、在视口内、文本非空（选择器候选见 `lib/browser.mjs` 的 `DEFAULT_SELECTORS`）。首屏时间从文档起点（`performance.now`）算，切页时间从点击时刻算。
 
@@ -58,7 +63,7 @@ pnpm run selfcheck:pure     # 只跑聚合/报告格式单测（秒级，无浏�
 pnpm run measure -- --fixture --runs 1 --out results/fixture-smoke   # 用本地 fixture 跑一遍 CLI
 ```
 
-fixture 是 `fixture/` 下的两个静态页（模拟"能用的"站内跳转、一条数据请求、一个字体文件）。自检验证：尺子能测出四类指标、报告四节齐全、聚合口径（中位/最差/不可测）正确、两次渲染逐字节一致。`fixture/fonts/fixture.woff2` 是占位二进制（内容不是合法 WOFF2），只用于触发一次真实的字体下载并校验字节统计；`fixture/` 不是生产站点，不用于基线。
+fixture 是 `fixture/` 下的两个静态页（模拟"能用的"站内跳转、一条数据请求、一个字体文件）。自检验证：尺子能测出六类场景、报告六节齐全、聚合口径（中位/最差/不可测）正确、两次渲染逐字节一致；fixture 没有 `/users` 链接（个人主页场景按"未运行"跳过）、`/articles` 是 404（重定向判定必须 fail，不能误判成 pass）。`fixture/fonts/fixture.woff2` 是占位二进制（内容不是合法 WOFF2），只用于触发一次真实的字体下载并校验字节统计；`fixture/` 不是生产站点，不用于基线。
 
 ## 收尾用的两个探针（`probes/`，默认不进 CI）
 
@@ -84,6 +89,8 @@ node probes/hydration-probe.mjs http://127.0.0.1:3000           # 首页与文�
 5. 结果与网络、机器负载相关；基线存档必须带上 `--label` 与 `--note`，说明测的是哪个站点/哪个阶段。
 6. **字体字节是资源计时里的体积（`encodedBodySize`）**：热模式即便命中 HTTP 缓存，这个体积仍会被报告（`transferSize` 会归零），所以"热"那一行的字体字节不代表新增下载量。字体预算判定以冷模式为准；报告在字体热体积非零时会自动加一条备注。
 7. **内容选择器是测量定义的一部分**：`DEFAULT_SELECTORS` 指错（例如指到站点标题）会把"崩溃"测成"3 ms 可见"。改版后若选择器失效，报告会显示"不可测（从不出现）"而不是误报成功——先核对选择器再下结论。
+8. **⑤ 个人主页是 SPA 参考值，不是硬指标**：它的首屏数字包含"客户端取数 + 渲染"（`/users/**` 显式 `ssr:false`），和首页/文章页的 SSR 首屏不是同一种成本；不要拿它去判定 ADR-0019 的 `< 800 ms`，它只回答"SPA 页首屏要多久"。
+9. **⑥ 看重定向链的链头状态码**：`page.goto` 会自动跟随 301，拿到的 `finalResponse` 是最终 `/search` 的 200；脚本从 `response.request().redirectedFrom()` 倒推整条链，取链头请求的响应状态码。若以后有人把 `/articles` 改成 client-side 跳转，链会变短、链头会是 `/articles` 的 200 → 判定 fail（这正是要抓的 SEO 退化）。
 
 ## 目录
 

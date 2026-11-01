@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// 读者站性能尺子：一条命令跑完四个测量场景，输出 report.json + report.md。
+// 读者站性能尺子：一条命令跑完六个测量场景，输出 report.json + report.md。
 //
 // 用法示例：
 //   pnpm --dir scripts/perf run measure -- --base https://gentlybeing.cn --label 2026-11-01-pre-p0 \
@@ -10,11 +10,11 @@ import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { buildReport, renderJson, renderMarkdown, BUDGETS } from "./lib/report.mjs";
-import { DEFAULT_RUN_OPTIONS, discoverArticleUrl, runSuite } from "./lib/runner.mjs";
+import { DEFAULT_RUN_OPTIONS, discoverArticleUrl, discoverUserUrl, runSuite } from "./lib/runner.mjs";
 
 const SCRIPT_DIR = fileURLToPath(new URL(".", import.meta.url));
 const DEFAULT_BASE = "https://gentlybeing.cn";
-const SCENARIO_IDS = ["firstScreen", "transition", "backCache"];
+const SCENARIO_IDS = ["firstScreen", "transition", "backCache", "redirect"];
 
 const HELP = `读者站性能尺子（Playwright）
 
@@ -24,10 +24,11 @@ const HELP = `读者站性能尺子（Playwright）
 选项：
   --base <url>              被测站点根地址，默认 ${DEFAULT_BASE}（也可指向本地构建，如 http://127.0.0.1:3000）
   --article <url>           文章页 URL；默认从首页第一条 /article/ 链接自动发现
+  --user <url>              个人主页 URL（/users/<id>）；默认从首页/文章页的作者链接自动发现
   --fixture                 端到端自检：启动本地 fixture 站点并测量（不需要网络，报告结构相同）
   --runs <n>                每个场景每种模式跑几次，默认 3（冷/热各 3 次取中位与最差）
   --modes <cold,warm>       要跑的模式，默认 cold,warm
-  --only <ids>              只跑部分场景：firstScreen,transition,backCache（fonts 由 firstScreen 派生，总会输出）
+  --only <ids>              只跑部分场景：firstScreen,transition,backCache,redirect（fonts 由 firstScreen 派生，总会输出）
   --out <dir>               报告输出目录（相对 scripts/perf），默认 results/<时间戳>
   --label <name>            报告标签（基线存档名），可省略
   --note <text>             报告备注，可重复；基线存档时用它标注"P0 修复前不可测"
@@ -40,6 +41,8 @@ const HELP = `读者站性能尺子（Playwright）
   --back-budget <ms>          返回命中缓存的数据耗时上限，默认 ${BUDGETS.backCacheDataWallMs}
   --help                    打印本帮助
 
+测量场景：① 首屏内容可见（首页 / 文章页 / 个人主页补充参考）· ② 切页内容可见 ·
+③ 首屏字体下载 · ④ 返回是否命中缓存 · ⑤ 个人主页首屏（SPA 补充）· ⑥ /articles 是否服务端 301 到 /search。
 输出口径：report.json 机器可读、report.md 人类可读；两者除 meta.generatedAt 外格式固定，可逐次 diff 对比。
 `;
 
@@ -68,6 +71,9 @@ function parseArgs(argv) {
         break;
       case "article":
         args.article = value;
+        break;
+      case "user":
+        args.user = value;
         break;
       case "runs":
         args.runs = toPositiveInt(key, value);
@@ -172,6 +178,8 @@ function runSummary(run) {
     "dataRequestCount",
     "dataWallMs",
     "documentNavigation",
+    "firstStatusCode",
+    "finalPath",
   ];
   return keys
     .filter(key => Object.prototype.hasOwnProperty.call(run.metrics, key))
@@ -195,6 +203,11 @@ function summaryLine(report) {
     const aggregate = firstArticle.modes.cold.aggregates.contentVisibleMs;
     parts.push(`firstScreen.article.cold=${aggregate.median}/${aggregate.worst}ms`);
   }
+  const firstProfile = report.scenarios["firstScreen.userProfile"];
+  if (firstProfile && firstProfile.modes.cold) {
+    const aggregate = firstProfile.modes.cold.aggregates.contentVisibleMs;
+    parts.push(`firstScreen.userProfile.cold=${aggregate.median}/${aggregate.worst}ms（SPA 参考）`);
+  }
   const transition = report.scenarios["transition.homeToArticle"];
   if (transition) {
     for (const mode of ["cold", "warm"]) {
@@ -217,6 +230,15 @@ function summaryLine(report) {
       const data = back.modes[mode];
       if (!data) continue;
       parts.push(`back.${mode}=dataRequests:${data.aggregates.dataRequestCount.median},cacheHit:${data.verdicts.cacheHit}`);
+    }
+  }
+  const redirect = report.scenarios["redirect.articles"];
+  if (redirect) {
+    for (const mode of ["cold", "warm"]) {
+      const data = redirect.modes[mode];
+      if (!data) continue;
+      const sample = data.runs.find(run => run.ok);
+      parts.push(`redirect.${mode}=${sample?.firstStatusCode ?? "—"}→${sample?.finalPath ?? "—"},${data.verdicts.redirect}`);
     }
   }
   return `summary: ${parts.join(" | ")}`;
@@ -260,9 +282,13 @@ async function main() {
     const articleUrl = args.article
       ? new URL(args.article, effectiveBase).href
       : await discoverArticleUrl({ browser, base: effectiveBase, options });
+    const userUrl = args.user
+      ? new URL(args.user, effectiveBase).href
+      : await discoverUserUrl({ browser, base: effectiveBase, articleUrl, options });
     console.log(`base=${effectiveBase}`);
     console.log(`article=${articleUrl || "（首页未找到 /article/ 链接）"}`);
-    const rawRuns = await runSuite({ browser, base: effectiveBase, articleUrl, options });
+    console.log(`user=${userUrl || "（未发现匿名可访问的 /users/ 链接，跳过个人主页场景）"}`);
+    const rawRuns = await runSuite({ browser, base: effectiveBase, articleUrl, userUrl, options });
     const report = buildReport({
       meta: {
         base: effectiveBase,

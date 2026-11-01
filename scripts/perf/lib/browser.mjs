@@ -13,12 +13,15 @@
 export const DEFAULT_SELECTORS = {
   home: [".feed-entry"],
   article: [".article-page h1"],
+  // 个人主页是 SPA（/users/** 显式 ssr:false），内容由客户端补齐；这里只等"作者名"出现，
+  // 它就是这一页的正文内容锚点（骨架 `data-role="skeleton"` 不算内容）。
+  userProfile: [".profile-hero-name"],
 };
 
 export const DEFAULT_OPTIONS = {
   runs: 3,
   modes: ["cold", "warm"],
-  scenarios: ["firstScreen", "transition", "backCache"],
+  scenarios: ["firstScreen", "transition", "backCache", "redirect"],
   viewport: { width: 1440, height: 900 },
   locale: "zh-CN",
   timezoneId: "Asia/Shanghai",
@@ -31,6 +34,11 @@ export const DEFAULT_OPTIONS = {
   minContentChars: 1,
   selectors: DEFAULT_SELECTORS,
   transitionLink: 'a[href^="/article/"]',
+  /** 个人主页 URL 的发现锚点：首页/文章页里的作者链接都长这样。 */
+  userLink: 'a[href^="/users/"]',
+  /** 服务端 301 的历史入口（ADR-0019 决策 1）；redirect 场景断言它跳到 /search。 */
+  redirectPath: "/articles",
+  redirectTargetPath: "/search",
   onRun: null,
 };
 

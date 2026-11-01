@@ -29,6 +29,22 @@ export const SCENARIO_SPECS = {
     metrics: ["contentVisibleMs", "fontBytes", "requestCount", "totalBytes", "apiCount", "pageErrors"],
     extraFields: ["contentSelector"],
   },
+  "firstScreen.userProfile": {
+    // 个人主页是 SPA（/users/** 显式 ssr:false，ADR-0019 决策 1）：它不在"SSR 首屏 < 800ms"
+    // 的硬指标里，只作为"渲染边界收窄后 SPA 页的代价"参考值记录，不参与达标判定。
+    group: "supplementary",
+    label: "个人主页 `/users/<id>`（SPA）",
+    target: "个人主页 `/users/<id>`（SPA）",
+    metrics: ["contentVisibleMs", "requestCount", "totalBytes", "apiCount", "pageErrors"],
+    extraFields: ["contentSelector"],
+  },
+  "redirect.articles": {
+    group: "redirect",
+    label: "`/articles` → `/search`",
+    target: "`/articles`（历史入口）",
+    metrics: ["firstStatusCode", "finalStatusCode", "redirectCount", "wallMs", "pageErrors"],
+    extraFields: ["finalPath"],
+  },
   "transition.homeToArticle": {
     group: "transition",
     label: "首页 → 文章",
@@ -133,6 +149,13 @@ function verdictsOf(spec, mode, budgets) {
   if (spec.group === "backCache") {
     const passed = mode.runs.length > 0 && mode.cacheHitRuns === mode.runs.length;
     return { cacheHit: passed ? "pass" : "fail" };
+  }
+  if (spec.group === "redirect") {
+    // 判据：首个响应必须是服务端 301，最终落点必须是 /search（否则就是 200 空壳或 302）。
+    const passed =
+      mode.runs.length > 0 &&
+      mode.runs.every(run => run.ok && run.firstStatusCode === 301 && run.finalPath === "/search");
+    return { redirect: passed ? "pass" : "fail" };
   }
   return {};
 }
@@ -265,6 +288,18 @@ function autoNotes(scenarios, fonts) {
         "它不代表热启动的新增下载量；字体预算判定以冷模式为准（新增下载量看 transferSize，本报告未单列）。",
     );
   }
+  const redirect = scenarios["redirect.articles"];
+  if (redirect) {
+    for (const mode of MODE_ORDER) {
+      const data = redirect.modes[mode];
+      if (!data || data.verdicts.redirect === "pass") continue;
+      const sample = data.runs.find(run => run.ok) ?? data.runs[0];
+      notes.push(
+        `重定向「${redirect.label}」· ${MODE_LABELS[mode]}：首个状态码 ${sample?.firstStatusCode ?? "—"}、` +
+          `最终路径 ${sample?.finalPath ?? "—"}，不满足"服务端 301 到 /search"（渲染边界回归）。`,
+      );
+    }
+  }
   return notes;
 }
 
@@ -374,6 +409,49 @@ export function renderMarkdown(report) {
   }
   lines.push(...(backRows.length ? backRows : [PLACEHOLDER_ROW_6]), "");
 
+  // ⑤ 个人主页首屏（SPA，补充参考，不进 ADR 硬指标判定）
+  lines.push(
+    "## ⑤ 个人主页首屏（SPA，补充参考）",
+    "",
+    "| 目标 | 模式 | 中位 | 最差 | 请求数（中位） | 总字节（中位） |",
+    "| --- | --- | --- | --- | --- | --- |",
+  );
+  const profileRows = [];
+  const profile = report.scenarios["firstScreen.userProfile"];
+  if (profile) {
+    for (const mode of modesOf(profile)) {
+      const data = profile.modes[mode];
+      profileRows.push(
+        `| ${SCENARIO_SPECS["firstScreen.userProfile"].target} | ${MODE_LABELS[mode]} | ` +
+          `${fmtMs(data.aggregates.contentVisibleMs.median)} | ${fmtMs(data.aggregates.contentVisibleMs.worst)} | ` +
+          `${fmtNum(data.aggregates.requestCount.median)} | ${fmtBytes(data.aggregates.totalBytes.median)} |`,
+      );
+    }
+  }
+  lines.push(...(profileRows.length ? profileRows : [PLACEHOLDER_ROW_6]), "");
+
+  // ⑥ 历史入口 /articles：服务端 301 → /search（ADR-0019 决策 1）
+  lines.push(
+    "## ⑥ 历史入口 `/articles`：服务端 301 → `/search`",
+    "",
+    "| 路径 | 模式 | 首个状态码 | 最终路径 | 重定向次数 | 墙钟 | 判定 |",
+    "| --- | --- | --- | --- | --- | --- | --- |",
+  );
+  const redirectRows = [];
+  const redirect = report.scenarios["redirect.articles"];
+  if (redirect) {
+    for (const mode of modesOf(redirect)) {
+      const data = redirect.modes[mode];
+      const firstCode = data.runs.find(run => run.ok)?.firstStatusCode;
+      redirectRows.push(
+        `| ${redirect.label} | ${MODE_LABELS[mode]} | ${fmtNum(firstCode)} | ` +
+          `${data.runs.find(run => run.ok)?.finalPath || "—"} | ${fmtNum(medianOrNull(data.runs.map(run => run.redirectCount)))} | ` +
+          `${fmtMs(data.aggregates.wallMs.median)} | ${VERDICT_TEXT[data.verdicts.redirect]} |`,
+      );
+    }
+  }
+  lines.push(...(redirectRows.length ? redirectRows : [PLACEHOLDER_ROW_7]), "");
+
   // 备注
   lines.push("## 备注", "");
   if (report.notes.length === 0) {
@@ -438,4 +516,10 @@ function scalarOrNull(value) {
   if (value == null) return null;
   if (typeof value === "string" || typeof value === "number" || typeof value === "boolean") return value;
   return null;
+}
+
+/** 运行记录里某个数字字段的中位（跳过失败/缺失的运行）；没有有效值返回 null。 */
+function medianOrNull(values) {
+  const valid = values.filter(value => typeof value === "number" && Number.isFinite(value));
+  return valid.length > 0 ? median(valid) : null;
 }

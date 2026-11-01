@@ -4,6 +4,12 @@ import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 
 import nuxtConfig from "../../nuxt.config";
+import {
+  CLIENT_ONLY_PATTERNS,
+  SERVER_REDIRECT_ROUTES,
+  SSR_WHITELIST_PATTERNS,
+  routePatternMatches,
+} from "../../shared/readerRenderingBoundary";
 
 /**
  * 渲染边界门禁（ADR-0019 决策 1 / 约束 1）。
@@ -21,19 +27,18 @@ import nuxtConfig from "../../nuxt.config";
  *      不分类，默认就是 SSR，门禁必须把它抓出来。这正是"随手给列表页或详情
  *      页加 SSR"会漏网的地方。
  *
+ * 三张表本身不在本测试里重复定义：唯一来源是 `frontend/shared/readerRenderingBoundary.ts`，
+ * `nuxt.config.ts` 的 routeRules、匿名 SSR 缓存的缓存范围与这道门禁都从它派生。
  * 判据写成纯函数 + 人造违规用例（canary），而不是只断言当前配置：只断言
  * 现状的门禁是恒绿的，判据被改坏时没有人会发现。
  */
 const projectDir = process.cwd();
 
-/** 允许服务端渲染的读者站路由（ADR-0019 决策 1 / 约束 1：只能改 ADR，不能按页面随手加）。 */
-const SSR_WHITELIST = ["/", "/article/**"];
+/** 允许服务端渲染的读者站路由（唯一来源：shared/readerRenderingBoundary.ts）。 */
+const SSR_WHITELIST: readonly string[] = SSR_WHITELIST_PATTERNS;
 
-/** 必须显式关掉 SSR 的读者站路由（ADR-0019 决策 1：个人主页、搜索页、创作区）。 */
-const CLIENT_ONLY_ROUTES = ["/users/**", "/search", "/studio/**"];
-
-/** 必须由服务端 301 承担的历史入口（不能退化成 200 空壳或普通 SPA）。 */
-const SERVER_REDIRECT_ROUTES = [{ route: "/articles", to: "/search", statusCode: 301 }];
+/** 必须显式关掉 SSR 的读者站路由（唯一来源：shared/readerRenderingBoundary.ts）。 */
+const CLIENT_ONLY_ROUTES: readonly string[] = CLIENT_ONLY_PATTERNS;
 
 /** 归一化后的 routeRules：模式 → 规则对象（字符串简写视为"没有 ssr/redirect 声明"）。 */
 type RouteRules = Record<string, Record<string, unknown>>;
@@ -94,29 +99,7 @@ function pageRoutes(): string[] {
   return walk(join(projectDir, "app/pages"), []).sort();
 }
 
-/** 路由规则模式是否覆盖某个具体路由（`**` 匹配零到多段，`*` 匹配一段）。 */
-function patternMatches(pattern: string, route: string): boolean {
-  const split = (value: string) => value.split("/").filter(Boolean);
-  const patternSegments = split(pattern);
-  const routeSegments = split(route);
-
-  function matchesFrom(patternIndex: number, routeIndex: number): boolean {
-    if (patternIndex === patternSegments.length) return routeIndex === routeSegments.length;
-    const segment = patternSegments[patternIndex];
-    if (segment === "**") {
-      for (let next = routeIndex; next <= routeSegments.length; next += 1) {
-        if (matchesFrom(patternIndex + 1, next)) return true;
-      }
-      return false;
-    }
-    if (routeIndex >= routeSegments.length) return false;
-    if (segment === "*") return matchesFrom(patternIndex + 1, routeIndex + 1);
-    return segment === routeSegments[routeIndex] && matchesFrom(patternIndex + 1, routeIndex + 1);
-  }
-
-  return matchesFrom(0, 0);
-}
-
+/** 路由规则模式是否覆盖某个具体路由（判据实现与消费方共用 shared/readerRenderingBoundary.ts）。 */
 function clientOnlyPatterns(rules: RouteRules): string[] {
   return Object.entries(rules)
     .filter(([, rule]) => rule.ssr === false)
@@ -171,9 +154,9 @@ function renderingBoundaryViolations(rules: RouteRules, pages: string[] = pageRo
   }
 
   for (const page of pages) {
-    const ssrWhitelisted = SSR_WHITELIST.some((pattern) => patternMatches(pattern, page));
-    const explicitlyClientOnly = clientOnly.some((pattern) => patternMatches(pattern, page));
-    const redirected = redirectPatterns.some((pattern) => patternMatches(pattern, page));
+    const ssrWhitelisted = SSR_WHITELIST.some((pattern) => routePatternMatches(pattern, page));
+    const explicitlyClientOnly = clientOnly.some((pattern) => routePatternMatches(pattern, page));
+    const redirected = redirectPatterns.some((pattern) => routePatternMatches(pattern, page));
     if (!ssrWhitelisted && !explicitlyClientOnly && !redirected) {
       violations.push({ kind: "page-route-unclassified", route: page });
     }

@@ -76,6 +76,25 @@ describe("useReaderSwrAsyncData：useAsyncData 之上的 30s SWR", () => {
     expect(source.pending.value).toBe(false);
   });
 
+  it("手工 refresh 也遵守 SWR：30 秒内命中不重复请求（Nuxt granularCachedData 语义）", async () => {
+    // Nuxt 4 的 granularCachedData 默认开：refresh() 也会先问 getCachedData。
+    // 若 fresh 命中时还发请求，"30 秒内不重复请求"的验收在第二波源上就会失守。
+    const clock = 1_000;
+    const cache = createReaderSwrCache({ now: () => clock });
+    cache.write("article-a1", { title: "缓存标题" });
+    installAwaitableAsyncData();
+
+    const handler = vi.fn(async () => ({ title: "新标题" }));
+    const pendingSource = runInScope(() =>
+      useReaderSwrAsyncData({ key: "article-a1", handler, mode: "navigation", cache }),
+    );
+    const source = await pendingSource;
+
+    await source.refresh();
+    expect(handler).not.toHaveBeenCalled();
+    expect(source.data.value).toEqual({ title: "缓存标题" });
+  });
+
   it("超过 30 秒：先渲染旧值，后台静默刷新，刷新期间数据不被清空（不闪）", async () => {
     let clock = 1_000;
     const cache = createReaderSwrCache({ now: () => clock });

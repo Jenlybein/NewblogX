@@ -33,6 +33,11 @@ export interface UseReaderSwrAsyncDataOptions<TValue> {
   cache?: ReaderSwrCache | null;
   /** 写缓存前的"去私有字段"处理；默认原样写入（纯公开载荷不需要它）。 */
   sanitizeForCache?: (value: TValue) => TValue;
+  /** 透传给 `useAsyncData` 的调度选项（第二波/懒加载源要用）。 */
+  immediate?: boolean;
+  lazy?: boolean;
+  server?: boolean;
+  watch?: Array<MaybeRefOrGetter<unknown>>;
 }
 
 interface NuxtCachedDataAppLike {
@@ -96,6 +101,13 @@ export function useReaderSwrAsyncData<TValue>(options: UseReaderSwrAsyncDataOpti
       initialLookup = lookup;
     }
 
+    // fresh 命中才复用；stale 在"手动 / 钩子刷新"时必须返回 undefined，让 handler 真取一次。
+    // 否则 Nuxt 的 granularCachedData 会拿这里的返回值短路 handler（refresh 永不发请求），
+    // 决策 4 的"过期后后台静默刷新"就永远不会发生。
+    if (cause !== "initial" && lookup.state === "stale") {
+      return undefined;
+    }
+
     return lookup.value;
   }
 
@@ -109,10 +121,18 @@ export function useReaderSwrAsyncData<TValue>(options: UseReaderSwrAsyncDataOpti
     return value;
   }
 
+  // 调度选项（immediate / lazy / server / watch）原样透传：作者资料这类"第二波、
+  // 依赖正文 id"的源要靠 `immediate: false` + 显式 refresh；评分源靠 `lazy` + watch。
+  const scheduling = {
+    ...(options.immediate === undefined ? {} : { immediate: options.immediate }),
+    ...(options.lazy === undefined ? {} : { lazy: options.lazy }),
+    ...(options.server === undefined ? {} : { server: options.server }),
+    ...(options.watch === undefined ? {} : { watch: options.watch }),
+  };
   const source = useAsyncData(
     readKey,
     handlerWithCache,
-    activeCache ? { getCachedData: readCachedData } : undefined,
+    activeCache ? { ...scheduling, getCachedData: readCachedData } : scheduling,
   );
 
   // stale：旧值已经上屏，后台静默重取；失败只落进 error ref（不打断已渲染的界面）。

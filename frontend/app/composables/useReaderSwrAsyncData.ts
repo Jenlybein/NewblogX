@@ -1,4 +1,5 @@
 import { toValue } from "vue";
+import type { AsyncDataOptions } from "#app";
 import type { MaybeRefOrGetter } from "vue";
 import type { ReaderRenderMode } from "~/utils/readerRenderMode";
 import { readerSwrCache, type ReaderSwrCache, type ReaderSwrLookup } from "~/utils/readerSwrCache";
@@ -22,7 +23,14 @@ import { readerSwrCache, type ReaderSwrCache, type ReaderSwrLookup } from "~/uti
  * 登录态字段不进入缓存（见 `readerPrivateFields.ts`）。
  */
 
-export interface UseReaderSwrAsyncDataOptions<TValue> {
+/**
+ * 调度选项（immediate / lazy / server / watch）**直接沿用 Nuxt 自己的类型**：
+ * 不要再手写成 `watch?: unknown[]` —— 那既过不了 `useAsyncData` 的重载，
+ * 还会让返回值的泛型退化成 `unknown`，页面里拿到的数据就没有类型了。
+ */
+type ReaderSwrScheduling<TValue> = Pick<AsyncDataOptions<TValue>, "immediate" | "lazy" | "server" | "watch">;
+
+export interface UseReaderSwrAsyncDataOptions<TValue> extends ReaderSwrScheduling<TValue> {
   /** `useAsyncData` 的缓存键：必须含路由参数（文章 id 等），不同资源不共用键。 */
   key: MaybeRefOrGetter<string>;
   /** 真正的取数函数（失败语义由调用方自己决定，这层不吞业务错误）。 */
@@ -33,11 +41,6 @@ export interface UseReaderSwrAsyncDataOptions<TValue> {
   cache?: ReaderSwrCache | null;
   /** 写缓存前的"去私有字段"处理；默认原样写入（纯公开载荷不需要它）。 */
   sanitizeForCache?: (value: TValue) => TValue;
-  /** 透传给 `useAsyncData` 的调度选项（第二波/懒加载源要用）。 */
-  immediate?: boolean;
-  lazy?: boolean;
-  server?: boolean;
-  watch?: Array<MaybeRefOrGetter<unknown>>;
 }
 
 interface NuxtCachedDataAppLike {
@@ -78,8 +81,10 @@ export function useReaderSwrAsyncData<TValue>(options: UseReaderSwrAsyncDataOpti
   // 首屏这次到底命中没有：只有 stale 才需要后台重取；fresh 命中就是"这 30 秒不重复请求"。
   let initialLookup: ReaderSwrLookup<TValue> | null = null;
 
-  function readCachedData(key: string, nuxtApp: unknown, context?: { cause?: string }): TValue | undefined {
-    const cause = context?.cause ?? "initial";
+  // 用 Nuxt 自己的 `getCachedData` 签名（`nuxtApp` 是真实 `NuxtApp`、`cause` 是
+  // `AsyncDataRefreshCause`）：手写 `nuxtApp: unknown` 会让 options 对象过不了重载。
+  const readCachedData: NonNullable<AsyncDataOptions<TValue>["getCachedData"]> = (key, nuxtApp, context) => {
+    const cause = context.cause;
     if (!activeCache) {
       return readNuxtDefaultCachedData(nuxtApp, key, cause) as TValue | undefined;
     }
@@ -109,7 +114,7 @@ export function useReaderSwrAsyncData<TValue>(options: UseReaderSwrAsyncDataOpti
     }
 
     return lookup.value;
-  }
+  };
 
   async function handlerWithCache() {
     const requestKey = readKey();
@@ -121,22 +126,25 @@ export function useReaderSwrAsyncData<TValue>(options: UseReaderSwrAsyncDataOpti
     return value;
   }
 
-  // 调度选项（immediate / lazy / server / watch）原样透传：作者资料这类"第二波、
-  // 依赖正文 id"的源要靠 `immediate: false` + 显式 refresh；评分源靠 `lazy` + watch。
-  const scheduling = {
+  // 调度选项原样透传：作者资料这类"第二波、依赖正文 id"的源要靠 `immediate: false` +
+  // 显式 refresh；评分源靠 `lazy` + watch。显式写泛型 `useAsyncData<TValue>`，让返回值的
+  // `data` 上带着具体类型（否则页面里会退化成 unknown）。
+  const source = useAsyncData<TValue>(readKey, handlerWithCache, {
     ...(options.immediate === undefined ? {} : { immediate: options.immediate }),
     ...(options.lazy === undefined ? {} : { lazy: options.lazy }),
     ...(options.server === undefined ? {} : { server: options.server }),
     ...(options.watch === undefined ? {} : { watch: options.watch }),
-  };
-  const source = useAsyncData(
-    readKey,
-    handlerWithCache,
-    activeCache ? { ...scheduling, getCachedData: readCachedData } : scheduling,
-  );
+    ...(activeCache ? { getCachedData: readCachedData } : {}),
+  });
+
+  // 首屏这次是否命中了一个过期值（赋值发生在 readCachedData 里，这里用函数读取，
+  // 避免 TS 把捕获变量按"只赋过 null"收窄成 null → never）。
+  function hasStaleInitialLookup() {
+    return initialLookup?.state === "stale";
+  }
 
   // stale：旧值已经上屏，后台静默重取；失败只落进 error ref（不打断已渲染的界面）。
-  if (activeCache && options.mode === "navigation" && initialLookup?.state === "stale") {
+  if (activeCache && options.mode === "navigation" && hasStaleInitialLookup()) {
     void Promise.resolve(source.refresh()).catch(() => null);
   }
 

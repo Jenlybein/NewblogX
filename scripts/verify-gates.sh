@@ -392,10 +392,14 @@ fi
 
 echo ""
 echo "===== 13/13 跨端装饰参数一致性门禁 ====="
-# 门禁原型：scripts/check-deco-range-parity.mjs（#43）
-# 判据是"deco.charm 的每个数值参数的 min/max/default 与布尔默认值在后端 Go /
-# 读者站 / 后台三处逐项一致"。注入：只改后台一个范围常量 —— 模拟最真实的
-# 漂移事故（只改一端、另一端忘记同步）。门禁必须变红，并指出是哪两端。
+# 门禁原型：scripts/check-deco-range-parity.mjs（#43；#72 升级为键集合派生 + 锚点 +
+# 负值支持）。判据是"deco.charm 的每个数值参数的 min/max/default 与布尔默认值在后端
+# Go / 读者站 / 后台 / 默认种子四处逐项一致，且四源键集合相等、锚点参数在场"。
+# 三节注入各打一个不同的洞：
+#   13a 只改后台一个**上限** —— 最普通的漂移（只改一端、另一端忘记同步）；
+#   13b 只改后台一个**负下限** —— 若解析器不认负号，红的原因会是 missing-value，
+#       看起来"也红了"，实际意味着下一个负区间参数根本进不了这套体系；
+#   13c 把一个**锚点参数从四源同时删掉** —— 四源键集合仍然相等，只有锚点能拦住。
 ADMIN_DECO="frontend_admin/app/utils/decoParams.ts"
 if backup_file "$ADMIN_DECO"; then
   sed -i 's|^export const DECO_ROPE_LENGTH_MAX = 240$|export const DECO_ROPE_LENGTH_MAX = 260|' "$ADMIN_DECO"
@@ -413,8 +417,61 @@ if backup_file "$ADMIN_DECO"; then
     FAIL=$((FAIL+1))
   fi
   restore_file "$ADMIN_DECO"
+
+  # 13b 负下限：必须被判成"下限不一致"，而不是"没有这个取值"。
+  sed -i 's|^export const DECO_IDLE_SWAY_AMP_MIN = 0$|export const DECO_IDLE_SWAY_AMP_MIN = -5|' "$ADMIN_DECO"
+  if ! grep -q "DECO_IDLE_SWAY_AMP_MIN = -5" "$ADMIN_DECO"; then
+    echo "✗ 无法注入：decoParams.ts 里没找到预期的 DECO_IDLE_SWAY_AMP_MIN 行"
+    FAIL=$((FAIL+1))
+  elif node scripts/check-deco-range-parity.mjs >"$CANARY_TMP/out.txt" 2>&1; then
+    bad "负下限漂移时，门禁没有失败"
+  elif grep -q "没有这个取值" "$CANARY_TMP/out.txt"; then
+    bad "负值被当成 missing-value（解析器不认负号，负区间参数进不了门禁）"
+  elif grep -q "\[charm.idle_sway_amp.min\] 下限不一致" "$CANARY_TMP/out.txt"; then
+    ok "负值照常参与四端比较（报「下限不一致」而不是「没有这个取值」）"
+  else
+    echo "✗ 负值门禁没有按预期原因失败（node 不可用？）"
+    tail -5 "$CANARY_TMP/out.txt"
+    FAIL=$((FAIL+1))
+  fi
+  restore_file "$ADMIN_DECO"
 else
   echo "✗ 备份失败，跳过本节"
+  FAIL=$((FAIL+1))
+fi
+
+# 13c 锚点丢失：把挂绳长度从四份源文件里同时删掉。四源键集合仍然相等，
+# 这条漂移只有锚点清单拦得住。
+DECO_BACKEND="backend/conf/conf_deco.go"
+DECO_YAML="backend/config/site_default_settings.yaml"
+DECO_READER="frontend/app/utils/decoCharm.ts"
+DECO_FOUR=("$DECO_BACKEND" "$DECO_YAML" "$DECO_READER" "$ADMIN_DECO")
+if backup_file "$DECO_BACKEND" && backup_file "$DECO_YAML" && backup_file "$DECO_READER" \
+   && backup_file "$ADMIN_DECO"; then
+  sed -i '/^[[:space:]]*CharmRopeLength\(Min\|Max\|Default\)[[:space:]]*=/d' "$DECO_BACKEND"
+  sed -i '/^export const CHARM_ROPE_LENGTH_\(MIN\|MAX\|DEFAULT\)[[:space:]]*=/d' "$DECO_READER"
+  sed -i '/^export const DECO_ROPE_LENGTH_\(MIN\|MAX\|DEFAULT\)[[:space:]]*=/d' "$ADMIN_DECO"
+  sed -i '/^[[:space:]]*rope_length:/d' "$DECO_YAML"
+  # 只核对"常量行真的没了"：三份代码里还有 RopeLength / CHARM_ROPE_LENGTH_* 的
+  # 其它引用（结构体字段、钳位函数），它们不该被这条注入影响。
+  if grep -q '^[[:space:]]*CharmRopeLength\(Min\|Max\|Default\)[[:space:]]*=' "$DECO_BACKEND" \
+     || grep -q '^export const CHARM_ROPE_LENGTH_\(MIN\|MAX\|DEFAULT\)[[:space:]]*=' "$DECO_READER" \
+     || grep -q '^export const DECO_ROPE_LENGTH_\(MIN\|MAX\|DEFAULT\)[[:space:]]*=' "$ADMIN_DECO" \
+     || grep -q '^[[:space:]]*rope_length:' "$DECO_YAML"; then
+    echo "✗ 无法注入：四源里仍残留 rope_length 的常量行"
+    FAIL=$((FAIL+1))
+  elif node scripts/check-deco-range-parity.mjs >"$CANARY_TMP/out.txt" 2>&1; then
+    bad "锚点参数从四源同时消失，门禁却没有失败"
+  elif grep -q "\[charm.rope_length\] 锚点参数" "$CANARY_TMP/out.txt"; then
+    ok "锚点参数从四源同时消失会被抓出（键集合相等判不出的那种漂移）"
+  else
+    echo "✗ 锚点门禁没有按预期原因失败（node 不可用？）"
+    tail -5 "$CANARY_TMP/out.txt"
+    FAIL=$((FAIL+1))
+  fi
+  for f in "${DECO_FOUR[@]}"; do restore_file "$f"; done
+else
+  echo "✗ 备份失败，跳过锚点自检"
   FAIL=$((FAIL+1))
 fi
 

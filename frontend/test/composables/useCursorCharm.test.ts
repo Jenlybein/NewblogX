@@ -7,6 +7,8 @@ import {
   CHARM_FPS_CAP_DEFAULT,
   CHARM_IDLE_SWAY_AMP_DEFAULT,
   CHARM_IDLE_SWAY_AMP_MAX,
+  CHARM_POINTER_OFFSET_X_DEFAULT,
+  CHARM_POINTER_OFFSET_Y_DEFAULT,
   CHARM_ROPE_LENGTH_DEFAULT,
 } from "~/utils/decoCharm";
 
@@ -151,6 +153,8 @@ interface MountOverrides {
     idleSwayHz?: number;
     idleSwayAmp?: number;
     fpsCap?: number;
+    pointerOffsetX?: number;
+    pointerOffsetY?: number;
   } | null;
   media?: Record<string, boolean>;
 }
@@ -177,6 +181,17 @@ function mount(overrides: MountOverrides = {}) {
 }
 
 const desktop = () => fakeMedia({ [CHARM_FINE_POINTER_QUERY]: true });
+
+/**
+ * 默认指针端偏移（票 #75）：物理头节点 = 指针热点 + 这个偏移。
+ *
+ * 组合式用例里凡是要断言"头节点在哪儿"的地方都带上它 —— 默认配置下绳头并不
+ * 压在光标正中央，而是从右下 3px 悬挂；如果某处漏了偏移，那条断言会先红。
+ */
+const DEFAULT_OFFSET = {
+  x: CHARM_POINTER_OFFSET_X_DEFAULT,
+  y: CHARM_POINTER_OFFSET_Y_DEFAULT,
+};
 
 /** 轻晃开着的配置：循环会一直跑，才能数"每秒发布了几次"。 */
 const swaying = (fpsCap: number) => () => ({
@@ -301,12 +316,16 @@ describe("useCursorCharm：首次移动、绳链与淡入", () => {
     frames.advance(RAF_DELAY_MS);
 
     expect(charm.tetherPath.value).not.toBe("");
-    expect(charm.tetherGeometry?.centerline[0]?.x).toBeCloseTo(120, 1);
-    expect(charm.tetherGeometry?.centerline[0]?.y).toBeCloseTo(240, 1);
+    // 头节点 = 指针热点 + 默认偏移（3, 3）：默认配置下绳头不压在光标正中央。
+    expect(charm.tetherGeometry?.centerline[0]?.x).toBeCloseTo(120 + DEFAULT_OFFSET.x, 1);
+    expect(charm.tetherGeometry?.centerline[0]?.y).toBeCloseTo(240 + DEFAULT_OFFSET.y, 1);
     // 首次移动的链是竖直的、松弛为 0：几何上就是一条直线。
     expect(charm.tetherGeometry?.maxDeviationPx).toBeLessThan(0.01);
-    expect(charm.logoCenter.value.x).toBeCloseTo(120, 1);
-    expect(charm.logoCenter.value.y).toBeCloseTo(240 + CHARM_ROPE_LENGTH_DEFAULT, 1);
+    expect(charm.logoCenter.value.x).toBeCloseTo(120 + DEFAULT_OFFSET.x, 1);
+    expect(charm.logoCenter.value.y).toBeCloseTo(
+      240 + DEFAULT_OFFSET.y + CHARM_ROPE_LENGTH_DEFAULT,
+      1,
+    );
   });
 
   it("每帧只更新模板绑定的两个值；几何与帧数是普通快照（不逐帧触发响应式失效）", () => {
@@ -366,7 +385,7 @@ describe("useCursorCharm：首次移动、绳链与淡入", () => {
 });
 
 describe("useCursorCharm：固定步长循环与停帧", () => {
-  it("指针移动后按真实时间推进，头节点始终钉在指针上", () => {
+  it("指针移动后按真实时间推进，头节点始终钉在「指针 + 偏移」上", () => {
     const { charm, pointer, frames } = mount();
     pointer.emit("pointermove", { clientX: 0, clientY: 0 });
     frames.advance(16.667);
@@ -374,7 +393,7 @@ describe("useCursorCharm：固定步长循环与停帧", () => {
 
     for (let i = 0; i < 6; i += 1) frames.advance(16.667);
 
-    expect(charm.tetherGeometry?.centerline[0]?.x).toBeCloseTo(60, 1);
+    expect(charm.tetherGeometry?.centerline[0]?.x).toBeCloseTo(60 + DEFAULT_OFFSET.x, 1);
     expect(Number(charm.logoCenter.value.x)).not.toBeNaN();
     // 头节点钉住、链被拖在后面：站标不会还停在旧位置。
     expect(charm.logoCenter.value.x).toBeGreaterThan(20);
@@ -414,8 +433,8 @@ describe("useCursorCharm：固定步长循环与停帧", () => {
 
     expect(frames.pending()).toBe(1);
     expect(charm.physicsFrames).toBeGreaterThan(100);
-    // 轻晃是自由端的真实形变：头节点钉死，尾端来回偏。
-    expect(charm.tetherGeometry?.centerline[0]?.x).toBeCloseTo(100, 1);
+    // 轻晃是自由端的真实形变：头节点钉死在「指针 + 偏移」上，尾端来回偏。
+    expect(charm.tetherGeometry?.centerline[0]?.x).toBeCloseTo(100 + DEFAULT_OFFSET.x, 1);
   });
 });
 
@@ -509,7 +528,88 @@ describe("useCursorCharm：恒定帧率上限（票 #74 裁决）", () => {
     // 下一次刷新（≤ 1000/60 ≈ 16.7ms 后）才发布，且头节点已经到新位置。
     frames.advance(RAF_DELAY_MS);
     expect(charm.physicsFrames).toBe(publishedBefore + 1);
-    expect(charm.tetherGeometry?.centerline[0]?.x).toBeCloseTo(300, 1);
+    expect(charm.tetherGeometry?.centerline[0]?.x).toBeCloseTo(300 + DEFAULT_OFFSET.x, 1);
+  });
+});
+
+describe("useCursorCharm：指针端偏移（票 #75，物理头节点 = 指针热点 + 偏移）", () => {
+  it("默认偏移：头节点在光标右下 3px，渲染拿到的就是它（没有第二次偏移）", () => {
+    const { charm, pointer, frames } = mount();
+    pointer.emit("pointermove", { clientX: 100, clientY: 100 });
+    frames.advance(RAF_DELAY_MS);
+
+    // 渲染几何的首点必须**恰好**是"指针 + 偏移"。如果渲染层再单独偏一次，
+    // 这里会读到 106 / 106，而不是 103 / 103。
+    expect(charm.tetherGeometry?.centerline[0]?.x).toBeCloseTo(
+      100 + CHARM_POINTER_OFFSET_X_DEFAULT,
+      1,
+    );
+    expect(charm.tetherGeometry?.centerline[0]?.y).toBeCloseTo(
+      100 + CHARM_POINTER_OFFSET_Y_DEFAULT,
+      1,
+    );
+    // 站标挂在链尾：链是从**头节点**竖下来的，所以尾端在"偏移 + 绳长"处，
+    // 而不是"指针 + 绳长"处。
+    expect(charm.logoCenter.value.y).toBeCloseTo(
+      100 + CHARM_POINTER_OFFSET_Y_DEFAULT + CHARM_ROPE_LENGTH_DEFAULT,
+      0,
+    );
+  });
+
+  it("负偏移：头节点落到光标左上（-6 / -9），指针坐标本身不被污染", () => {
+    const { charm, pointer, frames } = mount({
+      config: () => ({ idleSwayAmp: 0, pointerOffsetX: -6, pointerOffsetY: -9 }),
+    });
+    pointer.emit("pointermove", { clientX: 100, clientY: 200 });
+    frames.advance(RAF_DELAY_MS);
+
+    expect(charm.tetherGeometry?.centerline[0]?.x).toBeCloseTo(94, 1);
+    expect(charm.tetherGeometry?.centerline[0]?.y).toBeCloseTo(191, 1);
+    // 事件里写的坐标是原始热点：偏移只在换算头节点时加一次。
+    expect(charm.pointer.value).toEqual({ x: 100, y: 200 });
+  });
+
+  it("改偏移不重建链：下一次发布就生效，链保持原姿被拖过去", () => {
+    const offsets = ref({ x: 0, y: 0 });
+    const { charm, pointer, frames } = mount({
+      config: () => ({
+        idleSwayAmp: 0,
+        pointerOffsetX: offsets.value.x,
+        pointerOffsetY: offsets.value.y,
+      }),
+    });
+    pointer.emit("pointermove", { clientX: 0, clientY: 0 });
+    frames.advance(RAF_DELAY_MS);
+    // 先让链在 (0, 0) 收敛：尾端稳定在正下方一个绳长处。
+    frames.runUntilIdle(2000);
+    expect(charm.logoCenter.value.y).toBeCloseTo(CHARM_ROPE_LENGTH_DEFAULT, 0);
+
+    // 只改偏移（节点数与绳长不动）：下一次发布必须就跟着走。
+    offsets.value = { x: 10, y: 10 };
+    pointer.emit("pointermove", { clientX: 0, clientY: 0 });
+    frames.advance(RAF_DELAY_MS);
+
+    expect(charm.tetherGeometry?.centerline[0]?.x).toBeCloseTo(10, 1);
+    expect(charm.tetherGeometry?.centerline[0]?.y).toBeCloseTo(10, 1);
+    // 重建会把整条链按新头节点重新竖下来（尾端 y ≈ 130）；这里尾端仍挂在原处
+    // 附近、只被距离约束拖了一点，说明链没有被重建。
+    expect(charm.logoCenter.value.y).toBeLessThan(CHARM_ROPE_LENGTH_DEFAULT + 5);
+  });
+
+  it("偏移不影响启用门控：触屏 / 减少动态下仍然零帧、零监听", () => {
+    const offsetConfig = () => ({ idleSwayAmp: 0, pointerOffsetX: -6, pointerOffsetY: -6 });
+
+    const touch = mount({ media: { [CHARM_FINE_POINTER_QUERY]: false }, config: offsetConfig });
+    expect(touch.charm.enabled.value).toBe(false);
+    expect(touch.pointer.total()).toBe(0);
+    touch.frames.advance(1000);
+    expect(touch.frames.pending()).toBe(0);
+
+    const reduced = mount({ media: { [REDUCED]: true }, config: offsetConfig });
+    expect(reduced.charm.enabled.value).toBe(false);
+    expect(reduced.pointer.total()).toBe(0);
+    reduced.frames.advance(1000);
+    expect(reduced.frames.pending()).toBe(0);
   });
 });
 
@@ -581,7 +681,7 @@ describe("useCursorCharm：失焦冻结与切后台暂停", () => {
 
     // 恢复后继续推进，但不会先把 10 秒后台时间补上（路径不应瞬移）。
     frames.advance(16.667);
-    expect(charm.tetherGeometry?.centerline[0]?.x).toBeCloseTo(160, 1);
+    expect(charm.tetherGeometry?.centerline[0]?.x).toBeCloseTo(160 + DEFAULT_OFFSET.x, 1);
   });
 });
 

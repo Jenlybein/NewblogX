@@ -11,16 +11,16 @@ import {
   charmFrameIntervalMs,
   charmIdleSwayEnabled,
   charmLayerEnabled,
+  charmPointerAnchor,
   charmRopeSettled,
   charmRopeTail,
-  charmTetherGeometry,
   createCharmRope,
   normalizeCharmRopeConfig,
   type CharmPoint,
   type CharmRopeConfig,
   type CharmRopeState,
-  type CharmTetherGeometry,
 } from "~/utils/decoCharm";
+import { charmTetherGeometry, type CharmTetherGeometry } from "~/utils/charmTether";
 
 /** 指针事件里这里用到的最小结构（便于测试注入假事件）。 */
 export interface CursorCharmPointerEvent {
@@ -72,7 +72,12 @@ export interface CursorCharm {
   enabled: Ref<boolean>;
   /** 首次指针移动后才为 true —— 挂件据此淡入。 */
   visible: Ref<boolean>;
-  /** 指针当前视口坐标；首移之前是原点。 */
+  /**
+   * 指针热点当前视口坐标（**不含**指针端偏移）；首移之前是原点。
+   *
+   * 物理头节点是 `charmPointerAnchor(pointer, config)` —— 偏移只在那一处加一次，
+   * 渲染不再单独偏（ADR-0018 约束 7）。
+   */
   pointer: Ref<CharmPoint>;
   /** 挂绳路径（SVG 的 `d`）；每帧只写这一个字符串。 */
   tetherPath: Ref<string>;
@@ -229,7 +234,10 @@ export function useCursorCharm(options: UseCursorCharmOptions = {}): CursorCharm
   function ensureRope(head: CharmPoint, config: CharmRopeConfig): CharmRopeState {
     const signature =
       `${config.ropeLengthPx}|${config.segments}|${config.gravity}|${config.damping}` +
-      `|${config.lineWidthPx}|${config.idleSwayHz}|${config.idleSwayAmp}`;
+      `|${config.lineWidthPx}|${config.idleSwayHz}|${config.idleSwayAmp}` +
+      // 偏移也进签名，但**不改拓扑**：改偏移只走下面的原地更新分支，
+      // 链不重建、下一次发布即生效（票 #75 验收项）。
+      `|${config.pointerOffsetX}|${config.pointerOffsetY}`;
     if (!rope) {
       rope = createCharmRope(head, config);
       ropeSignature = signature;
@@ -249,6 +257,9 @@ export function useCursorCharm(options: UseCursorCharmOptions = {}): CursorCharm
       rope.config.lineWidthPx = config.lineWidthPx;
       rope.config.idleSwayHz = config.idleSwayHz;
       rope.config.idleSwayAmp = config.idleSwayAmp;
+      // 偏移只是"头节点换算的一个加数"：原地更新，链保持原姿。
+      rope.config.pointerOffsetX = config.pointerOffsetX;
+      rope.config.pointerOffsetY = config.pointerOffsetY;
     }
     ropeSignature = signature;
     return rope;
@@ -325,8 +336,11 @@ export function useCursorCharm(options: UseCursorCharmOptions = {}): CursorCharm
     const deltaSeconds = lastFrameTime === null ? 0 : Math.max(0, time - lastFrameTime) / 1000;
     lastFrameTime = time;
 
-    const state = ensureRope(pointer.value, config);
-    advanceCharmRope(state, deltaSeconds, pointer.value);
+    // 指针端 = 指针热点 + 偏移：**唯一**一处换算（ADR-0018 决策 8 / 约束 7）。
+    // 链的头节点与渲染的中心线首点都从它来，渲染层不得再单独偏一次。
+    const head = charmPointerAnchor(pointer.value, config);
+    const state = ensureRope(head, config);
+    advanceCharmRope(state, deltaSeconds, head);
     publish(state);
     lastPublishAt = time;
     physicsFrameCount += 1;

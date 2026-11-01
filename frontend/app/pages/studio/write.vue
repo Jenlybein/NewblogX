@@ -67,6 +67,9 @@ const {
   hydratedArticleId,
   tagOptions,
   categoryOptions,
+  categoryCreating,
+  createCategoryInline,
+  isLoggedIn,
   editingArticle,
   coverPreviewUrl,
   coverUploadStage,
@@ -379,6 +382,9 @@ ref="editorTextareaRef" v-model="form.content" class="write-page__textarea"
       :category-options="categoryOptions || []"
       :tag-options="tagOptions || []"
       :visibility-options="visibilityOptions"
+      :can-create-category="isLoggedIn"
+      :category-creating="categoryCreating"
+      :on-create-category="createCategoryInline"
       :draft-label="draftActionLabel"
       :publish-label="publishActionLabel"
       :on-cover-change="handleCoverFileChange"

@@ -1,6 +1,8 @@
 <script setup lang="ts">
-import { ref } from "vue";
+import { computed, ref } from "vue";
 import { NButton, NCard, NInput, NModal, NSelect, NSwitch } from "naive-ui";
+
+import { categoryTitleError, normalizeCategoryTitle } from "~/utils/studioCategory";
 
 // 发布弹窗：补全分类/标签/封面/摘要/可见性/评论开关，然后提交。
 //
@@ -37,6 +39,12 @@ const props = defineProps<{
   draftDisabled: boolean;
   /** 站点发布开关关闭：发布按钮禁用（服务端同样会拒绝）。 */
   publishDisabled: boolean;
+  /** 登录后分类旁才出现「新建分类」入口（未登录不可用）。 */
+  canCreateCategory: boolean;
+  /** 内联新建分类进行中：创建按钮转圈。 */
+  categoryCreating: boolean;
+  /** 新建分类（逻辑在 useStudioArticle；本组件只上抛标题并接管失败时的输入保留）。 */
+  onCreateCategory: (title: string) => Promise<boolean>;
   /** 封面上传（原生 change 事件原样交给父级，逻辑不在这里）。 */
   onCoverChange: (event: Event) => void;
   /** 移除已选封面。 */
@@ -49,6 +57,30 @@ const emit = defineEmits<{
 }>();
 
 const fileInput = ref<HTMLInputElement | null>(null);
+
+// 内联新建分类：输入框的开关与草稿标题都是纯 UI 状态，判断逻辑留在 composable。
+const categoryCreateOpen = ref(false);
+const newCategoryTitle = ref("");
+const newCategoryTitleError = computed(() => categoryTitleError(newCategoryTitle.value));
+
+function toggleCategoryCreate() {
+  categoryCreateOpen.value = !categoryCreateOpen.value;
+  if (!categoryCreateOpen.value) {
+    newCategoryTitle.value = "";
+  }
+}
+
+async function submitCategory() {
+  if (props.categoryCreating || newCategoryTitleError.value) {
+    return;
+  }
+  const created = await props.onCreateCategory(normalizeCategoryTitle(newCategoryTitle.value));
+  // 只有真正完成"创建并选中"才收起面板；重名/网络失败时保留输入，让用户改名重试。
+  if (created) {
+    newCategoryTitle.value = "";
+    categoryCreateOpen.value = false;
+  }
+}
 
 // pickCover 替父级点开文件选择：input 在本组件内，
 // 让父级持有一个 ref 再回来点它没有意义。
@@ -67,9 +99,36 @@ function pickCover() {
         <div class="publish-form">
           <div class="publish-form__row">
             <label class="publish-form__label">分类</label>
-            <NSelect
+            <div class="publish-category">
+              <NSelect
 v-model:value="categoryId" clearable filterable :options="props.categoryOptions || []"
-              placeholder="请选择分类" class="publish-form__control" />
+                placeholder="请选择分类" class="publish-form__control" />
+
+              <!-- 新建分类就地展开：不跳分类管理页，创建成功后自动选中（issue 127）。 -->
+              <template v-if="props.canCreateCategory">
+                <div v-if="categoryCreateOpen" class="publish-category__create">
+                  <NInput
+                    v-model:value="newCategoryTitle"
+                    size="small"
+                    maxlength="256"
+                    placeholder="新分类名称"
+                    class="publish-category__input"
+                    @keyup.enter="submitCategory" />
+                  <NButton
+                    type="primary"
+                    size="small"
+                    :loading="props.categoryCreating"
+                    :disabled="Boolean(newCategoryTitleError)"
+                    @click="submitCategory">
+                    创建
+                  </NButton>
+                  <NButton quaternary size="small" @click="toggleCategoryCreate">取消</NButton>
+                </div>
+                <NButton v-else quaternary size="small" class="publish-category__add" @click="toggleCategoryCreate">
+                  + 新建分类
+                </NButton>
+              </template>
+            </div>
           </div>
 
           <div class="publish-form__row">

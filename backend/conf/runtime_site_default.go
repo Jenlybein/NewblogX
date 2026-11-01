@@ -16,4 +16,6 @@ type RuntimeDefaults struct {
 	Log     Logrus `yaml:"log"`
 	Upload  Upload `yaml:"upload"`
 	Deco    Deco   `yaml:"deco"`
+	// ImageGC 是孤儿图回收的运行参数（spec #138）。
+	ImageGC ImageGC `yaml:"image_gc"`
 }

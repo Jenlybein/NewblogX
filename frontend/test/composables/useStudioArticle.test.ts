@@ -18,6 +18,7 @@ import { useStudioArticle } from "~/composables/useStudioArticle";
 const getArticleDetailMock = vi.hoisted(() => vi.fn());
 const getTagOptionsMock = vi.hoisted(() => vi.fn());
 const getCategoryOptionsMock = vi.hoisted(() => vi.fn());
+const createCategoryMock = vi.hoisted(() => vi.fn());
 const uploadImageByTaskMock = vi.hoisted(() => vi.fn());
 const buildPayloadMock = vi.hoisted(() => vi.fn());
 const useAuthStoreMock = vi.hoisted(() => vi.fn());
@@ -26,6 +27,7 @@ vi.mock("~/services/article", () => ({ getArticleDetail: getArticleDetailMock })
 vi.mock("~/services/search", () => ({
   getTagOptions: getTagOptionsMock,
   getCategoryOptions: getCategoryOptionsMock,
+  createCategory: createCategoryMock,
 }));
 vi.mock("~/services/image", () => ({ uploadImageByTask: uploadImageByTaskMock }));
 vi.mock("~/utils/studioArticlePayload", () => ({ buildStudioArticlePayload: buildPayloadMock }));
@@ -111,6 +113,7 @@ beforeEach(() => {
   getArticleDetailMock.mockReset();
   getTagOptionsMock.mockReset();
   getCategoryOptionsMock.mockReset();
+  createCategoryMock.mockReset();
   uploadImageByTaskMock.mockReset();
   buildPayloadMock.mockReset();
   useAuthStoreMock.mockReset();
@@ -120,6 +123,7 @@ beforeEach(() => {
     { label: "Vue", value: "tag-2" },
   ]);
   getCategoryOptionsMock.mockResolvedValue([{ label: "后端", value: "cat-1" }]);
+  createCategoryMock.mockResolvedValue({});
   getArticleDetailMock.mockResolvedValue(null);
   uploadImageByTaskMock.mockResolvedValue({ image_id: "img-9", url: "https://cdn.example.com/new.png" });
   buildPayloadMock.mockReturnValue({ title: "t", content: "c", status: 1 });
@@ -417,5 +421,91 @@ describe("useStudioArticle · 封面", () => {
     expect(message.warning).not.toHaveBeenCalled();
     expect(message.error).not.toHaveBeenCalled();
     expect(uploadImageByTaskMock).not.toHaveBeenCalled();
+  });
+});
+
+describe("useStudioArticle · 内联新建分类", () => {
+  it("登录状态由当前用户决定", async () => {
+    const { api } = await harness();
+    expect(api.isLoggedIn.value).toBe(true);
+
+    const { api: guestApi } = await harness({ profileId: "" });
+    expect(guestApi.isLoggedIn.value).toBe(false);
+  });
+
+  it("创建成功后重新载入下拉，并把新分类自动选中", async () => {
+    const { api, message } = await harness();
+    getCategoryOptionsMock.mockResolvedValueOnce([
+      { label: "后端", value: "cat-1" },
+      { label: "新分类", value: "cat-9" },
+    ]);
+
+    const ok = await api.createCategoryInline("  新分类  ");
+
+    expect(ok).toBe(true);
+    expect(createCategoryMock).toHaveBeenCalledWith("新分类");
+    expect(api.categoryOptions.value).toEqual([
+      { label: "后端", value: "cat-1" },
+      { label: "新分类", value: "cat-9" },
+    ]);
+    expect(api.form.category_id).toBe("cat-9");
+    expect(message.success).toHaveBeenCalledWith("已新建分类「新分类」");
+  });
+
+  it("重名时展示后端返回的可读业务文案，且不选中任何分类", async () => {
+    const { api, message } = await harness();
+    createCategoryMock.mockRejectedValue(new Error("名称重复"));
+
+    const ok = await api.createCategoryInline("新分类");
+
+    expect(ok).toBe(false);
+    expect(message.error).toHaveBeenCalledWith("创建分类失败：名称重复");
+    expect(api.form.category_id).toBeNull();
+    expect(message.success).not.toHaveBeenCalled();
+  });
+
+  it("空标题与纯空白标题在发请求前就被拒绝", async () => {
+    const { api, message } = await harness();
+
+    for (const raw of ["", "   ", "\t\n"]) {
+      const ok = await api.createCategoryInline(raw);
+      expect(ok).toBe(false);
+    }
+
+    expect(createCategoryMock).not.toHaveBeenCalled();
+    expect(message.warning).toHaveBeenCalledWith("请输入分类名称");
+  });
+
+  it("未登录时入口不可用，不发创建请求", async () => {
+    const { api, message } = await harness({ profileId: "" });
+
+    const ok = await api.createCategoryInline("新分类");
+
+    expect(ok).toBe(false);
+    expect(createCategoryMock).not.toHaveBeenCalled();
+    expect(message.warning).toHaveBeenCalledWith("请先登录后再新建分类");
+  });
+
+  it("创建成功但下拉里找不到新分类时给出可见提示，不静默失败", async () => {
+    const { api, message } = await harness();
+    getCategoryOptionsMock.mockResolvedValueOnce([{ label: "后端", value: "cat-1" }]);
+
+    const ok = await api.createCategoryInline("新分类");
+
+    expect(ok).toBe(false);
+    expect(message.warning).toHaveBeenCalledWith("分类已创建，但未能载入新分类，请稍后重试。");
+    expect(api.form.category_id).toBeNull();
+    expect(message.success).not.toHaveBeenCalled();
+  });
+
+  it("创建成功但重新载入下拉失败时区分于「创建失败」", async () => {
+    const { api, message } = await harness();
+    getCategoryOptionsMock.mockRejectedValueOnce(new Error("网络断开"));
+
+    const ok = await api.createCategoryInline("新分类");
+
+    expect(ok).toBe(false);
+    expect(message.error).toHaveBeenCalledWith("分类已创建，但分类列表加载失败，请手动刷新后选择。");
+    expect(message.success).not.toHaveBeenCalled();
   });
 });

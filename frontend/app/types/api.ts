@@ -75,33 +75,35 @@ export type SiteAiInfo = RequiredSchema<"internal_site_adapter_http.AIResponse">
  * `charm` 下是总开关与十一个数值参数（站标尺寸 + 挂绳几何 / 物理 + 静止轻晃 +
  * 帧率上限 + 指针端偏移 X / Y）。
  *
- * 字段全都可选：读者站不能假设某个后台版本一定发出了哪些键，
- * 缺失时由各参数的钳位函数 / 门控的默认值兜底。
+ * 字段全都可选，数值字段还可能是 `null`（票 #77）：读者站不能假设某个后台
+ * 版本一定发出了哪些键，运营"清空"字段时下发的是 `null`。两种都表示"这个键
+ * 没有值"，由各参数的归一化函数回落默认值 —— 不能被 `Number(null) === 0`
+ * 读成"管理员明确填了 0"（0 在轻晃与偏移上是合法语义）。
  */
 export interface SiteDecoConfig {
   charm?: {
     enable?: boolean;
-    logo_size?: number;
+    logo_size?: number | null;
     /** 挂绳长度，px，合法区间 40–240。 */
-    rope_length?: number;
+    rope_length?: number | null;
     /** Verlet 链节点数，节，合法区间 4–24。 */
-    segments?: number;
+    segments?: number | null;
     /** 描边起始宽度，px，合法区间 1–6，保留一位小数；收尾固定为 0.6 倍。 */
-    line_width?: number;
+    line_width?: number | null;
     /** 重力加速度，px/s²，合法区间 400–4000。 */
-    gravity?: number;
+    gravity?: number | null;
     /** 每步速度保持系数，无量纲，合法区间 0.94–0.995。 */
-    damping?: number;
+    damping?: number | null;
     /** 静止摆动频率，Hz，合法区间 0–1.5；0 表示关掉轻晃。 */
-    idle_sway_hz?: number;
+    idle_sway_hz?: number | null;
     /** 静止摆动加速度幅度，px/s²，合法区间 0–40；0 表示关掉轻晃（收敛后停帧）。 */
-    idle_sway_amp?: number;
+    idle_sway_amp?: number | null;
     /** 最高渲染帧率，fps，合法区间 30–160（整数）；它只管每秒画几次，不影响绳子手感。 */
-    fps_cap?: number;
+    fps_cap?: number | null;
     /** 指针端偏移水平分量，px，合法区间 -24–24（整数，允许负值）；指针端节点 = 指针热点 + 它。 */
-    pointer_offset_x?: number;
+    pointer_offset_x?: number | null;
     /** 指针端偏移垂直分量，px，合法区间 -24–24（整数，允许负值；负值往上偏）。 */
-    pointer_offset_y?: number;
+    pointer_offset_y?: number | null;
   };
 }
 

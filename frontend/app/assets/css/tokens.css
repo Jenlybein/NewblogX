@@ -115,13 +115,15 @@
   --glass-grain-opacity: 0.055; /* feTurbulence 噪点层 */
   --glass-blur-mobile: 12px; /* max-width: 768px 下的模糊档 */
 
-  /* ---- 5. 排版层（ADR-0012 决策 8：Sora = 字标/大标题，Inter = 正文/UI，中文 Noto Sans SC）---- */
-  --font-display: "Sora", "Sora Fallback", var(--font-cjk); /* 字标 + 大标题；中文落到自托管 Noto */
+  /* ---- 5. 排版层（ADR-0012 决策 8；ADR-0019 决策 2 修订中文字体条款）----
+   * Sora = 字标 / 大标题，Inter = 拉丁正文 / UI，**中文 = 系统字体栈**（苹方 / 冬青黑 /
+   * 微软雅黑 / 思源系）。中文不再自托管 webfont：首屏省掉两个约 1.1 MB 的整包字重
+   * （ADR-0019 约束 5：首屏字体预算 < 100 KB）。 */
+  --font-display: "Sora", "Sora Fallback", var(--font-cjk); /* 字标 + 大标题；中文落到系统黑体（不自托管） */
   --font-latin: "Inter", "Inter Fallback"; /* 正文 / UI（列表 / 表单 / 按钮） */
   --font-title: var(--font-display); /* 标题字体键（此前未定义，被 pages/index.vue 消费） */
-  --font-cjk: "Noto Sans SC", "Noto Sans SC Fallback";
-  --font-sans: var(--font-latin), var(--font-cjk), "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei",
-    sans-serif;
+  --font-cjk: -apple-system, BlinkMacSystemFont, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", "Noto Sans SC", sans-serif; /* 中文组唯一来源：全是系统族；末位 Noto 只在装了 Noto 的机器上命中，不产生下载 */
+  --font-sans: var(--font-latin), var(--font-cjk); /* 拉丁在前、中文系统栈在后（中文组已含 sans-serif 兜底） */
   --font-mono: "Cascadia Code", "JetBrains Mono", "Sofia Sans Mono", ui-monospace, monospace; /* 代码块 / 行内代码 / 刻度 */
   --type-measure: 68ch; /* 正文行宽 */
   --type-leading-prose: 1.75; /* 中文正文行高 */

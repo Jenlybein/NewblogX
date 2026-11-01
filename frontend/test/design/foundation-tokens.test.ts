@@ -22,6 +22,11 @@ const adminTokensCss = readFileSync(
 );
 const indexVue = readFileSync(join(projectDir, "app/pages/index.vue"), "utf8");
 const markdownThemeTs = readFileSync(join(projectDir, "app/utils/markdownTheme.ts"), "utf8");
+const fontsCss = readFileSync(join(projectDir, "app/assets/css/fonts.css"), "utf8");
+const adminFontsCss = readFileSync(
+  join(projectDir, "../frontend_admin/app/assets/css/fonts.css"),
+  "utf8",
+);
 
 
 /** 去掉 CSS 注释：注释里可以提到旧 token 名/旧写法（可读性需要），不算"还在用"。 */
@@ -281,12 +286,31 @@ describe("字体分工键：display / title / mono 都有定义与真实消费�
   it.each([
     ["读者站", tokensCss],
     ["后台", adminTokensCss],
-  ])("%s定义 --font-display / --font-title / --font-mono", (_label, css) => {
+  ])("%s定义 --font-display / --font-title / --font-mono，中文取系统字体栈", (_label, css) => {
     const root = rootBlock(css);
 
     expect(declaration(root, "--font-display")).toBe('"Sora", "Sora Fallback", var(--font-cjk)');
     expect(declaration(root, "--font-title")).toBe("var(--font-display)");
     expect(declaration(root, "--font-mono")).toContain('"Cascadia Code"');
+    // ADR-0019 决策 2 / 约束 5：中文不再自托管，--font-cjk 就是系统字体栈。
+    expect(declaration(root, "--font-cjk")).toBe(
+      '-apple-system, BlinkMacSystemFont, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", "Noto Sans SC", sans-serif',
+    );
+    expect(String(declaration(root, "--font-cjk"))).not.toContain("Noto Sans SC Fallback");
+  });
+
+  it("中文不再以自托管 webfont 加载：两端 fonts.css 都没有 CJK @font-face", () => {
+    // 反向断言：任何一端把 Noto 两档 @font-face 加回来就会红（首屏 2.3 MB 的回归）。
+    for (const [label, css] of [
+      ["读者站", fontsCss],
+      ["后台", adminFontsCss],
+    ] as const) {
+      const code = stripComments(css);
+
+      expect(code, label).not.toMatch(/noto-sans-sc/iu);
+      expect(code, label).not.toMatch(/font-family:\s*"Noto Sans SC"/iu);
+      expect(code, label).not.toMatch(/Noto Sans SC Fallback/u);
+    }
   });
 
   it("标题字体键被首屏/字标真实消费（此前是未定义变量）", () => {

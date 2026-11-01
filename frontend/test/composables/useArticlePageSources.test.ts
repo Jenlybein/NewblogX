@@ -349,3 +349,66 @@ describe("useArticlePageSources：正文优先 + 第一波并行 + 作者第二�
     expect(second.article.value?.title).toBe("文章乙");
   });
 });
+
+describe("SSR 匿名化：服务端渲染的数据里没有用户私有状态（ADR-0019 约束 2）", () => {
+  it("服务端：文章里的 is_digg / is_favor 被剔除，字段名都不留在 SSR 数据里", async () => {
+    installAwaitableAsyncData();
+    installFakeNuxtApp();
+    const fakes = createArticleFakes("server");
+
+    const pendingSources = runInScope(() => useArticlePageSources(fakes.options));
+    fakes.comments.resolve({ items: [] as CommentRootItem[], hasMore: false });
+    fakes.score.resolve(null);
+    fakes.authorInfo.resolve({ article_count: 3 } as ArticleAuthorInfo);
+    fakes.article.resolve({ ...makeArticle(), is_digg: true, is_favor: true } as unknown as ArticleDetail);
+    fakes.authorProfile.resolve(null);
+    const sources = await pendingSources;
+
+    expect(sources.article.value).not.toBeNull();
+    expect("is_digg" in (sources.article.value as object)).toBe(false);
+    expect("is_favor" in (sources.article.value as object)).toBe(false);
+    // 公开字段不能跟着丢：分享卡片与页面内容靠它们。
+    expect(sources.article.value?.title).toBe("正文标题");
+    expect(sources.article.value?.content).toBe("正文内容");
+  });
+
+  it("服务端：评论条目的 is_digg / relation 也被剔除（评论区点赞态同样是登录用户私有状态）", async () => {
+    installAwaitableAsyncData();
+    installFakeNuxtApp();
+    const fakes = createArticleFakes("server");
+
+    const pendingSources = runInScope(() => useArticlePageSources(fakes.options));
+    fakes.comments.resolve({
+      items: [
+        { id: "c1", content: "评论正文", is_digg: true, relation: 1 } as unknown as CommentRootItem,
+      ],
+      hasMore: false,
+    });
+    fakes.score.resolve(null);
+    fakes.authorInfo.resolve({ article_count: 3 } as ArticleAuthorInfo);
+    fakes.article.resolve(makeArticle());
+    fakes.authorProfile.resolve(null);
+    const sources = await pendingSources;
+
+    const [comment] = sources.commentsPager.currentItems.value;
+    expect(comment).toEqual({ id: "c1", content: "评论正文" });
+    expect("is_digg" in (comment as object)).toBe(false);
+    expect("relation" in (comment as object)).toBe(false);
+  });
+
+  it("客户端（跳转 / 首屏 hydration）：用户态保留 —— 客户端正是靠它补齐已点赞态", async () => {
+    // canary：把剔除写成"一律剔除"时这条会红（客户端会永远显示未点赞）。
+    installAwaitableAsyncData();
+    installFakeNuxtApp();
+    const fakes = createArticleFakes("navigation");
+
+    const pendingSources = runInScope(() => useArticlePageSources(fakes.options));
+    const sources = await pendingSources;
+
+    fakes.article.resolve({ ...makeArticle(), is_digg: true, is_favor: true } as unknown as ArticleDetail);
+    await flushPromises();
+
+    expect(sources.article.value?.is_digg).toBe(true);
+    expect(sources.article.value?.is_favor).toBe(true);
+  });
+});

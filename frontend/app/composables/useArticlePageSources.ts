@@ -3,13 +3,13 @@ import type { MaybeRefOrGetter } from "vue";
 import { usePagedResourceCache } from "~/composables/usePagedResourceCache";
 import { useReaderSwrAsyncData } from "~/composables/useReaderSwrAsyncData";
 import { getArticleScoreSummary } from "~/services/ai";
-import { getArticleAuthorInfo, getArticleDetail } from "~/services/article";
+import { getArticleAuthorInfo, getArticleDetail, getArticleDetailAnonymous } from "~/services/article";
 import { getRootComments } from "~/services/comment";
 import { getUserBaseInfo } from "~/services/user";
 import type { ArticleAuthorInfo, ArticleDetail, CommentRootItem } from "~/types/api";
 import { detectReaderRenderMode, type ReaderRenderMode } from "~/utils/readerRenderMode";
-import { withoutPrivateFields, withoutPrivateFieldsFromItems } from "~/utils/readerPrivateFields";
 import type { ReaderSwrCache } from "~/utils/readerSwrCache";
+import { withoutPrivateFields, withoutPrivateFieldsFromItems } from "~/utils/readerPrivateFields";
 
 export interface ArticleCommentsPage {
   items: CommentRootItem[];
@@ -51,6 +51,11 @@ const ROOT_COMMENT_PAGE_SIZE = 7;
  * - 服务端：第一波等齐 + 第二波（作者统计）也等 —— SSR 的 HTML 不能缺内容；
  * - 首屏 hydration：只等评论分页（不在 payload 里，等不到会和 SSR 的列表打架）；
  * - 客户端跳转：一个都不等，setup 立刻返回 → 页面先画骨架，数据并行到达后自己填。
+ *
+ * 服务端还有一个额外口径（ADR-0019 决策 5 / 约束 2）：SSR 的 HTML 会进按 URL 键的
+ * 30s 共享缓存，所以服务端取到的正文与评论都要先过一层匿名化 —— 匿名取数（不携带
+ * 登录身份）+ 剔除 `is_digg` / `is_favor` / `relation`。客户端照旧拿带鉴权的数据，
+ * 登录用户的点赞态由它自己补齐（先默认态、后跳变，ADR 已接受这个观感）。
  */
 export async function useArticlePageSources(options: ArticlePageSourcesOptions) {
   const mode = options.mode ?? detectReaderRenderMode();
@@ -61,7 +66,11 @@ export async function useArticlePageSources(options: ArticlePageSourcesOptions) 
   const inNuxtContext = <T>(run: () => T) => nuxtApp.runWithContext(run);
   const articleId = computed(() => String(toValue(options.articleId)));
 
-  const fetchArticle = options.fetchArticle ?? ((id: string) => getArticleDetail(id));
+  // 服务端显式匿名取数：缓存键只有 URL，SSR 请求绝不能带登录身份（哪怕后端将来从
+  // cookie 里认出用户，进 HTML 的也只能是匿名内容）。
+  const fetchArticle =
+    options.fetchArticle ??
+    ((id: string) => (mode === "server" ? getArticleDetailAnonymous(id) : getArticleDetail(id)));
   const fetchScore =
     options.fetchScore ?? ((id: string) => getArticleScoreSummary(id).catch(() => null));
   const fetchComments =
@@ -77,12 +86,18 @@ export async function useArticlePageSources(options: ArticlePageSourcesOptions) 
   const fetchAuthorProfile =
     options.fetchAuthorProfile ?? ((authorId: string) => getUserBaseInfo(authorId).catch(() => null));
 
+  // 用户态只在服务端剔除；客户端（跳转 / 首屏 hydration）要原样保留，靠它渲染"已点赞"。
+  // 私有字段清单来自 `readerPrivateFields.ts` —— 与客户端 30s 缓存用的是同一份（ADR-0019 约束 2）。
+  const articleForRender = (article: ArticleDetail) =>
+    mode === "server" ? withoutPrivateFields(article) : article;
+
   // 第一波：三个请求只依赖路由里的文章 id，**同时发起**。
-  // 正文走 30s SWR：30 秒内重进同一篇文章直接命中、不再请求；过期则旧值先上屏、后台静默刷新。
-  // 写缓存前剔除 `is_digg` / `is_favor`：登录态私有字段不进缓存（ADR-0019 约束 2）。
+  // 正文走 30s SWR（ADR-0019 决策 4）：30 秒内重进同一篇文章直接命中、不再请求；过期则
+  // 旧值先上屏、后台静默刷新。写缓存前剔除 `is_digg` / `is_favor`（私有字段不进缓存）；
+  // 服务端渲染的正文同样经过 `articleForRender` 剔除 —— 它要进按 URL 键的 30s 共享缓存。
   const articleSource = useReaderSwrAsyncData({
     key: () => `article-${articleId.value}`,
-    handler: () => fetchArticle(articleId.value),
+    handler: () => fetchArticle(articleId.value).then(articleForRender),
     mode,
     cache: options.swrCache,
     sanitizeForCache: withoutPrivateFields,
@@ -112,7 +127,8 @@ export async function useArticlePageSources(options: ArticlePageSourcesOptions) 
   );
 
   // 评论分页首屏：客户端跳转时后台取（先出骨架），服务端与首屏 hydration 等它（SSR 内容 / 不闪）。
-  // 30 秒内重进同一篇文章的评论区直接命中缓存；评论的 `is_digg` / `relation` 私有态不落缓存。
+  // 服务端渲染的评论条目要匿名化：评论的"我点过赞""和作者的关系"都是登录用户私有状态；
+  // 客户端侧 30 秒内重进同一篇文章直接命中缓存（缓存里同样不含私有态）。
   const commentsPager = await usePagedResourceCache({
     cacheKey: () => `article-comments:${articleId.value}`,
     pageSize: () => ROOT_COMMENT_PAGE_SIZE,
@@ -124,7 +140,10 @@ export async function useArticlePageSources(options: ArticlePageSourcesOptions) 
     }),
     fetchPage: async (page, limit) => {
       try {
-        return await fetchComments(articleId.value, page, limit);
+        const payload = await fetchComments(articleId.value, page, limit);
+        return mode === "server"
+          ? { items: withoutPrivateFieldsFromItems(payload.items), hasMore: payload.hasMore }
+          : payload;
       } catch {
         // 评论区失败不抛错：评论是次要数据，不能把整页带崩。
         return { items: [], hasMore: false };

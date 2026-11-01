@@ -1,0 +1,123 @@
+<clickhouse>
+    <!-- 给 system.*_log 自监控表加 TTL + 降频 + 限制后台线程。
+
+         官方镜像的默认配置里,这 7 张表全部没有 TTL,全靠人手动清理。
+         加上每秒上千行的写入速率,它们会一直涨到把磁盘和 CPU 吃光。
+
+         本项目实测:trace_log 1.95 亿行 / 2.81 GiB,text_log 13.9 M 行 /
+         499 MiB,asynchronous_metric_log 4715 万行。而业务日志表
+         (blogx_logs.*)早就写了 120 天 TTL,只有 system 表漏了。
+
+         写法约束(反复重启实测出来的,四条都要同时满足):
+         1. 只用 <ttl> 标签,不要写 <engine>。官方 config.xml 里 <engine>
+            是被注释掉的,本来没有;一旦我们显式写 <engine>,CH 就认为
+            "engine 已指定",转而对 <ttl> 报
+            "TTL parameters should be specified directly inside 'engine'"。
+         2. 反过来,写了 <engine> 就必须同时顶掉继承来的 <partition_by>,
+            否则报 "PARTITION BY parameters should be specified directly
+            inside 'engine'";但空值 <partition_by></partition_by> 也
+            被判定为"已指定",仍然报错。
+            => 结论:要么全写 engine(TTL 内置,并设法消除 partition_by),
+                   要么只用 ttl。后者更简洁可靠,本项目选这条路。
+         3. background_pool_size 有下限,见文件末尾。
+         4. 改完必须 docker compose restart 才生效;存量数据不会自动删除,
+            TTL 是惰性清除的,要立刻清理见 README 的一次性命令。
+    -->
+
+    <!-- ============ 自监控表的保留策略 ============ -->
+
+    <!-- query_log:排查慢查询用,留 7 天 -->
+    <query_log>
+        <ttl>event_date + INTERVAL 7 DAY</ttl>
+    </query_log>
+
+    <!-- trace_log:最大头(1.95 亿行)。它是 query profiler 与 memory profiler
+         的产物,profiler 已在 profiler-off.xml 关掉,这里只留 3 天兜底 -->
+    <trace_log>
+        <ttl>event_date + INTERVAL 3 DAY</ttl>
+        <flush_interval_milliseconds>15000</flush_interval_milliseconds>
+    </trace_log>
+
+    <query_thread_log>
+        <ttl>event_date + INTERVAL 3 DAY</ttl>
+    </query_thread_log>
+
+    <part_log>
+        <ttl>event_date + INTERVAL 7 DAY</ttl>
+    </part_log>
+
+    <!-- text_log 默认保留 30 天,本项目日志量不大,7 天足够 -->
+    <text_log>
+        <ttl>event_date + INTERVAL 7 DAY</ttl>
+    </text_log>
+
+    <error_log>
+        <ttl>event_date + INTERVAL 30 DAY</ttl>
+    </error_log>
+
+    <!-- 各类 metric*_log:采样频率高、行数多,短期保留就够看趋势 -->
+    <metric_log>
+        <ttl>event_date + INTERVAL 7 DAY</ttl>
+        <!-- 默认 1s 采样一次,且每个 metric 单独成行:行数 = 采样次数 × metric
+             个数,4715 万行就是这么来的。改 5s 采样。 -->
+        <collect_interval_milliseconds>5000</collect_interval_milliseconds>
+        <flush_interval_milliseconds>30000</flush_interval_milliseconds>
+    </metric_log>
+
+    <asynchronous_metric_log>
+        <ttl>event_date + INTERVAL 3 DAY</ttl>
+        <flush_interval_milliseconds>30000</flush_interval_milliseconds>
+        <!-- 注意:这张表**没有** collect_interval_milliseconds 这个键
+             (metric_log 才有)。写了会被静默忽略,实测行数毫无变化。
+             它由服务器级 asynchronous_metrics_update_period_s 驱动,
+             见文件末尾。 -->
+    </asynchronous_metric_log>
+
+    <latency_log>
+        <ttl>event_date + INTERVAL 3 DAY</ttl>
+    </latency_log>
+
+    <processors_profile_log>
+        <ttl>event_date + INTERVAL 3 DAY</ttl>
+    </processors_profile_log>
+
+    <!-- opentelemetry_span_log 特例:官方 config.xml 里它本来就有 <engine>,
+         所以对这张表不能再写独立的 <ttl>,否则报
+         "If 'engine' is specified for system table, TTL parameters should be
+          specified directly inside 'engine'"。要么干脆不改它(它默认没数据),
+         要么在 engine 串里加 TTL。这里选择不改。 -->
+    <!--
+    <opentelemetry_span_log>
+        <ttl>event_date + INTERVAL 3 DAY</ttl>
+    </opentelemetry_span_log>
+    -->
+
+    <!-- ============ 后台线程池:让 CH 知道这是台 2 核机器 ============ -->
+
+    <!-- 两个硬约束,都踩过:BackgroundPool 必须同时满足
+           >= number_of_free_entries_in_pool_to_execute_mutation           (默认 20)
+           >= number_of_free_entries_in_pool_to_execute_optimize_entire_partition (默认 25)
+         任一条不满足,ClickHouse 启动时 Code 36 直接拒绝。
+         而且这个错误不打 stdout,只落在挂出来的 err.log 里,
+         表现就是容器无限 Restarting —— 排查时容易误判成 OOM。
+
+         32 是官方镜像默认值,本身合法。但下调要一步到位:写 24 仍会撞上限
+         25,必须 >= 25。这里取 26(ratio=1),既满足两个下限,又比默认少。 -->
+    <background_pool_size>26</background_pool_size>
+    <background_merges_mutations_concurrency_ratio>1</background_merges_mutations_concurrency_ratio>
+
+    <!-- ============ 异步指标采集周期 ============ -->
+
+    <!-- 这才是 asynchronous_metric_log 行数的真正开关(服务器级,默认 1 秒)。
+
+         为什么必须改:每秒采一次,每次把约 180 个 metric 各写一行
+         ≈ 179 行/秒。即使 TTL 只有 3 天,稳态也会堆到约 4600 万行 ——
+         与加 TTL 之前的 4715 万行几乎没差别,TTL 等于白设。
+         实测确认:只设 <ttl> 或 flush_interval 完全压不住它。
+
+         改 10 秒后行数降到约 1/10,3 天稳态约 460 万行。
+         代价:监控曲线粒度变粗(10s 一个点)。对个人站点足够,
+         需要精确排障时再临时调回。 -->
+    <asynchronous_metrics_update_period_s>10</asynchronous_metrics_update_period_s>
+    <background_schedule_pool_size>32</background_schedule_pool_size>
+</clickhouse>

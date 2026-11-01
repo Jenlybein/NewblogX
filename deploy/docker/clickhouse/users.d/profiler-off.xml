@@ -1,0 +1,36 @@
+<clickhouse>
+    <!-- 关掉查询分析器与内存采样 —— 从源头掐掉 trace_log 的写入。
+
+         注意这个文件的落点是 users.d/,不是 config.d/。
+         <profiles> 属于 users.xml 的概念,放进 config.d/ 只会被静默忽略
+         (不会报错,启动时也不告警,但 system.settings 里仍是默认值)。
+
+         为什么必须关:
+         默认 query_profiler_*_period_ns = 1s、memory_profiler_step = 4MB,
+         后者意味着每次内存分配都往 trace_log 写一行 Memory/MemoryPeak。
+         本项目实测 15 分钟内 trace_log 增 627846+627846 行,而真正的
+         CPU/Real 采样只有 855+667 行 —— 占比 >99% 的都是内存采样。
+         在这台机器上 trace_log 涨到了 1.95 亿行 / 2.81 GiB,
+         后台 merge 长期吃满 CPU,拖慢整站。
+
+         需要临时排查时再打开,查完改回 0 并 restart。见 config/README.md。
+    -->
+    <profiles>
+        <default>
+            <!-- 实时(挂钟)采样:0 = 关闭 -->
+            <query_profiler_real_time_period_ns>0</query_profiler_real_time_period_ns>
+            <!-- CPU 时间采样 -->
+            <query_profiler_cpu_time_period_ns>0</query_profiler_cpu_time_period_ns>
+
+            <!-- 内存采样。默认 4194304(4MB)。
+                 注意 memory_profiler_sample_probability 默认已是 0,
+                 但 step > 0 时仍然会写,必须显式置 0 才是真关。
+
+                 不要写 total_memory_profiler_step:CH 25.3 里它不是内建设置,
+                 写了会报 Code 115 "Setting total_memory_profiler_step is
+                 neither a builtin setting nor started with the prefix 'SQL_'"。
+                 较新版本才引入。 -->
+            <memory_profiler_step>0</memory_profiler_step>
+        </default>
+    </profiles>
+</clickhouse>

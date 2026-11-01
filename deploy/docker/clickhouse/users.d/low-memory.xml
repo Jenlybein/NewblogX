@@ -1,0 +1,29 @@
+<clickhouse>
+    <!-- 小机器(≤4 GB 内存 / 2 vCPU)的资源收敛 —— 会话部分。
+
+         本目录(users.d/)只放"会话级"设置,即出现在 system.settings 里的那些。
+         服务器级设置(max_concurrent_queries / max_server_memory_usage /
+         background_pool_size 等,出现在 system.server_settings)
+         放在 ../config/low-memory.xml 与 ../config/system-log-ttl.xml。
+
+         放错目录不会报错,只会被静默忽略 —— 务必确认目标设置属于哪张表。
+
+         另一条约束:会话级设置必须写在 <profiles> 里。写在顶层会报
+         Code 137: "A setting 'max_memory_usage' appeared at top level in
+         config /etc/clickhouse-server/users.xml. But it is user-level setting
+         that should be located in users.xml inside <profiles> section"。
+    -->
+    <profiles>
+        <default>
+            <!-- CH 单查询内存上限。默认按宿主机内存推导,出现过
+                 "would use 1.80 GiB, maximum: 1.80 GiB" 的报错:
+                 连统计一张自己的表都统计不动。这里显式压到 1 GB,
+                 贴近容器 limit(2G)的一半。 -->
+            <max_memory_usage>1000000000</max_memory_usage>
+
+            <!-- 顺手把查询相关的蔟?)
+                 注意:query_profiler_* 与 memory_profiler_step 在
+                 profiler-off.xml 里关,这里不重复写。 -->
+        </default>
+    </profiles>
+</clickhouse>

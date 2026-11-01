@@ -1,0 +1,5 @@
+# 运行态文件不进仓库：Playwright 的 node_modules、pnpm 状态、临时结果
+node_modules/
+.pnpm-workspace-state*.json
+.modules.yaml
+results/

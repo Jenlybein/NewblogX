@@ -516,6 +516,62 @@ describe('normalizeDecoConfig', () => {
   })
 })
 
+/**
+ * 票 #77：`null` 与 `undefined` 一样表示「这个键没有值」，必须回落默认值。
+ *
+ * 为什么后台也要管：后台读回来的是一段自由 JSON（旧库、旧版本、手改的配置都
+ * 可能带 null），而它的归一化结果会被原样提交回后端。若 `Number(null) === 0`
+ * 在这里被当成合法值，"清空字段"就会变成"明确填 0" —— 轻晃被关掉、指针端压到
+ * 热点上，管理员在表单里看到的却还是默认数字。归一化是唯一兜底点。
+ */
+describe('票 #77：null 与 undefined 同义（都表示这个键没有值）', () => {
+  it('四个「0 合法」数值字段为 null 时回落默认值，而不是被读成 0', () => {
+    const charm = normalizeDecoConfig({
+      charm: {
+        idle_sway_hz: null,
+        idle_sway_amp: null,
+        pointer_offset_x: null,
+        pointer_offset_y: null,
+      },
+    }).charm
+
+    expect(charm.idle_sway_hz).toBe(DECO_IDLE_SWAY_HZ_DEFAULT)
+    expect(charm.idle_sway_amp).toBe(DECO_IDLE_SWAY_AMP_DEFAULT)
+    expect(charm.pointer_offset_x).toBe(DECO_POINTER_OFFSET_X_DEFAULT)
+    expect(charm.pointer_offset_y).toBe(DECO_POINTER_OFFSET_Y_DEFAULT)
+  })
+
+  it('正数项（重力）为 null 时同样回落默认值，而不是 0', () => {
+    const charm = normalizeDecoConfig({ charm: { gravity: null } }).charm
+
+    expect(charm.gravity).toBe(DECO_GRAVITY_DEFAULT)
+  })
+
+  it('显式 0 仍然是 0（null 的回落不吃掉「关掉轻晃 / 压在热点上」）', () => {
+    const charm = normalizeDecoConfig({
+      charm: { idle_sway_hz: 0, idle_sway_amp: 0, pointer_offset_x: 0, pointer_offset_y: 0 },
+    }).charm
+
+    expect(charm.idle_sway_hz).toBe(0)
+    expect(charm.idle_sway_amp).toBe(0)
+    expect(charm.pointer_offset_x).toBe(0)
+    expect(charm.pointer_offset_y).toBe(0)
+  })
+
+  it('undefined 与 null 的结果逐字段一致（十一个数值项全 null）', () => {
+    const keys = DECO_NUMBER_PARAMS.map((param) => param.key)
+    const withNull = normalizeDecoConfig({
+      charm: Object.fromEntries(keys.map((key) => [key, null])),
+    })
+    const withUndefined = normalizeDecoConfig({
+      charm: Object.fromEntries(keys.map((key) => [key, undefined])),
+    })
+
+    expect(withNull).toEqual(withUndefined)
+    expect(withNull).toEqual(defaultDecoConfig())
+  })
+})
+
 /** 共享归一化用例表（后端 conf_deco_test.go 与读者站 decoCharm.test.ts 也读同一份）。 */
 const FIXTURE_RELATIVE_PATH = 'backend/conf/testdata/deco-charm-normalization.json'
 

@@ -7,7 +7,10 @@
 // 本票只落光标挂件的子块 charm；将来加别的装饰不用再开第 9 段。
 package conf
 
-import "math"
+import (
+	"encoding/json"
+	"math"
+)
 
 // 光标挂件站标尺寸的取值范围与默认值，单位：px。
 //
@@ -160,6 +163,78 @@ type Charm struct {
 	PointerOffsetX float64 `yaml:"pointer_offset_x" json:"pointer_offset_x"`
 	// PointerOffsetY 是指针端偏移的垂直分量，单位 CSS px（向下为正）。
 	PointerOffsetY float64 `yaml:"pointer_offset_y" json:"pointer_offset_y"`
+}
+
+// charmDecode 是 Charm 的 JSON 解码中间层：数值字段用 *float64、开关用 *bool，
+// 才能把"JSON 里没给这个键（或给了 null）"与"给了 0 / false"分开。
+//
+// 只在 UnmarshalJSON 里用；yaml 路径不经过它（见 UnmarshalJSON 的边界说明）。
+type charmDecode struct {
+	Enable         *bool    `json:"enable"`
+	LogoSize       *float64 `json:"logo_size"`
+	RopeLength     *float64 `json:"rope_length"`
+	Segments       *float64 `json:"segments"`
+	LineWidth      *float64 `json:"line_width"`
+	Gravity        *float64 `json:"gravity"`
+	Damping        *float64 `json:"damping"`
+	IdleSwayHz     *float64 `json:"idle_sway_hz"`
+	IdleSwayAmp    *float64 `json:"idle_sway_amp"`
+	FpsCap         *float64 `json:"fps_cap"`
+	PointerOffsetX *float64 `json:"pointer_offset_x"`
+	PointerOffsetY *float64 `json:"pointer_offset_y"`
+}
+
+// UnmarshalJSON 让 JSON 的 null / 缺键回落到默认值（票 #77）。
+//
+// 为什么必须在这一层处理：float64 无法区分"没给这个键"与"给了 0" ——
+// encoding/json 把 null 与缺键都解成 0，而 0 在轻晃两项与两轴指针端偏移上
+// 是**合法语义**（关掉轻晃 / 指针端压在热点上），Normalize 不能把它们一律
+// 回落默认值。先解码成指针再落值，两件事就分开了：nil → 默认值，
+// 非 nil → 原值（含 0）；越界与取整仍由 Normalize 负责。
+//
+// 这是行为变化：body 里缺 enable 过去会落成 bool 零值 false，现在与 yaml
+// 默认种子一致，视为开启（true）；显式 false 仍然是 false。
+//
+// 边界：yaml 种子路径（site_default_settings.yaml，经 envyaml 解码）**不走**
+// UnmarshalJSON。所以这里不实现 UnmarshalYAML —— 种子文件里没有 null，缺键时
+// yaml 会落成 Go 零值，随后由 Normalize 统一处理（与旧行为一致）。
+func (c *Charm) UnmarshalJSON(data []byte) error {
+	var decoded charmDecode
+	if err := json.Unmarshal(data, &decoded); err != nil {
+		return err
+	}
+	*c = Charm{
+		Enable:         charmBoolOrDefault(decoded.Enable, true),
+		LogoSize:       charmFloatOrDefault(decoded.LogoSize, CharmLogoSizeDefault),
+		RopeLength:     charmFloatOrDefault(decoded.RopeLength, CharmRopeLengthDefault),
+		Segments:       charmFloatOrDefault(decoded.Segments, CharmSegmentsDefault),
+		LineWidth:      charmFloatOrDefault(decoded.LineWidth, CharmLineWidthDefault),
+		Gravity:        charmFloatOrDefault(decoded.Gravity, CharmGravityDefault),
+		Damping:        charmFloatOrDefault(decoded.Damping, CharmDampingDefault),
+		IdleSwayHz:     charmFloatOrDefault(decoded.IdleSwayHz, CharmIdleSwayHzDefault),
+		IdleSwayAmp:    charmFloatOrDefault(decoded.IdleSwayAmp, CharmIdleSwayAmpDefault),
+		FpsCap:         charmFloatOrDefault(decoded.FpsCap, CharmFpsCapDefault),
+		PointerOffsetX: charmFloatOrDefault(decoded.PointerOffsetX, CharmPointerOffsetXDefault),
+		PointerOffsetY: charmFloatOrDefault(decoded.PointerOffsetY, CharmPointerOffsetYDefault),
+	}
+	return nil
+}
+
+// charmFloatOrDefault 把指针解码出来的数值落回值：nil（缺键 / null）用默认值，
+// 非 nil 原样返回 —— 显式 0 是管理员"关掉轻晃 / 压在热点上"的明确意图。
+func charmFloatOrDefault(value *float64, fallback float64) float64 {
+	if value == nil {
+		return fallback
+	}
+	return *value
+}
+
+// charmBoolOrDefault 与 charmFloatOrDefault 同一条规则，用于"缺省即开启"的总开关。
+func charmBoolOrDefault(value *bool, fallback bool) bool {
+	if value == nil {
+		return fallback
+	}
+	return *value
 }
 
 // Normalize 把装饰配置收敛进合法范围，永不报错。

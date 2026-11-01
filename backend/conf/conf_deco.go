@@ -249,25 +249,57 @@ func charmBoolOrDefault(value *bool, fallback bool) bool {
 // 计数类另有约束：segments 先四舍五入再钳到边界，fps_cap 与指针端偏移先夹边界
 // 再取整 —— 顺序反了会把越界值取整又放大一档。
 //
+// 具体规则按一张表逐字段套用（票 #78）：加一个参数只改「常量 + Charm 字段 +
+// 表一行」，函数体不再跟着长一行 —— 旧写法每加参数就多一行赋值，漏掉某行
+// （或把两行写反）没有任何测试看得见。
+//
 // 不返回 error 是有意的：管理员改一半被 400 打回只会让他猜哪里错了。
 func (d Deco) Normalize() Deco {
-	d.Charm.LogoSize = normalizePositiveRange(d.Charm.LogoSize, CharmLogoSizeMin, CharmLogoSizeMax, CharmLogoSizeDefault)
-	d.Charm.RopeLength = normalizePositiveRange(d.Charm.RopeLength, CharmRopeLengthMin, CharmRopeLengthMax, CharmRopeLengthDefault)
-	d.Charm.Gravity = normalizePositiveRange(d.Charm.Gravity, CharmGravityMin, CharmGravityMax, CharmGravityDefault)
-	d.Charm.Damping = normalizePositiveRange(d.Charm.Damping, CharmDampingMin, CharmDampingMax, CharmDampingDefault)
-	d.Charm.LineWidth = normalizeLineWidth(d.Charm.LineWidth)
-	// 轻晃的两个参数把 0 当作"关掉轻晃"的合法意图（裁决要求 amp=0 能退回停帧），
-	// 所以它们走"非负区间"规则而不是"正数"规则。
-	d.Charm.IdleSwayHz = normalizeNonNegativeRange(d.Charm.IdleSwayHz, CharmIdleSwayHzMin, CharmIdleSwayHzMax, CharmIdleSwayHzDefault)
-	d.Charm.IdleSwayAmp = normalizeNonNegativeRange(d.Charm.IdleSwayAmp, CharmIdleSwayAmpMin, CharmIdleSwayAmpMax, CharmIdleSwayAmpDefault)
-	d.Charm.Segments = normalizeSegments(d.Charm.Segments)
-	// 帧率上限是计数（整数 fps）：先夹边界再取整，规则见 normalizeFpsCap。
-	d.Charm.FpsCap = normalizeFpsCap(d.Charm.FpsCap)
-	// 指针端偏移允许负数，只能走"允许负数的区间"规则（见 normalizeSignedRange）；
-	// 用 normalizePositiveRange / normalizeNonNegativeRange 都会把负偏移吃掉。
-	d.Charm.PointerOffsetX = normalizePointerOffset(d.Charm.PointerOffsetX, CharmPointerOffsetXMin, CharmPointerOffsetXMax, CharmPointerOffsetXDefault)
-	d.Charm.PointerOffsetY = normalizePointerOffset(d.Charm.PointerOffsetY, CharmPointerOffsetYMin, CharmPointerOffsetYMax, CharmPointerOffsetYDefault)
+	// ptr 指向 d 的字段（d 是值接收者，改的是副本）；每行的 normalize 已经把
+	// 该参数的常量绑定好，表里只剩"哪个字段用哪条规则"。
+	fields := []struct {
+		ptr       *float64
+		normalize func(float64) float64
+	}{
+		{&d.Charm.LogoSize, positiveNormalizer(CharmLogoSizeMin, CharmLogoSizeMax, CharmLogoSizeDefault)},
+		{&d.Charm.RopeLength, positiveNormalizer(CharmRopeLengthMin, CharmRopeLengthMax, CharmRopeLengthDefault)},
+		{&d.Charm.Segments, normalizeSegments},
+		// 描边宽度：正数规则 + 保留一位小数。
+		{&d.Charm.LineWidth, normalizeLineWidth},
+		{&d.Charm.Gravity, positiveNormalizer(CharmGravityMin, CharmGravityMax, CharmGravityDefault)},
+		{&d.Charm.Damping, positiveNormalizer(CharmDampingMin, CharmDampingMax, CharmDampingDefault)},
+		// 轻晃的两个参数把 0 当作"关掉轻晃"的合法意图（裁决要求 amp=0 能退回停帧），
+		// 所以它们走"非负区间"规则而不是"正数"规则。
+		{&d.Charm.IdleSwayHz, nonNegativeNormalizer(CharmIdleSwayHzMin, CharmIdleSwayHzMax, CharmIdleSwayHzDefault)},
+		{&d.Charm.IdleSwayAmp, nonNegativeNormalizer(CharmIdleSwayAmpMin, CharmIdleSwayAmpMax, CharmIdleSwayAmpDefault)},
+		// 帧率上限是计数（整数 fps）：先夹边界再取整，规则见 normalizeFpsCap。
+		{&d.Charm.FpsCap, normalizeFpsCap},
+		// 指针端偏移允许负数，只能走"允许负数的区间"规则（见 normalizeSignedRange）；
+		// 用 normalizePositiveRange / normalizeNonNegativeRange 都会把负偏移吃掉。
+		{&d.Charm.PointerOffsetX, pointerOffsetNormalizer(CharmPointerOffsetXMin, CharmPointerOffsetXMax, CharmPointerOffsetXDefault)},
+		{&d.Charm.PointerOffsetY, pointerOffsetNormalizer(CharmPointerOffsetYMin, CharmPointerOffsetYMax, CharmPointerOffsetYDefault)},
+	}
+	for _, field := range fields {
+		*field.ptr = field.normalize(*field.ptr)
+	}
 	return d
+}
+
+// positiveNormalizer 把"正数规则"的三个常量绑成单参数函数，供 Normalize 的参数表使用。
+//
+// 逻辑仍然只有 normalizePositiveRange 一份：这里只做参数绑定，不重写规则。
+func positiveNormalizer(min, max, fallback float64) func(float64) float64 {
+	return func(v float64) float64 { return normalizePositiveRange(v, min, max, fallback) }
+}
+
+// nonNegativeNormalizer 与 positiveNormalizer 同形，绑定"0 有合法含义"的规则。
+func nonNegativeNormalizer(min, max, fallback float64) func(float64) float64 {
+	return func(v float64) float64 { return normalizeNonNegativeRange(v, min, max, fallback) }
+}
+
+// pointerOffsetNormalizer 与 positiveNormalizer 同形，绑定"允许负数的区间 + 取整"规则。
+func pointerOffsetNormalizer(min, max, fallback float64) func(float64) float64 {
+	return func(v float64) float64 { return normalizePointerOffset(v, min, max, fallback) }
 }
 
 // normalizePositiveRange 是"正数才有意义"的数值参数共用钳位规则。

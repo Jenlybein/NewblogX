@@ -14,7 +14,7 @@ import {
 } from '@tabler/icons-vue'
 import { NuxtLink } from '#components'
 import type { IconHome } from '@tabler/icons-vue'
-import { ADMIN_NAV } from '~/utils/menu'
+import { ADMIN_NAV, navItemByPath } from '~/utils/menu'
 import type { AdminNavIcon } from '~/utils/menu'
 import { BRAND } from '~/utils/brand'
 import {
@@ -65,7 +65,14 @@ const auth = useAuthStore()
 const message = useMessage()
 
 const fallbackNav = navItems[0]!
-const routeMeta = computed<NavItem>(() => navItems.find(item => item.path === route.path) ?? fallbackNav)
+// 高亮 / 标题的唯一来源是拍平视图（#106）：当前仍按精确 path 匹配，行为不变；
+// 两级化后只改 navItemByPath 的匹配语义，不用再动这里。
+const routeMeta = computed<NavItem>(() => {
+  const active = navItemByPath(route.path)
+  return active?.path
+    ? { label: active.label, path: active.path, icon: ICONS[active.icon] }
+    : fallbackNav
+})
 const selectedKey = computed(() => routeMeta.value.path)
 // 浏览器标签：具体页名由 app.vue 的 titleTemplate 统一补成「<页名> · JellyBin 管理后台」。
 useHead({ title: computed(() => routeMeta.value.label) })

@@ -18,6 +18,7 @@ import {
   normalizeCharmRopeConfig,
   type CharmPoint,
   type CharmRopeConfig,
+  type CharmRopeConfigInput,
   type CharmRopeState,
 } from "~/utils/decoCharm";
 import { charmTetherGeometry, type CharmTetherGeometry } from "~/utils/charmTether";
@@ -59,8 +60,14 @@ export interface UseCursorCharmOptions {
   visibilityTarget?: CursorCharmVisibilityTarget | null;
   /** 后台总开关（从运行时配置来）。缺省视为关闭。 */
   configEnabled?: () => boolean;
-  /** 物理参数（从运行时配置来）。缺省回落默认值。 */
-  config?: () => Partial<CharmRopeConfig> | null | undefined;
+  /**
+   * 物理参数（从运行时配置来）。缺省回落默认值。
+   *
+   * 每个键允许 `null`（票 #77）：它和缺键同义，由
+   * `normalizeCharmRopeConfig` 在读取时统一回落默认值 —— 调用方**不要**
+   * 自己把 null 折成 0，那会把"没给"读成"明确关掉轻晃"。
+   */
+  config?: () => CharmRopeConfigInput | null | undefined;
   /** 注入动画帧请求/取消与时钟（测试与 SSR 用）。 */
   requestAnimationFrame?: ((callback: HostListener) => number) | null;
   cancelAnimationFrame?: ((id: number) => void) | null;

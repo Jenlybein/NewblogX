@@ -463,6 +463,81 @@ describe("normalizeCharmRopeConfig", () => {
   });
 });
 
+/**
+ * 票 #77：`null` 与 `undefined` 一样表示"这个键没有值"，必须回落默认值。
+ *
+ * 为什么专门盯着这四个字段：轻晃两项与两轴偏移的钳位规则把 0 当**合法值**
+ * （关掉轻晃 / 指针端压在热点上），所以旧实现里 `Number(null) === 0` 不会被
+ * 钳位顺手兜住 —— 它会把"没给"悄悄读成"明确关掉"，页面表现为停手即零帧。
+ * 归一化层是唯一兜底点：组件把原始值原样交进来，这里把 null 折成 NaN，
+ * 再由四条规则回落各自的默认值；显式 0 是数字，原样通过。
+ */
+describe("票 #77：null 与 undefined 同义（都表示这个键没有值）", () => {
+  it("四个「0 合法」参数为 null 时回落默认值，而不是被读成 0", () => {
+    const normalized = normalizeCharmRopeConfig({
+      idleSwayHz: null,
+      idleSwayAmp: null,
+      pointerOffsetX: null,
+      pointerOffsetY: null,
+    });
+
+    expect(normalized.idleSwayHz).toBe(CHARM_IDLE_SWAY_HZ_DEFAULT);
+    expect(normalized.idleSwayAmp).toBe(CHARM_IDLE_SWAY_AMP_DEFAULT);
+    expect(normalized.pointerOffsetX).toBe(CHARM_POINTER_OFFSET_X_DEFAULT);
+    expect(normalized.pointerOffsetY).toBe(CHARM_POINTER_OFFSET_Y_DEFAULT);
+  });
+
+  it("十个数值键全为 null 时与「整份配置缺失」完全一致", () => {
+    const allNull = normalizeCharmRopeConfig({
+      ropeLengthPx: null,
+      segments: null,
+      gravity: null,
+      damping: null,
+      lineWidthPx: null,
+      idleSwayHz: null,
+      idleSwayAmp: null,
+      fpsCap: null,
+      pointerOffsetX: null,
+      pointerOffsetY: null,
+    });
+
+    expect(allNull).toEqual(normalizeCharmRopeConfig(undefined));
+  });
+
+  it("显式 0 仍然是 0（null 的回落不吃掉「关掉轻晃 / 压在热点上」）", () => {
+    const normalized = normalizeCharmRopeConfig({
+      idleSwayHz: 0,
+      idleSwayAmp: 0,
+      pointerOffsetX: 0,
+      pointerOffsetY: 0,
+    });
+
+    expect(normalized.idleSwayHz).toBe(0);
+    expect(normalized.idleSwayAmp).toBe(0);
+    expect(normalized.pointerOffsetX).toBe(0);
+    expect(normalized.pointerOffsetY).toBe(0);
+  });
+
+  it("undefined 与 null 的结果逐字段一致", () => {
+    const withNull = normalizeCharmRopeConfig({
+      idleSwayHz: null,
+      idleSwayAmp: null,
+      fpsCap: null,
+      pointerOffsetX: null,
+      pointerOffsetY: null,
+    });
+    const withUndefined = normalizeCharmRopeConfig({
+      idleSwayHz: undefined,
+      idleSwayAmp: undefined,
+      fpsCap: undefined,
+      pointerOffsetX: undefined,
+      pointerOffsetY: undefined,
+    });
+
+    expect(withNull).toEqual(withUndefined);
+  });
+});
+
 describe("charmLayerEnabled", () => {
   const base = { finePointerHover: true, prefersReducedMotion: false, configEnabled: true };
 

@@ -514,16 +514,36 @@ export function defaultDecoConfig(): DecoRuntimeConfigShape {
   }
 }
 
+/** 装饰段里除总开关以外的数值键（十一个参数）。 */
+export type DecoCharmNumericKey = Exclude<keyof DecoCharmConfig, 'enable'>
+
 /**
- * 读回来的装饰配置的**输入**形状（票 #75 顺手校正）。
+ * 读一个可能缺失 / 为 `null` 的数值字段：两者都折算成 NaN，交给钳位函数
+ * 回落各自的默认值（票 #77）。
  *
- * `charm` 内部也按"每个键都可能缺"处理，而不是要求整块 `DecoCharmConfig`：
- * 旧库、旧后台版本、手改的 JSON 都会只带一部分键，而 `normalizeDecoConfig`
- * 本来就是逐字段兜底的。原来的 `Partial<DecoRuntimeConfigShape>` 只允许顶层缺
+ * 为什么不能直接 `Number(value)`：`Number(null) === 0`，而 0 在轻晃两项与
+ * 两轴指针端偏移上是**合法取值** —— "这个键没有值"会被读成"管理员明确填了 0"，
+ * 归一化后的表单值被当成真值提交回后端。其余值仍走 `Number(value)`：
+ * 字符串数字（旧库 / 手改 JSON）保持既有的宽容度。
+ */
+function decoConfigNumber(value: unknown): number {
+  return value === null || value === undefined ? Number.NaN : Number(value)
+}
+
+/**
+ * 读回来的装饰配置的**输入**形状（票 #75 顺手校正、票 #77 放宽数值）。
+ *
+ * `charm` 内部也按"每个键都可能缺 / 为 null"处理，而不是要求整块
+ * `DecoCharmConfig`：旧库、旧后台版本、手改的 JSON 都会只带一部分键，
+ * 甚至把键写成 null（运营"清空"字段），而 `normalizeDecoConfig` 本来就是
+ * 逐字段兜底的。原来的 `Partial<DecoRuntimeConfigShape>` 只允许顶层缺
  * `charm`，把"子块缺键"这件已经支持的事写成了类型错误。
+ *
+ * 数值键之所以是 `number | null` 而不是 `number`：`null` 与缺键同义
+ * （这个键没有值），绝不等于显式 0 —— 0 在轻晃与偏移上是合法语义。
  */
 export interface DecoRuntimeConfigInput {
-  charm?: Partial<DecoCharmConfig> | null
+  charm?: (Partial<Record<DecoCharmNumericKey, number | null>> & { enable?: boolean | null }) | null
 }
 
 /**
@@ -531,6 +551,9 @@ export interface DecoRuntimeConfigInput {
  *
  * 三件事：缺 `charm` 子块时补默认值（开关默认开，与后端默认一致）、
  * 数值逐项走钳位、丢掉未知字段（提交体里不该夹带读者站不认识的键）。
+ *
+ * **这是后台数值参数唯一的兜底点**：`null` / `undefined` 在这里折成 NaN，
+ * 再由钳位规则回落默认值；显式 0 是数字，原样通过。
  */
 export function normalizeDecoConfig(
   config: DecoRuntimeConfigInput | null | undefined,
@@ -538,17 +561,17 @@ export function normalizeDecoConfig(
   return {
     charm: {
       enable: Boolean(config?.charm?.enable ?? true),
-      logo_size: clampDecoLogoSize(Number(config?.charm?.logo_size)),
-      rope_length: clampDecoRopeLength(Number(config?.charm?.rope_length)),
-      segments: clampDecoSegments(Number(config?.charm?.segments)),
-      line_width: clampDecoLineWidth(Number(config?.charm?.line_width)),
-      gravity: clampDecoGravity(Number(config?.charm?.gravity)),
-      damping: clampDecoDamping(Number(config?.charm?.damping)),
-      idle_sway_hz: clampDecoIdleSwayHz(Number(config?.charm?.idle_sway_hz)),
-      idle_sway_amp: clampDecoIdleSwayAmp(Number(config?.charm?.idle_sway_amp)),
-      fps_cap: clampDecoFpsCap(Number(config?.charm?.fps_cap)),
-      pointer_offset_x: clampDecoPointerOffsetX(Number(config?.charm?.pointer_offset_x)),
-      pointer_offset_y: clampDecoPointerOffsetY(Number(config?.charm?.pointer_offset_y)),
+      logo_size: clampDecoLogoSize(decoConfigNumber(config?.charm?.logo_size)),
+      rope_length: clampDecoRopeLength(decoConfigNumber(config?.charm?.rope_length)),
+      segments: clampDecoSegments(decoConfigNumber(config?.charm?.segments)),
+      line_width: clampDecoLineWidth(decoConfigNumber(config?.charm?.line_width)),
+      gravity: clampDecoGravity(decoConfigNumber(config?.charm?.gravity)),
+      damping: clampDecoDamping(decoConfigNumber(config?.charm?.damping)),
+      idle_sway_hz: clampDecoIdleSwayHz(decoConfigNumber(config?.charm?.idle_sway_hz)),
+      idle_sway_amp: clampDecoIdleSwayAmp(decoConfigNumber(config?.charm?.idle_sway_amp)),
+      fps_cap: clampDecoFpsCap(decoConfigNumber(config?.charm?.fps_cap)),
+      pointer_offset_x: clampDecoPointerOffsetX(decoConfigNumber(config?.charm?.pointer_offset_x)),
+      pointer_offset_y: clampDecoPointerOffsetY(decoConfigNumber(config?.charm?.pointer_offset_y)),
     },
   }
 }

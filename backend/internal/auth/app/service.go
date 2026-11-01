@@ -421,26 +421,72 @@ func (s *Service) RevokeAll(ctx context.Context, userID ctype.ID) error {
 	return s.sessions.RevokeAllForUser(ctx, userID.Uint64(), s.clock.Now())
 }
 
-// ListSessions 列出某用户当前所有有效会话（登录设备管理）。
-func (s *Service) ListSessions(ctx context.Context, userID ctype.ID) ([]domain.Session, error) {
+// ListSessions 列出某用户当前所有有效会话，按设备聚合（登录设备管理）。
+//
+// 同一设备只返回一条（代表会话 + 首次登录 / 最近活跃 / 累计次数）。
+// currentSessionID 是当前请求的会话，用于把「当前设备」标记落到那条会话上；
+// 标记的判据是会话 ID，不是设备描述 —— 同设备多会话时描述会撞车。
+func (s *Service) ListSessions(ctx context.Context, userID, currentSessionID ctype.ID) ([]domain.LoginDevice, error) {
 	if userID.IsZero() {
 		return nil, apperr.New(apperr.CodeAuthRequired)
 	}
-	return s.sessions.ListActive(ctx, userID.Uint64())
+	list, err := s.sessions.ListActive(ctx, userID.Uint64())
+	if err != nil {
+		return nil, err
+	}
+	return domain.AggregateDevices(list, currentSessionID), nil
 }
 
-// RevokeSession 吊销指定会话（登录设备管理里的"下线该设备"）。
+// SessionActive 判断某个会话是否仍是该用户的有效会话（私信票据换发时用）。
+//
+// 不复用 ListSessions：列表已按设备聚合，同一设备的其它会话不会作为代表
+// 出现在结果里，用聚合结果判断"这个会话还活着吗"会误判为失效。
+func (s *Service) SessionActive(ctx context.Context, userID, sessionID uint64) (bool, error) {
+	if userID == 0 || sessionID == 0 {
+		return false, nil
+	}
+	if _, err := s.sessions.FindActive(ctx, ctype.NewID(sessionID), userID); err != nil {
+		// 仓储对"查不到 / 已失效 / 不是你的"统一返回业务错误码；
+		// 其它错误（数据库故障等）才需要向上暴露。
+		if _, ok := apperr.CodeOf(err); ok {
+			return false, nil
+		}
+		return false, err
+	}
+	return true, nil
+}
+
+// RevokeSession 下线指定设备（登录设备管理里的"下线该设备"）。
 //
 // 先 FindActive 校验归属：只凭 sessionID 吊销等于让任何登录用户
 // 踢掉别人的设备。校验不到就返回"已失效"，不区分"不存在"和"不是你的"。
+//
+// 列表是按设备聚合的，所以一次下线要吊销"同一设备分组"的全部会话：
+// 只吊销代表会话的话，同设备的旧会话还在，刷新后设备会原样回来。
 func (s *Service) RevokeSession(ctx context.Context, userID, sessionID uint64) error {
 	if userID == 0 || sessionID == 0 {
 		return apperr.New(apperr.CodeAuthRequired)
 	}
-	if _, err := s.sessions.FindActive(ctx, ctype.NewID(sessionID), userID); err != nil {
+	target, err := s.sessions.FindActive(ctx, ctype.NewID(sessionID), userID)
+	if err != nil {
 		return err
 	}
-	return s.sessions.Revoke(ctx, ctype.NewID(sessionID), s.clock.Now())
+
+	key := domain.DeviceGroupKey(target)
+	list, err := s.sessions.ListActive(ctx, userID)
+	if err != nil {
+		return err
+	}
+	now := s.clock.Now()
+	for _, sess := range list {
+		if domain.DeviceGroupKey(sess) != key {
+			continue
+		}
+		if err := s.sessions.Revoke(ctx, sess.ID, now); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // claimsOf 组装访问令牌载荷。

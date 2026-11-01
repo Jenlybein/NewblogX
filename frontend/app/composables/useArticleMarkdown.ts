@@ -17,6 +17,7 @@ import xml from "highlight.js/lib/languages/xml";
 import yaml from "highlight.js/lib/languages/yaml";
 import { computed, toRef, toValue } from "vue";
 import type { MaybeRefOrGetter } from "vue";
+import DOMPurify from "isomorphic-dompurify";
 
 import { splitNoticeSegments } from "~/utils/markdownNotice";
 import type { NoticeSegment } from "~/utils/markdownNotice";
@@ -75,7 +76,11 @@ function escapeHtml(raw: string) {
 const markdown = new MarkdownIt({
   breaks: true,
   linkify: true,
-  html: false,
+  // 必须开 HTML：正文里的内联 SVG 是原始 HTML，关着就只会被转义成源码文本。
+  //
+  // 放行原始 HTML 等于把注入面交给渲染层，所以下面**必须**过一遍消毒
+  // （sanitizeArticleHtml），两者是配套的一对，不能只改一边。
+  html: true,
   highlight(code, language) {
     if (language && hljs.getLanguage(language)) {
       const highlighted = hljs.highlight(code, { language, ignoreIllegals: true }).value;
@@ -111,8 +116,7 @@ const markdownRuntime = markdown as MarkdownIt & {
   options: unknown;
 };
 
-const defaultFenceRenderer = markdownRuntime.renderer.rules.fence?.bind(markdownRuntime.renderer.rules);
-markdownRuntime.renderer.rules.fence = (tokens, idx, options, env, self) => {
+const defaultFenceRenderer = markdownRuntime.renderer.rules.fence?.bind(markdownRuntime.renderer.rules);markdownRuntime.renderer.rules.fence = (tokens, idx, options, env, self) => {
   const token = tokens[idx];
   if (!token) {
     return "";
@@ -127,8 +131,51 @@ markdownRuntime.renderer.rules.fence = (tokens, idx, options, env, self) => {
   return self.renderToken(tokens as unknown[], idx, options);
 };
 
-function createHeadingId(title: string, serial: number, usedIds: Map<string, number>) {
-  const normalized = title
+// SVG 里刻意禁止的面。
+//
+// 开了 html:true 之后正文里的原始 HTML 会原样进入渲染结果，所以必须消毒。
+// DOMPurify 默认已拦掉所有 on* 事件属性与 javascript: 协议，但它的 SVG
+// 允许清单里**包含**特效与装载面，这些要显式禁掉：
+//   - foreignObject：能装任意 HTML（等于绕过整个 HTML 白名单）
+//   - animate* / filter / mask / clipPath：动画与滤镜，是混淆攻击的常见载体
+//   - image / symbol / switch / textPath / metadata：能让 SVG 引用外部资源
+const FORBIDDEN_SVG_TAGS = [
+  "foreignObject",
+  "animate",
+  "animateMotion",
+  "animateTransform",
+  "filter",
+  "mask",
+  "clipPath",
+  "image",
+  "symbol",
+  "switch",
+  "textPath",
+  "metadata",
+];
+
+/**
+ * 消毒正文 HTML。
+ *
+ * # 为什么有这一层
+ *
+ * markdown-it 开 `html: true` 后会把正文里的原始 HTML 原样输出。正文是
+ * "作者可写、所有读者都会执行"的位置，不消毒等于把存储型 XSS 留给读者。
+ *
+ * 用 DOMPurify 的 html+svg 档位：它自带一份经过维护的完整允许清单，
+ * 比手写全清单更不容易漏；我们只在它之上**收窄**（禁掉 SVG 特效与装载面）。
+ * 这也符合 ADR-0021「严格白名单，只放行绘图元素」的口径。
+ *
+ * SSR 与浏览器都要跑，所以用 isomorphic 版本（Node 侧自带 DOM 实现）。
+ */
+function sanitizeArticleHtml(html: string): string {
+  return DOMPurify.sanitize(html, {
+    USE_PROFILES: { html: true, svg: true, svgFilters: false },
+    FORBID_TAGS: FORBIDDEN_SVG_TAGS,
+  });
+}
+
+function createHeadingId(title: string, serial: number, usedIds: Map<string, number>) {  const normalized = title
     .toLowerCase()
     .trim()
     .replace(/[^\p{L}\p{N}\u4e00-\u9fa5]+/gu, "-")
@@ -218,7 +265,9 @@ export function renderArticleMarkdown(source: string): RenderedArticleMarkdown {
     .join("");
 
   return {
-    html,
+    // 所有渲染路径（含提示块、mermaid、katex）都经过同一次消毒，
+    // 避免某条分支漏掉。
+    html: sanitizeArticleHtml(html),
     headings: state.headings,
   };
 }

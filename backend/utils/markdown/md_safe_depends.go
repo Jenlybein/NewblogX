@@ -10,12 +10,67 @@ import (
 	gast "github.com/yuin/goldmark/ast"
 )
 
+// svgDrawingElements 是放行的 SVG 绘图元素（#135 / ADR-0021）。
+//
+// 只到"画图"为止：能表达流程图、架构图、示意图。刻意**不含**
+// script / foreignObject / animate* —— 它们是可执行或可装载任意 HTML 的面。
+var svgDrawingElements = []string{
+	"svg", "g", "title", "desc",
+	"rect", "circle", "ellipse", "line", "polyline", "polygon", "path",
+	"text", "tspan",
+}
+
+// svgDrawingAttrs 是放行的绘图属性。
+//
+// 注意属性名一律小写：HTML tokenizer 会把属性名小写化，bluemonday 也按小写匹配。
+// 浏览器在 HTML 内联 SVG 时会把 viewbox 正确映射回 viewBox，因此不影响渲染。
+var svgDrawingAttrs = []string{
+	// 画布与定位
+	"xmlns", "viewbox", "preserveaspectratio", "role", "aria-label", "style",
+	"x", "y", "x1", "y1", "x2", "y2", "cx", "cy", "r", "rx", "ry",
+	"width", "height",
+	// 路径与多边形
+	"d", "points",
+	// 描边与填色
+	"fill", "fill-opacity", "stroke", "stroke-width", "stroke-opacity",
+	"stroke-linecap", "stroke-dasharray", "opacity",
+	// 文字
+	"font-family", "font-size", "font-weight", "text-anchor", "letter-spacing",
+	"dominant-baseline", "transform",
+	// 图片标识（供引用与无障碍使用）
+	"id", "class",
+}
+
+// layoutElements 是放行的排版标签，用于"图 + 图注"的包裹写法。
+//
+// center / figure / figcaption 让图注能居中与语义化；div 承载 svg-block 之类的包裹。
+var layoutElements = []string{"div", "center", "figure", "figcaption"}
+
 // 过滤掉不安全的 HTML
 func sanitizeSafeHTMLFragment(raw string) string {
 	// 以 UGC 策略为基础（允许基本格式、链接等）
 	p := bluemonday.UGCPolicy()
 	// 允许图片缩放标签
 	p.AllowStyles("zoom").Matching(reZoomValue).OnElements("img")
+
+	// 放行 SVG 绘图元素与属性。UGCPolicy 本身不含 svg，这也是此前
+	// <svg> 在入库时被整块删除的原因（#135 / ADR-0021）。
+	p.AllowElements(svgDrawingElements...)
+	p.AllowAttrs(svgDrawingAttrs...).OnElements(svgDrawingElements...)
+
+	// 关键：允许"不带属性"的绘图元素。
+	//
+	// bluemonday 对**没有属性**的起始标签会额外查一次 allowNoAttrs，
+	// 不在该集合里就直接丢掉标签（只留内容）。SVG 里 <g>/<desc>/<text>
+	// 这类容器元素经常不带属性，少了这一步它们会被剥成纯文本——
+	// 现象是图散架、只剩文字。
+	p.AllowNoAttrs().OnElements(svgDrawingElements...)
+
+	// 放行"图 + 图注"的排版包裹，并保留 class（svg-block 之类的包裹标识）。
+	p.AllowElements(layoutElements...)
+	p.AllowAttrs("class").Matching(bluemonday.SpaceSeparatedTokens).OnElements(layoutElements...)
+	// svg 自身的 class 也保留（已在 svgDrawingAttrs 里，这里显式收紧取值形态）。
+	p.AllowAttrs("class").Matching(bluemonday.SpaceSeparatedTokens).OnElements("svg")
 
 	return p.Sanitize(raw)
 }

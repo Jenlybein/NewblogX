@@ -65,6 +65,7 @@ export const useAuthStore = defineStore("auth", () => {
   const currentUser = ref<UserSelfDetail | null>(initialProfile);
   let initPromise: Promise<boolean> | null = null;
   let refreshPromise: Promise<boolean> | null = null;
+  let verifyPromise: Promise<boolean> | null = null;
 
   const pickAvatar = resolveAvatarUrl;
 
@@ -125,6 +126,7 @@ export const useAuthStore = defineStore("auth", () => {
     accessToken.value = "";
     currentUser.value = null;
     rejected.value = false;
+    verifyPromise = null;
     if (canUseBrowserStorage) {
       localStorage.removeItem(tokenStorageKey);
       localStorage.removeItem(profileStorageKey);
@@ -311,20 +313,30 @@ export const useAuthStore = defineStore("auth", () => {
     rejected.value = true;
     if (!accessToken.value) return false;
 
-    try {
-      await fetchCurrentUser({ throwOnError: true, retryAuth: false });
-      // 校验通过说明令牌其实还有效（可能只是某次请求偶发失败）。
-      rejected.value = false;
-      return true;
-    } catch (error) {
-      if (isAuthLikeError(error)) {
-        clearSession();
-      } else {
-        // 非鉴权类失败（网络/服务异常）不应把用户踢下线。
+    // 同一时间只跑一次校验：多个请求并发失败时若各自发起，会变成
+    // 一波额外的 /users/detail 打向服务端。
+    if (verifyPromise) return verifyPromise;
+
+    verifyPromise = (async () => {
+      try {
+        await fetchCurrentUser({ throwOnError: true, retryAuth: false });
+        // 校验通过说明令牌其实还有效（可能只是某次请求偶发失败）。
         rejected.value = false;
+        return true;
+      } catch (error) {
+        if (isAuthLikeError(error)) {
+          clearSession();
+        } else {
+          // 非鉴权类失败（网络/服务异常）不应把用户踢下线。
+          rejected.value = false;
+        }
+        return false;
+      } finally {
+        verifyPromise = null;
       }
-      return false;
-    }
+    })();
+
+    return verifyPromise;
   }
 
   /**

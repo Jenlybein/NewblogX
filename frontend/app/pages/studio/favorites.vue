@@ -328,18 +328,17 @@ useSeoMeta({
   transform: translateY(-1px);
 }
 
+/* 缩略图固定 16:9：窄屏只换列宽（比例不变），与详情页封面同一个形状。 */
 .favorite-content-card__cover-wrap {
   border-radius: var(--radius-md);
   overflow: hidden;
   display: block;
-  height: 100%;
-  min-height: 112px;
+  aspect-ratio: 16 / 9;
 }
 
 .favorite-content-card__cover {
   width: 100%;
-  height: 100%;
-  min-height: 112px;
+  aspect-ratio: 16 / 9;
   background-size: cover;
   background-position: center;
   background-repeat: no-repeat;
@@ -347,7 +346,7 @@ useSeoMeta({
 
 .favorite-content-card__cover-empty {
   width: 100%;
-  height: 112px;
+  aspect-ratio: 16 / 9;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -360,8 +359,7 @@ useSeoMeta({
 
 .favorite-content-card__cover-skeleton {
   width: 100%;
-  height: 100%;
-  min-height: 112px;
+  aspect-ratio: 16 / 9;
   border-radius: var(--radius-md);
 }
 
@@ -429,11 +427,6 @@ useSeoMeta({
     justify-content: flex-end;
     padding-top: 4px;
   }
-
-  .favorite-content-card__cover,
-  .favorite-content-card__cover-empty {
-    min-height: 98px;
-  }
 }
 
 @media (max-width: 640px) {
@@ -445,11 +438,6 @@ useSeoMeta({
   .favorite-content-card {
     grid-template-columns: 1fr;
     padding: 10px;
-  }
-
-  .favorite-content-card__cover,
-  .favorite-content-card__cover-empty {
-    min-height: 154px;
   }
 
   .favorite-content-card__actions {

@@ -111,12 +111,7 @@
 
   .feed-entry__cover {
     @apply block overflow-hidden rounded-field border border-line-faint;
-    aspect-ratio: 4 / 3;
-  }
-
-  .feed-entry--search .feed-entry__cover,
-  .feed-entry--shelf .feed-entry__cover {
-    aspect-ratio: 1 / 1;
+    aspect-ratio: 16 / 9;
   }
 
   .feed-entry__cover img {
@@ -644,9 +639,10 @@
     @apply flex w-full min-w-0 flex-col gap-5 self-start;
   }
 
+  /* 封面固定 16:9：详情页与列表缩略图同一个形状，高度不再随视口变化。 */
   .article-cover {
     @apply block w-full object-cover;
-    height: clamp(220px, 38vw, 420px);
+    aspect-ratio: 16 / 9;
   }
 
   /* 正文行宽 = 排版 token 的 68ch；shadow 内的正文继承这个宽度，不再另设。 */
@@ -1258,15 +1254,6 @@
     .feed-entry--search,
     .feed-entry--shelf {
       grid-template-columns: minmax(0, 1fr);
-    }
-
-    .feed-entry__cover {
-      aspect-ratio: 16 / 9;
-    }
-
-    .feed-entry--search .feed-entry__cover,
-    .feed-entry--shelf .feed-entry__cover {
-      aspect-ratio: 4 / 3;
     }
 
     .feed-entry__footer {

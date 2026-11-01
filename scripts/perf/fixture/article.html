@@ -1,0 +1,23 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>fixture article</title>
+<link rel="preload" href="/fonts/fixture.woff2" as="font" type="font/woff2" crossorigin>
+<style>
+  html, body { margin: 0; padding: 0; }
+  .article-page { padding: 24px; }
+</style>
+</head>
+<body>
+<main id="main">
+  <div class="article-page">
+    <h1>fixture 文章标题</h1>
+    <p>fixture 正文</p>
+  </div>
+</main>
+<script>
+fetch("/api/fixture").catch(function () {});
+</script>
+</body>
+</html>

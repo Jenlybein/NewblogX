@@ -65,7 +65,7 @@ const auth = useAuthStore()
 const message = useMessage()
 
 const fallbackNav = navItems[0]!
-// 高亮 / 标题的唯一来源是拍平视图（#106）：当前仍按精确 path 匹配，行为不变；
+// 高亮 / 标题的唯一来源是拍平视图：当前仍按精确 path 匹配，行为不变；
 // 两级化后只改 navItemByPath 的匹配语义，不用再动这里。
 const routeMeta = computed<NavItem>(() => {
   const active = navItemByPath(route.path)

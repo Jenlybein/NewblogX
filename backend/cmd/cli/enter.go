@@ -26,6 +26,8 @@ type FlagOptions struct {
 	UserCreateNickname string
 	UserCreateEmail    string
 	UserNoPrompt       bool
+	// Apply 让"对账类"子命令真正落库。默认只读，不带它就只统计不改。
+	Apply bool
 }
 
 type Options struct {
@@ -56,6 +58,7 @@ func Parse() *FlagOptions {
 	flag.StringVar(&Flags.UserCreateNickname, "user-nickname", "命令用户", "创建用户昵称")
 	flag.StringVar(&Flags.UserCreateEmail, "user-email", "", "创建用户邮箱(可选)")
 	flag.BoolVar(&Flags.UserNoPrompt, "user-no-prompt", false, "创建用户时禁用交互输入(参数不完整则直接失败)")
+	flag.BoolVar(&Flags.Apply, "apply", false, "对账类子命令真正落库(默认只读，只统计不改)")
 
 	flag.Parse()
 
@@ -98,6 +101,17 @@ func Run(op *FlagOptions, deps Options) (RunResult, error) {
 	}
 
 	switch op.Type {
+	case "reconcile":
+		// 一次性对账（#96）。当前只有 digg 一个子项：
+		// 取消点赞留下的软删残行占着唯一键，需要看得见、清得掉。
+		switch op.Sub {
+		case "digg":
+			if err := FlagReconcileDigg(deps.DB, deps.Logger, op.Apply); err != nil {
+				return RunResult{}, err
+			}
+			return RunResult{ContinueStartup: false}, nil
+		}
+		return RunResult{}, fmt.Errorf("未知对账子类型: %s", op.Sub)
 	case "run":
 		switch op.Sub {
 		case "init":

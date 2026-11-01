@@ -1148,6 +1148,50 @@ docker compose exec mysql-master mysql -u"$BLOGX_DB_USER" -p"$BLOGX_DB_PASSWORD"
   "$BLOGX_DB_NAME" -e "SELECT COUNT(*) FROM article_models"
 ```
 
+### 12.2.1 点赞关系对账（一次性，`-t reconcile -s digg`）
+
+**背景**：修复前「取消点赞」走软删，行留在 `article_digg_models` 里、占着唯一键
+`uk_article_digg (article_id, user_id)`（该索引不含 `deleted_at`），于是
+「点赞 → 取消 → 再点赞」必然撞键（见 `docs/notes/2026-11-02-grill-session.md` ⑳-B）。
+
+**修复之后残行不再阻断再次点赞**——`Add` 会把软删行恢复成活行。所以下面的对账
+**不是必须跑的修复步骤**，而是用来：看清线上到底积了多少残行、按需回收磁盘。
+
+```bash
+cd /opt/blogx/deploy/compose/production
+set -a; . ./.env; set +a
+
+# ① 只读统计：看清楚再动（默认就是这个模式，不删任何东西）
+docker compose exec blogx_server ./blogx-server -f config/settings.yaml \
+  -t reconcile -s digg
+
+# ② 确认无误后加 -apply，物理删掉软删残行（活行一条不动）
+docker compose exec blogx_server ./blogx-server -f config/settings.yaml \
+  -t reconcile -s digg -apply
+```
+
+输出含义：
+
+| 字段 | 含义 |
+| --- | --- |
+| `活关系行` | 用户当前真实点着的赞 |
+| `软删残行` | 历史取消点赞留下的痕迹，占着唯一键但读不到 |
+| `孤儿行(文章已删)` | 指向已软删文章的残行。**只统计、不自动清理** |
+| `本次物理删除` | 仅 `-apply` 时非 0 |
+
+三条执行约定：
+
+1. **先备份再 `-apply`**。删除不可逆，按 [12.3 备份与恢复](#123-备份与恢复) 做一次全量备份。
+2. **孤儿行不自动删**。文章软删是可恢复操作，误删点赞关系等于"用户恢复文章后点赞全没了"。这类行交给删文章的级联清理处理。
+3. **可以重复跑**。`-apply` 之后残行为 0，再跑一次是 no-op。
+
+等价的只读 SQL（不想跑二进制时用这个）：
+
+```sql
+SELECT COUNT(*) AS 活关系 FROM article_digg_models WHERE deleted_at IS NULL;
+SELECT COUNT(*) AS 软删残行 FROM article_digg_models WHERE deleted_at IS NOT NULL;
+```
+
 日志目录映射（都在 `deploy/state/` 下，已在 `.gitignore` 内）：
 
 | 宿主机路径 | 容器内 | 内容 |

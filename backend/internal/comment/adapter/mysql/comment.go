@@ -28,7 +28,13 @@ type commentRow struct {
 	UserNickname      string
 	UserAvatar        string
 	ArticleID         ctype.ID
-	ReplyID           ctype.ID
+	// ReplyID 用指针：根评论没有父评论可指向，必须落 NULL 而不是 0。
+	//
+	// 表里 fk_comment_models_parent_model 要求 reply_id 指向一条真实评论，
+	// 而库里**没有 id=0 的行**。值类型零值会被 ctype.ID 的 Value() 写成 0，
+	// 于是任何根评论都违反该外键（线上 violates foreign key constraint）。
+	// NULL 不受外键约束，正是"没有父评论"的正确表达。
+	ReplyID           *ctype.ID
 	ReplyUserID       ctype.ID
 	ReplyUserNickname string
 	RootID            ctype.ID
@@ -76,6 +82,26 @@ var _ domain.DiggRepository = (*DiggRepo)(nil)
 // NewDigg 构造点赞仓储。
 func NewDigg(db *gorm.DB) *DiggRepo { return &DiggRepo{db: db} }
 
+// nullableID 把零值 ID 转成 SQL NULL，非零值原样返回。
+//
+// 根评论的 reply_id 必须是 NULL：写成 0 会撞 fk_comment_models_parent_model
+// （库里没有 id=0 的评论），表现为 violates foreign key constraint。
+func nullableID(id ctype.ID) *ctype.ID {
+	if id.IsZero() {
+		return nil
+	}
+	value := id
+	return &value
+}
+
+// idValue 把可能为 NULL 的列读回成值类型：NULL 即零值。
+func idValue(id *ctype.ID) ctype.ID {
+	if id == nil {
+		return ctype.ID("")
+	}
+	return *id
+}
+
 // Create 实现 domain.Repository。
 func (r *Repo) Create(ctx context.Context, c *domain.Comment) error {
 	if c == nil {
@@ -97,7 +123,7 @@ func (r *Repo) Create(ctx context.Context, c *domain.Comment) error {
 		UserNickname:      c.UserNickname,
 		UserAvatar:        c.UserAvatar,
 		ArticleID:         c.ArticleID,
-		ReplyID:           c.ReplyID,
+		ReplyID:           nullableID(c.ReplyID),
 		ReplyUserID:       c.ReplyUserID,
 		ReplyUserNickname: c.ReplyUserNickname,
 		RootID:            c.RootID,
@@ -168,7 +194,10 @@ func (r *Repo) ListRoot(ctx context.Context, articleID uint64, page domain.Page)
 	page = page.Normalize()
 	var rows []commentRow
 	err := r.db.WithContext(ctx).
-		Where("article_id = ? AND status = ? AND reply_id = 0 AND root_id = 0", articleID, int8(domain.StatusPublished)).
+		// reply_id 改成可空后，根评论的父字段是 NULL 而不是 0；
+		// 这里必须跟着改成 IS NULL，否则一条根评论都查不出来。
+		// root_id 仍是值类型（根评论写 0），保持原判等。
+		Where("article_id = ? AND status = ? AND reply_id IS NULL AND root_id = 0", articleID, int8(domain.StatusPublished)).
 		Order("created_at DESC").
 		Limit(page.Limit + 1).
 		Offset(page.Offset()).
@@ -351,7 +380,7 @@ func toComment(row commentRow) domain.Comment {
 		UserNickname:      row.UserNickname,
 		UserAvatar:        row.UserAvatar,
 		ArticleID:         row.ArticleID,
-		ReplyID:           row.ReplyID,
+		ReplyID:           idValue(row.ReplyID),
 		ReplyUserID:       row.ReplyUserID,
 		ReplyUserNickname: row.ReplyUserNickname,
 		RootID:            row.RootID,

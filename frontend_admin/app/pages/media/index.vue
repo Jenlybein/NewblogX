@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { h } from 'vue'
-import { NButton, NCard, NDataTable, NForm, NFormItem, NGrid, NGridItem, NInput, NSpace, NSwitch, NTag, useDialog, useMessage } from 'naive-ui'
+import { NButton, NCard, NDataTable, NForm, NFormItem, NGrid, NGridItem, NInput, NSelect, NSpace, NSwitch, NTag, useDialog, useMessage } from 'naive-ui'
 import BannerFramingDialog from '~/components/media/BannerFramingDialog.vue'
 import { createBanner, deleteBanners, deleteImages, getBanners, getImages, updateBanner } from '~/services/admin'
 import { uploadImageByTask } from '~/services/image'
@@ -13,6 +13,8 @@ import {
   saveBannerReframe,
   uploadBannerCover,
 } from '~/utils/bannerCover'
+import { BANNER_SHOW_FILTER_OPTIONS, buildBannerListQuery } from '~/utils/bannerList'
+import type { BannerShowFilter } from '~/utils/bannerList'
 import { DEFAULT_FRAMING, clampFraming } from '~/utils/framing'
 import type { Framing, Size } from '~/utils/framing'
 import { formatDateTime } from '~/utils/format'
@@ -23,7 +25,9 @@ const dialog = useDialog()
 const loadingBanners = ref(false)
 const loadingImages = ref(false)
 const IMAGE_PAGE_SIZE = 10
+const BANNER_PAGE_SIZE = 10
 const bannerPage = ref(1)
+const bannerShowFilter = ref<BannerShowFilter>('all')
 const imagePage = ref(1)
 const hasMoreBanners = ref(false)
 const hasMoreImages = ref(false)
@@ -206,7 +210,7 @@ const imageColumns = [
 async function refreshBanners() {
   loadingBanners.value = true
   try {
-    const data = await getBanners({ page: bannerPage.value, limit: 10 })
+    const data = await getBanners(buildBannerListQuery(bannerPage.value, BANNER_PAGE_SIZE, bannerShowFilter.value))
     banners.value = data.list
     hasMoreBanners.value = data.has_more
     loadCoverSizes(data.list)
@@ -554,6 +558,14 @@ function removeImage(row: ImageListItem) {
 }
 
 watch(bannerPage, refreshBanners)
+watch(bannerShowFilter, () => {
+  if (bannerPage.value === 1) {
+    void refreshBanners()
+    return
+  }
+  // 页码 watcher 负责刷新，避免筛选切换时重复请求。
+  bannerPage.value = 1
+})
 watch(imagePage, refreshImages)
 onMounted(() => {
   void refreshBanners()
@@ -648,6 +660,13 @@ onMounted(() => {
 
       <NGridItem :span="15">
         <NCard class="admin-card" title="轮播运营">
+          <template #header-extra>
+            <NSelect
+              v-model:value="bannerShowFilter"
+              :options="BANNER_SHOW_FILTER_OPTIONS"
+              aria-label="展示状态筛选"
+              class="w-40" />
+          </template>
           <NDataTable :columns="bannerColumns" :data="banners" :loading="loadingBanners" :bordered="false" />
           <div class="mt-4 flex justify-end gap-2">
             <NButton :disabled="bannerPage <= 1" @click="bannerPage--">上一页</NButton>

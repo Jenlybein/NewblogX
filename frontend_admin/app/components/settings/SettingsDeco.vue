@@ -44,7 +44,7 @@ async function save() {
 }
 
 /**
- * 「恢复默认」：把整张表单填回规范的九个默认值（开关 + 八个数值）。
+ * 「恢复默认」：把整张表单填回规范的十二个默认值（开关 + 十一个数值）。
  *
  * 刻意**不自动保存** —— 恢复默认只是把表单改成一个已知良好的起点，
  * 是否落库仍由管理员按「保存装饰配置」决定。这里只写本地 ref，不碰接口；
@@ -73,7 +73,7 @@ onMounted(load)
       <NFormItem label="启用光标挂件">
         <NSwitch v-model:value="config.charm.enable" />
       </NFormItem>
-      <!-- 八行数值输入由同一份元数据驱动：标签 / 单位 / 范围 / 步长 / 说明
+      <!-- 十一行数值输入由同一份元数据驱动：标签 / 单位 / 范围 / 步长 / 说明
            都在 utils/decoParams 里，加参数时只改那一个文件。 -->
       <NFormItem
         v-for="param in numberParams"

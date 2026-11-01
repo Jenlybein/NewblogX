@@ -8,10 +8,12 @@ import {
   CHARM_DAMPING_MAX,
   CHARM_DAMPING_MIN,
   CHARM_FIXED_STEP_SECONDS,
+  CHARM_FPS_CAP_DEFAULT,
+  CHARM_FPS_CAP_MAX,
+  CHARM_FPS_CAP_MIN,
   CHARM_GRAVITY_DEFAULT,
   CHARM_GRAVITY_MAX,
   CHARM_GRAVITY_MIN,
-  CHARM_IDLE_FRAME_INTERVAL_MS,
   CHARM_IDLE_SWAY_AMP_DEFAULT,
   CHARM_IDLE_SWAY_AMP_MAX,
   CHARM_IDLE_SWAY_AMP_MIN,
@@ -26,6 +28,12 @@ import {
   CHARM_LOGO_SIZE_MIN,
   CHARM_MAX_FRAME_SECONDS,
   CHARM_MAX_SUBSTEPS,
+  CHARM_POINTER_OFFSET_X_DEFAULT,
+  CHARM_POINTER_OFFSET_X_MAX,
+  CHARM_POINTER_OFFSET_X_MIN,
+  CHARM_POINTER_OFFSET_Y_DEFAULT,
+  CHARM_POINTER_OFFSET_Y_MAX,
+  CHARM_POINTER_OFFSET_Y_MIN,
   CHARM_ROPE_LENGTH_DEFAULT,
   CHARM_ROPE_LENGTH_MAX,
   CHARM_ROPE_LENGTH_MIN,
@@ -36,17 +44,20 @@ import {
   advanceCharmRope,
   charmIdleSwayEnabled,
   charmLayerEnabled,
+  charmPointerAnchor,
   charmRopeEnergy,
   charmRopeSegmentLengths,
   charmRopeSettled,
   charmRopeTail,
-  charmTetherGeometry,
   clampCharmDamping,
+  clampCharmFpsCap,
   clampCharmGravity,
   clampCharmIdleSwayAmp,
   clampCharmIdleSwayHz,
   clampCharmLineWidth,
   clampCharmLogoSize,
+  clampCharmPointerOffsetX,
+  clampCharmPointerOffsetY,
   clampCharmRopeLength,
   clampCharmSegments,
   createCharmRope,
@@ -54,6 +65,7 @@ import {
   type CharmPoint,
   type CharmRopeConfig,
 } from "~/utils/decoCharm";
+import { charmTetherGeometry } from "~/utils/charmTether";
 
 /**
  * 为什么值得测：挂件里所有"算错就看得见"的决定都在这个模块 ——
@@ -75,6 +87,9 @@ const ROPE: CharmRopeConfig = {
   lineWidthPx: CHARM_LINE_WIDTH_DEFAULT,
   idleSwayHz: 0,
   idleSwayAmp: 0,
+  fpsCap: CHARM_FPS_CAP_DEFAULT,
+  pointerOffsetX: CHARM_POINTER_OFFSET_X_DEFAULT,
+  pointerOffsetY: CHARM_POINTER_OFFSET_Y_DEFAULT,
 };
 
 /** 一次固定步长的帧间隔（积分器应当正好推进一个子步）。 */
@@ -156,9 +171,14 @@ describe("光标挂件的参数常量", () => {
     expect(CHARM_IDLE_SWAY_AMP_DEFAULT).toBe(20);
   });
 
-  it("怠速车道约 20fps（50ms 一帧），明显低于满速 60fps", () => {
-    expect(CHARM_IDLE_FRAME_INTERVAL_MS).toBe(50);
-    expect(1000 / CHARM_IDLE_FRAME_INTERVAL_MS).toBeLessThan(60);
+  it("帧率上限 30–160 fps，默认 60（下限 30 由 0.05s 物理截断决定，不是随意挑的）", () => {
+    expect(CHARM_FPS_CAP_MIN).toBe(30);
+    expect(CHARM_FPS_CAP_MAX).toBe(160);
+    expect(CHARM_FPS_CAP_DEFAULT).toBe(60);
+    // 下限的物理依据：一帧 33.3ms，对 0.05s 的累加器上限留了 16.7ms 余量；
+    // 20 档一帧恰好 50ms、余量为零，任何迟到都会被截断丢掉（绳子会慢放）。
+    expect(1000 / CHARM_FPS_CAP_MIN).toBeLessThan(CHARM_MAX_FRAME_SECONDS * 1000);
+    expect(1000 / 20).toBeGreaterThanOrEqual(CHARM_MAX_FRAME_SECONDS * 1000);
   });
 
   it("固定步长是 1/120s、单帧最多 8 个子步、累加器上限 0.05s", () => {
@@ -167,13 +187,28 @@ describe("光标挂件的参数常量", () => {
     expect(CHARM_MAX_SUBSTEPS).toBe(8);
     expect(CHARM_MAX_FRAME_SECONDS).toBe(0.05);
     // 0.05s 内最多只会有 6 个子步，子步上限是给未来改步长留的保险。
+    // 这也正是帧率下限取 30 的依据：30 档一帧 33.3ms < 0.05s，永远不会被截断。
     expect(CHARM_MAX_FRAME_SECONDS / CHARM_FIXED_STEP_SECONDS).toBeLessThanOrEqual(CHARM_MAX_SUBSTEPS);
+    expect(1 / CHARM_FPS_CAP_MIN).toBeLessThan(CHARM_MAX_FRAME_SECONDS);
   });
 
   it("站标尺寸区间与默认值与后端一致（24–96，默认 48）", () => {
     expect(CHARM_LOGO_SIZE_MIN).toBe(24);
     expect(CHARM_LOGO_SIZE_MAX).toBe(96);
     expect(CHARM_LOGO_SIZE_DEFAULT).toBe(48);
+  });
+
+  it("指针端偏移每轴 -24–24 px、默认 3，且下限为负（允许往左上偏）", () => {
+    expect(CHARM_POINTER_OFFSET_X_MIN).toBe(-24);
+    expect(CHARM_POINTER_OFFSET_X_MAX).toBe(24);
+    expect(CHARM_POINTER_OFFSET_X_DEFAULT).toBe(3);
+    expect(CHARM_POINTER_OFFSET_Y_MIN).toBe(-24);
+    expect(CHARM_POINTER_OFFSET_Y_MAX).toBe(24);
+    expect(CHARM_POINTER_OFFSET_Y_DEFAULT).toBe(3);
+    // 下限本身就是负数：这是"允许负数的区间"与"非负区间"的分水岭。
+    // 写成 0 会把负偏移静默夹回边界（ADR-0018 约束 8 点名禁止）。
+    expect(CHARM_POINTER_OFFSET_X_MIN).toBeLessThan(0);
+    expect(CHARM_POINTER_OFFSET_Y_MIN).toBeLessThan(0);
   });
 });
 
@@ -255,12 +290,105 @@ describe("票 #42 的三个新参数钳位", () => {
     expect(clampCharmIdleSwayHz(Number.NaN)).toBe(CHARM_IDLE_SWAY_HZ_DEFAULT);
   });
 
-  it("静止摆动幅度：0 原样保留（= 零帧车道），越界钳到 40，负数/NaN 回落 20", () => {
+  it("静止摆动幅度：0 原样保留（= 停帧），越界钳到 40，负数/NaN 回落 20", () => {
     expect(clampCharmIdleSwayAmp(0)).toBe(0);
     expect(clampCharmIdleSwayAmp(400)).toBe(CHARM_IDLE_SWAY_AMP_MAX);
     expect(clampCharmIdleSwayAmp(20)).toBe(20);
     expect(clampCharmIdleSwayAmp(-5)).toBe(CHARM_IDLE_SWAY_AMP_DEFAULT);
     expect(clampCharmIdleSwayAmp(Number.NaN)).toBe(CHARM_IDLE_SWAY_AMP_DEFAULT);
+  });
+});
+
+describe("票 #74 的帧率上限钳位", () => {
+  it("帧率上限：越界钳到 30/160，零与非法回落 60，并取整成整数", () => {
+    expect(clampCharmFpsCap(29)).toBe(CHARM_FPS_CAP_MIN);
+    expect(clampCharmFpsCap(30.4)).toBe(CHARM_FPS_CAP_MIN);
+    expect(clampCharmFpsCap(161)).toBe(CHARM_FPS_CAP_MAX);
+    expect(clampCharmFpsCap(160.6)).toBe(CHARM_FPS_CAP_MAX);
+    expect(clampCharmFpsCap(90)).toBe(90);
+    expect(clampCharmFpsCap(90.4)).toBe(90);
+    expect(clampCharmFpsCap(90.6)).toBe(91);
+    expect(clampCharmFpsCap(30)).toBe(30);
+    expect(clampCharmFpsCap(160)).toBe(160);
+    expect(clampCharmFpsCap(0)).toBe(CHARM_FPS_CAP_DEFAULT);
+    expect(clampCharmFpsCap(-30)).toBe(CHARM_FPS_CAP_DEFAULT);
+    expect(clampCharmFpsCap(Number.NaN)).toBe(CHARM_FPS_CAP_DEFAULT);
+    expect(clampCharmFpsCap(Number.POSITIVE_INFINITY)).toBe(CHARM_FPS_CAP_DEFAULT);
+  });
+});
+
+describe("票 #75 的指针端偏移钳位（第四条规则：允许负数的区间）", () => {
+  /** X / Y 两轴共用同一张表：区间与默认值必须完全对称。 */
+  const SIGNED_CASES: { input: number; expectedX: number; expectedY: number; note: string }[] = [
+    { input: 3, expectedX: 3, expectedY: 3, note: "默认值原样保留" },
+    { input: 0, expectedX: 0, expectedY: 0, note: "0 是普通值，不回落默认" },
+    { input: 12, expectedX: 12, expectedY: 12, note: "区间内正值原样保留" },
+    { input: -6, expectedX: -6, expectedY: -6, note: "负值原样保留（往左上偏）" },
+    { input: 24, expectedX: 24, expectedY: 24, note: "上限本身不漂移" },
+    { input: -24, expectedX: -24, expectedY: -24, note: "下限本身不漂移" },
+    { input: 24.4, expectedX: 24, expectedY: 24, note: "先夹边界再取整（上）" },
+    { input: -24.4, expectedX: -24, expectedY: -24, note: "先夹边界再取整（下）" },
+    { input: 100, expectedX: 24, expectedY: 24, note: "远超上限钳到边界" },
+    { input: -100, expectedX: -24, expectedY: -24, note: "远超下限钳到边界" },
+    { input: 3.7, expectedX: 4, expectedY: 4, note: "取整（向上）" },
+    { input: -3.7, expectedX: -4, expectedY: -4, note: "负数取整（远离 0）" },
+    { input: 2.5, expectedX: 3, expectedY: 3, note: "正半值远离 0" },
+    // 负半值必须与 Go 的 math.Round 同口径（远离 0）；直接写 Math.round
+    // 会得到 -2，与后端分叉 —— 共享夹具里也有这一条。
+    { input: -2.5, expectedX: -3, expectedY: -3, note: "负半值远离 0" },
+  ];
+
+  it.each(SIGNED_CASES)("$note：输入 $input", ({ input, expectedX, expectedY }) => {
+    expect(clampCharmPointerOffsetX(input), `X 轴输入 ${input}`).toBe(expectedX);
+    expect(clampCharmPointerOffsetY(input), `Y 轴输入 ${input}`).toBe(expectedY);
+  });
+
+  it("NaN / ±Inf 回落默认值 3（两者序列化进 JSON 会直接失败）", () => {
+    for (const bad of [Number.NaN, Number.POSITIVE_INFINITY, Number.NEGATIVE_INFINITY]) {
+      expect(clampCharmPointerOffsetX(bad)).toBe(CHARM_POINTER_OFFSET_X_DEFAULT);
+      expect(clampCharmPointerOffsetY(bad)).toBe(CHARM_POINTER_OFFSET_Y_DEFAULT);
+    }
+  });
+});
+
+describe("charmPointerAnchor：指针端 = 指针热点 + 偏移（唯一真相）", () => {
+  it("默认偏移 (3, 3)：指针端节点从光标右下 3px 开始", () => {
+    expect(charmPointerAnchor({ x: 100, y: 200 }, ROPE)).toEqual({ x: 103, y: 203 });
+  });
+
+  it("负偏移把指针端节点推到光标左上（-6, -9）", () => {
+    expect(
+      charmPointerAnchor({ x: 100, y: 200 }, { ...ROPE, pointerOffsetX: -6, pointerOffsetY: -9 }),
+    ).toEqual({ x: 94, y: 191 });
+  });
+
+  it("0 偏移让头节点正好压在热点上（0 是普通值，不是缺省）", () => {
+    expect(
+      charmPointerAnchor({ x: 40, y: 50 }, { ...ROPE, pointerOffsetX: 0, pointerOffsetY: 0 }),
+    ).toEqual({ x: 40, y: 50 });
+  });
+
+  it("偏移的钳位发生在归一化那一层：锚点只做加法，不重复钳（评审必修 7）", () => {
+    // 越界值必须先经过 normalizeCharmRopeConfig —— 那是钳位的唯一落点，
+    // 也是组合式每帧喂给 charmPointerAnchor 的东西。
+    const normalized = normalizeCharmRopeConfig({ pointerOffsetX: 1000, pointerOffsetY: -1000 });
+    expect(normalized.pointerOffsetX).toBe(CHARM_POINTER_OFFSET_X_MAX);
+    expect(normalized.pointerOffsetY).toBe(CHARM_POINTER_OFFSET_Y_MIN);
+
+    expect(charmPointerAnchor({ x: 0, y: 0 }, normalized)).toEqual({
+      x: CHARM_POINTER_OFFSET_X_MAX,
+      y: CHARM_POINTER_OFFSET_Y_MIN,
+    });
+  });
+
+  it("非有限指针坐标收敛成有限值（NaN 进 SVG 会让整条路径消失）", () => {
+    const anchor = charmPointerAnchor(
+      { x: Number.NaN, y: Number.POSITIVE_INFINITY },
+      { ...ROPE, pointerOffsetX: -6, pointerOffsetY: 0 },
+    );
+
+    expect(allFinite([anchor.x, anchor.y])).toBe(true);
+    expect(anchor).toEqual({ x: -6, y: 0 });
   });
 });
 
@@ -274,6 +402,9 @@ describe("normalizeCharmRopeConfig", () => {
       lineWidthPx: CHARM_LINE_WIDTH_DEFAULT,
       idleSwayHz: CHARM_IDLE_SWAY_HZ_DEFAULT,
       idleSwayAmp: CHARM_IDLE_SWAY_AMP_DEFAULT,
+      fpsCap: CHARM_FPS_CAP_DEFAULT,
+      pointerOffsetX: CHARM_POINTER_OFFSET_X_DEFAULT,
+      pointerOffsetY: CHARM_POINTER_OFFSET_Y_DEFAULT,
     });
   });
 
@@ -287,6 +418,9 @@ describe("normalizeCharmRopeConfig", () => {
         lineWidthPx: 10,
         idleSwayHz: 9,
         idleSwayAmp: 0,
+        fpsCap: 10,
+        pointerOffsetX: 100,
+        pointerOffsetY: -100,
       }),
     ).toEqual({
       ropeLengthPx: CHARM_ROPE_LENGTH_MAX,
@@ -296,6 +430,9 @@ describe("normalizeCharmRopeConfig", () => {
       lineWidthPx: CHARM_LINE_WIDTH_MAX,
       idleSwayHz: CHARM_IDLE_SWAY_HZ_MAX,
       idleSwayAmp: 0,
+      fpsCap: CHARM_FPS_CAP_MIN,
+      pointerOffsetX: CHARM_POINTER_OFFSET_X_MAX,
+      pointerOffsetY: CHARM_POINTER_OFFSET_Y_MIN,
     });
     expect(normalizeCharmRopeConfig({ ropeLengthPx: 80 })).toEqual({
       ropeLengthPx: 80,
@@ -305,7 +442,24 @@ describe("normalizeCharmRopeConfig", () => {
       lineWidthPx: CHARM_LINE_WIDTH_DEFAULT,
       idleSwayHz: CHARM_IDLE_SWAY_HZ_DEFAULT,
       idleSwayAmp: CHARM_IDLE_SWAY_AMP_DEFAULT,
+      fpsCap: CHARM_FPS_CAP_DEFAULT,
+      pointerOffsetX: CHARM_POINTER_OFFSET_X_DEFAULT,
+      pointerOffsetY: CHARM_POINTER_OFFSET_Y_DEFAULT,
     });
+  });
+
+  it("负偏移穿过归一化后仍然为负（不会被「非负规则」夹回边界）", () => {
+    const normalized = normalizeCharmRopeConfig({ pointerOffsetX: -6, pointerOffsetY: -12 });
+
+    expect(normalized.pointerOffsetX).toBe(-6);
+    expect(normalized.pointerOffsetY).toBe(-12);
+  });
+
+  it("0 偏移穿过归一化后仍然是 0（不是回落成默认的 3）", () => {
+    const normalized = normalizeCharmRopeConfig({ pointerOffsetX: 0, pointerOffsetY: 0 });
+
+    expect(normalized.pointerOffsetX).toBe(0);
+    expect(normalized.pointerOffsetY).toBe(0);
   });
 });
 
@@ -578,11 +732,11 @@ describe("静止轻晃：自由端的真实形变（票 #42 验收项）", () =>
 
     expect(peakTailX).toBeGreaterThan(0.5);
     expect(state.nodes[0]).toEqual({ x: 0, y: 0 });
-    // 轻晃期间能量反复越过收敛阈值：怠速车道必须持续跑（否则会"停在一个歪姿势上"）。
+    // 轻晃期间能量反复越过收敛阈值：循环必须持续跑（否则会"停在一个歪姿势上"）。
     expect(peakEnergy).toBeGreaterThan(0.05);
   });
 
-  it("idle_sway_amp == 0 时完全没有横向形变（可以退回零帧车道）", () => {
+  it("idle_sway_amp == 0 时完全没有横向形变（收敛后可以停帧）", () => {
     const state = createCharmRope({ x: 0, y: 0 }, { ...ROPE, idleSwayAmp: 0, idleSwayHz: 0 });
     for (let step = 0; step < 720; step += 1) {
       advanceCharmRope(state, FRAME_AT_120HZ, { x: 0, y: 0 });
@@ -651,10 +805,13 @@ const CHARM_CLAMPS: Record<string, (value: number) => number> = {
   damping: clampCharmDamping,
   idle_sway_hz: clampCharmIdleSwayHz,
   idle_sway_amp: clampCharmIdleSwayAmp,
+  fps_cap: clampCharmFpsCap,
+  pointer_offset_x: clampCharmPointerOffsetX,
+  pointer_offset_y: clampCharmPointerOffsetY,
 };
 
 describe("共享归一化用例表：读者站与后端 / 后台同一组输入同一组输出", () => {
-  it("夹具真的读到了，且覆盖全部八个数值参数", () => {
+  it("夹具真的读到了，且覆盖全部十一个数值参数", () => {
     const cases = loadNormalizationCases();
 
     expect(cases.length).toBeGreaterThan(40);

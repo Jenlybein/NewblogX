@@ -1,6 +1,6 @@
 # 架构决策记录（ADR）
 
-本目录是 v2 阶段的决策入口，**一条决策一个文件**：0001–0009 是 v1 后端架构决策，0010–0017 是 v2 阶段的呈现层、前端行为、装饰层与站点策略决策。需要改某条规则或某个取舍前，先读这里对应的 ADR；后端架构的硬约束总表是 `docs/architecture/overview.md` §六，ADR 记录的是每条约束的**出处与理由**；前端呈现层的约束写在各自 ADR 的「当前生效约束」里。
+本目录是 v2 阶段的决策入口，**一条决策一个文件**：0001–0009 是 v1 后端架构决策，0010–0018 是 v2 阶段的呈现层、前端行为、装饰层与站点策略决策。需要改某条规则或某个取舍前，先读这里对应的 ADR；后端架构的硬约束总表是 `docs/architecture/overview.md` §六，ADR 记录的是每条约束的**出处与理由**；前端呈现层的约束写在各自 ADR 的「当前生效约束」里。
 
 ## 索引
 
@@ -21,14 +21,15 @@
 | [0013](./0013-editorial-hero-cover.md) | 首屏编辑部式封面 | 满幅色带 + 超大 h1 + 网格刻度，仅首页首屏例外；删 tagline 与三格事实，轮播并入首屏 | [ADR-0012](./0012-neutral-glass-visual-system.md) · [改造方案](../notes/2026-10-31-neutral-glass-redesign-plan.md) · [GLOSSARY · 首屏封面](../../GLOSSARY.md) |
 | [0014](./0014-email-code-refuse-instead-of-silent-skip.md) | 邮箱验证码"发不出就明说" | 放弃静默防枚举：状态与用途不匹配时返回明确错误码；前端只写用途名，数字只在一处映射 | 本 ADR · [README §2.5](../../README.md) |
 | [0015](./0015-banner-framing-as-parameters.md) | 轮播取景存参数、由 CSS 渲染 | 焦点 + 缩放三个数存参数，不存裁好的图；服务端不裁切，渲染在 CSS，面板比例固定 | [ADR-0013](./0013-editorial-hero-cover.md) · [GLOSSARY · 取景](../../GLOSSARY.md) · [spec #44](https://github.com/Jenlybein/NewblogX/issues/44) |
-| [0016](./0016-deco-segment-and-cursor-charm.md) | 装饰配置段与光标挂件 | 第 8 段 `deco` + `deco.charm` 子块；参数后台可调、钳位不报错；Verlet 链 + 松弛驱动弧垂；SVG 覆盖层；z-index 9999 但 `pointer-events: none`；轻晃可回落零帧；带形多边形收尾 | [ADR-0012](./0012-neutral-glass-visual-system.md) · [配置](../architecture/configuration.md) · [GLOSSARY · 光标挂件](../../GLOSSARY.md) |
+| [0016](./0016-deco-segment-and-cursor-charm.md) | 装饰配置段与光标挂件 | 第 8 段 `deco` + `deco.charm` 子块；参数后台可调、钳位不报错；Verlet 链 + 松弛驱动弧垂；SVG 覆盖层；z-index 9999 但 `pointer-events: none`；轻晃可回落零帧（帧率部分已由 [0018](./0018-charm-frame-cap-and-pointer-offset.md) 取代）；带形多边形收尾 | [ADR-0012](./0012-neutral-glass-visual-system.md) · [配置](../architecture/configuration.md) · [GLOSSARY · 光标挂件](../../GLOSSARY.md) |
 | [0017](./0017-publish-display-switches-and-hot-top-operator-slot.md) | 站点发布/展示开关与热门置顶运营位 | 删掉从未生效的站点模式；发布/草稿/展示拆成三个布尔（默认开）；热门置顶改为独立表 + 后台运营页；删 ES 里无人消费的 `admin_top`/`top` | [GLOSSARY · 热门置顶](../../GLOSSARY.md) · [配置分层](../architecture/configuration.md) · [#54](https://github.com/Jenlybein/NewblogX/issues/54) |
+| [0018](./0018-charm-frame-cap-and-pointer-offset.md) | 光标挂件的帧率上限交给后台 | 取消自适应降速（原 20fps 闸门），只剩一条 `requestAnimationFrame` + 后台 `fps_cap`（默认 60、30–160）；`pointermove` 不再自己发布；绳头加可配偏移（默认右下 3px，已配置化为 `pointer_offset_x` / `pointer_offset_y`，每轴 -24–24 且 `0` 合法）；新增第四条钳位规则 `normalizeSignedRange`；跨端门禁改为四源键集合相等 + 锚点交付状态位 | [ADR-0016](./0016-deco-segment-and-cursor-charm.md) · [配置分层](../architecture/configuration.md) · [GLOSSARY · 光标挂件](../../GLOSSARY.md) |
 
 ## 来源与拆分说明
 
 - **ADR-0001–0009** 原本是 v1 时期 `docs/architecture/adr/` 下的独立文件；v1 收尾时被合并进 [04 · ADR 合集（v1 归档）](../archive/v1/04-adr-collection.md)。那次合并的口径是：**只保留每条 ADR 的决策骨架 + 关键参数 + 当前生效约束**，被否决方案的长篇论证压缩为一句理由，与其他 v1 文档重复的论述删除。
 - **ADR-0001–0009** 是**按"一条决策一个文件"从该合集重新拆出的**，正文以归档合集为准（未新增事实、未删"当前生效约束"）；归档合集仍在 `docs/archive/v1/` 保留原样，作为这些文件的出处。**ADR-0010 / 0011** 是 v2 前端视觉重构新增的决策（2026-10-30），直接写在本目录，不来自 v1 归档，也**没有对应的 `docs/architecture/` 专篇**——它们的正文链接落在 spec 笔记与 GLOSSARY；**ADR-0012**（2026-10-31）取代 ADR-0010 的视觉立场，同样走"无 architecture 专篇、链接 spec 笔记与 GLOSSARY"的口径。
-- 前 9 条在 v1 判定下全部**已交付**。文件头 `- 状态：已交付` 表示决策已落地且当前生效，不是提案；ADR-0010 已落地（分票 #2–#13）但于 **2026-10-31 被 ADR-0012 取代**（状态改为 `已取代`，正文标注仍生效的条款）；ADR-0011 状态是**已接受**；ADR-0012 与 ADR-0013 状态是**已交付**（落地分票 #18–#25 已全部合入）；ADR-0013 是 ADR-0012 首页首屏的例外区，两者同时生效；ADR-0014 状态是**已接受**（邮箱验证码语义，随该修复落地）；ADR-0015 状态是**已交付**（按 spec #44 落地，分票 #45–#50 已全部合入）；ADR-0016 状态是**已交付**（落地分票 #36–#43 已全部合入），它记录装饰层与光标挂件的决策，视觉立场仍受 ADR-0012 约束；ADR-0017 状态是**已交付**（站点发布/展示开关与热门置顶运营位；落地票 #54 的分票 #60–#67 已全部合入，#68 是收尾票：文档与全量门禁）。
+- 前 9 条在 v1 判定下全部**已交付**。文件头 `- 状态：已交付` 表示决策已落地且当前生效，不是提案；ADR-0010 已落地（分票 #2–#13）但于 **2026-10-31 被 ADR-0012 取代**（状态改为 `已取代`，正文标注仍生效的条款）；ADR-0011 状态是**已接受**；ADR-0012 与 ADR-0013 状态是**已交付**（落地分票 #18–#25 已全部合入）；ADR-0013 是 ADR-0012 首页首屏的例外区，两者同时生效；ADR-0014 状态是**已接受**（邮箱验证码语义，随该修复落地）；ADR-0015 状态是**已交付**（按 spec #44 落地，分票 #45–#50 已全部合入）；ADR-0016 状态是**已交付**（落地分票 #36–#43 已全部合入），它记录装饰层与光标挂件的决策，视觉立场仍受 ADR-0012 约束；ADR-0017 状态是**已交付**（站点发布/展示开关与热门置顶运营位；落地票 #54 的分票 #60–#67 已全部合入，#68 是收尾票：文档与全量门禁）。ADR-0018 状态是**已交付**（帧率上限交给后台 + 可配的指针端偏移；落地分票 #72–#75 已全部合入，#76 是收尾票：ADR 状态与文档口径、全量门禁；它取代 ADR-0016 的决策 9、已否决段的「永远开着的 rAF 轻晃」、代价段第 4 条与当前生效约束 8 —— 其余条款继续生效，四处差异表在 ADR-0016 文末「后续修订」，落地偏离与最终数字在 ADR-0018 文末「实施记录」）。
 - ADR-008 / ADR-009 在 v1 归档时没有被其他文档展开，是合集里"完整保留"的两条，因此这两份文件的信息量明显大于前七条。
 - 每条 ADR 记录的是**当时的判断**；现状若有偏离，以 `docs/architecture/` 与代码为准，并考虑补一条新 ADR 而不是改写历史。
 

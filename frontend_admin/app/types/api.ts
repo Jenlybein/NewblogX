@@ -357,7 +357,8 @@ export interface UploadRuntimeConfig {
 /**
  * 装饰配置（第 8 段 deco）。
  *
- * `charm` 下是一个总开关 + 八个数值参数（站标尺寸、挂绳几何 / 物理、描边与静止轻晃）。
+ * `charm` 下是一个总开关 + 十一个数值参数（站标尺寸、挂绳几何 / 物理、描边、
+ * 静止轻晃、帧率上限与指针端偏移 X / Y）。
  * 段结构、路由与响应形状都不变（响应本来就是自由键值块）。
  */
 export interface DecoRuntimeConfig {
@@ -378,8 +379,14 @@ export interface DecoRuntimeConfig {
     damping: number
     /** 静止摆动频率，单位 Hz，合法区间 0–1.5；0 表示关掉轻晃。 */
     idle_sway_hz: number
-    /** 静止摆动加速度幅度，单位 px/s²，合法区间 0–40；0 表示退回零帧车道。 */
+    /** 静止摆动加速度幅度，单位 px/s²，合法区间 0–40；0 表示关掉轻晃（收敛后停帧）。 */
     idle_sway_amp: number
+    /** 最高渲染帧率，单位 fps，合法区间 30–160（整数）；它只管每秒画几次，不影响绳子手感。 */
+    fps_cap: number
+    /** 指针端偏移水平分量，单位 px，合法区间 -24–24（整数，允许负值）；指针端节点 = 指针热点 + 它。 */
+    pointer_offset_x: number
+    /** 指针端偏移垂直分量，单位 px，合法区间 -24–24（整数，允许负值；负值往上偏）。 */
+    pointer_offset_y: number
   }
 }
 

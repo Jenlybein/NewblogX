@@ -83,8 +83,35 @@ export const DECO_IDLE_SWAY_AMP_MIN = 0
 /** 静止摆动幅度上限（px/s²）。 */
 export const DECO_IDLE_SWAY_AMP_MAX = 40
 
-/** 静止摆动幅度默认值（px/s²），作用在自由端（逐节点加权，指针端为 0、尾端为 1）。 */
+/** 静止摆动幅度默认值（px/s²），作用在自由端（逐节点加权，指针端节点为 0、尾端为 1）。 */
 export const DECO_IDLE_SWAY_AMP_DEFAULT = 20
+
+/** 帧率上限下限（fps）。30 档一帧 33.3ms，仍在物理累加器 0.05s 的余量内。 */
+export const DECO_FPS_CAP_MIN = 30
+
+/** 帧率上限上限（fps）。高于显示器刷新率时等价于每帧，所以不需要"0 = 不限"。 */
+export const DECO_FPS_CAP_MAX = 160
+
+/** 帧率上限默认值（fps）：与 60Hz 屏对齐（每帧一次）。 */
+export const DECO_FPS_CAP_DEFAULT = 60
+
+/** 指针端偏移水平分量下限（px）。**负数是合法值**：指针端挂到光标左侧。 */
+export const DECO_POINTER_OFFSET_X_MIN = -24
+
+/** 指针端偏移水平分量上限（px）：再大指针端与光标热点明显脱节。 */
+export const DECO_POINTER_OFFSET_X_MAX = 24
+
+/** 指针端偏移水平分量默认值（px）：指针端从光标右侧 3px 处悬挂。 */
+export const DECO_POINTER_OFFSET_X_DEFAULT = 3
+
+/** 指针端偏移垂直分量下限（px，向下为正）：负数表示往上偏。 */
+export const DECO_POINTER_OFFSET_Y_MIN = -24
+
+/** 指针端偏移垂直分量上限（px）。 */
+export const DECO_POINTER_OFFSET_Y_MAX = 24
+
+/** 指针端偏移垂直分量默认值（px）：指针端从光标下方 3px 处悬挂。 */
+export const DECO_POINTER_OFFSET_Y_DEFAULT = 3
 
 /** 一个数值参数的元数据；表单与测试都只认这个形状。 */
 export interface DecoNumberParamMeta {
@@ -98,6 +125,9 @@ export interface DecoNumberParamMeta {
     | 'damping'
     | 'idle_sway_hz'
     | 'idle_sway_amp'
+    | 'fps_cap'
+    | 'pointer_offset_x'
+    | 'pointer_offset_y'
   /** 表单项标签。 */
   label: string
   /** 单位后缀，直接显示在输入框右侧。 */
@@ -206,15 +236,62 @@ export const DECO_IDLE_SWAY_AMP_PARAM: DecoNumberParamMeta = {
   key: 'idle_sway_amp',
   label: '静止摆动幅度',
   unit: 'px/s²',
-  hint: '轻晃的加速度幅度：0 表示不轻晃（读者站回到静止即零帧的省电模式）；越大晃得越明显。',
+  hint: '轻晃的加速度幅度：0 表示不轻晃（读者站收敛后停帧，不再有持续重绘）；越大晃得越明显。',
   min: DECO_IDLE_SWAY_AMP_MIN,
   max: DECO_IDLE_SWAY_AMP_MAX,
   step: 1,
   defaultValue: DECO_IDLE_SWAY_AMP_DEFAULT,
 }
 
+/** 帧率上限（票 #74）。 */
+export const DECO_FPS_CAP_PARAM: DecoNumberParamMeta = {
+  key: 'fps_cap',
+  label: '帧率上限',
+  unit: 'fps',
+  hint: '挂件每秒最多画几次（整数）：越低越省电、越不干扰阅读；它只管画几次，不影响绳子手感。高于屏幕刷新率时等于不限。',
+  min: DECO_FPS_CAP_MIN,
+  max: DECO_FPS_CAP_MAX,
+  step: 1,
+  defaultValue: DECO_FPS_CAP_DEFAULT,
+  integer: true,
+  precision: 0,
+}
+
 /**
- * 装饰段的数值参数清单（表单按这个顺序渲染八行输入）。
+ * 指针端偏移 X（票 #75）。
+ *
+ * 它和其余参数不同：**下限是负数**，所以 `NInputNumber` 的 `min` 就是 -24。
+ * 语义是"指针端节点 = 指针热点 + 偏移"：默认的 3 让指针端从光标右下悬挂。
+ */
+export const DECO_POINTER_OFFSET_X_PARAM: DecoNumberParamMeta = {
+  key: 'pointer_offset_x',
+  label: '指针端偏移 X',
+  unit: 'px',
+  hint: '指针端相对光标热点的水平偏移（可填负数往左）：默认 3px，让指针端从右下悬挂而不是压在指尖正中。',
+  min: DECO_POINTER_OFFSET_X_MIN,
+  max: DECO_POINTER_OFFSET_X_MAX,
+  step: 1,
+  defaultValue: DECO_POINTER_OFFSET_X_DEFAULT,
+  integer: true,
+  precision: 0,
+}
+
+/** 指针端偏移 Y（票 #75）：负值往上偏；两轴到 ±24 时指针端与光标明显脱节。 */
+export const DECO_POINTER_OFFSET_Y_PARAM: DecoNumberParamMeta = {
+  key: 'pointer_offset_y',
+  label: '指针端偏移 Y',
+  unit: 'px',
+  hint: '指针端相对光标热点的垂直偏移（可填负数往上）：默认 3px；它同样只加在指针端节点上。',
+  min: DECO_POINTER_OFFSET_Y_MIN,
+  max: DECO_POINTER_OFFSET_Y_MAX,
+  step: 1,
+  defaultValue: DECO_POINTER_OFFSET_Y_DEFAULT,
+  integer: true,
+  precision: 0,
+}
+
+/**
+ * 装饰段的数值参数清单（表单按这个顺序渲染十一行输入）。
  *
  * 总开关不是数值参数，单独一行。
  */
@@ -227,6 +304,9 @@ export const DECO_NUMBER_PARAMS: readonly DecoNumberParamMeta[] = [
   DECO_DAMPING_PARAM,
   DECO_IDLE_SWAY_HZ_PARAM,
   DECO_IDLE_SWAY_AMP_PARAM,
+  DECO_FPS_CAP_PARAM,
+  DECO_POINTER_OFFSET_X_PARAM,
+  DECO_POINTER_OFFSET_Y_PARAM,
 ]
 
 /** 数值参数共用的钳位规则：越界钳到边界、非有限与零值回落默认。 */
@@ -298,13 +378,80 @@ export function clampDecoIdleSwayHz(value: number): number {
   )
 }
 
-/** 静止摆动幅度归一化：0 原样保留（= 零帧车道），越界钳到 40，负数/NaN 回落 20。 */
+/** 静止摆动幅度归一化：0 原样保留（= 停帧），越界钳到 40，负数/NaN 回落 20。 */
 export function clampDecoIdleSwayAmp(value: number): number {
   return clampDecoNonNegativeRange(
     value,
     DECO_IDLE_SWAY_AMP_MIN,
     DECO_IDLE_SWAY_AMP_MAX,
     DECO_IDLE_SWAY_AMP_DEFAULT,
+  )
+}
+
+/**
+ * 帧率上限归一化：越界钳到 30–160，零与非法值回落 60，最后取整成整数。
+ *
+ * 顺序不能反（先夹边界、再取整）：160.6 必须得到 160，而不是 161。
+ * 后端 `normalizeFpsCap` 与读者站 `clampCharmFpsCap` 是同一条规则，
+ * 跨端共享夹具抓着这个顺序。
+ */
+export function clampDecoFpsCap(value: number): number {
+  return Math.round(
+    clampDecoPositiveRange(value, DECO_FPS_CAP_MIN, DECO_FPS_CAP_MAX, DECO_FPS_CAP_DEFAULT),
+  )
+}
+
+/**
+ * 「0 与负数都是普通取值」的钳位规则 —— 第四条规则（票 #75）。
+ *
+ * 只夹到 [min, max]；NaN / ±Inf 回落默认。不能用另外两条顶替：
+ * `clampDecoPositiveRange` 会把 <= 0 回落默认（负偏移被吃掉），
+ * `clampDecoNonNegativeRange` 会把负值夹回 min（等于把"往左上偏 6px"改成
+ * "偏到最大"）。
+ */
+function clampDecoSignedRange(value: number, min: number, max: number, fallback: number): number {
+  if (!Number.isFinite(value)) return fallback
+  return Math.min(max, Math.max(min, value))
+}
+
+/**
+ * 取整成整数，半值远离 0（-2.5 → -3）。
+ *
+ * 与后端 Go 的 `math.Round` 同口径：直接用 `Math.round` 会把负半值往 +∞ 取整
+ * （-2.5 → -2），有符号参数上这就是跨端漂移。
+ */
+function roundHalfAwayFromZero(value: number): number {
+  return Math.sign(value) * Math.round(Math.abs(value))
+}
+
+/**
+ * 指针端偏移单轴的钳位：先夹到 `[min, max]`、再半值远离 0 取整，非有限值回落 `fallback`。
+ *
+ * 两轴只差常量，合用一个参数化函数（`(value, min, max, fallback)`），形状与后端
+ * `normalizePointerOffset` 对齐；对外导出的 `clampDecoPointerOffsetX / Y` 只绑常量，
+ * 签名不变。顺序不能反：24.6 要先夹到 24 再取整，反过来会得到 25。
+ */
+function clampPointerOffset(value: number, min: number, max: number, fallback: number): number {
+  return roundHalfAwayFromZero(clampDecoSignedRange(value, min, max, fallback))
+}
+
+/** 指针端水平偏移归一化：夹到 -24–24 后取整；0 与负值照常保留，非法值回落 3。 */
+export function clampDecoPointerOffsetX(value: number): number {
+  return clampPointerOffset(
+    value,
+    DECO_POINTER_OFFSET_X_MIN,
+    DECO_POINTER_OFFSET_X_MAX,
+    DECO_POINTER_OFFSET_X_DEFAULT,
+  )
+}
+
+/** 指针端垂直偏移归一化：与水平分量完全对称（夹到 -24–24、取整、非法值回落 3）。 */
+export function clampDecoPointerOffsetY(value: number): number {
+  return clampPointerOffset(
+    value,
+    DECO_POINTER_OFFSET_Y_MIN,
+    DECO_POINTER_OFFSET_Y_MAX,
+    DECO_POINTER_OFFSET_Y_DEFAULT,
   )
 }
 
@@ -329,6 +476,9 @@ export interface DecoCharmConfig {
   damping: number
   idle_sway_hz: number
   idle_sway_amp: number
+  fps_cap: number
+  pointer_offset_x: number
+  pointer_offset_y: number
 }
 
 /** 装饰段（只含挂件子块）。 */
@@ -337,10 +487,10 @@ export interface DecoRuntimeConfigShape {
 }
 
 /**
- * 后台表单的"恢复默认"目标值：总开关 + 八个数值参数，全部来自上面那组常量。
+ * 后台表单的"恢复默认"目标值：总开关 + 十一个数值参数，全部来自上面那组常量。
  *
- * 为什么单独成一个函数而不是在组件里写九个字面量：恢复默认必须与后端
- * `site_default_settings.yaml` 的九项逐项一致；把默认值只留在这里，后台
+ * 为什么单独成一个函数而不是在组件里写十二个字面量：恢复默认必须与后端
+ * `site_default_settings.yaml` 的十二项逐项一致；把默认值只留在这里，后台
  * 加参数时漏改"恢复默认"会立刻被工具层测试抓到。
  *
  * 注意它只构造表单值，**不写服务器** —— 恢复默认之后仍要管理员按保存。
@@ -357,8 +507,23 @@ export function defaultDecoConfig(): DecoRuntimeConfigShape {
       damping: DECO_DAMPING_DEFAULT,
       idle_sway_hz: DECO_IDLE_SWAY_HZ_DEFAULT,
       idle_sway_amp: DECO_IDLE_SWAY_AMP_DEFAULT,
+      fps_cap: DECO_FPS_CAP_DEFAULT,
+      pointer_offset_x: DECO_POINTER_OFFSET_X_DEFAULT,
+      pointer_offset_y: DECO_POINTER_OFFSET_Y_DEFAULT,
     },
   }
+}
+
+/**
+ * 读回来的装饰配置的**输入**形状（票 #75 顺手校正）。
+ *
+ * `charm` 内部也按"每个键都可能缺"处理，而不是要求整块 `DecoCharmConfig`：
+ * 旧库、旧后台版本、手改的 JSON 都会只带一部分键，而 `normalizeDecoConfig`
+ * 本来就是逐字段兜底的。原来的 `Partial<DecoRuntimeConfigShape>` 只允许顶层缺
+ * `charm`，把"子块缺键"这件已经支持的事写成了类型错误。
+ */
+export interface DecoRuntimeConfigInput {
+  charm?: Partial<DecoCharmConfig> | null
 }
 
 /**
@@ -368,7 +533,7 @@ export function defaultDecoConfig(): DecoRuntimeConfigShape {
  * 数值逐项走钳位、丢掉未知字段（提交体里不该夹带读者站不认识的键）。
  */
 export function normalizeDecoConfig(
-  config: Partial<DecoRuntimeConfigShape> | null | undefined,
+  config: DecoRuntimeConfigInput | null | undefined,
 ): DecoRuntimeConfigShape {
   return {
     charm: {
@@ -381,6 +546,9 @@ export function normalizeDecoConfig(
       damping: clampDecoDamping(Number(config?.charm?.damping)),
       idle_sway_hz: clampDecoIdleSwayHz(Number(config?.charm?.idle_sway_hz)),
       idle_sway_amp: clampDecoIdleSwayAmp(Number(config?.charm?.idle_sway_amp)),
+      fps_cap: clampDecoFpsCap(Number(config?.charm?.fps_cap)),
+      pointer_offset_x: clampDecoPointerOffsetX(Number(config?.charm?.pointer_offset_x)),
+      pointer_offset_y: clampDecoPointerOffsetY(Number(config?.charm?.pointer_offset_y)),
     },
   }
 }

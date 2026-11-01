@@ -96,4 +96,44 @@ describe("MarkdownRenderSurface", () => {
     expect(viewModel.getHeadingElement("section-a")?.id).toBe("section-a");
     expect(viewModel.getHeadingElement("missing")).toBeNull();
   });
+
+  // 读者站文章页与后台编辑器预览都经这个组件，所以这里的断言同时代表两端（#137）。
+  it("passes inline SVG through as real markup, not escaped text", () => {
+    const figure = [
+      '<div class="svg-block">',
+      '<svg viewBox="0 0 10 10"><rect width="10" height="10" fill="red"/></svg>',
+      "<center>图 1 说明</center>",
+      "</div>",
+    ].join("\n");
+
+    const wrapper = mount(MarkdownRenderSurface, {
+      props: { source: figure },
+    });
+
+    const html = wrapper.get('[data-test="shadow-preview-stub"]').attributes("data-html");
+
+    expect(html).toContain("<svg");
+    expect(html).not.toContain("&lt;svg");
+    expect(html).toContain("<rect");
+    expect(html).toContain("<center>");
+    expect(html).toContain('class="svg-block"');
+  });
+
+  it("keeps width-relative sizing so figures shrink on narrow screens", () => {
+    // 窄屏自适应依赖两项：viewBox（保持纵横比）+ 相对宽度。
+    // 两者都在放行清单里，不能被消毒顺手清掉。
+    const figure =
+      '<svg viewBox="0 0 820 502" style="width:100%;max-width:760px;height:auto;display:block;margin:18px auto">' +
+      '<rect width="820" height="502" fill="#fbfcfd"/></svg>';
+
+    const wrapper = mount(MarkdownRenderSurface, {
+      props: { source: figure },
+    });
+
+    const html = wrapper.get('[data-test="shadow-preview-stub"]').attributes("data-html");
+
+    // DOMPurify 会把 SVG 属性名规范化回 camelCase，所以这里看到的是 viewBox。
+    expect(html).toContain("viewBox");
+    expect(html).toContain("width");
+  });
 });

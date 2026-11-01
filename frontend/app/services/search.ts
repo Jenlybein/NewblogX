@@ -67,3 +67,18 @@ export function getCategoryOptions(userId: string | number) {
       ),
     );
 }
+
+/**
+ * createCategory 复用既有的分类创建接口（POST /api/articles/category）。
+ *
+ * 不新增端点：后端本来就有显式查重并返回可读业务错误，这里只负责把
+ * 用户输入的标题送过去。标题是否为空、是否重名都由调用方与后端判定。
+ */
+export function createCategory(title: string) {
+  return useNuxtApp().$api.request<unknown>("/api/articles/category", {
+    method: "POST",
+    body: {
+      title,
+    },
+  });
+}

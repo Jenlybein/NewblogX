@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { searchArticlesWithAi } from "~/services/search";
+import { createCategory, searchArticlesWithAi } from "~/services/search";
 
 const requestMock = vi.fn();
 
@@ -30,6 +30,20 @@ describe("search service", () => {
       method: "POST",
       body: {
         content: "找一些关于 Nuxt SSR 落地的文章",
+      },
+    });
+  });
+
+  it("creates a category through the existing article-category endpoint", async () => {
+    requestMock.mockResolvedValue({});
+
+    await createCategory("  前端  ");
+
+    // 复用既有创建接口（不新增端点）；标题原样交给服务端，由后端去空白/查重。
+    expect(requestMock).toHaveBeenCalledWith("/api/articles/category", {
+      method: "POST",
+      body: {
+        title: "  前端  ",
       },
     });
   });

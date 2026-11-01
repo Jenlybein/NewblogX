@@ -217,6 +217,29 @@
   width: 100%;
 }
 
+/* 分类下拉 + 内联新建入口。新建入口与下拉同列，展开时不推挤其它行。 */
+.publish-category {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+}
+
+.publish-category__create {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.publish-category__input {
+  flex: 1;
+  min-width: 0;
+}
+
+.publish-category__add {
+  align-self: flex-start;
+}
+
 .publish-cover {
   display: flex;
   flex-direction: column;

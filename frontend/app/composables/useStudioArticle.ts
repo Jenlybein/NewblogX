@@ -5,8 +5,13 @@ import type { ArticleHeadingAnchor } from "~/composables/useArticleMarkdown";
 import { getArticleDetail } from "~/services/article";
 import { buildStudioArticlePayload } from "~/utils/studioArticlePayload";
 import { uploadImageByTask } from "~/services/image";
-import { getCategoryOptions, getTagOptions } from "~/services/search";
+import { getCategoryOptions, getTagOptions, createCategory } from "~/services/search";
 import { useAuthStore } from "~/stores/auth";
+import {
+  categoryTitleError,
+  findCategoryOptionByTitle,
+  normalizeCategoryTitle,
+} from "~/utils/studioCategory";
 
 // 写作页的"文章数据域"：表单内容、数据加载、编辑态回填、封面上传、提交载荷。
 //
@@ -61,6 +66,7 @@ export async function useStudioArticle(deps: StudioArticleDeps) {
   const authStore = useAuthStore();
 
   const currentUserId = computed(() => authStore.profileId || "");
+  const isLoggedIn = computed(() => Boolean(currentUserId.value));
 
   const form = reactive({
     title: "",
@@ -97,6 +103,62 @@ export async function useStudioArticle(deps: StudioArticleDeps) {
       watch: [currentUserId],
     },
   );
+
+  // 内联新建分类的进行中标记。放在本模块而不是 pendingState：
+  // 后者是"发布/草稿/AI/封面"四条提交路径的锁，和分类下拉不是同一类状态。
+  const categoryCreating = ref(false);
+
+  /**
+   * createCategoryInline 在写作页就地新建一个分类，成功后并入下拉并选中。
+   *
+   * 流程刻意拆成两段：
+   *   1. 先调既有创建接口，让后端做归属、去空白与重名判定；
+   *   2. 成功后再拉一次下拉（既有列表接口），按标题找到新分类并写回表单。
+   * 不把步骤 2 的失败说成"创建失败"——分类其实已经建好了，只是列表没刷出来，
+   * 两种失败的提示必须分开，否则用户会以为白建了一次。
+   *
+   * 返回值只表示"是否完成创建并选中"，失败原因已通过 message 播报。
+   */
+  async function createCategoryInline(rawTitle: string): Promise<boolean> {
+    if (!isLoggedIn.value) {
+      message.warning("请先登录后再新建分类");
+      return false;
+    }
+    const titleError = categoryTitleError(rawTitle);
+    if (titleError) {
+      message.warning(titleError);
+      return false;
+    }
+
+    const title = normalizeCategoryTitle(rawTitle);
+    categoryCreating.value = true;
+    let created = false;
+    try {
+      await createCategory(title);
+      created = true;
+
+      const options = await getCategoryOptions(currentUserId.value);
+      categoryOptions.value = options;
+      const createdOption = findCategoryOptionByTitle(options, title);
+      if (!createdOption) {
+        message.warning("分类已创建，但未能载入新分类，请稍后重试。");
+        return false;
+      }
+
+      form.category_id = createdOption.value;
+      message.success(`已新建分类「${title}」`);
+      return true;
+    } catch (error) {
+      message.error(
+        created
+          ? "分类已创建，但分类列表加载失败，请手动刷新后选择。"
+          : `创建分类失败：${error instanceof Error ? error.message : "请稍后重试"}`,
+      );
+      return false;
+    } finally {
+      categoryCreating.value = false;
+    }
+  }
 
   const { data: editingArticle, error: editingArticleError } = await useAsyncData(
     () => `studio-write-article-detail:${editArticleId.value || "new"}`,
@@ -260,6 +322,9 @@ export async function useStudioArticle(deps: StudioArticleDeps) {
     // 数据
     tagOptions,
     categoryOptions,
+    categoryCreating,
+    createCategoryInline,
+    isLoggedIn,
     editingArticle,
     editingArticleError,
     // 封面

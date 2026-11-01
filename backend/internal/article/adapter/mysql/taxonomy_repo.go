@@ -99,16 +99,33 @@ func (r *CategoryRepo) Save(ctx context.Context, c *taxonomy.Category) error {
 		Where("id = ?", id).
 		Updates(map[string]any{"title": c.Title(), "user_id": fromUserID(c.UserID())})
 	if updates.Error != nil {
-		return updates.Error
+		return categorySaveError(updates.Error)
 	}
 	if updates.RowsAffected > 0 {
 		return nil
 	}
-	return r.db.WithContext(ctx).Create(&categoryRow{
+	return categorySaveError(r.db.WithContext(ctx).Create(&categoryRow{
 		BaseRow: BaseRow{ID: id},
 		Title:   c.Title(),
 		UserID:  fromUserID(c.UserID()),
-	}).Error
+	}).Error)
+}
+
+// categorySaveError 把底层唯一键冲突翻译成领域错误。
+//
+// 应用层虽然先做了 ExistsTitle 查重，但两个并发请求仍可能同时通过查重，
+// 最后由 (user_id, title) 上的 uk_category_user_title 拒绝后一次写入。
+// 如果不在这里翻译，handler 会把 gorm.ErrDuplicatedKey 原样透传，
+// 用户看到的会是 "duplicated key not allowed" / MySQL 1062，
+// 而不是 apperr 消息表里的 "名称重复"。
+func categorySaveError(err error) error {
+	if err == nil {
+		return nil
+	}
+	if errors.Is(err, gorm.ErrDuplicatedKey) {
+		return taxonomy.ErrTitleDuplicated
+	}
+	return err
 }
 
 // Delete 删除分类。

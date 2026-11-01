@@ -21,7 +21,8 @@
 export interface ServerRedirectRoute {
   route: string;
   to: string;
-  statusCode: number;
+  /** 永久重定向：目前只有 301 一种用途（`routeRules` 要求状态码是字面量，不能是宽泛 number）。 */
+  statusCode: 301;
 }
 
 /** 允许服务端渲染的读者站路由（ADR-0019 决策 1 / 约束 1）。 */
@@ -31,9 +32,9 @@ export const SSR_WHITELIST_PATTERNS = ["/", "/article/**"] as const;
 export const CLIENT_ONLY_PATTERNS = ["/users/**", "/search", "/studio/**"] as const;
 
 /** 必须由服务端 301 承担的历史入口（`/articles` 是并入 `/search` 的旧列表入口）。 */
-export const SERVER_REDIRECT_ROUTES: readonly ServerRedirectRoute[] = [
+export const SERVER_REDIRECT_ROUTES = [
   { route: "/articles", to: "/search", statusCode: 301 },
-];
+] as const satisfies readonly ServerRedirectRoute[];
 
 /** 切分路由（丢掉空段）。 */
 function splitRoute(value: string): string[] {

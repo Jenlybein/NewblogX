@@ -148,7 +148,7 @@ export async function useArticlePageSources(options: ArticlePageSourcesOptions) 
   // 评论分页首屏：客户端跳转时后台取（先出骨架），服务端与首屏 hydration 等它（SSR 内容 / 不闪）。
   // 服务端渲染的评论条目要匿名化：评论的"我点过赞""和作者的关系"都是登录用户私有状态；
   // 客户端侧 30 秒内重进同一篇文章直接命中缓存（缓存里同样不含私有态）。
-  const commentsPager = await usePagedResourceCache({
+  const commentsPager = await usePagedResourceCache<CommentRootItem>({
     cacheKey: () => readerArticleCommentsCacheKey(articleId.value),
     pageSize: () => ROOT_COMMENT_PAGE_SIZE,
     initialLoad: mode === "navigation" ? "background" : "block",

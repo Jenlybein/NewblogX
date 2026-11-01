@@ -115,11 +115,12 @@
    - 过渡 200 ms：点击→URL 24–32 ms，点击→正文可见 **291–318 ms**；
    - 过渡关闭：点击→正文可见 **120–171 ms**；
    - 差值 ≈ 170–180 ms ≈ 离场时长。取数不是这段的主要成本（骨架/正文都在 120–170 ms 内到达）。
-   因此按 ADR-0012 允许的三档把路由过渡下调到 **fast 档 120 ms**（[tailwind.css](../../frontend/app/assets/css/tailwind.css) 的 `.page-enter-active, .page-leave-active` 由 `var(--motion-base)` 改为 `var(--motion-fast)`）；档位仍在 120 / 200 / 320 内，`mode: 'out-in'`、只动 `opacity`/`transform`、`prefers-reduced-motion` 直接关掉的立场都不变。设计门禁 [motion-foundation.test.ts](../../frontend/test/design/motion-foundation.test.ts) 同步改判为断言 `var(--motion-fast)` 且不再出现 `var(--motion-base)`（**改写，不是删除**）。实测切页内容可见从 302 / 305（冷）、299 / 308（热）（改后第一版存档 [`2026-11-01-post-local-200ms`](../../scripts/perf/baselines/2026-11-01-post-local-200ms/report.md)）降到 226 / 230、232 / 233 ms，达标。
+   因此按 ADR-0012 允许的三档把路由过渡下调到 **fast 档 120 ms**（[tailwind.css](../../frontend/app/assets/css/tailwind.css) 的 `.page-enter-active, .page-leave-active` 由 `var(--motion-base)` 改为 `var(--motion-fast)`）；档位仍在 120 / 200 / 320 内，`mode: 'out-in'`、只动 `opacity`/`transform`、`prefers-reduced-motion` 直接关掉的立场都不变。设计门禁 [motion-foundation.test.ts](../../frontend/test/design/motion-foundation.test.ts) 同步改判为断言 `var(--motion-fast)` 且不再出现 `var(--motion-base)`（**改写，不是删除**）。实测切页内容可见从 302 / 305（冷）、299 / 308（热）（改后第一版存档 [`2026-11-01-post-local-200ms`](../../scripts/perf/baselines/2026-11-01-post-local-200ms/report.md)）降到 226 / 230、232 / 233 ms，达标。**切页 P95 < 300 ms 这一项的达标依赖本调档**：不调时最差 305 ms、已经压线超标（复审补记，口径与回退方式不变）。
    **回退方式**：把该规则的 `var(--motion-fast)` 改回 `var(--motion-base)`，并把 `motion-foundation.test.ts` 的断言改回 base（或另开 ADR 记录新的档位）；不涉及缓存/取数代码。
 3. **SSR 匿名取数**：文章详情的 SSR 只走匿名接口（不传 token），`is_digg` / `is_favor` / `relation` 由客户端在 hydration 后补齐；登录用户与匿名用户共享同一份缓存，不做按 cookie 分流。
 4. **首屏字体预加载**：只保留 Sora ×3 + Inter ×1（合计 93,108 B）；中文不再产生任何 webfont 下载。
 5. **首屏 hydration 预热客户端缓存**：hydration 时把 SSR payload（剔除私有字段后）预热进 30 s SWR，这样"首页→文章→返回首页"第一次返回就能命中（#85 在票面之外的实现补充，目的是让决策 4 的第一天就生效）。
+6. **后台字体一并删除 Noto（复审补记）**：`frontend_admin` 的 `fonts.css` 与 `readerTheme` 里的字体栈也一并删掉 Noto Sans SC 的自托管声明。理由：两端 `tokens.css` 必须**逐字节同源**（`scripts/check-token-parity.mjs`），而 `--font-cjk` 已改成系统字体栈；后台若还保留 2.3 MB 的自托管 Noto，它既没有任何消费点，又会让两端字体口径漂移。后台没有自己的字体预算，故本项不改变任何验收指标；回退方式与读者站同一条（恢复 `@font-face` 与系统栈定义），但必须两端同步、走同源门禁。
 
 ### 四、门禁与回归（#87 收口）
 

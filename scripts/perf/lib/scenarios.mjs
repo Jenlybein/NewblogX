@@ -1,13 +1,18 @@
-// 四个测量场景（每次运行返回原始记录，聚合与判定在 report.mjs）：
-//   firstScreen.*  文档级直达的首屏内容可见 + 字体字节（① ③）
+// 测量场景（每次运行返回原始记录，聚合与判定在 report.mjs）：
+//   firstScreen.*  文档级直达的首屏内容可见 + 字体字节（① ③；含 SPA 个人主页、补充参考）
 //   transition.*   点击站内链接后的切页内容可见（②）
 //   backCache.*    浏览器返回上一页是否命中缓存（④）
+//   redirect.*     历史入口 /articles 是否由服务端 301 到 /search（渲染边界，ADR-0019 决策 1）
 import { DEFAULT_OPTIONS, openContext, settle, collectResources, fontFilesOf, apiResourcesOf, sumBytes, apiWallMs, sleep } from "./browser.mjs";
 
 /** ① ③：文档级直达（冷 = 全新上下文；热 = 同上下文先访问一次再测）。 */
-export async function runFirstScreen({ browser, base, mode, target, articleUrl, options }) {
+export async function runFirstScreen({ browser, base, mode, target, articleUrl, userUrl, options }) {
   const opts = { ...DEFAULT_OPTIONS, ...options };
-  const url = target === "home" ? new URL("/", base).href : articleUrl;
+  const url =
+    target === "home" ? new URL("/", base).href : target === "article" ? articleUrl : userUrl;
+  if (!url) {
+    throw new Error(`firstScreen.${target} 的目标 URL 未发现`);
+  }
   const cold = mode === "cold";
   const startedAt = Date.now();
   const { ctx, page, pageErrors } = await openContext(browser, {
@@ -231,6 +236,65 @@ export async function runBackCache({ browser, base, mode, articleUrl, options })
         allRequestCount: relevant.length,
         pageErrors: pageErrors.length,
         clickToArticleMs: entry.clickToArticleMs,
+      },
+    };
+  } finally {
+    await ctx.close().catch(() => {});
+  }
+}
+
+/**
+ * redirect.*：历史入口是否由**服务端 301**承担（ADR-0019 决策 1 / #83 口径）。
+ *
+ * `/articles` 是并入 `/search` 的旧列表入口：必须在渲染前 301（把权重合并过去），
+ * 不能写成普通 `ssr: false`（那会给爬虫/无 JS 客户端一个 200 空壳，属 SEO 退化）。
+ * 判据看两件事：**首个响应状态码是 301**、最终落点是 `/search`。
+ * 顺带把重定向链长度与墙钟记下来（重定向本身要尽可能便宜）。
+ */
+export async function runRedirect({ browser, base, mode, options }) {
+  const opts = { ...DEFAULT_OPTIONS, ...options };
+  const cold = mode === "cold";
+  const startedAt = Date.now();
+  const { ctx, page, pageErrors } = await openContext(browser, {
+    cold,
+    options: opts,
+  });
+  try {
+    if (!cold) {
+      await page.goto(new URL("/", base).href, { waitUntil: "load", timeout: opts.navigationTimeoutMs });
+      await settle(page, opts);
+    }
+
+    // 只量"访问 /articles 到落在 /search"这段：预热（热模式的首页访问）不计入墙钟，
+    // 否则同一场景冷/热两行的数字没有可比性（热模式会把预热整段算进去）。
+    const redirectStartedAt = Date.now();
+    const finalResponse = await page.goto(new URL(opts.redirectPath, base).href, {
+      waitUntil: "load",
+      timeout: opts.navigationTimeoutMs,
+    });
+    const redirectWallMs = Date.now() - redirectStartedAt;
+    // Playwright 会跟随重定向：从最终请求倒着找回整条链，链头就是原始 /articles 请求。
+    const chain = [];
+    let request = finalResponse?.request() ?? null;
+    while (request) {
+      chain.unshift(request);
+      request = request.redirectedFrom();
+    }
+    // 第一个请求对应的响应就是 301（finalResponse 是最终那次 200）。
+    const firstResponse = chain.length > 0 ? await chain[0].response().catch(() => null) : null;
+
+    return {
+      scenario: "redirect.articles",
+      mode,
+      ok: true,
+      elapsedMs: Date.now() - startedAt,
+      metrics: {
+        firstStatusCode: firstResponse?.status() ?? null,
+        finalStatusCode: finalResponse?.status() ?? null,
+        redirectCount: Math.max(0, chain.length - 1),
+        finalPath: new URL(page.url()).pathname,
+        wallMs: redirectWallMs,
+        pageErrors: pageErrors.length,
       },
     };
   } finally {

@@ -6,6 +6,7 @@ import { searchArticles } from "~/services/search";
 import { getBannerList } from "~/services/site";
 import type { ArticleHotTopListData, BannerListData, SearchArticleItem } from "~/types/api";
 import { detectReaderRenderMode, type ReaderRenderMode } from "~/utils/readerRenderMode";
+import { READER_HOME_CACHE_KEYS } from "~/utils/readerCacheKeys";
 import type { ReaderSwrCache } from "~/utils/readerSwrCache";
 
 export interface HomeLatestPage {
@@ -30,6 +31,25 @@ function formatRequestError(error: unknown) {
   }
 
   return String(error);
+}
+
+/**
+ * 三路数据的失败语义收敛在一处（ADR-0017 决策 5：某个接口挂了只影响它自己那块）。
+ * 成功返回原值；失败打一条带资源名的 warning、返回稳定的降级值，绝不把整页带崩。
+ */
+async function withFallback<TValue>(
+  label: string,
+  fallback: TValue,
+  run: () => Promise<TValue>,
+  onError?: (error: unknown) => void,
+): Promise<TValue> {
+  try {
+    return await run();
+  } catch (error) {
+    onError?.(error);
+    console.warn(`[${label}] request failed, using fallback: ${formatRequestError(error)}`);
+    return fallback;
+  }
 }
 
 /**
@@ -71,42 +91,39 @@ export async function useHomePageSources(options: HomePageSourcesOptions = {}) {
   // 轮播 / 置顶走 30s SWR：返回首页 30 秒内直接命中缓存、不发请求；过期则旧值先上屏、
   // 后台静默刷新（ADR-0019 决策 4）。
   const bannerSource = useReaderSwrAsyncData({
-    key: "home-banners",
-    handler: () => fetchBanners().catch(() => ({ list: [], has_more: false } satisfies BannerListData)),
+    key: READER_HOME_CACHE_KEYS.banners,
+    handler: () =>
+      withFallback("home-banners", { list: [], has_more: false } satisfies BannerListData, () => fetchBanners()),
     mode,
     cache: options.swrCache,
   });
   const hotTopSource = useReaderSwrAsyncData({
-    key: "home-hot-top",
-    handler: async () => {
-      try {
-        return await fetchHotTop();
-      } catch (error) {
-        console.warn(`[home-hot-top] request failed, using fallback: ${formatRequestError(error)}`);
-        return { list: [], count: 0 } satisfies ArticleHotTopListData;
-      }
-    },
+    key: READER_HOME_CACHE_KEYS.hotTop,
+    handler: () =>
+      withFallback("home-hot-top", { list: [], count: 0 } satisfies ArticleHotTopListData, () => fetchHotTop()),
     mode,
     cache: options.swrCache,
   });
 
   const latestPager = await usePagedResourceCache({
-    cacheKey: () => "home-latest-articles",
+    cacheKey: () => READER_HOME_CACHE_KEYS.latestArticles,
     pageSize: () => 9,
     // 客户端路由跳转时首屏交给后台跑（先出骨架）；服务端与首屏 hydration 等它（SSR 内容 / 不闪）。
     initialLoad: mode === "navigation" ? "background" : "block",
     // 分页缓存：30 秒内返回首页直接命中（含翻过的页）；服务端渲染禁用。
     swrCache: mode === "server" ? null : options.swrCache,
-    fetchPage: async (page, limit) => {
-      try {
-        latestRequestError.value = null;
-        return await fetchLatest(page, limit);
-      } catch (error) {
-        latestRequestError.value = error;
-        console.warn(`[home-latest-articles] request failed, using fallback: ${formatRequestError(error)}`);
-        return { items: [], hasMore: false };
-      }
-    },
+    fetchPage: (page, limit) =>
+      withFallback(
+        "home-latest-articles",
+        { items: [], hasMore: false },
+        async () => {
+          latestRequestError.value = null;
+          return await fetchLatest(page, limit);
+        },
+        (error) => {
+          latestRequestError.value = error;
+        },
+      ),
   });
 
   if (mode === "server") {

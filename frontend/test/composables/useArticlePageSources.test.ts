@@ -275,8 +275,56 @@ describe("useArticlePageSources：正文优先 + 第一波并行 + 作者第二�
     expect(second.commentsPager.pending.value).toBe(false);
   });
 
-  it("超过 30 秒重进：旧值先渲染，正文与评论在后台静默刷新（不闪）", async () => {
+  it("30 秒内重进同一篇：作者统计与评分也命中缓存，请求数为 0（#85 验收补口）", async () => {
     installAwaitableAsyncData();
+    installFakeNuxtApp();
+    const cache = createReaderSwrCache({ now: () => 1_000 });
+    const sharedFetches = {
+      fetchArticle: async () => makeArticle(),
+      fetchComments: async () => ({ items: [] as CommentRootItem[], hasMore: false }),
+      fetchAuthorProfile: async () => null,
+    };
+
+    // 第一次进文章：正文 / 评论 / 评分 / 作者统计各取一次，并写进 30s 缓存。
+    const firstAuthorInfo = vi.fn(async () => ({ article_count: 3 } as ArticleAuthorInfo));
+    const firstScore = vi.fn(async () => ({ score: 88 } as unknown as AiArticleScoringResponseData));
+    await runInScope(() =>
+      useArticlePageSources({
+        ...sharedFetches,
+        mode: "navigation",
+        articleId: ARTICLE_ID,
+        swrCache: cache,
+        fetchScore: firstScore,
+        fetchAuthorInfo: firstAuthorInfo,
+      }),
+    );
+    await flushPromises();
+    await flushPromises();
+    expect(firstAuthorInfo).toHaveBeenCalledTimes(1);
+    expect(firstScore).toHaveBeenCalledTimes(1);
+
+    // 30 秒内重进：作者统计（第二波）与评分（lazy + watch）都直接命中缓存，不再请求。
+    const fetchAuthorInfo = vi.fn(async () => ({ article_count: 3 } as ArticleAuthorInfo));
+    const fetchScore = vi.fn(async () => ({ score: 88 } as unknown as AiArticleScoringResponseData));
+    const second = await runInScope(() =>
+      useArticlePageSources({
+        ...sharedFetches,
+        mode: "navigation",
+        articleId: ARTICLE_ID,
+        swrCache: cache,
+        fetchScore,
+        fetchAuthorInfo,
+      }),
+    );
+    await flushPromises();
+    await flushPromises();
+
+    expect(fetchAuthorInfo).not.toHaveBeenCalled();
+    expect(fetchScore).not.toHaveBeenCalled();
+    expect(second.authorInfo.value).toEqual({ article_count: 3 });
+  });
+
+  it("超过 30 秒重进：旧值先渲染，正文与评论在后台静默刷新（不闪）", async () => {    installAwaitableAsyncData();
     installFakeNuxtApp();
     let clock = 1_000;
     const cache = createReaderSwrCache({ now: () => clock });

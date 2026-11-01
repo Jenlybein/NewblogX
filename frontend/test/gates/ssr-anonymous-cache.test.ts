@@ -5,16 +5,18 @@ import { describe, expect, it } from "vitest";
 
 import nuxtConfig from "../../nuxt.config";
 import {
-  NON_SSR_SAMPLE_PATHS,
+  CLIENT_ONLY_PATTERNS,
+  SERVER_REDIRECT_ROUTES,
+  SSR_WHITELIST_PATTERNS,
+} from "../../shared/readerRenderingBoundary";
+import {
   SSR_ANONYMOUS_CACHE_TTL_MS,
-  SSR_SAMPLE_PATHS,
   anonymousCacheKey,
   createSsrAnonymousCacheStore,
   isCacheableSsrPath,
   isCacheableSsrRequest,
   isStorableAnonymousSsrResponse,
-  ssrAnonymousCachePolicyViolations,
-  type SsrAnonymousCachePolicy,
+  type AnonymousCacheUrl,
 } from "../../server/utils/ssrAnonymousCache";
 
 /**
@@ -29,11 +31,79 @@ import {
  *
  * 判据写成纯函数 + 人造违规用例（canary），而不是只断言当前实现：只断言现状的
  * 门禁是恒绿的，判据被改坏时没人会发现。风格参照 test/gates/rendering-boundary.test.ts。
+ *
+ * 样例路由与策略判据是**门禁夹具**（只在本文件用），刻意不放进生产模块
+ * `server/utils/ssrAnonymousCache.ts`：那边只留运行时纯函数（键 / 可存性 / TTL / 上限）。
  */
 const projectDir = process.cwd();
 
-/** 允许进缓存的读者站路由（与 rendering-boundary 的 SSR 白名单同一张表）。 */
-const SSR_WHITELIST = ["/", "/article/**"];
+/** 可缓存的样例路由：从渲染边界的 SSR 白名单派生（`/**` → 一个具体 id）。 */
+const SSR_SAMPLE_PATHS = SSR_WHITELIST_PATTERNS.map(pattern => pattern.replace("/**", "/a1"));
+
+/** 绝不能进缓存的样例路由：SPA/301 路由从渲染边界派生，再补上数据端点与错误兜底。 */
+const NON_SSR_SAMPLE_PATHS = [
+  ...CLIENT_ONLY_PATTERNS.map(pattern => pattern.replace("/**", "/u1")),
+  ...SERVER_REDIRECT_ROUTES.map(route => route.route),
+  "/api/articles/a1",
+  "/article/a1/_payload.json",
+  "/__nuxt_error",
+];
+
+/** 缓存策略的判据入参：真实实现与"人造违规"都塞进来跑同一个判据。 */
+interface SsrAnonymousCachePolicy {
+  ttlMs: number;
+  pathPredicate: (pathname: string) => boolean;
+  key: (request: AnonymousCacheUrl) => string;
+}
+
+type SsrAnonymousCachePolicyViolation =
+  | { kind: "ttl-not-30s"; actual: number }
+  | { kind: "caches-non-ssr-path"; pathname: string }
+  | { kind: "ssr-path-not-cached"; pathname: string }
+  | { kind: "key-varies-by-request-identity"; pathname: string };
+
+/**
+ * 缓存策略判据：返回全部违规（空数组 = 策略符合 ADR-0019 决策 5 / 约束 3）。
+ * 判据里包含两条"人造"检查：不同请求身份必须拿到同一个键、非白名单路由必须被拒绝。
+ * 只断言当前实现的门禁是恒绿的，判据被改坏时没人会发现。
+ */
+function ssrAnonymousCachePolicyViolations(
+  policy: SsrAnonymousCachePolicy,
+): SsrAnonymousCachePolicyViolation[] {
+  const violations: SsrAnonymousCachePolicyViolation[] = [];
+
+  if (policy.ttlMs !== SSR_ANONYMOUS_CACHE_TTL_MS) {
+    violations.push({ kind: "ttl-not-30s", actual: policy.ttlMs });
+  }
+
+  for (const pathname of SSR_SAMPLE_PATHS) {
+    if (!policy.pathPredicate(pathname)) {
+      violations.push({ kind: "ssr-path-not-cached", pathname });
+    }
+  }
+
+  for (const pathname of NON_SSR_SAMPLE_PATHS) {
+    if (policy.pathPredicate(pathname)) {
+      violations.push({ kind: "caches-non-ssr-path", pathname });
+    }
+  }
+
+  // 请求身份只差这几样（cookie / Authorization / UA）；键必须一样，否则就是 per-user 缓存。
+  const anonymousRequest: AnonymousCacheUrl = { pathname: "/article/a1", search: "" };
+  const loggedInRequest = {
+    pathname: "/article/a1",
+    search: "",
+    cookie: "refresh=token",
+    authorization: "Bearer token",
+    "user-agent": "facebookexternalhit/1.1",
+  } as AnonymousCacheUrl;
+
+  if (policy.key(anonymousRequest) !== policy.key(loggedInRequest)) {
+    violations.push({ kind: "key-varies-by-request-identity", pathname: anonymousRequest.pathname });
+  }
+
+  return violations;
+}
 
 const LOCAL_POLICY: SsrAnonymousCachePolicy = {
   ttlMs: SSR_ANONYMOUS_CACHE_TTL_MS,
@@ -76,13 +146,18 @@ describe("匿名 SSR 缓存：TTL 与路由边界（ADR-0019 决策 5）", () =>
     expect(isCacheableSsrRequest({ pathname: "/search", method: "GET" })).toBe(false);
   });
 
-  it("缓存策略与 nuxt.config 的渲染边界一致（/articles 是 301，不进缓存；ssr:false 的页面不进缓存）", () => {
+  it("缓存策略与 nuxt.config 的渲染边界一致（同一条共享表：SPA 与 301 路由都不进缓存）", () => {
     const rules = routeRulesOf(nuxtConfig);
 
     expect(rules["/"]?.ssr).not.toBe(false);
-    expect(SSR_WHITELIST).toEqual(["/", "/article/**"]);
-    for (const pattern of ["/articles", "/search", "/users/**", "/studio/**"]) {
+    // 渲染边界的唯一来源就是 shared/readerRenderingBoundary.ts；这里删掉任何一个
+    // 白名单项都会让断言（以及 rendering-boundary 门禁）变红，不是恒绿。
+    expect([...SSR_WHITELIST_PATTERNS]).toEqual(["/", "/article/**"]);
+    for (const pattern of CLIENT_ONLY_PATTERNS) {
       expect(isCacheableSsrPath(pattern.replace(/\*\*/g, "u1"))).toBe(false);
+    }
+    for (const route of SERVER_REDIRECT_ROUTES) {
+      expect(isCacheableSsrPath(route.route)).toBe(false);
     }
   });
 });

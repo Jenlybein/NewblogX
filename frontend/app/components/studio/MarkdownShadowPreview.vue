@@ -276,8 +276,15 @@ function scrollToHeading(id: string) {
     return false;
   }
 
+  // 点击目录跳转本来就要把整页滚到标题处，用 scrollIntoView 是对的；
+  // 但必须尊重"减少动效"偏好——该偏好下直接定位，不做平滑动画。
+  const reduceMotion =
+    typeof window !== "undefined" &&
+    typeof window.matchMedia === "function" &&
+    window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
   heading.scrollIntoView({
-    behavior: "smooth",
+    behavior: reduceMotion ? "auto" : "smooth",
     block: "start",
   });
   return true;

@@ -58,7 +58,7 @@ export const useAuthStore = defineStore("auth", () => {
   //
   // 为什么需要单独一个标志：localStorage 里的令牌只是个字符串，它是否存在
   // 与它是否还被服务端认可是两件事。只看字符串会让界面在令牌已失效时仍显示
-  // 已登录，于是每个写操作都失败、用户却以为自己登录着（#98）。
+  // 已登录，于是每个写操作都失败、用户却以为自己登录着。
   const rejected = shallowRef(false);
   const initialized = shallowRef(false);
   const pending = shallowRef(false);
@@ -303,7 +303,7 @@ export const useAuthStore = defineStore("auth", () => {
   /**
    * 标记"令牌可能已经失效"，让界面立刻停止显示已登录，并触发一次会话校验。
    *
-   * 由请求层在遇到鉴权失败时调用（#98）。为什么不直接 clearSession：
+   * 由请求层在遇到鉴权失败时调用。为什么不直接 clearSession：
    * 网络波动也可能产生失败，直接清会话会把用户踢掉；这里只先让界面
    * 诚实（不再声称已登录），再由校验决定是恢复还是真的登出。
    */

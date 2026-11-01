@@ -403,23 +403,24 @@ function buildKeySetFailures(sideKeys) {
  * 一起删干净，四份键集合还是相等的，门禁照样全绿。锚点就是那几张"这些参数必须
  * 在场"的票根。
  *
- * 为什么还要 `status`：清单里含**将来才会存在**的参数（`fps_cap` 属 #74、
- * `pointer_offset_*` 属 #75）。如果只认"必须在场"，本票落地当天门禁就会因为
- * 这三个还没实现而变红，等于用门禁挡住正常交付顺序。所以：
+ * 为什么还要 `status`：清单里曾经含**将来才会存在**的参数（`fps_cap` 属 #74、
+ * `pointer_offset_*` 属 #75）。如果只认"必须在场"，那些票落地之前门禁就会因为
+ * 这几个还没实现而变红，等于用门禁挡住正常交付顺序。所以：
  *   - `pending`（尚未实现）：四端都没有 → **不算失败**，只在报告里列为"待交付"；
  *   - `delivered`（已实现）：四端都没有 → **失败**（`anchor-missing`）；
  *   - 两者共同的硬约束：只要在任意一端出现，四端就必须都有 —— 交付到一半是
  *     漂移，由键集合判定报红（不会因为"它是新参数"被放过）。
- * 一个 `pending` 锚点做到四端齐全后自动转正（结果里的 `anchors.delivered`），
- * 状态位只是为了在它还没实现时不误伤；交付那一笔提交应顺手把 status 改成
- * `delivered`，门禁会在 `anchors.notes` 里提醒这件事（但不是失败）。
+ * 现在四个锚点全部 `delivered`（#74 / #75 都已落地），`status` 仍留着：下一批
+ * 参数（比如将来的第二个装饰子块）还会用到它，而"交付那一笔把 status 改成
+ * `delivered`"这条纪律正是它挡住"门禁自己变红"的方式。
  */
 export const DECO_ANCHOR_PARAMETERS = [
   { key: "rope_length", label: "挂绳长度", status: "delivered" },
   // #74 已交付：四端都有 `fps_cap`，状态位随之转正（否则报告会一直提示"待交付"）。
   { key: "fps_cap", label: "帧率上限", status: "delivered", issue: "#74" },
-  { key: "pointer_offset_x", label: "指针端偏移 X", status: "pending", issue: "#75" },
-  { key: "pointer_offset_y", label: "指针端偏移 Y", status: "pending", issue: "#75" },
+  // #75 已交付：四端都有指针端偏移（负数下限也由门禁的符号支持覆盖）。
+  { key: "pointer_offset_x", label: "指针端偏移 X", status: "delivered", issue: "#75" },
+  { key: "pointer_offset_y", label: "指针端偏移 Y", status: "delivered", issue: "#75" },
 ];
 
 const EMPTY_ANCHORS = { delivered: [], pending: [], partial: [], notes: [] };

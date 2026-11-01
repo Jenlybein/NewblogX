@@ -89,6 +89,23 @@ const (
 	CharmFpsCapMax = 160.0
 	// CharmFpsCapDefault 是默认帧率上限：与 60Hz 屏对齐（每帧一次）。
 	CharmFpsCapDefault = 60.0
+
+	// CharmPointerOffsetXMin 是"指针端偏移"水平分量的下限，单位 px。
+	// **负数在这里是合法值**：它表示绳头挂在光标左侧（可往左上偏）。
+	CharmPointerOffsetXMin = -24.0
+	// CharmPointerOffsetXMax 是水平偏移的上限（px）：再大绳头与光标热点就明显脱节，
+	// 看起来像"绳子断了"（ADR-0018 代价段）。
+	CharmPointerOffsetXMax = 24.0
+	// CharmPointerOffsetXDefault 是默认水平偏移（px）：绳头从光标右侧 3px 处悬挂。
+	CharmPointerOffsetXDefault = 3.0
+
+	// CharmPointerOffsetYMin 是垂直分量的下限（px，视口坐标系里向下为正）。
+	// 负数表示往上偏。
+	CharmPointerOffsetYMin = -24.0
+	// CharmPointerOffsetYMax 是垂直偏移的上限（px）。
+	CharmPointerOffsetYMax = 24.0
+	// CharmPointerOffsetYDefault 是默认垂直偏移（px）：绳头从光标下方 3px 处悬挂。
+	CharmPointerOffsetYDefault = 3.0
 )
 
 // Deco 是装饰配置段。
@@ -99,10 +116,11 @@ type Deco struct {
 
 // Charm 是光标挂件的参数。
 //
-// 总开关 + 九个数值参数。票 #41 接入挂绳长度、节点数、重力、阻尼；
+// 总开关 + 十一个数值参数。票 #41 接入挂绳长度、节点数、重力、阻尼；
 // 票 #42 接入描边宽度、静止摆动频率与幅度（弧垂由"绳长 vs 实际距离"产生，
 // 没有单独的"sag"参数）；票 #74 接入帧率上限（自适应降速车道已删除，
-// 只剩一条动画帧调度，见 ADR-0018）。
+// 只剩一条动画帧调度，见 ADR-0018）；票 #75 接入指针端偏移 X / Y
+// （物理头节点 = 指针热点 + 偏移，渲染不再单独偏一次）。
 type Charm struct {
 	// Enable 是总开关。默认开着：功能上线后读者立刻就能看到。
 	Enable bool `yaml:"enable" json:"enable"`
@@ -134,16 +152,27 @@ type Charm struct {
 	// 实际帧率落在刷新率的整数分之一（144Hz + 90 档 = 72fps）。它只决定
 	// "每秒画几次"，不影响绳子运动速度 —— 物理仍按固定步长按真实时间推进。
 	FpsCap float64 `yaml:"fps_cap" json:"fps_cap"`
+	// PointerOffsetX 是"指针端偏移"的水平分量，单位 CSS px（与 clientX 同一视口
+	// 坐标系，不随 DPI 缩放）。默认 3，区间 -24–24，**允许负值**（往左偏）。
+	//
+	// 语义是"物理头节点 = 指针热点 + (X, Y)"：挂绳的物理与渲染都从换算后的
+	// 头节点出发，渲染层不得再单独偏一次（ADR-0018 决策 8 / 约束 7）。
+	PointerOffsetX float64 `yaml:"pointer_offset_x" json:"pointer_offset_x"`
+	// PointerOffsetY 是指针端偏移的垂直分量，单位 CSS px（向下为正）。
+	PointerOffsetY float64 `yaml:"pointer_offset_y" json:"pointer_offset_y"`
 }
 
 // Normalize 把装饰配置收敛进合法范围，永不报错。
 //
-// 四条规则，按顺序：
-//   - 非有限值（NaN / ±Inf）回落默认值：它们序列化进 JSON 会直接失败；
+// 规则按失效模式分四类（数值参数共用，具体参数只是选一条）：
+//   - 非有限值（NaN / ±Inf）一律回落默认值：它们序列化进 JSON 会直接失败；
 //   - 非正值回落默认值：0 是 Go 的零值（= 字段没填），负值是明显的手滑，
 //     两者都不是"我想调到最小"的意图，钳成下限会把"没填"变成"填了最小值"；
-//   - 其余越界值钳到边界：保证库里永远存不下发散值；
-//   - 计数类（segments）先四舍五入再钳到边界，不接受半节（但也不因小数报错）。
+//   - 0 / 负数都是合法取值的区间（指针端偏移）：只夹到 [min, max]；
+//   - 其余越界值钳到边界：保证库里永远存不下发散值。
+//
+// 计数类另有约束：segments 先四舍五入再钳到边界，fps_cap 与指针端偏移先夹边界
+// 再取整 —— 顺序反了会把越界值取整又放大一档。
 //
 // 不返回 error 是有意的：管理员改一半被 400 打回只会让他猜哪里错了。
 func (d Deco) Normalize() Deco {
@@ -159,6 +188,10 @@ func (d Deco) Normalize() Deco {
 	d.Charm.Segments = normalizeSegments(d.Charm.Segments)
 	// 帧率上限是计数（整数 fps）：先夹边界再取整，规则见 normalizeFpsCap。
 	d.Charm.FpsCap = normalizeFpsCap(d.Charm.FpsCap)
+	// 指针端偏移允许负数，只能走"允许负数的区间"规则（见 normalizeSignedRange）；
+	// 用 normalizePositiveRange / normalizeNonNegativeRange 都会把负偏移吃掉。
+	d.Charm.PointerOffsetX = normalizePointerOffset(d.Charm.PointerOffsetX, CharmPointerOffsetXMin, CharmPointerOffsetXMax, CharmPointerOffsetXDefault)
+	d.Charm.PointerOffsetY = normalizePointerOffset(d.Charm.PointerOffsetY, CharmPointerOffsetYMin, CharmPointerOffsetYMax, CharmPointerOffsetYDefault)
 	return d
 }
 
@@ -191,6 +224,34 @@ func normalizeNonNegativeRange(v, min, max, fallback float64) float64 {
 		return fallback
 	}
 	return math.Min(max, math.Max(min, v))
+}
+
+// normalizeSignedRange 是"允许负数"的数值参数（指针端偏移 X / Y）的钳位规则。
+//
+// 它和另外两条的区别只有"0 与负数怎么算"：
+//   - normalizePositiveRange 把 <= 0 一律回落默认值；
+//   - normalizeNonNegativeRange 保留 0，但把负数夹回 min；
+//   - 这里 0 与负数都是**普通取值**，只夹到 [min, max]。
+//
+// 指针端偏移的 min 本来就是负数（-24），用前两条里的任何一条都会让"往左上偏"
+// 被静默吃掉（ADR-0018 决策 9 / 约束 8）。NaN / ±Inf 仍回落默认：它们序列化进
+// JSON 会直接失败。0 是合法值：绳头正好压在光标热点上，视觉上等于关掉偏移。
+func normalizeSignedRange(v, min, max, fallback float64) float64 {
+	if math.IsNaN(v) || math.IsInf(v, 0) {
+		return fallback
+	}
+	return math.Min(max, math.Max(min, v))
+}
+
+// normalizePointerOffset 是指针端偏移单轴的钳位规则：先夹到 -24–24，再取整。
+//
+// 顺序不能反（与 normalizeFpsCap 同一条口径）：24.6 要先被夹到 24 再取整，
+// 反过来会得到 25。`math.Round` 对负数按"远离 0"取整（-2.5 → -3），读者站 /
+// 后台用同一口径（`Math.sign(v) * Math.round(Math.abs(v))`）—— 直接写
+// `Math.round` 会在负半值上与 Go 分叉，跨端共享夹具抓着这一点。
+func normalizePointerOffset(v, min, max, fallback float64) float64 {
+	v = normalizeSignedRange(v, min, max, fallback)
+	return math.Round(v)
 }
 
 // normalizeLineWidth 是描边起始宽度的钳位规则。

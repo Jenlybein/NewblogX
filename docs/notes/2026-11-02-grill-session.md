@@ -536,6 +536,58 @@ DDL 的 DROP 是 QUERY_EVENT，**不走 `OnRow`**（`imageref/river.go:117-129` 
 **可直接开工的 frontier（16 张，无阻塞）**：
 #96 #97 #98 #99 #100 #101 #102 #106 #111 #118 #122 #125 #126 #127 #128 #130
 
+## 十、实施进展（/implement-spec，2026-11-02）
+
+集成分支 `integration/89-auth-and-interaction-fixes`（基于 `main` @ `eca7edc`），draft PR [#133](https://github.com/Jenlybein/NewblogX/pull/133)。
+
+| 票 | 提交 | 状态 |
+|---|---|---|
+| #101 轮播三态筛选 | `95508f1` | ✅ 已合入 |
+| #96 点赞关系行口径 | `4e446d9` + `e68c03c`（对账工具） | ✅ 已合入 |
+| #99 刷新令牌版本 | `18f59c1` | ✅ 已合入 |
+| #97 评论外键 | — | ❌ agent 反复空转，未落地 |
+| #98 前端登录态 | — | ❌ 未落地 |
+| #100 窄屏目录 | — | ❌ 未落地 |
+
+### ⚠️ 本次挖出的更大根因：**数据库查询缓存污染**（已单开 [#132](https://github.com/Jenlybein/NewblogX/issues/132)，挂为 #89 子票）
+
+这是 #99 诊断时的意外收获，也反向解释了 §⑳-C 里"为什么此前所有排除项都干净"。
+
+**机制（已核实插件源码 + 实测复现）**：
+- `core/init_db.go` 给全局 `*gorm.DB` 装了 `go-gorm/caches` 插件（Redis 后端）。
+- 插件的缓存标识**只由「SQL + 参数」组成，不含目标结构体类型** —— 已核对 `go-gorm/caches@v4.0.5` 的 `identifier.go`：`buildIdentifier` = `fmt.Sprintf("%s%s-%s", prefix, query, queryArgs)`。
+- 命中时把缓存的 `Query[any]{Dest}` JSON 用 `json.Unmarshal` 解码进**本次查询的 Dest**。
+
+**两个查询撞同一个 key**：
+- 文章模块 `userPort.one`：`Take(&m, "id = ?", id)`，目标 `userRow` —— **局部行，无 `token_version` 列**
+- 用户模块 `FindByID`：`Take(&row, "id = ?", id)`，目标 `UserRow` —— `SELECT *`，**含 `token_version`**
+
+两者生成的 SQL 完全相同（`SELECT * FROM user_models WHERE id = ? LIMIT 1`）→ 文章页渲染先跑窄行查询存进缓存 → 紧接着的 refresh 命中同一 key → 窄行 JSON 解码进 `UserRow` → 字段不存在 → **静默零值 0**。
+
+实测（临时用例，已删）：
+```
+{"Dest":{"id":"1001","username":"alice","role":2},"RowsAffected":1}
+→ id="1001" token_version=0 status=0 role=2
+```
+
+**为什么这解释了当初的"已排除"**：值是在**进入 Go 结构体之前**就没的，所以逐层拷贝链路自然每一层都干净。也解释了登录签发为何正确（`FindByUsername` 的 SQL 不同 → 不同 key）。
+
+**影响面**：不止令牌版本。任何"同表 + 同 WHERE + 不同目标结构体"的组合都会中招，且表现为**字段静默归零而非报错**。`Authenticate` 也走 `FindByID`，故 #97/#98 的登录态误判可能还有别的入口。
+→ **#99 只修了 refresh 一条路径的后果，根因仍在**，故单开 #132（让缓存标识带上目标类型，或关闭该插件并评估其"写操作触发全表 SCAN 式失效"的成本）。
+
+### 附带修掉的既有基建缺陷（影响面超出 #96）
+
+`testkit/mysqlcontainer` 的 `DB()` 未开 `TranslateError`，而生产 `core/init_db.go:109` 是开的。后果：`RestoreOrCreateUnique` 靠 `gorm.ErrDuplicatedKey` 判别"唯一键冲突 == 已存在"，测试容器里该分支走不到，**在生产不会报错的地方假红**；同时让评论/关注模块的既有集成测试对唯一键行为失去保护。已修（1 行）。
+
+### #96 的修法与理由
+
+选「让判定不再排除软删行」而非「硬删」：
+1. 与评论点赞（`comment/adapter/mysql`）已是同一口径（同一个平台助手）
+2. 零 DDL，不碰 `schema.sql`
+3. 线上存量软删残行**自动被修复覆盖**，不清理也能再点赞 → 对账降级为可选而非前置步骤
+
+对账工具 `./blogx-server -t reconcile -s digg`：**默认只读**，`-apply` 才物理删；孤儿行（指向已软删文章）只统计不自动删（避免"用户恢复文章后点赞全没了"）。
+
 **四条关键链**：
 - 轮播：`#118 → #119 → #120 → #121`（文档先行，再动表，再做视觉）
 - 封面：`#128 → #129`，且 `#129` 还依赖 `#119` 的通用取景表

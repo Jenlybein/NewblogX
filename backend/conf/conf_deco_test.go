@@ -58,9 +58,46 @@ func charmWith(mutate func(*conf.Charm)) conf.Charm {
 		Damping:     conf.CharmDampingDefault,
 		IdleSwayHz:  conf.CharmIdleSwayHzDefault,
 		IdleSwayAmp: conf.CharmIdleSwayAmpDefault,
+		FpsCap:      conf.CharmFpsCapDefault,
 	}
 	mutate(&c)
 	return c
+}
+
+// TestDecoNormalize_帧率上限钳位 钉住票 #74 的帧率上限：30–160 fps，默认 60，整数。
+//
+// 为什么下限是 30 而不是 20：物理常量一律不动（1/120s 固定步长、0.05s 累加器
+// 上限），30 档一帧 33.3ms 还留 16.7ms 余量；20 档一帧恰好 50ms、余量为零，
+// 任何迟到都会被截断丢掉，绳子会慢放。这条规则由上限本身守住。
+func TestDecoNormalize_帧率上限钳位(t *testing.T) {
+	cases := []struct {
+		name string
+		in   float64
+		want float64
+	}{
+		{"远超上限钳到 160", 1000, conf.CharmFpsCapMax},
+		{"略高于上限也钳回边界", 160.1, conf.CharmFpsCapMax},
+		{"略低于下限钳到 30", 29.9, conf.CharmFpsCapMin},
+		{"下限本身不变（边界值不漂移）", 30, 30},
+		{"上限本身不变（边界值不漂移）", 160, 160},
+		{"区间内的值原样保留", 90, 90},
+		{"默认值 60 原样保留", 60, 60},
+		{"小数先夹边界再取整（90.4→90）", 90.4, 90},
+		{"小数先夹边界再取整（90.6→91）", 90.6, 91},
+		{"缺省（零值）补默认值 60", 0, conf.CharmFpsCapDefault},
+		{"负数回落默认而不是钳到 30", -30, conf.CharmFpsCapDefault},
+		{"NaN 回落默认", math.NaN(), conf.CharmFpsCapDefault},
+		{"+Inf 回落默认", math.Inf(1), conf.CharmFpsCapDefault},
+		{"-Inf 回落默认", math.Inf(-1), conf.CharmFpsCapDefault},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			got := (conf.Deco{Charm: conf.Charm{FpsCap: c.in}}).Normalize().Charm.FpsCap
+			if got != c.want {
+				t.Fatalf("FpsCap=%v 归一化后应为 %v，实际 %v", c.in, c.want, got)
+			}
+		})
+	}
 }
 
 // 物理参数（挂绳长度 / 节点数 / 重力 / 阻尼）与站标尺寸共用同一条
@@ -327,6 +364,8 @@ func TestDecoNormalize_共享归一化用例表(t *testing.T) {
 				charm.IdleSwayHz = input
 			case "idle_sway_amp":
 				charm.IdleSwayAmp = input
+			case "fps_cap":
+				charm.FpsCap = input
 			default:
 				t.Fatalf("共享用例表出现未知参数 %q", c.Parameter)
 			}
@@ -349,6 +388,8 @@ func TestDecoNormalize_共享归一化用例表(t *testing.T) {
 				actual = got.IdleSwayHz
 			case "idle_sway_amp":
 				actual = got.IdleSwayAmp
+			case "fps_cap":
+				actual = got.FpsCap
 			}
 			if actual != c.Expected {
 				t.Fatalf("%s 输入 %s 归一化后应为 %v，实际 %v", c.Parameter, c.Input, c.Expected, actual)

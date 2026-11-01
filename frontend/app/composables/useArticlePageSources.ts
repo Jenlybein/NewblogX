@@ -2,11 +2,12 @@ import { computed, toValue } from "vue";
 import type { MaybeRefOrGetter } from "vue";
 import { usePagedResourceCache } from "~/composables/usePagedResourceCache";
 import { getArticleScoreSummary } from "~/services/ai";
-import { getArticleAuthorInfo, getArticleDetail } from "~/services/article";
+import { getArticleAuthorInfo, getArticleDetail, getArticleDetailAnonymous } from "~/services/article";
 import { getRootComments } from "~/services/comment";
 import { getUserBaseInfo } from "~/services/user";
 import type { ArticleAuthorInfo, ArticleDetail, CommentRootItem } from "~/types/api";
 import { detectReaderRenderMode, type ReaderRenderMode } from "~/utils/readerRenderMode";
+import { anonymousArticleView, anonymousCommentView } from "~/utils/ssrAnonymity";
 
 export interface ArticleCommentsPage {
   items: CommentRootItem[];
@@ -46,6 +47,11 @@ const ROOT_COMMENT_PAGE_SIZE = 7;
  * - 服务端：第一波等齐 + 第二波（作者统计）也等 —— SSR 的 HTML 不能缺内容；
  * - 首屏 hydration：只等评论分页（不在 payload 里，等不到会和 SSR 的列表打架）；
  * - 客户端跳转：一个都不等，setup 立刻返回 → 页面先画骨架，数据并行到达后自己填。
+ *
+ * 服务端还有一个额外口径（ADR-0019 决策 5 / 约束 2）：SSR 的 HTML 会进按 URL 键的
+ * 30s 共享缓存，所以服务端取到的正文与评论都要先过一层匿名化 —— 匿名取数（不携带
+ * 登录身份）+ 剔除 `is_digg` / `is_favor` / `relation`。客户端照旧拿带鉴权的数据，
+ * 登录用户的点赞态由它自己补齐（先默认态、后跳变，ADR 已接受这个观感）。
  */
 export async function useArticlePageSources(options: ArticlePageSourcesOptions) {
   const mode = options.mode ?? detectReaderRenderMode();
@@ -56,7 +62,11 @@ export async function useArticlePageSources(options: ArticlePageSourcesOptions) 
   const inNuxtContext = <T>(run: () => T) => nuxtApp.runWithContext(run);
   const articleId = computed(() => String(toValue(options.articleId)));
 
-  const fetchArticle = options.fetchArticle ?? ((id: string) => getArticleDetail(id));
+  // 服务端显式匿名取数：缓存键只有 URL，SSR 请求绝不能带登录身份（哪怕后端将来从
+  // cookie 里认出用户，进 HTML 的也只能是匿名内容）。
+  const fetchArticle =
+    options.fetchArticle ??
+    ((id: string) => (mode === "server" ? getArticleDetailAnonymous(id) : getArticleDetail(id)));
   const fetchScore =
     options.fetchScore ?? ((id: string) => getArticleScoreSummary(id).catch(() => null));
   const fetchComments =
@@ -72,8 +82,13 @@ export async function useArticlePageSources(options: ArticlePageSourcesOptions) 
   const fetchAuthorProfile =
     options.fetchAuthorProfile ?? ((authorId: string) => getUserBaseInfo(authorId).catch(() => null));
 
+  // 用户态只在服务端剔除；客户端（跳转 / 首屏 hydration）要原样保留，靠它渲染"已点赞"。
+  const articleForRender = (article: ArticleDetail) => (mode === "server" ? anonymousArticleView(article) : article);
+
   // 第一波：三个请求只依赖路由里的文章 id，**同时发起**。
-  const articleSource = useAsyncData(() => `article-${articleId.value}`, () => fetchArticle(articleId.value));
+  const articleSource = useAsyncData(() => `article-${articleId.value}`, () =>
+    fetchArticle(articleId.value).then(articleForRender),
+  );
   const scoreSource = useAsyncData<ArticleScoreSummary | null>(
     () => `article-score-summary:${articleId.value}`,
     () => fetchScore(articleId.value),
@@ -99,13 +114,17 @@ export async function useArticlePageSources(options: ArticlePageSourcesOptions) 
   );
 
   // 评论分页首屏：客户端跳转时后台取（先出骨架），服务端与首屏 hydration 等它（SSR 内容 / 不闪）。
+  // 服务端的评论条目同样要匿名化：评论的"我点过赞""和作者的关系"都是登录用户私有状态。
   const commentsPager = await usePagedResourceCache({
     cacheKey: () => `article-comments:${articleId.value}`,
     pageSize: () => ROOT_COMMENT_PAGE_SIZE,
     initialLoad: mode === "navigation" ? "background" : "block",
     fetchPage: async (page, limit) => {
       try {
-        return await fetchComments(articleId.value, page, limit);
+        const payload = await fetchComments(articleId.value, page, limit);
+        return mode === "server"
+          ? { items: payload.items.map((comment) => anonymousCommentView(comment)), hasMore: payload.hasMore }
+          : payload;
       } catch {
         // 评论区失败不抛错：评论是次要数据，不能把整页带崩。
         return { items: [], hasMore: false };

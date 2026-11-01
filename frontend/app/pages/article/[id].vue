@@ -400,7 +400,6 @@ const comments = computed(() =>
 
 const commentsPending = computed(() => commentsPager.pending.value);
 const commentPage = computed(() => commentsPager.currentPage.value);
-const commentPagesLoaded = computed(() => Object.keys(commentsPager.pages.value).length);
 const hasPreviousCommentPage = computed(() => commentsPager.hasPreviousPage.value);
 const hasNextCommentPage = computed(() => commentsPager.hasNextPage.value);
 const replyLoading = computed(() =>
@@ -590,7 +589,7 @@ useSeoMeta({
             </div>
 
             <div v-if="comments.length" class="comment-panel__pagination">
-              <span>评论第 {{ commentPage }} 页，每页 7 条，已加载 {{ commentPagesLoaded }} 页。</span>
+              <span>评论第 {{ commentPage }} 页，每页 7 条。</span>
               <div class="comment-panel__pagination-actions">
                 <button
                   type="button"

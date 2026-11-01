@@ -71,3 +71,22 @@ describe("shouldRetryAuth", () => {
     expect(shouldRetryAuth("GET", new Error("参数错误"))).toBe(false);
   });
 });
+
+// 判据必须是稳定业务码，不能是错误消息里的中文关键词。
+describe("isAuthLikeError 的判据", () => {
+  it("认鉴权专属业务码", () => {
+    expect(isAuthLikeError(new ApiBusinessError("登录状态已过期，请重新登录", 1003))).toBe(true);
+  });
+
+  it("不再把参数错误误判成需要刷新令牌", () => {
+    // 早期实现只按中文关键词匹配，"权限错误"这类措辞会命中，于是
+    // 一次点击产生两次请求 —— 这正是要靠专属码根治的现象。
+    expect(isAuthLikeError(new ApiBusinessError("权限错误", 1001))).toBe(false);
+    expect(isAuthLikeError(new ApiBusinessError("参数不合法", 1001))).toBe(false);
+  });
+
+  it("文案变了也不影响判据（认的是码）", () => {
+    // 同样的码，换成毫不相干的文案仍然算鉴权失败。
+    expect(isAuthLikeError(new ApiBusinessError("something went wrong", 1003))).toBe(true);
+  });
+});

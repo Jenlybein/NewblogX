@@ -94,8 +94,11 @@ func nullableID(id ctype.ID) *ctype.ID {
 	return &value
 }
 
-// idValue 把可能为 NULL 的列读回成值类型：NULL 即零值。
-func idValue(id *ctype.ID) ctype.ID {
+// parentIDFromNull 把可空的父评论列读回值类型：NULL 表示"没有父评论"。
+//
+// 名字刻意带上 Null：读的是可能为 NULL 的列，NULL 的语义是"没有父评论"
+// 而不是"父评论 ID 为 0"——后者会被外键拒绝（库里没有 id=0 的评论）。
+func parentIDFromNull(id *ctype.ID) ctype.ID {
 	if id == nil {
 		return ctype.ID("")
 	}
@@ -194,10 +197,14 @@ func (r *Repo) ListRoot(ctx context.Context, articleID uint64, page domain.Page)
 	page = page.Normalize()
 	var rows []commentRow
 	err := r.db.WithContext(ctx).
-		// reply_id 改成可空后，根评论的父字段是 NULL 而不是 0；
-		// 这里必须跟着改成 IS NULL，否则一条根评论都查不出来。
-		// root_id 仍是值类型（根评论写 0），保持原判等。
-		Where("article_id = ? AND status = ? AND reply_id IS NULL AND root_id = 0", articleID, int8(domain.StatusPublished)).
+		// 父字段改成可空后，新根评论的 reply_id 是 NULL；但**存量**根评论
+		// 是修复前写入的 0（零 DDL 禁止回填历史行）。因此这里必须同时接受
+		// NULL 与 0，否则老根评论会一条都列不出来。
+		// root_id 仍是值类型（根评论写 0），判等保持。
+		Where(
+			"article_id = ? AND status = ? AND (reply_id IS NULL OR reply_id = 0) AND root_id = 0",
+			articleID, int8(domain.StatusPublished),
+		).
 		Order("created_at DESC").
 		Limit(page.Limit + 1).
 		Offset(page.Offset()).
@@ -380,7 +387,7 @@ func toComment(row commentRow) domain.Comment {
 		UserNickname:      row.UserNickname,
 		UserAvatar:        row.UserAvatar,
 		ArticleID:         row.ArticleID,
-		ReplyID:           idValue(row.ReplyID),
+		ReplyID:           parentIDFromNull(row.ReplyID),
 		ReplyUserID:       row.ReplyUserID,
 		ReplyUserNickname: row.ReplyUserNickname,
 		RootID:            row.RootID,

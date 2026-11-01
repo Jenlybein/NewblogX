@@ -43,9 +43,28 @@ export function isApiTimeoutError(error: unknown): error is ApiTimeoutError {
   return error instanceof ApiTimeoutError;
 }
 
+/**
+ * 判断一次失败是否属于"登录态不可用"。
+ *
+ * # 判据顺序：先认码，文案只是兜底
+ *
+ * 后端对鉴权失败返回专属业务码（1003），这是稳定判据，文案改了也不受影响。
+ * 早期实现只按错误消息里的中文关键词匹配（"登录""令牌""expired"…），
+ * 文案一改就断，且会把"权限错误"这类措辞误判成需要刷新令牌 —— 那正是
+ * 一次点击产生两次请求的原因。
+ *
+ * 关键词匹配保留为兜底，仅用于后端尚未改用专属码的历史路径。
+ */
+const AUTH_BUSINESS_CODE = 1003;
+
 export function isAuthLikeError(error: unknown) {
   if (!(error instanceof Error)) return false;
-  if (error instanceof ApiBusinessError && [401, 403].includes(error.code)) return true;
+  if (error instanceof ApiBusinessError) {
+    // 专属码与历史 HTTP 状态码都认；其它业务码（如 1001 参数错误）不算。
+    if (error.code === AUTH_BUSINESS_CODE || [401, 403].includes(error.code)) {
+      return true;
+    }
+  }
   const message = error.message.toLowerCase();
   return ["登录", "未登录", "令牌", "token", "鉴权", "expired", "refresh"].some((keyword) =>
     message.includes(keyword.toLowerCase()),

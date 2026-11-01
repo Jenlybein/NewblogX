@@ -206,8 +206,9 @@ func TestAuthAndAdminMiddleware(t *testing.T) {
 		req := httptest.NewRequest(http.MethodGet, "/auth", nil)
 		req.Header.Set("token", userToken)
 		r.ServeHTTP(w, req)
-		if !hasBizCode(w, 1001) {
-			t.Fatalf("黑名单 token 应被拦截, body=%s", w.Body.String())
+		// 鉴权失败用专属码 1003：前端据此判断要不要刷新令牌，而不是匹配文案。
+		if !hasBizCode(w, 1003) {
+			t.Fatalf("黑名单 token 应被拦截（鉴权专属码 1003）, body=%s", w.Body.String())
 		}
 	}
 }

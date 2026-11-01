@@ -7,6 +7,8 @@ import {
   buildMermaidConfig,
   type MarkdownThemeMode,
 } from "~/utils/markdownTheme";
+import { prefersReducedMotionFrom } from "~/utils/motion";
+import { REDUCED_MOTION_QUERY } from "~/composables/useMotionPreference";
 
 const props = withDefaults(
   defineProps<{
@@ -278,10 +280,12 @@ function scrollToHeading(id: string) {
 
   // 点击目录跳转本来就要把整页滚到标题处，用 scrollIntoView 是对的；
   // 但必须尊重"减少动效"偏好——该偏好下直接定位，不做平滑动画。
+  // 复用既有的媒体查询工具，不另写一份 matchMedia 字符串：动效档位的
+  // 判据必须只有一处，否则两份预算会各自漂移。
   const reduceMotion =
     typeof window !== "undefined" &&
     typeof window.matchMedia === "function" &&
-    window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    prefersReducedMotionFrom(window.matchMedia(REDUCED_MOTION_QUERY));
 
   heading.scrollIntoView({
     behavior: reduceMotion ? "auto" : "smooth",

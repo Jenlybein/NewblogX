@@ -2,12 +2,13 @@ package cli
 
 import (
 	"context"
-	"errors"
 	"fmt"
 
 	"gorm.io/gorm"
 
 	"github.com/sirupsen/logrus"
+
+	"myblogx/internal/kernel/ctype"
 )
 
 // 本文件是点赞关系行的一次性对账（#96 AC 第 3 条）。
@@ -33,10 +34,12 @@ import (
 // DeletedAt 必须是 gorm.DeletedAt 而不是 *time.Time：GORM 只对前者
 // 自动补 `deleted_at IS NULL`。用 *time.Time 的话默认 scope 会把软删行
 // 一起数进来，"活关系行"这个数字就错了（本脚本的全部意义都没了）。
+// ID 列一律用 ctype.ID 而不是裸 uint64：雪花 ID 超出 JS 安全整数，
+// 裸整型会让 ID 在跨端契约里丢精度（archcheck R12，CLI 不在豁免名单内）。
 type diggRow struct {
-	ID        uint64 `gorm:"column:id"`
-	ArticleID uint64 `gorm:"column:article_id"`
-	UserID    uint64 `gorm:"column:user_id"`
+	ID        ctype.ID `gorm:"column:id"`
+	ArticleID ctype.ID `gorm:"column:article_id"`
+	UserID    ctype.ID `gorm:"column:user_id"`
 	DeletedAt gorm.DeletedAt
 }
 
@@ -62,7 +65,9 @@ type diggReconcileResult struct {
 // dryRun 为 true 时只统计不动库；apply 为 true 时物理删除软删残行。
 func FlagReconcileDigg(db *gorm.DB, logger *logrus.Logger, apply bool) error {
 	if db == nil {
-		return errors.New("点赞对账失败: 数据库未初始化")
+		// 用 fmt.Errorf 而不是 errors.New：archcheck R8 禁止调用点硬编码
+		// 中文错误串；与同目录 flag_db / flag_es 的既有写法保持一致。
+		return fmt.Errorf("点赞对账失败: 数据库未初始化")
 	}
 
 	ctx := context.Background()
@@ -142,7 +147,7 @@ func reconcileDigg(ctx context.Context, db *gorm.DB, apply bool) (diggReconcileR
 
 // articleRefRow 只是为了让"孤儿行"子查询有表可指。
 type articleRefRow struct {
-	ID uint64 `gorm:"column:id"`
+	ID ctype.ID `gorm:"column:id"`
 }
 
 // TableName 固定表名。

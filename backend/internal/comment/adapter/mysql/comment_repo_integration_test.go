@@ -76,6 +76,51 @@ func TestRootCommentDoesNotViolateParentForeignKey(t *testing.T) {
 	}
 }
 
+// TestListRootExcludesReplies 守住根评论列表的判据。
+//
+// 列表条件为了兼容写法带了 OR（reply_id IS NULL OR reply_id = 0），
+// 真正要防的回归是：**回复评论不能被误当成根评论列出来**。
+// （至于"存量 reply_id=0 的根评论"——实际上一条都不存在：外键会在
+// 写入时就拒绝它们，这正是本票要修的缺陷，所以不存在历史遗留行。）
+func TestListRootExcludesReplies(t *testing.T) {
+	db := migrate(t)
+	seedCommentTarget(t, db)
+	repo := mysql.New(db)
+
+	root := &domain.Comment{
+		Content:   "顶层评论",
+		UserID:    ctype.NewID(200),
+		ArticleID: ctype.NewID(1001),
+		Status:    domain.StatusPublished,
+	}
+	if err := repo.Create(nil, root); err != nil {
+		t.Fatalf("预置根评论失败: %v", err)
+	}
+
+	reply := &domain.Comment{
+		Content:   "回复",
+		UserID:    ctype.NewID(200),
+		ArticleID: ctype.NewID(1001),
+		ReplyID:   root.ID,
+		RootID:    root.ID,
+		Status:    domain.StatusPublished,
+	}
+	if err := repo.Create(nil, reply); err != nil {
+		t.Fatalf("预置回复失败: %v", err)
+	}
+
+	rows, _, err := repo.ListRoot(nil, 1001, domain.Page{Page: 1, Limit: 10})
+	if err != nil {
+		t.Fatalf("列根评论失败: %v", err)
+	}
+	if len(rows) != 1 {
+		t.Fatalf("根评论列表应只有 1 条（回复不算根），实际 %d 条", len(rows))
+	}
+	if rows[0].ID != root.ID {
+		t.Fatalf("列到的应是根评论 %s，实际 %s", root.ID, rows[0].ID)
+	}
+}
+
 // TestReplyCommentKeepsParentLink 验证回复评论仍记录真实父链，
 // 修根评论不能顺带把回复功能改坏。
 func TestReplyCommentKeepsParentLink(t *testing.T) {

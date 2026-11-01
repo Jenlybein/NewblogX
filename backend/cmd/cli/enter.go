@@ -112,6 +112,12 @@ func Run(op *FlagOptions, deps Options) (RunResult, error) {
 			return RunResult{ContinueStartup: false}, nil
 		}
 		return RunResult{}, fmt.Errorf("未知对账子类型: %s", op.Sub)
+	case "imagegc":
+		// 孤儿图候选清单（#139）。本票只读，不提供删除；-apply 留给 #140。
+		if err := FlagImageGCOrphans(deps.DB, deps.Logger, op.File, op.Apply); err != nil {
+			return RunResult{}, err
+		}
+		return RunResult{ContinueStartup: false}, nil
 	case "run":
 		switch op.Sub {
 		case "init":

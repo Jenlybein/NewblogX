@@ -96,6 +96,15 @@ func uniqueObjectKeys(candidates []refCandidate, qiNiuConfig conf.QiNiu) []strin
 	return result
 }
 
+// ExtractObjectKey 从一段图片 URL（或裸 object key）反解出对象键。
+//
+// 反解失败返回空串，调用方应当**丢弃**这条引用：账本与孤儿图清单都靠
+// 这个规则判定"这个 URL 是不是某个已知图片"，两边必须用同一份实现，
+// 否则清单会凭空多出/少掉引用（例如换过存储域名时大面积匹配不上）。
+func ExtractObjectKey(raw string, qiNiuConfig conf.QiNiu) string {
+	return extractObjectKey(raw, qiNiuConfig)
+}
+
 func extractObjectKey(raw string, qiNiuConfig conf.QiNiu) string {
 	raw = strings.TrimSpace(raw)
 	if raw == "" {

@@ -39,7 +39,7 @@ func (b *Banners) List(_ context.Context, q domain.BannerQuery) ([]domain.Banner
 	q = q.Normalize()
 	var hit []domain.Banner
 	for _, row := range b.rows {
-		if row.Show != q.Show {
+		if q.Show != nil && row.Show != *q.Show {
 			continue
 		}
 		hit = append(hit, b.withCrop(row))

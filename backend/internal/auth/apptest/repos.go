@@ -396,11 +396,18 @@ func (g *Guard) Reset(_ context.Context, _, _ string) error {
 
 // Credentials 是内存账号表。
 type Credentials struct {
-	mu       sync.Mutex
-	byName   map[string]app.Account
-	byID     map[uint64]app.Account
-	passwd   map[string]string
-	failNext error
+	mu        sync.Mutex
+	byName    map[string]app.Account
+	byID      map[uint64]app.Account
+	passwd    map[string]string
+	failNext  error
+	staleNext *staleRead
+}
+
+// staleRead 是一次"读到旧值"的读取。
+type staleRead struct {
+	userID  ctype.ID
+	version uint32
 }
 
 // NewCredentials 构造。
@@ -444,6 +451,10 @@ func (c *Credentials) FindAccount(_ context.Context, userID uint64) (app.Account
 	if !ok {
 		return app.Account{}, apperr.New(apperr.CodeUserTokenInvalid)
 	}
+	if s := c.staleNext; s != nil && s.userID.Uint64() == userID {
+		c.staleNext = nil
+		a.TokenVersion = s.version
+	}
 	return a, nil
 }
 
@@ -452,6 +463,16 @@ func (c *Credentials) FailFindAccount(err error) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	c.failNext = err
+}
+
+// StaleFindAccount 让下一次查指定账号返回旧版本。
+//
+// 用来表达"读到旧值"这一类存储缺陷（例如查询缓存命中过期条目）：
+// 仓储本身的数据是对的，但这一次读返回的是陈旧副本。
+func (c *Credentials) StaleFindAccount(userID ctype.ID, version uint32) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.staleNext = &staleRead{userID: userID, version: version}
 }
 
 // ------------------------------------------------------------------

@@ -96,23 +96,39 @@ func (c *Comments) RestoreState(state any) {
 }
 
 // Snapshot 保存点赞关系。
+//
+// 活行与软删行都要存：只存活行的话，事务回滚会把"软删残行"留在库里，
+// 于是"回滚后无副作用"的断言变成假绿。
 func (d *Diggs) Snapshot() any {
 	d.mu.Lock()
 	defer d.mu.Unlock()
-	cp := make(map[itemKey2]struct{}, len(d.set))
-	for k := range d.set {
-		cp[k] = struct{}{}
+	cpLive := make(map[itemKey2]struct{}, len(d.live))
+	for k := range d.live {
+		cpLive[k] = struct{}{}
 	}
-	return cp
+	cpSoft := make(map[itemKey2]struct{}, len(d.soft))
+	for k := range d.soft {
+		cpSoft[k] = struct{}{}
+	}
+	return diggState{live: cpLive, soft: cpSoft, events: append([]string(nil), d.events...)}
 }
 
 // RestoreState 恢复点赞关系。
 func (d *Diggs) RestoreState(state any) {
-	cp, ok := state.(map[itemKey2]struct{})
+	s, ok := state.(diggState)
 	if !ok {
 		return
 	}
 	d.mu.Lock()
 	defer d.mu.Unlock()
-	d.set = cp
+	d.live = s.live
+	d.soft = s.soft
+	d.events = s.events
+}
+
+// diggState 是点赞 fake 的快照。
+type diggState struct {
+	live   map[itemKey2]struct{}
+	soft   map[itemKey2]struct{}
+	events []string
 }

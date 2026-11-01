@@ -23,6 +23,10 @@ import (
 	"net"
 	"os"
 	"strings"
+
+	"github.com/go-gorm/caches/v4"
+
+	platformmysql "myblogx/internal/platform/mysql"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -79,6 +83,11 @@ func DB(t *testing.T, models ...any) *gorm.DB {
 
 	db, err := gorm.Open(mysql.Open(DSN(t)), &gorm.Config{
 		Logger: logger.Discard, // 契约测试只看结果，不要 SQL 噪音
+		// 必须与生产一致（core/init_db.go 的 TranslateError: true）：
+		// 平台层的 RestoreOrCreateUnique 靠 gorm.ErrDuplicatedKey 判别
+		// "唯一键冲突 == 记录已存在"。不开翻译的话真库返回裸的 Error 1062，
+		// 这条分支走不到，测试就会在生产不会报错的地方报错（假红）。
+		TranslateError: true,
 	})
 	if err != nil {
 		t.Fatalf("mysqlcontainer: 连接 MySQL 失败: %v", err)
@@ -105,6 +114,87 @@ func DB(t *testing.T, models ...any) *gorm.DB {
 
 	return db
 }
+
+// WithQueryCache 给 db 装上查询缓存插件，用**内存** Cacher。
+//
+// 为什么需要它：生产在 core/init_db.go 给全局 db 装了 go-gorm/caches 插件，
+// 而普通契约测试不装，于是"缓存相关"的缺陷在测试里根本复现不出来。
+// 用内存 Cacher 而不是 Redis：不需要额外依赖就能精确复现缓存行为，
+// 并且 Store 的内容可以直接读出来检查（真 Redis 做不到这点）。
+//
+// 返回的 Cacher 可用于断言缓存里到底存了什么。
+func WithQueryCache(t *testing.T, db *gorm.DB) *MemCacher {
+	t.Helper()
+	cacher := NewMemCacher()
+	plugin := &caches.Caches{Conf: &caches.Config{Easer: true, Cacher: cacher}}
+	if err := db.Use(plugin); err != nil {
+		t.Fatalf("mysqlcontainer: 装载查询缓存插件失败: %v", err)
+	}
+	return cacher
+}
+
+// MemCacher 是 caches.Cacher 的内存实现，供查询缓存相关的契约测试使用。
+//
+// Entries 暴露全部缓存条目，让测试能直接检查"缓存里存的到底是什么形状"——
+// 这是定位"整行查询被窄行污染"这类缺陷的关键证据。
+type MemCacher struct {
+	store map[string][]byte
+}
+
+// NewMemCacher 构造空的内存 Cacher。
+func NewMemCacher() *MemCacher { return &MemCacher{store: map[string][]byte{}} }
+
+// Get 实现 caches.Cacher。
+//
+// 键与生产 core/init_db.go 走**同一个** QueryCacheKey：若这里另写一份，
+// 测试验证的就不是生产行为，缺陷会重新溜过去。
+func (m *MemCacher) Get(_ context.Context, key string, q *caches.Query[any]) (*caches.Query[any], error) {
+	var dest any
+	if q != nil {
+		dest = q.Dest
+	}
+	raw, ok := m.store[platformmysql.QueryCacheKey(key, dest)]
+	if !ok {
+		return nil, nil
+	}
+	if err := q.Unmarshal(raw); err != nil {
+		return nil, err
+	}
+	return q, nil
+}
+
+// Store 实现 caches.Cacher。
+func (m *MemCacher) Store(_ context.Context, key string, val *caches.Query[any]) error {
+	raw, err := val.Marshal()
+	if err != nil {
+		return err
+	}
+	m.store[platformmysql.QueryCacheKey(key, val.Dest)] = raw
+	return nil
+}
+
+// Invalidate 实现 caches.Cacher（清空全部条目）。
+func (m *MemCacher) Invalidate(_ context.Context) error {
+	m.store = map[string][]byte{}
+	return nil
+}
+
+// Len 返回当前缓存条目数。
+func (m *MemCacher) Len() int { return len(m.store) }
+
+// Keys 返回全部缓存键，顺序不确定。
+func (m *MemCacher) Keys() []string {
+	out := make([]string, 0, len(m.store))
+	for k := range m.store {
+		out = append(out, k)
+	}
+	return out
+}
+
+// Raw 返回某个键缓存的原始 JSON；不存在返回 nil。
+//
+// 注意键已经是"带形状"的最终键，直接查 store 即可。
+func (m *MemCacher) Raw(key string) []byte { return m.store[key] }
 
 // Terminate 终止容器；建议在 TestMain 里 defer 调用。
 // 未启动容器（例如用了 BLOGX_MYSQL_DSN）时是 no-op。

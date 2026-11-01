@@ -54,11 +54,18 @@ export const useAuthStore = defineStore("auth", () => {
   })();
 
   const accessToken = shallowRef(initialToken);
+  // 令牌已被服务端明确否证（过期/版本不一致/会话吊销）。
+  //
+  // 为什么需要单独一个标志：localStorage 里的令牌只是个字符串，它是否存在
+  // 与它是否还被服务端认可是两件事。只看字符串会让界面在令牌已失效时仍显示
+  // 已登录，于是每个写操作都失败、用户却以为自己登录着。
+  const rejected = shallowRef(false);
   const initialized = shallowRef(false);
   const pending = shallowRef(false);
   const currentUser = ref<UserSelfDetail | null>(initialProfile);
   let initPromise: Promise<boolean> | null = null;
   let refreshPromise: Promise<boolean> | null = null;
+  let verifyPromise: Promise<boolean> | null = null;
 
   const pickAvatar = resolveAvatarUrl;
 
@@ -104,6 +111,8 @@ export const useAuthStore = defineStore("auth", () => {
 
   function setAccessToken(token: string) {
     accessToken.value = token;
+    // 新令牌默认可信：它要么来自登录，要么来自刷新成功。
+    rejected.value = false;
     if (canUseBrowserStorage) {
       if (token) {
         localStorage.setItem(tokenStorageKey, token);
@@ -116,6 +125,8 @@ export const useAuthStore = defineStore("auth", () => {
   function clearSession() {
     accessToken.value = "";
     currentUser.value = null;
+    rejected.value = false;
+    verifyPromise = null;
     if (canUseBrowserStorage) {
       localStorage.removeItem(tokenStorageKey);
       localStorage.removeItem(profileStorageKey);
@@ -213,7 +224,9 @@ export const useAuthStore = defineStore("auth", () => {
           }
         }
       }
-      return !!accessToken.value;
+      // 与下面的 initPromise 分支保持同一口径：这里也必须走 isLoggedIn，
+      // 否则"令牌已被服务端否证"时早退分支会谎报已登录。
+      return isLoggedIn.value;
     }
     if (initPromise) return initPromise;
 
@@ -235,7 +248,7 @@ export const useAuthStore = defineStore("auth", () => {
 
       initialized.value = true;
       initPromise = null;
-      return !!accessToken.value;
+      return isLoggedIn.value;
     })();
 
     return initPromise;
@@ -291,7 +304,56 @@ export const useAuthStore = defineStore("auth", () => {
     }
   }
 
-  const isLoggedIn = computed(() => !!accessToken.value);
+  /**
+   * 标记"令牌可能已经失效"，让界面立刻停止显示已登录，并触发一次会话校验。
+   *
+   * 由请求层在遇到鉴权失败时调用。为什么不直接 clearSession：
+   * 网络波动也可能产生失败，直接清会话会把用户踢掉；这里只先让界面
+   * 诚实（不再声称已登录），再由校验决定是恢复还是真的登出。
+   */
+  async function markPossiblyExpired() {
+    rejected.value = true;
+    if (!accessToken.value) return false;
+
+    // 同一时间只跑一次校验：多个请求并发失败时若各自发起，会变成
+    // 一波额外的 /users/detail 打向服务端。
+    if (verifyPromise) return verifyPromise;
+
+    verifyPromise = (async () => {
+      try {
+        await fetchCurrentUser({ throwOnError: true, retryAuth: false });
+        // 校验通过说明令牌其实还有效（可能只是某次请求偶发失败）。
+        rejected.value = false;
+        return true;
+      } catch (error) {
+        if (isAuthLikeError(error)) {
+          clearSession();
+        } else {
+          // 非鉴权类失败（网络/服务异常）不应把用户踢下线。
+          rejected.value = false;
+        }
+        return false;
+      } finally {
+        verifyPromise = null;
+      }
+    })();
+
+    return verifyPromise;
+  }
+
+  /**
+   * 是否已登录。
+   *
+   * # 为什么不能只看令牌字符串
+   *
+   * localStorage 里有令牌只说明"曾经登录过"，不说明"现在还登录着"。令牌可能
+   * 已过期、版本被提升、会话被吊销——这些只有服务端知道。只看字符串会让界面
+   * 在令牌失效时仍显示已登录，于是每个写操作都失败，用户却以为自己登录着。
+   *
+   * 因此这里同时看两件事：本地有令牌，且它没有被服务端明确否证。
+   * 判据来自已有的会话校验结果，不额外发请求。
+   */
+  const isLoggedIn = computed(() => !!accessToken.value && !rejected.value);
   const profileId = computed(() => currentUser.value?.id ?? null);
   const profileName = computed(() => {
     if (!currentUser.value) {
@@ -315,6 +377,7 @@ export const useAuthStore = defineStore("auth", () => {
     fetchCurrentUser,
     refreshSession,
     initializeSession,
+    markPossiblyExpired,
     loginByPassword,
     loginByEmailCode,
     registerByEmail,

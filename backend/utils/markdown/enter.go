@@ -8,11 +8,23 @@ import (
 	"github.com/yuin/goldmark/text"
 )
 
-// 不允许任何 HTML 标签存在，纯文本输出
+// MdToText 输出纯文本：不允许任何 HTML 标签存在。
+//
+// # 为什么要跳过整个 SVG 子树
+//
+// 正文放行内联 SVG 之后（#137），图形里的文字（<title> / <desc> / <text>）
+// 会被 StrictPolicy 剥掉标签后当成正文留下来。但它们是**图的内部标注**，
+// 不属于作者叙述——漏进摘要会让列表页冒出看不懂的碎片（例如"图里的文字"）。
+//
+// 所以这里把 <svg> 连同其内容整体丢弃。图注（<center> 之类）不在 SVG 内部，
+// 仍会保留，因为它确实是作者写的说明。
 func MdToText(md string) string {
 	raw := getRawHTML(md)
 	// 移除所有 HTML 标签，只保留文本内容
-	return bluemonday.StrictPolicy().Sanitize(raw)
+	p := bluemonday.StrictPolicy()
+	// 图形内部的文字不算正文：整棵 SVG 子树连内容一起丢掉。
+	p.SkipElementsContent("svg")
+	return p.Sanitize(raw)
 }
 
 // 纯文本输出，且清空所有换行和冗余空白，适合单个段落使用

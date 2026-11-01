@@ -36,6 +36,7 @@
     "crossws": "0.4.4",
     "github-markdown-css": "^5.9.0",
     "highlight.js": "^11.11.1",
+    "isomorphic-dompurify": "^4.6.0",
     "katex": "^0.16.45",
     "markdown-it": "^14.1.1",
     "markdown-it-ins": "^4.0.0",

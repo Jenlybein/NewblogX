@@ -1,8 +1,9 @@
-﻿# ADR-0016：装饰配置段与光标挂件（第 8 段 `deco` + 挂绳物理）
+# ADR-0016：装饰配置段与光标挂件（第 8 段 `deco` + 挂绳物理）
 
 - 状态：已交付
 - 日期：2026-10-31
 - 来源：spec [issue #35](https://github.com/Jenlybein/NewblogX/issues/35)（落地分票 #36–#43）；开源实现调研与关键纠正是该 spec「Further Notes」的一部分；视觉约束上游为 [ADR-0012](./0012-neutral-glass-visual-system.md)
+- 后续修订：**决策 9、已否决段的「永远开着的 rAF 轻晃」、代价段第 4 条、当前生效约束 8 已由 [ADR-0018](./0018-charm-frame-cap-and-pointer-offset.md)（已交付，2026-11-01）取代**，其余条款继续生效。差异速览：20fps 怠速车道与"指针移动期间走满速"一起取消，挂件只剩一条 `requestAnimationFrame` 调度，帧率上限改由后台 `deco.charm.fps_cap` 控制，另加可配的指针端偏移。
 
 ## 背景与问题
 
@@ -71,3 +72,18 @@
 - 代码：[backend/conf/conf_deco.go](../../backend/conf/conf_deco.go)（范围常量与钳位）· [backend/config/site_default_settings.yaml](../../backend/config/site_default_settings.yaml)（默认种子）· [frontend/app/utils/decoCharm.ts](../../frontend/app/utils/decoCharm.ts)（物理与几何）· [frontend_admin/app/utils/decoParams.ts](../../frontend_admin/app/utils/decoParams.ts)（参数元数据）
 - 门禁：[scripts/check-deco-range-parity.mjs](../../scripts/check-deco-range-parity.mjs) · [frontend/test/gates/deco-range-parity.test.ts](../../frontend/test/gates/deco-range-parity.test.ts)
 - 上游：[ADR-0012](./0012-neutral-glass-visual-system.md)（视觉系统与动效预算）· [spec issue #35](https://github.com/Jenlybein/NewblogX/issues/35)
+
+## 后续修订（2026-11-01）
+
+[ADR-0018](./0018-charm-frame-cap-and-pointer-offset.md)（已交付，2026-11-01）取代本 ADR 的四处内容。按本目录的登记规则（"已交付的 ADR 不改结论，只追加后续修订"），**正文原样保留**，只在此处登记差异——读本 ADR 时若只看正文，会读到已被取代的车道设计。
+
+| 本 ADR 位置 | 原文口径 | 修订后 |
+| --- | --- | --- |
+| 决策 9 | 轻晃开启且指针不再主动驱动头节点时走约 20fps 的怠速车道，指针移动期间走满速动画帧 | 取消车道；只剩一条 `requestAnimationFrame` 调度，发布频率受后台 `deco.charm.fps_cap`（默认 60、30–160）约束，且与指针状态无关 |
+| 已否决段「永远开着的 rAF 轻晃」 | 静态页面白白耗电，可以按状态切换车道 | 这条否决被推翻：恒定上限下循环会常驻；代价改为"运营可把 `idle_sway_amp` 设 0 回零帧"，记录在 ADR-0018 的代价段 |
+| 代价段第 4 条 | 约 20fps 的常驻成本，指针移动期间始终满速帧 | 常驻成本变成恒定 `fps_cap`（默认 60 相比 20fps 是 3 倍重绘），不随指针状态变化 |
+| 当前生效约束 8 | 约 20fps 怠速车道 / 满速动画帧 | 只保留"完全停帧"与"收敛后回零帧"这半条；帧率部分改由 ADR-0018 约束 1–3 规定 |
+
+**继续生效的部分**：决策 1–8、10、11 与约束 1–7、9、10（装饰段归属、钳位不报错、四端一致、Verlet + 松弛弧垂、固定 1/120s 步长、SVG 覆盖层、`z-index 9999` + `pointer-events: none`、带形多边形收尾、不成为第二个功能入口、失焦只冻结不瞬移）。ADR-0018 只改"帧率怎么来"和"指针端从哪里长出来"，不碰渲染立场与物理模型。
+
+**落地时连带改掉的**（已完成，属 ADR-0018 的实施清单，此处列出是因为它们都写在本 ADR 名下的文档里）：[configuration.md](../architecture/configuration.md) §五 的降速段与参数清单（八个→十一个）、[site_default_settings.yaml](../../backend/config/site_default_settings.yaml) 里关于旧降速策略的注释、[CursorCharm.vue](../../frontend/app/components/deco/CursorCharm.vue) 顶部的渲染成本注释（现按 `fps_cap` 门控说明）、[GLOSSARY](../../GLOSSARY.md) 的「挂绳」词条（已补"指针端 = 指针热点 + 指针端偏移"）。

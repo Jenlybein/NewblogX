@@ -58,9 +58,111 @@ func charmWith(mutate func(*conf.Charm)) conf.Charm {
 		Damping:     conf.CharmDampingDefault,
 		IdleSwayHz:  conf.CharmIdleSwayHzDefault,
 		IdleSwayAmp: conf.CharmIdleSwayAmpDefault,
+		FpsCap:      conf.CharmFpsCapDefault,
+		// 指针端偏移（票 #75）：整体比较时也必须在默认值上，否则"其余参数没被
+		// 顺手改坏"这条断言会被两边的零值共同掩盖。
+		PointerOffsetX: conf.CharmPointerOffsetXDefault,
+		PointerOffsetY: conf.CharmPointerOffsetYDefault,
 	}
 	mutate(&c)
 	return c
+}
+
+// TestDecoNormalize_帧率上限钳位 钉住票 #74 的帧率上限：30–160 fps，默认 60，整数。
+//
+// 为什么下限是 30 而不是 20：物理常量一律不动（1/120s 固定步长、0.05s 累加器
+// 上限），30 档一帧 33.3ms 还留 16.7ms 余量；20 档一帧恰好 50ms、余量为零，
+// 任何迟到都会被截断丢掉，绳子会慢放。这条规则由上限本身守住。
+func TestDecoNormalize_帧率上限钳位(t *testing.T) {
+	cases := []struct {
+		name string
+		in   float64
+		want float64
+	}{
+		{"远超上限钳到 160", 1000, conf.CharmFpsCapMax},
+		{"略高于上限也钳回边界", 160.1, conf.CharmFpsCapMax},
+		{"略低于下限钳到 30", 29.9, conf.CharmFpsCapMin},
+		{"下限本身不变（边界值不漂移）", 30, 30},
+		{"上限本身不变（边界值不漂移）", 160, 160},
+		{"区间内的值原样保留", 90, 90},
+		{"默认值 60 原样保留", 60, 60},
+		{"小数先夹边界再取整（90.4→90）", 90.4, 90},
+		{"小数先夹边界再取整（90.6→91）", 90.6, 91},
+		{"缺省（零值）补默认值 60", 0, conf.CharmFpsCapDefault},
+		{"负数回落默认而不是钳到 30", -30, conf.CharmFpsCapDefault},
+		{"NaN 回落默认", math.NaN(), conf.CharmFpsCapDefault},
+		{"+Inf 回落默认", math.Inf(1), conf.CharmFpsCapDefault},
+		{"-Inf 回落默认", math.Inf(-1), conf.CharmFpsCapDefault},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			got := (conf.Deco{Charm: conf.Charm{FpsCap: c.in}}).Normalize().Charm.FpsCap
+			if got != c.want {
+				t.Fatalf("FpsCap=%v 归一化后应为 %v，实际 %v", c.in, c.want, got)
+			}
+		})
+	}
+}
+
+// TestDecoNormalize_指针端偏移钳位 钉住票 #75 的指针端偏移：每轴 -24–24，
+// 默认 3，单位 CSS px（整数），**允许负值**（可以往左上偏）。
+//
+// 为什么不能复用现成的两条规则：`normalizePositiveRange` 把 <= 0 一律回落默认
+// （0 与负偏移都被吃掉），`normalizeNonNegativeRange` 把负值夹回下限 —— 而这里的
+// 下限本来就是负数，等于"负偏移被静默改成 -24"。ADR-0018 决策 9 / 约束 8 因此
+// 要求第四条规则 `normalizeSignedRange`：夹 [min,max]、NaN/±Inf 回落默认、
+// 0 与负数都是普通值、只是最后取整成整数。
+func TestDecoNormalize_指针端偏移钳位(t *testing.T) {
+	cases := []struct {
+		name string
+		in   float64
+		want float64
+	}{
+		{"远超上限钳到 24", 100, conf.CharmPointerOffsetXMax},
+		{"略超上限也钳回边界", 24.4, conf.CharmPointerOffsetXMax},
+		{"上限本身不漂移", 24, 24},
+		{"区间内的正值原样保留", 12, 12},
+		{"默认值 3 原样保留", 3, 3},
+		{"0 是普通值，不回落默认", 0, 0},
+		{"负值原样保留（往左上偏）", -6, -6},
+		{"下限本身不漂移", -24, -24},
+		{"略低于下限钳到 -24", -24.4, conf.CharmPointerOffsetXMin},
+		{"远超下限钳到 -24", -100, conf.CharmPointerOffsetXMin},
+		{"小数取整（3.7→4）", 3.7, 4},
+		{"负数小数取整（-3.7→-4）", -3.7, -4},
+		{"负数半值向远离 0 的方向取整（-2.5→-3）", -2.5, -3},
+		{"NaN 回落默认", math.NaN(), conf.CharmPointerOffsetXDefault},
+		{"+Inf 回落默认", math.Inf(1), conf.CharmPointerOffsetXDefault},
+		{"-Inf 回落默认", math.Inf(-1), conf.CharmPointerOffsetXDefault},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			// X / Y 两轴的区间与默认值必须完全对称：同一张表同时喂给两个字段。
+			normalized := conf.Deco{Charm: conf.Charm{
+				PointerOffsetX: c.in,
+				PointerOffsetY: c.in,
+			}}.Normalize().Charm
+			if normalized.PointerOffsetX != c.want {
+				t.Fatalf("PointerOffsetX=%v 归一化后应为 %v，实际 %v", c.in, c.want, normalized.PointerOffsetX)
+			}
+			if normalized.PointerOffsetY != c.want {
+				t.Fatalf("PointerOffsetY=%v 归一化后应为 %v，实际 %v", c.in, c.want, normalized.PointerOffsetY)
+			}
+		})
+	}
+}
+
+// TestDecoNormalize_指针端偏移两轴互不影响 证明 X 与 Y 是两条独立的通道：
+// 只改一轴时另一轴必须留在原处（复制粘贴把 Y 写成 X 会在这里红）。
+func TestDecoNormalize_指针端偏移两轴互不影响(t *testing.T) {
+	got := conf.Deco{Charm: conf.Charm{PointerOffsetX: -6, PointerOffsetY: 12}}.Normalize().Charm
+
+	if got.PointerOffsetX != -6 {
+		t.Fatalf("PointerOffsetX 应保留 -6，实际 %v", got.PointerOffsetX)
+	}
+	if got.PointerOffsetY != 12 {
+		t.Fatalf("PointerOffsetY 应保留 12，实际 %v", got.PointerOffsetY)
+	}
 }
 
 // 物理参数（挂绳长度 / 节点数 / 重力 / 阻尼）与站标尺寸共用同一条
@@ -327,6 +429,12 @@ func TestDecoNormalize_共享归一化用例表(t *testing.T) {
 				charm.IdleSwayHz = input
 			case "idle_sway_amp":
 				charm.IdleSwayAmp = input
+			case "fps_cap":
+				charm.FpsCap = input
+			case "pointer_offset_x":
+				charm.PointerOffsetX = input
+			case "pointer_offset_y":
+				charm.PointerOffsetY = input
 			default:
 				t.Fatalf("共享用例表出现未知参数 %q", c.Parameter)
 			}
@@ -349,6 +457,12 @@ func TestDecoNormalize_共享归一化用例表(t *testing.T) {
 				actual = got.IdleSwayHz
 			case "idle_sway_amp":
 				actual = got.IdleSwayAmp
+			case "fps_cap":
+				actual = got.FpsCap
+			case "pointer_offset_x":
+				actual = got.PointerOffsetX
+			case "pointer_offset_y":
+				actual = got.PointerOffsetY
 			}
 			if actual != c.Expected {
 				t.Fatalf("%s 输入 %s 归一化后应为 %v，实际 %v", c.Parameter, c.Input, c.Expected, actual)

@@ -159,8 +159,10 @@ func TestRestrictedRolesAreAnonymousOnHTTPRoutes(t *testing.T) {
 				if err := json.Unmarshal(w.Body.Bytes(), &got); err != nil {
 					t.Fatalf("解析响应失败: %v, body=%s", err, w.Body.String())
 				}
-				if got.Code != 1001 {
-					t.Fatalf("应被当成未登录（业务码 1001），实际 code=%d body=%s", got.Code, w.Body.String())
+				// 鉴权失败用专属码 1003（不再是 1001）：前端据此判断要不要
+				// 刷新令牌，不需要再匹配错误消息里的中文关键词。
+				if got.Code != 1003 {
+					t.Fatalf("应被当成未登录（鉴权专属码 1003），实际 code=%d body=%s", got.Code, w.Body.String())
 				}
 				if got.Msg != "请先登录" {
 					t.Fatalf("提示语应与匿名一致「请先登录」，实际 %q", got.Msg)

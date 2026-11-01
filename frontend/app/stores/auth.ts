@@ -224,7 +224,9 @@ export const useAuthStore = defineStore("auth", () => {
           }
         }
       }
-      return !!accessToken.value;
+      // 与下面的 initPromise 分支保持同一口径：这里也必须走 isLoggedIn，
+      // 否则"令牌已被服务端否证"时早退分支会谎报已登录。
+      return isLoggedIn.value;
     }
     if (initPromise) return initPromise;
 

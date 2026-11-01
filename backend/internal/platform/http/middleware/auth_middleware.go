@@ -38,7 +38,8 @@ func (h Runtime) AuthMiddleware(c *gin.Context) {
 	token := jwts.GetTokenByGin(c)
 	claims, err := h.Verifier.VerifyAccessToken(requestContext(c), token)
 	if err != nil {
-		res.FailWithMsg(err.Error(), c)
+		// 用鉴权专属码：前端据此判断"要不要刷新令牌"，不必再匹配中文文案。
+		res.FailWithAuthMsg(err.Error(), c)
 		c.Abort()
 		return
 	}

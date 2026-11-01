@@ -7,7 +7,10 @@
 // 本票只落光标挂件的子块 charm；将来加别的装饰不用再开第 9 段。
 package conf
 
-import "math"
+import (
+	"encoding/json"
+	"math"
+)
 
 // 光标挂件站标尺寸的取值范围与默认值，单位：px。
 //
@@ -162,6 +165,78 @@ type Charm struct {
 	PointerOffsetY float64 `yaml:"pointer_offset_y" json:"pointer_offset_y"`
 }
 
+// charmDecode 是 Charm 的 JSON 解码中间层：数值字段用 *float64、开关用 *bool，
+// 才能把"JSON 里没给这个键（或给了 null）"与"给了 0 / false"分开。
+//
+// 只在 UnmarshalJSON 里用；yaml 路径不经过它（见 UnmarshalJSON 的边界说明）。
+type charmDecode struct {
+	Enable         *bool    `json:"enable"`
+	LogoSize       *float64 `json:"logo_size"`
+	RopeLength     *float64 `json:"rope_length"`
+	Segments       *float64 `json:"segments"`
+	LineWidth      *float64 `json:"line_width"`
+	Gravity        *float64 `json:"gravity"`
+	Damping        *float64 `json:"damping"`
+	IdleSwayHz     *float64 `json:"idle_sway_hz"`
+	IdleSwayAmp    *float64 `json:"idle_sway_amp"`
+	FpsCap         *float64 `json:"fps_cap"`
+	PointerOffsetX *float64 `json:"pointer_offset_x"`
+	PointerOffsetY *float64 `json:"pointer_offset_y"`
+}
+
+// UnmarshalJSON 让 JSON 的 null / 缺键回落到默认值（票 #77）。
+//
+// 为什么必须在这一层处理：float64 无法区分"没给这个键"与"给了 0" ——
+// encoding/json 把 null 与缺键都解成 0，而 0 在轻晃两项与两轴指针端偏移上
+// 是**合法语义**（关掉轻晃 / 指针端压在热点上），Normalize 不能把它们一律
+// 回落默认值。先解码成指针再落值，两件事就分开了：nil → 默认值，
+// 非 nil → 原值（含 0）；越界与取整仍由 Normalize 负责。
+//
+// 这是行为变化：body 里缺 enable 过去会落成 bool 零值 false，现在与 yaml
+// 默认种子一致，视为开启（true）；显式 false 仍然是 false。
+//
+// 边界：yaml 种子路径（site_default_settings.yaml，经 envyaml 解码）**不走**
+// UnmarshalJSON。所以这里不实现 UnmarshalYAML —— 种子文件里没有 null，缺键时
+// yaml 会落成 Go 零值，随后由 Normalize 统一处理（与旧行为一致）。
+func (c *Charm) UnmarshalJSON(data []byte) error {
+	var decoded charmDecode
+	if err := json.Unmarshal(data, &decoded); err != nil {
+		return err
+	}
+	*c = Charm{
+		Enable:         charmBoolOrDefault(decoded.Enable, true),
+		LogoSize:       charmFloatOrDefault(decoded.LogoSize, CharmLogoSizeDefault),
+		RopeLength:     charmFloatOrDefault(decoded.RopeLength, CharmRopeLengthDefault),
+		Segments:       charmFloatOrDefault(decoded.Segments, CharmSegmentsDefault),
+		LineWidth:      charmFloatOrDefault(decoded.LineWidth, CharmLineWidthDefault),
+		Gravity:        charmFloatOrDefault(decoded.Gravity, CharmGravityDefault),
+		Damping:        charmFloatOrDefault(decoded.Damping, CharmDampingDefault),
+		IdleSwayHz:     charmFloatOrDefault(decoded.IdleSwayHz, CharmIdleSwayHzDefault),
+		IdleSwayAmp:    charmFloatOrDefault(decoded.IdleSwayAmp, CharmIdleSwayAmpDefault),
+		FpsCap:         charmFloatOrDefault(decoded.FpsCap, CharmFpsCapDefault),
+		PointerOffsetX: charmFloatOrDefault(decoded.PointerOffsetX, CharmPointerOffsetXDefault),
+		PointerOffsetY: charmFloatOrDefault(decoded.PointerOffsetY, CharmPointerOffsetYDefault),
+	}
+	return nil
+}
+
+// charmFloatOrDefault 把指针解码出来的数值落回值：nil（缺键 / null）用默认值，
+// 非 nil 原样返回 —— 显式 0 是管理员"关掉轻晃 / 压在热点上"的明确意图。
+func charmFloatOrDefault(value *float64, fallback float64) float64 {
+	if value == nil {
+		return fallback
+	}
+	return *value
+}
+
+// charmBoolOrDefault 与 charmFloatOrDefault 同一条规则，用于"缺省即开启"的总开关。
+func charmBoolOrDefault(value *bool, fallback bool) bool {
+	if value == nil {
+		return fallback
+	}
+	return *value
+}
+
 // Normalize 把装饰配置收敛进合法范围，永不报错。
 //
 // 规则按失效模式分四类（数值参数共用，具体参数只是选一条）：
@@ -174,25 +249,57 @@ type Charm struct {
 // 计数类另有约束：segments 先四舍五入再钳到边界，fps_cap 与指针端偏移先夹边界
 // 再取整 —— 顺序反了会把越界值取整又放大一档。
 //
+// 具体规则按一张表逐字段套用（票 #78）：加一个参数只改「常量 + Charm 字段 +
+// 表一行」，函数体不再跟着长一行 —— 旧写法每加参数就多一行赋值，漏掉某行
+// （或把两行写反）没有任何测试看得见。
+//
 // 不返回 error 是有意的：管理员改一半被 400 打回只会让他猜哪里错了。
 func (d Deco) Normalize() Deco {
-	d.Charm.LogoSize = normalizePositiveRange(d.Charm.LogoSize, CharmLogoSizeMin, CharmLogoSizeMax, CharmLogoSizeDefault)
-	d.Charm.RopeLength = normalizePositiveRange(d.Charm.RopeLength, CharmRopeLengthMin, CharmRopeLengthMax, CharmRopeLengthDefault)
-	d.Charm.Gravity = normalizePositiveRange(d.Charm.Gravity, CharmGravityMin, CharmGravityMax, CharmGravityDefault)
-	d.Charm.Damping = normalizePositiveRange(d.Charm.Damping, CharmDampingMin, CharmDampingMax, CharmDampingDefault)
-	d.Charm.LineWidth = normalizeLineWidth(d.Charm.LineWidth)
-	// 轻晃的两个参数把 0 当作"关掉轻晃"的合法意图（裁决要求 amp=0 能退回停帧），
-	// 所以它们走"非负区间"规则而不是"正数"规则。
-	d.Charm.IdleSwayHz = normalizeNonNegativeRange(d.Charm.IdleSwayHz, CharmIdleSwayHzMin, CharmIdleSwayHzMax, CharmIdleSwayHzDefault)
-	d.Charm.IdleSwayAmp = normalizeNonNegativeRange(d.Charm.IdleSwayAmp, CharmIdleSwayAmpMin, CharmIdleSwayAmpMax, CharmIdleSwayAmpDefault)
-	d.Charm.Segments = normalizeSegments(d.Charm.Segments)
-	// 帧率上限是计数（整数 fps）：先夹边界再取整，规则见 normalizeFpsCap。
-	d.Charm.FpsCap = normalizeFpsCap(d.Charm.FpsCap)
-	// 指针端偏移允许负数，只能走"允许负数的区间"规则（见 normalizeSignedRange）；
-	// 用 normalizePositiveRange / normalizeNonNegativeRange 都会把负偏移吃掉。
-	d.Charm.PointerOffsetX = normalizePointerOffset(d.Charm.PointerOffsetX, CharmPointerOffsetXMin, CharmPointerOffsetXMax, CharmPointerOffsetXDefault)
-	d.Charm.PointerOffsetY = normalizePointerOffset(d.Charm.PointerOffsetY, CharmPointerOffsetYMin, CharmPointerOffsetYMax, CharmPointerOffsetYDefault)
+	// ptr 指向 d 的字段（d 是值接收者，改的是副本）；每行的 normalize 已经把
+	// 该参数的常量绑定好，表里只剩"哪个字段用哪条规则"。
+	fields := []struct {
+		ptr       *float64
+		normalize func(float64) float64
+	}{
+		{&d.Charm.LogoSize, positiveNormalizer(CharmLogoSizeMin, CharmLogoSizeMax, CharmLogoSizeDefault)},
+		{&d.Charm.RopeLength, positiveNormalizer(CharmRopeLengthMin, CharmRopeLengthMax, CharmRopeLengthDefault)},
+		{&d.Charm.Segments, normalizeSegments},
+		// 描边宽度：正数规则 + 保留一位小数。
+		{&d.Charm.LineWidth, normalizeLineWidth},
+		{&d.Charm.Gravity, positiveNormalizer(CharmGravityMin, CharmGravityMax, CharmGravityDefault)},
+		{&d.Charm.Damping, positiveNormalizer(CharmDampingMin, CharmDampingMax, CharmDampingDefault)},
+		// 轻晃的两个参数把 0 当作"关掉轻晃"的合法意图（裁决要求 amp=0 能退回停帧），
+		// 所以它们走"非负区间"规则而不是"正数"规则。
+		{&d.Charm.IdleSwayHz, nonNegativeNormalizer(CharmIdleSwayHzMin, CharmIdleSwayHzMax, CharmIdleSwayHzDefault)},
+		{&d.Charm.IdleSwayAmp, nonNegativeNormalizer(CharmIdleSwayAmpMin, CharmIdleSwayAmpMax, CharmIdleSwayAmpDefault)},
+		// 帧率上限是计数（整数 fps）：先夹边界再取整，规则见 normalizeFpsCap。
+		{&d.Charm.FpsCap, normalizeFpsCap},
+		// 指针端偏移允许负数，只能走"允许负数的区间"规则（见 normalizeSignedRange）；
+		// 用 normalizePositiveRange / normalizeNonNegativeRange 都会把负偏移吃掉。
+		{&d.Charm.PointerOffsetX, pointerOffsetNormalizer(CharmPointerOffsetXMin, CharmPointerOffsetXMax, CharmPointerOffsetXDefault)},
+		{&d.Charm.PointerOffsetY, pointerOffsetNormalizer(CharmPointerOffsetYMin, CharmPointerOffsetYMax, CharmPointerOffsetYDefault)},
+	}
+	for _, field := range fields {
+		*field.ptr = field.normalize(*field.ptr)
+	}
 	return d
+}
+
+// positiveNormalizer 把"正数规则"的三个常量绑成单参数函数，供 Normalize 的参数表使用。
+//
+// 逻辑仍然只有 normalizePositiveRange 一份：这里只做参数绑定，不重写规则。
+func positiveNormalizer(min, max, fallback float64) func(float64) float64 {
+	return func(v float64) float64 { return normalizePositiveRange(v, min, max, fallback) }
+}
+
+// nonNegativeNormalizer 与 positiveNormalizer 同形，绑定"0 有合法含义"的规则。
+func nonNegativeNormalizer(min, max, fallback float64) func(float64) float64 {
+	return func(v float64) float64 { return normalizeNonNegativeRange(v, min, max, fallback) }
+}
+
+// pointerOffsetNormalizer 与 positiveNormalizer 同形，绑定"允许负数的区间 + 取整"规则。
+func pointerOffsetNormalizer(min, max, fallback float64) func(float64) float64 {
+	return func(v float64) float64 { return normalizePointerOffset(v, min, max, fallback) }
 }
 
 // normalizePositiveRange 是"正数才有意义"的数值参数共用钳位规则。

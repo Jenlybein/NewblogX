@@ -4,6 +4,7 @@ import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 
 import {
+  CHARM_CONFIG_FIELDS,
   CHARM_DAMPING_DEFAULT,
   CHARM_DAMPING_MAX,
   CHARM_DAMPING_MIN,
@@ -463,6 +464,81 @@ describe("normalizeCharmRopeConfig", () => {
   });
 });
 
+/**
+ * 票 #77：`null` 与 `undefined` 一样表示"这个键没有值"，必须回落默认值。
+ *
+ * 为什么专门盯着这四个字段：轻晃两项与两轴偏移的钳位规则把 0 当**合法值**
+ * （关掉轻晃 / 指针端压在热点上），所以旧实现里 `Number(null) === 0` 不会被
+ * 钳位顺手兜住 —— 它会把"没给"悄悄读成"明确关掉"，页面表现为停手即零帧。
+ * 归一化层是唯一兜底点：组件把原始值原样交进来，这里把 null 折成 NaN，
+ * 再由四条规则回落各自的默认值；显式 0 是数字，原样通过。
+ */
+describe("票 #77：null 与 undefined 同义（都表示这个键没有值）", () => {
+  it("四个「0 合法」参数为 null 时回落默认值，而不是被读成 0", () => {
+    const normalized = normalizeCharmRopeConfig({
+      idleSwayHz: null,
+      idleSwayAmp: null,
+      pointerOffsetX: null,
+      pointerOffsetY: null,
+    });
+
+    expect(normalized.idleSwayHz).toBe(CHARM_IDLE_SWAY_HZ_DEFAULT);
+    expect(normalized.idleSwayAmp).toBe(CHARM_IDLE_SWAY_AMP_DEFAULT);
+    expect(normalized.pointerOffsetX).toBe(CHARM_POINTER_OFFSET_X_DEFAULT);
+    expect(normalized.pointerOffsetY).toBe(CHARM_POINTER_OFFSET_Y_DEFAULT);
+  });
+
+  it("十个数值键全为 null 时与「整份配置缺失」完全一致", () => {
+    const allNull = normalizeCharmRopeConfig({
+      ropeLengthPx: null,
+      segments: null,
+      gravity: null,
+      damping: null,
+      lineWidthPx: null,
+      idleSwayHz: null,
+      idleSwayAmp: null,
+      fpsCap: null,
+      pointerOffsetX: null,
+      pointerOffsetY: null,
+    });
+
+    expect(allNull).toEqual(normalizeCharmRopeConfig(undefined));
+  });
+
+  it("显式 0 仍然是 0（null 的回落不吃掉「关掉轻晃 / 压在热点上」）", () => {
+    const normalized = normalizeCharmRopeConfig({
+      idleSwayHz: 0,
+      idleSwayAmp: 0,
+      pointerOffsetX: 0,
+      pointerOffsetY: 0,
+    });
+
+    expect(normalized.idleSwayHz).toBe(0);
+    expect(normalized.idleSwayAmp).toBe(0);
+    expect(normalized.pointerOffsetX).toBe(0);
+    expect(normalized.pointerOffsetY).toBe(0);
+  });
+
+  it("undefined 与 null 的结果逐字段一致", () => {
+    const withNull = normalizeCharmRopeConfig({
+      idleSwayHz: null,
+      idleSwayAmp: null,
+      fpsCap: null,
+      pointerOffsetX: null,
+      pointerOffsetY: null,
+    });
+    const withUndefined = normalizeCharmRopeConfig({
+      idleSwayHz: undefined,
+      idleSwayAmp: undefined,
+      fpsCap: undefined,
+      pointerOffsetX: undefined,
+      pointerOffsetY: undefined,
+    });
+
+    expect(withNull).toEqual(withUndefined);
+  });
+});
+
 describe("charmLayerEnabled", () => {
   const base = { finePointerHover: true, prefersReducedMotion: false, configEnabled: true };
 
@@ -829,4 +905,50 @@ describe("共享归一化用例表：读者站与后端 / 后台同一组输入�
       expect(clamp!(fixtureInput(testCase.input))).toBe(testCase.expected);
     },
   );
+});
+
+/**
+ * 票 #78 的一致性守卫（读者站）：
+ * 「registry 的 configKey 集合 == `CharmRopeConfig` 字段集合 == 归一化输出键集合」。
+ *
+ * 为什么需要：读者站原来把同一份参数表手抄了五遍（常量、10 个 clamp、
+ * `CharmRopeConfig`、`normalizeCharmRopeConfig` 的 10 行、`CursorCharm.vue` 的
+ * 10 行）。现在后三处都由 `CHARM_CONFIG_FIELDS` 派生，"加一个参数漏改一处"
+ * 应当是结构上不可能 —— 这条守卫就是那张保单的验收。
+ *
+ * `TYPE_CONFIG_KEYS` 是**类型层的清单**：`satisfies Record<keyof CharmRopeConfig, true>`
+ * 要求这里恰好列出 `CharmRopeConfig` 的全部字段 —— 类型里删 / 加字段而 registry
+ * 没跟上，`tsc` 先红；运行时再和 registry、归一化输出各比一次（vitest 不跑类型
+ * 检查，所以删掉 registry 里的一行必须当场红）。
+ */
+const TYPE_CONFIG_KEYS = {
+  ropeLengthPx: true,
+  segments: true,
+  gravity: true,
+  damping: true,
+  lineWidthPx: true,
+  idleSwayHz: true,
+  idleSwayAmp: true,
+  fpsCap: true,
+  pointerOffsetX: true,
+  pointerOffsetY: true,
+} as const satisfies Record<keyof CharmRopeConfig, true>;
+
+describe("参数清单一致性守卫：registry ↔ 类型字段 ↔ 归一化输出（#78）", () => {
+  it("registry 的 configKey 集合 == 类型字段集合 == 归一化输出键集合", () => {
+    const registryKeys = CHARM_CONFIG_FIELDS.map((field) => field.configKey).sort();
+    const typeKeys = Object.keys(TYPE_CONFIG_KEYS).sort();
+    const normalizedKeys = Object.keys(normalizeCharmRopeConfig(null)).sort();
+
+    expect(registryKeys, "registry 与 CharmRopeConfig 的字段集合不一致").toEqual(typeKeys);
+    expect(normalizedKeys, "归一化漏了某个参数（或凭空多出一个）").toEqual(typeKeys);
+  });
+
+  it("registry 的 storeKey 唯一，且覆盖后端 deco.charm 的十个挂绳数值键", () => {
+    const storeKeys = CHARM_CONFIG_FIELDS.map((field) => field.storeKey);
+
+    expect(new Set(storeKeys).size, "registry 里出现重复的后端键").toBe(storeKeys.length);
+    // 十个挂绳参数 + logo_size（不在 registry 里，走自己的钳位）= 十一个后端数值键。
+    expect(new Set(storeKeys).size + 1, "后端 deco.charm 的数值键数量对不上").toBe(11);
+  });
 });

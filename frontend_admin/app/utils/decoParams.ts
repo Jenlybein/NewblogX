@@ -113,27 +113,36 @@ export const DECO_POINTER_OFFSET_Y_MAX = 24
 /** 指针端偏移垂直分量默认值（px）：指针端从光标下方 3px 处悬挂。 */
 export const DECO_POINTER_OFFSET_Y_DEFAULT = 3
 
-/** 一个数值参数的元数据；表单与测试都只认这个形状。 */
+/**
+ * 一个数值参数用哪条钳位规则（票 #78）—— 元数据驱动归一化的关键。
+ *
+ * 五个取值与后端 `Normalize()` 的规则一一对应：
+ *   - `positive`：<= 0 是"没填 / 手滑"，回落默认值（站标尺寸、挂绳长度、重力、阻尼）；
+ *   - `nonNegative`：0 有合法含义（关掉轻晃），负数才回落默认；
+ *   - `signed`：0 与负数都是普通取值，只夹 [min, max] 再取整（指针端偏移）；
+ *   - `segments`：整数计数（`segments` / `fps_cap`），夹边界后取整；
+ *   - `lineWidth`：正数规则之后再收成 0.1 的整数倍（描边宽度）。
+ */
+export type DecoParamKind = 'positive' | 'nonNegative' | 'signed' | 'segments' | 'lineWidth'
+
+/** 一个数值参数的元数据；表单、默认值、归一化与守卫测试都只认这个形状。 */
 export interface DecoNumberParamMeta {
-  /** 提交给后端的键名（snake_case，与 Go 的 json tag 一致）。 */
-  key:
-    | 'logo_size'
-    | 'rope_length'
-    | 'segments'
-    | 'line_width'
-    | 'gravity'
-    | 'damping'
-    | 'idle_sway_hz'
-    | 'idle_sway_amp'
-    | 'fps_cap'
-    | 'pointer_offset_x'
-    | 'pointer_offset_y'
+  /**
+   * 提交给后端的键名（snake_case，与 Go 的 json tag 一致）。
+   *
+   * 这里故意只声明成 `string`：具体键名由每个参数对象经 `defineDecoParam`
+   * 钉成字面量，再由 `DECO_NUMBER_PARAMS` 派生 `DecoNumberParamKey` ——
+   * 键名清单只有一份，不从接口里抄第二份。
+   */
+  key: string
   /** 表单项标签。 */
   label: string
   /** 单位后缀，直接显示在输入框右侧。 */
   unit: string
   /** 一句话说明：这个参数影响什么。 */
   hint: string
+  /** 归一化用哪条钳位规则（见 `DecoParamKind`）。 */
+  kind: DecoParamKind
   min: number
   max: number
   step: number
@@ -144,118 +153,141 @@ export interface DecoNumberParamMeta {
   precision?: number
 }
 
+/**
+ * 声明一个参数元数据，并把 `key` 的类型钉成字面量（票 #78）。
+ *
+ * 为什么需要它：直接把对象标成 `DecoNumberParamMeta` 会把 `key` 拓宽成
+ * `string`，`DecoCharmConfig` 就没法从数组派生；而纯 `as const` 又会让
+ * 省略了 `integer` / `precision` 的参数在联合类型上访问不到这两个字段
+ * （表单模板要读 `param.precision`）。返回交叉类型两件事都满足。
+ */
+function defineDecoParam<Key extends string>(
+  meta: Omit<DecoNumberParamMeta, 'key'> & { key: Key },
+): DecoNumberParamMeta & { readonly key: Key } {
+  return meta
+}
+
 /** 站标尺寸。 */
-export const DECO_LOGO_SIZE_PARAM: DecoNumberParamMeta = {
+export const DECO_LOGO_SIZE_PARAM = defineDecoParam({
   key: 'logo_size',
   label: '站标尺寸',
   unit: 'px',
   hint: '挂件里那枚站标的显示尺寸：太小看不清是什么，太大会压住正文。',
+  kind: 'positive',
   min: DECO_LOGO_SIZE_MIN,
   max: DECO_LOGO_SIZE_MAX,
   step: 1,
   defaultValue: DECO_LOGO_SIZE_DEFAULT,
-}
+})
 
 /** 挂绳长度（票 #41）。 */
-export const DECO_ROPE_LENGTH_PARAM: DecoNumberParamMeta = {
+export const DECO_ROPE_LENGTH_PARAM = defineDecoParam({
   key: 'rope_length',
   label: '挂绳长度',
   unit: 'px',
   hint: '挂绳总长，同时是松垂阈值：比指针到站标的实际距离长，挂绳才会弯出弧线。',
+  kind: 'positive',
   min: DECO_ROPE_LENGTH_MIN,
   max: DECO_ROPE_LENGTH_MAX,
   step: 1,
   defaultValue: DECO_ROPE_LENGTH_DEFAULT,
-}
+})
 
 /** 链节点数（票 #41）。 */
-export const DECO_SEGMENTS_PARAM: DecoNumberParamMeta = {
+export const DECO_SEGMENTS_PARAM = defineDecoParam({
   key: 'segments',
   label: '链节点数',
   unit: '节',
   hint: '挂绳由多少个节点串成：越多摆动越顺滑，也越费 CPU；必须是整数。',
+  kind: 'segments',
   min: DECO_SEGMENTS_MIN,
   max: DECO_SEGMENTS_MAX,
   step: 1,
   defaultValue: DECO_SEGMENTS_DEFAULT,
   integer: true,
   precision: 0,
-}
+})
 
 /** 重力加速度（票 #41）。 */
-export const DECO_GRAVITY_PARAM: DecoNumberParamMeta = {
+export const DECO_GRAVITY_PARAM = defineDecoParam({
   key: 'gravity',
   label: '重力',
   unit: 'px/s²',
   hint: '重力加速度：只影响甩动时的摆动速度与滞后感，不会让挂绳下垂（弧垂来自绳长）。',
+  kind: 'positive',
   min: DECO_GRAVITY_MIN,
   max: DECO_GRAVITY_MAX,
   step: 10,
   defaultValue: DECO_GRAVITY_DEFAULT,
-}
+})
 
 /** 每步阻尼（票 #41）。 */
-export const DECO_DAMPING_PARAM: DecoNumberParamMeta = {
+export const DECO_DAMPING_PARAM = defineDecoParam({
   key: 'damping',
   label: '每步阻尼',
   unit: '无量纲',
   hint: '每个固定步长后保留的速度比例：越接近 1 越飘；上限 0.995，再大摆动会越甩越大。',
+  kind: 'positive',
   min: DECO_DAMPING_MIN,
   max: DECO_DAMPING_MAX,
   step: 0.001,
   defaultValue: DECO_DAMPING_DEFAULT,
-}
+})
 
 /** 描边起始宽度（票 #42）。 */
-export const DECO_LINE_WIDTH_PARAM: DecoNumberParamMeta = {
+export const DECO_LINE_WIDTH_PARAM = defineDecoParam({
   key: 'line_width',
   label: '描边宽度',
   unit: 'px',
   hint: '挂绳起始处的线宽：收尾固定为它的 0.6 倍，越细越像发丝；保留一位小数。',
+  kind: 'lineWidth',
   min: DECO_LINE_WIDTH_MIN,
   max: DECO_LINE_WIDTH_MAX,
   step: 0.1,
   defaultValue: DECO_LINE_WIDTH_DEFAULT,
   precision: 1,
-}
+})
 
 /** 静止摆动频率（票 #42）。 */
-export const DECO_IDLE_SWAY_HZ_PARAM: DecoNumberParamMeta = {
+export const DECO_IDLE_SWAY_HZ_PARAM = defineDecoParam({
   key: 'idle_sway_hz',
   label: '静止摆动频率',
   unit: 'Hz',
   hint: '指针静止时轻晃的快慢：0.8Hz 约 1.25 秒一个来回；填 0 也可以（配合幅度 0 关掉轻晃）。',
+  kind: 'nonNegative',
   min: DECO_IDLE_SWAY_HZ_MIN,
   max: DECO_IDLE_SWAY_HZ_MAX,
   step: 0.1,
   defaultValue: DECO_IDLE_SWAY_HZ_DEFAULT,
-}
+})
 
 /** 静止摆动幅度（票 #42）。 */
-export const DECO_IDLE_SWAY_AMP_PARAM: DecoNumberParamMeta = {
+export const DECO_IDLE_SWAY_AMP_PARAM = defineDecoParam({
   key: 'idle_sway_amp',
   label: '静止摆动幅度',
   unit: 'px/s²',
   hint: '轻晃的加速度幅度：0 表示不轻晃（读者站收敛后停帧，不再有持续重绘）；越大晃得越明显。',
+  kind: 'nonNegative',
   min: DECO_IDLE_SWAY_AMP_MIN,
   max: DECO_IDLE_SWAY_AMP_MAX,
   step: 1,
   defaultValue: DECO_IDLE_SWAY_AMP_DEFAULT,
-}
+})
 
 /** 帧率上限（票 #74）。 */
-export const DECO_FPS_CAP_PARAM: DecoNumberParamMeta = {
+export const DECO_FPS_CAP_PARAM = defineDecoParam({
   key: 'fps_cap',
   label: '帧率上限',
   unit: 'fps',
   hint: '挂件每秒最多画几次（整数）：越低越省电、越不干扰阅读；它只管画几次，不影响绳子手感。高于屏幕刷新率时等于不限。',
+  kind: 'segments',
   min: DECO_FPS_CAP_MIN,
   max: DECO_FPS_CAP_MAX,
   step: 1,
   defaultValue: DECO_FPS_CAP_DEFAULT,
   integer: true,
   precision: 0,
-}
+})
 
 /**
  * 指针端偏移 X（票 #75）。
@@ -263,39 +295,46 @@ export const DECO_FPS_CAP_PARAM: DecoNumberParamMeta = {
  * 它和其余参数不同：**下限是负数**，所以 `NInputNumber` 的 `min` 就是 -24。
  * 语义是"指针端节点 = 指针热点 + 偏移"：默认的 3 让指针端从光标右下悬挂。
  */
-export const DECO_POINTER_OFFSET_X_PARAM: DecoNumberParamMeta = {
+export const DECO_POINTER_OFFSET_X_PARAM = defineDecoParam({
   key: 'pointer_offset_x',
   label: '指针端偏移 X',
   unit: 'px',
   hint: '指针端相对光标热点的水平偏移（可填负数往左）：默认 3px，让指针端从右下悬挂而不是压在指尖正中。',
+  kind: 'signed',
   min: DECO_POINTER_OFFSET_X_MIN,
   max: DECO_POINTER_OFFSET_X_MAX,
   step: 1,
   defaultValue: DECO_POINTER_OFFSET_X_DEFAULT,
   integer: true,
   precision: 0,
-}
+})
 
 /** 指针端偏移 Y（票 #75）：负值往上偏；两轴到 ±24 时指针端与光标明显脱节。 */
-export const DECO_POINTER_OFFSET_Y_PARAM: DecoNumberParamMeta = {
+export const DECO_POINTER_OFFSET_Y_PARAM = defineDecoParam({
   key: 'pointer_offset_y',
   label: '指针端偏移 Y',
   unit: 'px',
   hint: '指针端相对光标热点的垂直偏移（可填负数往上）：默认 3px；它同样只加在指针端节点上。',
+  kind: 'signed',
   min: DECO_POINTER_OFFSET_Y_MIN,
   max: DECO_POINTER_OFFSET_Y_MAX,
   step: 1,
   defaultValue: DECO_POINTER_OFFSET_Y_DEFAULT,
   integer: true,
   precision: 0,
-}
+})
 
 /**
  * 装饰段的数值参数清单（表单按这个顺序渲染十一行输入）。
  *
  * 总开关不是数值参数，单独一行。
+ *
+ * 每个参数对象的 `key` 由 `defineDecoParam` 钉成字面量，这里再用 `as const`
+ * 把清单固定成只读元组：`DecoNumberParamKey` / `DecoCharmConfig` / 默认值与
+ * 归一化全部由这张表派生，数组顺序不变（后台表单按它渲染）。加一个参数只改
+ * 「常量 + 本表一行」。
  */
-export const DECO_NUMBER_PARAMS: readonly DecoNumberParamMeta[] = [
+export const DECO_NUMBER_PARAMS = [
   DECO_LOGO_SIZE_PARAM,
   DECO_ROPE_LENGTH_PARAM,
   DECO_SEGMENTS_PARAM,
@@ -307,7 +346,10 @@ export const DECO_NUMBER_PARAMS: readonly DecoNumberParamMeta[] = [
   DECO_FPS_CAP_PARAM,
   DECO_POINTER_OFFSET_X_PARAM,
   DECO_POINTER_OFFSET_Y_PARAM,
-]
+] as const
+
+/** 数值参数的键（由元数据数组派生，不再另抄一份清单）。 */
+export type DecoNumberParamKey = (typeof DECO_NUMBER_PARAMS)[number]['key']
 
 /** 数值参数共用的钳位规则：越界钳到边界、非有限与零值回落默认。 */
 function clampDecoPositiveRange(value: number, min: number, max: number, fallback: number): number {
@@ -315,90 +357,10 @@ function clampDecoPositiveRange(value: number, min: number, max: number, fallbac
   return Math.min(max, Math.max(min, value))
 }
 
-/**
- * 站标尺寸归一化：越界钳到边界、非正值与非法值回落默认值。
- *
- * 0 是"字段没填"的零值，不是"我要最小"的意图 —— 所以它回落默认而不是钳到 24。
- */
-export function clampDecoLogoSize(value: number): number {
-  return clampDecoPositiveRange(value, DECO_LOGO_SIZE_MIN, DECO_LOGO_SIZE_MAX, DECO_LOGO_SIZE_DEFAULT)
-}
-
-/** 挂绳长度归一化：越界钳到 40–240，零与非法值回落 120。 */
-export function clampDecoRopeLength(value: number): number {
-  return clampDecoPositiveRange(
-    value,
-    DECO_ROPE_LENGTH_MIN,
-    DECO_ROPE_LENGTH_MAX,
-    DECO_ROPE_LENGTH_DEFAULT,
-  )
-}
-
-/** 重力归一化：越界钳到 400–4000，零与非法值回落 1600。 */
-export function clampDecoGravity(value: number): number {
-  return clampDecoPositiveRange(value, DECO_GRAVITY_MIN, DECO_GRAVITY_MAX, DECO_GRAVITY_DEFAULT)
-}
-
-/** 阻尼归一化：越界钳到 0.94–0.995，零与非法值回落 0.99。 */
-export function clampDecoDamping(value: number): number {
-  return clampDecoPositiveRange(value, DECO_DAMPING_MIN, DECO_DAMPING_MAX, DECO_DAMPING_DEFAULT)
-}
-
-/**
- * 描边起始宽度归一化：越界钳到 1–6，零与非法值回落 2.5，并保留一位小数。
- *
- * 保留一位小数是为了让输入框回填的值和提交出去的值一致（2.5400000002
- * 这种长浮点会让管理员以为是自己填错了）。
- */
-export function clampDecoLineWidth(value: number): number {
-  const clamped = clampDecoPositiveRange(
-    value,
-    DECO_LINE_WIDTH_MIN,
-    DECO_LINE_WIDTH_MAX,
-    DECO_LINE_WIDTH_DEFAULT,
-  )
-  // 与后端 `math.Round(v*10)/10` 同一条规则：toFixed 在半值上的舍入与
-  // math.Round 不同（2.55 → "2.5" vs 2.6），跨端共享夹具会抓住这种漂移。
-  return Math.round(clamped * 10) / 10
-}
-
 /** 「0 有合法含义」的数值参数共用钳位规则：0 原样保留，负数与非法回落默认。 */
 function clampDecoNonNegativeRange(value: number, min: number, max: number, fallback: number): number {
   if (!Number.isFinite(value) || value < 0) return fallback
   return Math.min(max, Math.max(min, value))
-}
-
-/** 静止摆动频率归一化：0 原样保留（= 关掉轻晃），越界钳到 1.5，负数/NaN 回落 0.8。 */
-export function clampDecoIdleSwayHz(value: number): number {
-  return clampDecoNonNegativeRange(
-    value,
-    DECO_IDLE_SWAY_HZ_MIN,
-    DECO_IDLE_SWAY_HZ_MAX,
-    DECO_IDLE_SWAY_HZ_DEFAULT,
-  )
-}
-
-/** 静止摆动幅度归一化：0 原样保留（= 停帧），越界钳到 40，负数/NaN 回落 20。 */
-export function clampDecoIdleSwayAmp(value: number): number {
-  return clampDecoNonNegativeRange(
-    value,
-    DECO_IDLE_SWAY_AMP_MIN,
-    DECO_IDLE_SWAY_AMP_MAX,
-    DECO_IDLE_SWAY_AMP_DEFAULT,
-  )
-}
-
-/**
- * 帧率上限归一化：越界钳到 30–160，零与非法值回落 60，最后取整成整数。
- *
- * 顺序不能反（先夹边界、再取整）：160.6 必须得到 160，而不是 161。
- * 后端 `normalizeFpsCap` 与读者站 `clampCharmFpsCap` 是同一条规则，
- * 跨端共享夹具抓着这个顺序。
- */
-export function clampDecoFpsCap(value: number): number {
-  return Math.round(
-    clampDecoPositiveRange(value, DECO_FPS_CAP_MIN, DECO_FPS_CAP_MAX, DECO_FPS_CAP_DEFAULT),
-  )
 }
 
 /**
@@ -435,50 +397,115 @@ function clampPointerOffset(value: number, min: number, max: number, fallback: n
   return roundHalfAwayFromZero(clampDecoSignedRange(value, min, max, fallback))
 }
 
+/**
+ * 计数类参数（`segments` / `fps_cap`）的钳位：先夹到边界、再四舍五入成整数。
+ *
+ * 顺序不能反：160.6 必须得到 160，而不是 161。`segments` 早先写的是"先四舍五入
+ * 再夹边界"，两者在整数边界（4–24、30–160）上结果等价 —— 共享夹具钉着边界与
+ * 半值用例。
+ */
+function clampDecoInteger(value: number, min: number, max: number, fallback: number): number {
+  return Math.round(clampDecoPositiveRange(value, min, max, fallback))
+}
+
+/**
+ * 描边起始宽度的钳位：正数规则之后再保留一位小数。
+ *
+ * 保留一位小数是为了让输入框回填的值和提交出去的值一致（2.5400000002
+ * 这种长浮点会让管理员以为是自己填错了）。
+ */
+function clampDecoOneDecimal(value: number, min: number, max: number, fallback: number): number {
+  const clamped = clampDecoPositiveRange(value, min, max, fallback)
+  // 与后端 `math.Round(v*10)/10` 同一条规则：toFixed 在半值上的舍入与
+  // math.Round 不同（2.55 → "2.5" vs 2.6），跨端共享夹具会抓住这种漂移。
+  return Math.round(clamped * 10) / 10
+}
+
+/**
+ * 按元数据里的 `kind` 选择钳位规则 —— **归一化唯一入口**（票 #78）。
+ *
+ * `normalizeDecoConfig` 遍历 `DECO_NUMBER_PARAMS` 调它；下面导出的
+ * `clampDecoXxx` 只是把各自那一行元数据绑上去（签名保持单参数）。加参数时
+ * 这里不用动：在元数据里加一行、选一个 `kind` 就够了。
+ */
+export function clampDecoParam(value: number, param: DecoNumberParamMeta): number {
+  switch (param.kind) {
+    case 'positive':
+      return clampDecoPositiveRange(value, param.min, param.max, param.defaultValue)
+    case 'nonNegative':
+      return clampDecoNonNegativeRange(value, param.min, param.max, param.defaultValue)
+    case 'signed':
+      return clampPointerOffset(value, param.min, param.max, param.defaultValue)
+    case 'segments':
+      return clampDecoInteger(value, param.min, param.max, param.defaultValue)
+    case 'lineWidth':
+      return clampDecoOneDecimal(value, param.min, param.max, param.defaultValue)
+  }
+}
+
+/** 站标尺寸归一化：越界钳到边界、非正值与非法值回落默认值（0 是"没填"，不钳到 24）。 */
+export function clampDecoLogoSize(value: number): number {
+  return clampDecoParam(value, DECO_LOGO_SIZE_PARAM)
+}
+
+/** 挂绳长度归一化：越界钳到 40–240，零与非法值回落 120。 */
+export function clampDecoRopeLength(value: number): number {
+  return clampDecoParam(value, DECO_ROPE_LENGTH_PARAM)
+}
+
+/** 重力归一化：越界钳到 400–4000，零与非法值回落 1600。 */
+export function clampDecoGravity(value: number): number {
+  return clampDecoParam(value, DECO_GRAVITY_PARAM)
+}
+
+/** 阻尼归一化：越界钳到 0.94–0.995，零与非法值回落 0.99。 */
+export function clampDecoDamping(value: number): number {
+  return clampDecoParam(value, DECO_DAMPING_PARAM)
+}
+
+/** 描边起始宽度归一化：越界钳到 1–6，零与非法值回落 2.5，并保留一位小数。 */
+export function clampDecoLineWidth(value: number): number {
+  return clampDecoParam(value, DECO_LINE_WIDTH_PARAM)
+}
+
+/** 静止摆动频率归一化：0 原样保留（= 关掉轻晃），越界钳到 1.5，负数/NaN 回落 0.8。 */
+export function clampDecoIdleSwayHz(value: number): number {
+  return clampDecoParam(value, DECO_IDLE_SWAY_HZ_PARAM)
+}
+
+/** 静止摆动幅度归一化：0 原样保留（= 停帧），越界钳到 40，负数/NaN 回落 20。 */
+export function clampDecoIdleSwayAmp(value: number): number {
+  return clampDecoParam(value, DECO_IDLE_SWAY_AMP_PARAM)
+}
+
+/** 帧率上限归一化：越界钳到 30–160，零与非法值回落 60，最后取整成整数。 */
+export function clampDecoFpsCap(value: number): number {
+  return clampDecoParam(value, DECO_FPS_CAP_PARAM)
+}
+
 /** 指针端水平偏移归一化：夹到 -24–24 后取整；0 与负值照常保留，非法值回落 3。 */
 export function clampDecoPointerOffsetX(value: number): number {
-  return clampPointerOffset(
-    value,
-    DECO_POINTER_OFFSET_X_MIN,
-    DECO_POINTER_OFFSET_X_MAX,
-    DECO_POINTER_OFFSET_X_DEFAULT,
-  )
+  return clampDecoParam(value, DECO_POINTER_OFFSET_X_PARAM)
 }
 
 /** 指针端垂直偏移归一化：与水平分量完全对称（夹到 -24–24、取整、非法值回落 3）。 */
 export function clampDecoPointerOffsetY(value: number): number {
-  return clampPointerOffset(
-    value,
-    DECO_POINTER_OFFSET_Y_MIN,
-    DECO_POINTER_OFFSET_Y_MAX,
-    DECO_POINTER_OFFSET_Y_DEFAULT,
-  )
+  return clampDecoParam(value, DECO_POINTER_OFFSET_Y_PARAM)
+}
+
+/** 节点数归一化：越界钳到 4–24 再四舍五入成整数，零与非法值回落 10。 */
+export function clampDecoSegments(value: number): number {
+  return clampDecoParam(value, DECO_SEGMENTS_PARAM)
 }
 
 /**
- * 节点数归一化：计数先四舍五入，再钳到 4–24，零与非法值回落 10。
+ * 装饰段的可提交形态：总开关 + **从元数据派生的**十一个数值键（票 #78）。
  *
- * 与读者站同一条规则；后台先钳一次，提交出去的就是整数。
+ * 数值键不再手写：`[K in DecoNumberParamKey]` 的键集合就是 `DECO_NUMBER_PARAMS`
+ * 的 `key` 集合，加参数时类型自动跟上。
  */
-export function clampDecoSegments(value: number): number {
-  if (!Number.isFinite(value) || value <= 0) return DECO_SEGMENTS_DEFAULT
-  return Math.min(DECO_SEGMENTS_MAX, Math.max(DECO_SEGMENTS_MIN, Math.round(value)))
-}
-
-/** 装饰段的可提交形态。 */
-export interface DecoCharmConfig {
-  enable: boolean
-  logo_size: number
-  rope_length: number
-  segments: number
-  line_width: number
-  gravity: number
-  damping: number
-  idle_sway_hz: number
-  idle_sway_amp: number
-  fps_cap: number
-  pointer_offset_x: number
-  pointer_offset_y: number
+export type DecoCharmConfig = { enable: boolean } & {
+  [K in DecoNumberParamKey]: number
 }
 
 /** 装饰段（只含挂件子块）。 */
@@ -487,11 +514,31 @@ export interface DecoRuntimeConfigShape {
 }
 
 /**
- * 后台表单的"恢复默认"目标值：总开关 + 十一个数值参数，全部来自上面那组常量。
+ * 用元数据生成一份"每个数值键都有值"的对象。
  *
- * 为什么单独成一个函数而不是在组件里写十二个字面量：恢复默认必须与后端
- * `site_default_settings.yaml` 的十二项逐项一致；把默认值只留在这里，后台
- * 加参数时漏改"恢复默认"会立刻被工具层测试抓到。
+ * `pick` 决定每个键取什么值：默认值（`defaultDecoConfig`）或归一化结果
+ * （`normalizeDecoConfig`）。键集合由元数据保证；`{}` 的断言只补静态类型
+ * （赋值逐个键进行，键集合是否齐全由 `decoParamsConsistency.test.ts` 盯住）。
+ */
+function buildDecoNumericParams(
+  pick: (param: (typeof DECO_NUMBER_PARAMS)[number]) => number,
+): {
+  [K in DecoNumberParamKey]: number
+} {
+  const params = {} as { [K in DecoNumberParamKey]: number }
+  for (const param of DECO_NUMBER_PARAMS) {
+    params[param.key] = pick(param)
+  }
+  return params
+}
+
+/**
+ * 后台表单的"恢复默认"目标值：总开关 + 十一个数值参数，全部来自元数据里的
+ * `defaultValue`（它又与 `DECO_*_DEFAULT` 常量相等，由守卫测试钉住）。
+ *
+ * 为什么遍历元数据而不是手写十二个字面量：恢复默认必须与后端
+ * `site_default_settings.yaml` 的十二项逐项一致；默认值只留一份，后台加参数时
+ * 漏改"恢复默认"在结构上就不可能发生。
  *
  * 注意它只构造表单值，**不写服务器** —— 恢复默认之后仍要管理员按保存。
  */
@@ -499,23 +546,13 @@ export function defaultDecoConfig(): DecoRuntimeConfigShape {
   return {
     charm: {
       enable: true,
-      logo_size: DECO_LOGO_SIZE_DEFAULT,
-      rope_length: DECO_ROPE_LENGTH_DEFAULT,
-      segments: DECO_SEGMENTS_DEFAULT,
-      line_width: DECO_LINE_WIDTH_DEFAULT,
-      gravity: DECO_GRAVITY_DEFAULT,
-      damping: DECO_DAMPING_DEFAULT,
-      idle_sway_hz: DECO_IDLE_SWAY_HZ_DEFAULT,
-      idle_sway_amp: DECO_IDLE_SWAY_AMP_DEFAULT,
-      fps_cap: DECO_FPS_CAP_DEFAULT,
-      pointer_offset_x: DECO_POINTER_OFFSET_X_DEFAULT,
-      pointer_offset_y: DECO_POINTER_OFFSET_Y_DEFAULT,
+      ...buildDecoNumericParams((param) => param.defaultValue),
     },
   }
 }
 
-/** 装饰段里除总开关以外的数值键（十一个参数）。 */
-export type DecoCharmNumericKey = Exclude<keyof DecoCharmConfig, 'enable'>
+/** 装饰段里除总开关以外的数值键（十一个参数，由元数据派生）。 */
+export type DecoCharmNumericKey = DecoNumberParamKey
 
 /**
  * 读一个可能缺失 / 为 `null` 的数值字段：两者都折算成 NaN，交给钳位函数
@@ -550,7 +587,8 @@ export interface DecoRuntimeConfigInput {
  * 把读回来的装饰配置收敛成可提交的形态。
  *
  * 三件事：缺 `charm` 子块时补默认值（开关默认开，与后端默认一致）、
- * 数值逐项走钳位、丢掉未知字段（提交体里不该夹带读者站不认识的键）。
+ * 数值逐项走钳位（遍历元数据，按每个参数的 `kind` 选规则）、丢掉未知字段
+ * （提交体里不该夹带读者站不认识的键）。
  *
  * **这是后台数值参数唯一的兜底点**：`null` / `undefined` 在这里折成 NaN，
  * 再由钳位规则回落默认值；显式 0 是数字，原样通过。
@@ -561,17 +599,9 @@ export function normalizeDecoConfig(
   return {
     charm: {
       enable: Boolean(config?.charm?.enable ?? true),
-      logo_size: clampDecoLogoSize(decoConfigNumber(config?.charm?.logo_size)),
-      rope_length: clampDecoRopeLength(decoConfigNumber(config?.charm?.rope_length)),
-      segments: clampDecoSegments(decoConfigNumber(config?.charm?.segments)),
-      line_width: clampDecoLineWidth(decoConfigNumber(config?.charm?.line_width)),
-      gravity: clampDecoGravity(decoConfigNumber(config?.charm?.gravity)),
-      damping: clampDecoDamping(decoConfigNumber(config?.charm?.damping)),
-      idle_sway_hz: clampDecoIdleSwayHz(decoConfigNumber(config?.charm?.idle_sway_hz)),
-      idle_sway_amp: clampDecoIdleSwayAmp(decoConfigNumber(config?.charm?.idle_sway_amp)),
-      fps_cap: clampDecoFpsCap(decoConfigNumber(config?.charm?.fps_cap)),
-      pointer_offset_x: clampDecoPointerOffsetX(decoConfigNumber(config?.charm?.pointer_offset_x)),
-      pointer_offset_y: clampDecoPointerOffsetY(decoConfigNumber(config?.charm?.pointer_offset_y)),
+      ...buildDecoNumericParams((param) =>
+        clampDecoParam(decoConfigNumber(config?.charm?.[param.key]), param),
+      ),
     },
   }
 }

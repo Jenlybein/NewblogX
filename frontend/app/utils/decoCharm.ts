@@ -30,6 +30,8 @@
  *   - 坐标保留一位小数：长浮点会让 `d` 字符串每帧都不同，白白制造 diff 噪声。
  */
 
+import type { SiteDecoConfig } from "~/types/api";
+
 /** 精确指针 + 可悬停设备的媒体查询：触屏与手写笔都匹配不上。 */
 export const CHARM_FINE_POINTER_QUERY = "(hover: hover) and (pointer: fine)";
 
@@ -448,6 +450,46 @@ export function clampCharmPointerOffsetY(value: number): number {
   );
 }
 
+/** 后端 `deco.charm` 上的数值键：直接取自读者站手写的 API 形状，不另抄一份。 */
+export type CharmStoreKey = Exclude<keyof NonNullable<SiteDecoConfig["charm"]>, "enable">;
+
+/**
+ * 挂绳参数接线表的一行：挂件参数名 ↔ 后端 `deco.charm` 键 ↔ 归一化规则（票 #78）。
+ */
+export interface CharmConfigField {
+  /** `CharmRopeConfig` 上的字段名（组合式消费的名字）。 */
+  configKey: keyof CharmRopeConfig;
+  /** 后端 `deco.charm` 的 snake_case 键（与 Go 的 json tag 一致）。 */
+  storeKey: CharmStoreKey;
+  /** 该参数的归一化规则（唯一落点）。 */
+  clamp: (value: number) => number;
+}
+
+/**
+ * 挂绳参数接线表 —— 读者站这一侧唯一的参数清单（票 #78）。
+ *
+ * 归一化（`normalizeCharmRopeConfig`）与组件接线（`CursorCharm.vue` 的
+ * `config()`）都遍历它：加一个参数只需「常量 + `CharmRopeConfig` 字段 + 本表
+ * 一行」。`logo_size` 不在表里：它不是挂绳物理参数，走 `clampCharmLogoSize` 单独归一化。
+ *
+ * `satisfies readonly CharmConfigField[]` 保证每个 `configKey` 都是
+ * `CharmRopeConfig` 的真实字段、每个 `storeKey` 都是后端 `deco.charm` 的真实键；
+ * 字段是否**齐全**由 `decoCharm.test.ts` 的守卫（registry 键集合 == 类型字段集合
+ * == 归一化输出键集合）盯住。
+ */
+export const CHARM_CONFIG_FIELDS = [
+  { configKey: "ropeLengthPx", storeKey: "rope_length", clamp: clampCharmRopeLength },
+  { configKey: "segments", storeKey: "segments", clamp: clampCharmSegments },
+  { configKey: "gravity", storeKey: "gravity", clamp: clampCharmGravity },
+  { configKey: "damping", storeKey: "damping", clamp: clampCharmDamping },
+  { configKey: "lineWidthPx", storeKey: "line_width", clamp: clampCharmLineWidth },
+  { configKey: "idleSwayHz", storeKey: "idle_sway_hz", clamp: clampCharmIdleSwayHz },
+  { configKey: "idleSwayAmp", storeKey: "idle_sway_amp", clamp: clampCharmIdleSwayAmp },
+  { configKey: "fpsCap", storeKey: "fps_cap", clamp: clampCharmFpsCap },
+  { configKey: "pointerOffsetX", storeKey: "pointer_offset_x", clamp: clampCharmPointerOffsetX },
+  { configKey: "pointerOffsetY", storeKey: "pointer_offset_y", clamp: clampCharmPointerOffsetY },
+] as const satisfies readonly CharmConfigField[];
+
 /**
  * 读一个可能缺失 / 为 `null` 的数值字段：两者都折算成 NaN，交给四条钳位规则
  * 回落各自的默认值（票 #77）。
@@ -467,22 +509,18 @@ function charmConfigNumber(value: unknown): number {
  * 每个字段各自独立钳位：某个键缺失、为 `null` 或非法只影响它自己，不会把
  * 整份配置拖回默认。**这是挂件数值参数唯一的兜底点**：组件把原始值（可能是
  * `null`）原样交进来，`null` / `undefined` 在这里折成 NaN 再回落默认值。
+ *
+ * 遍历 `CHARM_CONFIG_FIELDS`（票 #78）：键集合与钳位规则都只写一遍，加参数
+ * 不会出现"归一化漏了一个字段"这种沉默的洞。
  */
 export function normalizeCharmRopeConfig(
   input: CharmRopeConfigInput | null | undefined,
 ): CharmRopeConfig {
-  return {
-    ropeLengthPx: clampCharmRopeLength(charmConfigNumber(input?.ropeLengthPx)),
-    segments: clampCharmSegments(charmConfigNumber(input?.segments)),
-    gravity: clampCharmGravity(charmConfigNumber(input?.gravity)),
-    damping: clampCharmDamping(charmConfigNumber(input?.damping)),
-    lineWidthPx: clampCharmLineWidth(charmConfigNumber(input?.lineWidthPx)),
-    idleSwayHz: clampCharmIdleSwayHz(charmConfigNumber(input?.idleSwayHz)),
-    idleSwayAmp: clampCharmIdleSwayAmp(charmConfigNumber(input?.idleSwayAmp)),
-    fpsCap: clampCharmFpsCap(charmConfigNumber(input?.fpsCap)),
-    pointerOffsetX: clampCharmPointerOffsetX(charmConfigNumber(input?.pointerOffsetX)),
-    pointerOffsetY: clampCharmPointerOffsetY(charmConfigNumber(input?.pointerOffsetY)),
-  };
+  const normalized = {} as CharmRopeConfig;
+  for (const field of CHARM_CONFIG_FIELDS) {
+    normalized[field.configKey] = field.clamp(charmConfigNumber(input?.[field.configKey]));
+  }
+  return normalized;
 }
 
 /** 把单个坐标收敛到有限值（非有限值一律当 0，避免 NaN 传进 SVG）。 */

@@ -4,6 +4,7 @@ import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 
 import {
+  CHARM_CONFIG_FIELDS,
   CHARM_DAMPING_DEFAULT,
   CHARM_DAMPING_MAX,
   CHARM_DAMPING_MIN,
@@ -904,4 +905,50 @@ describe("共享归一化用例表：读者站与后端 / 后台同一组输入�
       expect(clamp!(fixtureInput(testCase.input))).toBe(testCase.expected);
     },
   );
+});
+
+/**
+ * 票 #78 的一致性守卫（读者站）：
+ * 「registry 的 configKey 集合 == `CharmRopeConfig` 字段集合 == 归一化输出键集合」。
+ *
+ * 为什么需要：读者站原来把同一份参数表手抄了五遍（常量、10 个 clamp、
+ * `CharmRopeConfig`、`normalizeCharmRopeConfig` 的 10 行、`CursorCharm.vue` 的
+ * 10 行）。现在后三处都由 `CHARM_CONFIG_FIELDS` 派生，"加一个参数漏改一处"
+ * 应当是结构上不可能 —— 这条守卫就是那张保单的验收。
+ *
+ * `TYPE_CONFIG_KEYS` 是**类型层的清单**：`satisfies Record<keyof CharmRopeConfig, true>`
+ * 要求这里恰好列出 `CharmRopeConfig` 的全部字段 —— 类型里删 / 加字段而 registry
+ * 没跟上，`tsc` 先红；运行时再和 registry、归一化输出各比一次（vitest 不跑类型
+ * 检查，所以删掉 registry 里的一行必须当场红）。
+ */
+const TYPE_CONFIG_KEYS = {
+  ropeLengthPx: true,
+  segments: true,
+  gravity: true,
+  damping: true,
+  lineWidthPx: true,
+  idleSwayHz: true,
+  idleSwayAmp: true,
+  fpsCap: true,
+  pointerOffsetX: true,
+  pointerOffsetY: true,
+} as const satisfies Record<keyof CharmRopeConfig, true>;
+
+describe("参数清单一致性守卫：registry ↔ 类型字段 ↔ 归一化输出（#78）", () => {
+  it("registry 的 configKey 集合 == 类型字段集合 == 归一化输出键集合", () => {
+    const registryKeys = CHARM_CONFIG_FIELDS.map((field) => field.configKey).sort();
+    const typeKeys = Object.keys(TYPE_CONFIG_KEYS).sort();
+    const normalizedKeys = Object.keys(normalizeCharmRopeConfig(null)).sort();
+
+    expect(registryKeys, "registry 与 CharmRopeConfig 的字段集合不一致").toEqual(typeKeys);
+    expect(normalizedKeys, "归一化漏了某个参数（或凭空多出一个）").toEqual(typeKeys);
+  });
+
+  it("registry 的 storeKey 唯一，且覆盖后端 deco.charm 的十个挂绳数值键", () => {
+    const storeKeys = CHARM_CONFIG_FIELDS.map((field) => field.storeKey);
+
+    expect(new Set(storeKeys).size, "registry 里出现重复的后端键").toBe(storeKeys.length);
+    // 十个挂绳参数 + logo_size（不在 registry 里，走自己的钳位）= 十一个后端数值键。
+    expect(new Set(storeKeys).size + 1, "后端 deco.charm 的数值键数量对不上").toBe(11);
+  });
 });

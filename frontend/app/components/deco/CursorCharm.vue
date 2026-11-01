@@ -4,7 +4,11 @@ import { useRuntimeConfig } from "#imports";
 
 import { useCursorCharm } from "~/composables/useCursorCharm";
 import { brandAssetUrl } from "~/utils/brand";
-import { clampCharmLogoSize } from "~/utils/decoCharm";
+import {
+  CHARM_CONFIG_FIELDS,
+  clampCharmLogoSize,
+  type CharmRopeConfigInput,
+} from "~/utils/decoCharm";
 
 /**
  * 光标挂件：一条挂绳把站标系在指针上（装饰层，不是功能入口）。
@@ -50,19 +54,13 @@ const { enabled, visible, tetherPath, logoCenter } = useCursorCharm({
   // `normalizeCharmRopeConfig` —— 组合式每次建链 / 读参数时都会跑它。
   // 组件层不再把 null 折成 NaN 或 0：那等于把兜底点复制到第二处，两处一旦
   // 分叉（漏一个字段、或有人改了一条规则）就又会退回"null 被读成 0"。
-  // 指针端偏移也走这里：组合式把它加到指针热点上算指针端节点，渲染不再偏。
-  config: () => ({
-    ropeLengthPx: charmConfig.value?.rope_length,
-    segments: charmConfig.value?.segments,
-    gravity: charmConfig.value?.gravity,
-    damping: charmConfig.value?.damping,
-    lineWidthPx: charmConfig.value?.line_width,
-    idleSwayHz: charmConfig.value?.idle_sway_hz,
-    idleSwayAmp: charmConfig.value?.idle_sway_amp,
-    fpsCap: charmConfig.value?.fps_cap,
-    pointerOffsetX: charmConfig.value?.pointer_offset_x,
-    pointerOffsetY: charmConfig.value?.pointer_offset_y,
-  }),
+  // 接线本身也由 `CHARM_CONFIG_FIELDS` 驱动（票 #78）：配置键 ↔ 后端键 ↔ 钳位
+  // 规则只写一遍，加参数不再改这里。
+  config: () =>
+    CHARM_CONFIG_FIELDS.reduce<CharmRopeConfigInput>((params, { configKey, storeKey }) => {
+      params[configKey] = charmConfig.value?.[storeKey];
+      return params;
+    }, {}),
 });
 
 /** 站标图像画在原点、只用一个 translate 定位（每帧只改这一个 transform）。 */

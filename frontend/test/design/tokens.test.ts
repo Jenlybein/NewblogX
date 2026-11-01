@@ -133,15 +133,28 @@ describe("排版层：中文尺度 token 化", () => {
     expect(tokensCss).toMatch(/--type-tracking-title:\s*-0\.03em/u);
   });
 
-  it("字体族拆成拉丁/中日韩两段，中文排在系统中文回退之前", () => {
+  it("字体族拆成拉丁/中文两段：中文改走系统字体栈（不再自托管、不再压过系统中文）", () => {
     expect(tokensCss).toContain('--font-latin: "Inter", "Inter Fallback"');
-    expect(tokensCss).toContain('--font-cjk: "Noto Sans SC", "Noto Sans SC Fallback"');
+    expect(tokensCss).toContain(
+      '--font-cjk: -apple-system, BlinkMacSystemFont, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", "Noto Sans SC", sans-serif',
+    );
 
-    const stack = tokensCss.slice(tokensCss.indexOf("--font-sans:"), tokensCss.indexOf("--font-sans:") + 260);
-    // --font-sans 通过 var(--font-cjk) 引用中文组：只要它在系统中文回退之前，
-    // 中文就会优先命中自托管的 Noto Sans SC，而不是掉到 PingFang / YaHei。
-    expect(stack.indexOf("var(--font-cjk)")).toBeGreaterThan(-1);
-    expect(stack.indexOf("var(--font-cjk)")).toBeLessThan(stack.indexOf("PingFang SC"));
+    const cjk = tokensCss.slice(
+      tokensCss.indexOf("--font-cjk:"),
+      tokensCss.indexOf("--font-cjk:") + 200,
+    );
+    // 中文组内部顺序：苹方 → 冬青黑 → 雅黑 → 末位 Noto（系统真装了才命中）→ sans-serif。
+    expect(cjk.indexOf('"PingFang SC"')).toBeGreaterThan(-1);
+    expect(cjk.indexOf('"PingFang SC"')).toBeLessThan(cjk.indexOf('"Microsoft YaHei"'));
+    expect(cjk.indexOf('"Microsoft YaHei"')).toBeLessThan(cjk.indexOf('"Noto Sans SC"'));
+    // 反向断言：自托管的中文 fallback 名与 @font-face 整包都不在 token 层。
+    expect(tokensCss).not.toContain("Noto Sans SC Fallback");
+    expect(tokensCss).not.toMatch(/noto-sans-sc/iu);
+
+    // 中文组是唯一的中文来源：--font-sans 不再自己再排一遍系统中文。
+    const stack = tokensCss.slice(tokensCss.indexOf("--font-sans:"), tokensCss.indexOf("--font-sans:") + 80);
+    expect(stack).toContain("var(--font-latin), var(--font-cjk)");
+    expect(stack).not.toContain("PingFang SC");
   });
 });
 

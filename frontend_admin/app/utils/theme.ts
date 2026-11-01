@@ -105,9 +105,9 @@ export const ALPHA = {
   rail: 0.12,
 } as const;
 
-/** 英文正文字体 Inter + 中文自托管字体 + 系统中文 fallback（顺序有意义）。 */
+/** 英文正文字体 Inter + 中文系统字体栈（顺序有意义；中文不再自托管，见 ADR-0019）。 */
 export const FONT_STACK =
-  '"Inter", "Inter Fallback", "Noto Sans SC", "Noto Sans SC Fallback", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif';
+  '"Inter", "Inter Fallback", -apple-system, BlinkMacSystemFont, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", "Noto Sans SC", sans-serif';
 
 export const FONT_MONO =
   '"Cascadia Code", "JetBrains Mono", "Sofia Sans Mono", ui-monospace, monospace';

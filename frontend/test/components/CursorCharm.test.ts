@@ -5,6 +5,7 @@ import { reactive, type Ref } from "vue";
 import CursorCharm from "~/components/deco/CursorCharm.vue";
 import {
   CHARM_DAMPING_DEFAULT,
+  CHARM_FPS_CAP_DEFAULT,
   CHARM_GRAVITY_DEFAULT,
   CHARM_IDLE_SWAY_AMP_DEFAULT,
   CHARM_IDLE_SWAY_HZ_DEFAULT,
@@ -19,7 +20,7 @@ import {
  * 挂件组件（`CursorCharm.vue`）的**接线**测试 —— 票 #73。
  *
  * 为什么值得测：`deco.charm` 到组合式参数是逐字段手工赋值的
- * （`ropeLengthPx: Number(charm.rope_length)` 这样七连发）。复制粘贴接错
+ * （`ropeLengthPx: Number(charm.rope_length)` 这样八连发）。复制粘贴接错
  * ——比如把静止摆动频率接进摆动幅度——今天没有任何测试会变红，页面上只表现
  * 为"后台调了参数没反应"。组件层此前零覆盖，而 #74 / #75 还要往这条线上
  * 再加三个字段，先把地基按"名字对应"锁住。
@@ -135,6 +136,7 @@ const DEFAULT_CHARM: CharmBag = {
   line_width: CHARM_LINE_WIDTH_DEFAULT,
   idle_sway_hz: CHARM_IDLE_SWAY_HZ_DEFAULT,
   idle_sway_amp: CHARM_IDLE_SWAY_AMP_DEFAULT,
+  fps_cap: CHARM_FPS_CAP_DEFAULT,
 };
 
 /** 一份"没有这个键"的 `deco.charm`：模拟老库 / 旧后台根本没发这个字段。 */
@@ -147,7 +149,7 @@ interface FieldWiring {
   field: string;
   /** 组件喂给 `useCursorCharm` 的参数名（`CharmRopeConfig` 的键）。 */
   param: keyof CharmRopeConfig;
-  /** 取样值：与默认值不同，且七个字段彼此不同 —— 接串了必然有一处对不上。 */
+  /** 取样值：与默认值不同，且每个字段彼此不同 —— 接串了必然有一处对不上。 */
   sample: number;
   /** 归一化后的默认值（独立来源：`decoCharm.ts` 的 `CHARM_*_DEFAULT` 常量表）。 */
   fallback: number;
@@ -167,6 +169,8 @@ const FIELD_WIRING: FieldWiring[] = [
   { field: "line_width", param: "lineWidthPx", sample: 5.5, fallback: CHARM_LINE_WIDTH_DEFAULT },
   { field: "idle_sway_hz", param: "idleSwayHz", sample: 1.2, fallback: CHARM_IDLE_SWAY_HZ_DEFAULT },
   { field: "idle_sway_amp", param: "idleSwayAmp", sample: 32, fallback: CHARM_IDLE_SWAY_AMP_DEFAULT },
+  // #74：帧率上限。120 与其余六个取样值都不同，接串了会立刻红。
+  { field: "fps_cap", param: "fpsCap", sample: 120, fallback: CHARM_FPS_CAP_DEFAULT },
 ];
 
 beforeEach(() => {
@@ -201,12 +205,12 @@ describe("挂件接线：配置字段 → 运行参数（按名字对应）", ()
     wrapper.unmount();
   });
 
-  it("七个字段同时给出不同值时，七个参数各就各位", () => {
+  it("每个字段同时给出不同值时，每个参数各就各位", () => {
     const charm: CharmBag = { ...DEFAULT_CHARM };
     for (const { field, sample } of FIELD_WIRING) charm[field] = sample;
     const { wrapper, options } = mountCharm({ charm });
 
-    const params = readConfig(options, "七个字段同时改值");
+    const params = readConfig(options, "每个字段同时改值");
 
     const wrong = FIELD_WIRING.filter(({ param, sample }) => params[param] !== sample).map(
       ({ field, param, sample }) => `${field}→${param} 期望 ${sample} 实际 ${String(params[param])}`,
@@ -325,7 +329,7 @@ describe("挂件接线：配置没写对时的回落", () => {
   it.each([
     { label: "deco 整块为 null", deco: null },
     { label: "deco 里没有 charm", deco: {} },
-  ])("$label 时七个参数全回落到默认值、总开关视为关闭", ({ label, deco }) => {
+  ])("$label 时每个参数全回落到默认值、总开关视为关闭", ({ label, deco }) => {
     const { wrapper, options } = mountCharm(deco);
 
     expect(options.configEnabled(), `${label} 时总开关必须视为关闭`).toBe(false);

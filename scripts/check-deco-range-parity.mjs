@@ -416,7 +416,8 @@ function buildKeySetFailures(sideKeys) {
  */
 export const DECO_ANCHOR_PARAMETERS = [
   { key: "rope_length", label: "挂绳长度", status: "delivered" },
-  { key: "fps_cap", label: "帧率上限", status: "pending", issue: "#74" },
+  // #74 已交付：四端都有 `fps_cap`，状态位随之转正（否则报告会一直提示"待交付"）。
+  { key: "fps_cap", label: "帧率上限", status: "delivered", issue: "#74" },
   { key: "pointer_offset_x", label: "指针端偏移 X", status: "pending", issue: "#75" },
   { key: "pointer_offset_y", label: "指针端偏移 Y", status: "pending", issue: "#75" },
 ];

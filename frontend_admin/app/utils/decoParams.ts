@@ -86,6 +86,15 @@ export const DECO_IDLE_SWAY_AMP_MAX = 40
 /** 静止摆动幅度默认值（px/s²），作用在自由端（逐节点加权，指针端为 0、尾端为 1）。 */
 export const DECO_IDLE_SWAY_AMP_DEFAULT = 20
 
+/** 帧率上限下限（fps）。30 档一帧 33.3ms，仍在物理累加器 0.05s 的余量内。 */
+export const DECO_FPS_CAP_MIN = 30
+
+/** 帧率上限上限（fps）。高于显示器刷新率时等价于每帧，所以不需要"0 = 不限"。 */
+export const DECO_FPS_CAP_MAX = 160
+
+/** 帧率上限默认值（fps）：与 60Hz 屏对齐（每帧一次）。 */
+export const DECO_FPS_CAP_DEFAULT = 60
+
 /** 一个数值参数的元数据；表单与测试都只认这个形状。 */
 export interface DecoNumberParamMeta {
   /** 提交给后端的键名（snake_case，与 Go 的 json tag 一致）。 */
@@ -98,6 +107,7 @@ export interface DecoNumberParamMeta {
     | 'damping'
     | 'idle_sway_hz'
     | 'idle_sway_amp'
+    | 'fps_cap'
   /** 表单项标签。 */
   label: string
   /** 单位后缀，直接显示在输入框右侧。 */
@@ -206,15 +216,29 @@ export const DECO_IDLE_SWAY_AMP_PARAM: DecoNumberParamMeta = {
   key: 'idle_sway_amp',
   label: '静止摆动幅度',
   unit: 'px/s²',
-  hint: '轻晃的加速度幅度：0 表示不轻晃（读者站回到静止即零帧的省电模式）；越大晃得越明显。',
+  hint: '轻晃的加速度幅度：0 表示不轻晃（读者站收敛后停帧，不再有持续重绘）；越大晃得越明显。',
   min: DECO_IDLE_SWAY_AMP_MIN,
   max: DECO_IDLE_SWAY_AMP_MAX,
   step: 1,
   defaultValue: DECO_IDLE_SWAY_AMP_DEFAULT,
 }
 
+/** 帧率上限（票 #74）。 */
+export const DECO_FPS_CAP_PARAM: DecoNumberParamMeta = {
+  key: 'fps_cap',
+  label: '帧率上限',
+  unit: 'fps',
+  hint: '挂件每秒最多画几次（整数）：越低越省电、越不干扰阅读；它只管画几次，不影响绳子手感。高于屏幕刷新率时等于不限。',
+  min: DECO_FPS_CAP_MIN,
+  max: DECO_FPS_CAP_MAX,
+  step: 1,
+  defaultValue: DECO_FPS_CAP_DEFAULT,
+  integer: true,
+  precision: 0,
+}
+
 /**
- * 装饰段的数值参数清单（表单按这个顺序渲染八行输入）。
+ * 装饰段的数值参数清单（表单按这个顺序渲染九行输入）。
  *
  * 总开关不是数值参数，单独一行。
  */
@@ -227,6 +251,7 @@ export const DECO_NUMBER_PARAMS: readonly DecoNumberParamMeta[] = [
   DECO_DAMPING_PARAM,
   DECO_IDLE_SWAY_HZ_PARAM,
   DECO_IDLE_SWAY_AMP_PARAM,
+  DECO_FPS_CAP_PARAM,
 ]
 
 /** 数值参数共用的钳位规则：越界钳到边界、非有限与零值回落默认。 */
@@ -298,13 +323,26 @@ export function clampDecoIdleSwayHz(value: number): number {
   )
 }
 
-/** 静止摆动幅度归一化：0 原样保留（= 零帧车道），越界钳到 40，负数/NaN 回落 20。 */
+/** 静止摆动幅度归一化：0 原样保留（= 停帧），越界钳到 40，负数/NaN 回落 20。 */
 export function clampDecoIdleSwayAmp(value: number): number {
   return clampDecoNonNegativeRange(
     value,
     DECO_IDLE_SWAY_AMP_MIN,
     DECO_IDLE_SWAY_AMP_MAX,
     DECO_IDLE_SWAY_AMP_DEFAULT,
+  )
+}
+
+/**
+ * 帧率上限归一化：越界钳到 30–160，零与非法值回落 60，最后取整成整数。
+ *
+ * 顺序不能反（先夹边界、再取整）：160.6 必须得到 160，而不是 161。
+ * 后端 `normalizeFpsCap` 与读者站 `clampCharmFpsCap` 是同一条规则，
+ * 跨端共享夹具抓着这个顺序。
+ */
+export function clampDecoFpsCap(value: number): number {
+  return Math.round(
+    clampDecoPositiveRange(value, DECO_FPS_CAP_MIN, DECO_FPS_CAP_MAX, DECO_FPS_CAP_DEFAULT),
   )
 }
 
@@ -329,6 +367,7 @@ export interface DecoCharmConfig {
   damping: number
   idle_sway_hz: number
   idle_sway_amp: number
+  fps_cap: number
 }
 
 /** 装饰段（只含挂件子块）。 */
@@ -337,10 +376,10 @@ export interface DecoRuntimeConfigShape {
 }
 
 /**
- * 后台表单的"恢复默认"目标值：总开关 + 八个数值参数，全部来自上面那组常量。
+ * 后台表单的"恢复默认"目标值：总开关 + 九个数值参数，全部来自上面那组常量。
  *
- * 为什么单独成一个函数而不是在组件里写九个字面量：恢复默认必须与后端
- * `site_default_settings.yaml` 的九项逐项一致；把默认值只留在这里，后台
+ * 为什么单独成一个函数而不是在组件里写十个字面量：恢复默认必须与后端
+ * `site_default_settings.yaml` 的十项逐项一致；把默认值只留在这里，后台
  * 加参数时漏改"恢复默认"会立刻被工具层测试抓到。
  *
  * 注意它只构造表单值，**不写服务器** —— 恢复默认之后仍要管理员按保存。
@@ -357,6 +396,7 @@ export function defaultDecoConfig(): DecoRuntimeConfigShape {
       damping: DECO_DAMPING_DEFAULT,
       idle_sway_hz: DECO_IDLE_SWAY_HZ_DEFAULT,
       idle_sway_amp: DECO_IDLE_SWAY_AMP_DEFAULT,
+      fps_cap: DECO_FPS_CAP_DEFAULT,
     },
   }
 }
@@ -381,6 +421,7 @@ export function normalizeDecoConfig(
       damping: clampDecoDamping(Number(config?.charm?.damping)),
       idle_sway_hz: clampDecoIdleSwayHz(Number(config?.charm?.idle_sway_hz)),
       idle_sway_amp: clampDecoIdleSwayAmp(Number(config?.charm?.idle_sway_amp)),
+      fps_cap: clampDecoFpsCap(Number(config?.charm?.fps_cap)),
     },
   }
 }

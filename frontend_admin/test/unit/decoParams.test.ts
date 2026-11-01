@@ -6,6 +6,9 @@ import {
   DECO_DAMPING_DEFAULT,
   DECO_DAMPING_MAX,
   DECO_DAMPING_MIN,
+  DECO_FPS_CAP_DEFAULT,
+  DECO_FPS_CAP_MAX,
+  DECO_FPS_CAP_MIN,
   DECO_GRAVITY_DEFAULT,
   DECO_GRAVITY_MAX,
   DECO_GRAVITY_MIN,
@@ -30,6 +33,7 @@ import {
   DECO_SEGMENTS_MAX,
   DECO_SEGMENTS_MIN,
   clampDecoDamping,
+  clampDecoFpsCap,
   clampDecoGravity,
   clampDecoIdleSwayAmp,
   clampDecoIdleSwayHz,
@@ -47,9 +51,10 @@ import {
  * 真正保证库里存不下发散值的是这里的钳位；而元数据（标签/单位/范围/默认值）
  * 一旦与后端漂移，就会出现"后台能填、读者站不认"。
  *
- * 票 #41 新增四个物理参数、票 #42 再新增三个（描边宽度 + 静止轻晃的两个）。
- * 这里还保证三件事：参数清单 = 表单渲染的输入行；每个参数都有单位与一句
- * 作用说明；「恢复默认」的九个值与规范默认逐项一致（且只是表单值）。
+ * 票 #41 新增四个物理参数、票 #42 再新增三个（描边宽度 + 静止轻晃的两个）、
+ * 票 #74 新增帧率上限。这里还保证三件事：参数清单 = 表单渲染的输入行；
+ * 每个参数都有单位与一句作用说明；「恢复默认」的十个值与规范默认逐项一致
+ * （且只是表单值）。
  */
 
 /** 元数据表里的参数越多，后台可调的东西越多；缺单位/说明就没法看。 */
@@ -63,7 +68,7 @@ describe('装饰参数元数据', () => {
     expect(DECO_LOGO_SIZE_PARAM.hint.length).toBeGreaterThan(8)
   })
 
-  it('八个数值参数的标签 / 单位 / 作用说明齐全，且单位与量纲对应', () => {
+  it('九个数值参数的标签 / 单位 / 作用说明齐全，且单位与量纲对应', () => {
     const byKey = new Map(DECO_NUMBER_PARAMS.map((param) => [param.key, param]))
 
     expect(byKey.get('rope_length')?.label).toBe('挂绳长度')
@@ -80,6 +85,9 @@ describe('装饰参数元数据', () => {
     expect(byKey.get('idle_sway_hz')?.unit).toBe('Hz')
     expect(byKey.get('idle_sway_amp')?.label).toBe('静止摆动幅度')
     expect(byKey.get('idle_sway_amp')?.unit).toBe('px/s²')
+    // 票 #74：帧率上限的单位是 fps，不是 px —— 它是"每秒画几次"。
+    expect(byKey.get('fps_cap')?.label).toBe('帧率上限')
+    expect(byKey.get('fps_cap')?.unit).toBe('fps')
     for (const param of PHYSICS_PARAMS) {
       // 一句说明就是"这个数影响什么"，不能只留标签。
       expect(param.hint.length).toBeGreaterThan(8)
@@ -88,7 +96,7 @@ describe('装饰参数元数据', () => {
     }
   })
 
-  it('区间与默认值：24–96/48、40–240/120、4–24/10、1–6/2.5、400–4000/1600、0.94–0.995/0.99、0–1.5/0.8、0–40/20', () => {
+  it('区间与默认值：24–96/48、40–240/120、4–24/10、1–6/2.5、400–4000/1600、0.94–0.995/0.99、0–1.5/0.8、0–40/20、30–160/60', () => {
     // 这些数是跨端契约。本票不做一致性门禁（票 #43），所以在这里显式钉住：
     // 改一端就必须同时改另一端，否则这条断言会逼你想一次。
     expect(DECO_LOGO_SIZE_MIN).toBe(24)
@@ -126,9 +134,14 @@ describe('装饰参数元数据', () => {
     // 轻晃的两个下限是 0（合法的"关掉轻晃"），不是"缺省回默认"。
     expect(DECO_IDLE_SWAY_HZ_MIN).toBe(0)
     expect(DECO_IDLE_SWAY_AMP_MIN).toBe(0)
+
+    // 票 #74：帧率上限。
+    expect(DECO_FPS_CAP_MIN).toBe(30)
+    expect(DECO_FPS_CAP_MAX).toBe(160)
+    expect(DECO_FPS_CAP_DEFAULT).toBe(60)
   })
 
-  it('`参数清单就是表单要渲染的八行（开关不是数值参数）', () => {
+  it('参数清单就是表单要渲染的九行（开关不是数值参数）', () => {
     expect(DECO_NUMBER_PARAMS.map((param) => param.key)).toEqual([
       'logo_size',
       'rope_length',
@@ -138,6 +151,7 @@ describe('装饰参数元数据', () => {
       'damping',
       'idle_sway_hz',
       'idle_sway_amp',
+      'fps_cap',
     ])
   })
 
@@ -151,6 +165,7 @@ describe('装饰参数元数据', () => {
       damping: { min: DECO_DAMPING_MIN, max: DECO_DAMPING_MAX, defaultValue: DECO_DAMPING_DEFAULT },
       idle_sway_hz: { min: DECO_IDLE_SWAY_HZ_MIN, max: DECO_IDLE_SWAY_HZ_MAX, defaultValue: DECO_IDLE_SWAY_HZ_DEFAULT },
       idle_sway_amp: { min: DECO_IDLE_SWAY_AMP_MIN, max: DECO_IDLE_SWAY_AMP_MAX, defaultValue: DECO_IDLE_SWAY_AMP_DEFAULT },
+      fps_cap: { min: DECO_FPS_CAP_MIN, max: DECO_FPS_CAP_MAX, defaultValue: DECO_FPS_CAP_DEFAULT },
     } as const
 
     for (const param of DECO_NUMBER_PARAMS) {
@@ -163,12 +178,16 @@ describe('装饰参数元数据', () => {
     }
   })
 
-  it('节点数是计数、描边宽度锁一位小数：精度声明与量纲匹配', () => {
+  it('节点数、帧率上限是计数：精度声明与量纲匹配', () => {
     const segments = DECO_NUMBER_PARAMS.find((param) => param.key === 'segments')
     const lineWidth = DECO_NUMBER_PARAMS.find((param) => param.key === 'line_width')
+    const fpsCap = DECO_NUMBER_PARAMS.find((param) => param.key === 'fps_cap')
 
     expect(segments?.integer).toBe(true)
     expect(segments?.precision).toBe(0)
+    expect(fpsCap?.integer).toBe(true)
+    expect(fpsCap?.precision).toBe(0)
+    expect(fpsCap?.step).toBe(1)
     expect(lineWidth?.step).toBe(0.1)
     expect(lineWidth?.precision).toBe(1)
     // 其余参数允许小数（阻尼必须能填 0.97）。
@@ -247,12 +266,28 @@ describe('票 #42 的三个新参数钳位', () => {
     expect(clampDecoIdleSwayHz(Number.NaN)).toBe(DECO_IDLE_SWAY_HZ_DEFAULT)
   })
 
-  it('静止摆动幅度：0 原样保留（= 零帧车道），越界钳到 40，负数/NaN 回落 20', () => {
+  it('静止摆动幅度：0 原样保留（= 停帧），越界钳到 40，负数/NaN 回落 20', () => {
     expect(clampDecoIdleSwayAmp(0)).toBe(0)
     expect(clampDecoIdleSwayAmp(400)).toBe(DECO_IDLE_SWAY_AMP_MAX)
     expect(clampDecoIdleSwayAmp(20)).toBe(20)
     expect(clampDecoIdleSwayAmp(-5)).toBe(DECO_IDLE_SWAY_AMP_DEFAULT)
     expect(clampDecoIdleSwayAmp(Number.NaN)).toBe(DECO_IDLE_SWAY_AMP_DEFAULT)
+  })
+})
+
+describe('票 #74 的帧率上限钳位', () => {
+  it('帧率上限：越界钳到 30/160，零与非法回落 60，并取整成整数', () => {
+    // 顺序是"先夹边界、再取整"：160.6 必须得到 160，而不是 161。
+    expect(clampDecoFpsCap(29)).toBe(DECO_FPS_CAP_MIN)
+    expect(clampDecoFpsCap(30.4)).toBe(DECO_FPS_CAP_MIN)
+    expect(clampDecoFpsCap(161)).toBe(DECO_FPS_CAP_MAX)
+    expect(clampDecoFpsCap(160.6)).toBe(DECO_FPS_CAP_MAX)
+    expect(clampDecoFpsCap(90)).toBe(90)
+    expect(clampDecoFpsCap(90.4)).toBe(90)
+    expect(clampDecoFpsCap(90.6)).toBe(91)
+    expect(clampDecoFpsCap(0)).toBe(DECO_FPS_CAP_DEFAULT)
+    expect(clampDecoFpsCap(-30)).toBe(DECO_FPS_CAP_DEFAULT)
+    expect(clampDecoFpsCap(Number.NaN)).toBe(DECO_FPS_CAP_DEFAULT)
   })
 })
 
@@ -274,7 +309,7 @@ describe('clampDecoSegments', () => {
 })
 
 describe('恢复默认（票 #42 验收项）', () => {
-  it('恰好是规范里的九个默认值（开关 + 八个数值）', () => {
+  it('恰好是规范里的十个默认值（开关 + 九个数值）', () => {
     expect(defaultDecoConfig()).toEqual({
       charm: {
         enable: true,
@@ -286,6 +321,7 @@ describe('恢复默认（票 #42 验收项）', () => {
         damping: DECO_DAMPING_DEFAULT,
         idle_sway_hz: DECO_IDLE_SWAY_HZ_DEFAULT,
         idle_sway_amp: DECO_IDLE_SWAY_AMP_DEFAULT,
+        fps_cap: DECO_FPS_CAP_DEFAULT,
       },
     })
   })
@@ -308,17 +344,19 @@ describe('恢复默认（票 #42 验收项）', () => {
     expect(defaults.idle_sway_hz).toBeLessThanOrEqual(DECO_IDLE_SWAY_HZ_MAX)
     expect(defaults.idle_sway_amp).toBeGreaterThanOrEqual(DECO_IDLE_SWAY_AMP_MIN)
     expect(defaults.idle_sway_amp).toBeLessThanOrEqual(DECO_IDLE_SWAY_AMP_MAX)
+    expect(defaults.fps_cap).toBeGreaterThanOrEqual(DECO_FPS_CAP_MIN)
+    expect(defaults.fps_cap).toBeLessThanOrEqual(DECO_FPS_CAP_MAX)
     // 恢复默认的结果本身也必须能通过归一化（幂等）。
     expect(normalizeDecoConfig(defaultDecoConfig())).toEqual(defaultDecoConfig())
   })
 })
 
 describe('normalizeDecoConfig', () => {
-  it('缺子块时补默认值（开关默认开、八个数值都取默认）', () => {
+  it('缺子块时补默认值（开关默认开、九个数值都取默认）', () => {
     expect(normalizeDecoConfig({} as never)).toEqual(defaultDecoConfig())
   })
 
-  it('保留管理员显式关掉的开关，同时钳住全部八个数值', () => {
+  it('保留管理员显式关掉的开关，同时钳住全部九个数值', () => {
     expect(
       normalizeDecoConfig({
         charm: {
@@ -331,6 +369,7 @@ describe('normalizeDecoConfig', () => {
           damping: 2,
           idle_sway_hz: 9,
           idle_sway_amp: 999,
+          fps_cap: 999,
         },
       }),
     ).toEqual({
@@ -344,6 +383,7 @@ describe('normalizeDecoConfig', () => {
         damping: DECO_DAMPING_MAX,
         idle_sway_hz: DECO_IDLE_SWAY_HZ_MAX,
         idle_sway_amp: DECO_IDLE_SWAY_AMP_MAX,
+        fps_cap: DECO_FPS_CAP_MAX,
       },
     })
   })
@@ -362,6 +402,7 @@ describe('normalizeDecoConfig', () => {
       damping: DECO_DAMPING_DEFAULT,
       idle_sway_hz: 0,
       idle_sway_amp: 0,
+      fps_cap: DECO_FPS_CAP_DEFAULT,
     })
   })
 
@@ -410,10 +451,11 @@ const DECO_CLAMPS: Record<string, (value: number) => number> = {
   damping: clampDecoDamping,
   idle_sway_hz: clampDecoIdleSwayHz,
   idle_sway_amp: clampDecoIdleSwayAmp,
+  fps_cap: clampDecoFpsCap,
 }
 
 describe('共享归一化用例表：后台与后端 / 读者站同一组输入同一组输出', () => {
-  it('夹具真的读到了，且覆盖全部八个数值参数', () => {
+  it('夹具真的读到了，且覆盖全部九个数值参数', () => {
     const cases = loadNormalizationCases()
 
     expect(cases.length).toBeGreaterThan(40)

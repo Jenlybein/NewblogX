@@ -56,6 +56,33 @@ function dropLines(source: string, lines: string[]): string {
   return kept.join("\n");
 }
 
+/**
+ * 把 #74 已交付的 `fps_cap` 从四源里摘掉。
+ *
+ * 这几条 canary 模拟的是"锚点只交付了一半"的局面；#74 落地后真实源文件里
+ * 四端都已有它，不先摘掉就造不出那个局面（重复定义本身也会被判为漂移）。
+ */
+function stripFpsCap(sources: Record<string, string>): Record<string, string> {
+  return {
+    backend: dropLines(sources.backend!, [
+      "CharmFpsCapMin = 30.0",
+      "CharmFpsCapMax = 160.0",
+      "CharmFpsCapDefault = 60.0",
+    ]),
+    reader: dropLines(sources.reader!, [
+      "export const CHARM_FPS_CAP_MIN = 30;",
+      "export const CHARM_FPS_CAP_MAX = 160;",
+      "export const CHARM_FPS_CAP_DEFAULT = 60;",
+    ]),
+    admin: dropLines(sources.admin!, [
+      "export const DECO_FPS_CAP_MIN = 30",
+      "export const DECO_FPS_CAP_MAX = 160",
+      "export const DECO_FPS_CAP_DEFAULT = 60",
+    ]),
+    yaml: dropLines(sources.yaml!, ["fps_cap: 60"]),
+  };
+}
+
 describe("真实仓库为绿：三端范围与默认值一致", () => {
   it("读到四份源文件，四源键集合相等，且值逐项一致", () => {
     const result = checkDecoRangeParity({ repoRoot });
@@ -340,15 +367,17 @@ describe("锚点参数：拦住「参数从四端同时消失」（#72）", () =
     }
   });
 
-  it("未交付的锚点在四源都不存在时门禁仍为绿，只是列进待交付", () => {
+  it("已交付的锚点在四源在场；未交付的锚点列进待交付（门禁仍为绿）", () => {
     const result = checkDecoRangeParity({ repoRoot });
 
     expect(result.failures).toEqual([]);
     expect(result.ok).toBe(true);
-    expect(result.anchors.delivered).toContain("rope_length");
-    // 今天 fps_cap / pointer_offset_* 还没实现（#74/#75）；门禁必须能分辨
-    // "还没交付"与"已经丢了"，而不是把两者一起报红。
-    expect(result.anchors.pending).toEqual(["fps_cap", "pointer_offset_x", "pointer_offset_y"]);
+    // #74 交付后 fps_cap 已转正：状态位必须跟着改，否则报告会一直提示"待交付"。
+    expect(result.anchors.delivered).toEqual(["rope_length", "fps_cap"]);
+    // pointer_offset_* 属 #75，还没实现；门禁必须能分辨"还没交付"与"已经丢了"，
+    // 而不是把两者一起报红。
+    expect(result.anchors.pending).toEqual(["pointer_offset_x", "pointer_offset_y"]);
+    expect(result.anchors.notes).toEqual([]);
   });
 
   it("已交付的锚点从四源同时消失 → 红，并点名参数与四端", () => {
@@ -387,20 +416,22 @@ describe("锚点参数：拦住「参数从四端同时消失」（#72）", () =
   });
 
   it("未交付的锚点只交付了一半（少了默认种子）→ 红，并指出是哪一端缺哪个参数", () => {
-    const sources = readSources();
+    // #74 已把 fps_cap 交付到四端，所以先把它从真实源文件里摘掉，
+    // 再模拟"三个代码端交付了、默认种子漏了"这种半交付局面。
+    const stripped = stripFpsCap(readSources());
     const result = evaluateDecoRangeParity({
-      ...sources,
-      backend: `${sources.backend!}
+      ...stripped,
+      backend: `${stripped.backend!}
 	CharmFpsCapMin = 30.0
 	CharmFpsCapMax = 160.0
 	CharmFpsCapDefault = 60.0
 `,
-      reader: `${sources.reader!}
+      reader: `${stripped.reader!}
 export const CHARM_FPS_CAP_MIN = 30;
 export const CHARM_FPS_CAP_MAX = 160;
 export const CHARM_FPS_CAP_DEFAULT = 60;
 `,
-      admin: `${sources.admin!}
+      admin: `${stripped.admin!}
 export const DECO_FPS_CAP_MIN = 30
 export const DECO_FPS_CAP_MAX = 160
 export const DECO_FPS_CAP_DEFAULT = 60
@@ -417,7 +448,7 @@ export const DECO_FPS_CAP_DEFAULT = 60
   });
 
   it("锚点只要四端齐全就自动纳入比较：门禁实现不用改，改一端照样红", () => {
-    const sources = readSources();
+    const sources = stripFpsCap(readSources());
     const delivered = {
       backend: `${sources.backend!}
 	CharmFpsCapMin = 30.0

@@ -7,9 +7,8 @@ import {
 } from "~/composables/useMotionPreference";
 import {
   CHARM_FINE_POINTER_QUERY,
-  CHARM_IDLE_FRAME_INTERVAL_MS,
-  CHARM_POINTER_ACTIVE_WINDOW_MS,
   advanceCharmRope,
+  charmFrameIntervalMs,
   charmIdleSwayEnabled,
   charmLayerEnabled,
   charmRopeSettled,
@@ -65,9 +64,6 @@ export interface UseCursorCharmOptions {
   /** 注入动画帧请求/取消与时钟（测试与 SSR 用）。 */
   requestAnimationFrame?: ((callback: HostListener) => number) | null;
   cancelAnimationFrame?: ((id: number) => void) | null;
-  /** 注入定时器（怠速车道用；测试里与动画帧共用同一个虚拟时钟）。 */
-  setTimeout?: ((callback: HostListener, delayMs: number) => number) | null;
-  clearTimeout?: ((id: number) => void) | null;
   now?: () => number;
 }
 
@@ -90,7 +86,8 @@ export interface CursorCharm {
   /** 站标中心（最后一个链节点）；每帧只写这一个坐标。 */
   logoCenter: Ref<CharmPoint>;
   /**
-   * 已经推进的物理帧数：怠速车道下约 20/s，满速车道下约 60/s。
+   * 已经发布的帧数：受 `fps_cap` 门控，约 `fps_cap` 次/秒（高刷屏上是刷新率的
+   * 整数分之一，后台那个数字是上限、不是保证）。
    *
    * **不是 ref**：它只给测试与调试看，不该每帧触发响应式失效；取值即时。
    */
@@ -117,14 +114,6 @@ function defaultRequestAnimationFrame(callback: HostListener): number {
 
 function defaultCancelAnimationFrame(id: number): void {
   globalThis.cancelAnimationFrame(id);
-}
-
-function defaultSetTimeout(callback: HostListener, delayMs: number): number {
-  return globalThis.setTimeout(callback as TimerHandler, delayMs);
-}
-
-function defaultClearTimeout(id: number): void {
-  globalThis.clearTimeout(id);
 }
 
 function defaultNow(): number {
@@ -166,10 +155,6 @@ export function useCursorCharm(options: UseCursorCharmOptions = {}): CursorCharm
     options.cancelAnimationFrame === undefined
       ? defaultCancelAnimationFrame
       : options.cancelAnimationFrame;
-  const setTimeoutFrame =
-    options.setTimeout === undefined ? defaultSetTimeout : options.setTimeout;
-  const clearTimeoutFrame =
-    options.clearTimeout === undefined ? defaultClearTimeout : options.clearTimeout;
   const now = options.now ?? defaultNow;
 
   const finePointerQuery = getMediaQuery(CHARM_FINE_POINTER_QUERY) ?? null;
@@ -191,12 +176,10 @@ export function useCursorCharm(options: UseCursorCharmOptions = {}): CursorCharm
   let physicsFrameCount = 0;
   /** 已请求、尚未执行（或正在执行）的帧 id；非 null 即"循环在跑"。 */
   let frameId: number | null = null;
-  /** 当前待执行帧来自哪条车道：收敛 / 停用时按对应 API 取消。 */
-  let frameKind: "raf" | "timer" = "raf";
-  /** 上一帧的真实时间（ms）；null 表示循环没在跑。 */
+  /** 上一帧发布时的真实时间（ms）；null = 从未发布（循环刚启动，视作已到点）。 */
+  let lastPublishAt: number | null = null;
+  /** 上一次推进物理的真实时间（ms）；null 表示循环没在跑。 */
   let lastFrameTime: number | null = null;
-  /** 指针最近一次主动移动的时间（ms）；怠速车道只在它足够久之前才生效。 */
-  let lastPointerMoveAt: number | null = null;
   let bound = false;
   let paused = Boolean(visibilityTarget?.hidden);
   /** 失焦 / 指针离开文档后冻结指针端：绝不瞬移，只让链自然收敛。 */
@@ -204,15 +187,15 @@ export function useCursorCharm(options: UseCursorCharmOptions = {}): CursorCharm
   let disposed = false;
 
   /**
-   * 指针是否正在主动驱动头节点。
+   * 这一帧该不该发布：`now - lastPublishAt >= 1000 / fps_cap - 4`。
    *
-   * 怠速车道只适用于"指针停住、只剩轻晃"的场景；读者拖行指针时物理仍是
-   * 同一个积分器，但必须按满速动画帧推进，否则 20fps 的节流会让"被拖行、
-   * 带惯性摆动"读起来像掉帧。
+   * 未到点就**直接返回**：不推进物理、不发布（ADR-0018 决策 3 选的是
+   * "早退不算"而不是"算了不画"）。循环启动时 `lastPublishAt` 是 null =
+   * 视为已到点 —— 那是初值，不是给事件开的例外口子。
    */
-  function pointerActivelyDriving(): boolean {
-    if (lastPointerMoveAt === null) return false;
-    return now() - lastPointerMoveAt < CHARM_POINTER_ACTIVE_WINDOW_MS;
+  function publishDue(time: number, fpsCap: number): boolean {
+    if (lastPublishAt === null) return true;
+    return time - lastPublishAt >= charmFrameIntervalMs(fpsCap);
   }
 
   const switchOn = computed(() => Boolean(configEnabled()));
@@ -243,8 +226,7 @@ export function useCursorCharm(options: UseCursorCharmOptions = {}): CursorCharm
   }
 
   /** 建链 / 重建：只有拓扑（节点数、绳长）变了才重建，其余参数原地生效。 */
-  function ensureRope(head: CharmPoint): CharmRopeState {
-    const config = normalizeCharmRopeConfig(options.config?.());
+  function ensureRope(head: CharmPoint, config: CharmRopeConfig): CharmRopeState {
     const signature =
       `${config.ropeLengthPx}|${config.segments}|${config.gravity}|${config.damping}` +
       `|${config.lineWidthPx}|${config.idleSwayHz}|${config.idleSwayAmp}`;
@@ -289,39 +271,34 @@ export function useCursorCharm(options: UseCursorCharmOptions = {}): CursorCharm
 
   function stopLoop() {
     if (frameId !== null) {
-      // 按车道取消：满速车道是 cancelAnimationFrame，怠速车道是 clearTimeout。
-      // 浏览器里对已触发的 id 调用 cancel / clear 是空操作，但它让"停帧"
-      // 这件事可被测试观察到。两种都保证"待执行帧数归零"。
-      if (frameKind === "timer") clearTimeoutFrame?.(frameId);
-      else cancelFrame?.(frameId);
+      // 只有一条调度：取消动画帧。浏览器里对已触发的 id 调 cancel 是空操作，
+      // 但它让"停帧"这件事可被测试观察到，也保证"待执行帧数归零"。
+      cancelFrame?.(frameId);
       frameId = null;
     }
     lastFrameTime = null;
   }
 
   /**
-   * 排下一帧：轻晃开启、且指针已经不再主动驱动头节点时，走 ~20fps 的怠速
-   * 车道（setTimeout 50ms）；否则走满速动画帧车道。裁决要求怠速车道不补帧
-   * 追赶 —— 这里每次只排一帧，时间差由固定步长累加器按真实流逝时间推进。
+   * 排下一帧：永远走动画帧（票 #74 起挂件只有这一条调度）。
+   *
+   * 每次只排一帧、不补帧追赶：帧率上限由 `frame()` 里的时间门控决定，
+   * 时间差由固定步长累加器按真实流逝时间推进。
    */
-  function scheduleNext(state: CharmRopeState | null) {
-    if (state && charmIdleSwayEnabled(state.config) && !pointerActivelyDriving() && setTimeoutFrame) {
-      frameKind = "timer";
-      frameId = setTimeoutFrame(frame, CHARM_IDLE_FRAME_INTERVAL_MS);
-      return;
-    }
+  function scheduleNext() {
     if (!requestFrame) {
       frameId = null;
       return;
     }
-    frameKind = "raf";
     frameId = requestFrame(frame);
   }
 
   function startLoop() {
     if (disposed || !enabled.value || paused || frameId !== null) return;
     lastFrameTime = now();
-    scheduleNext(rope);
+    // 循环（重新）启动时视作"已经到点"：第一帧就发布，不必空等一个帧间隔。
+    lastPublishAt = null;
+    scheduleNext();
   }
 
   function frame() {
@@ -334,14 +311,24 @@ export function useCursorCharm(options: UseCursorCharmOptions = {}): CursorCharm
       return;
     }
     const time = now();
+    const config = normalizeCharmRopeConfig(options.config?.());
+
+    // 时间门控：没到点就直接返回，既不推进物理也不发布，只排下一帧。
+    if (!publishDue(time, config.fpsCap)) {
+      scheduleNext();
+      return;
+    }
+
+    // 物理时间取"距上一次发布"的真实流逝时间，不是"距上一次刷新" ——
+    // 门控挡掉的帧不会让绳子慢放（30 档一帧推进 33.3ms ≈ 4 个固定子步）。
+    // 掉帧 / 断点回来时仍由固定步长累加器截断在 0.05s，绝不会被一帧甩爆。
     const deltaSeconds = lastFrameTime === null ? 0 : Math.max(0, time - lastFrameTime) / 1000;
     lastFrameTime = time;
 
-    const state = ensureRope(pointer.value);
-    // 掉帧 / 断点回来时由固定步长累加器截断，绝不会把十分钟后台时间补进物理；
-    // 怠速车道的一帧是 50ms，会推进 6 个固定子步，同样不追赶。
+    const state = ensureRope(pointer.value, config);
     advanceCharmRope(state, deltaSeconds, pointer.value);
     publish(state);
+    lastPublishAt = time;
     physicsFrameCount += 1;
 
     const swayOn = charmIdleSwayEnabled(state.config);
@@ -350,7 +337,7 @@ export function useCursorCharm(options: UseCursorCharmOptions = {}): CursorCharm
       stopLoop();
       return;
     }
-    scheduleNext(state);
+    scheduleNext();
   }
 
   function handlePointerMove(event?: unknown) {
@@ -360,14 +347,13 @@ export function useCursorCharm(options: UseCursorCharmOptions = {}): CursorCharm
     if (frozen) return;
     const point = eventPoint(event);
     pointer.value = point;
-    lastPointerMoveAt = now();
     // 首次移动才淡入：页面刚打开时不该先冒出一个突兀的东西，
     // 触屏用户（永远匹配不上精确指针）也因此永远看不到它。
     if (!visible.value) visible.value = true;
 
-    publish(ensureRope(point));
-    // 首帧即使能量为 0 也要请求：下一帧才会把头节点钉到新位置，
-    // 链的惯性从"手动了"这一刻开始，而不是从某个预设状态开始。
+    // 事件里只写坐标与可见性：**唯一的发布口是门控帧**（ADR-0018 决策 5）。
+    // 拖动时最多有 1000/fps_cap 的随手延迟（60 档 ≈ 16.7ms），挂件本身有
+    // 200ms 淡入，看不出来；而给拖动开例外会让"帧率上限"名不副实。
     startLoop();
   }
 

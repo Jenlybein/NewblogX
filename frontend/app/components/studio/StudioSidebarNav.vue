@@ -33,7 +33,7 @@ const items = computed<StudioNavItem[]>(() => [
   { label: "收藏夹", to: "/studio/favorites", icon: IconBookmarks },
   { label: "关注", to: "/studio/follows", icon: IconHeartHandshake },
   { label: "粉丝", to: "/studio/fans", icon: IconUsers },
-  { label: "最近登录", to: "/studio/recent-logins", icon: IconLogin2 },
+  { label: "登录设备", to: "/studio/recent-logins", icon: IconLogin2 },
   { label: "账号设置", to: "/studio/settings", icon: IconSettings },
   { label: "消息中心", to: { path: "/studio/inbox", query: { tab: "site" } }, icon: IconBellRinging, badge: messageStore.totalUnread },
   { label: "私信", to: { path: "/studio/inbox", query: { tab: "chat" } }, icon: IconMessageCircle, badge: messageStore.summary.private_msg_count },

@@ -102,6 +102,11 @@ func (s *Sessions) Create(_ context.Context, v *domain.Session) error {
 	}
 	s.nextID = ctype.NewID(s.nextID.Uint64() + 1)
 	v.ID = s.nextID
+	// 与 MySQL 适配器一致：创建时间由仓储落库时补齐，调用方不必自己填。
+	// 聚合"首次登录时间"要靠它，替身漏填会让所有设备的首登时间变成零值。
+	if v.CreatedAt.IsZero() {
+		v.CreatedAt = s.clock.Now()
+	}
 	s.byID[v.ID] = *v
 	return nil
 }

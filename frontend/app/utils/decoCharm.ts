@@ -24,6 +24,8 @@
  *   - 数值参数 0 是"配置字段没填"的零值，不是"我要最小"的意图 ——
  *     回落默认值，而不是钳到下限（**例外**是轻晃的两个参数与指针端偏移：
  *     它们的 0 有明确含义，走"0 合法"的规则）；
+ *   - JSON 里的 `null` 与缺键同义（票 #77）：归一化层把它折成 NaN 后回落
+ *     默认值，绝不能被 `Number(null) === 0` 读成"管理员明确填了 0"；
  *   - 距离约束在节点重合时 dx/dist 会炸，必须先做退化守卫；
  *   - 坐标保留一位小数：长浮点会让 `d` 字符串每帧都不同，白白制造 diff 噪声。
  */
@@ -218,6 +220,15 @@ export interface CharmRopeConfig {
   /** 指针端偏移的垂直分量，px，区间 -24–24（整数，允许负值）。 */
   pointerOffsetY: number;
 }
+
+/**
+ * 归一化层的输入形状：每个键可能是 `number | null | undefined`（票 #77）。
+ *
+ * 为什么把 `null` 写进类型：`/api/site/deco` 的载荷是自由 JSON，运营"清空"
+ * 一个字段时下发的就是 `null`。它和缺键同义 —— **这个键没有值**，不是
+ * "值等于 0"。而 0 在轻晃两项与两轴指针端偏移上是合法语义，两者不能混。
+ */
+export type CharmRopeConfigInput = Partial<Record<keyof CharmRopeConfig, number | null>>;
 
 /**
  * 挂绳的物理状态：**非响应式普通对象**。
@@ -438,24 +449,39 @@ export function clampCharmPointerOffsetY(value: number): number {
 }
 
 /**
+ * 读一个可能缺失 / 为 `null` 的数值字段：两者都折算成 NaN，交给四条钳位规则
+ * 回落各自的默认值（票 #77）。
+ *
+ * 为什么不能直接 `Number(value)`：`Number(null) === 0`，而 0 在轻晃两项与
+ * 两轴指针端偏移上是**合法取值** —— "这个键没有值"会被读成"明确填了 0"，
+ * 挂件悄悄变成停手即零帧 / 指针端压在热点上。其余值仍走 `Number(value)`：
+ * 字符串数字（旧库 / 手改 JSON）保持既有的宽容度。
+ */
+function charmConfigNumber(value: unknown): number {
+  return value === null || value === undefined ? Number.NaN : Number(value);
+}
+
+/**
  * 把任意来源的物理参数收敛成可以建链的形态。
  *
- * 每个字段各自独立钳位：某个键缺失或非法只影响它自己，不会把整份配置拖回默认。
+ * 每个字段各自独立钳位：某个键缺失、为 `null` 或非法只影响它自己，不会把
+ * 整份配置拖回默认。**这是挂件数值参数唯一的兜底点**：组件把原始值（可能是
+ * `null`）原样交进来，`null` / `undefined` 在这里折成 NaN 再回落默认值。
  */
 export function normalizeCharmRopeConfig(
-  input: Partial<CharmRopeConfig> | null | undefined,
+  input: CharmRopeConfigInput | null | undefined,
 ): CharmRopeConfig {
   return {
-    ropeLengthPx: clampCharmRopeLength(Number(input?.ropeLengthPx)),
-    segments: clampCharmSegments(Number(input?.segments)),
-    gravity: clampCharmGravity(Number(input?.gravity)),
-    damping: clampCharmDamping(Number(input?.damping)),
-    lineWidthPx: clampCharmLineWidth(Number(input?.lineWidthPx)),
-    idleSwayHz: clampCharmIdleSwayHz(Number(input?.idleSwayHz)),
-    idleSwayAmp: clampCharmIdleSwayAmp(Number(input?.idleSwayAmp)),
-    fpsCap: clampCharmFpsCap(Number(input?.fpsCap)),
-    pointerOffsetX: clampCharmPointerOffsetX(Number(input?.pointerOffsetX)),
-    pointerOffsetY: clampCharmPointerOffsetY(Number(input?.pointerOffsetY)),
+    ropeLengthPx: clampCharmRopeLength(charmConfigNumber(input?.ropeLengthPx)),
+    segments: clampCharmSegments(charmConfigNumber(input?.segments)),
+    gravity: clampCharmGravity(charmConfigNumber(input?.gravity)),
+    damping: clampCharmDamping(charmConfigNumber(input?.damping)),
+    lineWidthPx: clampCharmLineWidth(charmConfigNumber(input?.lineWidthPx)),
+    idleSwayHz: clampCharmIdleSwayHz(charmConfigNumber(input?.idleSwayHz)),
+    idleSwayAmp: clampCharmIdleSwayAmp(charmConfigNumber(input?.idleSwayAmp)),
+    fpsCap: clampCharmFpsCap(charmConfigNumber(input?.fpsCap)),
+    pointerOffsetX: clampCharmPointerOffsetX(charmConfigNumber(input?.pointerOffsetX)),
+    pointerOffsetY: clampCharmPointerOffsetY(charmConfigNumber(input?.pointerOffsetY)),
   };
 }
 

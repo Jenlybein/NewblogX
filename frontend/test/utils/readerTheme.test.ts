@@ -81,12 +81,16 @@ describe("读者站 Naive 主题（克莱因蓝退场：CTA 是墨水实心胶�
     expect(JSON.stringify(overrides)).not.toMatch(/var\(/u);
   });
 
-  it("字体栈含中文 fallback（Noto 在系统中文之前）", () => {
+  it("字体栈先 Inter、后系统中文（不再有自托管 Noto fallback）", () => {
     const overrides = buildReaderThemeOverrides(lightPalette, scale);
     const stack = String(overrides.common?.fontFamily);
 
     expect(stack).toBe(READER_FONT_STACK);
-    expect(stack.indexOf('"Noto Sans SC"')).toBeLessThan(stack.indexOf('"PingFang SC"'));
+    expect(stack.startsWith('"Inter", "Inter Fallback"')).toBe(true);
+    expect(stack).not.toContain('"Noto Sans SC Fallback"');
+    expect(stack).toContain('"PingFang SC"');
+    expect(stack.indexOf('"PingFang SC"')).toBeLessThan(stack.indexOf('"Microsoft YaHei"'));
+    expect(stack.indexOf('"Microsoft YaHei"')).toBeLessThan(stack.indexOf('"Noto Sans SC"'));
   });
 
   it("缺 token 时抛错（避免静默回落到 Naive 默认青绿）", () => {

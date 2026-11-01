@@ -121,16 +121,16 @@ function fontFamilyDeclarations(): { file: string; family: string }[] {
   return declarations;
 }
 
-describe("中文自托管字体：声明真的指向可加载的文件", () => {
-  it("Noto Sans SC 的 400 / 700 两档都有 @font-face（依赖早就在，之前只是从未加载）", () => {
-    const weights = facesOfFamily(fontsCss, "Noto Sans SC").map(
-      (face) => /\bfont-weight:\s*(\d+)/u.exec(face)?.[1] ?? "?",
-    );
-
-    expect(weights.sort()).toEqual(["400", "700"]);
+describe("中文字体不再自托管：改走系统字体栈（ADR-0019 决策 2 / 约束 5）", () => {
+  it("fonts.css 里没有任何 CJK 字族的 @font-face（Noto 两个整包已删除）", () => {
+    // 反向断言：把 Noto 两档 @font-face 加回来（首屏 2.3 MB）就会红。
+    expect(facesOfFamily(fontsCss, "Noto Sans SC")).toHaveLength(0);
+    expect(facesOfFamily(fontsCss, "Noto Sans SC Fallback")).toHaveLength(0);
+    // 不只看族名：任何一条 @font-face 的 src 都不许指向 noto-sans-sc 的整包文件。
+    expect(fontsCss).not.toMatch(/noto-sans-sc/iu);
   });
 
-  it("每一条 src 的 woff2 都真实存在于 node_modules（拼错路径 = 字体静默不加载）", () => {
+  it("每一条 src 的 woff2 都真实存在于 node_modules（剩下的 Sora / Inter 继续自托管）", () => {
     for (const face of faces) {
       const urls = [...face.matchAll(/url\(\s*["']?([^"')]+)["']?\s*\)/gu)].map((match) => match[1]);
 
@@ -142,26 +142,32 @@ describe("中文自托管字体：声明真的指向可加载的文件", () => {
     }
   });
 
-  it("用 font-display: swap（首屏先出字，不白屏）", () => {
-    for (const face of facesOfFamily(fontsCss, "Noto Sans SC")) {
-      expect(face).toMatch(/font-display:\s*swap/u);
-    }
-  });
-
-  it("配有度量匹配 fallback：本地中文族 + ascent/descent/size-adjust 覆盖（避免换字跳版）", () => {
-    const fallback = facesOfFamily(fontsCss, "Noto Sans SC Fallback")[0];
-
-    expect(fallback).toBeDefined();
-    expect(fallback).toMatch(/src:\s*local\(/u);
-    expect(fallback).toMatch(/ascent-override:\s*[\d.]+%/u);
-    expect(fallback).toMatch(/descent-override:\s*[\d.]+%/u);
-    expect(fallback).toMatch(/line-gap-override:\s*0%/u);
-    expect(fallback).toMatch(/size-adjust:\s*100%/u);
-  });
-
-  it("既有拉丁字体 Sora 没有被中文改造挤掉", () => {
+  it("Sora / Inter 保留自托管：Sora 多档 + 度量匹配 fallback，Inter 可变字体仍在", () => {
     expect(facesOfFamily(fontsCss, "Sora").length).toBeGreaterThanOrEqual(3);
     expect(facesOfFamily(fontsCss, "Sora Fallback").length).toBe(1);
+    expect(facesOfFamily(fontsCss, "Inter").length).toBe(1);
+    expect(facesOfFamily(fontsCss, "Inter Fallback").length).toBe(1);
+  });
+
+  it("首屏字体预算 < 100 KB：读者站 preload 的字体文件合计 ≤ 102400 B", () => {
+    // 首屏真正被预加载的字体 = app.vue 里 import 且在 preload 链接里引用的 woff2。
+    const preloaded = [...appVue.matchAll(/import\s+(\w+)\s+from\s+"(@fontsource[^"]+\.woff2)"/gu)]
+      .map(([, name, file]) => ({ name: name!, file: file! }))
+      .filter(({ name }) => new RegExp(`href:\\s*${name}`, "u").test(appVue));
+
+    expect(preloaded.length).toBeGreaterThanOrEqual(4);
+    const bytes = preloaded.reduce(
+      (sum, { file }) => sum + statSync(join(projectDir, "node_modules", file)).size,
+      0,
+    );
+
+    expect(bytes).toBeGreaterThan(0);
+    expect(bytes).toBeLessThan(102400);
+  });
+
+  it("首屏 preload 里没有任何中文字体文件（中文不再产生下载）", () => {
+    expect(appVue).not.toMatch(/noto-sans-sc/iu);
+    expect(appVue).not.toMatch(/Noto Sans SC/iu);
   });
 });
 
@@ -178,7 +184,7 @@ describe("Inter 自托管：正文 / UI 的拉丁字体", () => {
     );
   });
 
-  it("Naive UI 的 themeOverrides 字体栈把 Noto Sans SC 排在中文字体之前", () => {
+  it("Naive UI 的 themeOverrides 字体栈先 Inter、后系统中文（不再有自托管中文 fallback）", () => {
     // 主题栈由 app/utils/readerTheme.ts 从 tokens.css 解析后组装（见 readerTheme.test.ts）。
     const tokensCss = readFileSync(join(projectDir, "app/assets/css/tokens.css"), "utf8");
     const stack = String(
@@ -188,9 +194,12 @@ describe("Inter 自托管：正文 / UI 的拉丁字体", () => {
       ).common?.fontFamily,
     );
 
-    expect(stack).toContain('"Noto Sans SC"');
-    expect(stack).toContain('"Noto Sans SC Fallback"');
-    expect(stack.indexOf('"Noto Sans SC"')).toBeLessThan(stack.indexOf('"PingFang SC"'));
+    expect(stack.startsWith('"Inter", "Inter Fallback"')).toBe(true);
+    expect(stack).not.toContain('"Noto Sans SC Fallback"');
+    expect(stack).toContain('"PingFang SC"');
+    expect(stack.indexOf('"PingFang SC"')).toBeLessThan(stack.indexOf('"Hiragino Sans GB"'));
+    expect(stack.indexOf('"Hiragino Sans GB"')).toBeLessThan(stack.indexOf('"Microsoft YaHei"'));
+    expect(stack.indexOf('"Microsoft YaHei"')).toBeLessThan(stack.indexOf('"Noto Sans SC"'));
   });
 
   it("Inter 的度量匹配 fallback 用 Arial 系替身 + 与 Inter 度量对齐的覆盖值", () => {
@@ -233,27 +242,28 @@ describe("Inter 自托管：正文 / UI 的拉丁字体", () => {
   });
 });
 
-describe("字体分工：Sora = 字标/大标题，Inter = 正文/UI，中文 = Noto Sans SC", () => {
+describe("字体分工：Sora = 字标/大标题，Inter = 正文/UI，中文 = 系统字体栈", () => {
+  const SYSTEM_CJK_STACK =
+    '-apple-system, BlinkMacSystemFont, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", "Noto Sans SC", sans-serif';
+
   it.each([
     ["读者站", tokensCss],
     ["后台", adminTokensCss],
-  ])("%s 的字体 token：display=Sora（含中文回退）、latin=Inter、cijk=Noto", (_label, css) => {
+  ])("%s 的字体 token：display=Sora（含系统中文）、latin=Inter、cjk=系统字体栈", (_label, css) => {
     const display = declaration(css, "--font-display");
 
     expect(display.startsWith('"Sora", "Sora Fallback"')).toBe(true);
     expect(display).toContain("var(--font-cjk)");
     expect(declaration(css, "--font-latin")).toBe('"Inter", "Inter Fallback"');
     expect(declaration(css, "--font-title")).toBe("var(--font-display)");
-    expect(declaration(css, "--font-cjk")).toBe(
-      '"Noto Sans SC", "Noto Sans SC Fallback"',
-    );
+    // 中文组就是系统字体栈：末位 "Noto Sans SC" 只是"系统装了就有"的名字，不再自托管。
+    expect(declaration(css, "--font-cjk")).toBe(SYSTEM_CJK_STACK);
   });
 
-  it("--font-sans 先走 Inter、再走 Noto，中文不会掉到系统 PingFang/YaHei", () => {
+  it("--font-sans 由拉丁组 + 中文系统组拼成，中文不再指向任何自托管族", () => {
     const sans = declaration(tokensCss, "--font-sans");
 
-    expect(sans.startsWith("var(--font-latin), var(--font-cjk)")).toBe(true);
-    expect(sans.indexOf("var(--font-cjk)")).toBeLessThan(sans.indexOf("PingFang SC"));
+    expect(sans).toBe("var(--font-latin), var(--font-cjk)");
   });
 
   it("大标题字距收到 -0.03em 一档（两端同值）", () => {
@@ -278,7 +288,7 @@ describe("字体分工：Sora = 字标/大标题，Inter = 正文/UI，中文 = 
     expect(adminWordmarkVue).not.toContain("font-latin font-title");
   });
 
-  it("Naive 主题的字体栈也切成 Inter（按钮/表单/弹层不再继承 Sora）", () => {
+  it("Naive 主题的字体栈也切成 Inter + 系统中文（按钮/表单/弹层不再继承 Sora）", () => {
     const stack = String(
       buildReaderThemeOverrides(
         parseReaderThemePalette(tokensCss),
@@ -287,8 +297,9 @@ describe("字体分工：Sora = 字标/大标题，Inter = 正文/UI，中文 = 
     );
 
     expect(stack.startsWith('"Inter"')).toBe(true);
-    expect(stack.indexOf('"Inter"')).toBeLessThan(stack.indexOf('"Noto Sans SC"'));
+    expect(stack.indexOf('"Inter"')).toBeLessThan(stack.indexOf('"PingFang SC"'));
     expect(stack).not.toContain('"Sora"');
+    expect(stack).not.toContain('"Noto Sans SC Fallback"');
   });
 });
 

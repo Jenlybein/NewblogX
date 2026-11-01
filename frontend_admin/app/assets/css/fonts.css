@@ -57,39 +57,7 @@
   size-adjust: 107.12%;
 }
 
-/* ---- 中文：Noto Sans SC（依赖 @fontsource/noto-sans-sc 早就在，但以前从未被
- * @font-face 加载 —— 后台中文一直掉到系统字体上。补 400 / 700 两档，font-display: swap
- * 先出字后换字，避免首屏白屏。---- */
-@font-face {
-  font-family: "Noto Sans SC";
-  font-style: normal;
-  font-display: swap;
-  font-weight: 400;
-  src: url("@fontsource/noto-sans-sc/files/noto-sans-sc-chinese-simplified-400-normal.woff2")
-    format("woff2");
-}
-
-@font-face {
-  font-family: "Noto Sans SC";
-  font-style: normal;
-  font-display: swap;
-  font-weight: 700;
-  src: url("@fontsource/noto-sans-sc/files/noto-sans-sc-chinese-simplified-700-normal.woff2")
-    format("woff2");
-}
-
-/* 中文的度量匹配 fallback：拿系统真实中文字族做替身，用 ascent/descent/size-adjust
- * 覆盖成 Noto Sans SC 的度量（hhea 1160 / 320 / upem 1000，CJK 全角 1em，所以
- * size-adjust 100%），换字时行盒高度不变。 */
-@font-face {
-  font-family: "Noto Sans SC Fallback";
-  src:
-    local("PingFang SC"),
-    local("Microsoft YaHei"),
-    local("Noto Sans SC"),
-    local("Source Han Sans SC");
-  ascent-override: 116%;
-  descent-override: 32%;
-  line-gap-override: 0%;
-  size-adjust: 100%;
-}
+/* ---- 中文：不再自托管（跟随读者站，ADR-0019 决策 2 / 约束 5；两端 tokens.css
+ * 逐字节同源，字体组也同一口径）。首屏原来扛着 2.3 MB 的中文整包字体，这里删除
+ * 全部中文 @font-face，中文改由 `--font-cjk` 的系统字体栈渲染（-apple-system /
+ * 苹方 / 冬青黑 / 微软雅黑 / 思源系）。Sora / Inter 继续自托管并保留度量匹配。---- */

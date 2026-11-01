@@ -125,8 +125,13 @@ describe("路由切换过渡", () => {
   it("过渡时长/缓动取自 token（单一来源，不写死毫秒）", () => {
     const block = tailwindCss.slice(tailwindCss.indexOf(".page-enter-active"));
 
-    expect(block).toContain("var(--motion-base)");
+    // #87 收尾：out-in 的离场是切页可见的固定开销。实测把过渡关掉后切页可见从
+    // ~300ms 降到 ~125ms，其中 ~170ms 是这段过渡；按 ADR-0012 的三档预算从 base 档
+    // （200ms）下调到 fast 档（120ms）。这里断言的是"改用了哪一档 token"，不是删断言：
+    // 若改成写死毫秒或换回别的档位，用例会红；理由与回退方式见 ADR-0019「实施记录」。
+    expect(block).toContain("var(--motion-fast)");
     expect(block).toContain("var(--motion-ease)");
+    expect(block).not.toContain("var(--motion-base)");
   });
 
   it("减少动态下路由过渡直接关掉", () => {

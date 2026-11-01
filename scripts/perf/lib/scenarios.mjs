@@ -96,7 +96,17 @@ export async function runTransition({ browser, base, mode, articleUrl, options }
   }
 }
 
-/** ④：文章页 →（浏览器返回）→ 首页，量是否命中缓存（文档级重载 + 数据请求数/耗时）。 */
+/**
+ * ④：站内点击进文章 →（浏览器返回）→ 首页，量是否命中缓存（文档级重载 + 数据请求数/耗时）。
+ *
+ * 口径修订（#87，P0 修复后）：返回场景改测**真实用户路径**——在首页点击文章链接（客户端跳转），
+ * 再按浏览器「返回」。这时 `performance.timeOrigin` 不变、期望 Vue Router 走 SPA 返回并命中
+ * 30s 客户端 SWR 缓存（0 个数据请求）。原来的实现用 `page.goto(articleUrl)` 进文章页，
+ * 于是「返回」必然是文档级重载——那只测到无头浏览器的口径坑，测不到客户端缓存是否命中。
+ *
+ * P0（#80）未修时站内点击根本进不去文章页：此时退化为旧口径（文档级 goto 文章页再返回），
+ * 报告用 `backFlow=document` 标注。改前基线就是这一形态，因此不把「测不到」误判成「没命中」。
+ */
 export async function runBackCache({ browser, base, mode, articleUrl, options }) {
   const opts = { ...DEFAULT_OPTIONS, ...options };
   const home = new URL("/", base).href;
@@ -113,7 +123,7 @@ export async function runBackCache({ browser, base, mode, articleUrl, options })
     await page.evaluate(timeout => window.__perf.waitContent(timeout), opts.visibleTimeoutMs);
     await settle(page, opts);
   };
-  const visitArticle = async () => {
+  const visitArticleDocument = async () => {
     await page.goto(articleUrl, { waitUntil: "load", timeout: opts.navigationTimeoutMs });
     await page.evaluate(
       ([selectors, timeoutMs]) => window.__perf.waitVisibleAny(selectors, timeoutMs),
@@ -121,7 +131,39 @@ export async function runBackCache({ browser, base, mode, articleUrl, options })
     );
     await settle(page, opts);
   };
-  const backOnce = async () => {
+  // 站内点击进文章：能进就记 spa（真实路径）；进不去（P0 崩溃 / 链接缺失）就交给旧口径。
+  // 这里的等待上限比切页场景短：崩溃时不必等满 12s，测的是"点了有没有反应"。
+  const enterArticle = async () => {
+    const click = await page.evaluate(
+      ([linkSelector, contentSelectors, timeoutMs]) =>
+        window.__perf.clickWatch(linkSelector, contentSelectors, timeoutMs),
+      [opts.transitionLink, opts.selectors.article, Math.min(opts.clickTimeoutMs, 4000)],
+    );
+    if (!click.missing && click.contentVisibleMs != null) {
+      await settle(page, opts);
+      return { flow: "spa", clickToArticleMs: click.contentVisibleMs };
+    }
+    await visitArticleDocument();
+    return { flow: "document", clickToArticleMs: null };
+  };
+  const backOnce = async (flow) => {
+    if (flow === "spa") {
+      // SPA 返回：不会产生文档导航，等 URL 回到首页、首页内容重新可见即可（不跑 waitForNavigation，省 5s）。
+      await page.evaluate(() => history.back()).catch(() => {});
+      const deadline = Date.now() + opts.clickTimeoutMs;
+      while (Date.now() < deadline) {
+        const href = await page.evaluate(() => location.href).catch(() => null);
+        if (href === home) break;
+        await sleep(100);
+      }
+      await page
+        .evaluate(
+          ([selectors, timeoutMs]) => window.__perf.waitVisibleAny(selectors, timeoutMs),
+          [opts.selectors.home, opts.visibleTimeoutMs],
+        )
+        .catch(() => undefined);
+      return false;
+    }
     const navPromise = page
       .waitForNavigation({ waitUntil: "load", timeout: opts.backNavigationWaitMs })
       .then(() => true)
@@ -129,7 +171,7 @@ export async function runBackCache({ browser, base, mode, articleUrl, options })
     await page.evaluate(() => history.back()).catch(() => {});
     const navigated = await navPromise;
     if (!navigated) {
-      // SPA 返回：等 URL 回到首页（或超时），再停稳。
+      // 非文档导航：等 URL 回到首页（或超时），再停稳。
       const deadline = Date.now() + opts.clickTimeoutMs;
       while (Date.now() < deadline) {
         const href = await page.evaluate(() => location.href).catch(() => null);
@@ -141,17 +183,21 @@ export async function runBackCache({ browser, base, mode, articleUrl, options })
   };
 
   try {
+    let flow = null;
     if (!cold) {
-      // 热返回：先完整走一轮（不计入测量），让 HTTP 缓存与路由都热起来。
+      // 热返回：先完整走一轮（不计入测量），让 HTTP 缓存、路由与客户端 SWR 都热起来。
       await visitHome();
-      await visitArticle();
-      await backOnce();
+      const warm = await enterArticle();
+      await backOnce(warm.flow);
     }
     await visitHome();
-    await visitArticle();
+    const entry = await enterArticle();
+    flow = entry.flow;
     const snapshot = await page.evaluate(() => window.__perf.backSnapshot());
-    await backOnce();
-    await page.waitForLoadState("load", { timeout: opts.navigationTimeoutMs }).catch(() => {});
+    await backOnce(flow);
+    if (flow === "document") {
+      await page.waitForLoadState("load", { timeout: opts.navigationTimeoutMs }).catch(() => {});
+    }
     await settle(page, opts);
 
     let after = null;
@@ -176,10 +222,15 @@ export async function runBackCache({ browser, base, mode, articleUrl, options })
       elapsedMs: Date.now() - startedAt,
       metrics: {
         documentNavigation,
+        // backFlow 记「返回」本身是文档级重载还是 SPA 返回；entryFlow 记「进文章」是点击还是退化。
+        // 两者分开：P0 时代进文章只能文档级 goto，但返回仍可能被客户端路由接管（SPA popstate）。
+        backFlow: documentNavigation ? "document" : "spa",
+        entryFlow: flow,
         dataRequestCount: api.length,
         dataWallMs: api.length ? apiWallMs(api) : 0,
         allRequestCount: relevant.length,
         pageErrors: pageErrors.length,
+        clickToArticleMs: entry.clickToArticleMs,
       },
     };
   } finally {

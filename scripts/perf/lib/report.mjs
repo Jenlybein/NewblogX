@@ -37,9 +37,10 @@ export const SCENARIO_SPECS = {
   },
   "backCache.articleToHome": {
     group: "backCache",
-    label: "文章页 → 首页",
+    label: "首页 → 文章 → 返回首页",
     metrics: ["dataRequestCount", "dataWallMs", "allRequestCount", "pageErrors"],
-    extraFields: [],
+    // backFlow：返回本身是 SPA 还是文档级重载；entryFlow：进文章是站内点击（spa）还是退化为文档级 goto（document）。
+    extraFields: ["backFlow", "entryFlow", "clickToArticleMs"],
     flags: ["documentNavigation"],
   },
 };
@@ -98,6 +99,8 @@ function buildMode(spec, modeRuns, budgets) {
   if (spec.group === "backCache") {
     mode.documentNavigation = flagOf(modeRuns, "documentNavigation");
     mode.cacheHitRuns = modeRuns.filter(run => run.ok && cacheHit(run, budgets)).length;
+    mode.backFlow = flowOf(modeRuns, "backFlow");
+    mode.entryFlow = flowOf(modeRuns, "entryFlow");
   }
   if (spec.group === "transition") {
     const measured = aggregates.contentVisibleMs.measured;
@@ -147,6 +150,14 @@ function cacheHit(run, budgets) {
   if (requests === 0) return true;
   const wall = numberOrNull(run.metrics.dataWallMs);
   return wall != null && wall < budgets.backCacheDataWallMs;
+}
+
+function flowOf(modeRuns, key) {
+  const flows = modeRuns.filter(run => run.ok).map(run => run.metrics[key]);
+  if (flows.length === 0) return "unknown";
+  if (flows.every(flow => flow === "spa")) return "spa";
+  if (flows.every(flow => flow === "document")) return "document";
+  return "mixed";
 }
 
 function flagOf(modeRuns, key) {
@@ -230,7 +241,15 @@ function autoNotes(scenarios, fonts) {
   if (back) {
     for (const mode of MODE_ORDER) {
       const data = back.modes[mode];
-      if (!data || data.documentNavigation !== "yes") continue;
+      if (!data) continue;
+      if (data.entryFlow === "document") {
+        notes.push(
+          `返回「${back.label}」· ${MODE_LABELS[mode]}：站内点击没能进入文章页（点击导航不可用，P0 #80 时代的形态），` +
+            `进文章退化为文档级 goto（entryFlow=document）；返回本身是${data.backFlow === "spa" ? "SPA 返回" : "文档级重载"}。` +
+            "该行只作改前对照，不代表客户端缓存的最终形态。",
+        );
+      }
+      if (data.documentNavigation !== "yes") continue;
       notes.push(
         `返回「${back.label}」· ${MODE_LABELS[mode]}：无头 Chromium 的「返回」表现为文档级重载；` +
           "与真实浏览器 bfcache 对比时不要把该差异当成回归（口径见 README）。",
@@ -335,14 +354,19 @@ export function renderMarkdown(report) {
   lines.push("");
 
   // ④ 返回上一页是否命中缓存
-  lines.push("## ④ 返回上一页是否命中缓存", "", "| 路径 | 模式 | 文档级重载 | 数据请求数（中位） | 数据耗时（中位） | 命中缓存 |", "| --- | --- | --- | --- | --- | --- |");
+  lines.push(
+    "## ④ 返回上一页是否命中缓存",
+    "",
+    "| 路径 | 模式 | 返回方式 | 文档级重载 | 数据请求数（中位） | 数据耗时（中位） | 命中缓存 |",
+    "| --- | --- | --- | --- | --- | --- | --- |",
+  );
   const backRows = [];
   const back = report.scenarios["backCache.articleToHome"];
   if (back) {
     for (const mode of modesOf(back)) {
       const data = back.modes[mode];
       backRows.push(
-        `| ${back.label} | ${MODE_LABELS[mode]} | ${flagText(data.documentNavigation)} | ` +
+        `| ${back.label} | ${MODE_LABELS[mode]} | ${backFlowText(data.backFlow)} | ${flagText(data.documentNavigation)} | ` +
           `${fmtNum(data.aggregates.dataRequestCount.median)} | ${fmtMs(data.aggregates.dataWallMs.median)} | ` +
           `${data.verdicts.cacheHit === "pass" ? "命中" : "未命中"} |`,
       );
@@ -397,6 +421,12 @@ function flagText(flag) {
   if (flag === "yes") return "是";
   if (flag === "no") return "否";
   if (flag === "mixed") return "混合";
+  return "—";
+}
+
+function backFlowText(flow) {
+  if (flow === "spa") return "SPA 返回";
+  if (flow === "document") return "文档级重载";
   return "—";
 }
 

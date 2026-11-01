@@ -383,7 +383,7 @@ export interface DecoRuntimeConfig {
     idle_sway_amp: number
     /** 最高渲染帧率，单位 fps，合法区间 30–160（整数）；它只管每秒画几次，不影响绳子手感。 */
     fps_cap: number
-    /** 指针端偏移水平分量，单位 px，合法区间 -24–24（整数，允许负值）；物理头节点 = 指针热点 + 它。 */
+    /** 指针端偏移水平分量，单位 px，合法区间 -24–24（整数，允许负值）；指针端节点 = 指针热点 + 它。 */
     pointer_offset_x: number
     /** 指针端偏移垂直分量，单位 px，合法区间 -24–24（整数，允许负值；负值往上偏）。 */
     pointer_offset_y: number

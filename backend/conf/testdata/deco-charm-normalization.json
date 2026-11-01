@@ -1,5 +1,5 @@
 {
-  "description": "deco.charm 九个数值参数的归一化边界。后端 conf.Deco.Normalize、读者站 clampCharm*、后台 clampDeco* 三套实现都消费这张表：任何一端的取整/回落规则漂移，至少一套测试会红。",
+  "description": "deco.charm 十一个数值参数的归一化边界。后端 conf.Deco.Normalize、读者站 clampCharm*、后台 clampDeco* 三套实现都消费这张表：任何一端的取整/回落规则漂移，至少一套测试会红。",
   "cases": [
     { "parameter": "logo_size", "input": 60, "expected": 60, "reason": "区间内原样保留" },
     { "parameter": "logo_size", "input": 24, "expected": 24, "reason": "下限本身不漂移" },

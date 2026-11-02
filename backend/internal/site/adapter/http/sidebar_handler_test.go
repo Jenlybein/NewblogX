@@ -94,6 +94,52 @@ func TestSidebarCardsReaderEndpoint(t *testing.T) {
 	}
 }
 
+// 推荐合集卡：合集条目按契约逐字段回传，前端据此渲染整块卡。
+func TestSidebarCardsReaderEndpointRecommendedCollections(t *testing.T) {
+	h, cards, data := newSidebarHandler(t)
+	seedSidebarCard(cards, 1, domain.CardKindRecommendedCollections, "往期专题", 0, true)
+	data.PutCollections(
+		domain.SidebarCollection{
+			ID:           ctype.NewID(101),
+			Title:        "从零搭一个博客",
+			Description:  "一套完整的建站路径",
+			Cover:        "https://cdn.example.com/collection.png",
+			ArticleCount: 7,
+		},
+	)
+
+	body := readSidebarBody(t, h, h.SidebarCards)
+
+	var envelope struct {
+		Code int                           `json:"code"`
+		Msg  string                        `json:"msg"`
+		Data sitehttp.SidebarCardsResponse `json:"data"`
+	}
+	if err := json.Unmarshal([]byte(body), &envelope); err != nil {
+		t.Fatalf("解析响应失败: %v，body=%s", err, body)
+	}
+	if envelope.Code != int(res.SuccessCode) {
+		t.Fatalf("接口应成功返回，实际 code=%d msg=%s", envelope.Code, envelope.Msg)
+	}
+	list := envelope.Data.List
+	if len(list) != 1 || list[0].Kind != "recommended_collections" {
+		t.Fatalf("应返回一张推荐合集卡: %+v", list)
+	}
+	collections := list[0].Collections
+	if len(collections) != 1 {
+		t.Fatalf("推荐合集卡应带 1 个合集: %+v（body=%s）", collections, body)
+	}
+	got := collections[0]
+	if got.ID != "101" || got.Title != "从零搭一个博客" || got.Description != "一套完整的建站路径" ||
+		got.Cover != "https://cdn.example.com/collection.png" || got.ArticleCount != 7 {
+		t.Fatalf("合集条目字段应原样回传: %+v", got)
+	}
+	// 空数据时也要是空数组（不是 null）：前端按"空数组即隐藏"判断。
+	if list[0].HotArticles == nil || list[0].Tags == nil || list[0].LatestComments == nil {
+		t.Fatalf("其它种类的数据字段应回传空数组而非 null: %+v", list[0])
+	}
+}
+
 // 管理侧接口：整表保存后，读者侧刷新即可看到新顺序与默认标题。
 func TestSidebarCardsAdminSaveAffectsReader(t *testing.T) {
 	h, _, data := newSidebarHandler(t)

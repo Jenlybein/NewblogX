@@ -1,4 +1,5 @@
 import type { SiteSidebarCardItem } from "~/types/api";
+import { collectionHref } from "~/utils/collection";
 
 /**
  * 右栏数据驱动渲染的纯函数层（票 111）。
@@ -16,7 +17,12 @@ import type { SiteSidebarCardItem } from "~/types/api";
  * 后端靠它们分派取数。任一端新增/改名一个种类而另一端没跟上，
  * 另一端会把那张卡当成未知种类隐藏 —— 不会画出一个空盒子。
  */
-export const SIDEBAR_CARD_KINDS = ["hot_articles", "latest_comments", "tag_cloud"] as const;
+export const SIDEBAR_CARD_KINDS = [
+  "hot_articles",
+  "latest_comments",
+  "tag_cloud",
+  "recommended_collections",
+] as const;
 
 /** 内置卡片种类。 */
 export type SidebarCardKind = (typeof SIDEBAR_CARD_KINDS)[number];
@@ -26,6 +32,7 @@ export const SIDEBAR_CARD_DEFAULT_TITLES: Record<SidebarCardKind, string> = {
   hot_articles: "热门文章",
   latest_comments: "最新评论",
   tag_cloud: "标签云",
+  recommended_collections: "推荐合集",
 };
 
 /** 卡片领域的 eyebrow 小标（纯展示，不参与契约）。 */
@@ -33,6 +40,7 @@ export const SIDEBAR_CARD_EYEBROWS: Record<SidebarCardKind, string> = {
   hot_articles: "Hot",
   latest_comments: "Comments",
   tag_cloud: "Tags",
+  recommended_collections: "Collections",
 };
 
 /** 热门文章卡的展示项。 */
@@ -61,6 +69,22 @@ export interface SidebarTagView {
   weight: number;
 }
 
+/**
+ * 推荐合集卡的展示项：一整行可点，直接进合集详情。
+ *
+ * 简介与封面都可能是空串（合集允许没有封面/简介），由模板决定要不要渲染那一块；
+ * 这里不编造占位文案 —— 右栏一行放不下"还没有介绍"这种装饰。
+ */
+export interface SidebarCollectionView {
+  id: string;
+  href: string;
+  title: string;
+  description: string;
+  cover: string;
+  /** "N 篇文章 / 暂无文章"：点进去之前先知道体量。 */
+  countLabel: string;
+}
+
 /** 一张可渲染的卡片：配置（种类/标题/顺序）+ 该种类自己的数据。 */
 export interface SidebarCardView {
   key: string;
@@ -70,6 +94,7 @@ export interface SidebarCardView {
   articles: SidebarArticleView[];
   comments: SidebarCommentView[];
   tags: SidebarTagView[];
+  collections: SidebarCollectionView[];
 }
 
 /**
@@ -114,6 +139,28 @@ export function tagCloudFontSize(weight: number): string {
   const clamped = Number.isFinite(weight) ? Math.min(1, Math.max(0, weight)) : 0;
   const size = TAG_FONT_MIN_REM + clamped * (TAG_FONT_MAX_REM - TAG_FONT_MIN_REM);
   return `${size.toFixed(2)}rem`;
+}
+
+/**
+ * 把契约里的推荐合集映射成一行可渲染的模型。
+ *
+ * 详情路由复用 `collectionHref`：合集详情页的路径只有一份定义，
+ * 右栏与合集列表页不会各自漂移出一条点进去 404 的链接。
+ */
+export function sidebarCollectionView(
+  row: SiteSidebarCardItem["collections"][number],
+): SidebarCollectionView {
+  const id = String(row.id ?? "");
+  const articleCount = Number(row.article_count) || 0;
+
+  return {
+    id,
+    href: collectionHref(id),
+    title: String(row.title ?? "").trim() || "未命名合集",
+    description: String(row.description ?? "").trim(),
+    cover: String(row.cover ?? "").trim(),
+    countLabel: articleCount > 0 ? `${articleCount} 篇文章` : "暂无文章",
+  };
 }
 
 /**
@@ -175,6 +222,10 @@ export function sidebarCardViews(
             }))
           : [],
       tags: [],
+      collections:
+        kind === "recommended_collections"
+          ? (card.collections || []).map((row) => sidebarCollectionView(row))
+          : [],
     };
 
     if (kind === "tag_cloud") {
@@ -192,7 +243,9 @@ export function sidebarCardViews(
     }
 
     // 空数据的卡整块隐藏：卡片配置还在（后台可见），只是读者侧不渲染。
-    const hasData = view.articles.length + view.comments.length + view.tags.length > 0;
+    // 推荐合集卡同理 —— 没有展示中的合集时，右栏不出现一张空盒子。
+    const hasData =
+      view.articles.length + view.comments.length + view.tags.length + view.collections.length > 0;
     if (!hasData) {
       return;
     }

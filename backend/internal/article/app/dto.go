@@ -272,3 +272,19 @@ type SetCollectionDisplayCmd struct {
 	// Displayed 目标展示状态。
 	Displayed bool
 }
+
+// IncludeArticlesCmd 是批量收录的输入。
+//
+// 与 IncludeArticleCmd 分开而不是把单篇命令扩展成切片：单篇入口的
+// "重复即报错"语义要保留（后台逐篇点击时需要明确失败），批量入口则逐篇
+// 返回结局（一次勾十几篇时不该因为一篇重复整单失败）。
+type IncludeArticlesCmd struct {
+	// Actor 是操作者，必须是管理员。
+	Actor domain.Viewer
+	// CollectionID 目标合集。
+	CollectionID collection.ID
+	// ArticleIDs 要收录的文章，按提交顺序排在合集末尾。
+	//
+	// 同一篇在请求里出现多次时，第一次照常分类、后续一律按重复返回。
+	ArticleIDs []domain.ArticleID
+}

@@ -27,7 +27,6 @@ function configWith(article: SiteRuntimeConfig["article"]): SiteRuntimeConfig {
     site_info: { title: "果冻盒" },
     project: { title: "JellyBin" },
     login: { username_pwd_login: true },
-    index_right: { list: [] },
     article,
   };
 }

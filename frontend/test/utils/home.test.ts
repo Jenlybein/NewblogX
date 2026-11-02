@@ -1,115 +1,13 @@
 import { describe, expect, it } from "vitest";
 
-import type { SearchArticleItem, SiteRuntimeConfig } from "~/types/api";
-import {
-  aggregateHotTags,
-  aggregateRecommendedAuthors,
-  homeLoginModes,
-  homeSearchLocation,
-  homeSidebarVisibility,
-  pinnedArticleView,
-  resolveHomeSectionState,
-} from "~/utils/home";
-
-function article(overrides: Record<string, unknown> = {}): SearchArticleItem {
-  return {
-    id: "a1",
-    title: "标题",
-    abstract: "",
-    cover: "",
-    created_at: "2026-10-01T00:00:00Z",
-    category: { title: "工程" },
-    author: { id: "u1", nickname: "作者甲", avatar: "" },
-    tags: [],
-    digg_count: 0,
-    favor_count: 0,
-    comment_count: 0,
-    view_count: 0,
-    ...overrides,
-  } as unknown as SearchArticleItem;
-}
-
-// 运行时配置的 fixture 必须用**后端真实发出的键**（`backend/conf/site.enter.go` 的 json tag），
-// 不能用前端想象中的名字。2026-10-31 之前这里写的是 `login: { pwd/email/qq }`，
-// 与后端 `qq_login` / `username_pwd_login` / `email_login` 完全对不上，
-// 于是断言绿、线上 chips 永远为空（#56）。
-const runtimeConfig = {
-  site_info: { title: "站点" },
-  project: { title: "项目" },
-  login: { qq_login: true, username_pwd_login: true, email_login: false },
-  index_right: { list: [{ title: "hot_tags" }] },
-} as unknown as SiteRuntimeConfig;
-
-describe("homeSidebarVisibility / homeLoginModes", () => {
-  it("配置为空时三个模块全开；按 title 精确匹配关闭其它模块", () => {
-    expect(homeSidebarVisibility(null)).toEqual({ notice: true, tags: true, authors: true });
-
-    const emptyList = { ...runtimeConfig, index_right: { list: [] } };
-    expect(homeSidebarVisibility(emptyList)).toEqual({ notice: true, tags: true, authors: true });
-
-    const onlyTags = homeSidebarVisibility(runtimeConfig);
-    expect(onlyTags).toEqual({ notice: false, tags: true, authors: false });
-  });
-
-  it("登录方式只列已启用的", () => {
-    expect(homeLoginModes(runtimeConfig)).toEqual(["密码登录", "QQ 登录"]);
-    expect(homeLoginModes(null)).toEqual([]);
-  });
-
-  it("后端真实键（qq_login/username_pwd_login/email_login）必须能被读到（#56 回归）", () => {
-    // 喂的就是后端 `conf.Site.Login` 原样发出的形状；若前端又改回
-    // `qq/email/pwd` 这类自造键，这条会立刻红。
-    const backendShaped = {
-      login: { qq_login: true, username_pwd_login: true, email_login: true },
-    } as unknown as SiteRuntimeConfig;
-    expect(homeLoginModes(backendShaped)).toEqual(["密码登录", "邮箱登录", "QQ 登录"]);
-  });
-
-  it("三个开关全关时不展示任何登录方式", () => {
-    const allOff = {
-      login: { qq_login: false, username_pwd_login: false, email_login: false },
-    } as unknown as SiteRuntimeConfig;
-    expect(homeLoginModes(allOff)).toEqual([]);
-  });
-});
-
-describe("热门标签 / 推荐作者聚合", () => {
-  it("标签按出现次数降序、同频按 id 稳定排序，并支持 limit", () => {
-    const tags = (titles: Array<[string, string]>) => titles.map(([id, title]) => ({ id, title }));
-
-    const items = [
-      article({ id: "a", tags: tags([["t1", "Nuxt"], ["t2", "部署"]]) }),
-      article({ id: "b", tags: tags([["t2", "部署"]]) }),
-      article({ id: "c", tags: tags([["t3", "Go"], ["t2", "部署"]]) }),
-    ];
-
-    const hot = aggregateHotTags(items, 2);
-    expect(hot).toHaveLength(2);
-    expect(hot[0]).toMatchObject({ id: "t2", count: 3 });
-    expect(hot[1]?.id).toBe("t1");
-  });
-
-  it("作者按文章数降序、再按总阅读降序", () => {
-    const items = [
-      article({ id: "a", author: { id: "u1", nickname: "甲", avatar: "" }, view_count: 10 }),
-      article({ id: "b", author: { id: "u2", nickname: "乙", avatar: "" }, view_count: 900 }),
-      article({ id: "c", author: { id: "u2", nickname: "乙", avatar: "" }, view_count: 100 }),
-    ];
-
-    const authors = aggregateRecommendedAuthors(items, 2);
-    expect(authors).toHaveLength(2);
-    expect(authors[0]).toMatchObject({ id: "u2", articleCount: 2, totalViews: 1000 });
-    expect(authors[1]).toMatchObject({ id: "u1", articleCount: 1 });
-  });
-
-  it("空列表聚合结果为空数组（不抛错）", () => {
-    expect(aggregateHotTags([])).toEqual([]);
-    expect(aggregateRecommendedAuthors([])).toEqual([]);
-  });
-});
+import { homeSearchLocation, pinnedArticleView, resolveHomeSectionState } from "~/utils/home";
 
 // 这组降级态只属于首页「最新文章」区块：热门置顶是运营位，
 // 无数据 / 加载中 / 失败都整块不渲染（ADR-0017 决策 5），没有可测的降级态。
+//
+// 右栏不再有纯函数级的"分区开关"可测：它由 `sidebarCardViews` 的卡片数据驱动，
+// 可见性判定已随旧配置一起下线（见 `test/utils/sidebarCards.test.ts` 与
+// `test/components/HomeSidebar.test.ts`）。
 describe("最新文章区块的降级态", () => {
   it("加载中：徽标显示加载中，不显示错误/空态文案", () => {
     const state = resolveHomeSectionState({ pending: true, failed: false, itemCount: 0 });

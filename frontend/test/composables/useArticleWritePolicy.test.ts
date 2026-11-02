@@ -25,7 +25,6 @@ function siteConfig(article: Record<string, boolean>) {
     site_info: { title: "果冻盒" },
     project: { title: "JellyBin" },
     login: {},
-    index_right: { list: [] },
     article,
   };
 }

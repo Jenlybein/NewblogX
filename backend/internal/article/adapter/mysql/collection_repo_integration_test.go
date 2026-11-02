@@ -488,6 +488,85 @@ func TestCollectionRepo_UpdatePersistsSoftDelete(t *testing.T) {
 	}
 }
 
+// TestCollectionRepo_UpdateSortOrders 合集之间换序真的落库：
+// 后台列表与读者列表都按新的 sort_order 读出来。
+func TestCollectionRepo_UpdateSortOrders(t *testing.T) {
+	t.Parallel()
+
+	db := migrateCollections(t)
+	seedUser(t, db, 100)
+	repo := mysql.NewCollectionRepo(db)
+	ctx := context.Background()
+
+	for i, title := range []string{"第一个", "第二个", "第三个"} {
+		c := newCollection(t, uint64(i+1), title, true, i+1)
+		if err := repo.Create(ctx, c); err != nil {
+			t.Fatalf("建合集 %s 失败: %v", title, err)
+		}
+	}
+
+	if err := repo.UpdateSortOrders(ctx,
+		[]collection.ID{ctype.NewID(3), ctype.NewID(1), ctype.NewID(2)}); err != nil {
+		t.Fatalf("合集换序失败: %v", err)
+	}
+
+	ids, err := repo.ListIDs(ctx)
+	if err != nil {
+		t.Fatalf("读合集 ID 失败: %v", err)
+	}
+	if len(ids) != 3 || ids[0].Uint64() != 3 || ids[1].Uint64() != 1 || ids[2].Uint64() != 2 {
+		t.Fatalf("换序后的 ID 顺序不对: %v", ids)
+	}
+
+	cards, total, err := repo.ListCards(ctx, false, domain.Page{Limit: 10})
+	if err != nil {
+		t.Fatalf("读读者列表失败: %v", err)
+	}
+	if total != 3 || len(cards) != 3 {
+		t.Fatalf("应有 3 个合集，实际 total=%d len=%d", total, len(cards))
+	}
+	if cards[0].ID.Uint64() != 3 || cards[1].ID.Uint64() != 1 || cards[2].ID.Uint64() != 2 {
+		t.Fatalf("读者列表顺序不对: %+v", cards)
+	}
+}
+
+// TestCollectionRepo_AppendItemTwiceIsDuplicateNotError 重复收录在仓储层是
+// "幂等 false"而不是唯一键错误：单篇入口据此报可读的"已在合集中"。
+func TestCollectionRepo_AppendItemTwiceIsDuplicateNotError(t *testing.T) {
+	t.Parallel()
+
+	db := migrateCollections(t)
+	seedUser(t, db, 100)
+	seedCollectionArticle(t, db, 1, 100, schema.ArticleStatusPublished, schema.VisibilityVisible, "")
+	repo := mysql.NewCollectionRepo(db)
+	ctx := context.Background()
+
+	if err := repo.Create(ctx, newCollection(t, 1, "主题合集", true, 1)); err != nil {
+		t.Fatalf("建合集失败: %v", err)
+	}
+
+	created, err := repo.AppendItem(ctx, ctype.NewID(1), ctype.NewID(1))
+	if err != nil || !created {
+		t.Fatalf("首次收录应成功，实际 created=%v err=%v", created, err)
+	}
+
+	created, err = repo.AppendItem(ctx, ctype.NewID(1), ctype.NewID(1))
+	if err != nil {
+		t.Fatalf("重复收录不该报错（唯一键冲突应翻译成重复），实际 %v", err)
+	}
+	if created {
+		t.Fatal("重复收录应返回 created=false")
+	}
+
+	ids, err := repo.ListItemIDs(ctx, ctype.NewID(1))
+	if err != nil {
+		t.Fatalf("读收录失败: %v", err)
+	}
+	if len(ids) != 1 {
+		t.Fatalf("重复收录不该产生第二行，实际 %v", ids)
+	}
+}
+
 // isNotFound 判断是不是"合集不存在"。
 func isNotFound(err error) bool {
 	return err == collection.ErrNotFound

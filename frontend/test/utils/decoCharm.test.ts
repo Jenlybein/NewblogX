@@ -142,9 +142,9 @@ describe("光标挂件的参数常量", () => {
     expect(CHARM_ROPE_LENGTH_DEFAULT).toBe(120);
   });
 
-  it("节点数 4–24 节，默认 10（计数，不是像素）", () => {
+  it("节点数 4–30 节，默认 10（计数，不是像素）", () => {
     expect(CHARM_SEGMENTS_MIN).toBe(4);
-    expect(CHARM_SEGMENTS_MAX).toBe(24);
+    expect(CHARM_SEGMENTS_MAX).toBe(30);
     expect(CHARM_SEGMENTS_DEFAULT).toBe(10);
   });
 
@@ -160,11 +160,12 @@ describe("光标挂件的参数常量", () => {
     expect(CHARM_STIFFNESS_DEFAULT).toBe(0.5);
   });
 
-  it("阻尼 0.94–0.995，默认 0.99；上限必须小于 1（否则越甩越大）", () => {
-    expect(CHARM_DAMPING_MIN).toBe(0.94);
-    expect(CHARM_DAMPING_MAX).toBe(0.995);
+  it("阻尼 0.9–1，默认 0.99；1 表示速度不衰减（可能持续振荡），大于 1 才是发散", () => {
+    expect(CHARM_DAMPING_MIN).toBe(0.9);
+    expect(CHARM_DAMPING_MAX).toBe(1);
     expect(CHARM_DAMPING_DEFAULT).toBe(0.99);
-    expect(CHARM_DAMPING_MAX).toBeLessThan(1);
+    expect(CHARM_DAMPING_MAX).toBeLessThanOrEqual(1);
+    expect(CHARM_DAMPING_MIN).toBeLessThan(CHARM_DAMPING_DEFAULT);
   });
 
   it("描边起始宽度 1–6 px，默认 2.5；收尾固定为起始的 0.6 倍（不进配置）", () => {
@@ -204,9 +205,9 @@ describe("光标挂件的参数常量", () => {
     expect(1 / CHARM_FPS_CAP_MIN).toBeLessThan(CHARM_MAX_FRAME_SECONDS);
   });
 
-  it("站标尺寸区间与默认值与后端一致（24–96，默认 48）", () => {
-    expect(CHARM_LOGO_SIZE_MIN).toBe(24);
-    expect(CHARM_LOGO_SIZE_MAX).toBe(96);
+  it("站标尺寸区间与默认值与后端一致（15–70，默认 48）", () => {
+    expect(CHARM_LOGO_SIZE_MIN).toBe(15);
+    expect(CHARM_LOGO_SIZE_MAX).toBe(70);
     expect(CHARM_LOGO_SIZE_DEFAULT).toBe(48);
   });
 
@@ -228,13 +229,13 @@ describe("clampCharmLogoSize", () => {
   it("越界钳到边界（不产生发散值）", () => {
     expect(clampCharmLogoSize(4000)).toBe(CHARM_LOGO_SIZE_MAX);
     expect(clampCharmLogoSize(10)).toBe(CHARM_LOGO_SIZE_MIN);
-    expect(clampCharmLogoSize(96.5)).toBe(CHARM_LOGO_SIZE_MAX);
+    expect(clampCharmLogoSize(70.5)).toBe(CHARM_LOGO_SIZE_MAX);
   });
 
   it("区间内的值原样保留，边界值不漂移", () => {
     expect(clampCharmLogoSize(60)).toBe(60);
-    expect(clampCharmLogoSize(24)).toBe(24);
-    expect(clampCharmLogoSize(96)).toBe(96);
+    expect(clampCharmLogoSize(15)).toBe(15);
+    expect(clampCharmLogoSize(70)).toBe(70);
   });
 
   it("缺省（0）与非法值（负数 / NaN / Infinity）回落默认值", () => {
@@ -256,10 +257,12 @@ describe("挂绳物理参数钳位（读者站这最后一道防线）", () => {
     expect(clampCharmRopeLength(200)).toBe(200);
   });
 
-  it("节点数：钳成整数，越界到 4/24，零与非法回落 10", () => {
+  it("节点数：钳成整数，越界到 4/30，零与非法回落 10", () => {
     expect(clampCharmSegments(100)).toBe(CHARM_SEGMENTS_MAX);
     expect(clampCharmSegments(1)).toBe(CHARM_SEGMENTS_MIN);
     expect(clampCharmSegments(10.7)).toBe(11);
+    expect(clampCharmSegments(30)).toBe(30);
+    expect(clampCharmSegments(30.6)).toBe(CHARM_SEGMENTS_MAX);
     expect(clampCharmSegments(0)).toBe(CHARM_SEGMENTS_DEFAULT);
     expect(clampCharmSegments(-3)).toBe(CHARM_SEGMENTS_DEFAULT);
     expect(clampCharmSegments(Number.NaN)).toBe(CHARM_SEGMENTS_DEFAULT);
@@ -273,10 +276,11 @@ describe("挂绳物理参数钳位（读者站这最后一道防线）", () => {
     expect(clampCharmGravity(Number.NaN)).toBe(CHARM_GRAVITY_DEFAULT);
   });
 
-  it("阻尼：钳到 0.94/0.995，零与非法回落 0.99（等于 1 会被钳回上限）", () => {
-    expect(clampCharmDamping(2)).toBe(0.995);
-    expect(clampCharmDamping(1)).toBe(0.995);
-    expect(clampCharmDamping(0.5)).toBe(0.94);
+  it("阻尼：钳到 0.9/1，零与非法回落 0.99（1 是合法值，大于 1 被夹回）", () => {
+    expect(clampCharmDamping(2)).toBe(1);
+    expect(clampCharmDamping(1.001)).toBe(1);
+    expect(clampCharmDamping(1)).toBe(1);
+    expect(clampCharmDamping(0.5)).toBe(0.9);
     expect(clampCharmDamping(0)).toBe(0.99);
     expect(clampCharmDamping(Number.NaN)).toBe(0.99);
     expect(clampCharmDamping(0.97)).toBe(0.97);
@@ -440,7 +444,7 @@ describe("normalizeCharmRopeConfig", () => {
       ropeLengthPx: CHARM_ROPE_LENGTH_MAX,
       segments: CHARM_SEGMENTS_MAX,
       gravity: CHARM_GRAVITY_MAX,
-      damping: 0.995,
+      damping: CHARM_DAMPING_MAX,
       stiffness: CHARM_STIFFNESS_MAX,
       lineWidthPx: CHARM_LINE_WIDTH_MAX,
       idleSwayHz: CHARM_IDLE_SWAY_HZ_MAX,

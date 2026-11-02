@@ -20,13 +20,20 @@ const (
 	CardKindLatestComments SidebarCardKind = "latest_comments"
 	// CardKindTagCloud 标签云（按出现权重决定字号）。
 	CardKindTagCloud SidebarCardKind = "tag_cloud"
+	// CardKindRecommendedCollections 推荐合集（合集模块自己的展示开关与顺序即运营配置）。
+	//
+	// 这一种类**没有**额外的"展示哪个合集"配置列：合集是否可推荐由合集自己的
+	// is_display 决定，顺序由合集自己的 sort_order 决定。右栏卡的 sort_order 只决定
+	// 这张卡在右栏里的位置，title 只覆盖卡片标题 —— 两套顺序各管各的，不互相顶替。
+	CardKindRecommendedCollections SidebarCardKind = "recommended_collections"
 )
 
 // sidebarCardDefaultTitles 是每种卡的默认标题（运营没填标题时的回退）。
 var sidebarCardDefaultTitles = map[SidebarCardKind]string{
-	CardKindHotArticles:    "热门文章",
-	CardKindLatestComments: "最新评论",
-	CardKindTagCloud:       "标签云",
+	CardKindHotArticles:            "热门文章",
+	CardKindLatestComments:         "最新评论",
+	CardKindTagCloud:               "标签云",
+	CardKindRecommendedCollections: "推荐合集",
 }
 
 // Valid 报告种类是否是内置类型。
@@ -89,6 +96,19 @@ type SidebarTag struct {
 	ArticleCount int
 }
 
+// SidebarCollection 是推荐合集卡的数据项。
+//
+// 只带右栏一行能放下的内容：标题、简介、封面、文章数。
+// 可见性（is_display）与顺序（合集自己的 sort_order）都已在查询里生效，
+// 用例层拿到的每一行都是"读者此刻点得进去的合集"。
+type SidebarCollection struct {
+	ID           ctype.ID
+	Title        string
+	Description  string
+	Cover        string
+	ArticleCount int
+}
+
 // SidebarCardRepository 是右栏卡片配置的持久化端口。
 type SidebarCardRepository interface {
 	// ListEnabled 只返回启用中的卡片，按 SortOrder、ID 升序。
@@ -113,4 +133,10 @@ type SidebarDataSource interface {
 	LatestComments(ctx context.Context, limit int) ([]SidebarComment, error)
 	// TagCloud 按文章数降序取标签。
 	TagCloud(ctx context.Context, limit int) ([]SidebarTag, error)
+	// Collections 按合集自己的运营顺序取**展示中**的合集。
+	//
+	// 只返回 is_display 为真的合集（与读者侧合集列表同一可见性口径）：
+	// 未展示的合集留在表里给后台继续编辑，读者侧连卡片数据都拿不到。
+	// ArticleCount 只数仍对匿名访客可见的文章，与合集列表页的读数一致。
+	Collections(ctx context.Context, limit int) ([]SidebarCollection, error)
 }

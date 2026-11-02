@@ -110,6 +110,7 @@ func toSidebarCardItem(view app.SidebarCardView) SidebarCardItem {
 		HotArticles:    make([]SidebarArticleItem, 0, len(view.HotArticles)),
 		LatestComments: make([]SidebarCommentItem, 0, len(view.LatestComments)),
 		Tags:           make([]SidebarTagItem, 0, len(view.Tags)),
+		Collections:    make([]SidebarCollectionItem, 0, len(view.Collections)),
 	}
 	for _, row := range view.HotArticles {
 		item.HotArticles = append(item.HotArticles, SidebarArticleItem{
@@ -133,6 +134,15 @@ func toSidebarCardItem(view app.SidebarCardView) SidebarCardItem {
 		item.Tags = append(item.Tags, SidebarTagItem{
 			ID:           row.ID.String(),
 			Title:        row.Title,
+			ArticleCount: row.ArticleCount,
+		})
+	}
+	for _, row := range view.Collections {
+		item.Collections = append(item.Collections, SidebarCollectionItem{
+			ID:           row.ID.String(),
+			Title:        row.Title,
+			Description:  row.Description,
+			Cover:        row.Cover,
 			ArticleCount: row.ArticleCount,
 		})
 	}

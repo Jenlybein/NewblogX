@@ -1,10 +1,12 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
+import AdminBreadcrumb from '~/components/admin/AdminBreadcrumb.vue'
 import AdminNavTree from '~/components/admin/AdminNavTree.vue'
 import {
   ADMIN_NAV,
   ADMIN_NAV_TREE,
   activeGroupKeys,
+  buildAdminBreadcrumb,
   buildAdminNavMenu,
   navItemByPath,
   reconcileExpandedGroups,
@@ -31,6 +33,9 @@ const message = useMessage()
 const fallbackNav = ADMIN_NAV[0]!
 // 高亮 / 标题的唯一来源是拍平视图：按精确 path 查激活项，子项命中后标题取子项名。
 const routeMeta = computed(() => navItemByPath(route.path) ?? fallbackNav)
+// 面包屑：祖先链与当前项都来自菜单拍平视图，深链接进入时与菜单高亮同源。
+// 未知路由返回空数组，此时不渲染面包屑（不编造层级）。
+const breadcrumbItems = computed(() => buildAdminBreadcrumb(route.path))
 // 浏览器标签：具体页名由 app.vue 的 titleTemplate 统一补成「<页名> · JellyBin 管理后台」。
 useHead({ title: computed(() => routeMeta.value.label) })
 
@@ -97,9 +102,9 @@ async function handleUserCommand(key: string) {
       <NLayoutHeader class="admin-main pb-0">
         <header class="admin-header">
           <div>
+            <AdminBreadcrumb v-if="breadcrumbItems.length > 0" :items="breadcrumbItems" />
             <p class="eyebrow">Admin Console</p>
             <h1 class="admin-page-title">{{ routeMeta.label }}</h1>
-            <p class="admin-page-subtitle m-0 mt-2">基于 OpenAPI 契约接入后台管理能力。</p>
           </div>
 
           <NSpace align="center">

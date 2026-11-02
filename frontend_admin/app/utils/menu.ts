@@ -6,17 +6,18 @@
  * 没有任何东西会报错。上一轮就踩过：侧边栏挂着「日志中心 → /logs」，
  * 而 `app/pages/logs/` 根本不存在（12 §8.6）。
  *
- * #106 预重构：菜单的**唯一来源**是一棵 `AdminNavNode` 树（当前仍全部是顶层项，
- * 行为与改造前一致），对外同时暴露两种视图：
- *   - `ADMIN_NAV_TREE`：结构数据（父子归属、"只分组不下钻"的父项），两级化时只改它；
- *   - `FLAT_NAV`：`flattenNav()` 产出的一维视图（标题 / 路由 / 图标 / 父级归属 / 深度）。
+ * 菜单的**唯一来源**是一棵 `AdminNavNode` 树（支持两级：父项可只分组、没有自己的页面），
+ * 对外同时暴露两种视图：
+ *   - `ADMIN_NAV_TREE`：结构数据（父子归属、"只分组不下钻"的父项）；
+ *   - `FLAT_NAV`：`flattenNav()` 产出的一维视图（标题 / 路由 / 图标 / 父级归属 / 深度）；
+ *   - `buildAdminNavMenu()`：侧栏渲染视图（分组、展开态、父项随子项高亮）。
  *
- * 四条结构对账（页面文件存在、页面有入口、路径唯一、热门置顶位置）改为对 `FLAT_NAV`
+ * 四条结构对账（页面文件存在、页面有入口、路径唯一、热门置顶位置）对 `FLAT_NAV`
  * 断言（见 test/unit/menu.test.ts）。这样一旦菜单出现子项，子项不会被静默漏检，
  * 位置断言也不会因为"父项 + 子项"的插入而假红。
  *
  * icon 用字符串而不是组件：utils 层不该 import Vue 组件，
- * 组件层再把它映射成具体图标（见 AdminShell.vue 的 ICONS）。
+ * 组件层再把它映射成具体图标（见 AdminNavTree.vue 的 ICONS）。
  */
 export type AdminNavIcon =
   | 'chart'
@@ -30,7 +31,7 @@ export type AdminNavIcon =
   | 'database'
   | 'alert'
 
-/** 菜单树节点。只负责分组的父项可以没有 `path`（#107 的「站点配置」即如此）。 */
+/** 菜单树节点。只负责分组的父项可以没有 `path`（例如站点配置拆域后的父项）。 */
 export interface AdminNavNode {
   label: string
   /** 自身页面的绝对路径；分组父项可省略，此时它不渲染页面也不算可导航项。 */
@@ -59,22 +60,35 @@ export interface AdminNavFlatItem {
   parentLabel: string | null
   parentPath: string | null
   depth: number
+  /** 是否在树里带子项（用来判定分组：分组可能没有 path，不能只看 path）。 */
+  hasChildren: boolean
 }
 
-/** 菜单树（唯一来源）。当前全部是顶层项，与改造前的扁平清单等价。 */
+/** 菜单树（唯一来源）。父项 + 子项构成两级；父项自身仍可有页面。 */
 export const ADMIN_NAV_TREE: AdminNavNode[] = [
   { label: '数据概览', path: '/', icon: 'chart' },
   { label: '文章审核', path: '/review', icon: 'shield' },
-  { label: '文章管理', path: '/articles', icon: 'article' },
-  // 热门置顶是独立运营位（ADR-0017 决策 5），排在「文章管理」之后：先选文章，再排序。
-  // #107 会把它改成「文章管理」的子项；拍平后的顺序不变，位置对账照旧成立。
-  { label: '热门置顶', path: '/articles/hot-top', icon: 'pin' },
+  {
+    label: '文章管理',
+    path: '/articles',
+    icon: 'article',
+    children: [
+      // 热门置顶是独立运营位（ADR-0017 决策 5），层级上归到「文章管理」：先选文章，再排序。
+      { label: '热门置顶', path: '/articles/hot-top', icon: 'pin' },
+    ],
+  },
   { label: '用户管理', path: '/users', icon: 'users' },
   { label: '站点配置', path: '/site', icon: 'settings' },
   { label: '媒体运营', path: '/media', icon: 'photo' },
   { label: '全局通知', path: '/notifications', icon: 'bell' },
-  { label: '日志中心', path: '/logs', icon: 'database' },
-  { label: '同步死信', path: '/logs/dead-letter', icon: 'alert' },
+  {
+    label: '日志中心',
+    path: '/logs',
+    icon: 'database',
+    children: [
+      { label: '同步死信', path: '/logs/dead-letter', icon: 'alert' },
+    ],
+  },
 ]
 
 /**
@@ -98,6 +112,7 @@ export function flattenNav(
       parentLabel: parent?.label ?? null,
       parentPath: parent?.path ?? null,
       depth,
+      hasChildren: (node.children?.length ?? 0) > 0,
     })
 
     if (node.children && node.children.length > 0) {
@@ -152,6 +167,130 @@ export function navTrail(path: string, flat: AdminNavFlatItem[] = FLAT_NAV): Adm
   }
 
   return trail
+}
+
+/** 分组节点的稳定 key：分组可能没有页面，不能用 path 当 key。 */
+export function navGroupKey(node: Pick<AdminNavNode, 'label'>): string {
+  return `group:${node.label}`
+}
+
+/**
+ * 当前路由所在的所有祖先分组 key（根 → 父）。
+ *
+ * 只服务于展开态；高亮仍以精确 path 命中的激活项为准。
+ */
+export function activeGroupKeys(
+  path: string,
+  flat: AdminNavFlatItem[] = FLAT_NAV,
+): string[] {
+  // 祖先链上的每一项都是分组：没有分组的父项就不会有子项挂在它下面。
+  return navTrail(path, flat).map(item => navGroupKey(item))
+}
+
+/**
+ * 路由变化时结算展开态。
+ *
+ * 同一路由返回原数组：用户手动收起的分组不会被"含激活项默认展开"反弹。
+ * 换路由时把新激活项的祖先分组并入，已展开的其它分组保持不动。
+ */
+export function reconcileExpandedGroups(
+  activePath: string,
+  previousPath: string | null,
+  expandedKeys: readonly string[],
+  flat: AdminNavFlatItem[] = FLAT_NAV,
+): string[] {
+  if (previousPath !== null && activePath === previousPath) {
+    return [...expandedKeys]
+  }
+  return [...new Set([...expandedKeys, ...activeGroupKeys(activePath, flat)])]
+}
+
+/** 侧栏渲染视图里的可导航链接（子项或顶层单页）。 */
+export interface AdminNavMenuLink {
+  kind: 'link'
+  key: string
+  label: string
+  path: string
+  icon: AdminNavIcon
+  depth: number
+  /** 精确命中当前路由。 */
+  active: boolean
+}
+
+/** 侧栏渲染视图里的分组（父项可无 self path；带自身 path 时标题本身也是链接）。 */
+export interface AdminNavMenuGroup {
+  kind: 'group'
+  key: string
+  label: string
+  icon: AdminNavIcon
+  /** 分组自身的页面；只分组时为 null（标题不渲染成链接，不跳空页）。 */
+  path: string | null
+  depth: number
+  /** 自身页面命中，或任一子孙命中当前路由。 */
+  active: boolean
+  /** 由展开态集合决定，不在渲染层根据激活项强制展开。 */
+  expanded: boolean
+  children: AdminNavMenuEntry[]
+}
+
+export type AdminNavMenuEntry = AdminNavMenuLink | AdminNavMenuGroup
+
+function buildMenuEntry(
+  node: AdminNavNode,
+  activePath: string,
+  expandedKeys: ReadonlySet<string>,
+  depth: number,
+): AdminNavMenuEntry | null {
+  const childrenNodes = node.children ?? []
+
+  if (childrenNodes.length === 0) {
+    // 没有页面也没有子项的节点在菜单里没有意义，不渲染。
+    if (node.path === undefined) return null
+    return {
+      kind: 'link',
+      key: node.path,
+      label: node.label,
+      path: node.path,
+      icon: node.icon,
+      depth,
+      active: node.path === activePath,
+    }
+  }
+
+  const children = childrenNodes
+    .map(child => buildMenuEntry(child, activePath, expandedKeys, depth + 1))
+    .filter((entry): entry is AdminNavMenuEntry => entry !== null)
+  const key = navGroupKey(node)
+
+  return {
+    kind: 'group',
+    key,
+    label: node.label,
+    icon: node.icon,
+    path: node.path ?? null,
+    depth,
+    active: node.path === activePath || children.some(child => child.active),
+    expanded: expandedKeys.has(key),
+    children,
+  }
+}
+
+/**
+ * 把菜单树投影成侧栏渲染视图。
+ *
+ * 高亮规则：当前路由精确命中的子项 active；其父分组也 active（子孙命中即亮）。
+ * 展开规则：只认 `expandedKeys`，默认展开由 `activeGroupKeys` /
+ * `reconcileExpandedGroups` 负责，渲染层不会因为子项仍激活而反弹用户手动收起的分组。
+ */
+export function buildAdminNavMenu(
+  tree: AdminNavNode[],
+  activePath: string,
+  expandedKeys: readonly string[] = [],
+): AdminNavMenuEntry[] {
+  const expanded = new Set(expandedKeys)
+  return tree
+    .map(node => buildMenuEntry(node, activePath, expanded, 0))
+    .filter((entry): entry is AdminNavMenuEntry => entry !== null)
 }
 
 /** 四条结构对账的结果；数组为空 / `hotTopOrder` 为 null 表示通过。 */

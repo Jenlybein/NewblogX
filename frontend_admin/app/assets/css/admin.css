@@ -53,6 +53,79 @@
     @apply flex items-center gap-3 px-5 py-5;
   }
 
+  /* 侧栏两级菜单：父项可只分组（没有链接），子项缩进一级。
+   * 颜色/圆角只消费语义层与阶梯；窄屏时缩进收窄，菜单不会溢出侧栏。 */
+  .admin-nav {
+    @apply m-0 flex list-none flex-col gap-1 px-2 pb-4 pt-1;
+  }
+
+  .admin-nav__item {
+    @apply min-w-0;
+  }
+
+  .admin-nav__group {
+    @apply flex items-center gap-1 px-2;
+    border-radius: var(--radius-sm);
+    color: var(--color-ink-muted);
+  }
+
+  .admin-nav__group--active {
+    color: var(--color-ink);
+    background: var(--color-bg-subtle);
+  }
+
+  .admin-nav__group-link,
+  .admin-nav__group-title {
+    @apply flex min-w-0 flex-1 items-center gap-2 px-1 py-2 text-sm;
+  }
+
+  .admin-nav__toggle {
+    @apply flex h-7 w-7 shrink-0 cursor-pointer items-center justify-center border-0 bg-transparent p-0;
+    color: inherit;
+  }
+
+  .admin-nav__chevron {
+    transition: transform var(--motion-fast) ease;
+  }
+
+  .admin-nav__chevron--open {
+    transform: rotate(180deg);
+  }
+
+  .admin-nav__children {
+    @apply m-0 list-none p-0;
+  }
+
+  .admin-nav__link {
+    @apply flex min-w-0 items-center gap-2 px-3 py-2 text-sm;
+    border-radius: var(--radius-sm);
+    color: var(--color-ink-muted);
+  }
+
+  .admin-nav__item[data-depth='1'] > .admin-nav__link {
+    padding-left: 2.25rem;
+  }
+
+  .admin-nav__link:hover,
+  .admin-nav__group-link:hover {
+    color: var(--color-ink);
+    background: var(--color-bg-subtle);
+  }
+
+  .admin-nav__link--active {
+    color: var(--color-ink);
+    background: var(--color-bg-subtle);
+    font-weight: 600;
+  }
+
+  .admin-nav__icon {
+    @apply shrink-0;
+  }
+
+  .admin-nav__label {
+    @apply min-w-0 truncate;
+  }
+
   .admin-main {
     @apply p-5;
   }
@@ -542,6 +615,16 @@
   @media (max-width: 1024px) {
     .admin-main {
       @apply p-3;
+    }
+
+    /* 两级菜单在窄屏下收窄缩进与内边距，保证父标题 + 子项仍可读可点。 */
+    .admin-nav__item[data-depth='1'] > .admin-nav__link {
+      padding-left: 1.5rem;
+    }
+
+    .admin-nav__group-link,
+    .admin-nav__group-title {
+      @apply py-1.5;
     }
 
     .admin-login-shell {

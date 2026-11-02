@@ -174,6 +174,26 @@ export type CollectionCreatePayload = Required<Schema<"internal_article_adapter_
 /** 改合集内容的请求体：只有标题 / 描述 / 封面，展示开关走独立接口。 */
 export type CollectionUpdatePayload = Required<Schema<"internal_article_adapter_http.CollectionUpdateRequest">>;
 
+/**
+ * 后台「合集收录」页的一行：顺序 + 文章摘要 + 是否失效。
+ *
+ * 与读者详情不同，它包含失效行——全集换序要提交完整集合，漏掉失效行会被
+ * 服务端整单拒绝。
+ */
+export type CollectionAdminItem = RequiredSchema<"internal_article_adapter_http.CollectionAdminItem">;
+
+/** 批量收录的一篇结局：included / duplicated / not_includable / missing。 */
+export type CollectionBatchIncludeItem = RequiredSchema<"internal_article_adapter_http.CollectionBatchIncludeItem">;
+
+/** 批量收录的汇总：逐篇结果 + 三个计数。 */
+export type CollectionBatchIncludeResponse = RequiredSchema<"internal_article_adapter_http.CollectionBatchIncludeResponse">;
+
+/** 批量收录请求体：一次提交多篇。 */
+export type CollectionBatchIncludePayload = Required<Schema<"internal_article_adapter_http.CollectionBatchIncludeRequest">>;
+
+/** 合集之间排序的请求体：完整有序的合集 ID 列表。 */
+export type CollectionOrderPayload = Required<Schema<"internal_article_adapter_http.CollectionOrderRequest">>;
+
 // ── 热门置顶（运营位）─────────────────────────────────────────
 /**
  * `/articles/hot-top/admin` 的列表项。

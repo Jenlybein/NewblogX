@@ -1,4 +1,4 @@
-﻿name: CI
+name: CI
 
 on:
   push:
@@ -211,6 +211,15 @@ jobs:
 
       - run: pnpm install --frozen-lockfile
 
+      # 后台的用例与预览会跨包 import 读者站的纯函数（`../frontend/app/utils/*`），
+      # 那些模块自己 import 了读者站独有的依赖（如 `isomorphic-dompurify`）。
+      # 两个前端不是同一个 pnpm workspace，所以后台 job 里必须把读者站的依赖也装上，
+      # 否则在 import 链上会解析不到（本地因为两边都装过所以看不出来）。
+      - name: 安装读者站依赖（后台跨包 import 需要）
+        if: matrix.app == 'frontend_admin'
+        run: pnpm install --frozen-lockfile
+        working-directory: frontend
+
       - name: pnpm lint
         run: pnpm lint
 
@@ -274,6 +283,15 @@ jobs:
 
       - run: pnpm install --frozen-lockfile
 
+      # 后台的用例与预览会跨包 import 读者站的纯函数（`../frontend/app/utils/*`），
+      # 那些模块自己 import 了读者站独有的依赖（如 `isomorphic-dompurify`）。
+      # 两个前端不是同一个 pnpm workspace，所以后台 job 里必须把读者站的依赖也装上，
+      # 否则在 import 链上会解析不到（本地因为两边都装过所以看不出来）。
+      - name: 安装读者站依赖（后台跨包 import 需要）
+        if: matrix.app == 'frontend_admin'
+        run: pnpm install --frozen-lockfile
+        working-directory: frontend
+
       - run: pnpm typecheck
 
   # ── 契约 → 前端派生类型：必须重新生成过 ──────────────────────────
@@ -310,6 +328,15 @@ jobs:
           cache-dependency-path: ${{ matrix.app }}/pnpm-lock.yaml
 
       - run: pnpm install --frozen-lockfile
+
+      # 后台的用例与预览会跨包 import 读者站的纯函数（`../frontend/app/utils/*`），
+      # 那些模块自己 import 了读者站独有的依赖（如 `isomorphic-dompurify`）。
+      # 两个前端不是同一个 pnpm workspace，所以后台 job 里必须把读者站的依赖也装上，
+      # 否则在 import 链上会解析不到（本地因为两边都装过所以看不出来）。
+      - name: 安装读者站依赖（后台跨包 import 需要）
+        if: matrix.app == 'frontend_admin'
+        run: pnpm install --frozen-lockfile
+        working-directory: frontend
 
       # 重新生成到临时文件再比对（不是在原地生成后 git diff）：
       # 后者把结论绑在工作区状态上，且会改动被检查的文件。

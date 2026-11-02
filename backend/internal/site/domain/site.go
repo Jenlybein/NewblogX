@@ -23,6 +23,11 @@ type Banner struct {
 	Cover        string
 	CoverImageID ctype.ID // 零值表示没反查到图片 ID（封面可能已被删除）
 	Href         string
+	// Title 是轮播标题，纯文本、可空：空标题在读者站不渲染文字区。
+	//
+	// 本字段已经随表结构落到存储层；HTTP 契约里的同名字段由轮播标题票接入，
+	// 在接入之前从请求构造的 Banner 里它一直是空串。
+	Title string
 	// Crop 是这张图的取景参数：露出封面的哪一块。
 	//
 	// 读出来时一定已填好缺省（见 DefaultCrop），所以消费方不需要再判"有没有"。
@@ -31,10 +36,11 @@ type Banner struct {
 	UpdatedAt time.Time
 }
 
-// Crop 是轮播图的取景参数：焦点（图上 0–1 的相对坐标）+ 缩放。
+// Crop 是取景参数：焦点（图上 0–1 的相对坐标）+ 缩放。
 //
-// 存参数而不是裁好的第二份图：原图只有一份，随时能改取景而不重传
-// （ADR-0013 首屏封面例外区）。
+// 轮播封面、文章封面、合集封面共用这一套语义，存在通用取景表里
+// （键 target_type / target_id）。存参数而不是裁好的第二份图：原图只有一份，
+// 随时能改取景而不重传（ADR-0013 首屏封面例外区）。
 type Crop struct {
 	// FocusX / FocusY 是焦点在图上的相对位置，取值 0–1；0.5/0.5 是居中。
 	FocusX float64

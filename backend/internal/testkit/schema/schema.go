@@ -209,7 +209,7 @@ var groupModels = map[Group][]any{
 	},
 	Site: {
 		&BannerRow{},
-		&BannerCropRow{},
+		&PictureCropRow{},
 		&RuntimeConfigRow{},
 		&SidebarCardRow{},
 	},
@@ -269,7 +269,7 @@ var groupModels = map[Group][]any{
 		&CdcDeadLetterRow{},
 		&OutboxEventRow{},
 		&AIProviderRow{},
-		&BannerCropRow{},
+		&PictureCropRow{},
 		&SidebarCardRow{},
 	},
 }

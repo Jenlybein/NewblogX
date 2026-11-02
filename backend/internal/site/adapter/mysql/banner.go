@@ -22,6 +22,7 @@ type bannerRow struct {
 	Show      bool
 	Cover     string
 	Href      string
+	Title     string
 }
 
 // TableName 固定表名。
@@ -30,12 +31,16 @@ func (bannerRow) TableName() string { return "banner_models" }
 // BannerRepo 实现轮播图持久化端口。
 type BannerRepo struct {
 	db *gorm.DB
+	// crops 是通用取景表；轮播只是它的一个主体类型，不独占一张表。
+	crops *CropRepo
 }
 
 var _ domain.BannerRepository = (*BannerRepo)(nil)
 
 // NewBanner 构造轮播图仓储。
-func NewBanner(db *gorm.DB) *BannerRepo { return &BannerRepo{db: db} }
+func NewBanner(db *gorm.DB) *BannerRepo {
+	return &BannerRepo{db: db, crops: NewCrop(db)}
+}
 
 // List 实现 domain.BannerRepository。
 func (r *BannerRepo) List(ctx context.Context, q domain.BannerQuery) ([]domain.Banner, bool, error) {
@@ -105,6 +110,7 @@ func (r *BannerRepo) Create(ctx context.Context, b *domain.Banner) error {
 		Show:      b.Show,
 		Cover:     b.Cover,
 		Href:      b.Href,
+		Title:     b.Title,
 	}
 	// 轮播图与其取景参数必须一起成功：只建出轮播图的那一半，
 	// 前台会按"居中、缩放 1"渲染，运营以为取景生效了。
@@ -112,7 +118,7 @@ func (r *BannerRepo) Create(ctx context.Context, b *domain.Banner) error {
 		if err := tx.Create(&row).Error; err != nil {
 			return err
 		}
-		return upsertCrop(tx, b.ID.Uint64(), b.Crop)
+		return r.crops.UpsertTx(tx, domain.CropTargetBanner, b.ID.Uint64(), b.Crop)
 	})
 	if err != nil {
 		return err
@@ -138,7 +144,7 @@ func (r *BannerRepo) Update(ctx context.Context, id uint64, cover, href string, 
 		if crop == nil {
 			return nil
 		}
-		return upsertCrop(tx, id, *crop)
+		return r.crops.UpsertTx(tx, domain.CropTargetBanner, id, *crop)
 	})
 }
 
@@ -157,7 +163,7 @@ func (r *BannerRepo) Delete(ctx context.Context, ids []uint64) (int, error) {
 			return res.Error
 		}
 		affected = int(res.RowsAffected)
-		return tx.Where("banner_id IN ?", ids).Delete(&cropRow{}).Error
+		return r.crops.DeleteTx(tx, domain.CropTargetBanner, ids)
 	})
 	return affected, err
 }
@@ -169,6 +175,7 @@ func toBanner(row bannerRow) domain.Banner {
 		Show:      row.Show,
 		Cover:     row.Cover,
 		Href:      row.Href,
+		Title:     row.Title,
 		CreatedAt: row.CreatedAt,
 		UpdatedAt: row.UpdatedAt,
 	}

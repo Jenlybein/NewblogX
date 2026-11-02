@@ -174,23 +174,27 @@ type BannerRow struct {
 	Cover        string    `json:"cover"`                   // 封面图片链接
 	CoverImageID *ctype.ID `gorm:"-" json:"cover_image_id"` // 封面图片 ID，用于前端编辑回填
 	Href         string    `json:"href"`                    // 跳转链接
+	Title        string    `gorm:"size:256" json:"title"`   // 标题（纯文本，可空）
 }
 
 // TableName 固定表名。
 func (BannerRow) TableName() string { return "banner_models" }
 
-// BannerCropRow 对应表 banner_crop_models：轮播图的取景参数（与 banner_models 一对一）。
+// PictureCropRow 对应表 picture_crop_models：通用取景表的行结构。
 //
-// 单独一张表而不是给 banner_models 加列：本项目零 DDL 口径下既有表冻结。
-type BannerCropRow struct {
-	BannerID ctype.ID `gorm:"primaryKey;autoIncrement:false" json:"banner_id"` // 轮播图 ID
-	FocusX   float64  `json:"focus_x"`                                         // 焦点 x（0–1）
-	FocusY   float64  `json:"focus_y"`                                         // 焦点 y（0–1）
-	Zoom     float64  `json:"zoom"`                                            // 缩放（1–2）
+// 键是 (target_type, target_id)：target_type 记主体类型（banner / article /
+// collection），target_id 记该主体的 ID。取景三列的名称、类型与语义沿用
+// 既有口径（焦点 0–1、缩放 1–2），缺行即缺省（居中、缩放 1）。
+type PictureCropRow struct {
+	TargetType string   `gorm:"primaryKey;autoIncrement:false;size:32;not null" json:"target_type"` // 主体类型
+	TargetID   ctype.ID `gorm:"primaryKey;autoIncrement:false;not null" json:"target_id"`           // 主体 ID
+	FocusX     float64  `json:"focus_x"`                                                            // 焦点 x（0–1）
+	FocusY     float64  `json:"focus_y"`                                                            // 焦点 y（0–1）
+	Zoom       float64  `json:"zoom"`                                                               // 缩放（1–2）
 }
 
 // TableName 固定表名。
-func (BannerCropRow) TableName() string { return "banner_crop_models" }
+func (PictureCropRow) TableName() string { return "picture_crop_models" }
 
 // CategoryRow 对应表 category_models。
 type CategoryRow struct {

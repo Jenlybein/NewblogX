@@ -384,6 +384,15 @@ jobs:
 
       - run: pnpm install --frozen-lockfile
 
+      # 后台的用例与预览会跨包 import 读者站的纯函数（`../frontend/app/utils/*`），
+      # 那些模块自己 import 了读者站独有的依赖（如 `isomorphic-dompurify`）。
+      # 两个前端不是同一个 pnpm workspace，所以后台 job 里必须把读者站的依赖也装上，
+      # 否则在 import 链上会解析不到（本地因为两边都装过所以看不出来）。
+      - name: 安装读者站依赖（后台跨包 import 需要）
+        if: matrix.app == 'frontend_admin'
+        run: pnpm install --frozen-lockfile
+        working-directory: frontend
+
       # 跑测试并卡覆盖率门槛（两端配置各自的统计范围）。
       # 曾经这里只跑 `pnpm test`：管理后台 0 用例 + passWithNoTests，
       # 那一项等于空转 —— 门禁给了一个它并没有提供的保障。

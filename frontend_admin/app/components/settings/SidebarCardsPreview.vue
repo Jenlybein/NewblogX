@@ -2,14 +2,14 @@
 /**
  * 右栏预览：按首页右栏的真实固定宽度画出当前草稿。
  *
- * 数据流只有一条：`drafts` → `sidebarCardsPreviewItems` → 读者站的 `sidebarCardViews`
- * → 模型 → 模板。没有"保存后再拉一次"的分支，所以未保存的标题、顺序、启停、
- * 增删都会立刻体现在这里。
+ * 数据流只有一条：`drafts` → `sidebarCardsPreviewItems` → `sidebarCardViews`（后台本地
+ * 同口径实现）→ 模型 → 模板。没有"保存后再拉一次"的分支，所以未保存的标题、顺序、
+ * 启停、增删都会立刻体现在这里。与读者站的一致由共享契约表的用例保证。
  *
  * 不做加载占位：草稿是本地状态，预览随时可画；加载中的空列表就显示一句说明。
  */
 import { computed } from 'vue'
-import { SIDEBAR_CARD_EYEBROWS, tagCloudFontSize } from '../../../../frontend/app/utils/sidebarCards'
+import { SIDEBAR_CARD_EYEBROWS, tagCloudFontSize } from '~/utils/sidebarCardViews'
 import type { SidebarCardDraft } from '~/utils/sidebarCardsAdmin'
 import {
   SIDEBAR_PREVIEW_WIDTH_PX,

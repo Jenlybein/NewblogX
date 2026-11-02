@@ -8,7 +8,7 @@ import {
   buildAdminBreadcrumb,
   buildAdminNavMenu,
 } from '~/utils/menu'
-import type { AdminBreadcrumbItem, AdminNavMenuEntry } from '~/utils/menu'
+import type { AdminBreadcrumbItem } from '~/utils/menu'
 
 /**
  * 内容区顶部面包屑的渲染与层级语义。

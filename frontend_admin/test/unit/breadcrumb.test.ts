@@ -8,7 +8,6 @@ import {
   navItemByPath,
   navTrail,
 } from '../../app/utils/menu'
-import type { AdminNavNode } from '../../app/utils/menu'
 
 /**
  * 后台面包屑的数据层：把「当前路由」翻译成「根 → 当前」的面包屑项。

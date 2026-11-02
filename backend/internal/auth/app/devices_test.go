@@ -45,11 +45,16 @@ func TestListDevices(t *testing.T) {
 			t.Fatalf("同一设备应聚合为 1 条，实际 %d 条: %+v", len(list), list)
 		}
 		got := list[0]
-		if got.LoginCount != 2 {
-			t.Fatalf("累计次数 got=%d want=2", got.LoginCount)
+		// #131 之后同设备再次登录会**吊销**旧会话，所以累计次数是 1 而不是 2：
+		// 旧会话已不在"有效会话"集合里，聚合也就只剩一条。这正是要的语义——
+		// 同设备重复登录不该在库里留下多条可换令牌的活会话。
+		if got.LoginCount != 1 {
+			t.Fatalf("旧会话已被吊销，累计次数 got=%d want=1", got.LoginCount)
 		}
-		if !got.FirstSeenAt.Equal(baseTime) {
-			t.Fatalf("首次登录时间 got=%v want=%v", got.FirstSeenAt, baseTime)
+		// 首次登录时间仍来自最早的会话记录（被吊销的会话不参与聚合后，
+		// 只剩新会话，因此首次=最近=本次登录时间）。
+		if !got.FirstSeenAt.Equal(baseTime.Add(time.Hour)) {
+			t.Fatalf("首次登录时间 got=%v want=%v", got.FirstSeenAt, baseTime.Add(time.Hour))
 		}
 		if !got.LastSeenAt.Equal(baseTime.Add(time.Hour)) {
 			t.Fatalf("最近活跃时间 got=%v want=%v", got.LastSeenAt, baseTime.Add(time.Hour))
@@ -103,10 +108,12 @@ func TestListDevices(t *testing.T) {
 		r.Clock().Advance(time.Hour)
 		second := loginAs(t, r, domain.Meta{IP: "2.2.2.2", Addr: "上海", UA: testUAChromeWindows})
 
-		// 当前会话是较早的那条时，代表 ID 必须是它，否则前端会把别的会话当当前设备。
+		// #131 之后同设备再次登录会吊销旧会话，所以"当前会话是较早那条"的
+		// 情形在真实登录路径上已不可达。这里改为断言新契约：无论拿哪条会话
+		// 当"当前"，代表会话都只能是仍在有效集合里的新会话。
 		list := mustList(t, r, first.Session.ID)
-		if len(list) != 1 || list[0].SessionID != first.Session.ID {
-			t.Fatalf("当前设备代表会话错误: %+v (second=%v)", list, second.Session.ID)
+		if len(list) != 1 || list[0].SessionID != second.Session.ID {
+			t.Fatalf("旧会话已被吊销，代表会话应为新会话: %+v (second=%v)", list, second.Session.ID)
 		}
 
 		list = mustList(t, r, second.Session.ID)
@@ -173,14 +180,31 @@ func TestRevokeDeviceRemovesWholeGroup(t *testing.T) {
 	}
 }
 
-// 私信票据换发按会话 ID 精确判定，不能被"按设备聚合"误伤：
-// 同设备的非代表会话仍是有效会话。
+// 私信票据换发按会话 ID 精确判定，不能被"按设备聚合"误伤。
+//
+// #131 之后真实登录路径会吊销同设备的旧会话，所以这里**直接塞一条同设备的
+// 第二会话**来构造原始场景：SessionActive 仍必须按 ID 精确回答，不能因为
+// "这台设备已经有一条会话了"就否掉另一条。
 func TestSessionActive(t *testing.T) {
 	t.Parallel()
 	r := setup(t)
 	first := loginAs(t, r, domain.Meta{IP: "1.1.1.1", Addr: "杭州", UA: testUAChromeWindows})
-	r.Clock().Advance(time.Hour)
-	second := loginAs(t, r, domain.Meta{IP: "2.2.2.2", Addr: "上海", UA: testUAChromeWindows})
+
+	now := r.Clock().Now()
+	extra := domain.Session{
+		UserID:           first.Session.UserID,
+		RefreshTokenHash: "extra-same-device-hash",
+		IP:               "9.9.9.9",
+		Addr:             "南京",
+		UA:               testUAChromeWindows,
+		CreatedAt:        now,
+		LastSeenAt:       &now,
+		ExpiresAt:        now.Add(30 * 24 * time.Hour),
+	}
+	if err := r.Sessions().Create(context.Background(), &extra); err != nil {
+		t.Fatalf("插入同设备第二会话失败: %v", err)
+	}
+	second := &app.LoginResult{Session: extra}
 
 	for _, id := range []ctype.ID{first.Session.ID, second.Session.ID} {
 		active, err := r.Service().SessionActive(context.Background(), aliceID.Uint64(), id.Uint64())

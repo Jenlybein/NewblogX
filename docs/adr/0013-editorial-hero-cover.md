@@ -1,6 +1,6 @@
 # ADR-0013：首屏编辑部式封面（满幅色带 + 超大字号，仅首屏例外）
 
-- 状态：已交付
+- 状态：已交付（2026-11-03 有「后续修订」，原决策正文不改）
 - 日期：2026-10-31
 - 来源：2026-10-31 的 grilling 会话（用户以瑞士/编辑部式版式参考图提出"首屏容器替换成类似风格"）；spec 为 [issue #17](https://github.com/Jenlybein/NewblogX/issues/17) 的一部分。上游决策为 [ADR-0012](./0012-neutral-glass-visual-system.md)，改造落点见 [中性玻璃改造方案](../notes/2026-10-31-neutral-glass-redesign-plan.md)
 
@@ -75,3 +75,37 @@ ADR-0012 定下的全站气质是"中性石墨阶 + 圆角阶梯 + 只落在导�
 - 代码：[frontend/app/utils/home.ts](../../frontend/app/utils/home.ts)（`:164` `homeHeroFacts()` 待删）
 - 测试：[frontend/test/utils/home.test.ts:130](../../frontend/test/utils/home.test.ts)（`homeHeroFacts` 断言待删）· [frontend/test/design/home-entrance.test.ts](../../frontend/test/design/home-entrance.test.ts)（首屏进场断言需同步）
 - 文档：[ADR-0012](./0012-neutral-glass-visual-system.md)（全站通用规则；本 ADR 为其首屏例外）· [改造方案](../notes/2026-10-31-neutral-glass-redesign-plan.md) · [GLOSSARY · 首屏封面](../../GLOSSARY.md)
+
+---
+
+## 后续修订（2026-11-03）
+
+原决策正文与「当前生效约束」1–10 不改；本节记录交付后三处实现与文档口径的偏离，以及一次装饰层的重新设计。**未新开 ADR**：按 [ADR 索引规则](./README.md) 第 3 条，已交付 ADR 只追加「后续修订」或另开新 ADR 并标 `已取代`；本次改动不改变原决策的取舍，故只追加本节。
+
+### 1. 右栏线条场退役，改为编辑部网格语言
+
+交付后由 PR #31–#34 追加了「右栏线条场」（15 条粗细混排的横条，四色，压过轮播面板形成「排版事故感」）。它**从未登记进本 ADR**，且消费了 `--jelly-interactive` / `--jelly-coral` / `--jelly-yellow` 三色 —— 严格按 ADR-0012 约束 1，三色的唯一例外是「装饰色带」，所以那是一次未登记的越界。2026-11-03 用户判定该层美感不佳，退役。
+
+替代方案（用户以 10 张 1440px 原型横比后定案「G8」）：
+
+- 保留本 ADR 决策 3 的原始版式语言：色带、细网格、下沿刻度、方括号/箭头记号、胶囊小签；
+- 新增**标题下发丝基线**（只跨左栏、与轮播面板同宽、落在标题与面板的栅格间隙中线）与**封面四角裁切标记**（16px L 形，发丝 token）—— 编辑部版式的记忆点来自网格与对齐，而非随机色条；
+- **右下角整组**（记号 + 下沿刻度）一起往右下刚体位移 56 / 40px，抵边前留 8px 呼吸，避免 `overflow: clip` 切掉数字字形；窄屏（<768px）位移归零、新增装饰隐藏；
+- 新装饰**只用中性反白色 / 发丝 token**，三色只留给色带 —— 越界一次性结清，ADR-0012 约束 1 的严格读法重新成立；
+- 新装饰全部 `aria-hidden` + `pointer-events: none`，不吃轮播点击。
+
+已否决：**A 纯留白**（什么都不加）、**把下沿刻度改成与面板同宽的真标尺**（原型 W6/G8 比对后用户放弃）、以及把线条场保留但减淡。取舍理由写在这里而不是另开 ADR，是因为「首屏唯一例外区」这个决策本身没变，只是装饰内容换了一次。
+
+### 2. 首屏自动轮播：从「已否决」变为「已实现」
+
+背景「已否决方案」里写了「不做首屏自动轮播：需要暂停控件、焦点管理、`prefers-reduced-motion` 与 `visibilitychange` 处理，无障碍成本高于收益」（PR #184 之前）。**现状已实现并上线**：默认 6s 一张、≥2 张才开；指针悬停 / 键盘焦点进入 / 标签页切后台暂停，离开重新计时；手动切换后重新计时；尊重 `prefers-reduced-motion`。即原条列出的无障碍成本已逐项兑现，该否决项不再生效。
+
+### 3. 约束 8 的材质口径已变
+
+「当前生效约束」8 写「轮播控件走 `--glass-thin`」，但 PR #151 起控件改为**住进底部渐黑区的一行内容**：不用玻璃材质、不另铺胶囊底，反白文字靠渐黑保证对比度（`banner-veil` 专项测试按真实 token 算出 ≥4.5:1）。约束 8 的「只在 ≥2 张时显示」仍生效；「走 `--glass-thin`」以现状为准，不再要求。
+
+### 4. 本轮落地范围
+
+- 代码：`frontend/app/pages/index.vue`（删线条场的模板 / 脚本 / CSS，新增基线与裁切标，`--cover-aside-x/y` 控制整组位移）；
+- 测试：`frontend/test/design/editorial-hero.test.ts` 与 `hero-overlay-clickthrough.test.ts` 删掉依赖线条场存在的旧断言（含一处模块级 `blockAfter(".home-cover__line {")`）；按本次会话约定**只删不补**，不新增装饰不变量；
+- 词汇：[GLOSSARY · 首屏封面](../../GLOSSARY.md) 词条同步为新版式元素清单，并统一正名（下沿刻度 / 轮播封面 / 底部渐黑）。

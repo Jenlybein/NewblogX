@@ -8,7 +8,7 @@ import { blockAfter, stripComments } from "../helpers/designFiles";
 /**
  * 首屏的装饰层必须点击穿透。
  *
- * 线条、色带、网格线、记号与刻度都是 aria-hidden 的装饰，压在最上层（z-index 3/4）。
+ * 色带、细网格、基线、四角裁切标记、记号与刻度都是 aria-hidden 的装饰，压在最上层（z-index 3/4）。
  * 只要其中任何一层没有 `pointer-events: none`，它就会吃掉下面轮播的点击 ——
  * 实测过一次：轮播"下一张"箭头中心命中的是 `li.home-cover__tick`（下沿刻度），
  * 箭头根本点不动，看起来像"轮播坏了"。
@@ -24,7 +24,6 @@ describe("首屏装饰层点击穿透", () => {
   const layers = [
     ".home-cover__bands",
     ".home-cover__grid",
-    ".home-cover__lines",
     ".home-cover__aside",
   ] as const;
 
@@ -40,7 +39,6 @@ describe("首屏装饰层点击穿透", () => {
     for (const marker of [
       'class="home-cover__bands',
       'class="home-cover__grid',
-      'class="home-cover__lines"',
       'class="home-cover__marks"',
       'class="home-cover__ticks"',
     ]) {

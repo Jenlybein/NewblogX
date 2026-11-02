@@ -85,3 +85,14 @@
 - 热门置顶：[schema.sql](../../backend/internal/platform/mysql/ddl/schema.sql)（新表 DDL）、[article/adapter/http/router.go](../../backend/internal/article/adapter/http/router.go)、[article/adapter/http/handler_hottop.go](../../backend/internal/article/adapter/http/handler_hottop.go)、[article/adapter/mysql/hottop_repo.go](../../backend/internal/article/adapter/mysql/hottop_repo.go)、[article/app/hottop.go](../../backend/internal/article/app/hottop.go)、[article/domain/top](../../backend/internal/article/domain/top)、[index.vue](../../frontend/app/pages/index.vue)、[HomePinnedSection.vue](../../frontend/app/components/home/HomePinnedSection.vue)、[frontend_admin 文章管理](../../frontend_admin/app/pages/articles/index.vue)
 - 部署：[README §十一](../../README.md)（建表与索引重建/回填两个升级步骤）、[entrypoint.sh](../../deploy/docker/api/entrypoint.sh)
 - 术语：[GLOSSARY · 热门置顶 / 作者置顶](../../GLOSSARY.md)
+
+## 后续修订
+
+**2026-11-02 · 后台菜单不再是扁平清单（by #107 / #109）**
+
+决策 5 里那句「后台侧边栏在「文章管理」之后新增「热门置顶」页（**后台菜单是扁平清单，没有分组**）」中的**结构判断已失效，结论仍然有效**：
+
+- 后台侧栏已改为**两级菜单**（ADR-0017 之后的工作，见 `frontend_admin/app/utils/menu.ts` 的 `ADMIN_NAV_TREE`）。「热门置顶」现在是「文章管理」的**子项**，「同步死信」是「日志中心」的**子项**，不再是并列的顶层页。
+- 决策 5 要求的**行为不变**：热门置顶仍是独立运营位、仍是独立页面与独立接口、仍有排序与失效标记与一键清理；位置对账（拍平后「热门置顶」紧跟「文章管理」）改由 `reconcileAdminNav()` 守着。
+- 因此本条只修订"菜单结构"这一表述，**不修订决策 5 的任何做法与约束**。
+

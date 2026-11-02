@@ -19,6 +19,7 @@ import (
 	"myblogx/internal/article/domain/top"
 	"myblogx/internal/article/domain/viewhistory"
 	"myblogx/internal/kernel/ctype"
+	sitedomain "myblogx/internal/site/domain"
 )
 
 // Repos 是"一次事务内可用的全部仓储"。
@@ -51,6 +52,12 @@ type Repos interface {
 	// Collections 是合集（管理员编排的有序文章集合）。
 	// 与 HotTops（热门置顶运营位）是两套数据：合集有标题/封面/展示开关，且无条数上限。
 	Collections() collection.Repository
+	// Crops 是通用取景表（picture_crop_models）。
+	//
+	// 文章封面取景在这里只是又一个主体类型（target_type=article）：
+	// 表与读写语义归 site 模块，本模块按 (target_type, target_id) 调用，
+	// 不复制一套行结构，也不另建一张表。
+	Crops() sitedomain.PictureCropRepository
 }
 
 // DiggPort 是点赞关系端口。

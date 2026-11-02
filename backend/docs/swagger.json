@@ -556,6 +556,10 @@
                     "cover_image_id": {
                         "type": "string"
                     },
+                    "crop": {
+                        "$ref": "#/components/schemas/internal_article_adapter_http.ArticleCrop",
+                        "description": "Crop 是封面的可选取景参数：不传 = 缺省（居中、缩放 1）。"
+                    },
                     "status": {
                         "enum": [
                             1,
@@ -624,6 +628,20 @@
                 },
                 "type": "object"
             },
+            "internal_article_adapter_http.ArticleCrop": {
+                "properties": {
+                    "focus_x": {
+                        "type": "number"
+                    },
+                    "focus_y": {
+                        "type": "number"
+                    },
+                    "zoom": {
+                        "type": "number"
+                    }
+                },
+                "type": "object"
+            },
             "internal_article_adapter_http.ArticleDetailResponse": {
                 "properties": {
                     "abstract": {
@@ -673,6 +691,10 @@
                     },
                     "created_at": {
                         "type": "string"
+                    },
+                    "crop": {
+                        "$ref": "#/components/schemas/internal_article_adapter_http.ArticleCrop",
+                        "description": "Crop 总是有值：没有取景记录的存量文章回传缺省（居中、缩放 1）。"
                     },
                     "digg_count": {
                         "type": "integer"
@@ -956,6 +978,10 @@
                     },
                     "cover_image_id": {
                         "type": "string"
+                    },
+                    "crop": {
+                        "$ref": "#/components/schemas/internal_article_adapter_http.ArticleCrop",
+                        "description": "Crop 不传 = 保留已存的取景；传了才覆盖。与创建语义不同，别写混：\n更新时不传若被当成\"清空\"，改一个标题就会静默抹掉作者调好的构图。"
                     },
                     "status": {
                         "enum": [

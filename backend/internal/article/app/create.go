@@ -45,6 +45,11 @@ func (s *Service) Create(ctx context.Context, cmd CreateArticleCmd) (*domain.Art
 		return nil, domain.ErrForbidden
 	}
 
+	// 取景在写库前先校验：越界是业务规则，被拒的请求一个字节都不该落库。
+	if err := validateArticleCrop(cmd.Crop); err != nil {
+		return nil, err
+	}
+
 	// 只允许草稿或提交审核；不允许直接指定"已发布"绕过审核。
 	target := cmd.TargetStatus
 	if target != domain.StatusDraft && target != domain.StatusExamining {
@@ -107,6 +112,11 @@ func (s *Service) Create(ctx context.Context, cmd CreateArticleCmd) (*domain.Art
 		}
 
 		if err := r.Articles().Create(ctx, article); err != nil {
+			return err
+		}
+		// 封面取景与文章本体同事务：只落一边会让作者以为取景生效了，
+		// 读者侧却按"居中、缩放 1"渲染。
+		if err := upsertArticleCrop(ctx, r, article.ID().Uint64(), cmd.Crop); err != nil {
 			return err
 		}
 		if len(tagIDs) > 0 {

@@ -15,6 +15,7 @@ import (
 	"myblogx/internal/article/domain/taxonomy"
 	"myblogx/internal/article/domain/top"
 	"myblogx/internal/article/domain/viewhistory"
+	sitedomain "myblogx/internal/site/domain"
 )
 
 // Repos 把各 fake 仓储聚成一个 app.Repos。
@@ -25,21 +26,22 @@ import (
 // 命名说明：`Articles()` 等方法满足 app.Repos 接口，返回接口类型；
 // 测试需要调 fake 特有方法（Calls / FailNext）时用 `FakeArticles()`。
 type Repos struct {
-	articleRepo  *ArticleRepo
-	categoryRepo *CategoryRepo
-	tagRepo      *TagRepo
-	favoriteRepo *FavoriteRepo
-	topRepo      *TopRepo
-	hotTopRepo   *HotTopRepo
-	historyRepo  *ViewHistoryRepo
-	reviewRepo   *ReviewRepo
-	authorStats  *AuthorStats
-	outbox       *Outbox
-	counters     *Counters
-	comments     *Comments
-	users        *Users
-	diggs        *Diggs
+	articleRepo    *ArticleRepo
+	categoryRepo   *CategoryRepo
+	tagRepo        *TagRepo
+	favoriteRepo   *FavoriteRepo
+	topRepo        *TopRepo
+	hotTopRepo     *HotTopRepo
+	historyRepo    *ViewHistoryRepo
+	reviewRepo     *ReviewRepo
+	authorStats    *AuthorStats
+	outbox         *Outbox
+	counters       *Counters
+	comments       *Comments
+	users          *Users
+	diggs          *Diggs
 	collectionRepo *CollectionRepo
+	cropRepo       *CropRepo
 }
 
 // NewRepos 构造一套全部为空的 fake 仓储。
@@ -65,6 +67,7 @@ func NewRepos() *Repos {
 		users:          NewUsers(),
 		diggs:          NewDiggs(),
 		collectionRepo: NewCollectionRepo(articles),
+		cropRepo:       NewCropRepo(),
 	}
 }
 
@@ -82,6 +85,9 @@ func (r *Repos) Diggs() app.DiggPort { return r.diggs }
 
 // Collections 返回合集仓储。
 func (r *Repos) Collections() collection.Repository { return r.collectionRepo }
+
+// Crops 返回通用取景表仓储（文章封面取景以 target_type=article 存在其中）。
+func (r *Repos) Crops() sitedomain.PictureCropRepository { return r.cropRepo }
 
 // FakeCounters 返回计数 fake。
 func (r *Repos) FakeCounters() *Counters { return r.counters }
@@ -150,6 +156,9 @@ func (r *Repos) FakeHotTops() *HotTopRepo { return r.hotTopRepo }
 // FakeCollections 返回合集仓储 fake。
 func (r *Repos) FakeCollections() *CollectionRepo { return r.collectionRepo }
 
+// FakeCrops 返回取景表 fake（断言"写没写、读回什么"用）。
+func (r *Repos) FakeCrops() *CropRepo { return r.cropRepo }
+
 // FakeHistory 返回浏览历史仓储 fake。
 func (r *Repos) FakeHistory() *ViewHistoryRepo { return r.historyRepo }
 
@@ -168,20 +177,21 @@ func (r *Repos) FakeOutbox() *Outbox { return r.outbox }
 // 只读端口（Users）不参与：它没有状态可回滚。
 func (r *Repos) snapshotAll() map[string]any {
 	return map[string]any{
-		"articles":   r.articleRepo.Snapshot(),
-		"categories": r.categoryRepo.Snapshot(),
-		"tags":       r.tagRepo.Snapshot(),
-		"favorites":  r.favoriteRepo.Snapshot(),
-		"tops":       r.topRepo.Snapshot(),
-		"hottops":    r.hotTopRepo.Snapshot(),
-		"history":    r.historyRepo.Snapshot(),
-		"reviews":    r.reviewRepo.Snapshot(),
-		"stats":      r.authorStats.Snapshot(),
-		"outbox":     r.outbox.Snapshot(),
-		"counters":   r.counters.Snapshot(),
-		"comments":   r.comments.Snapshot(),
-		"diggs":      r.diggs.Snapshot(),
+		"articles":    r.articleRepo.Snapshot(),
+		"categories":  r.categoryRepo.Snapshot(),
+		"tags":        r.tagRepo.Snapshot(),
+		"favorites":   r.favoriteRepo.Snapshot(),
+		"tops":        r.topRepo.Snapshot(),
+		"hottops":     r.hotTopRepo.Snapshot(),
+		"history":     r.historyRepo.Snapshot(),
+		"reviews":     r.reviewRepo.Snapshot(),
+		"stats":       r.authorStats.Snapshot(),
+		"outbox":      r.outbox.Snapshot(),
+		"counters":    r.counters.Snapshot(),
+		"comments":    r.comments.Snapshot(),
+		"diggs":       r.diggs.Snapshot(),
 		"collections": r.collectionRepo.Snapshot(),
+		"crops":       r.cropRepo.Snapshot(),
 	}
 }
 
@@ -201,6 +211,7 @@ func (r *Repos) restoreAll(snaps map[string]any) {
 	r.comments.RestoreState(snaps["comments"])
 	r.diggs.RestoreState(snaps["diggs"])
 	r.collectionRepo.RestoreState(snaps["collections"])
+	r.cropRepo.RestoreState(snaps["crops"])
 }
 
 // Tx 是 app.TxManager 的实现。
@@ -440,6 +451,3 @@ func (g *IDGen) NextFolderID() favorite.ID {
 	g.folder++
 	return ctype.NewID(g.folder)
 }
-
-
-

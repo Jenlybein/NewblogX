@@ -173,6 +173,9 @@ var groupModels = map[Group][]any{
 		&ArticleRow{},
 		&ArticleTagRow{},
 		&ArticleDiggRow{},
+		// 通用取景表：文章封面取景（target_type=article）也写它，所以文章侧用例要建。
+		// 表在多张表组里出现是刻意的——组是"某类场景需要哪些表"的切片，不是互斥分区。
+		&PictureCropRow{},
 	},
 	ArticleReview: {
 		&ArticleReviewTaskRow{},

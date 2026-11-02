@@ -209,7 +209,8 @@ async function handleRetryLatest() {
       </div>
     </section>
 
-    <div class="hero-grid">
+    <!-- 右栏没有启用卡片时整块不渲染，同时把栅格收成单列，避免右侧留下空列。 -->
+    <div class="hero-grid" :class="{ 'lg:grid-cols-1': !sidebarCards.length }">
       <div class="page-stack">
         <!-- 热门置顶运营位（ADR-0017）：无数据 / 加载中 / 失败都整块不渲染，组件内部控制。 -->
         <HomePinnedSection :articles="hotTopArticles" />
@@ -245,8 +246,6 @@ async function handleRetryLatest() {
 
       <HomeSidebar
         :pending="siteBootstrapPending || bannerPending"
-        :runtime-config="siteStore.runtimeConfig"
-        :articles="latestArticles"
         :sidebar-cards="sidebarCards"
         :pinned-article-ids="pinnedArticleIds"
         sticky

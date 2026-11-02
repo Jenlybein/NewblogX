@@ -2,30 +2,18 @@
 import { computed } from "vue";
 import type { StyleValue } from "vue";
 import { NSkeleton } from "naive-ui";
-import AppAvatar from "~/components/common/AppAvatar.vue";
-import type { SearchArticleItem, SiteRuntimeConfig, SiteSidebarCardItem } from "~/types/api";
-import { resolveAvatarUrl } from "~/utils/avatar";
-import { brandProjectTitle } from "~/utils/brand";
+import type { SiteSidebarCardItem } from "~/types/api";
 import { useStaggerEntrance } from "~/composables/useStaggerEntrance";
 import { useSectionReveal } from "~/composables/useSectionReveal";
-import {
-  aggregateHotTags,
-  aggregateRecommendedAuthors,
-  homeLoginModes,
-  homeSidebarVisibility,
-} from "~/utils/home";
 import { SIDEBAR_CARD_EYEBROWS, sidebarCardViews, tagCloudFontSize } from "~/utils/sidebarCards";
 
 const props = withDefaults(defineProps<{
   pending?: boolean;
-  runtimeConfig: SiteRuntimeConfig | null;
-  articles: SearchArticleItem[];
   /**
-   * 数据驱动卡片（票 111）：后端返回的卡片列表（种类 + 顺序 + 标题 + 各卡数据）。
+   * 数据驱动卡片（票 111）：后端返回的启用中卡片（种类 + 顺序 + 标题 + 各卡数据）。
    *
-   * 非空时右栏**只**渲染这些卡；为空时回退到旧右栏（公告 / 热门标签 / 推荐作者），
-   * 这是本票"旧配置仍兼容、不报错"的口径。下一票把旧三卡迁移成同一份数据后，
-   * 这条回退分支会被删掉。
+   * 右栏是否渲染**只看这份数据**：没有卡片就整块不出现。旧的"按配置标题
+   * 开关三个分区"的可见性判定与旧三卡回退都已下线，不再有第二套开关。
    */
   sidebarCards?: SiteSidebarCardItem[];
   /**
@@ -69,18 +57,14 @@ const sidebarStyle = computed<StyleValue>(() => {
   };
 });
 
-const visibility = computed(() => homeSidebarVisibility(props.runtimeConfig));
-const loginModes = computed(() => homeLoginModes(props.runtimeConfig));
-const hotTags = computed(() => aggregateHotTags(props.articles, 8));
-const recommendedAuthors = computed(() => aggregateRecommendedAuthors(props.articles, 4));
-
 // 数据驱动的渲染模型：未知种类过滤、空数据隐藏、标题回退、顺序收敛、置顶去重都在纯函数里。
 const cardViews = computed(() =>
   sidebarCardViews(props.sidebarCards, { pinnedArticleIds: props.pinnedArticleIds }),
 );
-// 回退看的是"有没有配置"，不是"有没有渲染出内容"：运营配了卡片但恰好都没数据时，
-// 旧右栏不能又冒出来 —— 那会让人以为新配置没生效。
-const hasConfiguredCards = computed(() => (props.sidebarCards?.length ?? 0) > 0);
+// 右栏是否出现只看卡片数据：接口只下发启用中的卡片，所以这张列表就是唯一真相。
+// 有卡片才渲染 —— **看的是"有没有配置"，不是"有没有渲染出内容"**：运营配了卡片
+// 但恰好都没数据时，旧右栏不能又冒出来（那会让人以为新配置没生效）。
+const hasCards = computed(() => (props.sidebarCards?.length ?? 0) > 0);
 
 const projectTitle = computed(() =>
   brandProjectTitle(props.runtimeConfig?.project?.title || props.runtimeConfig?.site_info?.title),
@@ -94,6 +78,7 @@ const projectAbstract = "为开发者写作、搜索与知识整理提供稳定�
 
 <template>
   <aside
+    v-if="hasCards"
     ref="revealTarget"
     :class="sidebarClasses"
     :style="[sidebarStyle, revealStyle]"
@@ -167,95 +152,11 @@ const projectAbstract = "为开发者写作、搜索与知识整理提供稳定�
       </div>
     </section>
 
-    <!-- 旧右栏（无卡片配置时回退；口径见 props.sidebarCards 的注释）。 -->
-    <template v-if="!hasConfiguredCards">
-      <section v-if="visibility.notice" class="blueprint-panel" data-home-section="notice">
-        <div class="eyebrow">Notice</div>
-        <h2 class="section-title mt-2">站点公告</h2>
-        <p class="mt-3 text-sm leading-prose text-ink-muted">{{ projectAbstract }}</p>
-        <div class="mt-3 flex flex-wrap gap-2">
-          <span class="blueprint-chip">{{ projectTitle }}</span>
-          <span v-for="mode in loginModes" :key="mode" class="blueprint-chip">{{ mode }}</span>
-        </div>
-      </section>
-
-      <section v-if="visibility.tags" class="blueprint-panel" data-home-section="tags">
-        <div class="flex flex-wrap items-center justify-between gap-2">
-          <div>
-            <div class="eyebrow">Tags</div>
-            <h2 class="section-title mt-2">热门标签</h2>
-          </div>
-          <span class="blueprint-chip">{{ hotTags.length }} 个</span>
-        </div>
-
-        <div v-if="hotTags.length" class="mt-3 flex flex-wrap gap-2">
-          <Motion
-            v-for="(tag, index) in hotTags"
-            :key="tag.id"
-            v-bind="entranceProps(index)"
-            class="motion-stagger-item inline-flex"
-          >
-            <NuxtLink :to="{ path: '/search', query: { tag_ids: tag.id } }" class="blueprint-chip">
-              {{ tag.title }}
-            </NuxtLink>
-          </Motion>
-        </div>
-        <p v-else class="mt-3 text-xs leading-6 text-ink-muted">文章加载后，这里会按出现次数排出热门标签。</p>
-      </section>
-
-      <section v-if="visibility.authors" class="blueprint-panel" data-home-section="authors">
-        <div class="flex flex-wrap items-center justify-between gap-2">
-          <div>
-            <div class="eyebrow">Authors</div>
-            <h2 class="section-title mt-2">推荐作者</h2>
-          </div>
-          <span class="blueprint-chip">{{ recommendedAuthors.length }} 位</span>
-        </div>
-
-        <div v-if="recommendedAuthors.length" class="mt-3 flex flex-col">
-          <NuxtLink
-            v-for="author in recommendedAuthors"
-            :key="author.id"
-            :to="`/users/${author.id}`"
-            class="home-author-row"
-          >
-            <div class="flex min-w-0 items-center gap-3">
-              <AppAvatar :size="36" :src="resolveAvatarUrl(author.avatar)" :name="author.nickname" fallback="作" />
-              <div class="min-w-0">
-                <div class="truncate text-sm font-semibold text-ink">{{ author.nickname }}</div>
-                <div class="text-xs text-ink-muted">{{ author.articleCount }} 篇文章</div>
-              </div>
-            </div>
-            <span class="shrink-0 text-xs text-ink-muted">{{ author.totalViews }} 阅读</span>
-          </NuxtLink>
-        </div>
-        <p v-else class="mt-3 text-xs leading-6 text-ink-muted">文章加载后，这里会按文章数推荐作者。</p>
-      </section>
-    </template>
   </aside>
 </template>
 
 <style scoped>
-/* 右栏作者行：整行可点（≥44px 触控区），1px 结构线分隔，不用阴影/圆角。 */
-.home-author-row {
-  display: flex;
-  min-height: 44px;
-  align-items: center;
-  justify-content: space-between;
-  gap: 0.75rem;
-  border-top: 1px solid var(--color-line-faint);
-  padding: 0.5rem 0;
-}
-
-.home-author-row:last-child {
-  border-bottom: 1px solid var(--color-line-faint);
-}
-
-.home-author-row:hover {
-  color: var(--color-ink);
-}
-
-/* 数据驱动卡片的行：与作者行同一套结构线，但不需要头像位。 */
+/* 数据驱动卡片的行：整行可点（≥44px 触控区），1px 结构线分隔，不用阴影/圆角。 */
 .sidebar-card-row {
   display: flex;
   min-height: 44px;

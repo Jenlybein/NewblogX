@@ -67,9 +67,6 @@ site:
     email_send_per_email_max: 1
     # 单个 IP 在限流窗口内允许的最大发送次数
     email_send_per_ip_max: 10
-  index_right:
-    # 首页右侧组件列表；每项结构为 {title: 组件标题, enable: 是否启用}
-    list: []
   article:
     # 是否允许文章发布后直接跳过审核
     skip_examining: true

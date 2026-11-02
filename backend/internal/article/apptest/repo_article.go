@@ -70,6 +70,25 @@ func (r *ArticleRepo) Find(_ context.Context, id domain.ArticleID) (*domain.Arti
 	return cloneArticle(a), nil
 }
 
+// FindIncludingDeleted 按 ID 读取，**包含软删行**。
+//
+// 后台运营位列表走 LEFT JOIN 读关系行所指文章的状态与标题，软删的文章仍要
+// 能读到（才能标出"被删"而不是"不存在"）。这里模拟那条 LEFT JOIN 的语义；
+// 普通读路径仍必须用 Find，避免把软删文章当成可展示内容。
+func (r *ArticleRepo) FindIncludingDeleted(_ context.Context, id domain.ArticleID) (*domain.Article, error) {
+	r.count.inc("FindIncludingDeleted")
+	if err := r.fault.take("FindIncludingDeleted"); err != nil {
+		return nil, err
+	}
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	a, ok := r.byID[id]
+	if !ok {
+		return nil, domain.ErrArticleNotFound
+	}
+	return cloneArticle(a), nil
+}
+
 // FindMany 批量读取。
 func (r *ArticleRepo) FindMany(_ context.Context, ids []domain.ArticleID) ([]*domain.Article, error) {
 	r.count.inc("FindMany")

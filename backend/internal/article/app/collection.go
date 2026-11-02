@@ -318,29 +318,6 @@ func (s *Service) CollectionDetail(
 	return detail, err
 }
 
-// ListCollectionAdminItems 返回一个合集的全部收录行（含已失效），后台编排用。
-//
-// 为什么不复用公开的 CollectionDetail：读者读面只给"仍公开"的文章，
-// 而全集换序要求提交的集合与库里的**全部活跃收录行**一致——
-// 用读者读面拼出来的列表会漏掉失效行，提交时被自己拒绝。
-func (s *Service) ListCollectionAdminItems(
-	ctx context.Context, viewer domain.Viewer, id collection.ID,
-) ([]collection.AdminItem, error) {
-	if !viewer.IsAdmin() {
-		return nil, domain.ErrForbidden
-	}
-	var items []collection.AdminItem
-	err := s.tx.WithinTx(ctx, func(ctx context.Context, r Repos) error {
-		if _, err := r.Collections().Find(ctx, id); err != nil {
-			return err
-		}
-		var err error
-		items, err = r.Collections().ListAdminItems(ctx, id)
-		return err
-	})
-	return items, err
-}
-
 // ReplaceCollectionSortOrder 用完整有序列表原子重排合集之间的展示顺序（管理员）。
 //
 // 输入必须是当前全部合集的排列（collection.CheckSortOrder）：集合不一致整单拒绝。
@@ -379,4 +356,73 @@ func (s *Service) ListAdminCollectionCards(ctx context.Context, viewer domain.Vi
 		return err
 	})
 	return cards, err
+}
+
+// ListCollectionAdminItems 返回后台「合集收录」页的全部行（含已失效占位）。
+//
+// 只给管理员：它会把"文章已隐藏/退回草稿/已删除"这类内部状态摆出来。
+// 失效判定不在 app 里另写——AdminItem.Stale() 直接用两个运营位共用的
+// domain.ArticleState.IsStale，口径与热门置顶逐字一致。
+func (s *Service) ListCollectionAdminItems(
+	ctx context.Context, viewer domain.Viewer, id collection.ID,
+) ([]collection.AdminItem, error) {
+	if !viewer.IsAdmin() {
+		return nil, domain.ErrForbidden
+	}
+
+	var items []collection.AdminItem
+	err := s.tx.WithinTx(ctx, func(ctx context.Context, r Repos) error {
+		// 先确认合集存在（软删/不存在都按不存在处理），后台不能把失效行
+		// 挂在一个已经不存在的合集下显示。
+		if _, err := r.Collections().Find(ctx, id); err != nil {
+			return err
+		}
+		var err error
+		items, err = r.Collections().ListAdminItems(ctx, id)
+		return err
+	})
+	return items, err
+}
+
+// CleanupStaleCollectionArticles 一键清理合集里所有失效的收录行（管理员）。
+//
+// 三条规则：
+//  1. 只有管理员；
+//  2. 只删**失效**行：仍公开的收录不动，哪怕它排在失效行中间；
+//  3. 幂等：没有失效行时返回 0 且不报错，重复点击不会删到生效行。
+//
+// 失效集合由仓储一次列出后，用与后台标记同一个 AdminItem.Stale() 判定，
+// 再复用单条移除（软删 + 压实序号）。删除**不删文章**，只是解除收录关系。
+func (s *Service) CleanupStaleCollectionArticles(
+	ctx context.Context, viewer domain.Viewer, id collection.ID,
+) (int, error) {
+	if !viewer.IsAdmin() {
+		return 0, domain.ErrForbidden
+	}
+
+	removed := 0
+	err := s.tx.WithinTx(ctx, func(ctx context.Context, r Repos) error {
+		removed = 0
+		if _, err := r.Collections().Find(ctx, id); err != nil {
+			return err
+		}
+		items, err := r.Collections().ListAdminItems(ctx, id)
+		if err != nil {
+			return err
+		}
+		for _, item := range items {
+			if !item.Stale() {
+				continue
+			}
+			if err := r.Collections().RemoveItem(ctx, id, item.ArticleID); err != nil {
+				return err
+			}
+			removed++
+		}
+		return nil
+	})
+	if err != nil {
+		return 0, err
+	}
+	return removed, nil
 }

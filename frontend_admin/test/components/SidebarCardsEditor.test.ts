@@ -319,3 +319,58 @@ describe("右栏卡片管理器：五类操作都改同一份草稿并整表落�
     expect(rowsOf(host)).toHaveLength(1);
   });
 });
+
+describe("右栏预览区：与草稿同源、固定宽度、无须保存", () => {
+  function previewOf(host: HTMLElement): HTMLElement {
+    const preview = host.querySelector<HTMLElement>('[data-role="sidebar-preview"]');
+    if (!preview) throw new Error("编辑器里没有预览区");
+    return preview;
+  }
+
+  function previewKinds(host: HTMLElement): string[] {
+    return [...previewOf(host).querySelectorAll<HTMLElement>("[data-preview-card]")].map(
+      element => element.dataset.previewCard ?? "",
+    );
+  }
+
+  function previewTitle(host: HTMLElement, kind: string): string {
+    const title = previewOf(host).querySelector(
+      `[data-preview-card="${kind}"] [data-role="preview-card-title"]`,
+    );
+    return title?.textContent?.trim() ?? "";
+  }
+
+  it("按首页右栏固定宽度渲染当前草稿，停用卡不出现，且没有占位块", async () => {
+    installFakeServer();
+    const host = await mountEditor();
+    const preview = previewOf(host);
+
+    // 宽度就是首页右栏的固定列宽，不跟随后台视口断点。
+    expect(preview.dataset.previewWidth).toBe("310");
+    expect(preview.style.width).toBe("310px");
+    // 停用的最新评论不渲染；启用且有数据的另外两张在。
+    expect(previewKinds(host)).toEqual(["hot_articles", "tag_cloud"]);
+    expect(previewTitle(host, "hot_articles")).toBe("热门文章");
+    // 预览不做骨架屏 / 占位块。
+    expect(preview.querySelector(".n-skeleton, [data-role='skeleton']")).toBeNull();
+  });
+
+  it("改标题、启停、新增都即时反映在预览里，保存接口一次都没被调用", async () => {
+    installFakeServer();
+    const host = await mountEditor();
+
+    // 改标题：预览立刻变，不需要先点保存。
+    await typeTitle(host, 0, "大家在读");
+    expect(previewTitle(host, "hot_articles")).toBe("大家在读");
+
+    // 启停：停用热门文章后预览里只剩标签云。
+    await click(host, '[data-role="enabled"]', 0);
+    expect(previewKinds(host)).toEqual(["tag_cloud"]);
+    expect(saveMock).not.toHaveBeenCalled();
+
+    // 新增一张卡：草稿里多一张，预览里立刻多一块（示例内容撑起版面）。
+    await click(host, '[data-role="add"]');
+    expect(previewKinds(host)).toEqual(["tag_cloud", "hot_articles"]);
+    expect(saveMock).not.toHaveBeenCalled();
+  });
+});

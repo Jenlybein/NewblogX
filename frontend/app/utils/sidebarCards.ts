@@ -1,5 +1,8 @@
 import type { SiteSidebarCardItem } from "~/types/api";
-import { collectionHref } from "~/utils/collection";
+// 这里刻意用同目录相对路径：后台预览要跨包 import 本模块，而后台的 vitest / tsconfig
+// 把 `~` 指向后台自己的 app，`~/utils/collection` 在后台会解析不到（不存在同名文件）。
+// 其余 `~/types/api` 是 type-only import，编译期被抹掉，不会进入后台的运行时解析。
+import { collectionHref } from "./collection";
 
 /**
  * 右栏数据驱动渲染的纯函数层（票 111）。

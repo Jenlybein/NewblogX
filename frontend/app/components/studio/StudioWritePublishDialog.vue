@@ -1,8 +1,12 @@
 <script setup lang="ts">
 import { computed, ref } from "vue";
+import type { CSSProperties } from "vue";
 import { NButton, NCard, NInput, NModal, NSelect, NSwitch } from "naive-ui";
 
+import StudioCoverUploadPanel from "./StudioCoverUploadPanel.vue";
+import type { Size } from "~/utils/coverFraming";
 import { categoryTitleError, normalizeCategoryTitle } from "~/utils/studioCategory";
+import type { CoverUploadRoute } from "~/utils/studioCover";
 
 // 发布弹窗：补全分类/标签/封面/摘要/可见性/评论开关，然后提交。
 //
@@ -28,8 +32,18 @@ const props = defineProps<{
   aiPending: boolean;
   /** 封面上传中：提交按钮要禁用，否则会提交到没有封面的状态。 */
   coverUploading: boolean;
+  /** 封面预览（本地取景预览优先，上传成功后是线上地址）。 */
   coverPreviewUrl: string;
+  /** 上传阶段 / 留在面板里的错误文案。 */
   coverStage: string;
+  coverError: string;
+  /** 选过图之后才有原图尺寸与上传路径（回填的旧封面两者都没有）。 */
+  coverSize: Size | null;
+  coverRoute: CoverUploadRoute | "";
+  /** 取景参数是否已确认（只影响徽标与"调整取景"文案）。 */
+  coverFramed: boolean;
+  /** 面板预览的取景样式（与取景窗同一出口）。 */
+  coverPreviewStyle: CSSProperties | null;
   categoryOptions: { label: string; value: string }[];
   tagOptions: { label: string; value: string }[];
   visibilityOptions: { label: string; value: string }[];
@@ -49,14 +63,14 @@ const props = defineProps<{
   onCoverChange: (event: Event) => void;
   /** 移除已选封面。 */
   onClear: () => void;
+  /** 打开取景窗（手动取景 / 调整取景）。 */
+  onFrame: () => void;
 }>();
 
 const emit = defineEmits<{
   submit: [status: 1 | 2];
   aiFill: [];
 }>();
-
-const fileInput = ref<HTMLInputElement | null>(null);
 
 // 内联新建分类：输入框的开关与草稿标题都是纯 UI 状态，判断逻辑留在 composable。
 const categoryCreateOpen = ref(false);
@@ -80,15 +94,6 @@ async function submitCategory() {
     newCategoryTitle.value = "";
     categoryCreateOpen.value = false;
   }
-}
-
-// pickCover 替父级点开文件选择：input 在本组件内，
-// 让父级持有一个 ref 再回来点它没有意义。
-function pickCover() {
-  if (props.coverUploading) {
-    return;
-  }
-  fileInput.value?.click();
 }
 </script>
 
@@ -140,40 +145,18 @@ v-model:value="tagIds" multiple clearable filterable max-tag-count="responsive"
 
           <div class="publish-form__row publish-form__row--top">
             <label class="publish-form__label">文章封面</label>
-            <div class="publish-cover">
-              <input
-                ref="fileInput"
-                type="file"
-                accept="image/*"
-                class="publish-cover__file-input"
-                @change="props.onCoverChange" >
-
-              <button
-                type="button"
-                class="publish-cover__picker"
-                :class="{ 'publish-cover__picker--busy': props.coverUploading }"
-                @click="pickCover">
-                <img
-                  v-if="props.coverPreviewUrl"
-                  :src="props.coverPreviewUrl"
-                  alt="文章封面预览"
-                  class="publish-cover__preview-image" >
-                <template v-else>
-                  <span class="publish-cover__plus">+</span>
-                  <span>上传封面</span>
-                </template>
-              </button>
-
-              <div class="publish-cover__actions">
-                <NButton quaternary size="small" :loading="props.coverUploading" @click="pickCover">
-                  {{ props.coverPreviewUrl ? "重新上传" : "选择图片" }}
-                </NButton>
-                <NButton v-if="props.coverPreviewUrl" quaternary size="small" @click="props.onClear">
-                  移除封面
-                </NButton>
-              </div>
-              <p v-if="props.coverStage" class="publish-cover__stage">{{ props.coverStage }}</p>
-            </div>
+            <StudioCoverUploadPanel
+              :busy="props.coverUploading"
+              :preview-url="props.coverPreviewUrl"
+              :stage="props.coverStage"
+              :error="props.coverError"
+              :size="props.coverSize"
+              :route="props.coverRoute"
+              :framed="props.coverFramed"
+              :preview-style="props.coverPreviewStyle"
+              :on-file-change="props.onCoverChange"
+              :on-clear="props.onClear"
+              :on-frame="props.onFrame" />
           </div>
 
           <div class="publish-form__row publish-form__row--top">

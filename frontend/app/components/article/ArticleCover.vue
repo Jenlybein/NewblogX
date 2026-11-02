@@ -55,7 +55,7 @@ watch(normalizedSrc, () => {
 .article-cover-default {
   display: block;
   width: 100%;
-  height: 100%;
+  aspect-ratio: 16 / 9;
 }
 
 .article-cover-image {

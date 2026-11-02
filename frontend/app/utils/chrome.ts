@@ -10,7 +10,7 @@ import type { ThemeMode } from "~/types/api";
  * `/studio/write`（本票只重排外观）。
  */
 
-export type HeaderNavKey = "home" | "search" | "write";
+export type HeaderNavKey = "home" | "search" | "write" | "collections";
 
 export interface HeaderNavItem {
   key: HeaderNavKey;
@@ -23,6 +23,10 @@ const HEADER_NAV: ReadonlyArray<Omit<HeaderNavItem, "active">> = [
   { key: "home", label: "首页", to: "/" },
   { key: "search", label: "搜索", to: "/search" },
   { key: "write", label: "创作", to: "/studio/write" },
+  // 合集是第四个入口：管理员编排的主题文章集合（读者侧只读）。
+  // 图标不在渲染层按 key 三元选择（那样新 key 会拿到错误的图标），
+  // 见 utils/navIcon.ts 的映射表。
+  { key: "collections", label: "合集", to: "/collections" },
 ];
 
 function isActive(key: HeaderNavKey, pathname: string): boolean {
@@ -32,6 +36,10 @@ function isActive(key: HeaderNavKey, pathname: string): boolean {
   }
   if (key === "search") {
     return pathname.startsWith("/search");
+  }
+  if (key === "collections") {
+    // 合集列表与合集详情都算"在合集里"：详情页不能让导航丢掉位置。
+    return pathname.startsWith("/collections");
   }
   return pathname.startsWith("/studio/write");
 }

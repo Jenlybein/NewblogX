@@ -5,7 +5,6 @@ import {
   IconLogin2,
   IconMenu2,
   IconMoonStars,
-  IconPencilPlus,
   IconSearch,
   IconSunHigh,
   IconUserCircle,
@@ -30,6 +29,7 @@ import {
   searchKeywordFromQuery,
   themeToggleLabel,
 } from "~/utils/chrome";
+import { headerNavIcon } from "~/utils/navIcon";
 
 const route = useRoute();
 const router = useRouter();
@@ -137,7 +137,8 @@ async function handleUserMenuSelect(key: string | number) {
               :class="{ 'is-active': item.active }"
               :aria-current="item.active ? 'page' : undefined"
             >
-              <component :is="item.key === 'home' ? IconHome2 : IconSearch" :size="16" />
+              <!-- 图标走 utils/navIcon 的显式映射：旧的三元选择会让新入口静默拿到搜索图标 -->
+              <component :is="headerNavIcon(item.key)" :size="16" />
               <span>{{ item.label }}</span>
             </NuxtLink>
             <button
@@ -147,7 +148,7 @@ async function handleUserMenuSelect(key: string | number) {
               :class="{ 'is-active': item.active }"
               @click="openWriteEntry()"
             >
-              <IconPencilPlus :size="16" />
+              <component :is="headerNavIcon(item.key)" :size="16" />
               <span>{{ item.label }}</span>
             </button>
           </template>
@@ -524,3 +525,4 @@ async function handleUserMenuSelect(key: string | number) {
   }
 }
 </style>
+

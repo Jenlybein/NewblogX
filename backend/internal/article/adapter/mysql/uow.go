@@ -8,6 +8,7 @@ import (
 
 	"myblogx/internal/article/app"
 	"myblogx/internal/article/domain"
+	"myblogx/internal/article/domain/collection"
 	"myblogx/internal/article/domain/favorite"
 	"myblogx/internal/article/domain/hottop"
 	"myblogx/internal/article/domain/review"
@@ -99,3 +100,8 @@ func (r *repos) Counters() app.CounterPort { return r.counter }
 func (r *repos) Comments() app.CommentPort { return &commentPort{db: r.db} }
 func (r *repos) Users() app.UserPort       { return NewUserPort(r.db) }
 func (r *repos) Diggs() app.DiggPort       { return &diggPort{db: r.db} }
+
+// Collections 现场构造合集仓储（与 HotTops 同一做法：只把事务句柄包起来，
+// 这样"同一个 repos 实例 == 同一个事务句柄"的语义不会被破坏）。
+func (r *repos) Collections() collection.Repository { return NewCollectionRepo(r.db) }
+

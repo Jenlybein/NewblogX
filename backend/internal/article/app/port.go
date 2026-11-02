@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"myblogx/internal/article/domain"
+	"myblogx/internal/article/domain/collection"
 	"myblogx/internal/article/domain/favorite"
 	"myblogx/internal/article/domain/hottop"
 	"myblogx/internal/article/domain/review"
@@ -47,6 +48,9 @@ type Repos interface {
 	Users() UserPort
 	// Diggs 是点赞关系（详情页"是否已赞"、级联删除）。
 	Diggs() DiggPort
+	// Collections 是合集（管理员编排的有序文章集合）。
+	// 与 HotTops（热门置顶运营位）是两套数据：合集有标题/封面/展示开关，且无条数上限。
+	Collections() collection.Repository
 }
 
 // DiggPort 是点赞关系端口。
@@ -147,6 +151,11 @@ type IDGen interface {
 	NextArticleID() domain.ArticleID
 	NextReviewTaskID() uint64
 	NextFolderID() favorite.ID
+	// NextCollectionID 生成合集 ID。
+	//
+	// 不借用 NextArticleID：两次新建的 ID 序列互相穿插时，日志里无法分辨
+	// "这个 ID 是文章还是合集"，而合集的 ID 会出现在读者站 URL 上。
+	NextCollectionID() collection.ID
 }
 
 // Service 是用例集合。

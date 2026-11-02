@@ -148,7 +148,7 @@ describe("页头：结构（三档都成立的必备能力）", () => {
     const wrapper = mountHeader();
     const nav = wrapper.get('nav[aria-label="主导航"]');
 
-    expect(nav.findAll("a")).toHaveLength(2); // 首页、搜索
+    expect(nav.findAll("a")).toHaveLength(3); // 首页、搜索、合集
     expect(nav.findAll("button")).toHaveLength(1); // 创作
     expect(wrapper.get('form[role="search"]').exists()).toBe(true);
     expect(wrapper.get('input[name="site-search"]').exists()).toBe(true);
@@ -285,7 +285,7 @@ describe("页头：导航与账户", () => {
     expect(nav.findAll("button")).toHaveLength(0);
     expect(nav.text()).not.toContain("创作");
     // 首页与搜索仍在：开关只影响写作入口，不接管整条导航。
-    expect(nav.findAll("a")).toHaveLength(2);
+    expect(nav.findAll("a")).toHaveLength(3);
   });
 
   it("已登录时账户区是菜单按钮，未登录时是登录/注册", async () => {
@@ -356,3 +356,4 @@ describe("页头：滚动方向感知与阈值", () => {
     expect(header.classes()).not.toContain("is-hidden");
   });
 });
+

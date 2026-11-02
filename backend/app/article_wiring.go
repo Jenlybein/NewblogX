@@ -11,6 +11,7 @@ import (
 	"myblogx/internal/article/adapter/mysql"
 	articleapp "myblogx/internal/article/app"
 	"myblogx/internal/article/domain"
+	"myblogx/internal/article/domain/collection"
 	"myblogx/internal/article/domain/favorite"
 	"myblogx/internal/kernel/ctype"
 	"myblogx/internal/kernel/enum"
@@ -80,6 +81,15 @@ func (snowflakeIDs) NextReviewTaskID() uint64 {
 	return id.Uint64()
 }
 
+// NextCollectionID 返回下一个合集 ID。
+func (snowflakeIDs) NextCollectionID() collection.ID {
+	id, err := idgen.Next()
+	if err != nil {
+		panic("article: 雪花 ID 生成失败: " + err.Error())
+	}
+	return collection.ID(id)
+}
+
 // NextFolderID 返回下一个收藏夹 ID。
 func (snowflakeIDs) NextFolderID() favorite.ID {
 	id, err := idgen.Next()
@@ -127,3 +137,4 @@ func (r *imageResolver) ResolveImageURLByID(ctx context.Context, id ctype.ID) (s
 	_ = ctx
 	return mediamysql.ResolveURLByID(r.db, id.Uint64())
 }
+

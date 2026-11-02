@@ -32,10 +32,12 @@ const GLASS_CLASS_RE = /\bglass-(thin|thick)\b/gu;
  * 为什么是"每组件一层"而不是"全站 ≤3"：一层是**不能嵌套**的结构保证 ——
  * 单个组件里只有一个玻璃元素，就不可能出现"玻璃套玻璃"（那会读成平灰面）。
  * 同屏上限由下面「同屏预算」单独断言。
+ *
+ * 轮播控件已从"浮在图上的一颗玻璃药丸"改为底部渐黑区里的一行内容，因此轮播组件
+ * 不再出现在清单里（它的新立场由 banner-veil 专项测试锁住）。
  */
 const GLASS_LAYERS: Record<string, number> = {
   "app/components/layout/AppHeader.vue": 1,
-  "app/components/article/BannerCarousel.vue": 1,
   "app/components/jelly/JellyLauncher.vue": 1,
   "app/components/jelly/JellyAiPanel.vue": 1,
   "app/components/auth/AuthModal.vue": 1,

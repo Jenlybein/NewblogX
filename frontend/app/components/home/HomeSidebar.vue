@@ -28,11 +28,20 @@ const props = withDefaults(defineProps<{
    * 这条回退分支会被删掉。
    */
   sidebarCards?: SiteSidebarCardItem[];
+  /**
+   * 主栏「热门置顶」已经露出的文章 ID。
+   *
+   * 右栏热门文章卡必须与它去重：同一篇文章在首页出现两次是版面事故。
+   * 置顶与右栏卡片是两个独立请求（各走 30s SWR），列表可能短暂不同步，
+   * 所以在渲染模型里按当前置顶列表再收一次。
+   */
+  pinnedArticleIds?: string[];
   sticky?: boolean;
   stickyTop?: number | string;
 }>(), {
   pending: false,
   sidebarCards: () => [],
+  pinnedArticleIds: () => [],
   sticky: false,
   stickyTop: "0.5rem",
 });
@@ -65,8 +74,10 @@ const loginModes = computed(() => homeLoginModes(props.runtimeConfig));
 const hotTags = computed(() => aggregateHotTags(props.articles, 8));
 const recommendedAuthors = computed(() => aggregateRecommendedAuthors(props.articles, 4));
 
-// 数据驱动的渲染模型：未知种类过滤、空数据隐藏、标题回退、顺序收敛都在纯函数里。
-const cardViews = computed(() => sidebarCardViews(props.sidebarCards));
+// 数据驱动的渲染模型：未知种类过滤、空数据隐藏、标题回退、顺序收敛、置顶去重都在纯函数里。
+const cardViews = computed(() =>
+  sidebarCardViews(props.sidebarCards, { pinnedArticleIds: props.pinnedArticleIds }),
+);
 // 回退看的是"有没有配置"，不是"有没有渲染出内容"：运营配了卡片但恰好都没数据时，
 // 旧右栏不能又冒出来 —— 那会让人以为新配置没生效。
 const hasConfiguredCards = computed(() => (props.sidebarCards?.length ?? 0) > 0);
@@ -109,7 +120,7 @@ const projectAbstract = "为开发者写作、搜索与知识整理提供稳定�
       <div class="eyebrow">{{ SIDEBAR_CARD_EYEBROWS[card.kind] }}</div>
       <h2 class="section-title mt-2" data-sidebar-card-title>{{ card.title }}</h2>
 
-      <!-- 热门文章：按点赞数降序，与主栏的热门置顶不是同一份数据。 -->
+      <!-- 热门文章：按点赞数降序，已经出现在主栏热门置顶的文章不会再重复露出。 -->
       <div v-if="card.kind === 'hot_articles'" class="mt-3 flex flex-col">
         <NuxtLink
           v-for="article in card.articles"

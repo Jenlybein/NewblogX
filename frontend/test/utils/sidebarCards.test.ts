@@ -4,7 +4,9 @@ import type { SiteSidebarCardItem } from "~/types/api";
 import {
   SIDEBAR_CARD_DEFAULT_TITLES,
   SIDEBAR_CARD_KINDS,
+  isSidebarCardKind,
   sidebarCardViews,
+  tagCloudFontSize,
   tagCloudWeight,
 } from "~/utils/sidebarCards";
 
@@ -112,6 +114,77 @@ describe("sidebarCardViews：右栏卡片的渲染模型", () => {
   });
 });
 
+/**
+ * 热门文章卡与主栏「热门置顶」去重。
+ *
+ * 验收口径是"同一篇文章不能两边都出现"：主栏已经承担了置顶文章的露出，
+ * 右栏再出现一次就是重复推荐。去重放在渲染模型里，是因为主栏置顶与右栏卡片
+ * 是两个独立请求（各走 30s SWR），两边数据可能短暂不同步 —— 模型必须
+ * 按**当前**的置顶列表收敛，而不依赖后端恰好在同一时刻排除了它们。
+ */
+describe("sidebarCardViews：热门文章与热门置顶去重", () => {
+  it("置顶文章从热门文章卡里剔除，其余文章保持后端的点赞降序", () => {
+    const views = sidebarCardViews(
+      [
+        card({
+          kind: "hot_articles",
+          title: "热门文章",
+          hot_articles: [article("1", "已置顶", 50), article("2", "热门二", 30), article("3", "热门三", 10)],
+        }),
+      ],
+      { pinnedArticleIds: ["1"] },
+    );
+
+    expect(views).toHaveLength(1);
+    expect(views[0]?.articles.map((item) => [item.id, item.diggCount])).toEqual([
+      ["2", 30],
+      ["3", 10],
+    ]);
+  });
+
+  it("热门文章卡里的文章全部被置顶时，整张卡隐藏（不留空盒子）", () => {
+    const views = sidebarCardViews(
+      [
+        card({ kind: "hot_articles", title: "热门文章", hot_articles: [article("1", "置顶甲"), article("2", "置顶乙")] }),
+        card({ kind: "latest_comments", title: "最新评论", latest_comments: [comment("c1", "还在")] }),
+      ],
+      { pinnedArticleIds: new Set(["1", "2"]) },
+    );
+
+    expect(views.map((view) => view.kind)).toEqual(["latest_comments"]);
+  });
+
+  it("没有置顶数据时一篇都不少（去重不能变成误删）", () => {
+    const views = sidebarCardViews(
+      [card({ kind: "hot_articles", title: "热门文章", hot_articles: [article("1", "热门一"), article("2", "热门二")] })],
+      { pinnedArticleIds: [] },
+    );
+
+    expect(views[0]?.articles.map((item) => item.id)).toEqual(["1", "2"]);
+  });
+
+  it("只影响热门文章卡：同一篇文章仍可作为评论卡的所属文章出现", () => {
+    const views = sidebarCardViews(
+      [
+        card({
+          kind: "hot_articles",
+          title: "热门文章",
+          hot_articles: [article("1", "已置顶")],
+        }),
+        card({
+          kind: "latest_comments",
+          title: "最新评论",
+          latest_comments: [comment("c1", "评论正文", "1")],
+        }),
+      ],
+      { pinnedArticleIds: ["1"] },
+    );
+
+    expect(views.map((view) => view.kind)).toEqual(["latest_comments"]);
+    expect(views[0]?.comments[0]?.articleId).toBe("1");
+  });
+});
+
 describe("tagCloudWeight：标签云字号权重", () => {
   it("按最大文章数归一：最大值是 1，其余按比例", () => {
     expect(tagCloudWeight(10, 10)).toBe(1);
@@ -138,5 +211,25 @@ describe("tagCloudWeight：标签云字号权重", () => {
       ["Nuxt", 0.5],
       ["部署", 0.1],
     ]);
+  });
+
+  it("权重映射成字号：最小 0.75rem、最大 1.25rem，越界值被钳制", () => {
+    expect(tagCloudFontSize(0)).toBe("0.75rem");
+    expect(tagCloudFontSize(0.5)).toBe("1.00rem");
+    expect(tagCloudFontSize(1)).toBe("1.25rem");
+    // 脏数据不能让字号跑出右栏能承受的跨度。
+    expect(tagCloudFontSize(-1)).toBe("0.75rem");
+    expect(tagCloudFontSize(2)).toBe("1.25rem");
+    expect(tagCloudFontSize(Number.NaN)).toBe("0.75rem");
+  });
+});
+
+describe("isSidebarCardKind：种类收窄", () => {
+  it("只把三种内置种类收窄成合法类型", () => {
+    expect(isSidebarCardKind("hot_articles")).toBe(true);
+    expect(isSidebarCardKind("latest_comments")).toBe(true);
+    expect(isSidebarCardKind("tag_cloud")).toBe(true);
+    expect(isSidebarCardKind("ai_card")).toBe(false);
+    expect(isSidebarCardKind("")).toBe(false);
   });
 });

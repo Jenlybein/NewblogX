@@ -54,7 +54,7 @@ afterEach(() => {
 })
 
 describe('AdminBreadcrumb', () => {
-  it('两级面包屑：父分组是可点回退链接，当前项是当前态、不可点', () => {
+  it('两级面包屑：父分组只分组（不可点），当前项是当前态、不可点', () => {
     const items = buildAdminBreadcrumb('/articles/hot-top')
     const el = mountBreadcrumb(items)
 
@@ -62,16 +62,14 @@ describe('AdminBreadcrumb', () => {
     expect(el.textContent).toContain('文章管理')
     expect(el.textContent).toContain('热门置顶')
 
-    // 上级可点回退。
-    const back = el.querySelector<HTMLAnchorElement>('a[href="/articles"]')
-    expect(back).not.toBeNull()
-    // 当前项不产出链接，只以当前态呈现。
-    expect(el.querySelectorAll('a')).toHaveLength(1)
+    // 父分组没有自己的页面（菜单里点它只展开），所以面包屑里也不产出链接。
+    expect(el.querySelectorAll('a')).toHaveLength(0)
     const current = el.querySelector('[aria-current="page"]')
     expect(current?.textContent).toContain('热门置顶')
     // 两级之间正好一个分隔符。
     expect(el.querySelectorAll('[data-breadcrumb-separator]')).toHaveLength(1)
   })
+
 
   it('单级（根页 / 顶层页）没有分隔符', () => {
     for (const path of ['/', '/users']) {

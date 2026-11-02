@@ -84,16 +84,19 @@ export default defineComponent({
         )
       }
 
-      const header = entry.path
-        ? h(
-            NuxtLink,
-            {
-              to: entry.path,
-              class: 'admin-nav__group-link',
-            },
-            { default: () => renderLabel(entry) },
-          )
-        : h('span', { class: 'admin-nav__group-title' }, renderLabel(entry))
+      // 父项永远是"展开/收起"的开关，不是链接：
+      // 它有自身页面时那页会作为第一个子项出现（见 utils/menu.ts 的树定义），
+      // 点标题不会把人带去另一个页面。
+      const header = h(
+        'button',
+        {
+          type: 'button',
+          class: 'admin-nav__group-title',
+          'aria-expanded': entry.expanded ? 'true' : 'false',
+          onClick: () => emit('toggle', entry.key),
+        },
+        renderLabel(entry),
+      )
 
       return h(
         'li',

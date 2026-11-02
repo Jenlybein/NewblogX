@@ -214,3 +214,118 @@ v-model:value="abstractText" type="textarea" maxlength="180"
     </div>
   </NModal>
 </template>
+
+<style scoped>
+/*
+ * 弹窗自己的尺寸约束必须写在**本组件**里。
+ *
+ * 这些规则原来放在 pages/studio/write.vue 的 `<style scoped src="...studio-write.css">` 里：
+ * 页面的 scoped 样式只作用于该页模板，而 NModal 把内容 teleport 到 body，
+ * 弹窗内部的元素拿不到页面的 data-v 作用域，于是宽度规则整条失效 ——
+ * NCard 按默认宽度铺满视口，发布信息看起来就是"全屏卡片"而不是弹窗。
+ */
+.publish-modal-shell {
+  width: min(760px, calc(100vw - 96px));
+  max-height: calc(100vh - 96px);
+  margin: 0 auto;
+  overflow: auto;
+}
+
+.publish-modal-card {
+  border-radius: var(--radius-xl);
+}
+
+.publish-form {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.publish-form__row {
+  display: grid;
+  grid-template-columns: 84px minmax(0, 1fr);
+  align-items: center;
+  gap: 18px;
+}
+
+.publish-form__row--top {
+  align-items: flex-start;
+}
+
+.publish-form__label {
+  font-size: 14px;
+  color: var(--color-ink);
+}
+
+.publish-form__control {
+  width: 100%;
+}
+
+/* 分类下拉 + 内联新建入口。新建入口与下拉同列，展开时不推挤其它行。 */
+.publish-category {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.publish-category__create {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.publish-category__input {
+  flex: 1;
+  min-width: 0;
+}
+
+.publish-category__add {
+  align-self: flex-start;
+}
+
+.publish-summary {
+  position: relative;
+}
+
+.publish-summary__count {
+  position: absolute;
+  right: 12px;
+  bottom: 10px;
+  color: var(--color-danger-ink);
+  font-size: 12px;
+}
+
+.publish-form__switch {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 14px 16px;
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-md);
+  background: var(--color-surface-raised);
+}
+
+.publish-modal__footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+}
+
+@media (max-width: 767px) {
+  .publish-modal-shell {
+    width: calc(100vw - 28px);
+    max-height: calc(100vh - 28px);
+  }
+
+  .publish-form__row {
+    grid-template-columns: 1fr;
+    gap: 10px;
+  }
+
+  .publish-modal__footer {
+    flex-wrap: wrap;
+  }
+}
+</style>

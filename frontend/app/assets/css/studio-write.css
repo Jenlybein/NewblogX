@@ -182,93 +182,6 @@
   background: var(--color-surface);
 }
 
-.publish-modal-shell {
-  width: min(760px, calc(100vw - 96px));
-  margin: 0 auto;
-}
-
-.publish-modal-card {
-  border-radius: var(--radius-xl);
-}
-
-.publish-form {
-  display: flex;
-  flex-direction: column;
-  gap: 24px;
-}
-
-.publish-form__row {
-  display: grid;
-  grid-template-columns: 84px minmax(0, 1fr);
-  align-items: center;
-  gap: 18px;
-}
-
-.publish-form__row--top {
-  align-items: flex-start;
-}
-
-.publish-form__label {
-  font-size: 14px;
-  color: var(--color-ink);
-}
-
-.publish-form__control {
-  width: 100%;
-}
-
-/* 分类下拉 + 内联新建入口。新建入口与下拉同列，展开时不推挤其它行。 */
-.publish-category {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  min-width: 0;
-}
-
-.publish-category__create {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.publish-category__input {
-  flex: 1;
-  min-width: 0;
-}
-
-.publish-category__add {
-  align-self: flex-start;
-}
-
-.publish-summary {
-  position: relative;
-}
-
-.publish-summary__count {
-  position: absolute;
-  right: 12px;
-  bottom: 10px;
-  font-size: 12px;
-  color: var(--color-danger-ink);
-}
-
-.publish-form__switch {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 16px;
-  padding: 14px 16px;
-  border: 1px solid var(--color-line);
-  border-radius: var(--radius-md);
-  background: var(--color-surface-raised);
-}
-
-.publish-modal__footer {
-  display: flex;
-  justify-content: flex-end;
-  gap: 12px;
-}
-
 @media (max-width: 1120px) {
 
   .write-page__topbar,
@@ -320,19 +233,6 @@
 
   .write-page__actions .muted {
     display: none;
-  }
-
-  .publish-form__row {
-    grid-template-columns: 1fr;
-    gap: 10px;
-  }
-
-  .publish-modal__footer {
-    flex-wrap: wrap;
-  }
-
-  .publish-modal-shell {
-    width: calc(100vw - 28px) !important;
   }
 }
 

@@ -351,7 +351,12 @@ func (a *Article) Submit(now time.Time, skipExamining bool) error {
 
 	next := ResolveSubmitStatus(skipExamining)
 	if a.status == StatusPublished && next == StatusPublished {
-		return ErrAlreadyPublished
+		// 已经在目标态：站点跳过审核时，"编辑一篇已发布文章并再次提交"走的就是这条路。
+		// 这里以前报 ErrAlreadyPublished，后果是**已发布的文章永远改不了**——
+		// 用户点"更新"只会看到一句"文章已发布"，正文改动被整笔回滚。
+		// 提交的意图是"让它处于发布态"，而这个前提本就成立，所以做成幂等：
+		// 不改变状态，只保留 ApplyEdit 已经写过的时间戳。
+		return nil
 	}
 
 	a.status = next

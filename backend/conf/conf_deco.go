@@ -19,9 +19,9 @@ import (
 // 出现"后台能存 48、前端却按 24 渲染"。
 const (
 	// CharmLogoSizeMin 是站标显示尺寸下限（小于它就看不清是什么东西）。
-	CharmLogoSizeMin = 24.0
+	CharmLogoSizeMin = 15.0
 	// CharmLogoSizeMax 是站标显示尺寸上限（再大就会压住正文）。
-	CharmLogoSizeMax = 96.0
+	CharmLogoSizeMax = 70.0
 	// CharmLogoSizeDefault 是后台没有填过时用的站标尺寸。
 	CharmLogoSizeDefault = 48.0
 )
@@ -42,7 +42,7 @@ const (
 	// CharmSegmentsMin 是链节点数下限：再少就不是绳子而是一根杆。
 	CharmSegmentsMin = 4
 	// CharmSegmentsMax 是链节点数上限：再多只是白烧 CPU。
-	CharmSegmentsMax = 24
+	CharmSegmentsMax = 30
 	// CharmSegmentsDefault 是默认链节点数。
 	CharmSegmentsDefault = 10
 
@@ -54,10 +54,11 @@ const (
 	CharmGravityDefault = 1600.0
 
 	// CharmDampingMin 是每步速度保持系数下限：再小摆动会僵住。
-	CharmDampingMin = 0.94
-	// CharmDampingMax 是每步速度保持系数上限：**必须小于 1**，
-	// 否则每步都在放大速度，摆动会越甩越大（这是真正的发散值）。
-	CharmDampingMax = 0.995
+	CharmDampingMin = 0.9
+	// CharmDampingMax 是每步速度保持系数上限：1 表示速度完全不衰减，
+	// 摆动会靠重力继续来回（可能持续振荡，这是已被显式接受的风险）；
+	// 大于 1 才会每步放大速度、越甩越大，所以越界值仍然钳回 1。
+	CharmDampingMax = 1.0
 	// CharmDampingDefault 是默认阻尼。
 	CharmDampingDefault = 0.99
 
@@ -152,7 +153,7 @@ type Charm struct {
 	LineWidth float64 `yaml:"line_width" json:"line_width"`
 	// Gravity 是重力加速度，单位 px/s²。
 	Gravity float64 `yaml:"gravity" json:"gravity"`
-	// Damping 是每个固定步长后保留的速度比例（无量纲，必须小于 1）。
+	// Damping 是每个固定步长后保留的速度比例（无量纲，0.9–1；1 表示不衰减）。
 	Damping float64 `yaml:"damping" json:"damping"`
 	// Stiffness 是距离约束刚度（无量纲，0.2–1）：每次迭代消化这么多比例的
 	// 误差。1 等于全量投影（刚杆手感）；越小越弹，拖动时先拉长再回弹。
@@ -391,7 +392,7 @@ func normalizeLineWidth(v float64) float64 {
 
 // normalizeSegments 是节点数的钳位规则：计数没有整数边界输入，
 // 只有"没填（0 或负数）"与"越界 / 小数"三种情况。
-// 与读者站 / 后台的 `Math.round` 保持一致：先四舍五入再夹到 4–24。
+// 与读者站 / 后台的 `Math.round` 保持一致：先四舍五入再夹到 4–30。
 func normalizeSegments(v float64) float64 {
 	if math.IsNaN(v) || math.IsInf(v, 0) {
 		return CharmSegmentsDefault

@@ -92,6 +92,9 @@ var adminOnly = []struct {
 	// 热门置顶运营位：整表排序与全量列表（带 {id} 的设置/取消在下面"边界"之外）
 	{"PATCH", "/api/articles/hot-top/order"},
 	{"GET", "/api/articles/hot-top/admin"},
+	// 右栏卡片配置（#111）：读侧公开，管理侧读写都要求管理员。
+	{"GET", "/api/site/admin/sidebar_cards"},
+	{"PUT", "/api/site/admin/sidebar_cards"},
 }
 
 // adminAreaPrefixes 是"整段只给管理员"的路径前缀，用于完整性检查。

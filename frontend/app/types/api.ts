@@ -83,16 +83,17 @@ export type SiteAiInfo = RequiredSchema<"internal_site_adapter_http.AIResponse">
 export interface SiteDecoConfig {
   charm?: {
     enable?: boolean;
+    /** 站标显示尺寸，px，合法区间 15–70。 */
     logo_size?: number | null;
     /** 挂绳长度，px，合法区间 40–240。 */
     rope_length?: number | null;
-    /** Verlet 链节点数，节，合法区间 4–24。 */
+    /** Verlet 链节点数，节，合法区间 4–30。 */
     segments?: number | null;
     /** 描边起始宽度，px，合法区间 1–6，保留一位小数；收尾固定为 0.6 倍。 */
     line_width?: number | null;
     /** 重力加速度，px/s²，合法区间 400–4000。 */
     gravity?: number | null;
-    /** 每步速度保持系数，无量纲，合法区间 0.94–0.995。 */
+    /** 每步速度保持系数，无量纲，合法区间 0.9–1；1 表示不衰减（可能持续振荡）。 */
     damping?: number | null;
     /** 距离约束刚度，无量纲，合法区间 0.2–1；1 最硬，越小越弹。 */
     stiffness?: number | null;
@@ -110,6 +111,17 @@ export interface SiteDecoConfig {
 }
 
 export type BannerItem = RequiredSchema<"internal_site_adapter_http.BannerItem">;
+
+/**
+ * 右栏卡片（票 111）：种类、顺序、标题与各卡数据都从 `GET /site/sidebar_cards` 取。
+ *
+ * 形状直接由契约派生；`kind` 在契约里是 string（后端存的是字符串），
+ * 前端用 `~/utils/sidebarCards` 的 `isSidebarCardKind` 收窄成内置种类。
+ */
+export type SiteSidebarCardItem = RequiredSchema<"internal_site_adapter_http.SidebarCardItem">;
+
+/** 读者侧右栏卡片列表的 data 载荷。 */
+export type SiteSidebarCardsData = RequiredSchema<"internal_site_adapter_http.SidebarCardsResponse">;
 
 /** 轮播图列表载荷。之前服务层手写了同名形状（`{list, has_more}`），漏了契约里的 `count`。 */
 export type BannerListData = RequiredSchema<"myblogx_internal_kernel.HasMoreListData-internal_site_adapter_http_BannerItem">;

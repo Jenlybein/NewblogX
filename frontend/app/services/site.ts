@@ -5,6 +5,7 @@ import type {
   SiteDecoConfig,
   SiteRuntimeConfig,
   SiteSeoData,
+  SiteSidebarCardsData,
 } from "~/types/api";
 
 export function getSiteRuntimeConfig() {
@@ -33,6 +34,18 @@ export function getSiteAiInfo() {
  */
 export function getSiteDecoConfig() {
   return useNuxtApp().$api.request<SiteDecoConfig>("/api/site/deco", {
+    auth: false,
+  });
+}
+
+/**
+ * 读者侧右栏卡片列表。
+ *
+ * 匿名可读；卡片种类、顺序、标题与各卡数据都在这一个响应里 ——
+ * 读者站不再需要知道"热门标签/推荐作者"该从哪些接口拼。
+ */
+export function getSidebarCards() {
+  return useNuxtApp().$api.request<SiteSidebarCardsData>("/api/site/sidebar_cards", {
     auth: false,
   });
 }

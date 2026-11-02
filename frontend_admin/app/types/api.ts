@@ -365,17 +365,17 @@ export interface DecoRuntimeConfig {
   charm: {
     /** 光标挂件总开关；默认开。 */
     enable: boolean
-    /** 站标显示尺寸，单位 px，合法区间 24–96。 */
+    /** 站标显示尺寸，单位 px，合法区间 15–70。 */
     logo_size: number
     /** 挂绳长度，单位 px，合法区间 40–240。 */
     rope_length: number
-    /** Verlet 链节点数，单位 节，合法区间 4–24（整数）。 */
+    /** Verlet 链节点数，单位 节，合法区间 4–30（整数）。 */
     segments: number
     /** 描边起始宽度，单位 px，合法区间 1–6（保留一位小数）；收尾固定为 0.6 倍。 */
     line_width: number
     /** 重力加速度，单位 px/s²，合法区间 400–4000。 */
     gravity: number
-    /** 每步速度保持系数，无量纲，合法区间 0.94–0.995。 */
+    /** 每步速度保持系数，无量纲，合法区间 0.9–1；1 表示不衰减（可能持续振荡）。 */
     damping: number
     /** 距离约束刚度，无量纲，合法区间 0.2–1；1 最硬，越小越弹。 */
     stiffness: number

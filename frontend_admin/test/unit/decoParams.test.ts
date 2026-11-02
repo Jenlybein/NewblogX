@@ -6,6 +6,7 @@ import {
   DECO_DAMPING_DEFAULT,
   DECO_DAMPING_MAX,
   DECO_DAMPING_MIN,
+  DECO_DAMPING_PARAM,
   DECO_FPS_CAP_DEFAULT,
   DECO_FPS_CAP_MAX,
   DECO_FPS_CAP_MIN,
@@ -38,6 +39,7 @@ import {
   DECO_SEGMENTS_DEFAULT,
   DECO_SEGMENTS_MAX,
   DECO_SEGMENTS_MIN,
+  DECO_SEGMENTS_PARAM,
   DECO_STIFFNESS_DEFAULT,
   DECO_STIFFNESS_MAX,
   DECO_STIFFNESS_MIN,
@@ -54,6 +56,7 @@ import {
   clampDecoSegments,
   clampDecoStiffness,
   defaultDecoConfig,
+  interpretDecoParamInput,
   normalizeDecoConfig,
 } from '~/utils/decoParams'
 
@@ -116,11 +119,11 @@ describe('装饰参数元数据', () => {
     }
   })
 
-  it('区间与默认值：24–96/48、40–240/120、4–24/10、1–6/2.5、400–4000/1600、0.94–0.995/0.99、0.2–1/0.5、0–1.5/0.8、0–40/20、30–160/60、-24–24/3', () => {
+  it('区间与默认值：15–70/48、40–240/120、4–30/10、1–6/2.5、400–4000/1600、0.9–1/0.99、0.2–1/0.5、0–1.5/0.8、0–40/20、30–160/60、-24–24/3', () => {
     // 这些数是跨端契约。本票不做一致性门禁（票 #43），所以在这里显式钉住：
     // 改一端就必须同时改另一端，否则这条断言会逼你想一次。
-    expect(DECO_LOGO_SIZE_MIN).toBe(24)
-    expect(DECO_LOGO_SIZE_MAX).toBe(96)
+    expect(DECO_LOGO_SIZE_MIN).toBe(15)
+    expect(DECO_LOGO_SIZE_MAX).toBe(70)
     expect(DECO_LOGO_SIZE_DEFAULT).toBe(48)
 
     expect(DECO_ROPE_LENGTH_MIN).toBe(40)
@@ -128,7 +131,7 @@ describe('装饰参数元数据', () => {
     expect(DECO_ROPE_LENGTH_DEFAULT).toBe(120)
 
     expect(DECO_SEGMENTS_MIN).toBe(4)
-    expect(DECO_SEGMENTS_MAX).toBe(24)
+    expect(DECO_SEGMENTS_MAX).toBe(30)
     expect(DECO_SEGMENTS_DEFAULT).toBe(10)
 
     expect(DECO_LINE_WIDTH_MIN).toBe(1)
@@ -139,11 +142,13 @@ describe('装饰参数元数据', () => {
     expect(DECO_GRAVITY_MAX).toBe(4000)
     expect(DECO_GRAVITY_DEFAULT).toBe(1600)
 
-    expect(DECO_DAMPING_MIN).toBe(0.94)
-    expect(DECO_DAMPING_MAX).toBe(0.995)
+    expect(DECO_DAMPING_MIN).toBe(0.9)
+    expect(DECO_DAMPING_MAX).toBe(1)
     expect(DECO_DAMPING_DEFAULT).toBe(0.99)
-    // 阻尼上限必须小于 1：等于或大于 1 会让摆动越甩越大。
-    expect(DECO_DAMPING_MAX).toBeLessThan(1)
+    // 上限恰好是 1：速度完全不衰减，可能配合重力持续振荡。
+    // 大于 1 才是逐步放大的发散值，仍然被钳回 1。
+    expect(DECO_DAMPING_MAX).toBe(1)
+    expect(DECO_DAMPING_MAX).toBeGreaterThan(DECO_DAMPING_MIN)
 
     // 刚度上限恰好是 1（全量投影），下限 0.2（更软就久久回不到位）。
     expect(DECO_STIFFNESS_MIN).toBe(0.2)
@@ -261,14 +266,14 @@ describe('装饰参数元数据', () => {
 describe('clampDecoLogoSize', () => {
   it('越界钳到边界', () => {
     expect(clampDecoLogoSize(4000)).toBe(DECO_LOGO_SIZE_MAX)
-    expect(clampDecoLogoSize(96.5)).toBe(DECO_LOGO_SIZE_MAX)
+    expect(clampDecoLogoSize(70.5)).toBe(DECO_LOGO_SIZE_MAX)
     expect(clampDecoLogoSize(10)).toBe(DECO_LOGO_SIZE_MIN)
   })
 
   it('区间内与边界值原样保留', () => {
     expect(clampDecoLogoSize(60)).toBe(60)
-    expect(clampDecoLogoSize(24)).toBe(24)
-    expect(clampDecoLogoSize(96)).toBe(96)
+    expect(clampDecoLogoSize(15)).toBe(15)
+    expect(clampDecoLogoSize(70)).toBe(70)
   })
 
   it('缺省（0）与非法值回落默认值', () => {
@@ -298,10 +303,12 @@ describe('clampDecoRopeLength / clampDecoGravity / clampDecoDamping', () => {
     expect(clampDecoGravity(Number.NaN)).toBe(DECO_GRAVITY_DEFAULT)
   })
 
-  it('阻尼：越界钳到 0.94/0.995，缺省与非法回落 0.99，等于 1 被钳回上限', () => {
+  it('阻尼：越界钳到 0.9/1，缺省与非法回落 0.99，大于 1 被钳回上限', () => {
     expect(clampDecoDamping(2)).toBe(DECO_DAMPING_MAX)
-    expect(clampDecoDamping(1)).toBe(DECO_DAMPING_MAX)
+    expect(clampDecoDamping(1.001)).toBe(DECO_DAMPING_MAX)
+    expect(clampDecoDamping(1)).toBe(1)
     expect(clampDecoDamping(0.5)).toBe(DECO_DAMPING_MIN)
+    expect(clampDecoDamping(0.9)).toBe(0.9)
     expect(clampDecoDamping(0.97)).toBe(0.97)
     expect(clampDecoDamping(0)).toBe(DECO_DAMPING_DEFAULT)
     expect(clampDecoDamping(-0.2)).toBe(DECO_DAMPING_DEFAULT)
@@ -388,12 +395,13 @@ describe('票 #75 的指针端偏移钳位（第四条规则：允许负数的�
 })
 
 describe('clampDecoSegments', () => {
-  it('越界钳到 4/24，并四舍五入成整数（不接受"半节"）', () => {
+  it('越界钳到 4/30，并四舍五入成整数（不接受"半节"）', () => {
     expect(clampDecoSegments(100)).toBe(DECO_SEGMENTS_MAX)
     expect(clampDecoSegments(1)).toBe(DECO_SEGMENTS_MIN)
     expect(clampDecoSegments(10.7)).toBe(11)
     expect(clampDecoSegments(4)).toBe(4)
-    expect(clampDecoSegments(24)).toBe(24)
+    expect(clampDecoSegments(30)).toBe(30)
+    expect(clampDecoSegments(30.6)).toBe(DECO_SEGMENTS_MAX)
   })
 
   it('缺省与非法值回落默认 10', () => {
@@ -413,6 +421,62 @@ describe('clampDecoStiffness', () => {
     expect(clampDecoStiffness(-0.1)).toBe(DECO_STIFFNESS_DEFAULT)
     expect(clampDecoStiffness(Number.NaN)).toBe(DECO_STIFFNESS_DEFAULT)
     expect(clampDecoStiffness(Number.POSITIVE_INFINITY)).toBe(DECO_STIFFNESS_DEFAULT)
+  })
+})
+
+describe('interpretDecoParamInput：数字输入的钳位与可见反馈', () => {
+  it('区间内的合法输入原样返回，不产生提示', () => {
+    expect(interpretDecoParamInput(60, DECO_LOGO_SIZE_PARAM)).toEqual({ value: 60, notice: null })
+    expect(interpretDecoParamInput(10, DECO_SEGMENTS_PARAM)).toEqual({ value: 10, notice: null })
+    expect(interpretDecoParamInput(0.95, DECO_DAMPING_PARAM)).toEqual({ value: 0.95, notice: null })
+  })
+
+  it('低于下限：夹回下限并说明合法区间', () => {
+    expect(interpretDecoParamInput(10, DECO_LOGO_SIZE_PARAM)).toEqual({
+      value: DECO_LOGO_SIZE_MIN,
+      notice: '站标尺寸已夹回 15–70 px：10 → 15',
+    })
+    expect(interpretDecoParamInput(104, DECO_LOGO_SIZE_PARAM)).toEqual({
+      value: DECO_LOGO_SIZE_MAX,
+      notice: '站标尺寸已夹回 15–70 px：104 → 70',
+    })
+  })
+
+  it('高于上限：夹回上限（节点数是放宽后的 30，阻尼是 1）', () => {
+    expect(interpretDecoParamInput(100, DECO_SEGMENTS_PARAM)).toEqual({
+      value: DECO_SEGMENTS_MAX,
+      notice: '链节点数已夹回 4–30 节：100 → 30',
+    })
+    expect(interpretDecoParamInput(1.2, DECO_DAMPING_PARAM)).toEqual({
+      value: DECO_DAMPING_MAX,
+      notice: '每步阻尼已夹回 0.9–1 无量纲：1.2 → 1',
+    })
+  })
+
+  it('空值 / 负数 / NaN / 超大都不崩，且有可见提示', () => {
+    expect(interpretDecoParamInput(null, DECO_LOGO_SIZE_PARAM)).toEqual({
+      value: DECO_LOGO_SIZE_DEFAULT,
+      notice: '站标尺寸不是有效数字，已恢复默认 48 px',
+    })
+    expect(interpretDecoParamInput(-5, DECO_LOGO_SIZE_PARAM)).toEqual({
+      value: DECO_LOGO_SIZE_DEFAULT,
+      notice: '站标尺寸的 -5 不是有效值，已恢复默认 48 px',
+    })
+    expect(interpretDecoParamInput(Number.NaN, DECO_SEGMENTS_PARAM)).toEqual({
+      value: DECO_SEGMENTS_DEFAULT,
+      notice: '链节点数不是有效数字，已恢复默认 10 节',
+    })
+    expect(interpretDecoParamInput(100000, DECO_LOGO_SIZE_PARAM)).toEqual({
+      value: DECO_LOGO_SIZE_MAX,
+      notice: '站标尺寸已夹回 15–70 px：100000 → 70',
+    })
+  })
+
+  it('区间内的小树按整数规则取整时也给出提示（不静默改数）', () => {
+    expect(interpretDecoParamInput(10.7, DECO_SEGMENTS_PARAM)).toEqual({
+      value: 11,
+      notice: '链节点数已取整为 11 节（输入 10.7）',
+    })
   })
 })
 

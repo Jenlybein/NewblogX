@@ -103,16 +103,6 @@ describe("读者站投影 site_info 与后端 SiteInfo 逐字段一致（真实�
     );
   });
 
-  it("index_right.list 的条目只声明后端 ComponentInfo 真有的字段（不再有 abstract）", () => {
-    const goKeys = goStructJSONKeys(goSource, "ComponentInfo");
-    const tsKeys = tsObjectKeys(tsSource, "list?: Array<{");
-
-    expect(goKeys.length).toBeGreaterThan(0);
-    expect(tsKeys.length).toBeGreaterThan(0);
-    expect(tsKeys.filter((key) => !goKeys.includes(key))).toEqual([]);
-    expect(tsKeys).not.toContain("abstract");
-  });
-
   it("article 投影覆盖「发布与展示」三个开关，且不出现后端没有的键（#64）", () => {
     const goKeys = goStructJSONKeys(goSource, "Article");
     const tsKeys = tsObjectKeys(tsSource, "article: {");
@@ -129,6 +119,28 @@ describe("读者站投影 site_info 与后端 SiteInfo 逐字段一致（真实�
         "show_non_admin_articles",
       ]),
     );
+  });
+});
+
+describe("旧右栏配置整条链已下线", () => {
+  it("Go 站点配置不再声明 ComponentInfo / IndexRight", () => {
+    expect(goSource).not.toContain("ComponentInfo");
+    expect(goSource).not.toContain("IndexRight");
+  });
+
+  it("读者站投影不再声明 index_right", () => {
+    expect(tsSource).not.toContain("index_right");
+  });
+
+  it("默认种子 YAML 不再补种 index_right", () => {
+    const seed = readFileSync(
+      join(repoRoot, "backend", "config", "site_default_settings.yaml"),
+      "utf8",
+    );
+
+    expect(seed).not.toContain("index_right");
+    expect(seed).not.toContain("site_notice");
+    expect(seed).not.toContain("recommended_authors");
   });
 });
 

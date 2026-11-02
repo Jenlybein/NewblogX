@@ -234,7 +234,6 @@ export interface SiteRuntimeConfig {
   }
   about: Record<string, string>
   login: SiteLoginRuntimeConfig
-  index_right: { list: unknown[] }
   article: {
     skip_examining: boolean
     /**

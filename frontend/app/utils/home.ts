@@ -1,106 +1,11 @@
-// 首页的纯逻辑（从模板里抽出来，便于单测）：右栏分区开关、标签/作者聚合、
-// 区块降级态、首屏指标与置顶条目视图。
+// 首页的纯逻辑（从模板里抽出来，便于单测）：区块降级态、首屏指标与置顶条目视图。
 //
 // 为什么抽出来：首页是"接口失败也得体面"的地方，五种降级态散在模板里最容易漏；
-// 置顶/最新/右栏三块的数据聚合也不依赖 DOM。模板只做渲染。
-import type { SearchArticleItem, SiteRuntimeConfig } from "~/types/api";
+// 置顶/最新两块的数据聚合也不依赖 DOM。模板只做渲染。
+//
+// 右栏的渲染模型在 `~/utils/sidebarCards`：卡片种类、顺序、标题、空数据隐藏
+// 都由后端卡片数据决定，本文件不再参与（旧的分区开关已随旧配置一起下线）。
 import { buildSearchLocation } from "~/utils/chrome";
-
-export interface HomeSidebarVisibility {
-  notice: boolean;
-  tags: boolean;
-  authors: boolean;
-}
-
-/**
- * 右栏三个模块的开关。`index_right.list` 为空时视为"全开"（旧行为）；
- * 有配置时按 title 精确匹配 `site_notice` / `hot_tags` / `recommended_authors`。
- */
-export function homeSidebarVisibility(runtimeConfig: SiteRuntimeConfig | null): HomeSidebarVisibility {
-  const modules = new Set(
-    (runtimeConfig?.index_right?.list || [])
-      .map((item) => String(item.title || "").trim())
-      .filter(Boolean),
-  );
-  const allEnabled = modules.size === 0;
-  return {
-    notice: allEnabled || modules.has("site_notice"),
-    tags: allEnabled || modules.has("hot_tags"),
-    authors: allEnabled || modules.has("recommended_authors"),
-  };
-}
-
-/**
- * 公告卡里展示的登录方式（只展示已启用的）。
- *
- * 读的是后端 `conf.Site.Login` 的**真实 json tag**（`qq_login` /
- * `username_pwd_login` / `email_login`）。这里曾按 `login.pwd` / `login.email` /
- * `login.qq` 读——那三个键后端从不发出，于是函数恒返回 `[]`、公告卡 chips
- * 在生产里永远不显示（#56）。
- */
-export function homeLoginModes(runtimeConfig: SiteRuntimeConfig | null): string[] {
-  const login = runtimeConfig?.login;
-  const modes: string[] = [];
-  if (login?.username_pwd_login) modes.push("密码登录");
-  if (login?.email_login) modes.push("邮箱登录");
-  if (login?.qq_login) modes.push("QQ 登录");
-  return modes;
-}
-
-export interface HomeTagSummary {
-  id: string;
-  title: string;
-  count: number;
-}
-
-/** 从最新文章列表里聚合热门标签：按出现次数降序，同频按 id 稳定排序。 */
-export function aggregateHotTags(articles: SearchArticleItem[], limit = 8): HomeTagSummary[] {
-  const tagMap = new Map<string, HomeTagSummary>();
-  for (const article of articles) {
-    for (const tag of article.tags || []) {
-      const current = tagMap.get(tag.id);
-      if (current) {
-        current.count += 1;
-      } else {
-        tagMap.set(tag.id, { id: tag.id, title: tag.title, count: 1 });
-      }
-    }
-  }
-  return [...tagMap.values()]
-    .sort((left, right) => right.count - left.count || left.id.localeCompare(right.id))
-    .slice(0, limit);
-}
-
-export interface HomeAuthorSummary {
-  id: string;
-  nickname: string;
-  avatar: string;
-  articleCount: number;
-  totalViews: number;
-}
-
-/** 从最新文章列表里聚合推荐作者：按文章数降序，其次按总阅读降序。 */
-export function aggregateRecommendedAuthors(articles: SearchArticleItem[], limit = 4): HomeAuthorSummary[] {
-  const authorMap = new Map<string, HomeAuthorSummary>();
-  for (const article of articles) {
-    const current = authorMap.get(article.author.id);
-    if (current) {
-      current.articleCount += 1;
-      current.totalViews += article.view_count;
-      continue;
-    }
-    authorMap.set(article.author.id, {
-      id: article.author.id,
-      nickname: article.author.nickname,
-      avatar: article.author.avatar,
-      articleCount: 1,
-      totalViews: article.view_count,
-    });
-  }
-  return [...authorMap.values()]
-    .sort((left, right) => right.articleCount - left.articleCount || right.totalViews - left.totalViews)
-    .slice(0, limit);
-}
 
 export type HomeSectionKind = "loading" | "error" | "empty" | "ready";
 

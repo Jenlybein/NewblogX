@@ -10,6 +10,11 @@ export default defineConfig({
     "import.meta.client": "true",
     "import.meta.server": "false",
   },
+  // 关掉 esbuild 的"逐文件找 tsconfig"：跨包用例会 import 读者站的纯函数
+  // （`frontend/app/utils/sidebarCards.ts`），而那个包在本包测试时并不保证
+  // 跑过 `nuxt prepare`，esbuild 会去解析它缺省的 `.nuxt/tsconfig.*.json` 并报 ENOENT。
+  // 这里只做语法转译，路径别名由下面的 resolve.alias 负责，不需要任何 tsconfig 选项。
+  esbuild: { tsconfigRaw: '{"compilerOptions":{}}' },
   resolve: {
     alias: {
       "~": appRoot,

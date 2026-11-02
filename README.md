@@ -1014,6 +1014,44 @@ docker compose ps                     # 确认 healthy
 
 数据库不需要单独迁移步骤。`-db` 执行的是 `schema.sql`，全部 `CREATE TABLE IF NOT EXISTS`，重复跑没有副作用——这也和项目的**零 DDL 硬约束**一致：口径是**零列变更 + 允许新增表**，**不会 ALTER 既有表**；[ADR-0020](docs/adr/0020-zero-ddl-exception-and-generic-framing-table.md) 授权的通用取景表 `picture_crop_models` 是首个登记例外（例外只到新建表）。
 
+#### 构建一定要先 `down`、再**串行**重建
+
+`docker compose build` 默认**并行**构建所有服务。这台机器（4 GB）同时跑 Go 构建 + 两个 Nuxt 构建会瞬间吃满内存，后果不是"构建失败"这么温和：
+
+- 内核 OOM 把机器拖进 swap 风暴，`sshd` 连 banner 都发不出来（**SSH 直接失联**），站点同时 502；
+- 极端情况整机**重启**，构建前功尽弃。
+
+所以这台机器上的发布顺序是：
+
+```bash
+cd /opt/blogx/deploy/compose/production
+set -a; . ./.env; set +a
+
+docker compose down                                    # 先释放容器占的内存
+docker compose build blogx_server                      # 一次只建一个
+docker compose build blogx_web
+docker compose build blogx_admin
+```
+
+`down` 只是停容器删网络，**卷不动**，数据安全；代价是这段时间站点不可用，属于计划内停机。
+
+#### 构建完必须让容器**重建**，否则跑的还是旧镜像
+
+容器在创建那一刻就固定了镜像 ID，`docker restart` / 宿主机重启 / `docker compose start` 都只会用**原来那个**镜像。镜像 tag 变了不等于容器变了。判断方法是比对两个 ID：
+
+```bash
+docker inspect -f '{{.Image}}' blogx-web            # 容器正在用的
+docker inspect -f '{{.Id}}'    blogx-web:production # tag 现在指向的
+```
+
+不一致就重建：
+
+```bash
+docker compose up -d --force-recreate blogx_web blogx_admin blogx_server
+```
+
+漏了这一步的症状很像"代码没生效"：容器健康检查报旧 bug、日志里是修复前的堆栈，而镜像明明已经重建过。
+
 ### 11.4.1 升级到带索引变更的版本：重建 ES + 全量回填
 
 ES 改不了既有字段的映射（ADR-0017 给文章文档加了 `author_is_admin`，删了 `admin_top` / `author_top` / `top`），只能**先删后建索引再回填**。

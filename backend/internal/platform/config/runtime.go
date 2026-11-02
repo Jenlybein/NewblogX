@@ -34,6 +34,7 @@ const (
 	SectionLog     = "log"
 	SectionUpload  = "upload"
 	SectionDeco    = "deco"
+	SectionImageGC = "image_gc"
 )
 
 // defaultSettingsFileName 是默认值文件名；与 settings.yaml 同目录。
@@ -49,6 +50,7 @@ type RuntimeConfig struct {
 	Log     conf.Logrus
 	Upload  conf.Upload
 	Deco    conf.Deco
+	ImageGC conf.ImageGC
 }
 
 // RuntimeConfigService 负责运行时配置的加载、缓存与更新。
@@ -174,6 +176,14 @@ func (s *RuntimeConfigService) GetRuntimeDeco() conf.Deco {
 	return s.GetRuntimeConfig().Deco
 }
 
+// GetRuntimeImageGC 返回孤儿图回收的运行配置。
+//
+// 用它的地方都必须"每次现读"（在扫描/任务里取，而不是启动时捕获）：
+// 冷静期与单次上限是运维随时会调的参数，改完不该要求重启。
+func (s *RuntimeConfigService) GetRuntimeImageGC() conf.ImageGC {
+	return s.GetRuntimeConfig().ImageGC
+}
+
 // snapshotLocked 返回缓存的一份副本；缓存为空时回退到默认值。
 //
 // 返回副本而不是指针：调用方拼装响应时可能改字段（例如把密钥换成占位符），
@@ -192,6 +202,7 @@ func (s *RuntimeConfigService) snapshotLocked() *RuntimeConfig {
 		Log:     s.defaults.Log,
 		Upload:  s.defaults.Upload,
 		Deco:    s.defaults.Deco,
+		ImageGC: s.defaults.ImageGC,
 	}
 }
 
@@ -254,6 +265,7 @@ func (s *RuntimeConfigService) decodeAll(payloads map[string]string) *RuntimeCon
 		Log:     decodeOrDefault(SectionLog, s.defaults.Log, payloads, s.logger),
 		Upload:  decodeOrDefault(SectionUpload, s.defaults.Upload, payloads, s.logger),
 		Deco:    decodeOrDefault(SectionDeco, s.defaults.Deco, payloads, s.logger),
+		ImageGC: decodeOrDefault(SectionImageGC, s.defaults.ImageGC, payloads, s.logger),
 	}
 }
 
@@ -307,6 +319,7 @@ func (s *RuntimeConfigService) seedMissing(tx *gorm.DB, payloads map[string]stri
 		{SectionLog, s.defaults.Log},
 		{SectionUpload, s.defaults.Upload},
 		{SectionDeco, s.defaults.Deco},
+		{SectionImageGC, s.defaults.ImageGC},
 	}
 	for _, seed := range seeds {
 		if _, ok := payloads[seed.name]; ok {
@@ -387,6 +400,11 @@ func (s *RuntimeConfigService) UpdateDeco(deco conf.Deco) error {
 	return updateSection(s, SectionDeco, deco)
 }
 
+// UpdateImageGC 覆盖孤儿图回收的运行配置并刷新缓存。
+func (s *RuntimeConfigService) UpdateImageGC(imageGC conf.ImageGC) error {
+	return updateSection(s, SectionImageGC, imageGC)
+}
+
 // updateSection 是各段更新的公共骨架：事务里 upsert 单行，提交后刷内存缓存。
 //
 // 泛型写成包级函数而不是方法：Go 的方法不能自带类型参数。
@@ -455,6 +473,8 @@ func (s *RuntimeConfigService) applySection(name string, value any) {
 		cfg.Upload = typed
 	case conf.Deco:
 		cfg.Deco = typed
+	case conf.ImageGC:
+		cfg.ImageGC = typed
 	default:
 		// 只有本包自己会调用 applySection，走到这里说明新增了段却忘了加分支。
 		if s.logger != nil {

@@ -7,7 +7,7 @@
 | 路径 | 内容 | 什么时候看 |
 | --- | --- | --- |
 | [`agents/`](./agents/) | 工程技能配置：issue tracker、triage 标签、domain docs 消费规则 | 换 issue 工具 / 改标签命名 / 接新技能时 |
-| [`adr/`](./adr/) | 19 条决策（ADR-0001–0019；0001–0009 后端架构、0010–0019 呈现层 / 前端行为 / 装饰层 / 渲染与性能策略） | **改规则或选型前先读**；冲突要显式指出 |
+| [`adr/`](./adr/) | 20 条决策（ADR-0001–0020；0001–0009 后端架构、0010–0019 呈现层 / 前端行为 / 装饰层 / 渲染与性能策略、0020 零 DDL 例外授权与通用取景表） | **改规则或选型前先读**；冲突要显式指出 |
 | [`architecture/`](./architecture/) | 现行架构与治理：overview / governance / contracts / configuration / ai-integration | 改代码前 |
 | [`notes/`](./notes/) | 带日期的过程记录与复盘；`notes/memory/` 是 agent 长期记忆 | 复盘同类故障、查项目上下文 |
 | [`archive/v1/`](./archive/v1/) | v1 归档原文（ADR 合集、基线与过程） | 只查历史，不再更新 |

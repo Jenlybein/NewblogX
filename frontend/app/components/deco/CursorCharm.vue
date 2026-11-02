@@ -55,7 +55,7 @@ const logoSize = computed(() => clampCharmLogoSize(Number(charmConfig.value?.log
 
 const { enabled, visible, tetherPath, logoCenter } = useCursorCharm({
   configEnabled: () => Boolean(charmConfig.value?.enable),
-  // 十个数值参数**原样**交出去（可能是 null / undefined）：唯一的兜底点是
+  // 十一个数值参数**原样**交出去（可能是 null / undefined）：唯一的兜底点是
   // `normalizeCharmRopeConfig` —— 组合式每次建链 / 读参数时都会跑它。
   // 组件层不再把 null 折成 NaN 或 0：那等于把兜底点复制到第二处，两处一旦
   // 分叉（漏一个字段、或有人改了一条规则）就又会退回"null 被读成 0"。

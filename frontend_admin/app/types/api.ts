@@ -357,8 +357,8 @@ export interface UploadRuntimeConfig {
 /**
  * 装饰配置（第 8 段 deco）。
  *
- * `charm` 下是一个总开关 + 十一个数值参数（站标尺寸、挂绳几何 / 物理、描边、
- * 静止轻晃、帧率上限与指针端偏移 X / Y）。
+ * `charm` 下是一个总开关 + 十二个数值参数（站标尺寸、挂绳几何 / 物理、约束刚度、
+ * 描边、静止轻晃、帧率上限与指针端偏移 X / Y）。
  * 段结构、路由与响应形状都不变（响应本来就是自由键值块）。
  */
 export interface DecoRuntimeConfig {
@@ -377,6 +377,8 @@ export interface DecoRuntimeConfig {
     gravity: number
     /** 每步速度保持系数，无量纲，合法区间 0.94–0.995。 */
     damping: number
+    /** 距离约束刚度，无量纲，合法区间 0.2–1；1 最硬，越小越弹。 */
+    stiffness: number
     /** 静止摆动频率，单位 Hz，合法区间 0–1.5；0 表示关掉轻晃。 */
     idle_sway_hz: number
     /** 静止摆动加速度幅度，单位 px/s²，合法区间 0–40；0 表示关掉轻晃（收敛后停帧）。 */

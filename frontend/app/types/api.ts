@@ -72,8 +72,8 @@ export type SiteAiInfo = RequiredSchema<"internal_site_adapter_http.AIResponse">
  *
  * 与 `SiteRuntimeConfig` 一样是手写的：契约里这条 data 是自由键值块，
  * 派生不出逐字段类型。按 `backend/conf/conf_deco.go` 对齐 ——
- * `charm` 下是总开关与十一个数值参数（站标尺寸 + 挂绳几何 / 物理 + 静止轻晃 +
- * 帧率上限 + 指针端偏移 X / Y）。
+ * `charm` 下是总开关与十二个数值参数（站标尺寸 + 挂绳几何 / 物理 + 约束刚度 +
+ * 静止轻晃 + 帧率上限 + 指针端偏移 X / Y）。
  *
  * 字段全都可选，数值字段还可能是 `null`（票 #77）：读者站不能假设某个后台
  * 版本一定发出了哪些键，运营"清空"字段时下发的是 `null`。两种都表示"这个键
@@ -94,6 +94,8 @@ export interface SiteDecoConfig {
     gravity?: number | null;
     /** 每步速度保持系数，无量纲，合法区间 0.94–0.995。 */
     damping?: number | null;
+    /** 距离约束刚度，无量纲，合法区间 0.2–1；1 最硬，越小越弹。 */
+    stiffness?: number | null;
     /** 静止摆动频率，Hz，合法区间 0–1.5；0 表示关掉轻晃。 */
     idle_sway_hz?: number | null;
     /** 静止摆动加速度幅度，px/s²，合法区间 0–40；0 表示关掉轻晃（收敛后停帧）。 */

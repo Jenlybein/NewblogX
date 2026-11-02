@@ -41,6 +41,9 @@ import {
   CHARM_SEGMENTS_DEFAULT,
   CHARM_SEGMENTS_MAX,
   CHARM_SEGMENTS_MIN,
+  CHARM_STIFFNESS_DEFAULT,
+  CHARM_STIFFNESS_MAX,
+  CHARM_STIFFNESS_MIN,
   CHARM_TAPER_RATIO,
   advanceCharmRope,
   charmIdleSwayEnabled,
@@ -61,6 +64,7 @@ import {
   clampCharmPointerOffsetY,
   clampCharmRopeLength,
   clampCharmSegments,
+  clampCharmStiffness,
   createCharmRope,
   normalizeCharmRopeConfig,
   type CharmPoint,
@@ -85,6 +89,7 @@ const ROPE: CharmRopeConfig = {
   segments: CHARM_SEGMENTS_DEFAULT,
   gravity: CHARM_GRAVITY_DEFAULT,
   damping: 0.99,
+  stiffness: CHARM_STIFFNESS_DEFAULT,
   lineWidthPx: CHARM_LINE_WIDTH_DEFAULT,
   idleSwayHz: 0,
   idleSwayAmp: 0,
@@ -147,6 +152,12 @@ describe("光标挂件的参数常量", () => {
     expect(CHARM_GRAVITY_MIN).toBe(400);
     expect(CHARM_GRAVITY_MAX).toBe(4000);
     expect(CHARM_GRAVITY_DEFAULT).toBe(1600);
+  });
+
+  it("刚度 0.2–1，默认 0.5；1 = 全量投影（刚杆手感），越低越弹", () => {
+    expect(CHARM_STIFFNESS_MIN).toBe(0.2);
+    expect(CHARM_STIFFNESS_MAX).toBe(1);
+    expect(CHARM_STIFFNESS_DEFAULT).toBe(0.5);
   });
 
   it("阻尼 0.94–0.995，默认 0.99；上限必须小于 1（否则越甩越大）", () => {
@@ -400,6 +411,7 @@ describe("normalizeCharmRopeConfig", () => {
       segments: CHARM_SEGMENTS_DEFAULT,
       gravity: CHARM_GRAVITY_DEFAULT,
       damping: 0.99,
+      stiffness: CHARM_STIFFNESS_DEFAULT,
       lineWidthPx: CHARM_LINE_WIDTH_DEFAULT,
       idleSwayHz: CHARM_IDLE_SWAY_HZ_DEFAULT,
       idleSwayAmp: CHARM_IDLE_SWAY_AMP_DEFAULT,
@@ -416,6 +428,7 @@ describe("normalizeCharmRopeConfig", () => {
         segments: 100,
         gravity: 100000,
         damping: 2,
+        stiffness: 2,
         lineWidthPx: 10,
         idleSwayHz: 9,
         idleSwayAmp: 0,
@@ -428,6 +441,7 @@ describe("normalizeCharmRopeConfig", () => {
       segments: CHARM_SEGMENTS_MAX,
       gravity: CHARM_GRAVITY_MAX,
       damping: 0.995,
+      stiffness: CHARM_STIFFNESS_MAX,
       lineWidthPx: CHARM_LINE_WIDTH_MAX,
       idleSwayHz: CHARM_IDLE_SWAY_HZ_MAX,
       idleSwayAmp: 0,
@@ -440,6 +454,7 @@ describe("normalizeCharmRopeConfig", () => {
       segments: CHARM_SEGMENTS_DEFAULT,
       gravity: CHARM_GRAVITY_DEFAULT,
       damping: 0.99,
+      stiffness: CHARM_STIFFNESS_DEFAULT,
       lineWidthPx: CHARM_LINE_WIDTH_DEFAULT,
       idleSwayHz: CHARM_IDLE_SWAY_HZ_DEFAULT,
       idleSwayAmp: CHARM_IDLE_SWAY_AMP_DEFAULT,
@@ -488,12 +503,13 @@ describe("票 #77：null 与 undefined 同义（都表示这个键没有值）",
     expect(normalized.pointerOffsetY).toBe(CHARM_POINTER_OFFSET_Y_DEFAULT);
   });
 
-  it("十个数值键全为 null 时与「整份配置缺失」完全一致", () => {
+  it("十一个数值键全为 null 时与「整份配置缺失」完全一致", () => {
     const allNull = normalizeCharmRopeConfig({
       ropeLengthPx: null,
       segments: null,
       gravity: null,
       damping: null,
+      stiffness: null,
       lineWidthPx: null,
       idleSwayHz: null,
       idleSwayAmp: null,
@@ -879,6 +895,7 @@ const CHARM_CLAMPS: Record<string, (value: number) => number> = {
   line_width: clampCharmLineWidth,
   gravity: clampCharmGravity,
   damping: clampCharmDamping,
+  stiffness: clampCharmStiffness,
   idle_sway_hz: clampCharmIdleSwayHz,
   idle_sway_amp: clampCharmIdleSwayAmp,
   fps_cap: clampCharmFpsCap,
@@ -887,7 +904,7 @@ const CHARM_CLAMPS: Record<string, (value: number) => number> = {
 };
 
 describe("共享归一化用例表：读者站与后端 / 后台同一组输入同一组输出", () => {
-  it("夹具真的读到了，且覆盖全部十一个数值参数", () => {
+  it("夹具真的读到了，且覆盖全部十二个数值参数", () => {
     const cases = loadNormalizationCases();
 
     expect(cases.length).toBeGreaterThan(40);
@@ -926,6 +943,7 @@ const TYPE_CONFIG_KEYS = {
   segments: true,
   gravity: true,
   damping: true,
+  stiffness: true,
   lineWidthPx: true,
   idleSwayHz: true,
   idleSwayAmp: true,
@@ -944,11 +962,11 @@ describe("参数清单一致性守卫：registry ↔ 类型字段 ↔ 归一化�
     expect(normalizedKeys, "归一化漏了某个参数（或凭空多出一个）").toEqual(typeKeys);
   });
 
-  it("registry 的 storeKey 唯一，且覆盖后端 deco.charm 的十个挂绳数值键", () => {
+  it("registry 的 storeKey 唯一，且覆盖后端 deco.charm 的十一个挂绳数值键", () => {
     const storeKeys = CHARM_CONFIG_FIELDS.map((field) => field.storeKey);
 
     expect(new Set(storeKeys).size, "registry 里出现重复的后端键").toBe(storeKeys.length);
-    // 十个挂绳参数 + logo_size（不在 registry 里，走自己的钳位）= 十一个后端数值键。
-    expect(new Set(storeKeys).size + 1, "后端 deco.charm 的数值键数量对不上").toBe(11);
+    // 十一个挂绳参数 + logo_size（不在 registry 里，走自己的钳位）= 十二个后端数值键。
+    expect(new Set(storeKeys).size + 1, "后端 deco.charm 的数值键数量对不上").toBe(12);
   });
 });

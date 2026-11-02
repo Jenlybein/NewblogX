@@ -38,6 +38,9 @@ import {
   DECO_SEGMENTS_DEFAULT,
   DECO_SEGMENTS_MAX,
   DECO_SEGMENTS_MIN,
+  DECO_STIFFNESS_DEFAULT,
+  DECO_STIFFNESS_MAX,
+  DECO_STIFFNESS_MIN,
   clampDecoDamping,
   clampDecoFpsCap,
   clampDecoGravity,
@@ -49,6 +52,7 @@ import {
   clampDecoPointerOffsetY,
   clampDecoRopeLength,
   clampDecoSegments,
+  clampDecoStiffness,
   defaultDecoConfig,
   normalizeDecoConfig,
 } from '~/utils/decoParams'
@@ -76,7 +80,7 @@ describe('装饰参数元数据', () => {
     expect(DECO_LOGO_SIZE_PARAM.hint.length).toBeGreaterThan(8)
   })
 
-  it('十一个数值参数的标签 / 单位 / 作用说明齐全，且单位与量纲对应', () => {
+  it('十二个数值参数的标签 / 单位 / 作用说明齐全，且单位与量纲对应', () => {
     const byKey = new Map(DECO_NUMBER_PARAMS.map((param) => [param.key, param]))
 
     expect(byKey.get('rope_length')?.label).toBe('挂绳长度')
@@ -89,6 +93,9 @@ describe('装饰参数元数据', () => {
     expect(byKey.get('gravity')?.unit).toBe('px/s²')
     expect(byKey.get('damping')?.label).toBe('每步阻尼')
     expect(byKey.get('damping')?.unit).toBe('无量纲')
+    // 刚度也是无量纲比例：1 最硬，越小越弹。
+    expect(byKey.get('stiffness')?.label).toBe('约束刚度')
+    expect(byKey.get('stiffness')?.unit).toBe('无量纲')
     expect(byKey.get('idle_sway_hz')?.label).toBe('静止摆动频率')
     expect(byKey.get('idle_sway_hz')?.unit).toBe('Hz')
     expect(byKey.get('idle_sway_amp')?.label).toBe('静止摆动幅度')
@@ -109,7 +116,7 @@ describe('装饰参数元数据', () => {
     }
   })
 
-  it('区间与默认值：24–96/48、40–240/120、4–24/10、1–6/2.5、400–4000/1600、0.94–0.995/0.99、0–1.5/0.8、0–40/20、30–160/60、-24–24/3', () => {
+  it('区间与默认值：24–96/48、40–240/120、4–24/10、1–6/2.5、400–4000/1600、0.94–0.995/0.99、0.2–1/0.5、0–1.5/0.8、0–40/20、30–160/60、-24–24/3', () => {
     // 这些数是跨端契约。本票不做一致性门禁（票 #43），所以在这里显式钉住：
     // 改一端就必须同时改另一端，否则这条断言会逼你想一次。
     expect(DECO_LOGO_SIZE_MIN).toBe(24)
@@ -138,6 +145,11 @@ describe('装饰参数元数据', () => {
     // 阻尼上限必须小于 1：等于或大于 1 会让摆动越甩越大。
     expect(DECO_DAMPING_MAX).toBeLessThan(1)
 
+    // 刚度上限恰好是 1（全量投影），下限 0.2（更软就久久回不到位）。
+    expect(DECO_STIFFNESS_MIN).toBe(0.2)
+    expect(DECO_STIFFNESS_MAX).toBe(1)
+    expect(DECO_STIFFNESS_DEFAULT).toBe(0.5)
+
     expect(DECO_IDLE_SWAY_HZ_MIN).toBe(0)
     expect(DECO_IDLE_SWAY_HZ_MAX).toBe(1.5)
     expect(DECO_IDLE_SWAY_HZ_DEFAULT).toBe(0.8)
@@ -164,7 +176,7 @@ describe('装饰参数元数据', () => {
     expect(DECO_POINTER_OFFSET_Y_MIN).toBeLessThan(0)
   })
 
-  it('参数清单就是表单要渲染的十一行（开关不是数值参数）', () => {
+  it('参数清单就是表单要渲染的十二行（开关不是数值参数）', () => {
     expect(DECO_NUMBER_PARAMS.map((param) => param.key)).toEqual([
       'logo_size',
       'rope_length',
@@ -172,6 +184,7 @@ describe('装饰参数元数据', () => {
       'line_width',
       'gravity',
       'damping',
+      'stiffness',
       'idle_sway_hz',
       'idle_sway_amp',
       'fps_cap',
@@ -188,6 +201,11 @@ describe('装饰参数元数据', () => {
       line_width: { min: DECO_LINE_WIDTH_MIN, max: DECO_LINE_WIDTH_MAX, defaultValue: DECO_LINE_WIDTH_DEFAULT },
       gravity: { min: DECO_GRAVITY_MIN, max: DECO_GRAVITY_MAX, defaultValue: DECO_GRAVITY_DEFAULT },
       damping: { min: DECO_DAMPING_MIN, max: DECO_DAMPING_MAX, defaultValue: DECO_DAMPING_DEFAULT },
+      stiffness: {
+        min: DECO_STIFFNESS_MIN,
+        max: DECO_STIFFNESS_MAX,
+        defaultValue: DECO_STIFFNESS_DEFAULT,
+      },
       idle_sway_hz: { min: DECO_IDLE_SWAY_HZ_MIN, max: DECO_IDLE_SWAY_HZ_MAX, defaultValue: DECO_IDLE_SWAY_HZ_DEFAULT },
       idle_sway_amp: { min: DECO_IDLE_SWAY_AMP_MIN, max: DECO_IDLE_SWAY_AMP_MAX, defaultValue: DECO_IDLE_SWAY_AMP_DEFAULT },
       fps_cap: { min: DECO_FPS_CAP_MIN, max: DECO_FPS_CAP_MAX, defaultValue: DECO_FPS_CAP_DEFAULT },
@@ -234,8 +252,9 @@ describe('装饰参数元数据', () => {
     expect(offsetY?.integer).toBe(true)
     expect(offsetY?.precision).toBe(0)
     expect(offsetY?.step).toBe(1)
-    // 其余参数允许小数（阻尼必须能填 0.97）。
+    // 其余参数允许小数（阻尼必须能填 0.97、刚度必须能填 0.55）。
     expect(DECO_NUMBER_PARAMS.find((param) => param.key === 'damping')?.integer).toBeFalsy()
+    expect(DECO_NUMBER_PARAMS.find((param) => param.key === 'stiffness')?.integer).toBeFalsy()
   })
 })
 
@@ -385,8 +404,20 @@ describe('clampDecoSegments', () => {
   })
 })
 
+describe('clampDecoStiffness', () => {
+  it('刚度：越界钳到 0.2/1，零与非法值回落 0.5（0 是缺省不是最软）', () => {
+    expect(clampDecoStiffness(0.5)).toBe(0.5)
+    expect(clampDecoStiffness(0.1)).toBe(DECO_STIFFNESS_MIN)
+    expect(clampDecoStiffness(2)).toBe(DECO_STIFFNESS_MAX)
+    expect(clampDecoStiffness(0)).toBe(DECO_STIFFNESS_DEFAULT)
+    expect(clampDecoStiffness(-0.1)).toBe(DECO_STIFFNESS_DEFAULT)
+    expect(clampDecoStiffness(Number.NaN)).toBe(DECO_STIFFNESS_DEFAULT)
+    expect(clampDecoStiffness(Number.POSITIVE_INFINITY)).toBe(DECO_STIFFNESS_DEFAULT)
+  })
+})
+
 describe('恢复默认（票 #42 验收项）', () => {
-  it('恰好是规范里的十二个默认值（开关 + 十一个数值）', () => {
+  it('恰好是规范里的十三个默认值（开关 + 十二个数值）', () => {
     expect(defaultDecoConfig()).toEqual({
       charm: {
         enable: true,
@@ -396,6 +427,7 @@ describe('恢复默认（票 #42 验收项）', () => {
         line_width: DECO_LINE_WIDTH_DEFAULT,
         gravity: DECO_GRAVITY_DEFAULT,
         damping: DECO_DAMPING_DEFAULT,
+        stiffness: DECO_STIFFNESS_DEFAULT,
         idle_sway_hz: DECO_IDLE_SWAY_HZ_DEFAULT,
         idle_sway_amp: DECO_IDLE_SWAY_AMP_DEFAULT,
         fps_cap: DECO_FPS_CAP_DEFAULT,
@@ -419,6 +451,8 @@ describe('恢复默认（票 #42 验收项）', () => {
     expect(defaults.gravity).toBeLessThanOrEqual(DECO_GRAVITY_MAX)
     expect(defaults.damping).toBeGreaterThanOrEqual(DECO_DAMPING_MIN)
     expect(defaults.damping).toBeLessThanOrEqual(DECO_DAMPING_MAX)
+    expect(defaults.stiffness).toBeGreaterThanOrEqual(DECO_STIFFNESS_MIN)
+    expect(defaults.stiffness).toBeLessThanOrEqual(DECO_STIFFNESS_MAX)
     expect(defaults.idle_sway_hz).toBeGreaterThanOrEqual(DECO_IDLE_SWAY_HZ_MIN)
     expect(defaults.idle_sway_hz).toBeLessThanOrEqual(DECO_IDLE_SWAY_HZ_MAX)
     expect(defaults.idle_sway_amp).toBeGreaterThanOrEqual(DECO_IDLE_SWAY_AMP_MIN)
@@ -435,11 +469,11 @@ describe('恢复默认（票 #42 验收项）', () => {
 })
 
 describe('normalizeDecoConfig', () => {
-  it('缺子块时补默认值（开关默认开、十一个数值都取默认）', () => {
+  it('缺子块时补默认值（开关默认开、十二个数值都取默认）', () => {
     expect(normalizeDecoConfig({} as never)).toEqual(defaultDecoConfig())
   })
 
-  it('保留管理员显式关掉的开关，同时钳住全部十一个数值', () => {
+  it('保留管理员显式关掉的开关，同时钳住全部十二个数值', () => {
     expect(
       normalizeDecoConfig({
         charm: {
@@ -450,6 +484,7 @@ describe('normalizeDecoConfig', () => {
           line_width: 9,
           gravity: 99999,
           damping: 2,
+          stiffness: 2,
           idle_sway_hz: 9,
           idle_sway_amp: 999,
           fps_cap: 999,
@@ -466,6 +501,7 @@ describe('normalizeDecoConfig', () => {
         line_width: DECO_LINE_WIDTH_MAX,
         gravity: DECO_GRAVITY_MAX,
         damping: DECO_DAMPING_MAX,
+        stiffness: DECO_STIFFNESS_MAX,
         idle_sway_hz: DECO_IDLE_SWAY_HZ_MAX,
         idle_sway_amp: DECO_IDLE_SWAY_AMP_MAX,
         fps_cap: DECO_FPS_CAP_MAX,
@@ -487,6 +523,7 @@ describe('normalizeDecoConfig', () => {
       line_width: DECO_LINE_WIDTH_DEFAULT,
       gravity: DECO_GRAVITY_DEFAULT,
       damping: DECO_DAMPING_DEFAULT,
+      stiffness: DECO_STIFFNESS_DEFAULT,
       idle_sway_hz: 0,
       idle_sway_amp: 0,
       fps_cap: DECO_FPS_CAP_DEFAULT,
@@ -558,7 +595,7 @@ describe('票 #77：null 与 undefined 同义（都表示这个键没有值）',
     expect(charm.pointer_offset_y).toBe(0)
   })
 
-  it('undefined 与 null 的结果逐字段一致（十一个数值项全 null）', () => {
+  it('undefined 与 null 的结果逐字段一致（十二个数值项全 null）', () => {
     const keys = DECO_NUMBER_PARAMS.map((param) => param.key)
     const withNull = normalizeDecoConfig({
       charm: Object.fromEntries(keys.map((key) => [key, null])),
@@ -606,6 +643,7 @@ const DECO_CLAMPS: Record<string, (value: number) => number> = {
   line_width: clampDecoLineWidth,
   gravity: clampDecoGravity,
   damping: clampDecoDamping,
+  stiffness: clampDecoStiffness,
   idle_sway_hz: clampDecoIdleSwayHz,
   idle_sway_amp: clampDecoIdleSwayAmp,
   fps_cap: clampDecoFpsCap,
@@ -614,7 +652,7 @@ const DECO_CLAMPS: Record<string, (value: number) => number> = {
 }
 
 describe('共享归一化用例表：后台与后端 / 读者站同一组输入同一组输出', () => {
-  it('夹具真的读到了，且覆盖全部十一个数值参数', () => {
+  it('夹具真的读到了，且覆盖全部十二个数值参数', () => {
     const cases = loadNormalizationCases()
 
     expect(cases.length).toBeGreaterThan(40)

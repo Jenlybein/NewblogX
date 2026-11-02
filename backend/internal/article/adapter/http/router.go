@@ -20,12 +20,14 @@ func (h *Handler) Register(r *gin.RouterGroup, authMw, optionalMw gin.HandlerFun
 		r = r.Group("", optionalMw)
 	}
 	group := r.Group("articles")
+	collectionGroup := r.Group("collections")
 	reviewGroup := r.Group("article-review")
 	reviewTaskGroup := r.Group("article-review-tasks")
 
 	authGroup := group.Group("", authMw)
 	adminGroup := authGroup.Group("", mw.AdminMiddleware)
 	reviewAdminGroup := reviewGroup.Group("", authMw, mw.AdminMiddleware)
+	collectionAdminGroup := collectionGroup.Group("", authMw, mw.AdminMiddleware)
 	reviewTaskAdminGroup := reviewTaskGroup.Group("", authMw, mw.AdminMiddleware)
 
 	// 公开读
@@ -41,6 +43,9 @@ func (h *Handler) Register(r *gin.RouterGroup, authMw, optionalMw gin.HandlerFun
 	group.GET("top", mw.BindQuery[ArticleTopListRequest], h.Tops)
 	// 热门置顶运营位（与上面的作者置顶是两套数据）。公开读：首页区块。
 	group.GET("hot-top", h.HotTops)
+	// 合集（读者侧只读：列表页 + 详情页）。
+	collectionGroup.GET("", mw.BindQuery[CollectionListRequest], h.Collections)
+	collectionGroup.GET(":id", mw.BindUri[kernel.IDRequest], h.CollectionDetail)
 	reviewAdminGroup.GET("", mw.BindQuery[ArticleReviewTaskListRequest], h.ReviewTasks)
 
 	// 登录用户写
@@ -68,6 +73,18 @@ func (h *Handler) Register(r *gin.RouterGroup, authMw, optionalMw gin.HandlerFun
 	adminGroup.DELETE(":id/admin/hot-top", mw.BindUri[kernel.IDRequest], h.RemoveHotTop)
 	adminGroup.PATCH("hot-top/order", mw.CaptureLog(mw.ReqBody),
 		mw.BindJson[ArticleHotTopOrderRequest], h.ReplaceHotTopOrder)
+	// 合集管理（全部在管理员分组下）。
+	collectionAdminGroup.GET("admin", h.AdminCollections)
+	collectionAdminGroup.POST("", mw.CaptureLog(mw.ReqBody), mw.BindJson[CollectionCreateRequest], h.CreateCollection)
+	collectionAdminGroup.PATCH(":id/display", mw.CaptureLog(mw.ReqBody),
+		mw.BindUri[kernel.IDRequest], mw.BindJson[CollectionDisplayRequest], h.SetCollectionDisplay)
+	collectionAdminGroup.POST(":id/articles", mw.CaptureLog(mw.ReqBody),
+		mw.BindUri[kernel.IDRequest], mw.BindJson[CollectionArticleRequest], h.IncludeCollectionArticle)
+	collectionAdminGroup.DELETE(":id/articles", mw.CaptureLog(mw.ReqBody),
+		mw.BindUri[kernel.IDRequest], mw.BindJson[CollectionArticleRequest], h.RemoveCollectionArticle)
+	collectionAdminGroup.PATCH(":id/articles/order", mw.CaptureLog(mw.ReqBody),
+		mw.BindUri[kernel.IDRequest], mw.BindJson[CollectionArticleOrderRequest], h.ReplaceCollectionOrder)
+
 	adminGroup.PUT("tags", mw.CaptureLog(mw.ReqBody), mw.BindJson[TagRequest], h.SaveTag)
 	adminGroup.DELETE("tags", mw.CaptureLog(mw.ReqBody), mw.BindJson[kernel.IDListRequest], h.DeleteTags)
 	reviewTaskAdminGroup.POST(":id/review", mw.CaptureLog(mw.ReqBody), mw.BindUri[kernel.IDRequest],

@@ -1080,6 +1080,173 @@
                 ],
                 "type": "object"
             },
+            "internal_article_adapter_http.CollectionAdminCard": {
+                "properties": {
+                    "article_count": {
+                        "type": "integer"
+                    },
+                    "cover": {
+                        "type": "string"
+                    },
+                    "description": {
+                        "type": "string"
+                    },
+                    "displayed": {
+                        "type": "boolean"
+                    },
+                    "id": {
+                        "type": "string"
+                    },
+                    "sort_order": {
+                        "type": "integer"
+                    },
+                    "title": {
+                        "type": "string"
+                    }
+                },
+                "type": "object"
+            },
+            "internal_article_adapter_http.CollectionArticleItemResponse": {
+                "properties": {
+                    "abstract": {
+                        "type": "string"
+                    },
+                    "article_id": {
+                        "type": "string"
+                    },
+                    "author_nickname": {
+                        "type": "string"
+                    },
+                    "category_title": {
+                        "type": "string"
+                    },
+                    "cover": {
+                        "type": "string"
+                    },
+                    "sort_order": {
+                        "type": "integer"
+                    },
+                    "title": {
+                        "type": "string"
+                    },
+                    "view_count": {
+                        "type": "integer"
+                    }
+                },
+                "type": "object"
+            },
+            "internal_article_adapter_http.CollectionArticleOrderRequest": {
+                "properties": {
+                    "article_ids": {
+                        "items": {
+                            "type": "string"
+                        },
+                        "type": "array",
+                        "uniqueItems": false
+                    }
+                },
+                "required": [
+                    "article_ids"
+                ],
+                "type": "object"
+            },
+            "internal_article_adapter_http.CollectionArticleRequest": {
+                "properties": {
+                    "article_id": {
+                        "type": "string"
+                    }
+                },
+                "required": [
+                    "article_id"
+                ],
+                "type": "object"
+            },
+            "internal_article_adapter_http.CollectionCardResponse": {
+                "properties": {
+                    "article_count": {
+                        "type": "integer"
+                    },
+                    "cover": {
+                        "type": "string"
+                    },
+                    "created_at": {
+                        "type": "string"
+                    },
+                    "description": {
+                        "type": "string"
+                    },
+                    "id": {
+                        "type": "string"
+                    },
+                    "title": {
+                        "type": "string"
+                    }
+                },
+                "type": "object"
+            },
+            "internal_article_adapter_http.CollectionCreateRequest": {
+                "properties": {
+                    "cover": {
+                        "type": "string"
+                    },
+                    "description": {
+                        "type": "string"
+                    },
+                    "displayed": {
+                        "type": "boolean"
+                    },
+                    "title": {
+                        "type": "string"
+                    }
+                },
+                "required": [
+                    "title"
+                ],
+                "type": "object"
+            },
+            "internal_article_adapter_http.CollectionCreatedResponse": {
+                "properties": {
+                    "id": {
+                        "type": "string"
+                    }
+                },
+                "type": "object"
+            },
+            "internal_article_adapter_http.CollectionDetailResponse": {
+                "properties": {
+                    "articles": {
+                        "items": {
+                            "$ref": "#/components/schemas/internal_article_adapter_http.CollectionArticleItemResponse"
+                        },
+                        "type": "array",
+                        "uniqueItems": false
+                    },
+                    "cover": {
+                        "type": "string"
+                    },
+                    "created_at": {
+                        "type": "string"
+                    },
+                    "description": {
+                        "type": "string"
+                    },
+                    "id": {
+                        "type": "string"
+                    },
+                    "title": {
+                        "type": "string"
+                    }
+                },
+                "type": "object"
+            },
+            "internal_article_adapter_http.CollectionDisplayRequest": {
+                "properties": {
+                    "displayed": {
+                        "type": "boolean"
+                    }
+                },
+                "type": "object"
+            },
             "internal_article_adapter_http.FavoriteArticleListItem": {
                 "properties": {
                     "abstract": {
@@ -3297,6 +3464,34 @@
                 },
                 "type": "object"
             },
+            "myblogx_internal_kernel.Envelope-internal_article_adapter_http_CollectionCreatedResponse": {
+                "properties": {
+                    "code": {
+                        "type": "integer"
+                    },
+                    "data": {
+                        "$ref": "#/components/schemas/internal_article_adapter_http.CollectionCreatedResponse"
+                    },
+                    "msg": {
+                        "type": "string"
+                    }
+                },
+                "type": "object"
+            },
+            "myblogx_internal_kernel.Envelope-internal_article_adapter_http_CollectionDetailResponse": {
+                "properties": {
+                    "code": {
+                        "type": "integer"
+                    },
+                    "data": {
+                        "$ref": "#/components/schemas/internal_article_adapter_http.CollectionDetailResponse"
+                    },
+                    "msg": {
+                        "type": "string"
+                    }
+                },
+                "type": "object"
+            },
             "myblogx_internal_kernel.Envelope-internal_auth_adapter_http_SendEmailResponse": {
                 "properties": {
                     "code": {
@@ -3885,6 +4080,34 @@
                 },
                 "type": "object"
             },
+            "myblogx_internal_kernel.Envelope-myblogx_internal_kernel_ListData-internal_article_adapter_http_CollectionAdminCard": {
+                "properties": {
+                    "code": {
+                        "type": "integer"
+                    },
+                    "data": {
+                        "$ref": "#/components/schemas/myblogx_internal_kernel.ListData-internal_article_adapter_http_CollectionAdminCard"
+                    },
+                    "msg": {
+                        "type": "string"
+                    }
+                },
+                "type": "object"
+            },
+            "myblogx_internal_kernel.Envelope-myblogx_internal_kernel_ListData-internal_article_adapter_http_CollectionCardResponse": {
+                "properties": {
+                    "code": {
+                        "type": "integer"
+                    },
+                    "data": {
+                        "$ref": "#/components/schemas/myblogx_internal_kernel.ListData-internal_article_adapter_http_CollectionCardResponse"
+                    },
+                    "msg": {
+                        "type": "string"
+                    }
+                },
+                "type": "object"
+            },
             "myblogx_internal_kernel.Envelope-myblogx_internal_kernel_ListData-internal_article_adapter_http_FavoriteListItem": {
                 "properties": {
                     "code": {
@@ -4385,6 +4608,36 @@
                     "list": {
                         "items": {
                             "$ref": "#/components/schemas/internal_article_adapter_http.CategoryListItem"
+                        },
+                        "type": "array",
+                        "uniqueItems": false
+                    }
+                },
+                "type": "object"
+            },
+            "myblogx_internal_kernel.ListData-internal_article_adapter_http_CollectionAdminCard": {
+                "properties": {
+                    "count": {
+                        "type": "integer"
+                    },
+                    "list": {
+                        "items": {
+                            "$ref": "#/components/schemas/internal_article_adapter_http.CollectionAdminCard"
+                        },
+                        "type": "array",
+                        "uniqueItems": false
+                    }
+                },
+                "type": "object"
+            },
+            "myblogx_internal_kernel.ListData-internal_article_adapter_http_CollectionCardResponse": {
+                "properties": {
+                    "count": {
+                        "type": "integer"
+                    },
+                    "list": {
+                        "items": {
+                            "$ref": "#/components/schemas/internal_article_adapter_http.CollectionCardResponse"
                         },
                         "type": "array",
                         "uniqueItems": false
@@ -6964,6 +7217,330 @@
                 "summary": "获取聊天 WebSocket 票据",
                 "tags": [
                     "chat"
+                ]
+            }
+        },
+        "/collections": {
+            "get": {
+                "parameters": [
+                    {
+                        "description": "页码",
+                        "in": "query",
+                        "name": "page",
+                        "schema": {
+                            "type": "integer"
+                        }
+                    },
+                    {
+                        "description": "每页数量",
+                        "in": "query",
+                        "name": "limit",
+                        "schema": {
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/myblogx_internal_kernel.Envelope-myblogx_internal_kernel_ListData-internal_article_adapter_http_CollectionCardResponse"
+                                }
+                            }
+                        },
+                        "description": "OK"
+                    }
+                },
+                "summary": "合集列表",
+                "tags": [
+                    "collection"
+                ]
+            },
+            "post": {
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/internal_article_adapter_http.CollectionCreateRequest",
+                                "summary": "body",
+                                "description": "请求体"
+                            }
+                        }
+                    },
+                    "description": "请求体",
+                    "required": true
+                },
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/myblogx_internal_kernel.Envelope-internal_article_adapter_http_CollectionCreatedResponse"
+                                }
+                            }
+                        },
+                        "description": "OK"
+                    }
+                },
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "summary": "新建合集",
+                "tags": [
+                    "collection"
+                ]
+            }
+        },
+        "/collections/admin": {
+            "get": {
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/myblogx_internal_kernel.Envelope-myblogx_internal_kernel_ListData-internal_article_adapter_http_CollectionAdminCard"
+                                }
+                            }
+                        },
+                        "description": "OK"
+                    }
+                },
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "summary": "后台合集列表（含未展示）",
+                "tags": [
+                    "collection"
+                ]
+            }
+        },
+        "/collections/{id}": {
+            "get": {
+                "parameters": [
+                    {
+                        "description": "合集 ID",
+                        "in": "path",
+                        "name": "id",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/myblogx_internal_kernel.Envelope-internal_article_adapter_http_CollectionDetailResponse"
+                                }
+                            }
+                        },
+                        "description": "OK"
+                    }
+                },
+                "summary": "合集详情",
+                "tags": [
+                    "collection"
+                ]
+            }
+        },
+        "/collections/{id}/articles": {
+            "delete": {
+                "parameters": [
+                    {
+                        "description": "合集 ID",
+                        "in": "path",
+                        "name": "id",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/internal_article_adapter_http.CollectionArticleRequest",
+                                "summary": "body",
+                                "description": "请求体"
+                            }
+                        }
+                    },
+                    "description": "请求体",
+                    "required": true
+                },
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/myblogx_internal_kernel.Envelope-myblogx_internal_kernel_EmptyData"
+                                }
+                            }
+                        },
+                        "description": "OK"
+                    }
+                },
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "summary": "从合集移除文章",
+                "tags": [
+                    "collection"
+                ]
+            },
+            "post": {
+                "parameters": [
+                    {
+                        "description": "合集 ID",
+                        "in": "path",
+                        "name": "id",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/internal_article_adapter_http.CollectionArticleRequest",
+                                "summary": "body",
+                                "description": "请求体"
+                            }
+                        }
+                    },
+                    "description": "请求体",
+                    "required": true
+                },
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/myblogx_internal_kernel.Envelope-myblogx_internal_kernel_EmptyData"
+                                }
+                            }
+                        },
+                        "description": "OK"
+                    }
+                },
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "summary": "收录文章进合集",
+                "tags": [
+                    "collection"
+                ]
+            }
+        },
+        "/collections/{id}/articles/order": {
+            "patch": {
+                "parameters": [
+                    {
+                        "description": "合集 ID",
+                        "in": "path",
+                        "name": "id",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/internal_article_adapter_http.CollectionArticleOrderRequest",
+                                "summary": "body",
+                                "description": "请求体"
+                            }
+                        }
+                    },
+                    "description": "请求体",
+                    "required": true
+                },
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/myblogx_internal_kernel.Envelope-myblogx_internal_kernel_EmptyData"
+                                }
+                            }
+                        },
+                        "description": "OK"
+                    }
+                },
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "summary": "合集内文章排序",
+                "tags": [
+                    "collection"
+                ]
+            }
+        },
+        "/collections/{id}/display": {
+            "patch": {
+                "parameters": [
+                    {
+                        "description": "合集 ID",
+                        "in": "path",
+                        "name": "id",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/internal_article_adapter_http.CollectionDisplayRequest",
+                                "summary": "body",
+                                "description": "请求体"
+                            }
+                        }
+                    },
+                    "description": "请求体",
+                    "required": true
+                },
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/myblogx_internal_kernel.Envelope-myblogx_internal_kernel_EmptyData"
+                                }
+                            }
+                        },
+                        "description": "OK"
+                    }
+                },
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "summary": "合集展示开关",
+                "tags": [
+                    "collection"
                 ]
             }
         },

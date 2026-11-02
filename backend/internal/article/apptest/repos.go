@@ -8,6 +8,7 @@ import (
 
 	"myblogx/internal/article/app"
 	"myblogx/internal/article/domain"
+	"myblogx/internal/article/domain/collection"
 	"myblogx/internal/article/domain/favorite"
 	"myblogx/internal/article/domain/hottop"
 	"myblogx/internal/article/domain/review"
@@ -38,25 +39,32 @@ type Repos struct {
 	comments     *Comments
 	users        *Users
 	diggs        *Diggs
+	collectionRepo *CollectionRepo
 }
 
 // NewRepos 构造一套全部为空的 fake 仓储。
+//
+// 合集 fake 需要文章 fake 的引用：合集详情的读模型要按文章**当前**的公开可见性
+// 过滤（失效行读者侧不渲染），这件事在内存里也得真的发生，否则用例层只能
+// 断言"过滤函数被调了"，而断言不了"读者看不到"。
 func NewRepos() *Repos {
+	articles := NewArticleRepo()
 	return &Repos{
-		articleRepo:  NewArticleRepo(),
-		categoryRepo: NewCategoryRepo(),
-		tagRepo:      NewTagRepo(),
-		favoriteRepo: NewFavoriteRepo(),
-		topRepo:      NewTopRepo(),
-		hotTopRepo:   NewHotTopRepo(),
-		historyRepo:  NewViewHistoryRepo(),
-		reviewRepo:   NewReviewRepo(),
-		authorStats:  NewAuthorStats(),
-		outbox:       NewOutbox(),
-		counters:     NewCounters(),
-		comments:     NewComments(),
-		users:        NewUsers(),
-		diggs:        NewDiggs(),
+		articleRepo:    articles,
+		categoryRepo:   NewCategoryRepo(),
+		tagRepo:        NewTagRepo(),
+		favoriteRepo:   NewFavoriteRepo(),
+		topRepo:        NewTopRepo(),
+		hotTopRepo:     NewHotTopRepo(),
+		historyRepo:    NewViewHistoryRepo(),
+		reviewRepo:     NewReviewRepo(),
+		authorStats:    NewAuthorStats(),
+		outbox:         NewOutbox(),
+		counters:       NewCounters(),
+		comments:       NewComments(),
+		users:          NewUsers(),
+		diggs:          NewDiggs(),
+		collectionRepo: NewCollectionRepo(articles),
 	}
 }
 
@@ -71,6 +79,9 @@ func (r *Repos) Users() app.UserPort { return r.users }
 
 // Diggs 返回点赞端口。
 func (r *Repos) Diggs() app.DiggPort { return r.diggs }
+
+// Collections 返回合集仓储。
+func (r *Repos) Collections() collection.Repository { return r.collectionRepo }
 
 // FakeCounters 返回计数 fake。
 func (r *Repos) FakeCounters() *Counters { return r.counters }
@@ -136,6 +147,9 @@ func (r *Repos) FakeTops() *TopRepo { return r.topRepo }
 // FakeHotTops 返回热门置顶仓储 fake。
 func (r *Repos) FakeHotTops() *HotTopRepo { return r.hotTopRepo }
 
+// FakeCollections 返回合集仓储 fake。
+func (r *Repos) FakeCollections() *CollectionRepo { return r.collectionRepo }
+
 // FakeHistory 返回浏览历史仓储 fake。
 func (r *Repos) FakeHistory() *ViewHistoryRepo { return r.historyRepo }
 
@@ -167,6 +181,7 @@ func (r *Repos) snapshotAll() map[string]any {
 		"counters":   r.counters.Snapshot(),
 		"comments":   r.comments.Snapshot(),
 		"diggs":      r.diggs.Snapshot(),
+		"collections": r.collectionRepo.Snapshot(),
 	}
 }
 
@@ -185,6 +200,7 @@ func (r *Repos) restoreAll(snaps map[string]any) {
 	r.counters.RestoreState(snaps["counters"])
 	r.comments.RestoreState(snaps["comments"])
 	r.diggs.RestoreState(snaps["diggs"])
+	r.collectionRepo.RestoreState(snaps["collections"])
 }
 
 // Tx 是 app.TxManager 的实现。
@@ -406,6 +422,17 @@ func (g *IDGen) NextReviewTaskID() uint64 {
 	return g.review
 }
 
+// NextCollectionID 返回下一个合集 ID。
+//
+// 与文章 ID 用同一个计数器：测试里"这一批 ID"只关心唯一且可复现，
+// 不关心跨类型的间距（生产用雪花，天然不撞）。
+func (g *IDGen) NextCollectionID() collection.ID {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	g.article++
+	return ctype.NewID(g.article)
+}
+
 // NextFolderID 返回下一个收藏夹 ID。
 func (g *IDGen) NextFolderID() favorite.ID {
 	g.mu.Lock()
@@ -413,3 +440,6 @@ func (g *IDGen) NextFolderID() favorite.ID {
 	g.folder++
 	return ctype.NewID(g.folder)
 }
+
+
+

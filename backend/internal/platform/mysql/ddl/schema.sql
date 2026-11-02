@@ -298,6 +298,37 @@ CREATE TABLE IF NOT EXISTS `chat_session_models` (
   CONSTRAINT `fk_chat_session_models_user_model` FOREIGN KEY (`user_id`) REFERENCES `user_models` (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
+CREATE TABLE IF NOT EXISTS `collection_article_models` (
+  `id` bigint unsigned NOT NULL,
+  `created_at` datetime(3) DEFAULT NULL,
+  `updated_at` datetime(3) DEFAULT NULL,
+  `deleted_at` datetime(3) DEFAULT NULL,
+  `collection_id` bigint unsigned NOT NULL,
+  `article_id` bigint unsigned NOT NULL,
+  `sort_order` bigint NOT NULL DEFAULT '0',
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uk_collection_article` (`collection_id`,`article_id`),
+  KEY `idx_collection_article_models_article_id` (`article_id`),
+  CONSTRAINT `fk_collection_article_models_collection_model` FOREIGN KEY (`collection_id`) REFERENCES `collection_models` (`id`),
+  CONSTRAINT `fk_collection_article_models_article_model` FOREIGN KEY (`article_id`) REFERENCES `article_models` (`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
+CREATE TABLE IF NOT EXISTS `collection_models` (
+  `id` bigint unsigned NOT NULL,
+  `created_at` datetime(3) DEFAULT NULL,
+  `updated_at` datetime(3) DEFAULT NULL,
+  `deleted_at` datetime(3) DEFAULT NULL,
+  `title` varchar(128) NOT NULL,
+  `description` varchar(512) NOT NULL,
+  `cover` longtext NOT NULL,
+  `is_display` tinyint(1) NOT NULL DEFAULT '1',
+  `sort_order` bigint NOT NULL DEFAULT '0',
+  `creator_id` bigint unsigned NOT NULL,
+  PRIMARY KEY (`id`),
+  KEY `idx_collection_models_is_display` (`is_display`),
+  KEY `idx_collection_models_creator_id` (`creator_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
 CREATE TABLE IF NOT EXISTS `comment_digg_models` (
   `id` bigint unsigned NOT NULL,
   `created_at` datetime(3) DEFAULT NULL,

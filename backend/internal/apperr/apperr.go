@@ -70,6 +70,28 @@ const (
 	CodeHotTopOrderMismatch Code = "hot_top.order_mismatch"
 )
 
+// 合集。
+//
+// 合集是「文章的有序集合」，虽然归在文章模块下，错误码仍自成一组：日志里要能
+// 分辨"合集编排错了"与"文章本身错了"，前端提示语也不同。
+const (
+	// CodeCollectionTitleRequired 合集标题为空。
+	CodeCollectionTitleRequired Code = "collection.title_required"
+	// CodeCollectionNotFound 合集不存在。
+	//
+	// 也覆盖"未展示，对读者不可见"：两种情形合并成一个码，读者侧不能靠
+	// 响应差异探测未发布的合集（与文章"不存在/无权"合并是同一条口径）。
+	CodeCollectionNotFound Code = "collection.not_found"
+	// CodeCollectionArticleDuplicated 同一合集内重复收录同一篇文章。
+	CodeCollectionArticleDuplicated Code = "collection.article_duplicated"
+	// CodeCollectionArticleNotIncludable 文章不是"已发布且可见"，不能收录。
+	CodeCollectionArticleNotIncludable Code = "collection.article_not_includable"
+	// CodeCollectionOrderMismatch 全集顺序替换的输入与当前收录集合不一致。
+	CodeCollectionOrderMismatch Code = "collection.order_mismatch"
+	// CodeCollectionArticleMissing 要移除的收录不存在（取消收录是幂等的，正常不会出现）。
+	CodeCollectionArticleMissing Code = "collection.article_missing"
+)
+
 // 审核任务。
 const (
 	CodeReviewTaskNotFound Code = "review.task_not_found"
@@ -339,6 +361,13 @@ var messages = map[Code]string{
 	CodeHotTopLimitExceeded: "热门置顶最多 12 条，请先取消一条再添加",
 	CodeHotTopNotPinnable:   "只有已发布且可见的文章可以设为热门置顶",
 	CodeHotTopOrderMismatch: "排序列表与当前热门置顶不一致，请刷新后重试",
+
+	CodeCollectionTitleRequired:        "合集标题不能为空",
+	CodeCollectionNotFound:             "合集不存在",
+	CodeCollectionArticleDuplicated:    "该文章已在合集中",
+	CodeCollectionArticleNotIncludable: "只有已发布且可见的文章可以收录进合集",
+	CodeCollectionOrderMismatch:        "排序列表与当前收录不一致，请刷新后重试",
+	CodeCollectionArticleMissing:       "该文章不在此合集中",
 
 	CodeReviewTaskNotFound: "审核任务不存在",
 	CodeReviewTaskHandled:  "审核任务已处理",

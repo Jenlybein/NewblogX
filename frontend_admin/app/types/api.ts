@@ -70,6 +70,29 @@ export type BannerWritePayload = Required<Schema<"internal_site_adapter_http.Ban
   crop: BannerCrop;
 };
 
+/** 管理端一张右栏卡片：含停用项，带服务端口径的顺序号。 */
+export type AdminSidebarCardItem = RequiredSchema<"internal_site_adapter_http.AdminSidebarCardItem">;
+
+/** 管理端卡片列表载荷（含停用项，按运营顺序）。 */
+export type AdminSidebarCardsResponseData = RequiredSchema<"internal_site_adapter_http.AdminSidebarCardsResponse">;
+
+/**
+ * 整表保存的请求体。
+ *
+ * 契约把单张卡的 `title` / `enabled` 标成可选，但后台每次保存都显式带全字段
+ * （清空标题时提交空串，由后端回退默认标题），所以这里收成必填。
+ * 契约里没有 `sort_order`：顺序由 `list` 的下标决定。
+ */
+export type SidebarCardsSavePayload = RequiredSchema<"internal_site_adapter_http.SidebarCardsSaveRequest">;
+
+/**
+ * 读者侧一张右栏卡片。
+ *
+ * 后台不消费读者接口，但拖动排序的验收要求把"后台顺序 → 读者渲染顺序"
+ * 放在同一条用例里验证；读者渲染纯函数按这个形状取数。
+ */
+export type SiteSidebarCardItem = RequiredSchema<"internal_site_adapter_http.SidebarCardItem">;
+
 /** 全局通知项。契约里的 `herf` 拼写错误字段前端从未使用，故以契约（`href`）为准。 */
 export type GlobalNotifListItem = RequiredSchema<"internal_notification_adapter_http.GlobalListResponse">;
 

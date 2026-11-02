@@ -126,14 +126,30 @@ describe("站点配置八域清单（路由与组件映射的唯一来源）", (
 });
 
 describe("站点配置八域菜单子项", () => {
-  it("「站点配置」是纯分组：没有自身页面，八个子项一条不少", () => {
+  // 站点配置下除了八个配置域，还挂着「右栏卡片」这个运营位管理页（#112 加的）。
+  // 它不是"配置域"，但确实是「站点配置」的子项，所以子项总数是 9。
+  const OPERATIONAL_CHILDREN = [{ label: "右栏卡片", path: "/site/sidebar-cards" }];
+
+  it("「站点配置」是纯分组：没有自身页面，八个配置域一个不少（另有 1 个运营位子项）", () => {
     const group = ADMIN_NAV_TREE.find((node) => node.label === "站点配置");
     expect(group).toBeDefined();
     // 父项只分组：它没有页面，所以不会跳空页。
     expect(group!.path).toBeUndefined();
-    expect(group!.children?.map(({ label, path }) => ({ label, path }))).toEqual(
+
+    // 八个配置域必须全在（顺序与 EXPECTED_SECTIONS 一致）。
+    const children = (group!.children ?? []).map(({ label, path }) => ({ label, path }));
+    const domainChildren = children.filter(
+      (child) => !OPERATIONAL_CHILDREN.some((extra) => extra.path === child.path),
+    );
+    expect(domainChildren).toEqual(
       EXPECTED_SECTIONS.map(({ label, path }) => ({ label, path })),
     );
+
+    // 运营位子项也在，且挂在同一个父分组下。
+    for (const extra of OPERATIONAL_CHILDREN) {
+      expect(children).toContainEqual(extra);
+    }
+    expect(children.length).toBe(EXPECTED_SECTIONS.length + OPERATIONAL_CHILDREN.length);
   });
 
   it("八个子项都能在菜单里查到，且父级归属正确", () => {
@@ -170,8 +186,15 @@ describe("站点配置八域菜单子项", () => {
 });
 
 describe("站点配置八域页面文件（刷新保持当前域）", () => {
-  it("app/pages/site 下恰好八个页面文件，每个域一个，旧的 tab 壳已消失", () => {
-    expect(sitePageFiles()).toEqual(EXPECTED_SECTIONS.map((section) => section.page).sort());
+  it("app/pages/site 下八个配置域各一个页面文件，且多一个「右栏卡片」运营位页面", () => {
+    // 八个配置域页面必须在。
+    const domainPages = EXPECTED_SECTIONS.map((section) => section.page).sort();
+    const actual = sitePageFiles();
+    expect(actual.filter((page) => domainPages.includes(page))).toEqual(domainPages);
+
+    // 「右栏卡片」是挂在站点配置下的运营位管理页（#112），不是配置域，但同样是页面文件。
+    expect(actual).toContain("site/sidebar-cards");
+    expect(actual.length).toBe(domainPages.length + 1);
   });
 
   it("每个路由都能解析到一个真实页面文件", () => {

@@ -1,8 +1,8 @@
 import type { SiteSidebarCardItem } from "~/types/api";
-// 同目录一律用**相对路径**而不是 `~/utils/*`：后台的用例会跨包 import 本文件
-// （`frontend_admin/test/unit/sidebarCardsAdmin.test.ts` 要对着读者站同一份纯函数
-// 断言"存下去的顺序 = 渲染出来的顺序"），而后台的 vitest 把 `~` 指到它自己的 app 根，
-// 读者站的 `~/utils/*` 在那儿解析不到。同目录相对路径在两边都成立。
+// 同目录一律用**相对路径**而不是 `~/utils/*`：后台会跨包 import 本文件——卡片管理页
+// 与预览区都对着读者站同一份纯函数（断言"存下去的顺序 = 渲染出来的顺序"），而后台的
+// vitest / tsconfig 把 `~` 指向后台自己的 app 根，读者站的 `~/utils/*` 在那儿解析不到。
+// 同目录相对路径在读者站与后台两边都成立。
 import { collectionHref } from "./collection";
 import { sanitizeRichTextHtml } from "./sanitizeHtml";
 

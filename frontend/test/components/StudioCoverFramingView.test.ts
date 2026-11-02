@@ -14,8 +14,6 @@ import StudioCoverFramingView from "~/components/studio/StudioCoverFramingView.v
  * 选择器用语义 class 与 aria-label，不断言内部 ref 名或私有结构。
  */
 
-const FRAME = { width: 800, height: 450 };
-
 function mountView(props: Record<string, unknown> = {}) {
   return mount(StudioCoverFramingView, {
     props: {

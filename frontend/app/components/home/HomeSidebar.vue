@@ -5,13 +5,11 @@ import { NSkeleton } from "naive-ui";
 import AppAvatar from "~/components/common/AppAvatar.vue";
 import type { SearchArticleItem, SiteRuntimeConfig, SiteSidebarCardItem } from "~/types/api";
 import { resolveAvatarUrl } from "~/utils/avatar";
-import { brandProjectTitle } from "~/utils/brand";
 import { useStaggerEntrance } from "~/composables/useStaggerEntrance";
 import { useSectionReveal } from "~/composables/useSectionReveal";
 import {
   aggregateHotTags,
   aggregateRecommendedAuthors,
-  homeLoginModes,
   homeSidebarVisibility,
 } from "~/utils/home";
 import { SIDEBAR_CARD_EYEBROWS, sidebarCardViews, tagCloudFontSize } from "~/utils/sidebarCards";
@@ -70,7 +68,6 @@ const sidebarStyle = computed<StyleValue>(() => {
 });
 
 const visibility = computed(() => homeSidebarVisibility(props.runtimeConfig));
-const loginModes = computed(() => homeLoginModes(props.runtimeConfig));
 const hotTags = computed(() => aggregateHotTags(props.articles, 8));
 const recommendedAuthors = computed(() => aggregateRecommendedAuthors(props.articles, 4));
 
@@ -81,15 +78,6 @@ const cardViews = computed(() =>
 // 回退看的是"有没有配置"，不是"有没有渲染出内容"：运营配了卡片但恰好都没数据时，
 // 旧右栏不能又冒出来 —— 那会让人以为新配置没生效。
 const hasConfiguredCards = computed(() => (props.sidebarCards?.length ?? 0) > 0);
-
-const projectTitle = computed(() =>
-  brandProjectTitle(props.runtimeConfig?.project?.title || props.runtimeConfig?.site_info?.title),
-);
-// 站点简介：后端 `site` 段里没有这一项 —— `SiteInfo` 只有 title/logo/beian，
-// `Project` 只有 title/icon/web_path。此前这里先挂 `project.abstract`、再挂
-// `site_info.subtitle`，两个后端都没有的字段，读出来永远为空，整条链在生产里
-// 恒等于这句默认值（#39 清掉了这两个死分支）。想让它可配置，得先在后端加字段。
-const projectAbstract = "为开发者写作、搜索与知识整理提供稳定的内容入口。";
 </script>
 
 <template>
@@ -195,20 +183,17 @@ const projectAbstract = "为开发者写作、搜索与知识整理提供稳定�
           </span>
         </NuxtLink>
       </div>
+      <!--
+        富文本卡：正文已在 `sidebarCardViews` 里清洗过，这里只负责渲染。
+        `v-html` 在这个文件里是唯一一处直接渲染 HTML 的地方 —— 只在 rich_text
+        分支出现，且拿的都是清洗后的字符串。
+      -->
+      <!-- eslint-disable-next-line vue/no-v-html -- 正文已在渲染模型里过白名单，此处只渲染清洗后的字符串 -->
+      <div v-else-if="card.kind === 'rich_text'" class="sidebar-rich-text" data-sidebar-rich-text v-html="card.contentHtml" />
     </section>
 
     <!-- 旧右栏（无卡片配置时回退；口径见 props.sidebarCards 的注释）。 -->
     <template v-if="!hasConfiguredCards">
-      <section v-if="visibility.notice" class="blueprint-panel" data-home-section="notice">
-        <div class="eyebrow">Notice</div>
-        <h2 class="section-title mt-2">站点公告</h2>
-        <p class="mt-3 text-sm leading-prose text-ink-muted">{{ projectAbstract }}</p>
-        <div class="mt-3 flex flex-wrap gap-2">
-          <span class="blueprint-chip">{{ projectTitle }}</span>
-          <span v-for="mode in loginModes" :key="mode" class="blueprint-chip">{{ mode }}</span>
-        </div>
-      </section>
-
       <section v-if="visibility.tags" class="blueprint-panel" data-home-section="tags">
         <div class="flex flex-wrap items-center justify-between gap-2">
           <div>
@@ -332,5 +317,96 @@ const projectAbstract = "为开发者写作、搜索与知识整理提供稳定�
 
 .sidebar-card-row:hover {
   color: var(--color-ink);
+}
+
+/* 富文本卡正文：只给基础排版一层紧凑样式，颜色/分隔线全部走语义 token。 */
+.sidebar-rich-text {
+  margin-top: 0.75rem;
+  color: var(--color-ink-muted);
+  font-size: 0.875rem;
+  line-height: 1.75;
+}
+
+.sidebar-rich-text :deep(> :first-child) {
+  margin-top: 0;
+}
+
+.sidebar-rich-text :deep(> :last-child) {
+  margin-bottom: 0;
+}
+
+.sidebar-rich-text :deep(h2),
+.sidebar-rich-text :deep(h3),
+.sidebar-rich-text :deep(h4) {
+  margin: 1rem 0 0.5rem;
+  color: var(--color-ink);
+  font-family: var(--font-display);
+  font-size: 1rem;
+  font-weight: 600;
+  line-height: 1.4;
+}
+
+.sidebar-rich-text :deep(p) {
+  margin: 0.5rem 0;
+}
+
+.sidebar-rich-text :deep(strong) {
+  color: var(--color-ink);
+  font-weight: 600;
+}
+
+.sidebar-rich-text :deep(em) {
+  font-style: italic;
+}
+
+.sidebar-rich-text :deep(ul),
+.sidebar-rich-text :deep(ol) {
+  margin: 0.5rem 0;
+  padding-left: 1.25rem;
+}
+
+.sidebar-rich-text :deep(ul) {
+  list-style: disc;
+}
+
+.sidebar-rich-text :deep(ol) {
+  list-style: decimal;
+}
+
+.sidebar-rich-text :deep(li) {
+  margin: 0.25rem 0;
+}
+
+.sidebar-rich-text :deep(blockquote) {
+  margin: 0.75rem 0;
+  border-left: 2px solid var(--color-line-faint);
+  padding-left: 0.75rem;
+  color: var(--color-ink-muted);
+}
+
+.sidebar-rich-text :deep(a) {
+  color: var(--color-accent);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.sidebar-rich-text :deep(code) {
+  font-family: var(--font-mono);
+  font-size: 0.8125rem;
+}
+
+.sidebar-rich-text :deep(pre) {
+  margin: 0.75rem 0;
+  overflow-x: auto;
+  border: 1px solid var(--color-line-faint);
+  border-radius: var(--radius-sm);
+  padding: 0.5rem 0.75rem;
+  background: var(--color-bg-subtle);
+}
+
+.sidebar-rich-text :deep(hr) {
+  margin: 1rem 0;
+  border: 0;
+  border-top: 1px solid var(--color-line-faint);
 }
 </style>

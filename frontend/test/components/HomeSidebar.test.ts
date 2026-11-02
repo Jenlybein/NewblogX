@@ -57,26 +57,27 @@ function mountSidebar(props: Record<string, unknown> = {}) {
   });
 }
 
-describe("HomeSidebar：右栏（公告 / 热门标签 / 推荐作者）", () => {
-  it("右栏三块分区都在，且不再有 AI 区块（入口已由右下角捏捏接管）", () => {
+describe("HomeSidebar：右栏（热门标签 / 推荐作者）", () => {
+  it("旧「站点公告」硬编码区已移除，标签与作者两块分区仍在（不再有 AI 区块）", () => {
     const wrapper = mountSidebar();
 
     expect(wrapper.attributes("data-home-sidebar")).toBeDefined();
-    expect(wrapper.find("[data-home-section='notice']").exists()).toBe(true);
+    // 公告不再由模板硬编码：它改成可在后台配置的富文本卡，这里没有配置时就不该出现。
+    expect(wrapper.find("[data-home-section='notice']").exists()).toBe(false);
     expect(wrapper.find("[data-home-section='tags']").exists()).toBe(true);
     expect(wrapper.find("[data-home-section='authors']").exists()).toBe(true);
     expect(wrapper.find("[data-home-section='ai-placeholder']").exists()).toBe(false);
     expect(wrapper.text()).not.toContain("打开对话框");
-    expect(wrapper.get("[data-home-section='notice']").text()).toContain("果冻盒");
-    expect(wrapper.get("[data-home-section='notice']").text()).toContain("密码登录");
+    // 旧公告卡里的占位简介与登录方式 chips 一起退场。
+    expect(wrapper.text()).not.toContain("为开发者写作、搜索与知识整理提供稳定的内容入口。");
+    expect(wrapper.text()).not.toContain("密码登录");
   });
 
-  it("模块开关：index_right 只开 hot_tags 时，公告与推荐作者不渲染", () => {
+  it("模块开关：index_right 只开 hot_tags 时，推荐作者不渲染", () => {
     const wrapper = mountSidebar({
       runtimeConfig: { ...runtimeConfig, index_right: { list: [{ title: "hot_tags" }] } },
     });
 
-    expect(wrapper.find("[data-home-section='notice']").exists()).toBe(false);
     expect(wrapper.find("[data-home-section='tags']").exists()).toBe(true);
     expect(wrapper.find("[data-home-section='authors']").exists()).toBe(false);
   });
@@ -113,42 +114,6 @@ describe("HomeSidebar：右栏（公告 / 热门标签 / 推荐作者）", () =>
 });
 
 /**
- * 公告卡的简介来自哪里（#39）。
- *
- * 后端 `site` 段里没有任何"站点简介"字段：`SiteInfo` 只有 title / logo / beian，
- * `Project` 只有 title / icon / web_path。所以简介只能是一句固定文案 —— 之前这条链
- * 先挂 `project.abstract`、再挂 `site_info.subtitle`，两者后端都没有，读出来永远是空，
- * 于是整条链在生产里恒等于最后那句默认值（两个死分支）。下面两条用例把"死字段不再被消费"
- * 钉住：即使有人从别处把这两段塞进运行时配置，公告卡也不该跟着变。
- */
-describe("HomeSidebar：公告卡简介（#39 死字段清理）", () => {
-  const DEFAULT_ABSTRACT = "为开发者写作、搜索与知识整理提供稳定的内容入口。";
-
-  it("配置里残留 site_info.subtitle 也不再被读：显示默认文案", () => {
-    // 去掉 project.abstract，否则它会盖住 subtitle，这条用例就变成"永远绿"的空断言。
-    const wrapper = mountSidebar({
-      runtimeConfig: {
-        ...runtimeConfig,
-        project: { title: "果冻盒" },
-        site_info: { title: "站点", subtitle: "旧副标题" },
-      },
-    });
-    const notice = wrapper.get("[data-home-section='notice']").text();
-
-    expect(notice).toContain(DEFAULT_ABSTRACT);
-    expect(notice).not.toContain("旧副标题");
-  });
-
-  it("project.abstract 也不再被读（后端 Project 没有该字段）：显示默认文案", () => {
-    // 基础 fixture 里就带着 project.abstract = "项目摘要"，正好当残留值用。
-    const notice = mountSidebar().get("[data-home-section='notice']").text();
-
-    expect(notice).toContain(DEFAULT_ABSTRACT);
-    expect(notice).not.toContain("项目摘要");
-  });
-});
-
-/**
  * 数据驱动卡片（#111）：读者站不再按模板写死"公告 / 热门标签 / 推荐作者"，
  * 而是按后端返回的卡片列表渲染 —— 顺序、标题、种类都来自接口，空数据的卡整块隐藏。
  */
@@ -166,6 +131,7 @@ describe("HomeSidebar：数据驱动卡片（#111）", () => {
       latest_comments: [],
       tags: [],
       collections: [],
+      content: "",
       ...overrides,
     };
   }
@@ -217,8 +183,7 @@ describe("HomeSidebar：数据驱动卡片（#111）", () => {
     expect(cards[1].text()).toContain("读者甲");
     expect(cards[2].text()).toContain("Go");
 
-    // 旧配置路径（公告/热门标签/推荐作者）在数据驱动模式下完全不渲染。
-    expect(wrapper.find("[data-home-section='notice']").exists()).toBe(false);
+    // 旧配置路径（热门标签/推荐作者）在数据驱动模式下完全不渲染。
     expect(wrapper.find("[data-home-section='tags']").exists()).toBe(false);
     expect(wrapper.find("[data-home-section='authors']").exists()).toBe(false);
   });
@@ -257,16 +222,14 @@ describe("HomeSidebar：数据驱动卡片（#111）", () => {
     });
 
     expect(wrapper.findAll("[data-sidebar-card]")).toHaveLength(0);
-    // 回退只看"有没有配置"：新配置生效中，旧三卡不该重新出现。
-    expect(wrapper.find("[data-home-section='notice']").exists()).toBe(false);
+    // 回退只看"有没有配置"：新配置生效中，旧卡片不该重新出现。
     expect(wrapper.find("[data-home-section='tags']").exists()).toBe(false);
     expect(wrapper.find("[data-home-section='authors']").exists()).toBe(false);
   });
 
-  it("没有卡片配置时回退到旧右栏（旧配置仍兼容、不报错）", () => {
+  it("没有卡片配置时回退到旧右栏（标签与作者仍兼容、不报错）", () => {
     const wrapper = mountSidebar({ sidebarCards: [] });
 
-    expect(wrapper.find("[data-home-section='notice']").exists()).toBe(true);
     expect(wrapper.find("[data-home-section='tags']").exists()).toBe(true);
     expect(wrapper.find("[data-home-section='authors']").exists()).toBe(true);
     expect(wrapper.findAll("[data-sidebar-card]")).toHaveLength(0);
@@ -331,6 +294,7 @@ describe("HomeSidebar：推荐合集卡", () => {
       latest_comments: [],
       tags: [],
       collections: [],
+      content: "",
       ...overrides,
     };
   }
@@ -391,6 +355,92 @@ describe("HomeSidebar：推荐合集卡", () => {
     });
 
     expect(wrapper.find("[data-sidebar-card='recommended_collections']").exists()).toBe(false);
+    expect(wrapper.findAll("[data-sidebar-card]")).toHaveLength(1);
+  });
+});
+
+/**
+ * 右栏富文本卡：运营在后台写的一段 HTML，读者站渲染前先过同一份白名单。
+ *
+ * 组件只负责把渲染模型里**已清洗**的 `contentHtml` 交给 `v-html`，
+ * 所以这里断言两件事：合法排版真的渲染出来了、恶意内容真的不在 DOM 里。
+ */
+describe("HomeSidebar：富文本卡", () => {
+  function richTextCard(content: string, title = "站点公告"): SiteSidebarCardItem {
+    return {
+      id: "card-rich-text",
+      kind: "rich_text",
+      title,
+      sort_order: 0,
+      hot_articles: [],
+      latest_comments: [],
+      tags: [],
+      collections: [],
+      content,
+    };
+  }
+
+  it("合法排版内容按 HTML 渲染：标题、粗体、列表、链接都在", () => {
+    const wrapper = mountSidebar({
+      sidebarCards: [
+        richTextCard(
+          '<h2>更新日志</h2><p>本周 <strong>重点</strong></p><ul><li>第一条</li></ul><p><a href="https://example.com/post">链接</a></p>',
+        ),
+      ],
+    });
+
+    const section = wrapper.get("[data-sidebar-card='rich_text']");
+    const body = section.get("[data-sidebar-rich-text]");
+    expect(section.get("[data-sidebar-card-title]").text()).toBe("站点公告");
+    expect(body.find("h2").text()).toBe("更新日志");
+    expect(body.find("strong").text()).toBe("重点");
+    expect(body.findAll("li")).toHaveLength(1);
+    expect(body.get("a").attributes("href")).toBe("https://example.com/post");
+  });
+
+  it("恶意内容不会进 DOM：script / onerror / javascript: / iframe 全部被剥离", () => {
+    const wrapper = mountSidebar({
+      sidebarCards: [
+        richTextCard(
+          [
+            "<p>正文</p>",
+            "<script>alert(1)</script>",
+            '<img src="https://cdn.example.com/a.png" onerror="alert(1)">',
+            '<a href="javascript:alert(1)">点我</a>',
+            '<iframe src="https://evil.example.com"></iframe>',
+          ].join(""),
+        ),
+      ],
+    });
+
+    const html = wrapper.get("[data-sidebar-card='rich_text']").html();
+    expect(html).toContain("正文");
+    expect(html).not.toContain("<script");
+    expect(html.toLowerCase()).not.toContain("onerror");
+    expect(html).not.toContain("javascript:");
+    expect(html).not.toContain("iframe");
+    expect(wrapper.findAll("[data-sidebar-card='rich_text'] script")).toHaveLength(0);
+  });
+
+  it("清洗后没有正文时整张卡不渲染（不留空盒子）", () => {
+    const wrapper = mountSidebar({
+      sidebarCards: [
+        richTextCard("<script>alert(1)</script>"),
+        {
+          id: "card-tag",
+          kind: "tag_cloud",
+          title: "标签云",
+          sort_order: 1,
+          hot_articles: [],
+          latest_comments: [],
+          tags: [{ id: "t1", title: "Go", article_count: 3 }],
+          collections: [],
+          content: "",
+        },
+      ],
+    });
+
+    expect(wrapper.find("[data-sidebar-card='rich_text']").exists()).toBe(false);
     expect(wrapper.findAll("[data-sidebar-card]")).toHaveLength(1);
   });
 });

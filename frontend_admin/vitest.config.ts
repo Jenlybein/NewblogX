@@ -3,6 +3,10 @@ import vue from "@vitejs/plugin-vue";
 import { defineConfig } from "vitest/config";
 
 const appRoot = fileURLToPath(new URL("./app", import.meta.url));
+// 跨包用例会 import 读者站的纯函数（`frontend/app/utils/sidebarCards.ts`）；
+// 那些文件内部按 `~/utils/*` 引用自己的邻居，在本包解析会落到后台的 app 目录。
+// 这里只给这几个跨包依赖补上读者站的真实路径，生产代码不改。
+const readerUtils = fileURLToPath(new URL("../frontend/app/utils", import.meta.url));
 
 export default defineConfig({
   plugins: [vue()],
@@ -16,10 +20,12 @@ export default defineConfig({
   // 这里只做语法转译，路径别名由下面的 resolve.alias 负责，不需要任何 tsconfig 选项。
   esbuild: { tsconfigRaw: '{"compilerOptions":{}}' },
   resolve: {
-    alias: {
-      "~": appRoot,
-      "@": appRoot,
-    },
+    alias: [
+      { find: "~/utils/collection", replacement: `${readerUtils}/collection.ts` },
+      { find: "~/utils/sanitizeHtml", replacement: `${readerUtils}/sanitizeHtml.ts` },
+      { find: "~", replacement: appRoot },
+      { find: "@", replacement: appRoot },
+    ],
   },
   test: {
     environment: "happy-dom",

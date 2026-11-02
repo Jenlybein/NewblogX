@@ -57,10 +57,12 @@ func MdToHTMLUnsafe(md string) string {
 	return getRawHTML(md)
 }
 
-// 过滤掉不安全的 HTML，如 <script>, <onerror> 等
-func MdToHTMLSafe(md string) string {
-	raw := getRawHTML(md)
-
+// newUserContentPolicy 造一份"用户内容"白名单（UGC 策略 + 站内放行项）。
+//
+// 这是全仓**唯一**一份用户可写 HTML 的白名单：文章正文（markdown 渲染后）与
+// 右栏富文本卡都从这里取。两处若各自抄一份 Allow/Block 清单，迟早一边补了
+// 另一边没补。需要更窄的档位时在本函数上收窄参数，不另起一份。
+func newUserContentPolicy() *bluemonday.Policy {
 	// 以 UGC 策略为基础（允许基本格式、链接等）
 	// UGC策略已经很严格，想再禁用一些标签则使用SkipElementsContent
 	p := bluemonday.UGCPolicy()
@@ -74,7 +76,25 @@ func MdToHTMLSafe(md string) string {
 	// 放行图片缩放（Typora 常用）
 	p.AllowStyles("zoom").Matching(reZoomValue).OnElements("img")
 
-	return p.Sanitize(raw)
+	return p
+}
+
+// 过滤掉不安全的 HTML，如 <script>, <onerror> 等
+func MdToHTMLSafe(md string) string {
+	raw := getRawHTML(md)
+	return newUserContentPolicy().Sanitize(raw)
+}
+
+// SanitizeRichTextHTML 清洗"后台直接写出的 HTML"（右栏富文本卡）。
+//
+// 与 MdToHTMLSafe 共用同一份白名单，区别只在入口：这里拿到的已经是 HTML，
+// 不再过 markdown 渲染器（否则运营写的 `<h2>` 会被当成源码文本转义）。
+// 脚本、内联事件、iframe 与 javascript:/data: 伪协议由 UGC 策略剥离。
+func SanitizeRichTextHTML(html string) string {
+	if strings.TrimSpace(html) == "" {
+		return ""
+	}
+	return newUserContentPolicy().Sanitize(html)
 }
 
 // Markdown 内容过滤，确保安全合规

@@ -506,6 +506,23 @@ CREATE TABLE IF NOT EXISTS `sidebar_card_models` (
   KEY `idx_sidebar_card_models_sort_order` (`sort_order`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
+-- 右栏富文本卡的正文：一张卡最多一行。
+--
+-- 与 sidebar_card_models 拆表而不是给它加列：零 DDL 的口径是"零列变更 +
+-- 允许新增表"（见 ADR-0020），正文是 longtext，塞进卡片表会让那张窄行变宽，
+-- 也会让"配置快照整表替换"的语义变成两截。两张表总是一起替换，不存在
+-- 正文挂在已删卡片上的窗口。
+CREATE TABLE IF NOT EXISTS `sidebar_card_body_models` (
+  `id` bigint unsigned NOT NULL,
+  `created_at` datetime(3) DEFAULT NULL,
+  `updated_at` datetime(3) DEFAULT NULL,
+  `deleted_at` datetime(3) DEFAULT NULL,
+  `card_id` bigint unsigned DEFAULT NULL,
+  `body` longtext,
+  PRIMARY KEY (`id`),
+  KEY `idx_sidebar_card_body_models_card_id` (`card_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
 CREATE TABLE IF NOT EXISTS `tag_models` (
   `id` bigint unsigned NOT NULL,
   `created_at` datetime(3) DEFAULT NULL,

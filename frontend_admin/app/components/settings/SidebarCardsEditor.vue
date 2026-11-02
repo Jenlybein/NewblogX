@@ -8,8 +8,6 @@
  *
  * 纯函数都在 `~/utils/sidebarCardsAdmin`：组件不自己推导顺序、标题回退与数量上限，
  * 保证后台表单与后端整表保存的校验口径只有一处。
- *
- * 右侧预览直接消费同一份 `drafts`（见 `SidebarCardsPreview`），未保存的改动即时可见。
  */
 import { computed, onMounted, ref } from 'vue'
 import {
@@ -23,6 +21,8 @@ import {
   useMessage,
 } from 'naive-ui'
 import { getAdminSidebarCards, updateAdminSidebarCards } from '~/services/admin'
+import SidebarRichTextEditor from '~/components/settings/SidebarRichTextEditor.vue'
+import SidebarCardsPreview from '~/components/settings/SidebarCardsPreview.vue'
 import {
   SIDEBAR_CARD_KIND_OPTIONS,
   SIDEBAR_CARD_MAX_COUNT,
@@ -36,9 +36,9 @@ import {
   sidebarCardKindLabel,
   toSidebarCardsSavePayload,
   toggleSidebarCardDraft,
+  updateSidebarCardContent,
 } from '~/utils/sidebarCardsAdmin'
 import type { SidebarCardDraft, SidebarCardKind } from '~/utils/sidebarCardsAdmin'
-import SidebarCardsPreview from '~/components/settings/SidebarCardsPreview.vue'
 
 const message = useMessage()
 const loading = ref(false)
@@ -74,6 +74,10 @@ function removeCard(key: string) {
 
 function renameCard(key: string, title: string) {
   drafts.value = renameSidebarCardDraft(drafts.value, key, title)
+}
+
+function changeContent(key: string, content: string) {
+  drafts.value = updateSidebarCardContent(drafts.value, key, content)
 }
 
 function toggleCard(key: string, enabled: boolean) {
@@ -136,97 +140,104 @@ async function save() {
 </script>
 
 <template>
-  <div class="sidebar-cards-layout" data-role="sidebar-cards-editor">
-    <div class="space-y-4">
-      <NAlert type="info" :bordered="false">
-        右栏卡片按这里的顺序在读者站首页渲染；停用的卡保留配置但读者侧不展示。
-        调整顺序（拖动卡片，或用上移 / 下移）后点「保存右栏卡片」整表生效。
-      </NAlert>
+  <div class="space-y-4" data-role="sidebar-cards-editor">
+    <NAlert type="info" :bordered="false">
+      右栏卡片按这里的顺序在读者站首页渲染；停用的卡保留配置但读者侧不展示。
+      调整顺序（拖动卡片，或用上移 / 下移）后点「保存右栏卡片」整表生效。
+    </NAlert>
 
-      <NSpace align="center" :size="12">
-        <NSelect
-          v-model:value="newKind"
-          :options="SIDEBAR_CARD_KIND_OPTIONS"
-          class="w-44"
-          aria-label="新卡种类"
-          data-role="kind-select" />
-        <NButton
-          type="primary"
-          :disabled="drafts.length >= SIDEBAR_CARD_MAX_COUNT"
-          data-role="add"
-          @click="addCard">新增卡片</NButton>
-        <NButton
-          type="primary"
-          :loading="saving"
-          :disabled="loading"
-          data-role="save"
-          @click="save">保存右栏卡片</NButton>
-        <span class="admin-hint">{{ drafts.length }} / {{ SIDEBAR_CARD_MAX_COUNT }} 张</span>
-      </NSpace>
+    <NSpace align="center" :size="12">
+      <NSelect
+        v-model:value="newKind"
+        :options="SIDEBAR_CARD_KIND_OPTIONS"
+        class="w-44"
+        aria-label="新卡种类"
+        data-role="kind-select" />
+      <NButton
+        type="primary"
+        :disabled="drafts.length >= SIDEBAR_CARD_MAX_COUNT"
+        data-role="add"
+        @click="addCard">新增卡片</NButton>
+      <NButton
+        type="primary"
+        :loading="saving"
+        :disabled="loading"
+        data-role="save"
+        @click="save">保存右栏卡片</NButton>
+      <span class="admin-hint">{{ drafts.length }} / {{ SIDEBAR_CARD_MAX_COUNT }} 张</span>
+    </NSpace>
 
-      <NAlert v-if="errors.length > 0" type="error" :bordered="false" data-role="errors">
-        <ul class="list-disc pl-4">
-          <li v-for="error in errors" :key="error">{{ error }}</li>
-        </ul>
-      </NAlert>
-
-      <div v-if="drafts.length === 0" class="admin-hint" data-role="empty">
-        还没有卡片，先新增一张。
-      </div>
-
-      <ul class="space-y-2">
-        <li
-          v-for="(draft, index) in drafts"
-          :key="draft.key"
-          data-card-row
-          :data-key="draft.key"
-          :data-kind="draft.kind"
-          :data-enabled="draft.enabled ? 'true' : 'false'"
-          :data-index="index"
-          draggable="true"
-          class="admin-card flex flex-wrap items-center gap-3 px-3 py-2"
-          :class="{ 'opacity-60': !draft.enabled }"
-          @dragstart="onDragStart(index, $event)"
-          @dragover.prevent
-          @drop.prevent="onDrop(index)"
-          @dragend="onDragEnd">
-          <span class="cursor-grab select-none" aria-hidden="true" data-role="drag-handle">⠿</span>
-          <span class="w-6 text-center text-xs" data-role="sort-order">{{ index + 1 }}</span>
-          <NTag size="small" :bordered="false">{{ sidebarCardKindLabel(draft.kind) }}</NTag>
-          <NInput
-            class="min-w-48 flex-1"
-            :value="draft.title"
-            :placeholder="placeholderOf(draft)"
-            aria-label="卡片标题"
-            data-role="title"
-            @update:value="value => renameCard(draft.key, value)" />
-          <span v-if="!draft.enabled" class="text-xs" data-role="disabled-hint">读者侧不展示</span>
-          <NSpace :size="8" align="center">
-            <NSwitch
-              :value="draft.enabled"
-              aria-label="启用这张卡"
-              data-role="enabled"
-              @update:value="value => toggleCard(draft.key, value)" />
-            <NButton
-              size="small"
-              :disabled="!canMoveUp(index)"
-              data-role="move-up"
-              @click="moveCard(index, index - 1)">上移</NButton>
-            <NButton
-              size="small"
-              :disabled="!canMoveDown(index)"
-              data-role="move-down"
-              @click="moveCard(index, index + 1)">下移</NButton>
-            <NButton
-              size="small"
-              type="error"
-              quaternary
-              data-role="remove"
-              @click="removeCard(draft.key)">删除</NButton>
-          </NSpace>
-        </li>
+    <NAlert v-if="errors.length > 0" type="error" :bordered="false" data-role="errors">
+      <ul class="list-disc pl-4">
+        <li v-for="error in errors" :key="error">{{ error }}</li>
       </ul>
+    </NAlert>
+
+    <div v-if="drafts.length === 0" class="admin-hint" data-role="empty">
+      还没有卡片，先新增一张。
     </div>
+
+    <ul class="space-y-2">
+      <li
+        v-for="(draft, index) in drafts"
+        :key="draft.key"
+        data-card-row
+        :data-key="draft.key"
+        :data-kind="draft.kind"
+        :data-enabled="draft.enabled ? 'true' : 'false'"
+        :data-index="index"
+        draggable="true"
+        class="admin-card flex flex-wrap items-center gap-3 px-3 py-2"
+        :class="{ 'opacity-60': !draft.enabled }"
+        @dragstart="onDragStart(index, $event)"
+        @dragover.prevent
+        @drop.prevent="onDrop(index)"
+        @dragend="onDragEnd">
+        <span class="cursor-grab select-none" aria-hidden="true" data-role="drag-handle">⠿</span>
+        <span class="w-6 text-center text-xs" data-role="sort-order">{{ index + 1 }}</span>
+        <NTag size="small" :bordered="false">{{ sidebarCardKindLabel(draft.kind) }}</NTag>
+        <NInput
+          class="min-w-48 flex-1"
+          :value="draft.title"
+          :placeholder="placeholderOf(draft)"
+          aria-label="卡片标题"
+          data-role="title"
+          @update:value="value => renameCard(draft.key, value)" />
+        <!--
+          富文本卡：标题之外再给一块正文编辑区。工具栏只提供基础排版，
+          没有脚本 / iframe / 内联事件入口；正文随整表保存一起提交。
+        -->
+        <div v-if="draft.kind === 'rich_text'" class="w-full" data-role="rich-text-field">
+          <SidebarRichTextEditor
+            :model-value="draft.content"
+            @update:model-value="value => changeContent(draft.key, value)" />
+        </div>
+        <span v-if="!draft.enabled" class="text-xs" data-role="disabled-hint">读者侧不展示</span>
+        <NSpace :size="8" align="center">
+          <NSwitch
+            :value="draft.enabled"
+            aria-label="启用这张卡"
+            data-role="enabled"
+            @update:value="value => toggleCard(draft.key, value)" />
+          <NButton
+            size="small"
+            :disabled="!canMoveUp(index)"
+            data-role="move-up"
+            @click="moveCard(index, index - 1)">上移</NButton>
+          <NButton
+            size="small"
+            :disabled="!canMoveDown(index)"
+            data-role="move-down"
+            @click="moveCard(index, index + 1)">下移</NButton>
+          <NButton
+            size="small"
+            type="error"
+            quaternary
+            data-role="remove"
+            @click="removeCard(draft.key)">删除</NButton>
+        </NSpace>
+      </li>
+    </ul>
 
     <aside class="sidebar-preview-column" data-role="sidebar-preview-column">
       <div class="preview-caption">
@@ -240,34 +251,3 @@ async function save() {
     </aside>
   </div>
 </template>
-
-<style scoped>
-/* 编辑器与预览并排；预览宽度自己固定，这里只决定它放在哪一列。 */
-.sidebar-cards-layout {
-  display: grid;
-  gap: 1.5rem;
-}
-
-@media (min-width: 1280px) {
-  .sidebar-cards-layout {
-    grid-template-columns: minmax(0, 1fr) auto;
-    align-items: start;
-  }
-}
-
-.sidebar-preview-column {
-  display: flex;
-  min-width: 0;
-  flex-direction: column;
-  gap: 0.75rem;
-}
-
-.preview-caption {
-  max-width: 100%;
-}
-
-.preview-caption .admin-hint {
-  margin: 0;
-  line-height: 1.6;
-}
-</style>

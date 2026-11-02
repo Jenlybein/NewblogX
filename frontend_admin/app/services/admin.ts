@@ -18,6 +18,7 @@ import type {
   CollectionAdminItem,
   CollectionBatchIncludeResponse,
   CollectionCreatePayload,
+  CollectionStaleCleanupResult,
   CollectionUpdatePayload,
   DecoRuntimeConfig,
   GlobalNotifListItem,
@@ -193,7 +194,10 @@ export function setCollectionDisplay(id: string, displayed: boolean) {
 /**
  * 后台收录行：含失效行。
  *
- * 全集换序必须提交**完整**集合，所以这里不能读读者详情（它只给仍公开的文章）。
+ * 与读者详情不同，这里**不隐藏失效文章**，`stale` / `stale_reason` 由后端用与
+ * 「热门置顶」共用的领域判定算好，前端只做展示与清理。
+ *
+ * 全集换序必须提交**完整**集合，所以不能读读者详情（它只给仍公开的文章）。
  */
 export function getAdminCollectionItems(id: string) {
   return api().request<ListData<CollectionAdminItem>>(`/collections/${id}/articles/admin`)
@@ -212,6 +216,13 @@ export function removeCollectionArticle(id: string, articleId: string) {
   return api().request<unknown, { article_id: string }>(`/collections/${id}/articles`, {
     method: 'DELETE',
     body: { article_id: articleId },
+  })
+}
+
+/** 一键清理合集里的全部失效行（幂等；返回本次删掉的条数）。 */
+export function cleanupCollectionStale(id: string) {
+  return api().request<CollectionStaleCleanupResult>(`/collections/${id}/admin/stale`, {
+    method: 'DELETE',
   })
 }
 

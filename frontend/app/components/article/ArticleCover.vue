@@ -1,23 +1,30 @@
 <script setup lang="ts">
 import { computed, ref, watch } from "vue";
 import { BRAND } from "~/utils/brand";
+import { framingStyle } from "~/utils/coverFraming";
+import type { ArticleCrop } from "~/types/api";
 
 const props = withDefaults(
   defineProps<{
     src?: string | null;
     title?: string | null;
     label?: string;
+    /** 封面取景参数：没有记录（或没传）时按居中、缩放 1 渲染。 */
+    crop?: ArticleCrop | null;
   }>(),
   {
     src: "",
     title: "文章封面",
     label: BRAND.name.en,
+    crop: null,
   },
 );
 
 const imageFailed = ref(false);
 const normalizedSrc = computed(() => props.src?.trim() || "");
 const showImage = computed(() => Boolean(normalizedSrc.value) && !imageFailed.value);
+/** 与工作室取景窗、线上详情页同一个样式出口（相对百分比 + scale）。 */
+const coverStyle = computed(() => framingStyle(props.crop));
 
 watch(normalizedSrc, () => {
   imageFailed.value = false;
@@ -33,6 +40,7 @@ watch(normalizedSrc, () => {
     width="424"
     height="304"
     loading="lazy"
+    :style="coverStyle"
     @error="imageFailed = true"
   />
   <div v-else class="article-cover-default" role="img" :aria-label="`${title || '文章'}暂无封面`">

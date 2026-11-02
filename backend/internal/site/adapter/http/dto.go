@@ -149,6 +149,8 @@ type SidebarCardItem struct {
 	Tags []SidebarTagItem `json:"tags"`
 	// 推荐合集卡的数据（只含展示中的合集，顺序即合集自己的顺序）。
 	Collections []SidebarCollectionItem `json:"collections"`
+	// 富文本卡的正文（已清洗的 HTML 片段；其它种类恒为空串）。
+	Content string `json:"content"`
 }
 
 // SidebarArticleItem 是热门文章卡的条目。
@@ -200,6 +202,8 @@ type AdminSidebarCardItem struct {
 	Title     string `json:"title"`
 	SortOrder int    `json:"sort_order"`
 	Enabled   bool   `json:"enabled"`
+	// Content 是富文本卡的正文（后台编辑器回填用；其它种类为空串）。
+	Content string `json:"content"`
 }
 
 // AdminSidebarCardsResponse 是管理端卡片列表的 data 载荷。
@@ -214,6 +218,8 @@ type SidebarCardSaveItem struct {
 	Kind    string `json:"kind" binding:"required"`
 	Title   string `json:"title"`
 	Enabled bool   `json:"enabled"`
+	// Content 只对富文本卡生效；保存时会先过白名单清洗，其它种类一律丢弃。
+	Content string `json:"content"`
 }
 
 // SidebarCardsSaveRequest 是整表保存的请求体。

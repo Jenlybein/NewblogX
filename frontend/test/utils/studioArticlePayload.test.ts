@@ -93,4 +93,26 @@ describe("buildStudioArticlePayload", () => {
     expect(buildStudioArticlePayload(form(), { status: 1, isEditMode: false, coverDirty: false }).status).toBe(1);
     expect(buildStudioArticlePayload(form(), { status: 2, isEditMode: false, coverDirty: false }).status).toBe(2);
   });
+
+  it("本轮确认过取景时带上 crop（焦点 + 缩放原样透传）", () => {
+    const payload = buildStudioArticlePayload(form({ cover_image_id: "img-1" }), {
+      status: 2,
+      isEditMode: true,
+      coverDirty: true,
+      crop: { focus_x: 0.2, focus_y: 0.8, zoom: 1.5 },
+    });
+
+    expect(payload.crop).toEqual({ focus_x: 0.2, focus_y: 0.8, zoom: 1.5 });
+  });
+
+  it("没确认取景时不传 crop（表示保留已存的取景，而不是清空）", () => {
+    const payload = buildStudioArticlePayload(form({ cover_image_id: "img-1" }), {
+      status: 1,
+      isEditMode: true,
+      coverDirty: false,
+      crop: null,
+    });
+
+    expect("crop" in payload).toBe(false);
+  });
 });

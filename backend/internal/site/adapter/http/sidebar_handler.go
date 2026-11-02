@@ -85,6 +85,7 @@ func (h *Handler) UpdateSidebarCards(c *gin.Context) {
 			Kind:    domain.SidebarCardKind(item.Kind),
 			Title:   item.Title,
 			Enabled: item.Enabled,
+			Content: item.Content,
 		})
 	}
 	if err := h.sidebar.ReplaceCards(c.Request.Context(), inputs); err != nil {
@@ -111,6 +112,7 @@ func toSidebarCardItem(view app.SidebarCardView) SidebarCardItem {
 		LatestComments: make([]SidebarCommentItem, 0, len(view.LatestComments)),
 		Tags:           make([]SidebarTagItem, 0, len(view.Tags)),
 		Collections:    make([]SidebarCollectionItem, 0, len(view.Collections)),
+		Content:        view.Content,
 	}
 	for _, row := range view.HotArticles {
 		item.HotArticles = append(item.HotArticles, SidebarArticleItem{
@@ -157,6 +159,7 @@ func toAdminSidebarCardItem(row domain.SidebarCard) AdminSidebarCardItem {
 		Title:     row.Title,
 		SortOrder: row.SortOrder,
 		Enabled:   row.Enabled,
+		Content:   row.Content,
 	}
 }
 

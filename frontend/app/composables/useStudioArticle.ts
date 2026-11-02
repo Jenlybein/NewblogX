@@ -116,8 +116,10 @@ export async function useStudioArticle(deps: StudioArticleDeps) {
   const coverImageSize = ref<Size | null>(null);
   /** 本地预览地址（取景窗前与上传在途都用它，所见即这张图）。 */
   const coverFramingPreviewUrl = ref("");
-  /** 取景参数：本票只用于预览，不随文章载荷落库。 */
+  /** 取景参数：随文章载荷落到通用取景表；预览与线上渲染共用同一份。 */
   const coverFraming = ref<Framing | null>(null);
+  /** 本轮是否确认过取景：只有 true 才把 crop 写进载荷（否则等于"保留已存的取景"）。 */
+  const coverCropDirty = ref(false);
   /** 取景窗是否打开（不合规时自动打开，也可手动调整）。 */
   const coverFramingOpen = ref(false);
 
@@ -253,6 +255,8 @@ export async function useStudioArticle(deps: StudioArticleDeps) {
       coverDirty.value = false;
       // 回填的旧封面只有 URL、没有原图尺寸：不显示合规徽标，也不假装取过景。
       resetCoverPickerState();
+      // 已有取景照样要按它预览：作者看到的就是读者看到的构图。
+      coverFraming.value = article.crop ? clampFraming(article.crop) : null;
       form.comments_toggle = article.comments_toggle ?? true;
       form.visibility_status = article.visibility_status === "user_hidden" ? "user_hidden" : "visible";
       form.category_id = article.category_id ?? null;
@@ -307,6 +311,7 @@ export async function useStudioArticle(deps: StudioArticleDeps) {
     coverPendingFile.value = null;
     coverImageSize.value = null;
     coverFraming.value = null;
+    coverCropDirty.value = false;
     coverFramingOpen.value = false;
   }
 
@@ -355,6 +360,7 @@ export async function useStudioArticle(deps: StudioArticleDeps) {
     coverPendingFile.value = null;
     coverImageSize.value = null;
     coverFraming.value = null;
+    coverCropDirty.value = false;
     coverError.value = "";
     message.info("已取消取景，本次上传未开始：没有产生图片，也没有产生文章封面");
   }
@@ -372,6 +378,7 @@ export async function useStudioArticle(deps: StudioArticleDeps) {
     const uploaded = await uploadSelectedCover(file);
     if (uploaded) {
       coverFraming.value = safe;
+      coverCropDirty.value = true;
       coverUploadStage.value = "封面上传完成";
     }
   }
@@ -417,7 +424,13 @@ export async function useStudioArticle(deps: StudioArticleDeps) {
   }
 
   function buildArticlePayload(status: 1 | 2) {
-    return buildStudioArticlePayload(form, { status, isEditMode: isEditMode.value, coverDirty: coverDirty.value });
+    return buildStudioArticlePayload(form, {
+      status,
+      isEditMode: isEditMode.value,
+      coverDirty: coverDirty.value,
+      // 只有本轮确认过取景才带上：不传表示保留已存取景。
+      crop: coverCropDirty.value ? coverFraming.value : null,
+    });
   }
 
   /**

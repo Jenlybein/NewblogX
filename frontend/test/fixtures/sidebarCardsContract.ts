@@ -120,6 +120,7 @@ export const SIDEBAR_CARDS_RENDER_CONTRACT = {
         { id: "t3", title: "部署", articleCount: 1, weight: 0.1 },
       ],
       collections: [],
+      contentHtml: "",
     },
     {
       key: "card-latest-comments",
@@ -139,6 +140,7 @@ export const SIDEBAR_CARDS_RENDER_CONTRACT = {
       ],
       tags: [],
       collections: [],
+      contentHtml: "",
     },
     {
       key: "card-hot-articles",
@@ -152,6 +154,7 @@ export const SIDEBAR_CARDS_RENDER_CONTRACT = {
       comments: [],
       tags: [],
       collections: [],
+      contentHtml: "",
     },
     {
       key: "card-collections",
@@ -179,6 +182,7 @@ export const SIDEBAR_CARDS_RENDER_CONTRACT = {
           countLabel: "暂无文章",
         },
       ],
+      contentHtml: "",
     },
   ],
 };

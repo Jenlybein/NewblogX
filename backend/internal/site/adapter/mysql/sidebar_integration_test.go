@@ -99,4 +99,24 @@ func TestSidebarRepoOrderingAndReplace(t *testing.T) {
 	if got[0].ID.IsZero() || got[1].ID.IsZero() {
 		t.Fatalf("替换应生成主键: %+v", got)
 	}
+
+	// 富文本正文落在 sidebar_card_body_models（卡片表零列变更），
+	// 读侧按 card_id 回填；整表替换时正文跟着卡片一起换。
+	err = repo.Replace(context.Background(), []domain.SidebarCard{
+		{Kind: domain.CardKindRichText, Title: "公告", SortOrder: 0, Enabled: true,
+			Content: "<h2>更新日志</h2><p>本周 <strong>重点</strong></p>"},
+	})
+	if err != nil {
+		t.Fatalf("写入富文本卡失败: %v", err)
+	}
+	got, err = repo.ListEnabled(context.Background())
+	if err != nil {
+		t.Fatalf("读取富文本卡失败: %v", err)
+	}
+	if len(got) != 1 || got[0].Kind != domain.CardKindRichText {
+		t.Fatalf("应只剩一张富文本卡: %+v", got)
+	}
+	if got[0].Content != "<h2>更新日志</h2><p>本周 <strong>重点</strong></p>" {
+		t.Fatalf("富文本正文应原样回读: %q", got[0].Content)
+	}
 }

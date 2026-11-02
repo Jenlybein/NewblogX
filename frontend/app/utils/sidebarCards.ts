@@ -1,11 +1,10 @@
 import type { SiteSidebarCardItem } from "~/types/api";
-// 这里刻意用同目录**相对路径**：后台会跨包 import 本模块——卡片管理页的用例对着
-// 读者站同一份纯函数断言"存下去的顺序 = 渲染出来的顺序"，预览区也直接调它。
-// 而后台的 vitest / tsconfig 把 `~` 指向后台自己的 app，`~/utils/collection` 在那里
-// 解析不到（不存在同名文件）。其余 `~/types/api` 是 type-only import，编译期被抹掉，
-// 不参与后台的运行时解析，所以只有真正要用到的这里改成相对路径。同目录相对路径
-// 在读者站与后台两边都成立。
+// 同目录一律用**相对路径**而不是 `~/utils/*`：后台会跨包 import 本文件——卡片管理页
+// 与预览区都对着读者站同一份纯函数（断言"存下去的顺序 = 渲染出来的顺序"），而后台的
+// vitest / tsconfig 把 `~` 指向后台自己的 app 根，读者站的 `~/utils/*` 在那儿解析不到。
+// 同目录相对路径在读者站与后台两边都成立。
 import { collectionHref } from "./collection";
+import { sanitizeRichTextHtml } from "./sanitizeHtml";
 
 /**
  * 右栏数据驱动渲染的纯函数层（票 111）。
@@ -28,6 +27,7 @@ export const SIDEBAR_CARD_KINDS = [
   "latest_comments",
   "tag_cloud",
   "recommended_collections",
+  "rich_text",
 ] as const;
 
 /** 内置卡片种类。 */
@@ -39,6 +39,7 @@ export const SIDEBAR_CARD_DEFAULT_TITLES: Record<SidebarCardKind, string> = {
   latest_comments: "最新评论",
   tag_cloud: "标签云",
   recommended_collections: "推荐合集",
+  rich_text: "公告",
 };
 
 /** 卡片领域的 eyebrow 小标（纯展示，不参与契约）。 */
@@ -47,6 +48,7 @@ export const SIDEBAR_CARD_EYEBROWS: Record<SidebarCardKind, string> = {
   latest_comments: "Comments",
   tag_cloud: "Tags",
   recommended_collections: "Collections",
+  rich_text: "Notice",
 };
 
 /** 热门文章卡的展示项。 */
@@ -101,6 +103,12 @@ export interface SidebarCardView {
   comments: SidebarCommentView[];
   tags: SidebarTagView[];
   collections: SidebarCollectionView[];
+  /**
+   * 富文本卡的正文：**已清洗**、可直接交给 `v-html` 的 HTML。
+   *
+   * 非富文本卡一律是空串 —— 模板按种类分派，别的卡不会读到这段。
+   */
+  contentHtml: string;
 }
 
 /**
@@ -232,6 +240,10 @@ export function sidebarCardViews(
         kind === "recommended_collections"
           ? (card.collections || []).map((row) => sidebarCollectionView(row))
           : [],
+      // 富文本卡的内容在渲染前清洗：读者站是唯一把这段 HTML 交给浏览器的位置，
+      // 组件只拿到清洗后的结果，不碰原始字符串。
+      contentHtml:
+        kind === "rich_text" ? sanitizeRichTextHtml(String(card.content || "")) : "",
     };
 
     if (kind === "tag_cloud") {
@@ -250,8 +262,10 @@ export function sidebarCardViews(
 
     // 空数据的卡整块隐藏：卡片配置还在（后台可见），只是读者侧不渲染。
     // 推荐合集卡同理 —— 没有展示中的合集时，右栏不出现一张空盒子。
+    // 富文本卡以清洗后的正文为空（只剩空白或被剥掉的标签）时同样整张隐藏。
     const hasData =
-      view.articles.length + view.comments.length + view.tags.length + view.collections.length > 0;
+      view.articles.length + view.comments.length + view.tags.length + view.collections.length > 0 ||
+      view.contentHtml.length > 0;
     if (!hasData) {
       return;
     }

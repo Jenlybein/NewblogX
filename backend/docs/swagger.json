@@ -556,6 +556,10 @@
                     "cover_image_id": {
                         "type": "string"
                     },
+                    "crop": {
+                        "$ref": "#/components/schemas/internal_article_adapter_http.ArticleCrop",
+                        "description": "Crop 是封面的可选取景参数：不传 = 缺省（居中、缩放 1）。"
+                    },
                     "status": {
                         "enum": [
                             1,
@@ -624,6 +628,20 @@
                 },
                 "type": "object"
             },
+            "internal_article_adapter_http.ArticleCrop": {
+                "properties": {
+                    "focus_x": {
+                        "type": "number"
+                    },
+                    "focus_y": {
+                        "type": "number"
+                    },
+                    "zoom": {
+                        "type": "number"
+                    }
+                },
+                "type": "object"
+            },
             "internal_article_adapter_http.ArticleDetailResponse": {
                 "properties": {
                     "abstract": {
@@ -673,6 +691,10 @@
                     },
                     "created_at": {
                         "type": "string"
+                    },
+                    "crop": {
+                        "$ref": "#/components/schemas/internal_article_adapter_http.ArticleCrop",
+                        "description": "Crop 总是有值：没有取景记录的存量文章回传缺省（居中、缩放 1）。"
                     },
                     "digg_count": {
                         "type": "integer"
@@ -957,6 +979,10 @@
                     "cover_image_id": {
                         "type": "string"
                     },
+                    "crop": {
+                        "$ref": "#/components/schemas/internal_article_adapter_http.ArticleCrop",
+                        "description": "Crop 不传 = 保留已存的取景；传了才覆盖。与创建语义不同，别写混：\n更新时不传若被当成\"清空\"，改一个标题就会静默抹掉作者调好的构图。"
+                    },
                     "status": {
                         "enum": [
                             1,
@@ -1122,7 +1148,12 @@
                         "type": "integer"
                     },
                     "stale": {
+                        "description": "Stale 文章是否已失效（被删 / 退回草稿 / 不再可见）。判定与热门置顶共用。",
                         "type": "boolean"
+                    },
+                    "stale_reason": {
+                        "description": "StaleReason 失效原因枚举；仍有效时为空串。枚举值由后端 domain 定义，\n前端只做文案映射，不据此另判一次失效。",
+                        "type": "string"
                     },
                     "title": {
                         "type": "string"
@@ -1331,6 +1362,14 @@
                 "required": [
                     "collection_ids"
                 ],
+                "type": "object"
+            },
+            "internal_article_adapter_http.CollectionStaleCleanupResponse": {
+                "properties": {
+                    "removed": {
+                        "type": "integer"
+                    }
+                },
                 "type": "object"
             },
             "internal_article_adapter_http.CollectionUpdateRequest": {
@@ -2194,6 +2233,10 @@
             },
             "internal_site_adapter_http.AdminSidebarCardItem": {
                 "properties": {
+                    "content": {
+                        "description": "Content 是富文本卡的正文（后台编辑器回填用；其它种类为空串）。",
+                        "type": "string"
+                    },
                     "enabled": {
                         "type": "boolean"
                     },
@@ -2391,6 +2434,10 @@
                         "type": "array",
                         "uniqueItems": false
                     },
+                    "content": {
+                        "description": "富文本卡的正文（已清洗的 HTML 片段；其它种类恒为空串）。",
+                        "type": "string"
+                    },
                     "hot_articles": {
                         "description": "热门文章卡的数据。",
                         "items": {
@@ -2432,6 +2479,10 @@
             },
             "internal_site_adapter_http.SidebarCardSaveItem": {
                 "properties": {
+                    "content": {
+                        "description": "Content 只对富文本卡生效；保存时会先过白名单清洗，其它种类一律丢弃。",
+                        "type": "string"
+                    },
                     "enabled": {
                         "type": "boolean"
                     },
@@ -3812,6 +3863,20 @@
                     },
                     "data": {
                         "$ref": "#/components/schemas/internal_article_adapter_http.CollectionDetailResponse"
+                    },
+                    "msg": {
+                        "type": "string"
+                    }
+                },
+                "type": "object"
+            },
+            "myblogx_internal_kernel.Envelope-internal_article_adapter_http_CollectionStaleCleanupResponse": {
+                "properties": {
+                    "code": {
+                        "type": "integer"
+                    },
+                    "data": {
+                        "$ref": "#/components/schemas/internal_article_adapter_http.CollectionStaleCleanupResponse"
                     },
                     "msg": {
                         "type": "string"
@@ -7848,6 +7913,42 @@
                     }
                 ],
                 "summary": "改合集",
+                "tags": [
+                    "collection"
+                ]
+            }
+        },
+        "/collections/{id}/admin/stale": {
+            "delete": {
+                "parameters": [
+                    {
+                        "description": "合集 ID",
+                        "in": "path",
+                        "name": "id",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/myblogx_internal_kernel.Envelope-internal_article_adapter_http_CollectionStaleCleanupResponse"
+                                }
+                            }
+                        },
+                        "description": "OK"
+                    }
+                },
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "summary": "清理合集失效行",
                 "tags": [
                     "collection"
                 ]

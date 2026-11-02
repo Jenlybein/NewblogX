@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   SIDEBAR_CARD_DEFAULT_TITLES,
   SIDEBAR_CARD_KINDS,
+  SIDEBAR_CARD_KIND_LABELS,
   SIDEBAR_CARD_MAX_COUNT,
   addSidebarCardDraft,
   effectiveSidebarCardTitle,
@@ -12,6 +13,7 @@ import {
   sidebarCardDrafts,
   toSidebarCardsSavePayload,
   toggleSidebarCardDraft,
+  updateSidebarCardContent,
 } from "~/utils/sidebarCardsAdmin";
 import type { SidebarCardDraft } from "~/utils/sidebarCardsAdmin";
 import type {
@@ -37,8 +39,9 @@ function serverCard(
   title: string,
   sortOrder: number,
   enabled: boolean,
+  content = "",
 ): AdminSidebarCardItem {
-  return { id, kind, title, sort_order: sortOrder, enabled };
+  return { id, kind, title, sort_order: sortOrder, enabled, content };
 }
 
 /** 三张初始卡：热门文章、最新评论（停用）、标签云。 */
@@ -63,6 +66,8 @@ function fakeSave(payload: SidebarCardsSavePayload): AdminSidebarCardItem[] {
     title: item.title.trim() || SIDEBAR_CARD_DEFAULT_TITLES[item.kind as keyof typeof SIDEBAR_CARD_DEFAULT_TITLES],
     sort_order: index,
     enabled: item.enabled,
+    // 与后端口径一致：只有富文本卡保留正文，其它种类丢弃。
+    content: item.kind === "rich_text" ? item.content : "",
   }));
 }
 
@@ -94,6 +99,7 @@ function fakeReader(rows: AdminSidebarCardItem[]): SiteSidebarCardItem[] {
             ]
           : [],
       tags: row.kind === "tag_cloud" ? [{ id: "t1", title: "Go", article_count: 5 }] : [],
+      content: row.kind === "rich_text" ? row.content : "",
     }));
 }
 
@@ -285,5 +291,58 @@ describe("右栏卡片管理器：后台顺序与读者站一致", () => {
 
     const views = sidebarCardViews(fakeReader(fakeSave(toSidebarCardsSavePayload(drafts))));
     expect(views.find(view => view.kind === "hot_articles")?.title).toBe("大家在读");
+  });
+});
+
+/**
+ * 富文本卡：后台只提供基础排版（标题 / 粗斜体 / 列表 / 链接），
+ * 正文按 HTML 存，读者站渲染前清洗。这里钉住"编辑 → 保存 → 读者渲染"的整条链。
+ */
+describe("右栏卡片管理器：富文本卡正文", () => {
+  it("种类清单、默认标题与选择器标签都包含富文本卡", () => {
+    expect(SIDEBAR_CARD_KINDS).toContain("rich_text");
+    expect(SIDEBAR_CARD_DEFAULT_TITLES.rich_text).toBe("公告");
+    expect(SIDEBAR_CARD_KIND_LABELS.rich_text).toBe("富文本卡");
+  });
+
+  it("加载时带出正文，新增富文本卡正文为空，保存负载逐字段带上 content", () => {
+    const drafts = sidebarCardDrafts([
+      serverCard("21", "rich_text", "站点公告", 0, true, "<h2>更新日志</h2>"),
+      serverCard("22", "tag_cloud", "标签云", 1, true),
+    ]);
+
+    expect(drafts[0]!.content).toBe("<h2>更新日志</h2>");
+    expect(drafts[1]!.content).toBe("");
+
+    const added = addSidebarCardDraft(drafts, "rich_text");
+    expect(added[2]).toMatchObject({ kind: "rich_text", content: "", enabled: true });
+
+    const payload = toSidebarCardsSavePayload(added);
+    expect(payload.list[2]).toMatchObject({ kind: "rich_text", content: "" });
+  });
+
+  it("改正文只动目标卡；保存后读者侧拿到的是清洗过的 HTML", () => {
+    let drafts = sidebarCardDrafts([
+      serverCard("21", "rich_text", "站点公告", 0, true, ""),
+      serverCard("22", "tag_cloud", "标签云", 1, true),
+    ]);
+    const richKey = drafts[0]!.key;
+
+    drafts = updateSidebarCardContent(
+      drafts,
+      richKey,
+      '<h2>更新日志</h2><p><strong>重点</strong></p><script>alert(1)</script><iframe src="https://evil.example.com"></iframe>',
+    );
+    expect(draftOf(drafts, richKey).content).toContain("<strong>重点</strong>");
+    expect(drafts[1]!.content).toBe("");
+    // 未知 key 原样返回。
+    expect(updateSidebarCardContent(drafts, "not-there", "<p>x</p>")).toEqual(drafts);
+
+    const saved = fakeSave(toSidebarCardsSavePayload(drafts));
+    const views = sidebarCardViews(fakeReader(saved));
+    const richView = views.find(view => view.kind === "rich_text");
+    expect(richView?.contentHtml).toContain("<h2>更新日志</h2>");
+    expect(richView?.contentHtml).not.toContain("<script");
+    expect(richView?.contentHtml).not.toContain("iframe");
   });
 });

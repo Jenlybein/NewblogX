@@ -488,6 +488,82 @@ func TestCollectionRepo_UpdatePersistsSoftDelete(t *testing.T) {
 	}
 }
 
+// TestCollectionRepo_StaleRowsKeepPlaceholderWithReason 三种失效成因都保留占位并给出原因。
+//
+// 读者侧靠 JOIN 过滤（列表计数与详情同一口径）；后台 LEFT JOIN 仍能读到已删除
+// 文章的标题与状态，所以占位不会退化成一行空白。
+func TestCollectionRepo_StaleRowsKeepPlaceholderWithReason(t *testing.T) {
+	t.Parallel()
+
+	db := migrateCollections(t)
+	seedUser(t, db, 100)
+	seedCollectionArticle(t, db, 1, 100, schema.ArticleStatusPublished, schema.VisibilityVisible, "")
+	seedCollectionArticle(t, db, 2, 100, schema.ArticleStatusDraft, schema.VisibilityVisible, "")
+	seedCollectionArticle(t, db, 3, 100, schema.ArticleStatusPublished, schema.VisibilityUserHidden, "")
+	seedCollectionArticle(t, db, 4, 100, schema.ArticleStatusPublished, schema.VisibilityVisible, "")
+
+	repo := mysql.NewCollectionRepo(db)
+	ctx := context.Background()
+	c := newCollection(t, 1, "主题合集", true, 1)
+	if err := repo.Create(ctx, c); err != nil {
+		t.Fatalf("建合集失败: %v", err)
+	}
+	for _, id := range []uint64{1, 2, 3, 4} {
+		if _, err := repo.AppendItem(ctx, ctype.NewID(1), ctype.NewID(id)); err != nil {
+			t.Fatalf("收录 %d 失败: %v", id, err)
+		}
+	}
+
+	// 第四篇后来被软删：关系行还在，后台应看到"已删除"，读者侧完全看不到。
+	if err := db.Table("article_models").Where("id = ?", 4).
+		Update("deleted_at", collectionBaseTime).Error; err != nil {
+		t.Fatalf("软删文章失败: %v", err)
+	}
+
+	readerArticles, err := repo.ListIncludedArticles(ctx, ctype.NewID(1), false)
+	if err != nil {
+		t.Fatalf("读读者详情失败: %v", err)
+	}
+	if len(readerArticles) != 1 || readerArticles[0].ArticleID.Uint64() != 1 {
+		t.Fatalf("读者详情只应剩仍公开的文章 1，实际 %+v", readerArticles)
+	}
+
+	cards, _, err := repo.ListCards(ctx, false, domain.Page{Limit: 10})
+	if err != nil {
+		t.Fatalf("读读者列表失败: %v", err)
+	}
+	if len(cards) != 1 || cards[0].ArticleCount != 1 {
+		t.Fatalf("合集卡片计数只算仍公开的文章，实际 %+v", cards)
+	}
+
+	items, err := repo.ListAdminItems(ctx, ctype.NewID(1))
+	if err != nil {
+		t.Fatalf("读后台收录行失败: %v", err)
+	}
+	if len(items) != 4 {
+		t.Fatalf("后台应保留 4 个占位（含失效），实际 %d", len(items))
+	}
+
+	want := []domain.StaleReason{
+		domain.StaleReasonNone,
+		domain.StaleReasonNotPublished,
+		domain.StaleReasonNotVisible,
+		domain.StaleReasonDeleted,
+	}
+	for i, reason := range want {
+		if got := items[i].StaleReason(); got != reason {
+			t.Fatalf("第 %d 行失效原因 = %q，期望 %q", i+1, got, reason)
+		}
+		if items[i].Stale() != (reason != domain.StaleReasonNone) {
+			t.Fatalf("第 %d 行 stale 与原因不一致: stale=%v reason=%q",
+				i+1, items[i].Stale(), reason)
+		}
+	}
+	if items[3].Title == "" {
+		t.Fatal("已删除文章的占位应保留标题，后台才看得出是哪一篇")
+	}
+}
+
 // TestCollectionRepo_UpdateSortOrders 合集之间换序真的落库：
 // 后台列表与读者列表都按新的 sort_order 读出来。
 func TestCollectionRepo_UpdateSortOrders(t *testing.T) {

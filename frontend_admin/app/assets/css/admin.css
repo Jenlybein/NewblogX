@@ -676,3 +676,20 @@
     }
   }
 }
+
+/* 右栏卡片编辑器的实时预览列：与卡片列表并排，宽度就是首页右栏的固定列宽。 */
+.sidebar-preview-column {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.preview-caption {
+  max-width: 100%;
+}
+
+.preview-caption .admin-hint {
+  margin: 0;
+  line-height: 1.6;
+}

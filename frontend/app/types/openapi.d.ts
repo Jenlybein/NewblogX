@@ -2219,6 +2219,45 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/collections/{id}/admin/stale": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** 清理合集失效行 */
+        delete: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    /** @description 合集 ID */
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["myblogx_internal_kernel.Envelope-internal_article_adapter_http_CollectionStaleCleanupResponse"];
+                    };
+                };
+            };
+        };
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/collections/{id}/articles": {
         parameters: {
             query?: never;
@@ -5825,6 +5864,8 @@ export interface components {
             comments_toggle?: boolean;
             content: string;
             cover_image_id?: string;
+            /** @description Crop 是封面的可选取景参数：不传 = 缺省（居中、缩放 1）。 */
+            crop?: components["schemas"]["internal_article_adapter_http.ArticleCrop"];
             /** @enum {integer} */
             status: 1 | 2;
             tag_ids?: string[];
@@ -5843,6 +5884,11 @@ export interface components {
             title?: string;
             visibility_status?: components["schemas"]["internal_article_adapter_http.ArticleVisibility"];
         };
+        "internal_article_adapter_http.ArticleCrop": {
+            focus_x?: number;
+            focus_y?: number;
+            zoom?: number;
+        };
         "internal_article_adapter_http.ArticleDetailResponse": {
             abstract?: string;
             author_abstract?: string;
@@ -5860,6 +5906,8 @@ export interface components {
             cover?: string;
             cover_image_id?: string;
             created_at?: string;
+            /** @description Crop 总是有值：没有取景记录的存量文章回传缺省（居中、缩放 1）。 */
+            crop?: components["schemas"]["internal_article_adapter_http.ArticleCrop"];
             digg_count?: number;
             favor_count?: number;
             id?: string;
@@ -5944,6 +5992,11 @@ export interface components {
             comments_toggle?: boolean;
             content?: string;
             cover_image_id?: string;
+            /**
+             * @description Crop 不传 = 保留已存的取景；传了才覆盖。与创建语义不同，别写混：
+             *     更新时不传若被当成"清空"，改一个标题就会静默抹掉作者调好的构图。
+             */
+            crop?: components["schemas"]["internal_article_adapter_http.ArticleCrop"];
             /** @enum {integer} */
             status?: 1 | 2;
             tag_ids?: string[];
@@ -6000,7 +6053,13 @@ export interface components {
             article_id?: string;
             cover?: string;
             sort_order?: number;
+            /** @description Stale 文章是否已失效（被删 / 退回草稿 / 不再可见）。判定与热门置顶共用。 */
             stale?: boolean;
+            /**
+             * @description StaleReason 失效原因枚举；仍有效时为空串。枚举值由后端 domain 定义，
+             *     前端只做文案映射，不据此另判一次失效。
+             */
+            stale_reason?: string;
             title?: string;
         };
         "internal_article_adapter_http.CollectionArticleItemResponse": {
@@ -6062,6 +6121,9 @@ export interface components {
         };
         "internal_article_adapter_http.CollectionOrderRequest": {
             collection_ids: string[];
+        };
+        "internal_article_adapter_http.CollectionStaleCleanupResponse": {
+            removed?: number;
         };
         "internal_article_adapter_http.CollectionUpdateRequest": {
             cover?: string;
@@ -6343,6 +6405,8 @@ export interface components {
             nickname?: string;
         };
         "internal_site_adapter_http.AdminSidebarCardItem": {
+            /** @description Content 是富文本卡的正文（后台编辑器回填用；其它种类为空串）。 */
+            content?: string;
             enabled?: boolean;
             id?: string;
             kind?: string;
@@ -6421,6 +6485,8 @@ export interface components {
         "internal_site_adapter_http.SidebarCardItem": {
             /** @description 推荐合集卡的数据（只含展示中的合集，顺序即合集自己的顺序）。 */
             collections?: components["schemas"]["internal_site_adapter_http.SidebarCollectionItem"][];
+            /** @description 富文本卡的正文（已清洗的 HTML 片段；其它种类恒为空串）。 */
+            content?: string;
             /** @description 热门文章卡的数据。 */
             hot_articles?: components["schemas"]["internal_site_adapter_http.SidebarArticleItem"][];
             id?: string;
@@ -6433,6 +6499,8 @@ export interface components {
             title?: string;
         };
         "internal_site_adapter_http.SidebarCardSaveItem": {
+            /** @description Content 只对富文本卡生效；保存时会先过白名单清洗，其它种类一律丢弃。 */
+            content?: string;
             enabled?: boolean;
             kind: string;
             title?: string;
@@ -6891,6 +6959,11 @@ export interface components {
         "myblogx_internal_kernel.Envelope-internal_article_adapter_http_CollectionDetailResponse": {
             code?: number;
             data?: components["schemas"]["internal_article_adapter_http.CollectionDetailResponse"];
+            msg?: string;
+        };
+        "myblogx_internal_kernel.Envelope-internal_article_adapter_http_CollectionStaleCleanupResponse": {
+            code?: number;
+            data?: components["schemas"]["internal_article_adapter_http.CollectionStaleCleanupResponse"];
             msg?: string;
         };
         "myblogx_internal_kernel.Envelope-internal_auth_adapter_http_SendEmailResponse": {

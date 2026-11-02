@@ -11,16 +11,19 @@ import (
 	"time"
 
 	"myblogx/internal/kernel/ctype"
+	sitedomain "myblogx/internal/site/domain"
 )
 
 // ArticleCreateRequest 创建文章。
 type ArticleCreateRequest struct {
-	Title            string            `json:"title" binding:"required"`
-	Abstract         string            `json:"abstract"`
-	Content          string            `json:"content" binding:"required"`
-	CategoryID       *ctype.ID         `json:"category_id"`
-	TagIDs           []ctype.ID        `json:"tag_ids"`
-	CoverImageID     *ctype.ID         `json:"cover_image_id"`
+	Title        string     `json:"title" binding:"required"`
+	Abstract     string     `json:"abstract"`
+	Content      string     `json:"content" binding:"required"`
+	CategoryID   *ctype.ID  `json:"category_id"`
+	TagIDs       []ctype.ID `json:"tag_ids"`
+	CoverImageID *ctype.ID  `json:"cover_image_id"`
+	// Crop 是封面的可选取景参数：不传 = 缺省（居中、缩放 1）。
+	Crop             *ArticleCrop      `json:"crop"`
 	CommentsToggle   bool              `json:"comments_toggle"`
 	Status           ArticleStatus     `json:"status" binding:"required,oneof=1 2" swaggertype:"integer" enums:"1,2"`
 	VisibilityStatus ArticleVisibility `json:"visibility_status" binding:"omitempty,oneof=visible user_hidden" swaggertype:"string" enums:"visible,user_hidden"`
@@ -28,15 +31,41 @@ type ArticleCreateRequest struct {
 
 // ArticleUpdateRequest 更新文章；nil 表示不修改。
 type ArticleUpdateRequest struct {
-	Title            *string            `json:"title"`
-	Abstract         *string            `json:"abstract"`
-	Content          *string            `json:"content"`
-	CategoryID       *ctype.ID          `json:"category_id"`
-	TagIDs           *[]ctype.ID        `json:"tag_ids"`
-	CoverImageID     *ctype.ID          `json:"cover_image_id"`
+	Title        *string     `json:"title"`
+	Abstract     *string     `json:"abstract"`
+	Content      *string     `json:"content"`
+	CategoryID   *ctype.ID   `json:"category_id"`
+	TagIDs       *[]ctype.ID `json:"tag_ids"`
+	CoverImageID *ctype.ID   `json:"cover_image_id"`
+	// Crop 不传 = 保留已存的取景；传了才覆盖。与创建语义不同，别写混：
+	// 更新时不传若被当成"清空"，改一个标题就会静默抹掉作者调好的构图。
+	Crop             *ArticleCrop       `json:"crop"`
 	CommentsToggle   *bool              `json:"comments_toggle"`
 	Status           *ArticleStatus     `json:"status" binding:"omitempty,oneof=1 2" swaggertype:"integer" enums:"1,2"`
 	VisibilityStatus *ArticleVisibility `json:"visibility_status" binding:"omitempty,oneof=visible user_hidden" swaggertype:"string" enums:"visible,user_hidden"`
+}
+
+// ArticleCrop 是封面取景的传输形状：焦点（图上 0–1 的相对坐标）+ 缩放（1–2）。
+//
+// 不做范围校验：越界在用例层拒绝（app.validateArticleCrop），
+// 免得"能不能过"取决于请求从哪个入口进来。
+type ArticleCrop struct {
+	FocusX float64 `json:"focus_x"`
+	FocusY float64 `json:"focus_y"`
+	Zoom   float64 `json:"zoom"`
+}
+
+// toDomain 把请求里的取景转成领域值；nil 表示调用方没传。
+func (c *ArticleCrop) toDomain() *sitedomain.Crop {
+	if c == nil {
+		return nil
+	}
+	return &sitedomain.Crop{FocusX: c.FocusX, FocusY: c.FocusY, Zoom: c.Zoom}
+}
+
+// fromDomainCrop 把领域取景转成传输形状。
+func fromDomainCrop(c sitedomain.Crop) ArticleCrop {
+	return ArticleCrop{FocusX: c.FocusX, FocusY: c.FocusY, Zoom: c.Zoom}
 }
 
 // ArticleCreateResponse 创建结果。
@@ -83,6 +112,8 @@ type ArticleDetailResponse struct {
 	CategoryName        string            `json:"category_name"`
 	IsDigg              bool              `json:"is_digg"`
 	IsFavor             bool              `json:"is_favor"`
+	// Crop 总是有值：没有取景记录的存量文章回传缺省（居中、缩放 1）。
+	Crop ArticleCrop `json:"crop"`
 }
 
 // ArticleFavoriteRequest 收藏。

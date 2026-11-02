@@ -218,8 +218,16 @@ export type CollectionArticleItem =
 export type ArticleWritePayload = Nullable<
   Schema<"internal_article_adapter_http.ArticleUpdateRequest">,
   "title" | "abstract" | "content" | "category_id" | "tag_ids" | "cover_image_id"
-  | "comments_toggle"
+  | "comments_toggle" | "crop"
 >;
+
+/**
+ * 文章封面取景参数：焦点（图上 0–1 的相对坐标）+ 缩放（1–2）。
+ *
+ * 契约里三个字段都可选（swag 无从得知实际总是写满），消费方按必填处理；
+ * 缺省口径是居中、缩放 1（`DEFAULT_FRAMING`）。
+ */
+export type ArticleCrop = RequiredSchema<"internal_article_adapter_http.ArticleCrop">;
 
 export type ArticleCreateResult = RequiredSchema<"internal_article_adapter_http.ArticleCreateResponse">;
 

@@ -20,6 +20,7 @@ function card(partial: Partial<SiteSidebarCardItem> & Pick<SiteSidebarCardItem, 
     latest_comments: [],
     tags: [],
     collections: [],
+    content: "",
     ...partial,
   };
 }
@@ -122,13 +123,85 @@ describe("sidebarCardViews：右栏卡片的渲染模型", () => {
       "latest_comments",
       "tag_cloud",
       "recommended_collections",
+      "rich_text",
     ]);
     expect(SIDEBAR_CARD_DEFAULT_TITLES).toEqual({
       hot_articles: "热门文章",
       latest_comments: "最新评论",
       tag_cloud: "标签云",
       recommended_collections: "推荐合集",
+      rich_text: "公告",
     });
+  });
+});
+
+/**
+ * 富文本卡：正文是运营在后台写的一段 HTML，读者站必须**先清洗再渲染**。
+ *
+ * 清洗放在渲染模型里，而不是组件模板里：这样"恶意输入会被剥离"可以在纯函数层
+ * 断言，不必等 DOM 挂载；组件只负责把清洗后的 HTML 画出来。
+ */
+describe("sidebarCardViews：富文本卡与清洗", () => {
+  it("合法排版内容原样保留，读者站拿到的就是可渲染的 HTML", () => {
+    const views = sidebarCardViews([
+      card({
+        kind: "rich_text",
+        title: "站点公告",
+        content: "<h2>更新日志</h2><p>本周 <strong>重点</strong></p><ul><li>第一条</li></ul>",
+      }),
+    ]);
+
+    expect(views).toHaveLength(1);
+    expect(views[0]?.kind).toBe("rich_text");
+    expect(views[0]?.contentHtml).toContain("<h2>更新日志</h2>");
+    expect(views[0]?.contentHtml).toContain("<strong>重点</strong>");
+    expect(views[0]?.contentHtml).toContain("<li>第一条</li>");
+  });
+
+  it("script / onerror / javascript: / data: / iframe 都在渲染前被剥离", () => {
+    const views = sidebarCardViews([
+      card({
+        kind: "rich_text",
+        title: "公告",
+        content: [
+          "<p>正文</p>",
+          "<script>alert(1)</script>",
+          '<img src="https://cdn.example.com/a.png" onerror="alert(1)">',
+          '<a href="javascript:alert(1)">点我</a>',
+          '<a href="data:text/html;base64,PHNjcmlwdD4=">伪协议</a>',
+          '<iframe src="https://evil.example.com"></iframe>',
+        ].join(""),
+      }),
+    ]);
+
+    const html = views[0]?.contentHtml ?? "";
+    expect(html).toContain("正文");
+    expect(html).not.toContain("<script");
+    expect(html.toLowerCase()).not.toContain("onerror");
+    expect(html).not.toContain("javascript:");
+    expect(html).not.toContain("data:");
+    expect(html).not.toContain("iframe");
+  });
+
+  it("正文清洗后为空（纯空白或只剩被剥掉的标签）时整张卡隐藏，不留空盒子", () => {
+    const views = sidebarCardViews([
+      card({ kind: "rich_text", title: "公告", content: "<script>alert(1)</script>   " }),
+      card({ kind: "tag_cloud", title: "标签云", tags: [tag("t1", "Go", 3)] }),
+    ]);
+
+    expect(views.map((view) => view.kind)).toEqual(["tag_cloud"]);
+  });
+
+  it("富文本卡不串用别的种类的数据，别的卡也不读 content", () => {
+    const views = sidebarCardViews([
+      card({ kind: "rich_text", title: "公告", content: "<p>公告正文</p>", hot_articles: [article("1", "不该出现")] }),
+      card({ kind: "hot_articles", title: "热门文章", content: "<p>不该被热门卡渲染</p>", hot_articles: [article("2", "热读一")] }),
+    ]);
+
+    expect(views[0]?.contentHtml).toContain("公告正文");
+    expect(views[0]?.articles).toEqual([]);
+    expect(views[1]?.contentHtml).toBe("");
+    expect(views[1]?.articles).toHaveLength(1);
   });
 });
 

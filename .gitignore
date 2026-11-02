@@ -49,3 +49,7 @@ deploy/docker/clickhouse/users.d/default-user.xml
 
 # Agent 内部数据（不随仓库分发）
 .workbuddy/
+
+# 本地视觉核对用的截图与临时 harness
+.shots/
+.harness/

@@ -99,16 +99,32 @@ function compositeOverWhite(hex: string, alpha: number): string {
 }
 
 describe("底部渐黑：只压底部，上半透明", () => {
-  it("渐黑层贴在底部、高度有界，不再铺满整个面板", () => {
+  it("渐黑层贴在底部，高度由内容撑出来（不再写死占面板的百分比）", () => {
     const veil = veilBlock();
 
     expect(veil).toContain("inset: auto 0 0");
     expect(veil).not.toContain("inset: 0");
+    // 具体像素高度交给内容（标题 + 控件），CSS 里只声明 height:auto。
+    // 曾经写死 `height: 44%`：没标题时渐黑区里只剩一行控件，却仍压暗近半张图，
+    // 观感就是"一块盖在轮播图上的大黑块"。
+    expect(veil).toContain("height: auto");
+    expect(veil).not.toMatch(/height:\s*[\d.]+%/u);
+  });
 
-    const height = Number(/height:\s*([\d.]+)%/u.exec(veil)?.[1] ?? "0");
-    expect(height, "渐黑层必须有明确高度").toBeGreaterThan(0);
-    // 上半张图完全露出：渐黑区最多占面板 45%。
-    expect(height).toBeLessThanOrEqual(45);
+  it("无标题时过渡带自动收窄，不留一条空压暗带", () => {
+    expect(bannerVue).toContain(".banner-veil.is-titleless");
+    const titleless = blockAfter(bannerVue, ".banner-veil.is-titleless {");
+
+    expect(titleless, "无标题变体必须收窄上过渡带").toMatch(/padding-top:\s*clamp\(/u);
+    const veil = veilBlock();
+    const withTitle = /padding:\s*\n?\s*clamp\(([\d.]+)rem/u.exec(veil)?.[1];
+    const without = /padding-top:\s*clamp\(([\d.]+)rem/u.exec(titleless)?.[1];
+    expect(Number(withTitle), "有标题时上过渡带更长").toBeGreaterThan(Number(without));
+  });
+
+  it("模板按有没有标题挂 is-titleless，别让空标题也占一块压暗带", () => {
+    const template = templateOf(bannerVue);
+    expect(template).toMatch(/class="banner-veil"[\s\S]{0,80}is-titleless/u);
   });
 
   it("渐变自顶部透明过渡到深墨，不是一块实心深色面", () => {

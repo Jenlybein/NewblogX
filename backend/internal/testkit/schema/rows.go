@@ -735,3 +735,48 @@ type AIProviderRow struct {
 
 // TableName 固定表名。
 func (AIProviderRow) TableName() string { return "ai_provider_models" }
+
+// CollectionRow 对应表 collection_models（合集主表）。
+//
+// 合集是管理员编排的「有顺序的文章集合」，与热门置顶（article_hot_top_models）
+// 是两套数据：合集有标题/描述/封面/展示开关，且没有条数上限。
+// 字段与 article/adapter/mysql 的 collectionRow 必须逐字一致：
+// schema_sql_integration_test 会把这个结构 AutoMigrate 出来的表与 schema.sql
+// 逐列比对（含类型与 IS_NULLABLE），差一个 tag 就红。
+type CollectionRow struct {
+	BaseRow
+	Title       string `gorm:"type:varchar(128);not null" json:"title"`
+	Description string `gorm:"type:varchar(512);not null" json:"description"`
+	// Cover 是图片库 URL；空串表示"退回首篇文章的封面"，由读模型处理。
+	Cover string `gorm:"type:longtext;not null" json:"cover"`
+	// IsDisplay 是"是否展示给读者"：关掉后读者侧列表与详情都查不到。
+	IsDisplay bool `gorm:"not null;default:1" json:"is_display"`
+	// SortOrder 是合集之间的展示顺序（从 1 开始）。与热门置顶同一口径：
+	// 序号没有唯一索引（零 DDL 加不了），读出时用 (sort_order, id) 兜底。
+	SortOrder int      `gorm:"not null;default:0" json:"sort_order"`
+	CreatorID ctype.ID `gorm:"not null" json:"creator_id"`
+}
+
+// TableName 固定表名。
+func (CollectionRow) TableName() string { return "collection_models" }
+
+// CollectionArticleRow 对应表 collection_article_models（合集-文章中间表）。
+//
+// 沿用热门置顶的既有模式：**失效行保留**——文章后来不再公开时行不删除，
+// 后台标「已失效」并可一键清理；读者侧靠 JOIN 过滤掉，同一套失效语义。
+//
+// (collection_id, article_id) 上有唯一索引，且**不含 deleted_at**：
+// 移除是软删，行留在表里占着这个键，所以"移除后再收录"必须恢复原行而不是
+// 新插入（否则撞 1062，与点赞表 uk_article_digg 是同一个坑）。
+type CollectionArticleRow struct {
+	BaseRow
+	CollectionID ctype.ID `gorm:"uniqueIndex:uk_collection_article,priority:1;not null" json:"collection_id"`
+	ArticleID    ctype.ID `gorm:"uniqueIndex:uk_collection_article,priority:2;not null;index:idx_collection_article_models_article_id" json:"article_id"`
+	SortOrder    int      `gorm:"not null;default:0" json:"sort_order"`
+	// 关联只为建外键（与 ArticleHotTopRow.ArticleModel 同一做法）。
+	CollectionModel CollectionRow `gorm:"foreignKey:CollectionID;references:ID" json:"-"`
+	ArticleModel    ArticleRow    `gorm:"foreignKey:ArticleID;references:ID" json:"-"`
+}
+
+// TableName 固定表名。
+func (CollectionArticleRow) TableName() string { return "collection_article_models" }

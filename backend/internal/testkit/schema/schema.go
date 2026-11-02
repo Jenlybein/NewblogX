@@ -140,6 +140,12 @@ const (
 	DeadLetter Group = "dead_letter"
 	// AIProvider 是启用中的模型配置（AI 调用方读的那张表）。
 	AIProvider Group = "ai_provider"
+	// Collection 是合集主表与合集-文章中间表。
+	//
+	// 两张表单开一组而不是塞进 ArticleCore：中间表带两个外键（指向
+	// collection_models 与 article_models），放进 ArticleCore 会让"只想测文章"
+	// 的用例也被迫建合集表；而且合集的读写口径与文章本体无关。
+	Collection Group = "collection"
 	// All 是全部表（仅用于结构一致性契约测试）。
 	All Group = "all"
 )
@@ -216,7 +222,12 @@ var groupModels = map[Group][]any{
 	AIProvider: {
 		&AIProviderRow{},
 	},
-	// All 是**全部 36 张表**，只用于"schema.sql 与自持行是否一致"的契约测试。
+	Collection: {
+		// 主表在前：中间表有指向 collection_models 的外键。
+		&CollectionRow{},
+		&CollectionArticleRow{},
+	},
+	// All 是**全部 38 张表**，只用于"schema.sql 与自持行是否一致"的契约测试。
 	//
 	// 为什么不复用上面那些组拼起来：拼装顺序一变，这个测试就变成
 	// "测拼装顺序"而不是"测结构一致性"。这里写死一份，顺序沿用当年
@@ -240,6 +251,8 @@ var groupModels = map[Group][]any{
 		&UserArticleViewHistoryRow{},
 		&UserTopArticleRow{},
 		&ArticleHotTopRow{},
+		&CollectionRow{},
+		&CollectionArticleRow{},
 		&ImageRow{},
 		&ImageRefRow{},
 		&RuntimeConfigRow{},

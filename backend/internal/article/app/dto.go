@@ -4,6 +4,7 @@ import (
 	"time"
 
 	"myblogx/internal/article/domain"
+	"myblogx/internal/article/domain/collection"
 	"myblogx/internal/article/domain/favorite"
 	"myblogx/internal/article/domain/review"
 )
@@ -190,4 +191,56 @@ type DeleteResult struct {
 // ReviewTaskView 是审核任务的只读视图。
 type ReviewTaskView struct {
 	Task review.Task
+}
+
+// ── 合集 ──
+
+// CreateCollectionCmd 是建合集的输入。
+//
+// 封面传空串表示"退回首篇文章的封面"（由读模型处理），不是错误。
+type CreateCollectionCmd struct {
+	// Actor 是操作者，必须是管理员。
+	Actor domain.Viewer
+	// Title 标题，非空且不超过 collection.MaxTitleLen。
+	Title string
+	// Description 描述，可空。
+	Description string
+	// Cover 封面 URL，可空。
+	Cover string
+	// Displayed 是否一开始就展示给读者。
+	Displayed bool
+}
+
+// IncludeArticleCmd 是把一篇文章收录进合集的输入。
+type IncludeArticleCmd struct {
+	// Actor 是操作者，必须是管理员。
+	Actor domain.Viewer
+	// CollectionID 目标合集。
+	CollectionID collection.ID
+	// ArticleID 被收录的文章。
+	ArticleID domain.ArticleID
+}
+
+// RemoveArticleCmd 是从合集中移除一篇文章的输入。
+//
+// 与 IncludeArticleCmd 分开而不是加一个布尔：收录与移除的权限线相同，
+// 但一个是"必须已发布且可见"、另一个"不查文章"（失效行也要能清掉），
+// 合成一个命令结构会让调用点看不出自己在做哪一种。
+type RemoveArticleCmd struct {
+	// Actor 是操作者，必须是管理员。
+	Actor domain.Viewer
+	// CollectionID 目标合集。
+	CollectionID collection.ID
+	// ArticleID 要移除的文章。
+	ArticleID domain.ArticleID
+}
+
+// SetCollectionDisplayCmd 是切换合集展示开关的输入。
+type SetCollectionDisplayCmd struct {
+	// Actor 是操作者，必须是管理员。
+	Actor domain.Viewer
+	// CollectionID 目标合集。
+	CollectionID collection.ID
+	// Displayed 目标展示状态。
+	Displayed bool
 }

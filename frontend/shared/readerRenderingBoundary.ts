@@ -3,7 +3,7 @@
  *
  * 三张表：
  *   1. `SSR_WHITELIST_PATTERNS` —— 允许服务端渲染的读者站路由（首页门面 + 文章页分享卡片/收录）；
- *   2. `CLIENT_ONLY_PATTERNS` —— 必须显式 `ssr: false` 的路由（个人主页、搜索页、创作区）；
+ *   2. `CLIENT_ONLY_PATTERNS` —— 必须显式 `ssr: false` 的路由（个人主页、搜索页、创作区、合集）；
  *   3. `SERVER_REDIRECT_ROUTES` —— 历史入口必须由服务端 301 承担（`/articles` 已并入 `/search`）。
  *
  * 消费方（任一消费方擅自扩张/收缩白名单都会让门禁变红）：
@@ -29,7 +29,7 @@ export interface ServerRedirectRoute {
 export const SSR_WHITELIST_PATTERNS = ["/", "/article/**"] as const;
 
 /** 必须显式 `ssr: false` 的读者站路由（ADR-0019 决策 1）。 */
-export const CLIENT_ONLY_PATTERNS = ["/users/**", "/search", "/studio/**"] as const;
+export const CLIENT_ONLY_PATTERNS = ["/users/**", "/search", "/studio/**", "/collections/**"] as const;
 
 /** 必须由服务端 301 承担的历史入口（`/articles` 是并入 `/search` 的旧列表入口）。 */
 export const SERVER_REDIRECT_ROUTES = [
@@ -89,3 +89,4 @@ export function isSsrPagePath(pathname: string): boolean {
     return segments.length === splitRoute(pattern.replace(/\*\*/gu, "")).length + 1;
   });
 }
+

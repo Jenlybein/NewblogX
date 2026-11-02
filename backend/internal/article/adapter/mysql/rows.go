@@ -289,3 +289,36 @@ func (outboxRow) TableName() string { return "outbox_event_models" }
 
 // outboxStatusPending 是 outbox 事件的初始状态。
 const outboxStatusPending = "pending"
+
+// collectionRow 对应 collection_models 表（合集主表）。
+//
+// 字段与 testkit/schema 的 CollectionRow 逐字一致：schema_sql_integration_test
+// 会把 schema.sql 建出来的表与 testkit 的行结构逐列比对，差一个 tag 就红。
+type collectionRow struct {
+	BaseRow
+	Title       string   `gorm:"type:varchar(128);not null"`
+	Description string   `gorm:"type:varchar(512);not null"`
+	Cover       string   `gorm:"type:longtext;not null"`
+	IsDisplay   bool     `gorm:"not null;default:1"`
+	SortOrder   int      `gorm:"not null;default:0"`
+	CreatorID   ctype.ID `gorm:"not null"`
+}
+
+// TableName 固定表名。
+func (collectionRow) TableName() string { return "collection_models" }
+
+// collectionArticleRow 对应 collection_article_models 表（合集-文章中间表）。
+//
+// 唯一索引 uk_collection_article **不含 deleted_at**：移除是软删，行留在表里
+// 占着这个键，所以"移除后再收录"必须恢复原行而不是新插入（与点赞表
+// uk_article_digg 是同一个坑）。
+type collectionArticleRow struct {
+	BaseRow
+	CollectionID ctype.ID `gorm:"uniqueIndex:uk_collection_article,priority:1;not null"`
+	ArticleID    ctype.ID `gorm:"uniqueIndex:uk_collection_article,priority:2;not null;index:idx_collection_article_models_article_id"`
+	SortOrder    int      `gorm:"not null;default:0"`
+}
+
+// TableName 固定表名。
+func (collectionArticleRow) TableName() string { return "collection_article_models" }
+

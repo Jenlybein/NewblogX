@@ -2219,6 +2219,45 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/collections/{id}/admin/stale": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** 清理合集失效行 */
+        delete: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    /** @description 合集 ID */
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["myblogx_internal_kernel.Envelope-internal_article_adapter_http_CollectionStaleCleanupResponse"];
+                    };
+                };
+            };
+        };
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/collections/{id}/articles": {
         parameters: {
             query?: never;
@@ -6000,7 +6039,13 @@ export interface components {
             article_id?: string;
             cover?: string;
             sort_order?: number;
+            /** @description Stale 文章是否已失效（被删 / 退回草稿 / 不再可见）。判定与热门置顶共用。 */
             stale?: boolean;
+            /**
+             * @description StaleReason 失效原因枚举；仍有效时为空串。枚举值由后端 domain 定义，
+             *     前端只做文案映射，不据此另判一次失效。
+             */
+            stale_reason?: string;
             title?: string;
         };
         "internal_article_adapter_http.CollectionArticleItemResponse": {
@@ -6062,6 +6107,9 @@ export interface components {
         };
         "internal_article_adapter_http.CollectionOrderRequest": {
             collection_ids: string[];
+        };
+        "internal_article_adapter_http.CollectionStaleCleanupResponse": {
+            removed?: number;
         };
         "internal_article_adapter_http.CollectionUpdateRequest": {
             cover?: string;
@@ -6891,6 +6939,11 @@ export interface components {
         "myblogx_internal_kernel.Envelope-internal_article_adapter_http_CollectionDetailResponse": {
             code?: number;
             data?: components["schemas"]["internal_article_adapter_http.CollectionDetailResponse"];
+            msg?: string;
+        };
+        "myblogx_internal_kernel.Envelope-internal_article_adapter_http_CollectionStaleCleanupResponse": {
+            code?: number;
+            data?: components["schemas"]["internal_article_adapter_http.CollectionStaleCleanupResponse"];
             msg?: string;
         };
         "myblogx_internal_kernel.Envelope-internal_auth_adapter_http_SendEmailResponse": {

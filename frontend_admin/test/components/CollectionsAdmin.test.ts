@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { createApp, nextTick, reactive as vueReactive, ref as vueRef, onMounted as vueOnMounted } from 'vue'
+import { createApp, nextTick, computed as vueComputed, reactive as vueReactive, ref as vueRef, onMounted as vueOnMounted } from 'vue'
 
 /**
  * 后台合集管理页的组件用例。
@@ -173,8 +173,8 @@ vi.mock('naive-ui', async () => {
   }
 })
 
-// Nuxt 自动导入：script setup 顶层就用 ref / reactive / onMounted。
-Object.assign(globalThis, { ref: vueRef, reactive: vueReactive, onMounted: vueOnMounted })
+// Nuxt 自动导入：script setup 顶层就用 ref / reactive / computed / onMounted。
+Object.assign(globalThis, { ref: vueRef, reactive: vueReactive, computed: vueComputed, onMounted: vueOnMounted })
 
 const { default: CollectionsPage } = await import('~/pages/articles/collections.vue')
 

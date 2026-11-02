@@ -1122,7 +1122,12 @@
                         "type": "integer"
                     },
                     "stale": {
+                        "description": "Stale 文章是否已失效（被删 / 退回草稿 / 不再可见）。判定与热门置顶共用。",
                         "type": "boolean"
+                    },
+                    "stale_reason": {
+                        "description": "StaleReason 失效原因枚举；仍有效时为空串。枚举值由后端 domain 定义，\n前端只做文案映射，不据此另判一次失效。",
+                        "type": "string"
                     },
                     "title": {
                         "type": "string"
@@ -1331,6 +1336,14 @@
                 "required": [
                     "collection_ids"
                 ],
+                "type": "object"
+            },
+            "internal_article_adapter_http.CollectionStaleCleanupResponse": {
+                "properties": {
+                    "removed": {
+                        "type": "integer"
+                    }
+                },
                 "type": "object"
             },
             "internal_article_adapter_http.CollectionUpdateRequest": {
@@ -3812,6 +3825,20 @@
                     },
                     "data": {
                         "$ref": "#/components/schemas/internal_article_adapter_http.CollectionDetailResponse"
+                    },
+                    "msg": {
+                        "type": "string"
+                    }
+                },
+                "type": "object"
+            },
+            "myblogx_internal_kernel.Envelope-internal_article_adapter_http_CollectionStaleCleanupResponse": {
+                "properties": {
+                    "code": {
+                        "type": "integer"
+                    },
+                    "data": {
+                        "$ref": "#/components/schemas/internal_article_adapter_http.CollectionStaleCleanupResponse"
                     },
                     "msg": {
                         "type": "string"
@@ -7848,6 +7875,42 @@
                     }
                 ],
                 "summary": "改合集",
+                "tags": [
+                    "collection"
+                ]
+            }
+        },
+        "/collections/{id}/admin/stale": {
+            "delete": {
+                "parameters": [
+                    {
+                        "description": "合集 ID",
+                        "in": "path",
+                        "name": "id",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/myblogx_internal_kernel.Envelope-internal_article_adapter_http_CollectionStaleCleanupResponse"
+                                }
+                            }
+                        },
+                        "description": "OK"
+                    }
+                },
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "summary": "清理合集失效行",
                 "tags": [
                     "collection"
                 ]

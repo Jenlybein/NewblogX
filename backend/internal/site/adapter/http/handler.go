@@ -21,6 +21,10 @@ import (
 type Handler struct {
 	svc *app.Service
 
+	// sidebar 是右栏卡片服务；未装配时为 nil，相关接口回一条"未初始化"，
+	// 而不是让零值 Handler（路由表测试用）panic。
+	sidebar *app.SidebarService
+
 	// onPublicSiteView 在公开配置（`GET /site/site`）被读取时调用一次，
 	// 用来累计站点访问量（Redis 里的 total + 按天 hash）。
 	//
@@ -30,12 +34,24 @@ type Handler struct {
 	onPublicSiteView func()
 }
 
+// Option 是 Handler 的可选依赖。
+type Option func(*Handler)
+
+// WithSidebar 注入右栏卡片服务。
+func WithSidebar(sidebar *app.SidebarService) Option {
+	return func(h *Handler) { h.sidebar = sidebar }
+}
+
 // NewHandler 构造处理器。onPublicSiteView 可为 nil。
-func NewHandler(svc *app.Service, onPublicSiteView func()) *Handler {
+func NewHandler(svc *app.Service, onPublicSiteView func(), opts ...Option) *Handler {
 	if svc == nil {
 		panic("site/http: 用例服务未注入")
 	}
-	return &Handler{svc: svc, onPublicSiteView: onPublicSiteView}
+	h := &Handler{svc: svc, onPublicSiteView: onPublicSiteView}
+	for _, opt := range opts {
+		opt(h)
+	}
+	return h
 }
 
 // fail 交给统一响应层：apperr 自带中文文案。

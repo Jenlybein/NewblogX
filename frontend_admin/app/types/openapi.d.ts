@@ -3889,6 +3889,67 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/site/admin/sidebar_cards": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 获取右栏卡片配置（管理员） */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["myblogx_internal_kernel.Envelope-internal_site_adapter_http_AdminSidebarCardsResponse"];
+                    };
+                };
+            };
+        };
+        /** 保存右栏卡片配置（管理员） */
+        put: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            /** @description 整表顺序即展示顺序 */
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["internal_site_adapter_http.SidebarCardsSaveRequest"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["myblogx_internal_kernel.Envelope-myblogx_internal_kernel_EmptyData"];
+                    };
+                };
+            };
+        };
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/site/admin/{name}": {
         parameters: {
             query?: never;
@@ -4024,6 +4085,42 @@ export interface paths {
                     };
                     content: {
                         "application/json": components["schemas"]["myblogx_internal_kernel.Envelope-internal_site_adapter_http_SEOResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/site/sidebar_cards": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 获取读者侧右栏卡片 */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["myblogx_internal_kernel.Envelope-internal_site_adapter_http_SidebarCardsResponse"];
                     };
                 };
             };
@@ -5681,6 +5778,16 @@ export interface components {
             enable?: boolean;
             nickname?: string;
         };
+        "internal_site_adapter_http.AdminSidebarCardItem": {
+            enabled?: boolean;
+            id?: string;
+            kind?: string;
+            sort_order?: number;
+            title?: string;
+        };
+        "internal_site_adapter_http.AdminSidebarCardsResponse": {
+            list?: components["schemas"]["internal_site_adapter_http.AdminSidebarCardItem"][];
+        };
         "internal_site_adapter_http.BannerCreateRequest": {
             cover_image_id: string;
             /**
@@ -5729,6 +5836,48 @@ export interface components {
             logo?: string;
             project_title?: string;
             site_title?: string;
+        };
+        "internal_site_adapter_http.SidebarArticleItem": {
+            digg_count?: number;
+            id?: string;
+            title?: string;
+            view_count?: number;
+        };
+        "internal_site_adapter_http.SidebarCardItem": {
+            /** @description 热门文章卡的数据。 */
+            hot_articles?: components["schemas"]["internal_site_adapter_http.SidebarArticleItem"][];
+            id?: string;
+            kind?: string;
+            /** @description 最新评论卡的数据。 */
+            latest_comments?: components["schemas"]["internal_site_adapter_http.SidebarCommentItem"][];
+            sort_order?: number;
+            /** @description 标签云卡的数据（article_count 决定字号权重）。 */
+            tags?: components["schemas"]["internal_site_adapter_http.SidebarTagItem"][];
+            title?: string;
+        };
+        "internal_site_adapter_http.SidebarCardSaveItem": {
+            enabled?: boolean;
+            kind: string;
+            title?: string;
+        };
+        "internal_site_adapter_http.SidebarCardsResponse": {
+            list?: components["schemas"]["internal_site_adapter_http.SidebarCardItem"][];
+        };
+        "internal_site_adapter_http.SidebarCardsSaveRequest": {
+            list: components["schemas"]["internal_site_adapter_http.SidebarCardSaveItem"][];
+        };
+        "internal_site_adapter_http.SidebarCommentItem": {
+            article_id?: string;
+            article_title?: string;
+            content?: string;
+            created_at?: string;
+            id?: string;
+            user_nickname?: string;
+        };
+        "internal_site_adapter_http.SidebarTagItem": {
+            article_count?: number;
+            id?: string;
+            title?: string;
         };
         "internal_user_adapter_http.AdminCreateRequest": {
             email?: string;
@@ -6200,6 +6349,11 @@ export interface components {
             data?: components["schemas"]["internal_site_adapter_http.AIResponse"];
             msg?: string;
         };
+        "myblogx_internal_kernel.Envelope-internal_site_adapter_http_AdminSidebarCardsResponse": {
+            code?: number;
+            data?: components["schemas"]["internal_site_adapter_http.AdminSidebarCardsResponse"];
+            msg?: string;
+        };
         "myblogx_internal_kernel.Envelope-internal_site_adapter_http_BannerCreateResponse": {
             code?: number;
             data?: components["schemas"]["internal_site_adapter_http.BannerCreateResponse"];
@@ -6208,6 +6362,11 @@ export interface components {
         "myblogx_internal_kernel.Envelope-internal_site_adapter_http_SEOResponse": {
             code?: number;
             data?: components["schemas"]["internal_site_adapter_http.SEOResponse"];
+            msg?: string;
+        };
+        "myblogx_internal_kernel.Envelope-internal_site_adapter_http_SidebarCardsResponse": {
+            code?: number;
+            data?: components["schemas"]["internal_site_adapter_http.SidebarCardsResponse"];
             msg?: string;
         };
         "myblogx_internal_kernel.Envelope-internal_user_adapter_http_AdminCreateResponse": {

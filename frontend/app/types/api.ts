@@ -188,6 +188,25 @@ export type ArticleHotTopItem = RequiredSchema<"internal_article_adapter_http.Ar
 
 export type ArticleHotTopListData =
   RequiredSchema<"myblogx_internal_kernel.ListData-internal_article_adapter_http_ArticleHotTopCardResponse">;
+
+/**
+ * 合集（管理员编排的有序文章集合，读者侧只读）。
+ *
+ * 类型全部从契约派生：字段名/类型由 `internal_article_adapter_http.Collection*`
+ * 决定，后端改名会立刻编译报错。合集与「热门置顶」是两套数据——前者有
+ * 标题/描述/封面/展示开关，后者只是首页运营位。
+ */
+export type CollectionCard = RequiredSchema<"internal_article_adapter_http.CollectionCardResponse">;
+
+export type CollectionListData =
+  RequiredSchema<"myblogx_internal_kernel.ListData-internal_article_adapter_http.CollectionCardResponse">;
+
+/** 合集详情：合集本身 + 按顺序排列的文章。 */
+export type CollectionDetail = RequiredSchema<"internal_article_adapter_http.CollectionDetailResponse">;
+
+/** 合集详情里的一篇文章（`sort_order` 是它在系列里的位置）。 */
+export type CollectionArticleItem =
+  RequiredSchema<"internal_article_adapter_http.CollectionArticleItemResponse">;
 // ArticleUpdateRequest 全是指针（PATCH 语义：null 表示清空该字段）。
 export type ArticleWritePayload = Nullable<
   Schema<"internal_article_adapter_http.ArticleUpdateRequest">,
@@ -321,3 +340,4 @@ export type UserProfileUpdatePayload = Nullable<
   Schema<"internal_user_adapter_http.UpdateInfoRequest">,
   "username" | "nickname" | "abstract" | "avatar_image_id" | "home_style_id"
 >;
+

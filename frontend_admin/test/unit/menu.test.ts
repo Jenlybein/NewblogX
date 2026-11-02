@@ -48,14 +48,26 @@ function collectPageFiles(dir: string, prefix = ''): string[] {
   return out
 }
 
-/** 改造前的扁平清单，逐字冻结：拍平视图不许改动任何一项的标题 / 路由 / 图标 / 顺序。 */
-const LEGACY_ADMIN_NAV = [
+/**
+ * 可导航项的冻结清单：拍平视图不许改动任何一项的标题 / 路由 / 图标 / 顺序。
+ *
+ * 「站点配置」是纯分组（没有自身页面），所以不在可导航清单里；八个配置域
+ * 紧跟其后作为子项。`/site` 仍是「站点」域的入口，旧书签不会失效。
+ */
+const EXPECTED_ADMIN_NAV = [
   { label: '数据概览', path: '/', icon: 'chart' },
   { label: '文章审核', path: '/review', icon: 'shield' },
   { label: '文章管理', path: '/articles', icon: 'article' },
   { label: '热门置顶', path: '/articles/hot-top', icon: 'pin' },
   { label: '用户管理', path: '/users', icon: 'users' },
-  { label: '站点配置', path: '/site', icon: 'settings' },
+  { label: '站点', path: '/site', icon: 'settings' },
+  { label: 'AI 助手', path: '/site/ai', icon: 'settings' },
+  { label: '邮件', path: '/site/mail', icon: 'settings' },
+  { label: '对象存储', path: '/site/storage', icon: 'settings' },
+  { label: '第三方登录', path: '/site/oauth', icon: 'settings' },
+  { label: '日志', path: '/site/log', icon: 'settings' },
+  { label: '上传策略', path: '/site/upload', icon: 'settings' },
+  { label: '装饰', path: '/site/deco', icon: 'settings' },
   { label: '媒体运营', path: '/media', icon: 'photo' },
   { label: '全局通知', path: '/notifications', icon: 'bell' },
   { label: '日志中心', path: '/logs', icon: 'database' },
@@ -65,11 +77,21 @@ const LEGACY_ADMIN_NAV = [
 const pageFiles = collectPageFiles(pagesDir)
 
 describe('后台菜单拍平视图', () => {
-  it('拍平视图与改造前的扁平清单逐项一致（标题 / 路由 / 图标 / 顺序）', () => {
-    expect(ADMIN_NAV).toEqual(LEGACY_ADMIN_NAV)
+  it('拍平视图与可导航项清单逐项一致（标题 / 路由 / 图标 / 顺序）', () => {
+    expect(ADMIN_NAV).toEqual(EXPECTED_ADMIN_NAV)
 
-    const projected = FLAT_NAV.map(({ label, path, icon }) => ({ label, path, icon }))
-    expect(projected).toEqual(LEGACY_ADMIN_NAV)
+    const navigable = FLAT_NAV.filter(item => item.path !== undefined).map(
+      ({ label, path, icon }) => ({ label, path, icon }),
+    )
+    expect(navigable).toEqual(EXPECTED_ADMIN_NAV)
+
+    // 「站点配置」只分组：没有自身页面，八个域紧跟在它后面。
+    expect(FLAT_NAV.find(item => item.label === '站点配置')!.path).toBeUndefined()
+    expect(FLAT_NAV.find(item => item.label === '站点配置')).toMatchObject({
+      parentLabel: null,
+      depth: 0,
+      hasChildren: true,
+    })
 
     // 两级化后拍平顺序不变：父项仍在原位、子项紧跟父项，所以上面的逐项冻结继续成立。
     // 语义子项下沉一级；其余项仍是顶层。
@@ -81,6 +103,11 @@ describe('后台菜单拍平视图', () => {
     expect(FLAT_NAV.find(item => item.label === '同步死信')).toMatchObject({
       parentLabel: '日志中心',
       parentPath: '/logs',
+      depth: 1,
+    })
+    expect(FLAT_NAV.find(item => item.label === '装饰')).toMatchObject({
+      parentLabel: '站点配置',
+      parentPath: null,
       depth: 1,
     })
     expect(FLAT_NAV.filter(item => item.depth === 0).map(item => item.label)).toEqual([
@@ -150,20 +177,21 @@ describe('后台菜单拍平视图', () => {
   it('navItemByPath 按路由查激活项；没有页面就不算激活，未知路径返回 undefined', () => {
     expect(navItemByPath('/')?.label).toBe('数据概览')
     expect(navItemByPath('/articles/hot-top')?.label).toBe('热门置顶')
-    expect(navItemByPath('/site/deco')).toBeUndefined()
+    // 站点配置的八个域都是可导航子项，高亮按精确路由命中。
+    expect(navItemByPath('/site')?.label).toBe('站点')
+    expect(navItemByPath('/site/deco')?.label).toBe('装饰')
+    expect(navItemByPath('/site/missing')).toBeUndefined()
     expect(navItemByPath('')).toBeUndefined()
 
-    // 拍平后的子项也能被查中（两级化后高亮照旧走这一条缝）。
+    // 只分组的父项不是可导航项：/site 是「站点」子项，不是父级。
     const flat = flattenNav([
       {
         label: '站点配置',
         icon: 'settings',
-        children: [{ label: '装饰', path: '/site/deco', icon: 'settings' }],
+        children: [{ label: '站点', path: '/site', icon: 'settings' }],
       },
     ])
-    expect(navItemByPath('/site/deco', flat)?.label).toBe('装饰')
-    // 只分组的父项不是可导航项。
-    expect(navItemByPath('/site', flat)).toBeUndefined()
+    expect(navItemByPath('/site', flat)?.label).toBe('站点')
   })
 
   it('navTrail 返回根到父的层级链（不含自身），顶层项为空', () => {

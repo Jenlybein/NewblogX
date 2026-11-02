@@ -85,10 +85,17 @@ func (h *Handler) Register(r *gin.RouterGroup, authMw, optionalMw gin.HandlerFun
 		mw.BindUri[kernel.IDRequest], mw.BindJson[CollectionDisplayRequest], h.SetCollectionDisplay)
 	collectionAdminGroup.POST(":id/articles", mw.CaptureLog(mw.ReqBody),
 		mw.BindUri[kernel.IDRequest], mw.BindJson[CollectionArticleRequest], h.IncludeCollectionArticle)
+	// 批量收录与后台收录行读面：一次提交多篇、逐篇返回结局。
+	collectionAdminGroup.POST(":id/articles/batch", mw.CaptureLog(mw.ReqBody),
+		mw.BindUri[kernel.IDRequest], mw.BindJson[CollectionBatchIncludeRequest], h.BatchIncludeCollectionArticles)
+	collectionAdminGroup.GET(":id/articles/admin", mw.BindUri[kernel.IDRequest], h.AdminCollectionItems)
 	collectionAdminGroup.DELETE(":id/articles", mw.CaptureLog(mw.ReqBody),
 		mw.BindUri[kernel.IDRequest], mw.BindJson[CollectionArticleRequest], h.RemoveCollectionArticle)
 	collectionAdminGroup.PATCH(":id/articles/order", mw.CaptureLog(mw.ReqBody),
 		mw.BindUri[kernel.IDRequest], mw.BindJson[CollectionArticleOrderRequest], h.ReplaceCollectionOrder)
+	// 合集之间排序：路径是 /collections/order，与 :id 路由同组但不冲突。
+	collectionAdminGroup.PATCH("order", mw.CaptureLog(mw.ReqBody),
+		mw.BindJson[CollectionOrderRequest], h.ReplaceCollectionSortOrder)
 
 	adminGroup.PUT("tags", mw.CaptureLog(mw.ReqBody), mw.BindJson[TagRequest], h.SaveTag)
 	adminGroup.DELETE("tags", mw.CaptureLog(mw.ReqBody), mw.BindJson[kernel.IDListRequest], h.DeleteTags)

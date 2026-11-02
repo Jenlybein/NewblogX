@@ -175,16 +175,31 @@ export type CollectionCreatePayload = Required<Schema<"internal_article_adapter_
 export type CollectionUpdatePayload = Required<Schema<"internal_article_adapter_http.CollectionUpdateRequest">>;
 
 /**
- * 后台合集的收录行（含失效占位）。
+ * 后台「合集收录」页的一行：顺序 + 文章摘要 + 是否失效。
  *
  * `stale` 与 `stale_reason` 都由后端用与「热门置顶」共用的领域判定算好，
  * 前端只做展示与清理，**不要**在前端再按文章状态判一次。
+ *
+ * 与读者详情不同，它包含失效行——全集换序要提交完整集合，漏掉失效行会被
+ * 服务端整单拒绝。
  */
 export type CollectionAdminItem = RequiredSchema<"internal_article_adapter_http.CollectionAdminItem">;
 
 /** 一键清理失效行的结果：本次删掉的条数（重复调用为 0）。 */
 export type CollectionStaleCleanupResult =
   RequiredSchema<"internal_article_adapter_http.CollectionStaleCleanupResponse">;
+
+/** 批量收录的一篇结局：included / duplicated / not_includable / missing。 */
+export type CollectionBatchIncludeItem = RequiredSchema<"internal_article_adapter_http.CollectionBatchIncludeItem">;
+
+/** 批量收录的汇总：逐篇结果 + 三个计数。 */
+export type CollectionBatchIncludeResponse = RequiredSchema<"internal_article_adapter_http.CollectionBatchIncludeResponse">;
+
+/** 批量收录请求体：一次提交多篇。 */
+export type CollectionBatchIncludePayload = Required<Schema<"internal_article_adapter_http.CollectionBatchIncludeRequest">>;
+
+/** 合集之间排序的请求体：完整有序的合集 ID 列表。 */
+export type CollectionOrderPayload = Required<Schema<"internal_article_adapter_http.CollectionOrderRequest">>;
 
 // ── 热门置顶（运营位）─────────────────────────────────────────
 /**
@@ -226,7 +241,6 @@ export interface SiteRuntimeConfig {
   }
   about: Record<string, string>
   login: SiteLoginRuntimeConfig
-  index_right: { list: unknown[] }
   article: {
     skip_examining: boolean
     /**

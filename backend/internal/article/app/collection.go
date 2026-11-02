@@ -2,6 +2,7 @@ package app
 
 import (
 	"context"
+	"errors"
 
 	"myblogx/internal/article/domain"
 	"myblogx/internal/article/domain/collection"
@@ -136,6 +137,73 @@ func (s *Service) IncludeArticle(ctx context.Context, cmd IncludeArticleCmd) err
 	})
 }
 
+// IncludeArticles 批量把多篇文章收录进合集（管理员）。
+//
+// 与 IncludeArticle 的区别只有一处：结果**逐篇分类**而不是整单成败。
+// 三条规则同样成立：
+//  1. 只有管理员（否则整单 403，一篇都不落库）；
+//  2. 每篇文章都必须已发布且可见，不可收录的记为 NotIncludable；
+//  3. 已收录的记为 Duplicated，不新增、不改序号（不会把旧条目挪到末尾）。
+//
+// 全部发生在同一个事务里：中途出现基础设施错误时整单回滚，
+// 不会出现"前几篇进去了、后几篇没进去"的半截状态。
+// 不存在的文章记为 Missing 而不是中断整单——运营勾选列表里的过期项
+// 不该阻塞其它条目。
+func (s *Service) IncludeArticles(
+	ctx context.Context, cmd IncludeArticlesCmd,
+) ([]collection.BatchIncludeResult, error) {
+	if !cmd.Actor.IsAdmin() {
+		return nil, domain.ErrForbidden
+	}
+
+	results := make([]collection.BatchIncludeResult, 0, len(cmd.ArticleIDs))
+	err := s.tx.WithinTx(ctx, func(ctx context.Context, r Repos) error {
+		if _, err := r.Collections().Find(ctx, cmd.CollectionID); err != nil {
+			return err
+		}
+		for _, articleID := range cmd.ArticleIDs {
+			outcome, err := s.includeOne(ctx, r, cmd.CollectionID, articleID)
+			if err != nil {
+				return err
+			}
+			results = append(results, collection.BatchIncludeResult{
+				ArticleID: articleID,
+				Outcome:   outcome,
+			})
+		}
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	return results, nil
+}
+
+// includeOne 是批量收录里的一篇；只返回结局，不把"不可收录"升级成错误。
+func (s *Service) includeOne(
+	ctx context.Context, r Repos, id collection.ID, articleID domain.ArticleID,
+) (collection.IncludeOutcome, error) {
+	a, err := r.Articles().Find(ctx, articleID)
+	if err != nil {
+		if errors.Is(err, domain.ErrArticleNotFound) {
+			return collection.IncludeOutcomeMissing, nil
+		}
+		return "", err
+	}
+	if !collection.CanBeIncluded(a) {
+		return collection.IncludeOutcomeNotIncludable, nil
+	}
+
+	created, err := r.Collections().AppendItem(ctx, id, collection.ArticleID(articleID))
+	if err != nil {
+		return "", err
+	}
+	if !created {
+		return collection.IncludeOutcomeDuplicated, nil
+	}
+	return collection.IncludeOutcomeIncluded, nil
+}
+
 // RemoveArticle 从合集中移除一篇文章（管理员）。
 //
 // 幂等：不在合集里也返回成功（后台批量清理时不该因为一行过期数据整单失败）。
@@ -248,6 +316,53 @@ func (s *Service) CollectionDetail(
 		return nil
 	})
 	return detail, err
+}
+
+// ListCollectionAdminItems 返回一个合集的全部收录行（含已失效），后台编排用。
+//
+// 为什么不复用公开的 CollectionDetail：读者读面只给"仍公开"的文章，
+// 而全集换序要求提交的集合与库里的**全部活跃收录行**一致——
+// 用读者读面拼出来的列表会漏掉失效行，提交时被自己拒绝。
+func (s *Service) ListCollectionAdminItems(
+	ctx context.Context, viewer domain.Viewer, id collection.ID,
+) ([]collection.AdminItem, error) {
+	if !viewer.IsAdmin() {
+		return nil, domain.ErrForbidden
+	}
+	var items []collection.AdminItem
+	err := s.tx.WithinTx(ctx, func(ctx context.Context, r Repos) error {
+		if _, err := r.Collections().Find(ctx, id); err != nil {
+			return err
+		}
+		var err error
+		items, err = r.Collections().ListAdminItems(ctx, id)
+		return err
+	})
+	return items, err
+}
+
+// ReplaceCollectionSortOrder 用完整有序列表原子重排合集之间的展示顺序（管理员）。
+//
+// 输入必须是当前全部合集的排列（collection.CheckSortOrder）：集合不一致整单拒绝。
+// 与合集内排序同一条语义，只是对象换成了合集自身；落库的是
+// collection_models.sort_order，读者列表页与后台列表都按它排序。
+func (s *Service) ReplaceCollectionSortOrder(
+	ctx context.Context, viewer domain.Viewer, ids []collection.ID,
+) error {
+	if !viewer.IsAdmin() {
+		return domain.ErrForbidden
+	}
+
+	return s.tx.WithinTx(ctx, func(ctx context.Context, r Repos) error {
+		current, err := r.Collections().ListIDs(ctx)
+		if err != nil {
+			return err
+		}
+		if err := collection.CheckSortOrder(current, ids); err != nil {
+			return err
+		}
+		return r.Collections().UpdateSortOrders(ctx, ids)
+	})
 }
 
 // ListAdminCollectionCards 返回后台合集列表（含未展示的合集）。

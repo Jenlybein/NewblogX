@@ -253,6 +253,38 @@ func (r *CollectionRepo) ListAdminCards(ctx context.Context) ([]collection.Admin
 	return out, nil
 }
 
+// ListIDs 按序号返回全部未软删合集的 ID（合集之间换序的集合校验用）。
+func (r *CollectionRepo) ListIDs(ctx context.Context) ([]collection.ID, error) {
+	var raw []ctype.ID
+	err := r.db.WithContext(ctx).Model(&collectionRow{}).
+		Order("sort_order ASC, id ASC").
+		Pluck("id", &raw).Error
+	if err != nil {
+		return nil, err
+	}
+	out := make([]collection.ID, 0, len(raw))
+	for _, v := range raw {
+		out = append(out, collection.ID(v))
+	}
+	return out, nil
+}
+
+// UpdateSortOrders 按给定顺序把合集自身的序号改成 1..n。
+//
+// 集合一致性由 app 层的 collection.CheckSortOrder 保证，这里只负责落库；
+// 逐条 UPDATE 足够（合集以十计），不折腾 CASE WHEN。
+func (r *CollectionRepo) UpdateSortOrders(ctx context.Context, ids []collection.ID) error {
+	db := r.db.WithContext(ctx)
+	for i, id := range ids {
+		if err := db.Model(&collectionRow{}).
+			Where("id = ?", ctype.ID(id)).
+			Update("sort_order", i+1).Error; err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 // ListItemIDs 按序号返回当前收录的文章 ID（不含软删行）。
 func (r *CollectionRepo) ListItemIDs(ctx context.Context, id collection.ID) ([]collection.ArticleID, error) {
 	var raw []ctype.ID
@@ -303,11 +335,18 @@ func (r *CollectionRepo) AppendItem(
 		if err != nil {
 			return false, err
 		}
-		return true, db.Create(&collectionArticleRow{
+		err = db.Create(&collectionArticleRow{
 			CollectionID: ctype.ID(id),
 			ArticleID:    ctype.ID(articleID),
 			SortOrder:    next,
 		}).Error
+		// 唯一索引 (collection_id, article_id) 不含 deleted_at：两个管理员同时收录
+		// 同一篇时，后到的 INSERT 会撞 1062。把唯一键冲突翻译成"这篇已经在合集里"，
+		// 而不是把裸数据库错误透传成 500。
+		if errors.Is(err, gorm.ErrDuplicatedKey) {
+			return false, nil
+		}
+		return err == nil, err
 	default:
 		return false, err
 	}

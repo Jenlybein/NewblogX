@@ -16,6 +16,7 @@ import type {
   CdcEventRecord,
   CollectionAdminCard,
   CollectionAdminItem,
+  CollectionBatchIncludeResponse,
   CollectionCreatePayload,
   CollectionStaleCleanupResult,
   CollectionUpdatePayload,
@@ -188,16 +189,29 @@ export function setCollectionDisplay(id: string, displayed: boolean) {
   })
 }
 
+// ── 合集编排（批量收录 + 两级排序）────────────────────────────
+
 /**
- * 后台合集的收录行：包含失效占位，后台据此标记与单独清理。
+ * 后台收录行：含失效行。
  *
- * 与读者详情不同：这里不隐藏失效文章，`stale`/`stale_reason` 由后端算好。
+ * 与读者详情不同，这里**不隐藏失效文章**，`stale` / `stale_reason` 由后端用与
+ * 「热门置顶」共用的领域判定算好，前端只做展示与清理。
+ *
+ * 全集换序必须提交**完整**集合，所以不能读读者详情（它只给仍公开的文章）。
  */
 export function getAdminCollectionItems(id: string) {
-  return api().request<ListData<CollectionAdminItem>>(`/collections/${id}/admin/items`)
+  return api().request<ListData<CollectionAdminItem>>(`/collections/${id}/articles/admin`)
 }
 
-/** 移除合集里的一条收录（幂等）。 */
+/** 批量收录：一次提交多篇，逐篇返回结局（重复 / 不可收录不会让整单失败）。 */
+export function batchIncludeCollectionArticles(id: string, articleIds: string[]) {
+  return api().request<CollectionBatchIncludeResponse, { article_ids: string[] }>(
+    `/collections/${id}/articles/batch`,
+    { method: 'POST', body: { article_ids: articleIds } },
+  )
+}
+
+/** 移除一篇收录（幂等；后端会把剩余序号压实）。 */
 export function removeCollectionArticle(id: string, articleId: string) {
   return api().request<unknown, { article_id: string }>(`/collections/${id}/articles`, {
     method: 'DELETE',
@@ -209,6 +223,31 @@ export function removeCollectionArticle(id: string, articleId: string) {
 export function cleanupCollectionStale(id: string) {
   return api().request<CollectionStaleCleanupResult>(`/collections/${id}/admin/stale`, {
     method: 'DELETE',
+  })
+}
+
+/**
+ * 合集内的全量顺序替换。
+ *
+ * 传**完整**的有序列表（失效行也算）：后端在集合不一致时整单拒绝，
+ * 所以先在上移/下移后拿完整数组再提交，别只传变化的两条。
+ */
+export function updateCollectionItemOrder(id: string, articleIds: string[]) {
+  return api().request<unknown, { article_ids: string[] }>(`/collections/${id}/articles/order`, {
+    method: 'PATCH',
+    body: { article_ids: articleIds },
+  })
+}
+
+/**
+ * 合集之间的全量顺序替换。
+ *
+ * 同样传完整列表（含未展示的合集）：读者列表页与后台列表都按 sort_order 排序。
+ */
+export function updateCollectionOrder(collectionIds: string[]) {
+  return api().request<unknown, { collection_ids: string[] }>('/collections/order', {
+    method: 'PATCH',
+    body: { collection_ids: collectionIds },
   })
 }
 

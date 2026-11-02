@@ -52,17 +52,6 @@ type Login struct {
 	EmailSendPerIPMax     int64 `yaml:"email_send_per_ip_max" json:"email_send_per_ip_max"`       // 单IP窗口内最大发送次数
 }
 
-// 组件设置
-type ComponentInfo struct {
-	Title  string `yaml:"title" json:"title"`
-	Enable bool   `yaml:"enable" json:"enable"`
-}
-
-// 首页右屏组件展示
-type IndexRight struct {
-	List []ComponentInfo `yaml:"list" json:"list"`
-}
-
 type Article struct {
 	SkipExamining bool `yaml:"skip_examining" json:"skip_examining"` // 免审核
 

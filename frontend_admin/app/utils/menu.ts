@@ -169,6 +169,45 @@ export function navTrail(path: string, flat: AdminNavFlatItem[] = FLAT_NAV): Adm
   return trail
 }
 
+/**
+ * 面包屑的一项（根 → 当前）。
+ *
+ * `path` 是"点了会去哪"，所以只有**可点回退**的祖先才有值：
+ *   - 当前项：`current: true`、`path: null`（当前页不需要再点一次）；
+ *   - 只分组的父项：`path: null`（没有落地页，点它只会跳空页）；
+ *   - 其余祖先：`path` 为分组自身的页面。
+ */
+export interface AdminBreadcrumbItem {
+  label: string
+  path: string | null
+  current: boolean
+}
+
+/**
+ * 从路由推导面包屑：祖先链来自 `navTrail()`，当前项来自 `navItemByPath()`。
+ *
+ * 为什么不在这里再建一份层级：菜单与面包屑必须讲同一个层级故事，
+ * 否则深链接进入时菜单高亮与面包屑会各说各话。拍平视图是唯一来源。
+ *
+ * 未知路由返回空数组（不撒谎造一个不存在的祖先）；空的面包屑由消费方决定不渲染。
+ */
+export function buildAdminBreadcrumb(
+  path: string,
+  flat: AdminNavFlatItem[] = FLAT_NAV,
+): AdminBreadcrumbItem[] {
+  const current = navItemByPath(path, flat)
+  if (!current) return []
+
+  return [
+    ...navTrail(path, flat).map(item => ({
+      label: item.label,
+      path: item.path ?? null,
+      current: false,
+    })),
+    { label: current.label, path: null, current: true },
+  ]
+}
+
 /** 分组节点的稳定 key：分组可能没有页面，不能用 path 当 key。 */
 export function navGroupKey(node: Pick<AdminNavNode, 'label'>): string {
   return `group:${node.label}`

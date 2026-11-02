@@ -205,6 +205,45 @@ func (r *CollectionRepo) ListAdminCards(_ context.Context) ([]collection.AdminCa
 	return out, nil
 }
 
+// ListIDs 按序号返回全部未软删合集的 ID。
+func (r *CollectionRepo) ListIDs(_ context.Context) ([]collection.ID, error) {
+	r.count.inc("ListIDs")
+	if err := r.fault.take("ListIDs"); err != nil {
+		return nil, err
+	}
+	r.mus.Lock()
+	defer r.mus.Unlock()
+
+	all := r.sortedCollectionsLocked()
+	out := make([]collection.ID, 0, len(all))
+	for _, c := range all {
+		if c.Deleted() {
+			continue
+		}
+		out = append(out, c.ID())
+	}
+	return out, nil
+}
+
+// UpdateSortOrders 按给定顺序把合集自身的序号改成 1..n。
+func (r *CollectionRepo) UpdateSortOrders(_ context.Context, ids []collection.ID) error {
+	r.count.inc("UpdateSortOrders")
+	if err := r.fault.take("UpdateSortOrders"); err != nil {
+		return err
+	}
+	r.mus.Lock()
+	defer r.mus.Unlock()
+
+	for i, id := range ids {
+		c, ok := r.collections[id]
+		if !ok {
+			return collection.ErrNotFound
+		}
+		c.SetSortOrder(i+1, c.UpdatedAt())
+	}
+	return nil
+}
+
 // ListItemIDs 按序号返回当前收录的文章 ID。
 func (r *CollectionRepo) ListItemIDs(_ context.Context, id collection.ID) ([]collection.ArticleID, error) {
 	r.count.inc("ListItemIDs")

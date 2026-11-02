@@ -15,6 +15,8 @@ import type {
   BannerWritePayload,
   CdcEventRecord,
   CollectionAdminCard,
+  CollectionAdminItem,
+  CollectionBatchIncludeResponse,
   CollectionCreatePayload,
   CollectionUpdatePayload,
   DecoRuntimeConfig,
@@ -183,6 +185,58 @@ export function setCollectionDisplay(id: string, displayed: boolean) {
   return api().request<unknown, { displayed: boolean }>(`/collections/${id}/display`, {
     method: 'PATCH',
     body: { displayed },
+  })
+}
+
+// ── 合集编排（批量收录 + 两级排序）────────────────────────────
+
+/**
+ * 后台收录行：含失效行。
+ *
+ * 全集换序必须提交**完整**集合，所以这里不能读读者详情（它只给仍公开的文章）。
+ */
+export function getAdminCollectionItems(id: string) {
+  return api().request<ListData<CollectionAdminItem>>(`/collections/${id}/articles/admin`)
+}
+
+/** 批量收录：一次提交多篇，逐篇返回结局（重复 / 不可收录不会让整单失败）。 */
+export function batchIncludeCollectionArticles(id: string, articleIds: string[]) {
+  return api().request<CollectionBatchIncludeResponse, { article_ids: string[] }>(
+    `/collections/${id}/articles/batch`,
+    { method: 'POST', body: { article_ids: articleIds } },
+  )
+}
+
+/** 移除一篇收录（幂等；后端会把剩余序号压实）。 */
+export function removeCollectionArticle(id: string, articleId: string) {
+  return api().request<unknown, { article_id: string }>(`/collections/${id}/articles`, {
+    method: 'DELETE',
+    body: { article_id: articleId },
+  })
+}
+
+/**
+ * 合集内的全量顺序替换。
+ *
+ * 传**完整**的有序列表（失效行也算）：后端在集合不一致时整单拒绝，
+ * 所以先在上移/下移后拿完整数组再提交，别只传变化的两条。
+ */
+export function updateCollectionItemOrder(id: string, articleIds: string[]) {
+  return api().request<unknown, { article_ids: string[] }>(`/collections/${id}/articles/order`, {
+    method: 'PATCH',
+    body: { article_ids: articleIds },
+  })
+}
+
+/**
+ * 合集之间的全量顺序替换。
+ *
+ * 同样传完整列表（含未展示的合集）：读者列表页与后台列表都按 sort_order 排序。
+ */
+export function updateCollectionOrder(collectionIds: string[]) {
+  return api().request<unknown, { collection_ids: string[] }>('/collections/order', {
+    method: 'PATCH',
+    body: { collection_ids: collectionIds },
   })
 }
 

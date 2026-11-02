@@ -244,7 +244,11 @@ type Clock interface {
 }
 
 // Logger 是窄日志接口。
+//
+// Infof 是给"正常跑完的结论"用的：孤儿图清单的产出就是一行结论，
+// 只记 warn/error 的话，运维事后翻日志会以为任务从来没跑过。
 type Logger interface {
+	Infof(format string, args ...any)
 	Warnf(format string, args ...any)
 	Errorf(format string, args ...any)
 }

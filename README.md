@@ -1192,6 +1192,42 @@ SELECT COUNT(*) AS 活关系 FROM article_digg_models WHERE deleted_at IS NULL;
 SELECT COUNT(*) AS 软删残行 FROM article_digg_models WHERE deleted_at IS NOT NULL;
 ```
 
+### 12.2.2 孤儿图候选清单（只读，`-t imagegc`）
+
+**背景**：图片是浏览器直传存储、后端只签发任务，**没有任何"这张图还有没有人用"
+的回收机制**。引用账本（`image_ref_models`）由 image-ref 从 binlog 维护，但一直
+**只写不读**——这条命令是第一个按 `image_id` 反查它的代码。本票**只出清单**，
+不删任何东西（见 issue #139）。
+
+```bash
+cd /opt/blogx/deploy/compose/production
+set -a; . ./.env; set +a
+
+# 只读清单：图片行、引用账本、存储对象都不会被改动
+docker compose exec blogx_server ./blogx-server -f config/settings.yaml -t imagegc
+```
+
+输出含义：
+
+| 字段 | 含义 |
+| --- | --- |
+| `冷静期` | 只选中上传早于「现在 - N 天」的图。N 是运行时配置 `image_gc.grace_days`，默认 14 |
+| `候选` | 真实引用数为 0、过了冷静期、非头像、非审核中/封禁的图；每条列出 id / 对象键 / 上传时间 / 状态 / **账本引用数** / **真实引用数** |
+| `账本不一致` | 账本 0 条但真实引用 >0：账本漏记的证据（CDC 死信，或换过存储域名/前缀）。**供人工复核，不是候选** |
+| `剩余` | 超过单次上限（`image_gc.batch_limit`，默认 50、硬上限 500）没检查的条数 |
+
+三条执行约定：
+
+1. **只读**。图片行、引用账本、存储对象都不动——服务层用例对这条性质有断言。
+2. **判定不信任账本**：候选以重扫四类引用源（文章正文/封面、轮播封面、收藏封面、
+   用户头像）为准；账本只用来排除头像、并列展示，以及暴露自己的漏记。
+3. **改冷静期不必重启**：`image_gc` 是运行时配置段，命令每次启动现读。
+   后台还没有编辑入口之前，可改库里 `runtime_config_models` 的
+   `name='image_gc'` 那行 JSON（如 `{"grace_days":7,"batch_limit":50}`）。
+   删图能力留给后续票（#140）。
+
+日志里也会留一条结论：`孤儿图清单扫描完成: ... 检查=N 选中=N 排除=N 剩余=N`。
+
 日志目录映射（都在 `deploy/state/` 下，已在 `.gitignore` 内）：
 
 | 宿主机路径 | 容器内 | 内容 |

@@ -421,6 +421,8 @@ export const DECO_ANCHOR_PARAMETERS = [
   // #75 已交付：四端都有指针端偏移（负数下限也由门禁的符号支持覆盖）。
   { key: "pointer_offset_x", label: "指针端偏移 X", status: "delivered", issue: "#75" },
   { key: "pointer_offset_y", label: "指针端偏移 Y", status: "delivered", issue: "#75" },
+  // 约束刚度随弹性绳一起交付：四端都有 `stiffness`，状态位直接转正。
+  { key: "stiffness", label: "约束刚度", status: "delivered" },
 ];
 
 const EMPTY_ANCHORS = { delivered: [], pending: [], partial: [], notes: [] };

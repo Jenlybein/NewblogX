@@ -190,8 +190,8 @@ describe("canary：只改一端就必须红，并指出是哪两端、哪个参�
   it("只改读者站的节点数上限 → 报读者站与后端在 charm.segments.max 上不一致", () => {
     const reader = mutate(
       readSources().reader!,
-      "CHARM_SEGMENTS_MAX = 24",
       "CHARM_SEGMENTS_MAX = 30",
+      "CHARM_SEGMENTS_MAX = 34",
     );
     const result = evaluateDecoRangeParity(readSources({ reader }));
 
@@ -202,7 +202,7 @@ describe("canary：只改一端就必须红，并指出是哪两端、哪个参�
       kind: "value-mismatch",
       parameter: "charm.segments",
       field: "max",
-      sides: { backend: 24, reader: 30, admin: 24 },
+      sides: { backend: 30, reader: 34, admin: 30 },
     });
     expect(failure.disagreeingSides).toEqual(["reader"]);
     expect(failure.message).toContain(DECO_SOURCE_FILES.reader);
@@ -391,12 +391,13 @@ describe("锚点参数：拦住「参数从四端同时消失」（#72）", () =
     expect(result.parameters.pointer_offset_x?.min).toBe(-24);
   });
 
-  it("锚点清单就是票面那四个（挂绳长度 / 帧率上限 / 指针端偏移 X / Y）", () => {
+  it("锚点清单就是票面那五个（挂绳长度 / 帧率上限 / 指针端偏移 X / Y / 约束刚度）", () => {
     expect(DECO_ANCHOR_PARAMETERS.map((anchor: { key: string }) => anchor.key)).toEqual([
       "rope_length",
       "fps_cap",
       "pointer_offset_x",
       "pointer_offset_y",
+      "stiffness",
     ]);
     // 每个锚点都得说清"现在该不该在场"：未交付的锚点不能把门禁自己搞红。
     for (const anchor of DECO_ANCHOR_PARAMETERS) {
@@ -404,24 +405,24 @@ describe("锚点参数：拦住「参数从四端同时消失」（#72）", () =
     }
   });
 
-  it("四个锚点都已交付（四源在场），待交付清单为空且没有状态位提醒", () => {
+  it("五个锚点都已交付（四源在场），待交付清单为空且没有状态位提醒", () => {
     const result = checkDecoRangeParity({ repoRoot });
 
     expect(result.failures).toEqual([]);
     expect(result.ok).toBe(true);
-    // #74 / #75 交付后锚点全部转正：状态位必须跟着改，否则报告会一直提示"待交付"。
+    // 新参数交付后锚点全部转正：状态位必须跟着改，否则报告会一直提示"待交付"。
     expect(result.anchors.delivered).toEqual([
       "rope_length",
       "fps_cap",
       "pointer_offset_x",
       "pointer_offset_y",
+      "stiffness",
     ]);
     expect(result.anchors.pending).toEqual([]);
     expect(result.anchors.notes).toEqual([]);
   });
 
-  it("已交付的锚点从四源同时消失 → 红，并点名参数与四端", () => {
-    const sources = readSources();
+  it("已交付的锚点从四源同时消失 → 红，并点名参数与四端", () => {    const sources = readSources();
     const stripped = {
       backend: dropLines(sources.backend!, [
         "CharmRopeLengthMin = 40.0",
@@ -453,6 +454,36 @@ describe("锚点参数：拦住「参数从四端同时消失」（#72）", () =
     for (const side of ["backend", "reader", "admin", "yaml"] as const) {
       expect(failure.message).toContain(DECO_SOURCE_FILES[side]);
     }
+  });
+
+  it("约束刚度从四源同时消失 → 锚点报红（新参数也必须登记在锚点清单里）", () => {
+    const sources = readSources();
+    const stripped = {
+      backend: dropLines(sources.backend!, [
+        "CharmStiffnessMin = 0.2",
+        "CharmStiffnessMax = 1.0",
+        "CharmStiffnessDefault = 0.5",
+      ]),
+      reader: dropLines(sources.reader!, [
+        "export const CHARM_STIFFNESS_MIN = 0.2;",
+        "export const CHARM_STIFFNESS_MAX = 1;",
+        "export const CHARM_STIFFNESS_DEFAULT = 0.5;",
+      ]),
+      admin: dropLines(sources.admin!, [
+        "export const DECO_STIFFNESS_MIN = 0.2",
+        "export const DECO_STIFFNESS_MAX = 1",
+        "export const DECO_STIFFNESS_DEFAULT = 0.5",
+      ]),
+      yaml: dropLines(sources.yaml!, ["stiffness: 0.5"]),
+    };
+    const result = evaluateDecoRangeParity({ ...sources, ...stripped });
+
+    expect(result.ok).toBe(false);
+    expect(result.failures.map((failure: { kind: string }) => failure.kind)).toEqual([
+      "anchor-missing",
+    ]);
+    expect(result.failures[0]).toMatchObject({ parameter: "charm.stiffness" });
+    expect(result.failures[0].message).toContain("charm.stiffness");
   });
 
   it("未交付的锚点只交付了一半（少了默认种子）→ 红，并指出是哪一端缺哪个参数", () => {

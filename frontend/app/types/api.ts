@@ -83,16 +83,17 @@ export type SiteAiInfo = RequiredSchema<"internal_site_adapter_http.AIResponse">
 export interface SiteDecoConfig {
   charm?: {
     enable?: boolean;
+    /** 站标显示尺寸，px，合法区间 15–70。 */
     logo_size?: number | null;
     /** 挂绳长度，px，合法区间 40–240。 */
     rope_length?: number | null;
-    /** Verlet 链节点数，节，合法区间 4–24。 */
+    /** Verlet 链节点数，节，合法区间 4–30。 */
     segments?: number | null;
     /** 描边起始宽度，px，合法区间 1–6，保留一位小数；收尾固定为 0.6 倍。 */
     line_width?: number | null;
     /** 重力加速度，px/s²，合法区间 400–4000。 */
     gravity?: number | null;
-    /** 每步速度保持系数，无量纲，合法区间 0.94–0.995。 */
+    /** 每步速度保持系数，无量纲，合法区间 0.9–1；1 表示不衰减（可能持续振荡）。 */
     damping?: number | null;
     /** 距离约束刚度，无量纲，合法区间 0.2–1；1 最硬，越小越弹。 */
     stiffness?: number | null;

@@ -45,7 +45,7 @@ export const CHARM_ROPE_LENGTH_DEFAULT = 120;
 /** 链节点数下限（节）：再少就不是绳子而是一根杆。与后端 `deco.charm.segments` 一致。 */
 export const CHARM_SEGMENTS_MIN = 4;
 /** 链节点数上限（节）：再多只是白烧 CPU。 */
-export const CHARM_SEGMENTS_MAX = 24;
+export const CHARM_SEGMENTS_MAX = 30;
 /** 链节点数默认值（节）。 */
 export const CHARM_SEGMENTS_DEFAULT = 10;
 
@@ -57,9 +57,9 @@ export const CHARM_GRAVITY_MAX = 4000;
 export const CHARM_GRAVITY_DEFAULT = 1600;
 
 /** 每步速度保持系数下限（无量纲）。与后端 `deco.charm.damping` 一致。 */
-export const CHARM_DAMPING_MIN = 0.94;
-/** 每步速度保持系数上限：**必须小于 1**，否则每步都在放大速度，摆动会越甩越大。 */
-export const CHARM_DAMPING_MAX = 0.995;
+export const CHARM_DAMPING_MIN = 0.9;
+/** 每步速度保持系数上限：1 表示速度完全不衰减（可能持续振荡）；大于 1 才会越甩越大。 */
+export const CHARM_DAMPING_MAX = 1;
 /** 每步速度保持系数默认值。 */
 export const CHARM_DAMPING_DEFAULT = 0.99;
 
@@ -87,10 +87,10 @@ export const CHARM_STIFFNESS_DEFAULT = 0.5;
 const CHARM_CONSTRAINT_ITERATIONS = 20;
 
 /** 站标尺寸下限（px）：再小就看不清是什么东西。与后端 `deco.charm.logo_size` 一致。 */
-export const CHARM_LOGO_SIZE_MIN = 24;
+export const CHARM_LOGO_SIZE_MIN = 15;
 
 /** 站标尺寸上限（px）：再大就会压住正文。 */
-export const CHARM_LOGO_SIZE_MAX = 96;
+export const CHARM_LOGO_SIZE_MAX = 70;
 
 /** 站标尺寸默认值（px）：与后端 `deco.charm.logo_size` 的默认值一致。 */
 export const CHARM_LOGO_SIZE_DEFAULT = 48;
@@ -377,7 +377,7 @@ export function clampCharmRopeLength(value: number): number {
 }
 
 /**
- * 节点数归一化：计数先四舍五入，再钳到 4–24，零与非法值回落 10。
+ * 节点数归一化：计数先四舍五入，再钳到 4–30，零与非法值回落 10。
  *
  * 四舍五入而不是截断是有意的：管理员填 10.6 的意图更接近 11（更顺滑），
  * 而"10.6 节"本身在节点数组里没有意义。
@@ -392,7 +392,7 @@ export function clampCharmGravity(value: number): number {
   return clampPositiveRange(value, CHARM_GRAVITY_MIN, CHARM_GRAVITY_MAX, CHARM_GRAVITY_DEFAULT);
 }
 
-/** 阻尼归一化：越界钳到 0.94–0.995（上限小于 1），零与非法值回落 0.99。 */
+/** 阻尼归一化：越界钳到 0.9–1（1 表示不衰减），零与非法值回落 0.99。 */
 export function clampCharmDamping(value: number): number {
   return clampPositiveRange(value, CHARM_DAMPING_MIN, CHARM_DAMPING_MAX, CHARM_DAMPING_DEFAULT);
 }

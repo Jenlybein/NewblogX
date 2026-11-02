@@ -15,10 +15,10 @@
  */
 
 /** 站标尺寸下限（px）。 */
-export const DECO_LOGO_SIZE_MIN = 24
+export const DECO_LOGO_SIZE_MIN = 15
 
 /** 站标尺寸上限（px）。 */
-export const DECO_LOGO_SIZE_MAX = 96
+export const DECO_LOGO_SIZE_MAX = 70
 
 /** 站标尺寸默认值（px）。 */
 export const DECO_LOGO_SIZE_DEFAULT = 48
@@ -36,7 +36,7 @@ export const DECO_ROPE_LENGTH_DEFAULT = 120
 export const DECO_SEGMENTS_MIN = 4
 
 /** 链节点数上限（节）。 */
-export const DECO_SEGMENTS_MAX = 24
+export const DECO_SEGMENTS_MAX = 30
 
 /** 链节点数默认值（节）。 */
 export const DECO_SEGMENTS_DEFAULT = 10
@@ -51,10 +51,15 @@ export const DECO_GRAVITY_MAX = 4000
 export const DECO_GRAVITY_DEFAULT = 1600
 
 /** 每步速度保持系数下限（无量纲）。 */
-export const DECO_DAMPING_MIN = 0.94
+export const DECO_DAMPING_MIN = 0.9
 
-/** 每步速度保持系数上限（无量纲，必须小于 1）。 */
-export const DECO_DAMPING_MAX = 0.995
+/**
+ * 每步速度保持系数上限（无量纲）。
+ *
+ * 1 表示速度完全不衰减：摆动会靠重力继续来回，可能持续振荡（已接受的风险）。
+ * 大于 1 才会逐步放大速度、越甩越大，所以越界值仍然钳回 1。
+ */
+export const DECO_DAMPING_MAX = 1
 
 /** 每步速度保持系数默认值（无量纲）。 */
 export const DECO_DAMPING_DEFAULT = 0.99
@@ -126,7 +131,7 @@ export const DECO_POINTER_OFFSET_Y_DEFAULT = 3
  * 一个数值参数用哪条钳位规则（票 #78）—— 元数据驱动归一化的关键。
  *
  * 五个取值与后端 `Normalize()` 的规则一一对应：
- *   - `positive`：<= 0 是"没填 / 手滑"，回落默认值（站标尺寸、挂绳长度、重力、阻尼）；
+ *   - `positive`：<= 0 是"没填 / 手滑"，回落默认值（站标尺寸、挂绳长度、重力、阻尼、刚度）；
  *   - `nonNegative`：0 有合法含义（关掉轻晃），负数才回落默认；
  *   - `signed`：0 与负数都是普通取值，只夹 [min, max] 再取整（指针端偏移）；
  *   - `segments`：整数计数（`segments` / `fps_cap`），夹边界后取整；
@@ -235,7 +240,7 @@ export const DECO_DAMPING_PARAM = defineDecoParam({
   key: 'damping',
   label: '每步阻尼',
   unit: '无量纲',
-  hint: '每个固定步长后保留的速度比例：越接近 1 越飘；上限 0.995，再大摆动会越甩越大。',
+  hint: '每个固定步长后保留的速度比例：越接近 1 越飘；上限 1 表示速度完全不衰减，可能配合重力持续振荡（大于 1 才是发散值，会被钳回 1）。',
   kind: 'positive',
   min: DECO_DAMPING_MIN,
   max: DECO_DAMPING_MAX,
@@ -424,7 +429,7 @@ function clampPointerOffset(value: number, min: number, max: number, fallback: n
  * 计数类参数（`segments` / `fps_cap`）的钳位：先夹到边界、再四舍五入成整数。
  *
  * 顺序不能反：160.6 必须得到 160，而不是 161。`segments` 早先写的是"先四舍五入
- * 再夹边界"，两者在整数边界（4–24、30–160）上结果等价 —— 共享夹具钉着边界与
+ * 再夹边界"，两者在整数边界（4–30、30–160）上结果等价 —— 共享夹具钉着边界与
  * 半值用例。
  */
 function clampDecoInteger(value: number, min: number, max: number, fallback: number): number {
@@ -481,7 +486,7 @@ export function clampDecoGravity(value: number): number {
   return clampDecoParam(value, DECO_GRAVITY_PARAM)
 }
 
-/** 阻尼归一化：越界钳到 0.94–0.995，零与非法值回落 0.99。 */
+/** 阻尼归一化：越界钳到 0.9–1，零与非法值回落 0.99（1 合法，大于 1 夹回 1）。 */
 export function clampDecoDamping(value: number): number {
   return clampDecoParam(value, DECO_DAMPING_PARAM)
 }
@@ -521,9 +526,79 @@ export function clampDecoPointerOffsetY(value: number): number {
   return clampDecoParam(value, DECO_POINTER_OFFSET_Y_PARAM)
 }
 
-/** 节点数归一化：越界钳到 4–24 再四舍五入成整数，零与非法值回落 10。 */
+/** 节点数归一化：越界钳到 4–30 再四舍五入成整数，零与非法值回落 10。 */
 export function clampDecoSegments(value: number): number {
   return clampDecoParam(value, DECO_SEGMENTS_PARAM)
+}
+
+/**
+ * 数字输入框回填用的短格式：整数不留小数点，声明了精度就按精度补零，
+ * 其余最多保留三位（阻尼这类参数不应回填出 0.9900000001）。
+ */
+function formatDecoParamValue(param: DecoNumberParamMeta, value: number): string {
+  if (param.integer) return String(Math.round(value))
+  if (param.precision !== undefined) return value.toFixed(param.precision)
+  return String(Number(value.toFixed(3)))
+}
+
+/** 一次数字输入的处理结果：夹回/回落后的值与给管理员看的提示（合法输入无提示）。 */
+export interface DecoParamInputResult {
+  value: number
+  notice: string | null
+}
+
+/**
+ * 处理数字输入框的原始值：**数字输入的钳位唯一入口**。
+ *
+ * 滑块本身只吐元数据区间内的值，所以它直接走 `clampDecoParam`；数字框可以被
+ * 粘贴、被 devtools 改、被旧版本页面填上越界值，因此要在这里：
+ *   1. 空值 / NaN 一律回落默认值，并说明「已恢复默认」；
+ *   2. 按参数的 `kind` 选择与后端同一条钳位规则；
+ *   3. 只要结果与输入不同就返回一句可见提示 —— 管理员不该在保存后才发现数字被改过。
+ *
+ * 提示文本由参数元数据拼出来（标签、区间、单位），所以新增参数不需要再来改文案。
+ */
+export function interpretDecoParamInput(
+  raw: unknown,
+  param: DecoNumberParamMeta,
+): DecoParamInputResult {
+  const input = raw === null || raw === undefined ? Number.NaN : Number(raw)
+  const unitSuffix = param.unit ? ` ${param.unit}` : ''
+
+  if (!Number.isFinite(input)) {
+    return {
+      value: param.defaultValue,
+      notice: `${param.label}不是有效数字，已恢复默认 ${formatDecoParamValue(param, param.defaultValue)}${unitSuffix}`,
+    }
+  }
+
+  const value = clampDecoParam(input, param)
+  if (value === input) return { value, notice: null }
+
+  // 0 / 负数在「正数规则」里是"没填或手滑"，它们回落的是默认值而不是下限；
+  // 这里必须先把这类输入与"单纯越界"分开，否则提示会写成"夹回下限"。
+  const invalidForKind =
+    param.kind === 'positive' ? input <= 0 : param.kind === 'nonNegative' ? input < 0 : false
+  if (invalidForKind) {
+    return {
+      value,
+      notice: `${param.label}的 ${input} 不是有效值，已恢复默认 ${formatDecoParamValue(param, value)}${unitSuffix}`,
+    }
+  }
+
+  if (input < param.min || input > param.max) {
+    const range = `${formatDecoParamValue(param, param.min)}–${formatDecoParamValue(param, param.max)}${unitSuffix}`
+    return {
+      value,
+      notice: `${param.label}已夹回 ${range}：${input} → ${formatDecoParamValue(param, value)}`,
+    }
+  }
+
+  // 区间内但被取整/精度规则改过（例如 10.7 节 → 11 节、2.54px → 2.5px）。
+  return {
+    value,
+    notice: `${param.label}已${param.integer ? '取整' : '按精度调整'}为 ${formatDecoParamValue(param, value)}${unitSuffix}（输入 ${input}）`,
+  }
 }
 
 /**

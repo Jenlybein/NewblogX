@@ -18,15 +18,15 @@ func TestDecoNormalize_越界钳位与非法值回落(t *testing.T) {
 		in   float64
 		want float64
 	}{
-		{"远超上限钳到 96", 4000, conf.CharmLogoSizeMax},
-		{"略超上限也钳回边界", 96.5, conf.CharmLogoSizeMax},
-		{"略低于下限钳到 24", 10, conf.CharmLogoSizeMin},
-		{"下限本身不变（边界值不漂移）", 24, 24},
-		{"上限本身不变（边界值不漂移）", 96, 96},
+		{"远超上限钳到 70", 4000, conf.CharmLogoSizeMax},
+		{"略超上限也钳回边界", 70.1, conf.CharmLogoSizeMax},
+		{"略低于下限钳到 15", 10, conf.CharmLogoSizeMin},
+		{"下限本身不变（边界值不漂移）", 15, 15},
+		{"上限本身不变（边界值不漂移）", 70, 70},
 		{"区间内的值原样保留", 60, 60},
 		{"默认值 48 原样保留", 48, 48},
 		{"缺省（零值）补默认值", 0, conf.CharmLogoSizeDefault},
-		{"负数属于非法值，回落默认而不是钳到 24", -5, conf.CharmLogoSizeDefault},
+		{"负数属于非法值，回落默认而不是钳到 15", -5, conf.CharmLogoSizeDefault},
 		{"NaN 回落默认", math.NaN(), conf.CharmLogoSizeDefault},
 		{"+Inf 回落默认", math.Inf(1), conf.CharmLogoSizeDefault},
 		{"-Inf 回落默认", math.Inf(-1), conf.CharmLogoSizeDefault},
@@ -168,7 +168,7 @@ func TestDecoNormalize_指针端偏移两轴互不影响(t *testing.T) {
 
 // 物理参数（挂绳长度 / 节点数 / 重力 / 阻尼）与站标尺寸共用同一条
 // "越界钳到边界、缺省与非法回落默认、永不报错"的规则；但它们是四种不同的
-// 量纲，所以各自一张表 —— 把阻尼的 0.94–0.995 错写成 0.94–1 会让摆动越甩越大，
+// 量纲，所以各自一张表 —— 把阻尼的 0.9–1 错写成 0.9–1.1 会让摆动越甩越大，
 // 而这条错误在跨端手调时几乎看不出来，只能靠边界用例钉住。
 func TestDecoNormalize_物理参数钳位(t *testing.T) {
 	cases := []struct {
@@ -205,10 +205,16 @@ func TestDecoNormalize_物理参数钳位(t *testing.T) {
 			charmWith(func(c *conf.Charm) { c.RopeLength = math.Inf(1) }),
 			charmWith(func(c *conf.Charm) { c.RopeLength = conf.CharmRopeLengthDefault })},
 
-		// 节点数：4–24 节，默认 10；是计数，钳位后必须是整数。
-		{"节点数远超上限钳到 24",
+		// 节点数：4–30 节，默认 10；是计数，钳位后必须是整数。
+		{"节点数远超上限钳到 30",
 			charmWith(func(c *conf.Charm) { c.Segments = 100 }),
 			charmWith(func(c *conf.Charm) { c.Segments = conf.CharmSegmentsMax })},
+		{"节点数略高于上限：先取整再夹到边界",
+			charmWith(func(c *conf.Charm) { c.Segments = 30.6 }),
+			charmWith(func(c *conf.Charm) { c.Segments = conf.CharmSegmentsMax })},
+		{"节点数上限本身不漂移",
+			charmWith(func(c *conf.Charm) { c.Segments = 30 }),
+			charmWith(func(c *conf.Charm) { c.Segments = 30 })},
 		{"节点数略低于下限钳到 4",
 			charmWith(func(c *conf.Charm) { c.Segments = 1 }),
 			charmWith(func(c *conf.Charm) { c.Segments = conf.CharmSegmentsMin })},
@@ -245,19 +251,23 @@ func TestDecoNormalize_物理参数钳位(t *testing.T) {
 			charmWith(func(c *conf.Charm) { c.Gravity = math.NaN() }),
 			charmWith(func(c *conf.Charm) { c.Gravity = conf.CharmGravityDefault })},
 
-		// 阻尼：0.94–0.995（每步速度保持系数），默认 0.99。
-		{"阻尼超过 1 会被钳到 0.995（否则摆动越甩越大）",
+		// 阻尼：0.9–1（每步速度保持系数），默认 0.99。1 表示速度完全不衰减，
+		// 允许但可能持续振荡；大于 1 才是真正会越甩越大的发散值。
+		{"阻尼超过 1 会被钳到 1（大于 1 才是发散值）",
 			charmWith(func(c *conf.Charm) { c.Damping = 2 }),
 			charmWith(func(c *conf.Charm) { c.Damping = conf.CharmDampingMax })},
 		{"阻尼略高于上限也钳回边界",
-			charmWith(func(c *conf.Charm) { c.Damping = 0.999 }),
+			charmWith(func(c *conf.Charm) { c.Damping = 1.001 }),
 			charmWith(func(c *conf.Charm) { c.Damping = conf.CharmDampingMax })},
-		{"阻尼低于下限钳到 0.94",
+		{"阻尼等于 1 是合法值（不衰减、可能持续振荡）",
+			charmWith(func(c *conf.Charm) { c.Damping = 1 }),
+			charmWith(func(c *conf.Charm) { c.Damping = 1 })},
+		{"阻尼低于下限钳到 0.9",
 			charmWith(func(c *conf.Charm) { c.Damping = 0.5 }),
 			charmWith(func(c *conf.Charm) { c.Damping = conf.CharmDampingMin })},
-		{"阻尼边界值不漂移",
-			charmWith(func(c *conf.Charm) { c.Damping = 0.94 }),
-			charmWith(func(c *conf.Charm) { c.Damping = 0.94 })},
+		{"阻尼下限本身不漂移",
+			charmWith(func(c *conf.Charm) { c.Damping = 0.9 }),
+			charmWith(func(c *conf.Charm) { c.Damping = 0.9 })},
 		{"阻尼区间内原样保留",
 			charmWith(func(c *conf.Charm) { c.Damping = 0.99 }),
 			charmWith(func(c *conf.Charm) { c.Damping = 0.99 })},

@@ -287,4 +287,24 @@ describe("HomeSidebar：数据驱动卡片（#111）", () => {
       Number((links[index].attributes("style") || "").match(/font-size:\s*([\d.]+)rem/)?.[1] || 0);
     expect(sizeOf(0)).toBeGreaterThan(sizeOf(1));
   });
+
+  it("热门文章卡不与主栏热门置顶重复：置顶过的文章不再出现在右栏", () => {
+    const wrapper = mountSidebar({
+      sidebarCards: [
+        sidebarCard("hot_articles", {
+          title: "热门文章",
+          hot_articles: [
+            { id: "a1", title: "主栏已经置顶的文章", digg_count: 50, view_count: 500 },
+            { id: "a2", title: "右栏热读", digg_count: 20, view_count: 200 },
+          ],
+        }),
+      ],
+      pinnedArticleIds: ["a1"],
+    });
+
+    const links = wrapper.findAll("[data-sidebar-card='hot_articles'] a");
+    expect(links).toHaveLength(1);
+    expect(links[0].text()).toContain("右栏热读");
+    expect(wrapper.text()).not.toContain("主栏已经置顶的文章");
+  });
 });

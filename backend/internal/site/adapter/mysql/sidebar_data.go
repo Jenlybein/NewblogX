@@ -51,16 +51,30 @@ type tagCloudRow struct {
 	ArticleCount int
 }
 
-// HotArticles 按点赞数降序取公开文章。
+// HotArticles 按点赞数降序取公开文章，并剔除主栏「热门置顶」已经露出的文章。
+//
+// 去重是这张卡的产品口径：同一篇文章在首页出现两次不是"推荐更多"，是版面事故。
+// 排除放在 SQL 而不是取回后再过滤，否则被置顶的文章会占掉一条配额，
+// 热门文章卡可能只剩 2–3 条 —— 看起来像数据不够，实际是去重吃掉了名额。
+//
+// 只排除**仍在架**的置顶行（deleted_at IS NULL）：运营取消置顶后，
+// 那篇文章应该重新回到热门文章的候选里。失效的置顶行（文章转草稿等）
+// 本来就会被下面的公开条件挡住，无需额外判断。
 func (s *SidebarData) HotArticles(ctx context.Context, limit int) ([]domain.SidebarArticle, error) {
 	var rows []hotArticleRow
 	err := s.db.WithContext(ctx).Raw(
-		`SELECT id, title, digg_count, view_count
-		   FROM article_models
-		  WHERE deleted_at IS NULL
-		    AND publish_status = ?
-		    AND visibility_status = ?
-		  ORDER BY digg_count DESC, id DESC
+		`SELECT a.id, a.title, a.digg_count, a.view_count
+		   FROM article_models a
+		  WHERE a.deleted_at IS NULL
+		    AND a.publish_status = ?
+		    AND a.visibility_status = ?
+		    AND NOT EXISTS (
+		        SELECT 1
+		          FROM article_hot_top_models t
+		         WHERE t.article_id = a.id
+		           AND t.deleted_at IS NULL
+		    )
+		  ORDER BY a.digg_count DESC, a.id DESC
 		  LIMIT ?`,
 		int(enum.ArticleStatusPublished), string(enum.ArticleVisibilityVisible), clampLimit(limit),
 	).Scan(&rows).Error

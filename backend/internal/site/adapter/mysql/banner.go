@@ -129,11 +129,12 @@ func (r *BannerRepo) Create(ctx context.Context, b *domain.Banner) error {
 }
 
 // Update 实现 domain.BannerRepository。crop 为 nil 表示调用方没传取景：保持既有记录不动。
-func (r *BannerRepo) Update(ctx context.Context, id uint64, cover, href string, show bool, crop *domain.Crop) error {
+func (r *BannerRepo) Update(ctx context.Context, id uint64, title, cover, href string, show bool, crop *domain.Crop) error {
 	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		if err := tx.Model(&bannerRow{}).
 			Where("id = ?", id).
 			Updates(map[string]any{
+				"title":      title,
 				"cover":      cover,
 				"href":       href,
 				"show":       show,

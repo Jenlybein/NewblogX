@@ -2238,6 +2238,10 @@
                     },
                     "show": {
                         "type": "boolean"
+                    },
+                    "title": {
+                        "description": "Title 是轮播标题：纯文本、可空。\n\n创建与更新都是\"整体替换\"：不传或传空串就是保存空标题。\n后台在不改标题的路径（例如只重新取景）必须把原值一起带上，\n否则会把已有标题清掉。",
+                        "type": "string"
                     }
                 },
                 "required": [
@@ -2264,6 +2268,9 @@
                     },
                     "show": {
                         "type": "boolean"
+                    },
+                    "title": {
+                        "type": "string"
                     }
                 },
                 "type": "object"
@@ -2308,6 +2315,10 @@
                     },
                     "show": {
                         "type": "boolean"
+                    },
+                    "title": {
+                        "description": "Title 是轮播标题，纯文本、可空；读者站拿到空串就不渲染文字区。",
+                        "type": "string"
                     },
                     "updated_at": {
                         "type": "string"

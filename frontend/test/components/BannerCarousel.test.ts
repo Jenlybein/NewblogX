@@ -131,3 +131,61 @@ describe("BannerCarousel：首屏封面媒体层（底图 + 底部渐黑 + 降�
     expect(wrapper.get("[data-empty-state='true']").attributes("data-state")).toBe("pending");
   });
 });
+
+describe("BannerCarousel：轮播标题（纯文本、可空）", () => {
+  const titled = [
+    { id: "t1", cover: "https://image.example.com/t1.png", title: "春季上新" },
+    { id: "t2", cover: "https://image.example.com/t2.png", title: "" },
+    { id: "t3", cover: "https://image.example.com/t3.png", title: "第三张的标题" },
+  ];
+
+  it("有标题时在渐黑区里把标题渲染出来", () => {
+    const wrapper = mount(BannerCarousel, {
+      props: { banners: titled.slice(0, 1) as never },
+      global: { stubs: { NuxtLink: NuxtLinkStub } },
+    });
+
+    const title = wrapper.get(".banner-title");
+    expect(title.text()).toBe("春季上新");
+    // 标题与控件同住底部渐黑区：它是渐黑区的内容，不是叠在图上另起的一层。
+    expect(wrapper.get(".banner-veil").find(".banner-title").exists()).toBe(true);
+  });
+
+  it("没有标题（空串）时不渲染文字区，不留一块空标题带", () => {
+    const wrapper = mount(BannerCarousel, {
+      props: { banners: titled.slice(1, 2) as never },
+      global: { stubs: { NuxtLink: NuxtLinkStub } },
+    });
+
+    expect(wrapper.find(".banner-title").exists()).toBe(false);
+  });
+
+  it("切换轮播时标题跟着换；切到无标题的一张就不渲染文字区", async () => {
+    const wrapper = mount(BannerCarousel, {
+      props: { banners: titled as never },
+      global: { stubs: { NuxtLink: NuxtLinkStub } },
+    });
+    expect(wrapper.get(".banner-title").text()).toBe("春季上新");
+
+    await wrapper.findAll(".banner-dot")[1]?.trigger("click");
+    expect(wrapper.find(".banner-title").exists()).toBe(false);
+
+    await wrapper.findAll(".banner-dot")[2]?.trigger("click");
+    expect(wrapper.get(".banner-title").text()).toBe("第三张的标题");
+  });
+
+  it("标题里含 HTML 标签时按纯文本显示（不被解析成 DOM）", () => {
+    const wrapper = mount(BannerCarousel, {
+      props: {
+        banners: [{ id: "x", cover: "https://image.example.com/x.png", title: "<b>粗体</b> & <i>斜体</i>" }] as never,
+      },
+      global: { stubs: { NuxtLink: NuxtLinkStub } },
+    });
+
+    const title = wrapper.get(".banner-title");
+    expect(title.text()).toBe("<b>粗体</b> & <i>斜体</i>");
+    // 标签没有被解析成元素：文字区里没有任何 b/i 子节点。
+    expect(title.find("b").exists()).toBe(false);
+    expect(title.find("i").exists()).toBe(false);
+  });
+});

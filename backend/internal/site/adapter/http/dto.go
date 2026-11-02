@@ -31,8 +31,14 @@ type IDListRequest struct {
 // BannerCreateRequest 是创建/更新轮播图的入参。
 type BannerCreateRequest struct {
 	CoverImageID ctype.ID `json:"cover_image_id" binding:"required"`
-	Href         string   `json:"href"`
-	Show         bool     `json:"show"`
+	// Title 是轮播标题：纯文本、可空。
+	//
+	// 创建与更新都是"整体替换"：不传或传空串就是保存空标题。
+	// 后台在不改标题的路径（例如只重新取景）必须把原值一起带上，
+	// 否则会把已有标题清掉。
+	Title string `json:"title"`
+	Href  string `json:"href"`
+	Show  bool   `json:"show"`
 	// Crop 是可选取景参数。可选是为了让老调用方（还没接取景的后台）照旧能用。
 	//
 	// 两种语义不同，别写混：
@@ -88,6 +94,8 @@ type BannerItem struct {
 	Cover        string     `json:"cover"`
 	CoverImageID *ctype.ID  `json:"cover_image_id"`
 	Href         string     `json:"href"`
+	// Title 是轮播标题，纯文本、可空；读者站拿到空串就不渲染文字区。
+	Title string `json:"title"`
 	// Crop 总是有值：没有取景记录的历史图回传缺省（居中、缩放 1）。
 	Crop BannerCrop `json:"crop"`
 }
@@ -98,6 +106,7 @@ type BannerCreateResponse struct {
 	CoverImageID ctype.ID   `json:"cover_image_id"`
 	Cover        string     `json:"cover"`
 	Href         string     `json:"href"`
+	Title        string     `json:"title"`
 	Show         bool       `json:"show"`
 	Crop         BannerCrop `json:"crop"`
 }

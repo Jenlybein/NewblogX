@@ -49,6 +49,7 @@ describe('buildBannerCreatePayload', () => {
 
     expect(payload).toEqual({
       cover_image_id: '42',
+      title: '',
       href: 'https://example.com',
       show: true,
       crop: { focus_x: 0.5, focus_y: 0.5, zoom: 1 },
@@ -209,6 +210,8 @@ describe('buildBannerReframePayload', () => {
       id: '1',
       payload: {
         cover_image_id: '7',
+        // 更新是整体替换：不改标题的路径也必须把该行原值带上（这里原值缺失 → 空串）。
+        title: '',
         href: 'https://example.com',
         show: true,
         crop: { focus_x: 0.2, focus_y: 0.8, zoom: 1.5 },
@@ -249,6 +252,7 @@ describe('saveBannerReframe', () => {
 
     expect(update).toHaveBeenCalledWith('9', {
       cover_image_id: '7',
+      title: '',
       href: 'https://example.com',
       show: false,
       crop: { focus_x: 0.3, focus_y: 0.6, zoom: 1.2 },

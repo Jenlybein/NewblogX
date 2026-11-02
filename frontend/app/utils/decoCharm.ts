@@ -63,6 +63,29 @@ export const CHARM_DAMPING_MAX = 0.995;
 /** 每步速度保持系数默认值。 */
 export const CHARM_DAMPING_DEFAULT = 0.99;
 
+/**
+ * 距离约束刚度下限（无量纲，0.2–1）：再软就是橡皮筋，拖动后久久回不到位。
+ * 与后端 `deco.charm.stiffness` 一致。
+ */
+export const CHARM_STIFFNESS_MIN = 0.2;
+/** 距离约束刚度上限：1 = 每次迭代做全量投影，手感回到"刚杆"。 */
+export const CHARM_STIFFNESS_MAX = 1;
+/** 距离约束刚度默认值（无量纲）：一次投影只消化一半误差，拖动时先拉长再回弹。 */
+export const CHARM_STIFFNESS_DEFAULT = 0.5;
+
+/**
+ * 每个固定子步的距离约束迭代次数：**固定值，不随线段数增长**。
+ *
+ * 为什么不再用 `segments × 30`（旧实现）：迭代次数跟着节点数涨，等于节点越多
+ * 每步吸收误差越快，"节点数拉到上限反而更硬"正是用户报的那个现象。固定的
+ * 20 次配 `stiffness` 松弛因子后，节点数只影响形状分辨率，不影响软硬。
+ *
+ * 旧注释写的 `2 × segments` 与旧实现 `segments × 30` 同样错在"随 segments 增长"，
+ * 两处都已改成本常量；20 是实测口径：默认 10 节时与旧注释的 2 × segments 数值
+ * 相同，但不再随节点数漂移。
+ */
+const CHARM_CONSTRAINT_ITERATIONS = 20;
+
 /** 站标尺寸下限（px）：再小就看不清是什么东西。与后端 `deco.charm.logo_size` 一致。 */
 export const CHARM_LOGO_SIZE_MIN = 24;
 
@@ -209,6 +232,11 @@ export interface CharmRopeConfig {
   gravity: number;
   /** 每步速度保持系数，无量纲。 */
   damping: number;
+  /**
+   * 距离约束刚度（无量纲，0.2–1）：每次迭代只消化这么多比例的误差。
+   * 1 = 全量投影（刚杆手感）；越小越弹，拖动时先拉长、松手后回弹。
+   */
+  stiffness: number;
   /** 描边起始宽度，px（收尾固定为它的 0.6 倍）。 */
   lineWidthPx: number;
   /** 静止摆动频率，Hz。0 表示关掉轻晃。 */
@@ -369,6 +397,16 @@ export function clampCharmDamping(value: number): number {
   return clampPositiveRange(value, CHARM_DAMPING_MIN, CHARM_DAMPING_MAX, CHARM_DAMPING_DEFAULT);
 }
 
+/** 刚度归一化：越界钳到 0.2–1，零与非法值回落 0.5（0 是「没填」，不是最软）。 */
+export function clampCharmStiffness(value: number): number {
+  return clampPositiveRange(
+    value,
+    CHARM_STIFFNESS_MIN,
+    CHARM_STIFFNESS_MAX,
+    CHARM_STIFFNESS_DEFAULT,
+  );
+}
+
 /**
  * 描边起始宽度归一化：越界钳到 1–6，零与非法值回落 2.5，并保留一位小数。
  *
@@ -482,6 +520,7 @@ export const CHARM_CONFIG_FIELDS = [
   { configKey: "segments", storeKey: "segments", clamp: clampCharmSegments },
   { configKey: "gravity", storeKey: "gravity", clamp: clampCharmGravity },
   { configKey: "damping", storeKey: "damping", clamp: clampCharmDamping },
+  { configKey: "stiffness", storeKey: "stiffness", clamp: clampCharmStiffness },
   { configKey: "lineWidthPx", storeKey: "line_width", clamp: clampCharmLineWidth },
   { configKey: "idleSwayHz", storeKey: "idle_sway_hz", clamp: clampCharmIdleSwayHz },
   { configKey: "idleSwayAmp", storeKey: "idle_sway_amp", clamp: clampCharmIdleSwayAmp },
@@ -619,15 +658,14 @@ function substep(state: CharmRopeState, head: CharmPoint): void {
   }
   state.elapsedSeconds += CHARM_FIXED_STEP_SECONDS;
 
-  // 距离约束：每步松弛 2 × segments 次（等效刚度更高）。
-  // 为什么是 2 倍：一次松弛留下的每节误差会累积成"弦长比绳长还长"的
-  // 数值假象（10 节可累到 0.4px），而弧垂是从"绳长 − 弦长"算出来的，
-  // 这点误差会把真实松弛吃掉。翻倍迭代把残差压到 ~0.01px，代价只有
-  // 每子步多算几遍（10 节点 × 20 次，120Hz 下仍然可以忽略）。
-  // 每次只把"超过静止长度的部分"对半分给两端；节点 0 钉死，所以第一段
-  // 由节点 1 独自承担修正。
+  // 距离约束：固定 20 次迭代 × 刚度松弛（0–1）。旧实现是 `segments × 30` 次
+  // 全量投影（注释却写 2 × segments），迭代数随节点数涨 → 节点越多每步吸收
+  // 误差越快，"节点数拉到上限反而更硬"。这里迭代数不再随 segments 增长，刚度
+  // 只决定每次迭代消化多少误差：1 等于旧的全量投影手感，0.5 先拉长再回弹。
+  // 每次只把"超过静止长度的部分"按刚度分给两端；节点 0 钉死，第一段由节点 1
+  // 独自承担修正。
   const rest = state.restLengthPx;
-  const iterationCount = config.segments * 30;
+  const iterationCount = CHARM_CONSTRAINT_ITERATIONS;
   for (let iteration = 0; iteration < iterationCount; iteration += 1) {
     first.x = headX;
     first.y = headY;
@@ -648,7 +686,7 @@ function substep(state: CharmRopeState, head: CharmPoint): void {
         continue;
       }
 
-      const correction = (distance - rest) / distance;
+      const correction = ((distance - rest) / distance) * config.stiffness;
       if (index === 0) {
         // 指针端是钉死的，整段修正都给节点 1。
         next.x -= deltaX * correction;

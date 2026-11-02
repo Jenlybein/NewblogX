@@ -142,14 +142,15 @@ type Service struct{ cfg func() conf.Mail }
 | `oauth` | `conf.QQ` | QQ 登录回调 | 下一次登录 |
 | `log` | `conf.Logrus` | 日志级别、请求日志、查询限额、清理窗口 | 级别立即，其余下一次请求 |
 | `upload` | `conf.Upload` | 上传格式白名单 | 下一次上传 |
-| `deco` | `conf.Deco` | 光标挂件的开关、站标尺寸、挂绳几何与物理、描边、静止轻晃、帧率上限与指针端偏移 | 下一次页面请求 |
+| `deco` | `conf.Deco` | 光标挂件的开关、站标尺寸、挂绳几何与物理（含约束刚度）、描边、静止轻晃、帧率上限与指针端偏移 | 下一次页面请求 |
 
 `deco`（装饰）不承载任何业务语义：它只影响"页面看起来怎样"。开这个独立段而不是把
 挂件参数塞进 `site`，是因为装饰会越来越多（背景、边框），而每开一段都要走一遍段注册的
 八个点——第 8 段把这笔成本一次付清。本票只有挂件子块 `deco.charm`：总开关 `enable`，
-以及十一个数值参数 —— 站标尺寸 `logo_size`（px）、挂绳长度 `rope_length`（px）、
+以及十二个数值参数 —— 站标尺寸 `logo_size`（px）、挂绳长度 `rope_length`（px）、
 节点数 `segments`（节，计数）、描边起始宽度 `line_width`（px，收尾固定为起始的 0.6 倍）、
-重力 `gravity`（px/s²）、每步阻尼 `damping`（无量纲）、静止摆动频率 `idle_sway_hz`（Hz）、
+重力 `gravity`（px/s²）、每步阻尼 `damping`（无量纲）、距离约束刚度 `stiffness`
+（无量纲，0.2–1）、静止摆动频率 `idle_sway_hz`（Hz）、
 静止摆动幅度 `idle_sway_amp`（px/s²）、帧率上限 `fps_cap`（fps，计数）、
 指针端偏移 `pointer_offset_x` / `pointer_offset_y`（CSS px，整数，每轴 -24–24，**允许负值**）。
 `segments` 与 `fps_cap` 是计数：前者先四舍五入再夹到边界，后者先夹边界再取整

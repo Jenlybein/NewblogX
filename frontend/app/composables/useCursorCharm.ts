@@ -289,7 +289,7 @@ export function useCursorCharm(options: UseCursorCharmOptions = {}): CursorCharm
   function ensureRope(head: CharmPoint, config: CharmRopeConfig): CharmRopeState {
     const signature =
       `${config.ropeLengthPx}|${config.segments}|${config.gravity}|${config.damping}` +
-      `|${config.lineWidthPx}|${config.idleSwayHz}|${config.idleSwayAmp}` +
+      `|${config.stiffness}|${config.lineWidthPx}|${config.idleSwayHz}|${config.idleSwayAmp}` +
       // 偏移也进签名，但**不改拓扑**：改偏移只走下面的原地更新分支，
       // 链不重建、下一次发布即生效（票 #75 验收项）。
       `|${config.pointerOffsetX}|${config.pointerOffsetY}`;
@@ -308,6 +308,8 @@ export function useCursorCharm(options: UseCursorCharmOptions = {}): CursorCharm
     } else {
       rope.config.gravity = config.gravity;
       rope.config.damping = config.damping;
+      // 刚度只改"每次迭代消化多少误差"，不改拓扑：原地换掉，下一帧生效。
+      rope.config.stiffness = config.stiffness;
       // 线宽与轻晃参数也不改拓扑：原地换掉，下一帧的几何 / 力就用新值。
       rope.config.lineWidthPx = config.lineWidthPx;
       rope.config.idleSwayHz = config.idleSwayHz;

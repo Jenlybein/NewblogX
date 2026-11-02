@@ -393,7 +393,8 @@ func extraBody(sortField, key string) map[string]any {
 	sortList = append(sortList, map[string]any{"_score": map[string]any{"order": "desc"}})
 
 	sourceFields := []string{
-		"id", "created_at", "updated_at", "title", "abstract", "cover",
+		// crop 是封面取景：列表封面按作者选的构图裁切，漏了它列表就永远居中。
+		"id", "created_at", "updated_at", "title", "abstract", "cover", "crop",
 		"view_count", "digg_count", "comment_count", "favor_count",
 		"comments_toggle", "publish_status", "visibility_status",
 		"tags", "author_id", "author", "author_is_admin", "category_id", "category",

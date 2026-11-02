@@ -6,6 +6,7 @@
     "title",
     "abstract",
     "cover",
+    "crop",
     "view_count",
     "digg_count",
     "comment_count",

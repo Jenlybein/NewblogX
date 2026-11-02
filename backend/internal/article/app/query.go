@@ -102,6 +102,16 @@ func (s *Service) List(ctx context.Context, filter domain.Filter, page domain.Pa
 			return err
 		}
 
+		// 批量取封面取景：与详情同一套口径，缺记录的补缺省。
+		rawIDs := make([]uint64, 0, len(ids))
+		for _, id := range ids {
+			rawIDs = append(rawIDs, id.Uint64())
+		}
+		crops, err := loadArticleCrops(ctx, r, rawIDs)
+		if err != nil {
+			return err
+		}
+
 		// 批量取标签标题。
 		tagIDs := map[domain.TagID]struct{}{}
 		for _, a := range articles {
@@ -133,6 +143,7 @@ func (s *Service) List(ctx context.Context, filter domain.Filter, page domain.Pa
 				Article: *a,
 				Author:  profiles[a.AuthorID()],
 				Tags:    tagViews(a.Tags(), titles),
+				Crop:    crops[a.ID().Uint64()],
 			}
 			if cm := a.CategoryID(); cm != nil {
 				if c, err := r.Categories().Find(ctx, *cm); err == nil {
@@ -167,7 +178,12 @@ func enrichCounters(ctx context.Context, r Repos, a *domain.Article) error {
 // author 由调用方取好传进来：可见性判定（作者是否管理员）与响应组装
 // 需要同一份资料，取两次就是一次多余的查询。
 func buildView(ctx context.Context, r Repos, a *domain.Article, viewer domain.Viewer, author AuthorView) (*ArticleView, error) {
-	v := &ArticleView{Article: *a, Author: author}
+	// 取景与正文一起读回：没有记录的历史文章退化成居中、缩放 1（不报错）。
+	crop, err := loadArticleCrop(ctx, r, a.ID().Uint64())
+	if err != nil {
+		return nil, err
+	}
+	v := &ArticleView{Article: *a, Author: author, Crop: crop}
 
 	if cm := a.CategoryID(); cm != nil {
 		if c, err := r.Categories().Find(ctx, *cm); err == nil {

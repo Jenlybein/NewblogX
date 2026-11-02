@@ -7,6 +7,8 @@
 //
 // 放在 utils 而不是 composables：它不持有任何响应式状态。
 
+import type { ArticleCrop } from "~/types/api";
+
 /** 提交载荷的表单部分。 */
 export type StudioArticleForm = {
   title: string;
@@ -30,6 +32,8 @@ export type StudioArticlePayload = {
   visibility_status: "visible" | "user_hidden";
   status: 1 | 2;
   cover_image_id?: string | null;
+  /** 封面取景：只有本次确认过取景才带上，不传表示"保留已存的取景"。 */
+  crop?: ArticleCrop;
 };
 
 /**
@@ -44,10 +48,12 @@ export type StudioArticlePayload = {
  *  3. `cover_image_id` 有三种情况：有值就带上；编辑态且用户主动清过封面时
  *     要显式传 `null`（表示"删掉封面"）；其余情况不传（表示"不动"）。
  *     漏掉第三种会让"移除封面"静默失效。
+ *  4. `crop` 只在本轮确认过取景时带上：不传表示"保留已存的取景"。
+ *     如果每次保存都带上，编辑旧文章会把库里缺省取景写成一行显式记录。
  */
 export function buildStudioArticlePayload(
   form: StudioArticleForm,
-  opts: { status: 1 | 2; isEditMode: boolean; coverDirty: boolean },
+  opts: { status: 1 | 2; isEditMode: boolean; coverDirty: boolean; crop?: ArticleCrop | null },
 ): StudioArticlePayload {
   const payload: StudioArticlePayload = {
     title: form.title.trim(),
@@ -64,6 +70,10 @@ export function buildStudioArticlePayload(
     payload.cover_image_id = form.cover_image_id;
   } else if (opts.isEditMode && opts.coverDirty) {
     payload.cover_image_id = null;
+  }
+
+  if (opts.crop) {
+    payload.crop = opts.crop;
   }
 
   return payload;

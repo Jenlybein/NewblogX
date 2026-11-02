@@ -171,12 +171,77 @@ const hasCards = computed(() => (props.sidebarCards?.length ?? 0) > 0);
           </span>
         </NuxtLink>
       </div>
+      <!--
+        富文本卡：正文已在 `sidebarCardViews` 里按白名单清洗过（脚本、内联事件、
+        内嵌框架、伪协议一律剥离），这里只负责渲染清洗后的字符串。
+        （注释里刻意不写那几个标签名：模板注释会进 DOM，写出来会让"恶意内容
+        没进 DOM"的断言被注释本身触发。）
+      -->
+      <!-- eslint-disable-next-line vue/no-v-html -- 正文已在渲染模型里过白名单，此处只渲染清洗后的字符串 -->
+      <div
+        v-else-if="card.kind === 'rich_text'"
+        class="sidebar-rich-text rich-text-link-scope"
+        data-sidebar-rich-text
+        v-html="card.contentHtml"
+      />
     </section>
 
   </aside>
 </template>
 
 <style scoped>
+/* 富文本卡正文：只给基础排版一层紧凑样式，颜色/分隔线全部走语义 token。 */
+.sidebar-rich-text {
+  margin-top: 0.75rem;
+  color: var(--color-ink-muted);
+  font-size: 0.875rem;
+  line-height: 1.75;
+}
+
+.sidebar-rich-text :deep(> :first-child) {
+  margin-top: 0;
+}
+
+.sidebar-rich-text :deep(> :last-child) {
+  margin-bottom: 0;
+}
+
+.sidebar-rich-text :deep(h2),
+.sidebar-rich-text :deep(h3),
+.sidebar-rich-text :deep(h4) {
+  margin: 1rem 0 0.5rem;
+  color: var(--color-ink);
+  font-family: var(--font-display);
+  font-size: 1rem;
+  font-weight: 600;
+  line-height: 1.4;
+}
+
+.sidebar-rich-text :deep(p) {
+  margin: 0.5rem 0;
+}
+
+.sidebar-rich-text :deep(ul),
+.sidebar-rich-text :deep(ol) {
+  margin: 0.5rem 0;
+  padding-left: 1.25rem;
+}
+
+.sidebar-rich-text :deep(li) {
+  margin: 0.25rem 0;
+}
+
+:deep(.rich-text-link-scope a) {
+  color: var(--color-link);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.sidebar-rich-text :deep(strong) {
+  color: var(--color-ink);
+  font-weight: 600;
+}
+
 /* 数据驱动卡片的行：整行可点（≥44px 触控区），1px 结构线分隔，不用阴影/圆角。 */
 .sidebar-card-row {
   display: flex;

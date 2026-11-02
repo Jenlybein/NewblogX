@@ -203,3 +203,50 @@ func TestSidebarCardsAdminSaveRejectsUnknownKind(t *testing.T) {
 		t.Fatalf("被拒绝的提交不应落库: %+v", cards.All())
 	}
 }
+
+// 富文本卡：读者侧回传清洗后的正文，后台保存的恶意内容不会原样落到响应里。
+func TestSidebarCardsRichTextContent(t *testing.T) {
+	h, cards, _ := newSidebarHandler(t)
+	cards.Seed(domain.SidebarCard{
+		ID:      ctype.NewID(11),
+		Kind:    domain.CardKindRichText,
+		Title:   "站点公告",
+		Enabled: true,
+		Content: "<h2>更新日志</h2><p>本周 <strong>重点</strong></p>",
+	})
+
+	body := readSidebarBody(t, h, h.SidebarCards)
+	var envelope struct {
+		Code int                           `json:"code"`
+		Data sitehttp.SidebarCardsResponse `json:"data"`
+	}
+	if err := json.Unmarshal([]byte(body), &envelope); err != nil {
+		t.Fatalf("解析响应失败: %v，body=%s", err, body)
+	}
+	list := envelope.Data.List
+	if len(list) != 1 || list[0].Kind != "rich_text" || !strings.Contains(list[0].Content, "<h2>更新日志</h2>") {
+		t.Fatalf("富文本卡应回传正文: %+v（body=%s）", list, body)
+	}
+
+	// 后台整表保存一段带脚本的正文：落库前已清洗，管理端回读也看不到 script。
+	recorder := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(recorder)
+	c.Request = httptest.NewRequest("PUT", "/site/admin/sidebar_cards", strings.NewReader(`{}`))
+	c.Set("requestJson", sitehttp.SidebarCardsSaveRequest{
+		List: []sitehttp.SidebarCardSaveItem{
+			{Kind: "rich_text", Title: "", Enabled: true, Content: `<p>公告</p><script>alert(1)</script>`},
+		},
+	})
+	h.UpdateSidebarCards(c)
+	if !strings.Contains(recorder.Body.String(), "右栏卡片已保存") {
+		t.Fatalf("富文本卡保存应成功: %s", recorder.Body.String())
+	}
+
+	adminBody := readSidebarBody(t, h, h.AdminSidebarCards)
+	if strings.Contains(adminBody, "script") || strings.Contains(adminBody, "alert") {
+		t.Fatalf("管理端回读不该出现未清洗的脚本: %s", adminBody)
+	}
+	if !strings.Contains(adminBody, "公告") {
+		t.Fatalf("管理端应回读清洗后的正文: %s", adminBody)
+	}
+}

@@ -21,6 +21,7 @@ import {
   useMessage,
 } from 'naive-ui'
 import { getAdminSidebarCards, updateAdminSidebarCards } from '~/services/admin'
+import SidebarRichTextEditor from '~/components/settings/SidebarRichTextEditor.vue'
 import {
   SIDEBAR_CARD_KIND_OPTIONS,
   SIDEBAR_CARD_MAX_COUNT,
@@ -34,6 +35,7 @@ import {
   sidebarCardKindLabel,
   toSidebarCardsSavePayload,
   toggleSidebarCardDraft,
+  updateSidebarCardContent,
 } from '~/utils/sidebarCardsAdmin'
 import type { SidebarCardDraft, SidebarCardKind } from '~/utils/sidebarCardsAdmin'
 
@@ -71,6 +73,10 @@ function removeCard(key: string) {
 
 function renameCard(key: string, title: string) {
   drafts.value = renameSidebarCardDraft(drafts.value, key, title)
+}
+
+function changeContent(key: string, content: string) {
+  drafts.value = updateSidebarCardContent(drafts.value, key, content)
 }
 
 function toggleCard(key: string, enabled: boolean) {
@@ -196,6 +202,15 @@ async function save() {
           aria-label="卡片标题"
           data-role="title"
           @update:value="value => renameCard(draft.key, value)" />
+        <!--
+          富文本卡：标题之外再给一块正文编辑区。工具栏只提供基础排版，
+          没有脚本 / iframe / 内联事件入口；正文随整表保存一起提交。
+        -->
+        <div v-if="draft.kind === 'rich_text'" class="w-full" data-role="rich-text-field">
+          <SidebarRichTextEditor
+            :model-value="draft.content"
+            @update:model-value="value => changeContent(draft.key, value)" />
+        </div>
         <span v-if="!draft.enabled" class="text-xs" data-role="disabled-hint">读者侧不展示</span>
         <NSpace :size="8" align="center">
           <NSwitch

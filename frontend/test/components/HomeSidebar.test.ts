@@ -311,3 +311,89 @@ describe("HomeSidebar：推荐合集卡", () => {
     expect(wrapper.findAll("[data-sidebar-card]")).toHaveLength(1);
   });
 });
+
+/**
+ * 右栏富文本卡：运营在后台写的一段 HTML，读者站渲染前先过同一份白名单。
+ *
+ * 组件只负责把渲染模型里**已清洗**的 `contentHtml` 交给 `v-html`，
+ * 所以这里断言两件事：合法排版真的渲染出来了、恶意内容真的不在 DOM 里。
+ */
+describe("HomeSidebar：富文本卡", () => {
+  function richTextCard(content: string, title = "站点公告"): SiteSidebarCardItem {
+    return {
+      id: "card-rich-text",
+      kind: "rich_text",
+      title,
+      sort_order: 0,
+      hot_articles: [],
+      latest_comments: [],
+      tags: [],
+      collections: [],
+      content,
+    };
+  }
+
+  it("合法排版内容按 HTML 渲染：标题、粗体、列表、链接都在", () => {
+    const wrapper = mountSidebar({
+      sidebarCards: [
+        richTextCard(
+          '<h2>更新日志</h2><p>本周 <strong>重点</strong></p><ul><li>第一条</li></ul><p><a href="https://example.com/post">链接</a></p>',
+        ),
+      ],
+    });
+
+    const section = wrapper.get("[data-sidebar-card='rich_text']");
+    const body = section.get("[data-sidebar-rich-text]");
+    expect(section.get("[data-sidebar-card-title]").text()).toBe("站点公告");
+    expect(body.find("h2").text()).toBe("更新日志");
+    expect(body.find("strong").text()).toBe("重点");
+    expect(body.findAll("li")).toHaveLength(1);
+    expect(body.get("a").attributes("href")).toBe("https://example.com/post");
+  });
+
+  it("恶意内容不会进 DOM：script / onerror / javascript: / iframe 全部被剥离", () => {
+    const wrapper = mountSidebar({
+      sidebarCards: [
+        richTextCard(
+          [
+            "<p>正文</p>",
+            "<script>alert(1)</script>",
+            '<img src="https://cdn.example.com/a.png" onerror="alert(1)">',
+            '<a href="javascript:alert(1)">点我</a>',
+            '<iframe src="https://evil.example.com"></iframe>',
+          ].join(""),
+        ),
+      ],
+    });
+
+    const html = wrapper.get("[data-sidebar-card='rich_text']").html();
+    expect(html).toContain("正文");
+    expect(html).not.toContain("<script");
+    expect(html.toLowerCase()).not.toContain("onerror");
+    expect(html).not.toContain("javascript:");
+    expect(html).not.toContain("iframe");
+    expect(wrapper.findAll("[data-sidebar-card='rich_text'] script")).toHaveLength(0);
+  });
+
+  it("清洗后没有正文时整张卡不渲染（不留空盒子）", () => {
+    const wrapper = mountSidebar({
+      sidebarCards: [
+        richTextCard("<script>alert(1)</script>"),
+        {
+          id: "card-tag",
+          kind: "tag_cloud",
+          title: "标签云",
+          sort_order: 1,
+          hot_articles: [],
+          latest_comments: [],
+          tags: [{ id: "t1", title: "Go", article_count: 3 }],
+          collections: [],
+          content: "",
+        },
+      ],
+    });
+
+    expect(wrapper.find("[data-sidebar-card='rich_text']").exists()).toBe(false);
+    expect(wrapper.findAll("[data-sidebar-card]")).toHaveLength(1);
+  });
+});

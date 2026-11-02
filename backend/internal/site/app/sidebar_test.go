@@ -2,6 +2,7 @@ package app_test
 
 import (
 	"context"
+	"strings"
 	"testing"
 
 	"myblogx/internal/apperr"
@@ -309,5 +310,86 @@ func TestReplaceSidebarCardsEmptyIsAllowed(t *testing.T) {
 	}
 	if len(cards.All()) != 0 || cards.ReplaceCalls() != 1 {
 		t.Fatalf("清空应落 0 行且只替换一次: rows=%+v calls=%d", cards.All(), cards.ReplaceCalls())
+	}
+}
+
+// 富文本卡：保存时用既有用户内容白名单清洗，恶意输入不落库。
+func TestReplaceSidebarCardsRichTextSanitized(t *testing.T) {
+	svc, cards, _ := newSidebar()
+
+	dirty := `<p>公告正文</p>` +
+		`<script>alert(1)</script>` +
+		`<img src="https://cdn.example.com/a.png" onerror="alert(1)">` +
+		`<a href="javascript:alert(1)">点我</a>` +
+		`<a href="https://example.com/post">合法链接</a>` +
+		`<iframe src="https://evil.example.com"></iframe>`
+
+	err := svc.ReplaceCards(context.Background(), []app.SidebarCardInput{
+		{Kind: domain.CardKindRichText, Title: "  ", Enabled: true, Content: dirty},
+	})
+	if err != nil {
+		t.Fatalf("富文本卡应是合法内置种类: %v", err)
+	}
+
+	got := cards.All()
+	if len(got) != 1 || got[0].Kind != domain.CardKindRichText {
+		t.Fatalf("应落一行富文本卡: %+v", got)
+	}
+	if got[0].Title != "公告" {
+		t.Fatalf("空标题应回退到默认标题「公告」，实际 %q", got[0].Title)
+	}
+	lower := strings.ToLower(got[0].Content)
+	for _, banned := range []string{"<script", "onerror", "javascript:", "iframe", "alert"} {
+		if strings.Contains(lower, banned) {
+			t.Fatalf("恶意输入应被清洗掉 %q，实际 %q", banned, got[0].Content)
+		}
+	}
+	if !strings.Contains(got[0].Content, "公告正文") || !strings.Contains(got[0].Content, "<a href=\"https://") {
+		t.Fatalf("合法排版内容被误杀: %q", got[0].Content)
+	}
+}
+
+// 非富文本卡不保存 content：脏字段不能跟着别的种类落库。
+func TestReplaceSidebarCardsDropsContentForOtherKinds(t *testing.T) {
+	svc, cards, _ := newSidebar()
+
+	if err := svc.ReplaceCards(context.Background(), []app.SidebarCardInput{
+		{Kind: domain.CardKindHotArticles, Title: "热门文章", Enabled: true, Content: "<p>不该落库</p>"},
+	}); err != nil {
+		t.Fatalf("保存热门文章卡失败: %v", err)
+	}
+
+	if got := cards.All(); got[0].Content != "" {
+		t.Fatalf("非富文本卡不该保留 content，实际 %q", got[0].Content)
+	}
+}
+
+// 读者侧富文本卡只带 content，别的数据数组保持空（前端按种类分派）。
+func TestPublicSidebarCardsRichText(t *testing.T) {
+	svc, cards, data := newSidebar()
+	// 脏数据：其它种类的数据源有内容，不能串进富文本卡。
+	data.PutArticles(domain.SidebarArticle{ID: ctype.NewID(1), Title: "不该出现"})
+	data.PutTags(domain.SidebarTag{ID: ctype.NewID(2), Title: "不该出现"})
+	cards.Seed(domain.SidebarCard{
+		ID:      ctype.NewID(8),
+		Kind:    domain.CardKindRichText,
+		Title:   "站点公告",
+		Enabled: true,
+		Content: "<h2>更新日志</h2><p>本周 <strong>重点</strong></p>",
+	})
+
+	got, err := svc.PublicCards(context.Background())
+	if err != nil {
+		t.Fatalf("读取读者侧卡片失败: %v", err)
+	}
+	if len(got) != 1 || got[0].Kind != domain.CardKindRichText {
+		t.Fatalf("富文本卡应原样返回: %+v", got)
+	}
+	if got[0].Content != "<h2>更新日志</h2><p>本周 <strong>重点</strong></p>" {
+		t.Fatalf("富文本正文应原样透传: %q", got[0].Content)
+	}
+	if len(got[0].HotArticles) != 0 || len(got[0].Tags) != 0 || len(got[0].LatestComments) != 0 ||
+		len(got[0].Collections) != 0 {
+		t.Fatalf("富文本卡不该混入别种数据: %+v", got[0])
 	}
 }

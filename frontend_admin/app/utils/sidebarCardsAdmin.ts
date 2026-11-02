@@ -19,7 +19,7 @@ import type { AdminSidebarCardItem, SidebarCardsSavePayload } from '~/types/api'
  */
 
 /** 内置卡片种类，必须与后端 `domain.CardKind*` 常量逐字一致。 */
-export const SIDEBAR_CARD_KINDS = ['hot_articles', 'latest_comments', 'tag_cloud'] as const
+export const SIDEBAR_CARD_KINDS = ['hot_articles', 'latest_comments', 'tag_cloud', 'rich_text'] as const
 
 /** 卡片种类。 */
 export type SidebarCardKind = (typeof SIDEBAR_CARD_KINDS)[number]
@@ -29,6 +29,7 @@ export const SIDEBAR_CARD_DEFAULT_TITLES: Record<SidebarCardKind, string> = {
   hot_articles: '热门文章',
   latest_comments: '最新评论',
   tag_cloud: '标签云',
+  rich_text: '公告',
 }
 
 /** 每种卡在选择器里的标题。 */
@@ -36,6 +37,7 @@ export const SIDEBAR_CARD_KIND_LABELS: Record<SidebarCardKind, string> = {
   hot_articles: '热门文章',
   latest_comments: '最新评论',
   tag_cloud: '标签云',
+  rich_text: '富文本卡',
 }
 
 /** 与后端 `domain.SidebarCardMaxCount` 一致的数量上限。 */
@@ -58,6 +60,14 @@ export interface SidebarCardDraft {
   kind: string
   title: string
   enabled: boolean
+  /**
+   * 富文本卡的正文（HTML 片段）。
+   *
+   * 其它种类的草稿也带这个字段（保持草稿形状统一），保存时非富文本卡提交空串，
+   * 由后端丢弃。编辑器不提供脚本 / iframe / 内联事件入口；正文在落库与渲染
+   * 两侧都会过同一份白名单。
+   */
+  content: string
 }
 
 /** 判断字符串是否是内置卡片种类。 */
@@ -93,6 +103,7 @@ export function sidebarCardDrafts(
     kind: card.kind,
     title: card.title,
     enabled: card.enabled,
+    content: card.content,
   }))
 }
 
@@ -113,7 +124,7 @@ export function addSidebarCardDraft(
   key: string = nextSidebarCardDraftKey(drafts),
 ): SidebarCardDraft[] {
   if (drafts.length >= SIDEBAR_CARD_MAX_COUNT) return [...drafts]
-  return [...drafts, { key, id: '', kind, title: '', enabled: true }]
+  return [...drafts, { key, id: '', kind, title: '', enabled: true, content: '' }]
 }
 
 /** 按 key 删除一张卡；未知 key 原样返回。 */
@@ -142,6 +153,15 @@ export function toggleSidebarCardDraft(
   return drafts.map(draft =>
     draft.key === key ? { ...draft, enabled: enabled ?? !draft.enabled } : draft,
   )
+}
+
+/** 改富文本正文：只动目标卡；未知 key 原样返回。 */
+export function updateSidebarCardContent(
+  drafts: readonly SidebarCardDraft[],
+  key: string,
+  content: string,
+): SidebarCardDraft[] {
+  return drafts.map(draft => (draft.key === key ? { ...draft, content } : draft))
 }
 
 /**
@@ -199,6 +219,8 @@ export function toSidebarCardsSavePayload(
       kind: draft.kind,
       title: draft.title.trim(),
       enabled: draft.enabled,
+      // 正文只对富文本卡有意义；别的种类一律提交空串，与后端"丢弃脏 content"同口径。
+      content: draft.kind === 'rich_text' ? draft.content.trim() : '',
     })),
   }
 }

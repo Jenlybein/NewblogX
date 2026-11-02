@@ -22,6 +22,7 @@ import {
 } from 'naive-ui'
 import { getAdminSidebarCards, updateAdminSidebarCards } from '~/services/admin'
 import SidebarRichTextEditor from '~/components/settings/SidebarRichTextEditor.vue'
+import SidebarCardsPreview from '~/components/settings/SidebarCardsPreview.vue'
 import {
   SIDEBAR_CARD_KIND_OPTIONS,
   SIDEBAR_CARD_MAX_COUNT,
@@ -237,5 +238,16 @@ async function save() {
         </NSpace>
       </li>
     </ul>
+
+    <aside class="sidebar-preview-column" data-role="sidebar-preview-column">
+      <div class="preview-caption">
+        <div class="eyebrow">预览</div>
+        <p class="admin-hint">
+          按首页右栏的固定宽度渲染当前草稿，未保存的改动也会立刻反映；
+          内容为示例数据，只用于判断密度与顺序。
+        </p>
+      </div>
+      <SidebarCardsPreview :drafts="drafts" />
+    </aside>
   </div>
 </template>

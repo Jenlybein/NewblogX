@@ -59,6 +59,7 @@ const EXPECTED_ADMIN_NAV = [
   { label: '文章审核', path: '/review', icon: 'shield' },
   { label: '文章管理', path: '/articles', icon: 'article' },
   { label: '热门置顶', path: '/articles/hot-top', icon: 'pin' },
+  { label: '合集管理', path: '/articles/collections', icon: 'article' },
   { label: '用户管理', path: '/users', icon: 'users' },
   { label: '站点', path: '/site', icon: 'settings' },
   { label: 'AI 助手', path: '/site/ai', icon: 'settings' },
@@ -275,6 +276,14 @@ describe('后台菜单两级视图（分组 / 展开 / 高亮 / 标题）', () =
         path: '/articles/hot-top',
         depth: 1,
         active: true,
+      }),
+      expect.objectContaining({
+        kind: 'link',
+        key: '/articles/collections',
+        label: '合集管理',
+        path: '/articles/collections',
+        depth: 1,
+        active: false,
       }),
     ])
 

@@ -157,8 +157,24 @@ export type UserListItem = RequiredSchema<"internal_user_adapter_http.AdminUserI
 export type SearchArticleItem = RequiredSchema<"myblogx_internal_search_domain.Item">;
 export type SearchPagination = RequiredSchema<"myblogx_internal_search_domain.Pagination">;
 
-// ── 热门置顶（运营位）─────────────────────────────────────────
+// ── 合集（运营编排的文章集合）─────────────────────────────────
 
+/**
+ * 后台合集列表的一行。
+ *
+ * 带 `fallback_cover`：没上传封面时读者会看到的首篇封面。后台列表按读者的
+ * 样子预览，但编辑表单必须能区分"我传了封面"与"这是回退来的"，所以两个字段
+ * 在契约里是分开的，不合并成"生效封面"。
+ */
+export type CollectionAdminCard = RequiredSchema<"internal_article_adapter_http.CollectionAdminCard">;
+
+/** 建合集的请求体。契约里除标题外都可选，后台写入时四个字段总是显式带上。 */
+export type CollectionCreatePayload = Required<Schema<"internal_article_adapter_http.CollectionCreateRequest">>;
+
+/** 改合集内容的请求体：只有标题 / 描述 / 封面，展示开关走独立接口。 */
+export type CollectionUpdatePayload = Required<Schema<"internal_article_adapter_http.CollectionUpdateRequest">>;
+
+// ── 热门置顶（运营位）─────────────────────────────────────────
 /**
  * `/articles/hot-top/admin` 的列表项。
  *

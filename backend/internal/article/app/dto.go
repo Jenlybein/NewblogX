@@ -211,6 +211,34 @@ type CreateCollectionCmd struct {
 	Displayed bool
 }
 
+// UpdateCollectionCmd 是改合集内容的输入。
+//
+// 只有标题 / 描述 / 封面三个字段：展示开关走 SetCollectionDisplayCmd（它有自己的
+// 语义与调用点），顺序走合集间排序。把三者混进一个"整体更新"会让后台改一次标题
+// 就顺手覆盖掉别人刚切换的展示开关。
+type UpdateCollectionCmd struct {
+	// Actor 是操作者，必须是管理员。
+	Actor domain.Viewer
+	// CollectionID 目标合集。
+	CollectionID collection.ID
+	// Title 标题，非空且不超过 collection.MaxTitleLen。
+	Title string
+	// Description 描述，可空。
+	Description string
+	// Cover 封面 URL，传空串表示回退到首篇文章的封面。
+	Cover string
+}
+
+// DeleteCollectionCmd 是删合集的输入。
+//
+// 软删：合集查不到，但里面的文章与收录行都保留。
+type DeleteCollectionCmd struct {
+	// Actor 是操作者，必须是管理员。
+	Actor domain.Viewer
+	// CollectionID 目标合集。
+	CollectionID collection.ID
+}
+
 // IncludeArticleCmd 是把一篇文章收录进合集的输入。
 type IncludeArticleCmd struct {
 	// Actor 是操作者，必须是管理员。

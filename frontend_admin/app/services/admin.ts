@@ -14,6 +14,9 @@ import type {
   BannerModel,
   BannerWritePayload,
   CdcEventRecord,
+  CollectionAdminCard,
+  CollectionCreatePayload,
+  CollectionUpdatePayload,
   DecoRuntimeConfig,
   GlobalNotifListItem,
   GrowthDataResponseData,
@@ -153,8 +156,37 @@ export function updateHotTopOrder(articleIds: string[]) {
   })
 }
 
-export function getSiteRuntimeConfig() {
-  return api().request<SiteRuntimeConfig>('/site/admin/site')
+// ── 合集（管理员编排的文章集合）───────────────────────────────
+
+/** 后台合集列表：含未展示的合集、排序号与回退封面。 */
+export function getAdminCollections() {
+  return api().request<ListData<CollectionAdminCard>>('/collections/admin')
+}
+
+/** 新建合集。`displayed` 显式传：合集允许"先建好、不展示"。 */
+export function createCollection(payload: CollectionCreatePayload) {
+  return api().request<{ id: string }, CollectionCreatePayload>('/collections', { method: 'POST', body: payload })
+}
+
+/** 改合集内容（标题 / 描述 / 封面）。展示开关走 setCollectionDisplay。 */
+export function updateCollection(id: string, payload: CollectionUpdatePayload) {
+  return api().request<unknown, CollectionUpdatePayload>(`/collections/${id}`, { method: 'PUT', body: payload })
+}
+
+/** 删合集（软删，不删文章）。 */
+export function deleteCollection(id: string) {
+  return api().request<unknown>(`/collections/${id}`, { method: 'DELETE' })
+}
+
+/** 切换合集是否展示给读者。 */
+export function setCollectionDisplay(id: string, displayed: boolean) {
+  return api().request<unknown, { displayed: boolean }>(`/collections/${id}/display`, {
+    method: 'PATCH',
+    body: { displayed },
+  })
+}
+
+export function getSiteRuntimeConfig() {  return api().request<SiteRuntimeConfig>('/site/admin/site')
 }
 
 export function getAiRuntimeConfig() {

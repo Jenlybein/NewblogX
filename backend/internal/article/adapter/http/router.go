@@ -76,6 +76,9 @@ func (h *Handler) Register(r *gin.RouterGroup, authMw, optionalMw gin.HandlerFun
 	// 合集管理（全部在管理员分组下）。
 	collectionAdminGroup.GET("admin", h.AdminCollections)
 	collectionAdminGroup.POST("", mw.CaptureLog(mw.ReqBody), mw.BindJson[CollectionCreateRequest], h.CreateCollection)
+	collectionAdminGroup.PUT(":id", mw.CaptureLog(mw.ReqBody),
+		mw.BindUri[kernel.IDRequest], mw.BindJson[CollectionUpdateRequest], h.UpdateCollection)
+	collectionAdminGroup.DELETE(":id", mw.BindUri[kernel.IDRequest], h.DeleteCollection)
 	collectionAdminGroup.PATCH(":id/display", mw.CaptureLog(mw.ReqBody),
 		mw.BindUri[kernel.IDRequest], mw.BindJson[CollectionDisplayRequest], h.SetCollectionDisplay)
 	collectionAdminGroup.POST(":id/articles", mw.CaptureLog(mw.ReqBody),

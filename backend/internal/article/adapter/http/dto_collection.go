@@ -36,6 +36,17 @@ type CollectionDisplayRequest struct {
 	Displayed bool `json:"displayed"`
 }
 
+// CollectionUpdateRequest 改合集内容（标题 / 描述 / 封面）。
+//
+// 与创建同步但**没有 displayed**：展示开关是独立动作（PATCH /display）。
+// 改一次标题不该顺手覆盖别人刚切换的展示状态。
+// cover 传空串表示回退到首篇文章的封面。
+type CollectionUpdateRequest struct {
+	Title       string `json:"title" binding:"required"`
+	Description string `json:"description"`
+	Cover       string `json:"cover"`
+}
+
 // CollectionArticleRequest 收录 / 移除一篇文章。
 //
 // 收录与移除共用一个请求体：两者都只认 (合集, 文章) 这一对，动作由 HTTP 方法区分。
@@ -98,6 +109,11 @@ type CollectionAdminCard struct {
 	Displayed    bool     `json:"displayed"`
 	ArticleCount int      `json:"article_count"`
 	SortOrder    int      `json:"sort_order"`
+	// FallbackCover 是没上传封面时读者看到的封面（首篇公开文章的封面）。
+	//
+	// 与 cover 分开：后台列表要按读者的样子预览，但编辑表单必须能看出
+	// "这张是回退来的"，否则一保存就把回退值固化成上传值。
+	FallbackCover string `json:"fallback_cover"`
 }
 
 // CollectionCreatedResponse 建合集的返回，只给新 ID。

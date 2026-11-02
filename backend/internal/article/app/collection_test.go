@@ -364,4 +364,156 @@ func TestReplaceArticleOrder(t *testing.T) {
 	}
 }
 
+// seedPublishedWithCover 预置一篇带封面的已发布可见文章。
+func seedPublishedWithCover(t *testing.T, repos *apptest.Repos, id uint64, cover string) domain.ArticleID {
+	t.Helper()
+	articleID := domain.ArticleID(ctype.NewID(id))
+	repos.FakeArticles().Seed(
+		apptest.NewArticle().ID(articleID).Author(author).Status(domain.StatusPublished).Cover(cover).Build(),
+	)
+	return articleID
+}
+
+// TestUpdateCollectionChangesFields 改合集只改标题 / 描述 / 封面，展示开关与顺序不动。
+func TestUpdateCollectionChangesFields(t *testing.T) {
+	t.Parallel()
+
+	svc, repos, _ := newService(t)
+	cid := createCollection(t, svc, "旧标题")
+	before, err := repos.FakeCollections().Find(context.Background(), cid)
+	if err != nil {
+		t.Fatalf("读合集失败: %v", err)
+	}
+
+	err = svc.UpdateCollection(context.Background(), app.UpdateCollectionCmd{
+		Actor:        adminViewer(),
+		CollectionID: cid,
+		Title:        "  新标题  ",
+		Description:  "新描述",
+		Cover:        "https://cdn.example.com/cover.png",
+	})
+	if err != nil {
+		t.Fatalf("改合集失败: %v", err)
+	}
+
+	after, err := repos.FakeCollections().Find(context.Background(), cid)
+	if err != nil {
+		t.Fatalf("读合集失败: %v", err)
+	}
+	if after.Title() != "新标题" {
+		t.Fatalf("标题应被去空白后保存，实际 %q", after.Title())
+	}
+	if after.Description() != "新描述" || after.Cover() != "https://cdn.example.com/cover.png" {
+		t.Fatalf("描述 / 封面未保存，实际 %q / %q", after.Description(), after.Cover())
+	}
+	// 改内容不是改运营位：展示开关与顺序必须原样保留。
+	if after.Displayed() != before.Displayed() || after.SortOrder() != before.SortOrder() {
+		t.Fatalf("改合集不应动展示开关与顺序，实际 displayed=%v order=%d", after.Displayed(), after.SortOrder())
+	}
+}
+
+// TestUpdateCollectionRequiresAdminAndValidTitle 非管理员不能改；标题沿用创建时的不变量。
+func TestUpdateCollectionRequiresAdminAndValidTitle(t *testing.T) {
+	t.Parallel()
+
+	svc, _, _ := newService(t)
+	cid := createCollection(t, svc, "主题合集")
+
+	for name, viewer := range map[string]domain.Viewer{
+		"匿名":   domain.Anonymous(),
+		"普通用户": authorViewer(),
+	} {
+		err := svc.UpdateCollection(context.Background(), app.UpdateCollectionCmd{
+			Actor:        viewer,
+			CollectionID: cid,
+			Title:        "偷改标题",
+		})
+		if !errors.Is(err, domain.ErrForbidden) {
+			t.Fatalf("%s 改合集应被拒绝，实际 %v", name, err)
+		}
+	}
+
+	err := svc.UpdateCollection(context.Background(), app.UpdateCollectionCmd{
+		Actor:        adminViewer(),
+		CollectionID: cid,
+		Title:        "   ",
+	})
+	if !apperr.IsCode(err, apperr.CodeCollectionTitleRequired) {
+		t.Fatalf("空标题应被拒绝，实际 %v", err)
+	}
+}
+
+// TestDeleteCollectionKeepsArticles 删合集是软删：读者与后台列表都不再出现，
+// 但合集里的文章本身不能被删掉。
+func TestDeleteCollectionKeepsArticles(t *testing.T) {
+	t.Parallel()
+
+	svc, repos, _ := newService(t)
+	cid := createCollection(t, svc, "要下线的专题")
+	a1 := seedPublished(t, repos, 71)
+	includeArticle(t, svc, cid, a1)
+
+	if err := svc.DeleteCollection(context.Background(), app.DeleteCollectionCmd{
+		Actor:        authorViewer(),
+		CollectionID: cid,
+	}); !errors.Is(err, domain.ErrForbidden) {
+		t.Fatalf("非管理员删合集应被拒绝，实际 %v", err)
+	}
+
+	if err := svc.DeleteCollection(context.Background(), app.DeleteCollectionCmd{
+		Actor:        adminViewer(),
+		CollectionID: cid,
+	}); err != nil {
+		t.Fatalf("删合集失败: %v", err)
+	}
+
+	cards, total, err := svc.ListCollectionCards(context.Background(), false, domain.Page{Limit: 10})
+	if err != nil {
+		t.Fatalf("读读者列表失败: %v", err)
+	}
+	if total != 0 || len(cards) != 0 {
+		t.Fatalf("删掉的合集不该出现在读者列表，实际 total=%d len=%d", total, len(cards))
+	}
+
+	adminCards, err := svc.ListAdminCollectionCards(context.Background(), adminViewer())
+	if err != nil {
+		t.Fatalf("读后台列表失败: %v", err)
+	}
+	if len(adminCards) != 0 {
+		t.Fatalf("删掉的合集不该出现在后台列表，实际 %+v", adminCards)
+	}
+
+	// 删合集不删文章：文章本身必须还能被读到。
+	if _, err := repos.FakeArticles().Find(context.Background(), a1); err != nil {
+		t.Fatalf("删合集不应删掉里面的文章: %v", err)
+	}
+}
+
+// TestAdminCardsExposeFirstArticleCoverFallback 后台卡片要能算出"没有封面时读者看到的那张图"，
+// 否则运营在列表里看到的是空白，而读者看到的是首篇封面。
+func TestAdminCardsExposeFirstArticleCoverFallback(t *testing.T) {
+	t.Parallel()
+
+	svc, repos, _ := newService(t)
+	cid := createCollection(t, svc, "无封面合集")
+	first := seedPublishedWithCover(t, repos, 81, "https://cdn.example.com/first.png")
+	second := seedPublishedWithCover(t, repos, 82, "https://cdn.example.com/second.png")
+	includeArticle(t, svc, cid, first)
+	includeArticle(t, svc, cid, second)
+
+	cards, err := svc.ListAdminCollectionCards(context.Background(), adminViewer())
+	if err != nil {
+		t.Fatalf("读后台列表失败: %v", err)
+	}
+	if len(cards) != 1 {
+		t.Fatalf("应有 1 个合集，实际 %d", len(cards))
+	}
+	if cards[0].Cover != "" {
+		t.Fatalf("没上传过封面时 cover 应保持空串（后台据此判断该显示'回退'标记），实际 %q", cards[0].Cover)
+	}
+	if cards[0].FallbackCover != "https://cdn.example.com/first.png" {
+		t.Fatalf("回退封面应取首篇收录文章的封面，实际 %q", cards[0].FallbackCover)
+	}
+}
+
 

@@ -1,5 +1,9 @@
 import type { SiteSidebarCardItem } from "~/types/api";
-import { collectionHref } from "~/utils/collection";
+// 用**相对路径**而不是 `~/utils/collection`：后台的用例会跨包 import 本文件
+// （`frontend_admin/test/unit/sidebarCardsAdmin.test.ts` 要对着读者站同一份纯函数
+// 断言"存下去的顺序 = 渲染出来的顺序"），而后台的 vitest 把 `~` 指到它自己的 app 根，
+// 读者站的 `~/utils/collection` 在那儿解析不到。同目录相对路径在两边都成立。
+import { collectionHref } from "./collection";
 
 /**
  * 右栏数据驱动渲染的纯函数层（票 111）。

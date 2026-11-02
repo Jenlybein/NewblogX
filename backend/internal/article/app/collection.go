@@ -52,6 +52,52 @@ func (s *Service) CreateCollection(ctx context.Context, cmd CreateCollectionCmd)
 	return c.ID(), nil
 }
 
+// UpdateCollection 改合集的标题 / 描述 / 封面（管理员）。
+//
+// 三条规则：
+//  1. 只有管理员；
+//  2. 标题沿用创建时的不变量（非空、不超长）；
+//  3. 展示开关与顺序**不在这里改**——它们各自有独立的动作，一次标题编辑不该
+//     顺手覆盖掉别人刚切换的运营状态。
+func (s *Service) UpdateCollection(ctx context.Context, cmd UpdateCollectionCmd) error {
+	if !cmd.Actor.IsAdmin() {
+		return domain.ErrForbidden
+	}
+
+	return s.tx.WithinTx(ctx, func(ctx context.Context, r Repos) error {
+		c, err := r.Collections().Find(ctx, cmd.CollectionID)
+		if err != nil {
+			return err
+		}
+		now := s.clock.Now()
+		if err := c.Retitle(cmd.Title, now); err != nil {
+			return err
+		}
+		c.SetDescription(cmd.Description, now)
+		c.SetCover(cmd.Cover, now)
+		return r.Collections().Update(ctx, c)
+	})
+}
+
+// DeleteCollection 软删一个合集（管理员）。
+//
+// 删合集**不删文章**：中间表的行留着（文章本身与本合集无关），读者侧因为
+// 合集已经查不到而整块消失；后台列表也不再出现（软删行被仓储默认排除）。
+func (s *Service) DeleteCollection(ctx context.Context, cmd DeleteCollectionCmd) error {
+	if !cmd.Actor.IsAdmin() {
+		return domain.ErrForbidden
+	}
+
+	return s.tx.WithinTx(ctx, func(ctx context.Context, r Repos) error {
+		c, err := r.Collections().Find(ctx, cmd.CollectionID)
+		if err != nil {
+			return err
+		}
+		c.SoftDelete(s.clock.Now())
+		return r.Collections().Update(ctx, c)
+	})
+}
+
 // IncludeArticle 把一篇文章收录进合集（管理员）。
 //
 // 三条规则：

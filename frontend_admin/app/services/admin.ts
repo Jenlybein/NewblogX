@@ -5,6 +5,8 @@ import type {
   AIProviderItem,
   AIProviderPayload,
   VendorItem,
+  AdminSidebarCardsResponseData,
+  SidebarCardsSavePayload,
   ActionAuditRecord,
   ArticleReviewTaskListResponseData,
   ArticleSearchResponseData,
@@ -201,6 +203,24 @@ export function updateSiteRuntimeConfig(payload: SiteRuntimeConfig) {
 
 export function updateAiRuntimeConfig(payload: AIRuntimeConfig) {
   return api().request<unknown, AIRuntimeConfig>('/site/ai', { method: 'PUT', body: payload })
+}
+
+/** 管理端右栏卡片整表（含停用，按运营顺序）。 */
+export function getAdminSidebarCards() {
+  return api().request<AdminSidebarCardsResponseData>('/site/admin/sidebar_cards')
+}
+
+/**
+ * 整表保存右栏卡片。
+ *
+ * 不是逐条增删：列表顺序就是读者侧顺序，后端据此把顺序号重排成连续的
+ * 0..n-1；停用项必须一起提交，否则会被这次整表替换物理删掉。
+ */
+export function updateAdminSidebarCards(payload: SidebarCardsSavePayload) {
+  return api().request<unknown, SidebarCardsSavePayload>('/site/admin/sidebar_cards', {
+    method: 'PUT',
+    body: payload,
+  })
 }
 
 export function getBanners(query: { page?: number; limit?: number; show?: boolean }) {

@@ -189,5 +189,66 @@ func TestCollectionMinimalLoop(t *testing.T) {
 	if env := decode(t, hiddenDetailRaw); env.Code == 0 {
 		t.Fatalf("读者读未展示的合集应按不存在处理，实际成功（响应 %s）", hiddenDetailRaw)
 	}
+
+	// ⑥ 改合集内容：标题 / 描述 / 封面都能改，展示开关不受影响（这里仍是关的）。
+	updateRaw := rawRequest(t, adminRouter, "PUT",
+		fmt.Sprintf("/api/collections/%s", created.ID), []byte(`{
+		"title": "Nuxt 部署实战（第二版）",
+		"description": "改过的描述",
+		"cover": "https://cdn.example.com/cover.png"
+	}`))
+	if env := decode(t, updateRaw); env.Code != 0 {
+		t.Fatalf("改合集应成功，实际 code=%d msg=%s", env.Code, env.Msg)
+	}
+
+	adminListRaw := rawRequest(t, adminRouter, "GET", "/api/collections/admin", nil)
+	var adminList struct {
+		List []struct {
+			ID          ctype.ID `json:"id"`
+			Title       string   `json:"title"`
+			Cover       string   `json:"cover"`
+			Description string   `json:"description"`
+			Displayed   bool     `json:"displayed"`
+		} `json:"list"`
+	}
+	if err := json.Unmarshal(decode(t, adminListRaw).Data, &adminList); err != nil {
+		t.Fatalf("解析后台列表失败: %v", err)
+	}
+	if len(adminList.List) != 1 {
+		t.Fatalf("后台列表应有 1 个合集（未展示也要在），实际 %d（响应 %s）",
+			len(adminList.List), adminListRaw)
+	}
+	updated := adminList.List[0]
+	if updated.Title != "Nuxt 部署实战（第二版）" || updated.Description != "改过的描述" ||
+		updated.Cover != "https://cdn.example.com/cover.png" {
+		t.Fatalf("改合集后字段不对: %+v", updated)
+	}
+	if updated.Displayed {
+		t.Fatalf("改内容不应顺手打开展示开关: %+v", updated)
+	}
+
+	// ⑦ 删合集：后台列表与读者列表都不再出现，但文章本身还在。
+	deleteRaw := rawRequest(t, adminRouter, "DELETE",
+		fmt.Sprintf("/api/collections/%s", created.ID), nil)
+	if env := decode(t, deleteRaw); env.Code != 0 {
+		t.Fatalf("删合集应成功，实际 code=%d msg=%s", env.Code, env.Msg)
+	}
+
+	afterDeleteRaw := rawRequest(t, adminRouter, "GET", "/api/collections/admin", nil)
+	var afterDelete struct {
+		List []struct{} `json:"list"`
+	}
+	if err := json.Unmarshal(decode(t, afterDeleteRaw).Data, &afterDelete); err != nil {
+		t.Fatalf("解析后台列表失败: %v", err)
+	}
+	if len(afterDelete.List) != 0 {
+		t.Fatalf("删掉的合集不应出现在后台列表，实际 %d（响应 %s）",
+			len(afterDelete.List), afterDeleteRaw)
+	}
+
+	articleRaw := rawRequest(t, readerRouter, "GET", "/api/articles/1", nil)
+	if env := decode(t, articleRaw); env.Code != 0 {
+		t.Fatalf("删合集不应删掉里面的文章，读者读文章失败: code=%d msg=%s", env.Code, env.Msg)
+	}
 }
 

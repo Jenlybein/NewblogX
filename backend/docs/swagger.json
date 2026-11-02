@@ -1094,11 +1094,35 @@
                     "displayed": {
                         "type": "boolean"
                     },
+                    "fallback_cover": {
+                        "description": "FallbackCover 是没上传封面时读者看到的封面（首篇公开文章的封面）。\n\n与 cover 分开：后台列表要按读者的样子预览，但编辑表单必须能看出\n\"这张是回退来的\"，否则一保存就把回退值固化成上传值。",
+                        "type": "string"
+                    },
                     "id": {
                         "type": "string"
                     },
                     "sort_order": {
                         "type": "integer"
+                    },
+                    "title": {
+                        "type": "string"
+                    }
+                },
+                "type": "object"
+            },
+            "internal_article_adapter_http.CollectionAdminItem": {
+                "properties": {
+                    "article_id": {
+                        "type": "string"
+                    },
+                    "cover": {
+                        "type": "string"
+                    },
+                    "sort_order": {
+                        "type": "integer"
+                    },
+                    "stale": {
+                        "type": "boolean"
                     },
                     "title": {
                         "type": "string"
@@ -1159,6 +1183,53 @@
                 "required": [
                     "article_id"
                 ],
+                "type": "object"
+            },
+            "internal_article_adapter_http.CollectionBatchIncludeItem": {
+                "properties": {
+                    "article_id": {
+                        "type": "string"
+                    },
+                    "outcome": {
+                        "type": "string"
+                    }
+                },
+                "type": "object"
+            },
+            "internal_article_adapter_http.CollectionBatchIncludeRequest": {
+                "properties": {
+                    "article_ids": {
+                        "items": {
+                            "type": "string"
+                        },
+                        "type": "array",
+                        "uniqueItems": false
+                    }
+                },
+                "required": [
+                    "article_ids"
+                ],
+                "type": "object"
+            },
+            "internal_article_adapter_http.CollectionBatchIncludeResponse": {
+                "properties": {
+                    "duplicated": {
+                        "type": "integer"
+                    },
+                    "included": {
+                        "type": "integer"
+                    },
+                    "rejected": {
+                        "type": "integer"
+                    },
+                    "results": {
+                        "items": {
+                            "$ref": "#/components/schemas/internal_article_adapter_http.CollectionBatchIncludeItem"
+                        },
+                        "type": "array",
+                        "uniqueItems": false
+                    }
+                },
                 "type": "object"
             },
             "internal_article_adapter_http.CollectionCardResponse": {
@@ -1245,6 +1316,38 @@
                         "type": "boolean"
                     }
                 },
+                "type": "object"
+            },
+            "internal_article_adapter_http.CollectionOrderRequest": {
+                "properties": {
+                    "collection_ids": {
+                        "items": {
+                            "type": "string"
+                        },
+                        "type": "array",
+                        "uniqueItems": false
+                    }
+                },
+                "required": [
+                    "collection_ids"
+                ],
+                "type": "object"
+            },
+            "internal_article_adapter_http.CollectionUpdateRequest": {
+                "properties": {
+                    "cover": {
+                        "type": "string"
+                    },
+                    "description": {
+                        "type": "string"
+                    },
+                    "title": {
+                        "type": "string"
+                    }
+                },
+                "required": [
+                    "title"
+                ],
                 "type": "object"
             },
             "internal_article_adapter_http.FavoriteArticleListItem": {
@@ -2135,6 +2238,10 @@
                     },
                     "show": {
                         "type": "boolean"
+                    },
+                    "title": {
+                        "description": "Title 是轮播标题：纯文本、可空。\n\n创建与更新都是\"整体替换\"：不传或传空串就是保存空标题。\n后台在不改标题的路径（例如只重新取景）必须把原值一起带上，\n否则会把已有标题清掉。",
+                        "type": "string"
                     }
                 },
                 "required": [
@@ -2161,6 +2268,9 @@
                     },
                     "show": {
                         "type": "boolean"
+                    },
+                    "title": {
+                        "type": "string"
                     }
                 },
                 "type": "object"
@@ -2205,6 +2315,10 @@
                     },
                     "show": {
                         "type": "boolean"
+                    },
+                    "title": {
+                        "description": "Title 是轮播标题，纯文本、可空；读者站拿到空串就不渲染文字区。",
+                        "type": "string"
                     },
                     "updated_at": {
                         "type": "string"
@@ -3663,6 +3777,20 @@
                 },
                 "type": "object"
             },
+            "myblogx_internal_kernel.Envelope-internal_article_adapter_http_CollectionBatchIncludeResponse": {
+                "properties": {
+                    "code": {
+                        "type": "integer"
+                    },
+                    "data": {
+                        "$ref": "#/components/schemas/internal_article_adapter_http.CollectionBatchIncludeResponse"
+                    },
+                    "msg": {
+                        "type": "string"
+                    }
+                },
+                "type": "object"
+            },
             "myblogx_internal_kernel.Envelope-internal_article_adapter_http_CollectionCreatedResponse": {
                 "properties": {
                     "code": {
@@ -4321,6 +4449,20 @@
                 },
                 "type": "object"
             },
+            "myblogx_internal_kernel.Envelope-myblogx_internal_kernel_ListData-internal_article_adapter_http_CollectionAdminItem": {
+                "properties": {
+                    "code": {
+                        "type": "integer"
+                    },
+                    "data": {
+                        "$ref": "#/components/schemas/myblogx_internal_kernel.ListData-internal_article_adapter_http_CollectionAdminItem"
+                    },
+                    "msg": {
+                        "type": "string"
+                    }
+                },
+                "type": "object"
+            },
             "myblogx_internal_kernel.Envelope-myblogx_internal_kernel_ListData-internal_article_adapter_http_CollectionCardResponse": {
                 "properties": {
                     "code": {
@@ -4850,6 +4992,21 @@
                     "list": {
                         "items": {
                             "$ref": "#/components/schemas/internal_article_adapter_http.CollectionAdminCard"
+                        },
+                        "type": "array",
+                        "uniqueItems": false
+                    }
+                },
+                "type": "object"
+            },
+            "myblogx_internal_kernel.ListData-internal_article_adapter_http_CollectionAdminItem": {
+                "properties": {
+                    "count": {
+                        "type": "integer"
+                    },
+                    "list": {
+                        "items": {
+                            "$ref": "#/components/schemas/internal_article_adapter_http.CollectionAdminItem"
                         },
                         "type": "array",
                         "uniqueItems": false
@@ -7546,7 +7703,79 @@
                 ]
             }
         },
+        "/collections/order": {
+            "patch": {
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/internal_article_adapter_http.CollectionOrderRequest",
+                                "summary": "body",
+                                "description": "请求体"
+                            }
+                        }
+                    },
+                    "description": "请求体",
+                    "required": true
+                },
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/myblogx_internal_kernel.Envelope-myblogx_internal_kernel_EmptyData"
+                                }
+                            }
+                        },
+                        "description": "OK"
+                    }
+                },
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "summary": "合集之间排序",
+                "tags": [
+                    "collection"
+                ]
+            }
+        },
         "/collections/{id}": {
+            "delete": {
+                "parameters": [
+                    {
+                        "description": "合集 ID",
+                        "in": "path",
+                        "name": "id",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/myblogx_internal_kernel.Envelope-myblogx_internal_kernel_EmptyData"
+                                }
+                            }
+                        },
+                        "description": "OK"
+                    }
+                },
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "summary": "删合集",
+                "tags": [
+                    "collection"
+                ]
+            },
             "get": {
                 "parameters": [
                     {
@@ -7572,6 +7801,53 @@
                     }
                 },
                 "summary": "合集详情",
+                "tags": [
+                    "collection"
+                ]
+            },
+            "put": {
+                "parameters": [
+                    {
+                        "description": "合集 ID",
+                        "in": "path",
+                        "name": "id",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/internal_article_adapter_http.CollectionUpdateRequest",
+                                "summary": "body",
+                                "description": "请求体"
+                            }
+                        }
+                    },
+                    "description": "请求体",
+                    "required": true
+                },
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/myblogx_internal_kernel.Envelope-myblogx_internal_kernel_EmptyData"
+                                }
+                            }
+                        },
+                        "description": "OK"
+                    }
+                },
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "summary": "改合集",
                 "tags": [
                     "collection"
                 ]
@@ -7668,6 +7944,91 @@
                     }
                 ],
                 "summary": "收录文章进合集",
+                "tags": [
+                    "collection"
+                ]
+            }
+        },
+        "/collections/{id}/articles/admin": {
+            "get": {
+                "parameters": [
+                    {
+                        "description": "合集 ID",
+                        "in": "path",
+                        "name": "id",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/myblogx_internal_kernel.Envelope-myblogx_internal_kernel_ListData-internal_article_adapter_http_CollectionAdminItem"
+                                }
+                            }
+                        },
+                        "description": "OK"
+                    }
+                },
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "summary": "后台合集收录行",
+                "tags": [
+                    "collection"
+                ]
+            }
+        },
+        "/collections/{id}/articles/batch": {
+            "post": {
+                "parameters": [
+                    {
+                        "description": "合集 ID",
+                        "in": "path",
+                        "name": "id",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/internal_article_adapter_http.CollectionBatchIncludeRequest",
+                                "summary": "body",
+                                "description": "请求体"
+                            }
+                        }
+                    },
+                    "description": "请求体",
+                    "required": true
+                },
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/myblogx_internal_kernel.Envelope-internal_article_adapter_http_CollectionBatchIncludeResponse"
+                                }
+                            }
+                        },
+                        "description": "OK"
+                    }
+                },
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "summary": "批量收录文章进合集",
                 "tags": [
                     "collection"
                 ]

@@ -42,11 +42,6 @@ export interface SiteRuntimeConfig {
     username_pwd_login?: boolean;
     email_login?: boolean;
   };
-  index_right: {
-    list?: Array<{
-      title: string;
-    }>;
-  };
   /**
    * 文章的「发布与展示」开关（`site.article` 段，ADR-0017 决策 2）。
    *

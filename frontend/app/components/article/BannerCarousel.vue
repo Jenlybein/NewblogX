@@ -4,6 +4,7 @@ import { IconChevronLeft, IconChevronRight } from "@tabler/icons-vue";
 import ProfileEmptyState from "~/components/profile/ProfileEmptyState.vue";
 import type { BannerItem } from "~/types/api";
 import { bannerFramingStyle } from "~/utils/bannerFraming";
+import { bannerTitleText } from "~/utils/bannerTitle";
 
 const props = withDefaults(
   defineProps<{
@@ -21,6 +22,9 @@ const currentBanner = computed(() => props.banners[currentIndex.value] ?? null);
 
 /** 取景（焦点 + 缩放）→ 图片层样式；历史图（无 crop）走居中、缩放 1。 */
 const framingStyle = computed(() => bannerFramingStyle(currentBanner.value?.crop));
+
+/** 当前这张的标题（纯文本）。空标题不渲染文字区，不留一块空标题带。 */
+const titleText = computed(() => bannerTitleText(currentBanner.value?.title));
 
 /** 当前这张图加载失败：只把底图层切到失败态，切换下一张时复位。 */
 const imageFailed = ref(false);
@@ -92,39 +96,46 @@ function goToBanner(index: number) {
         控件是它的内容（一行靠底排版），不再另起一颗浮在图上、自成一块深色的玻璃胶囊。
       -->
       <div class="banner-veil">
-        <div v-if="banners.length > 1" class="banner-controls" role="group" aria-label="轮播控件">
-          <div class="banner-dots">
-            <button
-              v-for="(banner, index) in banners"
-              :key="banner.id || index"
-              type="button"
-              class="banner-dot"
-              :class="{ 'is-active': index === currentIndex }"
-              :aria-label="`切换到第 ${index + 1} 张轮播图`"
-              :aria-current="index === currentIndex ? 'true' : undefined"
-              @click="goToBanner(index)"
-            >
-              <span aria-hidden="true" />
-            </button>
-          </div>
+        <div class="banner-veil__body">
+          <!--
+            标题是纯文本：用插值输出（Vue 自动转义），不接 v-html。
+            空标题直接不渲染，避免在渐黑区里留一条空标题带。
+          -->
+          <p v-if="titleText" class="banner-title">{{ titleText }}</p>
+          <div v-if="banners.length > 1" class="banner-controls" role="group" aria-label="轮播控件">
+            <div class="banner-dots">
+              <button
+                v-for="(banner, index) in banners"
+                :key="banner.id || index"
+                type="button"
+                class="banner-dot"
+                :class="{ 'is-active': index === currentIndex }"
+                :aria-label="`切换到第 ${index + 1} 张轮播图`"
+                :aria-current="index === currentIndex ? 'true' : undefined"
+                @click="goToBanner(index)"
+              >
+                <span aria-hidden="true" />
+              </button>
+            </div>
 
-          <div class="banner-arrows">
-            <button
-              type="button"
-              class="banner-arrow is-prev"
-              :aria-label="`上一张轮播图（第 ${currentIndex + 1} 张）`"
-              @click="switchBanner(-1)"
-            >
-              <IconChevronLeft :size="18" aria-hidden="true" />
-            </button>
-            <button
-              type="button"
-              class="banner-arrow is-next"
-              :aria-label="`下一张轮播图（第 ${currentIndex + 1} 张）`"
-              @click="switchBanner(1)"
-            >
-              <IconChevronRight :size="18" aria-hidden="true" />
-            </button>
+            <div class="banner-arrows">
+              <button
+                type="button"
+                class="banner-arrow is-prev"
+                :aria-label="`上一张轮播图（第 ${currentIndex + 1} 张）`"
+                @click="switchBanner(-1)"
+              >
+                <IconChevronLeft :size="18" aria-hidden="true" />
+              </button>
+              <button
+                type="button"
+                class="banner-arrow is-next"
+                :aria-label="`下一张轮播图（第 ${currentIndex + 1} 张）`"
+                @click="switchBanner(1)"
+              >
+                <IconChevronRight :size="18" aria-hidden="true" />
+              </button>
+            </div>
           </div>
         </div>
       </div>
@@ -218,6 +229,33 @@ function goToBanner(index: number) {
 .banner-empty {
   position: relative;
   width: 100%;
+}
+
+/* 渐黑区的内容列：标题在上、控件在下，共用同一块底部渐黑（不是两套浮层）。 */
+.banner-veil__body {
+  display: flex;
+  width: 100%;
+  flex-direction: column;
+  gap: clamp(0.25rem, 0.8vw, 0.75rem);
+}
+
+/*
+ * 轮播标题：只承载纯文本，靠底部渐黑区保证对比度。
+ * 字号明确小于首屏主标题（clamp 上限 1.5rem），窄视口自动缩到 0.9rem，
+ * 不与站点标识抢视觉权重；长标题最多两行，避免把渐黑区撑高压住图片。
+ */
+.banner-title {
+  display: -webkit-box;
+  overflow: hidden;
+  margin: 0;
+  padding: 0 clamp(0.5rem, 1.5vw, 1rem);
+  color: var(--color-on-inverse);
+  font-family: var(--font-title);
+  font-size: clamp(0.9rem, 2.2vw, 1.5rem);
+  font-weight: 600;
+  line-height: 1.35;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
 }
 
 /* 控件住进渐黑区：一行内容（圆点靠左、箭头靠右），不再是一颗自带材质与底色的胶囊。 */

@@ -36,6 +36,17 @@ type CollectionDisplayRequest struct {
 	Displayed bool `json:"displayed"`
 }
 
+// CollectionUpdateRequest 改合集内容（标题 / 描述 / 封面）。
+//
+// 与创建同步但**没有 displayed**：展示开关是独立动作（PATCH /display）。
+// 改一次标题不该顺手覆盖别人刚切换的展示状态。
+// cover 传空串表示回退到首篇文章的封面。
+type CollectionUpdateRequest struct {
+	Title       string `json:"title" binding:"required"`
+	Description string `json:"description"`
+	Cover       string `json:"cover"`
+}
+
 // CollectionArticleRequest 收录 / 移除一篇文章。
 //
 // 收录与移除共用一个请求体：两者都只认 (合集, 文章) 这一对，动作由 HTTP 方法区分。
@@ -49,6 +60,22 @@ type CollectionArticleRequest struct {
 // 意图，也让并发下的结果可预测（与热门置顶同一口径）。
 type CollectionArticleOrderRequest struct {
 	ArticleIDs []ctype.ID `json:"article_ids" binding:"required"`
+}
+
+// CollectionBatchIncludeRequest 批量收录：一次提交多篇。
+//
+// 与单篇收录共用同一个路径前缀、但走独立的 /batch：单篇入口"重复即报错"，
+// 批量入口逐篇返回结局（一次勾十几篇时不该因为一篇重复整单失败）。
+type CollectionBatchIncludeRequest struct {
+	ArticleIDs []ctype.ID `json:"article_ids" binding:"required"`
+}
+
+// CollectionOrderRequest 合集之间的全量顺序替换。
+//
+// 传**完整**的合集列表（含未展示的合集）：后端在集合不一致时整单拒绝，
+// 所以后台提交的是自己刚读到的完整序列。
+type CollectionOrderRequest struct {
+	CollectionIDs []ctype.ID `json:"collection_ids" binding:"required"`
 }
 
 // ── 响应 ──
@@ -98,6 +125,11 @@ type CollectionAdminCard struct {
 	Displayed    bool     `json:"displayed"`
 	ArticleCount int      `json:"article_count"`
 	SortOrder    int      `json:"sort_order"`
+	// FallbackCover 是没上传封面时读者看到的封面（首篇公开文章的封面）。
+	//
+	// 与 cover 分开：后台列表要按读者的样子预览，但编辑表单必须能看出
+	// "这张是回退来的"，否则一保存就把回退值固化成上传值。
+	FallbackCover string `json:"fallback_cover"`
 }
 
 // CollectionCreatedResponse 建合集的返回，只给新 ID。
@@ -106,4 +138,37 @@ type CollectionAdminCard struct {
 // 需要的正是这个 ID；回整张卡片会多一份可能过期的读模型。
 type CollectionCreatedResponse struct {
 	ID ctype.ID `json:"id"`
+}
+
+// CollectionAdminItem 是后台「合集收录」页的一行。
+//
+// 比读者详情多出 stale：文章后来被隐藏/删除时收录行仍保留，后台要能
+// 看见并清理；全集换序必须提交**完整**集合（失效行也在内），否则会被
+// 服务端的 CheckOrder 拒绝。
+type CollectionAdminItem struct {
+	ArticleID ctype.ID `json:"article_id"`
+	SortOrder int      `json:"sort_order"`
+	Title     string   `json:"title"`
+	Cover     string   `json:"cover"`
+	Stale     bool     `json:"stale"`
+}
+
+// CollectionBatchIncludeItem 是批量收录里一篇文章的结局。
+//
+// outcome 取值：included / duplicated / not_includable / missing。
+// 逐篇返回而不是只给总数，后台才能告诉运营"哪几篇重复了"。
+type CollectionBatchIncludeItem struct {
+	ArticleID ctype.ID `json:"article_id"`
+	Outcome   string   `json:"outcome"`
+}
+
+// CollectionBatchIncludeResponse 是批量收录的汇总。
+//
+// 三个计数与 results 是同一份事实的两种视图：前端直接用计数拼提示，
+// 需要逐篇标记时读 results。
+type CollectionBatchIncludeResponse struct {
+	Results    []CollectionBatchIncludeItem `json:"results"`
+	Included   int                          `json:"included"`
+	Duplicated int                          `json:"duplicated"`
+	Rejected   int                          `json:"rejected"`
 }

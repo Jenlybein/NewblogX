@@ -79,6 +79,10 @@ func (r *CollectionRepo) Create(_ context.Context, c *collection.Collection) err
 }
 
 // Update 保存已存在的合集；不存在返回错误。
+//
+// 不检查"已软删"：删合集本身就是 SoftDelete + Update 这一条写路径，
+// 存储里放的是同一个聚合指针，此处无法区分"正在软删"与"改一个已删的合集"。
+// 「删掉后读不到」由 Find / 列表的 Deleted 过滤保证。
 func (r *CollectionRepo) Update(_ context.Context, c *collection.Collection) error {
 	r.count.inc("Update")
 	if err := r.fault.take("Update"); err != nil {
@@ -93,7 +97,7 @@ func (r *CollectionRepo) Update(_ context.Context, c *collection.Collection) err
 	return nil
 }
 
-// Find 按 ID 读取合集（含未展示的）。
+// Find 按 ID 读取合集（含未展示的，不含已软删的）。
 func (r *CollectionRepo) Find(_ context.Context, id collection.ID) (*collection.Collection, error) {
 	r.count.inc("Find")
 	if err := r.fault.take("Find"); err != nil {
@@ -102,7 +106,7 @@ func (r *CollectionRepo) Find(_ context.Context, id collection.ID) (*collection.
 	r.mus.Lock()
 	defer r.mus.Unlock()
 	c, ok := r.collections[id]
-	if !ok {
+	if !ok || c.Deleted() {
 		return nil, collection.ErrNotFound
 	}
 	return c, nil
@@ -140,7 +144,7 @@ func (r *CollectionRepo) ListCards(
 	displayed := r.sortedCollectionsLocked()
 	out := make([]collection.Card, 0, len(displayed))
 	for _, c := range displayed {
-		if !c.Displayed() {
+		if !c.Displayed() || c.Deleted() {
 			continue
 		}
 		articles := r.publicArticlesLocked(c.ID())
@@ -179,17 +183,65 @@ func (r *CollectionRepo) ListAdminCards(_ context.Context) ([]collection.AdminCa
 	all := r.sortedCollectionsLocked()
 	out := make([]collection.AdminCard, 0, len(all))
 	for _, c := range all {
+		if c.Deleted() {
+			continue
+		}
+		// 回退封面与读者卡片同一口径：首篇仍公开的收录文章的封面。
+		fallback := ""
+		if articles := r.publicArticlesLocked(c.ID()); len(articles) > 0 {
+			fallback = articles[0].Cover
+		}
 		out = append(out, collection.AdminCard{
-			ID:           c.ID(),
-			Title:        c.Title(),
-			Description:  c.Description(),
-			Cover:        c.Cover(),
-			Displayed:    c.Displayed(),
-			ArticleCount: len(r.liveItemsLocked(c.ID())),
-			SortOrder:    c.SortOrder(),
+			ID:            c.ID(),
+			Title:         c.Title(),
+			Description:   c.Description(),
+			Cover:         c.Cover(),
+			Displayed:     c.Displayed(),
+			ArticleCount:  len(r.liveItemsLocked(c.ID())),
+			SortOrder:     c.SortOrder(),
+			FallbackCover: fallback,
 		})
 	}
 	return out, nil
+}
+
+// ListIDs 按序号返回全部未软删合集的 ID。
+func (r *CollectionRepo) ListIDs(_ context.Context) ([]collection.ID, error) {
+	r.count.inc("ListIDs")
+	if err := r.fault.take("ListIDs"); err != nil {
+		return nil, err
+	}
+	r.mus.Lock()
+	defer r.mus.Unlock()
+
+	all := r.sortedCollectionsLocked()
+	out := make([]collection.ID, 0, len(all))
+	for _, c := range all {
+		if c.Deleted() {
+			continue
+		}
+		out = append(out, c.ID())
+	}
+	return out, nil
+}
+
+// UpdateSortOrders 按给定顺序把合集自身的序号改成 1..n。
+func (r *CollectionRepo) UpdateSortOrders(_ context.Context, ids []collection.ID) error {
+	r.count.inc("UpdateSortOrders")
+	if err := r.fault.take("UpdateSortOrders"); err != nil {
+		return err
+	}
+	r.mus.Lock()
+	defer r.mus.Unlock()
+
+	for i, id := range ids {
+		c, ok := r.collections[id]
+		if !ok {
+			return collection.ErrNotFound
+		}
+		c.SetSortOrder(i+1, c.UpdatedAt())
+	}
+	return nil
 }
 
 // ListItemIDs 按序号返回当前收录的文章 ID。

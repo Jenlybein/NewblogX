@@ -1,5 +1,6 @@
 import type { BannerWritePayload } from '~/types/api'
 
+import { bannerTitleText } from './bannerTitle'
 import { DEFAULT_FRAMING, clampFraming, isAspectCompliant } from './framing'
 import type { Framing, Size } from './framing'
 
@@ -50,15 +51,17 @@ export async function uploadBannerCover(
   return { imageId: result.image_id, url: result.url }
 }
 
-/** 创建轮播的入参：取景总是显式带上，缺省即居中、缩放 1。 */
+/** 创建轮播的入参：标题与取景总是显式带上（标题可空，取景缺省即居中、缩放 1）。 */
 export function buildBannerCreatePayload(input: {
   coverImageId: string
+  title?: string | null
   href: string
   show: boolean
   framing?: Partial<Framing> | null
 }): BannerWritePayload {
   return {
     cover_image_id: input.coverImageId,
+    title: bannerTitleText(input.title),
     href: input.href,
     show: input.show,
     crop: clampFraming(input.framing ?? DEFAULT_FRAMING),
@@ -134,12 +137,14 @@ export function describeBannerCoverSize(
   }
 }
 
-/** 重新取景要回填的字段：更新接口是整体替换，所以 href / show 也必须带上。 */
+/** 重新取景要回填的字段：更新接口是整体替换，所以标题 / href / show 也必须带上。 */
 export interface BannerReframeSource {
   id?: string | null
   cover_image_id?: string | null
+  title?: string | null
   href?: string | null
   show?: boolean | null
+  crop?: Partial<Framing> | null
 }
 
 export interface BannerReframeWrite {
@@ -152,6 +157,8 @@ export interface BannerReframeWrite {
  *
  * `null` 表示这一行没有封面图片 ID（历史行或数据损坏）：更新接口要求
  * cover_image_id，凭空编一个只会失败，页面据此提示而不是发一个坏请求。
+ *
+ * 标题一并带上：更新是整体替换，漏传就等于把已有标题清掉。
  */
 export function buildBannerReframePayload(
   row: BannerReframeSource,
@@ -162,9 +169,10 @@ export function buildBannerReframePayload(
     id: row.id,
     payload: {
       cover_image_id: row.cover_image_id,
+      title: bannerTitleText(row.title),
       href: row.href ?? '',
       show: Boolean(row.show),
-      crop: clampFraming(framing),
+      crop: clampFraming(framing ?? row.crop),
     },
   }
 }
@@ -184,6 +192,41 @@ export async function saveBannerReframe(
   update: BannerUpdater,
 ): Promise<boolean> {
   const write = buildBannerReframePayload(row, framing)
+  if (!write) return false
+  await update(write.id, write.payload)
+  return true
+}
+
+/** 编辑标题时的写入形状：与重新取景共用同一个更新接口，保留该行其余字段。 */
+export function buildBannerTitlePayload(
+  row: BannerReframeSource,
+  title: string,
+): BannerReframeWrite | null {
+  if (!row.id || !row.cover_image_id) return null
+  return {
+    id: row.id,
+    payload: {
+      cover_image_id: row.cover_image_id,
+      title: bannerTitleText(title),
+      href: row.href ?? '',
+      show: Boolean(row.show),
+      crop: clampFraming(row.crop),
+    },
+  }
+}
+
+/**
+ * 保存一次标题编辑。
+ *
+ * 返回 `false` 表示这一行没有封面 ID、**没有发任何写请求**；抛出则是更新接口
+ * 失败。空标题是合法输入（清空误填的标题），不会因此拒发。
+ */
+export async function saveBannerTitle(
+  row: BannerReframeSource,
+  title: string,
+  update: BannerUpdater,
+): Promise<boolean> {
+  const write = buildBannerTitlePayload(row, title)
   if (!write) return false
   await update(write.id, write.payload)
   return true

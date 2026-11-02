@@ -1,7 +1,10 @@
 import type { SiteSidebarCardItem } from "~/types/api";
-// 这里刻意用同目录相对路径：后台预览要跨包 import 本模块，而后台的 vitest / tsconfig
-// 把 `~` 指向后台自己的 app，`~/utils/collection` 在后台会解析不到（不存在同名文件）。
-// 其余 `~/types/api` 是 type-only import，编译期被抹掉，不会进入后台的运行时解析。
+// 这里刻意用同目录**相对路径**：后台会跨包 import 本模块——卡片管理页的用例对着
+// 读者站同一份纯函数断言"存下去的顺序 = 渲染出来的顺序"，预览区也直接调它。
+// 而后台的 vitest / tsconfig 把 `~` 指向后台自己的 app，`~/utils/collection` 在那里
+// 解析不到（不存在同名文件）。其余 `~/types/api` 是 type-only import，编译期被抹掉，
+// 不参与后台的运行时解析，所以只有真正要用到的这里改成相对路径。同目录相对路径
+// 在读者站与后台两边都成立。
 import { collectionHref } from "./collection";
 
 /**

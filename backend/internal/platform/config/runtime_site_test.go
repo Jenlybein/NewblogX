@@ -91,6 +91,74 @@ func TestUpdateSite_旧mode残留不报错且保存后消失(t *testing.T) {
 	}
 }
 
+// ── 旧右栏配置（index_right）下线 ───────────────────────────
+//
+// `site.index_right` 是只有"标题 + 启用"两字段的半残配置：前端只把标题当
+// 模块 key、完全忽略启用位，后端不校验也不认识这些 key。右栏改由卡片表驱动后，
+// 它必须整条链删掉，否则运营改新配置、旧配置还在，调试时分不清谁生效。
+//
+// 零 DDL：老库里可能还留着这段 JSON。读取必须容忍（未知键被 JSON 解码忽略），
+// 管理员下次保存整段时残留键被挤出类型，自然消失。
+
+func TestSiteSection_序列化后不再有index_right(t *testing.T) {
+	raw, err := json.Marshal(conf.Site{})
+	if err != nil {
+		t.Fatalf("site 段无法序列化: %v", err)
+	}
+	var sections map[string]json.RawMessage
+	if err := json.Unmarshal(raw, &sections); err != nil {
+		t.Fatalf("site 段无法反序列化: %v", err)
+	}
+	if _, has := sections["index_right"]; has {
+		t.Fatal("site 段不得再序列化出 index_right（旧右栏配置已下线）")
+	}
+}
+
+func TestDefaultSettingsYaml_站点段不再有index_right(t *testing.T) {
+	// 默认值文件就是补种进库的那一份；留着等于把废弃配置又种回每个新部署。
+	raw, err := os.ReadFile("../../../config/site_default_settings.yaml")
+	if err != nil {
+		t.Fatalf("读取默认值文件失败: %v", err)
+	}
+	var file struct {
+		Site map[string]any `yaml:"site"`
+	}
+	if err := yaml.Unmarshal(raw, &file); err != nil {
+		t.Fatalf("解析默认值文件失败: %v", err)
+	}
+	if _, has := file.Site["index_right"]; has {
+		t.Fatalf("site_default_settings.yaml 的 site 段不得再写 index_right，实际 %v", file.Site)
+	}
+}
+
+func TestUpdateSite_旧index_right残留不报错且保存后消失(t *testing.T) {
+	// 与 ADR-0017 删站点模式同一口径：不做数据迁移。
+	defaults := conf.RuntimeDefaults{
+		Site: conf.Site{Project: siteconf.Project{Title: "默认标题"}},
+	}
+	svc, db := newTestService(t, defaults)
+
+	legacy := `{"project":{"title":"老站点"},"index_right":{"list":[{"title":"hot_tags","enable":true}]}}`
+	if err := upsertPayload(db, SectionSite, legacy); err != nil {
+		t.Fatalf("预置老载荷失败: %v", err)
+	}
+	if err := svc.InitRuntimeConfig(); err != nil {
+		t.Fatalf("带残留 index_right 的老载荷必须能正常加载，实际报错: %v", err)
+	}
+	if got := svc.GetRuntimeSite().Project.Title; got != "老站点" {
+		t.Fatalf("载荷里的项目标题应生效，实际 %q", got)
+	}
+
+	site := svc.GetRuntimeSite()
+	site.Project.WebPath = "/"
+	if err := svc.UpdateSite(site); err != nil {
+		t.Fatalf("保存站点配置失败: %v", err)
+	}
+	if payload := readPayload(t, db, SectionSite); strings.Contains(payload, "index_right") {
+		t.Fatalf("管理员保存一次后 site 段不应再含 index_right，实际 %s", payload)
+	}
+}
+
 // ── 票 #60：发布与展示三开关（ADR-0017 决策 2） ──────────────
 //
 // 三个布尔都在 site.article 段、默认 true，后台同一张「发布与展示」卡维护。

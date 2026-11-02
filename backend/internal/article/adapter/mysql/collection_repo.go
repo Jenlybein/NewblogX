@@ -47,17 +47,25 @@ func (r *CollectionRepo) Create(ctx context.Context, c *collection.Collection) e
 //
 // 用 map 而不是结构体做 Updates：GORM 对结构体会跳过零值字段
 // （is_display=false、sort_order=0 就永远改不动），而"关闭展示"正是把 true 改成 false。
+//
+// 软删也走这里：域里的 SoftDelete 只改聚合状态，落库必须显式写 deleted_at
+// （GORM 的默认作用域会把 WHERE 限在 deleted_at IS NULL，所以这条 UPDATE 能落上）。
 func (r *CollectionRepo) Update(ctx context.Context, c *collection.Collection) error {
+	updates := map[string]any{
+		"title":       c.Title(),
+		"description": c.Description(),
+		"cover":       c.Cover(),
+		"is_display":  c.Displayed(),
+		"sort_order":  c.SortOrder(),
+		"updated_at":  c.UpdatedAt(),
+	}
+	if c.Deleted() {
+		// 没有单独的删除时间字段：软删与最后一次修改是同一刻。
+		updates["deleted_at"] = c.UpdatedAt()
+	}
 	res := r.db.WithContext(ctx).Model(&collectionRow{}).
 		Where("id = ?", ctype.ID(c.ID())).
-		Updates(map[string]any{
-			"title":       c.Title(),
-			"description": c.Description(),
-			"cover":       c.Cover(),
-			"is_display":  c.Displayed(),
-			"sort_order":  c.SortOrder(),
-			"updated_at":  c.UpdatedAt(),
-		})
+		Updates(updates)
 	if res.Error != nil {
 		return res.Error
 	}
@@ -194,22 +202,34 @@ func (r *CollectionRepo) cardRows(
 //
 // 与读者列表的差别：这里收录条数算**全部未软删的**收录行（不看文章是否公开），
 // 后台要能看出"这个合集里有几篇已经失效了"。
+//
+// 回退封面单独查一份（与读者卡片同一个谓词）：后台列表要按读者看到的样子预览，
+// 但 Cover 仍保持库里的原值，编辑表单据此区分"我传过"与"这是回退"。
 func (r *CollectionRepo) ListAdminCards(ctx context.Context) ([]collection.AdminCard, error) {
 	type row struct {
-		ID           ctype.ID
-		Title        string
-		Description  string
-		Cover        string
-		IsDisplay    bool
-		SortOrder    int
-		ArticleCount int
+		ID            ctype.ID
+		Title         string
+		Description   string
+		Cover         string
+		FallbackCover string
+		IsDisplay     bool
+		SortOrder     int
+		ArticleCount  int
 	}
+	coverFallback := "(SELECT a2.cover FROM collection_article_models AS i2 " +
+		"JOIN article_models AS a2 ON a2.id = i2.article_id " +
+		"WHERE i2.collection_id = c.id AND i2.deleted_at IS NULL AND a2.deleted_at IS NULL " +
+		"AND a2.publish_status = ? AND a2.visibility_status = ? " +
+		"ORDER BY i2.sort_order ASC, i2.id ASC LIMIT 1)"
+
 	var rows []row
 	err := r.db.WithContext(ctx).
 		Table("collection_models AS c").
-		Select("c.id, c.title, c.description, c.cover, c.is_display, c.sort_order, " +
-			"(SELECT COUNT(*) FROM collection_article_models AS i " +
-			"WHERE i.collection_id = c.id AND i.deleted_at IS NULL) AS article_count").
+		Select("c.id, c.title, c.description, c.cover, c.is_display, c.sort_order, "+
+			"COALESCE("+coverFallback+", '') AS fallback_cover, "+
+			"(SELECT COUNT(*) FROM collection_article_models AS i "+
+			"WHERE i.collection_id = c.id AND i.deleted_at IS NULL) AS article_count",
+			statusPublished, visibilityVisible).
 		Where("c.deleted_at IS NULL").
 		Order("c.sort_order ASC, c.id ASC").
 		Scan(&rows).Error
@@ -220,16 +240,49 @@ func (r *CollectionRepo) ListAdminCards(ctx context.Context) ([]collection.Admin
 	out := make([]collection.AdminCard, 0, len(rows))
 	for _, m := range rows {
 		out = append(out, collection.AdminCard{
-			ID:           collection.ID(m.ID),
-			Title:        m.Title,
-			Description:  m.Description,
-			Cover:        m.Cover,
-			Displayed:    m.IsDisplay,
-			ArticleCount: m.ArticleCount,
-			SortOrder:    m.SortOrder,
+			ID:            collection.ID(m.ID),
+			Title:         m.Title,
+			Description:   m.Description,
+			Cover:         m.Cover,
+			Displayed:     m.IsDisplay,
+			ArticleCount:  m.ArticleCount,
+			SortOrder:     m.SortOrder,
+			FallbackCover: m.FallbackCover,
 		})
 	}
 	return out, nil
+}
+
+// ListIDs 按序号返回全部未软删合集的 ID（合集之间换序的集合校验用）。
+func (r *CollectionRepo) ListIDs(ctx context.Context) ([]collection.ID, error) {
+	var raw []ctype.ID
+	err := r.db.WithContext(ctx).Model(&collectionRow{}).
+		Order("sort_order ASC, id ASC").
+		Pluck("id", &raw).Error
+	if err != nil {
+		return nil, err
+	}
+	out := make([]collection.ID, 0, len(raw))
+	for _, v := range raw {
+		out = append(out, collection.ID(v))
+	}
+	return out, nil
+}
+
+// UpdateSortOrders 按给定顺序把合集自身的序号改成 1..n。
+//
+// 集合一致性由 app 层的 collection.CheckSortOrder 保证，这里只负责落库；
+// 逐条 UPDATE 足够（合集以十计），不折腾 CASE WHEN。
+func (r *CollectionRepo) UpdateSortOrders(ctx context.Context, ids []collection.ID) error {
+	db := r.db.WithContext(ctx)
+	for i, id := range ids {
+		if err := db.Model(&collectionRow{}).
+			Where("id = ?", ctype.ID(id)).
+			Update("sort_order", i+1).Error; err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // ListItemIDs 按序号返回当前收录的文章 ID（不含软删行）。
@@ -282,11 +335,18 @@ func (r *CollectionRepo) AppendItem(
 		if err != nil {
 			return false, err
 		}
-		return true, db.Create(&collectionArticleRow{
+		err = db.Create(&collectionArticleRow{
 			CollectionID: ctype.ID(id),
 			ArticleID:    ctype.ID(articleID),
 			SortOrder:    next,
 		}).Error
+		// 唯一索引 (collection_id, article_id) 不含 deleted_at：两个管理员同时收录
+		// 同一篇时，后到的 INSERT 会撞 1062。把唯一键冲突翻译成"这篇已经在合集里"，
+		// 而不是把裸数据库错误透传成 500。
+		if errors.Is(err, gorm.ErrDuplicatedKey) {
+			return false, nil
+		}
+		return err == nil, err
 	default:
 		return false, err
 	}

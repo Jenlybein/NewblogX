@@ -77,6 +77,10 @@ export const ADMIN_NAV_TREE: AdminNavNode[] = [
     children: [
       // 热门置顶是独立运营位（ADR-0017 决策 5），层级上归到「文章管理」：先选文章，再排序。
       { label: '热门置顶', path: '/articles/hot-top', icon: 'pin' },
+      // 合集是"文章的有序集合"，同属文章域的运营产物，挂在同一个父项下。
+      { label: '合集管理', path: '/articles/collections', icon: 'article' },
+      // 编排是合集的日常动作（批量收录 + 两级排序），与增删改分开成独立页。
+      { label: '合集编排', path: '/articles/collection-arrange', icon: 'article' },
     ],
   },
   { label: '用户管理', path: '/users', icon: 'users' },

@@ -461,6 +461,21 @@ type RuntimeConfigRow struct {
 // TableName 固定表名。
 func (RuntimeConfigRow) TableName() string { return "runtime_config_models" }
 
+// SidebarCardRow 对应表 sidebar_card_models。
+//
+// 首页右栏的一张卡：kind 是内置种类，sort_order 是运营顺序，
+// enabled 控制读者侧是否出现（停用只隐藏、不删除配置）。
+type SidebarCardRow struct {
+	BaseRow
+	Kind      string `gorm:"size:32" json:"kind"`
+	Title     string `gorm:"size:64" json:"title"`
+	SortOrder int    `gorm:"default:0;index" json:"sort_order"`
+	Enabled   bool   `gorm:"default:false" json:"enabled"`
+}
+
+// TableName 固定表名。
+func (SidebarCardRow) TableName() string { return "sidebar_card_models" }
+
 // UserStatRow 对应表 user_stat_models。
 type UserStatRow struct {
 	UserID              ctype.ID `gorm:"primaryKey;autoIncrement:false" json:"user_id"`

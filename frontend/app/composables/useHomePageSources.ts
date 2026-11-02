@@ -3,8 +3,13 @@ import { usePagedResourceCache } from "~/composables/usePagedResourceCache";
 import { useReaderSwrAsyncData } from "~/composables/useReaderSwrAsyncData";
 import { getHotTopArticles } from "~/services/article";
 import { searchArticles } from "~/services/search";
-import { getBannerList } from "~/services/site";
-import type { ArticleHotTopListData, BannerListData, SearchArticleItem } from "~/types/api";
+import { getBannerList, getSidebarCards } from "~/services/site";
+import type {
+  ArticleHotTopListData,
+  BannerListData,
+  SearchArticleItem,
+  SiteSidebarCardsData,
+} from "~/types/api";
 import { detectReaderRenderMode, type ReaderRenderMode } from "~/utils/readerRenderMode";
 import { READER_HOME_CACHE_KEYS } from "~/utils/readerCacheKeys";
 import type { ReaderSwrCache } from "~/utils/readerSwrCache";
@@ -17,10 +22,12 @@ export interface HomeLatestPage {
 export interface HomePageSourcesOptions {
   /** 覆盖运行环境判定（单测注入）；默认按 import.meta + isHydrating 判定。 */
   mode?: ReaderRenderMode;
-  /** 三个取数入口可注入（单测用假请求，断言"谁在什么时候发起"）。 */
+  /** 四个取数入口可注入（单测用假请求，断言"谁在什么时候发起"）。 */
   fetchBanners?: () => Promise<BannerListData>;
   fetchHotTop?: () => Promise<ArticleHotTopListData>;
   fetchLatest?: (page: number, limit: number) => Promise<HomeLatestPage>;
+  /** 右栏卡片列表（票 111）：卡片配置 + 各卡数据来自同一个读接口。 */
+  fetchSidebarCards?: () => Promise<SiteSidebarCardsData>;
   /** 跨导航 30s SWR 缓存（单测注入假时钟实例；默认客户端共享实例、服务端禁用）。 */
   swrCache?: ReaderSwrCache;
 }
@@ -53,16 +60,16 @@ async function withFallback<TValue>(
 }
 
 /**
- * 首页的三个数据源（轮播 / 热门置顶 / 最新文章）。
+ * 首页的四个数据源（轮播 / 热门置顶 / 最新文章 / 右栏卡片）。
  *
  * 病根在票面里：以前是 `await banners → await hot-top → await 最新文章`，三个请求首尾相接，
  * 墙钟等于三段之和。这里改成**先全部发起、再按环境决定等谁**：
  *
- * - 服务端：三个都等齐（SSR 的 HTML 里必须有轮播、置顶与最新列表）；
+ * - 服务端：四个都等齐（SSR 的 HTML 里必须有轮播、置顶、最新列表与右栏）；
  * - 客户端跳转：一个都不等，setup 立刻返回，页面先画骨架；
  * - 首屏 hydration：只有分页首屏（最新文章）要等 —— 它不在 payload 里。其余复用 payload。
  *
- * 失败语义不变：轮播 / 置顶 / 最新都"失败降级不抛错"，某个接口挂了只影响它自己那块
+ * 失败语义不变：轮播 / 置顶 / 最新 / 右栏都"失败降级不抛错"，某个接口挂了只影响它自己那块
  * （区块组件拿不到数据就整块不渲染，ADR-0017 决策 5）。
  */
 export async function useHomePageSources(options: HomePageSourcesOptions = {}) {
@@ -71,6 +78,7 @@ export async function useHomePageSources(options: HomePageSourcesOptions = {}) {
 
   const fetchBanners = options.fetchBanners ?? (() => getBannerList());
   const fetchHotTop = options.fetchHotTop ?? (() => getHotTopArticles());
+  const fetchSidebarCards = options.fetchSidebarCards ?? (() => getSidebarCards());
   const fetchLatest =
     options.fetchLatest ??
     (async (page: number, limit: number) => {
@@ -104,6 +112,14 @@ export async function useHomePageSources(options: HomePageSourcesOptions = {}) {
     mode,
     cache: options.swrCache,
   });
+  // 右栏卡片：卡片清单与各卡数据同源，所以它和轮播/置顶一样走 30s SWR。
+  const sidebarSource = useReaderSwrAsyncData({
+    key: READER_HOME_CACHE_KEYS.sidebarCards,
+    handler: () =>
+      withFallback("home-sidebar-cards", { list: [] } satisfies SiteSidebarCardsData, () => fetchSidebarCards()),
+    mode,
+    cache: options.swrCache,
+  });
 
   const latestPager = await usePagedResourceCache({
     cacheKey: () => READER_HOME_CACHE_KEYS.latestArticles,
@@ -127,14 +143,15 @@ export async function useHomePageSources(options: HomePageSourcesOptions = {}) {
   });
 
   if (mode === "server") {
-    // 服务端等齐：除了分页首屏（上面 block 已经等过），还有两个 useAsyncData 源。
-    await Promise.all([bannerSource, hotTopSource, latestPager.ready]);
+    // 服务端等齐：除了分页首屏（上面 block 已经等过），还有三个 useAsyncData 源。
+    await Promise.all([bannerSource, hotTopSource, sidebarSource, latestPager.ready]);
   }
 
   return {
     bannerData: bannerSource.data,
     bannerPending: bannerSource.pending,
     hotTopData: hotTopSource.data,
+    sidebarCardsData: sidebarSource.data,
     latestPager,
     latestRequestError,
   };

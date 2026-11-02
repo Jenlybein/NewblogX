@@ -22,6 +22,15 @@ import {
   type CharmRopeState,
 } from "~/utils/decoCharm";
 import { charmTetherGeometry, type CharmTetherGeometry } from "~/utils/charmTether";
+import {
+  charmVisibilityAdvance,
+  charmVisibilityBusy,
+  charmVisibilityEnter,
+  charmVisibilityLeave,
+  createCharmVisibilityState,
+  type CharmVisibilityPhase,
+  type CharmVisibilityState,
+} from "~/utils/charmVisibility";
 
 /** 指针事件里这里用到的最小结构（便于测试注入假事件）。 */
 export interface CursorCharmPointerEvent {
@@ -77,8 +86,15 @@ export interface UseCursorCharmOptions {
 export interface CursorCharm {
   /** 三条门控同时满足才为 true（精确指针 + 未减少动态 + 后台总开关）。 */
   enabled: Ref<boolean>;
-  /** 首次指针移动后才为 true —— 挂件据此淡入。 */
+  /**
+   * 挂件是否该在屏幕上 —— 模板据此挂 `.charm-layer--visible`。
+   *
+   * 语义比"看见过指针移动"更强：指针移出窗口后**当场**为 false（渐隐开始），
+   * 移回满 0.1 秒防抖窗口后才重新为 true。它是 `phase` 的派生值。
+   */
   visible: Ref<boolean>;
+  /** 进出场阶段（隐藏 / 等待渐显 / 可见 / 渐隐中）；测试与调试读它，模板读 `visible`。 */
+  phase: Ref<CharmVisibilityPhase>;
   /**
    * 指针热点当前视口坐标（**不含**指针端偏移）；首移之前是原点。
    *
@@ -175,13 +191,22 @@ export function useCursorCharm(options: UseCursorCharmOptions = {}): CursorCharm
   const finePointerHover = ref(Boolean(finePointerQuery?.matches));
   const prefersReducedMotion = ref(Boolean(reducedQuery?.matches));
   const pointer = ref<CharmPoint>({ x: 0, y: 0 });
-  const visible = ref(false);
+  // 可见性由状态机决定：`phase` 是唯一写入点，`visible` 是它的派生值。
+  const phase = ref<CharmVisibilityPhase>("hidden");
+  const visible = computed(() => phase.value === "visible");
   const tetherPath = ref("");
   const logoCenter = ref<CharmPoint>({ x: 0, y: 0 });
 
   // ── 物理状态：普通对象，不进响应式系统 ──────────────────────────
   let rope: CharmRopeState | null = null;
   let ropeSignature = "";
+  /**
+   * 可见性状态机的当前快照（普通对象）。
+   *
+   * 为什么也放普通变量：它每帧都会被推进一次，但对外只有一个 `phase` ref；
+   * 让整个快照进响应式系统只会多出没人订阅的失效。
+   */
+  let visibilityState: CharmVisibilityState = createCharmVisibilityState();
   /** 最近一帧的几何快照：给测试与调试读，**不写响应式 ref**。 */
   let lastGeometry: CharmTetherGeometry | null = null;
   /** 已推进的物理帧数：普通计数，不触发响应式失效。 */
@@ -208,6 +233,29 @@ export function useCursorCharm(options: UseCursorCharmOptions = {}): CursorCharm
   function publishDue(time: number, fpsCap: number): boolean {
     if (lastPublishAt === null) return true;
     return time - lastPublishAt >= charmFrameIntervalMs(fpsCap);
+  }
+
+  /**
+   * 迁移偏好：减少动态时直接切可见性（不等待、不渐隐）。
+   *
+   * 减少动态下整层本来就不渲染（`charmLayerEnabled` 的第二条），这里仍然把它
+   * 传下去，是因为"直接切"是状态机自己的口径，不能靠上层的渲染门控当唯一保证。
+   */
+  function visibilityOptions() {
+    return { reducedMotion: prefersReducedMotion.value };
+  }
+
+  /**
+   * 落一次可见性迁移：状态快照是普通对象，只有阶段变了才写 `phase` ref。
+   *
+   * 每帧都会调用（`charmVisibilityAdvance` 未变时原样返回同一对象），所以这里
+   * 用对象同一性做"没变就不触发响应式失效"的判据。
+   */
+  function applyVisibility(next: CharmVisibilityState) {
+    if (next === visibilityState) return;
+    const phaseChanged = next.phase !== visibilityState.phase;
+    visibilityState = next;
+    if (phaseChanged) phase.value = next.phase;
   }
 
   const switchOn = computed(() => Boolean(configEnabled()));
@@ -329,6 +377,9 @@ export function useCursorCharm(options: UseCursorCharmOptions = {}): CursorCharm
       return;
     }
     const time = now();
+    // 可见性迁移必须在门控**之前**：它回答的是"这一帧该不该在屏幕上"，
+    // 不是"这一帧要不要发布"。等满 0.1 秒 / 渐隐走完都是到点即迁移。
+    applyVisibility(charmVisibilityAdvance(visibilityState, time));
     const config = normalizeCharmRopeConfig(options.config?.());
 
     // 时间门控：没到点就直接返回，既不推进物理也不发布，只排下一帧。
@@ -354,7 +405,11 @@ export function useCursorCharm(options: UseCursorCharmOptions = {}): CursorCharm
 
     const swayOn = charmIdleSwayEnabled(state.config);
     // 轻晃开着时不停帧（那会把链冻在一个歪姿势上）；关掉后才允许按能量收敛。
-    if (!swayOn && charmRopeSettled(state)) {
+    //
+    // 但过渡窗口（等待渐显 / 渐隐中）要保活到迁移发生：那两个截止时刻（0.1s、
+    // 一个快档渐隐）只靠动画帧推进，链若刚好收敛就停帧，迁移会永远等不到。
+    // 保活窗口有界，不会把"收敛后零帧"变成常驻。
+    if (!swayOn && charmRopeSettled(state) && !charmVisibilityBusy(visibilityState)) {
       stopLoop();
       return;
     }
@@ -366,16 +421,28 @@ export function useCursorCharm(options: UseCursorCharmOptions = {}): CursorCharm
     // 冻结期间（窗口失焦 / 指针已离开文档）不更新指针端：
     // 让它停在最后位置，链自然收敛；等 focus / 指针重新进入再解冻。
     if (frozen) return;
+    // 进入信号：首次登场直接可见，之后每次移回进入"等 0.1 秒"的防抖窗口。
+    // 指针在窗口里挪动会不断产生移动事件，状态机对"已经可见 / 已经在等"是
+    // 幂等的，绝不会把渐显时刻一次次往后推。
+    applyVisibility(charmVisibilityEnter(visibilityState, now(), visibilityOptions()));
     const point = eventPoint(event);
     pointer.value = point;
-    // 首次移动才淡入：页面刚打开时不该先冒出一个突兀的东西，
-    // 触屏用户（永远匹配不上精确指针）也因此永远看不到它。
-    if (!visible.value) visible.value = true;
-
     // 事件里只写坐标与可见性：**唯一的发布口是门控帧**（ADR-0018 决策 5）。
     // 拖动时最多有 1000/fps_cap 的随手延迟（60 档 ≈ 16.7ms），挂件本身有
     // 200ms 淡入，看不出来；而给拖动开例外会让"帧率上限"名不副实。
     startLoop();
+  }
+
+  function handlePointerOver() {
+    // 指针重新进入文档：解冻 + 进入渐显防抖窗口（已可见时是幂等的）。
+    frozen = false;
+    // 首次登场仍然只认第一次指针移动：`pointerover` 在焦点变化 / 元素切换时
+    // 也会触发，而那时还没有指针坐标，链也没建立 —— 让它先冒出来只会看到一个
+    // 压在左上角的挂件，然后被第一次移动拽走。显示过之后的移回都走这里。
+    if (!visibilityState.hasShown) return;
+    applyVisibility(charmVisibilityEnter(visibilityState, now(), visibilityOptions()));
+    // 防抖的到点迁移要一次帧遍历；若当时链已收敛、循环又停着，就得重新启动。
+    if (charmVisibilityBusy(visibilityState)) startLoop();
   }
 
   function handlePointerOut(event?: unknown) {
@@ -383,14 +450,19 @@ export function useCursorCharm(options: UseCursorCharmOptions = {}): CursorCharm
     // 只有 relatedTarget 为空才是"离开文档"。
     if ((event as { relatedTarget?: unknown } | undefined)?.relatedTarget != null) return;
     frozen = true;
+    // 移出**当场**离开可见态（渐隐从这一刻开始），指针端冻结在原处收敛。
+    applyVisibility(charmVisibilityLeave(visibilityState, now(), visibilityOptions()));
+    // 渐隐结束的时刻也要靠帧推进；链已收敛时靠这一下保活走完过渡窗口。
+    if (charmVisibilityBusy(visibilityState)) startLoop();
   }
 
   function handleBlur() {
+    // 失焦只冻结指针端，不改可见性（切窗口不该让挂件渐隐）。
     frozen = true;
   }
 
   function handleThaw() {
-    // 窗口重新获得焦点 / 指针重新进入文档：从冻结的位置继续，不做任何补算。
+    // 窗口重新获得焦点：从冻结的位置继续，不做任何补算。
     frozen = false;
   }
 
@@ -401,13 +473,15 @@ export function useCursorCharm(options: UseCursorCharmOptions = {}): CursorCharm
       return;
     }
     // 恢复可见后从现有状态继续：只重置时间基准，不补算后台时间。
-    if (visible.value && rope && !charmRopeSettled(rope)) startLoop();
+    if (charmVisibilityBusy(visibilityState) || (visible.value && rope && !charmRopeSettled(rope))) {
+      startLoop();
+    }
   }
 
   function bind() {
     if (bound || !enabled.value) return;
     target?.addEventListener?.("pointermove", handlePointerMove, { passive: true });
-    target?.addEventListener?.("pointerover", handleThaw, { passive: true });
+    target?.addEventListener?.("pointerover", handlePointerOver, { passive: true });
     target?.addEventListener?.("pointerout", handlePointerOut, { passive: true });
     target?.addEventListener?.("blur", handleBlur);
     target?.addEventListener?.("focus", handleThaw);
@@ -418,7 +492,7 @@ export function useCursorCharm(options: UseCursorCharmOptions = {}): CursorCharm
   function unbind() {
     if (!bound) return;
     target?.removeEventListener?.("pointermove", handlePointerMove);
-    target?.removeEventListener?.("pointerover", handleThaw);
+    target?.removeEventListener?.("pointerover", handlePointerOver);
     target?.removeEventListener?.("pointerout", handlePointerOut);
     target?.removeEventListener?.("blur", handleBlur);
     target?.removeEventListener?.("focus", handleThaw);
@@ -467,6 +541,7 @@ export function useCursorCharm(options: UseCursorCharmOptions = {}): CursorCharm
   return {
     enabled,
     visible,
+    phase,
     pointer,
     tetherPath,
     logoCenter,

@@ -109,6 +109,15 @@ describe("光标挂件层的设计门禁（canary 保证扫描器不是永远绿
     expect(source.code, source.file).not.toMatch(/@keyframes/u);
   });
 
+  it("渐隐走快档（motion-fast）：移出即渐隐，而不是挂件在窗外再挂 200ms", () => {
+    const source = readCharmSource();
+
+    expect(source.code, source.file).toContain("var(--motion-fast)");
+    // 两个方向都要写 transition：CSS 取"变化之后"那条声明，基础声明只管移出。
+    expect(source.code, source.file).toContain(".charm-layer--visible");
+    expect(source.code, source.file).toContain("transition: opacity");
+  });
+
   it("门控查询串是「可悬停 + 精确指针」，不接受窄屏近似", () => {
     const utils = readFileSync(join(appDir, "utils/decoCharm.ts"), "utf8");
 

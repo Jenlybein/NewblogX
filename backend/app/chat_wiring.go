@@ -143,16 +143,9 @@ func (b chatAuthBridge) SessionActive(ctx context.Context, userID, sessionID uin
 	if b.svc == nil {
 		return false, nil
 	}
-	sessions, err := b.svc.ListSessions(ctx, ctype.NewID(userID))
-	if err != nil {
-		return false, err
-	}
-	for _, session := range sessions {
-		if session.ID.Uint64() == sessionID {
-			return true, nil
-		}
-	}
-	return false, nil
+	// 按会话 ID 精确校验，而不是从"按设备聚合"的列表里找——
+	// 同设备的非代表会话不会出现在聚合结果中，拿它判断会误判失效。
+	return b.svc.SessionActive(ctx, userID, sessionID)
 }
 
 // chatHub 把平台在线池适配成 chat 的 domain.Hub（类型用 ctype.ID）。

@@ -395,16 +395,16 @@ func TestRevokeAllAndList(t *testing.T) {
 		t.Parallel()
 		r := setup(t)
 		first := login(t, r)
-		second := login(t, r)
-		if got := len(mustList(t, r)); got != 2 {
-			t.Fatalf("应有 2 条有效会话，实际 %d", got)
+		second := loginAs(t, r, domain.Meta{IP: "1.2.3.4", Addr: "杭州", UA: testUAFirefoxLinux})
+		if got := len(mustList(t, r, ctype.ID(""))); got != 2 {
+			t.Fatalf("应有 2 台有效设备，实际 %d", got)
 		}
 
 		if err := r.Service().RevokeAll(context.Background(), aliceID); err != nil {
 			t.Fatalf("吊销失败: %v", err)
 		}
-		if got := len(mustList(t, r)); got != 0 {
-			t.Fatalf("吊销后应为 0 条，实际 %d", got)
+		if got := len(mustList(t, r, ctype.ID(""))); got != 0 {
+			t.Fatalf("吊销后应为 0 台，实际 %d", got)
 		}
 		for _, token := range []string{first.Tokens.Access, second.Tokens.Access} {
 			if _, err := r.Service().Authenticate(context.Background(), token); err == nil {
@@ -416,14 +416,14 @@ func TestRevokeAllAndList(t *testing.T) {
 	t.Run("空用户 ID 不查列表", func(t *testing.T) {
 		t.Parallel()
 		r := setup(t)
-		_, err := r.Service().ListSessions(context.Background(), ctype.NewID(0))
+		_, err := r.Service().ListSessions(context.Background(), ctype.NewID(0), ctype.ID(""))
 		assertCode(t, err, apperr.CodeAuthRequired)
 	})
 }
 
-func mustList(t *testing.T, r *apptest.Repos) []domain.Session {
+func mustList(t *testing.T, r *apptest.Repos, current ctype.ID) []domain.LoginDevice {
 	t.Helper()
-	list, err := r.Service().ListSessions(context.Background(), aliceID)
+	list, err := r.Service().ListSessions(context.Background(), aliceID, current)
 	if err != nil {
 		t.Fatalf("查会话列表失败: %v", err)
 	}

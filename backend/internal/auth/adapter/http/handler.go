@@ -217,23 +217,34 @@ func (h *Handler) Sessions(c *gin.Context) {
 		fail(c, apperr.New(apperr.CodeAuthRequired))
 		return
 	}
-	list, err := h.svc.ListSessions(c.Request.Context(), cl.UserID)
+	list, err := h.svc.ListSessions(c.Request.Context(), cl.UserID, cl.SessionID)
 	if err != nil {
 		fail(c, err)
 		return
 	}
 	current := cl.SessionID.Uint64()
 	items := make([]SessionItem, 0, len(list))
-	for _, s := range list {
+	for _, d := range list {
+		// 时间字段是指针，取副本地址避免每行共享同一个变量。
+		lastSeen := d.LastSeenAt
 		items = append(items, SessionItem{
-			ID:         s.ID,
-			IP:         s.IP,
-			Addr:       s.Addr,
-			UA:         s.UA,
-			CreatedAt:  s.CreatedAt,
-			LastSeenAt: s.LastSeenAt,
-			ExpiresAt:  s.ExpiresAt,
-			IsCurrent:  s.ID.Uint64() == current,
+			ID:             d.SessionID,
+			Device:         d.Device.Label(),
+			Browser:        d.Device.Browser,
+			BrowserVersion: d.Device.BrowserVersion,
+			OS:             d.Device.OS,
+			OSVersion:      d.Device.OSVersion,
+			DeviceType:     string(d.Device.Type),
+			IP:             d.IP,
+			Addr:           d.Addr,
+			UA:             d.UA,
+			CreatedAt:      d.FirstSeenAt,
+			FirstSeenAt:    d.FirstSeenAt,
+			LastSeenAt:     &lastSeen,
+			ExpiresAt:      d.ExpiresAt,
+			LoginCount:     d.LoginCount,
+			// 当前设备标记靠会话 ID 比对：聚合行的 ID 就是代表会话。
+			IsCurrent: d.SessionID.Uint64() == current,
 		})
 	}
 	res.OkWithList(items, len(items), c)

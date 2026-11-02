@@ -54,14 +54,27 @@ type UpdatePasswordRequest struct {
 	NewPassword string `json:"new_password" binding:"required"`
 }
 
-// SessionItem 是登录设备列表的一行。
+// SessionItem 是登录设备列表的一行（已按设备聚合，一台设备一条）。
 type SessionItem struct {
-	ID         ctype.ID   `json:"id"`
-	IP         string     `json:"ip"`
-	Addr       string     `json:"addr"`
-	UA         string     `json:"ua"`
-	CreatedAt  time.Time  `json:"created_at"`
-	LastSeenAt *time.Time `json:"last_seen_at"`
-	ExpiresAt  time.Time  `json:"expires_at"`
-	IsCurrent  bool       `json:"is_current"`
+	ID ctype.ID `json:"id"`
+	// Device 是 UA 解析出的人话描述（如 "Chrome 131 · Windows"），不再是 UA 原文。
+	Device         string `json:"device"`
+	Browser        string `json:"browser"`
+	BrowserVersion string `json:"browser_version"`
+	OS             string `json:"os"`
+	OSVersion      string `json:"os_version"`
+	DeviceType     string `json:"device_type"`
+	IP             string `json:"ip"`
+	Addr           string `json:"addr"`
+	// UA 保留原始串供排查，页面上不再直接展示。
+	UA string `json:"ua"`
+	// CreatedAt 是该设备的首次登录时间（保留旧字段名，兼容既有消费方）。
+	CreatedAt time.Time `json:"created_at"`
+	// FirstSeenAt 与 CreatedAt 同值，字段名更直白。
+	FirstSeenAt time.Time  `json:"first_seen_at"`
+	LastSeenAt  *time.Time `json:"last_seen_at"`
+	ExpiresAt   time.Time  `json:"expires_at"`
+	// LoginCount 是该设备的累计登录次数（聚合进这一行的会话条数）。
+	LoginCount int  `json:"login_count"`
+	IsCurrent  bool `json:"is_current"`
 }

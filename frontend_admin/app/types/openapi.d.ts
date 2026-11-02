@@ -5507,12 +5507,25 @@ export interface components {
         };
         "internal_auth_adapter_http.SessionItem": {
             addr?: string;
+            browser?: string;
+            browser_version?: string;
+            /** @description CreatedAt 是该设备的首次登录时间（保留旧字段名，兼容既有消费方）。 */
             created_at?: string;
+            /** @description Device 是 UA 解析出的人话描述（如 "Chrome 131 · Windows"），不再是 UA 原文。 */
+            device?: string;
+            device_type?: string;
             expires_at?: string;
+            /** @description FirstSeenAt 与 CreatedAt 同值，字段名更直白。 */
+            first_seen_at?: string;
             id?: string;
             ip?: string;
             is_current?: boolean;
             last_seen_at?: string;
+            /** @description LoginCount 是该设备的累计登录次数（聚合进这一行的会话条数）。 */
+            login_count?: number;
+            os?: string;
+            os_version?: string;
+            /** @description UA 保留原始串供排查，页面上不再直接展示。 */
             ua?: string;
         };
         "internal_auth_adapter_http.UpdatePasswordRequest": {

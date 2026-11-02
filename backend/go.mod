@@ -53,6 +53,7 @@ require (
 	github.com/cloudwego/eino-ext/components/model/openai v0.1.13
 	github.com/cloudwego/eino-ext/components/model/qwen v0.1.9
 	github.com/meguminnnnnnnnn/go-openai v0.1.2
+	github.com/mileusna/useragent v1.3.5
 	google.golang.org/genai v1.70.0
 )
 

@@ -65,15 +65,6 @@ const cardViews = computed(() =>
 // 有卡片才渲染 —— **看的是"有没有配置"，不是"有没有渲染出内容"**：运营配了卡片
 // 但恰好都没数据时，旧右栏不能又冒出来（那会让人以为新配置没生效）。
 const hasCards = computed(() => (props.sidebarCards?.length ?? 0) > 0);
-
-const projectTitle = computed(() =>
-  brandProjectTitle(props.runtimeConfig?.project?.title || props.runtimeConfig?.site_info?.title),
-);
-// 站点简介：后端 `site` 段里没有这一项 —— `SiteInfo` 只有 title/logo/beian，
-// `Project` 只有 title/icon/web_path。此前这里先挂 `project.abstract`、再挂
-// `site_info.subtitle`，两个后端都没有的字段，读出来永远为空，整条链在生产里
-// 恒等于这句默认值（#39 清掉了这两个死分支）。想让它可配置，得先在后端加字段。
-const projectAbstract = "为开发者写作、搜索与知识整理提供稳定的内容入口。";
 </script>
 
 <template>

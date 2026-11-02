@@ -245,6 +245,7 @@ func (s *Service) UpdateDeco(deco conf.Deco) error {
 // BannerInput 是创建/更新轮播图的入参。
 type BannerInput struct {
 	CoverImageID ctype.ID
+	Title        string
 	Href         string
 	Show         bool
 	// Crop 是可选取景参数；nil 表示调用方没传，按缺省（居中、缩放 1）处理。
@@ -276,6 +277,7 @@ func (s *Service) CreateBanner(ctx context.Context, in BannerInput) (domain.Bann
 		Cover:        cover,
 		CoverImageID: in.CoverImageID,
 		Href:         in.Href,
+		Title:        domain.NormalizeTitle(in.Title),
 		Crop:         crop,
 	}
 	if err := s.banners.Create(ctx, &banner); err != nil {
@@ -301,7 +303,7 @@ func (s *Service) UpdateBanner(ctx context.Context, id uint64, in BannerInput) e
 	if _, err := s.banners.Find(ctx, id); err != nil {
 		return err
 	}
-	return s.banners.Update(ctx, id, cover, in.Href, in.Show, crop)
+	return s.banners.Update(ctx, id, domain.NormalizeTitle(in.Title), cover, in.Href, in.Show, crop)
 }
 
 // validateCrop 校验可选取景：没传返回 nil（更新时"保持不变"），传了就必须在范围内。

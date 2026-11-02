@@ -6217,6 +6217,14 @@ export interface components {
             crop?: components["schemas"]["internal_site_adapter_http.BannerCrop"];
             href?: string;
             show?: boolean;
+            /**
+             * @description Title 是轮播标题：纯文本、可空。
+             *
+             *     创建与更新都是"整体替换"：不传或传空串就是保存空标题。
+             *     后台在不改标题的路径（例如只重新取景）必须把原值一起带上，
+             *     否则会把已有标题清掉。
+             */
+            title?: string;
         };
         "internal_site_adapter_http.BannerCreateResponse": {
             cover?: string;
@@ -6225,6 +6233,7 @@ export interface components {
             href?: string;
             id?: string;
             show?: boolean;
+            title?: string;
         };
         "internal_site_adapter_http.BannerCrop": {
             focus_x?: number;
@@ -6241,6 +6250,8 @@ export interface components {
             href?: string;
             id?: string;
             show?: boolean;
+            /** @description Title 是轮播标题，纯文本、可空；读者站拿到空串就不渲染文字区。 */
+            title?: string;
             updated_at?: string;
         };
         "internal_site_adapter_http.IDListRequest": {

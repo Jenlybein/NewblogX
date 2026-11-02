@@ -11,8 +11,10 @@ import {
   readImageSize,
   requiresFraming,
   saveBannerReframe,
+  saveBannerTitle,
   uploadBannerCover,
 } from '~/utils/bannerCover'
+import { bannerTitleCell, bannerTitleText } from '~/utils/bannerTitle'
 import { BANNER_SHOW_FILTER_OPTIONS, buildBannerListQuery } from '~/utils/bannerList'
 import type { BannerShowFilter } from '~/utils/bannerList'
 import { DEFAULT_FRAMING, clampFraming } from '~/utils/framing'
@@ -59,6 +61,7 @@ const pendingCover = ref<PendingBannerCover | null>(null)
 /** 已经传到对象存储、但轮播还没创建成功时的上传结果（保存失败重试不重传）。 */
 const uploadedCover = ref<{ imageId: string; url: string } | null>(null)
 const bannerForm = reactive({
+  title: '',
   href: '',
   show: true,
   crop: null as Framing | null,
@@ -128,6 +131,16 @@ const bannerColumns = [
     width: 180,
     render: (row: BannerModel) => h('div', { class: 'admin-cover' }, row.cover ? [h('img', { src: row.cover, alt: row.href })] : []),
   },
+  {
+    title: '标题',
+    key: 'title',
+    minWidth: 200,
+    render: (row: BannerModel) => {
+      const text = bannerTitleCell(row.title)
+      const empty = text === '未填写'
+      return h('span', { class: empty ? 'admin-cover-size__muted' : undefined }, text)
+    },
+  },
   { title: '跳转地址', key: 'href', minWidth: 260 },
   {
     title: '展示',
@@ -157,6 +170,11 @@ const bannerColumns = [
         { size: 4, justify: 'end' },
         {
           default: () => [
+            h(
+              NButton,
+              { size: 'small', tertiary: true, onClick: () => openTitleEditor(row) },
+              { default: () => '编辑标题' },
+            ),
             h(
               NButton,
               {
@@ -290,6 +308,7 @@ async function submitBanner() {
       await createBanner(
         buildBannerCreatePayload({
           coverImageId: cover.imageId,
+          title: bannerForm.title,
           href: bannerForm.href,
           show: bannerForm.show,
           framing: pendingCover.value?.framing ?? bannerForm.crop,
@@ -303,7 +322,7 @@ async function submitBanner() {
 
     message.success('轮播已创建')
     clearBannerCoverSelection()
-    Object.assign(bannerForm, { href: '', show: true })
+    Object.assign(bannerForm, { title: '', href: '', show: true })
     await refreshBanners()
   } finally {
     bannerSubmitting.value = false
@@ -482,6 +501,47 @@ async function persistBannerReframe(row: BannerModel, framing: Framing) {
   }
 }
 
+/**
+ * 列表行「编辑标题」：一个只改标题的输入弹窗。
+ *
+ * 保存走与重新取景同一个更新接口（整体替换），请求体由 `saveBannerTitle`
+ * 带上该行原有的封面 / 跳转地址 / 展示状态 / 取景，避免只改标题却把别的字段清掉。
+ * 标题是纯文本：输入框就是唯一来源，不做任何富文本解析。
+ */
+function openTitleEditor(row: BannerModel) {
+  const draft = ref(bannerTitleText(row.title))
+  dialog.info({
+    title: '编辑轮播标题',
+    content: () =>
+      h(NInput, {
+        value: draft.value,
+        maxlength: 256,
+        showCount: true,
+        placeholder: '给这一屏起个标题（可留空）',
+        'onUpdate:value': (value: string) => {
+          draft.value = value
+        },
+      }),
+    positiveText: '保存',
+    negativeText: '取消',
+    async onPositiveClick() {
+      try {
+        const saved = await saveBannerTitle(row, draft.value, (id, payload) => updateBanner(id, payload))
+        if (!saved) {
+          message.error('这张轮播缺少封面图片 ID，无法保存标题')
+          return false
+        }
+        message.success('标题已更新')
+        await refreshBanners()
+        return true
+      } catch (error) {
+        message.error(error instanceof Error ? `标题保存失败：${error.message}` : '标题保存失败，请稍后重试')
+        return false
+      }
+    },
+  })
+}
+
 function handleFramingConfirm(framing: Framing) {
   const target = framingTarget
   framingTarget = null
@@ -642,6 +702,13 @@ onMounted(() => {
 
                 <p v-if="bannerUploadStage" class="admin-upload-panel__stage">{{ bannerUploadStage }}</p>
               </div>
+            </NFormItem>
+            <NFormItem label="标题">
+              <NInput
+                v-model:value="bannerForm.title"
+                :maxlength="256"
+                show-count
+                placeholder="这一屏讲什么（可留空，空标题在读者站不显示文字区）" />
             </NFormItem>
             <NFormItem label="跳转地址"><NInput v-model:value="bannerForm.href" placeholder="https://..." /></NFormItem>
             <NFormItem>

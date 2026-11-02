@@ -2,6 +2,7 @@ package app_test
 
 import (
 	"context"
+	"strings"
 	"testing"
 
 	"myblogx/conf"
@@ -495,6 +496,108 @@ func TestUpdateBannerWithCropReplacesFraming(t *testing.T) {
 		t.Fatalf("查列表失败: %v", err)
 	}
 	assertCrop(t, "传了取景时应整体替换", rows[0].Crop, next)
+}
+
+// ── 轮播标题：纯文本、可空、可编辑 ──────────────────────────────
+
+// TestCreateBannerWithoutTitleIsAccepted 钉住"标题可空、不传不报错"。
+func TestCreateBannerWithoutTitleIsAccepted(t *testing.T) {
+	env := newEnv()
+	ctx := context.Background()
+	env.Images.Put(11, "/a.png")
+
+	created, err := env.Service.CreateBanner(ctx, apptestInput(11, "/a", true))
+	if err != nil {
+		t.Fatalf("不带标题创建应成功: %v", err)
+	}
+	if created.Title != "" {
+		t.Fatalf("不带标题时应存空串，得到 %q", created.Title)
+	}
+}
+
+// TestBannerTitleStaysPlainText 钉住"只存纯文本"：HTML 标签原样存，不解析不剥离。
+func TestBannerTitleStaysPlainText(t *testing.T) {
+	env := newEnv()
+	ctx := context.Background()
+	env.Images.Put(11, "/a.png")
+
+	raw := `<b>粗体</b> & "引号"`
+	in := apptestInput(11, "/a", true)
+	in.Title = raw
+	created, err := env.Service.CreateBanner(ctx, in)
+	if err != nil {
+		t.Fatalf("带 HTML 标签的标题应接受: %v", err)
+	}
+	if created.Title != raw {
+		t.Fatalf("标题应原样保存 %q，得到 %q", raw, created.Title)
+	}
+}
+
+// TestBannerTitleTrimsAndCapsToColumnWidth 钉住落库形状：首尾空白去掉、
+// 超长按字符截到 varchar(256)，避免写库时炸列宽。
+func TestBannerTitleTrimsAndCapsToColumnWidth(t *testing.T) {
+	env := newEnv()
+	ctx := context.Background()
+	env.Images.Put(11, "/a.png")
+
+	padded := apptestInput(11, "/a", true)
+	padded.Title = "  带空白标题  "
+	created, err := env.Service.CreateBanner(ctx, padded)
+	if err != nil {
+		t.Fatalf("带空白的标题应成功: %v", err)
+	}
+	if created.Title != "带空白标题" {
+		t.Fatalf("首尾空白应去掉，得到 %q", created.Title)
+	}
+
+	long := apptestInput(11, "/b", true)
+	long.Title = strings.Repeat("好", domain.MaxTitleLength+10)
+	capped, err := env.Service.CreateBanner(ctx, long)
+	if err != nil {
+		t.Fatalf("超长标题不该报错（按列宽截断）: %v", err)
+	}
+	if runes := []rune(capped.Title); len(runes) != domain.MaxTitleLength {
+		t.Fatalf("超长标题应截到 %d 字，得到 %d", domain.MaxTitleLength, len(runes))
+	}
+}
+
+// TestUpdateBannerTitle 钉住"可编辑已有轮播的标题"，含清空。
+func TestUpdateBannerTitle(t *testing.T) {
+	env := newEnv()
+	ctx := context.Background()
+	env.Images.Put(11, "/a.png")
+
+	first := apptestInput(11, "/a", true)
+	first.Title = "旧标题"
+	created, err := env.Service.CreateBanner(ctx, first)
+	if err != nil {
+		t.Fatalf("创建轮播图失败: %v", err)
+	}
+
+	next := apptestInput(11, "/a", true)
+	next.Title = "新标题"
+	if err := env.Service.UpdateBanner(ctx, created.ID.Uint64(), next); err != nil {
+		t.Fatalf("改标题失败: %v", err)
+	}
+	rows, _, err := env.Service.ListBanners(ctx, domain.BannerQuery{})
+	if err != nil {
+		t.Fatalf("查列表失败: %v", err)
+	}
+	if len(rows) != 1 || rows[0].Title != "新标题" {
+		t.Fatalf("列表应回传新标题，得到 %+v", rows)
+	}
+
+	cleared := apptestInput(11, "/a", true)
+	if err := env.Service.UpdateBanner(ctx, created.ID.Uint64(), cleared); err != nil {
+		t.Fatalf("清空标题失败: %v", err)
+	}
+	rows, _, err = env.Service.ListBanners(ctx, domain.BannerQuery{})
+	if err != nil {
+		t.Fatalf("查列表失败: %v", err)
+	}
+	if len(rows) != 1 || rows[0].Title != "" {
+		t.Fatalf("清空后标题应为空串，得到 %+v", rows)
+	}
 }
 
 // ── 新增的五个配置段 ────────────────────────────────────────────

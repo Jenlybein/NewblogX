@@ -14,6 +14,62 @@ import (
 	"myblogx/internal/testkit/schema"
 )
 
+// TestBannerRepoTitleRoundTrip 是轮播标题的真 MySQL 契约：
+// 标题能原样写进 varchar(256) 的 title 列、能按 id 读回、更新能覆盖。
+// 断言的是"库里有一列叫 title 且值原样往返"，与契约里的同名字段对齐。
+func TestBannerRepoTitleRoundTrip(t *testing.T) {
+	t.Parallel()
+
+	db := mysqlcontainer.DB(t)
+	schema.Migrate(t, db, schema.Site)
+	repo := sitemysql.NewBanner(db)
+	ctx := context.Background()
+
+	title := `<b>粗体</b> & "引号"`
+	banner := domain.Banner{
+		ID:    ctype.NewID(201),
+		Show:  true,
+		Cover: "/title.png",
+		Href:  "/title",
+		Title: title,
+		Crop:  domain.DefaultCrop,
+	}
+	if err := repo.Create(ctx, &banner); err != nil {
+		t.Fatalf("创建带标题的轮播图失败: %v", err)
+	}
+
+	got, err := repo.Find(ctx, banner.ID.Uint64())
+	if err != nil {
+		t.Fatalf("按 id 读轮播图失败: %v", err)
+	}
+	if got.Title != title {
+		t.Fatalf("标题应原样读回 %q，得到 %q", title, got.Title)
+	}
+
+	if err := repo.Update(ctx, banner.ID.Uint64(), "新标题", "/title2.png", "/title2", true, nil); err != nil {
+		t.Fatalf("更新标题失败: %v", err)
+	}
+	got, err = repo.Find(ctx, banner.ID.Uint64())
+	if err != nil {
+		t.Fatalf("更新后读轮播图失败: %v", err)
+	}
+	if got.Title != "新标题" {
+		t.Fatalf("更新后标题应为“新标题”，得到 %q", got.Title)
+	}
+
+	// 空标题是合法值，不是 NULL / 缺失。
+	if err := repo.Update(ctx, banner.ID.Uint64(), "", "/title2.png", "/title2", true, nil); err != nil {
+		t.Fatalf("清空标题失败: %v", err)
+	}
+	got, err = repo.Find(ctx, banner.ID.Uint64())
+	if err != nil {
+		t.Fatalf("清空后读轮播图失败: %v", err)
+	}
+	if got.Title != "" {
+		t.Fatalf("清空后标题应为空串，得到 %q", got.Title)
+	}
+}
+
 // TestBannerRepoListFiltersByOptionalShow 是轮播展示状态三态的真 MySQL 契约。
 // nil 必须完全省略 WHERE `show`，不能退化成零值 false 或 SQL NULL 比较。
 func TestBannerRepoListFiltersByOptionalShow(t *testing.T) {

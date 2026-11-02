@@ -1,4 +1,8 @@
-import type { CollectionArticleItem, CollectionCard } from "~/types/api";
+// 用**同目录相对路径**：后台会跨包 import 本模块（右栏合集推荐卡与预览），
+// 而后台的 tsconfig 把 `~` 指向后台自己的 app —— `~/types/api` 在那儿是**后台的**
+// 类型文件，没有 `CollectionCard` 这些读者站专属类型。相对路径在两边都指向
+// 读者站同一份类型定义。
+import type { CollectionArticleItem, CollectionCard } from "../types/api";
 
 /**
  * 合集（读者站）的纯映射。

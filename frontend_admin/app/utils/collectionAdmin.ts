@@ -1,8 +1,4 @@
-import type {
-  CollectionAdminCard,
-  CollectionCreatePayload,
-  CollectionUpdatePayload,
-} from '~/types/api'
+import type { CollectionCreatePayload, CollectionUpdatePayload } from '~/types/api'
 import type { Size } from '~/utils/framing'
 import { isAspectCompliant } from '~/utils/framing'
 

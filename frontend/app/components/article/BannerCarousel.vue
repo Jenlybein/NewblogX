@@ -1,10 +1,13 @@
 <script setup lang="ts">
-import { computed, ref, watch, type CSSProperties } from "vue";
+import { computed, onBeforeUnmount, onMounted, ref, watch, type CSSProperties } from "vue";
 import { IconChevronLeft, IconChevronRight } from "@tabler/icons-vue";
 import ProfileEmptyState from "~/components/profile/ProfileEmptyState.vue";
 import type { BannerItem } from "~/types/api";
 import { bannerFramingStyle } from "~/utils/bannerFraming";
 import { bannerTitleText } from "~/utils/bannerTitle";
+
+/** 默认停留时长：够看清一张图的构图，又不至于让人等得不耐烦。 */
+const BANNER_AUTOPLAY_INTERVAL_MS = 6000;
 
 const props = withDefaults(
   defineProps<{
@@ -12,8 +15,10 @@ const props = withDefaults(
     pending?: boolean;
     /** 首屏封面编排的媒体层视差（≤10px，来自 useParallax；只作用在底图上）。 */
     photoStyle?: CSSProperties;
+    /** 自动轮播间隔（毫秒）；≤0 关闭自动轮播（测试与"静态展示"场景用）。 */
+    autoPlayInterval?: number;
   }>(),
-  { pending: false, photoStyle: () => ({}) },
+  { pending: false, photoStyle: () => ({}), autoPlayInterval: BANNER_AUTOPLAY_INTERVAL_MS },
 );
 
 const currentIndex = ref(0);
@@ -42,6 +47,88 @@ function goToBanner(index: number) {
   if (!props.banners.length) return;
   currentIndex.value = index;
 }
+
+/*
+ * 自动轮播。
+ *
+ * 只在"真的能看"的条件下走：≥2 张、页面可见、系统没要求减少动态、间隔 > 0。
+ * 指针停上去 / 键盘焦点进入 / 标签页切到后台就停表 —— 用户在读标题或操作控件时，
+ * 图不该自己跑掉。
+ *
+ * 手动切换后重新计时（而不是"到点立刻跳"），否则刚点完下一张就会被打断。
+ */
+let timer: ReturnType<typeof setInterval> | null = null;
+
+/** 是否允许自动轮播（纯判定，方便阅读与测试）。 */
+function autoPlayEnabled(): boolean {
+  return (
+    props.autoPlayInterval > 0 &&
+    props.banners.length > 1 &&
+    typeof window !== "undefined" &&
+    window.matchMedia?.("(prefers-reduced-motion: reduce)").matches !== true &&
+    document.visibilityState === "visible"
+  );
+}
+
+function stopAutoPlay() {
+  if (timer !== null) {
+    clearInterval(timer);
+    timer = null;
+  }
+}
+
+/** 从头开始计时一轮。 */
+function restartAutoPlay() {
+  stopAutoPlay();
+  if (!autoPlayEnabled()) return;
+  timer = setInterval(() => {
+    switchBanner(1);
+  }, props.autoPlayInterval);
+}
+
+function onVisibilityChange() {
+  if (document.visibilityState === "visible") {
+    restartAutoPlay();
+  } else {
+    stopAutoPlay();
+  }
+}
+
+onMounted(() => {
+  restartAutoPlay();
+  document.addEventListener("visibilitychange", onVisibilityChange);
+});
+
+onBeforeUnmount(() => {
+  stopAutoPlay();
+  document.removeEventListener("visibilitychange", onVisibilityChange);
+});
+
+/** 指针进入 / 键盘聚焦：暂停。 */
+function pauseAutoPlay() {
+  stopAutoPlay();
+}
+
+/** 指针离开 / 焦点移出：重新开始一轮。 */
+function resumeAutoPlay() {
+  restartAutoPlay();
+}
+
+// 手动切换（点箭头 / 点圆点）后重新计时，避免"刚点完就被自动切走"。
+watch(currentIndex, () => {
+  if (timer !== null) restartAutoPlay();
+});
+
+// 张数变化（例如首屏数据到达 / 运营删了轮播）时重新评估。
+watch(
+  () => props.banners.length,
+  () => {
+    if (currentIndex.value >= props.banners.length) {
+      currentIndex.value = 0;
+    }
+    restartAutoPlay();
+  },
+);
 </script>
 
 <template>
@@ -55,6 +142,10 @@ function goToBanner(index: number) {
     class="banner-carousel"
     :class="currentBanner ? 'banner-stage' : 'banner-empty'"
     data-home-section="banner"
+    @mouseenter="pauseAutoPlay"
+    @mouseleave="resumeAutoPlay"
+    @focusin="pauseAutoPlay"
+    @focusout="resumeAutoPlay"
   >
     <template v-if="currentBanner">
       <!--

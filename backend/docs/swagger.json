@@ -5348,6 +5348,20 @@
                 },
                 "type": "object"
             },
+            "myblogx_internal_search_domain.Crop": {
+                "properties": {
+                    "focus_x": {
+                        "type": "number"
+                    },
+                    "focus_y": {
+                        "type": "number"
+                    },
+                    "zoom": {
+                        "type": "number"
+                    }
+                },
+                "type": "object"
+            },
             "myblogx_internal_search_domain.Highlight": {
                 "properties": {
                     "abstract": {
@@ -5385,6 +5399,10 @@
                     },
                     "created_at": {
                         "type": "string"
+                    },
+                    "crop": {
+                        "$ref": "#/components/schemas/myblogx_internal_search_domain.Crop",
+                        "description": "Crop 是封面取景；nil 表示没有记录，前端按居中、缩放 1 渲染。"
                     },
                     "digg_count": {
                         "type": "integer"
@@ -5613,6 +5631,10 @@
                         "type": "boolean"
                     },
                     "register_source": {
+                        "type": "integer"
+                    },
+                    "role": {
+                        "description": "Role 是当前用户的角色（1 管理员 / 2 注册用户），数值口径与库中 role 列一致。\n\n读者站要拿它来\"对齐服务端的写作策略\"：站点可以只限制**非管理员**发布/建草稿，\n后端对管理员短路放行；前端若不知道角色，就只能一律按\"被限制\"渲染，\n结果是管理员自己也被锁成只读（站点开关一关，连管理员都编辑不了文章）。",
                         "type": "integer"
                     },
                     "stranger_msg_enabled": {

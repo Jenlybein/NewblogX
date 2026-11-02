@@ -536,6 +536,10 @@ async function handleRetryLatest() {
   align-items: flex-end;
   justify-content: flex-end;
   gap: 1.25rem;
+  /* 记号与刻度是纯装饰（aria-hidden），必须点击穿透：
+     它们压在下沿刻度线上，正好盖住轮播的圆点/箭头，不穿透就点不动。
+     `elementFromPoint` 实测过：箭头中心命中的曾是 `li.home-cover__tick`。 */
+  pointer-events: none;
 }
 
 .home-cover__marks {

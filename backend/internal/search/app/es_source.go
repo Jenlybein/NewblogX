@@ -206,3 +206,23 @@ func sourceTags(source map[string]any, key string) []domain.Tag {
 	}
 	return out
 }
+
+// sourceCrop 从 `_source.crop` 解析封面取景。
+//
+// ES 里的数字统一解析成 float64（JSON 数字）；缺字段或结构不对时返回 nil，
+// 读侧据此按缺省（居中、缩放 1）渲染 —— 取景坏了不该让列表整页失败。
+func sourceCrop(source map[string]any, key string) *domain.Crop {
+	raw, ok := source[key].(map[string]any)
+	if !ok {
+		return nil
+	}
+	zoom := sourceFloat(raw, "zoom")
+	if zoom <= 0 {
+		return nil
+	}
+	return &domain.Crop{
+		FocusX: sourceFloat(raw, "focus_x"),
+		FocusY: sourceFloat(raw, "focus_y"),
+		Zoom:   zoom,
+	}
+}

@@ -5,12 +5,24 @@ const siteState = vi.hoisted(() => ({
   ensurePublicBootstrap: vi.fn(),
 }));
 
+const authState = vi.hoisted(() => ({
+  currentUser: null as unknown,
+}));
+
 vi.mock("~/stores/site", () => ({
   useSiteStore: () => ({
     get runtimeConfig() {
       return siteState.runtimeConfig;
     },
     ensurePublicBootstrap: siteState.ensurePublicBootstrap,
+  }),
+}));
+
+vi.mock("~/stores/auth", () => ({
+  useAuthStore: () => ({
+    get currentUser() {
+      return authState.currentUser;
+    },
   }),
 }));
 
@@ -39,6 +51,7 @@ describe("useArticleWritePolicy", () => {
   beforeEach(() => {
     siteState.runtimeConfig = null;
     siteState.ensurePublicBootstrap.mockReset();
+    authState.currentUser = null;
   });
 
   it("配置还没取回时按默认值全开，并触发一次公开引导取数", async () => {
@@ -81,5 +94,35 @@ describe("useArticleWritePolicy", () => {
     expect(entryVisible.value).toBe(false);
     expect(readOnly.value).toBe(true);
     expect(notices.value).toHaveLength(2);
+  });
+
+  // 这条钉的是"站点开关只约束非管理员"：后端 `CheckWriteOnCreate/OnUpdate` 对管理员
+  // 短路放行，前端如果不知道角色就一律按"被限制"渲染，管理员自己会被锁成只读。
+  it("管理员不受两个开关限制：入口保留、编辑器可写、无提示", async () => {
+    authState.currentUser = { id: "1", role: 1 };
+    siteState.runtimeConfig = siteConfig({
+      allow_non_admin_publish: false,
+      allow_non_admin_draft: false,
+    });
+    const { policy, entryVisible, readOnly, notices, isAdmin } = await createPolicy();
+
+    expect(isAdmin.value).toBe(true);
+    expect(policy.value).toEqual({ allowPublish: true, allowDraft: true });
+    expect(entryVisible.value).toBe(true);
+    expect(readOnly.value).toBe(false);
+    expect(notices.value).toEqual([]);
+  });
+
+  it("普通用户（role=2）仍然被两个开关限制", async () => {
+    authState.currentUser = { id: "2", role: 2 };
+    siteState.runtimeConfig = siteConfig({
+      allow_non_admin_publish: false,
+      allow_non_admin_draft: false,
+    });
+    const { entryVisible, readOnly, isAdmin } = await createPolicy();
+
+    expect(isAdmin.value).toBe(false);
+    expect(entryVisible.value).toBe(false);
+    expect(readOnly.value).toBe(true);
   });
 });

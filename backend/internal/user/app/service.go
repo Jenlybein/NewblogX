@@ -49,6 +49,7 @@ func (s *Service) Detail(ctx context.Context, viewer domain.Viewer) (*DetailView
 	view := &DetailView{
 		ID:                       u.ID,
 		CreatedAt:                u.CreatedAt,
+		Role:                     int8(u.Role),
 		Username:                 u.Username,
 		Nickname:                 u.Nickname,
 		Avatar:                   u.Avatar,

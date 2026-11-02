@@ -122,3 +122,20 @@ describe("articleEntry：文章卡片统一视图模型", () => {
     expect(view.stats.view).toBe(0);
   });
 });
+
+// 列表封面取景：ES 文档投影过来的 crop 必须原样带到卡片视图，
+// 否则列表封面永远按居中渲染，作者调好的构图看起来"没生效"。
+describe("fromSearchArticle：封面取景", () => {
+  it("把 crop 原样带出来；没有时是 null", () => {
+    const withCrop = fromSearchArticle({
+      id: "a1",
+      title: "标题",
+      cover: "https://cdn.example.com/a1.png",
+      crop: { focus_x: 0.4, focus_y: 0.6, zoom: 1.2 },
+    } as never);
+    expect(withCrop.crop).toEqual({ focus_x: 0.4, focus_y: 0.6, zoom: 1.2 });
+
+    const without = fromSearchArticle({ id: "a2", title: "标题2", cover: "" } as never);
+    expect(without.crop).toBeNull();
+  });
+});

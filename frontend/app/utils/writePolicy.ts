@@ -34,10 +34,22 @@ export const PUBLISH_DISABLED_NOTICE =
 export const DRAFT_DISABLED_NOTICE =
   "站点当前不允许保存草稿（这是站点策略，与你的账号无关）。编辑器已切换为只读，已有草稿仍可查看与删除。";
 
-/** 把站点运行时配置归一成两个写作开关。 */
+/**
+ * 把站点运行时配置归一成两个写作开关。
+ *
+ * 两个开关的语义是"**非管理员**能不能发布 / 存草稿"（字段名就叫 allow_non_admin_*）。
+ * 后端对管理员是短路放行的（`domain.CheckWriteOnCreate/OnUpdate` 开头 `if v.IsAdmin()`），
+ * 所以前端必须按角色归一，否则站点一关开关，管理员自己也被锁成只读 —— 界面比服务端更严，
+ * 用户看到的就是"我明明是管理员，却编辑不了文章"。
+ */
 export function articleWritePolicy(
   config: SiteRuntimeConfig | null | undefined,
+  options: { isAdmin?: boolean } = {},
 ): ArticleWritePolicy {
+  // 管理员不受这两个开关限制：与后端同一口径（策略只约束非管理员）。
+  if (options.isAdmin) {
+    return { allowPublish: true, allowDraft: true };
+  }
   const article = config?.article;
   return {
     // 只有显式 false 才算关闭：undefined 是"还没取到 / 老后台没这个键"。

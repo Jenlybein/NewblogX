@@ -61,6 +61,16 @@ const (
 	// CharmDampingDefault 是默认阻尼。
 	CharmDampingDefault = 0.99
 
+	// CharmStiffnessMin 是距离约束刚度下限（无量纲）：再软就是橡皮筋，
+	// 拖动后久久回不到位。
+	CharmStiffnessMin = 0.2
+	// CharmStiffnessMax 是距离约束刚度上限：1 = 每次迭代做全量投影，
+	// 手感回到"刚杆"。
+	CharmStiffnessMax = 1.0
+	// CharmStiffnessDefault 是默认刚度：一次投影只消化一半误差，
+	// 拖动时先拉长、松手后回弹。
+	CharmStiffnessDefault = 0.5
+
 	// CharmLineWidthMin 是描边起始宽度下限：1 px，再细就看不见了。
 	CharmLineWidthMin = 1.0
 	// CharmLineWidthMax 是描边起始宽度上限：6 px，再粗会抢正文。
@@ -119,11 +129,12 @@ type Deco struct {
 
 // Charm 是光标挂件的参数。
 //
-// 总开关 + 十一个数值参数。票 #41 接入挂绳长度、节点数、重力、阻尼；
+// 总开关 + 十二个数值参数。票 #41 接入挂绳长度、节点数、重力、阻尼；
 // 票 #42 接入描边宽度、静止摆动频率与幅度（弧垂由"绳长 vs 实际距离"产生，
 // 没有单独的"sag"参数）；票 #74 接入帧率上限（自适应降速车道已删除，
 // 只剩一条动画帧调度，见 ADR-0018）；票 #75 接入指针端偏移 X / Y
-// （指针端节点 = 指针热点 + 偏移，渲染不再单独偏一次）。
+// （指针端节点 = 指针热点 + 偏移，渲染不再单独偏一次）；本票接入距离约束
+// 刚度（刚杆 → 弹性绳）。
 type Charm struct {
 	// Enable 是总开关。默认开着：功能上线后读者立刻就能看到。
 	Enable bool `yaml:"enable" json:"enable"`
@@ -143,6 +154,9 @@ type Charm struct {
 	Gravity float64 `yaml:"gravity" json:"gravity"`
 	// Damping 是每个固定步长后保留的速度比例（无量纲，必须小于 1）。
 	Damping float64 `yaml:"damping" json:"damping"`
+	// Stiffness 是距离约束刚度（无量纲，0.2–1）：每次迭代消化这么多比例的
+	// 误差。1 等于全量投影（刚杆手感）；越小越弹，拖动时先拉长再回弹。
+	Stiffness float64 `yaml:"stiffness" json:"stiffness"`
 	// IdleSwayHz 是静止摆动的频率，单位 Hz。0 表示关掉轻晃。
 	IdleSwayHz float64 `yaml:"idle_sway_hz" json:"idle_sway_hz"`
 	// IdleSwayAmp 是静止摆动的加速度幅度，单位 px/s²，作用在自由端：
@@ -177,6 +191,7 @@ type charmDecode struct {
 	LineWidth      *float64 `json:"line_width"`
 	Gravity        *float64 `json:"gravity"`
 	Damping        *float64 `json:"damping"`
+	Stiffness      *float64 `json:"stiffness"`
 	IdleSwayHz     *float64 `json:"idle_sway_hz"`
 	IdleSwayAmp    *float64 `json:"idle_sway_amp"`
 	FpsCap         *float64 `json:"fps_cap"`
@@ -211,6 +226,7 @@ func (c *Charm) UnmarshalJSON(data []byte) error {
 		LineWidth:      charmFloatOrDefault(decoded.LineWidth, CharmLineWidthDefault),
 		Gravity:        charmFloatOrDefault(decoded.Gravity, CharmGravityDefault),
 		Damping:        charmFloatOrDefault(decoded.Damping, CharmDampingDefault),
+		Stiffness:      charmFloatOrDefault(decoded.Stiffness, CharmStiffnessDefault),
 		IdleSwayHz:     charmFloatOrDefault(decoded.IdleSwayHz, CharmIdleSwayHzDefault),
 		IdleSwayAmp:    charmFloatOrDefault(decoded.IdleSwayAmp, CharmIdleSwayAmpDefault),
 		FpsCap:         charmFloatOrDefault(decoded.FpsCap, CharmFpsCapDefault),
@@ -268,6 +284,7 @@ func (d Deco) Normalize() Deco {
 		{&d.Charm.LineWidth, normalizeLineWidth},
 		{&d.Charm.Gravity, positiveNormalizer(CharmGravityMin, CharmGravityMax, CharmGravityDefault)},
 		{&d.Charm.Damping, positiveNormalizer(CharmDampingMin, CharmDampingMax, CharmDampingDefault)},
+		{&d.Charm.Stiffness, positiveNormalizer(CharmStiffnessMin, CharmStiffnessMax, CharmStiffnessDefault)},
 		// 轻晃的两个参数把 0 当作"关掉轻晃"的合法意图（裁决要求 amp=0 能退回停帧），
 		// 所以它们走"非负区间"规则而不是"正数"规则。
 		{&d.Charm.IdleSwayHz, nonNegativeNormalizer(CharmIdleSwayHzMin, CharmIdleSwayHzMax, CharmIdleSwayHzDefault)},

@@ -59,6 +59,15 @@ export const DECO_DAMPING_MAX = 0.995
 /** 每步速度保持系数默认值（无量纲）。 */
 export const DECO_DAMPING_DEFAULT = 0.99
 
+/** 距离约束刚度下限（无量纲，0–1）：再软就是橡皮筋，拖动后久久回不到位。 */
+export const DECO_STIFFNESS_MIN = 0.2
+
+/** 距离约束刚度上限：1 = 每次迭代全量投影，手感回到"刚杆"。 */
+export const DECO_STIFFNESS_MAX = 1
+
+/** 距离约束刚度默认值（无量纲）：一次投影只消化一半误差，拖动时先拉长再回弹。 */
+export const DECO_STIFFNESS_DEFAULT = 0.5
+
 /** 描边起始宽度下限（px）。 */
 export const DECO_LINE_WIDTH_MIN = 1
 
@@ -234,6 +243,19 @@ export const DECO_DAMPING_PARAM = defineDecoParam({
   defaultValue: DECO_DAMPING_DEFAULT,
 })
 
+/** 距离约束刚度：1 = 刚杆手感，越小越弹（拖动时先拉长、松手后回弹）。 */
+export const DECO_STIFFNESS_PARAM = defineDecoParam({
+  key: 'stiffness',
+  label: '约束刚度',
+  unit: '无量纲',
+  hint: '距离约束的软硬：1 最硬（接近刚杆），越小越弹；拖动时先拉长再回弹，静止后仍会收敛。',
+  kind: 'positive',
+  min: DECO_STIFFNESS_MIN,
+  max: DECO_STIFFNESS_MAX,
+  step: 0.05,
+  defaultValue: DECO_STIFFNESS_DEFAULT,
+})
+
 /** 描边起始宽度（票 #42）。 */
 export const DECO_LINE_WIDTH_PARAM = defineDecoParam({
   key: 'line_width',
@@ -325,7 +347,7 @@ export const DECO_POINTER_OFFSET_Y_PARAM = defineDecoParam({
 })
 
 /**
- * 装饰段的数值参数清单（表单按这个顺序渲染十一行输入）。
+ * 装饰段的数值参数清单（表单按这个顺序渲染十二行输入）。
  *
  * 总开关不是数值参数，单独一行。
  *
@@ -341,6 +363,7 @@ export const DECO_NUMBER_PARAMS = [
   DECO_LINE_WIDTH_PARAM,
   DECO_GRAVITY_PARAM,
   DECO_DAMPING_PARAM,
+  DECO_STIFFNESS_PARAM,
   DECO_IDLE_SWAY_HZ_PARAM,
   DECO_IDLE_SWAY_AMP_PARAM,
   DECO_FPS_CAP_PARAM,
@@ -463,6 +486,11 @@ export function clampDecoDamping(value: number): number {
   return clampDecoParam(value, DECO_DAMPING_PARAM)
 }
 
+/** 刚度归一化：越界钳到 0.2–1，零与非法值回落 0.5（0 是「没填」，不是最软）。 */
+export function clampDecoStiffness(value: number): number {
+  return clampDecoParam(value, DECO_STIFFNESS_PARAM)
+}
+
 /** 描边起始宽度归一化：越界钳到 1–6，零与非法值回落 2.5，并保留一位小数。 */
 export function clampDecoLineWidth(value: number): number {
   return clampDecoParam(value, DECO_LINE_WIDTH_PARAM)
@@ -499,7 +527,7 @@ export function clampDecoSegments(value: number): number {
 }
 
 /**
- * 装饰段的可提交形态：总开关 + **从元数据派生的**十一个数值键（票 #78）。
+ * 装饰段的可提交形态：总开关 + **从元数据派生的**十二个数值键（票 #78）。
  *
  * 数值键不再手写：`[K in DecoNumberParamKey]` 的键集合就是 `DECO_NUMBER_PARAMS`
  * 的 `key` 集合，加参数时类型自动跟上。
@@ -533,11 +561,11 @@ function buildDecoNumericParams(
 }
 
 /**
- * 后台表单的"恢复默认"目标值：总开关 + 十一个数值参数，全部来自元数据里的
+ * 后台表单的"恢复默认"目标值：总开关 + 十二个数值参数，全部来自元数据里的
  * `defaultValue`（它又与 `DECO_*_DEFAULT` 常量相等，由守卫测试钉住）。
  *
- * 为什么遍历元数据而不是手写十二个字面量：恢复默认必须与后端
- * `site_default_settings.yaml` 的十二项逐项一致；默认值只留一份，后台加参数时
+ * 为什么遍历元数据而不是手写十三个字面量：恢复默认必须与后端
+ * `site_default_settings.yaml` 的十三项逐项一致；默认值只留一份，后台加参数时
  * 漏改"恢复默认"在结构上就不可能发生。
  *
  * 注意它只构造表单值，**不写服务器** —— 恢复默认之后仍要管理员按保存。
@@ -551,7 +579,7 @@ export function defaultDecoConfig(): DecoRuntimeConfigShape {
   }
 }
 
-/** 装饰段里除总开关以外的数值键（十一个参数，由元数据派生）。 */
+/** 装饰段里除总开关以外的数值键（十二个参数，由元数据派生）。 */
 export type DecoCharmNumericKey = DecoNumberParamKey
 
 /**

@@ -10,6 +10,8 @@ import {
   CHARM_POINTER_OFFSET_X_DEFAULT,
   CHARM_POINTER_OFFSET_Y_DEFAULT,
   CHARM_ROPE_LENGTH_DEFAULT,
+  CHARM_STIFFNESS_DEFAULT,
+  CHARM_STIFFNESS_MAX,
 } from "~/utils/decoCharm";
 
 /**
@@ -339,7 +341,7 @@ describe("useCursorCharm：首次移动、绳链与淡入", () => {
     expect(charm.logoCenter.value.x).toBeCloseTo(120 + DEFAULT_OFFSET.x, 1);
     expect(charm.logoCenter.value.y).toBeCloseTo(
       240 + DEFAULT_OFFSET.y + CHARM_ROPE_LENGTH_DEFAULT,
-      1,
+      0,
     );
   });
 
@@ -450,6 +452,47 @@ describe("useCursorCharm：固定步长循环与停帧", () => {
     expect(charm.physicsFrames).toBeGreaterThan(100);
     // 轻晃是自由端的真实形变：头节点钉死在「指针 + 偏移」上，尾端来回偏。
     expect(charm.tetherGeometry?.centerline[0]?.x).toBeCloseTo(100 + DEFAULT_OFFSET.x, 1);
+  });
+});
+
+describe("useCursorCharm：刚度接线（刚杆 → 弹性绳）", () => {
+  /**
+   * 同一段拖动输入（先建链，再把指针瞬移到右边 300px）下，发布出去一次后
+   * 站标被拖到的位置。刚度越低，站标落后得越多。
+   */
+  function tailAfterJump(stiffness: number): number {
+    const { charm, pointer, frames } = mount({
+      config: () => ({ idleSwayAmp: 0, stiffness }),
+    });
+    pointer.emit("pointermove", { clientX: 0, clientY: 0 });
+    frames.advance(RAF_DELAY_MS);
+    pointer.emit("pointermove", { clientX: 300, clientY: 0 });
+    frames.advance(RAF_DELAY_MS);
+    return charm.logoCenter.value.x;
+  }
+
+  it("config 里的 stiffness 真的进了物理：低刚度下站标滞后明显大于刚度 1", () => {
+    const soft = tailAfterJump(CHARM_STIFFNESS_DEFAULT);
+    const rigid = tailAfterJump(CHARM_STIFFNESS_MAX);
+
+    expect(soft).toBeLessThan(rigid - 2);
+  });
+
+  it("改 config 里的 stiffness 不必重建链：下一帧即生效（构图不变）", () => {
+    const stiffness = ref(CHARM_STIFFNESS_MAX);
+    const { charm, pointer, frames } = mount({
+      config: () => ({ idleSwayAmp: 0, stiffness: stiffness.value }),
+    });
+    pointer.emit("pointermove", { clientX: 0, clientY: 0 });
+    frames.advance(RAF_DELAY_MS);
+    const centerlineBefore = charm.tetherGeometry?.centerline.length ?? 0;
+
+    stiffness.value = CHARM_STIFFNESS_DEFAULT;
+    pointer.emit("pointermove", { clientX: 0, clientY: 0 });
+    frames.advance(RAF_DELAY_MS);
+
+    expect(charm.tetherGeometry?.centerline.length).toBe(centerlineBefore);
+    expect(charm.tetherGeometry?.centerline[0]?.x).toBeCloseTo(DEFAULT_OFFSET.x, 1);
   });
 });
 
@@ -626,8 +669,11 @@ describe("useCursorCharm：指针端偏移（票 #75，指针端节点 = 指针�
     pointer.emit("pointermove", { clientX: 0, clientY: 0 });
     frames.advance(RAF_DELAY_MS);
     // 先让链在 (0, 0) 收敛：尾端稳定在正下方一个绳长处。
+    // 弹性绳在重力下会残留一点拉伸（默认刚度 0.5），这里允许几像素的基线，
+    // 但必须有界 —— 弹性不等于永远被拉长。
     frames.runUntilIdle(2000);
-    expect(charm.logoCenter.value.y).toBeCloseTo(CHARM_ROPE_LENGTH_DEFAULT, 0);
+    expect(charm.logoCenter.value.y).toBeGreaterThan(CHARM_ROPE_LENGTH_DEFAULT);
+    expect(charm.logoCenter.value.y).toBeLessThan(CHARM_ROPE_LENGTH_DEFAULT + 3);
 
     // 只改偏移（节点数与绳长不动）：下一次发布必须就跟着走。
     offsets.value = { x: 10, y: 10 };

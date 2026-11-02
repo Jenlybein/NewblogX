@@ -56,6 +56,7 @@ func charmWith(mutate func(*conf.Charm)) conf.Charm {
 		LineWidth:   conf.CharmLineWidthDefault,
 		Gravity:     conf.CharmGravityDefault,
 		Damping:     conf.CharmDampingDefault,
+		Stiffness:   conf.CharmStiffnessDefault,
 		IdleSwayHz:  conf.CharmIdleSwayHzDefault,
 		IdleSwayAmp: conf.CharmIdleSwayAmpDefault,
 		FpsCap:      conf.CharmFpsCapDefault,
@@ -514,6 +515,8 @@ func TestDecoNormalize_共享归一化用例表(t *testing.T) {
 				charm.Gravity = input
 			case "damping":
 				charm.Damping = input
+			case "stiffness":
+				charm.Stiffness = input
 			case "idle_sway_hz":
 				charm.IdleSwayHz = input
 			case "idle_sway_amp":
@@ -542,6 +545,8 @@ func TestDecoNormalize_共享归一化用例表(t *testing.T) {
 				actual = got.Gravity
 			case "damping":
 				actual = got.Damping
+			case "stiffness":
+				actual = got.Stiffness
 			case "idle_sway_hz":
 				actual = got.IdleSwayHz
 			case "idle_sway_amp":

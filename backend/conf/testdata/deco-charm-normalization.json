@@ -1,5 +1,5 @@
 {
-  "description": "deco.charm 十一个数值参数的归一化边界。后端 conf.Deco.Normalize、读者站 clampCharm*、后台 clampDeco* 三套实现都消费这张表：任何一端的取整/回落规则漂移，至少一套测试会红。",
+  "description": "deco.charm 十二个数值参数的归一化边界。后端 conf.Deco.Normalize、读者站 clampCharm*、后台 clampDeco* 三套实现都消费这张表：任何一端的取整/回落规则漂移，至少一套测试会红。",
   "cases": [
     { "parameter": "logo_size", "input": 60, "expected": 60, "reason": "区间内原样保留" },
     { "parameter": "logo_size", "input": 24, "expected": 24, "reason": "下限本身不漂移" },
@@ -61,6 +61,16 @@
     { "parameter": "damping", "input": 0, "expected": 0.99, "reason": "缺省零值回落默认" },
     { "parameter": "damping", "input": -0.2, "expected": 0.99, "reason": "负数回落默认" },
     { "parameter": "damping", "input": "NaN", "expected": 0.99, "reason": "NaN 回落默认" },
+
+    { "parameter": "stiffness", "input": 0.5, "expected": 0.5, "reason": "默认值原样保留" },
+    { "parameter": "stiffness", "input": 0.2, "expected": 0.2, "reason": "下限本身不漂移" },
+    { "parameter": "stiffness", "input": 1, "expected": 1, "reason": "上限本身不漂移（全量投影）" },
+    { "parameter": "stiffness", "input": 0.19, "expected": 0.2, "reason": "略低于下限钳到边界" },
+    { "parameter": "stiffness", "input": 1.1, "expected": 1, "reason": "略高于上限钳到边界" },
+    { "parameter": "stiffness", "input": 0, "expected": 0.5, "reason": "缺省零值回落默认" },
+    { "parameter": "stiffness", "input": -0.5, "expected": 0.5, "reason": "负数回落默认" },
+    { "parameter": "stiffness", "input": "NaN", "expected": 0.5, "reason": "NaN 回落默认" },
+    { "parameter": "stiffness", "input": "Infinity", "expected": 0.5, "reason": "+Inf 回落默认" },
 
     { "parameter": "idle_sway_hz", "input": 0.8, "expected": 0.8, "reason": "区间内原样保留" },
     { "parameter": "idle_sway_hz", "input": 0, "expected": 0, "reason": "0 是合法值（关掉轻晃）" },

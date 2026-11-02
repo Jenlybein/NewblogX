@@ -14,6 +14,7 @@ import {
   CHARM_POINTER_OFFSET_Y_DEFAULT,
   CHARM_ROPE_LENGTH_DEFAULT,
   CHARM_SEGMENTS_DEFAULT,
+  CHARM_STIFFNESS_DEFAULT,
   normalizeCharmRopeConfig,
   type CharmRopeConfig,
 } from "~/utils/decoCharm";
@@ -188,6 +189,12 @@ const FIELD_WIRING: FieldWiring[] = [
     param: "pointerOffsetY",
     sample: -18,
     fallback: CHARM_POINTER_OFFSET_Y_DEFAULT,
+  },
+  {
+    field: "stiffness",
+    param: "stiffness",
+    sample: 0.7,
+    fallback: CHARM_STIFFNESS_DEFAULT,
   },
 ];
 

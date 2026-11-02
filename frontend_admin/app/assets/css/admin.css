@@ -126,6 +126,51 @@
     @apply min-w-0 truncate;
   }
 
+  /* 内容区顶部面包屑：祖先可点回退，当前项只读。分隔符只在项之间插入，
+   * 单级页面天然没有分隔符。颜色与圆角只消费语义层与阶梯。 */
+  .admin-breadcrumb {
+    @apply mb-3 flex min-w-0 items-center text-sm;
+  }
+
+  .admin-breadcrumb__list {
+    @apply m-0 flex list-none flex-wrap items-center gap-1 p-0;
+  }
+
+  .admin-breadcrumb__item {
+    @apply inline-flex min-w-0 items-center gap-1;
+  }
+
+  .admin-breadcrumb__link,
+  .admin-breadcrumb__group,
+  .admin-breadcrumb__current {
+    @apply inline-flex min-w-0 items-center px-2 py-1;
+    border-radius: var(--radius-sm);
+  }
+
+  .admin-breadcrumb__link {
+    color: var(--color-ink-muted);
+  }
+
+  .admin-breadcrumb__link:hover {
+    color: var(--color-ink);
+    background: var(--color-bg-subtle);
+  }
+
+  /* 只分组、没有落地页的父级：能读出自己在哪一层，但不可点。 */
+  .admin-breadcrumb__group {
+    color: var(--color-ink-muted);
+  }
+
+  .admin-breadcrumb__current {
+    color: var(--color-ink);
+    font-weight: 600;
+  }
+
+  .admin-breadcrumb__sep {
+    @apply select-none;
+    color: var(--color-ink-muted);
+  }
+
   .admin-main {
     @apply p-5;
   }
@@ -143,7 +188,6 @@
     letter-spacing: var(--type-tracking-title);
   }
 
-  .admin-page-subtitle,
   .muted {
     color: var(--color-ink-muted);
   }

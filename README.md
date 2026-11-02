@@ -1052,6 +1052,24 @@ docker compose up -d --force-recreate blogx_web blogx_admin blogx_server
 
 漏了这一步的症状很像"代码没生效"：容器健康检查报旧 bug、日志里是修复前的堆栈，而镜像明明已经重建过。
 
+#### 重建 `blogx_server` 之后要顺手重启 `nginx`
+
+nginx 在**启动时**解析一次上游主机名（`proxy_pass http://blogx_server:8080`），之后把 IP 记在进程里。
+`--force-recreate` 会给容器分配**新的 IP**，而 nginx 没重建，于是它继续往旧 IP 转发：
+
+```
+502 Bad Gateway
+nginx/1.27.5
+```
+
+这时后端本身是好的（`docker logs blogx_server` 里全是 200），只有入口在打空。所以重建后端之后补一条：
+
+```bash
+docker compose restart nginx
+```
+
+判断口径：`curl -sk https://127.0.0.1/health` 在服务器上返回 200，但外网首页 502 —— 就是这一条。
+
 ### 11.4.1 升级到带索引变更的版本：重建 ES + 全量回填
 
 ES 改不了既有字段的映射（ADR-0017 给文章文档加了 `author_is_admin`，删了 `admin_top` / `author_top` / `top`），只能**先删后建索引再回填**。

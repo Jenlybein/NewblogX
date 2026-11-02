@@ -316,6 +316,7 @@ func (h *Handler) BannerCreate(c *gin.Context) {
 	}
 	banner, err := h.svc.CreateBanner(c.Request.Context(), app.BannerInput{
 		CoverImageID: cr.CoverImageID,
+		Title:        cr.Title,
 		Href:         cr.Href,
 		Show:         cr.Show,
 		Crop:         cr.Crop.toDomain(),
@@ -329,6 +330,7 @@ func (h *Handler) BannerCreate(c *gin.Context) {
 		CoverImageID: cr.CoverImageID,
 		Cover:        banner.Cover,
 		Href:         banner.Href,
+		Title:        banner.Title,
 		Show:         banner.Show,
 		Crop:         fromDomainCrop(banner.Crop),
 	}, c)
@@ -362,6 +364,7 @@ func (h *Handler) BannerUpdate(c *gin.Context) {
 	}
 	err := h.svc.UpdateBanner(c.Request.Context(), id.ID.Uint64(), app.BannerInput{
 		CoverImageID: cr.CoverImageID,
+		Title:        cr.Title,
 		Href:         cr.Href,
 		Show:         cr.Show,
 		Crop:         cr.Crop.toDomain(),
@@ -424,6 +427,7 @@ func toBannerItem(b domain.Banner) BannerItem {
 		Show:      b.Show,
 		Cover:     b.Cover,
 		Href:      b.Href,
+		Title:     b.Title,
 		Crop:      fromDomainCrop(b.Crop),
 	}
 	if !b.CoverImageID.IsZero() {

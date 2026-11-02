@@ -5,6 +5,7 @@
 package domain
 
 import (
+	"strings"
 	"time"
 
 	"myblogx/internal/apperr"
@@ -25,8 +26,8 @@ type Banner struct {
 	Href         string
 	// Title 是轮播标题，纯文本、可空：空标题在读者站不渲染文字区。
 	//
-	// 本字段已经随表结构落到存储层；HTTP 契约里的同名字段由轮播标题票接入，
-	// 在接入之前从请求构造的 Banner 里它一直是空串。
+	// 存的是运营输入的原文（只收敛首尾空白），不做 HTML / Markdown 解析或渲染：
+	// 读者站按纯文本插值输出，不引入清洗面。
 	Title string
 	// Crop 是这张图的取景参数：露出封面的哪一块。
 	//
@@ -73,6 +74,23 @@ func (c Crop) Validate() error {
 		return apperr.New(apperr.CodeBannerCropInvalid)
 	}
 	return nil
+}
+
+// MaxTitleLength 是轮播标题的列宽（banner_models.title 是 varchar(256)）。
+const MaxTitleLength = 256
+
+// NormalizeTitle 把标题收敛成落库的形状：去首尾空白，超长按字符截到列宽。
+//
+// 只做这两件纯文本的事，不做任何 HTML / Markdown 解析：
+// 标题里出现标签就原样存、原样回传，由读者站按纯文本渲染。
+// 纯空白一律收敛成空串 —— 否则读者站会为一行空格渲染出空标题块。
+func NormalizeTitle(raw string) string {
+	title := strings.TrimSpace(raw)
+	runes := []rune(title)
+	if len(runes) > MaxTitleLength {
+		return string(runes[:MaxTitleLength])
+	}
+	return title
 }
 
 // BannerQuery 是轮播图列表的查询条件。

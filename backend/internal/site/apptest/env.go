@@ -87,11 +87,12 @@ func (b *Banners) Create(_ context.Context, banner *domain.Banner) error {
 }
 
 // Update 实现 domain.BannerRepository。crop 为 nil 表示没传取景：保留既有记录。
-func (b *Banners) Update(_ context.Context, id uint64, cover, href string, show bool, crop *domain.Crop) error {
+func (b *Banners) Update(_ context.Context, id uint64, title, cover, href string, show bool, crop *domain.Crop) error {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 	for i := range b.rows {
 		if b.rows[i].ID.Uint64() == id {
+			b.rows[i].Title = title
 			b.rows[i].Cover = cover
 			b.rows[i].Href = href
 			b.rows[i].Show = show

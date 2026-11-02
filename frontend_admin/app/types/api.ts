@@ -70,6 +70,29 @@ export type BannerWritePayload = Required<Schema<"internal_site_adapter_http.Ban
   crop: BannerCrop;
 };
 
+/** 管理端一张右栏卡片：含停用项，带服务端口径的顺序号。 */
+export type AdminSidebarCardItem = RequiredSchema<"internal_site_adapter_http.AdminSidebarCardItem">;
+
+/** 管理端卡片列表载荷（含停用项，按运营顺序）。 */
+export type AdminSidebarCardsResponseData = RequiredSchema<"internal_site_adapter_http.AdminSidebarCardsResponse">;
+
+/**
+ * 整表保存的请求体。
+ *
+ * 契约把单张卡的 `title` / `enabled` 标成可选，但后台每次保存都显式带全字段
+ * （清空标题时提交空串，由后端回退默认标题），所以这里收成必填。
+ * 契约里没有 `sort_order`：顺序由 `list` 的下标决定。
+ */
+export type SidebarCardsSavePayload = RequiredSchema<"internal_site_adapter_http.SidebarCardsSaveRequest">;
+
+/**
+ * 读者侧一张右栏卡片。
+ *
+ * 后台不消费读者接口，但拖动排序的验收要求把"后台顺序 → 读者渲染顺序"
+ * 放在同一条用例里验证；读者渲染纯函数按这个形状取数。
+ */
+export type SiteSidebarCardItem = RequiredSchema<"internal_site_adapter_http.SidebarCardItem">;
+
 /** 全局通知项。契约里的 `herf` 拼写错误字段前端从未使用，故以契约（`href`）为准。 */
 export type GlobalNotifListItem = RequiredSchema<"internal_notification_adapter_http.GlobalListResponse">;
 
@@ -134,8 +157,24 @@ export type UserListItem = RequiredSchema<"internal_user_adapter_http.AdminUserI
 export type SearchArticleItem = RequiredSchema<"myblogx_internal_search_domain.Item">;
 export type SearchPagination = RequiredSchema<"myblogx_internal_search_domain.Pagination">;
 
-// ── 热门置顶（运营位）─────────────────────────────────────────
+// ── 合集（运营编排的文章集合）─────────────────────────────────
 
+/**
+ * 后台合集列表的一行。
+ *
+ * 带 `fallback_cover`：没上传封面时读者会看到的首篇封面。后台列表按读者的
+ * 样子预览，但编辑表单必须能区分"我传了封面"与"这是回退来的"，所以两个字段
+ * 在契约里是分开的，不合并成"生效封面"。
+ */
+export type CollectionAdminCard = RequiredSchema<"internal_article_adapter_http.CollectionAdminCard">;
+
+/** 建合集的请求体。契约里除标题外都可选，后台写入时四个字段总是显式带上。 */
+export type CollectionCreatePayload = Required<Schema<"internal_article_adapter_http.CollectionCreateRequest">>;
+
+/** 改合集内容的请求体：只有标题 / 描述 / 封面，展示开关走独立接口。 */
+export type CollectionUpdatePayload = Required<Schema<"internal_article_adapter_http.CollectionUpdateRequest">>;
+
+// ── 热门置顶（运营位）─────────────────────────────────────────
 /**
  * `/articles/hot-top/admin` 的列表项。
  *

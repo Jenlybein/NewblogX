@@ -783,6 +783,8 @@ CI 有两个 job 专门盯这件事：`contract`（`swagger.json` 必须与注�
 | `-db` | 无 | 执行建表（幂等），做完就退出 |
 | `-es` + `-s` | `init` / `ensure` / `delete` / `article-sync` | ES 索引操作，做完就退出 |
 | `-t` + `-s` | `run init` / `user create` | 组合操作 |
+| `-t imagegc` | 可选 `-apply` | 孤儿图清单（只读）；带 `-apply` 才真删图片 |
+| `-t imagerefgc` | 可选 `-apply` | 孤儿图片引用清单（只读）；带 `-apply` 才删引用行 |
 | `-version` / `-v` | 无 | 打印版本（**在读取配置之前处理**，缺环境变量也能用） |
 
 ### role 的含义
@@ -1050,6 +1052,82 @@ docker compose exec blogx_server /app/server \
 ADR-0017 引入的 `article_hot_top_models`（热门置顶运营位）就属于这一类。漏了这一步，后台「热门置顶」页与首页运营位会报表不存在，其它功能照常——很容易被当成"代码没生效"。
 
 一次完整的升级顺序：**重建索引 + 回填 → 部署新代码 → 手动 `-db` → 后台设置三个开关与热门置顶**。
+
+### 11.4.3 轮播表重建与通用取景表合并（一次性现场操作）
+
+这个版本把轮播表重建为带标题列的结构，并把旧的轮播专属取景表合并成通用取景表：
+
+| 表 | 旧结构 | 新结构 |
+| --- | --- | --- |
+| 轮播表 | `banner_models`：`id` / 三个时间列 / `show` / `cover` / `href` | 同上 + `title varchar(256) DEFAULT NULL` |
+| 取景表 | `banner_crop_models`：`banner_id`（主键）+ `focus_x` / `focus_y` / `zoom` | `picture_crop_models`：`(target_type, target_id)`（联合主键）+ 取景三列 |
+
+字段映射：`banner_crop_models.banner_id` → `picture_crop_models.target_id`，并补 `target_type = 'banner'`；`focus_x` / `focus_y` / `zoom` 的名称、类型与语义原样沿用。契约字段仍是 `crop`、错误码仍是 `banner.crop_invalid`，都不随表名改变。
+
+`schema.sql` 只做 `CREATE TABLE IF NOT EXISTS`，**没有任何 ALTER / DROP**；旧表不会被自动改名或删除，`-db` 也不会替你做回填。所以这是一次**手工、一次性**的现场操作。
+
+**0. 先备份**
+
+```bash
+docker compose exec mysql-master mysqldump -uroot -p"$MYSQL_ROOT_PASSWORD" blogx \
+  banner_models banner_crop_models > /opt/blogx/backup-banner-$(date +%F-%H%M).sql
+```
+
+**1. 停写**：`docker compose stop blogx_server`。轮播表在 image-ref 的 CDC 监听范围内，重建期间不要有写入。
+
+**2. 手工 DROP 两张旧表**
+
+```bash
+docker compose exec mysql-master mysql -uroot -p"$MYSQL_ROOT_PASSWORD" blogx \
+  -e "DROP TABLE IF EXISTS banner_crop_models, banner_models;"
+```
+
+**3. 跑一次建表**
+
+```bash
+docker compose run --rm blogx_server /app/server -f config/settings.yaml -db
+```
+
+`-db` 会按新的 `schema.sql` 建出 `banner_models`（带 `title`）与 `picture_crop_models`。容器自举只认一张判断表，判断表还在时不会补建缺失的表，所以这一步不能省。建表完成后 `docker compose up -d` 切到新镜像——image-ref river 需要重启才会重新读取重建后的表结构。
+
+**4. 数据回填 / 重种**
+
+- 轮播位配置可以弃掉（本次改造已确认存量轮播没有标题历史）：切到新镜像后在后台「媒体运营」重新创建轮播即可；新建轮播的取景缺省为「居中、缩放 1」。
+- 若要保留存量数据，从第 0 步的备份里恢复。`banner_models` 显式带原 `id` 与 `title`（存量行没有标题时写 `NULL`）；取景行按下面的映射写入新表：
+
+  ```sql
+  INSERT INTO picture_crop_models (target_type, target_id, focus_x, focus_y, zoom)
+  SELECT 'banner', banner_id, focus_x, focus_y, zoom FROM banner_crop_models;
+  ```
+
+  回填要在 DROP 之前做，否则只能从备份里重放：旧取景行指向的轮播 id 已被新 id 取代，等于孤儿。
+
+**5. 清理指向已消失轮播的图片引用**
+
+DROP 是 DDL 事件，不触发行级 CDC，所以 `image_ref_models` 里会留下 `ref_type = banner`、但对应轮播已不存在（或已软删）的行。先看清单（只读，不写任何数据）：
+
+```bash
+docker compose run --rm blogx_server /app/server \
+  -f config/settings.yaml -t imagerefgc
+```
+
+确认清单后，带 `-apply` 才真正删除：
+
+```bash
+docker compose run --rm blogx_server /app/server \
+  -f config/settings.yaml -t imagerefgc -apply
+```
+
+判定口径：轮播表里没有这一行，或该行 `deleted_at` 非空，都算孤儿；只动 `ref_type = banner` 的行。建议在轮播重新创建之后执行（新建轮播由 CDC 重新写入引用），命令可重复执行。
+
+**6. 验证**
+
+- 后台「媒体运营」列表能显示轮播（含标题）；
+- 创建/编辑一条轮播能保存取景，刷新后取景不回退；
+- 读者站首屏轮播正常（无标题的行只显示渐黑与圆点）；
+- `-t imagerefgc` 再跑一次，清单为空。
+
+排错要点：漏了第 3 步 → 后台轮播列表与读者站首屏会报表不存在或 `Unknown column 'title'`；漏了第 5 步 → 图片引用计数偏高、孤儿图清单迟迟不敢删图。
 
 ### 11.5 回滚
 

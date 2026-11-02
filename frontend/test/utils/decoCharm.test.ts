@@ -699,7 +699,7 @@ describe("物理不变量（不断言某一帧的坐标，只断言性质）", (
     advanceCharmRope(state, 0.05, { x: 90, y: 0 });
     // 记录 100 步与 700 步时的能量：衰减必须是真的，而不是抖到一个死值。
     let energyAt100 = Number.POSITIVE_INFINITY;
-    for (let step = 1; step <= 700; step += 1) {
+    for (let step = 1; step <= 900; step += 1) {
       advanceCharmRope(state, FRAME_AT_120HZ, { x: 90, y: 0 });
       if (step === 100) energyAt100 = charmRopeEnergy(state);
     }

@@ -125,7 +125,7 @@ const hasCards = computed(() => (props.sidebarCards?.length ?? 0) > 0);
       </div>
 
       <!-- 标签云：字号按本卡内的权重决定，不是热门标签那种等字号 chip 列表。 -->
-      <div v-else class="mt-3 flex flex-wrap gap-2">
+      <div v-else-if="card.kind === 'tag_cloud'" class="mt-3 flex flex-wrap gap-2">
         <Motion
           v-for="(tag, index) in card.tags"
           :key="tag.id"
@@ -140,6 +140,36 @@ const hasCards = computed(() => (props.sidebarCards?.length ?? 0) > 0);
             {{ tag.title }}
           </NuxtLink>
         </Motion>
+      </div>
+
+      <!--
+        推荐合集：只含展示中的合集（可见性与顺序都由后端按合集自己的口径过滤），
+        整行进合集详情。空合集列表已在 sidebarCardViews 里把整张卡隐藏。
+      -->
+      <div v-else-if="card.kind === 'recommended_collections'" class="mt-3 flex flex-col">
+        <NuxtLink
+          v-for="collection in card.collections"
+          :key="collection.id"
+          :to="collection.href"
+          class="sidebar-card-row sidebar-card-row--collection"
+        >
+          <span v-if="collection.cover" class="sidebar-collection-cover">
+            <img :src="collection.cover" :alt="`${collection.title} 封面`" loading="lazy" width="48" height="48">
+          </span>
+          <span class="min-w-0 flex-1">
+            <span class="block truncate text-sm text-ink">{{ collection.title }}</span>
+            <span
+              v-if="collection.description"
+              class="mt-1 block truncate text-xs text-ink-muted"
+              data-sidebar-collection-description
+            >
+              {{ collection.description }}
+            </span>
+            <span class="mt-1 block text-xs text-ink-faint" data-sidebar-collection-count>
+              {{ collection.countLabel }}
+            </span>
+          </span>
+        </NuxtLink>
       </div>
     </section>
 
@@ -162,6 +192,30 @@ const hasCards = computed(() => (props.sidebarCards?.length ?? 0) > 0);
   flex-direction: column;
   align-items: flex-start;
   justify-content: flex-start;
+}
+
+/* 推荐合集的一行：封面上对齐，文字块占满剩余宽度。 */
+.sidebar-card-row--collection {
+  align-items: flex-start;
+  justify-content: flex-start;
+}
+
+.sidebar-collection-cover {
+  display: block;
+  flex: 0 0 48px;
+  width: 48px;
+  height: 48px;
+  overflow: hidden;
+  border: 1px solid var(--color-line-faint);
+  border-radius: var(--radius-sm);
+  background: var(--color-bg-subtle);
+}
+
+.sidebar-collection-cover img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
 }
 
 .sidebar-card-row:last-child {

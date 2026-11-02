@@ -19,6 +19,7 @@ function card(partial: Partial<SiteSidebarCardItem> & Pick<SiteSidebarCardItem, 
     hot_articles: [],
     latest_comments: [],
     tags: [],
+    collections: [],
     ...partial,
   };
 }
@@ -40,6 +41,17 @@ function comment(id: string, content: string, articleId = `a-${id}`) {
 
 function tag(id: string, title: string, count = 0) {
   return { id, title, article_count: count };
+}
+
+function collection(id: string, title: string, count = 0, overrides = {}) {
+  return {
+    id,
+    title,
+    description: `简介 ${id}`,
+    cover: `https://cdn.example.com/${id}.png`,
+    article_count: count,
+    ...overrides,
+  };
 }
 
 describe("sidebarCardViews：右栏卡片的渲染模型", () => {
@@ -104,12 +116,18 @@ describe("sidebarCardViews：右栏卡片的渲染模型", () => {
     expect(views[0]?.tags).toEqual([]);
   });
 
-  it("三种内置种类的清单与默认标题都在契约表里（两端各钉同一张表）", () => {
-    expect(SIDEBAR_CARD_KINDS).toEqual(["hot_articles", "latest_comments", "tag_cloud"]);
+  it("内置种类的清单与默认标题都在契约表里（两端各钉同一张表）", () => {
+    expect(SIDEBAR_CARD_KINDS).toEqual([
+      "hot_articles",
+      "latest_comments",
+      "tag_cloud",
+      "recommended_collections",
+    ]);
     expect(SIDEBAR_CARD_DEFAULT_TITLES).toEqual({
       hot_articles: "热门文章",
       latest_comments: "最新评论",
       tag_cloud: "标签云",
+      recommended_collections: "推荐合集",
     });
   });
 });
@@ -182,6 +200,91 @@ describe("sidebarCardViews：热门文章与热门置顶去重", () => {
 
     expect(views.map((view) => view.kind)).toEqual(["latest_comments"]);
     expect(views[0]?.comments[0]?.articleId).toBe("1");
+  });
+});
+
+describe("推荐合集卡：种类分派与渲染模型", () => {
+  it("该种类只读自己的数组，映射出详情链接、标题、简介与文章数文案", () => {
+    const views = sidebarCardViews([
+      card({
+        kind: "recommended_collections",
+        title: "往期专题",
+        collections: [
+          collection("101", "从零搭一个博客", 7),
+          collection("102", "工程效率", 0),
+        ],
+      }),
+    ]);
+
+    expect(views).toHaveLength(1);
+    expect(views[0]?.collections).toEqual([
+      {
+        id: "101",
+        href: "/collections/101",
+        title: "从零搭一个博客",
+        description: "简介 101",
+        cover: "https://cdn.example.com/101.png",
+        countLabel: "7 篇文章",
+      },
+      {
+        id: "102",
+        href: "/collections/102",
+        title: "工程效率",
+        description: "简介 102",
+        cover: "https://cdn.example.com/102.png",
+        countLabel: "暂无文章",
+      },
+    ]);
+    // 别种数据一个都不沾（合集卡没有文章/评论/标签）。
+    expect(views[0]?.articles).toEqual([]);
+    expect(views[0]?.comments).toEqual([]);
+    expect(views[0]?.tags).toEqual([]);
+  });
+
+  it("没有可推荐的合集时整张卡隐藏（空数组即不渲染）", () => {
+    const views = sidebarCardViews([
+      card({ kind: "recommended_collections", title: "推荐合集", collections: [] }),
+      card({ kind: "tag_cloud", title: "标签云", tags: [tag("t1", "Go", 3)] }),
+    ]);
+
+    expect(views.map((view) => view.kind)).toEqual(["tag_cloud"]);
+  });
+
+  it("标题为空时回退到「推荐合集」，空标题的合集退化成占位标题而不是空白", () => {
+    const views = sidebarCardViews([
+      card({
+        kind: "recommended_collections",
+        title: "   ",
+        collections: [
+          collection("101", "  ", 2, { description: "  ", cover: "" }),
+        ],
+      }),
+    ]);
+
+    expect(views[0]?.title).toBe(SIDEBAR_CARD_DEFAULT_TITLES.recommended_collections);
+    expect(views[0]?.collections[0]?.title).toBe("未命名合集");
+    expect(views[0]?.collections[0]?.description).toBe("");
+    expect(views[0]?.collections[0]?.cover).toBe("");
+    expect(views[0]?.collections[0]?.href).toBe("/collections/101");
+  });
+
+  it("推荐合集卡按 sort_order 与其它卡一起排序（顺序仍由既有配置控制）", () => {
+    const views = sidebarCardViews([
+      card({ kind: "tag_cloud", title: "标签云", sort_order: 2, tags: [tag("t1", "Go", 3)] }),
+      card({
+        kind: "recommended_collections",
+        title: "推荐合集",
+        sort_order: 1,
+        collections: [collection("101", "从零搭一个博客", 5)],
+      }),
+      card({ kind: "hot_articles", title: "热门文章", sort_order: 0, hot_articles: [article("1", "热读一")] }),
+    ]);
+
+    expect(views.map((view) => view.kind)).toEqual([
+      "hot_articles",
+      "recommended_collections",
+      "tag_cloud",
+    ]);
   });
 });
 

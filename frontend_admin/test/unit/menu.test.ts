@@ -59,6 +59,7 @@ const EXPECTED_ADMIN_NAV = [
   { label: '文章审核', path: '/review', icon: 'shield' },
   { label: '文章管理', path: '/articles', icon: 'article' },
   { label: '热门置顶', path: '/articles/hot-top', icon: 'pin' },
+  { label: '合集管理', path: '/articles/collections', icon: 'article' },
   { label: '用户管理', path: '/users', icon: 'users' },
   { label: '站点', path: '/site', icon: 'settings' },
   { label: 'AI 助手', path: '/site/ai', icon: 'settings' },
@@ -68,6 +69,7 @@ const EXPECTED_ADMIN_NAV = [
   { label: '日志', path: '/site/log', icon: 'settings' },
   { label: '上传策略', path: '/site/upload', icon: 'settings' },
   { label: '装饰', path: '/site/deco', icon: 'settings' },
+  { label: '右栏卡片', path: '/site/sidebar-cards', icon: 'settings' },
   { label: '媒体运营', path: '/media', icon: 'photo' },
   { label: '全局通知', path: '/notifications', icon: 'bell' },
   { label: '日志中心', path: '/logs', icon: 'database' },
@@ -106,6 +108,14 @@ describe('后台菜单拍平视图', () => {
       depth: 1,
     })
     expect(FLAT_NAV.find(item => item.label === '装饰')).toMatchObject({
+      parentLabel: '站点配置',
+      parentPath: null,
+      depth: 1,
+    })
+
+    // 站点配置是**纯分组**（父项没有自身页面，path 为 null），所以挂在它下面的
+    // 「右栏卡片」同样拿不到 parentPath —— 判据是"父项有没有落地页"，不是"子项是谁"。
+    expect(FLAT_NAV.find(item => item.label === '右栏卡片')).toMatchObject({
       parentLabel: '站点配置',
       parentPath: null,
       depth: 1,
@@ -266,6 +276,14 @@ describe('后台菜单两级视图（分组 / 展开 / 高亮 / 标题）', () =
         path: '/articles/hot-top',
         depth: 1,
         active: true,
+      }),
+      expect.objectContaining({
+        kind: 'link',
+        key: '/articles/collections',
+        label: '合集管理',
+        path: '/articles/collections',
+        depth: 1,
+        active: false,
       }),
     ])
 

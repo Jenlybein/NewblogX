@@ -77,19 +77,27 @@ export const ADMIN_NAV_TREE: AdminNavNode[] = [
     children: [
       // 热门置顶是独立运营位（ADR-0017 决策 5），层级上归到「文章管理」：先选文章，再排序。
       { label: '热门置顶', path: '/articles/hot-top', icon: 'pin' },
+      // 合集是"文章的有序集合"，同属文章域的运营产物，挂在同一个父项下。
+      { label: '合集管理', path: '/articles/collections', icon: 'article' },
     ],
   },
   { label: '用户管理', path: '/users', icon: 'users' },
   {
     // 站点配置的八个域各有独立路由（`/site` + `/site/{域}`），父项只分组：
     // 它没有自身页面，点标题只展开/收起，不会跳到空页。
+    //
+    // 「右栏卡片」也挂在它下面：它是首页运营位，与站点配置同一层入口，
+    // 但有自己独立的整表保存语义（增删/拖动排序/标题/启停）。
     label: '站点配置',
     icon: 'settings',
-    children: SITE_SETTINGS_SECTIONS.map((section): AdminNavNode => ({
-      label: section.label,
-      path: section.path,
-      icon: 'settings',
-    })),
+    children: [
+      ...SITE_SETTINGS_SECTIONS.map((section): AdminNavNode => ({
+        label: section.label,
+        path: section.path,
+        icon: 'settings',
+      })),
+      { label: '右栏卡片', path: '/site/sidebar-cards' as const, icon: 'settings' as const },
+    ],
   },
   { label: '媒体运营', path: '/media', icon: 'photo' },
   { label: '全局通知', path: '/notifications', icon: 'bell' },

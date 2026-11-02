@@ -136,9 +136,9 @@ describe("静态断言：后台不得残留旧青绿色（canary 保证扫描器
     expect(findLegacyPaletteClasses(source)).toEqual([]);
   });
 
-  it("19 个路由页面全部无旧青色、不碰 Tailwind 默认色板", () => {
-    // 页面数量本身就是验收项（19 = 12 + 站点配置拆域新增的 7 个页面文件）。
-    expect(pageFiles.length).toBe(19);
+  it("21 个路由页面全部无旧青色、不碰 Tailwind 默认色板", () => {
+    // 页面数量本身就是验收项（21 = 12 + 站点配置拆域新增的 7 个页面 + 「右栏卡片」管理页 + 合集管理页）。
+    expect(pageFiles.length).toBe(21);
 
     const sources = readAppSources();
     const problems = sources.flatMap(({ file, text }) => [

@@ -5,14 +5,13 @@
  * 参数钳位、固定步长的 Verlet 链。它们全是纯函数，所以可以脱离浏览器逐点断言；
  * 组件与组合式只负责接线（事件、生命周期、停帧）。
  *
- * "绳点 → SVG 带形路径"那一层在 [`charmTether.ts`](./charmTether.ts)：它只吃
- * 一串点、吐一个 `d`，不持有状态，所以单独成文件（也让本模块留在单文件 800 行
- * 门槛内）。
+ * "绳点 → SVG 带形路径"那一层在 [`charmTether.ts`](./charmTether.ts)，指针端的
+ * 带阻尼跟随在 [`charmPointerFollow.ts`](./charmPointerFollow.ts)：两者都只吃点、
+ * 不持有状态，单独成文件也让本模块留在单文件 800 行门槛内。
  *
  * 物理为什么是 Verlet 链而不是解析悬链线：解析悬链线零抖动，但站标会"死跟"
- * 指针，失去"被一根绳子拖着"的惯性感。指针端钉死、其余节点自由的链，
- * 静止姿态本来就是竖直的 —— **弧垂来自描边（绳长 > 实际距离），不来自重力**，
- * 所以调大重力只会让摆动更快，不会让绳子弯下来。
+ * 指针，失去"被一根绳子拖着"的惯性感。**弧垂来自描边（绳长 > 实际距离），不来自
+ * 重力**，所以调大重力只会让摆动更快，不会让绳子弯下来。
  *
  * 为什么是固定 1/120s 步长 + 累加器：被抄得最多的开源实现都硬编码"每帧一步"，
  * 在 120Hz 屏上物理会快一倍。这里按真实流逝时间累积，单帧最多 8 个子步、
@@ -26,11 +25,13 @@
  *     它们的 0 有明确含义，走"0 合法"的规则）；
  *   - JSON 里的 `null` 与缺键同义（票 #77）：归一化层把它折成 NaN 后回落
  *     默认值，绝不能被 `Number(null) === 0` 读成"管理员明确填了 0"；
- *   - 距离约束在节点重合时 dx/dist 会炸，必须先做退化守卫；
- *   - 坐标保留一位小数：长浮点会让 `d` 字符串每帧都不同，白白制造 diff 噪声。
+ *   - 距离约束在节点重合时 dx/dist 会炸，必须先做退化守卫；坐标要保留一位小数，
+ *     长浮点会让 `d` 字符串每帧都不同，白白制造 diff 噪声。
  */
 
 import type { SiteDecoConfig } from "~/types/api";
+
+import { CHARM_POINTER_FOLLOW_SNAP_PX, followPointerAnchor } from "./charmPointerFollow";
 
 /** 精确指针 + 可悬停设备的媒体查询：触屏与手写笔都匹配不上。 */
 export const CHARM_FINE_POINTER_QUERY = "(hover: hover) and (pointer: fine)";
@@ -78,13 +79,12 @@ export const CHARM_STIFFNESS_DEFAULT = 0.5;
  *
  * 为什么不再用 `segments × 30`（旧实现）：迭代次数跟着节点数涨，等于节点越多
  * 每步吸收误差越快，"节点数拉到上限反而更硬"正是用户报的那个现象。固定的
- * 20 次配 `stiffness` 松弛因子后，节点数只影响形状分辨率，不影响软硬。
- *
- * 旧注释写的 `2 × segments` 与旧实现 `segments × 30` 同样错在"随 segments 增长"，
- * 两处都已改成本常量；20 是实测口径：默认 10 节时与旧注释的 2 × segments 数值
- * 相同，但不再随节点数漂移。
+ * 20 次配 `stiffness` 松弛因子后，节点数只影响形状分辨率，不影响软硬。20 是
+ * 实测口径（默认 10 节时与旧注释写的 2 × segments 数值相同，但不再漂移）。
  */
 const CHARM_CONSTRAINT_ITERATIONS = 20;
+
+/**
 
 /** 站标尺寸下限（px）：再小就看不清是什么东西。与后端 `deco.charm.logo_size` 一致。 */
 export const CHARM_LOGO_SIZE_MIN = 15;
@@ -196,13 +196,9 @@ export const CHARM_MAX_FRAME_SECONDS = 0.05;
 export const CHARM_MAX_SUBSTEPS = 8;
 
 /**
- * 收敛阈值（px²/步²）。
- *
- * 能量按"每个自由节点一步内的位移平方和"计量（物理上等价于速度平方，
- * 只是少了除以 dt² 的常数）。10 个节点时 0.05 约等于每节点每步 0.07px ——
- * 在 120Hz 下路径字符串每帧变化不到一个像素，肉眼已经是静止。
- * 为什么不取更小：距离约束每步只松弛 `segments` 次，竖直链里重力每步
- * 被约束抵消后会留下一个极小的数值残差，取 0 会让循环多空转十几秒。
+ * 收敛阈值（px²/步²）：每个自由节点一步内位移的平方和。10 个节点时 0.05 约等于
+ * 每节点每步 0.07px —— 120Hz 下路径每帧变化不到一个像素，肉眼已经是静止。
+ * 不取更小：竖直链里重力每步被约束抵消后会留下极小的数值残差，取 0 会多空转十几秒。
  */
 export const CHARM_ENERGY_EPSILON = 0.05;
 
@@ -272,10 +268,18 @@ export interface CharmRopeState {
   config: CharmRopeConfig;
   /** 每节的静止长度（px），= ropeLength / segments。 */
   restLengthPx: number;
-  /** 节点位置；nodes[0] 永远钉在**指针端节点**（指针热点 + 指针端偏移）上。 */
+  /**
+   * 节点位置；nodes[0] 是**指针端节点**（指针热点 + 指针端偏移），由带阻尼的跟随
+   * 驱动：静止时精确落在锚点上，快速拖动时允许在滞后上界内落后（见 charmPointerFollow.ts）。
+   */
   nodes: CharmPoint[];
   /** 上一步的位置，Verlet 用它算速度。 */
   previous: CharmPoint[];
+  /**
+   * 上一次推进时收到的锚点：① 子步之间对它做线性插值（帧率无关的关键）；
+   * ② `charmRopeSettled` 用它判断指针端是否已经爬回锚点。
+   */
+  targetHead: CharmPoint;
   /** 还没凑满一个固定步长的真实时间（s）。 */
   accumulatorSeconds: number;
   /** 物理世界已经流逝的时间（s）：轻晃的正弦相位按它取值，与帧率无关。 */
@@ -570,17 +574,13 @@ function finite(value: number): number {
 /**
  * 指针热点 + 偏移 = 指针端节点（票 #75 的唯一真相）。
  *
- * 为什么偏移必须在这一处换算：链的指针端节点被钉死在这里，弧垂与张力都从这个点
- * 算起。若改成"渲染时再把起点挪一下"，物理仍以光标为头，快速拉扯时起点与绳子
- * 会脱节（ADR-0018「已否决：偏移只挪渲染起点」）。所以渲染层**不得**再偏一次。
+ * 弧垂与张力都从这个点算起，所以偏移只在这一处换算；若改成"渲染时再把起点挪
+ * 一下"，物理仍以光标为头，快速拉扯时起点与绳子会脱节（ADR-0018 已否决该做法），
+ * 渲染层**不得**再偏一次。
  *
- * **入参 `config` 必须来自 `normalizeCharmRopeConfig`（两轴偏移已在那里钳成
- * [-24, 24] 的整数）**。这里**不再**钳一次：每帧对同一份已归一化的配置重复钳位
- * 纯属重复劳动，还让"钳位到底发生在哪一层"变得说不清。传原始值（旧库、手改的
- * JSON）进来会把发散值带进物理 —— 需要兜底就在归一化那一层兜。
- *
- * 仍然保留的只有"非有限值当 0"这一条：它防的是 NaN 进 SVG（整条路径会静默消失），
- * 不是范围钳位。
+ * 入参 `config` 必须来自 `normalizeCharmRopeConfig`（两轴偏移已钳成 [-24, 24] 的
+ * 整数），这里不再钳一次，只保留"非有限值当 0"这一条 —— 它防的是 NaN 进 SVG
+ * （整条路径会静默消失），不是范围钳位。
  */
 export function charmPointerAnchor(
   pointer: CharmPoint,
@@ -611,13 +611,19 @@ export function createCharmRope(head: CharmPoint, config: CharmRopeConfig): Char
     restLengthPx,
     nodes,
     previous: nodes.map((node) => ({ ...node })),
+    targetHead: { ...headPoint },
     accumulatorSeconds: 0,
     elapsedSeconds: 0,
     stepCount: 0,
   };
 }
 
-/** 一次固定步长的 Verlet 推进（含约束松弛）。 */
+/**
+ * 一次固定步长的 Verlet 推进（含约束松弛）。`head` 是本子步的插值锚点。
+ *
+ * 指针端不再硬赋值，而是走 `charmPointerFollow.ts` 的带阻尼跟随（单向依赖，
+ * 拆文件是为了守住单文件 800 行门槛，与 `charmTether.ts` 当初拆出去同理）。
+ */
 function substep(state: CharmRopeState, head: CharmPoint): void {
   const { nodes, previous, config } = state;
   const first = nodes[0];
@@ -627,19 +633,16 @@ function substep(state: CharmRopeState, head: CharmPoint): void {
   const headY = finite(head.y);
   const count = nodes.length;
 
-  // 指针端每步都钉死在当前位置：它不是被力推着走，而是"手的位置"。
-  first.x = headX;
-  first.y = headY;
-  firstPrevious.x = headX;
-  firstPrevious.y = headY;
+  // 指针端：带阻尼的跟随，而不是硬赋值（票面要求的"平滑跟随 + 保留惯性"）。
+  followPointerAnchor(first, firstPrevious, headX, headY, config.stiffness);
 
   const gravityStep = config.gravity * CHARM_FIXED_STEP_SECONDS * CHARM_FIXED_STEP_SECONDS;
 
   // 静止轻晃：横向加速度按节点序号加权，**指针端为 0、自由端（尾节点）为 1**，
   // 按 `idle_sway_hz` 做正弦 —— 票面裁决要求加速度"作用在自由端"，所以越靠
-  // 近指针施力越小、越靠尾端越大。指针端每步都被钉死，整条链因此是被距离
-  // 约束"拉弯 / 侧摆"，而不是整层平移。幅度为 0 时这一项恒等于 0，物理回到
-  // 纯重力 + 阻尼，可以正常收敛。
+  // 近指针施力越小、越靠尾端越大。指针端由跟随驱动（它不参与这一项），整条链
+  // 因此是被距离约束"拉弯 / 侧摆"，而不是整层平移。幅度为 0 时这一项恒等于 0，
+  // 物理回到纯重力 + 阻尼，可以正常收敛。
   const swayPhase = 2 * Math.PI * config.idleSwayHz * state.elapsedSeconds;
   const swayAccel = config.idleSwayAmp * Math.sin(swayPhase);
   const swayStep = swayAccel * CHARM_FIXED_STEP_SECONDS * CHARM_FIXED_STEP_SECONDS;
@@ -658,17 +661,13 @@ function substep(state: CharmRopeState, head: CharmPoint): void {
   }
   state.elapsedSeconds += CHARM_FIXED_STEP_SECONDS;
 
-  // 距离约束：固定 20 次迭代 × 刚度松弛（0–1）。旧实现是 `segments × 30` 次
-  // 全量投影（注释却写 2 × segments），迭代数随节点数涨 → 节点越多每步吸收
-  // 误差越快，"节点数拉到上限反而更硬"。这里迭代数不再随 segments 增长，刚度
-  // 只决定每次迭代消化多少误差：1 等于旧的全量投影手感，0.5 先拉长再回弹。
-  // 每次只把"超过静止长度的部分"按刚度分给两端；节点 0 钉死，第一段由节点 1
-  // 独自承担修正。
+  // 距离约束：固定 20 次迭代 × 刚度松弛（0–1）。迭代数不随 segments 增长，刚度
+  // 只决定每次迭代消化多少误差：1 = 旧的全量投影手感，0.5 = 先拉长再回弹。
+  // 指针端这一子步的位置由上面的跟随决定，约束不回头改它，所以第一段的修正
+  // 全部落在节点 1 上。
   const rest = state.restLengthPx;
   const iterationCount = CHARM_CONSTRAINT_ITERATIONS;
   for (let iteration = 0; iteration < iterationCount; iteration += 1) {
-    first.x = headX;
-    first.y = headY;
     for (let index = 0; index < count - 1; index += 1) {
       const current = nodes[index];
       const next = nodes[index + 1];
@@ -688,7 +687,6 @@ function substep(state: CharmRopeState, head: CharmPoint): void {
 
       const correction = ((distance - rest) / distance) * config.stiffness;
       if (index === 0) {
-        // 指针端是钉死的，整段修正都给节点 1。
         next.x -= deltaX * correction;
         next.y -= deltaY * correction;
       } else {
@@ -699,17 +697,20 @@ function substep(state: CharmRopeState, head: CharmPoint): void {
       }
     }
   }
-  first.x = headX;
-  first.y = headY;
 }
 
 /**
  * 推进一帧的真实时间：把 dt 塞进累加器，再按固定步长跑子步。
  *
+ * **锚点在子步之间线性插值**：一帧里拿到的新指针位置只在一帧的边界上可见，若整帧
+ * 的子步都用同一个锚点，指针端就会"一帧跳一次"（60Hz 下 4000px/s 是 67px 的台阶），
+ * 链被这个台阶拽直，而且帧率越低台阶越大 —— 这正是"一快就变形"。铺开之后物理看到的
+ * 输入是连续位移，16ms 与 33ms 帧间隔下的子步序列几乎相同。
+ *
  * @returns 本帧真正执行的子步数（测试用来断言"没有比真实时间跑得快"）。
  *
- * 累加器先截断到 `CHARM_MAX_FRAME_SECONDS`：切后台十分钟再回来、
- * 断点停在某一行，都不会让链在一帧里被甩爆；单帧子步上限是第二道保险。
+ * 累加器先截断到 `CHARM_MAX_FRAME_SECONDS`：切后台十分钟再回来、断点停在某一行，
+ * 都不会让链在一帧里被甩爆；单帧子步上限是第二道保险。
  */
 export function advanceCharmRope(state: CharmRopeState, frameDeltaSeconds: number, head: CharmPoint): number {
   if (!Number.isFinite(frameDeltaSeconds) || frameDeltaSeconds <= 0) return 0;
@@ -719,19 +720,32 @@ export function advanceCharmRope(state: CharmRopeState, frameDeltaSeconds: numbe
     state.accumulatorSeconds + frameDeltaSeconds,
   );
 
-  let subSteps = 0;
-  while (state.accumulatorSeconds >= CHARM_FIXED_STEP_SECONDS && subSteps < CHARM_MAX_SUBSTEPS) {
-    substep(state, head);
+  // 这一帧最多能跑几个子步：先数出来，才能把锚点按同样的份数铺开。
+  const totalSubSteps = Math.min(
+    Math.floor(state.accumulatorSeconds / CHARM_FIXED_STEP_SECONDS),
+    CHARM_MAX_SUBSTEPS,
+  );
+  if (totalSubSteps <= 0) return 0;
+
+  const headX = finite(head.x);
+  const headY = finite(head.y);
+  const fromX = finite(state.targetHead.x);
+  const fromY = finite(state.targetHead.y);
+
+  for (let index = 1; index <= totalSubSteps; index += 1) {
+    const ratio = index / totalSubSteps;
+    substep(state, { x: fromX + (headX - fromX) * ratio, y: fromY + (headY - fromY) * ratio });
     state.accumulatorSeconds -= CHARM_FIXED_STEP_SECONDS;
     state.stepCount += 1;
-    subSteps += 1;
   }
+  state.targetHead = { x: headX, y: headY };
+
   // 打到子步上限时丢弃剩下的时间，而不是留到下一帧继续补 ——
   // 否则重负载下会进入"永远在追赶"的正反馈。
-  if (subSteps >= CHARM_MAX_SUBSTEPS && state.accumulatorSeconds >= CHARM_FIXED_STEP_SECONDS) {
+  if (totalSubSteps >= CHARM_MAX_SUBSTEPS && state.accumulatorSeconds >= CHARM_FIXED_STEP_SECONDS) {
     state.accumulatorSeconds = 0;
   }
-  return subSteps;
+  return totalSubSteps;
 }
 
 /** 当前链的能量（px²/步²）：每个自由节点一步内位移的平方和。 */
@@ -749,12 +763,20 @@ export function charmRopeEnergy(state: CharmRopeState): number {
 }
 
 /**
- * 链是否已经收敛到静止：能量低于阈值。
+ * 链是否已经收敛到静止：能量低于阈值，且指针端已经爬回锚点。
  *
- * 组合式据此取消动画帧 —— 静态页面必须零帧开销，不能永远空转。
+ * 组合式据此取消动画帧 —— 静态页面必须零帧开销。第二个条件不可少：指针端的跟随
+ * 不在能量里（能量只统计自由节点），只看能量就会在"绳子已稳、指针端还在慢慢爬"
+ * 时停帧，挂件会永久停在离指针差几像素的位置上，静止姿态也就不再等于「指针 + 偏移」。
  */
 export function charmRopeSettled(state: CharmRopeState, threshold: number = CHARM_ENERGY_EPSILON): boolean {
-  return charmRopeEnergy(state) < threshold;
+  if (charmRopeEnergy(state) >= threshold) return false;
+  const head = state.nodes[0];
+  if (!head) return true;
+  return (
+    Math.hypot(head.x - finite(state.targetHead.x), head.y - finite(state.targetHead.y)) <=
+    CHARM_POINTER_FOLLOW_SNAP_PX
+  );
 }
 
 /** 除指针端以外的最后一个节点（站标挂在这里）。 */

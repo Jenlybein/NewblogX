@@ -87,3 +87,16 @@
 **继续生效的部分**：决策 1–8、10、11 与约束 1–7、9、10（装饰段归属、钳位不报错、四端一致、Verlet + 松弛弧垂、固定 1/120s 步长、SVG 覆盖层、`z-index 9999` + `pointer-events: none`、带形多边形收尾、不成为第二个功能入口、失焦只冻结不瞬移）。ADR-0018 只改"帧率怎么来"和"指针端从哪里长出来"，不碰渲染立场与物理模型。
 
 **落地时连带改掉的**（已完成，属 ADR-0018 的实施清单，此处列出是因为它们都写在本 ADR 名下的文档里）：[configuration.md](../architecture/configuration.md) §五 的降速段与参数清单（八个→十一个）、[site_default_settings.yaml](../../backend/config/site_default_settings.yaml) 里关于旧降速策略的注释、[CursorCharm.vue](../../frontend/app/components/deco/CursorCharm.vue) 顶部的渲染成本注释（现按 `fps_cap` 门控说明）、[GLOSSARY](../../GLOSSARY.md) 的「挂绳」词条（已补"指针端 = 指针热点 + 指针端偏移"）。
+
+## 后续修订（2026-11-02）
+
+指针端从"每步钉死"改为"带阻尼跟随"，只影响决策 5 里"指针端每步钉死在指针位置"这一句，其余结论不变。
+
+| 位置 | 原口径 | 修订后 |
+| --- | --- | --- |
+| 决策 5 / 当前生效约束 5（物理模型） | 指针端每步钉死在指针位置，其余节点自由 | 指针端由**一阶低通跟随**驱动（时间常数由 `stiffness` 换算、滞后有硬上界、静止时精确吸附）；`advanceCharmRope` 在固定子步之间对锚点线性插值。固定 1/120s 步长、单帧 8 子步、累加器 0.05s 一律不动 |
+
+原因：硬赋值会把一帧里几十像素的指针位移当成瞬时冲量灌进链里，距离约束随即把每节拉到静止长度——快速甩动时"挂绳整条瞬直"。一阶跟随把同一段位移摊到多个固定子步上，并且让滞后随速度变化（慢拖几乎贴手、快甩才落后）。物理在 [`charmPointerFollow.ts`](../../frontend/app/utils/charmPointerFollow.ts)（从 `decoCharm.ts` 拆出，守住单文件 800 行门槛）；验收由 `test/utils/decoCharmPointerFollow.test.ts` 与 `test/composables/useCursorCharmPointerFollow.test.ts` 盯着（平滑跟随、滞后有界不脱节、16.7ms 与 33.3ms 帧间隔末态一致）。
+
+**没做的**：不新增任何 `deco.charm` 参数（时间常数与滞后上界都是内部常量，跨端门禁的 12 个数值参数不变）；不改 `CHARM_CONSTRAINT_ITERATIONS = 20` 与 `stiffness` 的弹性口径——因此拖拽速度超过约 2500px/s 时弦长仍会被拉到绳长以上（实测 3200px/s 时约 138px），这是 #122 有意保留的弹性，不是本次能修的。
+

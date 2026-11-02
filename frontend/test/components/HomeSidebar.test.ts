@@ -7,8 +7,12 @@ import type { SiteSidebarCardItem } from "~/types/api";
 
 const NuxtLinkStub = defineComponent({
   props: { to: { type: [String, Object], default: "" } },
-  setup(_props, { slots }) {
-    return () => h("a", slots.default?.());
+  setup(props, { slots }) {
+    // 把 `to` 落到 href 上：右栏的合集推荐卡是"整行进详情"的链接，
+    // 断言 href 是唯一能钉住"点进去到哪个页面"的方式。
+    const href =
+      typeof props.to === "string" ? props.to : String((props.to as { path?: string })?.path || "");
+    return () => h("a", { href }, slots.default?.());
   },
 });
 
@@ -227,5 +231,83 @@ describe("HomeSidebar：右栏只由卡片数据决定", () => {
     expect(links).toHaveLength(1);
     expect(links[0].text()).toContain("右栏热读");
     expect(wrapper.text()).not.toContain("主栏已经置顶的文章");
+  });
+});
+
+describe("HomeSidebar：推荐合集卡", () => {
+  function sidebarCard(
+    kind: SiteSidebarCardItem["kind"],
+    overrides: Partial<SiteSidebarCardItem> = {},
+  ): SiteSidebarCardItem {
+    return {
+      id: `card-${kind}`,
+      kind,
+      title: "",
+      sort_order: 0,
+      hot_articles: [],
+      latest_comments: [],
+      tags: [],
+      collections: [],
+      ...overrides,
+    };
+  }
+
+  const collectionCard = sidebarCard("recommended_collections", {
+    title: "往期专题",
+    collections: [
+      {
+        id: "101",
+        title: "从零搭一个博客",
+        description: "一套完整的建站路径",
+        cover: "https://cdn.example.com/blog.png",
+        article_count: 7,
+      },
+      {
+        id: "102",
+        title: "工程效率",
+        description: "",
+        cover: "",
+        article_count: 0,
+      },
+    ],
+  });
+
+  it("每行是一个合集详情链接，带标题、简介与文章数", () => {
+    const wrapper = mountSidebar({ sidebarCards: [collectionCard] });
+
+    const section = wrapper.get("[data-sidebar-card='recommended_collections']");
+    expect(section.get("[data-sidebar-card-title]").text()).toBe("往期专题");
+    const links = section.findAll("a");
+    expect(links).toHaveLength(2);
+    expect(links[0].attributes("href")).toBe("/collections/101");
+    expect(links[1].attributes("href")).toBe("/collections/102");
+    expect(links[0].text()).toContain("从零搭一个博客");
+    expect(links[0].text()).toContain("一套完整的建站路径");
+    expect(links[0].text()).toContain("7 篇文章");
+    expect(links[1].text()).toContain("工程效率");
+    expect(links[1].text()).toContain("暂无文章");
+  });
+
+  it("有封面的合集渲染缩略图，没有封面就不留破图位", () => {
+    const wrapper = mountSidebar({ sidebarCards: [collectionCard] });
+
+    const images = wrapper.findAll("[data-sidebar-card='recommended_collections'] img");
+    expect(images).toHaveLength(1);
+    expect(images[0].attributes("src")).toBe("https://cdn.example.com/blog.png");
+  });
+
+  it("没有可推荐的合集时整块隐藏（不出现只有标题的空盒子）", () => {
+    const wrapper = mountSidebar({
+      sidebarCards: [
+        sidebarCard("recommended_collections", { title: "推荐合集", collections: [] }),
+        sidebarCard("hot_articles", {
+          title: "热门文章",
+          hot_articles: [{ id: "a1", title: "热读一", digg_count: 12, view_count: 120 }],
+        }),
+      ],
+    });
+
+    expect(wrapper.find("[data-sidebar-card='recommended_collections']").exists()).toBe(false);
+    expect(wrapper.findAll("[data-sidebar-card]")).toHaveLength(1);
   });
 });

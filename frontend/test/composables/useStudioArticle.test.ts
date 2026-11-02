@@ -560,21 +560,43 @@ describe("useStudioArticle · 封面 16:9 锁定与取景", () => {
     expect(message.success).toHaveBeenCalledWith("封面上传成功");
   });
 
-  it("取景参数只用于预览，不写进文章载荷（本票不落库）", async () => {
+  it("确认取景后把取景参数交给载荷组装（随文章落库）", async () => {
     const { api } = await harness({ readSize: async () => ({ width: 1200, height: 800 }) });
 
     await api.handleCoverFileChange(fileChangeEvent(imageFile()));
     await api.confirmCoverFraming({ focus_x: 0.3, focus_y: 0.4, zoom: 1.2 });
     api.buildArticlePayload(2);
 
-    // 载荷仍是既有契约的字段集合：没有任何 crop / framing 字段。
-    const payload = buildPayloadMock.mock.calls.at(-1)?.[0] as Record<string, unknown>;
-    expect(Object.keys(payload)).not.toContain("crop");
-    expect(Object.keys(payload)).not.toContain("framing");
+    // 取景不是预览专用：它是文章状态的一部分，必须随载荷交给后端。
     expect(buildPayloadMock.mock.calls.at(-1)?.[1]).toEqual({
       status: 2,
       isEditMode: false,
       coverDirty: true,
+      crop: { focus_x: 0.3, focus_y: 0.4, zoom: 1.2 },
+    });
+  });
+
+  it("编辑态回填已有取景：预览按它渲染，但没重新确认取景时不写载荷（保留原值）", async () => {
+    // 取数在 harness() 内部就发起：fixture 必须先配好，之后再 mock 不生效。
+    getArticleDetailMock.mockResolvedValue({
+      ...articleFixture,
+      crop: { focus_x: 0.25, focus_y: 0.75, zoom: 1.5 },
+    });
+    const { api } = await harness({ query: { article_id: "100" } });
+
+    expect(api.coverPreviewStyle.value).toMatchObject({
+      objectFit: "cover",
+      objectPosition: "25% 75%",
+      transformOrigin: "25% 75%",
+      transform: "scale(1.5)",
+    });
+
+    api.buildArticlePayload(1);
+    expect(buildPayloadMock.mock.calls.at(-1)?.[1]).toEqual({
+      status: 1,
+      isEditMode: true,
+      coverDirty: false,
+      crop: null,
     });
   });
 

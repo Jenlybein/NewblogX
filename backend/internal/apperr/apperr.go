@@ -240,6 +240,12 @@ const (
 	// 分家，而两边都没有任何提示。
 	CodeBannerCropInvalid Code = "banner.crop_invalid"
 
+	// CodeArticleCropInvalid 表示文章封面取景参数越界。
+	//
+	// 与轮播共用同一套取值口径（焦点 0–1、缩放 1–2），但错误码分开：
+	// 排查时从码就能看出是哪类主体的封面被拒，不必再去猜调用方。
+	CodeArticleCropInvalid Code = "article.crop_invalid"
+
 	// 右栏卡片。
 	//
 	// 与轮播图分开：卡片是独立表、独立接口，排错时错误码要能直接指向右栏，
@@ -481,6 +487,8 @@ var messages = map[Code]string{
 	CodeSiteInfoNotFound:  "站点信息不存在",
 	CodeBannerNotFound:    "轮播图不存在",
 	CodeBannerCropInvalid: "取景参数超出范围：焦点需在 0 到 1 之间，缩放需在 1 到 2 之间",
+
+	CodeArticleCropInvalid: "取景参数超出范围：焦点需在 0 到 1 之间，缩放需在 1 到 2 之间",
 
 	CodeSidebarCardKindInvalid:   "右栏卡片类型不存在",
 	CodeSidebarCardLimitExceeded: "右栏卡片数量超出上限",

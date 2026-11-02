@@ -24,6 +24,7 @@ import { formatCount, formatDateTimeLabel } from "~/utils/format";
 import { getAuthorButtonLabel, isFollowing } from "~/utils/relation";
 import { resolveAvatarInitial } from "~/utils/avatar";
 import { brandDescription } from "~/utils/brand";
+import { framingStyle } from "~/utils/coverFraming";
 import katexCssUrl from "katex/dist/katex.min.css?url";
 
 const route = useRoute();
@@ -83,6 +84,9 @@ const articleLoadError = computed(() => {
   return "文章详情暂时无法加载。";
 });
 const authorId = computed(() => article.value?.author_id || "");
+// 读者侧按取景参数复现作者确认过的那一块（与取景窗同一套百分比 + scale 换算）。
+// 存量文章没有取景记录时，接口已回填缺省（居中、缩放 1），渲染与加取景前一致。
+const articleCoverStyle = computed(() => (article.value?.crop ? framingStyle(article.value.crop) : null));
 // 切页时（还没有正文）先出骨架；重试（正文已在）不闪骨架。
 const articleSkeleton = computed(() => articlePending.value && !article.value);
 
@@ -541,7 +545,7 @@ useSeoMeta({
       <div class="article-layout">
         <div class="article-main">
           <section v-if="article?.cover" class="article-paper article-paper--cover">
-            <img :src="article.cover" :alt="article.title" class="article-cover" />
+            <img :src="article.cover" :alt="article.title" class="article-cover" :style="articleCoverStyle" />
           </section>
 
           <section class="article-paper article-paper--body">

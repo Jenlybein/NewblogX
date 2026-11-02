@@ -5825,6 +5825,8 @@ export interface components {
             comments_toggle?: boolean;
             content: string;
             cover_image_id?: string;
+            /** @description Crop 是封面的可选取景参数：不传 = 缺省（居中、缩放 1）。 */
+            crop?: components["schemas"]["internal_article_adapter_http.ArticleCrop"];
             /** @enum {integer} */
             status: 1 | 2;
             tag_ids?: string[];
@@ -5843,6 +5845,11 @@ export interface components {
             title?: string;
             visibility_status?: components["schemas"]["internal_article_adapter_http.ArticleVisibility"];
         };
+        "internal_article_adapter_http.ArticleCrop": {
+            focus_x?: number;
+            focus_y?: number;
+            zoom?: number;
+        };
         "internal_article_adapter_http.ArticleDetailResponse": {
             abstract?: string;
             author_abstract?: string;
@@ -5860,6 +5867,8 @@ export interface components {
             cover?: string;
             cover_image_id?: string;
             created_at?: string;
+            /** @description Crop 总是有值：没有取景记录的存量文章回传缺省（居中、缩放 1）。 */
+            crop?: components["schemas"]["internal_article_adapter_http.ArticleCrop"];
             digg_count?: number;
             favor_count?: number;
             id?: string;
@@ -5944,6 +5953,11 @@ export interface components {
             comments_toggle?: boolean;
             content?: string;
             cover_image_id?: string;
+            /**
+             * @description Crop 不传 = 保留已存的取景；传了才覆盖。与创建语义不同，别写混：
+             *     更新时不传若被当成"清空"，改一个标题就会静默抹掉作者调好的构图。
+             */
+            crop?: components["schemas"]["internal_article_adapter_http.ArticleCrop"];
             /** @enum {integer} */
             status?: 1 | 2;
             tag_ids?: string[];

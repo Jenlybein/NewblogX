@@ -83,7 +83,12 @@ func (s *Service) Delete(ctx context.Context, cmd DeleteCmd) (*DeleteResult, err
 			return err
 		}
 
-		// 8) 文章本体（软删）
+		// 8) 封面取景（取景表没有软删列，随文章真删）
+		if err := deleteArticleCrop(ctx, r, a.ID().Uint64()); err != nil {
+			return err
+		}
+
+		// 9) 文章本体（软删）
 		//
 		// 必须走仓储的 SoftDelete：Update 的列清单不含 deleted_at，
 		// 用 Update 落"软删"会变成什么都没删（golden/e2e 抓到的真实缺陷）。

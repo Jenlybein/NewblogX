@@ -23,6 +23,7 @@ import (
 	articlemysql "myblogx/internal/article/adapter/mysql"
 	articleapp "myblogx/internal/article/app"
 	"myblogx/internal/article/domain"
+	"myblogx/internal/article/domain/collection"
 	"myblogx/internal/article/domain/favorite"
 	"myblogx/internal/kernel/ctype"
 	"myblogx/internal/platform/config"
@@ -44,6 +45,7 @@ func (g *testIDs) next() uint64 { g.n++; return g.n }
 func (g *testIDs) NextArticleID() domain.ArticleID { return ctype.NewID(g.next()) }
 func (g *testIDs) NextReviewTaskID() uint64        { return g.next() }
 func (g *testIDs) NextFolderID() favorite.ID       { return ctype.NewID(g.next()) }
+func (g *testIDs) NextCollectionID() collection.ID { return ctype.NewID(g.next()) }
 
 func migrate(t *testing.T) *gorm.DB {
 	t.Helper()
@@ -253,3 +255,4 @@ func TestSitePolicyRejectsNormalUserWithReadableMessage(t *testing.T) {
 		t.Fatalf("管理员应不受站点开关影响，实际 %v", adminResp)
 	}
 }
+

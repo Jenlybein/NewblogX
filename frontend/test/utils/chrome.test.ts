@@ -17,11 +17,12 @@ import {
  * （路由是既有契约，不能因为重排而变）、明暗切换的无障碍文案、页脚链接与备案行。
  */
 describe("headerNavItems：图纸式页头的导航与 active 判定", () => {
-  it("三个入口：首页 / 搜索 / 创作，顺序固定", () => {
+  it("四个入口：首页 / 搜索 / 创作 / 合集，顺序固定", () => {
     expect(headerNavItems("/").map((item) => [item.key, item.label, item.to])).toEqual([
       ["home", "首页", "/"],
       ["search", "搜索", "/search"],
       ["write", "创作", "/studio/write"],
+      ["collections", "合集", "/collections"],
     ]);
   });
 
@@ -32,6 +33,7 @@ describe("headerNavItems：图纸式页头的导航与 active 判定", () => {
       ["home", false],
       ["search", false],
       ["write", false],
+      ["collections", false],
     ]);
   });
 
@@ -45,8 +47,25 @@ describe("headerNavItems：图纸式页头的导航与 active 判定", () => {
     expect(write?.active).toBe(true);
   });
 
+  it("合集页及其子路径激活合集", () => {
+    expect(headerNavItems("/collections").find((item) => item.key === "collections")?.active).toBe(
+      true,
+    );
+    expect(
+      headerNavItems("/collections/c1").find((item) => item.key === "collections")?.active,
+    ).toBe(true);
+  });
+
   it("每个路径最多只有一个 active", () => {
-    for (const path of ["/", "/search", "/studio/write", "/article/a1", "/users/u1"]) {
+    for (const path of [
+      "/",
+      "/search",
+      "/studio/write",
+      "/collections",
+      "/collections/c1",
+      "/article/a1",
+      "/users/u1",
+    ]) {
       expect(headerNavItems(path).filter((item) => item.active).length).toBeLessThanOrEqual(1);
     }
   });
@@ -95,3 +114,4 @@ describe("页脚：少量链接 + 备案行", () => {
     expect(FOOTER_ICP).toMatch(/^粤ICP备 \d+ 号$/u);
   });
 });
+

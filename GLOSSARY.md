@@ -461,6 +461,11 @@ _Avoid_: 用"档位 B"描述现状；在 `prefers-reduced-motion` 下仍保留�
 位置：表 `article_hot_top_models`；接口 `GET /articles/hot-top`（公开读卡片）、`GET /articles/hot-top/admin`（管理端全量，含失效行）、`POST|DELETE /articles/{id}/admin/hot-top`、`PATCH /articles/hot-top/order`；后台「热门置顶」页与文章管理列表的切换按钮（两者都读 admin 那份全量列表）；读者站 `frontend/app/components/home/HomePinnedSection.vue`。取舍见 [ADR-0017](./docs/adr/0017-publish-display-switches-and-hot-top-operator-slot.md) 决策 4–5。
 _Avoid_: 「管理员置顶」（ES 旧派生字段 `admin_top` 的叫法，已删除）；「精选文章」（旧文案）；拿「热门置顶」指作者置顶。
 
+**合集（collection）**：
+由**管理员**维护的、有标题 / 描述 / 封面 / 展示开关与顺序的文章集合（"Nuxt 部署实战"这类专题）。与「热门置顶」是两套数据：合集没有条数上限，且主体是"一个有名字的集合"而不是首页排序位；作者不参与创建，读者只读。唯一真相是主表 `collection_models` 加中间表 `collection_article_models`（`(collection_id, article_id)` 唯一 + `sort_order` + 软删）。中间表沿用热门置顶的失效口径：文章后来不再公开时中间行**保留**，读者侧靠 JOIN 过滤、后台标「已失效」并可清理。合集**不进 ES**（运营编排不是可检索内容）。读者侧列表只出「展示中」的合集，篇数只算仍公开的文章；未展示的合集对读者按**不存在**处理（不返回"这个合集未发布"），管理员仍可打开。封面为空时读模型回退到首篇公开文章的封面。
+位置：表 `collection_models` / `collection_article_models`（DDL 见 `backend/internal/platform/mysql/ddl/schema.sql`）；接口 `GET /collections`、`GET /collections/{id}`（公开读）、`GET /collections/admin`、`POST /collections`、`PATCH /collections/{id}/display`、`POST|DELETE /collections/{id}/articles`、`PATCH /collections/{id}/articles/order`；后端 `internal/article/domain/collection`（规则与读模型）、`app/collection.go`、`adapter/mysql/collection_repo.go`、`adapter/http/handler_collection.go`；读者站 `frontend/app/pages/collections/` 与顶栏第四项 `frontend/app/utils/chrome.ts`。
+_Avoid_: 「专辑」「专栏」「系列」（同义词，一律写合集）；用「合集」指用户自己的收藏夹（那是 `favorite_models`，与合集无关）；用「合集」指 ADR 归档（`docs/archive/v1/04-adr-collection.md` 是旧文档合集，不是这个功能）。
+
 **作者置顶**：
 作者把自己的一篇文章钉在**个人主页**的置顶关系；只有作者本人能设置，与热门置顶是两套数据、两套存储。读者站与后台当前都**没有**消费点（用户页 / 个人主页的文章列表走搜索 type 3），接口保留但不在「显示」开关的读者读面清单内（ADR-0017 决策 4）。
 位置：表 `user_top_article_models`、`GET /articles/top?user_id=`、`POST|DELETE /articles/top`、`backend/internal/article/domain/top`；规则 `domain.CanBeTopped`。

@@ -402,17 +402,19 @@ describe("useCursorCharm：首次移动、绳链与淡入", () => {
 });
 
 describe("useCursorCharm：固定步长循环与停帧", () => {
-  it("指针移动后按真实时间推进，头节点始终钉在「指针 + 偏移」上", () => {
+  it("指针移动后按真实时间推进，指针端最终落到「指针 + 偏移」附近", () => {
     const { charm, pointer, frames } = mount();
     pointer.emit("pointermove", { clientX: 0, clientY: 0 });
     frames.advance(16.667);
     pointer.emit("pointermove", { clientX: 60, clientY: 0 });
 
-    for (let i = 0; i < 6; i += 1) frames.advance(16.667);
+    // 指针端是**带阻尼的跟随**（不是硬赋值）：60px 的跳变要几帧才收敛，
+    // 所以这里给足 12 帧（200ms），断言的是"收敛到了"，不是"一帧到位"。
+    for (let i = 0; i < 12; i += 1) frames.advance(16.667);
 
     expect(charm.tetherGeometry?.centerline[0]?.x).toBeCloseTo(60 + DEFAULT_OFFSET.x, 1);
     expect(Number(charm.logoCenter.value.x)).not.toBeNaN();
-    // 头节点钉住、链被拖在后面：站标不会还停在旧位置。
+    // 链被拖在后面：站标不会还停在旧位置。
     expect(charm.logoCenter.value.x).toBeGreaterThan(20);
   });
 
@@ -558,22 +560,20 @@ describe("useCursorCharm：恒定帧率上限（票 #74 裁决）", () => {
     expect(published).toBe(refreshed);
   });
 
-  it("门控不拖慢物理：上限 30 时收敛所需的发布次数约为上限 60 的一半", () => {
+  it("门控不拖慢物理：同样一段真实时间，上限 30 的发布次数约为上限 60 的一半", () => {
     // 每次发布补进"距上一次发布真实流逝的时间"，所以 30 档用一半的发布次数
     // 走完同样长的物理时间。若门控丢掉的时间没补回来，两者次数会一样多。
-    const fast = mount({ config: () => ({ idleSwayAmp: 0, fpsCap: 60 }) });
-    fast.pointer.emit("pointermove", { clientX: 0, clientY: 0 });
-    fast.frames.advance(RAF_DELAY_MS); // 先在 (0,0) 把链建起来
-    fast.pointer.emit("pointermove", { clientX: 90, clientY: 0 });
-    fast.frames.runUntilIdle(2000);
-    expect(fast.frames.pending()).toBe(0);
+    function runWindow(fpsCap: number) {
+      const ctx = mount({ config: () => ({ idleSwayAmp: 0, fpsCap }) });
+      ctx.pointer.emit("pointermove", { clientX: 0, clientY: 0 });
+      ctx.frames.advance(RAF_DELAY_MS); // 先在 (0,0) 把链建起来
+      ctx.pointer.emit("pointermove", { clientX: 90, clientY: 0 });
+      ctx.frames.advance(400);
+      return ctx;
+    }
 
-    const slow = mount({ config: () => ({ idleSwayAmp: 0, fpsCap: 30 }) });
-    slow.pointer.emit("pointermove", { clientX: 0, clientY: 0 });
-    slow.frames.advance(RAF_DELAY_MS);
-    slow.pointer.emit("pointermove", { clientX: 90, clientY: 0 });
-    slow.frames.runUntilIdle(2000);
-    expect(slow.frames.pending()).toBe(0);
+    const fast = runWindow(60);
+    const slow = runWindow(30);
 
     expect(fast.charm.physicsFrames).toBeGreaterThan(10);
     expect(slow.charm.physicsFrames).toBeLessThan(fast.charm.physicsFrames * 0.75);
@@ -613,10 +613,14 @@ describe("useCursorCharm：恒定帧率上限（票 #74 裁决）", () => {
     expect(charm.tetherPath.value).toBe(pathBefore);
     expect(charm.physicsFrames).toBe(publishedBefore);
 
-    // 下一次刷新（≤ 1000/60 ≈ 16.7ms 后）才发布，且头节点已经到新位置。
+    // 下一次刷新（≤ 1000/60 ≈ 16.7ms 后）才发布，且指针端已朝新位置动了。
     frames.advance(RAF_DELAY_MS);
     expect(charm.physicsFrames).toBe(publishedBefore + 1);
-    expect(charm.tetherGeometry?.centerline[0]?.x).toBeCloseTo(300 + DEFAULT_OFFSET.x, 1);
+    const head = charm.tetherGeometry?.centerline[0];
+    expect(head?.x).toBeGreaterThan(50);
+    // 平滑跟随：一帧之内还没到锚点，但滞后在阈值以内（不脱节）。
+    expect(Math.abs((head?.x ?? 0) - (300 + DEFAULT_OFFSET.x))).toBeLessThan(24);
+    expect(Math.abs((head?.y ?? 0) - (200 + DEFAULT_OFFSET.y))).toBeLessThan(24);
   });
 });
 
@@ -675,16 +679,22 @@ describe("useCursorCharm：指针端偏移（票 #75，指针端节点 = 指针�
     expect(charm.logoCenter.value.y).toBeGreaterThan(CHARM_ROPE_LENGTH_DEFAULT);
     expect(charm.logoCenter.value.y).toBeLessThan(CHARM_ROPE_LENGTH_DEFAULT + 3);
 
-    // 只改偏移（节点数与绳长不动）：下一次发布必须就跟着走。
+    // 只改偏移（节点数与绳长不动）：下一次发布必须就朝新头节点动。
     offsets.value = { x: 10, y: 10 };
     pointer.emit("pointermove", { clientX: 0, clientY: 0 });
     frames.advance(RAF_DELAY_MS);
 
+    // 指针端是平滑跟随：一帧里先走一截（不是硬赋值一步到位）。
+    const firstFrame = charm.tetherGeometry?.centerline[0];
+    expect(firstFrame?.x).toBeGreaterThan(2);
+    expect(firstFrame?.x).toBeLessThan(10);
+    // 链没有被重建：第一帧站标还在原处附近，而不是瞬间跑到新头节点下方一整根绳长处。
+    expect(charm.logoCenter.value.y).toBeLessThan(CHARM_ROPE_LENGTH_DEFAULT + 5);
+
+    // 随后几帧收敛到新头节点（偏移原地生效，构图不变）。
+    for (let i = 0; i < 10; i += 1) frames.advance(RAF_DELAY_MS);
     expect(charm.tetherGeometry?.centerline[0]?.x).toBeCloseTo(10, 1);
     expect(charm.tetherGeometry?.centerline[0]?.y).toBeCloseTo(10, 1);
-    // 重建会把整条链按新头节点重新竖下来（尾端 y ≈ 130）；这里尾端仍挂在原处
-    // 附近、只被距离约束拖了一点，说明链没有被重建。
-    expect(charm.logoCenter.value.y).toBeLessThan(CHARM_ROPE_LENGTH_DEFAULT + 5);
   });
 
   it("偏移不影响启用门控：触屏 / 减少动态下仍然零帧、零监听", () => {
@@ -705,22 +715,24 @@ describe("useCursorCharm：指针端偏移（票 #75，指针端节点 = 指针�
 });
 
 describe("useCursorCharm：失焦冻结与切后台暂停", () => {
-  it("窗口失焦时冻结指针端而不是瞬移：头节点留在原处，链自然收敛", () => {
+  it("窗口失焦时冻结指针端而不是瞬移：指针端收敛到冻结前的锚点", () => {
     const { charm, pointer, frames } = mount();
     pointer.emit("pointermove", { clientX: 100, clientY: 100 });
     // 先让它跑一帧把链建起来，再跳一次指针：链被拖在后面，带着能量。
     frames.advance(RAF_DELAY_MS);
     pointer.emit("pointermove", { clientX: 160, clientY: 100 });
     frames.advance(20);
-    const headBefore = charm.tetherGeometry?.centerline[0];
 
     pointer.emit("blur");
-    // 冻结期间即使收到（浏览器不该发的）pointermove，也不能动头节点。
+    // 冻结期间即使收到（浏览器不该发的）pointermove，也不能动指针端。
     pointer.emit("pointermove", { clientX: 500, clientY: 500 });
     const framesRun = frames.runUntilIdle(1200);
 
     expect(framesRun).toBeGreaterThan(0);
-    expect(charm.tetherGeometry?.centerline[0]).toEqual(headBefore);
+    // 冻结住的是"指针端目标"：它继续收敛到冻结那一刻的锚点（160, 100），
+    // 绝不会被窗外事件的 (500, 500) 拽过去。
+    expect(charm.tetherGeometry?.centerline[0]?.x).toBeCloseTo(160 + DEFAULT_OFFSET.x, 1);
+    expect(charm.tetherGeometry?.centerline[0]?.y).toBeCloseTo(100 + DEFAULT_OFFSET.y, 1);
     expect(charm.pointer.value).toEqual({ x: 160, y: 100 });
     expect(frames.pending()).toBe(0);
   });
@@ -731,13 +743,12 @@ describe("useCursorCharm：失焦冻结与切后台暂停", () => {
     frames.advance(RAF_DELAY_MS);
     pointer.emit("pointermove", { clientX: 160, clientY: 100 });
     frames.advance(20);
-    const headBefore = charm.tetherGeometry?.centerline[0];
 
     pointer.emit("pointerout", { relatedTarget: null });
     pointer.emit("pointermove", { clientX: 500, clientY: 500 });
     frames.runUntilIdle(1200);
 
-    expect(charm.tetherGeometry?.centerline[0]).toEqual(headBefore);
+    expect(charm.tetherGeometry?.centerline[0]?.x).toBeCloseTo(160 + DEFAULT_OFFSET.x, 1);
     expect(frames.pending()).toBe(0);
 
     // 指针重新进入（pointerover）后才接受新位置：从头节点原处继续，而不是冻结时瞬移。
@@ -770,8 +781,13 @@ describe("useCursorCharm：失焦冻结与切后台暂停", () => {
     expect(frames.requestAnimationFrame.mock.calls.length).toBe(requestsBefore + 1);
     expect(frames.pending()).toBe(1);
 
-    // 恢复后继续推进，但不会先把 10 秒后台时间补上（路径不应瞬移）。
+    // 恢复后继续推进，但不会先把 10 秒后台时间补上（指针端不应瞬移）。
     frames.advance(16.667);
+    const resumedHead = charm.tetherGeometry?.centerline[0];
+    // 平滑跟随：一帧之内还没到锚点（163），也没有被后台时间甩飞。
+    expect(resumedHead?.x).toBeLessThan(160 + DEFAULT_OFFSET.x);
+    expect(resumedHead?.x).toBeGreaterThan(120);
+    for (let i = 0; i < 12; i += 1) frames.advance(16.667);
     expect(charm.tetherGeometry?.centerline[0]?.x).toBeCloseTo(160 + DEFAULT_OFFSET.x, 1);
   });
 });
@@ -822,7 +838,6 @@ describe("useCursorCharm：进出场（移出渐隐 / 移回 0.1 秒后渐显）
     frames.advance(RAF_DELAY_MS);
     pointer.emit("pointermove", { clientX: 160, clientY: 100 });
     frames.advance(20);
-    const headBeforeFade = charm.tetherGeometry?.centerline[0];
 
     pointer.emit("pointerout", { relatedTarget: null });
     // 冻结期间即使收到指针事件，指针端也不能动（这是"不瞬移"的唯一来源）。
@@ -830,7 +845,9 @@ describe("useCursorCharm：进出场（移出渐隐 / 移回 0.1 秒后渐显）
     frames.runUntilIdle(200);
 
     expect(charm.visible.value).toBe(false);
-    expect(charm.tetherGeometry?.centerline[0]).toEqual(headBeforeFade);
+    // 冻结后指针端只朝冻结前的锚点收敛，绝不被窗外事件的 (400, 400) 拽走。
+    expect(charm.tetherGeometry?.centerline[0]?.x).toBeCloseTo(160 + DEFAULT_OFFSET.x, 1);
+    expect(charm.tetherGeometry?.centerline[0]?.x).toBeLessThan(200);
     expect(charm.pointer.value, "指针坐标本身也不该被窗外事件污染").toEqual({ x: 160, y: 100 });
     expect(frames.pending()).toBe(0);
   });
@@ -921,8 +938,10 @@ describe("useCursorCharm：进出场（移出渐隐 / 移回 0.1 秒后渐显）
 
     frames.advance(RAF_DELAY_MS * FRAMES_PER_SHOW_DELAY);
     expect(charm.visible.value).toBe(true);
-    // 渐显开始时，头节点已经跟上指针（冻结期从离开的位置继续，不做追赶动画）。
-    expect(charm.tetherGeometry?.centerline[0]?.x).toBeCloseTo(300 + DEFAULT_OFFSET.x, 1);
+    // 渐显开始时，指针端已经跟到指针附近（冻结期从离开的位置继续，不做追赶动画）。
+    // 留 1px 容差：指针端是平滑跟随，差最后零点几个像素时肉眼已经看不见。
+    const head = charm.tetherGeometry?.centerline[0];
+    expect(Math.abs((head?.x ?? 0) - (300 + DEFAULT_OFFSET.x))).toBeLessThan(1);
   });
 });
 

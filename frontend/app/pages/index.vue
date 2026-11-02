@@ -132,8 +132,8 @@ async function handleRetryLatest() {
     <!--
       首屏封面（ADR-0013）：全站唯一的编辑部式例外区。
       色带 / 网格刻度 / 方括号与箭头记号 / 胶囊小签只允许在这里出现（有设计测试锁住）。
-      图层自下而上：底图（BannerCarousel 的媒体层）→ 罩层 → 色带 → 网格刻度 →
-      超大 h1 → 记号 → 玻璃胶囊轮播控件。
+      图层自下而上：底图（BannerCarousel 的媒体层）→ 底部渐黑 → 色带 → 网格刻度 →
+      超大 h1 → 记号 → 渐黑区里的轮播控件。
     -->
     <section ref="coverRevealTarget" class="home-cover" data-home-hero>
       <!-- 2 色带：黄 / 功能蓝 / 珊瑚，仅首屏可作装饰（3 条，窄屏只留 1 条） -->
@@ -163,7 +163,7 @@ async function handleRetryLatest() {
         </div>
 
         <div class="home-cover__panel" :class="{ 'home-cover__panel--empty': !banners.length }">
-          <!-- 0 底图 + 1 罩层 + 6 控件：轮播作为大字下方的面板（≥2 张才出现玻璃胶囊控件） -->
+          <!-- 0 底图 + 1 底部渐黑 + 控件：轮播作为大字下方的面板（≥2 张才出现控件） -->
           <BannerCarousel
             class="home-cover__media"
             :banners="banners"
@@ -578,7 +578,7 @@ async function handleRetryLatest() {
   min-width: 0;
 }
 
-/* ---- 图层 0/1/6：轮播媒体层（底图 + 罩层 + 玻璃胶囊控件）由 BannerCarousel 渲染 ----
+/* ---- 图层 0/1/6：轮播媒体层（底图 + 底部渐黑 + 控件）由 BannerCarousel 渲染 ----
    面板模式下它是普通块级元素，铺满 .home-cover__panel（面板已给它定位上下文）。 */
 .home-cover__media {
   position: relative;

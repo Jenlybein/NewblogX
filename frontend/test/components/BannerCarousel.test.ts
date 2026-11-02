@@ -15,7 +15,7 @@ const banners = [
   { id: "b3", cover: "https://image.example.com/b3.png", abstract: "第三张" },
 ];
 
-describe("BannerCarousel：首屏封面媒体层（底图 + 罩层 + 降级态）", () => {
+describe("BannerCarousel：首屏封面媒体层（底图 + 底部渐黑 + 降级态）", () => {
   it("有轮播时渲染第一张，切换点有 44px 触控区与 aria 文案", () => {
     const wrapper = mount(BannerCarousel, {
       props: { banners: banners as never },
@@ -50,7 +50,7 @@ describe("BannerCarousel：首屏封面媒体层（底图 + 罩层 + 降级态�
     expect(wrapper.get(".banner-stage img").attributes("src")).toContain("b1.png");
   });
 
-  it("≥2 张才渲染玻璃胶囊控件（箭头 + 圆点在同一层薄玻璃里）", () => {
+  it("≥2 张才渲染控件，且控件住在底部渐黑区里（不再是一颗玻璃胶囊）", () => {
     const wrapper = mount(BannerCarousel, {
       props: { banners: banners.slice(0, 2) as never },
       global: { stubs: { NuxtLink: NuxtLinkStub } },
@@ -58,7 +58,23 @@ describe("BannerCarousel：首屏封面媒体层（底图 + 罩层 + 降级态�
 
     expect(wrapper.findAll(".banner-dot")).toHaveLength(2);
     expect(wrapper.findAll(".banner-arrow")).toHaveLength(2);
-    expect(wrapper.get(".banner-controls").classes()).toContain("glass-thin");
+    // 控件是渐黑区的内容，不是并列的浮层。
+    expect(wrapper.get(".banner-veil").find(".banner-controls").exists()).toBe(true);
+    // 控件不再单独铺一块玻璃底：它就是渐黑区里的一行。
+    expect(wrapper.get(".banner-controls").classes()).not.toContain("glass-thin");
+  });
+
+  it("图片加载失败切到失败态，切到下一张时恢复", async () => {
+    const wrapper = mount(BannerCarousel, {
+      props: { banners: banners.slice(0, 2) as never },
+      global: { stubs: { NuxtLink: NuxtLinkStub } },
+    });
+
+    await wrapper.get(".banner-photo__img").trigger("error");
+    expect(wrapper.get(".banner-photo").classes()).toContain("is-failed");
+
+    await wrapper.findAll(".banner-dot")[1]?.trigger("click");
+    expect(wrapper.get(".banner-photo").classes()).not.toContain("is-failed");
   });
 
   it("取景与视差分属两层：视差在外层容器，缩放与焦点在图片（两个 transform 不互相覆盖）", () => {

@@ -1,16 +1,18 @@
 import type { SiteSidebarCardItem } from '~/types/api'
 import type { SidebarCardDraft } from '~/utils/sidebarCardsAdmin'
-import { sidebarCardViews } from '../../../frontend/app/utils/sidebarCards'
+import { sidebarCardViews } from '~/utils/sidebarCardViews'
 
 /**
  * 后台右栏预览的纯函数层。
  *
- * # 为什么是一条跨包 import
+ * # 为什么用后台自己的渲染模型，而不是 import 读者站那份
  *
- * 预览不重写渲染规则：它直接调用读者站的 `sidebarCardViews`（同一份纯函数）。
- * 跨包 import 的坑是后台把 `~` 指向后台自己的 `app`，读者站模块内部若再用别名
- * 引用同站文件就会解析到后台（`frontend/app/utils/collection.ts` 已改为同目录相对路径，
- * 那里有注释说明）。这里也刻意用相对路径，让模型的唯一实现在两端是同一份代码。
+ * `deploy/docker/admin/Dockerfile` 写着「frontend_admin 为自洽应用」：镜像只
+ * `COPY frontend_admin`，构建上下文里没有 `../frontend`。运行时跨包 import 读者站模块
+ * 在生产构建里必然失败（本地两个目录都在，看不出来）。
+ *
+ * 口径一致性由**共享契约表**保证：读者站的跨端契约表夹具
+ * 被两端用例一起消费，任一端改了渲染规则自己那侧就红。见 `sidebarCardViews.ts` 的说明。
  *
  * # 预览吃什么
  *
@@ -133,10 +135,11 @@ export function sidebarCardsPreviewItems(
 }
 
 /**
- * 预览模型：直接把卡片交给读者站的同一份渲染函数。
+ * 预览模型：把卡片交给后台自己的同口径渲染函数。
  *
- * 这一行是整个票的关键缝：两端口径不是靠约定维持，而是同一份实现。
- * 后台用例拿跨端契约表断言这个出口，若有人在这里换成后台自写的渲染，用例会红。
+ * 与读者站的一致性是**契约表**保证的（两端用例都对着
+ * 读者站的跨端契约表夹具 断言），不是靠共用运行时模块——
+ * 后者会让后台镜像不自洽。
  */
 export function sidebarCardsPreviewViews(cards: readonly SiteSidebarCardItem[]) {
   return sidebarCardViews(cards)

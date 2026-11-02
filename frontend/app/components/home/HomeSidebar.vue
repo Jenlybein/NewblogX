@@ -2,28 +2,18 @@
 import { computed } from "vue";
 import type { StyleValue } from "vue";
 import { NSkeleton } from "naive-ui";
-import AppAvatar from "~/components/common/AppAvatar.vue";
-import type { SearchArticleItem, SiteRuntimeConfig, SiteSidebarCardItem } from "~/types/api";
-import { resolveAvatarUrl } from "~/utils/avatar";
+import type { SiteSidebarCardItem } from "~/types/api";
 import { useStaggerEntrance } from "~/composables/useStaggerEntrance";
 import { useSectionReveal } from "~/composables/useSectionReveal";
-import {
-  aggregateHotTags,
-  aggregateRecommendedAuthors,
-  homeSidebarVisibility,
-} from "~/utils/home";
 import { SIDEBAR_CARD_EYEBROWS, sidebarCardViews, tagCloudFontSize } from "~/utils/sidebarCards";
 
 const props = withDefaults(defineProps<{
   pending?: boolean;
-  runtimeConfig: SiteRuntimeConfig | null;
-  articles: SearchArticleItem[];
   /**
-   * 数据驱动卡片（票 111）：后端返回的卡片列表（种类 + 顺序 + 标题 + 各卡数据）。
+   * 数据驱动卡片（票 111）：后端返回的启用中卡片（种类 + 顺序 + 标题 + 各卡数据）。
    *
-   * 非空时右栏**只**渲染这些卡；为空时回退到旧右栏（公告 / 热门标签 / 推荐作者），
-   * 这是本票"旧配置仍兼容、不报错"的口径。下一票把旧三卡迁移成同一份数据后，
-   * 这条回退分支会被删掉。
+   * 右栏是否渲染**只看这份数据**：没有卡片就整块不出现。旧的"按配置标题
+   * 开关三个分区"的可见性判定与旧三卡回退都已下线，不再有第二套开关。
    */
   sidebarCards?: SiteSidebarCardItem[];
   /**
@@ -67,21 +57,19 @@ const sidebarStyle = computed<StyleValue>(() => {
   };
 });
 
-const visibility = computed(() => homeSidebarVisibility(props.runtimeConfig));
-const hotTags = computed(() => aggregateHotTags(props.articles, 8));
-const recommendedAuthors = computed(() => aggregateRecommendedAuthors(props.articles, 4));
-
 // 数据驱动的渲染模型：未知种类过滤、空数据隐藏、标题回退、顺序收敛、置顶去重都在纯函数里。
 const cardViews = computed(() =>
   sidebarCardViews(props.sidebarCards, { pinnedArticleIds: props.pinnedArticleIds }),
 );
-// 回退看的是"有没有配置"，不是"有没有渲染出内容"：运营配了卡片但恰好都没数据时，
-// 旧右栏不能又冒出来 —— 那会让人以为新配置没生效。
-const hasConfiguredCards = computed(() => (props.sidebarCards?.length ?? 0) > 0);
+// 右栏是否出现只看卡片数据：接口只下发启用中的卡片，所以这张列表就是唯一真相。
+// 有卡片才渲染 —— **看的是"有没有配置"，不是"有没有渲染出内容"**：运营配了卡片
+// 但恰好都没数据时，旧右栏不能又冒出来（那会让人以为新配置没生效）。
+const hasCards = computed(() => (props.sidebarCards?.length ?? 0) > 0);
 </script>
 
 <template>
   <aside
+    v-if="hasCards"
     ref="revealTarget"
     :class="sidebarClasses"
     :style="[sidebarStyle, revealStyle]"
@@ -184,93 +172,77 @@ const hasConfiguredCards = computed(() => (props.sidebarCards?.length ?? 0) > 0)
         </NuxtLink>
       </div>
       <!--
-        富文本卡：正文已在 `sidebarCardViews` 里清洗过，这里只负责渲染。
-        `v-html` 在这个文件里是唯一一处直接渲染 HTML 的地方 —— 只在 rich_text
-        分支出现，且拿的都是清洗后的字符串。
+        富文本卡：正文已在 `sidebarCardViews` 里按白名单清洗过（脚本、内联事件、
+        内嵌框架、伪协议一律剥离），这里只负责渲染清洗后的字符串。
+        （注释里刻意不写那几个标签名：模板注释会进 DOM，写出来会让"恶意内容
+        没进 DOM"的断言被注释本身触发。）
       -->
       <!-- eslint-disable-next-line vue/no-v-html -- 正文已在渲染模型里过白名单，此处只渲染清洗后的字符串 -->
-      <div v-else-if="card.kind === 'rich_text'" class="sidebar-rich-text" data-sidebar-rich-text v-html="card.contentHtml" />
+      <div
+        v-else-if="card.kind === 'rich_text'"
+        class="sidebar-rich-text rich-text-link-scope"
+        data-sidebar-rich-text
+        v-html="card.contentHtml"
+      />
     </section>
 
-    <!-- 旧右栏（无卡片配置时回退；口径见 props.sidebarCards 的注释）。 -->
-    <template v-if="!hasConfiguredCards">
-      <section v-if="visibility.tags" class="blueprint-panel" data-home-section="tags">
-        <div class="flex flex-wrap items-center justify-between gap-2">
-          <div>
-            <div class="eyebrow">Tags</div>
-            <h2 class="section-title mt-2">热门标签</h2>
-          </div>
-          <span class="blueprint-chip">{{ hotTags.length }} 个</span>
-        </div>
-
-        <div v-if="hotTags.length" class="mt-3 flex flex-wrap gap-2">
-          <Motion
-            v-for="(tag, index) in hotTags"
-            :key="tag.id"
-            v-bind="entranceProps(index)"
-            class="motion-stagger-item inline-flex"
-          >
-            <NuxtLink :to="{ path: '/search', query: { tag_ids: tag.id } }" class="blueprint-chip">
-              {{ tag.title }}
-            </NuxtLink>
-          </Motion>
-        </div>
-        <p v-else class="mt-3 text-xs leading-6 text-ink-muted">文章加载后，这里会按出现次数排出热门标签。</p>
-      </section>
-
-      <section v-if="visibility.authors" class="blueprint-panel" data-home-section="authors">
-        <div class="flex flex-wrap items-center justify-between gap-2">
-          <div>
-            <div class="eyebrow">Authors</div>
-            <h2 class="section-title mt-2">推荐作者</h2>
-          </div>
-          <span class="blueprint-chip">{{ recommendedAuthors.length }} 位</span>
-        </div>
-
-        <div v-if="recommendedAuthors.length" class="mt-3 flex flex-col">
-          <NuxtLink
-            v-for="author in recommendedAuthors"
-            :key="author.id"
-            :to="`/users/${author.id}`"
-            class="home-author-row"
-          >
-            <div class="flex min-w-0 items-center gap-3">
-              <AppAvatar :size="36" :src="resolveAvatarUrl(author.avatar)" :name="author.nickname" fallback="作" />
-              <div class="min-w-0">
-                <div class="truncate text-sm font-semibold text-ink">{{ author.nickname }}</div>
-                <div class="text-xs text-ink-muted">{{ author.articleCount }} 篇文章</div>
-              </div>
-            </div>
-            <span class="shrink-0 text-xs text-ink-muted">{{ author.totalViews }} 阅读</span>
-          </NuxtLink>
-        </div>
-        <p v-else class="mt-3 text-xs leading-6 text-ink-muted">文章加载后，这里会按文章数推荐作者。</p>
-      </section>
-    </template>
   </aside>
 </template>
 
 <style scoped>
-/* 右栏作者行：整行可点（≥44px 触控区），1px 结构线分隔，不用阴影/圆角。 */
-.home-author-row {
-  display: flex;
-  min-height: 44px;
-  align-items: center;
-  justify-content: space-between;
-  gap: 0.75rem;
-  border-top: 1px solid var(--color-line-faint);
-  padding: 0.5rem 0;
+/* 富文本卡正文：只给基础排版一层紧凑样式，颜色/分隔线全部走语义 token。 */
+.sidebar-rich-text {
+  margin-top: 0.75rem;
+  color: var(--color-ink-muted);
+  font-size: 0.875rem;
+  line-height: 1.75;
 }
 
-.home-author-row:last-child {
-  border-bottom: 1px solid var(--color-line-faint);
+.sidebar-rich-text :deep(> :first-child) {
+  margin-top: 0;
 }
 
-.home-author-row:hover {
+.sidebar-rich-text :deep(> :last-child) {
+  margin-bottom: 0;
+}
+
+.sidebar-rich-text :deep(h2),
+.sidebar-rich-text :deep(h3),
+.sidebar-rich-text :deep(h4) {
+  margin: 1rem 0 0.5rem;
   color: var(--color-ink);
+  font-family: var(--font-display);
+  font-size: 1rem;
+  font-weight: 600;
+  line-height: 1.4;
 }
 
-/* 数据驱动卡片的行：与作者行同一套结构线，但不需要头像位。 */
+.sidebar-rich-text :deep(p) {
+  margin: 0.5rem 0;
+}
+
+.sidebar-rich-text :deep(ul),
+.sidebar-rich-text :deep(ol) {
+  margin: 0.5rem 0;
+  padding-left: 1.25rem;
+}
+
+.sidebar-rich-text :deep(li) {
+  margin: 0.25rem 0;
+}
+
+:deep(.rich-text-link-scope a) {
+  color: var(--color-link);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.sidebar-rich-text :deep(strong) {
+  color: var(--color-ink);
+  font-weight: 600;
+}
+
+/* 数据驱动卡片的行：整行可点（≥44px 触控区），1px 结构线分隔，不用阴影/圆角。 */
 .sidebar-card-row {
   display: flex;
   min-height: 44px;
@@ -317,96 +289,5 @@ const hasConfiguredCards = computed(() => (props.sidebarCards?.length ?? 0) > 0)
 
 .sidebar-card-row:hover {
   color: var(--color-ink);
-}
-
-/* 富文本卡正文：只给基础排版一层紧凑样式，颜色/分隔线全部走语义 token。 */
-.sidebar-rich-text {
-  margin-top: 0.75rem;
-  color: var(--color-ink-muted);
-  font-size: 0.875rem;
-  line-height: 1.75;
-}
-
-.sidebar-rich-text :deep(> :first-child) {
-  margin-top: 0;
-}
-
-.sidebar-rich-text :deep(> :last-child) {
-  margin-bottom: 0;
-}
-
-.sidebar-rich-text :deep(h2),
-.sidebar-rich-text :deep(h3),
-.sidebar-rich-text :deep(h4) {
-  margin: 1rem 0 0.5rem;
-  color: var(--color-ink);
-  font-family: var(--font-display);
-  font-size: 1rem;
-  font-weight: 600;
-  line-height: 1.4;
-}
-
-.sidebar-rich-text :deep(p) {
-  margin: 0.5rem 0;
-}
-
-.sidebar-rich-text :deep(strong) {
-  color: var(--color-ink);
-  font-weight: 600;
-}
-
-.sidebar-rich-text :deep(em) {
-  font-style: italic;
-}
-
-.sidebar-rich-text :deep(ul),
-.sidebar-rich-text :deep(ol) {
-  margin: 0.5rem 0;
-  padding-left: 1.25rem;
-}
-
-.sidebar-rich-text :deep(ul) {
-  list-style: disc;
-}
-
-.sidebar-rich-text :deep(ol) {
-  list-style: decimal;
-}
-
-.sidebar-rich-text :deep(li) {
-  margin: 0.25rem 0;
-}
-
-.sidebar-rich-text :deep(blockquote) {
-  margin: 0.75rem 0;
-  border-left: 2px solid var(--color-line-faint);
-  padding-left: 0.75rem;
-  color: var(--color-ink-muted);
-}
-
-.sidebar-rich-text :deep(a) {
-  color: var(--color-accent);
-  text-decoration: underline;
-  text-underline-offset: 2px;
-}
-
-.sidebar-rich-text :deep(code) {
-  font-family: var(--font-mono);
-  font-size: 0.8125rem;
-}
-
-.sidebar-rich-text :deep(pre) {
-  margin: 0.75rem 0;
-  overflow-x: auto;
-  border: 1px solid var(--color-line-faint);
-  border-radius: var(--radius-sm);
-  padding: 0.5rem 0.75rem;
-  background: var(--color-bg-subtle);
-}
-
-.sidebar-rich-text :deep(hr) {
-  margin: 1rem 0;
-  border: 0;
-  border-top: 1px solid var(--color-line-faint);
 }
 </style>

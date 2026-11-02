@@ -50,6 +50,22 @@ describe("「站点模式」整条链已删除（#60）", () => {
   });
 });
 
+describe("旧右栏配置已从后台视图模型下线", () => {
+  it("手写类型 SiteRuntimeConfig 不再声明 index_right", () => {
+    // 留着它等于给后台留一条"把废弃键原样写回 site 段"的通路：
+    // 页面是整段读取再整段提交，类型里多一个键，保存就会把它带回去。
+    expect(readApiTypes()).not.toContain("index_right");
+  });
+
+  it("站点页没有旧右栏开关控件（只有标题与启用两个字段的那套）", () => {
+    const source = readSettingsSite();
+
+    expect(source).not.toContain("site_notice");
+    expect(source).not.toContain("hot_tags");
+    expect(source).not.toContain("recommended_authors");
+  });
+});
+
 describe("「发布与展示」三开关（#60 / ADR-0017 决策 2）", () => {
   const SWITCHES = ["allow_non_admin_publish", "allow_non_admin_draft", "show_non_admin_articles"];
 

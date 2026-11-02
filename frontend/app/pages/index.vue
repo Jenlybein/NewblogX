@@ -514,8 +514,10 @@ async function handleRetryLatest() {
   z-index: 4;
 }
 
-/* 空态时媒体层不再撑满面板，否则它会吃掉 align-items: flex-end，字幕会飘到顶上去。 */
+/* 空态时媒体层回到普通文档流：否则绝对定位会让它脱离流，把字幕压到顶上。 */
 .home-cover__panel--empty .home-cover__media {
+  position: static;
+  inset: auto;
   height: auto;
 }
 .home-cover__aside {
@@ -586,12 +588,14 @@ async function handleRetryLatest() {
 }
 
 /* ---- 图层 0/1/6：轮播媒体层（底图 + 底部渐黑 + 控件）由 BannerCarousel 渲染 ----
-   面板模式下它是普通块级元素，铺满 .home-cover__panel（面板已给它定位上下文）。 */
+   媒体层必须铺满面板的**边框盒**（连同面板自己的 padding），而不是内容盒：
+   底图按 16:9 铺满面板、超出部分由面板的 overflow: clip 裁掉，底部渐黑也才
+   真正压到面板底边。写成 normal flow + height:100% 时它只占内容盒，图片向下
+   外扩的那 12px 露在渐黑区之外，底部就会出现一条没被罩住的亮带。 */
 .home-cover__media {
-  position: relative;
+  position: absolute;
+  inset: calc(-1 * clamp(0.75rem, 1.4vw, 1.25rem));
   display: block;
-  height: 100%;
-  width: 100%;
 }
 
 @media (min-width: 1024px) {

@@ -94,8 +94,10 @@ function goToBanner(index: number) {
       <!--
         底部渐黑区：上半完全透明、深墨只往底部过渡，用来承载控件与标题。
         控件是它的内容（一行靠底排版），不再另起一颗浮在图上、自成一块深色的玻璃胶囊。
+        **高度由内容撑出来**，不是固定的面板占比：没有标题时就只留控件那一条，
+        不会无端压暗半张图（那正是"大黑块"的来源）。
       -->
-      <div class="banner-veil">
+      <div class="banner-veil" :class="{ 'is-titleless': !titleText }">
         <div class="banner-veil__body">
           <!--
             标题是纯文本：用插值输出（Vue 自动转义），不接 v-html。
@@ -200,8 +202,13 @@ function goToBanner(index: number) {
 }
 
 /*
- * 底部渐黑（图层 1）：只覆盖面板下半（高度有界），上半张图完全露出。
- * 渐变自全透明过渡到深墨，最深一档也留一点照片可见，不再整幅压暗。
+ * 底部渐黑（图层 1）：贴在面板底部，**高度由内容撑出来**。
+ *
+ * 曾经写死 `height: 44%`：那让"有没有标题"都按同一个高度压暗——运营没填标题时
+ * 渐黑区里只剩一行控件，却仍压住近半张图，观感就是一块盖在轮播图上的大黑块。
+ * 现在盒子高度 = padding-top（渐变过渡带）+ 内容，无标题时过渡带自动收窄。
+ *
+ * 渐变自全透明过渡到深墨，最深一档也留一点照片可见，不整幅压暗。
  * 第一行是不支持 color-mix 时的降级：仍是"透明→深墨"的渐变，不会退化成
  * 100% 不透明的纯黑面。渐变最弱一档的透明度要保证反白内容叠在纯白底图上
  * 仍 ≥4.5:1（由设计测试按真实 token 取值算出来，见 banner-veil 专项）。
@@ -212,17 +219,23 @@ function goToBanner(index: number) {
   z-index: 1;
   display: flex;
   align-items: flex-end;
-  height: 44%;
+  height: auto;
   padding:
-    clamp(1rem, 4vw, 2.5rem) clamp(0.5rem, 1.5vw, 1rem) clamp(0.4rem, 1vw, 0.75rem);
+    clamp(2.25rem, 9vw, 3.5rem) clamp(0.5rem, 1.5vw, 1rem) clamp(0.4rem, 1vw, 0.75rem);
   background: linear-gradient(180deg, transparent 0%, var(--color-surface-inverse) 100%);
   background: linear-gradient(
     180deg,
     transparent 0%,
-    color-mix(in srgb, var(--color-surface-inverse) 62%, transparent) 55%,
+    color-mix(in srgb, var(--color-surface-inverse) 62%, transparent) 32%,
+    color-mix(in srgb, var(--color-surface-inverse) 85%, transparent) 62%,
     color-mix(in srgb, var(--color-surface-inverse) 96%, transparent) 100%
   );
   pointer-events: none;
+}
+
+/* 没有标题：只剩一行控件，过渡带也跟着收窄，避免"空标题也压半张图"。 */
+.banner-veil.is-titleless {
+  padding-top: clamp(1.25rem, 5vw, 2rem);
 }
 
 /* 无图时退回既有空态；它走正常文档流（封面文字仍在上方成立）。 */

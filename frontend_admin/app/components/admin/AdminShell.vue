@@ -1,62 +1,26 @@
 <script setup lang="ts">
-import { computed, h } from 'vue'
+import { computed, ref, watch } from 'vue'
+import AdminNavTree from '~/components/admin/AdminNavTree.vue'
 import {
-  IconAlertTriangle,
-  IconArticle,
-  IconBell,
-  IconChartBar,
-  IconDatabase,
-  IconPhoto,
-  IconPin,
-  IconSettings,
-  IconShieldCheck,
-  IconUsers,
-} from '@tabler/icons-vue'
-import { NuxtLink } from '#components'
-import type { IconHome } from '@tabler/icons-vue'
-import { ADMIN_NAV, navItemByPath } from '~/utils/menu'
-import type { AdminNavIcon } from '~/utils/menu'
+  ADMIN_NAV,
+  ADMIN_NAV_TREE,
+  activeGroupKeys,
+  buildAdminNavMenu,
+  navItemByPath,
+  reconcileExpandedGroups,
+} from '~/utils/menu'
 import { BRAND } from '~/utils/brand'
 import {
   NAvatar,
   NButton,
   NDropdown,
-  NIcon,
   NLayout,
   NLayoutContent,
   NLayoutHeader,
   NLayoutSider,
-  NMenu,
   NSpace,
   useMessage,
 } from 'naive-ui'
-import type { MenuOption } from 'naive-ui'
-
-interface NavItem {
-  label: string
-  path: string
-  icon: typeof IconHome
-}
-
-// 图标在这里映射，清单在 ~/utils/menu.ts（唯一来源，另有单测对账页面文件）。
-const ICONS: Record<AdminNavIcon, typeof IconHome> = {
-  chart: IconChartBar,
-  shield: IconShieldCheck,
-  article: IconArticle,
-  pin: IconPin,
-  users: IconUsers,
-  settings: IconSettings,
-  photo: IconPhoto,
-  bell: IconBell,
-  database: IconDatabase,
-  alert: IconAlertTriangle,
-}
-
-const navItems: NavItem[] = ADMIN_NAV.map(item => ({
-  label: item.label,
-  path: item.path,
-  icon: ICONS[item.icon],
-}))
 
 const route = useRoute()
 const router = useRouter()
@@ -64,33 +28,29 @@ const config = useRuntimeConfig()
 const auth = useAuthStore()
 const message = useMessage()
 
-const fallbackNav = navItems[0]!
-// 高亮 / 标题的唯一来源是拍平视图：当前仍按精确 path 匹配，行为不变；
-// 两级化后只改 navItemByPath 的匹配语义，不用再动这里。
-const routeMeta = computed<NavItem>(() => {
-  const active = navItemByPath(route.path)
-  return active?.path
-    ? { label: active.label, path: active.path, icon: ICONS[active.icon] }
-    : fallbackNav
-})
-const selectedKey = computed(() => routeMeta.value.path)
+const fallbackNav = ADMIN_NAV[0]!
+// 高亮 / 标题的唯一来源是拍平视图：按精确 path 查激活项，子项命中后标题取子项名。
+const routeMeta = computed(() => navItemByPath(route.path) ?? fallbackNav)
 // 浏览器标签：具体页名由 app.vue 的 titleTemplate 统一补成「<页名> · JellyBin 管理后台」。
 useHead({ title: computed(() => routeMeta.value.label) })
 
-const menuOptions = computed<MenuOption[]>(() =>
-  navItems.map(item => ({
-    label: () =>
-      h(
-        NuxtLink,
-        {
-          to: item.path,
-          class: 'menu-link',
-        },
-        { default: () => item.label },
-      ),
-    key: item.path,
-    icon: () => h(NIcon, null, { default: () => h(item.icon) }),
-  })),
+// 展开态：深链接到子项时含激活项的分组默认展开；同一路由下用户手动收起后保持收起。
+const expandedKeys = ref<string[]>(activeGroupKeys(route.path))
+watch(
+  () => route.path,
+  (to, from) => {
+    expandedKeys.value = reconcileExpandedGroups(to, from, expandedKeys.value)
+  },
+)
+
+function toggleGroup(key: string) {
+  expandedKeys.value = expandedKeys.value.includes(key)
+    ? expandedKeys.value.filter(item => item !== key)
+    : [...expandedKeys.value, key]
+}
+
+const menuEntries = computed(() =>
+  buildAdminNavMenu(ADMIN_NAV_TREE, route.path, expandedKeys.value),
 )
 
 const userOptions = [
@@ -130,7 +90,7 @@ async function handleUserCommand(key: string) {
         </div>
       </div>
 
-      <NMenu :value="selectedKey" :options="menuOptions" />
+      <AdminNavTree :entries="menuEntries" @toggle="toggleGroup" />
     </NLayoutSider>
 
     <NLayout>

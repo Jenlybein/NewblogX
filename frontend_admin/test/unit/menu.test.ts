@@ -3,12 +3,16 @@ import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import {
   ADMIN_NAV,
+  ADMIN_NAV_TREE,
   FLAT_NAV,
+  activeGroupKeys,
+  buildAdminNavMenu,
   flattenNav,
   navItemByPath,
   navTrail,
   pageFileCandidates,
   reconcileAdminNav,
+  reconcileExpandedGroups,
 } from '../../app/utils/menu'
 import type { AdminNavNode } from '../../app/utils/menu'
 
@@ -66,8 +70,29 @@ describe('后台菜单拍平视图', () => {
 
     const projected = FLAT_NAV.map(({ label, path, icon }) => ({ label, path, icon }))
     expect(projected).toEqual(LEGACY_ADMIN_NAV)
-    // 扁平视图里每一项都是顶层项：没有父级。
-    expect(FLAT_NAV.every(item => item.depth === 0 && item.parentLabel === null)).toBe(true)
+
+    // 两级化后拍平顺序不变：父项仍在原位、子项紧跟父项，所以上面的逐项冻结继续成立。
+    // 语义子项下沉一级；其余项仍是顶层。
+    expect(FLAT_NAV.find(item => item.label === '热门置顶')).toMatchObject({
+      parentLabel: '文章管理',
+      parentPath: '/articles',
+      depth: 1,
+    })
+    expect(FLAT_NAV.find(item => item.label === '同步死信')).toMatchObject({
+      parentLabel: '日志中心',
+      parentPath: '/logs',
+      depth: 1,
+    })
+    expect(FLAT_NAV.filter(item => item.depth === 0).map(item => item.label)).toEqual([
+      '数据概览',
+      '文章审核',
+      '文章管理',
+      '用户管理',
+      '站点配置',
+      '媒体运营',
+      '全局通知',
+      '日志中心',
+    ])
   })
 
   it('flattenNav 把子项排在父项之后，并记录父级归属与深度', () => {
@@ -188,6 +213,193 @@ describe('后台菜单拍平视图', () => {
       '文章管理',
       '合集',
     ])
+  })
+})
+
+describe('后台菜单两级视图（分组 / 展开 / 高亮 / 标题）', () => {
+  it('分组渲染：父项标题 + 子项链接，子项缩进一级', () => {
+    const entries = buildAdminNavMenu(ADMIN_NAV_TREE, '/articles/hot-top', ['group:文章管理'])
+    const group = entries.find(entry => entry.label === '文章管理')
+    if (group?.kind !== 'group') throw new Error('「文章管理」应渲染成分组')
+
+    expect(group).toMatchObject({
+      kind: 'group',
+      key: 'group:文章管理',
+      path: '/articles',
+      active: true,
+      expanded: true,
+      depth: 0,
+    })
+    expect(group.children).toEqual([
+      expect.objectContaining({
+        kind: 'link',
+        key: '/articles/hot-top',
+        label: '热门置顶',
+        path: '/articles/hot-top',
+        depth: 1,
+        active: true,
+      }),
+    ])
+
+    // 顶层单页仍是可导航链接，不会被包成组。
+    expect(entries.find(entry => entry.label === '数据概览')).toMatchObject({
+      kind: 'link',
+      path: '/',
+      active: false,
+    })
+  })
+
+  it('父项没有自身页面时是纯分组：不产出可跳转 path，也不自动合成子项', () => {
+    const tree: AdminNavNode[] = [
+      {
+        label: '站点配置',
+        icon: 'settings',
+        children: [{ label: '装饰', path: '/site/deco', icon: 'settings' }],
+      },
+    ]
+
+    const entries = buildAdminNavMenu(tree, '/site/deco', ['group:站点配置'])
+    const group = entries[0]
+    if (group?.kind !== 'group') throw new Error('没有页面的父项应渲染成分组')
+
+    expect(group.path).toBeNull()
+    expect(group.active).toBe(true)
+    expect(group.children).toHaveLength(1)
+    expect(group.children[0]).toMatchObject({ path: '/site/deco', depth: 1, active: true })
+  })
+
+  it('无页面且无子项的节点不会渲染成死链（父分组里的空子项也会被剔除）', () => {
+    const entries = buildAdminNavMenu(
+      [
+        { label: '数据概览', path: '/', icon: 'chart' },
+        { label: '空节点', icon: 'settings' },
+        {
+          label: '站点配置',
+          icon: 'settings',
+          children: [
+            { label: '空子项', icon: 'settings' },
+            { label: '装饰', path: '/site/deco', icon: 'settings' },
+          ],
+        },
+      ],
+      '/',
+      [],
+    )
+
+    expect(entries.map(entry => entry.label)).toEqual(['数据概览', '站点配置'])
+    const group = entries[1]
+    if (group?.kind !== 'group') throw new Error('「站点配置」应渲染成分组')
+    expect(group.children.map(child => child.label)).toEqual(['装饰'])
+  })
+
+  it('深链接到子项时含激活项的分组默认展开', () => {
+    expect(activeGroupKeys('/articles/hot-top')).toEqual(['group:文章管理'])
+    expect(activeGroupKeys('/logs/dead-letter')).toEqual(['group:日志中心'])
+    expect(activeGroupKeys('/')).toEqual([])
+    expect(activeGroupKeys('/not-a-page')).toEqual([])
+
+    const expanded = reconcileExpandedGroups('/articles/hot-top', null, [])
+    expect(expanded).toEqual(['group:文章管理'])
+
+    const group = buildAdminNavMenu(ADMIN_NAV_TREE, '/articles/hot-top', expanded).find(
+      entry => entry.label === '文章管理',
+    )
+    expect(group?.kind === 'group' ? group.expanded : null).toBe(true)
+  })
+
+  it('用户手动收起后不会被高亮强制反弹', () => {
+    const expanded = reconcileExpandedGroups('/articles/hot-top', null, [])
+    const afterCollapse = expanded.filter(key => key !== 'group:文章管理')
+
+    // 同一路由再次结算展开态（例如重渲染 / 子项仍激活）：保持用户的选择。
+    expect(reconcileExpandedGroups('/articles/hot-top', '/articles/hot-top', afterCollapse)).toEqual([])
+
+    const group = buildAdminNavMenu(ADMIN_NAV_TREE, '/articles/hot-top', afterCollapse).find(
+      entry => entry.label === '文章管理',
+    )
+    expect(group?.kind === 'group' ? group.expanded : null).toBe(false)
+  })
+
+  it('路由切到另一组时只并入新组的祖先，不清掉已展开的组', () => {
+    expect(
+      reconcileExpandedGroups('/logs/dead-letter', '/articles/hot-top', ['group:文章管理']),
+    ).toEqual(['group:文章管理', 'group:日志中心'])
+
+    // 同一路径不重复并入。
+    expect(
+      reconcileExpandedGroups('/articles/hot-top', '/articles/hot-top', ['group:文章管理']),
+    ).toEqual(['group:文章管理'])
+  })
+
+  it('父分组随子项高亮，兄弟组与顶层项不受影响', () => {
+    const entries = buildAdminNavMenu(ADMIN_NAV_TREE, '/articles/hot-top', ['group:文章管理'])
+    const articleGroup = entries.find(entry => entry.label === '文章管理')
+    expect(articleGroup?.kind === 'group' ? articleGroup.active : false).toBe(true)
+    expect(entries.find(entry => entry.label === '日志中心')?.active).toBe(false)
+    expect(entries.find(entry => entry.label === '用户管理')?.active).toBe(false)
+
+    // 亲自位于父页面时父项也亮，但子项不亮。
+    const onParent = buildAdminNavMenu(ADMIN_NAV_TREE, '/articles', ['group:文章管理'])
+    const parentGroup = onParent.find(entry => entry.label === '文章管理')
+    if (parentGroup?.kind !== 'group') throw new Error('「文章管理」应渲染成分组')
+    expect(parentGroup.active).toBe(true)
+    expect(parentGroup.children[0]!.active).toBe(false)
+  })
+
+  it('标题取深层子项，面包屑祖先链取父分组', () => {
+    expect(navItemByPath('/articles/hot-top')?.label).toBe('热门置顶')
+    expect(navItemByPath('/articles')?.label).toBe('文章管理')
+    expect(navTrail('/articles/hot-top').map(item => item.label)).toEqual(['文章管理'])
+    expect(navTrail('/articles')).toEqual([])
+  })
+})
+
+describe('后台菜单对账（两级结构）', () => {
+  it('父项没有 path 属合法：不报缺失页面，只报真正缺页的子项', () => {
+    const flat = flattenNav([
+      { label: '数据概览', path: '/', icon: 'chart' },
+      {
+        label: '站点配置',
+        icon: 'settings',
+        children: [
+          { label: '装饰', path: '/site/deco', icon: 'settings' },
+          { label: '缺页域', path: '/site/missing', icon: 'settings' },
+        ],
+      },
+    ])
+
+    const report = reconcileAdminNav(flat, ['index', 'site/deco'])
+    expect(report.missingPageFiles).toEqual(['缺页域 /site/missing'])
+    // 分组父项没有 path，不会出现在重复 / 相对路径里。
+    expect(report.duplicatePaths).toEqual([])
+    expect(report.nonAbsolutePaths).toEqual([])
+    expect(report.unreachablePages).toEqual([])
+  })
+
+  it('父项自身页面算可达（父 + 子都在菜单里）', () => {
+    const flat = flattenNav([
+      {
+        label: '文章管理',
+        path: '/articles',
+        icon: 'article',
+        children: [{ label: '热门置顶', path: '/articles/hot-top', icon: 'pin' }],
+      },
+    ])
+
+    const report = reconcileAdminNav(flat, ['articles', 'articles/hot-top', 'login'])
+    expect(report.unreachablePages).toEqual([])
+    expect(report.missingPageFiles).toEqual([])
+  })
+
+  it('真实菜单的两级对账全绿', () => {
+    const report = reconcileAdminNav(FLAT_NAV, pageFiles)
+    expect(report).toEqual({
+      missingPageFiles: [],
+      unreachablePages: [],
+      duplicatePaths: [],
+      nonAbsolutePaths: [],
+      hotTopOrder: null,
+    })
   })
 })
 

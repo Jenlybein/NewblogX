@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from "vue";
+import { computed } from "vue";
 import { NButton } from "naive-ui";
 import BannerCarousel from "~/components/article/BannerCarousel.vue";
 import HomeFeedSection from "~/components/home/HomeFeedSection.vue";
@@ -9,7 +9,6 @@ import { useHomePageSources } from "~/composables/useHomePageSources";
 import { useParallax } from "~/composables/useParallax";
 import { useSectionReveal } from "~/composables/useSectionReveal";
 import { BRAND, brandDescription, brandFullName } from "~/utils/brand";
-import { MOTION_STAGGER_MS } from "~/utils/motion";
 
 const siteStore = useSiteStore();
 
@@ -46,79 +45,13 @@ const latestFailed = computed(() => Boolean(latestRequestError.value));
 
 // 首屏封面的分层动效（ADR-0013 决策 9，全部归口 #23 的同一份预算）：
 //   · 装饰层（色带 / 网格刻度）走 useSectionReveal：只动 transform/opacity，位移 ≤12px；
-//   · 线条场自己从右端延展入场（见 heroLines / linesArmed）；
 //   · 文字层（h1/记号）**不做入场动画** —— 关键内容必须常显（详见模板里的注释）；
 //   · 记号挂一条 useParallax：≤10px，reduced-motion 下归零。
 // 首屏不自己写关键帧动画，也不对布局属性做过渡。
+// 2026-11-03 后续修订：右栏线条场（15 条横条 + 两段式入场）已退役，
+// 改为「标题下发丝基线 + 封面四角裁切标记」的编辑部网格语言（见 ADR-0013 后续修订）。
 const { target: coverRevealTarget, revealStyle } = useSectionReveal();
 const { parallaxStyle } = useParallax();
-
-/**
- * 右栏线条场（纯装饰，aria-hidden）。
- *
- * 三条几何约定（前两条来自用户，第三条是我加的审美判断）：
- * 1. **右端贴右**：全部用 `right` 定位（0–1.5% 的小抖动），右端点不许离开最右边太远；
- * 2. **中间最长、上下渐短**：`width` 以垂直中位为峰值向两端递减；
- * 3. **粗细混排 + 间距不均匀**：只用 1px 细线会像表格网格，所以掺 4–12px 的板块；
- *    `top` 不按等差排布，而是成簇（有的两条挨着 2–3%，有的隔 12–14%），
- *    这样才像参考图里那种"排版事故感"的层次，而不是一堆刻度线。
- *
- * `tone` 只允许 ink / blue / coral / yellow：ink 是反白线，后三者是首屏锁定的色相。
- */
-const RAW_HERO_LINES = [
-  { tone: "ink", style: { top: "2%", right: "0.5%", width: "30%", height: "1px" } },
-  { tone: "ink", style: { top: "6%", right: "0%", width: "58%", height: "6px" } },
-  { tone: "ink", style: { top: "8.5%", right: "1.5%", width: "22%", height: "1px" } },
-  { tone: "blue", style: { top: "19%", right: "0%", width: "70%", height: "5px" } },
-  { tone: "ink", style: { top: "22%", right: "0.5%", width: "34%", height: "1px" } },
-  { tone: "ink", style: { top: "35%", right: "0%", width: "74%", height: "2px" } },
-  { tone: "ink", style: { top: "37.5%", right: "1%", width: "62%", height: "10px" } },
-  { tone: "yellow", style: { top: "41%", right: "0%", width: "76%", height: "12px" } },
-  { tone: "ink", style: { top: "55%", right: "0.5%", width: "58%", height: "1px" } },
-  { tone: "coral", style: { top: "58%", right: "1.5%", width: "44%", height: "5px" } },
-  { tone: "ink", style: { top: "72%", right: "0%", width: "30%", height: "8px" } },
-  { tone: "blue", style: { top: "74.5%", right: "0.5%", width: "17%", height: "1px" } },
-  { tone: "ink", style: { top: "88%", right: "0%", width: "24%", height: "1px" } },
-  { tone: "ink", style: { top: "91%", right: "1%", width: "12%", height: "4px" } },
-  { tone: "ink", style: { top: "94.5%", right: "0%", width: "9%", height: "1px" } },
-] as const;
-
-/**
- * 入场延迟：**不均匀**，一律取 `MOTION_STAGGER_MS` 的整数倍。
- *
- * 之前用 `|index - 中线| × 40ms` 算等差延迟，跑起来像节拍器（可预测 = 廉价）。
- * 现在改成手写的一组跳数：中段那几条仍然先出（0–40ms），两端晚到（240–320ms），
- * 但相邻两条的间隔在 0–320ms 之间乱跳 —— 落位有先后、没有节奏感，才像"随手排的版"。
- */
-const HERO_LINE_DELAY_STEPS = [5, 3, 1, 7, 6, 1, 8, 0, 8, 7, 3, 5, 7, 8, 6] as const;
-
-const heroLines = RAW_HERO_LINES.map((line, index) => ({
-  ...line,
-  delay: `${(HERO_LINE_DELAY_STEPS[index] ?? 0) * MOTION_STAGGER_MS}ms`,
-}));
-
-/**
- * 线条的"从右端长出来"：先收起初态（is-armed），下一帧再置终态（is-drawn）。
- *
- * 为什么不纯靠 CSS 动画关键帧：全站约定装饰不得自写关键帧（有设计测试锁住），
- * 入场一律用 transition + 状态类。arm 与 draw 分两帧，是为了让浏览器先绘制 scaleX(0)，
- * 否则首帧就是终态、transition 不会跑起来。
- *
- * 无 JS / 减少动态时都不会 arm：线条直接是终态可见（装饰不该因为脚本没跑就消失）。
- */
-const linesArmed = ref(false);
-const linesDrawn = ref(false);
-
-onMounted(() => {
-  if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
-    return;
-  }
-
-  linesArmed.value = true;
-  requestAnimationFrame(() => {
-    linesDrawn.value = true;
-  });
-});
 
 async function handlePreviousLatestPage() {
   await latestPager.goToPreviousPage();
@@ -137,9 +70,11 @@ async function handleRetryLatest() {
   <div class="page-stack" data-page="home">
     <!--
       首屏封面（ADR-0013）：全站唯一的编辑部式例外区。
-      色带 / 网格刻度 / 方括号与箭头记号 / 胶囊小签只允许在这里出现（有设计测试锁住）。
-      图层自下而上：底图（BannerCarousel 的媒体层）→ 底部渐黑 → 色带 → 网格刻度 →
-      超大 h1 → 记号 → 渐黑区里的轮播控件。
+      色带 / 细网格 / 下沿刻度 / 方括号与箭头记号 / 胶囊小签 / 发丝基线 / 四角裁切标记
+       只允许在这里出现（有设计测试锁住），它们都是 aria-hidden 的纯装饰。
+      图层自下而上：底图（BannerCarousel 的媒体层）→ 底部渐黑 → 色带 → 细网格 →
+      超大 h1 → 记号与下沿刻度 → 底部渐黑区里的轮播控件。
+       2026-11-03 后续修订：右栏线条场退役，改为编辑部网格语言（见 ADR-0013 后续修订）。
     -->
     <section ref="coverRevealTarget" class="home-cover" data-home-hero>
       <!-- 2 色带：黄 / 功能蓝 / 珊瑚，仅首屏可作装饰（3 条，窄屏只留 1 条） -->
@@ -156,7 +91,7 @@ async function handleRetryLatest() {
         <span class="home-cover__grid-line home-cover__grid-line--c" />
       </div>
 
-      <!-- 4 超大 h1 在上；轮播是它下方偏右的面板，右栏线条场会压过面板 -->
+      <!-- 4 超大 h1 在上；轮播是它下方偏右的面板，右栏是记号与下沿刻度 -->
       <div class="home-cover__inner">
         <!-- 关键内容不进入场动画：错峰入场的初态是 opacity:0（SSR 会内联），
              标题一旦被包进去，动画没跑起来就等于整站首页没有 h1（减少动态的用户必现）。 -->
@@ -168,6 +103,10 @@ async function handleRetryLatest() {
           </h1>
         </div>
 
+        <!-- 标题下发丝基线：只跨左栏（与轮播面板同宽），落在标题与面板的栅格间隙中线。
+             纯装饰、aria-hidden、不吃点击；与四角裁切标记同属 2026-11-03 的编辑部网格语言。 -->
+        <span class="home-cover__rule" aria-hidden="true" />
+
         <div class="home-cover__panel" :class="{ 'home-cover__panel--empty': !banners.length }">
           <!-- 0 底图 + 1 底部渐黑 + 控件：轮播作为大字下方的面板（≥2 张才出现控件） -->
           <BannerCarousel
@@ -175,21 +114,6 @@ async function handleRetryLatest() {
             :banners="banners"
             :pending="bannerPending"
             :photo-style="parallaxStyle"
-          />
-        </div>
-
-        <!-- 右栏线条场：从右端"长出来"（scaleX + transform-origin: right），中线先出、两端后出 -->
-        <div
-          class="home-cover__lines"
-          :class="{ 'is-armed': linesArmed, 'is-drawn': linesDrawn }"
-          aria-hidden="true"
-        >
-          <span
-            v-for="(line, index) in heroLines"
-            :key="index"
-            class="home-cover__line"
-            :class="`home-cover__line--${line.tone}`"
-            :style="[line.style, { transitionDelay: line.delay }]"
           />
         </div>
 
@@ -206,6 +130,15 @@ async function handleRetryLatest() {
             </li>
           </ul>
         </div>
+      </div>
+
+      <!-- 封面四角裁切标记：只在封面四角各画一段 16px 的 L 形发丝线（更淡的一档）。
+           与基线同为纯装饰，aria-hidden + pointer-events: none，不压可读内容、不挡轮播点击。 -->
+      <div class="home-cover__crops" aria-hidden="true">
+        <i class="home-cover__crop home-cover__crop--tl" />
+        <i class="home-cover__crop home-cover__crop--tr" />
+        <i class="home-cover__crop home-cover__crop--bl" />
+        <i class="home-cover__crop home-cover__crop--br" />
       </div>
     </section>
 
@@ -265,8 +198,12 @@ async function handleRetryLatest() {
  * 所以反白文字在任何情况下都满足对比度。
  */
 .home-cover {
-  /* 封面的左右内边距：线条场要抵到视口右沿，所以抽成变量给它取负值用。 */
+  /* 封面的左右内边距。 */
   --cover-pad-x: clamp(1rem, 5vw, 4rem);
+  /* 右下角整组（记号 + 下沿刻度）的刚体位移：右 56 / 下 40，
+     抵到边界前留 8px 呼吸，避免 overflow: clip 切掉数字字形下缘（G8 定案）。 */
+  --cover-aside-x: 56px;
+  --cover-aside-y: 40px;
   position: relative;
   isolation: isolate;
   display: flex;
@@ -353,7 +290,7 @@ async function handleRetryLatest() {
   height: 1px;
 }
 
-/* ---- 图层 4/5：超大 h1 在上，轮播面板在它下方（略偏右），右栏线条场与刻度 ---- */
+/* ---- 图层 4/5：超大 h1 在上，轮播面板在它下方（略偏右），右栏记号与下沿刻度 ---- */
 .home-cover__inner {
   position: relative;
   z-index: 4;
@@ -365,7 +302,7 @@ async function handleRetryLatest() {
   width: 100%;
   /* 首屏内容给一个宽度上限：轮播面板固定 16:9，宽度跟着窗口一路长高，
      超宽屏上首屏能被顶到 800px 以上，底图被放大到超过原图分辨率就发糊。
-     限住这一层，标题、面板、线条场一起收敛，比例不变，只是不再无限长大。 */
+     限住这一层，标题、面板、基线一起收敛，比例不变，只是不再无限长大。 */
   max-width: 1440px;
   margin-inline: auto;
 }
@@ -397,60 +334,72 @@ async function handleRetryLatest() {
   background: color-mix(in srgb, var(--color-on-inverse) 6%, var(--color-surface-inverse));
 }
 
-/* 线条场：铺满整个内层，因此 left < 44% 的线条会**压到轮播面板上**（用户要的凌乱感）。
-   z-index 高于面板、低于跨栏标题与记号 —— 装饰不许盖住可读文本。 */
-.home-cover__lines {
-  position: absolute;
-  inset: 0 calc(-1 * var(--cover-pad-x)) 0 0;
-  z-index: 3;
-  display: none;
-  overflow: clip;
+/* ---- 2026-11-03 编辑部网格语言：标题下发丝基线 + 封面四角裁切标记 ----
+    取代已退役的右栏线条场。两者都只用中性反白色 / 发丝 token，
+    黄 / 功能蓝 / 珊瑚三色仍然只属于色带（ADR-0012 约束 1、ADR-0013 约束 2）。 */
+
+/* 基线只跨左栏（与轮播面板同宽、左缘对齐），落在标题与面板的栅格间隙中线。
+   用 grid 定位而不是 JS 量坐标：它是 inner 里的一个 1px 网格项，
+   align-self:end 贴在第一行底部，再 translateY 半个行距进到间隙里。 */
+.home-cover__rule {
+  grid-column: 1;
+  grid-row: 1;
+  align-self: end;
+  width: 100%;
+  height: 1px;
+  margin-inline-start: clamp(1.25rem, 4vw, 4rem);
+  transform: translateY(calc(clamp(1rem, 2.5vw, 2.5rem) / 2));
+  background: var(--color-on-inverse);
+  opacity: 0.38;
   pointer-events: none;
 }
 
-.home-cover__line {
+/* 四角裁切标记：贴在封面四角（inset 24px），每段 16px 的 L 形发丝线。
+   整层铺满封面但 pointer-events: none，不会吃掉轮播的点击。 */
+.home-cover__crops {
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  display: none;
+  pointer-events: none;
+}
+
+.home-cover__crop {
   position: absolute;
   display: block;
-  /* 入场：从**右端**长出来（缩放原点贴右），只动 transform/opacity，
-     时长/缓动全站同一份预算；交错延迟由数据按"中线→两端"算好，走内联 transition-delay。 */
-  --line-opacity: 1;
-  transform-origin: right center;
-  border-radius: var(--radius-pill);
-  transition:
-    transform var(--motion-base) var(--motion-ease),
-    opacity var(--motion-base) var(--motion-ease);
+  width: 16px;
+  height: 16px;
+  border: 0 solid var(--color-line-faint);
+  border-width: 1px;
 }
 
-/* 只有 JS 就位后才收起初态：无 JS / 减少动态时线条直接是终态（装饰不该消失）。 */
-.home-cover__lines.is-armed:not(.is-drawn) .home-cover__line {
-  opacity: 0;
-  transform: scaleX(0);
+.home-cover__crop--tl {
+  top: 24px;
+  left: 24px;
+  border-right: 0;
+  border-bottom: 0;
 }
 
-.home-cover__lines.is-drawn .home-cover__line {
-  opacity: var(--line-opacity);
-  transform: scaleX(1);
+.home-cover__crop--tr {
+  top: 24px;
+  right: 24px;
+  border-left: 0;
+  border-bottom: 0;
 }
 
-/* 反白细线用 on-inverse + 透明度，避免为装饰再造一个新色。
-   透明度走 --line-opacity，这样"收起 / 展开"两个状态不会把调子覆盖掉。 */
-.home-cover__line--ink {
-  --line-opacity: 0.5;
-  background: var(--color-on-inverse);
+.home-cover__crop--bl {
+  bottom: 24px;
+  left: 24px;
+  border-right: 0;
+  border-top: 0;
 }
 
-.home-cover__line--blue {
-  background: var(--jelly-interactive);
+.home-cover__crop--br {
+  right: 24px;
+  bottom: 24px;
+  border-left: 0;
+  border-top: 0;
 }
-
-.home-cover__line--coral {
-  background: var(--jelly-coral);
-}
-
-.home-cover__line--yellow {
-  background: var(--jelly-yellow);
-}
-
 /* 超大 h1：占满第一行（大字压在最上面，权重最高）。 */
 .home-cover__copy {
   position: relative;
@@ -489,7 +438,7 @@ async function handleRetryLatest() {
 }
 
 /* 面板里的空态不要"卡片"：留边框+纸面底会和面板边框叠成双重容器（用户说的"很怪"）。
-   改成像封面左下角的一行字幕 —— 透明底、左对齐、贴底，线条压上来也不挡字。 */
+   改成像封面左下角的一行字幕 —— 透明底、左对齐、贴底。 */
 .home-cover__panel :deep(.empty-state) {
   min-height: 0;
   align-items: flex-start;
@@ -513,8 +462,8 @@ async function handleRetryLatest() {
   color: var(--color-on-inverse-muted);
 }
 
-/* 没有轮播图时，面板要压在装饰线条之上：线条压着图片是"凌乱美"，
-   压着空态文案就是可读性问题。 */
+/* 没有轮播图时，面板压在装饰层之上，空态文案不被任何装饰盖住。
+   基线等装饰只落在空隙与四角，不压可读内容。 */
 .home-cover__panel--empty {
   z-index: 4;
 }
@@ -537,8 +486,10 @@ async function handleRetryLatest() {
   justify-content: flex-end;
   gap: 1.25rem;
   /* 记号与刻度是纯装饰（aria-hidden），必须点击穿透：
-     它们压在下沿刻度线上，正好盖住轮播的圆点/箭头，不穿透就点不动。
-     `elementFromPoint` 实测过：箭头中心命中的曾是 `li.home-cover__tick`。 */
+      它们落在轮播圆点/箭头附近，不穿透就点不动。
+      `elementFromPoint` 实测过：箭头中心命中的曾是 `li.home-cover__tick`。
+      整组一起往右下刚体位移（G8 定案），留 8px 呼吸不被 overflow: clip 切掉字形。 */
+  transform: translate(var(--cover-aside-x), var(--cover-aside-y));
   pointer-events: none;
 }
 
@@ -609,7 +560,7 @@ async function handleRetryLatest() {
 
 @media (min-width: 1024px) {
   .home-cover__grid,
-  .home-cover__lines {
+  .home-cover__crops {
     display: block;
   }
 }
@@ -642,13 +593,19 @@ async function handleRetryLatest() {
     grid-column: 1;
     grid-row: 3;
     align-items: flex-start;
+    /* 窄屏改成纵向堆叠后，右下角整组的刚体位移会把记号推出视口：归零。 */
+    transform: none;
   }
 
   .home-cover__grid {
     display: none;
   }
 
-  .home-cover__lines {
+  .home-cover__rule {
+    display: none;
+  }
+
+  .home-cover__crops {
     display: none;
   }
 
@@ -673,15 +630,10 @@ async function handleRetryLatest() {
   }
 }
 
-/* 减少动态：线条不做延展，直接静态到位（JS 那边也不会 arm，这里是兜底）。 */
+/* 减少动态：封面装饰层不做进场，基线位移是静态定位而非动画。 */
 @media (prefers-reduced-motion: reduce) {
-  .home-cover__lines .home-cover__line {
+  .home-cover__rule {
     transition: none;
-  }
-
-  .home-cover__lines.is-armed .home-cover__line {
-    opacity: var(--line-opacity);
-    transform: none;
   }
 }
 </style>

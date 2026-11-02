@@ -325,7 +325,7 @@ describe("例外边界：色带 / 刻度 / 记号类名只在首屏封面内", (
   });
 });
 
-describe("首屏版式复盘：窄高轮播面板 + 右栏线条场", () => {
+describe("首屏版式复盘：窄高轮播面板 + 右栏记号与下沿刻度", () => {
   it("删掉那句补充说明与两个入口按钮（顶栏已有入口）", () => {
     expect(indexVue).not.toContain("搜索文章");
     expect(indexVue).not.toContain("开始创作");
@@ -375,129 +375,12 @@ describe("首屏版式复盘：窄高轮播面板 + 右栏线条场", () => {
     expect(panel).toMatch(/background:\s*color-mix\(in srgb, var\(--color-on-inverse\)/u);
   });
 
-  it("缺图时面板压在线条之上（线条不许盖住空态文案）", () => {
+  it("缺图时面板压在装饰层之上（空态文案不被装饰盖住）", () => {
     expect(indexVue).toMatch(/home-cover__panel--empty/u);
     const emptyOverride = blockAfter(indexVue, ".home-cover__panel--empty {");
     const panel = blockAfter(indexVue, ".home-cover__panel {");
 
     const zOf = (block: string) => Number(/z-index:\s*(\d+)/u.exec(block)?.[1] ?? "0");
     expect(zOf(emptyOverride)).toBeGreaterThan(zOf(panel));
-  });
-
-  it("线条的右端点抵到视口右沿（负外边距抵消封面左右内边距）", () => {
-    const lines = blockAfter(indexVue, ".home-cover__lines {");
-
-    expect(lines).toContain("calc(-1 * var(--cover-pad-x))");
-    expect(indexVue).toContain("--cover-pad-x: clamp(");
-  });
-
-  it("线条场压过面板（z-index 高于面板、低于标题），且只在宽屏出现", () => {
-    const lines = blockAfter(indexVue, ".home-cover__lines {");
-    const panel = blockAfter(indexVue, ".home-cover__panel {");
-    const copy = blockAfter(indexVue, ".home-cover__copy {");
-    const zOf = (block: string) => Number(/z-index:\s*(\d+)/u.exec(block)?.[1] ?? "0");
-
-    expect(lines).toContain("position: absolute");
-    expect(lines).toContain("pointer-events: none");
-    expect(zOf(lines)).toBeGreaterThan(zOf(panel));
-    expect(zOf(copy)).toBeGreaterThan(zOf(lines));
-    expect(indexVue).toMatch(/@media \(max-width: 767px\)[\s\S]*\.home-cover__lines \{\s*display: none;/u);
-  });
-
-  it("线条只用四种调子（反白 / 功能蓝 / 珊瑚 / 高亮黄），数量够密", () => {
-    const tones = [...indexVue.matchAll(/tone: "([a-z]+)"/gu)].map((match) => match[1]);
-
-    expect(tones.length).toBeGreaterThanOrEqual(12);
-    expect([...new Set(tones)].sort()).toEqual(["blue", "coral", "ink", "yellow"]);
-  });
-
-  it("线条右端点贴着最右边（用 right 定位，抖动 ≤2%）", () => {
-    const rights = [...indexVue.matchAll(/right: "([0-9.]+)%"/gu)].map((match) => Number(match[1]));
-
-    expect(rights.length).toBeGreaterThanOrEqual(12);
-    for (const right of rights) {
-      expect(right).toBeLessThanOrEqual(2);
-    }
-    // 右端定位后不再用 left 决定终点。
-    expect(indexVue).not.toMatch(/left: "\d+%",\s*width:/u);
-  });
-
-  it("长度分布：中间最长、上下渐短且不规则", () => {
-    const lines = [...indexVue.matchAll(/top: "([\d.]+)%"[^}]*width: "([\d.]+)%"/gu)].map(
-      (match) => ({
-        top: Number(match[1]),
-        width: Number(match[2]),
-      }),
-    );
-
-    expect(lines.length).toBeGreaterThanOrEqual(12);
-
-    const widest = lines.reduce((max, line) => (line.width > max.width ? line : max));
-    // 峰值落在垂直中段（而不是贴顶或贴底）。
-    expect(widest.top).toBeGreaterThanOrEqual(38);
-    expect(widest.top).toBeLessThanOrEqual(62);
-    // 中段最长的那条要越过左栏面板的右沿（44%），才谈得上"压住轮播"。
-    expect(widest.width).toBeGreaterThan(100 - 44);
-    // 两端明显更短（不足峰值的一半）。
-    expect(lines[0]!.width).toBeLessThan(widest.width / 2);
-    expect(lines.at(-1)!.width).toBeLessThan(widest.width / 2);
-    // 不规则：允许抖动，所以相邻两条的差不必相等（只要求整体趋势）。
-    const widths = lines.map((line) => line.width);
-    expect(widths).not.toEqual([...widths].sort((a, b) => b - a));
-  });
-});
-
-describe("线条入场：从右端延展（只动 transform/opacity，不走 @keyframes）", () => {
-  const lineRule = blockAfter(indexVue, ".home-cover__line {");
-
-  it("缩放原点贴右：视觉上是从最右边长出来", () => {
-    expect(lineRule).toContain("transform-origin: right center");
-  });
-
-  it("用 scaleX(0) → scaleX(1) 的过渡，而不是改 width", () => {
-    expect(indexVue).toContain("transform: scaleX(0)");
-    expect(indexVue).toContain("transform: scaleX(1)");
-    // 布局属性不许过渡（也不许用来做展开）。
-    expect(indexVue).not.toMatch(/transition:[^;]*\bwidth/u);
-    expect(indexVue).not.toMatch(/transform:\s*scaleY/u);
-  });
-
-  it("状态类两段式（is-armed → is-drawn），保留无 JS 兜底", () => {
-    expect(indexVue).toContain("'is-armed': linesArmed");
-    expect(indexVue).toContain("'is-drawn': linesDrawn");
-    expect(indexVue).toMatch(/is-armed:not\(\.is-drawn\)/u);
-    // 只有 arm 成功后才收起初态，所以脚本没跑时线条仍是终态可见。
-    expect(indexVue).toMatch(/onMounted\([\s\S]*prefers-reduced-motion/u);
-    expect(indexVue).toContain("requestAnimationFrame");
-  });
-
-  it("入场延迟不规则：手写跳数、不是等差，但仍是同一份 40ms 量子的整数倍", () => {
-    const steps = /HERO_LINE_DELAY_STEPS = \[([\d,\s]+)\]/u.exec(indexVue)?.[1];
-
-    expect(steps, "延迟必须来自一组显式跳数").toBeDefined();
-    const values = steps!.split(",").map((part) => Number(part.trim()));
-
-    expect(values.length).toBeGreaterThanOrEqual(14);
-    // 等差会被读成节拍器：相邻差值不能恒定。
-    const gaps = values.slice(1).map((value, index) => value - values[index]!);
-    expect(new Set(gaps).size).toBeGreaterThan(2);
-    // 中段线条最早落位（用户要的"先结构后细节"），两端更晚。
-    expect(Math.min(...values)).toBeLessThanOrEqual(1);
-    expect(Math.max(...values)).toBeGreaterThanOrEqual(7);
-    // 延迟仍是 40ms 量子的整数倍，且逐条内联。
-    expect(indexVue).toMatch(/HERO_LINE_DELAY_STEPS\[index\][^`]*\* MOTION_STAGGER_MS/u);
-    expect(indexVue).toMatch(/transitionDelay: line\.delay/u);
-  });
-
-  it("时长与缓动走全站同一份预算（--motion-base + --motion-ease）", () => {
-    expect(lineRule).toContain("var(--motion-base)");
-    expect(lineRule).toContain("var(--motion-ease)");
-  });
-
-  it("减少动态下不延展、直接静态到位", () => {
-    const reduced = /@media \(prefers-reduced-motion: reduce\) \{([\s\S]*?)\n\}/u.exec(indexVue)?.[1] ?? "";
-
-    expect(reduced).toContain(".home-cover__line");
-    expect(reduced).toContain("transition: none");
   });
 });

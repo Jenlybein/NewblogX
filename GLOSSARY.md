@@ -47,10 +47,11 @@ _Avoid_: 在 handler 里裸起 goroutine 发事件（v1 做法，已废）。
 位置：`backend/internal/apperr`；archcheck R8 拦 `errors.New("中文")`。
 _Avoid_: 按中文字符串匹配错误分支（改一个字就断）。
 
-**零 DDL（零 DDL 硬约束）**：
-不改、不删既有表结构（列名、类型、列顺序、删列全禁），只允许 `CREATE TABLE IF NOT EXISTS` 新建表；因为 ES 投影按列名解析 binlog 行。
-位置：硬约束 A1，见 `docs/architecture/overview.md` §六、`README.md` §十二。
-_Avoid_: 把"迁移"理解成 ALTER——本项目没有 ALTER 通道。
+**零 DDL（零 DDL 硬约束 = 零列变更 + 允许新增表）**：
+不改、不删既有表结构（列名、类型、列顺序、删列全禁），只允许 `CREATE TABLE IF NOT EXISTS` 新建表；因为 **CDC 按列名解析 binlog 行**（ES 文章投影与 image-ref 两条链路都从行快照按列名取值，不是只有 ES 投影）。
+例外的边界写死在"新建表"这一侧：[ADR-0020](./docs/adr/0020-zero-ddl-exception-and-generic-framing-table.md) 授权的通用取景表 `picture_crop_models` 是**首个登记例外**；**既有表的列变更仍然一律禁止**（含 ALTER、DROP 后重建、加列、删列），例外不延伸到任何既有表。
+位置：硬约束 A1，见 `docs/architecture/overview.md` §六、`README.md` §11.3 与 §十三、[ADR-0020](./docs/adr/0020-zero-ddl-exception-and-generic-framing-table.md)。
+_Avoid_: 把"迁移"理解成 ALTER——本项目没有 ALTER 通道；把"允许新增表"读成"允许重建既有表"。
 
 ---
 
@@ -425,7 +426,8 @@ _Avoid_: 叫它"横幅图 / banner 海报"（它是首屏面板里的封面图�
 决定一张图在固定比例的容器里露出哪一块，由焦点与缩放两个量共同表达；它只描述"怎么显示"，不改动图片文件本身。
 位置：取景参数随 banner 的创建/更新契约下发，后台取景窗里决定，读者站按同一份参数复现。
 _Avoid_: 裁剪（crop 指对文件做像素手术，本项目刻意不做）；裁切 / 剪裁（同义误用）；把"取景"说成"改图片"。
-例外：契约字段 `crop`、表 `banner_crop_models` 与错误码 `banner.crop_invalid` 沿用既有命名，属历史命名，不作为术语；正文一律写"取景"。
+命名与契约（不动）：契约字段 `crop` 与错误码 `banner.crop_invalid` 沿用既有命名，不作为术语，也**不随表结构变更而改动**；正文一律写"取景"。
+表名（历史命名，已立项合并）：旧的轮播专属取景表 `banner_crop_models` 属**历史命名**，不再代表当前结构；取景表已立项合并为通用取景表 `picture_crop_models`（键 `target_type` / `target_id`，覆盖轮播封面、文章封面与合集封面），见 [ADR-0020](./docs/adr/0020-zero-ddl-exception-and-generic-framing-table.md)（状态已接受，建表与回填由落地票 #119 执行）；正文一律写"通用取景表"。
 
 **焦点（focus）**：
 缩放的锚点，用图上的**相对**坐标表达（`focus_x` / `focus_y`，各自 0–1，0 与 1 分别贴住两条边），不是像素坐标。

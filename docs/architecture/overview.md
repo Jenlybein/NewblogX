@@ -12,7 +12,7 @@
 | [contracts](./contracts.md) | 契约流水线、swag v2 的坑、`contract.ts` 三层工具 | 动 API / 改注解 / 改前端类型时 |
 | [configuration](./configuration.md) | 配置分层、后台可改配置、合并规则 | 加配置项 / 排查"改了不生效" |
 | [ai-integration](./ai-integration.md) | eino 调用链、模型配置表、供应商映射 | 加供应商 / AI 不可用 |
-| [ADR 索引](../adr/README.md) | 19 条 ADR 的决策骨架、理由与当前约束（0010–0019 为呈现层 / 前端行为 / 装饰层 / 渲染与性能策略） | 想改某条规则前，先读它为什么存在 |
+| [ADR 索引](../adr/README.md) | 20 条 ADR 的决策骨架、理由与当前约束（0010–0019 为呈现层 / 前端行为 / 装饰层 / 渲染与性能策略，0020 为零 DDL 例外授权与通用取景表） | 想改某条规则前，先读它为什么存在 |
 | [v1 ADR 合集（归档原文）](../archive/v1/04-adr-collection.md) | 拆分前原文，保留合并口径与归档备注 | 需要对照历史时 |
 | [v1 基线与过程](../archive/v1/05-baseline-and-process.md) | 起点数字、M0→M7 时间线、两轮决策留档 | 想知道"这个数字原来是多少" |
 
@@ -572,7 +572,7 @@ cd frontend_admin && pnpm openapi:types
 
 | # | 约束 | 守卫 |
 | --- | --- | --- |
-| A1 | **零 DDL = 零列变更**：列名 / 类型 / 列顺序 / 删列一律禁止（索引、外键、CH 的 `TTL`/`CODEC` 允许）。放宽的前提是有列名契约测试（`schema.ColumnsDiff` / `AssertColumns`） | 人工 + 契约测 |
+| A1 | **零列变更 + 允许新增表**：既有表的列名 / 类型 / 列顺序 / 删列一律禁止（索引、外键、CH 的 `TTL`/`CODEC` 允许）；新增表走 `CREATE TABLE IF NOT EXISTS` 登记，经 ADR 立项的登记例外当前只有通用取景表 `picture_crop_models`（[ADR-0020](../adr/0020-zero-ddl-exception-and-generic-framing-table.md)，例外只到新建表）。理由是 **CDC 按列名解析**：ES 文章投影与 image-ref 两条链路都从 binlog 行快照按列名取值。放宽列变更的前提是有列名契约测试（`schema.ColumnsDiff` / `AssertColumns`） | 人工 + 契约测 |
 | A2 | **ID 语义字段必须是 `ctype.ID`**，禁止裸 `uint64`/`int64`（含指针与切片）；反序列化须同时接受数字与字符串 | `archcheck R12`，基线 0 |
 | A3 | **ID 比较必须显式走 `Uint64()`**——字符串语义下 `"10" < "9"` 成立 | 人工 |
 | A4 | **禁止 `type Deps struct`**；`*gorm.DB` 只能出现在 `*/adapter/` 与 `platform/mysql/` | `R3` / `R1` / `R2` |

@@ -1010,7 +1010,7 @@ docker compose up -d --build          # 只重建有变化的镜像
 docker compose ps                     # 确认 healthy
 ```
 
-数据库不需要单独迁移步骤。`-db` 执行的是 `schema.sql`，全部 `CREATE TABLE IF NOT EXISTS`，重复跑没有副作用——这也和项目的**零 DDL 硬约束**一致：**不会 ALTER 既有表**。
+数据库不需要单独迁移步骤。`-db` 执行的是 `schema.sql`，全部 `CREATE TABLE IF NOT EXISTS`，重复跑没有副作用——这也和项目的**零 DDL 硬约束**一致：口径是**零列变更 + 允许新增表**，**不会 ALTER 既有表**；[ADR-0020](docs/adr/0020-zero-ddl-exception-and-generic-framing-table.md) 授权的通用取景表 `picture_crop_models` 是首个登记例外（例外只到新建表）。
 
 ### 11.4.1 升级到带索引变更的版本：重建 ES + 全量回填
 
@@ -1284,7 +1284,7 @@ BLOGX_LOG_CLEANUP_RUN_AT='03:30:00'
 
 这几条不是风格偏好，是有守卫脚本兜底的硬约束。违反了门禁会红，或者更糟——**不红但线上出错**。
 
-1. **零 DDL。** 不能改、不能删既有表。ES 投影靠 CDC 按列名解析，改列名会让同步静默错位。**加新表可以。**
+1. **零 DDL。** 口径是**零列变更 + 允许新增表**：不能改、不能删既有表，新表用 `CREATE TABLE IF NOT EXISTS` 登记；[ADR-0020](docs/adr/0020-zero-ddl-exception-and-generic-framing-table.md) 授权的通用取景表 `picture_crop_models` 是首个登记例外，边界只到"新建表"——既有表的列变更仍一律禁止。**CDC 按列名解析**（ES 文章投影与 image-ref 两条链路），改列名会让同步静默错位。
 2. **ID 语义字段必须用 `ctype.ID`**，禁止裸整型。守卫规则 R12 兜底，基线 0。
 3. **不要拿 ID 比大小。** `ctype.ID` 底层是字符串，`"10" < "9"` 成立。要比较先 `.Uint64()`。
 4. **不要用 `ID(123)` 构造 ID**，用 `NewID`。`go vet` 的 `stringintconv` 只抓这一种写法。

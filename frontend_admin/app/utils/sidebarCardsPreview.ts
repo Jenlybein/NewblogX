@@ -102,11 +102,11 @@ const PREVIEW_SAMPLES: Record<string, Pick<
 /** 该种类的示例内容；未知种类给空数组，让它被渲染模型整张忽略。 */
 function previewSample(kind: string): Pick<
   SiteSidebarCardItem,
-  'hot_articles' | 'latest_comments' | 'tags' | 'collections'
+  'hot_articles' | 'latest_comments' | 'tags' | 'collections' | 'content'
 > {
   const known = PREVIEW_SAMPLES[kind]
   if (known) return known
-  return { hot_articles: [], latest_comments: [], tags: [], collections: [] }
+  return { hot_articles: [], latest_comments: [], tags: [], collections: [], content: '' }
 }
 
 /**
@@ -126,6 +126,8 @@ export function sidebarCardsPreviewItems(
       kind: draft.kind,
       title: draft.title,
       sort_order: index,
+      // 富文本卡用草稿里正在编辑的正文，其它种类没有正文。
+      content: draft.kind === 'rich_text' ? draft.content : '',
       ...previewSample(draft.kind),
     }))
 }

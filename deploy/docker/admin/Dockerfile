@@ -2,7 +2,7 @@
 
 # frontend_admin 为自洽应用：构建只依赖自身 package.json / pnpm-lock.yaml，不再使用 workspace。
 # 构建上下文为仓库根目录（与 api Dockerfile 保持一致）。
-FROM node:20-alpine AS builder
+FROM node:22-alpine AS builder
 
 WORKDIR /build/frontend_admin
 
@@ -27,7 +27,7 @@ COPY frontend_admin ./
 
 RUN pnpm exec nuxt build
 
-FROM node:20-alpine AS runner
+FROM node:22-alpine AS runner
 
 WORKDIR /app
 

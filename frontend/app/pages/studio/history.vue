@@ -107,14 +107,13 @@ useSeoMeta({
 
 .article-history-card__cover {
   width: 176px;
-  height: 118px;
+  aspect-ratio: 16 / 9;
   border-radius: var(--radius-lg);
 }
 
 @media (max-width: 768px) {
   .article-history-card__cover {
     width: 100%;
-    height: 196px;
   }
 }
 </style>

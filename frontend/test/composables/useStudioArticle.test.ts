@@ -62,13 +62,15 @@ async function settle() {
 }
 
 function makeMessage() {
-  return { success: vi.fn(), warning: vi.fn(), error: vi.fn() };
+  return { success: vi.fn(), warning: vi.fn(), error: vi.fn(), info: vi.fn() };
 }
 
 type HarnessOptions = {
   query?: Record<string, unknown>;
   profileId?: string;
   pending?: Partial<{ draft: boolean; publish: boolean; ai: boolean; cover: boolean }>;
+  /** 读原图尺寸的替身：默认返回合规的 1920×1080（直接上传路径）。 */
+  readSize?: (file: File) => Promise<{ width: number; height: number }>;
 };
 
 async function harness(options: HarnessOptions = {}) {
@@ -88,7 +90,12 @@ async function harness(options: HarnessOptions = {}) {
   const pendingState = { draft: false, publish: false, ai: false, cover: false, ...options.pending };
   const previewHeadings = ref<{ id: string; title: string; level: number }[]>([]);
 
-  const api = await useStudioArticle({ pendingState, message, previewHeadings });
+  const api = await useStudioArticle({
+    pendingState,
+    message,
+    previewHeadings,
+    readImageSize: options.readSize ?? (async () => ({ width: 1920, height: 1080 })),
+  });
   await settle();
 
   return { api, message, pendingState, previewHeadings, routeState };
@@ -507,5 +514,120 @@ describe("useStudioArticle · 内联新建分类", () => {
     expect(ok).toBe(false);
     expect(message.error).toHaveBeenCalledWith("分类已创建，但分类列表加载失败，请手动刷新后选择。");
     expect(message.success).not.toHaveBeenCalled();
+  });
+});
+
+describe("useStudioArticle · 封面 16:9 锁定与取景", () => {
+  it("合规图直接上传，不打开取景窗", async () => {
+    const { api } = await harness({ readSize: async () => ({ width: 1920, height: 1080 }) });
+
+    await api.handleCoverFileChange(fileChangeEvent(imageFile()));
+
+    expect(uploadImageByTaskMock).toHaveBeenCalledTimes(1);
+    expect(api.coverFramingOpen.value).toBe(false);
+    expect(api.coverImageSize.value).toEqual({ width: 1920, height: 1080 });
+    expect(api.coverRoute.value).toBe("direct");
+    expect(api.coverBadge.value?.text).toBe("16:9 合规");
+  });
+
+  it("比例不合规先打开取景窗，不发起上传（上传要等确认）", async () => {
+    const { api, pendingState } = await harness({ readSize: async () => ({ width: 1200, height: 800 }) });
+
+    await api.handleCoverFileChange(fileChangeEvent(imageFile()));
+
+    expect(uploadImageByTaskMock).not.toHaveBeenCalled();
+    expect(api.coverFramingOpen.value).toBe(true);
+    expect(api.coverRoute.value).toBe("frame");
+    expect(api.coverBadge.value?.text).toBe("比例不合规，需取景");
+    // 取景阶段不能锁住发布按钮：还没有任何上传在途。
+    expect(pendingState.cover).toBe(false);
+    expect(api.form.cover_image_id).toBeNull();
+  });
+
+  it("确认取景后才上传，并标记已取景", async () => {
+    const { api, message } = await harness({ readSize: async () => ({ width: 1200, height: 800 }) });
+
+    await api.handleCoverFileChange(fileChangeEvent(imageFile()));
+    await api.confirmCoverFraming({ focus_x: 0.3, focus_y: 0.4, zoom: 1.2 });
+
+    expect(uploadImageByTaskMock).toHaveBeenCalledTimes(1);
+    expect(api.form.cover_image_id).toBe("img-9");
+    expect(api.coverPreviewUrl.value).toBe("https://cdn.example.com/new.png");
+    expect(api.coverDirty.value).toBe(true);
+    expect(api.coverFramingOpen.value).toBe(false);
+    expect(api.coverFramed.value).toBe(true);
+    expect(api.coverBadge.value?.text).toBe("已取景");
+    expect(message.success).toHaveBeenCalledWith("封面上传成功");
+  });
+
+  it("取景参数只用于预览，不写进文章载荷（本票不落库）", async () => {
+    const { api } = await harness({ readSize: async () => ({ width: 1200, height: 800 }) });
+
+    await api.handleCoverFileChange(fileChangeEvent(imageFile()));
+    await api.confirmCoverFraming({ focus_x: 0.3, focus_y: 0.4, zoom: 1.2 });
+    api.buildArticlePayload(2);
+
+    // 载荷仍是既有契约的字段集合：没有任何 crop / framing 字段。
+    const payload = buildPayloadMock.mock.calls.at(-1)?.[0] as Record<string, unknown>;
+    expect(Object.keys(payload)).not.toContain("crop");
+    expect(Object.keys(payload)).not.toContain("framing");
+    expect(buildPayloadMock.mock.calls.at(-1)?.[1]).toEqual({
+      status: 2,
+      isEditMode: false,
+      coverDirty: true,
+    });
+  });
+
+  it("取消取景＝本次不上传：没有图片记录，也没有预览", async () => {
+    const { api, message } = await harness({ readSize: async () => ({ width: 1200, height: 800 }) });
+
+    await api.handleCoverFileChange(fileChangeEvent(imageFile()));
+    api.cancelCoverFraming();
+
+    expect(uploadImageByTaskMock).not.toHaveBeenCalled();
+    expect(api.coverFramingOpen.value).toBe(false);
+    expect(api.form.cover_image_id).toBeNull();
+    expect(api.coverPreviewUrl.value).toBe("");
+    expect(api.coverFramed.value).toBe(false);
+    expect(message.info).toHaveBeenCalledWith(expect.stringContaining("已取消取景"));
+  });
+
+  it("读不到原图尺寸时按失败处理：不弹取景窗、不上传", async () => {
+    const { api, message } = await harness({
+      readSize: async () => {
+        throw new Error("图片尺寸读取失败");
+      },
+    });
+
+    await api.handleCoverFileChange(fileChangeEvent(imageFile()));
+
+    expect(uploadImageByTaskMock).not.toHaveBeenCalled();
+    expect(api.coverFramingOpen.value).toBe(false);
+    expect(api.form.cover_image_id).toBeNull();
+    expect(message.warning).toHaveBeenCalledWith("读不到这张图片的尺寸，请换一张图片作为封面。");
+  });
+
+  it("上传失败把错误留在面板上，重新选择时清掉", async () => {
+    uploadImageByTaskMock.mockRejectedValueOnce(new Error("网络断开"));
+    const { api } = await harness({ readSize: async () => ({ width: 1920, height: 1080 }) });
+
+    await api.handleCoverFileChange(fileChangeEvent(imageFile()));
+    expect(api.coverError.value).toBe("网络断开");
+
+    uploadImageByTaskMock.mockResolvedValue({ image_id: "img-9", url: "https://cdn.example.com/new.png" });
+    await api.handleCoverFileChange(fileChangeEvent(imageFile()));
+    expect(api.coverError.value).toBe("");
+  });
+
+  it("回填的旧封面没有原图尺寸：不显示合规徽标，也不假装取过景", async () => {
+    const { api } = await harness({ query: { article_id: "100" } });
+    getArticleDetailMock.mockResolvedValue({ ...articleFixture });
+    (api.editingArticle as { value: unknown }).value = { ...articleFixture };
+    await settle();
+
+    expect(api.coverImageSize.value).toBeNull();
+    expect(api.coverRoute.value).toBe("");
+    expect(api.coverBadge.value).toBeNull();
+    expect(api.coverFramed.value).toBe(false);
   });
 });

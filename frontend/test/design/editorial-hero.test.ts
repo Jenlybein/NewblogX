@@ -1,4 +1,4 @@
-﻿import { readFileSync } from "node:fs";
+import { readFileSync } from "node:fs";
 import { join, relative } from "node:path";
 
 import { describe, expect, it } from "vitest";
@@ -78,9 +78,10 @@ describe("分层：底图 → 罩层 → 色带 → 网格刻度 → h1 → 记�
     const photo = blockAfter(bannerVue, ".banner-photo__img {");
     expect(photo).toContain("height: 100%");
     expect(photo).toContain("width: 100%");
-    // object-fit 由取景纯函数产出（bannerFramingStyle），CSS 不再重复定义。
+    // object-fit 由取景纯函数产出（framingStyle），CSS 不再重复定义。
+    // 取景算术在 coverFraming（轮播与文章封面的取景窗共用它），bannerFraming 只做契约字段适配。
     expect(photo).not.toContain("object-fit");
-    expect(read("app/utils/bannerFraming.ts")).toContain('objectFit: "cover"');
+    expect(read("app/utils/coverFraming.ts")).toContain('objectFit: "cover"');
   });
 
   it("罩层是中性石墨渐变，保证反白文字的对比度 ≥4.5:1", () => {

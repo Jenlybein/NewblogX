@@ -363,6 +363,11 @@ async function handleRetryLatest() {
   align-items: end;
   gap: clamp(1rem, 2.5vw, 2.5rem);
   width: 100%;
+  /* 首屏内容给一个宽度上限：轮播面板固定 16:9，宽度跟着窗口一路长高，
+     超宽屏上首屏能被顶到 800px 以上，底图被放大到超过原图分辨率就发糊。
+     限住这一层，标题、面板、线条场一起收敛，比例不变，只是不再无限长大。 */
+  max-width: 1440px;
+  margin-inline: auto;
 }
 
 /* 左栏：轮播面板，位于大字下方并整体右移一点（margin 让它不贴左沿）。

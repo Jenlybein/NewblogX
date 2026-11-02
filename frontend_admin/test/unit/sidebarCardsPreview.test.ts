@@ -131,6 +131,35 @@ describe("右栏预览：草稿改动即时反映在模型里（不需要保存�
     );
     expect(views).toEqual([]);
   });
+
+  it("富文本卡写了正文就能进预览：正文折成纯文本且保留分段", () => {
+    const richDraft = {
+      ...draft("new-rich", "rich_text", "公告", true),
+      content: "<h2>更新日志</h2><p>本周修了三个问题。</p><p>下周计划见下。</p>",
+    };
+
+    const views = sidebarCardsPreviewViews(sidebarCardsPreviewItems([richDraft]));
+    expect(views).toHaveLength(1);
+    const view = views[0]!;
+    expect(view.kind).toBe("rich_text");
+
+    // 标签被折掉，但段落边界变成换行 —— 预览里看得出"分了几段"。
+    expect(view.contentHtml).not.toContain("<");
+    expect(view.contentHtml).toContain("更新日志");
+    expect(view.contentHtml).toContain("本周修了三个问题。");
+    expect(view.contentHtml.split("\n").filter(Boolean)).toEqual([
+      "更新日志",
+      "本周修了三个问题。",
+      "下周计划见下。",
+    ]);
+  });
+
+  it("富文本卡正文为空时整张不进预览（与读者站同一条空数据规则）", () => {
+    const views = sidebarCardsPreviewViews(
+      sidebarCardsPreviewItems([{ ...draft("new-empty", "rich_text", "公告", true), content: "   " }]),
+    );
+    expect(views).toEqual([]);
+  });
 });
 
 describe("右栏预览：与读者站同一张契约表、同一份渲染函数", () => {

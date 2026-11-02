@@ -294,6 +294,50 @@ func TestUpdatePublishedTriggersReReview(t *testing.T) {
 	}
 }
 
+// TestUpdatePublishedWithoutReviewKeepsPublished 锁住"跳过审核的站点也能改已发布文章"。
+//
+// 站点跳过审核时，作者点"更新"发出的正是 TargetStatus=审核中 + SkipExamining=true：
+// 目标态（已发布）与当前态相同。这里曾经报 ErrAlreadyPublished，于是已发布的文章
+// 永远改不了 —— 用户看到的是"文章已发布"，改动被整笔回滚。
+func TestUpdatePublishedWithoutReviewKeepsPublished(t *testing.T) {
+	t.Parallel()
+
+	svc, repos, _ := newService(t)
+	ctx := context.Background()
+	seedArticle(t, repos, ctype.NewID(1), author, domain.StatusPublished)
+
+	content := "跳过审核站点上的正文改动"
+	target := domain.StatusExamining
+	res, err := svc.Update(ctx, app.UpdateArticleCmd{
+		Actor:         authorViewer(),
+		Policy:        domain.OpenWritePolicy(),
+		ArticleID:     ctype.NewID(1),
+		Content:       &content,
+		TargetStatus:  &target,
+		SkipExamining: true,
+	})
+	if err != nil {
+		t.Fatalf("更新已发布文章不应报错: %v", err)
+	}
+	if !res.Changed {
+		t.Fatal("正文改了，应当算有变更")
+	}
+	if res.Article.Status() != domain.StatusPublished {
+		t.Fatalf("状态应保持已发布，实际 %s", res.Article.Status())
+	}
+	if res.Resubmitted {
+		t.Fatal("跳过审核时不该重新送审")
+	}
+	// 内容真的落库了：回读一次，确认不是"只返回了成功"。
+	got, err := repos.FakeArticles().Find(ctx, ctype.NewID(1))
+	if err != nil {
+		t.Fatalf("回读失败: %v", err)
+	}
+	if got.Content() != content {
+		t.Fatalf("正文未落库，实际 %q", got.Content())
+	}
+}
+
 // TestUpdateVisibilityOnlyDoesNotReReview 是边界：只改可见性不触发重审。
 func TestUpdateVisibilityOnlyDoesNotReReview(t *testing.T) {
 	t.Parallel()

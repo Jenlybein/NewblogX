@@ -81,6 +81,16 @@ const views = computed(() =>
           </span>
         </div>
       </div>
+
+      <!--
+        富文本卡：正文按纯文本预览（保留换行），不在这里执行读者站的白名单清洗。
+        预览要回答的是"这段正文在右栏占几行"，纯文本足够判断；真正的排版与清洗
+        由读者站在渲染前完成（同一个出口，见 frontend/app/utils/sanitizeHtml.ts）。
+      -->
+      <p
+        v-else-if="card.kind === 'rich_text'"
+        class="preview-rich-text"
+        data-role="preview-rich-text">{{ card.contentHtml }}</p>
     </section>
   </div>
 </template>
@@ -186,6 +196,16 @@ const views = computed(() =>
   margin-top: 0.25rem;
   color: var(--color-ink-faint);
   font-size: 0.75rem;
+}
+
+/* 富文本卡正文（纯文本预览）：保留换行，行高与读者站右栏正文一致。 */
+.preview-rich-text {
+  margin: 0.5rem 0 0;
+  color: var(--color-ink-muted);
+  font-size: 0.875rem;
+  line-height: 1.75;
+  overflow-wrap: anywhere;
+  white-space: pre-line;
 }
 
 .preview-collection-cover {

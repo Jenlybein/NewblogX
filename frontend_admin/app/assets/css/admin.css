@@ -74,9 +74,16 @@
     background: var(--color-bg-subtle);
   }
 
-  .admin-nav__group-link,
+  /* 父项是展开/收起的按钮而不是链接：要显式清掉按钮默认的边框/底色/居中。 */
   .admin-nav__group-title {
-    @apply flex min-w-0 flex-1 items-center gap-2 px-1 py-2 text-sm;
+    @apply flex min-w-0 flex-1 cursor-pointer items-center gap-2 border-0 bg-transparent px-1 py-2 text-left text-sm;
+    color: inherit;
+    font: inherit;
+  }
+
+  .admin-nav__group-title:hover {
+    color: var(--color-ink);
+    background: var(--color-bg-subtle);
   }
 
   .admin-nav__toggle {
@@ -106,8 +113,7 @@
     padding-left: 2.25rem;
   }
 
-  .admin-nav__link:hover,
-  .admin-nav__group-link:hover {
+  .admin-nav__link:hover {
     color: var(--color-ink);
     background: var(--color-bg-subtle);
   }
@@ -666,7 +672,6 @@
       padding-left: 1.5rem;
     }
 
-    .admin-nav__group-link,
     .admin-nav__group-title {
       @apply py-1.5;
     }

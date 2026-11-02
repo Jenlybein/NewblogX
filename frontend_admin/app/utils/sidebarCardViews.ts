@@ -135,13 +135,21 @@ function collectionHref(id: string): string {
   return `/collections/${id}`;
 }
 
-/** 把一段 HTML 折成纯文本：预览不承担清洗职责，只展示"有多少字"。 */
+/**
+ * 把一段 HTML 折成纯文本：预览不承担清洗职责，只展示"有多少字、占几行"。
+ *
+ * 块级元素的边界换成换行（配合 `white-space: pre-line` 就是分段），行内标签直接去掉：
+ * 这样预览里还看得出"分了三段"，而不是糊成一条长句。
+ */
 function toPlainText(html: string): string {
   return html
     .replace(/<(script|style)\b[^>]*>[\s\S]*?<\/\1>/giu, "")
+    .replace(/<br\s*\/?>/giu, "\n")
+    .replace(/<\/(p|div|li|h[1-6]|blockquote|tr)>/giu, "\n")
     .replace(/<[^>]*>/gu, "")
     .replace(/&nbsp;/giu, " ")
-    .replace(/\s+/gu, " ")
+    .replace(/[ \t]+/gu, " ")
+    .replace(/\n{3,}/gu, "\n\n")
     .trim();
 }
 

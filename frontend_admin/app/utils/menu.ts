@@ -71,10 +71,12 @@ export const ADMIN_NAV_TREE: AdminNavNode[] = [
   { label: '数据概览', path: '/', icon: 'chart' },
   { label: '文章审核', path: '/review', icon: 'shield' },
   {
+    // 父项只负责分组：点标题是展开/收起，不进页面。所以父项**不给 path**，
+    // 它自己的页面降级成第一个子项（「文章列表」）—— 否则那页就没有入口了。
     label: '文章管理',
-    path: '/articles',
     icon: 'article',
     children: [
+      { label: '文章列表', path: '/articles', icon: 'article' },
       // 热门置顶是独立运营位（ADR-0017 决策 5），层级上归到「文章管理」：先选文章，再排序。
       { label: '热门置顶', path: '/articles/hot-top', icon: 'pin' },
       // 合集是"文章的有序集合"，同属文章域的运营产物，挂在同一个父项下。
@@ -104,10 +106,11 @@ export const ADMIN_NAV_TREE: AdminNavNode[] = [
   { label: '媒体运营', path: '/media', icon: 'photo' },
   { label: '全局通知', path: '/notifications', icon: 'bell' },
   {
+    // 同「文章管理」：父项只分组，日志检索页降级为第一个子项。
     label: '日志中心',
-    path: '/logs',
     icon: 'database',
     children: [
+      { label: '运行日志', path: '/logs', icon: 'database' },
       { label: '同步死信', path: '/logs/dead-letter', icon: 'alert' },
     ],
   },
@@ -377,16 +380,35 @@ function findDuplicates(paths: string[]): string[] {
   return [...seen.entries()].filter(([, count]) => count > 1).map(([path]) => path)
 }
 
-/** ADR-0017 决策 5：拍平后「热门置顶」必须紧跟「文章管理」，且路径固定。 */
+/**
+ * ADR-0017 决策 5：拍平后「热门置顶」必须紧跟在「文章管理」这一组里，且路径固定。
+ *
+ * 父项本身不可导航，它自己的页面（文章列表）作为组内第一个子项出现，
+ * 所以「热门置顶」是组内第二个可导航项 —— 位置判据是"组内顺序"，不是"拍平后相邻"。
+ */
 function hotTopOrderProblem(nav: AdminNavFlatItem[]): string | null {
   const articleIndex = nav.findIndex(item => item.label === '文章管理')
   if (articleIndex < 0) return '菜单里必须有「文章管理」'
 
-  const hotTopIndex = nav.findIndex(item => item.label === '热门置顶')
-  if (hotTopIndex < 0) return '菜单里必须有「热门置顶」'
-  if (hotTopIndex !== articleIndex + 1) return '「热门置顶」必须紧跟在「文章管理」之后'
+  // 组内成员：紧接父项之后、深度 > 0 的项（遇到下一个顶层项即止）。
+  const members: AdminNavFlatItem[] = []
+  for (const item of nav.slice(articleIndex + 1)) {
+    if (item.depth === 0) break
+    members.push(item)
+  }
 
-  const hotTop = nav[hotTopIndex]!
+  const hotTopIndex = members.findIndex(item => item.label === '热门置顶')
+  if (hotTopIndex < 0) return '「文章管理」组里必须有「热门置顶」'
+  // 组内第一个可导航项是父项自己的页面（文章列表），热门置顶紧随其后。
+  const ownPageIndex = members.findIndex(item => item.path === '/articles')
+  if (ownPageIndex >= 0 && hotTopIndex !== ownPageIndex + 1) {
+    return '「热门置顶」必须紧跟在「文章列表」之后'
+  }
+  if (ownPageIndex < 0 && hotTopIndex !== 0) {
+    return '「文章管理」组里「热门置顶」应排在第一个'
+  }
+
+  const hotTop = members[hotTopIndex]!
   if (hotTop.path !== '/articles/hot-top') {
     return '「热门置顶」的路径应是 /articles/hot-top'
   }
@@ -426,7 +448,9 @@ export function reconcileAdminNav(
     unreachablePages,
     duplicatePaths: findDuplicates(navigable.map(item => item.path)),
     nonAbsolutePaths: navigable.filter(item => !item.path.startsWith('/')).map(item => item.path),
-    hotTopOrder: hotTopOrderProblem(navigable),
+    // 位置对账要看**整棵**拍平视图（含分组父项本身）：父项没有 path，
+    // 在 navigable 里会被滤掉，那样就永远找不到「文章管理」这一组。
+    hotTopOrder: hotTopOrderProblem(flat),
   }
 }
 

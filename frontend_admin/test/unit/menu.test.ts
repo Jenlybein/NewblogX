@@ -57,7 +57,7 @@ function collectPageFiles(dir: string, prefix = ''): string[] {
 const EXPECTED_ADMIN_NAV = [
   { label: '数据概览', path: '/', icon: 'chart' },
   { label: '文章审核', path: '/review', icon: 'shield' },
-  { label: '文章管理', path: '/articles', icon: 'article' },
+  { label: '文章列表', path: '/articles', icon: 'article' },
   { label: '热门置顶', path: '/articles/hot-top', icon: 'pin' },
   { label: '合集管理', path: '/articles/collections', icon: 'article' },
   { label: '合集编排', path: '/articles/collection-arrange', icon: 'article' },
@@ -73,7 +73,7 @@ const EXPECTED_ADMIN_NAV = [
   { label: '右栏卡片', path: '/site/sidebar-cards', icon: 'settings' },
   { label: '媒体运营', path: '/media', icon: 'photo' },
   { label: '全局通知', path: '/notifications', icon: 'bell' },
-  { label: '日志中心', path: '/logs', icon: 'database' },
+  { label: '运行日志', path: '/logs', icon: 'database' },
   { label: '同步死信', path: '/logs/dead-letter', icon: 'alert' },
 ]
 
@@ -98,14 +98,15 @@ describe('后台菜单拍平视图', () => {
 
     // 两级化后拍平顺序不变：父项仍在原位、子项紧跟父项，所以上面的逐项冻结继续成立。
     // 语义子项下沉一级；其余项仍是顶层。
+    // 父项只分组、没有自身页面（父项不能点开），所以子项拿不到 parentPath。
     expect(FLAT_NAV.find(item => item.label === '热门置顶')).toMatchObject({
       parentLabel: '文章管理',
-      parentPath: '/articles',
+      parentPath: null,
       depth: 1,
     })
     expect(FLAT_NAV.find(item => item.label === '同步死信')).toMatchObject({
       parentLabel: '日志中心',
-      parentPath: '/logs',
+      parentPath: null,
       depth: 1,
     })
     expect(FLAT_NAV.find(item => item.label === '装饰')).toMatchObject({
@@ -261,15 +262,24 @@ describe('后台菜单两级视图（分组 / 展开 / 高亮 / 标题）', () =
     const group = entries.find(entry => entry.label === '文章管理')
     if (group?.kind !== 'group') throw new Error('「文章管理」应渲染成分组')
 
+    // 父项只分组：没有 path，点标题只会展开/收起，不会跳页。
     expect(group).toMatchObject({
       kind: 'group',
       key: 'group:文章管理',
-      path: '/articles',
+      path: null,
       active: true,
       expanded: true,
       depth: 0,
     })
-    expect(group.children).toEqual([
+    // 父项自己的页面降级成第一个子项，入口没有丢。
+    expect(group.children[0]).toMatchObject({
+      kind: 'link',
+      key: '/articles',
+      label: '文章列表',
+      path: '/articles',
+      depth: 1,
+    })
+    expect(group.children.slice(1)).toEqual([
       expect.objectContaining({
         kind: 'link',
         key: '/articles/hot-top',
@@ -393,22 +403,46 @@ describe('后台菜单两级视图（分组 / 展开 / 高亮 / 标题）', () =
     expect(entries.find(entry => entry.label === '日志中心')?.active).toBe(false)
     expect(entries.find(entry => entry.label === '用户管理')?.active).toBe(false)
 
-    // 亲自位于父页面时父项也亮，但子项不亮。
+    // 原来的父页面现在是子项：高亮落在「文章列表」上，分组自身只因子孙命中而亮。
     const onParent = buildAdminNavMenu(ADMIN_NAV_TREE, '/articles', ['group:文章管理'])
     const parentGroup = onParent.find(entry => entry.label === '文章管理')
     if (parentGroup?.kind !== 'group') throw new Error('「文章管理」应渲染成分组')
     expect(parentGroup.active).toBe(true)
-    expect(parentGroup.children[0]!.active).toBe(false)
+    expect(parentGroup.children[0]).toMatchObject({ label: '文章列表', active: true })
+    expect(parentGroup.children[1]!.active).toBe(false)
   })
 
   it('标题取深层子项，面包屑祖先链取父分组', () => {
     expect(navItemByPath('/articles/hot-top')?.label).toBe('热门置顶')
-    expect(navItemByPath('/articles')?.label).toBe('文章管理')
+    expect(navItemByPath('/articles')?.label).toBe('文章列表')
     expect(navTrail('/articles/hot-top').map(item => item.label)).toEqual(['文章管理'])
-    expect(navTrail('/articles')).toEqual([])
+    expect(navTrail('/articles').map(item => item.label)).toEqual(['文章管理'])
   })
 })
 
+describe('父项只分组：点标题是展开/收起，不会跳页', () => {
+  it('真实菜单里没有任何分组带 path（父项自己的页面已降级成子项）', () => {
+    const groups = ADMIN_NAV_TREE.filter(node => (node.children?.length ?? 0) > 0)
+    expect(groups.length).toBeGreaterThan(0)
+    for (const group of groups) {
+      expect(group.path, `「${group.label}」不该有自己的页面`).toBeUndefined()
+    }
+  })
+
+  it('父项自己的页面仍可到达：降级成组内第一个子项', () => {
+    const groupPaths = ADMIN_NAV_TREE.filter(node => (node.children?.length ?? 0) > 0).map(
+      group => group.children![0]!.path,
+    )
+    expect(groupPaths).toEqual(
+      expect.arrayContaining(['/articles', '/site', '/logs'].filter(path => path !== '/site')),
+    )
+    // 两个"原来父项能点开"的页面，现在都是组内第一个子项。
+    expect(FLAT_NAV.find(item => item.path === '/articles')?.label).toBe('文章列表')
+    expect(FLAT_NAV.find(item => item.path === '/articles')?.depth).toBe(1)
+    expect(FLAT_NAV.find(item => item.path === '/logs')?.label).toBe('运行日志')
+    expect(FLAT_NAV.find(item => item.path === '/logs')?.depth).toBe(1)
+  })
+})
 describe('后台菜单对账（两级结构）', () => {
   it('父项没有 path 属合法：不报缺失页面，只报真正缺页的子项', () => {
     const flat = flattenNav([
@@ -482,8 +516,10 @@ describe('后台菜单对账', () => {
     const labels = FLAT_NAV.map(item => item.label)
     const articleIndex = labels.indexOf('文章管理')
     expect(articleIndex).toBeGreaterThanOrEqual(0)
-    expect(FLAT_NAV[articleIndex + 1]?.label).toBe('热门置顶')
-    expect(FLAT_NAV[articleIndex + 1]?.path).toBe('/articles/hot-top')
+    // 父项之后先跟它自己的页面（文章列表），再是热门置顶。
+    expect(FLAT_NAV[articleIndex + 1]?.label).toBe('文章列表')
+    expect(FLAT_NAV[articleIndex + 2]?.label).toBe('热门置顶')
+    expect(FLAT_NAV[articleIndex + 2]?.path).toBe('/articles/hot-top')
   })
 
   it('对账能发现漏掉的菜单项、多出的页面、重复 / 相对路径与位置错位', () => {
@@ -491,7 +527,7 @@ describe('后台菜单对账', () => {
     const broken = flattenNav([
       { label: '数据概览', path: '/', icon: 'chart' },
       { label: '热门置顶', path: '/articles/hot-top', icon: 'pin' },
-      { label: '日志中心', path: '/logs', icon: 'database' },
+      { label: '运行日志', path: '/logs', icon: 'database' },
       { label: '重复项', path: '/logs', icon: 'database' },
       { label: '相对路径项', path: 'site', icon: 'settings' },
     ])
@@ -512,28 +548,51 @@ describe('后台菜单对账', () => {
     const pages = ['articles', 'articles/hot-top', 'logs']
     const flatOf = (nodes: AdminNavNode[]) => flattenNav(nodes)
 
+    // 缺：组里只有父项自己的页面。
     expect(
-      reconcileAdminNav(flatOf([{ label: '文章管理', path: '/articles', icon: 'article' }]), pages)
-        .hotTopOrder,
+      reconcileAdminNav(
+        flatOf([
+          {
+            label: '文章管理',
+            icon: 'article',
+            children: [{ label: '文章列表', path: '/articles', icon: 'article' }],
+          },
+        ]),
+        pages,
+      ).hotTopOrder,
     ).toContain('热门置顶')
 
+    // 错位：热门置顶被别的东西隔开（组内顺序不对）。
     const misplaced = flatOf([
-      { label: '文章管理', path: '/articles', icon: 'article' },
-      { label: '日志中心', path: '/logs', icon: 'database' },
-      { label: '热门置顶', path: '/articles/hot-top', icon: 'pin' },
+      {
+        label: '文章管理',
+        icon: 'article',
+        children: [
+          { label: '文章列表', path: '/articles', icon: 'article' },
+          { label: '合集管理', path: '/articles/collections', icon: 'article' },
+          { label: '热门置顶', path: '/articles/hot-top', icon: 'pin' },
+        ],
+      },
     ])
     expect(reconcileAdminNav(misplaced, pages).hotTopOrder).toContain('紧跟')
 
+    // 路径不符：位置对、路径错。
     const wrongPath = flatOf([
-      { label: '文章管理', path: '/articles', icon: 'article' },
-      { label: '热门置顶', path: '/articles/hot', icon: 'pin' },
+      {
+        label: '文章管理',
+        icon: 'article',
+        children: [
+          { label: '文章列表', path: '/articles', icon: 'article' },
+          { label: '热门置顶', path: '/articles/hot', icon: 'pin' },
+        ],
+      },
     ])
     expect(reconcileAdminNav(wrongPath, pages).hotTopOrder).toContain('/articles/hot-top')
   })
 
   it('反向对账排除登录页与初始化页，子项路径也算可达', () => {
     const flat = flattenNav([
-      { label: '日志中心', path: '/logs', icon: 'database' },
+      { label: '运行日志', path: '/logs', icon: 'database' },
       {
         label: '文章管理',
         path: '/articles',

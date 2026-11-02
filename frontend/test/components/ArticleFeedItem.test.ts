@@ -19,6 +19,7 @@ const baseEntry: ArticleEntryData = {
   title: "Nuxt 部署笔记",
   abstract: "讲清楚 SSR 与静态生成的选择。",
   cover: "",
+  crop: null,
   dateLabel: "2026/10/01",
   categoryLabel: "工程",
   statusLabel: "",
@@ -154,5 +155,38 @@ describe("ArticleFeedItem：列表 / 搜索 / 收藏架三处同一卡片形态"
 
     expect(wrapper.get(".feed-entry__title").text()).toContain("旧调用方的文章");
     expect(wrapper.findAll(".feed-entry__tag").map((tag) => tag.text())).toEqual(["旧标签"]);
+  });
+});
+
+/**
+ * 列表封面要尊重作者在创作页调好的取景。
+ *
+ * crop 随 ES 文档投影过来（`article_sync` 写、搜索接口返回），这里钉住最后一段接线：
+ * 卡片把 crop 交给 ArticleCover，图片样式才会带上非居中的 object-position 与缩放。
+ */
+describe("ArticleFeedItem：列表封面按取景渲染", () => {
+  function mountWithCrop(crop: { focus_x: number; focus_y: number; zoom: number } | null) {
+    return mount(ArticleFeedItem, {
+      props: {
+        entry: { ...baseEntry, cover: "https://cdn.example.com/a1.png", crop },
+      },
+      global: { stubs: { NuxtLink: NuxtLinkStub } },
+    });
+  }
+
+  it("有取景时图片带上百分比 object-position 与缩放", () => {
+    const wrapper = mountWithCrop({ focus_x: 0.5, focus_y: 0.25, zoom: 1.4 });
+    const style = wrapper.get(".feed-entry__cover img").attributes("style") ?? "";
+
+    expect(style).toContain("object-position: 50% 25%");
+    expect(style).toContain("scale(1.4)");
+  });
+
+  it("没有取景时退回居中、缩放 1", () => {
+    const wrapper = mountWithCrop(null);
+    const style = wrapper.get(".feed-entry__cover img").attributes("style") ?? "";
+
+    expect(style).toContain("object-position: 50% 50%");
+    expect(style).toContain("scale(1)");
   });
 });

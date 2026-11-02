@@ -24,6 +24,9 @@ func (r *River) handleArticleSearchProjectionEvent(e *canal.RowsEvent) (bool, er
 		return true, r.syncArticleDocsByTagRows(e)
 	case "article_tag_models":
 		return true, r.syncArticleDocsByArticleTagRows(e)
+	case "picture_crop_models":
+		// 封面取景不在文章行里：只监听 article_models 会让"只调取景"的编辑不更新文档。
+		return true, r.syncArticleDocsByCropRows(e)
 	default:
 		return false, nil
 	}

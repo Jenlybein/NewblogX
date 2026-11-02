@@ -1,6 +1,6 @@
 import { mount } from "@vue/test-utils";
 import { defineComponent, h } from "vue";
-import { describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import BannerCarousel from "~/components/article/BannerCarousel.vue";
 
@@ -187,5 +187,88 @@ describe("BannerCarousel：轮播标题（纯文本、可空）", () => {
     // 标签没有被解析成元素：文字区里没有任何 b/i 子节点。
     expect(title.find("b").exists()).toBe(false);
     expect(title.find("i").exists()).toBe(false);
+  });
+});
+
+/**
+ * 自动轮播。
+ *
+ * 用假定时器把"等 6 秒"压成一次推进；判据只看"图有没有换"，
+ * 不依赖实现里的具体 setInterval 句柄。
+ */
+describe("BannerCarousel：自动轮播", () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  function mountWith(interval: number, list = banners) {
+    return mount(BannerCarousel, {
+      props: { banners: list as never, autoPlayInterval: interval },
+      global: { stubs: { NuxtLink: NuxtLinkStub } },
+    });
+  }
+
+  it("到点自动切到下一张，并且循环回第一张", async () => {
+    const wrapper = mountWith(6000);
+
+    expect(wrapper.get(".banner-stage img").attributes("src")).toContain("b1.png");
+    await vi.advanceTimersByTimeAsync(6000);
+    expect(wrapper.get(".banner-stage img").attributes("src")).toContain("b2.png");
+
+    await vi.advanceTimersByTimeAsync(12000);
+    expect(wrapper.get(".banner-stage img").attributes("src")).toContain("b1.png");
+
+    wrapper.unmount();
+  });
+
+  it("只有一张时不自动轮播", async () => {
+    const wrapper = mountWith(6000, banners.slice(0, 1));
+
+    await vi.advanceTimersByTimeAsync(30000);
+    expect(wrapper.get(".banner-stage img").attributes("src")).toContain("b1.png");
+
+    wrapper.unmount();
+  });
+
+  it("指针停在上面时暂停，移开后恢复", async () => {
+    const wrapper = mountWith(6000);
+    const root = wrapper.get(".banner-stage");
+
+    await root.trigger("mouseenter");
+    await vi.advanceTimersByTimeAsync(20000);
+    expect(wrapper.get(".banner-stage img").attributes("src")).toContain("b1.png");
+
+    await root.trigger("mouseleave");
+    await vi.advanceTimersByTimeAsync(6000);
+    expect(wrapper.get(".banner-stage img").attributes("src")).toContain("b2.png");
+
+    wrapper.unmount();
+  });
+
+  it("手动点过圆点后重新计时：不会紧接着又被自动切走", async () => {
+    const wrapper = mountWith(6000);
+
+    await vi.advanceTimersByTimeAsync(5000);
+    await wrapper.findAll(".banner-dot")[2]?.trigger("click");
+    expect(wrapper.get(".banner-stage img").attributes("src")).toContain("b3.png");
+
+    // 只过 2 秒（原本 5+2 会到 7 秒触发），不应被切走。
+    await vi.advanceTimersByTimeAsync(2000);
+    expect(wrapper.get(".banner-stage img").attributes("src")).toContain("b3.png");
+
+    wrapper.unmount();
+  });
+
+  it("间隔 ≤ 0 时关闭自动轮播（显式静态展示）", async () => {
+    const wrapper = mountWith(0);
+
+    await vi.advanceTimersByTimeAsync(30000);
+    expect(wrapper.get(".banner-stage img").attributes("src")).toContain("b1.png");
+
+    wrapper.unmount();
   });
 });

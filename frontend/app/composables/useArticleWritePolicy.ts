@@ -1,5 +1,6 @@
 import { computed } from "vue";
 
+import { useAuthStore } from "~/stores/auth";
 import { useSiteStore } from "~/stores/site";
 import {
   articleWritePolicy,
@@ -7,6 +8,9 @@ import {
   writeEntryVisible,
   writePolicyNotices,
 } from "~/utils/writePolicy";
+
+/** 后端 role 列里管理员的取值（1 管理员 / 2 注册用户）。 */
+const ROLE_ADMIN = 1;
 
 /**
  * 读者站对站点「发布与展示」两个写作开关的消费入口（#64）。
@@ -20,12 +24,17 @@ import {
  */
 export function useArticleWritePolicy() {
   const siteStore = useSiteStore();
+  const authStore = useAuthStore();
   void siteStore.ensurePublicBootstrap();
 
-  const policy = computed(() => articleWritePolicy(siteStore.runtimeConfig));
+  // 站点开关限制的是**非管理员**，管理员在后端被短路放行。
+  // 前端的读法必须与服务端一致，否则关掉开关会把管理员自己也锁成只读。
+  const isAdmin = computed(() => authStore.currentUser?.role === ROLE_ADMIN);
+
+  const policy = computed(() => articleWritePolicy(siteStore.runtimeConfig, { isAdmin: isAdmin.value }));
   const entryVisible = computed(() => writeEntryVisible(policy.value));
   const readOnly = computed(() => editorReadOnly(policy.value));
   const notices = computed(() => writePolicyNotices(policy.value));
 
-  return { policy, entryVisible, readOnly, notices };
+  return { policy, entryVisible, readOnly, notices, isAdmin };
 }

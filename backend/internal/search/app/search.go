@@ -518,6 +518,7 @@ func extract(counters domain.CounterReader, data map[string]any) []domain.Item {
 			Content:          contentHead,
 			Part:             sourceContentParts(source, "content_parts"),
 			Cover:            sourceString(source, "cover"),
+			Crop:             sourceCrop(source, "crop"),
 			ViewCount:        sourceInt(source, "view_count"),
 			DiggCount:        sourceInt(source, "digg_count"),
 			CommentCount:     sourceInt(source, "comment_count"),

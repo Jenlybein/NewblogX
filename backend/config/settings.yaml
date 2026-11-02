@@ -1,4 +1,4 @@
-﻿# 后端服务主配置。
+# 后端服务主配置。
 # 说明：
 # 1. 该文件主要负责进程级基础设施配置，如数据库、缓存、日志、对象存储等。
 # 2. 站点展示类默认值放在 site_default_settings.yaml 中。
@@ -202,6 +202,10 @@ river:
         - tag_models
         - article_tag_models
         - user_top_article_models
+        # 通用取景表：文章封面取景随 ES 文档投影（列表封面按作者选的构图裁切）。
+        # 只调取景时文章行可能没有任何字段变化，所以这张表必须单独监听，
+        # 否则 ES 文档里的 crop 会停在旧值。
+        - picture_crop_models
         # 事务型发件箱：领域事件落在这里，由 outbox 中继订阅投递。
         # 它不参与全量转储（river 里已排除），积压由中继的补偿扫描兜底。
         - outbox_event_models

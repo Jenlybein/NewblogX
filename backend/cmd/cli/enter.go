@@ -119,6 +119,13 @@ func Run(op *FlagOptions, deps Options) (RunResult, error) {
 			return RunResult{}, err
 		}
 		return RunResult{ContinueStartup: false}, nil
+	case "imagerefgc":
+		// 孤儿图片引用：轮播表重建后，账本里指向已消失/已软删轮播的行。
+		// 不带 -apply 只读清单，带 -apply 才删。
+		if err := FlagImageRefGCOrphans(deps.DB, deps.Logger, op.Apply); err != nil {
+			return RunResult{}, err
+		}
+		return RunResult{ContinueStartup: false}, nil
 	case "run":
 		switch op.Sub {
 		case "init":

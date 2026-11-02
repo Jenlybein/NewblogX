@@ -318,29 +318,6 @@ func (s *Service) CollectionDetail(
 	return detail, err
 }
 
-// ListCollectionAdminItems 返回一个合集的全部收录行（含已失效），后台编排用。
-//
-// 为什么不复用公开的 CollectionDetail：读者读面只给"仍公开"的文章，
-// 而全集换序要求提交的集合与库里的**全部活跃收录行**一致——
-// 用读者读面拼出来的列表会漏掉失效行，提交时被自己拒绝。
-func (s *Service) ListCollectionAdminItems(
-	ctx context.Context, viewer domain.Viewer, id collection.ID,
-) ([]collection.AdminItem, error) {
-	if !viewer.IsAdmin() {
-		return nil, domain.ErrForbidden
-	}
-	var items []collection.AdminItem
-	err := s.tx.WithinTx(ctx, func(ctx context.Context, r Repos) error {
-		if _, err := r.Collections().Find(ctx, id); err != nil {
-			return err
-		}
-		var err error
-		items, err = r.Collections().ListAdminItems(ctx, id)
-		return err
-	})
-	return items, err
-}
-
 // ReplaceCollectionSortOrder 用完整有序列表原子重排合集之间的展示顺序（管理员）。
 //
 // 输入必须是当前全部合集的排列（collection.CheckSortOrder）：集合不一致整单拒绝。

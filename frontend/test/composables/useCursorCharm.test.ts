@@ -730,6 +730,156 @@ describe("useCursorCharm：失焦冻结与切后台暂停", () => {
   });
 });
 
+/**
+ * 进出场接线：移出即渐隐、移回满 0.1 秒才渐显、0.1 秒内再次移出则取消显示。
+ *
+ * 纯迁移由 `test/utils/charmVisibility.test.ts` 逐点断言（时钟是参数，边界是
+ * 精确的毫秒）；这里测的是**接线**：事件真的驱动迁移、循环在过渡窗口里保活
+ * 到迁移发生、以及渐隐期间指针端确实被冻结（位置不再更新、绝不瞬移）。
+ *
+ * 0.1 秒在虚拟时钟上是 6 个 60Hz 刷新（6 × 16.667ms = 100.002ms）——
+ * 于是"5 帧后仍不可见 / 第 6 帧可见"就是这条防抖窗口的接线级证明。
+ */
+const FRAMES_PER_SHOW_DELAY = 6;
+
+describe("useCursorCharm：进出场（移出渐隐 / 移回 0.1 秒后渐显）", () => {
+  /** 把挂件推到"显示过、已移出、渐隐也走完"，便于测移回。 */
+  function hiddenAfterShow() {
+    const ctx = mount();
+    ctx.pointer.emit("pointermove", { clientX: 100, clientY: 100 });
+    ctx.frames.advance(RAF_DELAY_MS); // 建链
+    ctx.pointer.emit("pointerout", { relatedTarget: null });
+    ctx.frames.runUntilIdle(200);
+    return ctx;
+  }
+
+  it("指针移出窗口：当场离开可见态（渐隐开始），渐隐走完才落到隐藏", () => {
+    const { charm, pointer, frames } = mount();
+    pointer.emit("pointermove", { clientX: 100, clientY: 100 });
+    expect(charm.visible.value, "首次登场立即可见（不走防抖）").toBe(true);
+    frames.advance(RAF_DELAY_MS);
+
+    pointer.emit("pointerout", { relatedTarget: null });
+
+    // 移出是"当场"不可见，不是等渐隐动画播完（否则窗外还挂着一会儿）。
+    expect(charm.visible.value).toBe(false);
+    expect(charm.phase.value).toBe("fading-out");
+
+    frames.runUntilIdle(200);
+    expect(charm.phase.value, "渐隐走完落到隐藏").toBe("hidden");
+    expect(frames.pending(), "过渡结束后循环必须停掉（静态页面零帧）").toBe(0);
+  });
+
+  it("渐隐期间指针端冻结：链自然收敛、绝不瞬移，位置也不跟着指针更新", () => {
+    const { charm, pointer, frames } = mount();
+    pointer.emit("pointermove", { clientX: 100, clientY: 100 });
+    frames.advance(RAF_DELAY_MS);
+    pointer.emit("pointermove", { clientX: 160, clientY: 100 });
+    frames.advance(20);
+    const headBeforeFade = charm.tetherGeometry?.centerline[0];
+
+    pointer.emit("pointerout", { relatedTarget: null });
+    // 冻结期间即使收到指针事件，指针端也不能动（这是"不瞬移"的唯一来源）。
+    pointer.emit("pointermove", { clientX: 400, clientY: 400 });
+    frames.runUntilIdle(200);
+
+    expect(charm.visible.value).toBe(false);
+    expect(charm.tetherGeometry?.centerline[0]).toEqual(headBeforeFade);
+    expect(charm.pointer.value, "指针坐标本身也不该被窗外事件污染").toEqual({ x: 160, y: 100 });
+    expect(frames.pending()).toBe(0);
+  });
+
+  it("移回不满 0.1 秒仍不可见；满 0.1 秒才渐显（边界由第 6 个刷新跨过）", () => {
+    const { charm, pointer, frames } = hiddenAfterShow();
+    expect(charm.visible.value).toBe(false);
+
+    pointer.emit("pointerover");
+    expect(charm.visible.value, "移回不要立刻出现，先等防抖窗口").toBe(false);
+    expect(charm.phase.value).toBe("awaiting-show");
+
+    // 5 帧 ≈ 83ms < 100ms：还不满 0.1 秒。
+    frames.advance(RAF_DELAY_MS * (FRAMES_PER_SHOW_DELAY - 1));
+    expect(charm.visible.value, "不满 0.1 秒不该渐显").toBe(false);
+    expect(charm.phase.value).toBe("awaiting-show");
+
+    // 第 6 帧 ≈ 100.002ms：满 0.1 秒，渐显开始。
+    frames.advance(RAF_DELAY_MS);
+    expect(charm.visible.value, "满 0.1 秒后必须渐显").toBe(true);
+    expect(charm.phase.value).toBe("visible");
+  });
+
+  it("移回后 0.1 秒内再次移出：取消显示，之后也不会冒出来（防抖 = 不闪烁）", () => {
+    const { charm, pointer, frames } = hiddenAfterShow();
+
+    pointer.emit("pointerover");
+    frames.advance(50); // 3 帧 ≈ 50ms：还在防抖窗口里
+    expect(charm.visible.value).toBe(false);
+
+    pointer.emit("pointerout", { relatedTarget: null });
+    expect(charm.phase.value, "没站满 0.1 秒就移出 → 取消这次显示").toBe("fading-out");
+
+    // 把时间推过原定的渐显时刻，再推过渐隐结束：全程都不该可见。
+    frames.advance(100);
+    expect(charm.visible.value).toBe(false);
+    frames.advance(500);
+    expect(charm.visible.value).toBe(false);
+    expect(charm.phase.value).toBe("hidden");
+  });
+
+  it("沿窗口边缘反复划过（每次进出都短于 0.1 秒）→ 全程不出现（不闪烁）", () => {
+    const { charm, pointer, frames } = hiddenAfterShow();
+
+    for (let crossing = 0; crossing < 5; crossing += 1) {
+      pointer.emit("pointerover");
+      frames.advance(50);
+      expect(charm.visible.value, `第 ${crossing + 1} 次移回不到 0.1 秒：不该可见`).toBe(false);
+      pointer.emit("pointerout", { relatedTarget: null });
+      frames.advance(50);
+      expect(charm.visible.value, `第 ${crossing + 1} 次移出：不该可见`).toBe(false);
+    }
+
+    expect(charm.phase.value).not.toBe("visible");
+  });
+
+  it("首次登场仍由第一次指针移动驱动：只收到 pointerover 不会先冒出挂件（还没有坐标）", () => {
+    const { charm, pointer, frames } = mount();
+
+    pointer.emit("pointerover");
+    expect(charm.visible.value, "没有指针坐标时不该先登场").toBe(false);
+    expect(frames.pending()).toBe(0);
+
+    pointer.emit("pointermove", { clientX: 80, clientY: 60 });
+    expect(charm.visible.value, "第一次指针移动就直接登场（不走防抖）").toBe(true);
+  });
+
+  it("窗口失焦不触发进出场：只有指针真的移出窗口才渐隐（失焦行为保持原样）", () => {
+    const { charm, pointer, frames } = mount();
+    pointer.emit("pointermove", { clientX: 100, clientY: 100 });
+    frames.advance(RAF_DELAY_MS);
+
+    pointer.emit("blur");
+    expect(charm.visible.value, "失焦只冻结指针端，不该让挂件渐隐").toBe(true);
+
+    pointer.emit("focus");
+    expect(charm.visible.value).toBe(true);
+  });
+
+  it("移出链路：移出 → 等 0.1 秒 → 重新可见（同一趟往返不会跳过防抖）", () => {
+    const { charm, pointer, frames } = hiddenAfterShow();
+    // 移出期间是冻结的：重新进入文档（pointerover）才解冻，再接受新坐标。
+    pointer.emit("pointerover");
+    pointer.emit("pointermove", { clientX: 300, clientY: 200 });
+    // 先进入；指针坐标已更新，但还不可见。
+    expect(charm.pointer.value).toEqual({ x: 300, y: 200 });
+    expect(charm.visible.value).toBe(false);
+
+    frames.advance(RAF_DELAY_MS * FRAMES_PER_SHOW_DELAY);
+    expect(charm.visible.value).toBe(true);
+    // 渐显开始时，头节点已经跟上指针（冻结期从离开的位置继续，不做追赶动画）。
+    expect(charm.tetherGeometry?.centerline[0]?.x).toBeCloseTo(300 + DEFAULT_OFFSET.x, 1);
+  });
+});
+
 describe("useCursorCharm：清理", () => {
   it("dispose 取消动画帧并摘掉指针 / 失焦 / 可见性 / 媒体监听", () => {
     const { charm, media, pointer, doc, frames } = mount();

@@ -67,6 +67,167 @@ func decode(t *testing.T, raw []byte) envelope {
 	return env
 }
 
+// TestCollectionStalePlaceholderAndCleanup 失效行：读者侧消失、后台保留占位、一键清理幂等。
+//
+// 三种成因（草稿 / 私有 / 删除）一次验完；清理只删失效行，重复调用 removed=0。
+func TestCollectionStalePlaceholderAndCleanup(t *testing.T) {
+	t.Parallel()
+
+	db := migrateCollectionsHTTP(t)
+	seedAuthor(t, db, 100)
+	at := time.Date(2026, 1, 1, 12, 0, 0, 0, time.UTC)
+	for _, id := range []uint64{21, 22, 23, 24} {
+		schema.InsertArticle(t, db, schema.ArticleSpec{
+			ID:             id,
+			Title:          fmt.Sprintf("系列文章 %d", id),
+			Abstract:       "摘要",
+			Content:        "正文",
+			AuthorID:       100,
+			ViewCount:      int(id),
+			CommentsToggle: true,
+			PublishStatus:  schema.ArticleStatusPublished,
+			Visibility:     schema.VisibilityVisible,
+			CreatedAt:      at,
+			UpdatedAt:      at,
+		})
+	}
+
+	adminRouter := newRouterWithIDs(t, db, domain.AdminUser(ctype.NewID(900)), 100)
+	readerRouter := newRouterWithIDs(t, db, domain.Anonymous(), 100)
+
+	// 建合集并收录 4 篇。
+	createRaw := rawRequest(t, adminRouter, "POST", "/api/collections", []byte(`{
+		"title": "待整理的专题",
+		"description": "",
+		"cover": "",
+		"displayed": true
+	}`))
+	if env := decode(t, createRaw); env.Code != 0 {
+		t.Fatalf("建合集应成功，实际 code=%d msg=%s", env.Code, env.Msg)
+	}
+	var created struct {
+		ID ctype.ID `json:"id"`
+	}
+	if err := json.Unmarshal(decode(t, createRaw).Data, &created); err != nil {
+		t.Fatalf("解析合集 ID 失败: %v", err)
+	}
+	for _, id := range []string{"21", "22", "23", "24"} {
+		raw := rawRequest(t, adminRouter, "POST",
+			fmt.Sprintf("/api/collections/%s/articles", created.ID),
+			[]byte(fmt.Sprintf(`{"article_id":%q}`, id)))
+		if env := decode(t, raw); env.Code != 0 {
+			t.Fatalf("收录 %s 应成功，实际 code=%d msg=%s", id, env.Code, env.Msg)
+		}
+	}
+
+	// 收录后文章变化：22 退回草稿、23 作者隐藏、24 软删。
+	if err := db.Table("article_models").Where("id = ?", 22).
+		Update("publish_status", int8(schema.ArticleStatusDraft)).Error; err != nil {
+		t.Fatalf("退回草稿失败: %v", err)
+	}
+	if err := db.Table("article_models").Where("id = ?", 23).
+		Update("visibility_status", string(schema.VisibilityUserHidden)).Error; err != nil {
+		t.Fatalf("隐藏文章失败: %v", err)
+	}
+	if err := db.Table("article_models").Where("id = ?", 24).
+		Update("deleted_at", at).Error; err != nil {
+		t.Fatalf("软删文章失败: %v", err)
+	}
+
+	// 读者详情只剩 21；列表计数也只算 1。
+	detailRaw := rawRequest(t, readerRouter, "GET",
+		fmt.Sprintf("/api/collections/%s", created.ID), nil)
+	var detail struct {
+		Articles []struct {
+			ArticleID ctype.ID `json:"article_id"`
+		} `json:"articles"`
+	}
+	if err := json.Unmarshal(decode(t, detailRaw).Data, &detail); err != nil {
+		t.Fatalf("解析详情失败: %v", err)
+	}
+	if len(detail.Articles) != 1 || detail.Articles[0].ArticleID.Uint64() != 21 {
+		t.Fatalf("读者详情应只保留仍公开的 21，实际 %+v", detail.Articles)
+	}
+
+	listRaw := rawRequest(t, readerRouter, "GET", "/api/collections", nil)
+	var list struct {
+		List []struct {
+			ArticleCount int `json:"article_count"`
+		} `json:"list"`
+	}
+	if err := json.Unmarshal(decode(t, listRaw).Data, &list); err != nil {
+		t.Fatalf("解析读者列表失败: %v", err)
+	}
+	if len(list.List) != 1 || list.List[0].ArticleCount != 1 {
+		t.Fatalf("卡片收录数应只算公开文章（1），实际 %+v", list.List)
+	}
+
+	// 后台保留 4 行占位，失效行给出原因。
+	itemsRaw := rawRequest(t, adminRouter, "GET",
+		fmt.Sprintf("/api/collections/%s/admin/items", created.ID), nil)
+	var items struct {
+		List []struct {
+			ArticleID   ctype.ID `json:"article_id"`
+			Stale       bool     `json:"stale"`
+			StaleReason string   `json:"stale_reason"`
+			Title       string   `json:"title"`
+		} `json:"list"`
+	}
+	if err := json.Unmarshal(decode(t, itemsRaw).Data, &items); err != nil {
+		t.Fatalf("解析后台收录行失败: %v", err)
+	}
+	if len(items.List) != 4 {
+		t.Fatalf("后台应保留 4 个占位，实际 %d（响应 %s）", len(items.List), itemsRaw)
+	}
+	wantReasons := []string{"", "not_published", "not_visible", "deleted"}
+	for i, reason := range wantReasons {
+		if items.List[i].Stale != (reason != "") || items.List[i].StaleReason != reason {
+			t.Fatalf("第 %d 行失效标记不符: %+v，期望 reason=%q", i+1, items.List[i], reason)
+		}
+	}
+	if items.List[3].Title == "" {
+		t.Fatalf("已删除文章的占位丢了标题: %+v", items.List[3])
+	}
+
+	// 一键清理：只删 3 条失效行。
+	cleanupRaw := rawRequest(t, adminRouter, "DELETE",
+		fmt.Sprintf("/api/collections/%s/admin/stale", created.ID), nil)
+	var cleanup struct {
+		Removed int `json:"removed"`
+	}
+	if err := json.Unmarshal(decode(t, cleanupRaw).Data, &cleanup); err != nil {
+		t.Fatalf("解析清理结果失败: %v", err)
+	}
+	if cleanup.Removed != 3 {
+		t.Fatalf("应清理 3 条失效行，实际 %d（响应 %s）", cleanup.Removed, cleanupRaw)
+	}
+
+	// 幂等：第二次清理返回 0 且不动在架文章。
+	againRaw := rawRequest(t, adminRouter, "DELETE",
+		fmt.Sprintf("/api/collections/%s/admin/stale", created.ID), nil)
+	if err := json.Unmarshal(decode(t, againRaw).Data, &cleanup); err != nil {
+		t.Fatalf("解析二次清理结果失败: %v", err)
+	}
+	if cleanup.Removed != 0 {
+		t.Fatalf("第二次清理应为 0，实际 %d", cleanup.Removed)
+	}
+
+	afterRaw := rawRequest(t, adminRouter, "GET",
+		fmt.Sprintf("/api/collections/%s/admin/items", created.ID), nil)
+	var after struct {
+		List []struct {
+			ArticleID ctype.ID `json:"article_id"`
+			Stale     bool     `json:"stale"`
+		} `json:"list"`
+	}
+	if err := json.Unmarshal(decode(t, afterRaw).Data, &after); err != nil {
+		t.Fatalf("解析清理后收录行失败: %v", err)
+	}
+	if len(after.List) != 1 || after.List[0].ArticleID.Uint64() != 21 || after.List[0].Stale {
+		t.Fatalf("清理后后台应只剩在架的 21，实际 %+v", after.List)
+	}
+}
+
 // TestCollectionMinimalLoop 建合集 → 收录一篇 → 读者列表与详情可见 → 关展示后消失。
 func TestCollectionMinimalLoop(t *testing.T) {
 	t.Parallel()
@@ -251,4 +412,3 @@ func TestCollectionMinimalLoop(t *testing.T) {
 		t.Fatalf("删合集不应删掉里面的文章，读者读文章失败: code=%d msg=%s", env.Code, env.Msg)
 	}
 }
-

@@ -174,6 +174,18 @@ export type CollectionCreatePayload = Required<Schema<"internal_article_adapter_
 /** 改合集内容的请求体：只有标题 / 描述 / 封面，展示开关走独立接口。 */
 export type CollectionUpdatePayload = Required<Schema<"internal_article_adapter_http.CollectionUpdateRequest">>;
 
+/**
+ * 后台合集的收录行（含失效占位）。
+ *
+ * `stale` 与 `stale_reason` 都由后端用与「热门置顶」共用的领域判定算好，
+ * 前端只做展示与清理，**不要**在前端再按文章状态判一次。
+ */
+export type CollectionAdminItem = RequiredSchema<"internal_article_adapter_http.CollectionAdminItem">;
+
+/** 一键清理失效行的结果：本次删掉的条数（重复调用为 0）。 */
+export type CollectionStaleCleanupResult =
+  RequiredSchema<"internal_article_adapter_http.CollectionStaleCleanupResponse">;
+
 // ── 热门置顶（运营位）─────────────────────────────────────────
 /**
  * `/articles/hot-top/admin` 的列表项。

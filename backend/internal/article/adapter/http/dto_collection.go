@@ -123,3 +123,28 @@ type CollectionAdminCard struct {
 type CollectionCreatedResponse struct {
 	ID ctype.ID `json:"id"`
 }
+
+// CollectionAdminItem 是后台「合集收录」页的一行（含已失效占位）。
+//
+// 与读者侧 CollectionArticleItemResponse 的差别：这一行**保留**了失效条目，
+// 且带 stale / stale_reason，后台据此标记与清理。失效行标题为空时（文章已被
+// 物理删除）article_id 仍在，页面不能因此丢掉这一行。
+type CollectionAdminItem struct {
+	ArticleID ctype.ID `json:"article_id"`
+	SortOrder int      `json:"sort_order"`
+	Title     string   `json:"title"`
+	Cover     string   `json:"cover"`
+	// Stale 文章是否已失效（被删 / 退回草稿 / 不再可见）。判定与热门置顶共用。
+	Stale bool `json:"stale"`
+	// StaleReason 失效原因枚举；仍有效时为空串。枚举值由后端 domain 定义，
+	// 前端只做文案映射，不据此另判一次失效。
+	StaleReason string `json:"stale_reason"`
+}
+
+// CollectionStaleCleanupResponse 一键清理的结果：本次删掉的失效行数。
+//
+// 返回数量而不是只有"成功"：幂等清理第二次会返回 0，运营据此知道已经清空，
+// 而不是怀疑按钮没生效。
+type CollectionStaleCleanupResponse struct {
+	Removed int `json:"removed"`
+}

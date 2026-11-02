@@ -319,7 +319,9 @@ func (r *CollectionRepo) ListAdminItems(_ context.Context, id collection.ID) ([]
 			continue
 		}
 		row := collection.AdminItem{ArticleID: it.articleID, SortOrder: it.sortOrder}
-		if a, err := r.arts.Find(context.Background(), it.articleID); err == nil {
+		// 与 MySQL ListAdminItems 的 LEFT JOIN 对齐：软删的文章仍能读到标题与
+		// "已删除"状态；只有文章行真的不存在时才留空并由 domain 判为 missing。
+		if a, err := r.arts.FindIncludingDeleted(context.Background(), it.articleID); err == nil {
 			row.Title = a.Title()
 			row.Cover = a.Cover()
 			row.Article = &collection.ArticleState{
@@ -339,7 +341,7 @@ func (r *CollectionRepo) UpdateItemOrder(
 ) error {
 	r.count.inc("UpdateItemOrder")
 	if err := r.fault.take("UpdateItemOrder"); err != nil {
-	return err
+		return err
 	}
 	r.mus.Lock()
 	defer r.mus.Unlock()

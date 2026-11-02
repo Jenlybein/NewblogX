@@ -2178,6 +2178,84 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/collections/{id}/admin/items": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 后台合集收录行（含失效） */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    /** @description 合集 ID */
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["myblogx_internal_kernel.Envelope-myblogx_internal_kernel_ListData-internal_article_adapter_http_CollectionAdminItem"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/collections/{id}/admin/stale": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** 清理合集失效行 */
+        delete: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    /** @description 合集 ID */
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["myblogx_internal_kernel.Envelope-internal_article_adapter_http_CollectionStaleCleanupResponse"];
+                    };
+                };
+            };
+        };
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/collections/{id}/articles": {
         parameters: {
             query?: never;
@@ -5872,6 +5950,19 @@ export interface components {
             sort_order?: number;
             title?: string;
         };
+        "internal_article_adapter_http.CollectionAdminItem": {
+            article_id?: string;
+            cover?: string;
+            sort_order?: number;
+            /** @description Stale 文章是否已失效（被删 / 退回草稿 / 不再可见）。判定与热门置顶共用。 */
+            stale?: boolean;
+            /**
+             * @description StaleReason 失效原因枚举；仍有效时为空串。枚举值由后端 domain 定义，
+             *     前端只做文案映射，不据此另判一次失效。
+             */
+            stale_reason?: string;
+            title?: string;
+        };
         "internal_article_adapter_http.CollectionArticleItemResponse": {
             abstract?: string;
             article_id?: string;
@@ -5915,6 +6006,9 @@ export interface components {
         };
         "internal_article_adapter_http.CollectionDisplayRequest": {
             displayed?: boolean;
+        };
+        "internal_article_adapter_http.CollectionStaleCleanupResponse": {
+            removed?: number;
         };
         "internal_article_adapter_http.CollectionUpdateRequest": {
             cover?: string;
@@ -6730,6 +6824,11 @@ export interface components {
             data?: components["schemas"]["internal_article_adapter_http.CollectionDetailResponse"];
             msg?: string;
         };
+        "myblogx_internal_kernel.Envelope-internal_article_adapter_http_CollectionStaleCleanupResponse": {
+            code?: number;
+            data?: components["schemas"]["internal_article_adapter_http.CollectionStaleCleanupResponse"];
+            msg?: string;
+        };
         "myblogx_internal_kernel.Envelope-internal_auth_adapter_http_SendEmailResponse": {
             code?: number;
             data?: components["schemas"]["internal_auth_adapter_http.SendEmailResponse"];
@@ -6955,6 +7054,11 @@ export interface components {
             data?: components["schemas"]["myblogx_internal_kernel.ListData-internal_article_adapter_http_CollectionAdminCard"];
             msg?: string;
         };
+        "myblogx_internal_kernel.Envelope-myblogx_internal_kernel_ListData-internal_article_adapter_http_CollectionAdminItem": {
+            code?: number;
+            data?: components["schemas"]["myblogx_internal_kernel.ListData-internal_article_adapter_http_CollectionAdminItem"];
+            msg?: string;
+        };
         "myblogx_internal_kernel.Envelope-myblogx_internal_kernel_ListData-internal_article_adapter_http_CollectionCardResponse": {
             code?: number;
             data?: components["schemas"]["myblogx_internal_kernel.ListData-internal_article_adapter_http_CollectionCardResponse"];
@@ -7120,6 +7224,10 @@ export interface components {
         "myblogx_internal_kernel.ListData-internal_article_adapter_http_CollectionAdminCard": {
             count?: number;
             list?: components["schemas"]["internal_article_adapter_http.CollectionAdminCard"][];
+        };
+        "myblogx_internal_kernel.ListData-internal_article_adapter_http_CollectionAdminItem": {
+            count?: number;
+            list?: components["schemas"]["internal_article_adapter_http.CollectionAdminItem"][];
         };
         "myblogx_internal_kernel.ListData-internal_article_adapter_http_CollectionCardResponse": {
             count?: number;

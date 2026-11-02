@@ -244,29 +244,10 @@ func CanBeIncluded(a *domain.Article) bool {
 
 // ArticleState 是收录行所指文章**此刻**的状态。
 //
-// 与 IncludedArticle 分开是因为职责不同：后者是"还能展示的样子"，
-// ArticleState 是"它怎么样了"——后台的「已失效」标记只读后者。
+// 它是 domain.ArticleState 的类型别名：失效口径与「热门置顶」逐字一致，
+// 两个运营位共用同一份状态集合与判定函数（IsStale / StaleReason）。
 // nil 表示文章已被物理删除（中间行还在，join 不到文章）。
-type ArticleState struct {
-	// Deleted 文章已被软删（行还在，deleted_at 非空）。
-	Deleted bool
-	// Status 发布状态。
-	Status domain.Status
-	// Visibility 可见性。
-	Visibility domain.Visibility
-}
-
-// IsStale 判断这条收录是否已失效。
-//
-// 失效 = 文章没了 / 被删 / 不再"已发布且可见"。中间行本身**保留**：
-// 读者侧靠 JOIN 过滤掉，后台标「已失效」并允许一键清理。
-// 方法可以在 nil 接收者上调用，所以"文章已物理删除"也走同一条判定。
-func (s *ArticleState) IsStale() bool {
-	if s == nil {
-		return true
-	}
-	return s.Deleted || s.Status != domain.StatusPublished || s.Visibility != domain.VisibilityVisible
-}
+type ArticleState = domain.ArticleState
 
 // Card 是读者站合集列表页的一张卡片。
 //
@@ -323,7 +304,12 @@ type AdminItem struct {
 }
 
 // Stale 判断这一行是否已失效。
+//
+// 判定函数与「热门置顶」共用 domain.ArticleState.IsStale，不要在这里另写。
 func (i AdminItem) Stale() bool { return i.Article.IsStale() }
+
+// StaleReason 返回失效原因；仍有效时为空值。
+func (i AdminItem) StaleReason() domain.StaleReason { return i.Article.StaleReason() }
 
 // Detail 是合集详情：合集本身 + 按顺序排列的已公开文章。
 //

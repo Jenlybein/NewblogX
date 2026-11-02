@@ -15,7 +15,9 @@ import type {
   BannerWritePayload,
   CdcEventRecord,
   CollectionAdminCard,
+  CollectionAdminItem,
   CollectionCreatePayload,
+  CollectionStaleCleanupResult,
   CollectionUpdatePayload,
   DecoRuntimeConfig,
   GlobalNotifListItem,
@@ -183,6 +185,30 @@ export function setCollectionDisplay(id: string, displayed: boolean) {
   return api().request<unknown, { displayed: boolean }>(`/collections/${id}/display`, {
     method: 'PATCH',
     body: { displayed },
+  })
+}
+
+/**
+ * 后台合集的收录行：包含失效占位，后台据此标记与单独清理。
+ *
+ * 与读者详情不同：这里不隐藏失效文章，`stale`/`stale_reason` 由后端算好。
+ */
+export function getAdminCollectionItems(id: string) {
+  return api().request<ListData<CollectionAdminItem>>(`/collections/${id}/admin/items`)
+}
+
+/** 移除合集里的一条收录（幂等）。 */
+export function removeCollectionArticle(id: string, articleId: string) {
+  return api().request<unknown, { article_id: string }>(`/collections/${id}/articles`, {
+    method: 'DELETE',
+    body: { article_id: articleId },
+  })
+}
+
+/** 一键清理合集里的全部失效行（幂等；返回本次删掉的条数）。 */
+export function cleanupCollectionStale(id: string) {
+  return api().request<CollectionStaleCleanupResult>(`/collections/${id}/admin/stale`, {
+    method: 'DELETE',
   })
 }
 

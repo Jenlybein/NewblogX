@@ -131,6 +131,67 @@ func (h *Handler) AdminCollections(c *gin.Context) {
 	res.OkWithList(out, len(out), c)
 }
 
+// AdminCollectionItems 后台合集的全部收录行（含已失效占位）。
+//
+// 与读者详情返回的文章列表是两份读模型：这里保留失效行并带 stale /
+// stale_reason，后台据此标记与清理；读者详情只返回仍公开的文章。
+//
+// @Summary 后台合集收录行（含失效）
+// @Tags collection
+// @Produce json
+// @Security BearerAuth
+// @Param id path string true "合集 ID"
+// @Success 200 {object} kernel.Envelope[kernel.ListData[CollectionAdminItem]]
+// @Router /collections/{id}/admin/items [get]
+func (h *Handler) AdminCollectionItems(c *gin.Context) {
+	uri := middleware.GetBindUri[kernel.IDRequest](c)
+
+	items, err := h.svc.ListCollectionAdminItems(c.Request.Context(), h.viewerOf(c),
+		collection.ID(uri.ID))
+	if err != nil {
+		h.fail(c, err)
+		return
+	}
+
+	out := make([]CollectionAdminItem, 0, len(items))
+	for _, item := range items {
+		out = append(out, CollectionAdminItem{
+			ArticleID:   ctype.ID(item.ArticleID),
+			SortOrder:   item.SortOrder,
+			Title:       item.Title,
+			Cover:       item.Cover,
+			Stale:       item.Stale(),
+			StaleReason: string(item.StaleReason()),
+		})
+	}
+	res.OkWithList(out, len(out), c)
+}
+
+// CleanupCollectionStale 一键清理合集里所有失效的收录行（管理员）。
+//
+// 只删失效行，仍公开的收录不受影响；没有失效行时返回 removed=0，可重复调用。
+// 删的只是收录关系（软删），文章本身不动。
+//
+// @Summary 清理合集失效行
+// @Tags collection
+// @Produce json
+// @Security BearerAuth
+// @Param id path string true "合集 ID"
+// @Success 200 {object} kernel.Envelope[CollectionStaleCleanupResponse]
+// @Router /collections/{id}/admin/stale [delete]
+func (h *Handler) CleanupCollectionStale(c *gin.Context) {
+	uri := middleware.GetBindUri[kernel.IDRequest](c)
+
+	removed, err := h.svc.CleanupStaleCollectionArticles(c.Request.Context(), h.viewerOf(c),
+		collection.ID(uri.ID))
+	if err != nil {
+		h.fail(c, err)
+		return
+	}
+	h.audit(c, "collection_stale_cleanup", uri.ID, true, "清理合集失效行")
+	res.OkWithData(CollectionStaleCleanupResponse{Removed: removed}, c)
+}
+
 // CreateCollection 新建合集（管理员）。
 //
 // @Summary 新建合集

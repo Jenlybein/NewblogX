@@ -279,3 +279,47 @@ func TestOrphanStoreLiveRefsOnlyCountsRequestedKeys(t *testing.T) {
 		t.Fatalf("没被问到的对象键不该出现在结果里: %+v", live)
 	}
 }
+
+// ── DeletedArticleRefs ──────────────────────────────────────────
+
+// 指向已删除文章的账本行只统计、不进入自动删除：真删前的保护读数
+// 必须能区分"文章已进回收站"和"文章还活着"。
+func TestOrphanStoreDeletedArticleRefsOnlyCountsTrashedArticles(t *testing.T) {
+	db := newOrphanDB(t)
+	store := mediamysql.NewOrphanStore(db, nil)
+
+	first := seedImage(t, db, 1, testPrefix+"/images/20260101/trashed-ref", testNow.Add(-20*24*time.Hour), domain.StatusPass)
+	second := seedImage(t, db, 2, testPrefix+"/images/20260101/live-ref", testNow.Add(-20*24*time.Hour), domain.StatusPass)
+
+	// 文章 200 在回收站：账本行 201 指向它，属于受保护引用。
+	if err := db.Create(&sourceArticleRow{
+		ID:        ctype.NewID(200),
+		DeletedAt: gorm.DeletedAt{Time: testNow, Valid: true},
+	}).Error; err != nil {
+		t.Fatalf("造已删除文章失败: %v", err)
+	}
+	seedLedgerRef(t, db, 201, first, image_ref_enum.RefTypeArticle, image_ref_enum.RefFieldArticleContent, 200, 0)
+
+	// 文章 100 还活着：账本行指向它是正常引用，不属于保护范围。
+	if err := db.Create(&sourceArticleRow{ID: ctype.NewID(100)}).Error; err != nil {
+		t.Fatalf("造存活文章失败: %v", err)
+	}
+	seedLedgerRef(t, db, 202, second, image_ref_enum.RefTypeArticle, image_ref_enum.RefFieldArticleCover, 100, 0)
+
+	// 用户头像引用不属于文章引用，不能被算成"已删除文章引用"。
+	seedLedgerRef(t, db, 203, first, image_ref_enum.RefTypeUser, image_ref_enum.RefFieldUserAvatar, 300, 0)
+
+	got, err := store.DeletedArticleRefs(context.Background(), []domain.ImageID{first, second, ctype.NewID(999)})
+	if err != nil {
+		t.Fatalf("读受保护引用失败: %v", err)
+	}
+	if got[first] != 1 {
+		t.Fatalf("第一张图应统计 1 条指向已删除文章的引用行，实际 %d", got[first])
+	}
+	if _, ok := got[second]; ok {
+		t.Fatalf("指向存活文章的引用行不该被算成受保护引用: %+v", got)
+	}
+	if len(got) != 1 {
+		t.Fatalf("只应返回有受保护引用的图片: %+v", got)
+	}
+}

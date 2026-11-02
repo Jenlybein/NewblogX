@@ -13,26 +13,27 @@ import (
 
 func TestImageGC段_缺省补行且更新立刻生效(t *testing.T) {
 	defaults := conf.RuntimeDefaults{
-		ImageGC: conf.ImageGC{GraceDays: 14, BatchLimit: 50},
+		ImageGC: conf.ImageGC{Enabled: true, GraceDays: 14, BatchLimit: 50},
 	}
 	svc, db := newTestService(t, defaults)
 
 	if err := svc.InitRuntimeConfig(); err != nil {
 		t.Fatalf("初始化失败: %v", err)
 	}
-	if got := svc.GetRuntimeImageGC(); got.GraceDays != 14 || got.BatchLimit != 50 {
+	if got := svc.GetRuntimeImageGC(); !got.Enabled || got.GraceDays != 14 || got.BatchLimit != 50 {
 		t.Fatalf("新段的默认值没进缓存: %+v", got)
 	}
 
 	// 更新必须落库 + 立刻进缓存：冷静期是运行时配置，改完不必重启。
-	if err := svc.UpdateImageGC(conf.ImageGC{GraceDays: 7, BatchLimit: 20}); err != nil {
+	// 回收开关同理 —— 异常时改一行配置就要能立刻停手。
+	if err := svc.UpdateImageGC(conf.ImageGC{Enabled: false, GraceDays: 7, BatchLimit: 20}); err != nil {
 		t.Fatalf("更新失败: %v", err)
 	}
-	if got := svc.GetRuntimeImageGC(); got.GraceDays != 7 || got.BatchLimit != 20 {
+	if got := svc.GetRuntimeImageGC(); got.Enabled || got.GraceDays != 7 || got.BatchLimit != 20 {
 		t.Fatalf("更新后缓存没刷新: %+v", got)
 	}
 	payload := readPayload(t, db, SectionImageGC)
-	if !strings.Contains(payload, "grace_days") || !strings.Contains(payload, "batch_limit") {
+	if !strings.Contains(payload, "grace_days") || !strings.Contains(payload, "batch_limit") || !strings.Contains(payload, "enabled") {
 		t.Fatalf("落库的 payload 不含新段的字段: %s", payload)
 	}
 }

@@ -173,13 +173,13 @@ describe("每页都有可见且可用的主题开关", () => {
     expect(toggle).toMatch(/IconSun|IconMoon/u);
   });
 
-  it("19 个路由页面全部被两种布局覆盖（不存在没有开关的页面）", () => {
+  it("20 个路由页面全部被两种布局覆盖（不存在没有开关的页面）", () => {
     const pages = pageFiles();
 
     // 页面数量本身就是既有验收项（菜单 ↔ 页面文件对账另有门禁用例）。
-    // 19 = 12 个既有页面 + 站点配置拆域新增的 7 个页面文件。
+    // 20 = 12 个既有页面 + 站点配置拆域新增的 7 个页面文件 + 合集管理页。
     // 「站点」域复用 /site（index.vue），其余七域各一个新文件。
-    expect(pages.length).toBe(19);
+    expect(pages.length).toBe(20);
     for (const page of pages) {
       const source = readFileSync(join(appDir, page), "utf8");
       const usesAuthLayout = /definePageMeta\(\{ layout: 'auth' \}\)/u.test(source);

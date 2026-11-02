@@ -412,6 +412,82 @@ func TestCollectionRepo_UpdateItemOrder(t *testing.T) {
 	}
 }
 
+// TestCollectionRepo_ListAdminCardsFallbackCover 后台卡片单独给出回退封面，
+// 但主表 cover 保持空串：编辑表单要能区分"我传过封面"与"这是回退来的"。
+func TestCollectionRepo_ListAdminCardsFallbackCover(t *testing.T) {
+	t.Parallel()
+
+	db := migrateCollections(t)
+	seedUser(t, db, 100)
+	seedCollectionArticle(t, db, 1, 100, schema.ArticleStatusPublished, schema.VisibilityVisible, "https://img/1.png")
+
+	repo := mysql.NewCollectionRepo(db)
+	ctx := context.Background()
+
+	c := newCollection(t, 1, "没封面的合集", true, 1)
+	if err := repo.Create(ctx, c); err != nil {
+		t.Fatalf("建合集失败: %v", err)
+	}
+	if _, err := repo.AppendItem(ctx, ctype.NewID(1), ctype.NewID(1)); err != nil {
+		t.Fatalf("收录失败: %v", err)
+	}
+
+	cards, err := repo.ListAdminCards(ctx)
+	if err != nil {
+		t.Fatalf("读后台列表失败: %v", err)
+	}
+	if len(cards) != 1 {
+		t.Fatalf("应有 1 个合集，实际 %d", len(cards))
+	}
+	if cards[0].Cover != "" {
+		t.Fatalf("没上传封面时 cover 应保持空串，实际 %q", cards[0].Cover)
+	}
+	if cards[0].FallbackCover != "https://img/1.png" {
+		t.Fatalf("回退封面应取首篇公开文章的封面，实际 %q", cards[0].FallbackCover)
+	}
+}
+
+// TestCollectionRepo_UpdatePersistsSoftDelete 软删必须真的写进 deleted_at：
+// 否则后台列表照旧出现、读者侧也还能按 ID 打开。
+func TestCollectionRepo_UpdatePersistsSoftDelete(t *testing.T) {
+	t.Parallel()
+
+	db := migrateCollections(t)
+	seedUser(t, db, 100)
+	repo := mysql.NewCollectionRepo(db)
+	ctx := context.Background()
+
+	c := newCollection(t, 1, "要下线的专题", true, 1)
+	if err := repo.Create(ctx, c); err != nil {
+		t.Fatalf("建合集失败: %v", err)
+	}
+
+	c.SoftDelete(collectionBaseTime.Add(time.Hour))
+	if err := repo.Update(ctx, c); err != nil {
+		t.Fatalf("软删失败: %v", err)
+	}
+
+	if _, err := repo.Find(ctx, ctype.NewID(1)); !isNotFound(err) {
+		t.Fatalf("软删后的合集应读不到，实际 %v", err)
+	}
+
+	cards, total, err := repo.ListCards(ctx, false, domain.Page{Limit: 10})
+	if err != nil {
+		t.Fatalf("读读者列表失败: %v", err)
+	}
+	if total != 0 || len(cards) != 0 {
+		t.Fatalf("软删的合集不该出现在读者列表，实际 total=%d cards=%+v", total, cards)
+	}
+
+	adminCards, err := repo.ListAdminCards(ctx)
+	if err != nil {
+		t.Fatalf("读后台列表失败: %v", err)
+	}
+	if len(adminCards) != 0 {
+		t.Fatalf("软删的合集不该出现在后台列表，实际 %+v", adminCards)
+	}
+}
+
 // isNotFound 判断是不是"合集不存在"。
 func isNotFound(err error) bool {
 	return err == collection.ErrNotFound

@@ -305,6 +305,11 @@ type AdminCard struct {
 	Displayed    bool
 	ArticleCount int
 	SortOrder    int
+	// FallbackCover 是没上传封面时读者会看到的那张（首篇公开文章的封面）。
+	//
+	// 与 Cover 分开而不是合并成一个"生效封面"：后台编辑表单要能区分
+	// "我自己传了封面"和"这是回退来的"，否则一保存就把回退值固化成上传值。
+	FallbackCover string
 }
 
 // AdminItem 是后台「合集收录」页的一行：顺序 + 文章摘要 + 是否失效。

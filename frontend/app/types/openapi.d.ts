@@ -2119,9 +2119,60 @@ export interface paths {
                 };
             };
         };
-        put?: never;
+        /** 改合集 */
+        put: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    /** @description 合集 ID */
+                    id: string;
+                };
+                cookie?: never;
+            };
+            /** @description 请求体 */
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["internal_article_adapter_http.CollectionUpdateRequest"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["myblogx_internal_kernel.Envelope-myblogx_internal_kernel_EmptyData"];
+                    };
+                };
+            };
+        };
         post?: never;
-        delete?: never;
+        /** 删合集 */
+        delete: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    /** @description 合集 ID */
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["myblogx_internal_kernel.Envelope-myblogx_internal_kernel_EmptyData"];
+                    };
+                };
+            };
+        };
         options?: never;
         head?: never;
         patch?: never;
@@ -5810,6 +5861,13 @@ export interface components {
             cover?: string;
             description?: string;
             displayed?: boolean;
+            /**
+             * @description FallbackCover 是没上传封面时读者看到的封面（首篇公开文章的封面）。
+             *
+             *     与 cover 分开：后台列表要按读者的样子预览，但编辑表单必须能看出
+             *     "这张是回退来的"，否则一保存就把回退值固化成上传值。
+             */
+            fallback_cover?: string;
             id?: string;
             sort_order?: number;
             title?: string;
@@ -5857,6 +5915,11 @@ export interface components {
         };
         "internal_article_adapter_http.CollectionDisplayRequest": {
             displayed?: boolean;
+        };
+        "internal_article_adapter_http.CollectionUpdateRequest": {
+            cover?: string;
+            description?: string;
+            title: string;
         };
         "internal_article_adapter_http.FavoriteArticleListItem": {
             abstract?: string;

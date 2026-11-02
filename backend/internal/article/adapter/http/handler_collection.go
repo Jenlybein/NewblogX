@@ -118,13 +118,14 @@ func (h *Handler) AdminCollections(c *gin.Context) {
 	out := make([]CollectionAdminCard, 0, len(cards))
 	for _, card := range cards {
 		out = append(out, CollectionAdminCard{
-			ID:           ctype.ID(card.ID),
-			Title:        card.Title,
-			Description:  card.Description,
-			Cover:        card.Cover,
-			Displayed:    card.Displayed,
-			ArticleCount: card.ArticleCount,
-			SortOrder:    card.SortOrder,
+			ID:            ctype.ID(card.ID),
+			Title:         card.Title,
+			Description:   card.Description,
+			Cover:         card.Cover,
+			Displayed:     card.Displayed,
+			ArticleCount:  card.ArticleCount,
+			SortOrder:     card.SortOrder,
+			FallbackCover: card.FallbackCover,
 		})
 	}
 	res.OkWithList(out, len(out), c)
@@ -156,6 +157,62 @@ func (h *Handler) CreateCollection(c *gin.Context) {
 	}
 	h.audit(c, "collection_create", ctype.ID(id), true, "新建合集")
 	res.OkWithData(CollectionCreatedResponse{ID: ctype.ID(id)}, c)
+}
+
+// UpdateCollection 改合集的标题 / 描述 / 封面（管理员）。
+//
+// 只改内容：展示开关与顺序各有独立接口，不会因为一次标题编辑被覆盖。
+//
+// @Summary 改合集
+// @Tags collection
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Param id path string true "合集 ID"
+// @Param body body CollectionUpdateRequest true "请求体"
+// @Success 200 {object} kernel.Envelope[kernel.EmptyData]
+// @Router /collections/{id} [put]
+func (h *Handler) UpdateCollection(c *gin.Context) {
+	uri := middleware.GetBindUri[kernel.IDRequest](c)
+	cr := middleware.GetBindJson[CollectionUpdateRequest](c)
+
+	if err := h.svc.UpdateCollection(c.Request.Context(), app.UpdateCollectionCmd{
+		Actor:        h.viewerOf(c),
+		CollectionID: collection.ID(uri.ID),
+		Title:        cr.Title,
+		Description:  cr.Description,
+		Cover:        cr.Cover,
+	}); err != nil {
+		h.fail(c, err)
+		return
+	}
+	h.audit(c, "collection_update", uri.ID, true, "改合集")
+	res.OkWithMsg("保存成功", c)
+}
+
+// DeleteCollection 软删一个合集（管理员）。
+//
+// 删合集不删文章：读者侧整块消失，后台列表也不再出现，文章本身照旧。
+//
+// @Summary 删合集
+// @Tags collection
+// @Produce json
+// @Security BearerAuth
+// @Param id path string true "合集 ID"
+// @Success 200 {object} kernel.Envelope[kernel.EmptyData]
+// @Router /collections/{id} [delete]
+func (h *Handler) DeleteCollection(c *gin.Context) {
+	uri := middleware.GetBindUri[kernel.IDRequest](c)
+
+	if err := h.svc.DeleteCollection(c.Request.Context(), app.DeleteCollectionCmd{
+		Actor:        h.viewerOf(c),
+		CollectionID: collection.ID(uri.ID),
+	}); err != nil {
+		h.fail(c, err)
+		return
+	}
+	h.audit(c, "collection_delete", uri.ID, true, "删合集")
+	res.OkWithMsg("删除成功", c)
 }
 
 // SetCollectionDisplay 切换合集的展示开关（管理员）。

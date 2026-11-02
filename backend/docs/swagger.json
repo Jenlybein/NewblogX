@@ -1094,6 +1094,10 @@
                     "displayed": {
                         "type": "boolean"
                     },
+                    "fallback_cover": {
+                        "description": "FallbackCover 是没上传封面时读者看到的封面（首篇公开文章的封面）。\n\n与 cover 分开：后台列表要按读者的样子预览，但编辑表单必须能看出\n\"这张是回退来的\"，否则一保存就把回退值固化成上传值。",
+                        "type": "string"
+                    },
                     "id": {
                         "type": "string"
                     },
@@ -1245,6 +1249,23 @@
                         "type": "boolean"
                     }
                 },
+                "type": "object"
+            },
+            "internal_article_adapter_http.CollectionUpdateRequest": {
+                "properties": {
+                    "cover": {
+                        "type": "string"
+                    },
+                    "description": {
+                        "type": "string"
+                    },
+                    "title": {
+                        "type": "string"
+                    }
+                },
+                "required": [
+                    "title"
+                ],
                 "type": "object"
             },
             "internal_article_adapter_http.FavoriteArticleListItem": {
@@ -7519,6 +7540,40 @@
             }
         },
         "/collections/{id}": {
+            "delete": {
+                "parameters": [
+                    {
+                        "description": "合集 ID",
+                        "in": "path",
+                        "name": "id",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/myblogx_internal_kernel.Envelope-myblogx_internal_kernel_EmptyData"
+                                }
+                            }
+                        },
+                        "description": "OK"
+                    }
+                },
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "summary": "删合集",
+                "tags": [
+                    "collection"
+                ]
+            },
             "get": {
                 "parameters": [
                     {
@@ -7544,6 +7599,53 @@
                     }
                 },
                 "summary": "合集详情",
+                "tags": [
+                    "collection"
+                ]
+            },
+            "put": {
+                "parameters": [
+                    {
+                        "description": "合集 ID",
+                        "in": "path",
+                        "name": "id",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/internal_article_adapter_http.CollectionUpdateRequest",
+                                "summary": "body",
+                                "description": "请求体"
+                            }
+                        }
+                    },
+                    "description": "请求体",
+                    "required": true
+                },
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/myblogx_internal_kernel.Envelope-myblogx_internal_kernel_EmptyData"
+                                }
+                            }
+                        },
+                        "description": "OK"
+                    }
+                },
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "summary": "改合集",
                 "tags": [
                     "collection"
                 ]

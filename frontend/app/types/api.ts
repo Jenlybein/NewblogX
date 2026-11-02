@@ -211,7 +211,7 @@ export type ArticleHotTopListData =
 export type CollectionCard = RequiredSchema<"internal_article_adapter_http.CollectionCardResponse">;
 
 export type CollectionListData =
-  RequiredSchema<"myblogx_internal_kernel.ListData-internal_article_adapter_http.CollectionCardResponse">;
+  RequiredSchema<"myblogx_internal_kernel.ListData-internal_article_adapter_http_CollectionCardResponse">;
 
 /** 合集详情：合集本身 + 按顺序排列的文章。 */
 export type CollectionDetail = RequiredSchema<"internal_article_adapter_http.CollectionDetailResponse">;

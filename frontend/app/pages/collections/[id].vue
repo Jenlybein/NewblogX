@@ -93,7 +93,8 @@ const emptyDescription = computed(() =>
   margin-bottom: 2rem;
 }
 
-.collection-detail__back {
+/* 显式带上 `a` 前缀：链接色只允许用在文字链接上（设计门禁按选择器判定）。 */
+a.collection-detail__back {
   display: inline-block;
   margin-bottom: 1rem;
   color: var(--color-link);
@@ -101,7 +102,7 @@ const emptyDescription = computed(() =>
   text-decoration: none;
 }
 
-.collection-detail__back:hover {
+a.collection-detail__back:hover {
   text-decoration: underline;
 }
 

@@ -91,7 +91,10 @@ func TestSubmitTransitions(t *testing.T) {
 		{"已拒绝/跳过审核", domain.StatusRejected, true, domain.StatusPublished, nil},
 		{"审核中/重提", domain.StatusExamining, false, domain.StatusExamining, nil},
 		{"已发布/需重审", domain.StatusPublished, false, domain.StatusExamining, nil},
-		{"已发布/跳过审核应报错", domain.StatusPublished, true, domain.StatusPublished, domain.ErrAlreadyPublished},
+		// 已发布 + 跳过审核：目标态就是当前态，幂等成功。
+		// 这条曾经期望 ErrAlreadyPublished，但那会让"更新已发布文章"永远失败
+		// （站点跳过审核时，作者点更新只会看到"文章已发布"）。
+		{"已发布/跳过审核幂等", domain.StatusPublished, true, domain.StatusPublished, nil},
 	}
 
 	for _, c := range cases {
@@ -99,6 +102,10 @@ func TestSubmitTransitions(t *testing.T) {
 		t.Run(c.name, func(t *testing.T) {
 			t.Parallel()
 			a := newArticle(t, c.from, domain.VisibilityVisible, false)
+			// 幂等分支（当前态 == 目标态）不刷新任何审核痕迹：它没有发生"提交"这件事，
+			// 所以不参与下面"提交后应记录 submitted_at"的断言。
+			idempotent := c.from == domain.StatusPublished && c.skipExamining
+			before := a.SubmittedAt()
 			err := a.Submit(baseTime.Add(time.Hour), c.skipExamining)
 
 			if c.wantErr != nil {
@@ -112,6 +119,12 @@ func TestSubmitTransitions(t *testing.T) {
 			}
 			if a.Status() != c.want {
 				t.Fatalf("状态应为 %s，实际 %s", c.want, a.Status())
+			}
+			if idempotent {
+				if a.SubmittedAt() != before {
+					t.Fatal("幂等提交不应改写 submitted_at")
+				}
+				return
 			}
 			if a.SubmittedAt() == nil {
 				t.Fatal("提交后应记录 submitted_at")

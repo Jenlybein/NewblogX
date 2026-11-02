@@ -37,11 +37,9 @@ const emptyDescription = computed(() =>
 <template>
   <main id="main-content" class="page-shell collection-page">
     <header class="collection-page__header">
-      <p class="collection-page__kicker">按主题成组阅读</p>
       <h1 class="collection-page__title">合集</h1>
-      <p class="collection-page__lede">
-        每个合集是一组有顺序的文章：从一个主题的第一篇读到最后一篇，不必靠关键词碰运气。
-      </p>
+      <span class="collection-page__rule" aria-hidden="true" />
+      <p v-if="cards.length" class="collection-page__count">{{ cards.length }} 个专题</p>
     </header>
 
     <ul v-if="cards.length" class="collection-grid" data-collection-list="true">
@@ -77,33 +75,40 @@ const emptyDescription = computed(() =>
 }
 
 .collection-page__header {
-  max-width: 44rem;
-  margin-bottom: 2rem;
+  display: flex;
+  align-items: baseline;
+  gap: 1rem;
+  margin-bottom: 2.25rem;
 }
 
-.collection-page__kicker {
-  margin: 0 0 0.5rem;
+/* 标题走编辑部式的大字：字重与字距拉开对比，不用再加一句解释性文案。 */
+.collection-page__title {
+  margin: 0;
+  color: var(--color-ink);
+  font-family: var(--font-title);
+  font-size: clamp(2.75rem, 7vw, 4.5rem);
+  font-weight: 700;
+  letter-spacing: -0.04em;
+  line-height: 0.95;
+}
+
+/* 标题右侧一道短色条：给标题配一个视觉锚点，纯粹的装饰，不承载信息。
+   用墨色而不是首屏那三支色相 —— 三色只属于首屏封面（editorial-hero 的例外边界）。 */
+.collection-page__rule {
+  display: block;
+  width: clamp(2rem, 6vw, 4.5rem);
+  height: 4px;
+  background: var(--color-ink);
+  transform: translateY(-0.75rem);
+}
+
+.collection-page__count {
+  margin: 0 0 0 auto;
   color: var(--color-ink-faint);
   font-family: var(--font-mono);
   font-size: 0.75rem;
-  letter-spacing: 0.16em;
+  letter-spacing: 0.12em;
   text-transform: uppercase;
-}
-
-.collection-page__title {
-  margin: 0 0 0.75rem;
-  color: var(--color-ink);
-  font-family: var(--font-title);
-  font-size: clamp(2rem, 4vw, 2.75rem);
-  line-height: 1.1;
-  letter-spacing: -0.02em;
-}
-
-.collection-page__lede {
-  margin: 0;
-  color: var(--color-ink-muted);
-  font-size: 0.9375rem;
-  line-height: 1.7;
 }
 
 .collection-grid {
@@ -121,13 +126,21 @@ const emptyDescription = computed(() =>
   background: var(--color-surface);
   overflow: hidden;
   transition:
+    transform var(--motion-fast) var(--motion-ease),
     border-color var(--motion-fast) var(--motion-ease),
     box-shadow var(--motion-fast) var(--motion-ease);
 }
 
 .collection-card:hover {
   border-color: var(--color-line-strong);
-  box-shadow: 0 18px 44px -28px var(--color-shadow);
+  box-shadow: 0 22px 52px -30px var(--color-shadow);
+  transform: translateY(-2px);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .collection-card:hover {
+    transform: none;
+  }
 }
 
 .collection-card__link {
@@ -156,15 +169,20 @@ const emptyDescription = computed(() =>
 .collection-card__title {
   color: var(--color-ink);
   font-family: var(--font-title);
-  font-size: 1.125rem;
-  line-height: 1.35;
+  font-size: 1.25rem;
+  letter-spacing: -0.015em;
+  line-height: 1.3;
 }
 
 .collection-card__description {
+  display: -webkit-box;
   flex: 1 1 auto;
+  overflow: hidden;
   color: var(--color-ink-muted);
   font-size: 0.875rem;
   line-height: 1.6;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
 }
 
 .collection-card__meta {

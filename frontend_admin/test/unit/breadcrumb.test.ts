@@ -17,12 +17,20 @@ import {
  */
 
 describe('后台面包屑数据', () => {
-  it('子页面显示两级：可点的父分组 + 当前子项', () => {
+  it('子页面显示两级：父分组只分组（不可点）+ 当前子项', () => {
     const items = buildAdminBreadcrumb('/articles/hot-top')
 
     expect(items.map(item => item.label)).toEqual(['文章管理', '热门置顶'])
-    // 父分组有落地页 → 可点回退；当前项是当前态且不可点。
-    expect(items[0]).toMatchObject({ path: '/articles', current: false })
+    // 父分组只做分组、没有自己的页面（菜单里点它只展开），所以面包屑里也不可点。
+    expect(items[0]).toMatchObject({ path: null, current: false })
+    expect(items[1]).toMatchObject({ path: null, current: true })
+  })
+
+  it('父项原来的页面现在是子项：面包屑里是「文章管理 / 文章列表」', () => {
+    const items = buildAdminBreadcrumb('/articles')
+
+    expect(items.map(item => item.label)).toEqual(['文章管理', '文章列表'])
+    // 当前项按惯例不可点，path 为 null。
     expect(items[1]).toMatchObject({ path: null, current: true })
   })
 

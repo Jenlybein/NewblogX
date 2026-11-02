@@ -88,6 +88,11 @@ func (s *Service) Update(ctx context.Context, cmd UpdateArticleCmd) (*UpdateResu
 		explicitDraft := cmd.TargetStatus != nil && *cmd.TargetStatus == domain.StatusDraft
 		explicitSubmit := cmd.TargetStatus != nil && *cmd.TargetStatus == domain.StatusExamining
 		autoResubmit := a.NeedsReReview(flags, cmd.SkipExamining)
+		// 已发布 + 跳过审核：目标态就是当前态。此时"提交"是幂等的，
+		// 既不重建审核任务（否则已发布的文章会被塞进审核队列），也不刷新审核痕迹。
+		idempotentSubmit := explicitSubmit &&
+			a.Status() == domain.StatusPublished &&
+			domain.ResolveSubmitStatus(cmd.SkipExamining) == domain.StatusPublished
 
 		switch {
 		case explicitDraft:
@@ -97,6 +102,8 @@ func (s *Service) Update(ctx context.Context, cmd UpdateArticleCmd) (*UpdateResu
 			if err := cancelPendingReviewTasks(ctx, r, a.ID(), "作者改回草稿", now); err != nil {
 				return err
 			}
+		case idempotentSubmit:
+			// 什么都不做：文章已经是发布态，内容由 ApplyEdit 写过了。
 		case explicitSubmit || autoResubmit:
 			if err := a.Submit(now, cmd.SkipExamining); err != nil {
 				return err

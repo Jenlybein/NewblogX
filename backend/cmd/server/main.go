@@ -49,7 +49,6 @@ func main() {
 	}
 
 	runResult, err := cli.Run(flag, cli.Options{
-		ConfigFile:  flag.File,
 		RiverConfig: infra.Config.River,
 		Logger:      infra.Logger,
 		DB:          infra.DB,

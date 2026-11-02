@@ -5,7 +5,6 @@ import (
 	"flag"
 	"fmt"
 	"myblogx/conf"
-	"myblogx/internal/platform/config"
 
 	"github.com/elastic/go-elasticsearch/v7"
 	"github.com/sirupsen/logrus"
@@ -29,16 +28,9 @@ type FlagOptions struct {
 	UserNoPrompt       bool
 	// Apply 让"对账类"子命令真正落库。默认只读，不带它就只统计不改。
 	Apply bool
-	// OrphanCooldownDays 是孤儿图清单的冷静期（天）。0 表示用默认值。
-	OrphanCooldownDays int
-	// OrphanLimit 是孤儿图清单单次扫描条数上限。0 表示用默认值。
-	OrphanLimit int
 }
 
 type Options struct {
-	// ConfigFile 是启动时读到的配置文件路径（`-f`）。
-	// 运行时配置的默认值从它同目录的 site_default_settings.yaml 现读。
-	ConfigFile  string
 	RiverConfig conf.River
 	Logger      *logrus.Logger
 	DB          *gorm.DB
@@ -67,8 +59,6 @@ func Parse() *FlagOptions {
 	flag.StringVar(&Flags.UserCreateEmail, "user-email", "", "创建用户邮箱(可选)")
 	flag.BoolVar(&Flags.UserNoPrompt, "user-no-prompt", false, "创建用户时禁用交互输入(参数不完整则直接失败)")
 	flag.BoolVar(&Flags.Apply, "apply", false, "对账类子命令真正落库(默认只读，只统计不改)")
-	flag.IntVar(&Flags.OrphanCooldownDays, "image-cooldown-days", 0, "孤儿图冷静期天数(0=用默认 14)")
-	flag.IntVar(&Flags.OrphanLimit, "image-limit", 0, "孤儿图单次扫描条数上限(0=用默认 200)")
 
 	flag.Parse()
 
@@ -122,25 +112,12 @@ func Run(op *FlagOptions, deps Options) (RunResult, error) {
 			return RunResult{ContinueStartup: false}, nil
 		}
 		return RunResult{}, fmt.Errorf("未知对账子类型: %s", op.Sub)
-	case "image":
-		// 图片运维（#139 / spec #138）。
-		// orphan 目前**只读**：列候选 + 暴露账本不一致，不动任何数据。
-		switch op.Sub {
-		case "orphan":
-			// 冷静期与单次上限从运行时配置现读；读不到就用兜底默认值。
-			// 这里刻意不因配置缺失而失败：清单本身只读，读不到配置只是退化成默认值。
-			imageGC, cfgErr := config.LoadDefaults(op.File)
-			if cfgErr != nil {
-				deps.Logger.Warnf("读取运行时配置默认值失败，改用兜底默认: %v", cfgErr)
-			}
-			if err := FlagOrphanImageList(
-				deps.DB, deps.Logger, imageGC.ImageGC,
-				op.OrphanCooldownDays, op.OrphanLimit); err != nil {
-				return RunResult{}, err
-			}
-			return RunResult{ContinueStartup: false}, nil
+	case "imagegc":
+		// 孤儿图候选清单（#139）。本票只读，不提供删除；-apply 留给 #140。
+		if err := FlagImageGCOrphans(deps.DB, deps.Logger, op.File, op.Apply); err != nil {
+			return RunResult{}, err
 		}
-		return RunResult{}, fmt.Errorf("未知图片运维子类型: %s", op.Sub)
+		return RunResult{ContinueStartup: false}, nil
 	case "run":
 		switch op.Sub {
 		case "init":

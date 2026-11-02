@@ -114,14 +114,15 @@ func sortSidebarCards(rows []domain.SidebarCard) {
 
 // SidebarData 是右栏各卡数据的读端口替身。
 //
-// 三个数据源各自独立：某一种卡取数失败不能拖垮别种卡。
+// 各数据源各自独立：某一种卡取数失败不能拖垮别种卡。
 type SidebarData struct {
-	mu       sync.Mutex
-	articles []domain.SidebarArticle
-	comments []domain.SidebarComment
-	tags     []domain.SidebarTag
-	err      error
-	limits   map[string]int
+	mu          sync.Mutex
+	articles    []domain.SidebarArticle
+	comments    []domain.SidebarComment
+	tags        []domain.SidebarTag
+	collections []domain.SidebarCollection
+	err         error
+	limits      map[string]int
 }
 
 var _ domain.SidebarDataSource = (*SidebarData)(nil)
@@ -148,6 +149,13 @@ func (d *SidebarData) PutTags(items ...domain.SidebarTag) {
 	d.mu.Lock()
 	defer d.mu.Unlock()
 	d.tags = items
+}
+
+// PutCollections 设置推荐合集数据（已按"展示中"过滤，替身不模拟可见性）。
+func (d *SidebarData) PutCollections(items ...domain.SidebarCollection) {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	d.collections = items
 }
 
 // FailWith 让每一种取数都返回同一个错误。
@@ -188,6 +196,17 @@ func (d *SidebarData) TagCloud(_ context.Context, limit int) ([]domain.SidebarTa
 		return nil, d.err
 	}
 	return truncate(d.tags, limit), nil
+}
+
+// Collections 实现 domain.SidebarDataSource。
+func (d *SidebarData) Collections(_ context.Context, limit int) ([]domain.SidebarCollection, error) {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	d.limits["recommended_collections"] = limit
+	if d.err != nil {
+		return nil, d.err
+	}
+	return truncate(d.collections, limit), nil
 }
 
 // LastLimit 报告某一种卡最近一次取数用的 limit。

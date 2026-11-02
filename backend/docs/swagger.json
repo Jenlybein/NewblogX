@@ -2269,6 +2269,14 @@
             },
             "internal_site_adapter_http.SidebarCardItem": {
                 "properties": {
+                    "collections": {
+                        "description": "推荐合集卡的数据（只含展示中的合集，顺序即合集自己的顺序）。",
+                        "items": {
+                            "$ref": "#/components/schemas/internal_site_adapter_http.SidebarCollectionItem"
+                        },
+                        "type": "array",
+                        "uniqueItems": false
+                    },
                     "hot_articles": {
                         "description": "热门文章卡的数据。",
                         "items": {
@@ -2350,6 +2358,26 @@
                 "required": [
                     "list"
                 ],
+                "type": "object"
+            },
+            "internal_site_adapter_http.SidebarCollectionItem": {
+                "properties": {
+                    "article_count": {
+                        "type": "integer"
+                    },
+                    "cover": {
+                        "type": "string"
+                    },
+                    "description": {
+                        "type": "string"
+                    },
+                    "id": {
+                        "type": "string"
+                    },
+                    "title": {
+                        "type": "string"
+                    }
+                },
                 "type": "object"
             },
             "internal_site_adapter_http.SidebarCommentItem": {

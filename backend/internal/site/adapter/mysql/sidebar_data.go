@@ -51,6 +51,15 @@ type tagCloudRow struct {
 	ArticleCount int
 }
 
+// sidebarCollectionRow 是推荐合集查询的行形状（投影读，只读展示需要的几列）。
+type sidebarCollectionRow struct {
+	ID           ctype.ID
+	Title        string
+	Description  string
+	Cover        string
+	ArticleCount int
+}
+
 // HotArticles 按点赞数降序取公开文章，并剔除主栏「热门置顶」已经露出的文章。
 //
 // 去重是这张卡的产品口径：同一篇文章在首页出现两次不是"推荐更多"，是版面事故。
@@ -149,6 +158,66 @@ func (s *SidebarData) TagCloud(ctx context.Context, limit int) ([]domain.Sidebar
 		out = append(out, domain.SidebarTag{
 			ID:           row.ID,
 			Title:        row.Title,
+			ArticleCount: row.ArticleCount,
+		})
+	}
+	return out, nil
+}
+
+// Collections 按合集自己的运营顺序取展示中的合集。
+//
+// 三个过滤都在 SQL 里，与读者侧合集列表同一口径：
+//   - is_display 为真（关掉展示的合集连数据都不该出现在右栏）；
+//   - deleted_at 为空（软删的合集不出现）；
+//   - 文章数只数"已发布 + 可见 + 未删除"的收录文章，与合集列表页的读数一致 ——
+//     一张写着「20 篇」点进去只有 18 篇是坏体验。
+//
+// 封面回退（合集没封面就用首篇公开文章的封面）同样在 SQL 里，口径与列表页一致。
+// 但这里刻意**不复用**文章模块的仓储：跨模块读只做站点模块自己的只读投影，
+// 表结构由 schema.sql 冻结，列漂移会被列契约测试拦住。
+func (s *SidebarData) Collections(ctx context.Context, limit int) ([]domain.SidebarCollection, error) {
+	var rows []sidebarCollectionRow
+	err := s.db.WithContext(ctx).Raw(
+		`SELECT c.id, c.title, c.description,
+		        (CASE WHEN c.cover = ''
+		              THEN COALESCE((SELECT a2.cover
+		                               FROM collection_article_models AS i2
+		                               JOIN article_models AS a2 ON a2.id = i2.article_id
+		                              WHERE i2.collection_id = c.id
+		                                AND i2.deleted_at IS NULL
+		                                AND a2.deleted_at IS NULL
+		                                AND a2.publish_status = ?
+		                                AND a2.visibility_status = ?
+		                              ORDER BY i2.sort_order ASC, i2.id ASC
+		                              LIMIT 1), '')
+		              ELSE c.cover END) AS cover,
+		        (SELECT COUNT(*)
+		           FROM collection_article_models AS i
+		           JOIN article_models AS a ON a.id = i.article_id
+		          WHERE i.collection_id = c.id
+		            AND i.deleted_at IS NULL
+		            AND a.deleted_at IS NULL
+		            AND a.publish_status = ?
+		            AND a.visibility_status = ?) AS article_count
+		   FROM collection_models AS c
+		  WHERE c.deleted_at IS NULL
+		    AND c.is_display = ?
+		  ORDER BY c.sort_order ASC, c.id ASC
+		  LIMIT ?`,
+		int(enum.ArticleStatusPublished), string(enum.ArticleVisibilityVisible),
+		int(enum.ArticleStatusPublished), string(enum.ArticleVisibilityVisible),
+		true, clampLimit(limit),
+	).Scan(&rows).Error
+	if err != nil {
+		return nil, err
+	}
+	out := make([]domain.SidebarCollection, 0, len(rows))
+	for _, row := range rows {
+		out = append(out, domain.SidebarCollection{
+			ID:           row.ID,
+			Title:        row.Title,
+			Description:  row.Description,
+			Cover:        row.Cover,
 			ArticleCount: row.ArticleCount,
 		})
 	}

@@ -27,7 +27,7 @@ func NewSidebar(cards domain.SidebarCardRepository, data domain.SidebarDataSourc
 
 // SidebarCardView 是读者侧一张卡片的完整视图：配置 + 该种类自己的数据。
 //
-// 三种数据字段互不重叠：前端按 Kind 只读对应的那一个数组，
+// 各数据字段互不重叠：前端按 Kind 只读对应的那一个数组，
 // 空数组即"这张卡没有数据"（读者站据此整块隐藏）。
 type SidebarCardView struct {
 	ID             ctype.ID
@@ -37,6 +37,7 @@ type SidebarCardView struct {
 	HotArticles    []domain.SidebarArticle
 	LatestComments []domain.SidebarComment
 	Tags           []domain.SidebarTag
+	Collections    []domain.SidebarCollection
 }
 
 // PublicCards 返回读者侧要渲染的卡片：只含启用中的，按运营顺序，各自带数据。
@@ -128,6 +129,8 @@ func (s *SidebarService) fillCardData(ctx context.Context, view *SidebarCardView
 		view.LatestComments, err = s.data.LatestComments(ctx, domain.SidebarCardDataLimit)
 	case domain.CardKindTagCloud:
 		view.Tags, err = s.data.TagCloud(ctx, domain.SidebarCardDataLimit)
+	case domain.CardKindRecommendedCollections:
+		view.Collections, err = s.data.Collections(ctx, domain.SidebarCardDataLimit)
 	}
 	if err != nil {
 		s.logError("读取右栏卡片数据失败（kind=%s）: %v", view.Kind, err)

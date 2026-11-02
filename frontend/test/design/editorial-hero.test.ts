@@ -4,7 +4,7 @@ import { join, relative } from "node:path";
 import { describe, expect, it } from "vitest";
 
 // blockAfter / collectFiles / SOURCES 的遍历在多个 design 测试里重复，已收进 helpers。
-import { blockAfter, collectFiles, extensionFilter } from "../helpers/designFiles";
+import { blockAfter, collectFiles, extensionFilter, stripComments } from "../helpers/designFiles";
 
 /**
  * 首屏编辑部式封面（ADR-0013）的静态设计契约。
@@ -71,7 +71,7 @@ describe("满幅：脱离 page-shell 的水平内边距", () => {
   });
 });
 
-describe("分层：底图 → 罩层 → 色带 → 网格刻度 → h1 → 记号 → 控件", () => {
+describe("分层：底图 → 底部渐黑 → 色带 → 网格刻度 → h1 → 记号 → 控件", () => {
   it("底图层来自运营上传的首张轮播 cover，铺满面板", () => {
     expect(bannerVue).toContain('class="banner-photo"');
     expect(bannerVue).toMatch(/<img[\s\S]*:src="currentBanner\.cover"/u);
@@ -83,14 +83,15 @@ describe("分层：底图 → 罩层 → 色带 → 网格刻度 → h1 → 记�
     expect(read("app/utils/bannerFraming.ts")).toContain('objectFit: "cover"');
   });
 
-  it("罩层是中性石墨渐变，保证反白文字的对比度 ≥4.5:1", () => {
-    const scrim = blockAfter(bannerVue, ".banner-scrim {");
+  it("底部渐黑层只压下半，上半保持透明（不再整幅压暗盖住图片）", () => {
+    const veil = blockAfter(bannerVue, ".banner-veil {");
 
-    expect(scrim).toContain("linear-gradient");
-    expect(scrim).toContain("var(--color-surface-inverse)");
-    // 最浅的一档也压到至少 70%，白色字压任意底图的对比度才够 4.5:1。
-    expect(scrim).toContain("70%");
-    expect(scrim).toContain("95%");
+    expect(veil).toContain("linear-gradient");
+    expect(veil).toContain("transparent 0%");
+    expect(veil).toContain("var(--color-surface-inverse)");
+    // 不再有覆盖整个面板的罩层：顶部不压暗，深墨只往底部过渡。
+    expect(veil).not.toContain("inset: 0");
+    expect(bannerVue).not.toContain("banner-scrim");
   });
 
   it("2–3 条横向色带：黄 / 功能蓝 / 珊瑚，且只消费三个锁定色相", () => {
@@ -309,11 +310,17 @@ describe("例外边界：色带 / 刻度 / 记号类名只在首屏封面内", (
     expect(offenders).toEqual([]);
   });
 
-  it("轮播控件走薄玻璃胶囊（--glass-thin + pill）", () => {
-    expect(bannerVue).toContain("glass-thin");
+  it("轮播控件住在底部渐黑区里，不再单独一颗玻璃胶囊", () => {
+    // 控件从"浮在图上的一颗玻璃药丸"改为渐黑区里的一行内容：不用玻璃材质、
+    // 不另铺自成一体的胶囊底。渐黑区本身与对比度保证由 banner-veil 专项锁住。
+    expect(stripComments(bannerVue)).not.toContain("glass-thin");
+    const veil = blockAfter(bannerVue, ".banner-veil {");
+
+    expect(veil).toContain("linear-gradient");
     const controls = blockAfter(bannerVue, ".banner-controls {");
 
-    expect(controls).toContain("var(--radius-pill)");
+    expect(controls).not.toContain("position: absolute");
+    expect(blockAfter(bannerVue, ".banner-dot span {")).toContain("var(--radius-pill)");
   });
 });
 

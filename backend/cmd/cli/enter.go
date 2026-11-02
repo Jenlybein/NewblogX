@@ -113,7 +113,8 @@ func Run(op *FlagOptions, deps Options) (RunResult, error) {
 		}
 		return RunResult{}, fmt.Errorf("未知对账子类型: %s", op.Sub)
 	case "imagegc":
-		// 孤儿图候选清单（#139）。本票只读，不提供删除；-apply 留给 #140。
+		// 孤儿图：不带 -apply 是只读清单（含二次确认预演），带 -apply 才真删；
+		// 真删还受运行时开关 image_gc.enabled 约束。
 		if err := FlagImageGCOrphans(deps.DB, deps.Logger, op.File, op.Apply); err != nil {
 			return RunResult{}, err
 		}

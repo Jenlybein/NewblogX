@@ -431,7 +431,16 @@ func (s *Service) List(ctx context.Context, q domain.Query) ([]domain.Image, int
 
 // Remove 批量删除图片：先删对象存储，再删引用与记录。
 func (s *Service) Remove(ctx context.Context, ids []domain.ImageID) (int, error) {
-	images, err := s.repo.FindByIDs(ctx, ids)
+	return removeImages(ctx, s.repo, s.storage, ids)
+}
+
+// removeImages 是"先删对象、确认成功才清账本并硬删行"的唯一实现。
+//
+// 单独抽出来是为了让维护命令（孤儿图真删）复用同一段删除顺序，
+// 而不是另造一套：任何一处顺序写反都会留下"行没了对象还在"或
+// "对象没了行还在"的半删状态。
+func removeImages(ctx context.Context, repo domain.Repository, storage domain.ObjectStorage, ids []domain.ImageID) (int, error) {
+	images, err := repo.FindByIDs(ctx, ids)
 	if err != nil {
 		return 0, err
 	}
@@ -439,11 +448,14 @@ func (s *Service) Remove(ctx context.Context, ids []domain.ImageID) (int, error)
 		return 0, apperr.New(apperr.CodeImageUnavailable)
 	}
 	for _, image := range images {
-		if err := s.storage.Delete(image.Bucket, image.ObjectKey); err != nil {
+		// 先删存储对象。失败就整条返回：此时图片行、账本行都还没动，
+		// 下次重试看到的仍是完整的一条，不会出现"本地行没了对象还在"。
+		if err := storage.Delete(image.Bucket, image.ObjectKey); err != nil {
 			return 0, apperr.Wrap(apperr.CodeImageDeleteFailed, err)
 		}
 	}
-	if err := s.repo.DeleteWithRefs(ctx, ids); err != nil {
+	// 对象确认删掉后才删引用账本与图片行（同一个事务）。
+	if err := repo.DeleteWithRefs(ctx, ids); err != nil {
 		return 0, err
 	}
 	return len(images), nil

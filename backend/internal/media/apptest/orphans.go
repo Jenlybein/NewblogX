@@ -21,6 +21,8 @@ type OrphanStore struct {
 
 	// refs 是引用账本（image_ref_models）的内存形态：一张图挂了哪些引用行。
 	refs map[domain.ImageID][]image_ref_enum.RefField
+	// deletedArticleRefs 是 refs 里"所属文章已在回收站"的引用行数。
+	deletedArticleRefs map[domain.ImageID]int
 	// live 是重扫四类业务表得到的真实引用数，按 object_key 记。
 	live map[string]int
 
@@ -30,19 +32,41 @@ type OrphanStore struct {
 
 // NewOrphanStore 构造一个空的清单数据源。
 func NewOrphanStore() *OrphanStore {
-	return &OrphanStore{
-		Repo:     NewRepo(),
-		refs:     map[domain.ImageID][]image_ref_enum.RefField{},
-		live:     map[string]int{},
-		failures: map[string]error{},
-		calls:    map[string]int{},
+	store := &OrphanStore{
+		Repo:               NewRepo(),
+		refs:               map[domain.ImageID][]image_ref_enum.RefField{},
+		deletedArticleRefs: map[domain.ImageID]int{},
+		live:               map[string]int{},
+		failures:           map[string]error{},
+		calls:              map[string]int{},
 	}
+	// 生产里 DeleteWithRefs 在同一个事务里清账本再硬删行；假件也必须
+	// 表现出"行没了账本行也没了"，否则账本清理的断言会假绿。
+	store.Repo.onDeleteWithRefs = func(ids []domain.ImageID) {
+		for _, id := range ids {
+			delete(store.refs, id)
+			delete(store.deletedArticleRefs, id)
+		}
+	}
+	return store
 }
 
 // AddLedgerRef 在账本里追加一条引用行，相当于 CDC 记下的一次引用。
 func (s *OrphanStore) AddLedgerRef(id domain.ImageID, field image_ref_enum.RefField) {
 	s.refs[id] = append(s.refs[id], field)
 }
+
+// AddDeletedArticleRef 追加一条"指向已删除文章"的引用行。
+//
+// 它同时出现在账本读数与 DeletedArticleRefs 读数里，用来模拟
+// "文章进回收站、账本行还在"的孤儿引用行。
+func (s *OrphanStore) AddDeletedArticleRef(id domain.ImageID, field image_ref_enum.RefField) {
+	s.AddLedgerRef(id, field)
+	s.deletedArticleRefs[id]++
+}
+
+// LedgerRefCount 返回账本里该图的引用行数（用例断言账本是否一并清掉）。
+func (s *OrphanStore) LedgerRefCount(id domain.ImageID) int { return len(s.refs[id]) }
 
 // SetLiveRefs 设置某个 object_key 的真实引用数。
 func (s *OrphanStore) SetLiveRefs(objectKey string, count int) {
@@ -75,6 +99,9 @@ func (s *OrphanStore) Snapshot() string {
 			img.ID, img.ObjectKey, img.CreatedAt.UTC().Format("2006-01-02T15:04:05Z"), img.Status, img.Hash)
 		for index, field := range s.refs[img.ID] {
 			fmt.Fprintf(&b, "ledger|%s|%d|%s\n", img.ID, index, field)
+		}
+		if count := s.deletedArticleRefs[img.ID]; count > 0 {
+			fmt.Fprintf(&b, "deleted-article-ref|%s|%d\n", img.ID, count)
 		}
 	}
 	keys := make([]string, 0, len(s.live))
@@ -149,6 +176,20 @@ func (s *OrphanStore) LiveRefs(_ context.Context, objectKeys []string) (map[stri
 	for _, key := range objectKeys {
 		if count := s.live[key]; count > 0 {
 			out[key] = count
+		}
+	}
+	return out, nil
+}
+
+// DeletedArticleRefs 实现 domain.OrphanPurgeGuard。
+func (s *OrphanStore) DeletedArticleRefs(_ context.Context, ids []domain.ImageID) (map[domain.ImageID]int, error) {
+	if err := s.hit("DeletedArticleRefs"); err != nil {
+		return nil, err
+	}
+	out := make(map[domain.ImageID]int, len(ids))
+	for _, id := range ids {
+		if count := s.deletedArticleRefs[id]; count > 0 {
+			out[id] = count
 		}
 	}
 	return out, nil

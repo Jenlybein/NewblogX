@@ -1192,19 +1192,22 @@ SELECT COUNT(*) AS 活关系 FROM article_digg_models WHERE deleted_at IS NULL;
 SELECT COUNT(*) AS 软删残行 FROM article_digg_models WHERE deleted_at IS NOT NULL;
 ```
 
-### 12.2.2 孤儿图候选清单（只读，`-t imagegc`）
+### 12.2.2 孤儿图清单与真删（`-t imagegc`）
 
 **背景**：图片是浏览器直传存储、后端只签发任务，**没有任何"这张图还有没有人用"
 的回收机制**。引用账本（`image_ref_models`）由 image-ref 从 binlog 维护，但一直
-**只写不读**——这条命令是第一个按 `image_id` 反查它的代码。本票**只出清单**，
-不删任何东西（见 issue #139）。
+**只写不读**——这条命令是第一个按 `image_id` 反查它的代码。默认**只出清单**，
+带上 `-apply` 且运行时开关 `image_gc.enabled=true` 才会真删（issue #139 / #140）。
 
 ```bash
 cd /opt/blogx/deploy/compose/production
 set -a; . ./.env; set +a
 
-# 只读清单：图片行、引用账本、存储对象都不会被改动
+# 只读清单 + 二次确认预演：图片行、引用账本、存储对象都不会被改动
 docker compose exec blogx_server ./blogx-server -f config/settings.yaml -t imagegc
+
+# 真删：重扫真实引用做二次确认后，先删存储对象、成功才清账本并硬删行
+docker compose exec blogx_server ./blogx-server -f config/settings.yaml -t imagegc -apply
 ```
 
 输出含义：
@@ -1214,19 +1217,24 @@ docker compose exec blogx_server ./blogx-server -f config/settings.yaml -t image
 | `冷静期` | 只选中上传早于「现在 - N 天」的图。N 是运行时配置 `image_gc.grace_days`，默认 14 |
 | `候选` | 真实引用数为 0、过了冷静期、非头像、非审核中/封禁的图；每条列出 id / 对象键 / 上传时间 / 状态 / **账本引用数** / **真实引用数** |
 | `账本不一致` | 账本 0 条但真实引用 >0：账本漏记的证据（CDC 死信，或换过存储域名/前缀）。**供人工复核，不是候选** |
-| `剩余` | 超过单次上限（`image_gc.batch_limit`，默认 50、硬上限 500）没检查的条数 |
+| `剩余` | 超过单次上限（`image_gc.batch_limit`，默认 50、硬上限 500）没检查/没处理的条数 |
+| `计划删除` / `删除成功` | 通过二次确认的条数 / 真正删掉的条数（预演时前者非零、后者恒为 0） |
+| `指向已删除文章的引用行` | 只统计、不自动删：文章可能从回收站恢复，图不能先没了 |
 
-三条执行约定：
+四条执行约定：
 
-1. **只读**。图片行、引用账本、存储对象都不动——服务层用例对这条性质有断言。
-2. **判定不信任账本**：候选以重扫四类引用源（文章正文/封面、轮播封面、收藏封面、
-   用户头像）为准；账本只用来排除头像、并列展示，以及暴露自己的漏记。
-3. **改冷静期不必重启**：`image_gc` 是运行时配置段，命令每次启动现读。
+1. **默认只读**。不带 `-apply` 只做清单与二次确认预演；图片行、引用账本、存储对象都不动。
+2. **二次确认不信任账本**：真删前重扫四类引用源（文章正文/封面、轮播封面、收藏封面、
+   用户头像），并重读账本头像与"已删除文章引用"；任一不通过整条跳过并记录原因。
+3. **删除顺序只有一套**：复用 `Service.Remove`（先删存储对象，确认成功才用
+   `DeleteWithRefs` 清账本并硬删行）。对象删失败时本地行保留，下次重试幂等。
+4. **能关、可调**：`image_gc` 是运行时配置段，开关/冷静期/上限每次执行现读，改配置不必重启。
    后台还没有编辑入口之前，可改库里 `runtime_config_models` 的
-   `name='image_gc'` 那行 JSON（如 `{"grace_days":7,"batch_limit":50}`）。
-   删图能力留给后续票（#140）。
+   `name='image_gc'` 那行 JSON（如 `{"enabled":true,"grace_days":7,"batch_limit":50}`）。
+   `enabled` 默认 false，异常时改成 false 即可立刻停手。
 
-日志里也会留一条结论：`孤儿图清单扫描完成: ... 检查=N 选中=N 排除=N 剩余=N`。
+日志里也会留一条结论：清单是 `孤儿图清单扫描完成: ... 检查=N 选中=N 排除=N 剩余=N`；
+真删是 `孤儿图回收完成: ... 选中=N 删除成功=N 跳过=N(原因=条数) 剩余=N`。
 
 日志目录映射（都在 `deploy/state/` 下，已在 `.gitignore` 内）：
 

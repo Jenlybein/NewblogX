@@ -16,6 +16,13 @@ type Repo struct {
 	byID   map[domain.ImageID]domain.Image
 	byHash map[string]domain.ImageID
 	next   uint64
+
+	// onDeleteWithRefs 在 DeleteWithRefs 删掉图片行之后调用。
+	//
+	// 生产实现把"删账本行 + 硬删图片行"放在同一个事务里；内存替身里
+	// 账本在 OrphanStore 上，所以用它把两边串起来，避免假件比真实现
+	// 更宽松（例如删了行却留下账本行）。
+	onDeleteWithRefs func([]domain.ImageID)
 }
 
 // NewRepo 构造。
@@ -94,7 +101,19 @@ func (r *Repo) SoftDeleteMany(_ context.Context, ids []domain.ImageID) error {
 
 // DeleteWithRefs 实现 domain.Repository。
 func (r *Repo) DeleteWithRefs(ctx context.Context, ids []domain.ImageID) error {
-	return r.SoftDeleteMany(ctx, ids)
+	if err := r.SoftDeleteMany(ctx, ids); err != nil {
+		return err
+	}
+	if r.onDeleteWithRefs != nil {
+		r.onDeleteWithRefs(ids)
+	}
+	return nil
+}
+
+// Has 判断图片行是否还在。用例用它断言"行删没删"，而不需要看内部 map。
+func (r *Repo) Has(id domain.ImageID) bool {
+	_, ok := r.byID[id]
+	return ok
 }
 
 // TaskStore 是内存任务缓存。

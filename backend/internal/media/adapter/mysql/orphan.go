@@ -27,6 +27,9 @@ type OrphanStore struct {
 
 var _ domain.OrphanStore = (*OrphanStore)(nil)
 
+// OrphanStore 同时向真删链路提供"指向已删除文章"的保护读数（只读）。
+var _ domain.OrphanPurgeGuard = (*OrphanStore)(nil)
+
 // liveRefScanChunk 是重扫真实引用时的分页大小。
 //
 // 分页不是为了快，是为了内存：文章正文可能很大，一次 Find 全表会把所有
@@ -192,6 +195,43 @@ func bump(wanted map[string]struct{}, out map[string]int, objectKey string) {
 		return
 	}
 	out[objectKey]++
+}
+
+// DeletedArticleRefs 实现 domain.OrphanPurgeGuard。
+//
+// 只统计 ref_type=article 且所属文章已经软删（在回收站）的账本行。
+// 这类行不能跟着图片一起删：用户恢复文章后，图已经没了就补不回来。
+//
+// join 必须显式写 articles.deleted_at IS NOT NULL —— GORM 的软删 scope
+// 只作用于主表，不会自动加给 join 进来的表；写漏了会把活文章也算进来，
+// 结果是"该删的一张都删不掉"。
+func (s *OrphanStore) DeletedArticleRefs(ctx context.Context, imageIDs []domain.ImageID) (map[domain.ImageID]int, error) {
+	out := make(map[domain.ImageID]int, len(imageIDs))
+	raw := toRawIDs(imageIDs)
+	if len(raw) == 0 {
+		return out, nil
+	}
+	if s.db == nil {
+		return out, gorm.ErrInvalidDB
+	}
+
+	var counts []struct {
+		ImageID ctype.ID `gorm:"column:image_id"`
+		Total   int64    `gorm:"column:total"`
+	}
+	if err := s.db.WithContext(ctx).Model(&imageRefRow{}).
+		Select("image_id, COUNT(*) AS total").
+		Joins("JOIN article_models AS articles ON articles.id = image_ref_models.owner_id AND articles.deleted_at IS NOT NULL").
+		Where("image_ref_models.ref_type = ?", uint(image_ref_enum.RefTypeArticle)).
+		Where("image_ref_models.image_id IN ?", raw).
+		Group("image_id").
+		Find(&counts).Error; err != nil {
+		return out, err
+	}
+	for _, row := range counts {
+		out[row.ImageID] = int(row.Total)
+	}
+	return out, nil
 }
 
 // statusValues 把状态枚举转成数据库里的整型值。

@@ -102,11 +102,11 @@ const PREVIEW_SAMPLES: Record<string, Pick<
 /** 该种类的示例内容；未知种类给空数组，让它被渲染模型整张忽略。 */
 function previewSample(kind: string): Pick<
   SiteSidebarCardItem,
-  'hot_articles' | 'latest_comments' | 'tags' | 'collections' | 'content'
+  'hot_articles' | 'latest_comments' | 'tags' | 'collections'
 > {
   const known = PREVIEW_SAMPLES[kind]
   if (known) return known
-  return { hot_articles: [], latest_comments: [], tags: [], collections: [], content: '' }
+  return { hot_articles: [], latest_comments: [], tags: [], collections: [] }
 }
 
 /**

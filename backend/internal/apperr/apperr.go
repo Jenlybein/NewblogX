@@ -218,6 +218,13 @@ const (
 	// 分家，而两边都没有任何提示。
 	CodeBannerCropInvalid Code = "banner.crop_invalid"
 
+	// 右栏卡片。
+	//
+	// 与轮播图分开：卡片是独立表、独立接口，排错时错误码要能直接指向右栏，
+	// 而不是让人先去怀疑站点配置或轮播图。
+	CodeSidebarCardKindInvalid   Code = "sidebar.card_kind_invalid"
+	CodeSidebarCardLimitExceeded Code = "sidebar.card_limit_exceeded"
+
 	CodeRuntimeConfigDBMissing    Code = "runtimeconfig.db_missing"
 	CodeRuntimeConfigPathMissing  Code = "runtimeconfig.path_missing"
 	CodeRuntimeConfigDecodeFailed Code = "runtimeconfig.decode_failed"
@@ -445,6 +452,9 @@ var messages = map[Code]string{
 	CodeSiteInfoNotFound:  "站点信息不存在",
 	CodeBannerNotFound:    "轮播图不存在",
 	CodeBannerCropInvalid: "取景参数超出范围：焦点需在 0 到 1 之间，缩放需在 1 到 2 之间",
+
+	CodeSidebarCardKindInvalid:   "右栏卡片类型不存在",
+	CodeSidebarCardLimitExceeded: "右栏卡片数量超出上限",
 
 	CodeSetupAlreadyDone: "站点已初始化完成，该入口已关闭",
 

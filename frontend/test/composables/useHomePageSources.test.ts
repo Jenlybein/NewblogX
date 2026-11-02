@@ -266,3 +266,63 @@ describe("useHomePageSources：首页三个数据源并行 + 骨架优先", () =
     expect(second.latestPager.revalidating.value).toBe(false);
   });
 });
+
+/**
+ * 右栏卡片源（#111）：与其它三路一起并行取回。
+ *
+ * 为什么放进首页数据源而不是页面里再 await 一次：右栏的卡片是首页首屏的一部分，
+ * 服务端渲染必须在 HTML 里就有它；客户端跳转时它也该和其它源同时发起，而不是
+ * 排在最新文章之后。接进同一个 composable，失败语义也就自动沿用
+ * "某个接口挂了只影响它自己那块"。
+ */
+describe("useHomePageSources：右栏卡片源（#111）", () => {
+  it("服务端等齐右栏卡片；返回列表原样带出", async () => {
+    installAwaitableAsyncData();
+
+    const sidebarPayload = {
+      list: [
+        {
+          id: "card-1",
+          kind: "hot_articles",
+          title: "本周热读",
+          sort_order: 0,
+          hot_articles: [{ id: "a1", title: "热读一", digg_count: 9, view_count: 90 }],
+          latest_comments: [],
+          tags: [],
+        },
+      ],
+    };
+    const fetchSidebarCards = vi.fn(async () => sidebarPayload);
+
+    const sources = await runInScope(() =>
+      useHomePageSources({
+        mode: "server",
+        fetchBanners: async () => ({ list: [], has_more: false }),
+        fetchHotTop: async () => ({ list: [], count: 0 }),
+        fetchLatest: async () => ({ items: [], hasMore: false }),
+        fetchSidebarCards,
+      }),
+    );
+
+    expect(fetchSidebarCards).toHaveBeenCalledTimes(1);
+    expect(sources.sidebarCardsData.value).toEqual(sidebarPayload);
+  });
+
+  it("右栏接口失败时降级成空列表，不把首页带崩", async () => {
+    installAwaitableAsyncData();
+
+    const sources = await runInScope(() =>
+      useHomePageSources({
+        mode: "server",
+        fetchBanners: async () => ({ list: [], has_more: false }),
+        fetchHotTop: async () => ({ list: [], count: 0 }),
+        fetchLatest: async () => ({ items: [], hasMore: false }),
+        fetchSidebarCards: async () => {
+          throw new Error("boom");
+        },
+      }),
+    );
+
+    expect(sources.sidebarCardsData.value).toEqual({ list: [] });
+  });
+});

@@ -120,6 +120,84 @@ type SEOResponse struct {
 	Description  string `json:"description"`
 }
 
+// ── 右栏卡片 ───────────────────────────────────────────────────
+
+// SidebarCardItem 是读者侧一张右栏卡片的传输形状。
+//
+// 三种数据字段同时存在，前端按 kind 只读对应的那一个数组：
+// 空数组即"这张卡没有数据"，读者站整块隐藏。这样前端不需要知道
+// "某张卡的数据该从哪里取" —— 取数是后端的职责。
+type SidebarCardItem struct {
+	ID        string `json:"id"`
+	Kind      string `json:"kind"`
+	Title     string `json:"title"`
+	SortOrder int    `json:"sort_order"`
+	// 热门文章卡的数据。
+	HotArticles []SidebarArticleItem `json:"hot_articles"`
+	// 最新评论卡的数据。
+	LatestComments []SidebarCommentItem `json:"latest_comments"`
+	// 标签云卡的数据（article_count 决定字号权重）。
+	Tags []SidebarTagItem `json:"tags"`
+}
+
+// SidebarArticleItem 是热门文章卡的条目。
+type SidebarArticleItem struct {
+	ID        string `json:"id"`
+	Title     string `json:"title"`
+	DiggCount int    `json:"digg_count"`
+	ViewCount int    `json:"view_count"`
+}
+
+// SidebarCommentItem 是最新评论卡的条目。
+type SidebarCommentItem struct {
+	ID           string `json:"id"`
+	Content      string `json:"content"`
+	ArticleID    string `json:"article_id"`
+	ArticleTitle string `json:"article_title"`
+	UserNickname string `json:"user_nickname"`
+	CreatedAt    string `json:"created_at"`
+}
+
+// SidebarTagItem 是标签云卡的条目。
+type SidebarTagItem struct {
+	ID           string `json:"id"`
+	Title        string `json:"title"`
+	ArticleCount int    `json:"article_count"`
+}
+
+// SidebarCardsResponse 是读者侧卡片列表的 data 载荷。
+type SidebarCardsResponse struct {
+	List []SidebarCardItem `json:"list"`
+}
+
+// AdminSidebarCardItem 是管理端一张卡片的传输形状。
+type AdminSidebarCardItem struct {
+	ID        string `json:"id"`
+	Kind      string `json:"kind"`
+	Title     string `json:"title"`
+	SortOrder int    `json:"sort_order"`
+	Enabled   bool   `json:"enabled"`
+}
+
+// AdminSidebarCardsResponse 是管理端卡片列表的 data 载荷。
+type AdminSidebarCardsResponse struct {
+	List []AdminSidebarCardItem `json:"list"`
+}
+
+// SidebarCardSaveItem 是保存时提交的单张卡片。
+//
+// 不带 sort_order：顺序由 list 里的提交顺序决定，见 app.SidebarCardInput 的说明。
+type SidebarCardSaveItem struct {
+	Kind    string `json:"kind" binding:"required"`
+	Title   string `json:"title"`
+	Enabled bool   `json:"enabled"`
+}
+
+// SidebarCardsSaveRequest 是整表保存的请求体。
+type SidebarCardsSaveRequest struct {
+	List []SidebarCardSaveItem `json:"list" binding:"required"`
+}
+
 // ── 绑定助手 ───────────────────────────────────────────────────
 
 // bindJSON 取中间件已经绑定好的请求体。
@@ -184,4 +262,5 @@ var (
 	_ = middleware.GetBindJson[IDListRequest]
 	_ = middleware.GetBindQuery[BannerListRequest]
 	_ = middleware.GetBindUri[SiteInfoRequest]
+	_ = middleware.GetBindJson[SidebarCardsSaveRequest]
 )

@@ -16,7 +16,7 @@ const siteStore = useSiteStore();
 // 首页三个数据源（轮播 / 热门置顶 / 最新文章）在 composable 里**同时发起**，
 // 并按渲染环境决定等谁：服务端等齐（SSR 的 HTML 里要有内容），
 // 客户端跳转一个都不等（先出骨架），首屏 hydration 只等不在 payload 里的分页首屏。
-const { bannerData, bannerPending, hotTopData, latestPager, latestRequestError } =
+const { bannerData, bannerPending, hotTopData, sidebarCardsData, latestPager, latestRequestError } =
   await useHomePageSources();
 
 
@@ -30,6 +30,8 @@ useSeoMeta({
 
 const banners = computed(() => bannerData.value?.list || []);
 const hotTopArticles = computed(() => hotTopData.value?.list || []);
+// 右栏卡片（票 111）：顺序/标题/种类/启用都由后端配置决定，这里只透传。
+const sidebarCards = computed(() => sidebarCardsData.value?.list || []);
 const latestArticles = computed(() => latestPager.currentItems.value);
 const latestPending = computed(() => latestPager.pending.value);
 const latestPage = computed(() => latestPager.currentPage.value);
@@ -241,6 +243,7 @@ async function handleRetryLatest() {
         :pending="siteBootstrapPending || bannerPending"
         :runtime-config="siteStore.runtimeConfig"
         :articles="latestArticles"
+        :sidebar-cards="sidebarCards"
         sticky
       />
     </div>

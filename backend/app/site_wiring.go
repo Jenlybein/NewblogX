@@ -30,11 +30,19 @@ func WireSite(infra *Infra) {
 		func() string { return infra.RuntimeSite.GetRuntimeOAuth().Url() },
 		infra.Logger,
 	)
+	// 右栏卡片：配置表 + 三种内置卡的数据源。
+	// 数据源是站点模块自己的只读查询（文章 / 评论 / 标签的投影读），
+	// 不 import 别的模块 adapter（R11）。
+	sidebar := siteapp.NewSidebar(
+		sitemysql.NewSidebar(infra.DB),
+		sitemysql.NewSidebarData(infra.DB),
+		infra.Logger,
+	)
 	// 站点访问量：每次读取公开配置记一次（口径与迁移前一致）。
 	redisOpts := redis_service.Options{Client: infra.Redis, Logger: infra.Logger}
 	router.SetSiteHandler(sitehttp.NewHandler(svc, func() {
 		redis_site.SetFlow(redisOpts)
-	}))
+	}, sitehttp.WithSidebar(sidebar)))
 }
 
 // siteImageResolver 把 media 模块的图片查询适配成站点模块的端口。

@@ -35,10 +35,15 @@ func SiteRouter(r *gin.RouterGroup, runtimeMw mw.Runtime) {
 	group.GET("qq_url", app.QQLoginURL)
 	group.GET("seo", app.SEO)
 	group.GET("ai_info", app.AIInfo)
+	group.GET("sidebar_cards", app.SidebarCards)
 	group.GET(":name", mw.BindUri[sitehttp.SiteInfoRequest], app.PublicInfo)
 
 	adminGroup.GET("admin/:name", mw.BindUri[sitehttp.SiteInfoRequest], app.AdminInfo)
 	adminGroup.PUT(":name", mw.CaptureLog(mw.ReqBody), mw.BindUri[sitehttp.SiteInfoRequest], app.UpdateConfig)
+	// 右栏卡片的静态路径同样必须先于 admin/:name 注册。
+	// PUT 走 BindJson：handler 从 `requestJson` 取已绑定的请求体（与其它写接口同一套）。
+	adminGroup.GET("admin/sidebar_cards", app.AdminSidebarCards)
+	adminGroup.PUT("admin/sidebar_cards", mw.CaptureLog(mw.ReqBody), mw.BindJson[sitehttp.SidebarCardsSaveRequest], app.UpdateSidebarCards)
 }
 
 // BannerRouter 注册轮播图路由。

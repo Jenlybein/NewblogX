@@ -1922,6 +1922,38 @@
                 },
                 "type": "object"
             },
+            "internal_site_adapter_http.AdminSidebarCardItem": {
+                "properties": {
+                    "enabled": {
+                        "type": "boolean"
+                    },
+                    "id": {
+                        "type": "string"
+                    },
+                    "kind": {
+                        "type": "string"
+                    },
+                    "sort_order": {
+                        "type": "integer"
+                    },
+                    "title": {
+                        "type": "string"
+                    }
+                },
+                "type": "object"
+            },
+            "internal_site_adapter_http.AdminSidebarCardsResponse": {
+                "properties": {
+                    "list": {
+                        "items": {
+                            "$ref": "#/components/schemas/internal_site_adapter_http.AdminSidebarCardItem"
+                        },
+                        "type": "array",
+                        "uniqueItems": false
+                    }
+                },
+                "type": "object"
+            },
             "internal_site_adapter_http.BannerCreateRequest": {
                 "properties": {
                     "cover_image_id": {
@@ -2046,6 +2078,145 @@
                         "type": "string"
                     },
                     "site_title": {
+                        "type": "string"
+                    }
+                },
+                "type": "object"
+            },
+            "internal_site_adapter_http.SidebarArticleItem": {
+                "properties": {
+                    "digg_count": {
+                        "type": "integer"
+                    },
+                    "id": {
+                        "type": "string"
+                    },
+                    "title": {
+                        "type": "string"
+                    },
+                    "view_count": {
+                        "type": "integer"
+                    }
+                },
+                "type": "object"
+            },
+            "internal_site_adapter_http.SidebarCardItem": {
+                "properties": {
+                    "hot_articles": {
+                        "description": "热门文章卡的数据。",
+                        "items": {
+                            "$ref": "#/components/schemas/internal_site_adapter_http.SidebarArticleItem"
+                        },
+                        "type": "array",
+                        "uniqueItems": false
+                    },
+                    "id": {
+                        "type": "string"
+                    },
+                    "kind": {
+                        "type": "string"
+                    },
+                    "latest_comments": {
+                        "description": "最新评论卡的数据。",
+                        "items": {
+                            "$ref": "#/components/schemas/internal_site_adapter_http.SidebarCommentItem"
+                        },
+                        "type": "array",
+                        "uniqueItems": false
+                    },
+                    "sort_order": {
+                        "type": "integer"
+                    },
+                    "tags": {
+                        "description": "标签云卡的数据（article_count 决定字号权重）。",
+                        "items": {
+                            "$ref": "#/components/schemas/internal_site_adapter_http.SidebarTagItem"
+                        },
+                        "type": "array",
+                        "uniqueItems": false
+                    },
+                    "title": {
+                        "type": "string"
+                    }
+                },
+                "type": "object"
+            },
+            "internal_site_adapter_http.SidebarCardSaveItem": {
+                "properties": {
+                    "enabled": {
+                        "type": "boolean"
+                    },
+                    "kind": {
+                        "type": "string"
+                    },
+                    "title": {
+                        "type": "string"
+                    }
+                },
+                "required": [
+                    "kind"
+                ],
+                "type": "object"
+            },
+            "internal_site_adapter_http.SidebarCardsResponse": {
+                "properties": {
+                    "list": {
+                        "items": {
+                            "$ref": "#/components/schemas/internal_site_adapter_http.SidebarCardItem"
+                        },
+                        "type": "array",
+                        "uniqueItems": false
+                    }
+                },
+                "type": "object"
+            },
+            "internal_site_adapter_http.SidebarCardsSaveRequest": {
+                "properties": {
+                    "list": {
+                        "items": {
+                            "$ref": "#/components/schemas/internal_site_adapter_http.SidebarCardSaveItem"
+                        },
+                        "type": "array",
+                        "uniqueItems": false
+                    }
+                },
+                "required": [
+                    "list"
+                ],
+                "type": "object"
+            },
+            "internal_site_adapter_http.SidebarCommentItem": {
+                "properties": {
+                    "article_id": {
+                        "type": "string"
+                    },
+                    "article_title": {
+                        "type": "string"
+                    },
+                    "content": {
+                        "type": "string"
+                    },
+                    "created_at": {
+                        "type": "string"
+                    },
+                    "id": {
+                        "type": "string"
+                    },
+                    "user_nickname": {
+                        "type": "string"
+                    }
+                },
+                "type": "object"
+            },
+            "internal_site_adapter_http.SidebarTagItem": {
+                "properties": {
+                    "article_count": {
+                        "type": "integer"
+                    },
+                    "id": {
+                        "type": "string"
+                    },
+                    "title": {
                         "type": "string"
                     }
                 },
@@ -3451,6 +3622,20 @@
                 },
                 "type": "object"
             },
+            "myblogx_internal_kernel.Envelope-internal_site_adapter_http_AdminSidebarCardsResponse": {
+                "properties": {
+                    "code": {
+                        "type": "integer"
+                    },
+                    "data": {
+                        "$ref": "#/components/schemas/internal_site_adapter_http.AdminSidebarCardsResponse"
+                    },
+                    "msg": {
+                        "type": "string"
+                    }
+                },
+                "type": "object"
+            },
             "myblogx_internal_kernel.Envelope-internal_site_adapter_http_BannerCreateResponse": {
                 "properties": {
                     "code": {
@@ -3472,6 +3657,20 @@
                     },
                     "data": {
                         "$ref": "#/components/schemas/internal_site_adapter_http.SEOResponse"
+                    },
+                    "msg": {
+                        "type": "string"
+                    }
+                },
+                "type": "object"
+            },
+            "myblogx_internal_kernel.Envelope-internal_site_adapter_http_SidebarCardsResponse": {
+                "properties": {
+                    "code": {
+                        "type": "integer"
+                    },
+                    "data": {
+                        "$ref": "#/components/schemas/internal_site_adapter_http.SidebarCardsResponse"
                     },
                     "msg": {
                         "type": "string"
@@ -9378,6 +9577,67 @@
                 ]
             }
         },
+        "/site/admin/sidebar_cards": {
+            "get": {
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/myblogx_internal_kernel.Envelope-internal_site_adapter_http_AdminSidebarCardsResponse"
+                                }
+                            }
+                        },
+                        "description": "OK"
+                    }
+                },
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "summary": "获取右栏卡片配置（管理员）",
+                "tags": [
+                    "site"
+                ]
+            },
+            "put": {
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/internal_site_adapter_http.SidebarCardsSaveRequest",
+                                "summary": "body",
+                                "description": "整表顺序即展示顺序"
+                            }
+                        }
+                    },
+                    "description": "整表顺序即展示顺序",
+                    "required": true
+                },
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/myblogx_internal_kernel.Envelope-myblogx_internal_kernel_EmptyData"
+                                }
+                            }
+                        },
+                        "description": "OK"
+                    }
+                },
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "summary": "保存右栏卡片配置（管理员）",
+                "tags": [
+                    "site"
+                ]
+            }
+        },
         "/site/admin/{name}": {
             "get": {
                 "parameters": [
@@ -9469,6 +9729,26 @@
                     }
                 },
                 "summary": "获取站点 SEO 信息",
+                "tags": [
+                    "site"
+                ]
+            }
+        },
+        "/site/sidebar_cards": {
+            "get": {
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/myblogx_internal_kernel.Envelope-internal_site_adapter_http_SidebarCardsResponse"
+                                }
+                            }
+                        },
+                        "description": "OK"
+                    }
+                },
+                "summary": "获取读者侧右栏卡片",
                 "tags": [
                     "site"
                 ]

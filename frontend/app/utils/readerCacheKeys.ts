@@ -10,11 +10,12 @@
  * 不是纯重命名 —— 要不要改先想清楚。
  */
 
-/** 首页三路数据（轮播 / 热门置顶 / 最新文章）：它们的缓存键与页码无关。 */
+/** 首页四路数据（轮播 / 热门置顶 / 最新文章 / 右栏卡片）：它们的缓存键与页码无关。 */
 export const READER_HOME_CACHE_KEYS = {
   banners: "home-banners",
   hotTop: "home-hot-top",
   latestArticles: "home-latest-articles",
+  sidebarCards: "home-sidebar-cards",
 } as const;
 
 /** 文章正文缓存键（客户端 30s SWR；服务端渲染会禁用客户端缓存，键仍用于 payload）。 */

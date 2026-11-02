@@ -451,6 +451,24 @@ CREATE TABLE IF NOT EXISTS `runtime_config_models` (
   UNIQUE KEY `idx_runtime_config_models_name` (`name`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
+-- 首页右栏卡片配置：一张卡一行。
+--
+-- 读侧只取 enabled = 1 的行、按 sort_order 升序；管理侧整表替换。
+-- 零列变更口径下，卡片参数（如"显示几条"）以后必须走新表，
+-- 不能给这里加列。
+CREATE TABLE IF NOT EXISTS `sidebar_card_models` (
+  `id` bigint unsigned NOT NULL,
+  `created_at` datetime(3) DEFAULT NULL,
+  `updated_at` datetime(3) DEFAULT NULL,
+  `deleted_at` datetime(3) DEFAULT NULL,
+  `kind` varchar(32) DEFAULT NULL,
+  `title` varchar(64) DEFAULT NULL,
+  `sort_order` bigint DEFAULT '0',
+  `enabled` tinyint(1) DEFAULT '0',
+  PRIMARY KEY (`id`),
+  KEY `idx_sidebar_card_models_sort_order` (`sort_order`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
 CREATE TABLE IF NOT EXISTS `tag_models` (
   `id` bigint unsigned NOT NULL,
   `created_at` datetime(3) DEFAULT NULL,

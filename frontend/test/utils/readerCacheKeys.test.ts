@@ -14,11 +14,12 @@ import {
  * 所以这里把形态锁死 —— 想改就是一次显式决策（同步改测试 + ADR/票里说明），不能顺手重命名。
  */
 describe("readerCacheKeys：跨导航缓存键的形态与唯一来源", () => {
-  it("首页三个键与页码无关，形状固定", () => {
+  it("首页四个键与页码无关，形状固定", () => {
     expect(READER_HOME_CACHE_KEYS).toEqual({
       banners: "home-banners",
       hotTop: "home-hot-top",
       latestArticles: "home-latest-articles",
+      sidebarCards: "home-sidebar-cards",
     });
   });
 

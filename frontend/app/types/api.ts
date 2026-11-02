@@ -111,6 +111,17 @@ export interface SiteDecoConfig {
 
 export type BannerItem = RequiredSchema<"internal_site_adapter_http.BannerItem">;
 
+/**
+ * 右栏卡片（票 111）：种类、顺序、标题与各卡数据都从 `GET /site/sidebar_cards` 取。
+ *
+ * 形状直接由契约派生；`kind` 在契约里是 string（后端存的是字符串），
+ * 前端用 `~/utils/sidebarCards` 的 `isSidebarCardKind` 收窄成内置种类。
+ */
+export type SiteSidebarCardItem = RequiredSchema<"internal_site_adapter_http.SidebarCardItem">;
+
+/** 读者侧右栏卡片列表的 data 载荷。 */
+export type SiteSidebarCardsData = RequiredSchema<"internal_site_adapter_http.SidebarCardsResponse">;
+
 /** 轮播图列表载荷。之前服务层手写了同名形状（`{list, has_more}`），漏了契约里的 `count`。 */
 export type BannerListData = RequiredSchema<"myblogx_internal_kernel.HasMoreListData-internal_site_adapter_http_BannerItem">;
 

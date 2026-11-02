@@ -480,6 +480,19 @@ type SidebarCardRow struct {
 // TableName 固定表名。
 func (SidebarCardRow) TableName() string { return "sidebar_card_models" }
 
+// SidebarCardBodyRow 对应表 sidebar_card_body_models。
+//
+// 富文本卡的正文按 card_id 关联 sidebar_card_models；正文表与卡片表
+// 一起整表替换，所以没有独立于卡片生命周期的行。
+type SidebarCardBodyRow struct {
+	BaseRow
+	CardID ctype.ID `gorm:"index" json:"card_id"`
+	Body   string   `gorm:"type:longtext" json:"body"`
+}
+
+// TableName 固定表名。
+func (SidebarCardBodyRow) TableName() string { return "sidebar_card_body_models" }
+
 // UserStatRow 对应表 user_stat_models。
 type UserStatRow struct {
 	UserID              ctype.ID `gorm:"primaryKey;autoIncrement:false" json:"user_id"`

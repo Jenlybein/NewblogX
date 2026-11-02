@@ -8,6 +8,7 @@ import (
 	"myblogx/internal/apperr"
 	"myblogx/internal/kernel/ctype"
 	"myblogx/internal/site/domain"
+	"myblogx/utils/markdown"
 )
 
 // SidebarService 是右栏卡片的用例层。
@@ -38,6 +39,8 @@ type SidebarCardView struct {
 	LatestComments []domain.SidebarComment
 	Tags           []domain.SidebarTag
 	Collections    []domain.SidebarCollection
+	// Content 是富文本卡的正文（其它种类恒为空串）。
+	Content string
 }
 
 // PublicCards 返回读者侧要渲染的卡片：只含启用中的，按运营顺序，各自带数据。
@@ -58,6 +61,7 @@ func (s *SidebarService) PublicCards(ctx context.Context) ([]SidebarCardView, er
 			Kind:      row.Kind,
 			Title:     row.Title,
 			SortOrder: row.SortOrder,
+			Content:   row.Content,
 		}
 		s.fillCardData(ctx, &view)
 		out = append(out, view)
@@ -83,6 +87,8 @@ type SidebarCardInput struct {
 	Kind    domain.SidebarCardKind
 	Title   string
 	Enabled bool
+	// Content 只对富文本卡有意义（其它种类提交的内容会被丢弃）。
+	Content string
 }
 
 // ReplaceCards 全量保存卡片配置。
@@ -102,10 +108,17 @@ func (s *SidebarService) ReplaceCards(ctx context.Context, inputs []SidebarCardI
 		if title == "" {
 			title = domain.DefaultSidebarCardTitle(in.Kind)
 		}
+		// 正文只有富文本卡才有：别的种类提交 content 视为脏数据，直接丢弃，
+		// 不能让一段 HTML 静默挂在热门文章卡下面。
+		content := ""
+		if in.Kind == domain.CardKindRichText {
+			content = markdown.SanitizeRichTextHTML(in.Content)
+		}
 		rows = append(rows, domain.SidebarCard{
 			Kind:    in.Kind,
 			Title:   title,
 			Enabled: in.Enabled,
+			Content: content,
 		})
 	}
 	// 排序号按提交顺序重排成 0..n-1：库里永远是一段连续、无重复的顺序，

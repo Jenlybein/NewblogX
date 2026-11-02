@@ -128,8 +128,15 @@ const { effectiveSidebarCardTitle } = await import("~/utils/sidebarCardsAdmin");
 const mounted: Array<{ app: ReturnType<typeof createApp>; host: HTMLElement }> = [];
 
 /** 服务端一张卡。 */
-function row(id: string, kind: string, title: string, sortOrder: number, enabled: boolean) {
-  return { id, kind, title, sort_order: sortOrder, enabled };
+function row(
+  id: string,
+  kind: string,
+  title: string,
+  sortOrder: number,
+  enabled: boolean,
+  content = "",
+) {
+  return { id, kind, title, sort_order: sortOrder, enabled, content };
 }
 
 /**
@@ -145,16 +152,20 @@ function installFakeServer() {
     row("13", "tag_cloud", "标签云", 2, true),
   ];
   getMock.mockImplementation(() => Promise.resolve({ list: rows }));
-  saveMock.mockImplementation((payload: { list: Array<{ kind: string; title: string; enabled: boolean }> }) => {
-    rows = payload.list.map((item, index) => ({
-      id: String(100 + index),
-      kind: item.kind,
-      title: item.title.trim() || effectiveSidebarCardTitle(item.kind, ""),
-      sort_order: index,
-      enabled: item.enabled,
-    }));
-    return Promise.resolve(undefined);
-  });
+  saveMock.mockImplementation(
+    (payload: { list: Array<{ kind: string; title: string; enabled: boolean; content: string }> }) => {
+      rows = payload.list.map((item, index) => ({
+        id: String(100 + index),
+        kind: item.kind,
+        title: item.title.trim() || effectiveSidebarCardTitle(item.kind, ""),
+        sort_order: index,
+        enabled: item.enabled,
+        // 与后端口径一致：只有富文本卡保留正文。
+        content: item.kind === "rich_text" ? item.content.trim() : "",
+      }));
+      return Promise.resolve(undefined);
+    },
+  );
   return { rows: () => rows };
 }
 
@@ -275,9 +286,9 @@ describe("右栏卡片管理器：五类操作都改同一份草稿并整表落�
 
     expect(saveMock.mock.calls[0]![0]).toEqual({
       list: [
-        { kind: "latest_comments", title: "", enabled: false },
-        { kind: "tag_cloud", title: "友情链接", enabled: false },
-        { kind: "hot_articles", title: "热门文章", enabled: true },
+        { kind: "latest_comments", title: "", enabled: false, content: "" },
+        { kind: "tag_cloud", title: "友情链接", enabled: false, content: "" },
+        { kind: "hot_articles", title: "热门文章", enabled: true, content: "" },
       ],
     });
 
@@ -317,5 +328,75 @@ describe("右栏卡片管理器：五类操作都改同一份草稿并整表落�
 
     await click(host, '[data-role="add"]');
     expect(rowsOf(host)).toHaveLength(1);
+  });
+});
+
+/**
+ * 富文本卡的后台编辑面：只提供基础排版能力（标题 / 粗斜体 / 列表 / 链接），
+ * 不提供脚本、内联事件或 iframe 入口。正文按 HTML 随整表保存提交。
+ */
+describe("右栏卡片管理器：富文本卡的编辑与保存", () => {
+  it("选富文本卡后出现排版工具栏与可编辑区；不提供任何脚本 / iframe 控件", async () => {
+    installFakeServer();
+    const host = await mountEditor();
+
+    await changeSelect(host, "rich_text");
+    await click(host, '[data-role="add"]');
+
+    const rowElement = rowsOf(host)[3]!;
+    expect(rowElement.dataset.kind).toBe("rich_text");
+    const editor = rowElement.querySelector('[data-role="rich-text-editor"]');
+    expect(editor).not.toBeNull();
+
+    const toolbarButtons = [...rowElement.querySelectorAll<HTMLElement>('[data-format]')].map(
+      element => element.dataset.format,
+    );
+    expect(toolbarButtons).toEqual(["h2", "bold", "italic", "list", "link"]);
+    // 工具栏里没有脚本 / iframe / 事件属性入口。
+    const toolbarHtml = rowElement.querySelector('[data-role="rich-text-toolbar"]')?.innerHTML ?? "";
+    expect(toolbarHtml).not.toContain("<script");
+    expect(toolbarHtml.toLowerCase()).not.toContain("onclick");
+    expect(toolbarHtml).not.toContain("<iframe");
+
+    const editable = rowElement.querySelector<HTMLElement>('[data-role="rich-text-body"]');
+    expect(editable?.getAttribute("contenteditable")).toBe("true");
+  });
+
+  it("编辑正文后保存，整表负载带上该卡的 content，其它卡为空串", async () => {
+    const server = installFakeServer();
+    const host = await mountEditor();
+
+    await changeSelect(host, "rich_text");
+    await click(host, '[data-role="add"]');
+    await typeTitle(host, 3, "站点公告");
+
+    const editable = rowsOf(host)[3]!.querySelector<HTMLElement>('[data-role="rich-text-body"]');
+    if (!editable) throw new Error("没有可编辑区");
+    editable.innerHTML = "<h2>更新日志</h2><p><strong>重点</strong></p>";
+    editable.dispatchEvent(new Event("input", { bubbles: true }));
+    await nextTick();
+
+    await click(host, '[data-role="save"]');
+    await vi.waitFor(() => expect(saveMock).toHaveBeenCalledTimes(1));
+
+    const payload = saveMock.mock.calls[0]![0] as {
+      list: Array<{ kind: string; content: string }>;
+    };
+    const richItem = payload.list.find(item => item.kind === "rich_text");
+    expect(richItem?.content).toContain("<h2>更新日志</h2>");
+    expect(payload.list.filter(item => item.kind !== "rich_text").every(item => item.content === "")).toBe(
+      true,
+    );
+
+    // 保存后回读：服务端把正文带回来，编辑器回填同一段 HTML。
+    await vi.waitFor(() => expect(getMock).toHaveBeenCalledTimes(2));
+    expect(server.rows().find(item => item.kind === "rich_text")?.content).toContain(
+      "<h2>更新日志</h2>",
+    );
+    await vi.waitFor(() =>
+      expect(
+        rowsOf(host)[3]!.querySelector<HTMLElement>('[data-role="rich-text-body"]')?.innerHTML,
+      ).toContain("<h2>更新日志</h2>"),
+    );
   });
 });

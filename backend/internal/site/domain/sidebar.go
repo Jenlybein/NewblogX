@@ -26,6 +26,11 @@ const (
 	// is_display 决定，顺序由合集自己的 sort_order 决定。右栏卡的 sort_order 只决定
 	// 这张卡在右栏里的位置，title 只覆盖卡片标题 —— 两套顺序各管各的，不互相顶替。
 	CardKindRecommendedCollections SidebarCardKind = "recommended_collections"
+	// CardKindRichText 富文本卡：运营在后台写一段带排版的 HTML，读者站清洗后渲染。
+	//
+	// 正文不走 markdown 渲染器，而是原样存 HTML（保存前过既有用户内容白名单）。
+	// 这是右栏唯一一种"内容由运营自由填写"的卡，也是唯一需要清洗正文的卡。
+	CardKindRichText SidebarCardKind = "rich_text"
 )
 
 // sidebarCardDefaultTitles 是每种卡的默认标题（运营没填标题时的回退）。
@@ -34,6 +39,7 @@ var sidebarCardDefaultTitles = map[SidebarCardKind]string{
 	CardKindLatestComments:         "最新评论",
 	CardKindTagCloud:               "标签云",
 	CardKindRecommendedCollections: "推荐合集",
+	CardKindRichText:               "公告",
 }
 
 // Valid 报告种类是否是内置类型。
@@ -65,6 +71,10 @@ type SidebarCard struct {
 	Title     string
 	SortOrder int
 	Enabled   bool
+	// Content 是富文本卡的正文（其它种类恒为空串）。
+	//
+	// 保存前已经过既有用户内容白名单清洗；读侧拿到的是可渲染的 HTML 片段。
+	Content   string
 	CreatedAt time.Time
 	UpdatedAt time.Time
 }

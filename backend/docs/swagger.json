@@ -2233,6 +2233,10 @@
             },
             "internal_site_adapter_http.AdminSidebarCardItem": {
                 "properties": {
+                    "content": {
+                        "description": "Content 是富文本卡的正文（后台编辑器回填用；其它种类为空串）。",
+                        "type": "string"
+                    },
                     "enabled": {
                         "type": "boolean"
                     },
@@ -2430,6 +2434,10 @@
                         "type": "array",
                         "uniqueItems": false
                     },
+                    "content": {
+                        "description": "富文本卡的正文（已清洗的 HTML 片段；其它种类恒为空串）。",
+                        "type": "string"
+                    },
                     "hot_articles": {
                         "description": "热门文章卡的数据。",
                         "items": {
@@ -2471,6 +2479,10 @@
             },
             "internal_site_adapter_http.SidebarCardSaveItem": {
                 "properties": {
+                    "content": {
+                        "description": "Content 只对富文本卡生效；保存时会先过白名单清洗，其它种类一律丢弃。",
+                        "type": "string"
+                    },
                     "enabled": {
                         "type": "boolean"
                     },

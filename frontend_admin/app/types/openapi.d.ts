@@ -6405,6 +6405,8 @@ export interface components {
             nickname?: string;
         };
         "internal_site_adapter_http.AdminSidebarCardItem": {
+            /** @description Content 是富文本卡的正文（后台编辑器回填用；其它种类为空串）。 */
+            content?: string;
             enabled?: boolean;
             id?: string;
             kind?: string;
@@ -6483,6 +6485,8 @@ export interface components {
         "internal_site_adapter_http.SidebarCardItem": {
             /** @description 推荐合集卡的数据（只含展示中的合集，顺序即合集自己的顺序）。 */
             collections?: components["schemas"]["internal_site_adapter_http.SidebarCollectionItem"][];
+            /** @description 富文本卡的正文（已清洗的 HTML 片段；其它种类恒为空串）。 */
+            content?: string;
             /** @description 热门文章卡的数据。 */
             hot_articles?: components["schemas"]["internal_site_adapter_http.SidebarArticleItem"][];
             id?: string;
@@ -6495,6 +6499,8 @@ export interface components {
             title?: string;
         };
         "internal_site_adapter_http.SidebarCardSaveItem": {
+            /** @description Content 只对富文本卡生效；保存时会先过白名单清洗，其它种类一律丢弃。 */
+            content?: string;
             enabled?: boolean;
             kind: string;
             title?: string;

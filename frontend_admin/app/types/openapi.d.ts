@@ -7440,6 +7440,11 @@ export interface components {
             id?: string;
             title?: string;
         };
+        "myblogx_internal_search_domain.Crop": {
+            focus_x?: number;
+            focus_y?: number;
+            zoom?: number;
+        };
         "myblogx_internal_search_domain.Highlight": {
             abstract?: string;
             title?: string;
@@ -7454,6 +7459,8 @@ export interface components {
             comments_toggle?: boolean;
             cover?: string;
             created_at?: string;
+            /** @description Crop 是封面取景；nil 表示没有记录，前端按居中、缩放 1 渲染。 */
+            crop?: components["schemas"]["myblogx_internal_search_domain.Crop"];
             digg_count?: number;
             favor_count?: number;
             highlight?: components["schemas"]["myblogx_internal_search_domain.Highlight"];
@@ -7523,6 +7530,14 @@ export interface components {
             nickname?: string;
             private_chat_notice_enabled?: boolean;
             register_source?: number;
+            /**
+             * @description Role 是当前用户的角色（1 管理员 / 2 注册用户），数值口径与库中 role 列一致。
+             *
+             *     读者站要拿它来"对齐服务端的写作策略"：站点可以只限制**非管理员**发布/建草稿，
+             *     后端对管理员短路放行；前端若不知道角色，就只能一律按"被限制"渲染，
+             *     结果是管理员自己也被锁成只读（站点开关一关，连管理员都编辑不了文章）。
+             */
+            role?: number;
             stranger_msg_enabled?: boolean;
             updated_username_date?: string;
             username?: string;

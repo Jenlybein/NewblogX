@@ -59,7 +59,7 @@ const hiddenTagCount = computed(() => Math.max(view.value.tags.length - 3, 0));
       class="feed-entry__cover"
       :aria-label="`打开文章：${view.title}`"
     >
-      <ArticleCover :src="view.cover" :title="view.title" />
+      <ArticleCover :src="view.cover" :title="view.title" :crop="view.crop" />
     </NuxtLink>
     <span v-else class="feed-entry__cover feed-entry__cover--empty" aria-hidden="true" />
 

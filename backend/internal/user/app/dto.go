@@ -18,8 +18,14 @@ type LikeTagItem struct {
 //
 // 字段名与既有前端契约逐字一致——改一个名字前端就白屏，所以这里不做"美化"。
 type DetailView struct {
-	ID                       ctype.ID      `json:"id"`
-	CreatedAt                time.Time     `json:"created_at"`
+	ID        ctype.ID  `json:"id"`
+	CreatedAt time.Time `json:"created_at"`
+	// Role 是当前用户的角色（1 管理员 / 2 注册用户），数值口径与库中 role 列一致。
+	//
+	// 读者站要拿它来"对齐服务端的写作策略"：站点可以只限制**非管理员**发布/建草稿，
+	// 后端对管理员短路放行；前端若不知道角色，就只能一律按"被限制"渲染，
+	// 结果是管理员自己也被锁成只读（站点开关一关，连管理员都编辑不了文章）。
+	Role                     int8          `json:"role"`
 	Username                 string        `json:"username"`
 	Nickname                 string        `json:"nickname"`
 	AvatarImageID            *ctype.ID     `json:"avatar_image_id,omitempty"`

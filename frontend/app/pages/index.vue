@@ -30,6 +30,10 @@ useSeoMeta({
 
 const banners = computed(() => bannerData.value?.list || []);
 const hotTopArticles = computed(() => hotTopData.value?.list || []);
+// 主栏已经露出的文章 ID：右栏热门文章卡据此去重，同一篇文章不在两处出现。
+const pinnedArticleIds = computed(() =>
+  hotTopArticles.value.map((article) => String(article.id || "")).filter((id) => id.length > 0),
+);
 // 右栏卡片（票 111）：顺序/标题/种类/启用都由后端配置决定，这里只透传。
 const sidebarCards = computed(() => sidebarCardsData.value?.list || []);
 const latestArticles = computed(() => latestPager.currentItems.value);
@@ -244,6 +248,7 @@ async function handleRetryLatest() {
         :runtime-config="siteStore.runtimeConfig"
         :articles="latestArticles"
         :sidebar-cards="sidebarCards"
+        :pinned-article-ids="pinnedArticleIds"
         sticky
       />
     </div>

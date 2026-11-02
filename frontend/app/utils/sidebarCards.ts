@@ -72,6 +72,18 @@ export interface SidebarCardView {
   tags: SidebarTagView[];
 }
 
+/**
+ * 渲染模型可选的页面上下文。
+ *
+ * 右栏不是孤立区块：首页主栏已经有一块「热门置顶」，同一篇文章不能两边都露出。
+ * 主栏置顶与右栏卡片是两个独立请求（各走 30s SWR），数据可能短暂不同步，
+ * 所以渲染模型必须按**当前**的置顶列表收敛，而不是依赖后端恰好在同一时刻排除了它们。
+ */
+export interface SidebarCardViewContext {
+  /** 主栏「热门置顶」已经露出的文章 ID；热门文章卡会剔除这些文章。 */
+  pinnedArticleIds?: Iterable<string>;
+}
+
 // 最小字号 0.75rem、最大 1.25rem：右栏宽度固定，字号跨度再大就会把标签云挤成三行。
 const TAG_FONT_MIN_REM = 0.75;
 const TAG_FONT_MAX_REM = 1.25;
@@ -105,11 +117,12 @@ export function tagCloudFontSize(weight: number): string {
 }
 
 /**
- * 把后端卡片列表收敛成渲染模型：过滤未知种类、按 sort_order 排、空数据隐藏。
+ * 把后端卡片列表收敛成渲染模型：过滤未知种类、按 sort_order 排、空数据隐藏、置顶去重。
  *
- * 三条规则分别对应票面的验收项：
+ * 四条规则分别对应验收项：
  *   - 只按 kind 读**自己那个数组**（脏数据把评论塞进热门文章卡也不会串门）；
  *   - 空数组 = 这张卡没有数据 = 整块不渲染；
+ *   - 热门文章卡剔除主栏已经置顶的文章（同一篇文章不能两边都出现）；
  *   - 标题空白时回退默认标题（后端保存时已回填，这里是二道防线）。
  *
  * 顺序在这里再排一次（后端已经排过）：模型不依赖调用方是否排好序，
@@ -117,10 +130,14 @@ export function tagCloudFontSize(weight: number): string {
  */
 export function sidebarCardViews(
   cards: readonly SiteSidebarCardItem[] | null | undefined,
+  context: SidebarCardViewContext = {},
 ): SidebarCardView[] {
   if (!cards?.length) {
     return [];
   }
+
+  // 统一成字符串集合：与契约里的字符串 ID 对齐，调用方传数组或 Set 都能吃。
+  const pinnedArticleIds = new Set(Array.from(context.pinnedArticleIds ?? [], (id) => String(id)));
 
   const views: Array<{ view: SidebarCardView; index: number }> = [];
   cards.forEach((card, index) => {
@@ -137,12 +154,14 @@ export function sidebarCardViews(
       sortOrder: Number(card.sort_order) || 0,
       articles:
         kind === "hot_articles"
-          ? (card.hot_articles || []).map((row) => ({
-              id: String(row.id || ""),
-              title: String(row.title || ""),
-              diggCount: Number(row.digg_count) || 0,
-              viewCount: Number(row.view_count) || 0,
-            }))
+          ? (card.hot_articles || [])
+              .filter((row) => !pinnedArticleIds.has(String(row.id || "")))
+              .map((row) => ({
+                id: String(row.id || ""),
+                title: String(row.title || ""),
+                diggCount: Number(row.digg_count) || 0,
+                viewCount: Number(row.view_count) || 0,
+              }))
           : [],
       comments:
         kind === "latest_comments"

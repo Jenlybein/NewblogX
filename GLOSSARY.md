@@ -427,7 +427,7 @@ _Avoid_: 叫它"横幅图 / banner 海报"（它是首屏面板里的封面图�
 位置：取景参数随 banner 的创建/更新契约下发，后台取景窗里决定，读者站按同一份参数复现。
 _Avoid_: 裁剪（crop 指对文件做像素手术，本项目刻意不做）；裁切 / 剪裁（同义误用）；把"取景"说成"改图片"。
 命名与契约（不动）：契约字段 `crop` 与错误码 `banner.crop_invalid` 沿用既有命名，不作为术语，也**不随表结构变更而改动**；正文一律写"取景"。
-表名（历史命名，已立项合并）：旧的轮播专属取景表 `banner_crop_models` 属**历史命名**，不再代表当前结构；取景表已立项合并为通用取景表 `picture_crop_models`（键 `target_type` / `target_id`，覆盖轮播封面、文章封面与合集封面），见 [ADR-0020](./docs/adr/0020-zero-ddl-exception-and-generic-framing-table.md)（状态已接受，建表与回填由落地票 #119 执行）；正文一律写"通用取景表"。
+表名（历史命名）：旧的轮播专属取景表 `banner_crop_models` 属**历史命名**，不再代表当前结构；取景已合并为通用取景表 `picture_crop_models`（键 `target_type` / `target_id`，覆盖轮播封面、文章封面与合集封面），见 [ADR-0020](./docs/adr/0020-zero-ddl-exception-and-generic-framing-table.md)。`schema.sql` 只写新建、不写 DROP；旧表的物理下线是一次性现场操作，步骤见 [README「11.4.3 轮播表重建与通用取景表合并」](./README.md#1143-轮播表重建与通用取景表合并一次性现场操作)。正文一律写"通用取景表"。
 
 **焦点（focus）**：
 缩放的锚点，用图上的**相对**坐标表达（`focus_x` / `focus_y`，各自 0–1，0 与 1 分别贴住两条边），不是像素坐标。

@@ -200,14 +200,19 @@ type Service struct{ cfg func() conf.Mail }
 
 ---
 
-## 六、后台页面：八个 Tab，一个例外
+## 六、后台页面：八个独立路由，一个例外
 
-`frontend_admin/app/pages/site/index.vue` 是 `NTabs` 容器，八个子组件各读写自己那一段：
+`frontend_admin/app/pages/site/` 下每个域一个页面文件（`index.vue` 是站点域，
+其余是 `ai.vue` / `mail.vue` / …），各自只挂载一个配置组件：
 `SettingsSite` / `SettingsAi` / `SettingsMail` / `SettingsStorage` / `SettingsOAuth` /
-`SettingsLog` / `SettingsUpload` / `SettingsDeco`。
+`SettingsLog` / `SettingsUpload` / `SettingsDeco`。组件本身不改名、不移动。
+
+路由由 URL 决定（`/site` + `/site/{域}`），刷新停留在当前域、链接可分享。
+菜单子项从 `frontend_admin/app/utils/siteSettings.ts` 的 `SITE_SETTINGS_SECTIONS`
+派生 —— 这份清单同时是路由、菜单与页面文件的对账来源。
 
 **唯一的例外**：「登录策略」它不是一段，而是 `site.login` 子对象。所以它和站点基础信息
-放在**同一个 Tab、同一次保存**里 —— 两个组件各自读写整段 `site` 会互相把对方刚保存的值
+放在**同一个页面、同一次保存**里 —— 两个组件各自读写整段 `site` 会互相把对方刚保存的值
 覆盖回去（A 存标题时带着旧的登录开关，B 存开关时带着旧的标题）。
 
 请求/响应形状是这样（这是本方案的固有代价，见 §七）：

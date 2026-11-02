@@ -19,6 +19,8 @@
  * icon 用字符串而不是组件：utils 层不该 import Vue 组件，
  * 组件层再把它映射成具体图标（见 AdminNavTree.vue 的 ICONS）。
  */
+import { SITE_SETTINGS_SECTIONS } from './siteSettings'
+
 export type AdminNavIcon =
   | 'chart'
   | 'shield'
@@ -78,7 +80,17 @@ export const ADMIN_NAV_TREE: AdminNavNode[] = [
     ],
   },
   { label: '用户管理', path: '/users', icon: 'users' },
-  { label: '站点配置', path: '/site', icon: 'settings' },
+  {
+    // 站点配置的八个域各有独立路由（`/site` + `/site/{域}`），父项只分组：
+    // 它没有自身页面，点标题只展开/收起，不会跳到空页。
+    label: '站点配置',
+    icon: 'settings',
+    children: SITE_SETTINGS_SECTIONS.map((section): AdminNavNode => ({
+      label: section.label,
+      path: section.path,
+      icon: 'settings',
+    })),
+  },
   { label: '媒体运营', path: '/media', icon: 'photo' },
   { label: '全局通知', path: '/notifications', icon: 'bell' },
   {

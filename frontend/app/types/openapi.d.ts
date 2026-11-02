@@ -6261,6 +6261,8 @@ export interface components {
             view_count?: number;
         };
         "internal_site_adapter_http.SidebarCardItem": {
+            /** @description 推荐合集卡的数据（只含展示中的合集，顺序即合集自己的顺序）。 */
+            collections?: components["schemas"]["internal_site_adapter_http.SidebarCollectionItem"][];
             /** @description 热门文章卡的数据。 */
             hot_articles?: components["schemas"]["internal_site_adapter_http.SidebarArticleItem"][];
             id?: string;
@@ -6282,6 +6284,13 @@ export interface components {
         };
         "internal_site_adapter_http.SidebarCardsSaveRequest": {
             list: components["schemas"]["internal_site_adapter_http.SidebarCardSaveItem"][];
+        };
+        "internal_site_adapter_http.SidebarCollectionItem": {
+            article_count?: number;
+            cover?: string;
+            description?: string;
+            id?: string;
+            title?: string;
         };
         "internal_site_adapter_http.SidebarCommentItem": {
             article_id?: string;

@@ -124,7 +124,7 @@ type SEOResponse struct {
 
 // SidebarCardItem 是读者侧一张右栏卡片的传输形状。
 //
-// 三种数据字段同时存在，前端按 kind 只读对应的那一个数组：
+// 各数据字段同时存在，前端按 kind 只读对应的那一个数组：
 // 空数组即"这张卡没有数据"，读者站整块隐藏。这样前端不需要知道
 // "某张卡的数据该从哪里取" —— 取数是后端的职责。
 type SidebarCardItem struct {
@@ -138,6 +138,8 @@ type SidebarCardItem struct {
 	LatestComments []SidebarCommentItem `json:"latest_comments"`
 	// 标签云卡的数据（article_count 决定字号权重）。
 	Tags []SidebarTagItem `json:"tags"`
+	// 推荐合集卡的数据（只含展示中的合集，顺序即合集自己的顺序）。
+	Collections []SidebarCollectionItem `json:"collections"`
 }
 
 // SidebarArticleItem 是热门文章卡的条目。
@@ -162,6 +164,18 @@ type SidebarCommentItem struct {
 type SidebarTagItem struct {
 	ID           string `json:"id"`
 	Title        string `json:"title"`
+	ArticleCount int    `json:"article_count"`
+}
+
+// SidebarCollectionItem 是推荐合集卡的条目。
+//
+// 与合集列表页的卡片同源（同一个只读投影口径），但少了 created_at：
+// 右栏不展示创建时间，少一列就少一份两边漂移的机会。
+type SidebarCollectionItem struct {
+	ID           string `json:"id"`
+	Title        string `json:"title"`
+	Description  string `json:"description"`
+	Cover        string `json:"cover"`
 	ArticleCount int    `json:"article_count"`
 }
 

@@ -199,6 +199,108 @@ func TestReplaceSidebarCardsRejectsInvalid(t *testing.T) {
 	}
 }
 
+// 推荐合集卡：新种类被分派到**合集**数据，别的种类数组一个都不沾。
+//
+// 分派是两端的唯一耦合点：后端按种类取数、前端按种类渲染，任何一端漏了这个
+// 种类，那张卡要么没有数据要么不渲染 —— 不会画出一个空盒子。
+func TestPublicSidebarCardsDispatchRecommendedCollections(t *testing.T) {
+	svc, cards, data := newSidebar()
+	data.PutCollections(
+		domain.SidebarCollection{
+			ID:           ctype.NewID(101),
+			Title:        "从零搭一个博客",
+			Description:  "一套完整的建站路径",
+			Cover:        "https://cdn.example.com/collection.png",
+			ArticleCount: 7,
+		},
+		domain.SidebarCollection{ID: ctype.NewID(102), Title: "工程效率", ArticleCount: 3},
+	)
+	// 脏数据：其它种类的数据源也有内容，不能串进合集卡。
+	data.PutArticles(domain.SidebarArticle{ID: ctype.NewID(1), Title: "不该出现"})
+	data.PutTags(domain.SidebarTag{ID: ctype.NewID(2), Title: "不该出现"})
+	cards.Seed(seedCard(1, domain.CardKindRecommendedCollections, "推荐合集", 0, true))
+
+	got, err := svc.PublicCards(context.Background())
+	if err != nil {
+		t.Fatalf("读取读者侧卡片失败: %v", err)
+	}
+	if len(got) != 1 || got[0].Kind != domain.CardKindRecommendedCollections {
+		t.Fatalf("推荐合集卡应原样返回: %+v", got)
+	}
+	if len(got[0].Collections) != 2 {
+		t.Fatalf("推荐合集卡应带 2 个合集，实际 %+v", got[0].Collections)
+	}
+	first := got[0].Collections[0]
+	if first.Title != "从零搭一个博客" || first.Description != "一套完整的建站路径" ||
+		first.Cover != "https://cdn.example.com/collection.png" || first.ArticleCount != 7 {
+		t.Fatalf("合集条目字段应原样透传: %+v", first)
+	}
+	if len(got[0].HotArticles) != 0 || len(got[0].Tags) != 0 || len(got[0].LatestComments) != 0 {
+		t.Fatalf("推荐合集卡不该混入别种数据: %+v", got[0])
+	}
+	if limit := data.LastLimit(string(domain.CardKindRecommendedCollections)); limit != domain.SidebarCardDataLimit {
+		t.Fatalf("合集取数应受一张卡的条数上限约束，实际 limit=%d", limit)
+	}
+}
+
+// 没有可推荐的合集时该卡回传空数组（读者站据此整块隐藏），接口本身照常成功。
+func TestPublicSidebarCardsEmptyCollections(t *testing.T) {
+	svc, cards, _ := newSidebar()
+	cards.Seed(seedCard(1, domain.CardKindRecommendedCollections, "推荐合集", 0, true))
+
+	got, err := svc.PublicCards(context.Background())
+	if err != nil {
+		t.Fatalf("没有合集数据不该让接口报错: %v", err)
+	}
+	if len(got) != 1 {
+		t.Fatalf("配置本身仍应返回（是否渲染交给前端按空数组判断）: %+v", got)
+	}
+	if len(got[0].Collections) != 0 {
+		t.Fatalf("没有可推荐合集时应回传空数组，实际 %+v", got[0].Collections)
+	}
+}
+
+// 推荐合集是内置种类：管理端整表保存时合法，空标题回退默认标题。
+func TestReplaceSidebarCardsRecommendedCollections(t *testing.T) {
+	svc, cards, _ := newSidebar()
+
+	err := svc.ReplaceCards(context.Background(), []app.SidebarCardInput{
+		{Kind: domain.CardKindRecommendedCollections, Title: "   ", Enabled: true},
+	})
+	if err != nil {
+		t.Fatalf("推荐合集应是合法内置种类: %v", err)
+	}
+
+	got := cards.All()
+	if len(got) != 1 || got[0].Kind != domain.CardKindRecommendedCollections {
+		t.Fatalf("应落一行推荐合集卡: %+v", got)
+	}
+	if got[0].Title != "推荐合集" {
+		t.Fatalf("空标题应回退到「推荐合集」，实际 %q", got[0].Title)
+	}
+	if !got[0].Enabled {
+		t.Fatalf("启停状态应原样落库: %+v", got[0])
+	}
+}
+
+// 停用的推荐合集卡不进读者侧（排序/启停仍由既有配置控制）。
+func TestPublicSidebarCardsSkipsDisabledRecommendedCollections(t *testing.T) {
+	svc, cards, data := newSidebar()
+	data.PutCollections(domain.SidebarCollection{ID: ctype.NewID(101), Title: "已关闭的合集"})
+	cards.Seed(
+		seedCard(1, domain.CardKindRecommendedCollections, "停用的合集卡", 0, false),
+		seedCard(2, domain.CardKindHotArticles, "热门文章", 1, true),
+	)
+
+	got, err := svc.PublicCards(context.Background())
+	if err != nil {
+		t.Fatalf("读取读者侧卡片失败: %v", err)
+	}
+	if len(got) != 1 || got[0].Kind != domain.CardKindHotArticles {
+		t.Fatalf("停用的推荐合集卡不该返回: %+v", got)
+	}
+}
+
 // 空提交是合法的：运营把卡片全删了，读者侧回退到旧右栏（兼容口径）。
 func TestReplaceSidebarCardsEmptyIsAllowed(t *testing.T) {
 	svc, cards, _ := newSidebar()

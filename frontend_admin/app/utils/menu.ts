@@ -85,13 +85,19 @@ export const ADMIN_NAV_TREE: AdminNavNode[] = [
   {
     // 站点配置的八个域各有独立路由（`/site` + `/site/{域}`），父项只分组：
     // 它没有自身页面，点标题只展开/收起，不会跳到空页。
+    //
+    // 「右栏卡片」也挂在它下面：它是首页运营位，与站点配置同一层入口，
+    // 但有自己独立的整表保存语义（增删/拖动排序/标题/启停）。
     label: '站点配置',
     icon: 'settings',
-    children: SITE_SETTINGS_SECTIONS.map((section): AdminNavNode => ({
-      label: section.label,
-      path: section.path,
-      icon: 'settings',
-    })),
+    children: [
+      ...SITE_SETTINGS_SECTIONS.map((section): AdminNavNode => ({
+        label: section.label,
+        path: section.path,
+        icon: 'settings',
+      })),
+      { label: '右栏卡片', path: '/site/sidebar-cards' as const, icon: 'settings' as const },
+    ],
   },
   { label: '媒体运营', path: '/media', icon: 'photo' },
   { label: '全局通知', path: '/notifications', icon: 'bell' },

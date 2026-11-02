@@ -5,6 +5,7 @@ import (
 	"context"
 	"myblogx/internal/kernel/ctype"
 	"myblogx/internal/kernel/enum"
+	"strings"
 	"time"
 
 	"myblogx/internal/apperr"
@@ -238,6 +239,13 @@ func (s *Service) startSession(ctx context.Context, account Account, meta domain
 		return nil, err
 	}
 
+	// 同设备再次登录，把该设备的旧会话吊销掉（#131）。
+	//
+	// 设备列表是按设备聚合展示的，但聚合只是"看起来一条"——库里若还留着
+	// 多条可换令牌的活会话，那些都是等价凭证。所以新会话落地后立刻挤掉旧的。
+	// 顺序必须在 Create 之后：先建后吊销，新会话绝不会吊销到自己。
+	s.revokeSameDeviceOlderSessions(ctx, session, now)
+
 	access, err := s.issuer.Issue(s.claimsOf(account, session.ID))
 	if err != nil {
 		// 会话已经落库但令牌签不出来：把会话吊销掉，避免留下一条永远换不到令牌的记录。
@@ -454,6 +462,41 @@ func (s *Service) SessionActive(ctx context.Context, userID, sessionID uint64) (
 		return false, err
 	}
 	return true, nil
+}
+
+// revokeSameDeviceOlderSessions 吊销"同一设备"上除新会话之外的旧会话。
+//
+// 设备键忽略版本号（浏览器升级不该把一台设备拆成两条），具体口径见
+// domain.DeviceGroupKey。
+//
+// 空 UA 时**不做**自动吊销：此时设备键会退化成同一个常量，照着它吊销会把
+// 别的客户端会话一起挤掉。宁可不自动吊销，也不能误杀。
+//
+// 失败只记日志不返回错误：登录已经成功、会话已经落地，自动清理失败不该
+// 让用户登不上；下次登录还会再尝试一次。
+func (s *Service) revokeSameDeviceOlderSessions(ctx context.Context, fresh domain.Session, at time.Time) {
+	if strings.TrimSpace(fresh.UA) == "" {
+		return
+	}
+
+	key := domain.DeviceGroupKey(fresh)
+	actives, err := s.sessions.ListActive(ctx, fresh.UserID.Uint64())
+	if err != nil {
+		s.logError("登录后列出同设备会话失败: user=%d err=%v", fresh.UserID.Uint64(), err)
+		return
+	}
+
+	for _, old := range actives {
+		if old.ID == fresh.ID {
+			continue
+		}
+		if domain.DeviceGroupKey(old) != key {
+			continue
+		}
+		if err := s.sessions.Revoke(ctx, old.ID, at); err != nil {
+			s.logError("吊销同设备旧会话失败: session=%d err=%v", old.ID.Uint64(), err)
+		}
+	}
 }
 
 // RevokeSession 下线指定设备（登录设备管理里的"下线该设备"）。

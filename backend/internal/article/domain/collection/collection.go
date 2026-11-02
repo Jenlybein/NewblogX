@@ -334,20 +334,37 @@ type Detail struct {
 	Articles   []IncludedArticle
 }
 
-// CheckOrder 校验"全量顺序替换"的输入。
+// CheckOrder 校验"合集内全量顺序替换"的输入。
 //
 // next 必须是 current 的一个排列：同一批文章、每条恰好一次。
 // 不允许"缺的删掉"这种宽松语义——PATCH 是后台排序按钮的产物，
 // 一个过期的页面点一次「上移」就会把别人刚收录的那篇静默删掉。
 func CheckOrder(current, next []ArticleID) error {
+	return checkPermutation(current, next)
+}
+
+// CheckSortOrder 校验"合集之间全量顺序替换"的输入。
+//
+// 与 CheckOrder 同一条规则，只是对象换成了合集自身：next 必须是当前全部
+// 未软删合集的一个排列。缺一个、多一个、重复都会被整单拒绝——后台拿到的
+// 是上一次读到的列表，宽松语义会把别人刚建的合集静默漏掉。
+func CheckSortOrder(current, next []ID) error {
+	return checkPermutation(current, next)
+}
+
+// checkPermutation 是两级排序共用的"集合一致性"规则。
+//
+// 泛型而不是两份逐字重复：合集内与合集间的换序必须同一套语义，
+// 否则两处一旦分叉，过期页面在一边被拒绝、在另一边却会静默丢条目。
+func checkPermutation[T comparable](current, next []T) error {
 	if len(next) != len(current) {
 		return ErrOrderMismatch
 	}
-	want := make(map[ArticleID]struct{}, len(current))
+	want := make(map[T]struct{}, len(current))
 	for _, id := range current {
 		want[id] = struct{}{}
 	}
-	seen := make(map[ArticleID]struct{}, len(next))
+	seen := make(map[T]struct{}, len(next))
 	for _, id := range next {
 		if _, ok := want[id]; !ok {
 			return ErrOrderMismatch
@@ -358,6 +375,33 @@ func CheckOrder(current, next []ArticleID) error {
 		seen[id] = struct{}{}
 	}
 	return nil
+}
+
+// IncludeOutcome 是一篇文章在一次批量收录里的结局。
+//
+// 批量收录刻意**逐篇分类**而不是整单成败：运营一次勾十几篇时，其中一篇
+// 已经收录或还没发布不该让另外九篇也失败。单篇收录仍保持"重复即报错"，
+// 两条入口的语义各自清楚。
+type IncludeOutcome string
+
+const (
+	// IncludeOutcomeIncluded 成功收录，排在合集末尾。
+	IncludeOutcomeIncluded IncludeOutcome = "included"
+	// IncludeOutcomeDuplicated 已经在合集里（活跃收录），本次不新增、不改序号。
+	IncludeOutcomeDuplicated IncludeOutcome = "duplicated"
+	// IncludeOutcomeNotIncludable 文章不是"已发布且可见"，不能收录。
+	IncludeOutcomeNotIncludable IncludeOutcome = "not_includable"
+	// IncludeOutcomeMissing 文章不存在（或已被物理删除）。
+	IncludeOutcomeMissing IncludeOutcome = "missing"
+)
+
+// BatchIncludeResult 是批量收录里一篇文章的结局。
+//
+// 按请求顺序逐篇返回：调用方据此告诉运营"哪几篇进去了、哪几篇重复"，
+// 而不是只给一个总数。
+type BatchIncludeResult struct {
+	ArticleID ArticleID
+	Outcome   IncludeOutcome
 }
 
 // Repository 是合集的持久化契约。
@@ -386,6 +430,16 @@ type Repository interface {
 
 	// ListAdminCards 列出全部合集（含未展示），后台列表用。
 	ListAdminCards(ctx context.Context) ([]AdminCard, error)
+
+	// ListIDs 按顺序返回全部未软删合集的 ID（合集之间换序的集合校验用）。
+	ListIDs(ctx context.Context) ([]ID, error)
+
+	// UpdateSortOrders 按给定顺序把**合集自身**的序号改成 1..n。
+	//
+	// 与 UpdateItemOrder 分开：后者改的是合集里的收录行（中间表），
+	// 这里改的是 collection_models.sort_order（读者列表页的展示顺序）。
+	// 调用方已用 CheckSortOrder 校验。
+	UpdateSortOrders(ctx context.Context, ids []ID) error
 
 	// NextSortOrder 返回下一个可用的合集顺序号（当前最大 + 1，空表为 1）。
 	//

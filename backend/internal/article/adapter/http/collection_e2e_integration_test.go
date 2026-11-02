@@ -164,7 +164,7 @@ func TestCollectionStalePlaceholderAndCleanup(t *testing.T) {
 
 	// 后台保留 4 行占位，失效行给出原因。
 	itemsRaw := rawRequest(t, adminRouter, "GET",
-		fmt.Sprintf("/api/collections/%s/admin/items", created.ID), nil)
+		fmt.Sprintf("/api/collections/%s/articles/admin", created.ID), nil)
 	var items struct {
 		List []struct {
 			ArticleID   ctype.ID `json:"article_id"`
@@ -213,7 +213,7 @@ func TestCollectionStalePlaceholderAndCleanup(t *testing.T) {
 	}
 
 	afterRaw := rawRequest(t, adminRouter, "GET",
-		fmt.Sprintf("/api/collections/%s/admin/items", created.ID), nil)
+		fmt.Sprintf("/api/collections/%s/articles/admin", created.ID), nil)
 	var after struct {
 		List []struct {
 			ArticleID ctype.ID `json:"article_id"`

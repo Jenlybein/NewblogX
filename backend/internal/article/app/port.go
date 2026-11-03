@@ -14,6 +14,7 @@ import (
 	"myblogx/internal/article/domain/collection"
 	"myblogx/internal/article/domain/favorite"
 	"myblogx/internal/article/domain/hottop"
+	"myblogx/internal/article/domain/project"
 	"myblogx/internal/article/domain/review"
 	"myblogx/internal/article/domain/taxonomy"
 	"myblogx/internal/article/domain/top"
@@ -52,6 +53,9 @@ type Repos interface {
 	// Collections 是合集（管理员编排的有序文章集合）。
 	// 与 HotTops（热门置顶运营位）是两套数据：合集有标题/封面/展示开关，且无条数上限。
 	Collections() collection.Repository
+	// Projects 是项目（与合集并列的独立内容实体）。
+	// 与 Collections 是两套数据、两套表：项目有自己的后台维护页，不共用合集的行。
+	Projects() project.Repository
 	// Crops 是通用取景表（picture_crop_models）。
 	//
 	// 文章封面取景在这里只是又一个主体类型（target_type=article）：

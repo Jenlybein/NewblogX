@@ -322,3 +322,34 @@ type collectionArticleRow struct {
 // TableName 固定表名。
 func (collectionArticleRow) TableName() string { return "collection_article_models" }
 
+// projectRow 对应 project_models 表（项目主表）。
+//
+// 字段与 testkit/schema 的 ProjectRow 逐字一致：schema_sql_integration_test
+// 会把 schema.sql 建出来的表与 testkit 的行结构逐列比对，差一个 tag 就红。
+type projectRow struct {
+	BaseRow
+	Title       string   `gorm:"type:varchar(128);not null"`
+	Description string   `gorm:"type:varchar(512);not null"`
+	Cover       string   `gorm:"type:longtext;not null"`
+	IsDisplay   bool     `gorm:"not null;default:1"`
+	SortOrder   int      `gorm:"not null;default:0"`
+	CreatorID   ctype.ID `gorm:"not null"`
+}
+
+// TableName 固定表名。
+func (projectRow) TableName() string { return "project_models" }
+
+// projectArticleRow 对应 project_article_models 表（项目-文章中间表）。
+//
+// 唯一索引 uk_project_article **不含 deleted_at**：移除是软删，行留在表里
+// 占着这个键（与合集/点赞表是同一个坑）。
+type projectArticleRow struct {
+	BaseRow
+	ProjectID ctype.ID `gorm:"uniqueIndex:uk_project_article,priority:1;not null"`
+	ArticleID ctype.ID `gorm:"uniqueIndex:uk_project_article,priority:2;not null;index:idx_project_article_models_article_id"`
+	SortOrder int      `gorm:"not null;default:0"`
+}
+
+// TableName 固定表名。
+func (projectArticleRow) TableName() string { return "project_article_models" }
+

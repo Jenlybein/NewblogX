@@ -133,11 +133,12 @@ describe("静态断言：阅读站不得残留旧青绿色（canary 保证扫描
     expect(findLegacyPaletteClasses(source)).toEqual([]);
   });
 
-  it("21 个路由页面全部无旧青色、不碰 Tailwind 默认色板", () => {
+  it("22 个路由页面全部无旧青色、不碰 Tailwind 默认色板", () => {
     // 页面数量本身就是验收项：新增页面（合集列表页 / 详情页，spec #90；
-    // 项目列表页 / 详情页，spec #189 票 #193；消息中心入口 + 子项页，票 #239）
-    // 必须同步把计数加上，否则这个 canary 就变成"少扫了页面也全绿"。
-    expect(pageFiles.length).toBe(21);
+    // 项目列表页 / 详情页，spec #189 票 #193；消息中心入口 + 子项页，票 #239；
+    // 历史顶级页，票 #241）必须同步把计数加上，
+    // 否则这个 canary 就变成"少扫了页面也全绿"。
+    expect(pageFiles.length).toBe(22);
 
     const sources = readAppSources();
     const problems = sources.flatMap(({ file, text }) => [

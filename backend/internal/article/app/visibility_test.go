@@ -149,7 +149,7 @@ func TestViewHistoryThreadReadFilter(t *testing.T) {
 				t.Fatalf("预置浏览历史失败: %v", err)
 			}
 
-			if _, _, err := svc.ListViewHistory(ctx, authorViewer(), domain.Page{Limit: 10}, c.onlyAdminAuthors); err != nil {
+			if _, err := svc.ListViewHistory(ctx, authorViewer(), app.ViewHistoryQuery{Limit: 10}, c.onlyAdminAuthors); err != nil {
 				t.Fatalf("列浏览历史失败: %v", err)
 			}
 			if got := repos.FakeHistory().ListOnlyAdminAuthors(); got != c.onlyAdminAuthors {

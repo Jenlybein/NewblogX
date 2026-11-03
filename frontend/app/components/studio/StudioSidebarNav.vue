@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import {
   IconBookmarks,
-  IconClockHour4,
   IconDashboard,
   IconFileText,
   IconHeartHandshake,
@@ -26,7 +25,7 @@ type StudioNavItem = {
 const items: StudioNavItem[] = [
   { label: "数据概览", to: "/studio/dashboard", icon: IconDashboard },
   { label: "我的文章", to: "/studio/profile", icon: IconFileText },
-  { label: "浏览历史", to: "/studio/history", icon: IconClockHour4 },
+  // 浏览历史已提升为顶级页 `/history`：创作区不再有入口（决策 7）。
   { label: "收藏夹", to: "/studio/favorites", icon: IconBookmarks },
   { label: "关注", to: "/studio/follows", icon: IconHeartHandshake },
   { label: "粉丝", to: "/studio/fans", icon: IconUsers },

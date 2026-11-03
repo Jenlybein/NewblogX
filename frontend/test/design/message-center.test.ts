@@ -132,9 +132,14 @@ describe("顶栏入口：三档窄屏规则", () => {
     expect(headerSource).toContain('role="menu"');
   });
 
-  it("<1280px 的「历史」入口位置留给 #241（本票不渲染死链）", () => {
-    // 只留结构位置：头像菜单选项是数组，历史项由 #241 插入；本票不能出现 /history 链接。
-    expect(headerSource).not.toContain('"/history"');
+  it("「历史」入口由 #241 落位：不再留空位，也不再渲染死链", () => {
+    // #239 只留了结构位置（头像菜单选项是数组，历史项由 #241 插入，当时不能出现
+    // /history 链接 —— 页面还不存在）。#241 落位后这条反转为"必须真的接上"：
+    // 动作区普通链接 + 640–1279 头像菜单项 + <640 折叠面板，三档各一份。
+    expect(headerSource).toContain('"/history"');
     expect(headerSource).toContain("const userMenuOptions");
+    expect(headerSource).toContain('label: "浏览历史"');
+    expect(headerSource).toMatch(/\.site-header__history\s*\{\s*display:\s*none;/u);
+    expect(headerSource).toContain(".site-history-mobile");
   });
 });

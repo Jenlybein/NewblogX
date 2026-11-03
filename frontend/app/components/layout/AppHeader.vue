@@ -1,7 +1,8 @@
 <script setup lang="ts">
-import { computed, h, onMounted, ref, watch } from "vue";
+import { computed, h, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import {
   IconBell,
+  IconClockHour4,
   IconHome2,
   IconLogin2,
   IconMenu2,
@@ -91,6 +92,19 @@ watch(
   },
 );
 
+// 历史入口（第 241 票）的三档落位：
+//   ≥1280 动作区普通链接（hover 无面板，与消息中心不同）；
+//   640–1279 收进头像菜单（动作区放不下第二个文字入口，硬塞会挤压品牌区）；
+//   <640 收进折叠面板（与消息中心同一套窄屏规则）。
+// 用 matchMedia 而不是 CSS：菜单项是数据驱动的（NDropdown options），CSS 管不到。
+const HISTORY_MENU_QUERY = "(min-width: 640px) and (max-width: 1279px)";
+const historyMenuVisible = ref(false);
+let historyMenuQuery: MediaQueryList | null = null;
+
+function syncHistoryMenu(event?: MediaQueryListEvent) {
+  historyMenuVisible.value = event ? event.matches : Boolean(historyMenuQuery?.matches);
+}
+
 // 登录后刷新一次未读汇总：页头是读者站唯一常驻的未读消费点，
 // 不能继续只靠 studio 布局兜底（消息中心已迁出个人中心）。
 // onMounted 只在客户端执行，SSR 的首页 / 文章页不会带着登录身份发这个请求。
@@ -98,26 +112,45 @@ onMounted(() => {
   if (authStore.isLoggedIn && !messageStore.fetched) {
     void messageStore.refreshSummary().catch(() => undefined);
   }
+
+  // 历史入口的窄屏落位只在客户端有意义（服务端没有视口）。
+  historyMenuQuery = window.matchMedia(HISTORY_MENU_QUERY);
+  syncHistoryMenu();
+  historyMenuQuery.addEventListener("change", syncHistoryMenu);
 });
 
-const userMenuOptions = computed(() => [
-  {
-    label: "个人中心",
-    key: "studio",
-    icon: () => h(IconHome2, { size: 16 }),
-  },
-  {
-    label: "我的主页",
-    key: "profile",
-    icon: () => h(IconUserCircle, { size: 16 }),
-  },
-  // <1280px 时「历史」入口收在这里（第 241 票 落位）；本票不渲染指向未建页的死链。
-  {
+onBeforeUnmount(() => {
+  historyMenuQuery?.removeEventListener("change", syncHistoryMenu);
+});
+
+const userMenuOptions = computed(() => {
+  const options = [
+    {
+      label: "个人中心",
+      key: "studio",
+      icon: () => h(IconHome2, { size: 16 }),
+    },
+    {
+      label: "我的主页",
+      key: "profile",
+      icon: () => h(IconUserCircle, { size: 16 }),
+    },
+  ];
+  // 640–1279px 时「历史」入口收在头像菜单（第 241 票 落位）。
+  if (historyMenuVisible.value) {
+    options.push({
+      label: "浏览历史",
+      key: "history",
+      icon: () => h(IconClockHour4, { size: 16 }),
+    });
+  }
+  options.push({
     label: "退出登录",
     key: "logout",
     icon: () => h(IconLogin2, { size: 16 }),
-  },
-]);
+  });
+  return options;
+});
 
 async function submitSearch() {
   await router.push(buildSearchLocation(searchKeyword.value));
@@ -131,6 +164,11 @@ async function handleUserMenuSelect(key: string | number) {
 
   if (key === "profile" && authStore.profileId) {
     await navigateTo(`/users/${authStore.profileId}`);
+    return;
+  }
+
+  if (key === "history") {
+    await navigateTo("/history");
     return;
   }
 
@@ -204,6 +242,14 @@ async function handleUserMenuSelect(key: string | number) {
             <span v-if="shouldShowUnreadCount(item.count)" class="site-messages__count">{{ item.count }}</span>
           </NuxtLink>
         </nav>
+
+        <!-- <640px：历史入口也收进折叠面板（与消息中心同一套窄屏规则）。 -->
+        <nav v-if="authStore.isLoggedIn" class="site-history-mobile" aria-label="历史">
+          <NuxtLink to="/history" class="site-history-mobile__item">
+            <IconClockHour4 :size="16" aria-hidden="true" />
+            <span>浏览历史</span>
+          </NuxtLink>
+        </nav>
       </div>
 
       <div class="site-header__actions">
@@ -269,6 +315,19 @@ async function handleUserMenuSelect(key: string | number) {
             </NuxtLink>
           </div>
         </div>
+
+        <!-- 历史（第 241 票）：普通链接，hover / 聚焦都不展开面板。
+             ≥1280 常显（CSS）；640–1279 由用户菜单承担；<640 由折叠面板承担。 -->
+        <NuxtLink
+          v-if="authStore.isLoggedIn"
+          to="/history"
+          class="site-header__history"
+          data-chrome="history"
+          aria-label="浏览历史"
+        >
+          <IconClockHour4 :size="18" aria-hidden="true" />
+          <span>历史</span>
+        </NuxtLink>
 
         <div data-chrome="account" class="site-header__account">
           <ClientOnly>
@@ -631,6 +690,30 @@ async function handleUserMenuSelect(key: string | number) {
   display: none;
 }
 
+/* ---- 历史入口（第 241 票） ---------------------------------------------------
+ * ≥1280 动作区普通链接（hover 不展开面板）；640–1279 收进头像菜单；
+ * <640 收进折叠面板。三档只显示其中一处，避免同一入口在屏幕里出现两次。 */
+.site-header__history {
+  display: none;
+  align-items: center;
+  gap: 0.375rem;
+  min-height: 2.75rem;
+  padding: 0 0.5rem;
+  color: var(--color-ink-muted);
+  font-size: 0.8125rem;
+  text-decoration: none;
+  transition: color var(--motion-fast) var(--motion-ease);
+}
+
+.site-header__history:hover,
+.site-header__history:focus-visible {
+  color: var(--color-ink);
+}
+
+.site-history-mobile {
+  display: none;
+}
+
 /* 焦点环统一：功能蓝只用于焦点环与文字链接，暗色下自动换成暗色功能蓝。 */
 .site-header :is(a, button, input, [tabindex]):focus-visible {
   outline: 2px solid var(--color-focus);
@@ -712,6 +795,13 @@ async function handleUserMenuSelect(key: string | number) {
   }
 }
 
+/* ≥1280px：动作区放得下「消息中心 + 历史」两个文字入口（<1280 历史收进头像菜单）。 */
+@media (min-width: 1280px) {
+  .site-header__history {
+    display: inline-flex;
+  }
+}
+
 /* <640px：动作区收不下「消息中心」，入口整体移进折叠面板。
  * 折叠面板本身只在菜单展开时可见，所以这里只负责"哪一份 DOM 显示"。 */
 @media (max-width: 639px) {
@@ -732,6 +822,24 @@ async function handleUserMenuSelect(key: string | number) {
     align-items: center;
     justify-content: space-between;
     gap: 0.75rem;
+    min-height: 2.75rem;
+    padding: 0 0.5rem;
+    border-radius: var(--radius-sm);
+    color: var(--color-ink-muted);
+    font-size: 0.8125rem;
+  }
+
+  /* 历史：<640 收进折叠面板（与消息中心同一套规则）。 */
+  .site-history-mobile {
+    display: flex;
+    padding-top: 0.5rem;
+    border-top: 1px solid var(--color-line-faint);
+  }
+
+  .site-history-mobile__item {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.375rem;
     min-height: 2.75rem;
     padding: 0 0.5rem;
     border-radius: var(--radius-sm);

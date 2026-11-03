@@ -192,6 +192,20 @@ describe("渲染边界白名单（ADR-0019 决策 1）", () => {
     expect(rules["/studio/**"]?.ssr).toBe(false);
   });
 
+  it("/history 是私人数据页：ssr: false，且不在 SSR 白名单里（#241）", () => {
+    const rule = routeRulesOf(nuxtConfig)["/history"];
+
+    expect(rule?.ssr).toBe(false);
+    expect(SSR_WHITELIST.some((pattern) => routePatternMatches(pattern, "/history"))).toBe(false);
+  });
+
+  it("/studio/history 是服务端 301 到 /history：旧入口不能停在 200 空壳上（#241）", () => {
+    const rule = routeRulesOf(nuxtConfig)["/studio/history"];
+
+    expect(redirectOf(rule)).toEqual({ to: "/history", statusCode: 301 });
+    expect(rule?.ssr).not.toBe(false);
+  });
+
   it("消息中心 /messages/** 显式 ssr: false（私人数据、不索引，连入口一起 SPA 化）", () => {
     const rules = routeRulesOf(nuxtConfig);
 

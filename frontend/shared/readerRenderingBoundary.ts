@@ -33,6 +33,8 @@ export const SSR_WHITELIST_PATTERNS = ["/", "/article/**"] as const;
  *
  * `/collections/**` 与 `/projects/**` 都是运营编排列表：内容随管理员的操作变化，
  * 不参与 SSR 首屏，也不进匿名缓存。
+ * `/history` 是私人数据（登录用户自己的浏览记录）：既不该被索引，也不该进
+ * 匿名共享的整页 HTML 缓存 —— 后者是跨用户泄漏面。
  * `/messages/**` 是消息中心（#239）：私人数据、不索引，整段（含 `/messages` 入口）
  * 都走 SPA，由客户端中间件重定向到默认子项。
  */
@@ -40,14 +42,22 @@ export const CLIENT_ONLY_PATTERNS = [
   "/users/**",
   "/search",
   "/studio/**",
+  "/history",
   "/collections/**",
   "/projects/**",
   "/messages/**",
 ] as const;
 
-/** 必须由服务端 301 承担的历史入口（`/articles` 是并入 `/search` 的旧列表入口）。 */
+/**
+ * 必须由服务端 301 承担的历史入口。
+ *
+ * `/articles` 是并入 `/search` 的旧列表入口；`/studio/history` 是历史记录从创作区
+ * 提升为顶级页 `/history` 之后的旧链接（见 #234 决策 7 / #241）。
+ * 写成普通 `ssr: false` 会让爬虫/无 JS 客户端只拿到 200 空壳。
+ */
 export const SERVER_REDIRECT_ROUTES = [
   { route: "/articles", to: "/search", statusCode: 301 },
+  { route: "/studio/history", to: "/history", statusCode: 301 },
 ] as const satisfies readonly ServerRedirectRoute[];
 
 /** 切分路由（丢掉空段）。 */

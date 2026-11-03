@@ -1,10 +1,17 @@
 import { describe, expect, it, vi } from "vitest";
 import { AVATAR_SHAPE_OPTIONS, shapeAvatar } from "~/utils/avatar";
+import { COVER_ASPECT } from "~/utils/coverFraming";
 import {
+  COVER_SHAPE_OPTIONS,
+  COVER_SHAPE_RATIO_TEXT,
+  COVER_SHAPE_SIZE_TEXT,
+  COVER_SHAPE_TARGET,
   centerCropRect,
+  shapeForUpload,
   shapeImage,
   type ShapeImageDeps,
   type ShapeImageOptions,
+  type ShapedUploadDeps,
 } from "~/utils/imageShaping";
 
 interface FakeShapeDeps {
@@ -112,6 +119,98 @@ describe("图片定形", () => {
     expect(fake.createCanvas).toHaveBeenCalledWith(256, 256);
     expect(fake.encode).toHaveBeenCalledWith(expect.anything(), "image/png", undefined);
     expect(shaped.type).toBe("image/png");
+  });
+});
+
+describe("封面定形参数：三种封面共用同一份取值（#200）", () => {
+  it("封面统一 16:9、1600×900、输出 JPEG，并与全站唯一比例口径一致", () => {
+    expect(COVER_SHAPE_TARGET).toEqual({ width: 1600, height: 900 });
+    // 交给独立来源（coverFraming 的 16/9）验证：常量写错比例时这里会红，
+    // 而不是拿 1600/900 自己验自己（那种断言永远为真）。
+    expect(COVER_SHAPE_TARGET.width / COVER_SHAPE_TARGET.height).toBe(COVER_ASPECT);
+    expect(COVER_SHAPE_OPTIONS.target).toEqual(COVER_SHAPE_TARGET);
+    expect(COVER_SHAPE_OPTIONS.outputType).toBe("image/jpeg");
+    // 界面文案也从同一份取值派生，模板里不再手写 1600 / 900 / 16:9。
+    expect(COVER_SHAPE_RATIO_TEXT).toBe("16:9");
+    expect(COVER_SHAPE_SIZE_TEXT).toBe("1600 × 900");
+  });
+});
+
+describe("shapeForUpload：上传前定形，原图不进上传链路（#200）", () => {
+  /** 只替换定形这一步：不碰画布，受控地产出"定形后的新图"。 */
+  function fakeDeps(overrides: Partial<ShapedUploadDeps> = {}) {
+    const shaped = new Blob(["shaped-bytes"], { type: "image/jpeg" });
+    const shape = vi.fn(async () => shaped);
+    const createObjectURL = vi.fn(() => "blob:shaped-preview");
+    const deps: ShapedUploadDeps = {
+      shape: shape as unknown as ShapedUploadDeps["shape"],
+      createFile: (blob, name) => new File([blob], name, { type: blob.type }),
+      createObjectURL,
+      ...overrides,
+    };
+    return { deps, shape, createObjectURL, shaped };
+  }
+
+  it("产出可上传的新文件（同格式后缀）+ 定形产物的预览地址 + 产物尺寸", async () => {
+    const { deps, shape, createObjectURL, shaped } = fakeDeps();
+    const source = new File(["raw"], "my-cover.png", { type: "image/png" });
+
+    const result = await shapeForUpload(source, COVER_SHAPE_OPTIONS, deps);
+
+    expect(shape).toHaveBeenCalledWith(source, COVER_SHAPE_OPTIONS);
+    // 预览必须是定形产物，不能拿原图当预览（否则用户看到的是原图，不是结果）。
+    expect(createObjectURL).toHaveBeenCalledWith(shaped);
+    expect(result.previewUrl).toBe("blob:shaped-preview");
+    expect(result.file).not.toBe(source);
+    expect(result.file.name).toBe("my-cover.jpg");
+    expect(result.file.type).toBe("image/jpeg");
+    expect(result.size).toEqual({ width: 1600, height: 900 });
+  });
+
+  it("原图没有文件名时给一个确定的名字，不产生空后缀", async () => {
+    const { deps } = fakeDeps();
+
+    const result = await shapeForUpload(new Blob(["raw"], { type: "image/png" }), COVER_SHAPE_OPTIONS, deps);
+
+    expect(result.file.name).toBe("cover.jpg");
+  });
+
+  it("定形失败原样上抛，不产出文件与预览", async () => {
+    const { deps, createObjectURL } = fakeDeps({
+      shape: async () => {
+        throw new Error("无法读取这张图片，请换一张");
+      },
+    });
+
+    await expect(shapeForUpload(new File(["raw"], "cover.png", { type: "image/png" }), COVER_SHAPE_OPTIONS, deps)).rejects.toThrow(
+      "无法读取这张图片，请换一张",
+    );
+    expect(createObjectURL).not.toHaveBeenCalled();
+  });
+
+  it("非图片文件在定形阶段就被拒（不建画布、不产出预览）", async () => {
+    const fake = createFakeDeps();
+    const createObjectURL = vi.fn(() => "blob:never");
+
+    await expect(
+      shapeForUpload(new File(["text"], "note.txt", { type: "text/plain" }), COVER_SHAPE_OPTIONS, {
+        shape: (file, options) => shapeImage(file, options, fake.deps),
+        createFile: (blob, name) => new File([blob], name, { type: blob.type }),
+        createObjectURL,
+      }),
+    ).rejects.toMatchObject({ code: "not_image" });
+
+    expect(fake.createCanvas).not.toHaveBeenCalled();
+    expect(createObjectURL).not.toHaveBeenCalled();
+  });
+
+  it("环境没有 object URL 时预览留空，文件与尺寸照常返回（不因预览失败丢掉定形结果）", async () => {
+    const { deps } = fakeDeps({ createObjectURL: () => "" });
+
+    const result = await shapeForUpload(new File(["raw"], "cover.png", { type: "image/png" }), COVER_SHAPE_OPTIONS, deps);
+
+    expect(result.previewUrl).toBe("");
+    expect(result.file.name).toBe("cover.jpg");
   });
 });
 

@@ -78,7 +78,6 @@ const {
   coverError,
   coverDirty,
   coverImageSize,
-  coverRoute,
   coverFramed,
   coverFramingOpen,
   coverFramingPreviewUrl,
@@ -393,7 +392,6 @@ ref="editorTextareaRef" v-model="form.content" class="write-page__textarea"
       :cover-stage="coverUploadStage"
       :cover-error="coverError"
       :cover-size="coverImageSize"
-      :cover-route="coverRoute"
       :cover-framed="coverFramed"
       :cover-preview-style="coverPreviewStyle"
       :category-options="categoryOptions || []"

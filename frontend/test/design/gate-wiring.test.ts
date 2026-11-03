@@ -74,6 +74,27 @@ describe("门禁接线：本地脚本与 CI 是同一口径", () => {
 
     // 自检：verify-gates.sh 真的把这道门禁纳入，而不是只在 check.sh 挂个名字。
     expect(verifyGates).toContain("check-deco-range-parity.mjs");
-    expect(verifyGates).toContain("13/13 跨端装饰参数一致性门禁");
+    expect(verifyGates).toContain("14/14 跨端装饰参数一致性门禁");
+  });
+
+  it("两端定形工具同源门禁接进了 check.sh、verify-gates.sh 与 CI（票 200）", () => {
+    const cli = "node scripts/check-image-shaping-parity.mjs";
+
+    // 本地：frontend 段与 token 同源门禁挨着跑（都是"两份文件逐字节一致"的仓库级判据）。
+    const frontendStart = checkSh.indexOf('[ "$TARGET" = "frontend" ]');
+    const gatesStart = checkSh.indexOf('[ "$TARGET" = "gates" ]');
+    expect(frontendStart).toBeGreaterThan(-1);
+    expect(gatesStart).toBeGreaterThan(frontendStart);
+    const frontendSection = checkSh.slice(frontendStart, gatesStart);
+    expect(frontendSection).toContain(cli);
+    expect(frontendSection).toContain("node scripts/check-token-parity.mjs");
+
+    // CI：与本地同一条命令，挂在仓库级判据所在的 job 里。
+    expect(ciJobBlock("frontend-lint")).toContain(cli);
+
+    // 自检：verify-gates.sh 必须真的注入"只改后台副本一个常量"并断言门禁变红。
+    expect(verifyGates).toContain("check-image-shaping-parity.mjs");
+    expect(verifyGates).toContain("13/14 两端 imageShaping 定形工具同源门禁");
+    expect(verifyGates).toContain("frontend_admin/app/utils/imageShaping.ts");
   });
 });

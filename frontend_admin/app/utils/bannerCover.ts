@@ -5,26 +5,17 @@ import { DEFAULT_FRAMING, clampFraming, isAspectCompliant } from './framing'
 import type { Framing, Size } from './framing'
 
 /**
- * 轮播封面上传前的编排算术（#49）。
+ * 轮播封面上传前的编排算术（#49；#200 改为上传前定形）。
  *
- * 为什么把这几步从页面里抽出来：页面里真正会出事的三处都不是渲染，而是
- *   1. 比例不合规的图有没有被拦在**上传之前**；
- *   2. 确认取景后创建轮播时，`crop` 有没有跟着请求走；
- *   3. 上传返回缺 `image_id` 时，会不会仍然创建一条没有封面的轮播。
- * 这三处都写成纯函数或可注入依赖的编排，页面只负责把用户动作接上。
+ * 为什么把这几步从页面里抽出来：页面里真正会出错的两处都不是渲染，而是
+ *   1. 上传返回缺 `image_id` 时，会不会仍然创建一条没有封面的轮播；
+ *   2. 确认取景后创建轮播时，`crop` 有没有跟着请求走。
+ * 这两处都写成纯函数或可注入依赖的编排，页面只负责把用户动作接上。
  *
- * 取景算术本身仍在 `~/utils/framing`（本模块只消费它，不复制一套比例逻辑）。
+ * 比例判定在 #200 后不再用于"上传闸门"：选中的图先在客户端定形成 16:9 再上传
+ * （`~/utils/imageShaping` 的 `shapeForUpload`，两端同一份实现）。这里保留的
+ * `isAspectCompliant` 判定只服务于列表里的"历史封面比例"标记。
  */
-
-/**
- * 选完文件后的第一问：这张图需要先取景吗？（容差沿用 framing 的 ±1%）
- *
- * 尺寸非法也判"需要取景"：这种图根本没法按 cover 铺满取景框，让它直接上传
- * 只会把问题推到阅读站。
- */
-export function requiresFraming(size: Size): boolean {
-  return !isAspectCompliant(size.width, size.height)
-}
 
 /** 上传器的最小契约：页面把它接到 `uploadImageByTask` 上，测试里换成假实现。 */
 export type BannerCoverUploader = (file: File) => Promise<{ image_id?: string; url: string }>

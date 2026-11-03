@@ -5,38 +5,18 @@ import {
   buildBannerReframePayload,
   describeBannerCoverSize,
   readImageSize,
-  requiresFraming,
   saveBannerReframe,
   uploadBannerCover,
 } from '~/utils/bannerCover'
 import type { ImageSizeProbe } from '~/utils/bannerCover'
 
 /**
- * 后台上传即取景的编排单元测试（#49）。
+ * 后台上传即取景的编排单元测试（#49；#200 起上传前先定形）。
  *
- * 断言的是**可观察的决定与副作用顺序**：合规/不合规怎么判、创建请求里带了什么、
- * 上传失败时会不会继续创建。页面交给 Vue，这里只锁业务规则。
+ * 断言的是**可观察的决定与副作用顺序**：创建请求里带了什么、上传失败时会不会继续
+ * 创建、历史封面的比例标记怎么读。比例闸门（`requiresFraming`）在 #200 后已退场：
+ * 选中的图先在客户端定形成 16:9 再上传，不再有"合规直传 / 不合规先取景"的分叉。
  */
-
-describe('requiresFraming', () => {
-  it('16:9 与 ±1% 边界直接上传，不弹取景窗', () => {
-    expect(requiresFraming({ width: 1920, height: 1080 })).toBe(false)
-    expect(requiresFraming({ width: 1280, height: 720 })).toBe(false)
-    // 1616×900 恰好 +1%，仍然是合规的一侧。
-    expect(requiresFraming({ width: 1616, height: 900 })).toBe(false)
-  })
-
-  it('比例差超过 1% 必须先取景（含竖图与 3:2 横图）', () => {
-    expect(requiresFraming({ width: 1617, height: 900 })).toBe(true)
-    expect(requiresFraming({ width: 1200, height: 800 })).toBe(true)
-    expect(requiresFraming({ width: 1080, height: 1920 })).toBe(true)
-  })
-
-  it('尺寸非法时按"需要取景"处理（这种图本来就没法直接上传）', () => {
-    expect(requiresFraming({ width: 0, height: 0 })).toBe(true)
-    expect(requiresFraming({ width: Number.NaN, height: 1080 })).toBe(true)
-  })
-})
 
 describe('buildBannerCreatePayload', () => {
   it('没有取景记录时带缺省取景（居中、缩放 1），不是省略 crop', () => {

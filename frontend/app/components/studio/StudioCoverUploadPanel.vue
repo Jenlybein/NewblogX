@@ -2,15 +2,17 @@
 import { computed, ref } from "vue";
 
 import type { CSSProperties } from "vue";
-import { COVER_FORMAT_HINT, describeCoverBadge, formatCoverSize, type CoverUploadRoute } from "~/utils/studioCover";
+import { COVER_SHAPE_RATIO_TEXT, COVER_SHAPE_SIZE_TEXT } from "~/utils/imageShaping";
+import { COVER_FORMAT_HINT, describeCoverBadge, formatCoverSize } from "~/utils/studioCover";
 import type { Size } from "~/utils/coverFraming";
 
 /**
  * 文章封面上传面板卡：与后台轮播上传同一套语言。
  *
- * 只有"显示一个值 / 上抛一个动作"，没有自己的比例判断：走哪条路、徽标文案
- * 都由 `~/utils/studioCover` 决定，父级把结果作为 props 传进来。这样
- * "面板说不合规、上传却放行"这类分叉不可能发生。
+ * 只有"显示一个值 / 上抛一个动作"，没有自己的比例判断：徽标文案由
+ * `~/utils/studioCover` 决定，父级把结果作为 props 传进来。票 200 起上传前
+ * 已在客户端定形（16:9、1600×900），所以这里不再有"合规直传 / 需取景"的分叉，
+ * 取景窗入口保留但只是可选动作（双轨期）。
  *
  * 交互全部走原生 button（与取景窗一致）：忙碌态可以用组件测试单独驱动，
  * 不必挂整套 naive-ui 弹层；颜色与圆角仍取同一套语义 token。
@@ -26,11 +28,9 @@ const props = withDefaults(
     stage: string;
     /** 留在面板里的错误文案（比一闪而过的 toast 更容易看清）。 */
     error: string;
-    /** 选过图之后才有原图尺寸。 */
+    /** 定形产物尺寸；选过图之后才有（回填的旧封面没有）。 */
     size: Size | null;
-    /** 选过图之后才有上传路径；空串＝还没选图（回填的旧封面也没有尺寸）。 */
-    route: CoverUploadRoute | "";
-    /** 取景参数是否已经被确认过。 */
+    /** 取景参数是否被手动调整过（决定按钮写"手动取景"还是"调整取景"）。 */
     framed: boolean;
     /** 预览图的取景样式（与取景窗同一出口）。 */
     previewStyle?: CSSProperties | null;
@@ -38,7 +38,7 @@ const props = withDefaults(
     onFileChange: (event: Event) => void;
     /** 移除已选封面。 */
     onClear: () => void;
-    /** 打开取景窗（手动取景 / 调整取景）。 */
+    /** 打开取景窗（手动调取景，可选）。 */
     onFrame: () => void;
   }>(),
   { previewStyle: null },
@@ -46,9 +46,10 @@ const props = withDefaults(
 
 const fileInput = ref<HTMLInputElement | null>(null);
 
-const badge = computed(() => (props.route ? describeCoverBadge({ route: props.route, framed: props.framed }) : null));
+const badge = computed(() => (props.size ? describeCoverBadge({ framed: props.framed }) : null));
 const sizeLabel = computed(() => formatCoverSize(props.size));
-const canFrame = computed(() => props.route === "frame" || props.framed);
+/** 定形产物在手（有尺寸）才能定取景几何；只是回填的旧封面没有尺寸，不提供入口。 */
+const canFrame = computed(() => props.size !== null);
 const frameLabel = computed(() => (props.framed ? "调整取景" : "手动取景"));
 
 /** 替父级点开文件选择：input 在本组件内，让父级持 ref 再回来点它没有意义。 */
@@ -64,7 +65,7 @@ function pickCover() {
       <div>
         <div class="cover-panel__title">文章封面</div>
         <p class="cover-panel__hint">
-          推荐比例 16:9：与 16:9 相差 ≤1% 会立即上传；超出 1% 先取景，确认后自动上传
+          上传前自动裁成 {{ COVER_SHAPE_RATIO_TEXT }}（{{ COVER_SHAPE_SIZE_TEXT }}），只上传定形后的图；取景窗保留，需要时再手动调整
         </p>
       </div>
       <div class="cover-panel__actions">

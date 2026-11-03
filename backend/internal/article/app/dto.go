@@ -8,6 +8,7 @@ import (
 	"myblogx/internal/article/domain/favorite"
 	"myblogx/internal/article/domain/project"
 	"myblogx/internal/article/domain/review"
+	"myblogx/internal/article/domain/viewhistory"
 )
 
 // CreateArticleCmd 是创建文章的输入。
@@ -305,4 +306,27 @@ type SetProjectDisplayCmd struct {
 	ProjectID project.ID
 	// Displayed 目标展示状态。
 	Displayed bool
+}
+
+// ── 浏览历史 ──
+
+// ViewHistoryQuery 是浏览历史列表的查询条件（用户由 viewer 决定，不来自请求）。
+//
+// 与 domain.Page 不同，这里没有 offset：历史页按天分组（今天 / 昨天 / 近一周 /
+// 更早），offset 在删除或置顶之后会让下一页整体位移，分组就会跨页断开。
+type ViewHistoryQuery struct {
+	// Keyword 按文章标题模糊匹配；空白视为不筛选。
+	Keyword string
+	// Before 为 nil 表示第一页；非 nil 表示续页位置。
+	Before *viewhistory.Cursor
+	// Limit 期望条数（零值=默认 10，上限 100，见 viewhistory.ListQuery.Normalize）。
+	Limit int
+}
+
+// ViewHistoryPage 是一页浏览历史。
+//
+// HasMore 由"多取一条"得出，而不是 total：游标分页不需要总数，历史页也不显示它。
+type ViewHistoryPage struct {
+	Records []*viewhistory.Record
+	HasMore bool
 }

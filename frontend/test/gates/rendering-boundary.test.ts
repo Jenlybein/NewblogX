@@ -192,6 +192,20 @@ describe("渲染边界白名单（ADR-0019 决策 1）", () => {
     expect(rules["/studio/**"]?.ssr).toBe(false);
   });
 
+  it("/history 是私人数据页：ssr: false，且不在 SSR 白名单里（#241）", () => {
+    const rule = routeRulesOf(nuxtConfig)["/history"];
+
+    expect(rule?.ssr).toBe(false);
+    expect(SSR_WHITELIST.some((pattern) => routePatternMatches(pattern, "/history"))).toBe(false);
+  });
+
+  it("/studio/history 是服务端 301 到 /history：旧入口不能停在 200 空壳上（#241）", () => {
+    const rule = routeRulesOf(nuxtConfig)["/studio/history"];
+
+    expect(redirectOf(rule)).toEqual({ to: "/history", statusCode: 301 });
+    expect(rule?.ssr).not.toBe(false);
+  });
+
   it("app/pages 下每个页面都被分类过：新增页面默认会 SSR，未分类即违规", () => {
     // 光看 routeRules 抓不到"新加了一个页面但没人分类"——默认 SSR 是隐式的。
     // 先把页面清单读出来（下面的人造违规用例用它证明对账不是空转）。

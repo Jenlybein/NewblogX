@@ -4,7 +4,10 @@ import (
 	"context"
 	"time"
 
+	"gorm.io/gorm"
+
 	articlemysql "myblogx/internal/article/adapter/mysql"
+	"myblogx/internal/article/domain/viewhistory"
 	commentmysql "myblogx/internal/comment/adapter/mysql"
 	"myblogx/internal/kernel/ctype"
 	"myblogx/internal/platform/log/writer"
@@ -197,6 +200,9 @@ func WireCron(infra *Infra, lifecycle *Lifecycle) error {
 	// ── 每日日志清理 ──
 	registerLogCleanup(infra, sch)
 
+	// ── 每日浏览历史清理（90 天）──
+	registerViewHistoryCleanup(infra, sch)
+
 	if lifecycle != nil {
 		lifecycle.OnStop("scheduler", func(context.Context) error {
 			return sch.Shutdown()
@@ -205,6 +211,59 @@ func WireCron(infra *Infra, lifecycle *Lifecycle) error {
 
 	sch.Start()
 	return nil
+}
+
+// 浏览历史清理的调度参数。
+//
+// 每天一次、固定在凌晨低峰，并与日志清理（03:30）错开：两个任务都要扫表，
+// 撞在一起没有收益。保留天数不是配置项 —— 90 天是数据策略（见
+// viewhistory.Retention 与决策清单的「已知取舍」），要做成配置得先改发布说明。
+const (
+	viewHistoryCleanupHour    = 4
+	viewHistoryCleanupMinute  = 10
+	viewHistoryCleanupLockTTL = 10 * time.Minute
+)
+
+// PurgeViewHistory 执行一次浏览历史清理，返回软删的行数。
+//
+// now 由调用方传入（调度任务执行时取 time.Now()，用例传固定时刻）：
+// 保留期与边界（"恰好 90 天前"留到下一轮）因此可以被钉死。
+//
+// 软删：与用户"移出历史"同一语义，误清可回滚。
+func PurgeViewHistory(ctx context.Context, db *gorm.DB, now time.Time) (int, error) {
+	if db == nil {
+		return 0, nil
+	}
+	affected, err := articlemysql.PurgeViewHistoryBefore(ctx, db, viewhistory.PurgeCutoff(now))
+	if err != nil {
+		return 0, err
+	}
+	return int(affected), nil
+}
+
+// registerViewHistoryCleanup 注册每日浏览历史清理任务。
+//
+// 与日志清理不同，这个任务的"开关/天数"没有运行时配置：它跟随 cron 体系
+// 每天跑一次，参数全部来自常量与 domain 的保留期（viewhistory.Retention）。
+func registerViewHistoryCleanup(infra *Infra, sch *scheduler.Scheduler) {
+	if err := sch.Daily(viewHistoryCleanupHour, viewHistoryCleanupMinute, 0, scheduler.Job{
+		Name:    "浏览历史清理",
+		LockKey: "cron:purge_view_history:lock",
+		LockTTL: viewHistoryCleanupLockTTL,
+		Run: func(ctx context.Context) (int, error) {
+			affected, err := PurgeViewHistory(ctx, infra.DB, time.Now())
+			if err != nil {
+				infra.Logger.Errorf("浏览历史清理失败: %v", err)
+				return 0, err
+			}
+			return affected, nil
+		},
+	}); err != nil {
+		infra.Logger.Errorf("注册浏览历史清理任务失败: %v", err)
+		return
+	}
+	infra.Logger.Infof("已注册浏览历史清理任务: 每日 %02d:%02d，保留 %d 天（软删 updated_at < now-90d）",
+		viewHistoryCleanupHour, viewHistoryCleanupMinute, int(viewhistory.Retention/(24*time.Hour)))
 }
 
 // registerLogCleanup 按配置注册日志清理任务。

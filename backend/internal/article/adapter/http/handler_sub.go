@@ -1,6 +1,9 @@
 package http
 
 import (
+	"fmt"
+	"time"
+
 	"github.com/gin-gonic/gin"
 	"myblogx/internal/kernel"
 
@@ -8,6 +11,7 @@ import (
 	"myblogx/internal/article/domain"
 	"myblogx/internal/article/domain/favorite"
 	"myblogx/internal/article/domain/review"
+	"myblogx/internal/article/domain/viewhistory"
 	"myblogx/internal/kernel/ctype"
 	"myblogx/internal/platform/http/middleware"
 	"myblogx/internal/platform/http/res"
@@ -487,28 +491,40 @@ func (h *Handler) toggleTops(c *gin.Context, ids []ctype.ID, remove bool) {
 
 // ── 浏览历史 ──
 
-// History 浏览历史列表。
+// History 浏览历史列表（服务端标题搜索 + 游标分页）。
 //
 // @Summary 浏览历史
 // @Tags article
 // @Produce json
 // @Security BearerAuth
-// @Param page query int false "页码"
-// @Param limit query int false "每页数量"
+// @Param keyword query string false "按文章标题模糊搜索"
+// @Param before_updated_at query string false "游标：上一条的浏览时间（RFC3339，与 before_id 成对）"
+// @Param before_id query string false "游标：上一条的文章 ID（与 before_updated_at 成对）"
+// @Param limit query int false "每页数量（缺省 10，上限 100）"
 // @Success 200 {object} kernel.Envelope[kernel.HasMoreListData[ArticleViewHistoryItem]]
 // @Router /articles/history [get]
 func (h *Handler) History(c *gin.Context) {
 	cr := middleware.GetBindQuery[ArticleViewHistoryRequest](c)
 
-	offset := pageOffset(cr.Page, cr.Limit)
-	records, total, err := h.svc.ListViewHistory(c.Request.Context(), h.viewerOf(c),
-		domain.Page{Offset: offset, Limit: cr.Limit}, h.onlyAdminAuthors())
+	cursor, err := parseViewHistoryCursor(cr.BeforeUpdatedAt, cr.BeforeID)
+	if err != nil {
+		// 半游标/坏时间戳必须显式拒掉：静默退回第一页会让前端的"加载更多"
+		// 无声地重复第一页（用户看到的是列表原地打转）。
+		res.FailWithMsg(err.Error(), c)
+		return
+	}
+
+	page, err := h.svc.ListViewHistory(c.Request.Context(), h.viewerOf(c), app.ViewHistoryQuery{
+		Keyword: cr.Keyword,
+		Before:  cursor,
+		Limit:   cr.Limit,
+	}, h.onlyAdminAuthors())
 	if err != nil {
 		h.fail(c, err)
 		return
 	}
-	list := make([]ArticleViewHistoryItem, 0, len(records))
-	for _, r := range records {
+	list := make([]ArticleViewHistoryItem, 0, len(page.Records))
+	for _, r := range page.Records {
 		list = append(list, ArticleViewHistoryItem{
 			UpdatedAt: r.ViewedAt(),
 			Title:     r.ArticleTitle(),
@@ -519,7 +535,50 @@ func (h *Handler) History(c *gin.Context) {
 			ArticleID: ctype.ID(r.ArticleID()),
 		})
 	}
-	res.OkWithHasMoreList(list, int64(offset+len(list)) < total, c)
+	res.OkWithHasMoreList(list, page.HasMore, c)
+}
+
+// parseViewHistoryCursor 把成对的游标参数解析成游标；两者都缺省表示第一页。
+//
+// 为什么成对而不是一个不透明字符串：契约里已经有 updated_at 与 article_id，
+// 前端续页直接用列表最后一条的这两个字段，不必再拿一个隐藏的 row id。
+func parseViewHistoryCursor(rawTime, rawID string) (*viewhistory.Cursor, error) {
+	if rawTime == "" && rawID == "" {
+		return nil, nil
+	}
+	if rawTime == "" || rawID == "" {
+		return nil, fmt.Errorf("游标参数不完整：before_updated_at 与 before_id 必须成对出现")
+	}
+
+	viewedAt, err := time.Parse(time.RFC3339, rawTime)
+	if err != nil {
+		return nil, fmt.Errorf("游标时间格式非法（需要 RFC3339）: %q", rawTime)
+	}
+	id, err := ctype.ParseID(rawID)
+	if err != nil || id.IsZero() {
+		return nil, fmt.Errorf("游标文章 ID 非法: %q", rawID)
+	}
+	return &viewhistory.Cursor{ViewedAt: viewedAt, ArticleID: domain.ArticleID(id)}, nil
+}
+
+// ClearHistory 清空浏览历史。
+//
+// 不可逆（软删）：前端必须二次确认。没有请求体 —— 要清的只有"当前登录用户
+// 的全部记录"，任何来自请求的参数都只会扩大误删面。
+//
+// @Summary 清空浏览历史
+// @Tags article
+// @Produce json
+// @Security BearerAuth
+// @Success 200 {object} kernel.Envelope[kernel.EmptyData]
+// @Router /articles/history/all [delete]
+func (h *Handler) ClearHistory(c *gin.Context) {
+	if err := h.svc.ClearViewHistory(c.Request.Context(), h.viewerOf(c)); err != nil {
+		h.fail(c, err)
+		return
+	}
+	h.audit(c, "view_history_clear", "", true, "清空浏览历史")
+	res.OkWithMsg("清空成功", c)
 }
 
 // RemoveHistory 删除浏览历史。

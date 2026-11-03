@@ -1,30 +1,13 @@
 import type {
   FanUserListData,
   FollowUserListData,
-  HistoryArticleListData,
   MessagePreference,
   UserSessionListData,
   UserProfileUpdatePayload,
 } from "~/types/api";
 
-/** `GET /api/articles/history`：后端只认 page / limit，`type` 曾被前端多传、静默忽略，已清理。 */
-export function getHistoryArticles(params: { page?: number; limit?: number } = {}) {
-  return useNuxtApp().$api.request<HistoryArticleListData>("/api/articles/history", {
-    query: {
-      page: params.page ?? 1,
-      limit: params.limit ?? 12,
-    },
-  });
-}
-
-export function deleteHistoryArticles(idList: string[]) {
-  return useNuxtApp().$api.request("/api/articles/history", {
-    method: "DELETE",
-    body: {
-      id_list: idList,
-    },
-  });
-}
+// 浏览历史已从创作区移出（`/history` 顶级页，见 #241）：它的服务与游标分页
+// 一起落在 `services/history.ts`，这里不再导出 get/deleteHistoryArticles。
 
 export function getFollowUsers(params: { page?: number; limit?: number }) {
   return useNuxtApp().$api.request<FollowUserListData>("/api/follow", {

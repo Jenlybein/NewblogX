@@ -966,9 +966,13 @@ export interface paths {
         get: {
             parameters: {
                 query?: {
-                    /** @description 页码 */
-                    page?: number;
-                    /** @description 每页数量 */
+                    /** @description 按文章标题模糊搜索 */
+                    keyword?: string;
+                    /** @description 游标：上一条的浏览时间（RFC3339，与 before_id 成对） */
+                    before_updated_at?: string;
+                    /** @description 游标：上一条的文章 ID（与 before_updated_at 成对） */
+                    before_id?: string;
+                    /** @description 每页数量（缺省 10，上限 100） */
                     limit?: number;
                 };
                 header?: never;
@@ -1004,6 +1008,42 @@ export interface paths {
                     "application/json": components["schemas"]["myblogx_internal_kernel.IDListRequest"];
                 };
             };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["myblogx_internal_kernel.Envelope-myblogx_internal_kernel_EmptyData"];
+                    };
+                };
+            };
+        };
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/articles/history/all": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** 清空浏览历史 */
+        delete: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
             responses: {
                 /** @description OK */
                 200: {

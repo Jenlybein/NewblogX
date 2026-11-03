@@ -177,26 +177,58 @@ func (s *Service) RecordView(ctx context.Context, articleID domain.ArticleID, vi
 	})
 }
 
-// ListViewHistory 分页列出浏览历史。
+// ListViewHistory 列出浏览历史的一页（游标分页）。
 //
 // onlyAdminAuthors 是「显示非管理员发布文章」开关的反面：浏览历史同样属于
 // 公开读面，开关关闭时作者不是管理员的记录不再出现（ADR-0017 决策 4）。
-// 与收藏内容一致，过滤下推到查询层，保证 total 与可见条目对得上。
-func (s *Service) ListViewHistory(ctx context.Context, viewer domain.Viewer, page domain.Page, onlyAdminAuthors bool) ([]*viewhistory.Record, int64, error) {
+// 与收藏内容一致，过滤下推到查询层，保证分页在**过滤之后**进行。
+//
+// 为什么不再返回 total：游标分页只答一个方向的问题（"还有没有下一页"），
+// 多取一条即可；total 反而会随 keyword / 游标无关的删除来回变，前端用不上。
+func (s *Service) ListViewHistory(ctx context.Context, viewer domain.Viewer, q ViewHistoryQuery, onlyAdminAuthors bool) (ViewHistoryPage, error) {
 	if !viewer.IsLoggedIn() {
-		return nil, 0, domain.ErrForbidden
+		return ViewHistoryPage{}, domain.ErrForbidden
 	}
-	var (
-		records []*viewhistory.Record
-		total   int64
-	)
+
+	var page ViewHistoryPage
 	err := s.tx.WithinTx(ctx, func(ctx context.Context, r Repos) error {
-		p := page.Normalize()
-		var err error
-		records, total, err = r.ViewHistory().List(ctx, viewer.UserID, p.Offset, p.Limit, onlyAdminAuthors)
-		return err
+		lq := viewhistory.ListQuery{
+			UserID:           viewer.UserID,
+			Keyword:          q.Keyword,
+			OnlyAdminAuthors: onlyAdminAuthors,
+			Before:           q.Before,
+			Limit:            q.Limit,
+		}.Normalize()
+
+		// 多取一条判断 has_more：取到 limit+1 条就是"还有下一页"，
+		// 最后一条切掉不外发（它只是探针）。
+		limit := lq.Limit
+		lq.Limit = limit + 1
+		records, err := r.ViewHistory().List(ctx, lq)
+		if err != nil {
+			return err
+		}
+		if len(records) > limit {
+			records = records[:limit]
+			page.HasMore = true
+		}
+		page.Records = records
+		return nil
 	})
-	return records, total, err
+	return page, err
+}
+
+// ClearViewHistory 清空当前用户的全部浏览历史。
+//
+// 不可逆操作（软删）：前端必须二次确认。只动 viewer 自己的行——
+// 与 RemoveViewHistory 一样，用户 ID 只来自会话，不接受请求参数。
+func (s *Service) ClearViewHistory(ctx context.Context, viewer domain.Viewer) error {
+	if !viewer.IsLoggedIn() {
+		return domain.ErrForbidden
+	}
+	return s.tx.WithinTx(ctx, func(ctx context.Context, r Repos) error {
+		return r.ViewHistory().DeleteAll(ctx, viewer.UserID)
+	})
 }
 
 // RemoveViewHistory 删除若干条浏览历史。

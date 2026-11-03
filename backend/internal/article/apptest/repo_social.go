@@ -10,7 +10,6 @@ import (
 	"myblogx/internal/article/domain/favorite"
 	"myblogx/internal/article/domain/review"
 	"myblogx/internal/article/domain/top"
-	"myblogx/internal/article/domain/viewhistory"
 )
 
 // FavoriteRepo 是 favorite.Repository 的内存实现。
@@ -488,128 +487,6 @@ func (r *TopRepo) RestoreState(s any) {
 		r.mu.Lock()
 		defer r.mu.Unlock()
 		r.entries = cp
-	}
-}
-
-// ViewHistoryRepo 是 viewhistory.Repository 的内存实现。
-type ViewHistoryRepo struct {
-	mu    sync.Mutex
-	byKey map[itemKey2]*viewhistory.Record
-	fault fault
-	count counter
-	// lastOnlyAdminAuthors 记录 List 收到的读过滤开关（见该方法注释）。
-	lastOnlyAdminAuthors bool
-}
-
-// NewViewHistoryRepo 创建空仓储。
-func NewViewHistoryRepo() *ViewHistoryRepo {
-	return &ViewHistoryRepo{byKey: make(map[itemKey2]*viewhistory.Record)}
-}
-
-// FailNext 注入一次性故障。
-func (r *ViewHistoryRepo) FailNext(method string, err error) { r.fault.FailNext(method, err) }
-
-// Calls 返回调用次数。
-func (r *ViewHistoryRepo) Calls(method string) int { return r.count.Calls(method) }
-
-// Upsert 写入或刷新浏览记录。
-func (r *ViewHistoryRepo) Upsert(_ context.Context, rec *viewhistory.Record) error {
-	r.count.inc("Upsert")
-	if err := r.fault.take("Upsert"); err != nil {
-		return err
-	}
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	key := itemKey2{rec.UserID(), rec.ArticleID()}
-	r.byKey[key] = viewhistory.NewRecord(rec.UserID(), rec.ArticleID(), rec.ViewedAt())
-	return nil
-}
-
-// List 列出浏览历史。
-//
-// 与收藏内容同理：fake 没有文章表，拿不到文章作者，所以不过滤、只记录开关；
-// 真实过滤由 MySQL 集成测试守。
-func (r *ViewHistoryRepo) List(_ context.Context, userID domain.UserID, offset, limit int, onlyAdminAuthors bool) ([]*viewhistory.Record, int64, error) {
-	r.count.inc("List")
-	if err := r.fault.take("List"); err != nil {
-		return nil, 0, err
-	}
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	r.lastOnlyAdminAuthors = onlyAdminAuthors
-	var all []*viewhistory.Record
-	for k, v := range r.byKey {
-		if k.userID == userID {
-			all = append(all, v)
-		}
-	}
-	sort.Slice(all, func(i, j int) bool { return all[i].ViewedAt().After(all[j].ViewedAt()) })
-
-	total := int64(len(all))
-	if offset > len(all) {
-		offset = len(all)
-	}
-	end := offset + limit
-	if limit <= 0 || end > len(all) {
-		end = len(all)
-	}
-	return all[offset:end], total, nil
-}
-
-// ListOnlyAdminAuthors 返回上一次 List 收到的过滤开关。
-func (r *ViewHistoryRepo) ListOnlyAdminAuthors() bool {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	return r.lastOnlyAdminAuthors
-}
-
-// Delete 删除指定记录。
-func (r *ViewHistoryRepo) Delete(_ context.Context, userID domain.UserID, articleIDs []domain.ArticleID) error {
-	r.count.inc("Delete")
-	if err := r.fault.take("Delete"); err != nil {
-		return err
-	}
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	for _, aid := range articleIDs {
-		delete(r.byKey, itemKey2{userID, aid})
-	}
-	return nil
-}
-
-// DeleteByArticle 删除某文章的全部记录。
-func (r *ViewHistoryRepo) DeleteByArticle(_ context.Context, articleID domain.ArticleID) error {
-	r.count.inc("DeleteByArticle")
-	if err := r.fault.take("DeleteByArticle"); err != nil {
-		return err
-	}
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	for k := range r.byKey {
-		if k.articleID == articleID {
-			delete(r.byKey, k)
-		}
-	}
-	return nil
-}
-
-// Snapshot 参与事务回滚。
-func (r *ViewHistoryRepo) Snapshot() any {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	cp := make(map[itemKey2]*viewhistory.Record, len(r.byKey))
-	for k, v := range r.byKey {
-		cp[k] = v
-	}
-	return cp
-}
-
-// RestoreState 覆盖回快照。
-func (r *ViewHistoryRepo) RestoreState(s any) {
-	if cp, ok := s.(map[itemKey2]*viewhistory.Record); ok {
-		r.mu.Lock()
-		defer r.mu.Unlock()
-		r.byKey = cp
 	}
 }
 

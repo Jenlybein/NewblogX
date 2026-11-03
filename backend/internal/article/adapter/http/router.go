@@ -63,6 +63,9 @@ func (h *Handler) Register(r *gin.RouterGroup, authMw, optionalMw gin.HandlerFun
 	authGroup.PUT(":id/digg", mw.BindUri[kernel.IDRequest], h.Digg)
 	authGroup.GET("history", mw.BindQuery[ArticleViewHistoryRequest], h.History)
 	authGroup.DELETE("history", mw.BindJson[kernel.IDListRequest], h.RemoveHistory)
+	// 清空历史：单独的路径而不是"id_list 为空即清空"——后者会把一个漏传/空数组的
+	// 请求变成不可逆的全量删除，误伤面太大（前端另有二次确认）。
+	authGroup.DELETE("history/all", h.ClearHistory)
 	authGroup.PUT("favorite", mw.BindJson[FavoriteRequest], h.SaveFolder)
 	authGroup.DELETE("favorite", mw.BindJson[kernel.IDListRequest], h.DeleteFolders)
 	authGroup.DELETE("favorite/contents", mw.BindJson[FavoriteRemovePatchModel], h.RemoveFavoriteItems)

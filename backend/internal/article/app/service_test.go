@@ -730,22 +730,22 @@ func TestRecordViewWritesHistoryOnlyForLoggedIn(t *testing.T) {
 	if got := repos.FakeCounters().Get(ctype.NewID(1)).View; got != 1 {
 		t.Fatalf("浏览增量应为 1，实际 %d", got)
 	}
-	records, total, err := svc.ListViewHistory(ctx, strangerViewer(), domain.Page{Limit: 10}, false)
+	records, err := svc.ListViewHistory(ctx, strangerViewer(), app.ViewHistoryQuery{Limit: 10}, false)
 	if err != nil {
 		t.Fatalf("查历史失败: %v", err)
 	}
-	if total != 0 || len(records) != 0 {
-		t.Fatalf("匿名浏览不应写历史，实际 %d 条", total)
+	if len(records.Records) != 0 {
+		t.Fatalf("匿名浏览不应写历史，实际 %d 条", len(records.Records))
 	}
 
 	if err := svc.RecordView(ctx, ctype.NewID(1), strangerViewer()); err != nil {
 		t.Fatalf("登录用户浏览失败: %v", err)
 	}
-	records, total, err = svc.ListViewHistory(ctx, strangerViewer(), domain.Page{Limit: 10}, false)
+	records, err = svc.ListViewHistory(ctx, strangerViewer(), app.ViewHistoryQuery{Limit: 10}, false)
 	if err != nil {
 		t.Fatalf("查历史失败: %v", err)
 	}
-	if total != 1 || len(records) != 1 || records[0].ArticleID().Uint64() != 1 {
-		t.Fatalf("登录用户应写入历史，实际 %d 条", total)
+	if len(records.Records) != 1 || records.Records[0].ArticleID().Uint64() != 1 {
+		t.Fatalf("登录用户应写入历史，实际 %d 条", len(records.Records))
 	}
 }

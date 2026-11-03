@@ -219,10 +219,19 @@ type ArticleHotTopOrderRequest struct {
 	ArticleIDs []ctype.ID `json:"article_ids" binding:"required"`
 }
 
-// ArticleViewHistoryRequest 浏览历史。
+// ArticleViewHistoryRequest 浏览历史（服务端标题搜索 + 游标分页）。
+//
+// 没有 page：历史页按天分组（今天 / 昨天 / 近一周 / 更早），offset 分页在
+// 删除或重复浏览把某条顶到最前之后会让下一页整体位移，分组因此跨页断开。
+//
+// 游标是 before_updated_at + before_id 两个参数，**成对出现**（两者都缺省 =
+// 第一页）；单个不透明字符串不做，因为契约里已经暴露了 updated_at 与
+// article_id，前端续页直接用列表最后一条的这两个字段即可。
 type ArticleViewHistoryRequest struct {
-	Page  int `form:"page"`
-	Limit int `form:"limit"`
+	Keyword         string `form:"keyword"`
+	BeforeUpdatedAt string `form:"before_updated_at"`
+	BeforeID        string `form:"before_id"`
+	Limit           int    `form:"limit"`
 }
 
 // ── 列表类响应 DTO ──

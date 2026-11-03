@@ -78,10 +78,10 @@ describe("分层：底图 → 底部渐黑 → 色带 → 网格刻度 → h1 �
     const photo = blockAfter(bannerVue, ".banner-photo__img {");
     expect(photo).toContain("height: 100%");
     expect(photo).toContain("width: 100%");
-    // object-fit 由取景纯函数产出（framingStyle），CSS 不再重复定义。
-    // 取景算术在 coverFraming（轮播与文章封面的取景窗共用它），bannerFraming 只做契约字段适配。
-    expect(photo).not.toContain("object-fit");
-    expect(read("app/utils/coverFraming.ts")).toContain('objectFit: "cover"');
+    // object-fit / 居中由 CSS 承担（#204 起封面不再消费取景参数，图片层没有行内样式）。
+    expect(photo).toContain("object-fit: cover");
+    expect(photo).toContain("object-position: center");
+    expect(bannerVue).not.toContain("framingStyle");
   });
 
   it("底部渐黑层只压下半，上半保持透明（不再整幅压暗盖住图片）", () => {
@@ -276,11 +276,12 @@ describe("动效：分层进场 + 视差只动 transform/opacity，reduced-motio
     expect(indexVue).toContain("motion-parallax");
     expect(indexVue).toMatch(/:style="parallaxStyle"/u);
     // 视差由首屏页编排、经 photoStyle 传给媒体层的外层容器；
-    // 取景的缩放/焦点落在内层图片上 —— 两个 transform 分属不同层（ADR-0015 决策 6）。
+    // 图片层固定居中、不带行内样式（取景退场后不再有第二个 transform，#204）。
     expect(indexVue).toContain(':photo-style="parallaxStyle"');
     expect(bannerVue).toMatch(/class="banner-photo"[\s\S]*?:style="photoStyle"/u);
-    expect(bannerVue).toMatch(/class="banner-photo__img"[\s\S]*?:style="framingStyle"/u);
-    expect(bannerVue).toContain("bannerFramingStyle");
+    expect(bannerVue).toMatch(/class="banner-photo__img"/u);
+    expect(bannerVue).not.toMatch(/class="banner-photo__img"[\s\S]{0,160}:style=/u);
+    expect(bannerVue).not.toContain("bannerFramingStyle");
   });
 
   it("首屏不自己写关键帧动画（归零由 #3 的动效预算统一负责）", () => {

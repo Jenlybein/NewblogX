@@ -1,9 +1,8 @@
 /**
  * 定形工具：给定文件 + 目标尺寸 + 输出类型 → 新 Blob。
  *
- * 「定形」是文件级改动（见 GLOSSARY 头像定形）：把任意比例的图片**居中**裁成目标比例，
- * 再降采样到目标像素尺寸，原图不参与上传。它和「取景」是两个概念——取景只决定怎么显示、
- * 不改文件；定形改的是图片文件本身。
+ * 「定形」是文件级改动：把任意比例的图片**居中**裁成目标比例，
+ * 再降采样到目标像素尺寸，原图不参与上传；显示侧不再有第二套几何。
  *
  * 为什么把画布与图像构造做成注入点：测试环境没有 canvas 实现（ADR-0016），
  * 定形又必须能在 vitest / SSR 里安全 import。所以本模块只做**纯计算 + 编排**，
@@ -93,7 +92,7 @@ export class ImageShapingError extends Error {
  */
 export const COVER_SHAPE_TARGET: ShapeImageTarget = { width: 1600, height: 900 };
 
-/** 封面的固定比例口径（与 coverFraming 的 `COVER_FRAME_RATIO` 同一个 16:9）。 */
+/** 封面的固定比例口径（16:9，与 `COVER_SHAPE_TARGET` 的 1600×900 同一比例）。 */
 export const COVER_SHAPE_RATIO_TEXT = "16:9";
 
 /** 封面产物尺寸的可读形式（界面提示与元信息都用它，免得散落魔数）。 */

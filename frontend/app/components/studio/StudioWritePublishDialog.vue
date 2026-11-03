@@ -1,10 +1,9 @@
 <script setup lang="ts">
 import { computed, ref } from "vue";
-import type { CSSProperties } from "vue";
 import { NButton, NCard, NInput, NModal, NSelect, NSwitch } from "naive-ui";
 
 import StudioCoverUploadPanel from "./StudioCoverUploadPanel.vue";
-import type { Size } from "~/utils/coverFraming";
+import type { ShapeImageTarget } from "~/utils/imageShaping";
 import { categoryTitleError, normalizeCategoryTitle } from "~/utils/studioCategory";
 
 // 发布弹窗：补全分类/标签/封面/摘要/可见性/评论开关，然后提交。
@@ -31,17 +30,13 @@ const props = defineProps<{
   aiPending: boolean;
   /** 封面上传中：提交按钮要禁用，否则会提交到没有封面的状态。 */
   coverUploading: boolean;
-  /** 封面预览（本地取景预览优先，上传成功后是线上地址）。 */
+  /** 封面预览（本地定形产物优先，上传成功后是线上地址）。 */
   coverPreviewUrl: string;
   /** 上传阶段 / 留在面板里的错误文案。 */
   coverStage: string;
   coverError: string;
   /** 选过图之后才有定形产物尺寸（回填的旧封面没有）。 */
-  coverSize: Size | null;
-  /** 取景参数是否已确认（只影响徽标与"调整取景"文案）。 */
-  coverFramed: boolean;
-  /** 面板预览的取景样式（与取景窗同一出口）。 */
-  coverPreviewStyle: CSSProperties | null;
+  coverSize: ShapeImageTarget | null;
   categoryOptions: { label: string; value: string }[];
   tagOptions: { label: string; value: string }[];
   visibilityOptions: { label: string; value: string }[];
@@ -61,8 +56,6 @@ const props = defineProps<{
   onCoverChange: (event: Event) => void;
   /** 移除已选封面。 */
   onClear: () => void;
-  /** 打开取景窗（手动取景 / 调整取景）。 */
-  onFrame: () => void;
 }>();
 
 const emit = defineEmits<{
@@ -149,11 +142,8 @@ v-model:value="tagIds" multiple clearable filterable max-tag-count="responsive"
               :stage="props.coverStage"
               :error="props.coverError"
               :size="props.coverSize"
-              :framed="props.coverFramed"
-              :preview-style="props.coverPreviewStyle"
               :on-file-change="props.onCoverChange"
-              :on-clear="props.onClear"
-              :on-frame="props.onFrame" />
+              :on-clear="props.onClear" />
           </div>
 
           <div class="publish-form__row publish-form__row--top">

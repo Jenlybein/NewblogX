@@ -93,6 +93,8 @@ const baseProps = {
   coverUploading: false,
   coverPreviewUrl: "",
   coverStage: "",
+  coverError: "",
+  coverSize: null,
   categoryOptions: [] as { label: string; value: string }[],
   tagOptions: [] as { label: string; value: string }[],
   visibilityOptions: [] as { label: string; value: string }[],

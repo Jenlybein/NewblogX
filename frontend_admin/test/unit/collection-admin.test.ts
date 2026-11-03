@@ -17,9 +17,9 @@ import type { CollectionAdminCard } from '~/types/api'
  * 断言的是**可观察的决定**：表单什么算合法、请求体里带了什么、封面回退到哪一张、
  * 展示开关如何落到列表。页面交给组件测试，这里只锁规则。
  *
- * #200 起封面上传改成"上传前定形"（与轮播、文章封面同一份实现），所以原来的
- * 16:9 闸门（`coverUploadGate` / `selectCollectionCover`）连同它的用例一起退场：
- * 定形之后每张封面都已经是 16:9，不再有"合规直传 / 不合规先取景"的分叉。
+ * #200 起封面上传改成"上传前定形"（与轮播、文章封面同一份实现），#204 起取景
+ * 窗与取景参数全量退场：定形之后每张封面都已经是 16:9，不存在"合规直传 /
+ * 不合规先取景"的分叉，也没有任何取景步骤。
  */
 
 function card(overrides: Partial<CollectionAdminCard> = {}): CollectionAdminCard {

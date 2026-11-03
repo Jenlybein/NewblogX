@@ -46,7 +46,7 @@ import {
 import { uploadImageByTask } from '~/services/image'
 import type { ProjectAdminCard, ProjectAdminItem } from '~/types/api'
 import { uploadBannerCover } from '~/utils/bannerCover'
-import type { Size } from '~/utils/framing'
+import type { ShapeImageTarget } from '~/utils/imageShaping'
 import {
   COVER_SHAPE_OPTIONS,
   COVER_SHAPE_RATIO_TEXT,
@@ -88,7 +88,7 @@ const coverPreview = ref('')
 /** 本地定形产物的预览地址：上传完成 / 换图 / 移除时释放，避免一直占着这张图的内存。 */
 const coverLocalPreview = ref('')
 /** 最近一次定形产物的像素尺寸（1600×900）；没选过就是 null。 */
-const coverSize = ref<Size | null>(null)
+const coverSize = ref<ShapeImageTarget | null>(null)
 const coverUploading = ref(false)
 const coverStage = ref('')
 const coverFileInput = ref<HTMLInputElement | null>(null)

@@ -526,7 +526,7 @@ describe("useStudioArticle · 内联新建分类", () => {
   });
 });
 
-describe("useStudioArticle · 封面：上传前定形（票 200）", () => {
+describe("useStudioArticle · 封面：上传前定形（票 200；#204 取景退场）", () => {
   it("选图后先定形再上传：上传的是定形产物，预览也是定形产物地址", async () => {
     const shapeCover = vi.fn(async () => shapedCover());
     const { api } = await harness({ shapeCover });
@@ -547,8 +547,10 @@ describe("useStudioArticle · 封面：上传前定形（票 200）", () => {
     expect(api.form.cover_image_id).toBe("img-9");
     expect(api.coverPreviewUrl.value).toBe("https://cdn.example.com/new.png");
     expect(api.coverDirty.value).toBe(true);
-    // 定形后不再强制取景：取景窗不会自己弹出来。
-    expect(api.coverFramingOpen.value).toBe(false);
+    // 取景窗已退场：composable 上没有任何取景开关或取景动作。
+    expect("coverFramingOpen" in api).toBe(false);
+    expect("openCoverFraming" in api).toBe(false);
+    expect("confirmCoverFraming" in api).toBe(false);
   });
 
   it("定形失败等同这张图不能用：不上传、不显示徽标、原因留在面板上", async () => {
@@ -579,74 +581,38 @@ describe("useStudioArticle · 封面：上传前定形（票 200）", () => {
     expect(message.warning).toHaveBeenCalledWith("请选择图片文件作为封面。");
   });
 
-  it("定形上传成功后把居中缺省取景写进载荷（清掉旧文章上可能存着的取景）", async () => {
+  it("载荷不写 crop：定形上传成功后只提交封面图片 ID（#204）", async () => {
     const { api } = await harness();
     await api.handleCoverFileChange(fileChangeEvent(imageFile()));
 
     api.buildArticlePayload(2);
 
-    // 定形产物已经是居中的 16:9：显式提交居中缺省，避免旧取景被套到新封面上。
     expect(buildPayloadMock.mock.calls.at(-1)?.[1]).toEqual({
       status: 2,
       isEditMode: false,
       coverDirty: true,
-      crop: { focus_x: 0.5, focus_y: 0.5, zoom: 1 },
     });
+    expect("crop" in (buildPayloadMock.mock.calls.at(-1)?.[1] as object)).toBe(false);
   });
 
-  it("取景窗入口仍可用：手动调过取景后载荷带调整后的参数，且不重复上传", async () => {
-    const { api, message } = await harness();
-    await api.handleCoverFileChange(fileChangeEvent(imageFile()));
-
-    await api.confirmCoverFraming({ focus_x: 0.3, focus_y: 0.4, zoom: 1.2 });
-    api.buildArticlePayload(2);
-
-    expect(api.coverFramed.value).toBe(true);
-    expect(api.coverBadge.value?.text).toBe("已定形 1600 × 900 · 已调取景");
-    // 封面已经上传过：确认取景只改参数，不再发一次上传。
-    expect(uploadImageByTaskMock).toHaveBeenCalledTimes(1);
-    expect(message.info).toHaveBeenCalledWith("取景已更新，保存文章后生效");
-    expect(buildPayloadMock.mock.calls.at(-1)?.[1]).toEqual({
-      status: 2,
-      isEditMode: false,
-      coverDirty: true,
-      crop: { focus_x: 0.3, focus_y: 0.4, zoom: 1.2 },
-    });
-  });
-
-  it("编辑态回填已有取景：预览按它渲染，但没重新确认取景时不写载荷（保留原值）", async () => {
-    // 取数在 harness() 内部就发起：fixture 必须先配好，之后再 mock 不生效。
+  it("编辑态回填：预览用线上封面地址，不写载荷、也不带任何取景样式", async () => {
     getArticleDetailMock.mockResolvedValue({
       ...articleFixture,
-      crop: { focus_x: 0.25, focus_y: 0.75, zoom: 1.5 },
+      cover: "https://cdn.example.com/old-cover.png",
     });
     const { api } = await harness({ query: { article_id: "100" } });
 
-    expect(api.coverPreviewStyle.value).toMatchObject({
-      objectFit: "cover",
-      objectPosition: "25% 75%",
-      transformOrigin: "25% 75%",
-      transform: "scale(1.5)",
-    });
+    expect(api.coverPreviewUrl.value).toBe("https://cdn.example.com/old-cover.png");
+    expect(api.coverImageSize.value).toBeNull();
+    expect(api.coverBadge.value).toBeNull();
+    expect("coverPreviewStyle" in api).toBe(false);
 
     api.buildArticlePayload(1);
     expect(buildPayloadMock.mock.calls.at(-1)?.[1]).toEqual({
       status: 1,
       isEditMode: true,
       coverDirty: false,
-      crop: null,
     });
-  });
-
-  it("关闭取景窗不会撤回已经上传的封面（双轨期取景只是可选动作）", async () => {
-    const { api, message } = await harness();
-    await api.handleCoverFileChange(fileChangeEvent(imageFile()));
-
-    api.cancelCoverFraming();
-
-    expect(api.coverFramingOpen.value).toBe(false);
-    expect(api.form.cover_image_id).toBe("img-9");
-    expect(message.info).toHaveBeenCalledWith("已关闭取景窗，封面保持不变");
   });
 
   it("上传失败把错误留在面板上，重新选择时清掉", async () => {
@@ -661,7 +627,7 @@ describe("useStudioArticle · 封面：上传前定形（票 200）", () => {
     expect(api.coverError.value).toBe("");
   });
 
-  it("回填的旧封面没有定形产物尺寸：不显示徽标，也不假装取过景", async () => {
+  it("回填的旧封面没有定形产物尺寸：不显示徽标，也不假装定过形", async () => {
     const { api } = await harness({ query: { article_id: "100" } });
     getArticleDetailMock.mockResolvedValue({ ...articleFixture });
     (api.editingArticle as { value: unknown }).value = { ...articleFixture };
@@ -670,7 +636,5 @@ describe("useStudioArticle · 封面：上传前定形（票 200）", () => {
     expect(api.coverImageSize.value).toBeNull();
     expect(api.coverShaped.value).toBe(false);
     expect(api.coverBadge.value).toBeNull();
-    expect(api.coverFramed.value).toBe(false);
   });
 });
-

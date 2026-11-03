@@ -19,7 +19,6 @@ const baseEntry: ArticleEntryData = {
   title: "Nuxt 部署笔记",
   abstract: "讲清楚 SSR 与静态生成的选择。",
   cover: "",
-  crop: null,
   dateLabel: "2026/10/01",
   categoryLabel: "工程",
   statusLabel: "",
@@ -159,34 +158,34 @@ describe("ArticleFeedItem：列表 / 搜索 / 收藏架三处同一卡片形态"
 });
 
 /**
- * 列表封面要尊重作者在创作页调好的取景。
+ * 列表封面不再消费取景参数（#204）。
  *
- * crop 随 ES 文档投影过来（`article_sync` 写、搜索接口返回），这里钉住最后一段接线：
- * 卡片把 crop 交给 ArticleCover，图片样式才会带上非居中的 object-position 与缩放。
+ * 上传时封面已定形成 16:9，读者侧固定居中；这里钉住最后一段接线：
+ * 卡片把封面原样交给 ArticleCover，图片层不带任何取景行内样式
+ * （未定形过的旧封面同样按居中兜底）。
  */
-describe("ArticleFeedItem：列表封面按取景渲染", () => {
-  function mountWithCrop(crop: { focus_x: number; focus_y: number; zoom: number } | null) {
+describe("ArticleFeedItem：列表封面固定居中", () => {
+  function mountWithCover(cover: string) {
     return mount(ArticleFeedItem, {
       props: {
-        entry: { ...baseEntry, cover: "https://cdn.example.com/a1.png", crop },
+        entry: { ...baseEntry, cover },
       },
       global: { stubs: { NuxtLink: NuxtLinkStub } },
     });
   }
 
-  it("有取景时图片带上百分比 object-position 与缩放", () => {
-    const wrapper = mountWithCrop({ focus_x: 0.5, focus_y: 0.25, zoom: 1.4 });
-    const style = wrapper.get(".feed-entry__cover img").attributes("style") ?? "";
+  it("封面交给 ArticleCover 渲染，且不附加任何取景样式", () => {
+    const wrapper = mountWithCover("https://cdn.example.com/a1.png");
+    const img = wrapper.get(".feed-entry__cover img");
 
-    expect(style).toContain("object-position: 50% 25%");
-    expect(style).toContain("scale(1.4)");
+    expect(img.attributes("src")).toBe("https://cdn.example.com/a1.png");
+    expect(img.attributes("style")).toBeUndefined();
   });
 
-  it("没有取景时退回居中、缩放 1", () => {
-    const wrapper = mountWithCrop(null);
-    const style = wrapper.get(".feed-entry__cover img").attributes("style") ?? "";
+  it("没有封面时退到空封面兜底，不渲染裸 img", () => {
+    const wrapper = mountWithCover("");
 
-    expect(style).toContain("object-position: 50% 50%");
-    expect(style).toContain("scale(1)");
+    expect(wrapper.find(".feed-entry__cover img").exists()).toBe(false);
+    expect(wrapper.find(".article-cover-default").exists()).toBe(true);
   });
 });

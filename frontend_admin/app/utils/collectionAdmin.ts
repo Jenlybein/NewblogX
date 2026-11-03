@@ -11,7 +11,7 @@ import type { CollectionCreatePayload, CollectionUpdatePayload } from '~/types/a
  *
  * 封面上传在 #200 起改为**上传前定形**（`~/utils/imageShaping` 的 `shapeForUpload`，
  * 与轮播、文章封面同一份实现），所以这里不再有"合规直传 / 不合规先取景"的闸门：
- * 定形之后每张封面都已经是 16:9。取景参数的读取路径仍由读者站保留（双轨期）。
+ * 定形之后每张封面都已经是 16:9；#204 起取景参数与取景窗也已全量退场。
  */
 
 /** 标题上限，与后端 `collection.MaxTitleLen` 同一取值。 */

@@ -77,39 +77,33 @@ describe("BannerCarousel：首屏封面媒体层（底图 + 底部渐黑 + 降�
     expect(wrapper.get(".banner-photo").classes()).not.toContain("is-failed");
   });
 
-  it("取景与视差分属两层：视差在外层容器，缩放与焦点在图片（两个 transform 不互相覆盖）", () => {
+  it("视差只挂在外层容器：图片层不带任何取景行内样式（#204）", () => {
     const wrapper = mount(BannerCarousel, {
       props: {
-        banners: [
-          { ...banners[0], crop: { focus_x: 0.3, focus_y: 0.4, zoom: 1.5 } },
-        ] as never,
+        banners: banners.slice(0, 1) as never,
         photoStyle: { transform: "translateY(6px)" },
       },
       global: { stubs: { NuxtLink: NuxtLinkStub } },
     });
 
     const parallaxLayer = wrapper.get(".banner-photo").attributes("style") ?? "";
-    const framingLayer = wrapper.get(".banner-photo__img").attributes("style") ?? "";
+    const imageLayer = wrapper.get(".banner-photo__img");
 
-    // 视差（首屏编排传进来的 photoStyle）只在外层，缩放/焦点只在图片层。
+    // 视差（首屏编排传进来的 photoStyle）只在外层；图片固定铺满、居中，不再有
+    // 焦点/缩放的行内样式（object-fit / object-position 由 CSS 承担）。
     expect(parallaxLayer).toContain("translateY(6px)");
-    expect(parallaxLayer).not.toContain("scale(1.5)");
-    expect(framingLayer).toContain("scale(1.5)");
-    expect(framingLayer).toContain("transform-origin");
-    expect(framingLayer).not.toContain("translateY(6px)");
+    expect(imageLayer.attributes("style")).toBeUndefined();
   });
 
-  it("没有取景记录的历史图：图片层走居中、缩放 1（与引入取景前一致）", () => {
+  it("历史封面（没有定形过）同样按居中兜底：图片层无行内样式、alt 语义完整", () => {
     const wrapper = mount(BannerCarousel, {
       props: { banners: banners.slice(0, 1) as never },
       global: { stubs: { NuxtLink: NuxtLinkStub } },
     });
 
-    const framingLayer = wrapper.get(".banner-photo__img").attributes("style") ?? "";
-
-    expect(framingLayer).toContain("object-fit: cover");
-    expect(framingLayer).toContain("transform-origin: 50% 50%");
-    expect(framingLayer).toContain("transform: scale(1)");
+    const image = wrapper.get(".banner-photo__img");
+    expect(image.attributes("style")).toBeUndefined();
+    expect(image.attributes("alt")).toContain("首页轮播图 1");
   });
 
   it("空轮播：降级为统一空态（不是空白/报错）", () => {

@@ -7,7 +7,7 @@
  * 封面上传在 票 200 起改为**上传前定形**：选中的图先在客户端居中裁成 16:9、
  * 降采样到 1600×900，预览的是定形产物，上传也只发这份产物——原图不进上传链路。
  * 这与轮播、文章封面共用同一个实现（`~/utils/imageShaping` 的 `shapeForUpload`）。
- * 旧封面里可能存在的取景参数不再强制填写；读取它们的老路径由读者站保留（双轨期）。
+ * 票 204 起取景参数与取景窗全量退场，封面编辑没有第二个步骤。
  *
  * 没上传封面时列表按读者的样子回退到首篇封面（`fallback_cover` 由后端算好）；
  * 两张都没有时渲染显式占位，绝不发一个空 `src` 的 img。
@@ -49,7 +49,7 @@ import {
   staleCollectionItemCount,
   staleCollectionItemIds,
 } from '~/utils/collectionItems'
-import type { Size } from '~/utils/framing'
+import type { ShapeImageTarget } from '~/utils/imageShaping'
 import {
   COVER_SHAPE_OPTIONS,
   COVER_SHAPE_RATIO_TEXT,
@@ -86,7 +86,7 @@ const coverPreview = ref('')
 /** 本地定形产物的预览地址：上传完成/换图/移除时释放，避免一直占着这张图的内存。 */
 const coverLocalPreview = ref('')
 /** 最近一次定形产物的像素尺寸（1600×900）；没选过就是 null。 */
-const coverSize = ref<Size | null>(null)
+const coverSize = ref<ShapeImageTarget | null>(null)
 const coverUploading = ref(false)
 const coverStage = ref('')
 const coverFileInput = ref<HTMLInputElement | null>(null)

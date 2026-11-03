@@ -2,6 +2,7 @@
 import { computed, reactive, ref } from "vue";
 import { NButton, NCard, NInput, NModal, NSelect, NSwitch, useMessage } from "naive-ui";
 import AppAvatar from "~/components/common/AppAvatar.vue";
+import ImageCropDialog from "~/components/studio/ImageCropDialog.vue";
 import { sendEmailCode } from "~/services/auth";
 import { uploadImageByTask } from "~/services/image";
 import { getTagOptions } from "~/services/search";
@@ -13,8 +14,17 @@ import {
   renewPasswordByEmail,
 } from "~/services/studio";
 import { getSelfUserDetail } from "~/services/user";
-import { resolveAvatarInitial, resolveAvatarUrl, shapeAvatar } from "~/utils/avatar";
-import { isImageFile } from "~/utils/imageShaping";
+import { useImageCropUpload, type ImageFramingRequest } from "~/composables/useImageCropUpload";
+import {
+  AVATAR_RATIO_TEXT,
+  AVATAR_SHAPE_OPTIONS,
+  AVATAR_SHAPE_TARGET,
+  resolveAvatarInitial,
+  resolveAvatarUrl,
+  shapeAvatar,
+  shapeAvatarWithFraming,
+} from "~/utils/avatar";
+import { isImageFile, measureImage, type ShapeFramingState } from "~/utils/imageShaping";
 
 definePageMeta({
   layout: "studio",
@@ -67,6 +77,75 @@ const avatarUploading = reactive({
 const avatarDirty = ref(false);
 const showEmailModal = ref(false);
 const showPasswordModal = ref(false);
+
+/**
+ * 裁剪窗请求（票 215）：非 null 表示头像比例不合规，等作者选区域。
+ * 这段时间没有上传、没有改 profileForm；取消就保留原头像。
+ */
+const avatarCropRequest = ref<ImageFramingRequest | null>(null);
+/** 待裁剪原图的本地预览地址（弹窗里可拖动的那张图）。 */
+const avatarCropPreviewUrl = ref("");
+
+function createPreviewUrl(blob: Blob): string {
+  try {
+    return typeof URL.createObjectURL === "function" ? URL.createObjectURL(blob) : "";
+  } catch {
+    return "";
+  }
+}
+
+function revokePreviewUrl(url: string) {
+  if (!url) return;
+  try {
+    if (typeof URL.revokeObjectURL === "function") URL.revokeObjectURL(url);
+  } catch {
+    // 已释放或环境不支持：忽略。
+  }
+}
+
+function resetAvatarCrop() {
+  const url = avatarCropPreviewUrl.value;
+  avatarCropPreviewUrl.value = "";
+  avatarCropRequest.value = null;
+  revokePreviewUrl(url);
+}
+
+/**
+ * 头像的上传顺序与封面同源（`useImageCropUpload`）：
+ * 合规 1:1 → 居中定形 256×256 PNG 直接上传；不合规 → 只打开裁剪窗。
+ */
+const avatarCropFlow = useImageCropUpload({
+  options: AVATAR_SHAPE_OPTIONS,
+  measure: (file) => measureImage(file),
+  shape: async (file, options) => {
+    const blob = options.framing
+      ? await shapeAvatarWithFraming(file, options.framing)
+      : await shapeAvatar(file);
+    return {
+      file: new File([blob], "avatar.png", { type: blob.type }),
+      previewUrl: "",
+      size: AVATAR_SHAPE_OPTIONS.target,
+    };
+  },
+  requestFraming: (request) => {
+    avatarCropRequest.value = request;
+    avatarCropPreviewUrl.value = createPreviewUrl(request.file);
+    avatarUploading.stage = `图片比例不符合 ${AVATAR_RATIO_TEXT}，请选择要露出的区域`;
+  },
+  upload: async (shaped) => {
+    const uploadResult = await uploadImageByTask(shaped.file, {
+      onStage: mapAvatarUploadStage,
+    });
+    if (!uploadResult.image_id || !uploadResult.url) {
+      throw new Error("上传成功但缺少图片标识");
+    }
+    profileForm.avatar = uploadResult.url;
+    profileForm.avatar_image_id = uploadResult.image_id;
+    avatarDirty.value = true;
+    avatarUploading.stage = "头像上传完成";
+    message.success("头像上传成功");
+  },
+});
 
 watch(
   () => profile.value,
@@ -244,6 +323,11 @@ function mapAvatarUploadStage(stage: "hashing" | "creating_task" | "uploading_to
   avatarUploading.stage = stageMap[stage];
 }
 
+/**
+ * 选完头像后（票 215）：量原图尺寸 → 判 1:1 比例。
+ * 相差 ≤1% → 自动居中定形成 256×256 PNG 并上传；相差 >1% → 只打开裁剪窗，
+ * 不产出文件、不上传；取消即保留原头像。
+ */
 async function handleAvatarFileChange(event: Event) {
   const input = event.target as HTMLInputElement;
   const file = input.files?.[0];
@@ -257,24 +341,11 @@ async function handleAvatarFileChange(event: Event) {
     return;
   }
 
+  resetAvatarCrop();
   avatarUploading.pending = true;
-  avatarUploading.stage = "正在定形头像…";
+  avatarUploading.stage = "正在检查图片比例…";
   try {
-    // 头像定形：先在客户端居中裁成 1:1、降到 256×256、输出 PNG；
-    // 原图不进入上传链路（GLOSSARY「头像定形」）。
-    const shaped = await shapeAvatar(file);
-    const shapedFile = new File([shaped], "avatar.png", { type: shaped.type });
-    const uploadResult = await uploadImageByTask(shapedFile, {
-      onStage: mapAvatarUploadStage,
-    });
-    if (!uploadResult.image_id || !uploadResult.url) {
-      throw new Error("上传成功但缺少图片标识");
-    }
-    profileForm.avatar = uploadResult.url;
-    profileForm.avatar_image_id = uploadResult.image_id;
-    avatarDirty.value = true;
-    avatarUploading.stage = "头像上传完成";
-    message.success("头像上传成功");
+    await avatarCropFlow.select(file);
   } catch (error) {
     avatarUploading.stage = "";
     message.error(error instanceof Error ? error.message : "头像上传失败");
@@ -282,6 +353,34 @@ async function handleAvatarFileChange(event: Event) {
     avatarUploading.pending = false;
     input.value = "";
   }
+}
+
+/** 裁剪窗确认：按选定区域定形成新的 256×256 PNG 再上传（不存裁剪参数）。 */
+async function confirmAvatarCrop(framing: ShapeFramingState) {
+  const request = avatarCropRequest.value;
+  if (!request) {
+    return;
+  }
+  resetAvatarCrop();
+  avatarUploading.pending = true;
+  avatarUploading.stage = "正在按选定区域定形头像…";
+  try {
+    await avatarCropFlow.confirm(request, framing);
+  } catch (error) {
+    avatarUploading.stage = "";
+    message.error(error instanceof Error ? error.message : "头像上传失败");
+  } finally {
+    avatarUploading.pending = false;
+    if (avatarFileInputRef.value) {
+      avatarFileInputRef.value.value = "";
+    }
+  }
+}
+
+/** 裁剪窗取消：中止本次上传；原头像（profileForm.avatar / avatar_image_id）保持不变。 */
+function cancelAvatarCrop() {
+  resetAvatarCrop();
+  avatarUploading.stage = "已取消本次上传，保留原头像";
 }
 
 async function sendBindCode() {
@@ -550,5 +649,16 @@ useSeoMeta({
         </div>
       </div>
     </NModal>
+
+    <ImageCropDialog
+      :show="avatarCropRequest !== null"
+      :src="avatarCropPreviewUrl"
+      :image-width="avatarCropRequest?.width ?? 0"
+      :image-height="avatarCropRequest?.height ?? 0"
+      :target="AVATAR_SHAPE_TARGET"
+      :ratio-text="AVATAR_RATIO_TEXT"
+      title="裁剪头像（固定 1:1）"
+      @confirm="confirmAvatarCrop"
+      @cancel="cancelAvatarCrop" />
   </div>
 </template>

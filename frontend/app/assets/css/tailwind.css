@@ -1316,10 +1316,6 @@
     color: var(--color-ink-muted);
   }
 
-  .message-center__chat {
-    @apply min-w-0;
-  }
-
   /* <1024px：左导航改为顶部横向 tab（可横向滚动），内容单列。 */
   @media (max-width: 1023px) {
     .message-center__layout {
@@ -1339,6 +1335,12 @@
 
   .studio-chat-main {
     @apply flex flex-col;
+  }
+
+  /* 窄屏二选一的「返回会话列表」：宽屏是双栏，按钮不该出现（第 240 票）。
+   * 可见性由 @media (max-width: 1024px) 打开。 */
+  .studio-chat-back {
+    display: none;
   }
 
   .studio-chat-session {
@@ -1420,6 +1422,21 @@
     .studio-layout,
     .studio-inbox-grid {
       @apply grid-cols-1;
+    }
+
+    /* 私信子项（第 240 票）：<1024px 列表与聊天窗**二选一** —— 选中会话看聊天窗，
+     * 返回按钮回列表。哪一栏可见由面板的 is-narrow-list / is-narrow-chat 决定，
+     * 宽屏这两个类不生效（双栏常显）。 */
+    .studio-inbox-grid.is-narrow-list .studio-inbox-grid__main,
+    .studio-inbox-grid.is-narrow-chat .studio-inbox-grid__aside {
+      display: none;
+    }
+
+    .studio-chat-back {
+      @apply mb-3 inline-flex items-center gap-1 self-start rounded-control border px-3 py-2 text-sm;
+      border-color: var(--color-line);
+      color: var(--color-ink-muted);
+      cursor: pointer;
     }
 
     .studio-sidebar {

@@ -2,20 +2,23 @@
 import { computed } from "vue";
 import { useMessage } from "naive-ui";
 
+import InboxChatView from "~/components/inbox/InboxChatView.vue";
 import InboxMessageList from "~/components/inbox/InboxMessageList.vue";
 import InboxSubNav from "~/components/inbox/InboxSubNav.vue";
-import StudioEmptyState from "~/components/studio/StudioEmptyState.vue";
 import { useMessageCenter } from "~/composables/useMessageCenter";
 import { messageCenterNavItems, resolveMessageCenterTab } from "~/utils/messageCenter";
 
 /**
- * 消息中心顶级页（第 239 票）：`/messages/{comments,digg,system,global,chat}`。
+ * 消息中心顶级页（第 239 票起）：`/messages/{comments,digg,system,global,chat}`。
  *
  * 路由边界：`ssr: false`（私人数据、不索引），由 `shared/readerRenderingBoundary.ts`
  * 的 `/messages/**` 派生；`auth` 中间件保证未登录先登录。
  *
- * 本票只落骨架：左子项导航 + 站内/全局消息列表（批量动作与滚动加载）。
- * 私信子项保留路由与容器，会话列表 / 聊天窗由 第 240 票 接入。
+ * 本页只做"左子项导航 + 右内容"的骨架与容器：
+ *   - 评论 / 互动 / 系统 / 全局走 `useMessageCenter` 的列表（第 239 票）；
+ *   - 私信子项的右内容是「会话列表 + 聊天窗」，由 `InboxChatView` 复用既有的
+ *     `InboxChatPanel` 与 `useInboxCenter`（第 240 票）。拆成子组件是为了**只有私信
+ *     子项**才拉起会话取数、WS 订阅与草稿解析。
  */
 definePageMeta({
   middleware: ["auth", "messages-tab"],
@@ -99,8 +102,11 @@ useSeoMeta({
     <div class="message-center__layout">
       <InboxSubNav :items="navItems" :active-tab="activeTab" />
 
+      <!-- 私信子项：右内容 = 会话列表 + 聊天窗（宽屏双栏、<1024px 二选一）。 -->
+      <InboxChatView v-if="activeTab === 'chat'" />
+
       <InboxMessageList
-        v-if="activeTab !== 'chat'"
+        v-else
         :items="items"
         :pending="pending"
         :has-more="hasMore"
@@ -112,11 +118,6 @@ useSeoMeta({
         @remove="handleRemove($event)"
         @load-more="loadMore()"
       />
-
-      <!-- 私信子项：本票只保留容器与路由，会话列表 / 聊天窗由 第 240 票 接入。 -->
-      <section v-else class="message-center__chat surface-card">
-        <StudioEmptyState title="私信" description="会话列表与聊天窗会在这里展开。" />
-      </section>
     </div>
   </div>
 </template>

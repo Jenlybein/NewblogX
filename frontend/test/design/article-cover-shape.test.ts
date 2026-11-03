@@ -53,6 +53,92 @@ describe("封面组件：列表与详情共用的 16:9 底座", () => {
   });
 });
 
+/**
+ * 封面兜底退场（#210）：缺封面 = 父容器底色的 16:9 空白。
+ *
+ * 「没有封面」第一次被当成"没有内容"而不是"一种内容"：NO COVER 文案与围绕它的
+ * 装饰（网格纹理、光斑、品牌小签）整套退场，空占位不进无障碍树。
+ * 采样的是组件标签与样式块本身——形状已由上面锁住，这里锁"空白里什么都没有"。
+ */
+describe("封面兜底退场：空占位里没有文字、没有装饰", () => {
+  /** 组件里空占位的那个开标签（属性顺序无关，只看它带了什么）。 */
+  function placeholderTag(): string {
+    const match = /<div[^>]*class="article-cover-default"[^>]*>/u.exec(articleCover);
+    expect(match, "找不到 .article-cover-default 的开标签").not.toBeNull();
+    return match![0];
+  }
+
+  it("NO COVER 文案与「暂无封面」朗读串都已退场", () => {
+    expect(articleCover).not.toMatch(/NO COVER/u);
+    expect(articleCover).not.toMatch(/暂无封面/u);
+  });
+
+  it("围绕它的装饰（网格纹理 / 光斑 / 品牌小签）连样式一起删除", () => {
+    expect(articleCover).not.toMatch(/article-cover-default__(?:grid|orb|content)/u);
+    expect(articleCover).not.toMatch(/background-image|mask-image/u);
+  });
+
+  it("空占位与父容器同底色：background transparent，不画渐变也不留圆角框", () => {
+    // 兜底规则在文件末尾单独成块（前一次出现是它与图片共享的 16:9 底座）。
+    const block = blockAfter(articleCover, ".article-cover-default {", true);
+
+    expect(block).toContain("background: transparent");
+    expect(block).not.toMatch(/gradient/u);
+    expect(block).not.toMatch(/border-radius/u);
+  });
+
+  it("空占位对辅助技术隐藏：aria-hidden，且不包 role / aria-label", () => {
+    const tag = placeholderTag();
+
+    expect(tag).toContain('aria-hidden="true"');
+    expect(tag).not.toMatch(/\brole=/u);
+    expect(tag).not.toMatch(/aria-label/u);
+  });
+});
+
+/**
+ * 五处消费点同一口径（#210）：首页卡片 / 合集列表与详情 / 项目列表与详情 / 收藏 / 历史，
+ * 封面只把 src 交给共用组件，不再给"没有封面"配任何文案或装饰；
+ * 文章详情页首屏无封面时干脆不渲染图区，正文直接从标题开始。
+ */
+describe("五处消费点同一口径：无封面不再是一种内容", () => {
+  const consumers = [
+    "app/components/home/HomeFeedSection.vue",
+    "app/pages/collections/index.vue",
+    "app/pages/collections/[id].vue",
+    "app/pages/projects/index.vue",
+    "app/pages/projects/[id].vue",
+    "app/pages/studio/favorites.vue",
+    "app/pages/studio/history.vue",
+  ];
+
+  function readConsumer(relativePath: string): string {
+    return readFileSync(join(projectDir, relativePath), "utf8");
+  }
+
+  it.each(consumers)("%s 不自己画兜底、不给封面传文案参数", (relativePath) => {
+    const source = readConsumer(relativePath);
+
+    expect(source).not.toMatch(/NO COVER|暂无封面/u);
+    expect(source).not.toMatch(/article-cover-default/u);
+    // 品牌小签的 `label` 接线一并拆除：组件不再接受它，消费点也不再传。
+    expect(source).not.toMatch(/<ArticleCover[^>]*\blabel=/u);
+  });
+
+  it("收藏页不再自带兜底样式（空封面只在共用组件里有一份实现）", () => {
+    expect(readConsumer("app/pages/studio/favorites.vue")).not.toContain("favorite-content-card__cover-empty");
+  });
+
+  it("文章详情页无封面时不渲染图区：封面 section 由 article.cover 门控", () => {
+    const detailPage = readConsumer("app/pages/article/[id].vue");
+
+    expect(detailPage).toMatch(/<section v-if="article\?\.cover"/u);
+    expect(detailPage).toContain('class="article-cover"');
+    // 详情页不消费列表兜底：没有封面就没有任何图区（不是一块占位）。
+    expect(detailPage).not.toContain("article-cover-default");
+  });
+});
+
 describe("文章详情页封面：16:9 且高度不随视口变化", () => {
   const detailPage = readFileSync(join(projectDir, "app/pages/article/[id].vue"), "utf8");
 

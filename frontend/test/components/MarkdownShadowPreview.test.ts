@@ -96,7 +96,7 @@ describe("MarkdownShadowPreview", () => {
     expect(style?.textContent).toContain("markdown 主题（JellyBin 自有）");
     expect(style?.textContent).toContain(".markdown-body pre");
     expect(style?.textContent).toContain("var(--color-ink)");
-    // 正文节奏按参考主题重做后是 16px / 1.85（#211），不再引用 --type-leading-prose。
+    // 正文行高在票 211 改为版式常量 1.85（语义 token 里没有 1.85，见 markdownTheme.ts 注释）。
     expect(style?.textContent).toContain("line-height: 1.85");
   });
 

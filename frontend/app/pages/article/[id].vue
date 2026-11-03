@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import type { ArticleHeadingAnchor } from "~/composables/useArticleMarkdown";
 import { computed, defineAsyncComponent, onMounted, onUnmounted, ref, shallowRef } from "vue";
-import { IconEye, IconHeart, IconMessageCircle2, IconShare2, IconThumbUp } from "@tabler/icons-vue";
+import { IconEye, IconHeart, IconMessageCircle2, IconPencil, IconShare2, IconThumbUp } from "@tabler/icons-vue";
 import { useMessage } from "naive-ui";
 import ArticlePageSkeleton from "~/components/article/ArticlePageSkeleton.vue";
 import ArticleScoreModal from "~/components/article/ArticleScoreModal.vue";
@@ -12,6 +12,7 @@ import CommentThread from "~/components/comment/CommentThread.vue";
 import FavoriteFolderModal from "~/components/favorite/FavoriteFolderModal.vue";
 import { useArticleDigg } from "~/composables/useArticleDigg";
 import { useArticlePageSources } from "~/composables/useArticlePageSources";
+import { useArticleWritePolicy } from "~/composables/useArticleWritePolicy";
 import { useParallax } from "~/composables/useParallax";
 import { useReadingProgress } from "~/composables/useReadingProgress";
 import { useSectionReveal } from "~/composables/useSectionReveal";
@@ -20,6 +21,7 @@ import { ApiBusinessError } from "~/services/http/errors";
 import { markArticleViewed, toggleArticleDigg } from "~/services/article";
 import { createComment, diggComment, getReplyComments } from "~/services/comment";
 import type { CommentReplyItem } from "~/types/api";
+import { resolveArticleEditEntry } from "~/utils/articleEdit";
 import { formatCount, formatDateTimeLabel } from "~/utils/format";
 import { getAuthorButtonLabel, isFollowing } from "~/utils/relation";
 import { resolveAvatarInitial } from "~/utils/avatar";
@@ -146,6 +148,17 @@ const { activeHeadingId, progressPercent } = useReadingProgress(
 const authorInitial = computed(() => resolveAvatarInitial(article.value?.author_name, "A"));
 const authorRelationText = computed(() => getAuthorButtonLabel(authorProfile.value?.relation));
 const isSelfAuthor = computed(() => authStore.profileId != null && String(authStore.profileId) === authorId.value);
+// 「编辑」入口（票 213 / 决定清单 C4）：只给作者本人，且与页头「创作」共用同一个
+// 站点发布开关（`entryVisible`）。判定收在纯函数里（`utils/articleEdit.ts`），
+// 页面只负责把两个既有信号喂给它 —— 别人 / 游客 / 未登录都拿不到入口。
+const { entryVisible: writeEntryVisible } = useArticleWritePolicy();
+const articleEditEntry = computed(() =>
+  resolveArticleEditEntry({
+    articleId: articleId.value,
+    isSelfAuthor: isSelfAuthor.value,
+    writeEntryVisible: writeEntryVisible.value,
+  }),
+);
 const articleScoreButtonLabel = computed(() => {
   if (articleScoreSummaryPending.value) {
     return "文章质量总分：读取中";
@@ -511,6 +524,20 @@ useSeoMeta({
             <div class="article-meta__item">
               <dt><IconMessageCircle2 :size="16" /><span class="sr-only">评论数</span></dt>
               <dd>{{ formatCount(article?.comment_count || 0) }}</dd>
+            </div>
+            <!-- 「编辑」入口（票 213）：仅作者本人 + 站点允许发布时出现，附在元信息行尾。
+                 其余五项仍是同一组 dt/dd，不改它们的顺序与折行；样式沿用既有
+                 .article-action 家族（紧凑档），不给这一行引入第二套按钮语言。 -->
+            <div v-if="articleEditEntry" class="article-meta__item article-meta__item--edit">
+              <dt><IconPencil :size="16" aria-hidden="true" /></dt>
+              <dd>
+                <NuxtLink
+                  :to="articleEditEntry.href"
+                  class="article-action article-action--compact"
+                  :aria-label="articleEditEntry.ariaLabel"
+                  :title="articleEditEntry.ariaLabel"
+                >编辑</NuxtLink>
+              </dd>
             </div>
           </dl>
         </div>

@@ -188,4 +188,16 @@ describe("ArticleFeedItem：列表封面固定居中", () => {
     expect(wrapper.find(".feed-entry__cover img").exists()).toBe(false);
     expect(wrapper.find(".article-cover-default").exists()).toBe(true);
   });
+
+  it("没有封面时封面槽只留空白：无文字、无装饰，且对辅助技术隐藏（#210）", () => {
+    const wrapper = mountWithCover("");
+
+    // 隐藏的是占位本身，不是链接：封面槽仍是「打开文章」的可点区域。
+    const slot = wrapper.get(".feed-entry__cover");
+    expect(slot.text()).toBe("");
+    expect(slot.attributes("aria-label")).toBe("打开文章：Nuxt 部署笔记");
+
+    const placeholder = slot.get(".article-cover-default");
+    expect(placeholder.attributes("aria-hidden")).toBe("true");
+  });
 });

@@ -150,11 +150,12 @@ describe("原先直接消费原始色相的组件改走语义层", () => {
     expect(source).not.toMatch(/--jelly-/u);
   });
 
-  it("封面兜底是中性格石渐变 + 反白字（没有蓝色渐变、没有未定义 token）", () => {
+  it("封面兜底已退场：不再有石墨渐变与反白字，缺封面只留父容器底色的空白（#210）", () => {
     const source = read("app/components/article/ArticleCover.vue");
 
-    expect(source).toContain("var(--color-surface-inverse)");
-    expect(source).toContain("var(--color-on-inverse)");
+    // 纯色块不消费任何颜色：渐变、反白字、旧克莱因蓝 token 都不该随空占位回来。
+    expect(source).not.toMatch(/linear-gradient|radial-gradient/u);
+    expect(source).not.toMatch(/--color-surface-inverse|--color-on-inverse/u);
     expect(source).not.toMatch(/--jelly-/u);
     expect(source).not.toMatch(/--color-on-strong-(?:soft|line)/u);
   });

@@ -73,7 +73,7 @@ useSeoMeta({
             class="article-history-card__cover"
             :aria-label="`查看《${item.title}》`"
           >
-            <ArticleCover :src="item.cover" :title="item.title" label="History" />
+            <ArticleCover :src="item.cover" :title="item.title" />
           </NuxtLink>
 
           <button

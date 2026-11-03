@@ -9,7 +9,7 @@ import { createApp, nextTick, computed as vueComputed, reactive as vueReactive, 
  * 同形的桩（输入 / 开关 / 按钮仍是真的原生元素），浮层只渲染开关状态。
  */
 
-const { messageMock, dialogMock, adminApi, uploadMock, shapeMock } = vi.hoisted(() => ({
+const { messageMock, dialogMock, adminApi, uploadMock, shapeMock, measureMock } = vi.hoisted(() => ({
   messageMock: { success: vi.fn(), error: vi.fn(), warning: vi.fn(), info: vi.fn() },
   dialogMock: { warning: vi.fn() },
   adminApi: {
@@ -21,6 +21,8 @@ const { messageMock, dialogMock, adminApi, uploadMock, shapeMock } = vi.hoisted(
   },
   uploadMock: vi.fn(),
   shapeMock: vi.fn(),
+  /** 量原图尺寸（#215）：默认 16:9 → 合规、不弹裁剪窗。 */
+  measureMock: vi.fn(),
 }))
 
 vi.mock('~/services/admin', () => adminApi)
@@ -30,7 +32,7 @@ vi.mock('~/services/image', () => ({ uploadImageByTask: uploadMock }))
 // 定形参数（COVER_SHAPE_OPTIONS）保持真实实现：测的正是"页面确实拿它去定形"。
 vi.mock('~/utils/imageShaping', async (importOriginal) => {
   const actual = await importOriginal<typeof import('~/utils/imageShaping')>()
-  return { ...actual, shapeForUpload: shapeMock }
+  return { ...actual, shapeForUpload: shapeMock, measureImage: measureMock }
 })
 
 vi.mock('naive-ui', async () => {
@@ -214,6 +216,8 @@ beforeEach(() => {
   adminApi.deleteCollection.mockResolvedValue(undefined)
   adminApi.setCollectionDisplay.mockResolvedValue(undefined)
   uploadMock.mockResolvedValue({ image_id: '7', url: 'https://cdn.example.com/uploaded.png' })
+  measureMock.mockReset()
+  measureMock.mockResolvedValue({ width: 1920, height: 1080 })
   // 定形产物：16:9、1600×900 的新文件 + 它的本地预览地址。
   shapeMock.mockImplementation(async () => ({
     file: new File(['shaped'], 'cover.jpg', { type: 'image/jpeg' }),
@@ -336,6 +340,7 @@ describe('合集管理页：封面定形（#200）', () => {
     await pickCover(host, original)
 
     await vi.waitFor(() => expect(uploadMock).toHaveBeenCalledTimes(1))
+    await vi.waitFor(() => expect(host.textContent).toContain('封面上传完成，点击保存'))
     // 定形拿到的是用户选的原图，上传拿到的是定形产物——两者不是同一个文件。
     expect(shapeMock).toHaveBeenCalledWith(original, expect.objectContaining({ target: { width: 1600, height: 900 } }))
     const uploadedFile = (uploadMock.mock.calls[0] as [File])[0]
@@ -363,7 +368,7 @@ describe('合集管理页：封面定形（#200）', () => {
     await pickCover(host, coverFile())
 
     await vi.waitFor(() => expect(uploadMock).toHaveBeenCalledTimes(1))
-    expect(revoke).toHaveBeenCalledWith('blob:shaped')
+    await vi.waitFor(() => expect(revoke).toHaveBeenCalledWith('blob:shaped'))
     Object.assign(URL, { revokeObjectURL: originalRevoke })
   })
 
@@ -376,6 +381,74 @@ describe('合集管理页：封面定形（#200）', () => {
     expect(uploadMock).not.toHaveBeenCalled()
 
     await setTitle(host, '定形失败的合集')
+    submitButton(host).click()
+    await vi.waitFor(() => expect(adminApi.createCollection).toHaveBeenCalledTimes(1))
+    expect(adminApi.createCollection).toHaveBeenCalledWith(expect.objectContaining({ cover: '' }))
+  })
+})
+
+describe('合集管理页：裁剪窗（#215）', () => {
+  const nonCompliant = { width: 1000, height: 1000 }
+
+  function cropFrame(host: HTMLElement): HTMLElement | null {
+    return host.querySelector('[data-role="crop-frame"]')
+  }
+
+  it('比例不合规（>1%）时只弹裁剪窗：不定形、不上传、现有封面不动', async () => {
+    measureMock.mockResolvedValue(nonCompliant)
+    const host = await mountPage()
+    const original = coverFile()
+    await pickCover(host, original)
+
+    await vi.waitFor(() => expect(cropFrame(host)).not.toBeNull())
+    expect(measureMock).toHaveBeenCalledWith(original)
+    expect(shapeMock).not.toHaveBeenCalled()
+    expect(uploadMock).not.toHaveBeenCalled()
+    expect(host.textContent).toContain('图片比例不符合')
+    expect(host.textContent).toContain('16:9')
+  })
+
+  it('确认裁剪：按选区定形成新文件再上传，并关掉裁剪窗', async () => {
+    measureMock.mockResolvedValue(nonCompliant)
+    const host = await mountPage()
+    const original = coverFile()
+    await pickCover(host, original)
+    await vi.waitFor(() => expect(cropFrame(host)).not.toBeNull())
+
+    const confirm = host.querySelector('[aria-label="确认裁剪"]') as HTMLButtonElement | null
+    expect(confirm).not.toBeNull()
+    ;(confirm as HTMLButtonElement).click()
+
+    await vi.waitFor(() => expect(uploadMock).toHaveBeenCalledTimes(1))
+    // 定形拿到的是原图 + 选区（形状由确认动作带进定形参数）。
+    expect(shapeMock).toHaveBeenCalledWith(
+      original,
+      expect.objectContaining({
+        target: { width: 1600, height: 900 },
+        framing: expect.objectContaining({ zoom: 1 }),
+      }),
+    )
+    expect(uploadMock.mock.calls[0]?.[0]).not.toBe(original)
+    await vi.waitFor(() => expect(cropFrame(host)).toBeNull())
+  })
+
+  it('取消裁剪：中止本次上传，现有封面保持为空，不产生任何记录', async () => {
+    measureMock.mockResolvedValue(nonCompliant)
+    const host = await mountPage()
+    await pickCover(host, coverFile())
+    await vi.waitFor(() => expect(cropFrame(host)).not.toBeNull())
+
+    const cancel = host.querySelector('[aria-label="取消裁剪"]') as HTMLButtonElement | null
+    expect(cancel).not.toBeNull()
+    ;(cancel as HTMLButtonElement).click()
+
+    await vi.waitFor(() => expect(cropFrame(host)).toBeNull())
+    expect(shapeMock).not.toHaveBeenCalled()
+    expect(uploadMock).not.toHaveBeenCalled()
+    expect(host.textContent).toContain('已取消本次上传')
+
+    // 提交时封面上传地址仍是空串：这次选图当作没发生。
+    await setTitle(host, '取消裁剪后的合集')
     submitButton(host).click()
     await vi.waitFor(() => expect(adminApi.createCollection).toHaveBeenCalledTimes(1))
     expect(adminApi.createCollection).toHaveBeenCalledWith(expect.objectContaining({ cover: '' }))

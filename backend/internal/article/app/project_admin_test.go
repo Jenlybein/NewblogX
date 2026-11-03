@@ -9,6 +9,7 @@ import (
 	"myblogx/internal/article/app"
 	"myblogx/internal/article/apptest"
 	"myblogx/internal/article/domain"
+	"myblogx/internal/article/domain/outline"
 	"myblogx/internal/article/domain/project"
 	"myblogx/internal/kernel/ctype"
 )
@@ -384,19 +385,12 @@ func TestRemoveProjectArticleCompactsOrder(t *testing.T) {
 		t.Fatalf("移除收录失败: %v", err)
 	}
 
-	detail, err := svc.ProjectDetail(context.Background(), id, false)
+	ids, err := repos.FakeProjects().ListItemIDs(context.Background(), id)
 	if err != nil {
-		t.Fatalf("读项目详情失败: %v", err)
+		t.Fatalf("读收录失败: %v", err)
 	}
-	if len(detail.Articles) != 2 {
-		t.Fatalf("移除后应剩 2 篇，实际 %d", len(detail.Articles))
-	}
-	if detail.Articles[0].SortOrder != 1 || detail.Articles[1].SortOrder != 2 {
-		t.Fatalf("序号应压实为 1,2，实际 %d,%d",
-			detail.Articles[0].SortOrder, detail.Articles[1].SortOrder)
-	}
-	if detail.Articles[0].ArticleID != a1 || detail.Articles[1].ArticleID != a3 {
-		t.Fatalf("移除后剩余顺序不对: %v / %v", detail.Articles[0].ArticleID, detail.Articles[1].ArticleID)
+	if len(ids) != 2 || ids[0] != project.ArticleID(a1) || ids[1] != project.ArticleID(a3) {
+		t.Fatalf("移除后剩余顺序不对: %v", ids)
 	}
 
 	// 幂等 + 权限。
@@ -464,22 +458,12 @@ func TestReplaceProjectArticleOrder(t *testing.T) {
 	includeProjectArticle(t, svc, id, a1)
 	includeProjectArticle(t, svc, id, a2)
 	includeProjectArticle(t, svc, id, a3)
+	seedReaderArticleNodes(t, repos, outline.OwnerProject, outline.ID(id),
+		ctype.ID(a1), ctype.ID(a2), ctype.ID(a3))
 
 	if err := svc.ReplaceProjectArticleOrder(context.Background(), adminViewer(), id,
 		[]project.ArticleID{project.ArticleID(a3), project.ArticleID(a1), project.ArticleID(a2)}); err != nil {
 		t.Fatalf("项目内换序失败: %v", err)
-	}
-
-	detail, err := svc.ProjectDetail(context.Background(), id, false)
-	if err != nil {
-		t.Fatalf("读项目详情失败: %v", err)
-	}
-	wantIDs := []domain.ArticleID{a3, a1, a2}
-	for i, want := range wantIDs {
-		if detail.Articles[i].ArticleID != want || detail.Articles[i].SortOrder != i+1 {
-			t.Fatalf("第 %d 篇应为 (%s, %d)，实际 (%s, %d)", i+1, want, i+1,
-				detail.Articles[i].ArticleID, detail.Articles[i].SortOrder)
-		}
 	}
 
 	// 集合不一致（漏一篇）整单拒绝，顺序不动。

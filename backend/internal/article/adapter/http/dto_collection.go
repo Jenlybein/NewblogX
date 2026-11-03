@@ -92,28 +92,19 @@ type CollectionCardResponse struct {
 	CreatedAt    time.Time `json:"created_at"`
 }
 
-// CollectionDetailResponse 是读者站合集详情（合集 + 按顺序排列的文章）。
-type CollectionDetailResponse struct {
-	ID          ctype.ID                        `json:"id"`
-	Title       string                          `json:"title"`
-	Description string                          `json:"description"`
-	Cover       string                          `json:"cover"`
-	CreatedAt   time.Time                       `json:"created_at"`
-	Articles    []CollectionArticleItemResponse `json:"articles"`
-}
-
-// CollectionArticleItemResponse 是合集详情里的一篇文章。
+// CollectionDetailResponse 是读者站合集详情（合集 + 嵌套目录树）。
 //
-// SortOrder 是"我在系列里的位置"：读者要能看出从哪篇开始读。
-type CollectionArticleItemResponse struct {
-	ArticleID      ctype.ID `json:"article_id"`
-	SortOrder      int      `json:"sort_order"`
-	Title          string   `json:"title"`
-	Abstract       string   `json:"abstract"`
-	Cover          string   `json:"cover"`
-	ViewCount      int      `json:"view_count"`
-	AuthorNickname string   `json:"author_nickname"`
-	CategoryTitle  string   `json:"category_title"`
+// #219 契约破坏性变更：扁平 articles[] 退役，outline 复用 #217 的
+// OutlineTreeResponse 形状。读者侧树只含公开文章节点，空文件夹保留；
+// article_count 只数公开文章，cover 为显式封面或 DFS 第一篇公开文章的封面。
+type CollectionDetailResponse struct {
+	ID           ctype.ID            `json:"id"`
+	Title        string              `json:"title"`
+	Description  string              `json:"description"`
+	Cover        string              `json:"cover"`
+	CreatedAt    time.Time           `json:"created_at"`
+	Outline      OutlineTreeResponse `json:"outline"`
+	ArticleCount int                 `json:"article_count"`
 }
 
 // CollectionAdminCard 是后台合集列表的一行（含未展示的合集）。

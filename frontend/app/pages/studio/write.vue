@@ -4,6 +4,7 @@ import { computed, reactive, ref, watch } from "vue";
 import { useDebounce } from "@vueuse/core";
 import { useMessage } from "naive-ui";
 import ArticleScoreModal from "~/components/article/ArticleScoreModal.vue";
+import ImageCropDialog from "~/components/studio/ImageCropDialog.vue";
 import StudioAiAssistPanel from "~/components/studio/StudioAiAssistPanel.vue";
 import StudioSelectionAiToolbar from "~/components/studio/StudioSelectionAiToolbar.vue";
 import StudioWritePreview from "~/components/studio/StudioWritePreview.vue";
@@ -20,6 +21,7 @@ import { updateArticle } from "~/services/article";
 import type { getArticleScoreDetail } from "~/services/ai";
 import { regenerateArticleScore } from "~/services/ai";
 import { resolveAvatarInitial } from "~/utils/avatar";
+import { COVER_SHAPE_RATIO_TEXT, COVER_SHAPE_TARGET } from "~/utils/imageShaping";
 import { DRAFT_DISABLED_NOTICE } from "~/utils/writePolicy";
 
 import katexCssUrl from "katex/dist/katex.min.css?url";
@@ -80,6 +82,10 @@ const {
   coverImageSize,
   clearCoverSelection,
   handleCoverFileChange,
+  coverCropRequest,
+  coverCropPreviewUrl,
+  confirmCoverCrop,
+  cancelCoverCrop,
   buildArticlePayload,
   canSubmit,
   contentStats,
@@ -396,6 +402,17 @@ ref="editorTextareaRef" v-model="form.content" class="write-page__textarea"
       :on-clear="clearCoverSelection"
       @submit="submitArticle"
       @ai-fill="handleAiAssist" />
+
+    <ImageCropDialog
+      :show="coverCropRequest !== null"
+      :src="coverCropPreviewUrl"
+      :image-width="coverCropRequest?.width ?? 0"
+      :image-height="coverCropRequest?.height ?? 0"
+      :target="COVER_SHAPE_TARGET"
+      :ratio-text="COVER_SHAPE_RATIO_TEXT"
+      title="裁剪文章封面（固定 16:9）"
+      @confirm="confirmCoverCrop"
+      @cancel="cancelCoverCrop" />
   </div>
 </template>
 

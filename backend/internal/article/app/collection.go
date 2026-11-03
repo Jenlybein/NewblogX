@@ -290,12 +290,13 @@ func (s *Service) ListCollectionCards(
 	return cards, total, err
 }
 
-// CollectionDetail 返回合集详情（含按顺序排列的文章），读者侧公开读。
+// CollectionDetail 返回合集详情（嵌套目录树），读者侧公开读。
 //
 // 未展示的合集对读者按**不存在**处理（不返回"这个合集未发布"——那能用来探测
 // 还没公布的专题）；管理员仍能打开，后台编辑要用。
 //
-// 收录里的失效行（文章被删/变私有）由仓储 JOIN 过滤掉，不靠前端判断。
+// 读者树只从目录表组装：失效文章节点（文章被删/变私有）在这里过滤掉，
+// 空文件夹保留；封面为空时回退到深度优先第一篇公开文章的封面。
 func (s *Service) CollectionDetail(
 	ctx context.Context, id collection.ID, viewer domain.Viewer, onlyAdminAuthors bool,
 ) (*collection.Detail, error) {
@@ -308,11 +309,17 @@ func (s *Service) CollectionDetail(
 		if !c.Displayed() && !viewer.IsAdmin() {
 			return collection.ErrNotFound
 		}
-		articles, err := r.Collections().ListIncludedArticles(ctx, id, onlyAdminAuthors)
+		ownerKind, ownerID := collectionReaderOutlineOwner(id)
+		tree, err := s.readerOutline(ctx, r, ownerKind, ownerID, onlyAdminAuthors, c.Cover())
 		if err != nil {
 			return err
 		}
-		detail = &collection.Detail{Collection: c, Articles: articles}
+		detail = &collection.Detail{
+			Collection:   c,
+			Tree:         tree.Tree,
+			ArticleCount: tree.ArticleCount,
+			Cover:        tree.Cover,
+		}
 		return nil
 	})
 	return detail, err

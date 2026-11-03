@@ -16,6 +16,7 @@ import (
 
 	"myblogx/internal/apperr"
 	"myblogx/internal/article/domain"
+	"myblogx/internal/article/domain/outline"
 	"myblogx/internal/kernel/ctype"
 )
 
@@ -317,7 +318,12 @@ func (i AdminItem) StaleReason() domain.StaleReason { return i.Article.StaleReas
 // 一旦分叉（比如详情页少过滤一次失效行），入口就会多一张死链卡片。
 type Detail struct {
 	Collection *Collection
-	Articles   []IncludedArticle
+	// Tree 是读者看到的嵌套目录树（只含公开文章节点，文件夹保留）。
+	Tree []outline.ViewNode
+	// ArticleCount 篇数只数公开文章节点。
+	ArticleCount int
+	// Cover 是最终生效封面（显式封面优先，空则 DFS 第一篇公开文章的封面）。
+	Cover string
 }
 
 // CheckOrder 校验"合集内全量顺序替换"的输入。

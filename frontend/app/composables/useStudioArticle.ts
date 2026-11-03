@@ -7,10 +7,14 @@ import { buildStudioArticlePayload } from "~/utils/studioArticlePayload";
 import { uploadImageByTask } from "~/services/image";
 import { getCategoryOptions, getTagOptions, createCategory } from "~/services/search";
 import { useAuthStore } from "~/stores/auth";
+import { useImageCropUpload, type ImageFramingRequest } from "~/composables/useImageCropUpload";
 import {
   isImageFile,
+  measureImage,
   shapeForUpload,
   COVER_SHAPE_OPTIONS,
+  COVER_SHAPE_RATIO_TEXT,
+  type ShapeFramingState,
   type ShapedUploadFile,
   type ShapeImageTarget,
 } from "~/utils/imageShaping";
@@ -54,13 +58,22 @@ export type PendingState = {
 };
 
 /**
- * 上传前定形器（可注入）：默认走 `shapeForUpload` + 封面的固定参数（16:9、1600×900）。
+ * 上传前定形器（可注入）：默认把选中的图定形成目标比例（16:9 / 1600×900）。
+ * `framing` 存在时按作者在裁剪窗里选定的区域取景（票 215），缺省为自动居中。
  * 单元测试注入替身即可驱动"定形成功 / 定形失败"两条路径，不需要真实画布（ADR-0016）。
  */
-export type CoverShaper = (file: File) => Promise<ShapedUploadFile>;
+export type CoverShaper = (file: File, framing?: ShapeFramingState) => Promise<ShapedUploadFile>;
 
-function defaultShapeCover(file: File): Promise<ShapedUploadFile> {
-  return shapeForUpload(file, COVER_SHAPE_OPTIONS);
+/** 量原图尺寸（比例判定用）；默认走浏览器解码，可注入替身。 */
+export type CoverMeasurer = (file: File) => Promise<ShapeImageTarget>;
+
+function defaultShapeCover(file: File, framing?: ShapeFramingState): Promise<ShapedUploadFile> {
+  const options = framing ? { ...COVER_SHAPE_OPTIONS, framing } : COVER_SHAPE_OPTIONS;
+  return shapeForUpload(file, options);
+}
+
+function defaultMeasureCover(file: File): Promise<ShapeImageTarget> {
+  return measureImage(file);
 }
 
 export type StudioArticleDeps = {
@@ -71,10 +84,12 @@ export type StudioArticleDeps = {
   /** 预览区上报的标题锚点（目录与统计要用）。 */
   previewHeadings: Ref<ArticleHeadingAnchor[]>;
   /**
-   * 上传前定形（可选注入）：默认把选中的图居中定形成 16:9（1600×900）。
+   * 上传前定形（可选注入）：默认把选中的图定形成 16:9（1600×900）。
    * 原图不进入上传链路，页面只上传定形产物。
    */
   shapeCover?: CoverShaper;
+  /** 量原图尺寸（可选注入）：默认浏览器解码；比例合规才不弹裁剪窗。 */
+  measureCover?: CoverMeasurer;
 };
 
 /**
@@ -85,7 +100,13 @@ export type StudioArticleDeps = {
  * "有没有 articleId"这一个派生结果。
  */
 export async function useStudioArticle(deps: StudioArticleDeps) {
-  const { pendingState, message, previewHeadings, shapeCover = defaultShapeCover } = deps;
+  const {
+    pendingState,
+    message,
+    previewHeadings,
+    shapeCover = defaultShapeCover,
+    measureCover = defaultMeasureCover,
+  } = deps;
   const route = useRoute();
   const authStore = useAuthStore();
 
@@ -118,6 +139,65 @@ export async function useStudioArticle(deps: StudioArticleDeps) {
   const coverLocalPreviewUrl = ref("");
 
   const coverDirty = ref(false);
+
+  /**
+   * 裁剪窗请求（票 215）：非 null 表示"图片比例不合规，等作者选区域"。
+   * 这期间没有定形产物、没有上传，现有封面（form.cover_image_id / coverPreviewUrl）保持不变。
+   */
+  const coverCropRequest = ref<ImageFramingRequest | null>(null);
+  /** 待裁剪原图的本地预览地址（弹窗里可拖动的那张图）；关闭/确认后释放。 */
+  const coverCropPreviewUrl = ref("");
+
+  /** 本地预览地址：环境没有 object URL 时留空，不抛给页面。 */
+  function createPreviewUrl(blob: Blob): string {
+    try {
+      return typeof URL.createObjectURL === "function" ? URL.createObjectURL(blob) : "";
+    } catch {
+      return "";
+    }
+  }
+
+  function revokePreviewUrl(url: string) {
+    if (!url) return;
+    try {
+      if (typeof URL.revokeObjectURL === "function") URL.revokeObjectURL(url);
+    } catch {
+      // 已经释放过或环境不支持：忽略。
+    }
+  }
+
+  /** 关掉裁剪窗并释放原图预览（确认/取消/换图/切文章都要走这里）。 */
+  function resetCoverCrop() {
+    const url = coverCropPreviewUrl.value;
+    coverCropPreviewUrl.value = "";
+    coverCropRequest.value = null;
+    revokePreviewUrl(url);
+  }
+
+  /**
+   * 封面选图后的唯一顺序（票 215）：量尺寸 → 合规直接定形上传；不合规只打开裁剪窗。
+   * 五个入口共用这一份编排（`useImageCropUpload`），页面不再各写一段。
+   */
+  const coverCropFlow = useImageCropUpload({
+    options: COVER_SHAPE_OPTIONS,
+    measure: (file) => measureCover(file),
+    shape: (file, options) =>
+      options.framing ? shapeCover(file, options.framing) : shapeCover(file),
+    requestFraming: (request) => {
+      coverCropRequest.value = request;
+      coverCropPreviewUrl.value = createPreviewUrl(request.file);
+      coverError.value = "";
+      coverUploadStage.value = `图片比例不符合 ${COVER_SHAPE_RATIO_TEXT}，请选择要露出的区域`;
+    },
+    upload: async (shaped) => {
+      // 预览与上传都只认定形产物（合规定形或裁剪确认后的产物）。
+      coverPendingFile.value = shaped.file;
+      coverImageSize.value = shaped.size;
+      coverLocalPreviewUrl.value = shaped.previewUrl;
+      coverUploadStage.value = `已定形成 ${shaped.size.width} × ${shaped.size.height}，正在上传封面…`;
+      await uploadSelectedCover(shaped.file);
+    },
+  });
 
   /** 选过图（拿到了定形产物）才显示徽标；回填的旧封面没有尺寸，不显示。 */
   const coverShaped = computed(() => coverImageSize.value !== null);
@@ -304,10 +384,12 @@ export async function useStudioArticle(deps: StudioArticleDeps) {
     clearLocalCoverPreview();
     coverPendingFile.value = null;
     coverImageSize.value = null;
+    resetCoverCrop();
   }
 
   function openCoverFilePicker() {
-    if (pendingState.cover) {
+    // 裁剪窗开着时不再开第二个文件框（一次只处理一张图）。
+    if (pendingState.cover || coverCropRequest.value) {
       return;
     }
     coverFileInputRef.value?.click();
@@ -374,13 +456,14 @@ export async function useStudioArticle(deps: StudioArticleDeps) {
   }
 
   /**
-   * 选完封面文件后：先在客户端定形，再上传定形产物（票 200）。
+   * 选完封面文件后（票 215）：量原图尺寸 → 判比例。
    *
-   * 与后台轮播、合集封面上传走同一个实现（`~/utils/imageShaping` 的 `shapeForUpload`）：
-   * 居中裁成 16:9、降采样到 1600×900，产出新文件。定形产物先落到预览上
-   * （作者看到的就是即将上传的那张图），再进入既有上传链路——原图不上传。
-   * 定形失败等同"这张图不能用"：没有图片、没有预览、没有文章封面。
-   * #204 起封面没有取景步骤：定形完就直接上传，读者侧固定居中。
+   * 与后台轮播、合集、项目封面上传走同一个顺序（`useImageCropUpload`）：
+   *   - 与 16:9 相差 ≤1% → 自动居中定形成 1600×900，直接上传，不弹窗；
+   *   - 相差 >1% → 只把原图交给裁剪窗，**不产出文件、不上传**，等作者确认或取消。
+   *
+   * 定形产物先落到预览上（作者看到的就是即将上传的那张图），再进入既有上传链路——
+   * 原图永远不上传。取消裁剪等同取消本次上传：不留半成品封面。
    */
   async function handleCoverFileChange(event: Event) {
     const input = event.target as HTMLInputElement;
@@ -396,30 +479,58 @@ export async function useStudioArticle(deps: StudioArticleDeps) {
     }
 
     coverError.value = "";
-    coverUploadStage.value = "";
+    coverUploadStage.value = "正在检查图片比例…";
     resetCoverPickerState();
-    coverUploadStage.value = "正在定形成 16:9 封面…";
 
-    let shaped: ShapedUploadFile;
     try {
-      shaped = await shapeCover(file);
+      await coverCropFlow.select(file);
     } catch (error) {
       coverUploadStage.value = "";
       const text = error instanceof Error ? error.message : "封面定形失败，请换一张图片";
       coverError.value = text;
       message.warning(text);
+    } finally {
       input.value = "";
+    }
+  }
+
+  /**
+   * 裁剪窗确认：按作者选定的区域定形成**新文件**（仍是 1600×900 JPEG），再上传。
+   * 原图不进入上传链路；裁剪参数不落任何记录。
+   */
+  async function confirmCoverCrop(framing: ShapeFramingState) {
+    const request = coverCropRequest.value;
+    if (!request) {
       return;
     }
+    resetCoverCrop();
+    coverError.value = "";
+    coverUploadStage.value = `正在按选定区域定形成 ${COVER_SHAPE_RATIO_TEXT} 封面…`;
+    try {
+      await coverCropFlow.confirm(request, framing);
+    } catch (error) {
+      coverUploadStage.value = "";
+      const text = error instanceof Error ? error.message : "封面定形失败，请换一张图片";
+      coverError.value = text;
+      message.warning(text);
+    } finally {
+      if (coverFileInputRef.value) {
+        coverFileInputRef.value.value = "";
+      }
+    }
+  }
 
-    // 预览与上传都只认定形产物。
-    coverPendingFile.value = shaped.file;
-    coverImageSize.value = shaped.size;
-    coverLocalPreviewUrl.value = shaped.previewUrl;
-    coverUploadStage.value = `已定形成 ${shaped.size.width} × ${shaped.size.height}，正在上传封面…`;
-
-    await uploadSelectedCover(shaped.file);
-    input.value = "";
+  /**
+   * 裁剪窗取消：中止本次上传。现有封面（图片 ID 与线上地址）一律不动，
+   * 也不产生任何记录——用户可以把这次选图当作没发生。
+   */
+  function cancelCoverCrop() {
+    resetCoverCrop();
+    coverUploadStage.value = "已取消本次上传，保留现有封面";
+    coverError.value = "";
+    if (coverFileInputRef.value) {
+      coverFileInputRef.value.value = "";
+    }
   }
 
 
@@ -454,6 +565,11 @@ export async function useStudioArticle(deps: StudioArticleDeps) {
     clearCoverSelection,
     mapCoverUploadStage,
     handleCoverFileChange,
+    // 裁剪窗（票 215）：比例不合规时才出现；取消＝中止本次上传
+    coverCropRequest,
+    coverCropPreviewUrl,
+    confirmCoverCrop,
+    cancelCoverCrop,
     buildArticlePayload,
     // 派生
     canSubmit,

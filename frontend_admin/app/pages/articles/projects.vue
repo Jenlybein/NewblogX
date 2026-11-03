@@ -39,14 +39,16 @@ import {
   updateProject,
 } from '~/services/admin'
 import { uploadImageByTask } from '~/services/image'
+import ImageCropDialog from '~/components/media/ImageCropDialog.vue'
+import { useImageCropUpload, type ImageFramingRequest } from '~/composables/useImageCropUpload'
 import type { ProjectAdminCard } from '~/types/api'
 import { uploadBannerCover } from '~/utils/bannerCover'
-import type { ShapeImageTarget } from '~/utils/imageShaping'
+import type { ShapeFramingState, ShapeImageTarget } from '~/utils/imageShaping'
 import {
   COVER_SHAPE_OPTIONS,
   COVER_SHAPE_RATIO_TEXT,
   COVER_SHAPE_SIZE_TEXT,
-  shapeForUpload,
+  COVER_SHAPE_TARGET,
 } from '~/utils/imageShaping'
 import {
   applyProjectDisplayResult,
@@ -83,6 +85,55 @@ const coverUploading = ref(false)
 const coverStage = ref('')
 const coverFileInput = ref<HTMLInputElement | null>(null)
 
+/**
+ * 裁剪窗请求（票 215）：非 null 表示项目封面比例不合规，等管理员选区域。
+ * 这期间没有定形产物、没有上传；取消就保留现有封面（form.cover 原样不动）。
+ */
+const coverCropRequest = ref<ImageFramingRequest | null>(null)
+/** 待裁剪原图的本地预览地址。 */
+const coverCropPreviewUrl = ref('')
+
+function createPreviewUrl(blob: Blob): string {
+  try {
+    return typeof URL.createObjectURL === 'function' ? URL.createObjectURL(blob) : ''
+  } catch {
+    return ''
+  }
+}
+
+function resetCoverCrop() {
+  const url = coverCropPreviewUrl.value
+  coverCropPreviewUrl.value = ''
+  coverCropRequest.value = null
+  revokePreviewUrl(url)
+}
+
+/**
+ * 项目封面的上传顺序与其余四个入口同源（`useImageCropUpload`）：
+ * 与 16:9 相差 ≤1% → 自动居中定形 1600×900 后直接上传；
+ * 相差 >1% → 只打开裁剪窗，不产出文件、不上传；取消即保留现有封面。
+ */
+const coverCropFlow = useImageCropUpload({
+  options: COVER_SHAPE_OPTIONS,
+  requestFraming: (request) => {
+    coverCropRequest.value = request
+    coverCropPreviewUrl.value = createPreviewUrl(request.file)
+    coverStage.value = `图片比例不符合 ${COVER_SHAPE_RATIO_TEXT}，请选择要露出的区域`
+  },
+  upload: async (shaped) => {
+    coverSize.value = shaped.size
+    coverLocalPreview.value = shaped.previewUrl
+    coverPreview.value = shaped.previewUrl || coverPreview.value
+    coverStage.value = `已定形成 ${COVER_SHAPE_SIZE_TEXT}（${COVER_SHAPE_RATIO_TEXT}），正在上传封面…`
+    const uploaded = await uploadBannerCover(shaped.file, f =>
+      uploadImageByTask(f, { onStage: mapUploadStage }),
+    )
+    form.cover = uploaded.url
+    coverPreview.value = uploaded.url
+    clearLocalCoverPreview()
+    coverStage.value = '封面上传完成，点击保存'
+  },
+})
 function renderCover(row: ProjectAdminCard) {
   const view = resolveProjectCover(row.cover, row.fallback_cover)
   if (!view) {
@@ -259,6 +310,7 @@ function removeCover() {
   coverPreview.value = ''
   coverSize.value = null
   coverStage.value = ''
+  resetCoverCrop()
   clearLocalCoverPreview()
 }
 
@@ -296,30 +348,40 @@ async function onCoverFileChange(event: Event) {
 
   clearLocalCoverPreview()
   coverSize.value = null
-  coverStage.value = '正在定形成 16:9 封面…'
+  resetCoverCrop()
+  coverStage.value = '正在检查图片比例…'
   coverUploading.value = true
   try {
-    // 上传前定形（票 200）：居中裁成 16:9、降采样到 1600×900，产出新文件。
-    // 预览用定形产物（运营看到的就是即将上传的那张图），原图不进入上传链路。
-    const shaped = await shapeForUpload(file, COVER_SHAPE_OPTIONS)
-    coverSize.value = shaped.size
-    coverLocalPreview.value = shaped.previewUrl
-    coverPreview.value = shaped.previewUrl || coverPreview.value
-
-    coverStage.value = `已定形成 ${COVER_SHAPE_SIZE_TEXT}（${COVER_SHAPE_RATIO_TEXT}），正在上传封面…`
-    const uploaded = await uploadBannerCover(shaped.file, f =>
-      uploadImageByTask(f, { onStage: mapUploadStage }),
-    )
-    form.cover = uploaded.url
-    coverPreview.value = uploaded.url
-    clearLocalCoverPreview()
-    coverStage.value = '封面上传完成，点击保存'
+    await coverCropFlow.select(file)
   } catch (error) {
     coverStage.value = '封面上传失败，可重新选择图片'
     message.error(error instanceof Error ? `封面上传失败：${error.message}` : '封面上传失败，请稍后重试')
   } finally {
     coverUploading.value = false
   }
+}
+
+/** 裁剪窗确认：按选定区域定形成 1600×900 新文件，再走既有上传链路。 */
+async function confirmCoverCrop(framing: ShapeFramingState) {
+  const request = coverCropRequest.value
+  if (!request) return
+  resetCoverCrop()
+  coverStage.value = `正在按选定区域定形成 ${COVER_SHAPE_RATIO_TEXT} 封面…`
+  coverUploading.value = true
+  try {
+    await coverCropFlow.confirm(request, framing)
+  } catch (error) {
+    coverStage.value = '封面上传失败，可重新选择图片'
+    message.error(error instanceof Error ? `封面上传失败：${error.message}` : '封面上传失败，请稍后重试')
+  } finally {
+    coverUploading.value = false
+  }
+}
+
+/** 裁剪窗取消：中止本次上传，现有封面（form.cover）保持不变。 */
+function cancelCoverCrop() {
+  resetCoverCrop()
+  coverStage.value = '已取消本次上传，保留现有封面'
 }
 
 onMounted(refresh)
@@ -440,5 +502,16 @@ onMounted(refresh)
         :bordered="false"
         :row-key="(row: ProjectAdminCard) => row.id" />
     </NCard>
+
+    <ImageCropDialog
+      :show="coverCropRequest !== null"
+      :src="coverCropPreviewUrl"
+      :image-width="coverCropRequest?.width ?? 0"
+      :image-height="coverCropRequest?.height ?? 0"
+      :target="COVER_SHAPE_TARGET"
+      :ratio-text="COVER_SHAPE_RATIO_TEXT"
+      title="裁剪项目封面（固定 16:9）"
+      @confirm="confirmCoverCrop"
+      @cancel="cancelCoverCrop" />
   </NSpace>
 </template>

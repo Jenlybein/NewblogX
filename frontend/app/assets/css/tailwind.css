@@ -827,24 +827,57 @@
   }
 
   .comment__actions {
-    @apply mt-3 flex flex-wrap items-center gap-4 text-sm text-ink-muted;
+    @apply mt-3 flex flex-wrap items-center gap-2 text-sm text-ink-muted;
   }
 
-  .comment__count {
-    @apply text-sm text-ink-muted;
-  }
-
+  /* 点赞 / 回复是图标按钮（票 238 范围 4）：图标 + 短文案/数字，控件尺寸不小于
+     32px，键盘焦点环沿用全站的 --color-focus（与 .comment-page-button 同一套）。 */
   .comment-action {
-    @apply text-sm text-ink-muted underline-offset-4 transition-colors;
+    @apply inline-flex min-h-[32px] items-center gap-1 rounded-control px-1.5 text-sm text-ink-muted transition-colors;
   }
 
   .comment-action:hover {
+    background-color: var(--color-bg-subtle);
     color: var(--color-ink);
   }
 
   .comment-action:focus-visible {
     outline: 2px solid var(--color-focus);
     outline-offset: 2px;
+  }
+
+  /* 已赞态用最深的墨色字（实心图标与它配套）：功能蓝在读者站只做文字链接与
+     焦点环（ADR-0012 / test/design/reader-flip.test.ts），不做"已激活"字色。 */
+  .comment-action--active {
+    @apply text-ink;
+  }
+
+  /* 等宽数字：点赞数从 9 变 10 时图标不会左右抖。 */
+  .comment-action__count {
+    @apply text-xs tabular-nums;
+  }
+
+  /* 「展开 N 条回复」胶囊（票 238 范围 5）：浅底 + 主题色文字 + chevron。 */
+  .comment-capsule {
+    @apply inline-flex min-h-[32px] items-center gap-1.5 rounded-pill border border-line-faint bg-subtle px-3 text-xs font-semibold text-link transition-colors;
+  }
+
+  .comment-capsule:hover {
+    border-color: var(--color-line-strong);
+  }
+
+  .comment-capsule:focus-visible {
+    outline: 2px solid var(--color-focus);
+    outline-offset: 2px;
+  }
+
+  /* 展开时 chevron 翻转；只动 transform（动效预算内，减少动态时下面统一归零）。 */
+  .comment-capsule__chevron {
+    transition: transform var(--motion-fast) var(--motion-ease);
+  }
+
+  .comment-capsule--expanded .comment-capsule__chevron {
+    transform: rotate(180deg);
   }
 
   .comment__replies {

@@ -1,5 +1,11 @@
 <script setup lang="ts">
 import { ref } from "vue";
+import {
+  IconArrowBackUp,
+  IconChevronDown,
+  IconThumbUp,
+  IconThumbUpFilled,
+} from "@tabler/icons-vue";
 import AppAvatar from "~/components/common/AppAvatar.vue";
 import type { CommentReplyItem, CommentRootItem } from "~/types/api";
 import { formatDateTimeLabel } from "~/utils/format";
@@ -53,18 +59,40 @@ function toggleReplies(rootId: string) {
         <p class="comment__content">{{ comment.content }}</p>
 
         <div class="comment__actions">
-          <button type="button" class="comment-action" @click="emit('digg', comment.id, comment.is_digg)">
-            {{ comment.is_digg ? "取消点赞" : "点赞" }} {{ comment.digg_count }}
+          <!-- 点赞是图标版（票 238 范围 4）：实心/空心两态 + 数字；无障碍名靠 aria-label
+               （可见内容只剩数字，光靠它读屏读不出"点赞"）。 -->
+          <button
+            type="button"
+            class="comment-action comment-action--digg"
+            :class="{ 'comment-action--active': comment.is_digg }"
+            :aria-pressed="Boolean(comment.is_digg)"
+            :aria-label="comment.is_digg ? '取消点赞' : '点赞'"
+            @click="emit('digg', comment.id, Boolean(comment.is_digg))"
+          >
+            <IconThumbUpFilled v-if="comment.is_digg" :size="16" aria-hidden="true" />
+            <IconThumbUp v-else :size="16" aria-hidden="true" />
+            <span class="comment-action__count">{{ comment.digg_count }}</span>
           </button>
-          <button type="button" class="comment-action" @click="emit('reply', comment.id)">回复</button>
+          <button
+            type="button"
+            class="comment-action comment-action--reply"
+            aria-label="回复"
+            @click="emit('reply', comment.id)"
+          >
+            <IconArrowBackUp :size="16" aria-hidden="true" />
+            <span>回复</span>
+          </button>
+          <!-- 「展开 N 条回复」是胶囊按钮（票 238 范围 5）：浅底 + 主题色文字 + chevron。 -->
           <button
             v-if="comment.reply_count > 0"
             type="button"
-            class="comment-action"
+            class="comment-capsule"
+            :class="{ 'comment-capsule--expanded': expanded[comment.id] }"
             :aria-expanded="Boolean(expanded[comment.id])"
             @click="toggleReplies(comment.id)"
           >
-            {{ expanded[comment.id] ? "收起回复" : `展开 ${comment.reply_count} 条回复` }}
+            <span>{{ expanded[comment.id] ? "收起回复" : `展开 ${comment.reply_count} 条回复` }}</span>
+            <IconChevronDown :size="14" class="comment-capsule__chevron" aria-hidden="true" />
           </button>
         </div>
 
@@ -87,8 +115,30 @@ function toggleReplies(rootId: string) {
             <div class="comment__body">
               <p class="comment__content">{{ reply.content }}</p>
               <div class="comment__actions">
-                <span class="comment__count">点赞 {{ reply.digg_count }}</span>
-                <button type="button" class="comment-action" @click="emit('reply', comment.id)">回复</button>
+                <!-- 子评论点赞（票 238 范围 1）：后端 `POST /comments/{id}/digg` 不区分层级，
+                     曾经这里只是纯文本，所以二级点赞根本点不了。
+                     回复（票 238 范围 2）传的是**被回复的这条**的 id，不是根评论 id。 -->
+                <button
+                  type="button"
+                  class="comment-action comment-action--digg"
+                  :class="{ 'comment-action--active': reply.is_digg }"
+                  :aria-pressed="Boolean(reply.is_digg)"
+                  :aria-label="reply.is_digg ? '取消点赞' : '点赞'"
+                  @click="emit('digg', reply.id, Boolean(reply.is_digg))"
+                >
+                  <IconThumbUpFilled v-if="reply.is_digg" :size="15" aria-hidden="true" />
+                  <IconThumbUp v-else :size="15" aria-hidden="true" />
+                  <span class="comment-action__count">{{ reply.digg_count }}</span>
+                </button>
+                <button
+                  type="button"
+                  class="comment-action comment-action--reply"
+                  aria-label="回复"
+                  @click="emit('reply', reply.id)"
+                >
+                  <IconArrowBackUp :size="15" aria-hidden="true" />
+                  <span>回复</span>
+                </button>
               </div>
             </div>
           </div>

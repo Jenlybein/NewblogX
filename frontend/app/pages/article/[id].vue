@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import type { ArticleHeadingAnchor } from "~/composables/useArticleMarkdown";
-import { computed, defineAsyncComponent, onMounted, onUnmounted, ref, shallowRef } from "vue";
+import { computed, defineAsyncComponent, onMounted, onUnmounted, ref } from "vue";
 import { IconEye, IconHeart, IconMessageCircle2, IconPencil, IconShare2, IconThumbUp } from "@tabler/icons-vue";
 import { useMessage } from "naive-ui";
 import ArticlePageSkeleton from "~/components/article/ArticlePageSkeleton.vue";
@@ -12,17 +12,19 @@ import CommentComposer from "~/components/comment/CommentComposer.vue";
 import CommentThread from "~/components/comment/CommentThread.vue";
 import FavoriteFolderModal from "~/components/favorite/FavoriteFolderModal.vue";
 import { useArticleDigg } from "~/composables/useArticleDigg";
+import { useArticleComments } from "~/composables/useArticleComments";
 import { useArticleOutlineContext } from "~/composables/useArticleOutlineContext";
 import { useArticlePageSources } from "~/composables/useArticlePageSources";
 import { useArticleWritePolicy } from "~/composables/useArticleWritePolicy";
 import { useParallax } from "~/composables/useParallax";
+import { useReaderLoginGate } from "~/composables/useReaderLoginGate";
 import { useReadingProgress } from "~/composables/useReadingProgress";
 import { useSectionReveal } from "~/composables/useSectionReveal";
 import { followUser, unfollowUser } from "~/services/follow";
 import { ApiBusinessError } from "~/services/http/errors";
 import { markArticleViewed, setArticleDigg } from "~/services/article";
 import { createComment, diggComment, getReplyComments } from "~/services/comment";
-import type { ArticleFavoriteResult, CommentReplyItem } from "~/types/api";
+import type { ArticleFavoriteResult } from "~/types/api";
 import { resolveArticleEditEntry } from "~/utils/articleEdit";
 import { formatCount, formatDateTimeLabel } from "~/utils/format";
 import { getAuthorButtonLabel, isFollowing } from "~/utils/relation";
@@ -45,7 +47,6 @@ const shadowPreviewRef = ref<{
 } | null>(null);
 const articleHeadings = ref<ArticleHeadingAnchor[]>([]);
 
-const REPLY_COMMENT_PAGE_SIZE = 3;
 const ARTICLE_LIKE_DEBOUNCE_MS = 600;
 const favoriteModalOpen = ref(false);
 const articleScoreModalOpen = ref(false);
@@ -106,53 +107,41 @@ const authorId = computed(() => article.value?.author_id || "");
 // 切页时（还没有正文）先出骨架；重试（正文已在）不闪骨架。
 const articleSkeleton = computed(() => articlePending.value && !article.value);
 
-interface ReplyPagePayload {
-  items: CommentReplyItem[];
-  hasMore: boolean;
-}
+// 互动统一登录前置（票 238 范围 7）：分享 / 收藏 / 关注 / 评论提交都先问登录态，
+// 未登录只弹登录框、不打接口 —— 否则请求层的 markPossiblyExpired() 会把用户的
+// 登录态打成失效。
+const requireLogin = useReaderLoginGate();
+// 点「回复」后由 composable 回调这里：滚动到评论框并聚焦（票 238 范围 3）。
+const composerRef = ref<{ focusInput: () => void } | null>(null);
 
-interface ReplyPagerState {
-  currentPage: number;
-  pages: Record<number, ReplyPagePayload>;
-  pending: boolean;
-  replyCount: number;
-}
-
-const replyStates = shallowRef<Record<string, ReplyPagerState>>({});
-const replyTarget = ref<{ id: string; nickname: string } | null>(null);
-
-function ensureReplyState(rootId: string) {
-  const current = replyStates.value[rootId];
-  if (current) {
-    return current;
-  }
-
-  const nextState: ReplyPagerState = {
-    currentPage: 1,
-    pages: {},
-    pending: false,
-    replyCount: 0,
-  };
-
-  replyStates.value = {
-    ...replyStates.value,
-    [rootId]: nextState,
-  };
-
-  return nextState;
-}
-
-function resetReplyState(rootId: string) {
-  const current = ensureReplyState(rootId);
-  current.currentPage = 1;
-  current.pages = {};
-  current.pending = false;
-  current.replyCount = 0;
-  replyStates.value = {
-    ...replyStates.value,
-    [rootId]: current,
-  };
-}
+// 评论区状态机（票 238）：回复分页、回复目标、点赞/提交的统一入口。
+// 页面只负责接线与模板渲染，逻辑与登录前置都在 composable 里（可单测）。
+const {
+  comments,
+  replyTarget,
+  clearReplyTarget,
+  replyLoading,
+  replyPages,
+  replyHasPrevious,
+  replyHasNext,
+  replyLoadedPages,
+  handleReply,
+  handleCommentDigg,
+  handleCreateComment,
+  handleLoadReplies,
+  handleNextReplies,
+  handlePreviousReplies,
+} = useArticleComments({
+  articleId: () => String(articleId.value),
+  pager: commentsPager,
+  requireLogin,
+  fetchReplies: (id, rootId, page, limit) => getReplyComments(id, rootId, page, limit),
+  createComment,
+  diggComment,
+  refreshArticle: () => refreshArticle(),
+  focusComposer: () => composerRef.value?.focusInput(),
+  notify: message,
+});
 
 // 正文主题由 MarkdownShadowPreview 内置（token 驱动，明暗自动跟随站点根类）；
 // katex 只保留基线布局样式（分数/根号/字体），配色由自有主题覆盖。
@@ -217,127 +206,17 @@ const {
 });
 
 async function handleFavorite() {
-  const isLoggedIn = await authStore.initializeSession();
-  if (!isLoggedIn) {
-    uiStore.openAuthModal();
+  if (!(await requireLogin())) {
     return;
   }
   favoriteModalOpen.value = true;
 }
 
-async function resetAndRefreshRootComments() {
-  commentsPager.reset(1);
-  await commentsPager.loadPage(1, true);
-}
-
-async function handleCreateComment(content: string) {
-  try {
-    await createComment({
-      article_id: String(articleId.value),
-      content,
-      ...(replyTarget.value ? { reply_id: replyTarget.value.id } : {}),
-    });
-    message.success(replyTarget.value ? "回复已发送" : "评论已发送");
-    const repliedRootId = replyTarget.value?.id;
-    replyTarget.value = null;
-    await resetAndRefreshRootComments();
-    if (repliedRootId) {
-      resetReplyState(repliedRootId);
-      await handleLoadReplies(repliedRootId, true);
-    }
-    await refreshArticle();
-  } catch (error) {
-    message.error(error instanceof Error ? error.message : "评论失败");
-  }
-}
-
-async function handleCommentDigg(commentId: string, isDigg: boolean) {
-  try {
-    await diggComment(commentId);
-    message.success(isDigg ? "已取消评论点赞" : "评论点赞成功");
-    await commentsPager.refreshCurrentPage();
-  } catch (error) {
-    message.error(error instanceof Error ? error.message : "评论点赞失败");
-  }
-}
-
-async function loadReplyPage(rootId: string, page = 1, force = false) {
-  const state = ensureReplyState(rootId);
-  if (!force && state.pages[page]) {
-    state.currentPage = page;
-    replyStates.value = {
-      ...replyStates.value,
-      [rootId]: state,
-    };
-    return state.pages[page];
-  }
-
-  state.pending = true;
-  replyStates.value = {
-    ...replyStates.value,
-    [rootId]: state,
-  };
-
-  try {
-    const data = await getReplyComments(articleId.value, rootId, page, REPLY_COMMENT_PAGE_SIZE);
-    state.pages = {
-      ...state.pages,
-      [page]: {
-        items: data.list,
-        hasMore: data.has_more,
-      },
-    };
-    state.replyCount = data.reply_count;
-    state.currentPage = page;
-    replyStates.value = {
-      ...replyStates.value,
-      [rootId]: state,
-    };
-    return state.pages[page];
-  } catch (error) {
-    message.error(error instanceof Error ? error.message : "加载回复失败");
-    return null;
-  } finally {
-    state.pending = false;
-    replyStates.value = {
-      ...replyStates.value,
-      [rootId]: state,
-    };
-  }
-}
-
-async function handleLoadReplies(rootId: string, force = false) {
-  const state = ensureReplyState(rootId);
-  await loadReplyPage(rootId, state.currentPage || 1, force);
-}
-
-async function handleNextReplies(rootId: string) {
-  const state = ensureReplyState(rootId);
-  const current = state.pages[state.currentPage];
-  if (!current?.hasMore && !state.pages[state.currentPage + 1]) {
-    return;
-  }
-  await loadReplyPage(rootId, state.currentPage + 1);
-}
-
-async function handlePreviousReplies(rootId: string) {
-  const state = ensureReplyState(rootId);
-  if (state.currentPage <= 1) {
-    return;
-  }
-  await loadReplyPage(rootId, state.currentPage - 1);
-}
-
-function handleReply(commentId: string) {
-  const target = commentsPager.currentItems.value.find((item) => item.id === commentId);
-  if (!target) return;
-  replyTarget.value = {
-    id: target.id,
-    nickname: target.user_nickname,
-  };
-}
-
 async function handleShare() {
+  // 互动统一登录前置（票 238 范围 7）：未登录只弹登录框，不读剪贴板。
+  if (!(await requireLogin())) {
+    return;
+  }
   if (!import.meta.client) return;
 
   const shareUrl = `${window.location.origin}/article/${articleId.value}`;
@@ -371,13 +250,11 @@ function handleArticleScoreOpen() {
 }
 
 async function handleAuthorFollow() {
-  if (!authorId.value) {
+  if (!(await requireLogin())) {
     return;
   }
 
-  const isLoggedIn = await authStore.initializeSession();
-  if (!isLoggedIn) {
-    uiStore.openAuthModal();
+  if (!authorId.value) {
     return;
   }
 
@@ -402,9 +279,7 @@ async function handleAuthorFollow() {
 }
 
 async function handlePrivateMessage() {
-  const isLoggedIn = await authStore.initializeSession();
-  if (!isLoggedIn) {
-    uiStore.openAuthModal();
+  if (!(await requireLogin())) {
     return;
   }
 
@@ -431,41 +306,10 @@ function handleArticleHeadingsChange(nextHeadings: ArticleHeadingAnchor[]) {
   articleHeadings.value = nextHeadings;
 }
 
-const comments = computed(() =>
-  commentsPager.currentItems.value.map((comment) => {
-    const replyState = replyStates.value[comment.id];
-    const currentReplies = replyState?.pages[replyState.currentPage]?.items || [];
-    return {
-    ...comment,
-    replies: currentReplies,
-    };
-  }),
-);
-
 const commentsPending = computed(() => commentsPager.pending.value);
 const commentPage = computed(() => commentsPager.currentPage.value);
 const hasPreviousCommentPage = computed(() => commentsPager.hasPreviousPage.value);
 const hasNextCommentPage = computed(() => commentsPager.hasNextPage.value);
-const replyLoading = computed(() =>
-  Object.fromEntries(Object.entries(replyStates.value).map(([rootId, state]) => [rootId, state.pending])),
-);
-const replyPages = computed(() =>
-  Object.fromEntries(Object.entries(replyStates.value).map(([rootId, state]) => [rootId, state.currentPage])),
-);
-const replyHasPrevious = computed(() =>
-  Object.fromEntries(Object.entries(replyStates.value).map(([rootId, state]) => [rootId, state.currentPage > 1])),
-);
-const replyHasNext = computed(() =>
-  Object.fromEntries(
-    Object.entries(replyStates.value).map(([rootId, state]) => [
-      rootId,
-      Boolean(state.pages[state.currentPage + 1]) || Boolean(state.pages[state.currentPage]?.hasMore),
-    ]),
-  ),
-);
-const replyLoadedPages = computed(() =>
-  Object.fromEntries(Object.entries(replyStates.value).map(([rootId, state]) => [rootId, Object.keys(state.pages).length])),
-);
 
 async function handlePreviousCommentPage() {
   await commentsPager.goToPreviousPage();
@@ -632,13 +476,15 @@ useSeoMeta({
             </div>
 
             <CommentComposer
+              ref="composerRef"
+              :logged-in="authStore.isLoggedIn"
               :loading="commentsPending"
               :title="replyTarget ? `回复 ${replyTarget.nickname}` : '发表评论'"
               :placeholder="replyTarget ? '补充你的回复内容…' : '写下你的看法，帮助更多读者补齐思路。'"
               :submit-label="replyTarget ? '发送回复' : '发表评论'"
               :can-cancel="Boolean(replyTarget)"
               @submit="handleCreateComment"
-              @cancel="replyTarget = null"
+              @cancel="clearReplyTarget"
             />
 
             <div class="comment-panel__thread">

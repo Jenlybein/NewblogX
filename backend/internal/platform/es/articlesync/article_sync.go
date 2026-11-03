@@ -68,6 +68,12 @@ type ArticleRowSnapshot struct {
 	CommentsToggle   bool
 	PublishStatus    enum.ArticleStatus
 	VisibilityStatus enum.ArticleVisibilityStatus
+	// DeletedAt 是 GORM 软删时间。非空表示这一行已被删除，文档里要写软删标记。
+	//
+	// 全量重建会把已软删的行一起索引（索引是库的镜像，读侧再按标记过滤），
+	// 所以快照必须带上它 —— 否则重建出来的文档永远显示 is_deleted=false，
+	// 兜底过滤等于没有。
+	DeletedAt *time.Time
 }
 
 type articleProjectionOptions struct {
@@ -155,6 +161,7 @@ func UpdateESDocsByArticleDeltas(db *gorm.DB, client *elasticsearch.Client, delt
 		}
 
 		data := make(map[string]any)
+		restored := articleRestored(delta.Changed)
 		for field, raw := range delta.Changed {
 			switch field {
 			case "created_at":
@@ -237,7 +244,14 @@ func UpdateESDocsByArticleDeltas(db *gorm.DB, client *elasticsearch.Client, delt
 			}
 		}
 
-		if len(data) == 0 {
+		if restored {
+			// 恢复（deleted_at 改回 NULL）不在可投影列里：旧实现会得到空 data
+			// 然后 continue —— 这次恢复对索引零写入，标记永远停在 true。
+			// 文档可能早已被 #196 删掉（update 404 → 走既有的缺失文档回源重建），
+			// 也可能还带着 is_deleted=true；两种情况下都要把标记清回 false，
+			// 否则这篇恢复的文章在任何列表里都出不来。
+			data[SoftDeleteMarkerField] = false
+		} else if len(data) == 0 {
 			continue
 		}
 		reqs = append(reqs, &es_service.BulkRequest{
@@ -261,6 +275,22 @@ func articleSoftDeleted(changed map[string]any) bool {
 	}
 	value, ok := scanTimeValue(raw)
 	return ok && !value.IsZero()
+}
+
+// articleRestored 判断一份"变更列快照"是否表示文章被恢复（deleted_at 改回 NULL）。
+//
+// 与 articleSoftDeleted 互斥：软删是时间列有值，恢复是它被清空。
+// 只有"恢复"需要清软删标记；软删本身由 #196 直接删文档，不需要再写标记。
+func articleRestored(changed map[string]any) bool {
+	raw, ok := changed["deleted_at"]
+	if !ok {
+		return false
+	}
+	if raw == nil {
+		return true
+	}
+	value, ok := scanTimeValue(raw)
+	return ok && value.IsZero()
 }
 
 func buildArticleESDocumentFromSnapshot(snapshot ArticleRowSnapshot, deps articleProjectionOptions) map[string]any {
@@ -308,6 +338,9 @@ func buildArticleESDocumentFromSnapshot(snapshot ArticleRowSnapshot, deps articl
 		"visibility_status": snapshot.VisibilityStatus,
 		"comments_toggle":   snapshot.CommentsToggle,
 		"tags":              tags,
+		// 软删标记：全量重建会把已软删的行一起索引，读侧靠它把这些文档挡在
+		// 所有列表之外（internal/search/app 的兜底过滤）。未删除也显式写 false。
+		SoftDeleteMarkerField: snapshot.DeletedAt != nil,
 	}
 }
 

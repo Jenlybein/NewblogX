@@ -10,6 +10,7 @@ import (
 	"myblogx/internal/apperr"
 	"myblogx/internal/kernel/ctype"
 	es_service "myblogx/internal/platform/es"
+	"myblogx/internal/platform/es/articlesync"
 	"myblogx/internal/search/domain"
 
 	"github.com/elastic/go-elasticsearch/v7"
@@ -119,7 +120,55 @@ func buildDSL(req domain.Request, viewer *domain.Viewer, likeTagIDs []ctype.ID) 
 	if !req.CategoryID.IsZero() {
 		query = categoryQuery(query, req.CategoryID)
 	}
+
+	// 索引侧软删兜底（#199）：所有读面（1 公共搜索 / 2 猜你喜欢 / 3 作者文章 /
+	// 4 自己的文章 / 5 管理员后台）都走这里，口径只在这里定一次。
+	fallback, err := softDeleteFallbackQuery(query)
+	if err != nil {
+		return nil, err
+	}
+	return fallback, nil
+}
+
+// softDeleteMarkerField 是索引文档上的软删标记（boolean）。
+//
+// 它由 ES 投影写入：全量重建的文档构造与增量路径的 deleted_at 变化都维护它。
+// #196 之后删除的主路径是"直接把文档从索引里删掉"，这个标记是第三层兜底
+// —— 标记一旦为 true，任何读面都不该再出现这篇文档。
+//
+// 字段名只认投影里那一个常量：写侧与读侧各写一份字符串，一旦对不上，
+// 表现是"过滤静默失效"（ES 不会报错，列表照常返回已删文章）。
+const softDeleteMarkerField = articlesync.SoftDeleteMarkerField
+
+// softDeleteFallbackQuery 给查询追加"非已删"兜底过滤。
+//
+// 与 adminAuthorQuery 一样**失败关闭**：结构对不上时返回错误，绝不原样放行。
+// 少一个过滤不会报错、ES 照常返回结果，只会让已删文章悄悄回到列表里。
+func softDeleteFallbackQuery(query map[string]any) (map[string]any, error) {
+	boolQuery, ok := extractBool(query)
+	if !ok {
+		return nil, apperr.New(apperr.CodeSearchQueryInvalid)
+	}
+	filters, _ := boolQuery["filter"].([]any)
+	boolQuery["filter"] = append(filters, softDeleteFallbackFilter())
 	return query, nil
+}
+
+// softDeleteFallbackFilter 是"非已删"的过滤子句。
+//
+// **缺失容忍**（本票的核心语义）：用 must_not + term(is_deleted=true)，而不是
+// filter + term(is_deleted=false)。ES 的 term 对"没有该字段的文档"不匹配，
+// 放进 must_not 之后这些文档自然通过；而正着写成 term(is_deleted=false)
+// 会把字段引入之前写入的旧文档全部排除 —— 一次 mapping 变更就把历史文章
+// 从所有列表里悄悄抹掉，而且不报错。
+func softDeleteFallbackFilter() map[string]any {
+	return map[string]any{
+		"bool": map[string]any{
+			"must_not": []any{
+				map[string]any{"term": map[string]any{softDeleteMarkerField: true}},
+			},
+		},
+	}
 }
 
 func defaultQuery(key string) map[string]any {

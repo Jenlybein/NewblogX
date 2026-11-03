@@ -9,6 +9,13 @@ import (
 	"myblogx/internal/platform/mysql"
 )
 
+// SoftDeleteMarkerField 是索引文档上的软删标记字段名。
+//
+// 它是**写侧（投影）与读侧（查询）共用的那一个名字**：mapping 声明它、
+// 文档构造与增量恢复写它、`internal/search/app` 的兜底过滤读它。
+// 三处各写一份字符串迟早会有一处对不上，而对不上的表现是"过滤静默失效"。
+const SoftDeleteMarkerField = "is_deleted"
+
 // DefaultArticleESIndex 是文章索引的默认名。
 //
 // 从 models/es_index.go 搬来：索引名是 ES 投影的知识，不是"数据模型"。

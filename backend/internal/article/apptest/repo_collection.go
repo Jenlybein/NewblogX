@@ -7,21 +7,24 @@ import (
 
 	"myblogx/internal/article/domain"
 	"myblogx/internal/article/domain/collection"
+	"myblogx/internal/article/domain/outline"
+	"myblogx/internal/kernel/ctype"
 )
 
 // CollectionRepo 是 collection.Repository 的内存实现。
 //
-// 与 HotTopRepo 的读模型 fake 不同，这里**能真的按公开可见性过滤**：它持有
-// 文章 fake 的引用，详情与列表的读模型都从真实（fake）文章状态派生，
-// 所以"文章变私有后读者侧看不到、后台仍占位"可以在用例层被断言，
-// 不必等到 adapter/mysql 的集成测试。
+// 卡片读模型的篇数与封面回退都从目录树派生（与生产同一口径）：它持有文章 /
+// 目录树 / 用户 fake 的引用，所以"文章变私有后篇数跟着变"可以在用例层被
+// 断言，不必等到 adapter/mysql 的集成测试。
 type CollectionRepo struct {
 	mus  sync.Mutex
 	arts *ArticleRepo
+	// outs / users 让卡片读模型与生产一样从目录树与作者角色派生：
+	// 收录关系只有目录树这一份真相，没有第二份成员表可读。
+	outs  *OutlineRepo
+	users *Users
 
 	collections map[collection.ID]*collection.Collection
-	// items 是每个合集的收录行，顺序即插入顺序，序号单独记账。
-	items map[collection.ID][]*item
 	// lastOnlyAdminAuthors 记录最近一次读面收到的过滤开关。
 	//
 	// 内存里没有 user_models 可 join，"作者是否管理员"没法真的过滤
@@ -32,20 +35,13 @@ type CollectionRepo struct {
 	count counter
 }
 
-// item 是一条收录行。
-type item struct {
-	articleID collection.ArticleID
-	sortOrder int
-	// deleted 为真表示这行被软删（移除收录），而行仍占着唯一键。
-	deleted bool
-}
-
-// NewCollectionRepo 创建空仓储；arts 用于读模型查文章状态（可为 nil）。
-func NewCollectionRepo(arts *ArticleRepo) *CollectionRepo {
+// NewCollectionRepo 创建空仓储；arts / outs / users 用于读模型派生（可为 nil）。
+func NewCollectionRepo(arts *ArticleRepo, outs *OutlineRepo, users *Users) *CollectionRepo {
 	return &CollectionRepo{
 		arts:        arts,
+		outs:        outs,
+		users:       users,
 		collections: make(map[collection.ID]*collection.Collection),
-		items:       make(map[collection.ID][]*item),
 	}
 }
 
@@ -147,22 +143,27 @@ func (r *CollectionRepo) ListCards(
 		if !c.Displayed() || c.Deleted() {
 			continue
 		}
-		articles := r.publicArticlesLocked(c.ID())
+		// 卡片读面只认目录树：收录关系没有第二份真相。
+		count, fallback, err := outlineCardStats(context.Background(), r.outs, r.arts, r.users,
+			outline.OwnerCollection, ctype.ID(c.ID()), onlyAdminAuthors)
+		if err != nil {
+			return nil, 0, err
+		}
 		// 开关关闭时，一篇公开文章都凑不出的合集不出现。
-		if onlyAdminAuthors && len(articles) == 0 {
+		if onlyAdminAuthors && count == 0 {
 			continue
 		}
 		cover := c.Cover()
-		if cover == "" && len(articles) > 0 {
-			// 没有封面时退回首篇文章的封面：卡片不能是破的。
-			cover = articles[0].Cover
+		if cover == "" {
+			// 没上传封面时用 DFS 第一个公开文章节点的封面；它为空就是空。
+			cover = fallback
 		}
 		out = append(out, collection.Card{
 			ID:           c.ID(),
 			Title:        c.Title(),
 			Description:  c.Description(),
 			Cover:        cover,
-			ArticleCount: len(articles),
+			ArticleCount: count,
 			CreatedAt:    c.CreatedAt(),
 		})
 	}
@@ -186,10 +187,12 @@ func (r *CollectionRepo) ListAdminCards(_ context.Context) ([]collection.AdminCa
 		if c.Deleted() {
 			continue
 		}
-		// 回退封面与读者卡片同一口径：首篇仍公开的收录文章的封面。
-		fallback := ""
-		if articles := r.publicArticlesLocked(c.ID()); len(articles) > 0 {
-			fallback = articles[0].Cover
+		// 篇数与回退封面与读者卡片同一口径：只数树里仍公开的文章，
+		// 封面取 DFS 第一个公开文章节点。
+		count, fallback, err := outlineCardStats(context.Background(), r.outs, r.arts, r.users,
+			outline.OwnerCollection, ctype.ID(c.ID()), false)
+		if err != nil {
+			return nil, err
 		}
 		out = append(out, collection.AdminCard{
 			ID:            c.ID(),
@@ -197,201 +200,12 @@ func (r *CollectionRepo) ListAdminCards(_ context.Context) ([]collection.AdminCa
 			Description:   c.Description(),
 			Cover:         c.Cover(),
 			Displayed:     c.Displayed(),
-			ArticleCount:  len(r.liveItemsLocked(c.ID())),
+			ArticleCount:  count,
 			SortOrder:     c.SortOrder(),
 			FallbackCover: fallback,
 		})
 	}
 	return out, nil
-}
-
-// ListIDs 按序号返回全部未软删合集的 ID。
-func (r *CollectionRepo) ListIDs(_ context.Context) ([]collection.ID, error) {
-	r.count.inc("ListIDs")
-	if err := r.fault.take("ListIDs"); err != nil {
-		return nil, err
-	}
-	r.mus.Lock()
-	defer r.mus.Unlock()
-
-	all := r.sortedCollectionsLocked()
-	out := make([]collection.ID, 0, len(all))
-	for _, c := range all {
-		if c.Deleted() {
-			continue
-		}
-		out = append(out, c.ID())
-	}
-	return out, nil
-}
-
-// UpdateSortOrders 按给定顺序把合集自身的序号改成 1..n。
-func (r *CollectionRepo) UpdateSortOrders(_ context.Context, ids []collection.ID) error {
-	r.count.inc("UpdateSortOrders")
-	if err := r.fault.take("UpdateSortOrders"); err != nil {
-		return err
-	}
-	r.mus.Lock()
-	defer r.mus.Unlock()
-
-	for i, id := range ids {
-		c, ok := r.collections[id]
-		if !ok {
-			return collection.ErrNotFound
-		}
-		c.SetSortOrder(i+1, c.UpdatedAt())
-	}
-	return nil
-}
-
-// ListItemIDs 按序号返回当前收录的文章 ID。
-func (r *CollectionRepo) ListItemIDs(_ context.Context, id collection.ID) ([]collection.ArticleID, error) {
-	r.count.inc("ListItemIDs")
-	if err := r.fault.take("ListItemIDs"); err != nil {
-		return nil, err
-	}
-	r.mus.Lock()
-	defer r.mus.Unlock()
-
-	rows := r.liveItemsLocked(id)
-	out := make([]collection.ArticleID, 0, len(rows))
-	for _, it := range rows {
-		out = append(out, it.articleID)
-	}
-	return out, nil
-}
-
-// AppendItem 收录一篇文章，返回是否真的新增；移除过的恢复原行。
-func (r *CollectionRepo) AppendItem(
-	_ context.Context, id collection.ID, articleID collection.ArticleID,
-) (bool, error) {
-	r.count.inc("AppendItem")
-	if err := r.fault.take("AppendItem"); err != nil {
-		return false, err
-	}
-	r.mus.Lock()
-	defer r.mus.Unlock()
-	if _, ok := r.collections[id]; !ok {
-		return false, collection.ErrNotFound
-	}
-
-	for _, it := range r.items[id] {
-		if it.articleID != articleID {
-			continue
-		}
-		if !it.deleted {
-			// 活行已存在：幂等返回 false（不挪到末尾）。
-			return false, nil
-		}
-		// 软删行恢复：按新序号排到末尾。
-		it.deleted = false
-		it.sortOrder = len(r.liveItemsLocked(id)) + 1
-		return true, nil
-	}
-
-	r.items[id] = append(r.items[id], &item{
-		articleID: articleID,
-		sortOrder: len(r.liveItemsLocked(id)) + 1,
-	})
-	return true, nil
-}
-
-// RemoveItem 移除收录（软删）并压实序号；不存在时不做任何事。
-func (r *CollectionRepo) RemoveItem(
-	_ context.Context, id collection.ID, articleID collection.ArticleID,
-) error {
-	r.count.inc("RemoveItem")
-	if err := r.fault.take("RemoveItem"); err != nil {
-		return err
-	}
-	r.mus.Lock()
-	defer r.mus.Unlock()
-	for _, it := range r.items[id] {
-		if it.articleID == articleID && !it.deleted {
-			it.deleted = true
-			break
-		}
-	}
-	r.compactLocked(id)
-	return nil
-}
-
-// ListIncludedArticles 列出仍公开的收录文章（按序号升序）。
-func (r *CollectionRepo) ListIncludedArticles(
-	_ context.Context, id collection.ID, onlyAdminAuthors bool,
-) ([]collection.IncludedArticle, error) {
-	r.count.inc("ListIncludedArticles")
-	if err := r.fault.take("ListIncludedArticles"); err != nil {
-		return nil, err
-	}
-	r.mus.Lock()
-	defer r.mus.Unlock()
-	r.lastOnlyAdminAuthors = onlyAdminAuthors
-
-	rows := r.publicArticlesLocked(id)
-	out := make([]collection.IncludedArticle, 0, len(rows))
-	for _, a := range rows {
-		out = append(out, collection.IncludedArticle{
-			ArticleID: a.ArticleID,
-			SortOrder: a.SortOrder,
-			Title:     a.Title,
-			Abstract:  a.Abstract,
-			Cover:     a.Cover,
-			ViewCount: a.ViewCount,
-		})
-	}
-	return out, nil
-}
-
-// ListAdminItems 列出全部收录行（含已失效）。
-func (r *CollectionRepo) ListAdminItems(_ context.Context, id collection.ID) ([]collection.AdminItem, error) {
-	r.count.inc("ListAdminItems")
-	if err := r.fault.take("ListAdminItems"); err != nil {
-		return nil, err
-	}
-	r.mus.Lock()
-	defer r.mus.Unlock()
-
-	out := make([]collection.AdminItem, 0, len(r.items[id]))
-	for _, it := range r.items[id] {
-		if it.deleted {
-			continue
-		}
-		row := collection.AdminItem{ArticleID: it.articleID, SortOrder: it.sortOrder}
-		// 与 MySQL ListAdminItems 的 LEFT JOIN 对齐：软删的文章仍能读到标题与
-		// "已删除"状态；只有文章行真的不存在时才留空并由 domain 判为 missing。
-		if a, err := r.arts.FindIncludingDeleted(context.Background(), it.articleID); err == nil {
-			row.Title = a.Title()
-			row.Cover = a.Cover()
-			row.Article = &collection.ArticleState{
-				Deleted:    isDeleted(a),
-				Status:     a.Status(),
-				Visibility: a.Visibility(),
-			}
-		}
-		out = append(out, row)
-	}
-	return out, nil
-}
-
-// UpdateItemOrder 按给定顺序把序号改成 1..n。
-func (r *CollectionRepo) UpdateItemOrder(
-	_ context.Context, id collection.ID, articleIDs []collection.ArticleID,
-) error {
-	r.count.inc("UpdateItemOrder")
-	if err := r.fault.take("UpdateItemOrder"); err != nil {
-		return err
-	}
-	r.mus.Lock()
-	defer r.mus.Unlock()
-	for i, articleID := range articleIDs {
-		for _, it := range r.items[id] {
-			if it.articleID == articleID {
-				it.sortOrder = i + 1
-			}
-		}
-	}
-	return nil
 }
 
 // ListCardsOnlyAdminAuthors 返回最近一次读面收到的过滤开关。
@@ -409,16 +223,7 @@ func (r *CollectionRepo) Snapshot() any {
 	for k, v := range r.collections {
 		cols[k] = v
 	}
-	items := make(map[collection.ID][]*item, len(r.items))
-	for k, rows := range r.items {
-		cp := make([]*item, 0, len(rows))
-		for _, it := range rows {
-			c := *it
-			cp = append(cp, &c)
-		}
-		items[k] = cp
-	}
-	return collectionState{collections: cols, items: items, onlyAdmin: r.lastOnlyAdminAuthors}
+	return collectionState{collections: cols, onlyAdmin: r.lastOnlyAdminAuthors}
 }
 
 // RestoreState 覆盖回快照。
@@ -430,13 +235,11 @@ func (r *CollectionRepo) RestoreState(s any) {
 	r.mus.Lock()
 	defer r.mus.Unlock()
 	r.collections = state.collections
-	r.items = state.items
 	r.lastOnlyAdminAuthors = state.onlyAdmin
 }
 
 type collectionState struct {
 	collections map[collection.ID]*collection.Collection
-	items       map[collection.ID][]*item
 	onlyAdmin   bool
 }
 
@@ -455,58 +258,6 @@ func (r *CollectionRepo) sortedCollectionsLocked() []*collection.Collection {
 	return out
 }
 
-// liveItemsLocked 按序号返回未软删的收录行（调用方必须已持锁）。
-func (r *CollectionRepo) liveItemsLocked(id collection.ID) []*item {
-	out := make([]*item, 0, len(r.items[id]))
-	for _, it := range r.items[id] {
-		if it.deleted {
-			continue
-		}
-		out = append(out, it)
-	}
-	sort.Slice(out, func(i, j int) bool {
-		if out[i].sortOrder != out[j].sortOrder {
-			return out[i].sortOrder < out[j].sortOrder
-		}
-		return out[i].articleID.Uint64() < out[j].articleID.Uint64()
-	})
-	return out
-}
-
-// publicArticlesLocked 返回仍公开的收录文章（调用方必须已持锁）。
-//
-// 这就是真实 SQL join 的等价物：文章被删/变私有 → 条目消失，但行还在。
-func (r *CollectionRepo) publicArticlesLocked(id collection.ID) []collection.IncludedArticle {
-	rows := r.liveItemsLocked(id)
-	out := make([]collection.IncludedArticle, 0, len(rows))
-	for _, it := range rows {
-		if r.arts == nil {
-			out = append(out, collection.IncludedArticle{ArticleID: it.articleID, SortOrder: it.sortOrder})
-			continue
-		}
-		a, err := r.arts.Find(context.Background(), it.articleID)
-		if err != nil || !a.IsPubliclyVisible() {
-			continue
-		}
-		out = append(out, collection.IncludedArticle{
-			ArticleID: it.articleID,
-			SortOrder: it.sortOrder,
-			Title:     a.Title(),
-			Abstract:  a.Abstract(),
-			Cover:     a.Cover(),
-			ViewCount: a.Counters().View,
-		})
-	}
-	return out
-}
-
-// compactLocked 把序号压实成 1..n（调用方必须已持锁）。
-func (r *CollectionRepo) compactLocked(id collection.ID) {
-	for i, it := range r.liveItemsLocked(id) {
-		it.sortOrder = i + 1
-	}
-}
-
 // pageSlice 按 Offset/Limit 截取。
 func pageSlice[T any](rows []T, p domain.Page) []T {
 	start := p.Offset
@@ -518,9 +269,4 @@ func pageSlice[T any](rows []T, p domain.Page) []T {
 		end = len(rows)
 	}
 	return rows[start:end]
-}
-
-// isDeleted 读文章 fake 的删除标记。
-func isDeleted(a *domain.Article) bool {
-	return !a.IsPubliclyVisible() && a.Status() == domain.StatusPublished && a.Visibility() == domain.VisibilityVisible
 }

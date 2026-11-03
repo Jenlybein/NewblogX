@@ -75,24 +75,17 @@ func (h *Handler) CollectionDetail(c *gin.Context) {
 	}
 
 	out := CollectionDetailResponse{
-		ID:          ctype.ID(detail.Collection.ID()),
-		Title:       detail.Collection.Title(),
-		Description: detail.Collection.Description(),
-		Cover:       detail.Collection.Cover(),
-		CreatedAt:   detail.Collection.CreatedAt(),
-		Articles:    make([]CollectionArticleItemResponse, 0, len(detail.Articles)),
-	}
-	for _, item := range detail.Articles {
-		out.Articles = append(out.Articles, CollectionArticleItemResponse{
-			ArticleID:      ctype.ID(item.ArticleID),
-			SortOrder:      item.SortOrder,
-			Title:          item.Title,
-			Abstract:       item.Abstract,
-			Cover:          item.Cover,
-			ViewCount:      item.ViewCount,
-			AuthorNickname: item.AuthorNickname,
-			CategoryTitle:  item.CategoryTitle,
-		})
+		ID:           ctype.ID(detail.Collection.ID()),
+		Title:        detail.Collection.Title(),
+		Description:  detail.Collection.Description(),
+		Cover:        detail.Cover,
+		CreatedAt:    detail.Collection.CreatedAt(),
+		ArticleCount: detail.ArticleCount,
+		Outline: OutlineTreeResponse{
+			OwnerKind: 1,
+			OwnerID:   ctype.ID(detail.Collection.ID()),
+			Nodes:     toOutlineNodeResponses(detail.Tree),
+		},
 	}
 	res.OkWithData(out, c)
 }
@@ -129,31 +122,6 @@ func (h *Handler) AdminCollections(c *gin.Context) {
 		})
 	}
 	res.OkWithList(out, len(out), c)
-}
-
-// CleanupCollectionStale 一键清理合集里所有失效的收录行（管理员）。
-//
-// 只删失效行，仍公开的收录不受影响；没有失效行时返回 removed=0，可重复调用。
-// 删的只是收录关系（软删），文章本身不动。
-//
-// @Summary 清理合集失效行
-// @Tags collection
-// @Produce json
-// @Security BearerAuth
-// @Param id path string true "合集 ID"
-// @Success 200 {object} kernel.Envelope[CollectionStaleCleanupResponse]
-// @Router /collections/{id}/admin/stale [delete]
-func (h *Handler) CleanupCollectionStale(c *gin.Context) {
-	uri := middleware.GetBindUri[kernel.IDRequest](c)
-
-	removed, err := h.svc.CleanupStaleCollectionArticles(c.Request.Context(), h.viewerOf(c),
-		collection.ID(uri.ID))
-	if err != nil {
-		h.fail(c, err)
-		return
-	}
-	h.audit(c, "collection_stale_cleanup", uri.ID, true, "清理合集失效行")
-	res.OkWithData(CollectionStaleCleanupResponse{Removed: removed}, c)
 }
 
 // CreateCollection 新建合集（管理员）。
@@ -265,210 +233,4 @@ func (h *Handler) SetCollectionDisplay(c *gin.Context) {
 	}
 	h.audit(c, "collection_display", uri.ID, true, "切换合集展示")
 	res.OkWithMsg("设置成功", c)
-}
-
-// IncludeCollectionArticle 把一篇文章收录进合集（管理员）。
-//
-// @Summary 收录文章进合集
-// @Tags collection
-// @Accept json
-// @Produce json
-// @Security BearerAuth
-// @Param id path string true "合集 ID"
-// @Param body body CollectionArticleRequest true "请求体"
-// @Success 200 {object} kernel.Envelope[kernel.EmptyData]
-// @Router /collections/{id}/articles [post]
-func (h *Handler) IncludeCollectionArticle(c *gin.Context) {
-	uri := middleware.GetBindUri[kernel.IDRequest](c)
-	cr := middleware.GetBindJson[CollectionArticleRequest](c)
-
-	if err := h.svc.IncludeArticle(c.Request.Context(), app.IncludeArticleCmd{
-		Actor:        h.viewerOf(c),
-		CollectionID: collection.ID(uri.ID),
-		ArticleID:    domain.ArticleID(cr.ArticleID),
-	}); err != nil {
-		h.fail(c, err)
-		return
-	}
-	h.audit(c, "collection_include", cr.ArticleID, true, "收录文章进合集")
-	res.OkWithMsg("收录成功", c)
-}
-
-// RemoveCollectionArticle 从合集中移除一篇文章（管理员）。
-//
-// 幂等：不在合集里也返回成功（后台批量清理时不该因为一行过期数据整单失败）。
-//
-// @Summary 从合集移除文章
-// @Tags collection
-// @Accept json
-// @Produce json
-// @Security BearerAuth
-// @Param id path string true "合集 ID"
-// @Param body body CollectionArticleRequest true "请求体"
-// @Success 200 {object} kernel.Envelope[kernel.EmptyData]
-// @Router /collections/{id}/articles [delete]
-func (h *Handler) RemoveCollectionArticle(c *gin.Context) {
-	uri := middleware.GetBindUri[kernel.IDRequest](c)
-	cr := middleware.GetBindJson[CollectionArticleRequest](c)
-
-	if err := h.svc.RemoveArticle(c.Request.Context(), app.RemoveArticleCmd{
-		Actor:        h.viewerOf(c),
-		CollectionID: collection.ID(uri.ID),
-		ArticleID:    domain.ArticleID(cr.ArticleID),
-	}); err != nil {
-		h.fail(c, err)
-		return
-	}
-	h.audit(c, "collection_remove", cr.ArticleID, true, "从合集移除文章")
-	res.OkWithMsg("移除成功", c)
-}
-
-// BatchIncludeCollectionArticles 批量收录多篇文章（管理员）。
-//
-// 与单篇收录的差别：逐篇返回结局（included / duplicated / not_includable /
-// missing），而不是整单成败——运营一次勾十几篇时，其中一篇已经收录
-// 不该让另外九篇也失败。
-//
-// @Summary 批量收录文章进合集
-// @Tags collection
-// @Accept json
-// @Produce json
-// @Security BearerAuth
-// @Param id path string true "合集 ID"
-// @Param body body CollectionBatchIncludeRequest true "请求体"
-// @Success 200 {object} kernel.Envelope[CollectionBatchIncludeResponse]
-// @Router /collections/{id}/articles/batch [post]
-func (h *Handler) BatchIncludeCollectionArticles(c *gin.Context) {
-	uri := middleware.GetBindUri[kernel.IDRequest](c)
-	cr := middleware.GetBindJson[CollectionBatchIncludeRequest](c)
-
-	ids := make([]domain.ArticleID, 0, len(cr.ArticleIDs))
-	for _, id := range cr.ArticleIDs {
-		ids = append(ids, domain.ArticleID(id))
-	}
-
-	results, err := h.svc.IncludeArticles(c.Request.Context(), app.IncludeArticlesCmd{
-		Actor:        h.viewerOf(c),
-		CollectionID: collection.ID(uri.ID),
-		ArticleIDs:   ids,
-	})
-	if err != nil {
-		h.fail(c, err)
-		return
-	}
-
-	out := CollectionBatchIncludeResponse{
-		Results: make([]CollectionBatchIncludeItem, 0, len(results)),
-	}
-	for _, r := range results {
-		out.Results = append(out.Results, CollectionBatchIncludeItem{
-			ArticleID: ctype.ID(r.ArticleID),
-			Outcome:   string(r.Outcome),
-		})
-		switch r.Outcome {
-		case collection.IncludeOutcomeIncluded:
-			out.Included++
-		case collection.IncludeOutcomeDuplicated:
-			out.Duplicated++
-		default:
-			out.Rejected++
-		}
-	}
-	h.audit(c, "collection_batch_include", uri.ID, true, "批量收录文章进合集")
-	res.OkWithData(out, c)
-}
-
-// AdminCollectionItems 返回一个合集的全部收录行（含已失效，管理员）。
-//
-// 后台编排页的读面：全集换序要提交完整集合，失效行也不能漏。
-//
-// @Summary 后台合集收录行
-// @Tags collection
-// @Produce json
-// @Security BearerAuth
-// @Param id path string true "合集 ID"
-// @Success 200 {object} kernel.Envelope[kernel.ListData[CollectionAdminItem]]
-// @Router /collections/{id}/articles/admin [get]
-func (h *Handler) AdminCollectionItems(c *gin.Context) {
-	uri := middleware.GetBindUri[kernel.IDRequest](c)
-
-	items, err := h.svc.ListCollectionAdminItems(c.Request.Context(),
-		h.viewerOf(c), collection.ID(uri.ID))
-	if err != nil {
-		h.fail(c, err)
-		return
-	}
-
-	out := make([]CollectionAdminItem, 0, len(items))
-	for _, item := range items {
-		out = append(out, CollectionAdminItem{
-			ArticleID: ctype.ID(item.ArticleID),
-			SortOrder: item.SortOrder,
-			Title:     item.Title,
-			Cover:     item.Cover,
-			Stale:       item.Stale(),
-			StaleReason: string(item.StaleReason()),
-		})
-	}
-	res.OkWithList(out, len(out), c)
-}
-
-// ReplaceCollectionSortOrder 合集之间的全量顺序替换（管理员）。
-//
-// 请求体是**完整且有序**的合集 ID 列表；集合与当前全部合集不一致时整单拒绝
-// （与合集内排序同一条语义）。落库的是 collection_models.sort_order，
-// 读者列表页与后台列表都按它排序。
-//
-// @Summary 合集之间排序
-// @Tags collection
-// @Accept json
-// @Produce json
-// @Security BearerAuth
-// @Param body body CollectionOrderRequest true "请求体"
-// @Success 200 {object} kernel.Envelope[kernel.EmptyData]
-// @Router /collections/order [patch]
-func (h *Handler) ReplaceCollectionSortOrder(c *gin.Context) {
-	cr := middleware.GetBindJson[CollectionOrderRequest](c)
-
-	ids := make([]collection.ID, 0, len(cr.CollectionIDs))
-	for _, id := range cr.CollectionIDs {
-		ids = append(ids, collection.ID(id))
-	}
-	if err := h.svc.ReplaceCollectionSortOrder(c.Request.Context(), h.viewerOf(c), ids); err != nil {
-		h.fail(c, err)
-		return
-	}
-	h.audit(c, "collection_sort_order", "collections", true, "合集之间排序")
-	res.OkWithMsg("排序成功", c)
-}
-
-// ReplaceCollectionOrder 合集内的全量顺序替换（管理员）。
-//
-// 请求体是**完整且有序**的文章 ID 列表；集合与当前收录不一致时整单拒绝
-// （避免过期页面点一次"上移"就把别人刚收录的一篇静默删掉）。
-//
-// @Summary 合集内文章排序
-// @Tags collection
-// @Accept json
-// @Produce json
-// @Security BearerAuth
-// @Param id path string true "合集 ID"
-// @Param body body CollectionArticleOrderRequest true "请求体"
-// @Success 200 {object} kernel.Envelope[kernel.EmptyData]
-// @Router /collections/{id}/articles/order [patch]
-func (h *Handler) ReplaceCollectionOrder(c *gin.Context) {
-	uri := middleware.GetBindUri[kernel.IDRequest](c)
-	cr := middleware.GetBindJson[CollectionArticleOrderRequest](c)
-
-	ids := make([]collection.ArticleID, 0, len(cr.ArticleIDs))
-	for _, id := range cr.ArticleIDs {
-		ids = append(ids, collection.ArticleID(id))
-	}
-	if err := h.svc.ReplaceCollectionArticleOrder(c.Request.Context(), h.viewerOf(c),
-		collection.ID(uri.ID), ids); err != nil {
-		h.fail(c, err)
-		return
-	}
-	h.audit(c, "collection_order", uri.ID, true, "合集内排序")
-	res.OkWithMsg("排序成功", c)
 }

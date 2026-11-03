@@ -35,6 +35,27 @@ func (r *ArticleRepo) Find(ctx context.Context, id domain.ArticleID) (*domain.Ar
 	return toDomainArticle(m, tags[m.ID]), nil
 }
 
+// FindIncludingDeleted 按 ID 读取，包含已软删的文章。
+//
+// 用 Unscoped 绕过 GORM 的默认软删作用域：后台运营位的关系行还在时，
+// 软删文章仍要能读出标题与"已删除"状态（对应旧扁平读面的 LEFT JOIN）。
+func (r *ArticleRepo) FindIncludingDeleted(
+	ctx context.Context, id domain.ArticleID,
+) (*domain.Article, error) {
+	var m articleRow
+	if err := r.db.WithContext(ctx).Unscoped().Take(&m, "id = ?", fromArticleID(id)).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, domain.ErrArticleNotFound
+		}
+		return nil, err
+	}
+	tags, err := r.tagIDs(ctx, []ctype.ID{m.ID})
+	if err != nil {
+		return nil, err
+	}
+	return toDomainArticle(m, tags[m.ID]), nil
+}
+
 // FindMany 批量读取。
 func (r *ArticleRepo) FindMany(ctx context.Context, ids []domain.ArticleID) ([]*domain.Article, error) {
 	if len(ids) == 0 {

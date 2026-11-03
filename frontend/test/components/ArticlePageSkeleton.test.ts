@@ -20,4 +20,21 @@ describe("ArticlePageSkeleton：切页先出骨架", () => {
     expect(wrapper.get(".sr-only").text()).toContain("文章");
     expect(wrapper.find("[aria-hidden='true']").exists()).toBe(true);
   });
+
+  it("有归属树时多出一栏目录占位：与真实三栏版式同构，树到达后不跳版", () => {
+    const wrapper = mount(ArticlePageSkeleton, { props: { withOutline: true } });
+
+    const layout = wrapper.get(".article-layout");
+    expect(layout.classes()).toContain("article-layout--with-outline");
+    const outlineColumn = wrapper.get('[data-role="article-outline-column-skeleton"]');
+    expect(outlineColumn.exists()).toBe(true);
+    expect(outlineColumn.findAll("[data-role='skeleton-bar']").length).toBeGreaterThan(0);
+  });
+
+  it("无归属树时不预留空左栏（默认仍是两栏骨架）", () => {
+    const wrapper = mount(ArticlePageSkeleton);
+
+    expect(wrapper.get(".article-layout").classes()).not.toContain("article-layout--with-outline");
+    expect(wrapper.find('[data-role="article-outline-column-skeleton"]').exists()).toBe(false);
+  });
 });

@@ -13,17 +13,21 @@ import (
 
 // SidebarData 实现右栏各卡数据的只读端口。
 //
-// 三种卡的数据都在别的模块的表里（文章 / 评论 / 标签）。这里只做**投影读**，
-// 不写、不 import 任何模块的 adapter：跨模块读的耦合收在站点模块自己的
-// 只读查询里，表结构由 schema.sql 冻结，查询列的漂移会被列契约测试拦住。
+// 热门文章 / 最新评论 / 标签云三种卡的数据都在别的模块的表里，这里做**只读
+// 投影查询**（不写、不 import 任何模块的 adapter）。推荐合集卡不同：它的篇数
+// 与封面回退依赖目录树的深度优先遍历，那套口径只应有 article 模块的一份
+// 实现，所以通过端口注入读模型，而不是在站点里再写一套 SQL。
 type SidebarData struct {
-	db *gorm.DB
+	db          *gorm.DB
+	collections domain.SidebarCollectionReader
 }
 
 var _ domain.SidebarDataSource = (*SidebarData)(nil)
 
-// NewSidebarData 构造右栏数据源。
-func NewSidebarData(db *gorm.DB) *SidebarData { return &SidebarData{db: db} }
+// NewSidebarData 构造右栏数据源；collections 为推荐合集卡的读模型端口。
+func NewSidebarData(db *gorm.DB, collections domain.SidebarCollectionReader) *SidebarData {
+	return &SidebarData{db: db, collections: collections}
+}
 
 // hotArticleRow / latestCommentRow / tagCloudRow 是查询结果的行形状。
 //
@@ -48,15 +52,6 @@ type latestCommentRow struct {
 type tagCloudRow struct {
 	ID           ctype.ID
 	Title        string
-	ArticleCount int
-}
-
-// sidebarCollectionRow 是推荐合集查询的行形状（投影读，只读展示需要的几列）。
-type sidebarCollectionRow struct {
-	ID           ctype.ID
-	Title        string
-	Description  string
-	Cover        string
 	ArticleCount int
 }
 
@@ -166,62 +161,20 @@ func (s *SidebarData) TagCloud(ctx context.Context, limit int) ([]domain.Sidebar
 
 // Collections 按合集自己的运营顺序取展示中的合集。
 //
-// 三个过滤都在 SQL 里，与读者侧合集列表同一口径：
-//   - is_display 为真（关掉展示的合集连数据都不该出现在右栏）；
-//   - deleted_at 为空（软删的合集不出现）；
-//   - 文章数只数"已发布 + 可见 + 未删除"的收录文章，与合集列表页的读数一致 ——
-//     一张写着「20 篇」点进去只有 18 篇是坏体验。
+// 读模型由 article 模块的端口提供：篇数只数仍公开的文章、封面为空时取目录树
+// 里第一个公开文章节点的封面，且与读者侧合集列表同一口径（含「显示非管理员
+// 发布文章」开关）。站点模块不直连 article 的表，也不在本地再算一遍。
 //
-// 封面回退（合集没封面就用首篇公开文章的封面）同样在 SQL 里，口径与列表页一致。
-// 但这里刻意**不复用**文章模块的仓储：跨模块读只做站点模块自己的只读投影，
-// 表结构由 schema.sql 冻结，列漂移会被列契约测试拦住。
+// 未装配读模型端口时返回空列表：右栏少一张卡，不影响其它卡片与页面。
 func (s *SidebarData) Collections(ctx context.Context, limit int) ([]domain.SidebarCollection, error) {
-	var rows []sidebarCollectionRow
-	err := s.db.WithContext(ctx).Raw(
-		`SELECT c.id, c.title, c.description,
-		        (CASE WHEN c.cover = ''
-		              THEN COALESCE((SELECT a2.cover
-		                               FROM collection_article_models AS i2
-		                               JOIN article_models AS a2 ON a2.id = i2.article_id
-		                              WHERE i2.collection_id = c.id
-		                                AND i2.deleted_at IS NULL
-		                                AND a2.deleted_at IS NULL
-		                                AND a2.publish_status = ?
-		                                AND a2.visibility_status = ?
-		                              ORDER BY i2.sort_order ASC, i2.id ASC
-		                              LIMIT 1), '')
-		              ELSE c.cover END) AS cover,
-		        (SELECT COUNT(*)
-		           FROM collection_article_models AS i
-		           JOIN article_models AS a ON a.id = i.article_id
-		          WHERE i.collection_id = c.id
-		            AND i.deleted_at IS NULL
-		            AND a.deleted_at IS NULL
-		            AND a.publish_status = ?
-		            AND a.visibility_status = ?) AS article_count
-		   FROM collection_models AS c
-		  WHERE c.deleted_at IS NULL
-		    AND c.is_display = ?
-		  ORDER BY c.sort_order ASC, c.id ASC
-		  LIMIT ?`,
-		int(enum.ArticleStatusPublished), string(enum.ArticleVisibilityVisible),
-		int(enum.ArticleStatusPublished), string(enum.ArticleVisibilityVisible),
-		true, clampLimit(limit),
-	).Scan(&rows).Error
+	if s.collections == nil {
+		return nil, nil
+	}
+	items, err := s.collections.RecommendedCollections(ctx, clampLimit(limit))
 	if err != nil {
 		return nil, err
 	}
-	out := make([]domain.SidebarCollection, 0, len(rows))
-	for _, row := range rows {
-		out = append(out, domain.SidebarCollection{
-			ID:           row.ID,
-			Title:        row.Title,
-			Description:  row.Description,
-			Cover:        row.Cover,
-			ArticleCount: row.ArticleCount,
-		})
-	}
-	return out, nil
+	return items, nil
 }
 
 // clampLimit 收敛数据条数：0 或负数走默认值，超过上限截到上限。

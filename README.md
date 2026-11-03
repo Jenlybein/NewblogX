@@ -954,7 +954,7 @@ docker compose up -d --build
 - **表不存在** → 自动执行建表，等 ES 就绪，再 `-es -s ensure`，然后才真正启动服务；
 - **表已存在** → 跳过初始化，直接启动。
 
-这带来一个副作用要知道：**它只认这一张表**。所以 ①想重新初始化，得先把这张表删掉（或手动执行 `-db`），否则 entrypoint 永远认为"已经初始化过了"；②**后来新增的表不会被自举**——只要 `runtime_config_models` 还在，升级时就必须手动执行一次 `-db`（见 [11.4](#114-更新版本)），否则用到新表的接口会报"表不存在"。本批新增的 `project_models` / `project_article_models`（项目实体）就属于这一类。
+这带来一个副作用要知道：**它只认这一张表**。所以 ①想重新初始化，得先把这张表删掉（或手动执行 `-db`），否则 entrypoint 永远认为"已经初始化过了"；②**后来新增的表不会被自举**——只要 `runtime_config_models` 还在，升级时就必须手动执行一次 `-db`（见 [11.4](#114-更新版本)），否则用到新表的接口会报"表不存在"。本项目至今新增过 `article_hot_top_models`（热门置顶）、`project_models`（项目实体）与 `content_outline_node_models`（目录树）三张表，都走这条路。
 
 **启动要多久**：首次 `up` 含构建，几分钟；之后重启约 **40 秒**，其中大头是 ES 自己的冷启动（entrypoint 的 `wait_for_es` 每 3 秒探一次），应用连上 Redis/MySQL/ES 本身只要几毫秒。`blogx_server` 的探针间隔是 10s，所以"进程就绪"到"被判定 healthy"最多再差 10 秒。
 
@@ -1107,7 +1107,7 @@ docker compose exec blogx_server /app/server \
   -f config/settings.yaml -db
 ```
 
-ADR-0017 引入的 `article_hot_top_models`（热门置顶运营位）与本批的 `project_models` / `project_article_models`（项目实体）都属于这一类。漏了这一步，后台「热门置顶」页、首页运营位与后台「项目」页会报表不存在，其它功能照常——很容易被当成"代码没生效"。
+ADR-0017 引入的 `article_hot_top_models`（热门置顶运营位）与本批的 `project_models`（项目实体）都属于这一类。漏了这一步，后台「热门置顶」页、首页运营位与后台「项目」页会报表不存在，其它功能照常——很容易被当成"代码没生效"。
 
 一次完整的升级顺序：**重建索引 + 回填 → 部署新代码 → 手动 `-db` → 后台设置三个开关与热门置顶**。本批（#189）另有"物理下线取景表"这一步，完整序列见 [11.4.3](#1143-本批189的一次性部署序列新表取景表下线与索引重建)。
 
@@ -1155,7 +1155,9 @@ docker compose run --rm blogx_server /app/server \
   -f config/settings.yaml -db
 ```
 
-产出 `project_models` 与 `project_article_models`。`-db` 只做 `CREATE TABLE IF NOT EXISTS`，不会 ALTER 既有表，也不会 DROP 任何表。
+产出 `project_models`。`-db` 只做 `CREATE TABLE IF NOT EXISTS`，不会 ALTER 既有表，也不会 DROP 任何表。
+
+（`project_article_models` 与 `collection_article_models` 已在 #225 从 `schema.sql` 里删除：它们不再被登记，也不该再被建出来；生产库里的这两张表由人工 DROP，见 [11.4.4](#1144-本批209-合批目录树的一次性部署序列) 第 3 步。）
 
 **3. 物理下线取景表**
 
@@ -1217,6 +1219,47 @@ curl -s  https://你的域名/api/site/seo | head -c 200; echo
 - `-t imagegc`（先只读）清单里没有因本轮删表新增的孤儿引用；必要时再跑 `-t imagerefgc`。
 
 排错要点：漏了第 2 步 → 后台「项目」页与读者站项目路由报"表不存在"；漏了第 3 步 → 旧表还在（不影响功能，但取景残留在库里）；漏了第 4 步 → 删除文章后读者站仍能搜到（索引里是无标记旧文档）；漏了第 6 步 → 外网 502 而容器 healthy。
+
+### 11.4.4 本批（#209 合批：目录树）的一次性部署序列
+
+本批（#209 合批：合集/项目的目录树、阅读页左栏、后台树编辑器、裁剪窗、上传用途与比例校验、封面兜底、正文渲染主题、编辑入口、私信 WS 白名单；收尾 #225 删旧扁平收录接口）**只新增一张表**、不 ALTER 既有表；#225 另外把两张旧扁平收录中间表从代码里删干净，生产库的两张表由第 3 步人工 DROP。新表不会被 entrypoint 自举，升级时必须手动跑一次 `-db`。
+
+**1. 备份与串行重建三镜像**
+
+同 [11.4.3](#1143-本批189的一次性部署序列新表取景表下线与索引重建) 的第 0–1 步：先备份数据库，再 `down` + 串行构建 `blogx_server` / `blogx_web` / `blogx_admin`。
+
+**2. 手动建新表**
+
+```bash
+docker compose run --rm blogx_server /app/server \
+  -f config/settings.yaml -db
+```
+
+产出 `content_outline_node_models`（合集与项目共用的目录树表）。`-db` 只做 `CREATE TABLE IF NOT EXISTS`，不会 ALTER 既有表，也不会 DROP 任何表。漏了这一步的症状：后台合集/项目的「目录编排」页与读者站合集/项目详情报"表不存在"，其它功能照常。
+
+**3. 物理下线两张旧扁平收录中间表（#225）**
+
+`schema.sql` 与 testkit 都已不再登记 `collection_article_models` / `project_article_models`，后端也不再有读写它们的代码（旧扁平收录 / 批量收录 / 收录行排序 / 失效清理接口已全部删除，只保留项目之间排序 `PATCH /projects/order`）。`-db` **不会**替你删表，这里必须手工执行一次（不可逆，确认第 1 步备份已完成；上线时这两张表均为 0 行，所以不涉及数据迁移）：
+
+```bash
+docker compose exec mysql-master mysql -u"$BLOGX_DB_USER" -p"$BLOGX_DB_PASSWORD" "$BLOGX_DB_NAME" \
+  -e "DROP TABLE IF EXISTS collection_article_models, project_article_models;"
+```
+
+删完刷新后台「目录编排」与读者站合集/项目详情，一切应照常；收录关系与层次只存在 `content_outline_node_models` 里，所以删表不需要迁移或回填。
+
+**4. 强重建、重启 nginx 与健康检查**
+
+```bash
+docker compose up -d --force-recreate blogx_web blogx_admin blogx_server
+docker compose restart nginx
+docker compose ps
+curl -sk https://127.0.0.1/health | head -1
+```
+
+**5. 冒烟与已知限制**
+
+目录树、阅读页左栏与「目录」抽屉、编辑入口、封面兜底、裁剪窗、私信「实时已连接」、上传比例校验的逐项验收口径，以及「DNS 已恢复（2026-11-04）、上传闭环与比例校验待部署后复验」等已知限制与复验步骤，见 [2026-11-04 目录树批次发布说明](docs/notes/2026-11-04-outline-tree-release-notes.md)。
 
 ### 11.5 回滚
 

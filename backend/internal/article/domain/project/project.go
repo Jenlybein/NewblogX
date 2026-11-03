@@ -1,12 +1,12 @@
-// Package project 是「项目」子域：管理员编排的一组有顺序的文章。
+// Package project 是「项目」子域：管理员编排的一组有层次的文章。
 //
 // 项目与「合集」是**并列的独立内容实体**：两套表、两套接口、两套后台维护页，
 // 页面形态复用但数据不共用。新入口内部文案一律写「项目」，不混用「合集」字样。
 //
 // 与「热门置顶」是三套东西，不要混用：
 //   - 热门置顶：首页运营位，上限 12 条，表 article_hot_top_models；
-//   - 合集：表 collection_models + collection_article_models；
-//   - 项目：表 project_models + project_article_models（本包）。
+//   - 合集：主表 collection_models（编排由目录树承载）；
+//   - 项目：主表 project_models（本包，编排同样由目录树承载）。
 //
 // 项目是**管理员专属**的运营产物：作者不参与创建，读者只读。
 // 本包只放"什么是合法项目"的纯规则与读模型，不含 SQL 也不认识 gin。
@@ -19,18 +19,17 @@ import (
 
 	"myblogx/internal/apperr"
 	"myblogx/internal/article/domain"
+	"myblogx/internal/article/domain/outline"
 	"myblogx/internal/kernel/ctype"
 )
 
 // 类型别名。
 //
-// ID / ArticleID 都是 ctype.ID 的别名（与合集同一做法）：
+// ID 是 ctype.ID 的别名（与合集同一做法）：
 // 底层是 string，契约里就是 string，不需要生成后再修补。
 type (
 	// ID 是项目标识。
 	ID = ctype.ID
-	// ArticleID 是被收录文章的标识。
-	ArticleID = ctype.ID
 )
 
 // 标题长度上限（与合集逐字一致：卡片只显示一行标题）。
@@ -54,14 +53,8 @@ var (
 	//
 	// 两种情形合并成一个码：读者侧不能靠响应差异探测还没公布的项目。
 	ErrNotFound = apperr.New(apperr.CodeProjectNotFound)
-	// ErrDuplicateArticle 同一项目内重复收录同一篇文章。
-	ErrDuplicateArticle = apperr.New(apperr.CodeProjectArticleDuplicated)
-	// ErrNotIncludable 文章不是"已发布且可见"，不能收录。
-	ErrNotIncludable = apperr.New(apperr.CodeProjectArticleNotIncludable)
 	// ErrOrderMismatch 顺序替换的输入与当前集合不一致。
 	ErrOrderMismatch = apperr.New(apperr.CodeProjectOrderMismatch)
-	// ErrArticleMissing 要移除的收录不存在。
-	ErrArticleMissing = apperr.New(apperr.CodeProjectArticleMissing)
 )
 
 // Project 是项目聚合根。
@@ -215,7 +208,7 @@ func (p *Project) SetSortOrder(order int, now time.Time) {
 
 // SoftDelete 标记删除（不物理删）。
 //
-// 删项目**不删文章**：中间表的行留着（文章本身与本项目无关），
+// 删项目**不删文章**：目录树里的节点留着（文章本身与本项目无关），
 // 读者侧因为项目已经查不到而整块消失。
 func (p *Project) SoftDelete(now time.Time) {
 	p.deleted = true
@@ -234,18 +227,6 @@ func checkTitle(title string) error {
 	return nil
 }
 
-// CanBeIncluded 判断一篇文章能否被收录进项目。
-//
-// 规则只有一条：它此刻必须对匿名访客可见（已发布 + visible + 未删除）。
-// 与合集复用同一个领域判定 `IsPubliclyVisible`：两个运营位一旦分叉就会出现
-// "项目里有一张点进去 404 的条目"。
-//
-// 注意这只约束**收录动作**。已经收录的文章后来变成私有/删除时，中间行保留
-// （后台标「已失效」并可清理），读者侧靠 JOIN 过滤掉——与合集逐字一致。
-func CanBeIncluded(a *domain.Article) bool {
-	return a != nil && a.IsPubliclyVisible()
-}
-
 // Card 是读者站项目列表页的一张卡片。
 //
 // ArticleCount 只数**仍公开**的文章：一张写着"20 篇"点进去只有 18 篇是坏体验。
@@ -256,18 +237,6 @@ type Card struct {
 	Cover        string
 	ArticleCount int
 	CreatedAt    time.Time
-}
-
-// IncludedArticle 是项目详情页里的一篇文章（按顺序排列）。
-type IncludedArticle struct {
-	ArticleID      ArticleID
-	SortOrder      int
-	Title          string
-	Abstract       string
-	Cover          string
-	ViewCount      int
-	AuthorNickname string
-	CategoryTitle  string
 }
 
 // AdminCard 是后台项目列表的一行：含**未展示**的项目与收录条数。
@@ -289,50 +258,15 @@ type AdminCard struct {
 	FallbackCover string
 }
 
-// AdminItem 是后台「项目编排」页的一行：顺序 + 文章摘要 + 是否失效。
-type AdminItem struct {
-	ArticleID ArticleID
-	SortOrder int
-	Title     string
-	Cover     string
-	// Article 是文章当前状态；文章已物理删除时为 nil。
-	Article *ArticleState
-}
-
-// ArticleState 是收录行所指文章**此刻**的状态。
-//
-// 它是 domain.ArticleState 的类型别名：失效口径与「热门置顶 / 合集」逐字一致，
-// 三个运营位共用同一份状态集合与判定函数（IsStale / StaleReason）。
-type ArticleState = domain.ArticleState
-
-// Stale 判断这一行是否已失效。
-//
-// 判定函数与合集共用 domain.ArticleState.IsStale，不要在这里另写。
-func (i AdminItem) Stale() bool { return i.Article.IsStale() }
-
-// StaleReason 返回失效原因；仍有效时为空值。
-func (i AdminItem) StaleReason() domain.StaleReason { return i.Article.StaleReason() }
-
-// CheckOrder 校验"项目内全量顺序替换"的输入。
-//
-// next 必须是 current 的一个排列：同一批文章、每条恰好一次。
-// 不允许"缺的删掉"这种宽松语义——PATCH 是后台排序按钮的产物，
-// 一个过期的页面点一次「上移」就会把别人刚收录的那篇静默删掉。
-func CheckOrder(current, next []ArticleID) error {
-	return checkPermutation(current, next)
-}
-
 // CheckSortOrder 校验"项目之间全量顺序替换"的输入。
 //
-// 与 CheckOrder 同一条规则，只是对象换成了项目自身：next 必须是当前全部
-// 未软删项目的一个排列。
+// next 必须是当前全部未软删项目的一个排列：缺一个、多一个、重复都会整单拒绝——
+// 后台拿到的是上一次读到的列表，宽松语义会把别人刚建的项目静默漏掉。
 func CheckSortOrder(current, next []ID) error {
 	return checkPermutation(current, next)
 }
 
-// checkPermutation 是两级排序共用的"集合一致性"规则。
-//
-// 与合集同一实现：两级换序必须同一套语义，否则一处拒绝、一处静默丢条目。
+// checkPermutation 是"集合一致性"规则：next 必须是 current 的一个排列。
 func checkPermutation[T comparable](current, next []T) error {
 	if len(next) != len(current) {
 		return ErrOrderMismatch
@@ -354,42 +288,26 @@ func checkPermutation[T comparable](current, next []T) error {
 	return nil
 }
 
-// IncludeOutcome 是一篇文章在一次批量收录里的结局。
-//
-// 取值与合集逐字一致：批量收录逐篇分类而不是整单成败，单篇收录仍保持
-// "重复即报错"，两条入口的语义各自清楚。
-type IncludeOutcome string
-
-const (
-	// IncludeOutcomeIncluded 成功收录，排在项目末尾。
-	IncludeOutcomeIncluded IncludeOutcome = "included"
-	// IncludeOutcomeDuplicated 已经在项目里（活跃收录），本次不新增、不改序号。
-	IncludeOutcomeDuplicated IncludeOutcome = "duplicated"
-	// IncludeOutcomeNotIncludable 文章不是"已发布且可见"，不能收录。
-	IncludeOutcomeNotIncludable IncludeOutcome = "not_includable"
-	// IncludeOutcomeMissing 文章不存在（或已被物理删除）。
-	IncludeOutcomeMissing IncludeOutcome = "missing"
-)
-
-// BatchIncludeResult 是批量收录里一篇文章的结局。
-type BatchIncludeResult struct {
-	ArticleID ArticleID
-	Outcome   IncludeOutcome
-}
-
-// Detail 是项目详情：项目本身 + 按顺序排列的已公开文章。
+// Detail 是项目详情：项目本身 + 嵌套目录树。
 //
 // 为什么在 domain 而不是 app 拼：它是"读者看到的项目"的完整读模型，
 // 一旦分叉（比如详情页少过滤一次失效行），入口就会多一张死链卡片。
 type Detail struct {
-	Project  *Project
-	Articles []IncludedArticle
+	Project *Project
+	// Tree 是读者看到的嵌套目录树（只含公开文章节点，文件夹保留）。
+	Tree []outline.ViewNode
+	// ArticleCount 篇数只数公开文章节点。
+	ArticleCount int
+	// Cover 是最终生效封面（显式封面优先，空则 DFS 第一篇公开文章的封面）。
+	Cover string
 }
 
 // Repository 是项目的持久化契约（读者侧公开读 + 管理端读写）。
 //
-// 所有写方法都要求调用方已在事务内（app 的 WithinTx），因为"收录/移除/重排"
-// 都可能同时改多行（压实序号、重排）。
+// 写入口只有四个：建、改内容/展示、软删、项目之间排序——它们都只碰
+// `project_models` 一行（排序一次改多行，所以仍在事务内）。
+// 收录关系与层次全部由目录树（outline.Repository）承载，本契约不再有任何
+// 中间表读写方法（#225：旧扁平收录接口随旧表一起退役）。
 type Repository interface {
 	// Create 插入项目；ID 必须由调用方给好。
 	Create(ctx context.Context, p *Project) error
@@ -418,34 +336,10 @@ type Repository interface {
 
 	// UpdateSortOrders 按给定顺序把**项目自身**的序号改成 1..n。
 	//
-	// 与 UpdateItemOrder 分开：后者改的是项目里的收录行（中间表），
-	// 这里改的是 project_models.sort_order（读者列表页的展示顺序）。
+	// 改的是 project_models.sort_order（读者列表页的展示顺序）。
 	// 调用方已用 CheckSortOrder 校验。
 	UpdateSortOrders(ctx context.Context, ids []ID) error
 
 	// NextSortOrder 返回下一个可用的项目顺序号（当前最大 + 1，空表为 1）。
 	NextSortOrder(ctx context.Context) (int, error)
-
-	// ListItemIDs 按顺序返回项目当前收录的文章 ID（不含软删行）。
-	ListItemIDs(ctx context.Context, id ID) ([]ArticleID, error)
-
-	// AppendItem 收录一篇文章，返回是否真的新增（已存在时幂等返回 false）。
-	//
-	// 新条目排在末尾；曾经移除过的文章重新收录时恢复原行，不产生第二行
-	// （(project_id, article_id) 上有唯一索引）。
-	AppendItem(ctx context.Context, id ID, articleID ArticleID) (created bool, err error)
-
-	// RemoveItem 移除收录（软删）并压实剩余序号；不存在视为成功（幂等）。
-	RemoveItem(ctx context.Context, id ID, articleID ArticleID) error
-
-	// ListIncludedArticles 列出**仍公开**的收录文章，按顺序升序。
-	//
-	// 失效行不出现：读者侧靠这条查询过滤，不靠前端判断。
-	ListIncludedArticles(ctx context.Context, id ID, onlyAdminAuthors bool) ([]IncludedArticle, error)
-
-	// ListAdminItems 列出**全部**收录行（含已失效），按顺序升序。
-	ListAdminItems(ctx context.Context, id ID) ([]AdminItem, error)
-
-	// UpdateItemOrder 按给定顺序把收录序号改成 1..n（调用方已用 CheckOrder 校验）。
-	UpdateItemOrder(ctx context.Context, id ID, articleIDs []ArticleID) error
 }

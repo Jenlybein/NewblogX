@@ -1,4 +1,4 @@
-// 「两端 imageShaping.ts 逐字节一致」同步门禁（#200，承接 #195 的跨包共享交代）。
+// 「两端逐字节同源」门禁（#200 定形工具；#225 扩到裁剪窗四份组件）。
 //
 // 为什么必须有它（#176 的教训）：后台（frontend_admin）**不得相对路径 import 读者站
 // 模块** —— 那样后台生产构建会失败（后台必须自洽，有自己的 workspace 与 lockfile）。
@@ -6,21 +6,25 @@
 // 的文件。只靠纪律的话，必然出现"改了读者站忘记改后台"：后台静默停在旧尺寸/旧裁切，
 // 而且两端各自的测试都是绿的（每份文件内部自洽）。
 //
+// #225 把同一把尺子用到裁剪窗：`ImageCropView.vue` / `ImageCropDialog.vue` 在两端
+// 也是逐字节相同的副本（读者站 studio/ 与后台 media/ 各一份），但此前没有任何门禁。
+// 改一端的取景交互、另一端的组件测试照样绿——用户在后台与读者站会看到两套裁剪窗。
+//
 // 判定是**逐字节**的，不是"解析后比语义"：
 //   - 语义比对会放过注释、顺序、空白差异，而任何一种差异都意味着有人只改了一端；
 //   - 只比文件大小会漏掉"改了一个字符、长度不变"的事故（最常见的一种）。
 //
 // 差异时报出**是哪一份漂移**：字节差异本身分不出谁对谁错，所以除了偏移/行号，
 // 还报两份各多少字节、哪一侧多出内容。权威方向是 #195 定下的：读者站那份是原文，
-// 改完逐字复制到后台。
+// 改完逐字复制到后台（裁剪窗四份沿用同一方向）。
 //
 // canary 由两处保证它会红：
 //   1. frontend/test/utils/image-shaping-parity.test.ts：喂合成的不一致内容断言失败；
 //   2. scripts/verify-gates.sh：真实仓库里**故意只改后台副本的一个常量**，断言门禁变红。
 //
 // 用法：node scripts/check-image-shaping-parity.mjs [--report]
-//   --report：只打印两份文件大小/首行差异（排查用，不做判定）
-// 退出码：0 = 逐字节一致；1 = 不一致或文件缺失
+//   --report：只打印文件大小/首行差异（排查用，不做判定）
+// 退出码：0 = 全部逐字节一致；1 = 有文件不一致或缺失
 import { existsSync, readFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 
@@ -28,6 +32,23 @@ import { dirname, join, resolve } from "node:path";
 export const IMAGE_SHAPING_FILES = {
   reader: "frontend/app/utils/imageShaping.ts",
   admin: "frontend_admin/app/utils/imageShaping.ts",
+};
+
+/**
+ * 裁剪窗的两对组件副本（相对仓库根）。
+ *
+ * 每对都是"读者站那份 = 原文，后台那份 = 逐字复制"：#225 之前它们没有任何门禁，
+ * 只靠人记得两边一起改。
+ */
+export const IMAGE_CROP_FILES = {
+  view: {
+    reader: "frontend/app/components/studio/ImageCropView.vue",
+    admin: "frontend_admin/app/components/media/ImageCropView.vue",
+  },
+  dialog: {
+    reader: "frontend/app/components/studio/ImageCropDialog.vue",
+    admin: "frontend_admin/app/components/media/ImageCropDialog.vue",
+  },
 };
 
 /** 从工作目录向上找到仓库根（含 scripts/ 与两端 imageShaping 的目录）。 */
@@ -112,28 +133,42 @@ export function describeDrift(difference, leftPath, rightPath) {
 }
 
 /**
- * 判定两份内容是否逐字节一致（纯函数，便于用人造数据断言门禁会红）。
+ * 判定一对"同源副本"是否逐字节一致（纯函数，便于用人造数据断言门禁会红）。
+ *
+ * 定形工具与裁剪窗组件共用这套判据：差异的描述（偏移、行号、谁多出内容、
+ * 权威方向）与判定标准必须只有一份，否则两对文件会得到两套结论。
  *
  * @returns {{ ok: boolean, failures: {kind: string, message: string}[], difference: object | null }}
  */
-export function evaluateImageShapingParity({ left, right, leftPath, rightPath }) {
+export function evaluateSameSourcePair({ label, left, right, leftPath, rightPath }) {
   const difference = findFirstDifference(left, right);
   if (!difference) return { ok: true, failures: [], difference: null };
 
   const message =
-    `${leftPath} 与 ${rightPath} 不是逐字节一致：` +
+    `${label}：${leftPath} 与 ${rightPath} 不是逐字节一致：` +
     `第 ${difference.offset} 字节起（前者第 ${difference.leftLine} 行 / 后者第 ${difference.rightLine} 行）` +
     `${leftPath} 是 ${describeByte(difference.leftByte)}，` +
     `${rightPath} 是 ${describeByte(difference.rightByte)}；` +
     `文件大小 ${difference.leftSize} / ${difference.rightSize} 字节。` +
     `${describeDrift(difference, leftPath, rightPath)}` +
-    "两端 imageShaping 是同一份同源文件：改一端必须把同一份内容复制到另一端。";
+    "两端这份文件是同源副本：改一端必须把同一份内容复制到另一端。";
 
   return {
     ok: false,
     failures: [{ kind: "byte-mismatch", message }],
     difference,
   };
+}
+
+/** 判定两端 imageShaping.ts 是否逐字节一致。 */
+export function evaluateImageShapingParity({ left, right, leftPath, rightPath }) {
+  return evaluateSameSourcePair({
+    label: "两端 imageShaping 定形工具",
+    left,
+    right,
+    leftPath,
+    rightPath,
+  });
 }
 
 /** 读两端真实文件并判定。任一文件缺失都算失败（不能当成「两端都空」通过）。 */
@@ -171,27 +206,116 @@ export function checkImageShapingParity({ repoRoot = findRepoRoot() } = {}) {
   };
 }
 
+/** 裁剪窗两对副本的展示名（报错时说清是哪一对漂移）。 */
+const IMAGE_CROP_LABELS = {
+  view: "ImageCropView 裁剪窗组件",
+  dialog: "ImageCropDialog 裁剪窗弹层",
+};
+
+/**
+ * 判定裁剪窗的若干对副本是否逐字节一致（纯函数，便于用人造数据断言门禁会红）。
+ *
+ * @param {{ pairs: {label: string, left: unknown, right: unknown, leftPath: string, rightPath: string}[] }} input
+ * @returns {{ ok: boolean, failures: {kind: string, message: string}[] }}
+ */
+export function evaluateImageCropParity({ pairs }) {
+  const failures = [];
+  for (const pair of pairs) {
+    const result = evaluateSameSourcePair(pair);
+    if (!result.ok) failures.push(...result.failures);
+  }
+  return { ok: failures.length === 0, failures };
+}
+
+/**
+ * 读四份裁剪窗组件并逐对判定。
+ *
+ * 两对都要判：只比一对时，另一对的漂移会静默通过——而"只改了一端"正是最常见的
+ * 事故形态。任一文件缺失都算失败（不能当成「两端都空」通过）。
+ */
+export function checkImageCropParity({ repoRoot = findRepoRoot() } = {}) {
+  const contents = {};
+  const files = {};
+  const failures = [];
+
+  for (const [pair, paths] of Object.entries(IMAGE_CROP_FILES)) {
+    contents[pair] = {};
+    files[pair] = {};
+    for (const [side, relativePath] of Object.entries(paths)) {
+      const fullPath = join(repoRoot, relativePath);
+      if (!existsSync(fullPath)) {
+        failures.push({
+          kind: "image-crop-file-missing",
+          message: `找不到 ${relativePath}（仓库根 ${repoRoot}）：裁剪窗组件的两端副本必须都在。`,
+        });
+        continue;
+      }
+      const bytes = readFileSync(fullPath);
+      contents[pair][side] = bytes;
+      files[pair][side] = bytes.length;
+    }
+  }
+
+  if (failures.length > 0) {
+    return { ok: false, failures, files: {} };
+  }
+
+  const result = evaluateImageCropParity({
+    pairs: Object.entries(IMAGE_CROP_FILES).map(([pair, paths]) => ({
+      label: IMAGE_CROP_LABELS[pair],
+      left: contents[pair].reader,
+      right: contents[pair].admin,
+      leftPath: paths.reader,
+      rightPath: paths.admin,
+    })),
+  });
+
+  return { ...result, files };
+}
+
 function runCli(argv) {
   const report = argv.includes("--report");
-  const result = checkImageShapingParity({ repoRoot: findRepoRoot() });
+  const shaping = checkImageShapingParity({ repoRoot: findRepoRoot() });
+  const crop = checkImageCropParity({ repoRoot: findRepoRoot() });
 
   if (report) {
     console.log(`两端 imageShaping：${IMAGE_SHAPING_FILES.reader} / ${IMAGE_SHAPING_FILES.admin}`);
-    console.log(`文件大小：${result.files.reader ?? 0} / ${result.files.admin ?? 0} 字节`);
-    console.log(result.ok ? "逐字节一致" : result.failures.map((failure) => failure.message).join("\n"));
+    console.log(`文件大小：${shaping.files.reader ?? 0} / ${shaping.files.admin ?? 0} 字节`);
+    console.log(shaping.ok ? "逐字节一致" : shaping.failures.map((failure) => failure.message).join("\n"));
+    for (const [pair, paths] of Object.entries(IMAGE_CROP_FILES)) {
+      console.log(`两端裁剪窗（${pair}）：${paths.reader} / ${paths.admin}`);
+      console.log(
+        `文件大小：${crop.files[pair]?.reader ?? 0} / ${crop.files[pair]?.admin ?? 0} 字节`,
+      );
+    }
+    console.log(crop.ok ? "逐字节一致" : crop.failures.map((failure) => failure.message).join("\n"));
     return 0;
   }
 
-  if (result.ok) {
+  let ok = true;
+
+  if (shaping.ok) {
     console.log(
-      `✓ 两端定形工具同源门禁通过（${result.files.reader} 字节 × 2 份，逐字节一致）`,
+      `✓ 两端定形工具同源门禁通过（${shaping.files.reader} 字节 × 2 份，逐字节一致）`,
     );
-    return 0;
+  } else {
+    ok = false;
+    console.error("✗ 两端定形工具（imageShaping）同源门禁失败");
+    for (const failure of shaping.failures) console.error(`  ${failure.message}`);
   }
 
-  console.error("✗ 两端定形工具（imageShaping）同源门禁失败");
-  for (const failure of result.failures) console.error(`  ${failure.message}`);
-  return 1;
+  if (crop.ok) {
+    console.log(
+      `✓ 两端裁剪窗同源门禁通过（ImageCropView ${crop.files.view.reader} 字节 × 2 份、` +
+        `ImageCropDialog ${crop.files.dialog.reader} 字节 × 2 份，逐字节一致）`,
+    );
+  } else {
+    ok = false;
+    console.error("✗ 两端裁剪窗（ImageCropView / ImageCropDialog）同源门禁失败");
+    for (const failure of crop.failures) console.error(`  ${failure.message}`);
+  }
+
+  return ok ? 0 : 1;
 }
 
 if (process.argv[1] && /check-image-shaping-parity\.mjs$/u.test(process.argv[1])) {

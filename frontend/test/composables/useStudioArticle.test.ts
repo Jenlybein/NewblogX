@@ -70,7 +70,13 @@ type HarnessOptions = {
   profileId?: string;
   pending?: Partial<{ draft: boolean; publish: boolean; ai: boolean; cover: boolean }>;
   /** 上传前定形的替身：默认把任何图都定形成 16:9（1600×900）的假产物。 */
-  shapeCover?: (file: File) => Promise<{ file: File; previewUrl: string; size: { width: number; height: number } }>;
+  shapeCover?: (file: File, framing?: { zoom: number; centerX: number; centerY: number }) => Promise<{
+    file: File;
+    previewUrl: string;
+    size: { width: number; height: number };
+  }>;
+  /** 量原图尺寸的替身：默认 16:9（合规，不弹裁剪窗）。 */
+  measureCover?: (file: File) => Promise<{ width: number; height: number }>;
 };
 
 /** 定形产物替身：新文件 + 产物尺寸 + 定形结果的预览地址。 */
@@ -104,6 +110,7 @@ async function harness(options: HarnessOptions = {}) {
     message,
     previewHeadings,
     shapeCover: options.shapeCover ?? (async () => shapedCover()),
+    measureCover: options.measureCover ?? (async () => ({ width: 1600, height: 900 })),
   });
   await settle();
 
@@ -437,6 +444,95 @@ describe("useStudioArticle · 封面", () => {
     expect(message.warning).not.toHaveBeenCalled();
     expect(message.error).not.toHaveBeenCalled();
     expect(uploadImageByTaskMock).not.toHaveBeenCalled();
+  });
+});
+
+describe("useStudioArticle · 裁剪窗：比例不合规才弹（#215）", () => {
+  /** 回填一篇带封面的文章，用于断言"取消后现有封面不变"。 */
+  async function harnessWithHydratedCover(measureCover: (file: File) => Promise<{ width: number; height: number }>) {
+    getArticleDetailMock.mockResolvedValue({ ...articleFixture });
+    const shapeCover = vi.fn(async () => shapedCover());
+    const result = await harness({ query: { article_id: "100" }, shapeCover, measureCover });
+    await settle();
+    return { ...result, shapeCover };
+  }
+
+  it("相差 >1% 时只打开裁剪窗：不定形、不上传，现有封面原样保留", async () => {
+    const { api, shapeCover } = await harnessWithHydratedCover(async () => ({ width: 1000, height: 1000 }));
+    const original = imageFile();
+
+    await api.handleCoverFileChange(fileChangeEvent(original));
+
+    // 确认之前不产出任何"已定形"的东西，更不会上传。
+    expect(shapeCover).not.toHaveBeenCalled();
+    expect(uploadImageByTaskMock).not.toHaveBeenCalled();
+    expect(api.coverCropRequest.value).toEqual({ file: original, width: 1000, height: 1000 });
+    expect(api.form.cover_image_id).toBe("img-1");
+    expect(api.coverPreviewUrl.value).toBe("https://cdn.example.com/cover.png");
+    expect(api.coverUploadStage.value).toContain("不符合");
+    expect(api.coverUploadStage.value).toContain("16:9");
+  });
+
+  it("相差 ≤1% 时不弹窗：直接定形上传，裁剪请求始终为空", async () => {
+    const { api } = await harness({ measureCover: async () => ({ width: 1920, height: 1080 }) });
+    const original = imageFile();
+
+    await api.handleCoverFileChange(fileChangeEvent(original));
+
+    expect(api.coverCropRequest.value).toBeNull();
+    expect(uploadImageByTaskMock).toHaveBeenCalledTimes(1);
+    expect(uploadImageByTaskMock.mock.calls[0]?.[0]).not.toBe(original);
+  });
+
+  it("确认裁剪：按选区定形成新文件再上传，关窗并落到预览/尺寸", async () => {
+    const shapeCover = vi.fn(async () => shapedCover());
+    const { api } = await harness({
+      shapeCover,
+      measureCover: async () => ({ width: 1000, height: 1000 }),
+    });
+    const original = imageFile();
+    const framing = { zoom: 2, centerX: 0.2, centerY: 0.5 };
+
+    await api.handleCoverFileChange(fileChangeEvent(original));
+    expect(api.coverCropRequest.value).not.toBeNull();
+
+    await api.confirmCoverCrop(framing);
+
+    // 定形拿到的是原图 + 选区；上传拿到的是定形产物。
+    expect(shapeCover).toHaveBeenCalledWith(original, framing);
+    expect(uploadImageByTaskMock).toHaveBeenCalledTimes(1);
+    expect(uploadImageByTaskMock.mock.calls[0]?.[0]).not.toBe(original);
+    expect(api.coverCropRequest.value).toBeNull();
+    expect(api.coverImageSize.value).toEqual({ width: 1600, height: 900 });
+    expect(api.form.cover_image_id).toBe("img-9");
+    expect(api.coverBadge.value?.text).toBe("已定形 1600 × 900");
+  });
+
+  it("取消裁剪：中止本次上传、保留现有封面，不产生任何记录", async () => {
+    const { api, shapeCover } = await harnessWithHydratedCover(async () => ({ width: 1000, height: 1000 }));
+    const original = imageFile();
+
+    await api.handleCoverFileChange(fileChangeEvent(original));
+    api.cancelCoverCrop();
+
+    expect(shapeCover).not.toHaveBeenCalled();
+    expect(uploadImageByTaskMock).not.toHaveBeenCalled();
+    expect(api.form.cover_image_id).toBe("img-1");
+    expect(api.coverPreviewUrl.value).toBe("https://cdn.example.com/cover.png");
+    expect(api.coverCropRequest.value).toBeNull();
+    expect(api.coverUploadStage.value).toContain("已取消");
+    expect(api.coverError.value).toBe("");
+  });
+
+  it("裁剪窗开着时不再开第二个文件选择框", async () => {
+    const { api } = await harness({ measureCover: async () => ({ width: 1000, height: 1000 }) });
+    await api.handleCoverFileChange(fileChangeEvent(imageFile()));
+    const click = vi.fn();
+    api.coverFileInputRef.value = { click } as never;
+
+    api.openCoverFilePicker();
+
+    expect(click).not.toHaveBeenCalled();
   });
 });
 

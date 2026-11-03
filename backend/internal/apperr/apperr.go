@@ -88,14 +88,6 @@ const (
 	// 也覆盖"未展示，对读者不可见"：两种情形合并成一个码，读者侧不能靠
 	// 响应差异探测未发布的合集（与文章"不存在/无权"合并是同一条口径）。
 	CodeCollectionNotFound Code = "collection.not_found"
-	// CodeCollectionArticleDuplicated 同一合集内重复收录同一篇文章。
-	CodeCollectionArticleDuplicated Code = "collection.article_duplicated"
-	// CodeCollectionArticleNotIncludable 文章不是"已发布且可见"，不能收录。
-	CodeCollectionArticleNotIncludable Code = "collection.article_not_includable"
-	// CodeCollectionOrderMismatch 全集顺序替换的输入与当前收录集合不一致。
-	CodeCollectionOrderMismatch Code = "collection.order_mismatch"
-	// CodeCollectionArticleMissing 要移除的收录不存在（取消收录是幂等的，正常不会出现）。
-	CodeCollectionArticleMissing Code = "collection.article_missing"
 )
 
 // 项目。
@@ -114,14 +106,27 @@ const (
 	// 也覆盖"未展示，对读者不可见"：两种情形合并成一个码，读者侧不能靠
 	// 响应差异探测未发布的项目（与合集同一口径）。
 	CodeProjectNotFound Code = "project.not_found"
-	// CodeProjectArticleDuplicated 同一项目内重复收录同一篇文章。
-	CodeProjectArticleDuplicated Code = "project.article_duplicated"
-	// CodeProjectArticleNotIncludable 文章不是"已发布且可见"，不能收录。
-	CodeProjectArticleNotIncludable Code = "project.article_not_includable"
 	// CodeProjectOrderMismatch 全集顺序替换的输入与当前集合不一致。
 	CodeProjectOrderMismatch Code = "project.order_mismatch"
-	// CodeProjectArticleMissing 要移除的收录不存在（取消收录是幂等的，正常不会出现）。
-	CodeProjectArticleMissing Code = "project.article_missing"
+)
+
+// 目录树（合集 / 项目共用的一张树表）。
+//
+// 单独一组而不是并进 collection / project：两者共用同一张表、同一套规则，
+// 错误码若按实体分叉，同一个结构错误会出现两种码，前端要维护两份映射。
+const (
+	// CodeOutlineTitleRequired 文件夹标题为空。
+	CodeOutlineTitleRequired Code = "outline.title_required"
+	// CodeOutlineTitleTooLong 文件夹标题超过上限。
+	CodeOutlineTitleTooLong Code = "outline.title_too_long"
+	// CodeOutlineArticleDuplicated 同一棵树内重复挂载同一篇文章。
+	CodeOutlineArticleDuplicated Code = "outline.article_duplicated"
+	// CodeOutlineArticleNotIncludable 文章不是"已发布且可见"，不能收录。
+	CodeOutlineArticleNotIncludable Code = "outline.article_not_includable"
+	// CodeOutlineStructureInvalid 树结构不合法（成环 / 父节点不是文件夹 / 跨 owner 混入）。
+	CodeOutlineStructureInvalid Code = "outline.structure_invalid"
+	// CodeOutlineNodeMissing 要移动 / 更新的节点不存在（页面已过期）。
+	CodeOutlineNodeMissing Code = "outline.node_missing"
 )
 
 // 审核任务。
@@ -204,6 +209,10 @@ const (
 	CodeImageDeleteFailed     Code = "image.delete_failed"
 	CodeImageObjectKeyMissing Code = "image.object_key_missing"
 	CodeImageCallbackInvalid  Code = "image.callback_invalid"
+	// CodeImagePurposeInvalid 创建上传任务时声明了 cover/avatar 之外的用途。
+	CodeImagePurposeInvalid Code = "image.purpose_invalid"
+	// CodeImageRatioMismatch 确认时对象存储上的真实图片不符合用途的目标比例（±1%）。
+	CodeImageRatioMismatch Code = "image.ratio_mismatch"
 )
 
 // 搜索。
@@ -396,21 +405,21 @@ var messages = map[Code]string{
 	CodeHotTopNotPinnable:   "只有已发布且可见的文章可以设为热门置顶",
 	CodeHotTopOrderMismatch: "排序列表与当前热门置顶不一致，请刷新后重试",
 
-	CodeCollectionTitleRequired:        "合集标题不能为空",
-	CodeCollectionTitleTooLong:         "合集标题不能超过 128 个字符",
-	CodeCollectionNotFound:             "合集不存在",
-	CodeCollectionArticleDuplicated:    "该文章已在合集中",
-	CodeCollectionArticleNotIncludable: "只有已发布且可见的文章可以收录进合集",
-	CodeCollectionOrderMismatch:        "排序列表与当前收录不一致，请刷新后重试",
-	CodeCollectionArticleMissing:       "该文章不在此合集中",
+	CodeCollectionTitleRequired: "合集标题不能为空",
+	CodeCollectionTitleTooLong:  "合集标题不能超过 128 个字符",
+	CodeCollectionNotFound:      "合集不存在",
 
-	CodeProjectTitleRequired:        "项目标题不能为空",
-	CodeProjectTitleTooLong:         "项目标题不能超过 128 个字符",
-	CodeProjectNotFound:             "项目不存在",
-	CodeProjectArticleDuplicated:    "该文章已在项目中",
-	CodeProjectArticleNotIncludable: "只有已发布且可见的文章可以收录进项目",
-	CodeProjectOrderMismatch:        "排序列表与当前项目内容不一致，请刷新后重试",
-	CodeProjectArticleMissing:       "该文章不在此项目中",
+	CodeProjectTitleRequired: "项目标题不能为空",
+	CodeProjectTitleTooLong:  "项目标题不能超过 128 个字符",
+	CodeProjectNotFound:      "项目不存在",
+	CodeProjectOrderMismatch: "排序列表与当前项目内容不一致，请刷新后重试",
+
+	CodeOutlineTitleRequired:        "文件夹标题不能为空",
+	CodeOutlineTitleTooLong:         "文件夹标题不能超过 128 个字符",
+	CodeOutlineArticleDuplicated:    "该文章已在目录树中",
+	CodeOutlineArticleNotIncludable: "只有已发布且可见的文章可以收录",
+	CodeOutlineStructureInvalid:     "目录树结构不合法，请刷新后重试",
+	CodeOutlineNodeMissing:          "目录树节点不存在，请刷新后重试",
 
 	CodeReviewTaskNotFound: "审核任务不存在",
 	CodeReviewTaskHandled:  "审核任务已处理",
@@ -471,6 +480,8 @@ var messages = map[Code]string{
 	CodeImageDeleteFailed:     "删除图片失败",
 	CodeImageObjectKeyMissing: "回调缺少对象 key",
 	CodeImageCallbackInvalid:  "回调签名校验失败",
+	CodeImagePurposeInvalid:   "上传用途不合法，只能是封面（cover）或头像（avatar）",
+	CodeImageRatioMismatch:    "图片比例不符合用途要求：封面需 16:9、头像需 1:1（容差 ±1%），请重新定形后上传",
 
 	CodeSearchTypeInvalid:     "搜索类型错误",
 	CodeSearchSortInvalid:     "搜索排序错误",

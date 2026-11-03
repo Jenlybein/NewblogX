@@ -8,25 +8,29 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
 
 	"myblogx/internal/article/domain"
+	"myblogx/internal/article/domain/outline"
 	"myblogx/internal/kernel/ctype"
 	"myblogx/internal/testkit/mysqlcontainer"
 	"myblogx/internal/testkit/schema"
 )
 
-// 本文件是「合集最小闭环」的端到端契约：建合集 → 收录一篇 → 读者侧可见。
+// 本文件是「合集最小闭环」的端到端契约：建合集 → 树里挂文章 → 读者侧可见。
 //
-// 走真实 HTTP + 真 MySQL，断言的是**外部行为**（响应里的业务码与条目、顺序），
-// 不是仓储方法被调了几次。这是 #102 的四条验收里唯一能一次验完的路径。
+// #219 契约破坏性变更后，合集详情返回**嵌套目录树**（`outline`），扁平
+// `articles[]` 已退役。种子直接写 `content_outline_node_models`
+// （schema.InsertOutlineNode）；旧扁平收录中间表已随 #225 从代码里删除。
 
-// migrateCollections 建出合集闭环需要的表（比共享的 migrate 多 schema.Collection）。
+// migrateCollectionsHTTP 建出合集闭环需要的表（比共享的 migrate 多 schema.Collection
+// 与 schema.Outline）。
 func migrateCollectionsHTTP(t *testing.T) *gorm.DB {
 	t.Helper()
 	db := mysqlcontainer.DB(t)
 	schema.Migrate(t, db,
-		schema.UserCore, schema.ArticleCore, schema.Collection,
+		schema.UserCore, schema.ArticleCore, schema.Collection, schema.Outline,
 	)
 	return db
 }
@@ -50,6 +54,13 @@ func seedCollectionArticle(t *testing.T, db *gorm.DB, id, authorID uint64) {
 	})
 }
 
+// seedCollectionOutlineNode 往合集树里播种一行。
+func seedCollectionOutlineNode(t *testing.T, db *gorm.DB, spec schema.OutlineNodeSpec) {
+	t.Helper()
+	spec.OwnerKind = int(outline.OwnerCollection)
+	schema.InsertOutlineNode(t, db, spec)
+}
+
 // envelope 是响应外壳（只看 code / data）。
 type envelope struct {
 	Code int             `json:"code"`
@@ -67,9 +78,105 @@ func decode(t *testing.T, raw []byte) envelope {
 	return env
 }
 
-// TestCollectionStalePlaceholderAndCleanup 失效行：读者侧消失、后台保留占位、一键清理幂等。
+// collectionOutlineNode 是详情 / 后台树响应里的一行（嵌套）。
 //
-// 三种成因（草稿 / 私有 / 删除）一次验完；清理只删失效行，重复调用 removed=0。
+// 文章节点：kind=2、article_id 非空、title 为空、文章标题与封面在
+// article_title / article_cover；文件夹节点：kind=1、title 是文件夹标题。
+type collectionOutlineNode struct {
+	ID           ctype.ID                `json:"id"`
+	ParentID     ctype.ID                `json:"parent_id"`
+	Kind         int                     `json:"kind"`
+	Title        string                  `json:"title"`
+	ArticleID    ctype.ID                `json:"article_id"`
+	SortOrder    int                     `json:"sort_order"`
+	ArticleTitle string                  `json:"article_title"`
+	ArticleCover string                  `json:"article_cover"`
+	Stale        bool                    `json:"stale"`
+	StaleReason  string                  `json:"stale_reason"`
+	Children     []collectionOutlineNode `json:"children"`
+}
+
+// flattenCollectionOutline 按 DFS 把嵌套树拍平成一行行，方便断言顺序与失效原因。
+func flattenCollectionOutline(items []collectionOutlineNode) []collectionOutlineNode {
+	var out []collectionOutlineNode
+	var walk func([]collectionOutlineNode)
+	walk = func(rows []collectionOutlineNode) {
+		for _, row := range rows {
+			out = append(out, row)
+			walk(row.Children)
+		}
+	}
+	walk(items)
+	return out
+}
+
+// readCollectionDetail 读读者详情，返回目录树、篇数与最终封面。
+func readCollectionDetail(
+	t *testing.T, r *gin.Engine, id ctype.ID,
+) (nodes []collectionOutlineNode, articleCount int, cover string) {
+	t.Helper()
+	raw := rawRequest(t, r, "GET", fmt.Sprintf("/api/collections/%s", id), nil)
+	env := decode(t, raw)
+	if env.Code != 0 {
+		t.Fatalf("读者详情应成功，实际 code=%d msg=%s（响应 %s）", env.Code, env.Msg, raw)
+	}
+	var detail struct {
+		Cover        string `json:"cover"`
+		ArticleCount int    `json:"article_count"`
+		Outline      struct {
+			Nodes []collectionOutlineNode `json:"nodes"`
+		} `json:"outline"`
+	}
+	if err := json.Unmarshal(env.Data, &detail); err != nil {
+		t.Fatalf("解析详情失败: %v（响应 %s）", err, raw)
+	}
+	return detail.Outline.Nodes, detail.ArticleCount, detail.Cover
+}
+
+// readCollectionAdminOutline 读后台树编辑器的整棵树。
+func readCollectionAdminOutline(
+	t *testing.T, r *gin.Engine, id ctype.ID,
+) []collectionOutlineNode {
+	t.Helper()
+	raw := rawRequest(t, r, "GET",
+		fmt.Sprintf("/api/collections/%s/outline/admin", id), nil)
+	env := decode(t, raw)
+	if env.Code != 0 {
+		t.Fatalf("后台目录树应成功，实际 code=%d msg=%s（响应 %s）", env.Code, env.Msg, raw)
+	}
+	var data struct {
+		Nodes []collectionOutlineNode `json:"nodes"`
+	}
+	if err := json.Unmarshal(env.Data, &data); err != nil {
+		t.Fatalf("解析后台目录树失败: %v（响应 %s）", err, raw)
+	}
+	return data.Nodes
+}
+
+// saveCollectionOutline 整棵树一次性提交，返回保存后的根层节点。
+func saveCollectionOutline(
+	t *testing.T, r *gin.Engine, id ctype.ID, body string,
+) []collectionOutlineNode {
+	t.Helper()
+	raw := rawRequest(t, r, "PUT",
+		fmt.Sprintf("/api/collections/%s/outline", id), []byte(body))
+	env := decode(t, raw)
+	if env.Code != 0 {
+		t.Fatalf("保存目录树应成功，实际 code=%d msg=%s（响应 %s）", env.Code, env.Msg, raw)
+	}
+	var data struct {
+		Nodes []collectionOutlineNode `json:"nodes"`
+	}
+	if err := json.Unmarshal(env.Data, &data); err != nil {
+		t.Fatalf("解析保存结果失败: %v（响应 %s）", err, raw)
+	}
+	return data.Nodes
+}
+
+// TestCollectionStalePlaceholderAndCleanup 失效行：读者侧消失、后台树上标记、
+// 整树提交清理后只剩在架节点（空文件夹保留）。
+//
+// 三种成因（草稿 / 私有 / 删除）一次验完；清理后重复提交同一棵树不产生变化。
 func TestCollectionStalePlaceholderAndCleanup(t *testing.T) {
 	t.Parallel()
 
@@ -95,7 +202,7 @@ func TestCollectionStalePlaceholderAndCleanup(t *testing.T) {
 	adminRouter := newRouterWithIDs(t, db, domain.AdminUser(ctype.NewID(900)), 100)
 	readerRouter := newRouterWithIDs(t, db, domain.Anonymous(), 100)
 
-	// 建合集并收录 4 篇。
+	// 建合集。
 	createRaw := rawRequest(t, adminRouter, "POST", "/api/collections", []byte(`{
 		"title": "待整理的专题",
 		"description": "",
@@ -111,16 +218,26 @@ func TestCollectionStalePlaceholderAndCleanup(t *testing.T) {
 	if err := json.Unmarshal(decode(t, createRaw).Data, &created); err != nil {
 		t.Fatalf("解析合集 ID 失败: %v", err)
 	}
-	for _, id := range []string{"21", "22", "23", "24"} {
-		raw := rawRequest(t, adminRouter, "POST",
-			fmt.Sprintf("/api/collections/%s/articles", created.ID),
-			[]byte(fmt.Sprintf(`{"article_id":%q}`, id)))
-		if env := decode(t, raw); env.Code != 0 {
-			t.Fatalf("收录 %s 应成功，实际 code=%d msg=%s", id, env.Code, env.Msg)
-		}
-	}
 
-	// 收录后文章变化：22 退回草稿、23 作者隐藏、24 软删。
+	// 播种目录树：「第一章」下挂 21–24，根层再放一个空文件夹「空章节」。
+	ownerID := created.ID.Uint64()
+	seedCollectionOutlineNode(t, db, schema.OutlineNodeSpec{
+		ID: 7001, OwnerID: ownerID, Kind: int(outline.NodeKindFolder),
+		Title: "第一章", SortOrder: 1, At: at,
+	})
+	for i, articleID := range []uint64{21, 22, 23, 24} {
+		seedCollectionOutlineNode(t, db, schema.OutlineNodeSpec{
+			ID: uint64(7002 + i), OwnerID: ownerID, ParentID: 7001,
+			Kind: int(outline.NodeKindArticle), ArticleID: articleID,
+			SortOrder: i + 1, At: at,
+		})
+	}
+	seedCollectionOutlineNode(t, db, schema.OutlineNodeSpec{
+		ID: 7006, OwnerID: ownerID, Kind: int(outline.NodeKindFolder),
+		Title: "空章节", SortOrder: 2, At: at,
+	})
+
+	// 收录（挂树）后文章变化：22 退回草稿、23 作者隐藏、24 软删。
 	if err := db.Table("article_models").Where("id = ?", 22).
 		Update("publish_status", int8(schema.ArticleStatusDraft)).Error; err != nil {
 		t.Fatalf("退回草稿失败: %v", err)
@@ -134,107 +251,263 @@ func TestCollectionStalePlaceholderAndCleanup(t *testing.T) {
 		t.Fatalf("软删文章失败: %v", err)
 	}
 
-	// 读者详情只剩 21；列表计数也只算 1。
-	detailRaw := rawRequest(t, readerRouter, "GET",
-		fmt.Sprintf("/api/collections/%s", created.ID), nil)
-	var detail struct {
-		Articles []struct {
-			ArticleID ctype.ID `json:"article_id"`
-		} `json:"articles"`
+	// 读者详情：失效文章节点被过滤，空文件夹保留，篇数只算公开文章。
+	nodes, articleCount, _ := readCollectionDetail(t, readerRouter, created.ID)
+	if articleCount != 1 {
+		t.Fatalf("读者详情篇数应只算公开文章（1），实际 %d", articleCount)
 	}
-	if err := json.Unmarshal(decode(t, detailRaw).Data, &detail); err != nil {
-		t.Fatalf("解析详情失败: %v", err)
+	if len(nodes) != 2 {
+		t.Fatalf("读者根层应是【第一章 + 空章节】，实际 %+v", nodes)
 	}
-	if len(detail.Articles) != 1 || detail.Articles[0].ArticleID.Uint64() != 21 {
-		t.Fatalf("读者详情应只保留仍公开的 21，实际 %+v", detail.Articles)
+	if nodes[0].Kind != int(outline.NodeKindFolder) || nodes[0].Title != "第一章" {
+		t.Fatalf("第一个节点应是文件夹「第一章」，实际 %+v", nodes[0])
+	}
+	if len(nodes[0].Children) != 1 || nodes[0].Children[0].ArticleID.Uint64() != 21 {
+		t.Fatalf("「第一章」下应只剩仍公开的 21，实际 %+v", nodes[0].Children)
+	}
+	if nodes[1].Kind != int(outline.NodeKindFolder) || nodes[1].Title != "空章节" ||
+		len(nodes[1].Children) != 0 {
+		t.Fatalf("「空章节」应作为空文件夹保留，实际 %+v", nodes[1])
 	}
 
+	// 读者列表卡片与详情同一口径：树里只剩 21 公开，旧中间表为空也要显示 1 篇。
 	listRaw := rawRequest(t, readerRouter, "GET", "/api/collections", nil)
 	var list struct {
+		List []struct {
+			ID           ctype.ID `json:"id"`
+			ArticleCount int      `json:"article_count"`
+		} `json:"list"`
+		Count int `json:"count"`
+	}
+	if err := json.Unmarshal(decode(t, listRaw).Data, &list); err != nil {
+		t.Fatalf("解析读者列表失败: %v（响应 %s）", err, listRaw)
+	}
+	if list.Count != 1 || len(list.List) != 1 || list.List[0].ID != created.ID {
+		t.Fatalf("读者列表应只有这张合集卡片，实际 %+v（响应 %s）", list, listRaw)
+	}
+	if list.List[0].ArticleCount != 1 {
+		t.Fatalf("卡片篇数应只数树里仍公开的文章（1），实际 %d", list.List[0].ArticleCount)
+	}
+
+	// 后台保留全部节点并标记失效原因（与旧收录行同一组枚举）。
+	adminNodes := flattenCollectionOutline(readCollectionAdminOutline(t, adminRouter, created.ID))
+	if len(adminNodes) != 6 {
+		t.Fatalf("后台应保留 6 个节点（第一章节 + 4 篇 + 空章节），实际 %d：%+v",
+			len(adminNodes), adminNodes)
+	}
+	checked := []struct {
+		index      int
+		articleID  uint64
+		wantReason string
+	}{
+		{1, 21, ""},
+		{2, 22, "not_published"},
+		{3, 23, "not_visible"},
+	}
+	for _, c := range checked {
+		row := adminNodes[c.index]
+		if row.ArticleID.Uint64() != c.articleID || row.StaleReason != c.wantReason {
+			t.Fatalf("后台第 %d 个节点不对: %+v，期望 article=%d reason=%q",
+				c.index, row, c.articleID, c.wantReason)
+		}
+		if row.Stale != (c.wantReason != "") {
+			t.Fatalf("后台第 %d 个节点的 stale 标记不对: %+v", c.index, row)
+		}
+	}
+	// 24 已软删：节点必须仍保留、保留标题，并把原因区分为 deleted（不是 missing）。
+	if deleted := adminNodes[4]; deleted.ArticleID.Uint64() != 24 ||
+		!deleted.Stale || deleted.StaleReason != "deleted" || deleted.ArticleTitle == "" {
+		t.Fatalf("已删除文章的占位应保留标题并标 deleted，实际 %+v", deleted)
+	}
+
+	// 后台卡片与读者同口径：失效行不进数。
+	adminListRaw := rawRequest(t, adminRouter, "GET", "/api/collections/admin", nil)
+	var adminList struct {
 		List []struct {
 			ArticleCount int `json:"article_count"`
 		} `json:"list"`
 	}
-	if err := json.Unmarshal(decode(t, listRaw).Data, &list); err != nil {
-		t.Fatalf("解析读者列表失败: %v", err)
+	if err := json.Unmarshal(decode(t, adminListRaw).Data, &adminList); err != nil {
+		t.Fatalf("解析后台列表失败: %v（响应 %s）", err, adminListRaw)
 	}
-	if len(list.List) != 1 || list.List[0].ArticleCount != 1 {
-		t.Fatalf("卡片收录数应只算公开文章（1），实际 %+v", list.List)
-	}
-
-	// 后台保留 4 行占位，失效行给出原因。
-	itemsRaw := rawRequest(t, adminRouter, "GET",
-		fmt.Sprintf("/api/collections/%s/articles/admin", created.ID), nil)
-	var items struct {
-		List []struct {
-			ArticleID   ctype.ID `json:"article_id"`
-			Stale       bool     `json:"stale"`
-			StaleReason string   `json:"stale_reason"`
-			Title       string   `json:"title"`
-		} `json:"list"`
-	}
-	if err := json.Unmarshal(decode(t, itemsRaw).Data, &items); err != nil {
-		t.Fatalf("解析后台收录行失败: %v", err)
-	}
-	if len(items.List) != 4 {
-		t.Fatalf("后台应保留 4 个占位，实际 %d（响应 %s）", len(items.List), itemsRaw)
-	}
-	wantReasons := []string{"", "not_published", "not_visible", "deleted"}
-	for i, reason := range wantReasons {
-		if items.List[i].Stale != (reason != "") || items.List[i].StaleReason != reason {
-			t.Fatalf("第 %d 行失效标记不符: %+v，期望 reason=%q", i+1, items.List[i], reason)
-		}
-	}
-	if items.List[3].Title == "" {
-		t.Fatalf("已删除文章的占位丢了标题: %+v", items.List[3])
+	if len(adminList.List) != 1 || adminList.List[0].ArticleCount != 1 {
+		t.Fatalf("后台卡片篇数应只数仍公开的文章（1），实际 %+v", adminList.List)
 	}
 
-	// 一键清理：只删 3 条失效行。
-	cleanupRaw := rawRequest(t, adminRouter, "DELETE",
-		fmt.Sprintf("/api/collections/%s/admin/stale", created.ID), nil)
-	var cleanup struct {
-		Removed int `json:"removed"`
-	}
-	if err := json.Unmarshal(decode(t, cleanupRaw).Data, &cleanup); err != nil {
-		t.Fatalf("解析清理结果失败: %v", err)
-	}
-	if cleanup.Removed != 3 {
-		t.Fatalf("应清理 3 条失效行，实际 %d（响应 %s）", cleanup.Removed, cleanupRaw)
+	// 整树提交清理：只保留第一章 + 21 + 空章节，其余三行被软删。
+	cleanupBody := `{"nodes":[
+		{"id":"7001","kind":1,"title":"第一章","children":[{"id":"7002","kind":2,"article_id":"21"}]},
+		{"id":"7006","kind":1,"title":"空章节"}
+	]}`
+	remaining := saveCollectionOutline(t, adminRouter, created.ID, cleanupBody)
+	if len(remaining) != 2 || len(remaining[0].Children) != 1 ||
+		remaining[0].Children[0].ArticleID.Uint64() != 21 {
+		t.Fatalf("清理后树里应剩【第一章 → 21】+【空章节】，实际 %+v", remaining)
 	}
 
-	// 幂等：第二次清理返回 0 且不动在架文章。
-	againRaw := rawRequest(t, adminRouter, "DELETE",
-		fmt.Sprintf("/api/collections/%s/admin/stale", created.ID), nil)
-	if err := json.Unmarshal(decode(t, againRaw).Data, &cleanup); err != nil {
-		t.Fatalf("解析二次清理结果失败: %v", err)
-	}
-	if cleanup.Removed != 0 {
-		t.Fatalf("第二次清理应为 0，实际 %d", cleanup.Removed)
+	// 幂等：再提交同一棵树，结果不变。
+	again := saveCollectionOutline(t, adminRouter, created.ID, cleanupBody)
+	if len(again) != 2 || len(again[0].Children) != 1 {
+		t.Fatalf("重复提交同一棵树应幂等，实际 %+v", again)
 	}
 
-	afterRaw := rawRequest(t, adminRouter, "GET",
-		fmt.Sprintf("/api/collections/%s/articles/admin", created.ID), nil)
-	var after struct {
-		List []struct {
-			ArticleID ctype.ID `json:"article_id"`
-			Stale     bool     `json:"stale"`
-		} `json:"list"`
+	// 后台读回与读者详情都只剩在架的 21。
+	after := flattenCollectionOutline(readCollectionAdminOutline(t, adminRouter, created.ID))
+	if len(after) != 3 || after[1].ArticleID.Uint64() != 21 || after[1].Stale {
+		t.Fatalf("清理后后台应是【第一章, 21, 空章节】，实际 %+v", after)
 	}
-	if err := json.Unmarshal(decode(t, afterRaw).Data, &after); err != nil {
-		t.Fatalf("解析清理后收录行失败: %v", err)
-	}
-	if len(after.List) != 1 || after.List[0].ArticleID.Uint64() != 21 || after.List[0].Stale {
-		t.Fatalf("清理后后台应只剩在架的 21，实际 %+v", after.List)
+	afterNodes, afterCount, _ := readCollectionDetail(t, readerRouter, created.ID)
+	if afterCount != 1 || len(afterNodes) != 2 ||
+		afterNodes[0].Children[0].ArticleID.Uint64() != 21 {
+		t.Fatalf("清理后读者详情不对: count=%d nodes=%+v", afterCount, afterNodes)
 	}
 }
 
-// TestCollectionMinimalLoop 建合集 → 收录一篇 → 读者列表与详情可见 → 关展示后消失。
+// TestCollectionCardsHonorShowNonAdminSwitch 卡片篇数与封面回退受「显示非管理员
+// 发布文章」开关约束：关闭时非管理员作者的文章不计入篇数、不参与封面回退；
+// 后台卡片不看这个读者开关，仍按"公开文章"口径。
+func TestCollectionCardsHonorShowNonAdminSwitch(t *testing.T) {
+	t.Parallel()
+
+	db := migrateCollectionsHTTP(t)
+	at := time.Date(2026, 1, 1, 12, 0, 0, 0, time.UTC)
+	schema.InsertUser(t, db, schema.UserSpec{
+		ID: 100, Username: "normal", Nickname: "普通作者", Role: schema.RoleUser,
+	})
+	schema.InsertUser(t, db, schema.UserSpec{
+		ID: 900, Username: "admin", Nickname: "管理员作者", Role: schema.RoleAdmin,
+	})
+	for _, spec := range []struct {
+		id     uint64
+		author uint64
+		cover  string
+	}{
+		{31, 100, "https://cdn.example.com/normal.png"},
+		{32, 900, "https://cdn.example.com/admin.png"},
+	} {
+		seedCollectionArticle(t, db, spec.id, spec.author)
+		if err := db.Table("article_models").Where("id = ?", spec.id).
+			Update("cover", spec.cover).Error; err != nil {
+			t.Fatalf("设置文章封面失败: %v", err)
+		}
+	}
+
+	adminRouter := newRouterWithIDs(t, db, domain.AdminUser(ctype.NewID(900)), 100)
+	createRaw := rawRequest(t, adminRouter, "POST", "/api/collections", []byte(`{
+		"title": "作者混合合集",
+		"description": "",
+		"cover": "",
+		"displayed": true
+	}`))
+	var created struct {
+		ID ctype.ID `json:"id"`
+	}
+	if env := decode(t, createRaw); env.Code != 0 {
+		t.Fatalf("建合集应成功，实际 code=%d msg=%s", env.Code, env.Msg)
+	} else if err := json.Unmarshal(env.Data, &created); err != nil {
+		t.Fatalf("解析合集 ID 失败: %v", err)
+	}
+
+	// 树里先挂普通作者 31，再挂管理员作者 32。
+	seedCollectionOutlineNode(t, db, schema.OutlineNodeSpec{
+		ID: 7501, OwnerID: created.ID.Uint64(), Kind: int(outline.NodeKindArticle),
+		ArticleID: 31, SortOrder: 1, At: at,
+	})
+	seedCollectionOutlineNode(t, db, schema.OutlineNodeSpec{
+		ID: 7502, OwnerID: created.ID.Uint64(), Kind: int(outline.NodeKindArticle),
+		ArticleID: 32, SortOrder: 2, At: at,
+	})
+
+	readCards := func(t *testing.T, r *gin.Engine) []struct {
+		ID           ctype.ID `json:"id"`
+		Cover        string   `json:"cover"`
+		ArticleCount int      `json:"article_count"`
+		Fallback     string   `json:"fallback_cover"`
+	} {
+		t.Helper()
+		raw := rawRequest(t, r, "GET", "/api/collections", nil)
+		var data struct {
+			List []struct {
+				ID           ctype.ID `json:"id"`
+				Cover        string   `json:"cover"`
+				ArticleCount int      `json:"article_count"`
+				Fallback     string   `json:"fallback_cover"`
+			} `json:"list"`
+		}
+		if err := json.Unmarshal(decode(t, raw).Data, &data); err != nil {
+			t.Fatalf("解析合集列表失败: %v（响应 %s）", err, raw)
+		}
+		return data.List
+	}
+
+	readerOn := newRouterWithIDs(t, db, domain.Anonymous(), 100)
+	readerOff := newRouterWithSite(t, db, domain.Anonymous(), 100,
+		siteConfigWithShowNonAdmin(t, false))
+
+	// 开关打开：两篇都算，封面取首节点（普通作者那张）。
+	on := readCards(t, readerOn)
+	if len(on) != 1 || on[0].ArticleCount != 2 || on[0].Cover != "https://cdn.example.com/normal.png" {
+		t.Fatalf("开关打开时卡片不对: %+v", on)
+	}
+
+	// 开关关闭：只剩管理员作者那篇，封面跳过不可见节点。
+	off := readCards(t, readerOff)
+	if len(off) != 1 || off[0].ArticleCount != 1 || off[0].Cover != "https://cdn.example.com/admin.png" {
+		t.Fatalf("开关关闭时卡片不对: %+v", off)
+	}
+
+	// 后台卡片不读这个读者开关：仍是两篇公开文章、回退封面取首节点。
+	adminRaw := rawRequest(t, adminRouter, "GET", "/api/collections/admin", nil)
+	var adminList struct {
+		List []struct {
+			ArticleCount  int    `json:"article_count"`
+			FallbackCover string `json:"fallback_cover"`
+		} `json:"list"`
+	}
+	if err := json.Unmarshal(decode(t, adminRaw).Data, &adminList); err != nil {
+		t.Fatalf("解析后台列表失败: %v（响应 %s）", err, adminRaw)
+	}
+	if len(adminList.List) != 1 || adminList.List[0].ArticleCount != 2 ||
+		adminList.List[0].FallbackCover != "https://cdn.example.com/normal.png" {
+		t.Fatalf("后台卡片口径不对: %+v", adminList.List)
+	}
+
+	// 只有非管理员作者文章的合集，开关关闭时读者列表整张卡片消失。
+	onlyNormal := rawRequest(t, adminRouter, "POST", "/api/collections", []byte(`{
+		"title": "只有普通作者",
+		"description": "",
+		"cover": "",
+		"displayed": true
+	}`))
+	var second struct {
+		ID ctype.ID `json:"id"`
+	}
+	if env := decode(t, onlyNormal); env.Code != 0 {
+		t.Fatalf("建第二个合集应成功，实际 code=%d msg=%s", env.Code, env.Msg)
+	} else if err := json.Unmarshal(env.Data, &second); err != nil {
+		t.Fatalf("解析合集 ID 失败: %v", err)
+	}
+	seedCollectionOutlineNode(t, db, schema.OutlineNodeSpec{
+		ID: 7503, OwnerID: second.ID.Uint64(), Kind: int(outline.NodeKindArticle),
+		ArticleID: 31, SortOrder: 1, At: at,
+	})
+	if off := readCards(t, readerOff); len(off) != 1 || off[0].ID != created.ID {
+		t.Fatalf("开关关闭时无公开文章的合集应消失，实际 %+v", off)
+	}
+}
+
+// TestCollectionMinimalLoop 建合集 → 树上挂一篇 → 读者列表与详情可见 →
+// 关展示后消失 → 改内容 → 删合集（文章本身还在）。
 func TestCollectionMinimalLoop(t *testing.T) {
 	t.Parallel()
 
 	db := migrateCollectionsHTTP(t)
 	seedAuthor(t, db, 100)
 	seedCollectionArticle(t, db, 1, 100)
+	if err := db.Table("article_models").Where("id = ?", 1).
+		Update("cover", "https://cdn.example.com/first.png").Error; err != nil {
+		t.Fatalf("设置文章封面失败: %v", err)
+	}
 
 	adminRouter := newRouterWithIDs(t, db, domain.AdminUser(ctype.NewID(900)), 100)
 	// 读者路由：匿名视图，用来证明"未展示的合集对读者不可见"。
@@ -261,16 +534,14 @@ func TestCollectionMinimalLoop(t *testing.T) {
 		t.Fatalf("建合集应返回 ID，原始: %s", createRaw)
 	}
 
-	// ② 收录一篇文章。
-	includeRaw := rawRequest(t, adminRouter, "POST",
-		fmt.Sprintf("/api/collections/%s/articles", created.ID),
-		[]byte(`{"article_id":"1"}`))
-	includeEnv := decode(t, includeRaw)
-	if includeEnv.Code != 0 {
-		t.Fatalf("收录文章应成功，实际 code=%d msg=%s", includeEnv.Code, includeEnv.Msg)
-	}
+	// ② 树里挂一篇文章（直接播种目录树，不碰已冻结的扁平中间表）。
+	at := time.Date(2026, 1, 1, 12, 0, 0, 0, time.UTC)
+	seedCollectionOutlineNode(t, db, schema.OutlineNodeSpec{
+		ID: 7200, OwnerID: created.ID.Uint64(), Kind: int(outline.NodeKindArticle),
+		ArticleID: 1, SortOrder: 1, At: at,
+	})
 
-	// ③ 读者列表能看到这张卡。
+	// ③ 读者列表能看到这张卡：篇数与封面回退都只认目录树（旧中间表为空）。
 	listRaw := rawRequest(t, readerRouter, "GET", "/api/collections", nil)
 	listEnv := decode(t, listRaw)
 	if listEnv.Code != 0 {
@@ -280,8 +551,8 @@ func TestCollectionMinimalLoop(t *testing.T) {
 		List []struct {
 			ID           ctype.ID `json:"id"`
 			Title        string   `json:"title"`
-			ArticleCount int      `json:"article_count"`
 			Cover        string   `json:"cover"`
+			ArticleCount int      `json:"article_count"`
 		} `json:"list"`
 		Count int `json:"count"`
 	}
@@ -296,33 +567,26 @@ func TestCollectionMinimalLoop(t *testing.T) {
 		t.Fatalf("卡片字段不对: %+v", list.List[0])
 	}
 	if list.List[0].ArticleCount != 1 {
-		t.Fatalf("卡片收录数应为 1，实际 %d", list.List[0].ArticleCount)
+		t.Fatalf("树里有 1 篇公开文章时卡片应显示 1 篇（旧中间表为空），实际 %d", list.List[0].ArticleCount)
+	}
+	if list.List[0].Cover != "https://cdn.example.com/first.png" {
+		t.Fatalf("合集没封面时卡片应回退到首个公开文章节点的封面，实际 %q", list.List[0].Cover)
 	}
 
-	// ④ 读者详情能看到按顺序排列的文章。
-	detailRaw := rawRequest(t, readerRouter, "GET",
-		fmt.Sprintf("/api/collections/%s", created.ID), nil)
-	detailEnv := decode(t, detailRaw)
-	if detailEnv.Code != 0 {
-		t.Fatalf("读者详情应成功，实际 code=%d msg=%s", detailEnv.Code, detailEnv.Msg)
+	// ④ 读者详情是一棵目录树：1 篇文章节点、篇数 1、文章标题来自文章快照。
+	nodes, articleCount, detailCover := readCollectionDetail(t, readerRouter, created.ID)
+	if articleCount != 1 {
+		t.Fatalf("详情篇数应为 1，实际 %d", articleCount)
 	}
-	var detail struct {
-		ID       ctype.ID `json:"id"`
-		Title    string   `json:"title"`
-		Articles []struct {
-			ArticleID ctype.ID `json:"article_id"`
-			SortOrder int      `json:"sort_order"`
-			Title     string   `json:"title"`
-		} `json:"articles"`
+	if detailCover != "https://cdn.example.com/first.png" {
+		t.Fatalf("详情封面应回退到首个公开文章节点，实际 %q", detailCover)
 	}
-	if err := json.Unmarshal(detailEnv.Data, &detail); err != nil {
-		t.Fatalf("解析详情失败: %v", err)
+	if len(nodes) != 1 || nodes[0].Kind != int(outline.NodeKindArticle) ||
+		nodes[0].ArticleID.Uint64() != 1 || nodes[0].SortOrder != 1 {
+		t.Fatalf("详情目录树条目不对: %+v", nodes)
 	}
-	if len(detail.Articles) != 1 {
-		t.Fatalf("详情应有 1 篇，实际 %d（响应 %s）", len(detail.Articles), detailRaw)
-	}
-	if detail.Articles[0].SortOrder != 1 || detail.Articles[0].ArticleID.Uint64() != 1 {
-		t.Fatalf("详情条目不对: %+v", detail.Articles[0])
+	if nodes[0].ArticleTitle != "系列文章 B" {
+		t.Fatalf("文章节点标题应来自文章快照，实际 %q", nodes[0].ArticleTitle)
 	}
 
 	// ⑤ 关掉展示：读者列表变空、详情按不存在处理。
@@ -365,11 +629,13 @@ func TestCollectionMinimalLoop(t *testing.T) {
 	adminListRaw := rawRequest(t, adminRouter, "GET", "/api/collections/admin", nil)
 	var adminList struct {
 		List []struct {
-			ID          ctype.ID `json:"id"`
-			Title       string   `json:"title"`
-			Cover       string   `json:"cover"`
-			Description string   `json:"description"`
-			Displayed   bool     `json:"displayed"`
+			ID            ctype.ID `json:"id"`
+			Title         string   `json:"title"`
+			Cover         string   `json:"cover"`
+			Description   string   `json:"description"`
+			Displayed     bool     `json:"displayed"`
+			ArticleCount  int      `json:"article_count"`
+			FallbackCover string   `json:"fallback_cover"`
 		} `json:"list"`
 	}
 	if err := json.Unmarshal(decode(t, adminListRaw).Data, &adminList); err != nil {
@@ -386,6 +652,13 @@ func TestCollectionMinimalLoop(t *testing.T) {
 	}
 	if updated.Displayed {
 		t.Fatalf("改内容不应顺手打开展示开关: %+v", updated)
+	}
+	// 后台卡片与读者同口径：篇数只数树里仍公开的文章，回退封面取首个公开节点。
+	if updated.ArticleCount != 1 {
+		t.Fatalf("后台卡片篇数应为 1（树里 1 篇公开、旧中间表为空），实际 %d", updated.ArticleCount)
+	}
+	if updated.FallbackCover != "https://cdn.example.com/first.png" {
+		t.Fatalf("后台回退封面应取首个公开文章节点，实际 %q", updated.FallbackCover)
 	}
 
 	// ⑦ 删合集：后台列表与读者列表都不再出现，但文章本身还在。

@@ -1,7 +1,5 @@
 import type { Component } from "vue";
 
-import { MARKDOWN_THEME_OPTIONS } from "~/composables/useStudioMarkdownTheme";
-
 import {
   IconAlignCenter,
   IconAlignLeft,
@@ -15,7 +13,6 @@ import {
   IconLink,
   IconList,
   IconListNumbers,
-  IconPalette,
   IconPhoto,
   IconSparkles,
   IconStrikethrough,
@@ -85,12 +82,6 @@ export const LEFT_TOOLS: ToolItem[] = [
       { key: "style_transform", label: "风格转换" },
       { key: "diagnose", label: "内容诊断" },
     ],
-  },
-  {
-    key: "theme",
-    label: "预览样式",
-    icon: IconPalette,
-    options: MARKDOWN_THEME_OPTIONS,
   },
   {
     key: "align",

@@ -12,7 +12,7 @@
 #   而后续几轮陆续新增了 7 道门禁 —— 契约未过期、契约类型未过期、契约↔路由对账、
 #   admin 鉴权探测、菜单↔页面对账、前端 lint、覆盖率门槛。
 #   它们一道都没进过自检，等于"新增的门禁是否有效"从来没被验证过。
-#   现在 14 道全覆盖（新增跨端装饰参数一致性、两端定形工具同源）。
+#   现在 14 道全覆盖（新增跨端装饰参数一致性、两端同源副本门禁）。
 #
 # 唯一的例外是 admin 鉴权（第 8 道）：
 #   要让它红，必须临时把某条后台路由的 AdminMiddleware 摘掉 —— 一旦脚本被中断
@@ -391,11 +391,11 @@ else
 fi
 
 echo ""
-echo "===== 13/14 两端 imageShaping 定形工具同源门禁 ====="
-# 门禁原型：scripts/check-image-shaping-parity.mjs（#200；#195 交办的跨包共享）
-# 判据是"两份 imageShaping.ts 逐字节相同"。后台不能 import 读者站模块（#176 会让
-# 生产构建失败），所以三种封面与头像共用的定形实现只能靠同一份文件 + 这道门禁。
-# 注入：把**后台副本**里的封面定形尺寸 1600 改成 1500 —— 模拟最真实的漂移：
+echo "===== 13/14 两端同源副本门禁（定形工具 + 裁剪窗四份组件） ====="
+# 门禁原型：scripts/check-image-shaping-parity.mjs（#200 定形工具；#225 扩到裁剪窗）
+# 判据是"两端副本逐字节相同"。后台不能 import 读者站模块（#176 会让生产构建失败），
+# 所以封面定形与裁剪窗四份组件只能靠同一份文件 + 这道门禁。
+# 注入 1：把**后台副本**里的封面定形尺寸 1600 改成 1500 —— 模拟最真实的漂移：
 # 只改一端（这里是只改了后台），另一端忘记同步。门禁必须红，并报出漂移方向。
 ADMIN_SHAPING="frontend_admin/app/utils/imageShaping.ts"
 if backup_file "$ADMIN_SHAPING"; then
@@ -421,6 +421,35 @@ if backup_file "$ADMIN_SHAPING"; then
     FAIL=$((FAIL+1))
   fi
   restore_file "$ADMIN_SHAPING"
+else
+  echo "✗ 备份失败，跳过本节"
+  FAIL=$((FAIL+1))
+fi
+
+# 注入 2（#225）：只改后台那份 ImageCropDialog 的一个属性值 —— 裁剪窗四份组件
+# 此前没有任何门禁，改成同源判据后同样必须红，并点名是哪一对漂移。
+ADMIN_CROP_DIALOG="frontend_admin/app/components/media/ImageCropDialog.vue"
+if backup_file "$ADMIN_CROP_DIALOG"; then
+  sed -i 's|preset="card"|preset="dial"|' "$ADMIN_CROP_DIALOG"
+  if ! grep -q 'preset="dial"' "$ADMIN_CROP_DIALOG"; then
+    echo "✗ 无法注入：ImageCropDialog.vue 里没找到预期的 NModal preset"
+    FAIL=$((FAIL+1))
+  elif node scripts/check-image-shaping-parity.mjs >"$CANARY_TMP/out.txt" 2>&1; then
+    bad "两端裁剪窗组件不一致时，同源门禁没有失败"
+  elif grep -q "两端裁剪窗（ImageCropView / ImageCropDialog）同源门禁失败" "$CANARY_TMP/out.txt"; then
+    if grep -q "漂移方向" "$CANARY_TMP/out.txt"; then
+      ok "只改后台那份裁剪窗组件会被判为不一致（并报出漂移方向）"
+    else
+      echo "✗ 门禁红了但没报出哪一份漂移（报错信息退化了）"
+      tail -5 "$CANARY_TMP/out.txt"
+      FAIL=$((FAIL+1))
+    fi
+  else
+    echo "✗ 裁剪窗同源门禁没有按预期原因失败（node 不可用？）"
+    tail -5 "$CANARY_TMP/out.txt"
+    FAIL=$((FAIL+1))
+  fi
+  restore_file "$ADMIN_CROP_DIALOG"
 else
   echo "✗ 备份失败，跳过本节"
   FAIL=$((FAIL+1))

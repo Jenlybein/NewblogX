@@ -10,6 +10,7 @@ import (
 	"myblogx/internal/article/apptest"
 	"myblogx/internal/article/domain"
 	"myblogx/internal/article/domain/collection"
+	"myblogx/internal/article/domain/outline"
 	"myblogx/internal/kernel/ctype"
 )
 
@@ -27,18 +28,6 @@ func createCollection(t *testing.T, svc *app.Service, title string) collection.I
 		t.Fatalf("创建合集失败: %v", err)
 	}
 	return id
-}
-
-// includeArticle 是"管理员把一篇文章收录进合集"的简写。
-func includeArticle(t *testing.T, svc *app.Service, collectionID collection.ID, articleID domain.ArticleID) {
-	t.Helper()
-	if err := svc.IncludeArticle(context.Background(), app.IncludeArticleCmd{
-		Actor:        adminViewer(),
-		CollectionID: collectionID,
-		ArticleID:    articleID,
-	}); err != nil {
-		t.Fatalf("收录文章失败: %v", err)
-	}
 }
 
 // TestCreateCollectionRequiresAdmin 合集是管理员专属运营产物，作者不参与创建。
@@ -106,136 +95,6 @@ func TestCreateCollectionAppendsToEnd(t *testing.T) {
 	}
 }
 
-// TestIncludeArticleAppendAndIdempotent 收录排在末尾；重复收录不产生第二行、不改序号。
-func TestIncludeArticleAppendAndIdempotent(t *testing.T) {
-	t.Parallel()
-
-	svc, repos, _ := newService(t)
-	cid := createCollection(t, svc, "Nuxt 部署实战")
-
-	a1 := seedPublished(t, repos, 11)
-	a2 := seedPublished(t, repos, 12)
-
-	includeArticle(t, svc, cid, a1)
-	includeArticle(t, svc, cid, a2)
-	// 再收一次第一篇：既不能报重复，也不能把它挪到末尾。
-	if err := svc.IncludeArticle(context.Background(), app.IncludeArticleCmd{
-		Actor:        adminViewer(),
-		CollectionID: cid,
-		ArticleID:    a1,
-	}); !apperr.IsCode(err, apperr.CodeCollectionArticleDuplicated) {
-		t.Fatalf("重复收录应报【已在合集中】，实际 %v", err)
-	}
-
-	ids, err := repos.FakeCollections().ListItemIDs(context.Background(), cid)
-	if err != nil {
-		t.Fatalf("读收录失败: %v", err)
-	}
-	if len(ids) != 2 || ids[0] != a1 || ids[1] != a2 {
-		t.Fatalf("收录顺序不对: %v", ids)
-	}
-}
-
-// TestIncludeRejectsNonPublicArticle 只有"已发布且可见"的文章能被收录。
-func TestIncludeRejectsNonPublicArticle(t *testing.T) {
-	t.Parallel()
-
-	cases := []struct {
-		name   string
-		status domain.Status
-		vis    domain.Visibility
-	}{
-		{"草稿", domain.StatusDraft, domain.VisibilityVisible},
-		{"审核中", domain.StatusExamining, domain.VisibilityVisible},
-		{"作者隐藏", domain.StatusPublished, domain.VisibilityUserHidden},
-		{"管理员隐藏", domain.StatusPublished, domain.VisibilityAdminHidden},
-	}
-
-	for _, c := range cases {
-		c := c
-		t.Run(c.name, func(t *testing.T) {
-			t.Parallel()
-
-			svc, repos, _ := newService(t)
-			cid := createCollection(t, svc, "主题合集")
-			articleID := domain.ArticleID(ctype.NewID(21))
-			repos.FakeArticles().Seed(apptest.NewArticle().
-				ID(articleID).Author(author).Status(c.status).Visibility(c.vis).Build())
-
-			err := svc.IncludeArticle(context.Background(), app.IncludeArticleCmd{
-				Actor:        adminViewer(),
-				CollectionID: cid,
-				ArticleID:    articleID,
-			})
-			if !apperr.IsCode(err, apperr.CodeCollectionArticleNotIncludable) {
-				t.Fatalf("%s 的文章应不可收录，实际 %v", c.name, err)
-			}
-			ids, err := repos.FakeCollections().ListItemIDs(context.Background(), cid)
-			if err != nil {
-				t.Fatalf("读收录失败: %v", err)
-			}
-			if len(ids) != 0 {
-				t.Fatalf("被拒绝的文章不应落库: %v", ids)
-			}
-		})
-	}
-}
-
-// TestIncludeRequiresAdmin 收录与创建同一条权限线。
-func TestIncludeRequiresAdmin(t *testing.T) {
-	t.Parallel()
-
-	svc, repos, _ := newService(t)
-	cid := createCollection(t, svc, "主题合集")
-	articleID := seedPublished(t, repos, 31)
-
-	err := svc.IncludeArticle(context.Background(), app.IncludeArticleCmd{
-		Actor:        authorViewer(),
-		CollectionID: cid,
-		ArticleID:    articleID,
-	})
-	if !errors.Is(err, domain.ErrForbidden) {
-		t.Fatalf("非管理员收录应被拒绝，实际 %v", err)
-	}
-}
-
-// TestRemoveArticleCompactsOrder 移除后剩余序号压实成 1..n，不留洞。
-func TestRemoveArticleCompactsOrder(t *testing.T) {
-	t.Parallel()
-
-	svc, repos, _ := newService(t)
-	cid := createCollection(t, svc, "主题合集")
-	a1 := seedPublished(t, repos, 41)
-	a2 := seedPublished(t, repos, 42)
-	a3 := seedPublished(t, repos, 43)
-	includeArticle(t, svc, cid, a1)
-	includeArticle(t, svc, cid, a2)
-	includeArticle(t, svc, cid, a3)
-
-	if err := svc.RemoveArticle(context.Background(), app.RemoveArticleCmd{
-		Actor:        adminViewer(),
-		CollectionID: cid,
-		ArticleID:    a2,
-	}); err != nil {
-		t.Fatalf("移除收录失败: %v", err)
-	}
-
-	detail, err := svc.CollectionDetail(context.Background(), cid, domain.Anonymous(), false)
-	if err != nil {
-		t.Fatalf("读合集详情失败: %v", err)
-	}
-	if len(detail.Articles) != 2 {
-		t.Fatalf("移除后应剩 2 篇，实际 %d", len(detail.Articles))
-	}
-	if detail.Articles[0].SortOrder != 1 || detail.Articles[1].SortOrder != 2 {
-		t.Fatalf("序号应压实为 1,2，实际 %d,%d",
-			detail.Articles[0].SortOrder, detail.Articles[1].SortOrder)
-	}
-	if detail.Articles[0].ArticleID != a1 || detail.Articles[1].ArticleID != a3 {
-		t.Fatalf("移除后剩余顺序不对: %v / %v", detail.Articles[0].ArticleID, detail.Articles[1].ArticleID)
-	}
-}
-
 // TestReaderListHidesUndisplayedCollection 未展示的合集对读者不可见，后台仍可见。
 func TestReaderListHidesUndisplayedCollection(t *testing.T) {
 	t.Parallel()
@@ -297,7 +156,7 @@ func TestReaderDetailNotFoundForUndisplayed(t *testing.T) {
 	}
 }
 
-// TestReaderDetailOrdersArticles 详情按管理员排的顺序返回文章。
+// TestReaderDetailOrdersArticles 详情按目录树的 DFS 顺序返回公开文章节点。
 func TestReaderDetailOrdersArticles(t *testing.T) {
 	t.Parallel()
 
@@ -305,62 +164,32 @@ func TestReaderDetailOrdersArticles(t *testing.T) {
 	cid := createCollection(t, svc, "分布式入门六讲")
 	a1 := seedPublished(t, repos, 51)
 	a2 := seedPublished(t, repos, 52)
-	includeArticle(t, svc, cid, a1)
-	includeArticle(t, svc, cid, a2)
+	seedReaderArticleNodes(t, repos, outline.OwnerCollection, outline.ID(cid), ctype.ID(a1), ctype.ID(a2))
 
 	detail, err := svc.CollectionDetail(context.Background(), cid, domain.Anonymous(), false)
 	if err != nil {
 		t.Fatalf("读合集详情失败: %v", err)
 	}
-	if len(detail.Articles) != 2 {
-		t.Fatalf("应有 2 篇，实际 %d", len(detail.Articles))
+	if got, want := readerDetailArticleIDs(detail.Tree), []ctype.ID{ctype.ID(a1), ctype.ID(a2)}; !sameStrings(
+		func() []string {
+			out := make([]string, 0, len(got))
+			for _, id := range got {
+				out = append(out, id.String())
+			}
+			return out
+		}(),
+		func() []string {
+			out := make([]string, 0, len(want))
+			for _, id := range want {
+				out = append(out, id.String())
+			}
+			return out
+		}(),
+	) {
+		t.Fatalf("顺序不对: %v / %v", got, want)
 	}
-	for i, item := range detail.Articles {
-		if item.SortOrder != i+1 {
-			t.Fatalf("第 %d 篇序号应为 %d，实际 %d", i+1, i+1, item.SortOrder)
-		}
-	}
-	if detail.Articles[0].ArticleID != a1 || detail.Articles[1].ArticleID != a2 {
-		t.Fatalf("顺序不对: %v / %v", detail.Articles[0].ArticleID, detail.Articles[1].ArticleID)
-	}
-}
-
-// TestReplaceArticleOrder 全集顺序替换：集合不一致整单拒绝。
-func TestReplaceArticleOrder(t *testing.T) {
-	t.Parallel()
-
-	svc, repos, _ := newService(t)
-	cid := createCollection(t, svc, "主题合集")
-	a1 := seedPublished(t, repos, 61)
-	a2 := seedPublished(t, repos, 62)
-	includeArticle(t, svc, cid, a1)
-	includeArticle(t, svc, cid, a2)
-
-	if err := svc.ReplaceCollectionArticleOrder(context.Background(), adminViewer(), cid,
-		[]collection.ArticleID{a2, a1}); err != nil {
-		t.Fatalf("合法换序应成功: %v", err)
-	}
-
-	detail, err := svc.CollectionDetail(context.Background(), cid, domain.Anonymous(), false)
-	if err != nil {
-		t.Fatalf("读合集详情失败: %v", err)
-	}
-	if detail.Articles[0].ArticleID != a2 {
-		t.Fatalf("换序后第一篇应为 %s，实际 %s", a2, detail.Articles[0].ArticleID)
-	}
-
-	// 缺一条：整单拒绝，顺序不能被动过。
-	err = svc.ReplaceCollectionArticleOrder(context.Background(), adminViewer(), cid,
-		[]collection.ArticleID{a2})
-	if !apperr.IsCode(err, apperr.CodeCollectionOrderMismatch) {
-		t.Fatalf("缺一条应被拒绝，实际 %v", err)
-	}
-	after, err := repos.FakeCollections().ListItemIDs(context.Background(), cid)
-	if err != nil {
-		t.Fatalf("读收录失败: %v", err)
-	}
-	if len(after) != 2 || after[0] != a2 || after[1] != a1 {
-		t.Fatalf("被拒绝的排序不应改动数据，实际 %v", after)
+	if orders := readerDetailSortOrders(detail.Tree); len(orders) != 2 || orders[0] != 1 || orders[1] != 2 {
+		t.Fatalf("兄弟序号应为 1,2，实际 %v", orders)
 	}
 }
 
@@ -451,7 +280,7 @@ func TestDeleteCollectionKeepsArticles(t *testing.T) {
 	svc, repos, _ := newService(t)
 	cid := createCollection(t, svc, "要下线的专题")
 	a1 := seedPublished(t, repos, 71)
-	includeArticle(t, svc, cid, a1)
+	seedReaderArticleNodes(t, repos, outline.OwnerCollection, outline.ID(cid), ctype.ID(a1))
 
 	if err := svc.DeleteCollection(context.Background(), app.DeleteCollectionCmd{
 		Actor:        authorViewer(),
@@ -491,6 +320,8 @@ func TestDeleteCollectionKeepsArticles(t *testing.T) {
 
 // TestAdminCardsExposeFirstArticleCoverFallback 后台卡片要能算出"没有封面时读者看到的那张图"，
 // 否则运营在列表里看到的是空白，而读者看到的是首篇封面。
+//
+// 卡片读面只看目录树（旧扁平收录表已冻结），所以这里直接播种树节点。
 func TestAdminCardsExposeFirstArticleCoverFallback(t *testing.T) {
 	t.Parallel()
 
@@ -498,8 +329,7 @@ func TestAdminCardsExposeFirstArticleCoverFallback(t *testing.T) {
 	cid := createCollection(t, svc, "无封面合集")
 	first := seedPublishedWithCover(t, repos, 81, "https://cdn.example.com/first.png")
 	second := seedPublishedWithCover(t, repos, 82, "https://cdn.example.com/second.png")
-	includeArticle(t, svc, cid, first)
-	includeArticle(t, svc, cid, second)
+	seedReaderArticleNodes(t, repos, outline.OwnerCollection, outline.ID(cid), ctype.ID(first), ctype.ID(second))
 
 	cards, err := svc.ListAdminCollectionCards(context.Background(), adminViewer())
 	if err != nil {
@@ -512,8 +342,9 @@ func TestAdminCardsExposeFirstArticleCoverFallback(t *testing.T) {
 		t.Fatalf("没上传过封面时 cover 应保持空串（后台据此判断该显示'回退'标记），实际 %q", cards[0].Cover)
 	}
 	if cards[0].FallbackCover != "https://cdn.example.com/first.png" {
-		t.Fatalf("回退封面应取首篇收录文章的封面，实际 %q", cards[0].FallbackCover)
+		t.Fatalf("回退封面应取 DFS 第一个公开文章节点的封面，实际 %q", cards[0].FallbackCover)
+	}
+	if cards[0].ArticleCount != 2 {
+		t.Fatalf("后台卡片篇数应只数树里仍公开的文章（2），实际 %d", cards[0].ArticleCount)
 	}
 }
-
-

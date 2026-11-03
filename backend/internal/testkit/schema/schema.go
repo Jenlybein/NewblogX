@@ -151,6 +151,11 @@ const (
 	// 与 Collection 同构但不共用数据；同样两张表单开一组：中间表带两个外键
 	// （指向 project_models 与 article_models）。
 	Project Group = "project"
+	// Outline 是目录树（合集与项目共用的一张树表）。
+	//
+	// 与 Collection / Project 分开一组：树表没有指向主表的外键（owner 是
+	// 多态的，零 DDL 下加不了），测试只关心树本身时不必建合集 / 项目表。
+	Outline Group = "outline"
 	// All 是全部表（仅用于结构一致性契约测试）。
 	All Group = "all"
 )
@@ -228,16 +233,15 @@ var groupModels = map[Group][]any{
 		&AIProviderRow{},
 	},
 	Collection: {
-		// 主表在前：中间表有指向 collection_models 的外键。
 		&CollectionRow{},
-		&CollectionArticleRow{},
 	},
 	Project: {
-		// 主表在前：中间表有指向 project_models 的外键。
 		&ProjectRow{},
-		&ProjectArticleRow{},
 	},
-	// All 是**全部 40 张表**，只用于"schema.sql 与自持行是否一致"的契约测试。
+	Outline: {
+		&OutlineNodeRow{},
+	},
+	// All 是**全部 39 张表**，只用于"schema.sql 与自持行是否一致"的契约测试。
 	//
 	// 为什么不复用上面那些组拼起来：拼装顺序一变，这个测试就变成
 	// "测拼装顺序"而不是"测结构一致性"。这里写死一份，顺序沿用当年
@@ -262,9 +266,8 @@ var groupModels = map[Group][]any{
 		&UserTopArticleRow{},
 		&ArticleHotTopRow{},
 		&CollectionRow{},
-		&CollectionArticleRow{},
 		&ProjectRow{},
-		&ProjectArticleRow{},
+		&OutlineNodeRow{},
 		&ImageRow{},
 		&ImageRefRow{},
 		&RuntimeConfigRow{},

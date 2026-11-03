@@ -140,17 +140,11 @@ describe('项目页表单类名与共用工具', () => {
   const projectDir = process.cwd()
 
   it('项目页不再复用合集类名，改用项目专用类名', () => {
-    for (const page of ['app/pages/articles/projects.vue', 'app/pages/articles/project-arrange.vue']) {
-      const source = readFileSync(join(projectDir, page), 'utf8')
-      expect(source, page).toContain('admin-project-form')
-      expect(source, page).not.toContain('admin-collection-form')
-    }
+    const page = 'app/pages/articles/projects.vue'
+    const source = readFileSync(join(projectDir, page), 'utf8')
+    expect(source, page).toContain('admin-project-form')
+    expect(source, page).not.toContain('admin-collection-form')
   })
 
-  it('失效行逻辑直接复用共用模块，不再经 projectItems 转发', () => {
-    const source = readFileSync(join(projectDir, 'app/pages/articles/projects.vue'), 'utf8')
-    expect(source).toContain("from '~/utils/staleItems'")
-    expect(source).not.toContain('projectItems')
-  })
 })
 

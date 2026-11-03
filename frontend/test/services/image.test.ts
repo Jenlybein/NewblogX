@@ -44,6 +44,59 @@ describe("image service", () => {
     });
   });
 
+  it("declares cover purpose by default when the caller does not pass one", async () => {
+    requestMock.mockResolvedValue({
+      skip_upload: true,
+      url: "https://image.example.com/avatar.png",
+      hash: "etag-1",
+      image_id: "img-1",
+      status: "ready",
+    });
+
+    await uploadImageByTask(new File(["avatar"], "avatar.png", { type: "image/png" }));
+
+    expect(requestMock).toHaveBeenCalledWith("/api/images/upload-tasks", expect.objectContaining({
+      method: "POST",
+      body: expect.objectContaining({ purpose: "cover" }),
+    }));
+  });
+
+  it("declares the purpose the caller asks for (avatar)", async () => {
+    requestMock.mockResolvedValue({
+      skip_upload: true,
+      url: "https://image.example.com/avatar.png",
+    });
+
+    await uploadImageByTask(
+      new File(["avatar"], "avatar.png", { type: "image/png" }),
+      { purpose: "avatar" },
+    );
+
+    expect(requestMock).toHaveBeenCalledWith("/api/images/upload-tasks", expect.objectContaining({
+      method: "POST",
+      body: expect.objectContaining({ purpose: "avatar" }),
+    }));
+  });
+
+  it("omits purpose entirely when the caller explicitly declares none (chat images)", async () => {
+    requestMock.mockResolvedValue({
+      skip_upload: true,
+      url: "https://image.example.com/photo.png",
+    });
+
+    await uploadImageByTask(
+      new File(["photo"], "photo.png", { type: "image/png" }),
+      { purpose: null },
+    );
+
+    const body = requestMock.mock.calls[0]?.[1]?.body;
+    expect(body).toEqual(expect.objectContaining({
+      file_name: "photo.png",
+      mime_type: "image/png",
+    }));
+    expect(body).not.toHaveProperty("purpose");
+  });
+
   it("creates a stable url-safe qetag for the same file content", async () => {
     const file = new File(["avatar"], "avatar.png", { type: "image/png" });
 

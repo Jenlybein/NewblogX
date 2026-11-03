@@ -290,7 +290,7 @@ async function uploadPendingBannerCover(pending: PendingBannerCover, nextStage =
   bannerUploading.value = true
   bannerUploadStage.value = '开始上传封面…'
   try {
-    const cover = await uploadBannerCover(pending.file, (file) => uploadImageByTask(file, { onStage: mapBannerUploadStage }))
+    const cover = await uploadBannerCover(pending.file, (file) => uploadImageByTask(file, { onStage: mapBannerUploadStage, purpose: 'cover' }))
     uploadedCover.value = cover
     bannerUploadStage.value = nextStage
     imagePage.value = 1

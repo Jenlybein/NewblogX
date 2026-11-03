@@ -101,10 +101,30 @@ func New(
 }
 
 // CreateTask 创建直传上传任务；相同哈希直接秒传。
-func (s *Service) CreateTask(ctx context.Context, userID uint64, fileName string, size int64, mimeType, hash string) (*CreateResult, error) {
+//
+// purpose 是请求里声明的用途字面量（cover / avatar）的指针：nil 表示请求体
+// 没带该字段（例如私信发图是任意比例照片），这类任务不记录目标比例、确认时
+// 不做比例约束；一旦带了字段就必须合法（含空串），非法直接按明确错误码拒绝，
+// 不静默当作 cover。请求体与领域规则的边界放在这里一处，适配器只负责转发。
+func (s *Service) CreateTask(ctx context.Context, userID uint64, fileName string, size int64, mimeType, hash string, purpose *string) (*CreateResult, error) {
 	q := s.cfg()
 	if !q.Enabled || q.Bucket == "" || q.SizeMB <= 0 || q.ExpirySeconds <= 0 {
 		return nil, apperr.New(apperr.CodeImageUploadDisabled)
+	}
+
+	var declaredPurpose domain.Purpose
+	var targetRatio domain.Ratio
+	if purpose != nil {
+		parsed, ok := domain.ParsePurpose(*purpose)
+		if !ok {
+			return nil, apperr.New(apperr.CodeImagePurposeInvalid)
+		}
+		ratio, ok := parsed.TargetRatio()
+		if !ok {
+			return nil, apperr.New(apperr.CodeImagePurposeInvalid)
+		}
+		declaredPurpose = parsed
+		targetRatio = ratio
 	}
 
 	hash = strings.TrimSpace(hash)
@@ -145,7 +165,9 @@ func (s *Service) CreateTask(ctx context.Context, userID uint64, fileName string
 		DeclaredMime: mimeType,
 		DeclaredSize: size,
 		Hash:         hash,
-		ExpiresAt:    now.Add(time.Duration(q.ExpirySeconds) * time.Second),
+		Purpose:     declaredPurpose,
+		TargetRatio: targetRatio,
+		ExpiresAt:   now.Add(time.Duration(q.ExpirySeconds) * time.Second),
 	}
 
 	token, err := s.storage.Token(domain.Policy{
@@ -305,6 +327,12 @@ func (s *Service) verify(ctx context.Context, task *domain.Task, meta *uploadedM
 	format := strings.ToLower(strings.TrimSpace(imageInfo.Format))
 	if !whitelistContains(s.cfg().Whitelist, format) {
 		return nil, apperr.New(apperr.CodeImageInvalid)
+	}
+	// 比例校验与格式/尺寸同在一条 verify 链：回调与手动确认都经过这里，
+	// 不会有一套校验跑在另一条路径上。未声明用途的任务没有目标比例，
+	// 跳过本步（私信发图是任意比例照片，不能被封面规则误判）。
+	if task.TargetRatio != (domain.Ratio{}) && !task.TargetRatio.Matches(imageInfo.Width, imageInfo.Height) {
+		return nil, apperr.New(apperr.CodeImageRatioMismatch)
 	}
 
 	return &verifiedImage{

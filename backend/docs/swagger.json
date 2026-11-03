@@ -2249,6 +2249,14 @@
                         "maxLength": 128,
                         "type": "string"
                     },
+                    "purpose": {
+                        "description": "Purpose 声明用途：cover（16:9）/ avatar（1:1）。省略表示不声明用途\n（例如私信发图），确认时不校验比例；出现非法值由用例层按错误码拒绝。",
+                        "enum": [
+                            "cover",
+                            "avatar"
+                        ],
+                        "type": "string"
+                    },
                     "size": {
                         "type": "integer"
                     }

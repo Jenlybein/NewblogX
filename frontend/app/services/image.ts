@@ -21,11 +21,21 @@ type UploadStage =
   | "uploading_to_qiniu"
   | "polling_status";
 
+/**
+ * 上传用途：cover（16:9）/ avatar（1:1），省略默认 cover。
+ *
+ * `null` 表示**显式不声明用途**（私信发图是任意比例照片，#215 没有定形）：
+ * 请求体不带 purpose，后端确认时不校验比例。别把 null 写成省略——省略会
+ * 落到默认的 cover，私信图片会被 16:9 规则误判为失败。
+ */
+export type ImageUploadPurpose = "cover" | "avatar";
+
 export interface UploadImageByTaskOptions {
   pollIntervalMs?: number;
   pollTimeoutMs?: number;
   onStage?: (stage: UploadStage) => void;
   signal?: AbortSignal;
+  purpose?: ImageUploadPurpose | null;
 }
 
 export interface UploadImageByTaskResult {
@@ -240,11 +250,13 @@ export async function uploadImageByTask(file: File, options: UploadImageByTaskOp
   const hash = await computeQetag(file);
 
   options.onStage?.("creating_task");
+  const purpose = options.purpose === undefined ? "cover" : options.purpose;
   const task = await createImageUploadTask({
     file_name: file.name,
     size: file.size,
     mime_type: file.type || "application/octet-stream",
     hash,
+    ...(purpose === null ? {} : { purpose }),
   });
 
   if (task.skip_upload) {

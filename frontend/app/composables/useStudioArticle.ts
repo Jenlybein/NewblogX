@@ -333,6 +333,7 @@ export async function useStudioArticle(deps: StudioArticleDeps) {
     try {
       const uploadResult = await uploadImageByTask(file, {
         onStage: mapCoverUploadStage,
+        purpose: "cover",
       });
       if (!uploadResult.image_id || !uploadResult.url) {
         throw new Error("上传成功但未返回可用图片标识");

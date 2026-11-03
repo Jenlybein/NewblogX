@@ -223,6 +223,10 @@ const (
 	CodeImageDeleteFailed     Code = "image.delete_failed"
 	CodeImageObjectKeyMissing Code = "image.object_key_missing"
 	CodeImageCallbackInvalid  Code = "image.callback_invalid"
+	// CodeImagePurposeInvalid 创建上传任务时声明了 cover/avatar 之外的用途。
+	CodeImagePurposeInvalid Code = "image.purpose_invalid"
+	// CodeImageRatioMismatch 确认时对象存储上的真实图片不符合用途的目标比例（±1%）。
+	CodeImageRatioMismatch Code = "image.ratio_mismatch"
 )
 
 // 搜索。
@@ -497,6 +501,8 @@ var messages = map[Code]string{
 	CodeImageDeleteFailed:     "删除图片失败",
 	CodeImageObjectKeyMissing: "回调缺少对象 key",
 	CodeImageCallbackInvalid:  "回调签名校验失败",
+	CodeImagePurposeInvalid:   "上传用途不合法，只能是封面（cover）或头像（avatar）",
+	CodeImageRatioMismatch:    "图片比例不符合用途要求：封面需 16:9、头像需 1:1（容差 ±1%），请重新定形后上传",
 
 	CodeSearchTypeInvalid:     "搜索类型错误",
 	CodeSearchSortInvalid:     "搜索排序错误",

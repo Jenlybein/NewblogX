@@ -266,6 +266,7 @@ async function handleAvatarFileChange(event: Event) {
     const shapedFile = new File([shaped], "avatar.png", { type: shaped.type });
     const uploadResult = await uploadImageByTask(shapedFile, {
       onStage: mapAvatarUploadStage,
+      purpose: "avatar",
     });
     if (!uploadResult.image_id || !uploadResult.url) {
       throw new Error("上传成功但缺少图片标识");

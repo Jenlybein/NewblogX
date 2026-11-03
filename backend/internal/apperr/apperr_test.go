@@ -3,6 +3,7 @@ package apperr_test
 import (
 	"errors"
 	"fmt"
+	"strings"
 	"testing"
 
 	"myblogx/internal/apperr"
@@ -68,5 +69,25 @@ func TestMessage(t *testing.T) {
 
 	if got := apperr.Message(apperr.CodeArticleTitleRequired); got != "标题不能为空" {
 		t.Fatalf("文案不符: %q", got)
+	}
+}
+
+// #216 的两个图片错误码必须落在 messages 表里：调用点只写错误码，
+// 前端轮询拿到的 ErrorMsg 与回调响应文案全靠这张表。
+func TestImagePurposeErrorCodesHaveDistinctMessages(t *testing.T) {
+	t.Parallel()
+
+	for _, code := range []apperr.Code{apperr.CodeImagePurposeInvalid, apperr.CodeImageRatioMismatch} {
+		msg := apperr.Message(code)
+		if msg == "" || msg == string(code) {
+			t.Fatalf("%s 缺少中文文案（退化成码本身）", code)
+		}
+	}
+	if apperr.Message(apperr.CodeImagePurposeInvalid) == apperr.Message(apperr.CodeImageRatioMismatch) {
+		t.Fatal("用途非法与比例不符应有可辨的不同文案")
+	}
+	if !strings.Contains(apperr.Message(apperr.CodeImageRatioMismatch), "16:9") ||
+		!strings.Contains(apperr.Message(apperr.CodeImageRatioMismatch), "1:1") {
+		t.Fatalf("比例错误文案应点明两种目标比例，实际 %q", apperr.Message(apperr.CodeImageRatioMismatch))
 	}
 }

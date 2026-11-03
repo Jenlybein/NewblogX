@@ -7099,6 +7099,12 @@ export interface components {
             file_name: string;
             hash: string;
             mime_type: string;
+            /**
+             * @description Purpose 声明用途：cover（16:9）/ avatar（1:1）。省略表示不声明用途
+             *     （例如私信发图），确认时不校验比例；出现非法值由用例层按错误码拒绝。
+             * @enum {string}
+             */
+            purpose?: "cover" | "avatar";
             size: number;
         };
         "internal_media_adapter_http.CreateTaskResponse": {

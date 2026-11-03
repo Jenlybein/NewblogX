@@ -124,7 +124,7 @@ const coverCropFlow = useImageCropUpload({
     coverPreview.value = shaped.previewUrl || coverPreview.value
     coverStage.value = `已定形成 ${COVER_SHAPE_SIZE_TEXT}（${COVER_SHAPE_RATIO_TEXT}），正在上传封面…`
     const uploaded = await uploadBannerCover(shaped.file, f =>
-      uploadImageByTask(f, { onStage: mapUploadStage }),
+      uploadImageByTask(f, { onStage: mapUploadStage, purpose: 'cover' }),
     )
     form.cover = uploaded.url
     coverPreview.value = uploaded.url

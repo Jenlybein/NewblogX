@@ -57,7 +57,7 @@ type msgRow struct {
 // TableName 固定表名。
 func (msgRow) TableName() string { return "chat_msg_models" }
 
-// stateRow 对应 chat_msg_user_states。
+// stateRow 对应 chat_msg_user_state_models。
 type stateRow struct {
 	ID        ctype.ID `gorm:"primaryKey;autoIncrement:false"`
 	CreatedAt time.Time
@@ -69,7 +69,11 @@ type stateRow struct {
 }
 
 // TableName 固定表名。
-func (stateRow) TableName() string { return "chat_msg_user_states" }
+//
+// 必须与 schema.sql 的 chat_msg_user_state_models 逐字一致：这张表既被读
+// （ListMessages 过滤子查询、UserDeletedAt）又被写（DeleteMessagesForUser），
+// 名字漂移在生产就是 Error 1146。守卫见 testkit/schema 的表名静态测试。
+func (stateRow) TableName() string { return "chat_msg_user_state_models" }
 
 // Repo 实现 domain.Repository。
 type Repo struct {

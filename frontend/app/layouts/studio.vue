@@ -5,17 +5,11 @@ import StudioSidebarNav from "~/components/studio/StudioSidebarNav.vue";
 import { useSectionReveal } from "~/composables/useSectionReveal";
 
 const siteStore = useSiteStore();
-const authStore = useAuthStore();
-const messageStore = useMessageStore();
 
 // 创作区也接区块级滚动进场（整页内容作为一个布局级容器，进入即淡入，只进一次）。
 const { target: revealTarget, revealStyle } = useSectionReveal();
 
 void siteStore.ensurePublicBootstrap();
-
-if (authStore.isLoggedIn && !messageStore.fetched) {
-  void messageStore.refreshSummary().catch(() => undefined);
-}
 </script>
 
 <template>

@@ -192,6 +192,12 @@ describe("渲染边界白名单（ADR-0019 决策 1）", () => {
     expect(rules["/studio/**"]?.ssr).toBe(false);
   });
 
+  it("消息中心 /messages/** 显式 ssr: false（私人数据、不索引，连入口一起 SPA 化）", () => {
+    const rules = routeRulesOf(nuxtConfig);
+
+    expect(rules["/messages/**"]?.ssr).toBe(false);
+  });
+
   it("app/pages 下每个页面都被分类过：新增页面默认会 SSR，未分类即违规", () => {
     // 光看 routeRules 抓不到"新加了一个页面但没人分类"——默认 SSR 是隐式的。
     // 先把页面清单读出来（下面的人造违规用例用它证明对账不是空转）。
@@ -199,6 +205,8 @@ describe("渲染边界白名单（ADR-0019 决策 1）", () => {
 
     expect(pages).toEqual(expect.arrayContaining(["/", "/article/*", "/articles", "/users/*", "/search"]));
     expect(pages.some((page) => page.startsWith("/studio/"))).toBe(true);
+    // #239：消息中心是两个页面（入口 + 子项），都必须落在客户端渲染边界里。
+    expect(pages).toEqual(expect.arrayContaining(["/messages", "/messages/*"]));
     expect(renderingBoundaryViolations(routeRulesOf(nuxtConfig), pages)).toEqual([]);
   });
 });

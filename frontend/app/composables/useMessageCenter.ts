@@ -1,0 +1,256 @@
+import { computed, shallowRef, toValue, watch } from "vue";
+import type { MaybeRefOrGetter } from "vue";
+
+import {
+  deleteGlobalNoticeForCurrentUser,
+  deleteSiteMessage,
+  getGlobalNotices,
+  getSiteMessages,
+  markGlobalNoticeRead,
+  markSiteMessageRead,
+} from "~/services/inbox";
+import type { GlobalNoticeItem } from "~/types/api";
+import {
+  MESSAGE_CENTER_PAGE_SIZE,
+  type MessageCenterEntry,
+  type MessageCenterTab,
+  siteMessageGroupOf,
+  toGlobalNoticeEntry,
+  toSiteMessageEntry,
+} from "~/utils/messageCenter";
+
+/**
+ * 消息中心（#239）的取数与批量动作。
+ *
+ * 分工：
+ *   - 五个子项的数据源不同 —— 评论 / 互动 / 系统走站内信（分组 1/2/3），
+ *     全局通知走 `/api/global_notif`，私信本票不取数（#240 接入）；
+ *   - 站内信支持"按分组标记已读 / 按分组删除"；全局通知只有"按 id 列表"的接口，
+ *     所以"全部已读 / 清空"要先把全部 id 翻页收集齐，再一次性提交；
+ *   - 每次写入后都刷新 `GET /api/sitemsg/user` 的未读汇总，保证顶栏与页面角标同步归零。
+ *
+ * 私信子项保留 `chat` 位置：进入时只刷新未读数，列表容器由页面留空给 #240。
+ */
+
+/** 全局通知没有"按分组"接口：翻页收集 id 时用后端允许的单页上限（100）。 */
+const GLOBAL_SCAN_PAGE_SIZE = 100;
+/** 批量删除的提交上限（与后端单页上限同档，避免一次塞入过大的 id 列表）。 */
+const GLOBAL_DELETE_CHUNK_SIZE = 100;
+
+interface UseMessageCenterOptions {
+  tab: MaybeRefOrGetter<MessageCenterTab>;
+}
+
+interface PagePayload {
+  entries: MessageCenterEntry[];
+  hasMore: boolean;
+}
+
+export function useMessageCenter(options: UseMessageCenterOptions) {
+  const messageStore = useMessageStore();
+
+  const activeTab = computed(() => toValue(options.tab));
+  const items = shallowRef<MessageCenterEntry[]>([]);
+  const pending = shallowRef(false);
+  const hasMore = shallowRef(false);
+  const page = shallowRef(1);
+  const error = shallowRef("");
+
+  // 请求序号：切换子项后，上一个子项在途的响应必须被丢弃，否则会短暂显示错分组的数据。
+  let requestId = 0;
+
+  function errorMessageOf(reason: unknown): string {
+    return reason instanceof Error ? reason.message : "消息加载失败";
+  }
+
+  async function fetchPage(tab: MessageCenterTab, pageNumber: number): Promise<PagePayload> {
+    if (tab === "global") {
+      const payload = await getGlobalNotices({ page: pageNumber, limit: MESSAGE_CENTER_PAGE_SIZE, type: 1 });
+      return { entries: payload.list.map(toGlobalNoticeEntry), hasMore: payload.has_more };
+    }
+
+    const group = siteMessageGroupOf(tab);
+    if (!group) {
+      return { entries: [], hasMore: false };
+    }
+
+    const payload = await getSiteMessages({ group, page: pageNumber, limit: MESSAGE_CENTER_PAGE_SIZE });
+    return { entries: payload.list.map(toSiteMessageEntry), hasMore: payload.has_more };
+  }
+
+  /** 拉第一页（切换子项 / 批量动作后的统一出口）。 */
+  async function loadFirstPage() {
+    const tab = activeTab.value;
+    if (tab === "chat") {
+      items.value = [];
+      hasMore.value = false;
+      page.value = 1;
+      error.value = "";
+      return [];
+    }
+
+    const currentRequest = (requestId += 1);
+    pending.value = true;
+    error.value = "";
+    try {
+      const payload = await fetchPage(tab, 1);
+      if (currentRequest !== requestId) return [];
+      items.value = payload.entries;
+      hasMore.value = payload.hasMore;
+      page.value = 1;
+      return payload.entries;
+    } catch (reason) {
+      if (currentRequest === requestId) {
+        error.value = errorMessageOf(reason);
+        items.value = [];
+        hasMore.value = false;
+      }
+      return [];
+    } finally {
+      if (currentRequest === requestId) {
+        pending.value = false;
+      }
+    }
+  }
+
+  /** 滚动到底部时追加下一页（每页 20）。 */
+  async function loadMore() {
+    const tab = activeTab.value;
+    if (tab === "chat" || pending.value || !hasMore.value) {
+      return [];
+    }
+
+    const currentRequest = (requestId += 1);
+    pending.value = true;
+    try {
+      const payload = await fetchPage(tab, page.value + 1);
+      if (currentRequest !== requestId) return [];
+      items.value = [...items.value, ...payload.entries];
+      hasMore.value = payload.hasMore;
+      page.value += 1;
+      return payload.entries;
+    } catch (reason) {
+      if (currentRequest === requestId) {
+        error.value = errorMessageOf(reason);
+      }
+      return [];
+    } finally {
+      if (currentRequest === requestId) {
+        pending.value = false;
+      }
+    }
+  }
+
+  /**
+   * 全局通知没有分组接口：从已加载的第一页起，把后续页的 id 也收齐。
+   *
+   * `unreadOnly` 给"全部已读"用（只标记未读），否则给"清空当前分组"用（全部删除）。
+   * 已加载的条目已经带 `unread` 状态，直接从内存收；后续页用后端单页上限翻。
+   */
+  async function collectGlobalIds(options: { unreadOnly: boolean }): Promise<string[]> {
+    const ids = new Set<string>();
+    const keep = (entry: MessageCenterEntry | GlobalNoticeItem, unread: boolean) =>
+      !options.unreadOnly || unread;
+
+    for (const entry of items.value) {
+      if (keep(entry, entry.unread)) ids.add(entry.id);
+    }
+
+    // 第一页就 has_more=false 时，内存里已经是全量：不再多发一次翻页请求。
+    if (!hasMore.value) {
+      return [...ids];
+    }
+
+    let nextPage = page.value + 1;
+    for (;;) {
+      const payload = await getGlobalNotices({ page: nextPage, limit: GLOBAL_SCAN_PAGE_SIZE, type: 1 });
+      for (const item of payload.list) {
+        if (keep(item, !item.is_read)) ids.add(item.id);
+      }
+      if (!payload.has_more || payload.list.length === 0) break;
+      nextPage += 1;
+    }
+
+    return [...ids];
+  }
+
+  async function refreshSummary() {
+    await messageStore.refreshSummary().catch(() => undefined);
+  }
+
+  /** 全部已读：站内信按分组建走；全局通知收集未读 id 后批量标记。 */
+  async function markAllRead() {
+    const tab = activeTab.value;
+    if (tab === "chat") return;
+
+    if (tab === "global") {
+      const ids = await collectGlobalIds({ unreadOnly: true });
+      // 没有未读就不发请求，也不刷新列表：界面本来就没有变化。
+      if (!ids.length) return;
+      await markGlobalNoticeRead(ids);
+    } else {
+      const group = siteMessageGroupOf(tab);
+      if (!group) return;
+      await markSiteMessageRead({ group });
+    }
+
+    await Promise.all([refreshSummary(), loadFirstPage()]);
+  }
+
+  /** 清空当前分组（不可逆，页面负责二次确认）。站内信按分组删；全局通知按 id 列表删。 */
+  async function clearCurrentGroup() {
+    const tab = activeTab.value;
+    if (tab === "chat") return;
+
+    if (tab === "global") {
+      const ids = await collectGlobalIds({ unreadOnly: false });
+      if (!ids.length) return;
+      for (let index = 0; index < ids.length; index += GLOBAL_DELETE_CHUNK_SIZE) {
+        await deleteGlobalNoticeForCurrentUser(ids.slice(index, index + GLOBAL_DELETE_CHUNK_SIZE));
+      }
+    } else {
+      const group = siteMessageGroupOf(tab);
+      if (!group) return;
+      await deleteSiteMessage({ group });
+    }
+
+    await Promise.all([refreshSummary(), loadFirstPage()]);
+  }
+
+  /** 单条删除。 */
+  async function removeEntry(id: string) {
+    const tab = activeTab.value;
+    if (tab === "chat") return;
+
+    if (tab === "global") {
+      await deleteGlobalNoticeForCurrentUser([id]);
+    } else {
+      await deleteSiteMessage({ id });
+    }
+
+    await Promise.all([refreshSummary(), loadFirstPage()]);
+  }
+
+  // 进入子项 / 切换子项：刷新未读数（顶栏订阅同一个 store）+ 拉第一页。
+  watch(
+    activeTab,
+    async () => {
+      await Promise.all([refreshSummary(), loadFirstPage()]);
+    },
+    { immediate: true },
+  );
+
+  return {
+    activeTab,
+    items,
+    pending,
+    hasMore,
+    page,
+    error,
+    loadFirstPage,
+    loadMore,
+    markAllRead,
+    clearCurrentGroup,
+    removeEntry,
+  };
+}

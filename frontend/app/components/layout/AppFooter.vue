@@ -4,11 +4,15 @@ import { computed } from "vue";
 import BrandLogo from "~/components/brand/Logo.vue";
 import BrandWordmark from "~/components/brand/Wordmark.vue";
 import { useMotionPreference } from "~/composables/useMotionPreference";
+import { useSiteStore } from "~/stores/site";
 import { brandCopyright } from "~/utils/brand";
-import { FOOTER_ICP, footerNavItems } from "~/utils/chrome";
+import { footerNavItems } from "~/utils/chrome";
 
 const links = footerNavItems();
 const copyrightLine = computed(() => brandCopyright(new Date().getFullYear()));
+const site = useSiteStore();
+// 备案号来自运行时站点配置（后台可改），不再写死；空值 / 尚未取回时整行不渲染。
+const beianLine = computed(() => (site.runtimeConfig?.site_info?.beian ?? "").trim());
 const { prefersReducedMotion } = useMotionPreference();
 
 function scrollToTop() {
@@ -47,7 +51,7 @@ function scrollToTop() {
 
       <div class="site-footer__meta">
         <span>{{ copyrightLine }}</span>
-        <span>{{ FOOTER_ICP }}</span>
+        <span v-if="beianLine">{{ beianLine }}</span>
       </div>
     </div>
   </footer>

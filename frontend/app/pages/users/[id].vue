@@ -282,9 +282,8 @@ async function handlePrivateMessage() {
   };
 
   void router.push({
-    path: "/studio/inbox",
+    path: "/messages/chat",
     query: {
-      tab: "chat",
       draft_receiver_id: draftSessionSeed.receiverId,
       draft_receiver_nickname: draftSessionSeed.receiverNickname,
       draft_receiver_avatar: draftSessionSeed.receiverAvatar || undefined,

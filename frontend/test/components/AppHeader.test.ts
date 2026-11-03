@@ -28,6 +28,16 @@ const hub = vi.hoisted(() => {
     openWriteEntry: vi.fn(),
     // 站点「发布与展示」开关（#64）：默认为空对象 → 读者站按默认值全开。
     siteArticleConfig: {} as Record<string, boolean>,
+    // 消息中心未读汇总（#239）：页头入口订阅 useMessageStore。
+    messageSummary: {
+      comment_msg_count: 3,
+      digg_favor_msg_count: 0,
+      private_msg_count: 2,
+      system_msg_count: 5,
+      global_msg_count: 1,
+    },
+    messageFetched: false,
+    refreshSummary: vi.fn(),
     authState: {
       initialized: true,
       currentUser: { id: "u1", nickname: "JellyBean" },
@@ -79,6 +89,28 @@ vi.mock("~/stores/auth", async () => {
   };
 });
 
+vi.mock("~/stores/message", () => ({
+  useMessageStore: () => ({
+    get summary() {
+      return hub.messageSummary;
+    },
+    get totalUnread() {
+      const summary = hub.messageSummary;
+      return (
+        summary.comment_msg_count +
+        summary.digg_favor_msg_count +
+        summary.private_msg_count +
+        summary.system_msg_count +
+        summary.global_msg_count
+      );
+    },
+    get fetched() {
+      return hub.messageFetched;
+    },
+    refreshSummary: hub.refreshSummary,
+  }),
+}));
+
 vi.mock("~/stores/site", () => ({
   // 与真实 Pinia store 一致：`useSiteStore().runtimeConfig` 是解包后的值。
   useSiteStore: () => ({
@@ -99,7 +131,7 @@ vi.mock("~/composables/useWriteEntry", () => ({
 
 const NuxtLinkStub = {
   props: ["to"],
-  template: "<a><slot /></a>",
+  template: '<a :href="to"><slot /></a>',
 };
 
 const stubs = {
@@ -126,7 +158,17 @@ beforeAll(() => {
 beforeEach(() => {
   hub.authLoggedIn!.value = false;
   hub.siteArticleConfig = {};
+  hub.messageFetched = false;
+  hub.messageSummary = {
+    comment_msg_count: 3,
+    digg_favor_msg_count: 0,
+    private_msg_count: 2,
+    system_msg_count: 5,
+    global_msg_count: 1,
+  };
   if (hub.themeRef) hub.themeRef.value = "light";
+  // restoreMocks 会把 vi.fn 的实现也还原掉：每个用例重新承诺 refreshSummary 返回 Promise。
+  hub.refreshSummary.mockResolvedValue({});
   vi.stubGlobal("__useRouterMock", () => ({ push: hub.push, replace: vi.fn() }));
   vi.stubGlobal("__useRouteMock", () => ({ path: "/", query: {}, fullPath: "/", params: {} }));
   // Logo 组件要读 app.baseURL 拼品牌资产路径。
@@ -348,6 +390,127 @@ describe("页头：右侧动作区（#198 创作移位）", () => {
       source.indexOf("@media (min-width: 1024px)"),
     );
     expect(tabletMedia).toMatch(/\.site-header__write-label\s*\{\s*display:\s*inline;/u);
+  });
+});
+
+/**
+ * 消息中心入口（#239）。
+ *
+ * 结构验收：
+ *   - 登录后动作区出现入口；未登录不出现（/messages 是 auth 页面）；
+ *   - hover / 键盘聚焦展开五个子项，子项右侧显示未读数，0 不显示；
+ *   - <640px 用折叠面板里的同一份子项（DOM 常驻、CSS 断点切换可见性）；
+ *   - <1024px 仅图标 + 红点（文字由断点隐藏，红点在 totalUnread > 0 时渲染）。
+ * 无未读时入口文案保持「消息中心」，不显示 0。
+ */
+describe("页头：消息中心入口（#239）", () => {
+  function login() {
+    hub.authLoggedIn!.value = true;
+    return mountHeader();
+  }
+
+  it("未登录不渲染消息中心入口（消息中心是登录后才会去的页面）", () => {
+    const wrapper = mountHeader();
+
+    expect(wrapper.find('[data-chrome="messages"]').exists()).toBe(false);
+    expect(wrapper.text()).not.toContain("消息中心");
+  });
+
+  it("登录后动作区出现「消息中心」，带总未读数文案与红点", () => {
+    const wrapper = login();
+    const entry = wrapper.get('[data-chrome="messages"] .site-header__messages');
+
+    expect(entry.text()).toContain("消息中心");
+    expect(entry.attributes("aria-label")).toBe("消息中心（11 条未读）");
+    expect(entry.attributes("aria-haspopup")).toBe("menu");
+    expect(entry.find(".site-header__dot").exists()).toBe(true);
+  });
+
+  it("没有未读时不显示红点，也不显示数字 0", () => {
+    hub.messageSummary = {
+      comment_msg_count: 0,
+      digg_favor_msg_count: 0,
+      private_msg_count: 0,
+      system_msg_count: 0,
+      global_msg_count: 0,
+    };
+    const wrapper = login();
+
+    expect(wrapper.find(".site-header__dot").exists()).toBe(false);
+    expect(wrapper.get(".site-header__messages").attributes("aria-label")).toBe("消息中心");
+    expect(wrapper.get(".site-header__messages").text()).toBe("消息中心");
+  });
+
+  it("hover 展开五子项面板：顺序固定、子项带自己的未读数、0 不显示", async () => {
+    const wrapper = login();
+
+    await wrapper.get('[data-chrome="messages"]').trigger("pointerenter");
+
+    const panel = wrapper.get(".site-messages__panel");
+    expect(panel.attributes("role")).toBe("menu");
+    const items = panel.findAll(".site-messages__item");
+    expect(items).toHaveLength(5);
+    expect(items.map((item) => item.text().replace(/\d+/gu, "").trim())).toEqual([
+      "评论与回复",
+      "点赞与收藏",
+      "系统通知",
+      "全局通知",
+      "私信",
+    ]);
+    expect(items.map((item) => item.find(".site-messages__count").exists())).toEqual([
+      true,
+      false,
+      true,
+      true,
+      true,
+    ]);
+    expect(items[0]!.attributes("href")).toBe("/messages/comments");
+    expect(items[4]!.attributes("href")).toBe("/messages/chat");
+
+    await wrapper.get('[data-chrome="messages"]').trigger("pointerleave");
+    expect(wrapper.find(".site-messages__panel").exists()).toBe(false);
+  });
+
+  it("键盘聚焦也展开面板（hover 之外的可达路径）", async () => {
+    const wrapper = login();
+
+    await wrapper.get('[data-chrome="messages"]').trigger("focusin");
+    expect(wrapper.find(".site-messages__panel").exists()).toBe(true);
+  });
+
+  it("<640px 折叠面板里有同一份五子项入口（DOM 常驻，靠断点切换显示）", () => {
+    const wrapper = login();
+    const mobile = wrapper.get(".site-messages-mobile");
+    const links = mobile.findAll("a");
+
+    expect(links).toHaveLength(5);
+    expect(links.map((link) => link.attributes("href")).slice(0, 2)).toEqual([
+      "/messages/comments",
+      "/messages/digg",
+    ]);
+    expect(mobile.find(".site-messages__count").exists()).toBe(true);
+  });
+
+  it("登录后动作区顺序：亮暗 → 创作 → 消息中心 → 个人信息 → 手机菜单", () => {
+    const wrapper = login();
+    const order = wrapper
+      .findAll(".site-header__actions > *")
+      .map((node) => node.attributes("data-chrome") ?? "?unknown");
+
+    expect(order).toEqual(["theme", "write", "messages", "account", "menu"]);
+  });
+
+  it("登录后若还没拉过未读汇总，页头挂载时主动刷新一次", () => {
+    login();
+
+    expect(hub.refreshSummary).toHaveBeenCalledTimes(1);
+  });
+
+  it("已经拉过一次就不再重复请求", () => {
+    hub.messageFetched = true;
+    login();
+
+    expect(hub.refreshSummary).not.toHaveBeenCalled();
   });
 });
 

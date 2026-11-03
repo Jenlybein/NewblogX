@@ -213,12 +213,8 @@ export type CollectionCard = RequiredSchema<"internal_article_adapter_http.Colle
 export type CollectionListData =
   RequiredSchema<"myblogx_internal_kernel.ListData-internal_article_adapter_http_CollectionCardResponse">;
 
-/** 合集详情：合集本身 + 按顺序排列的文章。 */
+/** 合集详情：合集本身 + 嵌套目录树（票 219 起扁平 articles[] 退役）。 */
 export type CollectionDetail = RequiredSchema<"internal_article_adapter_http.CollectionDetailResponse">;
-
-/** 合集详情里的一篇文章（`sort_order` 是它在系列里的位置）。 */
-export type CollectionArticleItem =
-  RequiredSchema<"internal_article_adapter_http.CollectionArticleItemResponse">;
 
 /**
  * 项目（与合集并列的独立内容实体，读者侧只读）。
@@ -232,12 +228,9 @@ export type ProjectCard = RequiredSchema<"internal_article_adapter_http.ProjectC
 export type ProjectListData =
   RequiredSchema<"myblogx_internal_kernel.ListData-internal_article_adapter_http_ProjectCardResponse">;
 
-/** 项目详情：项目本身 + 按顺序排列的文章。 */
+/** 项目详情：项目本身 + 嵌套目录树（票 219 起扁平 articles[] 退役）。 */
 export type ProjectDetail = RequiredSchema<"internal_article_adapter_http.ProjectDetailResponse">;
 
-/** 项目详情里的一篇文章（`sort_order` 是它在项目里的位置）。 */
-export type ProjectArticleItem =
-  RequiredSchema<"internal_article_adapter_http.ProjectArticleItemResponse">;
 // ArticleUpdateRequest 全是指针（PATCH 语义：null 表示清空该字段）。
 export type ArticleWritePayload = Nullable<
   Schema<"internal_article_adapter_http.ArticleUpdateRequest">,

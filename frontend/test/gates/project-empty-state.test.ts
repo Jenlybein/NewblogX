@@ -6,13 +6,14 @@ import { describe, expect, it } from "vitest";
 import { stripComments } from "../helpers/designFiles";
 
 /**
- * 项目详情空态不得说破内部状态（spec story 12）。
+ * 合集 / 项目详情空态不得说破内部状态（spec story 12 / #219）。
  *
- * 未展示的项目对读者必须**按不存在处理**：页面既不能说"未公开 / 未发布"，
+ * 未展示的合集或项目对读者必须**按不存在处理**：页面既不能说"未公开 / 未发布"，
  * 也不能用"不存在或未公开"这种组合句——后半句已经把内部状态说出来了。
+ * 空树（合集 / 项目存在但还没收录文章）走另一句中性文案，同样不得混入内部状态。
  *
- * 为什么读源码而不是挂载页面：读者站没有页面级挂载测试的先例（依赖
- * useAsyncData / useRoute / 自动导入），`test/gates/` 里已有读源码断言的先例。
+ * 为什么读源码而不是挂载页面：`test/gates/` 里已有读源码断言的先例，这条门禁
+ * 钉的是渲染文案本身；页面行为由 `test/pages/outline-detail.test.ts` 挂载覆盖。
  * 判据同时带 canary：只断言现状是恒绿的，判据坏了没人发现。
  */
 
@@ -25,6 +26,7 @@ export function findInternalStateLeak(source: string): string[] {
 
 const projectDir = process.cwd();
 const pagePath = join(projectDir, "app/pages/projects/[id].vue");
+const collectionPagePath = join(projectDir, "app/pages/collections/[id].vue");
 
 describe("项目详情空态：对读者按不存在处理", () => {
   it("判据能抓到人造泄漏（canary）", () => {
@@ -47,5 +49,19 @@ describe("项目详情空态：对读者按不存在处理", () => {
     const source = readFileSync(pagePath, "utf8");
     expect(source).toContain('"项目不存在"');
     expect(source).toContain('"这个项目暂时无法访问。"');
+  });
+});
+
+describe("合集详情空态：对读者按不存在处理", () => {
+  it("页面渲染源码里不再出现未发布 / 未公开 / 不可见", () => {
+    const source = stripComments(readFileSync(collectionPagePath, "utf8"));
+    expect(findInternalStateLeak(source)).toEqual([]);
+  });
+
+  it("空树是中性文案，不存在也是中性文案", () => {
+    const source = readFileSync(collectionPagePath, "utf8");
+    expect(source).toContain('"这个合集还没有文章"');
+    expect(source).toContain('"合集不存在"');
+    expect(source).toContain('"这个合集暂时无法访问。"');
   });
 });

@@ -96,10 +96,11 @@ describe("MarkdownShadowPreview", () => {
     expect(style?.textContent).toContain("markdown 主题（JellyBin 自有）");
     expect(style?.textContent).toContain(".markdown-body pre");
     expect(style?.textContent).toContain("var(--color-ink)");
-    expect(style?.textContent).toContain("var(--type-leading-prose)");
+    // 正文节奏按参考主题重做后是 16px / 1.85（#211），不再引用 --type-leading-prose。
+    expect(style?.textContent).toContain("line-height: 1.85");
   });
 
-  it("默认不加载任何外部主题 <link>（明暗切换不换链接、不闪白）", async () => {
+  it("shadow root 里没有任何外部主题 <link>（明暗切换不换链接、不闪白）", async () => {
     const MarkdownShadowPreview = await loadComponent();
     const wrapper = mount(MarkdownShadowPreview, { props: { html: "<p>正文</p>" } });
 
@@ -108,21 +109,15 @@ describe("MarkdownShadowPreview", () => {
     expect(getShadowRoot(wrapper)?.querySelectorAll('link[rel="stylesheet"]').length).toBe(0);
   });
 
-  it("显式传入 themeHref 时才注入外部主题（兼容创作区多主题预览）", async () => {
+  it("不再接受外部主题地址：themeHref 已从组件接口退场（#212）", async () => {
     const MarkdownShadowPreview = await loadComponent();
-    const wrapper = mount(MarkdownShadowPreview, {
-      props: { html: "<p>正文</p>", themeHref: "/themes/github.css" },
-    });
+    const wrapper = mount(MarkdownShadowPreview, { props: { html: "<p>正文</p>" } });
 
     await flushPromises();
 
-    const link = getShadowRoot(wrapper)?.querySelector<HTMLLinkElement>('link[data-jelly-markdown="external-theme"]');
-    expect(link?.getAttribute("href")).toBe("/themes/github.css");
-
-    await wrapper.setProps({ themeHref: "" });
-    await flushPromises();
-
-    expect(getShadowRoot(wrapper)?.querySelector('link[data-jelly-markdown="external-theme"]')).toBeNull();
+    // 外部主题通道曾是一个 prop + 一条注入 shadow root 的 <link>；两者都必须不存在。
+    expect(wrapper.props()).not.toHaveProperty("themeHref");
+    expect(getShadowRoot(wrapper)?.querySelectorAll("link").length).toBe(0);
   });
 
   it("样式不泄漏：宿主 light DOM 为空，主题只在 shadow root 里", async () => {

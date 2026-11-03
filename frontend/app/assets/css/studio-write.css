@@ -137,17 +137,6 @@
   padding: 32px 36px 48px;
 }
 
-.write-page__theme-indicator {
-  display: inline-flex;
-  align-items: center;
-  margin-bottom: 14px;
-  padding: 4px 10px;
-  border-radius: var(--radius-pill);
-  font-size: 12px;
-  color: var(--color-ink);
-  background: var(--color-line-faint);
-}
-
 .write-page__markdown {
   max-width: none;
   min-height: 100%;

@@ -68,9 +68,6 @@ importers:
       markdown-styles:
         specifier: ^3.2.0
         version: 3.2.0
-      markdown-theme:
-        specifier: ^0.2.7
-        version: 0.2.7
       mermaid:
         specifier: ^11.14.0
         version: 11.14.0
@@ -4191,9 +4188,6 @@ packages:
   markdown-styles@3.2.0:
     resolution: {integrity: sha512-GJajcM4l9d7ifnjhU/oO9ITy9fqYg5YqMQWPzp+0AygKQck5drSNzhBlI2hg79jP45RvN195/bFy54idIq0Ysw==}
     hasBin: true
-
-  markdown-theme@0.2.7:
-    resolution: {integrity: sha512-rePOTJdouEExRc5qres9mAwkfy1Ak8sR0MX8osfCYUogcrLiIYHD96FDeMIf+zfnQbAzhqIrrwhi06JqgHvTBw==}
 
   marked@16.4.2:
     resolution: {integrity: sha512-TI3V8YYWvkVf3KJe1dRkpnjs68JUPyEa5vjKrp1XEEJUAOaQc+Qj+L1qWbPd0SJuAdQkFU0h73sXXqwDYxsiDA==}
@@ -10470,8 +10464,6 @@ snapshots:
       wildglob: 0.1.1
       xtend: 4.0.2
       yargs: 16.2.2
-
-  markdown-theme@0.2.7: {}
 
   marked@16.4.2: {}
 

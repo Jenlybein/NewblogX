@@ -61,8 +61,6 @@ const props = defineProps<{
   profileName?: string;
   /** 头像兜底字符。 */
   profileInitial: string;
-  /** 判断某个下拉选项是否处于选中态（主题等）。 */
-  isOptionActive: (toolKey: string, optionKey: string) => boolean;
 }>();
 
 const emit = defineEmits<{
@@ -147,7 +145,6 @@ data-chrome="theme-toggle"
 <div class="write-tool-popover">
 <button
 v-for="option in tool.options" :key="option.key" type="button" class="write-tool-option"
-:class="{ 'write-tool-option--active': props.isOptionActive(tool.key, option.key) }"
 @click.prevent.stop="handleToolOption(tool.key, option.key)">
 <component
 :is="option.icon" v-if="option.icon" class="write-tool-option__icon" :size="16"
@@ -360,12 +357,6 @@ type="button" class="write-tool-button"
 .write-tool-option:hover {
   background: var(--color-line-faint);
   color: var(--color-ink);
-}
-
-.write-tool-option--active {
-  background: var(--color-line-faint);
-  color: var(--color-ink);
-  font-weight: 600;
 }
 
 </style>

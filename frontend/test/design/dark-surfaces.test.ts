@@ -183,18 +183,19 @@ describe("AI 面板 / Markdown 渲染面：不再注入外部 light 主题", () 
     }
   });
 
-  it("MarkdownRenderSurface 的默认主题为空：走 #8 的自有 token 主题，明暗自动跟随", () => {
+  it("MarkdownRenderSurface 没有外部主题参数：走 #8 的自有 token 主题，明暗自动跟随", () => {
     const source = read("app/components/common/MarkdownRenderSurface.vue");
 
-    expect(source).toContain('themeHref: ""');
+    expect(source).not.toContain("themeHref");
     expect(source).toContain("StudioMarkdownShadowPreview");
   });
 
-  it("MarkdownShadowPreview 始终注入自有主题样式（外部 href 只是可选叠加）", () => {
+  it("MarkdownShadowPreview 只注入自有主题样式（不存在外部主题注入通道）", () => {
     const source = read("app/components/studio/MarkdownShadowPreview.vue");
 
     expect(source).toContain("MARKDOWN_THEME_STYLE");
     expect(source).toContain("buildMarkdownThemeCss");
+    expect(source).not.toContain("external-theme");
   });
 });
 

@@ -12,7 +12,8 @@
 /** 目录树节点（契约字段的子集：页面只消费这些）。 */
 export interface OutlineNode {
   id?: string;
-  kind: number;
+  /** 1 = 文件夹；契约里字段可缺省（缺省按文章节点处理，与后端 only 两种 node kind 一致）。 */
+  kind?: number;
   title?: string;
   article_id?: string;
   article_title?: string;

@@ -35,6 +35,9 @@ func (h *Handler) Register(r *gin.RouterGroup, authMw, optionalMw gin.HandlerFun
 	// 公开读
 	group.GET("author_info", mw.BindQuery[ArticleAuthorInfoBindRequest], h.AuthorInfo)
 	group.GET(":id", mw.BindUri[kernel.IDRequest], h.Detail)
+	// 文章上下文（阅读页左栏目录树）：公开读；`from` 缺失时回退到第一棵归属树。
+	group.GET(":id/outline-context", mw.BindUri[kernel.IDRequest],
+		mw.BindQuery[ArticleOutlineContextRequest], h.ArticleOutlineContext)
 	group.POST("view", mw.BindJson[ArticleViewCountRequest], h.Visit)
 	group.GET("category", mw.BindQuery[CategoryListRequest], h.Categories)
 	group.GET("category/options", mw.BindQuery[CategoryOptionsRequest], h.CategoryOptions)

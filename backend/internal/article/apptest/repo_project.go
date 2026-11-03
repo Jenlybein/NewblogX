@@ -9,13 +9,11 @@ import (
 	"myblogx/internal/article/domain/project"
 )
 
-// ProjectRepo 是 project.Repository 的内存实现（只含读者侧公开读）。
+// ProjectRepo 是 project.Repository 的内存实现（读者侧公开读 + 管理端读写）。
 //
 // 与 CollectionRepo 同一做法：它持有文章 fake 的引用，读模型都从**真实的**
 // fake 文章状态派生，所以"文章不再公开后读者侧看不到、关联行仍在"可以在
 // 用例层被断言，不必等到 adapter/mysql 的集成测试。
-//
-// 本票没有写路径（管理端属于 #197），因此这个 fake 不参与事务回滚快照。
 type ProjectRepo struct {
 	mus  sync.Mutex
 	arts *ArticleRepo
@@ -74,6 +72,56 @@ func (r *ProjectRepo) FailNext(method string, err error) { r.fault.FailNext(meth
 // Calls 返回调用次数。
 func (r *ProjectRepo) Calls(method string) int { return r.count.Calls(method) }
 
+// Create 插入项目。
+func (r *ProjectRepo) Create(_ context.Context, p *project.Project) error {
+	r.count.inc("Create")
+	if err := r.fault.take("Create"); err != nil {
+		return err
+	}
+	r.mus.Lock()
+	defer r.mus.Unlock()
+	if _, ok := r.projects[p.ID()]; ok {
+		return ErrConflict
+	}
+	r.projects[p.ID()] = p
+	return nil
+}
+
+// Update 保存已存在的项目；不存在返回错误。
+//
+// 不检查"已软删"：删项目本身就是 SoftDelete + Update 这一条写路径。
+// 「删掉后读不到」由 Find / 列表的 Deleted 过滤保证。
+func (r *ProjectRepo) Update(_ context.Context, p *project.Project) error {
+	r.count.inc("Update")
+	if err := r.fault.take("Update"); err != nil {
+		return err
+	}
+	r.mus.Lock()
+	defer r.mus.Unlock()
+	if _, ok := r.projects[p.ID()]; !ok {
+		return project.ErrNotFound
+	}
+	r.projects[p.ID()] = p
+	return nil
+}
+
+// NextSortOrder 返回当前最大序号 + 1。
+func (r *ProjectRepo) NextSortOrder(_ context.Context) (int, error) {
+	r.count.inc("NextSortOrder")
+	if err := r.fault.take("NextSortOrder"); err != nil {
+		return 0, err
+	}
+	r.mus.Lock()
+	defer r.mus.Unlock()
+	maxOrder := 0
+	for _, p := range r.projects {
+		if p.SortOrder() > maxOrder {
+			maxOrder = p.SortOrder()
+		}
+	}
+	return maxOrder + 1, nil
+}
+
 // Find 按 ID 读取项目（含未展示的，不含已软删的）。
 func (r *ProjectRepo) Find(_ context.Context, id project.ID) (*project.Project, error) {
 	r.count.inc("Find")
@@ -130,6 +178,153 @@ func (r *ProjectRepo) ListCards(
 	return pageSlice(out, p), total, nil
 }
 
+// ListAdminCards 列出全部项目（含未展示）。
+func (r *ProjectRepo) ListAdminCards(_ context.Context) ([]project.AdminCard, error) {
+	r.count.inc("ListAdminCards")
+	if err := r.fault.take("ListAdminCards"); err != nil {
+		return nil, err
+	}
+	r.mus.Lock()
+	defer r.mus.Unlock()
+
+	all := r.sortedProjectsLocked()
+	out := make([]project.AdminCard, 0, len(all))
+	for _, pj := range all {
+		if pj.Deleted() {
+			continue
+		}
+		// 回退封面与读者卡片同一口径：首篇仍公开的收录文章的封面。
+		fallback := ""
+		if articles := r.publicArticlesLocked(pj.ID()); len(articles) > 0 {
+			fallback = articles[0].Cover
+		}
+		out = append(out, project.AdminCard{
+			ID:            pj.ID(),
+			Title:         pj.Title(),
+			Description:   pj.Description(),
+			Cover:         pj.Cover(),
+			Displayed:     pj.Displayed(),
+			ArticleCount:  len(r.liveItemsLocked(pj.ID())),
+			SortOrder:     pj.SortOrder(),
+			FallbackCover: fallback,
+		})
+	}
+	return out, nil
+}
+
+// ListIDs 按序号返回全部未软删项目的 ID。
+func (r *ProjectRepo) ListIDs(_ context.Context) ([]project.ID, error) {
+	r.count.inc("ListIDs")
+	if err := r.fault.take("ListIDs"); err != nil {
+		return nil, err
+	}
+	r.mus.Lock()
+	defer r.mus.Unlock()
+
+	all := r.sortedProjectsLocked()
+	out := make([]project.ID, 0, len(all))
+	for _, pj := range all {
+		if pj.Deleted() {
+			continue
+		}
+		out = append(out, pj.ID())
+	}
+	return out, nil
+}
+
+// UpdateSortOrders 按给定顺序把项目自身的序号改成 1..n。
+func (r *ProjectRepo) UpdateSortOrders(_ context.Context, ids []project.ID) error {
+	r.count.inc("UpdateSortOrders")
+	if err := r.fault.take("UpdateSortOrders"); err != nil {
+		return err
+	}
+	r.mus.Lock()
+	defer r.mus.Unlock()
+
+	for i, id := range ids {
+		pj, ok := r.projects[id]
+		if !ok {
+			return project.ErrNotFound
+		}
+		pj.SetSortOrder(i+1, pj.UpdatedAt())
+	}
+	return nil
+}
+
+// ListItemIDs 按序号返回当前收录的文章 ID。
+func (r *ProjectRepo) ListItemIDs(_ context.Context, id project.ID) ([]project.ArticleID, error) {
+	r.count.inc("ListItemIDs")
+	if err := r.fault.take("ListItemIDs"); err != nil {
+		return nil, err
+	}
+	r.mus.Lock()
+	defer r.mus.Unlock()
+
+	rows := r.liveItemsLocked(id)
+	out := make([]project.ArticleID, 0, len(rows))
+	for _, it := range rows {
+		out = append(out, it.articleID)
+	}
+	return out, nil
+}
+
+// AppendItem 收录一篇文章，返回是否真的新增；移除过的恢复原行。
+func (r *ProjectRepo) AppendItem(
+	_ context.Context, id project.ID, articleID project.ArticleID,
+) (bool, error) {
+	r.count.inc("AppendItem")
+	if err := r.fault.take("AppendItem"); err != nil {
+		return false, err
+	}
+	r.mus.Lock()
+	defer r.mus.Unlock()
+	if _, ok := r.projects[id]; !ok {
+		return false, project.ErrNotFound
+	}
+
+	for i := range r.items[id] {
+		it := &r.items[id][i]
+		if it.articleID != articleID {
+			continue
+		}
+		if !it.deleted {
+			// 活行已存在：幂等返回 false（不挪到末尾）。
+			return false, nil
+		}
+		// 软删行恢复：按新序号排到末尾。
+		it.deleted = false
+		it.sortOrder = len(r.liveItemsLocked(id)) + 1
+		return true, nil
+	}
+
+	r.items[id] = append(r.items[id], projectItem{
+		articleID: articleID,
+		sortOrder: len(r.liveItemsLocked(id)) + 1,
+	})
+	return true, nil
+}
+
+// RemoveItem 移除收录（软删）并压实序号；不存在时不做任何事。
+func (r *ProjectRepo) RemoveItem(
+	_ context.Context, id project.ID, articleID project.ArticleID,
+) error {
+	r.count.inc("RemoveItem")
+	if err := r.fault.take("RemoveItem"); err != nil {
+		return err
+	}
+	r.mus.Lock()
+	defer r.mus.Unlock()
+	for i := range r.items[id] {
+		it := &r.items[id][i]
+		if it.articleID == articleID && !it.deleted {
+			it.deleted = true
+			break
+		}
+	}
+	r.compactLocked(id)
+	return nil
+}
+
 // ListIncludedArticles 列出仍公开的收录文章（按序号升序）。
 func (r *ProjectRepo) ListIncludedArticles(
 	_ context.Context, id project.ID, onlyAdminAuthors bool,
@@ -155,6 +350,88 @@ func (r *ProjectRepo) ListIncludedArticles(
 		})
 	}
 	return out, nil
+}
+
+// ListAdminItems 列出全部收录行（含已失效）。
+func (r *ProjectRepo) ListAdminItems(_ context.Context, id project.ID) ([]project.AdminItem, error) {
+	r.count.inc("ListAdminItems")
+	if err := r.fault.take("ListAdminItems"); err != nil {
+		return nil, err
+	}
+	r.mus.Lock()
+	defer r.mus.Unlock()
+
+	out := make([]project.AdminItem, 0, len(r.items[id]))
+	for _, it := range r.liveItemsLocked(id) {
+		row := project.AdminItem{ArticleID: it.articleID, SortOrder: it.sortOrder}
+		// 与 MySQL ListAdminItems 的 LEFT JOIN 对齐：软删的文章仍能读到标题与
+		// "已删除"状态；只有文章行真的不存在时才留空并由 domain 判为 missing。
+		if a, err := r.arts.FindIncludingDeleted(context.Background(), it.articleID); err == nil {
+			row.Title = a.Title()
+			row.Cover = a.Cover()
+			row.Article = &project.ArticleState{
+				Deleted:    isDeleted(a),
+				Status:     a.Status(),
+				Visibility: a.Visibility(),
+			}
+		}
+		out = append(out, row)
+	}
+	return out, nil
+}
+
+// UpdateItemOrder 按给定顺序把序号改成 1..n。
+func (r *ProjectRepo) UpdateItemOrder(
+	_ context.Context, id project.ID, articleIDs []project.ArticleID,
+) error {
+	r.count.inc("UpdateItemOrder")
+	if err := r.fault.take("UpdateItemOrder"); err != nil {
+		return err
+	}
+	r.mus.Lock()
+	defer r.mus.Unlock()
+	for i, articleID := range articleIDs {
+		for j := range r.items[id] {
+			if r.items[id][j].articleID == articleID {
+				r.items[id][j].sortOrder = i + 1
+			}
+		}
+	}
+	return nil
+}
+
+// Snapshot 参与事务回滚。
+func (r *ProjectRepo) Snapshot() any {
+	r.mus.Lock()
+	defer r.mus.Unlock()
+	projects := make(map[project.ID]*project.Project, len(r.projects))
+	for k, v := range r.projects {
+		projects[k] = v
+	}
+	items := make(map[project.ID][]projectItem, len(r.items))
+	for k, rows := range r.items {
+		items[k] = append([]projectItem(nil), rows...)
+	}
+	return projectState{projects: projects, items: items, onlyAdmin: r.lastOnlyAdminAuthors}
+}
+
+// RestoreState 覆盖回快照。
+func (r *ProjectRepo) RestoreState(s any) {
+	state, ok := s.(projectState)
+	if !ok {
+		return
+	}
+	r.mus.Lock()
+	defer r.mus.Unlock()
+	r.projects = state.projects
+	r.items = state.items
+	r.lastOnlyAdminAuthors = state.onlyAdmin
+}
+
+type projectState struct {
+	projects  map[project.ID]*project.Project
+	items     map[project.ID][]projectItem
+	onlyAdmin bool
 }
 
 // ListCardsOnlyAdminAuthors 返回最近一次读面收到的过滤开关。
@@ -222,4 +499,16 @@ func (r *ProjectRepo) publicArticlesLocked(id project.ID) []project.IncludedArti
 		})
 	}
 	return out
+}
+
+// compactLocked 把序号压实成 1..n（调用方必须已持锁）。
+func (r *ProjectRepo) compactLocked(id project.ID) {
+	for i, it := range r.liveItemsLocked(id) {
+		for j := range r.items[id] {
+			if r.items[id][j].articleID == it.articleID {
+				r.items[id][j].sortOrder = i + 1
+				break
+			}
+		}
+	}
 }

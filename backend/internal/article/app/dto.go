@@ -6,6 +6,7 @@ import (
 	"myblogx/internal/article/domain"
 	"myblogx/internal/article/domain/collection"
 	"myblogx/internal/article/domain/favorite"
+	"myblogx/internal/article/domain/project"
 	"myblogx/internal/article/domain/review"
 	sitedomain "myblogx/internal/site/domain"
 )
@@ -296,5 +297,95 @@ type IncludeArticlesCmd struct {
 	// ArticleIDs 要收录的文章，按提交顺序排在合集末尾。
 	//
 	// 同一篇在请求里出现多次时，第一次照常分类、后续一律按重复返回。
+	ArticleIDs []domain.ArticleID
+}
+
+// ── 项目 ──
+//
+// 命令结构与合集**逐字对应**：两套运营位的心智复用，但各自的集合 ID 类型
+// 不同（collection.ID / project.ID），所以命令不能互相顶替。
+
+// CreateProjectCmd 是建项目的输入。
+//
+// 封面传空串表示"退回首篇公开文章的封面"（由读模型处理），不是错误。
+type CreateProjectCmd struct {
+	// Actor 是操作者，必须是管理员。
+	Actor domain.Viewer
+	// Title 标题，非空且不超过 project.MaxTitleLen。
+	Title string
+	// Description 描述，可空。
+	Description string
+	// Cover 封面 URL，可空。
+	Cover string
+	// Displayed 是否一开始就展示给读者。
+	Displayed bool
+}
+
+// UpdateProjectCmd 是改项目内容的输入。
+//
+// 只有标题 / 描述 / 封面三个字段：展示开关走 SetProjectDisplayCmd，顺序走
+// 项目间排序。把三者混进一个"整体更新"会让后台改一次标题就顺手覆盖掉
+// 别人刚切换的展示开关。
+type UpdateProjectCmd struct {
+	// Actor 是操作者，必须是管理员。
+	Actor domain.Viewer
+	// ProjectID 目标项目。
+	ProjectID project.ID
+	// Title 标题，非空且不超过 project.MaxTitleLen。
+	Title string
+	// Description 描述，可空。
+	Description string
+	// Cover 封面 URL，传空串表示回退到首篇文章的封面。
+	Cover string
+}
+
+// DeleteProjectCmd 是删项目的输入。软删：项目查不到，但收录行都保留。
+type DeleteProjectCmd struct {
+	// Actor 是操作者，必须是管理员。
+	Actor domain.Viewer
+	// ProjectID 目标项目。
+	ProjectID project.ID
+}
+
+// IncludeProjectArticleCmd 是把一篇文章收录进项目的输入。
+type IncludeProjectArticleCmd struct {
+	// Actor 是操作者，必须是管理员。
+	Actor domain.Viewer
+	// ProjectID 目标项目。
+	ProjectID project.ID
+	// ArticleID 被收录的文章。
+	ArticleID domain.ArticleID
+}
+
+// RemoveProjectArticleCmd 是从项目中移除一篇文章的输入。
+//
+// 与收录命令分开：收录"必须已发布且可见"、移除"不查文章"（失效行也要能清掉），
+// 合成一个命令结构会让调用点看不出自己在做哪一种。
+type RemoveProjectArticleCmd struct {
+	// Actor 是操作者，必须是管理员。
+	Actor domain.Viewer
+	// ProjectID 目标项目。
+	ProjectID project.ID
+	// ArticleID 要移除的文章。
+	ArticleID domain.ArticleID
+}
+
+// SetProjectDisplayCmd 是切换项目展示开关的输入。
+type SetProjectDisplayCmd struct {
+	// Actor 是操作者，必须是管理员。
+	Actor domain.Viewer
+	// ProjectID 目标项目。
+	ProjectID project.ID
+	// Displayed 目标展示状态。
+	Displayed bool
+}
+
+// IncludeProjectArticlesCmd 是批量收录的输入（逐篇返回结局）。
+type IncludeProjectArticlesCmd struct {
+	// Actor 是操作者，必须是管理员。
+	Actor domain.Viewer
+	// ProjectID 目标项目。
+	ProjectID project.ID
+	// ArticleIDs 要收录的文章，按提交顺序排在项目末尾。
 	ArticleIDs []domain.ArticleID
 }

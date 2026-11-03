@@ -90,14 +90,16 @@ type fakeStranger struct{ enabled bool }
 func (f fakeStranger) StrangerEnabled(context.Context) (bool, error) { return f.enabled, nil }
 
 type fakeTickets struct {
-	userID    uint64
-	sessionID uint64
+	// ID 语义的字段必须用 ctype.ID（雪花 ID 超出 JS 安全整数）：archcheck R12
+	// 对测试文件同样生效，裸 uint64 会让契约印成 integer。
+	userID    ctype.ID
+	sessionID ctype.ID
 }
 
 func (fakeTickets) Store(context.Context, string, uint64, uint64, time.Duration) error { return nil }
 
 func (f fakeTickets) Consume(context.Context, string) (uint64, uint64, bool, error) {
-	return f.userID, f.sessionID, true, nil
+	return f.userID.Uint64(), f.sessionID.Uint64(), true, nil
 }
 
 type fakeAuth struct{}
@@ -114,7 +116,7 @@ func dialChat(t *testing.T, svc *app.Service) *websocket.Conn {
 
 	gin.SetMode(gin.TestMode)
 	engine := gin.New()
-	handler := chathttp.NewHandler(svc, ws.NewHub(), fakeTickets{userID: 1, sessionID: 1}, fakeAuth{}, nil)
+	handler := chathttp.NewHandler(svc, ws.NewHub(), fakeTickets{userID: ctype.NewID(1), sessionID: ctype.NewID(1)}, fakeAuth{}, nil)
 	engine.GET("/chat/ws", handler.Ws)
 	server := httptest.NewServer(engine)
 	t.Cleanup(server.Close)

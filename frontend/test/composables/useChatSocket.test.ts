@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { useChatSocket } from "~/composables/useChatSocket";
 
 // useChatSocket 在构造时注册 onBeforeUnmount。这里没有真实组件实例，
 // 直接把它换成空实现，避免每条用例都刷一遍 Vue 警告（警告本身没有信息量）。
@@ -6,8 +7,6 @@ vi.mock("vue", async (importOriginal) => {
   const actual = await importOriginal<typeof import("vue")>();
   return { ...actual, onBeforeUnmount: vi.fn() };
 });
-
-import { useChatSocket } from "~/composables/useChatSocket";
 
 /**
  * WS 发送回执的读者侧接线（#202）。
@@ -61,6 +60,9 @@ function createSocket() {
     class extends FakeWebSocket {
       constructor(url: string) {
         super(url);
+        // 测试要在"用例已创建 socket"之后拿到实例；这是测试脚手架，
+        // 不是生产代码里的 this 别名（规则的本意是禁止业务代码这么写）。
+        // eslint-disable-next-line @typescript-eslint/no-this-alias
         socket = this;
       }
     },

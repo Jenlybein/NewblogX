@@ -462,7 +462,9 @@ var messages = map[Code]string{
 	CodeChatUserNotFound:    "接收人不存在",
 	CodeChatContentEmpty:    "消息内容不能为空",
 	CodeChatTypeUnsupported: "不支持的消息类型",
-	CodeChatStrangerOff:     "对方未开启陌生人私信",
+	// 这条文案必须点明"站点策略"：陌生人私信开关是站点级的（#202），
+	// 用户看到后应该去找管理员改站点开关，而不是怀疑自己被针对或网络故障。
+	CodeChatStrangerOff:     "站点当前不允许陌生人发私信（站点策略，不是网络问题），请联系管理员开启「允许陌生人发私信」",
 	CodeChatNoPermission:    "权限不足",
 	CodeChatSessionNotFound: "会话不存在",
 	CodeChatEmptySelection:  "请选择要操作的消息或会话",

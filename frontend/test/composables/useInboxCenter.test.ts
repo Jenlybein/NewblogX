@@ -100,6 +100,7 @@ describe("useInboxCenter", () => {
     vi.stubGlobal("useChatSocket", () => ({
       socketStatus: shallowRef("closed"),
       socketError: shallowRef(null),
+      sendError: shallowRef(""),
       connect: vi.fn(),
       sendMessage: vi.fn(),
       consumeIncomingMessages: vi.fn(() => []),

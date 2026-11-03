@@ -377,10 +377,15 @@ func (h *Handler) Ws(c *gin.Context) {
 			IsRead:     false,
 		}
 		if req.ReceiverID.Uint64() == userID.Uint64() {
-			if success := h.hub.PushJSON(msg.ReceiverID.Uint64(), item); success == 0 {
-				if err := res.SendConnOkWithMsg("给自己发送消息", conn, wsWriteWait); err != nil {
-					return
-				}
+			// 自己发给自己：先把消息实体推给本人（多标签页/多设备可见），
+			// 然后**无论推送是否命中在线连接都回一次成功回执**。
+			//
+			// 回执是"这次发送的结局"，推送成功与否只说明"有没有在线窗口"，
+			// 不代表消息没发出去。旧实现只在推送失败时回执，成功时反而静默，
+			// 发送者不知道该不该刷新。
+			h.hub.PushJSON(msg.ReceiverID.Uint64(), item)
+			if err := res.SendConnOkWithMsg("给自己发送消息", conn, wsWriteWait); err != nil {
+				return
 			}
 			continue
 		}

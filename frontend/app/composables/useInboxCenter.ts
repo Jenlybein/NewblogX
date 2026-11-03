@@ -44,7 +44,7 @@ export function useInboxCenter(options: UseInboxCenterOptions = {}) {
   const authStore = useAuthStore();
   const messageStore = useMessageStore();
   const chatStore = useChatStore();
-  const { socketStatus, socketError, connect, sendMessage, consumeIncomingMessages, inbox } = useChatSocket();
+  const { socketStatus, socketError, sendError, connect, sendMessage, consumeIncomingMessages, inbox } = useChatSocket();
 
   const activeTab = shallowRef<InboxTab>("site");
   const activeSiteGroup = shallowRef<SiteMessageGroup>(1);
@@ -501,6 +501,9 @@ export function useInboxCenter(options: UseInboxCenterOptions = {}) {
     messagePending,
     socketStatus,
     socketError,
+    // 发送被拒的明确原因（票 202）：直接透出 WS 回执里的后端文案，
+    // 由私信面板就地显示，而不是只丢进控制台或连接状态里。
+    chatSendError: sendError,
     loadSiteMessages,
     loadGlobalNotices,
     loadMoreSiteMessages,

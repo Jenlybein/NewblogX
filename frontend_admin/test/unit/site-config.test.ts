@@ -98,3 +98,30 @@ describe("「发布与展示」三开关（#60 / ADR-0017 决策 2）", () => {
     }
   });
 });
+
+describe("私信的陌生人开关（#202）", () => {
+  it("「私信」卡里的开关绑定到 config.chat.stranger_msg_enabled", () => {
+    const source = readSettingsSite();
+
+    expect(source).toContain("私信");
+    // 键名必须与后端 `conf/site.Chat` 的 json tag 一致；绑错的表现是
+    // "点了保存没反应"，编译器不会说话（site 段在契约里是自由键值块）。
+    expect(source).toContain("config.chat.stranger_msg_enabled");
+    expect(source).toContain("允许陌生人发私信");
+  });
+
+  it("手写类型 SiteRuntimeConfig.chat 声明布尔（表单缺字段会被写成 undefined）", () => {
+    const source = readApiTypes();
+    const chat = source.match(/\n {2}chat: \{([\s\S]*?)\n {2}\}/u)?.[1] ?? "";
+
+    expect(chat.length).toBeGreaterThan(0);
+    expect(chat).toMatch(/\bstranger_msg_enabled: boolean/u);
+  });
+
+  it("开关是站点级策略：后台说明点明保存后立即生效，而不是要求重启", () => {
+    const source = readSettingsSite();
+
+    expect(source).toContain("站点级策略");
+    expect(source).toContain("立即生效");
+  });
+});

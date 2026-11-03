@@ -83,9 +83,9 @@ func (s *Service) Send(ctx context.Context, senderID, receiverID ctype.ID, msgTy
 			relation = rel
 		}
 	}
-	// 陌生人需要对方开启陌生私信。
+	// 陌生人私信由站点开关统一控制（#202）：站点点关之后，陌生人对谁都发不出去。
 	if senderID != receiverID && relation == 1 {
-		enabled, err := s.stranger.StrangerEnabled(ctx, receiverID)
+		enabled, err := s.stranger.StrangerEnabled(ctx)
 		if err != nil {
 			return nil, err
 		}

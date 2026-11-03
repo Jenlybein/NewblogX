@@ -19,6 +19,10 @@
  *      与后台 `app/utils/themePreference.ts` 各自给出，两端同一套类名）。
  *      墨色/结构线一律走中性石墨阶，不再「每个黑都是深蓝」。
  *   3. 圆角 / 玻璃 / 排版 / 动效层：组件与 Naive themeOverrides 都从这里取值。
+ *   4. 正文 markdown 色板 `--md-*`（第 7 段）：**只有正文渲染区消费**的一组独立
+ *      语义色。ADR-0012「后续修订」明确正文区不受上面第 1 段的五色相锁定 —— 六层
+ *      标题要靠颜色也能分出层级，而五色里没有六个可当字色的色相。它仍走同一套治理：
+ *      只在这里定义、组件里只能写 `var(--md-*)`、明暗各一份取值。
  *
  * 后台特有变体（#22 合并）：`--color-surface-glass`（侧栏 / 统计卡的半透明面，
  * 后台不上 backdrop-filter）、`--color-on-strong-line` / `--color-on-strong-soft`
@@ -141,6 +145,47 @@
   --motion-ease: cubic-bezier(0.2, 0.8, 0.2, 1); /* 全站唯一缓动曲线 */
   --motion-reveal-offset: 12px; /* 区块级滚动进场位移上限（ADR-0012 决策 7） */
   --parallax-max: 10px; /* 视差上限 */
+
+  /* ---- 7. 正文 markdown 色板（ADR-0012「后续修订」：正文渲染区不锁五族）----
+   * 作用域：**只供正文 markdown 渲染区**（注入 shadow root 的
+   * `MARKDOWN_THEME_CSS`）。页面与组件不得引用这一组：正文区是"读文章"的主场，
+   * 六层标题需要靠颜色也能分出层级，而五个锁定色相里没有六个可当字色的色相，
+   * 所以正文区改用一套独立的暖调编辑色板（方向 A）。它同样只有 token 层一个
+   * 来源 —— 裸色值门禁对组件照旧生效，hex 只允许出现在本文件。
+   *
+   * 明暗是同一组名字的两份取值（暗色在下面的 `.dark` 块里）；几何/字重档
+   * （bold-weight / strike-width / underline-offset）与明暗无关，只在 :root 定义。
+   *
+   * 对比度：正文侧每一档对纸面 / 代码纸面都 ≥ 4.5:1（由
+   * frontend/test/design/markdown-palette.test.ts 用真实取值断言）。 */
+  --md-heading-h1: #1a1815; /* H1 墨：定标线 + 居中记号块 */
+  --md-heading-h2: #b2442a; /* H2 赤陶：左侧 3px 色带 */
+  --md-heading-h3: #4e6b3c; /* H3 苔绿：行首三角 */
+  --md-heading-h4: #35597d; /* H4 靛青：短下划线（约 40% 宽） */
+  --md-heading-h5: #6b4a78; /* H5 梅紫：上下双发丝线 */
+  --md-heading-h6: #8a6524; /* H6 赭黄：大写字距 + 顶横线 */
+  --md-bold-ink: #0f0d0b; /* 加粗：深墨 */
+  --md-bold-weight: 650; /* 加粗字重（Inter 可变字重） */
+  --md-italic-ink: #5f5a52; /* 斜体：暖灰（真斜体） */
+  --md-strike-ink: #6e6961; /* 删除线：字色暖灰 */
+  --md-strike-line: #b2442a; /* 删除线：线色赤陶 */
+  --md-strike-width: 1.5px; /* 删除线：线宽 */
+  --md-underline-line: #35597d; /* 下划线：线色靛青（字色继承正文） */
+  --md-underline-offset: 3px; /* 下划线：与文字的距离 */
+  --md-list-ordered-marker: #b2442a; /* 有序列表数字：赤陶 */
+  --md-list-unordered-marker: #4e6b3c; /* 无序列表圆点：苔绿 */
+  --md-code-paper: #f7f4ed; /* 代码块纸面：比正文纸面降一档 */
+  --md-code-ink: #1a1815; /* 代码正文：墨 */
+  --md-code-keyword: #b2442a; /* 代码 关键字：赤陶 */
+  --md-code-string: #4e6b3c; /* 代码 字符串：苔绿 */
+  --md-code-number: #35597d; /* 代码 数字：靛青 */
+  --md-code-function: #6b4a78; /* 代码 函数：梅紫 */
+  --md-code-type: #8a6524; /* 代码 类型：赭黄 */
+  /* 代码注释：spec 色板给 #7A756C，但它对正文纸面只有 4.43:1、对降一档的代码
+   * 纸面只有 4.17:1，达不到 issue 验收要求的 AA。这里取同色相（暖灰）加深一档的
+   * 取值，只动明度不动色相 —— 「色板给形态、AA 给下限」，可读性优先。 */
+  --md-code-comment: #726d63; /* 代码 注释：暖灰（加深一档达 AA） */
+  --md-code-variable: #2a2724; /* 代码 变量：深暖灰 */
 }
 
 /* ---- 暗色映射：同一组语义 token 的第二份取值（中性石墨阶，不取暖黑） ----
@@ -193,6 +238,32 @@
   --glass-rim: rgb(255 255 255 / 0.30);
   --glass-rim-warm: rgb(255 253 246 / 0.22);
   --glass-grain-opacity: 0.045;
+
+  /* 正文 markdown 色板的暗色取值：同一组名字的第二份取值。
+   * 六个标题色把各自的色相提亮到中性暗面上可达 AA 的明度（色相不变），
+   * 墨色/加粗换暖白，代码纸面比正文纸面再降一档。 */
+  --md-heading-h1: #f2efe8;
+  --md-heading-h2: #e08063;
+  --md-heading-h3: #9dbc85;
+  --md-heading-h4: #8fb2dd;
+  --md-heading-h5: #c2a0cc;
+  --md-heading-h6: #d9b269;
+  --md-bold-ink: #faf7f1;
+  --md-italic-ink: #b9b2a7;
+  --md-strike-ink: #a8a297;
+  --md-strike-line: #dd7a5e;
+  --md-underline-line: #8fb2dd;
+  --md-list-ordered-marker: #e08063;
+  --md-list-unordered-marker: #9dbc85;
+  --md-code-paper: #131315;
+  --md-code-ink: #ede9e1;
+  --md-code-keyword: #e08063;
+  --md-code-string: #9dbc85;
+  --md-code-number: #8fb2dd;
+  --md-code-function: #c2a0cc;
+  --md-code-type: #d9b269;
+  --md-code-comment: #948e84;
+  --md-code-variable: #e7e3da;
 }
 
 /* ---- 「减少动态」的全局降级 ----

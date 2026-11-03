@@ -66,6 +66,23 @@ jobs:
           --health-interval=5s
           --health-timeout=3s
           --health-retries=30
+      # 真实索引供「软删 → 发件箱中继 → 索引文档消失」的组合用例使用。
+      # 用 service 而不是让测试自己起容器：镜像拉取由 job 统一负责，起不来就是
+      # job 失败，不会被 escontainer 的 t.Skipf 静默跳过（那正是本仓反对的"假绿"）。
+      # 测试侧优先读 BLOGX_ES_ADDR，见 internal/testkit/escontainer。
+      elasticsearch:
+        image: docker.elastic.co/elasticsearch/elasticsearch:8.15.3
+        env:
+          discovery.type: single-node
+          xpack.security.enabled: "false"
+          ES_JAVA_OPTS: -Xms512m -Xmx512m
+        ports:
+          - 9200:9200
+        options: >-
+          --health-cmd="curl -sf http://localhost:9200/_cluster/health || exit 1"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=30
     defaults:
       run:
         working-directory: backend
@@ -90,6 +107,9 @@ jobs:
       - name: go test (race, integration)
         env:
           BLOGX_MYSQL_ADDR: 127.0.0.1:3306
+          # 指向上面的 elasticsearch service：让真实索引的组合用例确定性运行，
+          # 而不是回退到 testcontainers（起不来会被 t.Skipf 静默跳过）。
+          BLOGX_ES_ADDR: http://127.0.0.1:9200
         run: go test -race -tags integration -count=1 -timeout 25m ./...
 
   # ── 架构守卫：AST 规则（先 warn，逐步升级 error）─────────────────

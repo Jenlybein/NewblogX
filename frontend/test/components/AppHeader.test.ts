@@ -17,6 +17,9 @@ import AppHeader from "~/components/layout/AppHeader.vue";
 
 const FILENAME = "app/components/layout/AppHeader.vue";
 
+// 历史入口收进头像菜单的那一档视口（与组件里的查询保持一致）。
+const HISTORY_MENU_QUERY = "(min-width: 640px) and (max-width: 1279px)";
+
 // vi.mock 的工厂会被提升到 import 之前，所以可变状态放这里，测试再往里写。
 const hub = vi.hoisted(() => {
   const state = {
@@ -491,13 +494,13 @@ describe("页头：消息中心入口（#239）", () => {
     expect(mobile.find(".site-messages__count").exists()).toBe(true);
   });
 
-  it("登录后动作区顺序：亮暗 → 创作 → 消息中心 → 个人信息 → 手机菜单", () => {
+  it("登录后动作区顺序：亮暗 → 创作 → 消息中心 → 历史 → 个人信息 → 手机菜单", () => {
     const wrapper = login();
     const order = wrapper
       .findAll(".site-header__actions > *")
       .map((node) => node.attributes("data-chrome") ?? "?unknown");
 
-    expect(order).toEqual(["theme", "write", "messages", "account", "menu"]);
+    expect(order).toEqual(["theme", "write", "messages", "history", "account", "menu"]);
   });
 
   it("登录后若还没拉过未读汇总，页头挂载时主动刷新一次", () => {
@@ -511,6 +514,62 @@ describe("页头：消息中心入口（#239）", () => {
     login();
 
     expect(hub.refreshSummary).not.toHaveBeenCalled();
+  });
+});
+
+describe("页头：历史入口（第 241 票）", () => {
+  function login() {
+    hub.authLoggedIn!.value = true;
+    return mountHeader();
+  }
+
+  it("未登录不渲染历史入口（/history 是 auth 页面）", () => {
+    const wrapper = mountHeader();
+
+    expect(wrapper.find('[data-chrome="history"]').exists()).toBe(false);
+    expect(wrapper.find(".site-history-mobile").exists()).toBe(false);
+  });
+
+  it("登录后动作区是普通链接：指向 /history，没有悬停面板、没有 aria-haspopup", () => {
+    const wrapper = login();
+    const entry = wrapper.get('[data-chrome="history"]');
+
+    expect(entry.attributes("href")).toBe("/history");
+    expect(entry.attributes("aria-label")).toBe("浏览历史");
+    expect(entry.attributes("aria-haspopup")).toBeUndefined();
+    expect(entry.text()).toContain("历史");
+    // 普通链接：指针进入不会展开任何面板（与消息中心不同）。
+    expect(wrapper.find(".site-messages__panel").exists()).toBe(false);
+  });
+
+  it("<640px 折叠面板里有同一个入口（DOM 常驻，靠断点切换显示）", () => {
+    const wrapper = login();
+    const mobile = wrapper.get(".site-history-mobile");
+
+    expect(mobile.find("a").attributes("href")).toBe("/history");
+    expect(mobile.text()).toContain("浏览历史");
+
+    const source = readFileSync(join(process.cwd(), FILENAME), "utf8");
+    const narrowMedia = source.slice(source.indexOf("@media (max-width: 639px)"));
+    expect(narrowMedia).toMatch(/\.site-history-mobile\s*\{\s*display:\s*flex;/u);
+  });
+
+  it("640–1279px 历史收进头像菜单：条件项 + 选择后跳 /history（源码门禁）", () => {
+    // 菜单选项是 NDropdown 的数据、渲染在浮层里，组件测试观测不到；
+    // 与"窄屏降级为纯图标"一样改用源码门禁，锁住三件事：
+    // 查询区间、条件项、以及选中后的去向。
+    const source = readFileSync(join(process.cwd(), FILENAME), "utf8");
+
+    expect(source).toContain(HISTORY_MENU_QUERY);
+    expect(source).toMatch(/if \(historyMenuVisible\.value\) \{/u);
+    expect(source).toContain('label: "浏览历史"');
+    expect(source).toContain('key: "history"');
+    expect(source).toMatch(/key === "history"[\s\S]{0,80}navigateTo\("\/history"\)/u);
+
+    // 动作区链接默认隐藏、1280 断点起才显示：窄屏只留菜单里的那一份。
+    expect(source).toMatch(/\.site-header__history\s*\{\s*display:\s*none;/u);
+    const wideMedia = source.slice(source.indexOf("@media (min-width: 1280px)"));
+    expect(wideMedia).toMatch(/\.site-header__history\s*\{\s*display:\s*inline-flex;/u);
   });
 });
 

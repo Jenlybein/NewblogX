@@ -405,6 +405,83 @@ func (v ViewNode) Stale() bool { return v.Article.IsStale() }
 // StaleReason 返回失效原因；有效或文件夹节点时为空值。
 func (v ViewNode) StaleReason() domain.StaleReason { return v.Article.StaleReason() }
 
+// ReaderSnapshot 是文章节点在读者读面上的一次快照。
+//
+// Visible 为假表示这篇对读者此刻不可见（已删 / 非"已发布 + 可见" / 作者不是
+// 管理员且「显示非管理员发布文章」被关掉）。可见性判定本身留在调用方：
+// 领域层只认这份快照，不读配置、不认识 user 表。
+type ReaderSnapshot struct {
+	Visible bool
+	Title   string
+	Cover   string
+}
+
+// ReaderOutline 是读者读模型：过滤后的树 + 篇数 + 最终生效的封面。
+type ReaderOutline struct {
+	// Tree 只含公开文章节点；文件夹（含空文件夹）保留，按 DFS 顺序嵌套。
+	Tree []ViewNode
+	// ArticleCount 只数 Tree 里的文章节点（文件夹不计）。
+	ArticleCount int
+	// Cover 是 DFS 第一个公开文章节点的封面；它为空就是空（不借用后一篇）。
+	Cover string
+}
+
+// ReaderView 把整棵嵌套树过滤成读者视图，并给出篇数与封面回退。
+//
+// 详情页与列表卡片**共用这一份遍历顺序**（DFS，兄弟按 sort_order、id）：篇数
+// 只数公开文章节点，封面取深度优先第一个公开文章节点的封面（ADR-0023 决策 4）。
+// 第一个公开文章节点没有封面时最终封面为空——卡片交给前端的空白兜底，
+// 不能跳过后一篇去借一张"不属于首个节点"的图。
+func ReaderView(
+	items []TreeNode, snapshot func(ArticleID) (ReaderSnapshot, error),
+) (*ReaderOutline, error) {
+	out := &ReaderOutline{Tree: make([]ViewNode, 0, len(items))}
+
+	var attach func(items []TreeNode) ([]ViewNode, error)
+	attach = func(items []TreeNode) ([]ViewNode, error) {
+		rows := make([]ViewNode, 0, len(items))
+		for _, item := range items {
+			view := ViewNode{Node: item.Node}
+			if item.Node.IsArticle() {
+				snap, err := snapshot(item.Node.ArticleID())
+				if err != nil {
+					return nil, err
+				}
+				if !snap.Visible {
+					continue
+				}
+				view.Article = &ArticleState{
+					Status:     domain.StatusPublished,
+					Visibility: domain.VisibilityVisible,
+				}
+				view.ArticleTitle = snap.Title
+				view.ArticleCover = snap.Cover
+				if out.ArticleCount == 0 {
+					out.Cover = snap.Cover
+				}
+				out.ArticleCount++
+				rows = append(rows, view)
+				continue
+			}
+			children, err := attach(item.Children)
+			if err != nil {
+				return nil, err
+			}
+			view.Children = children
+			rows = append(rows, view)
+		}
+		return rows, nil
+	}
+
+	// 顶层单独调一次，把结果接回 out.Tree；递归过程中只收集行，不再回写。
+	top, err := attach(items)
+	if err != nil {
+		return nil, err
+	}
+	out.Tree = top
+	return out, nil
+}
+
 // Detail 是后台树编辑器的读模型：整棵嵌套树（含空文件夹）。
 type Detail struct {
 	OwnerKind OwnerKind

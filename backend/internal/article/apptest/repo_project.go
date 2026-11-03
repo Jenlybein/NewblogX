@@ -6,7 +6,9 @@ import (
 	"sync"
 
 	"myblogx/internal/article/domain"
+	"myblogx/internal/article/domain/outline"
 	"myblogx/internal/article/domain/project"
+	"myblogx/internal/kernel/ctype"
 )
 
 // ProjectRepo 是 project.Repository 的内存实现（读者侧公开读 + 管理端读写）。
@@ -17,6 +19,9 @@ import (
 type ProjectRepo struct {
 	mus  sync.Mutex
 	arts *ArticleRepo
+	// outs / users 让卡片读模型与生产一样从目录树与作者角色派生。
+	outs  *OutlineRepo
+	users *Users
 
 	projects map[project.ID]*project.Project
 	// items 是每个项目的收录行，顺序即写入顺序，序号单独记账。
@@ -37,10 +42,12 @@ type projectItem struct {
 	deleted   bool
 }
 
-// NewProjectRepo 创建空仓储；arts 用于读模型查文章状态（可为 nil）。
-func NewProjectRepo(arts *ArticleRepo) *ProjectRepo {
+// NewProjectRepo 创建空仓储；arts / outs / users 用于读模型派生（可为 nil）。
+func NewProjectRepo(arts *ArticleRepo, outs *OutlineRepo, users *Users) *ProjectRepo {
 	return &ProjectRepo{
 		arts:     arts,
+		outs:     outs,
+		users:    users,
 		projects: make(map[project.ID]*project.Project),
 		items:    make(map[project.ID][]projectItem),
 	}
@@ -154,22 +161,27 @@ func (r *ProjectRepo) ListCards(
 		if !pj.Displayed() || pj.Deleted() {
 			continue
 		}
-		articles := r.publicArticlesLocked(pj.ID())
+		// 卡片读面只认目录树：旧扁平收录表已冻结，不再参与。
+		count, fallback, err := outlineCardStats(context.Background(), r.outs, r.arts, r.users,
+			outline.OwnerProject, ctype.ID(pj.ID()), onlyAdminAuthors)
+		if err != nil {
+			return nil, 0, err
+		}
 		// 开关关闭时，一篇公开文章都凑不出的项目不出现。
-		if onlyAdminAuthors && len(articles) == 0 {
+		if onlyAdminAuthors && count == 0 {
 			continue
 		}
 		cover := pj.Cover()
-		if cover == "" && len(articles) > 0 {
-			// 没有封面时回退首篇公开文章的封面：卡片不能是破的。
-			cover = articles[0].Cover
+		if cover == "" {
+			// 没上传封面时用 DFS 第一个公开文章节点的封面；它为空就是空。
+			cover = fallback
 		}
 		out = append(out, project.Card{
 			ID:           pj.ID(),
 			Title:        pj.Title(),
 			Description:  pj.Description(),
 			Cover:        cover,
-			ArticleCount: len(articles),
+			ArticleCount: count,
 			CreatedAt:    pj.CreatedAt(),
 		})
 	}
@@ -193,10 +205,12 @@ func (r *ProjectRepo) ListAdminCards(_ context.Context) ([]project.AdminCard, er
 		if pj.Deleted() {
 			continue
 		}
-		// 回退封面与读者卡片同一口径：首篇仍公开的收录文章的封面。
-		fallback := ""
-		if articles := r.publicArticlesLocked(pj.ID()); len(articles) > 0 {
-			fallback = articles[0].Cover
+		// 篇数与回退封面与读者卡片同一口径：只数树里仍公开的文章，
+		// 封面取 DFS 第一个公开文章节点。
+		count, fallback, err := outlineCardStats(context.Background(), r.outs, r.arts, r.users,
+			outline.OwnerProject, ctype.ID(pj.ID()), false)
+		if err != nil {
+			return nil, err
 		}
 		out = append(out, project.AdminCard{
 			ID:            pj.ID(),
@@ -204,7 +218,7 @@ func (r *ProjectRepo) ListAdminCards(_ context.Context) ([]project.AdminCard, er
 			Description:   pj.Description(),
 			Cover:         pj.Cover(),
 			Displayed:     pj.Displayed(),
-			ArticleCount:  len(r.liveItemsLocked(pj.ID())),
+			ArticleCount:  count,
 			SortOrder:     pj.SortOrder(),
 			FallbackCover: fallback,
 		})

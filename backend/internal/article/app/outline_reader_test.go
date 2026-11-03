@@ -201,8 +201,9 @@ func TestReaderOutlineHidesStaleArticlesAndKeepsEmptyFolders(t *testing.T) {
 	}
 }
 
-// TestReaderOutlineCoverFallbackDepthFirst 没上传封面时回退到深度优先第一篇
-// 有封面的公开文章节点；没有封面时留空（前端渲染透明空白）。
+// TestReaderOutlineCoverFallbackDepthFirst 封面取深度优先第一个公开文章节点
+// 的封面；首篇没有封面时最终封面就是空（卡片交给 #210 的空白兜底），
+// 不能跳过后一篇去借。
 func TestReaderOutlineCoverFallbackDepthFirst(t *testing.T) {
 	t.Parallel()
 
@@ -224,8 +225,37 @@ func TestReaderOutlineCoverFallbackDepthFirst(t *testing.T) {
 	if err != nil {
 		t.Fatalf("读读者详情失败: %v", err)
 	}
-	if detail.Cover != "https://img.example/second.png" {
-		t.Fatalf("封面应回退到 DFS 第一篇有封面的公开文章，实际 %q", detail.Cover)
+	if detail.Cover != "" {
+		t.Fatalf("首篇公开文章没有封面时不应借用后一篇，实际 %q", detail.Cover)
+	}
+}
+
+// TestReaderOutlineCoverUsesFirstPublicNode 第一个公开文章节点有封面时，
+// 最终封面就是它——后面的封面不参与（详情页与列表卡片同一份遍历）。
+func TestReaderOutlineCoverUsesFirstPublicNode(t *testing.T) {
+	t.Parallel()
+
+	svc, repos, _ := seedCollectionOutlines(t)
+	ctx := context.Background()
+	repos.FakeArticles().Seed(
+		apptest.NewArticle().ID(ctype.NewID(11)).Author(domain.UserID(admin)).
+			Title("第一篇").Status(domain.StatusPublished).Visibility(domain.VisibilityVisible).
+			Cover("https://img.example/first.png").Build(),
+		apptest.NewArticle().ID(ctype.NewID(12)).Author(domain.UserID(admin)).
+			Title("第二篇").Status(domain.StatusPublished).Visibility(domain.VisibilityVisible).
+			Cover("https://img.example/second.png").Build(),
+	)
+	repos.FakeOutlines().Seed(
+		outlineArticle(t, 2, 0, 11, 1),
+		outlineArticle(t, 3, 0, 12, 2),
+	)
+
+	detail, err := svc.CollectionDetail(ctx, ctype.NewID(outlineOwnerID), domain.Anonymous(), false)
+	if err != nil {
+		t.Fatalf("读读者详情失败: %v", err)
+	}
+	if detail.Cover != "https://img.example/first.png" {
+		t.Fatalf("封面应是第一个公开文章节点的封面，实际 %q", detail.Cover)
 	}
 }
 
@@ -240,14 +270,14 @@ func TestReaderOutlineExplicitCoverAndHiddenOwner(t *testing.T) {
 	repos.FakeOutlines().Seed(outlineArticle(t, 2, 0, 11, 1))
 
 	c := collection.Restore(collection.RestoreParams{
-		ID:          ctype.NewID(outlineOwnerID),
-		Title:       "专题",
-		Cover:       "https://img.example/explicit.png",
-		CreatorID:   domain.UserID(admin),
-		Displayed:   true,
-		SortOrder:   1,
-		CreatedAt:   outlineNow,
-		UpdatedAt:   outlineNow,
+		ID:        ctype.NewID(outlineOwnerID),
+		Title:     "专题",
+		Cover:     "https://img.example/explicit.png",
+		CreatorID: domain.UserID(admin),
+		Displayed: true,
+		SortOrder: 1,
+		CreatedAt: outlineNow,
+		UpdatedAt: outlineNow,
 	})
 	repos.FakeCollections().SeedCollection(c)
 	detail, err := svc.CollectionDetail(ctx, c.ID(), domain.Anonymous(), false)

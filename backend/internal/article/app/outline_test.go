@@ -374,6 +374,56 @@ func TestSaveOutlineIsIdempotent(t *testing.T) {
 	}
 }
 
+// TestAdminOutlineKeepsDeletedArticleTitleAndReason 文章被软删时后台树节点仍要
+// 保留标题，并把失效原因区分为 deleted（与旧扁平 LEFT JOIN 口径一致）。
+func TestAdminOutlineKeepsDeletedArticleTitleAndReason(t *testing.T) {
+	t.Parallel()
+
+	svc, repos, _ := seedCollectionOutlines(t)
+	ctx := context.Background()
+
+	seedOutlineArticle(t, repos, 11, "被删的文章", domain.StatusPublished)
+	if err := repos.FakeArticles().SoftDelete(ctx, ctype.NewID(11)); err != nil {
+		t.Fatalf("软删文章失败: %v", err)
+	}
+	repos.FakeOutlines().Seed(outlineArticle(t, 2, 0, 11, 1))
+
+	detail, err := svc.AdminOutline(ctx, adminViewer(), outline.OwnerCollection, ctype.NewID(outlineOwnerID))
+	if err != nil {
+		t.Fatalf("读回后台树失败: %v", err)
+	}
+	if got, want := viewLabels(detail.Tree), []string{"被删的文章"}; !sameStrings(got, want) {
+		t.Fatalf("软删文章节点应保留标题:\n got %v\nwant %v", got, want)
+	}
+	if !detail.Tree[0].Stale() || detail.Tree[0].StaleReason() != domain.StaleReasonDeleted {
+		t.Fatalf("软删文章节点的失效原因应为 %q，实际 %q",
+			domain.StaleReasonDeleted, detail.Tree[0].StaleReason())
+	}
+}
+
+// TestAdminOutlineMarksMissingArticleNode 节点指向的文章真不存在（被移出树 /
+// 物理删除）时才给 missing，且没有标题可显示。
+func TestAdminOutlineMarksMissingArticleNode(t *testing.T) {
+	t.Parallel()
+
+	svc, repos, _ := seedCollectionOutlines(t)
+	ctx := context.Background()
+
+	repos.FakeOutlines().Seed(outlineArticle(t, 2, 0, 99, 1))
+
+	detail, err := svc.AdminOutline(ctx, adminViewer(), outline.OwnerCollection, ctype.NewID(outlineOwnerID))
+	if err != nil {
+		t.Fatalf("读回后台树失败: %v", err)
+	}
+	if !detail.Tree[0].Stale() || detail.Tree[0].StaleReason() != domain.StaleReasonMissing {
+		t.Fatalf("不存在的文章节点的失效原因应为 %q，实际 %q",
+			domain.StaleReasonMissing, detail.Tree[0].StaleReason())
+	}
+	if detail.Tree[0].ArticleTitle != "" {
+		t.Fatalf("不存在的文章节点不该有标题，实际 %q", detail.Tree[0].ArticleTitle)
+	}
+}
+
 // TestSaveOutlineRetainsStaleArticleNode 断言文章后来不公开时节点保留、后台可标失效；
 // 从整树提交里摘掉它则整单软删（后台「清理失效行」）。
 func TestSaveOutlineRetainsStaleArticleNode(t *testing.T) {

@@ -6886,6 +6886,12 @@ export interface components {
             home_style_id?: string;
             like_tag_ids?: string[];
             nickname?: string;
+            /**
+             * @description StrangerChatEnabled 是"允许陌生人给我发私信"的个人开关。
+             *     字段名沿用既有契约 stranger_msg_enabled；全指针语义与其余偏好一致：
+             *     没传不改，false 是合法值（关掉）。
+             */
+            stranger_msg_enabled?: boolean;
             username?: string;
         };
         "myblogx_internal_ai_metainfo.Metainfos": {

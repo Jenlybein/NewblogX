@@ -140,11 +140,11 @@ const OutboxAggregateType = "chat"
 // 刻意**不带正文**：正文由接收方收到通知后走 HTTP 重新拉取，
 // 发件箱里就不必沉淀消息内容，减少泄露面与事件体积。
 type SentNotice struct {
-	MessageID  ctype.ID `json:"message_id"`
-	SenderID   ctype.ID `json:"sender_id"`
-	ReceiverID ctype.ID `json:"receiver_id"`
-	SessionID  string   `json:"session_id"`
-	MsgType    MsgType  `json:"msg_type"`
+	MessageID  ctype.ID  `json:"message_id"`
+	SenderID   ctype.ID  `json:"sender_id"`
+	ReceiverID ctype.ID  `json:"receiver_id"`
+	SessionID  string    `json:"session_id"`
+	MsgType    MsgType   `json:"msg_type"`
 	SendTime   time.Time `json:"send_time"`
 }
 
@@ -322,12 +322,17 @@ type UserDirectory interface {
 	Displays(ctx context.Context, ids []ctype.ID) (map[ctype.ID]Display, error)
 }
 
-// StrangerPolicy 读站点级的"是否允许陌生人发私信"开关。
+// StrangerPolicy 判断"接收方是否接受陌生人发来的私信"。
 //
-// 它没有 userID 参数：这个策略属于站点（#202），不属于某个用户的配置行。
-// 判定只看"发送双方是不是陌生人"，接收人是谁不影响结论。
+// 结论是**两级取交集**：站点总闸（site.chat.stranger_msg_enabled）AND
+// 接收方个人开关（user_conf_models.stranger_chat_enabled，默认开）。
+// 所以它必须带接收方 ID —— 个人一级的开关属于接收方，不属于站点
+// （#243 把 #202 的单级口径做回用户级；实现见 app/chat_wiring.go）。
+//
+// 只对"陌生人"调用：自己发给自己、双方已有关注关系或已存在会话时，
+// 用例层不参与判定。
 type StrangerPolicy interface {
-	StrangerEnabled(ctx context.Context) (bool, error)
+	StrangerEnabled(ctx context.Context, receiverID ctype.ID) (bool, error)
 }
 
 // Reservation 是一次发送额度预占。

@@ -18,12 +18,19 @@ const closeMock = vi.hoisted(() => vi.fn());
 const bumpPrivateUnreadMock = vi.hoisted(() => vi.fn());
 const refreshSummaryMock = vi.hoisted(() => vi.fn());
 
-// 与真实 useChatSocket 一致：onNotification 注册回调，返回退订函数。
+// 与真实 useChatSocket 一致：onNotification / onReconnected 注册回调，返回退订函数。
 const notificationHandlers = new Set<(notification: ChatNotificationPayload) => void>();
+const reconnectedHandlers = new Set<() => void>();
 
 function pushNotification(payload: ChatNotificationPayload) {
   for (const handler of [...notificationHandlers]) {
     handler(payload);
+  }
+}
+
+function pushReconnected() {
+  for (const handler of [...reconnectedHandlers]) {
+    handler();
   }
 }
 
@@ -39,6 +46,7 @@ describe("useMessageRealtime：连接生命周期回到全局", () => {
   beforeEach(() => {
     loggedIn = ref(true);
     notificationHandlers.clear();
+    reconnectedHandlers.clear();
     connectMock.mockReset();
     closeMock.mockReset();
     bumpPrivateUnreadMock.mockReset();
@@ -61,6 +69,12 @@ describe("useMessageRealtime：连接生命周期回到全局", () => {
         notificationHandlers.add(handler);
         return () => {
           notificationHandlers.delete(handler);
+        };
+      },
+      onReconnected: (handler: () => void) => {
+        reconnectedHandlers.add(handler);
+        return () => {
+          reconnectedHandlers.delete(handler);
         };
       },
     }));
@@ -101,6 +115,17 @@ describe("useMessageRealtime：连接生命周期回到全局", () => {
     await nextTick();
 
     expect(bumpPrivateUnreadMock).toHaveBeenCalledTimes(1);
+    expect(refreshSummaryMock).toHaveBeenCalledTimes(1);
+  });
+
+  // #247：断线期间漏掉的未读只能靠重连后的一次汇总刷新补上。
+  // 通知订阅负责"到达即 +1"，重连事件负责"把断线期间的缺口校准"。
+  it("重连成功：立刻刷新一次未读汇总（补上断线期间漏掉的）", async () => {
+    await installRealtime();
+
+    pushReconnected();
+    await nextTick();
+
     expect(refreshSummaryMock).toHaveBeenCalledTimes(1);
   });
 

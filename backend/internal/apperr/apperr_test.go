@@ -64,6 +64,30 @@ func TestMissingMessageFallsBackToCode(t *testing.T) {
 	}
 }
 
+// #247：两种陌生人拒绝有不同对象（站点 vs 接收方），码与文案都必须可辨。
+// 撞码会让前端无法区分；共用文案会把"对方关了开关"的用户引向管理员。
+func TestChatStrangerRejectCodesHaveDistinctMessages(t *testing.T) {
+	t.Parallel()
+
+	site := apperr.Message(apperr.CodeChatStrangerOff)
+	recipient := apperr.Message(apperr.CodeChatRecipientStrangerOff)
+	if recipient == "" || recipient == string(apperr.CodeChatRecipientStrangerOff) {
+		t.Fatalf("%s 缺少中文文案（退化成码本身）", apperr.CodeChatRecipientStrangerOff)
+	}
+	if site == recipient {
+		t.Fatal("站点级与接收方级拒绝是两种原因，文案不能相同")
+	}
+	if apperr.CodeChatStrangerOff == apperr.CodeChatRecipientStrangerOff {
+		t.Fatal("站点级与接收方级拒绝必须使用不同的错误码")
+	}
+	if !strings.Contains(recipient, "对方") {
+		t.Fatalf("接收方级文案应指向对方，实际 %q", recipient)
+	}
+	if strings.Contains(recipient, "管理员") {
+		t.Fatalf("接收方级文案不该把用户引向管理员，实际 %q", recipient)
+	}
+}
+
 func TestMessage(t *testing.T) {
 	t.Parallel()
 

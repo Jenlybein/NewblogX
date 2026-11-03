@@ -18,7 +18,8 @@ import { findColorLiterals } from "../../../scripts/check-design-tokens.mjs";
  * 这里只钉住"页面没有把逻辑长回自己身上"：
  *   1. 评论状态与交互都走 `useArticleComments`，页面不再自己维护 `replyStates`；
  *   2. 评论框拿到 ref 与登录态（聚焦由 composable 通过 `focusInput()` 触发）；
- *   3. 分享 / 关注 / 收藏 都先过统一登录闸门，未登录不发请求；
+ *   3. 分享是纯前端 clipboard、不打接口，**不需要**登录前置（#247）；
+ *      关注 / 收藏 / 评论提交仍先过统一登录闸门；
  *   4. 互动请求只在注入的服务里发生，页面里没有直接的调用点。
  */
 
@@ -108,11 +109,13 @@ describe("文章页：互动统一登录前置（未登录不打接口）", () =
     expect(source).toMatch(/const requireLogin = useReaderLoginGate\(\);/u);
   });
 
-  it("分享：先过登录闸门才读剪贴板", () => {
+  it("分享：不需要登录，直接读剪贴板（纯前端操作、不打接口）", () => {
     const share = functionSource(pageSource(), "handleShare");
 
-    expect(share).toContain("requireLogin()");
-    expect(share.indexOf("requireLogin()")).toBeLessThan(share.indexOf("clipboard"));
+    // #247：游客也应该能复制文章链接。分享不调接口，登录前置只会挡住它。
+    expect(share).not.toContain("requireLogin()");
+    expect(share).not.toMatch(/initializeSession|openAuthModal/u);
+    expect(share).toContain("clipboard");
   });
 
   it("收藏 / 关注：不再各自写一遍 initializeSession + openAuthModal", () => {

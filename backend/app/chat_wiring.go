@@ -195,20 +195,32 @@ type strangerBridge struct {
 	users strangerUserSettings
 }
 
-// StrangerEnabled 实现 domain.StrangerPolicy。
-func (b *strangerBridge) StrangerEnabled(ctx context.Context, receiverID ctype.ID) (bool, error) {
+// CheckStranger 实现 domain.StrangerPolicy。
+//
+// 返回值不只回答"能不能发"，还带上拒绝来自哪一级（#247）：站点级与接收方级
+// 在读者侧对应不同文案与不同正确动作。
+func (b *strangerBridge) CheckStranger(ctx context.Context, receiverID ctype.ID) (chatdomain.StrangerVerdict, error) {
 	if b.inner == nil {
 		// 未装配运行时配置时按"关"处理（与默认值一致，失败关闭）。
-		return false, nil
+		// 这是部署/配置问题，归到站点级，避免把用户引向"对方关了开关"。
+		return chatdomain.StrangerBlockedBySite, nil
 	}
 	if !b.inner.GetRuntimeSite().Chat.StrangerMsgEnabled {
-		return false, nil
+		return chatdomain.StrangerBlockedBySite, nil
 	}
 	if b.users == nil {
 		// 用户模块未装配时无法确认接收方意愿：按"关"处理，失败关闭。
-		return false, nil
+		// 同样归到站点级：读不到接收方偏好不等于接收方关掉了开关。
+		return chatdomain.StrangerBlockedBySite, nil
 	}
-	return b.users.StrangerChatEnabled(ctx, receiverID)
+	enabled, err := b.users.StrangerChatEnabled(ctx, receiverID)
+	if err != nil {
+		return chatdomain.StrangerBlockedBySite, err
+	}
+	if !enabled {
+		return chatdomain.StrangerBlockedByRecipient, nil
+	}
+	return chatdomain.StrangerAllowed, nil
 }
 
 // chatAuthBridge 用认证模块校验令牌与会话。

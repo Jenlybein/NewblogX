@@ -1,5 +1,5 @@
 import { ref } from "vue";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 // useChatSocket 现在是**全局单例**（票 #240）：连接不绑在某个页面的生命周期上。
 // 这里不再需要桩掉 onBeforeUnmount —— 那正是本票删掉的东西（设计门禁会断言源码
@@ -251,5 +251,141 @@ describe("useChatSocket：拒绝原因", () => {
     // useInboxCenter 在 HTTP 发送成功后调用 setSendError("")。
     chat.setSendError("");
     expect(chat.sendError.value).toBe("");
+  });
+});
+
+// 票 #247：被动断线必须自动重连，否则网络抖动一次、顶栏未读就永远停更。
+//
+// 退避口径：1s → 2s → 4s … 上限 30s（带抖动）。这里用假定时器钉住"什么时候
+// 真的再发一次取票请求"，不依赖真实网络；抖动取 0，让基值可逐档断言。
+describe("useChatSocket：被动断线退避重连", () => {
+  beforeEach(() => {
+    FakeWebSocket.instances = [];
+    chatStoreState.socketStatus = "idle";
+    chatStoreState.socketError = "";
+    chatStoreState.markSocketMessage.mockClear();
+    getChatWsTicketMock.mockReset();
+    getChatWsTicketMock.mockResolvedValue({ ticket: "tk-1" });
+
+    vi.stubGlobal("WebSocket", FakeWebSocket);
+    vi.stubGlobal("__useRuntimeConfigMock", () => ({
+      public: { siteUrl: "http://localhost", wsPath: "/api/chat/ws" },
+    }));
+    vi.stubGlobal("useAuthStore", () => ({ isLoggedIn: true }));
+    vi.stubGlobal("useChatStore", () => chatStoreState);
+
+    vi.useFakeTimers();
+    vi.spyOn(Math, "random").mockReturnValue(0);
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.restoreAllMocks();
+  });
+
+  async function firstConnection() {
+    const chat = await createChatSocket();
+    await chat.connect();
+    const ws = FakeWebSocket.instances[0]!;
+    ws.onopen?.();
+    return { chat, ws };
+  }
+
+  it("被动断线：按 1s → 2s → 4s 退避重连", async () => {
+    const { ws } = await firstConnection();
+
+    ws.onclose?.();
+    await vi.advanceTimersByTimeAsync(999);
+    expect(FakeWebSocket.instances).toHaveLength(1);
+    await vi.advanceTimersByTimeAsync(1);
+    expect(FakeWebSocket.instances).toHaveLength(2);
+    expect(getChatWsTicketMock).toHaveBeenCalledTimes(2);
+
+    // 重连本身也失败：下一次退避翻倍。
+    FakeWebSocket.instances[1]!.onclose?.();
+    await vi.advanceTimersByTimeAsync(1999);
+    expect(FakeWebSocket.instances).toHaveLength(2);
+    await vi.advanceTimersByTimeAsync(1);
+    expect(FakeWebSocket.instances).toHaveLength(3);
+
+    FakeWebSocket.instances[2]!.onclose?.();
+    await vi.advanceTimersByTimeAsync(3999);
+    expect(FakeWebSocket.instances).toHaveLength(3);
+    await vi.advanceTimersByTimeAsync(1);
+    expect(FakeWebSocket.instances).toHaveLength(4);
+  });
+
+  it("退避上限压到 30s（不会一直翻倍下去）", async () => {
+    const { ws } = await firstConnection();
+    let current = ws;
+
+    for (const delay of [1000, 2000, 4000, 8000, 16000]) {
+      current.onclose?.();
+      await vi.advanceTimersByTimeAsync(delay);
+      current = FakeWebSocket.instances.at(-1)!;
+    }
+
+    // 第 6 档原本是 32s，被上限压到 30s。
+    expect(FakeWebSocket.instances).toHaveLength(6);
+    current.onclose?.();
+    await vi.advanceTimersByTimeAsync(29_999);
+    expect(FakeWebSocket.instances).toHaveLength(6);
+    await vi.advanceTimersByTimeAsync(1);
+    expect(FakeWebSocket.instances).toHaveLength(7);
+  });
+
+  it("重连成功：广播一次重连事件（供立刻校准未读）；首次建连不广播", async () => {
+    const chat = await createChatSocket();
+    const reconnected = vi.fn();
+    chat.onReconnected(reconnected);
+
+    await chat.connect();
+    const first = FakeWebSocket.instances[0]!;
+    first.onopen?.();
+    expect(reconnected).not.toHaveBeenCalled();
+
+    first.onclose?.();
+    await vi.advanceTimersByTimeAsync(1000);
+    FakeWebSocket.instances[1]!.onopen?.();
+
+    expect(reconnected).toHaveBeenCalledTimes(1);
+    expect(chat.socketStatus.value).toBe("connected");
+  });
+
+  it("主动关闭（登出 / 卸载）：不排重连", async () => {
+    const { chat } = await firstConnection();
+
+    chat.close();
+    await vi.advanceTimersByTimeAsync(60_000);
+
+    expect(FakeWebSocket.instances).toHaveLength(1);
+    expect(getChatWsTicketMock).toHaveBeenCalledTimes(1);
+    expect(chat.socketStatus.value).toBe("idle");
+  });
+
+  it("主动关闭后再次 connect：重置退避，回退回调不残留", async () => {
+    const { chat } = await firstConnection();
+
+    chat.close();
+    await chat.connect();
+    expect(FakeWebSocket.instances).toHaveLength(2);
+
+    FakeWebSocket.instances[1]!.onopen?.();
+    FakeWebSocket.instances[1]!.onclose?.();
+    await vi.advanceTimersByTimeAsync(1000);
+    expect(FakeWebSocket.instances).toHaveLength(3);
+  });
+
+  it("重连时取票失败也继续退避，不把重连循环停在死状态", async () => {
+    const { ws } = await firstConnection();
+    getChatWsTicketMock.mockRejectedValueOnce(new Error("offline"));
+
+    ws.onclose?.();
+    await vi.advanceTimersByTimeAsync(1000);
+    expect(FakeWebSocket.instances).toHaveLength(1);
+
+    // 下一次退避仍被排上：取票恢复后能重新建连。
+    await vi.advanceTimersByTimeAsync(2000);
+    expect(FakeWebSocket.instances).toHaveLength(2);
   });
 });

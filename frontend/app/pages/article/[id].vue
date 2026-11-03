@@ -114,9 +114,10 @@ const authorId = computed(() => article.value?.author_id || "");
 // 切页时（还没有正文）先出骨架；重试（正文已在）不闪骨架。
 const articleSkeleton = computed(() => articlePending.value && !article.value);
 
-// 互动统一登录前置（票 238 范围 7）：分享 / 收藏 / 关注 / 评论提交都先问登录态，
+// 互动统一登录前置（票 238 范围 7）：收藏 / 关注 / 评论提交先问登录态，
 // 未登录只弹登录框、不打接口 —— 否则请求层的 markPossiblyExpired() 会把用户的
-// 登录态打成失效。
+// 登录态打成失效。分享不在此列：它是纯前端 clipboard、不打任何接口，
+// 游客也应该能复制链接（票 247 的修正）。
 const requireLogin = useReaderLoginGate();
 // 点「回复」后由 composable 回调这里：滚动到评论框并聚焦（票 238 范围 3）。
 const composerRef = ref<{ focusInput: () => void; focus: () => void } | null>(null);
@@ -252,10 +253,8 @@ function handleCommentJump() {
 }
 
 async function handleShare() {
-  // 互动统一登录前置（票 238 范围 7）：未登录只弹登录框，不读剪贴板。
-  if (!(await requireLogin())) {
-    return;
-  }
+  // 分享是纯前端 clipboard、不打任何接口，因此**不需要**登录前置（票 247）：
+  // 游客复制文章链接和登录用户没有任何区别，弹登录框只会伤害体验。
   if (!import.meta.client) return;
 
   const shareUrl = `${window.location.origin}/article/${articleId.value}`;

@@ -322,6 +322,25 @@ type UserDirectory interface {
 	Displays(ctx context.Context, ids []ctype.ID) (map[ctype.ID]Display, error)
 }
 
+// StrangerVerdict 是陌生人私信的两级判定结论（#247）。
+//
+// 之前只返回 bool：拒绝时只知道"被拒了"，于是读者侧只能看到站点级文案，
+// 把"接收方个人开关关闭"的发送方引向管理员（管理员查站点总闸只会看到已开启）。
+// 结论带上原因，用例层才能为两种拒绝给出不同的错误码与文案。
+type StrangerVerdict int
+
+const (
+	// StrangerAllowed 两级都允许：可以发。
+	StrangerAllowed StrangerVerdict = iota
+	// StrangerBlockedBySite 站点总闸（site.chat.stranger_msg_enabled）关闭。
+	// 这是站点策略，正确动作是联系管理员。
+	StrangerBlockedBySite
+	// StrangerBlockedByRecipient 接收方个人开关
+	// （user_conf_models.stranger_chat_enabled）关闭。正确动作是关注对方 /
+	// 等对方开启，不该去找管理员。
+	StrangerBlockedByRecipient
+)
+
 // StrangerPolicy 判断"接收方是否接受陌生人发来的私信"。
 //
 // 结论是**两级取交集**：站点总闸（site.chat.stranger_msg_enabled）AND
@@ -330,9 +349,9 @@ type UserDirectory interface {
 // （#243 把 #202 的单级口径做回用户级；实现见 app/chat_wiring.go）。
 //
 // 只对"陌生人"调用：自己发给自己、双方已有关注关系或已存在会话时，
-// 用例层不参与判定。
+// 用例层不参与判定。返回值不只回答"能不能发"，还带上**哪一级拒绝**（#247）。
 type StrangerPolicy interface {
-	StrangerEnabled(ctx context.Context, receiverID ctype.ID) (bool, error)
+	CheckStranger(ctx context.Context, receiverID ctype.ID) (StrangerVerdict, error)
 }
 
 // Reservation 是一次发送额度预占。

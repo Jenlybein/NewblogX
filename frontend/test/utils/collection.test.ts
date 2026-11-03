@@ -132,4 +132,11 @@ describe("collectionOutlineView：详情 → 目录树视图", () => {
     expect(collectionOutlineView(null)).toEqual({ nodes: [], articleCount: 0 });
     expect(collectionOutlineView(undefined)).toEqual({ nodes: [], articleCount: 0 });
   });
+
+  it("篇数只读契约里的 article_count，不按树节点数重算（老响应缺字段时是 0）", () => {
+    // 契约必返 article_count；缺失时按 0 篇展示，前端不另写一份可见性遍历。
+    const legacy = { outline: { nodes: outlineNodes } } as unknown as CollectionDetail;
+
+    expect(collectionOutlineView(legacy)).toEqual({ nodes: outlineNodes, articleCount: 0 });
+  });
 });

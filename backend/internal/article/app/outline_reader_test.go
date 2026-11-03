@@ -2,6 +2,7 @@ package app_test
 
 import (
 	"context"
+	"errors"
 	"testing"
 
 	"myblogx/internal/apperr"
@@ -297,6 +298,55 @@ func TestReaderOutlineExplicitCoverAndHiddenOwner(t *testing.T) {
 	}
 	if _, err := svc.CollectionDetail(ctx, c.ID(), adminViewer(), false); err != nil {
 		t.Fatalf("管理员仍应能打开未展示的合集: %v", err)
+	}
+}
+
+// TestReaderOutlinePropagatesSnapshotLookupError 仓储读文章返回普通错误时必须
+// 原样上抛：只有 `domain.ErrArticleNotFound` 才算"节点指向的文章已不存在"。
+// 若吞掉，开关关闭时就查不到作者、文章会被静默隐藏（读者看到空树而不是失败）。
+func TestReaderOutlinePropagatesSnapshotLookupError(t *testing.T) {
+	t.Parallel()
+
+	svc, repos, _ := seedCollectionOutlines(t)
+	ctx := context.Background()
+	repos.FakeArticles().Seed(
+		apptest.NewArticle().ID(ctype.NewID(11)).Author(domain.UserID(admin)).
+			Title("管理员篇").Status(domain.StatusPublished).Visibility(domain.VisibilityVisible).Build(),
+	)
+	repos.FakeUsers().Seed(app.AuthorView{ID: domain.UserID(admin), Admin: true})
+	repos.FakeOutlines().Seed(outlineArticle(t, 2, 0, 11, 1))
+
+	boom := errors.New("仓储读失败")
+	repos.FakeArticles().FailNext("Find", boom)
+
+	if _, err := svc.CollectionDetail(ctx, ctype.NewID(outlineOwnerID), domain.Anonymous(), true); !errors.Is(err, boom) {
+		t.Fatalf("仓储普通错误必须上抛，实际 %v", err)
+	}
+}
+
+// TestReaderOutlineSkipsMissingArticleNode 节点指向的文章真的不存在时不算读失败：
+// 该节点不出现在读者树里，文件夹照常保留。
+func TestReaderOutlineSkipsMissingArticleNode(t *testing.T) {
+	t.Parallel()
+
+	svc, repos, _ := seedCollectionOutlines(t)
+	ctx := context.Background()
+	repos.FakeArticles().Seed(
+		apptest.NewArticle().ID(ctype.NewID(11)).Author(domain.UserID(admin)).
+			Title("在的一篇").Status(domain.StatusPublished).Visibility(domain.VisibilityVisible).Build(),
+	)
+	repos.FakeOutlines().Seed(
+		outlineFolder(t, 1, 0, "第一章", 1),
+		outlineArticle(t, 2, 1, 11, 1),
+		outlineArticle(t, 3, 1, 99, 2), // 仓储里没有 99 这篇文章
+	)
+
+	detail, err := svc.CollectionDetail(ctx, ctype.NewID(outlineOwnerID), domain.Anonymous(), false)
+	if err != nil {
+		t.Fatalf("文章不存在不该让整棵树失败: %v", err)
+	}
+	if got, want := readerDetailLabels(detail.Tree), []string{"第一章", "在的一篇"}; !sameStrings(got, want) {
+		t.Fatalf("缺失文章节点应被跳过、文件夹保留:\n got %v\nwant %v", got, want)
 	}
 }
 

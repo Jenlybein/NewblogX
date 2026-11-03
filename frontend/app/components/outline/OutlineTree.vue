@@ -2,6 +2,7 @@
 import { computed } from "vue";
 
 import ArticleCover from "~/components/article/ArticleCover.vue";
+import type { OutlineSourceKind } from "~/utils/outlineKind";
 import { markCurrentOutlineRows, visibleOutlineRows } from "~/utils/outlineState";
 import type { OutlineNode } from "~/utils/outlineTree";
 import { outlineTreeRows } from "~/utils/outlineTree";
@@ -15,8 +16,8 @@ import { outlineTreeRows } from "~/utils/outlineTree";
 const props = withDefaults(
   defineProps<{
     nodes: OutlineNode[] | null | undefined;
-    /** 来源参数里的 kind：决定文章链接的 `?from=`。 */
-    kind: "project" | "collection";
+    /** 来源参数里的 kind：决定文章链接的 `?from=`；空串表示来源未知（不给链接）。 */
+    kind: OutlineSourceKind | "";
     ownerId: string;
     /** 被收起的文件夹节点 ID（由父页面持久化到 localStorage）。 */
     collapsed: ReadonlySet<string>;
@@ -53,7 +54,7 @@ const visible = computed(() =>
       :data-outline-row="row.id"
       :data-depth="row.depth"
       :data-outline-kind="row.isFolder ? 'folder' : 'article'"
-      :style="{ '--outline-indent': row.indent }"
+      :style="{ '--outline-indent': row.depth }"
       :aria-current="row.isCurrent ? 'page' : undefined"
     >
       <button

@@ -5,6 +5,7 @@ import (
 	"errors"
 
 	"myblogx/internal/article/domain"
+	"myblogx/internal/article/domain/outline"
 	"myblogx/internal/article/domain/project"
 )
 
@@ -63,7 +64,7 @@ func (s *Service) ProjectDetail(
 		if !p.Displayed() {
 			return project.ErrNotFound
 		}
-		ownerKind, ownerID := projectReaderOutlineOwner(id)
+		ownerKind, ownerID := outline.OwnerProject, outline.ID(id)
 		tree, err := s.readerOutline(ctx, r, ownerKind, ownerID, onlyAdminAuthors, p.Cover())
 		if err != nil {
 			return err

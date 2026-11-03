@@ -5,9 +5,7 @@ import (
 	"errors"
 
 	"myblogx/internal/article/domain"
-	"myblogx/internal/article/domain/collection"
 	"myblogx/internal/article/domain/outline"
-	"myblogx/internal/article/domain/project"
 )
 
 // 本文件是「读者侧目录树」的用例：合集与项目共一份读模型组装。
@@ -54,8 +52,12 @@ func (s *Service) readerOutline(
 				continue
 			}
 			a, err := r.Articles().Find(ctx, domain.ArticleID(n.ArticleID()))
-			if errors.Is(err, domain.ErrArticleNotFound) || err != nil {
+			if errors.Is(err, domain.ErrArticleNotFound) {
+				// 节点指向的文章已不存在：快照阶段按"不可见"把它过滤掉。
 				continue
+			}
+			if err != nil {
+				return nil, err
 			}
 			uid := a.AuthorID()
 			if !seen[uid] {
@@ -72,37 +74,23 @@ func (s *Service) readerOutline(
 		}
 	}
 
-	type snapshot struct {
-		visible bool
-		title   string
-		cover   string
-	}
-	snaps := make(map[outline.ArticleID]snapshot)
-	visibleArticle := func(articleID outline.ArticleID) (outline.ReaderSnapshot, error) {
-		if v, ok := snaps[articleID]; ok {
-			return outline.ReaderSnapshot{Visible: v.visible, Title: v.title, Cover: v.cover}, nil
-		}
+	snaps := newSnapshotCache(func(articleID outline.ArticleID) (outline.ReaderSnapshot, error) {
 		a, err := r.Articles().Find(ctx, domain.ArticleID(articleID))
-		if errors.Is(err, domain.ErrArticleNotFound) {
-			snaps[articleID] = snapshot{}
-			return outline.ReaderSnapshot{}, nil
-		}
 		if err != nil {
 			return outline.ReaderSnapshot{}, err
 		}
-		v := snapshot{
-			visible: a.IsPubliclyVisible(),
-			title:   a.Title(),
-			cover:   a.Cover(),
-		}
+		visible := a.IsPubliclyVisible()
 		if onlyAdminAuthors && !profiles[a.AuthorID()].Admin {
-			v.visible = false
+			visible = false
 		}
-		snaps[articleID] = v
-		return outline.ReaderSnapshot{Visible: v.visible, Title: v.title, Cover: v.cover}, nil
-	}
+		return outline.ReaderSnapshot{
+			Visible: visible,
+			Title:   a.Title(),
+			Cover:   a.Cover(),
+		}, nil
+	})
 
-	view, err := outline.ReaderView(tree, visibleArticle)
+	view, err := outline.ReaderView(tree, snaps.get)
 	if err != nil {
 		return nil, err
 	}
@@ -119,12 +107,4 @@ func (s *Service) readerOutline(
 		ArticleCount: view.ArticleCount,
 		Cover:        cover,
 	}, nil
-}
-
-func collectionReaderOutlineOwner(id collection.ID) (outline.OwnerKind, outline.ID) {
-	return outline.OwnerCollection, outline.ID(id)
-}
-
-func projectReaderOutlineOwner(id project.ID) (outline.OwnerKind, outline.ID) {
-	return outline.OwnerProject, outline.ID(id)
 }

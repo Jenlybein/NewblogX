@@ -107,6 +107,18 @@ describe("ArticleOutlineAside：无归属或取数失败时不出现", () => {
 
     expect(wrapper.find("[data-article-outline]").exists()).toBe(false);
   });
+
+  it("归属 kind 未知 / 缺省时不猜默认归属：不生成来源链接与翻页链接", () => {
+    for (const ownerKind of [0, undefined]) {
+      const wrapper = mountAside({ context: makeContext({ owner_kind: ownerKind }) });
+
+      expect(wrapper.findAll("[data-outline-row]")).toHaveLength(3);
+      expect(wrapper.findAll("[data-outline-tree] a")).toHaveLength(0);
+      expect(wrapper.find('[data-outline-neighbour="next"]').exists()).toBe(false);
+      expect(wrapper.html()).not.toContain("from=project");
+      expect(wrapper.html()).not.toContain("from=collection");
+    }
+  });
 });
 
 describe("ArticleOutlineAside：首屏骨架占位", () => {

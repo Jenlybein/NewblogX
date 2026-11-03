@@ -2,20 +2,18 @@ import { describe, expect, it } from "vitest";
 
 import type { OutlineNode } from "~/utils/outlineTree";
 import {
-  firstPublicArticleCover,
   outlineArticleHref,
   outlineSource,
-  outlineTreeCount,
   outlineTreeRows,
   parseOutlineSource,
 } from "~/utils/outlineTree";
 
 /**
- * 目录树（读者侧）的纯函数接缝：一棵嵌套树 → 带层级的行、深度优先封面回退、
- * 「我从哪棵树来」的来源参数。
+ * 目录树（读者侧）的纯函数接缝：一棵嵌套树 → 带层级的行、「我从哪棵树来」
+ * 的来源参数。
  *
- * 这里只钉外部行为：同样一棵树无论怎么折叠，行的顺序、层级与封面回退都不变；
- * 页面用它渲染，不另写一份遍历。
+ * 这里只钉外部行为：同样一棵树无论怎么折叠，行的顺序与层级都不变；页面用它
+ * 渲染，不另写一份遍历。封面回退与篇数都读后端算好的读模型，前端不重算。
  */
 
 const tree: OutlineNode[] = [
@@ -82,13 +80,33 @@ describe("outlineTreeRows：嵌套树 → 带层级的行", () => {
     expect(rows[3]?.href).toBe("/article/a2?from=collection:c1");
   });
 
-  it("层级靠缩进表达，不再给「第 N 篇」位置标记", () => {
+  it("层级只由 depth 表达，不再给「第 N 篇」位置标记", () => {
     const rows = outlineTreeRows(tree, "project", "p1");
 
     expect(rows.every((row) => !("positionLabel" in row))).toBe(true);
-    expect(rows.map((row) => row.indent)).toEqual([0, 1, 1, 2, 0]);
+    expect(rows.map((row) => row.depth)).toEqual([0, 1, 1, 2, 0]);
     expect(rows[0]?.href).toBeUndefined();
     expect(rows[4]?.href).toBe("/article/a3?from=project:p1");
+  });
+
+  it("未知 / 缺失的节点 kind 整行不渲染（不默认成文章节点）", () => {
+    const rows = outlineTreeRows(
+      [
+        { id: "x", kind: 3, title: "未知类型", article_id: "9", children: [] },
+        { id: "y", title: "缺 kind", article_id: "10", children: [] },
+        { id: "a1", kind: 2, article_id: "11", article_title: "正常文章", children: [] },
+      ],
+      "collection",
+      "c1",
+    );
+
+    expect(rows.map((row) => row.id)).toEqual(["a1"]);
+  });
+
+  it("来源 kind 缺失时不生成带来源的文章链接（不猜默认归属）", () => {
+    const rows = outlineTreeRows(tree, "", "c1");
+
+    expect(rows.filter((row) => row.href)).toEqual([]);
   });
 
   it("空标题退化成中性占位，空封面交给 ArticleCover 的透明空白", () => {
@@ -121,27 +139,15 @@ describe("outlineTreeRows：嵌套树 → 带层级的行", () => {
     expect(rows[1]?.cover).toBe("");
   });
 
-  it("空树与只有空文件夹的树都只有零篇文章", () => {
+  it("空树不产生行，只有空文件夹的树只有文件夹行", () => {
     expect(outlineTreeRows([], "collection", "c1")).toEqual([]);
-    expect(outlineTreeCount(tree)).toBe(3);
-    expect(outlineTreeCount([{ id: "f", kind: 1, title: "空章节", article_id: "", children: [] }])).toBe(0);
-  });
-});
 
-describe("firstPublicArticleCover：深度优先第一篇公开文章", () => {
-  it("跳过没有封面的文章，取第一个真正有封面的公开文章节点", () => {
-    expect(firstPublicArticleCover(tree)).toBe("https://img.example/second.png");
-  });
-
-  it("树里没有文章或都没有封面时给空串（不编造封面）", () => {
-    expect(firstPublicArticleCover([])).toBe("");
-    expect(firstPublicArticleCover(tree.slice(0, 1).map((node) => ({
-      ...node,
-      children: node.children?.filter((child) => child.kind === 1).map((folder) => ({
-        ...folder,
-        children: [],
-      })),
-    })))).toBe("");
+    const folders = outlineTreeRows(
+      [{ id: "f", kind: 1, title: "空章节", article_id: "", children: [] }],
+      "collection",
+      "c1",
+    );
+    expect(folders.map((row) => [row.isFolder, row.href])).toEqual([[true, undefined]]);
   });
 });
 

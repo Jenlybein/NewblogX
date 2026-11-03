@@ -169,7 +169,7 @@ func toOutlineNodes(rows []outlineNodeRow) []*outline.Node {
 		if row.ArticleID != nil {
 			articleID = outline.ArticleID(*row.ArticleID)
 		}
-		out = append(out, outline.Restore(outline.RestoreParams{
+		out = append(out, outline.Rebuild(outline.RebuildParams{
 			ID:        outline.ID(row.ID),
 			OwnerKind: outline.OwnerKind(row.OwnerKind),
 			OwnerID:   outline.ID(row.OwnerID),

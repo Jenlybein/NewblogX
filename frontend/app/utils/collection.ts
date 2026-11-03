@@ -4,7 +4,6 @@
 // 读者站同一份类型定义。
 import type { CollectionCard, CollectionDetail } from "../types/api";
 import type { OutlineNode } from "./outlineTree";
-import { outlineTreeCount } from "./outlineTree";
 
 /**
  * 合集（读者站）的纯映射。
@@ -73,9 +72,9 @@ export function collectionCardView(card: CollectionCard): CollectionCardView {
  * 合集详情 → 目录树视图。
  *
  * 树节点原样交给 `OutlineTree`（嵌套、层级、来源链接都在 `./outlineTree` 一处
- * 映射）；篇数读后端 `article_count`，不在前端重新遍历一遍可见性——两处判据
- * 一旦分叉，标题里的"共 N 篇"就会和树里的节点对不上。缺字段（老后台响应）时
- * 才回退到树节点计数。
+ * 映射）；篇数读后端 `article_count`（契约必返），不在前端重新遍历一遍可见性
+ * ——两处判据一旦分叉，标题里的"共 N 篇"就会和树里的节点对不上。响应缺失时
+ * 给 0 篇，交给页面渲染中性空态。
  */
 export function collectionOutlineView(
   detail: CollectionDetail | null | undefined,
@@ -83,6 +82,6 @@ export function collectionOutlineView(
   const nodes = detail?.outline?.nodes ?? [];
   return {
     nodes,
-    articleCount: detail?.article_count ?? outlineTreeCount(nodes),
+    articleCount: detail?.article_count ?? 0,
   };
 }

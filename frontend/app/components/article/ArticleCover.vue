@@ -1,17 +1,14 @@
 <script setup lang="ts">
 import { computed, ref, watch } from "vue";
-import { BRAND } from "~/utils/brand";
 
 const props = withDefaults(
   defineProps<{
     src?: string | null;
     title?: string | null;
-    label?: string;
   }>(),
   {
     src: "",
     title: "文章封面",
-    label: BRAND.name.en,
   },
 );
 
@@ -35,21 +32,15 @@ watch(normalizedSrc, () => {
     loading="lazy"
     @error="imageFailed = true"
   />
-  <div v-else class="article-cover-default" role="img" :aria-label="`${title || '文章'}暂无封面`">
-    <div class="article-cover-default__grid" />
-    <div class="article-cover-default__orb article-cover-default__orb--one" />
-    <div class="article-cover-default__orb article-cover-default__orb--two" />
-    <div class="article-cover-default__content">
-      <span>{{ label }}</span>
-      <strong>NO COVER</strong>
-    </div>
-  </div>
+  <!-- 票 210：缺封面 / 加载失败都不是「一种内容」——只留一块与父容器同底色的 16:9 空白。 -->
+  <div v-else class="article-cover-default" aria-hidden="true" />
 </template>
 
 <style scoped>
 /*
- * 封面兜底：中性石墨渐变（深墨面 → 极淡石墨）+ 反白字，明暗两态都由语义层承载。
- * 之前是克莱因蓝 135deg 渐变；#20 起不再出现任何原始色相。
+ * 封面兜底（票 210）：缺封面 / 加载失败只留一块与父容器同底色的 16:9 空白——
+ * 无文字、无图标、无纹理，且对辅助技术隐藏（aria-hidden 写在模板上）。
+ * 底纹、光斑与品牌小签整套退场，占位不再消费任何颜色 token。
  *
  * 封面的形状只有一个：16:9、高度由比例决定（票 204）。上传时已经在后台/创作页
  * 定形成这个比例，读者侧只做固定居中的 cover，不再消费任何取景参数；
@@ -68,72 +59,6 @@ watch(normalizedSrc, () => {
 }
 
 .article-cover-default {
-  position: relative;
-  overflow: hidden;
-  border-radius: var(--radius-md);
-  background:
-    radial-gradient(circle at 20% 18%, var(--color-on-inverse-muted), transparent 22%),
-    linear-gradient(135deg, var(--color-surface-inverse) 0%, var(--color-surface-inverse) 42%, var(--color-ink-faint) 100%);
-  color: var(--color-on-inverse);
-}
-
-.article-cover-default__grid {
-  position: absolute;
-  inset: 0;
-  opacity: 0.18;
-  background-image:
-    linear-gradient(var(--color-on-inverse) 1px, transparent 1px),
-    linear-gradient(90deg, var(--color-on-inverse) 1px, transparent 1px);
-  background-size: 22px 22px;
-  mask-image: linear-gradient(135deg, var(--color-ink), transparent 72%);
-}
-
-.article-cover-default__orb {
-  position: absolute;
-  border-radius: var(--radius-pill);
-  filter: blur(2px);
-}
-
-.article-cover-default__orb--one {
-  right: -28px;
-  top: -20px;
-  width: 96px;
-  height: 96px;
-  background: var(--color-on-inverse-muted);
-}
-
-.article-cover-default__orb--two {
-  left: -34px;
-  bottom: -38px;
-  width: 120px;
-  height: 120px;
-  background: var(--color-ink-faint);
-}
-
-.article-cover-default__content {
-  position: absolute;
-  inset: auto 14px 14px 14px;
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-
-.article-cover-default__content span {
-  width: fit-content;
-  border: 1px solid var(--color-on-inverse-muted);
-  border-radius: var(--radius-pill);
-  padding: 3px 8px;
-  font-size: 10px;
-  font-weight: 700;
-  letter-spacing: 0.18em;
-  text-transform: uppercase;
-  background: var(--color-surface-inverse);
-}
-
-.article-cover-default__content strong {
-  font-size: 18px;
-  line-height: 1;
-  letter-spacing: -0.04em;
-  text-shadow: 0 8px 24px var(--color-shadow);
+  background: transparent;
 }
 </style>

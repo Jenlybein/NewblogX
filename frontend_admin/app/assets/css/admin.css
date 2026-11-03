@@ -415,39 +415,16 @@
     color: var(--color-ink-muted);
   }
 
-  /* 封面兜底：同一套中性石墨渐变 + 发丝网格（不再是「蓝 → 暖灰」的旧过渡层）。 */
+  /*
+   * 封面兜底（票 210）：缺封面 / 加载失败只留一块与所在容器同底色的空白。
+   * 无文字、无纹理、对辅助技术隐藏（aria-hidden 写在页面的 render 里）；
+   * 盒尺寸沿用 .admin-cover（80×112），所以这一列的行高不会因为有没有图而变化。
+   */
   .admin-article-cover__fallback {
-    @apply relative flex h-full w-full flex-col justify-end overflow-hidden p-2;
-    background:
-      radial-gradient(circle at 20% 18%, var(--color-on-strong-soft), transparent 24%),
-      linear-gradient(135deg, var(--color-ink) 0%, var(--color-ink-muted) 100%);
-    color: var(--color-on-strong);
-  }
-
-  .admin-article-cover__fallback::before {
-    content: "";
-    position: absolute;
-    inset: 0;
-    opacity: 0.16;
-    background-image:
-      linear-gradient(var(--color-on-strong) 1px, transparent 1px),
-      linear-gradient(90deg, var(--color-on-strong) 1px, transparent 1px);
-    background-size: 16px 16px;
-  }
-
-  .admin-article-cover__fallback > * {
-    position: relative;
-  }
-
-  .admin-article-cover__badge {
-    @apply mb-1 w-fit border px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-[0.14em];
-    border-radius: var(--radius-pill);
-    border-color: var(--color-on-strong-line);
-    background: var(--color-on-strong-soft);
-  }
-
-  .admin-article-cover__fallback strong {
-    @apply text-xs leading-none tracking-[-0.03em];
+    display: block;
+    height: 100%;
+    width: 100%;
+    background: transparent;
   }
 
   .admin-banner-form {

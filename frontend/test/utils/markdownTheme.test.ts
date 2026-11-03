@@ -85,6 +85,197 @@ describe("markdown 主题取值：明暗两套都来自语义层", () => {
   });
 });
 
+/** 取主题 CSS 里某个选择器所在规则的声明体（静态规则门禁专用；分组/媒体查询也能命中）。
+ *  优先命中"只含该选择器"的规则，避免把共用基线的分组规则当成单档规则。 */
+function ruleBody(selector: string): string {
+  const code = themeCss.replace(/\/\*[\s\S]*?\*\//gu, "");
+  let fallback: string | undefined;
+  for (const match of code.matchAll(/([^{}]+)\{([^{}]*)\}/gu)) {
+    const selectors = match[1]!.split(",").map((item) => item.trim());
+    if (selectors.length === 1 && selectors[0] === selector) {
+      return match[2]!;
+    }
+    if (selectors.includes(selector) && fallback === undefined) {
+      fallback = match[2]!;
+    }
+  }
+  if (fallback !== undefined) {
+    return fallback;
+  }
+  throw new Error(`主题 CSS 里找不到规则：${selector}`);
+}
+
+describe("正文节奏：16px / 行高 1.85，行宽继承页面容器", () => {
+  it("正文统一 16px、行高 1.85（参考主题的节奏）", () => {
+    const body = ruleBody(".markdown-body");
+
+    expect(body).toMatch(/font-size:\s*16px/u);
+    expect(body).toMatch(/line-height:\s*1\.85/u);
+    expect(body).toMatch(/font-family:\s*var\(--font-sans\)/u);
+    expect(body).toMatch(/color:\s*var\(--color-ink\)/u);
+  });
+
+  it("shadow root 里的正文不再另设行宽（行长仍由 .article-body 的 68ch 决定）", () => {
+    expect(ruleBody(".markdown-body")).not.toMatch(/max-width/u);
+  });
+});
+
+describe("标题装置：H1 居中横线 / H2 左色带 / H3 三角 / H4 短下划线 / H6 大写字距", () => {
+  it("H1 居中，并带一条横线记号（1px 底边 + 居中的记号块）", () => {
+    const rule = ruleBody(".markdown-body h1");
+
+    expect(rule).toMatch(/text-align:\s*center/u);
+    expect(rule).toMatch(/border-bottom:\s*1px solid var\(--color-[a-z-]+\)/u);
+
+    const mark = ruleBody(".markdown-body h1::after");
+    expect(mark).toMatch(/background:\s*var\(--color-[a-z-]+\)/u);
+  });
+
+  it("H2 左侧色带", () => {
+    const rule = ruleBody(".markdown-body h2");
+
+    expect(rule).toMatch(/border-left:\s*[46]px solid var\(--color-[a-z-]+\)/u);
+  });
+
+  it("H3 三角记号", () => {
+    const mark = ruleBody(".markdown-body h3::before");
+
+    expect(mark).toMatch(/clip-path:\s*polygon\(/u);
+    expect(mark).toMatch(/background:\s*var\(--color-[a-z-]+\)/u);
+  });
+
+  it("H4 短下划线", () => {
+    const mark = ruleBody(".markdown-body h4::after");
+
+    expect(mark).toMatch(/width:\s*[0-9.]+em/u);
+    expect(mark).toMatch(/height:\s*[23]px/u);
+    expect(mark).toMatch(/background:\s*var\(--color-[a-z-]+\)/u);
+  });
+
+  it("H5 / H6 用字重与字距区分（H6 全大写 + 开字距）", () => {
+    expect(ruleBody(".markdown-body h5")).toMatch(/font-weight:\s*600/u);
+
+    const h6 = ruleBody(".markdown-body h6");
+    expect(h6).toMatch(/text-transform:\s*uppercase/u);
+    expect(h6).toMatch(/letter-spacing:\s*0\.18em/u);
+  });
+
+  it("字号阶梯是 em（随 16px 正文同步缩放）", () => {
+    const ladder = new Map([
+      [1, "2.15em"],
+      [2, "1.58em"],
+      [3, "1.33em"],
+      [4, "1.18em"],
+      [6, "0.8em"],
+    ]);
+
+    for (const [level, size] of ladder) {
+      expect(ruleBody(`.markdown-body h${level}`), `h${level}`).toContain(`font-size: ${size};`);
+    }
+  });
+});
+
+describe("代码：代码块是另一层纸面，行内代码可辨识", () => {
+  it("代码块有独立纸面层级：背景 + 边框 + 平投影 + token 圆角", () => {
+    const pre = ruleBody(".markdown-body pre");
+
+    expect(pre).toMatch(/background:\s*var\(--color-[a-z-]+\)/u);
+    expect(pre).toMatch(/border:\s*1px solid var\(--color-[a-z-]+\)/u);
+    expect(pre).toMatch(/box-shadow:\s*[^;]*var\(--color-shadow\)/u);
+    expect(pre).toMatch(/border-radius:\s*var\(--radius-(?:sm|md|lg|xl|pill)\)/u);
+    expect(pre).toMatch(/font-family:\s*var\(--font-mono\)/u);
+  });
+
+  it("行内代码有底色与发丝边，和正文一眼可分", () => {
+    const code = ruleBody(".markdown-body code");
+
+    expect(code).toMatch(/background:\s*var\(--color-[a-z-]+\)/u);
+    expect(code).toMatch(/border:\s*1px solid var\(--color-[a-z-]+\)/u);
+    expect(code).toMatch(/border-radius:\s*var\(--radius-/u);
+    expect(code).toMatch(/font-family:\s*var\(--font-mono\)/u);
+  });
+
+  it("代码块里的 code 回到透明底（纸面只由 pre 画一次）", () => {
+    const inner = ruleBody(".markdown-body pre code");
+
+    expect(inner).toMatch(/background:\s*transparent/u);
+    expect(inner).toMatch(/border:\s*0/u);
+  });
+});
+
+describe("引用与表格：引用块是强调面，表格用发丝线", () => {
+  it("引用块用强调面（标记底 + 边线 + token 圆角），字回到正文墨色", () => {
+    const quote = ruleBody(".markdown-body blockquote");
+
+    expect(quote).toMatch(/background:\s*var\(--color-[a-z-]+\)/u);
+    expect(quote).toMatch(/border:.*var\(--color-[a-z-]+\)/u);
+    expect(quote).toMatch(/border-radius:\s*var\(--radius-/u);
+    expect(quote).toMatch(/color:\s*var\(--color-ink\)/u);
+  });
+
+  it("引用块里的行内代码换回纸面（彩底上再压彩贴片会脏）", () => {
+    const inner = ruleBody(".markdown-body blockquote code");
+
+    expect(inner).toMatch(/background:\s*var\(--color-surface\)/u);
+  });
+
+  it("表格走发丝线：表头 1px、单元格 line-faint，不再是 2px 结构线", () => {
+    expect(ruleBody(".markdown-body thead")).toMatch(
+      /border-bottom:\s*1px solid var\(--color-[a-z-]+\)/u,
+    );
+    expect(ruleBody(".markdown-body td")).toMatch(
+      /border:\s*1px solid var\(--color-line-faint\)/u,
+    );
+  });
+});
+
+/** 相对亮度（WCAG 2.x），只用于本文件的对比度断言。 */
+function relativeLuminance(color: string): number {
+  const hex = /^#([0-9a-f]{6})$/iu.exec(color.trim())?.[1];
+  if (!hex) {
+    throw new Error(`对比度断言只接受十六进制色值，收到：${color}`);
+  }
+  const channels = [0, 2, 4].map((offset) => Number.parseInt(hex.slice(offset, offset + 2), 16) / 255);
+  const linear = channels.map((channel) =>
+    channel <= 0.04045 ? channel / 12.92 : ((channel + 0.055) / 1.055) ** 2.4,
+  );
+  return 0.2126 * linear[0]! + 0.7152 * linear[1]! + 0.0722 * linear[2]!;
+}
+
+function contrastRatio(foreground: string, background: string): number {
+  const [high, low] = [relativeLuminance(foreground), relativeLuminance(background)].sort(
+    (left, right) => right - left,
+  ) as [number, number];
+  return (high + 0.05) / (low + 0.05);
+}
+
+describe("链接：无下划线、1px 底边，暗色下仍满足对比度", () => {
+  it("默认态去掉 text-decoration，改用 1px 语义色底边", () => {
+    const link = ruleBody(".markdown-body a");
+
+    expect(link).toMatch(/text-decoration:\s*none/u);
+    expect(link).toMatch(/border-bottom:\s*1px solid var\(--color-[a-z-]+\)/u);
+  });
+
+  it("明暗两态的链接对纸面都 ≥ 4.5:1（AA 正文对比度）", () => {
+    const light = resolveMarkdownTheme(tokensCss, "light");
+    const dark = resolveMarkdownTheme(tokensCss, "dark");
+
+    for (const [mode, values] of [
+      ["light", light],
+      ["dark", dark],
+    ] as const) {
+      expect(contrastRatio(values.link, values.paper), mode).toBeGreaterThanOrEqual(4.5);
+    }
+  });
+
+  it("主题 CSS 不写明暗分叉：换肤完全靠同一组 token 的第二份取值", () => {
+    const declarations = themeCss.replace(/\/\*[\s\S]*?\*\//gu, "");
+
+    expect(declarations).not.toMatch(/\.theme-dark|\.dark\b|prefers-color-scheme/u);
+  });
+});
+
 describe("markdown 主题 CSS：自有主题，不再加载 github-markdown-css", () => {
   it("构建函数把主题源包成可注入 shadow root 的字符串", () => {
     const css = buildMarkdownThemeCss(".markdown-body { color: var(--color-ink); }");
@@ -125,6 +316,8 @@ describe("markdown 主题 CSS：自有主题，不再加载 github-markdown-css"
     expect(declarations).toMatch(/var\(--color-/u);
     expect(declarations).toMatch(/var\(--type-/u);
     expect(declarations).toMatch(/var\(--font-/u);
+    // 只消费语义层，不绕过它去摸原始层（那等于给主题开了一个新色相入口）。
+    expect(declarations).not.toMatch(/--jelly-/u);
   });
 
   it("动效只用 token（颜色过渡短、无滚动编排/关键帧）", () => {

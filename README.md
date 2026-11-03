@@ -1218,6 +1218,40 @@ curl -s  https://你的域名/api/site/seo | head -c 200; echo
 
 排错要点：漏了第 2 步 → 后台「项目」页与读者站项目路由报"表不存在"；漏了第 3 步 → 旧表还在（不影响功能，但取景残留在库里）；漏了第 4 步 → 删除文章后读者站仍能搜到（索引里是无标记旧文档）；漏了第 6 步 → 外网 502 而容器 healthy。
 
+### 11.4.4 本批（#209 合批：目录树）的一次性部署序列
+
+本批（#209 合批：合集/项目的目录树、阅读页左栏、后台树编辑器、裁剪窗、上传用途与比例校验、封面兜底、正文渲染主题、编辑入口、私信 WS 白名单）**只新增一张表**、不 ALTER 既有表、也不 DROP 任何表；但新表不会被 entrypoint 自举，升级时必须手动跑一次 `-db`。
+
+**1. 备份与串行重建三镜像**
+
+同 [11.4.3](#1143-本批189的一次性部署序列新表取景表下线与索引重建) 的第 0–1 步：先备份数据库，再 `down` + 串行构建 `blogx_server` / `blogx_web` / `blogx_admin`。
+
+**2. 手动建新表**
+
+```bash
+docker compose run --rm blogx_server /app/server \
+  -f config/settings.yaml -db
+```
+
+产出 `content_outline_node_models`（合集与项目共用的目录树表）。`-db` 只做 `CREATE TABLE IF NOT EXISTS`，不会 ALTER 既有表，也不会 DROP 任何表。漏了这一步的症状：后台合集/项目的「目录编排」页与读者站合集/项目详情报"表不存在"，其它功能照常。
+
+**3. 旧扁平收录中间表冻结退场**
+
+`collection_article_models` / `project_article_models` 自本批起不再被读写（后台收录与排序只经树编辑器）；**不迁移、不 DROP、也不清空**，留在库里只作历史对照。上线时生产这两张表均为 0 行，部署后由管理员在树编辑器里重新编排。
+
+**4. 强重建、重启 nginx 与健康检查**
+
+```bash
+docker compose up -d --force-recreate blogx_web blogx_admin blogx_server
+docker compose restart nginx
+docker compose ps
+curl -sk https://127.0.0.1/health | head -1
+```
+
+**5. 冒烟与已知限制**
+
+目录树、阅读页左栏与「目录」抽屉、编辑入口、封面兜底、裁剪窗、私信「实时已连接」、上传比例校验的逐项验收口径，以及 DNS 恢复前的上传 579 等已知限制与复验步骤，见 [2026-11-04 目录树批次发布说明](docs/notes/2026-11-04-outline-tree-release-notes.md)。
+
 ### 11.5 回滚
 
 三个镜像 tag 是变量（`env.example` 里已经写好这三行，默认值与 compose 的缺省一致，所以不改也能跑），这是留给回滚的口子：

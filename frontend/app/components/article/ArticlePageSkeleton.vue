@@ -39,8 +39,24 @@ const props = withDefaults(
         </section>
       </div>
       <aside class="article-aside">
-        <section class="article-paper article-paper--state">
-          <LoadingSkeleton :rows="2" variant="card" />
+        <!--
+          右栏列序与真实版式同构（票 236 / 决定清单第 2 节）：作者简介 → 互动条 → 目录。
+          切页时骨架先占住三段，数据到达后原地替换，不跳版。
+        -->
+        <section class="article-paper article-paper--state" data-role="article-aside-author-skeleton">
+          <LoadingSkeleton :rows="3" variant="card" />
+        </section>
+        <section
+          class="article-paper article-actions-card article-skeleton__aside-extra"
+          data-role="article-aside-actions-skeleton"
+        >
+          <LoadingSkeleton :rows="1" variant="card" />
+        </section>
+        <section
+          class="article-paper article-paper--state article-skeleton__aside-extra"
+          data-role="article-aside-toc-skeleton"
+        >
+          <LoadingSkeleton :rows="5" variant="text" />
         </section>
       </aside>
     </div>
@@ -65,8 +81,15 @@ const props = withDefaults(
   display: none;
 }
 
+/* 右栏互动条与目录在 <1024px 都不在右栏（互动条换成底部固定条、目录收进抽屉）：
+   骨架也不留这两段，否则加载完成后会凭空少两块。 */
+.article-skeleton__aside-extra {
+  display: none;
+}
+
 @media (min-width: 1024px) {
-  .article-skeleton__outline {
+  .article-skeleton__outline,
+  .article-skeleton__aside-extra {
     display: flex;
   }
 }

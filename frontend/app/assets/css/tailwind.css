@@ -609,22 +609,100 @@
     color: var(--color-bg-page);
   }
 
-  .article-action--danger {
-    border-color: var(--color-danger);
-    background: var(--color-danger);
-    color: var(--color-on-danger);
-  }
-
-  .article-action--danger:hover {
-    border-color: var(--color-danger-ink);
-    background: var(--color-danger-soft);
-    color: var(--color-danger-ink);
-  }
+  /* 收藏按钮原来的 `--danger` 档随 hero 互动按钮一起退役（票 236 把四个动作搬进互动条，
+     收藏不再用"红按钮"，已藏态由互动条的 is-active 表达）。 */
 
   .article-action--compact {
     min-height: 36px;
     padding-inline: 0.75rem;
     font-size: 0.8125rem;
+  }
+
+  /* ==========================================================================
+   * 阅读页互动条（票 236 / 决定清单第 2 节）
+   *
+   * 右栏互动条与 <1024px 底部固定条是**同一个组件**的两种变体：
+   *   - `.article-actions-bar--aside`：320px 右栏里的四等分按钮条（图标 + 数字）；
+   *   - `.article-actions-bar--fixed`：窄屏底部固定条，让出安全区。
+   * 两处状态同源（页面绑同一个 `articleActionProps`），所以这里只是容器差异。
+   * ======================================================================== */
+  .article-actions-bar {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+
+  .article-actions-bar--aside {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 0.5rem;
+  }
+
+  /* 紧凑图标档：图标 + 数字挤在 320px 的四等分格子里，仍保住 44px 触摸目标。 */
+  .article-actions-bar__button {
+    min-height: 44px;
+    gap: 0.375rem;
+    padding-inline: 0.5rem;
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* 已赞 / 已藏：抬升面底 + 墨色描边（图标换成实心由组件负责）。
+     彩色差异之外还有 `aria-pressed`，不把状态只放在颜色上。 */
+  .article-actions-bar__button.is-active {
+    border-color: var(--color-ink);
+    background: var(--color-highlight);
+    color: var(--color-ink);
+  }
+
+  .article-actions-bar__button.is-active:hover {
+    border-color: var(--color-ink);
+    background: var(--color-line-faint);
+  }
+
+  /* 右栏互动条所在的纸面卡片：与作者卡 / 目录卡同一种纸面，只做内边距。 */
+  .article-actions-card {
+    padding: 0.75rem;
+  }
+
+  /* 底部固定条默认不占位：≥1024px 由右栏那份接过入口。 */
+  .article-actions-bar--fixed {
+    display: none;
+  }
+
+  /* <1024px：右栏互动条让位，底部固定条出现（两处不会同时出现，也不会都没有）。 */
+  @media (max-width: 1023px) {
+    .article-actions-bar--aside {
+      display: none;
+    }
+
+    .article-actions-bar--fixed {
+      display: flex;
+      position: fixed;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      z-index: 20;
+      align-items: center;
+      justify-content: space-around;
+      gap: 0.5rem;
+      padding-top: 0.5rem;
+      /* 安全区：iOS 的底部横条 / 横屏圆角不能压住按钮。 */
+      padding-right: max(0.5rem, env(safe-area-inset-right));
+      padding-bottom: max(0.5rem, env(safe-area-inset-bottom));
+      padding-left: max(0.5rem, env(safe-area-inset-left));
+      border-top: 1px solid var(--color-line);
+      /* 纸面底色：压在正文上时不透出内容。 */
+      background: var(--color-surface);
+    }
+
+    .article-actions-bar--fixed .article-actions-bar__button {
+      flex: 1;
+    }
+
+    /* 正文最后一段不被固定条盖住。 */
+    .article-page {
+      padding-bottom: 4.5rem;
+    }
   }
 
   .article-layout {

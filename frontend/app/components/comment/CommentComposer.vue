@@ -19,6 +19,19 @@ const emit = defineEmits<{
 const uiStore = useUiStore();
 const authStore = useAuthStore();
 const content = ref("");
+const inputRef = ref<{ focus: () => void } | null>(null);
+
+/**
+ * 把焦点放进输入框（票 236：互动条「评论」按钮滚到这里后调用）。
+ *
+ * 暴露成组件方法而不是让页面去 `querySelector("textarea")`：输入框是 Naive 的
+ * `NInput`，内部结构随时会变，只有它的 `focus()` 是稳定契约。
+ */
+function focus() {
+  inputRef.value?.focus();
+}
+
+defineExpose({ focus });
 
 function handleSubmit() {
   if (!authStore.isLoggedIn) {
@@ -45,6 +58,7 @@ function handleSubmit() {
     </div>
 
     <NInput
+      ref="inputRef"
       v-model:value="content"
       type="textarea"
       :autosize="{ minRows: 4, maxRows: 8 }"

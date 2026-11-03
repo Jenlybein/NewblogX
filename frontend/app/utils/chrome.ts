@@ -10,7 +10,7 @@ import type { ThemeMode } from "~/types/api";
  * `/studio/write`（本票只重排外观）。
  */
 
-export type HeaderNavKey = "home" | "search" | "write" | "collections";
+export type HeaderNavKey = "home" | "search" | "write" | "collections" | "project";
 
 export interface HeaderNavItem {
   key: HeaderNavKey;
@@ -22,11 +22,15 @@ export interface HeaderNavItem {
 const HEADER_NAV: ReadonlyArray<Omit<HeaderNavItem, "active">> = [
   { key: "home", label: "首页", to: "/" },
   { key: "search", label: "搜索", to: "/search" },
+  // 「创作」仍是导航数据的一项：活动判定、路由契约与发布门控都依赖它，
+  // 但渲染点已移到顶栏右侧动作区（第 198 票），导航条里不再渲染它。
   { key: "write", label: "创作", to: "/studio/write" },
   // 合集是第四个入口：管理员编排的主题文章集合（读者侧只读）。
   // 图标不在渲染层按 key 三元选择（那样新 key 会拿到错误的图标），
   // 见 utils/navIcon.ts 的映射表。
   { key: "collections", label: "合集", to: "/collections" },
+  // 项目是与合集并列的独立内容实体（第 193 票），读者侧路由 `/projects`。
+  { key: "project", label: "项目", to: "/projects" },
 ];
 
 function isActive(key: HeaderNavKey, pathname: string): boolean {
@@ -40,6 +44,10 @@ function isActive(key: HeaderNavKey, pathname: string): boolean {
   if (key === "collections") {
     // 合集列表与合集详情都算"在合集里"：详情页不能让导航丢掉位置。
     return pathname.startsWith("/collections");
+  }
+  if (key === "project") {
+    // 项目列表与项目详情同理（项目是独立实体，不借用 /collections 前缀）。
+    return pathname.startsWith("/projects");
   }
   return pathname.startsWith("/studio/write");
 }

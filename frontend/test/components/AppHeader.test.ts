@@ -148,12 +148,22 @@ describe("页头：结构（三档都成立的必备能力）", () => {
     const wrapper = mountHeader();
     const nav = wrapper.get('nav[aria-label="主导航"]');
 
-    expect(nav.findAll("a")).toHaveLength(3); // 首页、搜索、合集
-    expect(nav.findAll("button")).toHaveLength(1); // 创作
+    expect(nav.findAll("a")).toHaveLength(4); // 首页、搜索、合集、项目
+    expect(nav.findAll("button")).toHaveLength(0); // 创作已移到右侧动作区
     expect(wrapper.get('form[role="search"]').exists()).toBe(true);
     expect(wrapper.get('input[name="site-search"]').exists()).toBe(true);
     expect(wrapper.get('button[aria-label="切换到暗色主题"]').exists()).toBe(true);
     expect(wrapper.get("[data-chrome=account]").text()).toContain("登录 / 注册");
+  });
+
+  it("导航条是纯链接：首页 / 搜索 / 合集 / 项目，顺序固定", () => {
+    const wrapper = mountHeader();
+    const labels = wrapper
+      .get("nav.site-nav")
+      .findAll("a")
+      .map((link) => link.text());
+
+    expect(labels).toEqual(["首页", "搜索", "合集", "项目"]);
   });
 
   it("提供跳到正文的 skip link（键盘用户不必每次 Tab 过整个页头）", () => {
@@ -273,7 +283,7 @@ describe("页头：导航与账户", () => {
   it("创作入口沿用既有的登录拦截逻辑", async () => {
     const wrapper = mountHeader();
 
-    await wrapper.get('nav[aria-label="主导航"] button').trigger("click");
+    await wrapper.get('button[data-chrome="write"]').trigger("click");
     expect(hub.openWriteEntry).toHaveBeenCalledTimes(1);
   });
 
@@ -284,8 +294,11 @@ describe("页头：导航与账户", () => {
 
     expect(nav.findAll("button")).toHaveLength(0);
     expect(nav.text()).not.toContain("创作");
-    // 首页与搜索仍在：开关只影响写作入口，不接管整条导航。
-    expect(nav.findAll("a")).toHaveLength(3);
+    // 导航其余四项仍在：开关只影响写作入口，不接管整条导航。
+    expect(nav.findAll("a")).toHaveLength(4);
+    // 创作已不在导航条里，门控直接让动作区那一项消失。
+    expect(wrapper.find('button[data-chrome="write"]').exists()).toBe(false);
+    expect(wrapper.get(".site-header__actions").text()).not.toContain("创作");
   });
 
   it("已登录时账户区是菜单按钮，未登录时是登录/注册", async () => {
@@ -308,6 +321,36 @@ describe("页头：导航与账户", () => {
  * 判定逻辑在 useScrollChrome（单测覆盖状态机），这里验证页头真的把状态接到
  * class 上：阈值前不动、下滚隐藏、上滚出现、回到顶部退掉玻璃。
  */
+describe("页头：右侧动作区（#198 创作移位）", () => {
+  it("顺序固定：亮暗切换 → 创作 → 个人信息 → 手机菜单（按 DOM 顺序断言）", () => {
+    const wrapper = mountHeader();
+    const order = wrapper
+      .findAll(".site-header__actions > *")
+      .map((node) => node.attributes("data-chrome") ?? "?unknown");
+
+    expect(order).toEqual(["theme", "write", "account", "menu"]);
+  });
+
+  it("窄屏降级为纯图标：640px 起显示「创作」文字，更窄只留图标并带无障碍文案", () => {
+    const wrapper = mountHeader();
+    const write = wrapper.get('button[data-chrome="write"]');
+
+    // 无障碍文案与悬浮提示不随断点消失。
+    expect(write.attributes("aria-label")).toBe("创作");
+    expect(write.attributes("title")).toBe("创作");
+    expect(write.find(".site-header__write-label").text()).toBe("创作");
+
+    const source = readFileSync(join(process.cwd(), FILENAME), "utf8");
+    // 默认（窄屏）隐藏文字；640px 断点起显示（与页头其余断点一致）。
+    expect(source).toMatch(/\.site-header__write-label\s*\{\s*display:\s*none;/u);
+    const tabletMedia = source.slice(
+      source.indexOf("@media (min-width: 640px)"),
+      source.indexOf("@media (min-width: 1024px)"),
+    );
+    expect(tabletMedia).toMatch(/\.site-header__write-label\s*\{\s*display:\s*inline;/u);
+  });
+});
+
 describe("页头：滚动方向感知与阈值", () => {
   function setScrollY(value: number) {
     Object.defineProperty(window, "scrollY", { configurable: true, writable: true, value });

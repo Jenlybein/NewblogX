@@ -20,12 +20,15 @@ import {
  * （路由是既有契约，不能因为重排而变）、明暗切换的无障碍文案、页脚链接与备案行。
  */
 describe("headerNavItems：图纸式页头的导航与 active 判定", () => {
-  it("四个入口：首页 / 搜索 / 创作 / 合集，顺序固定", () => {
+  it("五个入口：首页 / 搜索 / 创作 / 合集 / 项目，顺序固定", () => {
+    // 「创作」仍是导航数据的一项（路由契约、活动判定与发布门控都依赖它），
+    // 只是渲染点从导航条移到右侧动作区（#198）。
     expect(headerNavItems("/").map((item) => [item.key, item.label, item.to])).toEqual([
       ["home", "首页", "/"],
       ["search", "搜索", "/search"],
       ["write", "创作", "/studio/write"],
       ["collections", "合集", "/collections"],
+      ["project", "项目", "/projects"],
     ]);
   });
 
@@ -37,6 +40,7 @@ describe("headerNavItems：图纸式页头的导航与 active 判定", () => {
       ["search", false],
       ["write", false],
       ["collections", false],
+      ["project", false],
     ]);
   });
 
@@ -59,6 +63,14 @@ describe("headerNavItems：图纸式页头的导航与 active 判定", () => {
     ).toBe(true);
   });
 
+  it("项目页及其子路径激活项目（合集的高亮不被项目抢走）", () => {
+    expect(headerNavItems("/projects").find((item) => item.key === "project")?.active).toBe(true);
+    expect(headerNavItems("/projects/p1").find((item) => item.key === "project")?.active).toBe(true);
+    expect(headerNavItems("/projects").find((item) => item.key === "collections")?.active).toBe(
+      false,
+    );
+  });
+
   it("每个路径最多只有一个 active", () => {
     for (const path of [
       "/",
@@ -66,6 +78,8 @@ describe("headerNavItems：图纸式页头的导航与 active 判定", () => {
       "/studio/write",
       "/collections",
       "/collections/c1",
+      "/projects",
+      "/projects/p1",
       "/article/a1",
       "/users/u1",
     ]) {

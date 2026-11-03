@@ -75,24 +75,17 @@ func (h *Handler) CollectionDetail(c *gin.Context) {
 	}
 
 	out := CollectionDetailResponse{
-		ID:          ctype.ID(detail.Collection.ID()),
-		Title:       detail.Collection.Title(),
-		Description: detail.Collection.Description(),
-		Cover:       detail.Collection.Cover(),
-		CreatedAt:   detail.Collection.CreatedAt(),
-		Articles:    make([]CollectionArticleItemResponse, 0, len(detail.Articles)),
-	}
-	for _, item := range detail.Articles {
-		out.Articles = append(out.Articles, CollectionArticleItemResponse{
-			ArticleID:      ctype.ID(item.ArticleID),
-			SortOrder:      item.SortOrder,
-			Title:          item.Title,
-			Abstract:       item.Abstract,
-			Cover:          item.Cover,
-			ViewCount:      item.ViewCount,
-			AuthorNickname: item.AuthorNickname,
-			CategoryTitle:  item.CategoryTitle,
-		})
+		ID:           ctype.ID(detail.Collection.ID()),
+		Title:        detail.Collection.Title(),
+		Description:  detail.Collection.Description(),
+		Cover:        detail.Cover,
+		CreatedAt:    detail.Collection.CreatedAt(),
+		ArticleCount: detail.ArticleCount,
+		Outline: OutlineTreeResponse{
+			OwnerKind: 1,
+			OwnerID:   ctype.ID(detail.Collection.ID()),
+			Nodes:     toOutlineNodeResponses(detail.Tree),
+		},
 	}
 	res.OkWithData(out, c)
 }

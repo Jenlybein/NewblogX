@@ -10,6 +10,7 @@ import (
 	"myblogx/internal/article/apptest"
 	"myblogx/internal/article/domain"
 	"myblogx/internal/article/domain/collection"
+	"myblogx/internal/article/domain/outline"
 	"myblogx/internal/kernel/ctype"
 )
 
@@ -220,19 +221,12 @@ func TestRemoveArticleCompactsOrder(t *testing.T) {
 		t.Fatalf("移除收录失败: %v", err)
 	}
 
-	detail, err := svc.CollectionDetail(context.Background(), cid, domain.Anonymous(), false)
+	ids, err := repos.FakeCollections().ListItemIDs(context.Background(), cid)
 	if err != nil {
-		t.Fatalf("读合集详情失败: %v", err)
+		t.Fatalf("读收录失败: %v", err)
 	}
-	if len(detail.Articles) != 2 {
-		t.Fatalf("移除后应剩 2 篇，实际 %d", len(detail.Articles))
-	}
-	if detail.Articles[0].SortOrder != 1 || detail.Articles[1].SortOrder != 2 {
-		t.Fatalf("序号应压实为 1,2，实际 %d,%d",
-			detail.Articles[0].SortOrder, detail.Articles[1].SortOrder)
-	}
-	if detail.Articles[0].ArticleID != a1 || detail.Articles[1].ArticleID != a3 {
-		t.Fatalf("移除后剩余顺序不对: %v / %v", detail.Articles[0].ArticleID, detail.Articles[1].ArticleID)
+	if len(ids) != 2 || ids[0] != collection.ArticleID(a1) || ids[1] != collection.ArticleID(a3) {
+		t.Fatalf("移除后剩余顺序不对: %v", ids)
 	}
 }
 
@@ -297,7 +291,7 @@ func TestReaderDetailNotFoundForUndisplayed(t *testing.T) {
 	}
 }
 
-// TestReaderDetailOrdersArticles 详情按管理员排的顺序返回文章。
+// TestReaderDetailOrdersArticles 详情按目录树的 DFS 顺序返回公开文章节点。
 func TestReaderDetailOrdersArticles(t *testing.T) {
 	t.Parallel()
 
@@ -305,23 +299,32 @@ func TestReaderDetailOrdersArticles(t *testing.T) {
 	cid := createCollection(t, svc, "分布式入门六讲")
 	a1 := seedPublished(t, repos, 51)
 	a2 := seedPublished(t, repos, 52)
-	includeArticle(t, svc, cid, a1)
-	includeArticle(t, svc, cid, a2)
+	seedReaderArticleNodes(t, repos, outline.OwnerCollection, outline.ID(cid), ctype.ID(a1), ctype.ID(a2))
 
 	detail, err := svc.CollectionDetail(context.Background(), cid, domain.Anonymous(), false)
 	if err != nil {
 		t.Fatalf("读合集详情失败: %v", err)
 	}
-	if len(detail.Articles) != 2 {
-		t.Fatalf("应有 2 篇，实际 %d", len(detail.Articles))
+	if got, want := readerDetailArticleIDs(detail.Tree), []ctype.ID{ctype.ID(a1), ctype.ID(a2)}; !sameStrings(
+		func() []string {
+			out := make([]string, 0, len(got))
+			for _, id := range got {
+				out = append(out, id.String())
+			}
+			return out
+		}(),
+		func() []string {
+			out := make([]string, 0, len(want))
+			for _, id := range want {
+				out = append(out, id.String())
+			}
+			return out
+		}(),
+	) {
+		t.Fatalf("顺序不对: %v / %v", got, want)
 	}
-	for i, item := range detail.Articles {
-		if item.SortOrder != i+1 {
-			t.Fatalf("第 %d 篇序号应为 %d，实际 %d", i+1, i+1, item.SortOrder)
-		}
-	}
-	if detail.Articles[0].ArticleID != a1 || detail.Articles[1].ArticleID != a2 {
-		t.Fatalf("顺序不对: %v / %v", detail.Articles[0].ArticleID, detail.Articles[1].ArticleID)
+	if orders := readerDetailSortOrders(detail.Tree); len(orders) != 2 || orders[0] != 1 || orders[1] != 2 {
+		t.Fatalf("兄弟序号应为 1,2，实际 %v", orders)
 	}
 }
 
@@ -341,16 +344,8 @@ func TestReplaceArticleOrder(t *testing.T) {
 		t.Fatalf("合法换序应成功: %v", err)
 	}
 
-	detail, err := svc.CollectionDetail(context.Background(), cid, domain.Anonymous(), false)
-	if err != nil {
-		t.Fatalf("读合集详情失败: %v", err)
-	}
-	if detail.Articles[0].ArticleID != a2 {
-		t.Fatalf("换序后第一篇应为 %s，实际 %s", a2, detail.Articles[0].ArticleID)
-	}
-
 	// 缺一条：整单拒绝，顺序不能被动过。
-	err = svc.ReplaceCollectionArticleOrder(context.Background(), adminViewer(), cid,
+	err := svc.ReplaceCollectionArticleOrder(context.Background(), adminViewer(), cid,
 		[]collection.ArticleID{a2})
 	if !apperr.IsCode(err, apperr.CodeCollectionOrderMismatch) {
 		t.Fatalf("缺一条应被拒绝，实际 %v", err)

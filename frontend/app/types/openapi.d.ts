@@ -6754,16 +6754,6 @@ export interface components {
             stale_reason?: string;
             title?: string;
         };
-        "internal_article_adapter_http.CollectionArticleItemResponse": {
-            abstract?: string;
-            article_id?: string;
-            author_nickname?: string;
-            category_title?: string;
-            cover?: string;
-            sort_order?: number;
-            title?: string;
-            view_count?: number;
-        };
         "internal_article_adapter_http.CollectionArticleOrderRequest": {
             article_ids: string[];
         };
@@ -6801,11 +6791,12 @@ export interface components {
             id?: string;
         };
         "internal_article_adapter_http.CollectionDetailResponse": {
-            articles?: components["schemas"]["internal_article_adapter_http.CollectionArticleItemResponse"][];
+            article_count?: number;
             cover?: string;
             created_at?: string;
             description?: string;
             id?: string;
+            outline?: components["schemas"]["internal_article_adapter_http.OutlineTreeResponse"];
             title?: string;
         };
         "internal_article_adapter_http.CollectionDisplayRequest": {
@@ -6919,16 +6910,6 @@ export interface components {
             stale_reason?: string;
             title?: string;
         };
-        "internal_article_adapter_http.ProjectArticleItemResponse": {
-            abstract?: string;
-            article_id?: string;
-            author_nickname?: string;
-            category_title?: string;
-            cover?: string;
-            sort_order?: number;
-            title?: string;
-            view_count?: number;
-        };
         "internal_article_adapter_http.ProjectArticleOrderRequest": {
             article_ids: string[];
         };
@@ -6966,11 +6947,12 @@ export interface components {
             id?: string;
         };
         "internal_article_adapter_http.ProjectDetailResponse": {
-            articles?: components["schemas"]["internal_article_adapter_http.ProjectArticleItemResponse"][];
+            article_count?: number;
             cover?: string;
             created_at?: string;
             description?: string;
             id?: string;
+            outline?: components["schemas"]["internal_article_adapter_http.OutlineTreeResponse"];
             title?: string;
         };
         "internal_article_adapter_http.ProjectDisplayRequest": {

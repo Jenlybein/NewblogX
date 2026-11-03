@@ -19,6 +19,7 @@ import (
 
 	"myblogx/internal/apperr"
 	"myblogx/internal/article/domain"
+	"myblogx/internal/article/domain/outline"
 	"myblogx/internal/kernel/ctype"
 )
 
@@ -377,13 +378,18 @@ type BatchIncludeResult struct {
 	Outcome   IncludeOutcome
 }
 
-// Detail 是项目详情：项目本身 + 按顺序排列的已公开文章。
+// Detail 是项目详情：项目本身 + 嵌套目录树。
 //
 // 为什么在 domain 而不是 app 拼：它是"读者看到的项目"的完整读模型，
 // 一旦分叉（比如详情页少过滤一次失效行），入口就会多一张死链卡片。
 type Detail struct {
-	Project  *Project
-	Articles []IncludedArticle
+	Project *Project
+	// Tree 是读者看到的嵌套目录树（只含公开文章节点，文件夹保留）。
+	Tree []outline.ViewNode
+	// ArticleCount 篇数只数公开文章节点。
+	ArticleCount int
+	// Cover 是最终生效封面（显式封面优先，空则 DFS 第一篇公开文章的封面）。
+	Cover string
 }
 
 // Repository 是项目的持久化契约（读者侧公开读 + 管理端读写）。

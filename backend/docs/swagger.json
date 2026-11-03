@@ -1510,6 +1510,85 @@
                 ],
                 "type": "object"
             },
+            "internal_article_adapter_http.ProjectArticleItemResponse": {
+                "properties": {
+                    "abstract": {
+                        "type": "string"
+                    },
+                    "article_id": {
+                        "type": "string"
+                    },
+                    "author_nickname": {
+                        "type": "string"
+                    },
+                    "category_title": {
+                        "type": "string"
+                    },
+                    "cover": {
+                        "type": "string"
+                    },
+                    "sort_order": {
+                        "type": "integer"
+                    },
+                    "title": {
+                        "type": "string"
+                    },
+                    "view_count": {
+                        "type": "integer"
+                    }
+                },
+                "type": "object"
+            },
+            "internal_article_adapter_http.ProjectCardResponse": {
+                "properties": {
+                    "article_count": {
+                        "type": "integer"
+                    },
+                    "cover": {
+                        "type": "string"
+                    },
+                    "created_at": {
+                        "type": "string"
+                    },
+                    "description": {
+                        "type": "string"
+                    },
+                    "id": {
+                        "type": "string"
+                    },
+                    "title": {
+                        "type": "string"
+                    }
+                },
+                "type": "object"
+            },
+            "internal_article_adapter_http.ProjectDetailResponse": {
+                "properties": {
+                    "articles": {
+                        "items": {
+                            "$ref": "#/components/schemas/internal_article_adapter_http.ProjectArticleItemResponse"
+                        },
+                        "type": "array",
+                        "uniqueItems": false
+                    },
+                    "cover": {
+                        "type": "string"
+                    },
+                    "created_at": {
+                        "type": "string"
+                    },
+                    "description": {
+                        "type": "string"
+                    },
+                    "id": {
+                        "type": "string"
+                    },
+                    "title": {
+                        "type": "string"
+                    }
+                },
+                "type": "object"
+            },
             "internal_article_adapter_http.ReviewTaskSource": {
                 "enum": [
                     "create",
@@ -3884,6 +3963,20 @@
                 },
                 "type": "object"
             },
+            "myblogx_internal_kernel.Envelope-internal_article_adapter_http_ProjectDetailResponse": {
+                "properties": {
+                    "code": {
+                        "type": "integer"
+                    },
+                    "data": {
+                        "$ref": "#/components/schemas/internal_article_adapter_http.ProjectDetailResponse"
+                    },
+                    "msg": {
+                        "type": "string"
+                    }
+                },
+                "type": "object"
+            },
             "myblogx_internal_kernel.Envelope-internal_auth_adapter_http_SendEmailResponse": {
                 "properties": {
                     "code": {
@@ -4556,6 +4649,20 @@
                 },
                 "type": "object"
             },
+            "myblogx_internal_kernel.Envelope-myblogx_internal_kernel_ListData-internal_article_adapter_http_ProjectCardResponse": {
+                "properties": {
+                    "code": {
+                        "type": "integer"
+                    },
+                    "data": {
+                        "$ref": "#/components/schemas/myblogx_internal_kernel.ListData-internal_article_adapter_http_ProjectCardResponse"
+                    },
+                    "msg": {
+                        "type": "string"
+                    }
+                },
+                "type": "object"
+            },
             "myblogx_internal_kernel.Envelope-myblogx_internal_kernel_ListData-internal_article_adapter_http_TagListItem": {
                 "properties": {
                     "code": {
@@ -5102,6 +5209,21 @@
                     "list": {
                         "items": {
                             "$ref": "#/components/schemas/internal_article_adapter_http.FavoriteListItem"
+                        },
+                        "type": "array",
+                        "uniqueItems": false
+                    }
+                },
+                "type": "object"
+            },
+            "myblogx_internal_kernel.ListData-internal_article_adapter_http_ProjectCardResponse": {
+                "properties": {
+                    "count": {
+                        "type": "integer"
+                    },
+                    "list": {
+                        "items": {
+                            "$ref": "#/components/schemas/internal_article_adapter_http.ProjectCardResponse"
                         },
                         "type": "array",
                         "uniqueItems": false
@@ -10590,6 +10712,75 @@
                 "summary": "运行日志详情",
                 "tags": [
                     "log"
+                ]
+            }
+        },
+        "/projects": {
+            "get": {
+                "parameters": [
+                    {
+                        "description": "页码",
+                        "in": "query",
+                        "name": "page",
+                        "schema": {
+                            "type": "integer"
+                        }
+                    },
+                    {
+                        "description": "每页数量",
+                        "in": "query",
+                        "name": "limit",
+                        "schema": {
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/myblogx_internal_kernel.Envelope-myblogx_internal_kernel_ListData-internal_article_adapter_http_ProjectCardResponse"
+                                }
+                            }
+                        },
+                        "description": "OK"
+                    }
+                },
+                "summary": "项目列表",
+                "tags": [
+                    "project"
+                ]
+            }
+        },
+        "/projects/{id}": {
+            "get": {
+                "parameters": [
+                    {
+                        "description": "项目 ID",
+                        "in": "path",
+                        "name": "id",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/myblogx_internal_kernel.Envelope-internal_article_adapter_http_ProjectDetailResponse"
+                                }
+                            }
+                        },
+                        "description": "OK"
+                    }
+                },
+                "summary": "项目详情",
+                "tags": [
+                    "project"
                 ]
             }
         },

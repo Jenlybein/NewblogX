@@ -4291,6 +4291,86 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/projects": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 项目列表 */
+        get: {
+            parameters: {
+                query?: {
+                    /** @description 页码 */
+                    page?: number;
+                    /** @description 每页数量 */
+                    limit?: number;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["myblogx_internal_kernel.Envelope-myblogx_internal_kernel_ListData-internal_article_adapter_http_ProjectCardResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/projects/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 项目详情 */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    /** @description 项目 ID */
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["myblogx_internal_kernel.Envelope-internal_article_adapter_http_ProjectDetailResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/search/articles": {
         parameters: {
             query?: never;
@@ -6169,6 +6249,32 @@ export interface components {
             id?: string;
             title: string;
         };
+        "internal_article_adapter_http.ProjectArticleItemResponse": {
+            abstract?: string;
+            article_id?: string;
+            author_nickname?: string;
+            category_title?: string;
+            cover?: string;
+            sort_order?: number;
+            title?: string;
+            view_count?: number;
+        };
+        "internal_article_adapter_http.ProjectCardResponse": {
+            article_count?: number;
+            cover?: string;
+            created_at?: string;
+            description?: string;
+            id?: string;
+            title?: string;
+        };
+        "internal_article_adapter_http.ProjectDetailResponse": {
+            articles?: components["schemas"]["internal_article_adapter_http.ProjectArticleItemResponse"][];
+            cover?: string;
+            created_at?: string;
+            description?: string;
+            id?: string;
+            title?: string;
+        };
         /** @enum {string} */
         "internal_article_adapter_http.ReviewTaskSource": "create" | "edit" | "resubmit";
         /** @enum {string} */
@@ -6966,6 +7072,11 @@ export interface components {
             data?: components["schemas"]["internal_article_adapter_http.CollectionStaleCleanupResponse"];
             msg?: string;
         };
+        "myblogx_internal_kernel.Envelope-internal_article_adapter_http_ProjectDetailResponse": {
+            code?: number;
+            data?: components["schemas"]["internal_article_adapter_http.ProjectDetailResponse"];
+            msg?: string;
+        };
         "myblogx_internal_kernel.Envelope-internal_auth_adapter_http_SendEmailResponse": {
             code?: number;
             data?: components["schemas"]["internal_auth_adapter_http.SendEmailResponse"];
@@ -7206,6 +7317,11 @@ export interface components {
             data?: components["schemas"]["myblogx_internal_kernel.ListData-internal_article_adapter_http_FavoriteListItem"];
             msg?: string;
         };
+        "myblogx_internal_kernel.Envelope-myblogx_internal_kernel_ListData-internal_article_adapter_http_ProjectCardResponse": {
+            code?: number;
+            data?: components["schemas"]["myblogx_internal_kernel.ListData-internal_article_adapter_http_ProjectCardResponse"];
+            msg?: string;
+        };
         "myblogx_internal_kernel.Envelope-myblogx_internal_kernel_ListData-internal_article_adapter_http_TagListItem": {
             code?: number;
             data?: components["schemas"]["myblogx_internal_kernel.ListData-internal_article_adapter_http_TagListItem"];
@@ -7373,6 +7489,10 @@ export interface components {
         "myblogx_internal_kernel.ListData-internal_article_adapter_http_FavoriteListItem": {
             count?: number;
             list?: components["schemas"]["internal_article_adapter_http.FavoriteListItem"][];
+        };
+        "myblogx_internal_kernel.ListData-internal_article_adapter_http_ProjectCardResponse": {
+            count?: number;
+            list?: components["schemas"]["internal_article_adapter_http.ProjectCardResponse"][];
         };
         "myblogx_internal_kernel.ListData-internal_article_adapter_http_TagListItem": {
             count?: number;

@@ -214,6 +214,25 @@ export type CollectionDetail = RequiredSchema<"internal_article_adapter_http.Col
 /** 合集详情里的一篇文章（`sort_order` 是它在系列里的位置）。 */
 export type CollectionArticleItem =
   RequiredSchema<"internal_article_adapter_http.CollectionArticleItemResponse">;
+
+/**
+ * 项目（与合集并列的独立内容实体，读者侧只读）。
+ *
+ * 与合集的契约形状相同、但**是两套定义**：字段名/类型由
+ * `internal_article_adapter_http.Project*` 决定，后端改名会立刻编译报错。
+ * 项目有自己的表与后台维护页，不与合集共用数据。
+ */
+export type ProjectCard = RequiredSchema<"internal_article_adapter_http.ProjectCardResponse">;
+
+export type ProjectListData =
+  RequiredSchema<"myblogx_internal_kernel.ListData-internal_article_adapter_http_ProjectCardResponse">;
+
+/** 项目详情：项目本身 + 按顺序排列的文章。 */
+export type ProjectDetail = RequiredSchema<"internal_article_adapter_http.ProjectDetailResponse">;
+
+/** 项目详情里的一篇文章（`sort_order` 是它在项目里的位置）。 */
+export type ProjectArticleItem =
+  RequiredSchema<"internal_article_adapter_http.ProjectArticleItemResponse">;
 // ArticleUpdateRequest 全是指针（PATCH 语义：null 表示清空该字段）。
 export type ArticleWritePayload = Nullable<
   Schema<"internal_article_adapter_http.ArticleUpdateRequest">,

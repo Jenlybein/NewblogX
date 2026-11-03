@@ -28,8 +28,19 @@ export interface ServerRedirectRoute {
 /** 允许服务端渲染的读者站路由（ADR-0019 决策 1 / 约束 1）。 */
 export const SSR_WHITELIST_PATTERNS = ["/", "/article/**"] as const;
 
-/** 必须显式 `ssr: false` 的读者站路由（ADR-0019 决策 1）。 */
-export const CLIENT_ONLY_PATTERNS = ["/users/**", "/search", "/studio/**", "/collections/**"] as const;
+/**
+ * 必须显式 `ssr: false` 的读者站路由（ADR-0019 决策 1）。
+ *
+ * `/collections/**` 与 `/projects/**` 都是运营编排列表：内容随管理员的操作变化，
+ * 不参与 SSR 首屏，也不进匿名缓存。
+ */
+export const CLIENT_ONLY_PATTERNS = [
+  "/users/**",
+  "/search",
+  "/studio/**",
+  "/collections/**",
+  "/projects/**",
+] as const;
 
 /** 必须由服务端 301 承担的历史入口（`/articles` 是并入 `/search` 的旧列表入口）。 */
 export const SERVER_REDIRECT_ROUTES = [

@@ -146,6 +146,11 @@ const (
 	// collection_models 与 article_models），放进 ArticleCore 会让"只想测文章"
 	// 的用例也被迫建合集表；而且合集的读写口径与文章本体无关。
 	Collection Group = "collection"
+	// Project 是项目主表与项目-文章中间表。
+	//
+	// 与 Collection 同构但不共用数据；同样两张表单开一组：中间表带两个外键
+	// （指向 project_models 与 article_models）。
+	Project Group = "project"
 	// All 是全部表（仅用于结构一致性契约测试）。
 	All Group = "all"
 )
@@ -231,7 +236,12 @@ var groupModels = map[Group][]any{
 		&CollectionRow{},
 		&CollectionArticleRow{},
 	},
-	// All 是**全部 39 张表**，只用于"schema.sql 与自持行是否一致"的契约测试。
+	Project: {
+		// 主表在前：中间表有指向 project_models 的外键。
+		&ProjectRow{},
+		&ProjectArticleRow{},
+	},
+	// All 是**全部 41 张表**，只用于"schema.sql 与自持行是否一致"的契约测试。
 	//
 	// 为什么不复用上面那些组拼起来：拼装顺序一变，这个测试就变成
 	// "测拼装顺序"而不是"测结构一致性"。这里写死一份，顺序沿用当年
@@ -257,6 +267,8 @@ var groupModels = map[Group][]any{
 		&ArticleHotTopRow{},
 		&CollectionRow{},
 		&CollectionArticleRow{},
+		&ProjectRow{},
+		&ProjectArticleRow{},
 		&ImageRow{},
 		&ImageRefRow{},
 		&RuntimeConfigRow{},

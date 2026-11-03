@@ -92,6 +92,20 @@ const (
 	CodeCollectionArticleMissing Code = "collection.article_missing"
 )
 
+// 项目。
+//
+// 项目与「合集」是并列的独立内容实体：错误码自成一组，日志里要能分辨
+// "项目编排错了"与"合集编排错了"，前端提示语也不同。
+const (
+	// CodeProjectTitleRequired 项目标题为空（或超长）。
+	CodeProjectTitleRequired Code = "project.title_required"
+	// CodeProjectNotFound 项目不存在。
+	//
+	// 也覆盖"未展示，对读者不可见"：两种情形合并成一个码，读者侧不能靠
+	// 响应差异探测未发布的项目（与合集同一口径）。
+	CodeProjectNotFound Code = "project.not_found"
+)
+
 // 审核任务。
 const (
 	CodeReviewTaskNotFound Code = "review.task_not_found"
@@ -381,6 +395,9 @@ var messages = map[Code]string{
 	CodeCollectionArticleNotIncludable: "只有已发布且可见的文章可以收录进合集",
 	CodeCollectionOrderMismatch:        "排序列表与当前收录不一致，请刷新后重试",
 	CodeCollectionArticleMissing:       "该文章不在此合集中",
+
+	CodeProjectTitleRequired: "项目标题不能为空",
+	CodeProjectNotFound:      "项目不存在",
 
 	CodeReviewTaskNotFound: "审核任务不存在",
 	CodeReviewTaskHandled:  "审核任务已处理",

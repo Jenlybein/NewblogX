@@ -11,6 +11,7 @@ import (
 	"myblogx/internal/kernel/ctype"
 	notificationapp "myblogx/internal/notification/app"
 	"myblogx/internal/platform/cdc/outboxrelay"
+	"myblogx/internal/platform/es/articlesync"
 )
 
 // WireOutboxRelay 启动 outbox 中继，并注册领域事件的真实下游。
@@ -28,6 +29,23 @@ func WireOutboxRelay(infra *Infra) {
 	}
 
 	relay := outboxrelay.New(infra.DB, infra.Logger, relayOptions(infra))
+
+	registerOutboxSubscribers(relay, infra)
+
+	// 注册为进程内实例，river 的 CDC 路径通过它入队。
+	outboxrelay.SetCurrent(relay)
+	relay.Run()
+}
+
+// registerOutboxSubscribers 把领域事件的真实下游挂到中继上。
+//
+// 单独拆出来的理由：测试要能在**不启动 worker / 补偿扫描**的前提下同步投递一条事件，
+// 同时必须经过与生产同一份订阅表。如果测试自己 replay.On(...) 一遍，
+// "生产忘了注册"这类缺陷永远测不出来。
+func registerOutboxSubscribers(relay *outboxrelay.Relay, infra *Infra) {
+	if relay == nil {
+		return
+	}
 
 	// 评分：创建与发布都要保证有评分记录（复刻旧 create/examine/review 的行为）。
 	relay.On(articleapp.EventArticleCreated, scoreSubscriber(infra))
@@ -50,9 +68,34 @@ func WireOutboxRelay(infra *Infra) {
 	relay.On(chatdomain.EventMessageSent, chatSubscriber(infra.Logger))
 	relay.On(chatdomain.EventMessagesRead, chatSubscriber(infra.Logger))
 
-	// 注册为进程内实例，river 的 CDC 路径通过它入队。
-	outboxrelay.SetCurrent(relay)
-	relay.Run()
+	// 搜索索引：文章删除后必须真的把文档移除。
+	//
+	// 这是本次修复的根因之一：事件早就在事务里落进发件箱，但没有订阅者，
+	// 中继把"没人订阅"当成成功直接标 done，索引文档永远留着。删除是软删
+	// （库里只更新 deleted_at），ES 不会因为查询过滤不到就算消失。
+	// 写副作用放在这里而不是删除事务里，理由见包注释：失败可重试、耗尽进死信。
+	relay.On(articleapp.EventArticleDeleted, articleDeletedIndexSubscriber(infra))
+}
+
+// articleDeletedIndexSubscriber 在文章删除后移除对应的搜索索引文档。
+//
+// 幂等：中继是 at-least-once，重复投递会再删一次；文档已经不在了时
+// DeleteESDocs 按"目的已达成"处理（404 不算失败），所以重投是安全的。
+func articleDeletedIndexSubscriber(infra *Infra) outboxrelay.Subscriber {
+	return func(_ context.Context, e outboxrelay.Event) error {
+		if infra == nil {
+			return nil
+		}
+		articleID := e.AggregateID
+		if articleID.IsZero() {
+			return nil
+		}
+		// 未启用 ES 时没有可删的索引文档；不早退会把删除事件误判成失败并进死信。
+		if infra.ESClient == nil {
+			return nil
+		}
+		return articlesync.DeleteESDocs(infra.DB, infra.ESClient, []ctype.ID{articleID})
+	}
 }
 
 // relayOptions 把配置里的保留期参数映射成中继参数。

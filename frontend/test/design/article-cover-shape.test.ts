@@ -61,12 +61,15 @@ describe("阅读站列表缩略图：不再按列表变体换比例", () => {
 });
 
 describe("创作页列表缩略图：历史与收藏同为 16:9", () => {
-  it("历史卡片缩略图锁 16:9，窄屏只改宽度、不改形状", () => {
+  it("历史卡片缩略图锁 16:9，窄屏只改列宽与按钮可见性、不改形状", () => {
     const block = blockAfter(historyPage, ".article-history-card__cover {");
     expect(aspectRatioOf(block)).toBe(SPEC_RATIO);
     expect(block).not.toMatch(/height\s*:/u);
 
-    const narrow = blockAfter(blockAfter(historyPage, "@media (max-width: 768px)"), ".article-history-card__cover {");
+    // #194 起历史页改成栅格短卡片：封面宽度完全由列宽决定，窄屏块只让移出按钮常显，
+    // 不得再出现任何第二形状（height / aspect-ratio 覆盖）。
+    const narrow = blockAfter(historyPage, "@media (max-width: 768px)");
+    expect(narrow).toContain(".article-history-card__remove");
     expect(narrow).not.toMatch(/height\s*:/u);
     expect(narrow).not.toMatch(/aspect-ratio/u);
   });

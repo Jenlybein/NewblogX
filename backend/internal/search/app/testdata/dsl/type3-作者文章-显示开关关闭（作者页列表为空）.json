@@ -101,6 +101,17 @@
               "term": {
                 "author_is_admin": true
               }
+            },
+            {
+              "bool": {
+                "must_not": [
+                  {
+                    "term": {
+                      "is_deleted": true
+                    }
+                  }
+                ]
+              }
             }
           ],
           "must": [

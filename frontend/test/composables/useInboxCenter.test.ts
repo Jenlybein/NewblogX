@@ -21,6 +21,9 @@ const messageSummaryMock = vi.hoisted(() => ({
 // 必须是真 ref —— useInboxCenter 靠 inbox.value.length 的 watch 感知通知。
 const socketInbox = shallowRef<unknown[]>([]);
 
+// 发送被拒原因（票 202）：useInboxCenter 发送失败时写它，界面据此就地提示。
+const sendErrorState = shallowRef("");
+
 vi.mock("~/services/inbox", () => ({
   deleteChatMessages: vi.fn(),
   deleteChatSessions: vi.fn(),
@@ -121,6 +124,7 @@ describe("useInboxCenter", () => {
     refreshSummaryMock.mockClear();
     refreshSummaryMock.mockResolvedValue(messageSummaryMock);
     socketInbox.value = [];
+    sendErrorState.value = "";
     chatStoreState.activeSessionId = null;
     messageSummaryMock.comment_msg_count = 1;
     messageSummaryMock.digg_favor_msg_count = 6;
@@ -145,10 +149,15 @@ describe("useInboxCenter", () => {
     vi.stubGlobal("useMessageStore", () => ({
       summary: messageSummaryMock,
       refreshSummary: refreshSummaryMock,
-    }));    vi.stubGlobal("useChatStore", () => chatStoreState);
+    }));
+    vi.stubGlobal("useChatStore", () => chatStoreState);
     vi.stubGlobal("useChatSocket", () => ({
       socketStatus: shallowRef("error"),
       socketError: shallowRef("实时未连接"),
+      sendError: sendErrorState,
+      setSendError: (reason: string) => {
+        sendErrorState.value = reason;
+      },
       connect: vi.fn(),
       takeNotifications: takeNotificationsStub,
       inbox: socketInbox,
@@ -290,5 +299,42 @@ describe("useInboxCenter", () => {
     await flushPromises();
 
     expect(getChatMessagesMock).toHaveBeenCalledWith({ sessionId: chatSession.session_id, type: 1 });
+  });
+
+  // 拒绝原因透出（票 202 的界面出口）：HTTP 发送失败时后端文案要原样到达界面，
+  // 用户才不会把"站点关闭陌生人私信"误认成断网。
+  it("发送被站点策略拒绝时把后端文案透出到 chatSendError", async () => {
+    getChatSessionsMock.mockResolvedValue({ list: [chatSession] });
+    const policyMessage = "站点当前不允许陌生人发私信（站点策略），请联系管理员开启";
+    sendChatMessageMock.mockRejectedValueOnce(new Error(policyMessage));
+
+    const inbox = await createInboxCenter();
+    inbox.activeTab.value = "chat";
+    await flushPromises();
+
+    inbox.chatDraft.value = "你好";
+    await expect(inbox.sendCurrentChatMessage()).rejects.toThrow("站点");
+
+    expect(inbox.chatSendError.value).toBe(policyMessage);
+  });
+
+  // 成功要清掉上一次的拒绝原因，否则界面上一直挂着旧错误。
+  it("发送成功后清空上一次的拒绝原因", async () => {
+    getChatSessionsMock.mockResolvedValue({ list: [chatSession] });
+    sendChatMessageMock.mockResolvedValue({
+      id: "m1",
+      session_id: chatSession.session_id,
+      content: "你好",
+    });
+    sendErrorState.value = "上一次发送失败";
+
+    const inbox = await createInboxCenter();
+    inbox.activeTab.value = "chat";
+    await flushPromises();
+
+    inbox.chatDraft.value = "你好";
+    await inbox.sendCurrentChatMessage();
+
+    expect(inbox.chatSendError.value).toBe("");
   });
 });

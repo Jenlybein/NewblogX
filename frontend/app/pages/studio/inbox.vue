@@ -61,6 +61,7 @@ const {
   messagePending,
   socketStatus,
   socketError,
+  chatSendError,
   loadSiteMessages,
   loadGlobalNotices,
   loadMoreSiteMessages,
@@ -299,7 +300,7 @@ useSeoMeta({
       :current-session="activeSession" :items="chatMessages" :keyword="chatKeyword" :draft="chatDraft"
       :prepared-session="isPreparedSession" :draft-type="chatDraftType" :image-pending="imagePending"
       :session-pending="sessionPending" :message-pending="messagePending" :socket-status="socketStatus"
-      :socket-error="socketError" @update:active-session-id="activeSessionId = $event"
+      :socket-error="socketError" :send-error="chatSendError" @update:active-session-id="activeSessionId = $event"
       @update:keyword="chatKeyword = $event" @update:draft="chatDraft = $event"
       @update:draft-type="chatDraftType = $event" @send="handleSend()" @send-image="handleSendImage($event)"
       @remove-session="removeChatSession($event)" @remove-message="removeChatMessage($event)"

@@ -21,6 +21,7 @@ func (h *Handler) Register(r *gin.RouterGroup, authMw, optionalMw gin.HandlerFun
 	}
 	group := r.Group("articles")
 	collectionGroup := r.Group("collections")
+	projectGroup := r.Group("projects")
 	reviewGroup := r.Group("article-review")
 	reviewTaskGroup := r.Group("article-review-tasks")
 
@@ -46,6 +47,10 @@ func (h *Handler) Register(r *gin.RouterGroup, authMw, optionalMw gin.HandlerFun
 	// 合集（读者侧只读：列表页 + 详情页）。
 	collectionGroup.GET("", mw.BindQuery[CollectionListRequest], h.Collections)
 	collectionGroup.GET(":id", mw.BindUri[kernel.IDRequest], h.CollectionDetail)
+	// 项目（与合集并列的独立内容实体；读者侧同样只读：列表页 + 详情页）。
+	// 管理端写接口属于 #197，这里刻意不挂。
+	projectGroup.GET("", mw.BindQuery[ProjectListRequest], h.Projects)
+	projectGroup.GET(":id", mw.BindUri[kernel.IDRequest], h.ProjectDetail)
 	reviewAdminGroup.GET("", mw.BindQuery[ArticleReviewTaskListRequest], h.ReviewTasks)
 
 	// 登录用户写

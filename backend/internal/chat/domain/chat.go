@@ -322,9 +322,12 @@ type UserDirectory interface {
 	Displays(ctx context.Context, ids []ctype.ID) (map[ctype.ID]Display, error)
 }
 
-// StrangerPolicy 读"是否接收陌生人私信"。
+// StrangerPolicy 读站点级的"是否允许陌生人发私信"开关。
+//
+// 它没有 userID 参数：这个策略属于站点（#202），不属于某个用户的配置行。
+// 判定只看"发送双方是不是陌生人"，接收人是谁不影响结论。
 type StrangerPolicy interface {
-	StrangerEnabled(ctx context.Context, userID ctype.ID) (bool, error)
+	StrangerEnabled(ctx context.Context) (bool, error)
 }
 
 // Reservation 是一次发送额度预占。

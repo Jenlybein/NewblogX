@@ -13,6 +13,7 @@ import (
 	"myblogx/internal/kernel/ctype"
 	"myblogx/internal/kernel/enum"
 	"myblogx/internal/platform/cdc/outboxrelay"
+	sitecfg "myblogx/internal/platform/config"
 	"myblogx/internal/platform/http/res"
 	"myblogx/internal/platform/http/router"
 	"myblogx/internal/platform/http/ws"
@@ -45,7 +46,7 @@ func WireChat(infra *Infra) {
 		store,
 		&chatRelationBridge{},
 		&chatUserBridge{db: infra.DB},
-		&strangerBridge{db: infra.DB},
+		&strangerBridge{inner: infra.RuntimeSite},
 		chatredis.NewLimiter(redisOptions),
 		infra.Logger,
 	)
@@ -160,29 +161,21 @@ func (b *chatUserBridge) Displays(_ context.Context, ids []ctype.ID) (map[ctype.
 	return out, nil
 }
 
-// strangerConfRow 对应 user_conf_models 的陌生人私信开关。
-type strangerConfRow struct {
-	UserID              ctype.ID `gorm:"primaryKey;autoIncrement:false"`
-	StrangerChatEnabled bool
-}
-
-// TableName 固定表名。
-func (strangerConfRow) TableName() string { return "user_conf_models" }
-
-// strangerBridge 读"是否接收陌生人私信"。
+// strangerBridge 读站点级"是否允许陌生人发私信"开关。
+//
+// 这个值来自运行时站点配置（site.chat.stranger_msg_enabled），每次现读缓存，
+// 所以后台改完保存后立即生效；不再读 user_conf_models 的按人开关。
 type strangerBridge struct {
-	db *gorm.DB
+	inner *sitecfg.RuntimeConfigService
 }
 
 // StrangerEnabled 实现 domain.StrangerPolicy。
-func (b *strangerBridge) StrangerEnabled(ctx context.Context, userID ctype.ID) (bool, error) {
-	var row strangerConfRow
-	if err := b.db.WithContext(ctx).Select("user_id", "stranger_chat_enabled").
-		Take(&row, "user_id = ?", userID.Uint64()).Error; err != nil {
-		// 老账号没有 conf 行时按"未开启"处理，与旧实现一致。
+func (b *strangerBridge) StrangerEnabled(context.Context) (bool, error) {
+	if b.inner == nil {
+		// 未装配运行时配置时按"关"处理（与默认值一致，失败关闭）。
 		return false, nil
 	}
-	return row.StrangerChatEnabled, nil
+	return b.inner.GetRuntimeSite().Chat.StrangerMsgEnabled, nil
 }
 
 // chatAuthBridge 用认证模块校验令牌与会话。

@@ -121,6 +121,9 @@
       },
       "comments_toggle": {
         "type": "boolean"
+      },
+      "is_deleted": {
+        "type": "boolean"
       }
     }
   }

@@ -309,9 +309,19 @@ func parseTimeText(raw string) (time.Time, bool) {
 	return time.Time{}, false
 }
 
+// loadArticleSnapshotsByIDs 回源装载文章主体快照。
+//
+// **必须 Unscoped**：全量重建（CLI `-es -s article-sync`）取的是一份"只选 id"
+// 的投影，它不带 GORM 的软删作用域，所以已软删的文章 id 也会进来。若这里仍按
+// 软删作用域过滤，这批 id 就全部"未加载到"，重建直接报错退出；而如果为了让
+// 重建通过去改 CLI 的 id 查询，索引里就永远没有已删文档，软删标记也就永远
+// 写不出 true（兜底过滤成了死代码）。
+//
+// 因此约定：索引是库的镜像，已软删的行也索引，用 is_deleted 标记区分；
+// 读侧再按标记过滤（见 internal/search/app）。
 func loadArticleSnapshotsByIDs(db *gorm.DB, articleIDs []ctype.ID) ([]ArticleRowSnapshot, error) {
 	var snapshots []ArticleRowSnapshot
-	err := db.Model(&ArticleRow{}).Select(
+	err := db.Unscoped().Model(&ArticleRow{}).Select(
 		"id",
 		"created_at",
 		"updated_at",
@@ -328,6 +338,8 @@ func loadArticleSnapshotsByIDs(db *gorm.DB, articleIDs []ctype.ID) ([]ArticleRow
 		"publish_status",
 		"visibility_status",
 		"comments_toggle",
+		// 软删时间：已软删的行也会被索引，文档里的 is_deleted 由它派生。
+		"deleted_at",
 	).
 		Where("id IN ?", articleIDs).
 		Order("id asc").

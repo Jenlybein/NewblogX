@@ -52,11 +52,25 @@ export function useChatSocket() {
   const chatStore = useChatStore();
   const socket = shallowRef<WebSocket | null>(null);
   const inbox = shallowRef<Array<ChatSocketEnvelope>>([]);
+  // 最近一次发送被服务端拒绝的原因（票 202 的界面出口）。
+  //
+  // #201 之后发送走 HTTP，拒绝原因是 HTTP 抛出的后端错误码文案（由
+  // useInboxCenter 写入）。WS 这一侧也会收到异常响应壳（例如"请改用 HTTP 发送"），
+  // 所以 pushEnvelope 里同样按 code 是否为非 0 数字区分"拒绝"与"通知"：
+  // 通知帧的 code 是 0，当成失败的话每收一条消息都会弹错误。
+  const sendError = shallowRef("");
 
   const wsUrl = computed(() => resolveWebSocketUrl(config.public.siteUrl, config.public.wsPath));
   const canConnect = computed(() => isClientRuntime() && authStore.isLoggedIn);
 
   function pushEnvelope(envelope: ChatSocketEnvelope) {
+    const code = (envelope as { code?: unknown }).code;
+    if (typeof code === "number" && code !== 0) {
+      const reason = typeof envelope.msg === "string" ? envelope.msg.trim() : "";
+      // 文案由后端错误码体系给出（如「站点当前不允许陌生人发私信（站点策略…）」），
+      // 前端不另造措辞，缺失时才退回一句兜底。
+      sendError.value = reason || "消息发送失败。";
+    }
     inbox.value = [...inbox.value.slice(-19), envelope];
     chatStore.markSocketMessage();
   }
@@ -136,6 +150,17 @@ export function useChatSocket() {
     return notifications;
   }
 
+  /**
+   * 记录/清空最近一次发送的拒绝原因（票 202 的界面出口）。
+   *
+   * #201 之后发送走 HTTP：拒绝原因是 HTTP 请求抛出的后端错误码文案，
+   * 由 useInboxCenter 在发送失败时写进来；成功时清空。
+   * WS 上的非 0 响应壳（例如"请改用 HTTP 发送"）也会走这里。
+   */
+  function setSendError(reason: string) {
+    sendError.value = reason;
+  }
+
   function close() {
     socket.value?.close();
     socket.value = null;
@@ -147,6 +172,8 @@ export function useChatSocket() {
   return {
     socketStatus: computed(() => chatStore.socketStatus),
     socketError: computed(() => chatStore.socketError),
+    sendError,
+    setSendError,
     inbox,
     connect,
     close,

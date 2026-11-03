@@ -100,17 +100,6 @@ type SessionIDListRequest struct {
 	SessionIDList []string `json:"session_id_list" binding:"required"`
 }
 
-// ChatRequest 是 WS 上行消息（历史上 WS 曾是发送通道）。
-//
-// 现在 WS 只做通知（下行），发送一律走 POST /chat/messages；
-// 保留类型名与字段是为了让旧客户端的载荷能被解析出可读错误，
-// 而不是直接抛"消息格式错误"。
-type ChatRequest struct {
-	ReceiverID ctype.ID `json:"receiver_id" binding:"required"`
-	MsgType    int8     `json:"msg_type" binding:"required,oneof=1 2 7" enums:"1,2,7"`
-	Content    string   `json:"content" binding:"required"`
-}
-
 // SendMessageRequest 是 HTTP 发送消息的请求体。
 type SendMessageRequest struct {
 	ReceiverID ctype.ID `json:"receiver_id" binding:"required"`

@@ -68,6 +68,12 @@ type ArticleRowSnapshot struct {
 	CommentsToggle   bool
 	PublishStatus    enum.ArticleStatus
 	VisibilityStatus enum.ArticleVisibilityStatus
+	// DeletedAt 是 GORM 软删时间。非空表示这一行已被删除，文档里要写软删标记。
+	//
+	// 全量重建会把已软删的行一起索引（索引是库的镜像，读侧再按标记过滤），
+	// 所以快照必须带上它 —— 否则重建出来的文档永远显示 is_deleted=false，
+	// 兜底过滤等于没有。
+	DeletedAt *time.Time
 }
 
 type articleProjectionOptions struct {
@@ -142,7 +148,20 @@ func UpdateESDocsByArticleDeltas(db *gorm.DB, client *elasticsearch.Client, delt
 
 	reqs := make([]*es_service.BulkRequest, 0, len(deltas))
 	for _, delta := range deltas {
+		// 软删在库里的形态是 deleted_at 的一次 UPDATE（行还在，只是打了标记）。
+		// 它不在下面的可投影列里：若照旧走"变更列 → 局部更新"，data 会是空的，
+		// 这次更新对索引零写入，文档就永远留着。命中软删标记时直接删文档，
+		// 与其他动作共用同一条 bulk 路径（重试、缺失文档判定都不用另写一套）。
+		if articleSoftDeleted(delta.Changed) {
+			reqs = append(reqs, &es_service.BulkRequest{
+				Action: es_service.ActionDelete,
+				ID:     strconv.FormatUint(delta.ArticleID.Uint64(), 10),
+			})
+			continue
+		}
+
 		data := make(map[string]any)
+		restored := articleRestored(delta.Changed)
 		for field, raw := range delta.Changed {
 			switch field {
 			case "created_at":
@@ -225,7 +244,14 @@ func UpdateESDocsByArticleDeltas(db *gorm.DB, client *elasticsearch.Client, delt
 			}
 		}
 
-		if len(data) == 0 {
+		if restored {
+			// 恢复（deleted_at 改回 NULL）不在可投影列里：旧实现会得到空 data
+			// 然后 continue —— 这次恢复对索引零写入，标记永远停在 true。
+			// 文档可能早已被 #196 删掉（update 404 → 走既有的缺失文档回源重建），
+			// 也可能还带着 is_deleted=true；两种情况下都要把标记清回 false，
+			// 否则这篇恢复的文章在任何列表里都出不来。
+			data[SoftDeleteMarkerField] = false
+		} else if len(data) == 0 {
 			continue
 		}
 		reqs = append(reqs, &es_service.BulkRequest{
@@ -236,6 +262,35 @@ func UpdateESDocsByArticleDeltas(db *gorm.DB, client *elasticsearch.Client, delt
 	}
 
 	return applyArticlePartialBulkUpdate(db, client, reqs, "按 article_models 差异更新 ES 文档失败")
+}
+
+// articleSoftDeleted 判断一份"变更列快照"是否表示文章被软删。
+//
+// 只看 deleted_at 的**变更后值**非空：从时间改回 NULL（恢复）不是删除，
+// 这里不猜恢复语义 —— 恢复需要重建文档，不在本次修复范围。
+func articleSoftDeleted(changed map[string]any) bool {
+	raw, ok := changed["deleted_at"]
+	if !ok {
+		return false
+	}
+	value, ok := scanTimeValue(raw)
+	return ok && !value.IsZero()
+}
+
+// articleRestored 判断一份"变更列快照"是否表示文章被恢复（deleted_at 改回 NULL）。
+//
+// 与 articleSoftDeleted 互斥：软删是时间列有值，恢复是它被清空。
+// 只有"恢复"需要清软删标记；软删本身由 #196 直接删文档，不需要再写标记。
+func articleRestored(changed map[string]any) bool {
+	raw, ok := changed["deleted_at"]
+	if !ok {
+		return false
+	}
+	if raw == nil {
+		return true
+	}
+	value, ok := scanTimeValue(raw)
+	return ok && value.IsZero()
 }
 
 func buildArticleESDocumentFromSnapshot(snapshot ArticleRowSnapshot, deps articleProjectionOptions) map[string]any {
@@ -283,6 +338,9 @@ func buildArticleESDocumentFromSnapshot(snapshot ArticleRowSnapshot, deps articl
 		"visibility_status": snapshot.VisibilityStatus,
 		"comments_toggle":   snapshot.CommentsToggle,
 		"tags":              tags,
+		// 软删标记：全量重建会把已软删的行一起索引，读侧靠它把这些文档挡在
+		// 所有列表之外（internal/search/app 的兜底过滤）。未删除也显式写 false。
+		SoftDeleteMarkerField: snapshot.DeletedAt != nil,
 	}
 }
 

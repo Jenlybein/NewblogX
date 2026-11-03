@@ -92,6 +92,20 @@ const (
 	CodeCollectionArticleMissing Code = "collection.article_missing"
 )
 
+// 项目。
+//
+// 项目与「合集」是并列的独立内容实体：错误码自成一组，日志里要能分辨
+// "项目编排错了"与"合集编排错了"，前端提示语也不同。
+const (
+	// CodeProjectTitleRequired 项目标题为空（或超长）。
+	CodeProjectTitleRequired Code = "project.title_required"
+	// CodeProjectNotFound 项目不存在。
+	//
+	// 也覆盖"未展示，对读者不可见"：两种情形合并成一个码，读者侧不能靠
+	// 响应差异探测未发布的项目（与合集同一口径）。
+	CodeProjectNotFound Code = "project.not_found"
+)
+
 // 审核任务。
 const (
 	CodeReviewTaskNotFound Code = "review.task_not_found"
@@ -382,6 +396,9 @@ var messages = map[Code]string{
 	CodeCollectionOrderMismatch:        "排序列表与当前收录不一致，请刷新后重试",
 	CodeCollectionArticleMissing:       "该文章不在此合集中",
 
+	CodeProjectTitleRequired: "项目标题不能为空",
+	CodeProjectNotFound:      "项目不存在",
+
 	CodeReviewTaskNotFound: "审核任务不存在",
 	CodeReviewTaskHandled:  "审核任务已处理",
 	CodeReviewTaskDenied:   "无权处理该审核任务",
@@ -462,7 +479,9 @@ var messages = map[Code]string{
 	CodeChatUserNotFound:    "接收人不存在",
 	CodeChatContentEmpty:    "消息内容不能为空",
 	CodeChatTypeUnsupported: "不支持的消息类型",
-	CodeChatStrangerOff:     "对方未开启陌生人私信",
+	// 这条文案必须点明"站点策略"：陌生人私信开关是站点级的（#202），
+	// 用户看到后应该去找管理员改站点开关，而不是怀疑自己被针对或网络故障。
+	CodeChatStrangerOff:     "站点当前不允许陌生人发私信（站点策略，不是网络问题），请联系管理员开启「允许陌生人发私信」",
 	CodeChatNoPermission:    "权限不足",
 	CodeChatSessionNotFound: "会话不存在",
 	CodeChatEmptySelection:  "请选择要操作的消息或会话",

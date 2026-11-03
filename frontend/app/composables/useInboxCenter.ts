@@ -47,7 +47,7 @@ export function useInboxCenter(options: UseInboxCenterOptions = {}) {
   const authStore = useAuthStore();
   const messageStore = useMessageStore();
   const chatStore = useChatStore();
-  const { socketStatus, socketError, connect, takeNotifications, inbox } = useChatSocket();
+  const { socketStatus, socketError, sendError, setSendError, connect, takeNotifications, inbox } = useChatSocket();
 
   const activeTab = shallowRef<InboxTab>("site");
   const activeSiteGroup = shallowRef<SiteMessageGroup>(1);
@@ -357,6 +357,8 @@ export function useInboxCenter(options: UseInboxCenterOptions = {}) {
         );
       }
       failedSend.value = null;
+      // 发送成功要清掉上一次的拒绝原因：否则界面上还挂着上一条「站点关闭陌生人私信」。
+      setSendError("");
 
       await loadChatSessions();
 
@@ -387,6 +389,8 @@ export function useInboxCenter(options: UseInboxCenterOptions = {}) {
       // 记住这次发送：用户再点一次"发送"（内容相同）时复用同一个幂等键，
       // 避免"其实已落库、只是响应丢了"的重试变成第二条消息。
       failedSend.value = { content, msgType, clientMsgId };
+      // 拒绝原因直接透出后端文案（站点策略等），由私信面板就地显示（票 202）。
+      setSendError(error instanceof Error ? error.message : "消息发送失败。");
       throw error;
     }
   }
@@ -569,6 +573,9 @@ export function useInboxCenter(options: UseInboxCenterOptions = {}) {
     messagePending,
     socketStatus,
     socketError,
+    // 发送被拒的明确原因（票 202）：直接透出后端文案（HTTP 发送失败或 WS 异常帧），
+    // 由私信面板就地显示，而不是只丢进控制台或连接状态里。
+    chatSendError: sendError,
     loadSiteMessages,
     loadGlobalNotices,
     loadMoreSiteMessages,

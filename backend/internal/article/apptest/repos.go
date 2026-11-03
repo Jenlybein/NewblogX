@@ -11,6 +11,7 @@ import (
 	"myblogx/internal/article/domain/collection"
 	"myblogx/internal/article/domain/favorite"
 	"myblogx/internal/article/domain/hottop"
+	"myblogx/internal/article/domain/project"
 	"myblogx/internal/article/domain/review"
 	"myblogx/internal/article/domain/taxonomy"
 	"myblogx/internal/article/domain/top"
@@ -41,6 +42,7 @@ type Repos struct {
 	users          *Users
 	diggs          *Diggs
 	collectionRepo *CollectionRepo
+	projectRepo    *ProjectRepo
 	cropRepo       *CropRepo
 }
 
@@ -67,6 +69,7 @@ func NewRepos() *Repos {
 		users:          NewUsers(),
 		diggs:          NewDiggs(),
 		collectionRepo: NewCollectionRepo(articles),
+		projectRepo:    NewProjectRepo(articles),
 		cropRepo:       NewCropRepo(),
 	}
 }
@@ -85,6 +88,9 @@ func (r *Repos) Diggs() app.DiggPort { return r.diggs }
 
 // Collections 返回合集仓储。
 func (r *Repos) Collections() collection.Repository { return r.collectionRepo }
+
+// Projects 返回项目仓储（与合集并列的独立内容实体）。
+func (r *Repos) Projects() project.Repository { return r.projectRepo }
 
 // Crops 返回通用取景表仓储（文章封面取景以 target_type=article 存在其中）。
 func (r *Repos) Crops() sitedomain.PictureCropRepository { return r.cropRepo }
@@ -155,6 +161,9 @@ func (r *Repos) FakeHotTops() *HotTopRepo { return r.hotTopRepo }
 
 // FakeCollections 返回合集仓储 fake。
 func (r *Repos) FakeCollections() *CollectionRepo { return r.collectionRepo }
+
+// FakeProjects 返回项目仓储 fake。
+func (r *Repos) FakeProjects() *ProjectRepo { return r.projectRepo }
 
 // FakeCrops 返回取景表 fake（断言"写没写、读回什么"用）。
 func (r *Repos) FakeCrops() *CropRepo { return r.cropRepo }

@@ -78,7 +78,7 @@ const { data } = await useAsyncData("studio-dashboard", async () => {
       ] as const),
     ),
     loadDashboardPart("收藏夹", getOwnFavoriteFolders(), { count: 0, list: [] }, sourceErrors),
-    loadDashboardPart("浏览历史", getHistoryArticles({ type: 1 }), { list: [], has_more: false }, sourceErrors),
+    loadDashboardPart("浏览历史", getHistoryArticles(), { list: [], has_more: false }, sourceErrors),
   ]);
 
   const articleByStatus = articleStatusEntries.reduce<Record<number, number>>((acc, [status, count]) => {

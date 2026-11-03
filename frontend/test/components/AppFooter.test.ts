@@ -9,6 +9,22 @@ import { brandCopyright } from "~/utils/brand";
 import { parseTokenBlocks, resolveTokenValue } from "~/utils/markdownTheme";
 
 /**
+ * 站点配置桩：页脚现在从运行时站点配置读备案号（#191），不再用写死的常量。
+ * `useSiteStore` 在真实 Pinia 里返回解包后的值，桩保持同一形状；
+ * `runtimeConfig` 为 null 表示「引导请求还没回来」。
+ */
+const siteHarness = vi.hoisted(() => ({
+  runtimeConfig: null as { site_info?: { beian?: string } } | null,
+}));
+
+vi.mock("~/stores/site", () => ({
+  useSiteStore: () => ({
+    runtimeConfig: siteHarness.runtimeConfig,
+    ensurePublicBootstrap: vi.fn(),
+  }),
+}));
+
+/**
  * 页脚测试：深墨面铺色（中性石墨阶）+ 品牌（倒色字标）+ 版权/备案/少量链接。
  *
  * 对比度用 WCAG 公式从 tokens.css 里**真实取色**算，而不是相信"看起来够黑"。
@@ -90,12 +106,41 @@ describe("页脚：品牌与文案", () => {
     expect(footerSource).toContain("brandCopyright");
   });
 
-  it("备案行集中一处，并带上少量站内链接", () => {
+  it("带上少量站内链接（行为不变）", () => {
     const wrapper = mountFooter();
     const nav = wrapper.get('nav[aria-label="页脚导航"]');
 
-    expect(wrapper.text()).toMatch(/粤ICP备 \d+ 号/u);
     expect(nav.findAll("a").map((link) => link.text())).toEqual(["首页", "搜索"]);
+  });
+});
+
+describe("页脚：备案号取自运行时站点配置（不再写死）", () => {
+  it("有值时显示配置里的备案号", () => {
+    siteHarness.runtimeConfig = { site_info: { beian: "粤ICP备 2026123456 号" } };
+
+    const wrapper = mountFooter();
+
+    expect(wrapper.get(".site-footer__meta").text()).toContain("粤ICP备 2026123456 号");
+    // 反向证明：页脚代码不再直接引用写死的常量。
+    expect(footerSource).not.toContain("FOOTER_ICP");
+  });
+
+  it("值为空或尚未取回时整行不渲染：没有空 span，也没有占位文案", () => {
+    siteHarness.runtimeConfig = { site_info: { beian: "" } };
+    let wrapper = mountFooter();
+
+    expect(wrapper.get(".site-footer__meta").text()).not.toMatch(/备案|ICP|号/u);
+    // 只留版权行那一个 span。
+    expect(wrapper.get(".site-footer__meta").findAll("span")).toHaveLength(1);
+    expect(wrapper.get(".site-footer__meta").text()).toContain(
+      brandCopyright(new Date().getFullYear()),
+    );
+
+    // 引导请求还没回来（runtimeConfig 仍是 null）也走同一条「不渲染」路径。
+    siteHarness.runtimeConfig = null;
+    wrapper = mountFooter();
+
+    expect(wrapper.get(".site-footer__meta").findAll("span")).toHaveLength(1);
   });
 });
 

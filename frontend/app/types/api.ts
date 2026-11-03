@@ -15,7 +15,7 @@ export type SiteSeoData = RequiredSchema<"internal_site_adapter_http.SEOResponse
  *
  * 契约里这条 data 是 `map[string]any`，派生不出类型，只能手写 —— 手写就会漂移：
  * 这里曾声明后端不存在的 `site_info.subtitle` / `project.abstract`，又漏掉后端
- * 真有的 `site_info.logo` / `beian`。现在按 `backend/conf/site/enter.go` 对齐，
+ * 真有的 `site_info.beian`。现在按 `backend/conf/site/enter.go` 对齐，
  * 并由 `test/gates/site-runtime-config-parity.test.ts` 逐字段比对，再漂就红。
  *
  * `site_info` 是完整投影（与 `site.SiteInfo` 逐字段相等）；`project` 等子块读者站
@@ -23,8 +23,13 @@ export type SiteSeoData = RequiredSchema<"internal_site_adapter_http.SEOResponse
  */
 export interface SiteRuntimeConfig {
   site_info: {
-    title?: string;
-    logo?: string;
+    /**
+     * ICP / 公网安备备案号；空串表示页脚整行不显示。
+     *
+     * 站点标题与 Logo 随 #192 删除：页头字标、浏览器标题与分享卡片标题回到
+     * `~/utils/brand` 的品牌常量，不再读配置。后端已无 title / logo 两个键，
+     * 门禁的逐字段比对会把它们拦住。
+     */
     beian?: string;
   };
   project: {
@@ -214,6 +219,25 @@ export type CollectionDetail = RequiredSchema<"internal_article_adapter_http.Col
 /** 合集详情里的一篇文章（`sort_order` 是它在系列里的位置）。 */
 export type CollectionArticleItem =
   RequiredSchema<"internal_article_adapter_http.CollectionArticleItemResponse">;
+
+/**
+ * 项目（与合集并列的独立内容实体，读者侧只读）。
+ *
+ * 与合集的契约形状相同、但**是两套定义**：字段名/类型由
+ * `internal_article_adapter_http.Project*` 决定，后端改名会立刻编译报错。
+ * 项目有自己的表与后台维护页，不与合集共用数据。
+ */
+export type ProjectCard = RequiredSchema<"internal_article_adapter_http.ProjectCardResponse">;
+
+export type ProjectListData =
+  RequiredSchema<"myblogx_internal_kernel.ListData-internal_article_adapter_http_ProjectCardResponse">;
+
+/** 项目详情：项目本身 + 按顺序排列的文章。 */
+export type ProjectDetail = RequiredSchema<"internal_article_adapter_http.ProjectDetailResponse">;
+
+/** 项目详情里的一篇文章（`sort_order` 是它在项目里的位置）。 */
+export type ProjectArticleItem =
+  RequiredSchema<"internal_article_adapter_http.ProjectArticleItemResponse">;
 // ArticleUpdateRequest 全是指针（PATCH 语义：null 表示清空该字段）。
 export type ArticleWritePayload = Nullable<
   Schema<"internal_article_adapter_http.ArticleUpdateRequest">,

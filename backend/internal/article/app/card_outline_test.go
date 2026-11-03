@@ -40,8 +40,8 @@ func seedCardArticleNode(
 ) {
 	t.Helper()
 	seedReaderOutline(t, repos, ownerKind, ownerID, readerNodeSpec{
-		nodeID: nodeID, parentID: parentID, kind: outline.NodeKindArticle,
-		articleID: articleID, order: order,
+		nodeID: ctype.NewID(nodeID), parentID: ctype.NewID(parentID), kind: outline.NodeKindArticle,
+		articleID: ctype.NewID(articleID), order: order,
 	})
 }
 
@@ -52,7 +52,7 @@ func seedCardFolderNode(
 ) {
 	t.Helper()
 	seedReaderOutline(t, repos, ownerKind, ownerID, readerNodeSpec{
-		nodeID: nodeID, parentID: parentID, kind: outline.NodeKindFolder,
+		nodeID: ctype.NewID(nodeID), parentID: ctype.NewID(parentID), kind: outline.NodeKindFolder,
 		title: title, order: order,
 	})
 }

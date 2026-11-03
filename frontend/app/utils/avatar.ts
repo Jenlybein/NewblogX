@@ -1,3 +1,19 @@
+import { shapeImage, type ShapeImageDeps, type ShapeImageOptions } from "./imageShaping";
+
+/**
+ * 头像定形参数：居中裁成 1:1、降采样到 256×256、输出 PNG。
+ * 这是「头像定形」的唯一参数真相（见 GLOSSARY）；上传原图的做法已退场。
+ */
+export const AVATAR_SHAPE_OPTIONS: ShapeImageOptions = {
+  target: { width: 256, height: 256 },
+  outputType: "image/png",
+};
+
+/** 头像定形入口：返回可直接上传的新 PNG，原图不上传。 */
+export function shapeAvatar(file: Blob, deps?: ShapeImageDeps): Promise<Blob> {
+  return shapeImage(file, AVATAR_SHAPE_OPTIONS, deps);
+}
+
 const AVATAR_FIELD_CANDIDATES = [
   "avatar",
   "user_avatar",

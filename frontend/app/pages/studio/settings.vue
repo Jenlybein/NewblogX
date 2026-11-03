@@ -13,7 +13,8 @@ import {
   renewPasswordByEmail,
 } from "~/services/studio";
 import { getSelfUserDetail } from "~/services/user";
-import { resolveAvatarInitial, resolveAvatarUrl } from "~/utils/avatar";
+import { resolveAvatarInitial, resolveAvatarUrl, shapeAvatar } from "~/utils/avatar";
+import { isImageFile } from "~/utils/imageShaping";
 
 definePageMeta({
   layout: "studio",
@@ -250,16 +251,20 @@ async function handleAvatarFileChange(event: Event) {
     return;
   }
 
-  if (!file.type.startsWith("image/")) {
+  if (!isImageFile(file)) {
     message.warning("请选择图片文件作为头像");
     input.value = "";
     return;
   }
 
   avatarUploading.pending = true;
-  avatarUploading.stage = "开始上传头像…";
+  avatarUploading.stage = "正在定形头像…";
   try {
-    const uploadResult = await uploadImageByTask(file, {
+    // 头像定形：先在客户端居中裁成 1:1、降到 256×256、输出 PNG；
+    // 原图不进入上传链路（GLOSSARY「头像定形」）。
+    const shaped = await shapeAvatar(file);
+    const shapedFile = new File([shaped], "avatar.png", { type: shaped.type });
+    const uploadResult = await uploadImageByTask(shapedFile, {
       onStage: mapAvatarUploadStage,
     });
     if (!uploadResult.image_id || !uploadResult.url) {
@@ -374,7 +379,7 @@ useSeoMeta({
                     <AppAvatar :size="56" :src="profileAvatarPreview" :name="profileAvatarInitial" :fallback="profileAvatarInitial" />
                     <div class="space-y-1">
                       <p class="text-sm font-medium">更新你的个人头像</p>
-                      <p class="text-xs muted">支持 JPG / PNG / JPEG，建议方形图片，大小 5MB 以内</p>
+                      <p class="text-xs muted">支持 JPG / PNG / WebP，会上传前居中裁成方形并压到 256×256</p>
                     </div>
                   </div>
 

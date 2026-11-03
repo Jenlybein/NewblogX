@@ -2,15 +2,18 @@ package app
 
 import (
 	"context"
+	"encoding/json"
 
 	authapp "myblogx/internal/auth/app"
 	chathttp "myblogx/internal/chat/adapter/http"
 	chatmysql "myblogx/internal/chat/adapter/mysql"
 	chatredis "myblogx/internal/chat/adapter/redis"
 	chatapp "myblogx/internal/chat/app"
-	"myblogx/internal/chat/domain"
+	chatdomain "myblogx/internal/chat/domain"
 	"myblogx/internal/kernel/ctype"
 	"myblogx/internal/kernel/enum"
+	"myblogx/internal/platform/cdc/outboxrelay"
+	"myblogx/internal/platform/http/res"
 	"myblogx/internal/platform/http/router"
 	"myblogx/internal/platform/http/ws"
 	"myblogx/internal/platform/readmodel"
@@ -19,6 +22,13 @@ import (
 	"gorm.io/gorm"
 )
 
+// chatPushHub 是私信 WS 通知用的进程内连接池。
+//
+// 由 WireChat 注入。只有真正持有连接池的进程（-role=api / -role=all）才有它；
+// 其他角色的 outbox 中继必须跳过私信事件（见 relayOptions 的 SkipEventNames），
+// 否则会在没有连接的进程里把事件"投递成功"并标记 done，通知就永久丢了。
+var chatPushHub *ws.Hub
+
 // WireChat 装配私信模块并注入路由处理器。
 func WireChat(infra *Infra) {
 	if infra == nil {
@@ -26,14 +36,17 @@ func WireChat(infra *Infra) {
 	}
 	redisOptions := redis_service.NewOptions(infra.Redis, infra.Logger)
 	hub := ws.NewHub()
+	chatPushHub = hub
 
+	// 同一个仓储同时实现读端口与写端口；用例层分别注入，读写分离在接口层面成立。
+	store := chatmysql.New(infra.DB)
 	svc := chatapp.New(
-		chatmysql.New(infra.DB),
+		store,
+		store,
 		&chatRelationBridge{},
 		&chatUserBridge{db: infra.DB},
 		&strangerBridge{db: infra.DB},
 		chatredis.NewLimiter(redisOptions),
-		chatHub{inner: hub},
 		infra.Logger,
 	)
 
@@ -45,6 +58,62 @@ func WireChat(infra *Infra) {
 		infra.Logger,
 	)
 	router.SetChatHandler(handler)
+}
+
+// chatSubscriber 把私信发件箱事件投递成 WebSocket 通知。
+//
+// 为什么是通知而不是"把消息推给对端"：HTTP 落库才是唯一真相（断网/断 WS 也能发出），
+// WS 只负责"有新消息了"与"对方已读了"这两个即时信号；接收方收到通知后
+// 自己走 HTTP 刷新会话、消息与未读数。
+//
+// 只做通知、不落库，因此天然幂等：中继重复投递只会多一次刷新信号。
+func chatSubscriber(logger chatdomain.Logger) outboxrelay.Subscriber {
+	return func(_ context.Context, e outboxrelay.Event) error {
+		if chatPushHub == nil {
+			return nil
+		}
+		switch e.EventName {
+		case chatdomain.EventMessageSent:
+			var notice chatdomain.SentNotice
+			if err := json.Unmarshal([]byte(e.Payload), &notice); err != nil {
+				warnBadPayload(logger, e, err)
+				return nil
+			}
+			pushNotice(notice.ReceiverID, notice)
+		case chatdomain.EventMessagesRead:
+			var read chatdomain.ReadEvent
+			if err := json.Unmarshal([]byte(e.Payload), &read); err != nil {
+				warnBadPayload(logger, e, err)
+				return nil
+			}
+			// 已读回执推给发送方，线上形状与既有 ReadPush 一致。
+			pushNotice(read.SenderID, read.ToPush())
+		}
+		return nil
+	}
+}
+
+// pushNotice 给某个用户的所有在线连接推一条通知帧。
+//
+// 推送成功数为 0 不是失败：对方不在线时通知没有意义（消息已经落库，
+// 下次打开会话仍能拉到），重试只会白白进死信。
+func pushNotice(userID ctype.ID, payload any) {
+	if chatPushHub == nil || userID.IsZero() {
+		return
+	}
+	chatPushHub.PushJSON(userID.Uint64(), res.Response{
+		Code: res.SuccessCode,
+		Data: payload,
+		Msg:  "成功",
+	})
+}
+
+// warnBadPayload 记录载荷解析失败；这类事件重投也不会成功，直接丢弃。
+func warnBadPayload(logger chatdomain.Logger, e outboxrelay.Event, err error) {
+	if logger == nil {
+		return
+	}
+	logger.Warnf("私信发件箱事件载荷无法解析，已丢弃: id=%s name=%s err=%v", e.ID, e.EventName, err)
 }
 
 // chatRelationBridge 读关注关系（来自 social 模块）。
@@ -79,14 +148,14 @@ type chatUserBridge struct {
 }
 
 // Displays 实现 domain.UserDirectory。
-func (b *chatUserBridge) Displays(_ context.Context, ids []ctype.ID) (map[ctype.ID]domain.Display, error) {
+func (b *chatUserBridge) Displays(_ context.Context, ids []ctype.ID) (map[ctype.ID]chatdomain.Display, error) {
 	raw, err := readmodel.LoadUserDisplayMap(b.db, ids)
 	if err != nil {
 		return nil, err
 	}
-	out := make(map[ctype.ID]domain.Display, len(raw))
+	out := make(map[ctype.ID]chatdomain.Display, len(raw))
 	for id, item := range raw {
-		out[id] = domain.Display{Nickname: item.Nickname, Avatar: item.Avatar}
+		out[id] = chatdomain.Display{Nickname: item.Nickname, Avatar: item.Avatar}
 	}
 	return out, nil
 }
@@ -147,14 +216,3 @@ func (b chatAuthBridge) SessionActive(ctx context.Context, userID, sessionID uin
 	// 同设备的非代表会话不会出现在聚合结果中，拿它判断会误判失效。
 	return b.svc.SessionActive(ctx, userID, sessionID)
 }
-
-// chatHub 把平台在线池适配成 chat 的 domain.Hub（类型用 ctype.ID）。
-type chatHub struct {
-	inner *ws.Hub
-}
-
-// IsOnline 实现 domain.Hub。
-func (h chatHub) IsOnline(userID ctype.ID) bool { return h.inner.IsOnline(userID.Uint64()) }
-
-// PushJSON 实现 domain.Hub。
-func (h chatHub) PushJSON(userID ctype.ID, v any) int { return h.inner.PushJSON(userID.Uint64(), v) }

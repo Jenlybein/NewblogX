@@ -12,15 +12,18 @@ import {
   markChatMessagesRead,
   markGlobalNoticeRead,
   markSiteMessageRead,
+  sendChatMessage,
 } from "~/services/inbox";
 import { uploadImageByTask } from "~/services/image";
 import type {
   ChatMessageItem,
+  ChatNotificationPayload,
   ChatSessionItem,
   GlobalNoticeItem,
   SiteMessageItem,
 } from "~/types/api";
 import {
+  buildChatClientMsgId,
   buildPreparedChatSession,
   isDraftChatSessionId,
   type InboxDraftSessionSeed,
@@ -44,7 +47,7 @@ export function useInboxCenter(options: UseInboxCenterOptions = {}) {
   const authStore = useAuthStore();
   const messageStore = useMessageStore();
   const chatStore = useChatStore();
-  const { socketStatus, socketError, connect, sendMessage, consumeIncomingMessages, inbox } = useChatSocket();
+  const { socketStatus, socketError, connect, takeNotifications, inbox } = useChatSocket();
 
   const activeTab = shallowRef<InboxTab>("site");
   const activeSiteGroup = shallowRef<SiteMessageGroup>(1);
@@ -61,6 +64,9 @@ export function useInboxCenter(options: UseInboxCenterOptions = {}) {
   // 草稿的发送类型：1 文本 / 7 Markdown。图片不走草稿，走 sendChatImage。
   const chatDraftType = shallowRef<ChatSendType>(1);
   const imagePending = shallowRef(false);
+  // 上一次失败的发送：同一内容重试时复用它的幂等键。
+  // 否则"请求已落库、响应丢了"的重试会变成第二条消息。
+  const failedSend = shallowRef<{ content: string; msgType: ChatSendType; clientMsgId: string } | null>(null);
 
   const sitePending = shallowRef(false);
   const globalPending = shallowRef(false);
@@ -287,11 +293,28 @@ export function useInboxCenter(options: UseInboxCenterOptions = {}) {
     await Promise.all([messageStore.refreshSummary(), loadChatMessages()]);
   }
 
-  // 发送的统一出口：乐观插入 → 调发送 → 刷新会话与消息。
+  // newClientNonce 生成幂等键的随机段：优先 crypto.randomUUID，旧环境下退化。
+  function newClientNonce() {
+    const cryptoApi = globalThis.crypto;
+    if (cryptoApi && typeof cryptoApi.randomUUID === "function") {
+      return cryptoApi.randomUUID();
+    }
+    return `${Math.random().toString(36).slice(2)}${Math.random().toString(36).slice(2)}`;
+  }
+
+  // resolveClientMsgId 让"同一次发送的重试"复用同一个幂等键。
+  function resolveClientMsgId(content: string, msgType: ChatSendType) {
+    const last = failedSend.value;
+    if (last && last.content === content && last.msgType === msgType) {
+      return last.clientMsgId;
+    }
+    return buildChatClientMsgId(newClientNonce, () => Date.now());
+  }
+
+  // 发送的统一出口：乐观插入 → HTTP 落库 → 刷新会话与消息。
   //
-  // 以前只支持文本，msg_type 写死在两处（乐观消息和请求体各一次）。
-  // 加图片消息时要同步改两遍，漏一处就会出现"本地显示图片、对方收到文本"。
-  // 三种类型现在共用一个出口，类型只传一次。
+  // #201 之后发送只走 HTTP（唯一发送通道）：WebSocket 断开/断网时照样能发出，
+  // WS 只负责把通知推给对端。三种消息类型共用一个出口，类型只传一次。
   async function deliverChatMessage(
     content: string,
     msgType: ChatSendType,
@@ -302,6 +325,7 @@ export function useInboxCenter(options: UseInboxCenterOptions = {}) {
     }
 
     const usedPreparedSession = isDraftChatSessionId(currentSession.session_id);
+    const clientMsgId = resolveClientMsgId(content, msgType);
     const optimisticMessage: ChatMessageItem = {
       id: `temp-${Date.now()}`,
       sender_id: String(authStore.profileId ?? ""),
@@ -318,11 +342,21 @@ export function useInboxCenter(options: UseInboxCenterOptions = {}) {
     chatMessages.value = [...chatMessages.value, optimisticMessage];
 
     try {
-      await sendMessage({
+      const sent = await sendChatMessage({
         receiver_id: currentSession.receiver_id,
         msg_type: msgType,
         content,
+        client_msg_id: clientMsgId,
       });
+
+      // 用服务端返回的真实消息替换乐观项：幂等重试返回的是第一次落库那条，
+      // 换成它的 ID 后本地不会留下两条。
+      if (sent?.id) {
+        chatMessages.value = chatMessages.value.map((item) =>
+          item.id === optimisticMessage.id ? sent : item,
+        );
+      }
+      failedSend.value = null;
 
       await loadChatSessions();
 
@@ -350,6 +384,9 @@ export function useInboxCenter(options: UseInboxCenterOptions = {}) {
       };
     } catch (error) {
       chatMessages.value = chatMessages.value.filter((item) => item.id !== optimisticMessage.id);
+      // 记住这次发送：用户再点一次"发送"（内容相同）时复用同一个幂等键，
+      // 避免"其实已落库、只是响应丢了"的重试变成第二条消息。
+      failedSend.value = { content, msgType, clientMsgId };
       throw error;
     }
   }
@@ -447,16 +484,47 @@ export function useInboxCenter(options: UseInboxCenterOptions = {}) {
     },
   );
 
+  // WS 只推通知（有新消息 / 对方已读）：收到后刷新会话列表与未读数，
+  // 命中当前打开的会话时再刷新消息。这样"对端在线但当前没打开这个会话"
+  // 也会更新左侧红点，而不是只回购当前会话。
   watch(
     () => inbox.value.length,
     async () => {
-      const sessionId = activeSession.value?.session_id;
-      if (!sessionId || isDraftChatSessionId(sessionId)) return;
-      const incoming = consumeIncomingMessages(sessionId);
-      if (!incoming.length) return;
-      await Promise.all([loadChatMessages(sessionId), loadChatSessions(), messageStore.refreshSummary()]);
+      const notifications: ChatNotificationPayload[] = takeNotifications();
+      if (!notifications.length) return;
+
+      const activeId = activeSession.value?.session_id;
+      const tasks: Promise<unknown>[] = [loadChatSessions(), messageStore.refreshSummary()];
+      if (
+        activeId &&
+        !isDraftChatSessionId(activeId) &&
+        notifications.some((item) => item.session_id === activeId)
+      ) {
+        tasks.push(loadChatMessages(activeId));
+      }
+      await Promise.all(tasks);
     },
   );
+
+  /**
+   * 建立（或重连）实时连接，并在连上后补齐断线期间错过的消息。
+   *
+   * 为什么要补：通知是"尽力而为"——对方离线时那条通知帧没人接，中继会把事件
+   * 标记完成；重连后不会自动重放。所以连上之后必须主动刷新一次会话、未读与
+   * 当前会话消息，否则"断线期间对方发来的消息"在界面上要等下次切页才出现。
+   */
+  async function connectSocket() {
+    const instance = await connect();
+    if (!instance) {
+      return null;
+    }
+    const tasks: Promise<unknown>[] = [loadChatSessions(), messageStore.refreshSummary()];
+    if (chatStore.activeSessionId) {
+      tasks.push(loadChatMessages(chatStore.activeSessionId));
+    }
+    await Promise.all(tasks);
+    return instance;
+  }
 
   async function loadMoreSiteMessages() {
     if (sitePending.value || !siteHasMore.value) {
@@ -515,6 +583,6 @@ export function useInboxCenter(options: UseInboxCenterOptions = {}) {
     removeChatMessage,
     sendCurrentChatMessage,
     sendChatImage,
-    connectSocket: connect,
+    connectSocket,
   };
 }

@@ -7,6 +7,7 @@ import (
 	"time"
 
 	articleapp "myblogx/internal/article/app"
+	chatdomain "myblogx/internal/chat/domain"
 	"myblogx/internal/kernel/ctype"
 	notificationapp "myblogx/internal/notification/app"
 	"myblogx/internal/platform/cdc/outboxrelay"
@@ -42,6 +43,13 @@ func WireOutboxRelay(infra *Infra) {
 	relay.On(articleapp.EventArticleDigg, diggNotifySubscriber(infra))
 	relay.On(articleapp.EventArticleFavorited, favorNotifySubscriber(infra))
 
+	// 私信：HTTP 落库是唯一真相，WS 只做通知。
+	//
+	// 发送与已读的推送都从这里投递，不在业务事务里直接写连接池：
+	// 推送失败、进程崩溃都不会丢（事件已随消息一起落库，中继会重投）。
+	relay.On(chatdomain.EventMessageSent, chatSubscriber(infra.Logger))
+	relay.On(chatdomain.EventMessagesRead, chatSubscriber(infra.Logger))
+
 	// 注册为进程内实例，river 的 CDC 路径通过它入队。
 	outboxrelay.SetCurrent(relay)
 	relay.Run()
@@ -53,6 +61,12 @@ func WireOutboxRelay(infra *Infra) {
 // "没配置"与"配成 0"都按默认保留期处理。
 func relayOptions(infra *Infra) outboxrelay.Options {
 	opts := outboxrelay.Options{}
+	// 私信事件的唯一下游是 WS 推送，只有持有连接池的进程（api / all）能做。
+	// 其他角色的中继（river）绝对不能领取它们：领取后找不到连接池，
+	// 订阅者只能"什么都不做"地返回成功，事件被标记 done，通知就永久丢了。
+	if chatPushHub == nil {
+		opts.SkipEventNames = []string{chatdomain.EventMessageSent, chatdomain.EventMessagesRead}
+	}
 	if infra == nil || infra.Config == nil {
 		return opts
 	}

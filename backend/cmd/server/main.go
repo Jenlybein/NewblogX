@@ -125,6 +125,11 @@ func main() {
 		if err := app.WireHTTP(infra, lifecycle); err != nil {
 			infra.Logger.Fatalf("HTTP 组装失败: %v", err)
 		}
+		// all 角色同时承担 HTTP 与后台任务，也必须启动 outbox 中继：
+		// 领域事件的副作用（通知、评分、私信 WS 通知）都靠它投递，
+		// 少了它这些副作用会被静默丢弃（事件只在表里 pending）。
+		// 注意顺序：必须在 WireHTTP 之后，私信的 WS 通知订阅者才拿得到连接池。
+		startOutboxRelay(infra, lifecycle)
 		lifecycle.WaitForShutdown()
 		return
 	default:

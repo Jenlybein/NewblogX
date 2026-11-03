@@ -92,7 +92,7 @@ function handleImagePicked(event: Event) {
         <div class="studio-toolbar studio-toolbar--stack">
           <div>
             <h2 class="section-title">私信会话</h2>
-            <p class="muted">HTTP 拉会话，WebSocket 推消息。</p>
+            <p class="muted">HTTP 收发与落库，WebSocket 只推新消息与已读通知。</p>
           </div>
           <NInput
             :value="keyword"

@@ -7,7 +7,6 @@ import ArticleScoreModal from "~/components/article/ArticleScoreModal.vue";
 import StudioAiAssistPanel from "~/components/studio/StudioAiAssistPanel.vue";
 import StudioSelectionAiToolbar from "~/components/studio/StudioSelectionAiToolbar.vue";
 import StudioWritePreview from "~/components/studio/StudioWritePreview.vue";
-import StudioCoverFramingDialog from "~/components/studio/StudioCoverFramingDialog.vue";
 import StudioWritePublishDialog from "~/components/studio/StudioWritePublishDialog.vue";
 import StudioWriteToc from "~/components/studio/StudioWriteToc.vue";
 import StudioWriteHeader from "~/components/studio/StudioWriteHeader.vue";
@@ -78,16 +77,8 @@ const {
   coverError,
   coverDirty,
   coverImageSize,
-  coverRoute,
-  coverFramed,
-  coverFramingOpen,
-  coverFramingPreviewUrl,
-  coverPreviewStyle,
   clearCoverSelection,
   handleCoverFileChange,
-  openCoverFraming,
-  confirmCoverFraming,
-  cancelCoverFraming,
   buildArticlePayload,
   canSubmit,
   contentStats,
@@ -393,9 +384,6 @@ ref="editorTextareaRef" v-model="form.content" class="write-page__textarea"
       :cover-stage="coverUploadStage"
       :cover-error="coverError"
       :cover-size="coverImageSize"
-      :cover-route="coverRoute"
-      :cover-framed="coverFramed"
-      :cover-preview-style="coverPreviewStyle"
       :category-options="categoryOptions || []"
       :tag-options="tagOptions || []"
       :visibility-options="visibilityOptions"
@@ -406,17 +394,8 @@ ref="editorTextareaRef" v-model="form.content" class="write-page__textarea"
       :publish-label="publishActionLabel"
       :on-cover-change="handleCoverFileChange"
       :on-clear="clearCoverSelection"
-      :on-frame="openCoverFraming"
       @submit="submitArticle"
       @ai-fill="handleAiAssist" />
-
-    <StudioCoverFramingDialog
-      v-model:show="coverFramingOpen"
-      :src="coverFramingPreviewUrl || coverPreviewUrl"
-      :image-width="coverImageSize?.width ?? 0"
-      :image-height="coverImageSize?.height ?? 0"
-      @confirm="confirmCoverFraming"
-      @cancel="cancelCoverFraming" />
   </div>
 </template>
 

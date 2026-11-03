@@ -6,7 +6,6 @@
     "title",
     "abstract",
     "cover",
-    "crop",
     "view_count",
     "digg_count",
     "comment_count",
@@ -107,6 +106,17 @@
             {
               "term": {
                 "author_is_admin": true
+              }
+            },
+            {
+              "bool": {
+                "must_not": [
+                  {
+                    "term": {
+                      "is_deleted": true
+                    }
+                  }
+                ]
               }
             }
           ],

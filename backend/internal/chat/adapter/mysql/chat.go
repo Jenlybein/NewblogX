@@ -3,16 +3,17 @@ package mysql
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
+
+	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 
 	"myblogx/internal/apperr"
 	"myblogx/internal/chat/domain"
 	"myblogx/internal/kernel/ctype"
 	"myblogx/internal/platform/idgen"
-
-	"gorm.io/gorm"
-	"gorm.io/gorm/clause"
 )
 
 // sessionRow 对应 chat_session_models。
@@ -57,7 +58,7 @@ type msgRow struct {
 // TableName 固定表名。
 func (msgRow) TableName() string { return "chat_msg_models" }
 
-// stateRow 对应 chat_msg_user_states。
+// stateRow 对应 chat_msg_user_state_models。
 type stateRow struct {
 	ID        ctype.ID `gorm:"primaryKey;autoIncrement:false"`
 	CreatedAt time.Time
@@ -69,30 +70,59 @@ type stateRow struct {
 }
 
 // TableName 固定表名。
-func (stateRow) TableName() string { return "chat_msg_user_states" }
+//
+// 必须与 schema.sql 的 chat_msg_user_state_models 逐字一致：这张表既被读
+// （ListMessages 过滤子查询、UserDeletedAt）又被写（DeleteMessagesForUser），
+// 名字漂移在生产就是 Error 1146。守卫见 testkit/schema 的表名静态测试。
+func (stateRow) TableName() string { return "chat_msg_user_state_models" }
 
 // Repo 实现 domain.Repository。
 type Repo struct {
 	db *gorm.DB
 }
 
-var _ domain.Repository = (*Repo)(nil)
+var (
+	_ domain.Query   = (*Repo)(nil)
+	_ domain.Command = (*Repo)(nil)
+)
 
 // New 构造仓储。
 func New(db *gorm.DB) *Repo { return &Repo{db: db} }
 
-// SendMessage 实现 domain.Repository。
-func (r *Repo) SendMessage(ctx context.Context, msg *domain.Message, senderDisplay, receiverDisplay domain.Display, summary string) error {
-	if msg.ID.IsZero() {
+// errDuplicateClientMsg 是"命中幂等键、该消息已存在"的内部信号。
+//
+// 只在事务内使用：返回它让事务回滚（不产生第二条消息、也不重复加未读），
+// 再由 Send 在同 ID 上读回第一次落库的那条。
+var errDuplicateClientMsg = errors.New("chat: duplicate client msg key")
+
+// Send 实现 domain.Command。
+//
+// 幂等：cmd.ClientMsgID 非空时，主键由（发送人，幂等键）派生（见
+// domain.MessageIDFromClientKey）。重复提交会撞主键，整个事务回滚，
+// 然后读回第一次落库的消息并标记 duplicated=true。
+// 这就是"零 DDL 下的幂等落库"：幂等性由数据库唯一约束保证，
+// 不依赖进程内缓存、不依赖 Redis、多实例并发也成立。
+func (r *Repo) Send(ctx context.Context, cmd domain.SendCommand, senderDisplay, receiverDisplay domain.Display, summary string) (domain.Message, bool, error) {
+	msg := domain.Message{
+		SenderID:   cmd.SenderID,
+		ReceiverID: cmd.ReceiverID,
+		SessionID:  domain.BuildSessionID(cmd.SenderID, cmd.ReceiverID),
+		Content:    cmd.Content,
+		SendTime:   cmd.SendTime,
+		MsgStatus:  domain.StatusSent,
+		MsgType:    cmd.MsgType,
+	}
+	if cmd.ClientMsgID != "" {
+		msg.ID = domain.MessageIDFromClientKey(cmd.SenderID, cmd.ClientMsgID)
+	} else {
 		next, err := idgen.Next()
 		if err != nil {
-			return err
+			return domain.Message{}, false, err
 		}
 		msg.ID = ctype.NewID(next.Uint64())
 	}
-	msg.SessionID = domain.BuildSessionID(msg.SenderID, msg.ReceiverID)
 
-	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		sessions := []sessionRow{{
 			SessionID:        msg.SessionID,
 			UserID:           msg.SenderID,
@@ -159,6 +189,10 @@ func (r *Repo) SendMessage(ctx context.Context, msg *domain.Message, senderDispl
 			MsgType:    int8(msg.MsgType),
 		}
 		if err := tx.Create(&row).Error; err != nil {
+			// 幂等键命中：主键已存在。把整个事务回滚，交给调用方读回既有消息。
+			if cmd.ClientMsgID != "" && isDuplicateKey(err) {
+				return errDuplicateClientMsg
+			}
 			return err
 		}
 		msg.ID = ctype.NewID(row.ID.Uint64())
@@ -187,8 +221,55 @@ func (r *Repo) SendMessage(ctx context.Context, msg *domain.Message, senderDispl
 		if res.RowsAffected != expected {
 			return fmt.Errorf("chat session update mismatch: session=%s affected=%d", msg.SessionID, res.RowsAffected)
 		}
-		return nil
+
+		// 写副作用走发件箱：同事务落一条"消息已发送"事件，
+		// 由中继的订阅者异步推 WS 通知（HTTP 落库是唯一真相，WS 只是通知）。
+		return emitEvent(tx, domain.EventMessageSent, msg.ID, domain.SentNotice{
+			MessageID:  msg.ID,
+			SenderID:   msg.SenderID,
+			ReceiverID: msg.ReceiverID,
+			SessionID:  msg.SessionID,
+			MsgType:    msg.MsgType,
+			SendTime:   msg.SendTime,
+		})
 	})
+	if err != nil {
+		// 幂等命中：读回第一次落库的消息，调用方据此回滚额度预占。
+		if errors.Is(err, errDuplicateClientMsg) {
+			existing, loadErr := r.findMessage(ctx, msg.ID)
+			if loadErr != nil {
+				return domain.Message{}, false, loadErr
+			}
+			if existing.SenderID != cmd.SenderID {
+				return domain.Message{}, false, apperr.New(apperr.CodeChatSendFailed)
+			}
+			return existing, true, nil
+		}
+		return domain.Message{}, false, err
+	}
+	return msg, false, nil
+}
+
+// findMessage 按主键读一条消息（幂等重放时读回既有那条）。
+func (r *Repo) findMessage(ctx context.Context, id ctype.ID) (domain.Message, error) {
+	var row msgRow
+	if err := r.db.WithContext(ctx).Unscoped().Take(&row, "id = ?", id.Uint64()).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return domain.Message{}, apperr.New(apperr.CodeChatSendFailed)
+		}
+		return domain.Message{}, err
+	}
+	return toMessage(row), nil
+}
+
+// isDuplicateKey 识别唯一键冲突。
+//
+// 生产（core/init_db.go）与测试库（testkit/mysqlcontainer）都开了
+// gorm.Config.TranslateError，所以冲突统一表现为 gorm.ErrDuplicatedKey。
+// 全仓的判重都只认这一个错误（见 article 的 taxonomy_repo / collection_repo），
+// 这里保持一致；若哪天有调用方漏开翻译，它会退化成普通失败而不是静默丢幂等。
+func isDuplicateKey(err error) bool {
+	return errors.Is(err, gorm.ErrDuplicatedKey)
 }
 
 // fillRowIDs 给会话行补雪花主键。
@@ -332,16 +413,45 @@ func (r *Repo) MarkRead(ctx context.Context, userID ctype.ID, ids []ctype.ID) ([
 		}
 		msgIDs := make([]uint64, 0, len(rows))
 		sessionDelta := make(map[string]int, len(rows))
+		// 已读回执是"写副作用"，按（发送人, 会话）聚合后走发件箱，
+		// 不在事务内直接推连接池（推送失败/进程崩溃都不会丢回执）。
+		type readKey struct {
+			senderID  ctype.ID
+			sessionID string
+		}
+		readGroups := make(map[readKey][]ctype.ID, len(rows))
+		readOrder := make([]readKey, 0, len(rows))
 		for _, row := range rows {
 			msgIDs = append(msgIDs, row.ID.Uint64())
 			sessionDelta[row.SessionID]++
 			affected = append(affected, toMessage(row))
+
+			key := readKey{senderID: ctype.NewID(row.SenderID.Uint64()), sessionID: row.SessionID}
+			if _, ok := readGroups[key]; !ok {
+				readOrder = append(readOrder, key)
+			}
+			readGroups[key] = append(readGroups[key], ctype.NewID(row.ID.Uint64()))
 		}
 		if err := tx.Model(&msgRow{}).Where("id IN ?", msgIDs).
 			Updates(map[string]any{"msg_status": int8(domain.StatusRead), "read_at": &now}).Error; err != nil {
 			return err
 		}
-		return decreaseUnread(tx, userID, sessionDelta)
+		if err := decreaseUnread(tx, userID, sessionDelta); err != nil {
+			return err
+		}
+		for _, key := range readOrder {
+			idList := readGroups[key]
+			if err := emitEvent(tx, domain.EventMessagesRead, idList[0], domain.ReadEvent{
+				ReaderID:  userID,
+				SenderID:  key.senderID,
+				SessionID: key.sessionID,
+				MsgIDList: idList,
+				ReadAt:    now,
+			}); err != nil {
+				return err
+			}
+		}
+		return nil
 	})
 	if err != nil {
 		return nil, err

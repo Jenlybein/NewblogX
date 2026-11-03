@@ -6,7 +6,6 @@
     "title",
     "abstract",
     "cover",
-    "crop",
     "view_count",
     "digg_count",
     "comment_count",
@@ -81,6 +80,19 @@
       ],
       "query": {
         "bool": {
+          "filter": [
+            {
+              "bool": {
+                "must_not": [
+                  {
+                    "term": {
+                      "is_deleted": true
+                    }
+                  }
+                ]
+              }
+            }
+          ],
           "must": [
             {
               "match_all": {}

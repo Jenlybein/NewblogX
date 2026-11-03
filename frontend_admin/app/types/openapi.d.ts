@@ -1783,7 +1783,32 @@ export interface paths {
             };
         };
         put?: never;
-        post?: never;
+        /** 发送私信消息 */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            /** @description 发送参数 */
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["internal_chat_adapter_http.SendMessageRequest"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["myblogx_internal_kernel.Envelope-myblogx_internal_chat_domain_MessageItem"];
+                    };
+                };
+            };
+        };
         /** 删除消息 */
         delete: {
             parameters: {
@@ -4291,6 +4316,521 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/projects": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 项目列表 */
+        get: {
+            parameters: {
+                query?: {
+                    /** @description 页码 */
+                    page?: number;
+                    /** @description 每页数量 */
+                    limit?: number;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["myblogx_internal_kernel.Envelope-myblogx_internal_kernel_ListData-internal_article_adapter_http_ProjectCardResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        /** 新建项目 */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            /** @description 请求体 */
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["internal_article_adapter_http.ProjectCreateRequest"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["myblogx_internal_kernel.Envelope-internal_article_adapter_http_ProjectCreatedResponse"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/projects/admin": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 后台项目列表（含未展示） */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["myblogx_internal_kernel.Envelope-myblogx_internal_kernel_ListData-internal_article_adapter_http_ProjectAdminCard"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/projects/order": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** 项目之间排序 */
+        patch: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            /** @description 请求体 */
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["internal_article_adapter_http.ProjectOrderRequest"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["myblogx_internal_kernel.Envelope-myblogx_internal_kernel_EmptyData"];
+                    };
+                };
+            };
+        };
+        trace?: never;
+    };
+    "/projects/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 项目详情 */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    /** @description 项目 ID */
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["myblogx_internal_kernel.Envelope-internal_article_adapter_http_ProjectDetailResponse"];
+                    };
+                };
+            };
+        };
+        /** 改项目 */
+        put: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    /** @description 项目 ID */
+                    id: string;
+                };
+                cookie?: never;
+            };
+            /** @description 请求体 */
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["internal_article_adapter_http.ProjectUpdateRequest"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["myblogx_internal_kernel.Envelope-myblogx_internal_kernel_EmptyData"];
+                    };
+                };
+            };
+        };
+        post?: never;
+        /** 删项目 */
+        delete: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    /** @description 项目 ID */
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["myblogx_internal_kernel.Envelope-myblogx_internal_kernel_EmptyData"];
+                    };
+                };
+            };
+        };
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/projects/{id}/admin/stale": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** 清理项目失效行 */
+        delete: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    /** @description 项目 ID */
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["myblogx_internal_kernel.Envelope-internal_article_adapter_http_ProjectStaleCleanupResponse"];
+                    };
+                };
+            };
+        };
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/projects/{id}/articles": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 收录文章进项目 */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    /** @description 项目 ID */
+                    id: string;
+                };
+                cookie?: never;
+            };
+            /** @description 请求体 */
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["internal_article_adapter_http.ProjectArticleRequest"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["myblogx_internal_kernel.Envelope-myblogx_internal_kernel_EmptyData"];
+                    };
+                };
+            };
+        };
+        /** 从项目移除文章 */
+        delete: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    /** @description 项目 ID */
+                    id: string;
+                };
+                cookie?: never;
+            };
+            /** @description 请求体 */
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["internal_article_adapter_http.ProjectArticleRequest"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["myblogx_internal_kernel.Envelope-myblogx_internal_kernel_EmptyData"];
+                    };
+                };
+            };
+        };
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/projects/{id}/articles/admin": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 后台项目收录行 */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    /** @description 项目 ID */
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["myblogx_internal_kernel.Envelope-myblogx_internal_kernel_ListData-internal_article_adapter_http_ProjectAdminItem"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/projects/{id}/articles/batch": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 批量收录文章进项目 */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    /** @description 项目 ID */
+                    id: string;
+                };
+                cookie?: never;
+            };
+            /** @description 请求体 */
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["internal_article_adapter_http.ProjectBatchIncludeRequest"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["myblogx_internal_kernel.Envelope-internal_article_adapter_http_ProjectBatchIncludeResponse"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/projects/{id}/articles/order": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** 项目内文章排序 */
+        patch: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    /** @description 项目 ID */
+                    id: string;
+                };
+                cookie?: never;
+            };
+            /** @description 请求体 */
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["internal_article_adapter_http.ProjectArticleOrderRequest"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["myblogx_internal_kernel.Envelope-myblogx_internal_kernel_EmptyData"];
+                    };
+                };
+            };
+        };
+        trace?: never;
+    };
+    "/projects/{id}/display": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** 项目展示开关 */
+        patch: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    /** @description 项目 ID */
+                    id: string;
+                };
+                cookie?: never;
+            };
+            /** @description 请求体 */
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["internal_article_adapter_http.ProjectDisplayRequest"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["myblogx_internal_kernel.Envelope-myblogx_internal_kernel_EmptyData"];
+                    };
+                };
+            };
+        };
+        trace?: never;
+    };
     "/search/articles": {
         parameters: {
             query?: never;
@@ -5864,8 +6404,6 @@ export interface components {
             comments_toggle?: boolean;
             content: string;
             cover_image_id?: string;
-            /** @description Crop 是封面的可选取景参数：不传 = 缺省（居中、缩放 1）。 */
-            crop?: components["schemas"]["internal_article_adapter_http.ArticleCrop"];
             /** @enum {integer} */
             status: 1 | 2;
             tag_ids?: string[];
@@ -5884,11 +6422,6 @@ export interface components {
             title?: string;
             visibility_status?: components["schemas"]["internal_article_adapter_http.ArticleVisibility"];
         };
-        "internal_article_adapter_http.ArticleCrop": {
-            focus_x?: number;
-            focus_y?: number;
-            zoom?: number;
-        };
         "internal_article_adapter_http.ArticleDetailResponse": {
             abstract?: string;
             author_abstract?: string;
@@ -5906,8 +6439,6 @@ export interface components {
             cover?: string;
             cover_image_id?: string;
             created_at?: string;
-            /** @description Crop 总是有值：没有取景记录的存量文章回传缺省（居中、缩放 1）。 */
-            crop?: components["schemas"]["internal_article_adapter_http.ArticleCrop"];
             digg_count?: number;
             favor_count?: number;
             id?: string;
@@ -5992,11 +6523,6 @@ export interface components {
             comments_toggle?: boolean;
             content?: string;
             cover_image_id?: string;
-            /**
-             * @description Crop 不传 = 保留已存的取景；传了才覆盖。与创建语义不同，别写混：
-             *     更新时不传若被当成"清空"，改一个标题就会静默抹掉作者调好的构图。
-             */
-            crop?: components["schemas"]["internal_article_adapter_http.ArticleCrop"];
             /** @enum {integer} */
             status?: 1 | 2;
             tag_ids?: string[];
@@ -6169,6 +6695,103 @@ export interface components {
             id?: string;
             title: string;
         };
+        "internal_article_adapter_http.ProjectAdminCard": {
+            article_count?: number;
+            cover?: string;
+            description?: string;
+            displayed?: boolean;
+            /**
+             * @description FallbackCover 是没上传封面时读者看到的封面（首篇公开文章的封面）。
+             *
+             *     与 cover 分开：后台列表要按读者的样子预览，但编辑表单必须能看出
+             *     "这张是回退来的"，否则一保存就把回退值固化成上传值。
+             */
+            fallback_cover?: string;
+            id?: string;
+            sort_order?: number;
+            title?: string;
+        };
+        "internal_article_adapter_http.ProjectAdminItem": {
+            article_id?: string;
+            cover?: string;
+            sort_order?: number;
+            /** @description Stale 文章是否已失效（被删 / 退回草稿 / 不再可见）。判定与热门置顶 / 合集共用。 */
+            stale?: boolean;
+            /**
+             * @description StaleReason 失效原因枚举；仍有效时为空串。枚举值由后端 domain 定义，
+             *     前端只做文案映射，不据此另判一次失效。
+             */
+            stale_reason?: string;
+            title?: string;
+        };
+        "internal_article_adapter_http.ProjectArticleItemResponse": {
+            abstract?: string;
+            article_id?: string;
+            author_nickname?: string;
+            category_title?: string;
+            cover?: string;
+            sort_order?: number;
+            title?: string;
+            view_count?: number;
+        };
+        "internal_article_adapter_http.ProjectArticleOrderRequest": {
+            article_ids: string[];
+        };
+        "internal_article_adapter_http.ProjectArticleRequest": {
+            article_id: string;
+        };
+        "internal_article_adapter_http.ProjectBatchIncludeItem": {
+            article_id?: string;
+            outcome?: string;
+        };
+        "internal_article_adapter_http.ProjectBatchIncludeRequest": {
+            article_ids: string[];
+        };
+        "internal_article_adapter_http.ProjectBatchIncludeResponse": {
+            duplicated?: number;
+            included?: number;
+            rejected?: number;
+            results?: components["schemas"]["internal_article_adapter_http.ProjectBatchIncludeItem"][];
+        };
+        "internal_article_adapter_http.ProjectCardResponse": {
+            article_count?: number;
+            cover?: string;
+            created_at?: string;
+            description?: string;
+            id?: string;
+            title?: string;
+        };
+        "internal_article_adapter_http.ProjectCreateRequest": {
+            cover?: string;
+            description?: string;
+            displayed?: boolean;
+            title: string;
+        };
+        "internal_article_adapter_http.ProjectCreatedResponse": {
+            id?: string;
+        };
+        "internal_article_adapter_http.ProjectDetailResponse": {
+            articles?: components["schemas"]["internal_article_adapter_http.ProjectArticleItemResponse"][];
+            cover?: string;
+            created_at?: string;
+            description?: string;
+            id?: string;
+            title?: string;
+        };
+        "internal_article_adapter_http.ProjectDisplayRequest": {
+            displayed?: boolean;
+        };
+        "internal_article_adapter_http.ProjectOrderRequest": {
+            project_ids: string[];
+        };
+        "internal_article_adapter_http.ProjectStaleCleanupResponse": {
+            removed?: number;
+        };
+        "internal_article_adapter_http.ProjectUpdateRequest": {
+            cover?: string;
+            description?: string;
+            title: string;
+        };
         /** @enum {string} */
         "internal_article_adapter_http.ReviewTaskSource": "create" | "edit" | "resubmit";
         /** @enum {string} */
@@ -6254,6 +6877,21 @@ export interface components {
         "internal_auth_adapter_http.UpdatePasswordRequest": {
             new_password: string;
             old_password: string;
+        };
+        "internal_chat_adapter_http.SendMessageRequest": {
+            /**
+             * @description ClientMsgID 是客户端生成的幂等键。
+             *
+             *     必须由客户端提供（同一次发送的多次重试要复用同一个值）：服务端把
+             *     （发送人, client_msg_id）映射到消息主键，重复提交返回第一次落库的消息，
+             *     不产生第二条、不重复加未读。缺失时后端会退化成普通发送（不做幂等），
+             *     所以这里要求必填，把幂等语义钉在契约上。
+             */
+            client_msg_id: string;
+            content: string;
+            /** @enum {integer} */
+            msg_type: 1 | 2 | 7;
+            receiver_id: string;
         };
         "internal_chat_adapter_http.WsTicketResponse": {
             ticket?: string;
@@ -6418,21 +7056,13 @@ export interface components {
         };
         "internal_site_adapter_http.BannerCreateRequest": {
             cover_image_id: string;
-            /**
-             * @description Crop 是可选取景参数。可选是为了让老调用方（还没接取景的后台）照旧能用。
-             *
-             *     两种语义不同，别写混：
-             *       · 创建：不传 = 缺省（居中、缩放 1）—— 新建必须有一条确定的取景；
-             *       · 更新：不传 = **保留已存的取景** —— 否则改一个跳转链接就会静默抹掉运营调好的构图。
-             */
-            crop?: components["schemas"]["internal_site_adapter_http.BannerCrop"];
             href?: string;
             show?: boolean;
             /**
              * @description Title 是轮播标题：纯文本、可空。
              *
              *     创建与更新都是"整体替换"：不传或传空串就是保存空标题。
-             *     后台在不改标题的路径（例如只重新取景）必须把原值一起带上，
+             *     后台在不改标题的路径（例如只改封面）必须把原值一起带上，
              *     否则会把已有标题清掉。
              */
             title?: string;
@@ -6440,23 +7070,15 @@ export interface components {
         "internal_site_adapter_http.BannerCreateResponse": {
             cover?: string;
             cover_image_id?: string;
-            crop?: components["schemas"]["internal_site_adapter_http.BannerCrop"];
             href?: string;
             id?: string;
             show?: boolean;
             title?: string;
         };
-        "internal_site_adapter_http.BannerCrop": {
-            focus_x?: number;
-            focus_y?: number;
-            zoom?: number;
-        };
         "internal_site_adapter_http.BannerItem": {
             cover?: string;
             cover_image_id?: string;
             created_at?: string;
-            /** @description Crop 总是有值：没有取景记录的历史图回传缺省（居中、缩放 1）。 */
-            crop?: components["schemas"]["internal_site_adapter_http.BannerCrop"];
             deleted_at?: string;
             href?: string;
             id?: string;
@@ -6472,9 +7094,7 @@ export interface components {
             description?: string;
             icon?: string;
             keywords?: string;
-            logo?: string;
             project_title?: string;
-            site_title?: string;
         };
         "internal_site_adapter_http.SidebarArticleItem": {
             digg_count?: number;
@@ -6966,6 +7586,26 @@ export interface components {
             data?: components["schemas"]["internal_article_adapter_http.CollectionStaleCleanupResponse"];
             msg?: string;
         };
+        "myblogx_internal_kernel.Envelope-internal_article_adapter_http_ProjectBatchIncludeResponse": {
+            code?: number;
+            data?: components["schemas"]["internal_article_adapter_http.ProjectBatchIncludeResponse"];
+            msg?: string;
+        };
+        "myblogx_internal_kernel.Envelope-internal_article_adapter_http_ProjectCreatedResponse": {
+            code?: number;
+            data?: components["schemas"]["internal_article_adapter_http.ProjectCreatedResponse"];
+            msg?: string;
+        };
+        "myblogx_internal_kernel.Envelope-internal_article_adapter_http_ProjectDetailResponse": {
+            code?: number;
+            data?: components["schemas"]["internal_article_adapter_http.ProjectDetailResponse"];
+            msg?: string;
+        };
+        "myblogx_internal_kernel.Envelope-internal_article_adapter_http_ProjectStaleCleanupResponse": {
+            code?: number;
+            data?: components["schemas"]["internal_article_adapter_http.ProjectStaleCleanupResponse"];
+            msg?: string;
+        };
         "myblogx_internal_kernel.Envelope-internal_auth_adapter_http_SendEmailResponse": {
             code?: number;
             data?: components["schemas"]["internal_auth_adapter_http.SendEmailResponse"];
@@ -7096,6 +7736,11 @@ export interface components {
             data?: components["schemas"]["myblogx_internal_analytics_adapter_clickhouse.RuntimeLogRecord"];
             msg?: string;
         };
+        "myblogx_internal_kernel.Envelope-myblogx_internal_chat_domain_MessageItem": {
+            code?: number;
+            data?: components["schemas"]["myblogx_internal_chat_domain.MessageItem"];
+            msg?: string;
+        };
         "myblogx_internal_kernel.Envelope-myblogx_internal_comment_app_CreateResult": {
             code?: number;
             data?: components["schemas"]["myblogx_internal_comment_app.CreateResult"];
@@ -7204,6 +7849,21 @@ export interface components {
         "myblogx_internal_kernel.Envelope-myblogx_internal_kernel_ListData-internal_article_adapter_http_FavoriteListItem": {
             code?: number;
             data?: components["schemas"]["myblogx_internal_kernel.ListData-internal_article_adapter_http_FavoriteListItem"];
+            msg?: string;
+        };
+        "myblogx_internal_kernel.Envelope-myblogx_internal_kernel_ListData-internal_article_adapter_http_ProjectAdminCard": {
+            code?: number;
+            data?: components["schemas"]["myblogx_internal_kernel.ListData-internal_article_adapter_http_ProjectAdminCard"];
+            msg?: string;
+        };
+        "myblogx_internal_kernel.Envelope-myblogx_internal_kernel_ListData-internal_article_adapter_http_ProjectAdminItem": {
+            code?: number;
+            data?: components["schemas"]["myblogx_internal_kernel.ListData-internal_article_adapter_http_ProjectAdminItem"];
+            msg?: string;
+        };
+        "myblogx_internal_kernel.Envelope-myblogx_internal_kernel_ListData-internal_article_adapter_http_ProjectCardResponse": {
+            code?: number;
+            data?: components["schemas"]["myblogx_internal_kernel.ListData-internal_article_adapter_http_ProjectCardResponse"];
             msg?: string;
         };
         "myblogx_internal_kernel.Envelope-myblogx_internal_kernel_ListData-internal_article_adapter_http_TagListItem": {
@@ -7374,6 +8034,18 @@ export interface components {
             count?: number;
             list?: components["schemas"]["internal_article_adapter_http.FavoriteListItem"][];
         };
+        "myblogx_internal_kernel.ListData-internal_article_adapter_http_ProjectAdminCard": {
+            count?: number;
+            list?: components["schemas"]["internal_article_adapter_http.ProjectAdminCard"][];
+        };
+        "myblogx_internal_kernel.ListData-internal_article_adapter_http_ProjectAdminItem": {
+            count?: number;
+            list?: components["schemas"]["internal_article_adapter_http.ProjectAdminItem"][];
+        };
+        "myblogx_internal_kernel.ListData-internal_article_adapter_http_ProjectCardResponse": {
+            count?: number;
+            list?: components["schemas"]["internal_article_adapter_http.ProjectCardResponse"][];
+        };
         "myblogx_internal_kernel.ListData-internal_article_adapter_http_TagListItem": {
             count?: number;
             list?: components["schemas"]["internal_article_adapter_http.TagListItem"][];
@@ -7440,11 +8112,6 @@ export interface components {
             id?: string;
             title?: string;
         };
-        "myblogx_internal_search_domain.Crop": {
-            focus_x?: number;
-            focus_y?: number;
-            zoom?: number;
-        };
         "myblogx_internal_search_domain.Highlight": {
             abstract?: string;
             title?: string;
@@ -7459,8 +8126,6 @@ export interface components {
             comments_toggle?: boolean;
             cover?: string;
             created_at?: string;
-            /** @description Crop 是封面取景；nil 表示没有记录，前端按居中、缩放 1 渲染。 */
-            crop?: components["schemas"]["myblogx_internal_search_domain.Crop"];
             digg_count?: number;
             favor_count?: number;
             highlight?: components["schemas"]["myblogx_internal_search_domain.Highlight"];

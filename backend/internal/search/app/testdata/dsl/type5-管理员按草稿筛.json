@@ -6,7 +6,6 @@
     "title",
     "abstract",
     "cover",
-    "crop",
     "view_count",
     "digg_count",
     "comment_count",
@@ -85,6 +84,17 @@
             {
               "term": {
                 "publish_status": 1
+              }
+            },
+            {
+              "bool": {
+                "must_not": [
+                  {
+                    "term": {
+                      "is_deleted": true
+                    }
+                  }
+                ]
               }
             }
           ],

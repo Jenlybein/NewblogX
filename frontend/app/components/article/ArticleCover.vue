@@ -1,30 +1,23 @@
 <script setup lang="ts">
 import { computed, ref, watch } from "vue";
 import { BRAND } from "~/utils/brand";
-import { framingStyle } from "~/utils/coverFraming";
-import type { ArticleCrop } from "~/types/api";
 
 const props = withDefaults(
   defineProps<{
     src?: string | null;
     title?: string | null;
     label?: string;
-    /** 封面取景参数：没有记录（或没传）时按居中、缩放 1 渲染。 */
-    crop?: ArticleCrop | null;
   }>(),
   {
     src: "",
     title: "文章封面",
     label: BRAND.name.en,
-    crop: null,
   },
 );
 
 const imageFailed = ref(false);
 const normalizedSrc = computed(() => props.src?.trim() || "");
 const showImage = computed(() => Boolean(normalizedSrc.value) && !imageFailed.value);
-/** 与工作室取景窗、线上详情页同一个样式出口（相对百分比 + scale）。 */
-const coverStyle = computed(() => framingStyle(props.crop));
 
 watch(normalizedSrc, () => {
   imageFailed.value = false;
@@ -40,7 +33,6 @@ watch(normalizedSrc, () => {
     width="424"
     height="304"
     loading="lazy"
-    :style="coverStyle"
     @error="imageFailed = true"
   />
   <div v-else class="article-cover-default" role="img" :aria-label="`${title || '文章'}暂无封面`">
@@ -58,6 +50,10 @@ watch(normalizedSrc, () => {
 /*
  * 封面兜底：中性石墨渐变（深墨面 → 极淡石墨）+ 反白字，明暗两态都由语义层承载。
  * 之前是克莱因蓝 135deg 渐变；#20 起不再出现任何原始色相。
+ *
+ * 封面的形状只有一个：16:9、高度由比例决定（票 204）。上传时已经在后台/创作页
+ * 定形成这个比例，读者侧只做固定居中的 cover，不再消费任何取景参数；
+ * 未定形过的旧封面也按居中显示，不拉伸、不留白。
  */
 .article-cover-image,
 .article-cover-default {

@@ -21,6 +21,7 @@ func (h *Handler) Register(r *gin.RouterGroup, authMw, optionalMw gin.HandlerFun
 	}
 	group := r.Group("articles")
 	collectionGroup := r.Group("collections")
+	projectGroup := r.Group("projects")
 	reviewGroup := r.Group("article-review")
 	reviewTaskGroup := r.Group("article-review-tasks")
 
@@ -28,6 +29,7 @@ func (h *Handler) Register(r *gin.RouterGroup, authMw, optionalMw gin.HandlerFun
 	adminGroup := authGroup.Group("", mw.AdminMiddleware)
 	reviewAdminGroup := reviewGroup.Group("", authMw, mw.AdminMiddleware)
 	collectionAdminGroup := collectionGroup.Group("", authMw, mw.AdminMiddleware)
+	projectAdminGroup := projectGroup.Group("", authMw, mw.AdminMiddleware)
 	reviewTaskAdminGroup := reviewTaskGroup.Group("", authMw, mw.AdminMiddleware)
 
 	// 公开读
@@ -46,6 +48,9 @@ func (h *Handler) Register(r *gin.RouterGroup, authMw, optionalMw gin.HandlerFun
 	// 合集（读者侧只读：列表页 + 详情页）。
 	collectionGroup.GET("", mw.BindQuery[CollectionListRequest], h.Collections)
 	collectionGroup.GET(":id", mw.BindUri[kernel.IDRequest], h.CollectionDetail)
+	// 项目（与合集并列的独立内容实体；读者侧同样只读：列表页 + 详情页）。
+	projectGroup.GET("", mw.BindQuery[ProjectListRequest], h.Projects)
+	projectGroup.GET(":id", mw.BindUri[kernel.IDRequest], h.ProjectDetail)
 	reviewAdminGroup.GET("", mw.BindQuery[ArticleReviewTaskListRequest], h.ReviewTasks)
 
 	// 登录用户写
@@ -95,6 +100,26 @@ func (h *Handler) Register(r *gin.RouterGroup, authMw, optionalMw gin.HandlerFun
 	// 合集之间排序：路径是 /collections/order，与 :id 路由同组但不冲突。
 	collectionAdminGroup.PATCH("order", mw.CaptureLog(mw.ReqBody),
 		mw.BindJson[CollectionOrderRequest], h.ReplaceCollectionSortOrder)
+	// 项目管理（全部在管理员分组下）：与合集逐条对齐，路径换成 /projects。
+	projectAdminGroup.GET("admin", h.AdminProjects)
+	projectAdminGroup.DELETE(":id/admin/stale", mw.BindUri[kernel.IDRequest], h.CleanupProjectStale)
+	projectAdminGroup.POST("", mw.CaptureLog(mw.ReqBody), mw.BindJson[ProjectCreateRequest], h.CreateProject)
+	projectAdminGroup.PUT(":id", mw.CaptureLog(mw.ReqBody),
+		mw.BindUri[kernel.IDRequest], mw.BindJson[ProjectUpdateRequest], h.UpdateProject)
+	projectAdminGroup.DELETE(":id", mw.BindUri[kernel.IDRequest], h.DeleteProject)
+	projectAdminGroup.PATCH(":id/display", mw.CaptureLog(mw.ReqBody),
+		mw.BindUri[kernel.IDRequest], mw.BindJson[ProjectDisplayRequest], h.SetProjectDisplay)
+	projectAdminGroup.POST(":id/articles", mw.CaptureLog(mw.ReqBody),
+		mw.BindUri[kernel.IDRequest], mw.BindJson[ProjectArticleRequest], h.IncludeProjectArticle)
+	projectAdminGroup.POST(":id/articles/batch", mw.CaptureLog(mw.ReqBody),
+		mw.BindUri[kernel.IDRequest], mw.BindJson[ProjectBatchIncludeRequest], h.BatchIncludeProjectArticles)
+	projectAdminGroup.GET(":id/articles/admin", mw.BindUri[kernel.IDRequest], h.AdminProjectItems)
+	projectAdminGroup.DELETE(":id/articles", mw.CaptureLog(mw.ReqBody),
+		mw.BindUri[kernel.IDRequest], mw.BindJson[ProjectArticleRequest], h.RemoveProjectArticle)
+	projectAdminGroup.PATCH(":id/articles/order", mw.CaptureLog(mw.ReqBody),
+		mw.BindUri[kernel.IDRequest], mw.BindJson[ProjectArticleOrderRequest], h.ReplaceProjectOrder)
+	projectAdminGroup.PATCH("order", mw.CaptureLog(mw.ReqBody),
+		mw.BindJson[ProjectOrderRequest], h.ReplaceProjectSortOrder)
 
 	adminGroup.PUT("tags", mw.CaptureLog(mw.ReqBody), mw.BindJson[TagRequest], h.SaveTag)
 	adminGroup.DELETE("tags", mw.CaptureLog(mw.ReqBody), mw.BindJson[kernel.IDListRequest], h.DeleteTags)

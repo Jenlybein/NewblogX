@@ -69,9 +69,18 @@ type HarnessOptions = {
   query?: Record<string, unknown>;
   profileId?: string;
   pending?: Partial<{ draft: boolean; publish: boolean; ai: boolean; cover: boolean }>;
-  /** 读原图尺寸的替身：默认返回合规的 1920×1080（直接上传路径）。 */
-  readSize?: (file: File) => Promise<{ width: number; height: number }>;
+  /** 上传前定形的替身：默认把任何图都定形成 16:9（1600×900）的假产物。 */
+  shapeCover?: (file: File) => Promise<{ file: File; previewUrl: string; size: { width: number; height: number } }>;
 };
+
+/** 定形产物替身：新文件 + 产物尺寸 + 定形结果的预览地址。 */
+function shapedCover(size = { width: 1600, height: 900 }) {
+  return {
+    file: new File(["shaped"], "cover.jpg", { type: "image/jpeg" }),
+    previewUrl: "blob:shaped-cover",
+    size,
+  };
+}
 
 async function harness(options: HarnessOptions = {}) {
   const { query = {}, profileId = "u1" } = options;
@@ -94,7 +103,7 @@ async function harness(options: HarnessOptions = {}) {
     pendingState,
     message,
     previewHeadings,
-    readImageSize: options.readSize ?? (async () => ({ width: 1920, height: 1080 })),
+    shapeCover: options.shapeCover ?? (async () => shapedCover()),
   });
   await settle();
 
@@ -517,121 +526,98 @@ describe("useStudioArticle · 内联新建分类", () => {
   });
 });
 
-describe("useStudioArticle · 封面 16:9 锁定与取景", () => {
-  it("合规图直接上传，不打开取景窗", async () => {
-    const { api } = await harness({ readSize: async () => ({ width: 1920, height: 1080 }) });
+describe("useStudioArticle · 封面：上传前定形（票 200；#204 取景退场）", () => {
+  it("选图后先定形再上传：上传的是定形产物，预览也是定形产物地址", async () => {
+    const shapeCover = vi.fn(async () => shapedCover());
+    const { api } = await harness({ shapeCover });
+    const original = imageFile();
 
-    await api.handleCoverFileChange(fileChangeEvent(imageFile()));
+    await api.handleCoverFileChange(fileChangeEvent(original));
 
+    // 定形拿到的是用户选的原图；上传拿到的是定形产物——两者不是同一个文件。
+    expect(shapeCover).toHaveBeenCalledWith(original);
     expect(uploadImageByTaskMock).toHaveBeenCalledTimes(1);
-    expect(api.coverFramingOpen.value).toBe(false);
-    expect(api.coverImageSize.value).toEqual({ width: 1920, height: 1080 });
-    expect(api.coverRoute.value).toBe("direct");
-    expect(api.coverBadge.value?.text).toBe("16:9 合规");
-  });
+    const uploaded = uploadImageByTaskMock.mock.calls[0]?.[0] as File;
+    expect(uploaded).not.toBe(original);
+    expect(uploaded.name).toBe("cover.jpg");
+    expect(uploaded.type).toBe("image/jpeg");
 
-  it("比例不合规先打开取景窗，不发起上传（上传要等确认）", async () => {
-    const { api, pendingState } = await harness({ readSize: async () => ({ width: 1200, height: 800 }) });
-
-    await api.handleCoverFileChange(fileChangeEvent(imageFile()));
-
-    expect(uploadImageByTaskMock).not.toHaveBeenCalled();
-    expect(api.coverFramingOpen.value).toBe(true);
-    expect(api.coverRoute.value).toBe("frame");
-    expect(api.coverBadge.value?.text).toBe("比例不合规，需取景");
-    // 取景阶段不能锁住发布按钮：还没有任何上传在途。
-    expect(pendingState.cover).toBe(false);
-    expect(api.form.cover_image_id).toBeNull();
-  });
-
-  it("确认取景后才上传，并标记已取景", async () => {
-    const { api, message } = await harness({ readSize: async () => ({ width: 1200, height: 800 }) });
-
-    await api.handleCoverFileChange(fileChangeEvent(imageFile()));
-    await api.confirmCoverFraming({ focus_x: 0.3, focus_y: 0.4, zoom: 1.2 });
-
-    expect(uploadImageByTaskMock).toHaveBeenCalledTimes(1);
+    expect(api.coverImageSize.value).toEqual({ width: 1600, height: 900 });
+    expect(api.coverBadge.value?.text).toBe("已定形 1600 × 900");
     expect(api.form.cover_image_id).toBe("img-9");
     expect(api.coverPreviewUrl.value).toBe("https://cdn.example.com/new.png");
     expect(api.coverDirty.value).toBe(true);
-    expect(api.coverFramingOpen.value).toBe(false);
-    expect(api.coverFramed.value).toBe(true);
-    expect(api.coverBadge.value?.text).toBe("已取景");
-    expect(message.success).toHaveBeenCalledWith("封面上传成功");
+    // 取景窗已退场：composable 上没有任何取景开关或取景动作。
+    expect("coverFramingOpen" in api).toBe(false);
+    expect("openCoverFraming" in api).toBe(false);
+    expect("confirmCoverFraming" in api).toBe(false);
   });
 
-  it("确认取景后把取景参数交给载荷组装（随文章落库）", async () => {
-    const { api } = await harness({ readSize: async () => ({ width: 1200, height: 800 }) });
+  it("定形失败等同这张图不能用：不上传、不显示徽标、原因留在面板上", async () => {
+    const shapeCover = vi.fn(async () => {
+      throw new Error("无法读取这张图片，请换一张");
+    });
+    const { api, message } = await harness({ shapeCover });
 
     await api.handleCoverFileChange(fileChangeEvent(imageFile()));
-    await api.confirmCoverFraming({ focus_x: 0.3, focus_y: 0.4, zoom: 1.2 });
+
+    expect(shapeCover).toHaveBeenCalledTimes(1);
+    expect(uploadImageByTaskMock).not.toHaveBeenCalled();
+    expect(api.form.cover_image_id).toBeNull();
+    expect(api.coverImageSize.value).toBeNull();
+    expect(api.coverBadge.value).toBeNull();
+    expect(api.coverError.value).toBe("无法读取这张图片，请换一张");
+    expect(message.warning).toHaveBeenCalledWith("无法读取这张图片，请换一张");
+  });
+
+  it("非图片文件在定形前就被拒（不调定形、不上传）", async () => {
+    const shapeCover = vi.fn(async () => shapedCover());
+    const { api, message } = await harness({ shapeCover });
+
+    await api.handleCoverFileChange(fileChangeEvent(new File(["x"], "note.txt", { type: "text/plain" })));
+
+    expect(shapeCover).not.toHaveBeenCalled();
+    expect(uploadImageByTaskMock).not.toHaveBeenCalled();
+    expect(message.warning).toHaveBeenCalledWith("请选择图片文件作为封面。");
+  });
+
+  it("载荷不写 crop：定形上传成功后只提交封面图片 ID（#204）", async () => {
+    const { api } = await harness();
+    await api.handleCoverFileChange(fileChangeEvent(imageFile()));
+
     api.buildArticlePayload(2);
 
-    // 取景不是预览专用：它是文章状态的一部分，必须随载荷交给后端。
     expect(buildPayloadMock.mock.calls.at(-1)?.[1]).toEqual({
       status: 2,
       isEditMode: false,
       coverDirty: true,
-      crop: { focus_x: 0.3, focus_y: 0.4, zoom: 1.2 },
     });
+    expect("crop" in (buildPayloadMock.mock.calls.at(-1)?.[1] as object)).toBe(false);
   });
 
-  it("编辑态回填已有取景：预览按它渲染，但没重新确认取景时不写载荷（保留原值）", async () => {
-    // 取数在 harness() 内部就发起：fixture 必须先配好，之后再 mock 不生效。
+  it("编辑态回填：预览用线上封面地址，不写载荷、也不带任何取景样式", async () => {
     getArticleDetailMock.mockResolvedValue({
       ...articleFixture,
-      crop: { focus_x: 0.25, focus_y: 0.75, zoom: 1.5 },
+      cover: "https://cdn.example.com/old-cover.png",
     });
     const { api } = await harness({ query: { article_id: "100" } });
 
-    expect(api.coverPreviewStyle.value).toMatchObject({
-      objectFit: "cover",
-      objectPosition: "25% 75%",
-      transformOrigin: "25% 75%",
-      transform: "scale(1.5)",
-    });
+    expect(api.coverPreviewUrl.value).toBe("https://cdn.example.com/old-cover.png");
+    expect(api.coverImageSize.value).toBeNull();
+    expect(api.coverBadge.value).toBeNull();
+    expect("coverPreviewStyle" in api).toBe(false);
 
     api.buildArticlePayload(1);
     expect(buildPayloadMock.mock.calls.at(-1)?.[1]).toEqual({
       status: 1,
       isEditMode: true,
       coverDirty: false,
-      crop: null,
     });
-  });
-
-  it("取消取景＝本次不上传：没有图片记录，也没有预览", async () => {
-    const { api, message } = await harness({ readSize: async () => ({ width: 1200, height: 800 }) });
-
-    await api.handleCoverFileChange(fileChangeEvent(imageFile()));
-    api.cancelCoverFraming();
-
-    expect(uploadImageByTaskMock).not.toHaveBeenCalled();
-    expect(api.coverFramingOpen.value).toBe(false);
-    expect(api.form.cover_image_id).toBeNull();
-    expect(api.coverPreviewUrl.value).toBe("");
-    expect(api.coverFramed.value).toBe(false);
-    expect(message.info).toHaveBeenCalledWith(expect.stringContaining("已取消取景"));
-  });
-
-  it("读不到原图尺寸时按失败处理：不弹取景窗、不上传", async () => {
-    const { api, message } = await harness({
-      readSize: async () => {
-        throw new Error("图片尺寸读取失败");
-      },
-    });
-
-    await api.handleCoverFileChange(fileChangeEvent(imageFile()));
-
-    expect(uploadImageByTaskMock).not.toHaveBeenCalled();
-    expect(api.coverFramingOpen.value).toBe(false);
-    expect(api.form.cover_image_id).toBeNull();
-    expect(message.warning).toHaveBeenCalledWith("读不到这张图片的尺寸，请换一张图片作为封面。");
   });
 
   it("上传失败把错误留在面板上，重新选择时清掉", async () => {
     uploadImageByTaskMock.mockRejectedValueOnce(new Error("网络断开"));
-    const { api } = await harness({ readSize: async () => ({ width: 1920, height: 1080 }) });
+    const { api } = await harness();
 
     await api.handleCoverFileChange(fileChangeEvent(imageFile()));
     expect(api.coverError.value).toBe("网络断开");
@@ -641,15 +627,14 @@ describe("useStudioArticle · 封面 16:9 锁定与取景", () => {
     expect(api.coverError.value).toBe("");
   });
 
-  it("回填的旧封面没有原图尺寸：不显示合规徽标，也不假装取过景", async () => {
+  it("回填的旧封面没有定形产物尺寸：不显示徽标，也不假装定过形", async () => {
     const { api } = await harness({ query: { article_id: "100" } });
     getArticleDetailMock.mockResolvedValue({ ...articleFixture });
     (api.editingArticle as { value: unknown }).value = { ...articleFixture };
     await settle();
 
     expect(api.coverImageSize.value).toBeNull();
-    expect(api.coverRoute.value).toBe("");
+    expect(api.coverShaped.value).toBe(false);
     expect(api.coverBadge.value).toBeNull();
-    expect(api.coverFramed.value).toBe(false);
   });
 });

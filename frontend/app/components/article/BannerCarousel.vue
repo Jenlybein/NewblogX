@@ -3,7 +3,6 @@ import { computed, onBeforeUnmount, onMounted, ref, watch, type CSSProperties } 
 import { IconChevronLeft, IconChevronRight } from "@tabler/icons-vue";
 import ProfileEmptyState from "~/components/profile/ProfileEmptyState.vue";
 import type { BannerItem } from "~/types/api";
-import { bannerFramingStyle } from "~/utils/bannerFraming";
 import { bannerTitleText } from "~/utils/bannerTitle";
 
 /** 默认停留时长：够看清一张图的构图，又不至于让人等得不耐烦。 */
@@ -24,9 +23,6 @@ const props = withDefaults(
 const currentIndex = ref(0);
 
 const currentBanner = computed(() => props.banners[currentIndex.value] ?? null);
-
-/** 取景（焦点 + 缩放）→ 图片层样式；历史图（无 crop）走居中、缩放 1。 */
-const framingStyle = computed(() => bannerFramingStyle(currentBanner.value?.crop));
 
 /** 当前这张的标题（纯文本）。空标题不渲染文字区，不留一块空标题带。 */
 const titleText = computed(() => bannerTitleText(currentBanner.value?.title));
@@ -149,8 +145,8 @@ watch(
   >
     <template v-if="currentBanner">
       <!--
-        取景与视差分属两层（ADR-0015 决策 6）：两者都动 transform，不能落在同一个元素上。
-        外层 .banner-photo 只承担首屏视差（photoStyle）；内层图片只承担取景的缩放与焦点。
+        底图与视差分属两层：视差（photoStyle 的 translateY）只在外层 .banner-photo，
+        内层图片只负责铺满（object-fit: cover、固定居中）。封面不再消费取景参数（票 204）。
       -->
       <NuxtLink
         v-if="currentBanner.href"
@@ -163,7 +159,6 @@ watch(
           class="banner-photo__img"
           :src="currentBanner.cover"
           :alt="`首页轮播图 ${currentIndex + 1}`"
-          :style="framingStyle"
           @error="imageFailed = true"
         />
       </NuxtLink>
@@ -177,7 +172,6 @@ watch(
           class="banner-photo__img"
           :src="currentBanner.cover"
           :alt="`首页轮播图 ${currentIndex + 1}`"
-          :style="framingStyle"
           @error="imageFailed = true"
         />
       </div>
@@ -254,11 +248,11 @@ watch(
 }
 
 /* 底图层（图层 0）：运营上传的首张轮播 cover。
-   这一层只承担视差（photoStyle 的 translateY），取景的缩放/焦点在内层图片上。 */
+   这一层只承担视差（photoStyle 的 translateY），图片本身固定居中铺满。 */
 .banner-photo {
   /* 外扩给 ≤10px 的视差留余量，但**必须保持 16:9 配比**：纵向 12px、横向 12 × 16/9 ≈ 21.33px。
      四边等量外扩会把容器比例从 1.7778 改成 1.7397，于是 cover 后可见的原图区域
-     与后台取景框预览差约 5%（线上更紧），"预览＝线上"就只剩近似。
+     会比 16:9 容器紧约 5%，封面的构图就随视差层偷偷变了。
      写成预计算数值而不是 calc() 里的乘法：`calc(长度 * 数字)` 在旧版 Safari 上会整条失效。 */
   position: absolute;
   inset: -12px -21.3333px;
@@ -268,11 +262,13 @@ watch(
   pointer-events: auto;
 }
 
-/* 取景层：object-fit / object-position / transform-origin / scale 全部来自 bannerFramingStyle()。 */
+/* 图片层：铺满底图层、固定居中。上传时已定形成 16:9（票 200），旧封面也按居中兜底（票 204）。 */
 .banner-photo__img {
   display: block;
   height: 100%;
   width: 100%;
+  object-fit: cover;
+  object-position: center;
 }
 
 /*

@@ -6,7 +6,6 @@
     "title",
     "abstract",
     "cover",
-    "crop",
     "view_count",
     "digg_count",
     "comment_count",
@@ -95,6 +94,17 @@
             {
               "term": {
                 "category_id": "7"
+              }
+            },
+            {
+              "bool": {
+                "must_not": [
+                  {
+                    "term": {
+                      "is_deleted": true
+                    }
+                  }
+                ]
               }
             }
           ],

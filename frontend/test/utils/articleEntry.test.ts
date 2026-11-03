@@ -123,19 +123,19 @@ describe("articleEntry：文章卡片统一视图模型", () => {
   });
 });
 
-// 列表封面取景：ES 文档投影过来的 crop 必须原样带到卡片视图，
-// 否则列表封面永远按居中渲染，作者调好的构图看起来"没生效"。
-describe("fromSearchArticle：封面取景", () => {
-  it("把 crop 原样带出来；没有时是 null", () => {
-    const withCrop = fromSearchArticle({
+// 列表封面不再消费取景参数（#204）：卡片视图只保留封面地址，读者侧固定居中。
+describe("fromSearchArticle：封面视图", () => {
+  it("只带封面地址，不再有 crop 字段", () => {
+    const view = fromSearchArticle({
       id: "a1",
       title: "标题",
       cover: "https://cdn.example.com/a1.png",
-      crop: { focus_x: 0.4, focus_y: 0.6, zoom: 1.2 },
     } as never);
-    expect(withCrop.crop).toEqual({ focus_x: 0.4, focus_y: 0.6, zoom: 1.2 });
+
+    expect(view.cover).toBe("https://cdn.example.com/a1.png");
+    expect("crop" in view).toBe(false);
 
     const without = fromSearchArticle({ id: "a2", title: "标题2", cover: "" } as never);
-    expect(without.crop).toBeNull();
+    expect(without.cover).toBe("");
   });
 });

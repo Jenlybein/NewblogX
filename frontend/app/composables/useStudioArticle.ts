@@ -8,28 +8,18 @@ import { uploadImageByTask } from "~/services/image";
 import { getCategoryOptions, getTagOptions, createCategory } from "~/services/search";
 import { useAuthStore } from "~/stores/auth";
 import {
-  clampFraming,
-  framingStyle,
-  type Framing,
-  type Size,
-} from "~/utils/coverFraming";
-import {
-  createCoverObjectUrl,
-  readCoverImageSize,
-  revokeCoverObjectUrl,
-  type CoverImageSizeReader,
-} from "~/utils/coverImageSize";
+  isImageFile,
+  shapeForUpload,
+  COVER_SHAPE_OPTIONS,
+  type ShapedUploadFile,
+  type ShapeImageTarget,
+} from "~/utils/imageShaping";
 import {
   categoryTitleError,
   findCategoryOptionByTitle,
   normalizeCategoryTitle,
 } from "~/utils/studioCategory";
-import {
-  describeCoverBadge,
-  resolveCoverUploadRoute,
-  type CoverBadge,
-  type CoverUploadRoute,
-} from "~/utils/studioCover";
+import { describeCoverBadge, type CoverBadge } from "~/utils/studioCover";
 
 // 写作页的"文章数据域"：表单内容、数据加载、编辑态回填、封面上传、提交载荷。
 //
@@ -63,6 +53,16 @@ export type PendingState = {
   cover: boolean;
 };
 
+/**
+ * 上传前定形器（可注入）：默认走 `shapeForUpload` + 封面的固定参数（16:9、1600×900）。
+ * 单元测试注入替身即可驱动"定形成功 / 定形失败"两条路径，不需要真实画布（ADR-0016）。
+ */
+export type CoverShaper = (file: File) => Promise<ShapedUploadFile>;
+
+function defaultShapeCover(file: File): Promise<ShapedUploadFile> {
+  return shapeForUpload(file, COVER_SHAPE_OPTIONS);
+}
+
 export type StudioArticleDeps = {
   /** 进行中标记（封面流程要读写 cover）。 */
   pendingState: PendingState;
@@ -71,10 +71,10 @@ export type StudioArticleDeps = {
   /** 预览区上报的标题锚点（目录与统计要用）。 */
   previewHeadings: Ref<ArticleHeadingAnchor[]>;
   /**
-   * 读原图尺寸（可选注入）：
-   * 默认实现走浏览器 Image 解码；单元测试注入替身即可驱动"合规/不合规"两条路径。
+   * 上传前定形（可选注入）：默认把选中的图居中定形成 16:9（1600×900）。
+   * 原图不进入上传链路，页面只上传定形产物。
    */
-  readImageSize?: CoverImageSizeReader;
+  shapeCover?: CoverShaper;
 };
 
 /**
@@ -85,7 +85,7 @@ export type StudioArticleDeps = {
  * "有没有 articleId"这一个派生结果。
  */
 export async function useStudioArticle(deps: StudioArticleDeps) {
-  const { pendingState, message, previewHeadings, readImageSize = readCoverImageSize } = deps;
+  const { pendingState, message, previewHeadings, shapeCover = defaultShapeCover } = deps;
   const route = useRoute();
   const authStore = useAuthStore();
 
@@ -110,33 +110,22 @@ export async function useStudioArticle(deps: StudioArticleDeps) {
   /** 面板里留住的错误文案（上传失败不再只靠一闪而过的 toast）。 */
   const coverError = ref("");
 
-  /** 本次选中的原图：取景确认后才上传；调整取景时还要用它重开取景窗。 */
+  /** 本次选中的**定形产物**（票 200：原图不上传）。 */
   const coverPendingFile = ref<File | null>(null);
-  /** 原图像素尺寸：决定走"直接上传"还是"先取景"。 */
-  const coverImageSize = ref<Size | null>(null);
-  /** 本地预览地址（取景窗前与上传在途都用它，所见即这张图）。 */
-  const coverFramingPreviewUrl = ref("");
-  /** 取景参数：随文章载荷落到通用取景表；预览与线上渲染共用同一份。 */
-  const coverFraming = ref<Framing | null>(null);
-  /** 本轮是否确认过取景：只有 true 才把 crop 写进载荷（否则等于"保留已存的取景"）。 */
-  const coverCropDirty = ref(false);
-  /** 取景窗是否打开（不合规时自动打开，也可手动调整）。 */
-  const coverFramingOpen = ref(false);
+  /** 定形产物的像素尺寸（16:9、1600×900），用于面板上的尺寸读数与徽标。 */
+  const coverImageSize = ref<ShapeImageTarget | null>(null);
+  /** 定形产物的本地预览地址（上传在途时用，所见即即将上传的那张图）。 */
+  const coverLocalPreviewUrl = ref("");
 
   const coverDirty = ref(false);
 
-  /** 这张图走哪条路；还没选图（或回填的旧封面没有尺寸）时为空串。 */
-  const coverRoute = computed<CoverUploadRoute | "">(() =>
-    coverImageSize.value ? resolveCoverUploadRoute(coverImageSize.value) : "",
-  );
-  const coverFramed = computed(() => coverFraming.value !== null);
+  /** 选过图（拿到了定形产物）才显示徽标；回填的旧封面没有尺寸，不显示。 */
+  const coverShaped = computed(() => coverImageSize.value !== null);
   const coverBadge = computed<CoverBadge | null>(() =>
-    coverRoute.value ? describeCoverBadge({ route: coverRoute.value, framed: coverFramed.value }) : null,
+    coverShaped.value ? describeCoverBadge() : null,
   );
-  /** 面板预览：优先本地（取景/上传在途），上传成功后回落到线上地址。 */
-  const coverDisplayPreviewUrl = computed(() => coverFramingPreviewUrl.value || coverPreviewUrl.value);
-  /** 预览图的取景样式（与取景窗、线上渲染同一个出口）。 */
-  const coverPreviewStyle = computed(() => (coverFraming.value ? framingStyle(coverFraming.value) : null));
+  /** 面板预览：优先本地（上传在途），上传成功后回落到线上地址。 */
+  const coverDisplayPreviewUrl = computed(() => coverLocalPreviewUrl.value || coverPreviewUrl.value);
 
   const editArticleId = computed(() => {
     const fromArticleId = typeof route.query.article_id === "string" ? route.query.article_id.trim() : "";
@@ -253,10 +242,8 @@ export async function useStudioArticle(deps: StudioArticleDeps) {
       form.cover_image_id = article.cover_image_id ?? null;
       coverPreviewUrl.value = article.cover || "";
       coverDirty.value = false;
-      // 回填的旧封面只有 URL、没有原图尺寸：不显示合规徽标，也不假装取过景。
+      // 回填的旧封面只有 URL、没有原图尺寸：不显示定形徽标。
       resetCoverPickerState();
-      // 已有取景照样要按它预览：作者看到的就是读者看到的构图。
-      coverFraming.value = article.crop ? clampFraming(article.crop) : null;
       form.comments_toggle = article.comments_toggle ?? true;
       form.visibility_status = article.visibility_status === "user_hidden" ? "user_hidden" : "visible";
       form.category_id = article.category_id ?? null;
@@ -301,18 +288,22 @@ export async function useStudioArticle(deps: StudioArticleDeps) {
     },
   });
 
+  /** 释放定形产物的本地预览地址（不释放会一直占着这张图的内存）。 */
   function clearLocalCoverPreview() {
-    revokeCoverObjectUrl(coverFramingPreviewUrl.value);
-    coverFramingPreviewUrl.value = "";
+    const url = coverLocalPreviewUrl.value;
+    coverLocalPreviewUrl.value = "";
+    if (!url) return;
+    try {
+      if (typeof URL.revokeObjectURL === "function") URL.revokeObjectURL(url);
+    } catch {
+      // 已经释放过或环境不支持：忽略。
+    }
   }
 
   function resetCoverPickerState() {
     clearLocalCoverPreview();
     coverPendingFile.value = null;
     coverImageSize.value = null;
-    coverFraming.value = null;
-    coverCropDirty.value = false;
-    coverFramingOpen.value = false;
   }
 
   function openCoverFilePicker() {
@@ -334,56 +325,7 @@ export async function useStudioArticle(deps: StudioArticleDeps) {
     }
   }
 
- /** 手动取景 / 调整取景：只有选过图（读得到尺寸）才能打开。 */
-  function openCoverFraming() {
-    if (!coverPendingFile.value || !coverImageSize.value) {
-      message.warning("请先选择一张图片，才能调整取景。");
-      return;
-    }
-    if (!coverFramingPreviewUrl.value) {
-      coverFramingPreviewUrl.value = createCoverObjectUrl(coverPendingFile.value);
-    }
-    coverFramingOpen.value = true;
-  }
-
-  /** 取消取景：强制路径（比例不合规且还没取过景）＝中止本次上传。 */
-  function cancelCoverFraming() {
-    const forced = coverRoute.value === "frame" && !coverFramed.value;
-    coverFramingOpen.value = false;
-    clearLocalCoverPreview();
-    coverUploadStage.value = "";
-    if (!forced) {
-      // 调整已有取景时取消只是关窗：已经确认过的构图与封面都保持不变。
-      message.info("已关闭取景窗，封面保持不变");
-      return;
-    }
-    coverPendingFile.value = null;
-    coverImageSize.value = null;
-    coverFraming.value = null;
-    coverCropDirty.value = false;
-    coverError.value = "";
-    message.info("已取消取景，本次上传未开始：没有产生图片，也没有产生文章封面");
-  }
-
-  /** 确认取景：参数只用于预览；随后立即上传这张原图。 */
-  async function confirmCoverFraming(framing: Framing) {
-    coverFramingOpen.value = false;
-    const file = coverPendingFile.value;
-    if (!file) {
-      message.warning("取景已确认，但找不到待上传的图片，请重新选择。");
-      return;
-    }
-    const safe = clampFraming(framing);
-    coverUploadStage.value = "取景已确认，正在上传封面…";
-    const uploaded = await uploadSelectedCover(file);
-    if (uploaded) {
-      coverFraming.value = safe;
-      coverCropDirty.value = true;
-      coverUploadStage.value = "封面上传完成";
-    }
-  }
-
-  /** 把选中的原图传到图床；成功返回 true，并由调用方决定是否记取景。 */
+  /** 把定形产物传到图床；成功返回 true。原图不进入这条链路。 */
   async function uploadSelectedCover(file: File): Promise<boolean> {
     pendingState.cover = true;
     coverError.value = "";
@@ -428,16 +370,17 @@ export async function useStudioArticle(deps: StudioArticleDeps) {
       status,
       isEditMode: isEditMode.value,
       coverDirty: coverDirty.value,
-      // 只有本轮确认过取景才带上：不传表示保留已存取景。
-      crop: coverCropDirty.value ? coverFraming.value : null,
     });
   }
 
   /**
-   * 选完封面文件后的分叉（与后台轮播上传同一套口径）：
-   *   - 16:9 合规 → 直接上传；
-   *   - 不合规 → 只打开取景窗，确认后才上传；取消即中止，不产生图片。
-   * 尺寸读不出来时直接让用户换图：没有尺寸就无法判断会不会露白。
+   * 选完封面文件后：先在客户端定形，再上传定形产物（票 200）。
+   *
+   * 与后台轮播、合集封面上传走同一个实现（`~/utils/imageShaping` 的 `shapeForUpload`）：
+   * 居中裁成 16:9、降采样到 1600×900，产出新文件。定形产物先落到预览上
+   * （作者看到的就是即将上传的那张图），再进入既有上传链路——原图不上传。
+   * 定形失败等同"这张图不能用"：没有图片、没有预览、没有文章封面。
+   * #204 起封面没有取景步骤：定形完就直接上传，读者侧固定居中。
    */
   async function handleCoverFileChange(event: Event) {
     const input = event.target as HTMLInputElement;
@@ -446,7 +389,7 @@ export async function useStudioArticle(deps: StudioArticleDeps) {
       return;
     }
 
-    if (!file.type.startsWith("image/")) {
+    if (!isImageFile(file)) {
       message.warning("请选择图片文件作为封面。");
       input.value = "";
       return;
@@ -455,27 +398,27 @@ export async function useStudioArticle(deps: StudioArticleDeps) {
     coverError.value = "";
     coverUploadStage.value = "";
     resetCoverPickerState();
-    coverPendingFile.value = file;
+    coverUploadStage.value = "正在定形成 16:9 封面…";
 
-    const size = await readImageSize(file).catch(() => null);
-    if (!size) {
-      coverPendingFile.value = null;
-      input.value = "";
-      message.warning("读不到这张图片的尺寸，请换一张图片作为封面。");
-      return;
-    }
-
-    coverImageSize.value = size;
-    coverFramingPreviewUrl.value = createCoverObjectUrl(file);
-
-    if (resolveCoverUploadRoute(size) === "direct") {
-      await uploadSelectedCover(file);
+    let shaped: ShapedUploadFile;
+    try {
+      shaped = await shapeCover(file);
+    } catch (error) {
+      coverUploadStage.value = "";
+      const text = error instanceof Error ? error.message : "封面定形失败，请换一张图片";
+      coverError.value = text;
+      message.warning(text);
       input.value = "";
       return;
     }
 
-    coverUploadStage.value = "比例不合规，先确认取景再上传";
-    coverFramingOpen.value = true;
+    // 预览与上传都只认定形产物。
+    coverPendingFile.value = shaped.file;
+    coverImageSize.value = shaped.size;
+    coverLocalPreviewUrl.value = shaped.previewUrl;
+    coverUploadStage.value = `已定形成 ${shaped.size.width} × ${shaped.size.height}，正在上传封面…`;
+
+    await uploadSelectedCover(shaped.file);
     input.value = "";
   }
 
@@ -504,18 +447,11 @@ export async function useStudioArticle(deps: StudioArticleDeps) {
     coverError,
     coverDirty,
     coverImageSize,
-    coverRoute,
+    coverShaped,
     coverBadge,
-    coverFramed,
-    coverFramingOpen,
-    coverFramingPreviewUrl,
     coverDisplayPreviewUrl,
-    coverPreviewStyle,
     openCoverFilePicker,
     clearCoverSelection,
-    openCoverFraming,
-    confirmCoverFraming,
-    cancelCoverFraming,
     mapCoverUploadStage,
     handleCoverFileChange,
     buildArticlePayload,

@@ -6,7 +6,6 @@ import (
 	"myblogx/internal/kernel/ctype"
 	"myblogx/internal/platform/http/middleware"
 	"myblogx/internal/platform/http/res"
-	"myblogx/internal/site/domain"
 
 	"github.com/gin-gonic/gin"
 )
@@ -34,40 +33,11 @@ type BannerCreateRequest struct {
 	// Title 是轮播标题：纯文本、可空。
 	//
 	// 创建与更新都是"整体替换"：不传或传空串就是保存空标题。
-	// 后台在不改标题的路径（例如只重新取景）必须把原值一起带上，
+	// 后台在不改标题的路径（例如只改封面）必须把原值一起带上，
 	// 否则会把已有标题清掉。
 	Title string `json:"title"`
 	Href  string `json:"href"`
 	Show  bool   `json:"show"`
-	// Crop 是可选取景参数。可选是为了让老调用方（还没接取景的后台）照旧能用。
-	//
-	// 两种语义不同，别写混：
-	//   · 创建：不传 = 缺省（居中、缩放 1）—— 新建必须有一条确定的取景；
-	//   · 更新：不传 = **保留已存的取景** —— 否则改一个跳转链接就会静默抹掉运营调好的构图。
-	Crop *BannerCrop `json:"crop"`
-}
-
-// BannerCrop 是取景参数的传输形状：焦点（图上 0–1 的相对坐标）+ 缩放（1–2）。
-//
-// 这里刻意不做范围校验：越界的拒绝发生在用例层（domain.Crop.Validate），
-// 免得"能不能过"取决于请求从哪个入口进来。
-type BannerCrop struct {
-	FocusX float64 `json:"focus_x"`
-	FocusY float64 `json:"focus_y"`
-	Zoom   float64 `json:"zoom"`
-}
-
-// toDomain 把请求里的取景转成领域值；nil 表示调用方没传。
-func (c *BannerCrop) toDomain() *domain.Crop {
-	if c == nil {
-		return nil
-	}
-	return &domain.Crop{FocusX: c.FocusX, FocusY: c.FocusY, Zoom: c.Zoom}
-}
-
-// fromDomainCrop 把领域取景转成传输形状。
-func fromDomainCrop(c domain.Crop) BannerCrop {
-	return BannerCrop{FocusX: c.FocusX, FocusY: c.FocusY, Zoom: c.Zoom}
 }
 
 // BannerListRequest 对应 GET /banners 的查询参数。
@@ -96,19 +66,16 @@ type BannerItem struct {
 	Href         string     `json:"href"`
 	// Title 是轮播标题，纯文本、可空；读者站拿到空串就不渲染文字区。
 	Title string `json:"title"`
-	// Crop 总是有值：没有取景记录的历史图回传缺省（居中、缩放 1）。
-	Crop BannerCrop `json:"crop"`
 }
 
 // BannerCreateResponse 是创建轮播图的返回。
 type BannerCreateResponse struct {
-	ID           ctype.ID   `json:"id"`
-	CoverImageID ctype.ID   `json:"cover_image_id"`
-	Cover        string     `json:"cover"`
-	Href         string     `json:"href"`
-	Title        string     `json:"title"`
-	Show         bool       `json:"show"`
-	Crop         BannerCrop `json:"crop"`
+	ID           ctype.ID `json:"id"`
+	CoverImageID ctype.ID `json:"cover_image_id"`
+	Cover        string   `json:"cover"`
+	Href         string   `json:"href"`
+	Title        string   `json:"title"`
+	Show         bool     `json:"show"`
 }
 
 // AIResponse 是公开的站点 AI 信息。
@@ -120,10 +87,12 @@ type AIResponse struct {
 }
 
 // SEOResponse 是站点 SEO 摘要。
+//
+// site_title / logo 随 #192 一起删除：它们的唯一来源是 site_info.title / logo，
+// 那两个字段没了，响应里就不再承诺它们。站点标题由读者站的品牌常量给出，
+// favicon 仍由 icon（project.icon）供给。
 type SEOResponse struct {
-	SiteTitle    string `json:"site_title"`
 	ProjectTitle string `json:"project_title"`
-	Logo         string `json:"logo"`
 	Icon         string `json:"icon"`
 	Keywords     string `json:"keywords"`
 	Description  string `json:"description"`

@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, defineAsyncComponent, ref } from "vue";
 import { IconLoader2, IconPhoto, IconPlugConnected, IconPlugConnectedX } from "@tabler/icons-vue";
-import { NButton, NInput, NSpace, NTag } from "naive-ui";
+import { NAlert, NButton, NInput, NSpace, NTag } from "naive-ui";
 import AppAvatar from "~/components/common/AppAvatar.vue";
 import type { ChatMessageItem, ChatSessionItem } from "~/types/api";
 import { isDraftChatSessionId } from "~/utils/chat";
@@ -40,6 +40,8 @@ const props = defineProps<{
   imagePending: boolean;
   socketStatus: string;
   socketError: string;
+  /** 最近一次发送被拒的原因（后端错误码文案，空串表示没有失败）。 */
+  sendError?: string;
 }>();
 
 const emit = defineEmits<{
@@ -92,7 +94,7 @@ function handleImagePicked(event: Event) {
         <div class="studio-toolbar studio-toolbar--stack">
           <div>
             <h2 class="section-title">私信会话</h2>
-            <p class="muted">HTTP 拉会话，WebSocket 推消息。</p>
+            <p class="muted">HTTP 收发与落库，WebSocket 只推新消息与已读通知。</p>
           </div>
           <NInput
             :value="keyword"
@@ -201,6 +203,12 @@ function handleImagePicked(event: Event) {
             title="这个会话还没有消息"
             :description="messagePending ? '正在拉取消息记录…' : isPreparedSession ? '先发出第一条消息，这里就会切换成真实会话。' : '可以发一段文本、一张图片，或切到 Markdown 发送富文本。'"
           />
+
+          <!-- 发送被拒时就地显示后端给出的明确原因（票 202）。
+               服务端拒绝陌生私信时回的是站点策略文案，读者不该把它当成断网。 -->
+          <NAlert v-if="sendError" type="error" :bordered="false" class="mb-3">
+            {{ sendError }}
+          </NAlert>
 
           <div class="studio-chat-composer">
             <NInput

@@ -426,3 +426,61 @@ func TestRelayCleanup(t *testing.T) {
 		}
 	}
 }
+
+// TestRelaySkipsEventsOwnedByOtherProcesses 本进程不领取 SkipEventNames 的事件。
+//
+// 起因（#201）：私信的 WS 通知只能由持有连接池的 API 进程推。若 river 进程的
+// 中继也领取了这条事件，订阅者找不到连接池只能"什么都不做地"返回成功，
+// 事件被标记 done，通知就永久丢了。正确行为是：跳过、行保持 pending，
+// 由真正能处理它的进程在下一轮扫描/CDC 里领取。
+func TestRelaySkipsEventsOwnedByOtherProcesses(t *testing.T) {
+	db := migrate(t)
+	relay := outboxrelay.New(db, nil, outboxrelay.Options{
+		SkipEventNames: []string{"chat.message.sent"},
+	})
+
+	var calls int32
+	relay.On("chat.message.sent", func(ctx context.Context, e outboxrelay.Event) error {
+		atomic.AddInt32(&calls, 1)
+		return nil
+	})
+
+	id := seedEvent(t, db, "chat.message.sent", 2001)
+	if err := relay.Dispatch(context.Background(), id); err != nil {
+		t.Fatalf("投递返回错误: %v", err)
+	}
+	if got := atomic.LoadInt32(&calls); got != 0 {
+		t.Fatalf("被跳过的事件不该调用订阅者，实际调用 %d 次", got)
+	}
+
+	row := reload(t, db, id)
+	if row.Status != outboxrelay.OutboxStatusPending {
+		t.Fatalf("被跳过的事件应保持 pending（留给别的进程），实际 %s", row.Status)
+	}
+	if row.Attempts != 0 {
+		t.Fatalf("被跳过的事件不该计尝试次数，实际 %d", row.Attempts)
+	}
+
+	// 补偿扫描也不能把它捞出来。
+	n, err := relay.Sweep(context.Background())
+	if err != nil {
+		t.Fatalf("补偿扫描失败: %v", err)
+	}
+	if n != 0 {
+		t.Fatalf("补偿扫描不该入队被跳过的事件，实际入队 %d 条", n)
+	}
+
+	// 对照：同一张表里别的事件仍然正常投递（跳过是按名字精确匹配的）。
+	otherID := seedEvent(t, db, "article.published", 2002)
+	var otherCalls int32
+	relay.On("article.published", func(ctx context.Context, e outboxrelay.Event) error {
+		atomic.AddInt32(&otherCalls, 1)
+		return nil
+	})
+	if err := relay.Dispatch(context.Background(), otherID); err != nil {
+		t.Fatalf("投递对照事件出错: %v", err)
+	}
+	if got := atomic.LoadInt32(&otherCalls); got != 1 {
+		t.Fatalf("未被跳过的事件应正常投递，实际调用 %d 次", got)
+	}
+}

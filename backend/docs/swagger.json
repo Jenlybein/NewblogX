@@ -556,10 +556,6 @@
                     "cover_image_id": {
                         "type": "string"
                     },
-                    "crop": {
-                        "$ref": "#/components/schemas/internal_article_adapter_http.ArticleCrop",
-                        "description": "Crop 是封面的可选取景参数：不传 = 缺省（居中、缩放 1）。"
-                    },
                     "status": {
                         "enum": [
                             1,
@@ -628,20 +624,6 @@
                 },
                 "type": "object"
             },
-            "internal_article_adapter_http.ArticleCrop": {
-                "properties": {
-                    "focus_x": {
-                        "type": "number"
-                    },
-                    "focus_y": {
-                        "type": "number"
-                    },
-                    "zoom": {
-                        "type": "number"
-                    }
-                },
-                "type": "object"
-            },
             "internal_article_adapter_http.ArticleDetailResponse": {
                 "properties": {
                     "abstract": {
@@ -691,10 +673,6 @@
                     },
                     "created_at": {
                         "type": "string"
-                    },
-                    "crop": {
-                        "$ref": "#/components/schemas/internal_article_adapter_http.ArticleCrop",
-                        "description": "Crop 总是有值：没有取景记录的存量文章回传缺省（居中、缩放 1）。"
                     },
                     "digg_count": {
                         "type": "integer"
@@ -978,10 +956,6 @@
                     },
                     "cover_image_id": {
                         "type": "string"
-                    },
-                    "crop": {
-                        "$ref": "#/components/schemas/internal_article_adapter_http.ArticleCrop",
-                        "description": "Crop 不传 = 保留已存的取景；传了才覆盖。与创建语义不同，别写混：\n更新时不传若被当成\"清空\"，改一个标题就会静默抹掉作者调好的构图。"
                     },
                     "status": {
                         "enum": [
@@ -1510,6 +1484,289 @@
                 ],
                 "type": "object"
             },
+            "internal_article_adapter_http.ProjectAdminCard": {
+                "properties": {
+                    "article_count": {
+                        "type": "integer"
+                    },
+                    "cover": {
+                        "type": "string"
+                    },
+                    "description": {
+                        "type": "string"
+                    },
+                    "displayed": {
+                        "type": "boolean"
+                    },
+                    "fallback_cover": {
+                        "description": "FallbackCover 是没上传封面时读者看到的封面（首篇公开文章的封面）。\n\n与 cover 分开：后台列表要按读者的样子预览，但编辑表单必须能看出\n\"这张是回退来的\"，否则一保存就把回退值固化成上传值。",
+                        "type": "string"
+                    },
+                    "id": {
+                        "type": "string"
+                    },
+                    "sort_order": {
+                        "type": "integer"
+                    },
+                    "title": {
+                        "type": "string"
+                    }
+                },
+                "type": "object"
+            },
+            "internal_article_adapter_http.ProjectAdminItem": {
+                "properties": {
+                    "article_id": {
+                        "type": "string"
+                    },
+                    "cover": {
+                        "type": "string"
+                    },
+                    "sort_order": {
+                        "type": "integer"
+                    },
+                    "stale": {
+                        "description": "Stale 文章是否已失效（被删 / 退回草稿 / 不再可见）。判定与热门置顶 / 合集共用。",
+                        "type": "boolean"
+                    },
+                    "stale_reason": {
+                        "description": "StaleReason 失效原因枚举；仍有效时为空串。枚举值由后端 domain 定义，\n前端只做文案映射，不据此另判一次失效。",
+                        "type": "string"
+                    },
+                    "title": {
+                        "type": "string"
+                    }
+                },
+                "type": "object"
+            },
+            "internal_article_adapter_http.ProjectArticleItemResponse": {
+                "properties": {
+                    "abstract": {
+                        "type": "string"
+                    },
+                    "article_id": {
+                        "type": "string"
+                    },
+                    "author_nickname": {
+                        "type": "string"
+                    },
+                    "category_title": {
+                        "type": "string"
+                    },
+                    "cover": {
+                        "type": "string"
+                    },
+                    "sort_order": {
+                        "type": "integer"
+                    },
+                    "title": {
+                        "type": "string"
+                    },
+                    "view_count": {
+                        "type": "integer"
+                    }
+                },
+                "type": "object"
+            },
+            "internal_article_adapter_http.ProjectArticleOrderRequest": {
+                "properties": {
+                    "article_ids": {
+                        "items": {
+                            "type": "string"
+                        },
+                        "type": "array",
+                        "uniqueItems": false
+                    }
+                },
+                "required": [
+                    "article_ids"
+                ],
+                "type": "object"
+            },
+            "internal_article_adapter_http.ProjectArticleRequest": {
+                "properties": {
+                    "article_id": {
+                        "type": "string"
+                    }
+                },
+                "required": [
+                    "article_id"
+                ],
+                "type": "object"
+            },
+            "internal_article_adapter_http.ProjectBatchIncludeItem": {
+                "properties": {
+                    "article_id": {
+                        "type": "string"
+                    },
+                    "outcome": {
+                        "type": "string"
+                    }
+                },
+                "type": "object"
+            },
+            "internal_article_adapter_http.ProjectBatchIncludeRequest": {
+                "properties": {
+                    "article_ids": {
+                        "items": {
+                            "type": "string"
+                        },
+                        "type": "array",
+                        "uniqueItems": false
+                    }
+                },
+                "required": [
+                    "article_ids"
+                ],
+                "type": "object"
+            },
+            "internal_article_adapter_http.ProjectBatchIncludeResponse": {
+                "properties": {
+                    "duplicated": {
+                        "type": "integer"
+                    },
+                    "included": {
+                        "type": "integer"
+                    },
+                    "rejected": {
+                        "type": "integer"
+                    },
+                    "results": {
+                        "items": {
+                            "$ref": "#/components/schemas/internal_article_adapter_http.ProjectBatchIncludeItem"
+                        },
+                        "type": "array",
+                        "uniqueItems": false
+                    }
+                },
+                "type": "object"
+            },
+            "internal_article_adapter_http.ProjectCardResponse": {
+                "properties": {
+                    "article_count": {
+                        "type": "integer"
+                    },
+                    "cover": {
+                        "type": "string"
+                    },
+                    "created_at": {
+                        "type": "string"
+                    },
+                    "description": {
+                        "type": "string"
+                    },
+                    "id": {
+                        "type": "string"
+                    },
+                    "title": {
+                        "type": "string"
+                    }
+                },
+                "type": "object"
+            },
+            "internal_article_adapter_http.ProjectCreateRequest": {
+                "properties": {
+                    "cover": {
+                        "type": "string"
+                    },
+                    "description": {
+                        "type": "string"
+                    },
+                    "displayed": {
+                        "type": "boolean"
+                    },
+                    "title": {
+                        "type": "string"
+                    }
+                },
+                "required": [
+                    "title"
+                ],
+                "type": "object"
+            },
+            "internal_article_adapter_http.ProjectCreatedResponse": {
+                "properties": {
+                    "id": {
+                        "type": "string"
+                    }
+                },
+                "type": "object"
+            },
+            "internal_article_adapter_http.ProjectDetailResponse": {
+                "properties": {
+                    "articles": {
+                        "items": {
+                            "$ref": "#/components/schemas/internal_article_adapter_http.ProjectArticleItemResponse"
+                        },
+                        "type": "array",
+                        "uniqueItems": false
+                    },
+                    "cover": {
+                        "type": "string"
+                    },
+                    "created_at": {
+                        "type": "string"
+                    },
+                    "description": {
+                        "type": "string"
+                    },
+                    "id": {
+                        "type": "string"
+                    },
+                    "title": {
+                        "type": "string"
+                    }
+                },
+                "type": "object"
+            },
+            "internal_article_adapter_http.ProjectDisplayRequest": {
+                "properties": {
+                    "displayed": {
+                        "type": "boolean"
+                    }
+                },
+                "type": "object"
+            },
+            "internal_article_adapter_http.ProjectOrderRequest": {
+                "properties": {
+                    "project_ids": {
+                        "items": {
+                            "type": "string"
+                        },
+                        "type": "array",
+                        "uniqueItems": false
+                    }
+                },
+                "required": [
+                    "project_ids"
+                ],
+                "type": "object"
+            },
+            "internal_article_adapter_http.ProjectStaleCleanupResponse": {
+                "properties": {
+                    "removed": {
+                        "type": "integer"
+                    }
+                },
+                "type": "object"
+            },
+            "internal_article_adapter_http.ProjectUpdateRequest": {
+                "properties": {
+                    "cover": {
+                        "type": "string"
+                    },
+                    "description": {
+                        "type": "string"
+                    },
+                    "title": {
+                        "type": "string"
+                    }
+                },
+                "required": [
+                    "title"
+                ],
+                "type": "object"
+            },
             "internal_article_adapter_http.ReviewTaskSource": {
                 "enum": [
                     "create",
@@ -1760,6 +2017,36 @@
                 "required": [
                     "new_password",
                     "old_password"
+                ],
+                "type": "object"
+            },
+            "internal_chat_adapter_http.SendMessageRequest": {
+                "properties": {
+                    "client_msg_id": {
+                        "description": "ClientMsgID 是客户端生成的幂等键。\n\n必须由客户端提供（同一次发送的多次重试要复用同一个值）：服务端把\n（发送人, client_msg_id）映射到消息主键，重复提交返回第一次落库的消息，\n不产生第二条、不重复加未读。缺失时后端会退化成普通发送（不做幂等），\n所以这里要求必填，把幂等语义钉在契约上。",
+                        "maxLength": 64,
+                        "type": "string"
+                    },
+                    "content": {
+                        "type": "string"
+                    },
+                    "msg_type": {
+                        "enum": [
+                            1,
+                            2,
+                            7
+                        ],
+                        "type": "integer"
+                    },
+                    "receiver_id": {
+                        "type": "string"
+                    }
+                },
+                "required": [
+                    "client_msg_id",
+                    "content",
+                    "msg_type",
+                    "receiver_id"
                 ],
                 "type": "object"
             },
@@ -2272,10 +2559,6 @@
                     "cover_image_id": {
                         "type": "string"
                     },
-                    "crop": {
-                        "$ref": "#/components/schemas/internal_site_adapter_http.BannerCrop",
-                        "description": "Crop 是可选取景参数。可选是为了让老调用方（还没接取景的后台）照旧能用。\n\n两种语义不同，别写混：\n  · 创建：不传 = 缺省（居中、缩放 1）—— 新建必须有一条确定的取景；\n  · 更新：不传 = **保留已存的取景** —— 否则改一个跳转链接就会静默抹掉运营调好的构图。"
-                    },
                     "href": {
                         "type": "string"
                     },
@@ -2283,7 +2566,7 @@
                         "type": "boolean"
                     },
                     "title": {
-                        "description": "Title 是轮播标题：纯文本、可空。\n\n创建与更新都是\"整体替换\"：不传或传空串就是保存空标题。\n后台在不改标题的路径（例如只重新取景）必须把原值一起带上，\n否则会把已有标题清掉。",
+                        "description": "Title 是轮播标题：纯文本、可空。\n\n创建与更新都是\"整体替换\"：不传或传空串就是保存空标题。\n后台在不改标题的路径（例如只改封面）必须把原值一起带上，\n否则会把已有标题清掉。",
                         "type": "string"
                     }
                 },
@@ -2300,9 +2583,6 @@
                     "cover_image_id": {
                         "type": "string"
                     },
-                    "crop": {
-                        "$ref": "#/components/schemas/internal_site_adapter_http.BannerCrop"
-                    },
                     "href": {
                         "type": "string"
                     },
@@ -2318,20 +2598,6 @@
                 },
                 "type": "object"
             },
-            "internal_site_adapter_http.BannerCrop": {
-                "properties": {
-                    "focus_x": {
-                        "type": "number"
-                    },
-                    "focus_y": {
-                        "type": "number"
-                    },
-                    "zoom": {
-                        "type": "number"
-                    }
-                },
-                "type": "object"
-            },
             "internal_site_adapter_http.BannerItem": {
                 "properties": {
                     "cover": {
@@ -2342,10 +2608,6 @@
                     },
                     "created_at": {
                         "type": "string"
-                    },
-                    "crop": {
-                        "$ref": "#/components/schemas/internal_site_adapter_http.BannerCrop",
-                        "description": "Crop 总是有值：没有取景记录的历史图回传缺省（居中、缩放 1）。"
                     },
                     "deleted_at": {
                         "type": "string"
@@ -2395,13 +2657,7 @@
                     "keywords": {
                         "type": "string"
                     },
-                    "logo": {
-                        "type": "string"
-                    },
                     "project_title": {
-                        "type": "string"
-                    },
-                    "site_title": {
                         "type": "string"
                     }
                 },
@@ -3884,6 +4140,62 @@
                 },
                 "type": "object"
             },
+            "myblogx_internal_kernel.Envelope-internal_article_adapter_http_ProjectBatchIncludeResponse": {
+                "properties": {
+                    "code": {
+                        "type": "integer"
+                    },
+                    "data": {
+                        "$ref": "#/components/schemas/internal_article_adapter_http.ProjectBatchIncludeResponse"
+                    },
+                    "msg": {
+                        "type": "string"
+                    }
+                },
+                "type": "object"
+            },
+            "myblogx_internal_kernel.Envelope-internal_article_adapter_http_ProjectCreatedResponse": {
+                "properties": {
+                    "code": {
+                        "type": "integer"
+                    },
+                    "data": {
+                        "$ref": "#/components/schemas/internal_article_adapter_http.ProjectCreatedResponse"
+                    },
+                    "msg": {
+                        "type": "string"
+                    }
+                },
+                "type": "object"
+            },
+            "myblogx_internal_kernel.Envelope-internal_article_adapter_http_ProjectDetailResponse": {
+                "properties": {
+                    "code": {
+                        "type": "integer"
+                    },
+                    "data": {
+                        "$ref": "#/components/schemas/internal_article_adapter_http.ProjectDetailResponse"
+                    },
+                    "msg": {
+                        "type": "string"
+                    }
+                },
+                "type": "object"
+            },
+            "myblogx_internal_kernel.Envelope-internal_article_adapter_http_ProjectStaleCleanupResponse": {
+                "properties": {
+                    "code": {
+                        "type": "integer"
+                    },
+                    "data": {
+                        "$ref": "#/components/schemas/internal_article_adapter_http.ProjectStaleCleanupResponse"
+                    },
+                    "msg": {
+                        "type": "string"
+                    }
+                },
+                "type": "object"
+            },
             "myblogx_internal_kernel.Envelope-internal_auth_adapter_http_SendEmailResponse": {
                 "properties": {
                     "code": {
@@ -4248,6 +4560,20 @@
                 },
                 "type": "object"
             },
+            "myblogx_internal_kernel.Envelope-myblogx_internal_chat_domain_MessageItem": {
+                "properties": {
+                    "code": {
+                        "type": "integer"
+                    },
+                    "data": {
+                        "$ref": "#/components/schemas/myblogx_internal_chat_domain.MessageItem"
+                    },
+                    "msg": {
+                        "type": "string"
+                    }
+                },
+                "type": "object"
+            },
             "myblogx_internal_kernel.Envelope-myblogx_internal_comment_app_CreateResult": {
                 "properties": {
                     "code": {
@@ -4549,6 +4875,48 @@
                     },
                     "data": {
                         "$ref": "#/components/schemas/myblogx_internal_kernel.ListData-internal_article_adapter_http_FavoriteListItem"
+                    },
+                    "msg": {
+                        "type": "string"
+                    }
+                },
+                "type": "object"
+            },
+            "myblogx_internal_kernel.Envelope-myblogx_internal_kernel_ListData-internal_article_adapter_http_ProjectAdminCard": {
+                "properties": {
+                    "code": {
+                        "type": "integer"
+                    },
+                    "data": {
+                        "$ref": "#/components/schemas/myblogx_internal_kernel.ListData-internal_article_adapter_http_ProjectAdminCard"
+                    },
+                    "msg": {
+                        "type": "string"
+                    }
+                },
+                "type": "object"
+            },
+            "myblogx_internal_kernel.Envelope-myblogx_internal_kernel_ListData-internal_article_adapter_http_ProjectAdminItem": {
+                "properties": {
+                    "code": {
+                        "type": "integer"
+                    },
+                    "data": {
+                        "$ref": "#/components/schemas/myblogx_internal_kernel.ListData-internal_article_adapter_http_ProjectAdminItem"
+                    },
+                    "msg": {
+                        "type": "string"
+                    }
+                },
+                "type": "object"
+            },
+            "myblogx_internal_kernel.Envelope-myblogx_internal_kernel_ListData-internal_article_adapter_http_ProjectCardResponse": {
+                "properties": {
+                    "code": {
+                        "type": "integer"
+                    },
+                    "data": {
+                        "$ref": "#/components/schemas/myblogx_internal_kernel.ListData-internal_article_adapter_http_ProjectCardResponse"
                     },
                     "msg": {
                         "type": "string"
@@ -5109,6 +5477,51 @@
                 },
                 "type": "object"
             },
+            "myblogx_internal_kernel.ListData-internal_article_adapter_http_ProjectAdminCard": {
+                "properties": {
+                    "count": {
+                        "type": "integer"
+                    },
+                    "list": {
+                        "items": {
+                            "$ref": "#/components/schemas/internal_article_adapter_http.ProjectAdminCard"
+                        },
+                        "type": "array",
+                        "uniqueItems": false
+                    }
+                },
+                "type": "object"
+            },
+            "myblogx_internal_kernel.ListData-internal_article_adapter_http_ProjectAdminItem": {
+                "properties": {
+                    "count": {
+                        "type": "integer"
+                    },
+                    "list": {
+                        "items": {
+                            "$ref": "#/components/schemas/internal_article_adapter_http.ProjectAdminItem"
+                        },
+                        "type": "array",
+                        "uniqueItems": false
+                    }
+                },
+                "type": "object"
+            },
+            "myblogx_internal_kernel.ListData-internal_article_adapter_http_ProjectCardResponse": {
+                "properties": {
+                    "count": {
+                        "type": "integer"
+                    },
+                    "list": {
+                        "items": {
+                            "$ref": "#/components/schemas/internal_article_adapter_http.ProjectCardResponse"
+                        },
+                        "type": "array",
+                        "uniqueItems": false
+                    }
+                },
+                "type": "object"
+            },
             "myblogx_internal_kernel.ListData-internal_article_adapter_http_TagListItem": {
                 "properties": {
                     "count": {
@@ -5348,20 +5761,6 @@
                 },
                 "type": "object"
             },
-            "myblogx_internal_search_domain.Crop": {
-                "properties": {
-                    "focus_x": {
-                        "type": "number"
-                    },
-                    "focus_y": {
-                        "type": "number"
-                    },
-                    "zoom": {
-                        "type": "number"
-                    }
-                },
-                "type": "object"
-            },
             "myblogx_internal_search_domain.Highlight": {
                 "properties": {
                     "abstract": {
@@ -5399,10 +5798,6 @@
                     },
                     "created_at": {
                         "type": "string"
-                    },
-                    "crop": {
-                        "$ref": "#/components/schemas/myblogx_internal_search_domain.Crop",
-                        "description": "Crop 是封面取景；nil 表示没有记录，前端按居中、缩放 1 渲染。"
                     },
                     "digg_count": {
                         "type": "integer"
@@ -7550,6 +7945,42 @@
                     }
                 ],
                 "summary": "会话消息列表",
+                "tags": [
+                    "chat"
+                ]
+            },
+            "post": {
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/internal_chat_adapter_http.SendMessageRequest",
+                                "summary": "request",
+                                "description": "发送参数"
+                            }
+                        }
+                    },
+                    "description": "发送参数",
+                    "required": true
+                },
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/myblogx_internal_kernel.Envelope-myblogx_internal_chat_domain_MessageItem"
+                                }
+                            }
+                        },
+                        "description": "OK"
+                    }
+                },
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "summary": "发送私信消息",
                 "tags": [
                     "chat"
                 ]
@@ -10590,6 +11021,570 @@
                 "summary": "运行日志详情",
                 "tags": [
                     "log"
+                ]
+            }
+        },
+        "/projects": {
+            "get": {
+                "parameters": [
+                    {
+                        "description": "页码",
+                        "in": "query",
+                        "name": "page",
+                        "schema": {
+                            "type": "integer"
+                        }
+                    },
+                    {
+                        "description": "每页数量",
+                        "in": "query",
+                        "name": "limit",
+                        "schema": {
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/myblogx_internal_kernel.Envelope-myblogx_internal_kernel_ListData-internal_article_adapter_http_ProjectCardResponse"
+                                }
+                            }
+                        },
+                        "description": "OK"
+                    }
+                },
+                "summary": "项目列表",
+                "tags": [
+                    "project"
+                ]
+            },
+            "post": {
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/internal_article_adapter_http.ProjectCreateRequest",
+                                "summary": "body",
+                                "description": "请求体"
+                            }
+                        }
+                    },
+                    "description": "请求体",
+                    "required": true
+                },
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/myblogx_internal_kernel.Envelope-internal_article_adapter_http_ProjectCreatedResponse"
+                                }
+                            }
+                        },
+                        "description": "OK"
+                    }
+                },
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "summary": "新建项目",
+                "tags": [
+                    "project"
+                ]
+            }
+        },
+        "/projects/admin": {
+            "get": {
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/myblogx_internal_kernel.Envelope-myblogx_internal_kernel_ListData-internal_article_adapter_http_ProjectAdminCard"
+                                }
+                            }
+                        },
+                        "description": "OK"
+                    }
+                },
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "summary": "后台项目列表（含未展示）",
+                "tags": [
+                    "project"
+                ]
+            }
+        },
+        "/projects/order": {
+            "patch": {
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/internal_article_adapter_http.ProjectOrderRequest",
+                                "summary": "body",
+                                "description": "请求体"
+                            }
+                        }
+                    },
+                    "description": "请求体",
+                    "required": true
+                },
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/myblogx_internal_kernel.Envelope-myblogx_internal_kernel_EmptyData"
+                                }
+                            }
+                        },
+                        "description": "OK"
+                    }
+                },
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "summary": "项目之间排序",
+                "tags": [
+                    "project"
+                ]
+            }
+        },
+        "/projects/{id}": {
+            "delete": {
+                "parameters": [
+                    {
+                        "description": "项目 ID",
+                        "in": "path",
+                        "name": "id",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/myblogx_internal_kernel.Envelope-myblogx_internal_kernel_EmptyData"
+                                }
+                            }
+                        },
+                        "description": "OK"
+                    }
+                },
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "summary": "删项目",
+                "tags": [
+                    "project"
+                ]
+            },
+            "get": {
+                "parameters": [
+                    {
+                        "description": "项目 ID",
+                        "in": "path",
+                        "name": "id",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/myblogx_internal_kernel.Envelope-internal_article_adapter_http_ProjectDetailResponse"
+                                }
+                            }
+                        },
+                        "description": "OK"
+                    }
+                },
+                "summary": "项目详情",
+                "tags": [
+                    "project"
+                ]
+            },
+            "put": {
+                "parameters": [
+                    {
+                        "description": "项目 ID",
+                        "in": "path",
+                        "name": "id",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/internal_article_adapter_http.ProjectUpdateRequest",
+                                "summary": "body",
+                                "description": "请求体"
+                            }
+                        }
+                    },
+                    "description": "请求体",
+                    "required": true
+                },
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/myblogx_internal_kernel.Envelope-myblogx_internal_kernel_EmptyData"
+                                }
+                            }
+                        },
+                        "description": "OK"
+                    }
+                },
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "summary": "改项目",
+                "tags": [
+                    "project"
+                ]
+            }
+        },
+        "/projects/{id}/admin/stale": {
+            "delete": {
+                "parameters": [
+                    {
+                        "description": "项目 ID",
+                        "in": "path",
+                        "name": "id",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/myblogx_internal_kernel.Envelope-internal_article_adapter_http_ProjectStaleCleanupResponse"
+                                }
+                            }
+                        },
+                        "description": "OK"
+                    }
+                },
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "summary": "清理项目失效行",
+                "tags": [
+                    "project"
+                ]
+            }
+        },
+        "/projects/{id}/articles": {
+            "delete": {
+                "parameters": [
+                    {
+                        "description": "项目 ID",
+                        "in": "path",
+                        "name": "id",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/internal_article_adapter_http.ProjectArticleRequest",
+                                "summary": "body",
+                                "description": "请求体"
+                            }
+                        }
+                    },
+                    "description": "请求体",
+                    "required": true
+                },
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/myblogx_internal_kernel.Envelope-myblogx_internal_kernel_EmptyData"
+                                }
+                            }
+                        },
+                        "description": "OK"
+                    }
+                },
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "summary": "从项目移除文章",
+                "tags": [
+                    "project"
+                ]
+            },
+            "post": {
+                "parameters": [
+                    {
+                        "description": "项目 ID",
+                        "in": "path",
+                        "name": "id",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/internal_article_adapter_http.ProjectArticleRequest",
+                                "summary": "body",
+                                "description": "请求体"
+                            }
+                        }
+                    },
+                    "description": "请求体",
+                    "required": true
+                },
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/myblogx_internal_kernel.Envelope-myblogx_internal_kernel_EmptyData"
+                                }
+                            }
+                        },
+                        "description": "OK"
+                    }
+                },
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "summary": "收录文章进项目",
+                "tags": [
+                    "project"
+                ]
+            }
+        },
+        "/projects/{id}/articles/admin": {
+            "get": {
+                "parameters": [
+                    {
+                        "description": "项目 ID",
+                        "in": "path",
+                        "name": "id",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/myblogx_internal_kernel.Envelope-myblogx_internal_kernel_ListData-internal_article_adapter_http_ProjectAdminItem"
+                                }
+                            }
+                        },
+                        "description": "OK"
+                    }
+                },
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "summary": "后台项目收录行",
+                "tags": [
+                    "project"
+                ]
+            }
+        },
+        "/projects/{id}/articles/batch": {
+            "post": {
+                "parameters": [
+                    {
+                        "description": "项目 ID",
+                        "in": "path",
+                        "name": "id",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/internal_article_adapter_http.ProjectBatchIncludeRequest",
+                                "summary": "body",
+                                "description": "请求体"
+                            }
+                        }
+                    },
+                    "description": "请求体",
+                    "required": true
+                },
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/myblogx_internal_kernel.Envelope-internal_article_adapter_http_ProjectBatchIncludeResponse"
+                                }
+                            }
+                        },
+                        "description": "OK"
+                    }
+                },
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "summary": "批量收录文章进项目",
+                "tags": [
+                    "project"
+                ]
+            }
+        },
+        "/projects/{id}/articles/order": {
+            "patch": {
+                "parameters": [
+                    {
+                        "description": "项目 ID",
+                        "in": "path",
+                        "name": "id",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/internal_article_adapter_http.ProjectArticleOrderRequest",
+                                "summary": "body",
+                                "description": "请求体"
+                            }
+                        }
+                    },
+                    "description": "请求体",
+                    "required": true
+                },
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/myblogx_internal_kernel.Envelope-myblogx_internal_kernel_EmptyData"
+                                }
+                            }
+                        },
+                        "description": "OK"
+                    }
+                },
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "summary": "项目内文章排序",
+                "tags": [
+                    "project"
+                ]
+            }
+        },
+        "/projects/{id}/display": {
+            "patch": {
+                "parameters": [
+                    {
+                        "description": "项目 ID",
+                        "in": "path",
+                        "name": "id",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/internal_article_adapter_http.ProjectDisplayRequest",
+                                "summary": "body",
+                                "description": "请求体"
+                            }
+                        }
+                    },
+                    "description": "请求体",
+                    "required": true
+                },
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/myblogx_internal_kernel.Envelope-myblogx_internal_kernel_EmptyData"
+                                }
+                            }
+                        },
+                        "description": "OK"
+                    }
+                },
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "summary": "项目展示开关",
+                "tags": [
+                    "project"
                 ]
             }
         },

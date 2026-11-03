@@ -17,11 +17,6 @@ import (
 func (s *Service) Update(ctx context.Context, cmd UpdateArticleCmd) (*UpdateResult, error) {
 	var result *UpdateResult
 
-	// 越界取景在开事务前拒绝；nil 表示"不改取景"，不是错误。
-	if err := validateArticleCrop(cmd.Crop); err != nil {
-		return nil, err
-	}
-
 	err := s.tx.WithinTx(ctx, func(ctx context.Context, r Repos) error {
 		a, err := r.Articles().Find(ctx, cmd.ArticleID)
 		if err != nil {
@@ -78,8 +73,7 @@ func (s *Service) Update(ctx context.Context, cmd UpdateArticleCmd) (*UpdateResu
 		}
 
 		// 没有任何字段变化时直接返回，不写库（旧实现的 Noop 分支）。
-		// 取景是文章状态的一部分：只提交取景也算变化，否则会被这条空操作吃掉。
-		if flags == (domain.EditFlags{}) && !tagsReplaced && cmd.TargetStatus == nil && cmd.Crop == nil {
+		if flags == (domain.EditFlags{}) && !tagsReplaced && cmd.TargetStatus == nil {
 			result = &UpdateResult{Article: a, Changed: false}
 			return nil
 		}
@@ -126,9 +120,6 @@ func (s *Service) Update(ctx context.Context, cmd UpdateArticleCmd) (*UpdateResu
 		}
 
 		if err := r.Articles().Update(ctx, a); err != nil {
-			return err
-		}
-		if err := upsertArticleCrop(ctx, r, a.ID().Uint64(), cmd.Crop); err != nil {
 			return err
 		}
 		if tagsReplaced {

@@ -9,7 +9,6 @@ import {
   brandCopyright,
   brandDescription,
   brandFullName,
-  brandProjectTitle,
   brandTitle,
 } from "~/utils/brand";
 
@@ -47,13 +46,6 @@ describe("brand：品牌单点定义", () => {
     expect(brandDescription()).toBe(BRAND.description);
     expect(brandDescription("  ")).toBe(BRAND.description);
     expect(brandDescription("  文章摘要  ")).toBe("文章摘要");
-  });
-
-  it("站点标题兜底：运行时有项目名用项目名，没有用英文品牌名", () => {
-    expect(brandProjectTitle()).toBe("JellyBin");
-    expect(brandProjectTitle(null)).toBe("JellyBin");
-    expect(brandProjectTitle("  ")).toBe("JellyBin");
-    expect(brandProjectTitle("  我的博客  ")).toBe("我的博客");
   });
 
   it("版权行带年份", () => {

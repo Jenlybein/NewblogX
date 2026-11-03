@@ -1,5 +1,8 @@
+import { useNuxtApp } from "#imports";
 import type {
+  ChatMessageItem,
   ChatMessageListData,
+  ChatSendMessagePayload,
   ChatSessionListData,
   ChatWsTicketData,
   GlobalNoticeListData,
@@ -91,8 +94,23 @@ export function getChatMessages(params: { sessionId: string; userId?: string; ty
   });
 }
 
-export function markChatMessagesRead(msgIdList: string[]) {
-  return useNuxtApp().$api.request("/api/chat/read", {
+/**
+ * 发送私信消息（HTTP 可靠落库，唯一发送通道）。
+ *
+ * WebSocket 只做通知（#201）：WS 断开/断网时消息照样能发出，
+ * 对端重连后靠通知刷新拿到消息。
+ *
+ * `client_msg_id` 是幂等键：同一次发送的重试必须复用同一个值，
+ * 服务端据此保证重复提交不产生第二条消息、不重复加未读。
+ */
+export function sendChatMessage(payload: ChatSendMessagePayload) {
+  return useNuxtApp().$api.request<ChatMessageItem>("/api/chat/messages", {
+    method: "POST",
+    body: payload,
+  });
+}
+
+export function markChatMessagesRead(msgIdList: string[]) {  return useNuxtApp().$api.request("/api/chat/read", {
     method: "POST",
     body: {
       msg_id_list: msgIdList,

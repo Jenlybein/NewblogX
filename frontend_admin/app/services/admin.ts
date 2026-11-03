@@ -29,6 +29,12 @@ import type {
   DeadLetterReplayResult,
   ImageListResponseData,
   ListData,
+  ProjectAdminCard,
+  ProjectAdminItem,
+  ProjectBatchIncludeResponse,
+  ProjectCreatePayload,
+  ProjectStaleCleanupResult,
+  ProjectUpdatePayload,
   ReplayLogRecord,
   LoginEventRecord,
   RuntimeLogRecord,
@@ -251,6 +257,80 @@ export function updateCollectionOrder(collectionIds: string[]) {
   })
 }
 
+// ── 项目（与合集并列的独立内容实体）───────────────────────────
+
+/** 后台项目列表：含未展示的项目、排序号与回退封面。 */
+export function getAdminProjects() {
+  return api().request<ListData<ProjectAdminCard>>('/projects/admin')
+}
+
+/** 新建项目。`displayed` 显式传：项目允许"先建好、不展示"。 */
+export function createProject(payload: ProjectCreatePayload) {
+  return api().request<{ id: string }, ProjectCreatePayload>('/projects', { method: 'POST', body: payload })
+}
+
+/** 改项目内容（标题 / 描述 / 封面）。展示开关走 setProjectDisplay。 */
+export function updateProject(id: string, payload: ProjectUpdatePayload) {
+  return api().request<unknown, ProjectUpdatePayload>(`/projects/${id}`, { method: 'PUT', body: payload })
+}
+
+/** 删项目（软删，不删文章）。 */
+export function deleteProject(id: string) {
+  return api().request<unknown>(`/projects/${id}`, { method: 'DELETE' })
+}
+
+/** 切换项目是否展示给读者。 */
+export function setProjectDisplay(id: string, displayed: boolean) {
+  return api().request<unknown, { displayed: boolean }>(`/projects/${id}/display`, {
+    method: 'PATCH',
+    body: { displayed },
+  })
+}
+
+/** 后台项目收录行：含失效行（全集换序必须提交完整集合）。 */
+export function getAdminProjectItems(id: string) {
+  return api().request<ListData<ProjectAdminItem>>(`/projects/${id}/articles/admin`)
+}
+
+/** 批量收录：一次提交多篇，逐篇返回结局（重复 / 不可收录不会让整单失败）。 */
+export function batchIncludeProjectArticles(id: string, articleIds: string[]) {
+  return api().request<ProjectBatchIncludeResponse, { article_ids: string[] }>(
+    `/projects/${id}/articles/batch`,
+    { method: 'POST', body: { article_ids: articleIds } },
+  )
+}
+
+/** 移除一篇收录（幂等；后端会把剩余序号压实）。 */
+export function removeProjectArticle(id: string, articleId: string) {
+  return api().request<unknown, { article_id: string }>(`/projects/${id}/articles`, {
+    method: 'DELETE',
+    body: { article_id: articleId },
+  })
+}
+
+/** 一键清理项目里的全部失效行（幂等；返回本次删掉的条数）。 */
+export function cleanupProjectStale(id: string) {
+  return api().request<ProjectStaleCleanupResult>(`/projects/${id}/admin/stale`, {
+    method: 'DELETE',
+  })
+}
+
+/** 项目内的全量顺序替换：传**完整**的有序列表（失效行也算）。 */
+export function updateProjectItemOrder(id: string, articleIds: string[]) {
+  return api().request<unknown, { article_ids: string[] }>(`/projects/${id}/articles/order`, {
+    method: 'PATCH',
+    body: { article_ids: articleIds },
+  })
+}
+
+/** 项目之间的全量顺序替换：传完整列表（含未展示的项目）。 */
+export function updateProjectOrder(projectIds: string[]) {
+  return api().request<unknown, { project_ids: string[] }>('/projects/order', {
+    method: 'PATCH',
+    body: { project_ids: projectIds },
+  })
+}
+
 export function getSiteRuntimeConfig() {  return api().request<SiteRuntimeConfig>('/site/admin/site')
 }
 
@@ -328,7 +408,7 @@ export function createBanner(payload: BannerWritePayload) {
   return api().request<unknown, BannerWritePayload>('/banners', { method: 'POST', body: payload })
 }
 
-/** 更新轮播（取景就靠它立即生效）。整体替换：href / show 也必须一起带上。 */
+/** 更新轮播（改标题等字段立即生效）。整体替换：href / show / 标题也必须一起带上。 */
 export function updateBanner(id: string, payload: BannerWritePayload) {
   return api().request<unknown, BannerWritePayload>(`/banners/${id}`, { method: 'PUT', body: payload })
 }

@@ -6,7 +6,7 @@
 // 三套分支；把"数据 → 条目视图"收进纯函数后，卡片只消费一种形状，三处天然同形态。
 //
 // 本模块是纯 TS：不 import Nuxt / Vue，单测直接 import。
-import type { ArticleCrop, FavoriteArticleItem, SearchArticleItem } from "~/types/api";
+import type { FavoriteArticleItem, SearchArticleItem } from "~/types/api";
 import { formatCount, formatDateLabel, formatDateTimeLabel } from "~/utils/format";
 
 export type ArticleEntryVariant = "list" | "search" | "shelf";
@@ -37,8 +37,6 @@ export interface ArticleEntryData {
   title: string;
   abstract: string;
   cover: string;
-  /** 封面取景（焦点 + 缩放）；没有记录时为 null，按居中、缩放 1 渲染。 */
-  crop: ArticleCrop | null;
   dateLabel: string;
   categoryLabel: string;
   statusLabel: string;
@@ -58,7 +56,6 @@ export const EMPTY_ARTICLE_ENTRY: ArticleEntryData = {
   title: FALLBACK_TITLE,
   abstract: FALLBACK_ABSTRACT,
   cover: "",
-  crop: null,
   dateLabel: "",
   categoryLabel: "",
   statusLabel: "",
@@ -90,8 +87,6 @@ export function fromSearchArticle(article: SearchArticleItem): ArticleEntryData 
     title: title || FALLBACK_TITLE,
     abstract: abstract || FALLBACK_ABSTRACT,
     cover: (article.cover || "").trim(),
-    // 列表封面也按作者选定的取景裁切（crop 由 ES 文档投影过来）。
-    crop: article.crop ?? null,
     dateLabel: formatDateLabel(article.created_at),
     categoryLabel: (article.category?.title || "").trim(),
     statusLabel: "",
@@ -127,7 +122,6 @@ export function fromFavoriteArticle(article: FavoriteArticleItem): ArticleEntryD
     title: title || FALLBACK_TITLE,
     abstract: abstract || FALLBACK_ABSTRACT,
     cover: String(article.cover || "").trim(),
-    crop: null,
     dateLabel: formatDateTimeLabel(article.favorited_at),
     categoryLabel: "",
     statusLabel,

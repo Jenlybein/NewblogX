@@ -8,7 +8,6 @@ import (
 	"strings"
 	"time"
 
-	"myblogx/internal/apperr"
 	"myblogx/internal/kernel/ctype"
 )
 
@@ -29,51 +28,8 @@ type Banner struct {
 	// 存的是运营输入的原文（只收敛首尾空白），不做 HTML / Markdown 解析或渲染：
 	// 读者站按纯文本插值输出，不引入清洗面。
 	Title string
-	// Crop 是这张图的取景参数：露出封面的哪一块。
-	//
-	// 读出来时一定已填好缺省（见 DefaultCrop），所以消费方不需要再判"有没有"。
-	Crop      Crop
 	CreatedAt time.Time
 	UpdatedAt time.Time
-}
-
-// Crop 是取景参数：焦点（图上 0–1 的相对坐标）+ 缩放。
-//
-// 轮播封面、文章封面、合集封面共用这一套语义，存在通用取景表里
-// （键 target_type / target_id）。存参数而不是裁好的第二份图：原图只有一份，
-// 随时能改取景而不重传（ADR-0013 首屏封面例外区）。
-type Crop struct {
-	// FocusX / FocusY 是焦点在图上的相对位置，取值 0–1；0.5/0.5 是居中。
-	FocusX float64
-	FocusY float64
-	// Zoom 是放大倍数，取值 1–2；1 表示不放大。
-	Zoom float64
-}
-
-// DefaultCrop 是"没有取景记录"时的取景：居中、缩放 1。
-//
-// 历史图（取景表里没有行）走这一条，渲染结果与加取景之前完全一致。
-var DefaultCrop = Crop{FocusX: 0.5, FocusY: 0.5, Zoom: 1}
-
-// 取景参数的取值范围（闭区间）。
-const (
-	MinFocus = 0.0
-	MaxFocus = 1.0
-	MinZoom  = 1.0
-	MaxZoom  = 2.0
-)
-
-// Validate 校验取景参数是否在合法范围内。
-//
-// 越界返回错误而不是钳制：钳制会让运营看到的取景与读者看到的取景分家。
-func (c Crop) Validate() error {
-	ok := c.FocusX >= MinFocus && c.FocusX <= MaxFocus &&
-		c.FocusY >= MinFocus && c.FocusY <= MaxFocus &&
-		c.Zoom >= MinZoom && c.Zoom <= MaxZoom
-	if !ok {
-		return apperr.New(apperr.CodeBannerCropInvalid)
-	}
-	return nil
 }
 
 // MaxTitleLength 是轮播标题的列宽（banner_models.title 是 varchar(256)）。

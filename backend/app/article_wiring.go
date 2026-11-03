@@ -13,6 +13,7 @@ import (
 	"myblogx/internal/article/domain"
 	"myblogx/internal/article/domain/collection"
 	"myblogx/internal/article/domain/favorite"
+	"myblogx/internal/article/domain/project"
 	"myblogx/internal/kernel/ctype"
 	"myblogx/internal/kernel/enum"
 	mediamysql "myblogx/internal/media/adapter/mysql"
@@ -90,6 +91,18 @@ func (snowflakeIDs) NextCollectionID() collection.ID {
 	return collection.ID(id)
 }
 
+// NextProjectID 返回下一个项目 ID。
+//
+// 与 NextCollectionID 同一做法：项目与合集是两套内容实体，ID 会出现在
+// 读者站 URL 上，日志里要能分辨"这是项目还是合集"。
+func (snowflakeIDs) NextProjectID() project.ID {
+	id, err := idgen.Next()
+	if err != nil {
+		panic("article: 雪花 ID 生成失败: " + err.Error())
+	}
+	return project.ID(id)
+}
+
 // NextFolderID 返回下一个收藏夹 ID。
 func (snowflakeIDs) NextFolderID() favorite.ID {
 	id, err := idgen.Next()
@@ -137,4 +150,3 @@ func (r *imageResolver) ResolveImageURLByID(ctx context.Context, id ctype.ID) (s
 	_ = ctx
 	return mediamysql.ResolveURLByID(r.db, id.Uint64())
 }
-

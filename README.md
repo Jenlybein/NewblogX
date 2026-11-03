@@ -258,12 +258,12 @@ docker compose exec blogx_server /app/server -f config/settings.yaml \
 
 | 组 | 字段 | 怎么填 |
 | --- | --- | --- |
-| 基础信息 | 站点标题、Logo URL、备案号、SEO 关键词 / 描述 | 站点标题出现在页头与浏览器标题；Logo 可填 `https://...` 或 `/uploads/...`；SEO 关键词用英文逗号分隔，描述给搜索引擎和分享卡片用 |
+| 基础信息 | 备案号、SEO 关键词 / 描述 | 备案号显示在读者站页脚，留空则整行不显示；站点标题与 Logo 不再可自定义（品牌由读者站代码常量提供，favicon 走项目图标）；SEO 关键词用英文逗号分隔，描述给搜索引擎和分享卡片用 |
 | 登录策略 | 用户名密码登录、邮箱验证码登录、QQ 登录、图形验证码；验证码有效期；发码限流；登录失败锁定 | **先配好对应服务再打开开关**：邮箱登录要先配「邮件」页，QQ 登录要先配「第三方登录」页。开了没配，用户点下去只会看到报错。数值类默认值够用 |
 | 发布与展示 | 允许非管理员发布文章、允许非管理员创建草稿、显示非管理员发布文章 | 三个都**默认打开**：前两个只管普通用户（关掉后普通用户不能发布 / 不能存草稿，存量草稿仍可打开与删除），第三个关掉后读者端的列表、搜索、详情、收藏、历史与首页热门置顶都看不到"作者不是管理员"的文章（后台不受影响）。判定全在服务端，改完下一次请求即生效 |
 | 内容审核 | 文章免审核、评论免审核 | 打开后发布 / 评论直接过，不进后台审核队列；单人博客建议都打开 |
 
-新手最少要做的：填站点标题与 SEO，按需打开「文章免审核」。邮箱 / QQ 登录留到后面配完服务再开。
+新手最少要做的：填备案号与 SEO，按需打开「文章免审核」。邮箱 / QQ 登录留到后面配完服务再开。
 
 > 「发布与展示」是这次（ADR-0017）替换掉旧「站点模式」的那张卡：站点模式从未被任何代码读取，已删除；想要"单人博客"就把前两个开关关掉。
 
@@ -302,6 +302,8 @@ AI 是**两层开关**，只开一层不生效：
 | 上传回调地址 | `https://你的域名/api/images/qiniu/callback`，**必须 HTTPS 且证书覆盖该域名**；留空 = 不启用回调，上传任务会一直 pending |
 
 保存即生效（运行时配置现读，不用重启）。验证：后台「媒体运营」上传一张图，能显示且直链能打开就通了；文章封面 / 配图走同一条链路。
+
+> **封面在上传前就定形**：轮播、文章、合集封面在后台选完图后先按 **16:9 居中裁切并降采样**，预览确认后才上传**定形后的新文件**；原图不上传、不入库。读者端固定居中渲染，没有"焦点 / 缩放 / 取景"可调（详见 [ADR-0015](docs/adr/0015-banner-framing-as-parameters.md)）。头像同理，按 1:1、256 边长、PNG 定形后上传。
 
 #### 2.4.1 七牛云域名配置 HTTPS
 
@@ -952,7 +954,7 @@ docker compose up -d --build
 - **表不存在** → 自动执行建表，等 ES 就绪，再 `-es -s ensure`，然后才真正启动服务；
 - **表已存在** → 跳过初始化，直接启动。
 
-这带来一个副作用要知道：**它只认这一张表**。所以 ①想重新初始化，得先把这张表删掉（或手动执行 `-db`），否则 entrypoint 永远认为"已经初始化过了"；②**后来新增的表不会被自举**——只要 `runtime_config_models` 还在，升级时就必须手动执行一次 `-db`（见 [11.4](#114-更新版本)），否则用到新表的接口会报"表不存在"。
+这带来一个副作用要知道：**它只认这一张表**。所以 ①想重新初始化，得先把这张表删掉（或手动执行 `-db`），否则 entrypoint 永远认为"已经初始化过了"；②**后来新增的表不会被自举**——只要 `runtime_config_models` 还在，升级时就必须手动执行一次 `-db`（见 [11.4](#114-更新版本)），否则用到新表的接口会报"表不存在"。本批新增的 `project_models` / `project_article_models`（项目实体）就属于这一类。
 
 **启动要多久**：首次 `up` 含构建，几分钟；之后重启约 **40 秒**，其中大头是 ES 自己的冷启动（entrypoint 的 `wait_for_es` 每 3 秒探一次），应用连上 Redis/MySQL/ES 本身只要几毫秒。`blogx_server` 的探针间隔是 10s，所以"进程就绪"到"被判定 healthy"最多再差 10 秒。
 
@@ -1012,7 +1014,7 @@ docker compose up -d --build          # 只重建有变化的镜像
 docker compose ps                     # 确认 healthy
 ```
 
-数据库不需要单独迁移步骤。`-db` 执行的是 `schema.sql`，全部 `CREATE TABLE IF NOT EXISTS`，重复跑没有副作用——这也和项目的**零 DDL 硬约束**一致：口径是**零列变更 + 允许新增表**，**不会 ALTER 既有表**；[ADR-0020](docs/adr/0020-zero-ddl-exception-and-generic-framing-table.md) 授权的通用取景表 `picture_crop_models` 是首个登记例外（例外只到新建表）。
+数据库不需要单独迁移步骤。`-db` 执行的是 `schema.sql`，全部 `CREATE TABLE IF NOT EXISTS`，重复跑没有副作用——这也和项目的**零 DDL 硬约束**一致：口径是**零列变更 + 允许新增表**，**不会 ALTER 既有表**，也不会替你 DROP 任何表。曾经作为零 DDL 唯一登记例外的通用取景表 `picture_crop_models` 已随取景体系退场（[ADR-0020](docs/adr/0020-zero-ddl-exception-and-generic-framing-table.md) 已由 [ADR-0015](docs/adr/0015-banner-framing-as-parameters.md) 取代）；**当前没有任何登记例外**，再开例外须另开 ADR。它的物理下线是一次性现场操作，见 [11.4.3](#1143-本批189的一次性部署序列新表取景表下线与索引重建)。
 
 #### 构建一定要先 `down`、再**串行**重建
 
@@ -1105,85 +1107,116 @@ docker compose exec blogx_server /app/server \
   -f config/settings.yaml -db
 ```
 
-ADR-0017 引入的 `article_hot_top_models`（热门置顶运营位）就属于这一类。漏了这一步，后台「热门置顶」页与首页运营位会报表不存在，其它功能照常——很容易被当成"代码没生效"。
+ADR-0017 引入的 `article_hot_top_models`（热门置顶运营位）与本批的 `project_models` / `project_article_models`（项目实体）都属于这一类。漏了这一步，后台「热门置顶」页、首页运营位与后台「项目」页会报表不存在，其它功能照常——很容易被当成"代码没生效"。
 
-一次完整的升级顺序：**重建索引 + 回填 → 部署新代码 → 手动 `-db` → 后台设置三个开关与热门置顶**。
+一次完整的升级顺序：**重建索引 + 回填 → 部署新代码 → 手动 `-db` → 后台设置三个开关与热门置顶**。本批（#189）另有"物理下线取景表"这一步，完整序列见 [11.4.3](#1143-本批189的一次性部署序列新表取景表下线与索引重建)。
 
-### 11.4.3 轮播表重建与通用取景表合并（一次性现场操作）
+### 11.4.3 本批（#189）的一次性部署序列：新表、取景表下线与索引重建
 
-这个版本把轮播表重建为带标题列的结构，并把旧的轮播专属取景表合并成通用取景表：
+这一批（#189 合批：项目实体、站点配置瘦身、删除文章索引一致性、封面定形、头像定形、浏览历史、私信重构）横跨契约重生成、新建表、物理删表、CDC 监听变更与索引映射变更，**整体只能整包回滚**。部署按下面的顺序一次走完，每一步都不可省。
 
-| 表 | 旧结构 | 新结构 |
-| --- | --- | --- |
-| 轮播表 | `banner_models`：`id` / 三个时间列 / `show` / `cover` / `href` | 同上 + `title varchar(256) DEFAULT NULL` |
-| 取景表 | `banner_crop_models`：`banner_id`（主键）+ `focus_x` / `focus_y` / `zoom` | `picture_crop_models`：`(target_type, target_id)`（联合主键）+ 取景三列 |
+> 历史说明：上一轮"轮播表重建 + 通用取景表合并"（#118 / #119）是一次已经执行完的现场操作，步骤不再需要重跑，也不再保留在本文；需要回看时查 git 历史与 [ADR-0020](docs/adr/0020-zero-ddl-exception-and-generic-framing-table.md) 的「实施记录」。
 
-字段映射：`banner_crop_models.banner_id` → `picture_crop_models.target_id`，并补 `target_type = 'banner'`；`focus_x` / `focus_y` / `zoom` 的名称、类型与语义原样沿用。契约字段仍是 `crop`、错误码仍是 `banner.crop_invalid`，都不随表名改变。
-
-`schema.sql` 只做 `CREATE TABLE IF NOT EXISTS`，**没有任何 ALTER / DROP**；旧表不会被自动改名或删除，`-db` 也不会替你做回填。所以这是一次**手工、一次性**的现场操作。
-
-**0. 先备份**
+**0. 备份（必做，物理删表不可逆）**
 
 ```bash
-docker compose exec mysql-master mysqldump -uroot -p"$MYSQL_ROOT_PASSWORD" blogx \
-  banner_models banner_crop_models > /opt/blogx/backup-banner-$(date +%F-%H%M).sql
+cd /opt/blogx/deploy/compose/production
+set -a; . ./.env; set +a
+mkdir -p /opt/blogx/backup
+
+# 全库备份
+docker compose exec -T mysql-master mysqldump -u"$BLOGX_DB_USER" -p"$BLOGX_DB_PASSWORD" \
+  --single-transaction --routines "$BLOGX_DB_NAME" \
+  > /opt/blogx/backup/blogx-before-189-$(date +%F-%H%M).sql
+
+# 删表前单独留一份取景表快照（只在第 3 步之前有意义）
+docker compose exec -T mysql-master mysqldump -u"$BLOGX_DB_USER" -p"$BLOGX_DB_PASSWORD" \
+  --single-transaction "$BLOGX_DB_NAME" picture_crop_models \
+  > /opt/blogx/backup/picture-crop-$(date +%F-%H%M).sql
 ```
 
-**1. 停写**：`docker compose stop blogx_server`。轮播表在 image-ref 的 CDC 监听范围内，重建期间不要有写入。
+**1. 停服务并串行重建三个镜像**
 
-**2. 手工 DROP 两张旧表**
+内存受限的机器不能并行构建（见 [11.4 构建约定](#构建一定要先-down再串行重建)）：
 
 ```bash
-docker compose exec mysql-master mysql -uroot -p"$MYSQL_ROOT_PASSWORD" blogx \
-  -e "DROP TABLE IF EXISTS banner_crop_models, banner_models;"
+docker compose down
+docker compose build blogx_server
+docker compose build blogx_web
+docker compose build blogx_admin
 ```
 
-**3. 跑一次建表**
+**2. 手动建两张项目表**
 
-```bash
-docker compose run --rm blogx_server /app/server -f config/settings.yaml -db
-```
-
-`-db` 会按新的 `schema.sql` 建出 `banner_models`（带 `title`）与 `picture_crop_models`。容器自举只认一张判断表，判断表还在时不会补建缺失的表，所以这一步不能省。建表完成后 `docker compose up -d` 切到新镜像——image-ref river 需要重启才会重新读取重建后的表结构。
-
-**4. 数据回填 / 重种**
-
-- 轮播位配置可以弃掉（本次改造已确认存量轮播没有标题历史）：切到新镜像后在后台「媒体运营」重新创建轮播即可；新建轮播的取景缺省为「居中、缩放 1」。
-- 若要保留存量数据，从第 0 步的备份里恢复。`banner_models` 显式带原 `id` 与 `title`（存量行没有标题时写 `NULL`）；取景行按下面的映射写入新表：
-
-  ```sql
-  INSERT INTO picture_crop_models (target_type, target_id, focus_x, focus_y, zoom)
-  SELECT 'banner', banner_id, focus_x, focus_y, zoom FROM banner_crop_models;
-  ```
-
-  回填要在 DROP 之前做，否则只能从备份里重放：旧取景行指向的轮播 id 已被新 id 取代，等于孤儿。
-
-**5. 清理指向已消失轮播的图片引用**
-
-DROP 是 DDL 事件，不触发行级 CDC，所以 `image_ref_models` 里会留下 `ref_type = banner`、但对应轮播已不存在（或已软删）的行。先看清单（只读，不写任何数据）：
+容器自举只认 `runtime_config_models`，新表不会被补建（见 [11.3](#113-首次部署)）。用**新镜像**跑一次 `-db`：
 
 ```bash
 docker compose run --rm blogx_server /app/server \
-  -f config/settings.yaml -t imagerefgc
+  -f config/settings.yaml -db
 ```
 
-确认清单后，带 `-apply` 才真正删除：
+产出 `project_models` 与 `project_article_models`。`-db` 只做 `CREATE TABLE IF NOT EXISTS`，不会 ALTER 既有表，也不会 DROP 任何表。
+
+**3. 物理下线取景表**
+
+取景体系已全量退场：`schema.sql` 不再登记它，代码也不再读写它。`-db` **不会**替你删表，这里必须手工执行一次（不可逆，确认第 0 步备份已完成）：
+
+```bash
+docker compose exec mysql-master mysql -u"$BLOGX_DB_USER" -p"$BLOGX_DB_PASSWORD" "$BLOGX_DB_NAME" \
+  -e "DROP TABLE IF EXISTS picture_crop_models;"
+```
+
+`banner_crop_models` 若在更早的升级里已经下线，这里不再处理；`picture_crop_models` 删掉之后，旧封面按居中兜底渲染，不迁移、不回填。之后后端不应再有任何代码路径访问它（删除文章 / 删除轮播已不再清取景行）。
+
+**4. 重建索引并全量回填**
+
+本批改了索引映射（软删标记、移除取景字段），删除文章的索引移除也依赖新映射。用新镜像先删后建索引，再全量回填（期间搜索短暂不全是预期）：
 
 ```bash
 docker compose run --rm blogx_server /app/server \
-  -f config/settings.yaml -t imagerefgc -apply
+  -f config/settings.yaml -es -s init
+docker compose run --rm blogx_server /app/server \
+  -f config/settings.yaml -es -s article-sync
 ```
 
-判定口径：轮播表里没有这一行，或该行 `deleted_at` 非空，都算孤儿；只动 `ref_type = banner` 的行。建议在轮播重新创建之后执行（新建轮播由 CDC 重新写入引用），命令可重复执行。
+**5. 强重建启动**
 
-**6. 验证**
+镜像 tag 变了不等于容器变了（见 [11.4 重建约定](#构建完必须让容器重建否则跑的还是旧镜像)）：
 
-- 后台「媒体运营」列表能显示轮播（含标题）；
-- 创建/编辑一条轮播能保存取景，刷新后取景不回退；
-- 读者站首屏轮播正常（无标题的行只显示渐黑与圆点）；
-- `-t imagerefgc` 再跑一次，清单为空。
+```bash
+docker compose up -d --force-recreate blogx_web blogx_admin blogx_server
+```
 
-排错要点：漏了第 3 步 → 后台轮播列表与读者站首屏会报表不存在或 `Unknown column 'title'`；漏了第 5 步 → 图片引用计数偏高、孤儿图清单迟迟不敢删图。
+**6. 重启反向代理**
+
+nginx 在启动时缓存上游 IP，`--force-recreate` 会给 `blogx_server` 分配新 IP；不重启 nginx 会 502（见 [11.4 反代约定](#重建-blogx_server-之后要顺手重启-nginx)）：
+
+```bash
+docker compose restart nginx
+```
+
+**7. 健康检查与冒烟**
+
+```bash
+docker compose ps                                   # 全部 Up (healthy)
+curl -sk https://127.0.0.1/health | head -1         # 200
+curl -sk https://127.0.0.1/       | head -1         # 200
+curl -sk https://127.0.0.1/admin/ | head -1         # 200
+curl -s  https://你的域名/api/site/seo | head -c 200; echo
+```
+
+再从外网（手机流量或另一台机器）打开 `https://你的域名` 一次。冒烟项按这一批的改动逐条过：
+
+- 后台「项目」页可用：新建 / 编辑 / 收录文章 / 排序都能保存；读者站项目列表与详情能打开；
+- 私信可收发：HTTP 发送成功后，对方在线时收到通知、刷新能看到消息；断网重连后仍能发出；
+- 删除一篇文章后，读者站刷新即搜不到（首页「最新」与搜索结果都不再出现）；
+- 备案号显示正确（后台改完刷新读者站页脚即生效）；
+- 上传头像后各处头像为正方形；上传封面时能看到 16:9 定形预览，线上构图与预览一致；
+- 顶部「创作」入口在右侧、与亮暗切换 / 个人信息同一套样式；发布门控关闭时不出现；
+- 确认物理下线：`docker compose exec mysql-master mysql -u"$BLOGX_DB_USER" -p"$BLOGX_DB_PASSWORD" "$BLOGX_DB_NAME" -e "SHOW TABLES LIKE 'picture_crop_models';"` 输出为空；
+- `-t imagegc`（先只读）清单里没有因本轮删表新增的孤儿引用；必要时再跑 `-t imagerefgc`。
+
+排错要点：漏了第 2 步 → 后台「项目」页与读者站项目路由报"表不存在"；漏了第 3 步 → 旧表还在（不影响功能，但取景残留在库里）；漏了第 4 步 → 删除文章后读者站仍能搜到（索引里是无标记旧文档）；漏了第 6 步 → 外网 502 而容器 healthy。
 
 ### 11.5 回滚
 
@@ -1426,7 +1459,7 @@ BLOGX_LOG_CLEANUP_RUN_AT='03:30:00'
 
 这几条不是风格偏好，是有守卫脚本兜底的硬约束。违反了门禁会红，或者更糟——**不红但线上出错**。
 
-1. **零 DDL。** 口径是**零列变更 + 允许新增表**：不能改、不能删既有表，新表用 `CREATE TABLE IF NOT EXISTS` 登记；[ADR-0020](docs/adr/0020-zero-ddl-exception-and-generic-framing-table.md) 授权的通用取景表 `picture_crop_models` 是首个登记例外，边界只到"新建表"——既有表的列变更仍一律禁止。**CDC 按列名解析**（ES 文章投影与 image-ref 两条链路），改列名会让同步静默错位。
+1. **零 DDL。** 口径是**零列变更 + 允许新增表**：不能改、不能删既有表，新表用 `CREATE TABLE IF NOT EXISTS` 登记；经 ADR 立项的登记例外必须一条 ADR 指名，**当前没有任何登记例外**（通用取景表曾是首个也是唯一一个，已随取景退场物理下线，[ADR-0020](docs/adr/0020-zero-ddl-exception-and-generic-framing-table.md) 已由 [ADR-0015](docs/adr/0015-banner-framing-as-parameters.md) 取代）。既有表的列变更仍一律禁止。**CDC 按列名解析**（ES 文章投影与 image-ref 两条链路），改列名会让同步静默错位。
 2. **ID 语义字段必须用 `ctype.ID`**，禁止裸整型。守卫规则 R12 兜底，基线 0。
 3. **不要拿 ID 比大小。** `ctype.ID` 底层是字符串，`"10" < "9"` 成立。要比较先 `.Uint64()`。
 4. **不要用 `ID(123)` 构造 ID**，用 `NewID`。`go vet` 的 `stringintconv` 只抓这一种写法。
@@ -1571,7 +1604,7 @@ README 只能回答"怎么用"。更细的东西都在代码库里，而且它�
 | --- | --- |
 | 全部环境变量、默认值、哪些必须改 | `deploy/compose/production/env.example`（带注释的完整清单） |
 | 后端每个配置项什么意思 | `backend/config/settings.yaml`（逐字段中文注释） |
-| 站点标题 / 备案号 / 登录开关的默认值 | `backend/config/site_default_settings.yaml` |
+| 备案号 / 登录开关的默认值 | `backend/config/site_default_settings.yaml` |
 | 为什么某些配置在后台改、某些必须在环境变量里 | `docs/architecture/configuration.md` |
 | AI 用哪家模型、怎么再加一个供应商 | `docs/architecture/ai-integration.md` |
 | 表结构 | `backend/internal/platform/mysql/ddl/schema.sql` |

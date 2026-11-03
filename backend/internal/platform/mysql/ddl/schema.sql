@@ -459,17 +459,46 @@ CREATE TABLE IF NOT EXISTS `outbox_event_models` (
   KEY `idx_outbox_event_models_available_at` (`available_at`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
--- 通用取景表：按 (target_type, target_id) 存一个主体的取景参数（焦点 + 缩放）。
--- target_type 记主体类型（banner / article / collection），target_id 记该主体的 ID。
--- 一张表服务所有主体，不再按主体类型各开一张；取景三列的名称、类型与语义沿用
--- 既有口径，缺行即缺省（居中、缩放 1）。本表不进任何 CDC 监听范围，也不发 outbox 事件。
-CREATE TABLE IF NOT EXISTS `picture_crop_models` (
-  `target_type` varchar(32) NOT NULL,
-  `target_id` bigint unsigned NOT NULL,
-  `focus_x` double DEFAULT NULL,
-  `focus_y` double DEFAULT NULL,
-  `zoom` double DEFAULT NULL,
-  PRIMARY KEY (`target_type`,`target_id`)
+-- 项目-文章关联表：结构与 collection_article_models 同构。
+--
+-- 唯一键 uk_project_article **不含 deleted_at**：移除是软删，行留在表里占着这个键，
+-- 所以"移除后再收录"必须恢复原行而不是新插入（与合集/点赞表是同一个坑）。
+-- 失效口径沿用合集：文章后来不再公开时行保留，读者侧靠联表过滤。
+-- 建表顺序沿用合集：关联表在前、主表在后（本目录执行时 FOREIGN_KEY_CHECKS=0）。
+CREATE TABLE IF NOT EXISTS `project_article_models` (
+  `id` bigint unsigned NOT NULL,
+  `created_at` datetime(3) DEFAULT NULL,
+  `updated_at` datetime(3) DEFAULT NULL,
+  `deleted_at` datetime(3) DEFAULT NULL,
+  `project_id` bigint unsigned NOT NULL,
+  `article_id` bigint unsigned NOT NULL,
+  `sort_order` bigint NOT NULL DEFAULT '0',
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uk_project_article` (`project_id`,`article_id`),
+  KEY `idx_project_article_models_article_id` (`article_id`),
+  CONSTRAINT `fk_project_article_models_project_model` FOREIGN KEY (`project_id`) REFERENCES `project_models` (`id`),
+  CONSTRAINT `fk_project_article_models_article_model` FOREIGN KEY (`article_id`) REFERENCES `article_models` (`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
+-- 项目（与合集并列的独立内容实体）主表。
+--
+-- 结构镜像 collection_models（标题/描述/封面/展示开关/排序/创建者 + 软删），
+-- 但**不共用数据**：项目是另一套表、另一套后台维护页。既有表不加列（零 DDL）。
+-- 项目不进搜索索引、不接 CDC 监听——与合集同一口径：运营编排不是可检索内容。
+CREATE TABLE IF NOT EXISTS `project_models` (
+  `id` bigint unsigned NOT NULL,
+  `created_at` datetime(3) DEFAULT NULL,
+  `updated_at` datetime(3) DEFAULT NULL,
+  `deleted_at` datetime(3) DEFAULT NULL,
+  `title` varchar(128) NOT NULL,
+  `description` varchar(512) NOT NULL,
+  `cover` longtext NOT NULL,
+  `is_display` tinyint(1) NOT NULL DEFAULT '1',
+  `sort_order` bigint NOT NULL DEFAULT '0',
+  `creator_id` bigint unsigned NOT NULL,
+  PRIMARY KEY (`id`),
+  KEY `idx_project_models_is_display` (`is_display`),
+  KEY `idx_project_models_creator_id` (`creator_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 -- 站点运行时配置：一段一行。

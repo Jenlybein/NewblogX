@@ -36,15 +36,40 @@ describe("封面组件：列表与详情共用的 16:9 底座", () => {
     expect(block).toContain("width: 100%");
     expect(block).not.toMatch(/height(?:\s|-|:)/u);
   });
+
+  it("图片固定居中（object-fit: cover / center），不消费取景参数（#204）", () => {
+    const image = blockAfter(articleCover, ".article-cover-image {");
+
+    expect(image).toContain("object-fit: cover");
+    expect(image).toContain("object-position: center");
+    // 取景体系已全量退场：组件不再引用取景算术，也没有 crop / framing 样式出口。
+    expect(articleCover).not.toMatch(/framingStyle|bannerFraming|crop/u);
+    expect(articleCover).not.toMatch(/:style=/u);
+  });
+
+  it("没有封面时落到空封面兜底，兜底也占同一个 16:9 形状", () => {
+    expect(articleCover).toContain("article-cover-default");
+    expect(articleCover).toMatch(/v-else/u);
+  });
 });
 
 describe("文章详情页封面：16:9 且高度不随视口变化", () => {
+  const detailPage = readFileSync(join(projectDir, "app/pages/article/[id].vue"), "utf8");
+
   it("用比例撑高度，不再有 vw / clamp / 固定高度档", () => {
     const block = blockAfter(tailwind, ".article-cover {");
 
     expect(aspectRatioOf(block)).toBe(SPEC_RATIO);
     expect(block).not.toMatch(/height\s*:/u);
     expect(block).not.toMatch(/vw|vh|clamp\(/u);
+  });
+
+  it("详情页封面固定居中：吃 object-cover，且不再贴取景行内样式（#204）", () => {
+    const block = blockAfter(tailwind, ".article-cover {");
+
+    expect(block).toContain("object-cover");
+    expect(detailPage).not.toMatch(/framingStyle|articleCoverStyle/u);
+    expect(detailPage).toMatch(/class="article-cover"/u);
   });
 });
 
@@ -61,12 +86,15 @@ describe("阅读站列表缩略图：不再按列表变体换比例", () => {
 });
 
 describe("创作页列表缩略图：历史与收藏同为 16:9", () => {
-  it("历史卡片缩略图锁 16:9，窄屏只改宽度、不改形状", () => {
+  it("历史卡片缩略图锁 16:9，窄屏只改列宽与按钮可见性、不改形状", () => {
     const block = blockAfter(historyPage, ".article-history-card__cover {");
     expect(aspectRatioOf(block)).toBe(SPEC_RATIO);
     expect(block).not.toMatch(/height\s*:/u);
 
-    const narrow = blockAfter(blockAfter(historyPage, "@media (max-width: 768px)"), ".article-history-card__cover {");
+    // #194 起历史页改成栅格短卡片：封面宽度完全由列宽决定，窄屏块只让移出按钮常显，
+    // 不得再出现任何第二形状（height / aspect-ratio 覆盖）。
+    const narrow = blockAfter(historyPage, "@media (max-width: 768px)");
+    expect(narrow).toContain(".article-history-card__remove");
     expect(narrow).not.toMatch(/height\s*:/u);
     expect(narrow).not.toMatch(/aspect-ratio/u);
   });

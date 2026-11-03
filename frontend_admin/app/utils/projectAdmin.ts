@@ -1,28 +1,19 @@
 import type { ProjectCreatePayload, ProjectUpdatePayload } from '~/types/api'
-import {
-  coverUploadGate as sharedCoverUploadGate,
-  resolveCollectionCover,
-  applyDisplayResult,
-  selectCollectionCover,
-} from '~/utils/collectionAdmin'
-import type {
-  CoverGate,
-  CoverSelectionDeps,
-  CoverSelectionResult,
-  CollectionCoverView,
-} from '~/utils/collectionAdmin'
+import { applyDisplayResult, resolveCollectionCover } from '~/utils/collectionAdmin'
+import type { CollectionCoverView } from '~/utils/collectionAdmin'
 
 /**
  * 后台项目管理页的编排算术（与合集管理页镜像）。
  *
  * 页面里真正会出事的四处都不是渲染，而是
  *   1. 标题空 / 超长会不会被提交；
- *   2. 比例不合规的封面有没有被拦在**上传之前**；
+ *   2. 封面是不是在**上传前**就定形成 16:9（票 200 起，封面不再有取景参数）；
  *   3. 没上传封面时列表显示的是不是读者会看到的那张，且两张都没有时不发空 img；
  *   4. 展示开关的请求结果有没有落到列表上。
  *
- * 封面闸门与上传流程复用合集的**同一份实现**，这里只做项目命名的投影：
- * 两份比例规则一旦分叉，两个页面就会对同一张图给出不同结论。
+ * 封面上传前的定形走 `~/utils/imageShaping` 的同一份实现（三种封面共用），
+ * 本模块只负责表单与读模型的投影。封面回退与展示开关的结果落表复用合集那两
+ * 个通用纯函数——两份实现一旦分叉，两个页面就会对同一行给出不同结论。
  * （不做同名 re-export：Nuxt 的 utils 自动导入会因此报"重复导入"。）
  */
 
@@ -90,20 +81,6 @@ export function buildProjectUpdatePayload(values: ProjectFormValues): ProjectUpd
     cover: values.cover.trim(),
   }
 }
-
-/** 16:9 闸门：与合集同一实现（项目封面用同一套比例宽容度）。 */
-export function projectCoverUploadGate(size: { width: number; height: number } | null | undefined): CoverGate {
-  return sharedCoverUploadGate(size)
-}
-
-/** 选封面上传流程：与合集同一实现，这里只改用项目侧的名字。 */
-export const selectProjectCover = selectCollectionCover
-
-/** 选封面时页面注入的副作用（与合集同一份形状）。 */
-export type ProjectCoverSelectionDeps = CoverSelectionDeps
-
-/** 选封面的结果：已上传 / 进取景窗 / 读不出来。 */
-export type ProjectCoverSelectionResult = CoverSelectionResult
 
 /** 列表与表单预览要显示的封面（与合集同一份形状）。 */
 export type ProjectCoverView = CollectionCoverView

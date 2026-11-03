@@ -7,8 +7,9 @@
  * 项目与合集并列、页面形态复用，但数据与表完全独立：本页只读写
  * `/projects` 下面的管理端接口，不碰合集的任何数据。
  *
- * 封面上传复用同一套防呆：先本地读像素尺寸判比例，合规立刻上传；
- * 与 16:9 相差超过容差就打开取景窗，确认后上传，取消等于放弃本次上传。
+ * 封面上传在票 200 起改为**上传前定形**：选中的图先在客户端居中裁成 16:9、
+ * 降采样到 1600×900，预览的是定形产物，上传也只发这份产物——原图不进上传链路。
+ * 这与合集、文章封面共用同一个实现（`~/utils/imageShaping` 的 `shapeForUpload`）。
  *
  * 没上传封面时列表按读者的样子回退到首篇公开文章的封面（`fallback_cover`
  * 由后端算好）；两张都没有时渲染显式占位，绝不发一个空 `src` 的 img。
@@ -32,7 +33,6 @@ import {
   useMessage,
 } from 'naive-ui'
 import type { DataTableColumns } from 'naive-ui'
-import BannerFramingDialog from '~/components/media/BannerFramingDialog.vue'
 import {
   cleanupProjectStale,
   createProject,
@@ -45,15 +45,19 @@ import {
 } from '~/services/admin'
 import { uploadImageByTask } from '~/services/image'
 import type { ProjectAdminCard, ProjectAdminItem } from '~/types/api'
-import { readImageSize, uploadBannerCover } from '~/utils/bannerCover'
-import { DEFAULT_FRAMING, clampFraming } from '~/utils/framing'
-import type { Framing, Size } from '~/utils/framing'
+import { uploadBannerCover } from '~/utils/bannerCover'
+import type { Size } from '~/utils/framing'
+import {
+  COVER_SHAPE_OPTIONS,
+  COVER_SHAPE_RATIO_TEXT,
+  COVER_SHAPE_SIZE_TEXT,
+  shapeForUpload,
+} from '~/utils/imageShaping'
 import {
   applyProjectDisplayResult,
   buildProjectCreatePayload,
   buildProjectUpdatePayload,
   resolveProjectCover,
-  selectProjectCover,
   validateProjectForm,
 } from '~/utils/projectAdmin'
 import {
@@ -79,26 +83,15 @@ const errors = reactive<{ title: string | null; description: string | null }>({
   description: null,
 })
 
-/** 当前表单封面的预览地址（已上传的 URL 或本地 blob）。 */
+/** 当前表单封面的预览地址（已上传的 URL 或本地定形产物的 object URL）。 */
 const coverPreview = ref('')
-/** 最近一次选中的原图像素尺寸；没选过就是 null。 */
+/** 本地定形产物的预览地址：上传完成 / 换图 / 移除时释放，避免一直占着这张图的内存。 */
+const coverLocalPreview = ref('')
+/** 最近一次定形产物的像素尺寸（1600×900）；没选过就是 null。 */
 const coverSize = ref<Size | null>(null)
-/** 16:9 闸门的判定结果，仅用于给运营看状态。 */
-const coverGate = ref<'' | 'direct' | 'framing'>('')
 const coverUploading = ref(false)
 const coverStage = ref('')
 const coverFileInput = ref<HTMLInputElement | null>(null)
-
-/** 等取景确认的本地文件；取消时连预览地址一起丢掉。 */
-const pendingCover = ref<{ file: File; previewUrl: string } | null>(null)
-
-const framingDialog = reactive({
-  show: false,
-  src: '',
-  imageWidth: 0,
-  imageHeight: 0,
-  framing: DEFAULT_FRAMING as Framing,
-})
 
 // ── 收录管理浮层（保留失效占位 + 标记 + 一键清理）──
 
@@ -247,9 +240,8 @@ function resetForm() {
   errors.description = null
   coverPreview.value = ''
   coverSize.value = null
-  coverGate.value = ''
   coverStage.value = ''
-  clearPendingCover()
+  clearLocalCoverPreview()
 }
 
 function startEdit(row: ProjectAdminCard) {
@@ -263,9 +255,8 @@ function startEdit(row: ProjectAdminCard) {
   errors.description = null
   coverPreview.value = resolveProjectCover(row.cover, row.fallback_cover)?.url ?? ''
   coverSize.value = null
-  coverGate.value = ''
   coverStage.value = ''
-  clearPendingCover()
+  clearLocalCoverPreview()
 }
 
 async function submitForm() {
@@ -280,10 +271,6 @@ async function submitForm() {
   }
   if (coverUploading.value) {
     message.warning('封面还在上传，请稍候再保存')
-    return
-  }
-  if (pendingCover.value) {
-    message.warning('这张图与 16:9 相差超过 1%，请先完成取景再保存')
     return
   }
   if (saving.value) return
@@ -431,7 +418,7 @@ function cleanupStaleItems() {
   })
 }
 
-// ── 封面选择与 16:9 闸门 ─────────────────────────────────────
+// ── 封面选择与上传前定形 ─────────────────────────────────────
 
 function openCoverPicker() {
   if (coverUploading.value || saving.value) return
@@ -443,15 +430,15 @@ function removeCover() {
   form.cover = ''
   coverPreview.value = ''
   coverSize.value = null
-  coverGate.value = ''
   coverStage.value = ''
-  clearPendingCover()
+  clearLocalCoverPreview()
 }
 
-function clearPendingCover() {
-  const pending = pendingCover.value
-  pendingCover.value = null
-  if (pending) revokePreviewUrl(pending.previewUrl)
+/** 只释放本地那份定形产物预览（已上传的封面是远端 URL，不归我们管）。 */
+function clearLocalCoverPreview() {
+  const url = coverLocalPreview.value
+  coverLocalPreview.value = ''
+  if (url) revokePreviewUrl(url)
 }
 
 function mapUploadStage(stage: 'hashing' | 'creating_task' | 'uploading_to_qiniu' | 'polling_status') {
@@ -462,10 +449,6 @@ function mapUploadStage(stage: 'hashing' | 'creating_task' | 'uploading_to_qiniu
     polling_status: '正在确认上传状态…',
   } as const
   coverStage.value = stageMap[stage]
-}
-
-function createPreviewUrl(file: File): string {
-  return typeof URL.createObjectURL === 'function' ? URL.createObjectURL(file) : ''
 }
 
 function revokePreviewUrl(url: string) {
@@ -483,87 +466,32 @@ async function onCoverFileChange(event: Event) {
     return
   }
 
-  clearPendingCover()
-  coverStage.value = '正在读取图片尺寸…'
+  clearLocalCoverPreview()
+  coverSize.value = null
+  coverStage.value = '正在定形成 16:9 封面…'
   coverUploading.value = true
   try {
-    const result = await selectProjectCover(file, {
-      readSize: url => readImageSize(url, () => new Image()),
-      createPreviewUrl,
-      revokePreviewUrl,
-      upload: next => uploadBannerCover(next, f => uploadImageByTask(f, { onStage: mapUploadStage })),
-    })
+    // 上传前定形（票 200）：居中裁成 16:9、降采样到 1600×900，产出新文件。
+    // 预览用定形产物（运营看到的就是即将上传的那张图），原图不进入上传链路。
+    const shaped = await shapeForUpload(file, COVER_SHAPE_OPTIONS)
+    coverSize.value = shaped.size
+    coverLocalPreview.value = shaped.previewUrl
+    coverPreview.value = shaped.previewUrl || coverPreview.value
 
-    if (result.kind === 'unreadable') {
-      coverStage.value = ''
-      message.error('读不到这张图的像素尺寸，请换一张图片')
-      return
-    }
-
-    coverSize.value = result.size
-    if (result.kind === 'framing') {
-      coverGate.value = 'framing'
-      pendingCover.value = { file, previewUrl: result.previewUrl }
-      coverPreview.value = result.previewUrl
-      coverStage.value = '比例与 16:9 相差超过 1%，请先取景'
-      openFramingDialog(result.previewUrl, result.size)
-      return
-    }
-
-    coverGate.value = 'direct'
-    form.cover = result.cover
-    coverPreview.value = result.cover
-    coverStage.value = `比例合规（${result.size.width} × ${result.size.height}），封面上传完成`
-  } catch (error) {
-    coverStage.value = ''
-    message.error(error instanceof Error ? `封面上传失败：${error.message}` : '封面上传失败，请稍后重试')
-  } finally {
-    coverUploading.value = false
-  }
-}
-
-function openFramingDialog(src: string, size: Size) {
-  framingDialog.src = src
-  framingDialog.imageWidth = size.width
-  framingDialog.imageHeight = size.height
-  framingDialog.framing = clampFraming(DEFAULT_FRAMING)
-  framingDialog.show = true
-}
-
-/** 取景确认：取景窗只当"必须按 16:9 看过一遍"的闸门，确认后上传原图。 */
-async function onFramingConfirm(framing: Framing) {
-  const pending = pendingCover.value
-  if (!pending) return
-  framingDialog.framing = clampFraming(framing)
-  framingDialog.show = false
-  coverStage.value = '取景已确认，正在上传封面…'
-  coverUploading.value = true
-  try {
-    const uploaded = await uploadBannerCover(pending.file, f => uploadImageByTask(f, { onStage: mapUploadStage }))
+    coverStage.value = `已定形成 ${COVER_SHAPE_SIZE_TEXT}（${COVER_SHAPE_RATIO_TEXT}），正在上传封面…`
+    const uploaded = await uploadBannerCover(shaped.file, f =>
+      uploadImageByTask(f, { onStage: mapUploadStage }),
+    )
     form.cover = uploaded.url
     coverPreview.value = uploaded.url
-    coverGate.value = ''
+    clearLocalCoverPreview()
     coverStage.value = '封面上传完成，点击保存'
-    revokePreviewUrl(pending.previewUrl)
-    pendingCover.value = null
   } catch (error) {
     coverStage.value = '封面上传失败，可重新选择图片'
     message.error(error instanceof Error ? `封面上传失败：${error.message}` : '封面上传失败，请稍后重试')
   } finally {
     coverUploading.value = false
   }
-}
-
-/** 取消取景 = 放弃本次上传：没有上传、没有新的封面、表单保持原样。 */
-function onFramingCancel() {
-  framingDialog.show = false
-  if (!pendingCover.value) return
-  clearPendingCover()
-  coverPreview.value = form.cover
-  coverSize.value = null
-  coverGate.value = ''
-  coverStage.value = '已取消取景，本次上传未开始'
-  message.info('已取消取景，本次上传未开始')
 }
 
 onMounted(refresh)
@@ -573,8 +501,8 @@ onMounted(refresh)
   <NSpace vertical :size="20">
     <NCard class="admin-card" title="新建 / 编辑项目">
       <p class="admin-hint">
-        项目是管理员编排的文章系列，与合集并列但数据独立。标题必填；封面推荐 16:9 ——
-        与 16:9 相差不超过 1% 会立即上传，超出 1% 先取景、确认后自动上传。
+        项目是管理员编排的文章系列，与合集并列但数据独立。标题必填；封面上传前会自动裁成
+        {{ COVER_SHAPE_RATIO_TEXT }}（{{ COVER_SHAPE_SIZE_TEXT }}），预览与上传的都是定形后的图，原图不上传。
         不传封面时，读者侧会回退到首篇收录文章的封面。
       </p>
 
@@ -607,7 +535,8 @@ onMounted(refresh)
               <div>
                 <div class="admin-upload-panel__title">项目封面</div>
                 <p class="admin-upload-panel__hint">
-                  推荐 16:9：合规图立即上传；不合规先取景，确认后自动上传。留空则回退到首篇文章的封面。
+                  上传前自动裁成 {{ COVER_SHAPE_RATIO_TEXT }}（{{ COVER_SHAPE_SIZE_TEXT }}），预览与上传的都是定形后的图。
+                  留空则回退到首篇文章的封面。
                 </p>
               </div>
               <div class="admin-upload-panel__actions">
@@ -638,15 +567,13 @@ onMounted(refresh)
               <template v-else>
                 <span class="admin-upload-panel__plus">+</span>
                 <span>上传项目封面</span>
-                <small>推荐 16:9 · 支持 JPG / PNG / WebP</small>
+                <small>{{ COVER_SHAPE_RATIO_TEXT }} · {{ COVER_SHAPE_SIZE_TEXT }} · 支持 JPG / PNG / WebP</small>
               </template>
             </button>
 
             <div v-if="coverSize" class="admin-upload-panel__meta">
               <span>{{ coverSize.width }} × {{ coverSize.height }}</span>
-              <NTag :type="coverGate === 'framing' ? 'warning' : 'success'" size="small">
-                {{ coverGate === 'framing' ? '比例不合规，需取景' : coverGate === 'direct' ? '16:9 合规' : '已取景确认' }}
-              </NTag>
+              <NTag type="success" size="small">已定形 {{ COVER_SHAPE_RATIO_TEXT }}</NTag>
             </div>
 
             <p v-if="coverStage" class="admin-upload-panel__stage">{{ coverStage }}</p>
@@ -685,15 +612,6 @@ onMounted(refresh)
         :bordered="false"
         :row-key="(row: ProjectAdminCard) => row.id" />
     </NCard>
-
-    <BannerFramingDialog
-      v-model:show="framingDialog.show"
-      :src="framingDialog.src"
-      :image-width="framingDialog.imageWidth"
-      :image-height="framingDialog.imageHeight"
-      :framing="framingDialog.framing"
-      @confirm="onFramingConfirm"
-      @cancel="onFramingCancel" />
 
     <NModal
       :show="itemsProject !== null"

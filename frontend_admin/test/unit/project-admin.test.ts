@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest'
+import { describe, expect, it } from 'vitest'
 
 import {
   PROJECT_DESCRIPTION_MAX,
@@ -6,9 +6,7 @@ import {
   applyProjectDisplayResult,
   buildProjectCreatePayload,
   buildProjectUpdatePayload,
-  projectCoverUploadGate,
   resolveProjectCover,
-  selectProjectCover,
   validateProjectForm,
 } from '~/utils/projectAdmin'
 import type { ProjectAdminCard } from '~/types/api'
@@ -135,55 +133,3 @@ describe('applyProjectDisplayResult', () => {
   })
 })
 
-describe('projectCoverUploadGate', () => {
-  it('16:9 且在 ±1% 噪声内直接上传；差距更大先取景', () => {
-    expect(projectCoverUploadGate({ width: 1920, height: 1080 })).toBe('direct')
-    expect(projectCoverUploadGate({ width: 1919, height: 1079 })).toBe('direct')
-    expect(projectCoverUploadGate({ width: 1200, height: 800 })).toBe('framing')
-    expect(projectCoverUploadGate({ width: 1080, height: 1920 })).toBe('framing')
-  })
-
-  it('读不到尺寸时既不上传也不开窗', () => {
-    expect(projectCoverUploadGate(null)).toBe('unreadable')
-    expect(projectCoverUploadGate({ width: 0, height: 0 })).toBe('unreadable')
-  })
-})
-
-describe('selectProjectCover（与合集共用同一套 16:9 闸门）', () => {
-  const file = { name: 'cover.png', type: 'image/png' } as File
-
-  function deps(size: { width: number; height: number } | null) {
-    return {
-      readSize: vi.fn(async () => size),
-      createPreviewUrl: vi.fn(() => 'blob:cover'),
-      revokePreviewUrl: vi.fn(),
-      upload: vi.fn(async () => ({ imageId: '7', url: 'https://cdn.example.com/cover.png' })),
-    }
-  }
-
-  it('合规图直接上传', async () => {
-    const d = deps({ width: 1920, height: 1080 })
-
-    const result = await selectProjectCover(file, d)
-
-    expect(result).toMatchObject({ kind: 'uploaded', cover: 'https://cdn.example.com/cover.png' })
-    expect(d.upload).toHaveBeenCalledWith(file)
-    expect(d.revokePreviewUrl).toHaveBeenCalledWith('blob:cover')
-  })
-
-  it('不合规的图先进取景窗等确认', async () => {
-    const d = deps({ width: 1080, height: 1920 })
-
-    const result = await selectProjectCover(file, d)
-
-    expect(result).toMatchObject({ kind: 'framing', previewUrl: 'blob:cover' })
-    expect(d.upload).not.toHaveBeenCalled()
-  })
-
-  it('读不到尺寸时不产生任何上传', async () => {
-    const d = deps(null)
-
-    await expect(selectProjectCover(file, d)).resolves.toEqual({ kind: 'unreadable' })
-    expect(d.upload).not.toHaveBeenCalled()
-  })
-})

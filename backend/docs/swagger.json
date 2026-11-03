@@ -724,8 +724,23 @@
                 },
                 "type": "object"
             },
+            "internal_article_adapter_http.ArticleDiggRequest": {
+                "properties": {
+                    "liked": {
+                        "example": true,
+                        "type": "boolean"
+                    }
+                },
+                "required": [
+                    "liked"
+                ],
+                "type": "object"
+            },
             "internal_article_adapter_http.ArticleDiggResponse": {
                 "properties": {
+                    "digg_count": {
+                        "type": "integer"
+                    },
                     "is_digg": {
                         "type": "boolean"
                     }
@@ -744,6 +759,17 @@
                 "required": [
                     "article_id"
                 ],
+                "type": "object"
+            },
+            "internal_article_adapter_http.ArticleFavoriteResponse": {
+                "properties": {
+                    "favor_count": {
+                        "type": "integer"
+                    },
+                    "is_favor": {
+                        "type": "boolean"
+                    }
+                },
                 "type": "object"
             },
             "internal_article_adapter_http.ArticleHotTopAdminItem": {
@@ -3941,6 +3967,20 @@
                 },
                 "type": "object"
             },
+            "myblogx_internal_kernel.Envelope-internal_article_adapter_http_ArticleFavoriteResponse": {
+                "properties": {
+                    "code": {
+                        "type": "integer"
+                    },
+                    "data": {
+                        "$ref": "#/components/schemas/internal_article_adapter_http.ArticleFavoriteResponse"
+                    },
+                    "msg": {
+                        "type": "string"
+                    }
+                },
+                "type": "object"
+            },
             "myblogx_internal_kernel.Envelope-internal_article_adapter_http_ArticleOutlineContextResponse": {
                 "properties": {
                     "code": {
@@ -6708,7 +6748,7 @@
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "$ref": "#/components/schemas/myblogx_internal_kernel.Envelope-myblogx_internal_kernel_EmptyData"
+                                    "$ref": "#/components/schemas/myblogx_internal_kernel.Envelope-internal_article_adapter_http_ArticleFavoriteResponse"
                                 }
                             }
                         },
@@ -6782,7 +6822,7 @@
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "$ref": "#/components/schemas/myblogx_internal_kernel.Envelope-myblogx_internal_kernel_EmptyData"
+                                    "$ref": "#/components/schemas/myblogx_internal_kernel.Envelope-internal_article_adapter_http_ArticleFavoriteResponse"
                                 }
                             }
                         },
@@ -7504,6 +7544,19 @@
                         }
                     }
                 ],
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/internal_article_adapter_http.ArticleDiggRequest",
+                                "summary": "body",
+                                "description": "目标态（liked=true 点赞 / false 取消）"
+                            }
+                        }
+                    },
+                    "description": "目标态（liked=true 点赞 / false 取消）",
+                    "required": true
+                },
                 "responses": {
                     "200": {
                         "content": {

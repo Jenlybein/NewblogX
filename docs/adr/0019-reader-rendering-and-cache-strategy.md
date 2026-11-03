@@ -139,3 +139,12 @@
 - **首页仍有 `Hydration completed but contains mismatches`**（文章页无）：属 spec #79 的"Out of Scope、独立观察项"；P0 修复与本轮改造后仍存在，**建议另开票**，不属本 ADR 范围。
 - **返回场景的测量口径已修订**（#87）：无头 Chromium 在"先 `page.goto` 进文章再返回"的语义下必然是文档级重载，测不到客户端缓存；脚本改为真实用户路径（首页点击进文章 → 浏览器返回），P0 未修时保留"进文章退化为文档级 `goto`"的兜底（`entryFlow=document`）。改前基线就是兜底形态，见 [scripts/perf/README](../../scripts/perf/README.md) 的口径说明。
 - 30 s 内容滞后、登录态"先默认后跳变"、骨架屏观感变化、SSR 缓存是**进程内内存表**（重启即空、多实例不共享，多实例部署时每台各自 30 s）——均为「代价 / 不做什么」里已接受的代价，本阶段不处理。
+
+## 后续修订（2026-11-04，ADR-0024）
+
+本 ADR 的决策与约束正文一字未改；以下两条在 [ADR-0024](./0024-reader-user-state-and-count-truth.md) 里被**收窄 / 细化**：
+
+- **决策 4 / 约束 4 的「30 秒内命中」只对首屏 `cause === "initial"` 成立**。手工 `refresh()` 必须真发请求：否则 hydration 把匿名 payload 预热进 30s SWR 后，登录用户页面 `onMounted` 的补齐请求永远被短路，硬刷新后按钮永远显示「未赞」（这正是 #235 报的缺陷）。「返回/重进请求数为 0」的既有验收由第二波的 `refreshIfNeeded`（fresh 直接落数据、不发请求）承担，不再把 `refresh()` 钉成缓存命中。
+- **约束 2（SSR 只出匿名内容）保持不变**；用户态的客户端补齐落点被明确为独立源 `article-private-<id>`（`server: false` + `getCachedData: () => undefined`，只投影 `is_digg` / `is_favor` / `relation`），**永不进 payload / SWR**。点赞写接口同时从 toggle 改为幂等目标态 `{liked}`，写响应回填权威计数。
+
+回退方式：把 `useReaderSwrAsyncData` 的 `cause !== "initial"` 分支改回「只有 stale 才放行」，并删掉 `article-private` 源 —— 但那样会恢复 #235 的数据损坏路径（陈旧按钮取消真实点赞），不建议回退。详见 [ADR-0024](./0024-reader-user-state-and-count-truth.md)。

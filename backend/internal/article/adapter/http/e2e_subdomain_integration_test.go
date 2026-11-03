@@ -78,8 +78,9 @@ func TestSubdomainEndpointsEndToEnd(t *testing.T) {
 		t.Fatalf("visibility 异常: %q", got)
 	}
 
-	// ── 点赞（读者）──
-	respCode(t, do(t, reader, http.MethodPut, "/api/articles/"+articleID+"/digg", nil), "点赞")
+	// ── 点赞（读者，目标态接口）──
+	respCode(t, do(t, reader, http.MethodPut, "/api/articles/"+articleID+"/digg",
+		[]byte(`{"liked":true}`)), "点赞")
 
 	// ── 浏览上报 + 浏览历史 ──
 	respCode(t, do(t, author, http.MethodPost, "/api/articles/view",

@@ -142,8 +142,8 @@ func New(p NewParams) (*Node, error) {
 	}, nil
 }
 
-// RestoreParams 是从持久化数据重建节点的输入。
-type RestoreParams struct {
+// RebuildParams 是从持久化数据重建节点的输入。
+type RebuildParams struct {
 	ID        ID
 	OwnerKind OwnerKind
 	OwnerID   ID
@@ -157,8 +157,11 @@ type RestoreParams struct {
 	UpdatedAt time.Time
 }
 
-// Restore 从持久化数据重建节点（不做校验：库里已有的行必须能读出来）。
-func Restore(p RestoreParams) *Node {
+// Rebuild 从持久化数据重建节点（不做校验：库里已有的行必须能读出来）。
+//
+// 不叫 Restore：与 Node.Restore（取消软删）是两件事，同名会让调用点看不出
+// 到底是在读库还是在改状态。
+func Rebuild(p RebuildParams) *Node {
 	return &Node{
 		id:        p.ID,
 		ownerKind: p.OwnerKind,

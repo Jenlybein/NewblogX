@@ -60,6 +60,13 @@ describe("outlineContextKind / outlineContextSource：归属 → 来源参数", 
     expect(outlineContextSource(context({ has_tree: false }))).toBe("");
     expect(outlineContextSource(undefined)).toBe("");
   });
+
+  it("归属 kind 未知 / 缺省时返回空串（不猜默认归属）", () => {
+    for (const ownerKind of [0, 3, undefined]) {
+      expect(outlineContextKind(context({ owner_kind: ownerKind }))).toBe("");
+      expect(outlineContextSource(context({ owner_kind: ownerKind }))).toBe("");
+    }
+  });
 });
 
 describe("articleOutlineContextHref：上一篇/下一篇沿用同一棵树", () => {

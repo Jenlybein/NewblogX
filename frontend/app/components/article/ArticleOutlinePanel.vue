@@ -9,7 +9,7 @@ import {
   outlineArticleRefTitle,
   outlineContextKind,
 } from "~/utils/outlineContext";
-import type { OutlineSourceKind } from "~/utils/outlineTree";
+import type { OutlineSourceKind } from "~/utils/outlineKind";
 
 /**
  * 阅读页左栏的树与上一篇/下一篇（票 220 / 决定清单 A9）。
@@ -24,9 +24,8 @@ const props = defineProps<{
 }>();
 
 const nodes = computed(() => props.context?.nodes ?? []);
-const kind = computed<OutlineSourceKind>(() =>
-  outlineContextKind(props.context) === "collection" ? "collection" : "project",
-);
+// 归属 kind 未知 / 缺省时给空串：不猜默认归属，树里就不生成来源链接。
+const kind = computed<OutlineSourceKind | "">(() => outlineContextKind(props.context));
 const ownerId = computed(() => String(props.context?.owner_id ?? ""));
 const previousHref = computed(() =>
   articleOutlineContextHref(props.context, props.context?.previous?.article_id),

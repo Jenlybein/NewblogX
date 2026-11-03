@@ -237,7 +237,7 @@ type outlineSnapshot struct {
 }
 
 func cloneNode(n *outline.Node) *outline.Node {
-	return outline.Restore(outline.RestoreParams{
+	return outline.Rebuild(outline.RebuildParams{
 		ID:        n.ID(),
 		OwnerKind: n.OwnerKind(),
 		OwnerID:   n.OwnerID(),

@@ -7,12 +7,16 @@
  * 这份结果。
  *
  * 「第 N 篇」位置标记已随扁平列表退役：树里位置靠缩进表达（notes A7）。
+ * 篇数与封面回退都由后端读模型算好，这里不重算。
  */
+
+import { isOutlineSourceKind, outlineNodeKind } from "./outlineKind";
+import type { OutlineSourceKind } from "./outlineKind";
 
 /** 目录树节点（契约字段的子集：页面只消费这些）。 */
 export interface OutlineNode {
   id?: string;
-  /** 1 = 文件夹；契约里字段可缺省（缺省按文章节点处理，与后端 only 两种 node kind 一致）。 */
+  /** 契约里必有：1 = 文件夹、2 = 文章节点。未知 / 缺失值不猜类型，整行不渲染。 */
   kind?: number;
   title?: string;
   article_id?: string;
@@ -20,9 +24,6 @@ export interface OutlineNode {
   article_cover?: string;
   children?: OutlineNode[] | null;
 }
-
-/** 来源类型字面值：与阅读页 `?from=<kind>:<id>` 的契约一致。 */
-export type OutlineSourceKind = "project" | "collection";
 
 export interface OutlineSource {
   kind: OutlineSourceKind;
@@ -43,8 +44,6 @@ export interface OutlineTreeRow {
   cover: string;
   /** 层级（根 = 0）：缩进与引导线由页面按它渲染。 */
   depth: number;
-  /** 缩进档位（与 depth 同源，显式给样式用）。 */
-  indent: number;
   /** 文章节点：带 `?from=<kind>:<id>` 的阅读页链接。 */
   href?: string;
   /** 文章节点所指文章 ID（高亮当前文章用）。 */
@@ -61,9 +60,11 @@ export function parseOutlineSource(raw: string | null | undefined): OutlineSourc
   if (!raw) return null;
   const match = /^(project|collection):([^:]+)$/u.exec(raw);
   if (!match) return null;
+  const kind = match[1];
+  if (!isOutlineSourceKind(kind)) return null;
   const id = match[2]!.trim();
   if (!id) return null;
-  return { kind: match[1] as OutlineSourceKind, id };
+  return { kind, id };
 }
 
 /**
@@ -81,19 +82,26 @@ export function outlineArticleHref(articleId: string | number, from: string): st
  *
  * 只公开文章节点会出现在读者侧（后端已按公开口径过滤），空文件夹保留：
  * 它表达「先搭章节骨架」，读者看到标题但没有文章可点。
+ *
+ * 契约外的节点 kind 不猜类型：整行（含子树）不渲染；来源 kind 缺失时文章节点
+ * 不生成带来源的链接（不猜一个默认归属）。
  */
 export function outlineTreeRows(
   nodes: OutlineNode[] | null | undefined,
-  kind: OutlineSourceKind,
+  kind: OutlineSourceKind | "",
   ownerId: string | number,
 ): OutlineTreeRow[] {
-  const from = outlineSource(kind, ownerId);
+  const from = kind ? outlineSource(kind, ownerId) : "";
   const rows: OutlineTreeRow[] = [];
 
   const walk = (items: OutlineNode[] | null | undefined, depth: number): void => {
     for (const node of items ?? []) {
+      const nodeKind = outlineNodeKind(node.kind);
+      if (!nodeKind) {
+        continue;
+      }
       const children = node.children ?? [];
-      const isFolder = node.kind === 1;
+      const isFolder = nodeKind === "folder";
       const label = isFolder
         ? (node.title ?? "").trim() || "未命名章节"
         : (node.article_title ?? "").trim() || "未命名文章";
@@ -106,8 +114,7 @@ export function outlineTreeRows(
         label,
         cover: isFolder ? "" : (node.article_cover ?? "").trim(),
         depth,
-        indent: depth,
-        ...(isFolder || !articleId
+        ...(isFolder || !articleId || !from
           ? {}
           : {
               href: outlineArticleHref(articleId, from),
@@ -120,35 +127,4 @@ export function outlineTreeRows(
 
   walk(nodes, 0);
   return rows;
-}
-
-/** 篇数只数文章节点（文件夹不计，与后端「只统计公开文章」同一口径）。 */
-export function outlineTreeCount(nodes: OutlineNode[] | null | undefined): number {
-  let count = 0;
-  const walk = (items: OutlineNode[] | null | undefined): void => {
-    for (const node of items ?? []) {
-      if (node.kind !== 1) count += 1;
-      walk(node.children);
-    }
-  };
-  walk(nodes);
-  return count;
-}
-
-/**
- * 封面回退：深度优先第一篇**有封面的公开文章节点**的封面。
- *
- * 树里全是公开文章（失效节点后端已过滤）；没有封面或没有文章时给空串，
- * 让共用封面组件渲染透明空白，不编造占位图。
- */
-export function firstPublicArticleCover(nodes: OutlineNode[] | null | undefined): string {
-  for (const node of nodes ?? []) {
-    if (node.kind !== 1) {
-      const cover = (node.article_cover ?? "").trim();
-      if (cover) return cover;
-    }
-    const nested = firstPublicArticleCover(node.children);
-    if (nested) return nested;
-  }
-  return "";
 }

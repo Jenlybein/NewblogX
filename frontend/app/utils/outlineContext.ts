@@ -1,5 +1,7 @@
 import type { Nullable, Operation, Schema } from "~/types/contract";
 
+import type { OutlineSourceKind } from "./outlineKind";
+import { outlineSourceKind } from "./outlineKind";
 import { outlineArticleHref, outlineSource } from "./outlineTree";
 
 /**
@@ -34,17 +36,13 @@ export function outlineContextQuery(from?: string): ArticleOutlineContextRequest
  *
  * 0 / 未知值 / 没有树都返回空串：模板据此不生成链接，不猜一个默认归属。
  */
-export function outlineContextKind(context: ArticleOutlineContext | null | undefined): "project" | "collection" | "" {
+export function outlineContextKind(
+  context: ArticleOutlineContext | null | undefined,
+): OutlineSourceKind | "" {
   if (!context?.has_tree) {
     return "";
   }
-  if (context.owner_kind === 1) {
-    return "collection";
-  }
-  if (context.owner_kind === 2) {
-    return "project";
-  }
-  return "";
+  return outlineSourceKind(context.owner_kind) ?? "";
 }
 
 /** 归属 → 来源参数 `<kind>:<id>`；没有树时给空串。 */

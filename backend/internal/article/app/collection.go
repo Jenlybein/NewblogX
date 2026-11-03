@@ -6,6 +6,7 @@ import (
 
 	"myblogx/internal/article/domain"
 	"myblogx/internal/article/domain/collection"
+	"myblogx/internal/article/domain/outline"
 )
 
 // 本文件是「合集」的用例：建合集、收录一篇、移除收录、排序、读者侧读面。
@@ -309,7 +310,7 @@ func (s *Service) CollectionDetail(
 		if !c.Displayed() && !viewer.IsAdmin() {
 			return collection.ErrNotFound
 		}
-		ownerKind, ownerID := collectionReaderOutlineOwner(id)
+		ownerKind, ownerID := outline.OwnerCollection, outline.ID(id)
 		tree, err := s.readerOutline(ctx, r, ownerKind, ownerID, onlyAdminAuthors, c.Cover())
 		if err != nil {
 			return err

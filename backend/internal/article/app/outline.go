@@ -322,20 +322,12 @@ func (s *Service) buildOutlineDetail(
 		title string
 		cover string
 	}
-	snaps := make(map[outline.ArticleID]snap)
-	snapshotOf := func(articleID outline.ArticleID) (snap, error) {
-		if v, ok := snaps[articleID]; ok {
-			return v, nil
-		}
+	snaps := newSnapshotCache(func(articleID outline.ArticleID) (snap, error) {
 		a, err := r.Articles().FindIncludingDeleted(ctx, articleID)
-		if errors.Is(err, domain.ErrArticleNotFound) {
-			snaps[articleID] = snap{}
-			return snap{}, nil
-		}
 		if err != nil {
 			return snap{}, err
 		}
-		v := snap{
+		return snap{
 			state: &domain.ArticleState{
 				Deleted:    a.Deleted(),
 				Status:     a.Status(),
@@ -343,10 +335,8 @@ func (s *Service) buildOutlineDetail(
 			},
 			title: a.Title(),
 			cover: a.Cover(),
-		}
-		snaps[articleID] = v
-		return v, nil
-	}
+		}, nil
+	})
 
 	var attach func(items []outline.TreeNode) ([]outline.ViewNode, error)
 	attach = func(items []outline.TreeNode) ([]outline.ViewNode, error) {
@@ -354,7 +344,7 @@ func (s *Service) buildOutlineDetail(
 		for _, item := range items {
 			view := outline.ViewNode{Node: item.Node}
 			if item.Node.IsArticle() {
-				v, err := snapshotOf(item.Node.ArticleID())
+				v, err := snaps.get(item.Node.ArticleID())
 				if err != nil {
 					return nil, err
 				}
@@ -400,7 +390,7 @@ func checkOutlineOwner(
 
 // cloneOutlineNode 复制持久化节点，避免就地改仓储读出来的对象。
 func cloneOutlineNode(n *outline.Node) *outline.Node {
-	return outline.Restore(outline.RestoreParams{
+	return outline.Rebuild(outline.RebuildParams{
 		ID:        n.ID(),
 		OwnerKind: n.OwnerKind(),
 		OwnerID:   n.OwnerID(),

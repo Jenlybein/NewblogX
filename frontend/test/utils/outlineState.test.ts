@@ -17,7 +17,6 @@ function row(id: string, depth: number, isFolder: boolean, hasChildren = false):
   return {
     id,
     depth,
-    indent: depth,
     isFolder,
     hasChildren,
     label: id,

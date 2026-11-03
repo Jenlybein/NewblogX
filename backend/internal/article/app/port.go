@@ -166,6 +166,11 @@ type IDGen interface {
 	// 不借用 NextArticleID：两次新建的 ID 序列互相穿插时，日志里无法分辨
 	// "这个 ID 是文章还是合集"，而合集的 ID 会出现在读者站 URL 上。
 	NextCollectionID() collection.ID
+	// NextProjectID 生成项目 ID。
+	//
+	// 与 NextCollectionID 分开：项目与合集是两套内容实体，ID 会出现在
+	// 读者站 URL 上，日志里要能分辨"这是项目还是合集"。
+	NextProjectID() project.ID
 }
 
 // Service 是用例集合。

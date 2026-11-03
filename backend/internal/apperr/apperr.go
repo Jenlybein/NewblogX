@@ -104,6 +104,14 @@ const (
 	// 也覆盖"未展示，对读者不可见"：两种情形合并成一个码，读者侧不能靠
 	// 响应差异探测未发布的项目（与合集同一口径）。
 	CodeProjectNotFound Code = "project.not_found"
+	// CodeProjectArticleDuplicated 同一项目内重复收录同一篇文章。
+	CodeProjectArticleDuplicated Code = "project.article_duplicated"
+	// CodeProjectArticleNotIncludable 文章不是"已发布且可见"，不能收录。
+	CodeProjectArticleNotIncludable Code = "project.article_not_includable"
+	// CodeProjectOrderMismatch 全集顺序替换的输入与当前集合不一致。
+	CodeProjectOrderMismatch Code = "project.order_mismatch"
+	// CodeProjectArticleMissing 要移除的收录不存在（取消收录是幂等的，正常不会出现）。
+	CodeProjectArticleMissing Code = "project.article_missing"
 )
 
 // 审核任务。
@@ -385,8 +393,12 @@ var messages = map[Code]string{
 	CodeCollectionOrderMismatch:        "排序列表与当前收录不一致，请刷新后重试",
 	CodeCollectionArticleMissing:       "该文章不在此合集中",
 
-	CodeProjectTitleRequired: "项目标题不能为空",
-	CodeProjectNotFound:      "项目不存在",
+	CodeProjectTitleRequired:        "项目标题不能为空",
+	CodeProjectNotFound:             "项目不存在",
+	CodeProjectArticleDuplicated:    "该文章已在项目中",
+	CodeProjectArticleNotIncludable: "只有已发布且可见的文章可以收录进项目",
+	CodeProjectOrderMismatch:        "排序列表与当前项目内容不一致，请刷新后重试",
+	CodeProjectArticleMissing:       "该文章不在此项目中",
 
 	CodeReviewTaskNotFound: "审核任务不存在",
 	CodeReviewTaskHandled:  "审核任务已处理",

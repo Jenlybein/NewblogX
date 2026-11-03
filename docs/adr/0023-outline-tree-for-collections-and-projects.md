@@ -56,4 +56,9 @@
 - 代码落点（按模块称名）：后端 `article` 模块内的合集 / 项目域与树读取（`GET /collections/{id}`、`GET /projects/{id}`、文章上下文接口）、`content_outline_node_models` 建表登记（`schema.sql` + testkit 三处）；读者站 `frontend/app/pages/collections/[id].vue`、`pages/projects/[id].vue`、阅读页 `pages/article/[id].vue` 的左栏与「目录」抽屉；后台 `articles/collections.vue`、`articles/projects.vue` 与新的树编辑器（取代 `collection-arrange.vue` / `project-arrange.vue`）。
 - 部署：[README §11.4](../../README.md)（新表必须手动跑一次 `-db`，entrypoint 只认 `runtime_config_models`）
 - 会话记录：[2026-11-03 目录树 / 阅读页 / 裁剪窗 决定清单](../notes/2026-11-03-outline-tree-and-reading-page-decisions.md)
+
+## 后续修订
+
+- 2026-11-04（code-review 复核）：**空文件夹允许保留**。决策 2 与「当前生效约束」里「树里只允许含文章或子文件夹的文件夹」这一限定，与用户故事 33「空文件夹也能建（先搭章节骨架再挂文章）」相互矛盾；以用户故事为准——后台可以先建章节骨架，读者侧也保留空文件夹。`domain/outline.Build` 的实现本就这样，不需要改代码；本节取代原约束中那处限定。
+
 </content>

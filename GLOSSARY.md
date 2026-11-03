@@ -511,9 +511,19 @@ _Avoid_: 把骨架当装饰动效（闪动 / 渐变不是它，它一秒都不�
 
 ## 十一、私信与会话
 
+**消息中心（message center）**：
+读者站的顶级页面 `/messages`，把读者可能收到的消息并列为**五个子项**：评论与回复、点赞与收藏、系统通知、全局通知、私信。它不拥有自己的数据：每个子项只是对应模块列表的一个视图；未读数取统一的未读汇总（`GET /api/sitemsg/user` 的五个字段）。
+位置：读者站 `frontend/app/pages/messages/**` 与顶栏入口（悬浮展开子项、子项右侧显示未读数）；后端不新增消息表，只复用 `internal/notification` 与 `internal/chat`。
+_Avoid_: 把「消息中心」当作私信页的新名字（私信只是它五个子项之一）；继续用「消息中心」指 `/studio/inbox`（那是旧位置，已迁移并重定向）。
+
+**陌生人私信（stranger DM policy）**：
+是否允许陌生人给我发私信由**两级**决定：站点总闸（`site.chat.stranger_msg_enabled`）**且**接收方个人开关（账号设置里的「允许陌生人给我发私信」，默认开启）。任一关闭即拒绝；自己发给自己、双方已有关注或既存会话关系时不做陌生人判定。
+位置：`backend/internal/chat/domain/chat.go` 的 `StrangerPolicy`（带接收方 id）、`backend/app/chat_wiring.go`（两级取值）、读者站账号设置页的隐私区。
+_Avoid_: 说它"只由站点开关决定"（那是旧口径，已废止）；把"陌生人"理解成"没关注我的人"或"没聊过的人"之一——判定按既有关注/会话关系整体算，不是单一维度。
+
 **私信（direct message）**：
 登录用户之间一对一发送的文本 / 图片消息；发送与接收双方各持一份会话视图，删除只影响自己那一份。它不是系统通知，也不是 AI 对话。
-位置：`backend/internal/chat/`（`domain` / `app` / `adapter`）、接口 `/api/chat/*`、WebSocket `/api/chat/ws`；读者站 `frontend/app/pages/studio/inbox.vue` 与 `components/inbox/InboxChatPanel.vue`；表 `chat_msg_models` / `chat_msg_user_state_models` / `chat_session_models`。
+位置：`backend/internal/chat/`（`domain` / `app` / `adapter`）、接口 `/api/chat/*`、WebSocket `/api/chat/ws`；读者站 `frontend/app/components/inbox/InboxChatPanel.vue`（挂在消息中心的私信子项下）；表 `chat_msg_models` / `chat_msg_user_state_models` / `chat_session_models`。
 _Avoid_: 用裸词「消息」「聊天」指代私信（站内信、通知、AI 面板都叫消息）；把「站内信」当作私信（那是系统通知面板 `InboxSitePanel`）；把「捏捏」的 AI 面板当作会话。
 
 **会话（chat session）**：

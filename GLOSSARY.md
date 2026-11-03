@@ -425,9 +425,14 @@ _Avoid_: 叫它"横幅图 / banner 海报"（它是首屏面板里的封面图�
 **取景（framing）**：
 决定一张图在固定比例的容器里露出哪一块，由焦点与缩放两个量共同表达；它只描述"怎么显示"，不改动图片文件本身。
 位置：取景参数随 banner 的创建/更新契约下发，后台取景窗里决定，读者站按同一份参数复现。
-_Avoid_: 裁剪（crop 指对文件做像素手术，本项目刻意不做）；裁切 / 剪裁（同义误用）；把"取景"说成"改图片"。
+_Avoid_: 用「裁剪」「裁切」「剪裁」指代取景（取景不改动图片文件）；把"取景"说成"改图片"；把「头像定形」也称为取景（那是文件级改动，另见下条）。
 命名与契约（不动）：契约字段 `crop` 与错误码 `banner.crop_invalid` 沿用既有命名，不作为术语，也**不随表结构变更而改动**；正文一律写"取景"。
 表名（历史命名）：旧的轮播专属取景表 `banner_crop_models` 属**历史命名**，不再代表当前结构；取景已合并为通用取景表 `picture_crop_models`（键 `target_type` / `target_id`，覆盖轮播封面、文章封面与合集封面），见 [ADR-0020](./docs/adr/0020-zero-ddl-exception-and-generic-framing-table.md)。`schema.sql` 只写新建、不写 DROP；旧表的物理下线是一次性现场操作，步骤见 [README「11.4.3 轮播表重建与通用取景表合并」](./README.md#1143-轮播表重建与通用取景表合并一次性现场操作)。正文一律写"通用取景表"。
+
+**头像定形（avatar squaring）**：
+个人头像在**上传到服务器之前**于客户端完成的文件级改动：把任意比例的图片**居中裁成 1:1 并降采样到固定尺寸**，产出的是一张新 PNG，原图不上传、不入库。它改动的是**图片文件本身**，与「取景」只描述"怎么显示、不改文件"是并列且互不包含的两个概念；因此不消费取景参数、不写通用取景表。
+位置：`frontend/app/pages/studio/settings.vue` 的头像上传入口与其客户端处理工具；上传到图片上传任务接口后按既有链路落 `avatar_image_id`。取舍见 [ADR-0015 后续修订](./docs/adr/0015-banner-framing-as-parameters.md)。
+_Avoid_: 叫它「取景」「裁剪」「crop」（那是封面显示的另一套口径）；说成"改已有头像文件"（每次上传产生的是新文件）；把它当成服务端或存储侧裁切。
 
 **焦点（focus）**：
 缩放的锚点，用图上的**相对**坐标表达（`focus_x` / `focus_y`，各自 0–1，0 与 1 分别贴住两条边），不是像素坐标。
@@ -465,6 +470,12 @@ _Avoid_: 「管理员置顶」（ES 旧派生字段 `admin_top` 的叫法，已�
 由**管理员**维护的、有标题 / 描述 / 封面 / 展示开关与顺序的文章集合（"Nuxt 部署实战"这类专题）。与「热门置顶」是两套数据：合集没有条数上限，且主体是"一个有名字的集合"而不是首页排序位；作者不参与创建，读者只读。唯一真相是主表 `collection_models` 加中间表 `collection_article_models`（`(collection_id, article_id)` 唯一 + `sort_order` + 软删）。中间表沿用热门置顶的失效口径：文章后来不再公开时中间行**保留**，读者侧靠 JOIN 过滤、后台标「已失效」并可清理。合集**不进 ES**（运营编排不是可检索内容）。读者侧列表只出「展示中」的合集，篇数只算仍公开的文章；未展示的合集对读者按**不存在**处理（不返回"这个合集未发布"），管理员仍可打开。封面为空时读模型回退到首篇公开文章的封面。
 位置：表 `collection_models` / `collection_article_models`（DDL 见 `backend/internal/platform/mysql/ddl/schema.sql`）；接口 `GET /collections`、`GET /collections/{id}`（公开读）、`GET /collections/admin`、`POST /collections`、`PATCH /collections/{id}/display`、`POST|DELETE /collections/{id}/articles`、`PATCH /collections/{id}/articles/order`；后端 `internal/article/domain/collection`（规则与读模型）、`app/collection.go`、`adapter/mysql/collection_repo.go`、`adapter/http/handler_collection.go`；读者站 `frontend/app/pages/collections/` 与顶栏第四项 `frontend/app/utils/chrome.ts`。
 _Avoid_: 「专辑」「专栏」「系列」（同义词，一律写合集）；用「合集」指用户自己的收藏夹（那是 `favorite_models`，与合集无关）；用「合集」指 ADR 归档（`docs/archive/v1/04-adr-collection.md` 是旧文档合集，不是这个功能）。
+
+**项目（project）**：
+读者站顶栏第五项所指向的内容实体，与「合集」是**两套独立数据、两个入口**（合集仍在第四项）。在内容语境下「项目」专指这个实体：它的列表页、卡片、空态文案一律写「项目」，不混用「合集」字样；页面版式与组件复用合集的读者侧实现，但数据来源独立。
+易混：`backend/conf/site/enter.go` 的 `Project` 段是**站点项目配置**（站点项目名 / 图标 / 前端入口路径），契约字段 `project_title` 属站点配置域，不是内容实体；文档里「本项目 / 这个软件项目」一律指**本仓库**，写作时改成「本仓库」。
+位置：读者站顶栏第五项与 `/projects` 页面；具体表与接口以落地实现为准。
+_Avoid_: 用「项目」指站点项目配置或本仓库；用「项目」指顶栏第四项的「合集」；把两者当成同一份数据的两个入口。
 
 **作者置顶**：
 作者把自己的一篇文章钉在**个人主页**的置顶关系；只有作者本人能设置，与热门置顶是两套数据、两套存储。读者站与后台当前都**没有**消费点（用户页 / 个人主页的文章列表走搜索 type 3），接口保留但不在「显示」开关的读者读面清单内（ADR-0017 决策 4）。
@@ -506,6 +517,20 @@ _Avoid_: 说它"按用户缓存"或"登录用户单独一份"（违反 ADR-0019 
 _Avoid_: 把骨架当装饰动效（闪动 / 渐变不是它，它一秒都不该多留）；用「加载中…」文案代替结构占位（版式会跳）。
 
 > 说明：本节四个词条出自 [ADR-0019](./docs/adr/0019-reader-rendering-and-cache-strategy.md)（状态**已交付**，落地票 #80–#87 已全部合入）；词条只定义概念，取舍（为什么只有首页与文章页保留 SSR、为什么两层缓存都取 30 秒、代价是什么）见该 ADR。
+
+---
+
+## 十一、私信与会话
+
+**私信（direct message）**：
+登录用户之间一对一发送的文本 / 图片消息；发送与接收双方各持一份会话视图，删除只影响自己那一份。它不是系统通知，也不是 AI 对话。
+位置：`backend/internal/chat/`（`domain` / `app` / `adapter`）、接口 `/api/chat/*`、WebSocket `/api/chat/ws`；读者站 `frontend/app/pages/studio/inbox.vue` 与 `components/inbox/InboxChatPanel.vue`；表 `chat_msg_models` / `chat_msg_user_state_models` / `chat_session_models`。
+_Avoid_: 用裸词「消息」「聊天」指代私信（站内信、通知、AI 面板都叫消息）；把「站内信」当作私信（那是系统通知面板 `InboxSitePanel`）；把「捏捏」的 AI 面板当作会话。
+
+**会话（chat session）**：
+两名用户之间私信的**有序序列**，由双方 ID 双向一致地求出同一个 `session_id`（`domain.BuildSessionID`），因此 A→B 与 B→A 落在同一会话；会话有自己的软删与未读计数，删除会话只清自己那侧。
+位置：`backend/internal/chat/domain/chat.go`、`adapter/mysql/chat.go` 的 `ListSessions`；表 `chat_session_models`。
+_Avoid_: 把会话当成「消息列表」（后者是会话里的逐条内容）；把「会话」说成「对话窗口 / 聊天室」（前者是数据，后者是 UI）。
 
 ---
 

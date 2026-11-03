@@ -1,8 +1,12 @@
 # ADR-0020：零 DDL 例外授权与通用取景表
 
-- 状态：已接受
+- 状态：已取代（by [ADR-0015](./0015-banner-framing-as-parameters.md)）
 - 日期：2026-11-02
 - 来源：2026-11-02 设计评审（[grill session](../notes/2026-11-02-grill-session.md) 的 D28 / D52 与 §六·补三、§㉑㉓）· 父票 [#93](https://github.com/Jenlybein/NewblogX/issues/93) · 本票 [#118](https://github.com/Jenlybein/NewblogX/issues/118) · 落地分票 [#119](https://github.com/Jenlybein/NewblogX/issues/119)–#121
+
+> **状态变更（2026-11-03，#189 / #205）**：本 ADR 已由 [ADR-0015](./0015-banner-framing-as-parameters.md) **整体取代**。取景体系全量退场：通用取景表 `picture_crop_models` 已从 `schema.sql` 与测试建模中移除，并在本批部署序列中物理下线；后端"删主体时清取景孤儿行"的调用链与取景端口一并删除；契约字段 `crop` 与错误码 `banner.crop_invalid` 也已删除。因此本 ADR 的决策 3–8、约束 3、5–9 全部**失效**。
+>
+> 仍生效的只有**零 DDL 的准确口径**（决策 1、约束 1–2、约束 4）：它并非本 ADR 首创，硬约束出处是 [架构总纲 §六 A1](../architecture/overview.md)（历史理由可溯源到本文）。**当前没有任何登记例外**——通用取景表是首个、也曾经是唯一一个登记例外，现已退场；再开例外仍须另开 ADR。`banner_crop_models` 的历史命名说明（约束 9）只作历史。
 
 ## 背景与问题
 
@@ -56,6 +60,8 @@
 
 ## 当前生效约束
 
+> 2026-11-03（#205）状态说明：约束 **3、5、6、7、8、9 已随取景表物理下线而失效**；只有 **1、2、4**（零 DDL 口径、CDC 按列名解析、例外只限新建表）继续生效。下文保留原条款作历史记录。
+
 1. **零 DDL 的准确口径 = 零列变更 + 允许新增表**。既有表的列名 / 类型 / 列顺序 / 删列一律禁止（索引、外键、CH 的 `TTL`/`CODEC` 不受此限）；新增表必须用 `CREATE TABLE IF NOT EXISTS` 登记进 `backend/internal/platform/mysql/ddl/schema.sql`。
 2. **理由表述固定为"CDC 按列名解析"**，不得再写成"ES 投影按列名解析"：ES 文章投影与 image-ref 两条链路都从 binlog 行快照按列名取值（image-ref 取 `cover`，行快照取 `id` / `deleted_at`）。
 3. **通用取景表 `picture_crop_models` 是首个登记例外，也是当前唯一一个**：键 `(target_type, target_id)`，取景三列 `focus_x` / `focus_y` / `zoom` 的名称、类型与语义沿用 ADR-0015 约束 1–5，不得改列。再开第二个"点名例外"必须另开 ADR。
@@ -70,12 +76,13 @@
 
 - 硬约束与口径：[overview §六 A1](../architecture/overview.md) · [GLOSSARY · 零 DDL / 取景](../../GLOSSARY.md) · [README §11.3 与 §十三](../../README.md)
 - 决策上游：[ADR-0015](./0015-banner-framing-as-parameters.md)（取景存参数、CSS 渲染；本 ADR 只改"存在哪张表"，不改它的结论）· [ADR-0017](./0017-publish-display-switches-and-hot-top-operator-slot.md)（既有表冻结下另开新表的先例）
-- 表结构：[backend/internal/platform/mysql/ddl/schema.sql](../../backend/internal/platform/mysql/ddl/schema.sql)（`picture_crop_models` 的建表语句与 `banner_models` 的 `title` 列在这里）· [ddl.go](../../backend/internal/platform/mysql/ddl/ddl.go)（`Apply` 只做 `CREATE TABLE IF NOT EXISTS`）
-- 行结构与契约测试：[backend/internal/testkit/schema/rows.go](../../backend/internal/testkit/schema/rows.go)（`PictureCropRow`）· [testkit/schema/schema.go](../../backend/internal/testkit/schema/schema.go)（`groupModels`）· `schema.ColumnsDiff` / `AssertColumns`
-- 取景落点：[backend/internal/site/adapter/mysql/crop.go](../../backend/internal/site/adapter/mysql/crop.go)（`CropRepo`，读写按 `target_type` 参数化，已迁到通用表）
+- 表结构：[backend/internal/platform/mysql/ddl/schema.sql](../../backend/internal/platform/mysql/ddl/schema.sql)（**已删除** `picture_crop_models` 的建表语句，见 #205；`banner_models` 的 `title` 列仍在这里）· [ddl.go](../../backend/internal/platform/mysql/ddl/ddl.go)（`Apply` 只做 `CREATE TABLE IF NOT EXISTS`）
+- 行结构与契约测试（历史）：[backend/internal/testkit/schema/rows.go](../../backend/internal/testkit/schema/rows.go)（`PictureCropRow` 已删除，见 #205）· [testkit/schema/schema.go](../../backend/internal/testkit/schema/schema.go)（`groupModels`，取景表已移除）· `schema.ColumnsDiff` / `AssertColumns`
+- 取景落点（历史）：`backend/internal/site/adapter/mysql/crop.go` 与 `backend/internal/article/adapter/mysql/crop_repo.go`（`CropRepo`，按 `target_type` 参数化的清理端口）**已在 #205 删除**；删除文章 / 删除轮播不再有任何跨表取景清理。
 - CDC 反证：[backend/internal/platform/cdc/imageref/river.go](../../backend/internal/platform/cdc/imageref/river.go)（`imageRefTables` 四张表 + 按列名取值）· [article_search_projection.go](../../backend/internal/platform/cdc/river/article_search_projection.go)（ES 文章投影监听的五张表）· [settings.yaml](../../backend/config/settings.yaml)（river 的表范围）
 - 立项与执行：[#93](https://github.com/Jenlybein/NewblogX/issues/93)（父票）· [#118](https://github.com/Jenlybein/NewblogX/issues/118)（本 ADR）· [#119](https://github.com/Jenlybein/NewblogX/issues/119)（建表与回填）· [设计评审记录](../notes/2026-11-02-grill-session.md)（D28 / §六·补三 / §㉑㉓）
 
 ## 实施记录
 
-- 2026-11-02（建表与行结构落地）：`schema.sql` 删去 `banner_crop_models` 的建表语句、加入 `picture_crop_models`，并给 `banner_models` 补 `title` 列；testkit 的 `BannerCropRow` 换成 `PictureCropRow`，列契约测试（`TestGeneratedRowsMatchSchemaSQL` / `AssertColumns`）通过。取景读写改成按 `target_type` 参数化的仓储（轮播传 `banner`），孤儿引用清理提供只读 + `-apply` 双模命令。**旧表的物理 DROP 与回填/重种仍是一次性现场操作**，步骤见 [README「11.4.3 轮播表重建与通用取景表合并」](../../README.md#1143-轮播表重建与通用取景表合并一次性现场操作)；仓库内不写 DROP，本 ADR 的约束 1–9 全部继续生效。
+- 2026-11-02（建表与行结构落地）：`schema.sql` 删去 `banner_crop_models` 的建表语句、加入 `picture_crop_models`，并给 `banner_models` 补 `title` 列；testkit 的 `BannerCropRow` 换成 `PictureCropRow`，列契约测试（`TestGeneratedRowsMatchSchemaSQL` / `AssertColumns`）通过。取景读写改成按 `target_type` 参数化的仓储（轮播传 `banner`），孤儿引用清理提供只读 + `-apply` 双模命令。**旧表的物理 DROP 与回填/重种仍是一次性现场操作**，步骤见 [README「11.4.3」](../../README.md#1143-本批189的一次性部署序列新表取景表下线与索引重建)；仓库内不写 DROP，本 ADR 的约束 1–9 全部继续生效。
+- 2026-11-03（#205，取景退场收尾）：`schema.sql` 与 testkit 的 `groupModels` / `All` 移除取景表与 `PictureCropRow`；`site` 与 `article` 两个模块的取景端口、删除时的孤儿清理由与测试替身全部删除；新增默认可跑的静态守卫（退役表名 / 符号不得再出现在后端源码或建表脚本里）。`picture_crop_models` 的物理 DROP 属于本次部署序列的一次性现场操作，步骤见 [README §11.4.3](../../README.md#1143-本批189的一次性部署序列新表取景表下线与索引重建)。本 ADR 由 [ADR-0015](./0015-banner-framing-as-parameters.md) 取代；零 DDL 的口径仍以 [架构总纲 §六 A1](../architecture/overview.md) 为准。

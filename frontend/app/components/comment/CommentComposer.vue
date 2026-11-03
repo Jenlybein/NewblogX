@@ -54,7 +54,12 @@ function focusInput() {
   inputRef.value?.focus();
 }
 
-defineExpose({ focusInput });
+/** 只聚焦、不滚动（票 236：调用方自己负责滚动位置）。 */
+function focus() {
+  inputRef.value?.focus();
+}
+
+defineExpose({ focusInput, focus });
 </script>
 
 <template>

@@ -1,8 +1,9 @@
 <script setup lang="ts">
 import type { ArticleHeadingAnchor } from "~/composables/useArticleMarkdown";
 import { computed, defineAsyncComponent, onMounted, onUnmounted, ref } from "vue";
-import { IconEye, IconHeart, IconMessageCircle2, IconPencil, IconShare2, IconThumbUp } from "@tabler/icons-vue";
+import { IconEye, IconHeart, IconMessageCircle2, IconThumbUp } from "@tabler/icons-vue";
 import { useMessage } from "naive-ui";
+import ArticleActionsBar from "~/components/article/ArticleActionsBar.vue";
 import ArticlePageSkeleton from "~/components/article/ArticlePageSkeleton.vue";
 import ArticleOutlineAside from "~/components/article/ArticleOutlineAside.vue";
 import ArticleScoreModal from "~/components/article/ArticleScoreModal.vue";
@@ -11,11 +12,13 @@ import AppAvatar from "~/components/common/AppAvatar.vue";
 import CommentComposer from "~/components/comment/CommentComposer.vue";
 import CommentThread from "~/components/comment/CommentThread.vue";
 import FavoriteFolderModal from "~/components/favorite/FavoriteFolderModal.vue";
+import { useArticleCommentJump } from "~/composables/useArticleCommentJump";
 import { useArticleDigg } from "~/composables/useArticleDigg";
 import { useArticleComments } from "~/composables/useArticleComments";
 import { useArticleOutlineContext } from "~/composables/useArticleOutlineContext";
 import { useArticlePageSources } from "~/composables/useArticlePageSources";
 import { useArticleWritePolicy } from "~/composables/useArticleWritePolicy";
+import { useMotionPreference } from "~/composables/useMotionPreference";
 import { useParallax } from "~/composables/useParallax";
 import { useReaderLoginGate } from "~/composables/useReaderLoginGate";
 import { useReadingProgress } from "~/composables/useReadingProgress";
@@ -50,6 +53,10 @@ const articleHeadings = ref<ArticleHeadingAnchor[]>([]);
 const ARTICLE_LIKE_DEBOUNCE_MS = 600;
 const favoriteModalOpen = ref(false);
 const articleScoreModalOpen = ref(false);
+// 互动条（票 236）评论动作的两块落点：#comments 区块 = 滚动目标，评论框 = 聚焦目标；平滑滚动跟随动效偏好。
+const commentsSectionRef = ref<HTMLElement | null>(null);
+
+const { prefersReducedMotion } = useMotionPreference();
 
 // 动效档位 C：文章页首屏（hero）做一个区块进场；正文 markdown 段落一律不进场。
 // 装饰记号接一条 ≤10px 的视差（motion-v useScroll），减少动态下两者都归零。
@@ -112,7 +119,7 @@ const articleSkeleton = computed(() => articlePending.value && !article.value);
 // 登录态打成失效。
 const requireLogin = useReaderLoginGate();
 // 点「回复」后由 composable 回调这里：滚动到评论框并聚焦（票 238 范围 3）。
-const composerRef = ref<{ focusInput: () => void } | null>(null);
+const composerRef = ref<{ focusInput: () => void; focus: () => void } | null>(null);
 
 // 评论区状态机（票 238）：回复分页、回复目标、点赞/提交的统一入口。
 // 页面只负责接线与模板渲染，逻辑与登录前置都在 composable 里（可单测）。
@@ -210,6 +217,38 @@ async function handleFavorite() {
     return;
   }
   favoriteModalOpen.value = true;
+}
+
+// 互动条的唯一状态源（票 236 验收：右栏与 <1024px 底部条绑同一份 props，不可能不同步）：
+// 点赞取 `useArticleDigg` 的乐观值（票 235），收藏 / 评论 / 已藏态取正文的权威字段。
+const articleActionProps = computed(() => ({
+  diggCount: articleDiggCount.value,
+  favorCount: article.value?.favor_count ?? 0,
+  commentCount: article.value?.comment_count ?? 0,
+  isDigged: articleIsDigged.value,
+  isFavor: Boolean(article.value?.is_favor),
+  likePending: articleLikePending.value,
+  likeDebouncing: articleLikeDebouncing.value,
+}));
+
+function scrollToComments() {
+  commentsSectionRef.value?.scrollIntoView({ behavior: prefersReducedMotion.value ? "auto" : "smooth", block: "start" });
+}
+
+function focusCommentComposer() {
+  composerRef.value?.focus();
+}
+
+// 评论按钮：未登录先弹登录框、不滚动不聚焦；已登录才滚到 #comments 并聚焦输入框（顺序在 composable 里）。
+const { jumpToComment } = useArticleCommentJump({
+  ensureLoggedIn: () => authStore.initializeSession(),
+  openAuthModal: () => uiStore.openAuthModal(),
+  scrollToComments,
+  focusComposer: focusCommentComposer,
+});
+
+function handleCommentJump() {
+  void jumpToComment();
 }
 
 async function handleShare() {
@@ -402,20 +441,6 @@ useSeoMeta({
               <dt><IconMessageCircle2 :size="16" /><span class="sr-only">评论数</span></dt>
               <dd>{{ formatCount(article?.comment_count || 0) }}</dd>
             </div>
-            <!-- 「编辑」入口（票 213）：仅作者本人 + 站点允许发布时出现，附在元信息行尾。
-                 其余五项仍是同一组 dt/dd，不改它们的顺序与折行；样式沿用既有
-                 .article-action 家族（紧凑档），不给这一行引入第二套按钮语言。 -->
-            <div v-if="articleEditEntry" class="article-meta__item article-meta__item--edit">
-              <dt><IconPencil :size="16" aria-hidden="true" /></dt>
-              <dd>
-                <NuxtLink
-                  :to="articleEditEntry.href"
-                  class="article-action article-action--compact"
-                  :aria-label="articleEditEntry.ariaLabel"
-                  :title="articleEditEntry.ariaLabel"
-                >编辑</NuxtLink>
-              </dd>
-            </div>
           </dl>
         </div>
 
@@ -423,24 +448,14 @@ useSeoMeta({
           <button type="button" class="article-action" @click="handleArticleScoreOpen">
             {{ articleScoreButtonLabel }}
           </button>
-          <button
-            type="button"
-            class="article-action article-action--primary"
-            :disabled="articleLikePending || articleLikeDebouncing"
-            :aria-busy="articleLikePending"
-            @click="handleLike"
-          >
-            <IconThumbUp :size="18" />
-            {{ articleLikePending ? "点赞中…" : articleIsDigged ? "已点赞" : "点赞" }}
-          </button>
-          <button type="button" class="article-action article-action--danger" @click="handleFavorite">
-            <IconHeart :size="18" />
-            收藏 {{ formatCount(article?.favor_count || 0) }}
-          </button>
-          <button type="button" class="article-action" @click="handleShare">
-            <IconShare2 :size="18" />
-            分享
-          </button>
+          <!-- 「编辑」入口（票 213 门控：仅作者本人 + 站点允许发布）：票 236 起紧贴质量评分右侧。 -->
+          <NuxtLink
+            v-if="articleEditEntry"
+            :to="articleEditEntry.href"
+            class="article-action article-action--compact"
+            :aria-label="articleEditEntry.ariaLabel"
+            :title="articleEditEntry.ariaLabel"
+          >编辑</NuxtLink>
         </div>
       </header>
 
@@ -469,7 +484,7 @@ useSeoMeta({
             </div>
           </section>
 
-          <section id="comments" class="article-paper comment-panel">
+          <section id="comments" ref="commentsSectionRef" class="article-paper comment-panel">
             <div class="comment-panel__head">
               <h2 class="comment-panel__title">评论区</h2>
               <span class="comment-panel__count">{{ formatCount(article?.comment_count || 0) }} 条评论</span>
@@ -580,6 +595,18 @@ useSeoMeta({
             </div>
           </section>
 
+          <!-- 互动条（票 236）：右栏顺序固定为 作者简介 → 互动条 → 目录。
+               props 与 <1024px 底部固定条共用 `articleActionProps`（同一状态源）。 -->
+          <section class="article-paper article-actions-card">
+            <ArticleActionsBar
+              v-bind="articleActionProps"
+              @like="handleLike"
+              @favorite="handleFavorite"
+              @share="handleShare"
+              @comment="handleCommentJump"
+            />
+          </section>
+
           <ArticleTocAnchor
             :headings="articleHeadings"
             :active-heading-id="activeHeadingId"
@@ -588,6 +615,16 @@ useSeoMeta({
           />
         </aside>
       </div>
+
+      <!-- <1024px 兜底入口（票 236）：右栏互动条在此宽度由 CSS 让位，这里渲染同一组件 + 同一份 props。 -->
+      <ArticleActionsBar
+        v-bind="articleActionProps"
+        variant="fixed"
+        @like="handleLike"
+        @favorite="handleFavorite"
+        @share="handleShare"
+        @comment="handleCommentJump"
+      />
     </template>
 
     <ArticleScoreModal

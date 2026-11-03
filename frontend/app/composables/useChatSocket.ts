@@ -1,6 +1,7 @@
 import { computed, onBeforeUnmount, shallowRef } from "vue";
+import { useRuntimeConfig } from "#imports";
 import { getChatWsTicket } from "~/services/inbox";
-import type { ChatMessageItem, ChatSocketEnvelope, ChatSocketOutgoingMessage } from "~/types/api";
+import type { ChatNotificationPayload, ChatSocketEnvelope } from "~/types/api";
 
 function resolveWebSocketUrl(siteUrl: string, wsPath: string) {
   const origin = import.meta.client ? window.location.origin : siteUrl;
@@ -13,12 +14,36 @@ function resolveWebSocketUrl(siteUrl: string, wsPath: string) {
   return endpoint.toString();
 }
 
-function normalizeSocketData(payload: unknown) {
+/**
+ * isClientRuntime 判断是否在浏览器环境。
+ *
+ * 优先用 Nuxt 的 `import.meta.client`；再兜一层 `window.WebSocket`：
+ * vitest 环境下 `import.meta.client` 不保证被注入，而"有没有 WebSocket 实现"
+ * 才是建连这件事真正依赖的前提（SSR 的 Node 进程里没有 window）。
+ */
+function isClientRuntime() {
+  if (import.meta.client) {
+    return true;
+  }
+  return typeof window !== "undefined" && typeof window.WebSocket !== "undefined";
+}
+
+/**
+ * 把下行帧的 data 收窄成通知载荷。
+ *
+ * WS 已降级为通知通道（#201）：帧里只有"有新消息/对方已读"的标识，
+ * 没有正文。缺少 session_id 的帧（比如心跳/错误帧）不算通知，直接丢弃。
+ */
+function normalizeNotification(payload: unknown): ChatNotificationPayload | null {
   if (!payload || typeof payload !== "object") {
     return null;
   }
-
-  return payload as Partial<ChatMessageItem> & Record<string, unknown>;
+  const record = payload as Record<string, unknown>;
+  const sessionId = record.session_id;
+  if (typeof sessionId !== "string" || !sessionId) {
+    return null;
+  }
+  return record as unknown as ChatNotificationPayload;
 }
 
 export function useChatSocket() {
@@ -27,19 +52,16 @@ export function useChatSocket() {
   const chatStore = useChatStore();
   const socket = shallowRef<WebSocket | null>(null);
   const inbox = shallowRef<Array<ChatSocketEnvelope>>([]);
-  // 最近一次发送被服务端拒绝的原因（票 202）。
+  // 最近一次发送被服务端拒绝的原因（票 202 的界面出口）。
   //
-  // 服务端在拒绝时回的是 `{code:非0, msg:"..."}` 响应壳；而正常推送的是消息
-  // 实体，没有 code 字段。两种帧都进 inbox，所以必须先按 code 是否真是数字
-  // 区分响应壳，否则每条正常消息都会被当成失败。
+  // #201 之后发送走 HTTP，拒绝原因是 HTTP 抛出的后端错误码文案（由
+  // useInboxCenter 写入）。WS 这一侧也会收到异常响应壳（例如"请改用 HTTP 发送"），
+  // 所以 pushEnvelope 里同样按 code 是否为非 0 数字区分"拒绝"与"通知"：
+  // 通知帧的 code 是 0，当成失败的话每收一条消息都会弹错误。
   const sendError = shallowRef("");
 
   const wsUrl = computed(() => resolveWebSocketUrl(config.public.siteUrl, config.public.wsPath));
-  // 服务端不连：`import.meta.client` 在真实客户端构建里是 true，在 SSR 里是 false。
-  // 测试环境没有注入这个宏（undefined），但 happy-dom 提供了 window，
-  // 所以用 window 作为兜底：SSR 仍然不连，而 WS 行为能在单测里被验证。
-  const isClientRuntime = Boolean(import.meta.client) || typeof window !== "undefined";
-  const canConnect = computed(() => isClientRuntime && authStore.isLoggedIn);
+  const canConnect = computed(() => isClientRuntime() && authStore.isLoggedIn);
 
   function pushEnvelope(envelope: ChatSocketEnvelope) {
     const code = (envelope as { code?: unknown }).code;
@@ -109,34 +131,34 @@ export function useChatSocket() {
     }
   }
 
-  async function sendMessage(payload: ChatSocketOutgoingMessage) {
-    const instance = socket.value?.readyState === WebSocket.OPEN ? socket.value : await connect();
-    if (!instance || instance.readyState !== WebSocket.OPEN) {
-      throw new Error(chatStore.socketError || "实时连接尚未建立。");
-    }
-
-    // 每次发送先清掉上一次的拒绝原因：否则第二次发送成功时，界面上还挂着
-    // 上一次「陌生人私信被站点关闭」的提示。
-    sendError.value = "";
-    instance.send(JSON.stringify(payload));
-  }
-
-  function consumeIncomingMessages(sessionId: string) {
-    const matched = inbox.value.filter((item) => {
-      const data = normalizeSocketData(item.data);
-      return data?.session_id === sessionId;
-    });
-
-    if (!matched.length) {
+  /**
+   * 取走本轮收到的通知（取走即清空）。
+   *
+   * 调用方（useInboxCenter）据此刷新会话列表、未读数，命中当前会话时再刷新消息。
+   * 不再按会话过滤：对方发来的新消息可能属于一个**当前没打开**的会话，
+   * 那种情况也要刷新会话列表，否则左侧列表的红点不出现。
+   */
+  function takeNotifications(): ChatNotificationPayload[] {
+    if (!inbox.value.length) {
       return [];
     }
 
-    inbox.value = inbox.value.filter((item) => {
-      const data = normalizeSocketData(item.data);
-      return data?.session_id !== sessionId;
-    });
+    const notifications = inbox.value
+      .map((envelope) => normalizeNotification(envelope.data))
+      .filter((item): item is ChatNotificationPayload => Boolean(item));
+    inbox.value = [];
+    return notifications;
+  }
 
-    return matched;
+  /**
+   * 记录/清空最近一次发送的拒绝原因（票 202 的界面出口）。
+   *
+   * #201 之后发送走 HTTP：拒绝原因是 HTTP 请求抛出的后端错误码文案，
+   * 由 useInboxCenter 在发送失败时写进来；成功时清空。
+   * WS 上的非 0 响应壳（例如"请改用 HTTP 发送"）也会走这里。
+   */
+  function setSendError(reason: string) {
+    sendError.value = reason;
   }
 
   function close() {
@@ -151,10 +173,10 @@ export function useChatSocket() {
     socketStatus: computed(() => chatStore.socketStatus),
     socketError: computed(() => chatStore.socketError),
     sendError,
+    setSendError,
     inbox,
     connect,
     close,
-    sendMessage,
-    consumeIncomingMessages,
+    takeNotifications,
   };
 }

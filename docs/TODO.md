@@ -87,4 +87,4 @@
 - 需模块化的内容：`es_river`、`image_ref_river`、`cron_service`。
 - 站点配置修改的接口是否已经完善？
 - [P2] 写路径的副作用边界还不稳定，DB、缓存、消息仍然容易分叉。评论创建是典型例子：先写评论，再改审核状态，再起 goroutine 写站内消息，再回写 Redis 计数（`comment_create.go` line 72、line 85）；消息服务本身又直接用全局 DB 写表（`article_message.go` line 12）；文章删除虽然已经从 hook 迁出来了，但仍在事务体内直接改 Redis（`delete.go` line 18、line 84）。这类「主事务 + 最佳努力副作用」以后很适合收成显式领域服务 + post-commit / outbox。
-- [P2] 聊天 WebSocket 入口还是一个过大的「超级处理器」，而且同源校验是全放开的（`CheckOrigin` 现在直接 `return true`，`chat_ws.go` line 32）；`ChatWsView` 同时负责鉴权回退、票据消费、连接生命周期、收件人校验、限流占位、消息落库、在线路由和错误回写（`chat_ws.go` line 63）。聊天功能一旦继续长大，测试、扩展 ack/retry、引入审核 / 风控都会越来越难。
+- [P2] 私信已改为双通道：HTTP 落库（`POST /chat/messages`，带幂等键）是唯一发送通道，WebSocket 只做"新消息 / 已读"通知；`internal/chat/adapter/http/handler.go` 的 WS 循环现在只剩鉴权、连接生命周期与下行通知，原 `chat_ws.go` 那个"鉴权回退 + 票据 + 收件人校验 + 限流 + 落库 + 在线路由"的超级处理器问题随拆分消失。剩余待设计的是发送侧的审核 / 风控与 ack/retry 语义。

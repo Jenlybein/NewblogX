@@ -22,13 +22,22 @@ type fakeRepo struct {
 	err  error
 }
 
-func (f *fakeRepo) SendMessage(_ context.Context, msg *domain.Message, _, _ domain.Display, _ string) error {
+func (f *fakeRepo) Send(_ context.Context, cmd domain.SendCommand, _, _ domain.Display, _ string) (domain.Message, bool, error) {
 	if f.err != nil {
-		return f.err
+		return domain.Message{}, false, f.err
 	}
-	msg.ID = ctype.NewID(uint64(len(f.sent) + 1))
-	f.sent = append(f.sent, msg)
-	return nil
+	msg := domain.Message{
+		ID:         ctype.NewID(uint64(len(f.sent) + 1)),
+		SenderID:   cmd.SenderID,
+		ReceiverID: cmd.ReceiverID,
+		SessionID:  domain.BuildSessionID(cmd.SenderID, cmd.ReceiverID),
+		Content:    cmd.Content,
+		SendTime:   cmd.SendTime,
+		MsgStatus:  domain.StatusSent,
+		MsgType:    cmd.MsgType,
+	}
+	f.sent = append(f.sent, &msg)
+	return msg, false, nil
 }
 
 func (f *fakeRepo) ListSessions(context.Context, ctype.ID, bool, domain.Page) ([]domain.Session, int, error) {
@@ -97,10 +106,10 @@ func newService(t *testing.T, relation int8, strangerEnabled bool) (*app.Service
 	repo := &fakeRepo{}
 	svc := app.New(
 		repo,
+		repo,
 		fakeRelations{relation: relation},
 		fakeUsers{},
 		fakeStranger{enabled: strangerEnabled},
-		nil,
 		nil,
 		nil,
 	)
@@ -110,7 +119,7 @@ func newService(t *testing.T, relation int8, strangerEnabled bool) (*app.Service
 func TestSend_陌生人开关关闭时拒绝并说明是站点策略(t *testing.T) {
 	svc, repo := newService(t, 1, false)
 
-	_, err := svc.Send(context.Background(), ctype.NewID(100), ctype.NewID(200), domain.TypeText, "你好")
+	_, err := svc.Send(context.Background(), ctype.NewID(100), ctype.NewID(200), domain.TypeText, "你好", "")
 	if err == nil {
 		t.Fatal("站点关闭陌生人私信时，陌生人之间不应发出消息")
 	}
@@ -136,7 +145,7 @@ func TestSend_陌生人开关关闭时拒绝并说明是站点策略(t *testing.
 func TestSend_陌生人开关打开时放行(t *testing.T) {
 	svc, repo := newService(t, 1, true)
 
-	msg, err := svc.Send(context.Background(), ctype.NewID(100), ctype.NewID(200), domain.TypeText, "你好")
+	msg, err := svc.Send(context.Background(), ctype.NewID(100), ctype.NewID(200), domain.TypeText, "你好", "")
 	if err != nil {
 		t.Fatalf("站点开启陌生人私信时应允许发送，实际报错: %v", err)
 	}
@@ -150,7 +159,7 @@ func TestSend_已关注或互关的人不受站点开关影响(t *testing.T) {
 	// 否则关掉陌生人私信会把熟人之间的对话也一并断掉。
 	for _, relation := range []int8{2, 3, 4} {
 		svc, repo := newService(t, relation, false)
-		if _, err := svc.Send(context.Background(), ctype.NewID(100), ctype.NewID(200), domain.TypeText, "在吗"); err != nil {
+		if _, err := svc.Send(context.Background(), ctype.NewID(100), ctype.NewID(200), domain.TypeText, "在吗", ""); err != nil {
 			t.Fatalf("relation=%d 时不应被陌生人开关拦截，实际报错: %v", relation, err)
 		}
 		if len(repo.sent) != 1 {
@@ -163,7 +172,7 @@ func TestSend_自己发给自己不受站点开关影响(t *testing.T) {
 	// 自发送没有"陌生人"这层关系，不该被站点开关拦下。
 	svc, repo := newService(t, 1, false)
 
-	if _, err := svc.Send(context.Background(), ctype.NewID(100), ctype.NewID(100), domain.TypeText, "给自己"); err != nil {
+	if _, err := svc.Send(context.Background(), ctype.NewID(100), ctype.NewID(100), domain.TypeText, "给自己", ""); err != nil {
 		t.Fatalf("自己发给自己不应被陌生人开关拦截，实际报错: %v", err)
 	}
 	if len(repo.sent) != 1 {

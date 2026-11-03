@@ -48,9 +48,9 @@ const menuOpen = ref(false);
 const { scrolled, hidden } = useScrollChrome();
 const { handlePointerMove } = usePointerSpecular();
 
-const navItems = computed(() =>
-  headerNavItems(route.path).filter((item) => item.key !== "write" || entryVisible.value),
-);
+// 「创作」仍在导航数据里（活动判定与路由契约依赖它），但渲染点已移到右侧动作区
+// （第 198 票）：导航条只渲染纯链接，模板里不再有条件分支。
+const navItems = computed(() => headerNavItems(route.path).filter((item) => item.key !== "write"));
 const themeLabel = computed(() => themeToggleLabel(uiStore.theme));
 const menuLabel = computed(() => mobileMenuLabel(menuOpen.value));
 
@@ -129,29 +129,18 @@ async function handleUserMenuSelect(key: string | number) {
       <!-- 手机端折叠、平板/桌面常显：单一 DOM 靠 CSS 断点切换，避免复制一份控件 -->
       <div id="site-header-panel" class="site-header__panel" :class="{ 'is-open': menuOpen }">
         <nav class="site-nav" aria-label="主导航">
-          <template v-for="item in navItems" :key="item.key">
-            <NuxtLink
-              v-if="item.key !== 'write'"
-              :to="item.to"
-              class="site-tab"
-              :class="{ 'is-active': item.active }"
-              :aria-current="item.active ? 'page' : undefined"
-            >
-              <!-- 图标走 utils/navIcon 的显式映射：旧的三元选择会让新入口静默拿到搜索图标 -->
-              <component :is="headerNavIcon(item.key)" :size="16" />
-              <span>{{ item.label }}</span>
-            </NuxtLink>
-            <button
-              v-else
-              type="button"
-              class="site-tab"
-              :class="{ 'is-active': item.active }"
-              @click="openWriteEntry()"
-            >
-              <component :is="headerNavIcon(item.key)" :size="16" />
-              <span>{{ item.label }}</span>
-            </button>
-          </template>
+          <NuxtLink
+            v-for="item in navItems"
+            :key="item.key"
+            :to="item.to"
+            class="site-tab"
+            :class="{ 'is-active': item.active }"
+            :aria-current="item.active ? 'page' : undefined"
+          >
+            <!-- 图标走 utils/navIcon 的显式映射：旧的三元选择会让新入口静默拿到搜索图标 -->
+            <component :is="headerNavIcon(item.key)" :size="16" />
+            <span>{{ item.label }}</span>
+          </NuxtLink>
         </nav>
 
         <form class="site-search" role="search" aria-label="站点搜索" @submit.prevent="submitSearch">
@@ -175,11 +164,27 @@ async function handleUserMenuSelect(key: string | number) {
         <button
           type="button"
           class="site-action"
+          data-chrome="theme"
           :aria-label="themeLabel"
           :title="themeLabel"
           @click="uiStore.toggleTheme()"
         >
           <component :is="uiStore.theme === 'dark' ? IconSunHigh : IconMoonStars" :size="18" />
+        </button>
+
+        <!-- 创作：亮暗切换之后、个人信息之前；与动作区共用 .site-action 那套样式。
+             发布门控关闭时整项不渲染（ADR-0017 决策 2）；窄屏只留图标。 -->
+        <button
+          v-if="entryVisible"
+          type="button"
+          class="site-action site-header__write"
+          data-chrome="write"
+          aria-label="创作"
+          title="创作"
+          @click="openWriteEntry()"
+        >
+          <component :is="headerNavIcon('write')" :size="18" />
+          <span class="site-header__write-label">创作</span>
         </button>
 
         <div data-chrome="account" class="site-header__account">
@@ -450,6 +455,12 @@ async function handleUserMenuSelect(key: string | number) {
   padding: 0 0.375rem;
 }
 
+/* 创作：窄屏（<640px）降级为纯图标，文字在 640px 断点起显示；
+ * 图标态仍是 2.75rem 的可点方块，无障碍文案走 aria-label / title。 */
+.site-header__write-label {
+  display: none;
+}
+
 .site-header__account-name {
   display: none;
   max-width: 6rem;
@@ -503,6 +514,15 @@ async function handleUserMenuSelect(key: string | number) {
   /* 平板起导航/搜索常显，折叠按钮退场 */
   .site-header__menu {
     display: none;
+  }
+
+  /* 创作从平板起显示文字（窄屏只有图标） */
+  .site-header__write {
+    padding: 0 0.875rem;
+  }
+
+  .site-header__write-label {
+    display: inline;
   }
 }
 

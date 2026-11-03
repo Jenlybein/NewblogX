@@ -234,8 +234,8 @@ useSeoMeta({
   opacity: 1;
 }
 
-/* 手感设备没有 hover：窄屏直接常显，别让"移出"藏在双击里。 */
-@media (max-width: 768px) {
+/* 窄屏与无 hover 的触屏设备：移出按钮直接常显，别让"移出"藏在悬浮里。 */
+@media (max-width: 768px), (hover: none) {
   .article-history-card__remove {
     opacity: 1;
     pointer-events: auto;

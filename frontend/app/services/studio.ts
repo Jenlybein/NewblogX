@@ -7,12 +7,12 @@ import type {
   UserProfileUpdatePayload,
 } from "~/types/api";
 
-export function getHistoryArticles(params: { page?: number; limit?: number; type?: 1 | 2 }) {
+/** `GET /api/articles/history`：后端只认 page / limit，`type` 曾被前端多传、静默忽略，已清理。 */
+export function getHistoryArticles(params: { page?: number; limit?: number } = {}) {
   return useNuxtApp().$api.request<HistoryArticleListData>("/api/articles/history", {
     query: {
       page: params.page ?? 1,
       limit: params.limit ?? 12,
-      type: String(params.type ?? 1),
     },
   });
 }

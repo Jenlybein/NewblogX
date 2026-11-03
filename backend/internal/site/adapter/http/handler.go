@@ -84,9 +84,7 @@ func (h *Handler) QQLoginURL(c *gin.Context) {
 func (h *Handler) SEO(c *gin.Context) {
 	seo := h.svc.PublicSEO()
 	res.OkWithData(SEOResponse{
-		SiteTitle:    seo.SiteTitle,
 		ProjectTitle: seo.ProjectTitle,
-		Logo:         seo.Logo,
 		Icon:         seo.Icon,
 		Keywords:     seo.Keywords,
 		Description:  seo.Description,
@@ -132,9 +130,7 @@ func (h *Handler) PublicInfo(c *gin.Context) {
 	case "seo":
 		seo := h.svc.PublicSEO()
 		res.OkWithData(SEOResponse{
-			SiteTitle:    seo.SiteTitle,
 			ProjectTitle: seo.ProjectTitle,
-			Logo:         seo.Logo,
 			Icon:         seo.Icon,
 			Keywords:     seo.Keywords,
 			Description:  seo.Description,

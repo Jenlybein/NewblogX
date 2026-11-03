@@ -6578,9 +6578,7 @@ export interface components {
             description?: string;
             icon?: string;
             keywords?: string;
-            logo?: string;
             project_title?: string;
-            site_title?: string;
         };
         "internal_site_adapter_http.SidebarArticleItem": {
             digg_count?: number;

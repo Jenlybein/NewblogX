@@ -61,12 +61,8 @@ onMounted(load)
 
     <NForm v-if="loaded" label-placement="top" :disabled="loading">
       <NCard class="admin-card mb-4" title="基础信息" size="small">
-        <NFormItem label="站点标题">
-          <NInput v-model:value="config.site_info.title" />
-        </NFormItem>
-        <NFormItem label="Logo URL">
-          <NInput v-model:value="config.site_info.logo" placeholder="https://... 或 /uploads/..." />
-        </NFormItem>
+        <!-- 站点标题与 Logo 不再可自定义（票 192）：读者站的页头字标、浏览器标题与
+             分享卡片标题都来自品牌常量，favicon 走项目图标。这里只留备案号。 -->
         <NFormItem label="备案号">
           <NInput v-model:value="config.site_info.beian" />
         </NFormItem>

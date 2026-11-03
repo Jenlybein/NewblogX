@@ -2474,13 +2474,7 @@
                     "keywords": {
                         "type": "string"
                     },
-                    "logo": {
-                        "type": "string"
-                    },
                     "project_title": {
-                        "type": "string"
-                    },
-                    "site_title": {
                         "type": "string"
                     }
                 },

@@ -2,11 +2,11 @@
 import { onMounted, ref, watch } from "vue";
 
 import {
-  MARKDOWN_THEME_CSS,
   buildMarkdownThemeCss,
   buildMermaidConfig,
   type MarkdownThemeMode,
 } from "~/utils/markdownTheme";
+import { MARKDOWN_THEME_CSS } from "~/utils/markdownThemeCss";
 import { prefersReducedMotionFrom } from "~/utils/motion";
 import { REDUCED_MOTION_QUERY } from "~/composables/useMotionPreference";
 

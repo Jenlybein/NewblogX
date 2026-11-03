@@ -7100,8 +7100,11 @@ export interface components {
             hash: string;
             mime_type: string;
             /**
-             * @description Purpose 声明用途：cover（16:9）/ avatar（1:1）。省略表示不声明用途
-             *     （例如私信发图），确认时不校验比例；出现非法值由用例层按错误码拒绝。
+             * @description Purpose 声明用途：cover（16:9）/ avatar（1:1）。nil 表示请求体不带
+             *     该字段（例如私信发图），确认时不校验比例；一旦出现（含空串）必须合法，
+             *     非法值由用例层按明确错误码拒绝，不静默当作 cover。
+             *     刻意不用 binding:"oneof"：那样非法值会被 gin 挡在适配器里，只回一句
+             *     通用「参数错误」，调用方拿不到可判分支的错误码。
              * @enum {string}
              */
             purpose?: "cover" | "avatar";

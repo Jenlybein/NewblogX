@@ -91,6 +91,12 @@ describe("断点 1024px：窄屏只有底部固定条一个入口", () => {
     expect(blockAfter(narrow, ".article-actions-bar--fixed {")).toMatch(/display:\s*flex/u);
   });
 
+  it("<1024px：互动条外面的纸面卡片一起隐藏，不在右栏留一条空纸面带", () => {
+    const narrow = narrowActionsBlock(css());
+
+    expect(blockAfter(narrow, ".article-actions-card {")).toContain("display: none");
+  });
+
   it("底部条固定在下沿，四个按钮等分，并盖住页面底部（正文给它让出高度）", () => {
     const narrow = narrowActionsBlock(css());
     const fixed = blockAfter(narrow, ".article-actions-bar--fixed {");

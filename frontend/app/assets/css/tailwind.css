@@ -675,6 +675,11 @@
       display: none;
     }
 
+    /* 纸面卡片一起隐藏：只藏按钮会在右栏留一条空白的纸面带。 */
+    .article-actions-card {
+      display: none;
+    }
+
     .article-actions-bar--fixed {
       display: flex;
       position: fixed;

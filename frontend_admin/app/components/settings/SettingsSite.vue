@@ -55,7 +55,7 @@ onMounted(load)
     <!-- 登录策略单独一块，但和基础信息同一个表单：它属于 site 段，
          拆成两个组件各自读写整段，会互相把对方刚存的值覆盖回去。 -->
     <NAlert type="info" :bordered="false" class="mb-4">
-      下面四组设置（基础信息 / 登录策略 / 发布与展示 / 内容审核）属于同一段配置，
+      下面五组设置（基础信息 / 登录策略 / 发布与展示 / 内容审核 / 私信）属于同一段配置，
       改完点一次「保存站点配置」即可，不需要分别保存。
     </NAlert>
 
@@ -140,6 +140,18 @@ onMounted(load)
         </NFormItem>
         <NFormItem label="评论免审核">
           <NSwitch v-model:value="config.comment.skip_examining" />
+        </NFormItem>
+      </NCard>
+
+      <!-- 私信的站点级策略（票 202）。保存后立即生效：后端每次发送都现读
+           运行时配置缓存，所以不用重启、也不用等下一次请求。 -->
+      <NCard class="admin-card mb-4" title="私信" size="small">
+        <NAlert type="info" :bordered="false" class="mb-4">
+          这里是站点级策略，对所有人统一生效。关闭后，未关注你、也不是你粉丝的用户
+          无法给你发私信；已关注的熟人不受影响。开关保存后立即生效。
+        </NAlert>
+        <NFormItem label="允许陌生人发私信">
+          <NSwitch v-model:value="config.chat.stranger_msg_enabled" />
         </NFormItem>
       </NCard>
 

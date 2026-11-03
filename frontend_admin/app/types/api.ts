@@ -257,6 +257,14 @@ export interface SiteRuntimeConfig {
     show_non_admin_articles: boolean
   }
   comment: { skip_examining: boolean }
+  /**
+   * 私信的站点级策略（票 202）。
+   *
+   * 陌生人开关放在 site.chat 段，不是某个用户行上的列（零 DDL 不允许给
+   * 既有表加列）。键名必须与后端 `conf/site.Chat` 的 json tag 一致；
+   * 默认值由后端 `site_default_settings.yaml` 显式写成 false，前端不另写默认值。
+   */
+  chat: { stranger_msg_enabled: boolean }
 }
 
 /**

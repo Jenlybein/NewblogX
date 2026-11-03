@@ -68,3 +68,16 @@ type Article struct {
 type Comment struct {
 	SkipExamining bool `yaml:"skip_examining" json:"skip_examining"` // 免审核
 }
+
+// Chat 是私信的站点级策略（#202）。
+//
+// 陌生人私信开关放在这里，而不是某个用户配置行上的列：零 DDL 约束不允许
+// 给既有表加列，而且这个策略本来就是站点统一的——关掉之后陌生人对谁都
+// 发不出去，不再逐个用户判断。
+//
+// 默认值必须由 site_default_settings.yaml **显式**写成 false：
+// 此结构体的零值恰好也是 false，若只靠"配置缺行"来得到关闭，
+// 将来改默认值或删键都会静默改变语义，且没有测试会红。
+type Chat struct {
+	StrangerMsgEnabled bool `yaml:"stranger_msg_enabled" json:"stranger_msg_enabled"` // 允许陌生人发私信
+}

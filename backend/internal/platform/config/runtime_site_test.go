@@ -268,6 +268,85 @@ func TestDecodeSection_发布展示开关缺字段回退默认值(t *testing.T) 
 	}
 }
 
+// ── #202：陌生人私信开关（site.chat 段） ──────────────────────
+//
+// 这个开关是**站点级**策略：它决定"陌生人能不能给任何人发私信"，
+// 不落在任何用户行上（零 DDL 也不允许给既有表加列）。
+// 缺省行为必须是**显式写下来的「关」**：如果只靠"配置里没有这个键"
+// 隐式得到 false，那么将来有人把默认值改成 true（或把键删掉）时，
+// 语义会静默翻转，而没有任何测试会红。
+
+func TestDefaultSettingsYaml_陌生人私信开关显式关闭(t *testing.T) {
+	raw, err := os.ReadFile("../../../config/site_default_settings.yaml")
+	if err != nil {
+		t.Fatalf("读取默认值文件失败: %v", err)
+	}
+	var file struct {
+		Site conf.Site `yaml:"site"`
+	}
+	if err := yaml.Unmarshal(raw, &file); err != nil {
+		t.Fatalf("解析默认值文件失败: %v", err)
+	}
+	if file.Site.Chat.StrangerMsgEnabled {
+		t.Fatal("site.chat.stranger_msg_enabled 默认值应为 false（陌生人私信默认关闭）")
+	}
+	// 仅解析出 false 还不够：缺键同样解析成 false。必须能在原文里看到
+	// 这个键被**显式**写成 false，否则"默认关"就是隐式的。
+	if !strings.Contains(string(raw), "stranger_msg_enabled: false") {
+		t.Fatalf("site_default_settings.yaml 必须显式写 stranger_msg_enabled: false，实际内容里没有这一行")
+	}
+}
+
+func TestDecodeSection_老载荷没有陌生人开关时按默认值补齐(t *testing.T) {
+	// 老库里的 site 段完全没有 chat 子块：新开关必须从默认值补齐。
+	defaults := conf.Site{Chat: siteconf.Chat{StrangerMsgEnabled: true}}
+	got, err := decodeSection(SectionSite, defaults, map[string]string{
+		SectionSite: `{"site_info":{"title":"老站点"},"article":{"skip_examining":true}}`,
+	})
+	if err != nil {
+		t.Fatalf("解析失败: %v", err)
+	}
+	if !got.Chat.StrangerMsgEnabled {
+		t.Fatal("载荷里没有 chat 子块时应回退默认值 true")
+	}
+}
+
+func TestUpdateSite_陌生人开关保存后立即生效且重新加载仍是所选值(t *testing.T) {
+	// 「保存后立即生效」= UpdateSite 返回后缓存已经是新值（读者下一次发送就该看到）。
+	// 「重新加载仍是所选值」= 值真的落进了库里那一行，而不是只活在缓存里。
+	defaults := conf.RuntimeDefaults{
+		Site: conf.Site{Chat: siteconf.Chat{StrangerMsgEnabled: false}},
+	}
+	svc, db := newTestService(t, defaults)
+	if err := svc.InitRuntimeConfig(); err != nil {
+		t.Fatalf("初始化失败: %v", err)
+	}
+	if got := svc.GetRuntimeSite().Chat.StrangerMsgEnabled; got {
+		t.Fatalf("初始应为默认的关闭，实际 %v", got)
+	}
+
+	site := svc.GetRuntimeSite()
+	site.Chat.StrangerMsgEnabled = true
+	if err := svc.UpdateSite(site); err != nil {
+		t.Fatalf("保存站点配置失败: %v", err)
+	}
+	if !svc.GetRuntimeSite().Chat.StrangerMsgEnabled {
+		t.Fatal("保存后应立即生效（缓存未刷新）")
+	}
+	payload := readPayload(t, db, SectionSite)
+	if !strings.Contains(payload, `"stranger_msg_enabled":true`) {
+		t.Fatalf("site 段里 stranger_msg_enabled 应为 true，实际 %s", payload)
+	}
+
+	svc2 := NewRuntimeConfigService(conf.RuntimeDefaults{}, quietLogger(), db)
+	if err := svc2.InitRuntimeConfig(); err != nil {
+		t.Fatalf("重新加载失败: %v", err)
+	}
+	if !svc2.GetRuntimeSite().Chat.StrangerMsgEnabled {
+		t.Fatal("重新加载后陌生人私信开关应仍为 true")
+	}
+}
+
 func TestUpdateSite_发布展示开关关闭后重新加载仍是关闭(t *testing.T) {
 	// 「保存后重新加载仍是所选值」是验收标准：关掉三个开关 → 落库 → 换一个
 	// 进程（空默认值）重新加载 → 读到的还是关闭。用空默认值是为了证明值来自

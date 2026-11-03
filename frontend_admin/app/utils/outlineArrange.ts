@@ -5,8 +5,9 @@
  * 按钮式操作只改这份扁平行，保存时再组装回嵌套 payload。
  *
  * 为什么抽到 utils：树的结构错误不会报错——拍平丢了空文件夹、缩进挂到文章
- * 节点下、移出算错父级，都会让保存后的树"看起来保存成功但层级不对"。
- * 这些语义与服务端 domain/outline 的 Move 逐条对应（两处实现、两处测试）。
+ * 节点下、移出算错父级、移除漏掉子树，都会让保存后的树"看起来保存成功但
+ * 层级不对"。这些语义与后端整树提交（SaveOutline）的结构校验逐条对应：
+ * 页面负责产出正确的嵌套 payload，服务端负责校验与复用已有行。
  */
 
 import type { OutlineNodeItem } from '~/types/api'
@@ -252,6 +253,18 @@ export function regroupOutlineRows(rows: readonly OutlineFlatRow[]): OutlineFlat
   return out
 }
 
+/** 重命名文件夹：文章节点没有自己的标题，空标题与不存在的行不改。 */
+export function renameOutlineFolder(
+  rows: readonly OutlineFlatRow[],
+  key: string,
+  title: string,
+): OutlineFlatRow[] {
+  const row = rows.find(item => item.key === key)
+  const trimmed = title.trim()
+  if (!row || row.kind !== 1 || !trimmed) return [...rows]
+  return rows.map(item => (item.key === key ? { ...item, title: trimmed } : item))
+}
+
 /** 在指定文件夹（或根层）末尾新建一个空文件夹。 */
 export function addOutlineFolder(
   rows: readonly OutlineFlatRow[],
@@ -301,6 +314,40 @@ export function addOutlineArticles(
   }
   return regroupOutlineRows([...rows, ...added])
 }
+
+/**
+ * 移除一行及其整棵子树：文件夹里的文章 / 子文件夹不能变成孤儿。
+ *
+ * 保存时不出现在提交里的节点由服务端软删（SaveOutline），所以这里只需要
+ * 把子树从扁平行里摘干净；入参不改，找不到的行原样返回。
+ */
+export function removeOutlineRow(
+  rows: readonly OutlineFlatRow[],
+  key: string,
+): OutlineFlatRow[] {
+  const index = rows.findIndex(row => row.key === key)
+  if (index < 0) return [...rows]
+  const end = blockEnd(rows, index)
+  return [...rows.slice(0, index), ...rows.slice(end)]
+}
+
+/**
+ * 失效行数量（只有文章节点会失效）。
+ *
+ * 判定来自后端读模型：文章后来被删 / 退回草稿 / 隐藏时节点保留并标失效，
+ * 前端不另算一遍"文章现在还公开吗"。
+ */
+export function outlineStaleCount(rows: readonly OutlineFlatRow[]): number {
+  return rows.filter(row => row.kind === 2 && row.stale).length
+}
+
+/** 一键清理失效行：只摘掉已失效的文章节点，展示中的文章与文件夹不动。 */
+export function cleanupOutlineStaleRows(rows: readonly OutlineFlatRow[]): OutlineFlatRow[] {
+  return rows.filter(row => !(row.kind === 2 && row.stale))
+}
+
+/** 失效原因文案（子节点标「已失效（原因）」时用）。 */
+export { staleReasonLabel } from '~/utils/staleItems'
 
 /** 扁平行 → 嵌套提交 payload：兄弟顺序 = 数组顺序，新节点 id 留空。 */
 export function buildOutlineNodes(rows: readonly OutlineFlatRow[]): OutlineNodeInput[] {

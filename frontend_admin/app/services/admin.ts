@@ -15,10 +15,7 @@ import type {
   BannerWritePayload,
   CdcEventRecord,
   CollectionAdminCard,
-  CollectionAdminItem,
-  CollectionBatchIncludeResponse,
   CollectionCreatePayload,
-  CollectionStaleCleanupResult,
   CollectionUpdatePayload,
   DecoRuntimeConfig,
   GlobalNotifListItem,
@@ -32,10 +29,7 @@ import type {
   OutlineNodePayload,
   OutlineTreeResponseData,
   ProjectAdminCard,
-  ProjectAdminItem,
-  ProjectBatchIncludeResponse,
   ProjectCreatePayload,
-  ProjectStaleCleanupResult,
   ProjectUpdatePayload,
   ReplayLogRecord,
   LoginEventRecord,
@@ -197,68 +191,6 @@ export function setCollectionDisplay(id: string, displayed: boolean) {
   })
 }
 
-// ── 合集编排（批量收录 + 两级排序）────────────────────────────
-
-/**
- * 后台收录行：含失效行。
- *
- * 与读者详情不同，这里**不隐藏失效文章**，`stale` / `stale_reason` 由后端用与
- * 「热门置顶」共用的领域判定算好，前端只做展示与清理。
- *
- * 全集换序必须提交**完整**集合，所以不能读读者详情（它只给仍公开的文章）。
- */
-export function getAdminCollectionItems(id: string) {
-  return api().request<ListData<CollectionAdminItem>>(`/collections/${id}/articles/admin`)
-}
-
-/** 批量收录：一次提交多篇，逐篇返回结局（重复 / 不可收录不会让整单失败）。 */
-export function batchIncludeCollectionArticles(id: string, articleIds: string[]) {
-  return api().request<CollectionBatchIncludeResponse, { article_ids: string[] }>(
-    `/collections/${id}/articles/batch`,
-    { method: 'POST', body: { article_ids: articleIds } },
-  )
-}
-
-/** 移除一篇收录（幂等；后端会把剩余序号压实）。 */
-export function removeCollectionArticle(id: string, articleId: string) {
-  return api().request<unknown, { article_id: string }>(`/collections/${id}/articles`, {
-    method: 'DELETE',
-    body: { article_id: articleId },
-  })
-}
-
-/** 一键清理合集里的全部失效行（幂等；返回本次删掉的条数）。 */
-export function cleanupCollectionStale(id: string) {
-  return api().request<CollectionStaleCleanupResult>(`/collections/${id}/admin/stale`, {
-    method: 'DELETE',
-  })
-}
-
-/**
- * 合集内的全量顺序替换。
- *
- * 传**完整**的有序列表（失效行也算）：后端在集合不一致时整单拒绝，
- * 所以先在上移/下移后拿完整数组再提交，别只传变化的两条。
- */
-export function updateCollectionItemOrder(id: string, articleIds: string[]) {
-  return api().request<unknown, { article_ids: string[] }>(`/collections/${id}/articles/order`, {
-    method: 'PATCH',
-    body: { article_ids: articleIds },
-  })
-}
-
-/**
- * 合集之间的全量顺序替换。
- *
- * 同样传完整列表（含未展示的合集）：读者列表页与后台列表都按 sort_order 排序。
- */
-export function updateCollectionOrder(collectionIds: string[]) {
-  return api().request<unknown, { collection_ids: string[] }>('/collections/order', {
-    method: 'PATCH',
-    body: { collection_ids: collectionIds },
-  })
-}
-
 // ── 项目（与合集并列的独立内容实体）───────────────────────────
 
 /** 后台项目列表：含未展示的项目、排序号与回退封面。 */
@@ -289,51 +221,10 @@ export function setProjectDisplay(id: string, displayed: boolean) {
   })
 }
 
-/** 后台项目收录行：含失效行（全集换序必须提交完整集合）。 */
-export function getAdminProjectItems(id: string) {
-  return api().request<ListData<ProjectAdminItem>>(`/projects/${id}/articles/admin`)
-}
-
-/** 批量收录：一次提交多篇，逐篇返回结局（重复 / 不可收录不会让整单失败）。 */
-export function batchIncludeProjectArticles(id: string, articleIds: string[]) {
-  return api().request<ProjectBatchIncludeResponse, { article_ids: string[] }>(
-    `/projects/${id}/articles/batch`,
-    { method: 'POST', body: { article_ids: articleIds } },
-  )
-}
-
-/** 移除一篇收录（幂等；后端会把剩余序号压实）。 */
-export function removeProjectArticle(id: string, articleId: string) {
-  return api().request<unknown, { article_id: string }>(`/projects/${id}/articles`, {
-    method: 'DELETE',
-    body: { article_id: articleId },
-  })
-}
-
-/** 一键清理项目里的全部失效行（幂等；返回本次删掉的条数）。 */
-export function cleanupProjectStale(id: string) {
-  return api().request<ProjectStaleCleanupResult>(`/projects/${id}/admin/stale`, {
-    method: 'DELETE',
-  })
-}
-
-/** 项目内的全量顺序替换：传**完整**的有序列表（失效行也算）。 */
-export function updateProjectItemOrder(id: string, articleIds: string[]) {
-  return api().request<unknown, { article_ids: string[] }>(`/projects/${id}/articles/order`, {
-    method: 'PATCH',
-    body: { article_ids: articleIds },
-  })
-}
-
-/** 项目之间的全量顺序替换：传完整列表（含未展示的项目）。 */
-export function updateProjectOrder(projectIds: string[]) {
-  return api().request<unknown, { project_ids: string[] }>('/projects/order', {
-    method: 'PATCH',
-    body: { project_ids: projectIds },
-  })
-}
-
 // ── 目录树（一个编辑器服务合集与项目）─────────────────────────────
+//
+// 收录 / 顺序 / 层次 / 失效清理全部走整树提交：旧的扁平收录与排序接口已从
+// 后台服务层移除（后端接口保留，但后台不再有任何调用点，旧表不再被写入）。
 
 /** 后台读回某个合集的整棵目录树（含空文件夹与失效标记）。 */
 export function getCollectionOutline(id: string) {

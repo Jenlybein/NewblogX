@@ -1,16 +1,15 @@
 <script setup lang="ts">
 /**
- * 目录编排（管理员）：合集与项目共用的最小树编辑器（票 217）。
+ * 目录编排（管理员）：合集与项目共用的树编辑器。
  *
  * 一个界面服务两个实体：上方选「合集 / 项目」与具体条目，下方读回同一棵嵌套树。
- * 编排动作全部是按钮式：新建文件夹、批量收录、上移 / 下移 / 缩进 / 移出；
- * 改的是本地扁平行，点「保存」才把**整棵树**一次性提交（新建 / 收录 / 顺序 /
- * 层级一起落库），保存后以后端返回的树重新渲染。
+ * 编排动作全部是按钮式：新建文件夹、重命名、移除节点、清理失效行、批量收录、
+ * 上移 / 下移 / 缩进 / 移出；改的是本地扁平行，点「保存」才把**整棵树**一次性
+ * 提交（新建 / 收录 / 改名 / 移除 / 顺序 / 层级一起落库），保存后以后端返回的树
+ * 重新渲染。失效标记来自后端读模型，清理只是把失效文章行从提交里摘掉。
  *
  * 为什么不做拖拽、也不做单步保存：整树提交让"中断或并发不会留下半套顺序"
  * （票 209 用户故事 30）；单步接口会制造第二套顺序真相（ADR-0023 当前约束 7）。
- *
- * 票 217 只做最小闭环；重命名 / 移除节点 / 清理失效行与旧排列页退役是票 218。
  */
 import { NButton, NCard, NInput, NSelect, NSpace, NTag, useMessage } from 'naive-ui'
 import {
@@ -27,12 +26,17 @@ import {
   addOutlineFolder,
   buildOutlineNodes,
   canMoveOutlineRow,
+  cleanupOutlineStaleRows,
   flattenOutlineTree,
   moveOutlineRow,
   newOutlineFolderKey,
   outlineDepth,
   outlineIncludeTargetKey,
   outlineRowTitle,
+  outlineStaleCount,
+  removeOutlineRow,
+  renameOutlineFolder,
+  staleReasonLabel,
 } from '~/utils/outlineArrange'
 import type { OutlineArticleCandidate, OutlineFlatRow, OutlineMoveOp } from '~/utils/outlineArrange'
 
@@ -54,6 +58,11 @@ const dirty = ref(false)
 
 /** 新建文件夹的标题输入。 */
 const folderTitle = ref('')
+/** 重命名选中文件夹的标题输入。 */
+const renameTitle = ref('')
+
+/** 失效行数量由后端读模型给出；为 0 时不让人点一个空操作。 */
+const staleCount = computed(() => outlineStaleCount(rows.value))
 
 /** 批量收录：关键词、搜索结果、已勾选文章。 */
 const keyword = ref('')
@@ -88,6 +97,8 @@ function rowIndentStyle(row: OutlineFlatRow) {
 
 function selectRow(key: string) {
   selectedKey.value = key
+  const row = selectedRow()
+  renameTitle.value = row?.kind === 1 ? row.title : ''
 }
 
 async function loadEntities() {
@@ -128,6 +139,9 @@ function chooseEntity(id: string) {
 async function loadOutline() {
   if (!entityId.value) {
     rows.value = []
+    selectedKey.value = ''
+    renameTitle.value = ''
+    dirty.value = false
     return
   }
   loading.value = true
@@ -138,6 +152,7 @@ async function loadOutline() {
         : await getProjectOutline(entityId.value)
     rows.value = flattenOutlineTree(data.nodes ?? [])
     selectedKey.value = ''
+    renameTitle.value = ''
     dirty.value = false
     includedCount.value = 0
   } catch (error) {
@@ -157,7 +172,7 @@ function createFolder(parentKey: string) {
   }
   const key = newOutlineFolderKey(rows.value)
   rows.value = addOutlineFolder(rows.value, parentKey, title)
-  selectedKey.value = key
+  selectRow(key)
   folderTitle.value = ''
   dirty.value = true
 }
@@ -175,10 +190,41 @@ function createChildFolder() {
   createFolder(current.key)
 }
 
+/** 重命名 / 移除 / 清理：都只改本地扁平行，随下一次整树提交一起生效。 */
+function renameSelectedFolder(key = selectedKey.value) {
+  const title = renameTitle.value.trim()
+  if (!title) {
+    message.warning('请先填写新的文件夹名称')
+    return
+  }
+  const before = rows.value.find(row => row.key === key)?.title ?? ''
+  rows.value = renameOutlineFolder(rows.value, key, title)
+  if ((rows.value.find(row => row.key === key)?.title ?? '') === before) return
+  renameTitle.value = title
+  dirty.value = true
+}
+
+function removeRow(row: OutlineFlatRow) {
+  const next = removeOutlineRow(rows.value, row.key)
+  if (next.length === rows.value.length) return
+  rows.value = next
+  if (selectedKey.value === row.key) selectRow('')
+  dirty.value = true
+}
+
+function cleanupStale() {
+  const next = cleanupOutlineStaleRows(rows.value)
+  if (next.length === rows.value.length) return
+  rows.value = next
+  selectedKey.value = ''
+  renameTitle.value = ''
+  dirty.value = true
+}
+
 function moveRow(row: OutlineFlatRow, op: OutlineMoveOp) {
   if (!canMoveOutlineRow(rows.value, row.key, op)) return
   rows.value = moveOutlineRow(rows.value, row.key, op)
-  selectedKey.value = row.key
+  selectRow(row.key)
   dirty.value = true
 }
 
@@ -231,6 +277,7 @@ async function save() {
         : await saveProjectOutline(entityId.value, nodes)
     rows.value = flattenOutlineTree(data.nodes ?? [])
     selectedKey.value = ''
+    renameTitle.value = ''
     dirty.value = false
     includedCount.value = 0
     message.success('目录树已保存')
@@ -279,7 +326,7 @@ onMounted(async () => {
     <NCard class="admin-card" title="目录树">
       <p class="admin-hint">
         文件夹只分组、不可阅读；文章节点挂在文件夹下。上移 / 下移调兄弟顺序，缩进挂到上一个兄弟文件夹，
-        移出回到父文件夹的父级。所有改动先留在本地，点「保存」整棵树一次性提交。
+        移出回到父文件夹的父级。所有改动先留在本地，点「保存」整棵树一次性提交；重命名、移除节点与清理失效行也走同一次提交。
       </p>
 
       <NSpace align="center" class="outline-toolbar">
@@ -293,7 +340,26 @@ onMounted(async () => {
         <NButton data-role="outline-create-child" :disabled="!selectedRow() || selectedRow()?.kind !== 1" @click="createChildFolder">
           在选中文件夹下新建
         </NButton>
-        <NButton type="primary" data-role="outline-save" :loading="saving" :disabled="!entityId" @click="save">
+        <NInput
+           v-model:value="renameTitle"
+           data-role="outline-rename-title"
+           class="admin-arrange-keyword"
+           placeholder="选中文件夹的新名称"
+           :disabled="selectedRow()?.kind !== 1"
+           @keyup.enter="renameSelectedFolder()" />
+         <NButton
+           data-role="outline-rename"
+           :disabled="selectedRow()?.kind !== 1"
+           @click="renameSelectedFolder()">
+           重命名
+         </NButton>
+         <NButton
+           data-role="outline-cleanup-stale"
+           :disabled="staleCount === 0"
+           @click="cleanupStale">
+           清理失效（{{ staleCount }}）
+         </NButton>
+         <NButton type="primary" data-role="outline-save" :loading="saving" :disabled="!entityId" @click="save">
           保存目录树
         </NButton>
       </NSpace>
@@ -310,7 +376,7 @@ onMounted(async () => {
           <span class="outline-tree__kind">{{ row.kind === 1 ? '文件夹' : '文章' }}</span>
           <strong class="outline-tree__title">{{ outlineRowTitle(row) }}</strong>
           <NTag v-if="row.kind === 2 && row.stale" size="small" type="warning">
-            已失效{{ row.staleReason ? `（${row.staleReason}）` : '' }}
+            已失效（{{ staleReasonLabel(row.staleReason) }}）
           </NTag>
           <NSpace :size="4" class="outline-tree__actions">
             <NButton size="small" tertiary :disabled="!canMoveOutlineRow(rows, row.key, 'up')" @click.stop="moveRow(row, 'up')">
@@ -324,6 +390,12 @@ onMounted(async () => {
             </NButton>
             <NButton size="small" tertiary :disabled="!canMoveOutlineRow(rows, row.key, 'outdent')" @click.stop="moveRow(row, 'outdent')">
               移出
+            </NButton>
+            <NButton v-if="row.kind === 1" size="small" tertiary data-role="outline-row-rename" @click.stop="renameSelectedFolder(row.key)">
+              重命名
+            </NButton>
+            <NButton size="small" tertiary type="error" data-role="outline-row-remove" @click.stop="removeRow(row)">
+              移除
             </NButton>
           </NSpace>
         </li>

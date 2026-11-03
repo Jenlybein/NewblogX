@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { createApp, nextTick, ref as vueRef, onMounted as vueOnMounted } from 'vue'
+import { createApp, nextTick, computed as vueComputed, ref as vueRef, onMounted as vueOnMounted } from 'vue'
 
 /**
  * 目录编排页（#217 最小闭环）的组件契约。
@@ -114,7 +114,7 @@ vi.mock('naive-ui', async () => {
   }
 })
 
-Object.assign(globalThis, { ref: vueRef, onMounted: vueOnMounted })
+Object.assign(globalThis, { ref: vueRef, computed: vueComputed, onMounted: vueOnMounted })
 
 const { default: OutlinePage } = await import('~/pages/articles/outline.vue')
 
@@ -252,6 +252,7 @@ describe('目录编排页：读回与新建', () => {
     expect(rowElement(host, 'a1').textContent).toContain('第一篇')
     expect(rowElement(host, 'a2').textContent).toContain('第二篇')
     expect(rowElement(host, 'a2').textContent).toContain('已失效')
+    expect(rowElement(host, 'a2').textContent).toContain('文章已不是已发布状态')
   })
 
   it('根层新建空文件夹后点保存，提交的整棵树包含这个空文件夹', async () => {
@@ -269,6 +270,62 @@ describe('目录编排页：读回与新建', () => {
     expect(added.id).toBe('')
     expect(added.children).toEqual([])
     expect(messageMock.success).toHaveBeenCalled()
+  })
+})
+
+describe('目录编排页：重命名 / 移除 / 清理失效', () => {
+  it('重命名文件夹后整树提交带新标题，文章行没有重命名入口', async () => {
+    const host = await mountPage()
+    expect(rowButton(host, 'f1', '重命名')).toBeDefined()
+    expect(Array.from(rowElement(host, 'a1').querySelectorAll('button')).some(
+      button => button.textContent?.trim() === '重命名',
+    )).toBe(false)
+
+    await setInput(host, 'outline-rename-title', '  第一章（修订）  ')
+    rowButton(host, 'f1', '重命名').click()
+    await vi.waitFor(() => expect(rowElement(host, 'f1').textContent).toContain('第一章（修订）'))
+
+    ;(host.querySelector('[data-role="outline-save"]') as HTMLButtonElement).click()
+    await vi.waitFor(() => expect(adminApi.saveCollectionOutline).toHaveBeenCalledTimes(1))
+    const nodes = adminApi.saveCollectionOutline.mock.calls[0]![1] as Array<{ id: string; title: string }>
+    expect(nodes[0]!.title).toBe('第一章（修订）')
+    expect(messageMock.success).toHaveBeenCalled()
+  })
+
+  it('移除文件夹时连同它的文章一起从整树提交里消失', async () => {
+    const host = await mountPage()
+    rowButton(host, 'f1', '移除').click()
+    await vi.waitFor(() => expect(host.querySelector('[data-row-key="a1"]')).toBeNull())
+
+    ;(host.querySelector('[data-role="outline-save"]') as HTMLButtonElement).click()
+    await vi.waitFor(() => expect(adminApi.saveCollectionOutline).toHaveBeenCalledTimes(1))
+    const nodes = adminApi.saveCollectionOutline.mock.calls[0]![1] as Array<{ id: string }>
+    expect(nodes.map(node => node.id)).toEqual(['a2'])
+  })
+
+  it('清理失效行只提交仍展示的文章，失效标记与清理入口只出现一次', async () => {
+    const host = await mountPage()
+    const cleanupButton = host.querySelector('[data-role="outline-cleanup-stale"]') as HTMLButtonElement
+    expect(cleanupButton.textContent).toContain('清理失效（1）')
+    cleanupButton.click()
+    await vi.waitFor(() => expect(host.querySelector('[data-row-key="a2"]')).toBeNull())
+
+    ;(host.querySelector('[data-role="outline-save"]') as HTMLButtonElement).click()
+    await vi.waitFor(() => expect(adminApi.saveCollectionOutline).toHaveBeenCalledTimes(1))
+    const nodes = adminApi.saveCollectionOutline.mock.calls[0]![1] as Array<{ id: string }>
+    expect(nodes.map(node => node.id)).toEqual(['f1'])
+  })
+
+  it('连续两次保存同一棵树提交相同 payload（重复提交不产生变化）', async () => {
+    const host = await mountPage()
+    const save = host.querySelector('[data-role="outline-save"]') as HTMLButtonElement
+    save.click()
+    await vi.waitFor(() => expect(adminApi.saveCollectionOutline).toHaveBeenCalledTimes(1))
+    save.click()
+    await vi.waitFor(() => expect(adminApi.saveCollectionOutline).toHaveBeenCalledTimes(2))
+
+    const [first, second] = adminApi.saveCollectionOutline.mock.calls.map(call => call[1])
+    expect(second).toEqual(first)
   })
 })
 

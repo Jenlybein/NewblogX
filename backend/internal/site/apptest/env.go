@@ -16,20 +16,19 @@ import (
 
 // Banners 是轮播图的内存实现。
 //
-// 取景参数体系已在 #203 退场：替身不再存取景，只留"删除时清孤儿行"的
-// crops 集合，用来钉住"删轮播会连带真删取景行"这条与 MySQL 实现一致的行为。
+// 封面图在上传前已定形（ADR-0015），轮播只有自己这一行数据：替身不再模拟
+// 取景行的清理（取景表已在 #205 物理下线）。
 type Banners struct {
-	mu    sync.Mutex
-	rows  []domain.Banner
-	crops map[uint64]struct{}
-	next  uint64
+	mu   sync.Mutex
+	rows []domain.Banner
+	next uint64
 }
 
 var _ domain.BannerRepository = (*Banners)(nil)
 
 // NewBanners 构造空仓库。
 func NewBanners() *Banners {
-	return &Banners{next: 1, crops: make(map[uint64]struct{})}
+	return &Banners{next: 1}
 }
 
 // List 实现 domain.BannerRepository。
@@ -102,15 +101,6 @@ func (b *Banners) Update(_ context.Context, id uint64, title, cover, href string
 	return apperr.New(apperr.CodeBannerNotFound)
 }
 
-// SeedCrop 预置一条历史取景行，模拟"取景表里还有这一行的老图"。
-//
-// 生产代码在 #203 之后不再写取景行；这里只给"删除时清孤儿行"的用例播数据。
-func (b *Banners) SeedCrop(id uint64) {
-	b.mu.Lock()
-	defer b.mu.Unlock()
-	b.crops[id] = struct{}{}
-}
-
 // Delete 实现 domain.BannerRepository。
 func (b *Banners) Delete(_ context.Context, ids []uint64) (int, error) {
 	b.mu.Lock()
@@ -129,20 +119,7 @@ func (b *Banners) Delete(_ context.Context, ids []uint64) (int, error) {
 		kept = append(kept, row)
 	}
 	b.rows = kept
-	// 与 MySQL 实现一致：取景表没有软删列，删除 banner 时连同 crop 行一起真删。
-	// 按 want 删而不是按实际命中的行删——MySQL 的 DELETE ... IN 也不会管行是否存在。
-	for id := range want {
-		delete(b.crops, id)
-	}
 	return count, nil
-}
-
-// HasCrop 报告某条轮播是否还有取景行（测试断言用）。
-func (b *Banners) HasCrop(id uint64) bool {
-	b.mu.Lock()
-	defer b.mu.Unlock()
-	_, ok := b.crops[id]
-	return ok
 }
 
 // All 返回全部轮播图（测试断言用）。

@@ -5969,8 +5969,6 @@ export interface components {
             comments_toggle?: boolean;
             content: string;
             cover_image_id?: string;
-            /** @description Crop 是封面的可选取景参数：不传 = 缺省（居中、缩放 1）。 */
-            crop?: components["schemas"]["internal_article_adapter_http.ArticleCrop"];
             /** @enum {integer} */
             status: 1 | 2;
             tag_ids?: string[];
@@ -5989,11 +5987,6 @@ export interface components {
             title?: string;
             visibility_status?: components["schemas"]["internal_article_adapter_http.ArticleVisibility"];
         };
-        "internal_article_adapter_http.ArticleCrop": {
-            focus_x?: number;
-            focus_y?: number;
-            zoom?: number;
-        };
         "internal_article_adapter_http.ArticleDetailResponse": {
             abstract?: string;
             author_abstract?: string;
@@ -6011,8 +6004,6 @@ export interface components {
             cover?: string;
             cover_image_id?: string;
             created_at?: string;
-            /** @description Crop 总是有值：没有取景记录的存量文章回传缺省（居中、缩放 1）。 */
-            crop?: components["schemas"]["internal_article_adapter_http.ArticleCrop"];
             digg_count?: number;
             favor_count?: number;
             id?: string;
@@ -6097,11 +6088,6 @@ export interface components {
             comments_toggle?: boolean;
             content?: string;
             cover_image_id?: string;
-            /**
-             * @description Crop 不传 = 保留已存的取景；传了才覆盖。与创建语义不同，别写混：
-             *     更新时不传若被当成"清空"，改一个标题就会静默抹掉作者调好的构图。
-             */
-            crop?: components["schemas"]["internal_article_adapter_http.ArticleCrop"];
             /** @enum {integer} */
             status?: 1 | 2;
             tag_ids?: string[];
@@ -6564,21 +6550,13 @@ export interface components {
         };
         "internal_site_adapter_http.BannerCreateRequest": {
             cover_image_id: string;
-            /**
-             * @description Crop 是可选取景参数。可选是为了让老调用方（还没接取景的后台）照旧能用。
-             *
-             *     两种语义不同，别写混：
-             *       · 创建：不传 = 缺省（居中、缩放 1）—— 新建必须有一条确定的取景；
-             *       · 更新：不传 = **保留已存的取景** —— 否则改一个跳转链接就会静默抹掉运营调好的构图。
-             */
-            crop?: components["schemas"]["internal_site_adapter_http.BannerCrop"];
             href?: string;
             show?: boolean;
             /**
              * @description Title 是轮播标题：纯文本、可空。
              *
              *     创建与更新都是"整体替换"：不传或传空串就是保存空标题。
-             *     后台在不改标题的路径（例如只重新取景）必须把原值一起带上，
+             *     后台在不改标题的路径（例如只改封面）必须把原值一起带上，
              *     否则会把已有标题清掉。
              */
             title?: string;
@@ -6586,23 +6564,15 @@ export interface components {
         "internal_site_adapter_http.BannerCreateResponse": {
             cover?: string;
             cover_image_id?: string;
-            crop?: components["schemas"]["internal_site_adapter_http.BannerCrop"];
             href?: string;
             id?: string;
             show?: boolean;
             title?: string;
         };
-        "internal_site_adapter_http.BannerCrop": {
-            focus_x?: number;
-            focus_y?: number;
-            zoom?: number;
-        };
         "internal_site_adapter_http.BannerItem": {
             cover?: string;
             cover_image_id?: string;
             created_at?: string;
-            /** @description Crop 总是有值：没有取景记录的历史图回传缺省（居中、缩放 1）。 */
-            crop?: components["schemas"]["internal_site_adapter_http.BannerCrop"];
             deleted_at?: string;
             href?: string;
             id?: string;
@@ -7603,11 +7573,6 @@ export interface components {
             id?: string;
             title?: string;
         };
-        "myblogx_internal_search_domain.Crop": {
-            focus_x?: number;
-            focus_y?: number;
-            zoom?: number;
-        };
         "myblogx_internal_search_domain.Highlight": {
             abstract?: string;
             title?: string;
@@ -7622,8 +7587,6 @@ export interface components {
             comments_toggle?: boolean;
             cover?: string;
             created_at?: string;
-            /** @description Crop 是封面取景；nil 表示没有记录，前端按居中、缩放 1 渲染。 */
-            crop?: components["schemas"]["myblogx_internal_search_domain.Crop"];
             digg_count?: number;
             favor_count?: number;
             highlight?: components["schemas"]["myblogx_internal_search_domain.Highlight"];

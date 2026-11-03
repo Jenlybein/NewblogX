@@ -10,10 +10,10 @@ import {
   setArticleAdminVisibility,
 } from '~/services/admin'
 import type { SearchArticleItem } from '~/types/api'
+import { resolveArticleCoverSrc } from '~/utils/articleCover'
 import { isAdminHidden, publishLabel, visibilityLabel } from '~/utils/articleLabels'
 import { formatDateTime } from '~/utils/format'
 import { HOT_TOP_LIMIT, hotTopIds } from '~/utils/hotTop'
-import { BRAND } from '~/utils/brand'
 
 const message = useMessage()
 const dialog = useDialog()
@@ -33,15 +33,33 @@ const hotTopIdList = ref<string[]>([])
 const toppedIds = computed(() => new Set(hotTopIdList.value))
 const hotTopTogglingId = ref('')
 
+/**
+ * 已经加载失败过的封面地址：坏链接退化成空白，而不是留一块碎图标。
+ * 键是裁剪后的地址（与真正发出去的请求一致），换图后新地址自然重新尝试。
+ */
+const failedCoverSrcs = ref<Set<string>>(new Set())
+
+function markCoverFailed(src: string) {
+  if (!src) return
+  const next = new Set(failedCoverSrcs.value)
+  next.add(src)
+  failedCoverSrcs.value = next
+}
+
+/**
+ * 封面格（票 210）：有可用封面就显示图，缺封面 / 加载失败只留一块空白——
+ * 无文字、无纹理、对辅助技术隐藏；盒尺寸仍是 `.admin-cover` 的 80×112，行高不跳。
+ */
 function renderArticleCover(row: SearchArticleItem) {
-  return h('div', { class: 'admin-cover admin-article-cover' }, row.cover
-    ? [h('img', { src: row.cover, alt: row.title })]
-    : [
-        h('div', { class: 'admin-article-cover__fallback', role: 'img', 'aria-label': `${row.title}暂无封面` }, [
-          h('span', { class: 'admin-article-cover__badge' }, BRAND.name.en),
-          h('strong', null, 'NO COVER'),
-        ]),
-      ])
+  const src = resolveArticleCoverSrc(row, failedCoverSrcs.value)
+
+  return h(
+    'div',
+    { class: 'admin-cover admin-article-cover' },
+    src
+      ? [h('img', { src, alt: row.title, onError: () => markCoverFailed(src) })]
+      : [h('div', { class: 'admin-article-cover__fallback', 'aria-hidden': 'true' })],
+  )
 }
 
 const columns = [

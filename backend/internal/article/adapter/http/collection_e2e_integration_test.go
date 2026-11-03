@@ -297,17 +297,17 @@ func TestCollectionStalePlaceholderAndCleanup(t *testing.T) {
 	}
 	checked := []struct {
 		index      int
-		articleID  uint64
+		articleID  ctype.ID
 		wantReason string
 	}{
-		{1, 21, ""},
-		{2, 22, "not_published"},
-		{3, 23, "not_visible"},
+		{1, ctype.NewID(21), ""},
+		{2, ctype.NewID(22), "not_published"},
+		{3, ctype.NewID(23), "not_visible"},
 	}
 	for _, c := range checked {
 		row := adminNodes[c.index]
-		if row.ArticleID.Uint64() != c.articleID || row.StaleReason != c.wantReason {
-			t.Fatalf("后台第 %d 个节点不对: %+v，期望 article=%d reason=%q",
+		if row.ArticleID != c.articleID || row.StaleReason != c.wantReason {
+			t.Fatalf("后台第 %d 个节点不对: %+v，期望 article=%s reason=%q",
 				c.index, row, c.articleID, c.wantReason)
 		}
 		if row.Stale != (c.wantReason != "") {

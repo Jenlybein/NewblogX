@@ -1,9 +1,10 @@
 <script setup lang="ts">
 import type { ArticleHeadingAnchor } from "~/composables/useArticleMarkdown";
 import { computed, defineAsyncComponent, onMounted, onUnmounted, ref, shallowRef } from "vue";
-import { IconEye, IconHeart, IconMessageCircle2, IconShare2, IconThumbUp } from "@tabler/icons-vue";
+import { IconEye, IconHeart, IconMessageCircle2, IconPencil, IconShare2, IconThumbUp } from "@tabler/icons-vue";
 import { useMessage } from "naive-ui";
 import ArticlePageSkeleton from "~/components/article/ArticlePageSkeleton.vue";
+import ArticleOutlineAside from "~/components/article/ArticleOutlineAside.vue";
 import ArticleScoreModal from "~/components/article/ArticleScoreModal.vue";
 import ArticleTocAnchor from "~/components/article/ArticleTocAnchor.vue";
 import AppAvatar from "~/components/common/AppAvatar.vue";
@@ -11,7 +12,9 @@ import CommentComposer from "~/components/comment/CommentComposer.vue";
 import CommentThread from "~/components/comment/CommentThread.vue";
 import FavoriteFolderModal from "~/components/favorite/FavoriteFolderModal.vue";
 import { useArticleDigg } from "~/composables/useArticleDigg";
+import { useArticleOutlineContext } from "~/composables/useArticleOutlineContext";
 import { useArticlePageSources } from "~/composables/useArticlePageSources";
+import { useArticleWritePolicy } from "~/composables/useArticleWritePolicy";
 import { useParallax } from "~/composables/useParallax";
 import { useReadingProgress } from "~/composables/useReadingProgress";
 import { useSectionReveal } from "~/composables/useSectionReveal";
@@ -20,6 +23,7 @@ import { ApiBusinessError } from "~/services/http/errors";
 import { markArticleViewed, toggleArticleDigg } from "~/services/article";
 import { createComment, diggComment, getReplyComments } from "~/services/comment";
 import type { CommentReplyItem } from "~/types/api";
+import { resolveArticleEditEntry } from "~/utils/articleEdit";
 import { formatCount, formatDateTimeLabel } from "~/utils/format";
 import { getAuthorButtonLabel, isFollowing } from "~/utils/relation";
 import { resolveAvatarInitial } from "~/utils/avatar";
@@ -65,6 +69,17 @@ const {
   refreshArticleScoreSummary,
   commentsPager,
 } = await useArticlePageSources({ articleId: () => articleId.value });
+
+// 阅读页左栏目录树（票 220 / 决定清单 A9–A11）：从 `?from=<kind>:<id>` 找回读者
+// 点进来的那棵树。树**只在客户端取数**（SSR 阶段不发请求，ADR-0019 的渲染边界与
+// 匿名缓存策略不变），站内跳转先出与真实三栏版式同构的骨架；没有归属树时整栏
+// 不出现，右栏标题大纲与阅读进度保持原样。
+const outlineFrom = computed(() => String(route.query.from ?? ""));
+const {
+  context: articleOutlineContext,
+  pending: articleOutlinePending,
+  active: outlineColumnVisible,
+} = useArticleOutlineContext({ articleId, from: outlineFrom });
 
 const articleLoadError = computed(() => {
   const error = articleError.value;
@@ -146,6 +161,17 @@ const { activeHeadingId, progressPercent } = useReadingProgress(
 const authorInitial = computed(() => resolveAvatarInitial(article.value?.author_name, "A"));
 const authorRelationText = computed(() => getAuthorButtonLabel(authorProfile.value?.relation));
 const isSelfAuthor = computed(() => authStore.profileId != null && String(authStore.profileId) === authorId.value);
+// 「编辑」入口（票 213 / 决定清单 C4）：只给作者本人，且与页头「创作」共用同一个
+// 站点发布开关（`entryVisible`）。判定收在纯函数里（`utils/articleEdit.ts`），
+// 页面只负责把两个既有信号喂给它 —— 别人 / 游客 / 未登录都拿不到入口。
+const { entryVisible: writeEntryVisible } = useArticleWritePolicy();
+const articleEditEntry = computed(() =>
+  resolveArticleEditEntry({
+    articleId: articleId.value,
+    isSelfAuthor: isSelfAuthor.value,
+    writeEntryVisible: writeEntryVisible.value,
+  }),
+);
 const articleScoreButtonLabel = computed(() => {
   if (articleScoreSummaryPending.value) {
     return "文章质量总分：读取中";
@@ -460,7 +486,7 @@ useSeoMeta({
 <template>
   <div class="article-page">
     <!-- 切页先出骨架：正文还没到时按文章页版式占位，不再让 Suspense 等"数据齐了才切页"。 -->
-    <ArticlePageSkeleton v-if="articleSkeleton" />
+    <ArticlePageSkeleton v-if="articleSkeleton" :with-outline="outlineColumnVisible" />
 
     <section v-else-if="articleLoadError" class="article-paper article-paper--state">
       <p class="article-eyebrow">Article</p>
@@ -512,6 +538,20 @@ useSeoMeta({
               <dt><IconMessageCircle2 :size="16" /><span class="sr-only">评论数</span></dt>
               <dd>{{ formatCount(article?.comment_count || 0) }}</dd>
             </div>
+            <!-- 「编辑」入口（票 213）：仅作者本人 + 站点允许发布时出现，附在元信息行尾。
+                 其余五项仍是同一组 dt/dd，不改它们的顺序与折行；样式沿用既有
+                 .article-action 家族（紧凑档），不给这一行引入第二套按钮语言。 -->
+            <div v-if="articleEditEntry" class="article-meta__item article-meta__item--edit">
+              <dt><IconPencil :size="16" aria-hidden="true" /></dt>
+              <dd>
+                <NuxtLink
+                  :to="articleEditEntry.href"
+                  class="article-action article-action--compact"
+                  :aria-label="articleEditEntry.ariaLabel"
+                  :title="articleEditEntry.ariaLabel"
+                >编辑</NuxtLink>
+              </dd>
+            </div>
           </dl>
         </div>
 
@@ -540,7 +580,14 @@ useSeoMeta({
         </div>
       </header>
 
-      <div class="article-layout">
+      <div class="article-layout" :class="{ 'article-layout--with-outline': outlineColumnVisible }">
+        <ArticleOutlineAside
+          v-if="outlineColumnVisible"
+          :context="articleOutlineContext"
+          :pending="articleOutlinePending"
+          :current-article-id="articleId"
+        />
+
         <div class="article-main">
           <section v-if="article?.cover" class="article-paper article-paper--cover">
             <img :src="article.cover" :alt="article.title" class="article-cover" />

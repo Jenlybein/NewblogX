@@ -8,6 +8,9 @@ import type { ArticleHeadingAnchor } from "~/composables/useArticleMarkdown";
 // 从 pages/studio/write.vue 拆出来（M6 ⑧）。它管两件事：
 // 渲染 Markdown、把渲染出的标题锚点上报给页面（页面再喂给目录）。
 //
+// 票 212 之后没有"预览主题"这一层：预览与阅读页共用同一套正文主题
+// （MarkdownShadowPreview 内置的 token 主题），页面上也不再画主题指示条。
+//
 // scrollToHeading 通过 defineExpose 暴露：点目录时页面拿组件实例调它，
 // 而不是让页面知道预览区内部是怎么滚动的。
 
@@ -18,12 +21,8 @@ const props = defineProps<{
   empty: boolean;
   /** 防抖后的正文（避免每次按键都重新渲染）。 */
   source: string;
-  /** 当前主题的 CSS 地址。 */
-  themeHref: string;
-  /** 附加样式（katex / 代码高亮）。 */
+  /** 附加样式（katex 公式排版）。 */
   extraStyleHrefs: string[];
-  /** 主题展示名（右上角提示）。 */
-  themeLabel: string;
 }>();
 
 const emit = defineEmits<{ headingsChange: [headings: ArticleHeadingAnchor[]] }>();
@@ -41,12 +40,10 @@ defineExpose({ scrollToHeading });
 <template>
   <aside class="write-page__pane write-page__pane--preview">
     <div v-if="!props.empty" class="write-page__preview-shell">
-      <div class="write-page__theme-indicator">预览样式：{{ props.themeLabel }}</div>
       <WriteMarkdownRenderer
         ref="rendererRef"
         class="write-page__markdown"
         :source="props.source"
-        :theme-href="props.themeHref"
         :extra-style-hrefs="props.extraStyleHrefs"
         article-class="markdown-body"
         @headings-change="emit('headingsChange', $event)" />

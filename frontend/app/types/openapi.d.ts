@@ -1621,6 +1621,48 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/articles/{id}/outline-context": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 文章上下文（阅读页左栏目录树） */
+        get: {
+            parameters: {
+                query?: {
+                    /** @description 来源（project:<id> / collection:<id>） */
+                    from?: string;
+                };
+                header?: never;
+                path: {
+                    /** @description 文章 ID */
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["myblogx_internal_kernel.Envelope-internal_article_adapter_http_ArticleOutlineContextResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/banners": {
         parameters: {
             query?: never;
@@ -2113,47 +2155,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/collections/order": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        /** 合集之间排序 */
-        patch: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path?: never;
-                cookie?: never;
-            };
-            /** @description 请求体 */
-            requestBody: {
-                content: {
-                    "application/json": components["schemas"]["internal_article_adapter_http.CollectionOrderRequest"];
-                };
-            };
-            responses: {
-                /** @description OK */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["myblogx_internal_kernel.Envelope-myblogx_internal_kernel_EmptyData"];
-                    };
-                };
-            };
-        };
-        trace?: never;
-    };
     "/collections/{id}": {
         parameters: {
             query?: never;
@@ -2244,244 +2245,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/collections/{id}/admin/stale": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        post?: never;
-        /** 清理合集失效行 */
-        delete: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path: {
-                    /** @description 合集 ID */
-                    id: string;
-                };
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description OK */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["myblogx_internal_kernel.Envelope-internal_article_adapter_http_CollectionStaleCleanupResponse"];
-                    };
-                };
-            };
-        };
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/collections/{id}/articles": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** 收录文章进合集 */
-        post: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path: {
-                    /** @description 合集 ID */
-                    id: string;
-                };
-                cookie?: never;
-            };
-            /** @description 请求体 */
-            requestBody: {
-                content: {
-                    "application/json": components["schemas"]["internal_article_adapter_http.CollectionArticleRequest"];
-                };
-            };
-            responses: {
-                /** @description OK */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["myblogx_internal_kernel.Envelope-myblogx_internal_kernel_EmptyData"];
-                    };
-                };
-            };
-        };
-        /** 从合集移除文章 */
-        delete: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path: {
-                    /** @description 合集 ID */
-                    id: string;
-                };
-                cookie?: never;
-            };
-            /** @description 请求体 */
-            requestBody: {
-                content: {
-                    "application/json": components["schemas"]["internal_article_adapter_http.CollectionArticleRequest"];
-                };
-            };
-            responses: {
-                /** @description OK */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["myblogx_internal_kernel.Envelope-myblogx_internal_kernel_EmptyData"];
-                    };
-                };
-            };
-        };
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/collections/{id}/articles/admin": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** 后台合集收录行 */
-        get: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path: {
-                    /** @description 合集 ID */
-                    id: string;
-                };
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description OK */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["myblogx_internal_kernel.Envelope-myblogx_internal_kernel_ListData-internal_article_adapter_http_CollectionAdminItem"];
-                    };
-                };
-            };
-        };
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/collections/{id}/articles/batch": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** 批量收录文章进合集 */
-        post: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path: {
-                    /** @description 合集 ID */
-                    id: string;
-                };
-                cookie?: never;
-            };
-            /** @description 请求体 */
-            requestBody: {
-                content: {
-                    "application/json": components["schemas"]["internal_article_adapter_http.CollectionBatchIncludeRequest"];
-                };
-            };
-            responses: {
-                /** @description OK */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["myblogx_internal_kernel.Envelope-internal_article_adapter_http_CollectionBatchIncludeResponse"];
-                    };
-                };
-            };
-        };
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/collections/{id}/articles/order": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        /** 合集内文章排序 */
-        patch: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path: {
-                    /** @description 合集 ID */
-                    id: string;
-                };
-                cookie?: never;
-            };
-            /** @description 请求体 */
-            requestBody: {
-                content: {
-                    "application/json": components["schemas"]["internal_article_adapter_http.CollectionArticleOrderRequest"];
-                };
-            };
-            responses: {
-                /** @description OK */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["myblogx_internal_kernel.Envelope-myblogx_internal_kernel_EmptyData"];
-                    };
-                };
-            };
-        };
-        trace?: never;
-    };
     "/collections/{id}/display": {
         parameters: {
             query?: never;
@@ -2524,6 +2287,89 @@ export interface paths {
                 };
             };
         };
+        trace?: never;
+    };
+    "/collections/{id}/outline": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** 保存合集目录树 */
+        put: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    /** @description 合集 ID */
+                    id: string;
+                };
+                cookie?: never;
+            };
+            /** @description 请求体 */
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["internal_article_adapter_http.OutlineSaveRequest"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["myblogx_internal_kernel.Envelope-internal_article_adapter_http_OutlineTreeResponse"];
+                    };
+                };
+            };
+        };
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/collections/{id}/outline/admin": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 后台合集目录树 */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    /** @description 合集 ID */
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["myblogx_internal_kernel.Envelope-internal_article_adapter_http_OutlineTreeResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
         trace?: never;
     };
     "/comments": {
@@ -4549,244 +4395,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/projects/{id}/admin/stale": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        post?: never;
-        /** 清理项目失效行 */
-        delete: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path: {
-                    /** @description 项目 ID */
-                    id: string;
-                };
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description OK */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["myblogx_internal_kernel.Envelope-internal_article_adapter_http_ProjectStaleCleanupResponse"];
-                    };
-                };
-            };
-        };
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/projects/{id}/articles": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** 收录文章进项目 */
-        post: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path: {
-                    /** @description 项目 ID */
-                    id: string;
-                };
-                cookie?: never;
-            };
-            /** @description 请求体 */
-            requestBody: {
-                content: {
-                    "application/json": components["schemas"]["internal_article_adapter_http.ProjectArticleRequest"];
-                };
-            };
-            responses: {
-                /** @description OK */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["myblogx_internal_kernel.Envelope-myblogx_internal_kernel_EmptyData"];
-                    };
-                };
-            };
-        };
-        /** 从项目移除文章 */
-        delete: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path: {
-                    /** @description 项目 ID */
-                    id: string;
-                };
-                cookie?: never;
-            };
-            /** @description 请求体 */
-            requestBody: {
-                content: {
-                    "application/json": components["schemas"]["internal_article_adapter_http.ProjectArticleRequest"];
-                };
-            };
-            responses: {
-                /** @description OK */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["myblogx_internal_kernel.Envelope-myblogx_internal_kernel_EmptyData"];
-                    };
-                };
-            };
-        };
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/projects/{id}/articles/admin": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** 后台项目收录行 */
-        get: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path: {
-                    /** @description 项目 ID */
-                    id: string;
-                };
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description OK */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["myblogx_internal_kernel.Envelope-myblogx_internal_kernel_ListData-internal_article_adapter_http_ProjectAdminItem"];
-                    };
-                };
-            };
-        };
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/projects/{id}/articles/batch": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** 批量收录文章进项目 */
-        post: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path: {
-                    /** @description 项目 ID */
-                    id: string;
-                };
-                cookie?: never;
-            };
-            /** @description 请求体 */
-            requestBody: {
-                content: {
-                    "application/json": components["schemas"]["internal_article_adapter_http.ProjectBatchIncludeRequest"];
-                };
-            };
-            responses: {
-                /** @description OK */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["myblogx_internal_kernel.Envelope-internal_article_adapter_http_ProjectBatchIncludeResponse"];
-                    };
-                };
-            };
-        };
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/projects/{id}/articles/order": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        /** 项目内文章排序 */
-        patch: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path: {
-                    /** @description 项目 ID */
-                    id: string;
-                };
-                cookie?: never;
-            };
-            /** @description 请求体 */
-            requestBody: {
-                content: {
-                    "application/json": components["schemas"]["internal_article_adapter_http.ProjectArticleOrderRequest"];
-                };
-            };
-            responses: {
-                /** @description OK */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["myblogx_internal_kernel.Envelope-myblogx_internal_kernel_EmptyData"];
-                    };
-                };
-            };
-        };
-        trace?: never;
-    };
     "/projects/{id}/display": {
         parameters: {
             query?: never;
@@ -4829,6 +4437,89 @@ export interface paths {
                 };
             };
         };
+        trace?: never;
+    };
+    "/projects/{id}/outline": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** 保存项目目录树 */
+        put: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    /** @description 项目 ID */
+                    id: string;
+                };
+                cookie?: never;
+            };
+            /** @description 请求体 */
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["internal_article_adapter_http.OutlineSaveRequest"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["myblogx_internal_kernel.Envelope-internal_article_adapter_http_OutlineTreeResponse"];
+                    };
+                };
+            };
+        };
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/projects/{id}/outline/admin": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 后台项目目录树 */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    /** @description 项目 ID */
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["myblogx_internal_kernel.Envelope-internal_article_adapter_http_OutlineTreeResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
         trace?: never;
     };
     "/search/articles": {
@@ -6479,6 +6170,15 @@ export interface components {
         "internal_article_adapter_http.ArticleHotTopOrderRequest": {
             article_ids: string[];
         };
+        "internal_article_adapter_http.ArticleOutlineContextResponse": {
+            current?: components["schemas"]["internal_article_adapter_http.OutlineArticleRefResponse"];
+            has_tree?: boolean;
+            next?: components["schemas"]["internal_article_adapter_http.OutlineArticleRefResponse"];
+            nodes?: components["schemas"]["internal_article_adapter_http.OutlineNodeResponse"][];
+            owner_id?: string;
+            owner_kind?: number;
+            previous?: components["schemas"]["internal_article_adapter_http.OutlineArticleRefResponse"];
+        };
         "internal_article_adapter_http.ArticleReviewHandleRequest": {
             reason?: string;
             /** @enum {integer} */
@@ -6575,48 +6275,6 @@ export interface components {
             sort_order?: number;
             title?: string;
         };
-        "internal_article_adapter_http.CollectionAdminItem": {
-            article_id?: string;
-            cover?: string;
-            sort_order?: number;
-            /** @description Stale 文章是否已失效（被删 / 退回草稿 / 不再可见）。判定与热门置顶共用。 */
-            stale?: boolean;
-            /**
-             * @description StaleReason 失效原因枚举；仍有效时为空串。枚举值由后端 domain 定义，
-             *     前端只做文案映射，不据此另判一次失效。
-             */
-            stale_reason?: string;
-            title?: string;
-        };
-        "internal_article_adapter_http.CollectionArticleItemResponse": {
-            abstract?: string;
-            article_id?: string;
-            author_nickname?: string;
-            category_title?: string;
-            cover?: string;
-            sort_order?: number;
-            title?: string;
-            view_count?: number;
-        };
-        "internal_article_adapter_http.CollectionArticleOrderRequest": {
-            article_ids: string[];
-        };
-        "internal_article_adapter_http.CollectionArticleRequest": {
-            article_id: string;
-        };
-        "internal_article_adapter_http.CollectionBatchIncludeItem": {
-            article_id?: string;
-            outcome?: string;
-        };
-        "internal_article_adapter_http.CollectionBatchIncludeRequest": {
-            article_ids: string[];
-        };
-        "internal_article_adapter_http.CollectionBatchIncludeResponse": {
-            duplicated?: number;
-            included?: number;
-            rejected?: number;
-            results?: components["schemas"]["internal_article_adapter_http.CollectionBatchIncludeItem"][];
-        };
         "internal_article_adapter_http.CollectionCardResponse": {
             article_count?: number;
             cover?: string;
@@ -6635,21 +6293,16 @@ export interface components {
             id?: string;
         };
         "internal_article_adapter_http.CollectionDetailResponse": {
-            articles?: components["schemas"]["internal_article_adapter_http.CollectionArticleItemResponse"][];
+            article_count?: number;
             cover?: string;
             created_at?: string;
             description?: string;
             id?: string;
+            outline?: components["schemas"]["internal_article_adapter_http.OutlineTreeResponse"];
             title?: string;
         };
         "internal_article_adapter_http.CollectionDisplayRequest": {
             displayed?: boolean;
-        };
-        "internal_article_adapter_http.CollectionOrderRequest": {
-            collection_ids: string[];
-        };
-        "internal_article_adapter_http.CollectionStaleCleanupResponse": {
-            removed?: number;
         };
         "internal_article_adapter_http.CollectionUpdateRequest": {
             cover?: string;
@@ -6695,6 +6348,41 @@ export interface components {
             id?: string;
             title: string;
         };
+        "internal_article_adapter_http.OutlineArticleRefResponse": {
+            article_cover?: string;
+            article_id?: string;
+            article_title?: string;
+            id?: string;
+        };
+        "internal_article_adapter_http.OutlineNodeRequest": {
+            article_id?: string;
+            children?: components["schemas"]["internal_article_adapter_http.OutlineNodeRequest"][];
+            id?: string;
+            /** @enum {integer} */
+            kind: 1 | 2;
+            title?: string;
+        };
+        "internal_article_adapter_http.OutlineNodeResponse": {
+            article_cover?: string;
+            article_id?: string;
+            article_title?: string;
+            children?: components["schemas"]["internal_article_adapter_http.OutlineNodeResponse"][];
+            id?: string;
+            kind?: number;
+            parent_id?: string;
+            sort_order?: number;
+            stale?: boolean;
+            stale_reason?: string;
+            title?: string;
+        };
+        "internal_article_adapter_http.OutlineSaveRequest": {
+            nodes?: components["schemas"]["internal_article_adapter_http.OutlineNodeRequest"][];
+        };
+        "internal_article_adapter_http.OutlineTreeResponse": {
+            nodes?: components["schemas"]["internal_article_adapter_http.OutlineNodeResponse"][];
+            owner_id?: string;
+            owner_kind?: number;
+        };
         "internal_article_adapter_http.ProjectAdminCard": {
             article_count?: number;
             cover?: string;
@@ -6710,48 +6398,6 @@ export interface components {
             id?: string;
             sort_order?: number;
             title?: string;
-        };
-        "internal_article_adapter_http.ProjectAdminItem": {
-            article_id?: string;
-            cover?: string;
-            sort_order?: number;
-            /** @description Stale 文章是否已失效（被删 / 退回草稿 / 不再可见）。判定与热门置顶 / 合集共用。 */
-            stale?: boolean;
-            /**
-             * @description StaleReason 失效原因枚举；仍有效时为空串。枚举值由后端 domain 定义，
-             *     前端只做文案映射，不据此另判一次失效。
-             */
-            stale_reason?: string;
-            title?: string;
-        };
-        "internal_article_adapter_http.ProjectArticleItemResponse": {
-            abstract?: string;
-            article_id?: string;
-            author_nickname?: string;
-            category_title?: string;
-            cover?: string;
-            sort_order?: number;
-            title?: string;
-            view_count?: number;
-        };
-        "internal_article_adapter_http.ProjectArticleOrderRequest": {
-            article_ids: string[];
-        };
-        "internal_article_adapter_http.ProjectArticleRequest": {
-            article_id: string;
-        };
-        "internal_article_adapter_http.ProjectBatchIncludeItem": {
-            article_id?: string;
-            outcome?: string;
-        };
-        "internal_article_adapter_http.ProjectBatchIncludeRequest": {
-            article_ids: string[];
-        };
-        "internal_article_adapter_http.ProjectBatchIncludeResponse": {
-            duplicated?: number;
-            included?: number;
-            rejected?: number;
-            results?: components["schemas"]["internal_article_adapter_http.ProjectBatchIncludeItem"][];
         };
         "internal_article_adapter_http.ProjectCardResponse": {
             article_count?: number;
@@ -6771,11 +6417,12 @@ export interface components {
             id?: string;
         };
         "internal_article_adapter_http.ProjectDetailResponse": {
-            articles?: components["schemas"]["internal_article_adapter_http.ProjectArticleItemResponse"][];
+            article_count?: number;
             cover?: string;
             created_at?: string;
             description?: string;
             id?: string;
+            outline?: components["schemas"]["internal_article_adapter_http.OutlineTreeResponse"];
             title?: string;
         };
         "internal_article_adapter_http.ProjectDisplayRequest": {
@@ -6783,9 +6430,6 @@ export interface components {
         };
         "internal_article_adapter_http.ProjectOrderRequest": {
             project_ids: string[];
-        };
-        "internal_article_adapter_http.ProjectStaleCleanupResponse": {
-            removed?: number;
         };
         "internal_article_adapter_http.ProjectUpdateRequest": {
             cover?: string;
@@ -6922,6 +6566,15 @@ export interface components {
             file_name: string;
             hash: string;
             mime_type: string;
+            /**
+             * @description Purpose 声明用途：cover（16:9）/ avatar（1:1）。nil 表示请求体不带
+             *     该字段（例如私信发图），确认时不校验比例；一旦出现（含空串）必须合法，
+             *     非法值由用例层按明确错误码拒绝，不静默当作 cover。
+             *     刻意不用 binding:"oneof"：那样非法值会被 gin 挡在适配器里，只回一句
+             *     通用「参数错误」，调用方拿不到可判分支的错误码。
+             * @enum {string}
+             */
+            purpose?: "cover" | "avatar";
             size: number;
         };
         "internal_media_adapter_http.CreateTaskResponse": {
@@ -7561,14 +7214,14 @@ export interface components {
             data?: components["schemas"]["internal_article_adapter_http.ArticleDiggResponse"];
             msg?: string;
         };
+        "myblogx_internal_kernel.Envelope-internal_article_adapter_http_ArticleOutlineContextResponse": {
+            code?: number;
+            data?: components["schemas"]["internal_article_adapter_http.ArticleOutlineContextResponse"];
+            msg?: string;
+        };
         "myblogx_internal_kernel.Envelope-internal_article_adapter_http_ArticleReviewTaskListResponse": {
             code?: number;
             data?: components["schemas"]["internal_article_adapter_http.ArticleReviewTaskListResponse"];
-            msg?: string;
-        };
-        "myblogx_internal_kernel.Envelope-internal_article_adapter_http_CollectionBatchIncludeResponse": {
-            code?: number;
-            data?: components["schemas"]["internal_article_adapter_http.CollectionBatchIncludeResponse"];
             msg?: string;
         };
         "myblogx_internal_kernel.Envelope-internal_article_adapter_http_CollectionCreatedResponse": {
@@ -7581,14 +7234,9 @@ export interface components {
             data?: components["schemas"]["internal_article_adapter_http.CollectionDetailResponse"];
             msg?: string;
         };
-        "myblogx_internal_kernel.Envelope-internal_article_adapter_http_CollectionStaleCleanupResponse": {
+        "myblogx_internal_kernel.Envelope-internal_article_adapter_http_OutlineTreeResponse": {
             code?: number;
-            data?: components["schemas"]["internal_article_adapter_http.CollectionStaleCleanupResponse"];
-            msg?: string;
-        };
-        "myblogx_internal_kernel.Envelope-internal_article_adapter_http_ProjectBatchIncludeResponse": {
-            code?: number;
-            data?: components["schemas"]["internal_article_adapter_http.ProjectBatchIncludeResponse"];
+            data?: components["schemas"]["internal_article_adapter_http.OutlineTreeResponse"];
             msg?: string;
         };
         "myblogx_internal_kernel.Envelope-internal_article_adapter_http_ProjectCreatedResponse": {
@@ -7599,11 +7247,6 @@ export interface components {
         "myblogx_internal_kernel.Envelope-internal_article_adapter_http_ProjectDetailResponse": {
             code?: number;
             data?: components["schemas"]["internal_article_adapter_http.ProjectDetailResponse"];
-            msg?: string;
-        };
-        "myblogx_internal_kernel.Envelope-internal_article_adapter_http_ProjectStaleCleanupResponse": {
-            code?: number;
-            data?: components["schemas"]["internal_article_adapter_http.ProjectStaleCleanupResponse"];
             msg?: string;
         };
         "myblogx_internal_kernel.Envelope-internal_auth_adapter_http_SendEmailResponse": {
@@ -7836,11 +7479,6 @@ export interface components {
             data?: components["schemas"]["myblogx_internal_kernel.ListData-internal_article_adapter_http_CollectionAdminCard"];
             msg?: string;
         };
-        "myblogx_internal_kernel.Envelope-myblogx_internal_kernel_ListData-internal_article_adapter_http_CollectionAdminItem": {
-            code?: number;
-            data?: components["schemas"]["myblogx_internal_kernel.ListData-internal_article_adapter_http_CollectionAdminItem"];
-            msg?: string;
-        };
         "myblogx_internal_kernel.Envelope-myblogx_internal_kernel_ListData-internal_article_adapter_http_CollectionCardResponse": {
             code?: number;
             data?: components["schemas"]["myblogx_internal_kernel.ListData-internal_article_adapter_http_CollectionCardResponse"];
@@ -7854,11 +7492,6 @@ export interface components {
         "myblogx_internal_kernel.Envelope-myblogx_internal_kernel_ListData-internal_article_adapter_http_ProjectAdminCard": {
             code?: number;
             data?: components["schemas"]["myblogx_internal_kernel.ListData-internal_article_adapter_http_ProjectAdminCard"];
-            msg?: string;
-        };
-        "myblogx_internal_kernel.Envelope-myblogx_internal_kernel_ListData-internal_article_adapter_http_ProjectAdminItem": {
-            code?: number;
-            data?: components["schemas"]["myblogx_internal_kernel.ListData-internal_article_adapter_http_ProjectAdminItem"];
             msg?: string;
         };
         "myblogx_internal_kernel.Envelope-myblogx_internal_kernel_ListData-internal_article_adapter_http_ProjectCardResponse": {
@@ -8022,10 +7655,6 @@ export interface components {
             count?: number;
             list?: components["schemas"]["internal_article_adapter_http.CollectionAdminCard"][];
         };
-        "myblogx_internal_kernel.ListData-internal_article_adapter_http_CollectionAdminItem": {
-            count?: number;
-            list?: components["schemas"]["internal_article_adapter_http.CollectionAdminItem"][];
-        };
         "myblogx_internal_kernel.ListData-internal_article_adapter_http_CollectionCardResponse": {
             count?: number;
             list?: components["schemas"]["internal_article_adapter_http.CollectionCardResponse"][];
@@ -8037,10 +7666,6 @@ export interface components {
         "myblogx_internal_kernel.ListData-internal_article_adapter_http_ProjectAdminCard": {
             count?: number;
             list?: components["schemas"]["internal_article_adapter_http.ProjectAdminCard"][];
-        };
-        "myblogx_internal_kernel.ListData-internal_article_adapter_http_ProjectAdminItem": {
-            count?: number;
-            list?: components["schemas"]["internal_article_adapter_http.ProjectAdminItem"][];
         };
         "myblogx_internal_kernel.ListData-internal_article_adapter_http_ProjectCardResponse": {
             count?: number;

@@ -14,8 +14,7 @@
  * 没上传封面时列表按读者的样子回退到首篇公开文章的封面（`fallback_cover`
  * 由后端算好）；两张都没有时渲染显式占位，绝不发一个空 `src` 的 img。
  *
- * 「收录管理」浮层只做两件事：看当前收录行（含失效占位并标出原因）、清理失效行。
- * 批量收录与两级手动排序属于独立的「项目编排」页，不在这里。
+ * 收录与排序不在本页：项目的内容编排走「目录编排」的整树编辑器。
  */
 import { h } from 'vue'
 import {
@@ -25,7 +24,6 @@ import {
   NForm,
   NFormItem,
   NInput,
-  NModal,
   NSpace,
   NSwitch,
   NTag,
@@ -34,24 +32,23 @@ import {
 } from 'naive-ui'
 import type { DataTableColumns } from 'naive-ui'
 import {
-  cleanupProjectStale,
   createProject,
   deleteProject,
-  getAdminProjectItems,
   getAdminProjects,
-  removeProjectArticle,
   setProjectDisplay,
   updateProject,
 } from '~/services/admin'
 import { uploadImageByTask } from '~/services/image'
-import type { ProjectAdminCard, ProjectAdminItem } from '~/types/api'
+import ImageCropDialog from '~/components/media/ImageCropDialog.vue'
+import { useImageCropUpload, type ImageFramingRequest } from '~/composables/useImageCropUpload'
+import type { ProjectAdminCard } from '~/types/api'
 import { uploadBannerCover } from '~/utils/bannerCover'
-import type { ShapeImageTarget } from '~/utils/imageShaping'
+import type { ShapeFramingState, ShapeImageTarget } from '~/utils/imageShaping'
 import {
   COVER_SHAPE_OPTIONS,
   COVER_SHAPE_RATIO_TEXT,
   COVER_SHAPE_SIZE_TEXT,
-  shapeForUpload,
+  COVER_SHAPE_TARGET,
 } from '~/utils/imageShaping'
 import {
   applyProjectDisplayResult,
@@ -60,7 +57,6 @@ import {
   resolveProjectCover,
   validateProjectForm,
 } from '~/utils/projectAdmin'
-import { staleItemCount, staleItemIds, staleReasonLabel } from '~/utils/staleItems'
 
 const message = useMessage()
 const dialog = useDialog()
@@ -89,18 +85,55 @@ const coverUploading = ref(false)
 const coverStage = ref('')
 const coverFileInput = ref<HTMLInputElement | null>(null)
 
-// ── 收录管理浮层（保留失效占位 + 标记 + 一键清理）──
+/**
+ * 裁剪窗请求（票 215）：非 null 表示项目封面比例不合规，等管理员选区域。
+ * 这期间没有定形产物、没有上传；取消就保留现有封面（form.cover 原样不动）。
+ */
+const coverCropRequest = ref<ImageFramingRequest | null>(null)
+/** 待裁剪原图的本地预览地址。 */
+const coverCropPreviewUrl = ref('')
 
-const itemsProject = ref<ProjectAdminCard | null>(null)
-const itemsRows = ref<ProjectAdminItem[]>([])
-const itemsLoading = ref(false)
-const itemsRemovingId = ref('')
-const itemsCleaning = ref(false)
+function createPreviewUrl(blob: Blob): string {
+  try {
+    return typeof URL.createObjectURL === 'function' ? URL.createObjectURL(blob) : ''
+  } catch {
+    return ''
+  }
+}
 
-/** 一键清理只挑 stale 为真的行；判定由后端共用领域函数给出，前端不另算。 */
-const itemsStaleIds = computed(() => staleItemIds(itemsRows.value))
-const itemsStaleCount = computed(() => staleItemCount(itemsRows.value))
+function resetCoverCrop() {
+  const url = coverCropPreviewUrl.value
+  coverCropPreviewUrl.value = ''
+  coverCropRequest.value = null
+  revokePreviewUrl(url)
+}
 
+/**
+ * 项目封面的上传顺序与其余四个入口同源（`useImageCropUpload`）：
+ * 与 16:9 相差 ≤1% → 自动居中定形 1600×900 后直接上传；
+ * 相差 >1% → 只打开裁剪窗，不产出文件、不上传；取消即保留现有封面。
+ */
+const coverCropFlow = useImageCropUpload({
+  options: COVER_SHAPE_OPTIONS,
+  requestFraming: (request) => {
+    coverCropRequest.value = request
+    coverCropPreviewUrl.value = createPreviewUrl(request.file)
+    coverStage.value = `图片比例不符合 ${COVER_SHAPE_RATIO_TEXT}，请选择要露出的区域`
+  },
+  upload: async (shaped) => {
+    coverSize.value = shaped.size
+    coverLocalPreview.value = shaped.previewUrl
+    coverPreview.value = shaped.previewUrl || coverPreview.value
+    coverStage.value = `已定形成 ${COVER_SHAPE_SIZE_TEXT}（${COVER_SHAPE_RATIO_TEXT}），正在上传封面…`
+    const uploaded = await uploadBannerCover(shaped.file, f =>
+      uploadImageByTask(f, { onStage: mapUploadStage, purpose: 'cover' }),
+    )
+    form.cover = uploaded.url
+    coverPreview.value = uploaded.url
+    clearLocalCoverPreview()
+    coverStage.value = '封面上传完成，点击保存'
+  },
+})
 function renderCover(row: ProjectAdminCard) {
   const view = resolveProjectCover(row.cover, row.fallback_cover)
   if (!view) {
@@ -140,13 +173,10 @@ const columns: DataTableColumns<ProjectAdminCard> = [
   {
     title: '操作',
     key: 'actions',
-    width: 260,
+    width: 180,
     render: row =>
       h(NSpace, { size: 4, justify: 'end' }, {
         default: () => [
-          h(NButton, { size: 'small', tertiary: true, onClick: () => void openItems(row) }, {
-            default: () => '收录管理',
-          }),
           h(NButton, { size: 'small', tertiary: true, type: 'primary', onClick: () => startEdit(row) }, {
             default: () => '编辑',
           }),
@@ -155,62 +185,6 @@ const columns: DataTableColumns<ProjectAdminCard> = [
           }),
         ],
       }),
-  },
-]
-
-/**
- * 收录管理表：序号 + 封面 + 文章 + 状态（含失效原因）+ 单独移除。
- *
- * 失效行**保留**并标红：文章后来被删/退回草稿/隐藏时，关系行还在，运营要能
- * 看到是哪一篇、为什么失效，再决定单独移除还是整批清理。
- */
-const itemColumns: DataTableColumns<ProjectAdminItem> = [
-  {
-    title: '序号',
-    key: 'sort_order',
-    width: 72,
-    render: (_row, index) => index + 1,
-  },
-  {
-    title: '封面',
-    key: 'cover',
-    width: 110,
-    render: row =>
-      h('div', { class: 'admin-cover' }, row.cover ? [h('img', { src: row.cover, alt: row.title || '收录封面' })] : []),
-  },
-  {
-    title: '文章',
-    key: 'title',
-    minWidth: 220,
-    render: row =>
-      h('strong', { class: 'block truncate' }, row.title || (row.stale ? '（文章已删除，仅剩收录占位）' : '（无标题）')),
-  },
-  {
-    title: '状态',
-    key: 'stale',
-    width: 190,
-    render: row =>
-      h(NTag, { size: 'small', type: row.stale ? 'warning' : 'success' }, {
-        default: () => staleReasonLabel(row.stale_reason),
-      }),
-  },
-  {
-    title: '操作',
-    key: 'actions',
-    width: 100,
-    render: row =>
-      h(
-        NButton,
-        {
-          size: 'small',
-          tertiary: true,
-          type: row.stale ? 'error' : 'default',
-          loading: itemsRemovingId.value === row.article_id,
-          disabled: itemsRemovingId.value !== '' || itemsCleaning.value,
-          onClick: () => removeItem(row),
-        },
-        { default: () => '移除' },
-      ),
   },
 ]
 
@@ -323,97 +297,6 @@ function removeRow(row: ProjectAdminCard) {
   })
 }
 
-// ── 收录管理与一键清理 ───────────────────────────────────────
-
-/** 打开某个项目的收录管理浮层，并按需加载全部收录行（含失效占位）。 */
-async function openItems(row: ProjectAdminCard) {
-  itemsProject.value = row
-  itemsRows.value = []
-  await refreshItems()
-}
-
-async function refreshItems() {
-  const target = itemsProject.value
-  if (!target) return
-  itemsLoading.value = true
-  try {
-    const data = await getAdminProjectItems(target.id)
-    itemsRows.value = data.list || []
-  } catch {
-    message.error('收录行加载失败')
-  } finally {
-    itemsLoading.value = false
-  }
-}
-
-function closeItems() {
-  itemsProject.value = null
-  itemsRows.value = []
-  itemsRemovingId.value = ''
-}
-
-function removeItem(row: ProjectAdminItem) {
-  const target = itemsProject.value
-  if (!target || itemsRemovingId.value) return
-
-  dialog.warning({
-    title: row.stale ? '移除失效收录' : '移除收录',
-    content: row.stale
-      ? `「${row.title || '这篇文章'}」已失效（${staleReasonLabel(row.stale_reason)}）。移除只解除收录关系，不删文章。`
-      : `确认把「${row.title || '这篇文章'}」从项目移除？读者侧会立即少一篇。`,
-    positiveText: '移除',
-    negativeText: '取消',
-    async onPositiveClick() {
-      itemsRemovingId.value = row.article_id
-      try {
-        await removeProjectArticle(target.id, row.article_id)
-        message.success('已移除')
-        await refreshItems()
-        await refresh()
-      } catch (error) {
-        message.error(error instanceof Error ? `移除失败：${error.message}` : '移除失败，请稍后重试')
-      } finally {
-        itemsRemovingId.value = ''
-      }
-    },
-  })
-}
-
-/**
- * 一键清理：只提交「失效行」。
- *
- * 失效判定不在前端重算——行上的 stale 来自后端与合集/热门置顶共用的领域函数；
- * 管理端接口是幂等的，第二次点击返回 removed=0，不会删到展示中的文章。
- */
-function cleanupStaleItems() {
-  const target = itemsProject.value
-  if (!target || itemsCleaning.value) return
-  const staleIds = itemsStaleIds.value.slice()
-  if (staleIds.length === 0) return
-
-  dialog.warning({
-    title: '清理失效收录',
-    content: `将移除 ${staleIds.length} 条已失效的收录（文章已删除、退回草稿或不再可见）。展示中的收录不受影响。`,
-    positiveText: '清理',
-    negativeText: '取消',
-    async onPositiveClick() {
-      itemsCleaning.value = true
-      try {
-        const result = await cleanupProjectStale(target.id)
-        message.success(
-          result.removed > 0 ? `已清理 ${result.removed} 条失效收录` : '没有需要清理的失效收录',
-        )
-      } catch (error) {
-        message.error(error instanceof Error ? `清理失败：${error.message}` : '清理失败，请稍后重试')
-      } finally {
-        itemsCleaning.value = false
-        await refreshItems()
-        await refresh()
-      }
-    },
-  })
-}
-
 // ── 封面选择与上传前定形 ─────────────────────────────────────
 
 function openCoverPicker() {
@@ -427,6 +310,7 @@ function removeCover() {
   coverPreview.value = ''
   coverSize.value = null
   coverStage.value = ''
+  resetCoverCrop()
   clearLocalCoverPreview()
 }
 
@@ -464,30 +348,40 @@ async function onCoverFileChange(event: Event) {
 
   clearLocalCoverPreview()
   coverSize.value = null
-  coverStage.value = '正在定形成 16:9 封面…'
+  resetCoverCrop()
+  coverStage.value = '正在检查图片比例…'
   coverUploading.value = true
   try {
-    // 上传前定形（票 200）：居中裁成 16:9、降采样到 1600×900，产出新文件。
-    // 预览用定形产物（运营看到的就是即将上传的那张图），原图不进入上传链路。
-    const shaped = await shapeForUpload(file, COVER_SHAPE_OPTIONS)
-    coverSize.value = shaped.size
-    coverLocalPreview.value = shaped.previewUrl
-    coverPreview.value = shaped.previewUrl || coverPreview.value
-
-    coverStage.value = `已定形成 ${COVER_SHAPE_SIZE_TEXT}（${COVER_SHAPE_RATIO_TEXT}），正在上传封面…`
-    const uploaded = await uploadBannerCover(shaped.file, f =>
-      uploadImageByTask(f, { onStage: mapUploadStage }),
-    )
-    form.cover = uploaded.url
-    coverPreview.value = uploaded.url
-    clearLocalCoverPreview()
-    coverStage.value = '封面上传完成，点击保存'
+    await coverCropFlow.select(file)
   } catch (error) {
     coverStage.value = '封面上传失败，可重新选择图片'
     message.error(error instanceof Error ? `封面上传失败：${error.message}` : '封面上传失败，请稍后重试')
   } finally {
     coverUploading.value = false
   }
+}
+
+/** 裁剪窗确认：按选定区域定形成 1600×900 新文件，再走既有上传链路。 */
+async function confirmCoverCrop(framing: ShapeFramingState) {
+  const request = coverCropRequest.value
+  if (!request) return
+  resetCoverCrop()
+  coverStage.value = `正在按选定区域定形成 ${COVER_SHAPE_RATIO_TEXT} 封面…`
+  coverUploading.value = true
+  try {
+    await coverCropFlow.confirm(request, framing)
+  } catch (error) {
+    coverStage.value = '封面上传失败，可重新选择图片'
+    message.error(error instanceof Error ? `封面上传失败：${error.message}` : '封面上传失败，请稍后重试')
+  } finally {
+    coverUploading.value = false
+  }
+}
+
+/** 裁剪窗取消：中止本次上传，现有封面（form.cover）保持不变。 */
+function cancelCoverCrop() {
+  resetCoverCrop()
+  coverStage.value = '已取消本次上传，保留现有封面'
 }
 
 onMounted(refresh)
@@ -609,36 +503,15 @@ onMounted(refresh)
         :row-key="(row: ProjectAdminCard) => row.id" />
     </NCard>
 
-    <NModal
-      :show="itemsProject !== null"
-      preset="card"
-      class="max-w-[900px]"
-      :title="`收录管理：${itemsProject?.title ?? ''}`"
-      @update:show="(value: boolean) => { if (!value) closeItems() }">
-      <div class="admin-toolbar">
-        <p class="admin-hint">
-          收录行按展示顺序排列。文章后来被删除、退回草稿或不再可见时，这一行会保留并标为失效：
-          读者侧已不再展示，这里可以单独移除或一键清理。清理只解除收录关系，不删除文章。
-        </p>
-        <NSpace>
-          <NButton size="small" quaternary :loading="itemsLoading" @click="refreshItems">刷新</NButton>
-          <NButton
-            size="small"
-            type="error"
-            :loading="itemsCleaning"
-            :disabled="itemsStaleCount === 0"
-            @click="cleanupStaleItems">
-            清理失效（{{ itemsStaleCount }}）
-          </NButton>
-        </NSpace>
-      </div>
-
-      <NDataTable
-        :columns="itemColumns"
-        :data="itemsRows"
-        :loading="itemsLoading"
-        :bordered="false"
-        :row-key="(row: ProjectAdminItem) => row.article_id" />
-    </NModal>
+    <ImageCropDialog
+      :show="coverCropRequest !== null"
+      :src="coverCropPreviewUrl"
+      :image-width="coverCropRequest?.width ?? 0"
+      :image-height="coverCropRequest?.height ?? 0"
+      :target="COVER_SHAPE_TARGET"
+      :ratio-text="COVER_SHAPE_RATIO_TEXT"
+      title="裁剪项目封面（固定 16:9）"
+      @confirm="confirmCoverCrop"
+      @cancel="cancelCoverCrop" />
   </NSpace>
 </template>

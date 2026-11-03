@@ -4,12 +4,27 @@ import {
   COVER_SHAPE_RATIO_TEXT,
   COVER_SHAPE_SIZE_TEXT,
   COVER_SHAPE_TARGET,
+  DEFAULT_SHAPE_FRAMING,
+  SHAPE_ASPECT_TOLERANCE,
+  SHAPE_FRAMING_ZOOM_MAX,
+  SHAPE_FRAMING_ZOOM_MIN,
+  aspectRatioDeviation,
   browserShapeImageDeps,
   browserShapedUploadDeps,
   centerCropRect,
+  clampFraming,
+  framingImageBox,
+  framingSourceRect,
+  isAspectRatioCompliant,
   isImageFile,
+  measureImage,
+  needsFraming,
+  nudgeFraming,
+  panFramingByFraction,
   shapeForUpload,
   shapeImage,
+  stepFramingZoom,
+  type ShapeFramingState,
   type ShapeImageDeps,
   type ShapeImageOptions,
   type ShapedUploadDeps,
@@ -299,6 +314,83 @@ describe('shapeForUpload：上传前定形，原图不进上传链路（票 200�
     expect(typeof result.previewUrl).toBe('string')
     expect(result.file.name).toBe('cover.jpg')
     expect(result.file.type).toBe('image/jpeg')
+  })
+})
+
+describe('比例判定与裁剪窗换算（#215）', () => {
+  it('±1% 是唯一阈值：16:9 合规、1:1 不合规，偏差按目标比例归一化', () => {
+    expect(SHAPE_ASPECT_TOLERANCE).toBe(0.01)
+    expect(isAspectRatioCompliant({ width: 1920, height: 1080 }, COVER_SHAPE_TARGET)).toBe(true)
+    expect(isAspectRatioCompliant({ width: 400, height: 400 }, { width: 256, height: 256 })).toBe(true)
+    expect(needsFraming({ width: 1000, height: 1000 }, COVER_SHAPE_TARGET)).toBe(true)
+    expect(needsFraming({ width: 400, height: 300 }, { width: 256, height: 256 })).toBe(true)
+    expect(aspectRatioDeviation({ width: 1000, height: 1000 }, COVER_SHAPE_TARGET)).toBeCloseTo(0.4375, 4)
+    expect(aspectRatioDeviation({ width: 1800, height: 1000 }, COVER_SHAPE_TARGET)).toBeGreaterThan(0.01)
+    expect(aspectRatioDeviation({ width: 0, height: 0 }, COVER_SHAPE_TARGET)).toBe(Number.POSITIVE_INFINITY)
+  })
+
+  it('缩放钳在 1–3×，中心夹在源图内（取景框不会露出底色）', () => {
+    expect(SHAPE_FRAMING_ZOOM_MIN).toBe(1)
+    expect(SHAPE_FRAMING_ZOOM_MAX).toBe(3)
+    expect(clampFraming({ ...DEFAULT_SHAPE_FRAMING, zoom: 0.2 }, COVER_SHAPE_TARGET, COVER_SHAPE_TARGET).zoom).toBe(1)
+    expect(clampFraming({ ...DEFAULT_SHAPE_FRAMING, zoom: 5 }, COVER_SHAPE_TARGET, COVER_SHAPE_TARGET).zoom).toBe(3)
+
+    const source = { width: 2000, height: 900 }
+    const farLeft = clampFraming({ zoom: 1, centerX: 0, centerY: 0 }, source, COVER_SHAPE_TARGET)
+    expect(framingSourceRect(source, COVER_SHAPE_TARGET, farLeft)).toEqual({ sx: 0, sy: 0, sw: 1600, sh: 900 })
+  })
+
+  it('默认取景与自动居中裁切是同一块区域（不弹窗那条路径不变）', () => {
+    const source = { width: 1000, height: 1000 }
+    expect(framingSourceRect(source, COVER_SHAPE_TARGET)).toEqual(centerCropRect(source, COVER_SHAPE_TARGET))
+  })
+
+  it('2× 与拖动/方向键把视口换算成源图矩形', () => {
+    const source = { width: 2000, height: 900 }
+    const framing: ShapeFramingState = { zoom: 2, centerX: 0.2, centerY: 0.5 }
+    expect(framingSourceRect(source, COVER_SHAPE_TARGET, framing)).toEqual({ sx: 0, sy: 225, sw: 800, sh: 450 })
+
+    const dragged = panFramingByFraction(DEFAULT_SHAPE_FRAMING, 0.1, 0, source, COVER_SHAPE_TARGET)
+    expect(framingSourceRect(source, COVER_SHAPE_TARGET, dragged).sx).toBeCloseTo(40, 6)
+
+    const nudged = nudgeFraming(DEFAULT_SHAPE_FRAMING, 0.05, 0, source, COVER_SHAPE_TARGET)
+    expect(framingSourceRect(source, COVER_SHAPE_TARGET, nudged).sx).toBeCloseTo(280, 6)
+
+    expect(stepFramingZoom(DEFAULT_SHAPE_FRAMING, 1, source, COVER_SHAPE_TARGET).zoom).toBeCloseTo(1.1, 6)
+    expect(stepFramingZoom({ zoom: 1, centerX: 0.5, centerY: 0.5 }, -1, source, COVER_SHAPE_TARGET).zoom).toBe(1)
+  })
+
+  it('预览几何与源矩形同源：框里看到的就是会烤进文件的那块', () => {
+    const box = framingImageBox({ width: 800, height: 400 }, { width: 256, height: 256 })
+    expect(box).toEqual({ left: -0.5, top: 0, width: 2, height: 1 })
+  })
+})
+
+describe('确认裁剪后按选区定形（#215）', () => {
+  it('drawImage 用的是取景矩形，目标尺寸不变，产物仍是新图', async () => {
+    const fake = createFakeDeps({ width: 2000, height: 900 })
+    const source = new File(['raw'], 'wide.jpg', { type: 'image/jpeg' })
+
+    const shaped = await shapeImage(
+      source,
+      { ...COVER_SHAPE_OPTIONS, framing: { zoom: 2, centerX: 0.2, centerY: 0.5 } },
+      fake.deps,
+    )
+
+    expect(fake.createCanvas).toHaveBeenCalledWith(1600, 900)
+    expect(fake.drawImage).toHaveBeenCalledWith(expect.anything(), 0, 225, 800, 450, 0, 0, 1600, 900)
+    expect(shaped).not.toBe(source)
+  })
+
+  it('measureImage 返回原图尺寸，不建画布；非图片直接拒绝', async () => {
+    const fake = createFakeDeps({ width: 1778, height: 1000 })
+    const size = await measureImage(new File(['raw'], 'photo.jpg', { type: 'image/jpeg' }), fake.deps)
+    expect(size).toEqual({ width: 1778, height: 1000 })
+    expect(fake.createCanvas).not.toHaveBeenCalled()
+
+    await expect(
+      measureImage(new File(['text'], 'note.txt', { type: 'text/plain' }), fake.deps),
+    ).rejects.toMatchObject({ code: 'not_image' })
   })
 })
 

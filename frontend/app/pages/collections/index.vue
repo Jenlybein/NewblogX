@@ -46,7 +46,7 @@ const emptyDescription = computed(() =>
       <li v-for="card in cards" :key="card.id" class="collection-card">
         <NuxtLink :to="card.href" class="collection-card__link">
           <span class="collection-card__cover">
-            <ArticleCover :src="card.cover" :title="card.title" label="合集" />
+            <ArticleCover :src="card.cover" :title="card.title" />
           </span>
           <span class="collection-card__body">
             <strong class="collection-card__title">{{ card.title }}</strong>

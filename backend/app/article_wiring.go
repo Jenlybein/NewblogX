@@ -13,6 +13,7 @@ import (
 	"myblogx/internal/article/domain"
 	"myblogx/internal/article/domain/collection"
 	"myblogx/internal/article/domain/favorite"
+	"myblogx/internal/article/domain/outline"
 	"myblogx/internal/article/domain/project"
 	"myblogx/internal/kernel/ctype"
 	"myblogx/internal/kernel/enum"
@@ -36,11 +37,7 @@ func WireArticle(infra *Infra) {
 	// 事件出口不再在这里装配：写侧只往事务内的 outbox 表插行，
 	// 真正的下游订阅者（评分 / 系统通知）挂在 outbox 中继上，
 	// 见 app/outbox_wiring.go 的 WireOutboxRelay。
-	counterOptions := redis_service.Options{Client: infra.Redis, Logger: infra.Logger}
-	// 作者统计的写入逻辑归 user 模块，这里把函数交给 article 的 UoW，
-	// 由它在自己的事务里调用 —— 跨模块写仍然同事务，但不再互相 import。
-	uow := mysql.NewTxManager(infra.DB, counterOptions, usermysql.ApplyArticleDelta)
-	svc := articleapp.New(uow, realClock{}, snowflakeIDs{})
+	svc := newArticleService(infra)
 
 	h := articlehttp.NewHandler(
 		svc,
@@ -50,6 +47,18 @@ func WireArticle(infra *Infra) {
 		&imageResolver{db: infra.DB},
 	)
 	router.SetArticleHandler(h)
+}
+
+// newArticleService 构造 article 用例服务。
+//
+// 单独抽出来是为了让装配层复用**同一份**读模型：站点右栏的推荐合集卡要数
+// 目录树里的公开文章、回退封面，这套口径只应由 article 模块提供（#223）。
+func newArticleService(infra *Infra) *articleapp.Service {
+	counterOptions := redis_service.Options{Client: infra.Redis, Logger: infra.Logger}
+	// 作者统计的写入逻辑归 user 模块，这里把函数交给 article 的 UoW，
+	// 由它在自己的事务里调用 —— 跨模块写仍然同事务，但不再互相 import。
+	uow := mysql.NewTxManager(infra.DB, counterOptions, usermysql.ApplyArticleDelta)
+	return articleapp.New(uow, realClock{}, snowflakeIDs{})
 }
 
 // realClock 是生产时钟。
@@ -101,6 +110,18 @@ func (snowflakeIDs) NextProjectID() project.ID {
 		panic("article: 雪花 ID 生成失败: " + err.Error())
 	}
 	return project.ID(id)
+}
+
+// NextOutlineNodeID 返回下一个目录树节点 ID。
+//
+// 树节点 ID 会出现在后台树编辑器接口里（整树提交靠它做幂等更新），
+// 与文章 / 合集 / 项目 ID 分开，日志里可分辨。
+func (snowflakeIDs) NextOutlineNodeID() outline.ID {
+	id, err := idgen.Next()
+	if err != nil {
+		panic("article: 雪花 ID 生成失败: " + err.Error())
+	}
+	return outline.ID(id)
 }
 
 // NextFolderID 返回下一个收藏夹 ID。

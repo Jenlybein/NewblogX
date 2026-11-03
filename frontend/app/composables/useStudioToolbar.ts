@@ -4,7 +4,6 @@ import type { ToolItem } from "~/constants/studioToolbar";
 import type { StudioAiAction } from "~/composables/useStudioAiSelection";
 import type { ArticleHeadingAnchor } from "~/composables/useArticleMarkdown";
 import type { useStudioEditorCommands } from "~/composables/useStudioEditorCommands";
-import type { useStudioMarkdownTheme } from "~/composables/useStudioMarkdownTheme";
 
 // 工具栏的点击分发。
 //
@@ -15,13 +14,11 @@ import type { useStudioMarkdownTheme } from "~/composables/useStudioMarkdownThem
 // 留在页面里时，它和 hydrate、提交、封面混在一起，很难看出"改正文"只有两条来源
 // （编辑器命令 + 这里的片段插入）。
 //
-// 依赖全部注入：编辑器命令对象、主题、视图状态都由页面持有。
+// 依赖全部注入：编辑器命令对象、视图状态都由页面持有。
 
 export type StudioToolbarDeps = {
   /** 编辑器命令（插入片段是这里唯一用到的能力）。 */
   editor: ReturnType<typeof useStudioEditorCommands>;
-  /** 主题状态与选项（"预览样式"下拉要用）。 */
-  theme: ReturnType<typeof useStudioMarkdownTheme>;
   /** 目录栏开关与视图模式。 */
   showToc: Ref<boolean>;
   viewMode: Ref<"split" | "editor" | "preview">;
@@ -36,7 +33,6 @@ export type StudioToolbarDeps = {
 export function useStudioToolbar(deps: StudioToolbarDeps) {
   const {
     editor,
-    theme,
     showToc,
     viewMode,
     previewRef: shadowPreviewRef,
@@ -60,18 +56,10 @@ export function useStudioToolbar(deps: StudioToolbarDeps) {
     applyTableShortcut,
     applyStrikeShortcut,
   } = editor;
-  const { selectedMarkdownTheme, markdownThemeOptions } = theme;
 
   function handleToolOption(toolKey: string, optionKey: string) {
     if (toolKey === "ai") {
       void handleAiToolOpen(optionKey as StudioAiAction);
-      return;
-    }
-
-    if (toolKey === "theme") {
-      selectedMarkdownTheme.value =
-        (markdownThemeOptions.find((option) => option.key === optionKey)?.key as typeof selectedMarkdownTheme.value) ||
-        "github";
       return;
     }
 
@@ -106,13 +94,6 @@ export function useStudioToolbar(deps: StudioToolbarDeps) {
 
       insertSnippet(`\`\`\`mermaid\n${mermaidMap[optionKey as keyof typeof mermaidMap] || mermaidMap.flowchart}\n\`\`\`\n`);
     }
-  }
-
-  function isToolOptionActive(toolKey: string, optionKey: string) {
-    if (toolKey === "theme") {
-      return selectedMarkdownTheme.value === optionKey;
-    }
-    return false;
   }
 
   function handleToolClick(tool: ToolItem) {
@@ -181,7 +162,6 @@ export function useStudioToolbar(deps: StudioToolbarDeps) {
 
   return {
     handleToolOption,
-    isToolOptionActive,
     handleToolClick,
     handleRightToolClick,
     handleTocJump,

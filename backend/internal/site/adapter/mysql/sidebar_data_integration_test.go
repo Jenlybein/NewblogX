@@ -97,7 +97,7 @@ func TestSidebarDataHotArticlesOrdersByDiggAndExcludesPinned(t *testing.T) {
 		t.Fatalf("软删置顶行失败: %v", err)
 	}
 
-	data := sitemysql.NewSidebarData(db)
+	data := sitemysql.NewSidebarData(db, nil)
 	got, err := data.HotArticles(context.Background(), 5)
 	if err != nil {
 		t.Fatalf("读取热门文章失败: %v", err)
@@ -143,7 +143,7 @@ func TestSidebarDataLatestCommentsOrdersByTimeDesc(t *testing.T) {
 	insertSidebarComment(t, db, 4004, 3102, "草稿下的评论", enum.CommentStatusPublished, at.Add(4*time.Hour))
 	insertSidebarComment(t, db, 4005, 3101, "已删除的评论", enum.CommentStatusDeleted, at.Add(5*time.Hour))
 
-	data := sitemysql.NewSidebarData(db)
+	data := sitemysql.NewSidebarData(db, nil)
 	got, err := data.LatestComments(context.Background(), 5)
 	if err != nil {
 		t.Fatalf("读取最新评论失败: %v", err)
@@ -177,7 +177,7 @@ func TestSidebarDataTagCloudOrdersByWeight(t *testing.T) {
 	schema.InsertTag(t, db, schema.TagSpec{ID: 5003, Title: "最少", ArticleCount: 10, Enabled: true, CreatedBy: 100, At: at})
 	schema.InsertTag(t, db, schema.TagSpec{ID: 5004, Title: "停用标签", ArticleCount: 99, Enabled: false, CreatedBy: 100, At: at})
 
-	data := sitemysql.NewSidebarData(db)
+	data := sitemysql.NewSidebarData(db, nil)
 	got, err := data.TagCloud(context.Background(), 5)
 	if err != nil {
 		t.Fatalf("读取标签云失败: %v", err)

@@ -7,18 +7,20 @@ import (
 
 	"myblogx/internal/apperr"
 	"myblogx/internal/article/app"
-	"myblogx/internal/article/apptest"
 	"myblogx/internal/article/domain"
+	"myblogx/internal/article/domain/outline"
 	"myblogx/internal/article/domain/project"
 	"myblogx/internal/kernel/ctype"
 )
 
-// 本文件是「项目」管理端的用例：增删改、收录 / 批量收录 / 移除、两级排序、
-// 失效行读面与一键清理、权限线。
+// 本文件是「项目」管理端的用例：增删改、展示开关、项目之间排序、权限线。
 //
-// 断言的都是**外部可观察的行为**：读者读面看到什么、后台读面看到什么、
-// 关联行还在不在、第二次清理返回几。与合集同一批断言，因为两者是镜像实现；
-// 两套用例各自独立，不靠"合集绿了所以项目也绿"。
+// 断言的都是**外部可观察的行为**：读者读面与后台列表看到什么、顺序怎么变。
+// 与合集同一批断言，因为两者是镜像实现；两套用例各自独立，
+// 不靠"合集绿了所以项目也绿"。
+//
+// 收录（含批量收录与移除）自 #218 起只经目录树整树提交，相关用例在
+// outline_test.go；旧扁平收录用例随接口一起退役（#225）。
 
 // createProject 是"管理员建一个项目"的简写。
 func createProject(t *testing.T, svc *app.Service, title string) project.ID {
@@ -34,28 +36,6 @@ func createProject(t *testing.T, svc *app.Service, title string) project.ID {
 		t.Fatalf("创建项目失败: %v", err)
 	}
 	return id
-}
-
-// includeProjectArticle 是"管理员把一篇文章收录进项目"的简写。
-func includeProjectArticle(t *testing.T, svc *app.Service, projectID project.ID, articleID domain.ArticleID) {
-	t.Helper()
-	if err := svc.IncludeProjectArticle(context.Background(), app.IncludeProjectArticleCmd{
-		Actor:     adminViewer(),
-		ProjectID: projectID,
-		ArticleID: articleID,
-	}); err != nil {
-		t.Fatalf("收录文章失败: %v", err)
-	}
-}
-
-// cleanupStaleProject 是"管理员一键清理失效收录"的简写。
-func cleanupStaleProject(t *testing.T, svc *app.Service, projectID project.ID) int {
-	t.Helper()
-	removed, err := svc.CleanupStaleProjectArticles(context.Background(), adminViewer(), projectID)
-	if err != nil {
-		t.Fatalf("清理失效行失败: %v", err)
-	}
-	return removed
 }
 
 // TestCreateProjectRequiresAdmin 项目是管理员专属运营产物，作者不参与创建。
@@ -167,14 +147,14 @@ func TestUpdateProject(t *testing.T) {
 	}
 }
 
-// TestDeleteProjectHidesFromAdminList 软删：后台列表与读者列表都不再出现，收录行保留。
+// TestDeleteProjectHidesFromAdminList 软删：后台列表与读者列表都不再出现，文章本身保留。
 func TestDeleteProjectHidesFromAdminList(t *testing.T) {
 	t.Parallel()
 
 	svc, repos, _ := newService(t)
 	id := createProject(t, svc, "待删项目")
 	a := seedPublished(t, repos, 71)
-	includeProjectArticle(t, svc, id, a)
+	seedReaderArticleNodes(t, repos, outline.OwnerProject, outline.ID(id), ctype.ID(a))
 
 	if err := svc.DeleteProject(context.Background(), app.DeleteProjectCmd{
 		Actor: adminViewer(), ProjectID: id,
@@ -205,210 +185,6 @@ func TestDeleteProjectHidesFromAdminList(t *testing.T) {
 		Actor: adminViewer(), ProjectID: id,
 	}); !apperr.IsCode(err, apperr.CodeProjectNotFound) {
 		t.Fatalf("重复删应返回项目不存在，实际 %v", err)
-	}
-}
-
-// TestIncludeProjectArticleAppendAndIdempotent 收录排在末尾；重复收录不产生第二行、不改序号。
-func TestIncludeProjectArticleAppendAndIdempotent(t *testing.T) {
-	t.Parallel()
-
-	svc, repos, _ := newService(t)
-	id := createProject(t, svc, "重构实战")
-
-	a1 := seedPublished(t, repos, 11)
-	a2 := seedPublished(t, repos, 12)
-	includeProjectArticle(t, svc, id, a1)
-	includeProjectArticle(t, svc, id, a2)
-
-	// 再收一次第一篇：既不能报重复，也不能把它挪到末尾。
-	if err := svc.IncludeProjectArticle(context.Background(), app.IncludeProjectArticleCmd{
-		Actor:     adminViewer(),
-		ProjectID: id,
-		ArticleID: a1,
-	}); !apperr.IsCode(err, apperr.CodeProjectArticleDuplicated) {
-		t.Fatalf("重复收录应报【已在项目中】，实际 %v", err)
-	}
-
-	ids, err := repos.FakeProjects().ListItemIDs(context.Background(), id)
-	if err != nil {
-		t.Fatalf("读收录失败: %v", err)
-	}
-	if len(ids) != 2 || ids[0] != a1 || ids[1] != a2 {
-		t.Fatalf("收录顺序不对: %v", ids)
-	}
-}
-
-// TestIncludeProjectRejectsNonPublicArticle 只有"已发布且可见"的文章能被收录。
-func TestIncludeProjectRejectsNonPublicArticle(t *testing.T) {
-	t.Parallel()
-
-	cases := []struct {
-		name   string
-		status domain.Status
-		vis    domain.Visibility
-	}{
-		{"草稿", domain.StatusDraft, domain.VisibilityVisible},
-		{"审核中", domain.StatusExamining, domain.VisibilityVisible},
-		{"作者隐藏", domain.StatusPublished, domain.VisibilityUserHidden},
-		{"管理员隐藏", domain.StatusPublished, domain.VisibilityAdminHidden},
-	}
-
-	for _, c := range cases {
-		c := c
-		t.Run(c.name, func(t *testing.T) {
-			t.Parallel()
-
-			svc, repos, _ := newService(t)
-			id := createProject(t, svc, "主题项目")
-			articleID := domain.ArticleID(ctype.NewID(21))
-			repos.FakeArticles().Seed(apptest.NewArticle().
-				ID(articleID).Author(author).Status(c.status).Visibility(c.vis).Build())
-
-			err := svc.IncludeProjectArticle(context.Background(), app.IncludeProjectArticleCmd{
-				Actor:     adminViewer(),
-				ProjectID: id,
-				ArticleID: articleID,
-			})
-			if !apperr.IsCode(err, apperr.CodeProjectArticleNotIncludable) {
-				t.Fatalf("%s 的文章应不可收录，实际 %v", c.name, err)
-			}
-			ids, err := repos.FakeProjects().ListItemIDs(context.Background(), id)
-			if err != nil {
-				t.Fatalf("读收录失败: %v", err)
-			}
-			if len(ids) != 0 {
-				t.Fatalf("被拒绝的文章不应落库: %v", ids)
-			}
-		})
-	}
-}
-
-// TestIncludeProjectBatchReportsPerArticleOutcome 批量收录一次提交多篇，逐篇分类。
-func TestIncludeProjectBatchReportsPerArticleOutcome(t *testing.T) {
-	t.Parallel()
-
-	svc, repos, _ := newService(t)
-	id := createProject(t, svc, "分布式入门六讲")
-
-	first := seedPublished(t, repos, 101)
-	second := seedPublished(t, repos, 102)
-	third := seedPublished(t, repos, 103)
-	hidden := domain.ArticleID(ctype.NewID(104))
-	repos.FakeArticles().Seed(apptest.NewArticle().
-		ID(hidden).Author(author).Status(domain.StatusPublished).
-		Visibility(domain.VisibilityUserHidden).Build())
-	missing := domain.ArticleID(ctype.NewID(999))
-
-	includeProjectArticle(t, svc, id, first)
-
-	results, err := svc.IncludeProjectArticles(context.Background(), app.IncludeProjectArticlesCmd{
-		Actor:     adminViewer(),
-		ProjectID: id,
-		ArticleIDs: []domain.ArticleID{
-			second, first, hidden, missing, third, first,
-		},
-	})
-	if err != nil {
-		t.Fatalf("批量收录失败: %v", err)
-	}
-
-	want := []struct {
-		id      domain.ArticleID
-		outcome project.IncludeOutcome
-	}{
-		{second, project.IncludeOutcomeIncluded},
-		{first, project.IncludeOutcomeDuplicated},
-		{hidden, project.IncludeOutcomeNotIncludable},
-		{missing, project.IncludeOutcomeMissing},
-		{third, project.IncludeOutcomeIncluded},
-		{first, project.IncludeOutcomeDuplicated},
-	}
-	if len(results) != len(want) {
-		t.Fatalf("结果应逐篇返回（%d 条），实际 %d 条: %+v", len(want), len(results), results)
-	}
-	for i, w := range want {
-		if results[i].ArticleID != w.id || results[i].Outcome != w.outcome {
-			t.Fatalf("第 %d 条结果应为 (%s, %s)，实际 (%s, %s)",
-				i, w.id, w.outcome, results[i].ArticleID, results[i].Outcome)
-		}
-	}
-
-	ids, err := repos.FakeProjects().ListItemIDs(context.Background(), id)
-	if err != nil {
-		t.Fatalf("读收录失败: %v", err)
-	}
-	if len(ids) != 3 || ids[0] != first || ids[1] != second || ids[2] != third {
-		t.Fatalf("批量收录后的顺序不对: %v", ids)
-	}
-}
-
-// TestIncludeProjectBatchRequiresAdmin 批量收录与单篇同一条权限线，被拒绝时一篇都不能落库。
-func TestIncludeProjectBatchRequiresAdmin(t *testing.T) {
-	t.Parallel()
-
-	svc, repos, _ := newService(t)
-	id := createProject(t, svc, "主题项目")
-	a1 := seedPublished(t, repos, 121)
-	a2 := seedPublished(t, repos, 122)
-
-	_, err := svc.IncludeProjectArticles(context.Background(), app.IncludeProjectArticlesCmd{
-		Actor:      authorViewer(),
-		ProjectID:  id,
-		ArticleIDs: []domain.ArticleID{a1, a2},
-	})
-	if !errors.Is(err, domain.ErrForbidden) {
-		t.Fatalf("非管理员批量收录应被拒绝，实际 %v", err)
-	}
-	if ids, _ := repos.FakeProjects().ListItemIDs(context.Background(), id); len(ids) != 0 {
-		t.Fatalf("被拒绝的批量收录不应落库: %v", ids)
-	}
-}
-
-// TestRemoveProjectArticleCompactsOrder 移除后剩余序号压实成 1..n，不留洞。
-// 移除幂等：不在项目里也成功。
-func TestRemoveProjectArticleCompactsOrder(t *testing.T) {
-	t.Parallel()
-
-	svc, repos, _ := newService(t)
-	id := createProject(t, svc, "主题项目")
-	a1 := seedPublished(t, repos, 41)
-	a2 := seedPublished(t, repos, 42)
-	a3 := seedPublished(t, repos, 43)
-	includeProjectArticle(t, svc, id, a1)
-	includeProjectArticle(t, svc, id, a2)
-	includeProjectArticle(t, svc, id, a3)
-
-	if err := svc.RemoveProjectArticle(context.Background(), app.RemoveProjectArticleCmd{
-		Actor: adminViewer(), ProjectID: id, ArticleID: a2,
-	}); err != nil {
-		t.Fatalf("移除收录失败: %v", err)
-	}
-
-	detail, err := svc.ProjectDetail(context.Background(), id, false)
-	if err != nil {
-		t.Fatalf("读项目详情失败: %v", err)
-	}
-	if len(detail.Articles) != 2 {
-		t.Fatalf("移除后应剩 2 篇，实际 %d", len(detail.Articles))
-	}
-	if detail.Articles[0].SortOrder != 1 || detail.Articles[1].SortOrder != 2 {
-		t.Fatalf("序号应压实为 1,2，实际 %d,%d",
-			detail.Articles[0].SortOrder, detail.Articles[1].SortOrder)
-	}
-	if detail.Articles[0].ArticleID != a1 || detail.Articles[1].ArticleID != a3 {
-		t.Fatalf("移除后剩余顺序不对: %v / %v", detail.Articles[0].ArticleID, detail.Articles[1].ArticleID)
-	}
-
-	// 幂等 + 权限。
-	if err := svc.RemoveProjectArticle(context.Background(), app.RemoveProjectArticleCmd{
-		Actor: adminViewer(), ProjectID: id, ArticleID: domain.ArticleID(ctype.NewID(999)),
-	}); err != nil {
-		t.Fatalf("移除不存在的收录应幂等成功，实际 %v", err)
-	}
-	if err := svc.RemoveProjectArticle(context.Background(), app.RemoveProjectArticleCmd{
-		Actor: authorViewer(), ProjectID: id, ArticleID: a1,
-	}); !errors.Is(err, domain.ErrForbidden) {
-		t.Fatalf("非管理员移除应被拒绝，实际 %v", err)
 	}
 }
 
@@ -448,53 +224,6 @@ func TestReaderListHidesUndisplayedProject(t *testing.T) {
 		Actor: authorViewer(), ProjectID: id, Displayed: true,
 	}); !errors.Is(err, domain.ErrForbidden) {
 		t.Fatalf("非管理员切展示应被拒绝，实际 %v", err)
-	}
-}
-
-// TestReplaceProjectArticleOrder 项目内手工排序：读者详情按新顺序返回，
-// 集合不一致整单拒绝，非管理员被拒。
-func TestReplaceProjectArticleOrder(t *testing.T) {
-	t.Parallel()
-
-	svc, repos, _ := newService(t)
-	id := createProject(t, svc, "主题项目")
-	a1 := seedPublished(t, repos, 51)
-	a2 := seedPublished(t, repos, 52)
-	a3 := seedPublished(t, repos, 53)
-	includeProjectArticle(t, svc, id, a1)
-	includeProjectArticle(t, svc, id, a2)
-	includeProjectArticle(t, svc, id, a3)
-
-	if err := svc.ReplaceProjectArticleOrder(context.Background(), adminViewer(), id,
-		[]project.ArticleID{project.ArticleID(a3), project.ArticleID(a1), project.ArticleID(a2)}); err != nil {
-		t.Fatalf("项目内换序失败: %v", err)
-	}
-
-	detail, err := svc.ProjectDetail(context.Background(), id, false)
-	if err != nil {
-		t.Fatalf("读项目详情失败: %v", err)
-	}
-	wantIDs := []domain.ArticleID{a3, a1, a2}
-	for i, want := range wantIDs {
-		if detail.Articles[i].ArticleID != want || detail.Articles[i].SortOrder != i+1 {
-			t.Fatalf("第 %d 篇应为 (%s, %d)，实际 (%s, %d)", i+1, want, i+1,
-				detail.Articles[i].ArticleID, detail.Articles[i].SortOrder)
-		}
-	}
-
-	// 集合不一致（漏一篇）整单拒绝，顺序不动。
-	before, _ := repos.FakeProjects().ListItemIDs(context.Background(), id)
-	if err := svc.ReplaceProjectArticleOrder(context.Background(), adminViewer(), id,
-		[]project.ArticleID{project.ArticleID(a3), project.ArticleID(a1)}); !apperr.IsCode(err, apperr.CodeProjectOrderMismatch) {
-		t.Fatalf("集合不一致应报顺序冲突，实际 %v", err)
-	}
-	if after, _ := repos.FakeProjects().ListItemIDs(context.Background(), id); !sameIDs(before, after) {
-		t.Fatalf("被拒绝的换序不应改动数据: %v → %v", before, after)
-	}
-
-	if err := svc.ReplaceProjectArticleOrder(context.Background(), authorViewer(), id,
-		[]project.ArticleID{project.ArticleID(a1), project.ArticleID(a3), project.ArticleID(a2)}); !errors.Is(err, domain.ErrForbidden) {
-		t.Fatalf("非管理员项目内换序应被拒绝，实际 %v", err)
 	}
 }
 
@@ -548,122 +277,4 @@ func TestReplaceProjectSortOrderReordersReaderList(t *testing.T) {
 		[]project.ID{second, first, third}); !errors.Is(err, domain.ErrForbidden) {
 		t.Fatalf("非管理员换序应被拒绝，实际 %v", err)
 	}
-}
-
-// TestListProjectAdminItemsIncludesOrderAndStale 后台收录行读面：
-// 按顺序返回、带上标题、并标出已失效的收录（排序要拿完整集合去提交，失效行不能漏）。
-func TestListProjectAdminItemsIncludesOrderAndStale(t *testing.T) {
-	t.Parallel()
-
-	svc, repos, _ := newService(t)
-	id := createProject(t, svc, "主题项目")
-	a1 := seedPublished(t, repos, 131)
-	a2 := seedPublished(t, repos, 132)
-	includeProjectArticle(t, svc, id, a1)
-	includeProjectArticle(t, svc, id, a2)
-
-	// 收录后文章变私有：收录行保留（后台要能看见并清理），读者侧由仓储过滤。
-	repos.FakeArticles().Seed(apptest.NewArticle().
-		ID(a2).Author(author).Status(domain.StatusPublished).Visibility(domain.VisibilityUserHidden).Build())
-
-	items, err := svc.ListProjectAdminItems(context.Background(), adminViewer(), id)
-	if err != nil {
-		t.Fatalf("读后台收录行失败: %v", err)
-	}
-	if len(items) != 2 || items[0].ArticleID != a1 || items[1].ArticleID != a2 {
-		t.Fatalf("收录行不对: %+v", items)
-	}
-	if items[0].SortOrder != 1 || items[1].SortOrder != 2 {
-		t.Fatalf("序号应连续: %d / %d", items[0].SortOrder, items[1].SortOrder)
-	}
-	if items[0].Stale() || !items[1].Stale() {
-		t.Fatalf("失效标记不对: %v / %v", items[0].Stale(), items[1].Stale())
-	}
-	if items[1].StaleReason() == "" {
-		t.Fatalf("失效行应给出原因: %+v", items[1])
-	}
-
-	if _, err := svc.ListProjectAdminItems(context.Background(), authorViewer(), id); !errors.Is(err, domain.ErrForbidden) {
-		t.Fatalf("非管理员读后台收录行应被拒绝，实际 %v", err)
-	}
-}
-
-// TestCleanupStaleProjectRemovesOnlyStaleAndIsIdempotent 一键清理只删失效行，可重复调用。
-func TestCleanupStaleProjectRemovesOnlyStaleAndIsIdempotent(t *testing.T) {
-	t.Parallel()
-
-	svc, repos, _ := newService(t)
-	id := createProject(t, svc, "主题项目")
-
-	live := seedPublished(t, repos, 101)
-	draft := seedPublished(t, repos, 102)
-	hidden := seedPublished(t, repos, 103)
-	deleted := seedPublished(t, repos, 104)
-	for _, articleID := range []domain.ArticleID{live, draft, hidden, deleted} {
-		includeProjectArticle(t, svc, id, articleID)
-	}
-
-	repos.FakeArticles().Seed(apptest.NewArticle().
-		ID(draft).Author(author).Status(domain.StatusDraft).
-		Visibility(domain.VisibilityVisible).Build())
-	repos.FakeArticles().Seed(apptest.NewArticle().
-		ID(hidden).Author(author).Status(domain.StatusPublished).
-		Visibility(domain.VisibilityUserHidden).Build())
-	if err := repos.FakeArticles().SoftDelete(context.Background(), deleted); err != nil {
-		t.Fatalf("软删文章失败: %v", err)
-	}
-
-	if removed := cleanupStaleProject(t, svc, id); removed != 3 {
-		t.Fatalf("应清理 3 条失效行，实际 %d", removed)
-	}
-
-	ids, err := repos.FakeProjects().ListItemIDs(context.Background(), id)
-	if err != nil {
-		t.Fatalf("读收录失败: %v", err)
-	}
-	if len(ids) != 1 || ids[0] != live {
-		t.Fatalf("清理后应只剩仍公开的那篇 %s，实际 %v", live, ids)
-	}
-	items, err := svc.ListProjectAdminItems(context.Background(), adminViewer(), id)
-	if err != nil {
-		t.Fatalf("清理后读后台收录行失败: %v", err)
-	}
-	if len(items) != 1 || items[0].Stale() || items[0].SortOrder != 1 {
-		t.Fatalf("清理后后台应只剩 1 行在架文章且序号压实为 1，实际 %+v", items)
-	}
-
-	// 幂等：再点一次不会删到生效行，返回 0。
-	if removed := cleanupStaleProject(t, svc, id); removed != 0 {
-		t.Fatalf("第二次清理应为 0，实际 %d", removed)
-	}
-	if ids, _ := repos.FakeProjects().ListItemIDs(context.Background(), id); len(ids) != 1 || ids[0] != live {
-		t.Fatalf("重复清理不应改动在架文章，实际 %v", ids)
-	}
-
-	// 权限：匿名 / 普通用户不能清理；不存在的项目按不存在处理。
-	for name, viewer := range map[string]domain.Viewer{
-		"匿名":   domain.Anonymous(),
-		"普通用户": authorViewer(),
-	} {
-		if _, err := svc.CleanupStaleProjectArticles(context.Background(), viewer, id); !errors.Is(err, domain.ErrForbidden) {
-			t.Fatalf("%s 清理失效行应被拒绝，实际 %v", name, err)
-		}
-	}
-	if _, err := svc.CleanupStaleProjectArticles(context.Background(), adminViewer(),
-		project.ID(ctype.NewID(9999))); !apperr.IsCode(err, apperr.CodeProjectNotFound) {
-		t.Fatalf("不存在的项目清理应返回不存在，实际 %v", err)
-	}
-}
-
-// sameIDs 比较两个 ID 序列（大小写/顺序都要求一致）。
-func sameIDs(a, b []project.ArticleID) bool {
-	if len(a) != len(b) {
-		return false
-	}
-	for i := range a {
-		if a[i] != b[i] {
-			return false
-		}
-	}
-	return true
 }

@@ -49,7 +49,7 @@ const emptyDescription = computed(() =>
       <li v-for="card in cards" :key="card.id" class="project-card">
         <NuxtLink :to="card.href" class="project-card__link">
           <span class="project-card__cover">
-            <ArticleCover :src="card.cover" :title="card.title" label="项目" />
+            <ArticleCover :src="card.cover" :title="card.title" />
           </span>
           <span class="project-card__body">
             <strong class="project-card__title">{{ card.title }}</strong>

@@ -29,14 +29,45 @@ export interface ShapeImageCropRect {
   sh: number;
 }
 
+/**
+ * 裁剪窗的取景状态（票 215）：缩放倍数 + 取景区域中心在源图上的归一化坐标。
+ * 这是**内存里的临时状态**，确认后只会被换算成源图矩形烤进新文件；不存任何参数。
+ */
+export interface ShapeFramingState {
+  /** 1 = 目标比例下能取到的最大区域（等于自动居中裁的那块），3 = 放大三倍。 */
+  zoom: number;
+  /** 取景区域中心在源图上的相对位置（0–1）。 */
+  centerX: number;
+  centerY: number;
+}
+
+/** 裁剪窗的缩放范围（票 215 的交互规格：1–3×，不做 0.x 的外扩）。 */
+export const SHAPE_FRAMING_ZOOM_MIN = 1;
+export const SHAPE_FRAMING_ZOOM_MAX = 3;
+/** 一次键盘/按钮缩放的步长；滑杆也用它当步进。 */
+export const SHAPE_FRAMING_ZOOM_STEP = 0.1;
+
+/** 打开裁剪窗时的默认取景：居中、1×（与自动居中裁切完全同一块区域）。 */
+export const DEFAULT_SHAPE_FRAMING: ShapeFramingState = { zoom: 1, centerX: 0.5, centerY: 0.5 };
+
+/**
+ * 与目标比例的相对偏差容差：±1%（票 215 / ADR-0015 后续修订）。
+ * 偏差按目标比例归一化，因此 16:9 与 1:1 两个目标共用同一个阈值。
+ */
+export const SHAPE_ASPECT_TOLERANCE = 0.01;
+
 /** 定形产物类型：只允许位图格式，不允许 SVG（canvas 无法安全栅格化外部 SVG）。 */
 export type ShapeImageOutputType = "image/png" | "image/jpeg" | "image/webp";
 
-/** 定形参数：目标尺寸 + 输出类型（JPEG/WebP 可给质量）。 */
+/**
+ * 定形参数：目标尺寸 + 输出类型（JPEG/WebP 可给质量）。
+ * `framing` 存在时按作者在裁剪窗里选定的区域取景；缺省＝自动居中裁切。
+ */
 export interface ShapeImageOptions {
   target: ShapeImageTarget;
   outputType: ShapeImageOutputType;
   quality?: number;
+  framing?: ShapeFramingState;
 }
 
 /** 解码后的源：原始尺寸 + 能直接交给 drawImage 的对象。 */
@@ -144,6 +175,190 @@ export function centerCropRect(
 }
 
 /**
+ * 源图比例与目标比例的**相对偏差**（0.01 = 1%）。
+ * 按目标比例归一化，所以"差 1%"在 16:9 与 1:1 下是同一个口径。
+ * 尺寸非法时返回 Infinity（当作"必须让作者选"），不让脏数据走进自动居中。
+ */
+export function aspectRatioDeviation(source: ShapeImageTarget, target: ShapeImageTarget): number {
+  if (
+    !(source.width > 0) ||
+    !(source.height > 0) ||
+    !(target.width > 0) ||
+    !(target.height > 0)
+  ) {
+    return Number.POSITIVE_INFINITY;
+  }
+  const targetRatio = target.width / target.height;
+  return Math.abs(source.width / source.height - targetRatio) / targetRatio;
+}
+
+/** 比例合规（相差 ≤ tolerance）→ 直接自动居中裁，不弹裁剪窗。 */
+export function isAspectRatioCompliant(
+  source: ShapeImageTarget,
+  target: ShapeImageTarget,
+  tolerance: number = SHAPE_ASPECT_TOLERANCE,
+): boolean {
+  const deviation = aspectRatioDeviation(source, target);
+  return Number.isFinite(deviation) && deviation <= tolerance;
+}
+
+/** 比例不合规（相差 > 1%）→ 必须由作者在裁剪窗里选区域。 */
+export function needsFraming(
+  source: ShapeImageTarget,
+  target: ShapeImageTarget,
+  tolerance: number = SHAPE_ASPECT_TOLERANCE,
+): boolean {
+  return !isAspectRatioCompliant(source, target, tolerance);
+}
+
+/** 把值夹在 [min, max]；区间非法（源图比取景框还小）时取 0。 */
+function clampRange(value: number, min: number, max: number): number {
+  if (max <= min) return min;
+  return Math.min(max, Math.max(min, value));
+}
+
+/**
+ * 取景状态钳位：缩放夹在 1–3×，中心夹到"取景框不越过源图边界"的范围。
+ * 非法输入回落到默认值（居中 / 1×），不让 NaN 传进 drawImage。
+ */
+export function clampFraming(
+  framing: ShapeFramingState,
+  source: ShapeImageTarget,
+  target: ShapeImageTarget,
+): ShapeFramingState {
+  const rawZoom = Number.isFinite(framing.zoom) ? framing.zoom : DEFAULT_SHAPE_FRAMING.zoom;
+  const zoom = Math.min(SHAPE_FRAMING_ZOOM_MAX, Math.max(SHAPE_FRAMING_ZOOM_MIN, rawZoom));
+
+  // 1× 的取景框 = 自动居中裁的那块；放大只会让它变小，所以永远塞得进源图。
+  const base = centerCropRect(source, target);
+  const halfWidth = (base.sw / zoom) / 2 / source.width;
+  const halfHeight = (base.sh / zoom) / 2 / source.height;
+
+  const rawCenterX = Number.isFinite(framing.centerX) ? framing.centerX : DEFAULT_SHAPE_FRAMING.centerX;
+  const rawCenterY = Number.isFinite(framing.centerY) ? framing.centerY : DEFAULT_SHAPE_FRAMING.centerY;
+
+  return {
+    zoom,
+    centerX: clampRange(rawCenterX, halfWidth, 1 - halfWidth),
+    centerY: clampRange(rawCenterY, halfHeight, 1 - halfHeight),
+  };
+}
+
+/**
+ * 把裁剪窗里的取景状态换算成**源图上的矩形**（drawImage 的 9 参形式前 4 个）。
+ *
+ * 这是"预览与最终文件一致"的唯一换算出口：预览组件用它画画面，`shapeImage`
+ * 用它烤文件——不存在第二套几何。
+ * 默认取景（居中、1×）与 `centerCropRect` 逐值相同。
+ */
+export function framingSourceRect(
+  source: ShapeImageTarget,
+  target: ShapeImageTarget,
+  framing: ShapeFramingState = DEFAULT_SHAPE_FRAMING,
+): ShapeImageCropRect {
+  const clamped = clampFraming(framing, source, target);
+  const base = centerCropRect(source, target);
+  const sw = base.sw / clamped.zoom;
+  const sh = base.sh / clamped.zoom;
+
+  return {
+    sx: clampRange(clamped.centerX * source.width - sw / 2, 0, source.width - sw),
+    sy: clampRange(clamped.centerY * source.height - sh / 2, 0, source.height - sh),
+    sw,
+    sh,
+  };
+}
+
+/**
+ * 图片在取景框里的布局（相对框的分数）：四边偏移与放大倍数。
+ * 与 `framingSourceRect` 一一对应——预览把源矩形的左上角对到框的左上角。
+ */
+export interface ShapeFramingImageBox {
+  left: number;
+  top: number;
+  width: number;
+  height: number;
+}
+
+export function framingImageBox(
+  source: ShapeImageTarget,
+  target: ShapeImageTarget,
+  framing: ShapeFramingState = DEFAULT_SHAPE_FRAMING,
+): ShapeFramingImageBox {
+  const rect = framingSourceRect(source, target, framing);
+  // 源矩形贴边时偏移是 0 而不是 -0（-0 在对象比较与 CSS 序列化里都是噪声）。
+  return {
+    left: rect.sx === 0 ? 0 : -rect.sx / rect.sw,
+    top: rect.sy === 0 ? 0 : -rect.sy / rect.sh,
+    width: source.width / rect.sw,
+    height: source.height / rect.sh,
+  };
+}
+
+/**
+ * 拖动画面：dx/dy 是被拖动的距离占取景框宽/高的**比例**（向右为正）。
+ * 拖动画面向右＝取景范围向左，所以中心反向移动；结果始终重新钳位。
+ */
+export function panFramingByFraction(
+  framing: ShapeFramingState,
+  dx: number,
+  dy: number,
+  source: ShapeImageTarget,
+  target: ShapeImageTarget,
+): ShapeFramingState {
+  const rect = framingSourceRect(source, target, framing);
+  return clampFraming(
+    {
+      zoom: framing.zoom,
+      centerX: framing.centerX - (dx * rect.sw) / source.width,
+      centerY: framing.centerY - (dy * rect.sh) / source.height,
+    },
+    source,
+    target,
+  );
+}
+
+/**
+ * 方向键移动**取景范围**（右箭头看右边）：与拖动方向相反，两个动词各自讲得清。
+ * dx/dy 是取景框宽/高的比例。
+ */
+export function nudgeFraming(
+  framing: ShapeFramingState,
+  dx: number,
+  dy: number,
+  source: ShapeImageTarget,
+  target: ShapeImageTarget,
+): ShapeFramingState {
+  return panFramingByFraction(framing, -dx, -dy, source, target);
+}
+
+/** 按步长缩放（direction = 1 放大 / -1 缩小），并在 1–3× 端点停住。 */
+export function stepFramingZoom(
+  framing: ShapeFramingState,
+  direction: number,
+  source: ShapeImageTarget,
+  target: ShapeImageTarget,
+): ShapeFramingState {
+  return clampFraming(
+    { ...framing, zoom: framing.zoom + direction * SHAPE_FRAMING_ZOOM_STEP },
+    source,
+    target,
+  );
+}
+
+/** 量原图像素尺寸（选图后先判比例）；不建画布、不裁切。失败按定形失败上报。 */
+export async function measureImage(
+  file: Blob,
+  deps: ShapeImageDeps = browserShapeImageDeps,
+): Promise<ShapeImageTarget> {
+  if (!isImageFile(file)) {
+    throw new ImageShapingError("not_image", "只能处理图片文件（JPG / PNG / WebP / GIF）");
+  }
+  const decoded = await decodeSource(deps, file);
+  return { width: decoded.width, height: decoded.height };
+}
+
+/**
  * 定形主入口：居中裁成目标比例 → 降采样到目标像素 → 编码成目标类型。
  * 纯编排：所有浏览器副作用都在注入点里。
  */
@@ -169,7 +384,10 @@ export async function shapeImage(
   context.imageSmoothingEnabled = true;
   context.imageSmoothingQuality = "high";
 
-  const rect = centerCropRect(decoded, target);
+  // 比例合规走自动居中；裁剪窗确认时走同一份换算（选区即 drawImage 的源矩形）。
+  const rect = options.framing
+    ? framingSourceRect(decoded, target, options.framing)
+    : centerCropRect(decoded, target);
   context.drawImage(
     decoded.source,
     rect.sx,

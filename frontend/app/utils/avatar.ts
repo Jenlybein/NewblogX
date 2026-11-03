@@ -1,17 +1,32 @@
-import { shapeImage, type ShapeImageDeps, type ShapeImageOptions } from "./imageShaping";
+import { shapeImage, type ShapeFramingState, type ShapeImageDeps, type ShapeImageOptions, type ShapeImageTarget } from "./imageShaping";
+
+/** 头像的目标尺寸：1:1、256×256（裁剪窗的比例框与定形产物共用这一个取值）。 */
+export const AVATAR_SHAPE_TARGET: ShapeImageTarget = { width: 256, height: 256 };
+
+/** 头像的固定比例口径（1:1）；界面文案与裁剪窗的可访问名称都消费它。 */
+export const AVATAR_RATIO_TEXT = "1:1";
 
 /**
  * 头像定形参数：居中裁成 1:1、降采样到 256×256、输出 PNG。
  * 这是「头像定形」的唯一参数真相（见 GLOSSARY）；上传原图的做法已退场。
  */
 export const AVATAR_SHAPE_OPTIONS: ShapeImageOptions = {
-  target: { width: 256, height: 256 },
+  target: AVATAR_SHAPE_TARGET,
   outputType: "image/png",
 };
 
 /** 头像定形入口：返回可直接上传的新 PNG，原图不上传。 */
 export function shapeAvatar(file: Blob, deps?: ShapeImageDeps): Promise<Blob> {
   return shapeImage(file, AVATAR_SHAPE_OPTIONS, deps);
+}
+
+/** 裁剪窗确认后的头像定形：按作者选定的区域取景，产物参数与自动路径完全一致。 */
+export function shapeAvatarWithFraming(
+  file: Blob,
+  framing: ShapeFramingState,
+  deps?: ShapeImageDeps,
+): Promise<Blob> {
+  return shapeImage(file, { ...AVATAR_SHAPE_OPTIONS, framing }, deps);
 }
 
 const AVATAR_FIELD_CANDIDATES = [

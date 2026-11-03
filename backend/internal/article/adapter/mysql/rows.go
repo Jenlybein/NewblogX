@@ -307,21 +307,6 @@ type collectionRow struct {
 // TableName 固定表名。
 func (collectionRow) TableName() string { return "collection_models" }
 
-// collectionArticleRow 对应 collection_article_models 表（合集-文章中间表）。
-//
-// 唯一索引 uk_collection_article **不含 deleted_at**：移除是软删，行留在表里
-// 占着这个键，所以"移除后再收录"必须恢复原行而不是新插入（与点赞表
-// uk_article_digg 是同一个坑）。
-type collectionArticleRow struct {
-	BaseRow
-	CollectionID ctype.ID `gorm:"uniqueIndex:uk_collection_article,priority:1;not null"`
-	ArticleID    ctype.ID `gorm:"uniqueIndex:uk_collection_article,priority:2;not null;index:idx_collection_article_models_article_id"`
-	SortOrder    int      `gorm:"not null;default:0"`
-}
-
-// TableName 固定表名。
-func (collectionArticleRow) TableName() string { return "collection_article_models" }
-
 // projectRow 对应 project_models 表（项目主表）。
 //
 // 字段与 testkit/schema 的 ProjectRow 逐字一致：schema_sql_integration_test
@@ -339,17 +324,27 @@ type projectRow struct {
 // TableName 固定表名。
 func (projectRow) TableName() string { return "project_models" }
 
-// projectArticleRow 对应 project_article_models 表（项目-文章中间表）。
+// outlineNodeRow 对应表 content_outline_node_models（合集 / 项目共用的目录树）。
 //
-// 唯一索引 uk_project_article **不含 deleted_at**：移除是软删，行留在表里
-// 占着这个键（与合集/点赞表是同一个坑）。
-type projectArticleRow struct {
+// 与 owner 无关的一张树表：owner_kind 区分合集与项目，parent_id 表达层次，
+// kind 区分文件夹与文章节点。字段与 testkit/schema 的 OutlineNodeRow 逐字一致：
+// schema_sql_integration_test 会把 schema.sql 建出来的表与行结构逐列比对。
+//
+// 唯一键 uk_outline_owner_article 是 (owner_kind, owner_id, article_id)，
+// **不含 deleted_at**：移除是软删，行留在表里占着文章键，所以"移出后再收录"
+// 必须恢复原行而不是新插入（与点赞表是同一个坑）。
+// 文件夹节点的 article_id 为 NULL（不是 0）——MySQL 的唯一索引里 NULL 互不冲突，
+// 否则同一棵树的所有文件夹都会撞这条唯一键。
+type outlineNodeRow struct {
 	BaseRow
-	ProjectID ctype.ID `gorm:"uniqueIndex:uk_project_article,priority:1;not null"`
-	ArticleID ctype.ID `gorm:"uniqueIndex:uk_project_article,priority:2;not null;index:idx_project_article_models_article_id"`
-	SortOrder int      `gorm:"not null;default:0"`
+	OwnerKind int       `gorm:"not null;index:idx_outline_owner,priority:1;uniqueIndex:uk_outline_owner_article,priority:1"`
+	OwnerID   ctype.ID  `gorm:"not null;index:idx_outline_owner,priority:2;uniqueIndex:uk_outline_owner_article,priority:2"`
+	ParentID  ctype.ID  `gorm:"not null;default:0"`
+	Kind      int       `gorm:"not null"`
+	Title     string    `gorm:"type:varchar(128);not null"`
+	ArticleID *ctype.ID `gorm:"uniqueIndex:uk_outline_owner_article,priority:3"`
+	SortOrder int       `gorm:"not null;default:0"`
 }
 
 // TableName 固定表名。
-func (projectArticleRow) TableName() string { return "project_article_models" }
-
+func (outlineNodeRow) TableName() string { return "content_outline_node_models" }

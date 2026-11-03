@@ -10,6 +10,13 @@ type Repository interface {
 	// Find 按 ID 读取；不存在时返回 ErrArticleNotFound。
 	Find(ctx context.Context, id ArticleID) (*Article, error)
 
+	// FindIncludingDeleted 按 ID 读取，**包含已软删的文章**。
+	//
+	// 只给"关系行还在、文章已被删"的后台读面用（旧扁平 LEFT JOIN 的等价物）：
+	// 后台树要能标出 deleted 并保留标题，而不是退化成一行 missing 空白。
+	// 普通读路径仍必须用 Find——否则已删文章会被当成可展示内容。
+	FindIncludingDeleted(ctx context.Context, id ArticleID) (*Article, error)
+
 	// FindMany 批量读取，缺失的 ID 直接跳过（列表页容忍脏 ID）。
 	FindMany(ctx context.Context, ids []ArticleID) ([]*Article, error)
 

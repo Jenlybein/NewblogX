@@ -22,7 +22,7 @@ export interface CollectionCardView {
   title: string;
   /** 描述；空描述给一句"还没有介绍"。 */
   description: string;
-  /** 封面 URL；空串表示交给 ArticleCover 的兜底底纹。 */
+  /** 封面 URL；空串表示交给 ArticleCover 渲染一块与父容器同底色的空白占位（票 210）。 */
   cover: string;
   /** "N 篇文章 / 暂无文章"。 */
   countLabel: string;

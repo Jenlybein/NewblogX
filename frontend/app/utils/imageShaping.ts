@@ -10,8 +10,10 @@
  * 所有浏览器 API（decode / createCanvas / encode）都在 `deps` 后面，默认实现
  * 也只在真正调用时才碰 `document` / `Image`，模块加载期没有任何全局副作用。
  *
- * 工具保持单文件、零 import：后台（frontend_admin）按 #176 的「自洽」约束后续复制
- * 一份逐字一致的实现，由门禁比对两份文件。因此这里不能依赖读者站任何其他模块。
+ * 工具保持单文件、零 import：后台（frontend_admin）按 #176 的「自洽」约束持有
+ * 一份**逐字一致**的副本（`frontend_admin/app/utils/imageShaping.ts`），由
+ * `scripts/check-image-shaping-parity.mjs` 逐字节比对。因此这里不能依赖读者站
+ * 任何其他模块——这份文件就是两端共享面（头像、三种封面都从这里取）。
  */
 
 /** 定形目标：产物的像素宽高（也是裁切后的比例）。 */
@@ -79,6 +81,33 @@ export class ImageShapingError extends Error {
     this.code = code;
   }
 }
+
+/**
+ * 封面定形的目标尺寸：**16:9，1600×900**（#200）。三种封面上传（后台轮播、读者站
+ * 文章封面、后台合集封面）与两端的用户提示都只消费这一份取值，模板与页面里不再
+ * 各写一遍 16:9 / 1600 / 900。
+ *
+ * 为什么放在这份文件里而不是各 app 的 utils：后台不能 import 读者站模块（#176 的
+ * 「自洽」约束），共享只能靠「两端逐字节一致的同一份文件」；把取值放进这份文件，
+ * 两端拿到的常量就必然同一个，漂移会被 scripts/check-image-shaping-parity.mjs 拦住。
+ */
+export const COVER_SHAPE_TARGET: ShapeImageTarget = { width: 1600, height: 900 };
+
+/** 封面的固定比例口径（与 coverFraming 的 `COVER_FRAME_RATIO` 同一个 16:9）。 */
+export const COVER_SHAPE_RATIO_TEXT = "16:9";
+
+/** 封面产物尺寸的可读形式（界面提示与元信息都用它，免得散落魔数）。 */
+export const COVER_SHAPE_SIZE_TEXT = `${COVER_SHAPE_TARGET.width} × ${COVER_SHAPE_TARGET.height}`;
+
+/**
+ * 封面定形参数：居中裁成 16:9、降采样到 1600×900、输出 JPEG（封面是照片类内容，
+ * JPEG 比 PNG 小一个量级；上传链路只接受位图，SVG 已在类型上被排除）。
+ */
+export const COVER_SHAPE_OPTIONS: ShapeImageOptions = {
+  target: COVER_SHAPE_TARGET,
+  outputType: "image/jpeg",
+  quality: 0.9,
+};
 
 /** 只看 MIME 前缀，不看文件后缀（后缀可伪造，MIME 由浏览器按内容给出）。 */
 export function isImageFile(file: Blob): boolean {
@@ -161,6 +190,65 @@ export async function shapeImage(
   return blob;
 }
 
+/** 定形后可直接上传的产物：新文件 + 定形结果的本地预览地址 + 产物尺寸。 */
+export interface ShapedUploadFile {
+  /** 定形后的新文件（文件名与输出格式一致）；上传只发它，原图不进入链路。 */
+  file: File;
+  /** 定形产物的 object URL：上传前就能看到结果；调用方用完负责 revoke。 */
+  previewUrl: string;
+  /** 产物像素尺寸（封面即 1600×900）。 */
+  size: ShapeImageTarget;
+}
+
+/**
+ * 定形的三个浏览器/环境副作用（测试各自注入替身，因此不需要真实画布或 object URL）。
+ * `shape` 默认就是 `shapeImage`：本模块不另写一套裁切数学。
+ */
+export interface ShapedUploadDeps {
+  /** 定形实现：默认 `shapeImage`。 */
+  shape: (file: Blob, options: ShapeImageOptions) => Promise<Blob>;
+  /** 把定形产物包成可上传的文件（带上与输出格式一致的名字）。 */
+  createFile: (blob: Blob, name: string) => File;
+  /** 定形产物的本地预览地址；环境不支持时返回空串。 */
+  createObjectURL: (blob: Blob) => string;
+}
+
+/** 输出类型 → 文件后缀（上传任务按后缀判类型，产物必须带一个对得上格式的名字）。 */
+function extensionForOutputType(outputType: ShapeImageOutputType): string {
+  if (outputType === "image/jpeg") return "jpg";
+  if (outputType === "image/png") return "png";
+  return "webp";
+}
+
+/** 定形产物的文件名：沿用原图的名字、换成产物后缀；原图没有名字时用 "cover"。 */
+function shapedFileName(source: Blob, outputType: ShapeImageOutputType): string {
+  const original = typeof (source as File).name === "string" ? (source as File).name : "";
+  const withoutExtension = original.replace(/\.\w+$/u, "").trim();
+  return `${withoutExtension || "cover"}.${extensionForOutputType(outputType)}`;
+}
+
+/**
+ * 上传前定形（#200）：把选中的文件定形成目标尺寸/比例，产出**新文件**与它的本地预览。
+ *
+ * 调用方拿到结果后只上传 `result.file`——原图不进入上传链路（GLOSSARY「定形」）。
+ * 预览地址由调用方持有并负责 revoke（切换/移除封面时）。
+ */
+export async function shapeForUpload(
+  file: Blob,
+  options: ShapeImageOptions,
+  deps: ShapedUploadDeps = browserShapedUploadDeps,
+): Promise<ShapedUploadFile> {
+  const target = normalizeShapeTarget(options.target);
+  // 定形失败直接上抛：不做半成品（既是"没产出图片"，也是"没产出预览"）。
+  const shaped = await deps.shape(file, { ...options, target });
+  const name = shapedFileName(file, options.outputType);
+  return {
+    file: deps.createFile(shaped, name),
+    previewUrl: deps.createObjectURL(shaped),
+    size: target,
+  };
+}
+
 async function decodeSource(deps: ShapeImageDeps, file: Blob): Promise<ShapeImageSource> {
   try {
     const decoded = await deps.decode(file);
@@ -233,4 +321,18 @@ export const browserShapeImageDeps: ShapeImageDeps = {
   decode: decodeInBrowser,
   createCanvas: createBrowserCanvas,
   encode: encodeInBrowser,
+};
+
+/** 定形成可上传文件的默认实现：只在真正调用时才碰 `File` / `URL`。 */
+export const browserShapedUploadDeps: ShapedUploadDeps = {
+  shape: (file, options) => shapeImage(file, options, browserShapeImageDeps),
+  createFile: (blob, name) => new File([blob], name, { type: blob.type }),
+  createObjectURL: (blob) => {
+    try {
+      // 非浏览器环境（SSR / 无 object URL 的宿主）没有预览地址：留空不影响上传。
+      return typeof URL.createObjectURL === "function" ? URL.createObjectURL(blob) : "";
+    } catch {
+      return "";
+    }
+  },
 };

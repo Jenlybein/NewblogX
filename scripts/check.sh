@@ -300,6 +300,11 @@ if [ "$TARGET" = "all" ] || [ "$TARGET" = "frontend" ]; then
   # 这是仓库级判据（比较两份文件），与 app 无关，所以在循环外只跑一次；
   # CI 的 frontend-lint job 跑同一条命令，避免"本地一份、CI 一份"的口径漂移。
   run "两端 token 同源" node scripts/check-token-parity.mjs
+  # 两端 imageShaping.ts 逐字节同源（#200；#195 交办的跨包共享）。
+  # 后台不得相对路径 import 读者站模块（#176 曾因此让生产构建失败），所以三种封面
+  # 与头像共用的定形实现只能靠"两端各一份逐字复制 + 门禁比对"。同样是仓库级判据，
+  # 与 app 无关，紧挨 token 同源跑一次。
+  run "两端定形工具同源" node scripts/check-image-shaping-parity.mjs
   for app in frontend frontend_admin; do
     (
       cd "$app"

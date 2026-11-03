@@ -9,7 +9,6 @@ import {
   buildBannerCreatePayload,
   describeBannerCoverSize,
   readImageSize,
-  requiresFraming,
   saveBannerReframe,
   saveBannerTitle,
   uploadBannerCover,
@@ -19,6 +18,12 @@ import { BANNER_SHOW_FILTER_OPTIONS, buildBannerListQuery } from '~/utils/banner
 import type { BannerShowFilter } from '~/utils/bannerList'
 import { DEFAULT_FRAMING, clampFraming } from '~/utils/framing'
 import type { Framing, Size } from '~/utils/framing'
+import {
+  COVER_SHAPE_OPTIONS,
+  COVER_SHAPE_RATIO_TEXT,
+  COVER_SHAPE_SIZE_TEXT,
+  shapeForUpload,
+} from '~/utils/imageShaping'
 import { formatDateTime } from '~/utils/format'
 import { hasNextPage } from '~/utils/pagination'
 
@@ -39,21 +44,23 @@ const images = ref<ImageListItem[]>([])
 const bannerFileInputRef = ref<HTMLInputElement | null>(null)
 
 /**
- * 当前选好的封面（可能已经上传，也可能还在等取景确认）。
+ * 当前选好的封面（上传前已经定形成 16:9）。
  *
- * spec 要求"本地读像素尺寸、不合规不先传"：合规图判定后**立即上传**并持有
- * `image_id`；不合规图在取景确认后自动上传。上传都发生在创建之前，点「创建轮播」
- * 只创建 banner，不重复上传。取消强制取景仍中止本次上传。
+ * 票 200 起：选中的原图**先在客户端定形**（居中裁成 16:9、降采样到 1600×900），
+ * 上传的是定形产物，原图不进入上传链路。定形产物落地后立即可预览（本地 object URL），
+ * 随后自动上传并持有 `image_id`；点「创建轮播」只创建 banner，不重复上传。
+ * 取景窗入口仍然保留（手动取景 / 列表里的历史行重新取景），只是不再强制填写。
  */
 interface PendingBannerCover {
+  /** 定形后的新文件（原图已被替换掉，不会上传）。 */
   file: File
-  /** `URL.createObjectURL(file)`：既是本地预览，也是取景窗的图源。 */
+  /** 定形产物的 `URL.createObjectURL`：既是本地预览，也是取景窗的图源。 */
   previewUrl: string
+  /** 定形产物的像素尺寸（固定 1600×900），取景窗的几何基准。 */
   size: Size
-  requiresFraming: boolean
-  /** 取景参数；不合规时在确认前一直是 null（创建按钮会拦住）。 */
+  /** 取景参数；没手动调过时是 null，创建时按居中缺省提交（不强制填写）。 */
   framing: Framing | null
-  /** 是否已经经过一次取景（决定按钮写"手动取景"还是"调整取景"）。 */
+  /** 是否手动调过一次取景（决定按钮写"手动取景"还是"调整取景"）。 */
   adjusted: boolean
 }
 
@@ -90,13 +97,6 @@ const framingDialog = reactive({
 type FramingTarget = { kind: 'pending' } | { kind: 'banner'; row: BannerModel }
 
 let framingTarget: FramingTarget | null = null
-/**
- * 取消是否要中止这次上传。
- *
- * 只有"比例不合规、弹窗强制取景"这一条路径是 true：运营点取消必须等于放弃本次
- * 上传。手动再打开取景窗时取消只是关窗，不推翻已经做出的选择。
- */
-let abortOnFramingCancel = false
 
 /**
  * 列表里的原图尺寸与比例标记。
@@ -291,10 +291,6 @@ async function submitBanner() {
     message.warning('请先选择轮播封面')
     return
   }
-  if (pending && pending.requiresFraming && !pending.framing) {
-    message.warning('这张图与 16:9 相差超过 1%，请先完成取景再创建轮播')
-    return
-  }
 
   bannerSubmitting.value = true
   try {
@@ -390,64 +386,51 @@ async function handleBannerCoverFileChange(event: Event) {
   }
 
   clearBannerCoverSelection()
-  const previewUrl = URL.createObjectURL(file)
-  bannerUploadStage.value = '正在读取图片尺寸…'
+  bannerUploadStage.value = '正在定形成 16:9 封面…'
   bannerUploading.value = true
   try {
-    const size = await readImageSize(previewUrl, () => new Image())
-    if (!size) {
-      throw new Error('读不到这张图的像素尺寸，请换一张图片')
-    }
-
-    const needsFraming = requiresFraming(size)
+    // 上传前定形（票 200）：居中裁成 16:9、降采样到 1600×900，产出新文件。
+    // 上传只发定形产物，原图不进入链路（GLOSSARY「定形」）。
+    const shaped = await shapeForUpload(file, COVER_SHAPE_OPTIONS)
     const pending: PendingBannerCover = {
-      file,
-      previewUrl,
-      size,
-      requiresFraming: needsFraming,
-      framing: needsFraming ? null : DEFAULT_FRAMING,
+      file: shaped.file,
+      previewUrl: shaped.previewUrl,
+      size: shaped.size,
+      framing: null,
       adjusted: false,
     }
     pendingCover.value = pending
 
-    if (needsFraming) {
-      bannerUploadStage.value = '比例与 16:9 相差超过 1%，请先取景'
-      openPendingFraming(true)
-      return
-    }
-
-    // 合规＝直接上传（spec 字面要求），不推迟到点「创建轮播」。这样运营少点一次，
-    // 且上传失败时本地文件还在，点创建会走 submitBanner 的兜底重试。
-    bannerUploadStage.value = `比例合规（${size.width} × ${size.height}），正在上传封面…`
+    // 定形结果先落到预览上（运营看到的就是即将上传的那张图），再自动上传。
+    bannerUploadStage.value = `已定形成 ${COVER_SHAPE_SIZE_TEXT}（${COVER_SHAPE_RATIO_TEXT}），正在上传封面…`
     const uploaded = await uploadPendingBannerCover(pending, '封面上传完成，点击「创建轮播」保存')
     if (!uploaded) {
       bannerUploadStage.value = '封面上传失败，可点击「创建轮播」重试'
     }
   } catch (error) {
-    URL.revokeObjectURL(previewUrl)
     bannerUploadStage.value = ''
-    message.error(error instanceof Error ? error.message : '读取图片尺寸失败，请换一张图片')
+    message.error(error instanceof Error ? error.message : '封面定形失败，请换一张图片')
   } finally {
     bannerUploading.value = false
   }
 }
 
-function openPendingFraming(required: boolean) {
+/** 打开待上传封面的取景窗：双轨期仍可手动调整构图（不再强制填写）。 */
+function openPendingFraming() {
   const pending = pendingCover.value
   if (!pending) return
   framingTarget = { kind: 'pending' }
-  abortOnFramingCancel = required
   framingDialog.src = pending.previewUrl
   framingDialog.imageWidth = pending.size.width
   framingDialog.imageHeight = pending.size.height
-  framingDialog.framing = clampFraming(pending.framing)
+  framingDialog.framing = clampFraming(pending.framing ?? DEFAULT_FRAMING)
   framingDialog.show = true
 }
 
-/** 「手动取景」：已上传或待上传的合规图都能再调构图，保存时随 crop 创建。 */
+/** 「手动取景」：已上传或待上传的封面都能再调构图，保存时随 crop 创建（可选）。 */
 function openBannerFraming() {
   if (pendingCover.value) {
-    openPendingFraming(false)
+    openPendingFraming()
     return
   }
   message.warning('请先选择封面图片')
@@ -474,7 +457,6 @@ async function openBannerReframe(row: BannerModel) {
   }
 
   framingTarget = { kind: 'banner', row }
-  abortOnFramingCancel = false
   framingDialog.src = row.cover
   framingDialog.imageWidth = size.width
   framingDialog.imageHeight = size.height
@@ -545,7 +527,6 @@ function openTitleEditor(row: BannerModel) {
 function handleFramingConfirm(framing: Framing) {
   const target = framingTarget
   framingTarget = null
-  abortOnFramingCancel = false
   if (!target) return
 
   const safe = clampFraming(framing)
@@ -560,7 +541,7 @@ function handleFramingConfirm(framing: Framing) {
   pending.adjusted = true
   bannerForm.crop = safe
 
-  // 没上传成功的图（强制取景确认 / 合规图上传失败后手动重试）在此自动补传；
+  // 修正上传失败后手动重试的那条路径在此自动补传；
   // 已经上传过的图只更新本地取景参数，点「创建轮播」时随 crop 一次提交。
   if (!uploadedCover.value) {
     bannerUploadStage.value = '取景已确认，正在上传封面…'
@@ -571,21 +552,15 @@ function handleFramingConfirm(framing: Framing) {
 }
 
 /**
- * 取消取景。
+ * 取消取景（双轨期只是关窗）。
  *
- * 强制取景路径（比例不合规）取消 = 中止本次上传：本地预览与待传文件一起丢掉，
- * 没有上传、没有图片记录、没有轮播。手动再打开取景窗时取消只是关窗。
- * 「重新取景」取消连写请求都不经过（保存只在 confirm 分支里发生）。
+ * 票 200 起封面在上传前已经定形、选图后立即上传，所以关窗不会撤回任何东西：
+ * 已定形的预览与已上传的封面都保持不变；「重新取景」取消连写请求都不经过
+ * （保存只在 confirm 分支里发生）。
  */
 function handleFramingCancel() {
-  const target = framingTarget
-  const shouldAbort = abortOnFramingCancel
   framingTarget = null
-  abortOnFramingCancel = false
-  if (target?.kind !== 'pending' || !shouldAbort) return
-
-  clearBannerCoverSelection()
-  message.info('已取消取景，本次上传未开始：没有产生图片，也没有产生轮播')
+  message.info('已关闭取景窗，封面保持不变')
 }
 
 function removeBanner(row: BannerModel) {
@@ -644,7 +619,10 @@ onMounted(() => {
                 <div class="admin-upload-panel__head">
                   <div>
                     <div class="admin-upload-panel__title">封面图片</div>
-                    <p class="admin-upload-panel__hint">推荐比例 16:9：与 16:9 相差 ≤1% 会立即上传；超出 1% 先取景，确认后自动上传</p>
+                    <p class="admin-upload-panel__hint">
+                      上传前自动裁成 {{ COVER_SHAPE_RATIO_TEXT }}（{{ COVER_SHAPE_SIZE_TEXT }}），只上传定形后的图；
+                      取景窗保留，需要时再手动调整
+                    </p>
                   </div>
                   <div class="admin-upload-panel__actions">
                     <NButton
@@ -689,14 +667,14 @@ onMounted(() => {
                   <template v-else>
                     <span class="admin-upload-panel__plus">+</span>
                     <span>上传轮播封面</span>
-                    <small>推荐 16:9 · 支持 JPG / PNG / WebP</small>
+                    <small>{{ COVER_SHAPE_RATIO_TEXT }} · {{ COVER_SHAPE_SIZE_TEXT }} · 支持 JPG / PNG / WebP</small>
                   </template>
                 </button>
 
                 <div v-if="pendingCover" class="admin-upload-panel__meta">
                   <span>{{ pendingCover.size.width }} × {{ pendingCover.size.height }}</span>
-                  <NTag :type="pendingCover.requiresFraming ? 'warning' : 'success'" size="small">
-                    {{ pendingCover.requiresFraming ? (pendingCover.framing ? '已取景' : '比例不合规，需取景') : '16:9 合规' }}
+                  <NTag type="success" size="small">
+                    {{ pendingCover.adjusted ? '已定形 · 已调整取景' : `已定形 ${COVER_SHAPE_RATIO_TEXT}` }}
                   </NTag>
                 </div>
 

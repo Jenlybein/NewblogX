@@ -242,6 +242,29 @@ export type ProjectBatchIncludePayload = Required<Schema<"internal_article_adapt
 /** 项目之间排序的请求体：完整有序的项目 ID 列表。 */
 export type ProjectOrderPayload = Required<Schema<"internal_article_adapter_http.ProjectOrderRequest">>;
 
+// ── 目录树（合集 / 项目共用的一张树表）─────────────────────────
+//
+// 一个树编辑器服务两个实体：请求 / 响应形状完全相同，只有路由前缀不同
+// （/collections/{id}/outline 与 /projects/{id}/outline）。类型因此也不按实体复制。
+
+/**
+ * 后台目录树的一行（嵌套）。
+ *
+ * 文件夹节点：`kind=1`、`article_id` 为空、`title` 是文件夹标题。
+ * 文章节点：`kind=2`、`title` 为空，标题 / 封面读 `article_title` / `article_cover`。
+ * `stale` 只对文章节点有意义：文章后来被删 / 退回草稿 / 隐藏时节点保留并标失效。
+ */
+export type OutlineNodeItem = RequiredSchema<"internal_article_adapter_http.OutlineNodeResponse">;
+
+/** 后台读回的整棵嵌套树（含空文件夹）。 */
+export type OutlineTreeResponseData = RequiredSchema<"internal_article_adapter_http.OutlineTreeResponse">;
+
+/** 整树提交的一层节点。已有节点带 id，新节点 id 留空。 */
+export type OutlineNodePayload = RequiredSchema<"internal_article_adapter_http.OutlineNodeRequest">;
+
+/** 整树提交请求体：兄弟顺序 = 数组顺序。 */
+export type OutlineSavePayload = Required<Schema<"internal_article_adapter_http.OutlineSaveRequest">>;
+
 // ── 热门置顶（运营位）─────────────────────────────────────────
 /**
  * `/articles/hot-top/admin` 的列表项。

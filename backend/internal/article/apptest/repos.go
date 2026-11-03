@@ -11,6 +11,7 @@ import (
 	"myblogx/internal/article/domain/collection"
 	"myblogx/internal/article/domain/favorite"
 	"myblogx/internal/article/domain/hottop"
+	"myblogx/internal/article/domain/outline"
 	"myblogx/internal/article/domain/project"
 	"myblogx/internal/article/domain/review"
 	"myblogx/internal/article/domain/taxonomy"
@@ -42,6 +43,7 @@ type Repos struct {
 	diggs          *Diggs
 	collectionRepo *CollectionRepo
 	projectRepo    *ProjectRepo
+	outlineRepo    *OutlineRepo
 }
 
 // NewRepos 构造一套全部为空的 fake 仓储。
@@ -68,6 +70,7 @@ func NewRepos() *Repos {
 		diggs:          NewDiggs(),
 		collectionRepo: NewCollectionRepo(articles),
 		projectRepo:    NewProjectRepo(articles),
+		outlineRepo:    NewOutlineRepo(),
 	}
 }
 
@@ -88,6 +91,9 @@ func (r *Repos) Collections() collection.Repository { return r.collectionRepo }
 
 // Projects 返回项目仓储（与合集并列的独立内容实体）。
 func (r *Repos) Projects() project.Repository { return r.projectRepo }
+
+// Outlines 返回目录树仓储（一张表服务合集与项目）。
+func (r *Repos) Outlines() outline.Repository { return r.outlineRepo }
 
 // FakeCounters 返回计数 fake。
 func (r *Repos) FakeCounters() *Counters { return r.counters }
@@ -159,6 +165,9 @@ func (r *Repos) FakeCollections() *CollectionRepo { return r.collectionRepo }
 // FakeProjects 返回项目仓储 fake。
 func (r *Repos) FakeProjects() *ProjectRepo { return r.projectRepo }
 
+// FakeOutlines 返回目录树仓储 fake。
+func (r *Repos) FakeOutlines() *OutlineRepo { return r.outlineRepo }
+
 // FakeHistory 返回浏览历史仓储 fake。
 func (r *Repos) FakeHistory() *ViewHistoryRepo { return r.historyRepo }
 
@@ -192,6 +201,7 @@ func (r *Repos) snapshotAll() map[string]any {
 		"diggs":       r.diggs.Snapshot(),
 		"collections": r.collectionRepo.Snapshot(),
 		"projects":    r.projectRepo.Snapshot(),
+		"outlines":    r.outlineRepo.Snapshot(),
 	}
 }
 
@@ -212,6 +222,7 @@ func (r *Repos) restoreAll(snaps map[string]any) {
 	r.diggs.RestoreState(snaps["diggs"])
 	r.collectionRepo.RestoreState(snaps["collections"])
 	r.projectRepo.RestoreState(snaps["projects"])
+	r.outlineRepo.RestoreState(snaps["outlines"])
 }
 
 // Tx 是 app.TxManager 的实现。
@@ -457,6 +468,16 @@ func (g *IDGen) NextFolderID() favorite.ID {
 // 与 NextCollectionID 同一做法：测试里只关心唯一且可复现，
 // 不关心跨类型间距（生产用雪花，天然不撞）。
 func (g *IDGen) NextProjectID() project.ID {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	g.article++
+	return ctype.NewID(g.article)
+}
+
+// NextOutlineNodeID 返回下一个目录树节点 ID。
+//
+// 与文章 / 合集 / 项目共用计数器：测试只关心唯一且可复现。
+func (g *IDGen) NextOutlineNodeID() outline.ID {
 	g.mu.Lock()
 	defer g.mu.Unlock()
 	g.article++

@@ -12,11 +12,9 @@
 # 站点展示与登录策略
 site:
   site_info:
-    # 站点主标题
-    title: 技术博客
-    # 站点 Logo 图片地址；通常用于页面头部或 SEO 输出
-    logo: ""
     # ICP / 公网安备等备案号展示文案
+    # 站点标题与 Logo 不再可配置（#192）：品牌由读者站的代码常量提供，
+    # favicon 走下面 project.icon。
     beian: ""
   project:
     # 前端项目名称；通常用于页面标题、SEO 和管理端展示

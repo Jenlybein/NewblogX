@@ -34,7 +34,7 @@ async function createPolicy() {
 
 function siteConfig(article: Record<string, boolean>) {
   return {
-    site_info: { title: "果冻盒" },
+    site_info: { beian: "" },
     project: { title: "JellyBin" },
     login: {},
     article,

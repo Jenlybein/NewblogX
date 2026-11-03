@@ -120,10 +120,12 @@ type AIResponse struct {
 }
 
 // SEOResponse 是站点 SEO 摘要。
+//
+// site_title / logo 随 #192 一起删除：它们的唯一来源是 site_info.title / logo，
+// 那两个字段没了，响应里就不再承诺它们。站点标题由读者站的品牌常量给出，
+// favicon 仍由 icon（project.icon）供给。
 type SEOResponse struct {
-	SiteTitle    string `json:"site_title"`
 	ProjectTitle string `json:"project_title"`
-	Logo         string `json:"logo"`
 	Icon         string `json:"icon"`
 	Keywords     string `json:"keywords"`
 	Description  string `json:"description"`

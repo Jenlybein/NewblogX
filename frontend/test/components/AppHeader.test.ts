@@ -84,7 +84,7 @@ vi.mock("~/stores/site", () => ({
   useSiteStore: () => ({
     runtimeConfig: {
       project: { abstract: "一点点的个人写作现场" },
-      site_info: { subtitle: "" },
+      site_info: { beian: "" },
       article: hub.siteArticleConfig,
     },
     seo: null,

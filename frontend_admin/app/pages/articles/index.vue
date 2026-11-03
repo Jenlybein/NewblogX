@@ -221,7 +221,8 @@ function removeArticle(row: SearchArticleItem) {
     negativeText: '取消',
     async onPositiveClick() {
       await deleteAdminArticles([row.id])
-      message.success('文章已删除')
+      // 文案与后端保持一致（handler 返回「删除成功」），不再由前端编造另一种说法。
+      message.success('删除成功')
       await refresh()
     },
   })

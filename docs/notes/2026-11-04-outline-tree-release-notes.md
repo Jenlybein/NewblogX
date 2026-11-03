@@ -54,6 +54,33 @@ code-review 两轴在本批上又查出两处「迁移没做到底」，已在�
 3. **后台树对软删文章**（#223）：保留文章标题并把失效原因区分为 `deleted`（文章软删）与 `missing`（节点指向的文章不存在），与旧扁平 LEFT JOIN 口径一致。
 4. **读者详情不再吞错**（#224）：仓储返回非「文章不存在」的错误时上抛（页面走中性错误态），不再把数据库错误当成"文章已删除"静默隐藏。
 
+## 部署记录（2026-11-04，已完成）
+
+- 代码：`main` @ `17356fc`（PR #222 squash 合入，Closes #210–#221、#223–#225）
+- 镜像：`blogx-server` / `blogx-web` / `blogx-admin` 三个 `:production` **串行**重建（服务器 3G 内存，构建前先 `compose down` 释放内存）
+- 建表：`docker compose run --rm blogx_server /app/server -f config/settings.yaml -db` → exit 0，产出 `content_outline_node_models`
+- **旧表物理下线**：确认 `collection_article_models` / `project_article_models` 各 0 行后 `DROP TABLE`；库内表集合与 `schema.sql` 完全一致（39 = 39，无多余、无缺失）
+- 重启：`up -d --force-recreate blogx_web blogx_admin blogx_server` + `up -d nginx` + `restart nginx`（nginx 会缓存上游 IP）
+
+部署后**已验**（在生产服务器上实跑）：
+
+| 检查 | 结果 |
+| --- | --- |
+| `GET https://127.0.0.1/health` | 200 |
+| `GET /`、`/collections`、`/projects` | 200 |
+| `GET /admin/`（后台站） | 200 |
+| `GET /api/collections` | 200（`{"code":0,"count":0,"list":[]}`） |
+| `GET /api/articles/1/outline-context` | 200（新接口在位） |
+| `POST /api/collections/{id}/articles`（旧收录） | **404**（已下线） |
+| `DELETE /api/collections/{id}/admin/stale`（旧清理） | **404**（已下线） |
+| `blogx-server` 启动后 10 分钟日志 | 无 `error` / `fatal` |
+| `nginx` 最近日志 | 无上游 `502` / `503` |
+| 容器状态 | 9 个容器全部 `healthy` |
+
+**仍未验证**（都需要真实账号 + 浏览器，未代跑）：后台树编辑器的真实增删改与整树保存、阅读页三栏版式与 `<1024px` 目录抽屉、上传闭环（裁剪 → 上传 → 七牛回调 → 任务 completed）、绕过前端的比例校验用例、私信实时互发。未登录访问 `/api/chat/ws` 与 `POST /api/images/upload-tasks` 均返回业务码「请先登录」（HTTP 200 + 包体业务码是本项目约定），说明请求已穿过 Origin 检查到达鉴权层——但这不是 WS 建连成功的证据。
+
+部署过程踩到的一个坑（已写进 README §11.4.4）：`-db` 启动时会 `InitES` 并在 ES 不可达时 `fatal` 退出，所以跑建表前必须先把 `es`（以及 `mysql-slave`、`clickhouse`）起起来并等 healthy。
+
 ## DNS 已恢复（2026-11-04）
 
 DNSPod 解析已重新启用。2026-11-04 在生产服务器 `43.155.228.146` 上做的**只读检查**（部署前的当前版本，非本分支）结果：

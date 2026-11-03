@@ -1,23 +1,21 @@
 <script setup lang="ts">
-import { computed, h, onBeforeUnmount, onMounted, ref, watch } from "vue";
+import { computed, onMounted, ref, watch } from "vue";
 import {
   IconBell,
   IconClockHour4,
-  IconHome2,
-  IconLogin2,
   IconMenu2,
   IconMoonStars,
   IconSearch,
   IconSunHigh,
-  IconUserCircle,
   IconX,
 } from "@tabler/icons-vue";
 import { NDropdown, NSkeleton } from "naive-ui";
-import { navigateTo, useRoute, useRouter } from "#imports";
+import { useRoute, useRouter } from "#imports";
 import AppAvatar from "~/components/common/AppAvatar.vue";
 import BrandLogo from "~/components/brand/Logo.vue";
 import BrandWordmark from "~/components/brand/Wordmark.vue";
 import { useArticleWritePolicy } from "~/composables/useArticleWritePolicy";
+import { useHeaderUserMenu } from "~/composables/useHeaderUserMenu";
 import { usePointerSpecular } from "~/composables/usePointerSpecular";
 import { useScrollChrome } from "~/composables/useScrollChrome";
 import { useWriteEntry } from "~/composables/useWriteEntry";
@@ -92,18 +90,8 @@ watch(
   },
 );
 
-// 历史入口（第 241 票）的三档落位：
-//   ≥1280 动作区普通链接（hover 无面板，与消息中心不同）；
-//   640–1279 收进头像菜单（动作区放不下第二个文字入口，硬塞会挤压品牌区）；
-//   <640 收进折叠面板（与消息中心同一套窄屏规则）。
-// 用 matchMedia 而不是 CSS：菜单项是数据驱动的（NDropdown options），CSS 管不到。
-const HISTORY_MENU_QUERY = "(min-width: 640px) and (max-width: 1279px)";
-const historyMenuVisible = ref(false);
-let historyMenuQuery: MediaQueryList | null = null;
-
-function syncHistoryMenu(event?: MediaQueryListEvent) {
-  historyMenuVisible.value = event ? event.matches : Boolean(historyMenuQuery?.matches);
-}
+// 历史入口的三档落位与账号菜单项外移到 composable（页头已撞 800 行上限）。
+const { userMenuOptions, handleUserMenuSelect } = useHeaderUserMenu();
 
 // 登录后刷新一次未读汇总：页头是读者站唯一常驻的未读消费点，
 // 不能继续只靠 studio 布局兜底（消息中心已迁出个人中心）。
@@ -112,69 +100,10 @@ onMounted(() => {
   if (authStore.isLoggedIn && !messageStore.fetched) {
     void messageStore.refreshSummary().catch(() => undefined);
   }
-
-  // 历史入口的窄屏落位只在客户端有意义（服务端没有视口）。
-  historyMenuQuery = window.matchMedia(HISTORY_MENU_QUERY);
-  syncHistoryMenu();
-  historyMenuQuery.addEventListener("change", syncHistoryMenu);
-});
-
-onBeforeUnmount(() => {
-  historyMenuQuery?.removeEventListener("change", syncHistoryMenu);
-});
-
-const userMenuOptions = computed(() => {
-  const options = [
-    {
-      label: "个人中心",
-      key: "studio",
-      icon: () => h(IconHome2, { size: 16 }),
-    },
-    {
-      label: "我的主页",
-      key: "profile",
-      icon: () => h(IconUserCircle, { size: 16 }),
-    },
-  ];
-  // 640–1279px 时「历史」入口收在头像菜单（第 241 票 落位）。
-  if (historyMenuVisible.value) {
-    options.push({
-      label: "浏览历史",
-      key: "history",
-      icon: () => h(IconClockHour4, { size: 16 }),
-    });
-  }
-  options.push({
-    label: "退出登录",
-    key: "logout",
-    icon: () => h(IconLogin2, { size: 16 }),
-  });
-  return options;
 });
 
 async function submitSearch() {
   await router.push(buildSearchLocation(searchKeyword.value));
-}
-
-async function handleUserMenuSelect(key: string | number) {
-  if (key === "studio") {
-    await navigateTo("/studio/dashboard");
-    return;
-  }
-
-  if (key === "profile" && authStore.profileId) {
-    await navigateTo(`/users/${authStore.profileId}`);
-    return;
-  }
-
-  if (key === "history") {
-    await navigateTo("/history");
-    return;
-  }
-
-  if (key === "logout") {
-    await authStore.logout();
-  }
 }
 </script>
 

@@ -559,12 +559,15 @@ describe("页头：历史入口（第 241 票）", () => {
     // 与"窄屏降级为纯图标"一样改用源码门禁，锁住三件事：
     // 查询区间、条件项、以及选中后的去向。
     const source = readFileSync(join(process.cwd(), FILENAME), "utf8");
+    // 账号菜单（含「历史」的条件项）为压页头行数已外移到 useHeaderUserMenu：
+    // 菜单逻辑看 composable，断点样式仍看页头。
+    const menuSource = readFileSync(join(process.cwd(), "app/composables/useHeaderUserMenu.ts"), "utf8");
 
-    expect(source).toContain(HISTORY_MENU_QUERY);
-    expect(source).toMatch(/if \(historyMenuVisible\.value\) \{/u);
-    expect(source).toContain('label: "浏览历史"');
-    expect(source).toContain('key: "history"');
-    expect(source).toMatch(/key === "history"[\s\S]{0,80}navigateTo\("\/history"\)/u);
+    expect(menuSource).toContain(HISTORY_MENU_QUERY);
+    expect(menuSource).toMatch(/if \(historyMenuVisible\.value\) \{/u);
+    expect(menuSource).toContain('label: "浏览历史"');
+    expect(menuSource).toContain('key: "history"');
+    expect(menuSource).toMatch(/key === "history"[\s\S]{0,80}navigateTo\("\/history"\)/u);
 
     // 动作区链接默认隐藏、1280 断点起才显示：窄屏只留菜单里的那一份。
     expect(source).toMatch(/\.site-header__history\s*\{\s*display:\s*none;/u);

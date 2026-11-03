@@ -136,9 +136,11 @@ describe("顶栏入口：三档窄屏规则", () => {
     // #239 只留了结构位置（头像菜单选项是数组，历史项由 #241 插入，当时不能出现
     // /history 链接 —— 页面还不存在）。#241 落位后这条反转为"必须真的接上"：
     // 动作区普通链接 + 640–1279 头像菜单项 + <640 折叠面板，三档各一份。
+    // 账号菜单后来为压页头行数外移到 useHeaderUserMenu，所以菜单项在那边断言。
+    const userMenuSource = read("app/composables/useHeaderUserMenu.ts");
     expect(headerSource).toContain('"/history"');
-    expect(headerSource).toContain("const userMenuOptions");
-    expect(headerSource).toContain('label: "浏览历史"');
+    expect(userMenuSource).toContain("const userMenuOptions");
+    expect(userMenuSource).toContain('label: "浏览历史"');
     expect(headerSource).toMatch(/\.site-header__history\s*\{\s*display:\s*none;/u);
     expect(headerSource).toContain(".site-history-mobile");
   });

@@ -14,6 +14,20 @@ import (
 	"myblogx/internal/platform/es/articlesync"
 )
 
+// OutboxWiringOptions 是本进程中继策略的**显式输入**，由 main 按进程角色决定。
+//
+// 为什么不再从装配结果反推：私信事件的下游只有 WS 连接池，只有 api / all 角色
+// 有它。若靠"WireChat 有没有跑过"来推导 SkipEventNames，WireChat 与
+// WireOutboxRelay 的调用顺序一变，api 进程就会静默跳过 chat.message.sent，
+// 事件被标 done、通知永久丢失。把判断上移到装配处，顺序就不再影响行为。
+type OutboxWiringOptions struct {
+	// DeliverChatPush 表示本进程持有私信 WS 连接池，可以投递私信通知。
+	//
+	// 为 false 时 relayOptions 会把两条私信事件放进 SkipEventNames：
+	// 这些事件保持 pending，等真正持有连接池的进程领取。
+	DeliverChatPush bool
+}
+
 // WireOutboxRelay 启动 outbox 中继，并注册领域事件的真实下游。
 //
 // 为什么独立于 WireRiver：
@@ -23,12 +37,12 @@ import (
 //
 // 这里注册的下游，就是旧链路里散落在 handler 中、用裸 goroutine 触发的那些副作用
 // （评分、系统通知）。现在它们变成"事件落表 → 中继投递"，崩溃不丢、失败可重试。
-func WireOutboxRelay(infra *Infra) {
+func WireOutboxRelay(infra *Infra, opts OutboxWiringOptions) {
 	if infra == nil || infra.DB == nil {
 		return
 	}
 
-	relay := outboxrelay.New(infra.DB, infra.Logger, relayOptions(infra))
+	relay := outboxrelay.New(infra.DB, infra.Logger, relayOptions(infra, opts))
 
 	registerOutboxSubscribers(relay, infra)
 
@@ -65,8 +79,10 @@ func registerOutboxSubscribers(relay *outboxrelay.Relay, infra *Infra) {
 	//
 	// 发送与已读的推送都从这里投递，不在业务事务里直接写连接池：
 	// 推送失败、进程崩溃都不会丢（事件已随消息一起落库，中继会重投）。
-	relay.On(chatdomain.EventMessageSent, chatSubscriber(infra.Logger))
-	relay.On(chatdomain.EventMessagesRead, chatSubscriber(infra.Logger))
+	// 订阅者在投递时从 Infra 现读连接池，所以注册顺序不影响投递；
+	// 没有连接池的进程靠 relayOptions 的 SkipEventNames 根本不领取这两条事件。
+	relay.On(chatdomain.EventMessageSent, chatSubscriber(infra))
+	relay.On(chatdomain.EventMessagesRead, chatSubscriber(infra))
 
 	// 搜索索引：文章删除后必须真的把文档移除。
 	//
@@ -102,12 +118,13 @@ func articleDeletedIndexSubscriber(infra *Infra) outboxrelay.Subscriber {
 //
 // 0 值交给 outboxrelay 的 withDefaults 兜底，所以这里不用再判 0：
 // "没配置"与"配成 0"都按默认保留期处理。
-func relayOptions(infra *Infra) outboxrelay.Options {
+func relayOptions(infra *Infra, wire OutboxWiringOptions) outboxrelay.Options {
 	opts := outboxrelay.Options{}
 	// 私信事件的唯一下游是 WS 推送，只有持有连接池的进程（api / all）能做。
 	// 其他角色的中继（river）绝对不能领取它们：领取后找不到连接池，
 	// 订阅者只能"什么都不做"地返回成功，事件被标记 done，通知就永久丢了。
-	if chatPushHub == nil {
+	// 判据是**显式传入的装配选项**，不是"WireChat 有没有跑过"。
+	if !wire.DeliverChatPush {
 		opts.SkipEventNames = []string{chatdomain.EventMessageSent, chatdomain.EventMessagesRead}
 	}
 	if infra == nil || infra.Config == nil {

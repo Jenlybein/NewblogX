@@ -77,6 +77,12 @@ const (
 const (
 	// CodeCollectionTitleRequired 合集标题为空。
 	CodeCollectionTitleRequired Code = "collection.title_required"
+	// CodeCollectionTitleTooLong 合集标题超过上限。
+	//
+	// 与 title_required 分开：两者都是 400，但前端提示语与用户动作不同
+	// （补一个标题 vs 删短一点）。合并成一个码时文案只能写"不能为空"，
+	// 超长输入会收到一条与事实不符的提示。
+	CodeCollectionTitleTooLong Code = "collection.title_too_long"
 	// CodeCollectionNotFound 合集不存在。
 	//
 	// 也覆盖"未展示，对读者不可见"：两种情形合并成一个码，读者侧不能靠
@@ -97,8 +103,12 @@ const (
 // 项目与「合集」是并列的独立内容实体：错误码自成一组，日志里要能分辨
 // "项目编排错了"与"合集编排错了"，前端提示语也不同。
 const (
-	// CodeProjectTitleRequired 项目标题为空（或超长）。
+	// CodeProjectTitleRequired 项目标题为空。
 	CodeProjectTitleRequired Code = "project.title_required"
+	// CodeProjectTitleTooLong 项目标题超过上限。
+	//
+	// 与 title_required 分开：让"必填缺失"与"超长"可分别断言、分别提示。
+	CodeProjectTitleTooLong Code = "project.title_too_long"
 	// CodeProjectNotFound 项目不存在。
 	//
 	// 也覆盖"未展示，对读者不可见"：两种情形合并成一个码，读者侧不能靠
@@ -387,6 +397,7 @@ var messages = map[Code]string{
 	CodeHotTopOrderMismatch: "排序列表与当前热门置顶不一致，请刷新后重试",
 
 	CodeCollectionTitleRequired:        "合集标题不能为空",
+	CodeCollectionTitleTooLong:         "合集标题不能超过 128 个字符",
 	CodeCollectionNotFound:             "合集不存在",
 	CodeCollectionArticleDuplicated:    "该文章已在合集中",
 	CodeCollectionArticleNotIncludable: "只有已发布且可见的文章可以收录进合集",
@@ -394,6 +405,7 @@ var messages = map[Code]string{
 	CodeCollectionArticleMissing:       "该文章不在此合集中",
 
 	CodeProjectTitleRequired:        "项目标题不能为空",
+	CodeProjectTitleTooLong:         "项目标题不能超过 128 个字符",
 	CodeProjectNotFound:             "项目不存在",
 	CodeProjectArticleDuplicated:    "该文章已在项目中",
 	CodeProjectArticleNotIncludable: "只有已发布且可见的文章可以收录进项目",

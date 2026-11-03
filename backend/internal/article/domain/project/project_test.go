@@ -15,6 +15,7 @@ import (
 // 封面回退）属于读模型，在 adapter/mysql 与 HTTP 集成用例里断言。
 
 func TestNewProjectTrimsTitle(t *testing.T) {
+	t.Parallel()
 	at := time.Date(2026, 1, 1, 12, 0, 0, 0, time.UTC)
 	p, err := project.New(project.NewParams{
 		ID:        ctype.NewID(1),
@@ -34,6 +35,7 @@ func TestNewProjectTrimsTitle(t *testing.T) {
 }
 
 func TestNewProjectRejectsEmptyTitle(t *testing.T) {
+	t.Parallel()
 	_, err := project.New(project.NewParams{ID: ctype.NewID(1), Title: "   "})
 	if !errors.Is(err, project.ErrTitleRequired) {
 		t.Fatalf("空标题应报 ErrTitleRequired，实际 %v", err)
@@ -44,17 +46,26 @@ func TestNewProjectRejectsEmptyTitle(t *testing.T) {
 }
 
 func TestNewProjectRejectsTooLongTitle(t *testing.T) {
+	t.Parallel()
 	long := make([]rune, project.MaxTitleLen+1)
 	for i := range long {
 		long[i] = '题'
 	}
 	_, err := project.New(project.NewParams{ID: ctype.NewID(1), Title: string(long)})
 	if !errors.Is(err, project.ErrTitleTooLong) {
-		t.Fatalf("超长标题应报错，实际 %v", err)
+		t.Fatalf("超长标题应报 ErrTitleTooLong，实际 %v", err)
+	}
+	// 关键：超长必须报"超长"码，不能复用"必填"码——否则文案会变成"不能为空"。
+	if code, ok := apperr.CodeOf(err); !ok || code != apperr.CodeProjectTitleTooLong {
+		t.Fatalf("错误码应为 %q，实际 %v/%v", apperr.CodeProjectTitleTooLong, code, ok)
+	}
+	if apperr.IsCode(err, apperr.CodeProjectTitleRequired) {
+		t.Fatalf("超长标题不能落到必填码，实际 %v", err)
 	}
 }
 
 func TestRestoreKeepsPersistedState(t *testing.T) {
+	t.Parallel()
 	p := project.Restore(project.RestoreParams{
 		ID:        ctype.NewID(7),
 		Title:     "长系列",

@@ -49,7 +49,7 @@ var (
 	// ErrTitleRequired 标题为空。
 	ErrTitleRequired = apperr.New(apperr.CodeProjectTitleRequired)
 	// ErrTitleTooLong 标题超出 MaxTitleLen。
-	ErrTitleTooLong = apperr.New(apperr.CodeProjectTitleRequired)
+	ErrTitleTooLong = apperr.New(apperr.CodeProjectTitleTooLong)
 	// ErrNotFound 项目不存在（也覆盖"未展示，对读者不可见"）。
 	//
 	// 两种情形合并成一个码：读者侧不能靠响应差异探测还没公布的项目。

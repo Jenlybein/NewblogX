@@ -446,7 +446,8 @@ func (h *Handler) ReplaceProjectSortOrder(c *gin.Context) {
 		h.fail(c, err)
 		return
 	}
-	h.audit(c, "project_sort_order", "projects", true, "项目之间排序")
+	// 批量换序没有单一目标：目标 ID 留空，不能把资源名 "projects" 当 ID 写进审计。
+	h.audit(c, "project_sort_order", domain.ArticleID(""), true, "项目之间排序")
 	res.OkWithMsg("排序成功", c)
 }
 

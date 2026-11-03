@@ -44,11 +44,7 @@ import {
 import { uploadImageByTask } from '~/services/image'
 import type { CollectionAdminCard, CollectionAdminItem } from '~/types/api'
 import { uploadBannerCover } from '~/utils/bannerCover'
-import {
-  collectionStaleReasonLabel,
-  staleCollectionItemCount,
-  staleCollectionItemIds,
-} from '~/utils/collectionItems'
+import { staleItemCount, staleItemIds, staleReasonLabel } from '~/utils/staleItems'
 import type { ShapeImageTarget } from '~/utils/imageShaping'
 import {
   COVER_SHAPE_OPTIONS,
@@ -101,8 +97,8 @@ const itemsRemovingId = ref('')
 const itemsCleaning = ref(false)
 
 /** 一键清理只挑 stale 为真的行；判定由后端共用领域函数给出，前端不另算。 */
-const itemsStaleIds = computed(() => staleCollectionItemIds(itemsRows.value))
-const itemsStaleCount = computed(() => staleCollectionItemCount(itemsRows.value))
+const itemsStaleIds = computed(() => staleItemIds(itemsRows.value))
+const itemsStaleCount = computed(() => staleItemCount(itemsRows.value))
 
 function renderCover(row: CollectionAdminCard) {
   const view = resolveCollectionCover(row.cover, row.fallback_cover)
@@ -200,7 +196,7 @@ const itemColumns: DataTableColumns<CollectionAdminItem> = [
       h(
         NTag,
         { size: 'small', type: row.stale ? 'warning' : 'success' },
-        { default: () => collectionStaleReasonLabel(row.stale_reason) },
+        { default: () => staleReasonLabel(row.stale_reason) },
       ),
   },
   {
@@ -369,7 +365,7 @@ function removeItem(row: CollectionAdminItem) {
   dialog.warning({
     title: row.stale ? '移除失效收录' : '移除收录',
     content: row.stale
-      ? `「${row.title || '这篇文章'}」已失效（${collectionStaleReasonLabel(row.stale_reason)}）。移除只解除收录关系，不删文章。`
+      ? `「${row.title || '这篇文章'}」已失效（${staleReasonLabel(row.stale_reason)}）。移除只解除收录关系，不删文章。`
       : `确认把「${row.title || '这篇文章'}」从合集移除？读者侧会立即少一篇。`,
     positiveText: '移除',
     negativeText: '取消',

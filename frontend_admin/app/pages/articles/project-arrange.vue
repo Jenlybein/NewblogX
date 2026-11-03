@@ -353,7 +353,7 @@ onMounted(refreshProjects)
         收录行会保留并标为「已失效」；排序提交的是完整集合（含失效行），所以它们也要留在列表里。
       </p>
 
-      <NSpace align="center" class="admin-collection-form">
+      <NSpace align="center" class="admin-project-form">
         <NSelect
           data-role="arrange-project"
           class="admin-arrange-select"

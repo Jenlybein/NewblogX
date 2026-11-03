@@ -40,6 +40,29 @@ func TestNewRequiresTitle(t *testing.T) {
 	}
 }
 
+// TestNewRejectsTooLongTitleWithDistinctCode 超长标题必须报"超长"码，
+// 不能复用"必填"码——否则返回的文案会变成"合集标题不能为空"。
+func TestNewRejectsTooLongTitleWithDistinctCode(t *testing.T) {
+	t.Parallel()
+
+	long := make([]rune, collection.MaxTitleLen+1)
+	for i := range long {
+		long[i] = '题'
+	}
+	p := newParams()
+	p.Title = string(long)
+	_, err := collection.New(p)
+	if !errors.Is(err, collection.ErrTitleTooLong) {
+		t.Fatalf("超长标题应报 ErrTitleTooLong，实际 %v", err)
+	}
+	if code, ok := apperr.CodeOf(err); !ok || code != apperr.CodeCollectionTitleTooLong {
+		t.Fatalf("错误码应为 %q，实际 %v/%v", apperr.CodeCollectionTitleTooLong, code, ok)
+	}
+	if apperr.IsCode(err, apperr.CodeCollectionTitleRequired) {
+		t.Fatalf("超长标题不能落到必填码，实际 %v", err)
+	}
+}
+
 // TestNewDefaultsToNotEmpty 创建时必须给出标题以外的字段都能落到聚合上。
 func TestNewNormalizes(t *testing.T) {
 	t.Parallel()
@@ -241,11 +264,11 @@ func TestDomainErrorsAreCodes(t *testing.T) {
 	t.Parallel()
 
 	for name, err := range map[string]error{
-		"标题必填": collection.ErrTitleRequired,
-		"不存在": collection.ErrNotFound,
-		"重复收录": collection.ErrDuplicateArticle,
+		"标题必填":   collection.ErrTitleRequired,
+		"不存在":    collection.ErrNotFound,
+		"重复收录":   collection.ErrDuplicateArticle,
 		"文章不可收录": collection.ErrNotIncludable,
-		"顺序不一致": collection.ErrOrderMismatch,
+		"顺序不一致":  collection.ErrOrderMismatch,
 	} {
 		if err == nil {
 			t.Fatalf("%s 错误不应为 nil", name)

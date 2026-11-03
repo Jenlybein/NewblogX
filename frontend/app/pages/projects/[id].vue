@@ -10,8 +10,9 @@ import { projectArticleView } from "~/utils/project";
  *
  * 渲染边界：不进 SSR 白名单（与列表页、合集、搜索页同一处理，ADR-0019）。
  *
- * 未展示的项目后端按**不存在**返回错误：这里把错误渲染成明确的空态，
- * 而不是"0 篇文章"——后者会让读者以为项目是空的，也泄漏"它存在但没公开"。
+ * 未展示的项目后端按**不存在**返回错误：这里把错误渲染成中性空态，
+ * 而不是"0 篇文章"——后者会让读者以为项目是空的。空态文案不得出现
+ * "未发布 / 未公开 / 不可见"这类内部状态（spec story 12：对读者按不存在处理）。
  * 收录里的失效行（文章变私有/被删）后端已在 SQL 里过滤掉，前端不补判。
  */
 const route = useRoute();
@@ -30,11 +31,9 @@ useSeoMeta({
 
 const articles = computed(() => (data.value?.articles ?? []).map(projectArticleView));
 const description = computed(() => (data.value?.description ?? "").trim());
-const emptyTitle = computed(() => (error.value ? "项目不存在或未公开" : "这个项目还没有文章"));
+const emptyTitle = computed(() => (error.value ? "项目不存在" : "这个项目还没有文章"));
 const emptyDescription = computed(() =>
-  error.value
-    ? "它可能还没公开，也可能已经被管理员收起。项目由管理员编排，尚未公开的项目对读者不可见。"
-    : "管理员还没有把文章收录进这个项目。",
+  error.value ? "这个项目暂时无法访问。" : "管理员还没有把文章收录进这个项目。",
 );
 </script>
 

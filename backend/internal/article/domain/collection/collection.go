@@ -47,7 +47,7 @@ var (
 	// ErrTitleRequired 标题为空。
 	ErrTitleRequired = apperr.New(apperr.CodeCollectionTitleRequired)
 	// ErrTitleTooLong 标题超出 MaxTitleLen。
-	ErrTitleTooLong = apperr.New(apperr.CodeCollectionTitleRequired)
+	ErrTitleTooLong = apperr.New(apperr.CodeCollectionTitleTooLong)
 	// ErrNotFound 合集不存在（也覆盖"未展示，对读者不可见"）。
 	ErrNotFound = apperr.New(apperr.CodeCollectionNotFound)
 	// ErrDuplicateArticle 同一合集内重复收录同一篇文章。

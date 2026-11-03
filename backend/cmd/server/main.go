@@ -71,8 +71,8 @@ func main() {
 	// 独立于 river：即使没启用 ES 同步，领域事件也必须投递。
 	// 停机时先停中继，避免在途投递被强行打断后留下 processing 状态的行
 	// （真留下了也没关系，租约到期后会被下一轮补偿扫描捞回）。
-	startOutboxRelay := func(infra *app.Infra, lifecycle *app.Lifecycle) {
-		app.WireOutboxRelay(infra)
+	startOutboxRelay := func(infra *app.Infra, role string, lifecycle *app.Lifecycle) {
+		app.WireOutboxRelay(infra, outboxWiringOptionsForRole(role))
 		lifecycle.OnStop("outbox_relay", func(ctx context.Context) error {
 			app.CloseOutboxRelay()
 			return nil
@@ -90,14 +90,14 @@ func main() {
 		}
 		// 领域事件在这里产生，也就在这里投递；river 角色下同样会启动一份，
 		// 两边靠"原子领取"保证同一条事件只会被一个进程处理。
-		startOutboxRelay(infra, lifecycle)
+		startOutboxRelay(infra, role, lifecycle)
 		lifecycle.WaitForShutdown()
 		return
 	case "river":
 		if err := app.WireRiver(infra); err != nil {
 			infra.Logger.Fatalf("River 组装失败: %v", err)
 		}
-		startOutboxRelay(infra, lifecycle)
+		startOutboxRelay(infra, role, lifecycle)
 		lifecycle.WaitForShutdown()
 		return
 	case "image-ref":
@@ -129,10 +129,25 @@ func main() {
 		// 领域事件的副作用（通知、评分、私信 WS 通知）都靠它投递，
 		// 少了它这些副作用会被静默丢弃（事件只在表里 pending）。
 		// 注意顺序：必须在 WireHTTP 之后，私信的 WS 通知订阅者才拿得到连接池。
-		startOutboxRelay(infra, lifecycle)
+		// 但"是否需要跳过私信事件"由 outboxWiringOptionsForRole 显式给出，
+		// 不再依赖这个顺序来推导。
+		startOutboxRelay(infra, role, lifecycle)
 		lifecycle.WaitForShutdown()
 		return
 	default:
 		infra.Logger.Fatalf("未知 role 参数: %s，可选值: api|river|image-ref|cron|worker|all", role)
 	}
+}
+
+// outboxWiringOptionsForRole 是"哪个进程角色能投私信通知"的唯一映射。
+//
+// 显式列出而不是从"WireChat 跑没跑过"反推：api / all 持有 WS 连接池，
+// 可以领取 chat.message.sent / chat.message.read；river 没有连接池，必须跳过。
+// 调用顺序因此不再影响行为。守卫测试见 outbox_role_test.go。
+func outboxWiringOptionsForRole(role string) app.OutboxWiringOptions {
+	if role == "river" {
+		return app.OutboxWiringOptions{DeliverChatPush: false}
+	}
+	// api / all（以及未来任何会 WireHTTP 的角色）都持有连接池。
+	return app.OutboxWiringOptions{DeliverChatPush: true}
 }

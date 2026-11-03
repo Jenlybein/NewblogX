@@ -99,16 +99,28 @@ func InsertProject(t *testing.T, db *gorm.DB, spec ProjectSpec) {
 	}
 }
 
+// ProjectArticleSpec 描述要插入的一条项目-文章关联行。
+//
+// 收成结构体而不是 5 个裸参数：ID / 项目 / 文章 / 顺序 / 时间长度相近，
+// 调用处很容易把项目与文章两个 uint64 写反（编译期看不出来）。
+type ProjectArticleSpec struct {
+	ID        uint64
+	ProjectID uint64
+	ArticleID uint64
+	SortOrder int
+	At        time.Time
+}
+
 // InsertProjectArticle 插入一条项目-文章关联行。
-func InsertProjectArticle(t *testing.T, db *gorm.DB, id, projectID, articleID uint64, sortOrder int, at time.Time) {
+func InsertProjectArticle(t *testing.T, db *gorm.DB, spec ProjectArticleSpec) {
 	t.Helper()
 	m := ProjectArticleRow{
-		BaseRow:   BaseRow{ID: ctype.NewID(id), CreatedAt: at, UpdatedAt: at},
-		ProjectID: ctype.NewID(projectID),
-		ArticleID: ctype.NewID(articleID),
-		SortOrder: sortOrder,
+		BaseRow:   BaseRow{ID: ctype.NewID(spec.ID), CreatedAt: spec.At, UpdatedAt: spec.At},
+		ProjectID: ctype.NewID(spec.ProjectID),
+		ArticleID: ctype.NewID(spec.ArticleID),
+		SortOrder: spec.SortOrder,
 	}
 	if err := db.Omit("ProjectModel", "ArticleModel").Create(&m).Error; err != nil {
-		t.Fatalf("插入项目关联 %d 失败: %v", id, err)
+		t.Fatalf("插入项目关联 %d 失败: %v", spec.ID, err)
 	}
 }

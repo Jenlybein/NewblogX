@@ -23,21 +23,18 @@ import (
 	"gorm.io/gorm"
 )
 
-// chatPushHub 是私信 WS 通知用的进程内连接池。
-//
-// 由 WireChat 注入。只有真正持有连接池的进程（-role=api / -role=all）才有它；
-// 其他角色的 outbox 中继必须跳过私信事件（见 relayOptions 的 SkipEventNames），
-// 否则会在没有连接的进程里把事件"投递成功"并标记 done，通知就永久丢了。
-var chatPushHub *ws.Hub
-
 // WireChat 装配私信模块并注入路由处理器。
+//
+// 连接池挂在 Infra 上（本进程装配结果），不是包级可变状态：
+// "哪个进程能投私信通知"由 main 在启动中继时**显式传入**
+// （见 WireOutboxRelay 的 OutboxWiringOptions），不由装配顺序反推。
 func WireChat(infra *Infra) {
 	if infra == nil {
 		return
 	}
 	redisOptions := redis_service.NewOptions(infra.Redis, infra.Logger)
 	hub := ws.NewHub()
-	chatPushHub = hub
+	infra.ChatHub = hub
 
 	// 同一个仓储同时实现读端口与写端口；用例层分别注入，读写分离在接口层面成立。
 	store := chatmysql.New(infra.DB)
@@ -68,9 +65,21 @@ func WireChat(infra *Infra) {
 // 自己走 HTTP 刷新会话、消息与未读数。
 //
 // 只做通知、不落库，因此天然幂等：中继重复投递只会多一次刷新信号。
-func chatSubscriber(logger chatdomain.Logger) outboxrelay.Subscriber {
+//
+// 连接池在**投递时**从 Infra 现读，而不是在注册时捕获：
+// 这样即使装配顺序变成"先 WireOutboxRelay 后 WireChat"，订阅者拿到的仍是
+// 最终连接池，不会因为注册那一刻是 nil 就静默丢通知。
+func chatSubscriber(infra *Infra) outboxrelay.Subscriber {
+	var logger chatdomain.Logger
+	if infra != nil {
+		logger = infra.Logger
+	}
 	return func(_ context.Context, e outboxrelay.Event) error {
-		if chatPushHub == nil {
+		if infra == nil {
+			return nil
+		}
+		hub := infra.ChatHub
+		if hub == nil {
 			return nil
 		}
 		switch e.EventName {
@@ -80,7 +89,7 @@ func chatSubscriber(logger chatdomain.Logger) outboxrelay.Subscriber {
 				warnBadPayload(logger, e, err)
 				return nil
 			}
-			pushNotice(notice.ReceiverID, notice)
+			pushNotice(hub, notice.ReceiverID, notice)
 		case chatdomain.EventMessagesRead:
 			var read chatdomain.ReadEvent
 			if err := json.Unmarshal([]byte(e.Payload), &read); err != nil {
@@ -88,7 +97,7 @@ func chatSubscriber(logger chatdomain.Logger) outboxrelay.Subscriber {
 				return nil
 			}
 			// 已读回执推给发送方，线上形状与既有 ReadPush 一致。
-			pushNotice(read.SenderID, read.ToPush())
+			pushNotice(hub, read.SenderID, read.ToPush())
 		}
 		return nil
 	}
@@ -98,11 +107,11 @@ func chatSubscriber(logger chatdomain.Logger) outboxrelay.Subscriber {
 //
 // 推送成功数为 0 不是失败：对方不在线时通知没有意义（消息已经落库，
 // 下次打开会话仍能拉到），重试只会白白进死信。
-func pushNotice(userID ctype.ID, payload any) {
-	if chatPushHub == nil || userID.IsZero() {
+func pushNotice(hub *ws.Hub, userID ctype.ID, payload any) {
+	if hub == nil || userID.IsZero() {
 		return
 	}
-	chatPushHub.PushJSON(userID.Uint64(), res.Response{
+	hub.PushJSON(userID.Uint64(), res.Response{
 		Code: res.SuccessCode,
 		Data: payload,
 		Msg:  "成功",

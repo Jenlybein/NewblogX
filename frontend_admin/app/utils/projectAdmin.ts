@@ -82,9 +82,6 @@ export function buildProjectUpdatePayload(values: ProjectFormValues): ProjectUpd
   }
 }
 
-/** 列表与表单预览要显示的封面（与合集同一份形状）。 */
-export type ProjectCoverView = CollectionCoverView
-
 /**
  * 解析项目最终要显示的封面。
  *
@@ -94,7 +91,7 @@ export type ProjectCoverView = CollectionCoverView
 export function resolveProjectCover(
   cover: string | null | undefined,
   fallbackCover: string | null | undefined,
-): ProjectCoverView | null {
+): CollectionCoverView | null {
   return resolveCollectionCover(cover, fallbackCover)
 }
 

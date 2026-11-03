@@ -60,11 +60,7 @@ import {
   resolveProjectCover,
   validateProjectForm,
 } from '~/utils/projectAdmin'
-import {
-  projectStaleReasonLabel,
-  staleProjectItemCount,
-  staleProjectItemIds,
-} from '~/utils/projectItems'
+import { staleItemCount, staleItemIds, staleReasonLabel } from '~/utils/staleItems'
 
 const message = useMessage()
 const dialog = useDialog()
@@ -102,8 +98,8 @@ const itemsRemovingId = ref('')
 const itemsCleaning = ref(false)
 
 /** 一键清理只挑 stale 为真的行；判定由后端共用领域函数给出，前端不另算。 */
-const itemsStaleIds = computed(() => staleProjectItemIds(itemsRows.value))
-const itemsStaleCount = computed(() => staleProjectItemCount(itemsRows.value))
+const itemsStaleIds = computed(() => staleItemIds(itemsRows.value))
+const itemsStaleCount = computed(() => staleItemCount(itemsRows.value))
 
 function renderCover(row: ProjectAdminCard) {
   const view = resolveProjectCover(row.cover, row.fallback_cover)
@@ -195,7 +191,7 @@ const itemColumns: DataTableColumns<ProjectAdminItem> = [
     width: 190,
     render: row =>
       h(NTag, { size: 'small', type: row.stale ? 'warning' : 'success' }, {
-        default: () => projectStaleReasonLabel(row.stale_reason),
+        default: () => staleReasonLabel(row.stale_reason),
       }),
   },
   {
@@ -363,7 +359,7 @@ function removeItem(row: ProjectAdminItem) {
   dialog.warning({
     title: row.stale ? '移除失效收录' : '移除收录',
     content: row.stale
-      ? `「${row.title || '这篇文章'}」已失效（${projectStaleReasonLabel(row.stale_reason)}）。移除只解除收录关系，不删文章。`
+      ? `「${row.title || '这篇文章'}」已失效（${staleReasonLabel(row.stale_reason)}）。移除只解除收录关系，不删文章。`
       : `确认把「${row.title || '这篇文章'}」从项目移除？读者侧会立即少一篇。`,
     positiveText: '移除',
     negativeText: '取消',
@@ -506,7 +502,7 @@ onMounted(refresh)
         不传封面时，读者侧会回退到首篇收录文章的封面。
       </p>
 
-      <NForm label-placement="top" class="admin-collection-form">
+      <NForm label-placement="top" class="admin-project-form">
         <NFormItem
           label="标题"
           :feedback="errors.title ?? ''"

@@ -91,7 +91,9 @@ func TestProjectPublicRead(t *testing.T) {
 		Displayed: true, SortOrder: 1, CreatorID: 100, CreatedAt: at, UpdatedAt: at,
 	})
 	for i, articleID := range []uint64{21, 22, 23, 24} {
-		schema.InsertProjectArticle(t, db, uint64(4000+i), 3001, articleID, i+1, at)
+		schema.InsertProjectArticle(t, db, schema.ProjectArticleSpec{
+			ID: uint64(4000 + i), ProjectID: 3001, ArticleID: articleID, SortOrder: i + 1, At: at,
+		})
 	}
 
 	// 项目 3002：未展示——读者侧必须按不存在处理。
@@ -99,28 +101,28 @@ func TestProjectPublicRead(t *testing.T) {
 		ID: 3002, Title: "还没公布的项目", Cover: "https://cdn.example/hidden.png",
 		Displayed: false, SortOrder: 2, CreatorID: 100, CreatedAt: at, UpdatedAt: at,
 	})
-	schema.InsertProjectArticle(t, db, 4004, 3002, 25, 1, at)
+	schema.InsertProjectArticle(t, db, schema.ProjectArticleSpec{ID: 4004, ProjectID: 3002, ArticleID: 25, SortOrder: 1, At: at})
 
 	// 项目 3003：展示中、有显式封面——不许被回退值覆盖。
 	schema.InsertProject(t, db, schema.ProjectSpec{
 		ID: 3003, Title: "显式封面", Cover: "https://cdn.example/explicit.png",
 		Displayed: true, SortOrder: 3, CreatorID: 100, CreatedAt: at, UpdatedAt: at,
 	})
-	schema.InsertProjectArticle(t, db, 4005, 3003, 26, 1, at)
+	schema.InsertProjectArticle(t, db, schema.ProjectArticleSpec{ID: 4005, ProjectID: 3003, ArticleID: 26, SortOrder: 1, At: at})
 
 	// 项目 3004：已软删——读者侧同样不存在。
 	schema.InsertProject(t, db, schema.ProjectSpec{
 		ID: 3004, Title: "被删的项目", Displayed: true, SortOrder: 4, CreatorID: 100,
 		CreatedAt: at, UpdatedAt: at, SoftDeleted: true,
 	})
-	schema.InsertProjectArticle(t, db, 4006, 3004, 27, 1, at)
+	schema.InsertProjectArticle(t, db, schema.ProjectArticleSpec{ID: 4006, ProjectID: 3004, ArticleID: 27, SortOrder: 1, At: at})
 
 	// 项目 3005：展示中、无封面、一篇公开文章都没有——封面留空，篇数 0。
 	schema.InsertProject(t, db, schema.ProjectSpec{
 		ID: 3005, Title: "空项目", Displayed: true, SortOrder: 5, CreatorID: 100,
 		CreatedAt: at, UpdatedAt: at,
 	})
-	schema.InsertProjectArticle(t, db, 4007, 3005, 28, 1, at)
+	schema.InsertProjectArticle(t, db, schema.ProjectArticleSpec{ID: 4007, ProjectID: 3005, ArticleID: 28, SortOrder: 1, At: at})
 
 	reader := newRouterWithIDs(t, db, domain.Anonymous(), 100)
 
@@ -184,9 +186,9 @@ func TestProjectPublicRead(t *testing.T) {
 		t.Fatalf("项目详情应成功，实际 code=%d msg=%s", detailEnv.Code, detailEnv.Msg)
 	}
 	var detail struct {
-		ID    ctype.ID `json:"id"`
-		Title string   `json:"title"`
-		Cover string   `json:"cover"`
+		ID       ctype.ID `json:"id"`
+		Title    string   `json:"title"`
+		Cover    string   `json:"cover"`
 		Articles []struct {
 			ArticleID ctype.ID `json:"article_id"`
 			SortOrder int      `json:"sort_order"`

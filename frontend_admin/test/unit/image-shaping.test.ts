@@ -1,5 +1,4 @@
 import { describe, expect, it, vi } from 'vitest'
-
 import {
   COVER_SHAPE_OPTIONS,
   COVER_SHAPE_RATIO_TEXT,
@@ -15,7 +14,6 @@ import {
   type ShapeImageOptions,
   type ShapedUploadDeps,
 } from '~/utils/imageShaping'
-import { BANNER_ASPECT } from '~/utils/framing'
 
 /**
  * 后台这一份定形工具（票 200）。
@@ -73,11 +71,10 @@ const PNG_OPTIONS: ShapeImageOptions = {
 const IMAGE_FILE = new File(['raw'], 'photo.jpg', { type: 'image/jpeg' })
 
 describe('封面定形参数：三种封面共用同一份取值（票 200）', () => {
-  it('封面统一 16:9、1600×900、输出 JPEG，并与后台自己的 16:9 口径一致', () => {
+  it('封面统一 16:9、1600×900、输出 JPEG', () => {
     expect(COVER_SHAPE_TARGET).toEqual({ width: 1600, height: 900 })
-    // 交给独立来源（framing 的 BANNER_ASPECT = 16/9）验证比例：常量写错时这里会红，
-    // 而不是拿 1600/900 自己验自己。
-    expect(COVER_SHAPE_TARGET.width / COVER_SHAPE_TARGET.height).toBe(BANNER_ASPECT)
+    // 独立来源：规格写的是 16:9（不是拿 1600/900 自己验自己，那种断言永远为真）。
+    expect(COVER_SHAPE_TARGET.width / COVER_SHAPE_TARGET.height).toBe(16 / 9)
     expect(COVER_SHAPE_OPTIONS.target).toEqual(COVER_SHAPE_TARGET)
     expect(COVER_SHAPE_OPTIONS.outputType).toBe('image/jpeg')
     // 界面文案从同一份取值派生，模板里不再手写 1600 / 900 / 16:9。

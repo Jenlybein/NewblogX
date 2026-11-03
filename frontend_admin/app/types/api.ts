@@ -56,19 +56,14 @@ export type ArticleReviewTaskListResponseData = RequiredSchema<"internal_article
 
 export type BannerModel = RequiredSchema<"internal_site_adapter_http.BannerItem">;
 
-/** 轮播取景参数：创建 / 更新请求里的 `crop`。 */
-export type BannerCrop = RequiredSchema<"internal_site_adapter_http.BannerCrop">;
-
 /**
  * 后台创建 / 更新轮播时使用的**完整**请求体。
  *
- * 契约把 `href` / `show` / `crop` 标成可选（为了兼容还没接取景的老调用方），
- * 但后台写入时三个字段总是显式带上；这里收成必填，免得页面漏传 `crop` 时
- * 悄悄退回居中。字段名仍全部派生自契约。
+ * 契约把 `href` / `show` / `title` 标成可选（标题本来就允许空），
+ * 但后台写入时四个字段总是显式带上；这里收成必填，免得页面漏传标题时
+ * 悄悄把已有标题清成空串。字段名仍全部派生自契约。
  */
-export type BannerWritePayload = Required<Schema<"internal_site_adapter_http.BannerCreateRequest">> & {
-  crop: BannerCrop;
-};
+export type BannerWritePayload = Required<Schema<"internal_site_adapter_http.BannerCreateRequest">>;
 
 /** 管理端一张右栏卡片：含停用项，带服务端口径的顺序号。 */
 export type AdminSidebarCardItem = RequiredSchema<"internal_site_adapter_http.AdminSidebarCardItem">;

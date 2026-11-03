@@ -5,10 +5,10 @@ import StudioCoverUploadPanel from "~/components/studio/StudioCoverUploadPanel.v
 import { COVER_SHAPE_SIZE_TEXT } from "~/utils/imageShaping";
 
 /**
- * 封面上传面板卡（与后台轮播上传同一套语言；票 200 起上传前定形）：
+ * 封面上传面板卡（与后台轮播上传同一套语言；票 200 起上传前定形，#204 取景退场）：
  *   - 定形口径（16:9 / 1600×900）与支持格式常驻可见；
  *   - 悬停/忙碌是同一张卡的两个状态（忙碌时不能再选文件）；
- *   - 尺寸与「已定形」徽标只在选过图后出现；取景窗入口保留但只是可选动作；
+ *   - 尺寸与「已定形」徽标只在选过图后出现，没有任何取景入口；
  *   - 上传失败的文案留在面板里（role=alert），不是一闪而过的 toast。
  */
 
@@ -20,10 +20,8 @@ function mountPanel(props: Record<string, unknown> = {}) {
       stage: "",
       error: "",
       size: null,
-      framed: false,
       onFileChange: vi.fn(),
       onClear: vi.fn(),
-      onFrame: vi.fn(),
       ...props,
     },
   });
@@ -49,40 +47,28 @@ describe("StudioCoverUploadPanel · 空态与提示", () => {
     expect(wrapper.find(".cover-panel__meta").exists()).toBe(false);
     expect(wrapper.find('[role="alert"]').exists()).toBe(false);
   });
+
+  it("没有任何取景入口（#204 取景窗退场）：选过图也不出现「手动/调整取景」按钮", () => {
+    const wrapper = mountPanel({ size: { width: 1600, height: 900 } });
+
+    expect(wrapper.find('[aria-label="手动取景"]').exists()).toBe(false);
+    expect(wrapper.find('[aria-label="调整取景"]').exists()).toBe(false);
+    expect(wrapper.text()).not.toContain("取景");
+  });
 });
 
 describe("StudioCoverUploadPanel · 定形后的尺寸与徽标", () => {
-  it("定形产物给出尺寸读数与 success 徽标（不再出现「需取景」）", () => {
+  it("定形产物给出尺寸读数与 success 徽标", () => {
     const wrapper = mountPanel({ size: { width: 1600, height: 900 } });
 
     expect(wrapper.get(".cover-panel__size").text()).toBe("1600 × 900");
     expect(wrapper.get(".cover-panel__badge").text()).toBe(`已定形 ${COVER_SHAPE_SIZE_TEXT}`);
   });
 
-  it("取景窗入口保留可用：有定形产物时出现「手动取景」，点了就上抛", () => {
-    const onFrame = vi.fn();
-    const wrapper = mountPanel({ size: { width: 1600, height: 900 }, onFrame });
-
-    const frameButton = wrapper.get('[aria-label="手动取景"]');
-    expect(frameButton.exists()).toBe(true);
-
-    frameButton.trigger("click");
-    expect(onFrame).toHaveBeenCalled();
-  });
-
-  it("手动调过取景后徽标补一句，入口变成「调整取景」", () => {
-    const wrapper = mountPanel({ size: { width: 1600, height: 900 }, framed: true });
-
-    expect(wrapper.get(".cover-panel__badge").text()).toBe(`已定形 ${COVER_SHAPE_SIZE_TEXT} · 已调取景`);
-    expect(wrapper.get('[aria-label="调整取景"]').exists()).toBe(true);
-    expect(wrapper.find('[aria-label="手动取景"]').exists()).toBe(false);
-  });
-
-  it("回填的旧封面没有定形产物尺寸：不显示徽标，也不提供取景入口", () => {
+  it("回填的旧封面没有定形产物尺寸：不显示徽标", () => {
     const wrapper = mountPanel({ previewUrl: "https://cdn.example.com/old.png" });
 
     expect(wrapper.find(".cover-panel__meta").exists()).toBe(false);
-    expect(wrapper.find('[aria-label="手动取景"]').exists()).toBe(false);
   });
 });
 
@@ -102,7 +88,7 @@ describe("StudioCoverUploadPanel · 忙碌态与错误态", () => {
     expect(wrapper.get(".cover-panel__stage").text()).toContain("正在上传");
   });
 
-  it("选文件、移除、取景三个入口把事件原样交给父级", async () => {
+  it("选文件、移除两个入口把事件原样交给父级", async () => {
     const onFileChange = vi.fn();
     const onClear = vi.fn();
     const wrapper = mountPanel({ previewUrl: "https://cdn.example.com/cover.png", onFileChange, onClear });

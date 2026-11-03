@@ -1,3 +1,6 @@
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
+
 import { describe, expect, it } from "vitest";
 
 import {
@@ -110,7 +113,15 @@ describe("页脚：少量链接 + 备案行", () => {
     ]);
   });
 
-  it("备案行集中在一处（组件不再各自硬编码）", () => {
+  it("页脚不直接引用 FOOTER_ICP：备案号改读运行时站点配置（#191）", () => {
+    const footerSource = readFileSync(
+      join(process.cwd(), "app/components/layout/AppFooter.vue"),
+      "utf8",
+    );
+
+    // 常量本身留给后续票删除，但页脚不能再引用它——否则「不再硬编码」无从谈起。
+    expect(footerSource).not.toContain("FOOTER_ICP");
+    expect(footerSource).toContain("useSiteStore");
     expect(FOOTER_ICP).toMatch(/^粤ICP备 \d+ 号$/u);
   });
 });

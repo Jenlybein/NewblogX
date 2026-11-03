@@ -3,6 +3,7 @@ package config
 import (
 	"encoding/json"
 	"os"
+	"sort"
 	"strings"
 	"testing"
 
@@ -65,20 +66,22 @@ func TestUpdateSite_旧mode残留不报错且保存后消失(t *testing.T) {
 	// 深度合并会把它留在 map 里但不再进类型，管理员下次保存整段即自然消失。
 	// 两个方向都要钉：读不能报错（否则老部署升级后站点配置整段回退默认值），
 	// 保存要把残留键挤掉（否则"删了配置"只在代码里成立）。
+	//
+	// 站点标题随 #192 删除后，这里改用备案号作为"载荷里的值真的生效"的证据。
 	defaults := conf.RuntimeDefaults{
-		Site: conf.Site{SiteInfo: siteconf.SiteInfo{Title: "默认标题"}},
+		Site: conf.Site{SiteInfo: siteconf.SiteInfo{Beian: "默认备案号"}},
 	}
 	svc, db := newTestService(t, defaults)
 
-	legacy := `{"site_info":{"title":"老站点","mode":1},"article":{"skip_examining":true}}`
+	legacy := `{"site_info":{"beian":"老备案号","mode":1},"article":{"skip_examining":true}}`
 	if err := upsertPayload(db, SectionSite, legacy); err != nil {
 		t.Fatalf("预置老载荷失败: %v", err)
 	}
 	if err := svc.InitRuntimeConfig(); err != nil {
 		t.Fatalf("带残留 mode 的老载荷必须能正常加载，实际报错: %v", err)
 	}
-	if got := svc.GetRuntimeSite().SiteInfo.Title; got != "老站点" {
-		t.Fatalf("载荷里的站点标题应生效，实际 %q", got)
+	if got := svc.GetRuntimeSite().SiteInfo.Beian; got != "老备案号" {
+		t.Fatalf("载荷里的备案号应生效，实际 %q", got)
 	}
 
 	site := svc.GetRuntimeSite()
@@ -88,6 +91,59 @@ func TestUpdateSite_旧mode残留不报错且保存后消失(t *testing.T) {
 	}
 	if payload := readPayload(t, db, SectionSite); strings.Contains(payload, `"mode"`) {
 		t.Fatalf("管理员保存一次后 site 段不应再含 mode，实际 %s", payload)
+	}
+}
+
+// ── 票 #192：站点标题与 Logo 下线 ─────────────────────────────
+//
+// 这两项曾是后台「基础信息」里的可编辑项，但读者站根本不消费：页头字标、
+// 浏览器标题与站点品牌都另有单一来源（品牌常量），favicon 走 project.icon。
+// 于是字段、默认值、SEO 响应与两端类型一起删。这里钉住的仍是**存储形状**：
+// site_info 只剩 beian，默认值文件也不许再把它们种回去。
+
+func TestSiteSection_序列化后site_info只剩beian(t *testing.T) {
+	raw, err := json.Marshal(conf.Site{})
+	if err != nil {
+		t.Fatalf("site 段无法序列化: %v", err)
+	}
+	var sections map[string]map[string]json.RawMessage
+	if err := json.Unmarshal(raw, &sections); err != nil {
+		t.Fatalf("site 段无法反序列化: %v", err)
+	}
+	siteInfo, ok := sections["site_info"]
+	if !ok {
+		t.Fatal("site 段必须仍有 site_info 子块")
+	}
+	keys := make([]string, 0, len(siteInfo))
+	for key := range siteInfo {
+		keys = append(keys, key)
+	}
+	sort.Strings(keys)
+	if len(keys) != 1 || keys[0] != "beian" {
+		t.Fatalf("site_info 只应剩 beian，实际 %v", keys)
+	}
+}
+
+func TestDefaultSettingsYaml_site_info只剩beian(t *testing.T) {
+	raw, err := os.ReadFile("../../../config/site_default_settings.yaml")
+	if err != nil {
+		t.Fatalf("读取默认值文件失败: %v", err)
+	}
+	var file struct {
+		Site struct {
+			SiteInfo map[string]any `yaml:"site_info"`
+		} `yaml:"site"`
+	}
+	if err := yaml.Unmarshal(raw, &file); err != nil {
+		t.Fatalf("解析默认值文件失败: %v", err)
+	}
+	keys := make([]string, 0, len(file.Site.SiteInfo))
+	for key := range file.Site.SiteInfo {
+		keys = append(keys, key)
+	}
+	sort.Strings(keys)
+	if len(keys) != 1 || keys[0] != "beian" {
+		t.Fatalf("site_default_settings.yaml 的 site.site_info 只应剩 beian，实际 %v", keys)
 	}
 }
 

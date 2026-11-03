@@ -16,10 +16,12 @@ type Logger interface {
 }
 
 // SEO 是站点 SEO 摘要（给前端做 SSR 用）。
+//
+// 这里曾经还有 SiteTitle / Logo：它们的来源是 site_info.title / logo，而那两个
+// 字段随 #192 一起删除，失去来源的它们也一并删掉。站点标题回到读者站的品牌常量，
+// favicon 仍由 Icon（project.icon）供给。
 type SEO struct {
-	SiteTitle    string
 	ProjectTitle string
-	Logo         string
 	Icon         string
 	Keywords     string
 	Description  string
@@ -85,9 +87,7 @@ func (s *Service) PublicSite() conf.Site {
 func (s *Service) PublicSEO() SEO {
 	site := s.runtime.Site()
 	return SEO{
-		SiteTitle:    site.SiteInfo.Title,
 		ProjectTitle: site.Project.Title,
-		Logo:         site.SiteInfo.Logo,
 		Icon:         site.Project.Icon,
 		Keywords:     site.Seo.Keywords,
 		Description:  site.Seo.Description,

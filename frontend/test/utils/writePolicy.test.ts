@@ -24,7 +24,7 @@ import {
 
 function configWith(article: SiteRuntimeConfig["article"]): SiteRuntimeConfig {
   return {
-    site_info: { title: "果冻盒" },
+    site_info: { beian: "" },
     project: { title: "JellyBin" },
     login: { username_pwd_login: true },
     article,

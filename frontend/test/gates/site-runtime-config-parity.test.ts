@@ -8,7 +8,7 @@ import { describe, expect, it } from "vitest";
  *
  * 为什么需要它：`SiteRuntimeConfig` 是手写投影，不在 OpenAPI 契约里（`/site/{name}`
  * 的 data 是 `map[string]any`，没有可派生的类型）。手写就会漂移 —— #39 之前它声明了
- * 后端根本没有的 `site_info.subtitle`，却漏了后端确实有的 `logo` / `beian`，
+ * 后端根本没有的 `site_info.subtitle`，却漏了后端确实有的 `beian`，
  * 而 `subtitle` 还被首页侧栏当成简介兜底，于是那段回落在生产里永远是死分支。
  *
  * 门禁的判定口径是**逐字段相等**而不是"子集"：`site_info` 在读者站是完整投影，
@@ -66,11 +66,24 @@ describe("读者站投影 site_info 与后端 SiteInfo 逐字段一致（真实�
 
     expect(goKeys.length).toBeGreaterThan(0);
     expect(tsKeys.length).toBeGreaterThan(0);
-    expect(goKeys).toContain("title");
-    expect(tsKeys).toContain("title");
+    expect(goKeys).toContain("beian");
+    expect(tsKeys).toContain("beian");
   });
 
-  it("字段名与顺序完全相等：不多（没有 subtitle）也不少（有 logo / beian）", () => {
+  it("站点标题与 Logo 已从两端删干净（#192：后台「基础信息」只剩备案号）", () => {
+    const goKeys = goStructJSONKeys(goSource, "SiteInfo");
+    const tsKeys = tsObjectKeys(tsSource, "site_info: {");
+
+    // 这两个字段的唯一来源已被删除（站点品牌回到代码常量），任何一侧再出现
+    // 都说明有幽灵字段漏网：前端多一个等于照着想象中的后端写，后端多一个等于
+    // 删了配置却仍在契约里承诺。
+    expect(goKeys).not.toContain("title");
+    expect(goKeys).not.toContain("logo");
+    expect(tsKeys).not.toContain("title");
+    expect(tsKeys).not.toContain("logo");
+  });
+
+  it("字段名与顺序完全相等：不多（没有 subtitle）也不少（有 beian）", () => {
     expect(tsObjectKeys(tsSource, "site_info: {")).toEqual(goStructJSONKeys(goSource, "SiteInfo"));
   });
 
@@ -145,21 +158,24 @@ describe("旧右栏配置整条链已下线", () => {
 });
 
 describe("canary：投影一旦漂移，门禁必须红", () => {
-  it("多写一个后端没有的字段（subtitle）→ 与后端字段不相等", () => {
+  it("多写一个后端没有的字段（title）→ 与后端字段不相等", () => {
     const goKeys = goStructJSONKeys(goSource, "SiteInfo");
-    const drifted = tsSource.replace("    title?: string;\n", "    title?: string;\n    subtitle?: string;\n");
+    const drifted = tsSource.replace(
+      "    beian?: string;\n",
+      "    beian?: string;\n    title?: string;\n",
+    );
     const driftedKeys = tsObjectKeys(drifted, "site_info: {");
 
-    expect(driftedKeys).toContain("subtitle");
+    expect(driftedKeys).toContain("title");
     expect(driftedKeys).not.toEqual(goKeys);
   });
 
-  it("漏掉一个后端确实有的字段（logo）→ 与后端字段不相等", () => {
+  it("漏掉一个后端确实有的字段（beian）→ 与后端字段不相等", () => {
     const goKeys = goStructJSONKeys(goSource, "SiteInfo");
-    const drifted = tsSource.replace(/^ *logo\?: string;\n/mu, "");
+    const drifted = tsSource.replace(/^ *beian\?: string;\n/mu, "");
     const driftedKeys = tsObjectKeys(drifted, "site_info: {");
 
-    expect(driftedKeys).not.toContain("logo");
+    expect(driftedKeys).not.toContain("beian");
     expect(driftedKeys).not.toEqual(goKeys);
   });
 

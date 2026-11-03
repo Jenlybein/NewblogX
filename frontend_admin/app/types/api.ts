@@ -226,8 +226,12 @@ export type ArticleSearchResponseData = Omit<
  */
 export interface SiteRuntimeConfig {
   site_info: {
-    title: string
-    logo: string
+    /**
+     * ICP / 公网安备备案号；空串表示读者站页脚整行不显示。
+     *
+     * 站点标题与 Logo 随 #192 删除：品牌由读者站的代码常量提供，favicon 走
+     * `project.icon`。后台「基础信息」只剩这一项，保存时也不会再带那两个键。
+     */
     beian: string
   }
   project: {

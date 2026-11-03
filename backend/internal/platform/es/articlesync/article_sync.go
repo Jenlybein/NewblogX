@@ -142,6 +142,18 @@ func UpdateESDocsByArticleDeltas(db *gorm.DB, client *elasticsearch.Client, delt
 
 	reqs := make([]*es_service.BulkRequest, 0, len(deltas))
 	for _, delta := range deltas {
+		// 软删在库里的形态是 deleted_at 的一次 UPDATE（行还在，只是打了标记）。
+		// 它不在下面的可投影列里：若照旧走"变更列 → 局部更新"，data 会是空的，
+		// 这次更新对索引零写入，文档就永远留着。命中软删标记时直接删文档，
+		// 与其他动作共用同一条 bulk 路径（重试、缺失文档判定都不用另写一套）。
+		if articleSoftDeleted(delta.Changed) {
+			reqs = append(reqs, &es_service.BulkRequest{
+				Action: es_service.ActionDelete,
+				ID:     strconv.FormatUint(delta.ArticleID.Uint64(), 10),
+			})
+			continue
+		}
+
 		data := make(map[string]any)
 		for field, raw := range delta.Changed {
 			switch field {
@@ -236,6 +248,19 @@ func UpdateESDocsByArticleDeltas(db *gorm.DB, client *elasticsearch.Client, delt
 	}
 
 	return applyArticlePartialBulkUpdate(db, client, reqs, "按 article_models 差异更新 ES 文档失败")
+}
+
+// articleSoftDeleted 判断一份"变更列快照"是否表示文章被软删。
+//
+// 只看 deleted_at 的**变更后值**非空：从时间改回 NULL（恢复）不是删除，
+// 这里不猜恢复语义 —— 恢复需要重建文档，不在本次修复范围。
+func articleSoftDeleted(changed map[string]any) bool {
+	raw, ok := changed["deleted_at"]
+	if !ok {
+		return false
+	}
+	value, ok := scanTimeValue(raw)
+	return ok && !value.IsZero()
 }
 
 func buildArticleESDocumentFromSnapshot(snapshot ArticleRowSnapshot, deps articleProjectionOptions) map[string]any {

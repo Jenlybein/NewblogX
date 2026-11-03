@@ -83,6 +83,9 @@ export const ADMIN_NAV_TREE: AdminNavNode[] = [
       { label: '合集管理', path: '/articles/collections', icon: 'article' },
       // 编排是合集的日常动作（批量收录 + 两级排序），与增删改分开成独立页。
       { label: '合集编排', path: '/articles/collection-arrange', icon: 'article' },
+      // 项目与合集并列的独立内容实体：维护页与编排页同样落在「文章管理」下。
+      { label: '项目管理', path: '/articles/projects', icon: 'article' },
+      { label: '项目编排', path: '/articles/project-arrange', icon: 'article' },
     ],
   },
   { label: '用户管理', path: '/users', icon: 'users' },

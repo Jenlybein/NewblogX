@@ -200,6 +200,7 @@ func (r *Repos) snapshotAll() map[string]any {
 		"comments":    r.comments.Snapshot(),
 		"diggs":       r.diggs.Snapshot(),
 		"collections": r.collectionRepo.Snapshot(),
+		"projects":    r.projectRepo.Snapshot(),
 		"crops":       r.cropRepo.Snapshot(),
 	}
 }
@@ -220,6 +221,7 @@ func (r *Repos) restoreAll(snaps map[string]any) {
 	r.comments.RestoreState(snaps["comments"])
 	r.diggs.RestoreState(snaps["diggs"])
 	r.collectionRepo.RestoreState(snaps["collections"])
+	r.projectRepo.RestoreState(snaps["projects"])
 	r.cropRepo.RestoreState(snaps["crops"])
 }
 
@@ -459,4 +461,15 @@ func (g *IDGen) NextFolderID() favorite.ID {
 	defer g.mu.Unlock()
 	g.folder++
 	return ctype.NewID(g.folder)
+}
+
+// NextProjectID 返回下一个项目 ID。
+//
+// 与 NextCollectionID 同一做法：测试里只关心唯一且可复现，
+// 不关心跨类型间距（生产用雪花，天然不撞）。
+func (g *IDGen) NextProjectID() project.ID {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	g.article++
+	return ctype.NewID(g.article)
 }

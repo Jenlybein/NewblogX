@@ -25,6 +25,7 @@ import (
 	"myblogx/internal/article/domain"
 	"myblogx/internal/article/domain/collection"
 	"myblogx/internal/article/domain/favorite"
+	"myblogx/internal/article/domain/project"
 	"myblogx/internal/kernel/ctype"
 	"myblogx/internal/platform/config"
 	redis_service "myblogx/internal/platform/redis"
@@ -46,6 +47,7 @@ func (g *testIDs) NextArticleID() domain.ArticleID { return ctype.NewID(g.next()
 func (g *testIDs) NextReviewTaskID() uint64        { return g.next() }
 func (g *testIDs) NextFolderID() favorite.ID       { return ctype.NewID(g.next()) }
 func (g *testIDs) NextCollectionID() collection.ID { return ctype.NewID(g.next()) }
+func (g *testIDs) NextProjectID() project.ID       { return ctype.NewID(g.next()) }
 
 func migrate(t *testing.T) *gorm.DB {
 	t.Helper()
@@ -255,4 +257,3 @@ func TestSitePolicyRejectsNormalUserWithReadableMessage(t *testing.T) {
 		t.Fatalf("管理员应不受站点开关影响，实际 %v", adminResp)
 	}
 }
-

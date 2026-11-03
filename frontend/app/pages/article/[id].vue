@@ -4,6 +4,7 @@ import { computed, defineAsyncComponent, onMounted, onUnmounted, ref, shallowRef
 import { IconEye, IconHeart, IconMessageCircle2, IconPencil, IconShare2, IconThumbUp } from "@tabler/icons-vue";
 import { useMessage } from "naive-ui";
 import ArticlePageSkeleton from "~/components/article/ArticlePageSkeleton.vue";
+import ArticleOutlineAside from "~/components/article/ArticleOutlineAside.vue";
 import ArticleScoreModal from "~/components/article/ArticleScoreModal.vue";
 import ArticleTocAnchor from "~/components/article/ArticleTocAnchor.vue";
 import AppAvatar from "~/components/common/AppAvatar.vue";
@@ -11,6 +12,7 @@ import CommentComposer from "~/components/comment/CommentComposer.vue";
 import CommentThread from "~/components/comment/CommentThread.vue";
 import FavoriteFolderModal from "~/components/favorite/FavoriteFolderModal.vue";
 import { useArticleDigg } from "~/composables/useArticleDigg";
+import { useArticleOutlineContext } from "~/composables/useArticleOutlineContext";
 import { useArticlePageSources } from "~/composables/useArticlePageSources";
 import { useArticleWritePolicy } from "~/composables/useArticleWritePolicy";
 import { useParallax } from "~/composables/useParallax";
@@ -67,6 +69,17 @@ const {
   refreshArticleScoreSummary,
   commentsPager,
 } = await useArticlePageSources({ articleId: () => articleId.value });
+
+// 阅读页左栏目录树（票 220 / 决定清单 A9–A11）：从 `?from=<kind>:<id>` 找回读者
+// 点进来的那棵树。树**只在客户端取数**（SSR 阶段不发请求，ADR-0019 的渲染边界与
+// 匿名缓存策略不变），站内跳转先出与真实三栏版式同构的骨架；没有归属树时整栏
+// 不出现，右栏标题大纲与阅读进度保持原样。
+const outlineFrom = computed(() => String(route.query.from ?? ""));
+const {
+  context: articleOutlineContext,
+  pending: articleOutlinePending,
+  active: outlineColumnVisible,
+} = useArticleOutlineContext({ articleId, from: outlineFrom });
 
 const articleLoadError = computed(() => {
   const error = articleError.value;
@@ -473,7 +486,7 @@ useSeoMeta({
 <template>
   <div class="article-page">
     <!-- 切页先出骨架：正文还没到时按文章页版式占位，不再让 Suspense 等"数据齐了才切页"。 -->
-    <ArticlePageSkeleton v-if="articleSkeleton" />
+    <ArticlePageSkeleton v-if="articleSkeleton" :with-outline="outlineColumnVisible" />
 
     <section v-else-if="articleLoadError" class="article-paper article-paper--state">
       <p class="article-eyebrow">Article</p>
@@ -567,7 +580,14 @@ useSeoMeta({
         </div>
       </header>
 
-      <div class="article-layout">
+      <div class="article-layout" :class="{ 'article-layout--with-outline': outlineColumnVisible }">
+        <ArticleOutlineAside
+          v-if="outlineColumnVisible"
+          :context="articleOutlineContext"
+          :pending="articleOutlinePending"
+          :current-article-id="articleId"
+        />
+
         <div class="article-main">
           <section v-if="article?.cover" class="article-paper article-paper--cover">
             <img :src="article.cover" :alt="article.title" class="article-cover" />

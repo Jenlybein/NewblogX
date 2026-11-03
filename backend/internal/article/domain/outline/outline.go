@@ -668,6 +668,13 @@ type Repository interface {
 	// 没有该文章节点时返回 ErrNodeMissing。
 	FindByArticle(ctx context.Context, ownerKind OwnerKind, ownerID ID, articleID ArticleID) (*Node, error)
 
+	// ListByArticle 返回这篇文章在**所有树**里的活跃文章节点（跨树重复允许）。
+	//
+	// 阅读页 `?from=` 缺失时要回退到"第一棵归属树"：这一步必须在 app 层能看见
+	// 文章出现在哪些树里，所以按文章反查，而不是让 app 遍历所有合集/项目。
+	// 顺序固定为 (owner_kind, owner_id, id) 升序，保证同一份数据每次回退到同一棵树。
+	ListByArticle(ctx context.Context, articleID ArticleID) ([]*Node, error)
+
 	// Create 批量插入节点（ID 已由调用方给好）。
 	Create(ctx context.Context, nodes []*Node) error
 

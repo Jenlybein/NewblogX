@@ -807,6 +807,36 @@
                 ],
                 "type": "object"
             },
+            "internal_article_adapter_http.ArticleOutlineContextResponse": {
+                "properties": {
+                    "current": {
+                        "$ref": "#/components/schemas/internal_article_adapter_http.OutlineArticleRefResponse"
+                    },
+                    "has_tree": {
+                        "type": "boolean"
+                    },
+                    "next": {
+                        "$ref": "#/components/schemas/internal_article_adapter_http.OutlineArticleRefResponse"
+                    },
+                    "nodes": {
+                        "items": {
+                            "$ref": "#/components/schemas/internal_article_adapter_http.OutlineNodeResponse"
+                        },
+                        "type": "array",
+                        "uniqueItems": false
+                    },
+                    "owner_id": {
+                        "type": "string"
+                    },
+                    "owner_kind": {
+                        "type": "integer"
+                    },
+                    "previous": {
+                        "$ref": "#/components/schemas/internal_article_adapter_http.OutlineArticleRefResponse"
+                    }
+                },
+                "type": "object"
+            },
             "internal_article_adapter_http.ArticleReviewHandleRequest": {
                 "properties": {
                     "reason": {
@@ -1452,6 +1482,23 @@
                 "required": [
                     "title"
                 ],
+                "type": "object"
+            },
+            "internal_article_adapter_http.OutlineArticleRefResponse": {
+                "properties": {
+                    "article_cover": {
+                        "type": "string"
+                    },
+                    "article_id": {
+                        "type": "string"
+                    },
+                    "article_title": {
+                        "type": "string"
+                    },
+                    "id": {
+                        "type": "string"
+                    }
+                },
                 "type": "object"
             },
             "internal_article_adapter_http.OutlineNodeRequest": {
@@ -4106,6 +4153,20 @@
                     },
                     "data": {
                         "$ref": "#/components/schemas/internal_article_adapter_http.ArticleDiggResponse"
+                    },
+                    "msg": {
+                        "type": "string"
+                    }
+                },
+                "type": "object"
+            },
+            "myblogx_internal_kernel.Envelope-internal_article_adapter_http_ArticleOutlineContextResponse": {
+                "properties": {
+                    "code": {
+                        "type": "integer"
+                    },
+                    "data": {
+                        "$ref": "#/components/schemas/internal_article_adapter_http.ArticleOutlineContextResponse"
                     },
                     "msg": {
                         "type": "string"
@@ -7796,6 +7857,45 @@
                 "summary": "文章点赞",
                 "tags": [
                     "article"
+                ]
+            }
+        },
+        "/articles/{id}/outline-context": {
+            "get": {
+                "parameters": [
+                    {
+                        "description": "文章 ID",
+                        "in": "path",
+                        "name": "id",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "description": "来源（project:\u003cid\u003e / collection:\u003cid\u003e）",
+                        "in": "query",
+                        "name": "from",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/myblogx_internal_kernel.Envelope-internal_article_adapter_http_ArticleOutlineContextResponse"
+                                }
+                            }
+                        },
+                        "description": "OK"
+                    }
+                },
+                "summary": "文章上下文（阅读页左栏目录树）",
+                "tags": [
+                    "outline"
                 ]
             }
         },

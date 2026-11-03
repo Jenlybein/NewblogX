@@ -58,6 +58,24 @@ func (r *OutlineRepo) FindByArticle(
 	return nodes[0], nil
 }
 
+// ListByArticle 返回这篇文章在**所有树**里的活跃文章节点（不含软删行）。
+//
+// 排序固定为 (owner_kind, owner_id, id)：阅读页 `?from=` 缺失时据此回退到
+// 第一棵归属树，同一份数据每次得到同一棵。
+func (r *OutlineRepo) ListByArticle(
+	ctx context.Context, articleID outline.ArticleID,
+) ([]*outline.Node, error) {
+	var rows []outlineNodeRow
+	err := r.db.WithContext(ctx).
+		Where("article_id = ?", ctype.ID(articleID)).
+		Order("owner_kind ASC, owner_id ASC, id ASC").
+		Find(&rows).Error
+	if err != nil {
+		return nil, err
+	}
+	return toOutlineNodes(rows), nil
+}
+
 // Create 批量插入节点。
 //
 // 用 map 写而不是结构体：文章节点的 article_id 为 NULL 与文件夹节点的

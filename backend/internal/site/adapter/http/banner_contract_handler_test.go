@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"net/http/httptest"
+	"strconv"
 	"testing"
 
 	"myblogx/conf"
@@ -137,25 +138,12 @@ func findKey(value any, key, prefix string) (string, bool) {
 		}
 	case []any:
 		for index, child := range typed {
-			if found, ok := findKey(child, key, prefix+"["+itoa(index)+"]"); ok {
+			if found, ok := findKey(child, key, prefix+"["+strconv.Itoa(index)+"]"); ok {
 				return found, true
 			}
 		}
 	}
 	return "", false
-}
-
-// itoa 只服务于路径拼接，避免为了一行引入 strconv。
-func itoa(v int) string {
-	if v == 0 {
-		return "0"
-	}
-	var digits []byte
-	for v > 0 {
-		digits = append([]byte{byte('0' + v%10)}, digits...)
-		v /= 10
-	}
-	return string(digits)
 }
 
 // TestBannerListOptionalShowQuery 钉住 GET 查询参数的三态绑定：

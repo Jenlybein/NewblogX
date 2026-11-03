@@ -54,10 +54,21 @@ const framing = ref<ShapeFramingState>({ ...DEFAULT_SHAPE_FRAMING });
 const dragging = ref(false);
 const frameEl = ref<HTMLElement | null>(null);
 
-/** 比例框固定：比例由目标尺寸派生，组件里没有第二个数字。 */
-const frameStyle = computed(() => ({
-  aspectRatio: `${props.target.width} / ${props.target.height}`,
-}));
+/**
+ * 比例框固定：比例由目标尺寸派生，组件里没有第二个数字。
+ *
+ * 尺寸方向（票 242）：以前框是整宽 + aspect-ratio，高度按宽度派生——头像 1:1 时
+ * 高度≈弹层内容宽，观感就是"铺满窗口"。现在**由高度决定宽**：组件样式里把宽度
+ * 算成 `高度预算（min(46dvh, 360px)）× 比例`，高度再由 aspect-ratio 反推；这里
+ * 只交出比例这一个数。
+ */
+const frameStyle = computed(() => {
+  const ratio = Number((props.target.width / props.target.height).toFixed(6));
+  return {
+    aspectRatio: `${props.target.width} / ${props.target.height}`,
+    "--crop-frame-ratio": `${ratio}`,
+  };
+});
 
 /** 画面布局（相对顶点的百分比）：与源矩形一一对应。 */
 const imageStyle = computed(() => {
@@ -190,65 +201,67 @@ function onCancel() {
 
 <template>
   <section class="image-crop">
-    <p class="image-crop__hint">
-      固定 {{ props.ratioText }}：拖动画面决定露出哪一块，或用方向键移动取景范围、加减号缩放；
-      框里看到的就是最终上传的那张图。
-    </p>
+    <div class="image-crop__body" data-role="crop-body">
+      <p class="image-crop__hint">
+        固定 {{ props.ratioText }}：拖动画面决定露出哪一块，或用方向键移动取景范围、加减号缩放；
+        框里看到的就是最终上传的那张图。
+      </p>
 
-    <div class="image-crop__stage">
-      <div
-        ref="frameEl"
-        data-role="crop-frame"
-        class="image-crop__frame"
-        :class="{ 'image-crop__frame--dragging': dragging }"
-        role="group"
-        tabindex="0"
-        :style="frameStyle"
-        :aria-label="`裁剪框（${props.ratioText}）：拖动画面，方向键移动取景范围，加减号缩放，Esc 取消`"
-        @pointerdown="onPointerDown"
-        @keydown="onKeydown">
-        <img
-          v-if="props.src"
-          data-role="crop-image"
-          class="image-crop__image"
-          :src="props.src"
-          :style="imageStyle"
-          alt="待裁剪的原图"
-          draggable="false"
-          @dragstart.prevent>
+      <div class="image-crop__stage">
+        <div
+          ref="frameEl"
+          data-role="crop-frame"
+          class="image-crop__frame"
+          :class="{ 'image-crop__frame--dragging': dragging }"
+          role="group"
+          tabindex="0"
+          :style="frameStyle"
+          :aria-label="`裁剪框（${props.ratioText}）：拖动画面，方向键移动取景范围，加减号缩放，Esc 取消`"
+          @pointerdown="onPointerDown"
+          @keydown="onKeydown">
+          <img
+            v-if="props.src"
+            data-role="crop-image"
+            class="image-crop__image"
+            :src="props.src"
+            :style="imageStyle"
+            alt="待裁剪的原图"
+            draggable="false"
+            @dragstart.prevent>
+        </div>
+      </div>
+
+      <div class="image-crop__controls">
+        <button
+          type="button"
+          class="image-crop__action image-crop__action--icon"
+          aria-label="缩小"
+          :disabled="framing.zoom <= SHAPE_FRAMING_ZOOM_MIN"
+          @click="apply(stepFramingZoom(framing, -1, sourceSize, props.target))">
+          −
+        </button>
+        <input
+          class="image-crop__zoom"
+          type="range"
+          :min="SHAPE_FRAMING_ZOOM_MIN"
+          :max="SHAPE_FRAMING_ZOOM_MAX"
+          :step="SHAPE_FRAMING_ZOOM_STEP"
+          :value="framing.zoom"
+          aria-label="缩放"
+          @input="onZoomInput">
+        <button
+          type="button"
+          class="image-crop__action image-crop__action--icon"
+          aria-label="放大"
+          :disabled="framing.zoom >= SHAPE_FRAMING_ZOOM_MAX"
+          @click="apply(stepFramingZoom(framing, 1, sourceSize, props.target))">
+          +
+        </button>
+        <span class="image-crop__readout">{{ readout }}</span>
       </div>
     </div>
 
-    <div class="image-crop__controls">
-      <button
-        type="button"
-        class="image-crop__action image-crop__action--icon"
-        aria-label="缩小"
-        :disabled="framing.zoom <= SHAPE_FRAMING_ZOOM_MIN"
-        @click="apply(stepFramingZoom(framing, -1, sourceSize, props.target))">
-        −
-      </button>
-      <input
-        class="image-crop__zoom"
-        type="range"
-        :min="SHAPE_FRAMING_ZOOM_MIN"
-        :max="SHAPE_FRAMING_ZOOM_MAX"
-        :step="SHAPE_FRAMING_ZOOM_STEP"
-        :value="framing.zoom"
-        aria-label="缩放"
-        @input="onZoomInput">
-      <button
-        type="button"
-        class="image-crop__action image-crop__action--icon"
-        aria-label="放大"
-        :disabled="framing.zoom >= SHAPE_FRAMING_ZOOM_MAX"
-        @click="apply(stepFramingZoom(framing, 1, sourceSize, props.target))">
-        +
-      </button>
-      <span class="image-crop__readout">{{ readout }}</span>
-    </div>
-
-    <div class="image-crop__actions">
+    <div class="image-crop__actions" data-role="crop-actions">
       <button type="button" class="image-crop__action" aria-label="重置取景" @click="resetFraming">重置</button>
       <button type="button" class="image-crop__action" aria-label="取消裁剪" @click="onCancel">取消</button>
       <button
@@ -268,6 +281,19 @@ function onCancel() {
   display: flex;
   flex-direction: column;
   gap: 12px;
+  /* 弹层给的是 max-height（100dvh - 48px），这里再兜一层卡片标题/内边距的预算：
+     内容一长就在这里内部滚动，底部动作条不会被滚出去（票 242）。 */
+  max-height: calc(100dvh - 144px);
+}
+
+.image-crop__body {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-height: 0;
+  overflow-y: auto;
+  /* 滚动到边界不把弹层后面的页面一起拖走。 */
+  overscroll-behavior: contain;
 }
 
 .image-crop__hint {
@@ -288,7 +314,12 @@ function onCancel() {
 
 .image-crop__frame {
   position: relative;
-  width: 100%;
+  /* 由高度决定宽（票 242）：高度预算 46dvh 封顶 360px → 宽度 = 预算 × 比例
+     （比例来自 frameStyle 的 --crop-frame-ratio），高度再由 aspect-ratio 反推；
+     台面更窄时回落到 100%。旧写法（整宽撑高）已删除。 */
+  width: min(100%, calc(min(46dvh, 360px) * var(--crop-frame-ratio, 1)));
+  flex: none;
+  max-width: 100%;
   overflow: hidden;
   border: 1px solid var(--color-on-strong-line);
   border-radius: var(--radius-md);
@@ -333,6 +364,7 @@ function onCancel() {
 
 .image-crop__actions {
   display: flex;
+  flex: none;
   flex-wrap: wrap;
   justify-content: flex-end;
   gap: 8px;

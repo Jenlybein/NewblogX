@@ -59,11 +59,6 @@ export function brandAiName(nickname?: string | null): string {
   return nickname?.trim() || BRAND.assistant;
 }
 
-/** 站点标题：优先用运行时配置里的项目名，没有才回落到品牌英文名。 */
-export function brandProjectTitle(title?: string | null): string {
-  return title?.trim() || BRAND.name.en;
-}
-
 /** 版权行：`© 2026 JellyBin（果冻盒）`。 */
 export function brandCopyright(year: number): string {
   return `© ${year} ${brandFullName()}`;

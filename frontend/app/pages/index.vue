@@ -20,10 +20,12 @@ const { bannerData, bannerPending, hotTopData, sidebarCardsData, latestPager, la
 
 
 useSeoMeta({
-  title: siteStore.seo?.site_title || brandFullName(),
+  // 站点标题回到品牌常量（票 192：site_info.title 已删除）。分享卡片与浏览器
+  // 标题共用同一个兜底，保证 og:title 不为空；描述与关键词仍可由后台覆盖。
+  title: brandFullName(),
   description: brandDescription(siteStore.seo?.description),
   keywords: siteStore.seo?.keywords || "前端, Nuxt, Vue, OpenAPI",
-  ogTitle: siteStore.seo?.site_title || brandFullName(),
+  ogTitle: brandFullName(),
   ogDescription: brandDescription(siteStore.seo?.description),
 });
 

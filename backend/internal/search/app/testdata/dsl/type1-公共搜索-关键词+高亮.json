@@ -103,6 +103,17 @@
               "term": {
                 "publish_status": 3
               }
+            },
+            {
+              "bool": {
+                "must_not": [
+                  {
+                    "term": {
+                      "is_deleted": true
+                    }
+                  }
+                ]
+              }
             }
           ],
           "must": [

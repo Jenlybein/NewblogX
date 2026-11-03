@@ -96,6 +96,17 @@
               "term": {
                 "category_id": "7"
               }
+            },
+            {
+              "bool": {
+                "must_not": [
+                  {
+                    "term": {
+                      "is_deleted": true
+                    }
+                  }
+                ]
+              }
             }
           ],
           "must": [

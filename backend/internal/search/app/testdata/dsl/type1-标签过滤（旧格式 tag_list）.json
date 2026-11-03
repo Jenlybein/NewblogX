@@ -99,6 +99,17 @@
                   "MySQL"
                 ]
               }
+            },
+            {
+              "bool": {
+                "must_not": [
+                  {
+                    "term": {
+                      "is_deleted": true
+                    }
+                  }
+                ]
+              }
             }
           ],
           "must": [

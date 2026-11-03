@@ -20,14 +20,16 @@ import { useReadingProgress } from "~/composables/useReadingProgress";
 import { useSectionReveal } from "~/composables/useSectionReveal";
 import { followUser, unfollowUser } from "~/services/follow";
 import { ApiBusinessError } from "~/services/http/errors";
-import { markArticleViewed, toggleArticleDigg } from "~/services/article";
+import { markArticleViewed, setArticleDigg } from "~/services/article";
 import { createComment, diggComment, getReplyComments } from "~/services/comment";
-import type { CommentReplyItem } from "~/types/api";
+import type { ArticleFavoriteResult, CommentReplyItem } from "~/types/api";
 import { resolveArticleEditEntry } from "~/utils/articleEdit";
 import { formatCount, formatDateTimeLabel } from "~/utils/format";
 import { getAuthorButtonLabel, isFollowing } from "~/utils/relation";
 import { resolveAvatarInitial } from "~/utils/avatar";
 import { brandDescription } from "~/utils/brand";
+import { readerArticleCacheKey } from "~/utils/readerCacheKeys";
+import { readerSwrCache } from "~/utils/readerSwrCache";
 import katexCssUrl from "katex/dist/katex.min.css?url";
 
 const route = useRoute();
@@ -60,6 +62,7 @@ const {
   articlePending,
   articleError,
   refreshArticle,
+  refreshArticlePrivate,
   authorInfo,
   refreshAuthorInfo,
   authorProfile,
@@ -201,8 +204,12 @@ const {
       return;
     }
     article.value = { ...article.value, is_digg: isDigg, digg_count: diggCount };
+    // 写响应已经是权威计数，客户端 30s SWR 里那份（匿名 payload 预热出的）旧值
+    // 必须主动失效，否则返回/重进时会先渲染旧数字再等 TTL（ADR-0024 决策 4）。
+    readerSwrCache.delete(readerArticleCacheKey(articleId.value));
   },
-  toggle: toggleArticleDigg,
+  // 点赞/收藏是写操作：用**目标态**接口（不是 toggle），写响应带回权威计数。
+  setDigg: setArticleDigg,
   ensureLoggedIn: () => authStore.initializeSession(),
   openAuthModal: () => uiStore.openAuthModal(),
   notify: message,
@@ -343,8 +350,17 @@ async function handleShare() {
   }
 }
 
-async function handleFavoriteUpdated() {
-  await refreshArticle();
+function handleFavoriteUpdated(payload: ArticleFavoriteResult) {
+  // 写响应回填权威计数，直接 patch；不再为一次收藏重取整篇正文（ADR-0024 决策 4/6）。
+  if (article.value) {
+    article.value = {
+      ...article.value,
+      is_favor: payload.is_favor,
+      favor_count: payload.favor_count,
+    };
+  }
+  // 客户端 30s SWR 里那份正文仍是旧计数/旧私有态，主动失效。
+  readerSwrCache.delete(readerArticleCacheKey(articleId.value));
 }
 
 function handleArticleScoreOpen() {
@@ -461,11 +477,15 @@ async function handleNextCommentPage() {
 
 onMounted(() => {
   markArticleViewed(articleId.value).catch(() => undefined);
+  // 首屏 hydration 的 payload 是**匿名**的：点赞/收藏态不在里面（ADR-0019 约束 2）。
+  // 登录初始化完成后必须补一次用户态请求（ADR-0024 决策 2/6），否则硬刷新后
+  // 按钮永远显示"未赞"。这条请求不走 SWR、只投影私有字段，不污染共享缓存。
+  // 用户已经手动点过赞时不覆盖（articleDiggTouched），避免把乐观结果刷回去。
   void authStore.initializeSession().then(async (isLoggedIn) => {
     if (!isLoggedIn || articleDiggTouched.value) {
       return;
     }
-    await refreshArticle().catch(() => undefined);
+    await refreshArticlePrivate().catch(() => undefined);
   });
 });
 

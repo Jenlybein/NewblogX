@@ -14,8 +14,13 @@ import (
 //
 // 与旧实现一致：不能收藏自己的文章；不指定收藏夹时落到默认收藏夹
 // （没有则自动创建）。收藏数走缓存增量，不写文章表。
-func (s *Service) Favorite(ctx context.Context, cmd FavoriteCmd) error {
-	return s.tx.WithinTx(ctx, func(ctx context.Context, r Repos) error {
+//
+// 返回值是操作后的权威状态与收藏总数（ADR-0024 决策 4）：前端据此直接 patch，
+// 不必重新取整篇正文。
+func (s *Service) Favorite(ctx context.Context, cmd FavoriteCmd) (FavoriteResult, error) {
+	var out FavoriteResult
+
+	err := s.tx.WithinTx(ctx, func(ctx context.Context, r Repos) error {
 		a, err := r.Articles().Find(ctx, cmd.ArticleID)
 		if err != nil {
 			return err
@@ -58,14 +63,33 @@ func (s *Service) Favorite(ctx context.Context, cmd FavoriteCmd) error {
 		if err := r.Counters().Add(ctx, a.ID(), domain.Counters{Favor: 1}); err != nil {
 			return err
 		}
+
+		// 计数在"库内快照 + 当前缓存增量"上重算：前端拿到的数字必须是权威值。
+		if err := enrichCounters(ctx, r, a); err != nil {
+			return err
+		}
+		out = FavoriteResult{IsFavor: true, FavorCount: a.Counters().Favor}
+
 		// 通知作者"有人收藏了你的文章"（旧实现同样只在收藏成功时发）。
 		return emitWithActor(ctx, r, EventArticleFavorited, a.ID(), cmd.Actor.UserID)
 	})
+
+	return out, err
 }
 
 // Unfavorite 取消收藏。
-func (s *Service) Unfavorite(ctx context.Context, cmd FavoriteCmd) error {
-	return s.tx.WithinTx(ctx, func(ctx context.Context, r Repos) error {
+//
+// 返回值同上：移除后仍可能被收在别的收藏夹里，所以 `IsFavor` 要按"还有没有关系行"
+// 重新判定，而不是无条件写 false。
+func (s *Service) Unfavorite(ctx context.Context, cmd FavoriteCmd) (FavoriteResult, error) {
+	var out FavoriteResult
+
+	err := s.tx.WithinTx(ctx, func(ctx context.Context, r Repos) error {
+		a, err := r.Articles().Find(ctx, cmd.ArticleID)
+		if err != nil {
+			return err
+		}
+
 		item, err := r.Favorites().FindItemAnyFolder(ctx, cmd.ArticleID, cmd.Actor.UserID)
 		if err != nil {
 			return err
@@ -73,8 +97,22 @@ func (s *Service) Unfavorite(ctx context.Context, cmd FavoriteCmd) error {
 		if err := r.Favorites().DeleteItem(ctx, item.ArticleID(), item.UserID(), item.FolderID()); err != nil {
 			return err
 		}
-		return r.Counters().Add(ctx, cmd.ArticleID, domain.Counters{Favor: -1})
+		if err := r.Counters().Add(ctx, cmd.ArticleID, domain.Counters{Favor: -1}); err != nil {
+			return err
+		}
+
+		if err := enrichCounters(ctx, r, a); err != nil {
+			return err
+		}
+		out = FavoriteResult{IsFavor: false, FavorCount: a.Counters().Favor}
+		// 一篇文章可以收在多个收藏夹：只移除了其中一个时 is_favor 仍为 true。
+		if _, err := r.Favorites().FindItemAnyFolder(ctx, cmd.ArticleID, cmd.Actor.UserID); err == nil {
+			out.IsFavor = true
+		}
+		return nil
 	})
+
+	return out, err
 }
 
 // Top 置顶/取消置顶文章。
@@ -98,59 +136,67 @@ func (s *Service) Top(ctx context.Context, cmd TopCmd) error {
 	})
 }
 
-// Digg 点赞/取消点赞，返回操作后是否处于"已点赞"状态。
+// Digg 把点赞关系收敛到目标态，返回操作后的权威状态与计数（ADR-0024 决策 3/4）。
+//
+// 语义与旧 toggle 的区别：
+//   - 传 `Liked=true` 时"确保已赞"：已赞就是无操作，不再反向取消；
+//   - 传 `Liked=false` 时"确保未赞"：未赞就是无操作。
 //
 // 关系落库（防重复），计数走缓存增量。两者分开是既有设计：
 // 增量丢了只影响展示数字，关系丢了会导致重复计数。
-func (s *Service) Digg(ctx context.Context, articleID domain.ArticleID, viewer domain.Viewer) (bool, error) {
-	var liked bool
+// 通知只在**真新增**时发（取消 / 同态重复都不通知，与旧实现一致）。
+func (s *Service) Digg(ctx context.Context, cmd DiggCmd) (DiggResult, error) {
+	var out DiggResult
 
 	err := s.tx.WithinTx(ctx, func(ctx context.Context, r Repos) error {
-		a, err := r.Articles().Find(ctx, articleID)
+		a, err := r.Articles().Find(ctx, cmd.ArticleID)
 		if err != nil {
 			return err
 		}
-		if !domain.CanBeViewedBy(a, viewer) || !viewer.IsLoggedIn() {
+		if !domain.CanBeViewedBy(a, cmd.Actor) || !cmd.Actor.IsLoggedIn() {
 			return domain.ErrArticleNotFound
 		}
 
-		exists, err := r.Diggs().Exists(ctx, articleID, viewer.UserID)
+		exists, err := r.Diggs().Exists(ctx, cmd.ArticleID, cmd.Actor.UserID)
 		if err != nil {
 			return err
 		}
 
-		if exists {
-			removed, err := r.Diggs().Remove(ctx, articleID, viewer.UserID)
+		switch {
+		case cmd.Liked && !exists:
+			added, err := r.Diggs().Add(ctx, cmd.ArticleID, cmd.Actor.UserID)
+			if err != nil {
+				return err
+			}
+			if added {
+				if err := r.Counters().Add(ctx, cmd.ArticleID, domain.Counters{Digg: 1}); err != nil {
+					return err
+				}
+				if err := emitWithActor(ctx, r, EventArticleDigg, cmd.ArticleID, cmd.Actor.UserID); err != nil {
+					return err
+				}
+			}
+		case !cmd.Liked && exists:
+			removed, err := r.Diggs().Remove(ctx, cmd.ArticleID, cmd.Actor.UserID)
 			if err != nil {
 				return err
 			}
 			if removed {
-				if err := r.Counters().Add(ctx, articleID, domain.Counters{Digg: -1}); err != nil {
+				if err := r.Counters().Add(ctx, cmd.ArticleID, domain.Counters{Digg: -1}); err != nil {
 					return err
 				}
 			}
-			liked = false
-			return nil
 		}
 
-		added, err := r.Diggs().Add(ctx, articleID, viewer.UserID)
-		if err != nil {
+		// 无论是真变化还是同态重复，都回填当前权威计数：前端直接用它 patch。
+		if err := enrichCounters(ctx, r, a); err != nil {
 			return err
 		}
-		if added {
-			if err := r.Counters().Add(ctx, articleID, domain.Counters{Digg: 1}); err != nil {
-				return err
-			}
-			// 只在"新增点赞"时通知作者，取消点赞不通知（与旧实现一致）。
-			if err := emitWithActor(ctx, r, EventArticleDigg, articleID, viewer.UserID); err != nil {
-				return err
-			}
-		}
-		liked = true
+		out = DiggResult{IsDigg: cmd.Liked, DiggCount: a.Counters().Digg}
 		return nil
 	})
 
-	return liked, err
+	return out, err
 }
 
 // RecordView 记录一次浏览。

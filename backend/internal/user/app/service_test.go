@@ -428,6 +428,54 @@ func TestStatsAndDisplay(t *testing.T) {
 	})
 }
 
+// TestStrangerChatEnabled 钉住"接收方个人开关"的读取口径（#243）。
+//
+// 它只回答"这个接收方愿不愿意收陌生人私信"，站点点关由 chat 装配层再与
+// 站点总闸取交集 —— 本端口不读站点配置，否则两级会在这里混成一级。
+func TestStrangerChatEnabled(t *testing.T) {
+	t.Run("没有配置行的老账号默认允许", func(t *testing.T) {
+		t.Parallel()
+		r := apptest.NewRepos(baseTime)
+		enabled, err := r.Service().StrangerChatEnabled(testCtx(), aliceID)
+		if err != nil {
+			t.Fatalf("读取默认值失败: %v", err)
+		}
+		if !enabled {
+			t.Fatal("默认应为允许陌生人私信")
+		}
+	})
+
+	t.Run("关掉后读回 false，再打开读回 true", func(t *testing.T) {
+		t.Parallel()
+		r := apptest.NewRepos(baseTime)
+		seed(t, r)
+
+		off := false
+		if err := r.Service().UpdateSettings(testCtx(), alice, aliceID, app.SettingsPatch{StrangerChatEnabled: &off}); err != nil {
+			t.Fatalf("关闭失败: %v", err)
+		}
+		enabled, err := r.Service().StrangerChatEnabled(testCtx(), aliceID)
+		if err != nil {
+			t.Fatalf("读取失败: %v", err)
+		}
+		if enabled {
+			t.Fatal("关掉后应读回 false")
+		}
+
+		on := true
+		if err := r.Service().UpdateSettings(testCtx(), alice, aliceID, app.SettingsPatch{StrangerChatEnabled: &on}); err != nil {
+			t.Fatalf("打开失败: %v", err)
+		}
+		enabled, err = r.Service().StrangerChatEnabled(testCtx(), aliceID)
+		if err != nil {
+			t.Fatalf("读取失败: %v", err)
+		}
+		if !enabled {
+			t.Fatal("打开后应读回 true")
+		}
+	})
+}
+
 func testCtx() context.Context { return context.Background() }
 
 func assertCode(t *testing.T, err error, want apperr.Code) {

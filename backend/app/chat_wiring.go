@@ -38,12 +38,16 @@ func WireChat(infra *Infra) {
 
 	// 同一个仓储同时实现读端口与写端口；用例层分别注入，读写分离在接口层面成立。
 	store := chatmysql.New(infra.DB)
+	stranger := &strangerBridge{inner: infra.RuntimeSite}
+	if userService != nil {
+		stranger.users = userService
+	}
 	svc := chatapp.New(
 		store,
 		store,
 		&chatRelationBridge{},
 		&chatUserBridge{db: infra.DB},
-		&strangerBridge{inner: infra.RuntimeSite},
+		stranger,
 		chatredis.NewLimiter(redisOptions),
 		infra.Logger,
 	)
@@ -170,21 +174,41 @@ func (b *chatUserBridge) Displays(_ context.Context, ids []ctype.ID) (map[ctype.
 	return out, nil
 }
 
-// strangerBridge 读站点级"是否允许陌生人发私信"开关。
+// strangerUserSettings 是 user 模块暴露的偏好读端口（user/app.SettingsPort）。
 //
-// 这个值来自运行时站点配置（site.chat.stranger_msg_enabled），每次现读缓存，
-// 所以后台改完保存后立即生效；不再读 user_conf_models 的按人开关。
+// 装配层只依赖"接收方愿不愿意收陌生人私信"这一条读能力，不碰 user 仓储、
+// 也不写 SQL：个人开关的真相留在用户模块里（#243）。
+type strangerUserSettings interface {
+	StrangerChatEnabled(ctx context.Context, id ctype.ID) (bool, error)
+}
+
+// strangerBridge 把两级开关合成一个结论（#243）。
+//
+//	有效判决 = 站点总闸(site.chat.stranger_msg_enabled)
+//	           AND 接收方个人开关(user_conf_models.stranger_chat_enabled，默认开)
+//
+// 站点一级来自运行时站点配置，每次现读缓存，后台改完保存后立即生效；
+// 接收方一级走 user 模块读端口，每次现读，账号设置改完立即生效。
+// 任一级关闭即拒绝；站点关闭时不再多查一次用户偏好。
 type strangerBridge struct {
 	inner *sitecfg.RuntimeConfigService
+	users strangerUserSettings
 }
 
 // StrangerEnabled 实现 domain.StrangerPolicy。
-func (b *strangerBridge) StrangerEnabled(context.Context) (bool, error) {
+func (b *strangerBridge) StrangerEnabled(ctx context.Context, receiverID ctype.ID) (bool, error) {
 	if b.inner == nil {
 		// 未装配运行时配置时按"关"处理（与默认值一致，失败关闭）。
 		return false, nil
 	}
-	return b.inner.GetRuntimeSite().Chat.StrangerMsgEnabled, nil
+	if !b.inner.GetRuntimeSite().Chat.StrangerMsgEnabled {
+		return false, nil
+	}
+	if b.users == nil {
+		// 用户模块未装配时无法确认接收方意愿：按"关"处理，失败关闭。
+		return false, nil
+	}
+	return b.users.StrangerChatEnabled(ctx, receiverID)
 }
 
 // chatAuthBridge 用认证模块校验令牌与会话。

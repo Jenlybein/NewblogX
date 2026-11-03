@@ -2955,6 +2955,10 @@
                     "nickname": {
                         "type": "string"
                     },
+                    "stranger_msg_enabled": {
+                        "description": "StrangerChatEnabled 是\"允许陌生人给我发私信\"的个人开关。\n字段名沿用既有契约 stranger_msg_enabled；全指针语义与其余偏好一致：\n没传不改，false 是合法值（关掉）。",
+                        "type": "boolean"
+                    },
                     "username": {
                         "type": "string"
                     }

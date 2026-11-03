@@ -133,6 +133,19 @@ type UserInfoPort interface {
 	EnsureUsable(ctx context.Context, id domain.UserID) error
 }
 
+// SettingsPort 是本模块提供给其他模块的偏好只读能力。
+//
+// 只暴露"陌生人私信"这一项，而不是整个 domain.Settings：其他模块不该顺带
+// 读到通知开关、偏好标签、主页样式等私密偏好。当前唯一消费方是 chat 模块
+// （#243：接收方个人开关）。
+type SettingsPort interface {
+	// StrangerChatEnabled 读接收方是否愿意收陌生人私信。
+	//
+	// 没有配置行的老账号返回默认值（允许），而不是错误；这里只回答个人一级，
+	// 站点总闸由消费方（chat 装配层）另行取交集。
+	StrangerChatEnabled(ctx context.Context, id domain.UserID) (bool, error)
+}
+
 // CredentialPort 是给认证模块（auth）用的凭证能力。
 //
 // 与 UserInfoPort 分开：那个只给展示用的公开信息，这个能拿到完整 User
@@ -235,6 +248,7 @@ func New(
 var (
 	_ UserInfoPort   = (*Service)(nil)
 	_ CredentialPort = (*Service)(nil)
+	_ SettingsPort   = (*Service)(nil)
 )
 
 // LoadDisplays 实现 UserInfoPort。

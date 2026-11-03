@@ -95,28 +95,17 @@ type ProjectCardResponse struct {
 	CreatedAt    time.Time `json:"created_at"`
 }
 
-// ProjectDetailResponse 是读者站项目详情（项目 + 按顺序排列的文章）。
-type ProjectDetailResponse struct {
-	ID          ctype.ID                     `json:"id"`
-	Title       string                       `json:"title"`
-	Description string                       `json:"description"`
-	Cover       string                       `json:"cover"`
-	CreatedAt   time.Time                    `json:"created_at"`
-	Articles    []ProjectArticleItemResponse `json:"articles"`
-}
-
-// ProjectArticleItemResponse 是项目详情里的一篇文章。
+// ProjectDetailResponse 是读者站项目详情（项目 + 嵌套目录树）。
 //
-// SortOrder 是"我在项目里的位置"：读者要能看出从哪篇开始读。
-type ProjectArticleItemResponse struct {
-	ArticleID      ctype.ID `json:"article_id"`
-	SortOrder      int      `json:"sort_order"`
-	Title          string   `json:"title"`
-	Abstract       string   `json:"abstract"`
-	Cover          string   `json:"cover"`
-	ViewCount      int      `json:"view_count"`
-	AuthorNickname string   `json:"author_nickname"`
-	CategoryTitle  string   `json:"category_title"`
+// 与合集共用 OutlineTreeResponse 形状（owner_kind 区分），扁平 articles[] 已退役。
+type ProjectDetailResponse struct {
+	ID           ctype.ID            `json:"id"`
+	Title        string              `json:"title"`
+	Description  string              `json:"description"`
+	Cover        string              `json:"cover"`
+	CreatedAt    time.Time           `json:"created_at"`
+	Outline      OutlineTreeResponse `json:"outline"`
+	ArticleCount int                 `json:"article_count"`
 }
 
 // ── 管理端响应（#197） ──

@@ -1135,35 +1135,6 @@
                 },
                 "type": "object"
             },
-            "internal_article_adapter_http.CollectionArticleItemResponse": {
-                "properties": {
-                    "abstract": {
-                        "type": "string"
-                    },
-                    "article_id": {
-                        "type": "string"
-                    },
-                    "author_nickname": {
-                        "type": "string"
-                    },
-                    "category_title": {
-                        "type": "string"
-                    },
-                    "cover": {
-                        "type": "string"
-                    },
-                    "sort_order": {
-                        "type": "integer"
-                    },
-                    "title": {
-                        "type": "string"
-                    },
-                    "view_count": {
-                        "type": "integer"
-                    }
-                },
-                "type": "object"
-            },
             "internal_article_adapter_http.CollectionArticleOrderRequest": {
                 "properties": {
                     "article_ids": {
@@ -1290,12 +1261,8 @@
             },
             "internal_article_adapter_http.CollectionDetailResponse": {
                 "properties": {
-                    "articles": {
-                        "items": {
-                            "$ref": "#/components/schemas/internal_article_adapter_http.CollectionArticleItemResponse"
-                        },
-                        "type": "array",
-                        "uniqueItems": false
+                    "article_count": {
+                        "type": "integer"
                     },
                     "cover": {
                         "type": "string"
@@ -1308,6 +1275,9 @@
                     },
                     "id": {
                         "type": "string"
+                    },
+                    "outline": {
+                        "$ref": "#/components/schemas/internal_article_adapter_http.OutlineTreeResponse"
                     },
                     "title": {
                         "type": "string"
@@ -1642,35 +1612,6 @@
                 },
                 "type": "object"
             },
-            "internal_article_adapter_http.ProjectArticleItemResponse": {
-                "properties": {
-                    "abstract": {
-                        "type": "string"
-                    },
-                    "article_id": {
-                        "type": "string"
-                    },
-                    "author_nickname": {
-                        "type": "string"
-                    },
-                    "category_title": {
-                        "type": "string"
-                    },
-                    "cover": {
-                        "type": "string"
-                    },
-                    "sort_order": {
-                        "type": "integer"
-                    },
-                    "title": {
-                        "type": "string"
-                    },
-                    "view_count": {
-                        "type": "integer"
-                    }
-                },
-                "type": "object"
-            },
             "internal_article_adapter_http.ProjectArticleOrderRequest": {
                 "properties": {
                     "article_ids": {
@@ -1797,12 +1738,8 @@
             },
             "internal_article_adapter_http.ProjectDetailResponse": {
                 "properties": {
-                    "articles": {
-                        "items": {
-                            "$ref": "#/components/schemas/internal_article_adapter_http.ProjectArticleItemResponse"
-                        },
-                        "type": "array",
-                        "uniqueItems": false
+                    "article_count": {
+                        "type": "integer"
                     },
                     "cover": {
                         "type": "string"
@@ -1815,6 +1752,9 @@
                     },
                     "id": {
                         "type": "string"
+                    },
+                    "outline": {
+                        "$ref": "#/components/schemas/internal_article_adapter_http.OutlineTreeResponse"
                     },
                     "title": {
                         "type": "string"

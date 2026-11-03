@@ -9,6 +9,7 @@ import (
 	"myblogx/internal/article/apptest"
 	"myblogx/internal/article/domain"
 	"myblogx/internal/article/domain/collection"
+	"myblogx/internal/article/domain/outline"
 	"myblogx/internal/kernel/ctype"
 )
 
@@ -105,6 +106,8 @@ func TestCollectionReaderHidesStaleAndCountsOnlyPublic(t *testing.T) {
 	for _, id := range []domain.ArticleID{live, draft, hidden, deleted} {
 		includeArticle(t, svc, cid, id)
 	}
+	seedReaderArticleNodes(t, repos, outline.OwnerCollection, outline.ID(cid),
+		ctype.ID(live), ctype.ID(draft), ctype.ID(hidden), ctype.ID(deleted))
 
 	repos.FakeArticles().Seed(
 		apptest.NewArticle().ID(draft).Author(author).Status(domain.StatusDraft).
@@ -116,14 +119,6 @@ func TestCollectionReaderHidesStaleAndCountsOnlyPublic(t *testing.T) {
 		t.Fatalf("软删文章失败: %v", err)
 	}
 
-	detail, err := svc.CollectionDetail(context.Background(), cid, domain.Anonymous(), false)
-	if err != nil {
-		t.Fatalf("读读者详情失败: %v", err)
-	}
-	if len(detail.Articles) != 1 || detail.Articles[0].ArticleID != live {
-		t.Fatalf("读者详情只应剩仍公开的 1 篇，实际 %+v", detail.Articles)
-	}
-
 	cards, total, err := svc.ListCollectionCards(context.Background(), false, domain.Page{Limit: 10})
 	if err != nil {
 		t.Fatalf("读读者列表失败: %v", err)
@@ -133,6 +128,14 @@ func TestCollectionReaderHidesStaleAndCountsOnlyPublic(t *testing.T) {
 	}
 	if cards[0].ArticleCount != 1 {
 		t.Fatalf("卡片收录数只算仍公开的文章，期望 1，实际 %d", cards[0].ArticleCount)
+	}
+
+	detail, err := svc.CollectionDetail(context.Background(), cid, domain.Anonymous(), false)
+	if err != nil {
+		t.Fatalf("读读者详情失败: %v", err)
+	}
+	if got := readerDetailArticleIDs(detail.Tree); len(got) != 1 || got[0] != ctype.ID(live) {
+		t.Fatalf("读者详情只应剩仍公开的 1 篇，实际 %v", got)
 	}
 }
 

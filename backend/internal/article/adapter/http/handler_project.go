@@ -78,24 +78,17 @@ func (h *Handler) ProjectDetail(c *gin.Context) {
 	}
 
 	out := ProjectDetailResponse{
-		ID:          ctype.ID(detail.Project.ID()),
-		Title:       detail.Project.Title(),
-		Description: detail.Project.Description(),
-		Cover:       detail.Project.Cover(),
-		CreatedAt:   detail.Project.CreatedAt(),
-		Articles:    make([]ProjectArticleItemResponse, 0, len(detail.Articles)),
-	}
-	for _, item := range detail.Articles {
-		out.Articles = append(out.Articles, ProjectArticleItemResponse{
-			ArticleID:      ctype.ID(item.ArticleID),
-			SortOrder:      item.SortOrder,
-			Title:          item.Title,
-			Abstract:       item.Abstract,
-			Cover:          item.Cover,
-			ViewCount:      item.ViewCount,
-			AuthorNickname: item.AuthorNickname,
-			CategoryTitle:  item.CategoryTitle,
-		})
+		ID:           ctype.ID(detail.Project.ID()),
+		Title:        detail.Project.Title(),
+		Description:  detail.Project.Description(),
+		Cover:        detail.Cover,
+		CreatedAt:    detail.Project.CreatedAt(),
+		ArticleCount: detail.ArticleCount,
+		Outline: OutlineTreeResponse{
+			OwnerKind: 2,
+			OwnerID:   ctype.ID(detail.Project.ID()),
+			Nodes:     toOutlineNodeResponses(detail.Tree),
+		},
 	}
 	res.OkWithData(out, c)
 }

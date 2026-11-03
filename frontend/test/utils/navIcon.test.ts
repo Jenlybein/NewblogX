@@ -10,10 +10,11 @@ import { HEADER_NAV_ICONS, headerNavIcon } from "~/utils/navIcon";
  * 漏配一个 key 就是类型错误；这条用例再把"四个 key 都有值且互不相同"锁住。
  */
 describe("headerNavIcon：入口到图标的显式映射", () => {
-  it("四个入口都有图标", () => {
+  it("五个入口都有图标", () => {
     expect(Object.keys(HEADER_NAV_ICONS).sort()).toEqual([
       "collections",
       "home",
+      "project",
       "search",
       "write",
     ]);
@@ -24,8 +25,13 @@ describe("headerNavIcon：入口到图标的显式映射", () => {
     expect(new Set(components).size).toBe(components.length);
   });
 
+  it("项目图标与合集（IconStack2）明显不同，不能复用", () => {
+    expect(HEADER_NAV_ICONS.project).not.toBe(HEADER_NAV_ICONS.collections);
+  });
+
   it("headerNavIcon 与映射表一致", () => {
     expect(headerNavIcon("collections")).toBe(HEADER_NAV_ICONS.collections);
     expect(headerNavIcon("home")).toBe(HEADER_NAV_ICONS.home);
+    expect(headerNavIcon("project")).toBe(HEADER_NAV_ICONS.project);
   });
 });

@@ -12,8 +12,7 @@
  * 没上传封面时列表按读者的样子回退到首篇封面（`fallback_cover` 由后端算好）；
  * 两张都没有时渲染显式占位，绝不发一个空 `src` 的 img。
  *
- * 「收录管理」浮层只做两件事：看当前收录行（含失效占位并标出原因）、清理失效行。
- * 批量收录与两级手动排序属于独立的编排页，不在这里。
+ * 收录与排序不在本页：合集的内容编排走「目录编排」的整树编辑器。
  */
 import { h } from 'vue'
 import {
@@ -23,7 +22,6 @@ import {
   NForm,
   NFormItem,
   NInput,
-  NModal,
   NSpace,
   NSwitch,
   NTag,
@@ -34,19 +32,15 @@ import type { DataTableColumns } from 'naive-ui'
 import ImageCropDialog from '~/components/media/ImageCropDialog.vue'
 import { useImageCropUpload, type ImageFramingRequest } from '~/composables/useImageCropUpload'
 import {
-  cleanupCollectionStale,
   createCollection,
   deleteCollection,
-  getAdminCollectionItems,
   getAdminCollections,
-  removeCollectionArticle,
   setCollectionDisplay,
   updateCollection,
 } from '~/services/admin'
 import { uploadImageByTask } from '~/services/image'
-import type { CollectionAdminCard, CollectionAdminItem } from '~/types/api'
+import type { CollectionAdminCard } from '~/types/api'
 import { uploadBannerCover } from '~/utils/bannerCover'
-import { staleItemCount, staleItemIds, staleReasonLabel } from '~/utils/staleItems'
 import type { ShapeFramingState, ShapeImageTarget } from '~/utils/imageShaping'
 import {
   COVER_SHAPE_OPTIONS,
@@ -138,20 +132,6 @@ const coverCropFlow = useImageCropUpload({
     coverStage.value = '封面上传完成，点击保存'
   },
 })
-
-// ── 收录管理浮层（保留失效占位 + 标记 + 一键清理）──
-
-/** 浮层正在查看的合集；null 表示浮层关闭。 */
-const itemsCollection = ref<CollectionAdminCard | null>(null)
-const itemsRows = ref<CollectionAdminItem[]>([])
-const itemsLoading = ref(false)
-const itemsRemovingId = ref('')
-const itemsCleaning = ref(false)
-
-/** 一键清理只挑 stale 为真的行；判定由后端共用领域函数给出，前端不另算。 */
-const itemsStaleIds = computed(() => staleItemIds(itemsRows.value))
-const itemsStaleCount = computed(() => staleItemCount(itemsRows.value))
-
 function renderCover(row: CollectionAdminCard) {
   const view = resolveCollectionCover(row.cover, row.fallback_cover)
   if (!view) {
@@ -191,13 +171,10 @@ const columns: DataTableColumns<CollectionAdminCard> = [
   {
     title: '操作',
     key: 'actions',
-    width: 260,
+    width: 180,
     render: row =>
       h(NSpace, { size: 4, justify: 'end' }, {
         default: () => [
-          h(NButton, { size: 'small', tertiary: true, onClick: () => openItems(row) }, {
-            default: () => '收录管理',
-          }),
           h(NButton, { size: 'small', tertiary: true, type: 'primary', onClick: () => startEdit(row) }, {
             default: () => '编辑',
           }),
@@ -206,68 +183,6 @@ const columns: DataTableColumns<CollectionAdminCard> = [
           }),
         ],
       }),
-  },
-]
-
-/**
- * 收录管理表：序号 + 封面 + 文章 + 状态（含失效原因）+ 单独移除。
- *
- * 失效行**保留**并标红：文章后来被删/退回草稿/隐藏时，关系行还在，运营要能
- * 看到是哪一篇、为什么失效，再决定单独移除还是整批清理。
- */
-const itemColumns: DataTableColumns<CollectionAdminItem> = [
-  {
-    title: '序号',
-    key: 'sort_order',
-    width: 72,
-    render: (_row, index) => index + 1,
-  },
-  {
-    title: '封面',
-    key: 'cover',
-    width: 110,
-    render: (row) =>
-      h('div', { class: 'admin-cover' }, row.cover ? [h('img', { src: row.cover, alt: row.title || '收录封面' })] : []),
-  },
-  {
-    title: '文章',
-    key: 'title',
-    minWidth: 220,
-    render: (row) =>
-      h(
-        'strong',
-        { class: 'block truncate' },
-        row.title || (row.stale ? '（文章已删除，仅剩收录占位）' : '（无标题）'),
-      ),
-  },
-  {
-    title: '状态',
-    key: 'stale',
-    width: 190,
-    render: (row) =>
-      h(
-        NTag,
-        { size: 'small', type: row.stale ? 'warning' : 'success' },
-        { default: () => staleReasonLabel(row.stale_reason) },
-      ),
-  },
-  {
-    title: '操作',
-    key: 'actions',
-    width: 100,
-    render: (row) =>
-      h(
-        NButton,
-        {
-          size: 'small',
-          tertiary: true,
-          type: row.stale ? 'error' : 'default',
-          loading: itemsRemovingId.value === row.article_id,
-          disabled: itemsRemovingId.value !== '' || itemsCleaning.value,
-          onClick: () => removeItem(row),
-        },
-        { default: () => '移除' },
-      ),
   },
 ]
 
@@ -375,98 +290,6 @@ function removeRow(row: CollectionAdminCard) {
         await refresh()
       } catch (error) {
         message.error(error instanceof Error ? `删除失败：${error.message}` : '删除失败，请稍后重试')
-      }
-    },
-  })
-}
-
-// ── 收录管理与一键清理 ───────────────────────────────────────
-
-/** 打开某个合集的收录管理浮层，并按需加载全部收录行（含失效占位）。 */
-async function openItems(row: CollectionAdminCard) {
-  itemsCollection.value = row
-  itemsRows.value = []
-  await refreshItems()
-}
-
-async function refreshItems() {
-  const target = itemsCollection.value
-  if (!target) return
-  itemsLoading.value = true
-  try {
-    const data = await getAdminCollectionItems(target.id)
-    itemsRows.value = data.list || []
-  } catch {
-    message.error('收录行加载失败')
-  } finally {
-    itemsLoading.value = false
-  }
-}
-
-function closeItems() {
-  itemsCollection.value = null
-  itemsRows.value = []
-  itemsRemovingId.value = ''
-}
-
-/** 单独移除一条收录（幂等）；失效行与展示中的行都允许。 */
-function removeItem(row: CollectionAdminItem) {
-  const target = itemsCollection.value
-  if (!target || itemsRemovingId.value) return
-
-  dialog.warning({
-    title: row.stale ? '移除失效收录' : '移除收录',
-    content: row.stale
-      ? `「${row.title || '这篇文章'}」已失效（${staleReasonLabel(row.stale_reason)}）。移除只解除收录关系，不删文章。`
-      : `确认把「${row.title || '这篇文章'}」从合集移除？读者侧会立即少一篇。`,
-    positiveText: '移除',
-    negativeText: '取消',
-    async onPositiveClick() {
-      itemsRemovingId.value = row.article_id
-      try {
-        await removeCollectionArticle(target.id, row.article_id)
-        message.success('已移除')
-        await refreshItems()
-        await refresh()
-      } catch (error) {
-        message.error(error instanceof Error ? `移除失败：${error.message}` : '移除失败，请稍后重试')
-      } finally {
-        itemsRemovingId.value = ''
-      }
-    },
-  })
-}
-
-/**
- * 一键清理：只提交「失效行」。
- *
- * 失效判定不在前端重算——行上的 stale 来自后端与热门置顶共用的领域函数；
- * 管理端接口是幂等的，第二次点击返回 removed=0，不会删到展示中的文章。
- */
-function cleanupStaleItems() {
-  const target = itemsCollection.value
-  if (!target || itemsCleaning.value) return
-  const staleIds = itemsStaleIds.value.slice()
-  if (staleIds.length === 0) return
-
-  dialog.warning({
-    title: '清理失效收录',
-    content: `将移除 ${staleIds.length} 条已失效的收录（文章已删除、退回草稿或不再可见）。展示中的收录不受影响。`,
-    positiveText: '清理',
-    negativeText: '取消',
-    async onPositiveClick() {
-      itemsCleaning.value = true
-      try {
-        const result = await cleanupCollectionStale(target.id)
-        message.success(
-          result.removed > 0 ? `已清理 ${result.removed} 条失效收录` : '没有需要清理的失效收录',
-        )
-      } catch (error) {
-        message.error(error instanceof Error ? `清理失败：${error.message}` : '清理失败，请稍后重试')
-      } finally {
-        itemsCleaning.value = false
-        await refreshItems()
-        await refresh()
       }
     },
   })
@@ -677,38 +500,6 @@ onMounted(refresh)
         :bordered="false"
         :row-key="(row: CollectionAdminCard) => row.id" />
     </NCard>
-
-    <NModal
-      :show="itemsCollection !== null"
-      preset="card"
-      class="max-w-[900px]"
-      :title="`收录管理：${itemsCollection?.title ?? ''}`"
-      @update:show="(value: boolean) => { if (!value) closeItems() }">
-      <div class="admin-toolbar">
-        <p class="admin-hint">
-          收录行按展示顺序排列。文章后来被删除、退回草稿或不再可见时，这一行会保留并标为失效：
-          读者侧已不再展示，这里可以单独移除或一键清理。清理只解除收录关系，不删除文章。
-        </p>
-        <NSpace>
-          <NButton size="small" quaternary :loading="itemsLoading" @click="refreshItems">刷新</NButton>
-          <NButton
-            size="small"
-            type="error"
-            :loading="itemsCleaning"
-            :disabled="itemsStaleCount === 0"
-            @click="cleanupStaleItems">
-            清理失效（{{ itemsStaleCount }}）
-          </NButton>
-        </NSpace>
-      </div>
-
-      <NDataTable
-        :columns="itemColumns"
-        :data="itemsRows"
-        :loading="itemsLoading"
-        :bordered="false"
-        :row-key="(row: CollectionAdminItem) => row.article_id" />
-    </NModal>
 
     <ImageCropDialog
       :show="coverCropRequest !== null"

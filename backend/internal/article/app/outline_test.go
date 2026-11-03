@@ -271,6 +271,55 @@ func TestSaveOutlineMovesNodesAndReorderSiblings(t *testing.T) {
 	}
 }
 
+// TestSaveOutlineRenamesExistingFolder 断言带 ID 的文件夹节点改名会落库。
+// 页面提交的是整棵树：标题是节点内容的一部分，不能被"复用已有行"吞掉。
+func TestSaveOutlineRenamesExistingFolder(t *testing.T) {
+	t.Parallel()
+
+	svc, repos, _ := seedCollectionOutlines(t)
+	ctx := context.Background()
+
+	repos.FakeOutlines().Seed(outlineFolder(t, 1, 0, "第一章", 1))
+
+	cmd := app.SaveOutlineCmd{
+		Actor: adminViewer(), OwnerKind: outline.OwnerCollection, OwnerID: ctype.NewID(outlineOwnerID),
+		Nodes: []app.OutlineInputNode{
+			{ID: ctype.NewID(1), Kind: outline.NodeKindFolder, Title: "  第一章（修订）  "},
+		},
+	}
+	detail, err := svc.SaveOutline(ctx, cmd)
+	if err != nil {
+		t.Fatalf("重命名保存失败: %v", err)
+	}
+	if got, want := detail.Tree[0].Node.Title(), "第一章（修订）"; got != want {
+		t.Fatalf("保存后的标题不对: got %q want %q", got, want)
+	}
+
+	again, err := svc.AdminOutline(ctx, adminViewer(), outline.OwnerCollection, ctype.NewID(outlineOwnerID))
+	if err != nil {
+		t.Fatalf("重新读取失败: %v", err)
+	}
+	if got, want := again.Tree[0].Node.Title(), "第一章（修订）"; got != want {
+		t.Fatalf("重新打开的标题不对: got %q want %q", got, want)
+	}
+
+	// 重复提交改名后的树：不新增行、标题不回退（整树幂等）。
+	cmd.Nodes = []app.OutlineInputNode{
+		{ID: ctype.NewID(1), Kind: outline.NodeKindFolder, Title: "第一章（修订）"},
+	}
+	second, err := svc.SaveOutline(ctx, cmd)
+	if err != nil {
+		t.Fatalf("重复提交失败: %v", err)
+	}
+	if got, want := second.Tree[0].Node.Title(), "第一章（修订）"; got != want {
+		t.Fatalf("重复提交后标题变了: got %q want %q", got, want)
+	}
+	if len(repos.FakeOutlines().AllNodes()) != 1 || repos.FakeOutlines().Calls("Create") != 0 {
+		t.Fatalf("重复提交不应新增行: nodes=%d creates=%d",
+			len(repos.FakeOutlines().AllNodes()), repos.FakeOutlines().Calls("Create"))
+	}
+}
+
 // TestSaveOutlineIsIdempotent 断言同样内容的整树重复提交不产生变化。
 func TestSaveOutlineIsIdempotent(t *testing.T) {
 	t.Parallel()
@@ -325,7 +374,8 @@ func TestSaveOutlineIsIdempotent(t *testing.T) {
 	}
 }
 
-// TestSaveOutlineRetainsStaleArticleNode 断言文章后来不公开时节点保留、后台可标失效。
+// TestSaveOutlineRetainsStaleArticleNode 断言文章后来不公开时节点保留、后台可标失效；
+// 从整树提交里摘掉它则整单软删（后台「清理失效行」）。
 func TestSaveOutlineRetainsStaleArticleNode(t *testing.T) {
 	t.Parallel()
 
@@ -353,6 +403,45 @@ func TestSaveOutlineRetainsStaleArticleNode(t *testing.T) {
 		},
 	}); err != nil {
 		t.Fatalf("保留失效节点应成功: %v", err)
+	}
+}
+
+// TestSaveOutlineDropsStaleArticleNode 断言提交里不再出现的失效节点被软删，
+// 且重复提交空树不会反复删（幂等）。
+func TestSaveOutlineDropsStaleArticleNode(t *testing.T) {
+	t.Parallel()
+
+	svc, repos, _ := seedCollectionOutlines(t)
+	ctx := context.Background()
+
+	seedOutlineArticle(t, repos, 11, "草稿", domain.StatusDraft)
+	repos.FakeOutlines().Seed(
+		outlineArticle(t, 2, 0, 11, 1),
+		outlineFolder(t, 3, 0, "第一章", 2),
+	)
+
+	cmd := app.SaveOutlineCmd{
+		Actor: adminViewer(), OwnerKind: outline.OwnerCollection, OwnerID: ctype.NewID(outlineOwnerID),
+		Nodes: []app.OutlineInputNode{
+			{ID: ctype.NewID(3), Kind: outline.NodeKindFolder, Title: "第一章"},
+		},
+	}
+	detail, err := svc.SaveOutline(ctx, cmd)
+	if err != nil {
+		t.Fatalf("清理失效行失败: %v", err)
+	}
+	if got, want := viewLabels(detail.Tree), []string{"第一章"}; !sameStrings(got, want) {
+		t.Fatalf("清理后的树不对: got %v want %v", got, want)
+	}
+	if len(repos.FakeOutlines().ActiveNodes()) != 1 {
+		t.Fatalf("失效文章节点应软删，活跃节点 %d", len(repos.FakeOutlines().ActiveNodes()))
+	}
+
+	if _, err := svc.SaveOutline(ctx, cmd); err != nil {
+		t.Fatalf("重复清理失败: %v", err)
+	}
+	if repos.FakeOutlines().Calls("Create") != 0 {
+		t.Fatalf("清理与重复提交都不应新增行，Create 调用 %d 次", repos.FakeOutlines().Calls("Create"))
 	}
 }
 

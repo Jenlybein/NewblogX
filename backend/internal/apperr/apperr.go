@@ -124,6 +124,25 @@ const (
 	CodeProjectArticleMissing Code = "project.article_missing"
 )
 
+// 目录树（合集 / 项目共用的一张树表）。
+//
+// 单独一组而不是并进 collection / project：两者共用同一张表、同一套规则，
+// 错误码若按实体分叉，同一个结构错误会出现两种码，前端要维护两份映射。
+const (
+	// CodeOutlineTitleRequired 文件夹标题为空。
+	CodeOutlineTitleRequired Code = "outline.title_required"
+	// CodeOutlineTitleTooLong 文件夹标题超过上限。
+	CodeOutlineTitleTooLong Code = "outline.title_too_long"
+	// CodeOutlineArticleDuplicated 同一棵树内重复挂载同一篇文章。
+	CodeOutlineArticleDuplicated Code = "outline.article_duplicated"
+	// CodeOutlineArticleNotIncludable 文章不是"已发布且可见"，不能收录。
+	CodeOutlineArticleNotIncludable Code = "outline.article_not_includable"
+	// CodeOutlineStructureInvalid 树结构不合法（成环 / 父节点不是文件夹 / 跨 owner 混入）。
+	CodeOutlineStructureInvalid Code = "outline.structure_invalid"
+	// CodeOutlineNodeMissing 要移动 / 更新的节点不存在（页面已过期）。
+	CodeOutlineNodeMissing Code = "outline.node_missing"
+)
+
 // 审核任务。
 const (
 	CodeReviewTaskNotFound Code = "review.task_not_found"
@@ -411,6 +430,13 @@ var messages = map[Code]string{
 	CodeProjectArticleNotIncludable: "只有已发布且可见的文章可以收录进项目",
 	CodeProjectOrderMismatch:        "排序列表与当前项目内容不一致，请刷新后重试",
 	CodeProjectArticleMissing:       "该文章不在此项目中",
+
+	CodeOutlineTitleRequired:        "文件夹标题不能为空",
+	CodeOutlineTitleTooLong:         "文件夹标题不能超过 128 个字符",
+	CodeOutlineArticleDuplicated:    "该文章已在目录树中",
+	CodeOutlineArticleNotIncludable: "只有已发布且可见的文章可以收录",
+	CodeOutlineStructureInvalid:     "目录树结构不合法，请刷新后重试",
+	CodeOutlineNodeMissing:          "目录树节点不存在，请刷新后重试",
 
 	CodeReviewTaskNotFound: "审核任务不存在",
 	CodeReviewTaskHandled:  "审核任务已处理",

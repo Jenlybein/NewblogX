@@ -14,6 +14,7 @@ import (
 	"myblogx/internal/article/domain/collection"
 	"myblogx/internal/article/domain/favorite"
 	"myblogx/internal/article/domain/hottop"
+	"myblogx/internal/article/domain/outline"
 	"myblogx/internal/article/domain/project"
 	"myblogx/internal/article/domain/review"
 	"myblogx/internal/article/domain/taxonomy"
@@ -55,6 +56,9 @@ type Repos interface {
 	// Projects 是项目（与合集并列的独立内容实体）。
 	// 与 Collections 是两套数据、两套表：项目有自己的后台维护页，不共用合集的行。
 	Projects() project.Repository
+	// Outlines 是目录树（合集与项目共用的一张树表）。
+	// 旧的扁平收录中间表已冻结退场，收录与层次只经这里读写。
+	Outlines() outline.Repository
 }
 
 // DiggPort 是点赞关系端口。
@@ -165,6 +169,11 @@ type IDGen interface {
 	// 与 NextCollectionID 分开：项目与合集是两套内容实体，ID 会出现在
 	// 读者站 URL 上，日志里要能分辨"这是项目还是合集"。
 	NextProjectID() project.ID
+	// NextOutlineNodeID 生成目录树节点 ID。
+	//
+	// 树节点 ID 会出现在后台接口里（整树提交带回 ID 才能幂等更新），
+	// 与文章 / 合集 / 项目 ID 分开，日志里能分辨"这一行是树节点"。
+	NextOutlineNodeID() outline.ID
 }
 
 // Service 是用例集合。

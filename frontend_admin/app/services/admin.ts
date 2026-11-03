@@ -29,6 +29,8 @@ import type {
   DeadLetterReplayResult,
   ImageListResponseData,
   ListData,
+  OutlineNodePayload,
+  OutlineTreeResponseData,
   ProjectAdminCard,
   ProjectAdminItem,
   ProjectBatchIncludeResponse,
@@ -329,6 +331,34 @@ export function updateProjectOrder(projectIds: string[]) {
     method: 'PATCH',
     body: { project_ids: projectIds },
   })
+}
+
+// ── 目录树（一个编辑器服务合集与项目）─────────────────────────────
+
+/** 后台读回某个合集的整棵目录树（含空文件夹与失效标记）。 */
+export function getCollectionOutline(id: string) {
+  return api().request<OutlineTreeResponseData>(`/collections/${id}/outline/admin`)
+}
+
+/** 整棵树一次性提交（新建文件夹 / 批量收录 / 层级与顺序一起落库）。 */
+export function saveCollectionOutline(id: string, nodes: OutlineNodePayload[]) {
+  return api().request<OutlineTreeResponseData, { nodes: OutlineNodePayload[] }>(
+    `/collections/${id}/outline`,
+    { method: 'PUT', body: { nodes } },
+  )
+}
+
+/** 后台读回某个项目的整棵目录树（与合集同一套形状）。 */
+export function getProjectOutline(id: string) {
+  return api().request<OutlineTreeResponseData>(`/projects/${id}/outline/admin`)
+}
+
+/** 整棵树一次性提交（与合集同一个后端模块）。 */
+export function saveProjectOutline(id: string, nodes: OutlineNodePayload[]) {
+  return api().request<OutlineTreeResponseData, { nodes: OutlineNodePayload[] }>(
+    `/projects/${id}/outline`,
+    { method: 'PUT', body: { nodes } },
+  )
 }
 
 export function getSiteRuntimeConfig() {  return api().request<SiteRuntimeConfig>('/site/admin/site')

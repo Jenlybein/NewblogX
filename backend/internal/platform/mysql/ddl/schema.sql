@@ -322,6 +322,23 @@ CREATE TABLE IF NOT EXISTS `collection_models` (
   KEY `idx_collection_models_creator_id` (`creator_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
+CREATE TABLE IF NOT EXISTS `content_outline_node_models` (
+  `id` bigint unsigned NOT NULL,
+  `created_at` datetime(3) DEFAULT NULL,
+  `updated_at` datetime(3) DEFAULT NULL,
+  `deleted_at` datetime(3) DEFAULT NULL,
+  `owner_kind` bigint NOT NULL,
+  `owner_id` bigint unsigned NOT NULL,
+  `parent_id` bigint unsigned NOT NULL DEFAULT '0',
+  `kind` bigint NOT NULL,
+  `title` varchar(128) NOT NULL,
+  `article_id` bigint unsigned DEFAULT NULL,
+  `sort_order` bigint NOT NULL DEFAULT '0',
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uk_outline_owner_article` (`owner_kind`,`owner_id`,`article_id`),
+  KEY `idx_outline_owner` (`owner_kind`,`owner_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
 CREATE TABLE IF NOT EXISTS `comment_digg_models` (
   `id` bigint unsigned NOT NULL,
   `created_at` datetime(3) DEFAULT NULL,

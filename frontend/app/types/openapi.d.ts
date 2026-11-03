@@ -1783,7 +1783,32 @@ export interface paths {
             };
         };
         put?: never;
-        post?: never;
+        /** 发送私信消息 */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            /** @description 发送参数 */
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["internal_chat_adapter_http.SendMessageRequest"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["myblogx_internal_kernel.Envelope-myblogx_internal_chat_domain_MessageItem"];
+                    };
+                };
+            };
+        };
         /** 删除消息 */
         delete: {
             parameters: {
@@ -6361,6 +6386,21 @@ export interface components {
             new_password: string;
             old_password: string;
         };
+        "internal_chat_adapter_http.SendMessageRequest": {
+            /**
+             * @description ClientMsgID 是客户端生成的幂等键。
+             *
+             *     必须由客户端提供（同一次发送的多次重试要复用同一个值）：服务端把
+             *     （发送人, client_msg_id）映射到消息主键，重复提交返回第一次落库的消息，
+             *     不产生第二条、不重复加未读。缺失时后端会退化成普通发送（不做幂等），
+             *     所以这里要求必填，把幂等语义钉在契约上。
+             */
+            client_msg_id: string;
+            content: string;
+            /** @enum {integer} */
+            msg_type: 1 | 2 | 7;
+            receiver_id: string;
+        };
         "internal_chat_adapter_http.WsTicketResponse": {
             ticket?: string;
         };
@@ -7203,6 +7243,11 @@ export interface components {
         "myblogx_internal_kernel.Envelope-myblogx_internal_analytics_adapter_clickhouse_RuntimeLogRecord": {
             code?: number;
             data?: components["schemas"]["myblogx_internal_analytics_adapter_clickhouse.RuntimeLogRecord"];
+            msg?: string;
+        };
+        "myblogx_internal_kernel.Envelope-myblogx_internal_chat_domain_MessageItem": {
+            code?: number;
+            data?: components["schemas"]["myblogx_internal_chat_domain.MessageItem"];
             msg?: string;
         };
         "myblogx_internal_kernel.Envelope-myblogx_internal_comment_app_CreateResult": {

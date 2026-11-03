@@ -1842,6 +1842,36 @@
                 ],
                 "type": "object"
             },
+            "internal_chat_adapter_http.SendMessageRequest": {
+                "properties": {
+                    "client_msg_id": {
+                        "description": "ClientMsgID 是客户端生成的幂等键。\n\n必须由客户端提供（同一次发送的多次重试要复用同一个值）：服务端把\n（发送人, client_msg_id）映射到消息主键，重复提交返回第一次落库的消息，\n不产生第二条、不重复加未读。缺失时后端会退化成普通发送（不做幂等），\n所以这里要求必填，把幂等语义钉在契约上。",
+                        "maxLength": 64,
+                        "type": "string"
+                    },
+                    "content": {
+                        "type": "string"
+                    },
+                    "msg_type": {
+                        "enum": [
+                            1,
+                            2,
+                            7
+                        ],
+                        "type": "integer"
+                    },
+                    "receiver_id": {
+                        "type": "string"
+                    }
+                },
+                "required": [
+                    "client_msg_id",
+                    "content",
+                    "msg_type",
+                    "receiver_id"
+                ],
+                "type": "object"
+            },
             "internal_chat_adapter_http.WsTicketResponse": {
                 "properties": {
                     "ticket": {
@@ -4328,6 +4358,20 @@
                     },
                     "data": {
                         "$ref": "#/components/schemas/myblogx_internal_analytics_adapter_clickhouse.RuntimeLogRecord"
+                    },
+                    "msg": {
+                        "type": "string"
+                    }
+                },
+                "type": "object"
+            },
+            "myblogx_internal_kernel.Envelope-myblogx_internal_chat_domain_MessageItem": {
+                "properties": {
+                    "code": {
+                        "type": "integer"
+                    },
+                    "data": {
+                        "$ref": "#/components/schemas/myblogx_internal_chat_domain.MessageItem"
                     },
                     "msg": {
                         "type": "string"
@@ -7666,6 +7710,42 @@
                     }
                 ],
                 "summary": "会话消息列表",
+                "tags": [
+                    "chat"
+                ]
+            },
+            "post": {
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/internal_chat_adapter_http.SendMessageRequest",
+                                "summary": "request",
+                                "description": "发送参数"
+                            }
+                        }
+                    },
+                    "description": "发送参数",
+                    "required": true
+                },
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/myblogx_internal_kernel.Envelope-myblogx_internal_chat_domain_MessageItem"
+                                }
+                            }
+                        },
+                        "description": "OK"
+                    }
+                },
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "summary": "发送私信消息",
                 "tags": [
                     "chat"
                 ]

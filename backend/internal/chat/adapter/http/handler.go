@@ -5,12 +5,10 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/base64"
-	"encoding/json"
 	"fmt"
 	"time"
 
 	"github.com/gin-gonic/gin"
-	"github.com/gorilla/websocket"
 
 	"myblogx/internal/apperr"
 	"myblogx/internal/chat/app"
@@ -102,11 +100,18 @@ type SessionIDListRequest struct {
 	SessionIDList []string `json:"session_id_list" binding:"required"`
 }
 
-// ChatRequest 是 WS 上行消息。
-type ChatRequest struct {
+// SendMessageRequest 是 HTTP 发送消息的请求体。
+type SendMessageRequest struct {
 	ReceiverID ctype.ID `json:"receiver_id" binding:"required"`
 	MsgType    int8     `json:"msg_type" binding:"required,oneof=1 2 7" enums:"1,2,7"`
 	Content    string   `json:"content" binding:"required"`
+	// ClientMsgID 是客户端生成的幂等键。
+	//
+	// 必须由客户端提供（同一次发送的多次重试要复用同一个值）：服务端把
+	// （发送人, client_msg_id）映射到消息主键，重复提交返回第一次落库的消息，
+	// 不产生第二条、不重复加未读。缺失时后端会退化成普通发送（不做幂等），
+	// 所以这里要求必填，把幂等语义钉在契约上。
+	ClientMsgID string `json:"client_msg_id" binding:"required,max=64"`
 }
 
 // Sessions 会话列表。
@@ -181,6 +186,49 @@ func (h *Handler) Messages(c *gin.Context) {
 	res.OkWithList(list, count, c)
 }
 
+// Send 发送私信消息（HTTP 可靠落库）。
+//
+// 这是发送的唯一通道：消息先落库再返回，WebSocket 只负责把"有新消息 / 已读"
+// 通知给对端。因此 WS 断开或网络抖动时消息照常发出，重连后对端刷新即可收到。
+//
+// 幂等：同一次发送的重试必须复用同一个 client_msg_id；重复提交返回第一次
+// 落库的那条消息，不会产生两条，也不会把接收方未读再加一次。
+//
+// @Summary 发送私信消息
+// @Tags chat
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Param request body SendMessageRequest true "发送参数"
+// @Success 200 {object} kernel.Envelope[domain.MessageItem]
+// @Router /chat/messages [post]
+func (h *Handler) Send(c *gin.Context) {
+	var req SendMessageRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		res.FailWithMsg("参数错误", c)
+		return
+	}
+	uid, _ := viewer(c)
+	msg, err := h.svc.Send(c.Request.Context(), uid, req.ReceiverID, domain.MsgType(req.MsgType), req.Content, req.ClientMsgID)
+	if err != nil {
+		res.FailWithError(err, c)
+		return
+	}
+	// 响应体与消息列表里的行完全同形，前端可以直接用它替换乐观消息。
+	res.OkWithData(domain.MessageItem{
+		ID:         msg.ID,
+		SenderID:   msg.SenderID,
+		ReceiverID: msg.ReceiverID,
+		SessionID:  msg.SessionID,
+		Content:    msg.Content,
+		SendTime:   msg.SendTime,
+		MsgStatus:  msg.MsgStatus,
+		MsgType:    msg.MsgType,
+		IsSelf:     true,
+		IsRead:     false,
+	}, c)
+}
+
 // Read 批量标记已读。
 // @Summary 批量标记消息已读
 // @Tags chat
@@ -206,28 +254,8 @@ func (h *Handler) Read(c *gin.Context) {
 		res.FailWithMsg("没有可标记已读的消息", c)
 		return
 	}
-
-	now := time.Now()
-	grouped := map[ctype.ID]map[string][]ctype.ID{}
-	for _, msg := range msgs {
-		sessions, ok := grouped[msg.SenderID]
-		if !ok {
-			sessions = map[string][]ctype.ID{}
-			grouped[msg.SenderID] = sessions
-		}
-		sessions[msg.SessionID] = append(sessions[msg.SessionID], msg.ID)
-	}
-	for senderID, sessions := range grouped {
-		for sessionID, msgIDs := range sessions {
-			h.hub.PushJSON(senderID.Uint64(), domain.ReadPush{
-				MsgType:   domain.TypeRead,
-				SessionID: sessionID,
-				ReaderID:  uid,
-				MsgIDList: msgIDs,
-				ReadAt:    now,
-			})
-		}
-	}
+	// 已读回执不再在这里直推连接池：它随 MarkRead 一起写进发件箱，
+	// 由中继的订阅者推给对应发送人（见 app/chat_wiring.go）。
 	res.OkWithMsg(fmt.Sprintf("批量标记已读%d条消息", len(msgs)), c)
 }
 
@@ -341,58 +369,13 @@ func (h *Handler) Ws(c *gin.Context) {
 	}, func() { _ = conn.RunPingLoop(done, wsPingPeriod, wsWriteWait) })
 
 	for {
-		msgType, content, err := conn.ReadMessage()
-		if err != nil {
+		if _, _, err := conn.ReadMessage(); err != nil {
 			return
 		}
-		if msgType != websocket.TextMessage && msgType != websocket.BinaryMessage {
-			continue
-		}
-		var req ChatRequest
-		if err := json.Unmarshal(content, &req); err != nil {
-			if err := res.SendConnFailWithMsg("消息格式错误", conn, wsWriteWait); err != nil {
-				return
-			}
-			continue
-		}
-
-		msg, err := h.svc.Send(ctx, userID, req.ReceiverID, domain.MsgType(req.MsgType), req.Content)
-		if err != nil {
-			if werr := res.SendConnFailWithMsg(err.Error(), conn, wsWriteWait); werr != nil {
-				return
-			}
-			continue
-		}
-
-		item := domain.MessageItem{
-			ID:         msg.ID,
-			SenderID:   msg.SenderID,
-			ReceiverID: msg.ReceiverID,
-			SessionID:  msg.SessionID,
-			Content:    msg.Content,
-			SendTime:   msg.SendTime,
-			MsgStatus:  msg.MsgStatus,
-			MsgType:    msg.MsgType,
-			IsSelf:     false,
-			IsRead:     false,
-		}
-		if req.ReceiverID.Uint64() == userID.Uint64() {
-			// 自己发给自己：先把消息实体推给本人（多标签页/多设备可见），
-			// 然后**无论推送是否命中在线连接都回一次成功回执**。
-			//
-			// 回执是"这次发送的结局"，推送成功与否只说明"有没有在线窗口"，
-			// 不代表消息没发出去。旧实现只在推送失败时回执，成功时反而静默，
-			// 发送者不知道该不该刷新。
-			h.hub.PushJSON(msg.ReceiverID.Uint64(), item)
-			if err := res.SendConnOkWithMsg("给自己发送消息", conn, wsWriteWait); err != nil {
-				return
-			}
-			continue
-		}
-		if success := h.hub.PushJSON(msg.ReceiverID.Uint64(), item); success == 0 {
-			if err := res.SendConnFailWithMsg("接收人不在线", conn, wsWriteWait); err != nil {
-				return
-			}
+		// WS 已降级为通知通道：发送一律走 HTTP 落库。这里明确告诉旧客户端
+		// 该走哪里，而不是静默吞掉上行消息（吞掉的症状是"点了发送没反应"）。
+		if err := res.SendConnFailWithMsg("私信发送请使用 POST /api/chat/messages（WebSocket 只做通知）", conn, wsWriteWait); err != nil {
+			return
 		}
 	}
 }

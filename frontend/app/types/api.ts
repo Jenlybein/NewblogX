@@ -361,16 +361,34 @@ export type ChatMessageListData = RequiredSchema<"myblogx_internal_kernel.ListDa
 
 export type ChatWsTicketData = RequiredSchema<"internal_chat_adapter_http.WsTicketResponse">;
 
+/** POST /api/chat/messages 的请求体（契约派生，含幂等键 client_msg_id）。 */
+export type ChatSendMessagePayload = RequiredSchema<"internal_chat_adapter_http.SendMessageRequest">;
+
 export interface ChatSocketEnvelope<TData = unknown> {
   code: number;
   msg: string;
   data: TData;
 }
 
-export interface ChatSocketOutgoingMessage {
-  receiver_id: string;
-  msg_type: 1 | 2 | 7;
-  content: string;
+/**
+ * WebSocket 下行通知的载荷（#201：WS 只做通知，发送走 HTTP）。
+ *
+ * - 新消息通知：`chat.message.sent` → `{ message_id, sender_id, receiver_id, session_id, ... }`
+ * - 已读回执：`chat.message.read` → `{ reader_id, session_id, msg_id_list, ... }`（msg_type=8）
+ *
+ * 两者都带 `session_id`，收到后前端刷新会话与未读；只刷新会话、不把正文塞进
+ * 通知帧 —— 正文由接收方走 HTTP 重新拉取，避免两处真相。
+ */
+export interface ChatNotificationPayload {
+  session_id: string;
+  message_id?: string;
+  sender_id?: string;
+  receiver_id?: string;
+  reader_id?: string;
+  msg_id_list?: string[];
+  msg_type?: number;
+  send_time?: string;
+  read_at?: string;
 }
 
 // UpdateInfoRequest 的字段在 Go 里全是 *指针（`*string` / `*ctype.ID`），

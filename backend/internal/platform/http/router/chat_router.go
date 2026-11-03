@@ -25,6 +25,8 @@ func ChatRouter(r *gin.RouterGroup, runtimeMw mw.Runtime) {
 	authGroup.GET("sessions", app.Sessions)
 	authGroup.DELETE("sessions", app.DeleteSessions)
 	authGroup.GET("messages", app.Messages)
+	// 发送的唯一通道：HTTP 可靠落库（幂等）。WS 只做通知，不再接受上行消息。
+	authGroup.POST("messages", app.Send)
 	authGroup.POST("read", app.Read)
 	authGroup.DELETE("messages", app.DeleteMessages)
 	authGroup.GET("ws-ticket", app.WsTicket)

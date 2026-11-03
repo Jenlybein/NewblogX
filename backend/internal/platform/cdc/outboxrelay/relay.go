@@ -91,6 +91,14 @@ type Options struct {
 	// 为什么要分批：一次 DELETE 几十万行会长时间持锁、把 undo log 撑爆。
 	// 分批删能把每批的影响控制在可控范围。
 	CleanupLimit int
+
+	// SkipEventNames 是本进程**不领取**的事件名。
+	//
+	// 用于"下游依赖本进程内存状态"的事件：例如私信的 WS 通知只有持有连接池的
+	// API 进程能推。其他角色的中继若领取了它，订阅者找不到连接池只能返回成功，
+	// 事件被标记 done，通知就永久丢了。跳过的事件行保持 pending，
+	// 由真正能处理它的进程在下一轮扫描/CDC 里领取。
+	SkipEventNames []string
 }
 
 func (o Options) withDefaults() Options {
@@ -136,6 +144,9 @@ func (o Options) withDefaults() Options {
 //   - pending/failed 且 available_at 已到（正常首次投递、或失败后退避结束）；
 //   - processing 且租约已过期（领取它的 worker 崩溃了，需要补偿）。
 func (r *Relay) claimable(q *gorm.DB) *gorm.DB {
+	if len(r.opts.SkipEventNames) > 0 {
+		q = q.Where("event_name NOT IN ?", r.opts.SkipEventNames)
+	}
 	return q.Where(
 		"((status IN ? AND available_at <= ?) OR (status = ? AND updated_at <= ?))",
 		[]string{OutboxStatusPending, OutboxStatusFailed},

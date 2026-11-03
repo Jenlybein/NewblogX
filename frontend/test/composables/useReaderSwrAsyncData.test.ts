@@ -76,9 +76,14 @@ describe("useReaderSwrAsyncData：useAsyncData 之上的 30s SWR", () => {
     expect(source.pending.value).toBe(false);
   });
 
-  it("手工 refresh 也遵守 SWR：30 秒内命中不重复请求（Nuxt granularCachedData 语义）", async () => {
+  it("手工 refresh 必须真发请求：fresh 命中只对 cause=initial 生效（ADR-0024 决策 1）", async () => {
     // Nuxt 4 的 granularCachedData 默认开：refresh() 也会先问 getCachedData。
-    // 若 fresh 命中时还发请求，"30 秒内不重复请求"的验收在第二波源上就会失守。
+    // 旧的实现让 fresh 命中在**任何** cause 下都短路 handler —— 于是 hydration 把匿名
+    // payload 预热进缓存后，页面 onMounted 的 refreshArticle() 永远不发请求，
+    // ADR-0019 承诺的"客户端补齐用户态"在硬刷新/重进时根本不会发生。
+    //
+    // 新口径：只有 cause="initial" 允许复用 fresh；refresh:manual / refresh:hook
+    // 一律返回 undefined，让 handler 真取一次（stale 仍然先渲染旧值、后台重取）。
     const clock = 1_000;
     const cache = createReaderSwrCache({ now: () => clock });
     cache.write("article-a1", { title: "缓存标题" });
@@ -90,9 +95,13 @@ describe("useReaderSwrAsyncData：useAsyncData 之上的 30s SWR", () => {
     );
     const source = await pendingSource;
 
-    await source.refresh();
+    // 首屏这次仍按 SWR 命中（30 秒内不重复请求的验收靠它）。
     expect(handler).not.toHaveBeenCalled();
     expect(source.data.value).toEqual({ title: "缓存标题" });
+
+    await source.refresh();
+    expect(handler).toHaveBeenCalledTimes(1);
+    expect(source.data.value).toEqual({ title: "新标题" });
   });
 
   it("超过 30 秒：先渲染旧值，后台静默刷新，刷新期间数据不被清空（不闪）", async () => {

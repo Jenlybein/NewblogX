@@ -35,6 +35,8 @@ export const SSR_WHITELIST_PATTERNS = ["/", "/article/**"] as const;
  * 不参与 SSR 首屏，也不进匿名缓存。
  * `/history` 是私人数据（登录用户自己的浏览记录）：既不该被索引，也不该进
  * 匿名共享的整页 HTML 缓存 —— 后者是跨用户泄漏面。
+ * `/messages/**` 是消息中心（#239）：私人数据、不索引，整段（含 `/messages` 入口）
+ * 都走 SPA，由客户端中间件重定向到默认子项。
  */
 export const CLIENT_ONLY_PATTERNS = [
   "/users/**",
@@ -43,6 +45,7 @@ export const CLIENT_ONLY_PATTERNS = [
   "/history",
   "/collections/**",
   "/projects/**",
+  "/messages/**",
 ] as const;
 
 /**

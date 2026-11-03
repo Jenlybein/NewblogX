@@ -106,13 +106,16 @@ export function useReaderSwrAsyncData<TValue>(options: UseReaderSwrAsyncDataOpti
       initialLookup = lookup;
     }
 
-    // fresh 命中才复用；stale 在"手动 / 钩子刷新"时必须返回 undefined，让 handler 真取一次。
-    // 否则 Nuxt 的 granularCachedData 会拿这里的返回值短路 handler（refresh 永不发请求），
-    // 决策 4 的"过期后后台静默刷新"就永远不会发生。
-    if (cause !== "initial" && lookup.state === "stale") {
+    // 只有首屏（initial）允许复用 fresh：30 秒内"不重复请求"的验收靠它。
+    // 其它 cause（refresh:manual / refresh:hook / watch）一律返回 undefined，让 handler
+    // 真取一次 —— 否则 Nuxt 的 granularCachedData 会拿这里的返回值短路 handler，
+    // 手工 refresh() 永不发请求（ADR-0024 决策 1；旧实现把 refresh 也钉成了"fresh 命中"，
+    // 于是 hydration 预热进缓存的匿名 payload 让登录用户永远拿不到自己点过赞没有）。
+    if (cause !== "initial") {
       return undefined;
     }
 
+    // stale 仍然先返回旧值（页面不闪），composable 末尾会再发起一次后台 refresh。
     return lookup.value;
   };
 
@@ -148,5 +151,26 @@ export function useReaderSwrAsyncData<TValue>(options: UseReaderSwrAsyncDataOpti
     void Promise.resolve(source.refresh()).catch(() => null);
   }
 
-  return source;
+  /**
+   * 给"内部第二波"用的取数入口：fresh 命中就直接落数据、**不发请求**，
+   * miss/stale 才真取一次（ADR-0024 决策 1 的边界）。
+   *
+   * 为什么不直接用 `source.refresh()`：新的 SWR 语义里 `refresh()` 一定是"人要求
+   * 重新取数"，必须真发请求（否则手工刷新又会拿不到用户态）。而作者资料这种
+   * "正文回来才知道 author_id"的第二波初始化，30 秒内重进同一篇时应当命中缓存
+   * （ADR-0019 决策 4 / #85 的请求数为 0 验收）。两者需要不同的入口。
+   */
+  async function refreshIfNeeded() {
+    const lookup = activeCache?.read<TValue>(readKey());
+    if (lookup && lookup.state === "fresh") {
+      // `useAsyncData` 的 data 在类型上是 `PickFrom<TValue, keyof TValue> | undefined`，
+      // 直接赋 TValue 会被 Nuxt 4 的 PickFrom 收窄拒绝；这里的值本来就来自同键缓存，
+      // 运行时形状与 handler 返回值一致，按 data ref 的真实类型写回。
+      (source.data as { value: TValue | undefined }).value = lookup.value;
+      return;
+    }
+    await source.refresh();
+  }
+
+  return Object.assign(source, { refreshIfNeeded });
 }

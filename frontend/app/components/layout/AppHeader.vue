@@ -1,6 +1,7 @@
 <script setup lang="ts">
-import { computed, h, ref, watch } from "vue";
+import { computed, h, onMounted, ref, watch } from "vue";
 import {
+  IconBell,
   IconHome2,
   IconLogin2,
   IconMenu2,
@@ -20,6 +21,7 @@ import { usePointerSpecular } from "~/composables/usePointerSpecular";
 import { useScrollChrome } from "~/composables/useScrollChrome";
 import { useWriteEntry } from "~/composables/useWriteEntry";
 import { useAuthStore } from "~/stores/auth";
+import { useMessageStore } from "~/stores/message";
 import { useUiStore } from "~/stores/ui";
 import { BRAND } from "~/utils/brand";
 import {
@@ -29,12 +31,14 @@ import {
   searchKeywordFromQuery,
   themeToggleLabel,
 } from "~/utils/chrome";
+import { messageCenterNavItems, shouldShowUnreadCount } from "~/utils/messageCenter";
 import { headerNavIcon } from "~/utils/navIcon";
 
 const route = useRoute();
 const router = useRouter();
 const authStore = useAuthStore();
 const uiStore = useUiStore();
+const messageStore = useMessageStore();
 const { openWriteEntry } = useWriteEntry();
 // 站点「发布与展示」开关：发布关闭时「写文章」入口不出现（ADR-0017 决策 2）。
 // 服务端判定仍是唯一边界，这里只保证界面不说谎。
@@ -42,6 +46,22 @@ const { entryVisible } = useArticleWritePolicy();
 
 const searchKeyword = ref("");
 const menuOpen = ref(false);
+
+// 消息中心 hover 面板（第 239 票）：子项与未读数来自同一份表，与页面内导航完全一致。
+// 窄屏没有 hover —— <640 时入口整体收进折叠面板（见 .site-messages-mobile）。
+const messagesOpen = ref(false);
+const messageNavItems = computed(() => messageCenterNavItems(messageStore.summary));
+const totalUnread = computed(() => messageStore.totalUnread);
+
+function handleMessagesFocusOut(event: FocusEvent) {
+  const container = event.currentTarget as HTMLElement | null;
+  const next = event.relatedTarget as Node | null;
+  // 焦点在面板内部移动不算离开；只有真正移出容器才收起。
+  if (container && next && container.contains(next)) {
+    return;
+  }
+  messagesOpen.value = false;
+}
 
 // 吸顶玻璃导航：滚动方向/阈值判定与指针镜面高光都收在 composable 里（含降级）。
 // 「减少动态」下 useScrollChrome 直接不启用 → 页头保持静止的不透明面、不隐藏。
@@ -67,8 +87,18 @@ watch(
   () => route.fullPath,
   () => {
     menuOpen.value = false;
+    messagesOpen.value = false;
   },
 );
+
+// 登录后刷新一次未读汇总：页头是读者站唯一常驻的未读消费点，
+// 不能继续只靠 studio 布局兜底（消息中心已迁出个人中心）。
+// onMounted 只在客户端执行，SSR 的首页 / 文章页不会带着登录身份发这个请求。
+onMounted(() => {
+  if (authStore.isLoggedIn && !messageStore.fetched) {
+    void messageStore.refreshSummary().catch(() => undefined);
+  }
+});
 
 const userMenuOptions = computed(() => [
   {
@@ -81,6 +111,7 @@ const userMenuOptions = computed(() => [
     key: "profile",
     icon: () => h(IconUserCircle, { size: 16 }),
   },
+  // <1280px 时「历史」入口收在这里（第 241 票 落位）；本票不渲染指向未建页的死链。
   {
     label: "退出登录",
     key: "logout",
@@ -158,6 +189,21 @@ async function handleUserMenuSelect(key: string | number) {
             <IconSearch :size="18" />
           </button>
         </form>
+
+        <!-- <640px：动作区放不下的「消息中心」收进折叠面板（同一份子项表）。
+             ≥640 时这块整体隐藏，动作区用图标 + 红点 / ≥1024 带文字。 -->
+        <nav v-if="authStore.isLoggedIn" class="site-messages-mobile" aria-label="消息中心">
+          <span class="eyebrow">消息中心</span>
+          <NuxtLink
+            v-for="item in messageNavItems"
+            :key="item.key"
+            :to="item.to"
+            class="site-messages-mobile__item"
+          >
+            <span>{{ item.label }}</span>
+            <span v-if="shouldShowUnreadCount(item.count)" class="site-messages__count">{{ item.count }}</span>
+          </NuxtLink>
+        </nav>
       </div>
 
       <div class="site-header__actions">
@@ -186,6 +232,43 @@ async function handleUserMenuSelect(key: string | number) {
           <component :is="headerNavIcon('write')" :size="18" />
           <span class="site-header__write-label">创作</span>
         </button>
+
+        <!-- 消息中心（第 239 票）：hover / 键盘聚焦展开五子项；<1024 仅图标 + 红点，
+             <640 整体移进折叠面板。子项未读数与页面内导航同源（messageCenterNavItems）。 -->
+        <div
+          v-if="authStore.isLoggedIn"
+          class="site-messages"
+          data-chrome="messages"
+          @pointerenter="messagesOpen = true"
+          @pointerleave="messagesOpen = false"
+          @focusin="messagesOpen = true"
+          @focusout="handleMessagesFocusOut"
+        >
+          <NuxtLink
+            to="/messages"
+            class="site-action site-header__messages"
+            aria-haspopup="menu"
+            :aria-expanded="messagesOpen"
+            :aria-label="totalUnread ? `消息中心（${totalUnread} 条未读）` : '消息中心'"
+          >
+            <IconBell :size="18" aria-hidden="true" />
+            <span class="site-header__messages-label">消息中心</span>
+            <span v-if="totalUnread" class="site-header__dot" aria-hidden="true"></span>
+          </NuxtLink>
+
+          <div v-if="messagesOpen" class="site-messages__panel" role="menu" aria-label="消息中心子项">
+            <NuxtLink
+              v-for="item in messageNavItems"
+              :key="item.key"
+              :to="item.to"
+              class="site-messages__item"
+              role="menuitem"
+            >
+              <span>{{ item.label }}</span>
+              <span v-if="shouldShowUnreadCount(item.count)" class="site-messages__count">{{ item.count }}</span>
+            </NuxtLink>
+          </div>
+        </div>
 
         <div data-chrome="account" class="site-header__account">
           <ClientOnly>
@@ -469,6 +552,85 @@ async function handleUserMenuSelect(key: string | number) {
   white-space: nowrap;
 }
 
+/* ---- 消息中心入口（第 239 票） ---------------------------------------------------
+ * ≥1024 图标 + 文字；640–1023 仅图标 + 红点；<640 整体收进折叠面板。
+ * 面板由指针进入 / 键盘聚焦打开（.site-messages 的 pointerenter / focusin）。 */
+.site-messages {
+  position: relative;
+  display: inline-flex;
+}
+
+.site-header__messages {
+  padding: 0 0.5rem;
+}
+
+.site-header__messages-label {
+  display: none;
+}
+
+.site-header__dot {
+  position: absolute;
+  top: 0.4375rem;
+  right: 0.4375rem;
+  width: 0.4375rem;
+  height: 0.4375rem;
+  border-radius: var(--radius-pill);
+  background: var(--color-danger);
+}
+
+.site-messages__panel {
+  position: absolute;
+  top: calc(100% + 0.375rem);
+  right: 0;
+  z-index: 40;
+  min-width: 12rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.125rem;
+  padding: 0.375rem;
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-md);
+  background: var(--color-surface-raised);
+  box-shadow: 0 18px 44px -20px var(--color-shadow);
+}
+
+.site-messages__item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.5rem 0.625rem;
+  border-radius: var(--radius-sm);
+  color: var(--color-ink-muted);
+  font-size: 0.8125rem;
+}
+
+.site-messages__item:hover,
+.site-messages__item:focus-visible,
+.site-messages-mobile__item:hover,
+.site-messages-mobile__item:focus-visible {
+  background: var(--color-line-faint);
+  color: var(--color-ink);
+}
+
+.site-messages__count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 1.25rem;
+  padding: 0 0.375rem;
+  border-radius: var(--radius-pill);
+  background: var(--color-line-faint);
+  color: var(--color-ink);
+  font-size: 0.6875rem;
+  font-weight: 600;
+}
+
+/* <640px 才出现在折叠面板里；≥640px 动作区常显入口，这块整体隐藏。 */
+.site-messages-mobile {
+  display: none;
+}
+
 /* 焦点环统一：功能蓝只用于焦点环与文字链接，暗色下自动换成暗色功能蓝。 */
 .site-header :is(a, button, input, [tabindex]):focus-visible {
   outline: 2px solid var(--color-focus);
@@ -542,6 +704,39 @@ async function handleUserMenuSelect(key: string | number) {
 
   .site-header__account-name {
     display: inline;
+  }
+
+  /* ≥1024px 消息中心才显示文字（640–1023 只留图标 + 红点）。 */
+  .site-header__messages-label {
+    display: inline;
+  }
+}
+
+/* <640px：动作区收不下「消息中心」，入口整体移进折叠面板。
+ * 折叠面板本身只在菜单展开时可见，所以这里只负责"哪一份 DOM 显示"。 */
+@media (max-width: 639px) {
+  .site-messages {
+    display: none;
+  }
+
+  .site-messages-mobile {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+    padding-top: 0.5rem;
+    border-top: 1px solid var(--color-line-faint);
+  }
+
+  .site-messages-mobile__item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    min-height: 2.75rem;
+    padding: 0 0.5rem;
+    border-radius: var(--radius-sm);
+    color: var(--color-ink-muted);
+    font-size: 0.8125rem;
   }
 }
 </style>

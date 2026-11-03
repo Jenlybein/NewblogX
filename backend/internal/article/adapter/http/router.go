@@ -60,7 +60,7 @@ func (h *Handler) Register(r *gin.RouterGroup, authMw, optionalMw gin.HandlerFun
 	authGroup.POST("", mw.BindJson[ArticleCreateRequest], h.Create)
 	authGroup.PUT(":id", mw.BindUri[kernel.IDRequest], mw.BindJson[ArticleUpdateRequest], h.Update)
 	authGroup.DELETE(":id", mw.BindUri[kernel.IDRequest], h.Remove)
-	authGroup.PUT(":id/digg", mw.BindUri[kernel.IDRequest], h.Digg)
+	authGroup.PUT(":id/digg", mw.BindUri[kernel.IDRequest], mw.BindJson[ArticleDiggRequest], h.Digg)
 	authGroup.GET("history", mw.BindQuery[ArticleViewHistoryRequest], h.History)
 	authGroup.DELETE("history", mw.BindJson[kernel.IDListRequest], h.RemoveHistory)
 	// 清空历史：单独的路径而不是"id_list 为空即清空"——后者会把一个漏传/空数组的

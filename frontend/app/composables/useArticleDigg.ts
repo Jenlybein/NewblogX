@@ -11,10 +11,11 @@ import { shallowRef, watch } from "vue";
  *  1. **乐观更新 + 脏标记**：请求返回前先把界面改掉；但 `article` 还会被别的地方
  *     refresh，一旦刷新回来就会把乐观值覆盖回旧值 —— 所以要有 `touched` 标记，
  *     触碰过之后就不再接受服务端值，直到文章换了（articleId 变了）才复位。
- *  2. **结果靠文案判断**：接口返回的是 `{msg}`，后端用"点赞成功 / 取消点赞成功"
- *     区分方向。这里按文案猜方向，猜不到就按"取反"兜底 —— 所以必须有兜底，
- *     否则后端改文案就静默错。
- *  3. **计数不能为负**：并发或重复点击时 delta 可能把 0 减成 -1。
+ *  2. **传的是目标态，不是 toggle**（ADR-0024 决策 3）：陈旧按钮（显示未赞、实际已赞）
+ *     再点时如果发 toggle，后端会把真实点赞取消掉。这里传"我想让它处于什么状态"，
+ *     服务端按目标收敛，重复同态即无操作。
+ *  3. **计数不能为负、也不能靠本地加减**：写响应回填权威 `digg_count`（决策 4），
+ *     前端直接采用服务端数字，不再自己 +1 / -1（并发、重复点击、他人点赞都能自洽）。
  *  4. **防抖**：连点不该连发请求，也不该让按钮闪。
  *
  * # 依赖为什么用 getter / 回调而不是 ref
@@ -30,15 +31,21 @@ export type ArticleDiggSnapshot = {
   diggCount?: number;
 };
 
+/** 写响应（`PUT /articles/{id}/digg`）里的权威状态与计数。 */
+export type ArticleDiggMutationResult = {
+  is_digg: boolean;
+  digg_count: number;
+};
+
 export type ArticleDiggDeps = {
   /** 当前文章 id（换成别的文章时要复位脏标记）。 */
   articleId: () => string;
   /** 从文章里取点赞字段。 */
   snapshot: () => ArticleDiggSnapshot;
-  /** 把点赞结果写回文章（页面负责实际赋值）。 */
+  /** 把点赞结果写回文章（页面负责实际赋值 + 主动失效客户端缓存）。 */
   patchArticle: (isDigg: boolean, diggCount: number) => void;
-  /** 触发后端切换。 */
-  toggle: (articleId: string) => Promise<{ msg?: string }>;
+  /** 按**目标态**设置点赞（不是取反）。 */
+  setDigg: (articleId: string, liked: boolean) => Promise<ArticleDiggMutationResult>;
   /** 登录校验：未登录时打开登录弹窗并中止。 */
   ensureLoggedIn: () => Promise<boolean>;
   openAuthModal: () => void;
@@ -49,23 +56,6 @@ export type ArticleDiggDeps = {
   /** 连点防抖窗口，默认 600ms。 */
   debounceMs?: number;
 };
-
-/**
- * 解析后端返回文案，得到"这次是点赞还是取消 + 计数增量"。
- *
- * 抽成导出函数是为了能单测：它靠中文字符串猜方向，本质上是脆弱的，
- * 必须有测试钉住当前行为，将来后端换成返回布尔值时才敢改。
- */
-export function resolveDiggMutation(resultMessage: string, wasDigged: boolean): { isDigged: boolean; countDelta: number } {
-  if (resultMessage.includes("取消")) {
-    return { isDigged: false, countDelta: -1 };
-  }
-  if (resultMessage.includes("点赞")) {
-    return { isDigged: true, countDelta: 1 };
-  }
-  // 文案改了就按"取反"兜底：至少方向不会反，代价是文案变了要改这里。
-  return { isDigged: !wasDigged, countDelta: wasDigged ? -1 : 1 };
-}
 
 /**
  * 创建点赞状态机。
@@ -110,7 +100,8 @@ export function useArticleDigg(deps: ArticleDiggDeps) {
     deps.patchArticle(nextIsDigged, diggCount.value);
   }
 
-  function startDebounce() {    debouncing.value = true;
+  function startDebounce() {
+    debouncing.value = true;
     if (debounceTimer) {
       clearTimeout(debounceTimer);
     }
@@ -130,15 +121,16 @@ export function useArticleDigg(deps: ArticleDiggDeps) {
       return;
     }
 
-    const wasDigged = isDigged.value;
+    // 目标态 = 本地当前状态取反。**只传目标**，不传"toggle"：服务端据此收敛，
+    // 前端状态陈旧时也只会把服务端拉向用户看到的那一侧，而不是把它反向取消。
+    const targetLiked = !isDigged.value;
     pending.value = true;
     try {
-      const result = await deps.toggle(deps.articleId());
-      const resultMessage = result.msg || (wasDigged ? "取消点赞成功" : "点赞成功");
-      const mutation = resolveDiggMutation(resultMessage, wasDigged);
+      const result = await deps.setDigg(deps.articleId(), targetLiked);
       touched.value = true;
-      patch(mutation.isDigged, diggCount.value + mutation.countDelta);
-      deps.notify.success(resultMessage);
+      // 方向与计数都以写响应为准（服务端权威），不做本地 +1 / -1。
+      patch(result.is_digg, result.digg_count);
+      deps.notify.success(result.is_digg ? "点赞成功" : "取消点赞成功");
     } catch (error) {
       deps.notify.error(error instanceof Error ? error.message : "点赞失败");
     } finally {

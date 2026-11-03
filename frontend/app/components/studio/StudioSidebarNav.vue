@@ -1,13 +1,10 @@
 <script setup lang="ts">
-import { computed } from "vue";
 import {
-  IconBellRinging,
   IconBookmarks,
   IconDashboard,
   IconFileText,
   IconHeartHandshake,
   IconLogin2,
-  IconMessageCircle,
   IconSettings,
   IconUsers,
   IconUserSquareRounded,
@@ -16,16 +13,16 @@ import AppAvatar from "~/components/common/AppAvatar.vue";
 
 const route = useRoute();
 const authStore = useAuthStore();
-const messageStore = useMessageStore();
 
+// 消息中心 / 私信已迁出个人中心（第 239 票 起是顶级页 /messages，入口在顶栏）。
+// 侧栏不再保留任何消息入口，也不再消费未读 store。
 type StudioNavItem = {
   label: string;
-  to: string | { path: string; query?: Record<string, string> };
+  to: string;
   icon: typeof IconDashboard;
-  badge?: number;
 };
 
-const items = computed<StudioNavItem[]>(() => [
+const items: StudioNavItem[] = [
   { label: "数据概览", to: "/studio/dashboard", icon: IconDashboard },
   { label: "我的文章", to: "/studio/profile", icon: IconFileText },
   // 浏览历史已提升为顶级页 `/history`：创作区不再有入口（决策 7）。
@@ -34,22 +31,10 @@ const items = computed<StudioNavItem[]>(() => [
   { label: "粉丝", to: "/studio/fans", icon: IconUsers },
   { label: "登录设备", to: "/studio/recent-logins", icon: IconLogin2 },
   { label: "账号设置", to: "/studio/settings", icon: IconSettings },
-  { label: "消息中心", to: { path: "/studio/inbox", query: { tab: "site" } }, icon: IconBellRinging, badge: messageStore.totalUnread },
-  { label: "私信", to: { path: "/studio/inbox", query: { tab: "chat" } }, icon: IconMessageCircle, badge: messageStore.summary.private_msg_count },
-]);
+];
 
 function isItemActive(item: StudioNavItem) {
-  if (typeof item.to === "string") {
-    return route.path === item.to;
-  }
-  if (item.to.path !== route.path) {
-    return false;
-  }
-  const targetTab = item.to.query?.tab;
-  if (!targetTab) {
-    return true;
-  }
-  return String(route.query.tab || "site") === targetTab;
+  return route.path === item.to;
 }
 </script>
 
@@ -76,7 +61,7 @@ function isItemActive(item: StudioNavItem) {
     <nav class="studio-sidebar__nav" aria-label="个人中心导航">
       <NuxtLink
         v-for="item in items"
-        :key="`${typeof item.to === 'string' ? item.to : `${item.to.path}:${item.to.query?.tab || ''}`}`"
+        :key="item.to"
         :to="item.to"
         class="studio-sidebar__link"
         :class="{ 'is-active': isItemActive(item) }"
@@ -85,7 +70,6 @@ function isItemActive(item: StudioNavItem) {
           <component :is="item.icon" :size="18" aria-hidden="true" />
           <span>{{ item.label }}</span>
         </span>
-        <span v-if="item.badge" class="studio-sidebar__badge">{{ item.badge }}</span>
       </NuxtLink>
     </nav>
 

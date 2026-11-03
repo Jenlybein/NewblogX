@@ -3,9 +3,12 @@ import type {
   ArticleAuthorInfo,
   ArticleCreateResult,
   ArticleDetail,
+  ArticleDiggResult,
+  ArticleFavoriteResult,
   ArticleHotTopListData,
   ArticleWritePayload,
 } from "~/types/api";
+import { pickArticlePrivateState, type ArticlePrivateState } from "~/utils/readerPrivateFields";
 
 /**
  * 首页「热门置顶」运营位（公开读）。
@@ -35,8 +38,20 @@ export function getArticleDetailAnonymous(id: string | number) {
   return useNuxtApp().$api.request<ArticleDetail>(`/api/articles/${id}`, { auth: false });
 }
 
-export function getArticleAuthorInfo(authorId: string | number) {
-  return useNuxtApp().$api.request<ArticleAuthorInfo>("/api/articles/author_info", {
+/**
+ * 文章页的**用户私有态**取数（ADR-0024 决策 2）。
+ *
+ * 复用带鉴权的详情接口，但只投影 `is_digg` / `is_favor` / `relation`：
+ * - 显式调用 `getArticleDetail`（默认 auth，不传 `auth: false`），否则匿名视角会
+ *   把"未赞"当成用户态；
+ * - 结果不进 SSR payload（调用方 `server: false`），也不进 30s SWR；
+ * - 只投影私有字段，正文/计数/作者资料继续由各自匿名源负责，避免两份数据打架。
+ */
+export function getArticlePrivateState(id: string | number): Promise<ArticlePrivateState> {
+  return getArticleDetail(id).then((detail) => pickArticlePrivateState(detail as unknown as object));
+}
+
+export function getArticleAuthorInfo(authorId: string | number) {  return useNuxtApp().$api.request<ArticleAuthorInfo>("/api/articles/author_info", {
     auth: false,
     query: {
       author_id: String(authorId),
@@ -53,14 +68,25 @@ export function markArticleViewed(id: string | number) {
   });
 }
 
-export function toggleArticleDigg(id: string | number) {
-  return useNuxtApp().$api.requestEnvelope<unknown>(`/api/articles/${id}/digg`, {
+/**
+ * 设置点赞目标态（ADR-0024 决策 3）。
+ *
+ * 旧接口是 toggle（不带请求体）：按钮显示"未赞"时再点一次会把真实点赞取消掉。
+ * 现在传 `{liked}`，服务端按目标收敛、重复同态无操作；响应带回权威 `digg_count`，
+ * 前端直接 patch，不再本地 +1 / 等 30 秒刷新。
+ */
+export function setArticleDigg(id: string | number, liked: boolean) {
+  return useNuxtApp().$api.request<ArticleDiggResult>(`/api/articles/${id}/digg`, {
     method: "PUT",
+    body: { liked },
   });
 }
 
+/**
+ * 收藏文章（写响应回填权威 `favor_count` / `is_favor`，见 ADR-0024 决策 4）。
+ */
 export function favoriteArticle(articleId: string | number, favorId?: string | number) {
-  return useNuxtApp().$api.request("/api/articles/favorite", {
+  return useNuxtApp().$api.request<ArticleFavoriteResult>("/api/articles/favorite", {
     method: "POST",
     body: {
       article_id: String(articleId),

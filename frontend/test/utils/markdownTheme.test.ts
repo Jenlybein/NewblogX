@@ -4,13 +4,13 @@ import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 
 import {
-  MARKDOWN_THEME_CSS,
   MARKDOWN_THEME_ROLES,
   buildMarkdownThemeCss,
   parseTokenBlocks,
   resolveMarkdownTheme,
   resolveTokenValue,
 } from "~/utils/markdownTheme";
+import { MARKDOWN_THEME_CSS } from "~/utils/markdownThemeCss";
 
 // vitest 以 project root（frontend/）为 cwd。
 const projectDir = process.cwd();
@@ -120,44 +120,54 @@ describe("正文节奏：16px / 行高 1.85，行宽继承页面容器", () => {
   });
 });
 
-describe("标题装置：H1 居中横线 / H2 左色带 / H3 三角 / H4 短下划线 / H6 大写字距", () => {
-  it("H1 居中，并带一条横线记号（1px 底边 + 居中的记号块）", () => {
+describe("六层标题装置：颜色 + 装置逐层不同（正文用 --md-* 色板）", () => {
+  it.each([1, 2, 3, 4, 5, 6])("H%i 有自己的字色 token", (level) => {
+    expect(ruleBody(`.markdown-body h${level}`)).toContain(`color: var(--md-heading-h${level});`);
+  });
+
+  it("H1 墨：居中 + 定标线 + 居中记号块", () => {
     const rule = ruleBody(".markdown-body h1");
 
     expect(rule).toMatch(/text-align:\s*center/u);
-    expect(rule).toMatch(/border-bottom:\s*1px solid var\(--color-[a-z-]+\)/u);
+    expect(rule).toContain("border-bottom: 1px solid var(--md-heading-h1);");
 
     const mark = ruleBody(".markdown-body h1::after");
-    expect(mark).toMatch(/background:\s*var\(--color-[a-z-]+\)/u);
+    expect(mark).toContain("background: var(--md-heading-h1);");
+    expect(mark).toMatch(/margin:\s*[^;]*auto/u);
   });
 
-  it("H2 左侧色带", () => {
-    const rule = ruleBody(".markdown-body h2");
-
-    expect(rule).toMatch(/border-left:\s*[46]px solid var\(--color-[a-z-]+\)/u);
+  it("H2 赤陶：左侧 3px 色带", () => {
+    expect(ruleBody(".markdown-body h2")).toContain("border-left: 3px solid var(--md-heading-h2);");
   });
 
-  it("H3 三角记号", () => {
+  it("H3 苔绿：行首三角", () => {
     const mark = ruleBody(".markdown-body h3::before");
 
     expect(mark).toMatch(/clip-path:\s*polygon\(/u);
-    expect(mark).toMatch(/background:\s*var\(--color-[a-z-]+\)/u);
+    expect(mark).toContain("background: var(--md-heading-h3);");
   });
 
-  it("H4 短下划线", () => {
+  it("H4 靛青：约 40% 宽的短下划线", () => {
     const mark = ruleBody(".markdown-body h4::after");
 
-    expect(mark).toMatch(/width:\s*[0-9.]+em/u);
+    expect(mark).toMatch(/width:\s*40%/u);
     expect(mark).toMatch(/height:\s*[23]px/u);
-    expect(mark).toMatch(/background:\s*var\(--color-[a-z-]+\)/u);
+    expect(mark).toContain("background: var(--md-heading-h4);");
   });
 
-  it("H5 / H6 用字重与字距区分（H6 全大写 + 开字距）", () => {
-    expect(ruleBody(".markdown-body h5")).toMatch(/font-weight:\s*600/u);
+  it("H5 梅紫：上下双发丝线", () => {
+    const rule = ruleBody(".markdown-body h5");
 
+    expect(rule).toContain("border-top: 1px solid var(--md-heading-h5);");
+    expect(rule).toContain("border-bottom: 1px solid var(--md-heading-h5);");
+  });
+
+  it("H6 赭黄：大写字距 + 顶横线", () => {
     const h6 = ruleBody(".markdown-body h6");
+
     expect(h6).toMatch(/text-transform:\s*uppercase/u);
     expect(h6).toMatch(/letter-spacing:\s*0\.18em/u);
+    expect(h6).toContain("border-top: 1px solid var(--md-heading-h6);");
   });
 
   it("字号阶梯是 em（随 16px 正文同步缩放）", () => {
@@ -175,11 +185,83 @@ describe("标题装置：H1 居中横线 / H2 左色带 / H3 三角 / H4 短下�
   });
 });
 
+describe("四种内联样式：颜色与形态互不混淆", () => {
+  it("加粗：深墨 + 字重 650", () => {
+    const rule = ruleBody(".markdown-body strong");
+
+    expect(rule).toContain("color: var(--md-bold-ink);");
+    expect(rule).toContain("font-weight: var(--md-bold-weight);");
+  });
+
+  it("斜体：暖灰 + 真斜体", () => {
+    const rule = ruleBody(".markdown-body em");
+
+    expect(rule).toContain("color: var(--md-italic-ink);");
+    expect(rule).toMatch(/font-style:\s*italic/u);
+  });
+
+  it("删除线：赤陶线 / 暖灰字 / 1.5px 线宽", () => {
+    const rule = ruleBody(".markdown-body del");
+
+    expect(rule).toContain("color: var(--md-strike-ink);");
+    expect(rule).toMatch(/text-decoration:\s*line-through/u);
+    expect(rule).toContain("text-decoration-color: var(--md-strike-line);");
+    expect(rule).toContain("text-decoration-thickness: var(--md-strike-width);");
+  });
+
+  it("下划线：真 text-decoration + 靛青线 + offset token（不再用黄底冒充）", () => {
+    const rule = ruleBody(".markdown-body ins");
+
+    expect(rule).toContain("color: inherit;");
+    expect(rule).toMatch(/background:\s*none/u);
+    expect(rule).toMatch(/text-decoration:\s*underline/u);
+    expect(rule).toContain("text-decoration-color: var(--md-underline-line);");
+    expect(rule).toContain("text-underline-offset: var(--md-underline-offset);");
+    // 反向断言：黄底（--color-highlight）不得再出现在下划线规则里。
+    expect(rule).not.toContain("--color-highlight");
+
+    expect(ruleBody(".markdown-body ins:hover")).toContain("font-weight: var(--md-bold-weight);");
+  });
+
+  it("mark 仍是记号笔底（==文字==），与下划线是两回事", () => {
+    expect(ruleBody(".markdown-body mark")).toContain("background: var(--color-highlight);");
+  });
+});
+
+describe("列表标记：有序赤陶 / 无序苔绿", () => {
+  it("无序圆点苔绿", () => {
+    expect(ruleBody(".markdown-body ul > li::marker")).toContain(
+      "color: var(--md-list-unordered-marker);",
+    );
+  });
+
+  it("有序数字赤陶", () => {
+    expect(ruleBody(".markdown-body ol > li::marker")).toContain(
+      "color: var(--md-list-ordered-marker);",
+    );
+  });
+});
+
+describe("代码高亮：七档 token 各归其位", () => {
+  it.each([
+    [".markdown-body .hljs-keyword", "--md-code-keyword"],
+    [".markdown-body .hljs-string", "--md-code-string"],
+    [".markdown-body .hljs-number", "--md-code-number"],
+    [".markdown-body .hljs-function", "--md-code-function"],
+    [".markdown-body .hljs-type", "--md-code-type"],
+    [".markdown-body .hljs-comment", "--md-code-comment"],
+    [".markdown-body .hljs-params", "--md-code-variable"],
+  ])("%s 消费 %s", (selector, token) => {
+    expect(ruleBody(selector)).toContain(`color: var(${token});`);
+  });
+});
+
 describe("代码：代码块是另一层纸面，行内代码可辨识", () => {
   it("代码块有独立纸面层级：背景 + 边框 + 平投影 + token 圆角", () => {
     const pre = ruleBody(".markdown-body pre");
 
-    expect(pre).toMatch(/background:\s*var\(--color-[a-z-]+\)/u);
+    // 代码纸面走正文色板（--md-code-paper），其余结构仍走 --color-* / --radius-*。
+    expect(pre).toMatch(/background:\s*var\(--(?:color|md)-[a-z-]+\)/u);
     expect(pre).toMatch(/border:\s*1px solid var\(--color-[a-z-]+\)/u);
     expect(pre).toMatch(/box-shadow:\s*[^;]*var\(--color-shadow\)/u);
     expect(pre).toMatch(/border-radius:\s*var\(--radius-(?:sm|md|lg|xl|pill)\)/u);
@@ -314,6 +396,8 @@ describe("markdown 主题 CSS：自有主题，不再加载 github-markdown-css"
     expect(declarations).not.toMatch(/(?:rgba?|hsla?)\(/u);
     // 必须真的消费语义层与排版层，而不是自己造颜色。
     expect(declarations).toMatch(/var\(--color-/u);
+    // 正文色板单独治理：标题/内联/列表/代码另有一组 --md-*（ADR-0012 后续修订）。
+    expect(declarations).toMatch(/var\(--md-/u);
     expect(declarations).toMatch(/var\(--type-/u);
     expect(declarations).toMatch(/var\(--font-/u);
     // 只消费语义层，不绕过它去摸原始层（那等于给主题开了一个新色相入口）。

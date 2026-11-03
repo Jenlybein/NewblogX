@@ -145,7 +145,7 @@ useSeoMeta({
             <div class="eyebrow">Message</div>
             <h2 class="section-title mt-2">消息摘要</h2>
           </div>
-          <NuxtLink to="/studio/inbox" class="glass-badge">打开消息中心</NuxtLink>
+          <NuxtLink to="/messages/comments" class="glass-badge">打开消息中心</NuxtLink>
         </div>
 
         <div class="mt-5 space-y-4">

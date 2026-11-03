@@ -49,6 +49,8 @@ const profileForm = reactive({
   followers_visibility: true,
   fans_visibility: true,
   home_style_id: "",
+  // 允许陌生人给我发私信（后端两级判定的个人一级，默认开启）。
+  stranger_msg_enabled: true,
 });
 
 const emailBindForm = reactive({
@@ -162,6 +164,8 @@ watch(
     profileForm.favorites_visibility = value.favorites_visibility ?? true;
     profileForm.followers_visibility = value.followers_visibility ?? true;
     profileForm.fans_visibility = value.fans_visibility ?? true;
+    // 默认开启：老账号没有这条配置行时后端也按允许处理，前端不能显示成关闭。
+    profileForm.stranger_msg_enabled = value.stranger_msg_enabled ?? true;
     profileForm.home_style_id = value.home_style_id ?? "";
   },
   { immediate: true },
@@ -267,6 +271,7 @@ async function saveProfile() {
       followers_visibility: profileForm.followers_visibility,
       fans_visibility: profileForm.fans_visibility,
       home_style_id: profileForm.home_style_id || null,
+      stranger_msg_enabled: profileForm.stranger_msg_enabled,
     };
 
     if (hasAvatarImageId) {
@@ -437,6 +442,22 @@ async function savePreference() {
   }
 }
 
+/**
+ * 保存隐私开关。
+ *
+ * 只提交 stranger_msg_enabled 这一项，走与"保存资料"同一个 PUT /users/info；
+ * 后端把个人开关与站点总闸取交集，保存后立刻影响下一条陌生私信的判定。
+ */
+async function savePrivacy() {
+  try {
+    await updateUserProfile({ stranger_msg_enabled: profileForm.stranger_msg_enabled });
+    await refreshProfile();
+    message.success("隐私设置已保存");
+  } catch (error) {
+    message.error(error instanceof Error ? error.message : "保存隐私设置失败");
+  }
+}
+
 useSeoMeta({
   title: "个人中心 - 账号设置",
 });
@@ -597,6 +618,26 @@ useSeoMeta({
               <span>粉丝列表可见</span>
               <NSwitch v-model:value="profileForm.fans_visibility" />
             </div>
+          </div>
+        </NCard>
+
+        <NCard class="studio-list-card" :bordered="false">
+          <div class="eyebrow">Privacy</div>
+          <h2 class="section-title mt-2">隐私</h2>
+
+          <div class="mt-5 space-y-3">
+            <div class="flex items-start justify-between gap-4 rounded-card border px-4 py-3">
+              <div class="min-w-0">
+                <span class="text-sm font-medium">允许陌生人给我发私信</span>
+                <p class="mt-1 text-xs leading-5 muted">
+                  关掉后，未关注你、也没有会话往来的人将无法给你发私信；站点总开关仍然生效。
+                </p>
+              </div>
+              <NSwitch v-model:value="profileForm.stranger_msg_enabled" />
+            </div>
+          </div>
+          <div class="mt-4">
+            <NButton type="primary" @click="savePrivacy()">保存隐私设置</NButton>
           </div>
         </NCard>
       </section>

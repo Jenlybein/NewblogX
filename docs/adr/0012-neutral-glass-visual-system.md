@@ -4,6 +4,7 @@
 - 日期：2026-10-31
 - 来源：2026-10-31 的 grilling 会话（用户反馈："当前主题不好看，蓝色作为主色调太伤眼"；目标：apple.com 式高级感美学 + 液态玻璃 + 圆角）。spec 为 [issue #17](https://github.com/Jenlybein/NewblogX/issues/17)（`ready-for-agent`），落地分票 #18–#25 已全部合入集成分支；视觉解构见 [Apple 液态玻璃解构](../notes/2026-10-30-apple-liquid-glass-deconstruction.md)，改造方案见 [中性玻璃改造方案](../notes/2026-10-31-neutral-glass-redesign-plan.md)
 - 后续修订：**决策 8 与约束 10 中"中文继续 Noto Sans SC"的部分已由 [ADR-0019](./0019-reader-rendering-and-cache-strategy.md)（已交付，落地票 #80–#87）取代** —— 中文字体改为系统字体栈，以消除首屏 2.3 MB 自托管字体；Sora = 字标/大标题、Inter = 正文/UI、全站无衬线这些分工继续生效。差异表见文末「后续修订」。
+- 后续修订（2026-11-04）：**约束 1 / 2 / 3 / 4 对"正文 markdown 渲染区"放开** —— 正文区不再受五色相锁定，改由 `--md-*` 一组独立语义 token 单独治理（六层标题色 + 七档代码色 + 真下划线）；裸色值门禁与两端 token 同源不变。落地票 #244（spec #234 §5/§8），差异表见文末「后续修订（2026-11-04）」，肉眼验收见[色板预览](../notes/2026-11-04-markdown-palette-preview.md)。
 
 ## 背景与问题
 
@@ -107,3 +108,34 @@ ADR-0010 在 2026-10-30 落地（ticket #1–#13 已合并），取向是"图纸
 **继续生效**：本 ADR 其余全部条款（五色相锁死、中性石墨阶、圆角阶梯、玻璃作用域与降级、动效三档、暗色、token 同源与门禁口径），以及字体分工里 Sora 与 Inter 的角色。
 
 **落地时连带要改的**：[frontend/test/design/fonts.test.ts](../../frontend/test/design/fonts.test.ts)、[tokens.test.ts](../../frontend/test/design/tokens.test.ts)、[foundation-tokens.test.ts](../../frontend/test/design/foundation-tokens.test.ts)、[frontend/test/utils/readerTheme.test.ts](../../frontend/test/utils/readerTheme.test.ts) 里锁定"Noto 排在中文字体栈最前"的断言——它们锁的是旧立场，需按新口径改写，而不是删除断言。
+
+## 后续修订（2026-11-04）
+
+**正文 markdown 渲染区不再受本 ADR 的五色相锁定**（读者站正文色板与六层标题装置，落地票 #244，spec #234 §5/§8）。按本目录的登记规则（"已交付的 ADR 不改结论，只追加后续修订"），正文原样保留，差异在此登记。
+
+| 本 ADR 位置 | 原文口径 | 修订后 |
+| --- | --- | --- |
+| 约束 1（五个锁定色相） | 五个锁定色相，禁止新增第六个色相 | **正文 markdown 渲染区例外**：正文区内可以有六层标题色与七档代码色，但它们只由 `--md-*` 一组 token 定义，且**不得溢出到组件/页面** |
+| 约束 2（墨色一律中性石墨阶） | 正文墨色与结构线一律中性石墨阶 | 正文渲染区的字色由 `--md-*` 给出（H1 墨 `#1A1815`、加粗 `#0F0D0B` 等）；**页面上其余部分**仍守中性石墨阶 |
+| 约束 3（三元组派生透明度） / 约束 4（只消费语义层） | 带透明度的颜色必须 `rgb(var(--*-rgb) / α)`；组件只消费语义层 | 正文色板是**同一套治理的第四个 token 组**：`tokens.css` 里定义、明暗各一份取值、组件里只能写 `var(--md-*)`、裸色值门禁照旧生效（hex 只出现在 `tokens.css`） |
+| 决策 8（排版层） | 字体分工与字号阶梯 | 不变；正文色板只管**颜色**，字重/字距仍走 `--type-*` / `--font-*` |
+
+**原因**：正文是"读文章"的主场。六层标题如果只靠字号区分，深层结构（H4–H6）几乎无法扫读；而五个锁定色相里没有一个能同时提供六个可当字色、且在明暗两态都达 WCAG AA 的色相。用户决定正文改用「方向 A：暖调编辑」色板：墨 / 赤陶 / 苔绿 / 靛青 / 梅紫 / 赭黄，六层各配一种装置（定标线 + 居中记号块 / 左侧 3px 色带 / 行首三角 / 约 40% 短下划线 / 上下双发丝线 / 大写字距 + 顶横线），层与层颜色和装置都不同。
+
+**同时收口的两点**：
+
+1. **下划线不再用黄底冒充**。此前 `++文字++`（`<ins>`）被实现成"重点上色"（包豪斯黄记号笔底 + `text-decoration: none`），与真正的下划线语义不符。现改为真 `text-decoration: underline` + 靛青线色（`--md-underline-line`）+ `text-underline-offset: 3px`，字色继承正文、悬停加粗确认"这是强调不是链接"。记号笔底（`==文字==` / `<mark>`）保留，两件事分开。
+2. **删除线实际不生效的缺口一并修掉**：`markdown-it` 把 `~~文字~~` 产出的是 `<s>`，而主题只写了 `del`，等于删除线从来没被上色。现同时覆盖 `del` 与 `s`。
+
+**一处刻意偏离色板**：代码注释 spec 写 `#7A756C`，它对正文纸面只有 4.43:1、对"降一档"的代码纸面只有 4.17:1，达不到 issue 验收里的 AA 硬要求。取同色相加深一档的 `#726D63`（对代码纸面 4.68:1），只动明度不动色相 —— **色板给形态、AA 给下限，可读性优先**。该偏离由 `frontend/test/design/markdown-palette.test.ts` 显式断言（含"与 spec 色通道差 ≤16 且更暗"两条约束），不是随手改色。
+
+**继续生效**：本 ADR 其余全部条款 —— 五色相锁死（**正文渲染区除外**）、中性石墨阶（正文渲染区除外）、圆角阶梯、玻璃作用域与降级、动效三档、暗色机制、`tokens.css` 两端同源与裸色值门禁 —— 以及第 7 段 `--md-*` 组的"只供正文渲染区、明暗两份、组件只用 token"。
+
+**验收与门禁**：
+
+- 取值契约：[frontend/test/design/markdown-palette.test.ts](../../frontend/test/design/markdown-palette.test.ts)（色板逐项、明暗两份、全部文字/代码档 ≥4.5:1、代码纸面降一档）。
+- 装置契约：[frontend/test/utils/markdownTheme.test.ts](../../frontend/test/utils/markdownTheme.test.ts)（六层各一套装置 + 四种内联 + 列表标记 + 代码七档）。
+- 实际渲染对齐：[frontend/test/composables/markdownPaletteGallery.test.ts](../../frontend/test/composables/markdownPaletteGallery.test.ts)（把[预览稿](../../frontend/test/fixtures/markdown-palette-gallery.md)真渲染一遍，对齐 H1–H6 与 hljs 类名），肉眼验收步骤见[色板预览](../notes/2026-11-04-markdown-palette-preview.md)。
+
+**相关代码**：[frontend/app/assets/css/tokens.css](../../frontend/app/assets/css/tokens.css)（第 7 段 `--md-*` 组）· [frontend/app/utils/markdownTheme.ts](../../frontend/app/utils/markdownTheme.ts)（`MARKDOWN_THEME_ROLES` 新增正文色板角色 + token 解析）· [frontend/app/utils/markdownThemeCss.ts](../../frontend/app/utils/markdownThemeCss.ts)（样式源；受「单文件 ≤ 800 行」约束从 `markdownTheme.ts` 外移）。
+

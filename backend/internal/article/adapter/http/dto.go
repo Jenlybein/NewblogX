@@ -85,6 +85,17 @@ type ArticleDetailResponse struct {
 	IsFavor             bool              `json:"is_favor"`
 }
 
+// ArticleDiggRequest 点赞目标态（ADR-0024 决策 3）。
+//
+// 旧契约没有请求体（toggle）。现在必须显式说"我要它处于已赞还是未赞"：
+// `Liked=true` 是确保已赞，`Liked=false` 是确保未赞；重复提交同态即无操作。
+//
+// 用指针 + `required`：Go 的 `bool` 零值 false 会被 validator 当成"没传"，
+// 而"取消点赞"恰恰要传 false，所以必须用 `*bool` 区分"没传"与"传了 false"。
+type ArticleDiggRequest struct {
+	Liked *bool `json:"liked" binding:"required" example:"true"`
+}
+
 // ArticleFavoriteRequest 收藏。
 type ArticleFavoriteRequest struct {
 	ArticleID ctype.ID `json:"article_id" binding:"required"`
@@ -346,8 +357,20 @@ type ArticleTopCardResponse struct {
 }
 
 // ArticleDiggResponse 点赞结果。
+//
+// 除了收敛后的状态，还回填**权威计数**（库内快照 + 缓存增量）：
+// 前端直接 patch，不再本地 +1、也不再为等数字而重新取整篇正文（ADR-0024 决策 4）。
 type ArticleDiggResponse struct {
-	IsDigg bool `json:"is_digg"`
+	IsDigg    bool `json:"is_digg"`
+	DiggCount int  `json:"digg_count"`
+}
+
+// ArticleFavoriteResponse 收藏/取消收藏结果。
+//
+// 与点赞同理：写响应回填权威 `favor_count` / `is_favor`（ADR-0024 决策 4/6）。
+type ArticleFavoriteResponse struct {
+	IsFavor    bool `json:"is_favor"`
+	FavorCount int  `json:"favor_count"`
 }
 
 // ArticleHotTopCardResponse 是首页「热门置顶」运营位的一张卡片。

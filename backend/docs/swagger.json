@@ -724,8 +724,23 @@
                 },
                 "type": "object"
             },
+            "internal_article_adapter_http.ArticleDiggRequest": {
+                "properties": {
+                    "liked": {
+                        "example": true,
+                        "type": "boolean"
+                    }
+                },
+                "required": [
+                    "liked"
+                ],
+                "type": "object"
+            },
             "internal_article_adapter_http.ArticleDiggResponse": {
                 "properties": {
+                    "digg_count": {
+                        "type": "integer"
+                    },
                     "is_digg": {
                         "type": "boolean"
                     }
@@ -744,6 +759,17 @@
                 "required": [
                     "article_id"
                 ],
+                "type": "object"
+            },
+            "internal_article_adapter_http.ArticleFavoriteResponse": {
+                "properties": {
+                    "favor_count": {
+                        "type": "integer"
+                    },
+                    "is_favor": {
+                        "type": "boolean"
+                    }
+                },
                 "type": "object"
             },
             "internal_article_adapter_http.ArticleHotTopAdminItem": {
@@ -2955,6 +2981,10 @@
                     "nickname": {
                         "type": "string"
                     },
+                    "stranger_msg_enabled": {
+                        "description": "StrangerChatEnabled 是\"允许陌生人给我发私信\"的个人开关。\n字段名沿用既有契约 stranger_msg_enabled；全指针语义与其余偏好一致：\n没传不改，false 是合法值（关掉）。",
+                        "type": "boolean"
+                    },
                     "username": {
                         "type": "string"
                     }
@@ -3934,6 +3964,20 @@
                     },
                     "data": {
                         "$ref": "#/components/schemas/internal_article_adapter_http.ArticleDiggResponse"
+                    },
+                    "msg": {
+                        "type": "string"
+                    }
+                },
+                "type": "object"
+            },
+            "myblogx_internal_kernel.Envelope-internal_article_adapter_http_ArticleFavoriteResponse": {
+                "properties": {
+                    "code": {
+                        "type": "integer"
+                    },
+                    "data": {
+                        "$ref": "#/components/schemas/internal_article_adapter_http.ArticleFavoriteResponse"
                     },
                     "msg": {
                         "type": "string"
@@ -6708,7 +6752,7 @@
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "$ref": "#/components/schemas/myblogx_internal_kernel.Envelope-myblogx_internal_kernel_EmptyData"
+                                    "$ref": "#/components/schemas/myblogx_internal_kernel.Envelope-internal_article_adapter_http_ArticleFavoriteResponse"
                                 }
                             }
                         },
@@ -6782,7 +6826,7 @@
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "$ref": "#/components/schemas/myblogx_internal_kernel.Envelope-myblogx_internal_kernel_EmptyData"
+                                    "$ref": "#/components/schemas/myblogx_internal_kernel.Envelope-internal_article_adapter_http_ArticleFavoriteResponse"
                                 }
                             }
                         },
@@ -7545,6 +7589,19 @@
                         }
                     }
                 ],
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/internal_article_adapter_http.ArticleDiggRequest",
+                                "summary": "body",
+                                "description": "目标态（liked=true 点赞 / false 取消）"
+                            }
+                        }
+                    },
+                    "description": "目标态（liked=true 点赞 / false 取消）",
+                    "required": true
+                },
                 "responses": {
                     "200": {
                         "content": {

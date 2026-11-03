@@ -359,21 +359,23 @@ func (h *Handler) FavoriteItems(c *gin.Context) {
 // @Produce json
 // @Security BearerAuth
 // @Param body body ArticleFavoriteRequest true "请求体"
-// @Success 200 {object} kernel.Envelope[kernel.EmptyData]
+// @Success 200 {object} kernel.Envelope[ArticleFavoriteResponse]
 // @Router /articles/favorite [post]
 func (h *Handler) SaveFavorite(c *gin.Context) {
 	cr := middleware.GetBindJson[ArticleFavoriteRequest](c)
 
-	if err := h.svc.Favorite(c.Request.Context(), app.FavoriteCmd{
+	result, err := h.svc.Favorite(c.Request.Context(), app.FavoriteCmd{
 		Actor:     h.viewerOf(c),
 		ArticleID: domain.ArticleID(cr.ArticleID),
 		FolderID:  favorite.ID(cr.FavorID),
-	}); err != nil {
+	})
+	if err != nil {
 		h.fail(c, err)
 		return
 	}
 	h.audit(c, "article_favorite", domain.ArticleID(cr.ArticleID), true, "收藏文章")
-	res.OkWithMsg("收藏成功", c)
+	// 写响应回填权威计数：前端直接 patch，不再重新取整篇正文。
+	res.OkWithData(ArticleFavoriteResponse{IsFavor: result.IsFavor, FavorCount: result.FavorCount}, c)
 }
 
 // RemoveFavoriteItems 批量移除收藏。
@@ -384,22 +386,37 @@ func (h *Handler) SaveFavorite(c *gin.Context) {
 // @Produce json
 // @Security BearerAuth
 // @Param body body FavoriteRemovePatchModel true "请求体"
-// @Success 200 {object} kernel.Envelope[kernel.EmptyData]
+// @Success 200 {object} kernel.Envelope[ArticleFavoriteResponse]
 // @Router /articles/favorite/contents [delete]
 func (h *Handler) RemoveFavoriteItems(c *gin.Context) {
 	cr := middleware.GetBindJson[FavoriteRemovePatchModel](c)
 
+	var (
+		last  app.FavoriteResult
+		found bool
+	)
 	for _, id := range cr.ArticleIDs {
-		if err := h.svc.Unfavorite(c.Request.Context(), app.FavoriteCmd{
+		result, err := h.svc.Unfavorite(c.Request.Context(), app.FavoriteCmd{
 			Actor:     h.viewerOf(c),
 			ArticleID: domain.ArticleID(id),
 			FolderID:  favorite.ID(cr.FavorID),
-		}); err != nil {
+		})
+		if err != nil {
 			h.logger.Warnf("取消收藏文章 %s 失败: %v", id, err)
+			continue
 		}
+		last = result
+		found = true
 	}
 	h.audit(c, "article_unfavorite", "", true, "取消收藏")
-	res.OkWithMsg("取消成功", c)
+
+	// 响应里的计数按"最后一条成功移除的文章"给出：收藏夹弹窗每次只传当前这一篇，
+	// 批量的多篇场景不在本票消费（前端也不依赖多篇的计数）。
+	if !found {
+		res.OkWithMsg("取消成功", c)
+		return
+	}
+	res.OkWithData(ArticleFavoriteResponse{IsFavor: last.IsFavor, FavorCount: last.FavorCount}, c)
 }
 
 // ── 置顶 ──

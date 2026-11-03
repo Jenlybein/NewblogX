@@ -245,6 +245,17 @@ export type ArticleDetail = Nullable<
   "category_id" | "cover_image_id" | "author_avatar_image_id"
 >;
 
+/**
+ * 点赞写响应（ADR-0024 决策 3/4）：收敛后的状态 + 权威 `digg_count`。
+ */
+export type ArticleDiggResult = RequiredSchema<"internal_article_adapter_http.ArticleDiggResponse">;
+
+/**
+ * 收藏写响应（ADR-0024 决策 4/6）：用工编辑（POST 收藏 / DELETE 移除）都回填
+ * 权威 `is_favor` 与 `favor_count`，前端直接 patch。
+ */
+export type ArticleFavoriteResult = RequiredSchema<"internal_article_adapter_http.ArticleFavoriteResponse">;
+
 export type CommentRootItem = RequiredSchema<"myblogx_internal_comment_app.RootItem">;
 
 export type CommentRootListData = RequiredSchema<"myblogx_internal_kernel.HasMoreListData-myblogx_internal_comment_app_RootItem">;

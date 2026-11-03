@@ -14,10 +14,11 @@ const props = withDefaults(
   defineProps<{
     html: string;
     /**
-     * 可选的外部主题（兼容创作区旧的 12 套预览样式 / 私信面板）。
-     * 正文阅读页不再传它：自有主题走 token，明暗切换不需要换 <link>。
+     * 附加样式（katex 基线字体 / 分数的排版依赖）。
+     *
+     * 主题本身只有一套：shadow root 内置的 token 主题（见下方 MARKDOWN_THEME_STYLE）。
+     * 没有任何"换一部外部主题"的入口 —— 创作预览与阅读页看到的是同一份渲染（票 212）。
      */
-    themeHref?: string;
     extraStyleHrefs?: string[];
     articleClass?: string;
     /**
@@ -33,7 +34,6 @@ const props = withDefaults(
     themeMode?: MarkdownThemeMode;
   }>(),
   {
-    themeHref: "",
     extraStyleHrefs: () => [],
     articleClass: "markdown-body",
     tokensCss: "",
@@ -56,7 +56,6 @@ type MermaidRuntime = {
 
 let shadowRootRef: ShadowRoot | null = null;
 let themeStyleRef: HTMLStyleElement | null = null;
-let themeLinkRef: HTMLLinkElement | null = null;
 let articleRef: HTMLElement | null = null;
 let extraStyleLinks: HTMLLinkElement[] = [];
 let mermaidRef: MermaidRuntime | null = null;
@@ -119,31 +118,6 @@ function ensureShadowRoot() {
   articleRef.className = props.articleClass;
 
   shadowRootRef.append(baseStyle, themeStyleRef, articleRef);
-}
-
-function syncThemeHref() {
-  ensureShadowRoot();
-  if (!shadowRootRef || !articleRef) {
-    return;
-  }
-
-  const href = props.themeHref?.trim() || "";
-  if (!href) {
-    themeLinkRef?.remove();
-    themeLinkRef = null;
-    return;
-  }
-
-  if (!themeLinkRef) {
-    themeLinkRef = document.createElement("link");
-    themeLinkRef.rel = "stylesheet";
-    themeLinkRef.dataset.jellyMarkdown = "external-theme";
-    shadowRootRef.insertBefore(themeLinkRef, articleRef);
-  }
-
-  if (themeLinkRef.getAttribute("href") !== href) {
-    themeLinkRef.setAttribute("href", href);
-  }
 }
 
 function syncExtraStyleHrefs() {
@@ -308,16 +282,10 @@ defineExpose({
 
 onMounted(() => {
   ensureShadowRoot();
-  syncThemeHref();
   syncExtraStyleHrefs();
   syncArticleClass();
   void syncHtml();
 });
-
-watch(
-  () => props.themeHref,
-  () => syncThemeHref(),
-);
 
 watch(
   () => props.extraStyleHrefs,

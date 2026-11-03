@@ -100,6 +100,11 @@ func (h *Handler) Register(r *gin.RouterGroup, authMw, optionalMw gin.HandlerFun
 	// 合集之间排序：路径是 /collections/order，与 :id 路由同组但不冲突。
 	collectionAdminGroup.PATCH("order", mw.CaptureLog(mw.ReqBody),
 		mw.BindJson[CollectionOrderRequest], h.ReplaceCollectionSortOrder)
+	// 目录树：后台读回整棵树 + 整棵树一次性提交。
+	// 收录与层次只经这里；旧扁平收录接口属于 #218 退役范围，本票不新增读写。
+	collectionAdminGroup.GET(":id/outline/admin", mw.BindUri[kernel.IDRequest], h.AdminCollectionOutline)
+	collectionAdminGroup.PUT(":id/outline", mw.CaptureLog(mw.ReqBody),
+		mw.BindUri[kernel.IDRequest], mw.BindJson[OutlineSaveRequest], h.SaveCollectionOutline)
 	// 项目管理（全部在管理员分组下）：与合集逐条对齐，路径换成 /projects。
 	projectAdminGroup.GET("admin", h.AdminProjects)
 	projectAdminGroup.DELETE(":id/admin/stale", mw.BindUri[kernel.IDRequest], h.CleanupProjectStale)
@@ -120,6 +125,10 @@ func (h *Handler) Register(r *gin.RouterGroup, authMw, optionalMw gin.HandlerFun
 		mw.BindUri[kernel.IDRequest], mw.BindJson[ProjectArticleOrderRequest], h.ReplaceProjectOrder)
 	projectAdminGroup.PATCH("order", mw.CaptureLog(mw.ReqBody),
 		mw.BindJson[ProjectOrderRequest], h.ReplaceProjectSortOrder)
+	// 目录树（与合集同一套读写形状，路径换成 /projects）。
+	projectAdminGroup.GET(":id/outline/admin", mw.BindUri[kernel.IDRequest], h.AdminProjectOutline)
+	projectAdminGroup.PUT(":id/outline", mw.CaptureLog(mw.ReqBody),
+		mw.BindUri[kernel.IDRequest], mw.BindJson[OutlineSaveRequest], h.SaveProjectOutline)
 
 	adminGroup.PUT("tags", mw.CaptureLog(mw.ReqBody), mw.BindJson[TagRequest], h.SaveTag)
 	adminGroup.DELETE("tags", mw.CaptureLog(mw.ReqBody), mw.BindJson[kernel.IDListRequest], h.DeleteTags)

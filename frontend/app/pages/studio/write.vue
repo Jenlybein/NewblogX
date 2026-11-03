@@ -14,7 +14,6 @@ import StudioWriteHeader from "~/components/studio/StudioWriteHeader.vue";
 import { useStudioEditorCommands } from "~/composables/useStudioEditorCommands";
 import { useStudioAiAssist } from "~/composables/useStudioAiAssist";
 import { useStudioArticle } from "~/composables/useStudioArticle";
-import { useStudioMarkdownTheme } from "~/composables/useStudioMarkdownTheme";
 import { useStudioPublish } from "~/composables/useStudioPublish";
 import { useStudioScore } from "~/composables/useStudioScore";
 import { useStudioToolbar } from "~/composables/useStudioToolbar";
@@ -24,6 +23,8 @@ import { regenerateArticleScore } from "~/services/ai";
 import { resolveAvatarInitial } from "~/utils/avatar";
 import { COVER_SHAPE_RATIO_TEXT, COVER_SHAPE_TARGET } from "~/utils/imageShaping";
 import { DRAFT_DISABLED_NOTICE } from "~/utils/writePolicy";
+
+import katexCssUrl from "katex/dist/katex.min.css?url";
 
 definePageMeta({
   layout: "write",
@@ -104,9 +105,13 @@ const articleScoreData = ref<Awaited<ReturnType<typeof getArticleScoreDetail>> |
 const showToc = ref(true);
 const viewMode = ref<"split" | "editor" | "preview">("split");
 const publishVisible = ref(false);
-// Markdown 主题（12 套 CSS 的映射表）见 composable。
-const markdownTheme = useStudioMarkdownTheme();
-const { visibilityOptions, selectedThemeLabel, activeMarkdownThemeHref, markdownSupportStyleHrefs } = markdownTheme;
+// 预览主题已退场（票 212）：创作预览与阅读页共用同一套正文主题（shadow root 内置的
+// token 主题）。这里只剩发布弹窗的可见性选项与 katex 基线样式 —— 后者是公式排版依赖。
+const visibilityOptions = [
+  { label: "公开展示", value: "visible" },
+  { label: "仅自己可见", value: "user_hidden" },
+];
+const writePreviewStyleHrefs = [katexCssUrl];
 
 
 const currentUserInitial = computed(() => resolveAvatarInitial(authStore.profileName, "我"));
@@ -249,14 +254,12 @@ const { submitArticle } = useStudioPublish({
 // 工具栏分发见 composable（按钮 key → 插片段 / 改视图 / 开 AI）。
 const {
   handleToolOption,
-  isToolOptionActive,
   handleToolClick,
   handleRightToolClick,
   handleTocJump,
   handlePreviewHeadingsChange,
 } = useStudioToolbar({
   editor: editorCommands,
-  theme: markdownTheme,
   showToc,
   viewMode,
   previewRef: shadowPreviewRef,
@@ -287,7 +290,6 @@ useSeoMeta({
       :profile-avatar="authStore.profileAvatar"
       :profile-name="authStore.profileName"
       :profile-initial="currentUserInitial"
-      :is-option-active="isToolOptionActive"
       @open-score="handleOpenArticleScore"
       @save-draft="submitArticle(1)"
       @open-publish="publishVisible = true"
@@ -324,9 +326,7 @@ ref="editorTextareaRef" v-model="form.content" class="write-page__textarea"
         ref="shadowPreviewRef"
         :empty="!form.content.trim()"
         :source="debouncedContent"
-        :theme-href="activeMarkdownThemeHref"
-        :extra-style-hrefs="markdownSupportStyleHrefs"
-        :theme-label="selectedThemeLabel"
+        :extra-style-hrefs="writePreviewStyleHrefs"
         @headings-change="handlePreviewHeadingsChange" />
     </main>
 

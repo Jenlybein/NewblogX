@@ -13,6 +13,7 @@ import (
 	"myblogx/internal/article/domain"
 	"myblogx/internal/article/domain/collection"
 	"myblogx/internal/article/domain/favorite"
+	"myblogx/internal/article/domain/outline"
 	"myblogx/internal/article/domain/project"
 	"myblogx/internal/kernel/ctype"
 	"myblogx/internal/kernel/enum"
@@ -101,6 +102,18 @@ func (snowflakeIDs) NextProjectID() project.ID {
 		panic("article: 雪花 ID 生成失败: " + err.Error())
 	}
 	return project.ID(id)
+}
+
+// NextOutlineNodeID 返回下一个目录树节点 ID。
+//
+// 树节点 ID 会出现在后台树编辑器接口里（整树提交靠它做幂等更新），
+// 与文章 / 合集 / 项目 ID 分开，日志里可分辨。
+func (snowflakeIDs) NextOutlineNodeID() outline.ID {
+	id, err := idgen.Next()
+	if err != nil {
+		panic("article: 雪花 ID 生成失败: " + err.Error())
+	}
+	return outline.ID(id)
 }
 
 // NextFolderID 返回下一个收藏夹 ID。

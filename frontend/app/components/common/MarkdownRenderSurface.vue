@@ -10,8 +10,6 @@ import tokensCssSource from "~/assets/css/tokens.css?raw";
 const props = withDefaults(
   defineProps<{
     source?: string | null;
-    /** 可选外部主题：阅读页不传（自有 token 主题），创作区/私信保留旧的多主题选择。 */
-    themeHref?: string;
     extraStyleHrefs?: string[];
     articleClass?: string;
     /**
@@ -26,7 +24,6 @@ const props = withDefaults(
   }>(),
   {
     source: "",
-    themeHref: "",
     extraStyleHrefs: () => [],
     articleClass: "markdown-body",
     tokensCss: tokensCssSource,
@@ -92,7 +89,6 @@ defineExpose({
   <StudioMarkdownShadowPreview
     ref="previewRef"
     :html="renderedHtml"
-    :theme-href="themeHref"
     :extra-style-hrefs="extraStyleHrefs"
     :article-class="articleClass"
     :tokens-css="tokensCss"

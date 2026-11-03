@@ -11,6 +11,7 @@ import (
 	"myblogx/internal/article/domain/collection"
 	"myblogx/internal/article/domain/favorite"
 	"myblogx/internal/article/domain/hottop"
+	"myblogx/internal/article/domain/outline"
 	"myblogx/internal/article/domain/project"
 	"myblogx/internal/article/domain/review"
 	"myblogx/internal/article/domain/taxonomy"
@@ -110,3 +111,6 @@ func (r *repos) Collections() collection.Repository { return NewCollectionRepo(r
 //
 // 项目与合集是两套表、两套数据，仓储各自独立；共用的是分层与读口径。
 func (r *repos) Projects() project.Repository { return NewProjectRepo(r.db) }
+
+// Outlines 现场构造目录树仓储（合集与项目共用一张树表）。
+func (r *repos) Outlines() outline.Repository { return NewOutlineRepo(r.db) }

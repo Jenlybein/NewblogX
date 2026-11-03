@@ -121,10 +121,9 @@ describe("admin.css 全量走语义层（后台颜色只有一个来源）", () 
     expect(adminCssCode).not.toMatch(/var\(--glass-/u);
   });
 
-  it("登录页 hero 与封面兜底改成中性石墨渐变（不再是克莱因蓝铺色）", () => {
+  it("登录页 hero 仍是中性石墨渐变（封面兜底已在 #210 整体退场）", () => {
     expect(adminCssCode).toMatch(/\.admin-login-hero\s*\{[^}]*background: linear-gradient\(135deg, var\(--color-ink\)/u);
     expect(adminCssCode).toMatch(/color: var\(--color-on-strong\)/u);
-    expect(adminCssCode).toMatch(/\.admin-article-cover__fallback\s*\{[^}]*var\(--color-ink\)/u);
     // 旧的「蓝 → 暖灰」渐变必须整段消失。
     expect(adminCssCode).not.toMatch(/var\(--jelly-warm\)/u);
   });
@@ -173,14 +172,14 @@ describe("每页都有可见且可用的主题开关", () => {
     expect(toggle).toMatch(/IconSun|IconMoon/u);
   });
 
-  it("24 个路由页面全部被两种布局覆盖（不存在没有开关的页面）", () => {
+  it("25 个路由页面全部被两种布局覆盖（不存在没有开关的页面）", () => {
     const pages = pageFiles();
 
     // 页面数量本身就是既有验收项（菜单 ↔ 页面文件对账另有门禁用例）。
-    // 24 = 22（12 个既有页面 + 站点配置拆域新增的 7 个页面 + 「右栏卡片」管理页
-    // + 合集管理页 + 合集编排页）+ 项目管理页 + 项目编排页。
+    // 25 = 24（上批：12 个既有页面 + 站点配置拆域新增的 7 个页面 + 「右栏卡片」管理页
+    // + 合集管理页 + 合集编排页 + 项目管理页 + 项目编排页）+ 目录编排页（#217）。
     // 「站点」域复用 /site（index.vue），其余七域各一个新文件。
-    expect(pages.length).toBe(24);
+    expect(pages.length).toBe(25);
     for (const page of pages) {
       const source = readFileSync(join(appDir, page), "utf8");
       const usesAuthLayout = /definePageMeta\(\{ layout: 'auth' \}\)/u.test(source);
@@ -213,5 +212,74 @@ describe("后台暗色正式启用（此前只有映射、没有开关）", () =
 
     expect(store).toContain("THEME_COOKIE_NAME");
     expect(store).toMatch(/toggleTheme/u);
+  });
+});
+
+/**
+ * 封面兜底退场（#210）：后台列表的封面格也不能再画 "NO COVER"。
+ *
+ * 规则与读者站同一条：缺封面 / 加载失败只留一块与所在容器同底色的空白，
+ * 无文字、无纹理、对辅助技术隐藏，且不改变这一列的盒尺寸（行高不跳）。
+ * 采样的是真实页面源码与 admin.css —— 后台没有页面级挂载测试的先例，
+ * 决定逻辑另有 `test/unit/articleCover.test.ts`，这里锁"文案与装饰不再回来"。
+ */
+describe("封面兜底退场（#210）：后台列表只留空白", () => {
+  /** 后台 app/ 下所有 .vue 源码（页面 + 组件）。 */
+  function appVueSources(): { file: string; text: string }[] {
+    const walk = (dir: string, out: { file: string; text: string }[]) => {
+      for (const entry of readdirSync(dir, { withFileTypes: true })) {
+        const full = join(dir, entry.name);
+        if (entry.isDirectory()) {
+          walk(full, out);
+          continue;
+        }
+        if (!entry.name.endsWith(".vue")) continue;
+        out.push({
+          file: relative(appDir, full).split(sep).join("/"),
+          text: readFileSync(full, "utf8"),
+        });
+      }
+      return out;
+    };
+    return walk(appDir, []);
+  }
+
+  it("后台源码里不再出现 NO COVER 文案，也不再朗读「暂无封面」", () => {
+    const offenders = appVueSources()
+      .filter(({ text }) => /NO COVER|暂无封面/u.test(text))
+      .map(({ file }) => file);
+
+    expect(offenders).toEqual([]);
+  });
+
+  it("封面兜底块是空白：没有渐变、没有发丝网格、没有徽标与文案规则", () => {
+    const block = /\.admin-article-cover__fallback\s*\{([^}]*)\}/u.exec(adminCssCode)?.[1] ?? "";
+
+    expect(block).toContain("background: transparent");
+    expect(block).not.toMatch(/gradient|background-image/u);
+    expect(adminCssCode).not.toMatch(/\.admin-article-cover__fallback::before/u);
+    expect(adminCssCode).not.toMatch(/admin-article-cover__badge/u);
+    expect(adminCssCode).not.toMatch(/\.admin-article-cover__fallback strong/u);
+  });
+
+  it("封面格本身不改盒尺寸：空白占位仍吃 .admin-cover 的 h-20 / w-28（行高不跳）", () => {
+    expect(adminCssCode).toMatch(/\.admin-cover\s*\{[^}]*h-20 w-28/u);
+    expect(adminCssCode).toMatch(/\.admin-article-cover__fallback\s*\{[^}]*height: 100%/u);
+  });
+
+  it("空占位对辅助技术隐藏：aria-hidden，且不包 role / aria-label", () => {
+    const page = readFileSync(join(appDir, "pages/articles/index.vue"), "utf8");
+    const attrs = /class: 'admin-article-cover__fallback'([^}]*)\}/u.exec(page)?.[1] ?? "";
+
+    expect(attrs).toContain("'aria-hidden': 'true'");
+    expect(attrs).not.toMatch(/\brole\b/u);
+    expect(attrs).not.toMatch(/aria-label/u);
+  });
+
+  it("这一页不再为兜底引入品牌字标（BRAND 只在真封面时才有意义）", () => {
+    const page = readFileSync(join(appDir, "pages/articles/index.vue"), "utf8");
+
+    expect(page).not.toMatch(/from '~\/utils\/brand'/u);
+    expect(page).not.toMatch(/BRAND\./u);
   });
 });

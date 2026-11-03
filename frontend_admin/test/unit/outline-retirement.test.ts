@@ -101,6 +101,20 @@ describe('旧排列页与收录弹窗已退役', () => {
     walk(pagesDir)
     expect(pages.length).toBe(23)
   })
+
+  /**
+   * `utils/staleItems.ts` 只剩 `staleReasonLabel` 一个宿主（树编辑器的失效标注），
+   * 失效项挑选与计数随「一键清理」按钮一起退役（#225）。
+   *
+   * 留着空壳文件会让后人以为"收录行还在前端算失效"——那正是已经删掉的那套。
+   */
+  it('staleItems.ts 已删除，失效文案只剩 outlineArrange 一处', () => {
+    expect(existsSync(join(projectDir, 'app', 'utils', 'staleItems.ts'))).toBe(false)
+    expect(adminService).not.toContain('staleItems')
+    for (const { file, text } of appSources) {
+      expect(text, `${file} 仍引用 staleItems`).not.toContain('staleItems')
+    }
+  })
 })
 
 describe('后台不再有任何路径写旧扁平收录表', () => {

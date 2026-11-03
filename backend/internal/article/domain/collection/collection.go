@@ -1,9 +1,9 @@
-// Package collection 是「合集」子域：管理员编排的一组有顺序的文章。
+// Package collection 是「合集」子域：管理员编排的一组有层次的文章。
 //
 // 与「热门置顶」是两套数据、两套规则，不要混用：
 //   - 热门置顶：首页运营位，上限 12 条，表 article_hot_top_models；
-//   - 合集：有标题/描述/封面/展示开关的有序文章集合，
-//     表 collection_models + collection_article_models。
+//   - 合集：有标题/描述/封面/展示开关的编排实体，主表 collection_models；
+//     收录关系与层次由目录树（outline）承载（ADR-0023）。
 //
 // 合集是**管理员专属**的运营产物：作者不参与创建，读者只读。
 // 本包只放"什么是合法合集"的纯规则与读模型，不含 SQL 也不认识 gin。
@@ -22,13 +22,11 @@ import (
 
 // 类型别名。
 //
-// ID / ArticleID 都是 ctype.ID 的别名（与 domain/id.go 同一做法）：
+// ID 是 ctype.ID 的别名（与 domain/id.go 同一做法）：
 // 底层是 string，契约里就是 string，不需要生成后再修补。
 type (
 	// ID 是合集标识。
 	ID = ctype.ID
-	// ArticleID 是被收录文章的标识。
-	ArticleID = ctype.ID
 )
 
 // 标题长度上限。
@@ -51,14 +49,6 @@ var (
 	ErrTitleTooLong = apperr.New(apperr.CodeCollectionTitleTooLong)
 	// ErrNotFound 合集不存在（也覆盖"未展示，对读者不可见"）。
 	ErrNotFound = apperr.New(apperr.CodeCollectionNotFound)
-	// ErrDuplicateArticle 同一合集内重复收录同一篇文章。
-	ErrDuplicateArticle = apperr.New(apperr.CodeCollectionArticleDuplicated)
-	// ErrNotIncludable 文章不是"已发布且可见"，不能收录。
-	ErrNotIncludable = apperr.New(apperr.CodeCollectionArticleNotIncludable)
-	// ErrOrderMismatch 顺序替换的输入与当前收录集合不一致。
-	ErrOrderMismatch = apperr.New(apperr.CodeCollectionOrderMismatch)
-	// ErrArticleMissing 要移除的收录不存在。
-	ErrArticleMissing = apperr.New(apperr.CodeCollectionArticleMissing)
 )
 
 // Collection 是合集聚合根。
@@ -212,7 +202,7 @@ func (c *Collection) SetSortOrder(order int, now time.Time) {
 
 // SoftDelete 标记删除（不物理删）。
 //
-// 删合集**不删文章**：中间表的行留着（文章本身与本合集无关），
+// 删合集**不删文章**：目录树里的节点留着（文章本身与本合集无关），
 // 读者侧因为合集已经查不到而整块消失。
 func (c *Collection) SoftDelete(now time.Time) {
 	c.deleted = true
@@ -231,25 +221,6 @@ func checkTitle(title string) error {
 	return nil
 }
 
-// CanBeIncluded 判断一篇文章能否被收录进合集。
-//
-// 规则只有一条：它此刻必须对匿名访客可见（已发布 + visible + 未删除）。
-// 为什么复用 IsPubliclyVisible 而不自己再判一次：两者一旦分叉就会出现
-// "合集里有一张点进去 404 的条目"。
-//
-// 注意这只约束**收录动作**。已经收录的文章后来变成私有/删除时，中间行保留
-// （后台标「已失效」并可清理），读者侧靠 JOIN 过滤掉——与热门置顶逐字一致。
-func CanBeIncluded(a *domain.Article) bool {
-	return a != nil && a.IsPubliclyVisible()
-}
-
-// ArticleState 是收录行所指文章**此刻**的状态。
-//
-// 它是 domain.ArticleState 的类型别名：失效口径与「热门置顶」逐字一致，
-// 两个运营位共用同一份状态集合与判定函数（IsStale / StaleReason）。
-// nil 表示文章已被物理删除（中间行还在，join 不到文章）。
-type ArticleState = domain.ArticleState
-
 // Card 是读者站合集列表页的一张卡片。
 //
 // 只需要下面这些字段就能渲染整块卡片；只给 ID 会让列表页逐个再查详情（N+1）。
@@ -261,18 +232,6 @@ type Card struct {
 	Cover        string
 	ArticleCount int
 	CreatedAt    time.Time
-}
-
-// IncludedArticle 是合集详情页里的一篇文章（按顺序排列）。
-type IncludedArticle struct {
-	ArticleID      ArticleID
-	SortOrder      int
-	Title          string
-	Abstract       string
-	Cover          string
-	ViewCount      int
-	AuthorNickname string
-	CategoryTitle  string
 }
 
 // AdminCard 是后台合集列表的一行：含**未展示**的合集与收录条数。
@@ -294,24 +253,6 @@ type AdminCard struct {
 	FallbackCover string
 }
 
-// AdminItem 是后台「合集收录」页的一行：顺序 + 文章摘要 + 是否失效。
-type AdminItem struct {
-	ArticleID ArticleID
-	SortOrder int
-	Title     string
-	Cover     string
-	// Article 是文章当前状态；文章已物理删除时为 nil。
-	Article *ArticleState
-}
-
-// Stale 判断这一行是否已失效。
-//
-// 判定函数与「热门置顶」共用 domain.ArticleState.IsStale，不要在这里另写。
-func (i AdminItem) Stale() bool { return i.Article.IsStale() }
-
-// StaleReason 返回失效原因；仍有效时为空值。
-func (i AdminItem) StaleReason() domain.StaleReason { return i.Article.StaleReason() }
-
 // Detail 是合集详情：合集本身 + 按顺序排列的已公开文章。
 //
 // 为什么在 domain 而不是 app 拼：它是"读者看到的合集"的完整读模型，
@@ -326,80 +267,11 @@ type Detail struct {
 	Cover string
 }
 
-// CheckOrder 校验"合集内全量顺序替换"的输入。
-//
-// next 必须是 current 的一个排列：同一批文章、每条恰好一次。
-// 不允许"缺的删掉"这种宽松语义——PATCH 是后台排序按钮的产物，
-// 一个过期的页面点一次「上移」就会把别人刚收录的那篇静默删掉。
-func CheckOrder(current, next []ArticleID) error {
-	return checkPermutation(current, next)
-}
-
-// CheckSortOrder 校验"合集之间全量顺序替换"的输入。
-//
-// 与 CheckOrder 同一条规则，只是对象换成了合集自身：next 必须是当前全部
-// 未软删合集的一个排列。缺一个、多一个、重复都会被整单拒绝——后台拿到的
-// 是上一次读到的列表，宽松语义会把别人刚建的合集静默漏掉。
-func CheckSortOrder(current, next []ID) error {
-	return checkPermutation(current, next)
-}
-
-// checkPermutation 是两级排序共用的"集合一致性"规则。
-//
-// 泛型而不是两份逐字重复：合集内与合集间的换序必须同一套语义，
-// 否则两处一旦分叉，过期页面在一边被拒绝、在另一边却会静默丢条目。
-func checkPermutation[T comparable](current, next []T) error {
-	if len(next) != len(current) {
-		return ErrOrderMismatch
-	}
-	want := make(map[T]struct{}, len(current))
-	for _, id := range current {
-		want[id] = struct{}{}
-	}
-	seen := make(map[T]struct{}, len(next))
-	for _, id := range next {
-		if _, ok := want[id]; !ok {
-			return ErrOrderMismatch
-		}
-		if _, dup := seen[id]; dup {
-			return ErrOrderMismatch
-		}
-		seen[id] = struct{}{}
-	}
-	return nil
-}
-
-// IncludeOutcome 是一篇文章在一次批量收录里的结局。
-//
-// 批量收录刻意**逐篇分类**而不是整单成败：运营一次勾十几篇时，其中一篇
-// 已经收录或还没发布不该让另外九篇也失败。单篇收录仍保持"重复即报错"，
-// 两条入口的语义各自清楚。
-type IncludeOutcome string
-
-const (
-	// IncludeOutcomeIncluded 成功收录，排在合集末尾。
-	IncludeOutcomeIncluded IncludeOutcome = "included"
-	// IncludeOutcomeDuplicated 已经在合集里（活跃收录），本次不新增、不改序号。
-	IncludeOutcomeDuplicated IncludeOutcome = "duplicated"
-	// IncludeOutcomeNotIncludable 文章不是"已发布且可见"，不能收录。
-	IncludeOutcomeNotIncludable IncludeOutcome = "not_includable"
-	// IncludeOutcomeMissing 文章不存在（或已被物理删除）。
-	IncludeOutcomeMissing IncludeOutcome = "missing"
-)
-
-// BatchIncludeResult 是批量收录里一篇文章的结局。
-//
-// 按请求顺序逐篇返回：调用方据此告诉运营"哪几篇进去了、哪几篇重复"，
-// 而不是只给一个总数。
-type BatchIncludeResult struct {
-	ArticleID ArticleID
-	Outcome   IncludeOutcome
-}
-
 // Repository 是合集的持久化契约。
 //
-// 所有写方法都要求调用方已在事务内（app 的 WithinTx），因为"收录/移除/重排"
-// 都可能同时改多行（压实序号、重排）。
+// 写入口只有三个：建、改内容/展示、软删——它们都只碰 `collection_models` 一行。
+// 收录关系与层次全部由目录树（outline.Repository）承载，本契约不再有任何
+// 中间表读写方法（#225：旧扁平收录接口随旧表一起退役）。
 type Repository interface {
 	// Create 插入合集；ID 必须由调用方给好。
 	Create(ctx context.Context, c *Collection) error
@@ -409,13 +281,13 @@ type Repository interface {
 
 	// Find 按 ID 读取；不存在时返回 ErrNotFound。
 	//
-	// **包含未展示与已软删之外的合集**：展示开关的判定在 app 层（读者侧
+	// **包含未展示的合集**：展示开关的判定在 app 层（读者侧
 	// 拿到未展示的合集一律按不存在处理），后台要能读到未展示的合集来编辑它。
 	Find(ctx context.Context, id ID) (*Collection, error)
 
 	// ListCards 列出**展示中**的合集卡片（按 sort_order, id 升序）。
 	//
-	// onlyAdminAuthors 为真时，把"一篇公开文章都没有"（或收录文章的作者
+	// onlyAdminAuthors 为真时，把"一篇公开文章都没有"（或文章作者
 	// 全是非管理员）的合集也过滤掉——站点「显示非管理员发布文章」开关关闭时，
 	// 合集是读者端公开读面，与首页列表、详情同一口径（ADR-0017 决策 4）。
 	ListCards(ctx context.Context, onlyAdminAuthors bool, p domain.Page) ([]Card, int64, error)
@@ -423,43 +295,10 @@ type Repository interface {
 	// ListAdminCards 列出全部合集（含未展示），后台列表用。
 	ListAdminCards(ctx context.Context) ([]AdminCard, error)
 
-	// ListIDs 按顺序返回全部未软删合集的 ID（合集之间换序的集合校验用）。
-	ListIDs(ctx context.Context) ([]ID, error)
-
-	// UpdateSortOrders 按给定顺序把**合集自身**的序号改成 1..n。
-	//
-	// 与 UpdateItemOrder 分开：后者改的是合集里的收录行（中间表），
-	// 这里改的是 collection_models.sort_order（读者列表页的展示顺序）。
-	// 调用方已用 CheckSortOrder 校验。
-	UpdateSortOrders(ctx context.Context, ids []ID) error
-
 	// NextSortOrder 返回下一个可用的合集顺序号（当前最大 + 1，空表为 1）。
 	//
 	// 与热门置顶同一做法：序号没有唯一索引（零 DDL 加不了），
 	// 两个管理员同时新建可能算出同一个号，读出一律用 (sort_order, id) 兜底，
 	// 同号只退化成"按新建顺序"，既不丢数据也不阻塞。
 	NextSortOrder(ctx context.Context) (int, error)
-
-	// ListItemIDs 按顺序返回合集当前收录的文章 ID（不含软删行）。
-	ListItemIDs(ctx context.Context, id ID) ([]ArticleID, error)
-
-	// AppendItem 收录一篇文章，返回是否真的新增（已存在时幂等返回 false）。
-	//
-	// 新条目排在末尾；曾经移除过的文章重新收录时恢复原行，不产生第二行
-	// （(collection_id, article_id) 上有唯一索引）。
-	AppendItem(ctx context.Context, id ID, articleID ArticleID) (created bool, err error)
-
-	// RemoveItem 移除收录（软删）并压实剩余序号；不存在视为成功（幂等）。
-	RemoveItem(ctx context.Context, id ID, articleID ArticleID) error
-
-	// ListIncludedArticles 列出**仍公开**的收录文章，按顺序升序。
-	//
-	// 失效行不出现：读者侧靠这条查询过滤，不靠前端判断。
-	ListIncludedArticles(ctx context.Context, id ID, onlyAdminAuthors bool) ([]IncludedArticle, error)
-
-	// ListAdminItems 列出**全部**收录行（含已失效），按顺序升序。
-	ListAdminItems(ctx context.Context, id ID) ([]AdminItem, error)
-
-	// UpdateItemOrder 按给定顺序把收录序号改成 1..n（调用方已用 CheckOrder 校验）。
-	UpdateItemOrder(ctx context.Context, id ID, articleIDs []ArticleID) error
 }

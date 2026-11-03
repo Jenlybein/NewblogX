@@ -346,8 +346,29 @@ export function cleanupOutlineStaleRows(rows: readonly OutlineFlatRow[]): Outlin
   return rows.filter(row => !(row.kind === 2 && row.stale))
 }
 
-/** 失效原因文案（子节点标「已失效（原因）」时用）。 */
-export { staleReasonLabel } from '~/utils/staleItems'
+/** 失效原因文案表（与后端 domain.StaleReason 同一组枚举值）。 */
+const STALE_REASON_LABELS: Record<string, string> = {
+  '': '展示中',
+  missing: '文章已删除',
+  deleted: '文章已删除',
+  not_published: '文章已不是已发布状态',
+  not_visible: '文章已不可见',
+}
+
+/**
+ * 失效原因文案（子节点标「已失效（原因）」时用）。
+ *
+ * 判定本身来自后端读模型（`stale` / `stale_reason`），前端只做文案映射——
+ * 不在这里另算一次"文章现在还公开吗"，那会与后端分叉。
+ * 未知枚举给兜底文案而不是空白：后端将来新增一种失效原因时，运营仍能看出
+ * 这一行不正常，而不是看到一个空括号。
+ *
+ * 原住在 `utils/staleItems.ts`；旧扁平收录接口退役后那里只剩这一个宿主，
+ * 于是随 #225 迁进本模块，旧文件删除。
+ */
+export function staleReasonLabel(reason: string | null | undefined): string {
+  return STALE_REASON_LABELS[reason ?? ''] ?? '已失效'
+}
 
 /** 扁平行 → 嵌套提交 payload：兄弟顺序 = 数组顺序，新节点 id 留空。 */
 export function buildOutlineNodes(rows: readonly OutlineFlatRow[]): OutlineNodeInput[] {

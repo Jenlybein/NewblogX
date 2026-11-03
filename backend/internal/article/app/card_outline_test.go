@@ -79,18 +79,14 @@ func TestCollectionCardCountAndCoverComeFromOutlineTree(t *testing.T) {
 		t.Fatalf("软删文章失败: %v", err)
 	}
 
-	// 只往树里播种，不写旧中间表：卡片必须只认树。
+	// 旧中间表已随旧接口一起下线（#225）：本用例只往树里播种，
+	// 卡片篇数与封面回退必须全部来自树。
 	seedCardFolderNode(t, repos, outline.OwnerCollection, ownerID, 1, 0, "第一章", 1)
 	seedCardArticleNode(t, repos, outline.OwnerCollection, ownerID, 2, 1, first.Uint64(), 1)
 	seedCardArticleNode(t, repos, outline.OwnerCollection, ownerID, 3, 1, second.Uint64(), 2)
 	seedCardArticleNode(t, repos, outline.OwnerCollection, ownerID, 4, 0, draft.Uint64(), 2)
 	seedCardArticleNode(t, repos, outline.OwnerCollection, ownerID, 5, 0, hidden.Uint64(), 3)
 	seedCardArticleNode(t, repos, outline.OwnerCollection, ownerID, 6, 0, deleted.Uint64(), 4)
-
-	// 旧中间表保持为空（冻结口径）。
-	if ids, err := repos.FakeCollections().ListItemIDs(ctx, cid); err != nil || len(ids) != 0 {
-		t.Fatalf("本用例不应写旧中间表: ids=%v err=%v", ids, err)
-	}
 
 	cards, total, err := svc.ListCollectionCards(ctx, false, domain.Page{Limit: 10})
 	if err != nil {

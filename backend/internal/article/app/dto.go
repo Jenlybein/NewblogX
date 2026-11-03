@@ -215,7 +215,7 @@ type CreateCollectionCmd struct {
 // UpdateCollectionCmd 是改合集内容的输入。
 //
 // 只有标题 / 描述 / 封面三个字段：展示开关走 SetCollectionDisplayCmd（它有自己的
-// 语义与调用点），顺序走合集间排序。把三者混进一个"整体更新"会让后台改一次标题
+// 语义与调用点），顺序不在这里改。把三者混进一个"整体更新"会让后台改一次标题
 // 就顺手覆盖掉别人刚切换的展示开关。
 type UpdateCollectionCmd struct {
 	// Actor 是操作者，必须是管理员。
@@ -232,36 +232,12 @@ type UpdateCollectionCmd struct {
 
 // DeleteCollectionCmd 是删合集的输入。
 //
-// 软删：合集查不到，但里面的文章与收录行都保留。
+// 软删：合集查不到，但目录树里的节点与文章本身都保留。
 type DeleteCollectionCmd struct {
 	// Actor 是操作者，必须是管理员。
 	Actor domain.Viewer
 	// CollectionID 目标合集。
 	CollectionID collection.ID
-}
-
-// IncludeArticleCmd 是把一篇文章收录进合集的输入。
-type IncludeArticleCmd struct {
-	// Actor 是操作者，必须是管理员。
-	Actor domain.Viewer
-	// CollectionID 目标合集。
-	CollectionID collection.ID
-	// ArticleID 被收录的文章。
-	ArticleID domain.ArticleID
-}
-
-// RemoveArticleCmd 是从合集中移除一篇文章的输入。
-//
-// 与 IncludeArticleCmd 分开而不是加一个布尔：收录与移除的权限线相同，
-// 但一个是"必须已发布且可见"、另一个"不查文章"（失效行也要能清掉），
-// 合成一个命令结构会让调用点看不出自己在做哪一种。
-type RemoveArticleCmd struct {
-	// Actor 是操作者，必须是管理员。
-	Actor domain.Viewer
-	// CollectionID 目标合集。
-	CollectionID collection.ID
-	// ArticleID 要移除的文章。
-	ArticleID domain.ArticleID
 }
 
 // SetCollectionDisplayCmd 是切换合集展示开关的输入。
@@ -272,22 +248,6 @@ type SetCollectionDisplayCmd struct {
 	CollectionID collection.ID
 	// Displayed 目标展示状态。
 	Displayed bool
-}
-
-// IncludeArticlesCmd 是批量收录的输入。
-//
-// 与 IncludeArticleCmd 分开而不是把单篇命令扩展成切片：单篇入口的
-// "重复即报错"语义要保留（后台逐篇点击时需要明确失败），批量入口则逐篇
-// 返回结局（一次勾十几篇时不该因为一篇重复整单失败）。
-type IncludeArticlesCmd struct {
-	// Actor 是操作者，必须是管理员。
-	Actor domain.Viewer
-	// CollectionID 目标合集。
-	CollectionID collection.ID
-	// ArticleIDs 要收录的文章，按提交顺序排在合集末尾。
-	//
-	// 同一篇在请求里出现多次时，第一次照常分类、后续一律按重复返回。
-	ArticleIDs []domain.ArticleID
 }
 
 // ── 项目 ──
@@ -329,35 +289,12 @@ type UpdateProjectCmd struct {
 	Cover string
 }
 
-// DeleteProjectCmd 是删项目的输入。软删：项目查不到，但收录行都保留。
+// DeleteProjectCmd 是删项目的输入。软删：项目查不到，但目录树里的节点都保留。
 type DeleteProjectCmd struct {
 	// Actor 是操作者，必须是管理员。
 	Actor domain.Viewer
 	// ProjectID 目标项目。
 	ProjectID project.ID
-}
-
-// IncludeProjectArticleCmd 是把一篇文章收录进项目的输入。
-type IncludeProjectArticleCmd struct {
-	// Actor 是操作者，必须是管理员。
-	Actor domain.Viewer
-	// ProjectID 目标项目。
-	ProjectID project.ID
-	// ArticleID 被收录的文章。
-	ArticleID domain.ArticleID
-}
-
-// RemoveProjectArticleCmd 是从项目中移除一篇文章的输入。
-//
-// 与收录命令分开：收录"必须已发布且可见"、移除"不查文章"（失效行也要能清掉），
-// 合成一个命令结构会让调用点看不出自己在做哪一种。
-type RemoveProjectArticleCmd struct {
-	// Actor 是操作者，必须是管理员。
-	Actor domain.Viewer
-	// ProjectID 目标项目。
-	ProjectID project.ID
-	// ArticleID 要移除的文章。
-	ArticleID domain.ArticleID
 }
 
 // SetProjectDisplayCmd 是切换项目展示开关的输入。
@@ -368,14 +305,4 @@ type SetProjectDisplayCmd struct {
 	ProjectID project.ID
 	// Displayed 目标展示状态。
 	Displayed bool
-}
-
-// IncludeProjectArticlesCmd 是批量收录的输入（逐篇返回结局）。
-type IncludeProjectArticlesCmd struct {
-	// Actor 是操作者，必须是管理员。
-	Actor domain.Viewer
-	// ProjectID 目标项目。
-	ProjectID project.ID
-	// ArticleIDs 要收录的文章，按提交顺序排在项目末尾。
-	ArticleIDs []domain.ArticleID
 }

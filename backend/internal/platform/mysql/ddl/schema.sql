@@ -291,21 +291,6 @@ CREATE TABLE IF NOT EXISTS `chat_session_models` (
   CONSTRAINT `fk_chat_session_models_user_model` FOREIGN KEY (`user_id`) REFERENCES `user_models` (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
-CREATE TABLE IF NOT EXISTS `collection_article_models` (
-  `id` bigint unsigned NOT NULL,
-  `created_at` datetime(3) DEFAULT NULL,
-  `updated_at` datetime(3) DEFAULT NULL,
-  `deleted_at` datetime(3) DEFAULT NULL,
-  `collection_id` bigint unsigned NOT NULL,
-  `article_id` bigint unsigned NOT NULL,
-  `sort_order` bigint NOT NULL DEFAULT '0',
-  PRIMARY KEY (`id`),
-  UNIQUE KEY `uk_collection_article` (`collection_id`,`article_id`),
-  KEY `idx_collection_article_models_article_id` (`article_id`),
-  CONSTRAINT `fk_collection_article_models_collection_model` FOREIGN KEY (`collection_id`) REFERENCES `collection_models` (`id`),
-  CONSTRAINT `fk_collection_article_models_article_model` FOREIGN KEY (`article_id`) REFERENCES `article_models` (`id`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
-
 CREATE TABLE IF NOT EXISTS `collection_models` (
   `id` bigint unsigned NOT NULL,
   `created_at` datetime(3) DEFAULT NULL,
@@ -474,27 +459,6 @@ CREATE TABLE IF NOT EXISTS `outbox_event_models` (
   KEY `idx_outbox_event_models_aggregate_id` (`aggregate_id`),
   KEY `idx_outbox_event_models_status` (`status`),
   KEY `idx_outbox_event_models_available_at` (`available_at`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
-
--- 项目-文章关联表：结构与 collection_article_models 同构。
---
--- 唯一键 uk_project_article **不含 deleted_at**：移除是软删，行留在表里占着这个键，
--- 所以"移除后再收录"必须恢复原行而不是新插入（与合集/点赞表是同一个坑）。
--- 失效口径沿用合集：文章后来不再公开时行保留，读者侧靠联表过滤。
--- 建表顺序沿用合集：关联表在前、主表在后（本目录执行时 FOREIGN_KEY_CHECKS=0）。
-CREATE TABLE IF NOT EXISTS `project_article_models` (
-  `id` bigint unsigned NOT NULL,
-  `created_at` datetime(3) DEFAULT NULL,
-  `updated_at` datetime(3) DEFAULT NULL,
-  `deleted_at` datetime(3) DEFAULT NULL,
-  `project_id` bigint unsigned NOT NULL,
-  `article_id` bigint unsigned NOT NULL,
-  `sort_order` bigint NOT NULL DEFAULT '0',
-  PRIMARY KEY (`id`),
-  UNIQUE KEY `uk_project_article` (`project_id`,`article_id`),
-  KEY `idx_project_article_models_article_id` (`article_id`),
-  CONSTRAINT `fk_project_article_models_project_model` FOREIGN KEY (`project_id`) REFERENCES `project_models` (`id`),
-  CONSTRAINT `fk_project_article_models_article_model` FOREIGN KEY (`article_id`) REFERENCES `article_models` (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 -- 项目（与合集并列的独立内容实体）主表。
@@ -759,4 +723,3 @@ CREATE TABLE IF NOT EXISTS `user_view_daily_models` (
   PRIMARY KEY (`id`),
   UNIQUE KEY `uk_user_view_daily` (`user_id`,`viewer_user_id`,`view_date`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
-

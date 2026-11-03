@@ -233,19 +233,15 @@ var groupModels = map[Group][]any{
 		&AIProviderRow{},
 	},
 	Collection: {
-		// 主表在前：中间表有指向 collection_models 的外键。
 		&CollectionRow{},
-		&CollectionArticleRow{},
 	},
 	Project: {
-		// 主表在前：中间表有指向 project_models 的外键。
 		&ProjectRow{},
-		&ProjectArticleRow{},
 	},
 	Outline: {
 		&OutlineNodeRow{},
 	},
-	// All 是**全部 41 张表**，只用于"schema.sql 与自持行是否一致"的契约测试。
+	// All 是**全部 39 张表**，只用于"schema.sql 与自持行是否一致"的契约测试。
 	//
 	// 为什么不复用上面那些组拼起来：拼装顺序一变，这个测试就变成
 	// "测拼装顺序"而不是"测结构一致性"。这里写死一份，顺序沿用当年
@@ -270,9 +266,7 @@ var groupModels = map[Group][]any{
 		&UserTopArticleRow{},
 		&ArticleHotTopRow{},
 		&CollectionRow{},
-		&CollectionArticleRow{},
 		&ProjectRow{},
-		&ProjectArticleRow{},
 		&OutlineNodeRow{},
 		&ImageRow{},
 		&ImageRefRow{},

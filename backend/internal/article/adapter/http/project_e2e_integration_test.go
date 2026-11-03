@@ -23,7 +23,7 @@ import (
 //
 // #219 契约破坏性变更后，项目详情返回**嵌套目录树**（`outline`），扁平
 // `articles[]` 已退役。种子直接写 `content_outline_node_models`
-// （schema.InsertOutlineNode），不再往已冻结的 `project_article_models` 写行。
+// （schema.InsertOutlineNode）；旧扁平收录中间表已随 #225 从代码里删除。
 //
 // 走真实 HTTP + 真 MySQL，断言的是**外部行为**（响应里的业务码与字段），
 // 不是仓储方法被调了几次。管理端写接口属于 #197，这里直接往表里播种。

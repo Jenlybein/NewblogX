@@ -760,24 +760,3 @@ type CollectionRow struct {
 
 // TableName 固定表名。
 func (CollectionRow) TableName() string { return "collection_models" }
-
-// CollectionArticleRow 对应表 collection_article_models（合集-文章中间表）。
-//
-// 沿用热门置顶的既有模式：**失效行保留**——文章后来不再公开时行不删除，
-// 后台标「已失效」并可一键清理；读者侧靠 JOIN 过滤掉，同一套失效语义。
-//
-// (collection_id, article_id) 上有唯一索引，且**不含 deleted_at**：
-// 移除是软删，行留在表里占着这个键，所以"移除后再收录"必须恢复原行而不是
-// 新插入（否则撞 1062，与点赞表 uk_article_digg 是同一个坑）。
-type CollectionArticleRow struct {
-	BaseRow
-	CollectionID ctype.ID `gorm:"uniqueIndex:uk_collection_article,priority:1;not null" json:"collection_id"`
-	ArticleID    ctype.ID `gorm:"uniqueIndex:uk_collection_article,priority:2;not null;index:idx_collection_article_models_article_id" json:"article_id"`
-	SortOrder    int      `gorm:"not null;default:0" json:"sort_order"`
-	// 关联只为建外键（与 ArticleHotTopRow.ArticleModel 同一做法）。
-	CollectionModel CollectionRow `gorm:"foreignKey:CollectionID;references:ID" json:"-"`
-	ArticleModel    ArticleRow    `gorm:"foreignKey:ArticleID;references:ID" json:"-"`
-}
-
-// TableName 固定表名。
-func (CollectionArticleRow) TableName() string { return "collection_article_models" }

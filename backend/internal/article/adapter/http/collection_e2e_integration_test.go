@@ -22,8 +22,7 @@ import (
 //
 // #219 契约破坏性变更后，合集详情返回**嵌套目录树**（`outline`），扁平
 // `articles[]` 已退役。种子直接写 `content_outline_node_models`
-// （schema.InsertOutlineNode），不再往已冻结的 `collection_article_models`
-// 写行——旧中间表在本批不读不写、不迁移、不 DROP。
+// （schema.InsertOutlineNode）；旧扁平收录中间表已随 #225 从代码里删除。
 
 // migrateCollectionsHTTP 建出合集闭环需要的表（比共享的 migrate 多 schema.Collection
 // 与 schema.Outline）。

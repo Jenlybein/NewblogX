@@ -60,5 +60,6 @@
 ## 后续修订
 
 - 2026-11-04（code-review 复核）：**空文件夹允许保留**。决策 2 与「当前生效约束」里「树里只允许含文章或子文件夹的文件夹」这一限定，与用户故事 33「空文件夹也能建（先搭章节骨架再挂文章）」相互矛盾；以用户故事为准——后台可以先建章节骨架，读者侧也保留空文件夹。`domain/outline.Build` 的实现本就这样，不需要改代码；本节取代原约束中那处限定。
+- 2026-11-04（#225 收尾清理）：**两张旧中间表从"冻结"改为"下线"**。约束 6 与「不做什么」里的"不 DROP 任何既有表"由本节取代：`collection_article_models` / `project_article_models` 已从 `schema.sql` 与 testkit 登记中删除，只服务它们的仓储 / 用例 / 路由 / DTO 全部删除（含 `PATCH /collections/order`；`PATCH /projects/order` 写的是 `project_models.sort_order`，保留），生产库的两张表由**部署时手工 DROP**。运行时仍然零 DDL：`-db` 只做 `CREATE TABLE IF NOT EXISTS`。约束 7（收录与排序只经树编辑器）不变。
 
 </content>

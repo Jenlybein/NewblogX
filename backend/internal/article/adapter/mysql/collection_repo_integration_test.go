@@ -4,6 +4,7 @@ package mysql_test
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"time"
 
@@ -18,17 +19,23 @@ import (
 	"myblogx/internal/testkit/schema"
 )
 
-// 本文件是合集（collection_models / collection_article_models）的持久化契约。
+// 本文件是合集（collection_models）的持久化契约。
 //
-// 只跑真 MySQL：要验的正是 SQL 行为——展示开关过滤、软删行恢复后不撞唯一索引、
-// 序号压实、JOIN 过滤失效文章、封面回退。SQLite 上这些行为不一样（假 Safe）。
+// 只跑真 MySQL：要验的正是 SQL 行为——展示开关过滤、软删落库、卡片篇数与
+// 封面回退（都从目录树派生）。SQLite 上这些行为不一样（假 Safe）。
+//
+// 旧扁平收录中间表的仓储用例随表一起退役（#225）：收录与层次只经目录树。
+
+// isNotFound 判断仓储错误是否为"合集不存在"（域错误按码比较）。
+func isNotFound(err error) bool {
+	return errors.Is(err, collection.ErrNotFound)
+}
 
 var collectionBaseTime = time.Date(2026, 1, 1, 12, 0, 0, 0, time.UTC)
 
 // migrateCollections 建出合集测试需要的表。
 //
-// 比其它仓储用例多带 schema.Collection 与 schema.Outline：卡片读面已切到目录树，
-// 中间表仍保留给旧收录 / 失效行用例（它们验证的是冻结表的写路径）。
+// 比其它仓储用例多带 schema.Collection 与 schema.Outline：卡片读面只认目录树。
 func migrateCollections(t *testing.T) *gorm.DB {
 	t.Helper()
 	db := mysqlcontainer.DB(t)
@@ -102,7 +109,6 @@ func TestCollectionRowsMatchSchema(t *testing.T) {
 
 	db := migrateCollections(t)
 	schema.AssertColumns(t, db, schema.CollectionRow{})
-	schema.AssertColumns(t, db, schema.CollectionArticleRow{})
 }
 
 // TestCollectionRepo_CreateAndFind 新建的合集能按 ID 读回，字段逐一落地。
@@ -157,160 +163,6 @@ func TestCollectionRepo_UpdateDisplay(t *testing.T) {
 	}
 	if got.Displayed() {
 		t.Fatal("关闭展示后 is_display 应落成 false（GORM 零值跳过是这个坑的典型现场）")
-	}
-}
-
-// TestCollectionRepo_AppendItemRestoresSoftDeleted 移除后再收录恢复原行，不撞唯一索引。
-func TestCollectionRepo_AppendItemRestoresSoftDeleted(t *testing.T) {
-	t.Parallel()
-
-	db := migrateCollections(t)
-	seedUser(t, db, 100)
-	seedCollectionArticle(t, db, 1, 100, schema.ArticleStatusPublished, schema.VisibilityVisible, "")
-	repo := mysql.NewCollectionRepo(db)
-	ctx := context.Background()
-
-	c := newCollection(t, 1, "主题合集", true, 1)
-	if err := repo.Create(ctx, c); err != nil {
-		t.Fatalf("建合集失败: %v", err)
-	}
-
-	created, err := repo.AppendItem(ctx, ctype.NewID(1), ctype.NewID(1))
-	if err != nil {
-		t.Fatalf("收录失败: %v", err)
-	}
-	if !created {
-		t.Fatal("首次收录应返回 created=true")
-	}
-
-	// 重复收录：幂等 false，不产生第二行。
-	created, err = repo.AppendItem(ctx, ctype.NewID(1), ctype.NewID(1))
-	if err != nil {
-		t.Fatalf("重复收录不应报错: %v", err)
-	}
-	if created {
-		t.Fatal("重复收录应返回 created=false")
-	}
-
-	// 移除后再收录：唯一索引仍在（软删行占着键），必须恢复原行而不是新插入。
-	if err := repo.RemoveItem(ctx, ctype.NewID(1), ctype.NewID(1)); err != nil {
-		t.Fatalf("移除失败: %v", err)
-	}
-	created, err = repo.AppendItem(ctx, ctype.NewID(1), ctype.NewID(1))
-	if err != nil {
-		t.Fatalf("移除后重新收录失败（很可能撞了 uk_collection_article）: %v", err)
-	}
-	if !created {
-		t.Fatal("恢复软删行应返回 created=true")
-	}
-
-	var n int64
-	if err := db.Table("collection_article_models").Count(&n).Error; err != nil {
-		t.Fatalf("统计失败: %v", err)
-	}
-	if n != 1 {
-		t.Fatalf("应收敛成 1 行，实际 %d", n)
-	}
-}
-
-// TestCollectionRepo_RemoveCompactsOrder 移除后剩余序号压实成 1..n。
-func TestCollectionRepo_RemoveCompactsOrder(t *testing.T) {
-	t.Parallel()
-
-	db := migrateCollections(t)
-	seedUser(t, db, 100)
-	for _, id := range []uint64{1, 2, 3} {
-		seedCollectionArticle(t, db, id, 100, schema.ArticleStatusPublished, schema.VisibilityVisible, "")
-	}
-	repo := mysql.NewCollectionRepo(db)
-	ctx := context.Background()
-
-	c := newCollection(t, 1, "主题合集", true, 1)
-	if err := repo.Create(ctx, c); err != nil {
-		t.Fatalf("建合集失败: %v", err)
-	}
-	for _, id := range []uint64{1, 2, 3} {
-		if _, err := repo.AppendItem(ctx, ctype.NewID(1), ctype.NewID(id)); err != nil {
-			t.Fatalf("收录 %d 失败: %v", id, err)
-		}
-	}
-
-	if err := repo.RemoveItem(ctx, ctype.NewID(1), ctype.NewID(2)); err != nil {
-		t.Fatalf("移除失败: %v", err)
-	}
-
-	ids, err := repo.ListItemIDs(ctx, ctype.NewID(1))
-	if err != nil {
-		t.Fatalf("读收录失败: %v", err)
-	}
-	if len(ids) != 2 || ids[0].Uint64() != 1 || ids[1].Uint64() != 3 {
-		t.Fatalf("移除后应剩 1,3，实际 %v", ids)
-	}
-
-	items, err := repo.ListAdminItems(ctx, ctype.NewID(1))
-	if err != nil {
-		t.Fatalf("读后台行失败: %v", err)
-	}
-	if items[0].SortOrder != 1 || items[1].SortOrder != 2 {
-		t.Fatalf("序号应压实为 1,2，实际 %d,%d", items[0].SortOrder, items[1].SortOrder)
-	}
-}
-
-// TestCollectionRepo_ListIncludedFiltersStale 读者侧只看到仍公开的文章，且保持顺序。
-//
-// 失效行**保留在表里**（后台要能看见并清理），这是与热门置顶逐字一致的口径。
-func TestCollectionRepo_ListIncludedFiltersStale(t *testing.T) {
-	t.Parallel()
-
-	db := migrateCollections(t)
-	seedUser(t, db, 100)
-	seedCollectionArticle(t, db, 1, 100, schema.ArticleStatusPublished, schema.VisibilityVisible, "https://img/1.png")
-	seedCollectionArticle(t, db, 2, 100, schema.ArticleStatusDraft, schema.VisibilityVisible, "")
-	seedCollectionArticle(t, db, 3, 100, schema.ArticleStatusPublished, schema.VisibilityUserHidden, "")
-	seedCollectionArticle(t, db, 4, 100, schema.ArticleStatusPublished, schema.VisibilityVisible, "")
-
-	repo := mysql.NewCollectionRepo(db)
-	ctx := context.Background()
-
-	c := newCollection(t, 1, "主题合集", true, 1)
-	if err := repo.Create(ctx, c); err != nil {
-		t.Fatalf("建合集失败: %v", err)
-	}
-	for _, id := range []uint64{1, 2, 3, 4} {
-		if _, err := repo.AppendItem(ctx, ctype.NewID(1), ctype.NewID(id)); err != nil {
-			t.Fatalf("收录 %d 失败: %v", id, err)
-		}
-	}
-
-	// 让第 4 篇后来变成私有：行保留，读者侧不出现。
-	if err := db.Model(&schema.ArticleRow{}).Where("id = ?", 4).
-		Update("publish_status", schema.ArticleStatusDraft).Error; err != nil {
-		t.Fatalf("改状态失败: %v", err)
-	}
-
-	got, err := repo.ListIncludedArticles(ctx, ctype.NewID(1), false)
-	if err != nil {
-		t.Fatalf("读详情失败: %v", err)
-	}
-	if len(got) != 1 || got[0].ArticleID.Uint64() != 1 {
-		t.Fatalf("只应剩下仍公开的文章 1，实际 %+v", got)
-	}
-	if got[0].Title != "合集候选 1" {
-		t.Fatalf("标题未带出: %q", got[0].Title)
-	}
-
-	adminItems, err := repo.ListAdminItems(ctx, ctype.NewID(1))
-	if err != nil {
-		t.Fatalf("读后台行失败: %v", err)
-	}
-	if len(adminItems) != 4 {
-		t.Fatalf("后台应仍看到 4 行（失效行保留），实际 %d", len(adminItems))
-	}
-	if !adminItems[1].Stale() {
-		t.Fatal("草稿文章的后台行应标为失效")
-	}
-	if adminItems[0].Stale() {
-		t.Fatal("仍公开的文章不应标为失效")
 	}
 }
 
@@ -386,42 +238,6 @@ func TestCollectionRepo_ListCardsHidesUndisplayed(t *testing.T) {
 	if adminCards[0].SortOrder != 1 || adminCards[1].SortOrder != 2 {
 		t.Fatalf("后台顺序号应从 1 连续编号，实际 %d,%d",
 			adminCards[0].SortOrder, adminCards[1].SortOrder)
-	}
-}
-
-// TestCollectionRepo_UpdateItemOrder 全集顺序替换真的落库。
-func TestCollectionRepo_UpdateItemOrder(t *testing.T) {
-	t.Parallel()
-
-	db := migrateCollections(t)
-	seedUser(t, db, 100)
-	for _, id := range []uint64{1, 2} {
-		seedCollectionArticle(t, db, id, 100, schema.ArticleStatusPublished, schema.VisibilityVisible, "")
-	}
-	repo := mysql.NewCollectionRepo(db)
-	ctx := context.Background()
-
-	c := newCollection(t, 1, "主题合集", true, 1)
-	if err := repo.Create(ctx, c); err != nil {
-		t.Fatalf("建合集失败: %v", err)
-	}
-	for _, id := range []uint64{1, 2} {
-		if _, err := repo.AppendItem(ctx, ctype.NewID(1), ctype.NewID(id)); err != nil {
-			t.Fatalf("收录失败: %v", err)
-		}
-	}
-
-	if err := repo.UpdateItemOrder(ctx, ctype.NewID(1),
-		[]collection.ArticleID{ctype.NewID(2), ctype.NewID(1)}); err != nil {
-		t.Fatalf("重排失败: %v", err)
-	}
-
-	got, err := repo.ListIncludedArticles(ctx, ctype.NewID(1), false)
-	if err != nil {
-		t.Fatalf("读详情失败: %v", err)
-	}
-	if len(got) != 2 || got[0].ArticleID.Uint64() != 2 || got[0].SortOrder != 1 {
-		t.Fatalf("重排后第一篇应为 2 且序号 1，实际 %+v", got)
 	}
 }
 
@@ -521,15 +337,6 @@ func TestCollectionRepo_CardsReadOutlineTree(t *testing.T) {
 		ID: 20, Kind: int(outline.NodeKindArticle), ArticleID: 12, SortOrder: 1, At: collectionBaseTime,
 	})
 
-	// 旧中间表保持为空：卡片不应再读它。
-	var oldRows int64
-	if err := db.Table("collection_article_models").Count(&oldRows).Error; err != nil {
-		t.Fatalf("统计旧中间表失败: %v", err)
-	}
-	if oldRows != 0 {
-		t.Fatalf("本用例不应写旧中间表，实际 %d 行", oldRows)
-	}
-
 	cards, total, err := repo.ListCards(ctx, false, domain.Page{Limit: 10})
 	if err != nil {
 		t.Fatalf("读合集列表失败: %v", err)
@@ -626,172 +433,4 @@ func TestCollectionRepo_UpdatePersistsSoftDelete(t *testing.T) {
 	if len(adminCards) != 0 {
 		t.Fatalf("软删的合集不该出现在后台列表，实际 %+v", adminCards)
 	}
-}
-
-// TestCollectionRepo_StaleRowsKeepPlaceholderWithReason 三种失效成因都保留占位并给出原因。
-//
-// 读者侧靠 JOIN 过滤（列表计数与详情同一口径）；后台 LEFT JOIN 仍能读到已删除
-// 文章的标题与状态，所以占位不会退化成一行空白。
-func TestCollectionRepo_StaleRowsKeepPlaceholderWithReason(t *testing.T) {
-	t.Parallel()
-
-	db := migrateCollections(t)
-	seedUser(t, db, 100)
-	seedCollectionArticle(t, db, 1, 100, schema.ArticleStatusPublished, schema.VisibilityVisible, "")
-	seedCollectionArticle(t, db, 2, 100, schema.ArticleStatusDraft, schema.VisibilityVisible, "")
-	seedCollectionArticle(t, db, 3, 100, schema.ArticleStatusPublished, schema.VisibilityUserHidden, "")
-	seedCollectionArticle(t, db, 4, 100, schema.ArticleStatusPublished, schema.VisibilityVisible, "")
-
-	repo := mysql.NewCollectionRepo(db)
-	ctx := context.Background()
-	c := newCollection(t, 1, "主题合集", true, 1)
-	if err := repo.Create(ctx, c); err != nil {
-		t.Fatalf("建合集失败: %v", err)
-	}
-	for _, id := range []uint64{1, 2, 3, 4} {
-		if _, err := repo.AppendItem(ctx, ctype.NewID(1), ctype.NewID(id)); err != nil {
-			t.Fatalf("收录 %d 失败: %v", id, err)
-		}
-	}
-
-	// 卡片读面看目录树：四篇都挂进树，后面的失效判定同样作用于卡片。
-	for i, id := range []uint64{1, 2, 3, 4} {
-		seedCollectionTreeNode(t, db, 1, schema.OutlineNodeSpec{
-			ID: uint64(100 + i), Kind: int(outline.NodeKindArticle), ArticleID: id,
-			SortOrder: i + 1, At: collectionBaseTime,
-		})
-	}
-
-	// 第四篇后来被软删：关系行还在，后台应看到"已删除"，读者侧完全看不到。
-	if err := db.Table("article_models").Where("id = ?", 4).
-		Update("deleted_at", collectionBaseTime).Error; err != nil {
-		t.Fatalf("软删文章失败: %v", err)
-	}
-
-	readerArticles, err := repo.ListIncludedArticles(ctx, ctype.NewID(1), false)
-	if err != nil {
-		t.Fatalf("读读者详情失败: %v", err)
-	}
-	if len(readerArticles) != 1 || readerArticles[0].ArticleID.Uint64() != 1 {
-		t.Fatalf("读者详情只应剩仍公开的文章 1，实际 %+v", readerArticles)
-	}
-
-	cards, _, err := repo.ListCards(ctx, false, domain.Page{Limit: 10})
-	if err != nil {
-		t.Fatalf("读读者列表失败: %v", err)
-	}
-	if len(cards) != 1 || cards[0].ArticleCount != 1 {
-		t.Fatalf("合集卡片计数只算仍公开的文章，实际 %+v", cards)
-	}
-
-	items, err := repo.ListAdminItems(ctx, ctype.NewID(1))
-	if err != nil {
-		t.Fatalf("读后台收录行失败: %v", err)
-	}
-	if len(items) != 4 {
-		t.Fatalf("后台应保留 4 个占位（含失效），实际 %d", len(items))
-	}
-
-	want := []domain.StaleReason{
-		domain.StaleReasonNone,
-		domain.StaleReasonNotPublished,
-		domain.StaleReasonNotVisible,
-		domain.StaleReasonDeleted,
-	}
-	for i, reason := range want {
-		if got := items[i].StaleReason(); got != reason {
-			t.Fatalf("第 %d 行失效原因 = %q，期望 %q", i+1, got, reason)
-		}
-		if items[i].Stale() != (reason != domain.StaleReasonNone) {
-			t.Fatalf("第 %d 行 stale 与原因不一致: stale=%v reason=%q",
-				i+1, items[i].Stale(), reason)
-		}
-	}
-	if items[3].Title == "" {
-		t.Fatal("已删除文章的占位应保留标题，后台才看得出是哪一篇")
-	}
-}
-
-// TestCollectionRepo_UpdateSortOrders 合集之间换序真的落库：
-// 后台列表与读者列表都按新的 sort_order 读出来。
-func TestCollectionRepo_UpdateSortOrders(t *testing.T) {
-	t.Parallel()
-
-	db := migrateCollections(t)
-	seedUser(t, db, 100)
-	repo := mysql.NewCollectionRepo(db)
-	ctx := context.Background()
-
-	for i, title := range []string{"第一个", "第二个", "第三个"} {
-		c := newCollection(t, uint64(i+1), title, true, i+1)
-		if err := repo.Create(ctx, c); err != nil {
-			t.Fatalf("建合集 %s 失败: %v", title, err)
-		}
-	}
-
-	if err := repo.UpdateSortOrders(ctx,
-		[]collection.ID{ctype.NewID(3), ctype.NewID(1), ctype.NewID(2)}); err != nil {
-		t.Fatalf("合集换序失败: %v", err)
-	}
-
-	ids, err := repo.ListIDs(ctx)
-	if err != nil {
-		t.Fatalf("读合集 ID 失败: %v", err)
-	}
-	if len(ids) != 3 || ids[0].Uint64() != 3 || ids[1].Uint64() != 1 || ids[2].Uint64() != 2 {
-		t.Fatalf("换序后的 ID 顺序不对: %v", ids)
-	}
-
-	cards, total, err := repo.ListCards(ctx, false, domain.Page{Limit: 10})
-	if err != nil {
-		t.Fatalf("读读者列表失败: %v", err)
-	}
-	if total != 3 || len(cards) != 3 {
-		t.Fatalf("应有 3 个合集，实际 total=%d len=%d", total, len(cards))
-	}
-	if cards[0].ID.Uint64() != 3 || cards[1].ID.Uint64() != 1 || cards[2].ID.Uint64() != 2 {
-		t.Fatalf("读者列表顺序不对: %+v", cards)
-	}
-}
-
-// TestCollectionRepo_AppendItemTwiceIsDuplicateNotError 重复收录在仓储层是
-// "幂等 false"而不是唯一键错误：单篇入口据此报可读的"已在合集中"。
-func TestCollectionRepo_AppendItemTwiceIsDuplicateNotError(t *testing.T) {
-	t.Parallel()
-
-	db := migrateCollections(t)
-	seedUser(t, db, 100)
-	seedCollectionArticle(t, db, 1, 100, schema.ArticleStatusPublished, schema.VisibilityVisible, "")
-	repo := mysql.NewCollectionRepo(db)
-	ctx := context.Background()
-
-	if err := repo.Create(ctx, newCollection(t, 1, "主题合集", true, 1)); err != nil {
-		t.Fatalf("建合集失败: %v", err)
-	}
-
-	created, err := repo.AppendItem(ctx, ctype.NewID(1), ctype.NewID(1))
-	if err != nil || !created {
-		t.Fatalf("首次收录应成功，实际 created=%v err=%v", created, err)
-	}
-
-	created, err = repo.AppendItem(ctx, ctype.NewID(1), ctype.NewID(1))
-	if err != nil {
-		t.Fatalf("重复收录不该报错（唯一键冲突应翻译成重复），实际 %v", err)
-	}
-	if created {
-		t.Fatal("重复收录应返回 created=false")
-	}
-
-	ids, err := repo.ListItemIDs(ctx, ctype.NewID(1))
-	if err != nil {
-		t.Fatalf("读收录失败: %v", err)
-	}
-	if len(ids) != 1 {
-		t.Fatalf("重复收录不该产生第二行，实际 %v", ids)
-	}
-}
-
-// isNotFound 判断是不是"合集不存在"。
-func isNotFound(err error) bool {
-	return err == collection.ErrNotFound
 }

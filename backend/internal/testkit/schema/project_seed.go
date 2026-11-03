@@ -37,23 +37,6 @@ type ProjectRow struct {
 // TableName 固定表名。
 func (ProjectRow) TableName() string { return "project_models" }
 
-// ProjectArticleRow 对应表 project_article_models（项目-文章中间表）。
-//
-// 与 collection_article_models 同构：唯一键**不含 deleted_at**（移除是软删，
-// 行留在表里占着这个键），文章后来不再公开时行保留、读者侧靠 JOIN 过滤。
-type ProjectArticleRow struct {
-	BaseRow
-	ProjectID ctype.ID `gorm:"uniqueIndex:uk_project_article,priority:1;not null" json:"project_id"`
-	ArticleID ctype.ID `gorm:"uniqueIndex:uk_project_article,priority:2;not null;index:idx_project_article_models_article_id" json:"article_id"`
-	SortOrder int      `gorm:"not null;default:0" json:"sort_order"`
-	// 关联只为建外键（与 CollectionArticleRow 同一做法）。
-	ProjectModel ProjectRow `gorm:"foreignKey:ProjectID;references:ID" json:"-"`
-	ArticleModel ArticleRow `gorm:"foreignKey:ArticleID;references:ID" json:"-"`
-}
-
-// TableName 固定表名。
-func (ProjectArticleRow) TableName() string { return "project_article_models" }
-
 // ProjectSpec 描述要插入的项目行。
 //
 // 项目与合集同构（标题/描述/封面/展示开关/排序/创建者 + 软删），
@@ -96,31 +79,5 @@ func InsertProject(t *testing.T, db *gorm.DB, spec ProjectSpec) {
 			Update("deleted_at", spec.UpdatedAt).Error; err != nil {
 			t.Fatalf("软删项目 %d 失败: %v", spec.ID, err)
 		}
-	}
-}
-
-// ProjectArticleSpec 描述要插入的一条项目-文章关联行。
-//
-// 收成结构体而不是 5 个裸参数：ID / 项目 / 文章 / 顺序 / 时间长度相近，
-// 调用处很容易把项目与文章两个 uint64 写反（编译期看不出来）。
-type ProjectArticleSpec struct {
-	ID        uint64
-	ProjectID uint64
-	ArticleID uint64
-	SortOrder int
-	At        time.Time
-}
-
-// InsertProjectArticle 插入一条项目-文章关联行。
-func InsertProjectArticle(t *testing.T, db *gorm.DB, spec ProjectArticleSpec) {
-	t.Helper()
-	m := ProjectArticleRow{
-		BaseRow:   BaseRow{ID: ctype.NewID(spec.ID), CreatedAt: spec.At, UpdatedAt: spec.At},
-		ProjectID: ctype.NewID(spec.ProjectID),
-		ArticleID: ctype.NewID(spec.ArticleID),
-		SortOrder: spec.SortOrder,
-	}
-	if err := db.Omit("ProjectModel", "ArticleModel").Create(&m).Error; err != nil {
-		t.Fatalf("插入项目关联 %d 失败: %v", spec.ID, err)
 	}
 }

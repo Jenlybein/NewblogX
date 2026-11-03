@@ -113,10 +113,41 @@ func (r *OutlineRepo) Update(ctx context.Context, nodes []*outline.Node) error {
 			return res.Error
 		}
 		if res.RowsAffected == 0 {
-			return outline.ErrNodeMissing
+			// MySQL 默认返回"实际变更行数"而不是匹配行数：提交的字段与库里完全
+			// 一致时（幂等保存、只调顺序的保存）就是 0 行。所以行数不能当存在性用，
+			// 只有真的查不到这一行才说明页面过期。
+			exists, err := r.nodeExists(ctx, n.ID(), true)
+			if err != nil {
+				return err
+			}
+			if !exists {
+				return outline.ErrNodeMissing
+			}
 		}
 	}
 	return nil
+}
+
+// nodeExists 判断一条节点行是否仍然存在。
+//
+// includeDeleted=true 时把软删行也算"存在"：Update 既要改活行，也要能恢复
+// 软删行（Restore），所以它必须看到软删行。
+//
+// 写入路径不能拿 RowsAffected 当"行是否存在"：相等值的 UPDATE 在 MySQL 里
+// 报 0 行。单独查一次才准。
+func (r *OutlineRepo) nodeExists(ctx context.Context, id outline.ID, includeDeleted bool) (bool, error) {
+	q := r.db.WithContext(ctx)
+	if includeDeleted {
+		q = q.Unscoped()
+	}
+	var count int64
+	err := q.Model(&outlineNodeRow{}).
+		Where("id = ?", ctype.ID(id)).
+		Count(&count).Error
+	if err != nil {
+		return false, err
+	}
+	return count > 0, nil
 }
 
 // SoftDelete 批量软删。
@@ -128,14 +159,21 @@ func (r *OutlineRepo) SoftDelete(ctx context.Context, ids []outline.ID, now time
 	for _, id := range ids {
 		raw = append(raw, ctype.ID(id))
 	}
+	// 先确认这批行都在（且未软删），再落软删：同样不用 RowsAffected 判断存在性。
+	var alive int64
+	if err := r.db.WithContext(ctx).Model(&outlineNodeRow{}).
+		Where("id IN ?", raw).
+		Count(&alive).Error; err != nil {
+		return err
+	}
+	if int(alive) != len(ids) {
+		return outline.ErrNodeMissing
+	}
 	res := r.db.WithContext(ctx).Model(&outlineNodeRow{}).
 		Where("id IN ?", raw).
 		Updates(map[string]any{"deleted_at": now, "updated_at": now})
 	if res.Error != nil {
 		return res.Error
-	}
-	if int(res.RowsAffected) != len(ids) {
-		return outline.ErrNodeMissing
 	}
 	return nil
 }

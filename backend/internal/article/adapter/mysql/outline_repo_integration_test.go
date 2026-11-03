@@ -104,8 +104,15 @@ func TestOutlineRepoRoundTripAndUniqueArticle(t *testing.T) {
 	if err != nil {
 		t.Fatalf("组装树失败: %v", err)
 	}
-	if len(tree) != 2 || len(tree[0].Children) != 1 || len(tree[1].Children) != 0 {
+	// 根层三个节点：第一章（含子节点）、空章节、单篇；空文件夹按用户故事 33 保留。
+	if len(tree) != 3 || len(tree[0].Children) != 1 || len(tree[1].Children) != 0 || len(tree[2].Children) != 0 {
 		t.Fatalf("嵌套结构不对: %+v", tree)
+	}
+
+	// 幂等保存：字段与库里完全一致时 UPDATE 在 MySQL 里报 0 行，
+	// 不能因此判定"节点不存在"（这是 #223 e2e 暴露的真实缺陷）。
+	if err := repo.Update(ctx, []*outline.Node{folder, empty, root}); err != nil {
+		t.Fatalf("等值更新不应报节点不存在: %v", err)
 	}
 
 	// 唯一约束：同一棵树内同一篇文章不能有第二个节点。

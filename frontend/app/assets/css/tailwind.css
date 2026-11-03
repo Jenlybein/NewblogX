@@ -1161,6 +1161,149 @@
     @apply min-w-0 p-5 md:p-6;
   }
 
+  /* ---- 消息中心（第 239 票）：左子项导航 + 右内容 --------------------------------
+   * 选中态 = 抬升面底 + 左侧 2px 强调条 + 字重（强调条用 inset 阴影，不改变盒模型
+   * → 切换子项不抖布局）。<1024px 左导航转顶部横向 tab，同一份 DOM 靠断点切换。 */
+  .message-center__layout {
+    @apply grid gap-5;
+    grid-template-columns: 220px minmax(0, 1fr);
+  }
+
+  .message-center__subnav {
+    @apply flex flex-col gap-1 self-start rounded-card border p-2;
+    background: var(--color-surface);
+    border-color: var(--color-line);
+  }
+
+  .message-center-tab {
+    @apply flex items-center justify-between gap-3 rounded-control px-3 py-2 text-sm transition;
+    color: var(--color-ink-muted);
+    touch-action: manipulation;
+  }
+
+  .message-center-tab:hover {
+    background: var(--color-line-faint);
+    color: var(--color-ink);
+  }
+
+  .message-center-tab.is-active {
+    background: var(--color-surface-raised);
+    color: var(--color-ink);
+    font-weight: 600;
+    box-shadow: inset 2px 0 0 var(--color-ink);
+  }
+
+  .message-center-tab__count {
+    @apply inline-flex min-w-6 items-center justify-center rounded-pill px-2 py-0.5 text-xs font-semibold;
+    background: var(--color-line-faint);
+    color: var(--color-ink);
+  }
+
+  .message-center__main {
+    @apply min-w-0;
+  }
+
+  .message-center-toolbar {
+    @apply flex flex-wrap items-start justify-between gap-3;
+  }
+
+  .message-center-confirm {
+    @apply mt-3 flex flex-wrap items-center justify-between gap-3 rounded-field border px-4 py-3 text-sm;
+    background: var(--color-danger-soft);
+    border-color: var(--color-danger-line);
+  }
+
+  .message-list {
+    @apply mt-4 flex flex-col gap-2;
+  }
+
+  .message-list__scroller {
+    max-height: min(70dvh, 720px);
+    overflow-y: auto;
+    padding-right: 0.25rem;
+  }
+
+  .message-row {
+    @apply relative flex items-start gap-3 rounded-control border px-4 py-3;
+    background: var(--color-surface);
+    border-color: var(--color-line);
+  }
+
+  /* 未读 = 左侧强调条 + 标题加粗（CSS 下方）+ 右上小圆点。不用 chip。 */
+  .message-row.is-unread {
+    box-shadow: inset 2px 0 0 var(--color-ink);
+  }
+
+  .message-row__body {
+    @apply min-w-0 flex-1;
+  }
+
+  .message-row__title {
+    @apply block truncate text-sm;
+    color: var(--color-ink);
+  }
+
+  .message-row.is-unread .message-row__title {
+    font-weight: 650;
+  }
+
+  .message-row__summary {
+    @apply mt-1 truncate text-sm;
+    color: var(--color-ink-muted);
+  }
+
+  .message-row__time {
+    @apply mt-2 block text-xs;
+    color: var(--color-ink-faint);
+  }
+
+  .message-row__dot {
+    @apply absolute right-3 top-3 h-2 w-2 rounded-pill;
+    background: var(--color-danger);
+  }
+
+  /* 删除按钮默认隐形，hover / focus 才出现；键盘用户靠 focus-visible 拿到它。 */
+  .message-row__delete {
+    @apply absolute bottom-2 right-2 inline-flex h-8 w-8 items-center justify-center rounded-control border transition;
+    border-color: var(--color-line);
+    background: var(--color-surface-raised);
+    color: var(--color-ink-muted);
+    opacity: 0;
+    cursor: pointer;
+  }
+
+  .message-row:hover .message-row__delete,
+  .message-row:focus-within .message-row__delete,
+  .message-row__delete:focus-visible {
+    opacity: 1;
+  }
+
+  .message-list__footer {
+    @apply flex items-center justify-center py-4 text-xs;
+    color: var(--color-ink-muted);
+  }
+
+  .message-center__chat {
+    @apply min-w-0;
+  }
+
+  /* <1024px：左导航改为顶部横向 tab（可横向滚动），内容单列。 */
+  @media (max-width: 1023px) {
+    .message-center__layout {
+      grid-template-columns: minmax(0, 1fr);
+    }
+
+    .message-center__subnav {
+      flex-direction: row;
+      overflow-x: auto;
+      padding: 0.5rem;
+    }
+
+    .message-center-tab {
+      @apply shrink-0;
+    }
+  }
+
   .studio-chat-main {
     @apply flex flex-col;
   }

@@ -33,6 +33,8 @@ export const SSR_WHITELIST_PATTERNS = ["/", "/article/**"] as const;
  *
  * `/collections/**` 与 `/projects/**` 都是运营编排列表：内容随管理员的操作变化，
  * 不参与 SSR 首屏，也不进匿名缓存。
+ * `/messages/**` 是消息中心（#239）：私人数据、不索引，整段（含 `/messages` 入口）
+ * 都走 SPA，由客户端中间件重定向到默认子项。
  */
 export const CLIENT_ONLY_PATTERNS = [
   "/users/**",
@@ -40,6 +42,7 @@ export const CLIENT_ONLY_PATTERNS = [
   "/studio/**",
   "/collections/**",
   "/projects/**",
+  "/messages/**",
 ] as const;
 
 /** 必须由服务端 301 承担的历史入口（`/articles` 是并入 `/search` 的旧列表入口）。 */

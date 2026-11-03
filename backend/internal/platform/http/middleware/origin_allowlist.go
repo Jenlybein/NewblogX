@@ -7,7 +7,11 @@ import (
 	"strings"
 )
 
-const corsAllowedOriginsEnv = "BLOGX_CORS_ALLOWED_ORIGINS"
+const (
+	corsAllowedOriginsEnv = "BLOGX_CORS_ALLOWED_ORIGINS"
+	webSiteURLEnv         = "BLOGX_WEB_SITE_URL"
+	adminSiteURLEnv       = "BLOGX_ADMIN_SITE_URL"
+)
 
 var defaultAllowedOrigins = []string{
 	"http://localhost:3000",
@@ -22,10 +26,12 @@ var defaultAllowedOrigins = []string{
 
 // CorsAllowedOrigins 返回当前进程允许的浏览器来源。
 // BLOGX_CORS_ALLOWED_ORIGINS 一旦设置，会替换默认值；多个来源用英文逗号分隔。
+// 默认值 = 内置本地开发来源 + 由站点地址（BLOGX_WEB_SITE_URL / BLOGX_ADMIN_SITE_URL）派生的来源，
+// 所以换域名只改站点地址，不必再改这份代码。
 func CorsAllowedOrigins() []string {
 	raw := strings.TrimSpace(os.Getenv(corsAllowedOriginsEnv))
 	if raw == "" {
-		return normalizeAllowedOrigins(defaultAllowedOrigins)
+		return normalizeAllowedOrigins(append(defaultAllowedOrigins, siteConfiguredOrigins()...))
 	}
 
 	return normalizeAllowedOrigins(strings.Split(raw, ","))
@@ -58,6 +64,41 @@ func IsAllowedOriginRequest(r *http.Request) bool {
 		return false
 	}
 	return IsAllowedOrigin(r.Header.Get("Origin"))
+}
+
+// siteConfiguredOrigins 把站点配置里的读者站地址与后台地址转成浏览器来源。
+// 站点地址允许带 path（BLOGX_ADMIN_SITE_URL 生产值形如 https://域名/admin），
+// 而 Origin 只能是 scheme://host，所以这里先剥掉 path / query / fragment 再规范化。
+func siteConfiguredOrigins() []string {
+	origins := make([]string, 0, 2)
+	for _, key := range []string{webSiteURLEnv, adminSiteURLEnv} {
+		if origin, ok := siteOriginFromURL(os.Getenv(key)); ok {
+			origins = append(origins, origin)
+		}
+	}
+	return origins
+}
+
+// siteOriginFromURL 从站点地址取出浏览器来源；非法值返回 false（宁可不放行，也不放宽比对）。
+func siteOriginFromURL(rawURL string) (string, bool) {
+	rawURL = strings.TrimSpace(rawURL)
+	if rawURL == "" || rawURL == "*" || strings.EqualFold(rawURL, "null") {
+		return "", false
+	}
+
+	parsed, err := url.Parse(rawURL)
+	if err != nil || parsed.User != nil {
+		return "", false
+	}
+	scheme := strings.ToLower(parsed.Scheme)
+	if scheme != "http" && scheme != "https" {
+		return "", false
+	}
+	if parsed.Host == "" {
+		return "", false
+	}
+
+	return scheme + "://" + strings.ToLower(parsed.Host), true
 }
 
 func normalizeAllowedOrigins(origins []string) []string {

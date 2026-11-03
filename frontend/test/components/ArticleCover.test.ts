@@ -24,15 +24,20 @@ describe("ArticleCover：固定居中渲染", () => {
     expect(image.attributes("style")).toBeUndefined();
   });
 
-  it("没有封面地址时渲染空封面兜底，不出现空白或 img", () => {
+  it("没有封面地址时只留一块 16:9 空白：无文字、无装饰，且对辅助技术隐藏", () => {
     const wrapper = mount(ArticleCover, { props: { src: null, title: "文章" } });
 
     expect(wrapper.find(".article-cover-image").exists()).toBe(false);
-    const fallback = wrapper.get(".article-cover-default");
-    expect(fallback.attributes("aria-label")).toBe("文章暂无封面");
+    // #210：缺封面不再是「一种内容」——不再有 NO COVER 文案 / 品牌小签 / 网格 / 光斑，
+    // 也不给辅助技术任何可朗读的标签（role 与 aria-label 都不再包出来）。
+    const placeholder = wrapper.get(".article-cover-default");
+    expect(placeholder.text()).toBe("");
+    expect(placeholder.attributes("role")).toBeUndefined();
+    expect(placeholder.attributes("aria-label")).toBeUndefined();
+    expect(placeholder.attributes("aria-hidden")).toBe("true");
   });
 
-  it("图片加载失败时切到空封面兜底（不留下浏览器碎图标）", async () => {
+  it("图片加载失败时退化成同一块空白（不留下浏览器碎图标，也不朗读「暂无封面」）", async () => {
     const wrapper = mount(ArticleCover, {
       props: { src: "https://image.example.com/broken.png", title: "文章" },
     });
@@ -40,7 +45,9 @@ describe("ArticleCover：固定居中渲染", () => {
     await wrapper.get(".article-cover-image").trigger("error");
 
     expect(wrapper.find(".article-cover-image").exists()).toBe(false);
-    expect(wrapper.get(".article-cover-default").exists()).toBe(true);
+    const placeholder = wrapper.get(".article-cover-default");
+    expect(placeholder.text()).toBe("");
+    expect(placeholder.attributes("aria-hidden")).toBe("true");
   });
 
   it("换一张封面时失败态复位（上一张的失败不带到下一张）", async () => {

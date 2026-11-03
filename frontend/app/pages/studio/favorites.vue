@@ -328,33 +328,13 @@ useSeoMeta({
   transform: translateY(-1px);
 }
 
-/* 缩略图固定 16:9：窄屏只换列宽（比例不变），与详情页封面同一个形状。 */
+/* 缩略图固定 16:9：窄屏只换列宽（比例不变），与详情页封面同一个形状。
+   缺封面只在共用封面组件里留一块空白（票 210），本页不再自带兜底样式。 */
 .favorite-content-card__cover-wrap {
   border-radius: var(--radius-md);
   overflow: hidden;
   display: block;
   aspect-ratio: 16 / 9;
-}
-
-.favorite-content-card__cover {
-  width: 100%;
-  aspect-ratio: 16 / 9;
-  background-size: cover;
-  background-position: center;
-  background-repeat: no-repeat;
-}
-
-.favorite-content-card__cover-empty {
-  width: 100%;
-  aspect-ratio: 16 / 9;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border: 1px dashed var(--color-line);
-  border-radius: var(--radius-md);
-  color: var(--color-ink-muted);
-  font-size: 12px;
-  letter-spacing: 0.14em;
 }
 
 .favorite-content-card__cover-skeleton {

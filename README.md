@@ -1230,6 +1230,14 @@ curl -s  https://你的域名/api/site/seo | head -c 200; echo
 
 **2. 手动建新表**
 
+先确认依赖服务在线——`-db` 启动时会 `InitES`，ES 不可达会直接 `fatal` 退出（2026-11-04 部署时踩过）：
+
+```bash
+docker compose up -d mysql-master mysql-slave redis es clickhouse
+# 等 es / mysql 变成 healthy 后再执行下一步
+docker compose ps
+```
+
 ```bash
 docker compose run --rm blogx_server /app/server \
   -f config/settings.yaml -db

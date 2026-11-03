@@ -6,7 +6,6 @@ import { NButton, NCard, NInput, NModal, NSelect, NSwitch } from "naive-ui";
 import StudioCoverUploadPanel from "./StudioCoverUploadPanel.vue";
 import type { Size } from "~/utils/coverFraming";
 import { categoryTitleError, normalizeCategoryTitle } from "~/utils/studioCategory";
-import type { CoverUploadRoute } from "~/utils/studioCover";
 
 // 发布弹窗：补全分类/标签/封面/摘要/可见性/评论开关，然后提交。
 //
@@ -37,9 +36,8 @@ const props = defineProps<{
   /** 上传阶段 / 留在面板里的错误文案。 */
   coverStage: string;
   coverError: string;
-  /** 选过图之后才有原图尺寸与上传路径（回填的旧封面两者都没有）。 */
+  /** 选过图之后才有定形产物尺寸（回填的旧封面没有）。 */
   coverSize: Size | null;
-  coverRoute: CoverUploadRoute | "";
   /** 取景参数是否已确认（只影响徽标与"调整取景"文案）。 */
   coverFramed: boolean;
   /** 面板预览的取景样式（与取景窗同一出口）。 */
@@ -151,7 +149,6 @@ v-model:value="tagIds" multiple clearable filterable max-tag-count="responsive"
               :stage="props.coverStage"
               :error="props.coverError"
               :size="props.coverSize"
-              :route="props.coverRoute"
               :framed="props.coverFramed"
               :preview-style="props.coverPreviewStyle"
               :on-file-change="props.onCoverChange"

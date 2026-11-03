@@ -4,12 +4,12 @@ import { createApp, nextTick, computed as vueComputed, reactive as vueReactive, 
 /**
  * 后台合集管理页的组件用例。
  *
- * 只验证**接线**：表单提交时发了什么请求、16:9 闸门把图拦在哪个分支、
+ * 只验证**接线**：表单提交时发了什么请求、封面上传走的是不是"先定形再上传"、
  * 列表按哪种封面渲染、展示开关的结果有没有落到列表上。naive-ui 用与真组件
  * 同形的桩（输入 / 开关 / 按钮仍是真的原生元素），浮层只渲染开关状态。
  */
 
-const { messageMock, dialogMock, adminApi, uploadMock, readSizeMock } = vi.hoisted(() => ({
+const { messageMock, dialogMock, adminApi, uploadMock, shapeMock } = vi.hoisted(() => ({
   messageMock: { success: vi.fn(), error: vi.fn(), warning: vi.fn(), info: vi.fn() },
   dialogMock: { warning: vi.fn() },
   adminApi: {
@@ -20,17 +20,17 @@ const { messageMock, dialogMock, adminApi, uploadMock, readSizeMock } = vi.hoist
     setCollectionDisplay: vi.fn(),
   },
   uploadMock: vi.fn(),
-  readSizeMock: vi.fn(),
+  shapeMock: vi.fn(),
 }))
 
 vi.mock('~/services/admin', () => adminApi)
 vi.mock('~/services/image', () => ({ uploadImageByTask: uploadMock }))
 
-// 只替换"读像素尺寸"这一条浏览器副作用；比例闸门（requiresFraming / isAspectCompliant）
-// 保持真实实现，否则测的就不是闸门了。
-vi.mock('~/utils/bannerCover', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('~/utils/bannerCover')>()
-  return { ...actual, readImageSize: (...args: Parameters<typeof actual.readImageSize>) => readSizeMock(...args) }
+// 只替换"定形"这一条浏览器副作用（happy-dom 没有 canvas，ADR-0016）。
+// 定形参数（COVER_SHAPE_OPTIONS）保持真实实现：测的正是"页面确实拿它去定形"。
+vi.mock('~/utils/imageShaping', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('~/utils/imageShaping')>()
+  return { ...actual, shapeForUpload: shapeMock }
 })
 
 vi.mock('naive-ui', async () => {
@@ -214,11 +214,16 @@ beforeEach(() => {
   adminApi.deleteCollection.mockResolvedValue(undefined)
   adminApi.setCollectionDisplay.mockResolvedValue(undefined)
   uploadMock.mockResolvedValue({ image_id: '7', url: 'https://cdn.example.com/uploaded.png' })
-  readSizeMock.mockResolvedValue({ width: 1920, height: 1080 })
+  // 定形产物：16:9、1600×900 的新文件 + 它的本地预览地址。
+  shapeMock.mockImplementation(async () => ({
+    file: new File(['shaped'], 'cover.jpg', { type: 'image/jpeg' }),
+    previewUrl: 'blob:shaped',
+    size: { width: 1600, height: 900 },
+  }))
   dialogMock.warning.mockImplementation((options: { onPositiveClick?: () => unknown }) => {
     void options.onPositiveClick?.()
   })
-  // happy-dom 没有真实的 object URL：给一个确定的假地址，让预览与取景窗有图源。
+  // happy-dom 没有真实的 object URL：给一个确定的假实现，让预览与释放都可断言。
   if (typeof URL.createObjectURL !== 'function') {
     Object.assign(URL, { createObjectURL: () => 'blob:preview', revokeObjectURL: () => undefined })
   }
@@ -324,14 +329,23 @@ describe('合集管理页：增删改', () => {
   })
 })
 
-describe('合集管理页：封面取景闸门', () => {
-  it('16:9 合规图直接上传，保存时带上上传后的封面地址', async () => {
-    readSizeMock.mockResolvedValue({ width: 1920, height: 1080 })
+describe('合集管理页：封面定形（#200）', () => {
+  it('选图后先定形成 16:9，只上传定形产物（原图不上传），保存带上传后的地址', async () => {
     const host = await mountPage()
-    await pickCover(host, coverFile())
+    const original = coverFile()
+    await pickCover(host, original)
 
     await vi.waitFor(() => expect(uploadMock).toHaveBeenCalledTimes(1))
-    expect(host.querySelector('[data-stub="NModal"]')?.getAttribute('data-show')).toBe('false')
+    // 定形拿到的是用户选的原图，上传拿到的是定形产物——两者不是同一个文件。
+    expect(shapeMock).toHaveBeenCalledWith(original, expect.objectContaining({ target: { width: 1600, height: 900 } }))
+    const uploadedFile = (uploadMock.mock.calls[0] as [File])[0]
+    expect(uploadedFile).not.toBe(original)
+    expect(uploadedFile.name).toBe('cover.jpg')
+    expect(uploadedFile.type).toBe('image/jpeg')
+
+    // 面板显示的是定形产物尺寸，与"已定形"标记。
+    expect(host.textContent).toContain('1600 × 900')
+    expect(host.textContent).toContain('已定形')
 
     await setTitle(host, '带封面的合集')
     submitButton(host).click()
@@ -341,39 +355,27 @@ describe('合集管理页：封面取景闸门', () => {
     )
   })
 
-  it('比例不合规的图不先上传，打开 16:9 取景窗；确认后才上传', async () => {
-    readSizeMock.mockResolvedValue({ width: 1080, height: 1920 })
+  it('定形产物的本地预览地址在上传完成后释放（不占着那张图的内存）', async () => {
+    const revoke = vi.fn()
+    const originalRevoke = URL.revokeObjectURL
+    Object.assign(URL, { revokeObjectURL: revoke })
     const host = await mountPage()
     await pickCover(host, coverFile())
 
-    await vi.waitFor(() =>
-      expect(host.querySelector('[data-stub="NModal"]')?.getAttribute('data-show')).toBe('true'),
-    )
-    expect(uploadMock).not.toHaveBeenCalled()
-
-    // 取景窗确认 = 允许上传。
-    const confirm = host.querySelector('button[aria-label="确认取景"]')
-    expect(confirm).not.toBeNull()
-    ;(confirm as HTMLButtonElement).click()
     await vi.waitFor(() => expect(uploadMock).toHaveBeenCalledTimes(1))
+    expect(revoke).toHaveBeenCalledWith('blob:shaped')
+    Object.assign(URL, { revokeObjectURL: originalRevoke })
   })
 
-  it('取景窗取消等于放弃本次上传：不传图、也不把空封面写进表单', async () => {
-    readSizeMock.mockResolvedValue({ width: 1080, height: 1920 })
+  it('定形失败时报错、不上传、封面保持为空（不落半成品）', async () => {
+    shapeMock.mockRejectedValueOnce(new Error('无法读取这张图片，请换一张'))
     const host = await mountPage()
     await pickCover(host, coverFile())
-    await vi.waitFor(() =>
-      expect(host.querySelector('[data-stub="NModal"]')?.getAttribute('data-show')).toBe('true'),
-    )
 
-    const cancel = host.querySelector('button[aria-label="取消取景"]')
-    expect(cancel).not.toBeNull()
-    ;(cancel as HTMLButtonElement).click()
-    await nextTick()
-    await nextTick()
-
+    await vi.waitFor(() => expect(messageMock.error).toHaveBeenCalled())
     expect(uploadMock).not.toHaveBeenCalled()
-    await setTitle(host, '取消取景的合集')
+
+    await setTitle(host, '定形失败的合集')
     submitButton(host).click()
     await vi.waitFor(() => expect(adminApi.createCollection).toHaveBeenCalledTimes(1))
     expect(adminApi.createCollection).toHaveBeenCalledWith(expect.objectContaining({ cover: '' }))

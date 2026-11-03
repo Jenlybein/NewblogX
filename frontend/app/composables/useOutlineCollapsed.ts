@@ -30,12 +30,10 @@ export function useOutlineCollapsed(
    * 当前这份折叠状态属于哪个 key。
    *
    * 与 `key` 分开记：换树时 `key` 会先变，而 `collapsed` 里的还是旧树的状态。
-   * 写回一律写 `activeKey`，否则一次换树 + 一次折叠会把旧树状态写进新 key
-   * （把"串状态"换了个方向，更难查）。
+   * 写回一律写 `activeKey`，且 `activeKey` 只跟 `collapsed` 一起在 `load` 里更新——
+   * 否则一次换树 + 一次折叠会把旧树状态写进新 key（把"串状态"换了个方向，更难查）。
    */
   let activeKey = key.value;
-  /** 正在读新 key：这一刻的 `collapsed` 变更来自加载，不该回写。 */
-  let loading = false;
 
   /** 读某个 key 的折叠状态；隐私模式 / 禁用存储时按"全部展开"处理。 */
   function readStorage(storageKey: string): Set<string> {
@@ -47,12 +45,10 @@ export function useOutlineCollapsed(
     }
   }
 
-  /** 切到某个 key 并载入它的折叠状态。 */
+  /** 切到某个 key 并载入它的折叠状态（两者必须一起换）。 */
   function load(storageKey: string): void {
     activeKey = storageKey;
-    loading = true;
     collapsed.value = readStorage(storageKey);
-    loading = false;
   }
 
   onMounted(() => {
@@ -66,7 +62,6 @@ export function useOutlineCollapsed(
   watch(
     collapsed,
     (value) => {
-      if (loading) return;
       try {
         window.localStorage.setItem(activeKey, serializeOutlineExpanded(value));
       } catch {

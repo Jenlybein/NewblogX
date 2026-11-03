@@ -10,6 +10,7 @@ import (
 	sitecfg "myblogx/internal/platform/config"
 	"myblogx/internal/platform/es/articlesync"
 	"myblogx/internal/platform/health"
+	"myblogx/internal/platform/http/ws"
 	"myblogx/internal/platform/log/writer"
 
 	"github.com/elastic/go-elasticsearch/v7"
@@ -41,6 +42,12 @@ type Infra struct {
 	// InitInfra 里构造的那份不一致（比如 ClickHouseEnable 忘了同步），
 	// 表现会是"日志写到一半不见了"，而不会报错。
 	LogOptions writer.Options
+
+	// ChatHub 是本进程的私信 WS 连接池；只有调用过 WireChat 的进程（api / all）
+	// 才非 nil。它属于**本进程装配结果**，不是跨进程共享的包级状态：
+	// 中继是否需要跳过私信事件由装配处显式传入（见 WireOutboxRelay 的
+	// OutboxWiringOptions），不靠这个字段反推。
+	ChatHub *ws.Hub
 }
 
 // InitInfra 初始化不依赖业务表的基础设施。

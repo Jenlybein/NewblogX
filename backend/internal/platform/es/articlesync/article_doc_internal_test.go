@@ -46,9 +46,6 @@ func TestArticleDocumentShape(t *testing.T) {
 				{ID: ctype.NewID(2), Title: "Redis"},
 			},
 		},
-		ArticleCropMap: map[ctype.ID]cropSnapshot{
-			articleID: {FocusX: 0.5, FocusY: 0.25, Zoom: 1.4},
-		},
 	}
 
 	doc := buildArticleESDocumentFromSnapshot(snapshot, deps)
@@ -69,13 +66,9 @@ func TestArticleDocumentShape(t *testing.T) {
 	if got, ok := doc["comments_toggle"].(bool); !ok || !got {
 		t.Fatalf("comments_toggle 应按 boolean 落库, got=%#v", doc["comments_toggle"])
 	}
-	// 封面取景随文档投影：列表封面要按作者选的构图裁切，缺了它列表就退回居中。
-	crop, ok := doc["crop"].(map[string]any)
-	if !ok {
-		t.Fatalf("crop 应投影到 ES 文档, got=%#v", doc["crop"])
-	}
-	if crop["focus_x"] != 0.5 || crop["focus_y"] != 0.25 || crop["zoom"] != 1.4 {
-		t.Fatalf("crop 字段不符: %#v", crop)
+	// 取景已在 #203 全量退场：文档里不该再有 crop 字段（读侧按居中兜底渲染）。
+	if _, ok := doc["crop"]; ok {
+		t.Fatalf("ES 文档不应再出现取景字段 crop, got=%#v", doc["crop"])
 	}
 
 	tags, ok := doc["tags"].([]ESTag)

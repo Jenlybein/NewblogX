@@ -49,8 +49,6 @@ func TestUpdateESDocsTags(t *testing.T) {
 		&ArticleRow{},
 		&TagRow{},
 		&ArticleTagRow{},
-		// 封面取景来自通用取景表：ES 文档里的 crop 字段由它投影。
-		&cropRow{},
 	)
 	testutil.SetConfig(&conf.Config{ES: conf.ES{Index: "article_index"}})
 
@@ -170,8 +168,6 @@ func TestSyncArticleSearchProjectionRefreshesAuthorIsAdmin(t *testing.T) {
 		&ArticleRow{},
 		&TagRow{},
 		&ArticleTagRow{},
-		// 封面取景来自通用取景表：ES 文档里的 crop 字段由它投影。
-		&cropRow{},
 	)
 	testutil.SetConfig(&conf.Config{ES: conf.ES{Index: "article_index"}})
 
@@ -225,8 +221,6 @@ func TestUpdateESDocsByArticleDeltasAuthorChangeRefreshesAuthorIsAdmin(t *testin
 		&ArticleRow{},
 		&TagRow{},
 		&ArticleTagRow{},
-		// 封面取景来自通用取景表：ES 文档里的 crop 字段由它投影。
-		&cropRow{},
 	)
 	testutil.SetConfig(&conf.Config{ES: conf.ES{Index: "article_index"}})
 
@@ -280,8 +274,6 @@ func TestSyncESDocsByArticleSnapshots(t *testing.T) {
 		&CategoryRow{},
 		&TagRow{},
 		&ArticleTagRow{},
-		// 封面取景来自通用取景表：ES 文档里的 crop 字段由它投影。
-		&cropRow{},
 	)
 	testutil.SetConfig(&conf.Config{
 		ES: conf.ES{Index: "article_index"},
@@ -395,8 +387,6 @@ func TestUpdateESDocsByArticleDeltasRebuildsMissingDocs(t *testing.T) {
 		&ArticleRow{},
 		&TagRow{},
 		&ArticleTagRow{},
-		// 封面取景来自通用取景表：ES 文档里的 crop 字段由它投影。
-		&cropRow{},
 	)
 	testutil.SetConfig(&conf.Config{
 		ES: conf.ES{Index: "article_index"},
@@ -472,8 +462,6 @@ func TestSyncESDocsReturnsErrorWhenArticlesMissing(t *testing.T) {
 		&ArticleRow{},
 		&TagRow{},
 		&ArticleTagRow{},
-		// 封面取景来自通用取景表：ES 文档里的 crop 字段由它投影。
-		&cropRow{},
 	)
 	testutil.SetConfig(&conf.Config{
 		ES: conf.ES{Index: "article_index"},
@@ -497,5 +485,79 @@ func TestSyncESDocsReturnsErrorWhenArticlesMissing(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "未加载到任何文章") {
 		t.Fatalf("错误信息应指向缺失文章，got=%v", err)
+	}
+}
+
+// setupMockESCollectingBulkLines 起一个记录 bulk 请求体原始行的 mock ES。
+//
+// 删除动作在 bulk 里只有一行元数据（没有文档体），所以不能复用"隔行取文档"的
+// 收集器：那种收集器对 delete 请求会一条都收不到。
+func setupMockESCollectingBulkLines(t *testing.T) *[]string {
+	t.Helper()
+
+	lines := make([]string, 0, 2)
+	setupMockES(t, func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case r.URL.Path == "/":
+			writeJSON(w, 200, `{"name":"mock","cluster_name":"mock","version":{"number":"7.17.10"},"tagline":"You Know, for Search"}`)
+		case strings.HasSuffix(r.URL.Path, "/_bulk"):
+			body, _ := io.ReadAll(r.Body)
+			for _, line := range strings.Split(string(body), "\n") {
+				if strings.TrimSpace(line) != "" {
+					lines = append(lines, line)
+				}
+			}
+			writeJSON(w, 200, `{"took":1,"errors":false,"items":[]}`)
+		default:
+			writeJSON(w, 404, `{"error":{"reason":"not found"}}`)
+		}
+	})
+	return &lines
+}
+
+// 软删在数据库里是一次 deleted_at 的 UPDATE，不是行删除。
+//
+// article_models 内嵌 GORM 的 DeletedAt，所以 binlog 送来的增量里只有
+// deleted_at 这一个"变更列"。它不在可投影列清单里，旧实现会得到空 data 然后
+// continue —— 这次软删对 ES 零写入，文档永远留在索引里。
+//
+// 这里锁死修复后的行为：命中软删标记就发 delete（走同一条 bulk 路径），
+// 而不是 update。
+func TestUpdateESDocsByArticleDeltasDeletesSoftDeletedArticle(t *testing.T) {
+	db := testutil.SetupSQLite(t, &ArticleRow{})
+	testutil.SetConfig(&conf.Config{ES: conf.ES{Index: "article_index"}})
+
+	bulkLines := setupMockESCollectingBulkLines(t)
+
+	articleID := ctype.NewID(301900000000000009)
+	if err := UpdateESDocsByArticleDeltas(db, testutil.ESClient(), []ArticleModelDelta{{
+		ArticleID: articleID,
+		Changed:   map[string]any{"deleted_at": time.Now()},
+	}}); err != nil {
+		t.Fatalf("软删增量不应报错: %v", err)
+	}
+
+	if len(*bulkLines) != 1 {
+		t.Fatalf("软删应产生一次索引删除, got=%d 行: %v", len(*bulkLines), *bulkLines)
+	}
+	var meta map[string]json.RawMessage
+	if err := json.Unmarshal([]byte((*bulkLines)[0]), &meta); err != nil {
+		t.Fatalf("解析 bulk 元数据失败: %v", err)
+	}
+	rawDelete, ok := meta["delete"]
+	if !ok {
+		t.Fatalf("软删应发 delete 动作，实际 bulk 行: %s", (*bulkLines)[0])
+	}
+	var detail struct {
+		ID string `json:"_id"`
+	}
+	if err := json.Unmarshal(rawDelete, &detail); err != nil {
+		t.Fatalf("解析 delete 动作失败: %v", err)
+	}
+	if detail.ID != articleID.String() {
+		t.Fatalf("delete 的 _id 应为 %s，实际 %s", articleID.String(), detail.ID)
+	}
+	if _, ok := meta["update"]; ok {
+		t.Fatalf("软删不应再发 update 动作: %s", (*bulkLines)[0])
 	}
 }

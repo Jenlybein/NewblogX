@@ -2,15 +2,19 @@ package app
 
 import (
 	"context"
+	"encoding/json"
 
 	authapp "myblogx/internal/auth/app"
 	chathttp "myblogx/internal/chat/adapter/http"
 	chatmysql "myblogx/internal/chat/adapter/mysql"
 	chatredis "myblogx/internal/chat/adapter/redis"
 	chatapp "myblogx/internal/chat/app"
-	"myblogx/internal/chat/domain"
+	chatdomain "myblogx/internal/chat/domain"
 	"myblogx/internal/kernel/ctype"
 	"myblogx/internal/kernel/enum"
+	"myblogx/internal/platform/cdc/outboxrelay"
+	sitecfg "myblogx/internal/platform/config"
+	"myblogx/internal/platform/http/res"
 	"myblogx/internal/platform/http/router"
 	"myblogx/internal/platform/http/ws"
 	"myblogx/internal/platform/readmodel"
@@ -20,20 +24,27 @@ import (
 )
 
 // WireChat 装配私信模块并注入路由处理器。
+//
+// 连接池挂在 Infra 上（本进程装配结果），不是包级可变状态：
+// "哪个进程能投私信通知"由 main 在启动中继时**显式传入**
+// （见 WireOutboxRelay 的 OutboxWiringOptions），不由装配顺序反推。
 func WireChat(infra *Infra) {
 	if infra == nil {
 		return
 	}
 	redisOptions := redis_service.NewOptions(infra.Redis, infra.Logger)
 	hub := ws.NewHub()
+	infra.ChatHub = hub
 
+	// 同一个仓储同时实现读端口与写端口；用例层分别注入，读写分离在接口层面成立。
+	store := chatmysql.New(infra.DB)
 	svc := chatapp.New(
-		chatmysql.New(infra.DB),
+		store,
+		store,
 		&chatRelationBridge{},
 		&chatUserBridge{db: infra.DB},
-		&strangerBridge{db: infra.DB},
+		&strangerBridge{inner: infra.RuntimeSite},
 		chatredis.NewLimiter(redisOptions),
-		chatHub{inner: hub},
 		infra.Logger,
 	)
 
@@ -45,6 +56,74 @@ func WireChat(infra *Infra) {
 		infra.Logger,
 	)
 	router.SetChatHandler(handler)
+}
+
+// chatSubscriber 把私信发件箱事件投递成 WebSocket 通知。
+//
+// 为什么是通知而不是"把消息推给对端"：HTTP 落库才是唯一真相（断网/断 WS 也能发出），
+// WS 只负责"有新消息了"与"对方已读了"这两个即时信号；接收方收到通知后
+// 自己走 HTTP 刷新会话、消息与未读数。
+//
+// 只做通知、不落库，因此天然幂等：中继重复投递只会多一次刷新信号。
+//
+// 连接池在**投递时**从 Infra 现读，而不是在注册时捕获：
+// 这样即使装配顺序变成"先 WireOutboxRelay 后 WireChat"，订阅者拿到的仍是
+// 最终连接池，不会因为注册那一刻是 nil 就静默丢通知。
+func chatSubscriber(infra *Infra) outboxrelay.Subscriber {
+	var logger chatdomain.Logger
+	if infra != nil {
+		logger = infra.Logger
+	}
+	return func(_ context.Context, e outboxrelay.Event) error {
+		if infra == nil {
+			return nil
+		}
+		hub := infra.ChatHub
+		if hub == nil {
+			return nil
+		}
+		switch e.EventName {
+		case chatdomain.EventMessageSent:
+			var notice chatdomain.SentNotice
+			if err := json.Unmarshal([]byte(e.Payload), &notice); err != nil {
+				warnBadPayload(logger, e, err)
+				return nil
+			}
+			pushNotice(hub, notice.ReceiverID, notice)
+		case chatdomain.EventMessagesRead:
+			var read chatdomain.ReadEvent
+			if err := json.Unmarshal([]byte(e.Payload), &read); err != nil {
+				warnBadPayload(logger, e, err)
+				return nil
+			}
+			// 已读回执推给发送方，线上形状与既有 ReadPush 一致。
+			pushNotice(hub, read.SenderID, read.ToPush())
+		}
+		return nil
+	}
+}
+
+// pushNotice 给某个用户的所有在线连接推一条通知帧。
+//
+// 推送成功数为 0 不是失败：对方不在线时通知没有意义（消息已经落库，
+// 下次打开会话仍能拉到），重试只会白白进死信。
+func pushNotice(hub *ws.Hub, userID ctype.ID, payload any) {
+	if hub == nil || userID.IsZero() {
+		return
+	}
+	hub.PushJSON(userID.Uint64(), res.Response{
+		Code: res.SuccessCode,
+		Data: payload,
+		Msg:  "成功",
+	})
+}
+
+// warnBadPayload 记录载荷解析失败；这类事件重投也不会成功，直接丢弃。
+func warnBadPayload(logger chatdomain.Logger, e outboxrelay.Event, err error) {
+	if logger == nil {
+		return
+	}
+	logger.Warnf("私信发件箱事件载荷无法解析，已丢弃: id=%s name=%s err=%v", e.ID, e.EventName, err)
 }
 
 // chatRelationBridge 读关注关系（来自 social 模块）。
@@ -79,41 +158,33 @@ type chatUserBridge struct {
 }
 
 // Displays 实现 domain.UserDirectory。
-func (b *chatUserBridge) Displays(_ context.Context, ids []ctype.ID) (map[ctype.ID]domain.Display, error) {
+func (b *chatUserBridge) Displays(_ context.Context, ids []ctype.ID) (map[ctype.ID]chatdomain.Display, error) {
 	raw, err := readmodel.LoadUserDisplayMap(b.db, ids)
 	if err != nil {
 		return nil, err
 	}
-	out := make(map[ctype.ID]domain.Display, len(raw))
+	out := make(map[ctype.ID]chatdomain.Display, len(raw))
 	for id, item := range raw {
-		out[id] = domain.Display{Nickname: item.Nickname, Avatar: item.Avatar}
+		out[id] = chatdomain.Display{Nickname: item.Nickname, Avatar: item.Avatar}
 	}
 	return out, nil
 }
 
-// strangerConfRow 对应 user_conf_models 的陌生人私信开关。
-type strangerConfRow struct {
-	UserID              ctype.ID `gorm:"primaryKey;autoIncrement:false"`
-	StrangerChatEnabled bool
-}
-
-// TableName 固定表名。
-func (strangerConfRow) TableName() string { return "user_conf_models" }
-
-// strangerBridge 读"是否接收陌生人私信"。
+// strangerBridge 读站点级"是否允许陌生人发私信"开关。
+//
+// 这个值来自运行时站点配置（site.chat.stranger_msg_enabled），每次现读缓存，
+// 所以后台改完保存后立即生效；不再读 user_conf_models 的按人开关。
 type strangerBridge struct {
-	db *gorm.DB
+	inner *sitecfg.RuntimeConfigService
 }
 
 // StrangerEnabled 实现 domain.StrangerPolicy。
-func (b *strangerBridge) StrangerEnabled(ctx context.Context, userID ctype.ID) (bool, error) {
-	var row strangerConfRow
-	if err := b.db.WithContext(ctx).Select("user_id", "stranger_chat_enabled").
-		Take(&row, "user_id = ?", userID.Uint64()).Error; err != nil {
-		// 老账号没有 conf 行时按"未开启"处理，与旧实现一致。
+func (b *strangerBridge) StrangerEnabled(context.Context) (bool, error) {
+	if b.inner == nil {
+		// 未装配运行时配置时按"关"处理（与默认值一致，失败关闭）。
 		return false, nil
 	}
-	return row.StrangerChatEnabled, nil
+	return b.inner.GetRuntimeSite().Chat.StrangerMsgEnabled, nil
 }
 
 // chatAuthBridge 用认证模块校验令牌与会话。
@@ -147,14 +218,3 @@ func (b chatAuthBridge) SessionActive(ctx context.Context, userID, sessionID uin
 	// 同设备的非代表会话不会出现在聚合结果中，拿它判断会误判失效。
 	return b.svc.SessionActive(ctx, userID, sessionID)
 }
-
-// chatHub 把平台在线池适配成 chat 的 domain.Hub（类型用 ctype.ID）。
-type chatHub struct {
-	inner *ws.Hub
-}
-
-// IsOnline 实现 domain.Hub。
-func (h chatHub) IsOnline(userID ctype.ID) bool { return h.inner.IsOnline(userID.Uint64()) }
-
-// PushJSON 实现 domain.Hub。
-func (h chatHub) PushJSON(userID ctype.ID, v any) int { return h.inner.PushJSON(userID.Uint64(), v) }

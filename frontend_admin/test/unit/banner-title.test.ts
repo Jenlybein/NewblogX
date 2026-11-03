@@ -2,11 +2,7 @@ import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { describe, expect, it, vi } from 'vitest'
 
-import {
-  buildBannerCreatePayload,
-  buildBannerReframePayload,
-  saveBannerTitle,
-} from '~/utils/bannerCover'
+import { buildBannerCreatePayload, saveBannerTitle } from '~/utils/bannerCover'
 import { bannerTitleCell, bannerTitleText } from '~/utils/bannerTitle'
 
 /**
@@ -14,8 +10,8 @@ import { bannerTitleCell, bannerTitleText } from '~/utils/bannerTitle'
  *
  * 页面交给 Vue，这里锁三件会出事的事：
  *   1. 创建请求带不带标题；
- *   2. 不改标题的路径（重新取景）会不会把已有标题清掉；
- *   3. 编辑标题时是否保留该行其余字段，空标题能不能存。
+ *   2. 编辑标题时是否保留该行其余字段、空标题能不能存（PUT 是整体替换）；
+ *   3. 页面流程里不再有取景步骤（#204：取景按钮、弹窗与 crop 载荷都已删除）。
  * 另外用一条源码断言钉住"表单有输入、列表有标题列、行上有编辑入口"这三个落点
  * （页面组件需要整套 naive-ui 交互，这类落点沿用仓库既有的源码门禁写法）。
  */
@@ -45,23 +41,21 @@ describe('bannerTitleText / bannerTitleCell', () => {
 })
 
 describe('创建请求带标题', () => {
-  it('填了标题就把标题带进创建请求', () => {
+  it('填了标题就把标题带进创建请求（请求体没有 crop）', () => {
     const payload = buildBannerCreatePayload({
       coverImageId: '42',
       title: '春季上新',
       href: 'https://example.com',
       show: true,
-      framing: null,
     })
 
-    expect(payload.title).toBe('春季上新')
     expect(payload).toEqual({
       cover_image_id: '42',
       title: '春季上新',
       href: 'https://example.com',
       show: true,
-      crop: { focus_x: 0.5, focus_y: 0.5, zoom: 1 },
     })
+    expect('crop' in payload).toBe(false)
   })
 
   it('没填标题时带空串（标题可空，但字段不能缺）', () => {
@@ -69,40 +63,9 @@ describe('创建请求带标题', () => {
       coverImageId: '42',
       href: '',
       show: false,
-      framing: null,
     })
 
     expect(payload.title).toBe('')
-  })
-
-  it('纯空白标题收敛成空串（不落一条只有空格的标题）', () => {
-    const payload = buildBannerCreatePayload({
-      coverImageId: '42',
-      title: '   ',
-      href: '',
-      show: false,
-      framing: null,
-    })
-
-    expect(payload.title).toBe('')
-  })
-})
-
-describe('重新取景不改标题', () => {
-  it('重新取景的请求体保留该行已有标题（PUT 是整体替换）', () => {
-    const write = buildBannerReframePayload(
-      { id: '1', cover_image_id: '7', href: 'https://example.com', show: true, title: '春季上新' },
-      { focus_x: 0.2, focus_y: 0.8, zoom: 1.5 },
-    )
-
-    expect(write?.payload.title).toBe('春季上新')
-    expect(write?.payload).toEqual({
-      cover_image_id: '7',
-      title: '春季上新',
-      href: 'https://example.com',
-      show: true,
-      crop: { focus_x: 0.2, focus_y: 0.8, zoom: 1.5 },
-    })
   })
 })
 
@@ -118,7 +81,6 @@ describe('saveBannerTitle：编辑已有轮播的标题', () => {
           href: 'https://example.com',
           show: false,
           title: '旧标题',
-          crop: { focus_x: 0.3, focus_y: 0.6, zoom: 1.2 },
         },
         '新标题',
         update,
@@ -130,8 +92,9 @@ describe('saveBannerTitle：编辑已有轮播的标题', () => {
       title: '新标题',
       href: 'https://example.com',
       show: false,
-      crop: { focus_x: 0.3, focus_y: 0.6, zoom: 1.2 },
     })
+    const payload = update.mock.calls.at(-1)?.[1] as object
+    expect('crop' in payload).toBe(false)
   })
 
   it('空标题可以保存（清空误填的标题）', async () => {
@@ -178,5 +141,10 @@ describe('后台轮播页的标题落点', () => {
   it('行上有编辑标题的入口，且保存走标题写请求', () => {
     expect(pageSource).toMatch(/编辑标题/u)
     expect(pageSource).toMatch(/saveBannerTitle/u)
+  })
+
+  it('页面流程不再出现取景步骤：没有取景按钮/弹窗/crop 载荷（#204）', () => {
+    expect(pageSource).not.toMatch(/手动取景|调整取景|重新取景|framingDialog|BannerFraming/u)
+    expect(pageSource).not.toMatch(/crop/u)
   })
 })

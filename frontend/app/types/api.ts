@@ -15,7 +15,7 @@ export type SiteSeoData = RequiredSchema<"internal_site_adapter_http.SEOResponse
  *
  * 契约里这条 data 是 `map[string]any`，派生不出类型，只能手写 —— 手写就会漂移：
  * 这里曾声明后端不存在的 `site_info.subtitle` / `project.abstract`，又漏掉后端
- * 真有的 `site_info.logo` / `beian`。现在按 `backend/conf/site/enter.go` 对齐，
+ * 真有的 `site_info.beian`。现在按 `backend/conf/site/enter.go` 对齐，
  * 并由 `test/gates/site-runtime-config-parity.test.ts` 逐字段比对，再漂就红。
  *
  * `site_info` 是完整投影（与 `site.SiteInfo` 逐字段相等）；`project` 等子块读者站
@@ -23,8 +23,13 @@ export type SiteSeoData = RequiredSchema<"internal_site_adapter_http.SEOResponse
  */
 export interface SiteRuntimeConfig {
   site_info: {
-    title?: string;
-    logo?: string;
+    /**
+     * ICP / 公网安备备案号；空串表示页脚整行不显示。
+     *
+     * 站点标题与 Logo 随 #192 删除：页头字标、浏览器标题与分享卡片标题回到
+     * `~/utils/brand` 的品牌常量，不再读配置。后端已无 title / logo 两个键，
+     * 门禁的逐字段比对会把它们拦住。
+     */
     beian?: string;
   };
   project: {
@@ -214,20 +219,31 @@ export type CollectionDetail = RequiredSchema<"internal_article_adapter_http.Col
 /** 合集详情里的一篇文章（`sort_order` 是它在系列里的位置）。 */
 export type CollectionArticleItem =
   RequiredSchema<"internal_article_adapter_http.CollectionArticleItemResponse">;
+
+/**
+ * 项目（与合集并列的独立内容实体，读者侧只读）。
+ *
+ * 与合集的契约形状相同、但**是两套定义**：字段名/类型由
+ * `internal_article_adapter_http.Project*` 决定，后端改名会立刻编译报错。
+ * 项目有自己的表与后台维护页，不与合集共用数据。
+ */
+export type ProjectCard = RequiredSchema<"internal_article_adapter_http.ProjectCardResponse">;
+
+export type ProjectListData =
+  RequiredSchema<"myblogx_internal_kernel.ListData-internal_article_adapter_http_ProjectCardResponse">;
+
+/** 项目详情：项目本身 + 按顺序排列的文章。 */
+export type ProjectDetail = RequiredSchema<"internal_article_adapter_http.ProjectDetailResponse">;
+
+/** 项目详情里的一篇文章（`sort_order` 是它在项目里的位置）。 */
+export type ProjectArticleItem =
+  RequiredSchema<"internal_article_adapter_http.ProjectArticleItemResponse">;
 // ArticleUpdateRequest 全是指针（PATCH 语义：null 表示清空该字段）。
 export type ArticleWritePayload = Nullable<
   Schema<"internal_article_adapter_http.ArticleUpdateRequest">,
   "title" | "abstract" | "content" | "category_id" | "tag_ids" | "cover_image_id"
-  | "comments_toggle" | "crop"
+  | "comments_toggle"
 >;
-
-/**
- * 文章封面取景参数：焦点（图上 0–1 的相对坐标）+ 缩放（1–2）。
- *
- * 契约里三个字段都可选（swag 无从得知实际总是写满），消费方按必填处理；
- * 缺省口径是居中、缩放 1（`DEFAULT_FRAMING`）。
- */
-export type ArticleCrop = RequiredSchema<"internal_article_adapter_http.ArticleCrop">;
 
 export type ArticleCreateResult = RequiredSchema<"internal_article_adapter_http.ArticleCreateResponse">;
 
@@ -337,16 +353,34 @@ export type ChatMessageListData = RequiredSchema<"myblogx_internal_kernel.ListDa
 
 export type ChatWsTicketData = RequiredSchema<"internal_chat_adapter_http.WsTicketResponse">;
 
+/** POST /api/chat/messages 的请求体（契约派生，含幂等键 client_msg_id）。 */
+export type ChatSendMessagePayload = RequiredSchema<"internal_chat_adapter_http.SendMessageRequest">;
+
 export interface ChatSocketEnvelope<TData = unknown> {
   code: number;
   msg: string;
   data: TData;
 }
 
-export interface ChatSocketOutgoingMessage {
-  receiver_id: string;
-  msg_type: 1 | 2 | 7;
-  content: string;
+/**
+ * WebSocket 下行通知的载荷（#201：WS 只做通知，发送走 HTTP）。
+ *
+ * - 新消息通知：`chat.message.sent` → `{ message_id, sender_id, receiver_id, session_id, ... }`
+ * - 已读回执：`chat.message.read` → `{ reader_id, session_id, msg_id_list, ... }`（msg_type=8）
+ *
+ * 两者都带 `session_id`，收到后前端刷新会话与未读；只刷新会话、不把正文塞进
+ * 通知帧 —— 正文由接收方走 HTTP 重新拉取，避免两处真相。
+ */
+export interface ChatNotificationPayload {
+  session_id: string;
+  message_id?: string;
+  sender_id?: string;
+  receiver_id?: string;
+  reader_id?: string;
+  msg_id_list?: string[];
+  msg_type?: number;
+  send_time?: string;
+  read_at?: string;
 }
 
 // UpdateInfoRequest 的字段在 Go 里全是 *指针（`*string` / `*ctype.ID`），

@@ -4,7 +4,9 @@ package mysql_test
 
 import (
 	"context"
+	"encoding/json"
 	"strconv"
+	"strings"
 	"testing"
 	"time"
 
@@ -22,6 +24,10 @@ import (
 // 必须带上 UserCore：chat_session_models.user_id 有指向 user_models 的外键。
 // 虽然用户展示信息在会话里是**快照列**（receiver_nickname 等）、由调用方传入，
 // 但会话行本身要求 user_id 在 user_models 里存在。
+//
+// 必须带上 Outbox：发送与已读会在**同一个事务**里写发件箱事件（#201）。
+// 不建这张表的话发送会直接报"表不存在"，而这恰恰是要守住的
+// "副作用与业务同事务"的性质。
 func setup(t *testing.T) (*mysql.Repo, *gorm.DB) {
 	t.Helper()
 	db := mysqlcontainer.DB(t)
@@ -32,7 +38,7 @@ func setup(t *testing.T) (*mysql.Repo, *gorm.DB) {
 	// 发消息的顺序是"先建会话行、再插消息行"，那条外键让第一步必然违反
 	// （Error 1452），以前只能靠关外键绕过。该字段已删除，
 	// 所以现在的外键集是真实可满足的 —— "发消息能成功"本身就是证明。
-	schema.Migrate(t, db, schema.UserCore, schema.Chat)
+	schema.Migrate(t, db, schema.UserCore, schema.Chat, schema.Outbox)
 	for _, id := range []uint64{100, 200, 300} {
 		schema.InsertUser(t, db, schema.UserSpec{
 			ID:       id,
@@ -43,25 +49,31 @@ func setup(t *testing.T) (*mysql.Repo, *gorm.DB) {
 	return mysql.New(db), db
 }
 
-// sendText 发一条文本消息，返回落库后的消息。
-func sendText(t *testing.T, repo *mysql.Repo, from, to uint64, content string, at time.Time) *domain.Message {
+// sendText 发一条文本消息，返回落库后的消息与"是否幂等命中"。
+func sendText(t *testing.T, repo *mysql.Repo, from, to uint64, content string, at time.Time) (*domain.Message, bool) {
 	t.Helper()
-	msg := &domain.Message{
-		SenderID:   ctype.NewID(from),
-		ReceiverID: ctype.NewID(to),
-		Content:    content,
-		SendTime:   at,
-		MsgStatus:  domain.StatusSent,
-		MsgType:    domain.TypeText,
-	}
-	if err := repo.SendMessage(context.Background(), msg,
+	return sendTextWithKey(t, repo, from, to, content, "", at)
+}
+
+// sendTextWithKey 发一条文本消息；clientKey 非空时启用幂等。
+func sendTextWithKey(t *testing.T, repo *mysql.Repo, from, to uint64, content, clientKey string, at time.Time) (*domain.Message, bool) {
+	t.Helper()
+	msg, duplicated, err := repo.Send(context.Background(), domain.SendCommand{
+		SenderID:    ctype.NewID(from),
+		ReceiverID:  ctype.NewID(to),
+		Content:     content,
+		ClientMsgID: clientKey,
+		SendTime:    at,
+		MsgType:     domain.TypeText,
+	},
 		domain.Display{Nickname: "甲", Avatar: "a.png"},
 		domain.Display{Nickname: "乙", Avatar: "b.png"},
 		domain.Summary(domain.TypeText, content),
-	); err != nil {
+	)
+	if err != nil {
 		t.Fatalf("发送消息失败: %v", err)
 	}
-	return msg
+	return &msg, duplicated
 }
 
 // sessionOf 读某用户视角下的一条会话。
@@ -93,7 +105,7 @@ func TestSendMessageCreatesBothSidesAndCountsUnread(t *testing.T) {
 
 	repo, db := setup(t)
 	at := time.Date(2026, 1, 1, 10, 0, 0, 0, time.UTC)
-	msg := sendText(t, repo, 100, 200, "在吗", at)
+	msg, _ := sendText(t, repo, 100, 200, "在吗", at)
 
 	sessionID := domain.BuildSessionID(ctype.NewID(100), ctype.NewID(200))
 	// session_id 与方向无关：双方看到的是同一个 id。
@@ -199,8 +211,8 @@ func TestMarkReadDecreasesUnreadAndIsIdempotent(t *testing.T) {
 
 	repo, db := setup(t)
 	base := time.Date(2026, 1, 1, 10, 0, 0, 0, time.UTC)
-	m1 := sendText(t, repo, 100, 200, "一", base)
-	m2 := sendText(t, repo, 100, 200, "二", base.Add(time.Minute))
+	m1, _ := sendText(t, repo, 100, 200, "一", base)
+	m2, _ := sendText(t, repo, 100, 200, "二", base.Add(time.Minute))
 
 	ctx := context.Background()
 	sessionID := domain.BuildSessionID(ctype.NewID(100), ctype.NewID(200))
@@ -239,7 +251,7 @@ func TestMarkReadIgnoresOthersMessages(t *testing.T) {
 
 	repo, db := setup(t)
 	base := time.Date(2026, 1, 1, 10, 0, 0, 0, time.UTC)
-	msg := sendText(t, repo, 100, 200, "给乙的", base)
+	msg, _ := sendText(t, repo, 100, 200, "给乙的", base)
 
 	// 让 300 去标记一条不是发给他的消息。
 	affected, err := repo.MarkRead(context.Background(), ctype.NewID(300), []ctype.ID{msg.ID})
@@ -255,6 +267,110 @@ func TestMarkReadIgnoresOthersMessages(t *testing.T) {
 	if unread != 1 {
 		t.Fatalf("越权标记不该影响接收方未读，实际 %d", unread)
 	}
+}
+
+// TestDeleteMessagesForUserWritesUserState 删除消息要真的写进用户状态表：
+// 删除只对发起者生效（对方仍能看到），删除后再查消息列表不再返回它们。
+//
+// # 为什么这条用例必须存在
+//
+// 状态表是唯一一张既被读（ListMessages 的过滤子查询、管理端 UserDeletedAt）
+// 又被写的表，而原来的 6 个 chat 集成用例没有一个走到写入路径。表名写错时
+// 它们全绿，生产第一次点"删除消息"就 Error 1146。这里从公开仓储接口走完
+// 读-写-再读，表名漂移会立刻暴露。
+func TestDeleteMessagesForUserWritesUserState(t *testing.T) {
+	t.Parallel()
+
+	repo, db := setup(t)
+	base := time.Date(2026, 1, 1, 10, 0, 0, 0, time.UTC)
+	m1, _ := sendText(t, repo, 100, 200, "一", base)
+	m2, _ := sendText(t, repo, 100, 200, "二", base.Add(time.Minute))
+	m3, _ := sendText(t, repo, 100, 200, "三", base.Add(2*time.Minute))
+	sessionID := domain.BuildSessionID(ctype.NewID(100), ctype.NewID(200))
+	ctx := context.Background()
+
+	deleted, err := repo.DeleteMessagesForUser(ctx, ctype.NewID(200), []ctype.ID{m1.ID, m2.ID})
+	if err != nil {
+		t.Fatalf("删除消息失败（状态表名/写入路径可能不对）: %v", err)
+	}
+	if len(deleted) != 2 {
+		t.Fatalf("应命中 2 条可删消息，实际 %d", len(deleted))
+	}
+
+	// 状态行确实落在真表的软删列上。
+	if n := countUserStateRows(t, db, 200, sessionID); n != 2 {
+		t.Fatalf("状态表应有 2 条删除记录，实际 %d", n)
+	}
+
+	// 发起者视角：被删的两条不再出现，第三条仍在。
+	got, total, err := repo.ListMessages(ctx, domain.MessageQuery{
+		UserID: ctype.NewID(200), SessionID: sessionID, Page: domain.Page{Page: 1, Limit: 10},
+	})
+	if err != nil {
+		t.Fatalf("删除后查消息列表失败: %v", err)
+	}
+	if total != 1 || len(got) != 1 || got[0].ID != m3.ID {
+		t.Fatalf("删除后应只剩 1 条未删消息（m3=%s），实际 total=%d len=%d", m3.ID, total, len(got))
+	}
+
+	// 对方视角不变：用户级删除不动原消息。
+	other, otherTotal, err := repo.ListMessages(ctx, domain.MessageQuery{
+		UserID: ctype.NewID(100), SessionID: sessionID, Page: domain.Page{Page: 1, Limit: 10},
+	})
+	if err != nil {
+		t.Fatalf("对方查消息列表失败: %v", err)
+	}
+	if otherTotal != 3 || len(other) != 3 {
+		t.Fatalf("发送方仍应看到 3 条，实际 total=%d len=%d", otherTotal, len(other))
+	}
+
+	// 管理端读删除时间走的是同一张表的读路径。
+	ats, err := repo.UserDeletedAt(ctx, ctype.NewID(200), sessionID, []ctype.ID{m1.ID, m2.ID, m3.ID})
+	if err != nil {
+		t.Fatalf("查删除时间失败: %v", err)
+	}
+	if len(ats) != 2 {
+		t.Fatalf("应能查到 2 条删除时间，实际 %d", len(ats))
+	}
+	if _, ok := ats[m3.ID]; ok {
+		t.Fatal("未删除的 m3 不该有删除时间")
+	}
+
+	// 幂等：再删一次不报错，也不新增状态行（唯一键 + upsert）。
+	again, err := repo.DeleteMessagesForUser(ctx, ctype.NewID(200), []ctype.ID{m1.ID})
+	if err != nil {
+		t.Fatalf("重复删除失败: %v", err)
+	}
+	if len(again) != 1 {
+		t.Fatalf("重复删除应命中 1 条消息，实际 %d", len(again))
+	}
+	if n := countUserStateRows(t, db, 200, sessionID); n != 2 {
+		t.Fatalf("重复删除不该新增状态行，实际 %d", n)
+	}
+
+	// 非参与者删不掉：条件必须是 sender_id 或 receiver_id = 该用户。
+	none, err := repo.DeleteMessagesForUser(ctx, ctype.NewID(300), []ctype.ID{m1.ID, m2.ID, m3.ID})
+	if err != nil {
+		t.Fatalf("非参与者删除失败: %v", err)
+	}
+	if len(none) != 0 {
+		t.Fatalf("非参与者不该删掉别人的消息，实际命中 %d 条", len(none))
+	}
+}
+
+// countUserStateRows 数某个用户在某个会话下的软删状态行。
+//
+// 这里直接查真表而不是只走接口：Ticket #190 要证明的正是"写入落在
+// schema.sql 里那张 chat_msg_user_state_models"，而不是一张名字相近的表。
+func countUserStateRows(t *testing.T, db *gorm.DB, userID uint64, sessionID string) int64 {
+	t.Helper()
+	var n int64
+	if err := db.Table("chat_msg_user_state_models").
+		Where("user_id = ? AND session_id = ? AND deleted_at IS NOT NULL", userID, sessionID).
+		Count(&n).Error; err != nil {
+		t.Fatalf("统计状态行失败: %v", err)
+	}
+	return n
 }
 
 // TestListSessionsOrdersByLastMsgTime 会话列表按最后消息时间倒序。
@@ -284,4 +400,183 @@ func TestListSessionsOrdersByLastMsgTime(t *testing.T) {
 		t.Fatalf("最新对话应排第一（receiver=300），实际 receiver=%s", rows[0].ReceiverID)
 	}
 	_ = db
+}
+
+// TestSendWithClientKeyIsIdempotent 同一 client_msg_id 重复提交必须：
+//   - 返回第一次落库的那条消息（同一个 ID）；
+//   - 消息表只有一条（不是两条）；
+//   - 接收方未读只加 1（重复提交整体回滚，不会再加一次）；
+//   - 发件箱只有一条通知事件（否则对方会收到两次"新消息"）。
+//
+// 幂等靠"（发送人, 幂等键）→ 主键"的确定性映射 + 主键唯一约束实现，
+// 所以它不依赖 Redis、也不依赖进程内状态。换了幂等键就是一条新消息 ——
+// 这条同时钉住"幂等不能退化成内容去重"（同一句话发两次是两条真实消息）。
+func TestSendWithClientKeyIsIdempotent(t *testing.T) {
+	t.Parallel()
+
+	repo, db := setup(t)
+	base := time.Date(2026, 1, 1, 10, 0, 0, 0, time.UTC)
+	first, duplicated := sendTextWithKey(t, repo, 100, 200, "在吗", "client-key-1", base)
+	if duplicated {
+		t.Fatal("第一次发送不该是幂等命中")
+	}
+
+	second, duplicated := sendTextWithKey(t, repo, 100, 200, "在吗", "client-key-1", base.Add(time.Second))
+	if !duplicated {
+		t.Fatal("重复提交同一个幂等键应命中幂等，而不是产生第二条消息")
+	}
+	if second.ID != first.ID {
+		t.Fatalf("幂等命中应返回第一次的消息 id=%s，实际 %s", first.ID, second.ID)
+	}
+	if second.SessionID != first.SessionID {
+		t.Fatalf("幂等命中应返回同一会话 %s，实际 %s", first.SessionID, second.SessionID)
+	}
+
+	var msgCount int64
+	if err := db.Table("chat_msg_models").Count(&msgCount).Error; err != nil {
+		t.Fatalf("统计消息失败: %v", err)
+	}
+	if msgCount != 1 {
+		t.Fatalf("重复提交只能有一条消息，实际 %d 条", msgCount)
+	}
+
+	unread, _, lastID, _ := sessionOf(t, db, 200, domain.BuildSessionID(ctype.NewID(100), ctype.NewID(200)))
+	if unread != 1 {
+		t.Fatalf("重复提交不该把未读再加一次，实际未读 %d", unread)
+	}
+	if lastID != first.ID.Uint64() {
+		t.Fatalf("会话最后一条消息应仍是幂等命中那条 id=%s，实际 %d", first.ID, lastID)
+	}
+	if n := len(outboxEvents(t, db, domain.EventMessageSent)); n != 1 {
+		t.Fatalf("重复提交不该多写一条发送通知事件，实际 %d 条", n)
+	}
+
+	// 换一个幂等键就是一条新消息（不是内容去重）。
+	third, duplicated := sendTextWithKey(t, repo, 100, 200, "在吗", "client-key-2", base.Add(2*time.Second))
+	if duplicated {
+		t.Fatal("不同幂等键不该被当成重复提交")
+	}
+	if third.ID == first.ID {
+		t.Fatal("不同幂等键应得到不同消息 ID")
+	}
+	if err := db.Table("chat_msg_models").Count(&msgCount).Error; err != nil {
+		t.Fatalf("统计消息失败: %v", err)
+	}
+	if msgCount != 2 {
+		t.Fatalf("不同幂等键应产生第二条消息，实际 %d 条", msgCount)
+	}
+	unread, _, _, _ = sessionOf(t, db, 200, domain.BuildSessionID(ctype.NewID(100), ctype.NewID(200)))
+	if unread != 2 {
+		t.Fatalf("第二条真实消息应把未读加到 2，实际 %d", unread)
+	}
+}
+
+// TestSendWritesOutboxEventInSameTransaction 发送必须在同一事务里写一条
+// chat.message.sent 发件箱事件：这是"WS 降级为通知通道"的投递来源。
+//
+// 断言事件本身（名字、聚合、状态、载荷）而不是"订阅者注册了"：
+// 只有事件真的落表，中继才可能在崩溃后重投、对方不在线时才可能在下一轮补推。
+func TestSendWritesOutboxEventInSameTransaction(t *testing.T) {
+	t.Parallel()
+
+	repo, db := setup(t)
+	base := time.Date(2026, 1, 1, 10, 0, 0, 0, time.UTC)
+	msg, _ := sendText(t, repo, 100, 200, "在吗", base)
+
+	events := outboxEvents(t, db, domain.EventMessageSent)
+	if len(events) != 1 {
+		t.Fatalf("发送应写 1 条 %s 事件，实际 %d 条", domain.EventMessageSent, len(events))
+	}
+	event := events[0]
+	if event.AggregateType != domain.OutboxAggregateType {
+		t.Fatalf("聚合类型应为 %s，实际 %s", domain.OutboxAggregateType, event.AggregateType)
+	}
+	if event.AggregateID != msg.ID {
+		t.Fatalf("事件聚合 ID 应为消息 ID %s，实际 %s", msg.ID, event.AggregateID)
+	}
+	if event.Status != schema.OutboxStatusPending {
+		t.Fatalf("事件初始状态应为 pending，实际 %s", event.Status)
+	}
+
+	var notice domain.SentNotice
+	if err := json.Unmarshal([]byte(event.Payload), &notice); err != nil {
+		t.Fatalf("事件载荷不是合法的 SentNotice: %v", err)
+	}
+	if notice.MessageID != msg.ID || notice.SessionID != msg.SessionID {
+		t.Fatalf("事件载荷与消息不一致: %+v", notice)
+	}
+	if notice.SenderID.Uint64() != 100 || notice.ReceiverID.Uint64() != 200 {
+		t.Fatalf("事件载荷收发人不正确: sender=%s receiver=%s", notice.SenderID, notice.ReceiverID)
+	}
+	// 通知不带正文：正文由接收方收到通知后走 HTTP 重新拉取。
+	if strings.Contains(event.Payload, "在吗") {
+		t.Fatalf("发件箱事件不该带上消息正文，实际载荷 %s", event.Payload)
+	}
+}
+
+// TestMarkReadWritesOutboxReadEvent 已读回执也走发件箱：
+// 按（发送人, 会话）聚合成一条 chat.message.read 事件，由中继推给发送方。
+//
+// 不直推连接池的意义：标记已读是写操作，崩溃/断线后回执仍要能补发。
+func TestMarkReadWritesOutboxReadEvent(t *testing.T) {
+	t.Parallel()
+
+	repo, db := setup(t)
+	base := time.Date(2026, 1, 1, 10, 0, 0, 0, time.UTC)
+	m1, _ := sendText(t, repo, 100, 200, "一", base)
+	m2, _ := sendText(t, repo, 100, 200, "二", base.Add(time.Minute))
+
+	affected, err := repo.MarkRead(context.Background(), ctype.NewID(200), []ctype.ID{m1.ID, m2.ID})
+	if err != nil {
+		t.Fatalf("标记已读失败: %v", err)
+	}
+	if len(affected) != 2 {
+		t.Fatalf("应命中 2 条未读消息，实际 %d", len(affected))
+	}
+
+	sessionID := domain.BuildSessionID(ctype.NewID(100), ctype.NewID(200))
+	events := outboxEvents(t, db, domain.EventMessagesRead)
+	if len(events) != 1 {
+		t.Fatalf("同一发送人+会话应聚合成 1 条已读事件，实际 %d 条", len(events))
+	}
+
+	var read domain.ReadEvent
+	if err := json.Unmarshal([]byte(events[0].Payload), &read); err != nil {
+		t.Fatalf("事件载荷不是合法的 ReadEvent: %v", err)
+	}
+	if read.ReaderID.Uint64() != 200 {
+		t.Fatalf("已读事件读者应为 200，实际 %s", read.ReaderID)
+	}
+	if read.SenderID.Uint64() != 100 {
+		t.Fatalf("已读事件应推给发送人 100，实际 %s", read.SenderID)
+	}
+	if read.SessionID != sessionID {
+		t.Fatalf("已读事件会话不正确，实际 %s", read.SessionID)
+	}
+	if len(read.MsgIDList) != 2 {
+		t.Fatalf("已读事件应带上本次命中的 2 条消息，实际 %d", len(read.MsgIDList))
+	}
+}
+
+// outboxRow 是发件箱事件在测试里的读模型。
+type outboxRow struct {
+	EventName     string
+	AggregateType string
+	AggregateID   ctype.ID
+	Payload       string
+	Status        string
+}
+
+// outboxEvents 按事件名读发件箱里的行。
+func outboxEvents(t *testing.T, db *gorm.DB, name string) []outboxRow {
+	t.Helper()
+	var rows []outboxRow
+	if err := db.Table("outbox_event_models").
+		Select("event_name", "aggregate_type", "aggregate_id", "payload", "status").
+		Where("event_name = ?", name).
+		Order("id asc").
+		Find(&rows).Error; err != nil {
+		t.Fatalf("读发件箱事件失败: %v", err)
+	}
+	return rows
 }

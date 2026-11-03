@@ -171,8 +171,7 @@ func writeESJSON(w http.ResponseWriter, code int, body string) {
 }
 
 func TestSyncArticleDocuments(t *testing.T) {
-	// 封面取景来自通用取景表：同步会读它投影出 ES 文档的 crop 字段。
-	db := testutil.SetupSQLite(t, &schema.UserRow{}, &schema.UserConfRow{}, &schema.ArticleRow{}, &schema.TagRow{}, &schema.ArticleTagRow{}, &schema.PictureCropRow{})
+	db := testutil.SetupSQLite(t, &schema.UserRow{}, &schema.UserConfRow{}, &schema.ArticleRow{}, &schema.TagRow{}, &schema.ArticleTagRow{})
 	testutil.InitGlobals()
 	testutil.SetConfig(&conf.Config{
 		ES:    conf.ES{Index: "article_index"},

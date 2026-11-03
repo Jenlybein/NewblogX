@@ -11,11 +11,11 @@ import (
 	"myblogx/internal/article/domain/collection"
 	"myblogx/internal/article/domain/favorite"
 	"myblogx/internal/article/domain/hottop"
+	"myblogx/internal/article/domain/project"
 	"myblogx/internal/article/domain/review"
 	"myblogx/internal/article/domain/taxonomy"
 	"myblogx/internal/article/domain/top"
 	"myblogx/internal/article/domain/viewhistory"
-	sitedomain "myblogx/internal/site/domain"
 )
 
 // Repos 把各 fake 仓储聚成一个 app.Repos。
@@ -41,7 +41,7 @@ type Repos struct {
 	users          *Users
 	diggs          *Diggs
 	collectionRepo *CollectionRepo
-	cropRepo       *CropRepo
+	projectRepo    *ProjectRepo
 }
 
 // NewRepos 构造一套全部为空的 fake 仓储。
@@ -67,7 +67,7 @@ func NewRepos() *Repos {
 		users:          NewUsers(),
 		diggs:          NewDiggs(),
 		collectionRepo: NewCollectionRepo(articles),
-		cropRepo:       NewCropRepo(),
+		projectRepo:    NewProjectRepo(articles),
 	}
 }
 
@@ -86,8 +86,8 @@ func (r *Repos) Diggs() app.DiggPort { return r.diggs }
 // Collections 返回合集仓储。
 func (r *Repos) Collections() collection.Repository { return r.collectionRepo }
 
-// Crops 返回通用取景表仓储（文章封面取景以 target_type=article 存在其中）。
-func (r *Repos) Crops() sitedomain.PictureCropRepository { return r.cropRepo }
+// Projects 返回项目仓储（与合集并列的独立内容实体）。
+func (r *Repos) Projects() project.Repository { return r.projectRepo }
 
 // FakeCounters 返回计数 fake。
 func (r *Repos) FakeCounters() *Counters { return r.counters }
@@ -156,8 +156,8 @@ func (r *Repos) FakeHotTops() *HotTopRepo { return r.hotTopRepo }
 // FakeCollections 返回合集仓储 fake。
 func (r *Repos) FakeCollections() *CollectionRepo { return r.collectionRepo }
 
-// FakeCrops 返回取景表 fake（断言"写没写、读回什么"用）。
-func (r *Repos) FakeCrops() *CropRepo { return r.cropRepo }
+// FakeProjects 返回项目仓储 fake。
+func (r *Repos) FakeProjects() *ProjectRepo { return r.projectRepo }
 
 // FakeHistory 返回浏览历史仓储 fake。
 func (r *Repos) FakeHistory() *ViewHistoryRepo { return r.historyRepo }
@@ -191,7 +191,7 @@ func (r *Repos) snapshotAll() map[string]any {
 		"comments":    r.comments.Snapshot(),
 		"diggs":       r.diggs.Snapshot(),
 		"collections": r.collectionRepo.Snapshot(),
-		"crops":       r.cropRepo.Snapshot(),
+		"projects":    r.projectRepo.Snapshot(),
 	}
 }
 
@@ -211,7 +211,7 @@ func (r *Repos) restoreAll(snaps map[string]any) {
 	r.comments.RestoreState(snaps["comments"])
 	r.diggs.RestoreState(snaps["diggs"])
 	r.collectionRepo.RestoreState(snaps["collections"])
-	r.cropRepo.RestoreState(snaps["crops"])
+	r.projectRepo.RestoreState(snaps["projects"])
 }
 
 // Tx 是 app.TxManager 的实现。
@@ -450,4 +450,15 @@ func (g *IDGen) NextFolderID() favorite.ID {
 	defer g.mu.Unlock()
 	g.folder++
 	return ctype.NewID(g.folder)
+}
+
+// NextProjectID 返回下一个项目 ID。
+//
+// 与 NextCollectionID 同一做法：测试里只关心唯一且可复现，
+// 不关心跨类型间距（生产用雪花，天然不撞）。
+func (g *IDGen) NextProjectID() project.ID {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	g.article++
+	return ctype.NewID(g.article)
 }

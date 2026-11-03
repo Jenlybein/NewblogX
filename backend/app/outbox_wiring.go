@@ -7,10 +7,26 @@ import (
 	"time"
 
 	articleapp "myblogx/internal/article/app"
+	chatdomain "myblogx/internal/chat/domain"
 	"myblogx/internal/kernel/ctype"
 	notificationapp "myblogx/internal/notification/app"
 	"myblogx/internal/platform/cdc/outboxrelay"
+	"myblogx/internal/platform/es/articlesync"
 )
+
+// OutboxWiringOptions 是本进程中继策略的**显式输入**，由 main 按进程角色决定。
+//
+// 为什么不再从装配结果反推：私信事件的下游只有 WS 连接池，只有 api / all 角色
+// 有它。若靠"WireChat 有没有跑过"来推导 SkipEventNames，WireChat 与
+// WireOutboxRelay 的调用顺序一变，api 进程就会静默跳过 chat.message.sent，
+// 事件被标 done、通知永久丢失。把判断上移到装配处，顺序就不再影响行为。
+type OutboxWiringOptions struct {
+	// DeliverChatPush 表示本进程持有私信 WS 连接池，可以投递私信通知。
+	//
+	// 为 false 时 relayOptions 会把两条私信事件放进 SkipEventNames：
+	// 这些事件保持 pending，等真正持有连接池的进程领取。
+	DeliverChatPush bool
+}
 
 // WireOutboxRelay 启动 outbox 中继，并注册领域事件的真实下游。
 //
@@ -21,12 +37,29 @@ import (
 //
 // 这里注册的下游，就是旧链路里散落在 handler 中、用裸 goroutine 触发的那些副作用
 // （评分、系统通知）。现在它们变成"事件落表 → 中继投递"，崩溃不丢、失败可重试。
-func WireOutboxRelay(infra *Infra) {
+func WireOutboxRelay(infra *Infra, opts OutboxWiringOptions) {
 	if infra == nil || infra.DB == nil {
 		return
 	}
 
-	relay := outboxrelay.New(infra.DB, infra.Logger, relayOptions(infra))
+	relay := outboxrelay.New(infra.DB, infra.Logger, relayOptions(infra, opts))
+
+	registerOutboxSubscribers(relay, infra)
+
+	// 注册为进程内实例，river 的 CDC 路径通过它入队。
+	outboxrelay.SetCurrent(relay)
+	relay.Run()
+}
+
+// registerOutboxSubscribers 把领域事件的真实下游挂到中继上。
+//
+// 单独拆出来的理由：测试要能在**不启动 worker / 补偿扫描**的前提下同步投递一条事件，
+// 同时必须经过与生产同一份订阅表。如果测试自己 replay.On(...) 一遍，
+// "生产忘了注册"这类缺陷永远测不出来。
+func registerOutboxSubscribers(relay *outboxrelay.Relay, infra *Infra) {
+	if relay == nil {
+		return
+	}
 
 	// 评分：创建与发布都要保证有评分记录（复刻旧 create/examine/review 的行为）。
 	relay.On(articleapp.EventArticleCreated, scoreSubscriber(infra))
@@ -42,17 +75,58 @@ func WireOutboxRelay(infra *Infra) {
 	relay.On(articleapp.EventArticleDigg, diggNotifySubscriber(infra))
 	relay.On(articleapp.EventArticleFavorited, favorNotifySubscriber(infra))
 
-	// 注册为进程内实例，river 的 CDC 路径通过它入队。
-	outboxrelay.SetCurrent(relay)
-	relay.Run()
+	// 私信：HTTP 落库是唯一真相，WS 只做通知。
+	//
+	// 发送与已读的推送都从这里投递，不在业务事务里直接写连接池：
+	// 推送失败、进程崩溃都不会丢（事件已随消息一起落库，中继会重投）。
+	// 订阅者在投递时从 Infra 现读连接池，所以注册顺序不影响投递；
+	// 没有连接池的进程靠 relayOptions 的 SkipEventNames 根本不领取这两条事件。
+	relay.On(chatdomain.EventMessageSent, chatSubscriber(infra))
+	relay.On(chatdomain.EventMessagesRead, chatSubscriber(infra))
+
+	// 搜索索引：文章删除后必须真的把文档移除。
+	//
+	// 这是本次修复的根因之一：事件早就在事务里落进发件箱，但没有订阅者，
+	// 中继把"没人订阅"当成成功直接标 done，索引文档永远留着。删除是软删
+	// （库里只更新 deleted_at），ES 不会因为查询过滤不到就算消失。
+	// 写副作用放在这里而不是删除事务里，理由见包注释：失败可重试、耗尽进死信。
+	relay.On(articleapp.EventArticleDeleted, articleDeletedIndexSubscriber(infra))
+}
+
+// articleDeletedIndexSubscriber 在文章删除后移除对应的搜索索引文档。
+//
+// 幂等：中继是 at-least-once，重复投递会再删一次；文档已经不在了时
+// DeleteESDocs 按"目的已达成"处理（404 不算失败），所以重投是安全的。
+func articleDeletedIndexSubscriber(infra *Infra) outboxrelay.Subscriber {
+	return func(_ context.Context, e outboxrelay.Event) error {
+		if infra == nil {
+			return nil
+		}
+		articleID := e.AggregateID
+		if articleID.IsZero() {
+			return nil
+		}
+		// 未启用 ES 时没有可删的索引文档；不早退会把删除事件误判成失败并进死信。
+		if infra.ESClient == nil {
+			return nil
+		}
+		return articlesync.DeleteESDocs(infra.DB, infra.ESClient, []ctype.ID{articleID})
+	}
 }
 
 // relayOptions 把配置里的保留期参数映射成中继参数。
 //
 // 0 值交给 outboxrelay 的 withDefaults 兜底，所以这里不用再判 0：
 // "没配置"与"配成 0"都按默认保留期处理。
-func relayOptions(infra *Infra) outboxrelay.Options {
+func relayOptions(infra *Infra, wire OutboxWiringOptions) outboxrelay.Options {
 	opts := outboxrelay.Options{}
+	// 私信事件的唯一下游是 WS 推送，只有持有连接池的进程（api / all）能做。
+	// 其他角色的中继（river）绝对不能领取它们：领取后找不到连接池，
+	// 订阅者只能"什么都不做"地返回成功，事件被标记 done，通知就永久丢了。
+	// 判据是**显式传入的装配选项**，不是"WireChat 有没有跑过"。
+	if !wire.DeliverChatPush {
+		opts.SkipEventNames = []string{chatdomain.EventMessageSent, chatdomain.EventMessagesRead}
+	}
 	if infra == nil || infra.Config == nil {
 		return opts
 	}

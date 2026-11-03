@@ -1,4 +1,4 @@
-﻿import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 
 import { describe, expect, it } from "vitest";
@@ -6,14 +6,15 @@ import { describe, expect, it } from "vitest";
 import { blockAfter } from "../helpers/designFiles";
 
 /**
- * 轮播取景的固定比例（ADR-0015 决策 3）：16:9 只在两端各定义一处，跨端锁定一致。
+ * 封面的固定比例（#189 封面定形 / #204 取景退场）：16:9 只有一个形状，跨端锁定一致。
  *
- * 为什么是静态断言而不是运行时配置：比例一旦可调，历史图的裁切就会随配置漂移。
- * 这里沿用 tokens.css 同源门禁与 foundation-tokens.test.ts 的形式 —— 读两份源码、
- * 取同一段声明、逐字比较（不做语义/空白宽松，免得"看起来一样但实现已经漂了"）。
+ * #204 之前这里还锁"取景窗的取景框"，取景体系退场后只剩两类会露出封面的框：
+ *   阅读站：首屏轮播面板（所有断点同一比例）。
+ *   后台：上传面板的预览框。
  *
- * 阅读站：首屏轮播面板（所有断点同一比例）。
- * 后台：上传面板的预览框与取景窗的取景框（#45）：两个框各自都必须是 16:9。
+ * 同时这里也负责"取景窗确实没了"的静态断言：组件、算术模块、后台样式块
+ * 一旦被重新引入，这道门禁立刻变红。为什么是静态断言而不是运行时配置：
+ * 比例一旦可调、取景一旦回到渲染路径，历史图与旧封面的裁切就会随环境漂移。
  */
 const projectDir = process.cwd();
 const readerIndex = readFileSync(join(projectDir, "app/pages/index.vue"), "utf8");
@@ -26,7 +27,7 @@ function aspectRatioOf(block: string): string {
 
 const SPEC_RATIO = "16 / 9";
 
-describe("轮播面板固定 16:9：跨端只有一份定义、两端取值一致", () => {
+describe("封面固定 16:9：跨端只有一份形状、两端取值一致", () => {
   it("阅读站面板用 aspect-ratio: 16 / 9 + width: 100%，不再有高度档", () => {
     const panel = blockAfter(readerIndex, ".home-cover__panel {");
 
@@ -45,28 +46,62 @@ describe("轮播面板固定 16:9：跨端只有一份定义、两端取值一�
     expect(readerIndex.match(/aspect-ratio\s*:/gu) ?? []).toHaveLength(1);
   });
 
-  it("后台的预览框与取景框都逐一与阅读站面板同一比例（跨端常量一致性）", () => {
+  it("后台上传预览框与阅读站面板同一比例（跨端常量一致性）", () => {
     const readerPanel = blockAfter(readerIndex, ".home-cover__panel {");
-    // 后台有两个会露出轮播封面的 16:9 框：上传预览框与取景窗的取景框。
-    // 只锁其中一个，另一个漂成 16/10 时这条断言仍会绿——所以必须逐个比对。
-    const adminBoxes = [
-      { name: "上传预览框", block: blockAfter(adminCss, ".admin-upload-panel__picker {") },
-      { name: "取景框", block: blockAfter(adminCss, ".admin-framing__frame {") },
+    // 后台只剩一个会露出轮播封面的 16:9 框（上传预览框）；取景框已随 #204 退场。
+    const preview = blockAfter(adminCss, ".admin-upload-panel__picker {");
+
+    expect(aspectRatioOf(preview), `上传预览框应是 ${SPEC_RATIO}`).toBe(SPEC_RATIO);
+    expect(aspectRatioOf(preview), "上传预览框应与阅读站面板一致").toBe(aspectRatioOf(readerPanel));
+  });
+});
+
+/**
+ * 取景窗全量退场（#204）。
+ *
+ * 两道删除项各锁一层：文件不存在（组件与算术被删）与源码不再引用（渲染路径与
+ * 后台流程不消费取景参数）。只锁文件会在"重建到别的路径"时漏掉；只锁引用会
+ * 在"留着死代码"时漏掉。
+ */
+describe("取景窗已退场：组件与算术模块不再存在", () => {
+  const removed = [
+    "app/utils/coverFraming.ts",
+    "app/utils/bannerFraming.ts",
+    "app/components/studio/StudioCoverFramingView.vue",
+    "app/components/studio/StudioCoverFramingDialog.vue",
+    "../frontend_admin/app/utils/framing.ts",
+    "../frontend_admin/app/components/media/BannerFramingView.vue",
+    "../frontend_admin/app/components/media/BannerFramingDialog.vue",
+  ];
+
+  it.each(removed)("%s 已删除（重新引入取景体系时这里会红）", (path) => {
+    expect(existsSync(join(projectDir, path)), `${path} 应已删除`).toBe(false);
+  });
+
+  it("后台样式里没有取景窗的样式块", () => {
+    expect(adminCss).not.toMatch(/\.admin-framing/u);
+  });
+
+  it("读者站渲染路径不再引用取景样式出口", () => {
+    const files = [
+      readFileSync(join(projectDir, "app/components/article/ArticleCover.vue"), "utf8"),
+      readFileSync(join(projectDir, "app/components/article/ArticleFeedItem.vue"), "utf8"),
+      readFileSync(join(projectDir, "app/components/article/BannerCarousel.vue"), "utf8"),
+      readFileSync(join(projectDir, "app/pages/article/[id].vue"), "utf8"),
     ];
 
-    for (const box of adminBoxes) {
-      expect(aspectRatioOf(box.block), `${box.name}应是 ${SPEC_RATIO}`).toBe(SPEC_RATIO);
-      expect(aspectRatioOf(box.block), `${box.name}应与阅读站面板一致`).toBe(aspectRatioOf(readerPanel));
+    for (const source of files) {
+      expect(source).not.toMatch(/framingStyle|bannerFramingStyle/u);
     }
   });
 });
 
 /**
- * 视差外扩不能把容器的比例改掉（ADR-0015 决策 6 / US9「预览 = 线上」）。
+ * 视差外扩不能把容器的比例改掉（US9「封面只有一个形状」）。
  *
  * 底图比面板四边各外扩 12px 是为 ≤10px 视差留余量；四边**等量**外扩会让容器比例
- * 从 16:9 变成 1.7397，cover 之后线上可见的原图区域比取景框预览紧约 5% —— 于是
- * "预览＝线上"只剩近似。正确做法是横向按比例多扩（12 × 16/9），容器仍是 16:9。
+ * 从 16:9 变成 1.7397，cover 之后线上可见的原图区域会比 16:9 容器紧约 5%，
+ * 同一张封面在首屏与其它页面看起来就不一样了。正确做法是横向按比例多扩（12 × 16/9）。
  */
 describe("视差外扩保持 16:9 配比", () => {
   const carousel = readFileSync(join(projectDir, "app/components/article/BannerCarousel.vue"), "utf8");
@@ -77,7 +112,6 @@ describe("视差外扩保持 16:9 配比", () => {
   ) as [number, number];
 
   it("横向外扩按 16/9 配比放大，而不是与纵向相同", () => {
-    // 等量外扩会把容器比例从 16:9 改成 1.7397，线上因此比取景预览紧约 5%。
     expect(verticalPx).toBeGreaterThan(0);
     expect(horizontalPx).toBeGreaterThan(verticalPx);
     expect(horizontalPx / verticalPx).toBeCloseTo(16 / 9, 3);

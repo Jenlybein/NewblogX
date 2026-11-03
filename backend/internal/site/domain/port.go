@@ -14,14 +14,14 @@ type BannerRepository interface {
 	Find(ctx context.Context, id uint64) (Banner, error)
 	// Create 新建轮播图。
 	Create(ctx context.Context, b *Banner) error
-	// Update 覆盖标题/封面/链接/展示状态；取景为 nil 时表示"调用方没传"，保持既有记录不动。
-	//
-	// 取景是部分更新语义：不传不能等于重置成缺省 —— 否则改一个跳转链接就会静默抹掉
-	// 运营调好的取景。显式回到居中要由调用方传一份缺省值过来。
+	// Update 覆盖标题/封面/链接/展示状态。
 	//
 	// 标题走整体替换：传空串就是清空（后台要能把误填的标题改掉），
 	// 调用方在不改标题时也必须把原值带上。
-	Update(ctx context.Context, id uint64, title, cover, href string, show bool, crop *Crop) error
+	//
+	// 封面图在上传前就按 16:9 定形（ADR-0015），本接口只接收定形后的 URL，
+	// 没有焦点/缩放一类的参数。
+	Update(ctx context.Context, id uint64, title, cover, href string, show bool) error
 	// Delete 批量删除，返回实际删除条数。
 	Delete(ctx context.Context, ids []uint64) (int, error)
 }

@@ -2,83 +2,71 @@ import { describe, expect, it, vi } from 'vitest'
 
 import {
   buildBannerCreatePayload,
-  buildBannerReframePayload,
   describeBannerCoverSize,
   readImageSize,
-  requiresFraming,
-  saveBannerReframe,
   uploadBannerCover,
 } from '~/utils/bannerCover'
 import type { ImageSizeProbe } from '~/utils/bannerCover'
 
 /**
- * 后台上传即取景的编排单元测试（#49）。
+ * 后台上传前定形的编排单元测试（#49；#200 起上传前先定形；#204 取景退场）。
  *
- * 断言的是**可观察的决定与副作用顺序**：合规/不合规怎么判、创建请求里带了什么、
- * 上传失败时会不会继续创建。页面交给 Vue，这里只锁业务规则。
+ * 断言的是**可观察的决定与副作用顺序**：创建请求里带了什么、上传失败时会不会继续
+ * 创建、封面尺寸读数怎么收敛。取景窗与 `crop` 载荷已在 #204 全量退场：
+ * 选中的图先在客户端定形成 16:9 再上传，请求体里不再有任何取景参数。
  */
 
-describe('requiresFraming', () => {
-  it('16:9 与 ±1% 边界直接上传，不弹取景窗', () => {
-    expect(requiresFraming({ width: 1920, height: 1080 })).toBe(false)
-    expect(requiresFraming({ width: 1280, height: 720 })).toBe(false)
-    // 1616×900 恰好 +1%，仍然是合规的一侧。
-    expect(requiresFraming({ width: 1616, height: 900 })).toBe(false)
-  })
-
-  it('比例差超过 1% 必须先取景（含竖图与 3:2 横图）', () => {
-    expect(requiresFraming({ width: 1617, height: 900 })).toBe(true)
-    expect(requiresFraming({ width: 1200, height: 800 })).toBe(true)
-    expect(requiresFraming({ width: 1080, height: 1920 })).toBe(true)
-  })
-
-  it('尺寸非法时按"需要取景"处理（这种图本来就没法直接上传）', () => {
-    expect(requiresFraming({ width: 0, height: 0 })).toBe(true)
-    expect(requiresFraming({ width: Number.NaN, height: 1080 })).toBe(true)
-  })
-})
-
 describe('buildBannerCreatePayload', () => {
-  it('没有取景记录时带缺省取景（居中、缩放 1），不是省略 crop', () => {
+  it('请求体只带封面 ID / 标题 / 跳转地址 / 展示开关，没有 crop 字段', () => {
     const payload = buildBannerCreatePayload({
       coverImageId: '42',
+      title: '春季上新',
       href: 'https://example.com',
       show: true,
-      framing: null,
     })
 
     expect(payload).toEqual({
       cover_image_id: '42',
-      title: '',
+      title: '春季上新',
       href: 'https://example.com',
       show: true,
-      crop: { focus_x: 0.5, focus_y: 0.5, zoom: 1 },
     })
+    expect('crop' in payload).toBe(false)
   })
 
-  it('取景参数先钳进合法范围再落进请求体', () => {
+  it('缺省标题收敛成空串（创建路径标题可空，但字段不能缺）', () => {
     const payload = buildBannerCreatePayload({
       coverImageId: '42',
       href: '',
       show: false,
-      framing: { focus_x: -0.2, focus_y: 1.4, zoom: 2.4 },
     })
 
-    expect(payload.crop).toEqual({ focus_x: 0, focus_y: 1, zoom: 2 })
+    expect(payload.title).toBe('')
   })
 
-  it('href / show / 图片 ID 原样透传（创建轮播不只提交取景）', () => {
+  it('纯空白标题收敛成空串（不落一条只有空格的标题）', () => {
     const payload = buildBannerCreatePayload({
-      coverImageId: '99',
+      coverImageId: '42',
+      title: '   ',
       href: '',
       show: false,
-      framing: { focus_x: 0.25, focus_y: 0.75, zoom: 1.5 },
+    })
+
+    expect(payload.title).toBe('')
+  })
+
+  it('href / show / 图片 ID 原样透传', () => {
+    const payload = buildBannerCreatePayload({
+      coverImageId: '99',
+      title: ' 标题 ',
+      href: 'https://example.com/a',
+      show: false,
     })
 
     expect(payload.cover_image_id).toBe('99')
-    expect(payload.href).toBe('')
+    expect(payload.title).toBe('标题')
+    expect(payload.href).toBe('https://example.com/a')
     expect(payload.show).toBe(false)
-    expect(payload.crop).toEqual({ focus_x: 0.25, focus_y: 0.75, zoom: 1.5 })
   })
 })
 
@@ -144,14 +132,14 @@ function stubProbe(width: number, height: number, outcome: 'load' | 'error'): Pr
 }
 
 describe('readImageSize', () => {
-  it('在浏览器本地读到原始像素尺寸后才继续（不先上传）', async () => {
+  it('在浏览器本地读到像素尺寸后才继续（不先上传）', async () => {
     const probe = stubProbe(3200, 1800, 'load')
 
     await expect(readImageSize('blob:cover', () => probe)).resolves.toEqual({ width: 3200, height: 1800 })
     expect(probe.requestedUrl).toBe('blob:cover')
   })
 
-  it('加载成功但宽高为 0 时返回 null（不能拿 0×0 去判比例）', async () => {
+  it('加载成功但宽高为 0 时返回 null（不能拿 0×0 冒充尺寸）', async () => {
     await expect(readImageSize('blob:broken', () => stubProbe(0, 0, 'load'))).resolves.toBeNull()
     await expect(readImageSize('blob:flat', () => stubProbe(3200, 0, 'load'))).resolves.toBeNull()
   })
@@ -163,7 +151,7 @@ describe('readImageSize', () => {
     ).resolves.toBeNull()
   })
 
-  it('图片加载失败返回 null（页面据此报错并中止本次上传）', async () => {
+  it('图片加载失败返回 null（列表显示"尺寸未知"）', async () => {
     await expect(readImageSize('blob:damaged', () => stubProbe(0, 0, 'error'))).resolves.toBeNull()
   })
 })
@@ -181,91 +169,12 @@ describe('describeBannerCoverSize', () => {
     expect(describeBannerCoverSize({ width: 100, height: 0 })).toBeNull()
   })
 
-  it('回传"宽 × 高"与比例是否合规（16:9 与像素噪声都算合规）', () => {
-    expect(describeBannerCoverSize({ width: 1920, height: 1080 })).toEqual({
-      width: 1920,
-      height: 1080,
-      label: '1920 × 1080',
-      compliant: true,
+  it('只回传"宽 × 高"（#204 起不再判比例合规）', () => {
+    expect(describeBannerCoverSize({ width: 1600, height: 900 })).toEqual({
+      width: 1600,
+      height: 900,
+      label: '1600 × 900',
     })
-    expect(describeBannerCoverSize({ width: 1919, height: 1079 })?.compliant).toBe(true)
-    expect(describeBannerCoverSize({ width: 1200, height: 800 })?.compliant).toBe(false)
-  })
-})
-
-describe('buildBannerReframePayload', () => {
-  it('没有行 ID 或图片 ID 时返回 null——更新接口没有封面就无从整体替换', () => {
-    expect(buildBannerReframePayload({ id: '', cover_image_id: '7' }, null)).toBeNull()
-    expect(buildBannerReframePayload({ id: '1', cover_image_id: undefined }, null)).toBeNull()
-    expect(buildBannerReframePayload({ id: '1', cover_image_id: '' }, null)).toBeNull()
-  })
-
-  it('保留该行原有的 href / show（PUT 是整体替换，不能顺手清掉别的字段）', () => {
-    const write = buildBannerReframePayload(
-      { id: '1', cover_image_id: '7', href: 'https://example.com', show: true },
-      { focus_x: 0.2, focus_y: 0.8, zoom: 1.5 },
-    )
-
-    expect(write).toEqual({
-      id: '1',
-      payload: {
-        cover_image_id: '7',
-        // 更新是整体替换：不改标题的路径也必须把该行原值带上（这里原值缺失 → 空串）。
-        title: '',
-        href: 'https://example.com',
-        show: true,
-        crop: { focus_x: 0.2, focus_y: 0.8, zoom: 1.5 },
-      },
-    })
-  })
-
-  it('缺少 href / show 时给出确定的缺省值，并把取景钳进合法范围', () => {
-    const write = buildBannerReframePayload(
-      { id: '1', cover_image_id: '7' },
-      { focus_x: -1, focus_y: 2, zoom: 0.5 },
-    )
-
-    expect(write?.payload.href).toBe('')
-    expect(write?.payload.show).toBe(false)
-    expect(write?.payload.crop).toEqual({ focus_x: 0, focus_y: 1, zoom: 1 })
-  })
-})
-
-describe('saveBannerReframe', () => {
-  it('取消/无封面时不发更新请求（返回 false）', async () => {
-    const update = vi.fn(async () => undefined)
-
-    await expect(saveBannerReframe({ id: '1', cover_image_id: '' }, null, update)).resolves.toBe(false)
-    expect(update).not.toHaveBeenCalled()
-  })
-
-  it('确认后走更新接口，id 与完整请求体都来自该行', async () => {
-    const update = vi.fn(async () => undefined)
-
-    await expect(
-      saveBannerReframe(
-        { id: '9', cover_image_id: '7', href: 'https://example.com', show: false },
-        { focus_x: 0.3, focus_y: 0.6, zoom: 1.2 },
-        update,
-      ),
-    ).resolves.toBe(true)
-
-    expect(update).toHaveBeenCalledWith('9', {
-      cover_image_id: '7',
-      title: '',
-      href: 'https://example.com',
-      show: false,
-      crop: { focus_x: 0.3, focus_y: 0.6, zoom: 1.2 },
-    })
-  })
-
-  it('更新失败原样上抛（页面据此提示，不假装已保存）', async () => {
-    const update = vi.fn(async () => {
-      throw new Error('网络中断')
-    })
-
-    await expect(
-      saveBannerReframe({ id: '9', cover_image_id: '7' }, null, update),
-    ).rejects.toThrow('网络中断')
+    expect('compliant' in describeBannerCoverSize({ width: 1200, height: 800 })!).toBe(false)
   })
 })

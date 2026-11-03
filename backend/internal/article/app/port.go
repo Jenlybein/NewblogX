@@ -14,12 +14,12 @@ import (
 	"myblogx/internal/article/domain/collection"
 	"myblogx/internal/article/domain/favorite"
 	"myblogx/internal/article/domain/hottop"
+	"myblogx/internal/article/domain/project"
 	"myblogx/internal/article/domain/review"
 	"myblogx/internal/article/domain/taxonomy"
 	"myblogx/internal/article/domain/top"
 	"myblogx/internal/article/domain/viewhistory"
 	"myblogx/internal/kernel/ctype"
-	sitedomain "myblogx/internal/site/domain"
 )
 
 // Repos 是"一次事务内可用的全部仓储"。
@@ -52,12 +52,9 @@ type Repos interface {
 	// Collections 是合集（管理员编排的有序文章集合）。
 	// 与 HotTops（热门置顶运营位）是两套数据：合集有标题/封面/展示开关，且无条数上限。
 	Collections() collection.Repository
-	// Crops 是通用取景表（picture_crop_models）。
-	//
-	// 文章封面取景在这里只是又一个主体类型（target_type=article）：
-	// 表与读写语义归 site 模块，本模块按 (target_type, target_id) 调用，
-	// 不复制一套行结构，也不另建一张表。
-	Crops() sitedomain.PictureCropRepository
+	// Projects 是项目（与合集并列的独立内容实体）。
+	// 与 Collections 是两套数据、两套表：项目有自己的后台维护页，不共用合集的行。
+	Projects() project.Repository
 }
 
 // DiggPort 是点赞关系端口。
@@ -163,6 +160,11 @@ type IDGen interface {
 	// 不借用 NextArticleID：两次新建的 ID 序列互相穿插时，日志里无法分辨
 	// "这个 ID 是文章还是合集"，而合集的 ID 会出现在读者站 URL 上。
 	NextCollectionID() collection.ID
+	// NextProjectID 生成项目 ID。
+	//
+	// 与 NextCollectionID 分开：项目与合集是两套内容实体，ID 会出现在
+	// 读者站 URL 上，日志里要能分辨"这是项目还是合集"。
+	NextProjectID() project.ID
 }
 
 // Service 是用例集合。

@@ -84,9 +84,7 @@ func (h *Handler) QQLoginURL(c *gin.Context) {
 func (h *Handler) SEO(c *gin.Context) {
 	seo := h.svc.PublicSEO()
 	res.OkWithData(SEOResponse{
-		SiteTitle:    seo.SiteTitle,
 		ProjectTitle: seo.ProjectTitle,
-		Logo:         seo.Logo,
 		Icon:         seo.Icon,
 		Keywords:     seo.Keywords,
 		Description:  seo.Description,
@@ -132,9 +130,7 @@ func (h *Handler) PublicInfo(c *gin.Context) {
 	case "seo":
 		seo := h.svc.PublicSEO()
 		res.OkWithData(SEOResponse{
-			SiteTitle:    seo.SiteTitle,
 			ProjectTitle: seo.ProjectTitle,
-			Logo:         seo.Logo,
 			Icon:         seo.Icon,
 			Keywords:     seo.Keywords,
 			Description:  seo.Description,
@@ -319,7 +315,6 @@ func (h *Handler) BannerCreate(c *gin.Context) {
 		Title:        cr.Title,
 		Href:         cr.Href,
 		Show:         cr.Show,
-		Crop:         cr.Crop.toDomain(),
 	})
 	if err != nil {
 		res.FailWithMsg(err.Error(), c)
@@ -332,7 +327,6 @@ func (h *Handler) BannerCreate(c *gin.Context) {
 		Href:         banner.Href,
 		Title:        banner.Title,
 		Show:         banner.Show,
-		Crop:         fromDomainCrop(banner.Crop),
 	}, c)
 	middleware.EmitActionAuditFromGin(c, middleware.GinAuditInput{
 		ActionName: "banner_create",
@@ -367,14 +361,13 @@ func (h *Handler) BannerUpdate(c *gin.Context) {
 		Title:        cr.Title,
 		Href:         cr.Href,
 		Show:         cr.Show,
-		Crop:         cr.Crop.toDomain(),
 	})
 	if err != nil {
 		if apperr.IsCode(err, apperr.CodeBannerNotFound) {
 			res.FailWithMsg("轮播图不存在", c)
 			return
 		}
-		// 取景越界也走这里：统一响应壳里 "校验失败"（业务码 1001）就是接口层的 400，
+		// 统一响应壳里 "校验失败"（业务码 1001）就是接口层的 400：
 		// 请求被拒绝、什么都不落库，而不是被悄悄钳制。
 		res.FailWithMsg(err.Error(), c)
 		return
@@ -428,7 +421,6 @@ func toBannerItem(b domain.Banner) BannerItem {
 		Cover:     b.Cover,
 		Href:      b.Href,
 		Title:     b.Title,
-		Crop:      fromDomainCrop(b.Crop),
 	}
 	if !b.CoverImageID.IsZero() {
 		id := b.CoverImageID

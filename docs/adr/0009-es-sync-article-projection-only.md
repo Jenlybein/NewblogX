@@ -66,3 +66,42 @@
 - 代码：[cdc/river/river.go](../../backend/internal/platform/cdc/river/river.go)、[cdc/river/sync.go](../../backend/internal/platform/cdc/river/sync.go)（位点与 3 秒节流落位点）
 - 文档：[ADR-0008：死信重投](./0008-dead-letter-replay.md)（投影失败改为"记死信 + 继续跑"）
 - 原始记录：[04 · ADR 合集（v1 归档）](../archive/v1/04-adr-collection.md)
+
+## 后续修订（2026-11-03）：软删投影的三层修复
+
+> 本节记录 #189 合批（#190 / #201）对"文章软删后索引文档仍在"的修复。它不改变上面的决策
+> （ES 同步仍只有文章搜索投影一条路径），只补上该决策落地时漏掉的删除语义。
+
+### 根因
+
+软删在 MySQL 里的形态是 **`article_models.deleted_at` 的一次 UPDATE**，不是 DELETE 行。这条链路上有三处同时不成立：
+
+1. 发件箱里早就有 `article.deleted` 事件（在删除事务内落库），但中继**没有订阅者**；
+   "没人订阅"被当成成功，事件直接标 done，索引侧从未收到删除；
+2. 增量投影按"变更列 → 局部更新"构造 bulk，而 `deleted_at` **不是可投影列**，
+   这次 UPDATE 产出的 `data` 是空的，对索引零写入；
+3. 读侧查询没有兜底过滤，ES 里查得到的旧文档就会继续出现在搜索结果里。
+
+### 三层修复（缺一层都会回到"文档还在"）
+
+1. **发件箱订阅者**：`app/outbox_wiring.go` 注册 `article.deleted` 的
+   `articleDeletedIndexSubscriber`，在事务外用 `articlesync.DeleteESDocs` 按 `_id`
+   删除文档。幂等（404 视为目的已达成），失败走重试 / 死信；
+2. **增量软删分支**：`articlesync` 检测变更列里的 `deleted_at`：从空变为时间 →
+   发 delete 动作；从时间变为空（恢复）→ 重建文档。这样即使不经发件箱、
+   只用 binlog 增量，软删也不会被静默忽略；
+3. **索引标记兜底**：mapping 与文档增加 `is_deleted` 布尔字段
+   （`articlesync.SoftDeleteMarkerField`），全量重建时已软删的行会带 `true`，
+   读侧所有列表查询统一过滤它。这条兜底覆盖"事件丢了但全量重建过"的历史数据。
+
+### 残余限制
+
+- **删除事件整条进死信时，旧文档仍可能可见**：三层修复都是"尽力投递 + 读侧兜底"，
+  没有"删除必须最终一致"的强保证。此时应通过死信重投或全量重建（ADR-0009 约束 4）
+  补齐，而不是假设索引已经干净；
+- 读侧兜底只覆盖经过 `internal/search/app` 的查询；新增的 ES 查询入口必须自己带上
+  `is_deleted=false` 过滤，否则会绕过这层兜底。
+
+相关代码：[app/outbox_wiring.go](../../backend/app/outbox_wiring.go)（发件箱订阅者）·
+[cdc/river/article_soft_delete_test.go](../../backend/internal/platform/cdc/river/article_soft_delete_test.go)（增量软删分支）·
+[articlesync/rows.go](../../backend/internal/platform/es/articlesync/rows.go)（`SoftDeleteMarkerField`）

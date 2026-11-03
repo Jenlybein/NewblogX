@@ -1,55 +1,41 @@
 <script setup lang="ts">
 import { computed, ref } from "vue";
 
-import type { CSSProperties } from "vue";
-import { COVER_FORMAT_HINT, describeCoverBadge, formatCoverSize, type CoverUploadRoute } from "~/utils/studioCover";
-import type { Size } from "~/utils/coverFraming";
+import { COVER_SHAPE_RATIO_TEXT, COVER_SHAPE_SIZE_TEXT, type ShapeImageTarget } from "~/utils/imageShaping";
+import { COVER_FORMAT_HINT, describeCoverBadge, formatCoverSize } from "~/utils/studioCover";
 
 /**
  * 文章封面上传面板卡：与后台轮播上传同一套语言。
  *
- * 只有"显示一个值 / 上抛一个动作"，没有自己的比例判断：走哪条路、徽标文案
- * 都由 `~/utils/studioCover` 决定，父级把结果作为 props 传进来。这样
- * "面板说不合规、上传却放行"这类分叉不可能发生。
+ * 只有"显示一个值 / 上抛一个动作"，没有自己的比例判断：徽标文案由
+ * `~/utils/studioCover` 决定，父级把结果作为 props 传进来。票 200 起上传前
+ * 已在客户端定形（16:9、1600×900）；票 204 起取景窗退场，这里没有"取景"入口。
  *
- * 交互全部走原生 button（与取景窗一致）：忙碌态可以用组件测试单独驱动，
- * 不必挂整套 naive-ui 弹层；颜色与圆角仍取同一套语义 token。
+ * 交互全部走原生 button：忙碌态可以用组件测试单独驱动，不必挂整套 naive-ui 弹层；
+ * 颜色与圆角仍取同一套语义 token。
  */
 
-const props = withDefaults(
-  defineProps<{
-    /** 上传在途：卡片进忙碌态，选择入口锁住。 */
-    busy: boolean;
-    /** 已选/已传封面的预览地址。 */
-    previewUrl: string;
-    /** 上传阶段文案（只在该次上传进行中或刚完成时出现）。 */
-    stage: string;
-    /** 留在面板里的错误文案（比一闪而过的 toast 更容易看清）。 */
-    error: string;
-    /** 选过图之后才有原图尺寸。 */
-    size: Size | null;
-    /** 选过图之后才有上传路径；空串＝还没选图（回填的旧封面也没有尺寸）。 */
-    route: CoverUploadRoute | "";
-    /** 取景参数是否已经被确认过。 */
-    framed: boolean;
-    /** 预览图的取景样式（与取景窗同一出口）。 */
-    previewStyle?: CSSProperties | null;
-    /** 原生 change 事件原样交给父级（上传逻辑不在本组件）。 */
-    onFileChange: (event: Event) => void;
-    /** 移除已选封面。 */
-    onClear: () => void;
-    /** 打开取景窗（手动取景 / 调整取景）。 */
-    onFrame: () => void;
-  }>(),
-  { previewStyle: null },
-);
+const props = defineProps<{
+  /** 上传在途：卡片进忙碌态，选择入口锁住。 */
+  busy: boolean;
+  /** 已选/已传封面的预览地址。 */
+  previewUrl: string;
+  /** 上传阶段文案（只在该次上传进行中或刚完成时出现）。 */
+  stage: string;
+  /** 留在面板里的错误文案（比一闪而过的 toast 更容易看清）。 */
+  error: string;
+  /** 定形产物尺寸；选过图之后才有（回填的旧封面没有）。 */
+  size: ShapeImageTarget | null;
+  /** 原生 change 事件原样交给父级（上传逻辑不在本组件）。 */
+  onFileChange: (event: Event) => void;
+  /** 移除已选封面。 */
+  onClear: () => void;
+}>();
 
 const fileInput = ref<HTMLInputElement | null>(null);
 
-const badge = computed(() => (props.route ? describeCoverBadge({ route: props.route, framed: props.framed }) : null));
+const badge = computed(() => (props.size ? describeCoverBadge() : null));
 const sizeLabel = computed(() => formatCoverSize(props.size));
-const canFrame = computed(() => props.route === "frame" || props.framed);
-const frameLabel = computed(() => (props.framed ? "调整取景" : "手动取景"));
 
 /** 替父级点开文件选择：input 在本组件内，让父级持 ref 再回来点它没有意义。 */
 function pickCover() {
@@ -64,19 +50,10 @@ function pickCover() {
       <div>
         <div class="cover-panel__title">文章封面</div>
         <p class="cover-panel__hint">
-          推荐比例 16:9：与 16:9 相差 ≤1% 会立即上传；超出 1% 先取景，确认后自动上传
+          上传前自动裁成 {{ COVER_SHAPE_RATIO_TEXT }}（{{ COVER_SHAPE_SIZE_TEXT }}），只上传定形后的图；读者侧固定居中显示
         </p>
       </div>
       <div class="cover-panel__actions">
-        <button
-          v-if="canFrame"
-          type="button"
-          class="cover-panel__action"
-          :aria-label="frameLabel"
-          :disabled="props.busy"
-          @click="props.onFrame">
-          {{ frameLabel }}
-        </button>
         <button
           type="button"
           class="cover-panel__action"
@@ -115,7 +92,6 @@ function pickCover() {
       <img
         v-if="props.previewUrl"
         :src="props.previewUrl"
-        :style="props.previewStyle ?? undefined"
         alt="文章封面预览"
         class="cover-panel__image">
       <template v-else>
@@ -142,7 +118,7 @@ function pickCover() {
 </template>
 
 <style scoped>
-/* 与后台轮播上传面板同一张卡：抬升纸面 + 虚线取景入口；颜色只消费语义 token。 */
+/* 与后台轮播上传面板同一张卡：抬升纸面 + 虚线选图入口；颜色只消费语义 token。 */
 .cover-panel {
   display: flex;
   width: 100%;

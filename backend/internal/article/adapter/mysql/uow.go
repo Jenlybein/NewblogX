@@ -11,12 +11,12 @@ import (
 	"myblogx/internal/article/domain/collection"
 	"myblogx/internal/article/domain/favorite"
 	"myblogx/internal/article/domain/hottop"
+	"myblogx/internal/article/domain/project"
 	"myblogx/internal/article/domain/review"
 	"myblogx/internal/article/domain/taxonomy"
 	"myblogx/internal/article/domain/top"
 	"myblogx/internal/article/domain/viewhistory"
 	redis_service "myblogx/internal/platform/redis"
-	sitedomain "myblogx/internal/site/domain"
 )
 
 // errNilDB 表示装配期漏传了数据库连接。
@@ -106,6 +106,7 @@ func (r *repos) Diggs() app.DiggPort       { return &diggPort{db: r.db} }
 // 这样"同一个 repos 实例 == 同一个事务句柄"的语义不会被破坏）。
 func (r *repos) Collections() collection.Repository { return NewCollectionRepo(r.db) }
 
-// Crops 现场构造通用取景表仓储：文章封面取景以 target_type=article 存其中，
-// 与文章本体同事务读写。
-func (r *repos) Crops() sitedomain.PictureCropRepository { return NewCropRepo(r.db) }
+// Projects 现场构造项目仓储（与 Collections 同一做法）。
+//
+// 项目与合集是两套表、两套数据，仓储各自独立；共用的是分层与读口径。
+func (r *repos) Projects() project.Repository { return NewProjectRepo(r.db) }

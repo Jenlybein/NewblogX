@@ -29,17 +29,18 @@ type bannerRow struct {
 func (bannerRow) TableName() string { return "banner_models" }
 
 // BannerRepo 实现轮播图持久化端口。
+//
+// 封面图在上传前就已按 16:9 定形（ADR-0015），所以本仓储只读写 banner_models
+// 一张表：没有第二张取景表，也没有"删轮播时清取景孤儿行"的额外路径。
 type BannerRepo struct {
 	db *gorm.DB
-	// crops 是通用取景表；轮播只是它的一个主体类型，不独占一张表。
-	crops *CropRepo
 }
 
 var _ domain.BannerRepository = (*BannerRepo)(nil)
 
 // NewBanner 构造轮播图仓储。
 func NewBanner(db *gorm.DB) *BannerRepo {
-	return &BannerRepo{db: db, crops: NewCrop(db)}
+	return &BannerRepo{db: db}
 }
 
 // List 实现 domain.BannerRepository。
@@ -67,10 +68,6 @@ func (r *BannerRepo) List(ctx context.Context, q domain.BannerQuery) ([]domain.B
 	for _, row := range rows {
 		out = append(out, toBanner(row))
 	}
-	// 取景参数在另一张表里：一趟批量查回来，比每条一次省 N-1 次往返。
-	if err := r.attachCrops(ctx, out); err != nil {
-		return nil, false, err
-	}
 	return out, hasMore, nil
 }
 
@@ -84,9 +81,6 @@ func (r *BannerRepo) Find(ctx context.Context, id uint64) (domain.Banner, error)
 		return domain.Banner{}, err
 	}
 	out := []domain.Banner{toBanner(row)}
-	if err := r.attachCrops(ctx, out); err != nil {
-		return domain.Banner{}, err
-	}
 	return out[0], nil
 }
 
@@ -112,15 +106,8 @@ func (r *BannerRepo) Create(ctx context.Context, b *domain.Banner) error {
 		Href:      b.Href,
 		Title:     b.Title,
 	}
-	// 轮播图与其取景参数必须一起成功：只建出轮播图的那一半，
-	// 前台会按"居中、缩放 1"渲染，运营以为取景生效了。
-	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		if err := tx.Create(&row).Error; err != nil {
-			return err
-		}
-		return r.crops.UpsertTx(tx, domain.CropTargetBanner, b.ID.Uint64(), b.Crop)
-	})
-	if err != nil {
+	// 轮播图本身是单表写入；封面在上传前已定形，没有第二张表要落。
+	if err := r.db.WithContext(ctx).Create(&row).Error; err != nil {
 		return err
 	}
 	b.CreatedAt = now
@@ -128,45 +115,30 @@ func (r *BannerRepo) Create(ctx context.Context, b *domain.Banner) error {
 	return nil
 }
 
-// Update 实现 domain.BannerRepository。crop 为 nil 表示调用方没传取景：保持既有记录不动。
-func (r *BannerRepo) Update(ctx context.Context, id uint64, title, cover, href string, show bool, crop *domain.Crop) error {
-	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		if err := tx.Model(&bannerRow{}).
-			Where("id = ?", id).
-			Updates(map[string]any{
-				"title":      title,
-				"cover":      cover,
-				"href":       href,
-				"show":       show,
-				"updated_at": time.Now(),
-			}).Error; err != nil {
-			return err
-		}
-		if crop == nil {
-			return nil
-		}
-		return r.crops.UpsertTx(tx, domain.CropTargetBanner, id, *crop)
-	})
+// Update 实现 domain.BannerRepository。
+func (r *BannerRepo) Update(ctx context.Context, id uint64, title, cover, href string, show bool) error {
+	return r.db.WithContext(ctx).Model(&bannerRow{}).
+		Where("id = ?", id).
+		Updates(map[string]any{
+			"title":      title,
+			"cover":      cover,
+			"href":       href,
+			"show":       show,
+			"updated_at": time.Now(),
+		}).Error
 }
 
 // Delete 实现 domain.BannerRepository。
 //
-// 轮播图是软删（deleted_at），但取景表没有软删列，顺手真删掉：
-// 留着这些行没有害处，却会让"取景记录数"随历史删除一直涨。
+// 轮播图是软删（deleted_at），只动 banner_models 一张表。取景参数体系已在 #203
+// 全量退场、取景表在 #205 物理下线：这里不再有任何跨表清理，删轮播不会再去操作
+// 一张已不存在的表。
 func (r *BannerRepo) Delete(ctx context.Context, ids []uint64) (int, error) {
 	if len(ids) == 0 {
 		return 0, nil
 	}
-	var affected int
-	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		res := tx.Where("id IN ?", ids).Delete(&bannerRow{})
-		if res.Error != nil {
-			return res.Error
-		}
-		affected = int(res.RowsAffected)
-		return r.crops.DeleteTx(tx, domain.CropTargetBanner, ids)
-	})
-	return affected, err
+	res := r.db.WithContext(ctx).Where("id IN ?", ids).Delete(&bannerRow{})
+	return int(res.RowsAffected), res.Error
 }
 
 // toBanner 把表行转成领域实体。

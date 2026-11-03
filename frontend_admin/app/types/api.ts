@@ -56,19 +56,14 @@ export type ArticleReviewTaskListResponseData = RequiredSchema<"internal_article
 
 export type BannerModel = RequiredSchema<"internal_site_adapter_http.BannerItem">;
 
-/** 轮播取景参数：创建 / 更新请求里的 `crop`。 */
-export type BannerCrop = RequiredSchema<"internal_site_adapter_http.BannerCrop">;
-
 /**
  * 后台创建 / 更新轮播时使用的**完整**请求体。
  *
- * 契约把 `href` / `show` / `crop` 标成可选（为了兼容还没接取景的老调用方），
- * 但后台写入时三个字段总是显式带上；这里收成必填，免得页面漏传 `crop` 时
- * 悄悄退回居中。字段名仍全部派生自契约。
+ * 契约把 `href` / `show` / `title` 标成可选（标题本来就允许空），
+ * 但后台写入时四个字段总是显式带上；这里收成必填，免得页面漏传标题时
+ * 悄悄把已有标题清成空串。字段名仍全部派生自契约。
  */
-export type BannerWritePayload = Required<Schema<"internal_site_adapter_http.BannerCreateRequest">> & {
-  crop: BannerCrop;
-};
+export type BannerWritePayload = Required<Schema<"internal_site_adapter_http.BannerCreateRequest">>;
 
 /** 管理端一张右栏卡片：含停用项，带服务端口径的顺序号。 */
 export type AdminSidebarCardItem = RequiredSchema<"internal_site_adapter_http.AdminSidebarCardItem">;
@@ -201,6 +196,52 @@ export type CollectionBatchIncludePayload = Required<Schema<"internal_article_ad
 /** 合集之间排序的请求体：完整有序的合集 ID 列表。 */
 export type CollectionOrderPayload = Required<Schema<"internal_article_adapter_http.CollectionOrderRequest">>;
 
+// ── 项目（与合集并列的独立内容实体）───────────────────────────
+//
+// 项目与合集是两套表、两套接口、两套后台页：类型各自独立声明，后端改一边
+// 不会让另一边静默跟着变。字段形状刻意与合集相同（结构同构是为了心智复用）。
+
+/**
+ * 后台项目列表的一行。
+ *
+ * 带 `fallback_cover`：没上传封面时读者会看到的首篇封面。后台列表按读者的
+ * 样子预览，但编辑表单必须能区分"我传了封面"与"这是回退来的"。
+ */
+export type ProjectAdminCard = RequiredSchema<"internal_article_adapter_http.ProjectAdminCard">;
+
+/** 建项目的请求体。契约里除标题外都可选，后台写入时四个字段总是显式带上。 */
+export type ProjectCreatePayload = Required<Schema<"internal_article_adapter_http.ProjectCreateRequest">>;
+
+/** 改项目内容的请求体：只有标题 / 描述 / 封面，展示开关走独立接口。 */
+export type ProjectUpdatePayload = Required<Schema<"internal_article_adapter_http.ProjectUpdateRequest">>;
+
+/**
+ * 后台「项目编排」页的一行：顺序 + 文章摘要 + 是否失效。
+ *
+ * `stale` 与 `stale_reason` 都由后端用与「热门置顶 / 合集」共用的领域判定算好，
+ * 前端只做展示与清理，**不要**在前端再按文章状态判一次。
+ *
+ * 与读者详情不同，它包含失效行——全集换序要提交完整集合，漏掉失效行会被
+ * 服务端整单拒绝。
+ */
+export type ProjectAdminItem = RequiredSchema<"internal_article_adapter_http.ProjectAdminItem">;
+
+/** 一键清理失效行的结果：本次删掉的条数（重复调用为 0）。 */
+export type ProjectStaleCleanupResult =
+  RequiredSchema<"internal_article_adapter_http.ProjectStaleCleanupResponse">;
+
+/** 批量收录的一篇结局：included / duplicated / not_includable / missing。 */
+export type ProjectBatchIncludeItem = RequiredSchema<"internal_article_adapter_http.ProjectBatchIncludeItem">;
+
+/** 批量收录的汇总：逐篇结果 + 三个计数。 */
+export type ProjectBatchIncludeResponse = RequiredSchema<"internal_article_adapter_http.ProjectBatchIncludeResponse">;
+
+/** 批量收录请求体：一次提交多篇。 */
+export type ProjectBatchIncludePayload = Required<Schema<"internal_article_adapter_http.ProjectBatchIncludeRequest">>;
+
+/** 项目之间排序的请求体：完整有序的项目 ID 列表。 */
+export type ProjectOrderPayload = Required<Schema<"internal_article_adapter_http.ProjectOrderRequest">>;
+
 // ── 热门置顶（运营位）─────────────────────────────────────────
 /**
  * `/articles/hot-top/admin` 的列表项。
@@ -226,8 +267,12 @@ export type ArticleSearchResponseData = Omit<
  */
 export interface SiteRuntimeConfig {
   site_info: {
-    title: string
-    logo: string
+    /**
+     * ICP / 公网安备备案号；空串表示读者站页脚整行不显示。
+     *
+     * 站点标题与 Logo 随 #192 删除：品牌由读者站的代码常量提供，favicon 走
+     * `project.icon`。后台「基础信息」只剩这一项，保存时也不会再带那两个键。
+     */
     beian: string
   }
   project: {
@@ -253,6 +298,14 @@ export interface SiteRuntimeConfig {
     show_non_admin_articles: boolean
   }
   comment: { skip_examining: boolean }
+  /**
+   * 私信的站点级策略（票 202）。
+   *
+   * 陌生人开关放在 site.chat 段，不是某个用户行上的列（零 DDL 不允许给
+   * 既有表加列）。键名必须与后端 `conf/site.Chat` 的 json tag 一致；
+   * 默认值由后端 `site_default_settings.yaml` 显式写成 false，前端不另写默认值。
+   */
+  chat: { stranger_msg_enabled: boolean }
 }
 
 /**

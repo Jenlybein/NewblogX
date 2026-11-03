@@ -77,6 +77,12 @@ const (
 const (
 	// CodeCollectionTitleRequired 合集标题为空。
 	CodeCollectionTitleRequired Code = "collection.title_required"
+	// CodeCollectionTitleTooLong 合集标题超过上限。
+	//
+	// 与 title_required 分开：两者都是 400，但前端提示语与用户动作不同
+	// （补一个标题 vs 删短一点）。合并成一个码时文案只能写"不能为空"，
+	// 超长输入会收到一条与事实不符的提示。
+	CodeCollectionTitleTooLong Code = "collection.title_too_long"
 	// CodeCollectionNotFound 合集不存在。
 	//
 	// 也覆盖"未展示，对读者不可见"：两种情形合并成一个码，读者侧不能靠
@@ -90,6 +96,32 @@ const (
 	CodeCollectionOrderMismatch Code = "collection.order_mismatch"
 	// CodeCollectionArticleMissing 要移除的收录不存在（取消收录是幂等的，正常不会出现）。
 	CodeCollectionArticleMissing Code = "collection.article_missing"
+)
+
+// 项目。
+//
+// 项目与「合集」是并列的独立内容实体：错误码自成一组，日志里要能分辨
+// "项目编排错了"与"合集编排错了"，前端提示语也不同。
+const (
+	// CodeProjectTitleRequired 项目标题为空。
+	CodeProjectTitleRequired Code = "project.title_required"
+	// CodeProjectTitleTooLong 项目标题超过上限。
+	//
+	// 与 title_required 分开：让"必填缺失"与"超长"可分别断言、分别提示。
+	CodeProjectTitleTooLong Code = "project.title_too_long"
+	// CodeProjectNotFound 项目不存在。
+	//
+	// 也覆盖"未展示，对读者不可见"：两种情形合并成一个码，读者侧不能靠
+	// 响应差异探测未发布的项目（与合集同一口径）。
+	CodeProjectNotFound Code = "project.not_found"
+	// CodeProjectArticleDuplicated 同一项目内重复收录同一篇文章。
+	CodeProjectArticleDuplicated Code = "project.article_duplicated"
+	// CodeProjectArticleNotIncludable 文章不是"已发布且可见"，不能收录。
+	CodeProjectArticleNotIncludable Code = "project.article_not_includable"
+	// CodeProjectOrderMismatch 全集顺序替换的输入与当前集合不一致。
+	CodeProjectOrderMismatch Code = "project.order_mismatch"
+	// CodeProjectArticleMissing 要移除的收录不存在（取消收录是幂等的，正常不会出现）。
+	CodeProjectArticleMissing Code = "project.article_missing"
 )
 
 // 审核任务。
@@ -234,17 +266,6 @@ const (
 	CodeSiteConfigMissing Code = "site.config_missing"
 	CodeSiteInfoNotFound  Code = "site.info_not_found"
 	CodeBannerNotFound    Code = "banner.not_found"
-	// CodeBannerCropInvalid 表示取景参数越界（焦点不在 0–1、缩放不在 1–2）。
-	//
-	// 越界一律拒绝而不是钳制：静默改值会让"运营看到的取景"与"读者看到的取景"
-	// 分家，而两边都没有任何提示。
-	CodeBannerCropInvalid Code = "banner.crop_invalid"
-
-	// CodeArticleCropInvalid 表示文章封面取景参数越界。
-	//
-	// 与轮播共用同一套取值口径（焦点 0–1、缩放 1–2），但错误码分开：
-	// 排查时从码就能看出是哪类主体的封面被拒，不必再去猜调用方。
-	CodeArticleCropInvalid Code = "article.crop_invalid"
 
 	// 右栏卡片。
 	//
@@ -376,11 +397,20 @@ var messages = map[Code]string{
 	CodeHotTopOrderMismatch: "排序列表与当前热门置顶不一致，请刷新后重试",
 
 	CodeCollectionTitleRequired:        "合集标题不能为空",
+	CodeCollectionTitleTooLong:         "合集标题不能超过 128 个字符",
 	CodeCollectionNotFound:             "合集不存在",
 	CodeCollectionArticleDuplicated:    "该文章已在合集中",
 	CodeCollectionArticleNotIncludable: "只有已发布且可见的文章可以收录进合集",
 	CodeCollectionOrderMismatch:        "排序列表与当前收录不一致，请刷新后重试",
 	CodeCollectionArticleMissing:       "该文章不在此合集中",
+
+	CodeProjectTitleRequired:        "项目标题不能为空",
+	CodeProjectTitleTooLong:         "项目标题不能超过 128 个字符",
+	CodeProjectNotFound:             "项目不存在",
+	CodeProjectArticleDuplicated:    "该文章已在项目中",
+	CodeProjectArticleNotIncludable: "只有已发布且可见的文章可以收录进项目",
+	CodeProjectOrderMismatch:        "排序列表与当前项目内容不一致，请刷新后重试",
+	CodeProjectArticleMissing:       "该文章不在此项目中",
 
 	CodeReviewTaskNotFound: "审核任务不存在",
 	CodeReviewTaskHandled:  "审核任务已处理",
@@ -462,7 +492,9 @@ var messages = map[Code]string{
 	CodeChatUserNotFound:    "接收人不存在",
 	CodeChatContentEmpty:    "消息内容不能为空",
 	CodeChatTypeUnsupported: "不支持的消息类型",
-	CodeChatStrangerOff:     "对方未开启陌生人私信",
+	// 这条文案必须点明"站点策略"：陌生人私信开关是站点级的（#202），
+	// 用户看到后应该去找管理员改站点开关，而不是怀疑自己被针对或网络故障。
+	CodeChatStrangerOff:     "站点当前不允许陌生人发私信（站点策略，不是网络问题），请联系管理员开启「允许陌生人发私信」",
 	CodeChatNoPermission:    "权限不足",
 	CodeChatSessionNotFound: "会话不存在",
 	CodeChatEmptySelection:  "请选择要操作的消息或会话",
@@ -486,9 +518,6 @@ var messages = map[Code]string{
 	CodeSiteConfigMissing: "运行时配置服务未初始化",
 	CodeSiteInfoNotFound:  "站点信息不存在",
 	CodeBannerNotFound:    "轮播图不存在",
-	CodeBannerCropInvalid: "取景参数超出范围：焦点需在 0 到 1 之间，缩放需在 1 到 2 之间",
-
-	CodeArticleCropInvalid: "取景参数超出范围：焦点需在 0 到 1 之间，缩放需在 1 到 2 之间",
 
 	CodeSidebarCardKindInvalid:   "右栏卡片类型不存在",
 	CodeSidebarCardLimitExceeded: "右栏卡片数量超出上限",

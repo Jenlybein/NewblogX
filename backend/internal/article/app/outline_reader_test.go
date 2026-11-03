@@ -19,12 +19,15 @@ import (
 // 第一篇公开文章，未展示实体与「显示非管理员发布文章」开关的口径不变。
 
 // readerNodeSpec 是测试里往树上播种的一行。
+//
+// ID 语义字段一律 ctype.ID：雪花 ID 是字符串，裸整型既会丢精度，也会被
+// archcheck 的 R12 判违规。
 type readerNodeSpec struct {
-	nodeID    uint64
-	parentID  uint64
+	nodeID    ctype.ID
+	parentID  ctype.ID
 	kind      outline.NodeKind
 	title     string
-	articleID uint64
+	articleID ctype.ID
 	order     int
 }
 
@@ -37,13 +40,13 @@ func seedReaderOutline(
 	nodes := make([]*outline.Node, 0, len(specs))
 	for _, s := range specs {
 		n, err := outline.New(outline.NewParams{
-			ID:        ctype.NewID(s.nodeID),
+			ID:        s.nodeID,
 			OwnerKind: ownerKind,
 			OwnerID:   ownerID,
-			ParentID:  ctype.NewID(s.parentID),
+			ParentID:  s.parentID,
 			Kind:      s.kind,
 			Title:     s.title,
-			ArticleID: ctype.NewID(s.articleID),
+			ArticleID: s.articleID,
 			SortOrder: s.order,
 			Now:       outlineNow,
 		})
@@ -64,9 +67,9 @@ func seedReaderArticleNodes(
 	specs := make([]readerNodeSpec, 0, len(articleIDs))
 	for i, id := range articleIDs {
 		specs = append(specs, readerNodeSpec{
-			nodeID:    uint64(1000 + i),
+			nodeID:    ctype.NewID(uint64(1000 + i)),
 			kind:      outline.NodeKindArticle,
-			articleID: id.Uint64(),
+			articleID: id,
 			order:     i + 1,
 		})
 	}

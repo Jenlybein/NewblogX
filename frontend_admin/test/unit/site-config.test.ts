@@ -66,6 +66,32 @@ describe("旧右栏配置已从后台视图模型下线", () => {
   });
 });
 
+describe("站点标题与 Logo 自定义已删除（#192）", () => {
+  it("基础信息页不再有站点标题与 Logo 输入，只留备案号", () => {
+    const source = readSettingsSite();
+
+    // 这两项读者站从不消费：页头字标与浏览器标题来自品牌常量，favicon 走
+    // project.icon。删掉字段后若输入框还在，保存时它只会被 JSON 忽略 ——
+    // 管理员看到的是一个"改了没反应"的开关。
+    expect(source).not.toContain('label="站点标题"');
+    expect(source).not.toContain('label="Logo URL"');
+    expect(source).not.toContain("config.site_info.title");
+    expect(source).not.toContain("config.site_info.logo");
+    expect(source).toContain("config.site_info.beian");
+  });
+
+  it("手写类型 SiteRuntimeConfig.site_info 只剩 beian（保存载荷不再带被删字段）", () => {
+    const source = readApiTypes();
+    const siteInfo = source.match(/site_info: \{([\s\S]*?)\n {2}\}/u)?.[1] ?? "";
+
+    expect(siteInfo.length).toBeGreaterThan(0);
+    // 页面是整段读取再整段提交：类型里多一个键，保存就会把它原样写回 site 段。
+    expect(siteInfo).not.toMatch(/\btitle\b/u);
+    expect(siteInfo).not.toMatch(/\blogo\b/u);
+    expect(siteInfo).toMatch(/\bbeian: string\b/u);
+  });
+});
+
 describe("「发布与展示」三开关（#60 / ADR-0017 决策 2）", () => {
   const SWITCHES = ["allow_non_admin_publish", "allow_non_admin_draft", "show_non_admin_articles"];
 

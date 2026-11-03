@@ -5,9 +5,10 @@ package site
 // 曾经有一个 `mode`（1 社区 / 2 博客）：它只有枚举声明、默认值与后台下拉框，
 // 全仓没有一处读它，于是"切换站点定位"这个动作什么都不会发生。ADR-0017 决定
 // 删除，站点表达差异改由「发布与展示」三个布尔开关（见 Article）承担。
+// 站点标题与 Logo 曾经也在这里（后台「基础信息」可改）：但读者站页头、浏览器
+// 标题与站点品牌都另有单一来源，这两项改不改都不影响读者看到的东西，于是
+// 整条链删除（#192）—— 品牌回到代码常量，favicon 仍走下面 Project.Icon。
 type SiteInfo struct {
-	Title string `yaml:"title" json:"title"`
-	Logo  string `yaml:"logo" json:"logo"`
 	Beian string `yaml:"beian" json:"beian"`
 }
 

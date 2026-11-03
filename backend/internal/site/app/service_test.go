@@ -11,7 +11,7 @@ import (
 // newEnv 构造一套带默认站点配置的替身。
 func newEnv() *apptest.Env {
 	site := conf.Site{
-		SiteInfo: confsite.SiteInfo{Title: "技术博客", Logo: "/logo.png"},
+		SiteInfo: confsite.SiteInfo{Beian: "粤ICP备12345678号"},
 		Project:  confsite.Project{Title: "项目标题", Icon: "/favicon.ico"},
 		Seo:      confsite.Seo{Keywords: "go,blog", Description: "站点描述"},
 	}
@@ -28,12 +28,16 @@ func newEnv() *apptest.Env {
 func TestPublicViews(t *testing.T) {
 	env := newEnv()
 
-	if got := env.Service.PublicSite(); got.About.Version != "v1.2.3" || got.SiteInfo.Title != "技术博客" {
+	if got := env.Service.PublicSite(); got.About.Version != "v1.2.3" || got.SiteInfo.Beian != "粤ICP备12345678号" {
 		t.Fatalf("站点信息错误: %+v", got)
 	}
 	seo := env.Service.PublicSEO()
 	if seo.ProjectTitle != "项目标题" || seo.Description != "站点描述" || seo.Keywords != "go,blog" {
 		t.Fatalf("SEO 信息错误: %+v", seo)
+	}
+	// favicon 仍走站点配置里的项目图标（站点 Logo 已删除，图标不删）。
+	if seo.Icon != "/favicon.ico" {
+		t.Fatalf("SEO 图标应来自 project.icon，得到 %q", seo.Icon)
 	}
 	ai := env.Service.PublicAI()
 	if !ai.Enable || ai.Nickname != "AI 助手" {
@@ -78,13 +82,13 @@ func TestUpdateAIUpdatesSiteLevelSettings(t *testing.T) {
 func TestUpdateSitePersists(t *testing.T) {
 	env := newEnv()
 	site := env.Service.PublicSite()
-	site.SiteInfo.Title = "新站点"
+	site.SiteInfo.Beian = "京ICP备00000000号"
 	site.Seo.Description = "新的描述"
 	if err := env.Service.UpdateSite(site); err != nil {
 		t.Fatalf("更新站点配置失败: %v", err)
 	}
-	if got := env.Runtime.Site().SiteInfo.Title; got != "新站点" {
-		t.Fatalf("站点标题未更新，得到 %s", got)
+	if got := env.Runtime.Site().SiteInfo.Beian; got != "京ICP备00000000号" {
+		t.Fatalf("备案号未更新，得到 %s", got)
 	}
 	if got := env.Runtime.Site().Seo.Description; got != "新的描述" {
 		t.Fatalf("站点描述未更新，得到 %s", got)

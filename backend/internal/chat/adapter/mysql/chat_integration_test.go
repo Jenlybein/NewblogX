@@ -257,6 +257,110 @@ func TestMarkReadIgnoresOthersMessages(t *testing.T) {
 	}
 }
 
+// TestDeleteMessagesForUserWritesUserState 删除消息要真的写进用户状态表：
+// 删除只对发起者生效（对方仍能看到），删除后再查消息列表不再返回它们。
+//
+// # 为什么这条用例必须存在
+//
+// 状态表是唯一一张既被读（ListMessages 的过滤子查询、管理端 UserDeletedAt）
+// 又被写的表，而原来的 6 个 chat 集成用例没有一个走到写入路径。表名写错时
+// 它们全绿，生产第一次点"删除消息"就 Error 1146。这里从公开仓储接口走完
+// 读-写-再读，表名漂移会立刻暴露。
+func TestDeleteMessagesForUserWritesUserState(t *testing.T) {
+	t.Parallel()
+
+	repo, db := setup(t)
+	base := time.Date(2026, 1, 1, 10, 0, 0, 0, time.UTC)
+	m1 := sendText(t, repo, 100, 200, "一", base)
+	m2 := sendText(t, repo, 100, 200, "二", base.Add(time.Minute))
+	m3 := sendText(t, repo, 100, 200, "三", base.Add(2*time.Minute))
+	sessionID := domain.BuildSessionID(ctype.NewID(100), ctype.NewID(200))
+	ctx := context.Background()
+
+	deleted, err := repo.DeleteMessagesForUser(ctx, ctype.NewID(200), []ctype.ID{m1.ID, m2.ID})
+	if err != nil {
+		t.Fatalf("删除消息失败（状态表名/写入路径可能不对）: %v", err)
+	}
+	if len(deleted) != 2 {
+		t.Fatalf("应命中 2 条可删消息，实际 %d", len(deleted))
+	}
+
+	// 状态行确实落在真表的软删列上。
+	if n := countUserStateRows(t, db, 200, sessionID); n != 2 {
+		t.Fatalf("状态表应有 2 条删除记录，实际 %d", n)
+	}
+
+	// 发起者视角：被删的两条不再出现，第三条仍在。
+	got, total, err := repo.ListMessages(ctx, domain.MessageQuery{
+		UserID: ctype.NewID(200), SessionID: sessionID, Page: domain.Page{Page: 1, Limit: 10},
+	})
+	if err != nil {
+		t.Fatalf("删除后查消息列表失败: %v", err)
+	}
+	if total != 1 || len(got) != 1 || got[0].ID != m3.ID {
+		t.Fatalf("删除后应只剩 1 条未删消息（m3=%s），实际 total=%d len=%d", m3.ID, total, len(got))
+	}
+
+	// 对方视角不变：用户级删除不动原消息。
+	other, otherTotal, err := repo.ListMessages(ctx, domain.MessageQuery{
+		UserID: ctype.NewID(100), SessionID: sessionID, Page: domain.Page{Page: 1, Limit: 10},
+	})
+	if err != nil {
+		t.Fatalf("对方查消息列表失败: %v", err)
+	}
+	if otherTotal != 3 || len(other) != 3 {
+		t.Fatalf("发送方仍应看到 3 条，实际 total=%d len=%d", otherTotal, len(other))
+	}
+
+	// 管理端读删除时间走的是同一张表的读路径。
+	ats, err := repo.UserDeletedAt(ctx, ctype.NewID(200), sessionID, []ctype.ID{m1.ID, m2.ID, m3.ID})
+	if err != nil {
+		t.Fatalf("查删除时间失败: %v", err)
+	}
+	if len(ats) != 2 {
+		t.Fatalf("应能查到 2 条删除时间，实际 %d", len(ats))
+	}
+	if _, ok := ats[m3.ID]; ok {
+		t.Fatal("未删除的 m3 不该有删除时间")
+	}
+
+	// 幂等：再删一次不报错，也不新增状态行（唯一键 + upsert）。
+	again, err := repo.DeleteMessagesForUser(ctx, ctype.NewID(200), []ctype.ID{m1.ID})
+	if err != nil {
+		t.Fatalf("重复删除失败: %v", err)
+	}
+	if len(again) != 1 {
+		t.Fatalf("重复删除应命中 1 条消息，实际 %d", len(again))
+	}
+	if n := countUserStateRows(t, db, 200, sessionID); n != 2 {
+		t.Fatalf("重复删除不该新增状态行，实际 %d", n)
+	}
+
+	// 非参与者删不掉：条件必须是 sender_id 或 receiver_id = 该用户。
+	none, err := repo.DeleteMessagesForUser(ctx, ctype.NewID(300), []ctype.ID{m1.ID, m2.ID, m3.ID})
+	if err != nil {
+		t.Fatalf("非参与者删除失败: %v", err)
+	}
+	if len(none) != 0 {
+		t.Fatalf("非参与者不该删掉别人的消息，实际命中 %d 条", len(none))
+	}
+}
+
+// countUserStateRows 数某个用户在某个会话下的软删状态行。
+//
+// 这里直接查真表而不是只走接口：Ticket #190 要证明的正是"写入落在
+// schema.sql 里那张 chat_msg_user_state_models"，而不是一张名字相近的表。
+func countUserStateRows(t *testing.T, db *gorm.DB, userID uint64, sessionID string) int64 {
+	t.Helper()
+	var n int64
+	if err := db.Table("chat_msg_user_state_models").
+		Where("user_id = ? AND session_id = ? AND deleted_at IS NOT NULL", userID, sessionID).
+		Count(&n).Error; err != nil {
+		t.Fatalf("统计状态行失败: %v", err)
+	}
+	return n
+}
+
 // TestListSessionsOrdersByLastMsgTime 会话列表按最后消息时间倒序。
 //
 // 顺序错的表现很隐蔽：列表能用，但"最新聊的人在中间"，

@@ -352,7 +352,6 @@ func loadArticleProjectionOptions(db *gorm.DB, snapshots []ArticleRowSnapshot) (
 		CategoryTitleMap: map[ctype.ID]string{},
 		AuthorMap:        map[ctype.ID]authorSnapshot{},
 		ArticleTagsMap:   map[ctype.ID][]ESTag{},
-		ArticleCropMap:   map[ctype.ID]cropSnapshot{},
 	}
 	if len(snapshots) == 0 {
 		return deps, nil
@@ -379,11 +378,6 @@ func loadArticleProjectionOptions(db *gorm.DB, snapshots []ArticleRowSnapshot) (
 		return deps, err
 	}
 	deps.ArticleTagsMap, err = loadArticleESTagsMapByArticleIDs(db, articleIDs)
-	if err != nil {
-		return deps, err
-	}
-	// 封面取景来自通用取景表：列表封面要按作者选的构图裁切。
-	deps.ArticleCropMap, err = loadArticleCropMap(db, articleIDs)
 	if err != nil {
 		return deps, err
 	}

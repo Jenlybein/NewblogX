@@ -49,8 +49,6 @@ func TestUpdateESDocsTags(t *testing.T) {
 		&ArticleRow{},
 		&TagRow{},
 		&ArticleTagRow{},
-		// 封面取景来自通用取景表：ES 文档里的 crop 字段由它投影。
-		&cropRow{},
 	)
 	testutil.SetConfig(&conf.Config{ES: conf.ES{Index: "article_index"}})
 
@@ -170,8 +168,6 @@ func TestSyncArticleSearchProjectionRefreshesAuthorIsAdmin(t *testing.T) {
 		&ArticleRow{},
 		&TagRow{},
 		&ArticleTagRow{},
-		// 封面取景来自通用取景表：ES 文档里的 crop 字段由它投影。
-		&cropRow{},
 	)
 	testutil.SetConfig(&conf.Config{ES: conf.ES{Index: "article_index"}})
 
@@ -225,8 +221,6 @@ func TestUpdateESDocsByArticleDeltasAuthorChangeRefreshesAuthorIsAdmin(t *testin
 		&ArticleRow{},
 		&TagRow{},
 		&ArticleTagRow{},
-		// 封面取景来自通用取景表：ES 文档里的 crop 字段由它投影。
-		&cropRow{},
 	)
 	testutil.SetConfig(&conf.Config{ES: conf.ES{Index: "article_index"}})
 
@@ -280,8 +274,6 @@ func TestSyncESDocsByArticleSnapshots(t *testing.T) {
 		&CategoryRow{},
 		&TagRow{},
 		&ArticleTagRow{},
-		// 封面取景来自通用取景表：ES 文档里的 crop 字段由它投影。
-		&cropRow{},
 	)
 	testutil.SetConfig(&conf.Config{
 		ES: conf.ES{Index: "article_index"},
@@ -395,8 +387,6 @@ func TestUpdateESDocsByArticleDeltasRebuildsMissingDocs(t *testing.T) {
 		&ArticleRow{},
 		&TagRow{},
 		&ArticleTagRow{},
-		// 封面取景来自通用取景表：ES 文档里的 crop 字段由它投影。
-		&cropRow{},
 	)
 	testutil.SetConfig(&conf.Config{
 		ES: conf.ES{Index: "article_index"},
@@ -472,8 +462,6 @@ func TestSyncESDocsReturnsErrorWhenArticlesMissing(t *testing.T) {
 		&ArticleRow{},
 		&TagRow{},
 		&ArticleTagRow{},
-		// 封面取景来自通用取景表：ES 文档里的 crop 字段由它投影。
-		&cropRow{},
 	)
 	testutil.SetConfig(&conf.Config{
 		ES: conf.ES{Index: "article_index"},

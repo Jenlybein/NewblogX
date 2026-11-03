@@ -442,8 +442,7 @@ func extraBody(sortField, key string) map[string]any {
 	sortList = append(sortList, map[string]any{"_score": map[string]any{"order": "desc"}})
 
 	sourceFields := []string{
-		// crop 是封面取景：列表封面按作者选的构图裁切，漏了它列表就永远居中。
-		"id", "created_at", "updated_at", "title", "abstract", "cover", "crop",
+		"id", "created_at", "updated_at", "title", "abstract", "cover",
 		"view_count", "digg_count", "comment_count", "favor_count",
 		"comments_toggle", "publish_status", "visibility_status",
 		"tags", "author_id", "author", "author_is_admin", "category_id", "category",
@@ -568,7 +567,6 @@ func extract(counters domain.CounterReader, data map[string]any) []domain.Item {
 			Content:          contentHead,
 			Part:             sourceContentParts(source, "content_parts"),
 			Cover:            sourceString(source, "cover"),
-			Crop:             sourceCrop(source, "crop"),
 			ViewCount:        sourceInt(source, "view_count"),
 			DiggCount:        sourceInt(source, "digg_count"),
 			CommentCount:     sourceInt(source, "comment_count"),

@@ -11,11 +11,14 @@ import (
 // CropRepo 是通用取景表（picture_crop_models）的内存实现。
 //
 // 键是 (target_type, target_id)：同一数值的 ID 在轮播 / 文章 / 合集三种主体下
-// 是三条互不覆盖的记录，与真实表的复合主键一致。这里不校验取值——校验是用例层
-// 的职责（domain.Crop.Validate），替身只管"存了什么、读回什么"。
+// 是三条互不覆盖的记录，与真实表的复合主键一致：删文章只能清掉 target_type=article
+// 的那一条。
+//
+// 取景参数体系已在 #203 退场，本模块只剩"删除文章时清孤儿行"这一条路径；
+// 替身因此只存"行在不在"，不再存焦点与缩放。
 type CropRepo struct {
 	mu   sync.Mutex
-	rows map[cropKey]domain.Crop
+	rows map[cropKey]struct{}
 }
 
 // cropKey 对应表里的复合主键。
@@ -28,30 +31,26 @@ var _ domain.PictureCropRepository = (*CropRepo)(nil)
 
 // NewCropRepo 构造空的取景仓储替身。
 func NewCropRepo() *CropRepo {
-	return &CropRepo{rows: make(map[cropKey]domain.Crop)}
+	return &CropRepo{rows: make(map[cropKey]struct{})}
 }
 
-// Load 实现 domain.PictureCropRepository：没有记录的主体不出现在返回 map 里。
-func (r *CropRepo) Load(_ context.Context, targetType domain.CropTargetType, targetIDs []uint64) (map[uint64]domain.Crop, error) {
+// Seed 预置一条历史取景行，供用例断言"删除文章会清掉它"。
+//
+// 取景行在生产代码里已经无处可写（#203），这里只是替身提供的播数据口。
+func (r *CropRepo) Seed(targetType domain.CropTargetType, targetID uint64) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
-	out := make(map[uint64]domain.Crop, len(targetIDs))
-	for _, id := range targetIDs {
-		if crop, ok := r.rows[cropKey{TargetType: targetType, TargetID: ctype.NewID(id)}]; ok {
-			out[id] = crop
-		}
-	}
-	return out, nil
+	r.rows[cropKey{TargetType: targetType, TargetID: ctype.NewID(targetID)}] = struct{}{}
 }
 
-// Upsert 实现 domain.PictureCropRepository：写入或覆盖一条取景参数。
-func (r *CropRepo) Upsert(_ context.Context, targetType domain.CropTargetType, targetID uint64, crop domain.Crop) error {
+// Has 报告某个主体还有没有取景行（用例断言用）。
+func (r *CropRepo) Has(targetType domain.CropTargetType, targetID uint64) bool {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
-	r.rows[cropKey{TargetType: targetType, TargetID: ctype.NewID(targetID)}] = crop
-	return nil
+	_, ok := r.rows[cropKey{TargetType: targetType, TargetID: ctype.NewID(targetID)}]
+	return ok
 }
 
 // Delete 实现 domain.PictureCropRepository：真删一组主体的取景行。
@@ -65,38 +64,29 @@ func (r *CropRepo) Delete(_ context.Context, targetType domain.CropTargetType, t
 	return nil
 }
 
-// Get 直接读一条记录，供用例断言"写入落库了没有"。
-func (r *CropRepo) Get(targetType domain.CropTargetType, targetID uint64) (domain.Crop, bool) {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-
-	crop, ok := r.rows[cropKey{TargetType: targetType, TargetID: ctype.NewID(targetID)}]
-	return crop, ok
-}
-
 // Snapshot 为事务回滚保存当前状态。
-func (r *CropRepo) Snapshot() map[cropKey]domain.Crop {
+func (r *CropRepo) Snapshot() map[cropKey]struct{} {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
-	out := make(map[cropKey]domain.Crop, len(r.rows))
-	for k, v := range r.rows {
-		out[k] = v
+	out := make(map[cropKey]struct{}, len(r.rows))
+	for k := range r.rows {
+		out[k] = struct{}{}
 	}
 	return out
 }
 
 // RestoreState 用快照覆盖当前状态（事务回滚时调用）。
 func (r *CropRepo) RestoreState(state any) {
-	snap, ok := state.(map[cropKey]domain.Crop)
+	snap, ok := state.(map[cropKey]struct{})
 	if !ok {
 		return
 	}
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
-	r.rows = make(map[cropKey]domain.Crop, len(snap))
-	for k, v := range snap {
-		r.rows[k] = v
+	r.rows = make(map[cropKey]struct{}, len(snap))
+	for k := range snap {
+		r.rows[k] = struct{}{}
 	}
 }

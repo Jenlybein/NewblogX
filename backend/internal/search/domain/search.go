@@ -172,14 +172,12 @@ type Highlight struct {
 
 // Item 是搜索结果的一行。
 type Item struct {
-	ID        ctype.ID  `json:"id"`
-	CreatedAt time.Time `json:"created_at"`
-	UpdatedAt time.Time `json:"updated_at"`
-	Title     string    `json:"title"`
-	Abstract  string    `json:"abstract,omitempty"`
-	Cover     string    `json:"cover"`
-	// Crop 是封面取景；nil 表示没有记录，前端按居中、缩放 1 渲染。
-	Crop             *Crop            `json:"crop,omitempty"`
+	ID               ctype.ID         `json:"id"`
+	CreatedAt        time.Time        `json:"created_at"`
+	UpdatedAt        time.Time        `json:"updated_at"`
+	Title            string           `json:"title"`
+	Abstract         string           `json:"abstract,omitempty"`
+	Cover            string           `json:"cover"`
 	ViewCount        int              `json:"view_count"`
 	DiggCount        int              `json:"digg_count"`
 	CommentCount     int              `json:"comment_count"`

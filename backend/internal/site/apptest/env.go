@@ -16,12 +16,12 @@ import (
 
 // Banners 是轮播图的内存实现。
 //
-// 取景参数单独存一份（crops），模拟"一对一附加表"：banner 行里没有取景，
-// 读的时候按 id 去取景表里找，找不到就是缺省（居中、缩放 1）。
+// 取景参数体系已在 #203 退场：替身不再存取景，只留"删除时清孤儿行"的
+// crops 集合，用来钉住"删轮播会连带真删取景行"这条与 MySQL 实现一致的行为。
 type Banners struct {
 	mu    sync.Mutex
 	rows  []domain.Banner
-	crops map[uint64]domain.Crop
+	crops map[uint64]struct{}
 	next  uint64
 }
 
@@ -29,7 +29,7 @@ var _ domain.BannerRepository = (*Banners)(nil)
 
 // NewBanners 构造空仓库。
 func NewBanners() *Banners {
-	return &Banners{next: 1, crops: make(map[uint64]domain.Crop)}
+	return &Banners{next: 1, crops: make(map[uint64]struct{})}
 }
 
 // List 实现 domain.BannerRepository。
@@ -42,7 +42,7 @@ func (b *Banners) List(_ context.Context, q domain.BannerQuery) ([]domain.Banner
 		if q.Show != nil && row.Show != *q.Show {
 			continue
 		}
-		hit = append(hit, b.withCrop(row))
+		hit = append(hit, row)
 	}
 	sort.SliceStable(hit, func(i, j int) bool { return hit[i].CreatedAt.After(hit[j].CreatedAt) })
 	offset := q.Offset()
@@ -63,7 +63,7 @@ func (b *Banners) Find(_ context.Context, id uint64) (domain.Banner, error) {
 	defer b.mu.Unlock()
 	for _, row := range b.rows {
 		if row.ID.Uint64() == id {
-			return b.withCrop(row), nil
+			return row, nil
 		}
 	}
 	return domain.Banner{}, apperr.New(apperr.CodeBannerNotFound)
@@ -80,14 +80,13 @@ func (b *Banners) Create(_ context.Context, banner *domain.Banner) error {
 	now := time.Now()
 	banner.CreatedAt = now
 	banner.UpdatedAt = now
-	b.crops[banner.ID.Uint64()] = banner.Crop
 	stored := *banner
 	b.rows = append(b.rows, stored)
 	return nil
 }
 
-// Update 实现 domain.BannerRepository。crop 为 nil 表示没传取景：保留既有记录。
-func (b *Banners) Update(_ context.Context, id uint64, title, cover, href string, show bool, crop *domain.Crop) error {
+// Update 实现 domain.BannerRepository。
+func (b *Banners) Update(_ context.Context, id uint64, title, cover, href string, show bool) error {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 	for i := range b.rows {
@@ -97,32 +96,19 @@ func (b *Banners) Update(_ context.Context, id uint64, title, cover, href string
 			b.rows[i].Href = href
 			b.rows[i].Show = show
 			b.rows[i].UpdatedAt = time.Now()
-			if crop != nil {
-				b.crops[id] = *crop
-			}
 			return nil
 		}
 	}
 	return apperr.New(apperr.CodeBannerNotFound)
 }
 
-// withCrop 按 id 补上取景参数；没有记录时用缺省值。
+// SeedCrop 预置一条历史取景行，模拟"取景表里还有这一行的老图"。
 //
-// 调用方必须已持有锁。
-func (b *Banners) withCrop(row domain.Banner) domain.Banner {
-	if crop, ok := b.crops[row.ID.Uint64()]; ok {
-		row.Crop = crop
-		return row
-	}
-	row.Crop = domain.DefaultCrop
-	return row
-}
-
-// DropCrop 删掉一张图的取景记录，模拟"取景表里没有这一行的历史图"。
-func (b *Banners) DropCrop(id uint64) {
+// 生产代码在 #203 之后不再写取景行；这里只给"删除时清孤儿行"的用例播数据。
+func (b *Banners) SeedCrop(id uint64) {
 	b.mu.Lock()
 	defer b.mu.Unlock()
-	delete(b.crops, id)
+	b.crops[id] = struct{}{}
 }
 
 // Delete 实现 domain.BannerRepository。
@@ -151,7 +137,7 @@ func (b *Banners) Delete(_ context.Context, ids []uint64) (int, error) {
 	return count, nil
 }
 
-// HasCrop 报告某条轮播是否还有取景记录（测试断言用）。
+// HasCrop 报告某条轮播是否还有取景行（测试断言用）。
 func (b *Banners) HasCrop(id uint64) bool {
 	b.mu.Lock()
 	defer b.mu.Unlock()

@@ -24,14 +24,12 @@ import (
 // 修复后的约定是：索引是库的镜像，已软删的行也索引并写 is_deleted=true，
 // 读侧再按标记过滤。这条用例钉住 CLI 这条入口上的完整行为，不另造重建流程。
 func TestSyncArticleDocumentsRebuildsSoftDeletedArticles(t *testing.T) {
-	// 封面取景来自通用取景表：同步会读它投影出 ES 文档的 crop 字段。
 	db := testutil.SetupSQLite(t,
 		&schema.UserRow{},
 		&schema.UserConfRow{},
 		&schema.ArticleRow{},
 		&schema.TagRow{},
 		&schema.ArticleTagRow{},
-		&schema.PictureCropRow{},
 	)
 	testutil.InitGlobals()
 	testutil.SetConfig(&conf.Config{

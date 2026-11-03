@@ -256,17 +256,6 @@ const (
 	CodeSiteConfigMissing Code = "site.config_missing"
 	CodeSiteInfoNotFound  Code = "site.info_not_found"
 	CodeBannerNotFound    Code = "banner.not_found"
-	// CodeBannerCropInvalid 表示取景参数越界（焦点不在 0–1、缩放不在 1–2）。
-	//
-	// 越界一律拒绝而不是钳制：静默改值会让"运营看到的取景"与"读者看到的取景"
-	// 分家，而两边都没有任何提示。
-	CodeBannerCropInvalid Code = "banner.crop_invalid"
-
-	// CodeArticleCropInvalid 表示文章封面取景参数越界。
-	//
-	// 与轮播共用同一套取值口径（焦点 0–1、缩放 1–2），但错误码分开：
-	// 排查时从码就能看出是哪类主体的封面被拒，不必再去猜调用方。
-	CodeArticleCropInvalid Code = "article.crop_invalid"
 
 	// 右栏卡片。
 	//
@@ -517,9 +506,6 @@ var messages = map[Code]string{
 	CodeSiteConfigMissing: "运行时配置服务未初始化",
 	CodeSiteInfoNotFound:  "站点信息不存在",
 	CodeBannerNotFound:    "轮播图不存在",
-	CodeBannerCropInvalid: "取景参数超出范围：焦点需在 0 到 1 之间，缩放需在 1 到 2 之间",
-
-	CodeArticleCropInvalid: "取景参数超出范围：焦点需在 0 到 1 之间，缩放需在 1 到 2 之间",
 
 	CodeSidebarCardKindInvalid:   "右栏卡片类型不存在",
 	CodeSidebarCardLimitExceeded: "右栏卡片数量超出上限",

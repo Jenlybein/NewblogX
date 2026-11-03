@@ -92,7 +92,7 @@ func (r *Repos) Collections() collection.Repository { return r.collectionRepo }
 // Projects 返回项目仓储（与合集并列的独立内容实体）。
 func (r *Repos) Projects() project.Repository { return r.projectRepo }
 
-// Crops 返回通用取景表仓储（文章封面取景以 target_type=article 存在其中）。
+// Crops 返回通用取景表仓储的清理端口（取景参数已在 #203 退场，只剩删文章时清孤儿行）。
 func (r *Repos) Crops() sitedomain.PictureCropRepository { return r.cropRepo }
 
 // FakeCounters 返回计数 fake。
@@ -165,7 +165,7 @@ func (r *Repos) FakeCollections() *CollectionRepo { return r.collectionRepo }
 // FakeProjects 返回项目仓储 fake。
 func (r *Repos) FakeProjects() *ProjectRepo { return r.projectRepo }
 
-// FakeCrops 返回取景表 fake（断言"写没写、读回什么"用）。
+// FakeCrops 返回取景表 fake（断言"行还在不在"用）。
 func (r *Repos) FakeCrops() *CropRepo { return r.cropRepo }
 
 // FakeHistory 返回浏览历史仓储 fake。

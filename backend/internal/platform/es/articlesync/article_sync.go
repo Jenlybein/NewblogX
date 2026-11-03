@@ -80,9 +80,6 @@ type articleProjectionOptions struct {
 	CategoryTitleMap map[ctype.ID]string
 	AuthorMap        map[ctype.ID]authorSnapshot
 	ArticleTagsMap   map[ctype.ID][]ESTag
-	// ArticleCropMap 是文章封面取景（通用取景表）。没有记录的文章不在 map 里，
-	// 文档里也不写 crop 字段 —— 读侧据此按缺省（居中、缩放 1）渲染。
-	ArticleCropMap map[ctype.ID]cropSnapshot
 }
 
 // SyncArticleSearchProjection 是文章搜索读模型的统一更新入口。
@@ -325,9 +322,6 @@ func buildArticleESDocumentFromSnapshot(snapshot ArticleRowSnapshot, deps articl
 			"nickname": author.Nickname,
 			"avatar":   author.Avatar,
 		},
-		// 封面取景：列表封面按作者选的构图裁切。没有取景记录的文章不写这个字段，
-		// 读侧按缺省（居中、缩放 1）渲染。
-		"crop": cropDocumentField(deps.ArticleCropMap[snapshot.ID]),
 		// 作者角色投影：公开查询在“显示非管理员文章”关掉时按它过滤（ADR-0017 决策 4）。
 		"author_is_admin":   author.IsAdmin,
 		"view_count":        snapshot.ViewCount,

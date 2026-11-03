@@ -8,7 +8,6 @@ import (
 	"myblogx/internal/article/domain/favorite"
 	"myblogx/internal/article/domain/project"
 	"myblogx/internal/article/domain/review"
-	sitedomain "myblogx/internal/site/domain"
 )
 
 // CreateArticleCmd 是创建文章的输入。
@@ -30,11 +29,6 @@ type CreateArticleCmd struct {
 	TagIDs []domain.TagID
 	// Cover 已解析的封面 URL。
 	Cover string
-	// Crop 是封面取景参数；nil 表示沿用缺省（居中、缩放 1）。
-	//
-	// 语义与轮播封面同一套（焦点 0–1 + 缩放 1–2），落在通用取景表里
-	// 以 (target_type=article, target_id=文章 ID) 定位。
-	Crop *sitedomain.Crop
 	// CommentsToggle 是否允许评论。
 	CommentsToggle bool
 	// TargetStatus 是作者请求的状态：草稿或提交审核。
@@ -59,10 +53,8 @@ type UpdateArticleCmd struct {
 	Content    *string
 	CategoryID *domain.CategoryID
 	// CategorySet 为真表示要写 classification（含清空）。
-	CategorySet bool
-	Cover       *string
-	// Crop 为 nil 表示不修改取景；非 nil 时覆盖为提交值。
-	Crop           *sitedomain.Crop
+	CategorySet    bool
+	Cover          *string
 	CommentsToggle *bool
 	Visibility     *domain.Visibility
 	// TagIDs 非 nil 表示替换标签集合。
@@ -105,8 +97,6 @@ type ArticleView struct {
 	// Digg/Favor 当前用户是否已点赞/收藏。
 	Digg  bool
 	Favor bool
-	// Crop 是封面取景参数；"没有取景记录"时已填好缺省，消费方不需要再判空。
-	Crop sitedomain.Crop
 }
 
 // AuthorView 是作者展示信息。

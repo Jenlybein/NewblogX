@@ -100,7 +100,6 @@ func TestSyncESDocsIndexesSoftDeletedArticle(t *testing.T) {
 		&ArticleRow{},
 		&TagRow{},
 		&ArticleTagRow{},
-		&cropRow{},
 	)
 	testutil.SetConfig(&conf.Config{ES: conf.ES{Index: "article_index"}})
 
@@ -157,7 +156,6 @@ func TestUpdateESDocsByArticleDeltasClearsMarkerOnRestore(t *testing.T) {
 		&ArticleRow{},
 		&TagRow{},
 		&ArticleTagRow{},
-		&cropRow{},
 	)
 	testutil.SetConfig(&conf.Config{ES: conf.ES{Index: "article_index"}})
 

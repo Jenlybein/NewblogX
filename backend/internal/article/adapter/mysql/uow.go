@@ -112,6 +112,6 @@ func (r *repos) Collections() collection.Repository { return NewCollectionRepo(r
 // 项目与合集是两套表、两套数据，仓储各自独立；共用的是分层与读口径。
 func (r *repos) Projects() project.Repository { return NewProjectRepo(r.db) }
 
-// Crops 现场构造通用取景表仓储：文章封面取景以 target_type=article 存其中，
-// 与文章本体同事务读写。
+// Crops 现场构造通用取景表仓储：取景参数已在 #203 退场，
+// 这里只剩"删文章时清掉 target_type=article 的孤儿行"（表留到 #205 物理下线）。
 func (r *repos) Crops() sitedomain.PictureCropRepository { return NewCropRepo(r.db) }

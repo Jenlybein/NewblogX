@@ -32,7 +32,6 @@ func TestBannerRepoTitleRoundTrip(t *testing.T) {
 		Cover: "/title.png",
 		Href:  "/title",
 		Title: title,
-		Crop:  domain.DefaultCrop,
 	}
 	if err := repo.Create(ctx, &banner); err != nil {
 		t.Fatalf("创建带标题的轮播图失败: %v", err)
@@ -46,7 +45,7 @@ func TestBannerRepoTitleRoundTrip(t *testing.T) {
 		t.Fatalf("标题应原样读回 %q，得到 %q", title, got.Title)
 	}
 
-	if err := repo.Update(ctx, banner.ID.Uint64(), "新标题", "/title2.png", "/title2", true, nil); err != nil {
+	if err := repo.Update(ctx, banner.ID.Uint64(), "新标题", "/title2.png", "/title2", true); err != nil {
 		t.Fatalf("更新标题失败: %v", err)
 	}
 	got, err = repo.Find(ctx, banner.ID.Uint64())
@@ -58,7 +57,7 @@ func TestBannerRepoTitleRoundTrip(t *testing.T) {
 	}
 
 	// 空标题是合法值，不是 NULL / 缺失。
-	if err := repo.Update(ctx, banner.ID.Uint64(), "", "/title2.png", "/title2", true, nil); err != nil {
+	if err := repo.Update(ctx, banner.ID.Uint64(), "", "/title2.png", "/title2", true); err != nil {
 		t.Fatalf("清空标题失败: %v", err)
 	}
 	got, err = repo.Find(ctx, banner.ID.Uint64())

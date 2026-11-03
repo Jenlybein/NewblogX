@@ -315,7 +315,6 @@ func (h *Handler) BannerCreate(c *gin.Context) {
 		Title:        cr.Title,
 		Href:         cr.Href,
 		Show:         cr.Show,
-		Crop:         cr.Crop.toDomain(),
 	})
 	if err != nil {
 		res.FailWithMsg(err.Error(), c)
@@ -328,7 +327,6 @@ func (h *Handler) BannerCreate(c *gin.Context) {
 		Href:         banner.Href,
 		Title:        banner.Title,
 		Show:         banner.Show,
-		Crop:         fromDomainCrop(banner.Crop),
 	}, c)
 	middleware.EmitActionAuditFromGin(c, middleware.GinAuditInput{
 		ActionName: "banner_create",
@@ -363,7 +361,6 @@ func (h *Handler) BannerUpdate(c *gin.Context) {
 		Title:        cr.Title,
 		Href:         cr.Href,
 		Show:         cr.Show,
-		Crop:         cr.Crop.toDomain(),
 	})
 	if err != nil {
 		if apperr.IsCode(err, apperr.CodeBannerNotFound) {
@@ -424,7 +421,6 @@ func toBannerItem(b domain.Banner) BannerItem {
 		Cover:     b.Cover,
 		Href:      b.Href,
 		Title:     b.Title,
-		Crop:      fromDomainCrop(b.Crop),
 	}
 	if !b.CoverImageID.IsZero() {
 		id := b.CoverImageID

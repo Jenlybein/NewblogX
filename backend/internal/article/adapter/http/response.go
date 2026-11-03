@@ -42,8 +42,6 @@ func (h *Handler) toDetailResponse(ctx context.Context, v *app.ArticleView) Arti
 		CategoryName:     v.CategoryName,
 		IsDigg:           v.Digg,
 		IsFavor:          v.Favor,
-		// 取景在用例层已补好缺省，这里只负责搬字段。
-		Crop: fromDomainCrop(v.Crop),
 	}
 
 	for _, t := range v.Tags {

@@ -14,10 +14,6 @@ vi.mock("~/components/studio/MarkdownShadowPreview.vue", () => ({
         type: String,
         default: "",
       },
-      themeHref: {
-        type: String,
-        default: "",
-      },
       articleClass: {
         type: String,
         default: "",
@@ -33,7 +29,6 @@ vi.mock("~/components/studio/MarkdownShadowPreview.vue", () => ({
         h("div", {
           "data-test": "shadow-preview-stub",
           "data-html": props.html,
-          "data-theme-href": props.themeHref,
           "data-article-class": props.articleClass,
         });
     },
@@ -51,8 +46,6 @@ describe("MarkdownRenderSurface", () => {
     const preview = wrapper.get('[data-test="shadow-preview-stub"]');
     const headingEvents = wrapper.emitted("headings-change");
 
-    // 阅读页不传外部主题：自有 token 主题由 shadow 组件内置。
-    expect(preview.attributes("data-theme-href")).toBe("");
     expect(preview.attributes("data-article-class")).toBe("markdown-body");
     expect(preview.attributes("data-html")).toContain("<h1");
     expect(preview.attributes("data-html")).toContain("正文内容");
@@ -66,17 +59,13 @@ describe("MarkdownRenderSurface", () => {
     ]);
   });
 
-  it("passes an optional external theme through for legacy previews", () => {
+  it("不再透传外部主题地址：themeHref 已从组件接口退场（#212）", () => {
     const wrapper = mount(MarkdownRenderSurface, {
-      props: {
-        source: "## Section A",
-        themeHref: "/themes/github.css",
-      },
+      props: { source: "## Section A" },
     });
 
-    expect(wrapper.get('[data-test="shadow-preview-stub"]').attributes("data-theme-href")).toBe(
-      "/themes/github.css",
-    );
+    expect(wrapper.props()).not.toHaveProperty("themeHref");
+    expect(wrapper.get('[data-test="shadow-preview-stub"]').attributes("theme-href")).toBeUndefined();
   });
 
   it("proxies heading navigation methods from the preview child", () => {

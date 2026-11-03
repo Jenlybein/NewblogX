@@ -1,6 +1,7 @@
 import { ref } from "vue";
 import { describe, expect, it, vi } from "vitest";
 
+import { LEFT_TOOLS } from "~/constants/studioToolbar";
 import { useStudioToolbar } from "~/composables/useStudioToolbar";
 
 // 工具栏分发：按钮 key → 做什么。
@@ -9,12 +10,12 @@ import { useStudioToolbar } from "~/composables/useStudioToolbar";
 // 而它产出的是**直接写进正文的文本**（代码块、表格、mermaid 图），
 // 写错了用户看到的就是坏掉的 Markdown。
 //
-// 这里钉三件事：插入内容正确、主题只改主题、未知 key 不乱动正文。
+// 这里钉：插入内容正确、已退场的"预览样式"下拉不再保留任何状态通道、
+// 未知 key 不乱动正文。
 
 function harness() {
   const insertSnippet = vi.fn();
   const applyBold = vi.fn();
-  const setTheme = ref("github");
 
   const toolbar = useStudioToolbar({
     editor: {
@@ -33,13 +34,6 @@ function harness() {
       applyTableShortcut: vi.fn(),
       applyStrikeShortcut: vi.fn(),
     } as never,
-    theme: {
-      selectedMarkdownTheme: setTheme,
-      markdownThemeOptions: [
-        { key: "github", label: "GitHub Light" },
-        { key: "shanyue", label: "Shanyue" },
-      ],
-    } as never,
     showToc: ref(true),
     viewMode: ref("split" as const),
     previewRef: ref(null),
@@ -47,10 +41,29 @@ function harness() {
     openAi: vi.fn(),
   });
 
-  return { toolbar, insertSnippet, applyBold, setTheme };
+  return { toolbar, insertSnippet, applyBold };
 }
 
 describe("useStudioToolbar", () => {
+  it("工具栏没有预览主题下拉（13 套预览样式已退场）", () => {
+    expect(LEFT_TOOLS.map((tool) => tool.key)).not.toContain("theme");
+    expect(LEFT_TOOLS.map((tool) => tool.label)).not.toContain("预览样式");
+  });
+
+  it("工具栏不再暴露选项选中态（只服务主题下拉的通道已退场）", () => {
+    const { toolbar } = harness();
+
+    expect((toolbar as Record<string, unknown>).isToolOptionActive).toBeUndefined();
+  });
+
+  it("已退场的 theme 下拉 key 不碰正文，也不抛错", () => {
+    const { toolbar, insertSnippet } = harness();
+
+    toolbar.handleToolOption("theme", "shanyue");
+
+    expect(insertSnippet).not.toHaveBeenCalled();
+  });
+
   it("标题级别按 option key 生成对应数量的 #", () => {
     const { toolbar, insertSnippet } = harness();
 
@@ -65,23 +78,6 @@ describe("useStudioToolbar", () => {
     toolbar.handleToolOption("title", "hx");
 
     expect(insertSnippet).toHaveBeenCalledWith("## 标题\n");
-  });
-
-  it("主题只改主题，不碰正文", () => {
-    const { toolbar, insertSnippet, setTheme } = harness();
-
-    toolbar.handleToolOption("theme", "shanyue");
-
-    expect(setTheme.value).toBe("shanyue");
-    expect(insertSnippet).not.toHaveBeenCalled();
-  });
-
-  it("未知主题回落到 github", () => {
-    const { toolbar, setTheme } = harness();
-
-    toolbar.handleToolOption("theme", "no-such-theme");
-
-    expect(setTheme.value).toBe("github");
   });
 
   it("mermaid 插入的是带语言标记的围栏块", () => {
@@ -110,14 +106,6 @@ describe("useStudioToolbar", () => {
     toolbar.handleToolOption("align", "align-center");
 
     expect(insertSnippet).toHaveBeenCalledWith('<div align="center">\n内容\n</div>\n');
-  });
-
-  it("isToolOptionActive 只对主题返回 true", () => {
-    const { toolbar } = harness();
-
-    expect(toolbar.isToolOptionActive("theme", "github")).toBe(true);
-    expect(toolbar.isToolOptionActive("theme", "shanyue")).toBe(false);
-    expect(toolbar.isToolOptionActive("title", "h1")).toBe(false);
   });
 
   it("handleToolClick 转发到对应的编辑器命令", () => {

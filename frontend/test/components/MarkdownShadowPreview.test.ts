@@ -96,7 +96,8 @@ describe("MarkdownShadowPreview", () => {
     expect(style?.textContent).toContain("markdown 主题（JellyBin 自有）");
     expect(style?.textContent).toContain(".markdown-body pre");
     expect(style?.textContent).toContain("var(--color-ink)");
-    expect(style?.textContent).toContain("var(--type-leading-prose)");
+    // 正文行高在票 211 改为版式常量 1.85（语义 token 里没有 1.85，见 markdownTheme.ts 注释）。
+    expect(style?.textContent).toContain("line-height: 1.85");
   });
 
   it("默认不加载任何外部主题 <link>（明暗切换不换链接、不闪白）", async () => {

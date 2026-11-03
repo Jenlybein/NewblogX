@@ -79,9 +79,14 @@ func countImageRows(t *testing.T, db *gorm.DB) int64 {
 	return n
 }
 
+// createIntegrationTask 的 purpose 是"请求体里的字面量"：空串表示请求体没带该字段。
 func createIntegrationTask(t *testing.T, svc *app.Service, purpose string) *domain.Task {
 	t.Helper()
-	res, err := svc.CreateTask(context.Background(), 7, "picture.png", 1, "image/png", "it-hash", purpose)
+	var declared *string
+	if purpose != "" {
+		declared = &purpose
+	}
+	res, err := svc.CreateTask(context.Background(), 7, "picture.png", 1, "image/png", "it-hash", declared)
 	if err != nil {
 		t.Fatalf("创建上传任务失败: %v", err)
 	}

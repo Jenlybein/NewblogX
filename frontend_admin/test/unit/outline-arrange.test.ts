@@ -17,6 +17,7 @@ import {
   outlineStaleCount,
   removeOutlineRow,
   renameOutlineFolder,
+  staleReasonLabel,
 } from '../../app/utils/outlineArrange'
 
 /**
@@ -292,5 +293,34 @@ describe('新建文件夹与批量收录', () => {
     expect(outlineIncludeTargetKey(rows, 'f1')).toBe('f1')
     expect(outlineIncludeTargetKey(rows, 'a2')).toBe('')
     expect(outlineIncludeTargetKey(rows, '')).toBe('')
+  })
+})
+
+/**
+ * 失效原因文案（#225）。
+ *
+ * 原本住在 `utils/staleItems.ts`；旧扁平收录接口与「一键清理」退役后，那个文件
+ * 只剩这一个小函数还被树编辑器用着，于是迁进本模块并删掉旧文件。
+ *
+ * 文案本身是运营读的东西：写成"未知"或留空，运营就看不出该不该清理这一行。
+ * 枚举值与后端 `domain.StaleReason` 一一对应，后端将来新增值时前端必须落到
+ * 兜底文案而不是空白。
+ */
+describe('失效原因文案（树节点标注用）', () => {
+  it('四种成因各有可读文案', () => {
+    expect(staleReasonLabel('missing')).toBe('文章已删除')
+    expect(staleReasonLabel('deleted')).toBe('文章已删除')
+    expect(staleReasonLabel('not_published')).toBe('文章已不是已发布状态')
+    expect(staleReasonLabel('not_visible')).toBe('文章已不可见')
+  })
+
+  it('仍展示的行不显示失效原因', () => {
+    expect(staleReasonLabel('')).toBe('展示中')
+    expect(staleReasonLabel(null)).toBe('展示中')
+    expect(staleReasonLabel(undefined)).toBe('展示中')
+  })
+
+  it('未知原因（后端将来新增枚举）给出兜底文案，而不是空白', () => {
+    expect(staleReasonLabel('something-new')).toBe('已失效')
   })
 })

@@ -23,7 +23,9 @@ const route = useRoute();
 const projectId = computed(() => String(route.params.id ?? ""));
 
 // 折叠状态不依赖取数，先注册：async setup 里晚注册的生命周期钩子容易漏掉。
-const { collapsed, toggle } = useOutlineCollapsed("project", projectId.value);
+// 传 computed 而不是 `.value`：站内从 /projects/1 切到 /projects/2 时组件不重挂载，
+// 折叠状态必须跟着路由参数换（票 225）。
+const { collapsed, toggle } = useOutlineCollapsed("project", projectId);
 
 const { data, pending, error } = await useAsyncData(
   () => `reader-project-${projectId.value}`,

@@ -83,49 +83,27 @@ func (h *Handler) Register(r *gin.RouterGroup, authMw, optionalMw gin.HandlerFun
 		mw.BindJson[ArticleHotTopOrderRequest], h.ReplaceHotTopOrder)
 	// 合集管理（全部在管理员分组下）。
 	collectionAdminGroup.GET("admin", h.AdminCollections)
-	collectionAdminGroup.DELETE(":id/admin/stale", mw.BindUri[kernel.IDRequest], h.CleanupCollectionStale)
 	collectionAdminGroup.POST("", mw.CaptureLog(mw.ReqBody), mw.BindJson[CollectionCreateRequest], h.CreateCollection)
 	collectionAdminGroup.PUT(":id", mw.CaptureLog(mw.ReqBody),
 		mw.BindUri[kernel.IDRequest], mw.BindJson[CollectionUpdateRequest], h.UpdateCollection)
 	collectionAdminGroup.DELETE(":id", mw.BindUri[kernel.IDRequest], h.DeleteCollection)
 	collectionAdminGroup.PATCH(":id/display", mw.CaptureLog(mw.ReqBody),
 		mw.BindUri[kernel.IDRequest], mw.BindJson[CollectionDisplayRequest], h.SetCollectionDisplay)
-	collectionAdminGroup.POST(":id/articles", mw.CaptureLog(mw.ReqBody),
-		mw.BindUri[kernel.IDRequest], mw.BindJson[CollectionArticleRequest], h.IncludeCollectionArticle)
-	// 批量收录与后台收录行读面：一次提交多篇、逐篇返回结局。
-	collectionAdminGroup.POST(":id/articles/batch", mw.CaptureLog(mw.ReqBody),
-		mw.BindUri[kernel.IDRequest], mw.BindJson[CollectionBatchIncludeRequest], h.BatchIncludeCollectionArticles)
-	collectionAdminGroup.GET(":id/articles/admin", mw.BindUri[kernel.IDRequest], h.AdminCollectionItems)
-	collectionAdminGroup.DELETE(":id/articles", mw.CaptureLog(mw.ReqBody),
-		mw.BindUri[kernel.IDRequest], mw.BindJson[CollectionArticleRequest], h.RemoveCollectionArticle)
-	collectionAdminGroup.PATCH(":id/articles/order", mw.CaptureLog(mw.ReqBody),
-		mw.BindUri[kernel.IDRequest], mw.BindJson[CollectionArticleOrderRequest], h.ReplaceCollectionOrder)
-	// 合集之间排序：路径是 /collections/order，与 :id 路由同组但不冲突。
-	collectionAdminGroup.PATCH("order", mw.CaptureLog(mw.ReqBody),
-		mw.BindJson[CollectionOrderRequest], h.ReplaceCollectionSortOrder)
 	// 目录树：后台读回整棵树 + 整棵树一次性提交。
-	// 收录与层次只经这里；旧扁平收录接口属于 #218 退役范围，本票不新增读写。
+	// 这是合集内容编排的**唯一**入口：旧的扁平收录 / 排序 / 失效清理接口已随
+	// 旧中间表一起退役（#225），不在这里留任何单步写入口。
 	collectionAdminGroup.GET(":id/outline/admin", mw.BindUri[kernel.IDRequest], h.AdminCollectionOutline)
 	collectionAdminGroup.PUT(":id/outline", mw.CaptureLog(mw.ReqBody),
 		mw.BindUri[kernel.IDRequest], mw.BindJson[OutlineSaveRequest], h.SaveCollectionOutline)
 	// 项目管理（全部在管理员分组下）：与合集逐条对齐，路径换成 /projects。
 	projectAdminGroup.GET("admin", h.AdminProjects)
-	projectAdminGroup.DELETE(":id/admin/stale", mw.BindUri[kernel.IDRequest], h.CleanupProjectStale)
 	projectAdminGroup.POST("", mw.CaptureLog(mw.ReqBody), mw.BindJson[ProjectCreateRequest], h.CreateProject)
 	projectAdminGroup.PUT(":id", mw.CaptureLog(mw.ReqBody),
 		mw.BindUri[kernel.IDRequest], mw.BindJson[ProjectUpdateRequest], h.UpdateProject)
 	projectAdminGroup.DELETE(":id", mw.BindUri[kernel.IDRequest], h.DeleteProject)
 	projectAdminGroup.PATCH(":id/display", mw.CaptureLog(mw.ReqBody),
 		mw.BindUri[kernel.IDRequest], mw.BindJson[ProjectDisplayRequest], h.SetProjectDisplay)
-	projectAdminGroup.POST(":id/articles", mw.CaptureLog(mw.ReqBody),
-		mw.BindUri[kernel.IDRequest], mw.BindJson[ProjectArticleRequest], h.IncludeProjectArticle)
-	projectAdminGroup.POST(":id/articles/batch", mw.CaptureLog(mw.ReqBody),
-		mw.BindUri[kernel.IDRequest], mw.BindJson[ProjectBatchIncludeRequest], h.BatchIncludeProjectArticles)
-	projectAdminGroup.GET(":id/articles/admin", mw.BindUri[kernel.IDRequest], h.AdminProjectItems)
-	projectAdminGroup.DELETE(":id/articles", mw.CaptureLog(mw.ReqBody),
-		mw.BindUri[kernel.IDRequest], mw.BindJson[ProjectArticleRequest], h.RemoveProjectArticle)
-	projectAdminGroup.PATCH(":id/articles/order", mw.CaptureLog(mw.ReqBody),
-		mw.BindUri[kernel.IDRequest], mw.BindJson[ProjectArticleOrderRequest], h.ReplaceProjectOrder)
+	// 项目之间排序：落 project_models.sort_order，是现行功能（不随旧表退役）。
 	projectAdminGroup.PATCH("order", mw.CaptureLog(mw.ReqBody),
 		mw.BindJson[ProjectOrderRequest], h.ReplaceProjectSortOrder)
 	// 目录树（与合集同一套读写形状，路径换成 /projects）。

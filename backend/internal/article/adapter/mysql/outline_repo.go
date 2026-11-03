@@ -14,8 +14,8 @@ import (
 // OutlineRepo 是 outline.Repository 的 MySQL 实现。
 //
 // 合集与项目共用这一张树表：owner_kind 区分，SQL 只写一份。
-// 旧扁平收录中间表（collection_article_models / project_article_models）
-// 在这里**完全不出现**：本仓储只读写 content_outline_node_models。
+// 本仓储只读写 content_outline_node_models：旧的扁平收录表已随 #225 下线，
+// 收录与层次没有第二份真相。
 type OutlineRepo struct {
 	db *gorm.DB
 }

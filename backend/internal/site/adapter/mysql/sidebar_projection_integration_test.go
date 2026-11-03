@@ -16,8 +16,8 @@ import (
 // 本文件是右栏「推荐合集」数据源的持久化契约。
 //
 // #223 起，合集卡片的篇数与封面回退由 article 模块的目录树读模型提供（经
-// SidebarCollectionReader 端口注入）：站点模块不再直连 collection_article_models，
-// 也不自己实现 DFS 封面回退。所以这里验证的是"右栏把请求原样交给读模型端口、
+// SidebarCollectionReader 端口注入）：站点模块不再直连合集表，也不自己实现
+// DFS 封面回退。所以这里验证的是"右栏把请求原样交给读模型端口、
 // 并把返回项映射进右栏形状"，而不是站点侧的 SQL。
 
 // stubCollectionReader 记录收到的条数上限并返回固定条目。

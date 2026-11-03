@@ -1140,104 +1140,6 @@
                 },
                 "type": "object"
             },
-            "internal_article_adapter_http.CollectionAdminItem": {
-                "properties": {
-                    "article_id": {
-                        "type": "string"
-                    },
-                    "cover": {
-                        "type": "string"
-                    },
-                    "sort_order": {
-                        "type": "integer"
-                    },
-                    "stale": {
-                        "description": "Stale 文章是否已失效（被删 / 退回草稿 / 不再可见）。判定与热门置顶共用。",
-                        "type": "boolean"
-                    },
-                    "stale_reason": {
-                        "description": "StaleReason 失效原因枚举；仍有效时为空串。枚举值由后端 domain 定义，\n前端只做文案映射，不据此另判一次失效。",
-                        "type": "string"
-                    },
-                    "title": {
-                        "type": "string"
-                    }
-                },
-                "type": "object"
-            },
-            "internal_article_adapter_http.CollectionArticleOrderRequest": {
-                "properties": {
-                    "article_ids": {
-                        "items": {
-                            "type": "string"
-                        },
-                        "type": "array",
-                        "uniqueItems": false
-                    }
-                },
-                "required": [
-                    "article_ids"
-                ],
-                "type": "object"
-            },
-            "internal_article_adapter_http.CollectionArticleRequest": {
-                "properties": {
-                    "article_id": {
-                        "type": "string"
-                    }
-                },
-                "required": [
-                    "article_id"
-                ],
-                "type": "object"
-            },
-            "internal_article_adapter_http.CollectionBatchIncludeItem": {
-                "properties": {
-                    "article_id": {
-                        "type": "string"
-                    },
-                    "outcome": {
-                        "type": "string"
-                    }
-                },
-                "type": "object"
-            },
-            "internal_article_adapter_http.CollectionBatchIncludeRequest": {
-                "properties": {
-                    "article_ids": {
-                        "items": {
-                            "type": "string"
-                        },
-                        "type": "array",
-                        "uniqueItems": false
-                    }
-                },
-                "required": [
-                    "article_ids"
-                ],
-                "type": "object"
-            },
-            "internal_article_adapter_http.CollectionBatchIncludeResponse": {
-                "properties": {
-                    "duplicated": {
-                        "type": "integer"
-                    },
-                    "included": {
-                        "type": "integer"
-                    },
-                    "rejected": {
-                        "type": "integer"
-                    },
-                    "results": {
-                        "items": {
-                            "$ref": "#/components/schemas/internal_article_adapter_http.CollectionBatchIncludeItem"
-                        },
-                        "type": "array",
-                        "uniqueItems": false
-                    }
-                },
-                "type": "object"
-            },
             "internal_article_adapter_http.CollectionCardResponse": {
                 "properties": {
                     "article_count": {
@@ -1319,29 +1221,6 @@
                 "properties": {
                     "displayed": {
                         "type": "boolean"
-                    }
-                },
-                "type": "object"
-            },
-            "internal_article_adapter_http.CollectionOrderRequest": {
-                "properties": {
-                    "collection_ids": {
-                        "items": {
-                            "type": "string"
-                        },
-                        "type": "array",
-                        "uniqueItems": false
-                    }
-                },
-                "required": [
-                    "collection_ids"
-                ],
-                "type": "object"
-            },
-            "internal_article_adapter_http.CollectionStaleCleanupResponse": {
-                "properties": {
-                    "removed": {
-                        "type": "integer"
                     }
                 },
                 "type": "object"
@@ -1634,104 +1513,6 @@
                 },
                 "type": "object"
             },
-            "internal_article_adapter_http.ProjectAdminItem": {
-                "properties": {
-                    "article_id": {
-                        "type": "string"
-                    },
-                    "cover": {
-                        "type": "string"
-                    },
-                    "sort_order": {
-                        "type": "integer"
-                    },
-                    "stale": {
-                        "description": "Stale 文章是否已失效（被删 / 退回草稿 / 不再可见）。判定与热门置顶 / 合集共用。",
-                        "type": "boolean"
-                    },
-                    "stale_reason": {
-                        "description": "StaleReason 失效原因枚举；仍有效时为空串。枚举值由后端 domain 定义，\n前端只做文案映射，不据此另判一次失效。",
-                        "type": "string"
-                    },
-                    "title": {
-                        "type": "string"
-                    }
-                },
-                "type": "object"
-            },
-            "internal_article_adapter_http.ProjectArticleOrderRequest": {
-                "properties": {
-                    "article_ids": {
-                        "items": {
-                            "type": "string"
-                        },
-                        "type": "array",
-                        "uniqueItems": false
-                    }
-                },
-                "required": [
-                    "article_ids"
-                ],
-                "type": "object"
-            },
-            "internal_article_adapter_http.ProjectArticleRequest": {
-                "properties": {
-                    "article_id": {
-                        "type": "string"
-                    }
-                },
-                "required": [
-                    "article_id"
-                ],
-                "type": "object"
-            },
-            "internal_article_adapter_http.ProjectBatchIncludeItem": {
-                "properties": {
-                    "article_id": {
-                        "type": "string"
-                    },
-                    "outcome": {
-                        "type": "string"
-                    }
-                },
-                "type": "object"
-            },
-            "internal_article_adapter_http.ProjectBatchIncludeRequest": {
-                "properties": {
-                    "article_ids": {
-                        "items": {
-                            "type": "string"
-                        },
-                        "type": "array",
-                        "uniqueItems": false
-                    }
-                },
-                "required": [
-                    "article_ids"
-                ],
-                "type": "object"
-            },
-            "internal_article_adapter_http.ProjectBatchIncludeResponse": {
-                "properties": {
-                    "duplicated": {
-                        "type": "integer"
-                    },
-                    "included": {
-                        "type": "integer"
-                    },
-                    "rejected": {
-                        "type": "integer"
-                    },
-                    "results": {
-                        "items": {
-                            "$ref": "#/components/schemas/internal_article_adapter_http.ProjectBatchIncludeItem"
-                        },
-                        "type": "array",
-                        "uniqueItems": false
-                    }
-                },
-                "type": "object"
-            },
             "internal_article_adapter_http.ProjectCardResponse": {
                 "properties": {
                     "article_count": {
@@ -1830,14 +1611,6 @@
                 "required": [
                     "project_ids"
                 ],
-                "type": "object"
-            },
-            "internal_article_adapter_http.ProjectStaleCleanupResponse": {
-                "properties": {
-                    "removed": {
-                        "type": "integer"
-                    }
-                },
                 "type": "object"
             },
             "internal_article_adapter_http.ProjectUpdateRequest": {
@@ -4196,20 +3969,6 @@
                 },
                 "type": "object"
             },
-            "myblogx_internal_kernel.Envelope-internal_article_adapter_http_CollectionBatchIncludeResponse": {
-                "properties": {
-                    "code": {
-                        "type": "integer"
-                    },
-                    "data": {
-                        "$ref": "#/components/schemas/internal_article_adapter_http.CollectionBatchIncludeResponse"
-                    },
-                    "msg": {
-                        "type": "string"
-                    }
-                },
-                "type": "object"
-            },
             "myblogx_internal_kernel.Envelope-internal_article_adapter_http_CollectionCreatedResponse": {
                 "properties": {
                     "code": {
@@ -4238,20 +3997,6 @@
                 },
                 "type": "object"
             },
-            "myblogx_internal_kernel.Envelope-internal_article_adapter_http_CollectionStaleCleanupResponse": {
-                "properties": {
-                    "code": {
-                        "type": "integer"
-                    },
-                    "data": {
-                        "$ref": "#/components/schemas/internal_article_adapter_http.CollectionStaleCleanupResponse"
-                    },
-                    "msg": {
-                        "type": "string"
-                    }
-                },
-                "type": "object"
-            },
             "myblogx_internal_kernel.Envelope-internal_article_adapter_http_OutlineTreeResponse": {
                 "properties": {
                     "code": {
@@ -4259,20 +4004,6 @@
                     },
                     "data": {
                         "$ref": "#/components/schemas/internal_article_adapter_http.OutlineTreeResponse"
-                    },
-                    "msg": {
-                        "type": "string"
-                    }
-                },
-                "type": "object"
-            },
-            "myblogx_internal_kernel.Envelope-internal_article_adapter_http_ProjectBatchIncludeResponse": {
-                "properties": {
-                    "code": {
-                        "type": "integer"
-                    },
-                    "data": {
-                        "$ref": "#/components/schemas/internal_article_adapter_http.ProjectBatchIncludeResponse"
                     },
                     "msg": {
                         "type": "string"
@@ -4301,20 +4032,6 @@
                     },
                     "data": {
                         "$ref": "#/components/schemas/internal_article_adapter_http.ProjectDetailResponse"
-                    },
-                    "msg": {
-                        "type": "string"
-                    }
-                },
-                "type": "object"
-            },
-            "myblogx_internal_kernel.Envelope-internal_article_adapter_http_ProjectStaleCleanupResponse": {
-                "properties": {
-                    "code": {
-                        "type": "integer"
-                    },
-                    "data": {
-                        "$ref": "#/components/schemas/internal_article_adapter_http.ProjectStaleCleanupResponse"
                     },
                     "msg": {
                         "type": "string"
@@ -4966,20 +4683,6 @@
                 },
                 "type": "object"
             },
-            "myblogx_internal_kernel.Envelope-myblogx_internal_kernel_ListData-internal_article_adapter_http_CollectionAdminItem": {
-                "properties": {
-                    "code": {
-                        "type": "integer"
-                    },
-                    "data": {
-                        "$ref": "#/components/schemas/myblogx_internal_kernel.ListData-internal_article_adapter_http_CollectionAdminItem"
-                    },
-                    "msg": {
-                        "type": "string"
-                    }
-                },
-                "type": "object"
-            },
             "myblogx_internal_kernel.Envelope-myblogx_internal_kernel_ListData-internal_article_adapter_http_CollectionCardResponse": {
                 "properties": {
                     "code": {
@@ -5015,20 +4718,6 @@
                     },
                     "data": {
                         "$ref": "#/components/schemas/myblogx_internal_kernel.ListData-internal_article_adapter_http_ProjectAdminCard"
-                    },
-                    "msg": {
-                        "type": "string"
-                    }
-                },
-                "type": "object"
-            },
-            "myblogx_internal_kernel.Envelope-myblogx_internal_kernel_ListData-internal_article_adapter_http_ProjectAdminItem": {
-                "properties": {
-                    "code": {
-                        "type": "integer"
-                    },
-                    "data": {
-                        "$ref": "#/components/schemas/myblogx_internal_kernel.ListData-internal_article_adapter_http_ProjectAdminItem"
                     },
                     "msg": {
                         "type": "string"
@@ -5558,21 +5247,6 @@
                 },
                 "type": "object"
             },
-            "myblogx_internal_kernel.ListData-internal_article_adapter_http_CollectionAdminItem": {
-                "properties": {
-                    "count": {
-                        "type": "integer"
-                    },
-                    "list": {
-                        "items": {
-                            "$ref": "#/components/schemas/internal_article_adapter_http.CollectionAdminItem"
-                        },
-                        "type": "array",
-                        "uniqueItems": false
-                    }
-                },
-                "type": "object"
-            },
             "myblogx_internal_kernel.ListData-internal_article_adapter_http_CollectionCardResponse": {
                 "properties": {
                     "count": {
@@ -5611,21 +5285,6 @@
                     "list": {
                         "items": {
                             "$ref": "#/components/schemas/internal_article_adapter_http.ProjectAdminCard"
-                        },
-                        "type": "array",
-                        "uniqueItems": false
-                    }
-                },
-                "type": "object"
-            },
-            "myblogx_internal_kernel.ListData-internal_article_adapter_http_ProjectAdminItem": {
-                "properties": {
-                    "count": {
-                        "type": "integer"
-                    },
-                    "list": {
-                        "items": {
-                            "$ref": "#/components/schemas/internal_article_adapter_http.ProjectAdminItem"
                         },
                         "type": "array",
                         "uniqueItems": false
@@ -8386,44 +8045,6 @@
                 ]
             }
         },
-        "/collections/order": {
-            "patch": {
-                "requestBody": {
-                    "content": {
-                        "application/json": {
-                            "schema": {
-                                "$ref": "#/components/schemas/internal_article_adapter_http.CollectionOrderRequest",
-                                "summary": "body",
-                                "description": "请求体"
-                            }
-                        }
-                    },
-                    "description": "请求体",
-                    "required": true
-                },
-                "responses": {
-                    "200": {
-                        "content": {
-                            "application/json": {
-                                "schema": {
-                                    "$ref": "#/components/schemas/myblogx_internal_kernel.Envelope-myblogx_internal_kernel_EmptyData"
-                                }
-                            }
-                        },
-                        "description": "OK"
-                    }
-                },
-                "security": [
-                    {
-                        "BearerAuth": []
-                    }
-                ],
-                "summary": "合集之间排序",
-                "tags": [
-                    "collection"
-                ]
-            }
-        },
         "/collections/{id}": {
             "delete": {
                 "parameters": [
@@ -8531,272 +8152,6 @@
                     }
                 ],
                 "summary": "改合集",
-                "tags": [
-                    "collection"
-                ]
-            }
-        },
-        "/collections/{id}/admin/stale": {
-            "delete": {
-                "parameters": [
-                    {
-                        "description": "合集 ID",
-                        "in": "path",
-                        "name": "id",
-                        "required": true,
-                        "schema": {
-                            "type": "string"
-                        }
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "content": {
-                            "application/json": {
-                                "schema": {
-                                    "$ref": "#/components/schemas/myblogx_internal_kernel.Envelope-internal_article_adapter_http_CollectionStaleCleanupResponse"
-                                }
-                            }
-                        },
-                        "description": "OK"
-                    }
-                },
-                "security": [
-                    {
-                        "BearerAuth": []
-                    }
-                ],
-                "summary": "清理合集失效行",
-                "tags": [
-                    "collection"
-                ]
-            }
-        },
-        "/collections/{id}/articles": {
-            "delete": {
-                "parameters": [
-                    {
-                        "description": "合集 ID",
-                        "in": "path",
-                        "name": "id",
-                        "required": true,
-                        "schema": {
-                            "type": "string"
-                        }
-                    }
-                ],
-                "requestBody": {
-                    "content": {
-                        "application/json": {
-                            "schema": {
-                                "$ref": "#/components/schemas/internal_article_adapter_http.CollectionArticleRequest",
-                                "summary": "body",
-                                "description": "请求体"
-                            }
-                        }
-                    },
-                    "description": "请求体",
-                    "required": true
-                },
-                "responses": {
-                    "200": {
-                        "content": {
-                            "application/json": {
-                                "schema": {
-                                    "$ref": "#/components/schemas/myblogx_internal_kernel.Envelope-myblogx_internal_kernel_EmptyData"
-                                }
-                            }
-                        },
-                        "description": "OK"
-                    }
-                },
-                "security": [
-                    {
-                        "BearerAuth": []
-                    }
-                ],
-                "summary": "从合集移除文章",
-                "tags": [
-                    "collection"
-                ]
-            },
-            "post": {
-                "parameters": [
-                    {
-                        "description": "合集 ID",
-                        "in": "path",
-                        "name": "id",
-                        "required": true,
-                        "schema": {
-                            "type": "string"
-                        }
-                    }
-                ],
-                "requestBody": {
-                    "content": {
-                        "application/json": {
-                            "schema": {
-                                "$ref": "#/components/schemas/internal_article_adapter_http.CollectionArticleRequest",
-                                "summary": "body",
-                                "description": "请求体"
-                            }
-                        }
-                    },
-                    "description": "请求体",
-                    "required": true
-                },
-                "responses": {
-                    "200": {
-                        "content": {
-                            "application/json": {
-                                "schema": {
-                                    "$ref": "#/components/schemas/myblogx_internal_kernel.Envelope-myblogx_internal_kernel_EmptyData"
-                                }
-                            }
-                        },
-                        "description": "OK"
-                    }
-                },
-                "security": [
-                    {
-                        "BearerAuth": []
-                    }
-                ],
-                "summary": "收录文章进合集",
-                "tags": [
-                    "collection"
-                ]
-            }
-        },
-        "/collections/{id}/articles/admin": {
-            "get": {
-                "parameters": [
-                    {
-                        "description": "合集 ID",
-                        "in": "path",
-                        "name": "id",
-                        "required": true,
-                        "schema": {
-                            "type": "string"
-                        }
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "content": {
-                            "application/json": {
-                                "schema": {
-                                    "$ref": "#/components/schemas/myblogx_internal_kernel.Envelope-myblogx_internal_kernel_ListData-internal_article_adapter_http_CollectionAdminItem"
-                                }
-                            }
-                        },
-                        "description": "OK"
-                    }
-                },
-                "security": [
-                    {
-                        "BearerAuth": []
-                    }
-                ],
-                "summary": "后台合集收录行",
-                "tags": [
-                    "collection"
-                ]
-            }
-        },
-        "/collections/{id}/articles/batch": {
-            "post": {
-                "parameters": [
-                    {
-                        "description": "合集 ID",
-                        "in": "path",
-                        "name": "id",
-                        "required": true,
-                        "schema": {
-                            "type": "string"
-                        }
-                    }
-                ],
-                "requestBody": {
-                    "content": {
-                        "application/json": {
-                            "schema": {
-                                "$ref": "#/components/schemas/internal_article_adapter_http.CollectionBatchIncludeRequest",
-                                "summary": "body",
-                                "description": "请求体"
-                            }
-                        }
-                    },
-                    "description": "请求体",
-                    "required": true
-                },
-                "responses": {
-                    "200": {
-                        "content": {
-                            "application/json": {
-                                "schema": {
-                                    "$ref": "#/components/schemas/myblogx_internal_kernel.Envelope-internal_article_adapter_http_CollectionBatchIncludeResponse"
-                                }
-                            }
-                        },
-                        "description": "OK"
-                    }
-                },
-                "security": [
-                    {
-                        "BearerAuth": []
-                    }
-                ],
-                "summary": "批量收录文章进合集",
-                "tags": [
-                    "collection"
-                ]
-            }
-        },
-        "/collections/{id}/articles/order": {
-            "patch": {
-                "parameters": [
-                    {
-                        "description": "合集 ID",
-                        "in": "path",
-                        "name": "id",
-                        "required": true,
-                        "schema": {
-                            "type": "string"
-                        }
-                    }
-                ],
-                "requestBody": {
-                    "content": {
-                        "application/json": {
-                            "schema": {
-                                "$ref": "#/components/schemas/internal_article_adapter_http.CollectionArticleOrderRequest",
-                                "summary": "body",
-                                "description": "请求体"
-                            }
-                        }
-                    },
-                    "description": "请求体",
-                    "required": true
-                },
-                "responses": {
-                    "200": {
-                        "content": {
-                            "application/json": {
-                                "schema": {
-                                    "$ref": "#/components/schemas/myblogx_internal_kernel.Envelope-myblogx_internal_kernel_EmptyData"
-                                }
-                            }
-                        },
-                        "description": "OK"
-                    }
-                },
-                "security": [
-                    {
-                        "BearerAuth": []
-                    }
-                ],
-                "summary": "合集内文章排序",
                 "tags": [
                     "collection"
                 ]
@@ -11518,272 +10873,6 @@
                     }
                 ],
                 "summary": "改项目",
-                "tags": [
-                    "project"
-                ]
-            }
-        },
-        "/projects/{id}/admin/stale": {
-            "delete": {
-                "parameters": [
-                    {
-                        "description": "项目 ID",
-                        "in": "path",
-                        "name": "id",
-                        "required": true,
-                        "schema": {
-                            "type": "string"
-                        }
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "content": {
-                            "application/json": {
-                                "schema": {
-                                    "$ref": "#/components/schemas/myblogx_internal_kernel.Envelope-internal_article_adapter_http_ProjectStaleCleanupResponse"
-                                }
-                            }
-                        },
-                        "description": "OK"
-                    }
-                },
-                "security": [
-                    {
-                        "BearerAuth": []
-                    }
-                ],
-                "summary": "清理项目失效行",
-                "tags": [
-                    "project"
-                ]
-            }
-        },
-        "/projects/{id}/articles": {
-            "delete": {
-                "parameters": [
-                    {
-                        "description": "项目 ID",
-                        "in": "path",
-                        "name": "id",
-                        "required": true,
-                        "schema": {
-                            "type": "string"
-                        }
-                    }
-                ],
-                "requestBody": {
-                    "content": {
-                        "application/json": {
-                            "schema": {
-                                "$ref": "#/components/schemas/internal_article_adapter_http.ProjectArticleRequest",
-                                "summary": "body",
-                                "description": "请求体"
-                            }
-                        }
-                    },
-                    "description": "请求体",
-                    "required": true
-                },
-                "responses": {
-                    "200": {
-                        "content": {
-                            "application/json": {
-                                "schema": {
-                                    "$ref": "#/components/schemas/myblogx_internal_kernel.Envelope-myblogx_internal_kernel_EmptyData"
-                                }
-                            }
-                        },
-                        "description": "OK"
-                    }
-                },
-                "security": [
-                    {
-                        "BearerAuth": []
-                    }
-                ],
-                "summary": "从项目移除文章",
-                "tags": [
-                    "project"
-                ]
-            },
-            "post": {
-                "parameters": [
-                    {
-                        "description": "项目 ID",
-                        "in": "path",
-                        "name": "id",
-                        "required": true,
-                        "schema": {
-                            "type": "string"
-                        }
-                    }
-                ],
-                "requestBody": {
-                    "content": {
-                        "application/json": {
-                            "schema": {
-                                "$ref": "#/components/schemas/internal_article_adapter_http.ProjectArticleRequest",
-                                "summary": "body",
-                                "description": "请求体"
-                            }
-                        }
-                    },
-                    "description": "请求体",
-                    "required": true
-                },
-                "responses": {
-                    "200": {
-                        "content": {
-                            "application/json": {
-                                "schema": {
-                                    "$ref": "#/components/schemas/myblogx_internal_kernel.Envelope-myblogx_internal_kernel_EmptyData"
-                                }
-                            }
-                        },
-                        "description": "OK"
-                    }
-                },
-                "security": [
-                    {
-                        "BearerAuth": []
-                    }
-                ],
-                "summary": "收录文章进项目",
-                "tags": [
-                    "project"
-                ]
-            }
-        },
-        "/projects/{id}/articles/admin": {
-            "get": {
-                "parameters": [
-                    {
-                        "description": "项目 ID",
-                        "in": "path",
-                        "name": "id",
-                        "required": true,
-                        "schema": {
-                            "type": "string"
-                        }
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "content": {
-                            "application/json": {
-                                "schema": {
-                                    "$ref": "#/components/schemas/myblogx_internal_kernel.Envelope-myblogx_internal_kernel_ListData-internal_article_adapter_http_ProjectAdminItem"
-                                }
-                            }
-                        },
-                        "description": "OK"
-                    }
-                },
-                "security": [
-                    {
-                        "BearerAuth": []
-                    }
-                ],
-                "summary": "后台项目收录行",
-                "tags": [
-                    "project"
-                ]
-            }
-        },
-        "/projects/{id}/articles/batch": {
-            "post": {
-                "parameters": [
-                    {
-                        "description": "项目 ID",
-                        "in": "path",
-                        "name": "id",
-                        "required": true,
-                        "schema": {
-                            "type": "string"
-                        }
-                    }
-                ],
-                "requestBody": {
-                    "content": {
-                        "application/json": {
-                            "schema": {
-                                "$ref": "#/components/schemas/internal_article_adapter_http.ProjectBatchIncludeRequest",
-                                "summary": "body",
-                                "description": "请求体"
-                            }
-                        }
-                    },
-                    "description": "请求体",
-                    "required": true
-                },
-                "responses": {
-                    "200": {
-                        "content": {
-                            "application/json": {
-                                "schema": {
-                                    "$ref": "#/components/schemas/myblogx_internal_kernel.Envelope-internal_article_adapter_http_ProjectBatchIncludeResponse"
-                                }
-                            }
-                        },
-                        "description": "OK"
-                    }
-                },
-                "security": [
-                    {
-                        "BearerAuth": []
-                    }
-                ],
-                "summary": "批量收录文章进项目",
-                "tags": [
-                    "project"
-                ]
-            }
-        },
-        "/projects/{id}/articles/order": {
-            "patch": {
-                "parameters": [
-                    {
-                        "description": "项目 ID",
-                        "in": "path",
-                        "name": "id",
-                        "required": true,
-                        "schema": {
-                            "type": "string"
-                        }
-                    }
-                ],
-                "requestBody": {
-                    "content": {
-                        "application/json": {
-                            "schema": {
-                                "$ref": "#/components/schemas/internal_article_adapter_http.ProjectArticleOrderRequest",
-                                "summary": "body",
-                                "description": "请求体"
-                            }
-                        }
-                    },
-                    "description": "请求体",
-                    "required": true
-                },
-                "responses": {
-                    "200": {
-                        "content": {
-                            "application/json": {
-                                "schema": {
-                                    "$ref": "#/components/schemas/myblogx_internal_kernel.Envelope-myblogx_internal_kernel_EmptyData"
-                                }
-                            }
-                        },
-                        "description": "OK"
-                    }
-                },
-                "security": [
-                    {
-                        "BearerAuth": []
-                    }
-                ],
-                "summary": "项目内文章排序",
                 "tags": [
                     "project"
                 ]

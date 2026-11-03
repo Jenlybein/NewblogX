@@ -2,6 +2,7 @@ import { flushPromises, mount } from "@vue/test-utils";
 import { defineComponent, ref } from "vue";
 import { describe, expect, it, vi } from "vitest";
 
+import { useArticleOutlineContext } from "~/composables/useArticleOutlineContext";
 import type { ReaderRenderMode } from "~/utils/readerRenderMode";
 import type { ArticleOutlineContext } from "~/utils/outlineContext";
 
@@ -130,5 +131,3 @@ describe("useArticleOutlineContext：阅读页左栏取数时序", () => {
     expect(wrapper.vm.active).toBe(false);
   });
 });
-
-import { useArticleOutlineContext } from "~/composables/useArticleOutlineContext";

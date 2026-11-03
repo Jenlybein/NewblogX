@@ -77,7 +77,7 @@ describe("门禁接线：本地脚本与 CI 是同一口径", () => {
     expect(verifyGates).toContain("14/14 跨端装饰参数一致性门禁");
   });
 
-  it("两端定形工具同源门禁接进了 check.sh、verify-gates.sh 与 CI（票 200）", () => {
+  it("两端同源副本门禁接进了 check.sh、verify-gates.sh 与 CI（票 200；票 225 扩到裁剪窗）", () => {
     const cli = "node scripts/check-image-shaping-parity.mjs";
 
     // 本地：frontend 段与 token 同源门禁挨着跑（都是"两份文件逐字节一致"的仓库级判据）。
@@ -94,7 +94,10 @@ describe("门禁接线：本地脚本与 CI 是同一口径", () => {
 
     // 自检：verify-gates.sh 必须真的注入"只改后台副本一个常量"并断言门禁变红。
     expect(verifyGates).toContain("check-image-shaping-parity.mjs");
-    expect(verifyGates).toContain("13/14 两端 imageShaping 定形工具同源门禁");
+    expect(verifyGates).toContain("13/14 两端同源副本门禁（定形工具 + 裁剪窗四份组件）");
     expect(verifyGates).toContain("frontend_admin/app/utils/imageShaping.ts");
+    // 票 225：裁剪窗四份组件也必须被自检覆盖，否则"扩了门禁但没人证明它会红"。
+    expect(verifyGates).toContain("frontend_admin/app/components/media/ImageCropDialog.vue");
+    expect(verifyGates).toContain("两端裁剪窗（ImageCropView / ImageCropDialog）同源门禁失败");
   });
 });

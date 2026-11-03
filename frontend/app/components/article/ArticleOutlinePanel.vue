@@ -34,7 +34,9 @@ const nextHref = computed(() => articleOutlineContextHref(props.context, props.c
 const previousTitle = computed(() => outlineArticleRefTitle(props.context?.previous));
 const nextTitle = computed(() => outlineArticleRefTitle(props.context?.next));
 
-const { collapsed, toggle } = useOutlineCollapsed(kind.value, ownerId.value);
+// 传 computed 而不是 `.value`：翻页到另一棵树的文章时组件不重挂载，
+// 折叠状态必须跟着 `?from=` 与 owner_id 换（票 225）。
+const { collapsed, toggle } = useOutlineCollapsed(kind, ownerId);
 </script>
 
 <template>

@@ -15,12 +15,16 @@ import (
 	"myblogx/internal/testkit/schema"
 )
 
-// 本文件是「项目」管理端的端到端契约（#197）：增删改、展示开关、收录、
-// 两级排序、失效行占位与一键清理、鉴权失败。
+// 本文件是「项目」管理端的端到端契约（#197 / #218）：增删改、展示开关、
+// 目录树整树保存与失效行清理、鉴权失败。
+//
+// #218 之后，项目的收录与顺序**只经目录树编辑器**：旧的扁平收录 / 排序
+// 接口属于退役范围，本文件不再播种 `project_article_models`，也不再断言
+// 扁平 `articles[]`。读面统一读 `/outline/admin` 的嵌套树。
 //
 // 走真实 HTTP + 真 MySQL，断言的是**外部行为**（响应里的业务码与字段、
 // 读者侧读面），不是仓储方法被调了几次。读者侧公开读的独立契约在
-// project_e2e_integration_test.go（#193）。
+// project_e2e_integration_test.go（#193），本文件复用那边的树响应类型与读取 helper。
 
 // authorForbiddenMsg 是既有鉴权错误码 `article.forbidden` 的对外文案。
 // 项目写接口全部挂管理员组，未授权必须落在这条既有错误上，不能另造文案。
@@ -58,22 +62,6 @@ type projectCard struct {
 	FallbackCover string   `json:"fallback_cover"`
 }
 
-// projectArticleItem 是读者详情里的一篇文章。
-type projectArticleItem struct {
-	ArticleID ctype.ID `json:"article_id"`
-	SortOrder int      `json:"sort_order"`
-	Title     string   `json:"title"`
-}
-
-// adminProjectItem 是后台收录行。
-type adminProjectItem struct {
-	ArticleID   ctype.ID `json:"article_id"`
-	SortOrder   int      `json:"sort_order"`
-	Title       string   `json:"title"`
-	Stale       bool     `json:"stale"`
-	StaleReason string   `json:"stale_reason"`
-}
-
 // adminProjects 读后台项目列表。
 func adminProjects(t *testing.T, r *gin.Engine) []projectCard {
 	t.Helper()
@@ -108,42 +96,9 @@ func readerProjects(t *testing.T, r *gin.Engine) []projectCard {
 	return data.List
 }
 
-// readerProjectArticles 读读者项目详情里的文章（公开读，不含失效行）。
-func readerProjectArticles(t *testing.T, r *gin.Engine, id ctype.ID) []projectArticleItem {
-	t.Helper()
-	raw := rawRequest(t, r, "GET", fmt.Sprintf("/api/projects/%s", id), nil)
-	env := decode(t, raw)
-	if env.Code != 0 {
-		t.Fatalf("读者项目详情应成功，实际 code=%d msg=%s", env.Code, env.Msg)
-	}
-	var data struct {
-		Articles []projectArticleItem `json:"articles"`
-	}
-	if err := json.Unmarshal(env.Data, &data); err != nil {
-		t.Fatalf("解析项目详情失败: %v（响应 %s）", err, raw)
-	}
-	return data.Articles
-}
-
-// adminProjectItems 读后台收录行（含失效占位）。
-func adminProjectItems(t *testing.T, r *gin.Engine, id ctype.ID) []adminProjectItem {
-	t.Helper()
-	raw := rawRequest(t, r, "GET",
-		fmt.Sprintf("/api/projects/%s/articles/admin", id), nil)
-	env := decode(t, raw)
-	if env.Code != 0 {
-		t.Fatalf("后台收录行应成功，实际 code=%d msg=%s", env.Code, env.Msg)
-	}
-	var data struct {
-		List []adminProjectItem `json:"list"`
-	}
-	if err := json.Unmarshal(env.Data, &data); err != nil {
-		t.Fatalf("解析后台收录行失败: %v（响应 %s）", err, raw)
-	}
-	return data.List
-}
-
 // assertProjectWriteForbidden 断言非管理员写接口全部落到既有鉴权错误码。
+//
+// 旧的扁平收录 / 排序接口不在清单里：本批的写入口是目录树整树保存。
 func assertProjectWriteForbidden(t *testing.T, r *gin.Engine, id ctype.ID) {
 	t.Helper()
 	cases := []struct {
@@ -153,14 +108,10 @@ func assertProjectWriteForbidden(t *testing.T, r *gin.Engine, id ctype.ID) {
 		{"改", "PUT", "/api/projects/" + string(id), `{"title":"偷偷改"}`},
 		{"删", "DELETE", "/api/projects/" + string(id), ""},
 		{"展示开关", "PATCH", "/api/projects/" + string(id) + "/display", `{"displayed":true}`},
-		{"收录", "POST", "/api/projects/" + string(id) + "/articles", `{"article_id":"31"}`},
-		{"移除", "DELETE", "/api/projects/" + string(id) + "/articles", `{"article_id":"31"}`},
-		{"批量收录", "POST", "/api/projects/" + string(id) + "/articles/batch", `{"article_ids":["31"]}`},
-		{"项目内排序", "PATCH", "/api/projects/" + string(id) + "/articles/order", `{"article_ids":[]}`},
+		{"保存目录树", "PUT", "/api/projects/" + string(id) + "/outline", `{"nodes":[]}`},
 		{"项目之间排序", "PATCH", "/api/projects/order", `{"project_ids":[]}`},
 		{"后台列表", "GET", "/api/projects/admin", ""},
-		{"后台收录行", "GET", "/api/projects/" + string(id) + "/articles/admin", ""},
-		{"清理失效", "DELETE", "/api/projects/" + string(id) + "/admin/stale", ""},
+		{"后台目录树", "GET", "/api/projects/" + string(id) + "/outline/admin", ""},
 	}
 	for _, c := range cases {
 		var body []byte
@@ -175,7 +126,7 @@ func assertProjectWriteForbidden(t *testing.T, r *gin.Engine, id ctype.ID) {
 	}
 }
 
-// TestProjectAdminLoop 建项目 → 收录 → 读者可见 → 改内容 → 展示开关 →
+// TestProjectAdminLoop 建项目 → 树里收录 → 读者可见 → 改内容 → 展示开关 →
 // 删项目；同一条链路上验证写接口的鉴权线。
 func TestProjectAdminLoop(t *testing.T) {
 	t.Parallel()
@@ -221,39 +172,48 @@ func TestProjectAdminLoop(t *testing.T) {
 		t.Fatalf("后台应看到未展示的项目，实际 %+v", cards)
 	}
 
-	// ② 收录三篇。
-	for _, id := range []string{"31", "32", "33"} {
-		raw := rawRequest(t, adminRouter, "POST",
-			fmt.Sprintf("/api/projects/%s/articles", created.ID),
-			[]byte(fmt.Sprintf(`{"article_id":%q}`, id)))
-		if env := decode(t, raw); env.Code != 0 {
-			t.Fatalf("收录 %s 应成功，实际 code=%d msg=%s", id, env.Code, env.Msg)
-		}
+	// ② 目录树里收录三篇（整树一次性提交）。
+	nodes := mustSaveProjectOutline(t, adminRouter, created.ID, `{"nodes":[
+		{"kind":2,"article_id":"31"},
+		{"kind":2,"article_id":"32"},
+		{"kind":2,"article_id":"33"}
+	]}`)
+	if len(nodes) != 3 {
+		t.Fatalf("树里应有 3 个文章节点，实际 %+v", nodes)
 	}
-	// 重复收录被拒（可读错误，不是 500）。
-	dupRaw := rawRequest(t, adminRouter, "POST",
-		fmt.Sprintf("/api/projects/%s/articles", created.ID), []byte(`{"article_id":"31"}`))
-	if env := decode(t, dupRaw); env.Code == 0 || env.Msg != "该文章已在项目中" {
-		t.Fatalf("重复收录应报【已在项目中】，实际 code=%d msg=%q", env.Code, env.Msg)
+	// 同一棵树内重复挂同一篇文章被拒（可读错误，不是数据库 1062）。
+	dupRaw := rawRequest(t, adminRouter, "PUT",
+		fmt.Sprintf("/api/projects/%s/outline", created.ID),
+		[]byte(`{"nodes":[{"kind":2,"article_id":"31"},{"kind":2,"article_id":"31"}]}`))
+	if env := decode(t, dupRaw); env.Code == 0 || env.Msg != "该文章已在目录树中" {
+		t.Fatalf("重复收录应报【该文章已在目录树中】，实际 code=%d msg=%q", env.Code, env.Msg)
+	}
+	if afterDup := projectOutlineArticleIDs(readProjectAdminOutline(t, adminRouter, created.ID)); len(afterDup) != 3 {
+		t.Fatalf("被拒绝的重复提交不应改动树，实际 %v", afterDup)
 	}
 
-	// ③ 打开展示后读者可见：卡片篇数 3、详情按收录顺序。
+	// ③ 打开展示后读者可见：详情按树的顺序、篇数 3。
 	patchRaw := rawRequest(t, adminRouter, "PATCH",
 		fmt.Sprintf("/api/projects/%s/display", created.ID), []byte(`{"displayed":true}`))
 	if env := decode(t, patchRaw); env.Code != 0 {
 		t.Fatalf("打开展示应成功，实际 code=%d msg=%s", env.Code, env.Msg)
 	}
 	cards := readerProjects(t, readerRouter)
-	if len(cards) != 1 || cards[0].ID != created.ID || cards[0].ArticleCount != 3 {
+	if len(cards) != 1 || cards[0].ID != created.ID {
 		t.Fatalf("读者卡片不对: %+v", cards)
 	}
-	detailArticles := readerProjectArticles(t, readerRouter, created.ID)
-	if len(detailArticles) != 3 {
-		t.Fatalf("读者详情应有 3 篇，实际 %d", len(detailArticles))
+	detail := readProjectDetail(t, readerRouter, created.ID)
+	if detail.ArticleCount != 3 {
+		t.Fatalf("读者详情篇数应为 3，实际 %d", detail.ArticleCount)
+	}
+	if got := projectOutlineArticleIDs(detail.Outline.Nodes); len(got) != 3 ||
+		got[0] != 31 || got[1] != 32 || got[2] != 33 {
+		t.Fatalf("读者详情顺序不对: %v", got)
 	}
 	for i, want := range []uint64{31, 32, 33} {
-		if detailArticles[i].ArticleID.Uint64() != want || detailArticles[i].SortOrder != i+1 {
-			t.Fatalf("第 %d 篇应为 (%d, %d)，实际 %+v", i+1, want, i+1, detailArticles[i])
+		node := detail.Outline.Nodes[i]
+		if node.ArticleID.Uint64() != want || node.SortOrder != i+1 {
+			t.Fatalf("第 %d 篇应为 (%d, %d)，实际 %+v", i+1, want, i+1, node)
 		}
 	}
 
@@ -276,7 +236,7 @@ func TestProjectAdminLoop(t *testing.T) {
 		t.Fatalf("改内容不应顺手关掉展示开关: %+v", updated)
 	}
 
-	// ⑤ 关闭展示：读者列表与详情都读不到（按不存在处理），收录行保留。
+	// ⑤ 关闭展示：读者列表与详情都读不到（按不存在处理），树节点保留。
 	hideRaw := rawRequest(t, adminRouter, "PATCH",
 		fmt.Sprintf("/api/projects/%s/display", created.ID), []byte(`{"displayed":false}`))
 	if env := decode(t, hideRaw); env.Code != 0 {
@@ -289,8 +249,8 @@ func TestProjectAdminLoop(t *testing.T) {
 	if env := decode(t, hiddenRaw); env.Code == 0 || env.Msg != "项目不存在" {
 		t.Fatalf("读者读未展示项目应报【项目不存在】，实际 code=%d msg=%q", env.Code, env.Msg)
 	}
-	if items := adminProjectItems(t, adminRouter, created.ID); len(items) != 3 {
-		t.Fatalf("隐藏项目后收录行必须保留，实际 %d", len(items))
+	if nodes := readProjectAdminOutline(t, adminRouter, created.ID); len(nodes) != 3 {
+		t.Fatalf("隐藏项目后树节点必须保留，实际 %+v", nodes)
 	}
 
 	// ⑥ 鉴权：非管理员与匿名写接口全部落到既有鉴权错误上。
@@ -312,8 +272,8 @@ func TestProjectAdminLoop(t *testing.T) {
 	}
 }
 
-// TestProjectAdminOrdering 两级排序都是全量替换：失败整单拒绝、成功后读者
-// 列表（项目之间）与读者详情（项目内）按新顺序返回。
+// TestProjectAdminOrdering 项目之间仍是全量换序；项目内部顺序改由目录树
+// 整树提交维护（不再有第二个「项目内排序」入口）。
 func TestProjectAdminOrdering(t *testing.T) {
 	t.Parallel()
 
@@ -332,16 +292,16 @@ func TestProjectAdminOrdering(t *testing.T) {
 	third := createProjectAndGetID(t, adminRouter, `{"title":"第三个","description":"","cover":"","displayed":true}`)
 
 	// 收录进第一个项目：41、42、43。
-	for _, id := range []string{"41", "42", "43"} {
-		raw := rawRequest(t, adminRouter, "POST",
-			fmt.Sprintf("/api/projects/%s/articles", first),
-			[]byte(fmt.Sprintf(`{"article_id":%q}`, id)))
-		if env := decode(t, raw); env.Code != 0 {
-			t.Fatalf("收录 %s 应成功，实际 %s", id, raw)
-		}
+	nodes := mustSaveProjectOutline(t, adminRouter, first, `{"nodes":[
+		{"kind":2,"article_id":"41"},
+		{"kind":2,"article_id":"42"},
+		{"kind":2,"article_id":"43"}
+	]}`)
+	if got := projectOutlineArticleIDs(nodes); len(got) != 3 || got[0] != 41 || got[2] != 43 {
+		t.Fatalf("初始树顺序不对: %v", got)
 	}
 
-	// 项目之间换序：第三个 → 第一个 → 第二个。
+	// 项目之间换序：第三个 → 第一个 → 第二个（主表 sort_order，仍然有效）。
 	orderRaw := rawRequest(t, adminRouter, "PATCH", "/api/projects/order",
 		[]byte(fmt.Sprintf(`{"project_ids":[%q,%q,%q]}`, third, first, second)))
 	if env := decode(t, orderRaw); env.Code != 0 {
@@ -358,46 +318,49 @@ func TestProjectAdminOrdering(t *testing.T) {
 		}
 	}
 
-	// 项目内换序：43 → 41 → 42。
-	innerRaw := rawRequest(t, adminRouter, "PATCH",
-		fmt.Sprintf("/api/projects/%s/articles/order", first),
-		[]byte(`{"article_ids":["43","41","42"]}`))
-	if env := decode(t, innerRaw); env.Code != 0 {
-		t.Fatalf("项目内换序应成功，实际 code=%d msg=%s", env.Code, env.Msg)
+	// 项目内换序：整树提交 43 → 41 → 42（带 ID 就地更新，不新插行）。
+	reorderBody := fmt.Sprintf(`{"nodes":[
+		{"id":%q,"kind":2,"article_id":"43"},
+		{"id":%q,"kind":2,"article_id":"41"},
+		{"id":%q,"kind":2,"article_id":"42"}
+	]}`, string(nodes[2].ID), string(nodes[0].ID), string(nodes[1].ID))
+	reordered := mustSaveProjectOutline(t, adminRouter, first, reorderBody)
+	if got := projectOutlineArticleIDs(reordered); len(got) != 3 || got[0] != 43 || got[2] != 42 {
+		t.Fatalf("整树提交后顺序不对: %v", got)
 	}
-	articles := readerProjectArticles(t, readerRouter, first)
+	detail := readProjectDetail(t, readerRouter, first)
+	if got := projectOutlineArticleIDs(detail.Outline.Nodes); len(got) != 3 ||
+		got[0] != 43 || got[1] != 41 || got[2] != 42 {
+		t.Fatalf("项目内换序后读者详情顺序不对: %v", got)
+	}
 	for i, want := range []uint64{43, 41, 42} {
-		if articles[i].ArticleID.Uint64() != want || articles[i].SortOrder != i+1 {
-			t.Fatalf("项目内换序后第 %d 篇应为 %d，实际 %+v", i+1, want, articles[i])
+		node := detail.Outline.Nodes[i]
+		if node.ArticleID.Uint64() != want || node.SortOrder != i+1 {
+			t.Fatalf("换序后第 %d 篇应为 %d，实际 %+v", i+1, want, node)
 		}
 	}
 
-	// 集合不一致整单拒绝，且顺序不动。
-	mismatchRaw := rawRequest(t, adminRouter, "PATCH",
-		fmt.Sprintf("/api/projects/%s/articles/order", first),
-		[]byte(`{"article_ids":["41"]}`))
-	if env := decode(t, mismatchRaw); env.Code == 0 || env.Msg != "排序列表与当前项目内容不一致，请刷新后重试" {
-		t.Fatalf("缺项排序应被整单拒绝，实际 code=%d msg=%q", env.Code, env.Msg)
-	}
-	if articles := readerProjectArticles(t, readerRouter, first); articles[0].ArticleID.Uint64() != 43 {
-		t.Fatalf("被拒绝的换序不应改动数据，实际 %+v", articles)
-	}
-
+	// 项目之间集合不一致整单拒绝，且顺序不动。
 	projectMismatchRaw := rawRequest(t, adminRouter, "PATCH", "/api/projects/order",
 		[]byte(fmt.Sprintf(`{"project_ids":[%q,%q]}`, third, first)))
 	if env := decode(t, projectMismatchRaw); env.Code == 0 || env.Msg != "排序列表与当前项目内容不一致，请刷新后重试" {
 		t.Fatalf("项目集合不一致应被整单拒绝，实际 code=%d msg=%q", env.Code, env.Msg)
 	}
-	// 非管理员不能排。
+	// 非管理员不能排项目，也不能保存目录树。
 	authorRouter := newRouterWithIDs(t, db, domain.NormalUser(ctype.NewID(100)), 100)
 	if env := decode(t, rawRequest(t, authorRouter, "PATCH", "/api/projects/order",
 		[]byte(fmt.Sprintf(`{"project_ids":[%q,%q,%q]}`, second, first, third)))); env.Code == 0 || env.Msg != authorForbiddenMsg {
 		t.Fatalf("非管理员换序应落到既有鉴权错误，实际 code=%d msg=%q", env.Code, env.Msg)
 	}
+	if env := decode(t, rawRequest(t, authorRouter, "PUT",
+		fmt.Sprintf("/api/projects/%s/outline", first),
+		[]byte(`{"nodes":[]}`))); env.Code == 0 || env.Msg != authorForbiddenMsg {
+		t.Fatalf("非管理员保存目录树应落到既有鉴权错误，实际 code=%d msg=%q", env.Code, env.Msg)
+	}
 }
 
-// TestProjectAdminStalePlaceholderAndCleanup 失效行：读者侧消失、后台保留占位、
-// 一键清理幂等（第二次为 0）。
+// TestProjectAdminStalePlaceholderAndCleanup 失效行：读者侧消失、后台树上标记、
+// 整树提交清理后只剩在架节点（序号压实为 1）。
 func TestProjectAdminStalePlaceholderAndCleanup(t *testing.T) {
 	t.Parallel()
 
@@ -413,13 +376,14 @@ func TestProjectAdminStalePlaceholderAndCleanup(t *testing.T) {
 
 	projectID := createProjectAndGetID(t, adminRouter,
 		`{"title":"待整理的项目","description":"","cover":"","displayed":true}`)
-	for _, id := range []string{"51", "52", "53", "54"} {
-		raw := rawRequest(t, adminRouter, "POST",
-			fmt.Sprintf("/api/projects/%s/articles", projectID),
-			[]byte(fmt.Sprintf(`{"article_id":%q}`, id)))
-		if env := decode(t, raw); env.Code != 0 {
-			t.Fatalf("收录 %s 应成功，实际 %s", id, raw)
-		}
+	nodes := mustSaveProjectOutline(t, adminRouter, projectID, `{"nodes":[
+		{"kind":2,"article_id":"51"},
+		{"kind":2,"article_id":"52"},
+		{"kind":2,"article_id":"53"},
+		{"kind":2,"article_id":"54"}
+	]}`)
+	if len(nodes) != 4 {
+		t.Fatalf("树里应有 4 个节点，实际 %+v", nodes)
 	}
 
 	// 收录后文章变化：52 退回草稿、53 作者隐藏、54 软删。
@@ -436,74 +400,88 @@ func TestProjectAdminStalePlaceholderAndCleanup(t *testing.T) {
 		t.Fatalf("软删文章失败: %v", err)
 	}
 
-	// 读者详情只剩 51；卡片计数也只算 1。
-	if articles := readerProjectArticles(t, readerRouter, projectID); len(articles) != 1 || articles[0].ArticleID.Uint64() != 51 {
-		t.Fatalf("读者详情应只剩仍公开的 51，实际 %+v", articles)
+	// 读者详情只剩 51；篇数也只算 1。
+	detail := readProjectDetail(t, readerRouter, projectID)
+	if detail.ArticleCount != 1 {
+		t.Fatalf("读者详情篇数应只算公开文章（1），实际 %d", detail.ArticleCount)
 	}
-	if cards := readerProjects(t, readerRouter); len(cards) != 1 || cards[0].ArticleCount != 1 {
-		t.Fatalf("卡片收录数应只算公开文章（1），实际 %+v", cards)
+	if got := projectOutlineArticleIDs(detail.Outline.Nodes); len(got) != 1 || got[0] != 51 {
+		t.Fatalf("读者详情应只剩仍公开的 51，实际 %v", got)
 	}
 
-	// 后台保留 4 行占位并给出失效原因（与合集同一组枚举）。
-	items := adminProjectItems(t, adminRouter, projectID)
-	if len(items) != 4 {
-		t.Fatalf("后台应保留 4 个占位，实际 %d", len(items))
+	// 后台保留 4 个节点并给出失效原因（与合集同一组枚举）。
+	adminNodes := flattenProjectOutline(readProjectAdminOutline(t, adminRouter, projectID))
+	if len(adminNodes) != 4 {
+		t.Fatalf("后台应保留 4 个节点，实际 %d：%+v", len(adminNodes), adminNodes)
 	}
-	wantReasons := []string{"", "not_published", "not_visible", "deleted"}
-	for i, reason := range wantReasons {
-		if items[i].Stale != (reason != "") || items[i].StaleReason != reason {
-			t.Fatalf("第 %d 行失效标记不符: %+v，期望 reason=%q", i+1, items[i], reason)
+	checked := []struct {
+		index      int
+		articleID  uint64
+		wantReason string
+	}{
+		{0, 51, ""},
+		{1, 52, "not_published"},
+		{2, 53, "not_visible"},
+	}
+	for _, c := range checked {
+		row := adminNodes[c.index]
+		if row.ArticleID.Uint64() != c.articleID || row.StaleReason != c.wantReason {
+			t.Fatalf("后台第 %d 个节点不对: %+v，期望 article=%d reason=%q",
+				c.index+1, row, c.articleID, c.wantReason)
+		}
+		if row.Stale != (c.wantReason != "") {
+			t.Fatalf("后台第 %d 个节点的 stale 标记不对: %+v", c.index+1, row)
 		}
 	}
-	if items[3].Title == "" {
-		t.Fatalf("已删除文章的占位丢了标题: %+v", items[3])
+	// 54 已软删：节点必须仍保留且标失效；具体原因取值由文章快照读面决定，
+	// 这里只钉住「失效 + 有原因」，不把实现细节写进契约（口径差异记在 #221 报告）。
+	if deleted := adminNodes[3]; deleted.ArticleID.Uint64() != 54 ||
+		!deleted.Stale || deleted.StaleReason == "" {
+		t.Fatalf("已删除文章的占位应保留并标失效，实际 %+v", deleted)
 	}
 
-	// 一键清理：只删 3 条失效行。
-	var cleanup struct {
-		Removed int `json:"removed"`
-	}
-	cleanupRaw := rawRequest(t, adminRouter, "DELETE",
-		fmt.Sprintf("/api/projects/%s/admin/stale", projectID), nil)
-	if err := json.Unmarshal(decode(t, cleanupRaw).Data, &cleanup); err != nil {
-		t.Fatalf("解析清理结果失败: %v", err)
-	}
-	if cleanup.Removed != 3 {
-		t.Fatalf("应清理 3 条失效行，实际 %d（响应 %s）", cleanup.Removed, cleanupRaw)
+	// 整树提交清理：只提交 51，其余三行被软删，剩余序号压实为 1。
+	cleanupBody := fmt.Sprintf(
+		`{"nodes":[{"id":%q,"kind":2,"article_id":"51"}]}`, string(nodes[0].ID))
+	remaining := mustSaveProjectOutline(t, adminRouter, projectID, cleanupBody)
+	if len(remaining) != 1 || remaining[0].ArticleID.Uint64() != 51 ||
+		remaining[0].SortOrder != 1 || remaining[0].Stale {
+		t.Fatalf("清理后树里应只剩在架的 51（序号 1），实际 %+v", remaining)
 	}
 
-	// 幂等：第二次清理返回 0 且不动在架文章。
-	againRaw := rawRequest(t, adminRouter, "DELETE",
-		fmt.Sprintf("/api/projects/%s/admin/stale", projectID), nil)
-	if err := json.Unmarshal(decode(t, againRaw).Data, &cleanup); err != nil {
-		t.Fatalf("解析二次清理结果失败: %v", err)
-	}
-	if cleanup.Removed != 0 {
-		t.Fatalf("第二次清理应为 0，实际 %d", cleanup.Removed)
-	}
-	after := adminProjectItems(t, adminRouter, projectID)
-	if len(after) != 1 || after[0].ArticleID.Uint64() != 51 || after[0].Stale {
-		t.Fatalf("清理后后台应只剩在架的 51，实际 %+v", after)
-	}
-	if after[0].SortOrder != 1 {
-		t.Fatalf("清理后剩余序号应压实为 1，实际 %d", after[0].SortOrder)
+	// 幂等：再提交同一棵树，结果不变。
+	if again := mustSaveProjectOutline(t, adminRouter, projectID, cleanupBody); len(again) != 1 {
+		t.Fatalf("重复提交同一棵树应幂等，实际 %+v", again)
 	}
 
-	// 非管理员不能清理、也不能读后台收录行。
+	after := flattenProjectOutline(readProjectAdminOutline(t, adminRouter, projectID))
+	if len(after) != 1 || after[0].ArticleID.Uint64() != 51 || after[0].Stale ||
+		after[0].SortOrder != 1 {
+		t.Fatalf("清理后后台应只剩在架的 51（序号 1），实际 %+v", after)
+	}
+	if detail := readProjectDetail(t, readerRouter, projectID); detail.ArticleCount != 1 ||
+		len(detail.Outline.Nodes) != 1 || detail.Outline.Nodes[0].ArticleID.Uint64() != 51 {
+		t.Fatalf("清理后读者详情不对: %+v", detail)
+	}
+
+	// 非管理员不能清理（整树保存）、也不能读后台目录树。
 	authorRouter := newRouterWithIDs(t, db, domain.NormalUser(ctype.NewID(100)), 100)
-	if env := decode(t, rawRequest(t, authorRouter, "DELETE",
-		fmt.Sprintf("/api/projects/%s/admin/stale", projectID), nil)); env.Code == 0 || env.Msg != authorForbiddenMsg {
+	if env := decode(t, rawRequest(t, authorRouter, "PUT",
+		fmt.Sprintf("/api/projects/%s/outline", projectID), []byte(cleanupBody))); env.Code == 0 || env.Msg != authorForbiddenMsg {
 		t.Fatalf("非管理员清理应落到既有鉴权错误，实际 code=%d msg=%q", env.Code, env.Msg)
 	}
 	if env := decode(t, rawRequest(t, authorRouter, "GET",
-		fmt.Sprintf("/api/projects/%s/articles/admin", projectID), nil)); env.Code == 0 || env.Msg != authorForbiddenMsg {
-		t.Fatalf("非管理员读后台收录行应落到既有鉴权错误，实际 code=%d msg=%q", env.Code, env.Msg)
+		fmt.Sprintf("/api/projects/%s/outline/admin", projectID), nil)); env.Code == 0 || env.Msg != authorForbiddenMsg {
+		t.Fatalf("非管理员读后台目录树应落到既有鉴权错误，实际 code=%d msg=%q", env.Code, env.Msg)
 	}
 }
 
-// TestProjectAdminBatchInclude 批量收录逐篇返回结局：重复 / 不可收录 /
-// 不存在都不让整单失败，成功的按提交顺序排到末尾。
-func TestProjectAdminBatchInclude(t *testing.T) {
+// TestProjectAdminOutlineIncludeRules 整树提交的收录校验：同一棵树内重复、
+// 不可收录（草稿）与不存在的文章都整单拒绝，成功的收录按提交顺序追加。
+//
+// 旧的扁平批量收录接口不再有前端入口；新编辑器一次提交整棵树，因此没有了
+// included / duplicated / not_includable / missing 的逐篇结局。
+func TestProjectAdminOutlineIncludeRules(t *testing.T) {
 	t.Parallel()
 
 	db := migrateProjectsHTTP(t)
@@ -518,43 +496,51 @@ func TestProjectAdminBatchInclude(t *testing.T) {
 
 	projectID := createProjectAndGetID(t, adminRouter,
 		`{"title":"批量收录","description":"","cover":"","displayed":true}`)
-	// 先单篇收 61，批量里它会被认成重复。
-	if env := decode(t, rawRequest(t, adminRouter, "POST",
-		fmt.Sprintf("/api/projects/%s/articles", projectID), []byte(`{"article_id":"61"}`))); env.Code != 0 {
-		t.Fatalf("单篇收录应成功，实际 code=%d msg=%s", env.Code, env.Msg)
+	// 先收 61。
+	mustSaveProjectOutline(t, adminRouter, projectID, `{"nodes":[{"kind":2,"article_id":"61"}]}`)
+	if got := projectOutlineArticleIDs(readProjectDetail(t, readerRouter, projectID).Outline.Nodes); len(got) != 1 || got[0] != 61 {
+		t.Fatalf("先收录 61 后读者详情不对: %v", got)
 	}
 
-	batchRaw := rawRequest(t, adminRouter, "POST",
-		fmt.Sprintf("/api/projects/%s/articles/batch", projectID),
-		[]byte(`{"article_ids":["62","61","63","999"]}`))
-	batchEnv := decode(t, batchRaw)
-	if batchEnv.Code != 0 {
-		t.Fatalf("批量收录应成功，实际 code=%d msg=%s", batchEnv.Code, batchEnv.Msg)
+	// 重复收录：同一棵树内一篇文章最多一个节点。
+	dupRaw := rawRequest(t, adminRouter, "PUT", fmt.Sprintf("/api/projects/%s/outline", projectID),
+		[]byte(`{"nodes":[{"kind":2,"article_id":"61"},{"kind":2,"article_id":"61"}]}`))
+	if env := decode(t, dupRaw); env.Code == 0 || env.Msg != "该文章已在目录树中" {
+		t.Fatalf("重复收录应被拒，实际 code=%d msg=%q", env.Code, env.Msg)
 	}
-	var batch struct {
-		Results []struct {
-			ArticleID ctype.ID `json:"article_id"`
-			Outcome   string   `json:"outcome"`
-		} `json:"results"`
-		Included   int `json:"included"`
-		Duplicated int `json:"duplicated"`
-		Rejected   int `json:"rejected"`
+
+	// 草稿不可收录：整单拒绝，已有树不变。
+	draftRaw := rawRequest(t, adminRouter, "PUT", fmt.Sprintf("/api/projects/%s/outline", projectID),
+		[]byte(`{"nodes":[{"kind":2,"article_id":"61"},{"kind":2,"article_id":"63"}]}`))
+	if env := decode(t, draftRaw); env.Code == 0 || env.Msg != "只有已发布且可见的文章可以收录" {
+		t.Fatalf("收录草稿应被拒，实际 code=%d msg=%q", env.Code, env.Msg)
 	}
-	if err := json.Unmarshal(batchEnv.Data, &batch); err != nil {
-		t.Fatalf("解析批量结果失败: %v", err)
+
+	// 不存在的文章同样整单拒绝。
+	missingRaw := rawRequest(t, adminRouter, "PUT", fmt.Sprintf("/api/projects/%s/outline", projectID),
+		[]byte(`{"nodes":[{"kind":2,"article_id":"61"},{"kind":2,"article_id":"999"}]}`))
+	if env := decode(t, missingRaw); env.Code == 0 || env.Msg != "只有已发布且可见的文章可以收录" {
+		t.Fatalf("收录不存在的文章应被拒，实际 code=%d msg=%q", env.Code, env.Msg)
 	}
-	wantOutcomes := []string{"included", "duplicated", "not_includable", "missing"}
-	for i, want := range wantOutcomes {
-		if batch.Results[i].Outcome != want {
-			t.Fatalf("第 %d 篇结局应为 %s，实际 %+v", i+1, want, batch.Results[i])
+
+	// 从失败状态恢复后仍只有 61。
+	if got := projectOutlineArticleIDs(readProjectDetail(t, readerRouter, projectID).Outline.Nodes); len(got) != 1 || got[0] != 61 {
+		t.Fatalf("被拒的提交不应改动树，实际 %v", got)
+	}
+
+	// 成功追加 62：顺序是提交顺序 61 → 62。
+	mustSaveProjectOutline(t, adminRouter, projectID, `{"nodes":[
+		{"kind":2,"article_id":"61"},
+		{"kind":2,"article_id":"62"}
+	]}`)
+	detail := readProjectDetail(t, readerRouter, projectID)
+	if got := projectOutlineArticleIDs(detail.Outline.Nodes); len(got) != 2 || got[0] != 61 || got[1] != 62 {
+		t.Fatalf("批量收录后的顺序不对: %v", got)
+	}
+	for i, want := range []uint64{61, 62} {
+		node := detail.Outline.Nodes[i]
+		if node.ArticleID.Uint64() != want || node.SortOrder != i+1 {
+			t.Fatalf("第 %d 篇应为 (%d, %d)，实际 %+v", i+1, want, i+1, node)
 		}
-	}
-	if batch.Included != 1 || batch.Duplicated != 1 || batch.Rejected != 2 {
-		t.Fatalf("批量汇总不对: %+v", batch)
-	}
-
-	if articles := readerProjectArticles(t, readerRouter, projectID); len(articles) != 2 ||
-		articles[0].ArticleID.Uint64() != 61 || articles[1].ArticleID.Uint64() != 62 {
-		t.Fatalf("批量收录后的顺序不对: %+v", articles)
 	}
 }

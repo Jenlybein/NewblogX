@@ -180,22 +180,6 @@ type BannerRow struct {
 // TableName 固定表名。
 func (BannerRow) TableName() string { return "banner_models" }
 
-// PictureCropRow 对应表 picture_crop_models：通用取景表的行结构。
-//
-// 键是 (target_type, target_id)：target_type 记主体类型（banner / article /
-// collection），target_id 记该主体的 ID。取景三列的名称、类型与语义沿用
-// 既有口径（焦点 0–1、缩放 1–2），缺行即缺省（居中、缩放 1）。
-type PictureCropRow struct {
-	TargetType string   `gorm:"primaryKey;autoIncrement:false;size:32;not null" json:"target_type"` // 主体类型
-	TargetID   ctype.ID `gorm:"primaryKey;autoIncrement:false;not null" json:"target_id"`           // 主体 ID
-	FocusX     float64  `json:"focus_x"`                                                            // 焦点 x（0–1）
-	FocusY     float64  `json:"focus_y"`                                                            // 焦点 y（0–1）
-	Zoom       float64  `json:"zoom"`                                                               // 缩放（1–2）
-}
-
-// TableName 固定表名。
-func (PictureCropRow) TableName() string { return "picture_crop_models" }
-
 // CategoryRow 对应表 category_models。
 type CategoryRow struct {
 	BaseRow

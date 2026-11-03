@@ -83,15 +83,7 @@ func (s *Service) Delete(ctx context.Context, cmd DeleteCmd) (*DeleteResult, err
 			return err
 		}
 
-		// 8) 取景表的孤儿行（取景表没有软删列，随文章真删）
-		//
-		// 取景参数体系已在 #203 退场，本模块不再读写取景参数；但表本身留到
-		// #205 才物理下线，这段清理保留，免得删掉的旧文章在取景表里越积越多。
-		if err := deleteArticleCrop(ctx, r, a.ID().Uint64()); err != nil {
-			return err
-		}
-
-		// 9) 文章本体（软删）
+		// 8) 文章本体（软删）
 		//
 		// 必须走仓储的 SoftDelete：Update 的列清单不含 deleted_at，
 		// 用 Update 落"软删"会变成什么都没删（golden/e2e 抓到的真实缺陷）。

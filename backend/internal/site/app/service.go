@@ -282,7 +282,7 @@ func (s *Service) CreateBanner(ctx context.Context, in BannerInput) (domain.Bann
 // UpdateBanner 更新轮播图。
 //
 // 先解析封面再查存在性，与旧实现顺序一致：封面 ID 非法时优先报图片错误。
-// 取景参数已在 #203 退场：更新不再有"部分更新取景"的分支。
+// 封面在上传前已按 16:9 定形，更新只有"整体替换"一种语义。
 func (s *Service) UpdateBanner(ctx context.Context, id uint64, in BannerInput) error {
 	cover, err := s.resolveCover(ctx, in.CoverImageID.Uint64())
 	if err != nil {

@@ -178,9 +178,6 @@ var groupModels = map[Group][]any{
 		&ArticleRow{},
 		&ArticleTagRow{},
 		&ArticleDiggRow{},
-		// 通用取景表：文章封面取景（target_type=article）也写它，所以文章侧用例要建。
-		// 表在多张表组里出现是刻意的——组是"某类场景需要哪些表"的切片，不是互斥分区。
-		&PictureCropRow{},
 	},
 	ArticleReview: {
 		&ArticleReviewTaskRow{},
@@ -217,7 +214,6 @@ var groupModels = map[Group][]any{
 	},
 	Site: {
 		&BannerRow{},
-		&PictureCropRow{},
 		&RuntimeConfigRow{},
 		&SidebarCardRow{},
 		&SidebarCardBodyRow{},
@@ -241,7 +237,7 @@ var groupModels = map[Group][]any{
 		&ProjectRow{},
 		&ProjectArticleRow{},
 	},
-	// All 是**全部 41 张表**，只用于"schema.sql 与自持行是否一致"的契约测试。
+	// All 是**全部 40 张表**，只用于"schema.sql 与自持行是否一致"的契约测试。
 	//
 	// 为什么不复用上面那些组拼起来：拼装顺序一变，这个测试就变成
 	// "测拼装顺序"而不是"测结构一致性"。这里写死一份，顺序沿用当年
@@ -285,7 +281,6 @@ var groupModels = map[Group][]any{
 		&CdcDeadLetterRow{},
 		&OutboxEventRow{},
 		&AIProviderRow{},
-		&PictureCropRow{},
 		&SidebarCardRow{},
 		&SidebarCardBodyRow{},
 	},

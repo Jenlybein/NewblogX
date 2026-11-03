@@ -459,19 +459,6 @@ CREATE TABLE IF NOT EXISTS `outbox_event_models` (
   KEY `idx_outbox_event_models_available_at` (`available_at`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
--- 通用取景表：按 (target_type, target_id) 存一个主体的取景参数（焦点 + 缩放）。
--- target_type 记主体类型（banner / article / collection），target_id 记该主体的 ID。
--- 一张表服务所有主体，不再按主体类型各开一张；取景三列的名称、类型与语义沿用
--- 既有口径，缺行即缺省（居中、缩放 1）。本表不进任何 CDC 监听范围，也不发 outbox 事件。
-CREATE TABLE IF NOT EXISTS `picture_crop_models` (
-  `target_type` varchar(32) NOT NULL,
-  `target_id` bigint unsigned NOT NULL,
-  `focus_x` double DEFAULT NULL,
-  `focus_y` double DEFAULT NULL,
-  `zoom` double DEFAULT NULL,
-  PRIMARY KEY (`target_type`,`target_id`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
-
 -- 项目-文章关联表：结构与 collection_article_models 同构。
 --
 -- 唯一键 uk_project_article **不含 deleted_at**：移除是软删，行留在表里占着这个键，

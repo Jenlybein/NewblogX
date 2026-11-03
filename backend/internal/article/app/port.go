@@ -20,7 +20,6 @@ import (
 	"myblogx/internal/article/domain/top"
 	"myblogx/internal/article/domain/viewhistory"
 	"myblogx/internal/kernel/ctype"
-	sitedomain "myblogx/internal/site/domain"
 )
 
 // Repos 是"一次事务内可用的全部仓储"。
@@ -56,11 +55,6 @@ type Repos interface {
 	// Projects 是项目（与合集并列的独立内容实体）。
 	// 与 Collections 是两套数据、两套表：项目有自己的后台维护页，不共用合集的行。
 	Projects() project.Repository
-	// Crops 是通用取景表（picture_crop_models）的清理端口。
-	//
-	// 取景参数体系已在 #203 全量退场：本模块不再读写取景参数，表留到 #205
-	// 才物理下线，端口只剩"删文章时清掉 target_type=article 的孤儿行"。
-	Crops() sitedomain.PictureCropRepository
 }
 
 // DiggPort 是点赞关系端口。

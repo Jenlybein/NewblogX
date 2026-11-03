@@ -367,7 +367,7 @@ func (h *Handler) BannerUpdate(c *gin.Context) {
 			res.FailWithMsg("轮播图不存在", c)
 			return
 		}
-		// 取景越界也走这里：统一响应壳里 "校验失败"（业务码 1001）就是接口层的 400，
+		// 统一响应壳里 "校验失败"（业务码 1001）就是接口层的 400：
 		// 请求被拒绝、什么都不落库，而不是被悄悄钳制。
 		res.FailWithMsg(err.Error(), c)
 		return

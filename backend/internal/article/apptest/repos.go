@@ -16,7 +16,6 @@ import (
 	"myblogx/internal/article/domain/taxonomy"
 	"myblogx/internal/article/domain/top"
 	"myblogx/internal/article/domain/viewhistory"
-	sitedomain "myblogx/internal/site/domain"
 )
 
 // Repos 把各 fake 仓储聚成一个 app.Repos。
@@ -43,7 +42,6 @@ type Repos struct {
 	diggs          *Diggs
 	collectionRepo *CollectionRepo
 	projectRepo    *ProjectRepo
-	cropRepo       *CropRepo
 }
 
 // NewRepos 构造一套全部为空的 fake 仓储。
@@ -70,7 +68,6 @@ func NewRepos() *Repos {
 		diggs:          NewDiggs(),
 		collectionRepo: NewCollectionRepo(articles),
 		projectRepo:    NewProjectRepo(articles),
-		cropRepo:       NewCropRepo(),
 	}
 }
 
@@ -91,9 +88,6 @@ func (r *Repos) Collections() collection.Repository { return r.collectionRepo }
 
 // Projects 返回项目仓储（与合集并列的独立内容实体）。
 func (r *Repos) Projects() project.Repository { return r.projectRepo }
-
-// Crops 返回通用取景表仓储的清理端口（取景参数已在 #203 退场，只剩删文章时清孤儿行）。
-func (r *Repos) Crops() sitedomain.PictureCropRepository { return r.cropRepo }
 
 // FakeCounters 返回计数 fake。
 func (r *Repos) FakeCounters() *Counters { return r.counters }
@@ -165,9 +159,6 @@ func (r *Repos) FakeCollections() *CollectionRepo { return r.collectionRepo }
 // FakeProjects 返回项目仓储 fake。
 func (r *Repos) FakeProjects() *ProjectRepo { return r.projectRepo }
 
-// FakeCrops 返回取景表 fake（断言"行还在不在"用）。
-func (r *Repos) FakeCrops() *CropRepo { return r.cropRepo }
-
 // FakeHistory 返回浏览历史仓储 fake。
 func (r *Repos) FakeHistory() *ViewHistoryRepo { return r.historyRepo }
 
@@ -201,7 +192,6 @@ func (r *Repos) snapshotAll() map[string]any {
 		"diggs":       r.diggs.Snapshot(),
 		"collections": r.collectionRepo.Snapshot(),
 		"projects":    r.projectRepo.Snapshot(),
-		"crops":       r.cropRepo.Snapshot(),
 	}
 }
 
@@ -222,7 +212,6 @@ func (r *Repos) restoreAll(snaps map[string]any) {
 	r.diggs.RestoreState(snaps["diggs"])
 	r.collectionRepo.RestoreState(snaps["collections"])
 	r.projectRepo.RestoreState(snaps["projects"])
-	r.cropRepo.RestoreState(snaps["crops"])
 }
 
 // Tx 是 app.TxManager 的实现。

@@ -81,6 +81,26 @@ export const useMessageStore = defineStore("message", () => {
     inflight = null;
   }
 
+  /**
+   * 收到一条私信通知：私信未读在本地立刻 +1（票 #240）。
+   *
+   * 为什么不在这里直接等汇总请求：WS 通知是"已经落库一条新消息"的即时信号，
+   * 而 `GET /api/sitemsg/user` 是网络往返 —— 等它回来，顶栏数字会慢半拍。
+   * 先本地 +1 保证"到达即可见"，随后调用方再刷汇总把它校准成服务端的真相
+   * （例如对方其实已被另一端标记已读）。
+   *
+   * 未登录直接忽略：登出后迟到的通知不该写进下一个账号的未读数。
+   */
+  function bumpPrivateUnread() {
+    if (!useAuthStore().isLoggedIn) {
+      return;
+    }
+    summary.value = {
+      ...summary.value,
+      private_msg_count: summary.value.private_msg_count + 1,
+    };
+  }
+
   // 登录态一变就自己跟上 —— 不再由 auth store 反过来调用本 store（见 baseline §42）。
   //
   // flush:"sync"：登出时要在界面重渲染之前就清空，否则会闪一帧上一个账号的未读数。
@@ -104,6 +124,7 @@ export const useMessageStore = defineStore("message", () => {
     fetched,
     totalUnread,
     refreshSummary,
+    bumpPrivateUnread,
     clear,
   };
 });

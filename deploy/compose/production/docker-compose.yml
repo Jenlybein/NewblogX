@@ -282,6 +282,13 @@ services:
       BLOGX_APP_ENV: ${BLOGX_APP_ENV}
       BLOGX_GIN_MODE: ${BLOGX_GIN_MODE}
       BLOGX_LOG_APP: ${BLOGX_LOG_APP}
+      # Origin 白名单的来源：后端默认允许「本地开发来源 + 这两个站点地址派生的来源」。
+      # 不把域名写进代码，换域名只改 .env。故意不给默认值——缺了就让它报缺，
+      # 而不是悄悄退回 localhost 让生产域的握手继续 403。
+      BLOGX_WEB_SITE_URL: ${BLOGX_WEB_SITE_URL}
+      BLOGX_ADMIN_SITE_URL: ${BLOGX_ADMIN_SITE_URL}
+      # 可选：一旦设置就整体替换上面那套默认允许来源（英文逗号分隔）。
+      BLOGX_CORS_ALLOWED_ORIGINS: ${BLOGX_CORS_ALLOWED_ORIGINS:-}
       BLOGX_JWT_SECRET: ${BLOGX_JWT_SECRET}
       BLOGX_JWT_ISSUER: ${BLOGX_JWT_ISSUER}
       BLOGX_JWT_EXPIRE_HOURS: ${BLOGX_JWT_EXPIRE_HOURS}

@@ -7,6 +7,7 @@ import (
 
 	"myblogx/conf"
 	siteconf "myblogx/conf/site"
+	chatdomain "myblogx/internal/chat/domain"
 	"myblogx/internal/kernel/ctype"
 	sitecfg "myblogx/internal/platform/config"
 )
@@ -43,12 +44,12 @@ func TestStrangerBridge_两级开关取交集(t *testing.T) {
 		name   string
 		siteOn bool
 		userOn bool
-		want   bool
+		want   chatdomain.StrangerVerdict
 	}{
-		{name: "站点开×接收方开", siteOn: true, userOn: true, want: true},
-		{name: "站点开×接收方关", siteOn: true, userOn: false, want: false},
-		{name: "站点关×接收方开", siteOn: false, userOn: true, want: false},
-		{name: "站点关×接收方关", siteOn: false, userOn: false, want: false},
+		{name: "站点开×接收方开", siteOn: true, userOn: true, want: chatdomain.StrangerAllowed},
+		{name: "站点开×接收方关", siteOn: true, userOn: false, want: chatdomain.StrangerBlockedByRecipient},
+		{name: "站点关×接收方开", siteOn: false, userOn: true, want: chatdomain.StrangerBlockedBySite},
+		{name: "站点关×接收方关", siteOn: false, userOn: false, want: chatdomain.StrangerBlockedBySite},
 	}
 
 	for _, c := range cases {
@@ -56,7 +57,7 @@ func TestStrangerBridge_两级开关取交集(t *testing.T) {
 			users := &fakeStrangerUserSettings{enabled: c.userOn}
 			bridge := &strangerBridge{inner: newRuntimeSite(c.siteOn), users: users}
 
-			got, err := bridge.StrangerEnabled(context.Background(), ctype.NewID(200))
+			got, err := bridge.CheckStranger(context.Background(), ctype.NewID(200))
 			if err != nil {
 				t.Fatalf("判定失败: %v", err)
 			}
@@ -77,12 +78,12 @@ func TestStrangerBridge_站点关闭时不再读接收方(t *testing.T) {
 	users := &fakeStrangerUserSettings{enabled: true, err: errors.New("不该被读到")}
 	bridge := &strangerBridge{inner: newRuntimeSite(false), users: users}
 
-	got, err := bridge.StrangerEnabled(context.Background(), ctype.NewID(200))
+	got, err := bridge.CheckStranger(context.Background(), ctype.NewID(200))
 	if err != nil {
 		t.Fatalf("站点关闭时应直接拒绝而不是报错: %v", err)
 	}
-	if got {
-		t.Fatal("站点关闭时有效判决应为 false")
+	if got != chatdomain.StrangerBlockedBySite {
+		t.Fatalf("站点关闭时判决应指向站点级，实际 %v", got)
 	}
 	if len(users.seen) != 0 {
 		t.Fatalf("站点关闭时不应读接收方偏好，实际 %v", users.seen)
@@ -97,7 +98,7 @@ func TestStrangerBridge_接收方偏好读取错误上抛(t *testing.T) {
 		users: &fakeStrangerUserSettings{enabled: true, err: boom},
 	}
 
-	_, err := bridge.StrangerEnabled(context.Background(), ctype.NewID(200))
+	_, err := bridge.CheckStranger(context.Background(), ctype.NewID(200))
 	if !errors.Is(err, boom) {
 		t.Fatalf("应原样上抛接收方偏好读取错误，实际 %v", err)
 	}
@@ -118,12 +119,14 @@ func TestStrangerBridge_依赖缺失时失败关闭(t *testing.T) {
 
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
-			got, err := c.bridge.StrangerEnabled(context.Background(), ctype.NewID(200))
+			got, err := c.bridge.CheckStranger(context.Background(), ctype.NewID(200))
 			if err != nil {
 				t.Fatalf("依赖缺失不该以错误暴露给发送方: %v", err)
 			}
-			if got {
-				t.Fatal("依赖缺失时应失败关闭")
+			// 失败关闭的文案归属站点级：这是部署/配置问题，
+			// 不该把用户引向"对方关了开关"这条查不到的结论。
+			if got != chatdomain.StrangerBlockedBySite {
+				t.Fatalf("依赖缺失时应失败关闭到站点级，实际 %v", got)
 			}
 		})
 	}

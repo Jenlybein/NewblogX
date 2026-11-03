@@ -68,6 +68,49 @@ const notificationHandlers = new Set<(notification: ChatNotificationPayload) => 
 // 建连是异步的（先取票据）：并发调用必须复用同一个 Promise，否则会开两条连接。
 let connectPromise: Promise<WebSocket | null> | null = null;
 
+// ── 断线自动重连（票 #247）──────────────────────────────────────────────────
+//
+// #240 把连接改成"整个登录会话共享一条"时，旧的重连补偿被删掉了：网络抖动一次、
+// onclose 之后再也没人建连，顶栏未读就一直停在那。这里补回"被动断线自动重连"：
+//   - 退避 1s → 2s → 4s …（上限 30s）+ 最多 20% 抖动，避免所有客户端同时重连；
+//   - 主动 close（登出 / 显式卸载）绝不重连 —— manualClose 会把 onclose 的自动分支关掉；
+//   - 重连成功广播 onReconnected，由 useMessageRealtime 去 refreshSummary 校准未读。
+const RECONNECT_BASE_DELAY_MS = 1000;
+const RECONNECT_MAX_DELAY_MS = 30_000;
+const RECONNECT_JITTER_RATIO = 0.2;
+
+const reconnectHandlers = new Set<() => void>();
+let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
+// 第几次退避尝试：成功建连后归零，所以"断一次"总是从 1s 起。
+let reconnectAttempt = 0;
+// 是不是"主动关闭"：登出 / 显式 close 时为 true，onclose 因此不排重连。
+// 初始 true：还没建过连时调用 close（例如未登录态的 watch）也不该触发重连。
+let manualClose = true;
+// 是否成功建过连：用来区分"首次连上"与"重连成功"（只有后者要校准未读）。
+let hasConnected = false;
+
+function clearReconnectTimer() {
+  if (reconnectTimer !== null) {
+    clearTimeout(reconnectTimer);
+    reconnectTimer = null;
+  }
+}
+
+function reconnectDelay(attempt: number) {
+  const base = Math.min(RECONNECT_MAX_DELAY_MS, RECONNECT_BASE_DELAY_MS * 2 ** (attempt - 1));
+  return Math.round(base * (1 + Math.random() * RECONNECT_JITTER_RATIO));
+}
+
+function notifyReconnected() {
+  for (const handler of [...reconnectHandlers]) {
+    try {
+      handler();
+    } catch {
+      // 单个订阅者（刷新未读）异常不该影响连接本身。
+    }
+  }
+}
+
 function dispatchEnvelope(envelope: ChatSocketEnvelope) {
   useChatStore().markSocketMessage();
 
@@ -98,6 +141,12 @@ function pushEnvelope(envelope: ChatSocketEnvelope) {
 }
 
 function closeSocket() {
+  // 主动关闭：先撤掉待执行的重连，再关连接 —— 反过来的话，真实环境里
+  // onclose 异步到达时仍会看到 manualClose=false。
+  manualClose = true;
+  clearReconnectTimer();
+  reconnectAttempt = 0;
+  hasConnected = false;
   socket.value?.close();
   socket.value = null;
   // 关连接时可能还有 in-flight 的取票 Promise，它回来后会再开一条连接；
@@ -114,7 +163,28 @@ export function useChatSocket() {
   const wsUrl = computed(() => resolveWebSocketUrl(config.public.siteUrl, config.public.wsPath));
   const canConnect = computed(() => isClientRuntime() && authStore.isLoggedIn);
 
+  // 排一次退避重连。重复调用（例如 onclose 与取票失败同时报错）只保留一个定时器。
+  function scheduleReconnect() {
+    if (reconnectTimer !== null || manualClose || !canConnect.value) {
+      return;
+    }
+    reconnectAttempt += 1;
+    // 等待期间显示"连接中"：比挂着"连接出错"更贴近事实（重试正在进行）。
+    chatStore.setSocketStatus("connecting");
+    reconnectTimer = setTimeout(() => {
+      reconnectTimer = null;
+      if (manualClose || !canConnect.value) {
+        return;
+      }
+      void connect();
+    }, reconnectDelay(reconnectAttempt));
+  }
+
   async function connect(): Promise<WebSocket | null> {
+    // 显式 connect（登录 / 面板的「重连」按钮）优先于任何待执行退避，也撤销"主动关闭"。
+    manualClose = false;
+    clearReconnectTimer();
+
     if (!canConnect.value) {
       return null;
     }
@@ -150,6 +220,13 @@ export function useChatSocket() {
 
         instance.onopen = () => {
           chatStore.setSocketStatus("connected");
+          reconnectAttempt = 0;
+          // 只有"断过又连上"才需要校准未读；首次建连时汇总由登录流程负责。
+          const wasReconnect = hasConnected;
+          hasConnected = true;
+          if (wasReconnect) {
+            notifyReconnected();
+          }
         };
 
         instance.onmessage = (event) => {
@@ -170,19 +247,25 @@ export function useChatSocket() {
         };
 
         instance.onclose = () => {
-          // 只清理自己：重连期间旧连接的 onclose 不能把新连接抹掉。
-          if (socket.value === instance) {
-            socket.value = null;
+          // 旧连接退场时可能已经有新连接（或被排上重连）：只处理"自己仍是当前连接"。
+          if (socket.value !== instance) {
+            return;
           }
+          socket.value = null;
           if (chatStore.socketStatus !== "error") {
             chatStore.setSocketStatus("idle");
           }
+          // 被动断线才重连；主动登出 / close 已把 manualClose 置 true。
+          scheduleReconnect();
         };
 
         socket.value = instance;
         return instance;
       } catch (error) {
         chatStore.setSocketStatus("error", error instanceof Error ? error.message : "实时连接初始化失败。");
+        // 取票失败（离线 / 服务端暂时不可用）也是"被动断线"的一种：不排下一次，
+        // 重连循环就会死在第一次失败上。
+        scheduleReconnect();
         return null;
       }
     })().finally(() => {
@@ -205,6 +288,19 @@ export function useChatSocket() {
   }
 
   /**
+   * 订阅"重连成功"事件（返回取消订阅函数）。
+   *
+   * 断线期间的消息根本没到达本地，未读不会 +1；只有重连成功后向服务端要一次
+   * 汇总，才能把这段缺口补齐（接线在 useMessageRealtime）。
+   */
+  function onReconnected(handler: () => void) {
+    reconnectHandlers.add(handler);
+    return () => {
+      reconnectHandlers.delete(handler);
+    };
+  }
+
+  /**
    * 记录/清空最近一次发送的拒绝原因（票 202 的界面出口）。
    *
    * #201 之后发送走 HTTP：拒绝原因是 HTTP 请求抛出的后端错误码文案，
@@ -223,5 +319,6 @@ export function useChatSocket() {
     connect,
     close: closeSocket,
     onNotification,
+    onReconnected,
   };
 }

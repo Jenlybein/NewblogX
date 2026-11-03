@@ -105,10 +105,12 @@ func (f fakeRelations) Batch(_ context.Context, _ ctype.ID, ids []ctype.ID) (map
 }
 
 // fakeStranger 是**有效陌生人判定**的结论（站点总闸 AND 接收方个人开关，
-// 两级合成在装配层）。适配器只观察"拒绝时回执长什么样"，不关心是哪一级关的。
-type fakeStranger struct{ enabled bool }
+// 两级合成在装配层；#247 起带原因，适配器据此返回不同文案）。
+type fakeStranger struct{ verdict domain.StrangerVerdict }
 
-func (f fakeStranger) StrangerEnabled(context.Context, ctype.ID) (bool, error) { return f.enabled, nil }
+func (f fakeStranger) CheckStranger(context.Context, ctype.ID) (domain.StrangerVerdict, error) {
+	return f.verdict, nil
+}
 
 // fakeTickets 返回固定票据对应的会话身份。
 //
@@ -133,15 +135,15 @@ func (fakeAuth) Authenticate(context.Context, string) (uint64, uint64, bool, boo
 
 func (fakeAuth) SessionActive(context.Context, uint64, uint64) (bool, error) { return true, nil }
 
-// newService 造一个"发送一律成功"的用例服务；relation/stranger 决定陌生人判定。
-func newService(relation int8, strangerEnabled bool) (*app.Service, *fakeRepo) {
+// newService 造一个"发送一律成功"的用例服务；relation/verdict 决定陌生人判定。
+func newService(relation int8, verdict domain.StrangerVerdict) (*app.Service, *fakeRepo) {
 	repo := &fakeRepo{}
 	svc := app.New(
 		repo,
 		repo,
 		fakeRelations{relation: relation},
 		fakeUsers{},
-		fakeStranger{enabled: strangerEnabled},
+		fakeStranger{verdict: verdict},
 		nil,
 		nil,
 	)
@@ -189,7 +191,7 @@ func postMessage(t *testing.T, engine *gin.Engine, receiverID uint64, content st
 // TestSend_自己发给自己成功时也回执 自己发给自己：发送成功后必须拿到回执
 // （code=0 且带回落库后的消息），发送者才知道该刷新。
 func TestSend_自己发给自己成功时也回执(t *testing.T) {
-	svc, repo := newService(1, false)
+	svc, repo := newService(1, domain.StrangerBlockedBySite)
 	engine := newEngine(svc)
 
 	got := postMessage(t, engine, 1, "自言自语")
@@ -211,7 +213,7 @@ func TestSend_自己发给自己成功时也回执(t *testing.T) {
 // TestSend_陌生人被站点开关拒绝时回执说明站点策略 陌生人被站点开关拒绝时，
 // 回执必须说明是站点策略（而不是"网络错误/账号受限"）。
 func TestSend_陌生人被站点开关拒绝时回执说明站点策略(t *testing.T) {
-	svc, repo := newService(1, false) // relation=1 陌生人；站点开关关闭
+	svc, repo := newService(1, domain.StrangerBlockedBySite) // relation=1 陌生人；站点开关关闭
 	engine := newEngine(svc)
 
 	got := postMessage(t, engine, 2, "你好")
@@ -233,12 +235,37 @@ func TestSend_陌生人被站点开关拒绝时回执说明站点策略(t *testi
 	}
 }
 
+// TestSend_陌生人被接收方开关拒绝时回执指向对方 #247：同是拒绝，原因在接收方
+// 的个人开关上。回执文案必须提示"对方"的设置，不能沿用站点级那条去让人找
+// 管理员 —— 管理员查站点总闸只会看到"已开启"。
+func TestSend_陌生人被接收方开关拒绝时回执指向对方(t *testing.T) {
+	svc, repo := newService(1, domain.StrangerBlockedByRecipient)
+	engine := newEngine(svc)
+
+	got := postMessage(t, engine, 2, "你好")
+	if got.Code == res.SuccessCode {
+		t.Fatalf("被拒绝时不能回成功回执，实际 code=%d msg=%q", got.Code, got.Msg)
+	}
+	if got.Msg != apperr.Message(apperr.CodeChatRecipientStrangerOff) {
+		t.Fatalf("回执文案应为 %q，实际 %q", apperr.Message(apperr.CodeChatRecipientStrangerOff), got.Msg)
+	}
+	if !strings.Contains(got.Msg, "对方") {
+		t.Fatalf("拒绝原因必须指向接收方的个人开关，实际 %q", got.Msg)
+	}
+	if strings.Contains(got.Msg, "管理员") {
+		t.Fatalf("接收方级拒绝不该让用户去联系管理员，实际 %q", got.Msg)
+	}
+	if len(repo.sent) != 0 {
+		t.Fatalf("被拒绝的消息不能落库，实际写入 %d 条", len(repo.sent))
+	}
+}
+
 // TestWs_上行消息统一提示改走HTTP（#201 后 WS 只做通知）。
 //
 // 旧客户端仍可能往 WS 发消息：必须明确告诉它该走哪个接口，
 // 而不是静默吞掉（吞掉的症状是"点了发送没反应"）。
 func TestWs_上行消息统一提示改走HTTP(t *testing.T) {
-	svc, _ := newService(1, true)
+	svc, _ := newService(1, domain.StrangerAllowed)
 	engine := newEngine(svc)
 	server := httptest.NewServer(engine)
 	t.Cleanup(server.Close)

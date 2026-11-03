@@ -43,6 +43,12 @@ export function useMessageRealtime() {
     void messageStore.refreshSummary().catch(() => undefined);
   });
 
+  // #247：断线期间的通知根本没到达，未读不会 +1，本地数字只能等到服务端汇总。
+  // 所以重连成功时立刻刷新一次 —— 这正是"被动断线后顶栏未读停更"的补丁。
+  socket.onReconnected(() => {
+    void messageStore.refreshSummary().catch(() => undefined);
+  });
+
   // immediate：账号已经登录着进站（带着有效 token）时也要建连。
   watch(
     () => authStore.isLoggedIn,

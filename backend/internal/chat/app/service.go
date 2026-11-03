@@ -119,12 +119,20 @@ func (s *Service) Send(ctx context.Context, senderID, receiverID ctype.ID, msgTy
 	// 陌生人私信是**两级**策略（#243）：站点总闸 AND 接收方个人开关。
 	// 两级取值在装配层的 StrangerPolicy 里合成，用例层只消费结论；
 	// 必须传接收方 ID，个人开关才有接线点。
+	//
+	// #247 起结论带原因：两种拒绝在读者侧对应不同的正确动作 ——
+	// 站点级找管理员，接收方级提示"对方不接受陌生人私信"。
 	if stranger {
-		enabled, err := s.stranger.StrangerEnabled(ctx, receiverID)
+		verdict, err := s.stranger.CheckStranger(ctx, receiverID)
 		if err != nil {
 			return nil, err
 		}
-		if !enabled {
+		switch verdict {
+		case domain.StrangerAllowed:
+		case domain.StrangerBlockedByRecipient:
+			return nil, apperr.New(apperr.CodeChatRecipientStrangerOff)
+		default:
+			// 站点级拒绝（以及未知结论的失败关闭）沿用既有错误码。
 			return nil, apperr.New(apperr.CodeChatStrangerOff)
 		}
 	}

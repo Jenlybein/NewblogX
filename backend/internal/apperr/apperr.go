@@ -246,14 +246,19 @@ const (
 	CodeChatContentEmpty    Code = "chat.content_empty"
 	CodeChatTypeUnsupported Code = "chat.type_unsupported"
 	CodeChatStrangerOff     Code = "chat.stranger_disabled"
-	CodeChatNoPermission    Code = "chat.no_permission"
-	CodeChatSessionNotFound Code = "chat.session_not_found"
-	CodeChatEmptySelection  Code = "chat.empty_selection"
-	CodeChatSendFailed      Code = "chat.send_failed"
-	CodeChatTooFrequent     Code = "chat.too_frequent"
-	CodeChatSessionTooFast  Code = "chat.session_too_fast"
-	CodeChatWeekStranger    Code = "chat.week_stranger_limit"
-	CodeChatWeekLimit       Code = "chat.week_limit"
+	// CodeChatRecipientStrangerOff 接收方个人开关关闭（#247）。
+	//
+	// 与 CodeChatStrangerOff 分开：同样是"陌生人被拒"，站点级要联系管理员，
+	// 接收方级只该提示"对方不接受"，找管理员查不出任何问题。
+	CodeChatRecipientStrangerOff Code = "chat.recipient_stranger_disabled"
+	CodeChatNoPermission         Code = "chat.no_permission"
+	CodeChatSessionNotFound      Code = "chat.session_not_found"
+	CodeChatEmptySelection       Code = "chat.empty_selection"
+	CodeChatSendFailed           Code = "chat.send_failed"
+	CodeChatTooFrequent          Code = "chat.too_frequent"
+	CodeChatSessionTooFast       Code = "chat.session_too_fast"
+	CodeChatWeekStranger         Code = "chat.week_stranger_limit"
+	CodeChatWeekLimit            Code = "chat.week_limit"
 )
 
 // 通知与站内信。
@@ -505,15 +510,18 @@ var messages = map[Code]string{
 	CodeChatTypeUnsupported: "不支持的消息类型",
 	// 这条文案必须点明"站点策略"：陌生人私信开关是站点级的（#202），
 	// 用户看到后应该去找管理员改站点开关，而不是怀疑自己被针对或网络故障。
-	CodeChatStrangerOff:     "站点当前不允许陌生人发私信（站点策略，不是网络问题），请联系管理员开启「允许陌生人发私信」",
-	CodeChatNoPermission:    "权限不足",
-	CodeChatSessionNotFound: "会话不存在",
-	CodeChatEmptySelection:  "请选择要操作的消息或会话",
-	CodeChatSendFailed:      "消息发送失败",
-	CodeChatTooFrequent:     "发送过于频繁，请稍后再试",
-	CodeChatSessionTooFast:  "当前会话发送过于频繁，请稍后再试",
-	CodeChatWeekStranger:    "本周只允许向陌生人发送 1 条消息",
-	CodeChatWeekLimit:       "本周可发送消息次数已达上限，对方回复后才可以继续发送消息",
+	CodeChatStrangerOff: "站点当前不允许陌生人发私信（站点策略，不是网络问题），请联系管理员开启「允许陌生人发私信」",
+	// #247：拒绝来自接收方的个人开关。文案指向对方，不能让人去找管理员
+	// （站点总闸此时其实是开着的）。
+	CodeChatRecipientStrangerOff: "对方不接受陌生人私信（对方的个人设置），请先关注对方或等对方开启「允许陌生人私信」后再试",
+	CodeChatNoPermission:         "权限不足",
+	CodeChatSessionNotFound:      "会话不存在",
+	CodeChatEmptySelection:       "请选择要操作的消息或会话",
+	CodeChatSendFailed:           "消息发送失败",
+	CodeChatTooFrequent:          "发送过于频繁，请稍后再试",
+	CodeChatSessionTooFast:       "当前会话发送过于频繁，请稍后再试",
+	CodeChatWeekStranger:         "本周只允许向陌生人发送 1 条消息",
+	CodeChatWeekLimit:            "本周可发送消息次数已达上限，对方回复后才可以继续发送消息",
 
 	CodeMessageSelectionEmpty: "请选择要操作的消息或会话",
 	CodeMessageNotFound:       "消息不存在",

@@ -423,9 +423,9 @@ _Avoid_: 叫它"首屏卡片 / hero 卡片"（卡片形态已废）；把它当�
 _Avoid_: 叫它"横幅图 / banner 海报"（它是首屏面板里的封面图，不是通用横幅）；再说"重新取景 / 调焦点 / 改缩放"（取景体系已退场，改构图只能重选原图重新定形）。
 
 **头像定形（avatar squaring）**：
-个人头像在**上传到服务器之前**于客户端完成的文件级改动：把任意比例的图片**居中裁成 1:1 并降采样到固定边长（256）**，产出的是一张新 PNG，原图不上传、不入库。它改动的是**图片文件本身**；封面定形同理——轮播 / 文章 / 合集封面也在上传前按 16:9 居中裁切并降采样（见 [ADR-0015](./docs/adr/0015-banner-framing-as-parameters.md)），两者是并列且互不包含的两个概念，都不再有"参数 + 渲染层复现"的中间态。
-位置：`frontend/app/pages/studio/settings.vue` 的头像上传入口与其客户端处理工具；上传到图片上传任务接口后按既有链路落 `avatar_image_id`。取舍见 [ADR-0015](./docs/adr/0015-banner-framing-as-parameters.md)（封面上传前定形）。
-_Avoid_: 叫它「取景」「crop」（取景体系已删除）；说成"改已有头像文件"（每次上传产生的是新文件）；把它当成服务端或存储侧裁切。
+个人头像在**上传到服务器之前**于客户端完成的文件级改动：把任意比例的图片**裁成 1:1 并降采样到固定边长（256）**，产出的是一张新 PNG，原图不上传、不入库。它改动的是**图片文件本身**；封面定形同理——轮播 / 文章 / 合集 / 项目封面也在上传前按 16:9 裁切并降采样（见 [ADR-0015](./docs/adr/0015-banner-framing-as-parameters.md)），两者是并列且互不包含的两个概念，都不再有"参数 + 渲染层复现"的中间态。**裁剪区域怎么来**：与目标比例相差 ≤1% 时自动居中裁；不合规时弹出**裁剪窗**由作者自己选区域（拖动 + 1–3× 缩放，确认后把结果烤进新文件，取消即中止本次上传），两条路径的产物都是新文件，任何裁剪参数都不入库。
+位置：`frontend/app/pages/studio/settings.vue` 的头像上传入口与其客户端处理工具；封面对应在创作页 / 后台媒体运营 / 合集 / 项目的封面上传处；裁剪窗与定形工具由两端逐字节同源的 `imageShaping` 家族提供。取舍见 [ADR-0015](./docs/adr/0015-banner-framing-as-parameters.md)（封面上传前定形）。
+_Avoid_: 叫它「取景」「crop」（取景体系已删除）；说成"改已有头像文件"（每次上传产生的是新文件）；把它当成服务端或存储侧裁切——裁剪窗只在浏览器里、上传前出现。
 
 **品牌资产例外（brand asset exception）**：
 `brand/logo-256.png`、`brand/jelly-flat.svg`、`apple-touch-icon.png`、`og-image.png` 允许自带品牌色，不受"只消费语义色 token"与漂移门禁约束（同 App 图标惯例）；但品牌资产**不随主题切换变体**。
@@ -450,15 +450,21 @@ _Avoid_: 用"档位 B"描述现状；在 `prefers-reduced-motion` 下仍保留�
 _Avoid_: 「管理员置顶」（ES 旧派生字段 `admin_top` 的叫法，已删除）；「精选文章」（旧文案）；拿「热门置顶」指作者置顶。
 
 **合集（collection）**：
-由**管理员**维护的、有标题 / 描述 / 封面 / 展示开关与顺序的文章集合（"Nuxt 部署实战"这类专题）。与「热门置顶」是两套数据：合集没有条数上限，且主体是"一个有名字的集合"而不是首页排序位；作者不参与创建，读者只读。唯一真相是主表 `collection_models` 加中间表 `collection_article_models`（`(collection_id, article_id)` 唯一 + `sort_order` + 软删）。中间表沿用热门置顶的失效口径：文章后来不再公开时中间行**保留**，读者侧靠 JOIN 过滤、后台标「已失效」并可清理。合集**不进 ES**（运营编排不是可检索内容）。读者侧列表只出「展示中」的合集，篇数只算仍公开的文章；未展示的合集对读者按**不存在**处理（不返回"这个合集未发布"），管理员仍可打开。封面为空时读模型回退到首篇公开文章的封面。
-位置：表 `collection_models` / `collection_article_models`（DDL 见 `backend/internal/platform/mysql/ddl/schema.sql`）；接口 `GET /collections`、`GET /collections/{id}`（公开读）、`GET /collections/admin`、`POST /collections`、`PATCH /collections/{id}/display`、`POST|DELETE /collections/{id}/articles`、`PATCH /collections/{id}/articles/order`；后端 `internal/article/domain/collection`（规则与读模型）、`app/collection.go`、`adapter/mysql/collection_repo.go`、`adapter/http/handler_collection.go`；读者站 `frontend/app/pages/collections/` 与顶栏第四项 `frontend/app/utils/chrome.ts`。
+由**管理员**维护的、有标题 / 描述 / 封面 / 展示开关与顺序的文章集合（"Nuxt 部署实战"这类专题）。与「热门置顶」是两套数据：合集没有条数上限，且主体是"一个有名字的集合"而不是首页排序位；作者不参与创建，读者只读。唯一真相是主表 `collection_models`；**收录关系与层次由「目录树」承载**（见本节「目录树」词条，[ADR-0023](./docs/adr/0023-outline-tree-for-collections-and-projects.md)），旧的扁平中间表 `collection_article_models` 已冻结退场。失效口径沿用原来那套：文章后来不再公开时树节点**保留**，读者侧靠 JOIN 过滤、后台标「已失效」并可清理。合集**不进 ES**（运营编排不是可检索内容）。读者侧列表只出「展示中」的合集，篇数只算仍公开的文章；未展示的合集对读者按**不存在**处理（不返回"这个合集未发布"），管理员仍可打开。封面为空时读模型回退到首篇公开文章的封面（即树中深度优先的第一个文章节点）。
+位置：表 `collection_models` + 目录树 `content_outline_node_models`（DDL 见 `backend/internal/platform/mysql/ddl/schema.sql`）；接口 `GET /collections`、`GET /collections/{id}`（公开读，detail 回嵌套树）、`GET /collections/admin`、`POST /collections`、`PATCH /collections/{id}/display`；后端 `internal/article/domain/collection`（规则与读模型）、`app/collection.go`、`adapter/mysql/collection_repo.go`、`adapter/http/handler_collection.go`；读者站 `frontend/app/pages/collections/` 与顶栏第四项 `frontend/app/utils/chrome.ts`。
 _Avoid_: 「专辑」「专栏」「系列」（同义词，一律写合集）；用「合集」指用户自己的收藏夹（那是 `favorite_models`，与合集无关）；用「合集」指 ADR 归档（`docs/archive/v1/04-adr-collection.md` 是旧文档合集，不是这个功能）。
 
 **项目（project）**：
 读者站顶栏第五项所指向的内容实体，与「合集」是**两套独立数据、两个入口**（合集仍在第四项）。在内容语境下「项目」专指这个实体：它的列表页、卡片、空态文案一律写「项目」，不混用「合集」字样；页面版式与组件复用合集的读者侧实现，但数据来源独立。
 易混：`backend/conf/site/enter.go` 的 `Project` 段是**站点项目配置**（站点项目名 / 图标 / 前端入口路径），契约字段 `project_title` 属站点配置域，不是内容实体；文档里「本项目 / 这个软件项目」一律指**本仓库**，写作时改成「本仓库」。
-位置：读者站顶栏第五项与 `/projects` 页面；具体表与接口以落地实现为准。
+位置：表 `project_models` 与目录树 `content_outline_node_models`（收录与层次由目录树承载，旧中间表 `project_article_models` 冻结退场、不迁移）；接口 `GET /projects`、`GET /projects/{id}`；读者站 `frontend/app/pages/projects/`、后台「项目管理」与树编辑器。读者侧版式与合集复用（同网格、同卡片、同空态），数据来源与表各自独立。
 _Avoid_: 用「项目」指站点项目配置或本仓库；用「项目」指顶栏第四项的「合集」；把两者当成同一份数据的两个入口。
+
+**目录树（outline）**：
+合集 / 项目内部的**层次与顺序**：由「文件夹节点」（只分组、不可阅读、不可点击）与「文章节点」（指向一篇文章）组成，可任意深度嵌套。一篇文章可以同时出现在多棵树里，所以"属于哪棵树"是**节点**的属性，不是文章的属性（同一棵树内最多一个节点）。读者侧详情页就是这棵树——点文章节点跳到阅读页并带 `?from=<kind>:<id>` 来路；阅读页左侧显示同一棵树（当前节点高亮 + 上一篇/下一篇），窄屏收进「目录」抽屉。后台用一个树编辑器编排（取代合集 / 项目的排列页）。
+位置：表 `content_outline_node_models`（`owner_kind` / `owner_id` / `parent_id` / `kind` / `title` / `article_id` / `sort_order` / 软删）；旧的扁平中间表 `collection_article_models` / `project_article_models` 已**冻结退场**（不迁移、不再读写）；后台树编辑器与读者侧详情页 / 阅读页左栏。
+易混：文章内的标题大纲叫**标题大纲**（`ArticleTocAnchor`），不是目录树；「收录」现在就是"把一个文章节点挂到树上"，不再有第二份成员表。
+_Avoid_: 叫它「侧栏 / 目录组件」（那是标题大纲）；把文件夹当可读内容；把它当成合并「合集」与「项目」的手段（两个实体仍是两套数据、两个入口）。
 
 **作者置顶**：
 作者把自己的一篇文章钉在**个人主页**的置顶关系；只有作者本人能设置，与热门置顶是两套数据、两套存储。读者站与后台当前都**没有**消费点（用户页 / 个人主页的文章列表走搜索 type 3），接口保留但不在「显示」开关的读者读面清单内（ADR-0017 决策 4）。

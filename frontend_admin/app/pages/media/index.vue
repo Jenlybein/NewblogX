@@ -3,6 +3,8 @@ import { h } from 'vue'
 import { NButton, NCard, NDataTable, NForm, NFormItem, NGrid, NGridItem, NInput, NSelect, NSpace, NSwitch, NTag, useDialog, useMessage } from 'naive-ui'
 import { createBanner, deleteBanners, deleteImages, getBanners, getImages, updateBanner } from '~/services/admin'
 import { uploadImageByTask } from '~/services/image'
+import ImageCropDialog from '~/components/media/ImageCropDialog.vue'
+import { useImageCropUpload, type ImageFramingRequest } from '~/composables/useImageCropUpload'
 import type { BannerModel, ImageListItem } from '~/types/api'
 import {
   buildBannerCreatePayload,
@@ -19,7 +21,8 @@ import {
   COVER_SHAPE_OPTIONS,
   COVER_SHAPE_RATIO_TEXT,
   COVER_SHAPE_SIZE_TEXT,
-  shapeForUpload,
+  COVER_SHAPE_TARGET,
+  type ShapeFramingState,
 } from '~/utils/imageShaping'
 import { formatDateTime } from '~/utils/format'
 import { hasNextPage } from '~/utils/pagination'
@@ -60,6 +63,14 @@ interface PendingBannerCover {
 const pendingCover = ref<PendingBannerCover | null>(null)
 /** 已经传到对象存储、但轮播还没创建成功时的上传结果（保存失败重试不重传）。 */
 const uploadedCover = ref<{ imageId: string; url: string } | null>(null)
+
+/**
+ * 裁剪窗请求（票 215）：非 null 表示轮播封面比例不合规，等运营选区域。
+ * 这期间没有定形产物、没有上传；取消就保留现有封面选择。
+ */
+const bannerCropRequest = ref<ImageFramingRequest | null>(null)
+/** 待裁剪原图的本地预览地址。 */
+const bannerCropPreviewUrl = ref('')
 const bannerForm = reactive({
   title: '',
   href: '',
@@ -69,6 +80,58 @@ const bannerCoverPreviewUrl = computed(() => uploadedCover.value?.url ?? pending
 const bannerUploadStage = ref('')
 const bannerUploading = ref(false)
 const bannerSubmitting = ref(false)
+
+function createPreviewUrl(blob: Blob): string {
+  try {
+    return typeof URL.createObjectURL === 'function' ? URL.createObjectURL(blob) : ''
+  } catch {
+    return ''
+  }
+}
+
+function revokePreviewUrl(url: string) {
+  if (!url) return
+  try {
+    if (typeof URL.revokeObjectURL === 'function') URL.revokeObjectURL(url)
+  } catch {
+    // 已释放或环境不支持：忽略。
+  }
+}
+
+function resetBannerCrop() {
+  const url = bannerCropPreviewUrl.value
+  bannerCropPreviewUrl.value = ''
+  bannerCropRequest.value = null
+  revokePreviewUrl(url)
+}
+
+/**
+ * 轮播封面的上传顺序与其余封面入口同源（`useImageCropUpload`）：
+ * 与 16:9 相差 ≤1% → 自动居中定形 1600×900 后直接上传；
+ * 相差 >1% → 只打开裁剪窗，不产出文件、不上传；取消即中止本次上传。
+ */
+const bannerCropFlow = useImageCropUpload({
+  options: COVER_SHAPE_OPTIONS,
+  requestFraming: (request) => {
+    bannerCropRequest.value = request
+    bannerCropPreviewUrl.value = createPreviewUrl(request.file)
+    bannerUploadStage.value = `图片比例不符合 ${COVER_SHAPE_RATIO_TEXT}，请选择要露出的区域`
+  },
+  upload: async (shaped) => {
+    const pending: PendingBannerCover = {
+      file: shaped.file,
+      previewUrl: shaped.previewUrl,
+      size: shaped.size,
+    }
+    pendingCover.value = pending
+    // 定形结果先落到预览上（运营看到的就是即将上传的那张图），再自动上传。
+    bannerUploadStage.value = `已定形成 ${COVER_SHAPE_SIZE_TEXT}（${COVER_SHAPE_RATIO_TEXT}），正在上传封面…`
+    const uploaded = await uploadPendingBannerCover(pending, '封面上传完成，点击「创建轮播」保存')
+    if (!uploaded) {
+      bannerUploadStage.value = '封面上传失败，可点击「创建轮播」重试'
+    }
+  },
+})
 
 /** 列表里每张封面的尺寸（按封面地址缓存）；null 表示加载失败，不再重试。 */
 const coverSizes = ref<Record<string, ImageSize | null>>({})
@@ -317,6 +380,7 @@ function clearBannerCoverSelection() {
   pendingCover.value = null
   uploadedCover.value = null
   bannerUploadStage.value = ''
+  resetBannerCrop()
   if (bannerFileInputRef.value) {
     bannerFileInputRef.value.value = ''
   }
@@ -344,31 +408,39 @@ async function handleBannerCoverFileChange(event: Event) {
   }
 
   clearBannerCoverSelection()
-  bannerUploadStage.value = '正在定形成 16:9 封面…'
+  bannerUploadStage.value = '正在检查图片比例…'
   bannerUploading.value = true
   try {
-    // 上传前定形（票 200）：居中裁成 16:9、降采样到 1600×900，产出新文件。
-    // 上传只发定形产物，原图不进入链路（GLOSSARY「定形」）。
-    const shaped = await shapeForUpload(file, COVER_SHAPE_OPTIONS)
-    const pending: PendingBannerCover = {
-      file: shaped.file,
-      previewUrl: shaped.previewUrl,
-      size: shaped.size,
-    }
-    pendingCover.value = pending
-
-    // 定形结果先落到预览上（运营看到的就是即将上传的那张图），再自动上传。
-    bannerUploadStage.value = `已定形成 ${COVER_SHAPE_SIZE_TEXT}（${COVER_SHAPE_RATIO_TEXT}），正在上传封面…`
-    const uploaded = await uploadPendingBannerCover(pending, '封面上传完成，点击「创建轮播」保存')
-    if (!uploaded) {
-      bannerUploadStage.value = '封面上传失败，可点击「创建轮播」重试'
-    }
+    await bannerCropFlow.select(file)
   } catch (error) {
     bannerUploadStage.value = ''
     message.error(error instanceof Error ? error.message : '封面定形失败，请换一张图片')
   } finally {
     bannerUploading.value = false
   }
+}
+
+/** 裁剪窗确认：按选定区域定形成 1600×900 新文件，再自动上传。 */
+async function confirmBannerCoverCrop(framing: ShapeFramingState) {
+  const request = bannerCropRequest.value
+  if (!request) return
+  resetBannerCrop()
+  bannerUploadStage.value = `正在按选定区域定形成 ${COVER_SHAPE_RATIO_TEXT} 封面…`
+  bannerUploading.value = true
+  try {
+    await bannerCropFlow.confirm(request, framing)
+  } catch (error) {
+    bannerUploadStage.value = ''
+    message.error(error instanceof Error ? error.message : '封面定形失败，请换一张图片')
+  } finally {
+    bannerUploading.value = false
+  }
+}
+
+/** 裁剪窗取消：中止本次上传，既有封面选择保持不变。 */
+function cancelBannerCoverCrop() {
+  resetBannerCrop()
+  bannerUploadStage.value = '已取消本次上传，保留现有封面'
 }
 
 /**
@@ -566,5 +638,16 @@ onMounted(() => {
         <NButton :disabled="!hasMoreImages" @click="imagePage++">下一页</NButton>
       </div>
     </NCard>
+
+    <ImageCropDialog
+      :show="bannerCropRequest !== null"
+      :src="bannerCropPreviewUrl"
+      :image-width="bannerCropRequest?.width ?? 0"
+      :image-height="bannerCropRequest?.height ?? 0"
+      :target="COVER_SHAPE_TARGET"
+      :ratio-text="COVER_SHAPE_RATIO_TEXT"
+      title="裁剪轮播封面（固定 16:9）"
+      @confirm="confirmBannerCoverCrop"
+      @cancel="cancelBannerCoverCrop" />
   </NSpace>
 </template>

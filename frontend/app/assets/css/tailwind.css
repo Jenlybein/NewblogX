@@ -631,6 +631,12 @@
     @apply grid gap-5 lg:grid-cols-[minmax(0,1fr)_320px];
   }
 
+  /* 阅读页左栏目录树（票 220）：只有文章有归属树时才启用第三列；
+     <1024px 左栏收进「目录」抽屉，正文不被挤窄。 */
+  .article-layout--with-outline {
+    @apply lg:grid-cols-[13.5rem_minmax(0,1fr)_320px];
+  }
+
   .article-main {
     @apply flex min-w-0 flex-col gap-5;
   }

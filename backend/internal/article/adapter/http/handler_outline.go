@@ -77,6 +77,32 @@ func (h *Handler) SaveProjectOutline(c *gin.Context) {
 	h.saveOutline(c, outline.OwnerProject, outline.ID(uri.ID))
 }
 
+// ArticleOutlineContext 文章上下文（公开读）：阅读页左栏取同一棵树。
+//
+// 入参带来源 `from`（`project:<id>` / `collection:<id>`）：有来源只认那一棵，
+// 缺失/不合法时回退到第一棵归属树；都没有返回 has_tree=false（左栏不出现）。
+// 树复用读者详情页的同一份组装，本接口不另写 SQL。
+//
+// @Summary 文章上下文（阅读页左栏目录树）
+// @Tags outline
+// @Produce json
+// @Param id path string true "文章 ID"
+// @Param from query string false "来源（project:<id> / collection:<id>）"
+// @Success 200 {object} kernel.Envelope[ArticleOutlineContextResponse]
+// @Router /articles/{id}/outline-context [get]
+func (h *Handler) ArticleOutlineContext(c *gin.Context) {
+	uri := middleware.GetBindUri[kernel.IDRequest](c)
+	cr := middleware.GetBindQuery[ArticleOutlineContextRequest](c)
+
+	detail, err := h.svc.ArticleOutlineContext(c.Request.Context(), ctype.ID(uri.ID),
+		cr.From, h.onlyAdminAuthors())
+	if err != nil {
+		h.fail(c, err)
+		return
+	}
+	res.OkWithData(toArticleOutlineContextResponse(detail), c)
+}
+
 // adminOutline 是两个实体共用的读实现。
 func (h *Handler) adminOutline(c *gin.Context, kind outline.OwnerKind, ownerID outline.ID) {
 	detail, err := h.svc.AdminOutline(c.Request.Context(), h.viewerOf(c), kind, ownerID)
@@ -171,4 +197,30 @@ func toOutlineNodeResponses(items []outline.ViewNode) []OutlineNodeResponse {
 		out = append(out, row)
 	}
 	return out
+}
+
+// toArticleOutlineContextResponse 把文章上下文的读模型转成响应。
+func toArticleOutlineContextResponse(ctx *app.ArticleOutlineContext) ArticleOutlineContextResponse {
+	return ArticleOutlineContextResponse{
+		HasTree:   ctx.HasTree,
+		OwnerKind: int(ctx.OwnerKind),
+		OwnerID:   ctype.ID(ctx.OwnerID),
+		Nodes:     toOutlineNodeResponses(ctx.Tree),
+		Current:   toOutlineArticleRefResponse(ctx.Current),
+		Previous:  toOutlineArticleRefResponse(ctx.Previous),
+		Next:      toOutlineArticleRefResponse(ctx.Next),
+	}
+}
+
+// toOutlineArticleRefResponse 把树上的文章节点压成"相邻文章"引用。
+func toOutlineArticleRefResponse(item *outline.ViewNode) *OutlineArticleRefResponse {
+	if item == nil || !item.Node.IsArticle() {
+		return nil
+	}
+	return &OutlineArticleRefResponse{
+		ID:           ctype.ID(item.Node.ID()),
+		ArticleID:    ctype.ID(item.Node.ArticleID()),
+		ArticleTitle: item.ArticleTitle,
+		ArticleCover: item.ArticleCover,
+	}
 }

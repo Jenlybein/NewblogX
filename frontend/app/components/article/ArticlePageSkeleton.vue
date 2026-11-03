@@ -1,5 +1,13 @@
 <script setup lang="ts">
 import LoadingSkeleton from "~/components/common/LoadingSkeleton.vue";
+
+const props = withDefaults(
+  defineProps<{
+    /** 文章有归属树时，骨架也占住左栏（与真实三栏版式同构，树到达后不跳版）。 */
+    withOutline?: boolean;
+  }>(),
+  { withOutline: false },
+);
 </script>
 
 <template>
@@ -15,7 +23,16 @@ import LoadingSkeleton from "~/components/common/LoadingSkeleton.vue";
       <LoadingSkeleton :rows="3" />
     </header>
 
-    <div class="article-layout" aria-hidden="true">
+    <div class="article-layout" :class="{ 'article-layout--with-outline': props.withOutline }" aria-hidden="true">
+      <aside
+        v-if="props.withOutline"
+        class="article-aside article-skeleton__outline"
+        data-role="article-outline-column-skeleton"
+      >
+        <section class="article-paper article-paper--state">
+          <LoadingSkeleton :rows="8" variant="text" />
+        </section>
+      </aside>
       <div class="article-main">
         <section class="article-paper article-paper--body">
           <LoadingSkeleton :rows="9" />
@@ -41,5 +58,16 @@ import LoadingSkeleton from "~/components/common/LoadingSkeleton.vue";
 .article-skeleton__hero {
   min-height: 8.5rem;
   padding: 1.5rem;
+}
+
+/* <1024px 左栏收进「目录」抽屉：骨架也不占正文位置，避免窄屏先出一块空白。 */
+.article-skeleton__outline {
+  display: none;
+}
+
+@media (min-width: 1024px) {
+  .article-skeleton__outline {
+    display: flex;
+  }
 }
 </style>

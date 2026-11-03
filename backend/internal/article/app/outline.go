@@ -246,6 +246,13 @@ func (s *Service) planOutline(
 		if existing != nil {
 			node = cloneOutlineNode(existing)
 			node.MoveTo(item.parentID, sortOrder, now)
+			// 标题也是整树提交的一部分：带 ID 的文件夹改名必须落到复用行上，
+			// 否则页面保存成功但标题静默回退成旧值（#218）。
+			if in.Kind == outline.NodeKindFolder {
+				if err := node.Rename(in.Title, now); err != nil {
+					return nil, err
+				}
+			}
 			if existing.Deleted() {
 				node.Restore(now)
 			}

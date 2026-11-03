@@ -2,6 +2,7 @@ package apptest
 
 import (
 	"context"
+	"sort"
 	"sync"
 	"time"
 
@@ -115,6 +116,37 @@ func (r *OutlineRepo) FindByArticle(
 		}
 	}
 	return nil, outline.ErrNodeMissing
+}
+
+// ListByArticle 返回这篇文章在所有树里的活跃节点，按 (owner_kind, owner_id, id) 升序
+// （与 MySQL 实现的固定顺序一致）。
+func (r *OutlineRepo) ListByArticle(
+	_ context.Context, articleID outline.ArticleID,
+) ([]*outline.Node, error) {
+	r._count.inc("ListByArticle")
+	if err := r.fault.take("ListByArticle"); err != nil {
+		return nil, err
+	}
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	out := make([]*outline.Node, 0, len(r.seq))
+	for _, id := range r.seq {
+		n, ok := r.byID[id]
+		if !ok || n.Deleted() || n.ArticleID() != articleID {
+			continue
+		}
+		out = append(out, cloneNode(n))
+	}
+	sort.SliceStable(out, func(i, j int) bool {
+		if out[i].OwnerKind() != out[j].OwnerKind() {
+			return out[i].OwnerKind() < out[j].OwnerKind()
+		}
+		if out[i].OwnerID() != out[j].OwnerID() {
+			return out[i].OwnerID().Uint64() < out[j].OwnerID().Uint64()
+		}
+		return out[i].ID().Uint64() < out[j].ID().Uint64()
+	})
+	return out, nil
 }
 
 // Create 批量插入节点。

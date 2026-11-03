@@ -188,3 +188,78 @@ func TestOutlineRepoScopesByOwner(t *testing.T) {
 		t.Fatalf("没有文章节点时应返回 ErrNodeMissing，实际 %v", err)
 	}
 }
+
+// TestOutlineRepoListsByArticleAcrossTrees 是阅读页"无来源回退到第一棵归属树"的
+// SQL 契约：按文章反查所有树，**排除软删行**，顺序固定为 (owner_kind, owner_id, id)。
+func TestOutlineRepoListsByArticleAcrossTrees(t *testing.T) {
+	t.Parallel()
+
+	db := migrateOutlines(t)
+	repo := mysql.NewOutlineRepo(db)
+	ctx := context.Background()
+
+	nodeOf := func(t *testing.T, id uint64, ownerKind outline.OwnerKind, ownerID, articleID uint64) *outline.Node {
+		t.Helper()
+		n, err := outline.New(outline.NewParams{
+			ID: ctype.NewID(id), OwnerKind: ownerKind, OwnerID: ctype.NewID(ownerID),
+			Kind: outline.NodeKindArticle, ArticleID: ctype.NewID(articleID),
+			SortOrder: 1, Now: outlineBaseTime,
+		})
+		if err != nil {
+			t.Fatalf("构造节点失败: %v", err)
+		}
+		return n
+	}
+
+	// 合集 900 / 合集 901 / 项目 700 都挂着文章 11；项目 700 里的另一篇是 12。
+	c1 := nodeOf(t, 1, outline.OwnerCollection, 900, 11)
+	c2 := nodeOf(t, 2, outline.OwnerCollection, 901, 11)
+	p1 := nodeOf(t, 3, outline.OwnerProject, 700, 11)
+	p2 := nodeOf(t, 4, outline.OwnerProject, 700, 12)
+	if err := repo.Create(ctx, []*outline.Node{c1, c2, p1, p2}); err != nil {
+		t.Fatalf("插入失败: %v", err)
+	}
+	// 软删同一篇文章的另一个节点：回退时不能让一篇已移除的收录冒充归属树。
+	gone, err := outline.New(outline.NewParams{
+		ID: ctype.NewID(5), OwnerKind: outline.OwnerCollection, OwnerID: ctype.NewID(902),
+		Kind: outline.NodeKindArticle, ArticleID: ctype.NewID(11), SortOrder: 1, Now: outlineBaseTime,
+	})
+	if err != nil {
+		t.Fatalf("构造软删节点失败: %v", err)
+	}
+	if err := repo.Create(ctx, []*outline.Node{gone}); err != nil {
+		t.Fatalf("插入软删节点失败: %v", err)
+	}
+	if err := repo.SoftDelete(ctx, []outline.ID{gone.ID()}, outlineBaseTime); err != nil {
+		t.Fatalf("软删失败: %v", err)
+	}
+
+	got, err := repo.ListByArticle(ctx, ctype.NewID(11))
+	if err != nil {
+		t.Fatalf("按文章反查失败: %v", err)
+	}
+	if len(got) != 3 {
+		t.Fatalf("应在 3 棵活跃树里找到文章 11（软删树不算），实际 %d: %+v", len(got), got)
+	}
+	want := []struct {
+		kind  outline.OwnerKind
+		owner uint64
+	}{
+		{outline.OwnerCollection, 900},
+		{outline.OwnerCollection, 901},
+		{outline.OwnerProject, 700},
+	}
+	for i, w := range want {
+		if got[i].OwnerKind() != w.kind || got[i].OwnerID() != ctype.NewID(w.owner) {
+			t.Fatalf("第 %d 棵树顺序不对: %v/%s", i, got[i].OwnerKind(), got[i].OwnerID())
+		}
+	}
+
+	none, err := repo.ListByArticle(ctx, ctype.NewID(99))
+	if err != nil {
+		t.Fatalf("按文章反查失败: %v", err)
+	}
+	if len(none) != 0 {
+		t.Fatalf("没有归属的文章应返回空列表，实际 %+v", none)
+	}
+}

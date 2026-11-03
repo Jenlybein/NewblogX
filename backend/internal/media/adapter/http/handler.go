@@ -36,6 +36,12 @@ type CreateTaskRequest struct {
 	Size     int64  `json:"size" binding:"required"`
 	MimeType string `json:"mime_type" binding:"required,max=128"`
 	Hash     string `json:"hash" binding:"required,max=64"`
+	// Purpose 声明用途：cover（16:9）/ avatar（1:1）。nil 表示请求体不带
+	// 该字段（例如私信发图），确认时不校验比例；一旦出现（含空串）必须合法，
+	// 非法值由用例层按明确错误码拒绝，不静默当作 cover。
+	// 刻意不用 binding:"oneof"：那样非法值会被 gin 挡在适配器里，只回一句
+	// 通用「参数错误」，调用方拿不到可判分支的错误码。
+	Purpose *string `json:"purpose,omitempty" enums:"cover,avatar"`
 }
 
 // CreateTaskResponse 上传任务信息。
@@ -137,7 +143,8 @@ func (h *Handler) CreateUploadTask(c *gin.Context) {
 	if !ok {
 		return
 	}
-	result, err := h.svc.CreateTask(c.Request.Context(), userID, req.FileName, req.Size, req.MimeType, req.Hash)
+	// 原样转发指针：nil=请求体没带 purpose，非 nil=带了（含空串，由用例层判合法）。
+	result, err := h.svc.CreateTask(c.Request.Context(), userID, req.FileName, req.Size, req.MimeType, req.Hash, req.Purpose)
 	if err != nil {
 		res.FailWithError(err, c)
 		return

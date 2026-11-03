@@ -1621,6 +1621,48 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/articles/{id}/outline-context": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 文章上下文（阅读页左栏目录树） */
+        get: {
+            parameters: {
+                query?: {
+                    /** @description 来源（project:<id> / collection:<id>） */
+                    from?: string;
+                };
+                header?: never;
+                path: {
+                    /** @description 文章 ID */
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["myblogx_internal_kernel.Envelope-internal_article_adapter_http_ArticleOutlineContextResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/banners": {
         parameters: {
             query?: never;
@@ -6645,6 +6687,15 @@ export interface components {
         "internal_article_adapter_http.ArticleHotTopOrderRequest": {
             article_ids: string[];
         };
+        "internal_article_adapter_http.ArticleOutlineContextResponse": {
+            current?: components["schemas"]["internal_article_adapter_http.OutlineArticleRefResponse"];
+            has_tree?: boolean;
+            next?: components["schemas"]["internal_article_adapter_http.OutlineArticleRefResponse"];
+            nodes?: components["schemas"]["internal_article_adapter_http.OutlineNodeResponse"][];
+            owner_id?: string;
+            owner_kind?: number;
+            previous?: components["schemas"]["internal_article_adapter_http.OutlineArticleRefResponse"];
+        };
         "internal_article_adapter_http.ArticleReviewHandleRequest": {
             reason?: string;
             /** @enum {integer} */
@@ -6851,6 +6902,12 @@ export interface components {
             cover?: string;
             id?: string;
             title: string;
+        };
+        "internal_article_adapter_http.OutlineArticleRefResponse": {
+            article_cover?: string;
+            article_id?: string;
+            article_title?: string;
+            id?: string;
         };
         "internal_article_adapter_http.OutlineNodeRequest": {
             article_id?: string;
@@ -7099,6 +7156,15 @@ export interface components {
             file_name: string;
             hash: string;
             mime_type: string;
+            /**
+             * @description Purpose 声明用途：cover（16:9）/ avatar（1:1）。nil 表示请求体不带
+             *     该字段（例如私信发图），确认时不校验比例；一旦出现（含空串）必须合法，
+             *     非法值由用例层按明确错误码拒绝，不静默当作 cover。
+             *     刻意不用 binding:"oneof"：那样非法值会被 gin 挡在适配器里，只回一句
+             *     通用「参数错误」，调用方拿不到可判分支的错误码。
+             * @enum {string}
+             */
+            purpose?: "cover" | "avatar";
             size: number;
         };
         "internal_media_adapter_http.CreateTaskResponse": {
@@ -7736,6 +7802,11 @@ export interface components {
         "myblogx_internal_kernel.Envelope-internal_article_adapter_http_ArticleDiggResponse": {
             code?: number;
             data?: components["schemas"]["internal_article_adapter_http.ArticleDiggResponse"];
+            msg?: string;
+        };
+        "myblogx_internal_kernel.Envelope-internal_article_adapter_http_ArticleOutlineContextResponse": {
+            code?: number;
+            data?: components["schemas"]["internal_article_adapter_http.ArticleOutlineContextResponse"];
             msg?: string;
         };
         "myblogx_internal_kernel.Envelope-internal_article_adapter_http_ArticleReviewTaskListResponse": {

@@ -14,8 +14,9 @@ import (
 //
 // 与后台 AdminOutline 的区别：读者树只保留**公开文章节点**，文件夹保留（包括
 // 空文件夹）；失效文章节点不出现，篇数只数公开文章；没上传封面时回退到深度
-// 优先第一篇公开文章的封面。展示开关与「显示非管理员发布文章」开关的判定
-// 仍在各自实体的用例里，这里不另写一份可见性规则。
+// 优先第一个公开文章节点的封面（该节点没有封面时就是空）。展示开关与
+// 「显示非管理员发布文章」开关的判定仍在各自实体的用例里，这里不另写一份
+// 可见性规则。
 
 // ReaderOutlineDetail 是读者详情页的读模型。
 type ReaderOutlineDetail struct {
@@ -23,7 +24,7 @@ type ReaderOutlineDetail struct {
 	OwnerID      outline.ID
 	Tree         []outline.ViewNode
 	ArticleCount int
-	// Cover 是最终生效封面：显式封面优先，空则取 DFS 第一篇公开文章的封面。
+	// Cover 是最终生效封面：显式封面优先，空则取 DFS 第一个公开文章节点的封面。
 	Cover string
 }
 
@@ -77,17 +78,17 @@ func (s *Service) readerOutline(
 		cover   string
 	}
 	snaps := make(map[outline.ArticleID]snapshot)
-	visibleArticle := func(articleID outline.ArticleID) (snapshot, error) {
+	visibleArticle := func(articleID outline.ArticleID) (outline.ReaderSnapshot, error) {
 		if v, ok := snaps[articleID]; ok {
-			return v, nil
+			return outline.ReaderSnapshot{Visible: v.visible, Title: v.title, Cover: v.cover}, nil
 		}
 		a, err := r.Articles().Find(ctx, domain.ArticleID(articleID))
 		if errors.Is(err, domain.ErrArticleNotFound) {
 			snaps[articleID] = snapshot{}
-			return snapshot{}, nil
+			return outline.ReaderSnapshot{}, nil
 		}
 		if err != nil {
-			return snapshot{}, err
+			return outline.ReaderSnapshot{}, err
 		}
 		v := snapshot{
 			visible: a.IsPubliclyVisible(),
@@ -98,81 +99,26 @@ func (s *Service) readerOutline(
 			v.visible = false
 		}
 		snaps[articleID] = v
-		return v, nil
+		return outline.ReaderSnapshot{Visible: v.visible, Title: v.title, Cover: v.cover}, nil
 	}
 
-	var attach func(items []outline.TreeNode) ([]outline.ViewNode, error)
-	attach = func(items []outline.TreeNode) ([]outline.ViewNode, error) {
-		out := make([]outline.ViewNode, 0, len(items))
-		for _, item := range items {
-			view := outline.ViewNode{Node: item.Node}
-			if item.Node.IsArticle() {
-				snap, err := visibleArticle(item.Node.ArticleID())
-				if err != nil {
-					return nil, err
-				}
-				if !snap.visible {
-					continue
-				}
-				state := &domain.ArticleState{
-					Status:     domain.StatusPublished,
-					Visibility: domain.VisibilityVisible,
-				}
-				view.Article = state
-				view.ArticleTitle = snap.title
-				view.ArticleCover = snap.cover
-			}
-			children, err := attach(item.Children)
-			if err != nil {
-				return nil, err
-			}
-			view.Children = children
-			out = append(out, view)
-		}
-		return out, nil
-	}
-
-	readerTree, err := attach(tree)
+	view, err := outline.ReaderView(tree, visibleArticle)
 	if err != nil {
 		return nil, err
 	}
 
+	// 显式封面优先；为空时取 DFS 第一个公开文章节点的封面（它为空就是空）。
 	cover := explicitCover
 	if cover == "" {
-		cover = firstVisibleCover(readerTree)
+		cover = view.Cover
 	}
 	return &ReaderOutlineDetail{
 		OwnerKind:    ownerKind,
 		OwnerID:      ownerID,
-		Tree:         readerTree,
-		ArticleCount: countVisibleArticles(readerTree),
+		Tree:         view.Tree,
+		ArticleCount: view.ArticleCount,
 		Cover:        cover,
 	}, nil
-}
-
-// firstVisibleCover 取深度优先第一篇有封面的公开文章节点的封面。
-func firstVisibleCover(items []outline.ViewNode) string {
-	for _, item := range items {
-		if item.Node.IsArticle() && item.ArticleCover != "" {
-			return item.ArticleCover
-		}
-		if cover := firstVisibleCover(item.Children); cover != "" {
-			return cover
-		}
-	}
-	return ""
-}
-
-// countVisibleArticles 篇数只数文章节点（文件夹不计，失效节点已过滤）。
-func countVisibleArticles(items []outline.ViewNode) int {
-	count := 0
-	for _, item := range items {
-		if item.Node.IsArticle() {
-			count++
-		}
-		count += countVisibleArticles(item.Children)
-	}
-	return count
 }
 
 func collectionReaderOutlineOwner(id collection.ID) (outline.OwnerKind, outline.ID) {

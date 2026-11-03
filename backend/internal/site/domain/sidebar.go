@@ -150,3 +150,16 @@ type SidebarDataSource interface {
 	// ArticleCount 只数仍对匿名访客可见的文章，与合集列表页的读数一致。
 	Collections(ctx context.Context, limit int) ([]SidebarCollection, error)
 }
+
+// SidebarCollectionReader 是推荐合集卡的数据源端口（由 article 模块提供实现）。
+//
+// 合集卡片的篇数与封面回退依赖目录树的深度优先遍历，这套口径只应有**一份**
+// 实现：右栏不直连 article 的表，也不自己再数一遍，只消费它的读模型。
+type SidebarCollectionReader interface {
+	// RecommendedCollections 按合集自己的运营顺序取展示中的合集。
+	//
+	// 返回的 Cover 已经是最终生效封面（显式封面优先，空则 DFS 第一个公开
+	// 文章节点的封面）；ArticleCount 只数仍公开的文章。是否过滤非管理员
+	// 作者的文章由实现侧按站点开关现读，右栏不再重复判定。
+	RecommendedCollections(ctx context.Context, limit int) ([]SidebarCollection, error)
+}

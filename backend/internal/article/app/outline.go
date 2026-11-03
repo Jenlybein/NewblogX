@@ -306,6 +306,9 @@ func (s *Service) checkIncludableNewArticles(
 }
 
 // buildOutlineDetail 把节点清单组装成嵌套读模型，并补齐文章节点快照。
+//
+// 快照用 FindIncludingDeleted（旧扁平 LEFT JOIN 的等价物）：文章被软删时节点
+// 仍保留标题并标 deleted；只有节点指向的文章真的不存在时才退化成 missing。
 func (s *Service) buildOutlineDetail(
 	ctx context.Context, r Repos, ownerKind outline.OwnerKind, ownerID outline.ID, nodes []*outline.Node,
 ) (*outline.Detail, error) {
@@ -324,7 +327,7 @@ func (s *Service) buildOutlineDetail(
 		if v, ok := snaps[articleID]; ok {
 			return v, nil
 		}
-		a, err := r.Articles().Find(ctx, articleID)
+		a, err := r.Articles().FindIncludingDeleted(ctx, articleID)
 		if errors.Is(err, domain.ErrArticleNotFound) {
 			snaps[articleID] = snap{}
 			return snap{}, nil

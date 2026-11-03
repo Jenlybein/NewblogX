@@ -203,6 +203,10 @@ func TestProjectPublicRead(t *testing.T) {
 		schema.ArticleStatusPublished, schema.VisibilityVisible, at)
 	seedProjectArticle(t, db, 27, 100, "", schema.ArticleStatusPublished, schema.VisibilityVisible, at)
 	seedProjectArticle(t, db, 28, 100, "", schema.ArticleStatusDraft, schema.VisibilityVisible, at)
+	// 29 第一个公开文章节点、没有封面；30 后面有封面——卡片不能借用 30 的封面。
+	seedProjectArticle(t, db, 29, 100, "", schema.ArticleStatusPublished, schema.VisibilityVisible, at)
+	seedProjectArticle(t, db, 30, 100, "https://cdn.example/later.png",
+		schema.ArticleStatusPublished, schema.VisibilityVisible, at)
 
 	// 24 被软删：树节点保留，读者侧靠文章快照过滤。
 	if err := db.Table("article_models").Where("id = ?", 24).Update("deleted_at", at).Error; err != nil {
@@ -280,6 +284,21 @@ func TestProjectPublicRead(t *testing.T) {
 		ArticleID: 28, SortOrder: 1, At: at,
 	})
 
+	// 项目 3006：展示中、无封面，树里第一个公开文章节点（29）没有封面，
+	// 后面 30 有封面也不能借用。
+	schema.InsertProject(t, db, schema.ProjectSpec{
+		ID: 3006, Title: "首篇无封面", Displayed: true, SortOrder: 6, CreatorID: 100,
+		CreatedAt: at, UpdatedAt: at,
+	})
+	seedProjectOutlineNode(t, db, schema.OutlineNodeSpec{
+		ID: 8600, OwnerID: 3006, Kind: int(outline.NodeKindArticle),
+		ArticleID: 29, SortOrder: 1, At: at,
+	})
+	seedProjectOutlineNode(t, db, schema.OutlineNodeSpec{
+		ID: 8601, OwnerID: 3006, Kind: int(outline.NodeKindArticle),
+		ArticleID: 30, SortOrder: 2, At: at,
+	})
+
 	reader := newRouterWithIDs(t, db, domain.Anonymous(), 100)
 
 	listRaw := rawRequest(t, reader, "GET", "/api/projects", nil)
@@ -289,8 +308,10 @@ func TestProjectPublicRead(t *testing.T) {
 	}
 	var list struct {
 		List []struct {
-			ID    ctype.ID `json:"id"`
-			Title string   `json:"title"`
+			ID           ctype.ID `json:"id"`
+			Title        string   `json:"title"`
+			Cover        string   `json:"cover"`
+			ArticleCount int      `json:"article_count"`
 		} `json:"list"`
 		Count int `json:"count"`
 	}
@@ -298,14 +319,13 @@ func TestProjectPublicRead(t *testing.T) {
 		t.Fatalf("解析项目列表失败: %v", err)
 	}
 
-	// 只出展示中且未软删的项目：3001 / 3003 / 3005，按 sort_order 升序。
-	if list.Count != 3 || len(list.List) != 3 {
-		t.Fatalf("读者列表应有 3 个项目，实际 count=%d len=%d（响应 %s）",
+	// 只出展示中且未软删的项目：3001 / 3003 / 3005 / 3006，按 sort_order 升序。
+	// 卡片篇数与封面回退都读目录树（旧扁平中间表为空）。
+	if list.Count != 4 || len(list.List) != 4 {
+		t.Fatalf("读者列表应有 4 个项目，实际 count=%d len=%d（响应 %s）",
 			list.Count, len(list.List), listRaw)
 	}
-	// 卡片篇数与封面回退仍然走既有列表读面，不在本契约断言范围内；
-	// 本批改为目录树的是**详情读模型**。
-	wantIDs := []uint64{3001, 3003, 3005}
+	wantIDs := []uint64{3001, 3003, 3005, 3006}
 	for i, want := range wantIDs {
 		if list.List[i].ID.Uint64() != want {
 			t.Fatalf("第 %d 张卡片应是项目 %d，实际 %s（响应 %s）",
@@ -314,6 +334,23 @@ func TestProjectPublicRead(t *testing.T) {
 	}
 	if list.List[0].Title != "重构实战" {
 		t.Fatalf("项目卡片字段不对: %+v", list.List[0])
+	}
+	// 项目 3001：树里 21 草稿、24 已删都不算；公开的是 22、23，篇数 2。
+	// 封面回退取 DFS 第一个公开文章节点 22 的封面。
+	if list.List[0].ArticleCount != 2 || list.List[0].Cover != "https://cdn.example/first.png" {
+		t.Fatalf("项目 3001 卡片不对: %+v", list.List[0])
+	}
+	// 项目 3003：显式封面优先，篇数 1。
+	if list.List[1].ArticleCount != 1 || list.List[1].Cover != "https://cdn.example/explicit.png" {
+		t.Fatalf("项目 3003 卡片不对: %+v", list.List[1])
+	}
+	// 项目 3005：没有公开文章 → 篇数 0、封面空。
+	if list.List[2].ArticleCount != 0 || list.List[2].Cover != "" {
+		t.Fatalf("项目 3005 卡片不对: %+v", list.List[2])
+	}
+	// 项目 3006：首篇公开文章没有封面 → 卡片封面为空，不能借用后一篇。
+	if list.List[3].ArticleCount != 2 || list.List[3].Cover != "" {
+		t.Fatalf("项目 3006 卡片不应借用后一篇封面: %+v", list.List[3])
 	}
 
 	// 详情 3001：嵌套树只含公开文章节点（21 草稿与 24 已删都被过滤），
@@ -355,6 +392,12 @@ func TestProjectPublicRead(t *testing.T) {
 	empty := readProjectDetail(t, reader, ctype.NewID(3005))
 	if empty.Cover != "" || empty.ArticleCount != 0 || len(empty.Outline.Nodes) != 0 {
 		t.Fatalf("项目 3005 详情不对: %+v", empty)
+	}
+
+	// 首个公开文章节点没有封面：详情封面也为空，不借用后一篇。
+	firstNoCover := readProjectDetail(t, reader, ctype.NewID(3006))
+	if firstNoCover.Cover != "" || firstNoCover.ArticleCount != 2 {
+		t.Fatalf("项目 3006 详情不对: %+v", firstNoCover)
 	}
 
 	// 未展示 / 已软删的项目对读者按**不存在**处理：不返回「未发布 / 未展示」

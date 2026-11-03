@@ -7,12 +7,16 @@ import (
 
 	"myblogx/conf"
 	"myblogx/internal/apperr"
+	articleapp "myblogx/internal/article/app"
+	articledomain "myblogx/internal/article/domain"
+	"myblogx/internal/kernel/ctype"
 	mediamysql "myblogx/internal/media/adapter/mysql"
 	sitecfg "myblogx/internal/platform/config"
 	"myblogx/internal/platform/http/router"
 	sitehttp "myblogx/internal/site/adapter/http"
 	sitemysql "myblogx/internal/site/adapter/mysql"
 	siteapp "myblogx/internal/site/app"
+	sitedomain "myblogx/internal/site/domain"
 
 	"gorm.io/gorm"
 )
@@ -31,11 +35,14 @@ func WireSite(infra *Infra) {
 		infra.Logger,
 	)
 	// 右栏卡片：配置表 + 三种内置卡的数据源。
-	// 数据源是站点模块自己的只读查询（文章 / 评论 / 标签的投影读），
-	// 不 import 别的模块 adapter（R11）。
+	// 热门文章 / 评论 / 标签是站点模块自己的只读投影；推荐合集卡读的篇数与
+	// 封面回退依赖目录树遍历，改由 article 模块的读模型经端口注入（#223）。
 	sidebar := siteapp.NewSidebar(
 		sitemysql.NewSidebar(infra.DB),
-		sitemysql.NewSidebarData(infra.DB),
+		sitemysql.NewSidebarData(infra.DB, &sidebarCollectionReader{
+			svc:  newArticleService(infra),
+			site: infra.RuntimeSite,
+		}),
 		infra.Logger,
 	)
 	// 站点访问量：每次读取公开配置记一次（口径与迁移前一致）。
@@ -207,3 +214,37 @@ func (b siteRuntimeBridge) UpdateDeco(deco conf.Deco) error {
 
 // errSiteRuntimeMissing 表示运行时配置服务没装配。
 func errSiteRuntimeMissing() error { return apperr.New(apperr.CodeSiteConfigMissing) }
+
+// sidebarCollectionReader 把 article 模块的合集卡片读模型适配成站点右栏端口。
+//
+// 右栏是读者端公开读面，所以「显示非管理员发布文章」开关与合集列表卡片同源：
+// 每请求从站点运行时配置现读（ADR-0017 决策 4 的 Provider 闭包口径）。
+type sidebarCollectionReader struct {
+	svc  *articleapp.Service
+	site *sitecfg.RuntimeConfigService
+}
+
+// RecommendedCollections 取展示中的合集卡片（篇数与封面回退由 article 读模型算好）。
+func (r *sidebarCollectionReader) RecommendedCollections(
+	ctx context.Context, limit int,
+) ([]sitedomain.SidebarCollection, error) {
+	onlyAdminAuthors := false
+	if r.site != nil {
+		onlyAdminAuthors = !r.site.GetRuntimeArticle().ShowNonAdminArticles
+	}
+	cards, _, err := r.svc.ListCollectionCards(ctx, onlyAdminAuthors, articledomain.Page{Limit: limit})
+	if err != nil {
+		return nil, err
+	}
+	out := make([]sitedomain.SidebarCollection, 0, len(cards))
+	for _, card := range cards {
+		out = append(out, sitedomain.SidebarCollection{
+			ID:           ctype.ID(card.ID),
+			Title:        card.Title,
+			Description:  card.Description,
+			Cover:        card.Cover,
+			ArticleCount: card.ArticleCount,
+		})
+	}
+	return out, nil
+}

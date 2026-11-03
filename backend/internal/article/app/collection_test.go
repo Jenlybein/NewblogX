@@ -486,6 +486,8 @@ func TestDeleteCollectionKeepsArticles(t *testing.T) {
 
 // TestAdminCardsExposeFirstArticleCoverFallback 后台卡片要能算出"没有封面时读者看到的那张图"，
 // 否则运营在列表里看到的是空白，而读者看到的是首篇封面。
+//
+// 卡片读面只看目录树（旧扁平收录表已冻结），所以这里直接播种树节点。
 func TestAdminCardsExposeFirstArticleCoverFallback(t *testing.T) {
 	t.Parallel()
 
@@ -493,8 +495,7 @@ func TestAdminCardsExposeFirstArticleCoverFallback(t *testing.T) {
 	cid := createCollection(t, svc, "无封面合集")
 	first := seedPublishedWithCover(t, repos, 81, "https://cdn.example.com/first.png")
 	second := seedPublishedWithCover(t, repos, 82, "https://cdn.example.com/second.png")
-	includeArticle(t, svc, cid, first)
-	includeArticle(t, svc, cid, second)
+	seedReaderArticleNodes(t, repos, outline.OwnerCollection, outline.ID(cid), ctype.ID(first), ctype.ID(second))
 
 	cards, err := svc.ListAdminCollectionCards(context.Background(), adminViewer())
 	if err != nil {
@@ -507,8 +508,9 @@ func TestAdminCardsExposeFirstArticleCoverFallback(t *testing.T) {
 		t.Fatalf("没上传过封面时 cover 应保持空串（后台据此判断该显示'回退'标记），实际 %q", cards[0].Cover)
 	}
 	if cards[0].FallbackCover != "https://cdn.example.com/first.png" {
-		t.Fatalf("回退封面应取首篇收录文章的封面，实际 %q", cards[0].FallbackCover)
+		t.Fatalf("回退封面应取 DFS 第一个公开文章节点的封面，实际 %q", cards[0].FallbackCover)
+	}
+	if cards[0].ArticleCount != 2 {
+		t.Fatalf("后台卡片篇数应只数树里仍公开的文章（2），实际 %d", cards[0].ArticleCount)
 	}
 }
-
-

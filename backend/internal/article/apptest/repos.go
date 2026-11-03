@@ -53,6 +53,8 @@ type Repos struct {
 // 断言"过滤函数被调了"，而断言不了"读者看不到"。
 func NewRepos() *Repos {
 	articles := NewArticleRepo()
+	outlines := NewOutlineRepo()
+	users := NewUsers()
 	return &Repos{
 		articleRepo:    articles,
 		categoryRepo:   NewCategoryRepo(),
@@ -66,11 +68,11 @@ func NewRepos() *Repos {
 		outbox:         NewOutbox(),
 		counters:       NewCounters(),
 		comments:       NewComments(),
-		users:          NewUsers(),
+		users:          users,
 		diggs:          NewDiggs(),
-		collectionRepo: NewCollectionRepo(articles),
-		projectRepo:    NewProjectRepo(articles),
-		outlineRepo:    NewOutlineRepo(),
+		collectionRepo: NewCollectionRepo(articles, outlines, users),
+		projectRepo:    NewProjectRepo(articles, outlines, users),
+		outlineRepo:    outlines,
 	}
 }
 

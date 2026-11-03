@@ -134,9 +134,11 @@ func TestProjectAdminLoop(t *testing.T) {
 	db := migrateProjectsHTTP(t)
 	seedAuthor(t, db, 100)
 	at := time.Date(2026, 1, 1, 12, 0, 0, 0, time.UTC)
-	for _, id := range []uint64{31, 32, 33} {
-		seedProjectArticle(t, db, id, 100, "", schema.ArticleStatusPublished, schema.VisibilityVisible, at)
-	}
+	seedProjectArticle(t, db, 31, 100, "https://cdn.example/first.png",
+		schema.ArticleStatusPublished, schema.VisibilityVisible, at)
+	seedProjectArticle(t, db, 32, 100, "https://cdn.example/second.png",
+		schema.ArticleStatusPublished, schema.VisibilityVisible, at)
+	seedProjectArticle(t, db, 33, 100, "", schema.ArticleStatusPublished, schema.VisibilityVisible, at)
 
 	adminRouter := newRouterWithIDs(t, db, domain.AdminUser(ctype.NewID(900)), 100)
 	readerRouter := newRouterWithIDs(t, db, domain.Anonymous(), 100)
@@ -202,6 +204,19 @@ func TestProjectAdminLoop(t *testing.T) {
 	if len(cards) != 1 || cards[0].ID != created.ID {
 		t.Fatalf("读者卡片不对: %+v", cards)
 	}
+	// 卡片读面已切目录树：树里 3 篇公开、旧中间表为空也要显示 3 篇；
+	// 封面回退取 DFS 第一个公开文章节点（31）的封面。
+	if cards[0].ArticleCount != 3 {
+		t.Fatalf("读者卡片篇数应为 3（树里 3 篇公开），实际 %d", cards[0].ArticleCount)
+	}
+	if cards[0].Cover != "https://cdn.example/first.png" {
+		t.Fatalf("读者卡片应回退到首个公开文章节点的封面，实际 %q", cards[0].Cover)
+	}
+	// 后台卡片同口径。
+	adminCard := adminProjects(t, adminRouter)[0]
+	if adminCard.ArticleCount != 3 || adminCard.FallbackCover != "https://cdn.example/first.png" {
+		t.Fatalf("后台卡片口径不对: %+v", adminCard)
+	}
 	detail := readProjectDetail(t, readerRouter, created.ID)
 	if detail.ArticleCount != 3 {
 		t.Fatalf("读者详情篇数应为 3，实际 %d", detail.ArticleCount)
@@ -234,6 +249,10 @@ func TestProjectAdminLoop(t *testing.T) {
 	}
 	if !updated.Displayed {
 		t.Fatalf("改内容不应顺手关掉展示开关: %+v", updated)
+	}
+	// 显式封面优先，回退封面仍单独给出（树里首个公开文章节点的封面）。
+	if updated.ArticleCount != 3 || updated.FallbackCover != "https://cdn.example/first.png" {
+		t.Fatalf("改封面后后台卡片不对: %+v", updated)
 	}
 
 	// ⑤ 关闭展示：读者列表与详情都读不到（按不存在处理），树节点保留。
@@ -316,6 +335,10 @@ func TestProjectAdminOrdering(t *testing.T) {
 		if cards[i].ID != want {
 			t.Fatalf("换序后第 %d 个项目应为 %s，实际 %s", i+1, want, cards[i].ID)
 		}
+	}
+	// 篇数同样来自目录树：第一个项目树里 3 篇公开。
+	if cards[1].ArticleCount != 3 {
+		t.Fatalf("第一个项目的卡片篇数应为 3，实际 %d", cards[1].ArticleCount)
 	}
 
 	// 项目内换序：整树提交 43 → 41 → 42（带 ID 就地更新，不新插行）。
@@ -433,11 +456,19 @@ func TestProjectAdminStalePlaceholderAndCleanup(t *testing.T) {
 			t.Fatalf("后台第 %d 个节点的 stale 标记不对: %+v", c.index+1, row)
 		}
 	}
-	// 54 已软删：节点必须仍保留且标失效；具体原因取值由文章快照读面决定，
-	// 这里只钉住「失效 + 有原因」，不把实现细节写进契约（口径差异记在 #221 报告）。
+	// 54 已软删：节点必须仍保留、保留标题，并把原因区分为 deleted（不是 missing）。
 	if deleted := adminNodes[3]; deleted.ArticleID.Uint64() != 54 ||
-		!deleted.Stale || deleted.StaleReason == "" {
-		t.Fatalf("已删除文章的占位应保留并标失效，实际 %+v", deleted)
+		!deleted.Stale || deleted.StaleReason != "deleted" || deleted.ArticleTitle == "" {
+		t.Fatalf("已删除文章的占位应保留标题并标 deleted，实际 %+v", deleted)
+	}
+
+	// 卡片读面与详情同口径：失效行不进数。
+	if cards := readerProjects(t, readerRouter); len(cards) != 1 ||
+		cards[0].ID != projectID || cards[0].ArticleCount != 1 {
+		t.Fatalf("读者卡片篇数应只数仍公开的文章（1），实际 %+v", cards)
+	}
+	if cards := adminProjects(t, adminRouter); len(cards) != 1 || cards[0].ArticleCount != 1 {
+		t.Fatalf("后台卡片篇数应与读者同口径（1），实际 %+v", cards)
 	}
 
 	// 整树提交清理：只提交 51，其余三行被软删，剩余序号压实为 1。

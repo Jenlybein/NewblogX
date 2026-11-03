@@ -8,11 +8,15 @@ import {
   addOutlineFolder,
   buildOutlineNodes,
   canMoveOutlineRow,
+  cleanupOutlineStaleRows,
   flattenOutlineTree,
   moveOutlineRow,
   outlineDepth,
   outlineIncludeTargetKey,
   outlineRowTitle,
+  outlineStaleCount,
+  removeOutlineRow,
+  renameOutlineFolder,
 } from '../../app/utils/outlineArrange'
 
 /**
@@ -57,6 +61,12 @@ function article(id: string, parentID: string, articleID: string, title: string)
 
 function labels(rows: OutlineFlatRow[]): string[] {
   return rows.map(row => `${outlineDepth(rows, row.key)}:${outlineRowTitle(row)}`)
+}
+
+function staleArticle(
+  id: string, parentID: string, articleID: string, title: string, reason = 'not_published',
+): OutlineTreeNode {
+  return { ...article(id, parentID, articleID, title), stale: true, stale_reason: reason }
 }
 
 function tree(): OutlineTreeNode[] {
@@ -154,6 +164,89 @@ describe('moveOutlineRow：缩进 / 移出', () => {
     expect(moved[1]!.parentKey).toBe('')
     expect(moved[2]!.parentKey).toBe('f1')
     expect(moved[3]!.parentKey).toBe('f1')
+  })
+})
+
+describe('重命名文件夹', () => {
+  it('只改选中文件夹的标题并去掉两端空白，文章行与入参不受影响', () => {
+    const rows = flattenOutlineTree(tree())
+    const renamed = renameOutlineFolder(rows, 'f1', '  新的第一章  ')
+
+    expect(renamed.find(row => row.key === 'f1')!.title).toBe('新的第一章')
+    expect(renamed.find(row => row.key === 'f2')!.title).toBe('空章节')
+    expect(renamed.find(row => row.key === 'a1')!.title).toBe('')
+    expect(rows.find(row => row.key === 'f1')!.title).toBe('第一章')
+    expect(buildOutlineNodes(renamed)[0]!.title).toBe('新的第一章')
+  })
+
+  it('文章行不能重命名；空标题与找不到的行原样返回', () => {
+    const rows = flattenOutlineTree(tree())
+    expect(renameOutlineFolder(rows, 'a1', '第一篇（改）')).toEqual(rows)
+    expect(renameOutlineFolder(rows, 'f1', '   ')).toEqual(rows)
+    expect(renameOutlineFolder(rows, 'missing', '新标题')).toEqual(rows)
+  })
+})
+
+describe('移除节点', () => {
+  it('移除文件夹时连同整棵子树一起移除，保存时不再出现这些节点', () => {
+    const rows = flattenOutlineTree(tree())
+    const next = removeOutlineRow(rows, 'f1')
+
+    expect(next.map(row => row.key)).toEqual(['a2', 'f3'])
+    expect(rows.map(row => row.key)).toEqual(['f1', 'a1', 'f2', 'a2', 'f3'])
+    expect(buildOutlineNodes(next).map(node => node.id)).toEqual(['a2', 'f3'])
+  })
+
+  it('移除文章行只删这一行；找不到的行原样返回', () => {
+    const rows = flattenOutlineTree(tree())
+    const next = removeOutlineRow(rows, 'a1')
+    expect(next.map(row => row.key)).toEqual(['f1', 'f2', 'a2', 'f3'])
+    expect(removeOutlineRow(rows, 'missing')).toEqual(rows)
+  })
+})
+
+describe('标记与清理已失效节点', () => {
+  it('失效标记带原因，只统计失效的文章行（文件夹永不失效）', () => {
+    const rows = flattenOutlineTree([
+      folder('f1', '', '第一章', [staleArticle('a1', 'f1', 'art1', '第一篇', 'deleted')]),
+      article('a2', '', 'art2', '第二篇'),
+    ])
+    expect(rows[1]!.stale).toBe(true)
+    expect(rows[1]!.staleReason).toBe('deleted')
+    expect(rows[0]!.stale).toBe(false)
+    expect(outlineStaleCount(rows)).toBe(1)
+  })
+
+  it('一键清理只删失效文章节点，展示中的文章与文件夹保留', () => {
+    const rows = flattenOutlineTree([
+      folder('f1', '', '第一章', [
+        staleArticle('a1', 'f1', 'art1', '草稿'),
+        article('a2', 'f1', 'art2', '第二篇'),
+      ]),
+      staleArticle('a3', '', 'art3', '已删除', 'missing'),
+    ])
+    const next = cleanupOutlineStaleRows(rows)
+
+    expect(next.map(row => row.key)).toEqual(['f1', 'a2'])
+    expect(rows).toHaveLength(4)
+    expect(outlineStaleCount(next)).toBe(0)
+    expect(buildOutlineNodes(next)[0]!.children.map(node => node.article_id)).toEqual(['art2'])
+  })
+
+  it('没有失效行时清理是空操作（重复点击不产生变化）', () => {
+    const rows = flattenOutlineTree(tree())
+    expect(outlineStaleCount(rows)).toBe(0)
+    expect(cleanupOutlineStaleRows(rows)).toEqual(rows)
+    expect(cleanupOutlineStaleRows(cleanupOutlineStaleRows(rows))).toEqual(rows)
+  })
+})
+
+describe('整树提交的幂等形状', () => {
+  it('同一棵树读回两次提交同一个 payload（重复提交不产生变化）', () => {
+    const first = buildOutlineNodes(flattenOutlineTree(tree()))
+    const second = buildOutlineNodes(flattenOutlineTree(tree()))
+    expect(second).toEqual(first)
+    expect(first[0]!.children[0]!.article_id).toBe('art1')
   })
 })
 

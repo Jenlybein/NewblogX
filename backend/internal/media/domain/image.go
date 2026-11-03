@@ -119,10 +119,17 @@ type Task struct {
 	Height       int
 	Hash         string
 	ErrorMsg     string
-	ExpiresAt    time.Time
-	ConfirmedAt  *time.Time
-	ImageID      *ctype.ID
-	ImageURL     string
+	// Purpose 是创建任务时声明的用途（cover / avatar）。空表示未声明用途
+	// （例如私信发图），这类任务不做比例约束。用途只属于上传任务（Redis），
+	// 不进图片表：秒传命中的同一张图可能被复用于别的用途。
+	Purpose     Purpose
+	// TargetRatio 是确认时校验真实图片比例的目标；由用途在设计常量里定，
+	// 不进运行时配置。零值 = 无比例约束。
+	TargetRatio Ratio
+	ExpiresAt   time.Time
+	ConfirmedAt *time.Time
+	ImageID     *ctype.ID
+	ImageURL    string
 }
 
 // Policy 是一次上传的约束。

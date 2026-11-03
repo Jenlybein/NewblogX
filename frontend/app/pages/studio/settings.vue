@@ -135,6 +135,7 @@ const avatarCropFlow = useImageCropUpload({
   upload: async (shaped) => {
     const uploadResult = await uploadImageByTask(shaped.file, {
       onStage: mapAvatarUploadStage,
+      purpose: "avatar",
     });
     if (!uploadResult.image_id || !uploadResult.url) {
       throw new Error("上传成功但缺少图片标识");

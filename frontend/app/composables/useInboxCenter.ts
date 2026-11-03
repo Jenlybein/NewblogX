@@ -425,7 +425,9 @@ export function useInboxCenter(options: UseInboxCenterOptions = {}) {
 
     imagePending.value = true;
     try {
-      const uploaded = await uploadImageByTask(file);
+      // 私信发图是任意比例照片，#215 没有定形：显式不声明用途，
+      // 后端确认时才不会拿封面 16:9 规则把它误判为失败。
+      const uploaded = await uploadImageByTask(file, { purpose: null });
       if (!uploaded.url) {
         throw new Error("上传成功但未返回图片地址");
       }

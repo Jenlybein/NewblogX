@@ -351,8 +351,12 @@
     @apply col-start-2 row-span-2 row-start-1 self-start rounded-pill border border-line-faint bg-subtle px-2 py-0.5 text-xs tabular-nums text-ink-muted;
   }
 
+  /* 目录体高度按视口（票 237）：固定 380px 在 720/768 高的屏上会把整列顶出可视区，
+     换成 dvh 档 —— 矮屏收、高屏仍到 380px 的上限。内部滚动保留，改成整页滚动会让
+     目录一次占满正文的高度。 */
   .article-toc__body {
-    @apply mt-4 max-h-[380px] overflow-y-auto pr-1;
+    @apply mt-4 overflow-y-auto pr-1;
+    max-height: clamp(160px, 32dvh, 380px);
   }
 
   .article-toc-link {
@@ -780,8 +784,15 @@
     @apply m-0 mt-1 text-xs text-ink-muted;
   }
 
+  /* 签名限两行（票 237）：作者卡是不吸顶右栏里的第一张卡，签名长度不能决定
+     整列高度 —— 不截断的话，一段长签名就能把目录挤出可视区。 */
   .article-author__abstract {
     @apply mt-4 text-sm leading-prose text-ink-muted;
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+    line-clamp: 2;
+    overflow: hidden;
   }
 
   .article-author__stats {
@@ -1029,10 +1040,71 @@
     }
   }
 
+  /* 吸顶右栏（票 237）：≥1024 才限高。
+   *
+   * 为什么限高：右栏是 sticky 的，内容（作者卡 + 互动条卡 + 目录卡）合计约 850px，
+   * 视口高低于 ~938px 时下半截直接被裁掉（不是滚动，是看不见）。限到
+   * `100dvh - 88px`（88px = 吸顶偏移 + 页头呼吸）以后，超出部分由整列内部滚动兜底。
+   *
+   * 为什么 overflow-x 也要写：只给 overflow-y 时，规范会把另一轴的 visible 算成 auto，
+   * 焦点环 / hover 面底在右栏边缘会多出一条横向滚动条。
+   *
+   * 真正的滚动仍然留给目录体（它在矮视口有自己的 dvh 档高度）；整列滚动只是兜底，
+   * 不是把页面滚动改到这里来。
+   */
   @media (min-width: 1024px) {
     .article-aside {
       position: sticky;
       top: 88px;
+      max-height: calc(100dvh - 88px);
+      overflow-y: auto;
+      overflow-x: hidden;
+      /* 滚到右栏底不再把整页一起带着滚（两层滚动条里外联动最招人烦）。 */
+      overscroll-behavior: contain;
+    }
+
+    /* 限高之后右栏成了滚动容器：三张卡不许被 flex 压扁。压扁 + overflow:visible
+     * 就是"卡与卡重叠、hover 面底互相遮挡"的来源，这里一律只让整列滚动。 */
+    .article-aside > * {
+      flex-shrink: 0;
+    }
+
+    /* 矮视口（高 <820px）：作者卡瘦身，把省下来的高度让给互动条与目录。
+     * 刻意只嵌在 ≥1024 的吸顶区间里 —— 窄屏是整页滚动，作者信息不该被折叠
+     * （stats 行在那时仍是可读内容，不是被裁掉的尾巴）。
+     */
+    @media (max-height: 820px) {
+      .article-aside {
+        gap: 0.75rem;
+      }
+
+      /* 用后代选择器而不是单类：`.article-author` / `.article-toc` 自己的 padding
+       * 是 `p-5 md:p-6` 的 @apply 产物（md 档带媒体查询），单类选择器压不住它，
+       * 这里用 0,2,0 的明确优先级收一档。 */
+      .article-aside .article-author {
+        padding: 1rem;
+      }
+
+      .article-aside .article-actions-card {
+        padding: 0.5rem;
+      }
+
+      .article-aside .article-toc {
+        padding: 1rem;
+      }
+
+      /* 折叠 stats 行：三格计数是"可以不看"的信息，矮视口下先让位。 */
+      .article-author__stats {
+        display: none;
+      }
+
+      .article-author__abstract {
+        margin-top: 0.75rem;
+      }
+
+      .article-author__actions {
+        margin-top: 0.75rem;
+      }
     }
   }
 

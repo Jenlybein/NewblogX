@@ -59,7 +59,9 @@ func (f *fakeRepo) ListSessions(context.Context, ctype.ID, bool, domain.Page) ([
 }
 
 func (f *fakeRepo) FindSession(context.Context, string, ctype.ID, bool) (domain.Session, error) {
-	return domain.Session{}, nil
+	// 默认没有会话：这一组用例观察的是"陌生人"分支的拒绝回执；
+	// 既有会话不参与判定由 chat/app 的用例覆盖。
+	return domain.Session{}, apperr.New(apperr.CodeChatSessionNotFound)
 }
 
 func (f *fakeRepo) ListMessages(context.Context, domain.MessageQuery) ([]domain.Message, int, error) {
@@ -102,9 +104,11 @@ func (f fakeRelations) Batch(_ context.Context, _ ctype.ID, ids []ctype.ID) (map
 	return out, nil
 }
 
+// fakeStranger 是**有效陌生人判定**的结论（站点总闸 AND 接收方个人开关，
+// 两级合成在装配层）。适配器只观察"拒绝时回执长什么样"，不关心是哪一级关的。
 type fakeStranger struct{ enabled bool }
 
-func (f fakeStranger) StrangerEnabled(context.Context) (bool, error) { return f.enabled, nil }
+func (f fakeStranger) StrangerEnabled(context.Context, ctype.ID) (bool, error) { return f.enabled, nil }
 
 // fakeTickets 返回固定票据对应的会话身份。
 //

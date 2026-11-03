@@ -101,9 +101,26 @@ func (s *Service) Send(ctx context.Context, senderID, receiverID ctype.ID, msgTy
 			relation = rel
 		}
 	}
-	// 陌生人私信由站点开关统一控制（#202）：站点点关之后，陌生人对谁都发不出去。
-	if senderID != receiverID && relation == 1 {
-		enabled, err := s.stranger.StrangerEnabled(ctx)
+	// 陌生人判定只对"确实没有关系"的双方做：自己、已有关注关系、
+	// 或已存在会话的双方都不参与（#243）。
+	stranger := senderID != receiverID && relation == 1
+	if stranger {
+		_, err := s.read.FindSession(ctx, domain.BuildSessionID(senderID, receiverID), senderID, true)
+		switch {
+		case err == nil:
+			// 已经聊过：不再是陌生人，个人开关不该半路切断既有会话。
+			stranger = false
+		case apperr.IsCode(err, apperr.CodeChatSessionNotFound):
+			// 没有会话：继续按陌生人判定。
+		default:
+			return nil, err
+		}
+	}
+	// 陌生人私信是**两级**策略（#243）：站点总闸 AND 接收方个人开关。
+	// 两级取值在装配层的 StrangerPolicy 里合成，用例层只消费结论；
+	// 必须传接收方 ID，个人开关才有接线点。
+	if stranger {
+		enabled, err := s.stranger.StrangerEnabled(ctx, receiverID)
 		if err != nil {
 			return nil, err
 		}

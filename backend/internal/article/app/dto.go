@@ -147,6 +147,37 @@ type FavoriteCmd struct {
 	FolderID favorite.ID
 }
 
+// FavoriteResult 是收藏/取消收藏后的权威状态与计数（ADR-0024 决策 4/6）。
+//
+// 前端拿到它就直接 patch 界面、主动失效客户端缓存，不再为一次收藏重取整篇正文。
+// 计数是**文章级**绝对值（库内快照 + 缓存增量），不是"这次 +1 / -1"。
+type FavoriteResult struct {
+	// IsFavor 操作后该用户是否仍收藏着这篇文章（多收藏夹时移除其中一个仍为 true）。
+	IsFavor bool
+	// FavorCount 操作后文章的收藏总数。
+	FavorCount int
+}
+
+// DiggCmd 是设置点赞目标态的输入（ADR-0024 决策 3）。
+//
+// 与旧 toggle 的区别：调用方说的是"我要它处于已赞 / 未赞"，服务端按目标收敛。
+// 重复提交同一个目标态就是无操作 —— 这消除了"按钮显示未赞、实际已赞，再点一下
+// 把真实点赞取消掉"的数据损坏风险。
+type DiggCmd struct {
+	Actor     domain.Viewer
+	ArticleID domain.ArticleID
+	// Liked 是目标态：true 表示点赞，false 表示取消。
+	Liked bool
+}
+
+// DiggResult 是设置点赞后的权威状态与计数。
+type DiggResult struct {
+	// IsDigg 收敛后的点赞状态（幂等重复时也是 true/false，不是"这次变了没有"）。
+	IsDigg bool
+	// DiggCount 操作后文章的点赞总数（库内快照 + 缓存增量）。
+	DiggCount int
+}
+
 // TopCmd 是置顶/取消置顶的输入。
 type TopCmd struct {
 	Actor     domain.Viewer

@@ -1,4 +1,5 @@
 import type {
+  ArticleFavoriteResult,
   FavoriteArticleListData,
   FavoriteFolderWritePayload,
   FavoriteFolderItem,
@@ -93,8 +94,15 @@ export function getFavoriteFolderArticles(payload: { favoriteId: string; page?: 
   });
 }
 
+/**
+ * 从收藏夹移除文章（ADR-0024 决策 6）。
+ *
+ * 「已收藏 → 移除」必须走 DELETE：旧实现误发 POST，后端发现关系已存在后返回
+ * `ErrItemExists`（"已收藏该文章"），用户点"移出"反而失败、关系也没动。
+ * 响应回填权威 `favor_count` / `is_favor`，前端直接 patch，不再重新取正文。
+ */
 export function removeFavoriteFolderArticles(payload: { favoriteId: string; articleIds: string[] }) {
-  return useNuxtApp().$api.request("/api/articles/favorite/contents", {
+  return useNuxtApp().$api.request<ArticleFavoriteResult>("/api/articles/favorite/contents", {
     method: "DELETE",
     body: {
       favorite_id: payload.favoriteId,

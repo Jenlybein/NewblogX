@@ -1,8 +1,8 @@
 <script setup lang="ts">
 import { computed, ref, watch } from "vue";
 import { NButton, NCard, NEmpty, NInput, NModal, NSkeleton, useMessage } from "naive-ui";
-import type { FavoriteFolderItem } from "~/types/api";
-import { createFavoriteFolder, getOwnFavoriteFolders } from "~/services/favorite";
+import type { ArticleFavoriteResult, FavoriteFolderItem } from "~/types/api";
+import { createFavoriteFolder, getOwnFavoriteFolders, removeFavoriteFolderArticles } from "~/services/favorite";
 import { favoriteArticle } from "~/services/article";
 import { usePointerSpecular } from "~/composables/usePointerSpecular";
 
@@ -17,7 +17,13 @@ const { handlePointerMove } = usePointerSpecular();
 
 const emit = defineEmits<{
   "update:show": [value: boolean];
-  updated: [];
+  /**
+   * 收藏写响应里的权威状态与计数（ADR-0024 决策 4/6）。
+   *
+   * 旧实现只发一个空事件，页面收到后重新取整篇正文才看得到新数字；现在把
+   * `{is_favor, favor_count}` 直接交给页面 patch，不再多打一次详情请求。
+   */
+  updated: [payload: ArticleFavoriteResult];
 }>();
 
 const folders = ref<FavoriteFolderItem[]>([]);
@@ -72,10 +78,14 @@ async function handleToggleFolder(folder: FavoriteFolderItem) {
   actionPendingId.value = folder.id;
   try {
     const wasIncluded = folder.has_article;
-    await favoriteArticle(props.articleId, folder.id);
+    // 关键：已收藏时走 DELETE（移除），不是再 POST 一次。
+    // 旧实现两个分支都发 POST，于是"移出收藏夹"必然撞 ErrItemExists。
+    const result = wasIncluded
+      ? await removeFavoriteFolderArticles({ favoriteId: folder.id, articleIds: [props.articleId] })
+      : await favoriteArticle(props.articleId, folder.id);
     await loadFolders();
     message.success(wasIncluded ? `已从“${folder.title}”移除` : `已加入“${folder.title}”`);
-    emit("updated");
+    emit("updated", result);
   } catch (error) {
     message.error(error instanceof Error ? error.message : "收藏操作失败");
   } finally {
@@ -86,10 +96,10 @@ async function handleToggleFolder(folder: FavoriteFolderItem) {
 async function handleAddToDefaultFolder() {
   actionPendingId.value = "__default__";
   try {
-    await favoriteArticle(props.articleId);
+    const result = await favoriteArticle(props.articleId);
     await loadFolders();
     message.success("已加入默认收藏夹");
-    emit("updated");
+    emit("updated", result);
   } catch (error) {
     message.error(error instanceof Error ? error.message : "收藏操作失败");
   } finally {
@@ -115,12 +125,12 @@ async function handleCreateFolder() {
     });
     await loadFolders();
     const created = folders.value.find((item) => item.title === title);
-    if (created) {
-      await favoriteArticle(props.articleId, created.id);
-    }
+    const result = created ? await favoriteArticle(props.articleId, created.id) : null;
     resetCreateForm();
     message.success(created ? `已创建“${title}”并完成收藏` : `已创建“${title}”`);
-    emit("updated");
+    if (result) {
+      emit("updated", result);
+    }
   } catch (error) {
     message.error(error instanceof Error ? error.message : "创建收藏夹失败");
   } finally {

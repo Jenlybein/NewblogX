@@ -460,3 +460,103 @@ describe("SSR 匿名化：服务端渲染的数据里没有用户私有状态（
     expect(sources.article.value?.is_favor).toBe(true);
   });
 });
+
+describe("用户私有态独立取数（ADR-0024 决策 2/6）", () => {
+  function privateOptions(mode: "hydration" | "navigation") {
+    return {
+      mode,
+      articleId: ARTICLE_ID,
+      fetchArticle: async () => makeArticle(),
+      fetchScore: async () => null,
+      fetchComments: async () => ({ items: [] as CommentRootItem[], hasMore: false }),
+      fetchAuthorInfo: async () => ({ article_count: 3 } as ArticleAuthorInfo),
+      fetchAuthorProfile: async () => null,
+    };
+  }
+
+  it("hydration 后必须发出一次私有态请求：即使 payload 里塞了私有键也不读，且永不进 30s SWR", async () => {
+    installFakeNuxtApp();
+    const cache = createReaderSwrCache({ now: () => 1_000 });
+    // 恶意 payload：如果私有态源用 getCachedData 默认值 / Nuxt payload，这里就会被"命中"。
+    installAwaitableAsyncData({
+      hydrating: true,
+      payloadData: {
+        "article-a1": makeArticle(),
+        "article-private-a1": { is_digg: false, is_favor: false, relation: 1 },
+      },
+    });
+
+    const fetchArticlePrivate = vi.fn(async () => ({ is_digg: true, is_favor: true, relation: 4 }));
+    const sources = await runInScope(() =>
+      useArticlePageSources({
+        ...privateOptions("hydration"),
+        swrCache: cache,
+        fetchArticlePrivate,
+      }),
+    );
+
+    // 建源时（setup 同步段）不发请求：登录态还没确定。
+    expect(fetchArticlePrivate).not.toHaveBeenCalled();
+    expect(cache.read("article-private-a1").state).toBe("miss");
+
+    // 页面在 `initializeSession()` 之后调用它 —— 这就是"hydration 后一次带鉴权的用户态请求"。
+    await sources.refreshArticlePrivate();
+    expect(fetchArticlePrivate).toHaveBeenCalledTimes(1);
+    expect(sources.articlePrivate.value).toEqual({ is_digg: true, is_favor: true, relation: 4 });
+
+    // 私有态只进本次渲染的数据，不进正文缓存、也不进私有键的缓存。
+    expect(sources.article.value?.is_digg).toBe(true);
+    expect(sources.article.value?.is_favor).toBe(true);
+    expect(cache.read("article-private-a1").state).toBe("miss");
+
+    // 再取一次仍然真发请求（getCachedData 恒 undefined，不做任何缓存）。
+    await sources.refreshArticlePrivate();
+    expect(fetchArticlePrivate).toHaveBeenCalledTimes(2);
+  });
+
+  it("导航重进同样只问私有态源：正文命中 30s 缓存，作者资料照旧走第二波", async () => {
+    installFakeNuxtApp();
+    const cache = createReaderSwrCache({ now: () => 1_000 });
+    cache.write("article-a1", { id: ARTICLE_ID, title: "缓存标题", author_id: AUTHOR_ID });
+    installAwaitableAsyncData();
+
+    const fetchArticle = vi.fn(async () => makeArticle());
+    const fetchArticlePrivate = vi.fn(async () => ({ is_digg: true, is_favor: false, relation: null }));
+    const sources = await runInScope(() =>
+      useArticlePageSources({
+        ...privateOptions("navigation"),
+        swrCache: cache,
+        fetchArticle,
+        fetchArticlePrivate,
+      }),
+    );
+
+    expect(fetchArticle).not.toHaveBeenCalled();
+    await sources.refreshArticlePrivate();
+    expect(fetchArticlePrivate).toHaveBeenCalledTimes(1);
+    expect(sources.article.value?.title).toBe("缓存标题");
+    expect(sources.article.value?.is_digg).toBe(true);
+  });
+
+  it("手工 refreshArticle 不被 fresh 缓存短路：页面刷新能拿回带用户态的正文（ADR-0024 决策 1）", async () => {
+    installFakeNuxtApp();
+    const cache = createReaderSwrCache({ now: () => 1_000 });
+    cache.write("article-a1", { id: ARTICLE_ID, title: "缓存标题", author_id: AUTHOR_ID });
+    installAwaitableAsyncData();
+
+    const fetchArticle = vi.fn(async () => ({ ...makeArticle(), is_digg: true } as ArticleDetail));
+    const sources = await runInScope(() =>
+      useArticlePageSources({
+        ...privateOptions("navigation"),
+        swrCache: cache,
+        fetchArticle,
+        fetchArticlePrivate: async () => ({ is_digg: true, is_favor: false, relation: null }),
+      }),
+    );
+
+    expect(fetchArticle).not.toHaveBeenCalled();
+    await sources.refreshArticle();
+    expect(fetchArticle).toHaveBeenCalledTimes(1);
+    expect(sources.article.value?.is_digg).toBe(true);
+  });
+});

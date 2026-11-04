@@ -84,6 +84,16 @@ func OkWithHasMoreList(list any, hasMore bool, c *gin.Context) {
 	}.Json(c)
 }
 
+// OkWithCursorList 返回带复合游标的消息列表 data 载荷。
+//
+// data 由调用方构造成具名 DTO（私信模块是 domain.MessageListData），
+// 这样 swag 注解能直接引用类型，运行时 JSON 形状也只有一处定义。
+// "没有更多"时调用方必须把 next_cursor 留成零值：后端不替它猜，
+// 免得把"能继续翻页"的语义藏进响应封装里。
+func OkWithCursorList(data any, c *gin.Context) {
+	OkWithData(data, c)
+}
+
 func FailWithMsg(msg string, c *gin.Context) {
 	Response{
 		Code: FailValidCode,

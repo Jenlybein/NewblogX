@@ -90,3 +90,15 @@ HTTP 仍是唯一发送通道（决策 1 不变）：重连只影响"通知能�
 HTTP 唯一发送通道（决策 1）、零列变更、写副作用走发件箱**三条不变**：风控判定收在用例层且失败关闭，不改 WS 只做通知、不改发件箱口径。WS ack/retry、消息编辑 / 撤回、举报队列、浏览器 E2E 仍是本 ADR 的非目标。
 
 相关代码与文档：[ADR-0026](./0026-chat-send-side-risk-control.md) · [GLOSSARY · 私信与会话](../../GLOSSARY.md)（屏蔽 / 拉黑）· [docs/TODO.md](../TODO.md) · `backend/internal/chat/` · `backend/app/chat_wiring.go` · `backend/internal/platform/mysql/ddl/schema.sql`
+
+## 后续修订（2026-11-05，消息中心重构）
+
+决策与约束正文一字未改；以下三处口径由 [ADR-0027](./0027-message-center-ordering-pagination-and-read-receipt.md) 取代或补充，**「代价 / 不做什么」的 WS / 前端列表刷新边界、「消息列表读取」与「清除水位」按本节为准**。
+
+| 本 ADR 位置 | 原文口径 | 修订后 |
+| --- | --- | --- |
+| 「代价 / 不做什么」的 WS / 前端列表刷新边界 | 接收方收到通知后自己走 HTTP 刷新会话、消息与未读数；四个通知 tab 的列表不订阅 WS 列表 | **四个 tab 仍不订阅 WS 列表、不轮询（不变，Q24 已知边界）**；私信改为在同一升序数组上**增量 append**，不再整表替换已积累列表（保留 `requestId` 防陈旧响应） |
+| 「消息列表读取」 | 通知触发后整体刷新消息列表；`POST /api/chat/read` 按已加载消息逐条标已读，DTO 绑定 `[]uint64` | **复合游标** `(before_send_time, before_id)` 每页 7 条 + `has_more` / `next_cursor` 取代 offset；后端 DESC 契约不变、前端维护**唯一升序数组**；**整会话已读**（`session_id` 模式、`msg_id_list` 保留兼容），DTO 改 `[]ctype.ID`，成功后同刷会话与消息中心两处 badge |
+| 「清除水位」 | `clear_before_msg_id` 按 `id > ?` 过滤消息，并账沿用主键大小 | **改为基于 `send_time` 的时间水位**：消息过滤与未读对账公式同步改并补测试，守住「清空会话 → 未读不复活」（#266）；派生主键落在 `[2^62, 2^63)` 非单调，不能再当水位 |
+
+HTTP 唯一发送通道、零 DDL、发件箱三条不变。

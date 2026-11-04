@@ -6,6 +6,7 @@ import (
 	"gorm.io/gorm"
 
 	"myblogx/internal/chat/domain"
+	"myblogx/internal/kernel/ctype"
 )
 
 // 本文件承担「把私信未读重算回会话行」的写入。
@@ -21,14 +22,19 @@ import (
 //	                WHERE session_id = 该会话
 //	                  AND receiver_id = 我
 //	                  AND msg_status < 已读
-//	                  AND id > clear_before_msg_id)
+//	                  AND send_time > (SELECT send_time
+//	                                    FROM chat_msg_models
+//	                                   WHERE id = clear_before_msg_id)
+//	                  AND id NOT IN (该用户已删除的消息 ID))
 //
 // 四条边界：
 //   - 只数「发给我的」：receiver_id = user_id，发送方那侧永远不进未读；
 //   - 只数未读：msg_status < StatusRead（已读状态在消息行上，是全局的，
 //     1:1 会话里只有接收方会标已读，所以不需要逐用户读位置）；
-//   - 尊重清空水位：clear_before_msg_id 之前（含）的消息对该用户不可见，
-//     "清除会话"之后重算不能让未读复活；
+//   - 尊重清空水位：把 clear_before_msg_id 解析成那条消息的 send_time，
+//     只数严格晚于它的消息。主键不是时序（客户端幂等键派生的是
+//     [2^62,2^63) 区间的 FNV 哈希），用 id > 水位会随机放过/挡掉历史，
+//     "清除会话"之后重算就不能让未读复活；
 //   - 用户级删除（chat_msg_user_state_models）也会让消息对自己不可见，
 //     重算时同样排除，否则删掉的消息还会占着未读数。
 
@@ -67,8 +73,10 @@ func ReconcileChatUnread(ctx context.Context, db *gorm.DB, sessionID string, use
 	q := db.WithContext(ctx).Model(&msgRow{}).
 		Where("session_id = ? AND receiver_id = ? AND msg_status < ?",
 			sessionID, userID, int8(domain.StatusRead)).
-		Where("id > ?", session.ClearBeforeMsgID.Uint64()).
 		Where("id NOT IN (?)", deletedMsgIDs)
+	// 清空水位按"那条消息的 send_time"解析，而不是 id 大小：见文件头真值口径。
+	// 子查询必须 Unscoped（水位行可能已被软删）；水位为 0 时不加过滤。
+	q = applyClearWatermark(ctx, db, q, ctype.NewID(session.ClearBeforeMsgID.Uint64()))
 	if err := q.Count(&unread).Error; err != nil {
 		return false, err
 	}

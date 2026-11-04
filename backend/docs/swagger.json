@@ -1926,6 +1926,21 @@
                 ],
                 "type": "object"
             },
+            "internal_chat_adapter_http.IDListRequest": {
+                "properties": {
+                    "msg_id_list": {
+                        "items": {
+                            "type": "string"
+                        },
+                        "type": "array",
+                        "uniqueItems": false
+                    },
+                    "session_id": {
+                        "type": "string"
+                    }
+                },
+                "type": "object"
+            },
             "internal_chat_adapter_http.SendMessageRequest": {
                 "properties": {
                     "client_msg_id": {
@@ -3563,6 +3578,17 @@
                 },
                 "type": "object"
             },
+            "myblogx_internal_chat_domain.MessageCursor": {
+                "properties": {
+                    "before_id": {
+                        "type": "string"
+                    },
+                    "before_send_time": {
+                        "type": "string"
+                    }
+                },
+                "type": "object"
+            },
             "myblogx_internal_chat_domain.MessageItem": {
                 "properties": {
                     "content": {
@@ -3597,6 +3623,27 @@
                     },
                     "session_id": {
                         "type": "string"
+                    }
+                },
+                "type": "object"
+            },
+            "myblogx_internal_chat_domain.MessageListData": {
+                "properties": {
+                    "count": {
+                        "type": "integer"
+                    },
+                    "has_more": {
+                        "type": "boolean"
+                    },
+                    "list": {
+                        "items": {
+                            "$ref": "#/components/schemas/myblogx_internal_chat_domain.MessageItem"
+                        },
+                        "type": "array",
+                        "uniqueItems": false
+                    },
+                    "next_cursor": {
+                        "$ref": "#/components/schemas/myblogx_internal_chat_domain.MessageCursor"
                     }
                 },
                 "type": "object"
@@ -4492,6 +4539,20 @@
                 },
                 "type": "object"
             },
+            "myblogx_internal_kernel.Envelope-myblogx_internal_chat_domain_MessageListData": {
+                "properties": {
+                    "code": {
+                        "type": "integer"
+                    },
+                    "data": {
+                        "$ref": "#/components/schemas/myblogx_internal_chat_domain.MessageListData"
+                    },
+                    "msg": {
+                        "type": "string"
+                    }
+                },
+                "type": "object"
+            },
             "myblogx_internal_kernel.Envelope-myblogx_internal_comment_app_CreateResult": {
                 "properties": {
                     "code": {
@@ -4947,20 +5008,6 @@
                     },
                     "data": {
                         "$ref": "#/components/schemas/myblogx_internal_kernel.ListData-myblogx_internal_analytics_adapter_clickhouse_RuntimeLogRecord"
-                    },
-                    "msg": {
-                        "type": "string"
-                    }
-                },
-                "type": "object"
-            },
-            "myblogx_internal_kernel.Envelope-myblogx_internal_kernel_ListData-myblogx_internal_chat_domain_MessageItem": {
-                "properties": {
-                    "code": {
-                        "type": "integer"
-                    },
-                    "data": {
-                        "$ref": "#/components/schemas/myblogx_internal_kernel.ListData-myblogx_internal_chat_domain_MessageItem"
                     },
                     "msg": {
                         "type": "string"
@@ -5525,21 +5572,6 @@
                     "list": {
                         "items": {
                             "$ref": "#/components/schemas/myblogx_internal_analytics_adapter_clickhouse.RuntimeLogRecord"
-                        },
-                        "type": "array",
-                        "uniqueItems": false
-                    }
-                },
-                "type": "object"
-            },
-            "myblogx_internal_kernel.ListData-myblogx_internal_chat_domain_MessageItem": {
-                "properties": {
-                    "count": {
-                        "type": "integer"
-                    },
-                    "list": {
-                        "items": {
-                            "$ref": "#/components/schemas/myblogx_internal_chat_domain.MessageItem"
                         },
                         "type": "array",
                         "uniqueItems": false
@@ -7885,7 +7917,7 @@
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "$ref": "#/components/schemas/myblogx_internal_kernel.Envelope-myblogx_internal_kernel_ListData-myblogx_internal_chat_domain_MessageItem"
+                                    "$ref": "#/components/schemas/myblogx_internal_kernel.Envelope-myblogx_internal_chat_domain_MessageListData"
                                 }
                             }
                         },
@@ -7945,10 +7977,14 @@
                     "content": {
                         "application/json": {
                             "schema": {
-                                "type": "object"
+                                "$ref": "#/components/schemas/internal_chat_adapter_http.IDListRequest",
+                                "summary": "request",
+                                "description": "已读参数"
                             }
                         }
-                    }
+                    },
+                    "description": "已读参数",
+                    "required": true
                 },
                 "responses": {
                     "200": {

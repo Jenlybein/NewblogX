@@ -1864,7 +1864,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["myblogx_internal_kernel.Envelope-myblogx_internal_kernel_ListData-myblogx_internal_chat_domain_MessageItem"];
+                        "application/json": components["schemas"]["myblogx_internal_kernel.Envelope-myblogx_internal_chat_domain_MessageListData"];
                     };
                 };
             };
@@ -1943,9 +1943,10 @@ export interface paths {
                 path?: never;
                 cookie?: never;
             };
-            requestBody?: {
+            /** @description 已读参数 */
+            requestBody: {
                 content: {
-                    "application/json": Record<string, never>;
+                    "application/json": components["schemas"]["internal_chat_adapter_http.IDListRequest"];
                 };
             };
             responses: {
@@ -6582,6 +6583,10 @@ export interface components {
             new_password: string;
             old_password: string;
         };
+        "internal_chat_adapter_http.IDListRequest": {
+            msg_id_list?: string[];
+            session_id?: string;
+        };
         "internal_chat_adapter_http.SendMessageRequest": {
             /**
              * @description ClientMsgID 是客户端生成的幂等键。
@@ -7142,6 +7147,10 @@ export interface components {
             ts?: string;
             user_id?: string;
         };
+        "myblogx_internal_chat_domain.MessageCursor": {
+            before_id?: string;
+            before_send_time?: string;
+        };
         "myblogx_internal_chat_domain.MessageItem": {
             content?: string;
             deleted_at?: string;
@@ -7154,6 +7163,12 @@ export interface components {
             send_time?: string;
             sender_id?: string;
             session_id?: string;
+        };
+        "myblogx_internal_chat_domain.MessageListData": {
+            count?: number;
+            has_more?: boolean;
+            list?: components["schemas"]["myblogx_internal_chat_domain.MessageItem"][];
+            next_cursor?: components["schemas"]["myblogx_internal_chat_domain.MessageCursor"];
         };
         /** @enum {integer} */
         "myblogx_internal_chat_domain.MsgStatus": 1 | 2 | 3 | 4 | 5;
@@ -7460,6 +7475,11 @@ export interface components {
             data?: components["schemas"]["myblogx_internal_chat_domain.MessageItem"];
             msg?: string;
         };
+        "myblogx_internal_kernel.Envelope-myblogx_internal_chat_domain_MessageListData": {
+            code?: number;
+            data?: components["schemas"]["myblogx_internal_chat_domain.MessageListData"];
+            msg?: string;
+        };
         "myblogx_internal_kernel.Envelope-myblogx_internal_comment_app_CreateResult": {
             code?: number;
             data?: components["schemas"]["myblogx_internal_comment_app.CreateResult"];
@@ -7625,11 +7645,6 @@ export interface components {
             data?: components["schemas"]["myblogx_internal_kernel.ListData-myblogx_internal_analytics_adapter_clickhouse_RuntimeLogRecord"];
             msg?: string;
         };
-        "myblogx_internal_kernel.Envelope-myblogx_internal_kernel_ListData-myblogx_internal_chat_domain_MessageItem": {
-            code?: number;
-            data?: components["schemas"]["myblogx_internal_kernel.ListData-myblogx_internal_chat_domain_MessageItem"];
-            msg?: string;
-        };
         "myblogx_internal_kernel.Envelope-myblogx_internal_kernel_ListData-myblogx_internal_chat_domain_SessionItem": {
             code?: number;
             data?: components["schemas"]["myblogx_internal_kernel.ListData-myblogx_internal_chat_domain_SessionItem"];
@@ -7786,10 +7801,6 @@ export interface components {
         "myblogx_internal_kernel.ListData-myblogx_internal_analytics_adapter_clickhouse_RuntimeLogRecord": {
             count?: number;
             list?: components["schemas"]["myblogx_internal_analytics_adapter_clickhouse.RuntimeLogRecord"][];
-        };
-        "myblogx_internal_kernel.ListData-myblogx_internal_chat_domain_MessageItem": {
-            count?: number;
-            list?: components["schemas"]["myblogx_internal_chat_domain.MessageItem"][];
         };
         "myblogx_internal_kernel.ListData-myblogx_internal_chat_domain_SessionItem": {
             count?: number;

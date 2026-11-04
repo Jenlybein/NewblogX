@@ -1,27 +1,31 @@
 <script setup lang="ts">
-import { computed, defineAsyncComponent, ref, watch } from "vue";
-import { IconLoader2, IconPhoto, IconPlugConnected, IconPlugConnectedX } from "@tabler/icons-vue";
-import { NAlert, NButton, NInput, NSpace, NTag } from "naive-ui";
+import { computed, defineAsyncComponent, nextTick, ref, watch } from "vue";
+import { IconLoader2, IconPhoto, IconPlugConnectedX } from "@tabler/icons-vue";
+import { NButton, NInput, NTag } from "naive-ui";
 import AppAvatar from "~/components/common/AppAvatar.vue";
 import type { ChatMessageItem, ChatSessionItem } from "~/types/api";
-import { isDraftChatSessionId } from "~/utils/chat";
 import { resolveChatMessageContent, type ChatSendType } from "~/utils/chatMessage";
+import {
+  chatDateSeparatorLabel,
+  fullChatTimestamp,
+  isSameChatGroup,
+} from "~/utils/chatTimeline";
 import { formatDateTimeLabel } from "~/utils/format";
 import { getRelationLabel } from "~/utils/relation";
 
 import katexCssUrl from "katex/dist/katex.min.css?url";
 
-// 私信面板。
-//
-// 消息**内容怎么显示**不在这里判断，而是交给 utils/chatMessage 的纯函数：
-// 后端把图片消息的 content 包装成了 JSON，这个约定属于"传输格式"，
-// 散在模板里用 v-if 处理的话，每加一种消息类型就要改所有渲染点。
-//
-// Markdown 主题：不再传 github-markdown-css 的 `<link>`。MarkdownRenderSurface
-// 的 shadow root 内置自有主题（消费 tokens.css 语义 token），明暗切换跟随站点
-// 根类自动生效 —— 暗色下不会再出现"私信白块"。
+/**
+ * 私信面板（2026-11-05 重构）。
+ *
+ * 用户可见文案里不再出现任何实现说明：通道协议、存储位置、草稿态这些词
+ * 只属于代码与文档。消息区按自然日分隔、同人 2 分钟内合并，完整时间戳
+ * 放在 title 里，不再逐条啰嗦。
+ *
+ * 消息**内容怎么显示**交给 utils/chatMessage 的纯函数（图片 content 是后端
+ * 包装的 JSON 传输格式，不能在模板里散着判断）。
+ */
 const ChatMarkdownRenderer = defineAsyncComponent(() => import("~/components/common/MarkdownRenderSurface.vue"));
-// katex 只保留基线布局样式（分数/根号），配色由自有主题覆盖。
 const markdownSupportStyleHrefs = [katexCssUrl];
 
 const props = defineProps<{
@@ -31,16 +35,15 @@ const props = defineProps<{
   items: ChatMessageItem[];
   keyword: string;
   draft: string;
-  /** 草稿的发送类型：1 文本 / 7 Markdown。 */
   draftType: ChatSendType;
-  preparedSession?: boolean;
   sessionPending: boolean;
   messagePending: boolean;
-  /** 图片上传中（上传完成前不能重复点）。 */
   imagePending: boolean;
+  /** 是否还有更早的消息可上滑加载。 */
+  hasMoreHistory: boolean;
+  olderPending: boolean;
   socketStatus: string;
   socketError: string;
-  /** 最近一次发送被拒的原因（后端错误码文案，空串表示没有失败）。 */
   sendError?: string;
 }>();
 
@@ -54,20 +57,23 @@ const emit = defineEmits<{
   removeSession: [sessionId: string];
   removeMessage: [id: string];
   reconnect: [];
+  retry: [];
+  loadOlder: [];
 }>();
-
-const isPreparedSession = computed(() =>
-  props.preparedSession ?? (props.currentSession ? isDraftChatSessionId(props.currentSession.session_id) : false),
-);
 
 const isMarkdownDraft = computed(() => props.draftType === 7);
 
+/** 连接状态条只在异常时出现；健康连接不渲染任何状态（Q3）。 */
+const showSocketBadge = computed(
+  () => props.socketStatus !== "connected" || Boolean(props.socketError),
+);
+const socketBadgeLabel = computed(() => {
+  if (props.socketStatus === "connecting") return "实时连接中…";
+  return props.socketError || "实时未连接";
+});
+
 /**
- * 窄屏二选一（票 240）：<1024px 时列表与聊天窗不能同时显示，
- * 所以面板自己记"当前显示哪一栏"。宽屏这个状态不生效（CSS 只在窄屏隐藏）。
- *
- * 初值跟着当前会话走：从作者主页「发私信」带 draft 进来时已经选中了人，
- * 直接落在聊天窗，而不是让用户在窄屏里先翻一遍会话列表。
+ * 窄屏二选一：<1024px 时列表与聊天窗不能同时显示。宽屏该状态不生效。
  */
 const narrowPane = ref<"list" | "chat">(props.currentSession ? "chat" : "list");
 const narrowPaneClass = computed(() => (narrowPane.value === "chat" ? "is-narrow-chat" : "is-narrow-list"));
@@ -80,7 +86,6 @@ watch(
 );
 
 function selectSession(sessionId: string) {
-  // 先切栏再发事件：不能让"选中了但还停在列表"闪一帧。
   narrowPane.value = "chat";
   emit("update:activeSessionId", sessionId);
 }
@@ -89,27 +94,131 @@ function backToSessionList() {
   narrowPane.value = "list";
 }
 
-/** 预先解析好每条消息的内容，避免在模板里对同一条消息反复解析。 */
-const renderedItems = computed(() =>
-  props.items.map((item) => ({ item, resolved: resolveChatMessageContent(item) })),
+type DateEntry = { kind: "date"; key: string; label: string };
+type GroupEntry = {
+  kind: "group";
+  key: string;
+  isSelf: boolean;
+  avatar: string;
+  name: string;
+  entries: { item: ChatMessageItem; resolved: ReturnType<typeof resolveChatMessageContent> }[];
+};
+type TimelineEntry = DateEntry | GroupEntry;
+
+/** 按自然日 + 同人 2 分钟合并成时间线；不做任何排序（items 已是升序）。 */
+const timeline = computed<TimelineEntry[]>(() => {
+  const out: TimelineEntry[] = [];
+  let lastDay = "";
+  let lastItem: ChatMessageItem | null = null;
+  let group: GroupEntry | null = null;
+
+  for (const item of props.items) {
+    const day = chatDayKey(item.send_time);
+    if (day !== lastDay) {
+      out.push({ kind: "date", key: `date-${day}-${item.id}`, label: chatDateSeparatorLabel(item.send_time) });
+      lastDay = day;
+      lastItem = null;
+      group = null;
+    }
+    const sameGroup = lastItem !== null && group !== null && isSameChatGroup(lastItem, item);
+    if (!sameGroup) {
+      group = {
+        kind: "group",
+        key: `group-${item.id}`,
+        isSelf: Boolean(item.is_self),
+        avatar: "",
+        name: item.sender_id,
+        entries: [],
+      };
+      out.push(group);
+    }
+    group!.entries.push({ item, resolved: resolveChatMessageContent(item) });
+    lastItem = item;
+  }
+  return out;
+});
+
+function chatDayKey(sendTime: string) {
+  const date = new Date(sendTime);
+  if (Number.isNaN(date.getTime())) return "unknown";
+  return `${date.getFullYear()}-${date.getMonth() + 1}-${date.getDate()}`;
+}
+
+/** 只有自己发的最后一条消息保留极小回执（Q7）。 */
+const lastSelfMessageId = computed(() => {
+  for (let i = props.items.length - 1; i >= 0; i -= 1) {
+    if (props.items[i]?.is_self) return props.items[i]!.id;
+  }
+  return null;
+});
+
+function receiptLabel(item: ChatMessageItem) {
+  if (item.id !== lastSelfMessageId.value) return "";
+  return item.is_read ? "已读" : "已送达";
+}
+
+const scrollerRef = ref<HTMLDivElement | null>(null);
+const imageInputRef = ref<HTMLInputElement | null>(null);
+let stickToBottom = true;
+let awaitingOlder = false;
+let olderAnchorBottom = 0;
+
+function scrollToBottom() {
+  const el = scrollerRef.value;
+  if (el) el.scrollTop = el.scrollHeight;
+}
+
+function onThreadScroll() {
+  const el = scrollerRef.value;
+  if (!el) return;
+  stickToBottom = el.scrollHeight - el.scrollTop - el.clientHeight <= 48;
+  if (
+    el.scrollTop <= 40 &&
+    props.hasMoreHistory &&
+    !props.olderPending &&
+    !awaitingOlder &&
+    !props.messagePending
+  ) {
+    olderAnchorBottom = el.scrollHeight - el.scrollTop;
+    awaitingOlder = true;
+    emit("loadOlder");
+  }
+}
+
+/** 上滑加载更早时锁滚动位置：用 scrollHeight 差值把视口钉回原来的那条消息。 */
+watch(
+  () => [props.items.length, props.items[0]?.id] as const,
+  async () => {
+    await nextTick();
+    if (awaitingOlder) {
+      awaitingOlder = false;
+      const el = scrollerRef.value;
+      if (el) el.scrollTop = Math.max(0, el.scrollHeight - olderAnchorBottom);
+      return;
+    }
+    if (stickToBottom) scrollToBottom();
+  },
 );
 
-const imageInputRef = ref<HTMLInputElement | null>(null);
+watch(
+  () => props.activeSessionId,
+  async () => {
+    stickToBottom = true;
+    awaitingOlder = false;
+    await nextTick();
+    scrollToBottom();
+  },
+);
 
 function openImagePicker() {
-  if (props.imagePending) {
-    return;
-  }
+  if (props.imagePending) return;
   imageInputRef.value?.click();
 }
 
 function handleImagePicked(event: Event) {
   const input = event.target as HTMLInputElement;
   const file = input.files?.[0];
-  if (file) {
-    emit("sendImage", file);
-  }
-  // 清空以便连发同一张图
+  if (file) emit("sendImage", file);
   input.value = "";
 }
 </script>
@@ -119,10 +228,7 @@ function handleImagePicked(event: Event) {
     <div class="studio-inbox-grid" :class="narrowPaneClass">
       <aside class="studio-inbox-grid__aside">
         <div class="studio-toolbar studio-toolbar--stack">
-          <div>
-            <h2 class="section-title">私信会话</h2>
-            <p class="muted">HTTP 收发与落库，WebSocket 只推新消息与已读通知。</p>
-          </div>
+          <h2 class="section-title">私信会话</h2>
           <NInput
             :value="keyword"
             placeholder="搜索联系人或消息…"
@@ -149,7 +255,7 @@ function handleImagePicked(event: Event) {
                 <span class="muted text-xs">{{ formatDateTimeLabel(session.last_msg_time || undefined) }}</span>
               </div>
               <div class="mt-1 flex items-center gap-2">
-                <span class="muted truncate text-sm">{{ session.last_msg_content || "还没有消息" }}</span>
+                <span class="muted truncate text-sm">{{ session.last_msg_content }}</span>
                 <NTag v-if="session.unread_count" size="small" type="error">{{ session.unread_count }}</NTag>
               </div>
             </div>
@@ -158,118 +264,117 @@ function handleImagePicked(event: Event) {
       </aside>
 
       <div class="studio-inbox-grid__main studio-chat-main">
-        <!-- 窄屏二选一：从聊天窗回会话列表。宽屏双栏常显，这个按钮由 CSS 隐藏。 -->
         <button type="button" class="studio-chat-back" @click="backToSessionList()">← 会话列表</button>
 
         <div class="studio-toolbar">
-          <div v-if="currentSession">
-            <div class="flex items-center gap-2">
-              <h2 class="section-title">{{ currentSession.receiver_nickname }}</h2>
-              <NTag size="small">{{ getRelationLabel(currentSession.relation) }}</NTag>
-              <NTag v-if="isPreparedSession" size="small" type="warning">预备会话</NTag>
-            </div>
-            <p class="muted mt-1">
-              {{ isPreparedSession ? "首条消息发出后才会创建真实会话并拉取历史记录。" : "当前会话会自动拉取历史消息，并尝试连接实时推送。" }}
-            </p>
+          <div v-if="currentSession" class="flex items-center gap-2">
+            <AppAvatar :src="currentSession.receiver_avatar" :name="currentSession.receiver_nickname" fallback="私" />
+            <h2 class="section-title">{{ currentSession.receiver_nickname }}</h2>
+            <NTag size="small">{{ getRelationLabel(currentSession.relation) }}</NTag>
           </div>
-          <div v-else>
-            <h2 class="section-title">选择一个会话</h2>
-            <p class="muted mt-1">选中左侧会话后才能查看或发送消息。</p>
-          </div>
+          <div v-else />
 
-          <div class="studio-socket-badge" :class="`is-${socketStatus}`">
+          <div v-if="showSocketBadge" class="studio-socket-badge" :class="`is-${socketStatus}`">
             <component
-              :is="socketStatus === 'connected' ? IconPlugConnected : socketStatus === 'connecting' ? IconLoader2 : IconPlugConnectedX"
+              :is="socketStatus === 'connecting' ? IconLoader2 : IconPlugConnectedX"
               :size="16"
               aria-hidden="true"
               class="shrink-0"
             />
-            <span>
-              {{
-                socketStatus === "connected"
-                  ? "实时已连接"
-                  : socketStatus === "connecting"
-                    ? "实时连接中…"
-                    : socketError || "实时未连接"
-              }}
-            </span>
+            <span>{{ socketBadgeLabel }}</span>
             <NButton quaternary size="tiny" @click="emit('reconnect')">重连</NButton>
           </div>
         </div>
 
-        <div v-if="currentSession" class="studio-chat-thread">
-          <div v-if="renderedItems.length" class="space-y-3">
-            <article
-              v-for="entry in renderedItems"
-              :key="entry.item.id"
-              class="studio-chat-bubble"
-              :class="{ 'is-self': entry.item.is_self }"
-            >
-              <div class="studio-chat-bubble__content">
-                <img
-                  v-if="entry.resolved.kind === 'image'"
-                  :src="entry.resolved.imageUrl"
-                  alt="图片消息"
-                  class="max-h-60 max-w-full rounded-field object-contain"
-                />
-                <ChatMarkdownRenderer
-                  v-else-if="entry.resolved.kind === 'markdown'"
-                  :source="entry.resolved.text"
-                  :extra-style-hrefs="markdownSupportStyleHrefs"
-                  article-class="markdown-body"
-                />
-                <p v-else class="leading-7">{{ entry.resolved.text }}</p>
-                <div class="studio-list-meta mt-3">
-                  <span>{{ formatDateTimeLabel(entry.item.send_time) }}</span>
-                  <span>{{ entry.item.is_read ? "已读" : "未读" }}</span>
-                </div>
+        <template v-if="currentSession">
+          <div ref="scrollerRef" class="studio-chat-thread studio-chat-scroller" @scroll.passive="onThreadScroll()">
+            <div v-if="olderPending" class="studio-chat-load-older">正在拉取更早的消息…</div>
+            <div v-else-if="!hasMoreHistory && timeline.length" class="studio-chat-load-older">没有更早的消息</div>
+
+            <template v-for="entry in timeline" :key="entry.key">
+              <div v-if="entry.kind === 'date'" class="studio-chat-date-separator">{{ entry.label }}</div>
+              <div
+                v-else
+                class="studio-chat-group"
+                :class="{ 'is-self': entry.isSelf }"
+              >
+                <article
+                  v-for="bubble in entry.entries"
+                  :key="bubble.item.id"
+                  class="studio-chat-bubble"
+                  :class="{ 'is-self': entry.isSelf }"
+                >
+                  <AppAvatar
+                    v-if="!entry.isSelf"
+                    class="studio-chat-bubble__avatar"
+                    :src="currentSession.receiver_avatar"
+                    :name="currentSession.receiver_nickname"
+                    fallback="私"
+                    :size="28"
+                  />
+                  <div class="studio-chat-bubble__content" :title="fullChatTimestamp(bubble.item.send_time)">
+                    <img
+                      v-if="bubble.resolved.kind === 'image'"
+                      :src="bubble.resolved.imageUrl"
+                      alt="图片消息"
+                      class="max-h-60 max-w-full rounded-field object-contain"
+                    />
+                    <ChatMarkdownRenderer
+                      v-else-if="bubble.resolved.kind === 'markdown'"
+                      :source="bubble.resolved.text"
+                      :extra-style-hrefs="markdownSupportStyleHrefs"
+                      article-class="markdown-body"
+                    />
+                    <p v-else class="leading-7">{{ bubble.resolved.text }}</p>
+                    <div class="studio-chat-bubble__meta">
+                      <time>{{ formatDateTimeLabel(bubble.item.send_time) }}</time>
+                      <span v-if="bubble.item.is_self" class="studio-chat-receipt">{{ receiptLabel(bubble.item) }}</span>
+                    </div>
+                  </div>
+                  <NButton
+                    quaternary
+                    size="tiny"
+                    class="studio-chat-bubble__delete"
+                    aria-label="删除这条消息"
+                    @click="emit('removeMessage', bubble.item.id)"
+                  >删除</NButton>
+                </article>
               </div>
-              <NButton quaternary size="tiny" @click="emit('removeMessage', entry.item.id)">删除</NButton>
-            </article>
+            </template>
+
+            <div v-if="messagePending && !timeline.length" class="studio-chat-load-older">正在拉取消息记录…</div>
           </div>
 
-          <StudioEmptyState
-            v-else
-            title="这个会话还没有消息"
-            :description="messagePending ? '正在拉取消息记录…' : isPreparedSession ? '先发出第一条消息，这里就会切换成真实会话。' : '可以发一段文本、一张图片，或切到 Markdown 发送富文本。'"
-          />
-
-          <!-- 发送被拒时就地显示后端给出的明确原因（票 202）。
-               服务端拒绝陌生私信时回的是站点策略文案，读者不该把它当成断网。 -->
-          <NAlert v-if="sendError" type="error" :bordered="false" class="mb-3">
-            {{ sendError }}
-          </NAlert>
+          <div v-if="sendError" class="studio-chat-error" role="alert">
+            <span>{{ sendError }}</span>
+            <NButton quaternary size="tiny" @click="emit('retry')">重试</NButton>
+          </div>
 
           <div class="studio-chat-composer">
             <NInput
               :value="draft"
               type="textarea"
-              :autosize="{ minRows: 3, maxRows: 6 }"
-              :placeholder="isMarkdownDraft ? '输入 Markdown，支持标题、列表、代码块…' : '输入文本消息…'"
+              :autosize="{ minRows: 2, maxRows: 5 }"
+              placeholder="输入消息…"
               name="chat-draft"
               @update:value="emit('update:draft', $event)"
             />
-            <div class="flex flex-wrap items-center justify-between gap-3">
-              <NSpace>
+            <div class="studio-chat-composer__actions">
+              <div class="flex flex-wrap items-center gap-2">
                 <NButton type="primary" :loading="messagePending" @click="emit('send')">
                   {{ isMarkdownDraft ? "发送 Markdown" : "发送文本" }}
                 </NButton>
                 <NButton :loading="imagePending" @click="openImagePicker()">
-                  <template #icon>
-                    <IconPhoto :size="16" />
-                  </template>
+                  <template #icon><IconPhoto :size="16" /></template>
                   发送图片
                 </NButton>
                 <NButton
                   quaternary
                   :type="isMarkdownDraft ? 'primary' : 'default'"
                   @click="emit('update:draftType', isMarkdownDraft ? 1 : 7)"
-                >
-                  {{ isMarkdownDraft ? "Markdown" : "纯文本" }}
-                </NButton>
-                <NButton v-if="!isPreparedSession" quaternary @click="emit('removeSession', currentSession.session_id)">删除会话</NButton>
-              </NSpace>
-              <span class="muted text-sm">{{ isPreparedSession ? "这个预备会话只保存在前端，首条消息发出前不会请求后端。" : "文本与 Markdown 走草稿框，图片会先上传到对象存储再发出。" }}</span>
+                >{{ isMarkdownDraft ? "Markdown" : "纯文本" }}</NButton>
+                <NButton quaternary @click="emit('removeSession', currentSession.session_id)">删除会话</NButton>
+              </div>
             </div>
             <input
               ref="imageInputRef"
@@ -280,13 +385,7 @@ function handleImagePicked(event: Event) {
               @change="handleImagePicked"
             />
           </div>
-        </div>
-
-        <StudioEmptyState
-          v-else
-          title="还没有选中会话"
-          :description="sessionPending ? '正在加载会话列表…' : '从左侧选择一个联系人后，这里会展示消息历史与实时状态。'"
-        />
+        </template>
       </div>
     </div>
   </section>

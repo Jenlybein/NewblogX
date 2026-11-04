@@ -80,4 +80,31 @@ type Comment struct {
 // 将来改默认值或删键都会静默改变语义，且没有测试会红。
 type Chat struct {
 	StrangerMsgEnabled bool `yaml:"stranger_msg_enabled" json:"stranger_msg_enabled"` // 允许陌生人发私信
+
+	// 发送限流（ADR-0026）：同一发件人对同一收件人的滑动窗口与日额度。
+	// 后台「站点 → 私信」卡可改，零 DDL —— 它们只是运行时配置的一个键，
+	// 不给任何既有表加列。缺省值由 site_default_settings.yaml 显式写明。
+	RateWindowSec int `yaml:"rate_window_sec" json:"rate_window_sec"` // 窗口长度（秒），窗口内允许 1 条
+	RateDailyMax  int `yaml:"rate_daily_max" json:"rate_daily_max"`   // 自然日内允许的最大条数
+}
+
+// NormalizeChatRate 把非法 / 越界的限流参数收敛到合法区间。
+//
+// 后台填 0、负数或超大值时不能让限流静默失效：0 秒窗口等于不限流，
+// 0 条日额度等于把所有私信都掐死。这里统一钳到 [1, 86400] 秒与 [1, 9999] 条，
+// 缺省（0）回落到 ADR-0026 的默认 10 秒 / 99 条。
+func NormalizeChatRate(windowSec, dailyMax int) (int, int) {
+	const (
+		defaultWindowSec = 10
+		defaultDailyMax  = 99
+		maxWindowSec     = 86400
+		maxDailyMax      = 9999
+	)
+	if windowSec <= 0 || windowSec > maxWindowSec {
+		windowSec = defaultWindowSec
+	}
+	if dailyMax <= 0 || dailyMax > maxDailyMax {
+		dailyMax = defaultDailyMax
+	}
+	return windowSec, dailyMax
 }

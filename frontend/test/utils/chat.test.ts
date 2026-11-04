@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   CHAT_DRAFT_SESSION_PREFIX,
   buildChatClientMsgId,
+  buildDraftChatQuery,
   buildDraftChatSessionId,
   buildPreparedChatSession,
   isDraftChatSessionId,
@@ -106,6 +107,37 @@ describe("私信草稿 query 契约（draft_receiver_*）", () => {
 
   it("与路由无关的 query 被忽略，不污染种子", () => {
     expect(parseDraftSessionSeed({ from: "profile" })).toBeNull();
+  });
+
+  // 票 265：写入口收进 buildDraftChatQuery，作者主页与文章页不再各抄一份字段。
+  it("写入口生成四个字段，且能被解析端原样读回（写读闭环）", () => {
+    const query = buildDraftChatQuery({
+      receiverId: "u9",
+      receiverNickname: "乙",
+      receiverAvatar: "https://image.example.com/b.png",
+      relation: 2,
+    });
+
+    expect(query).toEqual({
+      draft_receiver_id: "u9",
+      draft_receiver_nickname: "乙",
+      draft_receiver_avatar: "https://image.example.com/b.png",
+      draft_relation: "2",
+    });
+    expect(parseDraftSessionSeed(query)).toEqual({
+      receiverId: "u9",
+      receiverNickname: "乙",
+      receiverAvatar: "https://image.example.com/b.png",
+      relation: 2,
+    });
+  });
+
+  it("头像为空时不带该字段，relation 缺省按 0", () => {
+    const query = buildDraftChatQuery({ receiverId: "u9", receiverNickname: "乙" });
+
+    expect(query).not.toHaveProperty("draft_receiver_avatar");
+    expect(query.draft_relation).toBe("0");
+    expect(parseDraftSessionSeed(query)).toMatchObject({ receiverId: "u9", relation: 0 });
   });
 });
 

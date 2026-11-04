@@ -143,15 +143,38 @@ onMounted(load)
         </NFormItem>
       </NCard>
 
-      <!-- 私信的站点级策略（票 202）。保存后立即生效：后端每次发送都现读
+      <!-- 私信的站点级策略（票 202 / ADR-0026）。保存后立即生效：后端每次发送都现读
            运行时配置缓存，所以不用重启、也不用等下一次请求。 -->
       <NCard class="admin-card mb-4" title="私信" size="small">
         <NAlert type="info" :bordered="false" class="mb-4">
           这里是站点级策略，对所有人统一生效。关闭后，未关注你、也不是你粉丝的用户
-          无法给你发私信；已关注的熟人不受影响。开关保存后立即生效。
+          无法给你发私信；已关注的熟人不受影响。限流按「发件人 → 收件人」分别计数，
+          两个参数保存后立即生效，不需要重启服务。
         </NAlert>
         <NFormItem label="允许陌生人发私信">
           <NSwitch v-model:value="config.chat.stranger_msg_enabled" />
+        </NFormItem>
+        <NFormItem label="发送间隔（秒）">
+          <NInputNumber
+            v-model:value="config.chat.rate_window_sec"
+            :min="1"
+            :max="86400"
+            :step="1"
+            class="admin-field--number"
+            data-role="site-chat-rate-window">
+            <template #suffix>秒内只允许 1 条</template>
+          </NInputNumber>
+        </NFormItem>
+        <NFormItem label="每日上限（条）">
+          <NInputNumber
+            v-model:value="config.chat.rate_daily_max"
+            :min="1"
+            :max="9999"
+            :step="1"
+            class="admin-field--number"
+            data-role="site-chat-rate-daily">
+            <template #suffix>条 / 自然日</template>
+          </NInputNumber>
         </NFormItem>
       </NCard>
 

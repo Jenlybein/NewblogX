@@ -77,3 +77,16 @@
 HTTP 仍是唯一发送通道（决策 1 不变）：重连只影响"通知能不能到达"和"未读准不准"，不承担落库或补发。
 
 相关代码：[chat/domain](../../backend/internal/chat/domain/chat.go)（`StrangerVerdict` / `CheckStranger`）· [app/chat_wiring.go](../../backend/app/chat_wiring.go)（两级取值与失败关闭）· [user/adapter/http/compat_dto.go](../../backend/internal/user/adapter/http/compat_dto.go)（`stranger_msg_enabled`）· [apperr](../../backend/internal/apperr/apperr.go)（两个陌生人错误码）· [useChatSocket.ts](../../frontend/app/composables/useChatSocket.ts) · [useMessageRealtime.ts](../../frontend/app/composables/useMessageRealtime.ts)
+
+## 后续修订（2026-11-04，#268）
+
+决策与约束正文一字未改；以下两处口径已被 [ADR-0026](./0026-chat-send-side-risk-control.md) 取代或补充，**「代价 / 不做什么」末条按本节为准**。
+
+| 本 ADR 位置 | 原文口径 | 修订后 |
+| --- | --- | --- |
+| 「代价 / 不做什么」末条 | 发送侧的审核 / 风控留在 `docs/TODO.md` 待设计 | **发送侧风控已交付**：限流改为每对 `(sender, receiver)` 1 条 / 10 秒 + 99 条 / 天（替换旧的 60/60s、30/60s 与周配额 1 / 3 条），并新增「屏蔽 / 拉黑」分级；见 [ADR-0026](./0026-chat-send-side-risk-control.md)（#269 规格 / #268 落地票） |
+| 决策 1 的零 DDL 立项要求 | 不新增私信表或列；新建表需要 ADR 立项（一直未行使） | **首次行使**：新增私信模块第一张新表 `chat_block_models`（屏蔽 / 拉黑记录），由 ADR-0026 立项；既有三张私信表仍零列变更，表按 `schema.sql` 的 `CREATE TABLE IF NOT EXISTS` + 手动 `-db` 落地（README §11.4.2） |
+
+HTTP 唯一发送通道（决策 1）、零列变更、写副作用走发件箱**三条不变**：风控判定收在用例层且失败关闭，不改 WS 只做通知、不改发件箱口径。WS ack/retry、消息编辑 / 撤回、举报队列、浏览器 E2E 仍是本 ADR 的非目标。
+
+相关代码与文档：[ADR-0026](./0026-chat-send-side-risk-control.md) · [GLOSSARY · 私信与会话](../../GLOSSARY.md)（屏蔽 / 拉黑）· [docs/TODO.md](../TODO.md) · `backend/internal/chat/` · `backend/app/chat_wiring.go` · `backend/internal/platform/mysql/ddl/schema.sql`

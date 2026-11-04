@@ -86,6 +86,9 @@ var adminOnly = []struct {
 	{"GET", "/api/users/admin/list"},
 	{"POST", "/api/users/admin"},
 	{"PUT", "/api/users/admin/info"},
+	// 登录日志是用户管理的一部分（user_router.go 的 adminGroup），全量扫描发现它
+	// 归类为管理员却没有行为探针，补上后普通用户令牌会被真的挡一次。
+	{"GET", "/api/users/login/log"},
 	// 全局通知的写操作（读是登录用户都有的）
 	{"POST", "/api/global_notif"},
 	{"DELETE", "/api/global_notif"},
@@ -95,6 +98,24 @@ var adminOnly = []struct {
 	// 右栏卡片配置（#111）：读侧公开，管理侧读写都要求管理员。
 	{"GET", "/api/site/admin/sidebar_cards"},
 	{"PUT", "/api/site/admin/sidebar_cards"},
+	// 注册级全量扫描（票 264）发现以下 18 条后台接口虽挂了 AdminMiddleware，
+	// 却从未被行为探针覆盖。补上后，普通用户令牌会被真的挡一次；漏挂中间件立即变红。
+	{"POST", "/api/banners"},
+	{"DELETE", "/api/banners"},
+	{"GET", "/api/images"},
+	{"DELETE", "/api/images"},
+	{"GET", "/api/ai/providers"},
+	{"GET", "/api/ai/providers/vendors"},
+	{"POST", "/api/ai/providers"},
+	{"DELETE", "/api/articles"},
+	{"DELETE", "/api/articles/tags"},
+	{"PUT", "/api/articles/tags"},
+	{"GET", "/api/article-review"},
+	{"GET", "/api/collections/admin"},
+	{"POST", "/api/collections"},
+	{"GET", "/api/projects/admin"},
+	{"POST", "/api/projects"},
+	{"PATCH", "/api/projects/order"},
 }
 
 // adminAreaPrefixes 是"整段只给管理员"的路径前缀，用于完整性检查。

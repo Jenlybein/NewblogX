@@ -146,6 +146,8 @@ func newService(relation int8, verdict domain.StrangerVerdict) (*app.Service, *f
 		fakeStranger{verdict: verdict},
 		nil,
 		nil,
+		nil,
+		nil,
 	)
 	return svc, repo
 }

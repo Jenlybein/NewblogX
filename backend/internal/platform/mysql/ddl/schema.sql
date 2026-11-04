@@ -291,6 +291,24 @@ CREATE TABLE IF NOT EXISTS `chat_session_models` (
   CONSTRAINT `fk_chat_session_models_user_model` FOREIGN KEY (`user_id`) REFERENCES `user_models` (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
+-- 私信屏蔽 / 拉黑（ADR-0026；本批唯一获准新增的私信表）。
+-- level: 1=屏蔽（对方发不进来，历史会话仍可见） 2=拉黑（屏蔽 + 我也看不到会话）。
+-- 方向性：A 对 B 的记录不影响 B 对 A；唯一键防止重复记录，软删表示解除。
+CREATE TABLE IF NOT EXISTS `chat_block_models` (
+  `id` bigint unsigned NOT NULL,
+  `created_at` datetime(3) DEFAULT NULL,
+  `updated_at` datetime(3) DEFAULT NULL,
+  `deleted_at` datetime(3) DEFAULT NULL,
+  `owner_id` bigint unsigned NOT NULL,
+  `blocked_id` bigint unsigned NOT NULL,
+  `level` tinyint unsigned NOT NULL DEFAULT 1,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uk_chat_block_owner_blocked` (`owner_id`,`blocked_id`),
+  KEY `idx_chat_block_blocked` (`blocked_id`),
+  CONSTRAINT `fk_chat_block_models_owner` FOREIGN KEY (`owner_id`) REFERENCES `user_models` (`id`),
+  CONSTRAINT `fk_chat_block_models_blocked` FOREIGN KEY (`blocked_id`) REFERENCES `user_models` (`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
 CREATE TABLE IF NOT EXISTS `collection_models` (
   `id` bigint unsigned NOT NULL,
   `created_at` datetime(3) DEFAULT NULL,

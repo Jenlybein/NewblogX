@@ -141,6 +141,13 @@ func (s *RuntimeConfigService) GetRuntimeComment() siteconf.Comment {
 	return s.GetRuntimeSite().Comment
 }
 
+// GetRuntimeChat 返回私信的站点级策略（陌生人开关 + 发送限流参数）。
+//
+// 每次发送都现读，所以后台改完立即生效，不需要重启。
+func (s *RuntimeConfigService) GetRuntimeChat() siteconf.Chat {
+	return s.GetRuntimeSite().Chat
+}
+
 // GetRuntimeAI 返回 AI 配置。
 func (s *RuntimeConfigService) GetRuntimeAI() conf.AI {
 	return s.GetRuntimeConfig().AI

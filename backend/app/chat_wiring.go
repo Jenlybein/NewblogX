@@ -3,6 +3,8 @@ package app
 import (
 	"context"
 	"encoding/json"
+	"net/url"
+	"strings"
 
 	authapp "myblogx/internal/auth/app"
 	chathttp "myblogx/internal/chat/adapter/http"
@@ -10,8 +12,11 @@ import (
 	chatredis "myblogx/internal/chat/adapter/redis"
 	chatapp "myblogx/internal/chat/app"
 	chatdomain "myblogx/internal/chat/domain"
+	"myblogx/conf"
+	siteconf "myblogx/conf/site"
 	"myblogx/internal/kernel/ctype"
 	"myblogx/internal/kernel/enum"
+	"myblogx/internal/platform/cdc/imageref"
 	"myblogx/internal/platform/cdc/outboxrelay"
 	sitecfg "myblogx/internal/platform/config"
 	"myblogx/internal/platform/http/res"
@@ -48,7 +53,15 @@ func WireChat(infra *Infra) {
 		&chatRelationBridge{},
 		&chatUserBridge{db: infra.DB},
 		stranger,
-		chatredis.NewLimiter(redisOptions),
+		chatredis.NewLimiter(redisOptions, func() (int, int) {
+			if infra.RuntimeSite == nil {
+				return siteconf.NormalizeChatRate(0, 0)
+			}
+			chat := infra.RuntimeSite.GetRuntimeChat()
+			return siteconf.NormalizeChatRate(chat.RateWindowSec, chat.RateDailyMax)
+		}),
+		&chatImageVerifier{db: infra.DB, storage: infra.RuntimeSite},
+		chatmysql.NewBlockPolicy(infra.DB),
 		infra.Logger,
 	)
 
@@ -60,6 +73,72 @@ func WireChat(infra *Infra) {
 		infra.Logger,
 	)
 	router.SetChatHandler(handler)
+}
+
+// chatImageVerifier 判定图片私信里的 URL 是不是本站上传产物（票 267）。
+//
+// 两步，都复用既有实现，不新增表也不加列：
+//  1. 校验域名：`imageref.ExtractObjectKey` 只看路径，外链域名拼一个长得一样
+//     的路径照样能反解出 object_key。所以这里先按 storage.Uri 归一化后的域名
+//     比对 host（与 `qiniu.Storage.mediaBase` 同一套 http→https 收敛规则）。
+//  2. `imageref.ExtractObjectKey` 按当前存储配置（前缀）反解 object_key，
+//     再去 `image_models` 查一行 —— 上传确认时才会落这张表，所以"能查到"
+//     就等价于"确实是本站走上传任务传上去的"。
+//
+// 失败关闭：存储没启用、域名不匹配、反解失败、查库报错都按"不是本站图片"处理，
+// 不让校验成为绕过口子。
+type chatImageVerifier struct {
+	db      *gorm.DB
+	storage *sitecfg.RuntimeConfigService
+}
+
+func (v *chatImageVerifier) IsOwnedImageURL(ctx context.Context, rawURL string) (bool, error) {
+	if v == nil || v.db == nil || v.storage == nil {
+		return false, nil
+	}
+	cfg := v.storage.GetRuntimeStorage()
+	if !cfg.Enable {
+		return false, nil
+	}
+	if !hostMatchesStorage(rawURL, cfg.Uri) {
+		return false, nil
+	}
+	objectKey := imageref.ExtractObjectKey(rawURL, conf.QiNiu(cfg))
+	if objectKey == "" {
+		return false, nil
+	}
+	var count int64
+	if err := v.db.WithContext(ctx).Table("image_models").
+		Where("object_key = ? AND deleted_at IS NULL", objectKey).
+		Count(&count).Error; err != nil {
+		return false, err
+	}
+	return count > 0, nil
+}
+
+// hostMatchesStorage 判断 URL 的 host 是不是当前配置的存储域名。
+//
+// 规则与 qiniu.Storage.mediaBase 一致：配置里写裸域名 / http:// / // 都收敛成
+// https://，比较时忽略 scheme 与端口差异中的 scheme 部分（站点在 HTTPS 下，
+// 浏览器会自动把 http 图片升级成 https）。配置为空时一律不匹配（失败关闭）。
+func hostMatchesStorage(rawURL, configured string) bool {
+	configured = strings.TrimSpace(configured)
+	if rawURL == "" || configured == "" {
+		return false
+	}
+	parsed, err := url.Parse(rawURL)
+	if err != nil || parsed.Host == "" {
+		return false
+	}
+	base := configured
+	if !strings.Contains(base, "://") {
+		base = "//" + base
+	}
+	baseURL, err := url.Parse(base)
+	if err != nil || baseURL.Host == "" {
+		return false
+	}
+	return strings.EqualFold(parsed.Hostname(), baseURL.Hostname())
 }
 
 // chatSubscriber 把私信发件箱事件投递成 WebSocket 通知。

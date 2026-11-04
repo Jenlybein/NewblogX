@@ -209,6 +209,7 @@ var groupModels = map[Group][]any{
 		&ChatMsgRow{},
 		&ChatSessionRow{},
 		&ChatMsgUserStateRow{},
+		&ChatBlockRow{},
 	},
 	Outbox: {
 		&OutboxEventRow{},
@@ -281,6 +282,7 @@ var groupModels = map[Group][]any{
 		&ChatMsgRow{},
 		&ChatSessionRow{},
 		&ChatMsgUserStateRow{},
+		&ChatBlockRow{},
 		&CdcDeadLetterRow{},
 		&OutboxEventRow{},
 		&AIProviderRow{},

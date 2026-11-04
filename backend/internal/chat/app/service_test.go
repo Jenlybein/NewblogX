@@ -24,6 +24,7 @@ type fakeRepo struct {
 	err  error
 	// existingSession 为 true 时表示双方已有会话（#243 的"会话关系"一级）。
 	existingSession bool
+	sessions        []domain.Session
 }
 
 func (f *fakeRepo) Send(_ context.Context, cmd domain.SendCommand, _, _ domain.Display, _ string) (domain.Message, bool, error) {
@@ -45,7 +46,7 @@ func (f *fakeRepo) Send(_ context.Context, cmd domain.SendCommand, _, _ domain.D
 }
 
 func (f *fakeRepo) ListSessions(context.Context, ctype.ID, bool, domain.Page) ([]domain.Session, int, error) {
-	return nil, 0, nil
+	return f.sessions, len(f.sessions), nil
 }
 
 func (f *fakeRepo) FindSession(context.Context, string, ctype.ID, bool) (domain.Session, error) {
@@ -127,9 +128,46 @@ func newService(t *testing.T, relation int8, verdict domain.StrangerVerdict) (*a
 		fakeUsers{},
 		stranger,
 		nil,
+		&allowOwnedImage{},
+		nil,
 		nil,
 	)
 	return svc, repo, stranger
+}
+
+// fakeBlocks 让用例层能验证"屏蔽 / 拉黑"确实在发送与会话列表里生效。
+type fakeBlocks struct {
+	outgoing domain.BlockLevel
+	incoming domain.BlockLevel
+	hardIDs  []ctype.ID
+	sessions []domain.Session
+}
+
+func (f *fakeBlocks) Level(_ context.Context, owner, target ctype.ID) (domain.BlockLevel, error) {
+	if owner == ctype.NewID(100) && target == ctype.NewID(200) {
+		return f.outgoing, nil
+	}
+	if owner == ctype.NewID(200) && target == ctype.NewID(100) {
+		return f.incoming, nil
+	}
+	return domain.BlockLevelNone, nil
+}
+
+func (f *fakeBlocks) HardBlockedIDs(context.Context, ctype.ID) ([]ctype.ID, error) {
+	return f.hardIDs, nil
+}
+
+// allowOwnedImage 让用例层能发图片；"是不是本站图片"的判定逻辑在装配层
+// （chatImageVerifier），这里只验用例层**有没有调用这个校验**。
+type allowOwnedImage struct {
+	calls int
+	owned bool
+	err   error
+}
+
+func (v *allowOwnedImage) IsOwnedImageURL(_ context.Context, _ string) (bool, error) {
+	v.calls++
+	return v.owned, v.err
 }
 
 // TestSend_陌生人被站点总闸关闭时拒绝并说明站点原因 站点级拒绝保留原错误码：
@@ -272,5 +310,116 @@ func TestSend_自己发给自己不受陌生人开关影响(t *testing.T) {
 	}
 	if len(stranger.receiverIDs) != 0 {
 		t.Fatalf("自己发给自己不应做陌生人判定，实际查询了 %v", stranger.receiverIDs)
+	}
+}
+
+// 票 267：图片私信的 content 是通用字符串，用例层必须先问装配层"是不是本站上传产物"，
+// 再包成 {"kind":"image","image_url":...}。文本消息完全不走这条校验。
+func TestSend_图片消息必须校验来源(t *testing.T) {
+	repo := &fakeRepo{}
+	check := &allowOwnedImage{owned: false}
+	svc := app.New(repo, repo, fakeRelations{relation: 4}, fakeUsers{},
+		&fakeStranger{verdict: domain.StrangerAllowed}, nil, check, nil, nil)
+
+	_, err := svc.Send(context.Background(), ctype.NewID(100), ctype.NewID(200),
+		domain.TypeImage, "https://evil.example.com/pixel.png", "")
+	if !apperr.IsCode(err, apperr.CodeChatImageNotOwned) {
+		t.Fatalf("外链图片必须被拒，实际 err=%v", err)
+	}
+	if check.calls != 1 {
+		t.Fatalf("图片消息应调用一次来源校验，实际 %d", check.calls)
+	}
+	if len(repo.sent) != 0 {
+		t.Fatalf("被拒的图片消息不得落库，实际 %d 条", len(repo.sent))
+	}
+}
+
+func TestSend_本站图片可发且文本不触发校验(t *testing.T) {
+	repo := &fakeRepo{}
+	check := &allowOwnedImage{owned: true}
+	svc := app.New(repo, repo, fakeRelations{relation: 4}, fakeUsers{},
+		&fakeStranger{verdict: domain.StrangerAllowed}, nil, check, nil, nil)
+
+	if _, err := svc.Send(context.Background(), ctype.NewID(100), ctype.NewID(200),
+		domain.TypeText, "你好", ""); err != nil {
+		t.Fatalf("文本消息不应失败: %v", err)
+	}
+	if check.calls != 0 {
+		t.Fatalf("文本消息不该触发图片来源校验，实际 %d 次", check.calls)
+	}
+
+	msg, err := svc.Send(context.Background(), ctype.NewID(100), ctype.NewID(200),
+		domain.TypeImage, "https://cdn.example.com/myblogx/images/20261104/abc.png", "")
+	if err != nil {
+		t.Fatalf("本站图片应可发送: %v", err)
+	}
+	if !strings.Contains(msg.Content, `"kind":"image"`) ||
+		!strings.Contains(msg.Content, "https://cdn.example.com/myblogx/images/20261104/abc.png") {
+		t.Fatalf("图片消息应保持既有 JSON 契约，实际 %s", msg.Content)
+	}
+	if check.calls != 1 {
+		t.Fatalf("图片消息应调用一次来源校验，实际 %d", check.calls)
+	}
+}
+
+func TestSend_未配置图片校验时失败关闭(t *testing.T) {
+	repo := &fakeRepo{}
+	svc := app.New(repo, repo, fakeRelations{relation: 4}, fakeUsers{},
+		&fakeStranger{verdict: domain.StrangerAllowed}, nil, nil, nil, nil)
+
+	_, err := svc.Send(context.Background(), ctype.NewID(100), ctype.NewID(200),
+		domain.TypeImage, "https://cdn.example.com/myblogx/images/20261104/abc.png", "")
+	if !apperr.IsCode(err, apperr.CodeChatImageNotOwned) {
+		t.Fatalf("没有校验端口时必须失败关闭，实际 err=%v", err)
+	}
+	if len(repo.sent) != 0 {
+		t.Fatalf("失败关闭时不得落库，实际 %d 条", len(repo.sent))
+	}
+}
+
+// 票 268 / ADR-0026：屏蔽 / 拉黑在发送与会话列表两处生效，且方向独立。
+func TestSend_屏蔽或拉黑后双方都不能发(t *testing.T) {
+	for _, tc := range []struct {
+		name     string
+		outgoing domain.BlockLevel
+		incoming domain.BlockLevel
+	}{
+		{"我屏蔽对方", domain.BlockLevelSoft, domain.BlockLevelNone},
+		{"我拉黑对方", domain.BlockLevelHard, domain.BlockLevelNone},
+		{"对方拉黑我", domain.BlockLevelNone, domain.BlockLevelHard},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			repo := &fakeRepo{}
+			svc := app.New(repo, repo, fakeRelations{relation: 4}, fakeUsers{},
+				&fakeStranger{verdict: domain.StrangerAllowed}, nil, &allowOwnedImage{},
+				&fakeBlocks{outgoing: tc.outgoing, incoming: tc.incoming}, nil)
+
+			_, err := svc.Send(context.Background(), ctype.NewID(100), ctype.NewID(200),
+				domain.TypeText, "在吗", "")
+			if !apperr.IsCode(err, apperr.CodeChatBlocked) {
+				t.Fatalf("屏蔽 / 拉黑关系下应拒绝发送，实际 err=%v", err)
+			}
+			if len(repo.sent) != 0 {
+				t.Fatalf("被拒的消息不得落库，实际 %d 条", len(repo.sent))
+			}
+		})
+	}
+}
+
+func TestSessions_拉黑隐藏会话而屏蔽不隐藏(t *testing.T) {
+	repo := &fakeRepo{sessions: []domain.Session{
+		{SessionID: "chat:100:200", ReceiverID: ctype.NewID(200)},
+		{SessionID: "chat:100:300", ReceiverID: ctype.NewID(300)},
+	}}
+	blocks := &fakeBlocks{hardIDs: []ctype.ID{ctype.NewID(200)}}
+	svc := app.New(repo, repo, fakeRelations{}, fakeUsers{},
+		&fakeStranger{verdict: domain.StrangerAllowed}, nil, &allowOwnedImage{}, blocks, nil)
+
+	items, total, err := svc.Sessions(context.Background(), ctype.NewID(100), ctype.NewID(100), false, domain.Page{})
+	if err != nil {
+		t.Fatalf("会话列表失败: %v", err)
+	}
+	if len(items) != 1 || items[0].SessionID != "chat:100:300" || total != 1 {
+		t.Fatalf("拉黑的人应从会话列表消失，实际 items=%v total=%d", items, total)
 	}
 }

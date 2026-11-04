@@ -2,7 +2,7 @@
 
 - 状态：已交付
 - 日期：2026-11-04
-- 来源：读者反馈「点赞后刷新失效、30 秒后计数才 +1、按钮不显示已赞」· spec [#234](https://github.com/Jenlybein/NewblogX/issues/234) · 落地票 [#235](https://github.com/Jenlybein/NewblogX/issues/235) · [决策清单](../notes/2026-11-04-reading-interactions-and-message-center-decisions.md)（第 0、1 节）· 收窄 [ADR-0019](./0019-reader-rendering-and-cache-strategy.md) 的决策 4 / 约束 4 口径
+- 来源：读者反馈「点赞后刷新失效、30 秒后计数才 +1、按钮不显示已赞」· spec [#234](https://github.com/Jenlybein/NewblogX/issues/234) · 落地票 [#235](https://github.com/Jenlybein/NewblogX/issues/235) · 收尾票 [#247](https://github.com/Jenlybein/NewblogX/issues/247)（见文末「后续修订」）· [决策清单](../notes/2026-11-04-reading-interactions-and-message-center-decisions.md)（第 0、1 节）· 收窄 [ADR-0019](./0019-reader-rendering-and-cache-strategy.md) 的决策 4 / 约束 4 口径
 
 ## 背景与问题
 
@@ -64,3 +64,12 @@ ADR-0019 定下了「SSR 只输出匿名内容 + 客户端补齐用户态」与�
 - 门禁：[reader-private-state.test.ts](../../frontend/test/gates/reader-private-state.test.ts) · [ssr-anonymity.test.ts](../../frontend/test/gates/ssr-anonymity.test.ts) · [reader-page-sources.test.ts](../../frontend/test/design/reader-page-sources.test.ts)
 - 上游：[ADR-0019](./0019-reader-rendering-and-cache-strategy.md)（渲染边界与两层缓存；本 ADR 收窄其决策 4 / 约束 4 的 refresh 口径）· [ADR-0003](./0003-generated-contract-single-source.md)（契约以代码生成为单一来源）
 - 决策来源：[2026-11-04 阅读页互动、消息中心与历史记录：决策清单](../notes/2026-11-04-reading-interactions-and-message-center-decisions.md) · spec [#234](https://github.com/Jenlybein/NewblogX/issues/234) · 落地票 [#235](https://github.com/Jenlybein/NewblogX/issues/235)
+
+## 后续修订（2026-11-04，#247）
+
+决策与约束正文一字未改；#247 在本批收尾时补了两处**边界说明**，两处都不改变已生效的结论，只是把「哪些动作在这一条治理面内」写清楚。
+
+1. **「分享」不走互动登录前置**。互动统一登录前置（#238 范围 7）只管**会产生用户态写请求**的动作：点赞 / 收藏 / 关注 / 评论提交，未登录先弹登录框、一个接口都不打。分享是纯前端剪贴板——没有接口、没有计数、也不产生用户态，所以游客也应该能复制文章链接；它在 ADR-0024 的治理面之外（既不需要私有态取数，也没有可回填的计数）。判据在 `readerLoginGate` 的注释与 `test/pages/articleCommentSection.test.ts`（断言分享按钮**不**调用 `requireLogin()`）。
+2. **断线重连后必须重新取权威用户态，不靠推送增量累积**。WS 被动断线（含取票失败）按 1s → 2s → … → 上限 30s、最多 20% 抖动退避重连；主动 `close()`（登出 / 卸载）不重连。重连成功后立刻重取一次消息未读汇总，因为断线窗口里到达不了的通知**不会补发**，本地数字不会自己 +1。这与决策 4「权威值只能来自服务端、不靠本地推算」是同一条原则在未读数上的延伸——文章计数靠写响应回填，未读数靠重连后的整份汇总校准，两者都不允许拿"推送增量"当账本。通道与重连细节记在 [ADR-0022](./0022-chat-dual-channel-http-write-ws-notify.md) 的「后续修订（2026-11-04）」。
+
+相关代码：`frontend/app/utils/readerLoginGate.ts`、`frontend/app/composables/useChatSocket.ts`（重连与 `onReconnected`）、`frontend/app/composables/useMessageRealtime.ts`（重连后 `refreshSummary`）、`frontend/test/utils/readerLoginGate.test.ts`、`frontend/test/composables/useChatSocket.test.ts`。

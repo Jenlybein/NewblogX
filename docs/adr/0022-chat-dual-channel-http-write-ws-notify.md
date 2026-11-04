@@ -62,3 +62,18 @@
 - 中继机制：[ADR-0008](./0008-dead-letter-replay.md)（重投与死信）· [outboxrelay](../../backend/internal/platform/cdc/outboxrelay/relay.go)
 - 概念：[GLOSSARY · 私信 / 会话](../../GLOSSARY.md) · [GLOSSARY · 零 DDL](../../GLOSSARY.md)
 - 运行与约束：[README §十三 代码约定](../../README.md#十三代码约定改代码前请读) · [docs/TODO.md](../TODO.md)（发送侧审核 / 风控待设计）
+
+## 后续修订（2026-11-04，#243 / #247）
+
+决策与约束正文一字未改；以下四处口径已被后续票取代或补充，**约束 7 与「代价 / 不做什么」第 4 条按本节为准**。
+
+| 本 ADR 位置 | 原文口径 | 修订后 |
+| --- | --- | --- |
+| 约束 7 末句 | 按人开关仍是死配置，另行清理 | **按人开关已启用**：`user_conf_models.stranger_chat_enabled`（账号设置隐私区，默认开），`PUT /users/info` 新增可选字段 `stranger_msg_enabled` 读写它；有效判决 = 站点总闸 **AND** 接收方个人开关，任一级关闭即拒绝（#243） |
+| 代价段第 4 条 | 仍有一个死配置：按人字段不参与判定 | 同上，不再是死配置；站点级默认值仍是**显式关闭**（`site_default_settings.yaml` 写 `stranger_msg_enabled: false`），不靠缺键隐式关闭 |
+| 拒绝表达 | 只有站点级文案（把人引向管理员） | 判定结论带「哪一级拒绝」：站点级 `chat.stranger_disabled`（正确动作是联系管理员开启站点开关）、接收方级 `chat.recipient_stranger_disabled`（正确动作是关注对方 / 等对方开启，找管理员查不出问题）（#247） |
+| WS 生命周期 | 只说「下次打开会话可拉到」 | **被动断线自动退避重连**：1s → 2s → … → 上限 30s、每次最多 20% 抖动；取票失败同样排重试；主动 `close()`（登出 / 卸载）不重连。重连成功后立刻重取一次未读汇总（`onReconnected` → `refreshSummary`），因为断线窗口里到达的通知根本不会补发（#247） |
+
+HTTP 仍是唯一发送通道（决策 1 不变）：重连只影响"通知能不能到达"和"未读准不准"，不承担落库或补发。
+
+相关代码：[chat/domain](../../backend/internal/chat/domain/chat.go)（`StrangerVerdict` / `CheckStranger`）· [app/chat_wiring.go](../../backend/app/chat_wiring.go)（两级取值与失败关闭）· [user/adapter/http/compat_dto.go](../../backend/internal/user/adapter/http/compat_dto.go)（`stranger_msg_enabled`）· [apperr](../../backend/internal/apperr/apperr.go)（两个陌生人错误码）· [useChatSocket.ts](../../frontend/app/composables/useChatSocket.ts) · [useMessageRealtime.ts](../../frontend/app/composables/useMessageRealtime.ts)

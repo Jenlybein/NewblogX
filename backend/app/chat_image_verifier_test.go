@@ -7,6 +7,7 @@ import (
 	"gorm.io/gorm"
 
 	"myblogx/conf"
+	"myblogx/internal/kernel/ctype"
 	sitecfg "myblogx/internal/platform/config"
 	"myblogx/test/testutil"
 )
@@ -18,7 +19,7 @@ import (
 // 与生产查的是同一张表、同一列。
 
 type verifierImageRow struct {
-	ID        uint64 `gorm:"primaryKey"`
+	ID        ctype.ID `gorm:"primaryKey;autoIncrement:false"`
 	ObjectKey string
 	DeletedAt gorm.DeletedAt
 }
@@ -35,10 +36,10 @@ func newVerifier(t *testing.T, storage conf.QiNiu) *chatImageVerifier {
 func TestChatImageVerifierOnlyAcceptsOwnedUploads(t *testing.T) {
 	cfg := conf.QiNiu{Enable: true, Prefix: "myblogx", Uri: "https://cdn.example.com"}
 	v := newVerifier(t, cfg)
-	if err := v.db.Create(&verifierImageRow{ID: 1, ObjectKey: "myblogx/images/20261104/abc.png"}).Error; err != nil {
+	if err := v.db.Create(&verifierImageRow{ID: ctype.NewID(1), ObjectKey: "myblogx/images/20261104/abc.png"}).Error; err != nil {
 		t.Fatalf("建图片行失败: %v", err)
 	}
-	if err := v.db.Create(&verifierImageRow{ID: 2, ObjectKey: "myblogx/images/20261104/gone.png",
+	if err := v.db.Create(&verifierImageRow{ID: ctype.NewID(2), ObjectKey: "myblogx/images/20261104/gone.png",
 		DeletedAt: gorm.DeletedAt{Valid: true}}).Error; err != nil {
 		t.Fatalf("建软删图片行失败: %v", err)
 	}
@@ -71,7 +72,7 @@ func TestChatImageVerifierOnlyAcceptsOwnedUploads(t *testing.T) {
 
 func TestChatImageVerifierFailsClosedWhenStorageDisabled(t *testing.T) {
 	v := newVerifier(t, conf.QiNiu{Enable: false, Prefix: "myblogx"})
-	if err := v.db.Create(&verifierImageRow{ID: 1, ObjectKey: "myblogx/images/20261104/abc.png"}).Error; err != nil {
+	if err := v.db.Create(&verifierImageRow{ID: ctype.NewID(1), ObjectKey: "myblogx/images/20261104/abc.png"}).Error; err != nil {
 		t.Fatalf("建图片行失败: %v", err)
 	}
 	got, err := v.IsOwnedImageURL(context.Background(), "https://cdn.example.com/myblogx/images/20261104/abc.png")

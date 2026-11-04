@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   READER_PRIVATE_FIELDS,
+  pickArticlePrivateState,
   withoutPrivateFields,
   withoutPrivateFieldsFromItems,
 } from "~/utils/readerPrivateFields";
@@ -53,5 +54,44 @@ describe("readerPrivateFields：写缓存前剔除用户私有字段（ADR-0019 
 
   it("没有私有字段的对象照常返回（公开载荷不需要特殊处理）", () => {
     expect(withoutPrivateFields({ list: [], count: 0 })).toEqual({ list: [], count: 0 });
+  });
+});
+
+describe("pickArticlePrivateState：私有态 + 权威计数（ADR-0024 后续修订）", () => {
+  it("只取四个字段：正文与作者资料不进来，计数原样带出", () => {
+    const detail = {
+      id: "a1",
+      title: "标题",
+      content: "很长的正文",
+      author_name: "作者",
+      is_digg: true,
+      is_favor: false,
+      digg_count: 7,
+      favor_count: 3,
+    };
+
+    expect(pickArticlePrivateState(detail)).toEqual({
+      is_digg: true,
+      is_favor: false,
+      digg_count: 7,
+      favor_count: 3,
+    });
+  });
+
+  it("缺字段按未赞 / 未收藏 / 0 处理（契约里计数可能缺席）", () => {
+    expect(pickArticlePrivateState({})).toEqual({
+      is_digg: false,
+      is_favor: false,
+      digg_count: 0,
+      favor_count: 0,
+    });
+  });
+
+  it("计数是脏值时归零：负数 / NaN / 字符串都不往界面上送 NaN", () => {
+    expect(pickArticlePrivateState({ digg_count: -5, favor_count: "abc" })).toMatchObject({
+      digg_count: 0,
+      favor_count: 0,
+    });
+    expect(pickArticlePrivateState({ digg_count: 4.9 })).toMatchObject({ digg_count: 4 });
   });
 });

@@ -39,6 +39,7 @@ const articlePrivateSessionSource = readFileSync(
   "utf8",
 );
 const cacheKeysSource = readFileSync(join(projectDir, "app/utils/readerCacheKeys.ts"), "utf8");
+const privateFieldsSource = readFileSync(join(projectDir, "app/utils/readerPrivateFields.ts"), "utf8");
 
 /** 取私有态源的声明块（`const articlePrivateSource` 到语句结束）。 */
 function privateStateSourceBlock(source: string): string {
@@ -151,6 +152,38 @@ describe("用户私有态取数契约（ADR-0024 / 票 #235）", () => {
     // 匿名取数会把匿名值当用户态：这里必须没有 auth: false。
     expect(block).not.toContain("auth: false");
     expect(block).toContain("pickArticlePrivateState");
+  });
+
+  /**
+   * 回填计数（ADR-0024「后续修订（2026-11-04）」）：
+   *
+   * 硬刷新命中的是 30 秒匿名 SSR HTML，payload 里的计数是写之前的快照；私有态请求
+   * 本来就在响应里带着权威计数。只投影两个布尔会留下「按钮已赞、数字没变」，
+   * 所以投影必须包含计数，且回填时四个字段一起写回正文。
+   */
+  it("私有态投影必须包含权威计数（digg_count / favor_count），并在回填时一并写回正文", () => {
+    const pick = privateFieldsSource.slice(privateFieldsSource.indexOf("export function pickArticlePrivateState"));
+    expect(pick).toContain("digg_count");
+    expect(pick).toContain("favor_count");
+
+    const apply = pageSourcesSource.slice(pageSourcesSource.indexOf("function applyArticlePrivateState"));
+    const applyBody = apply.slice(0, apply.indexOf("\n  }"));
+    expect(applyBody).toContain("digg_count: state.digg_count");
+    expect(applyBody).toContain("favor_count: state.favor_count");
+  });
+
+  it("判据不是恒绿：只写回两个布尔时必须报红（canary）", () => {
+    const badApply = [
+      "function applyArticlePrivateState(state) {",
+      "  articleSource.data.value = {",
+      "    ...articleSource.data.value,",
+      "    is_digg: state.is_digg,",
+      "    is_favor: state.is_favor,",
+      "  };",
+      "\n  }",
+    ].join("\n");
+    const body = badApply.slice(0, badApply.indexOf("\n  }"));
+    expect(body).not.toContain("digg_count: state.digg_count");
   });
 
   it("页面接上 useArticlePrivateSession：onMounted 初始化 + 登录态 watch（页内登录也补取）", () => {

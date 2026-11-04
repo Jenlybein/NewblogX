@@ -63,7 +63,8 @@
 
 **未处理（有意留下，写在这里而不是藏着）**：
 
-- **其余 7 个设置面板没有逐字段语义宽度**：`admin-field--*` 目前只用在存储面板，站点 / 邮件 / OAuth 等仍吃面板级 520px 上限。用户反馈的"100% 铺满"已经由面板上限解决，逐字段细化属于体验打磨。
 - **用户管理的封禁 / 解封只有源码层门禁，没有组件测试**：那条路径依赖 `NDataTable` + `useDialog` 的确认流，挂载成本高，本轮没补。
 - **`adminAvatar.ts` 与读者站 `avatar.ts` 是两份实现**：两个 Nuxt app 之间没有共享包，抽公共包的收益不抵构建复杂度；差异点（邮箱名不取首字符）已由上面的表驱动测试钉住。
+
+评审时记下的第 3 条缺口（**其余 7 个设置面板没有逐字段语义宽度**）在本轮**已补完**：`SettingsSite / SettingsMail / SettingsOAuth / SettingsAi / SettingsLog` 的每个表单控件都加了 `.admin-field--{url,secret,key,number,select,long}`，并新增门禁 `test/unit/settings-field-widths.test.ts`——它逐个标签检查"有没有分类"，只锁有没有漏，不锁分到哪一类（那是审美判断）。`SettingsDeco` 的数字输入在自定义 `.deco-number-input` 壳里（带单位后缀），宽度归那个壳管，豁免。
 

@@ -66,31 +66,31 @@ onMounted(load)
     <NForm v-if="loaded" label-placement="top" :disabled="loading">
       <NCard class="admin-card mb-4" title="进程级（只读）" size="small">
         <NFormItem label="服务名">
-          <NInput :value="config.app" disabled placeholder="由启动参数决定" />
+          <NInput :value="config.app" class="admin-field--key" disabled placeholder="由启动参数决定" />
         </NFormItem>
         <NFormItem label="日志目录">
-          <NInput :value="config.dir" disabled placeholder="由启动参数决定" />
+          <NInput :value="config.dir" class="admin-field--url" disabled placeholder="由启动参数决定" />
         </NFormItem>
         <NFormItem label="本地兜底目录">
-          <NInput :value="config.wal_dir" disabled placeholder="留空时为 <日志目录>/wal" />
+          <NInput :value="config.wal_dir" class="admin-field--url" disabled placeholder="留空时为 <日志目录>/wal" />
         </NFormItem>
         <NFormItem label="标准输出格式">
-          <NInput :value="config.stdout_format" disabled />
+          <NInput :value="config.stdout_format" class="admin-field--key" disabled />
         </NFormItem>
       </NCard>
 
       <NFormItem label="日志级别">
-        <NSelect v-model:value="config.level" :options="levelOptions" />
+        <NSelect v-model:value="config.level" class="admin-field--select" :options="levelOptions" />
       </NFormItem>
       <NFormItem label="记录请求访问日志">
         <NSwitch v-model:value="config.request_log_enabled" />
       </NFormItem>
       <NSpace :size="12" class="w-full">
         <NFormItem label="日志查询默认条数">
-          <NInputNumber v-model:value="config.query_default_limit" :min="1" />
+          <NInputNumber v-model:value="config.query_default_limit" class="admin-field--number" :min="1" />
         </NFormItem>
         <NFormItem label="日志查询最大条数">
-          <NInputNumber v-model:value="config.query_max_limit" :min="1" />
+          <NInputNumber v-model:value="config.query_max_limit" class="admin-field--number" :min="1" />
         </NFormItem>
       </NSpace>
 
@@ -99,14 +99,14 @@ onMounted(load)
           <NSwitch v-model:value="config.error.capture_stack" />
         </NFormItem>
         <NFormItem label="采集的最低级别">
-          <NSelect v-model:value="config.error.capture_min_level" :options="levelOptions" />
+          <NSelect v-model:value="config.error.capture_min_level" class="admin-field--select" :options="levelOptions" />
         </NFormItem>
         <NSpace :size="12" class="w-full">
           <NFormItem label="调用栈最大字节数">
-            <NInputNumber v-model:value="config.error.stack_max_bytes" :min="0" />
+            <NInputNumber v-model:value="config.error.stack_max_bytes" class="admin-field--number" :min="0" />
           </NFormItem>
           <NFormItem label="错误链追溯深度">
-            <NInputNumber v-model:value="config.error.cause_chain_depth" :min="0" />
+            <NInputNumber v-model:value="config.error.cause_chain_depth" class="admin-field--number" :min="0" />
           </NFormItem>
         </NSpace>
       </NCard>
@@ -122,7 +122,7 @@ onMounted(load)
           <NSwitch v-model:value="config.trace.inherit_from_gateway" />
         </NFormItem>
         <NFormItem label="网关头的取用顺序">
-          <NInput v-model:value="config.trace.gateway_header_priority" placeholder="多个头名用逗号分隔" />
+          <NInput v-model:value="config.trace.gateway_header_priority" class="admin-field--long" placeholder="多个头名用逗号分隔" />
         </NFormItem>
       </NCard>
 
@@ -132,10 +132,10 @@ onMounted(load)
         </NFormItem>
         <NSpace :size="12" class="w-full">
           <NFormItem label="保留天数">
-            <NInputNumber v-model:value="config.cleanup.retention_days" :min="1" />
+            <NInputNumber v-model:value="config.cleanup.retention_days" class="admin-field--number" :min="1" />
           </NFormItem>
           <NFormItem label="执行时刻">
-            <NInput v-model:value="config.cleanup.run_at" placeholder="03:30" />
+            <NInput v-model:value="config.cleanup.run_at" class="admin-field--key" placeholder="03:30" />
           </NFormItem>
         </NSpace>
       </NCard>

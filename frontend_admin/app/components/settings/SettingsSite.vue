@@ -51,7 +51,7 @@ onMounted(load)
 </script>
 
 <template>
-  <div>
+  <div class="admin-settings-panel">
     <!-- 登录策略单独一块，但和基础信息同一个表单：它属于 site 段，
          拆成两个组件各自读写整段，会互相把对方刚存的值覆盖回去。 -->
     <NAlert type="info" :bordered="false" class="mb-4">

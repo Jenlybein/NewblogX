@@ -44,7 +44,7 @@ onMounted(load)
 </script>
 
 <template>
-  <div>
+  <div class="admin-settings-panel">
     <NAlert type="info" :bordered="false" class="mb-4">
       这里有两层开关：「启用 AI 助手」是整站总闸；下方「模型配置」里<strong>启用</strong>的那一条
       决定实际用哪家模型。总闸关掉时，即使有启用的模型配置也不可用。

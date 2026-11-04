@@ -40,7 +40,7 @@ onMounted(load)
 </script>
 
 <template>
-  <div>
+  <div class="admin-settings-panel">
     <NAlert type="warning" :bordered="false" class="mb-4">
       读者站目前<strong>没有 QQ 登录入口</strong>，这里配好了也不会生效（回调链路还没补）。
       先填着无妨，等入口上线即可用。

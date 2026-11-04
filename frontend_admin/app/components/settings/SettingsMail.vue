@@ -47,7 +47,7 @@ onMounted(load)
 </script>
 
 <template>
-  <div>
+  <div class="admin-settings-panel">
     <NAlert type="warning" :bordered="false" class="mb-4">
       腾讯云 SES 只支持<strong>模板发信</strong>：正文由控制台审核过的模板渲染，
       这里只填模板 ID。模板变量为

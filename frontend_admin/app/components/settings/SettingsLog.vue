@@ -56,7 +56,7 @@ onMounted(load)
 </script>
 
 <template>
-  <div>
+  <div class="admin-settings-panel">
     <NAlert type="info" :bordered="false" class="mb-4">
       下方「进程级」的四项由部署时的配置文件决定，在这里改了也不会生效
       （保存时后端会把它们覆盖回当前值）——日志写到哪个目录、用什么格式，

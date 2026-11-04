@@ -51,7 +51,7 @@ onMounted(load)
 </script>
 
 <template>
-  <div>
+  <div class="admin-settings-panel">
     <NAlert type="warning" :bordered="false" class="mb-4">
       这是图片上传的<strong>唯一</strong>落地方式：关掉之后上传接口直接返回「站点未启用图片上传」，
       不会退化成存到服务器本地磁盘（容器重建就丢）。
@@ -66,38 +66,39 @@ onMounted(load)
         <NSwitch v-model:value="config.enable" />
       </NFormItem>
       <NFormItem label="AccessKey">
-        <NInput v-model:value="config.access_key" placeholder="七牛云密钥管理里的 AK" />
+        <NInput v-model:value="config.access_key" class="admin-field--secret" placeholder="七牛云密钥管理里的 AK" />
       </NFormItem>
       <NFormItem label="SecretKey">
         <NInput
           v-model:value="config.secret_key"
+          class="admin-field--secret"
           type="password"
           show-password-on="click"
           placeholder="留 ****** 表示不修改"
         />
       </NFormItem>
       <NFormItem label="Bucket">
-        <NInput v-model:value="config.bucket" placeholder="存储空间名称" />
+        <NInput v-model:value="config.bucket" class="admin-field--key" placeholder="存储空间名称" />
       </NFormItem>
       <NFormItem label="访问域名">
-        <NInput v-model:value="config.uri" placeholder="https://cdn.yourdomain.com（含协议头）" />
+        <NInput v-model:value="config.uri" class="admin-field--url" placeholder="https://cdn.yourdomain.com（含协议头）" />
       </NFormItem>
       <NFormItem label="存储区域">
-        <NSelect v-model:value="config.region" :options="regionOptions" />
+        <NSelect v-model:value="config.region" class="admin-field--select" :options="regionOptions" />
       </NFormItem>
       <NFormItem label="对象 key 前缀">
-        <NInput v-model:value="config.prefix" placeholder="myblogx" />
+        <NInput v-model:value="config.prefix" class="admin-field--key" placeholder="myblogx" />
       </NFormItem>
       <NSpace :size="12" class="w-full">
         <NFormItem label="单图大小上限（MB）">
-          <NInputNumber v-model:value="config.size" :min="1" :max="100" />
+          <NInputNumber v-model:value="config.size" class="admin-field--number" :min="1" :max="100" />
         </NFormItem>
         <NFormItem label="上传凭证有效期（秒）">
-          <NInputNumber v-model:value="config.expiry" :min="60" />
+          <NInputNumber v-model:value="config.expiry" class="admin-field--number" :min="60" />
         </NFormItem>
       </NSpace>
       <NFormItem label="上传回调地址（留空不启用）">
-        <NInput v-model:value="config.callback_url" placeholder="https://api.yourdomain.com/..." />
+        <NInput v-model:value="config.callback_url" class="admin-field--url" placeholder="https://api.yourdomain.com/..." />
       </NFormItem>
       <NButton type="primary" :loading="saving" @click="save">保存存储配置</NButton>
     </NForm>

@@ -129,7 +129,10 @@
   --font-cjk: -apple-system, BlinkMacSystemFont, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", "Noto Sans SC", sans-serif; /* 中文组唯一来源：全是系统族；末位 Noto 只在装了 Noto 的机器上命中，不产生下载 */
   --font-sans: var(--font-latin), var(--font-cjk); /* 拉丁在前、中文系统栈在后（中文组已含 sans-serif 兜底） */
   --font-mono: "Cascadia Code", "JetBrains Mono", "Sofia Sans Mono", ui-monospace, monospace; /* 代码块 / 行内代码 / 刻度 */
-  --type-measure: 68ch; /* 正文行宽 */
+  /* 正文行宽：80ch（决定清单 §9 第 43 条）。原来的 68ch 在 1440+ 视口里
+     让正文列相对纸面太窄，两侧留白像"没铺满"；80ch 约 40 个汉字/行，
+     仍在中文可读区间内，同时把正文与卡片的宽度比拉回正常。 */
+  --type-measure: 80ch;
   --type-leading-prose: 1.75; /* 中文正文行高 */
   --type-leading-title: 1.15; /* 标题行高 */
   --type-tracking-title: -0.03em; /* 大标题字距（苹果式紧凑档） */

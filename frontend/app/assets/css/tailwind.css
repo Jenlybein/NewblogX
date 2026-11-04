@@ -724,8 +724,23 @@
     @apply lg:grid-cols-[13.5rem_minmax(0,1fr)_320px];
   }
 
+  /* 正文列：宽视口下整列不再无限拉伸（决定清单 §9 第 43 条）。
+   *
+   * 病根：卡片是"撑满网格列"的，而正文列宽只有 `--type-measure`，于是 1440+
+   * 视口里纸面两侧出现大片空白，看起来像"内容没铺满"。两条一起收：
+   *   1. 行宽 token 从 68ch 提到 80ch（仍是中文可读区间，约 40 字/行）；
+   *   2. ≥1280 时把正文列整体收在 72rem 内并居中 —— 多出来的宽度变成纸面外的
+   *      页面底色，而不是纸面里的空白。
+   * 窄屏不受影响：<1280 仍是满列，行宽由 token 与容器共同决定。 */
   .article-main {
     @apply flex min-w-0 flex-col gap-5;
+  }
+
+  @media (min-width: 1280px) {
+    .article-main {
+      max-width: 72rem;
+      margin-inline: auto;
+    }
   }
 
   .article-aside {
@@ -738,7 +753,8 @@
     aspect-ratio: 16 / 9;
   }
 
-  /* 正文行宽 = 排版 token 的 68ch；shadow 内的正文继承这个宽度，不再另设。 */
+  /* 正文行宽 = 排版 token 的 `--type-measure`（当前 78ch）；shadow 内的正文
+   * 继承这个宽度，不再另设。改行宽只改 token，不改这里。 */
   .article-body {
     @apply mx-auto w-full;
     max-width: var(--type-measure);

@@ -556,6 +556,74 @@
       @apply grid-cols-1;
     }
   }
+
+  /* ==========================================================================
+   * 表单控件宽度（决定清单 §7 / §9）
+   *
+   * 病根：后台所有设置面板都是手写 `NForm + NFormItem + NInput`，而
+   * `NFormItem` 的内容区是 `flex: 1` —— 输入框会一路拉满到卡片边缘（1480px 宽时
+   * 一条 AccessKey 能横贯整屏）。本批的口径是**按语义逐字段设宽**，而不是一刀切：
+   * URL 560、密钥 480、短键 280、数字 180、下拉 320、长文本 560。
+   *
+   * 一律用 `max-width` 而不是 `width`：窄视口下控件仍能跟着容器收缩。
+   * ========================================================================== */
+  .admin-field--url {
+    max-width: 560px;
+  }
+
+  .admin-field--secret {
+    max-width: 480px;
+  }
+
+  .admin-field--key {
+    max-width: 280px;
+  }
+
+  .admin-field--number {
+    max-width: 180px;
+  }
+
+  .admin-field--select {
+    max-width: 320px;
+  }
+
+  .admin-field--long {
+    max-width: 560px;
+  }
+
+  /* 站点配置各面板的默认上限：只约束表单项的直接子控件，不碰上传面板里嵌套的控件。 */
+  .admin-settings-panel :where(.n-form-item-blank) > :where(.n-input, .n-select, .n-input-number) {
+    max-width: 520px;
+  }
+
+  .admin-settings-panel {
+    max-width: 760px;
+  }
+
+  /* 用户列表的「头像 + 昵称 / 用户名」单元格：用户名常是邮箱，必须能截断。 */
+  .admin-user-cell {
+    @apply flex min-w-0 items-center gap-3;
+  }
+
+  .admin-user-cell__text {
+    @apply flex min-w-0 flex-col gap-0.5;
+  }
+
+  .admin-user-cell__username {
+    @apply truncate;
+    max-width: 210px;
+  }
+
+  .admin-avatar--initial {
+    @apply text-sm font-semibold;
+    background: var(--color-bg-subtle);
+    color: var(--color-ink);
+  }
+
+  .admin-avatar--icon {
+    background: var(--color-bg-subtle);
+    color: var(--color-ink-muted);
+  }
 }
 
 /* 右栏卡片编辑器的实时预览列：与卡片列表并排，宽度就是首页右栏的固定列宽。 */

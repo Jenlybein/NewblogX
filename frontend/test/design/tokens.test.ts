@@ -126,13 +126,26 @@ describe("语义层：组件唯一消费对象", () => {
 });
 
 describe("排版层：中文尺度 token 化", () => {
-  it("行宽 80ch、正文行高 1.75、标题字重与 -0.03em 大标题字距", () => {
-    // 2026-11-04 决定清单 §9 第 43 条：68ch 在 1440+ 视口里让正文相对纸面太窄，
-    // 提到 80ch（约 40 个汉字/行，仍在中文可读区间）。
-    expect(tokensCss).toContain("--type-measure: 80ch");
+  it("行宽 92ch、正文行高 1.75、标题字重与 -0.03em 大标题字距", () => {
+    // 2026-11-04 决定清单 §9 第 43 条，按验收反馈修正：68ch → 80ch → **92ch**。
+    // 关键不是数字本身，而是分工：**正文列不单独收窄**（见下面那条门禁），
+    // 少留白只靠放大行宽实现。
+    expect(tokensCss).toContain("--type-measure: 92ch");
     expect(tokensCss).toContain("--type-leading-prose: 1.75");
     expect(tokensCss).toContain("--type-weight-title: 700");
     expect(tokensCss).toMatch(/--type-tracking-title:\s*-0\.03em/u);
+  });
+
+  it("正文列自己不再收窄：靠放大行宽减少留白，而不是把整列缩进去（验收反馈）", () => {
+    const css = readFileSync(join(process.cwd(), "app/assets/css/tailwind.css"), "utf8");
+    const main = css.slice(css.indexOf(".article-main {"), css.indexOf("}", css.indexOf(".article-main {")) + 1);
+
+    // 正文列只吃网格列宽：一旦再加 max-width / margin-inline: auto，它就会与
+    // hero 元信息条、右侧栏脱开，两侧露出页面底色（用户反馈的"容器收窄与两边脱节"）。
+    expect(main).not.toContain("max-width");
+    expect(main).not.toContain("margin-inline");
+    // 也不再出现"≥1280 收在 72rem 内并居中"这种整列收窄。
+    expect(css).not.toContain("max-width: 72rem");
   });
 
   it("字体族拆成拉丁/中文两段：中文改走系统字体栈（不再自托管、不再压过系统中文）", () => {

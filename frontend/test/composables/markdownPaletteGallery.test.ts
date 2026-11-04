@@ -49,24 +49,28 @@ describe("色板预览稿：六层标题与实际渲染一致", () => {
     expect(rule, `h${level} 颜色`).toContain(`color: var(--md-heading-h${level});`);
   });
 
-  it("每层的装置彼此不同：定标线 / 色带 / 三角 / 短下划线 / 双发丝线 / 顶横线", () => {
+  // 装置语言已按 themes/graphite-island-spectrum 对齐：六层仍是六种不同装置，
+  // 只是形态换成该主题的定标线 / 通栏色带 / 三角+发丝线 / 记号笔横条 / 贴纸块 / 前置引线。
+  it("每层的装置彼此不同：定标线 / 通栏色带 / 三角+发丝线 / 记号笔横条 / 贴纸块 / 前置引线", () => {
     expect(ruleBody(".markdown-body h1")).toMatch(/border-bottom:/u);
-    expect(ruleBody(".markdown-body h1::after")).toMatch(/margin:\s*[^;]*auto/u);
+    expect(ruleBody(".markdown-body h1::after")).toMatch(/background:\s*var\(--md-heading-h1\)/u);
 
-    expect(ruleBody(".markdown-body h2")).toMatch(/border-left:\s*3px solid/u);
+    expect(ruleBody(".markdown-body h2")).toMatch(/border-left:\s*6px solid/u);
+    expect(ruleBody(".markdown-body h2")).toMatch(/background-image:\s*linear-gradient\(/u);
 
     expect(ruleBody(".markdown-body h3::before")).toMatch(/clip-path:\s*polygon\(/u);
+    expect(ruleBody(".markdown-body h3")).toMatch(/border-bottom:/u);
 
-    expect(ruleBody(".markdown-body h4::after")).toMatch(/width:\s*40%/u);
+    expect(ruleBody(".markdown-body h4")).toMatch(/var\(--md-heading-h4\) 44px/u);
 
     const h5 = ruleBody(".markdown-body h5");
-    expect(h5).toMatch(/border-top:/u);
-    expect(h5).toMatch(/border-bottom:/u);
+    expect(h5).toMatch(/display:\s*inline-block/u);
+    expect(h5).toMatch(/border:\s*1px solid/u);
 
     const h6 = ruleBody(".markdown-body h6");
-    expect(h6).toMatch(/border-top:/u);
     expect(h6).toMatch(/text-transform:\s*uppercase/u);
     expect(h6).toMatch(/letter-spacing:/u);
+    expect(ruleBody(".markdown-body h6::before")).toMatch(/height:\s*1px/u);
   });
 
   it("目录只收 h1–h4：预览稿里 h5/h6 不出现在 headings（与既有的锚点契约一致）", () => {

@@ -55,12 +55,11 @@ export const MARKDOWN_THEME_CSS = `/* ==========================================
 }
 
 /* ---- 六层标题装置：每层的颜色与记号都不同（正文色板 \`--md-*\`）----
- * H1 墨 / 定标线 + 居中记号块 · H2 赤陶 / 左侧 3px 色带 · H3 苔绿 / 行首三角 ·
- * H4 靛青 / 约 40% 短下划线 · H5 梅紫 / 上下双发丝线 · H6 赭黄 / 大写字距 + 顶横线。
- *
- * 颜色与装置必须成对出现：只换颜色会让六层"深浅不同但看起来一样"，只换装置又会被
- * 当成普通分隔线。每层字色与装置都取同一枚 \`--md-heading-hN\`，换色板时装置跟着走，
- * 不会出现"标题变色了、色带还是旧色"。
+ * 装置参考石墨岛六色谱（\`themes/graphite-island-spectrum\`）的分层语言：
+ *   H1 居中 + 定标线（三角 + 方块）· H2 通栏色带（左侧粗条 + 向右淡出）·
+ *   H3 行首三角 + 通栏发丝线 · H4 记号笔短横条 · H5 贴纸标签块 ·
+ *   H6 大写字距 + 前置引线。
+ * 每层装置与字色成对出现，颜色取同一枚 \`--md-heading-hN\`，换色板时装置跟着走。
  *
  * 为什么不再用 --color-*：ADR-0012 的「后续修订」明确**正文渲染区不受五色相锁定** ——
  * 五色里没有六个可当字色的色相，六层标题就无法靠颜色区分层级。正文色板单独一组
@@ -76,10 +75,11 @@ export const MARKDOWN_THEME_CSS = `/* ==========================================
   line-height: var(--type-leading-title);
 }
 
-/* H1 墨：居中大标题 + 下沿定标线 + 线上压一块居中记号块。 */
+/* H1 墨：居中大标题 + 下沿定标线，线上压「三角 + 方块」两个记号（参考主题的定标线语言）。 */
 .markdown-body h1 {
-  margin: 1.35em 0 1.25em;
-  padding-bottom: 0.95em;
+  position: relative;
+  margin: 1.35em 0 1.6em;
+  padding-bottom: 1.05em;
   border-bottom: 1px solid var(--md-heading-h1);
   color: var(--md-heading-h1);
   font-size: 2.15em;
@@ -88,30 +88,52 @@ export const MARKDOWN_THEME_CSS = `/* ==========================================
   text-align: center;
 }
 
+/* 三角记号：骑在定标线上，偏中心左侧。 */
+.markdown-body h1::before {
+  content: "";
+  position: absolute;
+  bottom: -1px;
+  left: calc(50% - 30px);
+  width: 13px;
+  height: 13px;
+  background: var(--md-heading-h1);
+  clip-path: polygon(50% 0, 100% 100%, 0 100%);
+}
+
+/* 方块记号：与三角同高，偏中心右侧（两枚合起来是一枚"定标"）。 */
 .markdown-body h1::after {
   content: "";
-  display: block;
-  width: 44px;
-  height: 3px;
-  margin: 0.65em auto 0;
+  position: absolute;
+  bottom: -1px;
+  left: calc(50% + 7px);
+  width: 11px;
+  height: 11px;
   background: var(--md-heading-h1);
 }
 
-/* H2 赤陶：左侧 3px 色带，标题贴着色带。 */
+/* H2 赤陶：通栏色带 —— 左侧 6px 粗条 + 向右淡出的同色雾底，右端走 token 圆角。 */
 .markdown-body h2 {
   margin: 2.05em 0 0.95em;
-  padding: 0.55em 0 0.6em 1.1em;
-  border-left: 3px solid var(--md-heading-h2);
+  padding: 0.55em 1.1em 0.6em;
+  border-left: 6px solid var(--md-heading-h2);
+  border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+  background-image: linear-gradient(
+    to right,
+    color-mix(in srgb, var(--md-heading-h2) 13%, transparent) 0%,
+    color-mix(in srgb, var(--md-heading-h2) 4%, transparent) 55%,
+    transparent 100%
+  );
   color: var(--md-heading-h2);
   font-size: 1.58em;
   line-height: 1.35;
 }
 
-/* H3 苔绿：行首三角，其余靠留白。 */
+/* H3 苔绿：行首三角 + 通栏发丝线（三角与线同色，一眼看出这是第三层）。 */
 .markdown-body h3 {
   position: relative;
-  margin: 1.75em 0 0.7em;
-  padding: 0 0 0 1.05em;
+  margin: 1.75em 0 0.9em;
+  padding: 0 0 0.55em 1.05em;
+  border-bottom: 1px solid var(--md-heading-h3);
   color: var(--md-heading-h3);
   font-size: 1.33em;
   line-height: 1.4;
@@ -120,7 +142,7 @@ export const MARKDOWN_THEME_CSS = `/* ==========================================
 .markdown-body h3::before {
   content: "";
   position: absolute;
-  top: 0.45em;
+  top: 0.42em;
   left: 0;
   width: 0.6em;
   height: 0.6em;
@@ -128,45 +150,55 @@ export const MARKDOWN_THEME_CSS = `/* ==========================================
   clip-path: polygon(50% 0, 100% 100%, 0 100%);
 }
 
-/* H4 靛青：短下划线只占标题宽度的约 40%。 */
+/* H4 靛青：记号笔短横条 —— 只在标题左侧压 44px 一段 3px 粗线，不是整条下划线。 */
 .markdown-body h4 {
   margin: 1.5em 0 0.6em;
-  padding-bottom: 0.5em;
+  padding-bottom: 0.55em;
+  background-image: linear-gradient(
+    to right,
+    var(--md-heading-h4) 0,
+    var(--md-heading-h4) 44px,
+    transparent 44px
+  );
+  background-repeat: no-repeat;
+  background-position: 0 100%;
+  background-size: 100% 3px;
   color: var(--md-heading-h4);
   font-size: 1.18em;
   line-height: 1.35;
 }
 
-.markdown-body h4::after {
-  content: "";
-  display: block;
-  width: 40%;
-  height: 3px;
-  margin-top: 0.45em;
-  background: var(--md-heading-h4);
-}
-
-/* H5 梅紫：上下双发丝线，把标题夹在中间。 */
+/* H5 梅紫：贴纸标签块 —— 唯一「块状」的一级，inline-block 收在文字宽度上。 */
 .markdown-body h5 {
+  display: inline-block;
   margin: 1.35em 0 0.6em;
-  padding: 0.45em 0;
-  border-top: 1px solid var(--md-heading-h5);
-  border-bottom: 1px solid var(--md-heading-h5);
+  padding: 0.2em 0.8em;
+  border: 1px solid var(--md-heading-h5);
+  border-radius: var(--radius-sm);
+  background: color-mix(in srgb, var(--md-heading-h5) 8%, transparent);
   color: var(--md-heading-h5);
   font-size: 1em;
   font-weight: 600;
   letter-spacing: var(--type-tracking-dense);
 }
 
-/* H6 赭黄：制图式小型大写标签 + 顶横线，靠开字距而不是字号喊叫。 */
+/* H6 赭黄：制图式小型大写 + 前置 1px 引线（最轻的一级，不靠字号也不靠底色喊）。 */
 .markdown-body h6 {
   margin: 1.25em 0 0.35em;
-  padding-top: 0.4em;
-  border-top: 1px solid var(--md-heading-h6);
   color: var(--md-heading-h6);
   font-size: 0.8em;
   text-transform: uppercase;
   letter-spacing: 0.18em;
+}
+
+.markdown-body h6::before {
+  content: "";
+  display: inline-block;
+  width: 26px;
+  height: 1px;
+  margin-right: 0.7em;
+  background: var(--md-heading-h6);
+  vertical-align: 0.28em;
 }
 
 /* ---- 正文块 ---- */

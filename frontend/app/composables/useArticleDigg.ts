@@ -1,4 +1,5 @@
 import { shallowRef, watch } from "vue";
+import { errorMessage } from "~/utils/errorMessage";
 
 /**
  * 文章点赞的状态机。
@@ -132,7 +133,7 @@ export function useArticleDigg(deps: ArticleDiggDeps) {
       patch(result.is_digg, result.digg_count);
       deps.notify.success(result.is_digg ? "点赞成功" : "取消点赞成功");
     } catch (error) {
-      deps.notify.error(error instanceof Error ? error.message : "点赞失败");
+      deps.notify.error(errorMessage(error, "点赞失败"));
     } finally {
       pending.value = false;
       startDebounce();

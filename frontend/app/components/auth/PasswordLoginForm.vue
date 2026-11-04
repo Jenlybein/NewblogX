@@ -3,6 +3,7 @@ import { toTypedSchema } from "@vee-validate/zod";
 import { useForm } from "vee-validate";
 import { z } from "zod";
 import { NButton, NForm, NFormItem, NInput, useMessage } from "naive-ui";
+import { errorMessage } from "~/utils/errorMessage";
 
 const emit = defineEmits<{
   success: [];
@@ -35,7 +36,7 @@ const onSubmit = handleSubmit(async (values) => {
     message.success("登录成功");
     emit("success");
   } catch (error) {
-    message.error(error instanceof Error ? error.message : "登录失败");
+    message.error(errorMessage(error, "登录失败"));
   }
 });
 </script>

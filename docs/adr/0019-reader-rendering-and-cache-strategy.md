@@ -145,6 +145,6 @@
 本 ADR 的决策与约束正文一字未改；以下两条在 [ADR-0024](./0024-reader-user-state-and-count-truth.md) 里被**收窄 / 细化**：
 
 - **决策 4 / 约束 4 的「30 秒内命中」只对首屏 `cause === "initial"` 成立**。手工 `refresh()` 必须真发请求：否则 hydration 把匿名 payload 预热进 30s SWR 后，登录用户页面 `onMounted` 的补齐请求永远被短路，硬刷新后按钮永远显示「未赞」（这正是 #235 报的缺陷）。「返回/重进请求数为 0」的既有验收由第二波的 `refreshIfNeeded`（fresh 直接落数据、不发请求）承担，不再把 `refresh()` 钉成缓存命中。
-- **约束 2（SSR 只出匿名内容）保持不变**；用户态的客户端补齐落点被明确为独立源 `article-private-<id>`（`server: false` + `getCachedData: () => undefined`，只投影 `is_digg` / `is_favor` / `relation`），**永不进 payload / SWR**。点赞写接口同时从 toggle 改为幂等目标态 `{liked}`，写响应回填权威计数。
+- **约束 2（SSR 只出匿名内容）保持不变**；用户态的客户端补齐落点被明确为独立源 `article-private-<id>`（`server: false` + `getCachedData: () => undefined`，只投影 `is_digg` / `is_favor`；详情接口不返回 `relation`，所以不再包含它），**永不进 payload / SWR**。点赞写接口同时从 toggle 改为幂等目标态 `{liked}`，写响应回填权威计数。
 
 回退方式：把 `useReaderSwrAsyncData` 的 `cause !== "initial"` 分支改回「只有 stale 才放行」，并删掉 `article-private` 源 —— 但那样会恢复 #235 的数据损坏路径（陈旧按钮取消真实点赞），不建议回退。详见 [ADR-0024](./0024-reader-user-state-and-count-truth.md)。

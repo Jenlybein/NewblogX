@@ -747,6 +747,23 @@
                 },
                 "type": "object"
             },
+            "internal_article_adapter_http.ArticleFavoriteRemoveResponse": {
+                "properties": {
+                    "failed_count": {
+                        "type": "integer"
+                    },
+                    "favor_count": {
+                        "type": "integer"
+                    },
+                    "is_favor": {
+                        "type": "boolean"
+                    },
+                    "removed_count": {
+                        "type": "integer"
+                    }
+                },
+                "type": "object"
+            },
             "internal_article_adapter_http.ArticleFavoriteRequest": {
                 "properties": {
                     "article_id": {
@@ -3971,6 +3988,20 @@
                 },
                 "type": "object"
             },
+            "myblogx_internal_kernel.Envelope-internal_article_adapter_http_ArticleFavoriteRemoveResponse": {
+                "properties": {
+                    "code": {
+                        "type": "integer"
+                    },
+                    "data": {
+                        "$ref": "#/components/schemas/internal_article_adapter_http.ArticleFavoriteRemoveResponse"
+                    },
+                    "msg": {
+                        "type": "string"
+                    }
+                },
+                "type": "object"
+            },
             "myblogx_internal_kernel.Envelope-internal_article_adapter_http_ArticleFavoriteResponse": {
                 "properties": {
                     "code": {
@@ -6826,7 +6857,7 @@
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "$ref": "#/components/schemas/myblogx_internal_kernel.Envelope-internal_article_adapter_http_ArticleFavoriteResponse"
+                                    "$ref": "#/components/schemas/myblogx_internal_kernel.Envelope-internal_article_adapter_http_ArticleFavoriteRemoveResponse"
                                 }
                             }
                         },

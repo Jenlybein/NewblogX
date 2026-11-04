@@ -1,4 +1,5 @@
 import type { GlobalNoticeItem, MessageSummary, SiteMessageItem } from "~/types/api";
+import { firstQueryValue } from "~/utils/queryValue";
 
 /**
  * 消息中心（#239）的纯逻辑：子项表、未读数、旧 query 映射、列表行视图模型。
@@ -80,13 +81,12 @@ export function shouldShowUnreadCount(count: number): boolean {
 
 /** 子项 key 判据（中间件与页面共用）。 */
 export function isMessageCenterTab(value: unknown): value is MessageCenterTab {
-  const raw = Array.isArray(value) ? value[0] : value;
-  return typeof raw === "string" && MESSAGE_CENTER_TABS.includes(raw as MessageCenterTab);
+  return MESSAGE_CENTER_TABS.includes(firstQueryValue(value) as MessageCenterTab);
 }
 
 /** 路由参数 → 子项；无法识别一律回落到默认的「评论与回复」。 */
 export function resolveMessageCenterTab(value: unknown): MessageCenterTab {
-  const raw = Array.isArray(value) ? value[0] : value;
+  const raw = firstQueryValue(value);
   return isMessageCenterTab(raw) ? raw : "comments";
 }
 
@@ -136,14 +136,6 @@ export function toGlobalNoticeEntry(item: GlobalNoticeItem): MessageCenterEntry 
     href: item.herf,
     unread: !item.is_read,
   };
-}
-
-/** 用户 query 里可能有数组值（`?group=2&group=3`），统一取第一个字符串。 */
-function firstQueryValue(value: unknown): string {
-  const raw = Array.isArray(value) ? value[0] : value;
-  if (typeof raw === "string") return raw;
-  if (typeof raw === "number") return String(raw);
-  return "";
 }
 
 /** 丢掉 tab / group，其余 query 原样带过去（私信草稿 `draft_*` 靠这一步保留）。 */

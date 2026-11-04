@@ -5,6 +5,7 @@ import { useMessage } from "naive-ui";
 import InboxChatPanel from "~/components/inbox/InboxChatPanel.vue";
 import { useInboxCenter } from "~/composables/useInboxCenter";
 import { isDraftChatSessionId, parseDraftSessionSeed } from "~/utils/chat";
+import { errorMessage } from "~/utils/errorMessage";
 
 /**
  * 消息中心「私信」子项（`/messages/chat` 的右内容，票 240）。
@@ -73,7 +74,7 @@ async function handleSend() {
     }
     message.success("消息已发送");
   } catch (error) {
-    message.error(error instanceof Error ? error.message : "发送消息失败");
+    message.error(errorMessage(error, "发送消息失败"));
   }
 }
 
@@ -87,7 +88,7 @@ async function handleSendImage(file: File) {
     }
     message.success("图片已发送");
   } catch (error) {
-    message.error(error instanceof Error ? error.message : "发送图片失败");
+    message.error(errorMessage(error, "发送图片失败"));
   }
 }
 

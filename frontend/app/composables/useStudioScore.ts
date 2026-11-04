@@ -1,6 +1,7 @@
 import type { Ref } from "vue";
 
 import { getArticleScoreDetail } from "~/services/ai";
+import { errorMessage } from "~/utils/errorMessage";
 
 // 文章质量评分弹窗的数据加载。
 //
@@ -60,7 +61,7 @@ export function useStudioScore(deps: StudioScoreDeps) {
     try {
       await fetchStoredArticleScore();
     } catch (error) {
-      message.error(error instanceof Error ? error.message : "读取评分失败");
+      message.error(errorMessage(error, "读取评分失败"));
     } finally {
       articleScoreLoading.value = false;
     }

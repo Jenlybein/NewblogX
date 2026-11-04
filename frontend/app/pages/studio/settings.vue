@@ -25,6 +25,8 @@ import {
   shapeAvatarWithFraming,
 } from "~/utils/avatar";
 import { isImageFile, measureImage, type ShapeFramingState } from "~/utils/imageShaping";
+import { buildPrivacyUpdatePayload, buildProfileUpdatePayload } from "~/utils/studioSettings";
+import { errorMessage } from "~/utils/errorMessage";
 
 definePageMeta({
   layout: "studio",
@@ -262,30 +264,33 @@ async function saveProfile() {
       return;
     }
 
-    const payload: Parameters<typeof updateUserProfile>[0] = {
-      username: profileForm.username.trim() || null,
-      nickname: profileForm.nickname.trim() || null,
-      abstract: profileForm.abstract.trim() || null,
-      like_tag_ids: normalizedLikeTagIds,
-      favorites_visibility: profileForm.favorites_visibility,
-      followers_visibility: profileForm.followers_visibility,
-      fans_visibility: profileForm.fans_visibility,
-      home_style_id: profileForm.home_style_id || null,
-      stranger_msg_enabled: profileForm.stranger_msg_enabled,
-    };
-
-    if (hasAvatarImageId) {
-      payload.avatar_image_id = trimmedAvatarImageId;
-    } else if (avatarDirty.value) {
-      payload.avatar_image_id = null;
-    }
+    const payload = buildProfileUpdatePayload(
+      {
+        username: profileForm.username,
+        nickname: profileForm.nickname,
+        abstract: profileForm.abstract,
+        favorites_visibility: profileForm.favorites_visibility,
+        followers_visibility: profileForm.followers_visibility,
+        fans_visibility: profileForm.fans_visibility,
+        home_style_id: profileForm.home_style_id,
+      },
+      {
+        likeTagIds: normalizedLikeTagIds,
+        // 三种头像状态：上传了新图 → 传新标识；点过"移除" → null；否则不传（不改）。
+        ...(hasAvatarImageId
+          ? { avatarImageId: trimmedAvatarImageId }
+          : avatarDirty.value
+            ? { avatarImageId: null }
+            : {}),
+      },
+    );
 
     await updateUserProfile(payload);
     await Promise.all([refreshProfile(), authStore.fetchCurrentUser()]);
     avatarDirty.value = false;
     message.success("个人资料已更新");
   } catch (error) {
-    message.error(error instanceof Error ? error.message : "保存资料失败");
+    message.error(errorMessage(error, "保存资料失败"));
   }
 }
 
@@ -354,7 +359,7 @@ async function handleAvatarFileChange(event: Event) {
     await avatarCropFlow.select(file);
   } catch (error) {
     avatarUploading.stage = "";
-    message.error(error instanceof Error ? error.message : "头像上传失败");
+    message.error(errorMessage(error, "头像上传失败"));
   } finally {
     avatarUploading.pending = false;
     input.value = "";
@@ -374,7 +379,7 @@ async function confirmAvatarCrop(framing: ShapeFramingState) {
     await avatarCropFlow.confirm(request, framing);
   } catch (error) {
     avatarUploading.stage = "";
-    message.error(error instanceof Error ? error.message : "头像上传失败");
+    message.error(errorMessage(error, "头像上传失败"));
   } finally {
     avatarUploading.pending = false;
     if (avatarFileInputRef.value) {
@@ -398,7 +403,7 @@ async function sendBindCode() {
     emailBindForm.email_id = payload.id;
     message.success("邮箱验证码已发送");
   } catch (error) {
-    message.error(error instanceof Error ? error.message : "发送验证码失败");
+    message.error(errorMessage(error, "发送验证码失败"));
   }
 }
 
@@ -413,7 +418,7 @@ async function submitBindEmail() {
     showEmailModal.value = false;
     await Promise.all([refreshProfile(), authStore.fetchCurrentUser()]);
   } catch (error) {
-    message.error(error instanceof Error ? error.message : "绑定邮箱失败");
+    message.error(errorMessage(error, "绑定邮箱失败"));
   }
 }
 
@@ -428,7 +433,7 @@ async function submitPasswordReset() {
     showPasswordModal.value = false;
     message.success("密码已更新，请留意旧登录态可能会失效");
   } catch (error) {
-    message.error(error instanceof Error ? error.message : "更新密码失败");
+    message.error(errorMessage(error, "更新密码失败"));
   }
 }
 
@@ -438,23 +443,26 @@ async function savePreference() {
     await refreshPreference();
     message.success("消息偏好已保存");
   } catch (error) {
-    message.error(error instanceof Error ? error.message : "保存消息偏好失败");
+    message.error(errorMessage(error, "保存消息偏好失败"));
   }
 }
 
 /**
  * 保存隐私开关。
  *
- * 只提交 stranger_msg_enabled 这一项，走与"保存资料"同一个 PUT /users/info；
+ * 只提交 `stranger_msg_enabled` 这一项，走与"保存资料"同一个 `PUT /users/info`；
  * 后端把个人开关与站点总闸取交集，保存后立刻影响下一条陌生私信的判定。
+ *
+ * 这是该字段**唯一**的提交路径（评审票 248 / P1-4）：资料卡不再附带它，
+ * 否则两张卡会争同一个字段。
  */
 async function savePrivacy() {
   try {
-    await updateUserProfile({ stranger_msg_enabled: profileForm.stranger_msg_enabled });
+    await updateUserProfile(buildPrivacyUpdatePayload(profileForm.stranger_msg_enabled));
     await refreshProfile();
     message.success("隐私设置已保存");
   } catch (error) {
-    message.error(error instanceof Error ? error.message : "保存隐私设置失败");
+    message.error(errorMessage(error, "保存隐私设置失败"));
   }
 }
 

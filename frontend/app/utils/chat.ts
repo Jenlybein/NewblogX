@@ -1,4 +1,5 @@
 import type { ChatNotificationPayload, ChatSessionItem } from "~/types/api";
+import { firstQueryValue } from "~/utils/queryValue";
 
 export const CHAT_DRAFT_SESSION_PREFIX = "draft:";
 
@@ -48,12 +49,6 @@ export function buildPreparedChatSession(seed: InboxDraftSessionSeed): ChatSessi
 export function buildChatClientMsgId(random: () => string, now: () => number) {
   const nonce = random().replace(/[^a-zA-Z0-9_-]/gu, "").slice(0, 24) || "nonce";
   return `ck-${now()}-${nonce}`.slice(0, 64);
-}
-
-/** 路由 query 里可能有数组值（重复参数），统一取第一个字符串。 */
-function firstQueryValue(value: unknown): string {
-  const raw = Array.isArray(value) ? value[0] : value;
-  return typeof raw === "string" ? raw : "";
 }
 
 /**

@@ -77,10 +77,20 @@ func (s *Service) Favorite(ctx context.Context, cmd FavoriteCmd) (FavoriteResult
 	return out, err
 }
 
-// Unfavorite 取消收藏。
+// Unfavorite 取消收藏：只移除**目标收藏夹**里的那条关系。
 //
-// 返回值同上：移除后仍可能被收在别的收藏夹里，所以 `IsFavor` 要按"还有没有关系行"
-// 重新判定，而不是无条件写 false。
+// 旧实现用 `FindItemAnyFolder` 取任意一条、再按 `item.FolderID()` 删除，完全忽略
+// 调用方传入的 folder。同一篇文章同时收在 A/B 两个收藏夹时，点「移出 A」可能删掉
+// B 的那条：A 的勾还在、toast 却说「已从 A 移除」，而 B 的收藏凭空消失。
+// 现在的口径：
+//   - `FolderID` 非空：只在目标收藏夹里找。找不到就报 `ErrItemNotFound`（按「不存在」
+//     处理），绝不顺手删别的夹子里的关系；
+//   - `FolderID` 为零：与 {@link Service.Favorite} 同口径，落到默认收藏夹
+//     （`FavoriteCmd.FolderID` 的既有语义），不会退化回「随便删一条」。
+//
+// 返回值上的 `IsFavor` 语义是「该用户**是否还在任一收藏夹**里收着这篇文章」：
+// 一篇文章可以收在多个收藏夹，只移除了其中一个时它仍为 true。详情接口的
+// `is_favor`（`query.go` 的 `FindItemAnyFolder`）用的是同一条语义。
 func (s *Service) Unfavorite(ctx context.Context, cmd FavoriteCmd) (FavoriteResult, error) {
 	var out FavoriteResult
 
@@ -90,11 +100,20 @@ func (s *Service) Unfavorite(ctx context.Context, cmd FavoriteCmd) (FavoriteResu
 			return err
 		}
 
-		item, err := r.Favorites().FindItemAnyFolder(ctx, cmd.ArticleID, cmd.Actor.UserID)
-		if err != nil {
+		folderID := cmd.FolderID
+		if folderID.IsZero() {
+			f, err := r.Favorites().DefaultFolder(ctx, cmd.Actor.UserID)
+			if err != nil {
+				return err
+			}
+			folderID = f.ID()
+		}
+
+		// 只认目标夹里的关系：不存在就是不存在（ErrItemNotFound），不猜、不兜底。
+		if _, err := r.Favorites().FindItem(ctx, cmd.ArticleID, cmd.Actor.UserID, folderID); err != nil {
 			return err
 		}
-		if err := r.Favorites().DeleteItem(ctx, item.ArticleID(), item.UserID(), item.FolderID()); err != nil {
+		if err := r.Favorites().DeleteItem(ctx, cmd.ArticleID, cmd.Actor.UserID, folderID); err != nil {
 			return err
 		}
 		if err := r.Counters().Add(ctx, cmd.ArticleID, domain.Counters{Favor: -1}); err != nil {

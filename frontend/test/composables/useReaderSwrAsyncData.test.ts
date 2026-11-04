@@ -196,3 +196,109 @@ describe("useReaderSwrAsyncData：useAsyncData 之上的 30s SWR", () => {
     expect(source.data.value).toEqual({ title: "文章乙" });
   });
 });
+
+/**
+ * `refreshIfNeeded` 是"内部第二波"的入口（ADR-0024 决策 1 / 约束 1）。
+ *
+ * 为什么不能直接回退到 `refresh()`：新的 SWR 语义里 `refresh()` 必须真发请求，
+ * 而 #85 的「30 秒内重进请求数为 0」验收需要作者统计在 fresh 命中时不发请求
+ * （`useArticlePageSources.test.ts` 已有一条用例依赖它）。
+ *
+ * 保留它的前提是把**状态语义**写清楚并用用例钉住（评审 #248 / P1-6）：
+ * fresh 命中直接落值 ⇒ pending 保持 false（本来就没有在途请求，这是正确语义）、
+ * 上一次失败的 error 被清掉（现在有可渲染的权威值）；stale / miss 仍走 `refresh()`，
+ * pending / error 与普通取数完全一致 —— 也就是说它只绕过"没有请求时的假 pending"，
+ * 不是绕过生命周期。
+ */
+describe("refreshIfNeeded：内部第二波入口的状态语义", () => {
+  it("fresh 命中：不发请求、直接落数据、pending 保持 false", async () => {
+    const cache = createReaderSwrCache({ now: () => 1_000 });
+    cache.write("article-author-info:u9", { article_count: 3 });
+    installAwaitableAsyncData();
+
+    const handler = vi.fn(async () => ({ article_count: 9 }));
+    // 用 wrapper 接住原始返回值：直接 await 会被 thenable 解包成内部 handle，
+    // 丢掉 refreshIfNeeded（真实调用方也不 await 它，见 useArticlePageSources）。
+    const source = (
+      await runInScope(() => ({
+        source: useReaderSwrAsyncData({
+          key: "article-author-info:u9",
+          handler,
+          mode: "navigation",
+          cache,
+          immediate: false,
+        }),
+      }))
+    ).source;
+
+    await source.refreshIfNeeded();
+
+    expect(handler).not.toHaveBeenCalled();
+    expect(source.data.value).toEqual({ article_count: 3 });
+    expect(source.pending.value).toBe(false);
+    expect(source.error.value).toBeNull();
+  });
+
+  it("fresh 命中会清掉上一次 refresh 留下的 error（有权威值时不再留着旧错误）", async () => {
+    const cache = createReaderSwrCache({ now: () => 1_000 });
+    cache.write("article-author-info:u9", { article_count: 3 });
+    installAwaitableAsyncData();
+
+    const handler = vi.fn(async () => {
+      throw new Error("boom");
+    });
+    const source = (
+      await runInScope(() => ({
+        source: useReaderSwrAsyncData({
+          key: "article-author-info:u9",
+          handler,
+          mode: "navigation",
+          cache,
+          immediate: false,
+        }),
+      }))
+    ).source;
+
+    // 先真发一次（refresh 语义），失败落进 error。
+    await source.refresh();
+    expect(source.error.value).toBeInstanceOf(Error);
+
+    await source.refreshIfNeeded();
+    expect(source.data.value).toEqual({ article_count: 3 });
+    expect(source.error.value).toBeNull();
+    expect(source.pending.value).toBe(false);
+  });
+
+  it("stale / miss 仍走 refresh：真发请求、pending 变真、失败落进 error", async () => {
+    let clock = 1_000;
+    const cache = createReaderSwrCache({ now: () => clock });
+    cache.write("article-author-info:u9", { article_count: 3 });
+    clock = 1_000 + 30_001;
+    installAwaitableAsyncData();
+
+    const request = deferred<{ article_count: number }>();
+    const handler = vi.fn(() => request.promise);
+    const source = (
+      await runInScope(() => ({
+        source: useReaderSwrAsyncData({
+          key: "article-author-info:u9",
+          handler,
+          mode: "navigation",
+          cache,
+          immediate: false,
+        }),
+      }))
+    ).source;
+
+    const refreshing = source.refreshIfNeeded();
+    // mock 与 Nuxt 一样把 handler 放进微任务：等一拍再断言"请求真的发了、pending 变真"。
+    await Promise.resolve();
+    expect(handler).toHaveBeenCalledTimes(1);
+    expect(source.pending.value).toBe(true);
+
+    request.resolve({ article_count: 7 });
+    await refreshing;
+    expect(source.data.value).toEqual({ article_count: 7 });
+    expect(source.pending.value).toBe(false);
+  });
+});

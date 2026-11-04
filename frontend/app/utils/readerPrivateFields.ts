@@ -32,15 +32,15 @@ export function withoutPrivateFieldsFromItems<TItem extends object>(items: reado
 /**
  * 文章页的**用户私有态**（ADR-0024 决策 2）。
  *
- * 只有这三项需要登录后单独取：`is_digg` / `is_favor` 决定按钮显示"已赞 / 已收藏"，
- * `relation` 是"我与作者的关系"（文章详情接口当前不返回它，作者关系由客户端的
- * `authorProfile` 源补齐；这里保留字段是为了与私有字段清单保持同一张表，
- * 缺省为 null 而不是伪造一个陌生人关系）。
+ * 只有这两项需要登录后单独取：`is_digg` / `is_favor` 决定按钮显示"已赞 / 已收藏"。
+ * 曾经的 `relation`（我与作者的关系）是**死字段**：文章详情接口不返回它，作者关系
+ * 由客户端的 `authorProfile` 源补齐，写进这里只会永远是 null、诱导人去读。
+ * 私有字段清单（`READER_PRIVATE_FIELDS`）里保留 `relation` 是因为评论条目确实带它，
+ * 两份口径不要混为一谈。
  */
 export interface ArticlePrivateState {
   is_digg: boolean;
   is_favor: boolean;
-  relation: number | null;
 }
 
 /**
@@ -55,6 +55,5 @@ export function pickArticlePrivateState(value: object): ArticlePrivateState {
   return {
     is_digg: Boolean(record.is_digg),
     is_favor: Boolean(record.is_favor),
-    relation: typeof record.relation === "number" ? record.relation : null,
   };
 }

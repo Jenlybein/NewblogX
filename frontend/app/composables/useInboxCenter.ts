@@ -17,6 +17,7 @@ import {
   type InboxDraftSessionSeed,
 } from "~/utils/chat";
 import type { ChatSendType } from "~/utils/chatMessage";
+import { errorMessage } from "~/utils/errorMessage";
 
 /**
  * 私信会话（`/messages/chat` 的右内容）。
@@ -311,7 +312,7 @@ export function useInboxCenter(options: UseInboxCenterOptions = {}) {
       // 避免"其实已落库、只是响应丢了"的重试变成第二条消息。
       failedSend.value = { content, msgType, clientMsgId };
       // 拒绝原因直接透出后端文案（站点策略等），由私信面板就地显示（票 202）。
-      socket.setSendError(error instanceof Error ? error.message : "消息发送失败。");
+      socket.setSendError(errorMessage(error, "消息发送失败。"));
       throw error;
     }
   }

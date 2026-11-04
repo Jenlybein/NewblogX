@@ -1,6 +1,7 @@
 import { computed, shallowRef } from "vue";
 import type { ComputedRef, Ref } from "vue";
 import type { CommentReplyItem, CommentRootItem } from "~/types/api";
+import { errorMessage } from "~/utils/errorMessage";
 
 /**
  * 评论区单片机（#238）。
@@ -158,7 +159,7 @@ export function useArticleComments(deps: ArticleCommentsDeps) {
       commitState(rootId, state);
       return state.pages[page];
     } catch (error) {
-      deps.notify.error(error instanceof Error ? error.message : "加载回复失败");
+      deps.notify.error(errorMessage(error, "加载回复失败"));
       return null;
     } finally {
       state.pending = false;
@@ -229,7 +230,7 @@ export function useArticleComments(deps: ArticleCommentsDeps) {
       await deps.diggComment(commentId);
       deps.notify.success(isDigg ? "已取消评论点赞" : "评论点赞成功");
     } catch (error) {
-      deps.notify.error(error instanceof Error ? error.message : "评论点赞失败");
+      deps.notify.error(errorMessage(error, "评论点赞失败"));
       return;
     }
 
@@ -276,7 +277,7 @@ export function useArticleComments(deps: ArticleCommentsDeps) {
       }
       await deps.refreshArticle();
     } catch (error) {
-      deps.notify.error(error instanceof Error ? error.message : "评论失败");
+      deps.notify.error(errorMessage(error, "评论失败"));
     }
   }
 

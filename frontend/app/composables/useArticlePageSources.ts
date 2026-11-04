@@ -106,7 +106,8 @@ export async function useArticlePageSources(options: ArticlePageSourcesOptions) 
   const fetchAuthorInfo = options.fetchAuthorInfo ?? ((authorId: string) => getArticleAuthorInfo(authorId));
   const fetchAuthorProfile =
     options.fetchAuthorProfile ?? ((authorId: string) => getUserBaseInfo(authorId).catch(() => null));
-  // 私有态默认走带鉴权的详情接口，只投影 is_digg / is_favor / relation。
+  // 私有态默认走带鉴权的详情接口，只投影 is_digg / is_favor（详情接口不返回 relation，
+  // 作者关系由 authorProfile 源负责；`relation` 曾是永为 null 的死字段，已删除）。
   const fetchArticlePrivate =
     options.fetchArticlePrivate ?? ((id: string) => getArticlePrivateState(id));
 

@@ -7,6 +7,7 @@ import LoadingSkeleton from "~/components/common/LoadingSkeleton.vue";
 import ProfileEmptyState from "~/components/profile/ProfileEmptyState.vue";
 import { clearHistoryArticles, deleteHistoryArticles, getHistoryArticles } from "~/services/history";
 import { formatDateTimeLabel } from "~/utils/format";
+import { errorMessage } from "~/utils/errorMessage";
 import { cursorOfPage, groupHistoryItems, type HistoryCursor } from "~/utils/historyGroups";
 import type { HistoryArticleItem } from "~/types/api";
 
@@ -56,10 +57,6 @@ const selected = ref<string[]>([]);
 
 const groups = computed(() => groupHistoryItems(items.value));
 const selectedCount = computed(() => selected.value.length);
-
-function describeError(reason: unknown, fallback: string) {
-  return reason instanceof Error && reason.message ? reason.message : fallback;
-}
 
 function currentKeyword() {
   return committedKeyword.value.trim() || undefined;
@@ -114,7 +111,7 @@ async function loadMore() {
     hasMore.value = page.has_more;
     cursor.value = cursorOfPage(page.list) ?? next;
   } catch (reason) {
-    message.error(describeError(reason, "加载更多失败，请稍后再试"));
+    message.error(errorMessage(reason, "加载更多失败，请稍后再试"));
   } finally {
     loadingMore.value = false;
   }
@@ -151,7 +148,7 @@ async function removeItems(idList: string[], successMessage: string) {
     }
     message.success(successMessage);
   } catch (reason) {
-    message.error(describeError(reason, "删除浏览历史失败"));
+    message.error(errorMessage(reason, "删除浏览历史失败"));
   } finally {
     busy.value = false;
   }
@@ -182,7 +179,7 @@ function confirmClearHistory() {
         exitBatchMode();
         message.success("已清空浏览历史");
       } catch (reason) {
-        message.error(describeError(reason, "清空浏览历史失败"));
+        message.error(errorMessage(reason, "清空浏览历史失败"));
       }
     },
   });

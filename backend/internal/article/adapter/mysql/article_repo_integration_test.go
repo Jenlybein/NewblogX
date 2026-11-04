@@ -266,7 +266,13 @@ func TestFavoriteDefaultFolderCreatedOnce(t *testing.T) {
 	}
 }
 
-func TestFavoriteItemUnique(t *testing.T) {
+// TestFavoriteItemSaveRevivesSoftDeletedRow 钉住收藏关系的保存语义。
+//
+// 关系行是**软删**的，唯一键 uk_user_article_favor (article_id, user_id, favor_id)
+// 不含 deleted_at。旧实现直接 Create：同键第二次保存（用户「移出后再收藏」同一篇）
+// 会撞唯一键，表现为 1001 duplicated key not allowed。SaveItem 现在先 Unscoped 找旧行
+// 再复活，因此重复保存幂等、软删后保存也能成功，且不会留下两行。
+func TestFavoriteItemSaveRevivesSoftDeletedRow(t *testing.T) {
 	t.Parallel()
 
 	db := migrate(t)
@@ -289,8 +295,17 @@ func TestFavoriteItemUnique(t *testing.T) {
 	if err := repo.SaveItem(ctx, item); err != nil {
 		t.Fatalf("收藏失败: %v", err)
 	}
-	if err := repo.SaveItem(ctx, item); err == nil {
-		t.Fatal("同一文章重复收藏应触发唯一键冲突")
+	// 活行重复保存仍报唯一键冲突（仓库层守住唯一键；不能静默变成一次更新）。
+	if err := repo.SaveItem(ctx, item); !errors.Is(err, gorm.ErrDuplicatedKey) {
+		t.Fatalf("活行重复保存应报 gorm.ErrDuplicatedKey，实际 %v", err)
+	}
+
+	// 移出（软删）后再收藏：必须复活原行而不是撞唯一键。
+	if err := repo.DeleteItem(ctx, item.ArticleID(), item.UserID(), folder.ID()); err != nil {
+		t.Fatalf("移出收藏失败: %v", err)
+	}
+	if err := repo.SaveItem(ctx, item); err != nil {
+		t.Fatalf("软删后再次收藏应复活原行，实际 %v", err)
 	}
 
 	n, err := repo.CountByArticle(ctx, ctype.NewID(5001))
@@ -298,7 +313,15 @@ func TestFavoriteItemUnique(t *testing.T) {
 		t.Fatalf("计数失败: %v", err)
 	}
 	if n != 1 {
-		t.Fatalf("应有 1 条收藏，实际 %d", n)
+		t.Fatalf("应只有 1 条活收藏，实际 %d", n)
+	}
+	var all int64
+	if err := db.Unscoped().Model(&schema.UserArticleFavorRow{}).
+		Where("article_id = ?", 5001).Count(&all).Error; err != nil {
+		t.Fatalf("统计含软删行失败: %v", err)
+	}
+	if all != 1 {
+		t.Fatalf("不应留下软删残行（含软删共 %d 行）", all)
 	}
 }
 

@@ -7,6 +7,7 @@ import InboxMessageList from "~/components/inbox/InboxMessageList.vue";
 import InboxSubNav from "~/components/inbox/InboxSubNav.vue";
 import { useMessageCenter } from "~/composables/useMessageCenter";
 import { messageCenterNavItems, resolveMessageCenterTab } from "~/utils/messageCenter";
+import { errorMessage } from "~/utils/errorMessage";
 
 /**
  * 消息中心顶级页（第 239 票起）：`/messages/{comments,digg,system,global,chat}`。
@@ -65,7 +66,7 @@ async function handleMarkAllRead() {
     await markAllRead();
     message.success("已全部标记为已读");
   } catch (reason) {
-    message.error(reason instanceof Error ? reason.message : "标记已读失败");
+    message.error(errorMessage(reason, "标记已读失败"));
   }
 }
 
@@ -74,7 +75,7 @@ async function handleClearGroup() {
     await clearCurrentGroup();
     message.success("已清空当前分组");
   } catch (reason) {
-    message.error(reason instanceof Error ? reason.message : "清空分组失败");
+    message.error(errorMessage(reason, "清空分组失败"));
   }
 }
 
@@ -83,7 +84,7 @@ async function handleRemove(id: string) {
     await removeEntry(id);
     message.success("已删除这条消息");
   } catch (reason) {
-    message.error(reason instanceof Error ? reason.message : "删除消息失败");
+    message.error(errorMessage(reason, "删除消息失败"));
   }
 }
 

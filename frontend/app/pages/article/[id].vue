@@ -251,6 +251,11 @@ function scrollToComments() {
   commentsSectionRef.value?.scrollIntoView({ behavior: prefersReducedMotion.value ? "auto" : "smooth", block: "start" });
 }
 
+/** 「底部」按钮：滚到评论区起点（= 正文末尾）。页脚不是内容，不作为落点。 */
+function handleScrollToEnd() {
+  scrollToComments();
+}
+
 function focusCommentComposer() {
   composerRef.value?.focus();
 }
@@ -465,6 +470,20 @@ useSeoMeta({
         </div>
       </header>
 
+      <!-- <1024px 的互动条（决定清单 §3 第 13 条）：挂在 hero 下方，正文开头就能看见。
+           ≥1024 由 CSS 让位给右栏那一份；两份不会同时可见，底部永远没有第三条。 -->
+      <section class="article-paper article-actions-card article-actions-card--hero">
+        <ArticleActionsBar
+          v-bind="articleActionProps"
+          variant="hero"
+          @like="handleLike"
+          @favorite="handleFavorite"
+          @share="handleShare"
+          @comment="handleCommentJump"
+          @bottom="handleScrollToEnd"
+        />
+      </section>
+
       <div class="article-layout" :class="{ 'article-layout--with-outline': outlineColumnVisible }">
         <ArticleOutlineAside
           v-if="outlineColumnVisible"
@@ -524,8 +543,12 @@ useSeoMeta({
               />
             </div>
 
-            <div v-if="comments.length" class="comment-panel__pagination">
-              <span>评论第 {{ commentPage }} 页，每页 7 条。</span>
+            <!-- 分页行（决定清单 §3 第 16 条）：不显示分页的页码与条数话术（读者不需要"内部实现"），
+                 翻页按钮保留，但只有第一页且没有下一页时整行都不渲染（不留一排点不动的按钮）。 -->
+            <div
+              v-if="comments.length && (hasPreviousCommentPage || hasNextCommentPage)"
+              class="comment-panel__pagination comment-panel__pagination--bare"
+            >
               <div class="comment-panel__pagination-actions">
                 <button
                   type="button"
@@ -610,6 +633,7 @@ useSeoMeta({
               @favorite="handleFavorite"
               @share="handleShare"
               @comment="handleCommentJump"
+              @bottom="handleScrollToEnd"
             />
           </section>
 
@@ -622,15 +646,8 @@ useSeoMeta({
         </aside>
       </div>
 
-      <!-- <1024px 兜底入口（票 236）：右栏互动条在此宽度由 CSS 让位，这里渲染同一组件 + 同一份 props。 -->
-      <ArticleActionsBar
-        v-bind="articleActionProps"
-        variant="fixed"
-        @like="handleLike"
-        @favorite="handleFavorite"
-        @share="handleShare"
-        @comment="handleCommentJump"
-      />
+      <!-- 窄屏兜底那条固定条已删除（决定清单 §3 第 12 条）：互动条只在右栏与 hero 下方各一份，
+           宽度由 CSS 断点互斥，任何视口都只出现一份可见。 -->
     </template>
 
     <ArticleScoreModal

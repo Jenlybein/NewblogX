@@ -53,12 +53,6 @@ function asideSource(source: string): string {
 }
 
 /** 正文布局的收尾位置（`articleOutlineColumn.test.ts` 用的同一个锚点）。 */
-function layoutEndIndex(source: string): number {
-  const marker = "</aside>\n      </div>";
-  const index = source.indexOf(marker);
-  expect(index, "找不到正文布局的收尾").toBeGreaterThan(-1);
-  return index + marker.length;
-}
 
 describe("hero：只留质量评分 + 编辑", () => {
   it("按钮组里只有质量评分与编辑入口，四个互动动作不再出现在 hero", () => {
@@ -117,30 +111,43 @@ describe("右栏：作者简介 → 互动条 → 目录", () => {
     expect(toc).toBeGreaterThan(actions);
   });
 
-  it("互动条四个动作各接页面动作；点赞/收藏不另造状态（真相在 useArticleDigg 与正文）", () => {
+  it("互动条五个动作各接页面动作；点赞/收藏不另造状态（真相在 useArticleDigg 与正文）", () => {
     const aside = asideSource(pageSource());
 
     expect(aside).toContain('@like="handleLike"');
     expect(aside).toContain('@favorite="handleFavorite"');
     expect(aside).toContain('@share="handleShare"');
     expect(aside).toContain('@comment="handleCommentJump"');
+    expect(aside).toContain('@bottom="handleScrollToEnd"');
   });
 });
 
-describe("<1024px 底部固定条：同一组件、同一状态源", () => {
-  it("底部条渲染在正文布局之外（右栏收在 <1024px 时才由 CSS 接过入口）", () => {
+describe("<1024px 的 hero 形态：同一组件、同一状态源（底部固定条已删除）", () => {
+  it("hero 那份挂在 hero 之后、布局之前，且全页不再有 variant=fixed 的挂载点", () => {
     const source = pageSource();
-    const layoutEnd = layoutEndIndex(source);
-    const fixed = source.indexOf('variant="fixed"');
+    const hero = source.indexOf('variant="hero"');
+    const layoutStart = source.indexOf('<div class="article-layout"');
 
-    expect(fixed, "找不到底部固定条").toBeGreaterThan(-1);
-    expect(fixed).toBeGreaterThan(layoutEnd);
+    expect(hero, "找不到 hero 形态的互动条").toBeGreaterThan(-1);
+    expect(hero).toBeLessThan(layoutStart);
+    // 读者反馈的「底部多出一条同样的容器」：第二个挂载点整体删除，不再有底部固定条。
+    expect(source).not.toContain('variant="fixed"');
   });
 
-  it("右栏互动条与底部条绑同一个 props 对象：两处不可能显示不同的赞/藏态", () => {
+  it("CSS 里也没有 --fixed 规则，且 hero / aside 两种形态互斥", () => {
+    const css = readFileSync(join(process.cwd(), "app/assets/css/tailwind.css"), "utf8");
+
+    expect(css).not.toContain(".article-actions-bar--fixed");
+    expect(css).toContain(".article-actions-bar--hero");
+    // <1024 隐藏 aside、显示 hero；≥1024 相反（默认 hero 不占位）。
+    expect(css).toMatch(/@media \(max-width: 1023px\)[\s\S]*\.article-actions-bar--aside\s*\{\s*display: none;/u);
+    expect(css).toMatch(/\.article-actions-bar--hero,[\s\S]*?display: none;/u);
+  });
+
+  it("右栏互动条与 hero 互动条绑同一个 props 对象：两处不可能显示不同的赞/藏态", () => {
     const source = pageSource();
 
-    // 页面里只有两个 ArticleActionsBar 实例：右栏一个、底部一个。
+    // 页面里只有两个 ArticleActionsBar 实例：右栏一个、hero 一个。
     expect(source.match(/<ArticleActionsBar/gu)).toHaveLength(2);
     expect(source.match(/v-bind="articleActionProps"/gu)).toHaveLength(2);
     // 状态只有一个来源对象，第二个实例不再自己拼一份 props。

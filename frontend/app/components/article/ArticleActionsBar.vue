@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed } from "vue";
 import {
+  IconArrowBarToDown,
   IconHeart,
   IconHeartFilled,
   IconMessageCircle2,
@@ -12,18 +13,20 @@ import { describeArticleAction } from "~/utils/articleActions";
 import { formatCount } from "~/utils/format";
 
 /**
- * 阅读页互动条（票 236 / 决定清单第 2 节）。
+ * 阅读页互动条（票 236；2026-11-04 决定清单 §3 第 13–14 条改版）。
  *
- * 四个动作（点赞 / 收藏 / 分享 / 评论）在**右栏**与**<1024px 底部固定条**里是同一个组件：
- * 两种变体只差容器样式（`.article-actions-bar--aside` / `--fixed`），状态一律由页面注入。
+ * 五个动作固定顺序：**点赞 / 收藏 / 评论 / 分享 / 底部**。
+ * 两种形态只差容器样式，状态一律由页面注入：
+ *   - `aside`：≥1024 的右栏那一份；
+ *   - `hero`：<1024 时挂在 hero 下方的那一份（原来的"底部固定条"已删除，
+ *     任何宽度下都只出现一份可见）。
  *
- * 为什么组件必须保持"哑"：点赞态的真相在 `useArticleDigg`（票 235：幂等目标态 + 写响应回填），
- * 收藏态在正文的 `is_favor`，两者都已经有单一来源。这里再持有一份本地状态，就会出现
- * "右栏与底部条不同步"——那正是本票验收要挡住的缺陷。所以组件只有 props 进、事件出，
- * 点一下**不发请求**。
+ * 为什么组件必须保持"哑"：点赞态的真相在 `useArticleDigg`（幂等目标态 + 写响应回填），
+ * 收藏态在正文的 `is_favor`，两者都已有单一来源。这里再持有一份本地状态，就会出现
+ * "右栏与窄屏不同步"。所以组件只有 props 进、事件出，点一下**不发请求**。
  *
- * 可见文字只有图标 + 数字（右栏 320px 宽、底部条还要让出安全区），语义全在
- * `aria-label` / `title` 上，文案由纯函数 `describeArticleAction` 生成。
+ * 可见文字只有图标 + 数字（右栏 320px），语义全在 `aria-label` / `title` 上，
+ * 文案由纯函数 `describeArticleAction` 生成。「底部」没有计数，只放图标。
  */
 const props = withDefaults(
   defineProps<{
@@ -41,8 +44,8 @@ const props = withDefaults(
     likePending?: boolean;
     /** 点赞连点防抖窗口内。 */
     likeDebouncing?: boolean;
-    /** aside = 右栏互动条；fixed = <1024px 底部固定条。 */
-    variant?: "aside" | "fixed";
+    /** aside = ≥1024 的右栏互动条；hero = <1024 挂在 hero 下方的那一份。 */
+    variant?: "aside" | "hero";
   }>(),
   {
     diggCount: 0,
@@ -61,6 +64,8 @@ const emit = defineEmits<{
   favorite: [];
   share: [];
   comment: [];
+  /** 跳到页面底部（评论区起点）。 */
+  bottom: [];
 }>();
 
 const likeDisabled = computed(() => props.likePending || props.likeDebouncing);
@@ -68,8 +73,9 @@ const likeDisabled = computed(() => props.likePending || props.likeDebouncing);
 const copy = computed(() => ({
   digg: describeArticleAction({ kind: "digg", count: props.diggCount, active: props.isDigged, pending: props.likePending }),
   favor: describeArticleAction({ kind: "favor", count: props.favorCount, active: props.isFavor }),
-  share: describeArticleAction({ kind: "share", count: 0 }),
   comment: describeArticleAction({ kind: "comment", count: props.commentCount }),
+  share: describeArticleAction({ kind: "share", count: 0 }),
+  bottom: describeArticleAction({ kind: "bottom", count: 0 }),
 }));
 
 // 禁用是视觉层，这里再挡一次：连点不该连发请求（也不该依赖浏览器对 disabled 的处理）。
@@ -121,6 +127,18 @@ function handleLike() {
     <button
       type="button"
       class="article-action article-actions-bar__button"
+      data-action="comment"
+      :aria-label="copy.comment.label"
+      :title="copy.comment.title"
+      @click="emit('comment')"
+    >
+      <IconMessageCircle2 :size="18" aria-hidden="true" />
+      <span class="article-actions-bar__count" data-role="count">{{ formatCount(props.commentCount) }}</span>
+    </button>
+
+    <button
+      type="button"
+      class="article-action article-actions-bar__button"
       data-action="share"
       :aria-label="copy.share.label"
       :title="copy.share.title"
@@ -129,16 +147,16 @@ function handleLike() {
       <IconShare2 :size="18" aria-hidden="true" />
     </button>
 
+    <!-- 「底部」没有计数：图标-only，语义在 aria-label / title。 -->
     <button
       type="button"
       class="article-action article-actions-bar__button"
-      data-action="comment"
-      :aria-label="copy.comment.label"
-      :title="copy.comment.title"
-      @click="emit('comment')"
+      data-action="bottom"
+      :aria-label="copy.bottom.label"
+      :title="copy.bottom.title"
+      @click="emit('bottom')"
     >
-      <IconMessageCircle2 :size="18" aria-hidden="true" />
-      <span class="article-actions-bar__count" data-role="count">{{ formatCount(props.commentCount) }}</span>
+      <IconArrowBarToDown :size="18" aria-hidden="true" />
     </button>
   </div>
 </template>

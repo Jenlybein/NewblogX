@@ -626,8 +626,8 @@
    * 阅读页互动条（票 236 / 决定清单第 2 节）
    *
    * 右栏互动条与 <1024px 底部固定条是**同一个组件**的两种变体：
-   *   - `.article-actions-bar--aside`：320px 右栏里的四等分按钮条（图标 + 数字）；
-   *   - `.article-actions-bar--fixed`：窄屏底部固定条，让出安全区。
+   *   - `.article-actions-bar--aside`：320px 右栏里的五等分按钮条（图标 + 数字）；
+   *   - `.article-actions-bar--hero`：<1024px 挂在 hero 下方的同一份按钮条（已不再吸底）。
    * 两处状态同源（页面绑同一个 `articleActionProps`），所以这里只是容器差异。
    * ======================================================================== */
   .article-actions-bar {
@@ -638,8 +638,8 @@
 
   .article-actions-bar--aside {
     display: grid;
-    grid-template-columns: repeat(4, minmax(0, 1fr));
-    gap: 0.5rem;
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    gap: 0.35rem;
   }
 
   /* 紧凑图标档：图标 + 数字挤在 320px 的四等分格子里，仍保住 44px 触摸目标。 */
@@ -668,49 +668,37 @@
     padding: 0.75rem;
   }
 
-  /* 底部固定条默认不占位：≥1024px 由右栏那份接过入口。 */
-  .article-actions-bar--fixed {
+  /* hero 形态默认不占位：≥1024 由右栏那份接过入口（决定清单 §3 第 12–13 条）。
+   * 原来的 `--fixed` 底部固定条已整体删除：读者在 1280px 下同时看到两份的重复问题，
+   * 根因未证，但这个挂载点不再存在，底部永远不会再出现第二条。 */
+  .article-actions-bar--hero,
+  .article-actions-card--hero {
     display: none;
   }
 
-  /* <1024px：右栏互动条让位，底部固定条出现（两处不会同时出现，也不会都没有）。 */
+  /* <1024px：右栏那份让位，hero 下方这份接手（两处互斥，任何宽度只出现一份）。 */
   @media (max-width: 1023px) {
     .article-actions-bar--aside {
       display: none;
     }
 
-    /* 纸面卡片一起隐藏：只藏按钮会在右栏留一条空白的纸面带。 */
-    .article-actions-card {
+    /* 右栏的纸面卡片一起隐藏：只藏按钮会在右栏留一条空白的纸面带。 */
+    .article-aside .article-actions-card {
       display: none;
     }
 
-    .article-actions-bar--fixed {
+    .article-actions-card--hero {
+      display: block;
+    }
+
+    .article-actions-bar--hero {
       display: flex;
-      position: fixed;
-      bottom: 0;
-      left: 0;
-      right: 0;
-      z-index: 20;
-      align-items: center;
-      justify-content: space-around;
       gap: 0.5rem;
-      padding-top: 0.5rem;
-      /* 安全区：iOS 的底部横条 / 横屏圆角不能压住按钮。 */
-      padding-right: max(0.5rem, env(safe-area-inset-right));
-      padding-bottom: max(0.5rem, env(safe-area-inset-bottom));
-      padding-left: max(0.5rem, env(safe-area-inset-left));
-      border-top: 1px solid var(--color-line);
-      /* 纸面底色：压在正文上时不透出内容。 */
-      background: var(--color-surface);
     }
 
-    .article-actions-bar--fixed .article-actions-bar__button {
+    /* 窄屏五等分：每格都能点到，且不再需要给固定条留安全区。 */
+    .article-actions-bar--hero .article-actions-bar__button {
       flex: 1;
-    }
-
-    /* 正文最后一段不被固定条盖住。 */
-    .article-page {
-      padding-bottom: 4.5rem;
     }
   }
 
@@ -857,6 +845,11 @@
 
   .comment-panel__pagination {
     @apply mt-5 flex flex-wrap items-center justify-between gap-3 border-t border-line pt-4 text-sm text-ink-muted;
+  }
+
+  /* 只有翻页按钮时右对齐（「每页 7 条」那句内部话术已删，见决定清单 §3 第 16 条）。 */
+  .comment-panel__pagination--bare {
+    justify-content: flex-end;
   }
 
   .comment-panel__pagination-actions {

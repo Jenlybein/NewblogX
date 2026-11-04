@@ -6,11 +6,11 @@ import ArticleActionsBar from "~/components/article/ArticleActionsBar.vue";
 /**
  * 互动条组件（#236 / 决定清单第 2 节）。
  *
- * 这是右栏互动条与 <1024px 底部固定条的**同一个组件**：两处不同样式、同一份状态。
+ * 这是右栏互动条与 <1024px hero 下方那份的**同一个组件**：两处不同样式、同一份状态。
  * 测试只从组件的公开契约出发（props 进来、事件出去、渲染可观察），不碰页面：
- *   1. 四个动作按固定顺序（点赞 → 收藏 → 分享 → 评论），每个都带图标与无障碍名称；
+ *   1. 五个动作按固定顺序（点赞 → 收藏 → 评论 → 分享 → 底部），每个都带图标与无障碍名称；
  *   2. 已赞 / 已藏可见可读（`aria-pressed` + is-active），不是只有颜色差异；
- *   3. 计数走站内 `formatCount` 口径，分享不造假的计数；
+ *   3. 计数走站内 `formatCount` 口径，分享与「底部」不造假的计数；
  *   4. 点赞在途时禁用并 `aria-busy`，防止连发；
  *   5. 点击只 `emit`，不发请求——状态真相在页面的 `useArticleDigg` 里（#235）。
  */
@@ -23,15 +23,15 @@ function button(wrapper: ReturnType<typeof mount>, action: string) {
   return wrapper.get(`[data-action="${action}"]`);
 }
 
-describe("ArticleActionsBar：四个动作的结构", () => {
-  it("固定顺序：点赞 → 收藏 → 分享 → 评论，容器标出变体（右栏 / 底部条）", () => {
+describe("ArticleActionsBar：五个动作的结构", () => {
+  it("固定顺序：点赞 → 收藏 → 评论 → 分享 → 底部，容器标出变体（右栏 / hero）", () => {
     const wrapper = mount(ArticleActionsBar);
 
     expect(wrapper.get("[data-role='article-actions-bar']").attributes("data-variant")).toBe("aside");
-    expect(actionNames(wrapper)).toEqual(["digg", "favor", "share", "comment"]);
+    expect(actionNames(wrapper)).toEqual(["digg", "favor", "comment", "share", "bottom"]);
   });
 
-  it("每个动作都有图标（svg），分享与评论也带图标——不是文字按钮", () => {
+  it("每个动作都有图标（svg），分享与「底部」也带图标——不是文字按钮", () => {
     const wrapper = mount(ArticleActionsBar);
 
     for (const action of actionNames(wrapper)) {
@@ -39,7 +39,7 @@ describe("ArticleActionsBar：四个动作的结构", () => {
     }
   });
 
-  it("点赞 / 收藏 / 评论带数字，分享没有计数（纯前端 clipboard，不造一个假数字）", () => {
+  it("点赞 / 收藏 / 评论带数字；分享与「底部」没有计数（不造假数字）", () => {
     const wrapper = mount(ArticleActionsBar, {
       props: { diggCount: 1234, favorCount: 8, commentCount: 12000 },
     });
@@ -48,15 +48,16 @@ describe("ArticleActionsBar：四个动作的结构", () => {
     expect(button(wrapper, "favor").get("[data-role='count']").text()).toBe("8");
     expect(button(wrapper, "comment").get("[data-role='count']").text()).toBe("1.2w");
     expect(button(wrapper, "share").find("[data-role='count']").exists()).toBe(false);
+    expect(button(wrapper, "bottom").find("[data-role='count']").exists()).toBe(false);
   });
 
-  it("底部固定条变体：同一套按钮，容器类与 data-variant 换成 fixed", () => {
-    const wrapper = mount(ArticleActionsBar, { props: { variant: "fixed" } });
+  it("hero 变体：同一套按钮，容器类与 data-variant 换成 hero", () => {
+    const wrapper = mount(ArticleActionsBar, { props: { variant: "hero" } });
 
     const bar = wrapper.get("[data-role='article-actions-bar']");
-    expect(bar.attributes("data-variant")).toBe("fixed");
-    expect(bar.classes()).toContain("article-actions-bar--fixed");
-    expect(actionNames(wrapper)).toEqual(["digg", "favor", "share", "comment"]);
+    expect(bar.attributes("data-variant")).toBe("hero");
+    expect(bar.classes()).toContain("article-actions-bar--hero");
+    expect(actionNames(wrapper)).toEqual(["digg", "favor", "comment", "share", "bottom"]);
   });
 });
 
@@ -88,11 +89,12 @@ describe("ArticleActionsBar：已赞 / 已藏态与无障碍名称", () => {
     expect(button(wrapper, "favor").classes()).toContain("is-active");
   });
 
-  it("评论按钮说明会把焦点送进评论框（未登录时打开登录框的行为在页面接线里）", () => {
+  it("评论按钮与「底部」的说明各不相同（一个是写、一个是滚）", () => {
     const wrapper = mount(ArticleActionsBar, { props: { commentCount: 7 } });
 
-    expect(button(wrapper, "comment").attributes("aria-label")).toBe("跳到评论区写评论，当前 7 条评论");
+    expect(button(wrapper, "comment").attributes("aria-label")).toBe("打开评论输入框，当前 7 条评论");
     expect(button(wrapper, "share").attributes("aria-label")).toBe("分享这篇文章");
+    expect(button(wrapper, "bottom").attributes("aria-label")).toBe("跳到页面底部（评论区）");
   });
 
   it("点赞在途：禁用 + aria-busy，名称改「处理中」", () => {
@@ -113,18 +115,20 @@ describe("ArticleActionsBar：已赞 / 已藏态与无障碍名称", () => {
 });
 
 describe("ArticleActionsBar：点击只抛事件", () => {
-  it("四个动作各自 emit 对应事件", async () => {
+  it("五个动作各自 emit 对应事件", async () => {
     const wrapper = mount(ArticleActionsBar);
 
     await button(wrapper, "digg").trigger("click");
     await button(wrapper, "favor").trigger("click");
-    await button(wrapper, "share").trigger("click");
     await button(wrapper, "comment").trigger("click");
+    await button(wrapper, "share").trigger("click");
+    await button(wrapper, "bottom").trigger("click");
 
     expect(wrapper.emitted("like")).toHaveLength(1);
     expect(wrapper.emitted("favorite")).toHaveLength(1);
-    expect(wrapper.emitted("share")).toHaveLength(1);
     expect(wrapper.emitted("comment")).toHaveLength(1);
+    expect(wrapper.emitted("share")).toHaveLength(1);
+    expect(wrapper.emitted("bottom")).toHaveLength(1);
   });
 
   it("点赞在途时按下去不抛事件（禁用不是摆设）", async () => {

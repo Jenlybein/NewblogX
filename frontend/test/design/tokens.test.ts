@@ -126,8 +126,10 @@ describe("语义层：组件唯一消费对象", () => {
 });
 
 describe("排版层：中文尺度 token 化", () => {
-  it("行宽 68ch、正文行高 1.75、标题字重与 -0.03em 大标题字距", () => {
-    expect(tokensCss).toContain("--type-measure: 68ch");
+  it("行宽 80ch、正文行高 1.75、标题字重与 -0.03em 大标题字距", () => {
+    // 2026-11-04 决定清单 §9 第 43 条：68ch 在 1440+ 视口里让正文相对纸面太窄，
+    // 提到 80ch（约 40 个汉字/行，仍在中文可读区间）。
+    expect(tokensCss).toContain("--type-measure: 80ch");
     expect(tokensCss).toContain("--type-leading-prose: 1.75");
     expect(tokensCss).toContain("--type-weight-title: 700");
     expect(tokensCss).toMatch(/--type-tracking-title:\s*-0\.03em/u);

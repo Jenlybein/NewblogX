@@ -54,8 +54,9 @@ describe('OutlineTreeEditor：按 kind 读树', () => {
 
     expect(adminApi.getCollectionOutline).toHaveBeenCalledWith('c1')
     expect(adminApi.getProjectOutline).not.toHaveBeenCalled()
-    // 文件夹 + 它下面的文章 = 两行（扁平渲染，层级靠缩进）。
-    expect(wrapper.findAll('[data-role="outline-row-grip"]').length).toBeGreaterThanOrEqual(2)
+    // 文件夹 + 它下面的文章 = 两个树节点（NTree 自己的树线/缩进表达层级）。
+    expect(wrapper.findAll('[data-outline-row]').length).toBeGreaterThanOrEqual(2)
+    expect(wrapper.find('.n-tree').exists()).toBe(true)
     expect(wrapper.text()).toContain('第一章')
   })
 
@@ -128,5 +129,58 @@ describe('OutlineTreeEditor：保存提交嵌套节点', () => {
     await flushPromises()
 
     expect(adminApi.saveCollectionOutline).toHaveBeenCalledWith('c3', [])
+  })
+})
+
+describe('OutlineTreeEditor：NTree 承载树的渲染与拖拽', () => {
+  const twoFolders = {
+    nodes: [
+      { kind: 1, title: '第一章', children: [{ kind: 0, article_id: 'a1', title: '文章一' }] },
+      { kind: 1, title: '第二章', children: [] },
+    ],
+  }
+
+  it('每行只留一个「⋯」操作入口，不再摊开一排按钮', async () => {
+    adminApi.getCollectionOutline.mockResolvedValue(twoFolders)
+
+    const wrapper = mount(OutlineTreeEditor, { props: { kind: 'collection', entityId: 'c10' } })
+    await flushPromises()
+
+    const rows = wrapper.findAll('[data-outline-row]')
+    expect(rows.length).toBe(3)
+    expect(wrapper.findAll('[data-role="outline-row-more"]').length).toBe(3)
+    // 旧的六个按钮彻底退场（它们现在在「⋯」下拉里）。
+    expect(wrapper.find('[data-role="outline-row-remove"]').exists()).toBe(false)
+    expect(wrapper.find('[data-role="outline-row-rename"]').exists()).toBe(false)
+    // 树本体里除了「⋯」没有别的按钮（上移/下移/缩进/移出都收进菜单了）。
+    expect(wrapper.findAll('.n-tree button:not([data-role="outline-row-more"])')).toHaveLength(0)
+  })
+
+  it('第三方树的落点换算成扁平行下标：把「第二章」拖到「第一章」之前并保存', async () => {
+    adminApi.getCollectionOutline.mockResolvedValue(twoFolders)
+
+    const wrapper = mount(OutlineTreeEditor, { props: { kind: 'collection', entityId: 'c11' } })
+    await flushPromises()
+
+    // 行 key 直接取渲染出来的节点顺序（NTree 的 key 就是我们给的行 key）。
+    const keys = wrapper.findAll('[data-outline-row]').map(node => node.attributes('data-outline-row') ?? '')
+    expect(keys.length).toBe(3)
+
+    const firstFolderKey = keys[0]!
+    const secondFolderKey = keys[2]!
+
+    // 不必真拖：NTree 的 @drop 载荷就是这个形状，组件内部走 outlineDropIndex → moveOutlineRowToIndex。
+    wrapper.findComponent({ name: 'Tree' }).vm.$emit('drop', {
+      node: { key: firstFolderKey },
+      dragNode: { key: secondFolderKey },
+      dropPosition: 'before',
+    })
+    await flushPromises()
+
+    await wrapper.get('[data-role="outline-save"]').trigger('click')
+    await flushPromises()
+
+    const [, nodes] = adminApi.saveCollectionOutline.mock.calls[0] as [string, Array<{ title?: string }>]
+    expect(nodes.map(node => node.title)).toEqual(['第二章', '第一章'])
   })
 })

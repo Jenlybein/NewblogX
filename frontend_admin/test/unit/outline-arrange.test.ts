@@ -11,6 +11,7 @@ import {
   cleanupOutlineStaleRows,
   flattenOutlineTree,
   moveOutlineRow,
+  outlineDropIndex,
   moveOutlineRowToIndex,
   outlineDepth,
   outlineIncludeTargetKey,
@@ -392,5 +393,35 @@ describe('moveOutlineRowToIndex：拖拽落点 → 扁平行', () => {
     const rows = flattenOutlineTree(sample())
 
     expect(labels(moveOutlineRowToIndex(rows, 'nope', 0))).toEqual(labels(rows))
+  })
+})
+
+describe('outlineDropIndex：第三方树（NTree）的落点 → 扁平行下标', () => {
+  // 形状：A 文件夹（含一篇文章）→ B 空文件夹 → 根层文章。
+  function dropSample(): OutlineTreeNode[] {
+    return [
+      folder('f1', '', 'A', [article('a1', 'f1', '100', 'A-文章')]),
+      folder('f2', '', 'B', []),
+      article('a2', '', '200', 'B-文章'),
+    ]
+  }
+
+  it('before / inside / after 分别落到目标行前、目标行后、整块之后', () => {
+    const rows = flattenOutlineTree(dropSample())
+    const f1 = rows.findIndex(row => row.key === 'f1')
+
+    expect(outlineDropIndex(rows, 'f1', 'before')).toBe(f1)
+    expect(outlineDropIndex(rows, 'f1', 'inside')).toBe(f1 + 1)
+    // after 要跳过整棵子树：f1 那块是 [f1, a1]，末尾下标是 f1 + 2。
+    expect(outlineDropIndex(rows, 'f1', 'after')).toBe(f1 + 2)
+    // 空文件夹没有子树，after 就是紧邻的下一行。
+    const f2 = rows.findIndex(row => row.key === 'f2')
+    expect(outlineDropIndex(rows, 'f2', 'after')).toBe(f2 + 1)
+  })
+
+  it('key 不存在时给到末尾（调用方据此变成 no-op，而不是插到首位）', () => {
+    const rows = flattenOutlineTree(dropSample())
+
+    expect(outlineDropIndex(rows, 'nope', 'inside')).toBe(rows.length)
   })
 })

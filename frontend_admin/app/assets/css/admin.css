@@ -923,4 +923,73 @@
   }
 }
 
+/* ---- 目录树编辑器（合集 / 项目共用，Naive UI NTree 承载） ----
+ *
+ * 之前的树是纯 <ul> + 20px 缩进，**一行样式都没有**，所以看起来像一堆平铺的标签；
+ * 现在层级、树线、折叠都交给 NTree，这里只补我们自己的节点外观：
+ * 类型标记压哑、标题超长省略、「⋯」平时隐形（悬停 / 键盘聚焦才出现）。
+ */
+.outline-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 0.75rem;
+}
 
+.outline-tree {
+  max-height: 24rem;
+  overflow: auto;
+  padding: 0.5rem 0.6rem;
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface);
+}
+
+.outline-node {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  min-width: 0;
+  width: 100%;
+}
+
+.outline-node__kind {
+  flex: none;
+  width: 1rem;
+  color: var(--color-ink-faint);
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  text-align: center;
+}
+
+.outline-node__title {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--color-ink);
+  font-weight: 500;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.outline-node__stale {
+  flex: none;
+}
+
+/* 默认不显示：一行一个「⋯」已经够克制，再常显就成了噪音。 */
+.outline-node__more {
+  opacity: 0;
+  transition: opacity var(--motion-fast) var(--motion-ease);
+}
+
+.n-tree-node:hover .outline-node__more,
+.n-tree-node:focus-within .outline-node__more {
+  opacity: 1;
+}
+
+/* 减少动态偏好：只把时长压到 0，不改写 transition 简写（门禁要求简写里必须是 --motion-*）。 */
+@media (prefers-reduced-motion: reduce) {
+  .outline-node__more {
+    transition-duration: 0ms;
+  }
+}

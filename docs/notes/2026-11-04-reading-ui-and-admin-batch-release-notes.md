@@ -41,13 +41,13 @@
 - 后台：`pnpm vitest run` 49 个文件 / 665 条全绿；`lint` / `typecheck` 0 错误；设计 token 与跨端 parity 门禁绿。
 - 后端：`go build ./...`、`go vet ./...`、`go test ./...` 全绿；`archcheck` 两遍（含 `--skip-tests=false`）违反数 0。
 - **MySQL 容器集成用例（已真跑，Docker 29.9.2 + `mysql:8.0` 容器）**：
-  - `go test -tags integration ./internal/article/adapter/mysql/ ./internal/testkit/mysqlcontainer` → ok（87.0s / 18.4s）
-  - `go test -tags integration ./cmd/cli/` → ok（21.9s）
-  - `go test -tags integration ./app/` → ok（36.8s）
-  - `go test -tags integration ./internal/article/adapter/http/` → ok（67.9s）
+  - `go test -tags integration -p 1 ./...` → **全绿（exit 0）**，15 个集成包全部 ok。
   - 并账契约用例 `TestReconcileArticleCount*` 8 条全过（其中 3 条打在真库上）。
+  - **必须加 `-p 1`**：`log/writer` 与其它包并行跑时会撞同一个 ClickHouse 容器的端口/凭据，报 `Authentication failed` 假红；串行跑就绿。这是既有的测试基建约束，不是本批引入的。
   - **第一次真跑就抓到一个夹具缺陷**：`counter_flush_integration_test.go` 里"取消过的赞"那行写死 `user_id=300`，而 `seedUsers` 只建了 100 / 200 —— `article_digg_models.user_id` 有外键，直接 FK 失败。已补 `seedUser(t, db, 300)` 并加注释说明"同一用户对同一篇只能有一条点赞关系，所以取消过的那条必须换个用户"。这正是不跑真库就会一直绿着骗人的那类问题。
 - **仍未能验证**：两个前端的界面观感（本机没有可用的 dev server / 数据库实例）——需要人工看一眼：互动条在 1280px 下只有一份、评论面板的滑出与关闭、合集卡片 hover、编辑弹窗与抽屉是否成组居中。
+
+> 更正：本文件早前版本写过"本机 Docker 不可用，只做了 `go vet -tags integration`"。那是误判——依据是早期一次 `docker ps` 报权限不足与子代理的自述，未在后续复核。Docker 实际可用，上述用例均已真跑。
 
 ## 五、回滚
 

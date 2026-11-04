@@ -360,6 +360,8 @@ func cloneItem(i *favorite.Item) *favorite.Item {
 	if i == nil {
 		return nil
 	}
+	// 读模型字段一起复制：`ListItems` 在生产里 join article_models 取四个计数，
+	// 漏掉它们会让 fake 永远返回 0，从而"证明得了没人读、证明不了读得对"。
 	return favorite.RestoreItem(favorite.RestoreItemParams{
 		ArticleID:       i.ArticleID(),
 		UserID:          i.UserID(),
@@ -371,6 +373,11 @@ func cloneItem(i *favorite.Item) *favorite.Item {
 		AuthorID:        i.AuthorID(),
 		AuthorNickname:  i.AuthorNickname(),
 		AuthorAvatar:    i.AuthorAvatar(),
+		FavoritedAt:     i.FavoritedAt(),
+		ViewCount:       i.ViewCount(),
+		DiggCount:       i.DiggCount(),
+		CommentCount:    i.CommentCount(),
+		FavorCount:      i.FavorCount(),
 	})
 }
 

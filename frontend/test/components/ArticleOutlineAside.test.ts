@@ -142,7 +142,35 @@ describe("ArticleOutlineAside：首屏骨架占位", () => {
   });
 });
 
-describe("ArticleOutlineAside：<1024px 的「目录」抽屉", () => {
+describe("ArticleOutlineAside：贴左边缘的目录抽屉（任何宽度都是浮层，不占列）", () => {
+  it("窄标在左边缘，面板展开后带 is-drawer-open（不参与文章布局）", async () => {
+    const wrapper = mountAside();
+    const toggle = wrapper.get("[data-outline-drawer-toggle]");
+
+    expect(toggle.attributes("aria-expanded")).toBe("false");
+    // 面板收起时不可见也不可聚焦（inert），不会留下一个 Tab 陷阱。
+    expect(wrapper.get("[data-outline-panel]").attributes("inert")).toBeDefined();
+
+    await toggle.trigger("click");
+    expect(toggle.attributes("aria-expanded")).toBe("true");
+    expect(wrapper.get("[data-outline-panel]").classes()).toContain("is-drawer-open");
+    expect(wrapper.get("[data-outline-panel]").attributes("inert")).toBeUndefined();
+    // 根节点只有浮层这一层身份：页面不再给它 grid 列（那条类已经删掉了）。
+    expect(wrapper.get("[data-article-outline]").classes()).toContain("outline-rail");
+  });
+
+  it("Esc 关闭抽屉，并把焦点送回窄标", async () => {
+    const wrapper = mountAside({ attachTo: document.body });
+    await wrapper.get("[data-outline-drawer-toggle]").trigger("click");
+
+    window.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape" }));
+    await wrapper.vm.$nextTick();
+
+    expect(wrapper.get("[data-outline-drawer-toggle]").attributes("aria-expanded")).toBe("false");
+    expect(wrapper.get("[data-outline-panel]").classes()).not.toContain("is-drawer-open");
+    wrapper.unmount();
+  });
+
   it("有「目录」展开按钮，aria-expanded 反映抽屉状态", async () => {
     const wrapper = mountAside();
     const toggle = wrapper.get("[data-outline-drawer-toggle]");

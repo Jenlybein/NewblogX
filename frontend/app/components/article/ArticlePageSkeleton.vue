@@ -1,13 +1,8 @@
 <script setup lang="ts">
 import LoadingSkeleton from "~/components/common/LoadingSkeleton.vue";
 
-const props = withDefaults(
-  defineProps<{
-    /** 文章有归属树时，骨架也占住左栏（与真实三栏版式同构，树到达后不跳版）。 */
-    withOutline?: boolean;
-  }>(),
-  { withOutline: false },
-);
+// 没有任何 props：目录已改成贴窗口左边缘的抽屉（不占列），骨架与真实版式都是恒定两列，
+// 不需要再按"有没有归属树"切换骨架形态。
 </script>
 
 <template>
@@ -23,16 +18,7 @@ const props = withDefaults(
       <LoadingSkeleton :rows="3" />
     </header>
 
-    <div class="article-layout" :class="{ 'article-layout--with-outline': props.withOutline }" aria-hidden="true">
-      <aside
-        v-if="props.withOutline"
-        class="article-aside article-skeleton__outline"
-        data-role="article-outline-column-skeleton"
-      >
-        <section class="article-paper article-paper--state">
-          <LoadingSkeleton :rows="8" variant="text" />
-        </section>
-      </aside>
+    <div class="article-layout" aria-hidden="true">
       <div class="article-main">
         <section class="article-paper article-paper--body">
           <LoadingSkeleton :rows="9" />
@@ -76,19 +62,13 @@ const props = withDefaults(
   padding: 1.5rem;
 }
 
-/* <1024px 左栏收进「目录」抽屉：骨架也不占正文位置，避免窄屏先出一块空白。 */
-.article-skeleton__outline {
-  display: none;
-}
-
-/* 右栏互动条与目录在 <1024px 都不在右栏（互动条换成底部固定条、目录收进抽屉）：
-   骨架也不留这两段，否则加载完成后会凭空少两块。 */
+/* 右栏互动条在 <1024px 不在右栏（改挂 hero 下方）：骨架也不留这一段，
+   否则加载完成后会凭空少一块。目录不占列（贴左边缘的抽屉），骨架不画它。 */
 .article-skeleton__aside-extra {
   display: none;
 }
 
 @media (min-width: 1024px) {
-  .article-skeleton__outline,
   .article-skeleton__aside-extra {
     display: flex;
   }

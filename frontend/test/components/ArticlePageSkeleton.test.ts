@@ -21,21 +21,13 @@ describe("ArticlePageSkeleton：切页先出骨架", () => {
     expect(wrapper.find("[aria-hidden='true']").exists()).toBe(true);
   });
 
-  it("有归属树时多出一栏目录占位：与真实三栏版式同构，树到达后不跳版", () => {
-    const wrapper = mount(ArticlePageSkeleton, { props: { withOutline: true } });
-
-    const layout = wrapper.get(".article-layout");
-    expect(layout.classes()).toContain("article-layout--with-outline");
-    const outlineColumn = wrapper.get('[data-role="article-outline-column-skeleton"]');
-    expect(outlineColumn.exists()).toBe(true);
-    expect(outlineColumn.findAll("[data-role='skeleton-bar']").length).toBeGreaterThan(0);
-  });
-
-  it("无归属树时不预留空左栏（默认仍是两栏骨架）", () => {
+  it("骨架恒定两栏：目录是贴左边缘的抽屉，不再预留左栏占位（否则加载完会跳版）", () => {
     const wrapper = mount(ArticlePageSkeleton);
 
     expect(wrapper.get(".article-layout").classes()).not.toContain("article-layout--with-outline");
     expect(wrapper.find('[data-role="article-outline-column-skeleton"]').exists()).toBe(false);
+    // 骨架不接受"有没有归属树"的开关：形态恒定，树到达后也不跳版。
+    expect(Object.keys(wrapper.props())).not.toContain("withOutline");
   });
 
   it("右栏骨架列序与真实版式同步（票 236）：作者简介 → 互动条 → 目录", () => {

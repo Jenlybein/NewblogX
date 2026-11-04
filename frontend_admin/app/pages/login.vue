@@ -129,7 +129,7 @@ async function submit() {
         <div class="flex items-center gap-3">
           <AdminBrandLogo :size="52" />
           <div>
-            <AdminBrandWordmark size="lg" layout="stack" />
+            <AdminBrandWordmark size="lg" layout="stack" tone="inverse" />
             <p class="muted m-0 mt-1 text-sm">运营后台</p>
           </div>
         </div>

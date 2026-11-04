@@ -121,11 +121,31 @@ describe("admin.css 全量走语义层（后台颜色只有一个来源）", () 
     expect(adminCssCode).not.toMatch(/var\(--glass-/u);
   });
 
-  it("登录页 hero 仍是中性石墨渐变（封面兜底已在 #210 整体退场）", () => {
-    expect(adminCssCode).toMatch(/\.admin-login-hero\s*\{[^}]*background: linear-gradient\(135deg, var\(--color-ink\)/u);
-    expect(adminCssCode).toMatch(/color: var\(--color-on-strong\)/u);
+  it("登录页 hero 是固定深墨面（亮暗两态都用深墨 + 浅字，不随主题翻转）", () => {
+    // 验收反馈「亮暗色用反了」的病根：以前拿会翻转的 --color-ink 当背景、
+    // --color-on-strong 当字色，暗色主题里就变成刺眼的亮面板。改回固定深墨面。
+    expect(adminCssCode).toMatch(/\.admin-login-hero\s*\{[^}]*background: linear-gradient\(135deg, var\(--color-surface-inverse\)/u);
+    expect(adminCssCode).toMatch(/\.admin-login-hero\s*\{[^}]*color: var\(--color-on-inverse\)/u);
+    expect(adminCssCode).toMatch(/\.admin-login-hero \.muted,[\s\S]{0,80}color: var\(--color-on-inverse-muted\)/u);
+    // 会随主题翻转的两枚 token 不得再出现在这个 hero 上。
+    const heroBlock = /\.admin-login-hero\s*\{([^}]*)\}/u.exec(adminCssCode)?.[1] ?? "";
+    expect(heroBlock).not.toContain("var(--color-on-strong)");
+    expect(heroBlock).not.toContain("background: linear-gradient(135deg, var(--color-ink)");
     // 旧的「蓝 → 暖灰」渐变必须整段消失。
     expect(adminCssCode).not.toMatch(/var\(--jelly-warm\)/u);
+  });
+
+  it("登录 / 初始化页的字标明确要求 inverse（深墨面上必须浅字，两态都不隐身）", () => {
+    for (const page of ["app/pages/login.vue", "app/pages/setup.vue"]) {
+      const source = readFileSync(join(projectDir, page), "utf8");
+      expect(source, page).toContain('tone="inverse"');
+    }
+    // 组件默认仍是 page（顶栏等浅/暗底上随主题翻转），别把默认值改坏。
+    const wordmark = readFileSync(join(appDir, "components/admin/BrandWordmark.vue"), "utf8");
+    expect(wordmark).toContain('tone?: "page" | "inverse"');
+    expect(wordmark).toContain('{ size: "md", layout: "inline", tone: "page" }');
+    expect(wordmark).toContain('"text-inverse"');
+    expect(wordmark).toContain('"text-inverse-muted"');
   });
 
   it("图表柱与折线走中性墨色（不是功能蓝，也不是克莱因蓝）", () => {

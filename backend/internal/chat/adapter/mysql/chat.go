@@ -337,40 +337,108 @@ func (r *Repo) FindSession(ctx context.Context, sessionID string, userID ctype.I
 	return toSession(row), nil
 }
 
-// ListMessages 实现 domain.Repository。
-func (r *Repo) ListMessages(ctx context.Context, q domain.MessageQuery) ([]domain.Message, int, error) {
+// clearWatermarkSubquery 由清空水位 ID 反查被清空那行的 send_time。
+//
+// clear_before_msg_id 存的是"清到哪条消息"的主键，但主键不是时序：客户端幂等键
+// 派生的消息 ID 是 [2^62,2^63) 区间的 FNV 哈希，拿 id > 水位做过滤会随机
+// 放过/挡掉历史消息。真相是那行消息的 send_time，所以可见性条件是
+//
+//	send_time > (SELECT send_time FROM chat_msg_models WHERE id = 水位)
+//
+// 子查询必须 Unscoped：被清空的那条消息可能之后被用户删掉（软删），
+// 默认范围会把水位行过滤掉，子查询返回 NULL，整段历史就又冒出来了。
+func clearWatermarkSubquery(ctx context.Context, db *gorm.DB, clearBefore ctype.ID) *gorm.DB {
+	return db.WithContext(ctx).Unscoped().Model(&msgRow{}).
+		Select("send_time").
+		Where("id = ?", clearBefore)
+}
+
+// applyClearWatermark 给"可见消息"查询加上时间水位过滤；水位为零时不加。
+func applyClearWatermark(ctx context.Context, db *gorm.DB, tx *gorm.DB, clearBefore ctype.ID) *gorm.DB {
+	if clearBefore.IsZero() {
+		return tx
+	}
+	return tx.Where("send_time > (?)", clearWatermarkSubquery(ctx, db, clearBefore))
+}
+
+// userDeletedMsgIDs 是"该用户在该会话里已删除"的消息 ID 子查询（Unscoped）。
+func userDeletedMsgIDs(ctx context.Context, db *gorm.DB, userID ctype.ID, sessionID string) *gorm.DB {
+	return db.WithContext(ctx).Unscoped().Model(&stateRow{}).
+		Select("msg_id").
+		Where("user_id = ? AND session_id = ? AND deleted_at IS NOT NULL", userID, sessionID)
+}
+
+// ListMessages 实现 domain.Query。
+func (r *Repo) ListMessages(ctx context.Context, q domain.MessageQuery) (domain.MessageQueryResult, error) {
 	page := q.Page.Normalize()
+	// 游标必须成对：只有时间没 id（或反过来）时，解析/校验不能静默退回第一页，
+	// 否则前端"加载更早"会在原地反复拿到同一页。
+	cursorActive := q.Cursor.BeforeSendTime != "" || !q.Cursor.BeforeID.IsZero()
+	var cursorTime time.Time
+	if cursorActive {
+		if q.Cursor.BeforeSendTime == "" || q.Cursor.BeforeID.IsZero() {
+			return domain.MessageQueryResult{}, apperr.New(apperr.CodeCommonInvalidArgument)
+		}
+		parsed, err := time.Parse(time.RFC3339Nano, q.Cursor.BeforeSendTime)
+		if err != nil {
+			return domain.MessageQueryResult{}, apperr.Wrap(apperr.CodeCommonInvalidArgument, err)
+		}
+		cursorTime = parsed
+	}
 	base := func() *gorm.DB {
 		tx := r.db.WithContext(ctx).Model(&msgRow{}).Where("session_id = ?", q.SessionID)
 		if q.Unscoped {
 			tx = tx.Unscoped()
 		}
-		if !q.ClearBefore.IsZero() {
-			tx = tx.Where("id > ?", q.ClearBefore.Uint64())
-		}
+		tx = applyClearWatermark(ctx, r.db, tx, q.ClearBefore)
 		if !q.Unscoped {
-			sub := r.db.WithContext(ctx).Unscoped().Model(&stateRow{}).
-				Select("msg_id").
-				Where("user_id = ? AND session_id = ? AND deleted_at IS NOT NULL", q.UserID.Uint64(), q.SessionID)
-			tx = tx.Where("id NOT IN (?)", sub)
+			tx = tx.Where("id NOT IN (?)", userDeletedMsgIDs(ctx, r.db, q.UserID, q.SessionID))
 		}
 		return tx
 	}
 	var total int64
 	if err := base().Count(&total).Error; err != nil {
-		return nil, 0, err
+		return domain.MessageQueryResult{}, err
+	}
+	// 多取一条判断 has_more：不能用 COUNT - offset 推，因为游标过滤后
+	// COUNT 是"会话可见总数"，不是"本页之后还剩几条"。
+	query := base().
+		// id 只是相同 send_time 的确定性定序键，绝不是时序键：客户端幂等键
+		// 派生的主键是 [2^62,2^63) 区间的 FNV 哈希，与消息先后无关。
+		Order("send_time DESC, id DESC")
+	if cursorActive {
+		query = query.Where("(send_time < ? OR (send_time = ? AND id < ?))",
+			cursorTime, cursorTime, q.Cursor.BeforeID.Uint64())
+	} else {
+		// 不带游标时保留既有 (page-1)*limit 偏移：管理员 / type=2 仍按页翻。
+		query = query.Offset((page.Page - 1) * page.Limit)
 	}
 	var rows []msgRow
-	if err := base().Order("send_time desc").
-		Limit(page.Limit).Offset((page.Page - 1) * page.Limit).
-		Find(&rows).Error; err != nil {
-		return nil, 0, err
+	if err := query.Limit(page.Limit + 1).Find(&rows).Error; err != nil {
+		return domain.MessageQueryResult{}, err
+	}
+	hasMore := len(rows) > page.Limit
+	if hasMore {
+		rows = rows[:page.Limit]
 	}
 	out := make([]domain.Message, 0, len(rows))
 	for _, row := range rows {
 		out = append(out, toMessage(row))
 	}
-	return out, int(total), nil
+	result := domain.MessageQueryResult{
+		Messages: out,
+		Total:    int(total),
+		HasMore:  hasMore,
+	}
+	// has_more=false 时 next_cursor 保持零值（空字符串），前端据此停翻。
+	if hasMore && len(rows) > 0 {
+		last := rows[len(rows)-1]
+		result.NextCursor = domain.MessageCursor{
+			BeforeSendTime: last.SendTime.Format(time.RFC3339Nano),
+			BeforeID:       ctype.NewID(last.ID.Uint64()),
+		}
+	}
+	return result, nil
 }
 
 // UserDeletedAt 实现 domain.Repository。
@@ -394,18 +462,55 @@ func (r *Repo) UserDeletedAt(ctx context.Context, userID ctype.ID, sessionID str
 	return out, nil
 }
 
-// MarkRead 实现 domain.Repository。
+// MarkRead 实现 domain.Command。
 func (r *Repo) MarkRead(ctx context.Context, userID ctype.ID, ids []ctype.ID) ([]domain.Message, error) {
 	if len(ids) == 0 {
 		return nil, nil
 	}
+	return r.markReadWhere(ctx, userID, func(tx *gorm.DB) *gorm.DB {
+		return tx.Where("id IN ?", toRawIDs(ids))
+	})
+}
+
+// MarkReadSession 实现 domain.Command：整条会话一次性已读。
+//
+// 与按 ID 列表的路径共用同一个事务体，差别只在筛选条件：这里按 session_id
+// 圈定、并套用与消息列表一致的"时间水位 + 用户级删除"可见性，免得被清空的
+// 历史消息因为一次"整会话已读"被重新计数 / 发回执。
+func (r *Repo) MarkReadSession(ctx context.Context, userID ctype.ID, sessionID string) ([]domain.Message, error) {
+	if sessionID == "" {
+		return nil, apperr.New(apperr.CodeCommonInvalidArgument)
+	}
+	// 水位取自"我"自己的会话行；不存在时按 0 处理（没有清空过）。
+	var session sessionRow
+	if err := r.db.WithContext(ctx).Model(&sessionRow{}).
+		Select("clear_before_msg_id").
+		Where("session_id = ? AND user_id = ?", sessionID, userID).
+		Take(&session).Error; err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
+		return nil, err
+	}
+	clearBefore := ctype.NewID(session.ClearBeforeMsgID.Uint64())
+	return r.markReadWhere(ctx, userID, func(tx *gorm.DB) *gorm.DB {
+		tx = tx.Where("session_id = ?", sessionID)
+		tx = applyClearWatermark(ctx, r.db, tx, clearBefore)
+		return tx.Where("id NOT IN (?)", userDeletedMsgIDs(ctx, r.db, userID, sessionID))
+	})
+}
+
+// markReadWhere 是两种"标记已读"路径共用的事务体。
+//
+// scope 只负责追加筛选条件；主体统一做：选未读 → 更新状态与 read_at →
+// 按会话递减未读 → 按（发送人, 会话）聚合成 chat.message.read 发件箱事件。
+// 没有命中行时直接返回空结果，不是错误（第二次调用必须幂等）。
+func (r *Repo) markReadWhere(ctx context.Context, userID ctype.ID, scope func(*gorm.DB) *gorm.DB) ([]domain.Message, error) {
 	var affected []domain.Message
 	now := time.Now()
 	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		query := tx.Model(&msgRow{}).
+			Select("id", "session_id", "sender_id", "receiver_id").
+			Where("receiver_id = ? AND msg_status < ?", userID, int8(domain.StatusRead))
 		var rows []msgRow
-		if err := tx.Select("id", "session_id", "sender_id", "receiver_id").
-			Where("id IN ? AND receiver_id = ? AND msg_status < ?", toRawIDs(ids), userID.Uint64(), int8(domain.StatusRead)).
-			Find(&rows).Error; err != nil {
+		if err := scope(query).Find(&rows).Error; err != nil {
 			return err
 		}
 		if len(rows) == 0 {

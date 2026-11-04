@@ -470,7 +470,51 @@ describe("页头：消息中心入口（#239）", () => {
     expect(items[0]!.attributes("href")).toBe("/messages/comments");
     expect(items[4]!.attributes("href")).toBe("/messages/chat");
 
+    // 200ms 关闭宽限：鼠标跨透明桥接区移到面板时不会立刻卸载（票 269 后续）。
     await wrapper.get('[data-chrome="messages"]').trigger("pointerleave");
+    expect(wrapper.find(".site-messages__panel").exists()).toBe(true);
+    await wrapper.get('[data-chrome="messages"]').trigger("pointerenter");
+    expect(wrapper.find(".site-messages__panel").exists()).toBe(true);
+    await new Promise((resolve) => setTimeout(resolve, 240));
+    await nextTick();
+    expect(wrapper.find(".site-messages__panel").exists()).toBe(true);
+
+    // 真正离开（不再进入）才在宽限结束后收起。
+    await wrapper.get('[data-chrome="messages"]').trigger("pointerleave");
+    await new Promise((resolve) => setTimeout(resolve, 240));
+    await nextTick();
+    expect(wrapper.find(".site-messages__panel").exists()).toBe(false);
+  });
+
+  it("三枚动作按钮共用等宽 class，创作不再被额外 padding 撑宽", () => {
+    const source = readFileSync(join(process.cwd(), "app/components/layout/AppHeader.vue"), "utf8");
+    expect((source.match(/site-action--equal/gu) ?? []).length).toBeGreaterThanOrEqual(4);
+    expect(source).not.toMatch(/\.site-header__write\s*\{\s*padding:\s*0 0\.875rem;/u);
+    expect(source).toMatch(/\.site-action--equal\s*\{[^}]*min-width:/u);
+  });
+
+  it("鼠标能移入面板：容器有透明桥接带，且关闭有 200ms 宽限", () => {
+    const source = readFileSync(join(process.cwd(), "app/components/layout/AppHeader.vue"), "utf8");
+    expect(source).toContain(".site-messages::after");
+    expect(
+      readFileSync(join(process.cwd(), "app/composables/useHeaderMessagesPanel.ts"), "utf8"),
+    ).toContain("MESSAGES_CLOSE_DELAY_MS = 200");
+    expect(source).toContain('@pointerenter="panel.openMessages()"');
+    expect(source).toContain('@pointerleave="panel.scheduleMessagesClose()"');
+    expect(source).toContain('role="menu"');
+  });
+
+  it("点子项立即收起面板，Esc 也收起并保留键盘语义", async () => {
+    const wrapper = login();
+    await wrapper.get('[data-chrome="messages"]').trigger("pointerenter");
+    const items = wrapper.get(".site-messages__panel").findAll(".site-messages__item");
+    expect(items[0]!.attributes("href")).toBe("/messages/comments");
+    await items[0]!.trigger("click");
+    expect(wrapper.find(".site-messages__panel").exists()).toBe(false);
+
+    await wrapper.get('[data-chrome="messages"]').trigger("focusin");
+    expect(wrapper.find(".site-messages__panel").exists()).toBe(true);
+    await wrapper.get('[data-chrome="messages"]').trigger("keydown", { key: "Escape" });
     expect(wrapper.find(".site-messages__panel").exists()).toBe(false);
   });
 
@@ -571,7 +615,7 @@ describe("页头：历史入口（第 241 票）", () => {
 
     // 动作区胶囊默认隐藏、≥1024 才显示（与「消息」同档）：更窄的宽度只留菜单里的那一份。
     expect(source).toMatch(/\.site-header__history\s*\{\s*display:\s*none;/u);
-    expect(source).toContain('class="site-action site-header__history"');
+    expect(source).toContain('class="site-action site-action--equal site-header__history"');
     const wideMedia = source.slice(source.indexOf("@media (min-width: 1024px)"));
     expect(wideMedia).toMatch(/\.site-header__history\s*\{\s*display:\s*inline-flex;/u);
   });

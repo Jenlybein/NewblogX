@@ -3,14 +3,13 @@ import type { MessageCenterNavItem, MessageCenterTab } from "~/utils/messageCent
 import { shouldShowUnreadCount } from "~/utils/messageCenter";
 
 /**
- * 消息中心左侧子项导航（第 239 票）。
+ * 消息中心顶部导航条（2026-11-05 重构，替代原来的 220px 左侧竖导航）。
  *
  * 五个子项与未读数来自同一份表（`utils/messageCenter` 的 `messageCenterNavItems`），
- * 顶栏 hover 面板消费同一份数据，所以"页面内未读数"与"顶栏未读数"不可能对不上。
+ * 顶栏 hover 面板消费同一份数据，所以页面内与顶栏的角标不可能对不上。
  *
- * 未读数 0 时**不渲染数字**：0 只会制造噪声，未读态由列表行的强调条 / 圆点表达。
- * 选中态（抬升面底 + 左侧 2px 强调条 + 字重）在 tailwind.css 的
- * `.message-center-tab.is-active`，<1024px 整条导航转成顶部横向 tab（同一份 DOM）。
+ * 选中态 = 抬升面底 + 底部 2px 强调条 + 字重；未读数 0 不渲染数字。
+ * 窄屏横向可滚，不换行、不截断文字。
  */
 defineProps<{
   items: MessageCenterNavItem[];

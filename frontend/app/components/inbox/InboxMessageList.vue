@@ -96,7 +96,6 @@ watch(
     <div class="message-center-toolbar">
       <div>
         <h2 class="section-title">消息</h2>
-        <p class="muted mt-1 text-sm">按时间倒序排列。</p>
       </div>
       <div class="flex flex-wrap items-center gap-2">
         <NButton quaternary size="small" @click="emit('markAllRead')">全部已读</NButton>

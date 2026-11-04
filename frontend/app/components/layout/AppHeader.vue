@@ -16,6 +16,7 @@ import BrandLogo from "~/components/brand/Logo.vue";
 import BrandWordmark from "~/components/brand/Wordmark.vue";
 import { useArticleWritePolicy } from "~/composables/useArticleWritePolicy";
 import { useHeaderUserMenu } from "~/composables/useHeaderUserMenu";
+import { useHeaderMessagesPanel } from "~/composables/useHeaderMessagesPanel";
 import { usePointerSpecular } from "~/composables/usePointerSpecular";
 import { useScrollChrome } from "~/composables/useScrollChrome";
 import { useWriteEntry } from "~/composables/useWriteEntry";
@@ -46,21 +47,13 @@ const { entryVisible } = useArticleWritePolicy();
 const searchKeyword = ref("");
 const menuOpen = ref(false);
 
-// 消息中心 hover 面板（第 239 票）：子项与未读数来自同一份表，与页面内导航完全一致。
-// 窄屏没有 hover —— <640 时入口整体收进折叠面板（见 .site-messages-mobile）。
-const messagesOpen = ref(false);
+// 面板状态外移到 composable：200ms 宽限 + 透明桥接带（页头已撞 800 行上限）。
+const panel = useHeaderMessagesPanel();
+// ref 必须顶层解构：模板里的 `panel.messagesOpen` 是 Ref 对象（恒 truthy），
+// 既会让 aria-expanded 拿到对象、也会让 v-if 永远成立。
+const { messagesOpen, messagesTriggerRef } = panel;
 const messageNavItems = computed(() => messageCenterNavItems(messageStore.summary));
 const totalUnread = computed(() => messageStore.totalUnread);
-
-function handleMessagesFocusOut(event: FocusEvent) {
-  const container = event.currentTarget as HTMLElement | null;
-  const next = event.relatedTarget as Node | null;
-  // 焦点在面板内部移动不算离开；只有真正移出容器才收起。
-  if (container && next && container.contains(next)) {
-    return;
-  }
-  messagesOpen.value = false;
-}
 
 // 吸顶玻璃导航：滚动方向/阈值判定与指针镜面高光都收在 composable 里（含降级）。
 // 「减少动态」下 useScrollChrome 直接不启用 → 页头保持静止的不透明面、不隐藏。
@@ -86,7 +79,7 @@ watch(
   () => route.fullPath,
   () => {
     menuOpen.value = false;
-    messagesOpen.value = false;
+    panel.closeMessages();
   },
 );
 
@@ -198,7 +191,7 @@ async function submitSearch() {
         <button
           v-if="entryVisible"
           type="button"
-          class="site-action site-header__write"
+          class="site-action site-action--equal site-header__write"
           data-chrome="write"
           aria-label="创作"
           title="创作"
@@ -215,14 +208,16 @@ async function submitSearch() {
           v-if="authStore.isLoggedIn"
           class="site-messages"
           data-chrome="messages"
-          @pointerenter="messagesOpen = true"
-          @pointerleave="messagesOpen = false"
-          @focusin="messagesOpen = true"
-          @focusout="handleMessagesFocusOut"
+          @pointerenter="panel.openMessages()"
+          @pointerleave="panel.scheduleMessagesClose()"
+          @focusin="panel.openMessages()"
+          @focusout="panel.handleMessagesFocusOut"
+          @keydown="panel.handleMessagesKeydown($event)"
         >
           <NuxtLink
+            ref="messagesTriggerRef"
             to="/messages"
-            class="site-action site-header__messages"
+            class="site-action site-action--equal site-header__messages"
             aria-haspopup="menu"
             :aria-expanded="messagesOpen"
             :aria-label="totalUnread ? `消息（${totalUnread} 条未读）` : '消息'"
@@ -234,11 +229,13 @@ async function submitSearch() {
 
           <div v-if="messagesOpen" class="site-messages__panel" role="menu" aria-label="消息子项">
             <NuxtLink
-              v-for="item in messageNavItems"
+              v-for="(item, index) in messageNavItems"
               :key="item.key"
               :to="item.to"
               class="site-messages__item"
               role="menuitem"
+              @click="panel.closeMessages()"
+              @keydown="panel.moveMessageFocus($event, index, messageNavItems.length)"
             >
               <span>{{ item.label }}</span>
               <span v-if="shouldShowUnreadCount(item.count)" class="site-messages__count">{{ item.count }}</span>
@@ -251,7 +248,7 @@ async function submitSearch() {
         <NuxtLink
           v-if="authStore.isLoggedIn"
           to="/history"
-          class="site-action site-header__history"
+          class="site-action site-action--equal site-header__history"
           data-chrome="history"
           aria-label="浏览历史"
         >
@@ -515,6 +512,13 @@ async function submitSearch() {
     color var(--motion-fast) var(--motion-ease);
 }
 
+/* 三枚动作按钮等宽：同一个 class、同一个宽度基准，不再各自覆写 padding。
+ * 5.5rem 放得下 18px 图标 + gap + 两个汉字（0.8125rem），亮暗主题几何不变。 */
+.site-action--equal {
+  min-width: 5.5rem;
+  padding: 0 0.5rem;
+}
+
 .site-action:hover {
   border-color: var(--color-line-strong);
 }
@@ -541,16 +545,22 @@ async function submitSearch() {
   white-space: nowrap;
 }
 
-/* ---- 消息中心入口（第 239 票） ---------------------------------------------------
- * ≥1024 图标 + 文字；640–1023 仅图标 + 红点；<640 整体收进折叠面板。
- * 面板由指针进入 / 键盘聚焦打开（.site-messages 的 pointerenter / focusin）。 */
+/* ---- 消息中心入口（第 239 票；2026-11-05 修可交互性） ---------------------------
+ * 面板与触发按钮同属 .site-messages。指针要从按钮走到面板，中间不能出现
+ * "既不在按钮也不在面板"的空隙：面板贴着容器底部，并给容器补一条透明
+ * 桥接带（::after），再配合 200ms 关闭宽限，鼠标就能安全移入并点子项。 */
 .site-messages {
   position: relative;
   display: inline-flex;
 }
 
-.site-header__messages {
-  padding: 0 0.5rem;
+.site-messages::after {
+  content: "";
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  height: 0.75rem;
 }
 
 .site-header__messages-label {
@@ -569,7 +579,7 @@ async function submitSearch() {
 
 .site-messages__panel {
   position: absolute;
-  top: calc(100% + 0.375rem);
+  top: 100%;
   right: 0;
   z-index: 40;
   min-width: 12rem;
@@ -581,6 +591,24 @@ async function submitSearch() {
   border-radius: var(--radius-md);
   background: var(--color-surface-raised);
   box-shadow: 0 18px 44px -20px var(--color-shadow);
+  animation: site-messages-reveal var(--motion-fast) var(--motion-ease) both;
+}
+
+@keyframes site-messages-reveal {
+  from {
+    opacity: 0;
+    transform: translateY(-0.25rem);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .site-messages__panel {
+    animation-duration: 0ms;
+  }
 }
 
 .site-messages__item {
@@ -679,11 +707,8 @@ async function submitSearch() {
     display: none;
   }
 
-  /* 创作从平板起显示文字（窄屏只有图标） */
-  .site-header__write {
-    padding: 0 0.875rem;
-  }
-
+  /* 创作从平板起显示文字（窄屏只有图标）；宽度由 .site-action--equal 统一，
+   * 不再在这里额外加 padding，否则三枚动作按钮会不等宽。 */
   .site-header__write-label {
     display: inline;
   }

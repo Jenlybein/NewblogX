@@ -31,12 +31,51 @@ const tabMiddleware = read("app/middleware/messages-tab.ts");
 const legacyInboxPage = read("app/pages/studio/inbox.vue");
 
 describe("消息中心：视觉规则（CSS 源码判据）", () => {
-  it("子项选中态：抬升面底 + 左侧 2px 强调条 + 字重", () => {
+  it("子项选中态：抬升面底 + 底部 2px 强调条 + 字重（顶部导航条）", () => {
     const selected = blockAfter(tailwindCss, ".message-center-tab.is-active {");
 
     expect(selected).toContain("background: var(--color-surface-raised)");
-    expect(selected).toContain("box-shadow: inset 2px 0 0 var(--color-ink)");
+    expect(selected).toContain("box-shadow: inset 0 -2px 0 var(--color-ink)");
     expect(selected).toMatch(/font-weight:\s*600/u);
+  });
+
+  it("五个子项共用顶部导航条 + 单一内容卡，不再是 220px 左导航", () => {
+    const layout = blockAfter(tailwindCss, ".message-center__layout {");
+    const subnav = blockAfter(tailwindCss, ".message-center__subnav {");
+
+    expect(layout).toContain("flex flex-col");
+    expect(layout).not.toContain("220px");
+    expect(subnav).toContain("overflow-x: auto");
+    expect(pageSource).toContain('class="surface-card message-center__content"');
+    expect(pageSource).toContain("InboxSubNav");
+  });
+
+  it("页面不再把实现说明讲给用户（说明文案整体退役）", () => {
+    const sources = [pageSource, read("app/components/inbox/InboxChatPanel.vue"), read("app/components/inbox/InboxMessageList.vue")];
+    const banned = [
+      "评论、互动、系统与全局通知",
+      "HTTP 收发与落库",
+      "WebSocket 只推",
+      "预备会话",
+      "首条消息发出后",
+      "只保存在前端",
+      "对象存储再发出",
+      "这个会话还没有消息",
+      "按时间倒序排列。",
+      "实时状态",
+    ];
+    for (const phrase of banned) {
+      for (const source of sources) {
+        expect(source).not.toContain(phrase);
+      }
+    }
+  });
+
+  it("连接状态条只在异常时渲染（健康连接不显示）", () => {
+    const panel = read("app/components/inbox/InboxChatPanel.vue");
+    expect(panel).toContain('v-if="showSocketBadge"');
+    expect(panel).toContain('socketStatus !== "connected"');
+    expect(panel).not.toContain("实时已连接");
   });
 
   it("列表未读：左侧强调条 + 标题加粗 + 右上小圆点（不用 chip）", () => {
@@ -56,7 +95,7 @@ describe("消息中心：视觉规则（CSS 源码判据）", () => {
     expect(blockAfter(tailwindCss, ".message-row__delete:focus-visible {")).toContain("opacity: 1");
   });
 
-  it("<1024px 左侧导航变顶部横向 tab", () => {
+  it("窄屏导航条仍是一行可横向滚动（不切回竖导航）", () => {
     const narrow = blockAfter(tailwindCss, "@media (max-width: 1023px)", true);
 
     expect(narrow).toContain(".message-center__layout");

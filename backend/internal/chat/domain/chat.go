@@ -113,6 +113,45 @@ type MessageItem struct {
 	DeletedAt  *time.Time `json:"deleted_at,omitempty"`
 }
 
+// MessageCursor 是"按时间轴往前翻"的复合游标。
+//
+// BeforeSendTime 是上一页最老那条消息的 send_time 的 RFC3339Nano 序列化；
+// BeforeID 是同一条消息的 ctype.ID（十进制 uint64 的 JSON 字符串）。
+// id 只用来给相同 send_time 定序：客户端幂等键派生的主键是 [2^62,2^63)
+// 区间的 FNV 哈希，不是时间序，绝不能单独拿它当时序键。
+// 两个字段都为零值表示"没有下一页"。
+type MessageCursor struct {
+	BeforeSendTime string   `json:"before_send_time"`
+	BeforeID       ctype.ID `json:"before_id"`
+}
+
+// MessageListData 是 GET /chat/messages 的 data 载荷。
+//
+// Count 始终是该会话当前可见消息的总行数（与是否带游标无关）；
+// HasMore=false 时 NextCursor 必须是零值，前端据此停止继续翻页。
+type MessageListData struct {
+	List       []MessageItem `json:"list"`
+	Count      int           `json:"count"`
+	HasMore    bool          `json:"has_more"`
+	NextCursor MessageCursor `json:"next_cursor"`
+}
+
+// MessagePage 是消息列表用例返回的"一页 + 是否还有更早消息 + 下一页游标"。
+type MessagePage struct {
+	Items      []MessageItem
+	Total      int
+	HasMore    bool
+	NextCursor MessageCursor
+}
+
+// MessageQueryResult 是读端口返回的一页原始消息（尚未做 IsSelf/IsRead 富化）。
+type MessageQueryResult struct {
+	Messages   []Message
+	Total      int
+	HasMore    bool
+	NextCursor MessageCursor
+}
+
 // ReadPush 是给发送方的已读回执（按发送者+会话聚合）。
 type ReadPush struct {
 	MsgType   MsgType    `json:"msg_type"`
@@ -195,12 +234,16 @@ func (p Page) Normalize() Page {
 func (p Page) Offset() int { n := p.Normalize(); return (n.Page - 1) * n.Limit }
 
 // MessageQuery 是消息列表查询。
+//
+// Cursor 非空（BeforeSendTime 或 BeforeID 任一有值）时按复合游标往前翻，
+// Page.Page 被忽略；否则仍按 (page-1)*limit 偏移（管理员 / type=2 兼容）。
 type MessageQuery struct {
 	UserID      ctype.ID
 	SessionID   string
 	ClearBefore ctype.ID
 	Unscoped    bool
 	Page        Page
+	Cursor      MessageCursor
 }
 
 // BuildSessionID 生成会话 ID（小 ID 在前，保证双方一致）。
@@ -255,8 +298,8 @@ type Query interface {
 	ListSessions(ctx context.Context, userID ctype.ID, unscoped bool, page Page) ([]Session, int, error)
 	// FindSession 查一条会话（校验归属）。
 	FindSession(ctx context.Context, sessionID string, userID ctype.ID, unscoped bool) (Session, error)
-	// ListMessages 分页查消息。
-	ListMessages(ctx context.Context, q MessageQuery) ([]Message, int, error)
+	// ListMessages 分页查消息；带复合游标时多取一条以计算 HasMore。
+	ListMessages(ctx context.Context, q MessageQuery) (MessageQueryResult, error)
 	// UserDeletedAt 查用户对这批消息的删除时间。
 	UserDeletedAt(ctx context.Context, userID ctype.ID, sessionID string, ids []ctype.ID) (map[ctype.ID]time.Time, error)
 }
@@ -276,6 +319,9 @@ type Command interface {
 	// MarkRead 批量标记已读并递减会话未读；返回本次命中的消息，并在同一事务里
 	// 为每个发送人写一条 chat.message.read 发件箱事件。
 	MarkRead(ctx context.Context, userID ctype.ID, ids []ctype.ID) ([]Message, error)
+	// MarkReadSession 把某会话里发给自己的未读消息一次性标记已读。
+	// 幂等：没有可标记的消息时返回空切片、nil 错误。
+	MarkReadSession(ctx context.Context, userID ctype.ID, sessionID string) ([]Message, error)
 	// DeleteMessagesForUser 写用户级删除状态（不动原消息）。
 	DeleteMessagesForUser(ctx context.Context, userID ctype.ID, ids []ctype.ID) ([]Message, error)
 	// DeleteSessions 推进清空水位并软删会话。

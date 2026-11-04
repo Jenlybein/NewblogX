@@ -51,6 +51,61 @@ describe("私信子项：/messages/chat 的右内容", () => {
     expect(pageSource).toContain("InboxSubNav");
     expect(pageSource).toContain("InboxMessageList");
   });
+
+  it("消息按升序时间线渲染：日期分隔 + 同人 2 分钟合并 + 完整时间戳", () => {
+    const panel = read("app/components/inbox/InboxChatPanel.vue");
+    const timeline = read("app/utils/chatTimeline.ts");
+
+    expect(panel).toContain("chatDateSeparatorLabel");
+    expect(panel).toContain("isSameChatGroup");
+    expect(panel).toContain("fullChatTimestamp");
+    expect(panel).toContain("studio-chat-date-separator");
+    expect(timeline).toContain("2 * 60 * 1000");
+    expect(timeline).toContain("toAscending");
+  });
+
+  it("首屏 7 条 + 上滑加载更早 + 贴底才自动跟随", () => {
+    const panel = read("app/components/inbox/InboxChatPanel.vue");
+    const service = read("app/services/inbox.ts");
+
+    expect(service).toContain("limit: params.limit ?? 7");
+    expect(read("app/components/inbox/InboxChatView.vue")).toContain("@load-older=\"loadOlderChatMessages()\"");
+    expect(panel).toContain("olderAnchorBottom");
+    expect(panel).toContain("stickToBottom");
+    expect(panel).toContain("没有更早的消息");
+  });
+
+  it("整会话已读 + 连接异常态 + 失败重试", () => {
+    const view = read("app/components/inbox/InboxChatView.vue");
+    const panel = read("app/components/inbox/InboxChatPanel.vue");
+
+    expect(view).toContain("retryChatLoad");
+    expect(panel).toContain("重连");
+    expect(panel).toContain("重试");
+    expect(panel).toContain("studio-chat-error");
+  });
+});
+
+describe("排序 / 已读 / 分页的契约门禁（ADR-0027）", () => {
+  it("后端 DESC 契约不变，前端维护单一升序数组", () => {
+    const timeline = read("app/utils/chatTimeline.ts");
+    expect(timeline).toContain("export function toAscending");
+    expect(inboxCenterSource).toContain("toAscending");
+  });
+
+  it("复合游标 (before_send_time, before_id)，不用 offset 取更早页", () => {
+    const service = read("app/services/inbox.ts");
+    expect(service).toContain("before_send_time");
+    expect(service).toContain("before_id");
+    expect(service).toContain("next_cursor");
+  });
+
+  it("已读按整会话，msg_id_list 保持字符串 ID", () => {
+    const service = read("app/services/inbox.ts");
+    expect(service).toContain("markChatSessionRead");
+    expect(service).toContain("session_id: sessionId");
+    expect(service).toContain("msg_id_list: msgIdList");
+  });
 });
 
 describe("窄屏二选一（<1024px 列表 ↔ 聊天窗）", () => {

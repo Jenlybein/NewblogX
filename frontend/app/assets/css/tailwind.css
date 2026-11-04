@@ -1437,6 +1437,8 @@
 
   .studio-inbox-grid {
     @apply grid min-h-[620px] lg:grid-cols-[280px_minmax(0,1fr)];
+    /* 单一内容卡不该被消息条数撑到视口外：私信自己的滚动容器负责溢出。 */
+    max-height: min(78dvh, 760px);
   }
 
   .studio-inbox-grid__aside {
@@ -1449,22 +1451,31 @@
     @apply min-w-0 p-5 md:p-6;
   }
 
-  /* ---- 消息中心（第 239 票）：左子项导航 + 右内容 --------------------------------
-   * 选中态 = 抬升面底 + 左侧 2px 强调条 + 字重（强调条用 inset 阴影，不改变盒模型
-   * → 切换子项不抖布局）。<1024px 左导航转顶部横向 tab，同一份 DOM 靠断点切换。 */
+  /* ---- 消息中心（2026-11-05 重构）：顶部导航条 + 单一内容卡 -------------------
+   * 五个子项共用一张 .surface-card；导航变成横条后内容区占满整行。
+   * 选中态 = 抬升面底 + 底部 2px 强调条 + 字重（inset 阴影不改盒模型，切换不抖）。
+   * 颜色全部走语义 token，圆角只用五档阶梯，窄屏横条可横向滚动。 */
+  .message-center__header {
+    @apply flex items-end justify-between gap-3;
+  }
+
   .message-center__layout {
-    @apply grid gap-5;
-    grid-template-columns: 220px minmax(0, 1fr);
+    @apply flex flex-col gap-4;
+  }
+
+  .message-center__content {
+    @apply min-w-0 overflow-hidden;
   }
 
   .message-center__subnav {
-    @apply flex flex-col gap-1 self-start rounded-card border p-2;
+    @apply flex items-center gap-1 self-stretch rounded-card border p-1;
     background: var(--color-surface);
     border-color: var(--color-line);
+    overflow-x: auto;
   }
 
   .message-center-tab {
-    @apply flex items-center justify-between gap-3 rounded-control px-3 py-2 text-sm transition;
+    @apply flex shrink-0 items-center justify-center gap-2 rounded-control px-4 py-2 text-sm transition;
     color: var(--color-ink-muted);
     touch-action: manipulation;
   }
@@ -1478,7 +1489,7 @@
     background: var(--color-surface-raised);
     color: var(--color-ink);
     font-weight: 600;
-    box-shadow: inset 2px 0 0 var(--color-ink);
+    box-shadow: inset 0 -2px 0 var(--color-ink);
   }
 
   .message-center-tab__count {
@@ -1488,11 +1499,11 @@
   }
 
   .message-center__main {
-    @apply min-w-0;
+    @apply min-w-0 p-5 md:p-6;
   }
 
   .message-center-toolbar {
-    @apply flex flex-wrap items-start justify-between gap-3;
+    @apply flex flex-wrap items-center justify-between gap-3;
   }
 
   .message-center-confirm {
@@ -1571,7 +1582,7 @@
     color: var(--color-ink-muted);
   }
 
-  /* <1024px：左导航改为顶部横向 tab（可横向滚动），内容单列。 */
+  /* 窄屏导航条仍是一行，只是可横向滚动；不再切换成第二种布局。 */
   @media (max-width: 1023px) {
     .message-center__layout {
       grid-template-columns: minmax(0, 1fr);
@@ -1589,7 +1600,7 @@
   }
 
   .studio-chat-main {
-    @apply flex flex-col;
+    @apply flex min-h-0 flex-col;
   }
 
   /* 窄屏二选一的「返回会话列表」：宽屏是双栏，按钮不该出现（第 240 票）。
@@ -1599,7 +1610,7 @@
   }
 
   .studio-chat-session {
-    @apply flex w-full items-start gap-3 rounded-field px-3 py-3 transition;
+    @apply relative flex w-full items-start gap-3 rounded-field px-3 py-3 transition;
     touch-action: manipulation;
   }
 
@@ -1607,48 +1618,123 @@
     background: var(--color-line-faint);
   }
 
+  /* 选中态与 hover 必须不同：抬升面 + 左侧细条 + 极轻抬升，避免"看不出选了谁"。 */
   .studio-chat-session.is-active {
-    background: var(--color-line-faint);
+    background: var(--color-surface-raised);
+    box-shadow: inset 2px 0 0 var(--color-ink), 0 8px 20px -16px var(--color-shadow);
   }
 
+  /* 消息区自成滚动容器：首屏贴底、上滑到顶加载更早，加载旧页时锁滚动位置。 */
   .studio-chat-thread {
-    @apply mt-5 flex min-h-0 flex-1 flex-col gap-4;
+    @apply mt-4 flex min-h-0 flex-1 flex-col gap-3;
+  }
+
+  .studio-chat-scroller {
+    @apply flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto;
+    /* 消息再多也要把输入区留在视口内；否则整个 content card 会被撑到屏幕外。 */
+    max-height: min(50dvh, 480px);
+    overscroll-behavior: contain;
+    padding-right: 0.25rem;
+  }
+
+  .studio-chat-date-separator {
+    @apply flex items-center gap-3 py-2 text-xs;
+    color: var(--color-ink-faint);
+  }
+
+  .studio-chat-date-separator::before,
+  .studio-chat-date-separator::after {
+    content: "";
+    flex: 1;
+    height: 1px;
+    background: var(--color-line);
+  }
+
+  .studio-chat-load-older {
+    @apply flex items-center justify-center py-2 text-xs;
+    color: var(--color-ink-muted);
+  }
+
+  .studio-chat-group {
+    @apply flex flex-col gap-1;
   }
 
   .studio-chat-bubble {
-    @apply flex items-end gap-3;
+    @apply flex items-end gap-2;
   }
 
   .studio-chat-bubble.is-self {
     @apply justify-end;
   }
 
-  .studio-chat-bubble__content {
-    @apply max-w-[720px] rounded-field border px-4 py-3;
-    background: var(--color-surface);
-    border-color: var(--color-line);
+  .studio-chat-bubble__avatar {
+    @apply shrink-0;
   }
 
+  .studio-chat-bubble__content {
+    @apply max-w-[720px] rounded-field px-4 py-3;
+    background: var(--color-surface-raised);
+  }
+
+  /* 我方气泡：固定深墨面 + 反白字，亮暗主题都不翻转。 */
   .studio-chat-bubble.is-self .studio-chat-bubble__content {
-    background: var(--color-line-faint);
-    border-color: var(--color-line);
+    background: var(--color-surface-inverse);
+    color: var(--color-on-inverse);
+  }
+
+  .studio-chat-bubble.is-self .studio-chat-bubble__meta {
+    color: var(--color-on-inverse-muted);
+  }
+
+  .studio-chat-bubble__meta {
+    @apply mt-2 flex items-center gap-2 text-xs;
+    color: var(--color-ink-faint);
+  }
+
+  .studio-chat-bubble__delete {
+    @apply shrink-0;
+    opacity: 0;
+    transition: opacity var(--motion-fast) var(--motion-ease);
+  }
+
+  .studio-chat-bubble:hover .studio-chat-bubble__delete,
+  .studio-chat-bubble__delete:focus-visible {
+    opacity: 1;
+  }
+
+  .studio-chat-receipt {
+    @apply text-xs;
+    color: var(--color-ink-faint);
   }
 
   .studio-chat-composer {
-    @apply mt-auto rounded-field border p-4;
-    border-color: var(--color-line);
+    @apply mt-3 rounded-field p-3;
+    border: 1px solid var(--color-line);
     background: var(--color-surface);
   }
 
-  .studio-socket-badge {
-    @apply inline-flex items-center gap-2 rounded-pill border border-line px-3 py-2 text-xs;
-    border-color: var(--color-line);
+  .studio-chat-composer__actions {
+    @apply mt-2 flex flex-wrap items-center justify-between gap-2;
   }
 
-  .studio-socket-badge.is-connected {
-    border-color: var(--color-line-strong);
-    color: var(--color-ink);
-    background: var(--color-line-faint);
+  .studio-chat-empty {
+    @apply flex min-h-0 flex-1 items-center justify-center;
+  }
+
+  .studio-chat-error {
+    @apply flex items-center justify-between gap-3 rounded-field px-4 py-3 text-sm;
+    background: var(--color-danger-soft);
+    border: 1px solid var(--color-danger-line);
+    color: var(--color-danger-ink);
+  }
+
+  /* 连接状态条：只在异常时出现（模板已门控），这里只给低调的呈现。 */
+  .studio-socket-badge {
+    @apply inline-flex items-center gap-2 rounded-pill border px-3 py-1.5 text-xs;
+    border-color: var(--color-line);
+    color: var(--color-ink-muted);
+    background: var(--color-surface-raised);
+    transition: opacity var(--motion-fast) var(--motion-ease);
   }
 
   .studio-socket-badge.is-connecting {

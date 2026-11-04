@@ -2,6 +2,7 @@ import { computed, shallowRef } from "vue";
 import { useRuntimeConfig } from "#imports";
 import { getChatWsTicket } from "~/services/inbox";
 import type { ChatNotificationPayload, ChatSocketEnvelope } from "~/types/api";
+import { errorMessage } from "~/utils/errorMessage";
 
 function resolveWebSocketUrl(siteUrl: string, wsPath: string) {
   const origin = import.meta.client ? window.location.origin : siteUrl;
@@ -262,7 +263,7 @@ export function useChatSocket() {
         socket.value = instance;
         return instance;
       } catch (error) {
-        chatStore.setSocketStatus("error", error instanceof Error ? error.message : "实时连接初始化失败。");
+        chatStore.setSocketStatus("error", errorMessage(error, "实时连接初始化失败。"));
         // 取票失败（离线 / 服务端暂时不可用）也是"被动断线"的一种：不排下一次，
         // 重连循环就会死在第一次失败上。
         scheduleReconnect();

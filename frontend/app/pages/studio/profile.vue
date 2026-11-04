@@ -4,6 +4,7 @@ import { NButton, NInput, NPagination, NTag, useMessage } from "naive-ui";
 import ArticleFeedItem from "~/components/article/ArticleFeedItem.vue";
 import { deleteOwnArticle } from "~/services/article";
 import { getTagOptions } from "~/services/search";
+import { errorMessage } from "~/utils/errorMessage";
 
 definePageMeta({
   layout: "studio",
@@ -161,7 +162,7 @@ async function handleDelete(id: string) {
       handlePageChange(page.value - 1);
     }
   } catch (error) {
-    message.error(error instanceof Error ? error.message : "删除文章失败");
+    message.error(errorMessage(error, "删除文章失败"));
   }
 }
 

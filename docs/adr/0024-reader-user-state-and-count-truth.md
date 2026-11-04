@@ -17,9 +17,9 @@ ADR-0019 定下了「SSR 只输出匿名内容 + 客户端补齐用户态」与�
 ## 决策
 
 1. **SWR 语义收窄：只有首屏 `cause === 'initial'` 允许 fresh 命中**。手工 `refresh()` / 钩子刷新一律返回 `undefined`，让 handler 真发请求（stale 仍先渲染旧值、后台静默重取）。「30 秒内重进请求数为 0」的既有验收改由**内部第二波初始化**（作者资料）走 `refreshIfNeeded`（fresh 直接落数据、不发请求），不靠把 `refresh()` 也钉成缓存命中。
-2. **用户私有态独立取数**：新增 `article-private-<id>` 源，`server: false` + `getCachedData: () => undefined` + `immediate: false`；页面在 `initializeSession()` 之后显式触发一次。它复用**带鉴权**的详情接口但只投影 `is_digg` / `is_favor` / `relation`。永不进 payload、永不进 30s SWR。ADR-0019 约束 2（SSR 只出匿名内容）**保持不变**。
+2. **用户私有态独立取数**：新增 `article-private-<id>` 源，`server: false` + `getCachedData: () => undefined` + `immediate: false`；页面在 `initializeSession()` 之后显式触发一次，并且**登录态 false→true（页内登录成功）时补一次**。它复用**带鉴权**的详情接口但只投影 `is_digg` / `is_favor`（详情接口不返回 `relation`，作者关系由 `authorProfile` 源负责；曾经的 `relation` 是永为 null 的死字段，已删除）。永不进 payload、永不进 30s SWR。ADR-0019 约束 2（SSR 只出匿名内容）**保持不变**。
 3. **点赞改幂等目标态**：`PUT /articles/{id}/digg` 带 `{liked: boolean}`，服务端按目标收敛；重复同态即无操作（不改关系行、不改计数、不发通知），响应仍返回当前权威 `is_digg`。前端调用点传「目标态 = 当前状态取反」，不再传 toggle。
-4. **写响应回填权威计数 + 主动失效**：`PUT /digg` 返回 `{is_digg, digg_count}`，`POST /articles/favorite` 与 `DELETE /articles/favorite/contents` 返回 `{is_favor, favor_count}`；计数是「库内快照 + 当前缓存增量」的绝对值，不是这次 ±1。前端收到后直接 patch 正文并 `readerSwrCache.delete('article-<id>')`，不等 TTL。
+4. **写响应回填权威计数 + 主动失效**：`PUT /digg` 返回 `{is_digg, digg_count}`，`POST /articles/favorite` 返回 `{is_favor, favor_count}`；`DELETE /articles/favorite/contents` 返回 `{is_favor, favor_count, removed_count, failed_count}`（批量接口要能让调用方分辨部分失败，全部失败返回非 0 业务码）。计数是「库内快照 + 当前缓存增量」的绝对值，不是这次 ±1。前端收到后直接 patch 正文并 `readerSwrCache.delete('article-<id>')`，不等 TTL。
 5. **不加大范围 purge 共享 SSR HTML 缓存**：接受「别人最多滞后 30 秒」。多实例下 Nitro 缓存是进程内 Map，跨进程失效无法做到；宁可不做，也不做一个只在单实例成立的假能力。
 6. **收藏附带修复**：「已收藏 → 移除」走 `DELETE /articles/favorite/contents`，不再发 POST；收藏计数同样走写响应回填。
 7. **门禁**：新增「hydration 后必须发出一次带鉴权的用户态请求」的**源码 + 行为**两层断言。源码层锁 `server:false` / 恒 undefined 的 `getCachedData` / 带鉴权取数 / 页面触发点；行为层真跑 composable，断言 payload 里的私有键不被采用、私有键不进 30s 缓存。把用户态塞回 payload、或把 refresh 重新短路，门禁都会变红。
@@ -41,16 +41,16 @@ ADR-0019 定下了「SSR 只输出匿名内容 + 客户端补齐用户态」与�
 - **登录态仍然「先默认、后跳变」**：匿名 HTML 先渲染未赞，客户端补齐后按钮跳变。ADR-0019 已接受这个观感，本 ADR 不改变它。
 - **别人（跨用户）看到的计数仍可能滞后 30 秒**：不 purge 共享 HTML 缓存是明确取舍；作者自己的写操作是立即正确的。
 - **契约是破坏性小改**：`PUT /digg` 的请求体从「可省略」变成**必填 `liked`**。仓库内唯一的调用点（读者站）同批更新；旧式空请求体会收到 400（`binding:"required"`），不会静默按 `false` 取消点赞。响应新增 `digg_count` / `favor_count` 字段，对旧前端是纯增量。
-- **批量移除收藏的计数语义按「最后一条成功移除的文章」返回**：当前唯一消费方（收藏夹弹窗）每次只传当前这一篇；多篇批量场景不承诺逐篇计数。
+- **批量移除收藏的计数语义按「最后一条成功移除的文章」返回**：`is_favor` / `favor_count` 只有单篇消费方（收藏夹弹窗）该依赖；批量场景另给 `removed_count` / `failed_count`，全部失败返回非 0 业务码，不再有「成功 + 空 data」。
 - **不做什么**：不做点赞/收藏的实时推送或 WebSocket 广播；不做点赞状态的服务端缓存；不改 ADR-0019 的两层 30s 结构；不把收藏改成 toggle。
 
 ## 当前生效约束
 
 1. `useReaderSwrAsyncData` 只允许 `cause === "initial"` 复用 fresh 缓存；`refresh:manual` / `refresh:hook` / `watch` 必须落到 handler（真发请求）。内部第二波初始化若需要「fresh 不发请求」，用 `refreshIfNeeded`，不得回头把 `refresh()` 钉成缓存命中。
-2. 用户私有态走独立键 `article-private-<id>`，必须同时满足：`server: false`、`getCachedData: () => undefined`、`immediate: false`、带鉴权取数、只投影 `is_digg` / `is_favor` / `relation`。私有态不得进 SSR payload，也不得进 30s SWR / 共享缓存。
-3. 登录初始化完成后，文章页必须发出**一次**私有态请求；用户已手动操作过点赞（`articleDiggTouched`）时不覆盖乐观结果。
+2. 用户私有态走独立键 `article-private-<id>`，必须同时满足：`server: false`、`getCachedData: () => undefined`、`immediate: false`、带鉴权取数、只投影 `is_digg` / `is_favor`。私有态不得进 SSR payload，也不得进 30s SWR / 共享缓存。
+3. 登录初始化完成后，文章页必须发出**一次**私有态请求；**登录态从 false→true（页内登录成功）同样补一次**（初始化与 watch 共用单飞闸门，一次登录只发一次）。用户已手动操作过点赞（`articleDiggTouched`）时不覆盖乐观结果。
 4. `PUT /articles/{id}/digg` 的请求体必须显式给目标态 `{liked: boolean}`；服务端按目标收敛，重复同态是无操作（关系行、计数、通知都不动），响应返回权威 `is_digg` / `digg_count`。
-5. 写响应必须回填权威计数：`digg` → `digg_count`；收藏添加/移除 → `is_favor` / `favor_count`。前端据此直接 patch，并主动 `readerSwrCache.delete('article-<id>')`；不得用本地 ±1 冒充权威值。
+5. 写响应必须回填权威计数：`digg` → `digg_count`；收藏添加 → `is_favor` / `favor_count`；批量移除 → `is_favor` / `favor_count` + `removed_count` / `failed_count`（全部失败返回非 0 业务码）。前端据此直接 patch，并主动 `readerSwrCache.delete('article-<id>')`；不得用本地 ±1 冒充权威值。
 6. 收藏的「已收藏 → 移除」分支必须走 `DELETE /articles/favorite/contents`；`POST /articles/favorite` 只用于添加。
 7. 门禁必须保留源码 + 行为两层：源码层锁私有态源的选项、鉴权口径与页面触发点；行为层断言 hydration 后请求确实发出、payload 私有键不被采用、私有键不进缓存。canary 必须在违反写法下变红。
 8. ADR-0019 的 SSR 白名单、匿名渲染边界、两层 30s 结构继续生效；本 ADR 只收窄「refresh 也遵守 SWR」这一条口径，不改缓存分层。
@@ -73,3 +73,12 @@ ADR-0019 定下了「SSR 只输出匿名内容 + 客户端补齐用户态」与�
 2. **断线重连后必须重新取权威用户态，不靠推送增量累积**。WS 被动断线（含取票失败）按 1s → 2s → … → 上限 30s、最多 20% 抖动退避重连；主动 `close()`（登出 / 卸载）不重连。重连成功后立刻重取一次消息未读汇总，因为断线窗口里到达不了的通知**不会补发**，本地数字不会自己 +1。这与决策 4「权威值只能来自服务端、不靠本地推算」是同一条原则在未读数上的延伸——文章计数靠写响应回填，未读数靠重连后的整份汇总校准，两者都不允许拿"推送增量"当账本。通道与重连细节记在 [ADR-0022](./0022-chat-dual-channel-http-write-ws-notify.md) 的「后续修订（2026-11-04）」。
 
 相关代码：`frontend/app/utils/readerLoginGate.ts`、`frontend/app/composables/useChatSocket.ts`（重连与 `onReconnected`）、`frontend/app/composables/useMessageRealtime.ts`（重连后 `refreshSummary`）、`frontend/test/utils/readerLoginGate.test.ts`、`frontend/test/composables/useChatSocket.test.ts`。
+
+## 评审修复（2026-11-04，#248）
+
+代码评审（[#248](https://github.com/Jenlybein/NewblogX/issues/248)）发现本 ADR 落地后的四处接缝问题，本节记录修复口径；正文的决策 / 约束 / 代价段落已同步改写，没有新增设计取舍。
+
+1. **取消收藏只删目标收藏夹**：`Unfavorite` 过去用 `FindItemAnyFolder` 取任意一条、再按它的 folder 删，完全忽略调用方传入的 folder。同一篇文章收在 A/B 两夹时，点「移出 A」可能删掉 B 的那条（A 的勾还在、toast 却说「已从 A 移除」）。现在的口径：只认目标夹（`FolderID` 为零时与 `Favorite` 同口径落默认夹），找不到就报 `ErrItemNotFound`，不猜不兜底。`is_favor` 的语义统一为「**是否还在任一收藏夹**」（详情接口与 `Unfavorite` 的返回值同一口径）。
+2. **批量移除按实际语义返回**：`DELETE /articles/favorite/contents` 旧实现把单条失败 `continue` 掉，一条都没成功也回 `OkWithMsg`（成功 + 空 data），前端读 `payload.is_favor` 直接 TypeError。现在全部成功 / 部分成功返回 `{is_favor, favor_count, removed_count, failed_count}`，全部失败返回非 0 业务码 + 明确文案；前端对缺失载荷做空值防御。
+3. **契约与 handler 实际 helper 一致**：`RemoveFavoriteItems` 的 swagger 注解过去声明 `Envelope[ArticleFavoriteResponse]`，失败分支却走 `OkWithMsg`（`data: {}`）。现在成功分支恒走 `OkWithData`，注解改为 `Envelope[ArticleFavoriteRemoveResponse]`，并重生成两端类型。
+4. **页内登录后补取私有态**：页面只在 `onMounted` 判一次 `initializeSession()`，用户在文章页被弹登录框、登录成功后才成为已登录的那条路径拿不到私有态（按钮继续显示未赞）。新增 `useArticlePrivateSession`：`initialize()`（首屏）+ `watch(isLoggedIn)`（false→true）共用单飞闸门，只在客户端跑，一次登录只补一次。顺带删除 `ArticlePrivateState.relation` 这个永为 null 的死字段（只投影 `is_digg` / `is_favor`）。

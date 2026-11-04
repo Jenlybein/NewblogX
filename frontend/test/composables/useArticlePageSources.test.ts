@@ -486,7 +486,7 @@ describe("用户私有态独立取数（ADR-0024 决策 2/6）", () => {
       },
     });
 
-    const fetchArticlePrivate = vi.fn(async () => ({ is_digg: true, is_favor: true, relation: 4 }));
+    const fetchArticlePrivate = vi.fn(async () => ({ is_digg: true, is_favor: true }));
     const sources = await runInScope(() =>
       useArticlePageSources({
         ...privateOptions("hydration"),
@@ -502,7 +502,7 @@ describe("用户私有态独立取数（ADR-0024 决策 2/6）", () => {
     // 页面在 `initializeSession()` 之后调用它 —— 这就是"hydration 后一次带鉴权的用户态请求"。
     await sources.refreshArticlePrivate();
     expect(fetchArticlePrivate).toHaveBeenCalledTimes(1);
-    expect(sources.articlePrivate.value).toEqual({ is_digg: true, is_favor: true, relation: 4 });
+    expect(sources.articlePrivate.value).toEqual({ is_digg: true, is_favor: true });
 
     // 私有态只进本次渲染的数据，不进正文缓存、也不进私有键的缓存。
     expect(sources.article.value?.is_digg).toBe(true);
@@ -521,7 +521,7 @@ describe("用户私有态独立取数（ADR-0024 决策 2/6）", () => {
     installAwaitableAsyncData();
 
     const fetchArticle = vi.fn(async () => makeArticle());
-    const fetchArticlePrivate = vi.fn(async () => ({ is_digg: true, is_favor: false, relation: null }));
+    const fetchArticlePrivate = vi.fn(async () => ({ is_digg: true, is_favor: false }));
     const sources = await runInScope(() =>
       useArticlePageSources({
         ...privateOptions("navigation"),
@@ -550,7 +550,7 @@ describe("用户私有态独立取数（ADR-0024 决策 2/6）", () => {
         ...privateOptions("navigation"),
         swrCache: cache,
         fetchArticle,
-        fetchArticlePrivate: async () => ({ is_digg: true, is_favor: false, relation: null }),
+        fetchArticlePrivate: async () => ({ is_digg: true, is_favor: false }),
       }),
     );
 

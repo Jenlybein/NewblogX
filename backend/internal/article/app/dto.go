@@ -144,7 +144,8 @@ type ExamineCmd struct {
 type FavoriteCmd struct {
 	Actor     domain.Viewer
 	ArticleID domain.ArticleID
-	// FolderID 为 0 时落到默认收藏夹。
+	// FolderID 为 0 时落到默认收藏夹；收藏与取消收藏共用这一口径。
+	// 取消收藏时它同时是**目标范围**：只删这个夹子里的关系，不留「任意夹」的兜底。
 	FolderID favorite.ID
 }
 

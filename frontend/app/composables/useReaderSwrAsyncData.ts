@@ -159,6 +159,13 @@ export function useReaderSwrAsyncData<TValue>(options: UseReaderSwrAsyncDataOpti
    * 重新取数"，必须真发请求（否则手工刷新又会拿不到用户态）。而作者资料这种
    * "正文回来才知道 author_id"的第二波初始化，30 秒内重进同一篇时应当命中缓存
    * （ADR-0019 决策 4 / #85 的请求数为 0 验收）。两者需要不同的入口。
+   *
+   * **状态语义（明确说明代价）**：fresh 分支不走 `useAsyncData` 的 refresh 生命周期，
+   * 而是直接落值 —— 因此 `pending` 保持 `false`（本来就没有在途请求，这是正确语义），
+   * 同时把上一次失败的 `error` 清掉（现在有可渲染的权威值，保留旧错误只会自相矛盾）。
+   * 代价是这次命中不会让 `status` 短暂进入 pending；对"内部第二波、用户未主动触发"
+   * 的调用方来说这正是想要的：命中缓存 = 已就绪。stale / miss 仍走 `source.refresh()`，
+   * pending / error 与普通取数完全一致。
    */
   async function refreshIfNeeded() {
     const lookup = activeCache?.read<TValue>(readKey());
@@ -167,6 +174,7 @@ export function useReaderSwrAsyncData<TValue>(options: UseReaderSwrAsyncDataOpti
       // 直接赋 TValue 会被 Nuxt 4 的 PickFrom 收窄拒绝；这里的值本来就来自同键缓存，
       // 运行时形状与 handler 返回值一致，按 data ref 的真实类型写回。
       (source.data as { value: TValue | undefined }).value = lookup.value;
+      (source.error as { value: unknown }).value = null;
       return;
     }
     await source.refresh();

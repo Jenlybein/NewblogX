@@ -17,7 +17,7 @@
 
 附带的**响应增量**（非破坏性，但本批前端依赖它）：
 
-- 收藏添加 / 移除（`POST /api/articles/favorite`、`DELETE /api/articles/favorite/contents`）的 `data` 由 `{}` 改为 `{is_favor, favor_count}`，计数是权威值。
+- 收藏添加（`POST /api/articles/favorite`）的 `data` 由 `{}` 改为 `{is_favor, favor_count}`；批量移除（`DELETE /api/articles/favorite/contents`）返回 `{is_favor, favor_count, removed_count, failed_count}`。部分成功靠 `removed_count` / `failed_count` 分辨，**全部失败返回非 0 业务码**（不再出现「成功 + 空 data」，前端不会再读 `payload.is_favor` 时 TypeError）。计数是权威值。
 - 点赞响应新增 `digg_count`；`is_digg` 仍返回。
 
 行为层面的放宽（**非破坏性**，但要写进发布沟通）：
@@ -81,5 +81,5 @@
 3. **`/studio/inbox` 的重定向是客户端中间件**，没有服务端 301：爬虫 / 无 JS 客户端访问旧地址只会拿到 SPA 空壳。`/studio/history` 有服务端 301。
 4. **历史 90 天是数据策略、不是配置**：后台没有开关，改保留期要改代码 + 改本发布说明。
 5. **重连只校准未读总数**：断线窗口内没到达的通知不会逐条补发，只在下一次拉列表时出现；重连成功后的那次汇总只保证"数字对"，不保证"提示一条不丢"。
-6. **本文档未在真实环境代跑**：以上冒烟项需要部署后用真实账号 + 浏览器执行；本机只重跑了 `frontend` 门禁（`vitest run` / `typecheck`）与后端 `go build ./...`，集成用例（`-tags integration`，需容器）没有重跑，线上验收仍按上表执行。
+6. **本文档未在真实环境代跑**：以上冒烟项需要部署后用真实账号 + 浏览器执行；本机重跑了 `frontend` 门禁（`vitest run` / `typecheck` / `lint` / 设计 token 门禁）、后端 `go build ./...` / `go test ./...` / `go vet -tags integration` / archcheck，以及后端文章模块集成用例（`-tags integration`，Docker）；线上验收仍按上表执行。
 </content>

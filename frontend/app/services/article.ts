@@ -41,11 +41,12 @@ export function getArticleDetailAnonymous(id: string | number) {
 /**
  * 文章页的**用户私有态**取数（ADR-0024 决策 2）。
  *
- * 复用带鉴权的详情接口，但只投影 `is_digg` / `is_favor` / `relation`：
+ * 复用带鉴权的详情接口，但只投影 `is_digg` / `is_favor`：
  * - 显式调用 `getArticleDetail`（默认 auth，不传 `auth: false`），否则匿名视角会
  *   把"未赞"当成用户态；
  * - 结果不进 SSR payload（调用方 `server: false`），也不进 30s SWR；
- * - 只投影私有字段，正文/计数/作者资料继续由各自匿名源负责，避免两份数据打架。
+ * - 只投影私有字段，正文/计数/作者资料继续由各自匿名源负责，避免两份数据打架；
+ * - 详情接口不返回 `relation`，所以这里也不投影它（作者关系由 `authorProfile` 源负责）。
  */
 export function getArticlePrivateState(id: string | number): Promise<ArticlePrivateState> {
   return getArticleDetail(id).then((detail) => pickArticlePrivateState(detail as unknown as object));

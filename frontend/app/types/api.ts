@@ -256,6 +256,15 @@ export type ArticleDiggResult = RequiredSchema<"internal_article_adapter_http.Ar
  */
 export type ArticleFavoriteResult = RequiredSchema<"internal_article_adapter_http.ArticleFavoriteResponse">;
 
+/**
+ * 批量取消收藏的写响应（评审票 248 / P0-2）。
+ *
+ * 与单条响应的区别：多出 `removed_count` / `failed_count`，部分失败不再被吞成
+ * “全部成功”。全部失败时后端返回非 0 业务码，不会走到这个类型。
+ */
+export type ArticleFavoriteRemoveResult =
+  RequiredSchema<"internal_article_adapter_http.ArticleFavoriteRemoveResponse">;
+
 export type CommentRootItem = RequiredSchema<"myblogx_internal_comment_app.RootItem">;
 
 export type CommentRootListData = RequiredSchema<"myblogx_internal_kernel.HasMoreListData-myblogx_internal_comment_app_RootItem">;

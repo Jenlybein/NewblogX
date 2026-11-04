@@ -4,6 +4,7 @@ import { useStudioAiSelection } from "~/composables/useStudioAiSelection";
 import { useTextareaSelectionOverlay } from "~/composables/useTextareaSelectionOverlay";
 import type { StudioAiAction } from "~/composables/useStudioAiSelection";
 import { generateArticleMetainfo } from "~/services/ai";
+import { errorMessage } from "~/utils/errorMessage";
 
 // 写作页的 AI 面板：选区浮层、动作执行、改写结果落回正文、元信息补全。
 //
@@ -129,7 +130,7 @@ export function useStudioAiAssist(deps: StudioAiDeps) {
       hideSelectionOverlay();
       await openAiPanel(action);
     } catch (error) {
-      message.warning(error instanceof Error ? error.message : "AI 辅助暂时不可用");
+      message.warning(errorMessage(error, "AI 辅助暂时不可用"));
     }
   }
 
@@ -158,7 +159,7 @@ export function useStudioAiAssist(deps: StudioAiDeps) {
       applyAiOverwriteResult();
       message.success("改写结果已替换到正文中");
     } catch (error) {
-      message.error(error instanceof Error ? error.message : "替换选区失败");
+      message.error(errorMessage(error, "替换选区失败"));
     }
   }
 
@@ -167,7 +168,7 @@ export function useStudioAiAssist(deps: StudioAiDeps) {
       insertAiOverwriteBelow();
       message.success("改写结果已插入到选区下方");
     } catch (error) {
-      message.error(error instanceof Error ? error.message : "插入正文失败");
+      message.error(errorMessage(error, "插入正文失败"));
     }
   }
 
@@ -176,7 +177,7 @@ export function useStudioAiAssist(deps: StudioAiDeps) {
       await copyAiOverwriteResult();
       message.success("改写结果已复制");
     } catch (error) {
-      message.error(error instanceof Error ? error.message : "复制失败");
+      message.error(errorMessage(error, "复制失败"));
     }
   }
 
@@ -229,7 +230,7 @@ export function useStudioAiAssist(deps: StudioAiDeps) {
 
       message.success("AI 已根据正文补全元信息建议");
     } catch (error) {
-      message.error(error instanceof Error ? error.message : "AI 元信息生成失败");
+      message.error(errorMessage(error, "AI 元信息生成失败"));
     } finally {
       pendingState.ai = false;
     }

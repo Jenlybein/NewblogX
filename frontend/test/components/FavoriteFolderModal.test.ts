@@ -154,3 +154,28 @@ describe("FavoriteFolderModal：已收藏 → 移除", () => {
     expect(mocks.removeFavoriteFolderArticles).not.toHaveBeenCalled();
   });
 });
+
+describe("FavoriteFolderModal：写响应缺载荷时的防御（评审 #248 / P0-2）", () => {
+  it("响应是空对象（旧失败分支 `data: {}`）：emit null，页面不再抛 TypeError", async () => {
+    // 旧后端全失败时仍返回成功 + 空 data；页面读 payload.is_favor 直接 TypeError。
+    mocks.removeFavoriteFolderArticles.mockResolvedValueOnce({});
+    const wrapper = await mountModal();
+    const removeButton = wrapper.findAll("button").find((node) => node.text().includes("移出收藏夹"));
+
+    await removeButton!.trigger("click");
+    await flushPromises();
+
+    expect(wrapper.emitted("updated")?.at(-1)).toEqual([null]);
+  });
+
+  it("后端返回非 0 业务码（全失败）：走错误分支，不发 updated", async () => {
+    mocks.removeFavoriteFolderArticles.mockRejectedValueOnce(new Error("尚未收藏该文章"));
+    const wrapper = await mountModal();
+    const removeButton = wrapper.findAll("button").find((node) => node.text().includes("移出收藏夹"));
+
+    await removeButton!.trigger("click");
+    await flushPromises();
+
+    expect(wrapper.emitted("updated")).toBeUndefined();
+  });
+});

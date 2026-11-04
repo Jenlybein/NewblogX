@@ -342,8 +342,14 @@ const (
 // 通用工具与基础设施。
 const (
 	CodeCommonInvalidOrder Code = "common.invalid_order"
-	CodeCommonDBRequired   Code = "common.db_required"
-	CodeCdcRuleNotExist    Code = "cdc.rule_not_exist"
+	// CodeCommonInvalidArgument 是"请求参数不合法"的通用码（游标、成对参数等）。
+	//
+	// 为什么需要它：参数校验的失败文案过去散落在适配层 `fmt.Errorf`（R8 拦不住），
+	// 既没有稳定错误码也没有集中文案。领域里的参数错误各有专码；这里只兜
+	// "格式/组合不合法"这一类（如 before_updated_at + before_id 必须成对）。
+	CodeCommonInvalidArgument Code = "common.invalid_argument"
+	CodeCommonDBRequired      Code = "common.db_required"
+	CodeCdcRuleNotExist       Code = "cdc.rule_not_exist"
 
 	CodeStorageBucketRequired    Code = "storage.bucket_required"
 	CodeStorageObjectKeyRequired Code = "storage.object_key_required"
@@ -585,9 +591,10 @@ var messages = map[Code]string{
 	CodeAIVendorUnsupported: "不支持的模型供应商",
 	CodeAIProviderInvalid:   "模型配置不完整",
 
-	CodeCommonInvalidOrder: "排序字段错误",
-	CodeCommonDBRequired:   "缺少查询数据库依赖",
-	CodeCdcRuleNotExist:    "规则不存在",
+	CodeCommonInvalidOrder:    "排序字段错误",
+	CodeCommonInvalidArgument: "参数不合法",
+	CodeCommonDBRequired:      "缺少查询数据库依赖",
+	CodeCdcRuleNotExist:       "规则不存在",
 
 	CodeStorageBucketRequired:    "qiniu: bucket 不能为空",
 	CodeStorageObjectKeyRequired: "qiniu: object key 不能为空",

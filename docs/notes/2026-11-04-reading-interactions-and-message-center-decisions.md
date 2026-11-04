@@ -58,7 +58,7 @@
 ## 1. 点赞与收藏：用户态与计数真相（ADR-0024）
 
 1. **SWR 语义收窄**：`useReaderSwrAsyncData` 只在 `cause === 'initial'` 时允许 fresh 命中；手工 `refresh()` 必须真发请求。同步改写钉住旧行为的测试。
-2. **用户私有态独立取数**：新增 `article-private-<id>` 取数（`server: false`、`getCachedData: () => undefined`），只取 `is_digg/is_favor/relation`，登录后必取；永不进 payload、永不进 SWR。ADR-0019 约束 2（SSR 只出匿名内容）保持不变。
+2. **用户私有态独立取数**：新增 `article-private-<id>` 取数（`server: false`、`getCachedData: () => undefined`），只取 `is_digg/is_favor`（详情接口不返回 `relation`，作者关系由 `authorProfile` 源负责），登录后必取；永不进 payload、永不进 SWR。ADR-0019 约束 2（SSR 只出匿名内容）保持不变。
 3. **点赞改幂等目标态**：`PUT /articles/{id}/digg` 带目标态 `{liked: boolean}`，服务端按目标收敛，重复同态即无操作。契约加字段（兼容性小改）。
 4. **写响应回填 + 主动失效**：响应返回最新 `digg_count`/`favor_count`，前端直接 patch 并 `readerSwrCache.delete('article-<id>')`，不等 TTL。
 5. **共享 SSR HTML 缓存不加大范围 purge**：接受「别人最多滞后 30 秒」；多实例进程内 Map 无法跨进程失效，不做假能力。
@@ -135,7 +135,7 @@
 | 下划线 | 线 `#35597D`（靛青）、文字继承 | `text-underline-offset: 3px`，悬停加粗 |
 | 有序列表数字 | `#B2442A` | — |
 | 无序列表圆点 | `#4E6B3C` | — |
-| 代码 | 关键字 `#B2442A`、字符串 `#4E6B3C`、数字 `#35597D`、函数 `#6B4A78`、类型 `#8A6524`、注释 `#7A756C`、变量 `#2A2724` | 代码块底色比正文纸面降一档；正文对比度 ≥ 4.5:1 |
+| 代码 | 关键字 `#B2442A`、字符串 `#4E6B3C`、数字 `#35597D`、函数 `#6B4A78`、类型 `#8A6524`、注释 `#726D63`、变量 `#2A2724` | 代码块底色比正文纸面降一档；正文对比度 ≥ 4.5:1（spec 的注释色对正文纸面只有 4.43:1，实际取同色相加深一档的 `#726D63` 达 AA） |
 
 治理：色值以 `--md-*` 语义 token 落在 `tokens.css`（只供 markdown 渲染区），ADR-0012 追加「后续修订」说明正文区不锁五族、色板单独治理；裸色值门禁继续生效，组件里只能用 token。下划线与「重点上色」（黄底）分离：`<u>` / `++文字++` 只用真下划线，不再加底色。
 

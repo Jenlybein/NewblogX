@@ -1,10 +1,10 @@
 package http
 
 import (
-	"fmt"
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"myblogx/internal/apperr"
 	"myblogx/internal/kernel"
 
 	"myblogx/internal/article/app"
@@ -380,20 +380,28 @@ func (h *Handler) SaveFavorite(c *gin.Context) {
 
 // RemoveFavoriteItems 批量移除收藏。
 //
+// 响应按**实际语义**返回，不再把失败吞成成功（评审 #248 的 P0-2 / P0-3）：
+//   - 全部成功：`code=0`，`data={is_favor, favor_count, removed_count, failed_count}`；
+//   - 部分成功：`code=0`，调用方靠 `removed_count` / `failed_count` 分辨；
+//   - 全部失败：非 0 业务码 + 明确文案（旧实现走 `OkWithMsg` 返回成功 + 空 data，
+//     前端读 `payload.is_favor` 时直接抛 TypeError）。
+//
 // @Summary 取消收藏
 // @Tags article
 // @Accept json
 // @Produce json
 // @Security BearerAuth
 // @Param body body FavoriteRemovePatchModel true "请求体"
-// @Success 200 {object} kernel.Envelope[ArticleFavoriteResponse]
+// @Success 200 {object} kernel.Envelope[ArticleFavoriteRemoveResponse]
 // @Router /articles/favorite/contents [delete]
 func (h *Handler) RemoveFavoriteItems(c *gin.Context) {
 	cr := middleware.GetBindJson[FavoriteRemovePatchModel](c)
 
 	var (
-		last  app.FavoriteResult
-		found bool
+		last     app.FavoriteResult
+		removed  int
+		failed   int
+		firstErr error
 	)
 	for _, id := range cr.ArticleIDs {
 		result, err := h.svc.Unfavorite(c.Request.Context(), app.FavoriteCmd{
@@ -402,21 +410,37 @@ func (h *Handler) RemoveFavoriteItems(c *gin.Context) {
 			FolderID:  favorite.ID(cr.FavorID),
 		})
 		if err != nil {
+			failed++
+			if firstErr == nil {
+				firstErr = err
+			}
 			h.logger.Warnf("取消收藏文章 %s 失败: %v", id, err)
 			continue
 		}
 		last = result
-		found = true
+		removed++
 	}
-	h.audit(c, "article_unfavorite", "", true, "取消收藏")
+	h.audit(c, "article_unfavorite", "", failed == 0, "取消收藏")
 
-	// 响应里的计数按"最后一条成功移除的文章"给出：收藏夹弹窗每次只传当前这一篇，
-	// 批量的多篇场景不在本票消费（前端也不依赖多篇的计数）。
-	if !found {
-		res.OkWithMsg("取消成功", c)
+	// 一条都没成功：这是失败，不是"取消成功但没数据"。
+	if removed == 0 {
+		if firstErr == nil {
+			// 请求体没有文章 ID（绑定层通常已拦下，这里兜底成参数错误）。
+			res.FailWithError(apperr.New(apperr.CodeCommonInvalidArgument), c)
+			return
+		}
+		res.FailWithError(firstErr, c)
 		return
 	}
-	res.OkWithData(ArticleFavoriteResponse{IsFavor: last.IsFavor, FavorCount: last.FavorCount}, c)
+
+	// 计数按"最后一条成功移除的文章"给出：收藏夹弹窗每次只传当前这一篇，
+	// 批量的多篇场景不承诺逐篇计数（但 removed_count / failed_count 是逐条的）。
+	res.OkWithData(ArticleFavoriteRemoveResponse{
+		IsFavor:      last.IsFavor,
+		FavorCount:   last.FavorCount,
+		RemovedCount: removed,
+		FailedCount:  failed,
+	}, c)
 }
 
 // ── 置顶 ──
@@ -527,7 +551,10 @@ func (h *Handler) History(c *gin.Context) {
 	if err != nil {
 		// 半游标/坏时间戳必须显式拒掉：静默退回第一页会让前端的"加载更多"
 		// 无声地重复第一页（用户看到的是列表原地打转）。
-		res.FailWithMsg(err.Error(), c)
+		//
+		// 错误值由 parseViewHistoryCursor 用 apperr 产生（文案集中在错误码表），
+		// 响应码仍是"参数错误"的 1001 —— 不是 1002（服务异常）。
+		res.FailWithValidError(err, c)
 		return
 	}
 
@@ -559,21 +586,25 @@ func (h *Handler) History(c *gin.Context) {
 //
 // 为什么成对而不是一个不透明字符串：契约里已经有 updated_at 与 article_id，
 // 前端续页直接用列表最后一条的这两个字段，不必再拿一个隐藏的 row id。
+//
+// 失败一律返回 apperr（`common.invalid_argument`）而不是适配层 `fmt.Errorf`：
+// R8 只拦 `errors.New("中文")`，`fmt.Errorf` 会因为漏网而让文案继续散落在
+// 适配层，也没有稳定错误码可供调用方分支。响应码由 handler 侧选 1001（参数错误）。
 func parseViewHistoryCursor(rawTime, rawID string) (*viewhistory.Cursor, error) {
 	if rawTime == "" && rawID == "" {
 		return nil, nil
 	}
 	if rawTime == "" || rawID == "" {
-		return nil, fmt.Errorf("游标参数不完整：before_updated_at 与 before_id 必须成对出现")
+		return nil, apperr.New(apperr.CodeCommonInvalidArgument)
 	}
 
 	viewedAt, err := time.Parse(time.RFC3339, rawTime)
 	if err != nil {
-		return nil, fmt.Errorf("游标时间格式非法（需要 RFC3339）: %q", rawTime)
+		return nil, apperr.New(apperr.CodeCommonInvalidArgument)
 	}
 	id, err := ctype.ParseID(rawID)
 	if err != nil || id.IsZero() {
-		return nil, fmt.Errorf("游标文章 ID 非法: %q", rawID)
+		return nil, apperr.New(apperr.CodeCommonInvalidArgument)
 	}
 	return &viewhistory.Cursor{ViewedAt: viewedAt, ArticleID: domain.ArticleID(id)}, nil
 }

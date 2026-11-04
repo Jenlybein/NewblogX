@@ -2,6 +2,7 @@
 import { NButton, NList, NListItem, NTag, NThing, useMessage } from "naive-ui";
 import { getUserSessions, revokeUserSession } from "~/services/studio";
 import { formatDateTimeLabel } from "~/utils/format";
+import { errorMessage } from "~/utils/errorMessage";
 
 definePageMeta({
   layout: "studio",
@@ -23,7 +24,7 @@ async function handleRevoke(id: string, isCurrent: boolean) {
     }
     await refresh();
   } catch (error) {
-    message.error(error instanceof Error ? error.message : "下线设备失败");
+    message.error(errorMessage(error, "下线设备失败"));
   }
 }
 

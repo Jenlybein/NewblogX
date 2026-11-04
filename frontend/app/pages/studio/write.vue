@@ -25,6 +25,7 @@ import { COVER_SHAPE_RATIO_TEXT, COVER_SHAPE_TARGET } from "~/utils/imageShaping
 import { DRAFT_DISABLED_NOTICE } from "~/utils/writePolicy";
 
 import katexCssUrl from "katex/dist/katex.min.css?url";
+import { errorMessage } from "~/utils/errorMessage";
 
 definePageMeta({
   layout: "write",
@@ -230,7 +231,7 @@ async function handleRefreshArticleScore() {
     });
     message.success("已重新获取最新评分");
   } catch (error) {
-    message.error(error instanceof Error ? error.message : "重新获取评分失败");
+    message.error(errorMessage(error, "重新获取评分失败"));
   } finally {
     articleScoreRefreshing.value = false;
   }

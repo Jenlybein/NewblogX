@@ -187,8 +187,44 @@ func (r *FavoriteRepo) FindItemAnyFolder(ctx context.Context, articleID domain.A
 	return toDomainItem(m), nil
 }
 
-// SaveItem 新建收藏。
+// SaveItem 新建收藏（若同键行曾被软删，就地复活它）。
+//
+// 查询旧行必须 **Unscoped**：唯一键 uk_user_article_favor (article_id, user_id, favor_id)
+// 不含 deleted_at，被「移出收藏夹」软删过的行仍然占着这个键。带软删过滤去查就会走
+// Create 撞唯一键，表现是用户「移出后再收藏同一篇」收到 1001 duplicated key not allowed。
+// 与浏览历史 Upsert 是同一类问题、同一种解法：找到**软删过的**旧行就复活并刷新快照，
+// 只有真没有才插入。
+//
+// 活行（未软删）重复保存仍然返回 `gorm.ErrDuplicatedKey`：仓库层守住唯一键语义，
+// 「已收藏就报 ErrItemExists」由用例层（Favorite）负责。两者分开才能保证并发双击
+// 不会既多插一行、又静默把计数 +1。
 func (r *FavoriteRepo) SaveItem(ctx context.Context, i *favorite.Item) error {
+	var old userArticleFavorRow
+	err := r.db.WithContext(ctx).Unscoped().
+		Where("article_id = ? AND user_id = ? AND favor_id = ?",
+			fromArticleID(i.ArticleID()), fromUserID(i.UserID()), ctype.ID(i.FolderID())).
+		Take(&old).Error
+	if err == nil {
+		if !old.DeletedAt.Valid {
+			// 活行已存在：并发重复写，按唯一键冲突处理（不要复活成一次更新）。
+			return gorm.ErrDuplicatedKey
+		}
+		return r.db.WithContext(ctx).Unscoped().Model(&userArticleFavorRow{}).
+			Where("id = ?", old.ID).
+			Updates(map[string]any{
+				"article_title":           i.ArticleTitle(),
+				"article_abstract":        i.ArticleAbstract(),
+				"article_cover":           i.ArticleCover(),
+				"article_status":          fromStatus(i.ArticleStatus()),
+				"article_author_id":       fromUserID(i.AuthorID()),
+				"article_author_nickname": i.AuthorNickname(),
+				"article_author_avatar":   i.AuthorAvatar(),
+				"deleted_at":              nil,
+			}).Error
+	}
+	if !errors.Is(err, gorm.ErrRecordNotFound) {
+		return err
+	}
 	return r.db.WithContext(ctx).Create(&userArticleFavorRow{
 		ArticleID:             fromArticleID(i.ArticleID()),
 		UserID:                fromUserID(i.UserID()),
@@ -477,25 +513,22 @@ func (r *ViewHistoryRepo) Upsert(ctx context.Context, rec *viewhistory.Record) e
 // 发生，否则"搜到 1 条却给了第 2 页的空列表"。历史表里没有作者与标题快照，
 // 两者都经由 article_models 现取。
 func (r *ViewHistoryRepo) List(ctx context.Context, q viewhistory.ListQuery) ([]*viewhistory.Record, error) {
-	base := func() *gorm.DB {
-		db := r.db.WithContext(ctx).Table("user_article_view_history_models AS h").
-			Where("h.user_id = ? AND h.deleted_at IS NULL", fromUserID(q.UserID))
-		if q.OnlyAdminAuthors {
-			db = db.Joins("JOIN article_models AS author_a ON author_a.id = h.article_id AND author_a.deleted_at IS NULL").
-				Joins("JOIN user_models AS author_u ON author_u.id = author_a.author_id AND author_u.role = ?",
-					int8(enum.RoleAdmin))
-		}
-		if q.Keyword != "" {
-			// 与文章列表的 keyword 口径一致：按标题模糊匹配（LIKE 通配符不转义，
-			// 与 ArticleRepo 的既有实现保持一致）。
-			db = db.Where("a.title LIKE ?", "%"+q.Keyword+"%")
-		}
-		if q.Before != nil {
-			// 严格早于游标位置：时间更早，或同一时刻且 article_id 更小。
-			db = db.Where("(h.updated_at < ?) OR (h.updated_at = ? AND h.article_id < ?)",
-				q.Before.ViewedAt, q.Before.ViewedAt, fromArticleID(q.Before.ArticleID))
-		}
-		return db
+	db := r.db.WithContext(ctx).Table("user_article_view_history_models AS h").
+		Where("h.user_id = ? AND h.deleted_at IS NULL", fromUserID(q.UserID))
+	if q.OnlyAdminAuthors {
+		db = db.Joins("JOIN article_models AS author_a ON author_a.id = h.article_id AND author_a.deleted_at IS NULL").
+			Joins("JOIN user_models AS author_u ON author_u.id = author_a.author_id AND author_u.role = ?",
+				int8(enum.RoleAdmin))
+	}
+	if q.Keyword != "" {
+		// 与文章列表的 keyword 口径一致：按标题模糊匹配（LIKE 通配符不转义，
+		// 与 ArticleRepo 的既有实现保持一致）。
+		db = db.Where("a.title LIKE ?", "%"+q.Keyword+"%")
+	}
+	if q.Before != nil {
+		// 严格早于游标位置：时间更早，或同一时刻且 article_id 更小。
+		db = db.Where("(h.updated_at < ?) OR (h.updated_at = ? AND h.article_id < ?)",
+			q.Before.ViewedAt, q.Before.ViewedAt, fromArticleID(q.Before.ArticleID))
 	}
 
 	limit := q.Limit
@@ -512,9 +545,8 @@ func (r *ViewHistoryRepo) List(ctx context.Context, q viewhistory.ListQuery) ([]
 		Nickname  string
 		Avatar    string
 	}
-	if err := base().
-		Select("h.updated_at, h.article_id, h.user_id, " +
-			"a.title AS title, a.cover AS cover, u.nickname AS nickname, u.avatar AS avatar").
+	if err := db.Select("h.updated_at, h.article_id, h.user_id, " +
+		"a.title AS title, a.cover AS cover, u.nickname AS nickname, u.avatar AS avatar").
 		Joins("LEFT JOIN article_models a ON a.id = h.article_id AND a.deleted_at IS NULL").
 		Joins("LEFT JOIN user_models u ON u.id = h.user_id").
 		Order("h.updated_at desc, h.article_id desc").

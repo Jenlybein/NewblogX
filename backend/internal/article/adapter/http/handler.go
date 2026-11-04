@@ -2,6 +2,7 @@ package http
 
 import (
 	"context"
+	"io"
 	"myblogx/internal/kernel"
 	"strconv"
 
@@ -47,6 +48,12 @@ type Handler struct {
 func NewHandler(svc *app.Service, logger *logrus.Logger, site *sitecfg.RuntimeConfigService, viewer ViewerResolver, images ImageResolver) *Handler {
 	if viewer == nil {
 		viewer = anonymousViewer
+	}
+	if logger == nil {
+		// 测试装配（以及部分最小装配）不传 logger：告警日志不能因此 panic，
+		// 也不该把成百上千行打到测试输出里。
+		logger = logrus.New()
+		logger.SetOutput(io.Discard)
 	}
 	return &Handler{svc: svc, logger: logger, site: site, viewer: viewer, images: images}
 }

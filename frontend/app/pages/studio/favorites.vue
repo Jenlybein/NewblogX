@@ -11,6 +11,7 @@ import {
   updateFavoriteFolder,
 } from "~/services/favorite";
 import { formatDateTimeLabel } from "~/utils/format";
+import { errorMessage } from "~/utils/errorMessage";
 
 definePageMeta({
   layout: "studio",
@@ -77,7 +78,7 @@ async function handleCreateFolder() {
     message.success("收藏夹已创建");
     await refreshFolders();
   } catch (error) {
-    message.error(error instanceof Error ? error.message : "创建收藏夹失败");
+    message.error(errorMessage(error, "创建收藏夹失败"));
   }
 }
 
@@ -93,7 +94,7 @@ async function handleUpdateFolder() {
     editModalVisible.value = false;
     await refreshFolders();
   } catch (error) {
-    message.error(error instanceof Error ? error.message : "更新收藏夹失败");
+    message.error(errorMessage(error, "更新收藏夹失败"));
   }
 }
 
@@ -111,7 +112,7 @@ async function handleDeleteFolder() {
     message.success("收藏夹已删除");
     await refreshFolders();
   } catch (error) {
-    message.error(error instanceof Error ? error.message : "删除收藏夹失败");
+    message.error(errorMessage(error, "删除收藏夹失败"));
   }
 }
 
@@ -129,7 +130,7 @@ async function removeArticle(articleId: string) {
       contentPage.value -= 1;
     }
   } catch (error) {
-    message.error(error instanceof Error ? error.message : "移除收藏内容失败");
+    message.error(errorMessage(error, "移除收藏内容失败"));
   }
 }
 

@@ -17,6 +17,7 @@ import { useArticleDigg } from "~/composables/useArticleDigg";
 import { useArticleComments } from "~/composables/useArticleComments";
 import { useArticleOutlineContext } from "~/composables/useArticleOutlineContext";
 import { useArticlePageSources } from "~/composables/useArticlePageSources";
+import { useArticlePrivateSession } from "~/composables/useArticlePrivateSession";
 import { useArticleWritePolicy } from "~/composables/useArticleWritePolicy";
 import { useMotionPreference } from "~/composables/useMotionPreference";
 import { useParallax } from "~/composables/useParallax";
@@ -29,10 +30,12 @@ import { markArticleViewed, setArticleDigg } from "~/services/article";
 import { createComment, diggComment, getReplyComments } from "~/services/comment";
 import type { ArticleFavoriteResult } from "~/types/api";
 import { resolveArticleEditEntry } from "~/utils/articleEdit";
+import { applyArticleFavoriteResult } from "~/utils/articleFavorite";
 import { formatCount, formatDateTimeLabel } from "~/utils/format";
 import { getAuthorButtonLabel, isFollowing } from "~/utils/relation";
 import { resolveAvatarInitial } from "~/utils/avatar";
 import { brandDescription } from "~/utils/brand";
+import { errorMessage } from "~/utils/errorMessage";
 import { readerArticleCacheKey } from "~/utils/readerCacheKeys";
 import { readerSwrCache } from "~/utils/readerSwrCache";
 import katexCssUrl from "katex/dist/katex.min.css?url";
@@ -213,6 +216,18 @@ const {
   debounceMs: ARTICLE_LIKE_DEBOUNCE_MS,
 });
 
+// 登录态补取私有态（评审票 248 / P0-4）：
+// 只在 onMounted 里判一次 initializeSession() 会漏掉「用户在文章页被弹登录框、
+// 登录成功后才成为已登录」这条路径 —— 私有态永不请求，按钮继续显示未赞（库里其实已赞）。
+// 这里同时接住两条触发（首屏初始化 / 登录态 false→true），单飞闸门保证一次登录只补一次。
+const articlePrivateSession = useArticlePrivateSession({
+  isLoggedIn: () => authStore.isLoggedIn,
+  initializeSession: () => authStore.initializeSession(),
+  refreshPrivate: () => refreshArticlePrivate(),
+  // 用户已经手动点过赞时不覆盖乐观结果（ADR-0024 约束 3）。
+  shouldSkip: () => articleDiggTouched.value,
+});
+
 async function handleFavorite() {
   if (!(await requireLogin())) {
     return;
@@ -267,16 +282,13 @@ async function handleShare() {
   }
 }
 
-function handleFavoriteUpdated(payload: ArticleFavoriteResult) {
+function handleFavoriteUpdated(payload: ArticleFavoriteResult | null) {
+  // 空值防御在纯函数里（评审票 248 / P0-2）：失败分支可能没有 data，
+  // 之前的实现读 `payload.is_favor` 会直接 TypeError。
   // 写响应回填权威计数，直接 patch；不再为一次收藏重取整篇正文（ADR-0024 决策 4/6）。
-  if (article.value) {
-    article.value = {
-      ...article.value,
-      is_favor: payload.is_favor,
-      favor_count: payload.favor_count,
-    };
-  }
-  // 客户端 30s SWR 里那份正文仍是旧计数/旧私有态，主动失效。
+  article.value = applyArticleFavoriteResult(article.value, payload) ?? undefined;
+  // 客户端 30s SWR 里那份正文仍是旧计数/旧私有态，主动失效
+  // （payload 不可用时更该失效：服务端状态可能已经变了）。
   readerSwrCache.delete(readerArticleCacheKey(articleId.value));
 }
 
@@ -312,7 +324,7 @@ async function handleAuthorFollow() {
     await refreshAuthorProfile();
     await refreshAuthorInfo();
   } catch (error) {
-    message.error(error instanceof Error ? error.message : "关注操作失败");
+    message.error(errorMessage(error, "关注操作失败"));
   }
 }
 
@@ -362,13 +374,8 @@ onMounted(() => {
   // 首屏 hydration 的 payload 是**匿名**的：点赞/收藏态不在里面（ADR-0019 约束 2）。
   // 登录初始化完成后必须补一次用户态请求（ADR-0024 决策 2/6），否则硬刷新后
   // 按钮永远显示"未赞"。这条请求不走 SWR、只投影私有字段，不污染共享缓存。
-  // 用户已经手动点过赞时不覆盖（articleDiggTouched），避免把乐观结果刷回去。
-  void authStore.initializeSession().then(async (isLoggedIn) => {
-    if (!isLoggedIn || articleDiggTouched.value) {
-      return;
-    }
-    await refreshArticlePrivate().catch(() => undefined);
-  });
+  // 页内登录成功那一路由 `useArticlePrivateSession` 的 watch 兜住（单飞去重）。
+  void articlePrivateSession.initialize();
 });
 
 onUnmounted(() => {

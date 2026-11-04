@@ -10,6 +10,7 @@ import {
   markSiteMessageRead,
 } from "~/services/inbox";
 import type { GlobalNoticeItem } from "~/types/api";
+import { errorMessage } from "~/utils/errorMessage";
 import {
   MESSAGE_CENTER_PAGE_SIZE,
   type MessageCenterEntry,
@@ -24,12 +25,12 @@ import {
  *
  * 分工：
  *   - 五个子项的数据源不同 —— 评论 / 互动 / 系统走站内信（分组 1/2/3），
- *     全局通知走 `/api/global_notif`，私信本票不取数（#240 接入）；
+ *     全局通知走 `/api/global_notif`；
+ *   - 私信子项已由 `InboxChatView` / `useInboxCenter` 接管（#240）：本 composable
+ *     不再取私信列表，只保留 `chat` 的 tab 位置与未读汇总刷新；
  *   - 站内信支持"按分组标记已读 / 按分组删除"；全局通知只有"按 id 列表"的接口，
  *     所以"全部已读 / 清空"要先把全部 id 翻页收集齐，再一次性提交；
  *   - 每次写入后都刷新 `GET /api/sitemsg/user` 的未读汇总，保证顶栏与页面角标同步归零。
- *
- * 私信子项保留 `chat` 位置：进入时只刷新未读数，列表容器由页面留空给 #240。
  */
 
 /** 全局通知没有"按分组"接口：翻页收集 id 时用后端允许的单页上限（100）。 */
@@ -58,10 +59,6 @@ export function useMessageCenter(options: UseMessageCenterOptions) {
 
   // 请求序号：切换子项后，上一个子项在途的响应必须被丢弃，否则会短暂显示错分组的数据。
   let requestId = 0;
-
-  function errorMessageOf(reason: unknown): string {
-    return reason instanceof Error ? reason.message : "消息加载失败";
-  }
 
   async function fetchPage(tab: MessageCenterTab, pageNumber: number): Promise<PagePayload> {
     if (tab === "global") {
@@ -101,7 +98,7 @@ export function useMessageCenter(options: UseMessageCenterOptions) {
       return payload.entries;
     } catch (reason) {
       if (currentRequest === requestId) {
-        error.value = errorMessageOf(reason);
+        error.value = errorMessage(reason, "消息加载失败");
         items.value = [];
         hasMore.value = false;
       }
@@ -131,7 +128,7 @@ export function useMessageCenter(options: UseMessageCenterOptions) {
       return payload.entries;
     } catch (reason) {
       if (currentRequest === requestId) {
-        error.value = errorMessageOf(reason);
+        error.value = errorMessage(reason, "消息加载失败");
       }
       return [];
     } finally {

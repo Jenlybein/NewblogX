@@ -373,6 +373,22 @@ type ArticleFavoriteResponse struct {
 	FavorCount int  `json:"favor_count"`
 }
 
+// ArticleFavoriteRemoveResponse 批量取消收藏结果。
+//
+// 为什么与 ArticleFavoriteResponse 分开：批量接口必须让调用方分辨「部分成功」
+// （评审 #248 的 P0-2），所以除了权威计数还给出 `removed_count` / `failed_count`；
+// 如果沿用单条的形状，部分失败就只能靠猜。
+//
+// `is_favor` / `favor_count` 仍按「最后一条成功移除的文章」给出：当前唯一消费方
+// （收藏夹弹窗）每次只传当前这一篇；多篇批量场景不应依赖这两个字段，只看计数。
+// 全部失败不会走到这里（handler 返回非 0 业务码）。
+type ArticleFavoriteRemoveResponse struct {
+	IsFavor      bool `json:"is_favor"`
+	FavorCount   int  `json:"favor_count"`
+	RemovedCount int  `json:"removed_count"`
+	FailedCount  int  `json:"failed_count"`
+}
+
 // ArticleHotTopCardResponse 是首页「热门置顶」运营位的一张卡片。
 //
 // 字段与 ArticleTopCardResponse（/articles/top，作者置顶）保持一致形状：

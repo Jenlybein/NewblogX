@@ -1,27 +1,15 @@
-import { computed, toValue, watch } from "vue";
+import { computed, getCurrentScope, onScopeDispose, ref, shallowRef, toValue, watch } from "vue";
 import type { MaybeRefOrGetter } from "vue";
 import {
   deleteChatMessages,
   deleteChatSessions,
-  deleteGlobalNoticeForCurrentUser,
-  deleteSiteMessage,
   getChatMessages,
   getChatSessions,
-  getGlobalNotices,
-  getSiteMessages,
   markChatMessagesRead,
-  markGlobalNoticeRead,
-  markSiteMessageRead,
   sendChatMessage,
 } from "~/services/inbox";
 import { uploadImageByTask } from "~/services/image";
-import type {
-  ChatMessageItem,
-  ChatNotificationPayload,
-  ChatSessionItem,
-  GlobalNoticeItem,
-  SiteMessageItem,
-} from "~/types/api";
+import type { ChatMessageItem, ChatSessionItem } from "~/types/api";
 import {
   buildChatClientMsgId,
   buildPreparedChatSession,
@@ -29,10 +17,22 @@ import {
   type InboxDraftSessionSeed,
 } from "~/utils/chat";
 import type { ChatSendType } from "~/utils/chatMessage";
+import { errorMessage } from "~/utils/errorMessage";
 
-export type InboxTab = "site" | "global" | "chat";
-export type SiteMessageGroup = 1 | 2 | 3;
-const MESSAGE_PAGE_SIZE = 9;
+/**
+ * 私信会话（`/messages/chat` 的右内容）。
+ *
+ * 本票（#240）收窄后的范围只有私信：
+ *   - 站内信（评论 / 互动 / 系统）与全局通知已迁到 useMessageCenter（#239），
+ *     这里再留一份"旧 inbox 页"的分支就是死代码 —— 两个取数路径迟早漂移；
+ *   - 因此没有 `activeTab` / `activeSiteGroup` 之类开关：进到本 composable 就是私信页。
+ *
+ * 职责分工：
+ *   - 会话与消息的真相在 HTTP（`GET /api/chat/sessions`、`GET /api/chat/messages`）；
+ *   - 发送也走 HTTP（#201：唯一发送通道，断 WS 也能发出）；
+ *   - WS 只推通知。连接本身属于整个登录会话（`useChatSocket` 单例 + useMessageRealtime），
+ *     这个 composable 只在私信页挂载期间**订阅**通知：命中当前会话才重拉消息。
+ */
 
 interface UseInboxCenterOptions {
   draftSessionSeed?: MaybeRefOrGetter<InboxDraftSessionSeed | null>;
@@ -47,16 +47,8 @@ export function useInboxCenter(options: UseInboxCenterOptions = {}) {
   const authStore = useAuthStore();
   const messageStore = useMessageStore();
   const chatStore = useChatStore();
-  const { socketStatus, socketError, sendError, setSendError, connect, takeNotifications, inbox } = useChatSocket();
+  const socket = useChatSocket();
 
-  const activeTab = shallowRef<InboxTab>("site");
-  const activeSiteGroup = shallowRef<SiteMessageGroup>(1);
-  const sitePage = shallowRef(1);
-  const globalPage = shallowRef(1);
-  const siteHasMore = shallowRef(false);
-  const globalHasMore = shallowRef(false);
-  const siteMessages = ref<SiteMessageItem[]>([]);
-  const globalNotices = ref<GlobalNoticeItem[]>([]);
   const chatSessionsState = ref<ChatSessionItem[]>([]);
   const chatMessages = ref<ChatMessageItem[]>([]);
   const chatKeyword = shallowRef("");
@@ -68,8 +60,6 @@ export function useInboxCenter(options: UseInboxCenterOptions = {}) {
   // 否则"请求已落库、响应丢了"的重试会变成第二条消息。
   const failedSend = shallowRef<{ content: string; msgType: ChatSendType; clientMsgId: string } | null>(null);
 
-  const sitePending = shallowRef(false);
-  const globalPending = shallowRef(false);
   const sessionPending = shallowRef(false);
   const messagePending = shallowRef(false);
 
@@ -87,6 +77,7 @@ export function useInboxCenter(options: UseInboxCenterOptions = {}) {
     } satisfies InboxDraftSessionSeed;
   });
 
+  // 草稿会话只活在前端：如果服务端已经有一条和这个接收方的会话，就不该再插一条"预备会话"。
   const preparedSession = computed(() => {
     const seed = draftSessionSeed.value;
     if (!seed) {
@@ -125,27 +116,17 @@ export function useInboxCenter(options: UseInboxCenterOptions = {}) {
     });
   });
 
-  const siteCategories = computed(() => [
-    {
-      key: 1 as const,
-      label: "评论与回复",
-      hint: "",
-      count: messageStore.summary.comment_msg_count,
-    },
-    {
-      key: 2 as const,
-      label: "点赞与收藏",
-      hint: "",
-      count: messageStore.summary.digg_favor_msg_count,
-    },
-    {
-      key: 3 as const,
-      label: "系统通知",
-      hint: "",
-      count: messageStore.summary.system_msg_count,
-    },
-  ]);
+  const activeSessionId = computed({
+    get: () => chatStore.activeSessionId,
+    set: (value) => chatStore.setActiveSession(value),
+  });
 
+  /**
+   * 选中一条会话。
+   *
+   * 草稿种子优先：从作者主页「发私信」进来时，用户要看的是**那个人的会话**，
+   * 不是列表里的第一条；有服务端会话就用它，没有就选中前端预备会话。
+   */
   function pickPreferredActiveSession(serverSessions = chatSessionsState.value) {
     const seed = draftSessionSeed.value;
     const existingActiveSession = chatStore.activeSessionId
@@ -180,39 +161,6 @@ export function useInboxCenter(options: UseInboxCenterOptions = {}) {
     return nextSessionId;
   }
 
-  async function loadSiteMessages(page = sitePage.value, options: { append?: boolean } = {}) {
-    const group = activeSiteGroup.value;
-    sitePending.value = true;
-    try {
-      const payload = await getSiteMessages({ group, page, limit: MESSAGE_PAGE_SIZE });
-      const nextList = options.append ? [...siteMessages.value, ...payload.list] : payload.list;
-
-      if (group !== activeSiteGroup.value) {
-        return payload.list;
-      }
-
-      sitePage.value = page;
-      siteHasMore.value = payload.has_more;
-      siteMessages.value = nextList;
-      return payload.list;
-    } finally {
-      sitePending.value = false;
-    }
-  }
-
-  async function loadGlobalNotices(page = globalPage.value, options: { append?: boolean } = {}) {
-    globalPending.value = true;
-    try {
-      const payload = await getGlobalNotices({ page, limit: MESSAGE_PAGE_SIZE, type: 1 });
-      globalPage.value = page;
-      globalHasMore.value = payload.has_more;
-      globalNotices.value = options.append ? [...globalNotices.value, ...payload.list] : payload.list;
-      return payload.list;
-    } finally {
-      globalPending.value = false;
-    }
-  }
-
   async function loadChatSessions() {
     sessionPending.value = true;
     try {
@@ -244,32 +192,6 @@ export function useInboxCenter(options: UseInboxCenterOptions = {}) {
     } finally {
       messagePending.value = false;
     }
-  }
-
-  async function markCurrentSiteGroupRead() {
-    await markSiteMessageRead({ group: activeSiteGroup.value });
-    sitePage.value = 1;
-    await Promise.all([messageStore.refreshSummary(), loadSiteMessages(1)]);
-  }
-
-  async function removeSiteMessage(payload: { id?: string; group?: SiteMessageGroup }) {
-    await deleteSiteMessage(payload);
-    sitePage.value = 1;
-    await Promise.all([messageStore.refreshSummary(), loadSiteMessages(1)]);
-  }
-
-  async function markAllGlobalRead() {
-    const unreadIds = globalNotices.value.filter((item) => !item.is_read).map((item) => item.id);
-    if (!unreadIds.length) return;
-    await markGlobalNoticeRead(unreadIds);
-    globalPage.value = 1;
-    await Promise.all([messageStore.refreshSummary(), loadGlobalNotices(1)]);
-  }
-
-  async function removeGlobalNotice(id: string) {
-    await deleteGlobalNoticeForCurrentUser([id]);
-    globalPage.value = 1;
-    await Promise.all([messageStore.refreshSummary(), loadGlobalNotices(1)]);
   }
 
   async function removeChatSession(sessionId: string) {
@@ -358,7 +280,7 @@ export function useInboxCenter(options: UseInboxCenterOptions = {}) {
       }
       failedSend.value = null;
       // 发送成功要清掉上一次的拒绝原因：否则界面上还挂着上一条「站点关闭陌生人私信」。
-      setSendError("");
+      socket.setSendError("");
 
       await loadChatSessions();
 
@@ -390,7 +312,7 @@ export function useInboxCenter(options: UseInboxCenterOptions = {}) {
       // 避免"其实已落库、只是响应丢了"的重试变成第二条消息。
       failedSend.value = { content, msgType, clientMsgId };
       // 拒绝原因直接透出后端文案（站点策略等），由私信面板就地显示（票 202）。
-      setSendError(error instanceof Error ? error.message : "消息发送失败。");
+      socket.setSendError(errorMessage(error, "消息发送失败。"));
       throw error;
     }
   }
@@ -437,90 +359,17 @@ export function useInboxCenter(options: UseInboxCenterOptions = {}) {
     }
   }
 
-  watch(
-    () => activeSiteGroup.value,
-    async () => {
-      if (activeTab.value === "site") {
-        sitePage.value = 1;
-        await loadSiteMessages(1);
-      }
-    },
-  );
-
-  watch(
-    () => draftSessionSeed.value,
-    () => {
-      if (activeTab.value === "chat") {
-        pickPreferredActiveSession();
-      }
-    },
-  );
-
-  watch(
-    () => activeTab.value,
-    async (tab) => {
-      if (tab === "site") {
-        sitePage.value = 1;
-        await Promise.all([
-          loadSiteMessages(1),
-          loadGlobalNotices(1).catch(() => []),
-        ]);
-        return;
-      }
-
-      if (tab === "global") {
-        globalPage.value = 1;
-        await loadGlobalNotices(1);
-        return;
-      }
-
-      await connect();
-      await loadChatSessions();
-      await loadChatMessages();
-    },
-    { immediate: true },
-  );
-
-  watch(
-    () => chatStore.activeSessionId,
-    async (sessionId) => {
-      if (activeTab.value === "chat" && sessionId) {
-        await loadChatMessages(sessionId);
-      }
-    },
-  );
-
-  // WS 只推通知（有新消息 / 对方已读）：收到后刷新会话列表与未读数，
-  // 命中当前打开的会话时再刷新消息。这样"对端在线但当前没打开这个会话"
-  // 也会更新左侧红点，而不是只回购当前会话。
-  watch(
-    () => inbox.value.length,
-    async () => {
-      const notifications: ChatNotificationPayload[] = takeNotifications();
-      if (!notifications.length) return;
-
-      const activeId = activeSession.value?.session_id;
-      const tasks: Promise<unknown>[] = [loadChatSessions(), messageStore.refreshSummary()];
-      if (
-        activeId &&
-        !isDraftChatSessionId(activeId) &&
-        notifications.some((item) => item.session_id === activeId)
-      ) {
-        tasks.push(loadChatMessages(activeId));
-      }
-      await Promise.all(tasks);
-    },
-  );
-
   /**
    * 建立（或重连）实时连接，并在连上后补齐断线期间错过的消息。
    *
    * 为什么要补：通知是"尽力而为"——对方离线时那条通知帧没人接，中继会把事件
    * 标记完成；重连后不会自动重放。所以连上之后必须主动刷新一次会话、未读与
    * 当前会话消息，否则"断线期间对方发来的消息"在界面上要等下次切页才出现。
+   *
+   * 连接本身是全局单例（离开私信页不关）；这里只在私信页需要"立即补齐"。
    */
   async function connectSocket() {
-    const instance = await connect();
+    const instance = await socket.connect();
     if (!instance) {
       return null;
     }
@@ -532,36 +381,55 @@ export function useInboxCenter(options: UseInboxCenterOptions = {}) {
     return instance;
   }
 
-  async function loadMoreSiteMessages() {
-    if (sitePending.value || !siteHasMore.value) {
-      return [];
+  // 进入私信页即建连（幂等）并拉会话；断开的情况下也照常拉，界面不依赖 WS。
+  async function bootstrap() {
+    try {
+      await socket.connect();
+    } catch {
+      // 连接失败不该挡住列表：WS 只做通知，会话与消息都走 HTTP。
     }
-    return loadSiteMessages(sitePage.value + 1, { append: true });
+    await loadChatSessions().catch(() => undefined);
+    await loadChatMessages().catch(() => undefined);
   }
+  void bootstrap();
 
-  async function loadMoreGlobalNotices() {
-    if (globalPending.value || !globalHasMore.value) {
-      return [];
+  watch(
+    () => draftSessionSeed.value,
+    () => {
+      pickPreferredActiveSession();
+    },
+  );
+
+  watch(
+    () => chatStore.activeSessionId,
+    async (sessionId) => {
+      if (sessionId) {
+        await loadChatMessages(sessionId);
+      }
+    },
+  );
+
+  // WS 只推通知（有新消息 / 对方已读）：收到后刷新会话列表与未读数，
+  // 命中当前打开的会话时再刷新消息。
+  //
+  // 订阅的生命周期 = 私信页的生命周期（取消订阅而已，**不动连接**）：
+  // 连接属于整个登录会话，页头未读订阅还在用同一条连接。
+  const stopNotifications = socket.onNotification((notification) => {
+    const activeId = activeSession.value?.session_id;
+    const tasks: Promise<unknown>[] = [loadChatSessions(), messageStore.refreshSummary()];
+    if (activeId && !isDraftChatSessionId(activeId) && notification.session_id === activeId) {
+      tasks.push(loadChatMessages(activeId));
     }
-    return loadGlobalNotices(globalPage.value + 1, { append: true });
+    void Promise.all(tasks).catch(() => undefined);
+  });
+  if (getCurrentScope()) {
+    onScopeDispose(stopNotifications);
   }
 
   return {
-    activeTab,
-    activeSiteGroup,
-    activeSessionId: computed({
-      get: () => chatStore.activeSessionId,
-      set: (value) => chatStore.setActiveSession(value),
-    }),
+    activeSessionId,
     activeSession,
     preparedSession,
-    siteCategories,
-    sitePage,
-    siteHasMore,
-    globalPage,
-    globalHasMore,
-    siteMessages,
-    globalNotices,
     chatSessions,
     filteredChatSessions,
     chatMessages,
@@ -569,25 +437,15 @@ export function useInboxCenter(options: UseInboxCenterOptions = {}) {
     chatDraft,
     chatDraftType,
     imagePending,
-    sitePending,
-    globalPending,
     sessionPending,
     messagePending,
-    socketStatus,
-    socketError,
+    socketStatus: socket.socketStatus,
+    socketError: socket.socketError,
     // 发送被拒的明确原因（票 202）：直接透出后端文案（HTTP 发送失败或 WS 异常帧），
     // 由私信面板就地显示，而不是只丢进控制台或连接状态里。
-    chatSendError: sendError,
-    loadSiteMessages,
-    loadGlobalNotices,
-    loadMoreSiteMessages,
-    loadMoreGlobalNotices,
+    chatSendError: socket.sendError,
     loadChatSessions,
     loadChatMessages,
-    markCurrentSiteGroupRead,
-    removeSiteMessage,
-    markAllGlobalRead,
-    removeGlobalNotice,
     removeChatSession,
     removeChatMessage,
     sendCurrentChatMessage,

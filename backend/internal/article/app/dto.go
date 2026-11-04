@@ -8,6 +8,7 @@ import (
 	"myblogx/internal/article/domain/favorite"
 	"myblogx/internal/article/domain/project"
 	"myblogx/internal/article/domain/review"
+	"myblogx/internal/article/domain/viewhistory"
 )
 
 // CreateArticleCmd 是创建文章的输入。
@@ -143,8 +144,40 @@ type ExamineCmd struct {
 type FavoriteCmd struct {
 	Actor     domain.Viewer
 	ArticleID domain.ArticleID
-	// FolderID 为 0 时落到默认收藏夹。
+	// FolderID 为 0 时落到默认收藏夹；收藏与取消收藏共用这一口径。
+	// 取消收藏时它同时是**目标范围**：只删这个夹子里的关系，不留「任意夹」的兜底。
 	FolderID favorite.ID
+}
+
+// FavoriteResult 是收藏/取消收藏后的权威状态与计数（ADR-0024 决策 4/6）。
+//
+// 前端拿到它就直接 patch 界面、主动失效客户端缓存，不再为一次收藏重取整篇正文。
+// 计数是**文章级**绝对值（库内快照 + 缓存增量），不是"这次 +1 / -1"。
+type FavoriteResult struct {
+	// IsFavor 操作后该用户是否仍收藏着这篇文章（多收藏夹时移除其中一个仍为 true）。
+	IsFavor bool
+	// FavorCount 操作后文章的收藏总数。
+	FavorCount int
+}
+
+// DiggCmd 是设置点赞目标态的输入（ADR-0024 决策 3）。
+//
+// 与旧 toggle 的区别：调用方说的是"我要它处于已赞 / 未赞"，服务端按目标收敛。
+// 重复提交同一个目标态就是无操作 —— 这消除了"按钮显示未赞、实际已赞，再点一下
+// 把真实点赞取消掉"的数据损坏风险。
+type DiggCmd struct {
+	Actor     domain.Viewer
+	ArticleID domain.ArticleID
+	// Liked 是目标态：true 表示点赞，false 表示取消。
+	Liked bool
+}
+
+// DiggResult 是设置点赞后的权威状态与计数。
+type DiggResult struct {
+	// IsDigg 收敛后的点赞状态（幂等重复时也是 true/false，不是"这次变了没有"）。
+	IsDigg bool
+	// DiggCount 操作后文章的点赞总数（库内快照 + 缓存增量）。
+	DiggCount int
 }
 
 // TopCmd 是置顶/取消置顶的输入。
@@ -305,4 +338,27 @@ type SetProjectDisplayCmd struct {
 	ProjectID project.ID
 	// Displayed 目标展示状态。
 	Displayed bool
+}
+
+// ── 浏览历史 ──
+
+// ViewHistoryQuery 是浏览历史列表的查询条件（用户由 viewer 决定，不来自请求）。
+//
+// 与 domain.Page 不同，这里没有 offset：历史页按天分组（今天 / 昨天 / 近一周 /
+// 更早），offset 在删除或置顶之后会让下一页整体位移，分组就会跨页断开。
+type ViewHistoryQuery struct {
+	// Keyword 按文章标题模糊匹配；空白视为不筛选。
+	Keyword string
+	// Before 为 nil 表示第一页；非 nil 表示续页位置。
+	Before *viewhistory.Cursor
+	// Limit 期望条数（零值=默认 10，上限 100，见 viewhistory.ListQuery.Normalize）。
+	Limit int
+}
+
+// ViewHistoryPage 是一页浏览历史。
+//
+// HasMore 由"多取一条"得出，而不是 total：游标分页不需要总数，历史页也不显示它。
+type ViewHistoryPage struct {
+	Records []*viewhistory.Record
+	HasMore bool
 }

@@ -1,10 +1,15 @@
 <script setup lang="ts">
 import { computed, ref, watch } from "vue";
 import { NButton, NCard, NEmpty, NInput, NModal, NSkeleton, useMessage } from "naive-ui";
-import type { FavoriteFolderItem } from "~/types/api";
-import { createFavoriteFolder, getOwnFavoriteFolders } from "~/services/favorite";
+import type {
+  ArticleFavoriteRemoveResult,
+  ArticleFavoriteResult,
+  FavoriteFolderItem,
+} from "~/types/api";
+import { createFavoriteFolder, getOwnFavoriteFolders, removeFavoriteFolderArticles } from "~/services/favorite";
 import { favoriteArticle } from "~/services/article";
 import { usePointerSpecular } from "~/composables/usePointerSpecular";
+import { errorMessage } from "~/utils/errorMessage";
 
 const props = defineProps<{
   show: boolean;
@@ -17,7 +22,13 @@ const { handlePointerMove } = usePointerSpecular();
 
 const emit = defineEmits<{
   "update:show": [value: boolean];
-  updated: [];
+  /**
+   * 收藏写响应里的权威状态与计数（ADR-0024 决策 4/6）。
+   *
+   * `null` 表示这次响应**不可用**（没有 data，或字段缺失）：页面据此跳过 patch，
+   * 不再让 `payload.is_favor` 直接抛 TypeError（评审票 248 / P0-2）。
+   */
+  updated: [payload: ArticleFavoriteResult | null];
 }>();
 
 const folders = ref<FavoriteFolderItem[]>([]);
@@ -50,6 +61,25 @@ function closeModal() {
   emit("update:show", false);
 }
 
+/**
+ * 把写响应交给页面（或交一个明确的 `null`）。
+ *
+ * 为什么不能直接 `emit("updated", result)`：失败分支历史上返回过空 data，
+ * 页面读 `payload.is_favor` 会直接 TypeError（评审票 248 / P0-2）。这里做空值防御，
+ * 形状不对就当"这次没有可用载荷"，由页面跳过 patch、只失效缓存。
+ */
+function emitFavoriteResult(
+  result: ArticleFavoriteResult | ArticleFavoriteRemoveResult | null | undefined,
+) {
+  const available =
+    result &&
+    typeof result.is_favor === "boolean" &&
+    typeof result.favor_count === "number"
+      ? result
+      : null;
+  emit("updated", available);
+}
+
 function resetCreateForm() {
   showCreateForm.value = false;
   newFolderTitle.value = "";
@@ -62,7 +92,7 @@ async function loadFolders() {
     const payload = await getOwnFavoriteFolders(props.articleId);
     folders.value = payload.list ?? [];
   } catch (error) {
-    message.error(error instanceof Error ? error.message : "加载收藏夹失败");
+    message.error(errorMessage(error, "加载收藏夹失败"));
   } finally {
     pending.value = false;
   }
@@ -72,12 +102,27 @@ async function handleToggleFolder(folder: FavoriteFolderItem) {
   actionPendingId.value = folder.id;
   try {
     const wasIncluded = folder.has_article;
-    await favoriteArticle(props.articleId, folder.id);
+    // 关键：已收藏时走 DELETE（移除），不是再 POST 一次。
+    // 旧实现两个分支都发 POST，于是"移出收藏夹"必然撞 ErrItemExists。
+    const result = wasIncluded
+      ? await removeFavoriteFolderArticles({ favoriteId: folder.id, articleIds: [props.articleId] })
+      : await favoriteArticle(props.articleId, folder.id);
     await loadFolders();
-    message.success(wasIncluded ? `已从“${folder.title}”移除` : `已加入“${folder.title}”`);
-    emit("updated");
+    // 批量接口会带回 `failed_count`：单篇场景全失败已由后端返回非 0 业务码进 catch，
+    // 这里只有当"部分失败"时才不能再宣称全部成功（评审票 248 / P0-2）。
+    if (wasIncluded) {
+      const removeResult = result as ArticleFavoriteRemoveResult;
+      if (removeResult.failed_count > 0) {
+        message.warning(`已移出 ${removeResult.removed_count} 篇，${removeResult.failed_count} 篇未移除`);
+      } else {
+        message.success(`已从“${folder.title}”移除`);
+      }
+    } else {
+      message.success(`已加入“${folder.title}”`);
+    }
+    emitFavoriteResult(result);
   } catch (error) {
-    message.error(error instanceof Error ? error.message : "收藏操作失败");
+    message.error(errorMessage(error, "收藏操作失败"));
   } finally {
     actionPendingId.value = null;
   }
@@ -86,12 +131,12 @@ async function handleToggleFolder(folder: FavoriteFolderItem) {
 async function handleAddToDefaultFolder() {
   actionPendingId.value = "__default__";
   try {
-    await favoriteArticle(props.articleId);
+    const result = await favoriteArticle(props.articleId);
     await loadFolders();
     message.success("已加入默认收藏夹");
-    emit("updated");
+    emitFavoriteResult(result);
   } catch (error) {
-    message.error(error instanceof Error ? error.message : "收藏操作失败");
+    message.error(errorMessage(error, "收藏操作失败"));
   } finally {
     actionPendingId.value = null;
   }
@@ -115,14 +160,14 @@ async function handleCreateFolder() {
     });
     await loadFolders();
     const created = folders.value.find((item) => item.title === title);
-    if (created) {
-      await favoriteArticle(props.articleId, created.id);
-    }
+    const result = created ? await favoriteArticle(props.articleId, created.id) : null;
     resetCreateForm();
     message.success(created ? `已创建“${title}”并完成收藏` : `已创建“${title}”`);
-    emit("updated");
+    if (result) {
+      emitFavoriteResult(result);
+    }
   } catch (error) {
-    message.error(error instanceof Error ? error.message : "创建收藏夹失败");
+    message.error(errorMessage(error, "创建收藏夹失败"));
   } finally {
     createPending.value = false;
   }

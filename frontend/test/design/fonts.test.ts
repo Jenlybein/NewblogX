@@ -26,7 +26,12 @@ const adminTokensCss = readFileSync(
 const appVue = readFileSync(join(projectDir, "app/app.vue"), "utf8");
 const adminAppVue = readFileSync(join(repoRoot, "frontend_admin/app/app.vue"), "utf8");
 const indexVue = readFileSync(join(projectDir, "app/pages/index.vue"), "utf8");
-const markdownThemeTs = readFileSync(join(projectDir, "app/utils/markdownTheme.ts"), "utf8");
+// 样式源已外移到 markdownThemeCss.ts（受「单文件 ≤ 800 行」约束）：
+// 这里把两份都读进来，字体键被代码块真实消费这件事不因文件拆分而失效。
+const markdownThemeTs = [
+  readFileSync(join(projectDir, "app/utils/markdownTheme.ts"), "utf8"),
+  readFileSync(join(projectDir, "app/utils/markdownThemeCss.ts"), "utf8"),
+].join("\n");
 const wordmarkVue = readFileSync(join(projectDir, "app/components/brand/Wordmark.vue"), "utf8");
 const adminWordmarkVue = readFileSync(
   join(repoRoot, "frontend_admin/app/components/admin/BrandWordmark.vue"),

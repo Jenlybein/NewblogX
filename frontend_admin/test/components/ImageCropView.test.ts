@@ -1,3 +1,5 @@
+import { readFileSync } from 'node:fs'
+import { join } from 'node:path'
 import { createApp, defineComponent, h, nextTick } from 'vue'
 import { afterEach, describe, expect, it } from 'vitest'
 
@@ -166,5 +168,80 @@ describe('后台裁剪窗：确认与取消是两个出口', () => {
 
     expect(labels).toEqual(['缩小', '放大', '重置取景', '取消裁剪', '确认裁剪'])
     expect(host.innerHTML).not.toMatch(/rotate|scaleX|mirror|filter:/u)
+  })
+})
+
+/**
+ * 取景框几何（票 242）：以前框是 `width: 100%` + aspect-ratio，高度按宽度派生 →
+ * 头像 1:1 时高度≈弹层内容宽，弹层被撑满。改成**由高度决定宽**：高度预算来自
+ * 视口（`min(46dvh, 360px)`），宽度 = 预算 × 比例，且不超过台面宽。
+ *
+ * happy-dom 不跑布局，这里能观察的是组件交给 DOM 的样式声明，以及"底部操作条
+ * 不在滚动区里"的结构契约；滚动/不滚由组件样式里的同一条声明保证。
+ * 两端这份组件逐字节同源（`node scripts/check-image-shaping-parity.mjs`）。
+ */
+describe('后台裁剪窗：取景框由高度决定宽（票 242）', () => {
+  const viewSource = readFileSync(
+    join(process.cwd(), 'app/components/media/ImageCropView.vue'),
+    'utf8',
+  )
+
+  /** 框交出的比例乘数（`--crop-frame-ratio: 1.777778` 里的 1.777778）。 */
+  function widthMultiplier(style: string): number {
+    const raw = /--crop-frame-ratio:\s*([0-9.]+)/u.exec(style)?.[1]
+    expect(raw, '框必须把目标比例交给样式里的宽度公式').toBeDefined()
+    return Number(raw)
+  }
+
+  /** 组件样式里的一条规则块（happy-dom 不加载 scoped CSS，只能看源文件声明）。 */
+  function cssBlock(selector: string): string {
+    const start = viewSource.indexOf(`${selector} {`)
+    expect(start, `${selector} 规则必须在组件样式里`).toBeGreaterThan(-1)
+    return viewSource.slice(start, viewSource.indexOf('}', start))
+  }
+
+  it('高度预算是视口高度的 46%、桌面封顶 360px；宽度按比例反推且不超过台面', () => {
+    const { frame } = mountView()
+    const frameCss = cssBlock('.image-crop__frame')
+    const style = frame().getAttribute('style') ?? ''
+
+    // 尺寸方向写在样式里：宽度 = 高度预算 × 比例，且不超过台面宽。
+    expect(frameCss).toContain('min(46dvh, 360px)')
+    expect(frameCss).toContain('min(100%')
+    expect(frameCss).toContain('var(--crop-frame-ratio')
+    // 封面 16:9：宽上限 = 高度预算 × 16/9（独立来源：规格里的 16:9）。
+    expect(widthMultiplier(style)).toBeCloseTo(16 / 9, 4)
+    // 框的宽度不再由"整条撑满"决定（max-width 除外）。
+    expect(frameCss).not.toMatch(/(?<!max-)width:\s*100%/u)
+  })
+
+  it('头像 1:1 的宽上限就是 360px 高度预算，不再等于弹层内容宽', () => {
+    const { frame } = mountView({ target: { width: 256, height: 256 }, ratioText: '1:1' })
+    const style = frame().getAttribute('style') ?? ''
+
+    // min(100%, 360px × 1)：台面再宽，1:1 框也只有 360×360。
+    expect(widthMultiplier(style)).toBeCloseTo(1, 6)
+    expect(style).toMatch(/--crop-frame-ratio:\s*1(;|$)/u)
+  })
+
+  it('内容区自己滚、底部动作条不滚：操作条在滚动区之外', () => {
+    const { host } = mountView()
+    const body = host.querySelector('[data-role="crop-body"]') as HTMLElement
+    const actions = host.querySelector('[data-role="crop-actions"]') as HTMLElement
+
+    expect(body.querySelector('[data-role="crop-frame"]')).not.toBeNull()
+    expect(body.querySelector('input[aria-label="缩放"]')).not.toBeNull()
+    expect(body.querySelector('[data-role="crop-actions"]')).toBeNull()
+
+    expect(Array.from(actions.querySelectorAll('button')).map(button => button.getAttribute('aria-label'))).toEqual([
+      '重置取景',
+      '取消裁剪',
+      '确认裁剪',
+    ])
+
+    expect(cssBlock('.image-crop__body')).toContain('overflow-y: auto')
+    expect(cssBlock('.image-crop__actions')).toContain('flex: none')
+    // 框不再是"整条撑满 + 比例派生高度"。
+    expect(cssBlock('.image-crop__frame')).not.toMatch(/(?<!max-)width:\s*100%/u)
   })
 })

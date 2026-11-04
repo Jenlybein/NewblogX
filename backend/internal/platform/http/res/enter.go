@@ -112,7 +112,23 @@ func FailWithData(data any, msg string, c *gin.Context) {
 	}.Json(c)
 }
 
+// FailWithError 把错误翻成"服务异常"（1002）响应。
 func FailWithError(err error, c *gin.Context) {
 	data, msg := validate.ValidateError(err)
 	FailWithData(data, msg, c)
+}
+
+// FailWithValidError 把错误翻成"参数校验失败"（1001）响应。
+//
+// 与 FailWithError 的唯一区别是包体业务码：错误值仍必须由 apperr 产生（文案与
+// 错误码只有一处来源），但参数类失败在协议里的码是 1001 而不是 1002
+// （"服务异常"会让调用方以为后端坏了）。两个 helper 并存，才让"错误值统一
+// 收口到 apperr"与"参数错误用 1001"同时成立。
+func FailWithValidError(err error, c *gin.Context) {
+	data, msg := validate.ValidateError(err)
+	Response{
+		Code: FailValidCode,
+		Data: data,
+		Msg:  msg,
+	}.Json(c)
 }

@@ -24,6 +24,7 @@ import {
   normalizeCategoryTitle,
 } from "~/utils/studioCategory";
 import { describeCoverBadge, type CoverBadge } from "~/utils/studioCover";
+import { errorMessage } from "~/utils/errorMessage";
 
 // 写作页的"文章数据域"：表单内容、数据加载、编辑态回填、封面上传、提交载荷。
 //
@@ -273,7 +274,7 @@ export async function useStudioArticle(deps: StudioArticleDeps) {
       message.error(
         created
           ? "分类已创建，但分类列表加载失败，请手动刷新后选择。"
-          : `创建分类失败：${error instanceof Error ? error.message : "请稍后重试"}`,
+          : `创建分类失败：${errorMessage(error, "请稍后重试")}`,
       );
       return false;
     } finally {
@@ -293,7 +294,7 @@ export async function useStudioArticle(deps: StudioArticleDeps) {
     editingArticleError,
     (error) => {
       if (!error || !isEditMode.value) return;
-      message.error(error instanceof Error ? error.message : "加载待编辑文章失败");
+      message.error(errorMessage(error, "加载待编辑文章失败"));
     },
     { immediate: true },
   );
@@ -428,7 +429,7 @@ export async function useStudioArticle(deps: StudioArticleDeps) {
       message.success("封面上传成功");
       return true;
     } catch (error) {
-      const text = error instanceof Error ? error.message : "封面上传失败";
+      const text = errorMessage(error, "封面上传失败");
       coverUploadStage.value = "";
       coverError.value = text;
       message.error(text);
@@ -487,7 +488,7 @@ export async function useStudioArticle(deps: StudioArticleDeps) {
       await coverCropFlow.select(file);
     } catch (error) {
       coverUploadStage.value = "";
-      const text = error instanceof Error ? error.message : "封面定形失败，请换一张图片";
+      const text = errorMessage(error, "封面定形失败，请换一张图片");
       coverError.value = text;
       message.warning(text);
     } finally {
@@ -511,7 +512,7 @@ export async function useStudioArticle(deps: StudioArticleDeps) {
       await coverCropFlow.confirm(request, framing);
     } catch (error) {
       coverUploadStage.value = "";
-      const text = error instanceof Error ? error.message : "封面定形失败，请换一张图片";
+      const text = errorMessage(error, "封面定形失败，请换一张图片");
       coverError.value = text;
       message.warning(text);
     } finally {

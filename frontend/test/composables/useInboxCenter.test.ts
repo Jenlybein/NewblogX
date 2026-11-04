@@ -1,14 +1,20 @@
 import { flushPromises } from "@vue/test-utils";
-import { computed, nextTick, ref, shallowRef, toValue, watch } from "vue";
+import { effectScope, ref, shallowRef, toValue, watch } from "vue";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import type { ChatMessageItem, ChatSessionItem, GlobalNoticeItem, SiteMessageItem } from "~/types/api";
+import type { ChatMessageItem, ChatNotificationPayload, ChatSessionItem } from "~/types/api";
 
-const getSiteMessagesMock = vi.hoisted(() => vi.fn());
-const getGlobalNoticesMock = vi.hoisted(() => vi.fn());
+/**
+ * 私信会话 composable（票 #240 收窄后）。
+ *
+ * 范围只剩**私信**：评论 / 互动 / 系统 / 全局通知已由 useMessageCenter（#239）接管。
+ * 所以这里的站点消息与全局通知桩全部删掉 —— 再出现就是死代码又长回来了。
+ */
+
 const getChatSessionsMock = vi.hoisted(() => vi.fn());
 const getChatMessagesMock = vi.hoisted(() => vi.fn());
 const sendChatMessageMock = vi.hoisted(() => vi.fn());
 const refreshSummaryMock = vi.hoisted(() => vi.fn());
+
 const messageSummaryMock = vi.hoisted(() => ({
   comment_msg_count: 1,
   digg_favor_msg_count: 6,
@@ -17,9 +23,9 @@ const messageSummaryMock = vi.hoisted(() => ({
   global_msg_count: 1,
 }));
 
-// WS 下行帧的"收件箱"：真实 composable 用 shallowRef，这里用同一个 ref 模拟推送。
-// 必须是真 ref —— useInboxCenter 靠 inbox.value.length 的 watch 感知通知。
-const socketInbox = shallowRef<unknown[]>([]);
+// WS 通知现在是订阅制：composable 用 onNotification 注册自己的回调。
+// 这里把订阅者收集起来，测试自己触发（等价于收到一条下行帧）。
+const notificationHandlers = new Set<(notification: ChatNotificationPayload) => void>();
 
 // 发送被拒原因（票 202）：useInboxCenter 发送失败时写它，界面据此就地提示。
 const sendErrorState = shallowRef("");
@@ -27,52 +33,19 @@ const sendErrorState = shallowRef("");
 vi.mock("~/services/inbox", () => ({
   deleteChatMessages: vi.fn(),
   deleteChatSessions: vi.fn(),
-  deleteGlobalNoticeForCurrentUser: vi.fn(),
-  deleteSiteMessage: vi.fn(),
   getChatMessages: getChatMessagesMock,
   getChatSessions: getChatSessionsMock,
-  getGlobalNotices: getGlobalNoticesMock,
-  getSiteMessages: getSiteMessagesMock,
   markChatMessagesRead: vi.fn(),
-  markGlobalNoticeRead: vi.fn(),
-  markSiteMessageRead: vi.fn(),
   sendChatMessage: sendChatMessageMock,
 }));
 
-vi.mock("~/utils/chat", () => ({
-  buildChatClientMsgId: (random: () => string, now: () => number) => `ck-${now()}-${random()}`,
-  buildPreparedChatSession: vi.fn(),
-  isDraftChatSessionId: (id: string) => id.startsWith("draft-"),
-}));
-
-const commentMessage = {
-  id: "comment-1",
-  created_at: "2026-04-17T00:00:00.000+08:00",
-  updated_at: "2026-04-17T00:00:00.000+08:00",
-  type: 1,
-  receiver_id: "u1",
-  action_user_id: "u2",
-  action_user_nickname: "River",
-  action_user_avatar: "",
-  content: "评论了你的文章",
-  article_id: "a1",
-  comment_id: "c1",
-  article_title: "文章",
-  link_title: "",
-  link_herf: "",
-  is_read: false,
-  read_at: null,
-} satisfies SiteMessageItem;
-
-const globalNotice = {
-  id: "global-1",
-  create_at: "2026-04-17T00:00:00.000+08:00",
-  title: "全局通知",
-  icon: "",
-  content: "全局通知内容",
-  herf: "",
-  is_read: false,
-} satisfies GlobalNoticeItem;
+vi.mock("~/utils/chat", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("~/utils/chat")>();
+  return {
+    ...actual,
+    buildChatClientMsgId: (random: () => string, now: () => number) => `ck-${now()}-${random()}`,
+  };
+});
 
 const chatSession = {
   session_id: "chat:u1:u2",
@@ -96,52 +69,35 @@ const chatStoreState = {
   },
 };
 
-// takeNotifications 的桩：把 inbox 里的下行帧取走并返回 data。
-function takeNotificationsStub() {
-  const notifications = (socketInbox.value as Array<{ data?: Record<string, unknown> }>)
-    .map((envelope) => envelope?.data)
-    .filter((data): data is Record<string, unknown> => Boolean(data) && typeof data?.session_id === "string");
-  socketInbox.value = [];
-  return notifications;
+function pushNotification(payload: ChatNotificationPayload) {
+  for (const handler of [...notificationHandlers]) {
+    handler(payload);
+  }
 }
 
-async function createInboxCenter() {
+async function createInboxCenter(options: { draftSessionSeed?: ReturnType<typeof ref> } = {}) {
   vi.resetModules();
   const module = await import("~/composables/useInboxCenter");
-  const inbox = module.useInboxCenter();
-  await flushPromises();
-  await nextTick();
-  return inbox;
+  return module.useInboxCenter(options);
 }
 
-describe("useInboxCenter", () => {
+describe("useInboxCenter（私信）", () => {
   beforeEach(() => {
-    getSiteMessagesMock.mockReset();
-    getGlobalNoticesMock.mockReset();
     getChatSessionsMock.mockReset();
     getChatMessagesMock.mockReset();
     sendChatMessageMock.mockReset();
     refreshSummaryMock.mockClear();
     refreshSummaryMock.mockResolvedValue(messageSummaryMock);
-    socketInbox.value = [];
+    notificationHandlers.clear();
     sendErrorState.value = "";
     chatStoreState.activeSessionId = null;
-    messageSummaryMock.comment_msg_count = 1;
-    messageSummaryMock.digg_favor_msg_count = 6;
     messageSummaryMock.private_msg_count = 0;
-    messageSummaryMock.system_msg_count = 2;
-    messageSummaryMock.global_msg_count = 1;
 
-    getSiteMessagesMock.mockResolvedValue({ list: [], has_more: false });
-    getGlobalNoticesMock.mockResolvedValue({ list: [], has_more: false });
     getChatSessionsMock.mockResolvedValue({ list: [] });
     getChatMessagesMock.mockResolvedValue({ list: [] });
 
-    vi.stubGlobal("computed", computed);
-    vi.stubGlobal("ref", ref);
-    vi.stubGlobal("shallowRef", shallowRef);
-    vi.stubGlobal("toValue", toValue);
     vi.stubGlobal("watch", watch);
+    vi.stubGlobal("toValue", toValue);
     vi.stubGlobal("useAuthStore", () => ({
       isLoggedIn: true,
       profileId: "u1",
@@ -159,34 +115,64 @@ describe("useInboxCenter", () => {
         sendErrorState.value = reason;
       },
       connect: vi.fn(),
-      takeNotifications: takeNotificationsStub,
-      inbox: socketInbox,
+      onNotification: (handler: (notification: ChatNotificationPayload) => void) => {
+        notificationHandlers.add(handler);
+        return () => {
+          notificationHandlers.delete(handler);
+        };
+      },
     }));
   });
 
-  it("prefetches global notices on the site tab so the global badge is not stuck at zero", async () => {
-    getSiteMessagesMock.mockResolvedValue({ list: [commentMessage], has_more: false });
-    getGlobalNoticesMock.mockResolvedValue({ list: [globalNotice], has_more: false });
+  // 收窄后的 composable 不再有 activeTab 开关：进入这个 composable 就等于进入私信子项。
+  it("创建即拉会话，并自动选中第一条；随后拉它的消息", async () => {
+    getChatSessionsMock.mockResolvedValue({ list: [chatSession] });
+    getChatMessagesMock.mockResolvedValue({ list: [] });
 
     const inbox = await createInboxCenter();
+    await flushPromises();
 
-    expect(getGlobalNoticesMock).toHaveBeenCalledWith({ page: 1, limit: 9, type: 1 });
-    expect(inbox.globalNotices.value).toEqual([globalNotice]);
+    expect(getChatSessionsMock).toHaveBeenCalledWith({ type: 1 });
+    expect(inbox.chatSessions.value).toHaveLength(1);
+    expect(inbox.activeSessionId.value).toBe(chatSession.session_id);
+    expect(getChatMessagesMock).toHaveBeenCalledWith({ sessionId: chatSession.session_id, type: 1 });
   });
 
-  it("uses the separated summary field for the system notification badge", async () => {
-    getSiteMessagesMock.mockImplementation(({ group }: { group: 1 | 2 | 3 }) =>
-      Promise.resolve({
-        list: group === 3 ? [] : [commentMessage],
-        has_more: false,
-      }),
-    );
-    getGlobalNoticesMock.mockResolvedValue({ list: [globalNotice], has_more: false });
+  // ── 草稿直达会话（users/[id].vue 的 draft_receiver_* 契约）──
+  it("草稿种子命中已有会话时直接选中它，不建预备会话", async () => {
+    getChatSessionsMock.mockResolvedValue({ list: [chatSession] });
+    const seed = ref({
+      receiverId: chatSession.receiver_id,
+      receiverNickname: "乙",
+      receiverAvatar: "",
+      relation: 2,
+    });
 
-    const inbox = await createInboxCenter();
+    const inbox = await createInboxCenter({ draftSessionSeed: seed });
+    await flushPromises();
 
-    expect(getSiteMessagesMock).not.toHaveBeenCalledWith({ group: 3, page: 1, limit: 9 });
-    expect(inbox.siteCategories.value.find((item) => item.key === 3)?.count).toBe(2);
+    expect(inbox.preparedSession.value).toBeNull();
+    expect(inbox.activeSessionId.value).toBe(chatSession.session_id);
+  });
+
+  it("草稿种子没有历史会话时生成预备会话并选中（首条消息发出前不请求后端）", async () => {
+    getChatSessionsMock.mockResolvedValue({ list: [] });
+    const seed = ref({
+      receiverId: "u9",
+      receiverNickname: "丙",
+      receiverAvatar: "https://image.example.com/c.png",
+      relation: 0,
+    });
+
+    const inbox = await createInboxCenter({ draftSessionSeed: seed });
+    await flushPromises();
+
+    const prepared = inbox.preparedSession.value;
+    expect(prepared).not.toBeNull();
+    expect(prepared?.receiver_id).toBe("u9");
+    expect(inbox.activeSession.value?.receiver_nickname).toBe("丙");
+    // 预备会话没有服务端消息可拉：不该为一个还不存在的会话打 messages 接口。
+    expect(getChatMessagesMock).not.toHaveBeenCalled();
   });
 
   // 真实契约：发送必须走 HTTP（POST /api/chat/messages），且 body 形状与后端
@@ -209,7 +195,6 @@ describe("useInboxCenter", () => {
     } satisfies ChatMessageItem);
 
     const inbox = await createInboxCenter();
-    inbox.activeTab.value = "chat";
     await flushPromises();
 
     inbox.chatDraft.value = "你好";
@@ -239,7 +224,6 @@ describe("useInboxCenter", () => {
     });
 
     const inbox = await createInboxCenter();
-    inbox.activeTab.value = "chat";
     await flushPromises();
 
     inbox.chatDraft.value = "你好";
@@ -254,24 +238,18 @@ describe("useInboxCenter", () => {
     expect(retryKey).toBe(firstKey);
   });
 
-  // 真实契约：WS 只推通知，收到通知后刷新会话与未读（不依赖通知帧带正文）。
+  // ── WS 通知（订阅制，不再是"取走队列"）──
   it("收到 WS 通知后刷新会话列表与未读数", async () => {
     getChatSessionsMock.mockResolvedValue({ list: [chatSession] });
 
-    const inbox = await createInboxCenter();
-    inbox.activeTab.value = "chat";
+    await createInboxCenter();
     await flushPromises();
 
     getChatSessionsMock.mockClear();
     refreshSummaryMock.mockClear();
     getChatMessagesMock.mockClear();
-    socketInbox.value = [
-      {
-        code: 0,
-        msg: "成功",
-        data: { session_id: "chat:u1:u3", message_id: "m2", sender_id: "u3", receiver_id: "u1" },
-      },
-    ];
+
+    pushNotification({ session_id: "chat:u1:u3", message_id: "m2", sender_id: "u3", msg_type: 1 });
     await flushPromises();
 
     expect(getChatSessionsMock).toHaveBeenCalledTimes(1);
@@ -284,21 +262,38 @@ describe("useInboxCenter", () => {
   it("WS 通知命中当前会话时刷新消息", async () => {
     getChatSessionsMock.mockResolvedValue({ list: [chatSession] });
 
-    const inbox = await createInboxCenter();
-    inbox.activeTab.value = "chat";
+    await createInboxCenter();
     await flushPromises();
 
     getChatMessagesMock.mockClear();
-    socketInbox.value = [
-      {
-        code: 0,
-        msg: "成功",
-        data: { session_id: chatSession.session_id, message_id: "m2", sender_id: "u2", receiver_id: "u1" },
-      },
-    ];
+    pushNotification({ session_id: chatSession.session_id, message_id: "m2", sender_id: "u2", msg_type: 1 });
     await flushPromises();
 
     expect(getChatMessagesMock).toHaveBeenCalledWith({ sessionId: chatSession.session_id, type: 1 });
+  });
+
+  // 票 #240："离开私信页不关闭连接"——连接归全局所有，但要退订本页的通知。
+  // 这条钉住"退订"这一半（关连接那半由 useChatSocket / useMessageRealtime 负责）。
+  it("所属作用域销毁时只退订通知，不再刷新会话", async () => {
+    getChatSessionsMock.mockResolvedValue({ list: [chatSession] });
+
+    vi.resetModules();
+    const module = await import("~/composables/useInboxCenter");
+    // 作用域只影响"注册到谁身上"：onScopeDispose 是同步注册的，异步 bootstrap 不受影响。
+    const scope = effectScope();
+    const inbox = scope.run(() => module.useInboxCenter())!;
+
+    await flushPromises();
+    expect(notificationHandlers.size).toBe(1);
+
+    scope.stop();
+    expect(notificationHandlers.size).toBe(0);
+
+    getChatSessionsMock.mockClear();
+    pushNotification({ session_id: "chat:u1:u3", message_id: "m3", msg_type: 1 });
+    await flushPromises();
+    expect(getChatSessionsMock).not.toHaveBeenCalled();
+    expect(inbox.chatSessions.value).toHaveLength(1);
   });
 
   // 拒绝原因透出（票 202 的界面出口）：HTTP 发送失败时后端文案要原样到达界面，
@@ -309,7 +304,6 @@ describe("useInboxCenter", () => {
     sendChatMessageMock.mockRejectedValueOnce(new Error(policyMessage));
 
     const inbox = await createInboxCenter();
-    inbox.activeTab.value = "chat";
     await flushPromises();
 
     inbox.chatDraft.value = "你好";
@@ -329,7 +323,6 @@ describe("useInboxCenter", () => {
     sendErrorState.value = "上一次发送失败";
 
     const inbox = await createInboxCenter();
-    inbox.activeTab.value = "chat";
     await flushPromises();
 
     inbox.chatDraft.value = "你好";

@@ -4,6 +4,7 @@ import {
   PUBLISH_DISABLED_NOTICE,
   type ArticleWritePolicy,
 } from "~/utils/writePolicy";
+import { errorMessage } from "~/utils/errorMessage";
 
 // 文章提交：存草稿 / 发布 / 更新。
 //
@@ -132,7 +133,7 @@ export function useStudioPublish(deps: StudioPublishDeps) {
       }
       await router.push(`/article/${created.id}`);
     } catch (error) {
-      message.error(error instanceof Error ? error.message : "文章提交失败");
+      message.error(errorMessage(error, "文章提交失败"));
     } finally {
       pendingState[key] = false;
     }

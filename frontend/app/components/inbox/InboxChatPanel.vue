@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, defineAsyncComponent, ref } from "vue";
+import { computed, defineAsyncComponent, ref, watch } from "vue";
 import { IconLoader2, IconPhoto, IconPlugConnected, IconPlugConnectedX } from "@tabler/icons-vue";
 import { NAlert, NButton, NInput, NSpace, NTag } from "naive-ui";
 import AppAvatar from "~/components/common/AppAvatar.vue";
@@ -62,6 +62,33 @@ const isPreparedSession = computed(() =>
 
 const isMarkdownDraft = computed(() => props.draftType === 7);
 
+/**
+ * 窄屏二选一（票 240）：<1024px 时列表与聊天窗不能同时显示，
+ * 所以面板自己记"当前显示哪一栏"。宽屏这个状态不生效（CSS 只在窄屏隐藏）。
+ *
+ * 初值跟着当前会话走：从作者主页「发私信」带 draft 进来时已经选中了人，
+ * 直接落在聊天窗，而不是让用户在窄屏里先翻一遍会话列表。
+ */
+const narrowPane = ref<"list" | "chat">(props.currentSession ? "chat" : "list");
+const narrowPaneClass = computed(() => (narrowPane.value === "chat" ? "is-narrow-chat" : "is-narrow-list"));
+
+watch(
+  () => props.currentSession?.session_id ?? null,
+  (sessionId) => {
+    narrowPane.value = sessionId ? "chat" : "list";
+  },
+);
+
+function selectSession(sessionId: string) {
+  // 先切栏再发事件：不能让"选中了但还停在列表"闪一帧。
+  narrowPane.value = "chat";
+  emit("update:activeSessionId", sessionId);
+}
+
+function backToSessionList() {
+  narrowPane.value = "list";
+}
+
 /** 预先解析好每条消息的内容，避免在模板里对同一条消息反复解析。 */
 const renderedItems = computed(() =>
   props.items.map((item) => ({ item, resolved: resolveChatMessageContent(item) })),
@@ -89,7 +116,7 @@ function handleImagePicked(event: Event) {
 
 <template>
   <section class="surface-card studio-inbox-card">
-    <div class="studio-inbox-grid">
+    <div class="studio-inbox-grid" :class="narrowPaneClass">
       <aside class="studio-inbox-grid__aside">
         <div class="studio-toolbar studio-toolbar--stack">
           <div>
@@ -113,7 +140,7 @@ function handleImagePicked(event: Event) {
             type="button"
             class="studio-chat-session"
             :class="{ 'is-active': activeSessionId === session.session_id }"
-            @click="emit('update:activeSessionId', session.session_id)"
+            @click="selectSession(session.session_id)"
           >
             <AppAvatar :src="session.receiver_avatar" :name="session.receiver_nickname" fallback="私" />
             <div class="min-w-0 flex-1 text-left">
@@ -131,6 +158,9 @@ function handleImagePicked(event: Event) {
       </aside>
 
       <div class="studio-inbox-grid__main studio-chat-main">
+        <!-- 窄屏二选一：从聊天窗回会话列表。宽屏双栏常显，这个按钮由 CSS 隐藏。 -->
+        <button type="button" class="studio-chat-back" @click="backToSessionList()">← 会话列表</button>
+
         <div class="studio-toolbar">
           <div v-if="currentSession">
             <div class="flex items-center gap-2">

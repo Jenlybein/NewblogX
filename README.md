@@ -414,13 +414,29 @@ chmod 600 /etc/blogx/qiniu/env
 | 目录 | 是什么 | 技术栈 | 默认端口 |
 | --- | --- | --- | --- |
 | `backend/` | HTTP API + 后台 worker | Go 1.25 · Gin · GORM | 8080 |
-| `frontend/` | 读者站（文章、搜索、创作台、聊天） | Nuxt 4 · Vue 3 · Naive UI · Pinia | 3000 |
+| `frontend/` | 读者站（文章、搜索、消息中心、历史、创作台、聊天） | Nuxt 4 · Vue 3 · Naive UI · Pinia | 3000 |
 | `frontend_admin/` | 管理后台，挂在 `/admin/` | Nuxt 4 · Vue 3 · Naive UI | 3001 |
 | `deploy/` | Dockerfile / compose / nginx 模板 | Docker Compose v2 | 80 / 443 |
 | `scripts/` | 本地门禁脚本 | Bash | — |
 | `frontend*/env/` | 前端按 profile 分文件的环境变量 | — | — |
 
 运行期依赖五个基础设施：**MySQL 8.0**（一主一从，读写分离）、**Redis 7.4**（缓存、计数、限流、会话）、**Elasticsearch 7.12**（文章搜索，装了 IK 中文分词）、**ClickHouse 25.3**（结构化日志库）。
+
+### 3.1 读者站的两个顶级页：消息中心与浏览历史
+
+| 路由 | 是什么 | 渲染 / 鉴权 | 旧路径 |
+| --- | --- | --- | --- |
+| `/messages` | 消息中心，五个子项：`comments`（评论与回复）/ `digg`（点赞与收藏）/ `system`（系统通知）/ `global`（全局通知）/ `chat`（私信）。`/messages` 自身落到默认子项 | `ssr: false` + `auth` | `/studio/inbox` → 按 `tab` / `group` 语义重定向（客户端中间件，不是服务端 301） |
+| `/history` | 浏览历史：时间轴（今天 / 昨天 / 近一周 / 更早）+ 卡片栅格、标题搜索、清空、批量选删、游标分页 | `ssr: false` + `auth` | `/studio/history` → 服务端 301 到 `/history`（客户端中间件兜底） |
+
+顶栏两个入口（只在登录后出现）：
+
+- **消息中心**：悬浮 / 键盘聚焦展开五个子项，子项右侧显示未读数。`≥1024px` 是图标 + 文字；`640–1023px` 只留图标 + 红点；`<640px` 整体收进折叠面板。
+- **历史**：普通链接，悬浮不展开面板。`≥1280px` 在动作区常显；`640–1279px` 收进头像菜单；`<640px` 收进折叠面板。
+
+两个页面都是**私人数据**：不进 SSR 白名单（渲染边界唯一来源 `frontend/shared/readerRenderingBoundary.ts`），也不进匿名 SSR 缓存；概念见 [GLOSSARY · 渲染边界](GLOSSARY.md) 与 [GLOSSARY · 消息中心](GLOSSARY.md)。
+
+**浏览历史的数据策略**：同一篇文章只留一条（再次浏览刷新时间并顶到最前）；超过 **90 天**的记录由每日任务（`04:10`，`-role` 含 `cron` 的进程）**软删** —— 与用户手动「移出历史」同一语义，误清可回滚。保留期是**数据策略**（会真实让用户历史消失），不是可随手调的风格参数；改它要同步改发布说明。
 
 ---
 
@@ -796,7 +812,7 @@ CI 有两个 job 专门盯这件事：`contract`（`swagger.json` 必须与注�
 | `api` | HTTP 服务 + outbox 中继 | 只扩 API 实例、不动后台任务 |
 | `river` | MySQL → ES 同步 + outbox 中继 | 把 CDC 与 API 拆到不同机器 |
 | `image-ref` | 图片引用关系监听 | 同上 |
-| `cron` | 定时任务（Redis 计数刷盘、日志清理） | 需要单点执行的任务 |
+| `cron` | 定时任务（Redis 计数刷盘、日志清理、浏览历史 90 天清理） | 需要单点执行的任务 |
 | `worker` | river + image-ref + cron | 后台任务全包 |
 | `all` | worker + api（默认） | 单机部署 |
 
@@ -1268,6 +1284,32 @@ curl -sk https://127.0.0.1/health | head -1
 **5. 冒烟与已知限制**
 
 目录树、阅读页左栏与「目录」抽屉、编辑入口、封面兜底、裁剪窗、私信「实时已连接」、上传比例校验的逐项验收口径，以及「DNS 已恢复（2026-11-04）、上传闭环与比例校验待部署后复验」等已知限制与复验步骤，见 [2026-11-04 目录树批次发布说明](docs/notes/2026-11-04-outline-tree-release-notes.md)。
+
+### 11.4.5 本批（#234 合批：阅读互动、消息中心与历史记录）的一次性部署序列
+
+本批（#234 合批：#235 点赞/收藏真相、#236 右栏互动条、#237 右栏高度、#238 评论区、#239 消息中心、#240 私信并入、#241 历史独立页、#242 裁剪窗、#243 陌生人开关、#244 正文色板、#245 文档收口；收尾 #247）**不改表结构**：没有新表、没有列变更，`-db` 不需要再跑。要动的是**契约与前端**，且三端必须同批上线——本批有破坏性 API 变更（完整清单见[发布说明](docs/notes/2026-11-04-reading-interactions-release-notes.md)）：
+
+**1. 备份与串行重建三镜像**
+
+同 [11.4.3](#1143-本批189的一次性部署序列新表取景表下线与索引重建) 的第 0–1 步：先备份数据库，再 `down` + **串行**构建 `blogx_server` / `blogx_web` / `blogx_admin`（内存受限机器不要并行构建）。
+
+**2. 契约已随代码重新生成，不要手工补**
+
+`backend/docs/swagger.json` 与两端 `app/types/openapi.d.ts` 已在本批一起提交。若部署流程里又跑了一次 `make openapi` / `pnpm openapi:types`，跑完先 `git diff` 确认没有把本批之外的内容带进来（契约是生成的单一来源，手改会在下次生成时被覆盖）。
+
+**3. 强重建、重启 nginx 与健康检查**
+
+```bash
+docker compose up -d --force-recreate blogx_web blogx_admin blogx_server
+docker compose restart nginx
+docker compose ps
+curl -sk https://127.0.0.1/health | head -1
+```
+
+**4. 冒烟与数据策略**
+
+- 逐项验收、破坏性变更对照与已知限制见 [2026-11-04 阅读互动与消息中心批次发布说明](docs/notes/2026-11-04-reading-interactions-release-notes.md)。
+- 浏览历史保留 **90 天**（软删 + 每日 04:10 cron）：上线后第一次清理在次日凌晨执行，不会立刻删数据；`-role` 不含 `cron` 的进程不会跑它。
 
 ### 11.5 回滚
 

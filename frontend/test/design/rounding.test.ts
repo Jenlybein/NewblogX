@@ -145,7 +145,7 @@ describe("全站圆角落位：反例字面量归零", () => {
   it("五处圆角逃逸（设置页 / 历史页 / 收藏页 / 聊天面 / 收藏夹弹窗）已归 token", () => {
     for (const file of [
       "app/pages/studio/settings.vue",
-      "app/pages/studio/history.vue",
+      "app/pages/history.vue",
       "app/pages/studio/favorites.vue",
       "app/components/inbox/InboxChatPanel.vue",
       "app/components/favorite/FavoriteFolderModal.vue",

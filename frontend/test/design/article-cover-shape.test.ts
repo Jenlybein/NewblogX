@@ -18,7 +18,7 @@ import { blockAfter } from "../helpers/designFiles";
 const projectDir = process.cwd();
 const articleCover = readFileSync(join(projectDir, "app/components/article/ArticleCover.vue"), "utf8");
 const tailwind = readFileSync(join(projectDir, "app/assets/css/tailwind.css"), "utf8");
-const historyPage = readFileSync(join(projectDir, "app/pages/studio/history.vue"), "utf8");
+const historyPage = readFileSync(join(projectDir, "app/pages/history.vue"), "utf8");
 const favoritesPage = readFileSync(join(projectDir, "app/pages/studio/favorites.vue"), "utf8");
 
 const SPEC_RATIO = "16 / 9";
@@ -109,7 +109,7 @@ describe("五处消费点同一口径：无封面不再是一种内容", () => {
     "app/pages/projects/index.vue",
     "app/pages/projects/[id].vue",
     "app/pages/studio/favorites.vue",
-    "app/pages/studio/history.vue",
+    "app/pages/history.vue",
   ];
 
   function readConsumer(relativePath: string): string {

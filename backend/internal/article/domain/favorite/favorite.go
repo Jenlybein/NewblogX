@@ -304,7 +304,9 @@ type Repository interface {
 
 	// FindItem 取某用户对某文章在某夹子里的收藏；不存在返回 ErrFavoriteNotFound。
 	FindItem(ctx context.Context, articleID domain.ArticleID, userID domain.UserID, folderID ID) (*Item, error)
-	// FindItemAnyFolder 取某用户对某文章的任意收藏（用于判断"是否已收藏"）。
+	// FindItemAnyFolder 取某用户对某文章的任意收藏，用于判断「**是否还在任一收藏夹**」
+	// （详情页的 is_favor）。它不能给取消收藏用：取消收藏必须点名目标夹子，
+	// 否则会删掉别的夹子里的关系。
 	FindItemAnyFolder(ctx context.Context, articleID domain.ArticleID, userID domain.UserID) (*Item, error)
 	// SaveItem 新建收藏关系。
 	SaveItem(ctx context.Context, i *Item) error

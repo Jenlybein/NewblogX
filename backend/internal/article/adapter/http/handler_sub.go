@@ -1,13 +1,17 @@
 package http
 
 import (
+	"time"
+
 	"github.com/gin-gonic/gin"
+	"myblogx/internal/apperr"
 	"myblogx/internal/kernel"
 
 	"myblogx/internal/article/app"
 	"myblogx/internal/article/domain"
 	"myblogx/internal/article/domain/favorite"
 	"myblogx/internal/article/domain/review"
+	"myblogx/internal/article/domain/viewhistory"
 	"myblogx/internal/kernel/ctype"
 	"myblogx/internal/platform/http/middleware"
 	"myblogx/internal/platform/http/res"
@@ -355,24 +359,32 @@ func (h *Handler) FavoriteItems(c *gin.Context) {
 // @Produce json
 // @Security BearerAuth
 // @Param body body ArticleFavoriteRequest true "请求体"
-// @Success 200 {object} kernel.Envelope[kernel.EmptyData]
+// @Success 200 {object} kernel.Envelope[ArticleFavoriteResponse]
 // @Router /articles/favorite [post]
 func (h *Handler) SaveFavorite(c *gin.Context) {
 	cr := middleware.GetBindJson[ArticleFavoriteRequest](c)
 
-	if err := h.svc.Favorite(c.Request.Context(), app.FavoriteCmd{
+	result, err := h.svc.Favorite(c.Request.Context(), app.FavoriteCmd{
 		Actor:     h.viewerOf(c),
 		ArticleID: domain.ArticleID(cr.ArticleID),
 		FolderID:  favorite.ID(cr.FavorID),
-	}); err != nil {
+	})
+	if err != nil {
 		h.fail(c, err)
 		return
 	}
 	h.audit(c, "article_favorite", domain.ArticleID(cr.ArticleID), true, "收藏文章")
-	res.OkWithMsg("收藏成功", c)
+	// 写响应回填权威计数：前端直接 patch，不再重新取整篇正文。
+	res.OkWithData(ArticleFavoriteResponse{IsFavor: result.IsFavor, FavorCount: result.FavorCount}, c)
 }
 
 // RemoveFavoriteItems 批量移除收藏。
+//
+// 响应按**实际语义**返回，不再把失败吞成成功（评审 #248 的 P0-2 / P0-3）：
+//   - 全部成功：`code=0`，`data={is_favor, favor_count, removed_count, failed_count}`；
+//   - 部分成功：`code=0`，调用方靠 `removed_count` / `failed_count` 分辨；
+//   - 全部失败：非 0 业务码 + 明确文案（旧实现走 `OkWithMsg` 返回成功 + 空 data，
+//     前端读 `payload.is_favor` 时直接抛 TypeError）。
 //
 // @Summary 取消收藏
 // @Tags article
@@ -380,22 +392,55 @@ func (h *Handler) SaveFavorite(c *gin.Context) {
 // @Produce json
 // @Security BearerAuth
 // @Param body body FavoriteRemovePatchModel true "请求体"
-// @Success 200 {object} kernel.Envelope[kernel.EmptyData]
+// @Success 200 {object} kernel.Envelope[ArticleFavoriteRemoveResponse]
 // @Router /articles/favorite/contents [delete]
 func (h *Handler) RemoveFavoriteItems(c *gin.Context) {
 	cr := middleware.GetBindJson[FavoriteRemovePatchModel](c)
 
+	var (
+		last     app.FavoriteResult
+		removed  int
+		failed   int
+		firstErr error
+	)
 	for _, id := range cr.ArticleIDs {
-		if err := h.svc.Unfavorite(c.Request.Context(), app.FavoriteCmd{
+		result, err := h.svc.Unfavorite(c.Request.Context(), app.FavoriteCmd{
 			Actor:     h.viewerOf(c),
 			ArticleID: domain.ArticleID(id),
 			FolderID:  favorite.ID(cr.FavorID),
-		}); err != nil {
+		})
+		if err != nil {
+			failed++
+			if firstErr == nil {
+				firstErr = err
+			}
 			h.logger.Warnf("取消收藏文章 %s 失败: %v", id, err)
+			continue
 		}
+		last = result
+		removed++
 	}
-	h.audit(c, "article_unfavorite", "", true, "取消收藏")
-	res.OkWithMsg("取消成功", c)
+	h.audit(c, "article_unfavorite", "", failed == 0, "取消收藏")
+
+	// 一条都没成功：这是失败，不是"取消成功但没数据"。
+	if removed == 0 {
+		if firstErr == nil {
+			// 请求体没有文章 ID（绑定层通常已拦下，这里兜底成参数错误）。
+			res.FailWithError(apperr.New(apperr.CodeCommonInvalidArgument), c)
+			return
+		}
+		res.FailWithError(firstErr, c)
+		return
+	}
+
+	// 计数按"最后一条成功移除的文章"给出：收藏夹弹窗每次只传当前这一篇，
+	// 批量的多篇场景不承诺逐篇计数（但 removed_count / failed_count 是逐条的）。
+	res.OkWithData(ArticleFavoriteRemoveResponse{
+		IsFavor:      last.IsFavor,
+		FavorCount:   last.FavorCount,
+		RemovedCount: removed,
+		FailedCount:  failed,
+	}, c)
 }
 
 // ── 置顶 ──
@@ -487,28 +532,43 @@ func (h *Handler) toggleTops(c *gin.Context, ids []ctype.ID, remove bool) {
 
 // ── 浏览历史 ──
 
-// History 浏览历史列表。
+// History 浏览历史列表（服务端标题搜索 + 游标分页）。
 //
 // @Summary 浏览历史
 // @Tags article
 // @Produce json
 // @Security BearerAuth
-// @Param page query int false "页码"
-// @Param limit query int false "每页数量"
+// @Param keyword query string false "按文章标题模糊搜索"
+// @Param before_updated_at query string false "游标：上一条的浏览时间（RFC3339，与 before_id 成对）"
+// @Param before_id query string false "游标：上一条的文章 ID（与 before_updated_at 成对）"
+// @Param limit query int false "每页数量（缺省 10，上限 100）"
 // @Success 200 {object} kernel.Envelope[kernel.HasMoreListData[ArticleViewHistoryItem]]
 // @Router /articles/history [get]
 func (h *Handler) History(c *gin.Context) {
 	cr := middleware.GetBindQuery[ArticleViewHistoryRequest](c)
 
-	offset := pageOffset(cr.Page, cr.Limit)
-	records, total, err := h.svc.ListViewHistory(c.Request.Context(), h.viewerOf(c),
-		domain.Page{Offset: offset, Limit: cr.Limit}, h.onlyAdminAuthors())
+	cursor, err := parseViewHistoryCursor(cr.BeforeUpdatedAt, cr.BeforeID)
+	if err != nil {
+		// 半游标/坏时间戳必须显式拒掉：静默退回第一页会让前端的"加载更多"
+		// 无声地重复第一页（用户看到的是列表原地打转）。
+		//
+		// 错误值由 parseViewHistoryCursor 用 apperr 产生（文案集中在错误码表），
+		// 响应码仍是"参数错误"的 1001 —— 不是 1002（服务异常）。
+		res.FailWithValidError(err, c)
+		return
+	}
+
+	page, err := h.svc.ListViewHistory(c.Request.Context(), h.viewerOf(c), app.ViewHistoryQuery{
+		Keyword: cr.Keyword,
+		Before:  cursor,
+		Limit:   cr.Limit,
+	}, h.onlyAdminAuthors())
 	if err != nil {
 		h.fail(c, err)
 		return
 	}
-	list := make([]ArticleViewHistoryItem, 0, len(records))
-	for _, r := range records {
+	list := make([]ArticleViewHistoryItem, 0, len(page.Records))
+	for _, r := range page.Records {
 		list = append(list, ArticleViewHistoryItem{
 			UpdatedAt: r.ViewedAt(),
 			Title:     r.ArticleTitle(),
@@ -519,7 +579,54 @@ func (h *Handler) History(c *gin.Context) {
 			ArticleID: ctype.ID(r.ArticleID()),
 		})
 	}
-	res.OkWithHasMoreList(list, int64(offset+len(list)) < total, c)
+	res.OkWithHasMoreList(list, page.HasMore, c)
+}
+
+// parseViewHistoryCursor 把成对的游标参数解析成游标；两者都缺省表示第一页。
+//
+// 为什么成对而不是一个不透明字符串：契约里已经有 updated_at 与 article_id，
+// 前端续页直接用列表最后一条的这两个字段，不必再拿一个隐藏的 row id。
+//
+// 失败一律返回 apperr（`common.invalid_argument`）而不是适配层 `fmt.Errorf`：
+// R8 只拦 `errors.New("中文")`，`fmt.Errorf` 会因为漏网而让文案继续散落在
+// 适配层，也没有稳定错误码可供调用方分支。响应码由 handler 侧选 1001（参数错误）。
+func parseViewHistoryCursor(rawTime, rawID string) (*viewhistory.Cursor, error) {
+	if rawTime == "" && rawID == "" {
+		return nil, nil
+	}
+	if rawTime == "" || rawID == "" {
+		return nil, apperr.New(apperr.CodeCommonInvalidArgument)
+	}
+
+	viewedAt, err := time.Parse(time.RFC3339, rawTime)
+	if err != nil {
+		return nil, apperr.New(apperr.CodeCommonInvalidArgument)
+	}
+	id, err := ctype.ParseID(rawID)
+	if err != nil || id.IsZero() {
+		return nil, apperr.New(apperr.CodeCommonInvalidArgument)
+	}
+	return &viewhistory.Cursor{ViewedAt: viewedAt, ArticleID: domain.ArticleID(id)}, nil
+}
+
+// ClearHistory 清空浏览历史。
+//
+// 不可逆（软删）：前端必须二次确认。没有请求体 —— 要清的只有"当前登录用户
+// 的全部记录"，任何来自请求的参数都只会扩大误删面。
+//
+// @Summary 清空浏览历史
+// @Tags article
+// @Produce json
+// @Security BearerAuth
+// @Success 200 {object} kernel.Envelope[kernel.EmptyData]
+// @Router /articles/history/all [delete]
+func (h *Handler) ClearHistory(c *gin.Context) {
+	if err := h.svc.ClearViewHistory(c.Request.Context(), h.viewerOf(c)); err != nil {
+		h.fail(c, err)
+		return
+	}
+	h.audit(c, "view_history_clear", "", true, "清空浏览历史")
+	res.OkWithMsg("清空成功", c)
 }
 
 // RemoveHistory 删除浏览历史。

@@ -5,6 +5,8 @@ import {
   buildDraftChatSessionId,
   buildPreparedChatSession,
   isDraftChatSessionId,
+  isNewChatMessageNotification,
+  parseDraftSessionSeed,
 } from "~/utils/chat";
 
 describe("chat utils", () => {
@@ -54,5 +56,90 @@ describe("chat utils", () => {
 
     // 随机段里的非法字符会被剔除（后端只接受一个普通字符串字段）。
     expect(buildChatClientMsgId(() => "a/b c", () => 1000)).toBe("ck-1000-abc");
+  });
+});
+
+/**
+ * `draft_receiver_*` 是作者主页「发私信」→ 会话页的**跨页契约**（票 #240 验收：
+ * 从用户主页发私信仍带 draft 直接进会话）。解析放在纯函数里，页面只做接线。
+ *
+ * 契约原样保留：用户主页写的是 `draft_receiver_id / nickname / avatar` 与
+ * `draft_relation`，字段名与含义都不许改（改了旧链接与旧页面就断）。
+ */
+describe("私信草稿 query 契约（draft_receiver_*）", () => {
+  it("接收方 id 是必需项：缺 id 或空白一律视为没有草稿", () => {
+    expect(parseDraftSessionSeed({})).toBeNull();
+    expect(parseDraftSessionSeed({ draft_receiver_id: "" })).toBeNull();
+    expect(parseDraftSessionSeed({ draft_receiver_id: "   " })).toBeNull();
+  });
+
+  it("完整 query 解析成会话种子（昵称 / 头像 / 关系）", () => {
+    expect(
+      parseDraftSessionSeed({
+        draft_receiver_id: "u9",
+        draft_receiver_nickname: "乙",
+        draft_receiver_avatar: "https://image.example.com/b.png",
+        draft_relation: "2",
+      }),
+    ).toEqual({
+      receiverId: "u9",
+      receiverNickname: "乙",
+      receiverAvatar: "https://image.example.com/b.png",
+      relation: 2,
+    });
+  });
+
+  it("昵称缺失时回落到「新会话」，头像缺失按空串，关系非法按 0", () => {
+    expect(parseDraftSessionSeed({ draft_receiver_id: "u9" })).toEqual({
+      receiverId: "u9",
+      receiverNickname: "新会话",
+      receiverAvatar: "",
+      relation: 0,
+    });
+    expect(parseDraftSessionSeed({ draft_receiver_id: "u9", draft_relation: "not-a-number" })?.relation).toBe(0);
+  });
+
+  // 路由 query 可能是数组（重复参数）：取第一个，别把数组拼进 id。
+  it("query 值可能是数组时取第一个字符串", () => {
+    expect(parseDraftSessionSeed({ draft_receiver_id: ["u9", "u10"] })?.receiverId).toBe("u9");
+  });
+
+  it("与路由无关的 query 被忽略，不污染种子", () => {
+    expect(parseDraftSessionSeed({ from: "profile" })).toBeNull();
+  });
+});
+
+/**
+ * WS 通知分两类：新消息（`chat.message.sent`）与已读回执（`chat.message.read`）。
+ * 未读 +1 只对前者成立 —— 已读回执也带 `session_id`，但它不是"又收到一条"。
+ */
+describe("WS 通知归类", () => {
+  it("新消息通知：带 session_id + message_id，且不是已读回执", () => {
+    expect(
+      isNewChatMessageNotification({
+        session_id: "chat:1:2",
+        message_id: "m1",
+        sender_id: "2",
+        receiver_id: "1",
+        msg_type: 1,
+      }),
+    ).toBe(true);
+  });
+
+  it("已读回执（msg_type=8）不算新消息，即使带 message_id", () => {
+    expect(
+      isNewChatMessageNotification({
+        session_id: "chat:1:2",
+        message_id: "m1",
+        msg_type: 8,
+        reader_id: "2",
+      }),
+    ).toBe(false);
+  });
+
+  it("缺 message_id / session_id 的帧不算新消息（心跳、拒绝壳）", () => {
+    expect(isNewChatMessageNotification({ session_id: "chat:1:2" })).toBe(false);
+    expect(isNewChatMessageNotification({ message_id: "m1" })).toBe(false);
+    expect(isNewChatMessageNotification(null)).toBe(false);
   });
 });

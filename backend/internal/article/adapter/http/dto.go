@@ -85,6 +85,17 @@ type ArticleDetailResponse struct {
 	IsFavor             bool              `json:"is_favor"`
 }
 
+// ArticleDiggRequest 点赞目标态（ADR-0024 决策 3）。
+//
+// 旧契约没有请求体（toggle）。现在必须显式说"我要它处于已赞还是未赞"：
+// `Liked=true` 是确保已赞，`Liked=false` 是确保未赞；重复提交同态即无操作。
+//
+// 用指针 + `required`：Go 的 `bool` 零值 false 会被 validator 当成"没传"，
+// 而"取消点赞"恰恰要传 false，所以必须用 `*bool` 区分"没传"与"传了 false"。
+type ArticleDiggRequest struct {
+	Liked *bool `json:"liked" binding:"required" example:"true"`
+}
+
 // ArticleFavoriteRequest 收藏。
 type ArticleFavoriteRequest struct {
 	ArticleID ctype.ID `json:"article_id" binding:"required"`
@@ -219,10 +230,19 @@ type ArticleHotTopOrderRequest struct {
 	ArticleIDs []ctype.ID `json:"article_ids" binding:"required"`
 }
 
-// ArticleViewHistoryRequest 浏览历史。
+// ArticleViewHistoryRequest 浏览历史（服务端标题搜索 + 游标分页）。
+//
+// 没有 page：历史页按天分组（今天 / 昨天 / 近一周 / 更早），offset 分页在
+// 删除或重复浏览把某条顶到最前之后会让下一页整体位移，分组因此跨页断开。
+//
+// 游标是 before_updated_at + before_id 两个参数，**成对出现**（两者都缺省 =
+// 第一页）；单个不透明字符串不做，因为契约里已经暴露了 updated_at 与
+// article_id，前端续页直接用列表最后一条的这两个字段即可。
 type ArticleViewHistoryRequest struct {
-	Page  int `form:"page"`
-	Limit int `form:"limit"`
+	Keyword         string `form:"keyword"`
+	BeforeUpdatedAt string `form:"before_updated_at"`
+	BeforeID        string `form:"before_id"`
+	Limit           int    `form:"limit"`
 }
 
 // ── 列表类响应 DTO ──
@@ -337,8 +357,36 @@ type ArticleTopCardResponse struct {
 }
 
 // ArticleDiggResponse 点赞结果。
+//
+// 除了收敛后的状态，还回填**权威计数**（库内快照 + 缓存增量）：
+// 前端直接 patch，不再本地 +1、也不再为等数字而重新取整篇正文（ADR-0024 决策 4）。
 type ArticleDiggResponse struct {
-	IsDigg bool `json:"is_digg"`
+	IsDigg    bool `json:"is_digg"`
+	DiggCount int  `json:"digg_count"`
+}
+
+// ArticleFavoriteResponse 收藏/取消收藏结果。
+//
+// 与点赞同理：写响应回填权威 `favor_count` / `is_favor`（ADR-0024 决策 4/6）。
+type ArticleFavoriteResponse struct {
+	IsFavor    bool `json:"is_favor"`
+	FavorCount int  `json:"favor_count"`
+}
+
+// ArticleFavoriteRemoveResponse 批量取消收藏结果。
+//
+// 为什么与 ArticleFavoriteResponse 分开：批量接口必须让调用方分辨「部分成功」
+// （评审 #248 的 P0-2），所以除了权威计数还给出 `removed_count` / `failed_count`；
+// 如果沿用单条的形状，部分失败就只能靠猜。
+//
+// `is_favor` / `favor_count` 仍按「最后一条成功移除的文章」给出：当前唯一消费方
+// （收藏夹弹窗）每次只传当前这一篇；多篇批量场景不应依赖这两个字段，只看计数。
+// 全部失败不会走到这里（handler 返回非 0 业务码）。
+type ArticleFavoriteRemoveResponse struct {
+	IsFavor      bool `json:"is_favor"`
+	FavorCount   int  `json:"favor_count"`
+	RemovedCount int  `json:"removed_count"`
+	FailedCount  int  `json:"failed_count"`
 }
 
 // ArticleHotTopCardResponse 是首页「热门置顶」运营位的一张卡片。

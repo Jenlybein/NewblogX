@@ -42,3 +42,17 @@ export function readerArticleAuthorBaseCacheKey(authorIdOrArticleId: string) {
 export function readerArticleCommentsCacheKey(articleId: string) {
   return `article-comments:${articleId}`;
 }
+
+/**
+ * 用户私有态（已赞 / 已收藏）的独立缓存键（ADR-0024 决策 2）。
+ *
+ * 「缓存键」在这里只作为 `useAsyncData` 的 key 使用：这个源 **不写也不读任何缓存**
+ * （`server: false` + `getCachedData: () => undefined`），所以键的作用是
+ * "同一篇文章只有一个在途请求"，而不是复用 30 秒内的旧值。
+ *
+ * 与正文键（`article-<id>`）刻意分开：正文键里存的是匿名 payload / 30s SWR，
+ * 私有态混进去就等于把用户态写进了共享缓存（ADR-0019 约束 2/3）。
+ */
+export function readerArticlePrivateCacheKey(articleId: string) {
+  return `article-private-${articleId}`;
+}

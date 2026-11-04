@@ -2,6 +2,7 @@ import type { Ref } from "vue";
 import type { AiDiagnoseResponseData, AiOverwriteMode } from "~/types/api";
 import { computed, reactive, shallowRef } from "vue";
 import { streamAiDiagnose, streamAiOverwrite } from "~/services/ai";
+import { errorMessage as resolveErrorMessage } from "~/utils/errorMessage";
 
 export type StudioAiAction = AiOverwriteMode | "diagnose";
 
@@ -189,7 +190,7 @@ export function useStudioAiSelection(options: UseStudioAiSelectionOptions) {
         return;
       }
 
-      errorMessage.value = error instanceof Error ? error.message : "AI 辅助执行失败";
+      errorMessage.value = resolveErrorMessage(error, "AI 辅助执行失败");
       throw error;
     } finally {
       if (abortController === nextAbortController) {

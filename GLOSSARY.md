@@ -481,17 +481,22 @@ _Avoid_: 「站点模式」（已删除的 1 社区 / 2 博客，从未生效）
 位置：`backend/app/auth_verifier.go`（每请求重建身份的收敛点）、`backend/internal/article/domain/viewer.go` 的 `RoleGuest`。
 _Avoid_: 把 guest 当普通用户（旧行为，已废）。
 
+**浏览历史（view history）**：
+读者"读过哪些文章"的个人记录：同一篇文章只留一条（再次浏览刷新时间并顶到最前），因此它是**最近一次浏览**的列表、不是流水账；数据只服务于本人，不参与推荐、不公开。保留期是**数据策略**：超过 90 天的记录由每日清理任务**软删**（与用户手动"移出历史"同一语义，可回滚），改动保留期要同步发布说明。
+位置：后端 `backend/internal/article/domain/viewhistory`（`Retention = 90 天`）与 `backend/app/cron_wiring.go` 的每日清理任务；表 `user_view_article_history_models`（`UNIQUE(user_id, article_id)` + upsert）；接口 `GET /api/articles/history`（标题搜索 + `before_updated_at` / `before_id` 游标）、`DELETE /api/articles/history`（按 id 选删）、`DELETE /api/articles/history/all`（清空）——三条删除接口都是软删；读者站独立页 `frontend/app/pages/history.vue`（按日历天分组、搜索、清空、批量选删）。
+_Avoid_: 叫它"浏览记录接口"（它是一个用户可见的数据域与页面，不是一组接口的别称）；把它当成流水账（去重后只保留最近一次）；说"历史永久保留"（90 天前的记录会被每日清理软删）。
+
 ---
 
 ## 十、读者站渲染与缓存
 
 **渲染边界（rendering boundary）**：
-读者站"哪些页面付服务端渲染代价"的白名单，唯一来源是 `frontend/shared/readerRenderingBoundary.ts`：服务端渲染只保留 `/` 与 `/article/**`（首页是站点门面，文章页靠它出分享卡片与被收录）；`/users/**`、`/search`、`/studio/**` 显式 `ssr: false`；`/articles` 是服务端 301 到 `/search`。`nuxt.config.ts` 的 `routeRules`、匿名 SSR 缓存的缓存范围、两道渲染边界门禁都从这张表派生；新增 SSR 页面必须先改 [ADR-0019](./docs/adr/0019-reader-rendering-and-cache-strategy.md) 再进白名单。
+读者站"哪些页面付服务端渲染代价"的白名单，唯一来源是 `frontend/shared/readerRenderingBoundary.ts`：服务端渲染只保留 `/` 与 `/article/**`（首页是站点门面，文章页靠它出分享卡片与被收录）；`/users/**`、`/search`、`/studio/**`、`/collections/**`、`/projects/**`（运营编排，不进首屏与匿名缓存）、`/history` 与 `/messages/**`（私人数据，不索引也不进匿名共享缓存）显式 `ssr: false`；`/articles` → `/search`、`/studio/history` → `/history` 由服务端 301 承担。`nuxt.config.ts` 的 `routeRules`、匿名 SSR 缓存的缓存范围、两道渲染边界门禁都从这张表派生；新增 SSR 页面必须先改 [ADR-0019](./docs/adr/0019-reader-rendering-and-cache-strategy.md) 再进白名单。
 位置：`frontend/shared/readerRenderingBoundary.ts`、`frontend/nuxt.config.ts`（`routeRules`）、`frontend/test/gates/rendering-boundary.test.ts`。
 _Avoid_: 把它当成"哪些页面能进缓存"（缓存范围从它派生，但缓存另受"匿名 / TTL / 整页 HTML"三条约束）；按页面随手加 `ssr: true` 或随手删 `ssr: false`。
 
 **30s SWR（客户端 30 秒 SWR 缓存）**：
-"先给旧值、后台静默刷新"的客户端内存缓存：同一路由在 30 秒内返回或重进**直接命中、不再发请求**；超过 30 秒先把旧值渲染出来，再后台刷新、界面不闪。TTL 30 秒、不落盘、不做 per-user 持久化；缓存键含路由参数（文章 id、分页、搜索词）；写缓存前剔除 `is_digg` / `is_favor` / `relation` 等用户私有字段。
+"先给旧值、后台静默刷新"的客户端内存缓存：**只有首屏（`cause === initial`）**在 30 秒内返回或重进时直接命中；手工 `refresh()` / 钩子刷新一律绕过缓存、真发请求（ADR-0024，否则 hydration 预热进缓存的匿名 payload 会让登录用户永远拿不到自己的用户态）。超过 30 秒先把旧值渲染出来，再后台刷新、界面不闪。TTL 30 秒、不落盘、不做 per-user 持久化；缓存键含路由参数（文章 id、分页、搜索词）；写缓存前剔除 `is_digg` / `is_favor` / `relation` 等用户私有字段。
 位置：`frontend/app/utils/readerSwrCache.ts`（缓存实现）、`frontend/app/composables/useReaderSwrAsyncData.ts`（`useAsyncData` 接线）、`frontend/app/composables/usePagedResourceCache.ts`（分页列表接线）。
 _Avoid_: 说它"持久化 / 离线缓存"（它只在本页内存里、刷新即空）；把服务端那层也叫 SWR（那层见「匿名 SSR 缓存」）。
 
@@ -512,14 +517,14 @@ _Avoid_: 把骨架当装饰动效（闪动 / 渐变不是它，它一秒都不�
 ## 十一、私信与会话
 
 **消息中心（message center）**：
-读者站的顶级页面 `/messages`，把读者可能收到的消息并列为**五个子项**：评论与回复、点赞与收藏、系统通知、全局通知、私信。它不拥有自己的数据：每个子项只是对应模块列表的一个视图；未读数取统一的未读汇总（`GET /api/sitemsg/user` 的五个字段）。
-位置：读者站 `frontend/app/pages/messages/**` 与顶栏入口（悬浮展开子项、子项右侧显示未读数）；后端不新增消息表，只复用 `internal/notification` 与 `internal/chat`。
+读者站的顶级页面 `/messages`，把读者可能收到的消息并列为**五个子项**：评论与回复、点赞与收藏、系统通知、全局通知、私信；五个子项各是独立路由（`/messages/{comments,digg,system,global,chat}`，入口 `/messages` 自身落到默认的「评论与回复」）。它不拥有自己的数据：每个子项只是对应模块列表的一个视图；未读数取统一的未读汇总（`GET /api/sitemsg/user` 的五个字段）。
+位置：读者站 `frontend/app/pages/messages/**` 与顶栏入口（悬浮展开五子项、子项右侧显示未读数，窄屏收进图标 / 折叠面板）；旧入口 `/studio/inbox` 按 `tab` / `group` 语义重定向到对应子项。后端不新增消息表，只复用 `internal/notification` 与 `internal/chat`。
 _Avoid_: 把「消息中心」当作私信页的新名字（私信只是它五个子项之一）；继续用「消息中心」指 `/studio/inbox`（那是旧位置，已迁移并重定向）。
 
 **陌生人私信（stranger DM policy）**：
-是否允许陌生人给我发私信由**两级**决定：站点总闸（`site.chat.stranger_msg_enabled`）**且**接收方个人开关（账号设置里的「允许陌生人给我发私信」，默认开启）。任一关闭即拒绝；自己发给自己、双方已有关注或既存会话关系时不做陌生人判定。
-位置：`backend/internal/chat/domain/chat.go` 的 `StrangerPolicy`（带接收方 id）、`backend/app/chat_wiring.go`（两级取值）、读者站账号设置页的隐私区。
-_Avoid_: 说它"只由站点开关决定"（那是旧口径，已废止）；把"陌生人"理解成"没关注我的人"或"没聊过的人"之一——判定按既有关注/会话关系整体算，不是单一维度。
+是否允许陌生人给我发私信由**两级**决定：站点总闸（`site.chat.stranger_msg_enabled`，缺省显式关闭）**且**接收方个人开关（账号设置里的「允许陌生人给我发私信」，默认开启）。任一关闭即拒绝；自己发给自己、双方已有关注或既存会话关系时不做陌生人判定。拒绝时判定结论带**哪一级**：站点级与接收方级各有错误码（`chat.stranger_disabled` / `chat.recipient_stranger_disabled`）与不同文案，不把"对方不想收"说成站点策略。
+位置：`backend/internal/chat/domain/chat.go` 的 `StrangerPolicy`（`CheckStranger` 带接收方 id、返回 `StrangerVerdict`）、`backend/app/chat_wiring.go`（两级取值）、读者站账号设置页的隐私区、`PUT /users/info` 的可选字段 `stranger_msg_enabled`。
+_Avoid_: 说它"只由站点开关决定"（那是旧口径，已废止）；把"陌生人"理解成"没关注我的人"或"没聊过的人"之一——判定按既有关注/会话关系整体算，不是单一维度；把所有拒绝都归到站点级（接收方关掉自己开关时找管理员查不出任何问题）。
 
 **私信（direct message）**：
 登录用户之间一对一发送的文本 / 图片消息；发送与接收双方各持一份会话视图，删除只影响自己那一份。它不是系统通知，也不是 AI 对话。

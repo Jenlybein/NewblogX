@@ -1,7 +1,8 @@
 # ADR-0025：计数账本与并账（计数降为派生值）
 
-- 状态：已接受
+- 状态：已交付
 - 日期：2026-11-04
+- 部署：2026-11-04 随 PR [#259](https://github.com/Jenlybein/NewblogX/pull/259) 上线（`8056e37`），记录见[部署记录](../notes/2026-11-04-reading-ui-and-admin-batch-deploy-record.md)
 - 来源：读者反馈「点赞后刷新，按钮已赞但计数没变」· [决定清单](../notes/2026-11-04-reading-ui-and-admin-batch-decisions.md)（§1–2）· 收窄 [ADR-0024](./0024-reader-user-state-and-count-truth.md) 决策 5 的适用范围
 - 关联：[ADR-0019](./0019-reader-rendering-and-cache-strategy.md)（两层缓存）· [GLOSSARY · 计数账本](../../GLOSSARY.md)
 
@@ -62,4 +63,4 @@
 
 - **真库验证已完成**：`go test -tags integration ./internal/article/adapter/mysql/` 通过（含本决策的契约用例 `counter_flush_integration_test.go`：列被漂移后一次并账即自愈、软删残行不计入、`view` / `comment` 列不被并账动、文章已删时丢弃增量）。同批还跑了 `./app`、`./cmd/cli`、`./internal/article/adapter/http` 三个集成包，均通过。
 - **首次真跑抓到的夹具缺陷**：契约用例里"取消过的赞"那行写死 `user_id=300`，而测试只建了 100 / 200 两个用户 —— `article_digg_models.user_id` 有外键，插入直接失败。已改为先 `seedUser(t, db, 300)`。这条缺陷在只做类型校验时看不见，正说明"SQLite 冒充 MySQL"的风险是真实的。
-- 状态保持 `已接受`：本决策的代码与验证都已完成，但整批还停在集成分支（spec [#250](https://github.com/Jenlybein/NewblogX/issues/250) 等人工验界面），合入 `main` 时再改 `已交付`。
+- 状态保持 `已接受` → **2026-11-04 转为 `已交付`**：代码合入 `main`（`8056e37`）并已上线服务器。上线后 30 分钟 cron 会做第一次覆盖式并账，把历史漂移一次抹平；本批无 DDL、无索引回填。

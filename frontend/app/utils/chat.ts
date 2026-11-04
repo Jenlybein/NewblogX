@@ -28,7 +28,7 @@ export function buildPreparedChatSession(seed: InboxDraftSessionSeed): ChatSessi
     receiver_nickname: seed.receiverNickname,
     receiver_avatar: seed.receiverAvatar || "",
     relation: seed.relation ?? 0,
-    last_msg_content: "发送第一条消息后开始对话",
+    last_msg_content: "",
     last_msg_time: null,
     unread_count: 0,
     is_top: false,

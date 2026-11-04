@@ -362,8 +362,8 @@ export type ChatMessageItem = OptionalFields<
   "deleted_at"
 >;
 
-export type ChatMessageListData = RequiredSchema<"myblogx_internal_kernel.ListData-myblogx_internal_chat_domain_MessageItem">;
-
+// 消息列表响应改由 `services/inbox.ts` 的本地接口描述（ADR-0027：
+// list/count/has_more/next_cursor 的游标形状），不再引用生成的 ListData 别名。
 export type ChatWsTicketData = RequiredSchema<"internal_chat_adapter_http.WsTicketResponse">;
 
 /** POST /api/chat/messages 的请求体（契约派生，含幂等键 client_msg_id）。 */

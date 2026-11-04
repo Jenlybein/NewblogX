@@ -37,7 +37,7 @@ describe("chat utils", () => {
       receiver_nickname: "River",
       receiver_avatar: "https://image.example.com/avatar.png",
       relation: 1,
-      last_msg_content: "发送第一条消息后开始对话",
+      last_msg_content: "",
       last_msg_time: null,
       unread_count: 0,
       is_top: false,

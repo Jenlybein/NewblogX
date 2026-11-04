@@ -7,6 +7,7 @@ import {
   getChatSessions,
   getChatWsTicket,
   markChatMessagesRead,
+  markChatSessionRead,
   sendChatMessage,
 } from "~/services/inbox";
 
@@ -55,15 +56,86 @@ describe("私信 service：真实请求契约", () => {
     });
   });
 
-  it("消息列表是 GET /api/chat/messages，query 带 session_id 与 type", async () => {
-    await getChatMessages({ sessionId: "chat:1:2" });
+  // 游标分页改造：聊天窗口缺省 7 条，不再发 page；后端按 send_time/id DESC 返回。
+  it("消息列表是 GET /api/chat/messages，query 带 session_id / type / limit=7", async () => {
+    const page = await getChatMessages({ sessionId: "chat:1:2" });
 
     expect(requestMock).toHaveBeenCalledWith("/api/chat/messages", {
       query: {
         session_id: "chat:1:2",
         type: 1,
+        limit: 7,
       },
     });
+    expect(page).toEqual({
+      list: [],
+      count: 0,
+      has_more: false,
+      next_cursor: { before_send_time: "", before_id: "" },
+    });
+  });
+
+  it("消息列表支持显式 limit、user_id 与复合游标", async () => {
+    await getChatMessages({
+      sessionId: "chat:1:2",
+      userId: "9",
+      type: 2,
+      limit: 20,
+      cursor: { before_send_time: "2026-11-05T01:07:00.123456789Z", before_id: "123456789" },
+    });
+
+    expect(requestMock).toHaveBeenCalledWith("/api/chat/messages", {
+      query: {
+        session_id: "chat:1:2",
+        type: 2,
+        user_id: "9",
+        limit: 20,
+        before_send_time: "2026-11-05T01:07:00.123456789Z",
+        before_id: "123456789",
+      },
+    });
+  });
+
+  it("空游标的 before_send_time 不进 query（第一页不带游标参数）", async () => {
+    await getChatMessages({
+      sessionId: "chat:1:2",
+      cursor: { before_send_time: "", before_id: "" },
+    });
+
+    expect(requestMock).toHaveBeenCalledWith("/api/chat/messages", {
+      query: {
+        session_id: "chat:1:2",
+        type: 1,
+        limit: 7,
+      },
+    });
+  });
+
+  it("分页响应原样归一化：has_more / next_cursor / count 都落到本地接口", async () => {
+    const cursor = { before_send_time: "2026-11-05T01:07:00.123456789Z", before_id: "123456789" };
+    requestMock.mockResolvedValue({
+      list: [{ id: "1", send_time: "2026-11-05T01:07:00Z" }],
+      count: 123,
+      has_more: true,
+      next_cursor: cursor,
+    });
+
+    const page = await getChatMessages({ sessionId: "chat:1:2" });
+
+    expect(page.count).toBe(123);
+    expect(page.has_more).toBe(true);
+    expect(page.next_cursor).toEqual(cursor);
+    expect(page.list).toHaveLength(1);
+  });
+
+  it("旧形状响应（缺 has_more / next_cursor）不炸，归一化成空游标", async () => {
+    requestMock.mockResolvedValue({ list: [{ id: "1" }], count: 1 });
+
+    const page = await getChatMessages({ sessionId: "chat:1:2" });
+
+    expect(page.has_more).toBe(false);
+    expect(page.next_cursor).toEqual({ before_send_time: "", before_id: "" });
+    expect(page.list).toEqual([{ id: "1" }]);
   });
 
   it("会话列表是 GET /api/chat/sessions，query 带 type=1", async () => {
@@ -74,7 +146,16 @@ describe("私信 service：真实请求契约", () => {
     });
   });
 
-  it("标记已读是 POST /api/chat/read，body 是 msg_id_list", async () => {
+  it("整会话已读是 POST /api/chat/read，body 只有 session_id", async () => {
+    await markChatSessionRead("chat:1:2");
+
+    expect(requestMock).toHaveBeenCalledWith("/api/chat/read", {
+      method: "POST",
+      body: { session_id: "chat:1:2" },
+    });
+  });
+
+  it("按消息已读是 POST /api/chat/read，body 是字符串数组 msg_id_list", async () => {
     await markChatMessagesRead(["m1", "m2"]);
 
     expect(requestMock).toHaveBeenCalledWith("/api/chat/read", {

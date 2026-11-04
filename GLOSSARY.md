@@ -544,7 +544,7 @@ _Avoid_: 用裸词「消息」「聊天」指代私信（站内信、通知、AI
 **会话（chat session）**：
 两名用户之间私信的**有序序列**，由双方 ID 双向一致地求出同一个 `session_id`（`domain.BuildSessionID`），因此 A→B 与 B→A 落在同一会话；会话有自己的软删与未读计数，删除会话只清自己那侧。
 位置：`backend/internal/chat/domain/chat.go`、`adapter/mysql/chat.go` 的 `ListSessions`；表 `chat_session_models`。
-_Avoid_: 把会话当成「消息列表」（后者是会话里的逐条内容）；把「会话」说成「对话窗口 / 聊天室」（前者是数据，后者是 UI）。
+_Avoid_: 把会话当成「消息列表」（后者是会话里的逐条内容）；把「会话」说成「对话窗口 / 聊天室」（前者是数据，后者是 UI）；把还没发出首条消息时的空占位当成另一种会话。
 
 ---
 

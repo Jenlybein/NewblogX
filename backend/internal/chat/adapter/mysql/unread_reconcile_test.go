@@ -16,7 +16,7 @@ import (
 //
 //  1. 漂移能自愈：库里的 unread_count 被改脏，重算后等于消息行的真值；
 //  2. 只数发给我的、且未读的消息；
-//  3. clear_before_msg_id 之前的消息不参与（清除会话后未读不复活）；
+//  3. clear_before_msg_id 对应 send_time 处及之前的消息不参与（清除会话后未读不复活）；
 //  4. 用户级删除的消息不参与；
 //  5. 软删的会话不写、也不报错；
 //  6. 全量入口按游标分页跑完所有会话。
@@ -48,18 +48,27 @@ func seedSession(t *testing.T, db *gorm.DB, id uint64, sessionID string, userID,
 
 func seedMsg(t *testing.T, db *gorm.DB, id uint64, sessionID string, senderID, receiverID uint64, status domain.MsgStatus) {
 	t.Helper()
+	seedMsgAt(t, db, ctype.NewID(id), sessionID, ctype.NewID(senderID), ctype.NewID(receiverID), status, time.Now())
+}
+
+// seedMsgAt 造一条带**明确 send_time**的消息。
+//
+// 清空水位按 send_time 算而不是 id，所以测试必须能控制时间轴；用 time.Now()
+// 会让同一批消息的先后变得不可判定（毫秒精度下可能完全相同）。
+func seedMsgAt(t *testing.T, db *gorm.DB, id ctype.ID, sessionID string, senderID, receiverID ctype.ID, status domain.MsgStatus, at time.Time) {
+	t.Helper()
 	row := msgRow{
-		ID:         ctype.NewID(id),
+		ID:         id,
 		SessionID:  sessionID,
-		SenderID:   ctype.NewID(senderID),
-		ReceiverID: ctype.NewID(receiverID),
+		SenderID:   senderID,
+		ReceiverID: receiverID,
 		Content:    "hello",
-		SendTime:   time.Now(),
+		SendTime:   at,
 		MsgStatus:  int8(status),
 		MsgType:    int8(domain.TypeText),
 	}
 	if err := db.Create(&row).Error; err != nil {
-		t.Fatalf("创建消息失败: %v", err)
+		t.Fatalf("创建消息 %s 失败: %v", id, err)
 	}
 }
 
@@ -94,17 +103,44 @@ func TestReconcileChatUnreadRecomputesFromMessageRows(t *testing.T) {
 
 func TestReconcileChatUnreadRespectsClearBefore(t *testing.T) {
 	db := newUnreadTestDB(t)
-	// 清除水位 = 12：id<=12 的消息对我不可见，绝不能让未读复活。
-	seedSession(t, db, 2, "chat:100:200", 100, 200, 0, 12)
-	seedMsg(t, db, 11, "chat:100:200", 200, 100, domain.StatusSent)
-	seedMsg(t, db, 12, "chat:100:200", 200, 100, domain.StatusSent)
-	seedMsg(t, db, 13, "chat:100:200", 200, 100, domain.StatusSent)
+	// 清除水位 = 那条 send_time=10:01 的消息（它的 ID 是个 [2^62,2^63) 的哈希式大数）。
+	//
+	// 旧口径 `id > clear_before_msg_id` 在这里会全错：m-old 的 ID 比水位小、
+	// m-new 的 ID 也比水位小，一条都不该按 ID 判。真值是"只数 send_time 严格
+	// 晚于水位行的消息"，所以只有 m-new 进未读。
+	cleared := domain.MessageIDFromClientKey(ctype.NewID(200), "clear-key")
+	at := time.Date(2026, 1, 1, 10, 0, 0, 0, time.UTC)
+	seedSession(t, db, 2, "chat:100:200", 100, 200, 0, cleared.Uint64())
+	seedMsgAt(t, db, ctype.NewID(11), "chat:100:200", ctype.NewID(200), ctype.NewID(100), domain.StatusSent, at)
+	seedMsgAt(t, db, cleared, "chat:100:200", ctype.NewID(200), ctype.NewID(100), domain.StatusSent, at.Add(time.Minute))
+	seedMsgAt(t, db, ctype.NewID(13), "chat:100:200", ctype.NewID(200), ctype.NewID(100), domain.StatusSent, at.Add(2*time.Minute))
 
 	if _, err := ReconcileChatUnread(context.Background(), db, "chat:100:200", 100); err != nil {
 		t.Fatalf("重算失败: %v", err)
 	}
 	if got := mustUnread(t, db, 2); got != 1 {
-		t.Fatalf("清除水位之前的消息不得计入未读，期望 1，实际 %d", got)
+		t.Fatalf("清除水位处及之前的消息不得计入未读，期望 1，实际 %d", got)
+	}
+}
+
+// TestReconcileChatUnreadClearWatermarkSurvivesSoftDeletedRow 水位行被软删后
+// 仍能解析出 send_time（Unscoped 子查询），清空的历史不会在重算时复活。
+func TestReconcileChatUnreadClearWatermarkSurvivesSoftDeletedRow(t *testing.T) {
+	db := newUnreadTestDB(t)
+	cleared := domain.MessageIDFromClientKey(ctype.NewID(200), "clear-key-2")
+	at := time.Date(2026, 1, 1, 10, 0, 0, 0, time.UTC)
+	seedSession(t, db, 8, "chat:100:200", 100, 200, 9, cleared.Uint64())
+	seedMsgAt(t, db, cleared, "chat:100:200", ctype.NewID(200), ctype.NewID(100), domain.StatusSent, at)
+	seedMsgAt(t, db, ctype.NewID(21), "chat:100:200", ctype.NewID(200), ctype.NewID(100), domain.StatusSent, at.Add(time.Minute))
+	if err := db.Delete(&msgRow{}, "id = ?", cleared).Error; err != nil {
+		t.Fatalf("软删水位消息失败: %v", err)
+	}
+
+	if _, err := ReconcileChatUnread(context.Background(), db, "chat:100:200", 100); err != nil {
+		t.Fatalf("重算失败: %v", err)
+	}
+	if got := mustUnread(t, db, 8); got != 1 {
+		t.Fatalf("水位行软删后仍应只剩 1 条未读，实际 %d（子查询若被默认范围挡掉会复活历史）", got)
 	}
 }
 

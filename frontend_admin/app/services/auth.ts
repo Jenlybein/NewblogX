@@ -14,11 +14,49 @@ import type { UserDetailResponseData } from '~/types/api'
  * 零 DDL 下没地方记 scope，所以刷新后的令牌是普通令牌；
  * 真正的授权始终由后端每请求查库取 role（AdminMiddleware）决定。
  */
-export function loginWithPassword(payload: { username: string; password: string }) {
+export function loginWithPassword(payload: {
+  username: string
+  password: string
+  /** 站点开启图形验证码时必须带上（后端 CaptchaMiddleware 对这两个字段 required）。 */
+  captchaId?: string
+  captchaCode?: string
+}) {
   const { $api } = useNuxtApp()
-  return $api.request<string, { username: string; password: string; scope: 'admin' }>('/users/login', {
+  const { captchaId, captchaCode, ...rest } = payload
+  return $api.request<string, Record<string, unknown>>('/users/login', {
     method: 'POST',
-    body: { ...payload, scope: 'admin' },
+    body: {
+      ...rest,
+      scope: 'admin',
+      // 只在拿到验证码时附带：站点关闭验证码时后端会直接跳过中间件，多余字段不参与校验。
+      ...(captchaId && captchaCode ? { captcha_id: captchaId, captcha_code: captchaCode } : {}),
+    },
+    auth: false,
+    retryAuth: false,
+  })
+}
+
+/** 图形验证码：`GET /api/imagecaptcha` 返回 `{captcha_id, base64}`，base64 是可直接塞 img 的 data URI。 */
+export function getLoginCaptcha() {
+  const { $api } = useNuxtApp()
+  return $api.request<{ captcha_id: string; base64: string }>('/imagecaptcha', {
+    method: 'GET',
+    auth: false,
+    retryAuth: false,
+  })
+}
+
+/**
+ * 读公开站点配置，只为拿到 `login.captcha` 这个开关。
+ *
+ * 为什么读公开接口而不是加一个新探针：`PublicSite()` 返回的正是整份站点配置
+ * （`conf.Site` 里就有 `Login` 段），所以后台登录页不需要后端任何改动就能知道
+ * "这次要不要填验证码"。见票 263。
+ */
+export function getPublicSiteLoginFlags() {
+  const { $api } = useNuxtApp()
+  return $api.request<{ login?: { captcha?: boolean } }>('/site/site', {
+    method: 'GET',
     auth: false,
     retryAuth: false,
   })

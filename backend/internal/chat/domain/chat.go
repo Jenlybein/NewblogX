@@ -365,6 +365,45 @@ type Limiter interface {
 	Reserve(ctx context.Context, senderID, receiverID ctype.ID, relation int8) (Reservation, error)
 }
 
+// ImageURLVerifier 判定一段「图片私信 content」是不是本站上传产物的 URL。
+//
+// 图片消息的 content 是通用字符串，服务端只把它包成
+// {"kind":"image","image_url":content}，从不校验来源。陌生人私信开着时，
+// 任意外链都能借私信塞进来（追踪像素 / 钓鱼图 / 别人的图床）。这里定一个窄端口：
+// 用例层只问「是不是」，反解 object_key 与查 image_models 的脏活留在装配层。
+//
+// 返回 false 时用例层报 CodeChatImageNotOwned；端口本身不抛错（存储没配好时
+// 一律按"不是"处理，失败关闭，不能让校验变成绕过口子）。
+type ImageURLVerifier interface {
+	IsOwnedImageURL(ctx context.Context, rawURL string) (bool, error)
+}
+
+// BlockLevel 是屏蔽 / 拉黑的级别（ADR-0026）。两者不是同义词：
+//   - BlockLevelSoft（屏蔽）：对方发不进来，但我仍能看到历史会话；
+//   - BlockLevelHard（拉黑）：屏蔽 + 我也看不到他的会话（会话列表不出现）。
+type BlockLevel uint8
+
+const (
+	BlockLevelNone BlockLevel = 0
+	BlockLevelSoft BlockLevel = 1
+	BlockLevelHard BlockLevel = 2
+)
+
+// BlockPolicy 读"我"对"对方"的屏蔽 / 拉黑级别，以及"对方"对"我"的级别。
+//
+// 方向性：A 对 B 的记录不影响 B 对 A。用例层用 Outgoing(sender→receiver)
+// 判"能不能发"、用 Incoming(receiver→sender) 判"对方是不是把我拉黑了"，
+// 用 HardBlockedIDs 在会话列表里把"我拉黑的人"整条隐藏。
+//
+// 失败关闭由装配层保证：查库异常时按"没有记录"放行发送是不安全的，
+// 因此 Query 出错必须原样返回错误，用例层据此中止发送。
+type BlockPolicy interface {
+	// Level 返回 owner 对 target 的级别；没有记录时返回 BlockLevelNone。
+	Level(ctx context.Context, ownerID, targetID ctype.ID) (BlockLevel, error)
+	// HardBlockedIDs 返回 owner 拉黑（level=2）的所有 target，供会话列表过滤。
+	HardBlockedIDs(ctx context.Context, ownerID ctype.ID) ([]ctype.ID, error)
+}
+
 // Logger 是窄日志接口。
 type Logger interface {
 	Infof(format string, args ...any)

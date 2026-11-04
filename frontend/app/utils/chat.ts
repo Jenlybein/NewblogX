@@ -52,9 +52,28 @@ export function buildChatClientMsgId(random: () => string, now: () => number) {
 }
 
 /**
+ * 生成「发私信」跳转的 query —— `draft_receiver_*` 跨页契约的**唯一写入口**。
+ *
+ * 以前 `users/[id].vue` 手写这四个字段，文章页却只弹一个「接入中」的 toast：
+ * 两处入口只有一处接线，契约也就只有一个消费者。现在作者主页与文章页都走这里，
+ * 第三个入口（评论区作者名等）也不会再抄错字段名。
+ *
+ * 字段名是跨页契约，不能改：旧链接（分享 / 书签）里的草稿靠它们复活会话。
+ * 头像为空时不带这一项（路由会把 undefined 丢掉），`parseDraftSessionSeed` 对缺项宽进。
+ */
+export function buildDraftChatQuery(seed: InboxDraftSessionSeed): Record<string, string> {
+  return {
+    draft_receiver_id: seed.receiverId,
+    draft_receiver_nickname: seed.receiverNickname,
+    ...(seed.receiverAvatar ? { draft_receiver_avatar: seed.receiverAvatar } : {}),
+    draft_relation: String(seed.relation ?? 0),
+  };
+}
+
+/**
  * 解析作者主页「发私信」跳转带来的 `draft_receiver_*` query（票 #240）。
  *
- * 这是**跨页契约**：`users/[id].vue` 写什么字段，这里就读什么字段。字段名一旦
+ * 这是**跨页契约**：写入由 `buildDraftChatQuery` 单一来源负责，这里只读。字段名一旦
  * 改动，旧链接（已发出的分享 / 书签）里的草稿就会失效，所以宁可在这里做宽进
  * （数组取值、空白回落），也不要改契约。
  *

@@ -280,6 +280,18 @@ type ChatMsgUserStateRow struct {
 // TableName 固定表名。
 func (ChatMsgUserStateRow) TableName() string { return "chat_msg_user_state_models" }
 
+// ChatBlockRow 对应表 chat_block_models（ADR-0026 批准新增的私信屏蔽 / 拉黑表）。
+// level: 1=屏蔽 2=拉黑；方向性记录，软删表示解除。
+type ChatBlockRow struct {
+	BaseRow
+	OwnerID   ctype.ID `gorm:"not null;uniqueIndex:uk_chat_block_owner_blocked,priority:1" json:"owner_id"`
+	BlockedID ctype.ID `gorm:"not null;uniqueIndex:uk_chat_block_owner_blocked,priority:2;index:idx_chat_block_blocked" json:"blocked_id"`
+	Level     uint8    `gorm:"not null;default:1" json:"level"`
+}
+
+// TableName 固定表名。
+func (ChatBlockRow) TableName() string { return "chat_block_models" }
+
 // CommentRow 对应表 comment_models。
 type CommentRow struct {
 	BaseRow

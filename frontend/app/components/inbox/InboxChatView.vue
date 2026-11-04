@@ -16,9 +16,10 @@ import { errorMessage } from "~/utils/errorMessage";
  * 复用既有实现：会话列表 + 聊天窗是 `InboxChatPanel`，取数/发送/通知订阅是
  * `useInboxCenter`（本票已收窄为纯私信）。
  *
- * `draft_receiver_*` 是 `users/[id].vue`「发私信」的跨页契约（原样保留）：
- * 命中已有会话就直接选中它，没有就建前端预备会话，首条消息发出后转真实会话并
- * 清掉 query，避免刷新后又落回"预备会话"。
+ * `draft_receiver_*` 是「发私信」的跨页契约（原样保留）：写入由
+ * `useDraftChatJump` / `buildDraftChatQuery` 单一来源负责，作者主页与文章页两个
+ * 入口共用。命中已有会话就直接选中它，没有就建前端预备会话，首条消息发出后转
+ * 真实会话并清掉 query，避免刷新后又落回"预备会话"。
  */
 const route = useRoute();
 const router = useRouter();

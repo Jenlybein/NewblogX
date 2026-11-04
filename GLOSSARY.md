@@ -526,9 +526,19 @@ _Avoid_: 把「消息中心」当作私信页的新名字（私信只是它五�
 位置：`backend/internal/chat/domain/chat.go` 的 `StrangerPolicy`（`CheckStranger` 带接收方 id、返回 `StrangerVerdict`）、`backend/app/chat_wiring.go`（两级取值）、读者站账号设置页的隐私区、`PUT /users/info` 的可选字段 `stranger_msg_enabled`。
 _Avoid_: 说它"只由站点开关决定"（那是旧口径，已废止）；把"陌生人"理解成"没关注我的人"或"没聊过的人"之一——判定按既有关注/会话关系整体算，不是单一维度；把所有拒绝都归到站点级（接收方关掉自己开关时找管理员查不出任何问题）。
 
+**屏蔽（block）**：
+我对某个人的单向设置：只挡"对方发给我"（对方发送被拒），我仍能看到与他的历史会话。它只归我所有、方向性、可软删。
+位置：`backend/internal/chat/`；表 `chat_block_models`。
+_Avoid_: 把它与「拉黑」当同义词（拉黑还额外隐藏会话）；把它当成「陌生人私信」开关（后者是不特定对象的两级准入）；把它当成「会话软删」（后者只清自己那份会话视图，不挡对方发送）。
+
+**拉黑（hard block / mute）**：
+屏蔽的更强一级：既挡"对方发给我"，也让我看不到与他的会话（会话列表不出现）。同样只归我所有、方向性、可软删。
+位置：`backend/internal/chat/`；表 `chat_block_models`。
+_Avoid_: 把它与「屏蔽」当同义词（屏蔽仍保留历史会话可见）；把它当成「陌生人私信」开关或「会话软删」；说成双向生效（A 拉黑 B 不影响 B 那侧）。
+
 **私信（direct message）**：
 登录用户之间一对一发送的文本 / 图片消息；发送与接收双方各持一份会话视图，删除只影响自己那一份。它不是系统通知，也不是 AI 对话。
-位置：`backend/internal/chat/`（`domain` / `app` / `adapter`）、接口 `/api/chat/*`、WebSocket `/api/chat/ws`；读者站 `frontend/app/components/inbox/InboxChatPanel.vue`（挂在消息中心的私信子项下）；表 `chat_msg_models` / `chat_msg_user_state_models` / `chat_session_models`。
+位置：`backend/internal/chat/`（`domain` / `app` / `adapter`）、接口 `/api/chat/*`、WebSocket `/api/chat/ws`；读者站 `frontend/app/components/inbox/InboxChatPanel.vue`（挂在消息中心的私信子项下）；表 `chat_msg_models` / `chat_msg_user_state_models` / `chat_session_models` / `chat_block_models`。
 _Avoid_: 用裸词「消息」「聊天」指代私信（站内信、通知、AI 面板都叫消息）；把「站内信」当作私信（那是系统通知面板 `InboxSitePanel`）；把「捏捏」的 AI 面板当作会话。
 
 **会话（chat session）**：

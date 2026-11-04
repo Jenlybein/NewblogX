@@ -14,98 +14,63 @@ import (
 )
 
 // Limiter 实现 domain.Limiter。
+//
+// 限流口径（ADR-0026）：同一发件人对同一收件人 1 条 / N 秒、M 条 / 自然日。
+// N 与 M **每次发送现读**运行时配置（后台「站点 → 私信」可改），不重启即生效；
+// 缺省由 `siteconf.NormalizeChatRate` 收敛到 10 秒 / 99 条。
 type Limiter struct {
-	deps redis_service.Options
+	deps   redis_service.Options
+	now    func() time.Time
+	// limits 返回 (窗口秒数, 日额度)；注入函数而不是快照，保证"现读"。
+	limits func() (int, int)
 }
 
 var _ domain.Limiter = (*Limiter)(nil)
 
-// NewLimiter 构造限流器。
-func NewLimiter(deps redis_service.Options) *Limiter { return &Limiter{deps: deps} }
+// NewLimiter 构造限流器；limits 为 nil 时用 ADR-0026 的默认值。
+func NewLimiter(deps redis_service.Options, limits func() (int, int)) *Limiter {
+	if limits == nil {
+		limits = func() (int, int) { return 10, 99 }
+	}
+	return &Limiter{deps: deps, now: time.Now, limits: limits}
+}
 
 // Reserve 预占发送额度。
-func (l *Limiter) Reserve(_ context.Context, senderID, receiverID ctype.ID, relation int8) (domain.Reservation, error) {
-	now := time.Now()
-	sessionID := domain.BuildSessionID(senderID, receiverID)
-
-	minute, limitedBy, err := redis_chat.ReserveChatMinuteRate(l.deps, senderID, sessionID, now)
+//
+// 失败关闭：Redis 异常一律返回错误，不放行。落库失败 / 幂等命中时由用例层
+// 调用 Rollback 释放预占，避免失败请求占掉额度。
+func (l *Limiter) Reserve(_ context.Context, senderID, receiverID ctype.ID, _ int8) (domain.Reservation, error) {
+	windowSec, dailyMax := l.limits()
+	reservation, limitedBy, err := redis_chat.ReserveChatPairRate(l.deps, senderID, receiverID, l.now(), windowSec, dailyMax)
 	if err != nil {
 		return nil, err
 	}
-	if minute == nil {
-		if limitedBy == "session" {
-			return nil, apperr.New(apperr.CodeChatSessionTooFast)
+	if reservation == nil {
+		if limitedBy == "daily" {
+			return nil, apperr.New(apperr.CodeChatDailyLimit)
 		}
 		return nil, apperr.New(apperr.CodeChatTooFrequent)
 	}
-
-	res := &reservation{
-		minute:     minute,
-		senderID:   senderID,
-		receiverID: receiverID,
-		now:        now,
-		deps:       l.deps,
-	}
-
-	// 自聊与好友不受自然周配额限制。
-	if senderID == receiverID || relation == 4 {
-		return res, nil
-	}
-
-	limit := 3
-	if relation == 1 {
-		limit = 1
-	}
-	week, allowed, err := redis_chat.ReserveChatWeekQuota(l.deps, senderID, receiverID, limit, now)
-	if err != nil {
-		_ = res.Rollback()
-		return nil, err
-	}
-	if !allowed {
-		_ = res.Rollback()
-		if relation == 1 {
-			return nil, apperr.New(apperr.CodeChatWeekStranger)
-		}
-		return nil, apperr.New(apperr.CodeChatWeekLimit)
-	}
-	res.week = week
-	res.resetOnCommit = relation != 1
-	return res, nil
+	return &chatReservation{inner: reservation, deps: l.deps}, nil
 }
 
-// reservation 实现 domain.Reservation。
-type reservation struct {
-	minute        *redis_chat.MinuteReservation
-	week          *redis_chat.WeekQuotaReservation
-	resetOnCommit bool
-	senderID      ctype.ID
-	receiverID    ctype.ID
-	now           time.Time
-	deps          redis_service.Options
+// chatReservation 把 Redis 适配器的预占适配成 domain.Reservation。
+type chatReservation struct {
+	inner *redis_chat.PairReservation
+	deps  redis_service.Options
 }
 
-// Commit 发送成功后提交；单向关系顺手清掉对向周配额（表示对方已回复）。
-func (r *reservation) Commit() error {
-	if r == nil || !r.resetOnCommit {
-		return nil
-	}
-	return redis_chat.ResetChatWeekQuota(r.deps, r.receiverID, r.senderID, r.now)
-}
-
-// Rollback 发送失败时释放预占。
-func (r *reservation) Rollback() error {
-	if r == nil {
-		return nil
-	}
-	if r.week != nil {
-		if err := r.week.Release(r.deps); err != nil {
-			return err
-		}
-	}
-	if r.minute != nil {
-		return r.minute.Release(r.deps)
-	}
+func (r *chatReservation) Commit() error {
+	// 额度已由 Lua 脚本原子写入，提交阶段无需再动；保留接口是为与发件箱式
+	// "预占 → 落库 → 提交"的语义对齐（ADR-0022）。
 	return nil
+}
+
+func (r *chatReservation) Rollback() error {
+	if r == nil || r.inner == nil {
+		return nil
+	}
+	return r.inner.Release(r.deps)
 }
 
 // Tickets 实现 WS 票据存取。

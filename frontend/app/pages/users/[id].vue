@@ -9,8 +9,8 @@ import ProfileHeroCard from "~/components/profile/ProfileHeroCard.vue";
 import ProfileRelationList from "~/components/profile/ProfileRelationList.vue";
 import { getPublicFavoriteFolders, getOwnFavoriteFolders, getFavoriteFolderArticles } from "~/services/favorite";
 import { getFansList, getFollowList, followUser, unfollowUser } from "~/services/follow";
+import { useDraftChatJump } from "~/composables/useDraftChatJump";
 import { getSelfUserDetail, getUserBaseInfo } from "~/services/user";
-import type { InboxDraftSessionSeed } from "~/utils/chat";
 import { formatCount } from "~/utils/format";
 import { getAuthorButtonLabel, isFollowing } from "~/utils/relation";
 import { errorMessage } from "~/utils/errorMessage";
@@ -26,6 +26,7 @@ const route = useRoute();
 const router = useRouter();
 const authStore = useAuthStore();
 const uiStore = useUiStore();
+const { jumpToDraftChat } = useDraftChatJump();
 const message = useMessage();
 const userId = computed(() => route.params.id as string);
 const profileLoadFailed = shallowRef(false);
@@ -275,21 +276,13 @@ async function handlePrivateMessage() {
     return;
   }
 
-  const draftSessionSeed: InboxDraftSessionSeed = {
+  // 四个 draft_* 参数由 useDraftChatJump / buildDraftChatQuery 单一来源生成，
+  // 与文章页共用同一份跨页契约（票 265）。
+  void jumpToDraftChat({
     receiverId: profile.value.id,
     receiverNickname: profile.value.nickname || "新会话",
     receiverAvatar: profile.value.avatar || "",
     relation: profile.value.relation ?? 0,
-  };
-
-  void router.push({
-    path: "/messages/chat",
-    query: {
-      draft_receiver_id: draftSessionSeed.receiverId,
-      draft_receiver_nickname: draftSessionSeed.receiverNickname,
-      draft_receiver_avatar: draftSessionSeed.receiverAvatar || undefined,
-      draft_relation: String(draftSessionSeed.relation ?? 0),
-    },
   });
 }
 

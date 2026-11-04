@@ -8,6 +8,7 @@ import (
 
 	articlemysql "myblogx/internal/article/adapter/mysql"
 	"myblogx/internal/article/domain/viewhistory"
+	chatmysql "myblogx/internal/chat/adapter/mysql"
 	commentmysql "myblogx/internal/comment/adapter/mysql"
 	"myblogx/internal/kernel/ctype"
 	"myblogx/internal/platform/log/writer"
@@ -112,6 +113,19 @@ func FlushArticleCounters(ctx context.Context, db *gorm.DB, flusher *rediscounte
 	return total, nil
 }
 
+// ReconcileChatUnread 执行一次「私信未读重算」：把每条活跃会话的 unread_count
+// 覆盖成按消息行算出的真值，返回被写回的条数。
+//
+// 单独导出是为了让用例能驱动这条真实任务体（sqlite 即可验证「重算覆盖 /
+// 尊重清空水位 / 排除用户级删除」），不必起 MySQL 容器。
+//
+// 与文章计数并账**共用同一个 30 分钟 tick**（见 WireCron），不新增调度器：
+// ADR-0025 认下的「不新增定时任务」在这里同样成立。私信没有 Redis 增量源，
+// 所以覆盖面是全部活跃会话，而不是"本轮有增量的会话"。
+func ReconcileChatUnread(ctx context.Context, db *gorm.DB) (int, error) {
+	return chatmysql.ReconcileAllChatUnread(ctx, db, 200)
+}
+
 // WireCron 注册并启动定时任务。
 //
 // 这里是唯一知道"哪个 Redis key 对应哪张表的哪一列"的地方：
@@ -147,7 +161,23 @@ func WireCron(infra *Infra, lifecycle *Lifecycle) error {
 		LockKey: "cron:sync_article:lock",
 		LockTTL: counterSyncLockTTL,
 		Run: func(ctx context.Context) (int, error) {
-			return FlushArticleCounters(ctx, db, flusher, infra.Logger)
+			// 两个并账共用一个 tick：文章计数（增量驱动）与私信未读（全量重算）。
+			// 失败彼此隔离 —— 一个失败不该挡住另一个自愈。
+			articleTotal, articleErr := FlushArticleCounters(ctx, db, flusher, infra.Logger)
+			if articleErr != nil {
+				infra.Logger.Errorf("同步文章计数失败: %v", articleErr)
+			}
+			chatTotal, chatErr := ReconcileChatUnread(ctx, db)
+			if chatErr != nil {
+				infra.Logger.Errorf("重算私信未读失败: %v", chatErr)
+			}
+			if articleErr != nil {
+				return articleTotal, articleErr
+			}
+			if chatErr != nil {
+				return articleTotal, chatErr
+			}
+			return articleTotal + chatTotal, nil
 		},
 	}); err != nil {
 		return err

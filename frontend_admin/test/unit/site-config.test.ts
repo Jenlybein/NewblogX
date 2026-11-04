@@ -144,6 +144,21 @@ describe("私信的陌生人开关（#202）", () => {
     expect(chat).toMatch(/\bstranger_msg_enabled: boolean/u);
   });
 
+  it("私信限流参数在类型、表单与后端默认配置三处同名（ADR-0026）", () => {
+    const types = readApiTypes();
+    const chat = types.match(/\n {2}chat: \{([\s\S]*?)\n {2}\}/u)?.[1] ?? "";
+    expect(chat).toMatch(/\brate_window_sec: number/u);
+    expect(chat).toMatch(/\brate_daily_max: number/u);
+
+    const form = readSettingsSite();
+    expect(form).toContain("config.chat.rate_window_sec");
+    expect(form).toContain("config.chat.rate_daily_max");
+    // 表单必须给合法区间，否则填 0 会让限流静默失效。
+    expect(form).toContain(':min="1"');
+    expect(form).toContain("site-chat-rate-window");
+    expect(form).toContain("site-chat-rate-daily");
+  });
+
   it("开关是站点级策略：后台说明点明保存后立即生效，而不是要求重启", () => {
     const source = readSettingsSite();
 

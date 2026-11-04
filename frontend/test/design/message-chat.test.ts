@@ -25,6 +25,9 @@ const inboxCenterSource = read("app/composables/useInboxCenter.ts");
 const chatSocketSource = read("app/composables/useChatSocket.ts");
 const realtimeSource = read("app/composables/useMessageRealtime.ts");
 const profileSource = read("app/pages/users/[id].vue");
+const articleSource = read("app/pages/article/[id].vue");
+const draftJumpSource = read("app/composables/useDraftChatJump.ts");
+const chatUtilsSource = read("app/utils/chat.ts");
 const sidebarSource = read("app/components/studio/StudioSidebarNav.vue");
 const pluginPath = "app/plugins/02.message-realtime.client.ts";
 
@@ -118,15 +121,37 @@ describe("消息入口只有一个来源（顶栏）", () => {
 });
 
 describe("draft_receiver_* 契约原样保留", () => {
-  it("作者主页「发私信」仍把四个 draft 参数带在 query 上", () => {
+  it("四个 draft 参数由 buildDraftChatQuery 单一来源生成", () => {
     for (const key of [
       "draft_receiver_id",
       "draft_receiver_nickname",
       "draft_receiver_avatar",
       "draft_relation",
     ]) {
-      expect(profileSource).toContain(key);
+      expect(chatUtilsSource).toContain(key);
     }
-    expect(profileSource).toContain("/messages/chat");
+    expect(chatUtilsSource).toContain("export function buildDraftChatQuery");
+    expect(draftJumpSource).toContain("buildDraftChatQuery");
+    expect(draftJumpSource).toContain('path: "/messages/chat"');
+  });
+
+  it("作者主页与文章页两个入口都走 useDraftChatJump（不再手写 query）", () => {
+    for (const [label, source] of [
+      ["users/[id].vue", profileSource],
+      ["article/[id].vue", articleSource],
+    ] as const) {
+      expect(source, label).toContain("useDraftChatJump");
+      expect(source, label).toContain("jumpToDraftChat(");
+      // 手写 query 会把契约抄成第二份；两个页面都不许再出现字段名。
+      expect(source, label).not.toContain("draft_receiver_id:");
+    }
+  });
+
+  it("文章页「私信」不再弹接入中 toast，真的跳到 /messages/chat", () => {
+    expect(articleSource).not.toContain("私信页面接入中");
+    expect(articleSource).not.toContain("后续会直接跳转");
+    expect(articleSource).toContain("requireLogin");
+    expect(articleSource).toContain("isSelfAuthor");
+    expect(draftJumpSource).toContain("/messages/chat");
   });
 });

@@ -266,13 +266,18 @@ export interface SiteRuntimeConfig {
   }
   comment: { skip_examining: boolean }
   /**
-   * 私信的站点级策略（票 202）。
+   * 私信的站点级策略（票 202 / ADR-0026）。
    *
-   * 陌生人开关放在 site.chat 段，不是某个用户行上的列（零 DDL 不允许给
-   * 既有表加列）。键名必须与后端 `conf/site.Chat` 的 json tag 一致；
-   * 默认值由后端 `site_default_settings.yaml` 显式写成 false，前端不另写默认值。
+   * 陌生人开关与发送限流都放在 site.chat 段，不是某个用户行上的列（零 DDL
+   * 不允许给既有表加列）。键名必须与后端 `conf/site.Chat` 的 json tag 一致；
+   * 默认值由后端 `site_default_settings.yaml` 显式写成，前端不另写默认值。
+   * 限流参数保存后立即生效：后端每次发送都现读运行时配置。
    */
-  chat: { stranger_msg_enabled: boolean }
+  chat: {
+    stranger_msg_enabled: boolean
+    rate_window_sec: number
+    rate_daily_max: number
+  }
 }
 
 /**

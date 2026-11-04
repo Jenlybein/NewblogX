@@ -245,6 +245,12 @@ const (
 	CodeChatUserNotFound    Code = "chat.user_not_found"
 	CodeChatContentEmpty    Code = "chat.content_empty"
 	CodeChatTypeUnsupported Code = "chat.type_unsupported"
+	// CodeChatImageNotOwned 图片私信的 URL 不是本站上传产物（票 267）。
+	// 陌生人私信开着时，content 里塞任意外链可以当追踪像素 / 钓鱼图用，
+	// 所以 msg_type=2 必须能反解出本站 object_key、且该 key 在 image_models 里。
+	CodeChatImageNotOwned   Code = "chat.image_not_owned"
+	// CodeChatBlocked 对方在我 / 我在对方的屏蔽或拉黑名单里（ADR-0026）。
+	CodeChatBlocked         Code = "chat.blocked"
 	CodeChatStrangerOff     Code = "chat.stranger_disabled"
 	// CodeChatRecipientStrangerOff 接收方个人开关关闭（#247）。
 	//
@@ -257,6 +263,7 @@ const (
 	CodeChatSendFailed           Code = "chat.send_failed"
 	CodeChatTooFrequent          Code = "chat.too_frequent"
 	CodeChatSessionTooFast       Code = "chat.session_too_fast"
+	CodeChatDailyLimit           Code = "chat.daily_limit"
 	CodeChatWeekStranger         Code = "chat.week_stranger_limit"
 	CodeChatWeekLimit            Code = "chat.week_limit"
 )
@@ -514,6 +521,8 @@ var messages = map[Code]string{
 	CodeChatUserNotFound:    "接收人不存在",
 	CodeChatContentEmpty:    "消息内容不能为空",
 	CodeChatTypeUnsupported: "不支持的消息类型",
+	CodeChatImageNotOwned:   "图片消息只能发送本站上传的图片，请通过「发送图片」选择文件",
+	CodeChatBlocked:         "你们之间的私信已被屏蔽或拉黑，无法发送",
 	// 这条文案必须点明"站点策略"：陌生人私信开关是站点级的（#202），
 	// 用户看到后应该去找管理员改站点开关，而不是怀疑自己被针对或网络故障。
 	CodeChatStrangerOff: "站点当前不允许陌生人发私信（站点策略，不是网络问题），请联系管理员开启「允许陌生人发私信」",
@@ -524,8 +533,9 @@ var messages = map[Code]string{
 	CodeChatSessionNotFound:      "会话不存在",
 	CodeChatEmptySelection:       "请选择要操作的消息或会话",
 	CodeChatSendFailed:           "消息发送失败",
-	CodeChatTooFrequent:          "发送过于频繁，请稍后再试",
+	CodeChatTooFrequent:          "发送过于频繁，请 10 秒后再试",
 	CodeChatSessionTooFast:       "当前会话发送过于频繁，请稍后再试",
+	CodeChatDailyLimit:           "今天给这位用户发送的消息已达上限（99 条），请明天再试",
 	CodeChatWeekStranger:         "本周只允许向陌生人发送 1 条消息",
 	CodeChatWeekLimit:            "本周可发送消息次数已达上限，对方回复后才可以继续发送消息",
 

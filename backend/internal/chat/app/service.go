@@ -21,21 +21,26 @@ import (
 
 // Service 是私信应用服务。
 type Service struct {
-	read      domain.Query
-	write     domain.Command
-	relations domain.RelationReader
-	users     domain.UserDirectory
-	stranger  domain.StrangerPolicy
-	limiter   domain.Limiter
-	logger    domain.Logger
-	now       func() time.Time
+	read       domain.Query
+	write      domain.Command
+	relations  domain.RelationReader
+	users      domain.UserDirectory
+	stranger   domain.StrangerPolicy
+	limiter    domain.Limiter
+	imageCheck domain.ImageURLVerifier
+	blocks     domain.BlockPolicy
+	logger     domain.Logger
+	now        func() time.Time
 }
 
 // New 构造服务。
 //
 // read 与 write 是两个端口而不是一个仓储：读路径不持有事务，写路径才有事务与
 // 发件箱副作用，用例层从构造上就分得清"这个方法会不会改状态"。
-func New(read domain.Query, write domain.Command, relations domain.RelationReader, users domain.UserDirectory, stranger domain.StrangerPolicy, limiter domain.Limiter, logger domain.Logger) *Service {
+//
+// imageCheck 校验图片私信的 URL 是不是本站上传产物（票 267）。允许为 nil：
+// 用例层的单测不接存储时按"未配置 → 失败关闭"处理，不额外造一个假实现。
+func New(read domain.Query, write domain.Command, relations domain.RelationReader, users domain.UserDirectory, stranger domain.StrangerPolicy, limiter domain.Limiter, imageCheck domain.ImageURLVerifier, blocks domain.BlockPolicy, logger domain.Logger) *Service {
 	if read == nil {
 		panic("chat/app: 会话读端口未注入")
 	}
@@ -47,7 +52,7 @@ func New(read domain.Query, write domain.Command, relations domain.RelationReade
 	}
 	return &Service{
 		read: read, write: write, relations: relations, users: users, stranger: stranger,
-		limiter: limiter, logger: logger, now: time.Now,
+		limiter: limiter, imageCheck: imageCheck, blocks: blocks, logger: logger, now: time.Now,
 	}
 }
 
@@ -70,7 +75,19 @@ func (s *Service) Send(ctx context.Context, senderID, receiverID ctype.ID, msgTy
 		return nil, apperr.New(apperr.CodeChatContentEmpty)
 	}
 	// 图片消息沿用旧契约：Content 存 JSON，图片地址放在 image_url。
+	// 但地址必须先证明是**本站上传产物**：content 是通用字符串，不校验来源时
+	// 任意外链（追踪像素 / 钓鱼图）都能借私信塞进来（票 267）。
 	if msgType == domain.TypeImage {
+		if s.imageCheck == nil {
+			return nil, apperr.New(apperr.CodeChatImageNotOwned)
+		}
+		owned, err := s.imageCheck.IsOwnedImageURL(ctx, content)
+		if err != nil {
+			return nil, err
+		}
+		if !owned {
+			return nil, apperr.New(apperr.CodeChatImageNotOwned)
+		}
 		payload, err := json.Marshal(map[string]string{"kind": "image", "image_url": content})
 		if err != nil {
 			return nil, err
@@ -79,6 +96,25 @@ func (s *Service) Send(ctx context.Context, senderID, receiverID ctype.ID, msgTy
 	}
 	if senderID.IsZero() || receiverID.IsZero() {
 		return nil, apperr.New(apperr.CodeChatUserNotFound)
+	}
+
+	// 屏蔽 / 拉黑（ADR-0026）在陌生人判定之前：这是"我"明确表达过的意愿，
+	// 优先级高于任何站点级 / 个人级陌生人开关。
+	//   - 我屏蔽 / 拉黑了对方：我不该再能给他发（单向自律，避免手滑继续骚扰）；
+	//   - 对方屏蔽 / 拉黑了我：他发不进来，我也不该能发过去。
+	// 查库异常原样返回（失败关闭），不当成"没有记录"放行。
+	if s.blocks != nil {
+		outgoing, err := s.blocks.Level(ctx, senderID, receiverID)
+		if err != nil {
+			return nil, err
+		}
+		incoming, err := s.blocks.Level(ctx, receiverID, senderID)
+		if err != nil {
+			return nil, err
+		}
+		if outgoing != domain.BlockLevelNone || incoming != domain.BlockLevelNone {
+			return nil, apperr.New(apperr.CodeChatBlocked)
+		}
 	}
 
 	displays, err := s.users.Displays(ctx, []ctype.ID{senderID, receiverID})
@@ -187,6 +223,32 @@ func (s *Service) Sessions(ctx context.Context, viewerID, targetID ctype.ID, adm
 	rows, total, err := s.read.ListSessions(ctx, targetID, admin, page)
 	if err != nil {
 		return nil, 0, err
+	}
+
+	// 拉黑（level=2）额外隐藏会话：这批 receiver 的行整条不进列表。
+	// 屏蔽（level=1）不影响可见性 —— 历史会话仍要看得到（ADR-0026）。
+	hidden := map[ctype.ID]bool{}
+	if s.blocks != nil && !admin {
+		blocked, err := s.blocks.HardBlockedIDs(ctx, targetID)
+		if err != nil {
+			return nil, 0, err
+		}
+		for _, id := range blocked {
+			hidden[id] = true
+		}
+	}
+	if len(hidden) > 0 {
+		kept := rows[:0]
+		for _, row := range rows {
+			if !hidden[row.ReceiverID] {
+				kept = append(kept, row)
+			}
+		}
+		rows = kept
+		total -= len(hidden)
+		if total < 0 {
+			total = 0
+		}
 	}
 
 	// 补齐接收人快照。

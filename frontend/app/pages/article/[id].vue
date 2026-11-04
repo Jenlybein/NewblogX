@@ -18,6 +18,7 @@ import { useArticleOutlineContext } from "~/composables/useArticleOutlineContext
 import { useArticlePageSources } from "~/composables/useArticlePageSources";
 import { useArticlePrivateSession } from "~/composables/useArticlePrivateSession";
 import { useArticleWritePolicy } from "~/composables/useArticleWritePolicy";
+import { useDraftChatJump } from "~/composables/useDraftChatJump";
 import { useMotionPreference } from "~/composables/useMotionPreference";
 import { useParallax } from "~/composables/useParallax";
 import { useReaderLoginGate } from "~/composables/useReaderLoginGate";
@@ -121,6 +122,7 @@ const articleSkeleton = computed(() => articlePending.value && !article.value);
 // 登录态打成失效。分享不在此列：它是纯前端 clipboard、不打任何接口，
 // 游客也应该能复制链接（票 247 的修正）。
 const requireLogin = useReaderLoginGate();
+const { jumpToDraftChat } = useDraftChatJump();
 // 评论输入面板（决定清单 §4）：内嵌输入框退役，改成一枚「去发表评论」按钮 + 底部滑出面板。
 // 登录前置由 `openCommentSheet` 统一收口，未登录只弹登录框、不打接口、不展开面板。
 const commentSheetOpen = ref(false);
@@ -357,7 +359,19 @@ async function handlePrivateMessage() {
     return;
   }
 
-  message.info("私信页面接入中，后续会直接跳转到与该作者的会话。");
+  // 作者 id 来自正文（第一波就到），昵称与头像也在正文里；relation 来自第二波
+  // 作者资料源，没到就按 0（陌生人）处理，不阻塞跳转。
+  if (!authorId.value) {
+    message.error("作者信息尚未就绪，请稍后再试");
+    return;
+  }
+
+  void jumpToDraftChat({
+    receiverId: authorId.value,
+    receiverNickname: article.value?.author_name || "新会话",
+    receiverAvatar: article.value?.author_avatar || "",
+    relation: authorProfile.value?.relation ?? 0,
+  });
 }
 
 function handleTocJump(id: string) {

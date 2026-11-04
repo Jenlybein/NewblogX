@@ -376,7 +376,8 @@ function handleArticleHeadingsChange(nextHeadings: ArticleHeadingAnchor[]) {
 }
 
 const commentsPending = computed(() => commentsPager.pending.value);
-const commentPage = computed(() => commentsPager.currentPage.value);
+// 页码不再上屏（决定清单 §3 第 16 条删掉了分页的页码与条数话术），只在翻页按钮的
+// 可用态里用到「有没有上一页 / 下一页」。
 const hasPreviousCommentPage = computed(() => commentsPager.hasPreviousPage.value);
 const hasNextCommentPage = computed(() => commentsPager.hasNextPage.value);
 

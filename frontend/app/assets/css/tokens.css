@@ -145,6 +145,7 @@
    * 只允许动 transform / opacity；下面 media 查询在「减少动态」时把它们全部归零。 */
   --motion-fast: 120ms; /* 微交互（hover/focus 反馈） */
   --motion-base: 200ms; /* 进出场 / 路由切换 */
+  --motion-slow: 320ms; /* 大块进出场：评论输入面板上滑、合集抽屉展开 */
   --motion-ease: cubic-bezier(0.2, 0.8, 0.2, 1); /* 全站唯一缓动曲线 */
   --motion-reveal-offset: 12px; /* 区块级滚动进场位移上限（ADR-0012 决策 7） */
   --parallax-max: 10px; /* 视差上限 */
@@ -280,6 +281,7 @@
   :root {
     --motion-fast: 0ms;
     --motion-base: 0ms;
+    --motion-slow: 0ms;
     --motion-reveal-offset: 0px;
     --parallax-max: 0px;
   }

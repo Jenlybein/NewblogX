@@ -135,10 +135,16 @@ describe('CollectionEditorOverlay：新建 / 编辑', () => {
     await flushPromises()
 
     expect(adminApi.createCollection).toHaveBeenCalledWith(expect.objectContaining({ title: '新合集', displayed: true }))
-    // 保存后留在弹窗里：拿到 ID，编排按钮亮，抽屉里能看到带 entity-id 的编辑器。
+    // 保存后留在弹窗里：拿到 ID，编排按钮亮（抽屉仍收起）。
     expect(wrapper.get('[data-role="collection-editor-tree"]').attributes('disabled')).toBeUndefined()
+    expect(wrapper.get('.collection-overlay__pair').classes()).not.toContain('collection-overlay__pair--tree')
+
+    // 点「编排目录树」→ 抽屉以 `--tree` 态展开（宽度过渡靠这个类，抽屉本身常驻挂载）。
     await wrapper.get('[data-role="collection-editor-tree"]').trigger('click')
-    expect(wrapper.get('[data-role="outline-tree-editor-stub"]').attributes('data-entity')).toBe('new-1')
+    expect(wrapper.get('.collection-overlay__pair').classes()).toContain('collection-overlay__pair--tree')
+    // 抽屉里是同一个编辑器实例，带新建拿到的 ID，且自带独立保存按钮。
+    const drawer = wrapper.get('[data-role="collection-editor-drawer"]')
+    expect(drawer.find('[data-role="outline-tree-editor-stub"]').attributes('data-entity')).toBe('new-1')
     expect(wrapper.emitted('saved')).toHaveLength(1)
   })
 

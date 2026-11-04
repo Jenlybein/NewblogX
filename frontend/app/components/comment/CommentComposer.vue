@@ -23,7 +23,6 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   submit: [content: string];
-  cancel: [];
 }>();
 
 const requireLogin = useReaderLoginGate();
@@ -68,7 +67,6 @@ defineExpose({ focus });
       aria-label="评论输入框" />
 
     <div class="comment-composer__footer">
-      <div />
       <div class="comment-composer__actions">
         <button
           type="button"

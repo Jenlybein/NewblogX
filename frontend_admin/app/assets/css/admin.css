@@ -701,7 +701,8 @@
   color: var(--color-ink-muted);
 }
 
-/* hover / 聚焦才浮出：默认对键盘用户隐藏，但 `:focus-within` 时会重新出现。 */
+/* hover / 聚焦才浮出。用 visibility 而不是只降 opacity：不可见的按钮既不能被点、
+   也不该进 Tab 序（`:focus-within` 时再放出来，纯键盘用户仍然可达）。 */
 .collection-card__hover {
   position: absolute;
   inset: 0;
@@ -710,12 +711,14 @@
   justify-content: center;
   gap: 0.5rem;
   background: color-mix(in srgb, var(--color-surface) 72%, transparent);
+  visibility: hidden;
   opacity: 0;
-  transition: opacity var(--motion-fast) var(--motion-ease);
+  transition: opacity var(--motion-fast) var(--motion-ease), visibility var(--motion-fast) var(--motion-ease);
 }
 
 .collection-card:hover .collection-card__hover,
 .collection-card:focus-within .collection-card__hover {
+  visibility: visible;
   opacity: 1;
 }
 
@@ -859,16 +862,20 @@
   pointer-events: none;
 }
 
-/* 抽屉：宽度从 0 展开到 480，内容宽度固定，避免展开过程中被挤扁。 */
+/* 抽屉：宽度从 0 展开到 480，内容宽度固定，避免展开过程中被挤扁。
+   `visibility` 参与过渡：收起后既不可见也不可聚焦，不会留下一个宽 0 的 Tab 陷阱。 */
 .collection-overlay__drawer {
   width: 0;
   overflow: hidden;
+  visibility: hidden;
   opacity: 0;
-  transition: width var(--motion-base) var(--motion-ease), opacity var(--motion-fast) var(--motion-ease);
+  transition: width var(--motion-base) var(--motion-ease), opacity var(--motion-fast) var(--motion-ease),
+    visibility var(--motion-fast) var(--motion-ease);
 }
 
 .collection-overlay__pair--tree .collection-overlay__drawer {
   width: min(88vw, 480px);
+  visibility: visible;
   opacity: 1;
   margin-left: 0.75rem;
 }
@@ -890,21 +897,25 @@
     overflow-y: auto;
   }
 
-  .collection-overlay__pair,
-  .collection-overlay__pair--tree .collection-overlay__drawer {
+  .collection-overlay__pair {
     flex-direction: column;
     align-items: stretch;
   }
 
-  .collection-overlay__pair--tree .collection-overlay__drawer {
+  /* 窄屏上下堆叠：收起时整块不渲染（display: none），展开时占满一列。
+     抽屉本身是常驻挂载的，所以这里必须显式把「收紧」也覆盖掉。 */
+  .collection-overlay__drawer {
+    display: none;
     width: auto;
-    margin-left: 0;
-    margin-top: 0.75rem;
+    margin: 0;
   }
 
-  .collection-overlay__drawer {
+  .collection-overlay__pair--tree .collection-overlay__drawer {
+    display: block;
     width: auto;
+    visibility: visible;
     opacity: 1;
+    margin: 0.75rem 0 0;
   }
 
   .collection-overlay__drawer-inner {

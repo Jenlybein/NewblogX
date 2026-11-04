@@ -46,3 +46,24 @@
 
 - 前端：还原本批提交即可，无运行时依赖变更（唯一新增依赖是 `frontend_admin` 的 `@vue/test-utils`，devDependency）。
 - 后端：并账口径回滚只需还原 `counter_flush.go` 的一处函数；已重算过的列值不会因此变错（增量语义仍然自洽）。
+
+## 六、评审跟进（code-review，2026-11-04）
+
+两轴评审（Standards / Spec）跑在 `main...HEAD` 上，**已修**：
+
+1. ADR-0025 状态与索引不一致（正文写「已交付」、索引写「已接受」）→ 统一为**已接受**（MySQL 契约用例还没在容器里跑过，不配叫已交付）。
+2. `--motion-slow` 曾在「零消费者」时被删过一次；评论面板上滑给了它第一个消费者 → 两端 `tokens.css` 重新加入 `320ms` / `0ms`（reduced-motion），面板改用 `var(--motion-slow)`，`motion-foundation` 门禁改成"有消费者才允许存在"。
+3. 卡片 hover 层只降 `opacity` → 不可见按钮仍可点、仍进 Tab 序：改为 `visibility: hidden/visible` 参与过渡。
+4. 抽屉从「`v-if` 挂载」改为**常驻挂载**：否则挂上即带展开态，宽度过渡永远不执行；窄屏同时补回 `display: none` 的收起态。
+5. `CommentComposerSheet` 漏 import `ref` / `nextTick`（Nuxt 自动导入掩盖了它，单测直接红）→ 显式导入；顺带删掉已漂移的 `focusInput` 类型声明、无消费者的 `cancel` 事件与 `@cancel` 绑定、以及操作行的空 `<div />` 占位（改用 `justify-end`）。
+6. 判据恒绿的 canary（`reader-private-state` 门禁里那条用本地拼的假字符串断言）→ 改成**从真实源码删掉两行计数**再喂给同一条判据。
+7. 两条门禁的入口文件表仍指向 `collections.vue` / `projects.vue` → 指向真正承载裁剪编排的 `CollectionEditorOverlay.vue`。
+8. 补齐三处缺测：后台头像兜底（表驱动）、评论面板的三条关闭途径（挂载后点击 / Esc）、弹窗抽屉展开态与独立保存入口。
+9. 决策清单同步两处**文字与实现的偏离**：分享只放图标（站内没有分享计数，不造假数字）、底部按钮用 `IconArrowBarToDown`（`IconArrowDownToLine` 在本仓库的 tabler 版本里不存在）。
+
+**未处理（有意留下，写在这里而不是藏着）**：
+
+- **其余 7 个设置面板没有逐字段语义宽度**：`admin-field--*` 目前只用在存储面板，站点 / 邮件 / OAuth 等仍吃面板级 520px 上限。用户反馈的"100% 铺满"已经由面板上限解决，逐字段细化属于体验打磨。
+- **用户管理的封禁 / 解封只有源码层门禁，没有组件测试**：那条路径依赖 `NDataTable` + `useDialog` 的确认流，挂载成本高，本轮没补。
+- **`adminAvatar.ts` 与读者站 `avatar.ts` 是两份实现**：两个 Nuxt app 之间没有共享包，抽公共包的收益不抵构建复杂度；差异点（邮箱名不取首字符）已由上面的表驱动测试钉住。
+

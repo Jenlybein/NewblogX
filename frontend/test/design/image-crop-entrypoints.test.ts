@@ -32,12 +32,14 @@ const ENTRYPOINTS = [
     files: ["frontend_admin/app/pages/media/index.vue"],
   },
   {
+    // 2026-11-04 起合集 / 项目的封面都在编辑弹窗里：两个入口共用同一个组件，
+    // 所以各自指向同一个文件（弹窗按 `kind` 决定调哪套接口）。
     name: "后台合集封面",
-    files: ["frontend_admin/app/pages/articles/collections.vue"],
+    files: ["frontend_admin/app/components/articles/CollectionEditorOverlay.vue"],
   },
   {
     name: "后台项目封面",
-    files: ["frontend_admin/app/pages/articles/projects.vue"],
+    files: ["frontend_admin/app/components/articles/CollectionEditorOverlay.vue"],
   },
 ] as const;
 

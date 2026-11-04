@@ -741,8 +741,8 @@
     aspect-ratio: 16 / 9;
   }
 
-  /* 正文行宽 = 排版 token 的 `--type-measure`（当前 78ch）；shadow 内的正文
-   * 继承这个宽度，不再另设。改行宽只改 token，不改这里。 */
+  /* 正文行宽 = 排版 token `--type-measure`（具体数值只在 tokens.css 里写一次）；
+   * shadow 内的正文继承这个宽度，不再另设。改行宽只改 token，不改这里。 */
   .article-body {
     @apply mx-auto w-full;
     max-width: var(--type-measure);
@@ -909,7 +909,8 @@
     border-radius: var(--radius-xl) var(--radius-xl) 0 0;
     background: var(--color-surface);
     box-shadow: 0 -16px 40px var(--color-shadow);
-    animation: comment-sheet-rise 320ms var(--motion-ease);
+    /* 时长走 token（三层预算的 slow 档）：减少动态时 token 归零，无需另写覆盖。 */
+    animation: comment-sheet-rise var(--motion-slow) var(--motion-ease);
   }
 
   @keyframes comment-sheet-rise {
@@ -919,12 +920,6 @@
 
     to {
       transform: translateY(0);
-    }
-  }
-
-  @media (prefers-reduced-motion: reduce) {
-    .comment-sheet__panel {
-      animation: none;
     }
   }
 
@@ -974,8 +969,9 @@
     @apply rounded-pill border border-line-faint bg-subtle px-2 py-0.5 text-xs text-ink-muted;
   }
 
+  /* 面板里只留提交一个动作，所以右侧对齐（曾用一个空的 flex 占位 div 硬撑，已删）。 */
   .comment-composer__footer {
-    @apply mt-4 flex flex-wrap items-center justify-between gap-4;
+    @apply mt-4 flex flex-wrap items-center justify-end gap-4;
   }
 
   .comment-composer__tags {

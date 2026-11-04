@@ -172,18 +172,23 @@ describe("用户私有态取数契约（ADR-0024 / 票 #235）", () => {
     expect(applyBody).toContain("favor_count: state.favor_count");
   });
 
-  it("判据不是恒绿：只写回两个布尔时必须报红（canary）", () => {
-    const badApply = [
-      "function applyArticlePrivateState(state) {",
-      "  articleSource.data.value = {",
-      "    ...articleSource.data.value,",
-      "    is_digg: state.is_digg,",
-      "    is_favor: state.is_favor,",
-      "  };",
-      "\n  }",
-    ].join("\n");
-    const body = badApply.slice(0, badApply.indexOf("\n  }"));
-    expect(body).not.toContain("digg_count: state.digg_count");
+  /**
+   * canary：判据必须能对**真实文件文本**报红，否则它只是恒绿的自言自语。
+   * 做法是从仓库里那份 `useArticlePageSources.ts` 取真实函数体，把两行计数删掉，
+   * 再喂给同一条判据 —— 删掉就该红，说明上面那条断言真的在盯着这两行。
+   */
+  it("判据不是恒绿：从真实源码里删掉计数回填后必须报红（canary）", () => {
+    const apply = pageSourcesSource.slice(pageSourcesSource.indexOf("function applyArticlePrivateState"));
+    const realBody = apply.slice(0, apply.indexOf("\n  }"));
+    const brokenBody = realBody
+      .split("\n")
+      .filter(line => !line.includes("digg_count: state.digg_count") && !line.includes("favor_count: state.favor_count"))
+      .join("\n");
+
+    // 前提：真实源码里确实有这两行（否则过滤不会改变任何东西，这个 canary 就没意义）。
+    expect(brokenBody).not.toBe(realBody);
+    expect(brokenBody).not.toContain("digg_count: state.digg_count");
+    expect(brokenBody).not.toContain("favor_count: state.favor_count");
   });
 
   it("页面接上 useArticlePrivateSession：onMounted 初始化 + 登录态 watch（页内登录也补取）", () => {

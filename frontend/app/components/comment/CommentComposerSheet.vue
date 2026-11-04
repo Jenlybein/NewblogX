@@ -11,7 +11,7 @@
  * 输入本体复用 `CommentComposer`（它负责 textarea、提交与取消语义），本组件只提供
  * 面板这层壳：把手、标题栏、关闭按钮与遮罩。
  */
-import { onBeforeUnmount, watch } from "vue";
+import { nextTick, onBeforeUnmount, ref, watch } from "vue";
 import { IconX } from "@tabler/icons-vue";
 import CommentComposer from "~/components/comment/CommentComposer.vue";
 
@@ -39,7 +39,7 @@ const emit = defineEmits<{
   submit: [string];
 }>();
 
-const composerRef = ref<{ focusInput: () => void; focus: () => void } | null>(null);
+const composerRef = ref<InstanceType<typeof CommentComposer> | null>(null);
 
 function close() {
   emit("update:show", false);
@@ -103,8 +103,7 @@ onBeforeUnmount(() => {
         :title="props.title"
         :placeholder="props.placeholder"
         :submit-label="props.submitLabel"
-        @submit="(content: string) => emit('submit', content)"
-        @cancel="close" />
+        @submit="(content: string) => emit('submit', content)" />
     </section>
   </div>
 </template>

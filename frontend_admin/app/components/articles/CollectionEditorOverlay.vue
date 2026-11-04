@@ -353,7 +353,10 @@ async function save() {
           @change="onCoverFileChange" />
       </section>
 
-      <aside v-if="treeOpen" class="collection-overlay__drawer" :data-role="`${kind}-editor-drawer`">
+      <!-- 抽屉**常驻挂载**：只有常驻才能让宽度过渡真的跑起来（v-if 一挂上就带
+           `--tree`，过渡不会执行）。收起时宽度 0 + overflow hidden + visibility hidden，
+           既看不见也进不了 Tab 序。 -->
+      <aside class="collection-overlay__drawer" :data-role="`${kind}-editor-drawer`">
         <div class="collection-overlay__drawer-inner">
           <header class="collection-overlay__head">
             <h2 class="collection-overlay__title">编排目录树</h2>
@@ -363,7 +366,6 @@ async function save() {
         </div>
       </aside>
     </div>
-
 
     <ImageCropDialog
       :show="coverCropRequest !== null"

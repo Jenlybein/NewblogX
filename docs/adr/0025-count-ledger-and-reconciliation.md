@@ -1,6 +1,6 @@
 # ADR-0025：计数账本与并账（计数降为派生值）
 
-- 状态：已交付
+- 状态：已接受
 - 日期：2026-11-04
 - 来源：读者反馈「点赞后刷新，按钮已赞但计数没变」· [决定清单](../notes/2026-11-04-reading-ui-and-admin-batch-decisions.md)（§1–2）· 收窄 [ADR-0024](./0024-reader-user-state-and-count-truth.md) 决策 5 的适用范围
 - 关联：[ADR-0019](./0019-reader-rendering-and-cache-strategy.md)（两层缓存）· [GLOSSARY · 计数账本](../../GLOSSARY.md)

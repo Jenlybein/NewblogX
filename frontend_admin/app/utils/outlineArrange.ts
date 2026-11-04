@@ -371,6 +371,31 @@ export function staleReasonLabel(reason: string | null | undefined): string {
 }
 
 /**
+ * 拖拽落点 → 目标行下标（给第三方树组件用，决定清单 §8 第 37 条）。
+ *
+ * 第三方树（Naive UI `NTree`）回报的是 `{ node, dragNode, dropPosition }`，
+ * 其中 `dropPosition` 是 `before | inside | after`；扁平行模型只认下标。
+ * 这一层换算留在纯函数里，组件就不必自己数子树：
+ *
+ *  - `before`  → 落在目标行**之前**（成为它的上一个兄弟）；
+ *  - `inside`  → 落在目标行**之下**（成为它的第一个子行，仅文件夹可能）；
+ *  - `after`   → 落在目标行**整块之后**（跳过它的子树，成为同级的下一个）。
+ *
+ * 拿到下标后交给 `moveOutlineRowToIndex`，父级仍由"落点上方那行"推导。
+ */
+export function outlineDropIndex(
+  rows: readonly OutlineFlatRow[],
+  key: string,
+  position: 'before' | 'inside' | 'after',
+): number {
+  const index = rows.findIndex(row => row.key === key)
+  if (index < 0) return rows.length
+  if (position === 'before') return index
+  if (position === 'inside') return index + 1
+  return blockEnd(rows, index)
+}
+
+/**
  * 拖拽落点 → 本地扁平行（决定清单 §8 第 37 条）。
  *
  * 语义只有两条，都是**按"落点上方的行"决定**（与常见树列表一致，也不需要在拖拽

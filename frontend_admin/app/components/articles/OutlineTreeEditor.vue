@@ -5,14 +5,19 @@
  * 从原来的独立页 `pages/articles/outline.vue` 抽出来，行为不变：
  * 本地扁平行 → 点「保存」整树一次性提交（ADR-0023 约束 7：不得造第二套顺序真相）。
  *
- * 本轮新增的只有**拖拽**（ADR-0023「后续修订」）：用 sortablejs 做手势层，
- * 松手后把落点换算成 `(parent, index)` 交给纯函数 `moveOutlineRowToIndex`，
- * 仍然只改本地行、仍然只有「保存」落地库。按钮式（上移/下移/缩进/移出）一并保留，
- * 键盘与触屏不依赖拖拽也能完成同样的编排。
+ * **树的渲染与拖拽都交给 Naive UI 的 `NTree`**（验收反馈：手写的 `<ul>` 看不出层级，
+ * 每行还摊开六个按钮）。它正对着痛点：树线（`show-line`）、缩进（`indent`）、折叠箭头、
+ * 整行命中、内置拖拽与落点提示都是现成的，键盘也能操作。我们只做两件事：
+ *   1. 扁平行 ↔ 树节点互转（`treeData` 由 `rows` 派生；拖拽落点经 `outlineDropIndex`
+ *      换回下标，再交给 `moveOutlineRowToIndex` —— 父级仍由"落点上方那行"推导）；
+ *   2. 行内操作收进一个「⋯」下拉（上移 / 下移 / 缩进 / 移出 / 重命名 / 移除），
+ *      不再每行摊开六个按钮；`NTree` 的拖拽与这些按钮改的都是同一份本地行。
+ *
+ * 仍然只改本地行、仍然只有「保存」落地库。
  */
-import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
-import { NButton, NInput, NSelect, NSpace, NTag, useMessage } from 'naive-ui'
-import Sortable from 'sortablejs'
+import { computed, h, nextTick, onMounted, ref, watch } from 'vue'
+import { NButton, NDropdown, NInput, NSelect, NSpace, NTag, NTree, useMessage } from 'naive-ui'
+import type { DropdownOption, TreeDropInfo, TreeOption } from 'naive-ui'
 import {
   getCollectionOutline,
   getProjectOutline,
@@ -30,7 +35,7 @@ import {
   moveOutlineRow,
   moveOutlineRowToIndex,
   newOutlineFolderKey,
-  outlineDepth,
+  outlineDropIndex,
   outlineIncludeTargetKey,
   outlineRowTitle,
   outlineStaleCount,
@@ -68,8 +73,11 @@ const selectedArticleIds = ref<string[]>([])
 const searching = ref(false)
 const includedCount = ref(0)
 
-const listRef = ref<HTMLElement | null>(null)
-let sortable: Sortable | null = null
+/** 「⋯」下拉当前指向的行（NDropdown 需要 v-model:show + 位置信息）。 */
+const menuRowKey = ref('')
+const menuVisible = ref(false)
+const menuX = ref(0)
+const menuY = ref(0)
 
 function selectedRow(): OutlineFlatRow | undefined {
   return rows.value.find(row => row.key === selectedKey.value)
@@ -86,14 +94,149 @@ function includeTargetLabel(): string {
   return row ? outlineRowTitle(row) : '根层'
 }
 
-function rowIndentStyle(row: OutlineFlatRow) {
-  return { paddingLeft: `${outlineDepth(rows.value, row.key) * 20}px` }
-}
-
 function selectRow(key: string) {
   selectedKey.value = key
   const row = selectedRow()
   renameTitle.value = row?.kind === 1 ? row.title : ''
+}
+
+/* ---------------- 扁平行 → NTree 数据 ---------------- */
+
+/**
+ * 树节点：`key` 用行 key，`kind`/`stale` 透传给标签渲染。
+ * 文章（kind 2）永远没有子节点，标成 `isLeaf` 让 NTree 不画折叠箭头。
+ */
+interface OutlineTreeNode extends TreeOption {
+  key: string
+  label: string
+  kind: 1 | 2
+  stale: boolean
+  staleReason: string | null
+  children?: OutlineTreeNode[]
+}
+
+const treeData = computed<OutlineTreeNode[]>(() => {
+  const children = new Map<string, OutlineFlatRow[]>()
+  for (const row of rows.value) {
+    const list = children.get(row.parentKey) ?? []
+    list.push(row)
+    children.set(row.parentKey, list)
+  }
+  const build = (parentKey: string): OutlineTreeNode[] =>
+    (children.get(parentKey) ?? []).map((row) => {
+      const node: OutlineTreeNode = {
+        key: row.key,
+        label: outlineRowTitle(row),
+        kind: row.kind,
+        stale: row.kind === 2 && row.stale,
+        staleReason: row.staleReason ?? null,
+      }
+      if (row.kind === 1) {
+        node.children = build(row.key)
+        node.isLeaf = node.children.length === 0 ? false : undefined
+      } else {
+        node.isLeaf = true
+      }
+      return node
+    })
+  return build('')
+})
+
+function renderLabel({ option }: { option: TreeOption }) {
+  const node = option as OutlineTreeNode
+  return h('span', { class: 'outline-node', 'data-outline-row': node.key }, [
+    h('span', { class: 'outline-node__kind', 'aria-hidden': 'true' }, node.kind === 1 ? '▣' : '·'),
+    h('span', { class: 'outline-node__title' }, node.label),
+    node.stale
+      ? h(
+          NTag,
+          { size: 'small', type: 'warning', bordered: false, class: 'outline-node__stale' },
+          { default: () => `已失效（${staleReasonLabel(node.staleReason)}）` },
+        )
+      : null,
+  ])
+}
+
+/** 「⋯」菜单的内容只取决于当前指向的那一行，所以做成 computed，模板里不用写表达式。 */
+const menuOptions = computed<DropdownOption[]>(() => {
+  const row = rows.value.find(item => item.key === menuRowKey.value)
+  if (!row) return []
+  return [
+    { label: '上移', key: 'up', disabled: !canMoveOutlineRow(rows.value, row.key, 'up') },
+    { label: '下移', key: 'down', disabled: !canMoveOutlineRow(rows.value, row.key, 'down') },
+    { label: '缩进（成为上一行的子项）', key: 'indent', disabled: !canMoveOutlineRow(rows.value, row.key, 'indent') },
+    { label: '移出（升一级）', key: 'outdent', disabled: !canMoveOutlineRow(rows.value, row.key, 'outdent') },
+    { type: 'divider', key: 'd1' },
+    { label: '重命名', key: 'rename', disabled: row.kind !== 1 },
+    { label: '移除', key: 'remove' },
+  ]
+})
+
+function renderSuffix({ option }: { option: TreeOption }) {
+  const node = option as OutlineTreeNode
+  return h(
+    NButton,
+    {
+      size: 'tiny',
+      quaternary: true,
+      circle: true,
+      class: 'outline-node__more',
+      'data-role': 'outline-row-more',
+      title: '更多操作（上移 / 下移 / 缩进 / 移出 / 重命名 / 移除）',
+      onClick: (event: MouseEvent) => {
+        event.stopPropagation()
+        menuRowKey.value = node.key
+        menuX.value = event.clientX
+        menuY.value = event.clientY
+        menuVisible.value = true
+      },
+    },
+    { default: () => '⋯' },
+  )
+}
+
+/**
+ * 拖拽落点：`before | inside | after` → 扁平行下标 → 交给纯函数。
+ * 文章不接受 "inside"（它没有子节点）；其余情况一律放行，由 `moveOutlineRowToIndex`
+ * 把"落到自己块里"这类无意义移动变成 no-op。
+ */
+function allowDrop(info: { dropPosition: 'before' | 'inside' | 'after'; node: TreeOption }) {
+  if (info.dropPosition === 'inside' && (info.node as OutlineTreeNode).kind !== 1) return false
+  return true
+}
+
+function handleDrop(info: TreeDropInfo) {
+  const dragKey = String(info.dragNode.key)
+  const targetKey = String(info.node.key)
+  const targetIndex = outlineDropIndex(rows.value, targetKey, info.dropPosition)
+  const next = moveOutlineRowToIndex(rows.value, dragKey, targetIndex)
+  const changed = next.some(
+    (row, index) => row.key !== rows.value[index]?.key || row.parentKey !== rows.value[index]?.parentKey,
+  )
+  rows.value = next
+  selectRow(dragKey)
+  if (changed) dirty.value = true
+}
+
+function handleSelectedKeys(keys: Array<string | number>) {
+  selectRow(keys.length > 0 ? String(keys[keys.length - 1]) : '')
+}
+
+/* ---------------- 行操作 ---------------- */
+
+function onMenuSelect(action: string) {
+  menuVisible.value = false
+  const row = rows.value.find(item => item.key === menuRowKey.value)
+  if (!row) return
+  if (action === 'rename') {
+    selectRow(row.key)
+    return
+  }
+  if (action === 'remove') {
+    removeRow(row)
+    return
+  }
+  moveRow(row, action as OutlineMoveOp)
 }
 
 async function load() {
@@ -116,53 +259,12 @@ async function load() {
     dirty.value = false
     includedCount.value = 0
     await nextTick()
-    initSortable()
   } catch (error) {
     rows.value = []
     message.error(error instanceof Error ? `目录树加载失败：${error.message}` : '目录树加载失败，请稍后重试')
   } finally {
     loading.value = false
   }
-}
-
-/**
- * 拖拽手势层：只换算落点，不改数据模型。
- *
- * sortablejs 会把 DOM 节点先自己挪一遍，我们随即用模型重排把它纠正回来
- * （`:key` 绑定 row.key，Vue 会按模型顺序移动节点）。所以"DOM 顺序 ≠ 模型顺序"
- * 只存在一帧，不会变成第二个真相。
- */
-function initSortable() {
-  destroySortable()
-  if (!listRef.value) return
-
-  // 落位动画跟随系统「减少动态」偏好（`prefers-reduced-motion`）：宁可没有动画，
-  // 也不该给开了减少动态的人播 150ms 的落位动效。
-  const reduceMotion = typeof window !== "undefined"
-    && typeof window.matchMedia === "function"
-    && window.matchMedia("(prefers-reduced-motion: reduce)").matches
-
-  sortable = Sortable.create(listRef.value, {
-    animation: reduceMotion ? 0 : 150,
-    handle: '[data-role="outline-row-grip"]',
-    draggable: '[data-row-key]',
-    ghostClass: 'outline-tree__row--ghost',
-    chosenClass: 'outline-tree__row--chosen',
-    onEnd(event) {
-      const key = (event.item as HTMLElement).dataset.rowKey ?? ''
-      if (!key || typeof event.newIndex !== 'number') return
-      const next = moveOutlineRowToIndex(rows.value, key, event.newIndex)
-      const changed = next.some((row, index) => row.key !== rows.value[index]?.key || row.parentKey !== rows.value[index]?.parentKey)
-      rows.value = next
-      selectRow(key)
-      if (changed) dirty.value = true
-    },
-  })
-}
-
-function destroySortable() {
-  sortable?.destroy()
-  sortable = null
 }
 
 function createFolder(parentKey: string) {
@@ -281,7 +383,6 @@ async function save() {
     message.success('目录树已保存')
     emit('saved')
     await nextTick()
-    initSortable()
   } catch (error) {
     message.error(error instanceof Error ? `保存失败：${error.message}` : '保存失败，请稍后重试')
   } finally {
@@ -294,8 +395,6 @@ watch(() => [props.kind, props.entityId], () => void load(), { immediate: false 
 onMounted(async () => {
   await load()
 })
-
-onBeforeUnmount(destroySortable)
 
 defineExpose({ save, dirty })
 </script>
@@ -344,59 +443,47 @@ defineExpose({ save, dirty })
           清理失效（{{ staleCount }}）
         </NButton>
         <NTag v-if="dirty" type="warning" size="small">有未保存的改动</NTag>
+        <!-- 「保存目录树」紧贴编辑区，不跟批量收录那一组混在一起。 -->
         <NButton type="primary" data-role="outline-save" :loading="saving" @click="save">
           保存目录树
         </NButton>
       </NSpace>
 
-      <ul v-if="rows.length" ref="listRef" class="outline-tree" data-role="outline-rows">
-        <li
-          v-for="row in rows"
-          :key="row.key"
-          class="outline-tree__row"
-          :class="{ 'outline-tree__row--selected': row.key === selectedKey }"
-          :data-row-key="row.key"
-          :style="rowIndentStyle(row)"
-          @click="selectRow(row.key)">
-          <span
-            class="outline-tree__grip"
-            data-role="outline-row-grip"
-            title="拖动可调整顺序与层级"
-            aria-hidden="true">⋮⋮</span>
-          <span class="outline-tree__kind">{{ row.kind === 1 ? '文件夹' : '文章' }}</span>
-          <strong class="outline-tree__title">{{ outlineRowTitle(row) }}</strong>
-          <NTag v-if="row.kind === 2 && row.stale" size="small" type="warning">
-            已失效（{{ staleReasonLabel(row.staleReason) }}）
-          </NTag>
-          <NSpace :size="4" class="outline-tree__actions">
-            <NButton size="small" tertiary :disabled="!canMoveOutlineRow(rows, row.key, 'up')" @click.stop="moveRow(row, 'up')">
-              上移
-            </NButton>
-            <NButton size="small" tertiary :disabled="!canMoveOutlineRow(rows, row.key, 'down')" @click.stop="moveRow(row, 'down')">
-              下移
-            </NButton>
-            <NButton size="small" tertiary :disabled="!canMoveOutlineRow(rows, row.key, 'indent')" @click.stop="moveRow(row, 'indent')">
-              缩进
-            </NButton>
-            <NButton size="small" tertiary :disabled="!canMoveOutlineRow(rows, row.key, 'outdent')" @click.stop="moveRow(row, 'outdent')">
-              移出
-            </NButton>
-            <NButton v-if="row.kind === 1" size="small" tertiary data-role="outline-row-rename" @click.stop="renameSelectedFolder(row.key)">
-              重命名
-            </NButton>
-            <NButton size="small" tertiary type="error" data-role="outline-row-remove" @click.stop="removeRow(row)">
-              移除
-            </NButton>
-          </NSpace>
-        </li>
-      </ul>
+      <NTree
+        v-if="rows.length"
+        class="outline-tree"
+        data-role="outline-rows"
+        block-line
+        show-line
+        :data="treeData"
+        :indent="16"
+        :default-expand-all="true"
+        :selectable="true"
+        :selected-keys="selectedKey ? [selectedKey] : []"
+        :draggable="true"
+        :allow-drop="allowDrop"
+        :render-label="renderLabel"
+        :render-suffix="renderSuffix"
+        @update:selected-keys="handleSelectedKeys"
+        @drop="handleDrop" />
       <p v-else data-role="outline-empty" class="admin-hint">
         这个{{ kind === 'collection' ? '合集' : '项目' }}还没有内容。先新建一个章节文件夹，或者直接把文章收录进根层。
       </p>
 
+      <!-- 下拉挂在编辑器根上：每行只留一个「⋯」，菜单内容随 menuRowKey 变化。 -->
+      <NDropdown
+        v-model:show="menuVisible"
+        trigger="manual"
+        placement="bottom-start"
+        :x="menuX"
+        :y="menuY"
+        :options="menuOptions"
+        @select="onMenuSelect" />
+
       <p class="admin-hint">
-        拖动左侧把手可调整顺序与层级：落在文件夹上成为它的第一个子项，落在文章上成为同级兄弟。
-        按钮式（上移 / 下移 / 缩进 / 移出）保留给键盘与触屏。所有改动先留在本地，点「保存目录树」一次性提交。
+        拖动节点可调整顺序与层级（落在文件夹上是它的第一个子项，落在节点间隙是同级）。
+        每行右侧「⋯」里有上移 / 下移 / 缩进 / 移出 / 重命名 / 移除，键盘与触屏也走得通。
+        所有改动先留在本地，点「保存目录树」一次性提交。
       </p>
 
       <section class="admin-arrange-batch">

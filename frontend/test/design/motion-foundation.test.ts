@@ -24,21 +24,34 @@ const adminPackage = JSON.parse(readFileSync(join(projectDir, "../frontend_admin
   devDependencies?: Record<string, string>;
 };
 
-/** 取出某个媒体查询块内的内容（够用即可，不做完整 CSS 解析）。 */
-function mediaBlock(css: string, query: string): string {
-  const start = css.indexOf(`@media (${query})`);
-  expect(start).toBeGreaterThan(-1);
-  // 从媒体查询的左花括号起，按括号配对找到块尾。
-  const open = css.indexOf("{", start);
-  let depth = 0;
-  for (let index = open; index < css.length; index += 1) {
-    if (css[index] === "{") depth += 1;
-    if (css[index] === "}") {
-      depth -= 1;
-      if (depth === 0) return css.slice(open + 1, index);
+/**
+ * 取出某个媒体查询块内的内容（够用即可，不做完整 CSS 解析）。
+ *
+ * 同名媒体查询可能有多段（例如「减少动态」既管路由过渡、也管评论面板上滑），
+ * 所以可以传 `anchor`：只返回**包含该选择器**的那一段，避免"永远取第一段"这种
+ * 位置假设 —— 往文件前面加一段同类媒体查询就会把用例打红。
+ */
+function mediaBlock(css: string, query: string, anchor?: string): string {
+  let from = 0;
+  for (;;) {
+    const start = css.indexOf(`@media (${query})`, from);
+    expect(start, `找不到 @media (${query})${anchor ? ` 且包含 ${anchor}` : ""}`).toBeGreaterThan(-1);
+    // 从媒体查询的左花括号起，按括号配对找到块尾。
+    const open = css.indexOf("{", start);
+    let depth = 0;
+    for (let index = open; index < css.length; index += 1) {
+      if (css[index] === "{") depth += 1;
+      if (css[index] === "}") {
+        depth -= 1;
+        if (depth === 0) {
+          const block = css.slice(open + 1, index);
+          if (!anchor || block.includes(anchor)) return block;
+          from = start + 1;
+          break;
+        }
+      }
     }
   }
-  throw new Error("媒体查询块没有闭合");
 }
 
 /** 取页面过渡相关规则里声明的属性名（去重）。 */
@@ -135,7 +148,7 @@ describe("路由切换过渡", () => {
   });
 
   it("减少动态下路由过渡直接关掉", () => {
-    const reduced = mediaBlock(tailwindCss, "prefers-reduced-motion: reduce");
+    const reduced = mediaBlock(tailwindCss, "prefers-reduced-motion: reduce", ".page-enter-active");
 
     expect(reduced).toContain(".page-enter-active");
     expect(reduced).toContain("transition: none");

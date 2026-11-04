@@ -136,8 +136,14 @@ function initSortable() {
   destroySortable()
   if (!listRef.value) return
 
+  // 落位动画跟随系统「减少动态」偏好（`prefers-reduced-motion`）：宁可没有动画，
+  // 也不该给开了减少动态的人播 150ms 的落位动效。
+  const reduceMotion = typeof window !== "undefined"
+    && typeof window.matchMedia === "function"
+    && window.matchMedia("(prefers-reduced-motion: reduce)").matches
+
   sortable = Sortable.create(listRef.value, {
-    animation: 150,
+    animation: reduceMotion ? 0 : 150,
     handle: '[data-role="outline-row-grip"]',
     draggable: '[data-row-key]',
     ghostClass: 'outline-tree__row--ghost',

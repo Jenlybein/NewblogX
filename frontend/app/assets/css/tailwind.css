@@ -860,6 +860,108 @@
     @apply rounded-card border border-line bg-surface-raised p-5 md:p-6;
   }
 
+  /* ==========================================================================
+   * 评论输入面板（决定清单 §4 第 18–22 条）
+   *
+   * 面板从窗口底部居中滑出，宽 `min(92vw, 640px)`——**不铺满**窗口，读者还要看正文。
+   * 面板外是一层**透明**点击捕获层（不是暗色遮罩）；点任意位置、按 Esc、点右上 ×
+   * 都能收起。打开时不锁 body 滚动。
+   * ======================================================================== */
+  .comment-panel__invite-row {
+    @apply mt-5 flex;
+  }
+
+  .comment-panel__invite {
+    @apply inline-flex items-center gap-2;
+    min-height: 44px;
+    padding-inline: 1rem;
+  }
+
+  .comment-sheet {
+    position: fixed;
+    inset: 0;
+    z-index: 60;
+    display: flex;
+    align-items: flex-end;
+    justify-content: center;
+    /* 整层不吃点击，只有捕获层与面板吃：正文其它区域照旧可交互（不锁滚动）。 */
+    pointer-events: none;
+  }
+
+  .comment-sheet__scrim {
+    position: absolute;
+    inset: 0;
+    border: 0;
+    background: transparent;
+    cursor: default;
+    pointer-events: auto;
+  }
+
+  .comment-sheet__panel {
+    position: relative;
+    pointer-events: auto;
+    width: min(92vw, 640px);
+    max-height: 60dvh;
+    overflow-y: auto;
+    padding: 0.5rem 1rem 1rem;
+    border: 1px solid var(--color-line);
+    border-bottom: 0;
+    border-radius: var(--radius-xl) var(--radius-xl) 0 0;
+    background: var(--color-surface);
+    box-shadow: 0 -16px 40px var(--color-shadow);
+    animation: comment-sheet-rise 320ms var(--motion-ease);
+  }
+
+  @keyframes comment-sheet-rise {
+    from {
+      transform: translateY(100%);
+    }
+
+    to {
+      transform: translateY(0);
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .comment-sheet__panel {
+      animation: none;
+    }
+  }
+
+  .comment-sheet__grabber {
+    width: 2.5rem;
+    height: 4px;
+    margin: 0.25rem auto 0.5rem;
+    border-radius: var(--radius-pill);
+    background: var(--color-line-strong);
+  }
+
+  .comment-sheet__close {
+    @apply inline-flex items-center justify-center;
+    position: absolute;
+    top: 0.75rem;
+    right: 0.75rem;
+    width: 2rem;
+    height: 2rem;
+    border: 1px solid transparent;
+    border-radius: var(--radius-sm);
+    background: transparent;
+    color: var(--color-ink-muted);
+    cursor: pointer;
+  }
+
+  .comment-sheet__close:hover {
+    border-color: var(--color-line);
+    color: var(--color-ink);
+  }
+
+  /* 面板里的输入本体不再自带卡片：纸面由面板提供，否则会出现双层边。 */
+  .comment-composer--sheet {
+    padding: 0;
+    border: 0;
+    background: transparent;
+  }
+
   .comment-composer__head {
     @apply mb-4 flex flex-wrap items-center justify-between gap-2;
   }

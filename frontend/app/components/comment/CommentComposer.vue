@@ -4,18 +4,21 @@ import { NInput } from "naive-ui";
 import type { InputInst } from "naive-ui";
 import { useReaderLoginGate } from "~/composables/useReaderLoginGate";
 
+/**
+ * 评论输入本体（2026-11-04 决定清单 §4）。
+ *
+ * 本轮它不再是"页面里内嵌的一块大 textarea"：内容这套壳由 `CommentComposerSheet`
+ * 提供（底部滑出面板），这里只负责**输入 + 提交**。
+ *
+ * 因此两样东西一并退役：
+ *  - 写死的装饰标签行（接口设计 / 数据流 / 分页 / 鉴权）—— 假数据会让人以为能选标签；
+ *  - 「登录后可参与讨论」提示 —— 未登录时点入口就弹登录框，语义自己说明了。
+ */
 const props = defineProps<{
   loading?: boolean;
   title?: string;
   placeholder?: string;
   submitLabel?: string;
-  showTags?: boolean;
-  canCancel?: boolean;
-  /**
-   * 登录态由页面传入（评论框自己不查 store）：已登录时不显示任何解释性文案，
-   * 未登录只保留一句「登录后可参与讨论」（票 238 范围 6）。
-   */
-  loggedIn?: boolean;
 }>();
 
 const emit = defineEmits<{
@@ -25,7 +28,6 @@ const emit = defineEmits<{
 
 const requireLogin = useReaderLoginGate();
 const content = ref("");
-const composerRoot = ref<HTMLElement | null>(null);
 const inputRef = ref<InputInst | null>(null);
 
 async function handleSubmit() {
@@ -43,58 +45,35 @@ async function handleSubmit() {
   content.value = "";
 }
 
-/**
- * 点楼层的「回复」后由页面调用：先把评论框滚进视口，再聚焦 textarea。
- *
- * 只动一次 scrollIntoView（block: center），不用 smooth —— 减少动态的用户不该被
- * 强制播放一段滚动动画；`focus()` 让用户可以直接打字，不用再滚回来找输入框。
- */
-function focusInput() {
-  composerRoot.value?.scrollIntoView({ block: "center" });
-  inputRef.value?.focus();
-}
-
-/** 只聚焦、不滚动（票 236：调用方自己负责滚动位置）。 */
+/** 只聚焦、不滚动（焦点由面板负责，页面不再滚动到这里）。 */
 function focus() {
   inputRef.value?.focus();
 }
 
-defineExpose({ focusInput, focus });
+defineExpose({ focus });
 </script>
 
 <template>
-  <div ref="composerRoot" class="comment-composer">
+  <div class="comment-composer comment-composer--sheet">
     <div class="comment-composer__head">
       <div class="comment-composer__title">{{ props.title || "发表评论" }}</div>
-      <span v-if="!props.loggedIn" class="comment-composer__status">登录后可参与讨论</span>
     </div>
 
     <NInput
       ref="inputRef"
       v-model:value="content"
       type="textarea"
-      :autosize="{ minRows: 4, maxRows: 8 }"
+      :autosize="{ minRows: 3, maxRows: 6 }"
       :placeholder="props.placeholder || '写下你的看法，帮助更多读者补齐思路。'"
-      aria-label="评论输入框"
-    />
+      aria-label="评论输入框" />
 
     <div class="comment-composer__footer">
-      <div v-if="props.showTags !== false" class="comment-composer__tags">
-        <span class="comment-tag">接口设计</span>
-        <span class="comment-tag">数据流</span>
-        <span class="comment-tag">分页</span>
-        <span class="comment-tag">鉴权</span>
-      </div>
-      <div v-else />
-
+      <div />
       <div class="comment-composer__actions">
-        <button v-if="props.canCancel" type="button" class="article-action article-action--compact" @click="emit('cancel')">
-          取消
-        </button>
-        <button v-else type="button" class="article-action article-action--compact" @click="content = ''">清空</button>
         <button
           type="button"
           class="article-action article-action--primary article-action--compact"
+          data-role="comment-submit"
           :disabled="Boolean(props.loading)"
           @click="handleSubmit"
         >

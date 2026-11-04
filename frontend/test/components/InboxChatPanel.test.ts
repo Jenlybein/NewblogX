@@ -5,15 +5,14 @@ import InboxChatPanel from "~/components/inbox/InboxChatPanel.vue";
 import type { ChatMessageItem, ChatSessionItem } from "~/types/api";
 
 /**
- * 私信面板（票 #240）。
+ * 私信面板（2026-11-05 重构后）。
  *
  * 验收点：
- *   - 会话列表（未读在会话行）+ 聊天窗共处一个面板；
- *   - 宽屏双栏、**<1024px 二选一**：进来看列表，选中会话切聊天窗，可返回列表；
- *   - 从作者主页「发私信」带 draft 进来时，直接落在这个人的会话上（不先给列表）。
- *
- * 断点本身是 CSS（`@media (max-width: 1024px)` 隐藏另一栏），组件测试断言
- * 切换状态（`is-narrow-list` / `is-narrow-chat`），样式规则由设计门禁钉住。
+ *   - 会话列表（未读在会话行）+ 聊天窗共处一个面板；宽屏双栏、<1024px 二选一；
+ *   - 空会话 / 未选中会话完全留白，不再有卡片式说明空状态；
+ *   - 消息按自然日分隔、同人合并；自己最后一条才有极小回执；
+ *   - 连接状态条健康时不渲染，异常才出现；失败给「重试」；
+ *   - 说明文案整体退役（由 design/message-center.test.ts 一并钉住）。
  */
 
 const session: ChatSessionItem = {
@@ -61,17 +60,12 @@ const stubs = {
     emits: ["click"],
     template: '<button type="button" @click="$emit(\'click\')"><slot /></button>',
   },
-  NSpace: { template: "<span><slot /></span>" },
   NTag: { template: "<span><slot /></span>" },
-  NAlert: { template: '<div role="alert"><slot /></div>' },
   AppAvatar: {
     props: ["src", "name"],
     template: '<span class="avatar">{{ name }}</span>',
   },
-  StudioEmptyState: {
-    props: ["title", "description"],
-    template: '<div data-testid="empty">{{ title }} {{ description }}</div>',
-  },
+  ChatMarkdownRenderer: { props: ["source"], template: "<div>{{ source }}</div>" },
 };
 
 function mountPanel(overrides: Record<string, unknown> = {}) {
@@ -87,6 +81,8 @@ function mountPanel(overrides: Record<string, unknown> = {}) {
       sessionPending: false,
       messagePending: false,
       imagePending: false,
+      hasMoreHistory: false,
+      olderPending: false,
       socketStatus: "connected",
       socketError: "",
       ...overrides,
@@ -109,19 +105,31 @@ describe("私信面板：会话列表 + 聊天窗", () => {
     expect(wrapper.emitted("update:activeSessionId")?.[0]).toEqual([secondSession.session_id]);
   });
 
-  it("没有选中会话时停在列表态（窄屏先看会话列表）", () => {
+  it("未选中会话时右侧完全留白（没有卡片、图标、说明文字）", () => {
     const wrapper = mountPanel();
 
     expect(wrapper.get(".studio-inbox-grid").classes()).toContain("is-narrow-list");
-    expect(wrapper.text()).toContain("还没有选中会话");
+    expect(wrapper.find(".studio-chat-empty").exists()).toBe(false);
+    expect(wrapper.text()).not.toContain("还没有选中会话");
+    expect(wrapper.find(".studio-chat-error").exists()).toBe(false);
   });
 
-  // 窄屏二选一：点会话 → 聊天窗；返回按钮 → 会话列表。
+  it("空会话也完全留白，只剩输入区", () => {
+    const wrapper = mountPanel({
+      activeSessionId: session.session_id,
+      currentSession: session,
+      items: [],
+    });
+
+    expect(wrapper.find(".studio-chat-bubble").exists()).toBe(false);
+    expect(wrapper.find(".studio-chat-composer").exists()).toBe(true);
+    expect(wrapper.text()).not.toContain("这个会话还没有消息");
+  });
+
   it("窄屏：选中会话切到聊天窗，返回按钮切回列表", async () => {
     const wrapper = mountPanel();
 
     await wrapper.findAll(".studio-chat-session")[0]!.trigger("click");
-    // 受控组件的 activeSessionId 由页面回写；这里模拟页面把 props 更新回来。
     await wrapper.setProps({ activeSessionId: session.session_id, currentSession: session, items: [message] });
 
     expect(wrapper.get(".studio-inbox-grid").classes()).toContain("is-narrow-chat");
@@ -131,18 +139,68 @@ describe("私信面板：会话列表 + 聊天窗", () => {
     expect(wrapper.get(".studio-inbox-grid").classes()).toContain("is-narrow-list");
   });
 
-  // 从作者主页带 draft 进来：直接落在这个人的会话上，不该先让用户在窄屏里翻列表。
-  it("草稿会话已选中时直接显示聊天窗（不回落到列表）", () => {
+  it("消息按日期分组渲染，收到的消息不显示未读标签", () => {
     const wrapper = mountPanel({
-      sessions: [session],
       activeSessionId: session.session_id,
       currentSession: session,
       items: [message],
     });
 
-    expect(wrapper.get(".studio-inbox-grid").classes()).toContain("is-narrow-chat");
-    expect(wrapper.text()).toContain("乙");
-    expect(wrapper.text()).toContain("你好");
+    expect(wrapper.find(".studio-chat-date-separator").exists()).toBe(true);
+    expect(wrapper.get(".studio-chat-bubble").classes()).not.toContain("is-self");
+    expect(wrapper.text()).not.toContain("未读");
+  });
+
+  it("只有自己最后一条消息保留回执", () => {
+    const own1: ChatMessageItem = { ...message, id: "s1", sender_id: "u1", is_self: true, is_read: false };
+    const own2: ChatMessageItem = { ...message, id: "s2", sender_id: "u1", is_self: true, is_read: true };
+    const wrapper = mountPanel({
+      activeSessionId: session.session_id,
+      currentSession: session,
+      items: [message, own1, own2],
+    });
+
+    const receipts = wrapper.findAll(".studio-chat-receipt");
+    expect(receipts).toHaveLength(2);
+    expect(receipts[0]!.text()).toBe("");
+    expect(receipts[1]!.text()).toBe("已读");
+  });
+
+  it("健康连接不渲染状态条；异常时才出现且可重连", async () => {
+    const healthy = mountPanel({ activeSessionId: session.session_id, currentSession: session, items: [message] });
+    expect(healthy.find(".studio-socket-badge").exists()).toBe(false);
+
+    const broken = mountPanel({
+      activeSessionId: session.session_id,
+      currentSession: session,
+      items: [message],
+      socketStatus: "error",
+      socketError: "实时连接发生异常。",
+    });
+    expect(broken.get(".studio-socket-badge").text()).toContain("实时连接发生异常。");
+    await broken.findAll("button").find((item) => item.text() === "重连")!.trigger("click");
+    expect(broken.emitted("reconnect")).toHaveLength(1);
+  });
+
+  it("发送失败给「重试」按钮，上滑到顶发出加载更早事件", async () => {
+    const wrapper = mountPanel({
+      activeSessionId: session.session_id,
+      currentSession: session,
+      items: [message],
+      hasMoreHistory: true,
+      sendError: "网络连接不可用",
+    });
+
+    expect(wrapper.get(".studio-chat-error").text()).toContain("网络连接不可用");
+    await wrapper.findAll("button").find((item) => item.text() === "重试")!.trigger("click");
+    expect(wrapper.emitted("retry")).toHaveLength(1);
+
+    const scroller = wrapper.get(".studio-chat-scroller");
+    Object.defineProperty(scroller.element, "scrollTop", { value: 0, writable: true, configurable: true });
+    Object.defineProperty(scroller.element, "scrollHeight", { value: 400, writable: true, configurable: true });
+    Object.defineProperty(scroller.element, "clientHeight", { value: 200, writable: true, configurable: true });
+    await scroller.trigger("scroll");
+    expect(wrapper.emitted("loadOlder")).toHaveLength(1);
   });
 
   it("聊天窗可以发送：按钮发出 send 事件，输入框同步 draft", async () => {

@@ -303,25 +303,25 @@ func TestDeleteMessagesForUserWritesUserState(t *testing.T) {
 	}
 
 	// 发起者视角：被删的两条不再出现，第三条仍在。
-	got, total, err := repo.ListMessages(ctx, domain.MessageQuery{
+	got, err := repo.ListMessages(ctx, domain.MessageQuery{
 		UserID: ctype.NewID(200), SessionID: sessionID, Page: domain.Page{Page: 1, Limit: 10},
 	})
 	if err != nil {
 		t.Fatalf("删除后查消息列表失败: %v", err)
 	}
-	if total != 1 || len(got) != 1 || got[0].ID != m3.ID {
-		t.Fatalf("删除后应只剩 1 条未删消息（m3=%s），实际 total=%d len=%d", m3.ID, total, len(got))
+	if got.Total != 1 || len(got.Messages) != 1 || got.Messages[0].ID != m3.ID {
+		t.Fatalf("删除后应只剩 1 条未删消息（m3=%s），实际 total=%d len=%d", m3.ID, got.Total, len(got.Messages))
 	}
 
 	// 对方视角不变：用户级删除不动原消息。
-	other, otherTotal, err := repo.ListMessages(ctx, domain.MessageQuery{
+	other, err := repo.ListMessages(ctx, domain.MessageQuery{
 		UserID: ctype.NewID(100), SessionID: sessionID, Page: domain.Page{Page: 1, Limit: 10},
 	})
 	if err != nil {
 		t.Fatalf("对方查消息列表失败: %v", err)
 	}
-	if otherTotal != 3 || len(other) != 3 {
-		t.Fatalf("发送方仍应看到 3 条，实际 total=%d len=%d", otherTotal, len(other))
+	if other.Total != 3 || len(other.Messages) != 3 {
+		t.Fatalf("发送方仍应看到 3 条，实际 total=%d len=%d", other.Total, len(other.Messages))
 	}
 
 	// 管理端读删除时间走的是同一张表的读路径。

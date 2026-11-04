@@ -6,6 +6,7 @@ import (
 	"crypto/rand"
 	"encoding/base64"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -82,17 +83,27 @@ type SessionListQuery struct {
 }
 
 // MessageListQuery 消息列表查询。
+//
+// before_send_time + before_id 是**成对**的复合游标：前者是上一页最老一条
+// send_time 的 RFC3339Nano 序列化，后者是同一条的 ID（JSON 字符串）。
+// 不带游标时仍按 page/limit 偏移翻页（管理员 / type=2 兼容）。
 type MessageListQuery struct {
-	Page      int      `form:"page"`
-	Limit     int      `form:"limit"`
-	SessionID string   `form:"session_id" binding:"required"`
-	UserID    ctype.ID `form:"user_id"`
-	Type      int8     `form:"type" binding:"required,oneof=1 2" enums:"1,2"`
+	Page           int      `form:"page"`
+	Limit          int      `form:"limit"`
+	SessionID      string   `form:"session_id" binding:"required"`
+	UserID         ctype.ID `form:"user_id"`
+	Type           int8     `form:"type" binding:"required,oneof=1 2" enums:"1,2"`
+	BeforeSendTime string   `form:"before_send_time"`
+	BeforeID       string   `form:"before_id"`
 }
 
-// IDListRequest 是一批消息 ID。
+// IDListRequest 是一批消息 ID，或一条要整条标记已读的会话 ID。
+//
+// MsgIDList 必须是 ctype.ID：雪花 / 客户端幂等键派生的 ID 超过 2^53，
+// 一旦用裸 uint64（或前端用 JS number）就会静默丢精度。
 type IDListRequest struct {
-	MsgIDList []uint64 `json:"msg_id_list" binding:"required"`
+	MsgIDList []ctype.ID `json:"msg_id_list"`
+	SessionID string     `json:"session_id"`
 }
 
 // SessionIDListRequest 是一批会话 ID。
@@ -155,7 +166,7 @@ func (h *Handler) Sessions(c *gin.Context) {
 // @Tags chat
 // @Produce json
 // @Security BearerAuth
-// @Success 200 {object} kernel.Envelope[kernel.ListData[domain.MessageItem]]
+// @Success 200 {object} kernel.Envelope[domain.MessageListData]
 // @Router /chat/messages [get]
 func (h *Handler) Messages(c *gin.Context) {
 	var q MessageListQuery
@@ -178,12 +189,19 @@ func (h *Handler) Messages(c *gin.Context) {
 			return
 		}
 	}
-	list, count, err := h.svc.Messages(c.Request.Context(), uid, target, q.SessionID, admin, domain.Page{Page: q.Page, Limit: q.Limit})
+	cursor := domain.MessageCursor{BeforeSendTime: q.BeforeSendTime, BeforeID: ctype.ID(q.BeforeID)}
+	page, err := h.svc.Messages(c.Request.Context(), uid, target, q.SessionID, admin,
+		domain.Page{Page: q.Page, Limit: q.Limit}, cursor)
 	if err != nil {
 		res.FailWithError(err, c)
 		return
 	}
-	res.OkWithList(list, count, c)
+	res.OkWithCursorList(domain.MessageListData{
+		List:       page.Items,
+		Count:      page.Total,
+		HasMore:    page.HasMore,
+		NextCursor: page.NextCursor,
+	}, c)
 }
 
 // Send 发送私信消息（HTTP 可靠落库）。
@@ -229,12 +247,13 @@ func (h *Handler) Send(c *gin.Context) {
 	}, c)
 }
 
-// Read 批量标记已读。
+// Read 批量标记已读（msg_id_list 或整条 session_id，后者优先）。
 // @Summary 批量标记消息已读
 // @Tags chat
 // @Accept json
 // @Produce json
 // @Security BearerAuth
+// @Param request body IDListRequest true "已读参数"
 // @Success 200 {object} kernel.Envelope[kernel.EmptyData]
 // @Router /chat/read [post]
 func (h *Handler) Read(c *gin.Context) {
@@ -243,17 +262,25 @@ func (h *Handler) Read(c *gin.Context) {
 		res.FailWithMsg("参数错误", c)
 		return
 	}
+	// 至少给一项：空请求体/空列表不该进用例层，也不该被前端当成"服务端坏了"。
+	if strings.TrimSpace(req.SessionID) == "" && len(req.MsgIDList) == 0 {
+		res.FailWithMsg("参数错误", c)
+		return
+	}
 	uid, _ := viewer(c)
-	ids := toIDs(req.MsgIDList)
-	msgs, err := h.svc.MarkRead(c.Request.Context(), uid, ids)
+	var msgs []domain.Message
+	var err error
+	if strings.TrimSpace(req.SessionID) != "" {
+		msgs, err = h.svc.MarkReadSession(c.Request.Context(), uid, strings.TrimSpace(req.SessionID))
+	} else {
+		msgs, err = h.svc.MarkRead(c.Request.Context(), uid, req.MsgIDList)
+	}
 	if err != nil {
 		res.FailWithError(err, c)
 		return
 	}
-	if len(msgs) == 0 {
-		res.FailWithMsg("没有可标记已读的消息", c)
-		return
-	}
+	// 0 条命中是幂等的正常结局：前端的静默重试不该看到"没有可标记已读的消息"
+	// 这种假失败（旧行为曾让重复标记已读直接报错）。
 	// 已读回执不再在这里直推连接池：它随 MarkRead 一起写进发件箱，
 	// 由中继的订阅者推给对应发送人（见 app/chat_wiring.go）。
 	res.OkWithMsg(fmt.Sprintf("批量标记已读%d条消息", len(msgs)), c)
@@ -274,7 +301,7 @@ func (h *Handler) DeleteMessages(c *gin.Context) {
 		return
 	}
 	uid, _ := viewer(c)
-	count, err := h.svc.DeleteMessages(c.Request.Context(), uid, toIDs(req.MsgIDList))
+	count, err := h.svc.DeleteMessages(c.Request.Context(), uid, req.MsgIDList)
 	if err != nil {
 		res.FailWithError(err, c)
 		return
@@ -403,14 +430,6 @@ func (h *Handler) authenticateWS(ctx context.Context, c *gin.Context) (ctype.ID,
 		return "", 0, false
 	}
 	return ctype.NewID(uid), sid, true
-}
-
-func toIDs(ids []uint64) []ctype.ID {
-	out := make([]ctype.ID, 0, len(ids))
-	for _, id := range ids {
-		out = append(out, ctype.NewID(id))
-	}
-	return out
 }
 
 // WsTicketResponse 是 WebSocket 握手用的临时票据。

@@ -64,8 +64,8 @@ func (f *fakeRepo) FindSession(context.Context, string, ctype.ID, bool) (domain.
 	return domain.Session{}, apperr.New(apperr.CodeChatSessionNotFound)
 }
 
-func (f *fakeRepo) ListMessages(context.Context, domain.MessageQuery) ([]domain.Message, int, error) {
-	return nil, 0, nil
+func (f *fakeRepo) ListMessages(context.Context, domain.MessageQuery) (domain.MessageQueryResult, error) {
+	return domain.MessageQueryResult{}, nil
 }
 
 func (f *fakeRepo) UserDeletedAt(context.Context, ctype.ID, string, []ctype.ID) (map[ctype.ID]time.Time, error) {
@@ -73,6 +73,10 @@ func (f *fakeRepo) UserDeletedAt(context.Context, ctype.ID, string, []ctype.ID) 
 }
 
 func (f *fakeRepo) MarkRead(context.Context, ctype.ID, []ctype.ID) ([]domain.Message, error) {
+	return nil, nil
+}
+
+func (f *fakeRepo) MarkReadSession(context.Context, ctype.ID, string) ([]domain.Message, error) {
 	return nil, nil
 }
 

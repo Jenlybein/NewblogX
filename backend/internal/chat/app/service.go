@@ -299,28 +299,33 @@ func (s *Service) Sessions(ctx context.Context, viewerID, targetID ctype.ID, adm
 	return items, total, nil
 }
 
-// Messages 消息列表。
-func (s *Service) Messages(ctx context.Context, viewerID, targetID ctype.ID, sessionID string, admin bool, page domain.Page) ([]domain.MessageItem, int, error) {
+// Messages 消息列表：按 (send_time, id) 倒序，带复合游标与 has_more。
+//
+// 权限校验、清空水位、IsSelf/IsRead/DeletedAt 富化都保持原样；变化只在读端口
+// 现在一次返回"一页 + 是否还有更早 + 下一页游标"，handler 不再自己拼装分页。
+func (s *Service) Messages(ctx context.Context, viewerID, targetID ctype.ID, sessionID string, admin bool, page domain.Page, cursor domain.MessageCursor) (domain.MessagePage, error) {
 	if targetID.IsZero() {
 		targetID = viewerID
 	}
 	if targetID != viewerID && !admin {
-		return nil, 0, apperr.New(apperr.CodeChatNoPermission)
+		return domain.MessagePage{}, apperr.New(apperr.CodeChatNoPermission)
 	}
 	session, err := s.read.FindSession(ctx, sessionID, targetID, admin)
 	if err != nil {
-		return nil, 0, err
+		return domain.MessagePage{}, err
 	}
-	msgs, total, err := s.read.ListMessages(ctx, domain.MessageQuery{
+	got, err := s.read.ListMessages(ctx, domain.MessageQuery{
 		UserID:      targetID,
 		SessionID:   sessionID,
 		ClearBefore: session.ClearBeforeMsgID,
 		Unscoped:    admin,
 		Page:        page,
+		Cursor:      cursor,
 	})
 	if err != nil {
-		return nil, 0, err
+		return domain.MessagePage{}, err
 	}
+	msgs := got.Messages
 
 	var deleted map[ctype.ID]time.Time
 	if admin {
@@ -328,8 +333,8 @@ func (s *Service) Messages(ctx context.Context, viewerID, targetID ctype.ID, ses
 		for _, msg := range msgs {
 			ids = append(ids, msg.ID)
 		}
-		if got, err := s.read.UserDeletedAt(ctx, targetID, sessionID, ids); err == nil {
-			deleted = got
+		if gotDeleted, err := s.read.UserDeletedAt(ctx, targetID, sessionID, ids); err == nil {
+			deleted = gotDeleted
 		}
 	}
 
@@ -353,7 +358,12 @@ func (s *Service) Messages(ctx context.Context, viewerID, targetID ctype.ID, ses
 		}
 		items = append(items, item)
 	}
-	return items, total, nil
+	return domain.MessagePage{
+		Items:      items,
+		Total:      got.Total,
+		HasMore:    got.HasMore,
+		NextCursor: got.NextCursor,
+	}, nil
 }
 
 // MarkRead 批量标记已读；返回本次命中的消息（用于 WS 回执）。
@@ -362,6 +372,11 @@ func (s *Service) MarkRead(ctx context.Context, userID ctype.ID, ids []ctype.ID)
 		return nil, apperr.New(apperr.CodeChatEmptySelection)
 	}
 	return s.write.MarkRead(ctx, userID, ids)
+}
+
+// MarkReadSession 把整条会话里发给自己的未读消息标记已读。
+func (s *Service) MarkReadSession(ctx context.Context, userID ctype.ID, sessionID string) ([]domain.Message, error) {
+	return s.write.MarkReadSession(ctx, userID, sessionID)
 }
 
 // DeleteMessages 用户级删除消息。

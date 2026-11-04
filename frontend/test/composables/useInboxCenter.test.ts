@@ -8,11 +8,18 @@ import type { ChatMessageItem, ChatNotificationPayload, ChatSessionItem } from "
  *
  * 范围只剩**私信**：评论 / 互动 / 系统 / 全局通知已由 useMessageCenter（#239）接管。
  * 所以这里的站点消息与全局通知桩全部删掉 —— 再出现就是死代码又长回来了。
+ *
+ * 游标分页改造后：后端 DESC + `(before_send_time, before_id)` 复合游标，前端维护
+ * **一条升序数组**。因此所有消息断言都按「最旧在前、最新在后」写，且默认
+ * getChatMessages 桩必须返回新形状 `{list, count, has_more, next_cursor}`。
  */
 
 const getChatSessionsMock = vi.hoisted(() => vi.fn());
 const getChatMessagesMock = vi.hoisted(() => vi.fn());
 const sendChatMessageMock = vi.hoisted(() => vi.fn());
+const markChatSessionReadMock = vi.hoisted(() => vi.fn());
+const deleteChatMessagesMock = vi.hoisted(() => vi.fn());
+const deleteChatSessionsMock = vi.hoisted(() => vi.fn());
 const refreshSummaryMock = vi.hoisted(() => vi.fn());
 
 const messageSummaryMock = vi.hoisted(() => ({
@@ -31,11 +38,12 @@ const notificationHandlers = new Set<(notification: ChatNotificationPayload) => 
 const sendErrorState = shallowRef("");
 
 vi.mock("~/services/inbox", () => ({
-  deleteChatMessages: vi.fn(),
-  deleteChatSessions: vi.fn(),
+  deleteChatMessages: deleteChatMessagesMock,
+  deleteChatSessions: deleteChatSessionsMock,
   getChatMessages: getChatMessagesMock,
   getChatSessions: getChatSessionsMock,
   markChatMessagesRead: vi.fn(),
+  markChatSessionRead: markChatSessionReadMock,
   sendChatMessage: sendChatMessageMock,
 }));
 
@@ -69,6 +77,55 @@ const chatStoreState = {
   },
 };
 
+const EMPTY_CURSOR = { before_send_time: "", before_id: "" };
+const OLDER_CURSOR = { before_send_time: "2026-11-05T01:07:00.123456789Z", before_id: "123456789" };
+
+interface ChatPage {
+  list: ChatMessageItem[];
+  count: number;
+  has_more: boolean;
+  next_cursor: { before_send_time: string; before_id: string };
+}
+
+/** 新形状的分页桩；缺字段老形状由 services/inbox 自己归一化，这里不模拟。 */
+function page(list: ChatMessageItem[] = [], overrides: Partial<ChatPage> = {}): ChatPage {
+  return {
+    list,
+    count: list.length,
+    has_more: false,
+    next_cursor: { ...EMPTY_CURSOR },
+    ...overrides,
+  };
+}
+
+function message(id: string, sendTime: string, overrides: Partial<ChatMessageItem> = {}): ChatMessageItem {
+  return {
+    id,
+    sender_id: "u2",
+    receiver_id: "u1",
+    session_id: chatSession.session_id,
+    content: `内容-${id}`,
+    send_time: sendTime,
+    msg_status: 1,
+    msg_type: 1,
+    is_self: false,
+    is_read: false,
+    ...overrides,
+  };
+}
+
+/** 时间升序的 5 条：o1 < o2 < m1 < m2 < m3。后端每页仍给 DESC。 */
+const o1 = message("o1", "2026-11-05T09:58:00Z");
+const o2 = message("o2", "2026-11-05T09:59:00Z");
+const m1 = message("m1", "2026-11-05T10:00:00Z");
+const m2 = message("m2", "2026-11-05T10:01:00Z");
+const m3 = message("m3", "2026-11-05T10:02:00Z");
+const m4 = message("m4", "2026-11-05T10:03:00Z");
+
+function ids(items: ChatMessageItem[]) {
+  return items.map((item) => item.id);
+}
+
 function pushNotification(payload: ChatNotificationPayload) {
   for (const handler of [...notificationHandlers]) {
     handler(payload);
@@ -86,15 +143,21 @@ describe("useInboxCenter（私信）", () => {
     getChatSessionsMock.mockReset();
     getChatMessagesMock.mockReset();
     sendChatMessageMock.mockReset();
+    markChatSessionReadMock.mockReset();
+    deleteChatMessagesMock.mockReset();
+    deleteChatSessionsMock.mockReset();
     refreshSummaryMock.mockClear();
     refreshSummaryMock.mockResolvedValue(messageSummaryMock);
+    markChatSessionReadMock.mockResolvedValue(undefined);
+    deleteChatMessagesMock.mockResolvedValue(undefined);
+    deleteChatSessionsMock.mockResolvedValue(undefined);
     notificationHandlers.clear();
     sendErrorState.value = "";
     chatStoreState.activeSessionId = null;
     messageSummaryMock.private_msg_count = 0;
 
     getChatSessionsMock.mockResolvedValue({ list: [] });
-    getChatMessagesMock.mockResolvedValue({ list: [] });
+    getChatMessagesMock.mockResolvedValue(page());
 
     vi.stubGlobal("watch", watch);
     vi.stubGlobal("toValue", toValue);
@@ -127,7 +190,6 @@ describe("useInboxCenter（私信）", () => {
   // 收窄后的 composable 不再有 activeTab 开关：进入这个 composable 就等于进入私信子项。
   it("创建即拉会话，并自动选中第一条；随后拉它的消息", async () => {
     getChatSessionsMock.mockResolvedValue({ list: [chatSession] });
-    getChatMessagesMock.mockResolvedValue({ list: [] });
 
     const inbox = await createInboxCenter();
     await flushPromises();
@@ -135,7 +197,10 @@ describe("useInboxCenter（私信）", () => {
     expect(getChatSessionsMock).toHaveBeenCalledWith({ type: 1 });
     expect(inbox.chatSessions.value).toHaveLength(1);
     expect(inbox.activeSessionId.value).toBe(chatSession.session_id);
-    expect(getChatMessagesMock).toHaveBeenCalledWith({ sessionId: chatSession.session_id, type: 1 });
+    // 首屏显式 7 条、不带 page 也不带游标。
+    expect(getChatMessagesMock).toHaveBeenCalledWith({ sessionId: chatSession.session_id, type: 1, limit: 7 });
+    // Q7「进会话即已读」：首屏加载完立刻走整会话模式。
+    expect(markChatSessionReadMock).toHaveBeenCalledWith(chatSession.session_id);
   });
 
   // ── 草稿直达会话（users/[id].vue 的 draft_receiver_* 契约）──
@@ -259,7 +324,7 @@ describe("useInboxCenter（私信）", () => {
   });
 
   // 通知命中当前会话时也要刷新消息（"即时到达"靠这一步）。
-  it("WS 通知命中当前会话时刷新消息", async () => {
+  it("WS 通知命中当前会话时取最新一页增量合并（不带游标）", async () => {
     getChatSessionsMock.mockResolvedValue({ list: [chatSession] });
 
     await createInboxCenter();
@@ -269,7 +334,8 @@ describe("useInboxCenter（私信）", () => {
     pushNotification({ session_id: chatSession.session_id, message_id: "m2", sender_id: "u2", msg_type: 1 });
     await flushPromises();
 
-    expect(getChatMessagesMock).toHaveBeenCalledWith({ sessionId: chatSession.session_id, type: 1 });
+    expect(getChatMessagesMock).toHaveBeenCalledWith({ sessionId: chatSession.session_id, type: 1, limit: 7 });
+    expect(markChatSessionReadMock).toHaveBeenCalled();
   });
 
   // 票 #240："离开私信页不关闭连接"——连接归全局所有，但要退订本页的通知。
@@ -329,5 +395,230 @@ describe("useInboxCenter（私信）", () => {
     await inbox.sendCurrentChatMessage();
 
     expect(inbox.chatSendError.value).toBe("");
+  });
+
+  // ─────────────────────────────────────────────────────────────
+  // 游标分页 / 单一升序数组（ADR-0027）
+  // ─────────────────────────────────────────────────────────────
+
+  it("第一页 3 条 DESC → chatMessages 升序（最旧在前）", async () => {
+    getChatSessionsMock.mockResolvedValue({ list: [chatSession] });
+    getChatMessagesMock.mockResolvedValue(page([m3, m2, m1], { count: 3 }));
+
+    const inbox = await createInboxCenter();
+    await flushPromises();
+
+    expect(ids(inbox.chatMessages.value)).toEqual(["m1", "m2", "m3"]);
+    expect(inbox.hasMoreHistory.value).toBe(false);
+    await expect(inbox.loadOlderChatMessages()).resolves.toBe(0);
+  });
+
+  it("loadOlderChatMessages 前插 2 条更早且不重复、更新 hasMore，第二次是空操作", async () => {
+    getChatSessionsMock.mockResolvedValue({ list: [chatSession] });
+    getChatMessagesMock.mockResolvedValueOnce(page([m3, m2, m1], {
+      count: 12,
+      has_more: true,
+      next_cursor: { ...OLDER_CURSOR },
+    }));
+
+    const inbox = await createInboxCenter();
+    await flushPromises();
+
+    expect(inbox.hasMoreHistory.value).toBe(true);
+    // 这一页 DESC，且故意带一条与首屏重复的 m1 —— 前插时必须 dedupe。
+    getChatMessagesMock.mockResolvedValueOnce(page([m1, o2, o1], { count: 3, has_more: false }));
+
+    const prepended = await inbox.loadOlderChatMessages();
+
+    expect(getChatMessagesMock).toHaveBeenLastCalledWith({
+      sessionId: chatSession.session_id,
+      type: 1,
+      limit: 7,
+      cursor: OLDER_CURSOR,
+    });
+    expect(prepended).toBe(2);
+    expect(ids(inbox.chatMessages.value)).toEqual(["o1", "o2", "m1", "m2", "m3"]);
+    expect(inbox.hasMoreHistory.value).toBe(false);
+    expect(inbox.olderPending.value).toBe(false);
+
+    const callsBefore = getChatMessagesMock.mock.calls.length;
+    await expect(inbox.loadOlderChatMessages()).resolves.toBe(0);
+    expect(getChatMessagesMock).toHaveBeenCalledTimes(callsBefore);
+  });
+
+  it("WS 通知把新消息追加到尾部，不丢弃已经翻出的两页历史", async () => {
+    getChatSessionsMock.mockResolvedValue({ list: [chatSession] });
+    getChatMessagesMock
+      .mockResolvedValueOnce(page([m3, m2, m1], {
+        has_more: true,
+        next_cursor: { ...OLDER_CURSOR },
+      }))
+      .mockResolvedValueOnce(page([o2, o1], { has_more: false }));
+
+    const inbox = await createInboxCenter();
+    await flushPromises();
+    await inbox.loadOlderChatMessages();
+    expect(ids(inbox.chatMessages.value)).toEqual(["o1", "o2", "m1", "m2", "m3"]);
+
+    // 最新一页：m3 被服务端标成已读（替换旧行），m4 是真正的新消息。
+    getChatMessagesMock.mockResolvedValueOnce(page([
+      m4,
+      { ...m3, is_read: true, msg_status: 3 },
+    ]));
+    pushNotification({ session_id: chatSession.session_id, message_id: "m4", sender_id: "u2", msg_type: 1 });
+    await flushPromises();
+
+    expect(ids(inbox.chatMessages.value)).toEqual(["o1", "o2", "m1", "m2", "m3", "m4"]);
+    expect(inbox.chatMessages.value[4]?.is_read).toBe(true);
+    // 增量路径取第一页（无 cursor），不能把累积数组整页替换掉。
+    expect(getChatMessagesMock).toHaveBeenLastCalledWith({ sessionId: chatSession.session_id, type: 1, limit: 7 });
+  });
+
+  it("markActiveSessionRead 走整会话模式、就地标已读、刷新汇总与会话，且失败静默重试一次", async () => {
+    getChatSessionsMock.mockResolvedValue({ list: [chatSession] });
+    getChatMessagesMock.mockResolvedValue(page([
+      m3,
+      m2,
+      { ...m1, is_self: true, is_read: false },
+    ]));
+
+    const inbox = await createInboxCenter();
+    await flushPromises();
+
+    markChatSessionReadMock.mockClear();
+    refreshSummaryMock.mockClear();
+    getChatSessionsMock.mockClear();
+    // 第一次失败、第二次成功：withOneRetry 必须补一次，且不抛给界面。
+    markChatSessionReadMock.mockRejectedValueOnce(new Error("网络抖动")).mockResolvedValueOnce(undefined);
+
+    await expect(inbox.markActiveSessionRead()).resolves.toBeUndefined();
+
+    expect(markChatSessionReadMock).toHaveBeenCalledTimes(2);
+    expect(markChatSessionReadMock).toHaveBeenCalledWith(chatSession.session_id);
+    expect(refreshSummaryMock).toHaveBeenCalled();
+    expect(getChatSessionsMock).toHaveBeenCalledWith({ type: 1 });
+    // 收到的两条标已读 + 已读状态 3；自己发的那条不改。
+    expect(inbox.chatMessages.value.map((item) => item.is_read)).toEqual([false, true, true]);
+    expect(inbox.chatMessages.value.map((item) => item.msg_status)).toEqual([1, 3, 3]);
+
+    // 两次都失败也不抛。
+    markChatSessionReadMock.mockReset();
+    markChatSessionReadMock.mockRejectedValue(new Error("彻底断网"));
+    await expect(inbox.markActiveSessionRead()).resolves.toBeUndefined();
+    expect(markChatSessionReadMock).toHaveBeenCalledTimes(2);
+  });
+
+  it("发送把乐观项追加到尾部，且成功后不再调 getChatMessages（保住累积历史）", async () => {
+    getChatSessionsMock.mockResolvedValue({ list: [chatSession] });
+    getChatMessagesMock
+      .mockResolvedValueOnce(page([m3, m2, m1], {
+        has_more: true,
+        next_cursor: { ...OLDER_CURSOR },
+      }))
+      .mockResolvedValueOnce(page([o2, o1], { has_more: false }));
+    sendChatMessageMock.mockResolvedValue({
+      ...m4,
+      id: "server-1",
+      is_self: true,
+    });
+
+    const inbox = await createInboxCenter();
+    await flushPromises();
+    await inbox.loadOlderChatMessages();
+
+    getChatMessagesMock.mockClear();
+    inbox.chatDraft.value = "新消息";
+    await inbox.sendCurrentChatMessage();
+
+    expect(ids(inbox.chatMessages.value)).toEqual(["o1", "o2", "m1", "m2", "m3", "server-1"]);
+    // 真实行替换乐观项后仍留在尾部：既没有第二条，也没有整页重拉。
+    expect(getChatMessagesMock).not.toHaveBeenCalled();
+    // 服务端行替换掉 temp 项后留在尾部（它的 content 是后端投影，不等于草稿原文）。
+    expect(inbox.chatMessages.value.at(-1)?.id).toBe("server-1");
+  });
+
+  it("切换会话后，上一个会话在途的首页响应被丢弃", async () => {
+    getChatSessionsMock.mockResolvedValue({ list: [chatSession] });
+    let resolveStale!: (value: ChatPage) => void;
+    getChatMessagesMock
+      .mockImplementationOnce(() => new Promise<ChatPage>((resolve) => {
+        resolveStale = resolve;
+      }))
+      .mockResolvedValueOnce(page([message("b1", "2026-11-05T11:00:00Z")]));
+
+    const inbox = await createInboxCenter();
+    await flushPromises();
+    expect(getChatMessagesMock).toHaveBeenCalledTimes(1);
+
+    // 模拟用户点了另一条会话（store 桩是普通对象，watch 不触发，显式重拉第一页）。
+    inbox.activeSessionId.value = "chat:u1:u3";
+    await inbox.loadChatMessages("chat:u1:u3");
+    expect(ids(inbox.chatMessages.value)).toEqual(["b1"]);
+
+    resolveStale(page([m3, m2, m1]));
+    await flushPromises();
+
+    expect(ids(inbox.chatMessages.value)).toEqual(["b1"]);
+    expect(inbox.chatMessages.value.some((item) => item.id === "m1")).toBe(false);
+  });
+
+  it("草稿会话的 markActiveSessionRead 什么都不做", async () => {
+    getChatSessionsMock.mockResolvedValue({ list: [] });
+    const seed = ref({
+      receiverId: "u9",
+      receiverNickname: "丙",
+      receiverAvatar: "",
+      relation: 0,
+    });
+
+    const inbox = await createInboxCenter({ draftSessionSeed: seed });
+    await flushPromises();
+
+    markChatSessionReadMock.mockClear();
+    refreshSummaryMock.mockClear();
+    getChatSessionsMock.mockClear();
+
+    await expect(inbox.markActiveSessionRead()).resolves.toBeUndefined();
+
+    expect(markChatSessionReadMock).not.toHaveBeenCalled();
+    expect(refreshSummaryMock).not.toHaveBeenCalled();
+    expect(getChatSessionsMock).not.toHaveBeenCalled();
+  });
+
+  it("retryChatLoad 清掉错误并静默重拉第一页，失败也不抛", async () => {
+    getChatSessionsMock.mockResolvedValue({ list: [chatSession] });
+
+    const inbox = await createInboxCenter();
+    await flushPromises();
+
+    sendErrorState.value = "加载失败";
+    getChatMessagesMock.mockClear();
+    await expect(inbox.retryChatLoad()).resolves.toBeUndefined();
+
+    expect(sendErrorState.value).toBe("");
+    expect(getChatMessagesMock).toHaveBeenCalledWith({ sessionId: chatSession.session_id, type: 1, limit: 7 });
+
+    getChatMessagesMock.mockRejectedValueOnce(new Error("还是失败"));
+    await expect(inbox.retryChatLoad()).resolves.toBeUndefined();
+  });
+
+  it("删除消息只从本地升序数组里移除，不重拉整页", async () => {
+    getChatSessionsMock.mockResolvedValue({ list: [chatSession] });
+    getChatMessagesMock.mockResolvedValueOnce(page([m3, m2, m1], {
+      has_more: true,
+      next_cursor: { ...OLDER_CURSOR },
+    })).mockResolvedValueOnce(page([o2, o1], { has_more: false }));
+
+    const inbox = await createInboxCenter();
+    await flushPromises();
+    await inbox.loadOlderChatMessages();
+
+    getChatMessagesMock.mockClear();
+    await inbox.removeChatMessage("m2");
+
+    expect(deleteChatMessagesMock).toHaveBeenCalledWith(["m2"]);
+    expect(ids(inbox.chatMessages.value)).toEqual(["o1", "o2", "m1", "m3"]);
+    expect(getChatMessagesMock).not.toHaveBeenCalled();
+    expect(refreshSummaryMock).toHaveBeenCalled();
   });
 });

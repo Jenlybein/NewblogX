@@ -83,3 +83,38 @@
 5. **重连只校准未读总数**：断线窗口内没到达的通知不会逐条补发，只在下一次拉列表时出现；重连成功后的那次汇总只保证"数字对"，不保证"提示一条不丢"。
 6. **本文档未在真实环境代跑**：以上冒烟项需要部署后用真实账号 + 浏览器执行；本机重跑了 `frontend` 门禁（`vitest run` / `typecheck` / `lint` / 设计 token 门禁）、后端 `go build ./...` / `go test ./...` / `go vet -tags integration` / archcheck，以及后端文章模块集成用例（`-tags integration`，Docker）；线上验收仍按上表执行。
 </content>
+
+## 部署记录（2026-11-04 16:05，已完成）
+
+| 项 | 值 |
+| --- | --- |
+| 代码版本 | `main@2b11387`（PR #248 squash） |
+| 目标 | `43.155.228.146`：`/opt/blogx`（docker compose production） |
+| 镜像 | `blogx-server:a0b0cc3ceff4` / `blogx-web:6efd5bef0340` / `blogx-admin:bf9ecf10801b`，**串行**构建 |
+| 重建方式 | `up -d --force-recreate blogx_web blogx_admin blogx_server` + `restart nginx` |
+| 数据库备份 | `backups/pre-234-2026-11-04-1555.sql`（276K） |
+| 回滚标签 | 新打 `blogx-{server,web,admin}:2026-11-04-pre234`；旧 `2026-11-03` 保留 |
+| DDL | **未跑 `-db`**（本批零表变更）：DB 39 张表与 `schema.sql` 39 张**逐表一致，双向无差** |
+
+### 已验证（只读探针，非登录态）
+
+| 检查 | 结果 |
+| --- | --- |
+| 9 个容器 | 全部 `healthy`（server/web/admin + mysql×2 + redis + es + clickhouse + nginx） |
+| 容器镜像 | 三个容器 Image ID 与新构建 ID **完全一致**（排除"构建成功但没换镜像"） |
+| `/health` | 200（响应体为空，属既有行为） |
+| 页面：`/`、`/article/1`、`/messages/comments`、`/history`、`/search` | 全部 200 |
+| `/studio/history` | **301 → /history**（服务端跳转生效） |
+| `/studio/inbox` | 200（客户端中间件跳转，属已知限制 3） |
+| 后台 `/admin/` | 200 |
+| 新端点存在性 | `GET /api/articles/history`、`DELETE /api/articles/history/all`、`PUT /api/articles/{id}/digg` 均返回鉴权错误 1003（**不是 404**） |
+| 契约回归 | `GET /api/collections` → 200 `code:0` |
+| 历史清理任务 | 启动日志：`已注册浏览历史清理任务: 每日 04:10，保留 90 天（软删 updated_at < now-90d）`；`定时任务已启动` |
+| 产物指纹 | web 产物内含 `浏览历史` 等新文案；server 二进制含 `recipient_stranger_disabled` |
+| 错误扫描 | `blogx-server` 近 20 分钟 `panic/fatal/level=error` = **0**；nginx 近 10 分钟 5xx = **0**；容器 RestartCount 全 0 |
+
+### 未验证（必须人工，不代跑）
+
+上表 1–14 项冒烟中依赖**登录账号 / 浏览器**的部分：点赞幂等与计数回填、收藏夹移出、共享缓存 30 秒滞后、子评论点赞与回复落点、游客登录前置、消息中心五子项与顶栏 hover、顶栏三档落位、陌生人两级文案、WS 断线重连、历史页分组/搜索/清空/批量、90 天清理的实际删除、正文色板肉眼层次、裁剪弹窗真实尺寸。
+
+本次部署只证明"服务起得来、路由在、契约没 404、表结构没漂移、无报错"，**不证明登录态行为正确**。

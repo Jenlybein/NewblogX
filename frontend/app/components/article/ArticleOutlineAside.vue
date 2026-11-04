@@ -6,15 +6,17 @@ import LoadingSkeleton from "~/components/common/LoadingSkeleton.vue";
 import type { ArticleOutlineContext } from "~/utils/outlineContext";
 
 /**
- * 阅读页左栏目录（票 220 / 决定清单 A9–A11）。
+ * 阅读页目录抽屉（票 220 的左栏，2026-11-04 验收改为「贴左边缘的抽屉」）。
  *
- * 三种状态：
- *  - `pending`：先出与真实侧栏同构的骨架，树到达后原地替换（不引发布局跳动）；
- *  - `ready`：渲染树 + 上一篇/下一篇（树复用 `OutlineTree`）；
- *  - `empty` / 无归属：整栏不渲染，右栏标题大纲与阅读进度保持原样。
+ * 为什么不再占一列：原来宽屏是 `.article-layout` 的**第一列**（13.5rem）。那等于用正文
+ * 的宽度换目录——读者反馈"目录把正文挤了、两边还脱节"。现在目录**不参与文章布局**：
  *
- * `<1024px` 时整栏收进「目录」抽屉：宽屏是 `.article-layout` 的第一列，
- * 窄屏默认只留一个「目录」按钮，点开是覆盖正文的抽屉（带遮罩与 Esc 关闭）。
+ *   - 收起：窗口左边缘只剩一条竖排窄标（`≡ 目录`），正文完全不受影响；
+ *   - 展开：面板从左侧滑出，**覆盖**在正文之上（宽 `min(20rem, 86vw)`），并压一层薄遮罩；
+ *   - 关闭：点遮罩、按 Esc、或再点一次窄标。焦点回到窄标上。
+ *
+ * 三种状态只影响面板内容，不影响抽屉本身：`pending` 出同构骨架、`ready` 渲染树、
+ * 无归属树时整个组件不渲染（`outlineColumnVisible` 在页面里已经判过）。
  */
 const props = defineProps<{
   context: ArticleOutlineContext | null;
@@ -23,28 +25,40 @@ const props = defineProps<{
 }>();
 
 const hasTree = computed(() => props.context?.has_tree === true);
+// 组件自己也要守住"无归属不渲染"：页面虽然已用 outlineColumnVisible 判过一次，
+// 但组件被别处复用时不能凭空长出一条空的目录窄标。
 const visible = computed(() => props.pending || hasTree.value);
 const panelState = computed(() => (props.pending ? "pending" : "ready"));
 // 切树（合集/项目换了 owner）时重建面板：折叠状态按树存 localStorage。
 const panelKey = computed(() => `${props.context?.owner_kind ?? 0}:${props.context?.owner_id ?? ""}`);
 
-const drawerOpen = ref(false);
+const open = ref(false);
+const tabRef = ref<HTMLButtonElement | null>(null);
 
-function closeDrawer() {
-  drawerOpen.value = false;
+function toggle() {
+  open.value = !open.value;
+}
+
+function close(returnFocus = false) {
+  open.value = false;
+  if (returnFocus) {
+    tabRef.value?.focus();
+  }
 }
 
 function handleKeydown(event: KeyboardEvent) {
   if (event.key === "Escape") {
-    closeDrawer();
+    close(true);
   }
 }
 
-watch(drawerOpen, (open) => {
-  if (!import.meta.client) {
+// 用 typeof window 而不是 import.meta.client：后者是 Nuxt 的编译期标记，
+// 在纯 vitest 环境里是 undefined，会让 Esc 监听永远不挂上（测试也验不到）。
+watch(open, (isOpen) => {
+  if (typeof window === "undefined") {
     return;
   }
-  if (open) {
+  if (isOpen) {
     window.addEventListener("keydown", handleKeydown);
   } else {
     window.removeEventListener("keydown", handleKeydown);
@@ -52,47 +66,67 @@ watch(drawerOpen, (open) => {
 });
 
 onBeforeUnmount(() => {
-  if (import.meta.client) {
+  if (typeof window !== "undefined") {
     window.removeEventListener("keydown", handleKeydown);
   }
 });
 </script>
 
 <template>
-  <aside v-if="visible" class="article-outline" data-article-outline="true" :data-state="panelState">
+  <div
+    v-if="visible"
+    class="outline-rail"
+    data-article-outline="true"
+    :data-state="panelState"
+    :data-open="open ? 'true' : 'false'"
+  >
+    <!-- 收起态：贴在窗口左边缘的竖排窄标（不占布局宽度，悬浮在正文之上）。 -->
     <button
+      ref="tabRef"
       type="button"
-      class="article-outline__drawer-toggle"
-      :aria-expanded="drawerOpen ? 'true' : 'false'"
+      class="outline-rail__tab"
+      :aria-expanded="open ? 'true' : 'false'"
       aria-controls="article-outline-panel"
+      aria-label="目录（展开或收起）"
       data-outline-drawer-toggle
-      @click="drawerOpen = !drawerOpen"
+      @click="toggle"
     >
-      <span class="article-outline__drawer-mark" aria-hidden="true">≡</span>
-      目录
+      <span class="outline-rail__tab-mark" aria-hidden="true">≡</span>
+      <span class="outline-rail__tab-label">目录</span>
     </button>
 
+    <!-- 遮罩只负责"点外面关掉"，不做成暗色蒙版：读者常常是边看正文边找章节。 -->
     <button
-      v-if="drawerOpen"
+      v-if="open"
       type="button"
-      class="article-outline__backdrop"
+      class="outline-rail__scrim"
       aria-label="关闭目录"
       data-outline-drawer-backdrop
-      @click="closeDrawer"
+      @click="close(true)"
     />
 
-    <section
+    <aside
       id="article-outline-panel"
-      class="article-paper article-outline__panel"
-      :class="{ 'is-drawer-open': drawerOpen }"
+      class="article-paper outline-rail__panel"
+      :class="{ 'is-drawer-open': open }"
+      :aria-hidden="open ? 'false' : 'true'"
+      :inert="open ? undefined : true"
       data-outline-panel
     >
-      <div class="article-outline__head">
+      <div class="outline-rail__head">
         <p class="article-eyebrow">
           <span class="article-eyebrow__mark" aria-hidden="true" />
           Outline
         </p>
-        <h2 class="article-outline__title">目录</h2>
+        <button
+          type="button"
+          class="outline-rail__close"
+          aria-label="收起目录"
+          data-outline-close
+          @click="close(true)"
+        >
+          ×
+        </button>
       </div>
 
       <div v-if="pending" data-role="article-outline-skeleton">
@@ -104,95 +138,122 @@ onBeforeUnmount(() => {
         :context="context"
         :current-article-id="currentArticleId"
       />
-    </section>
-  </aside>
+    </aside>
+  </div>
 </template>
 
 <style scoped>
-/* 宽屏：这一栏是 .article-layout 的第一列，与正文/右栏同高起点。 */
-.article-outline {
-  min-width: 0;
-}
-
-.article-outline__head {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 0.75rem;
-}
-
-.article-outline__title {
-  margin: 0;
-  color: var(--color-ink);
-  font-family: var(--font-title);
-  font-size: 1rem;
-  letter-spacing: -0.01em;
-}
-
-/* 窄屏默认只留按钮；宽屏隐藏按钮、面板回到文档流。 */
-.article-outline__drawer-toggle {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  width: 100%;
-  min-height: 2.75rem;
-  padding: 0.5rem 0.875rem;
-  border: 1px solid var(--color-line);
-  border-radius: var(--radius-md);
-  background: var(--color-surface);
-  color: var(--color-ink);
-  font-family: var(--font-title);
-  cursor: pointer;
-}
-
-.article-outline__drawer-mark {
-  color: var(--color-ink-faint);
-  font-family: var(--font-mono);
-}
-
-.article-outline__panel {
-  display: none;
-  padding: 1rem;
-}
-
-.article-outline__backdrop {
+/* 一整层只吃"边缘"与"面板"两处的点击：正文其余位置照旧可读可选中。 */
+.outline-rail {
   position: fixed;
   inset: 0;
-  z-index: 40;
+  z-index: 46;
+  pointer-events: none;
+}
+
+/* 竖排窄标：贴左边缘、垂直居中，宽 2rem 左右，不遮正文的有效内容区。 */
+.outline-rail__tab {
+  position: absolute;
+  top: 46%;
+  left: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.75rem 0.4rem;
+  border: 1px solid var(--color-line);
+  border-left: 0;
+  border-radius: 0 var(--radius-md) var(--radius-md) 0;
+  background: var(--color-surface);
+  color: var(--color-ink-muted);
+  font-family: var(--font-title);
+  font-size: 0.8125rem;
+  cursor: pointer;
+  pointer-events: auto;
+  transition: color var(--motion-fast) var(--motion-ease), background var(--motion-fast) var(--motion-ease);
+}
+
+.outline-rail__tab:hover {
+  color: var(--color-ink);
+  background: var(--color-surface-raised);
+}
+
+.outline-rail__tab-mark {
+  font-family: var(--font-mono);
+  font-size: 0.875rem;
+  line-height: 1;
+}
+
+.outline-rail__tab-label {
+  writing-mode: vertical-rl;
+  letter-spacing: 0.18em;
+}
+
+/* 面板：从左侧滑出，压住正文但不改布局。 */
+.outline-rail__panel {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: min(20rem, 86vw);
+  padding: 1rem 1.1rem 1.25rem;
+  overflow-y: auto;
+  border-radius: 0 var(--radius-lg) var(--radius-lg) 0;
+  border-left: 0;
+  background: var(--color-surface);
+  box-shadow: var(--shadow-lg);
+  transform: translateX(-101%);
+  visibility: hidden;
+  pointer-events: auto;
+  transition: transform var(--motion-base) var(--motion-ease), visibility var(--motion-base) var(--motion-ease);
+}
+
+.outline-rail__panel.is-drawer-open {
+  transform: none;
+  visibility: visible;
+}
+
+.outline-rail__scrim {
+  position: absolute;
+  inset: 0;
   border: 0;
-  background: var(--color-ink);
-  opacity: 0.6;
+  background: color-mix(in srgb, var(--color-ink) 18%, transparent);
+  cursor: default;
+  pointer-events: auto;
+}
+
+.outline-rail__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-bottom: 0.5rem;
+}
+
+.outline-rail__close {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.75rem;
+  height: 1.75rem;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--color-ink-muted);
+  font-size: 1.05rem;
+  line-height: 1;
   cursor: pointer;
 }
 
-/* 窄屏抽屉：覆盖在正文之上，内部自己滚动；正文不被长期挤窄。 */
-.article-outline__panel.is-drawer-open {
-  position: fixed;
-  top: 0;
-  right: 0;
-  bottom: 0;
-  z-index: 50;
-  display: block;
-  width: min(22rem, 88vw);
-  overflow-y: auto;
-  border-left: 1px solid var(--color-line);
-  border-radius: 0;
+.outline-rail__close:hover {
+  border-color: var(--color-line);
+  color: var(--color-ink);
 }
 
-@media (min-width: 1024px) {
-  .article-outline__drawer-toggle,
-  .article-outline__backdrop {
-    display: none;
-  }
-
-  .article-outline__panel,
-  .article-outline__panel.is-drawer-open {
-    position: static;
-    display: block;
-    width: auto;
-    overflow: visible;
-    border-left: 0;
-    border-radius: var(--radius-lg);
+@media (prefers-reduced-motion: reduce) {
+  .outline-rail__panel,
+  .outline-rail__tab {
+    transition: none;
   }
 }
 </style>

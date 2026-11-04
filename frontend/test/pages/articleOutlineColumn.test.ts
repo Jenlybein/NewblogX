@@ -55,25 +55,32 @@ describe("文章页：左栏目录树的接线", () => {
     // ssr-anonymous-cache.test.ts；这里只钉住"页面不额外取数"。
   });
 
-  it("有归属树（pending 或命中）时才渲染左栏，无归属不出现", () => {
-    const layout = layoutSource(pageSource());
-
-    expect(layout).toContain("<ArticleOutlineAside");
-    expect(layout).toMatch(/v-if="outlineColumnVisible"/u);
-    expect(layout).toContain(":current-article-id=\"articleId\"");
-  });
-
-  it("1024px 以上成立三栏：布局按归属树加修饰类", () => {
+  it("有归属树（pending 或命中）时才渲染目录抽屉，无归属不出现", () => {
     const source = pageSource();
 
-    expect(source).toContain('<div class="article-layout"');
-    expect(source).toMatch(/:class="\{ 'article-layout--with-outline': outlineColumnVisible \}"/u);
+    // 抽屉不再住进 .article-layout：它挪到页面末尾（与评分弹窗同级），是浮层。
+    const layout = layoutSource(source);
+    expect(layout).not.toContain("<ArticleOutlineAside");
+    expect(source).toMatch(/<ArticleOutlineAside\s+v-if="outlineColumnVisible"/u);
+    expect(source).toContain(":current-article-id=\"articleId\"");
+    // 抽屉在布局之后：`</div>`（.article-layout 收尾）之后才出现。
+    expect(source.indexOf("<ArticleOutlineAside")).toBeGreaterThan(source.indexOf('<div class="article-layout"'));
   });
 
-  it("切页骨架也占住左栏：骨架拿到了与真实版式同构的信号", () => {
+  it("正文布局恒定两列：不再有 third-column 修饰类（目录不挤正文）", () => {
+    const source = pageSource();
+    const css = readFileSync(join(process.cwd(), "app/assets/css/tailwind.css"), "utf8");
+
+    expect(source).toContain('<div class="article-layout">');
+    expect(source).not.toContain("article-layout--with-outline");
+    expect(css).not.toContain(".article-layout--with-outline");
+  });
+
+  it("切页骨架形态恒定：不再按归属树切换骨架", () => {
     const source = pageSource();
 
-    expect(source).toMatch(/<ArticlePageSkeleton\s+v-if="articleSkeleton"\s+:with-outline="outlineColumnVisible"\s*\/>/u);
+    expect(source).toMatch(/<ArticlePageSkeleton\s+v-if="articleSkeleton"\s*\/>/u);
+    expect(source).not.toContain(":with-outline");
   });
 
   it("右栏标题大纲与阅读进度保持原样（不被左栏替换）", () => {

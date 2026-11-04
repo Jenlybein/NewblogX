@@ -415,7 +415,7 @@ useSeoMeta({
 <template>
   <div class="article-page">
     <!-- 切页先出骨架：正文还没到时按文章页版式占位，不再让 Suspense 等"数据齐了才切页"。 -->
-    <ArticlePageSkeleton v-if="articleSkeleton" :with-outline="outlineColumnVisible" />
+    <ArticlePageSkeleton v-if="articleSkeleton" />
 
     <section v-else-if="articleLoadError" class="article-paper article-paper--state">
       <p class="article-eyebrow">Article</p>
@@ -499,14 +499,9 @@ useSeoMeta({
         />
       </section>
 
-      <div class="article-layout" :class="{ 'article-layout--with-outline': outlineColumnVisible }">
-        <ArticleOutlineAside
-          v-if="outlineColumnVisible"
-          :context="articleOutlineContext"
-          :pending="articleOutlinePending"
-          :current-article-id="articleId"
-        />
-
+      <!-- 目录不再占文章布局的一列（验收反馈：不要挤正文）：它是贴在窗口左边缘的
+           可收起抽屉，见页面末尾的 ArticleOutlineAside。正文布局恒定两列。 -->
+      <div class="article-layout">
         <div class="article-main">
           <section v-if="article?.cover" class="article-paper article-paper--cover">
             <img :src="article.cover" :alt="article.title" class="article-cover" />
@@ -667,6 +662,15 @@ useSeoMeta({
       <!-- 窄屏兜底那条固定条已删除（决定清单 §3 第 12 条）：互动条只在右栏与 hero 下方各一份，
            宽度由 CSS 断点互斥，任何视口都只出现一份可见。 -->
     </template>
+
+    <!-- 目录抽屉：贴在窗口左边缘，展开时覆盖正文（不占列、不挤正文），收起后只剩一条窄标。
+         只有文章真的有归属树时才出现。 -->
+    <ArticleOutlineAside
+      v-if="outlineColumnVisible"
+      :context="articleOutlineContext"
+      :pending="articleOutlinePending"
+      :current-article-id="articleId"
+    />
 
     <ArticleScoreModal
       v-model:show="articleScoreModalOpen"

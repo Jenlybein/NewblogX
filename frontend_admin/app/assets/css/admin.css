@@ -331,20 +331,28 @@
     box-shadow: 0 24px 60px var(--color-shadow);
   }
 
+  /* 登录 hero 是**固定深墨面**，不随主题翻转。
+   *
+   * 修复前的错误：拿 `--color-ink`（正文墨，亮色深 / 暗色浅）当背景，再配
+   * `--color-on-strong`（CTA 内容色，也随主题反相）当字色 —— 两个会翻转的 token
+   * 相乘，结果是"亮色深底、暗色浅底"，暗色主题里出现一整块刺眼的亮面板，而字标
+   * 用 `text-ink` 在两种主题下都几乎看不见。这就是验收反馈的「亮暗色用反了」。
+   *
+   * 正解：深墨面用 `--color-surface-inverse`（两态都是深墨），字用
+   * `--color-on-inverse`（两态都是浅字），次级字用 `--color-on-inverse-muted`。
+   * 背景渐变仍在深墨阶内取两档，不引入第二个色相。 */
   .admin-login-hero {
     @apply flex flex-col gap-8 p-8 md:p-10;
     border-radius: var(--radius-lg);
     border: 1px solid var(--color-line);
-    /* 中性石墨渐变：亮色是白字压深墨，暗色反转为深字压浅墨 —— 文字色与填充
-       一起翻转，所以同一个表达式在两态都成立（不再有克莱因蓝铺色块）。 */
-    background: linear-gradient(135deg, var(--color-ink) 0%, var(--color-ink-muted) 100%);
-    color: var(--color-on-strong);
+    background: linear-gradient(135deg, var(--color-surface-inverse) 0%, var(--color-ink-muted) 100%);
+    color: var(--color-on-inverse);
     box-shadow: 0 24px 60px var(--color-shadow);
   }
 
   .admin-login-hero .muted,
   .admin-login-hero .eyebrow {
-    color: var(--color-on-strong-muted);
+    color: var(--color-on-inverse-muted);
   }
 
   .admin-login-copy h1 {

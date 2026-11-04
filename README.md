@@ -1311,6 +1311,37 @@ curl -sk https://127.0.0.1/health | head -1
 - 逐项验收、破坏性变更对照与已知限制见 [2026-11-04 阅读互动与消息中心批次发布说明](docs/notes/2026-11-04-reading-interactions-release-notes.md)。
 - 浏览历史保留 **90 天**（软删 + 每日 04:10 cron）：上线后第一次清理在次日凌晨执行，不会立刻删数据；`-role` 不含 `cron` 的进程不会跑它。
 
+### 11.4.6 本批（#269 合批：后台加固与私信风控）的一次性部署序列
+
+本批**新增一张表** `chat_block_models`（私信屏蔽 / 拉黑，[ADR-0026](docs/adr/0026-chat-send-side-risk-control.md)），既有三张私信表不加列；契约 `swagger.json` 无变化。串行部署，顺序不可省：
+
+**1. 部署代码（后端 → 读者站 → 后台，逐层验证）**
+
+```bash
+cd /opt/blogx && git merge --ff-only origin/main
+cd deploy/compose/production && set -a && . ./.env && set +a
+docker compose up -d --build blogx_server
+docker compose up -d --build blogx_web
+docker compose up -d --build blogx_admin
+docker compose restart nginx
+```
+
+**2. 手动建新表（漏了这步，屏蔽 / 拉黑会报表不存在，别的功能照常）**
+
+```bash
+docker compose exec blogx_server /app/server -f config/settings.yaml -db
+```
+
+`-db` 执行的都是 `CREATE TABLE IF NOT EXISTS`，可重复跑；不要改成运行时 `AutoMigrate`（见 [11.4.2](#1142-升级到带新表的版本手动建一次表)）。
+
+**3. 冒烟**
+
+- 文章页「私信」→ 进入 `/messages/chat` 并选中该作者（不再是"接入中"toast）。
+- 后台「站点 → 私信」看到并可保存「发送间隔（秒）」「每日上限（条）」两个新字段；改完立刻生效，**不用重启**。
+- 30 分钟并账 tick 会重算私信未读（与文章计数同一个 tick），可在下一次 tick 后核对徽标与会话内数字一致。
+- 图片私信：通过「发送图片」上传一张（走七牛回调 → `image_models`），外链图片被拒。
+- 普通用户拿自己的 token 放进 `blogx_admin_access_token` 时被踢回后台登录页；管理员登录正常。
+
 ### 11.5 回滚
 
 三个镜像 tag 是变量（`env.example` 里已经写好这三行，默认值与 compose 的缺省一致，所以不改也能跑），这是留给回滚的口子：

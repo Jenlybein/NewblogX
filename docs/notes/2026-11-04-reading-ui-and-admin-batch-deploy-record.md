@@ -44,6 +44,24 @@ docker compose up -d --build blogx_admin
 docker compose restart nginx
 ```
 
+## 追加二：目录归属改造（同日 20:50–21:10）
+
+两处"目录"按验收反馈重做，读者站与后台各重建一次（仍然串行，各带一次 nginx 重启）：
+
+| 提交 | 内容 | 上线前的问题 |
+| --- | --- | --- |
+| `257330e` | 阅读页目录改**贴左边缘的可收起抽屉**：竖排窄标 + 左侧滑出面板（`min(20rem, 86vw)`）覆盖正文，点遮罩 / Esc / × 关闭，收起时面板 `inert`；页面布局恒定两列，删掉 `.article-layout--with-outline` 那条 13.5rem 第三列；骨架去掉 `with-outline` | 目录占一列，把正文挤窄，两侧还脱节 |
+| `d9a43a5` | 后台目录树改用 **Naive UI `NTree`**：树线 + 16px 缩进 + 折叠 + 内置拖拽；行内六个按钮收进「⋯」下拉；新增纯函数 `outlineDropIndex` 做落点换算；移除 `sortablejs` + `@types/sortablejs`；补 `.outline-tree` / `.outline-node*` 样式 | 手写 `<ul>` 只有 20px 缩进、没有任何树线与样式，每行还摊开六个按钮 |
+
+验证（实际命令输出）：
+
+- 读者站：`outline-rail__tab` 在产物里命中 4 处，`article-layout--with-outline` **0 处**；`blogx-web` healthy，文章页 / 首页 200。
+- 后台：`outline-node__more` 命中 3 处；`blogx-admin` healthy，`/admin/` 200。
+- 「sortable 字样还在」的解释：`DataTable-D0X4UZZF.mjs` 里的 4 处 `Sortable` 是 **naive-ui 自己的表格列排序术语**（`sortable: true` 那套），不是我们的依赖；`sortablejs` 已从 `package.json` 摘除。
+- 两端口径未动：tokens.css 仍逐字节一致（parity 门禁跑过）。
+
+回滚：两个提交各自只动一个容器，`docker compose up -d blogx_web` / `blogx_admin`（镜像 tag 指回 `2026-11-04-pre250`）即可分别回退。
+
 ## 验证（逐层，都是实际命令输出）
 
 | 层 | 判据 | 结果 |

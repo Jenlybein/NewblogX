@@ -59,6 +59,59 @@ var ArticleCounterMetrics = []CounterMetric{
 	{Task: "同步文章计数", Metric: "评论数", ActiveKey: string(redis_article.ArticleCacheComment), ArticleCol: articlemysql.ArticleCommentCount},
 }
 
+// FlushArticleCounters 执行一次「文章计数并账」：把四个指标在 Redis 里的增量
+// 刷回 article_models，返回各指标处理的条目数之和。
+//
+// 单独导出是为了让用例能驱动**这条真实的任务体**（sqlite + miniredis 即可验证
+// 「重算覆盖 / 增量清空 / 读路径守恒」），而不必起 MySQL 容器；容器用例只守
+// MySQL 才有的语义（affected rows 口径、真实索引）。
+//
+// 写库方式由列本身决定（见 articlemysql.ReconcileArticleCount）：digg / favor
+// 按关系行 COUNT 重算覆盖，view / comment 仍是列 + 增量。并账瞬间同一次事件可能
+// 被「COUNT」与「增量」各算一次，但覆盖写不累积、下一轮自愈——推理写在
+// ReconcileArticleCount 的注释里。
+//
+// 覆盖面：刷盘由"哪个 id 还有增量"驱动，所以重算只发生在**本轮有增量的文章**上。
+// 一篇再没人互动的文章不会被重算——这是 ADR-0025「代价」里认下的范围，不是漏项：
+// 漂移会在下一次有人点赞 / 收藏它时随并账一起被纠正。
+func FlushArticleCounters(ctx context.Context, db *gorm.DB, flusher *rediscounter.Flusher, log rediscounter.Logger) (int, error) {
+	if flusher == nil {
+		return 0, nil
+	}
+	total := 0
+	for _, m := range ArticleCounterMetrics {
+		affected, err := flusher.Flush(ctx, rediscounter.Task{
+			Name:      m.Task,
+			Metric:    m.Metric,
+			ActiveKey: m.ActiveKey,
+			SyncKey:   m.SyncKey(),
+			IDName:    "article_id",
+			ApplyDelta: func(id uint64, delta int) error {
+				hit, err := articlemysql.ReconcileArticleCount(db, m.ArticleCol, id, delta)
+				if err != nil {
+					return err
+				}
+				if !hit {
+					// 文章已删除：丢弃这条增量，不回补。
+					// 回补会让下一轮再撞同一行，永远刷不掉。
+					if log != nil {
+						log.Warnf("同步文章计数: 文章不存在，丢弃增量 article_id=%d 列=%s 增量=%d", id, m.ArticleCol, delta)
+					}
+				}
+				return nil
+			},
+		})
+		if err != nil {
+			if log != nil {
+				log.Errorf("同步文章计数失败: 指标=%s 错误=%v", m.Metric, err)
+			}
+			continue
+		}
+		total += affected
+	}
+	return total, nil
+}
+
 // WireCron 注册并启动定时任务。
 //
 // 这里是唯一知道"哪个 Redis key 对应哪张表的哪一列"的地方：
@@ -94,34 +147,7 @@ func WireCron(infra *Infra, lifecycle *Lifecycle) error {
 		LockKey: "cron:sync_article:lock",
 		LockTTL: counterSyncLockTTL,
 		Run: func(ctx context.Context) (int, error) {
-			total := 0
-			for _, m := range ArticleCounterMetrics {
-				affected, err := flusher.Flush(ctx, rediscounter.Task{
-					Name:      m.Task,
-					Metric:    m.Metric,
-					ActiveKey: m.ActiveKey,
-					SyncKey:   m.SyncKey(),
-					IDName:    "article_id",
-					ApplyDelta: func(id uint64, delta int) error {
-						hit, err := articlemysql.FlushArticleCount(db, m.ArticleCol, id, delta)
-						if err != nil {
-							return err
-						}
-						if !hit {
-							// 文章已删除：丢弃这条增量，不回补。
-							// 回补会让下一轮再撞同一行，永远刷不掉。
-							infra.Logger.Warnf("同步文章计数: 文章不存在，丢弃增量 article_id=%d 列=%s 增量=%d", id, m.ArticleCol, delta)
-						}
-						return nil
-					},
-				})
-				if err != nil {
-					infra.Logger.Errorf("同步文章计数失败: 指标=%s 错误=%v", m.Metric, err)
-					continue
-				}
-				total += affected
-			}
-			return total, nil
+			return FlushArticleCounters(ctx, db, flusher, infra.Logger)
 		},
 	}); err != nil {
 		return err

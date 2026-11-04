@@ -40,7 +40,7 @@ onMounted(load)
 </script>
 
 <template>
-  <div>
+  <div class="admin-settings-panel">
     <NAlert type="warning" :bordered="false" class="mb-4">
       读者站目前<strong>没有 QQ 登录入口</strong>，这里配好了也不会生效（回调链路还没补）。
       先填着无妨，等入口上线即可用。
@@ -52,18 +52,18 @@ onMounted(load)
 
     <NForm v-if="loaded" label-placement="top" :disabled="loading">
       <NFormItem label="AppID">
-        <NInput v-model:value="config.app_id" placeholder="QQ 互联应用管理里的 APP ID" />
+        <NInput v-model:value="config.app_id" class="admin-field--key" placeholder="QQ 互联应用管理里的 APP ID" />
       </NFormItem>
       <NFormItem label="AppKey">
         <NInput
-          v-model:value="config.app_key"
+          v-model:value="config.app_key" class="admin-field--secret"
           type="password"
           show-password-on="click"
           placeholder="留 ****** 表示不修改"
         />
       </NFormItem>
       <NFormItem label="回调地址">
-        <NInput v-model:value="config.redirect" placeholder="https://yourdomain.com/oauth/qq/callback" />
+        <NInput v-model:value="config.redirect" class="admin-field--url" placeholder="https://yourdomain.com/oauth/qq/callback" />
       </NFormItem>
       <NButton type="primary" :loading="saving" @click="save">保存第三方登录配置</NButton>
     </NForm>

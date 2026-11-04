@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import type { ArticleHeadingAnchor } from "~/composables/useArticleMarkdown";
 import { computed, defineAsyncComponent, onMounted, onUnmounted, ref } from "vue";
-import { IconEye, IconHeart, IconMessageCircle2, IconThumbUp } from "@tabler/icons-vue";
+import { IconEye, IconHeart, IconMessageCircle2, IconMessageCirclePlus, IconThumbUp } from "@tabler/icons-vue";
 import { useMessage } from "naive-ui";
 import ArticleActionsBar from "~/components/article/ArticleActionsBar.vue";
 import ArticlePageSkeleton from "~/components/article/ArticlePageSkeleton.vue";
@@ -9,10 +9,9 @@ import ArticleOutlineAside from "~/components/article/ArticleOutlineAside.vue";
 import ArticleScoreModal from "~/components/article/ArticleScoreModal.vue";
 import ArticleTocAnchor from "~/components/article/ArticleTocAnchor.vue";
 import AppAvatar from "~/components/common/AppAvatar.vue";
-import CommentComposer from "~/components/comment/CommentComposer.vue";
+import CommentComposerSheet from "~/components/comment/CommentComposerSheet.vue";
 import CommentThread from "~/components/comment/CommentThread.vue";
 import FavoriteFolderModal from "~/components/favorite/FavoriteFolderModal.vue";
-import { useArticleCommentJump } from "~/composables/useArticleCommentJump";
 import { useArticleDigg } from "~/composables/useArticleDigg";
 import { useArticleComments } from "~/composables/useArticleComments";
 import { useArticleOutlineContext } from "~/composables/useArticleOutlineContext";
@@ -122,8 +121,26 @@ const articleSkeleton = computed(() => articlePending.value && !article.value);
 // 登录态打成失效。分享不在此列：它是纯前端 clipboard、不打任何接口，
 // 游客也应该能复制链接（票 247 的修正）。
 const requireLogin = useReaderLoginGate();
-// 点「回复」后由 composable 回调这里：滚动到评论框并聚焦（票 238 范围 3）。
-const composerRef = ref<{ focusInput: () => void; focus: () => void } | null>(null);
+// 评论输入面板（决定清单 §4）：内嵌输入框退役，改成一枚「去发表评论」按钮 + 底部滑出面板。
+// 登录前置由 `openCommentSheet` 统一收口，未登录只弹登录框、不打接口、不展开面板。
+const commentSheetOpen = ref(false);
+
+async function openCommentSheet() {
+  if (!(await requireLogin())) {
+    return;
+  }
+  commentSheetOpen.value = true;
+}
+
+async function handleCommentInvite() {
+  await openCommentSheet();
+}
+
+function closeCommentSheet() {
+  commentSheetOpen.value = false;
+  // 关闭即清回复目标：下次打开默认是「发表评论」，而不是悄悄接着回复上一个人。
+  clearReplyTarget();
+}
 
 // 评论区状态机（票 238）：回复分页、回复目标、点赞/提交的统一入口。
 // 页面只负责接线与模板渲染，逻辑与登录前置都在 composable 里（可单测）。
@@ -150,7 +167,7 @@ const {
   createComment,
   diggComment,
   refreshArticle: () => refreshArticle(),
-  focusComposer: () => composerRef.value?.focusInput(),
+  openComposer: () => openCommentSheet(),
   notify: message,
 });
 
@@ -251,20 +268,22 @@ function scrollToComments() {
   commentsSectionRef.value?.scrollIntoView({ behavior: prefersReducedMotion.value ? "auto" : "smooth", block: "start" });
 }
 
-function focusCommentComposer() {
-  composerRef.value?.focus();
+/** 「底部」按钮：滚到评论区起点（= 正文末尾）。页脚不是内容，不作为落点。 */
+function handleScrollToEnd() {
+  scrollToComments();
 }
 
-// 评论按钮：未登录先弹登录框、不滚动不聚焦；已登录才滚到 #comments 并聚焦输入框（顺序在 composable 里）。
-const { jumpToComment } = useArticleCommentJump({
-  ensureLoggedIn: () => authStore.initializeSession(),
-  openAuthModal: () => uiStore.openAuthModal(),
-  scrollToComments,
-  focusComposer: focusCommentComposer,
-});
-
+/** 互动条的「评论」：直接开输入面板（未登录先弹登录框），不再滚动 + 聚焦。 */
 function handleCommentJump() {
-  void jumpToComment();
+  void openCommentSheet();
+}
+
+/** 面板提交：成功后收起面板（失败时 composer 已经弹了错误提示，面板保留输入）。 */
+async function handleCommentSubmit(content: string) {
+  const sent = await handleCreateComment(content);
+  if (sent) {
+    closeCommentSheet();
+  }
 }
 
 async function handleShare() {
@@ -357,7 +376,8 @@ function handleArticleHeadingsChange(nextHeadings: ArticleHeadingAnchor[]) {
 }
 
 const commentsPending = computed(() => commentsPager.pending.value);
-const commentPage = computed(() => commentsPager.currentPage.value);
+// 页码不再上屏（决定清单 §3 第 16 条删掉了分页的页码与条数话术），只在翻页按钮的
+// 可用态里用到「有没有上一页 / 下一页」。
 const hasPreviousCommentPage = computed(() => commentsPager.hasPreviousPage.value);
 const hasNextCommentPage = computed(() => commentsPager.hasNextPage.value);
 
@@ -465,6 +485,20 @@ useSeoMeta({
         </div>
       </header>
 
+      <!-- <1024px 的互动条（决定清单 §3 第 13 条）：挂在 hero 下方，正文开头就能看见。
+           ≥1024 由 CSS 让位给右栏那一份；两份不会同时可见，底部永远没有第三条。 -->
+      <section class="article-paper article-actions-card article-actions-card--hero">
+        <ArticleActionsBar
+          v-bind="articleActionProps"
+          variant="hero"
+          @like="handleLike"
+          @favorite="handleFavorite"
+          @share="handleShare"
+          @comment="handleCommentJump"
+          @bottom="handleScrollToEnd"
+        />
+      </section>
+
       <div class="article-layout" :class="{ 'article-layout--with-outline': outlineColumnVisible }">
         <ArticleOutlineAside
           v-if="outlineColumnVisible"
@@ -496,17 +530,20 @@ useSeoMeta({
               <span class="comment-panel__count">{{ formatCount(article?.comment_count || 0) }} 条评论</span>
             </div>
 
-            <CommentComposer
-              ref="composerRef"
-              :logged-in="authStore.isLoggedIn"
-              :loading="commentsPending"
-              :title="replyTarget ? `回复 ${replyTarget.nickname}` : '发表评论'"
-              :placeholder="replyTarget ? '补充你的回复内容…' : '写下你的看法，帮助更多读者补齐思路。'"
-              :submit-label="replyTarget ? '发送回复' : '发表评论'"
-              :can-cancel="Boolean(replyTarget)"
-              @submit="handleCreateComment"
-              @cancel="clearReplyTarget"
-            />
+            <!-- 评论输入面板的入口（决定清单 §4 第 18 条）：内嵌 textarea 退役，
+                 这里只留一枚高对比按钮；点它（或互动条的「评论」、某个楼层的「回复」）都会
+                 从窗口底部居中滑出同一个面板。 -->
+            <div class="comment-panel__invite-row">
+              <button
+                type="button"
+                class="article-action article-action--primary comment-panel__invite"
+                data-role="comment-invite"
+                @click="handleCommentInvite"
+              >
+                <IconMessageCirclePlus :size="18" aria-hidden="true" />
+                <span>去发表评论</span>
+              </button>
+            </div>
 
             <div class="comment-panel__thread">
               <CommentThread
@@ -524,8 +561,12 @@ useSeoMeta({
               />
             </div>
 
-            <div v-if="comments.length" class="comment-panel__pagination">
-              <span>评论第 {{ commentPage }} 页，每页 7 条。</span>
+            <!-- 分页行（决定清单 §3 第 16 条）：不显示分页的页码与条数话术（读者不需要"内部实现"），
+                 翻页按钮保留，但只有第一页且没有下一页时整行都不渲染（不留一排点不动的按钮）。 -->
+            <div
+              v-if="comments.length && (hasPreviousCommentPage || hasNextCommentPage)"
+              class="comment-panel__pagination comment-panel__pagination--bare"
+            >
               <div class="comment-panel__pagination-actions">
                 <button
                   type="button"
@@ -610,6 +651,7 @@ useSeoMeta({
               @favorite="handleFavorite"
               @share="handleShare"
               @comment="handleCommentJump"
+              @bottom="handleScrollToEnd"
             />
           </section>
 
@@ -622,15 +664,8 @@ useSeoMeta({
         </aside>
       </div>
 
-      <!-- <1024px 兜底入口（票 236）：右栏互动条在此宽度由 CSS 让位，这里渲染同一组件 + 同一份 props。 -->
-      <ArticleActionsBar
-        v-bind="articleActionProps"
-        variant="fixed"
-        @like="handleLike"
-        @favorite="handleFavorite"
-        @share="handleShare"
-        @comment="handleCommentJump"
-      />
+      <!-- 窄屏兜底那条固定条已删除（决定清单 §3 第 12 条）：互动条只在右栏与 hero 下方各一份，
+           宽度由 CSS 断点互斥，任何视口都只出现一份可见。 -->
     </template>
 
     <ArticleScoreModal
@@ -640,6 +675,16 @@ useSeoMeta({
       :data="articleScoreSummary ?? null"
       empty-text="当前文章还没有公开评分摘要。"
     />
+
+    <!-- 底部评论输入面板（决定清单 §4）：宽 min(92vw,640px)、居中、无暗色遮罩、
+         点面板外 / Esc / × 都可关闭；提交成功后面板自动收起。 -->
+    <CommentComposerSheet
+      v-model:show="commentSheetOpen"
+      :loading="commentsPending"
+      :title="replyTarget ? `回复 ${replyTarget.nickname}` : '发表评论'"
+      :placeholder="replyTarget ? '补充你的回复内容…' : '写下你的看法，帮助更多读者补齐思路。'"
+      :submit-label="replyTarget ? '发送回复' : '发表评论'"
+      @submit="handleCommentSubmit" />
 
     <FavoriteFolderModal
       v-model:show="favoriteModalOpen"

@@ -370,6 +370,46 @@ export function staleReasonLabel(reason: string | null | undefined): string {
   return STALE_REASON_LABELS[reason ?? ''] ?? '已失效'
 }
 
+/**
+ * 拖拽落点 → 本地扁平行（决定清单 §8 第 37 条）。
+ *
+ * 语义只有两条，都是**按"落点上方的行"决定**（与常见树列表一致，也不需要在拖拽
+ * 过程中维护悬停判定）：
+ *
+ *  - 上方是**文件夹** → 被拖的行成为它的**第一个子行**；
+ *  - 上方是**文章**或落点在首位 → 被拖的行成为它的**兄弟**（同级、紧随其后）。
+ *
+ * 被拖的是一个**块**：文件夹连同它的子树一起移动，子树内部的 parentKey 不变。
+ * 落点若落在自己的块内（等于"移到自己身上"）直接返回原数组。
+ *
+ * 顺序与层级仍然只是本地扁平行，保存时才整树一次性提交（ADR-0023 约束 7 不变）。
+ */
+export function moveOutlineRowToIndex(
+  rows: readonly OutlineFlatRow[],
+  key: string,
+  targetIndex: number,
+): OutlineFlatRow[] {
+  const index = rows.findIndex(row => row.key === key)
+  if (index < 0) return [...rows]
+
+  const end = blockEnd(rows, index)
+  // 落在自己的块里：没有可表达的移动。
+  if (targetIndex > index && targetIndex < end) return [...rows]
+
+  const block = rows.slice(index, end)
+  const rest = [...rows.slice(0, index), ...rows.slice(end)]
+  // 目标下标是"含被拖块"的坐标系 → 换算到"已移除被拖块"的坐标系。
+  const rawInsert = targetIndex > index ? targetIndex - block.length : targetIndex
+  const insertAt = Math.max(0, Math.min(rawInsert, rest.length))
+
+  const above = insertAt > 0 ? rest[insertAt - 1] : undefined
+  const parentKey = !above ? '' : above.kind === 1 ? above.key : above.parentKey
+
+  const moved = block.map((row, offset) => (offset === 0 ? { ...row, parentKey } : row))
+  const next = [...rest.slice(0, insertAt), ...moved, ...rest.slice(insertAt)]
+  return regroupOutlineRows(next)
+}
+
 /** 扁平行 → 嵌套提交 payload：兄弟顺序 = 数组顺序，新节点 id 留空。 */
 export function buildOutlineNodes(rows: readonly OutlineFlatRow[]): OutlineNodeInput[] {
   const children = new Map<string, OutlineFlatRow[]>()

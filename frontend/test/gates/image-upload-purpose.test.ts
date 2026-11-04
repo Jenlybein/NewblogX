@@ -23,8 +23,8 @@ const ENTRY_POINTS: Array<{ file: string; purpose: "cover" | "avatar" | null }> 
   { file: "frontend/app/composables/useInboxCenter.ts", purpose: null },
   // 后台：轮播封面、合集封面、项目封面
   { file: "frontend_admin/app/pages/media/index.vue", purpose: "cover" },
-  { file: "frontend_admin/app/pages/articles/collections.vue", purpose: "cover" },
-  { file: "frontend_admin/app/pages/articles/projects.vue", purpose: "cover" },
+  { file: "frontend_admin/app/components/articles/CollectionEditorOverlay.vue", purpose: "cover" },
+  { file: "frontend_admin/app/components/articles/CollectionEditorOverlay.vue", purpose: "cover" },
 ];
 
 const repoRoot = join(process.cwd(), "..");

@@ -82,3 +82,11 @@ ADR-0019 定下了「SSR 只输出匿名内容 + 客户端补齐用户态」与�
 2. **批量移除按实际语义返回**：`DELETE /articles/favorite/contents` 旧实现把单条失败 `continue` 掉，一条都没成功也回 `OkWithMsg`（成功 + 空 data），前端读 `payload.is_favor` 直接 TypeError。现在全部成功 / 部分成功返回 `{is_favor, favor_count, removed_count, failed_count}`，全部失败返回非 0 业务码 + 明确文案；前端对缺失载荷做空值防御。
 3. **契约与 handler 实际 helper 一致**：`RemoveFavoriteItems` 的 swagger 注解过去声明 `Envelope[ArticleFavoriteResponse]`，失败分支却走 `OkWithMsg`（`data: {}`）。现在成功分支恒走 `OkWithData`，注解改为 `Envelope[ArticleFavoriteRemoveResponse]`，并重生成两端类型。
 4. **页内登录后补取私有态**：页面只在 `onMounted` 判一次 `initializeSession()`，用户在文章页被弹登录框、登录成功后才成为已登录的那条路径拿不到私有态（按钮继续显示未赞）。新增 `useArticlePrivateSession`：`initialize()`（首屏）+ `watch(isLoggedIn)`（false→true）共用单飞闸门，只在客户端跑，一次登录只补一次。顺带删除 `ArticlePrivateState.relation` 这个永为 null 的死字段（只投影 `is_digg` / `is_favor`）。
+
+## 后续修订（2026-11-04，#251 / #252）
+
+正文的决策与约束原文不改，本节补两处**落地口径**（一处是本节第 4 条的直接延续，一处把计数真相推进到持久化层）：
+
+1. **私有态投影从 2 个布尔扩到 4 个字段（#251）**。上一节第 4 条留下的投影只有 `is_digg` / `is_favor`。硬刷新时页面命中的是 30 秒匿名 SSR HTML，payload 里的 `digg_count` / `favor_count` 是**写请求之前**的快照；而私有态那次请求本来就是带鉴权的详情响应，里面带着同一次渲染的权威计数，却被投影丢掉，于是出现用户反馈的「点赞了，但点赞数未更新」。现在的口径：`pickArticlePrivateState` 投影 `{is_digg, is_favor, digg_count, favor_count}`，回填时四个字段一起写回正文；计数仍然**不进** payload、不进 30 秒 SWR（`article-private-<id>` 永远 miss），匿名读到的计数照旧最多脏 30 秒。门禁落在 `test/utils/readerPrivateFields.test.ts`（四字段投影 + 脏值归零）、`test/composables/useArticlePageSources.test.ts`（计数覆盖 payload 旧值）、`test/gates/reader-private-state.test.ts`（源码层锁 4 字段，带 canary）。
+2. **计数持久化改按关系行重算（#252）**。本条把「权威值只来自服务端」推到写路径的终点：30 分钟并账不再累加增量，而是 `digg_count = COUNT(关系行)`、`favor_count = COUNT(收藏行)` 直接覆盖整列，增量只做两次并账之间的读路径叠加；收藏内容列表（`favorite/contents`）补上同口径的增量合并，避免"列表与详情两个数字"。细节与代价见 [ADR-0025](./0025-count-ledger-and-reconciliation.md)。
+3. 相关代码：`frontend/app/utils/readerPrivateFields.ts`、`frontend/app/composables/useArticlePageSources.ts`、`backend/internal/article/adapter/mysql/counter_flush.go`、`backend/app/cron_wiring.go`、`backend/internal/article/app/subdomain.go`。

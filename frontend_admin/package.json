@@ -34,6 +34,7 @@
     "naive-ui": "^2.44.1",
     "nuxt": "^4.4.2",
     "pinia": "^3.0.4",
+    "sortablejs": "^1.15.7",
     "vue": "^3.5.31",
     "vue-router": "^5.0.4"
   },
@@ -41,8 +42,10 @@
     "@nuxt/eslint": "^1.17.0",
     "@nuxt/eslint-config": "^1.17.0",
     "@types/node": "^26.6.5",
+    "@types/sortablejs": "^1.15.9",
     "@vitejs/plugin-vue": "^6.0.10",
     "@vitest/coverage-v8": "^4.1.12",
+    "@vue/test-utils": "^2.5.1",
     "eslint": "^9.39.5",
     "happy-dom": "^21.0.4",
     "openapi-typescript": "^7.13.0",

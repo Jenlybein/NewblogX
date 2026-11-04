@@ -150,8 +150,8 @@ export async function useArticlePageSources(options: ArticlePageSourcesOptions) 
     { server: false, lazy: true, immediate: false, getCachedData: () => undefined },
   );
 
-  // 私有态只补进本次渲染的正文（按钮据此显示"已点赞"），不写回缓存：
-  // 下一次重进仍按匿名 payload 先渲染，再由页面补一次私有态请求。
+  // 私有态补进本次渲染的正文（按钮据此显示"已点赞"，数字据此覆盖 SSR payload 的旧值），
+  // 不写回缓存：下一次重进仍按匿名 payload 先渲染，再由页面补一次私有态请求。
   function applyArticlePrivateState(state: ArticlePrivateState | null | undefined) {
     if (!state || !articleSource.data.value) {
       return;
@@ -160,6 +160,10 @@ export async function useArticlePageSources(options: ArticlePageSourcesOptions) 
       ...articleSource.data.value,
       is_digg: state.is_digg,
       is_favor: state.is_favor,
+      // 权威计数一起回填（ADR-0024 后续修订）：payload 里的数字是写之前的快照，
+      // 只补两个布尔会留下"按钮已赞、数字没变"。
+      digg_count: state.digg_count,
+      favor_count: state.favor_count,
     };
   }
 

@@ -157,10 +157,10 @@ async function submitSearch() {
           </button>
         </form>
 
-        <!-- <640px：动作区放不下的「消息中心」收进折叠面板（同一份子项表）。
+        <!-- <640px：动作区放不下的「消息」收进折叠面板（同一份子项表）。
              ≥640 时这块整体隐藏，动作区用图标 + 红点 / ≥1024 带文字。 -->
-        <nav v-if="authStore.isLoggedIn" class="site-messages-mobile" aria-label="消息中心">
-          <span class="eyebrow">消息中心</span>
+        <nav v-if="authStore.isLoggedIn" class="site-messages-mobile" aria-label="消息">
+          <span class="eyebrow">消息</span>
           <NuxtLink
             v-for="item in messageNavItems"
             :key="item.key"
@@ -208,8 +208,9 @@ async function submitSearch() {
           <span class="site-header__write-label">创作</span>
         </button>
 
-        <!-- 消息中心（第 239 票）：hover / 键盘聚焦展开五子项；<1024 仅图标 + 红点，
-             <640 整体移进折叠面板。子项未读数与页面内导航同源（messageCenterNavItems）。 -->
+        <!-- 消息（第 239 票）：hover / 键盘聚焦展开五子项；<1024 仅图标 + 红点，
+             <640 整体移进折叠面板。子项未读数与页面内导航同源（messageCenterNavItems）。
+             文案「消息」只改导航标签；`/messages` 页面标题与领域术语仍叫「消息中心」。 -->
         <div
           v-if="authStore.isLoggedIn"
           class="site-messages"
@@ -224,14 +225,14 @@ async function submitSearch() {
             class="site-action site-header__messages"
             aria-haspopup="menu"
             :aria-expanded="messagesOpen"
-            :aria-label="totalUnread ? `消息中心（${totalUnread} 条未读）` : '消息中心'"
+            :aria-label="totalUnread ? `消息（${totalUnread} 条未读）` : '消息'"
           >
             <IconBell :size="18" aria-hidden="true" />
-            <span class="site-header__messages-label">消息中心</span>
+            <span class="site-header__messages-label">消息</span>
             <span v-if="totalUnread" class="site-header__dot" aria-hidden="true"></span>
           </NuxtLink>
 
-          <div v-if="messagesOpen" class="site-messages__panel" role="menu" aria-label="消息中心子项">
+          <div v-if="messagesOpen" class="site-messages__panel" role="menu" aria-label="消息子项">
             <NuxtLink
               v-for="item in messageNavItems"
               :key="item.key"
@@ -250,7 +251,7 @@ async function submitSearch() {
         <NuxtLink
           v-if="authStore.isLoggedIn"
           to="/history"
-          class="site-header__history"
+          class="site-action site-header__history"
           data-chrome="history"
           aria-label="浏览历史"
         >
@@ -619,24 +620,12 @@ async function submitSearch() {
   display: none;
 }
 
-/* ---- 历史入口（第 241 票） ---------------------------------------------------
- * ≥1280 动作区普通链接（hover 不展开面板）；640–1279 收进头像菜单；
- * <640 收进折叠面板。三档只显示其中一处，避免同一入口在屏幕里出现两次。 */
+/* ---- 历史入口（第 241 票；2026-11-04 决定清单 §5 第 27 条）--------------------
+ * 与「消息」同一套胶囊（`.site-action`：边框 + 图标 + 文字），不再是无边框裸链接。
+ * 出现档位也与消息一致：≥1024 常显；640–1023 由头像菜单承担；<640 进折叠面板。
+ * 三档只显示其中一处，避免同一入口在屏幕里出现两次。 */
 .site-header__history {
   display: none;
-  align-items: center;
-  gap: 0.375rem;
-  min-height: 2.75rem;
-  padding: 0 0.5rem;
-  color: var(--color-ink-muted);
-  font-size: 0.8125rem;
-  text-decoration: none;
-  transition: color var(--motion-fast) var(--motion-ease);
-}
-
-.site-header__history:hover,
-.site-header__history:focus-visible {
-  color: var(--color-ink);
 }
 
 .site-history-mobile {
@@ -718,14 +707,12 @@ async function submitSearch() {
     display: inline;
   }
 
-  /* ≥1024px 消息中心才显示文字（640–1023 只留图标 + 红点）。 */
+  /* ≥1024px 消息才显示文字（640–1023 只留图标 + 红点）。 */
   .site-header__messages-label {
     display: inline;
   }
-}
 
-/* ≥1280px：动作区放得下「消息中心 + 历史」两个文字入口（<1280 历史收进头像菜单）。 */
-@media (min-width: 1280px) {
+  /* 历史与消息同档：≥1024 常显（此前是 ≥1280，1024–1279 只能去头像菜单里找）。 */
   .site-header__history {
     display: inline-flex;
   }

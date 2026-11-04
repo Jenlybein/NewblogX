@@ -44,7 +44,7 @@ onMounted(load)
 </script>
 
 <template>
-  <div>
+  <div class="admin-settings-panel">
     <NAlert type="info" :bordered="false" class="mb-4">
       这里有两层开关：「启用 AI 助手」是整站总闸；下方「模型配置」里<strong>启用</strong>的那一条
       决定实际用哪家模型。总闸关掉时，即使有启用的模型配置也不可用。
@@ -55,26 +55,26 @@ onMounted(load)
         <NSwitch v-model:value="config.enable" />
       </NFormItem>
       <NFormItem label="助手昵称">
-        <NInput v-model:value="config.nickname" />
+        <NInput v-model:value="config.nickname" class="admin-field--key" />
       </NFormItem>
       <NFormItem label="助手头像 URL">
-        <NInput v-model:value="config.avatar" />
+        <NInput v-model:value="config.avatar" class="admin-field--url" />
       </NFormItem>
       <NFormItem label="助手简介">
-        <NInput v-model:value="config.abstract" type="textarea" :autosize="{ minRows: 2, maxRows: 4 }" />
+        <NInput v-model:value="config.abstract" class="admin-field--long" type="textarea" :autosize="{ minRows: 2, maxRows: 4 }" />
       </NFormItem>
       <NSpace :size="12" class="w-full">
         <NFormItem label="请求超时（秒）">
-          <NInputNumber v-model:value="config.timeout_sec" :min="1" :max="600" />
+          <NInputNumber v-model:value="config.timeout_sec" class="admin-field--number" :min="1" :max="600" />
         </NFormItem>
         <NFormItem label="最大输入字符">
-          <NInputNumber v-model:value="config.max_input_chars" :min="100" />
+          <NInputNumber v-model:value="config.max_input_chars" class="admin-field--number" :min="100" />
         </NFormItem>
         <NFormItem label="每日配额（0 不限）">
-          <NInputNumber v-model:value="config.daily_quota" :min="0" />
+          <NInputNumber v-model:value="config.daily_quota" class="admin-field--number" :min="0" />
         </NFormItem>
         <NFormItem label="采样温度">
-          <NInputNumber v-model:value="config.temperature" :min="0" :max="2" :step="0.1" />
+          <NInputNumber v-model:value="config.temperature" class="admin-field--number" :min="0" :max="2" :step="0.1" />
         </NFormItem>
       </NSpace>
       <NButton type="primary" :loading="saving" @click="save">保存 AI 助手配置</NButton>

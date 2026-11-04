@@ -59,10 +59,16 @@ function withoutComments(source: string): string {
 }
 
 describe('旧排列页与收录弹窗已退役', () => {
-  it('两个排列页文件不存在，目录编排页仍在', () => {
+  it('三个旧编排页都不存在：编排收进合集 / 项目编辑弹窗', () => {
     expect(existsSync(join(articlesDir, 'collection-arrange.vue'))).toBe(false)
     expect(existsSync(join(articlesDir, 'project-arrange.vue'))).toBe(false)
-    expect(existsSync(join(articlesDir, 'outline.vue'))).toBe(true)
+    // 决定清单 §8 第 35 条：独立的「目录编排」页也退役，编排只存在于编辑弹窗的抽屉里。
+    expect(existsSync(join(articlesDir, 'outline.vue'))).toBe(false)
+
+    // 唯一的编排实现是共用组件，由编辑弹窗按 kind 复用（合集 / 项目各一次）。
+    const overlay = readFileSync(join(projectDir, 'app/components/articles/CollectionEditorOverlay.vue'), 'utf8')
+    expect(overlay).toContain('<OutlineTreeEditor')
+    expect(overlay).toContain(':kind="kind"')
   })
 
   it('合集 / 项目列表页不再有「收录管理」弹窗', () => {
@@ -74,22 +80,23 @@ describe('旧排列页与收录弹窗已退役', () => {
     }
   })
 
-  it('菜单没有旧排列入口，目录编排是「文章管理」组里唯一的编排入口', () => {
+  it('菜单没有旧排列入口，也没有独立的编排入口', () => {
     const paths = ADMIN_NAV.map(item => item.path)
     expect(paths).not.toContain('/articles/collection-arrange')
     expect(paths).not.toContain('/articles/project-arrange')
+    expect(paths).not.toContain('/articles/outline')
     expect(paths.filter(path => path.startsWith('/articles/'))).toEqual([
       '/articles/hot-top',
       '/articles/collections',
       '/articles/projects',
-      '/articles/outline',
     ])
+    // 编排不再是菜单项：它是合集 / 项目卡片上的「编排目录树」按钮。
+    expect(FLAT_NAV.filter(item => item.label.includes('编排'))).toEqual([])
     const articleGroup = ADMIN_NAV_TREE.find(node => node.label === '文章管理')!
-    expect(articleGroup.children!.filter(child => child.label.includes('编排')).map(child => child.label)).toEqual(['目录编排'])
-    expect(FLAT_NAV.filter(item => item.label.includes('编排')).map(item => item.label)).toEqual(['目录编排'])
+    expect(articleGroup.children!.filter(child => child.label.includes('编排'))).toEqual([])
   })
 
-  it('页面数量硬断言：25 个页面退役两个排列页后剩 23 个', () => {
+  it('页面数量硬断言：25 个页面退役两个排列页与编排页后剩 22 个', () => {
     const pages: string[] = []
     const walk = (dir: string) => {
       for (const entry of readdirSync(dir, { withFileTypes: true })) {
@@ -99,7 +106,7 @@ describe('旧排列页与收录弹窗已退役', () => {
       }
     }
     walk(pagesDir)
-    expect(pages.length).toBe(23)
+    expect(pages.length).toBe(22)
   })
 
   /**

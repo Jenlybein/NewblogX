@@ -40,7 +40,7 @@ onMounted(load)
 </script>
 
 <template>
-  <div>
+  <div class="admin-settings-panel">
     <NAlert type="info" :bordered="false" class="mb-4">
       白名单是<strong>整体替换</strong>，不是追加：删掉某一项再保存，该格式就立刻不能再上传。
       填写时不要带点（写 <code>jpg</code>，不要写 <code>.jpg</code>），大小写不敏感。

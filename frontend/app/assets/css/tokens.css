@@ -129,7 +129,10 @@
   --font-cjk: -apple-system, BlinkMacSystemFont, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", "Noto Sans SC", sans-serif; /* 中文组唯一来源：全是系统族；末位 Noto 只在装了 Noto 的机器上命中，不产生下载 */
   --font-sans: var(--font-latin), var(--font-cjk); /* 拉丁在前、中文系统栈在后（中文组已含 sans-serif 兜底） */
   --font-mono: "Cascadia Code", "JetBrains Mono", "Sofia Sans Mono", ui-monospace, monospace; /* 代码块 / 行内代码 / 刻度 */
-  --type-measure: 68ch; /* 正文行宽 */
+  /* 正文行宽：80ch（决定清单 §9 第 43 条）。原来的 68ch 在 1440+ 视口里
+     让正文列相对纸面太窄，两侧留白像"没铺满"；80ch 约 40 个汉字/行，
+     仍在中文可读区间内，同时把正文与卡片的宽度比拉回正常。 */
+  --type-measure: 80ch;
   --type-leading-prose: 1.75; /* 中文正文行高 */
   --type-leading-title: 1.15; /* 标题行高 */
   --type-tracking-title: -0.03em; /* 大标题字距（苹果式紧凑档） */
@@ -142,6 +145,7 @@
    * 只允许动 transform / opacity；下面 media 查询在「减少动态」时把它们全部归零。 */
   --motion-fast: 120ms; /* 微交互（hover/focus 反馈） */
   --motion-base: 200ms; /* 进出场 / 路由切换 */
+  --motion-slow: 320ms; /* 大块进出场：评论输入面板上滑、合集抽屉展开 */
   --motion-ease: cubic-bezier(0.2, 0.8, 0.2, 1); /* 全站唯一缓动曲线 */
   --motion-reveal-offset: 12px; /* 区块级滚动进场位移上限（ADR-0012 决策 7） */
   --parallax-max: 10px; /* 视差上限 */
@@ -277,6 +281,7 @@
   :root {
     --motion-fast: 0ms;
     --motion-base: 0ms;
+    --motion-slow: 0ms;
     --motion-reveal-offset: 0px;
     --parallax-max: 0px;
   }

@@ -128,13 +128,16 @@ describe("同义孪生：首页与文章页分页条的同类说明一并消失"
     expect(findRemovedCopy(home)).toEqual([]);
   });
 
-  it("文章页评论分页条只删解释性措辞，页码/条数这类事实信息保留", () => {
+  it("文章页评论分页条：连「页码 / 每页条数」这类内部话术一起删（决定清单 §3 第 16 条）", () => {
     const article = read(readerFiles.articlePage);
 
     expect(findRemovedCopy(article)).toEqual([]);
     expect(article).not.toContain("已加载");
-    // 事实信息留着：读者仍知道自己翻到第几页。
-    expect(article).toMatch(/评论第\s*\{\{\s*commentPage\s*\}\}\s*页/u);
+    // 2026-11-04 口径变更：这行是"每页 7 条"的实现细节，读者不需要；
+    // 翻页按钮保留，且第一页没有下一页时整行都不渲染。
+    expect(article).not.toMatch(/评论第/u);
+    expect(article).not.toContain("每页");
+    expect(article).toContain("hasPreviousCommentPage || hasNextCommentPage");
   });
 
   it("文章页分页行仍带左侧事实信息：justify-between 与间距类照旧，按钮组不被挤歪", () => {
@@ -142,7 +145,8 @@ describe("同义孪生：首页与文章页分页条的同类说明一并消失"
     const rowBlock = blockAfter(css, ".comment-panel__pagination {");
     const actionsBlock = blockAfter(css, ".comment-panel__pagination-actions {");
 
-    // 文章页保留「评论第 N 页，每页 7 条」事实信息，左侧仍有元素，所以两端对齐不变。
+    // 文章页现在只有翻页按钮（事实信息已删），所以用的是 flex-end 变体；
+    // 基础行仍是两端对齐，按钮组自己的 flex/gap 不变。
     expect(rowBlock).toContain("justify-between");
     expect(rowBlock).toContain("flex");
     expect(rowBlock).toContain("gap-3");

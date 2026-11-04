@@ -73,7 +73,7 @@ function harness(options: { loggedIn?: boolean; replyPages?: Record<string, Reco
   const createComment = vi.fn(async () => ({}) as unknown);
   const diggComment = vi.fn(async () => ({}) as unknown);
   const refreshArticle = vi.fn(async () => undefined);
-  const focusComposer = vi.fn();
+  const openComposer = vi.fn();
   const notify = { success: vi.fn(), error: vi.fn() };
   const requireLogin = vi.fn(async () => options.loggedIn ?? true);
   const replyPageSize = 3;
@@ -86,7 +86,7 @@ function harness(options: { loggedIn?: boolean; replyPages?: Record<string, Reco
     createComment,
     diggComment,
     refreshArticle,
-    focusComposer,
+    openComposer,
     notify,
     replyPageSize,
   });
@@ -99,7 +99,7 @@ function harness(options: { loggedIn?: boolean; replyPages?: Record<string, Reco
     createComment,
     diggComment,
     refreshArticle,
-    focusComposer,
+    openComposer,
     notify,
     requireLogin,
   };
@@ -192,31 +192,31 @@ describe("评论区：子评论点赞", () => {
 
 describe("评论区：回复目标精确到被回复的那条评论", () => {
   it("点子评论的「回复」→ replyTarget 指该子评论（不是根评论），并把焦点交给评论框", async () => {
-    const { section, focusComposer } = harness();
+    const { section, openComposer } = harness();
     await section.handleLoadReplies("c1");
 
     section.handleReply("r1");
 
     expect(section.replyTarget.value).toEqual({ id: "r1", nickname: "读者乙", rootId: "c1" });
-    expect(focusComposer).toHaveBeenCalledTimes(1);
+    expect(openComposer).toHaveBeenCalledTimes(1);
   });
 
   it("点根评论的「回复」→ replyTarget 仍是该根评论（rootId 与 id 相同）", () => {
-    const { section, focusComposer } = harness();
+    const { section, openComposer } = harness();
 
     section.handleReply("c1");
 
     expect(section.replyTarget.value).toEqual({ id: "c1", nickname: "读者甲", rootId: "c1" });
-    expect(focusComposer).toHaveBeenCalledTimes(1);
+    expect(openComposer).toHaveBeenCalledTimes(1);
   });
 
   it("点到不存在的评论：不产生回复目标，也不去聚焦（避免标题空白）", () => {
-    const { section, focusComposer } = harness();
+    const { section, openComposer } = harness();
 
     section.handleReply("ghost");
 
     expect(section.replyTarget.value).toBeNull();
-    expect(focusComposer).not.toHaveBeenCalled();
+    expect(openComposer).not.toHaveBeenCalled();
   });
 });
 

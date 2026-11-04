@@ -24,21 +24,34 @@ const adminPackage = JSON.parse(readFileSync(join(projectDir, "../frontend_admin
   devDependencies?: Record<string, string>;
 };
 
-/** 取出某个媒体查询块内的内容（够用即可，不做完整 CSS 解析）。 */
-function mediaBlock(css: string, query: string): string {
-  const start = css.indexOf(`@media (${query})`);
-  expect(start).toBeGreaterThan(-1);
-  // 从媒体查询的左花括号起，按括号配对找到块尾。
-  const open = css.indexOf("{", start);
-  let depth = 0;
-  for (let index = open; index < css.length; index += 1) {
-    if (css[index] === "{") depth += 1;
-    if (css[index] === "}") {
-      depth -= 1;
-      if (depth === 0) return css.slice(open + 1, index);
+/**
+ * 取出某个媒体查询块内的内容（够用即可，不做完整 CSS 解析）。
+ *
+ * 同名媒体查询可能有多段（例如「减少动态」既管路由过渡、也管评论面板上滑），
+ * 所以可以传 `anchor`：只返回**包含该选择器**的那一段，避免"永远取第一段"这种
+ * 位置假设 —— 往文件前面加一段同类媒体查询就会把用例打红。
+ */
+function mediaBlock(css: string, query: string, anchor?: string): string {
+  let from = 0;
+  for (;;) {
+    const start = css.indexOf(`@media (${query})`, from);
+    expect(start, `找不到 @media (${query})${anchor ? ` 且包含 ${anchor}` : ""}`).toBeGreaterThan(-1);
+    // 从媒体查询的左花括号起，按括号配对找到块尾。
+    const open = css.indexOf("{", start);
+    let depth = 0;
+    for (let index = open; index < css.length; index += 1) {
+      if (css[index] === "{") depth += 1;
+      if (css[index] === "}") {
+        depth -= 1;
+        if (depth === 0) {
+          const block = css.slice(open + 1, index);
+          if (!anchor || block.includes(anchor)) return block;
+          from = start + 1;
+          break;
+        }
+      }
     }
   }
-  throw new Error("媒体查询块没有闭合");
 }
 
 /** 取页面过渡相关规则里声明的属性名（去重）。 */
@@ -55,18 +68,25 @@ function pageTransitionProperties(): string[] {
 }
 
 describe("动效 token 进既有 token 体系（不另发明一套变量）", () => {
-  // 注意这里是**现存**的两档 + 缓动，不是最初那四档：`--motion-slow` 与
-  // `--motion-stagger` 全仓 var() 引用数为 0，已按 spec A2 从两份 tokens.css
-  // 删除（stagger 的 delay 由 motion.ts 的 staggerDelayMs 直接算毫秒，不经 CSS
-  // 变量）。删的依据不是"看着没用"，而是确认为零引用。
+  // 三档时长都保留，但 `--motion-slow` 是**按需存在**的：它曾在全仓 var() 引用数为 0
+  // 时被删过一次（spec A2）。2026-11-04 评论输入面板上滑给了它第一个消费者
+  // （`.comment-sheet__panel` 的 animation），于是它必须回来——否则面板只能写死 320ms。
+  // `--motion-stagger` 仍然没有消费者（delay 由 motion.ts 的 staggerDelayMs 直接算毫秒）。
   it("三档时长 + 单一缓动 + stagger 节奏都在 tokens.css 里", () => {
     expect(tokensCss).toContain("--motion-fast: 120ms");
     expect(tokensCss).toContain("--motion-base: 200ms");
+    expect(tokensCss).toContain(`--motion-slow: ${MOTION_DURATIONS_MS.slow}ms`);
     expect(tokensCss).toContain("--motion-ease: cubic-bezier(0.2, 0.8, 0.2, 1)");
   });
 
-  it("无消费者的 --motion-slow / --motion-stagger 已删除（留额度与实际不一致）", () => {
-    expect(tokensCss).not.toContain("--motion-slow");
+  it("slow 档必须有真实消费者，否则该删（当前消费者是评论面板上滑）", () => {
+    const tailwindCss = readFileSync(join(process.cwd(), "app/assets/css/tailwind.css"), "utf8");
+
+    expect(tailwindCss).toContain("var(--motion-slow)");
+    expect(tailwindCss).not.toMatch(/animation:\s*comment-sheet-rise\s+\d+ms/u);
+  });
+
+  it("无消费者的 --motion-stagger 仍然删除（留额度与实际不一致）", () => {
     expect(tokensCss).not.toContain("--motion-stagger");
   });
 
@@ -96,12 +116,12 @@ describe("CSS 侧的「减少动态」全局降级", () => {
   it("现存动效 token 全部归零（静态，而不是慢慢动）", () => {
     expect(reduced).toContain("--motion-fast: 0ms");
     expect(reduced).toContain("--motion-base: 0ms");
+    expect(reduced).toContain("--motion-slow: 0ms");
     expect(reduced).toContain("--motion-reveal-offset: 0px");
     expect(reduced).toContain("--parallax-max: 0px");
   });
 
   it("减少动态块里不再有已删除的旧 token", () => {
-    expect(reduced).not.toContain("--motion-slow");
     expect(reduced).not.toContain("--motion-stagger");
   });
 
@@ -135,7 +155,7 @@ describe("路由切换过渡", () => {
   });
 
   it("减少动态下路由过渡直接关掉", () => {
-    const reduced = mediaBlock(tailwindCss, "prefers-reduced-motion: reduce");
+    const reduced = mediaBlock(tailwindCss, "prefers-reduced-motion: reduce", ".page-enter-active");
 
     expect(reduced).toContain(".page-enter-active");
     expect(reduced).toContain("transition: none");

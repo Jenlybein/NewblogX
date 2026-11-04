@@ -5,12 +5,11 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import CommentComposer from "~/components/comment/CommentComposer.vue";
 
 /**
- * 评论输入框的对外协议（票 238 范围 3/6/7）。
+ * 评论输入本的对外协议（2026-11-04 决定清单 §4 第 18/24/25 条）。
  *
  * 三件事：
- *  1. 点「回复」后页面要能把握手权交回这里（`focusInput()`：滚动到框 + `focus()`），
- *     所以 textarea 的 ref / 聚焦方法必须暴露出去；
- *  2. 「已登录，可直接评论」这句解释性文案删掉，未登录仍提示「登录后可参与讨论」；
+ *  1. 它现在长在底部滑出面板里，只负责**输入 + 提交**；聚焦由面板调用 `focus()`；
+ *  2. 登录提示与写死的装饰标签行都已退役（未登录点入口就弹登录框，语义自明）；
  *  3. 未登录提交只弹登录框、不发请求（否则请求层会把登录态打成失效）。
  */
 
@@ -55,33 +54,36 @@ function mountComposer(props: Record<string, unknown> = {}) {
   return mount(CommentComposer, { props });
 }
 
-describe("CommentComposer：登录提示文案", () => {
-  it("已登录时不出现「已登录，可直接评论」这类解释", () => {
-    const wrapper = mountComposer({ loggedIn: true });
+describe("CommentComposer：文案精简", () => {
+  it("没有任何登录提示（提示随内嵌输入框一起退役）", () => {
+    for (const loggedIn of [true, false]) {
+      const wrapper = mountComposer({ loggedIn });
 
-    expect(wrapper.text()).not.toContain("已登录");
-    expect(wrapper.find(".comment-composer__status").exists()).toBe(false);
+      expect(wrapper.text()).not.toContain("已登录");
+      expect(wrapper.text()).not.toContain("登录后");
+      expect(wrapper.find(".comment-composer__status").exists()).toBe(false);
+    }
   });
 
-  it("未登录仍提示「登录后可参与讨论」", () => {
-    const wrapper = mountComposer({ loggedIn: false });
+  it("写死的装饰标签行退役（假标签会让人以为能选）", () => {
+    const wrapper = mountComposer();
 
-    expect(wrapper.get(".comment-composer__status").text()).toBe("登录后可参与讨论");
+    expect(wrapper.find(".comment-composer__tags").exists()).toBe(false);
+    expect(wrapper.text()).not.toContain("接口设计");
   });
 });
 
-describe("CommentComposer：聚焦与滚动", () => {
-  it("focusInput() 把评论框滚进视口并聚焦 textarea（点「回复」后页面直接调它）", async () => {
+describe("CommentComposer：聚焦", () => {
+  it("focus() 只聚焦 textarea，不滚动页面（面板负责位置）", () => {
     const scrollIntoView = vi.fn();
     const originalScroll = HTMLElement.prototype.scrollIntoView;
     HTMLElement.prototype.scrollIntoView = scrollIntoView;
 
     try {
-      // 挂到真实 document 上：`focus()` 只有元素在文档里才会真的改变 activeElement。
-      const wrapper = mount(CommentComposer, { props: { loggedIn: true }, attachTo: document.body });
-      wrapper.vm.focusInput();
+      const wrapper = mount(CommentComposer, { attachTo: document.body });
+      wrapper.vm.focus();
 
-      expect(scrollIntoView).toHaveBeenCalledTimes(1);
+      expect(scrollIntoView).not.toHaveBeenCalled();
       expect(document.activeElement).toBe(wrapper.get("textarea").element);
       wrapper.unmount();
     } finally {

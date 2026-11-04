@@ -280,6 +280,17 @@ func (i *Item) CommentCount() int { return i.commentCount }
 // FavorCount 返回文章收藏数（读模型）。
 func (i *Item) FavorCount() int { return i.favorCount }
 
+// AddCounters 用缓存增量修正计数。
+//
+// 与 Article.AddCounters 同一口径：读路径永远是「库内列 + Redis 增量」，
+// 收藏内容列表因此和详情 / 列表给出同一个数字（ADR-0025 决策 3）。
+func (i *Item) AddCounters(delta domain.Counters) {
+	i.viewCount += delta.View
+	i.diggCount += delta.Digg
+	i.commentCount += delta.Comment
+	i.favorCount += delta.Favor
+}
+
 // WithAuthorProfile 补全作者昵称与头像（调用方从用户模块取）。
 func (i *Item) WithAuthorProfile(nickname, avatar string) *Item {
 	i.authorNickname = nickname

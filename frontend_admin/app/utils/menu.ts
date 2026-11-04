@@ -84,7 +84,6 @@ export const ADMIN_NAV_TREE: AdminNavNode[] = [
       // 项目与合集并列的独立内容实体，维护页同样落在「文章管理」下。
       { label: '项目管理', path: '/articles/projects', icon: 'article' },
       // 目录树编辑器：合集与项目的收录 / 顺序 / 层次只有一个入口（#218 起）。
-      { label: '目录编排', path: '/articles/outline', icon: 'article' },
     ],
   },
   { label: '用户管理', path: '/users', icon: 'users' },

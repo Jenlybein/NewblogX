@@ -45,10 +45,17 @@ describe("describeArticleAction：四个动作的读屏名称与悬停提示", (
     });
   });
 
-  it("评论：说明点它会把焦点送进评论框", () => {
+  it("评论：说明点它会打开评论输入框（不是「跳到评论区」——那是底部按钮的活）", () => {
     expect(describeArticleAction({ kind: "comment", count: 7 })).toEqual({
-      label: "跳到评论区写评论，当前 7 条评论",
+      label: "打开评论输入框，当前 7 条评论",
       title: "评论",
+    });
+  });
+
+  it("底部：只负责滚动，与评论按钮语义区分开", () => {
+    expect(describeArticleAction({ kind: "bottom", count: 0 })).toEqual({
+      label: "跳到页面底部（评论区）",
+      title: "到底",
     });
   });
 });
@@ -57,7 +64,7 @@ describe("describeArticleAction：边界与在途态", () => {
   it("计数为负 / 非数字时按 0 说，不把 NaN 念给读屏", () => {
     expect(describeArticleAction({ kind: "digg", count: -3, active: false }).label).toBe("点赞，当前 0 个赞");
     expect(describeArticleAction({ kind: "comment", count: Number.NaN }).label).toBe(
-      "跳到评论区写评论，当前 0 条评论",
+      "打开评论输入框，当前 0 条评论",
     );
   });
 
@@ -71,7 +78,7 @@ describe("describeArticleAction：边界与在途态", () => {
   it("千级以上计数沿用站内 formatCount 口径（1.2k），不另造一套缩写", () => {
     expect(describeArticleAction({ kind: "digg", count: 1234, active: false }).label).toBe("点赞，当前 1.2k 个赞");
     expect(describeArticleAction({ kind: "comment", count: 12000, active: false }).label).toBe(
-      "跳到评论区写评论，当前 1.2w 条评论",
+      "打开评论输入框，当前 1.2w 条评论",
     );
   });
 });

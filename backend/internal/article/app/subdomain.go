@@ -298,6 +298,9 @@ func (s *Service) DeleteFolders(ctx context.Context, viewer domain.Viewer, ids [
 // 读面，开关关闭时作者不是管理员的收藏条目不再出现（ADR-0017 决策 4）。
 // 过滤下推到查询层（favorite.Repository.ListItems），否则当页条数与 total
 // 会与可见条目对不上。
+//
+// 计数与详情 / 列表同一口径：查询层给的是库内列，这里再批量叠上 Redis 增量
+// （ADR-0025 决策 3）。少了这一步，同一篇文章会出现"详情页 6、收藏列表 5"。
 func (s *Service) ListFavoriteItems(ctx context.Context, viewer domain.Viewer, folderID favorite.ID, page domain.Page, onlyAdminAuthors bool) ([]*favorite.Item, int64, error) {
 	var (
 		items []*favorite.Item
@@ -314,9 +317,36 @@ func (s *Service) ListFavoriteItems(ctx context.Context, viewer domain.Viewer, f
 		}
 		p := page.Normalize()
 		items, total, err = r.Favorites().ListItems(ctx, folderID, p.Offset, p.Limit, onlyAdminAuthors)
-		return err
+		if err != nil {
+			return err
+		}
+		return enrichItemCounters(ctx, r, items)
 	})
 	return items, total, err
+}
+
+// enrichItemCounters 把缓存增量合并进收藏条目的计数。
+//
+// 一次 Redis 批量读（按页内文章 ID），与 List 的批量合并是同一条路径：
+// 增量只从 CounterPort 来，绝不在这里另算一套。
+func enrichItemCounters(ctx context.Context, r Repos, items []*favorite.Item) error {
+	if len(items) == 0 {
+		return nil
+	}
+	ids := make([]domain.ArticleID, 0, len(items))
+	for _, it := range items {
+		ids = append(ids, it.ArticleID())
+	}
+	deltas, err := r.Counters().Load(ctx, ids)
+	if err != nil {
+		return err
+	}
+	for _, it := range items {
+		if d, ok := deltas[it.ArticleID()]; ok {
+			it.AddCounters(d)
+		}
+	}
+	return nil
 }
 
 // ── 审核任务 ──

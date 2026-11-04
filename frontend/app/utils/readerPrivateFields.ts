@@ -30,9 +30,16 @@ export function withoutPrivateFieldsFromItems<TItem extends object>(items: reado
 }
 
 /**
- * 文章页的**用户私有态**（ADR-0024 决策 2）。
+ * 文章页的**用户私有态**（ADR-0024 决策 2；2026-11-04 后续修订扩到 4 字段）。
  *
- * 只有这两项需要登录后单独取：`is_digg` / `is_favor` 决定按钮显示"已赞 / 已收藏"。
+ * `is_digg` / `is_favor` 决定按钮显示"已赞 / 已收藏"；`digg_count` / `favor_count`
+ * 是**同一次带鉴权响应里的权威计数**。
+ *
+ * 为什么计数也走这里：硬刷新命中的是 30 秒匿名 SSR HTML，payload 里烤着写之前的数字，
+ * hydration 又把它灌进客户端 30 秒 SWR；而私有态请求本来就打了一次带鉴权的详情、
+ * 响应里就带着权威计数 —— 以前只投影两个布尔把它丢掉，于是"按钮已赞、数字没变"。
+ * 四个字段一起回填，刷新路径上的数字才与按钮同源。
+ *
  * 曾经的 `relation`（我与作者的关系）是**死字段**：文章详情接口不返回它，作者关系
  * 由客户端的 `authorProfile` 源补齐，写进这里只会永远是 null、诱导人去读。
  * 私有字段清单（`READER_PRIVATE_FIELDS`）里保留 `relation` 是因为评论条目确实带它，
@@ -41,19 +48,33 @@ export function withoutPrivateFieldsFromItems<TItem extends object>(items: reado
 export interface ArticlePrivateState {
   is_digg: boolean;
   is_favor: boolean;
+  /** 权威点赞数（与 is_digg 来自同一次响应）。 */
+  digg_count: number;
+  /** 权威收藏数（与 is_favor 来自同一次响应）。 */
+  favor_count: number;
+}
+
+/** 计数兜底：非数字 / 负数 / NaN 一律归零，不给界面留一个 NaN。 */
+function toCount(input: unknown): number {
+  const value = Number(input);
+  if (!Number.isFinite(value) || value <= 0) {
+    return 0;
+  }
+  return Math.floor(value);
 }
 
 /**
- * 从带鉴权的详情响应里**只投影**私有字段。
+ * 从带鉴权的详情响应里投影私有态（四个字段）。
  *
- * 为什么不直接把整份详情塞给页面：详情里还有正文、计数、作者资料 —— 它们已经由
- * 匿名 payload / 30s SWR / 第二波作者源各自负责。私有态源只回答"我赞没赞、收没收藏"，
- * 它的值不进 payload、不进 SWR，也不与正文缓存混在一起。
+ * 只取这四个：详情里还有正文、作者资料 —— 它们已经由匿名 payload / 30s SWR /
+ * 作者源各自负责。私有态的值不进 payload、不进 SWR，也不与正文缓存混在一起。
  */
 export function pickArticlePrivateState(value: object): ArticlePrivateState {
   const record = value as Record<string, unknown>;
   return {
     is_digg: Boolean(record.is_digg),
     is_favor: Boolean(record.is_favor),
+    digg_count: toCount(record.digg_count),
+    favor_count: toCount(record.favor_count),
   };
 }

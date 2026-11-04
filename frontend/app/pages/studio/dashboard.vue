@@ -2,7 +2,6 @@
 import { NAlert, NCard } from "naive-ui";
 import { getOwnFavoriteFolders } from "~/services/favorite";
 import { searchArticles } from "~/services/search";
-import { getHistoryArticles } from "~/services/studio";
 import { getSelfUserDetail, getMessageSummary, getUserBaseInfo } from "~/services/user";
 
 definePageMeta({
@@ -68,7 +67,7 @@ async function loadCurrentUserBase(errors: string[]) {
 const { data } = await useAsyncData("studio-dashboard", async () => {
   const sourceErrors: string[] = [];
 
-  const [userBase, summary, articleStatusEntries, favorites, history] = await Promise.all([
+  const [userBase, summary, articleStatusEntries, favorites] = await Promise.all([
     loadCurrentUserBase(sourceErrors),
     loadDashboardPart("消息摘要", getMessageSummary(), emptySummary, sourceErrors),
     Promise.all(
@@ -78,7 +77,6 @@ const { data } = await useAsyncData("studio-dashboard", async () => {
       ] as const),
     ),
     loadDashboardPart("收藏夹", getOwnFavoriteFolders(), { count: 0, list: [] }, sourceErrors),
-    loadDashboardPart("浏览历史", getHistoryArticles(), { list: [], has_more: false }, sourceErrors),
   ]);
 
   const articleByStatus = articleStatusEntries.reduce<Record<number, number>>((acc, [status, count]) => {
@@ -92,7 +90,6 @@ const { data } = await useAsyncData("studio-dashboard", async () => {
     articleCount: userBase?.article_count ?? 0,
     articleByStatus,
     favoritesCount: favorites.count,
-    historyCount: history.list.length,
     sourceErrors,
   };
 });
@@ -103,7 +100,6 @@ const metrics = computed(() => [
   { label: "待审核", value: data.value?.articleByStatus[2] ?? 0, note: "等待审核通过后进入公开流" },
   { label: "已发布", value: data.value?.articleByStatus[3] ?? 0, note: "会出现在公开页与搜索结果里" },
   { label: "收藏夹", value: data.value?.favoritesCount ?? 0, note: "我的分组总数" },
-  { label: "浏览历史", value: data.value?.historyCount ?? 0, note: "最近阅读痕迹数量（当前页）" },
   {
     label: "未读消息",
     value:
@@ -149,7 +145,7 @@ useSeoMeta({
             <div class="eyebrow">Message</div>
             <h2 class="section-title mt-2">消息摘要</h2>
           </div>
-          <NuxtLink to="/studio/inbox" class="glass-badge">打开消息中心</NuxtLink>
+          <NuxtLink to="/messages/comments" class="glass-badge">打开消息中心</NuxtLink>
         </div>
 
         <div class="mt-5 space-y-4">

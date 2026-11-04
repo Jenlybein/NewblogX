@@ -47,8 +47,12 @@ import (
 //
 // 这两个模块一起装配：auth 需要 user 提供的凭证/账号能力，user 的注册建档又
 // 依赖 auth 的会话语义，拆成两次装配只会让桥接对象没地方放。
-// authService 供其他模块校验访问令牌（搜索等公开读接口用）。
-var authService *authapp.Service
+// authService 供其他模块校验访问令牌（搜索等公开读接口用）；
+// userService 供其他模块读用户偏好（chat 的陌生人私信个人开关，见 #243）。
+var (
+	authService *authapp.Service
+	userService *userapp.Service
+)
 
 func WireUser(infra *Infra) {
 	if infra == nil {
@@ -139,6 +143,7 @@ func WireUser(infra *Infra) {
 		cfg.Jwt.RefreshExpire,
 	)
 	authService = authSvc
+	userService = userSvc
 	router.SetAuthHandler(h)
 	router.SetUserHandler(userhttp.NewHandler(userSvc))
 }

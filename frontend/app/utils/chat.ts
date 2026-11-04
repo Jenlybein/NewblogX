@@ -1,6 +1,10 @@
-import type { ChatSessionItem } from "~/types/api";
+import type { ChatNotificationPayload, ChatSessionItem } from "~/types/api";
+import { firstQueryValue } from "~/utils/queryValue";
 
 export const CHAT_DRAFT_SESSION_PREFIX = "draft:";
+
+/** 已读回执的 `msg_type`（后端 domain.TypeRead）。它不是"又收到一条新消息"。 */
+export const CHAT_READ_RECEIPT_MSG_TYPE = 8;
 
 export interface InboxDraftSessionSeed {
   receiverId: string;
@@ -46,3 +50,50 @@ export function buildChatClientMsgId(random: () => string, now: () => number) {
   const nonce = random().replace(/[^a-zA-Z0-9_-]/gu, "").slice(0, 24) || "nonce";
   return `ck-${now()}-${nonce}`.slice(0, 64);
 }
+
+/**
+ * 解析作者主页「发私信」跳转带来的 `draft_receiver_*` query（票 #240）。
+ *
+ * 这是**跨页契约**：`users/[id].vue` 写什么字段，这里就读什么字段。字段名一旦
+ * 改动，旧链接（已发出的分享 / 书签）里的草稿就会失效，所以宁可在这里做宽进
+ * （数组取值、空白回落），也不要改契约。
+ *
+ * 缺接收方 id 就没有会话可开 -> 返回 null，页面照常展示普通会话列表。
+ */
+export function parseDraftSessionSeed(query: Record<string, unknown>): InboxDraftSessionSeed | null {
+  const receiverId = firstQueryValue(query.draft_receiver_id).trim();
+  if (!receiverId) {
+    return null;
+  }
+
+  const nickname = firstQueryValue(query.draft_receiver_nickname).trim();
+  const relation = Number.parseInt(firstQueryValue(query.draft_relation), 10);
+
+  return {
+    receiverId,
+    receiverNickname: nickname || "新会话",
+    receiverAvatar: firstQueryValue(query.draft_receiver_avatar),
+    relation: Number.isFinite(relation) ? relation : 0,
+  };
+}
+
+/**
+ * 判断一条 WS 通知是不是「收到了新消息」。
+ *
+ * 为什么不能只看 `session_id`：已读回执（`msg_type=8`）同样带 `session_id`，
+ * 它到达时是对方读掉了发送方发出的消息 —— 把它算成新消息会让顶栏未读越聊越大。
+ * 新消息通知的形状是 `SentNotice`（带 `message_id` / `receiver_id`），回执没有
+ * `message_id` 的语义，所以判据是「有 message_id 且 msg_type 不是回执」。
+ */
+export function isNewChatMessageNotification(
+  payload: ChatNotificationPayload | null | undefined,
+): boolean {
+  if (!payload || typeof payload.session_id !== "string" || !payload.session_id) {
+    return false;
+  }
+  if (payload.msg_type === CHAT_READ_RECEIPT_MSG_TYPE) {
+    return false;
+  }
+  return typeof payload.message_id === "string" && payload.message_id !== "";
+}
+

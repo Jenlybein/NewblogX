@@ -3,6 +3,7 @@ package res_test
 import (
 	"encoding/json"
 	"errors"
+	"myblogx/internal/apperr"
 	"myblogx/internal/platform/http/res"
 	"net/http/httptest"
 	"testing"
@@ -82,5 +83,22 @@ func TestFailWithError(t *testing.T) {
 	}
 	if body["msg"].(string) != "boom" {
 		t.Fatalf("msg 错误: %v", body["msg"])
+	}
+}
+
+// TestFailWithValidError 钉住"参数类失败仍是 1001、文案来自 apperr"。
+//
+// 与 FailWithError 的区别只在业务码：参数问题用 1002（服务异常）会让调用方
+// 以为后端坏了；错误值仍必须由 apperr 产生，文案不能来自适配层的裸字符串。
+func TestFailWithValidError(t *testing.T) {
+	c, w := newGinCtx()
+	res.FailWithValidError(apperr.New(apperr.CodeCommonInvalidArgument), c)
+	body := decodeBody(t, w)
+
+	if body["code"].(float64) != float64(res.FailValidCode) {
+		t.Fatalf("参数错误应为 1001，实际 %v", body["code"])
+	}
+	if got := body["msg"].(string); got != apperr.Message(apperr.CodeCommonInvalidArgument) {
+		t.Fatalf("msg 应来自 apperr，实际 %q", got)
 	}
 }

@@ -648,7 +648,7 @@ func TestFavoriteAndUnfavorite(t *testing.T) {
 	ctx := context.Background()
 	seedArticle(t, repos, ctype.NewID(1), author, domain.StatusPublished)
 
-	if err := svc.Favorite(ctx, app.FavoriteCmd{Actor: strangerViewer(), ArticleID: ctype.NewID(1)}); err != nil {
+	if _, err := svc.Favorite(ctx, app.FavoriteCmd{Actor: strangerViewer(), ArticleID: ctype.NewID(1)}); err != nil {
 		t.Fatalf("收藏失败: %v", err)
 	}
 	if got := repos.FakeCounters().Get(ctype.NewID(1)).Favor; got != 1 {
@@ -660,15 +660,44 @@ func TestFavoriteAndUnfavorite(t *testing.T) {
 		t.Fatalf("应发收藏事件，实际 %v", names)
 	}
 	// 重复收藏应报错
-	if err := svc.Favorite(ctx, app.FavoriteCmd{Actor: strangerViewer(), ArticleID: ctype.NewID(1)}); !errors.Is(err, favorite.ErrItemExists) {
+	if _, err := svc.Favorite(ctx, app.FavoriteCmd{Actor: strangerViewer(), ArticleID: ctype.NewID(1)}); !errors.Is(err, favorite.ErrItemExists) {
 		t.Fatalf("重复收藏应报 ErrItemExists，实际 %v", err)
 	}
 
-	if err := svc.Unfavorite(ctx, app.FavoriteCmd{Actor: strangerViewer(), ArticleID: ctype.NewID(1)}); err != nil {
+	if _, err := svc.Unfavorite(ctx, app.FavoriteCmd{Actor: strangerViewer(), ArticleID: ctype.NewID(1)}); err != nil {
 		t.Fatalf("取消收藏失败: %v", err)
 	}
 	if got := repos.FakeCounters().Get(ctype.NewID(1)).Favor; got != 0 {
 		t.Fatalf("取消后收藏增量应回到 0，实际 %d", got)
+	}
+}
+
+// TestFavoriteWriteReturnsAuthoritativeCount 钉住写响应回填的计数（ADR-0024 决策 4）。
+//
+// 前端不再"收藏后重新取一次正文"才看到数字，而是直接 patch 响应里的 favor_count。
+// 所以用例必须返回**文章级权威计数**（库内快照 + 缓存增量），不是"这次 +1"。
+func TestFavoriteWriteReturnsAuthoritativeCount(t *testing.T) {
+	t.Parallel()
+
+	svc, repos, _ := newService(t)
+	ctx := context.Background()
+	id := ctype.NewID(1)
+	seedArticle(t, repos, id, author, domain.StatusPublished)
+
+	res, err := svc.Favorite(ctx, app.FavoriteCmd{Actor: strangerViewer(), ArticleID: id})
+	if err != nil {
+		t.Fatalf("收藏失败: %v", err)
+	}
+	if !res.IsFavor || res.FavorCount != 1 {
+		t.Fatalf("收藏后应返回 is_favor=true / favor_count=1，实际 %v / %d", res.IsFavor, res.FavorCount)
+	}
+
+	res, err = svc.Unfavorite(ctx, app.FavoriteCmd{Actor: strangerViewer(), ArticleID: id})
+	if err != nil {
+		t.Fatalf("取消收藏失败: %v", err)
+	}
+	if res.IsFavor || res.FavorCount != 0 {
+		t.Fatalf("取消后应返回 is_favor=false / favor_count=0，实际 %v / %d", res.IsFavor, res.FavorCount)
 	}
 }
 
@@ -679,7 +708,7 @@ func TestFavoriteOwnArticleRejected(t *testing.T) {
 	ctx := context.Background()
 	seedArticle(t, repos, ctype.NewID(1), author, domain.StatusPublished)
 
-	err := svc.Favorite(ctx, app.FavoriteCmd{Actor: authorViewer(), ArticleID: ctype.NewID(1)})
+	_, err := svc.Favorite(ctx, app.FavoriteCmd{Actor: authorViewer(), ArticleID: ctype.NewID(1)})
 	if !errors.Is(err, favorite.ErrSelfFavorite) {
 		t.Fatalf("不能收藏自己的文章，期望 ErrSelfFavorite，实际 %v", err)
 	}
@@ -692,24 +721,27 @@ func TestDiggToggle(t *testing.T) {
 	ctx := context.Background()
 	seedArticle(t, repos, ctype.NewID(1), author, domain.StatusPublished)
 
-	liked, err := svc.Digg(ctx, ctype.NewID(1), strangerViewer())
+	liked, err := svc.Digg(ctx, app.DiggCmd{Actor: strangerViewer(), ArticleID: ctype.NewID(1), Liked: true})
 	if err != nil {
 		t.Fatalf("点赞失败: %v", err)
 	}
-	if !liked || repos.FakeCounters().Get(ctype.NewID(1)).Digg != 1 {
-		t.Fatalf("首次点赞应 liked=true 且增量 1，实际 liked=%v delta=%d", liked, repos.FakeCounters().Get(ctype.NewID(1)).Digg)
+	if !liked.IsDigg || repos.FakeCounters().Get(ctype.NewID(1)).Digg != 1 {
+		t.Fatalf("首次点赞应 liked=true 且增量 1，实际 liked=%v delta=%d", liked.IsDigg, repos.FakeCounters().Get(ctype.NewID(1)).Digg)
+	}
+	if liked.DiggCount != 1 {
+		t.Fatalf("响应里的权威计数应为 1，实际 %d", liked.DiggCount)
 	}
 	// 点赞必须发事件（旧代码在这里通知作者）；取消点赞不应再发。
 	if names := repos.FakeOutbox().Names(); len(names) != 1 || names[0] != app.EventArticleDigg {
 		t.Fatalf("应发点赞事件，实际 %v", names)
 	}
 
-	liked, err = svc.Digg(ctx, ctype.NewID(1), strangerViewer())
+	liked, err = svc.Digg(ctx, app.DiggCmd{Actor: strangerViewer(), ArticleID: ctype.NewID(1), Liked: false})
 	if err != nil {
 		t.Fatalf("取消点赞失败: %v", err)
 	}
-	if liked || repos.FakeCounters().Get(ctype.NewID(1)).Digg != 0 {
-		t.Fatalf("再次点击应取消，实际 liked=%v delta=%d", liked, repos.FakeCounters().Get(ctype.NewID(1)).Digg)
+	if liked.IsDigg || repos.FakeCounters().Get(ctype.NewID(1)).Digg != 0 {
+		t.Fatalf("目标态 liked=false 应取消，实际 liked=%v delta=%d", liked.IsDigg, repos.FakeCounters().Get(ctype.NewID(1)).Digg)
 	}
 	// 取消点赞不应再发事件（与旧实现一致：只在新增加点赞时通知）
 	if names := repos.FakeOutbox().Names(); len(names) != 1 {
@@ -730,22 +762,22 @@ func TestRecordViewWritesHistoryOnlyForLoggedIn(t *testing.T) {
 	if got := repos.FakeCounters().Get(ctype.NewID(1)).View; got != 1 {
 		t.Fatalf("浏览增量应为 1，实际 %d", got)
 	}
-	records, total, err := svc.ListViewHistory(ctx, strangerViewer(), domain.Page{Limit: 10}, false)
+	records, err := svc.ListViewHistory(ctx, strangerViewer(), app.ViewHistoryQuery{Limit: 10}, false)
 	if err != nil {
 		t.Fatalf("查历史失败: %v", err)
 	}
-	if total != 0 || len(records) != 0 {
-		t.Fatalf("匿名浏览不应写历史，实际 %d 条", total)
+	if len(records.Records) != 0 {
+		t.Fatalf("匿名浏览不应写历史，实际 %d 条", len(records.Records))
 	}
 
 	if err := svc.RecordView(ctx, ctype.NewID(1), strangerViewer()); err != nil {
 		t.Fatalf("登录用户浏览失败: %v", err)
 	}
-	records, total, err = svc.ListViewHistory(ctx, strangerViewer(), domain.Page{Limit: 10}, false)
+	records, err = svc.ListViewHistory(ctx, strangerViewer(), app.ViewHistoryQuery{Limit: 10}, false)
 	if err != nil {
 		t.Fatalf("查历史失败: %v", err)
 	}
-	if total != 1 || len(records) != 1 || records[0].ArticleID().Uint64() != 1 {
-		t.Fatalf("登录用户应写入历史，实际 %d 条", total)
+	if len(records.Records) != 1 || records.Records[0].ArticleID().Uint64() != 1 {
+		t.Fatalf("登录用户应写入历史，实际 %d 条", len(records.Records))
 	}
 }

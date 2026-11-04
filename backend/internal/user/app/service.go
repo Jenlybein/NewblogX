@@ -89,6 +89,20 @@ func (s *Service) Detail(ctx context.Context, viewer domain.Viewer) (*DetailView
 	return view, nil
 }
 
+// StrangerChatEnabled 实现 SettingsPort：读接收方是否愿意收陌生人私信。
+//
+// 无配置行时 domain.DefaultSettings 已经把这一项设为 true，所以老账号默认允许。
+func (s *Service) StrangerChatEnabled(ctx context.Context, id domain.UserID) (bool, error) {
+	if id.IsZero() {
+		return false, notFound()
+	}
+	settings, err := s.settings.Find(ctx, id)
+	if err != nil {
+		return false, err
+	}
+	return settings.StrangerChatEnabled, nil
+}
+
 // PublicProfile 返回用户公开主页信息。
 func (s *Service) PublicProfile(ctx context.Context, target domain.UserID) (*PublicProfile, error) {
 	u, err := s.users.FindByID(ctx, target)

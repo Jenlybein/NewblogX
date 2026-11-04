@@ -2,6 +2,7 @@ import { computed, ref, watch } from "vue";
 
 import type { JellyAssistantApi } from "~/composables/useJellyAssistant";
 import { streamAiAssistantReply, type AiConversationMessage } from "~/services/ai";
+import { errorMessage } from "~/utils/errorMessage";
 
 // 捏捏 AI 面板（票 #10）的状态层。
 //
@@ -38,7 +39,8 @@ const AUTH_HINTS = ["请先登录", "未登录", "登录过期", "401", "403", "
 
 /** 把后端/网络错误归到四类可行动文案之一（纯函数，便于单独钉住分类真值）。 */
 export function classifyJellyPanelError(error: unknown): { kind: JellyPanelErrorKind; text: string } {
-  const raw = error instanceof Error ? error.message : typeof error === "string" ? error : "";
+  // 与 errorMessage 同一套口径，额外认"直接抛字符串"的历史写法。
+  const raw = errorMessage(error, typeof error === "string" ? error : "");
   const normalized = raw.toLowerCase();
   const has = (hints: readonly string[]) => hints.some((hint) => normalized.includes(hint));
 

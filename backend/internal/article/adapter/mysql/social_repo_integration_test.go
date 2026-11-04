@@ -11,6 +11,7 @@ import (
 
 	"myblogx/internal/article/adapter/mysql"
 	"myblogx/internal/article/domain"
+	"myblogx/internal/article/domain/viewhistory"
 	"myblogx/internal/kernel/ctype"
 	"myblogx/internal/testkit/schema"
 )
@@ -98,35 +99,44 @@ func TestFavoriteItemsFiltersNonAdminAuthors(t *testing.T) {
 //
 // 历史表里没有作者快照，作者角色要经由 article_models 现取 —— 这条路径
 // 与收藏内容不同，写错了只会表现为"历史少了几条"，所以单独测。
+//
+// 过滤必须发生在分页**之前**：过滤掉的最新一条不能把当页的第一条挤掉
+// （否则 limit=1 会返回空页，而总数里还有内容）。这里用 limit=1 验证这一点。
 func TestViewHistoryFiltersNonAdminAuthors(t *testing.T) {
 	db := migrate(t)
 	seedVisibilityUsers(t, db)
 	seedVisibilityArticles(t, db)
 	at := time.Date(2026, 1, 1, 12, 0, 0, 0, time.UTC)
 
-	schema.InsertViewHistory(t, db, 6001, visReader, 1001, at)
-	schema.InsertViewHistory(t, db, 6002, visReader, 1002, at.Add(time.Minute))
+	// 非管理员作者那篇更晚（排序上排第一）——开关关闭时它必须被过滤掉，
+	// 而不是占掉唯一的一个名额（这样 limit=1 也不会返回空页）。
+	schema.InsertViewHistory(t, db, 6001, visReader, 1002, at)
+	schema.InsertViewHistory(t, db, 6002, visReader, 1001, at.Add(time.Minute))
 
 	repo := mysql.NewViewHistoryRepo(db)
 	ctx := context.Background()
 
-	records, total, err := repo.List(ctx, domain.UserID(ctype.NewID(visReader)), 0, 10, false)
+	records, err := repo.List(ctx, viewhistory.ListQuery{
+		UserID: domain.UserID(ctype.NewID(visReader)),
+		Limit:  10,
+	})
 	if err != nil {
 		t.Fatalf("列浏览历史失败: %v", err)
 	}
-	if len(records) != 2 || total != 2 {
-		t.Fatalf("开关打开时应有 2 条，实际 list=%d total=%d", len(records), total)
+	if len(records) != 2 {
+		t.Fatalf("开关打开时应有 2 条，实际 %d", len(records))
 	}
 
-	records, total, err = repo.List(ctx, domain.UserID(ctype.NewID(visReader)), 0, 10, true)
+	records, err = repo.List(ctx, viewhistory.ListQuery{
+		UserID:           domain.UserID(ctype.NewID(visReader)),
+		OnlyAdminAuthors: true,
+		Limit:            1,
+	})
 	if err != nil {
 		t.Fatalf("列浏览历史（带过滤）失败: %v", err)
 	}
-	if len(records) != 1 || total != 1 {
-		t.Fatalf("开关关闭时应有 1 条，实际 list=%d total=%d", len(records), total)
-	}
-	if records[0].ArticleID() != domain.ArticleID(ctype.NewID(1002)) {
-		t.Fatalf("应只剩管理员作者的文章，实际 %s", records[0].ArticleID())
+	if len(records) != 1 || records[0].ArticleID() != domain.ArticleID(ctype.NewID(1002)) {
+		t.Fatalf("开关关闭时 limit=1 应返回管理员作者那篇，实际 %v", records)
 	}
 }
 

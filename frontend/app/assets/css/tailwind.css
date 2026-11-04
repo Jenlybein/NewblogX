@@ -351,8 +351,12 @@
     @apply col-start-2 row-span-2 row-start-1 self-start rounded-pill border border-line-faint bg-subtle px-2 py-0.5 text-xs tabular-nums text-ink-muted;
   }
 
+  /* 目录体高度按视口（票 237）：固定 380px 在 720/768 高的屏上会把整列顶出可视区，
+     换成 dvh 档 —— 矮屏收、高屏仍到 380px 的上限。内部滚动保留，改成整页滚动会让
+     目录一次占满正文的高度。 */
   .article-toc__body {
-    @apply mt-4 max-h-[380px] overflow-y-auto pr-1;
+    @apply mt-4 overflow-y-auto pr-1;
+    max-height: clamp(160px, 32dvh, 380px);
   }
 
   .article-toc-link {
@@ -609,22 +613,105 @@
     color: var(--color-bg-page);
   }
 
-  .article-action--danger {
-    border-color: var(--color-danger);
-    background: var(--color-danger);
-    color: var(--color-on-danger);
-  }
-
-  .article-action--danger:hover {
-    border-color: var(--color-danger-ink);
-    background: var(--color-danger-soft);
-    color: var(--color-danger-ink);
-  }
+  /* 收藏按钮原来的 `--danger` 档随 hero 互动按钮一起退役（票 236 把四个动作搬进互动条，
+     收藏不再用"红按钮"，已藏态由互动条的 is-active 表达）。 */
 
   .article-action--compact {
     min-height: 36px;
     padding-inline: 0.75rem;
     font-size: 0.8125rem;
+  }
+
+  /* ==========================================================================
+   * 阅读页互动条（票 236 / 决定清单第 2 节）
+   *
+   * 右栏互动条与 <1024px 底部固定条是**同一个组件**的两种变体：
+   *   - `.article-actions-bar--aside`：320px 右栏里的四等分按钮条（图标 + 数字）；
+   *   - `.article-actions-bar--fixed`：窄屏底部固定条，让出安全区。
+   * 两处状态同源（页面绑同一个 `articleActionProps`），所以这里只是容器差异。
+   * ======================================================================== */
+  .article-actions-bar {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+
+  .article-actions-bar--aside {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 0.5rem;
+  }
+
+  /* 紧凑图标档：图标 + 数字挤在 320px 的四等分格子里，仍保住 44px 触摸目标。 */
+  .article-actions-bar__button {
+    min-height: 44px;
+    gap: 0.375rem;
+    padding-inline: 0.5rem;
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* 已赞 / 已藏：抬升面底 + 墨色描边（图标换成实心由组件负责）。
+     彩色差异之外还有 `aria-pressed`，不把状态只放在颜色上。 */
+  .article-actions-bar__button.is-active {
+    border-color: var(--color-ink);
+    background: var(--color-highlight);
+    color: var(--color-ink);
+  }
+
+  .article-actions-bar__button.is-active:hover {
+    border-color: var(--color-ink);
+    background: var(--color-line-faint);
+  }
+
+  /* 右栏互动条所在的纸面卡片：与作者卡 / 目录卡同一种纸面，只做内边距。 */
+  .article-actions-card {
+    padding: 0.75rem;
+  }
+
+  /* 底部固定条默认不占位：≥1024px 由右栏那份接过入口。 */
+  .article-actions-bar--fixed {
+    display: none;
+  }
+
+  /* <1024px：右栏互动条让位，底部固定条出现（两处不会同时出现，也不会都没有）。 */
+  @media (max-width: 1023px) {
+    .article-actions-bar--aside {
+      display: none;
+    }
+
+    /* 纸面卡片一起隐藏：只藏按钮会在右栏留一条空白的纸面带。 */
+    .article-actions-card {
+      display: none;
+    }
+
+    .article-actions-bar--fixed {
+      display: flex;
+      position: fixed;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      z-index: 20;
+      align-items: center;
+      justify-content: space-around;
+      gap: 0.5rem;
+      padding-top: 0.5rem;
+      /* 安全区：iOS 的底部横条 / 横屏圆角不能压住按钮。 */
+      padding-right: max(0.5rem, env(safe-area-inset-right));
+      padding-bottom: max(0.5rem, env(safe-area-inset-bottom));
+      padding-left: max(0.5rem, env(safe-area-inset-left));
+      border-top: 1px solid var(--color-line);
+      /* 纸面底色：压在正文上时不透出内容。 */
+      background: var(--color-surface);
+    }
+
+    .article-actions-bar--fixed .article-actions-bar__button {
+      flex: 1;
+    }
+
+    /* 正文最后一段不被固定条盖住。 */
+    .article-page {
+      padding-bottom: 4.5rem;
+    }
   }
 
   .article-layout {
@@ -697,8 +784,15 @@
     @apply m-0 mt-1 text-xs text-ink-muted;
   }
 
+  /* 签名限两行（票 237）：作者卡是不吸顶右栏里的第一张卡，签名长度不能决定
+     整列高度 —— 不截断的话，一段长签名就能把目录挤出可视区。 */
   .article-author__abstract {
     @apply mt-4 text-sm leading-prose text-ink-muted;
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+    line-clamp: 2;
+    overflow: hidden;
   }
 
   .article-author__stats {
@@ -827,24 +921,57 @@
   }
 
   .comment__actions {
-    @apply mt-3 flex flex-wrap items-center gap-4 text-sm text-ink-muted;
+    @apply mt-3 flex flex-wrap items-center gap-2 text-sm text-ink-muted;
   }
 
-  .comment__count {
-    @apply text-sm text-ink-muted;
-  }
-
+  /* 点赞 / 回复是图标按钮（票 238 范围 4）：图标 + 短文案/数字，控件尺寸不小于
+     32px，键盘焦点环沿用全站的 --color-focus（与 .comment-page-button 同一套）。 */
   .comment-action {
-    @apply text-sm text-ink-muted underline-offset-4 transition-colors;
+    @apply inline-flex min-h-[32px] items-center gap-1 rounded-control px-1.5 text-sm text-ink-muted transition-colors;
   }
 
   .comment-action:hover {
+    background-color: var(--color-bg-subtle);
     color: var(--color-ink);
   }
 
   .comment-action:focus-visible {
     outline: 2px solid var(--color-focus);
     outline-offset: 2px;
+  }
+
+  /* 已赞态用最深的墨色字（实心图标与它配套）：功能蓝在读者站只做文字链接与
+     焦点环（ADR-0012 / test/design/reader-flip.test.ts），不做"已激活"字色。 */
+  .comment-action--active {
+    @apply text-ink;
+  }
+
+  /* 等宽数字：点赞数从 9 变 10 时图标不会左右抖。 */
+  .comment-action__count {
+    @apply text-xs tabular-nums;
+  }
+
+  /* 「展开 N 条回复」胶囊（票 238 范围 5）：浅底 + 主题色文字 + chevron。 */
+  .comment-capsule {
+    @apply inline-flex min-h-[32px] items-center gap-1.5 rounded-pill border border-line-faint bg-subtle px-3 text-xs font-semibold text-link transition-colors;
+  }
+
+  .comment-capsule:hover {
+    border-color: var(--color-line-strong);
+  }
+
+  .comment-capsule:focus-visible {
+    outline: 2px solid var(--color-focus);
+    outline-offset: 2px;
+  }
+
+  /* 展开时 chevron 翻转；只动 transform（动效预算内，减少动态时下面统一归零）。 */
+  .comment-capsule__chevron {
+    transition: transform var(--motion-fast) var(--motion-ease);
+  }
+
+  .comment-capsule--expanded .comment-capsule__chevron {
+    transform: rotate(180deg);
   }
 
   .comment__replies {
@@ -913,10 +1040,71 @@
     }
   }
 
+  /* 吸顶右栏（票 237）：≥1024 才限高。
+   *
+   * 为什么限高：右栏是 sticky 的，内容（作者卡 + 互动条卡 + 目录卡）合计约 850px，
+   * 视口高低于 ~938px 时下半截直接被裁掉（不是滚动，是看不见）。限到
+   * `100dvh - 88px`（88px = 吸顶偏移 + 页头呼吸）以后，超出部分由整列内部滚动兜底。
+   *
+   * 为什么 overflow-x 也要写：只给 overflow-y 时，规范会把另一轴的 visible 算成 auto，
+   * 焦点环 / hover 面底在右栏边缘会多出一条横向滚动条。
+   *
+   * 真正的滚动仍然留给目录体（它在矮视口有自己的 dvh 档高度）；整列滚动只是兜底，
+   * 不是把页面滚动改到这里来。
+   */
   @media (min-width: 1024px) {
     .article-aside {
       position: sticky;
       top: 88px;
+      max-height: calc(100dvh - 88px);
+      overflow-y: auto;
+      overflow-x: hidden;
+      /* 滚到右栏底不再把整页一起带着滚（两层滚动条里外联动最招人烦）。 */
+      overscroll-behavior: contain;
+    }
+
+    /* 限高之后右栏成了滚动容器：三张卡不许被 flex 压扁。压扁 + overflow:visible
+     * 就是"卡与卡重叠、hover 面底互相遮挡"的来源，这里一律只让整列滚动。 */
+    .article-aside > * {
+      flex-shrink: 0;
+    }
+
+    /* 矮视口（高 <820px）：作者卡瘦身，把省下来的高度让给互动条与目录。
+     * 刻意只嵌在 ≥1024 的吸顶区间里 —— 窄屏是整页滚动，作者信息不该被折叠
+     * （stats 行在那时仍是可读内容，不是被裁掉的尾巴）。
+     */
+    @media (max-height: 820px) {
+      .article-aside {
+        gap: 0.75rem;
+      }
+
+      /* 用后代选择器而不是单类：`.article-author` / `.article-toc` 自己的 padding
+       * 是 `p-5 md:p-6` 的 @apply 产物（md 档带媒体查询），单类选择器压不住它，
+       * 这里用 0,2,0 的明确优先级收一档。 */
+      .article-aside .article-author {
+        padding: 1rem;
+      }
+
+      .article-aside .article-actions-card {
+        padding: 0.5rem;
+      }
+
+      .article-aside .article-toc {
+        padding: 1rem;
+      }
+
+      /* 折叠 stats 行：三格计数是"可以不看"的信息，矮视口下先让位。 */
+      .article-author__stats {
+        display: none;
+      }
+
+      .article-author__abstract {
+        margin-top: 0.75rem;
+      }
+
+      .article-author__actions {
+        margin-top: 0.75rem;
+      }
     }
   }
 
@@ -1161,8 +1349,153 @@
     @apply min-w-0 p-5 md:p-6;
   }
 
+  /* ---- 消息中心（第 239 票）：左子项导航 + 右内容 --------------------------------
+   * 选中态 = 抬升面底 + 左侧 2px 强调条 + 字重（强调条用 inset 阴影，不改变盒模型
+   * → 切换子项不抖布局）。<1024px 左导航转顶部横向 tab，同一份 DOM 靠断点切换。 */
+  .message-center__layout {
+    @apply grid gap-5;
+    grid-template-columns: 220px minmax(0, 1fr);
+  }
+
+  .message-center__subnav {
+    @apply flex flex-col gap-1 self-start rounded-card border p-2;
+    background: var(--color-surface);
+    border-color: var(--color-line);
+  }
+
+  .message-center-tab {
+    @apply flex items-center justify-between gap-3 rounded-control px-3 py-2 text-sm transition;
+    color: var(--color-ink-muted);
+    touch-action: manipulation;
+  }
+
+  .message-center-tab:hover {
+    background: var(--color-line-faint);
+    color: var(--color-ink);
+  }
+
+  .message-center-tab.is-active {
+    background: var(--color-surface-raised);
+    color: var(--color-ink);
+    font-weight: 600;
+    box-shadow: inset 2px 0 0 var(--color-ink);
+  }
+
+  .message-center-tab__count {
+    @apply inline-flex min-w-6 items-center justify-center rounded-pill px-2 py-0.5 text-xs font-semibold;
+    background: var(--color-line-faint);
+    color: var(--color-ink);
+  }
+
+  .message-center__main {
+    @apply min-w-0;
+  }
+
+  .message-center-toolbar {
+    @apply flex flex-wrap items-start justify-between gap-3;
+  }
+
+  .message-center-confirm {
+    @apply mt-3 flex flex-wrap items-center justify-between gap-3 rounded-field border px-4 py-3 text-sm;
+    background: var(--color-danger-soft);
+    border-color: var(--color-danger-line);
+  }
+
+  .message-list {
+    @apply mt-4 flex flex-col gap-2;
+  }
+
+  .message-list__scroller {
+    max-height: min(70dvh, 720px);
+    overflow-y: auto;
+    padding-right: 0.25rem;
+  }
+
+  .message-row {
+    @apply relative flex items-start gap-3 rounded-control border px-4 py-3;
+    background: var(--color-surface);
+    border-color: var(--color-line);
+  }
+
+  /* 未读 = 左侧强调条 + 标题加粗（CSS 下方）+ 右上小圆点。不用 chip。 */
+  .message-row.is-unread {
+    box-shadow: inset 2px 0 0 var(--color-ink);
+  }
+
+  .message-row__body {
+    @apply min-w-0 flex-1;
+  }
+
+  .message-row__title {
+    @apply block truncate text-sm;
+    color: var(--color-ink);
+  }
+
+  .message-row.is-unread .message-row__title {
+    font-weight: 650;
+  }
+
+  .message-row__summary {
+    @apply mt-1 truncate text-sm;
+    color: var(--color-ink-muted);
+  }
+
+  .message-row__time {
+    @apply mt-2 block text-xs;
+    color: var(--color-ink-faint);
+  }
+
+  .message-row__dot {
+    @apply absolute right-3 top-3 h-2 w-2 rounded-pill;
+    background: var(--color-danger);
+  }
+
+  /* 删除按钮默认隐形，hover / focus 才出现；键盘用户靠 focus-visible 拿到它。 */
+  .message-row__delete {
+    @apply absolute bottom-2 right-2 inline-flex h-8 w-8 items-center justify-center rounded-control border transition;
+    border-color: var(--color-line);
+    background: var(--color-surface-raised);
+    color: var(--color-ink-muted);
+    opacity: 0;
+    cursor: pointer;
+  }
+
+  .message-row:hover .message-row__delete,
+  .message-row:focus-within .message-row__delete,
+  .message-row__delete:focus-visible {
+    opacity: 1;
+  }
+
+  .message-list__footer {
+    @apply flex items-center justify-center py-4 text-xs;
+    color: var(--color-ink-muted);
+  }
+
+  /* <1024px：左导航改为顶部横向 tab（可横向滚动），内容单列。 */
+  @media (max-width: 1023px) {
+    .message-center__layout {
+      grid-template-columns: minmax(0, 1fr);
+    }
+
+    .message-center__subnav {
+      flex-direction: row;
+      overflow-x: auto;
+      padding: 0.5rem;
+    }
+
+    .message-center-tab {
+      @apply shrink-0;
+    }
+  }
+
   .studio-chat-main {
     @apply flex flex-col;
+  }
+
+  /* 窄屏二选一的「返回会话列表」：宽屏是双栏，按钮不该出现（第 240 票）。
+   * 可见性由 @media (max-width: 1024px) 打开。 */
+  .studio-chat-back {
+    display: none;
   }
 
   .studio-chat-session {
@@ -1244,6 +1577,21 @@
     .studio-layout,
     .studio-inbox-grid {
       @apply grid-cols-1;
+    }
+
+    /* 私信子项（第 240 票）：<1024px 列表与聊天窗**二选一** —— 选中会话看聊天窗，
+     * 返回按钮回列表。哪一栏可见由面板的 is-narrow-list / is-narrow-chat 决定，
+     * 宽屏这两个类不生效（双栏常显）。 */
+    .studio-inbox-grid.is-narrow-list .studio-inbox-grid__main,
+    .studio-inbox-grid.is-narrow-chat .studio-inbox-grid__aside {
+      display: none;
+    }
+
+    .studio-chat-back {
+      @apply mb-3 inline-flex items-center gap-1 self-start rounded-control border px-3 py-2 text-sm;
+      border-color: var(--color-line);
+      color: var(--color-ink-muted);
+      cursor: pointer;
     }
 
     .studio-sidebar {

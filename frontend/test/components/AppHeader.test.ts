@@ -17,6 +17,9 @@ import AppHeader from "~/components/layout/AppHeader.vue";
 
 const FILENAME = "app/components/layout/AppHeader.vue";
 
+// 历史入口收进头像菜单的那一档视口（与组件里的查询保持一致）。
+const HISTORY_MENU_QUERY = "(min-width: 640px) and (max-width: 1279px)";
+
 // vi.mock 的工厂会被提升到 import 之前，所以可变状态放这里，测试再往里写。
 const hub = vi.hoisted(() => {
   const state = {
@@ -28,6 +31,16 @@ const hub = vi.hoisted(() => {
     openWriteEntry: vi.fn(),
     // 站点「发布与展示」开关（#64）：默认为空对象 → 读者站按默认值全开。
     siteArticleConfig: {} as Record<string, boolean>,
+    // 消息中心未读汇总（#239）：页头入口订阅 useMessageStore。
+    messageSummary: {
+      comment_msg_count: 3,
+      digg_favor_msg_count: 0,
+      private_msg_count: 2,
+      system_msg_count: 5,
+      global_msg_count: 1,
+    },
+    messageFetched: false,
+    refreshSummary: vi.fn(),
     authState: {
       initialized: true,
       currentUser: { id: "u1", nickname: "JellyBean" },
@@ -79,6 +92,28 @@ vi.mock("~/stores/auth", async () => {
   };
 });
 
+vi.mock("~/stores/message", () => ({
+  useMessageStore: () => ({
+    get summary() {
+      return hub.messageSummary;
+    },
+    get totalUnread() {
+      const summary = hub.messageSummary;
+      return (
+        summary.comment_msg_count +
+        summary.digg_favor_msg_count +
+        summary.private_msg_count +
+        summary.system_msg_count +
+        summary.global_msg_count
+      );
+    },
+    get fetched() {
+      return hub.messageFetched;
+    },
+    refreshSummary: hub.refreshSummary,
+  }),
+}));
+
 vi.mock("~/stores/site", () => ({
   // 与真实 Pinia store 一致：`useSiteStore().runtimeConfig` 是解包后的值。
   useSiteStore: () => ({
@@ -99,7 +134,7 @@ vi.mock("~/composables/useWriteEntry", () => ({
 
 const NuxtLinkStub = {
   props: ["to"],
-  template: "<a><slot /></a>",
+  template: '<a :href="to"><slot /></a>',
 };
 
 const stubs = {
@@ -126,7 +161,17 @@ beforeAll(() => {
 beforeEach(() => {
   hub.authLoggedIn!.value = false;
   hub.siteArticleConfig = {};
+  hub.messageFetched = false;
+  hub.messageSummary = {
+    comment_msg_count: 3,
+    digg_favor_msg_count: 0,
+    private_msg_count: 2,
+    system_msg_count: 5,
+    global_msg_count: 1,
+  };
   if (hub.themeRef) hub.themeRef.value = "light";
+  // restoreMocks 会把 vi.fn 的实现也还原掉：每个用例重新承诺 refreshSummary 返回 Promise。
+  hub.refreshSummary.mockResolvedValue({});
   vi.stubGlobal("__useRouterMock", () => ({ push: hub.push, replace: vi.fn() }));
   vi.stubGlobal("__useRouteMock", () => ({ path: "/", query: {}, fullPath: "/", params: {} }));
   // Logo 组件要读 app.baseURL 拼品牌资产路径。
@@ -348,6 +393,186 @@ describe("页头：右侧动作区（#198 创作移位）", () => {
       source.indexOf("@media (min-width: 1024px)"),
     );
     expect(tabletMedia).toMatch(/\.site-header__write-label\s*\{\s*display:\s*inline;/u);
+  });
+});
+
+/**
+ * 消息中心入口（#239）。
+ *
+ * 结构验收：
+ *   - 登录后动作区出现入口；未登录不出现（/messages 是 auth 页面）；
+ *   - hover / 键盘聚焦展开五个子项，子项右侧显示未读数，0 不显示；
+ *   - <640px 用折叠面板里的同一份子项（DOM 常驻、CSS 断点切换可见性）；
+ *   - <1024px 仅图标 + 红点（文字由断点隐藏，红点在 totalUnread > 0 时渲染）。
+ * 无未读时入口文案保持「消息中心」，不显示 0。
+ */
+describe("页头：消息中心入口（#239）", () => {
+  function login() {
+    hub.authLoggedIn!.value = true;
+    return mountHeader();
+  }
+
+  it("未登录不渲染消息中心入口（消息中心是登录后才会去的页面）", () => {
+    const wrapper = mountHeader();
+
+    expect(wrapper.find('[data-chrome="messages"]').exists()).toBe(false);
+    expect(wrapper.text()).not.toContain("消息中心");
+  });
+
+  it("登录后动作区出现「消息中心」，带总未读数文案与红点", () => {
+    const wrapper = login();
+    const entry = wrapper.get('[data-chrome="messages"] .site-header__messages');
+
+    expect(entry.text()).toContain("消息中心");
+    expect(entry.attributes("aria-label")).toBe("消息中心（11 条未读）");
+    expect(entry.attributes("aria-haspopup")).toBe("menu");
+    expect(entry.find(".site-header__dot").exists()).toBe(true);
+  });
+
+  it("没有未读时不显示红点，也不显示数字 0", () => {
+    hub.messageSummary = {
+      comment_msg_count: 0,
+      digg_favor_msg_count: 0,
+      private_msg_count: 0,
+      system_msg_count: 0,
+      global_msg_count: 0,
+    };
+    const wrapper = login();
+
+    expect(wrapper.find(".site-header__dot").exists()).toBe(false);
+    expect(wrapper.get(".site-header__messages").attributes("aria-label")).toBe("消息中心");
+    expect(wrapper.get(".site-header__messages").text()).toBe("消息中心");
+  });
+
+  it("hover 展开五子项面板：顺序固定、子项带自己的未读数、0 不显示", async () => {
+    const wrapper = login();
+
+    await wrapper.get('[data-chrome="messages"]').trigger("pointerenter");
+
+    const panel = wrapper.get(".site-messages__panel");
+    expect(panel.attributes("role")).toBe("menu");
+    const items = panel.findAll(".site-messages__item");
+    expect(items).toHaveLength(5);
+    expect(items.map((item) => item.text().replace(/\d+/gu, "").trim())).toEqual([
+      "评论与回复",
+      "点赞与收藏",
+      "系统通知",
+      "全局通知",
+      "私信",
+    ]);
+    expect(items.map((item) => item.find(".site-messages__count").exists())).toEqual([
+      true,
+      false,
+      true,
+      true,
+      true,
+    ]);
+    expect(items[0]!.attributes("href")).toBe("/messages/comments");
+    expect(items[4]!.attributes("href")).toBe("/messages/chat");
+
+    await wrapper.get('[data-chrome="messages"]').trigger("pointerleave");
+    expect(wrapper.find(".site-messages__panel").exists()).toBe(false);
+  });
+
+  it("键盘聚焦也展开面板（hover 之外的可达路径）", async () => {
+    const wrapper = login();
+
+    await wrapper.get('[data-chrome="messages"]').trigger("focusin");
+    expect(wrapper.find(".site-messages__panel").exists()).toBe(true);
+  });
+
+  it("<640px 折叠面板里有同一份五子项入口（DOM 常驻，靠断点切换显示）", () => {
+    const wrapper = login();
+    const mobile = wrapper.get(".site-messages-mobile");
+    const links = mobile.findAll("a");
+
+    expect(links).toHaveLength(5);
+    expect(links.map((link) => link.attributes("href")).slice(0, 2)).toEqual([
+      "/messages/comments",
+      "/messages/digg",
+    ]);
+    expect(mobile.find(".site-messages__count").exists()).toBe(true);
+  });
+
+  it("登录后动作区顺序：亮暗 → 创作 → 消息中心 → 历史 → 个人信息 → 手机菜单", () => {
+    const wrapper = login();
+    const order = wrapper
+      .findAll(".site-header__actions > *")
+      .map((node) => node.attributes("data-chrome") ?? "?unknown");
+
+    expect(order).toEqual(["theme", "write", "messages", "history", "account", "menu"]);
+  });
+
+  it("登录后若还没拉过未读汇总，页头挂载时主动刷新一次", () => {
+    login();
+
+    expect(hub.refreshSummary).toHaveBeenCalledTimes(1);
+  });
+
+  it("已经拉过一次就不再重复请求", () => {
+    hub.messageFetched = true;
+    login();
+
+    expect(hub.refreshSummary).not.toHaveBeenCalled();
+  });
+});
+
+describe("页头：历史入口（第 241 票）", () => {
+  function login() {
+    hub.authLoggedIn!.value = true;
+    return mountHeader();
+  }
+
+  it("未登录不渲染历史入口（/history 是 auth 页面）", () => {
+    const wrapper = mountHeader();
+
+    expect(wrapper.find('[data-chrome="history"]').exists()).toBe(false);
+    expect(wrapper.find(".site-history-mobile").exists()).toBe(false);
+  });
+
+  it("登录后动作区是普通链接：指向 /history，没有悬停面板、没有 aria-haspopup", () => {
+    const wrapper = login();
+    const entry = wrapper.get('[data-chrome="history"]');
+
+    expect(entry.attributes("href")).toBe("/history");
+    expect(entry.attributes("aria-label")).toBe("浏览历史");
+    expect(entry.attributes("aria-haspopup")).toBeUndefined();
+    expect(entry.text()).toContain("历史");
+    // 普通链接：指针进入不会展开任何面板（与消息中心不同）。
+    expect(wrapper.find(".site-messages__panel").exists()).toBe(false);
+  });
+
+  it("<640px 折叠面板里有同一个入口（DOM 常驻，靠断点切换显示）", () => {
+    const wrapper = login();
+    const mobile = wrapper.get(".site-history-mobile");
+
+    expect(mobile.find("a").attributes("href")).toBe("/history");
+    expect(mobile.text()).toContain("浏览历史");
+
+    const source = readFileSync(join(process.cwd(), FILENAME), "utf8");
+    const narrowMedia = source.slice(source.indexOf("@media (max-width: 639px)"));
+    expect(narrowMedia).toMatch(/\.site-history-mobile\s*\{\s*display:\s*flex;/u);
+  });
+
+  it("640–1279px 历史收进头像菜单：条件项 + 选择后跳 /history（源码门禁）", () => {
+    // 菜单选项是 NDropdown 的数据、渲染在浮层里，组件测试观测不到；
+    // 与"窄屏降级为纯图标"一样改用源码门禁，锁住三件事：
+    // 查询区间、条件项、以及选中后的去向。
+    const source = readFileSync(join(process.cwd(), FILENAME), "utf8");
+    // 账号菜单（含「历史」的条件项）为压页头行数已外移到 useHeaderUserMenu：
+    // 菜单逻辑看 composable，断点样式仍看页头。
+    const menuSource = readFileSync(join(process.cwd(), "app/composables/useHeaderUserMenu.ts"), "utf8");
+
+    expect(menuSource).toContain(HISTORY_MENU_QUERY);
+    expect(menuSource).toMatch(/if \(historyMenuVisible\.value\) \{/u);
+    expect(menuSource).toContain('label: "浏览历史"');
+    expect(menuSource).toContain('key: "history"');
+    expect(menuSource).toMatch(/key === "history"[\s\S]{0,80}navigateTo\("\/history"\)/u);
+
+    // 动作区链接默认隐藏、1280 断点起才显示：窄屏只留菜单里的那一份。
+    expect(source).toMatch(/\.site-header__history\s*\{\s*display:\s*none;/u);
+    const wideMedia = source.slice(source.indexOf("@media (min-width: 1280px)"));
+    expect(wideMedia).toMatch(/\.site-header__history\s*\{\s*display:\s*inline-flex;/u);
   });
 });
 

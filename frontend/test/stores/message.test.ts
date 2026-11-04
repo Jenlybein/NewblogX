@@ -155,4 +155,46 @@ describe("message store", () => {
     await Promise.all([first, second]);
     expect(store.totalUnread).toBe(5);
   });
+
+  // ── 票 #240：私信到达时未读要**实时** +1 ──
+  //
+  // WS 只推"有新消息"的通知，不带正文、也不带未读汇总。如果等下一次
+  // `refreshSummary` 才更新，顶栏数字在"到达"和"刷新"之间会有一段空窗。
+  // 所以通知到达时先在本地 +1，再用汇总请求校准（服务端才是真相）。
+  describe("私信通知的本地未读累积", () => {
+    it("私信到达时 private 未读立刻 +1，其余分组不动", async () => {
+      getMessageSummaryMock.mockResolvedValue({
+        ...summaryOf(0),
+        comment_msg_count: 2,
+        digg_favor_msg_count: 3,
+      });
+      const store = await createMessageStore();
+      await store.refreshSummary();
+
+      store.bumpPrivateUnread();
+
+      expect(store.summary.private_msg_count).toBe(1);
+      expect(store.summary.comment_msg_count).toBe(2);
+      expect(store.summary.digg_favor_msg_count).toBe(3);
+      expect(store.totalUnread).toBe(6);
+    });
+
+    it("连续两条通知就 +2（每条通知对应一条落库的新消息）", async () => {
+      const store = await createMessageStore();
+
+      store.bumpPrivateUnread();
+      store.bumpPrivateUnread();
+
+      expect(store.summary.private_msg_count).toBe(2);
+    });
+
+    it("未登录时不累积：登出后迟到的通知不该写进下一个账号的未读", async () => {
+      const store = await createMessageStore();
+      loggedIn.value = false;
+
+      store.bumpPrivateUnread();
+
+      expect(store.summary.private_msg_count).toBe(0);
+    });
+  });
 });

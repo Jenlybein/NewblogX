@@ -187,8 +187,44 @@ func (r *FavoriteRepo) FindItemAnyFolder(ctx context.Context, articleID domain.A
 	return toDomainItem(m), nil
 }
 
-// SaveItem 新建收藏。
+// SaveItem 新建收藏（若同键行曾被软删，就地复活它）。
+//
+// 查询旧行必须 **Unscoped**：唯一键 uk_user_article_favor (article_id, user_id, favor_id)
+// 不含 deleted_at，被「移出收藏夹」软删过的行仍然占着这个键。带软删过滤去查就会走
+// Create 撞唯一键，表现是用户「移出后再收藏同一篇」收到 1001 duplicated key not allowed。
+// 与浏览历史 Upsert 是同一类问题、同一种解法：找到**软删过的**旧行就复活并刷新快照，
+// 只有真没有才插入。
+//
+// 活行（未软删）重复保存仍然返回 `gorm.ErrDuplicatedKey`：仓库层守住唯一键语义，
+// 「已收藏就报 ErrItemExists」由用例层（Favorite）负责。两者分开才能保证并发双击
+// 不会既多插一行、又静默把计数 +1。
 func (r *FavoriteRepo) SaveItem(ctx context.Context, i *favorite.Item) error {
+	var old userArticleFavorRow
+	err := r.db.WithContext(ctx).Unscoped().
+		Where("article_id = ? AND user_id = ? AND favor_id = ?",
+			fromArticleID(i.ArticleID()), fromUserID(i.UserID()), ctype.ID(i.FolderID())).
+		Take(&old).Error
+	if err == nil {
+		if !old.DeletedAt.Valid {
+			// 活行已存在：并发重复写，按唯一键冲突处理（不要复活成一次更新）。
+			return gorm.ErrDuplicatedKey
+		}
+		return r.db.WithContext(ctx).Unscoped().Model(&userArticleFavorRow{}).
+			Where("id = ?", old.ID).
+			Updates(map[string]any{
+				"article_title":           i.ArticleTitle(),
+				"article_abstract":        i.ArticleAbstract(),
+				"article_cover":           i.ArticleCover(),
+				"article_status":          fromStatus(i.ArticleStatus()),
+				"article_author_id":       fromUserID(i.AuthorID()),
+				"article_author_nickname": i.AuthorNickname(),
+				"article_author_avatar":   i.AuthorAvatar(),
+				"deleted_at":              nil,
+			}).Error
+	}
+	if !errors.Is(err, gorm.ErrRecordNotFound) {
+		return err
+	}
 	return r.db.WithContext(ctx).Create(&userArticleFavorRow{
 		ArticleID:             fromArticleID(i.ArticleID()),
 		UserID:                fromUserID(i.UserID()),
@@ -437,16 +473,24 @@ type ViewHistoryRepo struct {
 func NewViewHistoryRepo(db *gorm.DB) *ViewHistoryRepo { return &ViewHistoryRepo{db: db} }
 
 // Upsert 写入或刷新浏览记录（唯一键 article_id + user_id）。
+//
+// 查询必须 **Unscoped**：唯一键不含 deleted_at，被"移出历史"/90 天清理软删过的
+// 同一行仍然占着 (article_id, user_id)。带软删过滤去查就会走 Create 撞唯一键，
+// 表现是用户重新打开一篇看过的文章时接口报错。所以这里找到旧行就复活它
+// （deleted_at 置空 + 刷新浏览时间），只有真的没有才插入。
 func (r *ViewHistoryRepo) Upsert(ctx context.Context, rec *viewhistory.Record) error {
 	var m userArticleViewHistoryRow
-	err := r.db.WithContext(ctx).
+	err := r.db.WithContext(ctx).Unscoped().
 		Where("article_id = ? AND user_id = ?",
 			fromArticleID(rec.ArticleID()), fromUserID(rec.UserID())).
 		Take(&m).Error
 	if err == nil {
-		return r.db.WithContext(ctx).Model(&userArticleViewHistoryRow{}).
+		return r.db.WithContext(ctx).Unscoped().Model(&userArticleViewHistoryRow{}).
 			Where("id = ?", m.ID).
-			Update("updated_at", rec.ViewedAt()).Error
+			Updates(map[string]any{
+				"updated_at": rec.ViewedAt(),
+				"deleted_at": nil,
+			}).Error
 	}
 	if !errors.Is(err, gorm.ErrRecordNotFound) {
 		return err
@@ -457,29 +501,37 @@ func (r *ViewHistoryRepo) Upsert(ctx context.Context, rec *viewhistory.Record) e
 	}).Error
 }
 
-// List 列出浏览历史。
+// List 列出一页浏览历史（游标分页），最多 q.Limit 条。
 //
 // 一次 join 出列表页要的标题/封面与浏览者信息，避免 HTTP 层逐条回查。
 //
-// onlyAdminAuthors 为真时（「显示非管理员发布文章」开关关闭）再 join 文章作者行，
-// 只保留作者是管理员的记录；count 与当页查询共用同一组 join（理由同收藏内容）。
-// 历史表里没有作者快照，所以作者经由 article_models 现取。
-func (r *ViewHistoryRepo) List(ctx context.Context, userID domain.UserID, offset, limit int, onlyAdminAuthors bool) ([]*viewhistory.Record, int64, error) {
-	base := func() *gorm.DB {
-		q := r.db.WithContext(ctx).Table("user_article_view_history_models AS h").
-			Where("h.user_id = ? AND h.deleted_at IS NULL", fromUserID(userID))
-		if onlyAdminAuthors {
-			q = q.Joins("JOIN article_models AS author_a ON author_a.id = h.article_id AND author_a.deleted_at IS NULL").
-				Joins("JOIN user_models AS author_u ON author_u.id = author_a.author_id AND author_u.role = ?",
-					int8(enum.RoleAdmin))
-		}
-		return q
+// 排序是 (updated_at desc, article_id desc)：游标的第二排序键直接用契约里已经
+// 暴露的 article_id（(user_id, article_id) 唯一，所以这二元组能唯一定位一条记录），
+// 客户端不需要拿一个隐藏的 row id 才能续页。
+//
+// 过滤（onlyAdminAuthors / keyword）全部下推到这条 SQL：分页必须在**过滤之后**
+// 发生，否则"搜到 1 条却给了第 2 页的空列表"。历史表里没有作者与标题快照，
+// 两者都经由 article_models 现取。
+func (r *ViewHistoryRepo) List(ctx context.Context, q viewhistory.ListQuery) ([]*viewhistory.Record, error) {
+	db := r.db.WithContext(ctx).Table("user_article_view_history_models AS h").
+		Where("h.user_id = ? AND h.deleted_at IS NULL", fromUserID(q.UserID))
+	if q.OnlyAdminAuthors {
+		db = db.Joins("JOIN article_models AS author_a ON author_a.id = h.article_id AND author_a.deleted_at IS NULL").
+			Joins("JOIN user_models AS author_u ON author_u.id = author_a.author_id AND author_u.role = ?",
+				int8(enum.RoleAdmin))
+	}
+	if q.Keyword != "" {
+		// 与文章列表的 keyword 口径一致：按标题模糊匹配（LIKE 通配符不转义，
+		// 与 ArticleRepo 的既有实现保持一致）。
+		db = db.Where("a.title LIKE ?", "%"+q.Keyword+"%")
+	}
+	if q.Before != nil {
+		// 严格早于游标位置：时间更早，或同一时刻且 article_id 更小。
+		db = db.Where("(h.updated_at < ?) OR (h.updated_at = ? AND h.article_id < ?)",
+			q.Before.ViewedAt, q.Before.ViewedAt, fromArticleID(q.Before.ArticleID))
 	}
 
-	var total int64
-	if err := base().Count(&total).Error; err != nil {
-		return nil, 0, err
-	}
+	limit := q.Limit
 	if limit <= 0 {
 		limit = 10
 	}
@@ -493,15 +545,14 @@ func (r *ViewHistoryRepo) List(ctx context.Context, userID domain.UserID, offset
 		Nickname  string
 		Avatar    string
 	}
-	if err := base().
-		Select("h.updated_at, h.article_id, h.user_id, " +
-			"a.title AS title, a.cover AS cover, u.nickname AS nickname, u.avatar AS avatar").
+	if err := db.Select("h.updated_at, h.article_id, h.user_id, " +
+		"a.title AS title, a.cover AS cover, u.nickname AS nickname, u.avatar AS avatar").
 		Joins("LEFT JOIN article_models a ON a.id = h.article_id AND a.deleted_at IS NULL").
 		Joins("LEFT JOIN user_models u ON u.id = h.user_id").
-		Order("h.updated_at desc, h.id desc").
-		Offset(offset).Limit(limit).
+		Order("h.updated_at desc, h.article_id desc").
+		Limit(limit).
 		Scan(&rows).Error; err != nil {
-		return nil, 0, err
+		return nil, err
 	}
 
 	out := make([]*viewhistory.Record, 0, len(rows))
@@ -516,7 +567,7 @@ func (r *ViewHistoryRepo) List(ctx context.Context, userID domain.UserID, offset
 			Avatar:       m.Avatar,
 		}))
 	}
-	return out, total, nil
+	return out, nil
 }
 
 // Delete 删除指定记录。
@@ -530,6 +581,13 @@ func (r *ViewHistoryRepo) Delete(ctx context.Context, userID domain.UserID, arti
 	}
 	return r.db.WithContext(ctx).
 		Where("user_id = ? AND article_id IN ?", fromUserID(userID), raw).
+		Delete(&userArticleViewHistoryRow{}).Error
+}
+
+// DeleteAll 清空某用户的全部浏览历史（「清空历史」）。
+func (r *ViewHistoryRepo) DeleteAll(ctx context.Context, userID domain.UserID) error {
+	return r.db.WithContext(ctx).
+		Where("user_id = ?", fromUserID(userID)).
 		Delete(&userArticleViewHistoryRow{}).Error
 }
 

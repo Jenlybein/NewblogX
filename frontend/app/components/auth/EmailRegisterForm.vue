@@ -5,6 +5,7 @@ import { useForm } from "vee-validate";
 import { z } from "zod";
 import { NButton, NForm, NFormItem, NInput, useMessage } from "naive-ui";
 import { sendEmailCode } from "~/services/auth";
+import { errorMessage } from "~/utils/errorMessage";
 
 const emit = defineEmits<{
   success: [];
@@ -66,7 +67,7 @@ async function handleSendCode() {
     startCountdown();
     message.success("验证码已发送");
   } catch (error) {
-    message.error(error instanceof Error ? error.message : "发送失败");
+    message.error(errorMessage(error, "发送失败"));
   }
 }
 
@@ -85,7 +86,7 @@ const onSubmit = handleSubmit(async (formValues) => {
     message.success("注册并登录成功");
     emit("success");
   } catch (error) {
-    message.error(error instanceof Error ? error.message : "注册失败");
+    message.error(errorMessage(error, "注册失败"));
   }
 });
 </script>

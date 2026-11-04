@@ -13,6 +13,7 @@ import { getSelfUserDetail, getUserBaseInfo } from "~/services/user";
 import type { InboxDraftSessionSeed } from "~/utils/chat";
 import { formatCount } from "~/utils/format";
 import { getAuthorButtonLabel, isFollowing } from "~/utils/relation";
+import { errorMessage } from "~/utils/errorMessage";
 
 type UserTab = "articles" | "favorites" | "follow" | "fans";
 const USER_TABS: UserTab[] = ["articles", "favorites", "follow", "fans"];
@@ -258,7 +259,7 @@ async function handleFollow() {
     }
     await Promise.all([refreshProfile(), refreshFollowData(), refreshFansData()]);
   } catch (error) {
-    message.error(error instanceof Error ? error.message : "操作失败");
+    message.error(errorMessage(error, "操作失败"));
   }
 }
 
@@ -282,9 +283,8 @@ async function handlePrivateMessage() {
   };
 
   void router.push({
-    path: "/studio/inbox",
+    path: "/messages/chat",
     query: {
-      tab: "chat",
       draft_receiver_id: draftSessionSeed.receiverId,
       draft_receiver_nickname: draftSessionSeed.receiverNickname,
       draft_receiver_avatar: draftSessionSeed.receiverAvatar || undefined,
@@ -310,7 +310,7 @@ async function handleRelationToggle(targetId: string, relation: number) {
     }
     await Promise.all([refreshProfile(), refreshFollowData(), refreshFansData()]);
   } catch (error) {
-    message.error(error instanceof Error ? error.message : "操作失败");
+    message.error(errorMessage(error, "操作失败"));
   }
 }
 

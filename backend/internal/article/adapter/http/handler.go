@@ -2,6 +2,7 @@ package http
 
 import (
 	"context"
+	"io"
 	"myblogx/internal/kernel"
 	"strconv"
 
@@ -47,6 +48,12 @@ type Handler struct {
 func NewHandler(svc *app.Service, logger *logrus.Logger, site *sitecfg.RuntimeConfigService, viewer ViewerResolver, images ImageResolver) *Handler {
 	if viewer == nil {
 		viewer = anonymousViewer
+	}
+	if logger == nil {
+		// 测试装配（以及部分最小装配）不传 logger：告警日志不能因此 panic，
+		// 也不该把成百上千行打到测试输出里。
+		logger = logrus.New()
+		logger.SetOutput(io.Discard)
 	}
 	return &Handler{svc: svc, logger: logger, site: site, viewer: viewer, images: images}
 }
@@ -382,24 +389,33 @@ func (h *Handler) Visit(c *gin.Context) {
 
 // ── 点赞 ──
 
-// Digg 点赞/取消点赞。
+// Digg 设置点赞目标态。
 //
 // @Summary 文章点赞
 // @Tags article
+// @Accept json
 // @Produce json
 // @Security BearerAuth
 // @Param id path string true "文章 ID"
+// @Param body body ArticleDiggRequest true "目标态（liked=true 点赞 / false 取消）"
 // @Success 200 {object} kernel.Envelope[ArticleDiggResponse]
 // @Router /articles/{id}/digg [put]
 func (h *Handler) Digg(c *gin.Context) {
 	uri := middleware.GetBindUri[kernel.IDRequest](c)
+	cr := middleware.GetBindJson[ArticleDiggRequest](c)
 
-	liked, err := h.svc.Digg(c.Request.Context(), uri.ID, h.viewerOf(c))
+	// 请求体是目标态（不是 toggle）：服务端按目标收敛，重复同态即无操作。
+	// 值以指针到达（binding:"required" 挡掉"没带目标态"的旧式空请求体）。
+	result, err := h.svc.Digg(c.Request.Context(), app.DiggCmd{
+		Actor:     h.viewerOf(c),
+		ArticleID: uri.ID,
+		Liked:     cr.Liked != nil && *cr.Liked,
+	})
 	if err != nil {
 		h.fail(c, err)
 		return
 	}
-	res.OkWithData(ArticleDiggResponse{IsDigg: liked}, c)
+	res.OkWithData(ArticleDiggResponse{IsDigg: result.IsDigg, DiggCount: result.DiggCount}, c)
 }
 
 // ── 内部助手 ──

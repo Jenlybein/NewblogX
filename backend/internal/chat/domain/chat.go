@@ -140,11 +140,11 @@ const OutboxAggregateType = "chat"
 // 刻意**不带正文**：正文由接收方收到通知后走 HTTP 重新拉取，
 // 发件箱里就不必沉淀消息内容，减少泄露面与事件体积。
 type SentNotice struct {
-	MessageID  ctype.ID `json:"message_id"`
-	SenderID   ctype.ID `json:"sender_id"`
-	ReceiverID ctype.ID `json:"receiver_id"`
-	SessionID  string   `json:"session_id"`
-	MsgType    MsgType  `json:"msg_type"`
+	MessageID  ctype.ID  `json:"message_id"`
+	SenderID   ctype.ID  `json:"sender_id"`
+	ReceiverID ctype.ID  `json:"receiver_id"`
+	SessionID  string    `json:"session_id"`
+	MsgType    MsgType   `json:"msg_type"`
 	SendTime   time.Time `json:"send_time"`
 }
 
@@ -322,12 +322,36 @@ type UserDirectory interface {
 	Displays(ctx context.Context, ids []ctype.ID) (map[ctype.ID]Display, error)
 }
 
-// StrangerPolicy 读站点级的"是否允许陌生人发私信"开关。
+// StrangerVerdict 是陌生人私信的两级判定结论（#247）。
 //
-// 它没有 userID 参数：这个策略属于站点（#202），不属于某个用户的配置行。
-// 判定只看"发送双方是不是陌生人"，接收人是谁不影响结论。
+// 之前只返回 bool：拒绝时只知道"被拒了"，于是读者侧只能看到站点级文案，
+// 把"接收方个人开关关闭"的发送方引向管理员（管理员查站点总闸只会看到已开启）。
+// 结论带上原因，用例层才能为两种拒绝给出不同的错误码与文案。
+type StrangerVerdict int
+
+const (
+	// StrangerAllowed 两级都允许：可以发。
+	StrangerAllowed StrangerVerdict = iota
+	// StrangerBlockedBySite 站点总闸（site.chat.stranger_msg_enabled）关闭。
+	// 这是站点策略，正确动作是联系管理员。
+	StrangerBlockedBySite
+	// StrangerBlockedByRecipient 接收方个人开关
+	// （user_conf_models.stranger_chat_enabled）关闭。正确动作是关注对方 /
+	// 等对方开启，不该去找管理员。
+	StrangerBlockedByRecipient
+)
+
+// StrangerPolicy 判断"接收方是否接受陌生人发来的私信"。
+//
+// 结论是**两级取交集**：站点总闸（site.chat.stranger_msg_enabled）AND
+// 接收方个人开关（user_conf_models.stranger_chat_enabled，默认开）。
+// 所以它必须带接收方 ID —— 个人一级的开关属于接收方，不属于站点
+// （#243 把 #202 的单级口径做回用户级；实现见 app/chat_wiring.go）。
+//
+// 只对"陌生人"调用：自己发给自己、双方已有关注关系或已存在会话时，
+// 用例层不参与判定。返回值不只回答"能不能发"，还带上**哪一级拒绝**（#247）。
 type StrangerPolicy interface {
-	StrangerEnabled(ctx context.Context) (bool, error)
+	CheckStranger(ctx context.Context, receiverID ctype.ID) (StrangerVerdict, error)
 }
 
 // Reservation 是一次发送额度预占。

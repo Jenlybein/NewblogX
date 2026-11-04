@@ -3,7 +3,7 @@ import type { MaybeRefOrGetter } from "vue";
 import { usePagedResourceCache } from "~/composables/usePagedResourceCache";
 import { useReaderSwrAsyncData } from "~/composables/useReaderSwrAsyncData";
 import { getArticleScoreSummary } from "~/services/ai";
-import { getArticleAuthorInfo, getArticleDetail, getArticleDetailAnonymous } from "~/services/article";
+import { getArticleAuthorInfo, getArticleDetail, getArticleDetailAnonymous, getArticlePrivateState } from "~/services/article";
 import { getRootComments, getRootCommentsAnonymous } from "~/services/comment";
 import { getUserBaseInfo } from "~/services/user";
 import type { ArticleAuthorInfo, ArticleDetail, CommentRootItem } from "~/types/api";
@@ -14,9 +14,14 @@ import {
   readerArticleAuthorInfoCacheKey,
   readerArticleCacheKey,
   readerArticleCommentsCacheKey,
+  readerArticlePrivateCacheKey,
   readerArticleScoreCacheKey,
 } from "~/utils/readerCacheKeys";
-import { withoutPrivateFields, withoutPrivateFieldsFromItems } from "~/utils/readerPrivateFields";
+import {
+  withoutPrivateFields,
+  withoutPrivateFieldsFromItems,
+  type ArticlePrivateState,
+} from "~/utils/readerPrivateFields";
 
 export interface ArticleCommentsPage {
   items: CommentRootItem[];
@@ -36,6 +41,8 @@ export interface ArticlePageSourcesOptions {
   fetchComments?: (articleId: string, page: number, limit: number) => Promise<ArticleCommentsPage>;
   fetchAuthorInfo?: (authorId: string) => Promise<ArticleAuthorInfo>;
   fetchAuthorProfile?: (authorId: string) => Promise<ArticleAuthorProfile | null>;
+  /** 用户私有态取数（单测注入；默认走带鉴权的详情接口并只投影私有字段）。 */
+  fetchArticlePrivate?: (articleId: string) => Promise<ArticlePrivateState>;
   /** 跨导航 30s SWR 缓存（单测注入假时钟实例；默认客户端共享实例、服务端禁用）。 */
   swrCache?: ReaderSwrCache;
 }
@@ -99,6 +106,10 @@ export async function useArticlePageSources(options: ArticlePageSourcesOptions) 
   const fetchAuthorInfo = options.fetchAuthorInfo ?? ((authorId: string) => getArticleAuthorInfo(authorId));
   const fetchAuthorProfile =
     options.fetchAuthorProfile ?? ((authorId: string) => getUserBaseInfo(authorId).catch(() => null));
+  // 私有态默认走带鉴权的详情接口，只投影 is_digg / is_favor（详情接口不返回 relation，
+  // 作者关系由 authorProfile 源负责；`relation` 曾是永为 null 的死字段，已删除）。
+  const fetchArticlePrivate =
+    options.fetchArticlePrivate ?? ((id: string) => getArticlePrivateState(id));
 
   // 用户态只在服务端剔除；客户端（跳转 / 首屏 hydration）要原样保留，靠它渲染"已点赞"。
   // 私有字段清单来自 `readerPrivateFields.ts` —— 与客户端 30s 缓存用的是同一份（ADR-0019 约束 2）。
@@ -124,6 +135,41 @@ export async function useArticlePageSources(options: ArticlePageSourcesOptions) 
     lazy: true,
     watch: [articleId],
   });
+
+  // 用户私有态（ADR-0024 决策 2）：已赞 / 已收藏是**登录用户私有**数据，
+  // 既不能进 SSR payload（ADR-0019 约束 2），也不能进 30 秒 SWR（那是共享缓存）。
+  // 所以它不走 `useReaderSwrAsyncData`，而是单独的 `useAsyncData`：
+  //   - `server: false`：服务端不取、也不把值写进 payload；
+  //   - `getCachedData: () => undefined`：任何 cause 都不读缓存/payload，真发请求；
+  //   - `immediate: false`：登录态由页面在 `initializeSession()` 之后显式触发
+  //     （匿名时不必多打一次接口）。
+  // `article-private-<id>` 这个 key 只用于同页去重，不承载任何缓存值。
+  const articlePrivateSource = useAsyncData<ArticlePrivateState | null>(
+    () => readerArticlePrivateCacheKey(articleId.value),
+    () => fetchArticlePrivate(articleId.value),
+    { server: false, lazy: true, immediate: false, getCachedData: () => undefined },
+  );
+
+  // 私有态只补进本次渲染的正文（按钮据此显示"已点赞"），不写回缓存：
+  // 下一次重进仍按匿名 payload 先渲染，再由页面补一次私有态请求。
+  function applyArticlePrivateState(state: ArticlePrivateState | null | undefined) {
+    if (!state || !articleSource.data.value) {
+      return;
+    }
+    articleSource.data.value = {
+      ...articleSource.data.value,
+      is_digg: state.is_digg,
+      is_favor: state.is_favor,
+    };
+  }
+
+  /** 页面在登录初始化完成后调用：取一次私有态并补进当前正文。 */
+  async function refreshArticlePrivate() {
+    await articlePrivateSource.refresh();
+    const state = articlePrivateSource.data.value ?? null;
+    applyArticlePrivateState(state);
+    return state;
+  }
 
   const authorId = computed(() => articleSource.data.value?.author_id || "");
 
@@ -183,7 +229,9 @@ export async function useArticlePageSources(options: ArticlePageSourcesOptions) 
     }
     if (mode !== "hydration") {
       // 统计三项由服务端渲染 / 由第二波补：hydrating 时 payload 里已经有，不重复请求。
-      tasks.push(inNuxtContext(() => authorInfoSource.refresh()));
+      // 用 refreshIfNeeded 而非 refresh：30 秒内重进同一篇时命中 30s SWR、请求数为 0
+      // （#85 验收）；手工刷新（用户动作）仍走 refresh，必须真发请求。
+      tasks.push(inNuxtContext(() => authorInfoSource.refreshIfNeeded()));
     }
     await Promise.allSettled(tasks);
   })();
@@ -197,6 +245,9 @@ export async function useArticlePageSources(options: ArticlePageSourcesOptions) 
     articlePending: articleSource.pending,
     articleError: articleSource.error,
     refreshArticle: articleSource.refresh,
+    /** 登录用户私有态（只进本次渲染，不进 payload / SWR）。 */
+    articlePrivate: articlePrivateSource.data,
+    refreshArticlePrivate,
     authorInfo: authorInfoSource.data,
     refreshAuthorInfo: authorInfoSource.refresh,
     authorProfile: authorProfileSource.data,

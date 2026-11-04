@@ -2,6 +2,7 @@ package app_test
 
 import (
 	"context"
+	"errors"
 	"strings"
 	"testing"
 	"time"
@@ -12,14 +13,17 @@ import (
 	"myblogx/internal/kernel/ctype"
 )
 
-// 这一组用例钉住"陌生人开关是站点级策略"这条规则（#202）。
+// 这一组用例钉住"陌生人判定看谁"这条规则（#243）。
 //
 // 判定点必须落在用例层：WS/HTTP 适配器只是把错误码翻成响应，
-// 换一个入口不该改变"谁能给谁发"的结论。
+// 换一个入口不该改变"谁能给谁发"的结论。真正两级（站点 AND 接收方）
+// 的取值在装配层，见 app/chat_wiring_test.go。
 
 type fakeRepo struct {
 	sent []*domain.Message
 	err  error
+	// existingSession 为 true 时表示双方已有会话（#243 的"会话关系"一级）。
+	existingSession bool
 }
 
 func (f *fakeRepo) Send(_ context.Context, cmd domain.SendCommand, _, _ domain.Display, _ string) (domain.Message, bool, error) {
@@ -45,7 +49,10 @@ func (f *fakeRepo) ListSessions(context.Context, ctype.ID, bool, domain.Page) ([
 }
 
 func (f *fakeRepo) FindSession(context.Context, string, ctype.ID, bool) (domain.Session, error) {
-	return domain.Session{}, nil
+	if f.existingSession {
+		return domain.Session{}, nil
+	}
+	return domain.Session{}, apperr.New(apperr.CodeChatSessionNotFound)
 }
 
 func (f *fakeRepo) ListMessages(context.Context, domain.MessageQuery) ([]domain.Message, int, error) {
@@ -90,92 +97,180 @@ func (fakeUsers) Displays(_ context.Context, ids []ctype.ID) (map[ctype.ID]domai
 	return out, nil
 }
 
-// fakeStranger 是站点级陌生人私信开关的快照。
+// fakeStranger 是**有效陌生人判定**的替身：站点总闸与接收方个人开关的
+// 交集由装配层的 strangerBridge 算好，用例层只消费结论（#247 起结论带原因）。
 //
-// 它没有"查哪个用户"的参数：这正是 #202 的语义——开关属于站点，
-// 不属于某个人的配置行。
+// receiverIDs 记录判定时传入的接收方：接收方是谁必须参与结论，否则
+// 个人级开关就没有接线点（#243）。
 type fakeStranger struct {
-	enabled bool
-	err     error
+	verdict     domain.StrangerVerdict
+	err         error
+	receiverIDs []ctype.ID
 }
 
-func (f fakeStranger) StrangerEnabled(context.Context) (bool, error) { return f.enabled, f.err }
+func (f *fakeStranger) CheckStranger(_ context.Context, receiverID ctype.ID) (domain.StrangerVerdict, error) {
+	f.receiverIDs = append(f.receiverIDs, receiverID)
+	if f.err != nil {
+		return domain.StrangerAllowed, f.err
+	}
+	return f.verdict, nil
+}
 
-func newService(t *testing.T, relation int8, strangerEnabled bool) (*app.Service, *fakeRepo) {
+func newService(t *testing.T, relation int8, verdict domain.StrangerVerdict) (*app.Service, *fakeRepo, *fakeStranger) {
 	t.Helper()
 	repo := &fakeRepo{}
+	stranger := &fakeStranger{verdict: verdict}
 	svc := app.New(
 		repo,
 		repo,
 		fakeRelations{relation: relation},
 		fakeUsers{},
-		fakeStranger{enabled: strangerEnabled},
+		stranger,
 		nil,
 		nil,
 	)
-	return svc, repo
+	return svc, repo, stranger
 }
 
-func TestSend_陌生人开关关闭时拒绝并说明是站点策略(t *testing.T) {
-	svc, repo := newService(t, 1, false)
+// TestSend_陌生人被站点总闸关闭时拒绝并说明站点原因 站点级拒绝保留原错误码：
+// 这不是接收方的意愿，读者应去找管理员打开站点开关。
+func TestSend_陌生人被站点总闸关闭时拒绝并说明站点原因(t *testing.T) {
+	svc, repo, _ := newService(t, 1, domain.StrangerBlockedBySite)
 
 	_, err := svc.Send(context.Background(), ctype.NewID(100), ctype.NewID(200), domain.TypeText, "你好", "")
 	if err == nil {
-		t.Fatal("站点关闭陌生人私信时，陌生人之间不应发出消息")
+		t.Fatal("站点总闸关闭时，陌生人之间不应发出消息")
 	}
 	if !apperr.IsCode(err, apperr.CodeChatStrangerOff) {
-		t.Fatalf("应返回既有错误码 %s，实际 %v", apperr.CodeChatStrangerOff, err)
+		t.Fatalf("站点级拒绝应返回既有错误码 %s，实际 %v", apperr.CodeChatStrangerOff, err)
 	}
 	if repo.err != nil || len(repo.sent) != 0 {
 		t.Fatalf("被拒绝的消息不能落库，实际写入 %d 条", len(repo.sent))
 	}
 
 	// 读者侧显示的就是 err.Error()（WS 失败帧的 msg）。文案必须点明是
-	// 站点策略、并告诉用户去找管理员开哪个开关，否则用户会以为是自己
+	// 站点私信策略、并告诉用户去找管理员开哪个开关，否则用户会以为是自己
 	// 账号被限制或网络出了问题。
 	msg := err.Error()
 	if !strings.Contains(msg, "站点") || !strings.Contains(msg, "陌生人") {
-		t.Fatalf("拒绝原因必须说明是站点开关，实际 %q", msg)
+		t.Fatalf("站点级拒绝原因必须说明是站点开关，实际 %q", msg)
 	}
 	if !strings.Contains(msg, "管理员") {
-		t.Fatalf("拒绝原因应提示联系管理员开启，实际 %q", msg)
+		t.Fatalf("站点级拒绝原因应提示联系管理员开启，实际 %q", msg)
 	}
 }
 
-func TestSend_陌生人开关打开时放行(t *testing.T) {
-	svc, repo := newService(t, 1, true)
+// TestSend_陌生人被接收方个人开关关闭时提示对方设置 #247：同样是拒绝，
+// 但原因在接收方的个人开关上。文案必须指向接收方，不能把用户引向管理员
+// （管理员查站点开关只会查到"已开启"，帮不上忙）。
+func TestSend_陌生人被接收方个人开关关闭时提示对方设置(t *testing.T) {
+	svc, repo, _ := newService(t, 1, domain.StrangerBlockedByRecipient)
+
+	_, err := svc.Send(context.Background(), ctype.NewID(100), ctype.NewID(200), domain.TypeText, "你好", "")
+	if err == nil {
+		t.Fatal("接收方关闭陌生人私信时，陌生人之间不应发出消息")
+	}
+	if !apperr.IsCode(err, apperr.CodeChatRecipientStrangerOff) {
+		t.Fatalf("接收方级拒绝应返回 %s，实际 %v", apperr.CodeChatRecipientStrangerOff, err)
+	}
+	if len(repo.sent) != 0 {
+		t.Fatalf("被拒绝的消息不能落库，实际写入 %d 条", len(repo.sent))
+	}
+
+	msg := err.Error()
+	if !strings.Contains(msg, "对方") {
+		t.Fatalf("接收方级拒绝应提示是对方的设置，实际 %q", msg)
+	}
+	if strings.Contains(msg, "管理员") {
+		t.Fatalf("接收方级拒绝不该把用户引向管理员（管理员查不到问题），实际 %q", msg)
+	}
+}
+
+func TestSend_陌生人有效开关打开时放行(t *testing.T) {
+	svc, repo, _ := newService(t, 1, domain.StrangerAllowed)
 
 	msg, err := svc.Send(context.Background(), ctype.NewID(100), ctype.NewID(200), domain.TypeText, "你好", "")
 	if err != nil {
-		t.Fatalf("站点开启陌生人私信时应允许发送，实际报错: %v", err)
+		t.Fatalf("有效开关开启时应允许发送，实际报错: %v", err)
 	}
 	if msg == nil || len(repo.sent) != 1 {
 		t.Fatalf("应落库 1 条消息，实际 %d 条", len(repo.sent))
 	}
 }
 
-func TestSend_已关注或互关的人不受站点开关影响(t *testing.T) {
+// TestSend_陌生人判定传的是接收方 钉住 #243 的接线点：判定必须拿到接收方 ID，
+// 而不是只看站点级开关。传成发送方 / 不传都会让"接收方个人开关"永远不生效。
+func TestSend_陌生人判定传的是接收方(t *testing.T) {
+	svc, _, stranger := newService(t, 1, domain.StrangerAllowed)
+
+	if _, err := svc.Send(context.Background(), ctype.NewID(100), ctype.NewID(200), domain.TypeText, "你好", ""); err != nil {
+		t.Fatalf("发送失败: %v", err)
+	}
+	if len(stranger.receiverIDs) != 1 || stranger.receiverIDs[0] != ctype.NewID(200) {
+		t.Fatalf("陌生人判定应传入接收方 200，实际 %v", stranger.receiverIDs)
+	}
+}
+
+// TestSend_陌生人判定错误上抛 读接收方偏好失败不能被吞成"允许"。
+func TestSend_陌生人判定错误上抛(t *testing.T) {
+	svc, repo, stranger := newService(t, 1, domain.StrangerAllowed)
+	boom := errors.New("读接收方偏好失败")
+	stranger.err = boom
+
+	_, err := svc.Send(context.Background(), ctype.NewID(100), ctype.NewID(200), domain.TypeText, "你好", "")
+	if !errors.Is(err, boom) {
+		t.Fatalf("应原样上抛接收方偏好读取错误，实际 %v", err)
+	}
+	if len(repo.sent) != 0 {
+		t.Fatalf("判定失败时不能落库，实际写入 %d 条", len(repo.sent))
+	}
+}
+
+func TestSend_已存在会话的双方不受陌生人开关影响(t *testing.T) {
+	// "陌生人"的反面不只关注关系：已经聊过的双方再发消息，不该被个人开关
+	// 半路切断（#243 的口径是"有关注/会话关系都不判定"）。
+	svc, repo, stranger := newService(t, 1, domain.StrangerBlockedByRecipient)
+	repo.existingSession = true
+
+	if _, err := svc.Send(context.Background(), ctype.NewID(100), ctype.NewID(200), domain.TypeText, "继续聊", ""); err != nil {
+		t.Fatalf("已有会话的双方不应被陌生人开关拦截，实际报错: %v", err)
+	}
+	if len(repo.sent) != 1 {
+		t.Fatalf("应落库 1 条消息，实际 %d", len(repo.sent))
+	}
+	if len(stranger.receiverIDs) != 0 {
+		t.Fatalf("已有会话时不应做陌生人判定，实际查询了 %v", stranger.receiverIDs)
+	}
+}
+
+func TestSend_已关注或互关的人不受陌生人开关影响(t *testing.T) {
 	// 开关只管"陌生人"（relation 1）。已关注 / 粉丝 / 互关都不该被它拦住，
 	// 否则关掉陌生人私信会把熟人之间的对话也一并断掉。
 	for _, relation := range []int8{2, 3, 4} {
-		svc, repo := newService(t, relation, false)
+		svc, repo, stranger := newService(t, relation, domain.StrangerBlockedByRecipient)
 		if _, err := svc.Send(context.Background(), ctype.NewID(100), ctype.NewID(200), domain.TypeText, "在吗", ""); err != nil {
 			t.Fatalf("relation=%d 时不应被陌生人开关拦截，实际报错: %v", relation, err)
 		}
 		if len(repo.sent) != 1 {
 			t.Fatalf("relation=%d 时应落库 1 条，实际 %d", relation, len(repo.sent))
 		}
+		if len(stranger.receiverIDs) != 0 {
+			t.Fatalf("relation=%d 时不应做陌生人判定，实际查询了 %v", relation, stranger.receiverIDs)
+		}
 	}
 }
 
-func TestSend_自己发给自己不受站点开关影响(t *testing.T) {
-	// 自发送没有"陌生人"这层关系，不该被站点开关拦下。
-	svc, repo := newService(t, 1, false)
+func TestSend_自己发给自己不受陌生人开关影响(t *testing.T) {
+	// 自发送没有"陌生人"这层关系，不该被陌生人开关拦下。
+	svc, repo, stranger := newService(t, 1, domain.StrangerBlockedByRecipient)
 
 	if _, err := svc.Send(context.Background(), ctype.NewID(100), ctype.NewID(100), domain.TypeText, "给自己", ""); err != nil {
 		t.Fatalf("自己发给自己不应被陌生人开关拦截，实际报错: %v", err)
 	}
 	if len(repo.sent) != 1 {
 		t.Fatalf("应落库 1 条消息，实际 %d", len(repo.sent))
+	}
+	if len(stranger.receiverIDs) != 0 {
+		t.Fatalf("自己发给自己不应做陌生人判定，实际查询了 %v", stranger.receiverIDs)
 	}
 }

@@ -1,8 +1,9 @@
 <script setup lang="ts">
 import type { ArticleHeadingAnchor } from "~/composables/useArticleMarkdown";
-import { computed, defineAsyncComponent, onMounted, onUnmounted, ref, shallowRef } from "vue";
-import { IconEye, IconHeart, IconMessageCircle2, IconPencil, IconShare2, IconThumbUp } from "@tabler/icons-vue";
+import { computed, defineAsyncComponent, onMounted, onUnmounted, ref } from "vue";
+import { IconEye, IconHeart, IconMessageCircle2, IconThumbUp } from "@tabler/icons-vue";
 import { useMessage } from "naive-ui";
+import ArticleActionsBar from "~/components/article/ArticleActionsBar.vue";
 import ArticlePageSkeleton from "~/components/article/ArticlePageSkeleton.vue";
 import ArticleOutlineAside from "~/components/article/ArticleOutlineAside.vue";
 import ArticleScoreModal from "~/components/article/ArticleScoreModal.vue";
@@ -11,23 +12,32 @@ import AppAvatar from "~/components/common/AppAvatar.vue";
 import CommentComposer from "~/components/comment/CommentComposer.vue";
 import CommentThread from "~/components/comment/CommentThread.vue";
 import FavoriteFolderModal from "~/components/favorite/FavoriteFolderModal.vue";
+import { useArticleCommentJump } from "~/composables/useArticleCommentJump";
 import { useArticleDigg } from "~/composables/useArticleDigg";
+import { useArticleComments } from "~/composables/useArticleComments";
 import { useArticleOutlineContext } from "~/composables/useArticleOutlineContext";
 import { useArticlePageSources } from "~/composables/useArticlePageSources";
+import { useArticlePrivateSession } from "~/composables/useArticlePrivateSession";
 import { useArticleWritePolicy } from "~/composables/useArticleWritePolicy";
+import { useMotionPreference } from "~/composables/useMotionPreference";
 import { useParallax } from "~/composables/useParallax";
+import { useReaderLoginGate } from "~/composables/useReaderLoginGate";
 import { useReadingProgress } from "~/composables/useReadingProgress";
 import { useSectionReveal } from "~/composables/useSectionReveal";
 import { followUser, unfollowUser } from "~/services/follow";
 import { ApiBusinessError } from "~/services/http/errors";
-import { markArticleViewed, toggleArticleDigg } from "~/services/article";
+import { markArticleViewed, setArticleDigg } from "~/services/article";
 import { createComment, diggComment, getReplyComments } from "~/services/comment";
-import type { CommentReplyItem } from "~/types/api";
+import type { ArticleFavoriteResult } from "~/types/api";
 import { resolveArticleEditEntry } from "~/utils/articleEdit";
+import { applyArticleFavoriteResult } from "~/utils/articleFavorite";
 import { formatCount, formatDateTimeLabel } from "~/utils/format";
 import { getAuthorButtonLabel, isFollowing } from "~/utils/relation";
 import { resolveAvatarInitial } from "~/utils/avatar";
 import { brandDescription } from "~/utils/brand";
+import { errorMessage } from "~/utils/errorMessage";
+import { readerArticleCacheKey } from "~/utils/readerCacheKeys";
+import { readerSwrCache } from "~/utils/readerSwrCache";
 import katexCssUrl from "katex/dist/katex.min.css?url";
 
 const route = useRoute();
@@ -43,10 +53,13 @@ const shadowPreviewRef = ref<{
 } | null>(null);
 const articleHeadings = ref<ArticleHeadingAnchor[]>([]);
 
-const REPLY_COMMENT_PAGE_SIZE = 3;
 const ARTICLE_LIKE_DEBOUNCE_MS = 600;
 const favoriteModalOpen = ref(false);
 const articleScoreModalOpen = ref(false);
+// 互动条（票 236）评论动作的两块落点：#comments 区块 = 滚动目标，评论框 = 聚焦目标；平滑滚动跟随动效偏好。
+const commentsSectionRef = ref<HTMLElement | null>(null);
+
+const { prefersReducedMotion } = useMotionPreference();
 
 // 动效档位 C：文章页首屏（hero）做一个区块进场；正文 markdown 段落一律不进场。
 // 装饰记号接一条 ≤10px 的视差（motion-v useScroll），减少动态下两者都归零。
@@ -60,6 +73,7 @@ const {
   articlePending,
   articleError,
   refreshArticle,
+  refreshArticlePrivate,
   authorInfo,
   refreshAuthorInfo,
   authorProfile,
@@ -103,53 +117,42 @@ const authorId = computed(() => article.value?.author_id || "");
 // 切页时（还没有正文）先出骨架；重试（正文已在）不闪骨架。
 const articleSkeleton = computed(() => articlePending.value && !article.value);
 
-interface ReplyPagePayload {
-  items: CommentReplyItem[];
-  hasMore: boolean;
-}
+// 互动统一登录前置（票 238 范围 7）：收藏 / 关注 / 评论提交先问登录态，
+// 未登录只弹登录框、不打接口 —— 否则请求层的 markPossiblyExpired() 会把用户的
+// 登录态打成失效。分享不在此列：它是纯前端 clipboard、不打任何接口，
+// 游客也应该能复制链接（票 247 的修正）。
+const requireLogin = useReaderLoginGate();
+// 点「回复」后由 composable 回调这里：滚动到评论框并聚焦（票 238 范围 3）。
+const composerRef = ref<{ focusInput: () => void; focus: () => void } | null>(null);
 
-interface ReplyPagerState {
-  currentPage: number;
-  pages: Record<number, ReplyPagePayload>;
-  pending: boolean;
-  replyCount: number;
-}
-
-const replyStates = shallowRef<Record<string, ReplyPagerState>>({});
-const replyTarget = ref<{ id: string; nickname: string } | null>(null);
-
-function ensureReplyState(rootId: string) {
-  const current = replyStates.value[rootId];
-  if (current) {
-    return current;
-  }
-
-  const nextState: ReplyPagerState = {
-    currentPage: 1,
-    pages: {},
-    pending: false,
-    replyCount: 0,
-  };
-
-  replyStates.value = {
-    ...replyStates.value,
-    [rootId]: nextState,
-  };
-
-  return nextState;
-}
-
-function resetReplyState(rootId: string) {
-  const current = ensureReplyState(rootId);
-  current.currentPage = 1;
-  current.pages = {};
-  current.pending = false;
-  current.replyCount = 0;
-  replyStates.value = {
-    ...replyStates.value,
-    [rootId]: current,
-  };
-}
+// 评论区状态机（票 238）：回复分页、回复目标、点赞/提交的统一入口。
+// 页面只负责接线与模板渲染，逻辑与登录前置都在 composable 里（可单测）。
+const {
+  comments,
+  replyTarget,
+  clearReplyTarget,
+  replyLoading,
+  replyPages,
+  replyHasPrevious,
+  replyHasNext,
+  replyLoadedPages,
+  handleReply,
+  handleCommentDigg,
+  handleCreateComment,
+  handleLoadReplies,
+  handleNextReplies,
+  handlePreviousReplies,
+} = useArticleComments({
+  articleId: () => String(articleId.value),
+  pager: commentsPager,
+  requireLogin,
+  fetchReplies: (id, rootId, page, limit) => getReplyComments(id, rootId, page, limit),
+  createComment,
+  diggComment,
+  refreshArticle: () => refreshArticle(),
+  focusComposer: () => composerRef.value?.focusInput(),
+  notify: message,
+});
 
 // 正文主题由 MarkdownShadowPreview 内置（token 驱动，明暗自动跟随站点根类）；
 // katex 只保留基线布局样式（分数/根号/字体），配色由自有主题覆盖。
@@ -201,136 +204,72 @@ const {
       return;
     }
     article.value = { ...article.value, is_digg: isDigg, digg_count: diggCount };
+    // 写响应已经是权威计数，客户端 30s SWR 里那份（匿名 payload 预热出的）旧值
+    // 必须主动失效，否则返回/重进时会先渲染旧数字再等 TTL（ADR-0024 决策 4）。
+    readerSwrCache.delete(readerArticleCacheKey(articleId.value));
   },
-  toggle: toggleArticleDigg,
+  // 点赞/收藏是写操作：用**目标态**接口（不是 toggle），写响应带回权威计数。
+  setDigg: setArticleDigg,
   ensureLoggedIn: () => authStore.initializeSession(),
   openAuthModal: () => uiStore.openAuthModal(),
   notify: message,
   debounceMs: ARTICLE_LIKE_DEBOUNCE_MS,
 });
 
+// 登录态补取私有态（评审票 248 / P0-4）：
+// 只在 onMounted 里判一次 initializeSession() 会漏掉「用户在文章页被弹登录框、
+// 登录成功后才成为已登录」这条路径 —— 私有态永不请求，按钮继续显示未赞（库里其实已赞）。
+// 这里同时接住两条触发（首屏初始化 / 登录态 false→true），单飞闸门保证一次登录只补一次。
+const articlePrivateSession = useArticlePrivateSession({
+  isLoggedIn: () => authStore.isLoggedIn,
+  initializeSession: () => authStore.initializeSession(),
+  refreshPrivate: () => refreshArticlePrivate(),
+  // 用户已经手动点过赞时不覆盖乐观结果（ADR-0024 约束 3）。
+  shouldSkip: () => articleDiggTouched.value,
+});
+
 async function handleFavorite() {
-  const isLoggedIn = await authStore.initializeSession();
-  if (!isLoggedIn) {
-    uiStore.openAuthModal();
+  if (!(await requireLogin())) {
     return;
   }
   favoriteModalOpen.value = true;
 }
 
-async function resetAndRefreshRootComments() {
-  commentsPager.reset(1);
-  await commentsPager.loadPage(1, true);
+// 互动条的唯一状态源（票 236 验收：右栏与 <1024px 底部条绑同一份 props，不可能不同步）：
+// 点赞取 `useArticleDigg` 的乐观值（票 235），收藏 / 评论 / 已藏态取正文的权威字段。
+const articleActionProps = computed(() => ({
+  diggCount: articleDiggCount.value,
+  favorCount: article.value?.favor_count ?? 0,
+  commentCount: article.value?.comment_count ?? 0,
+  isDigged: articleIsDigged.value,
+  isFavor: Boolean(article.value?.is_favor),
+  likePending: articleLikePending.value,
+  likeDebouncing: articleLikeDebouncing.value,
+}));
+
+function scrollToComments() {
+  commentsSectionRef.value?.scrollIntoView({ behavior: prefersReducedMotion.value ? "auto" : "smooth", block: "start" });
 }
 
-async function handleCreateComment(content: string) {
-  try {
-    await createComment({
-      article_id: String(articleId.value),
-      content,
-      ...(replyTarget.value ? { reply_id: replyTarget.value.id } : {}),
-    });
-    message.success(replyTarget.value ? "回复已发送" : "评论已发送");
-    const repliedRootId = replyTarget.value?.id;
-    replyTarget.value = null;
-    await resetAndRefreshRootComments();
-    if (repliedRootId) {
-      resetReplyState(repliedRootId);
-      await handleLoadReplies(repliedRootId, true);
-    }
-    await refreshArticle();
-  } catch (error) {
-    message.error(error instanceof Error ? error.message : "评论失败");
-  }
+function focusCommentComposer() {
+  composerRef.value?.focus();
 }
 
-async function handleCommentDigg(commentId: string, isDigg: boolean) {
-  try {
-    await diggComment(commentId);
-    message.success(isDigg ? "已取消评论点赞" : "评论点赞成功");
-    await commentsPager.refreshCurrentPage();
-  } catch (error) {
-    message.error(error instanceof Error ? error.message : "评论点赞失败");
-  }
-}
+// 评论按钮：未登录先弹登录框、不滚动不聚焦；已登录才滚到 #comments 并聚焦输入框（顺序在 composable 里）。
+const { jumpToComment } = useArticleCommentJump({
+  ensureLoggedIn: () => authStore.initializeSession(),
+  openAuthModal: () => uiStore.openAuthModal(),
+  scrollToComments,
+  focusComposer: focusCommentComposer,
+});
 
-async function loadReplyPage(rootId: string, page = 1, force = false) {
-  const state = ensureReplyState(rootId);
-  if (!force && state.pages[page]) {
-    state.currentPage = page;
-    replyStates.value = {
-      ...replyStates.value,
-      [rootId]: state,
-    };
-    return state.pages[page];
-  }
-
-  state.pending = true;
-  replyStates.value = {
-    ...replyStates.value,
-    [rootId]: state,
-  };
-
-  try {
-    const data = await getReplyComments(articleId.value, rootId, page, REPLY_COMMENT_PAGE_SIZE);
-    state.pages = {
-      ...state.pages,
-      [page]: {
-        items: data.list,
-        hasMore: data.has_more,
-      },
-    };
-    state.replyCount = data.reply_count;
-    state.currentPage = page;
-    replyStates.value = {
-      ...replyStates.value,
-      [rootId]: state,
-    };
-    return state.pages[page];
-  } catch (error) {
-    message.error(error instanceof Error ? error.message : "加载回复失败");
-    return null;
-  } finally {
-    state.pending = false;
-    replyStates.value = {
-      ...replyStates.value,
-      [rootId]: state,
-    };
-  }
-}
-
-async function handleLoadReplies(rootId: string, force = false) {
-  const state = ensureReplyState(rootId);
-  await loadReplyPage(rootId, state.currentPage || 1, force);
-}
-
-async function handleNextReplies(rootId: string) {
-  const state = ensureReplyState(rootId);
-  const current = state.pages[state.currentPage];
-  if (!current?.hasMore && !state.pages[state.currentPage + 1]) {
-    return;
-  }
-  await loadReplyPage(rootId, state.currentPage + 1);
-}
-
-async function handlePreviousReplies(rootId: string) {
-  const state = ensureReplyState(rootId);
-  if (state.currentPage <= 1) {
-    return;
-  }
-  await loadReplyPage(rootId, state.currentPage - 1);
-}
-
-function handleReply(commentId: string) {
-  const target = commentsPager.currentItems.value.find((item) => item.id === commentId);
-  if (!target) return;
-  replyTarget.value = {
-    id: target.id,
-    nickname: target.user_nickname,
-  };
+function handleCommentJump() {
+  void jumpToComment();
 }
 
 async function handleShare() {
+  // 分享是纯前端 clipboard、不打任何接口，因此**不需要**登录前置（票 247）：
+  // 游客复制文章链接和登录用户没有任何区别，弹登录框只会伤害体验。
   if (!import.meta.client) return;
 
   const shareUrl = `${window.location.origin}/article/${articleId.value}`;
@@ -343,8 +282,14 @@ async function handleShare() {
   }
 }
 
-async function handleFavoriteUpdated() {
-  await refreshArticle();
+function handleFavoriteUpdated(payload: ArticleFavoriteResult | null) {
+  // 空值防御在纯函数里（评审票 248 / P0-2）：失败分支可能没有 data，
+  // 之前的实现读 `payload.is_favor` 会直接 TypeError。
+  // 写响应回填权威计数，直接 patch；不再为一次收藏重取整篇正文（ADR-0024 决策 4/6）。
+  article.value = applyArticleFavoriteResult(article.value, payload) ?? undefined;
+  // 客户端 30s SWR 里那份正文仍是旧计数/旧私有态，主动失效
+  // （payload 不可用时更该失效：服务端状态可能已经变了）。
+  readerSwrCache.delete(readerArticleCacheKey(articleId.value));
 }
 
 function handleArticleScoreOpen() {
@@ -355,13 +300,11 @@ function handleArticleScoreOpen() {
 }
 
 async function handleAuthorFollow() {
-  if (!authorId.value) {
+  if (!(await requireLogin())) {
     return;
   }
 
-  const isLoggedIn = await authStore.initializeSession();
-  if (!isLoggedIn) {
-    uiStore.openAuthModal();
+  if (!authorId.value) {
     return;
   }
 
@@ -381,14 +324,12 @@ async function handleAuthorFollow() {
     await refreshAuthorProfile();
     await refreshAuthorInfo();
   } catch (error) {
-    message.error(error instanceof Error ? error.message : "关注操作失败");
+    message.error(errorMessage(error, "关注操作失败"));
   }
 }
 
 async function handlePrivateMessage() {
-  const isLoggedIn = await authStore.initializeSession();
-  if (!isLoggedIn) {
-    uiStore.openAuthModal();
+  if (!(await requireLogin())) {
     return;
   }
 
@@ -415,41 +356,10 @@ function handleArticleHeadingsChange(nextHeadings: ArticleHeadingAnchor[]) {
   articleHeadings.value = nextHeadings;
 }
 
-const comments = computed(() =>
-  commentsPager.currentItems.value.map((comment) => {
-    const replyState = replyStates.value[comment.id];
-    const currentReplies = replyState?.pages[replyState.currentPage]?.items || [];
-    return {
-    ...comment,
-    replies: currentReplies,
-    };
-  }),
-);
-
 const commentsPending = computed(() => commentsPager.pending.value);
 const commentPage = computed(() => commentsPager.currentPage.value);
 const hasPreviousCommentPage = computed(() => commentsPager.hasPreviousPage.value);
 const hasNextCommentPage = computed(() => commentsPager.hasNextPage.value);
-const replyLoading = computed(() =>
-  Object.fromEntries(Object.entries(replyStates.value).map(([rootId, state]) => [rootId, state.pending])),
-);
-const replyPages = computed(() =>
-  Object.fromEntries(Object.entries(replyStates.value).map(([rootId, state]) => [rootId, state.currentPage])),
-);
-const replyHasPrevious = computed(() =>
-  Object.fromEntries(Object.entries(replyStates.value).map(([rootId, state]) => [rootId, state.currentPage > 1])),
-);
-const replyHasNext = computed(() =>
-  Object.fromEntries(
-    Object.entries(replyStates.value).map(([rootId, state]) => [
-      rootId,
-      Boolean(state.pages[state.currentPage + 1]) || Boolean(state.pages[state.currentPage]?.hasMore),
-    ]),
-  ),
-);
-const replyLoadedPages = computed(() =>
-  Object.fromEntries(Object.entries(replyStates.value).map(([rootId, state]) => [rootId, Object.keys(state.pages).length])),
-);
 
 async function handlePreviousCommentPage() {
   await commentsPager.goToPreviousPage();
@@ -461,12 +371,11 @@ async function handleNextCommentPage() {
 
 onMounted(() => {
   markArticleViewed(articleId.value).catch(() => undefined);
-  void authStore.initializeSession().then(async (isLoggedIn) => {
-    if (!isLoggedIn || articleDiggTouched.value) {
-      return;
-    }
-    await refreshArticle().catch(() => undefined);
-  });
+  // 首屏 hydration 的 payload 是**匿名**的：点赞/收藏态不在里面（ADR-0019 约束 2）。
+  // 登录初始化完成后必须补一次用户态请求（ADR-0024 决策 2/6），否则硬刷新后
+  // 按钮永远显示"未赞"。这条请求不走 SWR、只投影私有字段，不污染共享缓存。
+  // 页内登录成功那一路由 `useArticlePrivateSession` 的 watch 兜住（单飞去重）。
+  void articlePrivateSession.initialize();
 });
 
 onUnmounted(() => {
@@ -538,20 +447,6 @@ useSeoMeta({
               <dt><IconMessageCircle2 :size="16" /><span class="sr-only">评论数</span></dt>
               <dd>{{ formatCount(article?.comment_count || 0) }}</dd>
             </div>
-            <!-- 「编辑」入口（票 213）：仅作者本人 + 站点允许发布时出现，附在元信息行尾。
-                 其余五项仍是同一组 dt/dd，不改它们的顺序与折行；样式沿用既有
-                 .article-action 家族（紧凑档），不给这一行引入第二套按钮语言。 -->
-            <div v-if="articleEditEntry" class="article-meta__item article-meta__item--edit">
-              <dt><IconPencil :size="16" aria-hidden="true" /></dt>
-              <dd>
-                <NuxtLink
-                  :to="articleEditEntry.href"
-                  class="article-action article-action--compact"
-                  :aria-label="articleEditEntry.ariaLabel"
-                  :title="articleEditEntry.ariaLabel"
-                >编辑</NuxtLink>
-              </dd>
-            </div>
           </dl>
         </div>
 
@@ -559,24 +454,14 @@ useSeoMeta({
           <button type="button" class="article-action" @click="handleArticleScoreOpen">
             {{ articleScoreButtonLabel }}
           </button>
-          <button
-            type="button"
-            class="article-action article-action--primary"
-            :disabled="articleLikePending || articleLikeDebouncing"
-            :aria-busy="articleLikePending"
-            @click="handleLike"
-          >
-            <IconThumbUp :size="18" />
-            {{ articleLikePending ? "点赞中…" : articleIsDigged ? "已点赞" : "点赞" }}
-          </button>
-          <button type="button" class="article-action article-action--danger" @click="handleFavorite">
-            <IconHeart :size="18" />
-            收藏 {{ formatCount(article?.favor_count || 0) }}
-          </button>
-          <button type="button" class="article-action" @click="handleShare">
-            <IconShare2 :size="18" />
-            分享
-          </button>
+          <!-- 「编辑」入口（票 213 门控：仅作者本人 + 站点允许发布）：票 236 起紧贴质量评分右侧。 -->
+          <NuxtLink
+            v-if="articleEditEntry"
+            :to="articleEditEntry.href"
+            class="article-action article-action--compact"
+            :aria-label="articleEditEntry.ariaLabel"
+            :title="articleEditEntry.ariaLabel"
+          >编辑</NuxtLink>
         </div>
       </header>
 
@@ -605,20 +490,22 @@ useSeoMeta({
             </div>
           </section>
 
-          <section id="comments" class="article-paper comment-panel">
+          <section id="comments" ref="commentsSectionRef" class="article-paper comment-panel">
             <div class="comment-panel__head">
               <h2 class="comment-panel__title">评论区</h2>
               <span class="comment-panel__count">{{ formatCount(article?.comment_count || 0) }} 条评论</span>
             </div>
 
             <CommentComposer
+              ref="composerRef"
+              :logged-in="authStore.isLoggedIn"
               :loading="commentsPending"
               :title="replyTarget ? `回复 ${replyTarget.nickname}` : '发表评论'"
               :placeholder="replyTarget ? '补充你的回复内容…' : '写下你的看法，帮助更多读者补齐思路。'"
               :submit-label="replyTarget ? '发送回复' : '发表评论'"
               :can-cancel="Boolean(replyTarget)"
               @submit="handleCreateComment"
-              @cancel="replyTarget = null"
+              @cancel="clearReplyTarget"
             />
 
             <div class="comment-panel__thread">
@@ -714,6 +601,18 @@ useSeoMeta({
             </div>
           </section>
 
+          <!-- 互动条（票 236）：右栏顺序固定为 作者简介 → 互动条 → 目录。
+               props 与 <1024px 底部固定条共用 `articleActionProps`（同一状态源）。 -->
+          <section class="article-paper article-actions-card">
+            <ArticleActionsBar
+              v-bind="articleActionProps"
+              @like="handleLike"
+              @favorite="handleFavorite"
+              @share="handleShare"
+              @comment="handleCommentJump"
+            />
+          </section>
+
           <ArticleTocAnchor
             :headings="articleHeadings"
             :active-heading-id="activeHeadingId"
@@ -722,6 +621,16 @@ useSeoMeta({
           />
         </aside>
       </div>
+
+      <!-- <1024px 兜底入口（票 236）：右栏互动条在此宽度由 CSS 让位，这里渲染同一组件 + 同一份 props。 -->
+      <ArticleActionsBar
+        v-bind="articleActionProps"
+        variant="fixed"
+        @like="handleLike"
+        @favorite="handleFavorite"
+        @share="handleShare"
+        @comment="handleCommentJump"
+      />
     </template>
 
     <ArticleScoreModal

@@ -4,6 +4,7 @@ import { unfollowUser } from "~/services/follow";
 import { getFollowUsers } from "~/services/studio";
 import { formatDateTimeLabel } from "~/utils/format";
 import { isMutualFollow } from "~/utils/relation";
+import { errorMessage } from "~/utils/errorMessage";
 
 definePageMeta({
   layout: "studio",
@@ -27,7 +28,7 @@ async function removeFollow(id: string) {
       page.value -= 1;
     }
   } catch (error) {
-    message.error(error instanceof Error ? error.message : "取消关注失败");
+    message.error(errorMessage(error, "取消关注失败"));
   }
 }
 

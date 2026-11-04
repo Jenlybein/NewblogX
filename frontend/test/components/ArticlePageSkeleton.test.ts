@@ -37,4 +37,21 @@ describe("ArticlePageSkeleton：切页先出骨架", () => {
     expect(wrapper.get(".article-layout").classes()).not.toContain("article-layout--with-outline");
     expect(wrapper.find('[data-role="article-outline-column-skeleton"]').exists()).toBe(false);
   });
+
+  it("右栏骨架列序与真实版式同步（票 236）：作者简介 → 互动条 → 目录", () => {
+    const wrapper = mount(ArticlePageSkeleton);
+
+    const aside = wrapper.get(".article-aside");
+    const slots = aside
+      .findAll("[data-role$='-skeleton']")
+      .map((section) => section.attributes("data-role"));
+
+    expect(slots).toEqual([
+      "article-aside-author-skeleton",
+      "article-aside-actions-skeleton",
+      "article-aside-toc-skeleton",
+    ]);
+    // 互动条骨架用的是真实互动条卡片的容器类：占位高度与真卡片对齐。
+    expect(aside.get('[data-role="article-aside-actions-skeleton"]').classes()).toContain("article-actions-card");
+  });
 });

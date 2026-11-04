@@ -3,6 +3,7 @@
 package http_test
 
 import (
+	"fmt"
 	"net/http"
 	"testing"
 	"time"
@@ -43,7 +44,7 @@ func TestDiggThreeConsecutiveTogglesSucceed(t *testing.T) {
 	})
 	const articleID = "1001"
 
-	// 三种期望状态：点赞 → 取消 → 再点赞。
+	// 三种目标态：点赞 → 取消 → 再点赞。
 	//
 	// 关键在第三击：修复前它返回 1001 + "duplicated key not allowed"。
 	want := []struct {
@@ -56,13 +57,15 @@ func TestDiggThreeConsecutiveTogglesSucceed(t *testing.T) {
 	}
 
 	for _, w := range want {
-		resp := do(t, reader, http.MethodPut, "/api/articles/"+articleID+"/digg", nil)
-		code, _ := resp["code"].(float64)
-		if code != 0 {
-			t.Fatalf("%s 应返回业务码 0，实际 %v（msg=%v）", w.step, resp["code"], resp["msg"])
-		}
+		body := []byte(fmt.Sprintf(`{"liked":%t}`, w.digg))
+		resp := do(t, reader, http.MethodPut, "/api/articles/"+articleID+"/digg", body)
+		respCode(t, resp, w.step)
 		if got := dataOf(t, resp)["is_digg"]; got != w.digg {
 			t.Fatalf("%s 后 is_digg 应为 %v，实际 %v", w.step, w.digg, got)
+		}
+		// 写响应回填权威计数：本套装配没接 Redis，计数增量退化，但字段必须存在且自洽。
+		if _, ok := dataOf(t, resp)["digg_count"]; !ok {
+			t.Fatalf("%s 的写响应必须带 digg_count（ADR-0024 决策 4）: %v", w.step, resp)
 		}
 		// 每次操作后，库里的活关系行必须与 is_digg 一致。
 		if n := countLiveDiggRows(t, db, 1001); (n == 1) != w.digg {
@@ -111,20 +114,23 @@ func TestDiggCountersTrackRelationshipRows(t *testing.T) {
 		{name: "读者一", router: reader},
 		{name: "读者二", router: reader2},
 	} {
-		respCode(t, do(t, r.router, http.MethodPut, "/api/articles/"+articleID+"/digg", nil), r.name+"点赞")
+		respCode(t, do(t, r.router, http.MethodPut, "/api/articles/"+articleID+"/digg",
+			[]byte(`{"liked":true}`)), r.name+"点赞")
 	}
 	if n := countLiveDiggRows(t, db, 1002); n != 2 {
 		t.Fatalf("两个读者点赞后应有 2 条活关系行，实际 %d", n)
 	}
 
 	// 其中一个取消 → 只剩 1 条，且取消者的状态回到未点赞。
-	respCode(t, do(t, reader, http.MethodPut, "/api/articles/"+articleID+"/digg", nil), "读者一取消")
+	respCode(t, do(t, reader, http.MethodPut, "/api/articles/"+articleID+"/digg",
+		[]byte(`{"liked":false}`)), "读者一取消")
 	if n := countLiveDiggRows(t, db, 1002); n != 1 {
 		t.Fatalf("一个读者取消后应剩 1 条活关系行，实际 %d", n)
 	}
 
 	// 取消者重新点赞 → 恢复它自己那一行，总数回到 2，不会撞唯一键。
-	respCode(t, do(t, reader, http.MethodPut, "/api/articles/"+articleID+"/digg", nil), "读者一再点赞")
+	respCode(t, do(t, reader, http.MethodPut, "/api/articles/"+articleID+"/digg",
+		[]byte(`{"liked":true}`)), "读者一再点赞")
 	if n := countLiveDiggRows(t, db, 1002); n != 2 {
 		t.Fatalf("再点赞后应回到 2 条活关系行，实际 %d", n)
 	}

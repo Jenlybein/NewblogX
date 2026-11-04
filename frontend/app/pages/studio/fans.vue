@@ -4,6 +4,7 @@ import { followUser, unfollowUser } from "~/services/follow";
 import { getFanUsers } from "~/services/studio";
 import { formatDateTimeLabel } from "~/utils/format";
 import { isFollowing, isMutualFollow } from "~/utils/relation";
+import { errorMessage } from "~/utils/errorMessage";
 
 definePageMeta({
   layout: "studio",
@@ -32,7 +33,7 @@ async function toggleFollow(id: string, relation: number) {
       page.value -= 1;
     }
   } catch (error) {
-    message.error(error instanceof Error ? error.message : "关注操作失败");
+    message.error(errorMessage(error, "关注操作失败"));
   }
 }
 

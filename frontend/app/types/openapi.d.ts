@@ -851,7 +851,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["myblogx_internal_kernel.Envelope-myblogx_internal_kernel_EmptyData"];
+                        "application/json": components["schemas"]["myblogx_internal_kernel.Envelope-internal_article_adapter_http_ArticleFavoriteResponse"];
                     };
                 };
             };
@@ -945,7 +945,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["myblogx_internal_kernel.Envelope-myblogx_internal_kernel_EmptyData"];
+                        "application/json": components["schemas"]["myblogx_internal_kernel.Envelope-internal_article_adapter_http_ArticleFavoriteRemoveResponse"];
                     };
                 };
             };
@@ -966,9 +966,13 @@ export interface paths {
         get: {
             parameters: {
                 query?: {
-                    /** @description 页码 */
-                    page?: number;
-                    /** @description 每页数量 */
+                    /** @description 按文章标题模糊搜索 */
+                    keyword?: string;
+                    /** @description 游标：上一条的浏览时间（RFC3339，与 before_id 成对） */
+                    before_updated_at?: string;
+                    /** @description 游标：上一条的文章 ID（与 before_updated_at 成对） */
+                    before_id?: string;
+                    /** @description 每页数量（缺省 10，上限 100） */
                     limit?: number;
                 };
                 header?: never;
@@ -1004,6 +1008,42 @@ export interface paths {
                     "application/json": components["schemas"]["myblogx_internal_kernel.IDListRequest"];
                 };
             };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["myblogx_internal_kernel.Envelope-myblogx_internal_kernel_EmptyData"];
+                    };
+                };
+            };
+        };
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/articles/history/all": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** 清空浏览历史 */
+        delete: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
             responses: {
                 /** @description OK */
                 200: {
@@ -1601,7 +1641,12 @@ export interface paths {
                 };
                 cookie?: never;
             };
-            requestBody?: never;
+            /** @description 目标态（liked=true 点赞 / false 取消） */
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["internal_article_adapter_http.ArticleDiggRequest"];
+                };
+            };
             responses: {
                 /** @description OK */
                 200: {
@@ -6144,12 +6189,27 @@ export interface components {
             view_count?: number;
             visibility_status?: components["schemas"]["internal_article_adapter_http.ArticleVisibility"];
         };
+        "internal_article_adapter_http.ArticleDiggRequest": {
+            /** @example true */
+            liked: boolean;
+        };
         "internal_article_adapter_http.ArticleDiggResponse": {
+            digg_count?: number;
             is_digg?: boolean;
+        };
+        "internal_article_adapter_http.ArticleFavoriteRemoveResponse": {
+            failed_count?: number;
+            favor_count?: number;
+            is_favor?: boolean;
+            removed_count?: number;
         };
         "internal_article_adapter_http.ArticleFavoriteRequest": {
             article_id: string;
             favor_id?: string;
+        };
+        "internal_article_adapter_http.ArticleFavoriteResponse": {
+            favor_count?: number;
+            is_favor?: boolean;
         };
         "internal_article_adapter_http.ArticleHotTopAdminItem": {
             article_id?: string;
@@ -6886,6 +6946,12 @@ export interface components {
             home_style_id?: string;
             like_tag_ids?: string[];
             nickname?: string;
+            /**
+             * @description StrangerChatEnabled 是"允许陌生人给我发私信"的个人开关。
+             *     字段名沿用既有契约 stranger_msg_enabled；全指针语义与其余偏好一致：
+             *     没传不改，false 是合法值（关掉）。
+             */
+            stranger_msg_enabled?: boolean;
             username?: string;
         };
         "myblogx_internal_ai_metainfo.Metainfos": {
@@ -7212,6 +7278,16 @@ export interface components {
         "myblogx_internal_kernel.Envelope-internal_article_adapter_http_ArticleDiggResponse": {
             code?: number;
             data?: components["schemas"]["internal_article_adapter_http.ArticleDiggResponse"];
+            msg?: string;
+        };
+        "myblogx_internal_kernel.Envelope-internal_article_adapter_http_ArticleFavoriteRemoveResponse": {
+            code?: number;
+            data?: components["schemas"]["internal_article_adapter_http.ArticleFavoriteRemoveResponse"];
+            msg?: string;
+        };
+        "myblogx_internal_kernel.Envelope-internal_article_adapter_http_ArticleFavoriteResponse": {
+            code?: number;
+            data?: components["schemas"]["internal_article_adapter_http.ArticleFavoriteResponse"];
             msg?: string;
         };
         "myblogx_internal_kernel.Envelope-internal_article_adapter_http_ArticleOutlineContextResponse": {

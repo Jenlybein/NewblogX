@@ -193,6 +193,8 @@ func buildView(ctx context.Context, r Repos, a *domain.Article, viewer domain.Vi
 			return nil, err
 		}
 		v.Digg = digg
+		// is_favor 的语义是「是否**还在任一收藏夹**里收着」：一篇文章可同时收在
+		// A/B 两个夹子，移出其中一个不应把按钮打成未收藏（与 Unfavorite 的返回值一致）。
 		if _, err := r.Favorites().FindItemAnyFolder(ctx, a.ID(), viewer.UserID); err == nil {
 			v.Favor = true
 		}

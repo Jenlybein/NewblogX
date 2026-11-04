@@ -113,7 +113,7 @@ onMounted(load)
 </script>
 
 <template>
-  <div>
+  <div class="admin-settings-panel">
     <NAlert type="info" :bordered="false" class="mb-4">
       装饰只影响页面看起来怎样，不影响任何功能。光标挂件是一条挂绳把站标系在指针上：
       它不响应点击、不进 Tab 序列、读屏读不到，只会在有精确指针的桌面设备上出现，

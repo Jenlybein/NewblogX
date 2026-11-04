@@ -110,8 +110,8 @@ describe('语义层：明暗两份映射 + 后台特有变体已合并进主表'
     expect(tokensCss).toBe(readerTokensCss)
   })
 
-  it('排版层同样携带中文尺度（68ch / 1.75 / 700 / -0.03em 大标题字距）', () => {
-    expect(tokensCss).toContain('--type-measure: 68ch')
+  it('排版层同样携带中文尺度（80ch / 1.75 / 700 / -0.03em 大标题字距）', () => {
+    expect(tokensCss).toContain('--type-measure: 80ch')
     expect(tokensCss).toContain('--type-leading-prose: 1.75')
     expect(tokensCss).toContain('--type-weight-title: 700')
     expect(tokensCss).toMatch(/--type-tracking-title:\s*-0\.03em/u)

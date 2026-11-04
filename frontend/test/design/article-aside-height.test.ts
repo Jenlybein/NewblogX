@@ -59,10 +59,13 @@ function stickyAsideBlock(source: string): string {
   return block!;
 }
 
-/** <1024px 里把右栏退回普通流的那一段。 */
+/** <1024px 里把右栏退回普通流的那一段。
+ *  注意用带花括号的 `.article-aside {` 作锚点：<1024px 里还有一段
+ *  `.article-aside .article-actions-card { display: none }`（互动条让位），
+ *  只按类名前缀找会先命中它。 */
 function narrowAsideBlock(source: string): string {
   const block = atRuleBlocks(source, "@media (max-width: 1023px)").find((candidate) =>
-    candidate.includes(".article-aside"),
+    candidate.includes(".article-aside {"),
   );
   expect(block, "找不到 <1024px 的右栏规则").toBeDefined();
   return block!;

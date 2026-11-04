@@ -46,20 +46,21 @@ function atRuleBlocks(source: string, atRule: string): string[] {
 /** 窄屏（<1024px）里接管互动条入口的那一段。 */
 function narrowActionsBlock(source: string): string {
   const block = atRuleBlocks(source, "@media (max-width: 1023px)").find((candidate) =>
-    candidate.includes(".article-actions-bar--fixed"),
+    candidate.includes(".article-actions-bar--hero"),
   );
   expect(block, "找不到 <1024px 的互动条断点规则").toBeDefined();
   return block!;
 }
 
-describe("互动条：右栏与底部条是同一组件的两种变体", () => {
-  it("基础容器是横向排布的按钮条，右栏变体四等分铺满 320px 侧栏", () => {
+describe("互动条：右栏与 hero 是同一组件的两种变体（决定清单 §3）", () => {
+  it("基础容器是横向排布的按钮条，右栏变体五等分铺满 320px 侧栏", () => {
     const base = blockAfter(css(), ".article-actions-bar {");
     const aside = blockAfter(css(), ".article-actions-bar--aside {");
 
     expect(base).toContain("display: flex");
     expect(base).toContain("gap");
-    expect(aside).toContain("grid-template-columns: repeat(4");
+    // 五个动作：点赞 / 收藏 / 评论 / 分享 / 底部。
+    expect(aside).toContain("grid-template-columns: repeat(5");
   });
 
   it("按钮是紧凑图标档：仍满足 44px 最小点击高度", () => {
@@ -77,49 +78,35 @@ describe("互动条：右栏与底部条是同一组件的两种变体", () => {
   });
 });
 
-describe("断点 1024px：窄屏只有底部固定条一个入口", () => {
-  it("底部固定条默认不显示（≥1024 由右栏那份接过）", () => {
-    const fixed = blockAfter(css(), ".article-actions-bar--fixed {");
+describe("断点 1024px：任何宽度只有一个入口，底部没有第二条", () => {
+  it("hero 变体默认不显示（≥1024 由右栏那份接过）", () => {
+    const hero = blockAfter(css(), ".article-actions-bar--hero,");
 
-    expect(fixed).toContain("display: none");
+    expect(hero).toContain("display: none");
   });
 
-  it("<1024px：右栏互动条隐藏、底部条出现（不会两处同时出现，也不会都没有）", () => {
+  it("<1024px：右栏互动条隐藏、hero 那份出现（不会两处同时出现，也不会都没有）", () => {
     const narrow = narrowActionsBlock(css());
 
     expect(blockAfter(narrow, ".article-actions-bar--aside {")).toContain("display: none");
-    expect(blockAfter(narrow, ".article-actions-bar--fixed {")).toMatch(/display:\s*flex/u);
+    expect(blockAfter(narrow, ".article-actions-bar--hero {")).toMatch(/display:\s*flex/u);
+    expect(blockAfter(narrow, ".article-actions-card--hero {")).toMatch(/display:\s*block/u);
   });
 
-  it("<1024px：互动条外面的纸面卡片一起隐藏，不在右栏留一条空纸面带", () => {
+  it("<1024px：右栏那张纸面卡片一起隐藏，不在右栏留一条空纸面带", () => {
     const narrow = narrowActionsBlock(css());
 
-    expect(blockAfter(narrow, ".article-actions-card {")).toContain("display: none");
+    expect(blockAfter(narrow, ".article-aside .article-actions-card {")).toContain("display: none");
   });
 
-  it("底部条固定在下沿，四个按钮等分，并盖住页面底部（正文给它让出高度）", () => {
-    const narrow = narrowActionsBlock(css());
-    const fixed = blockAfter(narrow, ".article-actions-bar--fixed {");
+  it("底部固定条彻底退场：没有 --fixed 规则、没有 fixed 定位、页面也不再给它让高度", () => {
+    const source = css();
 
-    expect(fixed).toMatch(/position:\s*fixed/u);
-    expect(fixed).toMatch(/bottom:\s*0/u);
-    expect(fixed).toMatch(/left:\s*0/u);
-    expect(fixed).toMatch(/right:\s*0/u);
-    expect(fixed).toContain("z-index");
-    // 纸面底色 + 结构线：底部条压在正文上时必须不透出内容。
-    expect(fixed).toContain("var(--color-surface)");
-    expect(fixed).toContain("var(--color-line");
-    // 正文最后一段不被固定条盖住。
-    expect(blockAfter(narrow, ".article-page {")).toContain("padding-bottom");
-  });
-
-  it("安全区：底部 / 左右都让出 env(safe-area-inset-*)（iPhone 横条不压按钮）", () => {
-    const narrow = narrowActionsBlock(css());
-    const fixed = blockAfter(narrow, ".article-actions-bar--fixed {");
-
-    expect(fixed).toContain("env(safe-area-inset-bottom)");
-    expect(fixed).toContain("env(safe-area-inset-left)");
-    expect(fixed).toContain("env(safe-area-inset-right)");
-    expect(fixed).toMatch(/padding-bottom/u);
+    expect(source).not.toContain(".article-actions-bar--fixed");
+    // 旧实现用 `.article-page { padding-bottom: 4.5rem }` 给固定条让位，这条也一并删掉。
+    expect(source).not.toMatch(/\.article-page\s*\{[^}]*padding-bottom/u);
+    // hero 那份在文档流里（不吸底）：只靠 flex 布局，不出现 position: fixed。
+    const narrow = narrowActionsBlock(source);
+    expect(narrow).not.toMatch(/\.article-actions-bar--hero\s*\{[^}]*position:\s*fixed/u);
   });
 });

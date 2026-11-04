@@ -47,7 +47,7 @@ onMounted(load)
 </script>
 
 <template>
-  <div>
+  <div class="admin-settings-panel">
     <NAlert type="warning" :bordered="false" class="mb-4">
       腾讯云 SES 只支持<strong>模板发信</strong>：正文由控制台审核过的模板渲染，
       这里只填模板 ID。模板变量为
@@ -61,33 +61,33 @@ onMounted(load)
 
     <NForm v-if="loaded" label-placement="top" :disabled="loading">
       <NFormItem label="SecretId">
-        <NInput v-model:value="config.secret_id" placeholder="腾讯云 API 密钥 ID" />
+        <NInput v-model:value="config.secret_id" class="admin-field--secret" placeholder="腾讯云 API 密钥 ID" />
       </NFormItem>
       <NFormItem label="SecretKey">
         <NInput
-          v-model:value="config.secret_key"
+          v-model:value="config.secret_key" class="admin-field--secret"
           type="password"
           show-password-on="click"
           placeholder="留 ****** 表示不修改"
         />
       </NFormItem>
       <NFormItem label="地域">
-        <NSelect v-model:value="config.region" :options="regionOptions" />
+        <NSelect v-model:value="config.region" class="admin-field--select" :options="regionOptions" />
       </NFormItem>
       <NFormItem label="Endpoint（国际站才需要改）">
-        <NInput v-model:value="config.endpoint" placeholder="留空用默认 ses.tencentcloudapi.com" />
+        <NInput v-model:value="config.endpoint" class="admin-field--url" placeholder="留空用默认 ses.tencentcloudapi.com" />
       </NFormItem>
       <NFormItem label="发信地址">
-        <NInput v-model:value="config.from_address" placeholder="noreply@yourdomain.com（必须已在控制台验证）" />
+        <NInput v-model:value="config.from_address" class="admin-field--url" placeholder="noreply@yourdomain.com（必须已在控制台验证）" />
       </NFormItem>
       <NFormItem label="发件人显示名">
-        <NInput v-model:value="config.from_name" placeholder="技术博客" />
+        <NInput v-model:value="config.from_name" class="admin-field--key" placeholder="技术博客" />
       </NFormItem>
       <NFormItem label="验证码模板 ID">
-        <NInputNumber v-model:value="config.template_id" :min="0" placeholder="控制台里的数字 ID" />
+        <NInputNumber v-model:value="config.template_id" class="admin-field--number" :min="0" placeholder="控制台里的数字 ID" />
       </NFormItem>
       <NFormItem label="单次调用超时（秒）">
-        <NInputNumber v-model:value="config.timeout_sec" :min="1" :max="60" />
+        <NInputNumber v-model:value="config.timeout_sec" class="admin-field--number" :min="1" :max="60" />
       </NFormItem>
       <NButton type="primary" :loading="saving" @click="save">保存邮件配置</NButton>
     </NForm>

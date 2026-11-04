@@ -11,6 +11,7 @@ import {
   cleanupOutlineStaleRows,
   flattenOutlineTree,
   moveOutlineRow,
+  moveOutlineRowToIndex,
   outlineDepth,
   outlineIncludeTargetKey,
   outlineRowTitle,
@@ -322,5 +323,74 @@ describe('失效原因文案（树节点标注用）', () => {
 
   it('未知原因（后端将来新增枚举）给出兜底文案，而不是空白', () => {
     expect(staleReasonLabel('something-new')).toBe('已失效')
+  })
+})
+
+/**
+ * 拖拽排序的落点语义（决定清单 §8 第 37 条 / 票 #257）。
+ *
+ * 只按"落点上方的行"判定：上方是文件夹 → 成为它的第一个子行；上方是文章或落点在最前
+ * → 成为兄弟。被拖的是一个块（文件夹连子树一起动），落点落在自己块内则什么都不做。
+ * 这些规则错一个，保存出去就是另一棵树——所以每条都单独钉住。
+ */
+describe('moveOutlineRowToIndex：拖拽落点 → 扁平行', () => {
+  function sample(): OutlineTreeNode[] {
+    return [
+      folder('f1', '', 'A', [article('a1', 'f1', '100', 'A-文章')]),
+      folder('f2', '', 'B', []),
+      article('a2', '', '200', 'B-文章'),
+    ]
+  }
+
+  it('拖到首位：成为根层兄弟，排在最前', () => {
+    const rows = flattenOutlineTree(sample())
+    const next = moveOutlineRowToIndex(rows, 'a2', 0)
+
+    expect(labels(next)).toEqual(['0:B-文章', '0:A', '1:A-文章', '0:B'])
+  })
+
+  it('落在文件夹下方：成为该文件夹的第一个子行（层级 +1）', () => {
+    const rows = flattenOutlineTree(sample())
+    // 落点下标 = 文件夹 B 之后（即 B 与其空子树之间）。
+    const target = rows.findIndex(row => row.key === 'f2') + 1
+    const next = moveOutlineRowToIndex(rows, 'a2', target)
+
+    expect(outlineDepth(next, 'a2')).toBe(1)
+    expect(outlineRowTitle(next[next.findIndex(row => row.key === 'a2')]!)).toBe('B-文章')
+  })
+
+  it('落在文章下方：成为同级兄弟（不偷偷缩进）', () => {
+    const rows = flattenOutlineTree(sample())
+    // A 的子树里那篇文章之后 → 与它同级，挂在 A 下。
+    const target = rows.findIndex(row => row.key === 'a1') + 1
+    const next = moveOutlineRowToIndex(rows, 'a2', target)
+
+    expect(outlineDepth(next, 'a2')).toBe(1)
+    expect(next[next.findIndex(row => row.key === 'a2') - 1]!.key).toBe('a1')
+  })
+
+  it('拖文件夹是整块移动：子树跟着走，子项层级不变', () => {
+    const rows = flattenOutlineTree(sample())
+    const end = rows.length
+    const next = moveOutlineRowToIndex(rows, 'f1', end)
+
+    // A 整块挪到最后：它和它的子项都还在，层级仍是 0 / 1。
+    expect(labels(next)).toEqual(['0:B', '0:B-文章', '0:A', '1:A-文章'])
+    expect(outlineDepth(next, 'a1')).toBe(1)
+    expect(next[next.findIndex(row => row.key === 'a1') - 1]!.key).toBe('f1')
+  })
+
+  it('落点在自己块内：什么都不做（返回等价数组）', () => {
+    const rows = flattenOutlineTree(sample())
+    const index = rows.findIndex(row => row.key === 'f1')
+    const next = moveOutlineRowToIndex(rows, 'f1', index + 1)
+
+    expect(labels(next)).toEqual(labels(rows))
+  })
+
+  it('key 不存在时原样返回，不抛错', () => {
+    const rows = flattenOutlineTree(sample())
+
+    expect(labels(moveOutlineRowToIndex(rows, 'nope', 0))).toEqual(labels(rows))
   })
 })

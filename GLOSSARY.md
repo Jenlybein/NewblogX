@@ -538,6 +538,28 @@ _Avoid_: 把会话当成「消息列表」（后者是会话里的逐条内容�
 
 ---
 
+**互动条（article action bar）**：
+阅读页里点赞 / 收藏 / 评论 / 分享 / 底部五个动作的那一条**纯图标 + 数字**的按钮带。它有两个**互斥**形态：`aside`（≥1024px 落在右栏，五等分铺满 320px）与 `hero`（<1024px 挂在 hero 下方、随正文滚动）。两种形态是同一个组件、同一份 props，任何视口只出现一份可见；2026-11-04 起底部固定条整体退役（用户反馈过"底部多出一条同样的容器"）。
+位置：`frontend/app/components/article/ArticleActionsBar.vue`（文案在 `utils/articleActions.ts`）、样式在 `frontend/app/assets/css/tailwind.css` 的 `.article-actions-bar*`。
+_Avoid_: 说它是"工具栏"或"操作按钮组"（容易与编辑器工具栏混淆）；把它当成状态持有者（它只吃 props、只抛事件，真相在 `useArticleDigg` 与正文）。
+
+**评论输入面板（comment composer sheet）**：
+从**窗口底部居中滑出**的一块纸面，宽 `min(92vw, 640px)`，内含评论输入本体与唯一的提交按钮；面板外是一层**透明**点击捕获层（不是暗色遮罩，读者要一边看正文一边写）。三条关闭途径：点面板外、Esc、右上 ×。打开时不锁 body 滚动，上限 `60dvh`。它是**唯一**的评论撰写入口——评论区的内嵌 textarea 已退役，改成「去发表评论」按钮；互动条的「评论」与楼层「回复」也打开同一个面板。
+位置：`frontend/app/components/comment/CommentComposerSheet.vue`（壳）+ `CommentComposer.vue`（输入本体），样式 `.comment-sheet*`。
+_Avoid_: 叫它"弹窗 / modal"（它无遮罩、无居中卡片、不锁滚动）；把它与「去发表评论」按钮混为一谈（后者只是入口）。
+
+**到底按钮（jump-to-end action）**：
+互动条第五个动作，图标-only、无计数，点它滚到评论区起点（= 正文末尾，页脚不算内容）。它**只负责滚动**；"写评论"是「评论」按钮与「去发表评论」按钮的职责，两者语义不要混。
+位置：`ArticleActionsBar.vue` 的 `data-action="bottom"`，滚动实现是页面里的 `handleScrollToEnd → scrollToComments`。
+_Avoid_: 说它"跳到页脚 / 回到顶部"；把它的 aria 名称写成"评论"。
+
+**计数账本（count ledger）**：
+点赞 / 收藏数的**派生值**口径：这两个数不再靠增量累积，30 分钟并账时用 `COUNT(关系行)` 直接覆盖整列（`digg_count` / `favor_count`）；两次并账之间，读路径返回 `列 + Redis 增量`，增量是短命的、不参与持久化。视图数与评论数仍是另一套口径（`列 += 增量`）。因此"临时 ±1"不会累积成漂移，CDC 实时并账是明确的非目标。
+位置：`backend/internal/article/adapter/mysql/counter_flush.go`（并账）、`backend/app/cron_wiring.go`（任务装配）、`backend/internal/article/app/subdomain.go`（收藏内容列表的增量合并）；决策见 [ADR-0025](docs/adr/0025-count-ledger-and-reconciliation.md)。
+_Avoid_: 把"列 + 增量"当成权威值（它只是两次并账之间的可读近似）；用"实时对账 / CDC 并账"描述它（那是被否掉的方向）。
+
+---
+
 ## 维护规则
 
 1. **什么时候新增词条**：一个词开始被多处代码或文档引用、且读者可能叫错它时（出现同义词、旧名、缩写）才加。一次性数字、某次故障的过程、实现细节都不进本文。

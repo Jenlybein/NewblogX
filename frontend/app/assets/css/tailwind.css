@@ -626,8 +626,8 @@
    * 阅读页互动条（票 236 / 决定清单第 2 节）
    *
    * 右栏互动条与 <1024px 底部固定条是**同一个组件**的两种变体：
-   *   - `.article-actions-bar--aside`：320px 右栏里的四等分按钮条（图标 + 数字）；
-   *   - `.article-actions-bar--fixed`：窄屏底部固定条，让出安全区。
+   *   - `.article-actions-bar--aside`：320px 右栏里的五等分按钮条（图标 + 数字）；
+   *   - `.article-actions-bar--hero`：<1024px 挂在 hero 下方的同一份按钮条（已不再吸底）。
    * 两处状态同源（页面绑同一个 `articleActionProps`），所以这里只是容器差异。
    * ======================================================================== */
   .article-actions-bar {
@@ -638,8 +638,8 @@
 
   .article-actions-bar--aside {
     display: grid;
-    grid-template-columns: repeat(4, minmax(0, 1fr));
-    gap: 0.5rem;
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    gap: 0.35rem;
   }
 
   /* 紧凑图标档：图标 + 数字挤在 320px 的四等分格子里，仍保住 44px 触摸目标。 */
@@ -668,49 +668,37 @@
     padding: 0.75rem;
   }
 
-  /* 底部固定条默认不占位：≥1024px 由右栏那份接过入口。 */
-  .article-actions-bar--fixed {
+  /* hero 形态默认不占位：≥1024 由右栏那份接过入口（决定清单 §3 第 12–13 条）。
+   * 原来的 `--fixed` 底部固定条已整体删除：读者在 1280px 下同时看到两份的重复问题，
+   * 根因未证，但这个挂载点不再存在，底部永远不会再出现第二条。 */
+  .article-actions-bar--hero,
+  .article-actions-card--hero {
     display: none;
   }
 
-  /* <1024px：右栏互动条让位，底部固定条出现（两处不会同时出现，也不会都没有）。 */
+  /* <1024px：右栏那份让位，hero 下方这份接手（两处互斥，任何宽度只出现一份）。 */
   @media (max-width: 1023px) {
     .article-actions-bar--aside {
       display: none;
     }
 
-    /* 纸面卡片一起隐藏：只藏按钮会在右栏留一条空白的纸面带。 */
-    .article-actions-card {
+    /* 右栏的纸面卡片一起隐藏：只藏按钮会在右栏留一条空白的纸面带。 */
+    .article-aside .article-actions-card {
       display: none;
     }
 
-    .article-actions-bar--fixed {
+    .article-actions-card--hero {
+      display: block;
+    }
+
+    .article-actions-bar--hero {
       display: flex;
-      position: fixed;
-      bottom: 0;
-      left: 0;
-      right: 0;
-      z-index: 20;
-      align-items: center;
-      justify-content: space-around;
       gap: 0.5rem;
-      padding-top: 0.5rem;
-      /* 安全区：iOS 的底部横条 / 横屏圆角不能压住按钮。 */
-      padding-right: max(0.5rem, env(safe-area-inset-right));
-      padding-bottom: max(0.5rem, env(safe-area-inset-bottom));
-      padding-left: max(0.5rem, env(safe-area-inset-left));
-      border-top: 1px solid var(--color-line);
-      /* 纸面底色：压在正文上时不透出内容。 */
-      background: var(--color-surface);
     }
 
-    .article-actions-bar--fixed .article-actions-bar__button {
+    /* 窄屏五等分：每格都能点到，且不再需要给固定条留安全区。 */
+    .article-actions-bar--hero .article-actions-bar__button {
       flex: 1;
-    }
-
-    /* 正文最后一段不被固定条盖住。 */
-    .article-page {
-      padding-bottom: 4.5rem;
     }
   }
 
@@ -724,8 +712,23 @@
     @apply lg:grid-cols-[13.5rem_minmax(0,1fr)_320px];
   }
 
+  /* 正文列：宽视口下整列不再无限拉伸（决定清单 §9 第 43 条）。
+   *
+   * 病根：卡片是"撑满网格列"的，而正文列宽只有 `--type-measure`，于是 1440+
+   * 视口里纸面两侧出现大片空白，看起来像"内容没铺满"。两条一起收：
+   *   1. 行宽 token 从 68ch 提到 80ch（仍是中文可读区间，约 40 字/行）；
+   *   2. ≥1280 时把正文列整体收在 72rem 内并居中 —— 多出来的宽度变成纸面外的
+   *      页面底色，而不是纸面里的空白。
+   * 窄屏不受影响：<1280 仍是满列，行宽由 token 与容器共同决定。 */
   .article-main {
     @apply flex min-w-0 flex-col gap-5;
+  }
+
+  @media (min-width: 1280px) {
+    .article-main {
+      max-width: 72rem;
+      margin-inline: auto;
+    }
   }
 
   .article-aside {
@@ -738,7 +741,8 @@
     aspect-ratio: 16 / 9;
   }
 
-  /* 正文行宽 = 排版 token 的 68ch；shadow 内的正文继承这个宽度，不再另设。 */
+  /* 正文行宽 = 排版 token `--type-measure`（具体数值只在 tokens.css 里写一次）；
+   * shadow 内的正文继承这个宽度，不再另设。改行宽只改 token，不改这里。 */
   .article-body {
     @apply mx-auto w-full;
     max-width: var(--type-measure);
@@ -843,12 +847,114 @@
     @apply mt-5 flex flex-wrap items-center justify-between gap-3 border-t border-line pt-4 text-sm text-ink-muted;
   }
 
+  /* 只有翻页按钮时右对齐（「每页 7 条」那句内部话术已删，见决定清单 §3 第 16 条）。 */
+  .comment-panel__pagination--bare {
+    justify-content: flex-end;
+  }
+
   .comment-panel__pagination-actions {
     @apply flex items-center gap-2;
   }
 
   .comment-composer {
     @apply rounded-card border border-line bg-surface-raised p-5 md:p-6;
+  }
+
+  /* ==========================================================================
+   * 评论输入面板（决定清单 §4 第 18–22 条）
+   *
+   * 面板从窗口底部居中滑出，宽 `min(92vw, 640px)`——**不铺满**窗口，读者还要看正文。
+   * 面板外是一层**透明**点击捕获层（不是暗色遮罩）；点任意位置、按 Esc、点右上 ×
+   * 都能收起。打开时不锁 body 滚动。
+   * ======================================================================== */
+  .comment-panel__invite-row {
+    @apply mt-5 flex;
+  }
+
+  .comment-panel__invite {
+    @apply inline-flex items-center gap-2;
+    min-height: 44px;
+    padding-inline: 1rem;
+  }
+
+  .comment-sheet {
+    position: fixed;
+    inset: 0;
+    z-index: 60;
+    display: flex;
+    align-items: flex-end;
+    justify-content: center;
+    /* 整层不吃点击，只有捕获层与面板吃：正文其它区域照旧可交互（不锁滚动）。 */
+    pointer-events: none;
+  }
+
+  .comment-sheet__scrim {
+    position: absolute;
+    inset: 0;
+    border: 0;
+    background: transparent;
+    cursor: default;
+    pointer-events: auto;
+  }
+
+  .comment-sheet__panel {
+    position: relative;
+    pointer-events: auto;
+    width: min(92vw, 640px);
+    max-height: 60dvh;
+    overflow-y: auto;
+    padding: 0.5rem 1rem 1rem;
+    border: 1px solid var(--color-line);
+    border-bottom: 0;
+    border-radius: var(--radius-xl) var(--radius-xl) 0 0;
+    background: var(--color-surface);
+    box-shadow: 0 -16px 40px var(--color-shadow);
+    /* 时长走 token（三层预算的 slow 档）：减少动态时 token 归零，无需另写覆盖。 */
+    animation: comment-sheet-rise var(--motion-slow) var(--motion-ease);
+  }
+
+  @keyframes comment-sheet-rise {
+    from {
+      transform: translateY(100%);
+    }
+
+    to {
+      transform: translateY(0);
+    }
+  }
+
+  .comment-sheet__grabber {
+    width: 2.5rem;
+    height: 4px;
+    margin: 0.25rem auto 0.5rem;
+    border-radius: var(--radius-pill);
+    background: var(--color-line-strong);
+  }
+
+  .comment-sheet__close {
+    @apply inline-flex items-center justify-center;
+    position: absolute;
+    top: 0.75rem;
+    right: 0.75rem;
+    width: 2rem;
+    height: 2rem;
+    border: 1px solid transparent;
+    border-radius: var(--radius-sm);
+    background: transparent;
+    color: var(--color-ink-muted);
+    cursor: pointer;
+  }
+
+  .comment-sheet__close:hover {
+    border-color: var(--color-line);
+    color: var(--color-ink);
+  }
+
+  /* 面板里的输入本体不再自带卡片：纸面由面板提供，否则会出现双层边。 */
+  .comment-composer--sheet {
+    padding: 0;
+    border: 0;
+    background: transparent;
   }
 
   .comment-composer__head {
@@ -863,8 +969,9 @@
     @apply rounded-pill border border-line-faint bg-subtle px-2 py-0.5 text-xs text-ink-muted;
   }
 
+  /* 面板里只留提交一个动作，所以右侧对齐（曾用一个空的 flex 占位 div 硬撑，已删）。 */
   .comment-composer__footer {
-    @apply mt-4 flex flex-wrap items-center justify-between gap-4;
+    @apply mt-4 flex flex-wrap items-center justify-end gap-4;
   }
 
   .comment-composer__tags {

@@ -16,7 +16,7 @@ import { errorMessage } from "~/utils/errorMessage";
  *
  * 现在的口径：
  *  - **回复目标精确到被回复的评论**（`replyTarget = {id, nickname, rootId}`），
- *    点「回复」顺带把评论框的聚焦交给页面（`focusComposer`）；
+ *    点「回复」顺带把页面交给输入面板（`openComposer`，见决定清单 §4）；
  *  - **点赞后只重取相关楼层**：子评论 → 该 root 的当前回复页；根评论 → 根评论页；
  *  - **所有互动先过登录闸门**（`requireLogin`）：未登录时一个请求都不发。
  *
@@ -64,8 +64,8 @@ export interface ArticleCommentsDeps {
   diggComment: (commentId: string) => Promise<unknown>;
   /** 评论/回复成功后刷新正文（评论数在正文上）。 */
   refreshArticle: () => Promise<unknown> | unknown;
-  /** 点「回复」后把握手权交给页面：滚动到评论框 + `focus()`。 */
-  focusComposer: () => void;
+  /** 点「回复」后把握手权交给页面：打开底部评论输入面板（并聚焦）。 */
+  openComposer: () => void;
   notify: { success: (message: string) => void; error: (message: string) => void };
   /** 回复每页条数，默认 3（与后端既有分页一致）。 */
   replyPageSize?: number;
@@ -193,7 +193,7 @@ export function useArticleComments(deps: ArticleCommentsDeps) {
    * 点某条评论的「回复」。
    *
    * 关键点：目标就是**被点的那条**（`location.commentId`），不是它所属的根评论。
-   * 同时把"滚动到评论框 + 聚焦"交给页面（`focusComposer`），否则用户点了回复
+   * 同时把"打开输入面板 + 聚焦"交给页面（`openComposer`），否则用户点了回复
    * 还得自己往下滚去找输入框。
    */
   function handleReply(commentId: string) {
@@ -207,7 +207,7 @@ export function useArticleComments(deps: ArticleCommentsDeps) {
       nickname: location.nickname,
       rootId: location.rootId,
     };
-    deps.focusComposer();
+    deps.openComposer();
   }
 
   function clearReplyTarget() {
@@ -250,14 +250,14 @@ export function useArticleComments(deps: ArticleCommentsDeps) {
    * `reply_id` 必须是**被回复的那条评论**的 id（回复子评论时不能传根 id），
    * 刷新也回到那条评论所属楼层的回复页。未登录时不发请求，也不刷新任何列表。
    */
-  async function handleCreateComment(content: string) {
+  async function handleCreateComment(content: string): Promise<boolean> {
     const trimmed = content.trim();
     if (!trimmed) {
-      return;
+      return false;
     }
 
     if (!(await deps.requireLogin())) {
-      return;
+      return false;
     }
 
     const target = replyTarget.value;
@@ -276,8 +276,10 @@ export function useArticleComments(deps: ArticleCommentsDeps) {
         await loadReplyPage(target.rootId, 1, true);
       }
       await deps.refreshArticle();
+      return true;
     } catch (error) {
       deps.notify.error(errorMessage(error, "评论失败"));
+      return false;
     }
   }
 

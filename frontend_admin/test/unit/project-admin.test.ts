@@ -142,7 +142,11 @@ describe('项目页表单类名与共用工具', () => {
   it('项目页不再复用合集类名，改用项目专用类名', () => {
     const page = 'app/pages/articles/projects.vue'
     const source = readFileSync(join(projectDir, page), 'utf8')
-    expect(source, page).toContain('admin-project-form')
+    // 决定清单 §8 第 37 条：项目页与合集页共用同一个卡片网格与编辑弹窗，
+    // 不再各自维护一套 `admin-project-form` / `admin-collection-form` 表单壳。
+    expect(source, page).toContain('CollectionCardGrid')
+    expect(source, page).toContain('CollectionEditorOverlay')
+    expect(source, page).toContain('kind="project"')
     expect(source, page).not.toContain('admin-collection-form')
   })
 

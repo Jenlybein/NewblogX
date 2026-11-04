@@ -18,7 +18,7 @@ import AppHeader from "~/components/layout/AppHeader.vue";
 const FILENAME = "app/components/layout/AppHeader.vue";
 
 // 历史入口收进头像菜单的那一档视口（与组件里的查询保持一致）。
-const HISTORY_MENU_QUERY = "(min-width: 640px) and (max-width: 1279px)";
+const HISTORY_MENU_QUERY = "(min-width: 640px) and (max-width: 1023px)";
 
 // vi.mock 的工厂会被提升到 import 之前，所以可变状态放这里，测试再往里写。
 const hub = vi.hoisted(() => {
@@ -416,15 +416,15 @@ describe("页头：消息中心入口（#239）", () => {
     const wrapper = mountHeader();
 
     expect(wrapper.find('[data-chrome="messages"]').exists()).toBe(false);
-    expect(wrapper.text()).not.toContain("消息中心");
+    expect(wrapper.text()).not.toContain("消息");
   });
 
   it("登录后动作区出现「消息中心」，带总未读数文案与红点", () => {
     const wrapper = login();
     const entry = wrapper.get('[data-chrome="messages"] .site-header__messages');
 
-    expect(entry.text()).toContain("消息中心");
-    expect(entry.attributes("aria-label")).toBe("消息中心（11 条未读）");
+    expect(entry.text()).toContain("消息");
+    expect(entry.attributes("aria-label")).toBe("消息（11 条未读）");
     expect(entry.attributes("aria-haspopup")).toBe("menu");
     expect(entry.find(".site-header__dot").exists()).toBe(true);
   });
@@ -440,8 +440,8 @@ describe("页头：消息中心入口（#239）", () => {
     const wrapper = login();
 
     expect(wrapper.find(".site-header__dot").exists()).toBe(false);
-    expect(wrapper.get(".site-header__messages").attributes("aria-label")).toBe("消息中心");
-    expect(wrapper.get(".site-header__messages").text()).toBe("消息中心");
+    expect(wrapper.get(".site-header__messages").attributes("aria-label")).toBe("消息");
+    expect(wrapper.get(".site-header__messages").text()).toBe("消息");
   });
 
   it("hover 展开五子项面板：顺序固定、子项带自己的未读数、0 不显示", async () => {
@@ -569,9 +569,10 @@ describe("页头：历史入口（第 241 票）", () => {
     expect(menuSource).toContain('key: "history"');
     expect(menuSource).toMatch(/key === "history"[\s\S]{0,80}navigateTo\("\/history"\)/u);
 
-    // 动作区链接默认隐藏、1280 断点起才显示：窄屏只留菜单里的那一份。
+    // 动作区胶囊默认隐藏、≥1024 才显示（与「消息」同档）：更窄的宽度只留菜单里的那一份。
     expect(source).toMatch(/\.site-header__history\s*\{\s*display:\s*none;/u);
-    const wideMedia = source.slice(source.indexOf("@media (min-width: 1280px)"));
+    expect(source).toContain('class="site-action site-header__history"');
+    const wideMedia = source.slice(source.indexOf("@media (min-width: 1024px)"));
     expect(wideMedia).toMatch(/\.site-header__history\s*\{\s*display:\s*inline-flex;/u);
   });
 });

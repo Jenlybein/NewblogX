@@ -59,7 +59,7 @@ describe("文章页：评论区接线", () => {
     expect(source).not.toMatch(/function loadReplyPage\(/u);
   });
 
-  it("注入的服务齐全：回复取数 / 发评论 / 点赞 / 登录闸门 / 聚焦评论框", () => {
+  it("注入的服务齐全：回复取数 / 发评论 / 点赞 / 登录闸门 / 打开输入面板", () => {
     const source = pageSource();
     const block = source.slice(source.indexOf("useArticleComments({"), source.indexOf("});", source.indexOf("useArticleComments({")));
 
@@ -71,21 +71,27 @@ describe("文章页：评论区接线", () => {
       "createComment",
       "diggComment",
       "refreshArticle",
-      "focusComposer:",
+      "openComposer:",
       "notify: message",
     ]) {
       expect(block, `useArticleComments 缺少依赖 ${dep}`).toContain(dep);
     }
   });
 
-  it("评论框拿到 ref 与登录态；焦点由 composable 调用 focusInput()（不自己找 DOM）", () => {
-    const panel = commentPanelSource(pageSource());
+  it("内嵌输入框换成「去发表评论」按钮；面板挂在页面根、点它是开面板的唯一入口", () => {
+    const source = pageSource();
+    const panel = commentPanelSource(source);
 
-    expect(panel).toContain('<CommentComposer');
-    expect(panel).toContain('ref="composerRef"');
-    expect(panel).toContain(':logged-in="authStore.isLoggedIn"');
-    expect(pageSource()).toMatch(/focusComposer:\s*\(\)\s*=>\s*composerRef\.value\?\.focusInput\(\)/u);
-    expect(pageSource()).not.toMatch(/document\.querySelector\(|document\.getElementById\(/u);
+    // 内嵌 textarea 退役：面板外只剩一枚入口按钮。
+    expect(panel).not.toContain("<CommentComposer");
+    expect(panel).toContain('data-role="comment-invite"');
+    expect(panel).toContain("@click=\"handleCommentInvite\"");
+
+    // 面板挂在页面根（与评分弹窗同级），提交走 handleCommentSubmit。
+    expect(source).toContain("<CommentComposerSheet");
+    expect(source).toContain('@submit="handleCommentSubmit"');
+    expect(source).toContain("openComposer: () => openCommentSheet()");
+    expect(source).not.toMatch(/document\.querySelector\(|document\.getElementById\(/u);
   });
 
   it("点赞（含子评论）与回复都接到 composable 的 handler", () => {
@@ -96,8 +102,9 @@ describe("文章页：评论区接线", () => {
     expect(panel).toContain("@load-replies=\"handleLoadReplies\"");
     expect(panel).toContain("@next-replies=\"handleNextReplies\"");
     expect(panel).toContain("@previous-replies=\"handlePreviousReplies\"");
-    expect(panel).toContain("@submit=\"handleCreateComment\"");
-    expect(panel).toContain("@cancel=\"clearReplyTarget\"");
+    // 提交已搬进底部面板：面板外这块只剩点赞 / 回复 / 回复分页的接线。
+    expect(panel).not.toContain("@submit=");
+    expect(panel).not.toContain("@cancel=");
   });
 });
 

@@ -38,7 +38,7 @@ export const MARKDOWN_THEME_CSS = `/* ==========================================
   font-family: var(--font-sans);
   /* 正文节奏取自参考主题 graphite-island：16px / 行高 1.85。
    * 这是版式常量（不是色值），所以不走 --type-*；行长仍由页面容器
-   * .article-body 的 68ch 决定，shadow 里不另设宽度。 */
+   * .article-body 的 --type-measure 决定，shadow 里不另设宽度。 */
   font-size: 16px;
   line-height: 1.85;
   text-align: start;

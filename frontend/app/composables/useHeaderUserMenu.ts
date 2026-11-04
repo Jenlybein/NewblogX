@@ -13,9 +13,9 @@ import { useAuthStore } from "~/stores/auth";
  *
  * 为什么是 matchMedia 而不是 CSS：菜单项是数据驱动的（`NDropdown` 的 `options`），
  * 服务端没有视口、CSS 也管不到「往 options 里追加一项」。所以三段断点里
- * **只有 640–1279 这一档需要 JS**：
- *   ≥1280 动作区普通链接常显（CSS）；
- *   640–1279 收进这张菜单（本文件）；
+ * **只有 640–1023 这一档需要 JS**（2026-11-04 决定清单 §5 第 27 条：历史与消息同档）：
+ *   ≥1024 动作区胶囊常显（CSS）；
+ *   640–1023 收进这张菜单（本文件）；
  *   < 640 收进折叠面板（CSS）。
  *
  * 抽成 composable 而不是留在 `AppHeader.vue`：页头已连续两张票加入口，
@@ -24,7 +24,7 @@ import { useAuthStore } from "~/stores/auth";
 export function useHeaderUserMenu() {
   const authStore = useAuthStore();
 
-  const HISTORY_MENU_QUERY = "(min-width: 640px) and (max-width: 1279px)";
+  const HISTORY_MENU_QUERY = "(min-width: 640px) and (max-width: 1023px)";
   const historyMenuVisible = ref(false);
   let historyMenuQuery: MediaQueryList | null = null;
 

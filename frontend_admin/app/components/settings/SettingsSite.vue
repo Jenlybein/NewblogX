@@ -51,7 +51,7 @@ onMounted(load)
 </script>
 
 <template>
-  <div>
+  <div class="admin-settings-panel">
     <!-- 登录策略单独一块，但和基础信息同一个表单：它属于 site 段，
          拆成两个组件各自读写整段，会互相把对方刚存的值覆盖回去。 -->
     <NAlert type="info" :bordered="false" class="mb-4">
@@ -64,13 +64,13 @@ onMounted(load)
         <!-- 站点标题与 Logo 不再可自定义（票 192）：读者站的页头字标、浏览器标题与
              分享卡片标题都来自品牌常量，favicon 走项目图标。这里只留备案号。 -->
         <NFormItem label="备案号">
-          <NInput v-model:value="config.site_info.beian" />
+          <NInput v-model:value="config.site_info.beian" class="admin-field--key" />
         </NFormItem>
         <NFormItem label="SEO 关键词">
-          <NInput v-model:value="config.seo.keywords" placeholder="多个关键词用英文逗号分隔" />
+          <NInput v-model:value="config.seo.keywords" class="admin-field--long" placeholder="多个关键词用英文逗号分隔" />
         </NFormItem>
         <NFormItem label="SEO 描述">
-          <NInput v-model:value="config.seo.description" type="textarea" :autosize="{ minRows: 3, maxRows: 5 }" />
+          <NInput v-model:value="config.seo.description" class="admin-field--long" type="textarea" :autosize="{ minRows: 3, maxRows: 5 }" />
         </NFormItem>
       </NCard>
 
@@ -93,27 +93,27 @@ onMounted(load)
         </NFormItem>
         <NSpace :size="12" class="w-full">
           <NFormItem label="验证码有效期（分钟）">
-            <NInputNumber v-model:value="config.login.email_code_timeout" :min="1" />
+            <NInputNumber v-model:value="config.login.email_code_timeout" class="admin-field--number" :min="1" />
           </NFormItem>
           <NFormItem label="发码限流窗口（秒）">
-            <NInputNumber v-model:value="config.login.email_send_window_second" :min="1" />
+            <NInputNumber v-model:value="config.login.email_send_window_second" class="admin-field--number" :min="1" />
           </NFormItem>
           <NFormItem label="单邮箱窗口内最多发码">
-            <NInputNumber v-model:value="config.login.email_send_per_email_max" :min="1" />
+            <NInputNumber v-model:value="config.login.email_send_per_email_max" class="admin-field--number" :min="1" />
           </NFormItem>
           <NFormItem label="单 IP 窗口内最多发码">
-            <NInputNumber v-model:value="config.login.email_send_per_ip_max" :min="1" />
+            <NInputNumber v-model:value="config.login.email_send_per_ip_max" class="admin-field--number" :min="1" />
           </NFormItem>
         </NSpace>
         <NSpace :size="12" class="w-full">
           <NFormItem label="登录失败统计窗口（分钟）">
-            <NInputNumber v-model:value="config.login.login_fail_window_minute" :min="1" />
+            <NInputNumber v-model:value="config.login.login_fail_window_minute" class="admin-field--number" :min="1" />
           </NFormItem>
           <NFormItem label="单账号窗口内最多失败">
-            <NInputNumber v-model:value="config.login.login_fail_user_max" :min="1" />
+            <NInputNumber v-model:value="config.login.login_fail_user_max" class="admin-field--number" :min="1" />
           </NFormItem>
           <NFormItem label="单 IP 窗口内最多失败">
-            <NInputNumber v-model:value="config.login.login_fail_ip_max" :min="1" />
+            <NInputNumber v-model:value="config.login.login_fail_ip_max" class="admin-field--number" :min="1" />
           </NFormItem>
         </NSpace>
       </NCard>

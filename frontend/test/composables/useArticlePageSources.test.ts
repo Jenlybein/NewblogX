@@ -486,7 +486,7 @@ describe("用户私有态独立取数（ADR-0024 决策 2/6）", () => {
       },
     });
 
-    const fetchArticlePrivate = vi.fn(async () => ({ is_digg: true, is_favor: true }));
+    const fetchArticlePrivate = vi.fn(async () => ({ is_digg: true, is_favor: true, digg_count: 6, favor_count: 2 }));
     const sources = await runInScope(() =>
       useArticlePageSources({
         ...privateOptions("hydration"),
@@ -502,7 +502,7 @@ describe("用户私有态独立取数（ADR-0024 决策 2/6）", () => {
     // 页面在 `initializeSession()` 之后调用它 —— 这就是"hydration 后一次带鉴权的用户态请求"。
     await sources.refreshArticlePrivate();
     expect(fetchArticlePrivate).toHaveBeenCalledTimes(1);
-    expect(sources.articlePrivate.value).toEqual({ is_digg: true, is_favor: true });
+    expect(sources.articlePrivate.value).toEqual({ is_digg: true, is_favor: true, digg_count: 6, favor_count: 2 });
 
     // 私有态只进本次渲染的数据，不进正文缓存、也不进私有键的缓存。
     expect(sources.article.value?.is_digg).toBe(true);
@@ -521,7 +521,7 @@ describe("用户私有态独立取数（ADR-0024 决策 2/6）", () => {
     installAwaitableAsyncData();
 
     const fetchArticle = vi.fn(async () => makeArticle());
-    const fetchArticlePrivate = vi.fn(async () => ({ is_digg: true, is_favor: false }));
+    const fetchArticlePrivate = vi.fn(async () => ({ is_digg: true, is_favor: false, digg_count: 4, favor_count: 1 }));
     const sources = await runInScope(() =>
       useArticlePageSources({
         ...privateOptions("navigation"),
@@ -550,7 +550,7 @@ describe("用户私有态独立取数（ADR-0024 决策 2/6）", () => {
         ...privateOptions("navigation"),
         swrCache: cache,
         fetchArticle,
-        fetchArticlePrivate: async () => ({ is_digg: true, is_favor: false }),
+        fetchArticlePrivate: async () => ({ is_digg: true, is_favor: false, digg_count: 0, favor_count: 0 }),
       }),
     );
 
@@ -558,5 +558,33 @@ describe("用户私有态独立取数（ADR-0024 决策 2/6）", () => {
     await sources.refreshArticle();
     expect(fetchArticle).toHaveBeenCalledTimes(1);
     expect(sources.article.value?.is_digg).toBe(true);
+  });
+
+  it("私有态响应里的权威计数覆盖 payload 旧值（ADR-0024 后续修订：按钮与数字同源）", async () => {
+    installFakeNuxtApp();
+    const cache = createReaderSwrCache({ now: () => 1_000 });
+    installAwaitableAsyncData();
+
+    // payload 里的正文是"写之前"的快照：6 个赞、2 个收藏。
+    const fetchArticle = vi.fn(async () => ({ ...makeArticle(), digg_count: 6, favor_count: 2 } as ArticleDetail));
+    const sources = await runInScope(() =>
+      useArticlePageSources({
+        ...privateOptions("hydration"),
+        swrCache: cache,
+        fetchArticle,
+        // 同一次带鉴权响应里的权威计数：7 个赞、3 个收藏。
+        fetchArticlePrivate: async () => ({ is_digg: true, is_favor: true, digg_count: 7, favor_count: 3 }),
+      }),
+    );
+
+    expect(sources.article.value?.digg_count).toBe(6);
+    await sources.refreshArticlePrivate();
+    // 只补布尔会留下"按钮已赞、数字没变"——这正是本轮的回归点。
+    expect(sources.article.value?.digg_count).toBe(7);
+    expect(sources.article.value?.favor_count).toBe(3);
+    expect(sources.article.value?.is_digg).toBe(true);
+    expect(sources.article.value?.is_favor).toBe(true);
+    // 计数仍不进缓存：私有键永远是 miss。
+    expect(cache.read("article-private-a1").state).toBe("miss");
   });
 });

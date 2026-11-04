@@ -24,8 +24,10 @@ import (
 const (
 	reconcileAuthor uint64 = 100
 	reconcileReader uint64 = 200
-	reconcileArtID  uint64 = 1001
-	reconcileFolID  uint64 = 1
+	// reconcileCancelled 是"点过赞又取消"的那个用户（软删残行的所有者）。
+	reconcileCancelled uint64 = 300
+	reconcileArtID     uint64 = 1001
+	reconcileFolID     uint64 = 1
 )
 
 // TestReconcileArticleCountRecomputesOnMySQL 库内列漂移后一次并账即自愈。
@@ -46,7 +48,11 @@ func TestReconcileArticleCountRecomputesOnMySQL(t *testing.T) {
 	schema.InsertArticleDigg(t, db, schema.ArticleDiggSpec{ID: 6001, ArticleID: reconcileArtID, UserID: reconcileReader})
 	schema.InsertArticleDigg(t, db, schema.ArticleDiggSpec{ID: 6002, ArticleID: reconcileArtID, UserID: reconcileAuthor})
 	// 取消过一次赞：软删残行，不再是"一条关系"。
-	schema.InsertArticleDigg(t, db, schema.ArticleDiggSpec{ID: 6003, ArticleID: reconcileArtID, UserID: 300, SoftDeleted: true})
+	// 这一行必须属于**第三个用户**（同一用户对同一篇只能有一条点赞关系），而
+	// `article_digg_models.user_id` 有外键 —— 用户行得先存在。这是第一次真跑 MySQL
+	// 才暴露的：`seedUsers` 只建了 100 / 200，写死 300 会直接 FK 失败。
+	seedUser(t, db, reconcileCancelled)
+	schema.InsertArticleDigg(t, db, schema.ArticleDiggSpec{ID: 6003, ArticleID: reconcileArtID, UserID: reconcileCancelled, SoftDeleted: true})
 	schema.InsertUserArticleFavor(t, db, schema.UserArticleFavorSpec{
 		ID: 7001, ArticleID: reconcileArtID, UserID: reconcileReader, FavorID: reconcileFolID, ArticleTitle: "并账契约文章",
 	})

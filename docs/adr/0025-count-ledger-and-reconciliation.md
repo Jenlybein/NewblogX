@@ -52,6 +52,14 @@
 
 - 并账：`backend/internal/article/adapter/mysql/counter_flush.go` · `backend/app/cron_wiring.go`
 - 增量：`backend/internal/platform/redis/redis_article/enter.go` · `backend/internal/article/adapter/mysql/counters.go`
-- 读路径合并：`backend/internal/article/app/query.go`（`enrichCounters`）· `backend/internal/article/adapter/mysql/social_repo.go`（收藏内容列表补齐点）
+- 读路径合并：`backend/internal/article/app/query.go`（`enrichCounters`，详情 / 列表）· `backend/internal/article/app/subdomain.go`（`enrichItemCounters`，收藏内容列表；合并发生在 app 层而不是 SQL，所以拿不到 CounterPort 的地方也能用同一口径）
 - 前端可见值：[ADR-0024](./0024-reader-user-state-and-count-truth.md) 的「后续修订（2026-11-04）」· `frontend/app/utils/readerPrivateFields.ts`
 - 上游：[ADR-0019](./0019-reader-rendering-and-cache-strategy.md) · [ADR-0024](./0024-reader-user-state-and-count-truth.md)
+
+## 实施记录（2026-11-04，#252）
+
+落地票 [#252](https://github.com/Jenlybein/NewblogX/issues/252)，代码在集成分支 `integration/reading-ui-and-admin-batch`（提交 `37eaa52`）。
+
+- **真库验证已完成**：`go test -tags integration ./internal/article/adapter/mysql/` 通过（含本决策的契约用例 `counter_flush_integration_test.go`：列被漂移后一次并账即自愈、软删残行不计入、`view` / `comment` 列不被并账动、文章已删时丢弃增量）。同批还跑了 `./app`、`./cmd/cli`、`./internal/article/adapter/http` 三个集成包，均通过。
+- **首次真跑抓到的夹具缺陷**：契约用例里"取消过的赞"那行写死 `user_id=300`，而测试只建了 100 / 200 两个用户 —— `article_digg_models.user_id` 有外键，插入直接失败。已改为先 `seedUser(t, db, 300)`。这条缺陷在只做类型校验时看不见，正说明"SQLite 冒充 MySQL"的风险是真实的。
+- 状态保持 `已接受`：本决策的代码与验证都已完成，但整批还停在集成分支（spec [#250](https://github.com/Jenlybein/NewblogX/issues/250) 等人工验界面），合入 `main` 时再改 `已交付`。

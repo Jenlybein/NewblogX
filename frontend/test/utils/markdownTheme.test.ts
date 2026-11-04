@@ -125,49 +125,67 @@ describe("六层标题装置：颜色 + 装置逐层不同（正文用 --md-* �
     expect(ruleBody(`.markdown-body h${level}`)).toContain(`color: var(--md-heading-h${level});`);
   });
 
-  it("H1 墨：居中 + 定标线 + 居中记号块", () => {
+  // 装置语言参考 themes/graphite-island-spectrum：六层各有一种独有装置 + 独有色，
+  // 装置是层级提示的装饰件（不承载必要信息），颜色是层级索引。
+  it("H1 墨：居中 + 定标线 + 三角/方块两个记号", () => {
     const rule = ruleBody(".markdown-body h1");
 
     expect(rule).toMatch(/text-align:\s*center/u);
     expect(rule).toContain("border-bottom: 1px solid var(--md-heading-h1);");
-
-    const mark = ruleBody(".markdown-body h1::after");
-    expect(mark).toContain("background: var(--md-heading-h1);");
-    expect(mark).toMatch(/margin:\s*[^;]*auto/u);
+    // 两个记号都骑在定标线上：三角用 clip-path 画，方块是实心块。
+    expect(ruleBody(".markdown-body h1::before")).toMatch(/clip-path:\s*polygon\(/u);
+    expect(ruleBody(".markdown-body h1::before")).toContain("background: var(--md-heading-h1);");
+    expect(ruleBody(".markdown-body h1::after")).toContain("background: var(--md-heading-h1);");
+    expect(ruleBody(".markdown-body h1::after")).toMatch(/width:\s*11px/u);
   });
 
-  it("H2 赤陶：左侧 3px 色带", () => {
-    expect(ruleBody(".markdown-body h2")).toContain("border-left: 3px solid var(--md-heading-h2);");
+  it("H2 赤陶：6px 色带 + 向右淡出的同色雾底", () => {
+    const rule = ruleBody(".markdown-body h2");
+
+    expect(rule).toContain("border-left: 6px solid var(--md-heading-h2);");
+    expect(rule).toMatch(/background-image:\s*linear-gradient\(/u);
+    expect(rule).toContain("var(--md-heading-h2) 13%");
+    expect(rule).toMatch(/border-radius:\s*0 var\(--radius-sm\)/u);
   });
 
-  it("H3 苔绿：行首三角", () => {
+  it("H3 苔绿：行首三角 + 通栏发丝线", () => {
+    const rule = ruleBody(".markdown-body h3");
     const mark = ruleBody(".markdown-body h3::before");
 
+    expect(rule).toContain("border-bottom: 1px solid var(--md-heading-h3);");
     expect(mark).toMatch(/clip-path:\s*polygon\(/u);
     expect(mark).toContain("background: var(--md-heading-h3);");
   });
 
-  it("H4 靛青：约 40% 宽的短下划线", () => {
-    const mark = ruleBody(".markdown-body h4::after");
+  it("H4 靛青：44px 记号笔短横条（不是整条下划线）", () => {
+    const rule = ruleBody(".markdown-body h4");
 
-    expect(mark).toMatch(/width:\s*40%/u);
-    expect(mark).toMatch(/height:\s*[23]px/u);
-    expect(mark).toContain("background: var(--md-heading-h4);");
+    expect(rule).toMatch(/background-image:\s*linear-gradient\(/u);
+    expect(rule).toContain("var(--md-heading-h4) 44px");
+    expect(rule).toMatch(/background-size:\s*100% 3px/u);
+    // 旧的「40% 宽 ::after」已经退场。
+    expect(themeCss).not.toContain(".markdown-body h4::after");
   });
 
-  it("H5 梅紫：上下双发丝线", () => {
+  it("H5 梅紫：贴纸标签块（描边 + 同色淡底 + token 圆角）", () => {
     const rule = ruleBody(".markdown-body h5");
 
-    expect(rule).toContain("border-top: 1px solid var(--md-heading-h5);");
-    expect(rule).toContain("border-bottom: 1px solid var(--md-heading-h5);");
+    expect(rule).toMatch(/display:\s*inline-block/u);
+    expect(rule).toContain("border: 1px solid var(--md-heading-h5);");
+    expect(rule).toContain("var(--md-heading-h5) 8%");
+    expect(rule).toMatch(/border-radius:\s*var\(--radius-sm\)/u);
   });
 
-  it("H6 赭黄：大写字距 + 顶横线", () => {
+  it("H6 赭黄：大写字距 + 前置 1px 引线（不再用顶横线）", () => {
     const h6 = ruleBody(".markdown-body h6");
 
     expect(h6).toMatch(/text-transform:\s*uppercase/u);
     expect(h6).toMatch(/letter-spacing:\s*0\.18em/u);
-    expect(h6).toContain("border-top: 1px solid var(--md-heading-h6);");
+    expect(h6).not.toContain("border-top");
+
+    const lead = ruleBody(".markdown-body h6::before");
+    expect(lead).toMatch(/height:\s*1px/u);
+    expect(lead).toContain("background: var(--md-heading-h6);");
   });
 
   it("字号阶梯是 em（随 16px 正文同步缩放）", () => {

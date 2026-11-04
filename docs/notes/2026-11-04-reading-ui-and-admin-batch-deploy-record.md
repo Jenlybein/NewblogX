@@ -5,6 +5,25 @@
 - 代码：`2b11387` → **`8056e37`**（squash 合入的 PR [#259](https://github.com/Jenlybein/NewblogX/pull/259)）
 - 方式：**串行**（后端 → 读者站 → 后台），每层建完先验证再进下一层
 
+## 追加：两处验收反馈修复（同日 20:20–20:40）
+
+上线后按用户反馈改了两处，只重建 `blogx_web`（后端与后台无代码变化）：
+
+| 提交 | 内容 | 上线前的问题 |
+| --- | --- | --- |
+| `497e59a` | **正文列不再单独收窄**：删掉 `.article-main` 的 `max-width:72rem` + `margin-inline:auto`；行宽 token 80ch → 92ch | 上一版把正文列整体收窄并居中，与上方 hero 元信息条、右侧栏脱开，两侧露出页面底色 |
+| `7e32482` | **六层标题装置对齐 `themes/graphite-island-spectrum`**：H1 定标线改「三角+方块」、H2 改 6px 粗条 + 向右淡出的色带、H3 加通栏发丝线、H4 改 44px 记号笔横条、H5 改贴纸标签块、H6 改前置 1px 引线 | 六层颜色不同但装置太像（三角形/短下划线/双线/顶线），层级辨识度不够 |
+
+验证（全部为实际命令输出）：
+
+- `blogx-web` healthy；`/`、`/admin/`、文章页均 200。
+- 全局入口 CSS `entry.TIvKCog_.css`：含 `--type-measure:92ch`、**不含** `max-width:72rem`；nginx 实发的字节数与镜像内一致（68955 / 68956，差 1 字节是命令替换吃掉的换行）。
+- 文章页 SSR：`article-actions-bar--hero` ×1、`去发表评论` ×1、`article-actions-bar--fixed` **×0**。
+- 标题装置（注入 shadow root，落在 JS 而非 CSS）：`--md-heading-h4) 44px` ×2、H1 三角 `polygon(...)` ×4、H5 `border: 1px solid var(--md-heading-h5)` ×2、H2 `border-left: 6px solid` ×2、H6 引线 `height: 1px` ×2。
+- `blogx_admin` **未重建**：它那份 `tokens.css` 同步到了 92ch（两端逐字节一致由门禁保证），但后台没有任何地方消费 `--type-measure`，观感无变化。
+
+回滚：这次只动了 `blogx_web`，回滚只需 `docker compose up -d blogx_web`（镜像 tag 指回 `2026-11-04-pre250`）。
+
 ## 一次性部署序列（本次实际执行）
 
 ```bash

@@ -30,6 +30,7 @@
 | [0022](./0022-chat-dual-channel-http-write-ws-notify.md) | 私信双通道：HTTP 落库为准、WS 只做通知 | `POST /chat/messages` 事务内落库为唯一发送通道；WS 只推"新消息/已读"通知；写副作用走发件箱；幂等键派生主键占用 `[2^62, 2^63)`；无连接池的进程（river）用 `SkipEventNames` 跳过私信事件；该跳过已改为由装配处显式传入（`OutboxWiringOptions{DeliverChatPush}`），不再依赖 `WireChat` 的调用顺序 —— **2026-11-04 有「后续修订」**：陌生人开关做回用户级（站点总闸 AND 接收方个人开关，`chat.recipient_stranger_disabled` 与站点级分开）、WS 被动断线退避重连后重取未读（按人开关不再是死配置） | [ADR-0008](./0008-dead-letter-replay.md) · [GLOSSARY · 私信 / 会话](../../GLOSSARY.md) · [TODO](../TODO.md) |
 | [0023](./0023-outline-tree-for-collections-and-projects.md) | 合集/项目的目录树 | 新增与 owner 无关的树表（文件夹节点 + 文章节点，任意深度）；一张表服务两个实体，阅读页左栏挂同一棵树；旧扁平收录中间表冻结退场、不迁移；后台两个排列页由树编辑器取代 —— **已交付**（#210–#220，收尾 #221） | [ADR-0019](./0019-reader-rendering-and-cache-strategy.md) · [GLOSSARY · 目录树](../../GLOSSARY.md) · [决定清单](../notes/2026-11-03-outline-tree-and-reading-page-decisions.md) · [发布说明](../notes/2026-11-04-outline-tree-release-notes.md) |
 | [0024](./0024-reader-user-state-and-count-truth.md) | 阅读页用户态与计数真相 | SWR 只对首屏 initial 复用 fresh、手工 refresh 必真发请求；私有态独立取数 `article-private-<id>`（server:false + 恒 undefined 的 getCachedData），永不进 payload/SWR；点赞改幂等目标态 `{liked}`；写响应回填权威计数并主动失效 `article-<id>` 缓存；收藏移除改走 DELETE —— **2026-11-04 有「后续修订」**：分享不走登录前置（无接口无计数）、断线重连后重取权威未读（不靠推送增量），落地票 #235 / #247 | [ADR-0019](./0019-reader-rendering-and-cache-strategy.md) · [决定清单](../notes/2026-11-04-reading-interactions-and-message-center-decisions.md) · [发布说明](../notes/2026-11-04-reading-interactions-release-notes.md) · [#235](https://github.com/Jenlybein/NewblogX/issues/235) |
+| [0025](./0025-count-ledger-and-reconciliation.md) | 计数降为派生值：并账按关系行重算覆盖 | 点赞 / 收藏数不再靠增量累积：30 分钟并账把 `digg_count` / `favor_count` 直接覆盖成 `COUNT(关系行)`，增量只作读路径的短命叠加（列 + Redis 增量）、不参与持久化；视图 / 评论数仍走 `列 += 增量`；CDC 实时并账为**非目标**；收藏列表与详情同口径 | [ADR-0024](./0024-reader-user-state-and-count-truth.md) · [GLOSSARY · 计数账本](../../GLOSSARY.md) · [决定清单](../notes/2026-11-04-reading-ui-and-admin-batch-decisions.md) · [#252](https://github.com/Jenlybein/NewblogX/issues/252) |
 
 ## 来源与拆分说明
 
@@ -39,7 +40,8 @@
 - ADR-008 / ADR-009 在 v1 归档时没有被其他文档展开，是合集里"完整保留"的两条，因此这两份文件的信息量明显大于前七条。
 - ADR-0022 在 **2026-11-04 追加「后续修订」（#243 / #247）**：按人开关不再是死配置（有效判决 = 站点总闸 AND 接收方个人开关，两级拒绝各有错误码，站点级默认值仍是显式 `false`）、WS 被动断线退避重连后重取未读。正文与约束原文未改，差异表在 ADR-0022 文末。
 - ADR-0023 状态是**已交付**（合集/项目的目录树：新增与 owner 无关的树表、文件夹节点不可读、旧扁平收录中间表冻结退场且不迁移、后台两个排列页由树编辑器取代；落地票 #210–#220 已全部合入集成分支，#221 是收尾票：CI 集成用例改新树模型、部署/发布说明、ADR 状态与全量门禁）。
-- ADR-0024 状态是**已交付**（阅读页用户态与计数真相：收窄 ADR-0019 决策 4 / 约束 4 的 refresh 口径、私有态独立取数、点赞幂等目标态、写响应回填权威计数、收藏移除改走 DELETE；落地票 #235，差异表在 ADR-0019 文末「后续修订」；**2026-11-04 追加「后续修订」（#247）**：分享不走互动登录前置、WS 断线重连后必须重取权威未读——原则与决策 4「权威值只来自服务端」同源）。
+- ADR-0024 状态是**已交付**（阅读页用户态与计数真相：收窄 ADR-0019 决策 4 / 约束 4 的 refresh 口径、私有态独立取数、点赞幂等目标态、写响应回填权威计数、收藏移除改走 DELETE；落地票 #235，差异表在 ADR-0019 文末「后续修订」；**2026-11-04 追加「后续修订」（#247）**：分享不走互动登录前置、WS 断线重连后必须重取权威未读——原则与决策 4「权威值只来自服务端」同源；**本轮再追加一次「后续修订」（#251 / #252）**：私有态投影从 2 个布尔扩到 4 个字段（含权威计数），并账改为按关系行重算覆盖，见 [ADR-0025](./0025-count-ledger-and-reconciliation.md)）。
+- ADR-0025 状态是**已接受**（计数降为派生值：点赞 / 收藏数的 30 分钟并账改为 `COUNT(关系行)` 覆盖整列，增量只做读路径叠加；视图 / 评论仍走 `列 += 增量`；CDC 实时并账为非目标；落地票 #252 已合入集成分支，MySQL 契约用例待有 Docker 的环境补跑）。
 - 每条 ADR 记录的是**当时的判断**；现状若有偏离，以 `docs/architecture/` 与代码为准，并考虑补一条新 ADR 而不是改写历史。
 
 ## 归档备注：仅具历史价值、v2 不需要再看

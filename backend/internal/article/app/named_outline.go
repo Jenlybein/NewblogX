@@ -150,14 +150,19 @@ type NamedOutlineView struct {
 	Next         *outline.ViewNode
 }
 
-// NamedOutlineTree 读某实体具名树的读者读面（公开读）。
+// NamedOutlineTree 读某实体具名树（公开读；管理员同一端点拿后台读面）。
 //
 // `from` 是阅读页带来的 `<kind>:<id>` 来路：给了就必须指向这一棵树，否则按
 // 没有可展示的树处理（不串到别的专题）。`articleID` 为空时不回答相邻文章。
 // 归属 kind / ID 由端点身份给出，响应里带回它们，读者侧据此生成 `?from=` 链接。
+//
+// 管理员是**有意例外**（与 CollectionDetail / ProjectDetail 同一口径）：后台树
+// 编辑器要能打开未展示的实体，且必须读回含失效行的整棵树，否则一次保存会把
+// 失效行与未展示树软删掉。管理员读面的 HasTree 按后台节点算，篇数 / 封面 /
+// 相邻文章留零值 / null（它们只对读者读面有意义）；匿名读者路径逐字不变。
 func (s *Service) NamedOutlineTree(
 	ctx context.Context, kind outline.OwnerKind, ownerID outline.ID,
-	from string, articleID domain.ArticleID, onlyAdminAuthors bool,
+	from string, articleID domain.ArticleID, onlyAdminAuthors bool, viewer domain.Viewer,
 ) (*NamedOutlineView, error) {
 	var view *NamedOutlineView
 	err := s.tx.WithinTx(ctx, func(ctx context.Context, repos Repos) error {
@@ -173,13 +178,31 @@ func (s *Service) NamedOutlineTree(
 				return nil
 			}
 		}
-		visible, err := readerOutlineOwnerVisible(ctx, r, ArticleOutlineSource{
-			OwnerKind: kind, OwnerID: ownerID,
-		})
-		if err != nil {
-			return err
+		if !viewer.IsAdmin() {
+			visible, err := readerOutlineOwnerVisible(ctx, r, ArticleOutlineSource{
+				OwnerKind: kind, OwnerID: ownerID,
+			})
+			if err != nil {
+				return err
+			}
+			if !visible {
+				return nil
+			}
 		}
-		if !visible {
+
+		if viewer.IsAdmin() {
+			// 后台读面：buildOutlineDetail 保留失效行与 stale_reason，不按读者
+			// 可见性过滤，也不算篇数 / 封面 / 相邻文章。
+			nodes, err := r.Outlines().ListNodes(ctx, kind, ownerID)
+			if err != nil {
+				return err
+			}
+			detail, err := s.buildOutlineDetail(ctx, r, kind, ownerID, nodes)
+			if err != nil {
+				return err
+			}
+			view.Tree = detail.Tree
+			view.HasTree = len(detail.Tree) > 0
 			return nil
 		}
 

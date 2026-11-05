@@ -59,7 +59,7 @@ func (h *Handler) Projects(c *gin.Context) {
 // ProjectDetail 项目详情（公开读）。
 //
 // 未展示的项目对读者按**不存在**处理（不返回"这个项目未发布"——那能用来探测
-// 还没公布的编排）；管理端读面属于 #197。
+// 还没公布的编排）；管理员仍能打开，后台编辑要用（与合集口径一致）。
 //
 // @Summary 项目详情
 // @Tags project
@@ -71,7 +71,7 @@ func (h *Handler) ProjectDetail(c *gin.Context) {
 	cr := middleware.GetBindUri[kernel.IDRequest](c)
 
 	detail, err := h.svc.ProjectDetail(c.Request.Context(), project.ID(cr.ID),
-		h.onlyAdminAuthors())
+		h.viewerOf(c), h.onlyAdminAuthors())
 	if err != nil {
 		h.fail(c, err)
 		return

@@ -50,21 +50,28 @@ func (s *Service) ListProjectCards(
 // ProjectDetail 返回项目详情（嵌套目录树），读者侧公开读。
 //
 // 未展示的项目对读者按**不存在**处理（不返回"这个项目未发布"——那能用来探测
-// 还没公布的编排）；管理员读面属于 #197，会走另一条入口。
+// 还没公布的编排）；管理员仍能打开，后台编辑要用（与 CollectionDetail 同口径，
+// 修掉复制漂移）。
 //
 // 与合集共用同一份读者树组装：只出公开文章节点、空文件夹保留、封面为空时
 // 回退到深度优先第一篇公开文章。
 func (s *Service) ProjectDetail(
-	ctx context.Context, id project.ID, onlyAdminAuthors bool,
+	ctx context.Context, id project.ID, viewer domain.Viewer, onlyAdminAuthors bool,
 ) (*project.Detail, error) {
 	var detail *project.Detail
-	err := s.tx.WithinTx(ctx, func(ctx context.Context, r Repos) error {
-		p, err := r.Projects().Find(ctx, id)
+	err := s.tx.WithinTx(ctx, func(ctx context.Context, repos Repos) error {
+		p, err := repos.Projects().Find(ctx, id)
 		if err != nil {
 			return err
 		}
-		if !p.Displayed() {
+		if !p.Displayed() && !viewer.IsAdmin() {
 			return project.ErrNotFound
+		}
+		// #276：项目详情只读自己的具名树表，与后台编辑器、阅读页左栏、
+		// 列表卡片同一份数据；合集侧仍走原来的 Repos，不受影响。
+		r, err := namedRepos(ctx, repos, outline.OwnerProject)
+		if err != nil {
+			return err
 		}
 		ownerKind, ownerID := outline.OwnerProject, outline.ID(id)
 		tree, err := s.readerOutline(ctx, r, ownerKind, ownerID, onlyAdminAuthors, p.Cover())

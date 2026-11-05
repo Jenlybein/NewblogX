@@ -13,53 +13,42 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-// 站点访问量埋点的回归测试。
-//
-// 背景：迁移到 internal/site 时把 `redis_site.SetFlow` 那一行漏了，
-// 于是 `/site/site` 再也不会累计访问量，而管理端首页的 flow 一直在读它
-// （永远是 0）。这个缺陷编译、vet、单测、契约、archcheck 全发现不了——
-// 唯一能钉住它的就是"读公开配置会触发一次计数"这条断言。
+// 站点访问量埋点的回归测试：公开读 site 段时触发一次计数，deco 段不计数。
 func TestPublicSiteRecordsVisit(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
 	var visits int
 	h := sitehttp.NewHandler(sitetest.NewDefaultService(), func() { visits++ })
 
-	newCtx := func(name string) *gin.Context {
+	newCtx := func(path string) *gin.Context {
 		c, _ := gin.CreateTestContext(httptest.NewRecorder())
-		c.Request = httptest.NewRequest("GET", "/site/"+name, nil)
-		c.Set("requestUri", sitehttp.SiteInfoRequest{Name: name})
+		c.Request = httptest.NewRequest("GET", path, nil)
 		return c
 	}
 
-	t.Run("读公开配置记一次访问", func(t *testing.T) {
+	t.Run("读公开站点配置记一次访问", func(t *testing.T) {
 		visits = 0
-		h.PublicInfo(newCtx("site"))
+		h.PublicSiteSection(newCtx("/site/site"))
 		if visits != 1 {
 			t.Fatalf("读取 /site/site 应累计 1 次访问，实际 %d", visits)
 		}
 	})
 
-	t.Run("其他配置块不计数", func(t *testing.T) {
+	t.Run("公开装饰配置不计数", func(t *testing.T) {
 		visits = 0
-		h.PublicInfo(newCtx("seo"))
+		h.PublicDecoSection(newCtx("/site/deco"))
 		if visits != 0 {
-			t.Fatalf("读取 /site/seo 不该计数，实际 %d", visits)
+			t.Fatalf("读取 /site/deco 不该计数，实际 %d", visits)
 		}
 	})
 
 	t.Run("未注入计数器时不应 panic", func(t *testing.T) {
-		// 路由表测试用的是零值 Handler（没有任何依赖），这条路径必须安全。
 		zero := sitehttp.NewHandler(sitetest.NewDefaultService(), nil)
-		zero.PublicInfo(newCtx("site"))
+		zero.PublicSiteSection(newCtx("/site/site"))
 	})
 }
 
 // 公开站点配置的形状：不再有站点模式，但有发布/展示三开关（#60 / ADR-0017）。
-//
-// 站点模式（site_info.mode）是死配置 —— 全仓没有一处读它，留着只会让读者站
-// 一直被一个无人消费的字段误导。三个开关在 site.article 段里，随同一份公开
-// 配置下发；键名与后端 json tag 一致，前端手写投影照它们绑定。
 func TestPublicSiteConfigSwitches(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
@@ -73,8 +62,7 @@ func TestPublicSiteConfigSwitches(t *testing.T) {
 	recorder := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(recorder)
 	c.Request = httptest.NewRequest("GET", "/site/site", nil)
-	c.Set("requestUri", sitehttp.SiteInfoRequest{Name: "site"})
-	h.PublicInfo(c)
+	h.PublicSiteSection(c)
 
 	body := recorder.Body.String()
 	if strings.Contains(body, `"mode"`) {
@@ -87,11 +75,8 @@ func TestPublicSiteConfigSwitches(t *testing.T) {
 	}
 }
 
-// 装饰段（deco）走的是既有的三条参数化 name 路由：公开读 GET /site/{name}、
-// 管理读 GET /site/admin/{name}、更新 PUT /site/{name}。
-// 三条各有一个 switch，漏掉任何一条的表现都是"后台填了、读者看不到"，
-// 而编译器和契约都发现不了 —— 只能靠这里钉住。
-func TestDecoRoutedThroughNameSwitches(t *testing.T) {
+// deco 段走具名端点：公开读 / 管理读 / 更新三个出入口都不再靠 name 分派。
+func TestDecoNamedSectionEndpoints(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
 	env := sitetest.NewEnv(conf.Site{}, conf.AI{}, "test", "")
@@ -100,40 +85,33 @@ func TestDecoRoutedThroughNameSwitches(t *testing.T) {
 	}
 	h := sitehttp.NewHandler(env.Service, nil)
 
-	call := func(fn func(*gin.Context), method, name, body string) string {
+	call := func(fn func(*gin.Context), method, path, body string) string {
 		handler := httptest.NewRecorder()
 		c, _ := gin.CreateTestContext(handler)
-		c.Request = httptest.NewRequest(method, "/site/"+name, strings.NewReader(body))
+		c.Request = httptest.NewRequest(method, path, strings.NewReader(body))
 		c.Request.Header.Set("Content-Type", "application/json")
-		c.Set("requestUri", sitehttp.SiteInfoRequest{Name: name})
 		fn(c)
 		return handler.Body.String()
 	}
 
-	t.Run("公开读带上 deco 分支", func(t *testing.T) {
-		body := call(h.PublicInfo, "GET", "deco", "")
-		if strings.Contains(body, "站点信息不存在") {
-			t.Fatalf("GET /site/deco 应命中 deco 分支，实际: %s", body)
-		}
+	t.Run("公开读返回当前装饰配置", func(t *testing.T) {
+		body := call(h.PublicDecoSection, "GET", "/site/deco", "")
 		if !strings.Contains(body, `"logo_size":60`) {
 			t.Fatalf("公开读应返回当前装饰配置，实际: %s", body)
 		}
 	})
 
-	t.Run("管理读带上 deco 分支", func(t *testing.T) {
-		body := call(h.AdminInfo, "GET", "deco", "")
-		if strings.Contains(body, "站点信息不存在") {
-			t.Fatalf("GET /site/admin/deco 应命中 deco 分支，实际: %s", body)
-		}
+	t.Run("管理读返回当前装饰配置", func(t *testing.T) {
+		body := call(h.AdminDecoSection, "GET", "/site/admin/deco", "")
 		if !strings.Contains(body, `"logo_size":60`) {
 			t.Fatalf("管理读应返回当前装饰配置，实际: %s", body)
 		}
 	})
 
-	t.Run("更新带上 deco 分支且落库前钳位", func(t *testing.T) {
-		body := call(h.UpdateConfig, "PUT", "deco", `{"charm":{"enable":false,"logo_size":9999}}`)
+	t.Run("更新落库前钳位", func(t *testing.T) {
+		body := call(h.UpdateDecoSection, "PUT", "/site/deco", `{"charm":{"enable":false,"logo_size":9999}}`)
 		if strings.Contains(body, "站点信息不存在") {
-			t.Fatalf("PUT /site/deco 应命中 deco 分支，实际: %s", body)
+			t.Fatalf("PUT /site/deco 应命中具名更新，实际: %s", body)
 		}
 		got := env.Runtime.Deco()
 		if got.Charm.Enable {
@@ -145,14 +123,11 @@ func TestDecoRoutedThroughNameSwitches(t *testing.T) {
 	})
 
 	t.Run("分数 segments 不再 400：绑定后由 Normalize 四舍五入成整数", func(t *testing.T) {
-		// 回归：Segments 曾是 Go 的 int，`{"segments":10.6}` 在 JSON 绑定阶段
-		// 就失败并返回 400，管理员根本到不了 Normalize —— 违反"永不报错"。
 		recorder := httptest.NewRecorder()
 		c, _ := gin.CreateTestContext(recorder)
 		c.Request = httptest.NewRequest("PUT", "/site/deco", strings.NewReader(`{"charm":{"segments":10.6}}`))
 		c.Request.Header.Set("Content-Type", "application/json")
-		c.Set("requestUri", sitehttp.SiteInfoRequest{Name: "deco"})
-		h.UpdateConfig(c)
+		h.UpdateDecoSection(c)
 
 		if recorder.Code != 200 {
 			t.Fatalf("分数 segments 不应被拒绝，HTTP 状态 %d，body: %s", recorder.Code, recorder.Body.String())
@@ -162,4 +137,29 @@ func TestDecoRoutedThroughNameSwitches(t *testing.T) {
 			t.Fatalf("10.6 节应四舍五入为 11，实际 %v", got.Charm.Segments)
 		}
 	})
+}
+
+// image_gc 是第九段：具名读 / 写出入口必须真的接进运行时配置（#283 前无 HTTP 出入口）。
+func TestImageGCNamedSectionEndpoints(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	env := sitetest.NewEnv(conf.Site{}, conf.AI{}, "test", "")
+	h := sitehttp.NewHandler(env.Service, nil)
+
+	recorder := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(recorder)
+	c.Request = httptest.NewRequest("PUT", "/site/image_gc", strings.NewReader(`{"enabled":true,"grace_days":7,"batch_limit":20}`))
+	c.Request.Header.Set("Content-Type", "application/json")
+	h.UpdateImageGcSection(c)
+	if recorder.Code != 200 {
+		t.Fatalf("PUT /site/image_gc 应成功，状态 %d，body: %s", recorder.Code, recorder.Body.String())
+	}
+
+	readRecorder := httptest.NewRecorder()
+	readCtx, _ := gin.CreateTestContext(readRecorder)
+	readCtx.Request = httptest.NewRequest("GET", "/site/admin/image_gc", nil)
+	h.AdminImageGcSection(readCtx)
+	if !strings.Contains(readRecorder.Body.String(), `"grace_days":7`) || !strings.Contains(readRecorder.Body.String(), `"batch_limit":20`) {
+		t.Fatalf("管理读应返回刚写入的 image_gc，实际: %s", readRecorder.Body.String())
+	}
 }

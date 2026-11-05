@@ -102,3 +102,18 @@ HTTP 唯一发送通道（决策 1）、零列变更、写副作用走发件箱*
 | 「清除水位」 | `clear_before_msg_id` 按 `id > ?` 过滤消息，并账沿用主键大小 | **改为基于 `send_time` 的时间水位**：消息过滤与未读对账公式同步改并补测试，守住「清空会话 → 未读不复活」（#266）；派生主键落在 `[2^62, 2^63)` 非单调，不能再当水位 |
 
 HTTP 唯一发送通道、零 DDL、发件箱三条不变。
+
+## 后续修订（2026-11-06，#280）
+
+决策与约束正文一字未改；**零 DDL、HTTP 唯一发送通道、发件箱同事务三项继续一字不动**。以下口径由 [ADR-0026](./0026-chat-send-side-risk-control.md) / [ADR-0027](./0027-message-center-ordering-pagination-and-read-receipt.md) 的本次重写补充：
+
+| 本 ADR 位置 | 原文口径 | 修订后 |
+| --- | --- | --- |
+| 「代价 / 不做什么」与约束 7 的发送侧准入 | 陌生人两级开关 + 各处判定 | **私信发送资格一次判完、一律失败关闭**：站点总闸、接收方个人开关、屏蔽 / 拉黑分级、按对限流、图片来源在 `sendGuard.check` 一个点判定；依赖缺失或异常都拒绝，不再有 nil 放行分支（[ADR-0026](./0026-chat-send-side-risk-control.md)） |
+| 私信装配位置 | 处理器由 `app.WireChat` 写入路由包包级变量 | **装配收进 `internal/chat.New`**；合成根只注入基础设施与跨模块窄能力，处理器经 `router.Handlers{Chat: ...}` 显式传入；只清私信这一处包级状态，不宣称全仓已清 |
+| 会话列表的拉黑过滤 | 先查库分页、再在内存里按全部拉黑目标数扣总数 | **过滤与计数都下沉 SQL**（`SessionQuery.HideBlocked`），`total` 为过滤后真值；管理员视图不过滤拉黑是写明了的**有意例外** |
+| 会话可见集 / 未读数 | 三处查询判定式 | **同一份实现**（`visibility.go`）；消息列表、整会话已读、消息中心角标与并账都消费它（[ADR-0027](./0027-message-center-ordering-pagination-and-read-receipt.md)） |
+
+HTTP 唯一发送通道、零 DDL（`chat_block_models` 仍是唯一经 ADR 指名新增的私信表、既有表零列变更）、发件箱同事务三条不变。WS ack/retry、消息编辑 / 撤回、举报队列、浏览器 E2E 仍是本 ADR 的非目标。
+
+相关代码：[internal/chat/module.go](../../backend/internal/chat/module.go) · [internal/chat/app/eligibility.go](../../backend/internal/chat/app/eligibility.go) · [internal/chat/adapter/mysql/chat.go](../../backend/internal/chat/adapter/mysql/chat.go) · [router/chat_router.go](../../backend/internal/platform/http/router/chat_router.go) · [GLOSSARY · 私信与会话](../../GLOSSARY.md)

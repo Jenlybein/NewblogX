@@ -49,9 +49,9 @@ _Avoid_: 按中文字符串匹配错误分支（改一个字就断）。
 
 **零 DDL（零 DDL 硬约束 = 零列变更 + 允许新增表）**：
 不改、不删既有表结构（列名、类型、列顺序、删列全禁），只允许 `CREATE TABLE IF NOT EXISTS` 新建表；因为 **CDC 按列名解析 binlog 行**（ES 文章投影与 image-ref 两条链路都从行快照按列名取值，不是只有 ES 投影）。
-例外边界写死在"新建表"这一侧：经 ADR 立项的登记例外必须一条 ADR 指名；**当前没有任何登记例外**——通用取景表 `picture_crop_models` 曾是首个也是唯一一个，已随取景退场在 #205 物理下线（[ADR-0020](./docs/adr/0020-zero-ddl-exception-and-generic-framing-table.md) 已由 [ADR-0015](./docs/adr/0015-banner-framing-as-parameters.md) 取代）。**既有表的列变更仍然一律禁止**（含 ALTER、DROP 后重建、加列、删列）。
+例外边界写死在"新建表"这一侧：**新建表本身不违反零 DDL**，但必须由一条 ADR 指名立项，并走 `schema.sql` + testkit 三处登记。私信模块唯一经 ADR 指名新增的表是 `chat_block_models`（[ADR-0026](./docs/adr/0026-chat-send-side-risk-control.md)）；通用取景表 `picture_crop_models` 曾由 [ADR-0020](./docs/adr/0020-zero-ddl-exception-and-generic-framing-table.md) 立项、已随取景退场在 #205 物理下线（该 ADR 由 [ADR-0015](./docs/adr/0015-banner-framing-as-parameters.md) 取代）。**既有表的列变更没有任何例外**（含 ALTER、DROP 后重建、加列、删列）——说"没有登记例外"指的是这一侧。
 位置：硬约束 A1，见 `docs/architecture/overview.md` §六、`README.md` §11.3 与 §十三；新增表仍走 `schema.sql` + testkit 三处登记。
-_Avoid_: 把"迁移"理解成 ALTER——本项目没有 ALTER 通道；把"允许新增表"读成"允许重建既有表"；把已下线的通用取景表当作现行登记例外。
+_Avoid_: 把"迁移"理解成 ALTER——本项目没有 ALTER 通道；把"允许新增表"读成"允许重建既有表"；把已下线的通用取景表当作现行登记例外；把"没有登记例外"读成"不允许新增表"（新建表只需 ADR 指名，不是例外）。
 
 ---
 
@@ -530,7 +530,7 @@ _Avoid_: 把「消息中心」当作私信页的新名字（私信只是它五�
 
 **陌生人私信（stranger DM policy）**：
 是否允许陌生人给我发私信由**两级**决定：站点总闸（`site.chat.stranger_msg_enabled`，缺省显式关闭）**且**接收方个人开关（账号设置里的「允许陌生人给我发私信」，默认开启）。任一关闭即拒绝；自己发给自己、双方已有关注或既存会话关系时不做陌生人判定。拒绝时判定结论带**哪一级**：站点级与接收方级各有错误码（`chat.stranger_disabled` / `chat.recipient_stranger_disabled`）与不同文案，不把"对方不想收"说成站点策略。
-位置：`backend/internal/chat/domain/chat.go` 的 `StrangerPolicy`（`CheckStranger` 带接收方 id、返回 `StrangerVerdict`）、`backend/app/chat_wiring.go`（两级取值）、读者站账号设置页的隐私区、`PUT /users/info` 的可选字段 `stranger_msg_enabled`。
+位置：`backend/internal/chat/domain/chat.go` 的 `StrangerPolicy`（`CheckStranger` 带接收方 id、返回 `StrangerVerdict`）、`backend/internal/chat/module.go`（两级取值）、读者站账号设置页的隐私区、`PUT /users/info` 的可选字段 `stranger_msg_enabled`。
 _Avoid_: 说它"只由站点开关决定"（那是旧口径，已废止）；把"陌生人"理解成"没关注我的人"或"没聊过的人"之一——判定按既有关注/会话关系整体算，不是单一维度；把所有拒绝都归到站点级（接收方关掉自己开关时找管理员查不出任何问题）。
 
 **屏蔽（block）**：
@@ -545,13 +545,28 @@ _Avoid_: 把它与「屏蔽」当同义词（屏蔽仍保留历史会话可见�
 
 **私信（direct message）**：
 登录用户之间一对一发送的文本 / 图片消息；发送与接收双方各持一份会话视图，删除只影响自己那一份。它不是系统通知，也不是 AI 对话。
-位置：`backend/internal/chat/`（`domain` / `app` / `adapter`）、接口 `/api/chat/*`、WebSocket `/api/chat/ws`；读者站 `frontend/app/components/inbox/InboxChatPanel.vue`（挂在消息中心的私信子项下）；表 `chat_msg_models` / `chat_msg_user_state_models` / `chat_session_models` / `chat_block_models`。
+位置：`backend/internal/chat/`（`domain` / `app` / `adapter` / 模块装配 `module.go`）、接口 `/api/chat/*`、WebSocket `/api/chat/ws`；读者站 `frontend/app/components/inbox/InboxChatPanel.vue`（挂在消息中心的私信子项下）；表 `chat_msg_models` / `chat_msg_user_state_models` / `chat_session_models` / `chat_block_models`。
 _Avoid_: 用裸词「消息」「聊天」指代私信（站内信、通知、AI 面板都叫消息）；把「站内信」当作私信（那是系统通知面板 `InboxSitePanel`）；把「捏捏」的 AI 面板当作会话。
 
 **会话（chat session）**：
 两名用户之间私信的**有序序列**，由双方 ID 双向一致地求出同一个 `session_id`（`domain.BuildSessionID`），因此 A→B 与 B→A 落在同一会话；会话有自己的软删与未读计数，删除会话只清自己那侧。
 位置：`backend/internal/chat/domain/chat.go`、`adapter/mysql/chat.go` 的 `ListSessions`；表 `chat_session_models`。
 _Avoid_: 把会话当成「消息列表」（后者是会话里的逐条内容）；把「会话」说成「对话窗口 / 聊天室」（前者是数据，后者是 UI）；把还没发出首条消息时的空占位当成另一种会话。
+
+**会话可见集（session visible set）**：
+某用户在某条会话里能看到的全部消息：`send_time` 在清空水位之上、未被本人删除，**包含自己发出的消息**（不是只算收到的）。会话列表、消息列表、整会话已读、消息中心角标与 30 分钟并账都消费同一份实现，不再各写一份判定式。
+位置：`backend/internal/chat/adapter/mysql/visibility.go`（唯一实现）· `backend/internal/chat/adapter/mysql/chat.go`（消息列表与清空水位）· [ADR-0027](./docs/adr/0027-message-center-ordering-pagination-and-read-receipt.md)。
+_Avoid_: 旧名「会话可见与未读真相」（已退役，正名拆成「会话可见集」与「会话未读数」）；把「可见集」当成「未读数」（后者是前者的子集）；把它当成「会话列表」；只算收到的消息（自己发的也在可见集里）。
+
+**会话未读数（session unread count）**：
+会话可见集里再加一个条件——接收者是我、且消息状态未读——得到的条数；会话 badge、消息中心角标、整会话已读与并账必须给出同一个数。
+位置：`backend/internal/chat/adapter/mysql/visibility.go`、`backend/internal/chat/adapter/mysql/unread_reconcile.go`、消息中心聚合（`backend/internal/notification`）· [ADR-0027](./docs/adr/0027-message-center-ordering-pagination-and-read-receipt.md)。
+_Avoid_: 旧名「会话可见与未读真相」（已退役，正名拆成「会话可见集」与「会话未读数」）；把未读数说成可见集；用推送增量或客户端缓存当真相；把站内信 / 系统通知的未读混进来。
+
+**私信发送资格（chat send eligibility）**：
+一次发送前必须判完的五项准入：站点总闸（`site.chat.stranger_msg_enabled`）、接收方个人开关、屏蔽 / 拉黑分级、按对限流预占、图片来源（仅图片消息）。判定点唯一，依赖不可用或查询异常一律失败关闭（拒绝发送），不存在"跳过这一项"的放行分支。管理员视图不过滤拉黑是**有意例外**，不属于发送资格。
+位置：`backend/internal/chat/app/eligibility.go`（`sendGuard`）、`backend/internal/chat/app/service.go`（`Send`）、`backend/internal/chat/module.go`（五项依赖的装配）· [ADR-0026](./docs/adr/0026-chat-send-side-risk-control.md)。
+_Avoid_: 「发送侧风控」（旧名，已退役）；把发送资格说成「陌生人私信」（那只是其中两级开关）；依赖缺失时放行；把管理员视图的拉黑例外当成漏判。
 
 ---
 

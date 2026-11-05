@@ -25,7 +25,7 @@ const {
   activeSessionId,
   activeSession,
   filteredChatSessions,
-  chatMessages,
+  chatTimeline,
   chatKeyword,
   chatDraft,
   chatDraftType,
@@ -95,7 +95,7 @@ watch(
     :sessions="filteredChatSessions"
     :active-session-id="activeSessionId ?? null"
     :current-session="activeSession"
-    :items="chatMessages"
+    :timeline="chatTimeline"
     :keyword="chatKeyword"
     :draft="chatDraft"
     :draft-type="chatDraftType"

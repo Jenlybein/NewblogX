@@ -5,7 +5,6 @@ import (
 
 	"gorm.io/gorm"
 
-	"myblogx/internal/chat/domain"
 	"myblogx/internal/kernel/ctype"
 )
 
@@ -63,21 +62,16 @@ func ReconcileChatUnread(ctx context.Context, db *gorm.DB, sessionID string, use
 
 	// 软删的会话由 First 的默认范围挡掉（deleted_at IS NULL）；能查到就是活跃会话。
 	// 但并账期间正好被软删也不该把未读写回去：UPDATE 仍带默认范围，见下面。
+	// 与消息列表 / 整会话已读消费同一份可见性口径：并账不再自己拼 SQL。
+	scope := visibilityScope{
+		ctx:         ctx,
+		db:          db,
+		sessionID:   sessionID,
+		userID:      ctype.NewID(session.UserID.Uint64()),
+		clearBefore: ctype.NewID(session.ClearBeforeMsgID.Uint64()),
+	}
 	var unread int64
-	// 用户级删除是**软删**：stateRow 带 gorm.DeletedAt，GORM 会自动给子查询补
-	// `deleted_at IS NULL`，和这里要求的"已删除"正好相反。必须 Unscoped 才能查到
-	// 那些残行 —— 否则子查询恒为空，删掉的消息还会一直占着未读数。
-	deletedMsgIDs := db.WithContext(ctx).Unscoped().Model(&stateRow{}).
-		Select("msg_id").
-		Where("user_id = ? AND session_id = ? AND deleted_at IS NOT NULL", userID, sessionID)
-	q := db.WithContext(ctx).Model(&msgRow{}).
-		Where("session_id = ? AND receiver_id = ? AND msg_status < ?",
-			sessionID, userID, int8(domain.StatusRead)).
-		Where("id NOT IN (?)", deletedMsgIDs)
-	// 清空水位按"那条消息的 send_time"解析，而不是 id 大小：见文件头真值口径。
-	// 子查询必须 Unscoped（水位行可能已被软删）；水位为 0 时不加过滤。
-	q = applyClearWatermark(ctx, db, q, ctype.NewID(session.ClearBeforeMsgID.Uint64()))
-	if err := q.Count(&unread).Error; err != nil {
+	if err := scope.unread().Count(&unread).Error; err != nil {
 		return false, err
 	}
 

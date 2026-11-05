@@ -14,7 +14,7 @@ import (
 // SidebarService 是右栏卡片的用例层。
 //
 // 与站点配置服务分开：右栏卡片有独立的表与独立的读写入口，
-// 塞进 Service 会让那个已经装了八段配置的服务再长一层。
+// 塞进 Service 会让那个已经装了九段配置的服务再长一层。
 type SidebarService struct {
 	cards  domain.SidebarCardRepository
 	data   domain.SidebarDataSource

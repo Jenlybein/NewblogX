@@ -325,28 +325,12 @@ func (s *Service) ListFavoriteItems(ctx context.Context, viewer domain.Viewer, f
 	return items, total, err
 }
 
-// enrichItemCounters 把缓存增量合并进收藏条目的计数。
+// enrichItemCounters 通过账本把权威计数写回收藏条目。
 //
-// 一次 Redis 批量读（按页内文章 ID），与 List 的批量合并是同一条路径：
-// 增量只从 CounterPort 来，绝不在这里另算一套。
+// 与详情 / 列表走的是同一个入口（#279）：收藏内容列表与详情给出同一个数字，
+// 因为"怎么合成权威值"只写在 CountLedger 一处。
 func enrichItemCounters(ctx context.Context, r Repos, items []*favorite.Item) error {
-	if len(items) == 0 {
-		return nil
-	}
-	ids := make([]domain.ArticleID, 0, len(items))
-	for _, it := range items {
-		ids = append(ids, it.ArticleID())
-	}
-	deltas, err := r.Counters().Load(ctx, ids)
-	if err != nil {
-		return err
-	}
-	for _, it := range items {
-		if d, ok := deltas[it.ArticleID()]; ok {
-			it.AddCounters(d)
-		}
-	}
-	return nil
+	return ledgerOf(r).ApplyToItems(ctx, items)
 }
 
 // ── 审核任务 ──

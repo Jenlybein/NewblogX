@@ -434,3 +434,9 @@ func (a *Article) AddCounters(delta Counters) {
 	a.counters.Comment += delta.Comment
 	a.counters.Favor += delta.Favor
 }
+
+// SetCounters 用权威值覆盖当前计数（#279）。
+//
+// 读侧不再"各自把列与增量相加"：账本（app.CountLedger）算出权威值后整块写回，
+// 聚合只负责携带，不参与合成。
+func (a *Article) SetCounters(c Counters) { a.counters = c }

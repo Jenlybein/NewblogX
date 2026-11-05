@@ -571,9 +571,9 @@ _Avoid_: 叫它"弹窗 / modal"（它无遮罩、无居中卡片、不锁滚动�
 _Avoid_: 说它"跳到页脚 / 回到顶部"；把它的 aria 名称写成"评论"。
 
 **计数账本（count ledger）**：
-点赞 / 收藏数的**派生值**口径：这两个数不再靠增量累积，30 分钟并账时用 `COUNT(关系行)` 直接覆盖整列（`digg_count` / `favor_count`）；两次并账之间，读路径返回 `列 + Redis 增量`，增量是短命的、不参与持久化。视图数与评论数仍是另一套口径（`列 += 增量`）。因此"临时 ±1"不会累积成漂移，CDC 实时并账是明确的非目标。
-位置：`backend/internal/article/adapter/mysql/counter_flush.go`（并账）、`backend/app/cron_wiring.go`（任务装配）、`backend/internal/article/app/subdomain.go`（收藏内容列表的增量合并）；决策见 [ADR-0025](docs/adr/0025-count-ledger-and-reconciliation.md)。
-_Avoid_: 把"列 + 增量"当成权威值（它只是两次并账之间的可读近似）；用"实时对账 / CDC 并账"描述它（那是被否掉的方向）。
+点赞 / 收藏数的**派生值**口径：这两个数不再靠增量累积，并账时用 `COUNT(关系行)` 直接覆盖整列（`digg_count` / `favor_count`）；两次并账之间，权威值 = `持久列 + Redis 增量`，增量是短命的、不参与持久化。视图数与评论数仍是另一套口径（`列 += 增量`）。并账周期是**运行期配置**（`site.reconcile.interval_minutes`，默认 30 分钟），文章计数与私信未读跑在同一个调度任务里、失败彼此隔离。权威值只有一个读入口（`app.CountLedger`）；旧的「每个读点各自把列与增量相加」是**被取代口径**。因此"临时 ±1"不会累积成漂移，CDC 实时并账是明确的非目标。
+位置：`backend/internal/article/adapter/mysql/counter_flush.go`（并账）、`backend/app/cron_wiring.go`（任务装配与周期来源）、`backend/internal/article/app/ledger.go`（唯一权威读入口）；决策见 [ADR-0025](docs/adr/0025-count-ledger-and-reconciliation.md)。
+_Avoid_: 把"列 + 增量"当成一处**读路径口径**（它只是账本主值的构成：读取一律经账本入口）；用"实时对账 / CDC 并账"描述它（那是被否掉的方向）；把并账周期写回代码常量。
 
 ---
 

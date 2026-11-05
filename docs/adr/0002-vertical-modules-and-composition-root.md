@@ -48,6 +48,13 @@
 3. `internal/kernel` 只放 ID、分页、错误，不得放业务实体；
 4. 每个模块迁移前录 golden file，保证行为不变。
 
+**适用范围（2026-11-06 补充）**：
+
+- "合成根唯一构造具体实现"指**跨模块具体适配器**：`backend/app`（由 main 调用）构造其他模块的 service / 端口实现并注入；模块自己的 adapter（仓储、Redis、处理器、连接池）由模块的装配入口构造（如 `internal/chat.New`），属于深模块内部实现，不是第二合成根。
+- "模块内 `wireXxx` / 无包级可变状态"仍是内核。私信模块（#280）已把处理器从路由包包级变量改成 `router.Handlers` 显式参数；其他模块的 `xxxHandler` / `SetXxxHandler` 是存量，本次只清私信这一处、**不宣称全仓已清**。
+- 端口由使用方定义、模块间零 import 不变：模块装配入口接收的跨模块能力必须是使用方窄接口（如 `internal/chat` 定义的 `UserSettings` 与 `domain.RelationReader`）。
+
+
 ## 相关代码与文档
 
 - 代码：[cmd/server/main.go](../../backend/cmd/server/main.go)（唯一合成根）

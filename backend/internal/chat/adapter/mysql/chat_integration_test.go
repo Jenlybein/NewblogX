@@ -386,7 +386,7 @@ func TestListSessionsOrdersByLastMsgTime(t *testing.T) {
 	sendText(t, repo, 100, 200, "老对话", base)
 	sendText(t, repo, 100, 300, "新对话", base.Add(time.Hour))
 
-	rows, total, err := repo.ListSessions(context.Background(), ctype.NewID(100), false, domain.Page{Page: 1, Limit: 10})
+	rows, total, err := repo.ListSessions(context.Background(), domain.SessionQuery{UserID: ctype.NewID(100), Page: domain.Page{Page: 1, Limit: 10}})
 	if err != nil {
 		t.Fatalf("查会话列表失败: %v", err)
 	}
@@ -579,4 +579,71 @@ func outboxEvents(t *testing.T, db *gorm.DB, name string) []outboxRow {
 		t.Fatalf("读发件箱事件失败: %v", err)
 	}
 	return rows
+}
+
+// TestListSessions_拉黑过滤下推且总数为过滤后真值 #280 AC 3：
+// 拉黑过滤必须发生在查库层，总数与分页都基于过滤后的行集。
+//
+// 关键数据形态：100 与 200/300/400 各有会话，但拉黑目标 200 之外还拉黑了
+// 一个**没有会话**的 500。旧实现先查库分页、再按"全部拉黑目标数"扣总数，
+// 会把 500 也算进扣减，总数变成 3-2=1（实际可见 2 条）。
+func TestListSessions_拉黑过滤下推且总数为过滤后真值(t *testing.T) {
+	t.Parallel()
+
+	repo, db := setup(t)
+	schema.InsertUser(t, db, schema.UserSpec{ID: 400, Username: "u400", Nickname: "用户400"})
+	base := time.Date(2026, 1, 1, 10, 0, 0, 0, time.UTC)
+	sendText(t, repo, 100, 200, "和200", base)
+	sendText(t, repo, 100, 300, "和300", base.Add(time.Minute))
+	sendText(t, repo, 100, 400, "和400", base.Add(2*time.Minute))
+
+	for _, blocked := range []uint64{200, 500} {
+		if err := db.Create(&schema.ChatBlockRow{
+			BaseRow:   schema.BaseRow{ID: ctype.NewID(blocked * 10)},
+			OwnerID:   ctype.NewID(100),
+			BlockedID: ctype.NewID(blocked),
+			Level:     uint8(domain.BlockLevelHard),
+		}).Error; err != nil {
+			t.Fatalf("写拉黑记录失败: %v", err)
+		}
+	}
+
+	// 分页一：最新一条是 400；总数是过滤后的 2（旧实现会算成 1）。
+	first, total, err := repo.ListSessions(context.Background(), domain.SessionQuery{
+		UserID: ctype.NewID(100), HideBlocked: true, Page: domain.Page{Page: 1, Limit: 1},
+	})
+	if err != nil {
+		t.Fatalf("查会话列表失败: %v", err)
+	}
+	if total != 2 {
+		t.Fatalf("总数必须是过滤后的真值 2，实际 %d", total)
+	}
+	if len(first) != 1 || first[0].ReceiverID.Uint64() != 400 {
+		t.Fatalf("第一页应只有最新的 400，实际 %+v", first)
+	}
+
+	// 分页二：第二页仍是同一份过滤后行集，不出现空页 / 重复。
+	second, total, err := repo.ListSessions(context.Background(), domain.SessionQuery{
+		UserID: ctype.NewID(100), HideBlocked: true, Page: domain.Page{Page: 2, Limit: 1},
+	})
+	if err != nil {
+		t.Fatalf("查第二页失败: %v", err)
+	}
+	if total != 2 {
+		t.Fatalf("第二页的总数仍应是 2，实际 %d", total)
+	}
+	if len(second) != 1 || second[0].ReceiverID.Uint64() != 300 {
+		t.Fatalf("第二页应是 300，实际 %+v", second)
+	}
+
+	// 管理员视图是**有意例外**：不过滤拉黑，看到全量 3 条。
+	all, adminTotal, err := repo.ListSessions(context.Background(), domain.SessionQuery{
+		UserID: ctype.NewID(100), Unscoped: true, HideBlocked: false, Page: domain.Page{Page: 1, Limit: 10},
+	})
+	if err != nil {
+		t.Fatalf("查管理员视图失败: %v", err)
+	}
+	if adminTotal != 3 || len(all) != 3 {
+		t.Fatalf("管理员视图应看全量 3 条会话，实际 total=%d rows=%d", adminTotal, len(all))
+	}
 }

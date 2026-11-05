@@ -25,6 +25,7 @@ type fakeRepo struct {
 	// existingSession 为 true 时表示双方已有会话（#243 的"会话关系"一级）。
 	existingSession bool
 	sessions        []domain.Session
+	lastQuery       domain.SessionQuery
 }
 
 func (f *fakeRepo) Send(_ context.Context, cmd domain.SendCommand, _, _ domain.Display, _ string) (domain.Message, bool, error) {
@@ -45,7 +46,8 @@ func (f *fakeRepo) Send(_ context.Context, cmd domain.SendCommand, _, _ domain.D
 	return msg, false, nil
 }
 
-func (f *fakeRepo) ListSessions(context.Context, ctype.ID, bool, domain.Page) ([]domain.Session, int, error) {
+func (f *fakeRepo) ListSessions(_ context.Context, q domain.SessionQuery) ([]domain.Session, int, error) {
+	f.lastQuery = q
 	return f.sessions, len(f.sessions), nil
 }
 
@@ -125,26 +127,29 @@ func newService(t *testing.T, relation int8, verdict domain.StrangerVerdict) (*a
 	t.Helper()
 	repo := &fakeRepo{}
 	stranger := &fakeStranger{verdict: verdict}
-	svc := app.New(
-		repo,
-		repo,
-		fakeRelations{relation: relation},
-		fakeUsers{},
-		stranger,
-		nil,
-		&allowOwnedImage{},
-		nil,
-		nil,
-	)
+	svc := app.New(repo, repo, fakeRelations{relation: relation}, fakeUsers{}, stranger,
+		permitLimiter{}, &allowOwnedImage{}, &fakeBlocks{}, nil)
 	return svc, repo, stranger
 }
 
-// fakeBlocks 让用例层能验证"屏蔽 / 拉黑"确实在发送与会话列表里生效。
+// permitLimiter 是"额度永远够"的限流替身：本文件的用例关注陌生人 / 屏蔽 /
+// 图片来源，不关注按对限流本身。
+type permitLimiter struct{}
+
+func (permitLimiter) Reserve(context.Context, ctype.ID, ctype.ID, int8) (domain.Reservation, error) {
+	return permitReservation{}, nil
+}
+
+type permitReservation struct{}
+
+func (permitReservation) Commit() error   { return nil }
+func (permitReservation) Rollback() error { return nil }
+
+// fakeBlocks 让用例层能验证"屏蔽 / 拉黑"确实在发送时生效。
+// 会话列表的拉黑过滤已经下推到查库层，不在这个端口里。
 type fakeBlocks struct {
 	outgoing domain.BlockLevel
 	incoming domain.BlockLevel
-	hardIDs  []ctype.ID
-	sessions []domain.Session
 }
 
 func (f *fakeBlocks) Level(_ context.Context, owner, target ctype.ID) (domain.BlockLevel, error) {
@@ -155,10 +160,6 @@ func (f *fakeBlocks) Level(_ context.Context, owner, target ctype.ID) (domain.Bl
 		return f.incoming, nil
 	}
 	return domain.BlockLevelNone, nil
-}
-
-func (f *fakeBlocks) HardBlockedIDs(context.Context, ctype.ID) ([]ctype.ID, error) {
-	return f.hardIDs, nil
 }
 
 // allowOwnedImage 让用例层能发图片；"是不是本站图片"的判定逻辑在装配层
@@ -323,7 +324,7 @@ func TestSend_图片消息必须校验来源(t *testing.T) {
 	repo := &fakeRepo{}
 	check := &allowOwnedImage{owned: false}
 	svc := app.New(repo, repo, fakeRelations{relation: 4}, fakeUsers{},
-		&fakeStranger{verdict: domain.StrangerAllowed}, nil, check, nil, nil)
+		&fakeStranger{verdict: domain.StrangerAllowed}, permitLimiter{}, check, &fakeBlocks{}, nil)
 
 	_, err := svc.Send(context.Background(), ctype.NewID(100), ctype.NewID(200),
 		domain.TypeImage, "https://evil.example.com/pixel.png", "")
@@ -342,7 +343,7 @@ func TestSend_本站图片可发且文本不触发校验(t *testing.T) {
 	repo := &fakeRepo{}
 	check := &allowOwnedImage{owned: true}
 	svc := app.New(repo, repo, fakeRelations{relation: 4}, fakeUsers{},
-		&fakeStranger{verdict: domain.StrangerAllowed}, nil, check, nil, nil)
+		&fakeStranger{verdict: domain.StrangerAllowed}, permitLimiter{}, check, &fakeBlocks{}, nil)
 
 	if _, err := svc.Send(context.Background(), ctype.NewID(100), ctype.NewID(200),
 		domain.TypeText, "你好", ""); err != nil {
@@ -369,7 +370,7 @@ func TestSend_本站图片可发且文本不触发校验(t *testing.T) {
 func TestSend_未配置图片校验时失败关闭(t *testing.T) {
 	repo := &fakeRepo{}
 	svc := app.New(repo, repo, fakeRelations{relation: 4}, fakeUsers{},
-		&fakeStranger{verdict: domain.StrangerAllowed}, nil, nil, nil, nil)
+		&fakeStranger{verdict: domain.StrangerAllowed}, permitLimiter{}, nil, &fakeBlocks{}, nil)
 
 	_, err := svc.Send(context.Background(), ctype.NewID(100), ctype.NewID(200),
 		domain.TypeImage, "https://cdn.example.com/myblogx/images/20261104/abc.png", "")
@@ -395,7 +396,7 @@ func TestSend_屏蔽或拉黑后双方都不能发(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			repo := &fakeRepo{}
 			svc := app.New(repo, repo, fakeRelations{relation: 4}, fakeUsers{},
-				&fakeStranger{verdict: domain.StrangerAllowed}, nil, &allowOwnedImage{},
+				&fakeStranger{verdict: domain.StrangerAllowed}, permitLimiter{}, &allowOwnedImage{},
 				&fakeBlocks{outgoing: tc.outgoing, incoming: tc.incoming}, nil)
 
 			_, err := svc.Send(context.Background(), ctype.NewID(100), ctype.NewID(200),
@@ -410,20 +411,44 @@ func TestSend_屏蔽或拉黑后双方都不能发(t *testing.T) {
 	}
 }
 
-func TestSessions_拉黑隐藏会话而屏蔽不隐藏(t *testing.T) {
+func TestSessions_拉黑过滤由查库层完成而用例层不二次扣减(t *testing.T) {
+	// 查库层已经滤掉拉黑对象 200，只返回 300 与过滤后的真值总数 1。
+	// 旧实现会在此基础上再减去"全部拉黑目标数"，把 total 错扣成 0。
 	repo := &fakeRepo{sessions: []domain.Session{
-		{SessionID: "chat:100:200", ReceiverID: ctype.NewID(200)},
 		{SessionID: "chat:100:300", ReceiverID: ctype.NewID(300)},
 	}}
-	blocks := &fakeBlocks{hardIDs: []ctype.ID{ctype.NewID(200)}}
 	svc := app.New(repo, repo, fakeRelations{}, fakeUsers{},
-		&fakeStranger{verdict: domain.StrangerAllowed}, nil, &allowOwnedImage{}, blocks, nil)
+		&fakeStranger{verdict: domain.StrangerAllowed}, permitLimiter{}, &allowOwnedImage{}, &fakeBlocks{}, nil)
 
 	items, total, err := svc.Sessions(context.Background(), ctype.NewID(100), ctype.NewID(100), false, domain.Page{})
 	if err != nil {
 		t.Fatalf("会话列表失败: %v", err)
 	}
 	if len(items) != 1 || items[0].SessionID != "chat:100:300" || total != 1 {
-		t.Fatalf("拉黑的人应从会话列表消失，实际 items=%v total=%d", items, total)
+		t.Fatalf("总数必须是过滤后的真值，实际 items=%v total=%d", items, total)
+	}
+	if !repo.lastQuery.HideBlocked || repo.lastQuery.Unscoped {
+		t.Fatalf("读者视图应让查库层过滤拉黑且不看已删会话，实际 %+v", repo.lastQuery)
+	}
+}
+
+// TestSessions_管理员视图不过滤拉黑是有意例外 运维排查需要看全量会话；
+// 这条例外与读者视图不同，必须显式保持（#280 AC 1 / #272 User Story 15）。
+func TestSessions_管理员视图不过滤拉黑是有意例外(t *testing.T) {
+	repo := &fakeRepo{sessions: []domain.Session{
+		{SessionID: "chat:100:200", ReceiverID: ctype.NewID(200)},
+	}}
+	svc := app.New(repo, repo, fakeRelations{}, fakeUsers{},
+		&fakeStranger{verdict: domain.StrangerAllowed}, permitLimiter{}, &allowOwnedImage{}, &fakeBlocks{}, nil)
+
+	items, total, err := svc.Sessions(context.Background(), ctype.NewID(1), ctype.NewID(100), true, domain.Page{})
+	if err != nil {
+		t.Fatalf("管理员视图失败: %v", err)
+	}
+	if len(items) != 1 || total != 1 {
+		t.Fatalf("管理员视图应看全量会话，实际 items=%v total=%d", items, total)
+	}
+	if repo.lastQuery.HideBlocked || !repo.lastQuery.Unscoped {
+		t.Fatalf("管理员视图必须不过滤拉黑、并连已删会话一起看，实际 %+v", repo.lastQuery)
 	}
 }

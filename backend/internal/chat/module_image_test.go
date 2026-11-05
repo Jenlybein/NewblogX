@@ -1,4 +1,4 @@
-package app
+package chat
 
 import (
 	"context"
@@ -26,11 +26,11 @@ type verifierImageRow struct {
 
 func (verifierImageRow) TableName() string { return "image_models" }
 
-func newVerifier(t *testing.T, storage conf.QiNiu) *chatImageVerifier {
+func newVerifier(t *testing.T, storage conf.QiNiu) *imageVerifier {
 	t.Helper()
 	db := testutil.SetupSQLite(t, &verifierImageRow{})
 	site := sitecfg.NewRuntimeConfigService(conf.RuntimeDefaults{Storage: storage}, nil, nil)
-	return &chatImageVerifier{db: db, storage: site}
+	return &imageVerifier{db: db, storage: site}
 }
 
 func TestChatImageVerifierOnlyAcceptsOwnedUploads(t *testing.T) {

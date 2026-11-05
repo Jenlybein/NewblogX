@@ -204,7 +204,7 @@ func assertVisibleAndUnread(t *testing.T, repo *mysql.Repo, db *gorm.DB, userID 
 	}
 
 	// 已读后会话 badge 与消息中心角标都必须是 0；并账也不该把它们改回去。
-	rows, _, err := repo.ListSessions(ctx, userID, false, domain.Page{Page: 1, Limit: 10})
+	rows, _, err := repo.ListSessions(ctx, domain.SessionQuery{UserID: userID, Page: domain.Page{Page: 1, Limit: 10}})
 	if err != nil {
 		t.Fatalf("查会话列表失败: %v", err)
 	}
@@ -454,7 +454,7 @@ func TestConcurrentSendAndReadStayConsistentAfterReconcile(t *testing.T) {
 	if _, err := mysql.ReconcileChatUnread(ctx, db, sessionID, 200); err != nil {
 		t.Fatalf("并账失败: %v", err)
 	}
-	rows, _, err := repo.ListSessions(ctx, receiver, false, domain.Page{Page: 1, Limit: 10})
+	rows, _, err := repo.ListSessions(ctx, domain.SessionQuery{UserID: receiver, Page: domain.Page{Page: 1, Limit: 10}})
 	if err != nil {
 		t.Fatalf("查会话列表失败: %v", err)
 	}

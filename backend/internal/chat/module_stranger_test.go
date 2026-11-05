@@ -1,4 +1,4 @@
-package app
+package chat
 
 import (
 	"context"
@@ -17,7 +17,7 @@ import (
 //	有效判决 = 站点总闸(site.chat.stranger_msg_enabled)
 //	           AND 接收方个人开关(user_conf_models.stranger_chat_enabled，默认开)
 //
-// 两级取值放在装配层（strangerBridge），因为站点配置是运行时单例、
+// 两级取值放在模块装配内（strangerPolicy），因为站点配置是运行时单例、
 // 接收方偏好属于 user 模块的读端口；chat 用例层只消费合成后的结论。
 
 // fakeStrangerUserSettings 是 user 模块读端口的替身，记录被问的是哪个接收方。
@@ -39,7 +39,7 @@ func newRuntimeSite(strangerMsgEnabled bool) *sitecfg.RuntimeConfigService {
 	}, nil, nil)
 }
 
-func TestStrangerBridge_两级开关取交集(t *testing.T) {
+func TestStrangerPolicy_两级开关取交集(t *testing.T) {
 	cases := []struct {
 		name   string
 		siteOn bool
@@ -55,7 +55,7 @@ func TestStrangerBridge_两级开关取交集(t *testing.T) {
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
 			users := &fakeStrangerUserSettings{enabled: c.userOn}
-			bridge := &strangerBridge{inner: newRuntimeSite(c.siteOn), users: users}
+			bridge := &strangerPolicy{inner: newRuntimeSite(c.siteOn), users: users}
 
 			got, err := bridge.CheckStranger(context.Background(), ctype.NewID(200))
 			if err != nil {
@@ -72,11 +72,11 @@ func TestStrangerBridge_两级开关取交集(t *testing.T) {
 	}
 }
 
-// TestStrangerBridge_站点关闭时不再读接收方 站点总闸关闭已经足以拒绝，
+// TestStrangerPolicy_站点关闭时不再读接收方 站点总闸关闭已经足以拒绝，
 // 不必为每个陌生人消息再查一次用户偏好。
-func TestStrangerBridge_站点关闭时不再读接收方(t *testing.T) {
+func TestStrangerPolicy_站点关闭时不再读接收方(t *testing.T) {
 	users := &fakeStrangerUserSettings{enabled: true, err: errors.New("不该被读到")}
-	bridge := &strangerBridge{inner: newRuntimeSite(false), users: users}
+	bridge := &strangerPolicy{inner: newRuntimeSite(false), users: users}
 
 	got, err := bridge.CheckStranger(context.Background(), ctype.NewID(200))
 	if err != nil {
@@ -90,10 +90,10 @@ func TestStrangerBridge_站点关闭时不再读接收方(t *testing.T) {
 	}
 }
 
-// TestStrangerBridge_接收方偏好读取错误上抛 不能把"读不到"吞成"允许"。
-func TestStrangerBridge_接收方偏好读取错误上抛(t *testing.T) {
+// TestStrangerPolicy_接收方偏好读取错误上抛 不能把"读不到"吞成"允许"。
+func TestStrangerPolicy_接收方偏好读取错误上抛(t *testing.T) {
 	boom := errors.New("读接收方偏好失败")
-	bridge := &strangerBridge{
+	bridge := &strangerPolicy{
 		inner: newRuntimeSite(true),
 		users: &fakeStrangerUserSettings{enabled: true, err: boom},
 	}
@@ -104,17 +104,17 @@ func TestStrangerBridge_接收方偏好读取错误上抛(t *testing.T) {
 	}
 }
 
-// TestStrangerBridge_依赖缺失时失败关闭 站点配置或用户读端口没装配时，
+// TestStrangerPolicy_依赖缺失时失败关闭 站点配置或用户读端口没装配时，
 // 宁可拒绝也不能静默放行（否则等于个人开关被绕过）。
-func TestStrangerBridge_依赖缺失时失败关闭(t *testing.T) {
+func TestStrangerPolicy_依赖缺失时失败关闭(t *testing.T) {
 	users := &fakeStrangerUserSettings{enabled: true}
 
 	cases := []struct {
 		name   string
-		bridge *strangerBridge
+		bridge *strangerPolicy
 	}{
-		{name: "站点配置未装配", bridge: &strangerBridge{users: users}},
-		{name: "用户读端口未装配", bridge: &strangerBridge{inner: newRuntimeSite(true)}},
+		{name: "站点配置未装配", bridge: &strangerPolicy{users: users}},
+		{name: "用户读端口未装配", bridge: &strangerPolicy{inner: newRuntimeSite(true)}},
 	}
 
 	for _, c := range cases {

@@ -26,6 +26,8 @@ import type {
   DeadLetterReplayResult,
   ImageListResponseData,
   ListData,
+  CollectionOutlineSavePayload,
+  CollectionOutlineTreeResponseData,
   OutlineNodePayload,
   OutlineTreeResponseData,
   ProjectAdminCard,
@@ -226,15 +228,21 @@ export function setProjectDisplay(id: string, displayed: boolean) {
 // 收录 / 顺序 / 层次 / 失效清理全部走整树提交：旧的扁平收录与排序接口已从
 // 后台服务层移除（后端接口保留，但后台不再有任何调用点，旧表不再被写入）。
 
-/** 后台读回某个合集的整棵目录树（含空文件夹与失效标记）。 */
+/**
+ * 后台读回某个合集的整棵目录树（含空文件夹与失效标记）。
+ *
+ * #275 迁移：改走合集具名端点 `GET /collections/<id>/outline-tree`。它是公开读
+ * 端点，管理员例外靠请求里携带的身份判定（默认 `auth` 不能关）——不带令牌会被
+ * 当成匿名读者，未展示的合集读成空树，下一次整树提交就会把整棵树软删掉。
+ */
 export function getCollectionOutline(id: string) {
-  return api().request<OutlineTreeResponseData>(`/collections/${id}/outline/admin`)
+  return api().request<CollectionOutlineTreeResponseData>(`/collections/${id}/outline-tree`)
 }
 
-/** 整棵树一次性提交（新建文件夹 / 批量收录 / 层级与顺序一起落库）。 */
+/** 整棵树一次性提交到合集具名树（新建文件夹 / 批量收录 / 层级与顺序一起落库）。 */
 export function saveCollectionOutline(id: string, nodes: OutlineNodePayload[]) {
-  return api().request<OutlineTreeResponseData, { nodes: OutlineNodePayload[] }>(
-    `/collections/${id}/outline`,
+  return api().request<CollectionOutlineTreeResponseData, CollectionOutlineSavePayload>(
+    `/collections/${id}/outline-tree`,
     { method: 'PUT', body: { nodes } },
   )
 }

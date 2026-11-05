@@ -35,7 +35,7 @@ func (h *Handler) CollectionOutlineTree(c *gin.Context) {
 	uri := middleware.GetBindUri[kernel.IDRequest](c)
 	q := middleware.GetBindQuery[NamedOutlineTreeRequest](c)
 	view, err := h.svc.NamedOutlineTree(c.Request.Context(), outline.OwnerCollection,
-		outline.ID(uri.ID), q.From, ctype.ID(q.ArticleID), h.onlyAdminAuthors())
+		outline.ID(uri.ID), q.From, ctype.ID(q.ArticleID), h.onlyAdminAuthors(), h.viewerOf(c))
 	if err != nil {
 		h.fail(c, err)
 		return
@@ -89,7 +89,7 @@ func (h *Handler) ProjectOutlineTree(c *gin.Context) {
 	uri := middleware.GetBindUri[kernel.IDRequest](c)
 	q := middleware.GetBindQuery[NamedOutlineTreeRequest](c)
 	view, err := h.svc.NamedOutlineTree(c.Request.Context(), outline.OwnerProject,
-		outline.ID(uri.ID), q.From, ctype.ID(q.ArticleID), h.onlyAdminAuthors())
+		outline.ID(uri.ID), q.From, ctype.ID(q.ArticleID), h.onlyAdminAuthors(), h.viewerOf(c))
 	if err != nil {
 		h.fail(c, err)
 		return

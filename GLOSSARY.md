@@ -75,8 +75,8 @@ handler 上的 `// @Summary` / `@Param` / `@Success` 注释是契约的唯一来
 统一响应外壳 `{code,msg,data}`，**只用于 `@Success` 注解**，业务代码不要拿它构造响应。
 位置：`backend/internal/kernel/envelope.go`；注解写法 `kernel.Envelope[kernel.ListData[http.XxxItem]]`。
 
-**data 载荷（ListData / HasMoreListData / EmptyData / SiteConfigData）**：
-四种 data 形状，必须按 handler 实际调用的 helper 选：`OkWithList`→`{list,count}`、`OkWithHasMoreList`→`{list,has_more}`、`OkWithMsg`→`{}`、`/site/{name}`→自由键值块。
+**data 载荷（ListData / HasMoreListData / EmptyData）**：
+三种 data 形状，必须按 handler 实际调用的 helper 选：`OkWithList`→`{list,count}`、`OkWithHasMoreList`→`{list,has_more}`、`OkWithMsg`→`{}`；九段运行时配置各有具名形状，不再使用自由键值块。
 位置：`backend/internal/kernel/envelope.go`。
 易混：`ListData` 与 `HasMoreListData` 用错就是契约撒谎——前端读 `has_more` 恒为 `undefined`，编译器一句提示都没有。
 
@@ -124,8 +124,8 @@ _Avoid_: 在代码里再写一份默认值（两份默认值会互相打架）�
 
 **运行时配置（runtime_config_models）**：
 管理员在后台改、下一次请求即生效的配置；表结构是 `(name, payload)`，**一段一行完整 JSON**。
-位置：表 `runtime_config_models`；八段 `site/ai/mail/storage/oauth/log/upload/deco`。
-_Avoid_: 旧表 `runtime_site_config_models`（已无代码读）、列化存储（零 DDL 下每加字段都要改表 = 不可行）。
+位置：表 `runtime_config_models`；九段 `site/ai/mail/storage/oauth/log/upload/deco/image_gc`，由 `backend/internal/platform/config/registry.go` 的段注册表一处登记，漏登记在写库前失败（[ADR-0029](./docs/adr/0029-config-section-registry-and-nine-named-sections.md)）。
+_Avoid_: 旧表 `runtime_site_config_models`（已无代码读）、列化存储（零 DDL 下每加字段都要改表 = 不可行）、参数化 `/site/{name}` 与 `map[string]any` 自由键值块（已退场，九段各有具名响应/请求形状）。
 
 **Provider 闭包（现读）**：
 消费点持有的是取值函数（`func() T`）而不是启动时的值快照，所以后台改完立刻生效。

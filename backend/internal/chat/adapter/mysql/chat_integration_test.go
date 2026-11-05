@@ -386,7 +386,7 @@ func TestListSessionsOrdersByLastMsgTime(t *testing.T) {
 	sendText(t, repo, 100, 200, "老对话", base)
 	sendText(t, repo, 100, 300, "新对话", base.Add(time.Hour))
 
-	rows, total, err := repo.ListSessions(context.Background(), ctype.NewID(100), false, domain.Page{Page: 1, Limit: 10})
+	rows, total, err := repo.ListSessions(context.Background(), domain.SessionQuery{UserID: ctype.NewID(100), Page: domain.Page{Page: 1, Limit: 10}})
 	if err != nil {
 		t.Fatalf("查会话列表失败: %v", err)
 	}

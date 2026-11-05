@@ -6,14 +6,14 @@ import (
 	"net/url"
 	"strings"
 
+	"myblogx/conf"
+	siteconf "myblogx/conf/site"
 	authapp "myblogx/internal/auth/app"
 	chathttp "myblogx/internal/chat/adapter/http"
 	chatmysql "myblogx/internal/chat/adapter/mysql"
 	chatredis "myblogx/internal/chat/adapter/redis"
 	chatapp "myblogx/internal/chat/app"
 	chatdomain "myblogx/internal/chat/domain"
-	"myblogx/conf"
-	siteconf "myblogx/conf/site"
 	"myblogx/internal/kernel/ctype"
 	"myblogx/internal/kernel/enum"
 	"myblogx/internal/platform/cdc/imageref"
@@ -47,23 +47,23 @@ func WireChat(infra *Infra) {
 	if userService != nil {
 		stranger.users = userService
 	}
-	svc := chatapp.New(
-		store,
-		store,
-		&chatRelationBridge{},
-		&chatUserBridge{db: infra.DB},
-		stranger,
-		chatredis.NewLimiter(redisOptions, func() (int, int) {
+	svc := chatapp.New(chatapp.Deps{
+		Read:      store,
+		Write:     store,
+		Relations: &chatRelationBridge{},
+		Users:     &chatUserBridge{db: infra.DB},
+		Stranger:  stranger,
+		Limiter: chatredis.NewLimiter(redisOptions, func() (int, int) {
 			if infra.RuntimeSite == nil {
 				return siteconf.NormalizeChatRate(0, 0)
 			}
 			chat := infra.RuntimeSite.GetRuntimeChat()
 			return siteconf.NormalizeChatRate(chat.RateWindowSec, chat.RateDailyMax)
 		}),
-		&chatImageVerifier{db: infra.DB, storage: infra.RuntimeSite},
-		chatmysql.NewBlockPolicy(infra.DB),
-		infra.Logger,
-	)
+		ImageCheck: &chatImageVerifier{db: infra.DB, storage: infra.RuntimeSite},
+		Blocks:     chatmysql.NewBlockPolicy(infra.DB),
+		Logger:     infra.Logger,
+	})
 
 	handler := chathttp.NewHandler(
 		svc,

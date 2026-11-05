@@ -293,13 +293,25 @@ func fillRowIDs(rows []sessionRow) error {
 	return nil
 }
 
-// ListSessions 实现 domain.Repository。
-func (r *Repo) ListSessions(ctx context.Context, userID ctype.ID, unscoped bool, page domain.Page) ([]domain.Session, int, error) {
-	page = page.Normalize()
+// ListSessions 实现 domain.Query。
+//
+// 拉黑（level=2）的过滤与计数走**同一段 SQL 条件**：先分页再在内存里剔行，
+// 会让总数按全部拉黑目标数扣减，得到与可见行数无关的假值（#280）。
+func (r *Repo) ListSessions(ctx context.Context, q domain.SessionQuery) ([]domain.Session, int, error) {
+	page := q.Page.Normalize()
 	base := func() *gorm.DB {
-		tx := r.db.WithContext(ctx).Model(&sessionRow{}).Where("user_id = ?", userID.Uint64())
-		if unscoped {
+		tx := r.db.WithContext(ctx).Model(&sessionRow{}).Where("user_id = ?", q.UserID.Uint64())
+		if q.Unscoped {
 			tx = tx.Unscoped()
+		}
+		if q.HideBlocked {
+			// 子查询直接读同一张私信拉黑表（chat_block_models），不再先把
+			// 全部拉黑目标读进内存。deleted_at 要自己判：手写子查询不经过
+			// gorm 的软删钩子。
+			tx = tx.Where(
+				"NOT EXISTS (SELECT 1 FROM chat_block_models AS blocked WHERE blocked.owner_id = ? AND blocked.blocked_id = chat_session_models.receiver_id AND blocked.level = ? AND blocked.deleted_at IS NULL)",
+				q.UserID.Uint64(), uint8(domain.BlockLevelHard),
+			)
 		}
 		return tx
 	}

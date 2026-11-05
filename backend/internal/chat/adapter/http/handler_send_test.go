@@ -54,7 +54,7 @@ func (f *fakeRepo) Send(_ context.Context, cmd domain.SendCommand, _, _ domain.D
 	return msg, false, nil
 }
 
-func (f *fakeRepo) ListSessions(context.Context, ctype.ID, bool, domain.Page) ([]domain.Session, int, error) {
+func (f *fakeRepo) ListSessions(context.Context, domain.SessionQuery) ([]domain.Session, int, error) {
 	return nil, 0, nil
 }
 
@@ -142,17 +142,10 @@ func (fakeAuth) SessionActive(context.Context, uint64, uint64) (bool, error) { r
 // newService 造一个"发送一律成功"的用例服务；relation/verdict 决定陌生人判定。
 func newService(relation int8, verdict domain.StrangerVerdict) (*app.Service, *fakeRepo) {
 	repo := &fakeRepo{}
-	svc := app.New(
-		repo,
-		repo,
-		fakeRelations{relation: relation},
-		fakeUsers{},
-		fakeStranger{verdict: verdict},
-		nil,
-		nil,
-		nil,
-		nil,
-	)
+	svc := app.New(app.Deps{
+		Read: repo, Write: repo, Relations: fakeRelations{relation: relation}, Users: fakeUsers{},
+		Stranger: fakeStranger{verdict: verdict}, Limiter: permitLimiter{}, Blocks: permitBlocks{},
+	})
 	return svc, repo
 }
 

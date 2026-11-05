@@ -3,13 +3,9 @@ import { computed, defineAsyncComponent, nextTick, ref, watch } from "vue";
 import { IconLoader2, IconPhoto, IconPlugConnectedX } from "@tabler/icons-vue";
 import { NButton, NInput, NTag } from "naive-ui";
 import AppAvatar from "~/components/common/AppAvatar.vue";
-import type { ChatMessageItem, ChatSessionItem } from "~/types/api";
-import { resolveChatMessageContent, type ChatSendType } from "~/utils/chatMessage";
-import {
-  chatDateSeparatorLabel,
-  fullChatTimestamp,
-  isSameChatGroup,
-} from "~/utils/chatTimeline";
+import type { ChatSessionItem } from "~/types/api";
+import type { ChatSendType } from "~/utils/chatMessage";
+import { fullChatTimestamp, type ChatTimelineEntry } from "~/utils/chatTimeline";
 import { formatDateTimeLabel } from "~/utils/format";
 import { getRelationLabel } from "~/utils/relation";
 
@@ -22,8 +18,9 @@ import katexCssUrl from "katex/dist/katex.min.css?url";
  * 只属于代码与文档。消息区按自然日分隔、同人 2 分钟内合并，完整时间戳
  * 放在 title 里，不再逐条啰嗦。
  *
- * 消息**内容怎么显示**交给 utils/chatMessage 的纯函数（图片 content 是后端
- * 包装的 JSON 传输格式，不能在模板里散着判断）。
+ * 面板**只画递到手上的结果**：升序消息、日期分隔、合并分组、气泡内容与回执
+ * 都由 `useInboxCenter`（唯一持有者）算好，经 `timeline` 传进来。这里只剩
+ * DOM 滚动补偿与窄屏二选一，不再有第二份日期键 / 排序 / 分组。
  */
 const ChatMarkdownRenderer = defineAsyncComponent(() => import("~/components/common/MarkdownRenderSurface.vue"));
 const markdownSupportStyleHrefs = [katexCssUrl];
@@ -32,7 +29,8 @@ const props = defineProps<{
   sessions: ChatSessionItem[];
   activeSessionId: string | null;
   currentSession: ChatSessionItem | null;
-  items: ChatMessageItem[];
+  /** 已切好的时间线（日期分隔条 + 合并组 + 已解析内容 + 回执）。 */
+  timeline: ChatTimelineEntry[];
   keyword: string;
   draft: string;
   draftType: ChatSendType;
@@ -94,69 +92,6 @@ function backToSessionList() {
   narrowPane.value = "list";
 }
 
-type DateEntry = { kind: "date"; key: string; label: string };
-type GroupEntry = {
-  kind: "group";
-  key: string;
-  isSelf: boolean;
-  avatar: string;
-  name: string;
-  entries: { item: ChatMessageItem; resolved: ReturnType<typeof resolveChatMessageContent> }[];
-};
-type TimelineEntry = DateEntry | GroupEntry;
-
-/** 按自然日 + 同人 2 分钟合并成时间线；不做任何排序（items 已是升序）。 */
-const timeline = computed<TimelineEntry[]>(() => {
-  const out: TimelineEntry[] = [];
-  let lastDay = "";
-  let lastItem: ChatMessageItem | null = null;
-  let group: GroupEntry | null = null;
-
-  for (const item of props.items) {
-    const day = chatDayKey(item.send_time);
-    if (day !== lastDay) {
-      out.push({ kind: "date", key: `date-${day}-${item.id}`, label: chatDateSeparatorLabel(item.send_time) });
-      lastDay = day;
-      lastItem = null;
-      group = null;
-    }
-    const sameGroup = lastItem !== null && group !== null && isSameChatGroup(lastItem, item);
-    if (!sameGroup) {
-      group = {
-        kind: "group",
-        key: `group-${item.id}`,
-        isSelf: Boolean(item.is_self),
-        avatar: "",
-        name: item.sender_id,
-        entries: [],
-      };
-      out.push(group);
-    }
-    group!.entries.push({ item, resolved: resolveChatMessageContent(item) });
-    lastItem = item;
-  }
-  return out;
-});
-
-function chatDayKey(sendTime: string) {
-  const date = new Date(sendTime);
-  if (Number.isNaN(date.getTime())) return "unknown";
-  return `${date.getFullYear()}-${date.getMonth() + 1}-${date.getDate()}`;
-}
-
-/** 只有自己发的最后一条消息保留极小回执（Q7）。 */
-const lastSelfMessageId = computed(() => {
-  for (let i = props.items.length - 1; i >= 0; i -= 1) {
-    if (props.items[i]?.is_self) return props.items[i]!.id;
-  }
-  return null;
-});
-
-function receiptLabel(item: ChatMessageItem) {
-  if (item.id !== lastSelfMessageId.value) return "";
-  return item.is_read ? "已读" : "已送达";
-}
-
 const scrollerRef = ref<HTMLDivElement | null>(null);
 const imageInputRef = ref<HTMLInputElement | null>(null);
 let stickToBottom = true;
@@ -187,7 +122,7 @@ function onThreadScroll() {
 
 /** 上滑加载更早时锁滚动位置：用 scrollHeight 差值把视口钉回原来的那条消息。 */
 watch(
-  () => [props.items.length, props.items[0]?.id] as const,
+  () => [props.timeline.length, props.timeline[0]?.key] as const,
   async () => {
     await nextTick();
     if (awaitingOlder) {
@@ -328,7 +263,7 @@ function handleImagePicked(event: Event) {
                     <p v-else class="leading-7">{{ bubble.resolved.text }}</p>
                     <div class="studio-chat-bubble__meta">
                       <time>{{ formatDateTimeLabel(bubble.item.send_time) }}</time>
-                      <span v-if="bubble.item.is_self" class="studio-chat-receipt">{{ receiptLabel(bubble.item) }}</span>
+                      <span v-if="bubble.item.is_self" class="studio-chat-receipt">{{ bubble.receipt }}</span>
                     </div>
                   </div>
                   <NButton

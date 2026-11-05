@@ -1,4 +1,4 @@
-﻿import { mount } from "@vue/test-utils";
+import { flushPromises, mount } from "@vue/test-utils";
 import { describe, expect, it } from "vitest";
 
 import InboxChatPanel from "~/components/inbox/InboxChatPanel.vue";
@@ -203,6 +203,33 @@ describe("私信面板：会话列表 + 聊天窗", () => {
     Object.defineProperty(scroller.element, "clientHeight", { value: 200, writable: true, configurable: true });
     await scroller.trigger("scroll");
     expect(wrapper.emitted("loadOlder")).toHaveLength(1);
+  });
+
+  it("前插更早一页后滚动位置不跳（用 scrollHeight 差值钉回原锚点）", async () => {
+    const wrapper = mountPanel({
+      activeSessionId: session.session_id,
+      currentSession: session,
+      timeline: buildChatTimeline([message]),
+      hasMoreHistory: true,
+    });
+
+    const scroller = wrapper.get(".studio-chat-scroller");
+    const el = scroller.element as HTMLElement;
+    Object.defineProperty(el, "scrollTop", { value: 0, writable: true, configurable: true });
+    Object.defineProperty(el, "scrollHeight", { value: 400, writable: true, configurable: true });
+    Object.defineProperty(el, "clientHeight", { value: 200, writable: true, configurable: true });
+
+    await scroller.trigger("scroll");
+    expect(wrapper.emitted("loadOlder")).toHaveLength(1);
+
+    // 更早的一页前插进来：内容高度 +200px。
+    const older: ChatMessageItem = { ...message, id: "m0", content: "更早", send_time: "2026-11-02T10:30:00.000Z" };
+    Object.defineProperty(el, "scrollHeight", { value: 600, writable: true, configurable: true });
+    await wrapper.setProps({ timeline: buildChatTimeline([older, message]) });
+    await flushPromises();
+
+    // 视口跟着原来的锚点往下挪 200px，用户看到的内容没有跳。
+    expect(el.scrollTop).toBe(200);
   });
 
   it("聊天窗可以发送：按钮发出 send 事件，输入框同步 draft", async () => {

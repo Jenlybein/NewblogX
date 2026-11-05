@@ -292,6 +292,18 @@ run_contract_types() {
   echo "✓ $app: 契约类型未过期"
 }
 
+if [ "$TARGET" = "all" ] || [ "$TARGET" = "backend" ]; then
+  # 契约（开放接口契约）未过期：与 CI 的 contract job、门禁自检第 5 节
+  # 共用 scripts/check-contract-freshness.mjs 这一份判定，不在本地另写一份。
+  # gates 段不在这里重复跑：verify-gates.sh 第 5 节已经调用同一份判定并注入失效形态。
+  # shellcheck source=scripts/tool-versions.env
+  . "$ROOT/scripts/tool-versions.env"
+  run "契约未过期（$SWAG_MODULE@$SWAG_VERSION）" node scripts/check-contract-freshness.mjs
+  # 判定自身的行为用例（跨 CLI 接缝，不读源码文本）：真生成 / 静默跳过 /
+  # 命令失败 / 过期 / 条目数下降 / 新增结构缺席。
+  run "契约判定行为用例" node scripts/test-contract-freshness.mjs
+fi
+
 if [ "$TARGET" = "all" ] || [ "$TARGET" = "frontend" ]; then
   for app in frontend frontend_admin; do
     run_contract_types "$app"

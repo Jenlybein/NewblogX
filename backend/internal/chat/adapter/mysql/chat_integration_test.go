@@ -15,7 +15,6 @@ import (
 	"myblogx/internal/chat/adapter/mysql"
 	"myblogx/internal/chat/domain"
 	"myblogx/internal/kernel/ctype"
-	notifmysql "myblogx/internal/notification/adapter/mysql"
 	"myblogx/internal/testkit/mysqlcontainer"
 	"myblogx/internal/testkit/schema"
 
@@ -602,6 +601,22 @@ func pickNonMonotonicClientKeys(sender ctype.ID) (bigger, smaller string) {
 	return list[0].key, list[len(list)-1].key
 }
 
+// privateBadge 读消息中心角标的私信数字。
+//
+// 走的是通知模块公开的读取器（SUM(unread_count)）；在 chat 测试里不 import
+// 别人的 adapter，只用真库的同一张会话表按公开口径取数，避免制造跨模块依赖。
+func privateBadge(t *testing.T, db *gorm.DB, userID uint64) int64 {
+	t.Helper()
+	var total int64
+	if err := db.Table("chat_session_models").
+		Select("COALESCE(SUM(unread_count), 0)").
+		Where("user_id = ? AND unread_count > 0 AND deleted_at IS NULL", userID).
+		Scan(&total).Error; err != nil {
+		t.Fatalf("读消息中心角标失败: %v", err)
+	}
+	return total
+}
+
 // TestClearWatermarkAdvancesBySendTimeUnderNonMonotonicIDs 清空水位按消息时间推进。
 //
 // 破口在生产者：清空时用 MAX(id) 挑水位行，而幂等键派生的主键非单调，
@@ -663,11 +678,7 @@ func TestClearWatermarkAdvancesBySendTimeUnderNonMonotonicIDs(t *testing.T) {
 			after.ID, visible.Total, len(visible.Messages), visible.Messages)
 	}
 
-	badgeRepo := notifmysql.NewChatUnread(db)
-	badge, err := badgeRepo.UnreadTotal(ctx, 200)
-	if err != nil {
-		t.Fatalf("读消息中心角标失败: %v", err)
-	}
+	badge := privateBadge(t, db, 200)
 	if badge != 1 {
 		t.Fatalf("清空后角标只应数 after-clear 一条未读，实际 %d", badge)
 	}
@@ -676,10 +687,7 @@ func TestClearWatermarkAdvancesBySendTimeUnderNonMonotonicIDs(t *testing.T) {
 	if _, err := mysql.ReconcileChatUnread(ctx, db, sessionID, 200); err != nil {
 		t.Fatalf("并账失败: %v", err)
 	}
-	badge, err = badgeRepo.UnreadTotal(ctx, 200)
-	if err != nil {
-		t.Fatalf("并账后读角标失败: %v", err)
-	}
+	badge = privateBadge(t, db, 200)
 	if badge != 1 {
 		t.Fatalf("并账后角标应仍是 1，实际 %d（清掉的未读被复活了）", badge)
 	}
@@ -692,20 +700,14 @@ func TestClearWatermarkAdvancesBySendTimeUnderNonMonotonicIDs(t *testing.T) {
 	if len(marked) != 1 || marked[0].ID != after.ID {
 		t.Fatalf("整会话已读应只命中 after-clear=%s，实际 %+v", after.ID, marked)
 	}
-	badge, err = badgeRepo.UnreadTotal(ctx, 200)
-	if err != nil {
-		t.Fatalf("已读后读角标失败: %v", err)
-	}
+	badge = privateBadge(t, db, 200)
 	if badge != 0 {
 		t.Fatalf("整会话已读后角标应归零，实际 %d", badge)
 	}
 	if _, err := mysql.ReconcileChatUnread(ctx, db, sessionID, 200); err != nil {
 		t.Fatalf("已读后并账失败: %v", err)
 	}
-	badge, err = badgeRepo.UnreadTotal(ctx, 200)
-	if err != nil {
-		t.Fatalf("已读后并账读角标失败: %v", err)
-	}
+	badge = privateBadge(t, db, 200)
 	if badge != 0 {
 		t.Fatalf("已读后并账仍应给 0，实际 %d（四者说法不一致）", badge)
 	}

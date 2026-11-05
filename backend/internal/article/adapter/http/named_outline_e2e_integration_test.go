@@ -3,8 +3,11 @@
 package http_test
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
+	"net/http"
+	"net/http/httptest"
 	"testing"
 	"time"
 
@@ -90,10 +93,23 @@ func requestNamedTree(t *testing.T, r *gin.Engine, method, path string, body []b
 	return out
 }
 
+// legacyStatus 返回旧共享端点的 HTTP 状态码（不解析响应体）。
+//
+// gin 对未注册路由直接回纯文本 404，没有业务 Envelope；验「端点已下线」
+// 只需要状态码这一层，越过它去解 JSON 会把 404 误报成解析失败。
+func legacyStatus(t *testing.T, r *gin.Engine, method, path string) int {
+	t.Helper()
+	req := httptest.NewRequest(method, path, bytes.NewReader(nil))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+	return w.Code
+}
+
 func migrateNamedOutline(t *testing.T) *gorm.DB {
 	t.Helper()
 	db := mysqlcontainer.DB(t)
-	// schema.Outline 组含旧共用表与两张按实体命名的新表；e2e 夹具只需点名这一组。
+	// schema.Outline 组只含两张按实体命名的树表；e2e 夹具点名这一组。
 	schema.Migrate(t, db,
 		schema.UserCore, schema.ArticleCore, schema.Collection, schema.Project, schema.Outline,
 	)
@@ -262,10 +278,11 @@ func TestNamedOutlineEndpointsOverRealMySQL(t *testing.T) {
 
 			// ⑦ 旧共享端点已随 #277 收缩下线：同一个后台身份打过去应 404，
 			// 具名端点仍是唯一入口（不是"旧表还能读"的兼容层）。
+			// gin 的 404 是纯文本 "404 page not found"，不是 Envelope JSON：
+			// 这里只看 HTTP 状态码，别拿 decode() 去解一层不存在的外壳。
 			legacyPath := fmt.Sprintf("/api/%ss/%s/outline/admin", tc.name, ownerID)
-			legacyRaw := rawRequest(t, admin, "GET", legacyPath, nil)
-			if env := decode(t, legacyRaw); env.Code == 0 {
-				t.Fatalf("旧共享端点应下线，实际仍返回成功（响应 %s）", legacyRaw)
+			if got := legacyStatus(t, admin, "GET", legacyPath); got != http.StatusNotFound {
+				t.Fatalf("旧共享端点 %s 应返回 404，实际 %d", legacyPath, got)
 			}
 		})
 	}

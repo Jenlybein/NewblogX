@@ -155,10 +155,10 @@ func loadLatestMessages(tx *gorm.DB, sessionIDs []string) (map[string]latestMess
 	}
 	if err := tx.Table("chat_msg_models AS m").
 		Select("m.session_id, m.id, m.send_time").
-		Where("m.session_id IN ? AND m.id = (?)", sessionIDs,
+		Where("m.session_id IN ? AND m.deleted_at IS NULL AND m.id = (?)", sessionIDs,
 			tx.Table("chat_msg_models AS latest").
 				Select("latest.id").
-				Where("latest.session_id = m.session_id").
+				Where("latest.session_id = m.session_id AND latest.deleted_at IS NULL").
 				Order("latest.send_time DESC, latest.id DESC").
 				Limit(1),
 		).

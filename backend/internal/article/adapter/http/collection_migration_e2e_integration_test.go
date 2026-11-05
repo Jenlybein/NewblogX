@@ -25,7 +25,7 @@ import (
 //   - 一篇文章可以进合集具名树、且同一棵树内不重复；
 //   - 管理员能打开未展示的合集（后台读面保留失效行），读者仍按不存在处理。
 //
-// 旧共享端点仍可用是 #274 expand 期的事实，归 #277 收缩，本票不删。
+// 旧共享端点与旧共用表已随 #277 收缩下线，本文件只钉住具名端点这一条形状。
 
 // collectionMigrationEnv 是一次用例的真实装配：真库 + 固定身份的两套路由。
 type collectionMigrationEnv struct {
@@ -35,7 +35,7 @@ type collectionMigrationEnv struct {
 }
 
 // newCollectionMigrationEnv 建出合集具名树闭环需要的表。
-// schema.Outline 组含旧共用表与两张按实体命名的新表（#274 后）。
+// schema.Outline 组只含两张按实体命名的树表。
 func newCollectionMigrationEnv(t *testing.T) collectionMigrationEnv {
 	t.Helper()
 	db := mysqlcontainer.DB(t)

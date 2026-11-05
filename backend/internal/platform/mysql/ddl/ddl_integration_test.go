@@ -14,9 +14,9 @@ import (
 // 零 DDL 口径下新增表只走 CREATE TABLE IF NOT EXISTS；这里连续执行两次，
 // 第二次必须同样成功且表结构不变。没有 Docker 时 mysqlcontainer 会 skip。
 //
-// #274 的 expand 阶段把一张共用树表扩成三张：旧的共用表逐字不动，两张按实体
-// 命名的树表去掉归属列、唯一键与索引只落在 (owner_id, article_id) 上。
-// 断言的是 information_schema 里**真库看到的结构**，不是源码文本。
+// #277 收缩后只有两张按实体命名的树表：归属由表名表达，去掉归属列，
+// 唯一键与索引只落在 (owner_id, article_id) 上。断言的是 information_schema
+// 里**真库看到的结构**，不是源码文本。
 
 type outlineTableShape struct {
 	table         string
@@ -33,17 +33,7 @@ func outlineTableShapes() []outlineTableShape {
 		"article_id": "bigint unsigned",
 		"sort_order": "bigint",
 	}
-	shared := make(map[string]string, len(common)+1)
-	for col, typ := range common {
-		shared[col] = typ
-	}
-	shared["owner_kind"] = "bigint"
 	return []outlineTableShape{
-		{
-			table:         "content_outline_node_models",
-			wantOwnerKind: true,
-			wantColumns:   shared,
-		},
 		{
 			table:         "collection_outline_node_models",
 			wantOwnerKind: false,
@@ -57,8 +47,8 @@ func outlineTableShapes() []outlineTableShape {
 	}
 }
 
-// TestApplyCreatesOutlineTablesIdempotently 对三张树表逐张验幂等、列类型、
-// article_id 可空性，以及两张新表确实没有归属列。
+// TestApplyCreatesOutlineTablesIdempotently 对两张具名树表逐张验幂等、列类型、
+// article_id 可空性，以及两张表确实没有归属列。
 func TestApplyCreatesOutlineTablesIdempotently(t *testing.T) {
 	db := mysqlcontainer.DB(t)
 

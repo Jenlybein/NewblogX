@@ -94,10 +94,13 @@ func (r *Repos) Collections() collection.Repository { return r.collectionRepo }
 // Projects 返回项目仓储（与合集并列的独立内容实体）。
 func (r *Repos) Projects() project.Repository { return r.projectRepo }
 
-// Outlines 返回目录树仓储（一张表服务合集与项目）。
+// Outlines 返回当前归属的目录树 fake。
+//
+// 它不是 app.Repos 的方法：只有经 namedRepos 拿到的树仓储视图才有 Outlines()，
+// 类型上保证测试和生产一样不会绕过归属直接读树。
 func (r *Repos) Outlines() outline.Repository { return r.outlineRepo }
 
-// NamedOutlineFor 返回具名树表仓储在有状态假仓储里的等价物（#274 expand）。
+// NamedOutlineFor 返回具名树表仓储在有状态假仓储里的等价物。
 //
 // 假仓储不按表拆数据：它只有一个内存节点集合，用例层的规则与事务回滚语义
 // 与表名无关，因此两种 kind 都指向同一份有状态 fake。生产实现按表名分派，

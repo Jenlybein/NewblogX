@@ -89,21 +89,6 @@ func (r *namedOutlineRepo) FindByArticle(
 	return r.toNodes([]namedOutlineRow{row})[0], nil
 }
 
-// ListByArticle 返回这篇文章在这张表的所有树里的活跃文章节点。
-func (r *namedOutlineRepo) ListByArticle(
-	ctx context.Context, articleID outline.ArticleID,
-) ([]*outline.Node, error) {
-	var rows []namedOutlineRow
-	err := r.db.WithContext(ctx).Table(r.table).
-		Where("article_id = ? AND deleted_at IS NULL", ctype.ID(articleID)).
-		Order("owner_id ASC, id ASC").
-		Find(&rows).Error
-	if err != nil {
-		return nil, err
-	}
-	return r.toNodes(rows), nil
-}
-
 // Create 批量插入节点。用 map 写：文件夹的 article_id 必须是 NULL 而不是零值。
 func (r *namedOutlineRepo) Create(ctx context.Context, nodes []*outline.Node) error {
 	if len(nodes) == 0 {

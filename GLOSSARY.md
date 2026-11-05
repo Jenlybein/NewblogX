@@ -451,21 +451,27 @@ _Avoid_: 用"档位 B"描述现状；在 `prefers-reduced-motion` 下仍保留�
 _Avoid_: 「管理员置顶」（ES 旧派生字段 `admin_top` 的叫法，已删除）；「精选文章」（旧文案）；拿「热门置顶」指作者置顶。
 
 **合集（collection）**：
-由**管理员**维护的、有标题 / 描述 / 封面 / 展示开关与顺序的文章集合（"Nuxt 部署实战"这类专题）。与「热门置顶」是两套数据：合集没有条数上限，且主体是"一个有名字的集合"而不是首页排序位；作者不参与创建，读者只读。唯一真相是主表 `collection_models`；**收录关系与层次由「目录树」承载**（见本节「目录树」词条，[ADR-0023](./docs/adr/0023-outline-tree-for-collections-and-projects.md)），旧的扁平中间表 `collection_article_models` 已下线（#225：代码不再登记，生产库由部署时手工 DROP）。失效口径沿用原来那套：文章后来不再公开时树节点**保留**，读者侧靠 JOIN 过滤、后台标「已失效」并可清理。合集**不进 ES**（运营编排不是可检索内容）。读者侧列表只出「展示中」的合集，篇数只算仍公开的文章；未展示的合集对读者按**不存在**处理（不返回"这个合集未发布"），管理员仍可打开。封面为空时读模型回退到首篇公开文章的封面（即树中深度优先的第一个文章节点）。
-位置：表 `collection_models` + 目录树 `content_outline_node_models`（DDL 见 `backend/internal/platform/mysql/ddl/schema.sql`）；接口 `GET /collections`、`GET /collections/{id}`（公开读，detail 回嵌套树）、`GET /collections/admin`、`POST /collections`、`PATCH /collections/{id}/display`；后端 `internal/article/domain/collection`（规则与读模型）、`app/collection.go`、`adapter/mysql/collection_repo.go`、`adapter/http/handler_collection.go`；读者站 `frontend/app/pages/collections/` 与顶栏第四项 `frontend/app/utils/chrome.ts`。
+由**管理员**维护的、有标题 / 描述 / 封面 / 展示开关与顺序的文章集合（"Nuxt 部署实战"这类专题）。与「热门置顶」是两套数据：合集没有条数上限，且主体是"一个有名字的集合"而不是首页排序位；作者不参与创建，读者只读。唯一真相是主表 `collection_models`；**收录关系与层次由「合集目录树」承载**（见本节「合集目录树」词条，[ADR-0028](./docs/adr/0028-named-outline-trees-as-the-only-shape.md)），旧的扁平中间表 `collection_article_models` 已下线（#225：代码不再登记，生产库由部署时手工 DROP）。失效口径沿用原来那套：文章后来不再公开时树节点**保留**，读者侧靠 JOIN 过滤、后台标「已失效」并可清理。合集**不进 ES**（运营编排不是可检索内容）。读者侧列表只出「展示中」的合集，篇数只算仍公开的文章；未展示的合集对读者按**不存在**处理（不返回"这个合集未发布"），管理员仍可打开。封面为空时读模型回退到首篇公开文章的封面（即树中深度优先的第一个文章节点）。
+位置：表 `collection_models` + `collection_outline_node_models`（DDL 见 `backend/internal/platform/mysql/ddl/schema.sql`）；接口 `GET /collections`、`GET /collections/{id}`（公开读，detail 回嵌套树）、`GET|PUT /collections/{id}/outline-tree`、`GET /collections/admin`、`POST /collections`、`PATCH /collections/{id}/display`；后端 `internal/article/domain/collection`（规则与读模型）、`app/collection.go`、`adapter/mysql/collection_repo.go`、`adapter/http/handler_collection.go`；读者站 `frontend/app/pages/collections/` 与顶栏第四项 `frontend/app/utils/chrome.ts`。
 _Avoid_: 「专辑」「专栏」「系列」（同义词，一律写合集）；用「合集」指用户自己的收藏夹（那是 `favorite_models`，与合集无关）；用「合集」指 ADR 归档（`docs/archive/v1/04-adr-collection.md` 是旧文档合集，不是这个功能）。
 
 **项目（project）**：
 读者站顶栏第五项所指向的内容实体，与「合集」是**两套独立数据、两个入口**（合集仍在第四项）。在内容语境下「项目」专指这个实体：它的列表页、卡片、空态文案一律写「项目」，不混用「合集」字样；页面版式与组件复用合集的读者侧实现，但数据来源独立。
 易混：`backend/conf/site/enter.go` 的 `Project` 段是**站点项目配置**（站点项目名 / 图标 / 前端入口路径），契约字段 `project_title` 属站点配置域，不是内容实体；文档里「本项目 / 这个软件项目」一律指**本仓库**，写作时改成「本仓库」。
-位置：表 `project_models` 与目录树 `content_outline_node_models`（收录与层次由目录树承载，旧中间表 `project_article_models` 已下线，#225 之后代码不再登记它、生产库由部署时手工 DROP）；接口 `GET /projects`、`GET /projects/{id}`；读者站 `frontend/app/pages/projects/`、后台「项目管理」与树编辑器。读者侧版式与合集复用（同网格、同卡片、同空态），数据来源与表各自独立。
+位置：表 `project_models` 与 `project_outline_node_models`（收录与层次由「项目目录树」承载，旧中间表 `project_article_models` 已下线，#225 之后代码不再登记它、生产库由部署时手工 DROP）；接口 `GET /projects`、`GET /projects/{id}`、`GET|PUT /projects/{id}/outline-tree`；读者站 `frontend/app/pages/projects/`、后台「项目管理」与树编辑器。读者侧版式与合集复用（同网格、同卡片、同空态），数据来源与表各自独立。
 _Avoid_: 用「项目」指站点项目配置或本仓库；用「项目」指顶栏第四项的「合集」；把两者当成同一份数据的两个入口。
 
-**目录树（outline）**：
-合集 / 项目内部的**层次与顺序**：由「文件夹节点」（只分组、不可阅读、不可点击）与「文章节点」（指向一篇文章）组成，可任意深度嵌套。一篇文章可以同时出现在多棵树里，所以"属于哪棵树"是**节点**的属性，不是文章的属性（同一棵树内最多一个节点）。读者侧详情页就是这棵树——点文章节点跳到阅读页并带 `?from=<kind>:<id>` 来路；阅读页左侧显示同一棵树（当前节点高亮 + 上一篇/下一篇），窄屏收进「目录」抽屉。后台用一个树编辑器编排（取代合集 / 项目的排列页）。
-位置：表 `content_outline_node_models`（`owner_kind` / `owner_id` / `parent_id` / `kind` / `title` / `article_id` / `sort_order` / 软删）；旧的扁平中间表 `collection_article_models` / `project_article_models` 已**下线**（#225：`schema.sql` 与 testkit 都不再登记、代码不再读写，生产库由部署时手工 DROP）；后台树编辑器与读者侧详情页 / 阅读页左栏。
-易混：文章内的标题大纲叫**标题大纲**（`ArticleTocAnchor`），不是目录树；「收录」现在就是"把一个文章节点挂到树上"，不再有第二份成员表。
-_Avoid_: 叫它「侧栏 / 目录组件」（那是标题大纲）；把文件夹当可读内容；把它当成合并「合集」与「项目」的手段（两个实体仍是两套数据、两个入口）。
+**合集目录树（collection outline）**：
+合集内部的**层次与顺序**：由「文件夹节点」（只分组、不可阅读、不可点击）与「文章节点」（指向一篇文章）组成，可任意深度嵌套。一篇文章可以同时出现在多棵树里，所以"属于哪棵树"是**节点**的属性，不是文章的属性（同一棵树内最多一个节点）。读者侧合集详情页就是这棵树——点文章节点跳到阅读页并带 `?from=collection:<id>` 来路；阅读页左侧显示同一棵树（当前节点高亮 + 上一篇/下一篇），窄屏收进「目录」抽屉。后台用一个树编辑器编排。
+位置：表 `collection_outline_node_models`（`owner_id` / `parent_id` / `kind` / `title` / `article_id` / `sort_order` / 软删）；接口 `GET|PUT /collections/{id}/outline-tree`；后端 `internal/article/domain/outline`（两个实体共用的纯规则）、`internal/article/app/named_outline.go`、`adapter/mysql/named_outline_repo.go`、`adapter/http/handler_named_outline.go`；读者站合集详情页与阅读页左栏、后台合集编辑弹窗的树抽屉。取舍见 [ADR-0028](./docs/adr/0028-named-outline-trees-as-the-only-shape.md)。
+易混：文章内的标题大纲叫**标题大纲**（`ArticleTocAnchor`），不是合集目录树；「收录」现在就是"把一个文章节点挂到树上"，不再有第二份成员表。
+_Avoid_: 「目录树」（旧正名，已退役：它曾指一张同时服务合集与项目的共用表，见 [ADR-0023](./docs/adr/0023-outline-tree-for-collections-and-projects.md)）；「侧栏 / 目录组件」（那是标题大纲）；把文件夹当可读内容；把它与「项目目录树」当成同一份数据。
+
+**项目目录树（project outline）**：
+项目内部的**层次与顺序**：节点种类、嵌套规则、失效行口径与「合集目录树」共用一份纯规则，但数据各自独立、归属由表名表达。读者侧项目详情页就是这棵树——点文章节点跳到阅读页并带 `?from=project:<id>` 来路；阅读页左侧显示同一棵树，窄屏收进「目录」抽屉。后台用一个树编辑器编排。
+位置：表 `project_outline_node_models`（`owner_id` / `parent_id` / `kind` / `title` / `article_id` / `sort_order` / 软删）；接口 `GET|PUT /projects/{id}/outline-tree`；后端 `internal/article/domain/outline`、`internal/article/app/named_outline.go`、`adapter/mysql/named_outline_repo.go`、`adapter/http/handler_named_outline.go`；读者站项目详情页与阅读页左栏、后台项目编辑弹窗的树抽屉。取舍见 [ADR-0028](./docs/adr/0028-named-outline-trees-as-the-only-shape.md)。
+易混：文章内的标题大纲叫**标题大纲**（`ArticleTocAnchor`），不是项目目录树；读者侧版式与合集复用同一份组件，数据来源与表各自独立。
+_Avoid_: 「目录树」（旧正名，已退役：它曾指一张同时服务合集与项目的共用表，见 [ADR-0023](./docs/adr/0023-outline-tree-for-collections-and-projects.md)）；「侧栏 / 目录组件」（那是标题大纲）；把文件夹当可读内容；把它与「合集目录树」当成同一份数据。
 
 **作者置顶**：
 作者把自己的一篇文章钉在**个人主页**的置顶关系；只有作者本人能设置，与热门置顶是两套数据、两套存储。读者站与后台当前都**没有**消费点（用户页 / 个人主页的文章列表走搜索 type 3），接口保留但不在「显示」开关的读者读面清单内（ADR-0017 决策 4）。

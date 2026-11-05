@@ -16,7 +16,7 @@ import (
 )
 
 // 本文件是 #276「拆树·迁移项目」的真 MySQL 契约用例：项目这条端到端路径只经
-// #274 的具名端点读写 project_outline_node_models，旧共享端点不参与。
+// 具名端点读写 project_outline_node_models；旧共享端点已随 #277 下线。
 //
 // 全部断言都跨 HTTP 接口这一条行为接缝：整树提交 → 项目详情页读同一棵树 →
 // 阅读页左栏按 `?from=project:<id>` 找回同一棵树；同一棵项目树内一篇文章不
@@ -99,25 +99,7 @@ func TestProjectNamedTreeEndToEndOverRealMySQL(t *testing.T) {
 		t.Fatalf("整树提交应落 4 个节点，实际 %d: %+v", len(flattenProjectOutline(saved)), saved)
 	}
 
-	// ② 旧共享端点读到的仍是旧共用表的空树：迁移后页面已经不再看它，但两表
-	// 不互复制这一事实要能被外部行为观察到。
-	legacyRaw := rawRequest(t, admin, "GET",
-		fmt.Sprintf("/api/projects/%s/outline/admin", projectID), nil)
-	legacyEnv := decode(t, legacyRaw)
-	if legacyEnv.Code != 0 {
-		t.Fatalf("旧共享端点在 expand 期应仍可用，实际 code=%d msg=%s", legacyEnv.Code, legacyEnv.Msg)
-	}
-	var legacy struct {
-		Nodes []projectOutlineNode `json:"nodes"`
-	}
-	if err := json.Unmarshal(legacyEnv.Data, &legacy); err != nil {
-		t.Fatalf("解析旧共享端点响应失败: %v（响应 %s）", err, legacyRaw)
-	}
-	if len(legacy.Nodes) != 0 {
-		t.Fatalf("具名端点不应写到旧共享端点读的那张表，实际 %+v", legacy.Nodes)
-	}
-
-	// ③ 项目详情页从具名端点拿到的树与后台编排一致；文章 21 退回草稿后读者
+	// ② 项目详情页从具名端点拿到的树与后台编排一致；文章 21 退回草稿后读者
 	// 读面过滤它、篇数只数仍公开的文章、封面回退到 DFS 第一篇公开文章。
 	if err := db.Table("article_models").Where("id = ?", 21).
 		Update("publish_status", int8(schema.ArticleStatusDraft)).Error; err != nil {

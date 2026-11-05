@@ -21,7 +21,7 @@ import (
 // 本文件是 #274 expand 期两个具名端点的**真 MySQL 契约用例**。
 //
 // 只经 HTTP 接口观察行为：整树提交、失效文章过滤、封面回退、上一章 / 下一章、
-// `?from=` 来路、两张新表互不串数据、旧共享端点仍可用。不读源码文本、不越过
+// `?from=` 来路、两张新表互不串数据、旧共享端点已下线。不读源码文本、不越过
 // 接口查库断言实现细节（库表结构一致性另有 schema 包契约用例钉住）。
 
 // namedOutlineCase 是同一份行为用例在两个实体上的参数。
@@ -260,18 +260,19 @@ func TestNamedOutlineEndpointsOverRealMySQL(t *testing.T) {
 				t.Fatalf("草稿文章的节点应标 not_published，实际 %+v", stale)
 			}
 
-			// ⑦ 旧共享端点仍可用（读旧共用表），expand 期不破坏既有页面。
+			// ⑦ 旧共享端点已随 #277 收缩下线：同一个后台身份打过去应 404，
+			// 具名端点仍是唯一入口（不是"旧表还能读"的兼容层）。
 			legacyPath := fmt.Sprintf("/api/%ss/%s/outline/admin", tc.name, ownerID)
 			legacyRaw := rawRequest(t, admin, "GET", legacyPath, nil)
-			if env := decode(t, legacyRaw); env.Code != 0 {
-				t.Fatalf("旧共享端点应仍可用，实际 code=%d msg=%s（响应 %s）", env.Code, env.Msg, legacyRaw)
+			if env := decode(t, legacyRaw); env.Code == 0 {
+				t.Fatalf("旧共享端点应下线，实际仍返回成功（响应 %s）", legacyRaw)
 			}
 		})
 	}
 }
 
-// TestNamedOutlineTablesAreIndependent 验两张新表各自独立：同一篇文章可以
-// 同时进两棵树，但一棵树的节点不会串到另一棵；旧共享表不参与新端点读写。
+// TestNamedOutlineTablesAreIndependent 验两张具名表各自独立：同一篇文章可以
+// 同时进两棵树，但一棵树的节点不会串到另一棵。
 func TestNamedOutlineTablesAreIndependent(t *testing.T) {
 	t.Parallel()
 

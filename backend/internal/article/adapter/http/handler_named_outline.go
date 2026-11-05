@@ -11,12 +11,12 @@ import (
 	"myblogx/internal/platform/http/res"
 )
 
-// 本文件是 #274 expand 期两个具名端点的 HTTP 适配层。
+// 本文件是两个具名树端点的 HTTP 适配层。
 //
 // 合集：`GET|PUT /collections/{id}/outline-tree`
 // 项目：`GET|PUT /projects/{id}/outline-tree`
 // 两个 GET 是公开读（阅读页左栏 / 详情页按 `?from=` 找回同一棵树），两个 PUT
-// 在管理员分组下（整树提交）。端点身份决定走哪张具名表，旧共享端点票内暂留。
+// 在管理员分组下（整树提交）。端点身份决定走哪张具名表；没有旧共享端点。
 
 // CollectionOutlineTree 读合集具名树（公开读）。
 //
@@ -177,4 +177,36 @@ func fillNamedProjectOutlineSave(out *ProjectOutlineTreeResponse, tree OutlineTr
 	out.OwnerKind = tree.OwnerKind
 	out.OwnerID = tree.OwnerID
 	out.Nodes = tree.Nodes
+}
+
+// ── 两个具名 PUT 共用的请求转换与审计 ──
+
+// toOutlineInput 把请求 DTO 转成用例输入（递归保持父子关系）。
+func toOutlineInput(node OutlineNodeRequest) app.OutlineInputNode {
+	children := make([]app.OutlineInputNode, 0, len(node.Children))
+	for _, child := range node.Children {
+		children = append(children, toOutlineInput(child))
+	}
+	return app.OutlineInputNode{
+		ID:        outline.ID(node.ID),
+		Kind:      outline.NodeKind(node.Kind),
+		Title:     node.Title,
+		ArticleID: outline.ArticleID(node.ArticleID),
+		Children:  children,
+	}
+}
+
+// emitOutlineAudit 记录一次整树提交；归属由端点身份给出。
+func emitOutlineAudit(c *gin.Context, kind outline.OwnerKind, ownerID outline.ID) {
+	targetType := "collection"
+	if kind == outline.OwnerProject {
+		targetType = "project"
+	}
+	middleware.EmitActionAuditFromGin(c, middleware.GinAuditInput{
+		ActionName: "outline_save",
+		TargetType: targetType,
+		TargetID:   ownerID.String(),
+		Success:    true,
+		Message:    "保存目录树",
+	})
 }

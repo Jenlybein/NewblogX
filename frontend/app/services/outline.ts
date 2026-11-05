@@ -4,10 +4,7 @@ import type {
   CollectionOutlineTree,
   ProjectOutlineTree,
 } from "~/utils/outlineContext";
-import {
-  outlineContextQuery,
-  toArticleOutlineContext,
-} from "~/utils/outlineContext";
+import { toArticleOutlineContext } from "~/utils/outlineContext";
 import { parseOutlineSource } from "~/utils/outlineTree";
 
 /**
@@ -17,10 +14,11 @@ import { parseOutlineSource } from "~/utils/outlineTree";
  * 这条客户端请求。树**只在客户端取数**：调用点（`useArticleOutlineContext`）
  * 负责在 SSR 阶段跳过本请求（ADR-0019 / 票 220）。
  *
- * 拆树迁移（`?from=` 来路）：来源是某一棵具名树时直接向它的具名端点取同一棵树，
- * 并把当前文章 ID 作为 `article_id` 带给后端回答上一章 / 下一篇；来源缺失或
- * 无法解析时仍沿用旧的文章上下文回退（由 #277 收缩）。响应收成左栏现有的
- * 读模型，共用呈现组件 / 版式逐字不变。
+ * 归属只由 `?from=<kind>:<id>` 给出：来源指向哪棵具名树就只打那一个具名端点，
+ * 并把当前文章 ID 作为 `article_id` 带给后端回答上一章 / 下一篇。来源缺失或
+ * 无法解析时按「没有可展示的树」返回空读模型、不打任何请求——旧共享端点
+ * `GET /articles/{id}/outline-context` 已随 #277 收缩下线，不再有回退分支。
+ * 响应收成左栏现有的读模型，共用呈现组件 / 版式逐字不变。
  */
 export async function getArticleOutlineContext(
   articleId: string | number,
@@ -31,24 +29,18 @@ export async function getArticleOutlineContext(
   const trimmed = (from ?? "").trim();
   const source = parseOutlineSource(trimmed);
 
-  if (source) {
-    const path = source.kind === "collection"
-      ? `/api/collections/${encodeURIComponent(source.id)}/outline-tree`
-      : `/api/projects/${encodeURIComponent(source.id)}/outline-tree`;
-    const data = await api.request<CollectionOutlineTree | ProjectOutlineTree>(path, {
-      auth: false,
-      query: { from: trimmed, article_id: article },
-    });
-    return toArticleOutlineContext(data) ?? emptyOutlineContext();
+  if (!source) {
+    return emptyOutlineContext();
   }
 
-  return api.request<ArticleOutlineContext>(
-    `/api/articles/${encodeURIComponent(article)}/outline-context`,
-    {
-      auth: false,
-      query: outlineContextQuery(from),
-    },
-  );
+  const path = source.kind === "collection"
+    ? `/api/collections/${encodeURIComponent(source.id)}/outline-tree`
+    : `/api/projects/${encodeURIComponent(source.id)}/outline-tree`;
+  const data = await api.request<CollectionOutlineTree | ProjectOutlineTree>(path, {
+    auth: false,
+    query: { from: trimmed, article_id: article },
+  });
+  return toArticleOutlineContext(data) ?? emptyOutlineContext();
 }
 
 /** 具名响应缺失时左栏按「没有可展示的树」处理（不猜默认归属）。 */

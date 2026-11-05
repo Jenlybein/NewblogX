@@ -10,7 +10,7 @@ import (
 
 // 本文件是「读者侧目录树」的用例：合集与项目共一份读模型组装。
 //
-// 与后台 AdminOutline 的区别：读者树只保留**公开文章节点**，文件夹保留（包括
+// 与后台具名树读面的区别：读者树只保留**公开文章节点**，文件夹保留（包括
 // 空文件夹）；失效文章节点不出现，篇数只数公开文章；没上传封面时回退到深度
 // 优先第一个公开文章节点的封面（该节点没有封面时就是空）。展示开关与
 // 「显示非管理员发布文章」开关的判定仍在各自实体的用例里，这里不另写一份
@@ -29,7 +29,7 @@ type ReaderOutlineDetail struct {
 // readerOutline 组装读者树：复用 #217 的 outline.Build + 文章快照读逻辑，
 // 不另开一套 SQL，也不读写已冻结的扁平收录中间表。
 func (s *Service) readerOutline(
-	ctx context.Context, r Repos, ownerKind outline.OwnerKind, ownerID outline.ID,
+	ctx context.Context, r treeRepos, ownerKind outline.OwnerKind, ownerID outline.ID,
 	onlyAdminAuthors bool, explicitCover string,
 ) (*ReaderOutlineDetail, error) {
 	nodes, err := r.Outlines().ListNodes(ctx, ownerKind, ownerID)

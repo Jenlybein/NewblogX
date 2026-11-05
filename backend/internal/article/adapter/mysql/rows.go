@@ -324,32 +324,7 @@ type projectRow struct {
 // TableName 固定表名。
 func (projectRow) TableName() string { return "project_models" }
 
-// outlineNodeRow 对应表 content_outline_node_models（合集 / 项目共用的目录树）。
-//
-// 与 owner 无关的一张树表：owner_kind 区分合集与项目，parent_id 表达层次，
-// kind 区分文件夹与文章节点。字段与 testkit/schema 的 OutlineNodeRow 逐字一致：
-// schema_sql_integration_test 会把 schema.sql 建出来的表与行结构逐列比对。
-//
-// 唯一键 uk_outline_owner_article 是 (owner_kind, owner_id, article_id)，
-// **不含 deleted_at**：移除是软删，行留在表里占着文章键，所以"移出后再收录"
-// 必须恢复原行而不是新插入（与点赞表是同一个坑）。
-// 文件夹节点的 article_id 为 NULL（不是 0）——MySQL 的唯一索引里 NULL 互不冲突，
-// 否则同一棵树的所有文件夹都会撞这条唯一键。
-type outlineNodeRow struct {
-	BaseRow
-	OwnerKind int       `gorm:"not null;index:idx_outline_owner,priority:1;uniqueIndex:uk_outline_owner_article,priority:1"`
-	OwnerID   ctype.ID  `gorm:"not null;index:idx_outline_owner,priority:2;uniqueIndex:uk_outline_owner_article,priority:2"`
-	ParentID  ctype.ID  `gorm:"not null;default:0"`
-	Kind      int       `gorm:"not null"`
-	Title     string    `gorm:"type:varchar(128);not null"`
-	ArticleID *ctype.ID `gorm:"uniqueIndex:uk_outline_owner_article,priority:3"`
-	SortOrder int       `gorm:"not null;default:0"`
-}
-
-// TableName 固定表名。
-func (outlineNodeRow) TableName() string { return "content_outline_node_models" }
-
-// collectionOutlineNodeRow 对应 #274 expand 期新增的合集具名树表。
+// collectionOutlineNodeRow 对应合集具名树表。
 //
 // 归属由表名表达，没有 owner_kind；唯一键与索引收成 (owner_id, article_id)。
 // 字段与 testkit/schema 的 CollectionOutlineNodeRow 逐字一致。
@@ -366,7 +341,7 @@ type collectionOutlineNodeRow struct {
 // TableName 固定表名。
 func (collectionOutlineNodeRow) TableName() string { return "collection_outline_node_models" }
 
-// projectOutlineNodeRow 对应 #274 expand 期新增的项目具名树表。
+// projectOutlineNodeRow 对应项目具名树表。
 //
 // 与合集具名表同构但**不共用数据**：一篇文章可以同时出现在两棵树里。
 // 字段与 testkit/schema 的 ProjectOutlineNodeRow 逐字一致。

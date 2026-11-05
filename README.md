@@ -971,7 +971,7 @@ docker compose up -d --build
 - **表不存在** → 自动执行建表，等 ES 就绪，再 `-es -s ensure`，然后才真正启动服务；
 - **表已存在** → 跳过初始化，直接启动。
 
-这带来一个副作用要知道：**它只认这一张表**。所以 ①想重新初始化，得先把这张表删掉（或手动执行 `-db`），否则 entrypoint 永远认为"已经初始化过了"；②**后来新增的表不会被自举**——只要 `runtime_config_models` 还在，升级时就必须手动执行一次 `-db`（见 [11.4](#114-更新版本)），否则用到新表的接口会报"表不存在"。本项目至今新增过 `article_hot_top_models`（热门置顶）、`project_models`（项目实体）、`content_outline_node_models`（共用目录树），以及拆树 expand 批（#274）逐张指名立项的 `collection_outline_node_models`（合集目录树）与 `project_outline_node_models`（项目目录树）五张表，都走这条路；#274 的手动 `-db` 步骤见 [发布说明](docs/notes/2026-11-05-outline-tree-expand-release-notes.md)。
+这带来一个副作用要知道：**它只认这一张表**。所以 ①想重新初始化，得先把这张表删掉（或手动执行 `-db`），否则 entrypoint 永远认为"已经初始化过了"；②**后来新增的表不会被自举**——只要 `runtime_config_models` 还在，升级时就必须手动执行一次 `-db`（见 [11.4](#114-更新版本)），否则用到新表的接口会报"表不存在"。本项目至今新增过 `article_hot_top_models`（热门置顶）、`project_models`（项目实体），以及拆树 expand 批（#274）逐张指名立项的 `collection_outline_node_models`（合集目录树）与 `project_outline_node_models`（项目目录树）四张表，都走这条路；#274 的手动 `-db` 步骤见 [发布说明](docs/notes/2026-11-05-outline-tree-expand-release-notes.md)。#277 收缩后旧共用树表 `content_outline_node_models` 已从建表脚本与 testkit 登记中移除，生产库由**部署时手工 DROP**；`-db` 不会替你 DROP 任何表，步骤见 [收缩发布说明](docs/notes/2026-11-05-outline-tree-contract-release-notes.md)。
 
 **启动要多久**：首次 `up` 含构建，几分钟；之后重启约 **40 秒**，其中大头是 ES 自己的冷启动（entrypoint 的 `wait_for_es` 每 3 秒探一次），应用连上 Redis/MySQL/ES 本身只要几毫秒。`blogx_server` 的探针间隔是 10s，所以"进程就绪"到"被判定 healthy"最多再差 10 秒。
 
@@ -1285,6 +1285,8 @@ curl -sk https://127.0.0.1/health | head -1
 **5. 冒烟与已知限制**
 
 目录树、阅读页左栏与「目录」抽屉、编辑入口、封面兜底、裁剪窗、私信「实时已连接」、上传比例校验的逐项验收口径，以及「DNS 已恢复（2026-11-04）、上传闭环与比例校验待部署后复验」等已知限制与复验步骤，见 [2026-11-04 目录树批次发布说明](docs/notes/2026-11-04-outline-tree-release-notes.md)。
+
+> 本节记录的是 **#221 当时**的一次性部署序列（产出 `content_outline_node_models`）。#274 expand 之后两张具名树表取而代之，#277 收缩把旧共用表从建表脚本与 testkit 登记中移除；当前手动 `-db` 与部署时手工 DROP 旧表的顺序以 [收缩发布说明](docs/notes/2026-11-05-outline-tree-contract-release-notes.md) 为准。历史步骤不回头改写。
 
 ### 11.4.5 本批（#234 合批：阅读互动、消息中心与历史记录）的一次性部署序列
 

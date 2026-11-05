@@ -14,13 +14,14 @@ import {
 import { SITE_SETTINGS_SECTIONS, siteSettingsSectionByPath } from "../../app/utils/siteSettings";
 
 /**
- * 站点配置八域 → 独立路由的结构对账。
+ * 站点配置八个编辑域 → 独立路由的结构对账。
  *
- * 后端把站点配置拆成八个独立的段（读 `GET /site/admin/{name}`、写 `PUT /site/{name}`），
- * 后台原来用一个 `NTabs` 壳把它们装在同一页里：刷新会丢当前域，链接也没法分享。
+ * 后端把运行时配置拆成九个独立的段（ADR-0029），其中八个在后台各有编辑页；
+ * 第九段 `image_gc` 有具名端点但没有编辑页，所以不在本清单里。
+ * 后台原来用一个 `NTabs` 壳把这些编辑域装在同一页里：刷新会丢当前域，链接也没法分享。
  * 拆开之后要守住三件事：
  *
- *   1. 八个域各有一个可直接打开的 URL（页面文件真实存在，刷新保持当前域）；
+ *   1. 八个编辑域各有一个可直接打开的 URL（页面文件真实存在，刷新保持当前域）；
  *   2. 每个页面只渲染自己那一段的配置组件，且组件名与位置不变；
  *   3. 左侧菜单的八个子项与路由一一对应，深链接时父分组展开并高亮。
  *
@@ -83,8 +84,8 @@ function pageSource(page: string): string {
   return readFileSync(join(pagesDir, `${page}.vue`), "utf8");
 }
 
-describe("站点配置八域清单（路由与组件映射的唯一来源）", () => {
-  it("八个域的顺序、标题、路由与组件名固定", () => {
+describe("站点配置八个编辑域清单（路由与组件映射的唯一来源）", () => {
+  it("八个编辑域的顺序、标题、路由与组件名固定", () => {
     expect(
       SITE_SETTINGS_SECTIONS.map(({ key, label, path, component }) => ({
         key,
@@ -125,18 +126,18 @@ describe("站点配置八域清单（路由与组件映射的唯一来源）", (
   });
 });
 
-describe("站点配置八域菜单子项", () => {
-  // 站点配置下除了八个配置域，还挂着「右栏卡片」这个运营位管理页（#112 加的）。
+describe("站点配置八个编辑域菜单子项", () => {
+  // 站点配置下除了八个编辑域，还挂着「右栏卡片」这个运营位管理页（#112 加的）。
   // 它不是"配置域"，但确实是「站点配置」的子项，所以子项总数是 9。
   const OPERATIONAL_CHILDREN = [{ label: "右栏卡片", path: "/site/sidebar-cards" }];
 
-  it("「站点配置」是纯分组：没有自身页面，八个配置域一个不少（另有 1 个运营位子项）", () => {
+  it("「站点配置」是纯分组：没有自身页面，八个编辑域一个不少（另有 1 个运营位子项）", () => {
     const group = ADMIN_NAV_TREE.find((node) => node.label === "站点配置");
     expect(group).toBeDefined();
     // 父项只分组：它没有页面，所以不会跳空页。
     expect(group!.path).toBeUndefined();
 
-    // 八个配置域必须全在（顺序与 EXPECTED_SECTIONS 一致）。
+    // 八个编辑域必须全在（顺序与 EXPECTED_SECTIONS 一致）。
     const children = (group!.children ?? []).map(({ label, path }) => ({ label, path }));
     const domainChildren = children.filter(
       (child) => !OPERATIONAL_CHILDREN.some((extra) => extra.path === child.path),
@@ -152,7 +153,7 @@ describe("站点配置八域菜单子项", () => {
     expect(children.length).toBe(EXPECTED_SECTIONS.length + OPERATIONAL_CHILDREN.length);
   });
 
-  it("八个子项都能在菜单里查到，且父级归属正确", () => {
+  it("八个编辑域子项都能在菜单里查到，且父级归属正确", () => {
     for (const section of EXPECTED_SECTIONS) {
       expect(navItemByPath(section.path)).toMatchObject({
         label: section.label,
@@ -185,9 +186,9 @@ describe("站点配置八域菜单子项", () => {
   });
 });
 
-describe("站点配置八域页面文件（刷新保持当前域）", () => {
-  it("app/pages/site 下八个配置域各一个页面文件，且多一个「右栏卡片」运营位页面", () => {
-    // 八个配置域页面必须在。
+describe("站点配置八个编辑域页面文件（刷新保持当前域）", () => {
+  it("app/pages/site 下八个编辑域各一个页面文件，且多一个「右栏卡片」运营位页面", () => {
+    // 八个编辑域页面必须在。
     const domainPages = EXPECTED_SECTIONS.map((section) => section.page).sort();
     const actual = sitePageFiles();
     expect(actual.filter((page) => domainPages.includes(page))).toEqual(domainPages);
@@ -226,7 +227,7 @@ describe("站点配置八域页面文件（刷新保持当前域）", () => {
     }
   });
 
-  it("八个配置组件仍按原名待在原位置", () => {
+  it("八个编辑域配置组件仍按原名待在原位置", () => {
     for (const section of EXPECTED_SECTIONS) {
       expect(
         existsSync(join(settingsDir, `${section.component}.vue`)),

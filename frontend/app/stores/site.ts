@@ -10,7 +10,7 @@ export const useSiteStore = defineStore("site", () => {
   const runtimeConfig = ref<SiteRuntimeConfig | null>(null);
   const seo = ref<SiteSeoData | null>(null);
   const aiInfo = ref<SiteAiInfo | null>(null);
-  // 第 8 段 deco（装饰）：读者站必须先知道总开关，才知道要不要挂光标挂件。
+  // deco 段（九段之一，装饰）：读者站必须先知道总开关，才知道要不要挂光标挂件。
   // 它和站点配置 / SEO / AI 信息同一批并发取回，不新增一轮串行往返。
   const deco = ref<SiteDecoConfig | null>(null);
   const fetched = shallowRef(false);

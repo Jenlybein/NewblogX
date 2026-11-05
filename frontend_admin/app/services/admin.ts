@@ -47,7 +47,7 @@ import type {
   UserListResponseData,
 } from '~/types/api'
 
-/** 可读写的配置段。与后端 platform/config 的段名常量一一对应（八段）。 */
+/** 可读写的配置段。与后端段注册表（platform/config/registry.go）的九段一一对应（ADR-0029）。 */
 export type RuntimeSectionName =
   | 'site'
   | 'ai'
@@ -57,6 +57,7 @@ export type RuntimeSectionName =
   | 'log'
   | 'upload'
   | 'deco'
+  | 'image_gc'
 
 function api() {
   return useNuxtApp().$api
@@ -421,9 +422,9 @@ export function getReplayLogs(query: { page?: number; limit?: number; stream?: s
 
 // ── 其余配置段 ────────────────────────────────────────────────
 //
-// 八个段共用同一条路由（`GET /site/admin/{name}` / `PUT /site/{name}`），
-// 请求体与响应结构随 name 变。所以这里用泛型包一层，再给出具名包装 ——
-// 具名的那几个让页面里的调用点能一眼看出在读写哪一段。
+// 九段各有具名端点（`GET /site/admin/<段名>` / `PUT /site/<段名>`），
+// 请求体与响应形状按段固定（ADR-0029）。这里仍用泛型包一层再给出具名包装，
+// 让页面里的调用点能一眼看出在读写哪一段；类型由生成的 openapi.d.ts 派生。
 
 export function getRuntimeSection<T>(name: RuntimeSectionName) {
   return api().request<T>(`/site/admin/${name}`)
@@ -473,7 +474,7 @@ export function updateUploadRuntimeConfig(payload: UploadRuntimeConfig) {
   return updateRuntimeSection('upload', payload)
 }
 
-/** 装饰段（第 8 段 deco）：光标挂件的开关与十二个数值参数。 */
+/** 装饰段（九段里的 deco）：光标挂件的开关与十二个数值参数，形状来自具名契约。 */
 export function getDecoRuntimeConfig() {
   return getRuntimeSection<DecoRuntimeConfig>('deco')
 }

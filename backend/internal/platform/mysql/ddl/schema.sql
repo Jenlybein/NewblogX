@@ -342,6 +342,42 @@ CREATE TABLE IF NOT EXISTS `content_outline_node_models` (
   KEY `idx_outline_owner` (`owner_kind`,`owner_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
+-- 拆树 expand 阶段新增的两张按实体命名的树表（#274）。
+-- 归属由表名表达，不再有 owner_kind；唯一键与索引只落在 (owner_id, article_id)。
+-- 旧共用表逐字保留，expand 期新旧端点并存只是该票内部过渡，由 #277 收缩。
+-- 文件夹节点的 article_id 为 NULL：MySQL 唯一索引里多个 NULL 互不冲突。
+CREATE TABLE IF NOT EXISTS `collection_outline_node_models` (
+  `id` bigint unsigned NOT NULL,
+  `created_at` datetime(3) DEFAULT NULL,
+  `updated_at` datetime(3) DEFAULT NULL,
+  `deleted_at` datetime(3) DEFAULT NULL,
+  `owner_id` bigint unsigned NOT NULL,
+  `parent_id` bigint unsigned NOT NULL DEFAULT '0',
+  `kind` bigint NOT NULL,
+  `title` varchar(128) NOT NULL,
+  `article_id` bigint unsigned DEFAULT NULL,
+  `sort_order` bigint NOT NULL DEFAULT '0',
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uk_collection_outline_owner_article` (`owner_id`,`article_id`),
+  KEY `idx_collection_outline_owner` (`owner_id`,`article_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
+CREATE TABLE IF NOT EXISTS `project_outline_node_models` (
+  `id` bigint unsigned NOT NULL,
+  `created_at` datetime(3) DEFAULT NULL,
+  `updated_at` datetime(3) DEFAULT NULL,
+  `deleted_at` datetime(3) DEFAULT NULL,
+  `owner_id` bigint unsigned NOT NULL,
+  `parent_id` bigint unsigned NOT NULL DEFAULT '0',
+  `kind` bigint NOT NULL,
+  `title` varchar(128) NOT NULL,
+  `article_id` bigint unsigned DEFAULT NULL,
+  `sort_order` bigint NOT NULL DEFAULT '0',
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uk_project_outline_owner_article` (`owner_id`,`article_id`),
+  KEY `idx_project_outline_owner` (`owner_id`,`article_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
 CREATE TABLE IF NOT EXISTS `comment_digg_models` (
   `id` bigint unsigned NOT NULL,
   `created_at` datetime(3) DEFAULT NULL,

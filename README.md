@@ -971,7 +971,7 @@ docker compose up -d --build
 - **表不存在** → 自动执行建表，等 ES 就绪，再 `-es -s ensure`，然后才真正启动服务；
 - **表已存在** → 跳过初始化，直接启动。
 
-这带来一个副作用要知道：**它只认这一张表**。所以 ①想重新初始化，得先把这张表删掉（或手动执行 `-db`），否则 entrypoint 永远认为"已经初始化过了"；②**后来新增的表不会被自举**——只要 `runtime_config_models` 还在，升级时就必须手动执行一次 `-db`（见 [11.4](#114-更新版本)），否则用到新表的接口会报"表不存在"。本项目至今新增过 `article_hot_top_models`（热门置顶）、`project_models`（项目实体）与 `content_outline_node_models`（目录树）三张表，都走这条路。
+这带来一个副作用要知道：**它只认这一张表**。所以 ①想重新初始化，得先把这张表删掉（或手动执行 `-db`），否则 entrypoint 永远认为"已经初始化过了"；②**后来新增的表不会被自举**——只要 `runtime_config_models` 还在，升级时就必须手动执行一次 `-db`（见 [11.4](#114-更新版本)），否则用到新表的接口会报"表不存在"。本项目至今新增过 `article_hot_top_models`（热门置顶）、`project_models`（项目实体）、`content_outline_node_models`（共用目录树），以及拆树 expand 批（#274）逐张指名立项的 `collection_outline_node_models`（合集目录树）与 `project_outline_node_models`（项目目录树）五张表，都走这条路；#274 的手动 `-db` 步骤见 [发布说明](docs/notes/2026-11-05-outline-tree-expand-release-notes.md)。
 
 **启动要多久**：首次 `up` 含构建，几分钟；之后重启约 **40 秒**，其中大头是 ES 自己的冷启动（entrypoint 的 `wait_for_es` 每 3 秒探一次），应用连上 Redis/MySQL/ES 本身只要几毫秒。`blogx_server` 的探针间隔是 10s，所以"进程就绪"到"被判定 healthy"最多再差 10 秒。
 

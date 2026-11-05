@@ -110,6 +110,7 @@ var adminRouteTemplates = []string{
 	"GET /api/collections/admin",
 	"GET /api/collections/:id/outline/admin",
 	"PUT /api/collections/:id/outline",
+	"PUT /api/collections/:id/outline-tree",
 	"POST /api/collections",
 	"PUT /api/collections/:id",
 	"DELETE /api/collections/:id",
@@ -117,6 +118,7 @@ var adminRouteTemplates = []string{
 	"GET /api/projects/admin",
 	"GET /api/projects/:id/outline/admin",
 	"PUT /api/projects/:id/outline",
+	"PUT /api/projects/:id/outline-tree",
 	"POST /api/projects",
 	"PUT /api/projects/:id",
 	"DELETE /api/projects/:id",
@@ -213,11 +215,13 @@ var userRouteTemplates = []string{
 	"DELETE /api/articles/history",
 	"DELETE /api/articles/history/all",
 	"DELETE /api/articles/top",
-	// 合集 / 项目前台读
+	// 合集 / 项目前台读（含两个具名树端点，公开读）
 	"GET /api/collections",
 	"GET /api/collections/:id",
+	"GET /api/collections/:id/outline-tree",
 	"GET /api/projects",
 	"GET /api/projects/:id",
+	"GET /api/projects/:id/outline-tree",
 	// 评论 / 关注 / 粉丝
 	"GET /api/comments",
 	"GET /api/comments/man",

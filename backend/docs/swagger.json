@@ -1268,6 +1268,54 @@
                 },
                 "type": "object"
             },
+            "internal_article_adapter_http.CollectionOutlineSaveRequest": {
+                "properties": {
+                    "nodes": {
+                        "items": {
+                            "$ref": "#/components/schemas/internal_article_adapter_http.OutlineNodeRequest"
+                        },
+                        "type": "array",
+                        "uniqueItems": false
+                    }
+                },
+                "type": "object"
+            },
+            "internal_article_adapter_http.CollectionOutlineTreeResponse": {
+                "properties": {
+                    "article_count": {
+                        "type": "integer"
+                    },
+                    "cover": {
+                        "type": "string"
+                    },
+                    "current": {
+                        "$ref": "#/components/schemas/internal_article_adapter_http.OutlineArticleRefResponse"
+                    },
+                    "has_tree": {
+                        "type": "boolean"
+                    },
+                    "next": {
+                        "$ref": "#/components/schemas/internal_article_adapter_http.OutlineArticleRefResponse"
+                    },
+                    "nodes": {
+                        "items": {
+                            "$ref": "#/components/schemas/internal_article_adapter_http.OutlineNodeResponse"
+                        },
+                        "type": "array",
+                        "uniqueItems": false
+                    },
+                    "owner_id": {
+                        "type": "string"
+                    },
+                    "owner_kind": {
+                        "type": "integer"
+                    },
+                    "previous": {
+                        "$ref": "#/components/schemas/internal_article_adapter_http.OutlineArticleRefResponse"
+                    }
+                },
+                "type": "object"
+            },
             "internal_article_adapter_http.CollectionUpdateRequest": {
                 "properties": {
                     "cover": {
@@ -1654,6 +1702,54 @@
                 "required": [
                     "project_ids"
                 ],
+                "type": "object"
+            },
+            "internal_article_adapter_http.ProjectOutlineSaveRequest": {
+                "properties": {
+                    "nodes": {
+                        "items": {
+                            "$ref": "#/components/schemas/internal_article_adapter_http.OutlineNodeRequest"
+                        },
+                        "type": "array",
+                        "uniqueItems": false
+                    }
+                },
+                "type": "object"
+            },
+            "internal_article_adapter_http.ProjectOutlineTreeResponse": {
+                "properties": {
+                    "article_count": {
+                        "type": "integer"
+                    },
+                    "cover": {
+                        "type": "string"
+                    },
+                    "current": {
+                        "$ref": "#/components/schemas/internal_article_adapter_http.OutlineArticleRefResponse"
+                    },
+                    "has_tree": {
+                        "type": "boolean"
+                    },
+                    "next": {
+                        "$ref": "#/components/schemas/internal_article_adapter_http.OutlineArticleRefResponse"
+                    },
+                    "nodes": {
+                        "items": {
+                            "$ref": "#/components/schemas/internal_article_adapter_http.OutlineNodeResponse"
+                        },
+                        "type": "array",
+                        "uniqueItems": false
+                    },
+                    "owner_id": {
+                        "type": "string"
+                    },
+                    "owner_kind": {
+                        "type": "integer"
+                    },
+                    "previous": {
+                        "$ref": "#/components/schemas/internal_article_adapter_http.OutlineArticleRefResponse"
+                    }
+                },
                 "type": "object"
             },
             "internal_article_adapter_http.ProjectUpdateRequest": {
@@ -4119,6 +4215,20 @@
                 },
                 "type": "object"
             },
+            "myblogx_internal_kernel.Envelope-internal_article_adapter_http_CollectionOutlineTreeResponse": {
+                "properties": {
+                    "code": {
+                        "type": "integer"
+                    },
+                    "data": {
+                        "$ref": "#/components/schemas/internal_article_adapter_http.CollectionOutlineTreeResponse"
+                    },
+                    "msg": {
+                        "type": "string"
+                    }
+                },
+                "type": "object"
+            },
             "myblogx_internal_kernel.Envelope-internal_article_adapter_http_OutlineTreeResponse": {
                 "properties": {
                     "code": {
@@ -4154,6 +4264,20 @@
                     },
                     "data": {
                         "$ref": "#/components/schemas/internal_article_adapter_http.ProjectDetailResponse"
+                    },
+                    "msg": {
+                        "type": "string"
+                    }
+                },
+                "type": "object"
+            },
+            "myblogx_internal_kernel.Envelope-internal_article_adapter_http_ProjectOutlineTreeResponse": {
+                "properties": {
+                    "code": {
+                        "type": "integer"
+                    },
+                    "data": {
+                        "$ref": "#/components/schemas/internal_article_adapter_http.ProjectOutlineTreeResponse"
                     },
                     "msg": {
                         "type": "string"
@@ -8420,6 +8544,100 @@
                 ]
             }
         },
+        "/collections/{id}/outline-tree": {
+            "get": {
+                "parameters": [
+                    {
+                        "description": "合集 ID",
+                        "in": "path",
+                        "name": "id",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "description": "来源（collection:\u003cid\u003e）",
+                        "in": "query",
+                        "name": "from",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "description": "阅读页当前文章 ID",
+                        "in": "query",
+                        "name": "article_id",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/myblogx_internal_kernel.Envelope-internal_article_adapter_http_CollectionOutlineTreeResponse"
+                                }
+                            }
+                        },
+                        "description": "OK"
+                    }
+                },
+                "summary": "合集具名目录树",
+                "tags": [
+                    "collection"
+                ]
+            },
+            "put": {
+                "parameters": [
+                    {
+                        "description": "合集 ID",
+                        "in": "path",
+                        "name": "id",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/internal_article_adapter_http.CollectionOutlineSaveRequest",
+                                "summary": "body",
+                                "description": "请求体"
+                            }
+                        }
+                    },
+                    "description": "请求体",
+                    "required": true
+                },
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/myblogx_internal_kernel.Envelope-internal_article_adapter_http_CollectionOutlineTreeResponse"
+                                }
+                            }
+                        },
+                        "description": "OK"
+                    }
+                },
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "summary": "保存合集具名目录树",
+                "tags": [
+                    "collection"
+                ]
+            }
+        },
         "/collections/{id}/outline/admin": {
             "get": {
                 "parameters": [
@@ -11138,6 +11356,100 @@
                 "summary": "保存项目目录树",
                 "tags": [
                     "outline"
+                ]
+            }
+        },
+        "/projects/{id}/outline-tree": {
+            "get": {
+                "parameters": [
+                    {
+                        "description": "项目 ID",
+                        "in": "path",
+                        "name": "id",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "description": "来源（project:\u003cid\u003e）",
+                        "in": "query",
+                        "name": "from",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "description": "阅读页当前文章 ID",
+                        "in": "query",
+                        "name": "article_id",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/myblogx_internal_kernel.Envelope-internal_article_adapter_http_ProjectOutlineTreeResponse"
+                                }
+                            }
+                        },
+                        "description": "OK"
+                    }
+                },
+                "summary": "项目具名目录树",
+                "tags": [
+                    "project"
+                ]
+            },
+            "put": {
+                "parameters": [
+                    {
+                        "description": "项目 ID",
+                        "in": "path",
+                        "name": "id",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/internal_article_adapter_http.ProjectOutlineSaveRequest",
+                                "summary": "body",
+                                "description": "请求体"
+                            }
+                        }
+                    },
+                    "description": "请求体",
+                    "required": true
+                },
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/myblogx_internal_kernel.Envelope-internal_article_adapter_http_ProjectOutlineTreeResponse"
+                                }
+                            }
+                        },
+                        "description": "OK"
+                    }
+                },
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "summary": "保存项目具名目录树",
+                "tags": [
+                    "project"
                 ]
             }
         },

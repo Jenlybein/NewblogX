@@ -48,12 +48,16 @@ func (h *Handler) Register(r *gin.RouterGroup, authMw, optionalMw gin.HandlerFun
 	group.GET("top", mw.BindQuery[ArticleTopListRequest], h.Tops)
 	// 热门置顶运营位（与上面的作者置顶是两套数据）。公开读：首页区块。
 	group.GET("hot-top", h.HotTops)
-	// 合集（读者侧只读：列表页 + 详情页）。
+	// 合集（读者侧只读：列表页 + 详情页 + 具名树）。
 	collectionGroup.GET("", mw.BindQuery[CollectionListRequest], h.Collections)
 	collectionGroup.GET(":id", mw.BindUri[kernel.IDRequest], h.CollectionDetail)
-	// 项目（与合集并列的独立内容实体；读者侧同样只读：列表页 + 详情页）。
+	collectionGroup.GET(":id/outline-tree", mw.BindUri[kernel.IDRequest],
+		mw.BindQuery[NamedOutlineTreeRequest], h.CollectionOutlineTree)
+	// 项目（与合集并列的独立内容实体；读者侧同样只读：列表页 + 详情页 + 具名树）。
 	projectGroup.GET("", mw.BindQuery[ProjectListRequest], h.Projects)
 	projectGroup.GET(":id", mw.BindUri[kernel.IDRequest], h.ProjectDetail)
+	projectGroup.GET(":id/outline-tree", mw.BindUri[kernel.IDRequest],
+		mw.BindQuery[NamedOutlineTreeRequest], h.ProjectOutlineTree)
 	reviewAdminGroup.GET("", mw.BindQuery[ArticleReviewTaskListRequest], h.ReviewTasks)
 
 	// 登录用户写
@@ -98,6 +102,11 @@ func (h *Handler) Register(r *gin.RouterGroup, authMw, optionalMw gin.HandlerFun
 	collectionAdminGroup.GET(":id/outline/admin", mw.BindUri[kernel.IDRequest], h.AdminCollectionOutline)
 	collectionAdminGroup.PUT(":id/outline", mw.CaptureLog(mw.ReqBody),
 		mw.BindUri[kernel.IDRequest], mw.BindJson[OutlineSaveRequest], h.SaveCollectionOutline)
+	// 合集具名端点（#274 expand）：整树提交写入 collection_outline_node_models。
+	// 与上面的旧共享端点并存只是本票内部过渡，由 #277 收缩，不是长期兼容层。
+	collectionAdminGroup.PUT(":id/outline-tree", mw.CaptureLog(mw.ReqBody),
+		mw.BindUri[kernel.IDRequest], mw.BindJson[CollectionOutlineSaveRequest],
+		h.SaveCollectionOutlineTree)
 	// 项目管理（全部在管理员分组下）：与合集逐条对齐，路径换成 /projects。
 	projectAdminGroup.GET("admin", h.AdminProjects)
 	projectAdminGroup.POST("", mw.CaptureLog(mw.ReqBody), mw.BindJson[ProjectCreateRequest], h.CreateProject)
@@ -113,6 +122,10 @@ func (h *Handler) Register(r *gin.RouterGroup, authMw, optionalMw gin.HandlerFun
 	projectAdminGroup.GET(":id/outline/admin", mw.BindUri[kernel.IDRequest], h.AdminProjectOutline)
 	projectAdminGroup.PUT(":id/outline", mw.CaptureLog(mw.ReqBody),
 		mw.BindUri[kernel.IDRequest], mw.BindJson[OutlineSaveRequest], h.SaveProjectOutline)
+	// 项目具名端点（#274 expand）：整树提交写入 project_outline_node_models。
+	projectAdminGroup.PUT(":id/outline-tree", mw.CaptureLog(mw.ReqBody),
+		mw.BindUri[kernel.IDRequest], mw.BindJson[ProjectOutlineSaveRequest],
+		h.SaveProjectOutlineTree)
 
 	adminGroup.PUT("tags", mw.CaptureLog(mw.ReqBody), mw.BindJson[TagRequest], h.SaveTag)
 	adminGroup.DELETE("tags", mw.CaptureLog(mw.ReqBody), mw.BindJson[kernel.IDListRequest], h.DeleteTags)

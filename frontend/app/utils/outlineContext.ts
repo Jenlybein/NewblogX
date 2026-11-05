@@ -5,31 +5,38 @@ import { outlineSourceKind } from "./outlineKind";
 import { outlineArticleHref, outlineSource } from "./outlineTree";
 
 /**
- * 文章上下文接口（`/articles/{id}/outline-context`）：阅读页左栏取同一棵树。
+ * 阅读页左栏的读模型。
  *
- * 「来源」=`project:<id>` / `collection:<id>`；缺失时后端回退到第一棵归属树，
- * 都没有则不返回树。请求形状与响应形状都从契约派生，不手写一份。
+ * 归属由 `?from=<kind>:<id>` 一次给出，取数只经两个具名树端点；没有来源时
+ * 左栏按「没有可展示的树」处理，不再有按文章反查归属树的旧共享端点。
+ * 形状从具名契约派生，不手写一份。
  */
-
-/** 查询参数：`from` 只是原样透传，格式校验与回退都在服务端一处。 */
-export type ArticleOutlineContextRequest = NonNullable<
-  Operation<"/articles/{id}/outline-context", "get">["parameters"]["query"]
->;
 
 /** 当前 / 上一篇 / 下一篇的一行（后端用指针表达空值，契约里只能由前端声明可空）。 */
 export type OutlineArticleRef = Schema<"internal_article_adapter_http.OutlineArticleRefResponse">;
 
-/** 阅读页左栏的读模型；`has_tree=false` 表示不渲染左栏。 */
-export type ArticleOutlineContext = Nullable<
-  Schema<"internal_article_adapter_http.ArticleOutlineContextResponse">,
+/** 合集具名树的读模型；current / previous / next 可为 null。 */
+export type CollectionOutlineTree = Nullable<
+  Schema<"internal_article_adapter_http.CollectionOutlineTreeResponse">,
   "current" | "previous" | "next"
 >;
 
-/** 把 `?from=` 原样透传给后端：格式校验与回退都在服务端一处。 */
-export function outlineContextQuery(from?: string): ArticleOutlineContextRequest {
-  const trimmed = (from ?? "").trim();
-  return trimmed ? { from: trimmed } : {};
-}
+/** 项目具名树的读模型；current / previous / next 可为 null。 */
+export type ProjectOutlineTree = Nullable<
+  Schema<"internal_article_adapter_http.ProjectOutlineTreeResponse">,
+  "current" | "previous" | "next"
+>;
+
+/**
+ * 阅读页左栏的读模型；`has_tree=false` 表示不渲染左栏。
+ *
+ * 两个具名形状在左栏需要的字段上逐字同构：从任一份里挑出这些字段，
+ * 共用呈现组件 / 版式只消费这一份形状（契约里删字段会在编译期报错）。
+ */
+export type ArticleOutlineContext = Pick<
+  CollectionOutlineTree,
+  "has_tree" | "owner_kind" | "owner_id" | "nodes" | "current" | "previous" | "next"
+>;
 
 /**
  * 归属类型（契约里的 owner_kind 数值）→ 来源 kind。
@@ -77,12 +84,11 @@ export function outlineArticleRefTitle(ref: OutlineArticleRef | null | undefined
   return (ref?.article_title ?? "").trim() || "未命名文章";
 }
 
-// ── 具名端点派生类型（#274 expand）────────────────────────────────
+// ── 具名端点查询参数 ──────────────────────────────────────────────
 //
-// 两个具名端点的查询参数与读模型都从**本 app 的** openapi.d.ts 派生；
-// 本票只让类型在场，页面取数切换归 #275 / #276。owner_kind / owner_id 仍
-// 在具名响应里，上面的 outlineContextKind / outlineContextSource 逐字不变，
-// `?from=` 链接不需要任何兼容层。
+// 两个具名端点的查询参数都从**本 app 的** openapi.d.ts 派生；owner_kind /
+// owner_id 仍在具名响应里，上面的 outlineContextKind / outlineContextSource
+// 逐字不变，`?from=` 链接不需要任何兼容层。
 
 /** 合集具名树的查询参数（GET /collections/{id}/outline-tree）。 */
 export type CollectionOutlineTreeQuery = NonNullable<
@@ -94,25 +100,13 @@ export type ProjectOutlineTreeQuery = NonNullable<
   Operation<"/projects/{id}/outline-tree", "get">["parameters"]["query"]
 >;
 
-/** 合集具名树的读模型；current / previous / next 可为 null。 */
-export type CollectionOutlineTree = Nullable<
-  Schema<"internal_article_adapter_http.CollectionOutlineTreeResponse">,
-  "current" | "previous" | "next"
->;
-
-/** 项目具名树的读模型；current / previous / next 可为 null。 */
-export type ProjectOutlineTree = Nullable<
-  Schema<"internal_article_adapter_http.ProjectOutlineTreeResponse">,
-  "current" | "previous" | "next"
->;
-
 /**
  * 具名树响应 → 阅读页左栏现有的读模型。
  *
- * 两个具名形状与旧文章上下文形状在 `has_tree / owner_kind / owner_id / nodes /
- * current / previous / next` 上逐字同构，多出来的 `article_count` / `cover` 只对
- * 详情页有意义。这里显式挑出左栏要的字段，让共用呈现组件、折叠态与翻页链接
- * 继续只消费一份形状；契约里删掉任一字段都会在编译期报错。
+ * 两个具名形状在 `has_tree / owner_kind / owner_id / nodes / current /
+ * previous / next` 上逐字同构，多出来的 `article_count` / `cover` 只对详情页
+ * 有意义。这里显式挑出左栏要的字段，让共用呈现组件、折叠态与翻页链接继续
+ * 只消费一份形状；契约里删掉任一字段都会在编译期报错。
  */
 export function toArticleOutlineContext(
   value: CollectionOutlineTree | ProjectOutlineTree | null | undefined,

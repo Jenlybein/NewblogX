@@ -105,7 +105,7 @@ func (r *CollectionRepo) NextSortOrder(ctx context.Context) (int, error) {
 
 // ListCards 列出展示中的合集卡片，按序号升序。
 //
-// 过滤"展示开关"在 SQL 里；篇数与封面回退来自目录树（outlineCardStats），
+// 过滤"展示开关"在 SQL 里；篇数与封面回退来自归属树读模型（ownerCardStats），
 // 口径与读者详情一致：只数仍公开的文章、封面取 DFS 第一个公开文章节点。
 //
 // 分页为什么在 Go 里做：合集是**运营编排**的产物，数量以十计；而"开关关闭时
@@ -143,8 +143,8 @@ func (r *CollectionRepo) cardRows(
 		return nil, err
 	}
 
-	// 卡片读面以目录树为准：旧扁平收录中间表已冻结，这里完全不出现。
-	stats, err := outlineCardStats(ctx, r.db, outline.OwnerCollection, onlyAdminAuthors)
+	// 卡片读面以合集具名树为准：与后台编辑器、读者详情同一份归属树读模型。
+	stats, err := ownerCardStats(ctx, r.db, outline.OwnerCollection, onlyAdminAuthors)
 	if err != nil {
 		return nil, err
 	}
@@ -200,8 +200,9 @@ func (r *CollectionRepo) ListAdminCards(ctx context.Context) ([]collection.Admin
 		return nil, err
 	}
 
-	// 后台卡片不看「显示非管理员发布文章」这个读者开关，仍按"公开文章"口径。
-	stats, err := outlineCardStats(ctx, r.db, outline.OwnerCollection, false)
+	// 后台卡片不看「显示非管理员发布文章」这个读者开关，仍按"公开文章"口径；
+	// 篇数与回退封面同样只认合集具名树，与后台编辑器读回的是同一份数据。
+	stats, err := ownerCardStats(ctx, r.db, outline.OwnerCollection, false)
 	if err != nil {
 		return nil, err
 	}

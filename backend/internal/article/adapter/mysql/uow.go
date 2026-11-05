@@ -112,12 +112,9 @@ func (r *repos) Collections() collection.Repository { return NewCollectionRepo(r
 // 项目与合集是两套表、两套数据，仓储各自独立；共用的是分层与读口径。
 func (r *repos) Projects() project.Repository { return NewProjectRepo(r.db) }
 
-// Outlines 现场构造目录树仓储（合集与项目共用一张树表）。
-func (r *repos) Outlines() outline.Repository { return NewOutlineRepo(r.db) }
-
-// NamedOutlineFor 按实体返回自己的具名树表仓储（#274 expand）。
+// NamedOutlineFor 按实体返回自己的具名树表仓储。
 //
-// 用当前事务句柄现场构造，整树提交与业务写必然同事务；两张新表由表名表达
+// 用当前事务句柄现场构造，整树提交与业务写必然同事务；两张表由表名表达
 // 归属，SQL 只写一份。实现的是 app.NamedOutlineRepository（端口由使用方定义）。
 func (r *repos) NamedOutlineFor(_ context.Context, kind outline.OwnerKind) outline.Repository {
 	if kind == outline.OwnerProject {

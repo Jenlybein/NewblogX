@@ -376,6 +376,8 @@ func (r *Repo) ListMessages(ctx context.Context, q domain.MessageQuery) (domain.
 	// 多取一条判断 has_more：不能用 COUNT - offset 推，因为游标过滤后
 	// COUNT 是"会话可见总数"，不是"本页之后还剩几条"。
 	query := base().
+		// 取窗顺序仍是「最新在前」：第一页与每一页都要落在最近的 limit 条上，
+		// 交出前再由下面反序成契约要求的「页内最旧在前」。
 		// id 只是相同 send_time 的确定性定序键，绝不是时序键：客户端幂等键
 		// 派生的主键是 [2^62,2^63) 区间的 FNV 哈希，与消息先后无关。
 		Order("send_time DESC, id DESC")
@@ -394,9 +396,11 @@ func (r *Repo) ListMessages(ctx context.Context, q domain.MessageQuery) (domain.
 	if hasMore {
 		rows = rows[:page.Limit]
 	}
+	// 对外契约：列表**最旧在前**。取窗是「最新在前」，所以这里整体反序一次；
+	// 首屏（无游标）拿到的仍是最新一窗，只是页内从旧到新，界面不用再反转。
 	out := make([]domain.Message, 0, len(rows))
-	for _, row := range rows {
-		out = append(out, toMessage(row))
+	for i := len(rows) - 1; i >= 0; i-- {
+		out = append(out, toMessage(rows[i]))
 	}
 	result := domain.MessageQueryResult{
 		Messages: out,
@@ -404,11 +408,12 @@ func (r *Repo) ListMessages(ctx context.Context, q domain.MessageQuery) (domain.
 		HasMore:  hasMore,
 	}
 	// has_more=false 时 next_cursor 保持零值（空字符串），前端据此停翻。
-	if hasMore && len(rows) > 0 {
-		last := rows[len(rows)-1]
+	// 游标锚在本页**最旧**一条（升序结果的第一条），继续往前翻更早。
+	if hasMore && len(out) > 0 {
+		oldest := out[0]
 		result.NextCursor = domain.MessageCursor{
-			BeforeSendTime: last.SendTime.Format(time.RFC3339Nano),
-			BeforeID:       ctype.NewID(last.ID.Uint64()),
+			BeforeSendTime: oldest.SendTime.Format(time.RFC3339Nano),
+			BeforeID:       oldest.ID,
 		}
 	}
 	return result, nil

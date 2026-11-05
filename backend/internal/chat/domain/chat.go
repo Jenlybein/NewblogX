@@ -114,8 +114,9 @@ type MessageItem struct {
 
 // MessageCursor 是"按时间轴往前翻"的复合游标。
 //
-// BeforeSendTime 是上一页最老那条消息的 send_time 的 RFC3339Nano 序列化；
-// BeforeID 是同一条消息的 ctype.ID（十进制 uint64 的 JSON 字符串）。
+// 列表按 send_time **升序**返回（最旧在前），游标仍指向**上一页最旧一条**：
+// BeforeSendTime 是它的 send_time 的 RFC3339Nano 序列化；
+// BeforeID 是同一条的 ctype.ID（十进制 uint64 的 JSON 字符串）。
 // id 只用来给相同 send_time 定序：客户端幂等键派生的主键是 [2^62,2^63)
 // 区间的 FNV 哈希，不是时间序，绝不能单独拿它当时序键。
 // 两个字段都为零值表示"没有下一页"。
@@ -126,6 +127,8 @@ type MessageCursor struct {
 
 // MessageListData 是 GET /chat/messages 的 data 载荷。
 //
+// List 按 send_time **升序**（最旧在前）返回，相同时间用 id 做确定性并列裁决；
+// 第一页不带游标时是最新一窗，NextCursor 指向本页最旧一条，继续翻更早的页。
 // Count 始终是该会话当前可见消息的总行数（与是否带游标无关）；
 // HasMore=false 时 NextCursor 必须是零值，前端据此停止继续翻页。
 type MessageListData struct {

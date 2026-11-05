@@ -9,9 +9,10 @@ import type { ChatMessageItem, ChatNotificationPayload, ChatSessionItem } from "
  * 范围只剩**私信**：评论 / 互动 / 系统 / 全局通知已由 useMessageCenter（#239）接管。
  * 所以这里的站点消息与全局通知桩全部删掉 —— 再出现就是死代码又长回来了。
  *
- * 游标分页改造后：后端 DESC + `(before_send_time, before_id)` 复合游标，前端维护
- * **一条升序数组**。因此所有消息断言都按「最旧在前、最新在后」写，且默认
- * getChatMessages 桩必须返回新形状 `{list, count, has_more, next_cursor}`。
+ * 游标分页改造后：后端直接给**升序**（最旧在前）+ `(before_send_time, before_id)`
+ * 复合游标，前端维护**一条升序数组**，不再反转任何一页。因此所有消息断言都按
+ * 「最旧在前、最新在后」写，且默认 getChatMessages 桩必须返回形状
+ * `{list, count, has_more, next_cursor}`（list 已经是升序）。
  */
 
 const getChatSessionsMock = vi.hoisted(() => vi.fn());
@@ -114,7 +115,7 @@ function message(id: string, sendTime: string, overrides: Partial<ChatMessageIte
   };
 }
 
-/** 时间升序的 5 条：o1 < o2 < m1 < m2 < m3。后端每页仍给 DESC。 */
+/** 时间升序的 5 条：o1 < o2 < m1 < m2 < m3。后端每页也给升序。 */
 const o1 = message("o1", "2026-11-05T09:58:00Z");
 const o2 = message("o2", "2026-11-05T09:59:00Z");
 const m1 = message("m1", "2026-11-05T10:00:00Z");
@@ -401,9 +402,9 @@ describe("useInboxCenter（私信）", () => {
   // 游标分页 / 单一升序数组（ADR-0027）
   // ─────────────────────────────────────────────────────────────
 
-  it("第一页 3 条 DESC → chatMessages 升序（最旧在前）", async () => {
+  it("第一页已经是升序，chatMessages 原样照收（前端不再反转）", async () => {
     getChatSessionsMock.mockResolvedValue({ list: [chatSession] });
-    getChatMessagesMock.mockResolvedValue(page([m3, m2, m1], { count: 3 }));
+    getChatMessagesMock.mockResolvedValue(page([m1, m2, m3], { count: 3 }));
 
     const inbox = await createInboxCenter();
     await flushPromises();
@@ -415,7 +416,7 @@ describe("useInboxCenter（私信）", () => {
 
   it("loadOlderChatMessages 前插 2 条更早且不重复、更新 hasMore，第二次是空操作", async () => {
     getChatSessionsMock.mockResolvedValue({ list: [chatSession] });
-    getChatMessagesMock.mockResolvedValueOnce(page([m3, m2, m1], {
+    getChatMessagesMock.mockResolvedValueOnce(page([m1, m2, m3], {
       count: 12,
       has_more: true,
       next_cursor: { ...OLDER_CURSOR },
@@ -425,8 +426,8 @@ describe("useInboxCenter（私信）", () => {
     await flushPromises();
 
     expect(inbox.hasMoreHistory.value).toBe(true);
-    // 这一页 DESC，且故意带一条与首屏重复的 m1 —— 前插时必须 dedupe。
-    getChatMessagesMock.mockResolvedValueOnce(page([m1, o2, o1], { count: 3, has_more: false }));
+    // 这一页也已是升序，且故意带一条与首屏重复的 m1 —— 前插时必须 dedupe。
+    getChatMessagesMock.mockResolvedValueOnce(page([o1, o2, m1], { count: 3, has_more: false }));
 
     const prepended = await inbox.loadOlderChatMessages();
 
@@ -449,11 +450,11 @@ describe("useInboxCenter（私信）", () => {
   it("WS 通知把新消息追加到尾部，不丢弃已经翻出的两页历史", async () => {
     getChatSessionsMock.mockResolvedValue({ list: [chatSession] });
     getChatMessagesMock
-      .mockResolvedValueOnce(page([m3, m2, m1], {
+      .mockResolvedValueOnce(page([m1, m2, m3], {
         has_more: true,
         next_cursor: { ...OLDER_CURSOR },
       }))
-      .mockResolvedValueOnce(page([o2, o1], { has_more: false }));
+      .mockResolvedValueOnce(page([o1, o2], { has_more: false }));
 
     const inbox = await createInboxCenter();
     await flushPromises();
@@ -462,8 +463,8 @@ describe("useInboxCenter（私信）", () => {
 
     // 最新一页：m3 被服务端标成已读（替换旧行），m4 是真正的新消息。
     getChatMessagesMock.mockResolvedValueOnce(page([
-      m4,
       { ...m3, is_read: true, msg_status: 3 },
+      m4,
     ]));
     pushNotification({ session_id: chatSession.session_id, message_id: "m4", sender_id: "u2", msg_type: 1 });
     await flushPromises();
@@ -477,9 +478,9 @@ describe("useInboxCenter（私信）", () => {
   it("markActiveSessionRead 走整会话模式、就地标已读、刷新汇总与会话，且失败静默重试一次", async () => {
     getChatSessionsMock.mockResolvedValue({ list: [chatSession] });
     getChatMessagesMock.mockResolvedValue(page([
-      m3,
-      m2,
       { ...m1, is_self: true, is_read: false },
+      m2,
+      m3,
     ]));
 
     const inbox = await createInboxCenter();
@@ -511,11 +512,11 @@ describe("useInboxCenter（私信）", () => {
   it("发送把乐观项追加到尾部，且成功后不再调 getChatMessages（保住累积历史）", async () => {
     getChatSessionsMock.mockResolvedValue({ list: [chatSession] });
     getChatMessagesMock
-      .mockResolvedValueOnce(page([m3, m2, m1], {
+      .mockResolvedValueOnce(page([m1, m2, m3], {
         has_more: true,
         next_cursor: { ...OLDER_CURSOR },
       }))
-      .mockResolvedValueOnce(page([o2, o1], { has_more: false }));
+      .mockResolvedValueOnce(page([o1, o2], { has_more: false }));
     sendChatMessageMock.mockResolvedValue({
       ...m4,
       id: "server-1",
@@ -555,7 +556,7 @@ describe("useInboxCenter（私信）", () => {
     await inbox.loadChatMessages("chat:u1:u3");
     expect(ids(inbox.chatMessages.value)).toEqual(["b1"]);
 
-    resolveStale(page([m3, m2, m1]));
+    resolveStale(page([m1, m2, m3]));
     await flushPromises();
 
     expect(ids(inbox.chatMessages.value)).toEqual(["b1"]);
@@ -604,10 +605,10 @@ describe("useInboxCenter（私信）", () => {
 
   it("删除消息只从本地升序数组里移除，不重拉整页", async () => {
     getChatSessionsMock.mockResolvedValue({ list: [chatSession] });
-    getChatMessagesMock.mockResolvedValueOnce(page([m3, m2, m1], {
+    getChatMessagesMock.mockResolvedValueOnce(page([m1, m2, m3], {
       has_more: true,
       next_cursor: { ...OLDER_CURSOR },
-    })).mockResolvedValueOnce(page([o2, o1], { has_more: false }));
+    })).mockResolvedValueOnce(page([o1, o2], { has_more: false }));
 
     const inbox = await createInboxCenter();
     await flushPromises();

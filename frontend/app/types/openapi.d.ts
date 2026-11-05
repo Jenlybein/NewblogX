@@ -1806,7 +1806,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** 会话消息列表 */
+        /**
+         * 会话消息列表
+         * @description 列表按 send_time 升序返回（最旧在前），同毫秒用 id 做确定性并列裁决；不带游标时返回最新一窗，next_cursor 指向本页最旧一条。
+         */
         get: {
             parameters: {
                 query?: never;

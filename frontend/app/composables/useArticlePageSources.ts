@@ -6,9 +6,11 @@ import { getArticleScoreSummary } from "~/services/ai";
 import { getArticleAuthorInfo, getArticleDetail, getArticleDetailAnonymous, getArticlePrivateState } from "~/services/article";
 import { getRootComments, getRootCommentsAnonymous } from "~/services/comment";
 import { getUserBaseInfo } from "~/services/user";
+import type { ArticleFavoriteResult } from "~/types/api";
 import type { ArticleAuthorInfo, ArticleDetail, CommentRootItem } from "~/types/api";
+import { applyArticleFavoriteResult } from "~/utils/articleFavorite";
 import { detectReaderRenderMode, type ReaderRenderMode } from "~/utils/readerRenderMode";
-import type { ReaderSwrCache } from "~/utils/readerSwrCache";
+import { readerSwrCache, type ReaderSwrCache } from "~/utils/readerSwrCache";
 import {
   readerArticleAuthorBaseCacheKey,
   readerArticleAuthorInfoCacheKey,
@@ -22,6 +24,20 @@ import {
   withoutPrivateFieldsFromItems,
   type ArticlePrivateState,
 } from "~/utils/readerPrivateFields";
+
+/** 点赞写响应（权威态 + 权威计数，不做本地 ±1）。 */
+export interface ArticleDiggWriteResult {
+  is_digg?: boolean | null;
+  digg_count?: number | null;
+}
+
+/**
+ * 页面只上报「读者做了什么」：写动作种类 + 写响应（可能为空）。
+ * 回填、私有态覆盖、缓存键拼接与主动失效全部留在本模块内。
+ */
+export type ArticleWriteReport =
+  | { kind: "digg"; result: ArticleDiggWriteResult | null | undefined }
+  | { kind: "favorite"; result: ArticleFavoriteResult | null | undefined };
 
 export interface ArticleCommentsPage {
   items: CommentRootItem[];
@@ -83,6 +99,10 @@ export async function useArticlePageSources(options: ArticlePageSourcesOptions) 
   const nuxtApp = useNuxtApp();
   const inNuxtContext = <T>(run: () => T) => nuxtApp.runWithContext(run);
   const articleId = computed(() => String(toValue(options.articleId)));
+  // 客户端 30s SWR 实例：与正文源共用同一份（单测注入假时钟时也必须注入同一份，
+  // 否则写响应后失效的是另一张 Map）。服务端渲染不碰客户端缓存。
+  const activeSwrCache: ReaderSwrCache | null =
+    mode === "server" ? null : (options.swrCache === undefined ? readerSwrCache : options.swrCache);
 
   // 服务端显式匿名取数：缓存键只有 URL，SSR 请求绝不能带登录身份（哪怕后端将来从
   // cookie 里认出用户，进 HTML 的也只能是匿名内容）。
@@ -124,14 +144,14 @@ export async function useArticlePageSources(options: ArticlePageSourcesOptions) 
     key: () => readerArticleCacheKey(articleId.value),
     handler: () => fetchArticle(articleId.value).then(articleForRender),
     mode,
-    cache: options.swrCache,
+    cache: activeSwrCache,
     sanitizeForCache: withoutPrivateFields,
   });
   const scoreSource = useReaderSwrAsyncData<ArticleScoreSummary | null>({
     key: () => readerArticleScoreCacheKey(articleId.value),
     handler: () => fetchScore(articleId.value),
     mode,
-    cache: options.swrCache,
+    cache: activeSwrCache,
     lazy: true,
     watch: [articleId],
   });
@@ -186,7 +206,7 @@ export async function useArticlePageSources(options: ArticlePageSourcesOptions) 
     key: () => readerArticleAuthorInfoCacheKey(authorId.value || articleId.value),
     handler: () => (authorId.value ? fetchAuthorInfo(authorId.value) : Promise.resolve(null)),
     mode,
-    cache: options.swrCache,
+    cache: activeSwrCache,
     immediate: false,
   });
   const authorProfileSource = useAsyncData<ArticleAuthorProfile | null>(
@@ -202,7 +222,7 @@ export async function useArticlePageSources(options: ArticlePageSourcesOptions) 
     cacheKey: () => readerArticleCommentsCacheKey(articleId.value),
     pageSize: () => ROOT_COMMENT_PAGE_SIZE,
     initialLoad: mode === "navigation" ? "background" : "block",
-    swrCache: mode === "server" ? null : options.swrCache,
+    swrCache: activeSwrCache,
     sanitizeForCache: (page) => ({
       ...page,
       items: withoutPrivateFieldsFromItems(page.items),
@@ -244,11 +264,44 @@ export async function useArticlePageSources(options: ArticlePageSourcesOptions) 
     await Promise.all([articleSource, scoreSource, commentsPager.ready, authorWave]);
   }
 
+  /**
+   * 阅读页取数模块统一管写响应（ADR-0024 决策 4 / #282）：
+   * 页面只上报「读者做了什么 + 写响应」，不接触缓存单例与缓存键。
+   *
+   * - 写响应带权威字段：直接覆盖本次渲染的正文（权威计数 + 私有态），**不做本地 ±1**；
+   * - 写响应为空：不 patch、不造脏值，但仍失效客户端 30s SWR；
+   * - 每次写都只删正文键 `readerArticleCacheKey(id)`：那份是写之前烤进去的匿名快照，
+   *   留着会让「返回/重进」先渲染旧数字再等 TTL。匿名服务端渲染缓存、首页与评论
+   *   分页缓存、私有态独立源都不在这条治理面内，一概不动。
+   */
+  function reportArticleWrite(report: ArticleWriteReport) {
+    const current = articleSource.data.value;
+    if (current) {
+      if (report.kind === "digg") {
+        const result = report.result;
+        if (typeof result?.is_digg === "boolean" && typeof result.digg_count === "number") {
+          articleSource.data.value = {
+            ...current,
+            is_digg: result.is_digg,
+            digg_count: result.digg_count,
+          } as ArticleDetail;
+        }
+      } else {
+        // 收藏写响应（含 null）的空值防御在纯函数里，页面与这里都不手写第二份判空。
+        articleSource.data.value = (applyArticleFavoriteResult(current, report.result) ?? undefined) as ArticleDetail | undefined;
+      }
+    }
+    // 缓存键拼接与主动失效都留在这里：服务端不碰客户端缓存，其它键一概不删。
+    activeSwrCache?.delete(readerArticleCacheKey(articleId.value));
+  }
+
   return {
     article: articleSource.data,
     articlePending: articleSource.pending,
     articleError: articleSource.error,
     refreshArticle: articleSource.refresh,
+    /** 页面上报一次读者写动作：回填与缓存失效由本模块收口。 */
+    reportArticleWrite,
     /** 登录用户私有态（只进本次渲染，不进 payload / SWR）。 */
     articlePrivate: articlePrivateSource.data,
     refreshArticlePrivate,

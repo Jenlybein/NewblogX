@@ -141,7 +141,7 @@ func TestAdminOutlineReturnsNestedTreeWithEmptyFolder(t *testing.T) {
 		outlineArticle(t, 4, 0, 12, 3),
 	)
 
-	detail, err := svc.AdminOutline(ctx, adminViewer(), outline.OwnerCollection, ctype.NewID(outlineOwnerID))
+	detail, err := svc.NamedOutlineTree(ctx, outline.OwnerCollection, ctype.NewID(outlineOwnerID), "", "", false, adminViewer())
 	if err != nil {
 		t.Fatalf("读回目录树失败: %v", err)
 	}
@@ -167,7 +167,7 @@ func TestSaveOutlineCreatesFoldersAndIncludesArticles(t *testing.T) {
 	seedOutlineArticle(t, repos, 11, "第一篇", domain.StatusPublished)
 	seedOutlineArticle(t, repos, 12, "第二篇", domain.StatusPublished)
 
-	detail, err := svc.SaveOutline(ctx, app.SaveOutlineCmd{
+	detail, err := svc.SaveNamedOutline(ctx, app.SaveNamedOutlineCmd{
 		Actor:     adminViewer(),
 		OwnerKind: outline.OwnerCollection,
 		OwnerID:   ctype.NewID(outlineOwnerID),
@@ -198,7 +198,7 @@ func TestSaveOutlineCreatesFoldersAndIncludesArticles(t *testing.T) {
 	}
 
 	// 重新打开读回同一棵树。
-	again, err := svc.AdminOutline(ctx, adminViewer(), outline.OwnerCollection, ctype.NewID(outlineOwnerID))
+	again, err := svc.NamedOutlineTree(ctx, outline.OwnerCollection, ctype.NewID(outlineOwnerID), "", "", false, adminViewer())
 	if err != nil {
 		t.Fatalf("重新读取失败: %v", err)
 	}
@@ -228,7 +228,7 @@ func TestSaveOutlineMovesNodesAndReorderSiblings(t *testing.T) {
 	)
 
 	// 把 A11 从第一章移到第二章；把 A12 移到第一章；根层顺序改成 第二章、第一章。
-	detail, err := svc.SaveOutline(ctx, app.SaveOutlineCmd{
+	detail, err := svc.SaveNamedOutline(ctx, app.SaveNamedOutlineCmd{
 		Actor:     adminViewer(),
 		OwnerKind: outline.OwnerCollection,
 		OwnerID:   ctype.NewID(outlineOwnerID),
@@ -281,13 +281,13 @@ func TestSaveOutlineRenamesExistingFolder(t *testing.T) {
 
 	repos.FakeOutlines().Seed(outlineFolder(t, 1, 0, "第一章", 1))
 
-	cmd := app.SaveOutlineCmd{
+	cmd := app.SaveNamedOutlineCmd{
 		Actor: adminViewer(), OwnerKind: outline.OwnerCollection, OwnerID: ctype.NewID(outlineOwnerID),
 		Nodes: []app.OutlineInputNode{
 			{ID: ctype.NewID(1), Kind: outline.NodeKindFolder, Title: "  第一章（修订）  "},
 		},
 	}
-	detail, err := svc.SaveOutline(ctx, cmd)
+	detail, err := svc.SaveNamedOutline(ctx, cmd)
 	if err != nil {
 		t.Fatalf("重命名保存失败: %v", err)
 	}
@@ -295,7 +295,7 @@ func TestSaveOutlineRenamesExistingFolder(t *testing.T) {
 		t.Fatalf("保存后的标题不对: got %q want %q", got, want)
 	}
 
-	again, err := svc.AdminOutline(ctx, adminViewer(), outline.OwnerCollection, ctype.NewID(outlineOwnerID))
+	again, err := svc.NamedOutlineTree(ctx, outline.OwnerCollection, ctype.NewID(outlineOwnerID), "", "", false, adminViewer())
 	if err != nil {
 		t.Fatalf("重新读取失败: %v", err)
 	}
@@ -307,7 +307,7 @@ func TestSaveOutlineRenamesExistingFolder(t *testing.T) {
 	cmd.Nodes = []app.OutlineInputNode{
 		{ID: ctype.NewID(1), Kind: outline.NodeKindFolder, Title: "第一章（修订）"},
 	}
-	second, err := svc.SaveOutline(ctx, cmd)
+	second, err := svc.SaveNamedOutline(ctx, cmd)
 	if err != nil {
 		t.Fatalf("重复提交失败: %v", err)
 	}
@@ -328,7 +328,7 @@ func TestSaveOutlineIsIdempotent(t *testing.T) {
 	ctx := context.Background()
 	seedOutlineArticle(t, repos, 11, "第一篇", domain.StatusPublished)
 
-	cmd := app.SaveOutlineCmd{
+	cmd := app.SaveNamedOutlineCmd{
 		Actor:     adminViewer(),
 		OwnerKind: outline.OwnerCollection,
 		OwnerID:   ctype.NewID(outlineOwnerID),
@@ -342,7 +342,7 @@ func TestSaveOutlineIsIdempotent(t *testing.T) {
 			},
 		},
 	}
-	first, err := svc.SaveOutline(ctx, cmd)
+	first, err := svc.SaveNamedOutline(ctx, cmd)
 	if err != nil {
 		t.Fatalf("第一次保存失败: %v", err)
 	}
@@ -359,7 +359,7 @@ func TestSaveOutlineIsIdempotent(t *testing.T) {
 			},
 		},
 	}
-	second, err := svc.SaveOutline(ctx, cmd)
+	second, err := svc.SaveNamedOutline(ctx, cmd)
 	if err != nil {
 		t.Fatalf("第二次保存失败: %v", err)
 	}
@@ -388,7 +388,7 @@ func TestAdminOutlineKeepsDeletedArticleTitleAndReason(t *testing.T) {
 	}
 	repos.FakeOutlines().Seed(outlineArticle(t, 2, 0, 11, 1))
 
-	detail, err := svc.AdminOutline(ctx, adminViewer(), outline.OwnerCollection, ctype.NewID(outlineOwnerID))
+	detail, err := svc.NamedOutlineTree(ctx, outline.OwnerCollection, ctype.NewID(outlineOwnerID), "", "", false, adminViewer())
 	if err != nil {
 		t.Fatalf("读回后台树失败: %v", err)
 	}
@@ -411,7 +411,7 @@ func TestAdminOutlineMarksMissingArticleNode(t *testing.T) {
 
 	repos.FakeOutlines().Seed(outlineArticle(t, 2, 0, 99, 1))
 
-	detail, err := svc.AdminOutline(ctx, adminViewer(), outline.OwnerCollection, ctype.NewID(outlineOwnerID))
+	detail, err := svc.NamedOutlineTree(ctx, outline.OwnerCollection, ctype.NewID(outlineOwnerID), "", "", false, adminViewer())
 	if err != nil {
 		t.Fatalf("读回后台树失败: %v", err)
 	}
@@ -435,7 +435,7 @@ func TestSaveOutlineRetainsStaleArticleNode(t *testing.T) {
 	seedOutlineArticle(t, repos, 11, "草稿", domain.StatusDraft)
 	repos.FakeOutlines().Seed(outlineArticle(t, 2, 0, 11, 1))
 
-	detail, err := svc.AdminOutline(ctx, adminViewer(), outline.OwnerCollection, ctype.NewID(outlineOwnerID))
+	detail, err := svc.NamedOutlineTree(ctx, outline.OwnerCollection, ctype.NewID(outlineOwnerID), "", "", false, adminViewer())
 	if err != nil {
 		t.Fatalf("读回失败: %v", err)
 	}
@@ -444,7 +444,7 @@ func TestSaveOutlineRetainsStaleArticleNode(t *testing.T) {
 	}
 
 	// 整树提交时带上这个失效节点仍然是合法的（移除由运营自己决定）。
-	if _, err := svc.SaveOutline(ctx, app.SaveOutlineCmd{
+	if _, err := svc.SaveNamedOutline(ctx, app.SaveNamedOutlineCmd{
 		Actor:     adminViewer(),
 		OwnerKind: outline.OwnerCollection,
 		OwnerID:   ctype.NewID(outlineOwnerID),
@@ -470,13 +470,13 @@ func TestSaveOutlineDropsStaleArticleNode(t *testing.T) {
 		outlineFolder(t, 3, 0, "第一章", 2),
 	)
 
-	cmd := app.SaveOutlineCmd{
+	cmd := app.SaveNamedOutlineCmd{
 		Actor: adminViewer(), OwnerKind: outline.OwnerCollection, OwnerID: ctype.NewID(outlineOwnerID),
 		Nodes: []app.OutlineInputNode{
 			{ID: ctype.NewID(3), Kind: outline.NodeKindFolder, Title: "第一章"},
 		},
 	}
-	detail, err := svc.SaveOutline(ctx, cmd)
+	detail, err := svc.SaveNamedOutline(ctx, cmd)
 	if err != nil {
 		t.Fatalf("清理失效行失败: %v", err)
 	}
@@ -487,7 +487,7 @@ func TestSaveOutlineDropsStaleArticleNode(t *testing.T) {
 		t.Fatalf("失效文章节点应软删，活跃节点 %d", len(repos.FakeOutlines().ActiveNodes()))
 	}
 
-	if _, err := svc.SaveOutline(ctx, cmd); err != nil {
+	if _, err := svc.SaveNamedOutline(ctx, cmd); err != nil {
 		t.Fatalf("重复清理失败: %v", err)
 	}
 	if repos.FakeOutlines().Calls("Create") != 0 {
@@ -504,7 +504,7 @@ func TestSaveOutlineRejectsInvalidInput(t *testing.T) {
 		svc, repos, _ := seedCollectionOutlines(t)
 		ctx := context.Background()
 		seedOutlineArticle(t, repos, 11, "第一篇", domain.StatusPublished)
-		_, err := svc.SaveOutline(ctx, app.SaveOutlineCmd{
+		_, err := svc.SaveNamedOutline(ctx, app.SaveNamedOutlineCmd{
 			Actor:     authorViewer(),
 			OwnerKind: outline.OwnerCollection,
 			OwnerID:   ctype.NewID(outlineOwnerID),
@@ -520,7 +520,7 @@ func TestSaveOutlineRejectsInvalidInput(t *testing.T) {
 		svc, repos, tx := seedCollectionOutlines(t)
 		ctx := context.Background()
 		seedOutlineArticle(t, repos, 11, "第一篇", domain.StatusPublished)
-		_, err := svc.SaveOutline(ctx, app.SaveOutlineCmd{
+		_, err := svc.SaveNamedOutline(ctx, app.SaveNamedOutlineCmd{
 			Actor:     adminViewer(),
 			OwnerKind: outline.OwnerCollection,
 			OwnerID:   ctype.NewID(outlineOwnerID),
@@ -543,7 +543,7 @@ func TestSaveOutlineRejectsInvalidInput(t *testing.T) {
 		svc, repos, _ := seedCollectionOutlines(t)
 		ctx := context.Background()
 		seedOutlineArticle(t, repos, 11, "草稿", domain.StatusDraft)
-		_, err := svc.SaveOutline(ctx, app.SaveOutlineCmd{
+		_, err := svc.SaveNamedOutline(ctx, app.SaveNamedOutlineCmd{
 			Actor:     adminViewer(),
 			OwnerKind: outline.OwnerCollection,
 			OwnerID:   ctype.NewID(outlineOwnerID),
@@ -559,7 +559,7 @@ func TestSaveOutlineRejectsInvalidInput(t *testing.T) {
 		svc, repos, _ := seedCollectionOutlines(t)
 		ctx := context.Background()
 		seedOutlineArticle(t, repos, 11, "第一篇", domain.StatusPublished)
-		_, err := svc.SaveOutline(ctx, app.SaveOutlineCmd{
+		_, err := svc.SaveNamedOutline(ctx, app.SaveNamedOutlineCmd{
 			Actor:     adminViewer(),
 			OwnerKind: outline.OwnerCollection,
 			OwnerID:   ctype.NewID(outlineOwnerID),
@@ -579,7 +579,7 @@ func TestSaveOutlineRejectsInvalidInput(t *testing.T) {
 		t.Parallel()
 		svc, _, _ := seedCollectionOutlines(t)
 		ctx := context.Background()
-		_, err := svc.SaveOutline(ctx, app.SaveOutlineCmd{
+		_, err := svc.SaveNamedOutline(ctx, app.SaveNamedOutlineCmd{
 			Actor:     adminViewer(),
 			OwnerKind: outline.OwnerCollection,
 			OwnerID:   ctype.NewID(outlineOwnerID),
@@ -601,7 +601,7 @@ func TestSaveOutlineReAddsRemovedArticle(t *testing.T) {
 	repos.FakeOutlines().Seed(outlineArticle(t, 2, 0, 11, 1))
 
 	// 提交空树 → 节点软删（保留行）。
-	if _, err := svc.SaveOutline(ctx, app.SaveOutlineCmd{
+	if _, err := svc.SaveNamedOutline(ctx, app.SaveNamedOutlineCmd{
 		Actor: adminViewer(), OwnerKind: outline.OwnerCollection, OwnerID: ctype.NewID(outlineOwnerID),
 	}); err != nil {
 		t.Fatalf("清空树失败: %v", err)
@@ -611,7 +611,7 @@ func TestSaveOutlineReAddsRemovedArticle(t *testing.T) {
 	}
 
 	// 再收录同一篇文章（不带 ID，模拟页面重建）：应恢复原行，不新增第二行。
-	detail, err := svc.SaveOutline(ctx, app.SaveOutlineCmd{
+	detail, err := svc.SaveNamedOutline(ctx, app.SaveNamedOutlineCmd{
 		Actor: adminViewer(), OwnerKind: outline.OwnerCollection, OwnerID: ctype.NewID(outlineOwnerID),
 		Nodes: []app.OutlineInputNode{{Kind: outline.NodeKindArticle, ArticleID: ctype.NewID(11)}},
 	})
@@ -626,23 +626,24 @@ func TestSaveOutlineReAddsRemovedArticle(t *testing.T) {
 	}
 }
 
-// TestAdminOutlineRejectsNonAdminAndUnknownOwner 断言后台读面的门控。
-func TestAdminOutlineRejectsNonAdminAndUnknownOwner(t *testing.T) {
+// TestSaveNamedOutlineRejectsNonAdmin 断言整树提交只给管理员；读者读面无门控。
+func TestSaveNamedOutlineRejectsNonAdmin(t *testing.T) {
 	t.Parallel()
 
 	svc, _, _ := seedCollectionOutlines(t)
 	ctx := context.Background()
 
-	if _, err := svc.AdminOutline(ctx, authorViewer(), outline.OwnerCollection, ctype.NewID(outlineOwnerID)); !errors.Is(err, domain.ErrForbidden) {
-		t.Fatalf("非管理员应 403，实际 %v", err)
-	}
-	if _, err := svc.AdminOutline(ctx, adminViewer(), outline.OwnerCollection, ctype.NewID(999)); !errors.Is(err, collection.ErrNotFound) {
-		t.Fatalf("不存在的合集应报 ErrNotFound，实际 %v", err)
+	if _, err := svc.SaveNamedOutline(ctx, app.SaveNamedOutlineCmd{
+		Actor:     authorViewer(),
+		OwnerKind: outline.OwnerCollection,
+		OwnerID:   ctype.NewID(outlineOwnerID),
+	}); !errors.Is(err, domain.ErrForbidden) {
+		t.Fatalf("非管理员整树提交应 403，实际 %v", err)
 	}
 }
 
-// TestAdminOutlineSupportsProjects 断言同一套树也服务项目（owner 是项目）。
-func TestAdminOutlineSupportsProjects(t *testing.T) {
+// TestNamedOutlineTreeSupportsProjects 断言项目归属也读同一套规则。
+func TestNamedOutlineTreeSupportsProjects(t *testing.T) {
 	t.Parallel()
 
 	svc, repos, _ := seedCollectionOutlines(t)
@@ -667,9 +668,10 @@ func TestAdminOutlineSupportsProjects(t *testing.T) {
 	}
 	repos.FakeOutlines().Seed(node)
 
-	detail, err := svc.AdminOutline(ctx, adminViewer(), outline.OwnerProject, ctype.NewID(700))
+	detail, err := svc.NamedOutlineTree(ctx, outline.OwnerProject, ctype.NewID(700),
+		"", "", false, adminViewer())
 	if err != nil {
-		t.Fatalf("读取项目树失败: %v", err)
+		t.Fatalf("读取项目具名树失败: %v", err)
 	}
 	if got, want := viewLabels(detail.Tree), []string{"第一篇"}; !sameStrings(got, want) {
 		t.Fatalf("项目树不对: %v", got)

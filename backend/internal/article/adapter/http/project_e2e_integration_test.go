@@ -24,7 +24,7 @@ import (
 // #219 契约破坏性变更后，项目详情返回**嵌套目录树**（`outline`），扁平
 // `articles[]` 已退役。#276 迁移后种子直接写 `project_outline_node_models`
 // （schema.InsertProjectOutlineNode）；旧共用表与旧扁平收录中间表都不再参与
-// 项目侧的读写，旧共享端点留到 #277 收缩。
+// 项目侧的读写，旧共享端点已随 #277 下线。
 //
 // 走真实 HTTP + 真 MySQL，断言的是**外部行为**（响应里的业务码与字段），
 // 不是仓储方法被调了几次。管理端写接口属于 #197，这里直接往表里播种。
@@ -62,17 +62,12 @@ func seedProjectArticle(
 	}
 }
 
-// seedProjectOutlineNode 往项目具名树表播种一行（#276）。
+// seedProjectOutlineNode 往项目具名树表播种一行。
 //
-// 与合集种子用同一个 spec 形状，但落的是 `project_outline_node_models`：
 // 表名已表达归属，不再写 owner_kind。
-func seedProjectOutlineNode(t *testing.T, db *gorm.DB, spec schema.OutlineNodeSpec) {
+func seedProjectOutlineNode(t *testing.T, db *gorm.DB, spec schema.NamedOutlineNodeSpec) {
 	t.Helper()
-	schema.InsertProjectOutlineNode(t, db, schema.NamedOutlineNodeSpec{
-		ID: spec.ID, OwnerID: spec.OwnerID, ParentID: spec.ParentID,
-		Kind: spec.Kind, Title: spec.Title, ArticleID: spec.ArticleID,
-		SortOrder: spec.SortOrder, At: spec.At,
-	})
+	schema.InsertProjectOutlineNode(t, db, spec)
 }
 
 // projectOutlineNode 是项目详情 / 后台树响应里的一行（嵌套）。
@@ -226,27 +221,27 @@ func TestProjectPublicRead(t *testing.T) {
 		ID: 3001, Title: "重构实战", Description: "从零到上线",
 		Displayed: true, SortOrder: 1, CreatorID: 100, CreatedAt: at, UpdatedAt: at,
 	})
-	seedProjectOutlineNode(t, db, schema.OutlineNodeSpec{
+	seedProjectOutlineNode(t, db, schema.NamedOutlineNodeSpec{
 		ID: 8100, OwnerID: 3001, Kind: int(outline.NodeKindFolder),
 		Title: "第一章", SortOrder: 1, At: at,
 	})
-	seedProjectOutlineNode(t, db, schema.OutlineNodeSpec{
+	seedProjectOutlineNode(t, db, schema.NamedOutlineNodeSpec{
 		ID: 8101, OwnerID: 3001, ParentID: 8100, Kind: int(outline.NodeKindArticle),
 		ArticleID: 21, SortOrder: 1, At: at,
 	})
-	seedProjectOutlineNode(t, db, schema.OutlineNodeSpec{
+	seedProjectOutlineNode(t, db, schema.NamedOutlineNodeSpec{
 		ID: 8102, OwnerID: 3001, ParentID: 8100, Kind: int(outline.NodeKindArticle),
 		ArticleID: 22, SortOrder: 2, At: at,
 	})
-	seedProjectOutlineNode(t, db, schema.OutlineNodeSpec{
+	seedProjectOutlineNode(t, db, schema.NamedOutlineNodeSpec{
 		ID: 8103, OwnerID: 3001, Kind: int(outline.NodeKindArticle),
 		ArticleID: 23, SortOrder: 2, At: at,
 	})
-	seedProjectOutlineNode(t, db, schema.OutlineNodeSpec{
+	seedProjectOutlineNode(t, db, schema.NamedOutlineNodeSpec{
 		ID: 8104, OwnerID: 3001, Kind: int(outline.NodeKindArticle),
 		ArticleID: 24, SortOrder: 3, At: at,
 	})
-	seedProjectOutlineNode(t, db, schema.OutlineNodeSpec{
+	seedProjectOutlineNode(t, db, schema.NamedOutlineNodeSpec{
 		ID: 8105, OwnerID: 3001, Kind: int(outline.NodeKindFolder),
 		Title: "待补充", SortOrder: 4, At: at,
 	})
@@ -256,7 +251,7 @@ func TestProjectPublicRead(t *testing.T) {
 		ID: 3002, Title: "还没公布的项目", Cover: "https://cdn.example/hidden.png",
 		Displayed: false, SortOrder: 2, CreatorID: 100, CreatedAt: at, UpdatedAt: at,
 	})
-	seedProjectOutlineNode(t, db, schema.OutlineNodeSpec{
+	seedProjectOutlineNode(t, db, schema.NamedOutlineNodeSpec{
 		ID: 8200, OwnerID: 3002, Kind: int(outline.NodeKindArticle),
 		ArticleID: 25, SortOrder: 1, At: at,
 	})
@@ -266,7 +261,7 @@ func TestProjectPublicRead(t *testing.T) {
 		ID: 3003, Title: "显式封面", Cover: "https://cdn.example/explicit.png",
 		Displayed: true, SortOrder: 3, CreatorID: 100, CreatedAt: at, UpdatedAt: at,
 	})
-	seedProjectOutlineNode(t, db, schema.OutlineNodeSpec{
+	seedProjectOutlineNode(t, db, schema.NamedOutlineNodeSpec{
 		ID: 8300, OwnerID: 3003, Kind: int(outline.NodeKindArticle),
 		ArticleID: 26, SortOrder: 1, At: at,
 	})
@@ -276,7 +271,7 @@ func TestProjectPublicRead(t *testing.T) {
 		ID: 3004, Title: "被删的项目", Displayed: true, SortOrder: 4, CreatorID: 100,
 		CreatedAt: at, UpdatedAt: at, SoftDeleted: true,
 	})
-	seedProjectOutlineNode(t, db, schema.OutlineNodeSpec{
+	seedProjectOutlineNode(t, db, schema.NamedOutlineNodeSpec{
 		ID: 8400, OwnerID: 3004, Kind: int(outline.NodeKindArticle),
 		ArticleID: 27, SortOrder: 1, At: at,
 	})
@@ -286,7 +281,7 @@ func TestProjectPublicRead(t *testing.T) {
 		ID: 3005, Title: "空项目", Displayed: true, SortOrder: 5, CreatorID: 100,
 		CreatedAt: at, UpdatedAt: at,
 	})
-	seedProjectOutlineNode(t, db, schema.OutlineNodeSpec{
+	seedProjectOutlineNode(t, db, schema.NamedOutlineNodeSpec{
 		ID: 8500, OwnerID: 3005, Kind: int(outline.NodeKindArticle),
 		ArticleID: 28, SortOrder: 1, At: at,
 	})
@@ -297,11 +292,11 @@ func TestProjectPublicRead(t *testing.T) {
 		ID: 3006, Title: "首篇无封面", Displayed: true, SortOrder: 6, CreatorID: 100,
 		CreatedAt: at, UpdatedAt: at,
 	})
-	seedProjectOutlineNode(t, db, schema.OutlineNodeSpec{
+	seedProjectOutlineNode(t, db, schema.NamedOutlineNodeSpec{
 		ID: 8600, OwnerID: 3006, Kind: int(outline.NodeKindArticle),
 		ArticleID: 29, SortOrder: 1, At: at,
 	})
-	seedProjectOutlineNode(t, db, schema.OutlineNodeSpec{
+	seedProjectOutlineNode(t, db, schema.NamedOutlineNodeSpec{
 		ID: 8601, OwnerID: 3006, Kind: int(outline.NodeKindArticle),
 		ArticleID: 30, SortOrder: 2, At: at,
 	})

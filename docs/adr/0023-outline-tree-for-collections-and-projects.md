@@ -1,6 +1,6 @@
 # ADR-0023：合集/项目的目录树（文件夹节点 + 文章节点，取代扁平收录表）
 
-- 状态：已交付
+- 状态：已取代（by [ADR-0028](./0028-named-outline-trees-as-the-only-shape.md)）
 - 日期：2026-11-03
 - 来源：2026-11-03 `/grill-with-docs` 会话；逐条决定与事实证据见 [2026-11-03 目录树 / 阅读页 / 裁剪窗 决定清单](../notes/2026-11-03-outline-tree-and-reading-page-decisions.md)
 

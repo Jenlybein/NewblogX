@@ -150,16 +150,9 @@ func (s *Service) List(ctx context.Context, filter domain.Filter, page domain.Pa
 	return views, total, nil
 }
 
-// enrichCounters 把缓存增量合并进聚合的计数。
+// enrichCounters 通过账本把权威计数写回聚合（#279：读侧唯一入口）。
 func enrichCounters(ctx context.Context, r Repos, a *domain.Article) error {
-	deltas, err := r.Counters().Load(ctx, []domain.ArticleID{a.ID()})
-	if err != nil {
-		return err
-	}
-	if d, ok := deltas[a.ID()]; ok {
-		a.AddCounters(d)
-	}
-	return nil
+	return ledgerOf(r).ApplyTo(ctx, a)
 }
 
 // buildView 组装详情视图。

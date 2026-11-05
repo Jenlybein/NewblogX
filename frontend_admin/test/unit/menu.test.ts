@@ -51,8 +51,8 @@ function collectPageFiles(dir: string, prefix = ''): string[] {
 /**
  * 可导航项的冻结清单：拍平视图不许改动任何一项的标题 / 路由 / 图标 / 顺序。
  *
- * 「站点配置」是纯分组（没有自身页面），所以不在可导航清单里；八个配置域
- * 紧跟其后作为子项。`/site` 仍是「站点」域的入口，旧书签不会失效。
+ * 「站点配置」是纯分组（没有自身页面），所以不在可导航清单里；八个配置编辑域
+ * 紧跟其后作为子项（九段里 `image_gc` 暂无编辑页，ADR-0029）。`/site` 仍是「站点」域的入口，旧书签不会失效。
  */
 const EXPECTED_ADMIN_NAV = [
   { label: '数据概览', path: '/', icon: 'chart' },
@@ -88,7 +88,7 @@ describe('后台菜单拍平视图', () => {
     )
     expect(navigable).toEqual(EXPECTED_ADMIN_NAV)
 
-    // 「站点配置」只分组：没有自身页面，八个域紧跟在它后面。
+    // 「站点配置」只分组：没有自身页面，八个编辑域紧跟在它后面。
     expect(FLAT_NAV.find(item => item.label === '站点配置')!.path).toBeUndefined()
     expect(FLAT_NAV.find(item => item.label === '站点配置')).toMatchObject({
       parentLabel: null,
@@ -189,7 +189,7 @@ describe('后台菜单拍平视图', () => {
   it('navItemByPath 按路由查激活项；没有页面就不算激活，未知路径返回 undefined', () => {
     expect(navItemByPath('/')?.label).toBe('数据概览')
     expect(navItemByPath('/articles/hot-top')?.label).toBe('热门置顶')
-    // 站点配置的八个域都是可导航子项，高亮按精确路由命中。
+    // 站点配置的八个编辑域都是可导航子项，高亮按精确路由命中。
     expect(navItemByPath('/site')?.label).toBe('站点')
     expect(navItemByPath('/site/deco')?.label).toBe('装饰')
     expect(navItemByPath('/site/missing')).toBeUndefined()

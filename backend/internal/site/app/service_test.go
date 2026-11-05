@@ -222,7 +222,7 @@ func TestUpdateUploadReplacesWhitelist(t *testing.T) {
 	}
 }
 
-// ── 第 8 段 deco（装饰） ────────────────────────────────────────
+// ── deco 段（装饰，九段之一） ────────────────────────────────────────
 
 func TestUpdateDecoClampsIntoRange(t *testing.T) {
 	// 钳位规则本身在 conf.Deco.Normalize，但必须由服务层调用：

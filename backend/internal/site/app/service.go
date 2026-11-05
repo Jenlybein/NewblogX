@@ -225,6 +225,17 @@ func (s *Service) UpdateUpload(upload conf.Upload) error {
 // 这段没有任何敏感字段，所以公开读与管理读返回同一份。
 func (s *Service) PublicDeco() conf.Deco { return s.runtime.Deco() }
 
+// AdminImageGC 返回管理端的孤儿图回收运行配置。
+func (s *Service) AdminImageGC() conf.ImageGC { return s.runtime.ImageGC() }
+
+// UpdateImageGC 覆盖孤儿图回收运行配置。
+func (s *Service) UpdateImageGC(imageGC conf.ImageGC) error {
+	if s.runtime == nil {
+		return apperr.New(apperr.CodeSiteConfigMissing)
+	}
+	return s.runtime.UpdateImageGC(imageGC)
+}
+
 // AdminDeco 返回管理端的装饰配置。
 func (s *Service) AdminDeco() conf.Deco { return s.PublicDeco() }
 

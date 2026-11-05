@@ -10,105 +10,22 @@ export interface ApiEnvelope<T> {
 
 export type SiteSeoData = RequiredSchema<"internal_site_adapter_http.SEOResponse">;
 
-/**
- * 站点运行时配置（`GET /api/site/site` 的 data）。
- *
- * 契约里这条 data 是 `map[string]any`，派生不出类型，只能手写 —— 手写就会漂移：
- * 这里曾声明后端不存在的 `site_info.subtitle` / `project.abstract`，又漏掉后端
- * 真有的 `site_info.beian`。现在按 `backend/conf/site/enter.go` 对齐，
- * 并由 `test/gates/site-runtime-config-parity.test.ts` 逐字段比对，再漂就红。
- *
- * `site_info` 是完整投影（与 `site.SiteInfo` 逐字段相等）；`project` 等子块读者站
- * 只用得到一部分，所以是子集 —— 但同样不许出现后端没有的字段。
- */
-export interface SiteRuntimeConfig {
-  site_info: {
-    /**
-     * ICP / 公网安备备案号；空串表示页脚整行不显示。
-     *
-     * 站点标题与 Logo 随 #192 删除：页头字标、浏览器标题与分享卡片标题回到
-     * `~/utils/brand` 的品牌常量，不再读配置。后端已无 title / logo 两个键，
-     * 门禁的逐字段比对会把它们拦住。
-     */
-    beian?: string;
-  };
-  project: {
-    title?: string;
-  };
-  /**
-   * 登录方式开关。键名必须与 `backend/conf/site.enter.go` 的 `Login` json tag 一致：
-   * 后端发出的是 `qq_login` / `username_pwd_login` / `email_login`。
-   * 2026-10-31 之前这里写的是 `qq` / `email` / `pwd` —— 后端从来没有这三个键，
-   * 于是公告卡的登录方式 chips 在生产里恒为空（#56）；现在由
-   * `test/gates/site-runtime-config-parity.test.ts` 逐键比对守住。
-   */
-  login: {
-    qq_login?: boolean;
-    username_pwd_login?: boolean;
-    email_login?: boolean;
-  };
-  /**
-   * 文章的「发布与展示」开关（`site.article` 段，ADR-0017 决策 2）。
-   *
-   * 键名必须与 `backend/conf/site/enter.go` 的 `Article` json tag 一致
-   * （后端发出 `allow_non_admin_publish` / `allow_non_admin_draft` /
-   * `show_non_admin_articles`）。读者站只消费前两个：
-   * 发布关闭 → 隐藏写文章入口；草稿关闭 → 编辑器只读并给出说明。
-   * 展示开关由服务端过滤（#65），前端不做过滤。
-   *
-   * 三个键都可选：老后台可能还没发出它们，缺失时按默认值 `true` 处理。
-   */
-  article: {
-    allow_non_admin_publish?: boolean;
-    allow_non_admin_draft?: boolean;
-    show_non_admin_articles?: boolean;
-  };
-}
+/** 站点运行时配置（GET /api/site/site 的 data）：整段从九段具名契约派生。 */
+export type SiteRuntimeConfig = RequiredSchema<"internal_site_adapter_http.SiteSectionSiteResponse">;
 
 export type SiteAiInfo = RequiredSchema<"internal_site_adapter_http.AIResponse">;
 
 /**
- * 装饰配置（`GET /api/site/deco` 的 data，后端第 8 个运行时配置段）。
+ * 装饰配置（GET /api/site/deco 的 data，九段里的 deco 段）。
  *
- * 与 `SiteRuntimeConfig` 一样是手写的：契约里这条 data 是自由键值块，
- * 派生不出逐字段类型。按 `backend/conf/conf_deco.go` 对齐 ——
- * `charm` 下是总开关与十二个数值参数（站标尺寸 + 挂绳几何 / 物理 + 约束刚度 +
- * 静止轻晃 + 帧率上限 + 指针端偏移 X / Y）。
- *
- * 字段全都可选，数值字段还可能是 `null`（票 #77）：读者站不能假设某个后台
- * 版本一定发出了哪些键，运营"清空"字段时下发的是 `null`。两种都表示"这个键
- * 没有值"，由各参数的归一化函数回落默认值 —— 不能被 `Number(null) === 0`
- * 读成"管理员明确填了 0"（0 在轻晃与偏移上是合法语义）。
+ * 形状从九段具名契约派生；数值字段仍可能为 null（票 #77），由归一化函数回落
+ * 默认值 —— null 与缺键同义，不能被 `Number(null) === 0` 读成"管理员填了 0"。
  */
-export interface SiteDecoConfig {
+export type SiteDecoConfig = {
   charm?: {
-    enable?: boolean;
-    /** 站标显示尺寸，px，合法区间 15–70。 */
-    logo_size?: number | null;
-    /** 挂绳长度，px，合法区间 40–240。 */
-    rope_length?: number | null;
-    /** Verlet 链节点数，节，合法区间 4–30。 */
-    segments?: number | null;
-    /** 描边起始宽度，px，合法区间 1–6，保留一位小数；收尾固定为 0.6 倍。 */
-    line_width?: number | null;
-    /** 重力加速度，px/s²，合法区间 400–4000。 */
-    gravity?: number | null;
-    /** 每步速度保持系数，无量纲，合法区间 0.9–1；1 表示不衰减（可能持续振荡）。 */
-    damping?: number | null;
-    /** 距离约束刚度，无量纲，合法区间 0.2–1；1 最硬，越小越弹。 */
-    stiffness?: number | null;
-    /** 静止摆动频率，Hz，合法区间 0–1.5；0 表示关掉轻晃。 */
-    idle_sway_hz?: number | null;
-    /** 静止摆动加速度幅度，px/s²，合法区间 0–40；0 表示关掉轻晃（收敛后停帧）。 */
-    idle_sway_amp?: number | null;
-    /** 最高渲染帧率，fps，合法区间 30–160（整数）；它只管每秒画几次，不影响绳子手感。 */
-    fps_cap?: number | null;
-    /** 指针端偏移水平分量，px，合法区间 -24–24（整数，允许负值）；指针端节点 = 指针热点 + 它。 */
-    pointer_offset_x?: number | null;
-    /** 指针端偏移垂直分量，px，合法区间 -24–24（整数，允许负值；负值往上偏）。 */
-    pointer_offset_y?: number | null;
-  };
-}
+    [K in keyof RequiredSchema<"conf.Charm">]?: RequiredSchema<"conf.Charm">[K] | null;
+  } | null;
+};
 
 export type BannerItem = RequiredSchema<"internal_site_adapter_http.BannerItem">;
 

@@ -32,7 +32,7 @@ func ReadSection[T any](ctx context.Context, db *gorm.DB, name string, defaults 
 		return defaults, nil
 	}
 	// 默认值先占位，payload 里出现的字段覆盖上去。
-	out, err := decodeSection(name, defaults, map[string]string{name: rows[0].Payload})
+	out, err := decodeSection(SectionName(name), defaults, map[string]string{name: rows[0].Payload})
 	if err != nil {
 		return defaults, err
 	}

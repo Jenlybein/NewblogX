@@ -1,9 +1,9 @@
 {
-  "comment": "契约未过期判定的仓库级清单：minimumEntries 是条目数量的独立基线（改动契约只增不减时随批抬高）；addedIn 点名本次新增结构，判定要求它们在重新生成的产物里确实在场。path 条目可点名其下的 HTTP 方法；schema 条目按 components.schemas 的键名点名。清单只登记事实，不读源码文本。#277 把基线从 124/164/292 重新登记为 119/159/288：下降来自 #274 expand 期票内过渡（5 个旧共享端点与旧共用形状）被 #277 收缩，不是生成器退化；判据与双向对账逻辑一字未改，#273 / #274 两批仍在契约中的新增结构继续留在 addedIn。",
+  "comment": "契约未过期判定的仓库级清单：minimumEntries 是条目数量的独立基线（改动契约只增不减时随批抬高）；addedIn 点名本次新增结构，判定要求它们在重新生成的产物里确实在场。path 条目可点名其下的 HTTP 方法；schema 条目按 components.schemas 的键名点名。清单只登记事实，不读源码文本。#277 把基线从 124/164/292 重新登记为 119/159/288：下降来自 #274 expand 期票内过渡（5 个旧共享端点与旧共用形状）被 #277 收缩，不是生成器退化；判据与双向对账逻辑一字未改，#273 / #274 两批仍在契约中的新增结构继续留在 addedIn。#283 九段具名化把参数化 /site/{name} 与 /site/admin/{name} 换成九段具名端点、每段一对具名响应/请求形状，并删掉 kernel.SiteConfigData 自由键值块；产物实测从 119/159/288 上升到 135/176/326（新增 16 path / 17 operation / 38 schema），按实测抬高基线并追加 ticket 283；判据、行为用例、verify-gates.sh 5/14、tool-versions.env 一字未改，#273 / #274 的 19 项结构全部仍在契约中故保留。理由另见 ADR-0029 与本批提交说明。",
   "minimumEntries": {
-    "paths": 119,
-    "operations": 159,
-    "schemas": 288
+    "paths": 135,
+    "operations": 176,
+    "schemas": 326
   },
   "addedIn": [
     {
@@ -34,6 +34,59 @@
         "internal_article_adapter_http.ProjectOutlineTreeResponse",
         "myblogx_internal_kernel.Envelope-internal_article_adapter_http_CollectionOutlineTreeResponse",
         "myblogx_internal_kernel.Envelope-internal_article_adapter_http_ProjectOutlineTreeResponse"
+      ]
+    },
+    {
+      "ticket": "283",
+      "reason": "配置段注册表与九段具名契约：参数化 /site/{name} 与 /site/admin/{name} 退场，九段各有具名 GET /site/admin/<段> 与 PUT /site/<段>，公开 site / deco 另有具名 GET；每段一对具名响应/请求 schema 加 Envelope 包装。自由键值块 kernel.SiteConfigData 及其 Envelope 已从契约删除。",
+      "paths": {
+        "/site/site": ["get", "put"],
+        "/site/deco": ["get", "put"],
+        "/site/admin/site": ["get"],
+        "/site/admin/ai": ["get"],
+        "/site/admin/mail": ["get"],
+        "/site/admin/storage": ["get"],
+        "/site/admin/oauth": ["get"],
+        "/site/admin/log": ["get"],
+        "/site/admin/upload": ["get"],
+        "/site/admin/deco": ["get"],
+        "/site/admin/image_gc": ["get"],
+        "/site/ai": ["put"],
+        "/site/mail": ["put"],
+        "/site/storage": ["put"],
+        "/site/oauth": ["put"],
+        "/site/log": ["put"],
+        "/site/upload": ["put"],
+        "/site/image_gc": ["put"]
+      },
+      "schemas": [
+        "internal_site_adapter_http.SiteSectionSiteResponse",
+        "internal_site_adapter_http.SiteSectionAiResponse",
+        "internal_site_adapter_http.SiteSectionMailResponse",
+        "internal_site_adapter_http.SiteSectionStorageResponse",
+        "internal_site_adapter_http.SiteSectionOauthResponse",
+        "internal_site_adapter_http.SiteSectionLogResponse",
+        "internal_site_adapter_http.SiteSectionUploadResponse",
+        "internal_site_adapter_http.SiteSectionDecoResponse",
+        "internal_site_adapter_http.SiteSectionImageGcResponse",
+        "internal_site_adapter_http.SiteSectionSiteRequest",
+        "internal_site_adapter_http.SiteSectionAiRequest",
+        "internal_site_adapter_http.SiteSectionMailRequest",
+        "internal_site_adapter_http.SiteSectionStorageRequest",
+        "internal_site_adapter_http.SiteSectionOauthRequest",
+        "internal_site_adapter_http.SiteSectionLogRequest",
+        "internal_site_adapter_http.SiteSectionUploadRequest",
+        "internal_site_adapter_http.SiteSectionDecoRequest",
+        "internal_site_adapter_http.SiteSectionImageGcRequest",
+        "myblogx_internal_kernel.Envelope-internal_site_adapter_http_SiteSectionSiteResponse",
+        "myblogx_internal_kernel.Envelope-internal_site_adapter_http_SiteSectionAiResponse",
+        "myblogx_internal_kernel.Envelope-internal_site_adapter_http_SiteSectionMailResponse",
+        "myblogx_internal_kernel.Envelope-internal_site_adapter_http_SiteSectionStorageResponse",
+        "myblogx_internal_kernel.Envelope-internal_site_adapter_http_SiteSectionOauthResponse",
+        "myblogx_internal_kernel.Envelope-internal_site_adapter_http_SiteSectionLogResponse",
+        "myblogx_internal_kernel.Envelope-internal_site_adapter_http_SiteSectionUploadResponse",
+        "myblogx_internal_kernel.Envelope-internal_site_adapter_http_SiteSectionDecoResponse",
+        "myblogx_internal_kernel.Envelope-internal_site_adapter_http_SiteSectionImageGcResponse"
       ]
     }
   ]

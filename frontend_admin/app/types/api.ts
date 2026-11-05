@@ -240,100 +240,22 @@ export type ArticleSearchResponseData = Omit<
 }
 
 /**
- * 站点运行时配置。
+ * 九段运行时配置：全部从生成的契约派生（#283 / ADR-0029）。
  *
- * 契约里是 `/site/{name}` 按 name 返回不同配置块（`kernel.SiteConfigData` 是
- * `map[string]any`），没有固定字段；而管理端需要把多块配置拼成一个对象来编辑，
- * 所以这个类型是**前端组装的视图模型**，不对应任何单一响应。
+ * 参数化 /site/{name} 与自由键值块已退场，每段各有具名响应/请求 schema；
+ * 后台不再手写投影，字段名与类型都在编译期由 openapi.d.ts 给出。
+ * 站点登录策略子块只是 site 段里的一个字段，不再是独立视图模型。
  */
-export interface SiteRuntimeConfig {
-  site_info: {
-    /**
-     * ICP / 公网安备备案号；空串表示读者站页脚整行不显示。
-     *
-     * 站点标题与 Logo 随 #192 删除：品牌由读者站的代码常量提供，favicon 走
-     * `project.icon`。后台「基础信息」只剩这一项，保存时也不会再带那两个键。
-     */
-    beian: string
-  }
-  project: {
-    title: string
-    icon: string
-    web_path: string
-  }
-  seo: {
-    keywords: string
-    description: string
-  }
-  about: Record<string, string>
-  login: SiteLoginRuntimeConfig
-  article: {
-    skip_examining: boolean
-    /**
-     * 「发布与展示」三个开关（ADR-0017）。默认全开，由后端
-     * `site_default_settings.yaml` 的 site.article 段补种，前端不另写默认值。
-     * 判定在服务端（app 层与读过滤处），这里只负责编辑。
-     */
-    allow_non_admin_publish: boolean
-    allow_non_admin_draft: boolean
-    show_non_admin_articles: boolean
-  }
-  comment: { skip_examining: boolean }
-  /**
-   * 私信的站点级策略（票 202 / ADR-0026）。
-   *
-   * 陌生人开关与发送限流都放在 site.chat 段，不是某个用户行上的列（零 DDL
-   * 不允许给既有表加列）。键名必须与后端 `conf/site.Chat` 的 json tag 一致；
-   * 默认值由后端 `site_default_settings.yaml` 显式写成，前端不另写默认值。
-   * 限流参数保存后立即生效：后端每次发送都现读运行时配置。
-   */
-  chat: {
-    stranger_msg_enabled: boolean
-    rate_window_sec: number
-    rate_daily_max: number
-  }
-}
-
-/**
- * 站点配置里的「登录策略」子块。
- *
- * 它属于 site 段，所以保存时是和站点基础信息一起整段提交的——
- * 后台把它们放在同一个 Tab 里，避免两个组件各存一份 site 段互相覆盖。
- */
-export interface SiteLoginRuntimeConfig {
-  qq_login: boolean
-  username_pwd_login: boolean
-  email_login: boolean
-  captcha: boolean
-  /** 邮箱验证码有效期，单位：分钟 */
-  email_code_timeout: number
-  /** 登录失败统计窗口，单位：分钟 */
-  login_fail_window_minute: number
-  login_fail_user_max: number
-  login_fail_ip_max: number
-  /** 邮件发送限流窗口，单位：秒 */
-  email_send_window_second: number
-  email_send_per_email_max: number
-  email_send_per_ip_max: number
-}
-
-/**
- * 站点级 AI 设置。同上：由 `/site/admin/ai` 返回，契约里没有对应 schema。
- *
- * 只保留"站点怎么用 AI"：总闸、展示信息、输入限制。
- * 用哪家模型、密钥、接口地址都在 ai_provider_models 表里，由
- * `/ai/providers` 系列接口单独管理。
- */
-export interface AIRuntimeConfig {
-  enable: boolean
-  max_input_chars: number
-  temperature: number
-  timeout_sec: number
-  daily_quota: number
-  nickname: string
-  avatar: string
-  abstract: string
-}
+export type SiteRuntimeConfig = RequiredSchema<"internal_site_adapter_http.SiteSectionSiteResponse">
+export type SiteLoginRuntimeConfig = RequiredSchema<"myblogx_conf_site.Login">
+export type AIRuntimeConfig = RequiredSchema<"internal_site_adapter_http.SiteSectionAiResponse">
+export type MailRuntimeConfig = RequiredSchema<"internal_site_adapter_http.SiteSectionMailResponse">
+export type StorageRuntimeConfig = RequiredSchema<"internal_site_adapter_http.SiteSectionStorageResponse">
+export type OAuthRuntimeConfig = RequiredSchema<"internal_site_adapter_http.SiteSectionOauthResponse">
+export type LogRuntimeConfig = RequiredSchema<"internal_site_adapter_http.SiteSectionLogResponse">
+export type UploadRuntimeConfig = RequiredSchema<"internal_site_adapter_http.SiteSectionUploadResponse">
+export type DecoRuntimeConfig = RequiredSchema<"internal_site_adapter_http.SiteSectionDecoResponse">
+export type ImageGCRuntimeConfig = RequiredSchema<"internal_site_adapter_http.SiteSectionImageGcResponse">
 
 /** 一条模型配置（密钥字段已被后端遮蔽为 ******）。 */
 export interface AIProviderItem {
@@ -371,129 +293,6 @@ export interface AIProviderPayload {
   model: string
   fields: Record<string, string>
   enabled: boolean
-}
-
-/**
- * 邮件（腾讯云 SES）运行时配置。
- *
- * secret_key 由后端用 `******` 遮蔽；保存时原样回传即表示"没改"。
- * secret_id 不遮蔽 —— 它是"用哪个密钥"，不是密钥本身，
- * 遮起来管理员没法确认自己正在改哪个账号。
- */
-export interface MailRuntimeConfig {
-  secret_id: string
-  secret_key: string
-  /** 只支持 ap-guangzhou / ap-hongkong */
-  region: string
-  /** 国际站账号需要填 ses.intl.tencentcloudapi.com，留空用默认 */
-  endpoint: string
-  from_address: string
-  from_name: string
-  /** 控制台里的模板 ID；模板变量为 action / code / timeout */
-  template_id: number
-  timeout_sec: number
-}
-
-/** 对象存储（七牛云）运行时配置。secret_key 同样以占位符回显。 */
-export interface StorageRuntimeConfig {
-  enable: boolean
-  access_key: string
-  secret_key: string
-  bucket: string
-  /** 资源访问域名 */
-  uri: string
-  region: string
-  /** 对象 key 前缀；图片引用关系靠它从 URL 反解 */
-  prefix: string
-  /** 单张图片大小上限（MB） */
-  size: number
-  /** 上传凭证有效期（秒） */
-  expiry: number
-  callback_url: string
-}
-
-/** 第三方登录（QQ 互联）运行时配置。app_key 以占位符回显。 */
-export interface OAuthRuntimeConfig {
-  app_id: string
-  app_key: string
-  redirect: string
-}
-
-/**
- * 日志运行时配置。
- *
- * 后端只接受可改的那部分：app / dir / wal_dir / stdout_format 属于进程级
- * 配置，提交了也会被覆盖回当前值（日志写哪儿不该由网页决定）。
- */
-export interface LogRuntimeConfig {
-  app: string
-  dir: string
-  wal_dir: string
-  level: string
-  stdout_format: string
-  request_log_enabled: boolean
-  query_default_limit: number
-  query_max_limit: number
-  error: {
-    capture_stack: boolean
-    capture_min_level: string
-    stack_max_bytes: number
-    cause_chain_depth: number
-  }
-  trace: {
-    enabled: boolean
-    request_id_equals_trace_id: boolean
-    inherit_from_gateway: boolean
-    gateway_header_priority: string
-  }
-  cleanup: {
-    enabled: boolean
-    retention_days: number
-    run_at: string
-  }
-}
-
-/** 上传策略。白名单是整体替换，不是追加。 */
-export interface UploadRuntimeConfig {
-  whitelist: string[]
-}
-
-/**
- * 装饰配置（第 8 段 deco）。
- *
- * `charm` 下是一个总开关 + 十二个数值参数（站标尺寸、挂绳几何 / 物理、约束刚度、
- * 描边、静止轻晃、帧率上限与指针端偏移 X / Y）。
- * 段结构、路由与响应形状都不变（响应本来就是自由键值块）。
- */
-export interface DecoRuntimeConfig {
-  charm: {
-    /** 光标挂件总开关；默认开。 */
-    enable: boolean
-    /** 站标显示尺寸，单位 px，合法区间 15–70。 */
-    logo_size: number
-    /** 挂绳长度，单位 px，合法区间 40–240。 */
-    rope_length: number
-    /** Verlet 链节点数，单位 节，合法区间 4–30（整数）。 */
-    segments: number
-    /** 描边起始宽度，单位 px，合法区间 1–6（保留一位小数）；收尾固定为 0.6 倍。 */
-    line_width: number
-    /** 重力加速度，单位 px/s²，合法区间 400–4000。 */
-    gravity: number
-    /** 每步速度保持系数，无量纲，合法区间 0.9–1；1 表示不衰减（可能持续振荡）。 */
-    damping: number
-    /** 距离约束刚度，无量纲，合法区间 0.2–1；1 最硬，越小越弹。 */
-    stiffness: number
-    /** 静止摆动频率，单位 Hz，合法区间 0–1.5；0 表示关掉轻晃。 */
-    idle_sway_hz: number
-    /** 静止摆动加速度幅度，单位 px/s²，合法区间 0–40；0 表示关掉轻晃（收敛后停帧）。 */
-    idle_sway_amp: number
-    /** 最高渲染帧率，单位 fps，合法区间 30–160（整数）；它只管每秒画几次，不影响绳子手感。 */
-    fps_cap: number
-    /** 指针端偏移水平分量，单位 px，合法区间 -24–24（整数，允许负值）；指针端节点 = 指针热点 + 它。 */
-    pointer_offset_x: number
-    /** 指针端偏移垂直分量，单位 px，合法区间 -24–24（整数，允许负值；负值往上偏）。 */
-    pointer_offset_y: number
-  }
 }
 
 /** 首次初始化状态。 */

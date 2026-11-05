@@ -5,6 +5,8 @@ package mysql_test
 import (
 	"context"
 	"encoding/json"
+	"fmt"
+	"sort"
 	"strconv"
 	"strings"
 	"testing"
@@ -13,6 +15,7 @@ import (
 	"myblogx/internal/chat/adapter/mysql"
 	"myblogx/internal/chat/domain"
 	"myblogx/internal/kernel/ctype"
+	notifmysql "myblogx/internal/notification/adapter/mysql"
 	"myblogx/internal/testkit/mysqlcontainer"
 	"myblogx/internal/testkit/schema"
 
@@ -579,4 +582,131 @@ func outboxEvents(t *testing.T, db *gorm.DB, name string) []outboxRow {
 		t.Fatalf("读发件箱事件失败: %v", err)
 	}
 	return rows
+}
+
+// pickNonMonotonicClientKeys 挑两个幂等键：前一个派生出的主键更大、后一个更小。
+//
+// 客户端幂等键派生的是 [2^62,2^63) 区间的 FNV 哈希，主键大小与消息先后无关；
+// 普通雪花主键远小于这个区间，所以「时间最晚」和「MAX(id)」在这里必然是两条。
+func pickNonMonotonicClientKeys(sender ctype.ID) (bigger, smaller string) {
+	type candidate struct {
+		key string
+		id  uint64
+	}
+	var list []candidate
+	for i := 0; i < 8; i++ {
+		key := fmt.Sprintf("278-clear-key-%d", i)
+		list = append(list, candidate{key: key, id: domain.MessageIDFromClientKey(sender, key).Uint64()})
+	}
+	sort.Slice(list, func(i, j int) bool { return list[i].id > list[j].id })
+	return list[0].key, list[len(list)-1].key
+}
+
+// TestClearWatermarkAdvancesBySendTimeUnderNonMonotonicIDs 清空水位按消息时间推进。
+//
+// 破口在生产者：清空时用 MAX(id) 挑水位行，而幂等键派生的主键非单调，
+// 于是挑到一条时间上更早的消息 —— 清空后旧历史重现、未读被并账复活，
+// 消息列表 / 整会话已读 / 消息中心角标 / 30 分钟并账四者说法分裂。
+// 这里全部走公开仓储接口与公开读取器，不越过接口测私有 helper。
+func TestClearWatermarkAdvancesBySendTimeUnderNonMonotonicIDs(t *testing.T) {
+	t.Parallel()
+
+	repo, db := setup(t)
+	ctx := context.Background()
+	base := time.Date(2026, 1, 1, 10, 0, 0, 0, time.UTC)
+	sender := ctype.NewID(100)
+	receiver := ctype.NewID(200)
+	sessionID := domain.BuildSessionID(sender, receiver)
+
+	bigKey, smallKey := pickNonMonotonicClientKeys(sender)
+	oldHigh, _ := sendTextWithKey(t, repo, 100, 200, "old-high", bigKey, base)
+	// 会话可见集含自己发的消息：这一条是接收者 200 发给 100 的。
+	sendText(t, repo, 200, 100, "self-sent", base.Add(time.Minute))
+	// 时间上最晚的清空前消息，主键反而比 old-high 小。
+	newestBeforeClear, _ := sendTextWithKey(t, repo, 100, 200, "newest-before-clear", smallKey, base.Add(2*time.Minute))
+	if oldHigh.ID.Uint64() <= newestBeforeClear.ID.Uint64() {
+		t.Fatalf("夹具要求非单调主键: old=%s newest=%s", oldHigh.ID, newestBeforeClear.ID)
+	}
+
+	deleted, err := repo.DeleteSessions(ctx, receiver, []string{sessionID})
+	if err != nil {
+		t.Fatalf("清空会话失败: %v", err)
+	}
+	if len(deleted) != 1 || deleted[0] != sessionID {
+		t.Fatalf("应清空 1 条会话 %s，实际 %v", sessionID, deleted)
+	}
+
+	// 清空水位是「清到哪条消息」；用例层从会话行读出来，再喂给消息列表。
+	clearedSession, err := repo.FindSession(ctx, sessionID, receiver, true)
+	if err != nil {
+		t.Fatalf("读清空后的会话失败: %v", err)
+	}
+	if clearedSession.ClearBeforeMsgID != newestBeforeClear.ID {
+		t.Fatalf("清空水位必须落在时间上最晚那条 %s，实际 %s（MAX(id) 会挑中更早的 %s）",
+			newestBeforeClear.ID, clearedSession.ClearBeforeMsgID, oldHigh.ID)
+	}
+
+	// 对方再来一条消息：软删的会话恢复，清空水位保留。
+	after, _ := sendText(t, repo, 100, 200, "after-clear", base.Add(3*time.Minute))
+
+	visible, err := repo.ListMessages(ctx, domain.MessageQuery{
+		UserID:      receiver,
+		SessionID:   sessionID,
+		ClearBefore: clearedSession.ClearBeforeMsgID,
+		Page:        domain.Page{Page: 1, Limit: 10},
+	})
+	if err != nil {
+		t.Fatalf("清空后查消息列表失败: %v", err)
+	}
+	if visible.Total != 1 || len(visible.Messages) != 1 || visible.Messages[0].ID != after.ID {
+		t.Fatalf("清空后旧历史不该重现，可见集应只有 after-clear=%s，实际 total=%d len=%d messages=%+v",
+			after.ID, visible.Total, len(visible.Messages), visible.Messages)
+	}
+
+	badgeRepo := notifmysql.NewChatUnread(db)
+	badge, err := badgeRepo.UnreadTotal(ctx, 200)
+	if err != nil {
+		t.Fatalf("读消息中心角标失败: %v", err)
+	}
+	if badge != 1 {
+		t.Fatalf("清空后角标只应数 after-clear 一条未读，实际 %d", badge)
+	}
+
+	// 30 分钟并账（公开入口）：按同一份可见性重算，不能把清掉的未读复活。
+	if _, err := mysql.ReconcileChatUnread(ctx, db, sessionID, 200); err != nil {
+		t.Fatalf("并账失败: %v", err)
+	}
+	badge, err = badgeRepo.UnreadTotal(ctx, 200)
+	if err != nil {
+		t.Fatalf("并账后读角标失败: %v", err)
+	}
+	if badge != 1 {
+		t.Fatalf("并账后角标应仍是 1，实际 %d（清掉的未读被复活了）", badge)
+	}
+
+	// 整会话已读只应命中水位之后、发给我的那一条。
+	marked, err := repo.MarkReadSession(ctx, receiver, sessionID)
+	if err != nil {
+		t.Fatalf("整会话已读失败: %v", err)
+	}
+	if len(marked) != 1 || marked[0].ID != after.ID {
+		t.Fatalf("整会话已读应只命中 after-clear=%s，实际 %+v", after.ID, marked)
+	}
+	badge, err = badgeRepo.UnreadTotal(ctx, 200)
+	if err != nil {
+		t.Fatalf("已读后读角标失败: %v", err)
+	}
+	if badge != 0 {
+		t.Fatalf("整会话已读后角标应归零，实际 %d", badge)
+	}
+	if _, err := mysql.ReconcileChatUnread(ctx, db, sessionID, 200); err != nil {
+		t.Fatalf("已读后并账失败: %v", err)
+	}
+	badge, err = badgeRepo.UnreadTotal(ctx, 200)
+	if err != nil {
+		t.Fatalf("已读后并账读角标失败: %v", err)
+	}
+	if badge != 0 {
+		t.Fatalf("已读后并账仍应给 0，实际 %d（四者说法不一致）", badge)
+	}
 }

@@ -218,7 +218,7 @@ const {
   snapshot: () => ({ isDigg: article.value?.is_digg, diggCount: article.value?.digg_count }),
   patchArticle: (isDigg, diggCount) => {
     // 页面只上报「读者做了什么」：写响应回填权威计数 / 清客户端 30s SWR /
-    // 私有态覆盖 / 缓存键拼接已收进阅读页取数模块（#282、ADR-0024 决策 4）。
+    // 私有态覆盖 / 缓存键拼接已收进阅读页取数模块（票 282、ADR-0024 决策 4）。
     reportArticleWrite({ kind: "digg", result: { is_digg: isDigg, digg_count: diggCount } });
   },
   // 点赞/收藏是写操作：用**目标态**接口（不是 toggle），写响应带回权威计数。
@@ -299,7 +299,7 @@ async function handleShare() {
 
 function handleFavoriteUpdated(payload: ArticleFavoriteResult | null) {
   // 页面只上报收藏写响应（含空值）：权威计数回填、空值防御与客户端 30s SWR
-  // 主动失效都由阅读页取数模块统一管（#282、ADR-0024 决策 4/6）。
+  // 主动失效都由阅读页取数模块统一管（票 282、ADR-0024 决策 4/6）。
   reportArticleWrite({ kind: "favorite", result: payload });
 }
 

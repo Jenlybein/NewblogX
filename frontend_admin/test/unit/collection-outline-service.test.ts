@@ -12,7 +12,7 @@ const requestMock = vi.fn()
  * `GET|PUT /collections/<id>/outline-tree`。GET 必须带鉴权（具名 GET 是公开读，
  * 管理员例外靠请求里的身份判定：不带令牌会被当成匿名读者，未展示合集读成空树）。
  *
- * 项目侧由 #276 迁移，本票不动它。
+ * 项目侧由 #276 迁移到项目具名端点；合并后两侧分派都由具名端点回答。
  */
 describe('collection outline service：合集编辑器走具名端点', () => {
   beforeEach(() => {
@@ -38,10 +38,10 @@ describe('collection outline service：合集编辑器走具名端点', () => {
     })
   })
 
-  it('项目侧函数仍是项目本票之前的共享端点（本票不碰项目分派）', async () => {
+  it('项目侧函数随 #276 改走项目具名端点', async () => {
     const { getProjectOutline } = await import('~/services/admin')
     await getProjectOutline('p1')
 
-    expect(requestMock).toHaveBeenCalledWith('/projects/p1/outline/admin')
+    expect(requestMock).toHaveBeenCalledWith('/projects/p1/outline-tree')
   })
 })

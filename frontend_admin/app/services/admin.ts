@@ -29,7 +29,6 @@ import type {
   CollectionOutlineSavePayload,
   CollectionOutlineTreeResponseData,
   OutlineNodePayload,
-  OutlineTreeResponseData,
   ProjectAdminCard,
   ProjectOutlineSavePayload,
   ProjectOutlineTreeResponseData,

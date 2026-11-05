@@ -56,7 +56,7 @@ func (s *recordingScheduler) Daily(hour, minute, second int, job scheduler.Job) 
 	return nil
 }
 
-func (s *recordingScheduler) Start()          { s.started = true }
+func (s *recordingScheduler) Start()         { s.started = true }
 func (s *recordingScheduler) Shutdown() error { return nil }
 
 // reconcileJob 取出并账任务；没有就说明装配漏了这条任务。

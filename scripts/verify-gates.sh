@@ -13,6 +13,9 @@
 #   admin 鉴权探测、菜单↔页面对账、前端 lint、覆盖率门槛。
 #   它们一道都没进过自检，等于"新增的门禁是否有效"从来没被验证过。
 #   现在 14 道全覆盖（新增跨端装饰参数一致性、两端同源副本门禁）。
+#   第 5 道（契约未过期）与真门禁跨同一个判定实现
+#   （scripts/check-contract-freshness.mjs），并真实注入「静默跳过但退出码 0」、
+#   「命令失败」、「契约过期」与「工具版本写歪」四种形态，失败原因各自可区分。
 #
 # 唯一的例外是 admin 鉴权（第 8 道）：
 #   要让它红，必须临时把某条后台路由的 AdminMiddleware 摘掉 —— 一旦脚本被中断
@@ -43,6 +46,9 @@ export GOTOOLCHAIN=local CGO_ENABLED=1
 # 自检反被判成"门禁失效"（2026-10-25 实际发生过）。
 # shellcheck source=scripts/arch-baseline.env
 . "$ROOT/scripts/arch-baseline.env"
+# 生成工具版本单一来源：自检与 CI / 本地门禁读同一份安装 ref。
+# shellcheck source=scripts/tool-versions.env
+. "$ROOT/scripts/tool-versions.env"
 
 PASS=0
 FAIL=0
@@ -199,34 +205,103 @@ rm -f "$CANARY_TS"
 
 echo ""
 echo "===== 5/14 契约未过期（注解 → swagger.json） ====="
-# 门禁原型（CI 的 contract job）：改注解后忘了 `make openapi`，
-# `git diff --exit-code docs/swagger.json` 就会非零。
+# 门禁原型：CI 的 contract job / check.sh 的「契约未过期」都调用
+# scripts/check-contract-freshness.mjs。自检必须跨**同一个判定接口**，
+# 而不是在 YAML / 本脚本里另写一份判据。
 #
-# 这里不能用 git diff 判定：工作区常有未提交改动，那样会假红。
-# 改成等价判据：**改一条注解 → 重新生成 → 结果必须与生成前不同**。
-# 若相同，说明"注解变化传不到契约"，那道门禁就抓不到过期。
+# 五种断言各注入一次，红的原因必须可区分：
+#   a) 真门禁本身能跑通（否则下面的红可能来自 node/make 缺失，是假红）；
+#   b) 生成器静默跳过但退出码 0 → 必须报 SILENT_SKIP（假绿 / 门禁撒谎）；
+#   c) 生成命令失败          → 必须报 COMMAND_FAILED；
+#   d) 注解改了但契约没重新生成 → 必须报 STALE（判据抓得住"过期"）；
+#   e) 工具版本写歪           → 必须报 TOOL_VERSION_MISMATCH。
+# 注入走环境变量 SWAG 覆盖 Makefile 的生成器命令，`make openapi` 本身仍是
+# 真门禁那条命令；e 用 --versions-file 指到临时文件，不改仓库里的版本来源。
+# 除 d 临时改 main.go 外都不碰仓库文件，且每节用完立即从备份副本恢复。
+FRESHNESS="scripts/check-contract-freshness.mjs"
+SWAG_SKIP="$CANARY_TMP/swag-silent-skip.sh"
+SWAG_FAIL="$CANARY_TMP/swag-command-fail.sh"
+printf '#!/bin/sh\n# 生成器静默跳过：退出码 0，但不写产物\nexit 0\n' > "$SWAG_SKIP"
+printf '#!/bin/sh\necho "canary: 模拟生成命令失败" >&2\nexit 17\n' > "$SWAG_FAIL"
+chmod +x "$SWAG_SKIP" "$SWAG_FAIL"
+
+# reason_of 读取判定输出的机器可判原因标记；判定失败时仍有 stdout。
+reason_of() { grep -oE '\[reason\] [A-Z_]+' "$CANARY_TMP/out.txt" | head -1 | awk '{print $2}'; }
+
+# a) 真门禁跑通（用同一份判定实现）
+if node "$FRESHNESS" >"$CANARY_TMP/out.txt" 2>&1; then
+  ok "契约未过期判定（真门禁跑通）"
+else
+  echo "✗ 契约未过期判定本身跑不通（node / swag / make 缺失？），后续注入会假红"
+  tail -5 "$CANARY_TMP/out.txt"
+  FAIL=$((FAIL+1))
+fi
+
+# b) 静默跳过但退出码 0 —— 真实触发「门禁撒谎」形态
+if SWAG="sh $SWAG_SKIP" node "$FRESHNESS" >"$CANARY_TMP/out.txt" 2>&1; then
+  bad "生成器静默跳过但退出码 0，判定却通过了（假绿）"
+elif [ "$(reason_of)" = "SILENT_SKIP" ]; then
+  ok "生成器静默跳过但退出码 0 会判红（SILENT_SKIP）"
+else
+  echo "✗ 静默跳过的失败原因不是 SILENT_SKIP：$(reason_of)"
+  tail -5 "$CANARY_TMP/out.txt"
+  FAIL=$((FAIL+1))
+fi
+
+# c) 命令失败 —— 必须与静默跳过报出**不同**原因
+if SWAG="sh $SWAG_FAIL" node "$FRESHNESS" >"$CANARY_TMP/out.txt" 2>&1; then
+  bad "生成命令失败，判定却通过了"
+elif [ "$(reason_of)" = "COMMAND_FAILED" ]; then
+  ok "生成命令失败会判红（COMMAND_FAILED，与静默跳过原因可区分）"
+else
+  echo "✗ 命令失败的失败原因不是 COMMAND_FAILED：$(reason_of)"
+  tail -5 "$CANARY_TMP/out.txt"
+  FAIL=$((FAIL+1))
+fi
+
+# d) 注解改了但产物没重新生成 —— 判据必须抓得住"契约过期"。
+# 这里把 @title 改掉后仍调用同一份判定：生成器会产出与已提交契约不同的内容。
 MAIN_GO="backend/cmd/server/main.go"
-if backup_file "$SWAGGER" && backup_file "$MAIN_GO"; then
-  cp "$SWAGGER" "$CANARY_TMP/swagger-before.json"
+if backup_file "$MAIN_GO"; then
   sed -i 's|^// @title BlogX API$|// @title BlogX API CANARY|' "$MAIN_GO"
   if ! grep -q "@title BlogX API CANARY" "$MAIN_GO"; then
     echo "✗ 无法注入：main.go 里没有预期的 @title 行"
     FAIL=$((FAIL+1))
-  elif ( cd backend && make openapi ) >"$CANARY_TMP/out.txt" 2>&1; then
-    if cmp -s "$CANARY_TMP/swagger-before.json" "$SWAGGER"; then
-      bad "注解改了，契约却没变化（contract job 会漏掉过期）"
-    else
-      ok "注解变更会改变契约内容"
-    fi
+  elif node "$FRESHNESS" >"$CANARY_TMP/out.txt" 2>&1; then
+    bad "注解改了、契约没重新生成，判定却通过了"
+  elif [ "$(reason_of)" = "STALE" ]; then
+    ok "注解变更但契约未重新生成会判红（STALE）"
   else
-    echo "✗ 契约生成失败（swag 缺失或注解有误），无法判定"
+    echo "✗ 契约过期的失败原因不是 STALE：$(reason_of)"
     tail -5 "$CANARY_TMP/out.txt"
     FAIL=$((FAIL+1))
   fi
-  restore_file "$SWAGGER"
   restore_file "$MAIN_GO"
 else
   echo "✗ 备份失败，跳过本节"
+  FAIL=$((FAIL+1))
+fi
+
+# e) 工具版本单一来源：把写歪的安装 ref 交给同一份判定，必须报版本不一致。
+# 用 --versions-file 指到临时副本，不动仓库里的那份单一来源。
+VERSIONS="scripts/tool-versions.env"
+TAMPERED_VERSIONS="$CANARY_TMP/tool-versions-canary.env"
+if cp "$VERSIONS" "$TAMPERED_VERSIONS" && grep -q '^SWAG_VERSION=' "$TAMPERED_VERSIONS"; then
+  sed -i 's|^SWAG_VERSION=.*$|SWAG_VERSION=v9.9.9-canary|' "$TAMPERED_VERSIONS"
+  if ! grep -q '^SWAG_VERSION=v9.9.9-canary$' "$TAMPERED_VERSIONS"; then
+    echo "✗ 无法写歪版本文件（单一来源格式变了？）"
+    FAIL=$((FAIL+1))
+  elif node "$FRESHNESS" --versions-file "$TAMPERED_VERSIONS" >"$CANARY_TMP/out.txt" 2>&1; then
+    bad "写歪工具版本，判定却通过了"
+  elif [ "$(reason_of)" = "TOOL_VERSION_MISMATCH" ]; then
+    ok "写歪工具版本会判红（TOOL_VERSION_MISMATCH，单一来源生效）"
+  else
+    echo "✗ 写歪版本的原因不是 TOOL_VERSION_MISMATCH：$(reason_of)"
+    tail -5 "$CANARY_TMP/out.txt"
+    FAIL=$((FAIL+1))
+  fi
+else
+  echo "✗ 无法复制版本文件或 SWAG_VERSION 未从单一来源读出，跳过版本演练"
   FAIL=$((FAIL+1))
 fi
 

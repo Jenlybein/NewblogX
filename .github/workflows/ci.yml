@@ -156,7 +156,9 @@ jobs:
   # 跑 `make openapi`，docs/swagger.json 就会静默过期，前端类型照着过期契约
   # 生成 —— 门禁全绿，但契约是错的，而且没有任何信号。
   #
-  # 判据是"重新生成后 git 无差异"，而不是"能生成"。
+  # 判据与本地门禁 / 门禁自检共用 scripts/check-contract-freshness.mjs：
+  # 生成到临时目录逐字比对 + 条目数量不下降 + 本次新增结构在场；
+  # 不再用 git diff --exit-code（工作区脏会假红，且看不出静默跳过）。
   contract:
     name: backend (contract up-to-date)
     runs-on: ubuntu-latest
@@ -171,9 +173,21 @@ jobs:
           go-version: ${{ env.GO_VERSION }}
           cache-dependency-path: backend/go.sum
 
-      # 必须与 Makefile 注释里写的版本一致，否则产物格式会漂移。
-      - name: 安装 swag v2
-        run: go install github.com/swaggo/swag/v2/cmd/swag@v2.0.0-rc6
+      # 判定实现是仓库级 .mjs 脚本，显式装 Node 而不是依赖 runner 预装版本。
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      # 安装 ref 只从仓库级 scripts/tool-versions.env 读；判定实现还会核对
+      # 已安装二进制的 go version -m 构建信息，避免"装了别的版本却全绿"。
+      - name: 安装契约生成工具（单一版本来源）
+        working-directory: .
+        run: |
+          . scripts/tool-versions.env
+          echo "swag：$SWAG_MODULE@$SWAG_VERSION"
+          go install "$SWAG_MODULE@$SWAG_VERSION"
+          # go install 落在 $(go env GOPATH)/bin，CI 上默认不在 PATH。
+          echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
 
       # 先把依赖下全，再让 swag 跑。
       #
@@ -186,19 +200,9 @@ jobs:
       - name: 下载 Go 依赖
         run: go mod download
 
-      - name: 重新生成契约
-        run: make openapi
-
-      - name: 契约必须与提交内容一致
+      - name: 契约未过期判定（生成到临时文件逐字比对）
         working-directory: .
-        run: |
-          if ! git diff --exit-code backend/docs/swagger.json; then
-            echo ""
-            echo "✗ docs/swagger.json 与代码注解不一致。"
-            echo "  请在本地执行 cd backend && make openapi 并提交产物。"
-            echo "  否则前端类型会照着过期契约生成，门禁却全绿。"
-            exit 1
-          fi
+        run: node scripts/check-contract-freshness.mjs
 
   # ── 前端 lint（两端解耦，矩阵并行）────────────────────────────────
   frontend-lint:
@@ -486,7 +490,10 @@ jobs:
         env:
           CGO_ENABLED: "1"
         run: |
-          go install github.com/swaggo/swag/v2/cmd/swag@v2.0.0-rc6
+          . scripts/tool-versions.env
+          echo "swag：$SWAG_MODULE@$SWAG_VERSION"
+          go install "$SWAG_MODULE@$SWAG_VERSION"
+          echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
           # 自检第 5 节会跑 `make openapi`，而 swag 带 --parseDependency 时自己会调
           # `go list -deps`；若不先把模块下全，它会与下载并发、偶发报
           # `cannot find all dependencies, <nil>`，让自检误判成"契约生成失败"。

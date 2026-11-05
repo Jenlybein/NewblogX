@@ -105,3 +105,28 @@ export type ProjectOutlineTree = Nullable<
   Schema<"internal_article_adapter_http.ProjectOutlineTreeResponse">,
   "current" | "previous" | "next"
 >;
+
+/**
+ * 具名树响应 → 阅读页左栏现有的读模型。
+ *
+ * 两个具名形状与旧文章上下文形状在 `has_tree / owner_kind / owner_id / nodes /
+ * current / previous / next` 上逐字同构，多出来的 `article_count` / `cover` 只对
+ * 详情页有意义。这里显式挑出左栏要的字段，让共用呈现组件、折叠态与翻页链接
+ * 继续只消费一份形状；契约里删掉任一字段都会在编译期报错。
+ */
+export function toArticleOutlineContext(
+  value: CollectionOutlineTree | ProjectOutlineTree | null | undefined,
+): ArticleOutlineContext | null {
+  if (!value) {
+    return null;
+  }
+  return {
+    has_tree: value.has_tree ?? false,
+    owner_kind: value.owner_kind ?? 0,
+    owner_id: value.owner_id ?? "",
+    nodes: value.nodes ?? [],
+    current: value.current ?? null,
+    previous: value.previous ?? null,
+    next: value.next ?? null,
+  };
+}

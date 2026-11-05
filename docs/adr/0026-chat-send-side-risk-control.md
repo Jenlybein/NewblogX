@@ -1,54 +1,66 @@
-# ADR-0026：私信发送侧风控（按对限流 + 屏蔽 / 拉黑分级，首次新增私信表）
+# ADR-0026：私信发送资格——一次判完、一律失败关闭
 
-- 状态：已接受
-- 日期：2026-11-04
-- 来源：发送侧风控评审 / grill 结论 · 规格 [#269](https://github.com/Jenlybein/NewblogX/issues/269) · 落地票 [#268](https://github.com/Jenlybein/NewblogX/issues/268) · 修订 [ADR-0022](./0022-chat-dual-channel-http-write-ws-notify.md)
+- 状态：已交付
+- 日期：2026-11-06（初版 2026-11-04；按 #272 / #280 正文整体重写）
+- 来源：规格 [#272](https://github.com/Jenlybein/NewblogX/issues/272) · 落地票 [#280](https://github.com/Jenlybein/NewblogX/issues/280) · 初版来自发送侧风控评审 [#269](https://github.com/Jenlybein/NewblogX/issues/269) / [#268](https://github.com/Jenlybein/NewblogX/issues/268) · 修订 [ADR-0022](./0022-chat-dual-channel-http-write-ws-notify.md)
 
 ## 背景与问题
 
-[ADR-0022](./0022-chat-dual-channel-http-write-ws-notify.md) 交付私信双通道时，把「发送侧的审核 / 风控留在 `docs/TODO.md` 待设计」，并立下零 DDL 口径：不给私信表加列，也不能为了幂等或投递状态另开表——**新建表需要 ADR 立项**。既有发送侧限流是按人 60 条 / 60 秒、按会话 30 条 / 60 秒，外加陌生人自然周配额（陌生人 1 条、单向关注 3 条，对方回复才重置），计数与额度预占都在 Redis 里，落库失败回滚预占、判定失败关闭。
+[ADR-0022](./0022-chat-dual-channel-http-write-ws-notify.md) 把发送收成 HTTP 唯一通道，但发送前的准入仍散在用例层：站点总闸与接收方个人开关合成在装配层的 `StrangerPolicy` 里，屏蔽 / 拉黑、关注关系、按对限流、图片来源分别在各处判断。每个依赖都有自己的"为空就跳过"分支——`blocks` / `relations` / `limiter` 没注入时直接放行，`stranger` 没注入时则会在判定点 panic。结果是同一个问题（这个人现在能不能给那个人发消息）没有一处完整答案：
 
-用户在这次评审 / grill 会话后显式决定：**把发送侧风控从「待设计」改为本批交付**，并给出两件事——限流换成按发件人 × 收件人的可预期日额度；增加「屏蔽 / 拉黑」分级。前者继续用 Redis 计数即可，后者要按 owner 持久、方向性、可软删，Redis 计数表达不了，必须落一张新表。于是本批成为 ADR-0022 之后**首次为私信模块新增表**的批次，按 ADR-0022 明说的「新建表需要 ADR 立项」，必须先有本 ADR。
+- 装配遗漏表现为静默失效：风控没上场，发送照样成功；
+- 判定顺序靠读代码才能还原，新增一项资格很容易漏掉某个分支；
+- 失败关闭只在部分依赖上成立（图片来源），其余依赖是"出错再说"。
+
+#280 要求把发送资格收成**一次判完、一律失败关闭**：站点总闸、接收方个人开关、屏蔽 / 拉黑分级、按对限流、图片来源五项在一次判定里给出结论；任何一项依赖不可用或查询异常，都不得放行发送。
+
+同一批还收口了两件同源的事：会话列表的拉黑过滤原先"先查库分页、再在内存里按全部拉黑目标数扣总数"，总数不是过滤后的真值；私信装配原先摊在 `backend/app/chat_wiring.go`，并把处理器写进路由包的包级变量。
 
 ## 决策
 
-本 ADR **修订 ADR-0022 决策 1 的零 DDL 立项口径（「新建表需要 ADR 立项」首次被行使）与「代价 / 不做什么」里发送侧风控的延期**：发送侧风控从「待设计」变为本批交付，并首次为私信模块新增一张表 `chat_block_models`。ADR-0022 决策 1 的 **HTTP 唯一发送通道不变**；本 ADR 即为这张新表的立项记录。
-
-1. **限流口径改为按对、按日，且后台可配**：每一对 `(sender, receiver)` 取「滑动窗口 1 条」+「自然日 N 条」两个上限，Redis 计数、**不新增表**。缺省窗口 10 秒、日额度 99 条，但**两个参数都是站点运行时配置**（`site.chat.rate_window_sec` / `rate_daily_max`），由后台「站点 → 私信」卡修改、**每次发送现读、不重启即生效**；`site_default_settings.yaml` 必须显式写明缺省值，非法值（0 / 负数 / 越界）由 `NormalizeChatRate` 收敛回缺省，避免填 0 让限流静默失效。预占 / 回滚沿用发件箱式的一致性（**失败关闭**）：先预占额度，落库成功才提交，落库失败或判定不可用都回滚并拒绝发送。它**替换**旧的按人 60/60s、按会话 30/60s 与自然周配额（陌生人 1 条 / 单向关注 3 条）。
-2. **屏蔽与拉黑是两个不同概念，不是同义词**（见 [GLOSSARY · 私信与会话](../../GLOSSARY.md)）：**屏蔽（block）**只挡「对方发给我」——对方发送被拒，但我仍能看到历史会话；**拉黑（mute / hard block）**是屏蔽 + 我也看不到他的会话（会话列表不出现）。两者都**按 owner、方向性**（A 屏蔽 B 不意味着 B 屏蔽 A）、**只影响自己那一侧**的可见性与发送权限，**可软删**。记录落在 `chat_block_models(id, created_at, updated_at, deleted_at, owner_id, blocked_id, level, ...)`：`level` 1 = 屏蔽、2 = 拉黑，唯一键 `(owner_id, blocked_id)`。
-3. **零 DDL 口径的边界**：本 ADR 只批准**这一张新表** `chat_block_models`，**不给既有三张私信表加任何列**（`chat_msg_models` / `chat_msg_user_state_models` / `chat_session_models`）。表由 `backend/internal/platform/mysql/ddl/schema.sql` 的 `CREATE TABLE IF NOT EXISTS` 落地；升级时需按 [README §11.4.2](../../README.md#1142-升级到带新表的版本手动建一次表) 的既有流程**手动跑一次 `-db`**，**不引入运行时 AutoMigrate**。
-4. **不扩大批次**：不涉及 WebSocket ack/retry、消息编辑 / 撤回、举报队列、浏览器 E2E——这些仍是 ADR-0022 的非目标。
+1. **发送资格只有一个判定点**：`backend/internal/chat/app` 的 `sendGuard.check` 一次完成五项判定——图片来源（仅图片消息）、屏蔽 / 拉黑（双向 `Level`）、用户展示与关注关系、陌生人两级策略、按对限流预占。通过时返回完整的发送计划（双方展示快照、关系级别、已预占额度、归一化正文），否则返回拒绝；调用方不再逐项判断。
+2. **一律失败关闭**：五项资格依赖（`blocks` / `relations` / `stranger` / `limiter` / `imageCheck`）任一为零值，或任一查询返回错误，发送都被拒绝（缺依赖时用 `chat.send_failed`，不冒充成"被屏蔽"或"陌生人被拒"）。构造 `Service` 只对结构必需的 `read` / `write` / `users` panic；资格依赖缺失留到发送时变成可观测的拒绝，而不是启动期静默跳过。
+3. **管理员视图仍看全量，且写明是有意例外**：读者视图的会话列表在查库层过滤拉黑（`SessionQuery.HideBlocked=true`）；管理员视图传 `HideBlocked=false` + `Unscoped=true`，连软删会话一起看。这不是漏判，是运维排查的必要例外，代码与测试都显式标注。
+4. **拉黑过滤下沉到查库层**：`ListSessions` 的 SQL 用 `NOT EXISTS (SELECT 1 FROM chat_block_models ... level = 2 ...)` 过滤，计数与取页共用同一条件，`total` 是过滤后的真值；用例层不再拿"全部拉黑目标数"扣总数。`BlockPolicy` 端口随之只保留 `Level`。
+5. **装配收进模块、包级状态只清私信一处**：九个协作者由 `internal/chat.New` 在模块内装配成服务与处理器，合成根（`backend/cmd/server/main.go` 经由 `backend/app`）只注入基础设施与跨模块窄能力（关注关系、用户偏好、认证）。路由包不再持有 `chatHandler` / `SetChatHandler`，处理器经 `router.Handlers{Chat: ...}` 显式传入。其他模块的包级 `xxxHandler` / `SetXxxHandler` 是存量，本次不清，也不宣称全仓已无包级可变状态。
+6. **零 DDL 边界不变**：本批不新增表、不加列、不改列、不做 ALTER；`chat_block_models` 仍是私信模块唯一经 ADR 指名新增的表（由本 ADR 初版立项），既有三张私信表列一律未动。新增表只走 `schema.sql` 的 `CREATE TABLE IF NOT EXISTS` + 手动 `-db`，无运行时 AutoMigrate。
 
 ## 理由与已否决方案
 
-- **保留自然周配额（陌生人每周 1 条 / 单向关注 3 条）**：把陌生人压到每周 1 条太紧，且「对方回复才重置额度」的隐含规则难以向用户解释。**否决**；用户明确要求改成按日、可预期的额度，于是按对限流收敛成 1 条 / 10 秒 + 99 条 / 天。
-- **继续叠加旧的三套限制**：按人、按会话、按周三套口径互相覆盖、无法说明「到底被哪一条拦了」。**否决**，整套替换为按对的两个上限。
-- **屏蔽 / 拉黑也放 Redis**：关系要按 owner 持久、方向独立、可软删与恢复，Redis 计数既不持久也表达不了「我这一侧的会话列表」。**否决**，落一张新表并走 ADR 立项。
-- **给既有会话 / 状态表加 `level` 列**：直接违反零列变更；而且会话是双方各持一份的视图，加列表达不了「对方发不进来」这种反向发送权限。**否决**。
-- **把屏蔽与拉黑合并成一个布尔 / 当同义词用**：会丢掉「挡发送但仍看得到历史会话」与「连会话一起藏」这两级产品语义。**否决**，两级用 `level` 显式区分。
-- **为限流 / 投递状态再开第二张表，或引入运行时 AutoMigrate**：前者越过了本 ADR 的批准边界，后者与项目既有「`schema.sql` + 手动 `-db`」的幂等建表流程冲突。**否决**。
-- **顺手做 WS ack/retry、编辑 / 撤回、举报队列或 E2E**：与 ADR-0022 的非目标冲突，把风控批次扩成不可收敛的整批重构。**否决**。
+**为什么把五项收进一个判定点**：发送资格是一件事，不是五件相邻的事。分散判断时，任何一项的"依赖没注入"都可能变成放行；聚成一处后，失败关闭是唯一出口，新增一项资格也只有一个地方要改。五个依赖仍然以窄接口注入（端口由使用方定义），没有把 `*gorm.DB` 或别的模块的 service 塞进来。
+
+被否决的方案：
+
+- **保留每个依赖的 nil 放行分支**：装配遗漏等于风控静默关闭，且 `stranger` 的 nil 还会 panic——这正是本批要修的病灶。**否决**。
+- **把资格依赖缺失改成构造期 panic**：能让服务起不来，但掩盖了"哪一项没上场"；而且单测 / 记录回放类装配会被迫构造全套依赖。**否决**，改为发送时失败关闭。
+- **把五项合成一个跨模块大接口**：会让私信模块反过来定义别的模块该实现什么，破坏"端口由使用方定义、模块间零引入"。**否决**，保持五个窄端口，判定点收在模块内部。
+- **管理员视图也过滤拉黑**：运维排查看不到被拉黑用户的会话，把"有意例外"当"漏判"改掉。**否决**。
+- **继续在内存里扣总数**：扣的是全部拉黑目标数，不是本页被扣掉的行数；分页与总数会一起失真。**否决**，过滤与计数都交给 SQL。
+- **把处理器继续挂在路由包包级变量上**：包级可变状态让路由表依赖装配顺序，测试之间互相污染（`NewEngine` 在没注入时 panic）。**否决**，改为显式参数；但不顺手清其他模块（范围外）。
+- **为发送资格新增表 / 列**：零 DDL 下不需要也不允许；按对限流仍在 Redis，屏蔽 / 拉黑只读既有 `chat_block_models`。**否决**。
 
 ## 代价 / 不做什么
 
-- **多一次升级手工步骤**：新表不会被 entrypoint 自举，升级漏跑 `-db` 会表现为相关接口报「表不存在」；既有三张表无列变更、无数据回填。
-- **限流仍依赖 Redis**：计数不落库；Redis 不可用 / 判定异常按失败关闭拒绝发送，不退化成「先放行再说」。
-- **屏蔽 / 拉黑只作用于自己这一侧**：不追求双向一致、不清理历史消息、不改对方持有的那份会话视图（沿用私信双方各持一份视图的语义）。
-- **本批的「风控」= 限流 + 屏蔽 / 拉黑**：不做内容审核队列与识别，不做 WS ack/retry、消息编辑 / 撤回、举报队列、浏览器 E2E；不为限流或投递状态另开第二张表；不引入运行时 AutoMigrate。
+- **校验依赖必须全部装配**：生产装配漏掉任一项，发送会全部被拒（`chat.send_failed`）。这是有意的：宁可发不出去，也不静默失效；启动守卫与门禁负责尽早发现。
+- **多一次查询**：屏蔽 / 拉黑每次发送查两行、关注关系查一次、限流仍在 Redis；这些都在发送路径上，接受。
+- **会话列表的 SQL 直接引用 `chat_block_models`**：私信读端口与拉黑表同库同模块，语义仍是"过滤我拉黑的人"；管理员例外由调用方显式传参。
+- **只清私信一处包级状态**：其他模块仍保留 `SetXxxHandler`，全仓清理不在本批。
+- **不做什么**：不做内容审核队列与识别；不做 WS ack/retry、消息编辑 / 撤回、举报队列、浏览器 E2E；不新增表 / 列；不引入运行时 AutoMigrate；不提前改消息列表方向（#281 的范围）。
 
 ## 当前生效约束
 
-1. **HTTP 仍是唯一发送通道（ADR-0022 决策 1 不变）**：`POST /chat/messages` 在事务内落库为准；WS 只做下行通知，不承担落库或重发；每个写副作用仍在业务事务内写发件箱。
-2. **风控判定在用例层且失败关闭**：限流预占 / 回滚与屏蔽 / 拉黑判定都收在 `chat/app` 的发送用例边界内；判定依赖不可用或异常时不得放行发送。
-3. **限流口径唯一且可调**：每对 `(sender, receiver)` 滑动窗口 1 条 + 自然日 N 条，窗口与额度从 `site.chat` 现读（后台可配，缺省 10 秒 / 99 条），Redis 计数、无新表；旧的 60/60s（按人）、30/60s（按会话）与周配额 1 / 3 条不再生效。
-4. **屏蔽（level=1）与拉黑（level=2）是两个概念**：按 owner、方向性、可软删，唯一键 `(owner_id, blocked_id)`；屏蔽挡对方发送但历史会话仍可见，拉黑额外隐藏会话。
-5. **`chat_block_models` 是私信模块唯一被批准新增的表**：既有三张私信表零列变更；再新增任何表都必须另立 ADR；落地只走 `schema.sql` 的 `CREATE TABLE IF NOT EXISTS` + 手动 `-db`，无运行时 AutoMigrate。
+1. **一次判定、一律失败关闭**：发送资格的五项在 `sendGuard.check` 一次判完；依赖缺失或异常一律拒绝，任何 nil 放行分支都不得重新出现。
+2. **HTTP 仍是唯一发送通道**（ADR-0022 决策 1 不变）：`POST /chat/messages` 事务内落库为准，WS 只做下行通知；写副作用仍走发件箱。
+3. **管理员视图不过滤拉黑是有意例外**：读者视图 `HideBlocked=true`；管理员视图 `HideBlocked=false` + `Unscoped=true`，任何"为整齐统一"的改动都视为回归。
+4. **会话列表的拉黑过滤在查库层完成**：`total` 与分页都基于过滤后的行集，禁止恢复"先分页、再按全部拉黑目标数扣总数"。
+5. **装配收进模块**：`internal/chat.New` 是私信九个协作者的唯一装配点；合成根只注入基础设施与跨模块窄能力；私信处理器经 `router.Handlers` 显式传入，不得回到包级变量。
+6. **零 DDL**：`chat_block_models` 是唯一经 ADR 指名新增的私信表；既有私信表零列变更；不再新增表 / 列，不做 ALTER。
 
 ## 相关代码与文档
 
-- 概念：[GLOSSARY · 私信与会话](../../GLOSSARY.md)（屏蔽 / 拉黑 / 私信 / 会话 / 陌生人私信）
-- 上游决策：[ADR-0022](./0022-chat-dual-channel-http-write-ws-notify.md)（双通道、零 DDL 立项要求、发件箱；文末「后续修订（2026-11-04，#268）」）
-- 待办：[docs/TODO.md](../TODO.md)（原「发送侧的审核 / 风控待设计」条目）
-- 用例与判定：`backend/internal/chat/`（`domain` / `app` / `adapter`）
-- 装配：[backend/app/chat_wiring.go](../../backend/app/chat_wiring.go)
-- 建表：[backend/internal/platform/mysql/ddl/schema.sql](../../backend/internal/platform/mysql/ddl/schema.sql)（`CREATE TABLE IF NOT EXISTS`）· [README §11.4.2](../../README.md#1142-升级到带新表的版本手动建一次表)（升级手动 `-db`）
+- 判定点：[internal/chat/app/eligibility.go](../../backend/internal/chat/app/eligibility.go)（`sendGuard` / `sendPlan`）· [internal/chat/app/service.go](../../backend/internal/chat/app/service.go)（`Send` / `Sessions`）
+- 查库层过滤：[internal/chat/adapter/mysql/chat.go](../../backend/internal/chat/adapter/mysql/chat.go)（`ListSessions` / `SessionQuery.HideBlocked`）
+- 装配：[internal/chat/module.go](../../backend/internal/chat/module.go)（`chat.New`）· [backend/app/chat_wiring.go](../../backend/app/chat_wiring.go)（跨模块适配器）· [router/chat_router.go](../../backend/internal/platform/http/router/chat_router.go)
+- 概念：[GLOSSARY · 十一、私信与会话](../../GLOSSARY.md)（私信发送资格 / 会话可见集 / 会话未读数 / 屏蔽 / 拉黑）
+- 上游决策：[ADR-0022](./0022-chat-dual-channel-http-write-ws-notify.md)（双通道、零 DDL、发件箱；文末「后续修订（2026-11-06，#280）」）· [ADR-0027](./0027-message-center-ordering-pagination-and-read-receipt.md)（会话可见集与未读数）· [ADR-0001](./0001-capability-interfaces-over-deps.md) / [ADR-0002](./0002-vertical-modules-and-composition-root.md)（能力接口与合成根的适用范围）
+- 建表：[backend/internal/platform/mysql/ddl/schema.sql](../../backend/internal/platform/mysql/ddl/schema.sql) · [README §11.4.2](../../README.md#1142-升级到带新表的版本手动建一次表)（升级手动 `-db`）

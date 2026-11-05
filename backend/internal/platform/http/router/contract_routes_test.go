@@ -72,13 +72,13 @@ func TestContractMatchesRoutes(t *testing.T) {
 	router.SetUserHandler(&userhttp.Handler{})
 	router.SetArticleHandler(&articlehttp.Handler{})
 	router.SetCommentHandler(&commenthttp.Handler{})
-	router.SetChatHandler(&chathttp.Handler{})
 	router.SetNotificationHandler(&notificationhttp.Handler{})
 	router.SetFollowHandler(&socialhttp.Handler{})
 	router.SetSearchHandler(&searchhttp.Handler{})
 	router.SetAIHandler(&aihttp.Handler{})
 
-	engine := router.NewEngine(mw.RuntimeOptions{}, nil)
+	// 私信走显式注入（#280）：路由包不再持有它的包级变量。
+	engine := router.NewEngine(mw.RuntimeOptions{}, nil, router.Handlers{Chat: &chathttp.Handler{}})
 	routes := engine.Routes()
 	if len(routes) == 0 {
 		t.Fatal("路由表为空：装配路径没有注册任何路由")

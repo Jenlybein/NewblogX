@@ -148,7 +148,8 @@ func (userTokenVerifier) VerifyAccessToken(_ context.Context, raw string) (*jwts
 
 // injectZeroHandlers 注入零值处理器：本测试只关心"停在哪一层"。
 // 任何 handler 方法被真正调用都会 panic —— 那恰好说明中间件没拦住。
-func injectZeroHandlers() {
+// 私信走显式注入（#280），返回给 NewEngine。
+func injectZeroHandlers() router.Handlers {
 	router.SetSiteHandler(&sitehttp.Handler{})
 	router.SetAnalyticsHandler(&analyticshttp.Handler{})
 	router.SetImageHandler(&mediahttp.Handler{})
@@ -157,11 +158,11 @@ func injectZeroHandlers() {
 	router.SetUserHandler(&userhttp.Handler{})
 	router.SetArticleHandler(&articlehttp.Handler{})
 	router.SetCommentHandler(&commenthttp.Handler{})
-	router.SetChatHandler(&chathttp.Handler{})
 	router.SetNotificationHandler(&notificationhttp.Handler{})
 	router.SetFollowHandler(&socialhttp.Handler{})
 	router.SetSearchHandler(&searchhttp.Handler{})
 	router.SetAIHandler(&aihttp.Handler{})
+	return router.Handlers{Chat: &chathttp.Handler{}}
 }
 
 // TestAdminRoutesRejectOrdinaryUser 逐个探测：普通用户令牌必须被挡在 AdminMiddleware。
@@ -171,7 +172,7 @@ func TestAdminRoutesRejectOrdinaryUser(t *testing.T) {
 	gin.DefaultErrorWriter = io.Discard
 
 	injectZeroHandlers()
-	engine := router.NewEngine(mw.RuntimeOptions{Verifier: userTokenVerifier{}}, nil)
+	engine := router.NewEngine(mw.RuntimeOptions{Verifier: userTokenVerifier{}}, nil, injectZeroHandlers())
 
 	for _, c := range adminOnly {
 		c := c
@@ -210,7 +211,7 @@ func TestProbeDistinguishesUnprotectedRoute(t *testing.T) {
 	gin.DefaultErrorWriter = io.Discard
 
 	injectZeroHandlers()
-	engine := router.NewEngine(mw.RuntimeOptions{Verifier: userTokenVerifier{}}, nil)
+	engine := router.NewEngine(mw.RuntimeOptions{Verifier: userTokenVerifier{}}, nil, injectZeroHandlers())
 
 	req := httptest.NewRequest("GET", "/api/users/detail", nil)
 	req.Header.Set("Authorization", "Bearer ordinary-user-token")

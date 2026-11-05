@@ -45,7 +45,7 @@ func (f *readFakeRepo) Send(context.Context, domain.SendCommand, domain.Display,
 	return domain.Message{}, false, nil
 }
 
-func (f *readFakeRepo) ListSessions(context.Context, ctype.ID, bool, domain.Page) ([]domain.Session, int, error) {
+func (f *readFakeRepo) ListSessions(context.Context, domain.SessionQuery) ([]domain.Session, int, error) {
 	return nil, 0, nil
 }
 
@@ -91,7 +91,7 @@ func newReadEngine(repo *readFakeRepo) *gin.Engine {
 		}})
 	})
 	svc := app.New(repo, repo, fakeRelations{}, fakeUsers{},
-		fakeStranger{verdict: domain.StrangerAllowed}, nil, nil, nil, nil)
+		fakeStranger{verdict: domain.StrangerAllowed}, permitLimiter{}, nil, permitBlocks{}, nil)
 	handler := chathttp.NewHandler(svc, ws.NewHub(),
 		fakeTickets{user: ctype.NewID(1), session: ctype.NewID(1)}, fakeAuth{}, nil)
 	engine.POST("/chat/read", handler.Read)

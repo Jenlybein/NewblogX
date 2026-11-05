@@ -218,6 +218,20 @@ type Page struct {
 	Limit int
 }
 
+// SessionQuery 是会话列表查询。
+//
+// 拉黑过滤是查询的一部分，不是查完再在内存里剔行：只有让 SQL 同时过滤与计数，
+// 总数才会是"过滤后的真值"（#280）。
+type SessionQuery struct {
+	UserID ctype.ID
+	// Unscoped 为 true 时连已软删的会话一起看（管理员视图）。
+	Unscoped bool
+	// HideBlocked 为 true 时把 owner 拉黑（level=2）的对方整条隐藏。
+	// 管理员视图传 false 是**有意例外**：运维排查需要看全量会话。
+	HideBlocked bool
+	Page        Page
+}
+
 // Normalize 收敛分页（默认 10、上限 100）。
 func (p Page) Normalize() Page {
 	if p.Limit <= 0 || p.Limit > 100 {
@@ -293,8 +307,9 @@ type Store interface {
 
 // Query 是私信读端口（读走查询）：只做纯读，不产生任何副作用。
 type Query interface {
-	// ListSessions 分页查会话；unscoped=true 时连已软删的会话一起看（管理员）。
-	ListSessions(ctx context.Context, userID ctype.ID, unscoped bool, page Page) ([]Session, int, error)
+	// ListSessions 分页查会话；unscoped=true 时连已软删的会话一起看（管理员），
+	// HideBlocked=true 时在查库层过滤掉 owner 拉黑（level=2）的对方。
+	ListSessions(ctx context.Context, q SessionQuery) ([]Session, int, error)
 	// FindSession 查一条会话（校验归属）。
 	FindSession(ctx context.Context, sessionID string, userID ctype.ID, unscoped bool) (Session, error)
 	// ListMessages 分页查消息；带复合游标时多取一条以计算 HasMore。
@@ -425,17 +440,17 @@ const (
 
 // BlockPolicy 读"我"对"对方"的屏蔽 / 拉黑级别，以及"对方"对"我"的级别。
 //
-// 方向性：A 对 B 的记录不影响 B 对 A。用例层用 Outgoing(sender→receiver)
-// 判"能不能发"、用 Incoming(receiver→sender) 判"对方是不是把我拉黑了"，
-// 用 HardBlockedIDs 在会话列表里把"我拉黑的人"整条隐藏。
+// 方向性：A 对 B 的记录不影响 B 对 A。用例层用 Level(sender→receiver) 判
+// "能不能发"、用 Level(receiver→sender) 判"对方是不是把我拉黑了"。
+//
+// 会话列表里的拉黑过滤不在这个端口：它是查库层的查询条件
+// （SessionQuery.HideBlocked），由 SQL 与计数一起完成（#280）。
 //
 // 失败关闭由装配层保证：查库异常时按"没有记录"放行发送是不安全的，
 // 因此 Query 出错必须原样返回错误，用例层据此中止发送。
 type BlockPolicy interface {
 	// Level 返回 owner 对 target 的级别；没有记录时返回 BlockLevelNone。
 	Level(ctx context.Context, ownerID, targetID ctype.ID) (BlockLevel, error)
-	// HardBlockedIDs 返回 owner 拉黑（level=2）的所有 target，供会话列表过滤。
-	HardBlockedIDs(ctx context.Context, ownerID ctype.ID) ([]ctype.ID, error)
 }
 
 // Logger 是窄日志接口。

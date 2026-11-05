@@ -57,22 +57,3 @@ func (p *BlockPolicy) Level(ctx context.Context, ownerID, targetID ctype.ID) (do
 	}
 	return domain.BlockLevelSoft, nil
 }
-
-// HardBlockedIDs 返回 owner 拉黑（level=2）的所有 target。
-func (p *BlockPolicy) HardBlockedIDs(ctx context.Context, ownerID ctype.ID) ([]ctype.ID, error) {
-	if p == nil || p.db == nil {
-		return nil, nil
-	}
-	var rows []chatBlockRow
-	if err := p.db.WithContext(ctx).
-		Select("blocked_id").
-		Where("owner_id = ? AND level = ?", ownerID.Uint64(), uint8(domain.BlockLevelHard)).
-		Find(&rows).Error; err != nil {
-		return nil, err
-	}
-	out := make([]ctype.ID, 0, len(rows))
-	for _, row := range rows {
-		out = append(out, row.BlockedID)
-	}
-	return out, nil
-}

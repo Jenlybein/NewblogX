@@ -30,14 +30,11 @@ import { markArticleViewed, setArticleDigg } from "~/services/article";
 import { createComment, diggComment, getReplyComments } from "~/services/comment";
 import type { ArticleFavoriteResult } from "~/types/api";
 import { resolveArticleEditEntry } from "~/utils/articleEdit";
-import { applyArticleFavoriteResult } from "~/utils/articleFavorite";
 import { formatCount, formatDateTimeLabel } from "~/utils/format";
 import { getAuthorButtonLabel, isFollowing } from "~/utils/relation";
 import { resolveAvatarInitial } from "~/utils/avatar";
 import { brandDescription } from "~/utils/brand";
 import { errorMessage } from "~/utils/errorMessage";
-import { readerArticleCacheKey } from "~/utils/readerCacheKeys";
-import { readerSwrCache } from "~/utils/readerSwrCache";
 import katexCssUrl from "katex/dist/katex.min.css?url";
 
 const route = useRoute();
@@ -74,6 +71,7 @@ const {
   articleError,
   refreshArticle,
   refreshArticlePrivate,
+  reportArticleWrite,
   authorInfo,
   refreshAuthorInfo,
   authorProfile,
@@ -219,13 +217,9 @@ const {
   articleId: () => articleId.value,
   snapshot: () => ({ isDigg: article.value?.is_digg, diggCount: article.value?.digg_count }),
   patchArticle: (isDigg, diggCount) => {
-    if (!article.value) {
-      return;
-    }
-    article.value = { ...article.value, is_digg: isDigg, digg_count: diggCount };
-    // 写响应已经是权威计数，客户端 30s SWR 里那份（匿名 payload 预热出的）旧值
-    // 必须主动失效，否则返回/重进时会先渲染旧数字再等 TTL（ADR-0024 决策 4）。
-    readerSwrCache.delete(readerArticleCacheKey(articleId.value));
+    // 页面只上报「读者做了什么」：写响应回填权威计数 / 清客户端 30s SWR /
+    // 私有态覆盖 / 缓存键拼接已收进阅读页取数模块（票 282、ADR-0024 决策 4）。
+    reportArticleWrite({ kind: "digg", result: { is_digg: isDigg, digg_count: diggCount } });
   },
   // 点赞/收藏是写操作：用**目标态**接口（不是 toggle），写响应带回权威计数。
   setDigg: setArticleDigg,
@@ -304,13 +298,9 @@ async function handleShare() {
 }
 
 function handleFavoriteUpdated(payload: ArticleFavoriteResult | null) {
-  // 空值防御在纯函数里（评审票 248 / P0-2）：失败分支可能没有 data，
-  // 之前的实现读 `payload.is_favor` 会直接 TypeError。
-  // 写响应回填权威计数，直接 patch；不再为一次收藏重取整篇正文（ADR-0024 决策 4/6）。
-  article.value = applyArticleFavoriteResult(article.value, payload) ?? undefined;
-  // 客户端 30s SWR 里那份正文仍是旧计数/旧私有态，主动失效
-  // （payload 不可用时更该失效：服务端状态可能已经变了）。
-  readerSwrCache.delete(readerArticleCacheKey(articleId.value));
+  // 页面只上报收藏写响应（含空值）：权威计数回填、空值防御与客户端 30s SWR
+  // 主动失效都由阅读页取数模块统一管（票 282、ADR-0024 决策 4/6）。
+  reportArticleWrite({ kind: "favorite", result: payload });
 }
 
 function handleArticleScoreOpen() {

@@ -19,8 +19,8 @@ import (
 // N 与 M **每次发送现读**运行时配置（后台「站点 → 私信」可改），不重启即生效；
 // 缺省由 `siteconf.NormalizeChatRate` 收敛到 10 秒 / 99 条。
 type Limiter struct {
-	deps   redis_service.Options
-	now    func() time.Time
+	deps redis_service.Options
+	now  func() time.Time
 	// limits 返回 (窗口秒数, 日额度)；注入函数而不是快照，保证"现读"。
 	limits func() (int, int)
 }

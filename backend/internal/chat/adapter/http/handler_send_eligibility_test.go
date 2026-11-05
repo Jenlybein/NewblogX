@@ -74,17 +74,16 @@ type eligibilityDeps struct {
 
 func newEligibilityService(d eligibilityDeps) (*app.Service, *fakeRepo) {
 	repo := &fakeRepo{}
-	svc := app.New(
-		repo,
-		repo,
-		d.relations,
-		fakeUsers{},
-		d.stranger,
-		d.limiter,
-		d.image,
-		d.blocks,
-		nil,
-	)
+	svc := app.New(app.Deps{
+		Read:       repo,
+		Write:      repo,
+		Relations:  d.relations,
+		Users:      fakeUsers{},
+		Stranger:   d.stranger,
+		Limiter:    d.limiter,
+		ImageCheck: d.image,
+		Blocks:     d.blocks,
+	})
 	return svc, repo
 }
 

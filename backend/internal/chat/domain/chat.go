@@ -218,6 +218,20 @@ type Page struct {
 	Limit int
 }
 
+// SessionQuery 是会话列表查询。
+//
+// 拉黑过滤是查询的一部分，不是查完再在内存里剔行：只有让 SQL 同时过滤与计数，
+// 总数才会是"过滤后的真值"（#280）。
+type SessionQuery struct {
+	UserID ctype.ID
+	// Unscoped 为 true 时连已软删的会话一起看（管理员视图）。
+	Unscoped bool
+	// HideBlocked 为 true 时把 owner 拉黑（level=2）的对方整条隐藏。
+	// 管理员视图传 false 是**有意例外**：运维排查需要看全量会话。
+	HideBlocked bool
+	Page        Page
+}
+
 // Normalize 收敛分页（默认 10、上限 100）。
 func (p Page) Normalize() Page {
 	if p.Limit <= 0 || p.Limit > 100 {
@@ -293,8 +307,9 @@ type Store interface {
 
 // Query 是私信读端口（读走查询）：只做纯读，不产生任何副作用。
 type Query interface {
-	// ListSessions 分页查会话；unscoped=true 时连已软删的会话一起看（管理员）。
-	ListSessions(ctx context.Context, userID ctype.ID, unscoped bool, page Page) ([]Session, int, error)
+	// ListSessions 分页查会话；unscoped=true 时连已软删的会话一起看（管理员），
+	// HideBlocked=true 时在查库层过滤掉 owner 拉黑（level=2）的对方。
+	ListSessions(ctx context.Context, q SessionQuery) ([]Session, int, error)
 	// FindSession 查一条会话（校验归属）。
 	FindSession(ctx context.Context, sessionID string, userID ctype.ID, unscoped bool) (Session, error)
 	// ListMessages 分页查消息；带复合游标时多取一条以计算 HasMore。

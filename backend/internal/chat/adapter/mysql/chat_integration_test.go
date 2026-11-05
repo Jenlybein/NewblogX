@@ -788,6 +788,46 @@ func assertVisibleAndUnread(t *testing.T, repo *mysql.Repo, db *gorm.DB, userID 
 	}
 }
 
+// TestReconcileAllChatUnreadPaginatesAllSessions 全量并账公开入口（批量游标）。
+//
+// 同一批里有多对用户、多个会话，且故意把派生列写脏；一轮并账后每条会话
+// 都覆盖回消息行真值，消息中心角标等于这些真值之和。
+func TestReconcileAllChatUnreadPaginatesAllSessions(t *testing.T) {
+	t.Parallel()
+
+	repo, db := setup(t)
+	ctx := context.Background()
+	base := time.Date(2026, 1, 1, 10, 0, 0, 0, time.UTC)
+
+	sendText(t, repo, 100, 200, "a-1", base)
+	sendText(t, repo, 100, 200, "a-2", base.Add(time.Minute))
+	sendText(t, repo, 100, 300, "b-1", base.Add(2*time.Minute))
+	sendText(t, repo, 300, 200, "c-1", base.Add(3*time.Minute))
+
+	// 把所有会话行的派生列写脏，验证覆盖写而不是 += / -= 增量。
+	if err := db.Exec("UPDATE chat_session_models SET unread_count = 99").Error; err != nil {
+		t.Fatalf("写脏派生列失败: %v", err)
+	}
+	if total, err := mysql.ReconcileAllChatUnread(ctx, db, 1); err != nil {
+		t.Fatalf("全量并账失败: %v", err)
+	} else if total == 0 {
+		t.Fatal("全量并账应至少写回一条会话")
+	}
+
+	// 逐用户验：角标 = 该用户所有会话里「发给自己且未读」的消息行数之和。
+	for _, userID := range []uint64{100, 200, 300} {
+		var truth int64
+		if err := db.Table("chat_msg_models").
+			Where("receiver_id = ? AND msg_status < ? AND deleted_at IS NULL", userID, int8(domain.StatusRead)).
+			Count(&truth).Error; err != nil {
+			t.Fatalf("数用户 %d 的真值失败: %v", userID, err)
+		}
+		if badge := privateBadge(t, db, userID); badge != truth {
+			t.Fatalf("用户 %d 角标与并账真值不一致: badge=%d truth=%d", userID, badge, truth)
+		}
+	}
+}
+
 // TestVisibilitySetIncludesOwnMessagesButUnreadOnlyCountsIncoming 两类集合边界。
 //
 // 可见集含自己发的消息（不看 sender_id / receiver_id）；未读数只数

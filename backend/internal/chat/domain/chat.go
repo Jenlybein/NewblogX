@@ -440,17 +440,17 @@ const (
 
 // BlockPolicy 读"我"对"对方"的屏蔽 / 拉黑级别，以及"对方"对"我"的级别。
 //
-// 方向性：A 对 B 的记录不影响 B 对 A。用例层用 Outgoing(sender→receiver)
-// 判"能不能发"、用 Incoming(receiver→sender) 判"对方是不是把我拉黑了"，
-// 用 HardBlockedIDs 在会话列表里把"我拉黑的人"整条隐藏。
+// 方向性：A 对 B 的记录不影响 B 对 A。用例层用 Level(sender→receiver) 判
+// "能不能发"、用 Level(receiver→sender) 判"对方是不是把我拉黑了"。
+//
+// 会话列表里的拉黑过滤不在这个端口：它是查库层的查询条件
+// （SessionQuery.HideBlocked），由 SQL 与计数一起完成（#280）。
 //
 // 失败关闭由装配层保证：查库异常时按"没有记录"放行发送是不安全的，
 // 因此 Query 出错必须原样返回错误，用例层据此中止发送。
 type BlockPolicy interface {
 	// Level 返回 owner 对 target 的级别；没有记录时返回 BlockLevelNone。
 	Level(ctx context.Context, ownerID, targetID ctype.ID) (BlockLevel, error)
-	// HardBlockedIDs 返回 owner 拉黑（level=2）的所有 target，供会话列表过滤。
-	HardBlockedIDs(ctx context.Context, ownerID ctype.ID) ([]ctype.ID, error)
 }
 
 // Logger 是窄日志接口。

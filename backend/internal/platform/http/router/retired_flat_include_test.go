@@ -95,7 +95,7 @@ func TestRetiredFlatIncludeOpsAreGone(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
 	injectZeroHandlers()
-	engine := router.NewEngine(mw.RuntimeOptions{}, nil)
+	engine := router.NewEngine(mw.RuntimeOptions{}, nil, injectZeroHandlers())
 
 	registered := make(map[string]bool)
 	for _, rt := range engine.Routes() {
@@ -156,7 +156,7 @@ func TestRetiredFlatIncludeGuardCatchesPhantom(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
 	injectZeroHandlers()
-	engine := router.NewEngine(mw.RuntimeOptions{}, nil)
+	engine := router.NewEngine(mw.RuntimeOptions{}, nil, injectZeroHandlers())
 
 	registered := make(map[string]bool)
 	for _, rt := range engine.Routes() {

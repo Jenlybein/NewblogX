@@ -127,16 +127,8 @@ func newService(t *testing.T, relation int8, verdict domain.StrangerVerdict) (*a
 	t.Helper()
 	repo := &fakeRepo{}
 	stranger := &fakeStranger{verdict: verdict}
-	svc := app.New(app.Deps{
-		Read:       repo,
-		Write:      repo,
-		Relations:  fakeRelations{relation: relation},
-		Users:      fakeUsers{},
-		Stranger:   stranger,
-		Limiter:    permitLimiter{},
-		ImageCheck: &allowOwnedImage{},
-		Blocks:     &fakeBlocks{},
-	})
+	svc := app.New(repo, repo, fakeRelations{relation: relation}, fakeUsers{}, stranger,
+		permitLimiter{}, &allowOwnedImage{}, &fakeBlocks{}, nil)
 	return svc, repo, stranger
 }
 
@@ -153,12 +145,11 @@ type permitReservation struct{}
 func (permitReservation) Commit() error   { return nil }
 func (permitReservation) Rollback() error { return nil }
 
-// fakeBlocks 让用例层能验证"屏蔽 / 拉黑"确实在发送与会话列表里生效。
+// fakeBlocks 让用例层能验证"屏蔽 / 拉黑"确实在发送时生效。
+// 会话列表的拉黑过滤已经下推到查库层，不在这个端口里。
 type fakeBlocks struct {
 	outgoing domain.BlockLevel
 	incoming domain.BlockLevel
-	hardIDs  []ctype.ID
-	sessions []domain.Session
 }
 
 func (f *fakeBlocks) Level(_ context.Context, owner, target ctype.ID) (domain.BlockLevel, error) {
@@ -169,10 +160,6 @@ func (f *fakeBlocks) Level(_ context.Context, owner, target ctype.ID) (domain.Bl
 		return f.incoming, nil
 	}
 	return domain.BlockLevelNone, nil
-}
-
-func (f *fakeBlocks) HardBlockedIDs(context.Context, ctype.ID) ([]ctype.ID, error) {
-	return f.hardIDs, nil
 }
 
 // allowOwnedImage 让用例层能发图片；"是不是本站图片"的判定逻辑在装配层
@@ -336,11 +323,8 @@ func TestSend_自己发给自己不受陌生人开关影响(t *testing.T) {
 func TestSend_图片消息必须校验来源(t *testing.T) {
 	repo := &fakeRepo{}
 	check := &allowOwnedImage{owned: false}
-	svc := app.New(app.Deps{
-		Read: repo, Write: repo, Relations: fakeRelations{relation: 4}, Users: fakeUsers{},
-		Stranger: &fakeStranger{verdict: domain.StrangerAllowed}, Limiter: permitLimiter{},
-		ImageCheck: check, Blocks: &fakeBlocks{},
-	})
+	svc := app.New(repo, repo, fakeRelations{relation: 4}, fakeUsers{},
+		&fakeStranger{verdict: domain.StrangerAllowed}, permitLimiter{}, check, &fakeBlocks{}, nil)
 
 	_, err := svc.Send(context.Background(), ctype.NewID(100), ctype.NewID(200),
 		domain.TypeImage, "https://evil.example.com/pixel.png", "")
@@ -358,11 +342,8 @@ func TestSend_图片消息必须校验来源(t *testing.T) {
 func TestSend_本站图片可发且文本不触发校验(t *testing.T) {
 	repo := &fakeRepo{}
 	check := &allowOwnedImage{owned: true}
-	svc := app.New(app.Deps{
-		Read: repo, Write: repo, Relations: fakeRelations{relation: 4}, Users: fakeUsers{},
-		Stranger: &fakeStranger{verdict: domain.StrangerAllowed}, Limiter: permitLimiter{},
-		ImageCheck: check, Blocks: &fakeBlocks{},
-	})
+	svc := app.New(repo, repo, fakeRelations{relation: 4}, fakeUsers{},
+		&fakeStranger{verdict: domain.StrangerAllowed}, permitLimiter{}, check, &fakeBlocks{}, nil)
 
 	if _, err := svc.Send(context.Background(), ctype.NewID(100), ctype.NewID(200),
 		domain.TypeText, "你好", ""); err != nil {
@@ -388,11 +369,8 @@ func TestSend_本站图片可发且文本不触发校验(t *testing.T) {
 
 func TestSend_未配置图片校验时失败关闭(t *testing.T) {
 	repo := &fakeRepo{}
-	svc := app.New(app.Deps{
-		Read: repo, Write: repo, Relations: fakeRelations{relation: 4}, Users: fakeUsers{},
-		Stranger: &fakeStranger{verdict: domain.StrangerAllowed}, Limiter: permitLimiter{},
-		Blocks: &fakeBlocks{},
-	})
+	svc := app.New(repo, repo, fakeRelations{relation: 4}, fakeUsers{},
+		&fakeStranger{verdict: domain.StrangerAllowed}, permitLimiter{}, nil, &fakeBlocks{}, nil)
 
 	_, err := svc.Send(context.Background(), ctype.NewID(100), ctype.NewID(200),
 		domain.TypeImage, "https://cdn.example.com/myblogx/images/20261104/abc.png", "")
@@ -417,12 +395,9 @@ func TestSend_屏蔽或拉黑后双方都不能发(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			repo := &fakeRepo{}
-			svc := app.New(app.Deps{
-				Read: repo, Write: repo, Relations: fakeRelations{relation: 4}, Users: fakeUsers{},
-				Stranger: &fakeStranger{verdict: domain.StrangerAllowed}, Limiter: permitLimiter{},
-				ImageCheck: &allowOwnedImage{},
-				Blocks:     &fakeBlocks{outgoing: tc.outgoing, incoming: tc.incoming},
-			})
+			svc := app.New(repo, repo, fakeRelations{relation: 4}, fakeUsers{},
+				&fakeStranger{verdict: domain.StrangerAllowed}, permitLimiter{}, &allowOwnedImage{},
+				&fakeBlocks{outgoing: tc.outgoing, incoming: tc.incoming}, nil)
 
 			_, err := svc.Send(context.Background(), ctype.NewID(100), ctype.NewID(200),
 				domain.TypeText, "在吗", "")
@@ -442,12 +417,8 @@ func TestSessions_拉黑过滤由查库层完成而用例层不二次扣减(t *t
 	repo := &fakeRepo{sessions: []domain.Session{
 		{SessionID: "chat:100:300", ReceiverID: ctype.NewID(300)},
 	}}
-	blocks := &fakeBlocks{hardIDs: []ctype.ID{ctype.NewID(200)}}
-	svc := app.New(app.Deps{
-		Read: repo, Write: repo, Relations: fakeRelations{}, Users: fakeUsers{},
-		Stranger: &fakeStranger{verdict: domain.StrangerAllowed}, Limiter: permitLimiter{},
-		ImageCheck: &allowOwnedImage{}, Blocks: blocks,
-	})
+	svc := app.New(repo, repo, fakeRelations{}, fakeUsers{},
+		&fakeStranger{verdict: domain.StrangerAllowed}, permitLimiter{}, &allowOwnedImage{}, &fakeBlocks{}, nil)
 
 	items, total, err := svc.Sessions(context.Background(), ctype.NewID(100), ctype.NewID(100), false, domain.Page{})
 	if err != nil {
@@ -467,11 +438,8 @@ func TestSessions_管理员视图不过滤拉黑是有意例外(t *testing.T) {
 	repo := &fakeRepo{sessions: []domain.Session{
 		{SessionID: "chat:100:200", ReceiverID: ctype.NewID(200)},
 	}}
-	svc := app.New(app.Deps{
-		Read: repo, Write: repo, Relations: fakeRelations{}, Users: fakeUsers{},
-		Stranger: &fakeStranger{verdict: domain.StrangerAllowed}, Limiter: permitLimiter{},
-		ImageCheck: &allowOwnedImage{}, Blocks: &fakeBlocks{hardIDs: []ctype.ID{ctype.NewID(200)}},
-	})
+	svc := app.New(repo, repo, fakeRelations{}, fakeUsers{},
+		&fakeStranger{verdict: domain.StrangerAllowed}, permitLimiter{}, &allowOwnedImage{}, &fakeBlocks{}, nil)
 
 	items, total, err := svc.Sessions(context.Background(), ctype.NewID(1), ctype.NewID(100), true, domain.Page{})
 	if err != nil {

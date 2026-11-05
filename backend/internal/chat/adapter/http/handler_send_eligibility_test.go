@@ -22,18 +22,10 @@ func (permitBlocks) Level(context.Context, ctype.ID, ctype.ID) (domain.BlockLeve
 	return domain.BlockLevelNone, nil
 }
 
-func (permitBlocks) HardBlockedIDs(context.Context, ctype.ID) ([]ctype.ID, error) {
-	return nil, nil
-}
-
 type failingBlocks struct{ err error }
 
 func (f failingBlocks) Level(context.Context, ctype.ID, ctype.ID) (domain.BlockLevel, error) {
 	return domain.BlockLevelNone, f.err
-}
-
-func (f failingBlocks) HardBlockedIDs(context.Context, ctype.ID) ([]ctype.ID, error) {
-	return nil, f.err
 }
 
 type permitLimiter struct{}
@@ -74,16 +66,7 @@ type eligibilityDeps struct {
 
 func newEligibilityService(d eligibilityDeps) (*app.Service, *fakeRepo) {
 	repo := &fakeRepo{}
-	svc := app.New(app.Deps{
-		Read:       repo,
-		Write:      repo,
-		Relations:  d.relations,
-		Users:      fakeUsers{},
-		Stranger:   d.stranger,
-		Limiter:    d.limiter,
-		ImageCheck: d.image,
-		Blocks:     d.blocks,
-	})
+	svc := app.New(repo, repo, d.relations, fakeUsers{}, d.stranger, d.limiter, d.image, d.blocks, nil)
 	return svc, repo
 }
 

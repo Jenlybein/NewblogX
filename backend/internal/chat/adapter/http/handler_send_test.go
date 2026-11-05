@@ -142,10 +142,8 @@ func (fakeAuth) SessionActive(context.Context, uint64, uint64) (bool, error) { r
 // newService 造一个"发送一律成功"的用例服务；relation/verdict 决定陌生人判定。
 func newService(relation int8, verdict domain.StrangerVerdict) (*app.Service, *fakeRepo) {
 	repo := &fakeRepo{}
-	svc := app.New(app.Deps{
-		Read: repo, Write: repo, Relations: fakeRelations{relation: relation}, Users: fakeUsers{},
-		Stranger: fakeStranger{verdict: verdict}, Limiter: permitLimiter{}, Blocks: permitBlocks{},
-	})
+	svc := app.New(repo, repo, fakeRelations{relation: relation}, fakeUsers{},
+		fakeStranger{verdict: verdict}, permitLimiter{}, nil, permitBlocks{}, nil)
 	return svc, repo
 }
 

@@ -90,11 +90,8 @@ func newReadEngine(repo *readFakeRepo) *gin.Engine {
 			Role:      enum.RoleUser,
 		}})
 	})
-	svc := app.New(app.Deps{
-		Read: repo, Write: repo, Relations: fakeRelations{}, Users: fakeUsers{},
-		Stranger: fakeStranger{verdict: domain.StrangerAllowed},
-		Limiter:  permitLimiter{}, Blocks: permitBlocks{},
-	})
+	svc := app.New(repo, repo, fakeRelations{}, fakeUsers{},
+		fakeStranger{verdict: domain.StrangerAllowed}, permitLimiter{}, nil, permitBlocks{}, nil)
 	handler := chathttp.NewHandler(svc, ws.NewHub(),
 		fakeTickets{user: ctype.NewID(1), session: ctype.NewID(1)}, fakeAuth{}, nil)
 	engine.POST("/chat/read", handler.Read)

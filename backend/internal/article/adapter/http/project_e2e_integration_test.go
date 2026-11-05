@@ -22,8 +22,9 @@ import (
 // 未展示 / 封面回退 / 篇数只算仍公开的文章。
 //
 // #219 契约破坏性变更后，项目详情返回**嵌套目录树**（`outline`），扁平
-// `articles[]` 已退役。种子直接写 `content_outline_node_models`
-// （schema.InsertOutlineNode）；旧扁平收录中间表已随 #225 从代码里删除。
+// `articles[]` 已退役。#276 迁移后种子直接写 `project_outline_node_models`
+// （schema.InsertProjectOutlineNode）；旧共用表与旧扁平收录中间表都不再参与
+// 项目侧的读写，旧共享端点留到 #277 收缩。
 //
 // 走真实 HTTP + 真 MySQL，断言的是**外部行为**（响应里的业务码与字段），
 // 不是仓储方法被调了几次。管理端写接口属于 #197，这里直接往表里播种。
@@ -61,11 +62,17 @@ func seedProjectArticle(
 	}
 }
 
-// seedProjectOutlineNode 往项目树里播种一行。
+// seedProjectOutlineNode 往项目具名树表播种一行（#276）。
+//
+// 与合集种子用同一个 spec 形状，但落的是 `project_outline_node_models`：
+// 表名已表达归属，不再写 owner_kind。
 func seedProjectOutlineNode(t *testing.T, db *gorm.DB, spec schema.OutlineNodeSpec) {
 	t.Helper()
-	spec.OwnerKind = int(outline.OwnerProject)
-	schema.InsertOutlineNode(t, db, spec)
+	schema.InsertProjectOutlineNode(t, db, schema.NamedOutlineNodeSpec{
+		ID: spec.ID, OwnerID: spec.OwnerID, ParentID: spec.ParentID,
+		Kind: spec.Kind, Title: spec.Title, ArticleID: spec.ArticleID,
+		SortOrder: spec.SortOrder, At: spec.At,
+	})
 }
 
 // projectOutlineNode 是项目详情 / 后台树响应里的一行（嵌套）。
@@ -139,13 +146,13 @@ func readProjectDetail(
 	return detail
 }
 
-// readProjectAdminOutline 读后台项目树编辑器的整棵树。
+// readProjectAdminOutline 读后台项目树编辑器的整棵树（#276：项目具名端点）。
 func readProjectAdminOutline(
 	t *testing.T, r *gin.Engine, id ctype.ID,
 ) []projectOutlineNode {
 	t.Helper()
 	raw := rawRequest(t, r, "GET",
-		fmt.Sprintf("/api/projects/%s/outline/admin", id), nil)
+		fmt.Sprintf("/api/projects/%s/outline-tree", id), nil)
 	env := decode(t, raw)
 	if env.Code != 0 {
 		t.Fatalf("后台项目目录树应成功，实际 code=%d msg=%s（响应 %s）", env.Code, env.Msg, raw)
@@ -165,7 +172,7 @@ func mustSaveProjectOutline(
 ) []projectOutlineNode {
 	t.Helper()
 	raw := rawRequest(t, r, "PUT",
-		fmt.Sprintf("/api/projects/%s/outline", id), []byte(body))
+		fmt.Sprintf("/api/projects/%s/outline-tree", id), []byte(body))
 	env := decode(t, raw)
 	if env.Code != 0 {
 		t.Fatalf("保存项目目录树应成功，实际 code=%d msg=%s（响应 %s）", env.Code, env.Msg, raw)

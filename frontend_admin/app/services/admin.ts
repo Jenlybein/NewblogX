@@ -31,6 +31,8 @@ import type {
   OutlineNodePayload,
   OutlineTreeResponseData,
   ProjectAdminCard,
+  ProjectOutlineSavePayload,
+  ProjectOutlineTreeResponseData,
   ProjectCreatePayload,
   ProjectUpdatePayload,
   ReplayLogRecord,
@@ -247,15 +249,15 @@ export function saveCollectionOutline(id: string, nodes: OutlineNodePayload[]) {
   )
 }
 
-/** 后台读回某个项目的整棵目录树（与合集同一套形状）。 */
+/** 后台读回某个项目的整棵目录树（#276：项目具名端点的管理员读面）。 */
 export function getProjectOutline(id: string) {
-  return api().request<OutlineTreeResponseData>(`/projects/${id}/outline/admin`)
+  return api().request<ProjectOutlineTreeResponseData>(`/projects/${id}/outline-tree`)
 }
 
-/** 整棵树一次性提交（与合集同一个后端模块）。 */
+/** 整棵树一次性提交到项目具名端点（#276：写 project_outline_node_models）。 */
 export function saveProjectOutline(id: string, nodes: OutlineNodePayload[]) {
-  return api().request<OutlineTreeResponseData, { nodes: OutlineNodePayload[] }>(
-    `/projects/${id}/outline`,
+  return api().request<ProjectOutlineTreeResponseData, ProjectOutlineSavePayload>(
+    `/projects/${id}/outline-tree`,
     { method: 'PUT', body: { nodes } },
   )
 }

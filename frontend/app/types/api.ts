@@ -231,6 +231,23 @@ export type ProjectListData =
 /** 项目详情：项目本身 + 嵌套目录树（票 219 起扁平 articles[] 退役）。 */
 export type ProjectDetail = RequiredSchema<"internal_article_adapter_http.ProjectDetailResponse">;
 
+// ── 具名树端点（#274 expand）────────────────────────────────────
+//
+// 两个具名形状都从**本 app 的** openapi.d.ts 派生，不手写、不跨 app 共享。
+// 本票只让类型可用：详情页 / 阅读页左栏仍消费旧共享形状，切换归 #275 / #276。
+
+/** 合集具名树读模型；current / previous / next 可为 null。 */
+export type CollectionOutlineTree = Nullable<
+  RequiredSchema<"internal_article_adapter_http.CollectionOutlineTreeResponse">,
+  "current" | "previous" | "next"
+>;
+
+/** 项目具名树读模型；current / previous / next 可为 null。 */
+export type ProjectOutlineTree = Nullable<
+  RequiredSchema<"internal_article_adapter_http.ProjectOutlineTreeResponse">,
+  "current" | "previous" | "next"
+>;
+
 // ArticleUpdateRequest 全是指针（PATCH 语义：null 表示清空该字段）。
 export type ArticleWritePayload = Nullable<
   Schema<"internal_article_adapter_http.ArticleUpdateRequest">,

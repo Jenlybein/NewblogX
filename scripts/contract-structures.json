@@ -1,9 +1,9 @@
 {
   "comment": "契约未过期判定的仓库级清单：minimumEntries 是条目数量的独立基线（改动契约只增不减时随批抬高）；addedIn 点名本次新增结构，判定要求它们在重新生成的产物里确实在场。path 条目可点名其下的 HTTP 方法；schema 条目按 components.schemas 的键名点名。清单只登记事实，不读源码文本。",
   "minimumEntries": {
-    "paths": 122,
-    "operations": 160,
-    "schemas": 286
+    "paths": 124,
+    "operations": 164,
+    "schemas": 292
   },
   "addedIn": [
     {
@@ -18,6 +18,22 @@
         "myblogx_internal_chat_domain.MessageCursor",
         "myblogx_internal_chat_domain.MessageListData",
         "myblogx_internal_kernel.Envelope-myblogx_internal_chat_domain_MessageListData"
+      ]
+    },
+    {
+      "ticket": "274",
+      "reason": "拆树 expand：两张按实体命名的独立树表、两个具名形状与两个具名端点；proof「本次新增结构确实在场」对新增的 path / schema 生效。",
+      "paths": {
+        "/collections/{id}/outline-tree": ["get", "put"],
+        "/projects/{id}/outline-tree": ["get", "put"]
+      },
+      "schemas": [
+        "internal_article_adapter_http.CollectionOutlineSaveRequest",
+        "internal_article_adapter_http.CollectionOutlineTreeResponse",
+        "internal_article_adapter_http.ProjectOutlineSaveRequest",
+        "internal_article_adapter_http.ProjectOutlineTreeResponse",
+        "myblogx_internal_kernel.Envelope-internal_article_adapter_http_CollectionOutlineTreeResponse",
+        "myblogx_internal_kernel.Envelope-internal_article_adapter_http_ProjectOutlineTreeResponse"
       ]
     }
   ]

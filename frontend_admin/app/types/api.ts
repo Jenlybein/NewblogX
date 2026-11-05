@@ -206,13 +206,10 @@ export type OutlineTreeResponseData = RequiredSchema<"internal_article_adapter_h
 /** 整树提交的一层节点。已有节点带 id，新节点 id 留空。 */
 export type OutlineNodePayload = RequiredSchema<"internal_article_adapter_http.OutlineNodeRequest">;
 
-/** 整树提交请求体：兄弟顺序 = 数组顺序。 */
-export type OutlineSavePayload = Required<Schema<"internal_article_adapter_http.OutlineSaveRequest">>;
-
-// ── 具名形状（#274 expand：两个实体各有自己的契约 schema）─────────
+// ── 具名形状（两个实体各有自己的契约 schema）─────────────────────
 //
 // 两端只从**本 app 的** openapi.d.ts 派生，不手写字段、不跨 app 共享。
-// 本票只让类型可用：后台编辑器与页面仍走旧共享端点，迁移归 #275 / #276。
+// #277 收缩后旧共享端点与它的整树提交 schema 一起退役，后台只消费这两份形状。
 
 /** 合集具名树的读模型（GET /collections/{id}/outline-tree）。 */
 export type CollectionOutlineTreeResponseData = RequiredSchema<"internal_article_adapter_http.CollectionOutlineTreeResponse">;

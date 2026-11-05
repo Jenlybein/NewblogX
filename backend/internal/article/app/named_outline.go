@@ -4,20 +4,39 @@ import (
 	"context"
 
 	"myblogx/internal/article/domain"
+	"myblogx/internal/article/domain/collection"
 	"myblogx/internal/article/domain/outline"
+	"myblogx/internal/article/domain/project"
 )
 
-// 本文件是 #274 expand 期两个具名端点的用例：合集 / 项目各自读写自己的树表。
+// 本文件是两个具名端点的用例：合集 / 项目各自读写自己的树表。
 //
 // 复用既有的一份领域规则（planOutline / buildOutlineDetail / readerOutline /
-// articleNeighbours），只把事务内的目录树仓储换成对应实体的具名表。这不是
-// "按开关二选一的兼容分支"：一次请求从路由就知道自己属于哪张表，系统对外仍是
-// 两个各自完整的形状；旧共用端点继续走原来的 Repos，与新端点并存只是该票内部
-// 过渡，由 #277 收缩。
+// articleNeighbours），只把事务内的目录树仓储换成对应实体的具名表。归属由调用方
+// 一次给出，系统对外只有两个具名形状；没有旧共用表、也没有按开关二选一的分支。
+
+// NamedOutlineRepository 由使用方定义：按实体取出自己的具名树表仓储。
+// 端口只暴露 1 个方法，实现方（adapter/mysql）不得反向定义。实现就在
+// 事务内的 Repos 上，因此具名仓储与其余仓储共用同一个事务句柄。
+type NamedOutlineRepository interface {
+	NamedOutlineFor(ctx context.Context, kind outline.OwnerKind) outline.Repository
+}
+
+// treeRepos 是树用例在事务内真正需要的仓储视图。
+//
+// 归属树表由具名仓储给出，其余仓储仍来自 Repos；所有树用例都必须先经
+// namedRepos 拿到这个视图，类型上就写不出「绕过归属直接读树」的调用。
+type treeRepos interface {
+	Outlines() outline.Repository
+	Articles() domain.Repository
+	Users() UserPort
+	Collections() collection.Repository
+	Projects() project.Repository
+}
 
 // namedOutlineRepos 把一次事务内的目录树仓储换成指定实体的具名表。
 //
-// 嵌入 Repos 接口：其余十几个仓储照旧由合成根提供，只有 Outlines() 被覆盖。
+// 嵌入 Repos 接口：其余仓储照旧由合成根提供，只有 Outlines() 由本视图给出。
 // 这样整套领域规则不必复制一份，也不会出现"两个几乎相同的用例层"。
 type namedOutlineRepos struct {
 	Repos
@@ -27,18 +46,11 @@ type namedOutlineRepos struct {
 // Outlines 返回该实体自己的具名树表仓储。
 func (r namedOutlineRepos) Outlines() outline.Repository { return r.outlines }
 
-// NamedOutlineRepository 由使用方定义：按实体取出自己的具名树表仓储。
-// 端口只暴露 1 个方法，实现方（adapter/mysql）不得反向定义。实现就在
-// 事务内的 Repos 上，因此具名仓储与其余仓储共用同一个事务句柄。
-type NamedOutlineRepository interface {
-	NamedOutlineFor(ctx context.Context, kind outline.OwnerKind) outline.Repository
-}
-
-// NamedOutlineRepos 把一次事务的 Repos 收成「指向某张具名树表」的 Repos。
+// namedRepos 把一次事务的 Repos 收成「指向某张具名树表」的树仓储视图。
 //
-// Repos 不满足 NamedOutlineRepository 时会返回错误而不是悄悄退回旧共用表：
-// 那会让具名端点写错表却全绿，正是零 DDL 拆树最危险的失效形态。
-func namedRepos(ctx context.Context, repos Repos, kind outline.OwnerKind) (Repos, error) {
+// Repos 不满足 NamedOutlineRepository 时返回错误而不是悄悄退回另一份读模型：
+// 那会让具名端点写错表却全绿，正是拆树最危险的失效形态。
+func namedRepos(ctx context.Context, repos Repos, kind outline.OwnerKind) (treeRepos, error) {
 	nr, ok := repos.(NamedOutlineRepository)
 	if !ok {
 		return nil, outline.ErrStructureInvalid
@@ -78,7 +90,7 @@ func (s *Service) SaveNamedOutline(ctx context.Context, cmd SaveNamedOutlineCmd)
 			return err
 		}
 
-		planned, err := s.planOutline(ctx, r, SaveOutlineCmd{
+		planned, err := s.planOutline(ctx, r, saveOutlineCmd{
 			OwnerKind: cmd.OwnerKind,
 			OwnerID:   cmd.OwnerID,
 			Nodes:     cmd.Nodes,

@@ -155,13 +155,19 @@ func (s *Service) CollectionDetail(
 	ctx context.Context, id collection.ID, viewer domain.Viewer, onlyAdminAuthors bool,
 ) (*collection.Detail, error) {
 	var detail *collection.Detail
-	err := s.tx.WithinTx(ctx, func(ctx context.Context, r Repos) error {
-		c, err := r.Collections().Find(ctx, id)
+	err := s.tx.WithinTx(ctx, func(ctx context.Context, repos Repos) error {
+		c, err := repos.Collections().Find(ctx, id)
 		if err != nil {
 			return err
 		}
 		if !c.Displayed() && !viewer.IsAdmin() {
 			return collection.ErrNotFound
+		}
+		// 合集详情只读自己的具名树表，与后台编辑器、阅读页左栏、列表卡片
+		// 同一份数据；项目侧由 ProjectDetail 对称处理。
+		r, err := namedRepos(ctx, repos, outline.OwnerCollection)
+		if err != nil {
+			return err
 		}
 		ownerKind, ownerID := outline.OwnerCollection, outline.ID(id)
 		tree, err := s.readerOutline(ctx, r, ownerKind, ownerID, onlyAdminAuthors, c.Cover())

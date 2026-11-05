@@ -113,7 +113,6 @@ func assertProjectWriteForbidden(t *testing.T, r *gin.Engine, id ctype.ID) {
 		{"保存目录树", "PUT", "/api/projects/" + string(id) + "/outline-tree", `{"nodes":[]}`},
 		{"项目之间排序", "PATCH", "/api/projects/order", `{"project_ids":[]}`},
 		{"后台列表", "GET", "/api/projects/admin", ""},
-		{"旧共享后台读面", "GET", "/api/projects/" + string(id) + "/outline/admin", ""},
 	}
 	for _, c := range cases {
 		var body []byte
@@ -504,9 +503,11 @@ func TestProjectAdminStalePlaceholderAndCleanup(t *testing.T) {
 		fmt.Sprintf("/api/projects/%s/outline-tree", projectID), []byte(cleanupBody))); env.Code == 0 || env.Msg != authorForbiddenMsg {
 		t.Fatalf("非管理员清理应落到既有鉴权错误，实际 code=%d msg=%q", env.Code, env.Msg)
 	}
-	if env := decode(t, rawRequest(t, authorRouter, "GET",
-		fmt.Sprintf("/api/projects/%s/outline/admin", projectID), nil)); env.Code == 0 || env.Msg != authorForbiddenMsg {
-		t.Fatalf("非管理员读旧共享后台读面应落到既有鉴权错误，实际 code=%d msg=%q", env.Code, env.Msg)
+	// 具名 GET 对普通用户是读者读面：能成功，但不含后台保留的失效行。
+	readerView := decode(t, rawRequest(t, authorRouter, "GET",
+		fmt.Sprintf("/api/projects/%s/outline-tree", projectID), nil))
+	if readerView.Code != 0 {
+		t.Fatalf("普通用户读具名树应是公开读面，实际 code=%d msg=%q", readerView.Code, readerView.Msg)
 	}
 }
 

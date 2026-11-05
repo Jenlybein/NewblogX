@@ -1,9 +1,9 @@
 {
-  "comment": "契约未过期判定的仓库级清单：minimumEntries 是条目数量的独立基线（改动契约只增不减时随批抬高）；addedIn 点名本次新增结构，判定要求它们在重新生成的产物里确实在场。path 条目可点名其下的 HTTP 方法；schema 条目按 components.schemas 的键名点名。清单只登记事实，不读源码文本。",
+  "comment": "契约未过期判定的仓库级清单：minimumEntries 是条目数量的独立基线（改动契约只增不减时随批抬高）；addedIn 点名本次新增结构，判定要求它们在重新生成的产物里确实在场。path 条目可点名其下的 HTTP 方法；schema 条目按 components.schemas 的键名点名。清单只登记事实，不读源码文本。#277 把基线从 124/164/292 重新登记为 119/159/288：下降来自 #274 expand 期票内过渡（5 个旧共享端点与旧共用形状）被 #277 收缩，不是生成器退化；判据与双向对账逻辑一字未改，#273 / #274 两批仍在契约中的新增结构继续留在 addedIn。",
   "minimumEntries": {
-    "paths": 124,
-    "operations": 164,
-    "schemas": 292
+    "paths": 119,
+    "operations": 159,
+    "schemas": 288
   },
   "addedIn": [
     {

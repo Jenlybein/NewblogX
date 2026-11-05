@@ -99,7 +99,7 @@ var errDuplicateClientMsg = errors.New("chat: duplicate client msg key")
 // Send 实现 domain.Command。
 //
 // 幂等：cmd.ClientMsgID 非空时，主键由（发送人，幂等键）派生（见
-// domain.MessageIDFromClientKey）。重复提交会撞主键，整个事务回滚，
+// msgid.FromClientKey）。重复提交会撞主键，整个事务回滚，
 // 然后读回第一次落库的消息并标记 duplicated=true。
 // 这就是"零 DDL 下的幂等落库"：幂等性由数据库唯一约束保证，
 // 不依赖进程内缓存、不依赖 Redis、多实例并发也成立。

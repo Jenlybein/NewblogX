@@ -96,7 +96,7 @@ export function deleteChatSessions(sessionIdList: string[]) {
  * 拉一页私信消息。聊天窗口每页 7 条，缺省不传 `page`（读者站改走游标分页）。
  *
  * 响应形状直接来自生成的契约（`ChatMessageListData`）：`list` 已经是**升序**，
- * 服务层不补字段、不改顺序、不做旧形状兼容。
+ * 服务层不补字段、不改顺序、不做兜底归一化。
  */
 export function getChatMessages(params: {
   sessionId: string;

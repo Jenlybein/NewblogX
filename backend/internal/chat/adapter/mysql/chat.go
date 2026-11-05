@@ -12,6 +12,7 @@ import (
 
 	"myblogx/internal/apperr"
 	"myblogx/internal/chat/domain"
+	"myblogx/internal/chat/domain/msgid"
 	"myblogx/internal/kernel/ctype"
 	"myblogx/internal/platform/idgen"
 )
@@ -113,7 +114,7 @@ func (r *Repo) Send(ctx context.Context, cmd domain.SendCommand, senderDisplay, 
 		MsgType:    cmd.MsgType,
 	}
 	if cmd.ClientMsgID != "" {
-		msg.ID = domain.MessageIDFromClientKey(cmd.SenderID, cmd.ClientMsgID)
+		msg.ID = msgid.FromClientKey(cmd.SenderID, cmd.ClientMsgID)
 	} else {
 		next, err := idgen.Next()
 		if err != nil {

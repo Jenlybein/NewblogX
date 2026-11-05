@@ -92,13 +92,8 @@ func (s *Service) List(ctx context.Context, filter domain.Filter, page domain.Pa
 			return err
 		}
 
-		// 批量取计数增量。
-		ids := make([]domain.ArticleID, 0, len(articles))
-		for _, a := range articles {
-			ids = append(ids, a.ID())
-		}
-		deltas, err := r.Counters().Load(ctx, ids)
-		if err != nil {
+		// 批量把权威计数写回聚合（#279：读侧唯一入口，列表页不再自己拼加数）。
+		if err := ledgerOf(r).ApplyTo(ctx, articles...); err != nil {
 			return err
 		}
 
@@ -126,9 +121,6 @@ func (s *Service) List(ctx context.Context, filter domain.Filter, page domain.Pa
 
 		views = make([]*ArticleView, 0, len(articles))
 		for _, a := range articles {
-			if d, ok := deltas[a.ID()]; ok {
-				a.AddCounters(d)
-			}
 			v := &ArticleView{
 				Article: *a,
 				Author:  profiles[a.AuthorID()],
@@ -150,16 +142,9 @@ func (s *Service) List(ctx context.Context, filter domain.Filter, page domain.Pa
 	return views, total, nil
 }
 
-// enrichCounters 把缓存增量合并进聚合的计数。
+// enrichCounters 通过账本把权威计数写回聚合（#279：读侧唯一入口）。
 func enrichCounters(ctx context.Context, r Repos, a *domain.Article) error {
-	deltas, err := r.Counters().Load(ctx, []domain.ArticleID{a.ID()})
-	if err != nil {
-		return err
-	}
-	if d, ok := deltas[a.ID()]; ok {
-		a.AddCounters(d)
-	}
-	return nil
+	return ledgerOf(r).ApplyTo(ctx, a)
 }
 
 // buildView 组装详情视图。

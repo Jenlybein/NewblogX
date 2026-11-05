@@ -320,7 +320,22 @@ func (s *Service) ListTopCards(ctx context.Context, userID domain.UserID) ([]top
 	err := s.tx.WithinTx(ctx, func(ctx context.Context, r Repos) error {
 		var err error
 		cards, err = r.Tops().ListCards(ctx, userID)
-		return err
+		if err != nil {
+			return err
+		}
+		// 与详情 / 热门置顶同一权威读入口（#279）。
+		persisted := make(map[domain.ArticleID]int, len(cards))
+		for _, c := range cards {
+			persisted[c.ArticleID] = c.ViewCount
+		}
+		views, err := ledgerOf(r).ApplyViews(ctx, persisted)
+		if err != nil {
+			return err
+		}
+		for i := range cards {
+			cards[i].ViewCount = views[cards[i].ArticleID]
+		}
+		return nil
 	})
 	return cards, err
 }

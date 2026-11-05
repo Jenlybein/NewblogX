@@ -4,7 +4,6 @@ package domain
 import (
 	"context"
 	"fmt"
-	"hash/fnv"
 	"strings"
 	"time"
 
@@ -340,23 +339,12 @@ type SendCommand struct {
 	SendTime    time.Time
 }
 
-// ClientKeyIDBase 是"由幂等键派生的消息主键"的保留区间下界（2^62）。
+// 幂等键 → 消息主键的派生规则在 msgid 包（#279）：它是一条独立的规则，
+// 不属于会话 ID / 摘要这类通用 domain 助手。号段与哈希都是它的实现细节，
+// 对外只回答"这条幂等键对应哪个主键"。
 //
-// 雪花 ID 在可预见的年份里都远小于 2^62（纪元 2024、41 位毫秒要到 2058 年
-// 才逼近上界），因此 [2^62, 2^63) 与正常消息主键不相交 —— 幂等消息不会撞上
-// 普通消息，反之亦然。
-const ClientKeyIDBase uint64 = 1 << 62
-
-// MessageIDFromClientKey 由（发送人，客户端幂等键）导出确定性的消息主键。
-//
-// 为什么不用"幂等键查重表"：零 DDL 不能给 chat_msg_models 加列、也不新增表。
-// 把幂等键映射到主键上，重复提交就会在 INSERT 时撞主键，由数据库保证
-// "重复提交不产生第二条消息"，进程崩溃/多实例并发都不影响。
-func MessageIDFromClientKey(sender ctype.ID, key string) ctype.ID {
-	h := fnv.New64a()
-	_, _ = h.Write([]byte("chat:" + sender.String() + "\x00" + key))
-	return ctype.NewID((h.Sum64() & (ClientKeyIDBase - 1)) | ClientKeyIDBase)
-}
+// 由此有一条必须遵守的约束：**排序、水位、分页一律不读 ID 大小**。
+// 派生主键的大小与消息先后完全无关（见 ADR-0025「读取路径与号段」）。
 
 // RelationReader 读关注关系。
 type RelationReader interface {

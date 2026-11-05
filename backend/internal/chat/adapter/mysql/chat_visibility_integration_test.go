@@ -13,6 +13,7 @@ import (
 
 	"myblogx/internal/chat/adapter/mysql"
 	"myblogx/internal/chat/domain"
+	"myblogx/internal/chat/domain/msgid"
 	"myblogx/internal/kernel/ctype"
 
 	"gorm.io/gorm"
@@ -20,8 +21,9 @@ import (
 
 // pickNonMonotonicClientKeys 挑两个幂等键：前一个派生出的主键更大、后一个更小。
 //
-// 客户端幂等键派生的是 [2^62,2^63) 区间的 FNV 哈希，主键大小与消息先后无关；
-// 普通雪花主键远小于这个区间，所以「时间最晚」和「MAX(id)」在这里必然是两条。
+// 幂等键派生出的主键大小与消息先后无关（派生规则见 msgid 包，号段是它的
+// 实现细节）；普通雪花主键远小于这个号段，所以「时间最晚」和「MAX(id)」
+// 在这里必然是两条。
 func pickNonMonotonicClientKeys(sender ctype.ID) (bigger, smaller string) {
 	type candidate struct {
 		key string
@@ -30,7 +32,7 @@ func pickNonMonotonicClientKeys(sender ctype.ID) (bigger, smaller string) {
 	var list []candidate
 	for i := 0; i < 8; i++ {
 		key := fmt.Sprintf("278-clear-key-%d", i)
-		list = append(list, candidate{key: key, id: domain.MessageIDFromClientKey(sender, key).Uint64()})
+		list = append(list, candidate{key: key, id: msgid.FromClientKey(sender, key).Uint64()})
 	}
 	sort.Slice(list, func(i, j int) bool { return list[i].id > list[j].id })
 	return list[0].key, list[len(list)-1].key

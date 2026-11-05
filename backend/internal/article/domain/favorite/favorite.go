@@ -280,15 +280,15 @@ func (i *Item) CommentCount() int { return i.commentCount }
 // FavorCount 返回文章收藏数（读模型）。
 func (i *Item) FavorCount() int { return i.favorCount }
 
-// AddCounters 用缓存增量修正计数。
+// SetCounters 用权威值覆盖条目上的计数（#279）。
 //
-// 与 Article.AddCounters 同一口径：读路径永远是「库内列 + Redis 增量」，
-// 收藏内容列表因此和详情 / 列表给出同一个数字（ADR-0025 决策 3）。
-func (i *Item) AddCounters(delta domain.Counters) {
-	i.viewCount += delta.View
-	i.diggCount += delta.Digg
-	i.commentCount += delta.Comment
-	i.favorCount += delta.Favor
+// 与 Article.SetCounters 同口径：合成发生在账本（app.CountLedger），聚合只携带。
+// 这里同样**没有** AddCounters：收藏内容列表与详情 / 列表共用一个读入口。
+func (i *Item) SetCounters(c domain.Counters) {
+	i.viewCount = c.View
+	i.diggCount = c.Digg
+	i.commentCount = c.Comment
+	i.favorCount = c.Favor
 }
 
 // WithAuthorProfile 补全作者昵称与头像（调用方从用户模块取）。

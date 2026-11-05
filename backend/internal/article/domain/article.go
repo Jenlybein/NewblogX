@@ -427,10 +427,9 @@ func (a *Article) SoftDelete(now time.Time) {
 	a.updatedAt = now
 }
 
-// AddCounters 用缓存增量修正计数。
-func (a *Article) AddCounters(delta Counters) {
-	a.counters.View += delta.View
-	a.counters.Digg += delta.Digg
-	a.counters.Comment += delta.Comment
-	a.counters.Favor += delta.Favor
-}
+// SetCounters 用权威值覆盖当前计数（#279）。
+//
+// 读侧不再"各自把列与增量相加"：账本（app.CountLedger）算出权威值后整块写回，
+// 聚合只负责携带，不参与合成。因此这里**没有** AddCounters —— 一旦保留"加一下"
+// 的入口，第二套读口径就会重新长回来。
+func (a *Article) SetCounters(c Counters) { a.counters = c }

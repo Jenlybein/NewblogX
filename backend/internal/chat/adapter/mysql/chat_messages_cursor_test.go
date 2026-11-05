@@ -8,6 +8,7 @@ import (
 	"gorm.io/gorm"
 
 	"myblogx/internal/chat/domain"
+	"myblogx/internal/chat/domain/msgid"
 	"myblogx/internal/kernel/ctype"
 	"myblogx/test/testutil"
 )
@@ -51,9 +52,13 @@ func seedCursorMsg(t *testing.T, db *gorm.DB, id ctype.ID, at time.Time, content
 	}
 }
 
-// hashLikeID 落在 [2^62,2^63) 里，模拟客户端幂等键派生的 FNV 哈希主键。
+// hashLikeID 造一个"大而与时序无关"的主键，模拟幂等键派生出来的主键。
+//
+// 这里写死一个测试本地的大数，而不是引用派生模块的号段常量：本文件验的是
+// 「排序 / 水位 / 分页不读 ID 大小」，即主键多大都不该影响先后；号段本身是
+// msgid 包的实现细节（#279），生产代码里已不再导出。
 func hashLikeID(n uint64) ctype.ID {
-	return ctype.NewID(domain.ClientKeyIDBase + n)
+	return ctype.NewID((1 << 62) + n)
 }
 
 func contentsOf(result domain.MessageQueryResult) []string {
@@ -154,6 +159,48 @@ func TestListMessagesCursorPagesAreStable(t *testing.T) {
 	if second.Total != 5 {
 		t.Fatalf("count 应是会话当前可见总数 5（含新消息），实际 %d", second.Total)
 	}
+}
+
+// TestListMessagesOrdersDerivedIDsBySendTime 幂等消息的派生主键不因 ID 大而排到前面。
+//
+// #279 把「幂等键 → 主键」收进 msgid 模块后，这条约束仍必须靠行为守着：
+// 派生主键比普通雪花主键大得多，但它是最早的一条消息，所以列表 DESC 要把它
+// 放在最后、分页也要按时间翻到它 —— 排序与分页都不许读 ID 大小。
+func TestListMessagesOrdersDerivedIDsBySendTime(t *testing.T) {
+	db := cursorTestDB(t)
+	repo := New(db)
+	at := time.Date(2026, 1, 1, 10, 0, 0, 0, time.UTC)
+
+	derived := msgid.FromClientKey(ctype.NewID(200), "client-key-old")
+	if derived.Uint64() < hashLikeID(0).Uint64() {
+		t.Fatalf("派生主键应落在 2^62 以上的号段才会暴露「按 ID 排序」的错误，实际 %s", derived)
+	}
+
+	seedCursorMsg(t, db, derived, at, "派生的最早一条")
+	seedCursorMsg(t, db, ctype.NewID(11), at.Add(time.Minute), "普通第二条")
+	seedCursorMsg(t, db, ctype.NewID(12), at.Add(2*time.Minute), "普通第三条")
+
+	ctx := context.Background()
+	query := func(cursor domain.MessageCursor) domain.MessageQueryResult {
+		t.Helper()
+		got, err := repo.ListMessages(ctx, domain.MessageQuery{
+			UserID: ctype.NewID(100), SessionID: cursorTestSession,
+			Page: domain.Page{Page: 1, Limit: 2}, Cursor: cursor,
+		})
+		if err != nil {
+			t.Fatalf("查消息失败: %v", err)
+		}
+		return got
+	}
+
+	first := query(domain.MessageCursor{})
+	assertContents(t, first, "普通第三条", "普通第二条")
+	if !first.HasMore {
+		t.Fatal("还有一条更早的消息，第一页必须给出 has_more")
+	}
+
+	// 第二页要能翻到"ID 最大、时间最早"的那条：分页键是时间，不是 ID。
+	assertContents(t, query(first.NextCursor), "派生的最早一条")
 }
 
 // TestListMessagesRejectsBadCursor 半个游标 / 坏时间戳不能静默退回第一页。

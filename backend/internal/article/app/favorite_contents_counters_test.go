@@ -33,8 +33,8 @@ func TestListFavoriteItemsMergesCounterDeltas(t *testing.T) {
 	want := domain.Counters{View: 7, Digg: 7, Comment: 5, Favor: 6}
 
 	article := apptest.NewArticle().ID(articleID).Author(author).Status(domain.StatusPublished).Build()
-	// 聚合默认计数为 0，"加上快照"= 库内列。
-	article.AddCounters(columns)
+	// 聚合默认计数为 0；直接放库内快照（读侧由账本负责"列 + 增量"，聚合只携带）。
+	article.SetCounters(columns)
 	repos.FakeArticles().Seed(article)
 
 	repos.FakeFavorites().SeedFolder(favorite.RestoreFolder(favorite.RestoreFolderParams{

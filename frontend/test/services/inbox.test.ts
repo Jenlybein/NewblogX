@@ -56,9 +56,9 @@ describe("私信 service：真实请求契约", () => {
     });
   });
 
-  // 游标分页改造：聊天窗口缺省 7 条，不再发 page；后端按 send_time/id DESC 返回。
+  // 游标分页改造：聊天窗口缺省 7 条，不再发 page；后端按 send_time 升序返回（最旧在前）。
   it("消息列表是 GET /api/chat/messages，query 带 session_id / type / limit=7", async () => {
-    const page = await getChatMessages({ sessionId: "chat:1:2" });
+    await getChatMessages({ sessionId: "chat:1:2" });
 
     expect(requestMock).toHaveBeenCalledWith("/api/chat/messages", {
       query: {
@@ -66,12 +66,6 @@ describe("私信 service：真实请求契约", () => {
         type: 1,
         limit: 7,
       },
-    });
-    expect(page).toEqual({
-      list: [],
-      count: 0,
-      has_more: false,
-      next_cursor: { before_send_time: "", before_id: "" },
     });
   });
 
@@ -111,31 +105,20 @@ describe("私信 service：真实请求契约", () => {
     });
   });
 
-  it("分页响应原样归一化：has_more / next_cursor / count 都落到本地接口", async () => {
+  it("分页响应原样透传：形状由生成的契约定义，服务层不做兜底归一化", async () => {
     const cursor = { before_send_time: "2026-11-05T01:07:00.123456789Z", before_id: "123456789" };
-    requestMock.mockResolvedValue({
+    const payload = {
       list: [{ id: "1", send_time: "2026-11-05T01:07:00Z" }],
       count: 123,
       has_more: true,
       next_cursor: cursor,
-    });
+    };
+    requestMock.mockResolvedValue(payload);
 
     const page = await getChatMessages({ sessionId: "chat:1:2" });
 
-    expect(page.count).toBe(123);
-    expect(page.has_more).toBe(true);
-    expect(page.next_cursor).toEqual(cursor);
-    expect(page.list).toHaveLength(1);
-  });
-
-  it("旧形状响应（缺 has_more / next_cursor）不炸，归一化成空游标", async () => {
-    requestMock.mockResolvedValue({ list: [{ id: "1" }], count: 1 });
-
-    const page = await getChatMessages({ sessionId: "chat:1:2" });
-
-    expect(page.has_more).toBe(false);
-    expect(page.next_cursor).toEqual({ before_send_time: "", before_id: "" });
-    expect(page.list).toEqual([{ id: "1" }]);
+    // 同一个对象直接回传：缺字段时由 TypeScript 契约类型报错，而不是运行时悄悄补默认值。
+    expect(page).toBe(payload);
   });
 
   it("会话列表是 GET /api/chat/sessions，query 带 type=1", async () => {

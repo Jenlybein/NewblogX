@@ -1,11 +1,11 @@
 import { describe, expect, it } from "vitest";
 import type { ChatMessageItem } from "~/types/api";
 import {
+  buildChatTimeline,
   chatDateSeparatorLabel,
   fullChatTimestamp,
   isSameChatGroup,
   mergeChatMessages,
-  toAscending,
 } from "~/utils/chatTimeline";
 
 /**
@@ -46,25 +46,56 @@ const T1 = "2026-11-05T10:00:00.000000000+08:00";
 const T2 = "2026-11-05T10:01:00+08:00";
 const T3 = "2026-11-05T10:02:00+08:00";
 
-describe("toAscending", () => {
-  it("把后端 DESC 反转成 ASC，且不修改入参", () => {
-    const descending = [message("c", T3), message("b", T2), message("a", T1)];
-    const snapshot = [...descending];
+describe("buildChatTimeline（唯一持有者交给面板的结果）", () => {
+  it("按自然日切段：每天第一条之前插一个日期分隔条，同一天只有一个", () => {
+    const day1a = message("a", localIso(2026, 11, 4, 23, 58));
+    const day1b = message("b", localIso(2026, 11, 4, 23, 59));
+    const day2 = message("c", localIso(2026, 11, 5, 0, 1));
+    const now = new Date(2026, 10, 5, 12, 0, 0);
 
-    const ascending = toAscending(descending);
+    const timeline = buildChatTimeline([day1a, day1b, day2], now);
+    const kinds = timeline.map((entry) => entry.kind);
 
-    expect(ascending.map((item) => item.id)).toEqual(["a", "b", "c"]);
-    expect(descending).toEqual(snapshot);
-    expect(ascending).not.toBe(descending);
+    expect(kinds).toEqual(["date", "group", "date", "group"]);
+    const dates = timeline.filter((entry) => entry.kind === "date");
+    expect(dates).toHaveLength(2);
+    expect(dates[1]).toMatchObject({ label: "今天" });
+    expect(dates[0]).toMatchObject({ label: "昨天" });
   });
 
-  it("空数组与单元素数组都稳定", () => {
-    expect(toAscending([])).toEqual([]);
-    expect(toAscending([1]).map((item) => item)).toEqual([1]);
+  it("同一发送人同一天 2 分钟内合并成一组，跨人 / 超窗口拆组（不重排入参）", () => {
+    const items = [
+      message("a", T1),
+      message("b", T2),
+      message("c", T3, { sender_id: "u3" }),
+      message("d", "2026-11-05T10:10:00+08:00"),
+    ];
+
+    const timeline = buildChatTimeline(items);
+    const groups = timeline.filter((entry) => entry.kind === "group");
+
+    expect(groups.map((group) => group.entries.map((bubble) => bubble.item.id))).toEqual([
+      ["a", "b"],
+      ["c"],
+      ["d"],
+    ]);
+    expect(groups.map((group) => group.isSelf)).toEqual([false, false, false]);
   });
 
-  it("泛型：不只是消息对象能用", () => {
-    expect(toAscending(["newest", "older", "oldest"])).toEqual(["oldest", "older", "newest"]);
+  it("回执只挂在最后一条自己发的消息上：已读 / 已送达 / 空", () => {
+    const received = message("r", T1);
+    const own1 = message("s1", T2, { sender_id: "u1", is_self: true, is_read: false });
+    const own2 = message("s2", T3, { sender_id: "u1", is_self: true, is_read: true });
+
+    const receipts = buildChatTimeline([received, own1, own2])
+      .flatMap((entry) => (entry.kind === "group" ? entry.entries : []))
+      .map((bubble) => bubble.receipt);
+
+    expect(receipts).toEqual(["", "已送达", "已读"]);
+  });
+
+  it("空数组 → 空时间线", () => {
+    expect(buildChatTimeline([])).toEqual([]);
   });
 });
 

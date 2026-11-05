@@ -348,3 +348,37 @@ type outlineNodeRow struct {
 
 // TableName 固定表名。
 func (outlineNodeRow) TableName() string { return "content_outline_node_models" }
+
+// collectionOutlineNodeRow 对应 #274 expand 期新增的合集具名树表。
+//
+// 归属由表名表达，没有 owner_kind；唯一键与索引收成 (owner_id, article_id)。
+// 字段与 testkit/schema 的 CollectionOutlineNodeRow 逐字一致。
+type collectionOutlineNodeRow struct {
+	BaseRow
+	OwnerID   ctype.ID  `gorm:"not null;index:idx_collection_outline_owner,priority:1;uniqueIndex:uk_collection_outline_owner_article,priority:1"`
+	ParentID  ctype.ID  `gorm:"not null;default:0"`
+	Kind      int       `gorm:"not null"`
+	Title     string    `gorm:"type:varchar(128);not null"`
+	ArticleID *ctype.ID `gorm:"index:idx_collection_outline_owner,priority:2;uniqueIndex:uk_collection_outline_owner_article,priority:2"`
+	SortOrder int       `gorm:"not null;default:0"`
+}
+
+// TableName 固定表名。
+func (collectionOutlineNodeRow) TableName() string { return "collection_outline_node_models" }
+
+// projectOutlineNodeRow 对应 #274 expand 期新增的项目具名树表。
+//
+// 与合集具名表同构但**不共用数据**：一篇文章可以同时出现在两棵树里。
+// 字段与 testkit/schema 的 ProjectOutlineNodeRow 逐字一致。
+type projectOutlineNodeRow struct {
+	BaseRow
+	OwnerID   ctype.ID  `gorm:"not null;index:idx_project_outline_owner,priority:1;uniqueIndex:uk_project_outline_owner_article,priority:1"`
+	ParentID  ctype.ID  `gorm:"not null;default:0"`
+	Kind      int       `gorm:"not null"`
+	Title     string    `gorm:"type:varchar(128);not null"`
+	ArticleID *ctype.ID `gorm:"index:idx_project_outline_owner,priority:2;uniqueIndex:uk_project_outline_owner_article,priority:2"`
+	SortOrder int       `gorm:"not null;default:0"`
+}
+
+// TableName 固定表名。
+func (projectOutlineNodeRow) TableName() string { return "project_outline_node_models" }

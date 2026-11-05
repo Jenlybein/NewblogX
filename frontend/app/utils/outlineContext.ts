@@ -76,3 +76,32 @@ export function articleOutlineContextHref(
 export function outlineArticleRefTitle(ref: OutlineArticleRef | null | undefined): string {
   return (ref?.article_title ?? "").trim() || "未命名文章";
 }
+
+// ── 具名端点派生类型（#274 expand）────────────────────────────────
+//
+// 两个具名端点的查询参数与读模型都从**本 app 的** openapi.d.ts 派生；
+// 本票只让类型在场，页面取数切换归 #275 / #276。owner_kind / owner_id 仍
+// 在具名响应里，上面的 outlineContextKind / outlineContextSource 逐字不变，
+// `?from=` 链接不需要任何兼容层。
+
+/** 合集具名树的查询参数（GET /collections/{id}/outline-tree）。 */
+export type CollectionOutlineTreeQuery = NonNullable<
+  Operation<"/collections/{id}/outline-tree", "get">["parameters"]["query"]
+>;
+
+/** 项目具名树的查询参数（GET /projects/{id}/outline-tree）。 */
+export type ProjectOutlineTreeQuery = NonNullable<
+  Operation<"/projects/{id}/outline-tree", "get">["parameters"]["query"]
+>;
+
+/** 合集具名树的读模型；current / previous / next 可为 null。 */
+export type CollectionOutlineTree = Nullable<
+  Schema<"internal_article_adapter_http.CollectionOutlineTreeResponse">,
+  "current" | "previous" | "next"
+>;
+
+/** 项目具名树的读模型；current / previous / next 可为 null。 */
+export type ProjectOutlineTree = Nullable<
+  Schema<"internal_article_adapter_http.ProjectOutlineTreeResponse">,
+  "current" | "previous" | "next"
+>;

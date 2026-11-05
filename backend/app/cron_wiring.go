@@ -6,6 +6,7 @@ import (
 
 	"gorm.io/gorm"
 
+	"myblogx/conf/site"
 	articlemysql "myblogx/internal/article/adapter/mysql"
 	"myblogx/internal/article/domain/viewhistory"
 	chatmysql "myblogx/internal/chat/adapter/mysql"
@@ -19,15 +20,29 @@ import (
 	"myblogx/internal/platform/scheduler"
 )
 
-// 计数刷盘的调度参数。
+// 并账任务的调度参数。
+//
+// 周期不在这里：它是运行期配置 site.reconcile.interval_minutes（#279），
+// 唯一来源是 site.Reconcile.Interval()。本文件只留锁的持有时间。
 const (
-	counterSyncInterval = 30 * time.Minute
-	counterSyncLockTTL  = 30 * time.Minute
+	counterSyncLockTTL = 30 * time.Minute
 
 	// 每日日志清理的默认执行时间与保留天数（配置缺省时使用）。
 	defaultLogCleanupAt    = "03:30:00"
 	defaultLogRetentionDay = 7
 )
+
+// reconcileInterval 返回当前生效的并账周期。
+//
+// 每次注册时现读运行期配置（库里的 site.reconcile 段），缺省 30 分钟。
+// 想改周期不必改代码；但它是**调度注册参数**，与「日志清理每天几点」同一口径：
+// 改完要重启才生效（换周期要重新注册任务），这一点写进 ADR-0025。
+func reconcileInterval(infra *Infra) time.Duration {
+	if infra.RuntimeSite == nil {
+		return site.Reconcile{}.Interval()
+	}
+	return infra.RuntimeSite.GetRuntimeSite().Reconcile.Interval()
+}
 
 // CounterMetric 描述"某个 Redis 计数 key 刷到某张表的某一列"。
 //
@@ -156,7 +171,10 @@ func WireCron(infra *Infra, lifecycle *Lifecycle) error {
 	flusher := rediscounter.New(infra.Redis, infra.Logger)
 	db := infra.DB
 
-	if err := sch.Every(counterSyncInterval, scheduler.Job{
+	// 周期只有一个来源：运行期配置 site.reconcile.interval_minutes（#279）。
+	interval := reconcileInterval(infra)
+
+	if err := sch.Every(interval, scheduler.Job{
 		Name:    "同步文章计数",
 		LockKey: "cron:sync_article:lock",
 		LockTTL: counterSyncLockTTL,
@@ -184,7 +202,7 @@ func WireCron(infra *Infra, lifecycle *Lifecycle) error {
 	}
 
 	// ── 标签文章数 ──
-	if err := sch.Every(counterSyncInterval, scheduler.Job{
+	if err := sch.Every(interval, scheduler.Job{
 		Name:    "同步标签文章数",
 		LockKey: "cron:sync_tag:lock",
 		LockTTL: counterSyncLockTTL,
@@ -225,7 +243,7 @@ func WireCron(infra *Infra, lifecycle *Lifecycle) error {
 	}
 	for _, m := range commentMetrics {
 		m := m
-		if err := sch.Every(counterSyncInterval, scheduler.Job{
+		if err := sch.Every(interval, scheduler.Job{
 			Name:    m.name,
 			LockKey: m.lockKey,
 			LockTTL: counterSyncLockTTL,

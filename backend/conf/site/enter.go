@@ -1,5 +1,7 @@
 package site
 
+import "time"
+
 // 网站设置
 //
 // 曾经有一个 `mode`（1 社区 / 2 博客）：它只有枚举声明、默认值与后台下拉框，
@@ -86,6 +88,44 @@ type Chat struct {
 	// 不给任何既有表加列。缺省值由 site_default_settings.yaml 显式写明。
 	RateWindowSec int `yaml:"rate_window_sec" json:"rate_window_sec"` // 窗口长度（秒），窗口内允许 1 条
 	RateDailyMax  int `yaml:"rate_daily_max" json:"rate_daily_max"`   // 自然日内允许的最大条数
+}
+
+// Reconcile 是并账任务的运行期策略（#279）。
+//
+// 并账周期曾经是 cron 装配里的一行编译期常量（`counterSyncInterval = 30 * time.Minute`）：
+// 想调就要改代码、重新发版。收成运行期配置之后，周期的**唯一来源**就是这一段，
+// 代码里不再有第二份默认值。
+//
+// 它落在 site 段而不是新开一段：零 DDL 与既有运行期配置机制都要求"加配置不改表"，
+// 而 site 段本来就是自由键值块（深度合并会把老库缺的键按默认值补齐）。
+type Reconcile struct {
+	// IntervalMinutes 是并账周期，单位分钟。
+	//
+	// 缺省（0）与负数回落到 30 分钟：0 周期会让调度器变成忙循环，而这更可能是
+	// "配置写漏了"而不是"想每秒并一次"。上限钳到一天，下限 1 分钟 ——
+	// 并账是扫表的运维动作，秒级周期只会放大写放大（ADR-0025「已否决方案」）。
+	IntervalMinutes int `yaml:"interval_minutes" json:"interval_minutes"`
+}
+
+// 并账周期的默认值与边界（分钟）。
+const (
+	DefaultReconcileMinutes = 30
+	maxReconcileMinutes     = 24 * 60
+)
+
+// Interval 返回生效的并账周期。
+//
+// 归一化放在这里而不是散在调度注册处：周期只有一个来源，
+// 调度、用例、文档都从这一个换算拿值，任何人都不必再抄一份 30。
+func (r Reconcile) Interval() time.Duration {
+	minutes := r.IntervalMinutes
+	if minutes <= 0 {
+		minutes = DefaultReconcileMinutes
+	}
+	if minutes > maxReconcileMinutes {
+		minutes = maxReconcileMinutes
+	}
+	return time.Duration(minutes) * time.Minute
 }
 
 // NormalizeChatRate 把非法 / 越界的限流参数收敛到合法区间。

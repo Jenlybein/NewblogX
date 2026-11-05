@@ -141,21 +141,6 @@ func ReconcileChatUnread(ctx context.Context, db *gorm.DB) (int, error) {
 	return chatmysql.ReconcileAllChatUnread(ctx, db, 200)
 }
 
-// WireCron 注册并启动定时任务。
-//
-// 这里是唯一知道"哪个 Redis key 对应哪张表的哪一列"的地方：
-//   - 刷盘机制在 platform/rediscounter（双缓冲 + 回补）
-//   - 写入 SQL 在各自的 adapter（article / comment）
-//   - 调度与互斥在 platform/scheduler
-//
-// 之前这些全在 service/cron_service 一个包里，既写 SQL 又管调度，
-// 于是"改一个列名"和"调一次调度间隔"要在同一个文件里动。
-//
-// lifecycle 用来登记停机钩子：调度器必须在 DB/Redis 关闭**之前**停下，
-// 否则在途任务的 SQL 会打到已关闭的连接上（日志里出现一堆无意义的报错）。
-// Lifecycle 的 stop hook 是后进先出，而 main 里先注册了基础设施清理，
-// 所以这里注册的会先执行。
-
 // taskScheduler 是装配层用到的调度能力。
 //
 // 抽成窄接口只为一件事：让用例能在**注册接缝**上观察「注册了哪些任务、周期是多少、
@@ -167,14 +152,23 @@ type taskScheduler interface {
 	Shutdown() error
 }
 
-// WireCron 注册并启动定时任务；实现见 wireCron，调度器由它自己建。
+// WireCron 注册并启动定时任务。
+//
+// 这里是唯一知道"哪个 Redis key 对应哪张表的哪一列"的地方：
+//   - 刷盘机制在 platform/rediscounter（双缓冲 + 回补）
+//   - 写入 SQL 在各自的 adapter（article / comment）
+//   - 调度与互斥在 platform/scheduler
+//   - 并账周期来自运行期配置（site.reconcile.interval_minutes），代码里没有第二份默认值
+//
+// 之前这些全在 service/cron_service 一个包里，既写 SQL 又管调度，
+// 于是"改一个列名"和"调一次调度间隔"要在同一个文件里动。
+//
+// lifecycle 用来登记停机钩子：调度器必须在 DB/Redis 关闭**之前**停下，
+// 否则在途任务的 SQL 会打到已关闭的连接上（日志里出现一堆无意义的报错）。
+// Lifecycle 的 stop hook 是后进先出，而 main 里先注册了基础设施清理，
+// 所以这里注册的会先执行。
 func WireCron(infra *Infra, lifecycle *Lifecycle) error {
-	return wireCron(infra, lifecycle, func() (taskScheduler, error) {
-		return scheduler.New(scheduler.Options{
-			Client: infra.Redis,
-			Logger: infra.Logger,
-		})
-	})
+	return wireCron(infra, lifecycle, nil)
 }
 
 // wireCron 是 WireCron 的实现，调度器由调用方给。

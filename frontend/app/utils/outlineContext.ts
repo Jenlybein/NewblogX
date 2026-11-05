@@ -105,3 +105,28 @@ export type ProjectOutlineTree = Nullable<
   Schema<"internal_article_adapter_http.ProjectOutlineTreeResponse">,
   "current" | "previous" | "next"
 >;
+
+/**
+ * 具名端点响应 → 阅读页左栏读模型（#275 / #276 共用）。
+ *
+ * 两个具名形状都保留 `has_tree / owner_kind / owner_id / nodes / current /
+ * previous / next`，与既有 `ArticleOutlineContext` 同构：呈现层（左栏抽屉、
+ * 翻页链接、折叠态 key）因此逐字不变，不需要第二份组件或兼容分支。
+ * `null` 表示没有可展示的树，调用方按 `has_tree=false` 处理。
+ */
+export function toArticleOutlineContext(
+  value: CollectionOutlineTree | ProjectOutlineTree | null | undefined,
+): ArticleOutlineContext | null {
+  if (!value) {
+    return null;
+  }
+  return {
+    has_tree: value.has_tree ?? false,
+    owner_kind: value.owner_kind ?? 0,
+    owner_id: value.owner_id ?? "",
+    nodes: value.nodes ?? [],
+    current: value.current ?? null,
+    previous: value.previous ?? null,
+    next: value.next ?? null,
+  };
+}

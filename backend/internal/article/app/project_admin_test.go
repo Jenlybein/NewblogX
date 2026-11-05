@@ -208,8 +208,12 @@ func TestReaderListHidesUndisplayedProject(t *testing.T) {
 	if total != 0 || len(cards) != 0 {
 		t.Fatalf("未展示的项目不应出现在读者列表，实际 total=%d len=%d", total, len(cards))
 	}
-	if _, err := svc.ProjectDetail(context.Background(), id, false); !apperr.IsCode(err, apperr.CodeProjectNotFound) {
+	if _, err := svc.ProjectDetail(context.Background(), id, domain.Anonymous(), false); !apperr.IsCode(err, apperr.CodeProjectNotFound) {
 		t.Fatalf("未展示的项目对读者应按不存在处理，实际 %v", err)
+	}
+	// 与合集口径一致：管理员仍能打开未展示的项目，后台编辑要用。
+	if detail, err := svc.ProjectDetail(context.Background(), id, adminViewer(), false); err != nil || detail == nil {
+		t.Fatalf("管理员应能打开未展示的项目，实际 detail=%+v err=%v", detail, err)
 	}
 
 	adminCards, err := svc.ListAdminProjectCards(context.Background(), adminViewer())

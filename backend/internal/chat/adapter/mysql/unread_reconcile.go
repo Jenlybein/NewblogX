@@ -15,27 +15,16 @@ import (
 // 但增量在多端已读、并发发送与已读交错时会留下永久漂移：徽标显示 3、点进去
 // 只有 1 条。定期重算覆盖就能自愈，不需要给 session 表加"读位置"列（零 DDL）。
 //
-// 真值口径（与 ListMessages 的可见性条件保持一致）：
+// 真值口径不在这里另写一份：见 visibility.go 的 visibilityScope.unread()。
 //
-//	unread = COUNT(chat_msg_models
-//	                WHERE session_id = 该会话
-//	                  AND receiver_id = 我
-//	                  AND msg_status < 已读
-//	                  AND send_time > (SELECT send_time
-//	                                    FROM chat_msg_models
-//	                                   WHERE id = clear_before_msg_id)
-//	                  AND id NOT IN (该用户已删除的消息 ID))
+// 四条边界（消息列表 / 整会话已读 / 消息中心角标 / 本并账共用）：
+//   - 会话可见集含自己发的消息；
+//   - 未读只数「接收者是我且未读」；
+//   - 清空界线按水位行的 send_time 推进，不用最大 ID 挑水位行；
+//   - 用户级删除的消息对自己不可见，重算时排除。
 //
-// 四条边界：
-//   - 只数「发给我的」：receiver_id = user_id，发送方那侧永远不进未读；
-//   - 只数未读：msg_status < StatusRead（已读状态在消息行上，是全局的，
-//     1:1 会话里只有接收方会标已读，所以不需要逐用户读位置）；
-//   - 尊重清空水位：把 clear_before_msg_id 解析成那条消息的 send_time，
-//     只数严格晚于它的消息。主键不是时序（客户端幂等键派生的是
-//     [2^62,2^63) 区间的 FNV 哈希），用 id > 水位会随机放过/挡掉历史，
-//     "清除会话"之后重算就不能让未读复活；
-//   - 用户级删除（chat_msg_user_state_models）也会让消息对自己不可见，
-//     重算时同样排除，否则删掉的消息还会占着未读数。
+// 消息中心角标读的是会话行上的派生列 unread_count，由发送 / 已读增量写、
+// 由本并账按同一口径覆盖写回，所以四者说法一致（零 DDL，无读位置列）。
 
 // ReconcileChatUnread 重算并覆盖某个用户某条会话的未读计数，返回 hit=false
 // 表示会话行不存在或已软删（此时不写、也不报错）。

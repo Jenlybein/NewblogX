@@ -91,7 +91,8 @@ describe("buildChatTimeline（唯一持有者交给面板的结果）", () => {
       .flatMap((entry) => (entry.kind === "group" ? entry.entries : []))
       .map((bubble) => bubble.receipt);
 
-    expect(receipts).toEqual(["", "已送达", "已读"]);
+    // 收到的那条没有回执；更早的自己消息也没有 —— 只有最后一条自己发的才带。
+    expect(receipts).toEqual(["", "", "已读"]);
   });
 
   it("空数组 → 空时间线", () => {

@@ -1,6 +1,7 @@
 import { useNuxtApp } from "#imports";
 import type {
   ChatMessageItem,
+  ChatMessageListData,
   ChatSendMessagePayload,
   ChatSessionListData,
   ChatWsTicketData,
@@ -9,38 +10,12 @@ import type {
 } from "~/types/api";
 
 /**
- * 私信消息分页的游标。后端 `GET /api/chat/messages` 按
- * `ORDER BY send_time DESC, id DESC` 稳定返回，翻页靠
- * `(before_send_time, before_id)` 这一对值，而不是页码 —— 聊天期间新消息不断
- * 插入，用 page 会重复/漏消息。两个值都是字符串（id 是十进制 ID 字符串）。
- */
-export interface ChatMessageCursor {
-  before_send_time: string;
-  before_id: string;
-}
-
-/**
- * **手写**的分页响应形状。
+ * 私信消息分页的游标：契约里的 `next_cursor`（`before_send_time` + `before_id`）。
  *
- * 为什么不像 `ChatMessageListData` 那样引用 `~/types/api`：这个接口正在与后端
- * 并行改造，`openapi.d.ts` 还要等 swagger 重新生成后才由上层刷新。这里先按
- * 后端契约把「我们实际消费的 data 形状」钉在本地，避免编译期依赖一份还没
- * 生成的类型；等契约刷新后再决定是否收回 `types/api.ts`。
+ * 后端列表按 send_time **升序**返回（最旧在前），游标指向上一页最旧一条；
+ * 两个值都是字符串（id 是十进制 ID 字符串，绝不转 JS number）。
  */
-export interface ChatMessagePageData {
-  list: ChatMessageItem[];
-  count: number;
-  has_more: boolean;
-  next_cursor: ChatMessageCursor;
-}
-
-/** 老形状（或测试桩）允许缺字段：统一在服务层归一化，调用方不必到处判空。 */
-interface RawChatMessagePageData {
-  list?: ChatMessageItem[];
-  count?: number;
-  has_more?: boolean;
-  next_cursor?: ChatMessageCursor | null;
-}
+export type ChatMessageCursor = ChatMessageListData["next_cursor"];
 
 export function getSiteMessages(params: { group: 1 | 2 | 3; page?: number; limit?: number }) {
   return useNuxtApp().$api.request<SiteMessageListData>("/api/sitemsg", {
@@ -120,8 +95,8 @@ export function deleteChatSessions(sessionIdList: string[]) {
 /**
  * 拉一页私信消息。聊天窗口每页 7 条，缺省不传 `page`（读者站改走游标分页）。
  *
- * 响应里的 `list` 仍是 DESC（最新在最前），由 `toAscending` 在 composable 里
- * 转成界面要的升序；这里只负责请求形状与对旧形状的归一化。
+ * 响应形状直接来自生成的契约（`ChatMessageListData`）：`list` 已经是**升序**，
+ * 服务层不补字段、不改顺序、不做旧形状兼容。
  */
 export function getChatMessages(params: {
   sessionId: string;
@@ -129,8 +104,8 @@ export function getChatMessages(params: {
   type?: 1 | 2;
   limit?: number;
   cursor?: ChatMessageCursor;
-}): Promise<ChatMessagePageData> {
-  return useNuxtApp().$api.request<RawChatMessagePageData>("/api/chat/messages", {
+}): Promise<ChatMessageListData> {
+  return useNuxtApp().$api.request<ChatMessageListData>("/api/chat/messages", {
     query: {
       session_id: params.sessionId,
       type: params.type ?? 1,
@@ -143,14 +118,6 @@ export function getChatMessages(params: {
           }
         : {}),
     },
-  }).then((payload) => {
-    const list = payload.list ?? [];
-    return {
-      list,
-      count: payload.count ?? list.length,
-      has_more: payload.has_more ?? false,
-      next_cursor: payload.next_cursor ?? { before_send_time: "", before_id: "" },
-    };
   });
 }
 

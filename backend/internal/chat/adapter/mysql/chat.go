@@ -623,7 +623,11 @@ func (r *Repo) DeleteSessions(ctx context.Context, userID ctype.ID, sessionIDs [
 		if len(rows) == 0 {
 			return nil
 		}
-		maxIDs, err := loadMaxMsgIDs(tx, sessionIDs)
+		latest, err := loadLatestMessages(tx, sessionIDs)
+		if err != nil {
+			return err
+		}
+		watermarkTimes, err := loadWatermarkSendTimes(tx, rows)
 		if err != nil {
 			return err
 		}
@@ -632,8 +636,9 @@ func (r *Repo) DeleteSessions(ctx context.Context, userID ctype.ID, sessionIDs [
 		args := make([]any, 0, len(rows)*2)
 		for _, row := range rows {
 			clear := row.ClearBeforeMsgID
-			if maxIDs[row.SessionID] > clear.Uint64() {
-				clear = ctype.NewID(maxIDs[row.SessionID])
+			candidate, ok := latest[row.SessionID]
+			if ok && candidate.after(watermarkTimes, clear) {
+				clear = candidate.ID
 			}
 			idList = append(idList, row.ID.Uint64())
 			caseSQL += " WHEN ? THEN ?"
@@ -674,21 +679,86 @@ func decreaseUnread(tx *gorm.DB, userID ctype.ID, delta map[string]int) error {
 		Update("unread_count", gorm.Expr(caseSQL, args...)).Error
 }
 
-func loadMaxMsgIDs(tx *gorm.DB, sessionIDs []string) (map[string]uint64, error) {
+// latestMessage 是一条会话里"时间最晚"的消息。
+//
+// 主键不是时序：客户端幂等键派生的 ID 落在 [2^62,2^63) 的 FNV 哈希区间，
+// MAX(id) 会挑到一条时间上更早的消息，清空后旧历史重现、未读被并账复活。
+// 同毫秒并列时用 id 做确定性的最终裁决（只定序，不当时序键）。
+type latestMessage struct {
+	ID       ctype.ID
+	SendTime time.Time
+}
+
+// after 判断候选消息是否比现有水位更晚。
+//
+// 现有水位存的是"清到哪条消息"的主键，换算成那条消息的 send_time 才是时间水位；
+// 水位为 0 / 水位行缺失时没有过滤，任何可见候选都比它晚。
+func (m latestMessage) after(watermarkTimes map[uint64]time.Time, clearBefore ctype.ID) bool {
+	if clearBefore.IsZero() {
+		return true
+	}
+	current, ok := watermarkTimes[clearBefore.Uint64()]
+	if !ok {
+		return true
+	}
+	return m.SendTime.After(current) || (m.SendTime.Equal(current) && m.ID.Uint64() > clearBefore.Uint64())
+}
+
+// loadLatestMessages 按 send_time 取每条会话时间最晚的一行。
+//
+// 用相关子查询而不是 GROUP BY + MAX(send_time) 再回连：后者遇到同毫秒并列会
+// 返回多行，水位就变成不确定的。这里 ORDER BY send_time DESC, id DESC 只取一行。
+func loadLatestMessages(tx *gorm.DB, sessionIDs []string) (map[string]latestMessage, error) {
 	var rows []struct {
 		SessionID string
-		MaxMsgID  ctype.ID
+		ID        ctype.ID
+		SendTime  time.Time
 	}
-	if err := tx.Model(&msgRow{}).
-		Select("session_id, MAX(id) AS max_msg_id").
-		Where("session_id IN ?", sessionIDs).
-		Group("session_id").
+	if err := tx.Table("chat_msg_models AS m").
+		Select("m.session_id, m.id, m.send_time").
+		Where("m.session_id IN ? AND m.id = (?)", sessionIDs,
+			tx.Table("chat_msg_models AS latest").
+				Select("latest.id").
+				Where("latest.session_id = m.session_id").
+				Order("latest.send_time DESC, latest.id DESC").
+				Limit(1),
+		).
 		Scan(&rows).Error; err != nil {
 		return nil, err
 	}
-	out := make(map[string]uint64, len(rows))
+	out := make(map[string]latestMessage, len(rows))
 	for _, row := range rows {
-		out[row.SessionID] = row.MaxMsgID.Uint64()
+		out[row.SessionID] = latestMessage{ID: ctype.NewID(row.ID.Uint64()), SendTime: row.SendTime}
+	}
+	return out, nil
+}
+
+// loadWatermarkSendTimes 把会话行里的清空水位 ID 换算成 send_time。
+//
+// 子查询必须 Unscoped：水位行可能已被用户级软删，否则整段历史会重新冒出来。
+func loadWatermarkSendTimes(tx *gorm.DB, sessions []sessionRow) (map[uint64]time.Time, error) {
+	ids := make([]uint64, 0, len(sessions))
+	for _, row := range sessions {
+		if !row.ClearBeforeMsgID.IsZero() {
+			ids = append(ids, row.ClearBeforeMsgID.Uint64())
+		}
+	}
+	if len(ids) == 0 {
+		return map[uint64]time.Time{}, nil
+	}
+	var rows []struct {
+		ID       ctype.ID
+		SendTime time.Time
+	}
+	if err := tx.Unscoped().Table("chat_msg_models").
+		Select("id, send_time").
+		Where("id IN ?", ids).
+		Scan(&rows).Error; err != nil {
+		return nil, err
+	}
+	out := make(map[uint64]time.Time, len(rows))
+	for _, row := range rows {
+		out[row.ID.Uint64()] = row.SendTime
 	}
 	return out, nil
 }

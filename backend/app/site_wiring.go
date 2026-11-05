@@ -204,12 +204,28 @@ func (b siteRuntimeBridge) UpdateUpload(upload conf.Upload) error {
 	return b.inner.UpdateUpload(upload)
 }
 
+// ImageGC 返回当前孤儿图回收运行配置。
+func (b siteRuntimeBridge) ImageGC() conf.ImageGC {
+	if b.inner == nil {
+		return conf.ImageGC{}
+	}
+	return b.inner.GetRuntimeImageGC()
+}
+
 // UpdateDeco 覆盖装饰配置。
 func (b siteRuntimeBridge) UpdateDeco(deco conf.Deco) error {
 	if b.inner == nil {
 		return errSiteRuntimeMissing()
 	}
 	return b.inner.UpdateDeco(deco)
+}
+
+// UpdateImageGC 覆盖孤儿图回收运行配置。
+func (b siteRuntimeBridge) UpdateImageGC(imageGC conf.ImageGC) error {
+	if b.inner == nil {
+		return errSiteRuntimeMissing()
+	}
+	return b.inner.UpdateImageGC(imageGC)
 }
 
 // errSiteRuntimeMissing 表示运行时配置服务没装配。

@@ -12,11 +12,6 @@ import (
 
 // ── 请求 ───────────────────────────────────────────────────────
 
-// SiteInfoRequest 对应 /site/:name 里的名称。
-type SiteInfoRequest struct {
-	Name string `uri:"name"`
-}
-
 // IDRequest 对应 /banners/:id。
 type IDRequest struct {
 	ID ctype.ID `uri:"id"`
@@ -259,6 +254,5 @@ func bindURI[T any](c *gin.Context) (T, bool) {
 var (
 	_ = middleware.GetBindJson[IDListRequest]
 	_ = middleware.GetBindQuery[BannerListRequest]
-	_ = middleware.GetBindUri[SiteInfoRequest]
 	_ = middleware.GetBindJson[SidebarCardsSaveRequest]
 )

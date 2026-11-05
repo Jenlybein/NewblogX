@@ -588,3 +588,128 @@ describe("用户私有态独立取数（ADR-0024 决策 2/6）", () => {
     expect(cache.read("article-private-a1").state).toBe("miss");
   });
 });
+
+/**
+ * 票 #282：写响应回填 / 清客户端 30 秒 SWR / 私有态覆盖 / 缓存键拼接统一收进
+ * 阅读页取数模块。页面只上报「读者做了什么」，不再 import `readerSwrCache` 单例。
+ *
+ * 这条用例从「读者动作 → 写响应 → 返回重进」的取数接缝观察行为：
+ * 权威计数来自写响应 / 重取，不是本地 ±1；私有态只进本次渲染，不进共享缓存。
+ */
+describe("点赞缓存收拢（#282）：写响应由阅读页取数模块统一管", () => {
+  // 写之前的快照。
+  const BEFORE = { digg_count: 6, favor_count: 2 };
+  // 权威值故意取 9 / 5：本地 ±1 只能算出 7 / 3，能算对 9 / 5 才说明用了权威值。
+  const AUTHORITATIVE = { digg_count: 9, favor_count: 5 };
+
+  type ArticlePageSourcesHandle = Awaited<ReturnType<typeof useArticlePageSources>>;
+
+  interface WriteScenario {
+    name: string;
+    /** 页面只上报「读者做了什么 + 写响应」。 */
+    report: (sources: ArticlePageSourcesHandle) => void;
+    /** 写响应后本次渲染该看到的数字（空响应时不许造脏值）。 */
+    afterWrite: { digg_count: number; favor_count: number; is_digg?: boolean; is_favor?: boolean };
+  }
+
+  const scenarios: WriteScenario[] = [
+    {
+      name: "点赞写响应 {is_digg:true, digg_count:9}",
+      report: (sources) =>
+        sources.reportArticleWrite({ kind: "digg", result: { is_digg: true, digg_count: 9 } }),
+      afterWrite: { digg_count: 9, favor_count: 2, is_digg: true },
+    },
+    {
+      name: "收藏写响应 {is_favor:true, favor_count:5}",
+      report: (sources) =>
+        sources.reportArticleWrite({ kind: "favorite", result: { is_favor: true, favor_count: 5 } }),
+      afterWrite: { digg_count: 6, favor_count: 5, is_favor: true },
+    },
+    {
+      name: "写响应为空（null）",
+      report: (sources) => sources.reportArticleWrite({ kind: "favorite", result: null }),
+      afterWrite: { digg_count: 6, favor_count: 2 },
+    },
+  ];
+
+  it("点赞 / 收藏 / 写响应为空三种情形：返回重进读到权威数字，私有键不进客户端 30s SWR 缓存、缓存里不留脏值", async () => {
+    for (const scenario of scenarios) {
+      installFakeNuxtApp();
+      installAwaitableAsyncData();
+      const cache = createReaderSwrCache({ now: () => 1_000 });
+      // 首页与评论分页缓存不在本票治理面内：写操作之后它们必须原样还在。
+      cache.write("home-latest-articles", { marker: "首页缓存不受影响" });
+
+      const firstFetch = vi.fn(async () => ({ ...makeArticle(), ...BEFORE }) as ArticleDetail);
+      const first = await runInScope(() =>
+        useArticlePageSources({
+          mode: "navigation",
+          articleId: ARTICLE_ID,
+          swrCache: cache,
+          fetchArticle: firstFetch,
+          fetchScore: async () => null,
+          fetchComments: async () => ({ items: [] as CommentRootItem[], hasMore: false }),
+          fetchAuthorInfo: async () => ({ article_count: 3 } as ArticleAuthorInfo),
+          fetchAuthorProfile: async () => null,
+        }),
+      );
+      await flushPromises();
+      await flushPromises();
+
+      // 前情：30 秒内重进本来会命中这份旧正文（写之前烤进去的数字）。
+      expect(cache.read("article-a1").state, scenario.name).toBe("fresh");
+      expect(first.article.value?.digg_count, scenario.name).toBe(6);
+
+      scenario.report(first);
+
+      // 本次渲染采用写响应的权威数字与私有态；空响应不许造出 ±1 或布尔脏值。
+      expect(first.article.value?.digg_count, scenario.name).toBe(scenario.afterWrite.digg_count);
+      expect(first.article.value?.favor_count, scenario.name).toBe(scenario.afterWrite.favor_count);
+      expect(first.article.value?.is_digg, scenario.name).toBe(scenario.afterWrite.is_digg);
+      expect(first.article.value?.is_favor, scenario.name).toBe(scenario.afterWrite.is_favor);
+
+      // 只失效客户端 30s SWR 的正文键：缓存里不留旧计数 / 私有态。
+      expect(cache.read("article-a1").state, scenario.name).toBe("miss");
+      expect(cache.read("article-private-a1").state, scenario.name).toBe("miss");
+      expect(cache.read("home-latest-articles").state, scenario.name).toBe("fresh");
+      expect(cache.read("article-comments:a1#1").state, scenario.name).toBe("fresh");
+
+      // 返回重进：正文键已失效 → 真发请求，读到服务端权威数字（不是缓存里的 6 / 2，也不是 ±1）。
+      const reFetch = vi.fn(async () =>
+        ({ ...makeArticle(), ...AUTHORITATIVE, is_digg: true, is_favor: true, relation: 1 }) as unknown as ArticleDetail,
+      );
+      const second = await runInScope(() =>
+        useArticlePageSources({
+          mode: "navigation",
+          articleId: ARTICLE_ID,
+          swrCache: cache,
+          fetchArticle: reFetch,
+          fetchScore: async () => null,
+          fetchComments: async () => ({ items: [] as CommentRootItem[], hasMore: false }),
+          fetchAuthorInfo: async () => ({ article_count: 3 } as ArticleAuthorInfo),
+          fetchAuthorProfile: async () => null,
+        }),
+      );
+      await flushPromises();
+      await flushPromises();
+
+      expect(reFetch, scenario.name).toHaveBeenCalledTimes(1);
+      expect(second.article.value?.digg_count, scenario.name).toBe(9);
+      expect(second.article.value?.favor_count, scenario.name).toBe(5);
+      expect(second.article.value?.digg_count, scenario.name).not.toBe(7);
+      expect(second.article.value?.favor_count, scenario.name).not.toBe(3);
+
+      // 重取后写进 30s SWR 的仍是净化过的权威值：私有键一个都不留。
+      const cached = cache.read<Record<string, unknown>>("article-a1");
+      expect(cached.state, scenario.name).toBe("fresh");
+      if (cached.state !== "miss") {
+        expect(cached.value.digg_count, scenario.name).toBe(9);
+        expect(cached.value.favor_count, scenario.name).toBe(5);
+        expect(cached.value, scenario.name).not.toHaveProperty("is_digg");
+        expect(cached.value, scenario.name).not.toHaveProperty("is_favor");
+        expect(cached.value, scenario.name).not.toHaveProperty("relation");
+      }
+      expect(cache.read("article-private-a1").state, scenario.name).toBe("miss");
+    }
+  });
+});

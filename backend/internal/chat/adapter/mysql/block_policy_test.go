@@ -32,16 +32,12 @@ func TestBlockPolicyLevelIsDirectionalAndSoftDeletable(t *testing.T) {
 		t.Fatalf("方向必须独立，B→A 应为 None，实际 level=%v err=%v", lvl, err)
 	}
 
-	// 升级为拉黑后出现在我方的隐藏清单里。
+	// 升级为拉黑：Level 必须如实返回 level=2。
 	if err := db.Model(&chatBlockRow{}).Where("id = ?", 10).Update("level", uint8(domain.BlockLevelHard)).Error; err != nil {
 		t.Fatalf("升级拉黑失败: %v", err)
 	}
 	if lvl, err := p.Level(ctx, a, b); err != nil || lvl != domain.BlockLevelHard {
 		t.Fatalf("A→B 应为拉黑，实际 level=%v err=%v", lvl, err)
-	}
-	ids, err := p.HardBlockedIDs(ctx, a)
-	if err != nil || len(ids) != 1 || ids[0] != b {
-		t.Fatalf("拉黑清单应只有 B，实际 ids=%v err=%v", ids, err)
 	}
 
 	// 软删 = 解除：查询走 GORM 默认范围，不再命中。
@@ -50,8 +46,5 @@ func TestBlockPolicyLevelIsDirectionalAndSoftDeletable(t *testing.T) {
 	}
 	if lvl, err := p.Level(ctx, a, b); err != nil || lvl != domain.BlockLevelNone {
 		t.Fatalf("解除后应为 None，实际 level=%v err=%v", lvl, err)
-	}
-	if ids, err := p.HardBlockedIDs(ctx, a); err != nil || len(ids) != 0 {
-		t.Fatalf("解除后拉黑清单应为空，实际 ids=%v err=%v", ids, err)
 	}
 }

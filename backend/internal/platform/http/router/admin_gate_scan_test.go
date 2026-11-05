@@ -245,7 +245,7 @@ func registeredRoutes(t *testing.T) []string {
 	gin.SetMode(gin.TestMode)
 	gin.DefaultErrorWriter = io.Discard
 	injectZeroHandlers()
-	engine := router.NewEngine(middleware.RuntimeOptions{Verifier: userTokenVerifier{}}, nil)
+	engine := router.NewEngine(middleware.RuntimeOptions{Verifier: userTokenVerifier{}}, nil, injectZeroHandlers())
 	out := make([]string, 0, len(engine.Routes()))
 	for _, r := range engine.Routes() {
 		out = append(out, strings.ToUpper(r.Method)+" "+r.Path)

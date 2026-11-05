@@ -18,28 +18,15 @@ import (
 	"myblogx/internal/kernel/ctype"
 )
 
-// Deps 是私信模块的内部协作接缝（#280）。
-//
-// 九个协作者在这里分成两类：
-//   - 结构必需：Read / Write / Users —— 缺了用例层无法成立，构造时直接失败；
-//   - 发送资格：Blocks / Relations / Stranger / Limiter / ImageCheck —— 允许
+// 私信模块的九个协作者只从这一个构造点进入用例层（#280）：
+//   - 结构必需：read / write / users —— 缺了用例层无法成立，构造时直接失败；
+//   - 发送资格：blocks / relations / stranger / limiter / imageCheck —— 允许
 //     为零值，但发送时一律失败关闭（见 sendGuard）。这样装配遗漏不会静默
 //     放行，而是变成一个可观测的拒绝。
 //
-// 具体实现由合成根构造后注入；用例层不 import 其它模块。
-type Deps struct {
-	Read       domain.Query
-	Write      domain.Command
-	Relations  domain.RelationReader
-	Users      domain.UserDirectory
-	Stranger   domain.StrangerPolicy
-	Limiter    domain.Limiter
-	ImageCheck domain.ImageURLVerifier
-	Blocks     domain.BlockPolicy
-	Logger     domain.Logger
-}
-
-// Service 是私信应用服务。
+// 判定所需的五个协作者在 Service 内部收进 sendGuard：它们是模块内部接缝，
+// 不再出现在每个用例方法的视线里。具体实现由合成根构造后注入；用例层不
+// import 其它模块。
 type Service struct {
 	read   domain.Query
 	write  domain.Command
@@ -56,30 +43,30 @@ type Service struct {
 //
 // 发送资格的五项依赖不在这里 panic：它们缺失时 Send 会失败关闭（#280），
 // 用"构造失败"表达同一件事会掩盖"哪个依赖没上场"。
-func New(deps Deps) *Service {
-	if deps.Read == nil {
+func New(read domain.Query, write domain.Command, relations domain.RelationReader, users domain.UserDirectory, stranger domain.StrangerPolicy, limiter domain.Limiter, imageCheck domain.ImageURLVerifier, blocks domain.BlockPolicy, logger domain.Logger) *Service {
+	if read == nil {
 		panic("chat/app: 会话读端口未注入")
 	}
-	if deps.Write == nil {
+	if write == nil {
 		panic("chat/app: 会话写端口未注入")
 	}
-	if deps.Users == nil {
+	if users == nil {
 		panic("chat/app: 用户展示读未注入")
 	}
 	return &Service{
-		read:   deps.Read,
-		write:  deps.Write,
-		users:  deps.Users,
-		logger: deps.Logger,
+		read:   read,
+		write:  write,
+		users:  users,
+		logger: logger,
 		now:    time.Now,
 		guard: sendGuard{
-			read:       deps.Read,
-			blocks:     deps.Blocks,
-			relations:  deps.Relations,
-			users:      deps.Users,
-			stranger:   deps.Stranger,
-			limiter:    deps.Limiter,
-			imageCheck: deps.ImageCheck,
+			read:       read,
+			blocks:     blocks,
+			relations:  relations,
+			users:      users,
+			stranger:   stranger,
+			limiter:    limiter,
+			imageCheck: imageCheck,
 		},
 	}
 }

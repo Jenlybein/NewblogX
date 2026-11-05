@@ -11,6 +11,8 @@ import (
 	"myblogx/internal/platform/http/middleware"
 	"myblogx/internal/platform/http/router"
 
+	chathttp "myblogx/internal/chat/adapter/http"
+
 	"github.com/gin-gonic/gin"
 )
 
@@ -38,7 +40,7 @@ func fetchReady(t *testing.T, engine *gin.Engine) (int, readyPayload) {
 func TestHealthReadyTurns503WhenComponentFails(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	registry := health.New()
-	engine := router.NewEngine(middleware.RuntimeOptions{}, registry)
+	engine := router.NewEngine(middleware.RuntimeOptions{}, registry, router.Handlers{Chat: &chathttp.Handler{}})
 
 	// 组件都在正常/未启用状态：就绪。
 	registry.Set("cdc_river", health.StateRunning, nil)
@@ -86,7 +88,7 @@ func TestHealthReadyTurns503WhenComponentFails(t *testing.T) {
 // 探针按数组解析，null 会让它的类型判断炸掉。
 func TestHealthReadyWithoutRegistry(t *testing.T) {
 	gin.SetMode(gin.TestMode)
-	engine := router.NewEngine(middleware.RuntimeOptions{}, nil)
+	engine := router.NewEngine(middleware.RuntimeOptions{}, nil, router.Handlers{Chat: &chathttp.Handler{}})
 
 	code, payload := fetchReady(t, engine)
 	if code != http.StatusOK {

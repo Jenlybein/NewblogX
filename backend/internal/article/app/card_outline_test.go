@@ -246,7 +246,7 @@ func TestProjectCardCountAndCoverComeFromOutlineTree(t *testing.T) {
 		t.Fatalf("后台项目卡片口径不对: %+v", adminCards)
 	}
 
-	detail, err := svc.ProjectDetail(ctx, pid, false)
+	detail, err := svc.ProjectDetail(ctx, pid, domain.Anonymous(), false)
 	if err != nil {
 		t.Fatalf("读项目详情失败: %v", err)
 	}

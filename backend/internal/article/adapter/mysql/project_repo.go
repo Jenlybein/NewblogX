@@ -8,7 +8,6 @@ import (
 	"gorm.io/gorm"
 
 	"myblogx/internal/article/domain"
-	"myblogx/internal/article/domain/outline"
 	"myblogx/internal/article/domain/project"
 	"myblogx/internal/kernel/ctype"
 )
@@ -130,8 +129,9 @@ func (r *ProjectRepo) ListAdminCards(ctx context.Context) ([]project.AdminCard, 
 		return nil, err
 	}
 
-	// 后台卡片不看「显示非管理员发布文章」这个读者开关，仍按"公开文章"口径。
-	stats, err := outlineCardStats(ctx, r.db, outline.OwnerProject, false)
+	// 后台卡片不看「显示非管理员发布文章」这个读者开关，仍按"公开文章"口径；
+	// 篇数与回退封面同样只认项目具名树（#276），与后台编辑器读回的是同一份数据。
+	stats, err := projectCardStats(ctx, r.db, false)
 	if err != nil {
 		return nil, err
 	}
@@ -187,7 +187,7 @@ func (r *ProjectRepo) UpdateSortOrders(ctx context.Context, ids []project.ID) er
 
 // ListCards 列出展示中的项目卡片，按序号升序。
 //
-// 过滤"展示开关"在 SQL 里；篇数与封面回退来自目录树（outlineCardStats），
+// 过滤"展示开关"在 SQL 里；篇数与封面回退来自项目具名树（projectCardStats），
 // 与合集 / 读者详情同一口径：只数仍公开的文章、封面取 DFS 第一个公开文章节点。
 //
 // 分页为什么在 Go 里做：项目是**运营编排**的产物，数量以十计；而"开关关闭时
@@ -224,8 +224,9 @@ func (r *ProjectRepo) cardRows(
 		return nil, err
 	}
 
-	// 卡片读面以目录树为准：旧扁平收录中间表已冻结，这里完全不出现。
-	stats, err := outlineCardStats(ctx, r.db, outline.OwnerProject, onlyAdminAuthors)
+	// 卡片读面以项目具名树为准（#276）：篇数与封面回退和项目详情页 / 阅读页
+	// 左栏读同一张 project_outline_node_models，不再看旧共用表。
+	stats, err := projectCardStats(ctx, r.db, onlyAdminAuthors)
 	if err != nil {
 		return nil, err
 	}

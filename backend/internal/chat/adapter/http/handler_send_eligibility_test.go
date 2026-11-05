@@ -55,8 +55,8 @@ func (f failingStranger) CheckStranger(context.Context, ctype.ID) (domain.Strang
 	return domain.StrangerAllowed, f.err
 }
 
-// eligibilityDeps 只描述本组用例关心的协作者；其余用"明确允许"的替身。
-type eligibilityDeps struct {
+// eligibilityInputs 只描述本组用例关心的协作者；其余用"明确允许"的替身。
+type eligibilityInputs struct {
 	relations domain.RelationReader
 	stranger  domain.StrangerPolicy
 	limiter   domain.Limiter
@@ -64,7 +64,7 @@ type eligibilityDeps struct {
 	image     domain.ImageURLVerifier
 }
 
-func newEligibilityService(d eligibilityDeps) (*app.Service, *fakeRepo) {
+func newEligibilityService(d eligibilityInputs) (*app.Service, *fakeRepo) {
 	repo := &fakeRepo{}
 	svc := app.New(repo, repo, d.relations, fakeUsers{}, d.stranger, d.limiter, d.image, d.blocks, nil)
 	return svc, repo
@@ -75,11 +75,11 @@ func newEligibilityService(d eligibilityDeps) (*app.Service, *fakeRepo) {
 func TestSendEligibility_依赖缺失时一律拒绝发送(t *testing.T) {
 	cases := []struct {
 		name string
-		deps eligibilityDeps
+		deps eligibilityInputs
 	}{
 		{
 			name: "屏蔽与拉黑策略未装配",
-			deps: eligibilityDeps{
+			deps: eligibilityInputs{
 				relations: fakeRelations{relation: 4},
 				stranger:  fakeStranger{verdict: domain.StrangerAllowed},
 				limiter:   permitLimiter{},
@@ -89,7 +89,7 @@ func TestSendEligibility_依赖缺失时一律拒绝发送(t *testing.T) {
 		},
 		{
 			name: "关注关系未装配",
-			deps: eligibilityDeps{
+			deps: eligibilityInputs{
 				relations: nil,
 				stranger:  fakeStranger{verdict: domain.StrangerAllowed},
 				limiter:   permitLimiter{},
@@ -99,7 +99,7 @@ func TestSendEligibility_依赖缺失时一律拒绝发送(t *testing.T) {
 		},
 		{
 			name: "陌生人策略未装配",
-			deps: eligibilityDeps{
+			deps: eligibilityInputs{
 				relations: fakeRelations{relation: 1},
 				stranger:  nil,
 				limiter:   permitLimiter{},
@@ -109,7 +109,7 @@ func TestSendEligibility_依赖缺失时一律拒绝发送(t *testing.T) {
 		},
 		{
 			name: "按对限流器未装配",
-			deps: eligibilityDeps{
+			deps: eligibilityInputs{
 				relations: fakeRelations{relation: 4},
 				stranger:  fakeStranger{verdict: domain.StrangerAllowed},
 				limiter:   nil,
@@ -141,11 +141,11 @@ func TestSendEligibility_依赖异常时一律拒绝发送(t *testing.T) {
 	boom := errors.New("资格依赖查询失败")
 	cases := []struct {
 		name string
-		deps eligibilityDeps
+		deps eligibilityInputs
 	}{
 		{
 			name: "屏蔽与拉黑查询异常",
-			deps: eligibilityDeps{
+			deps: eligibilityInputs{
 				relations: fakeRelations{relation: 4},
 				stranger:  fakeStranger{verdict: domain.StrangerAllowed},
 				limiter:   permitLimiter{},
@@ -155,7 +155,7 @@ func TestSendEligibility_依赖异常时一律拒绝发送(t *testing.T) {
 		},
 		{
 			name: "关注关系查询异常",
-			deps: eligibilityDeps{
+			deps: eligibilityInputs{
 				relations: failingRelations{err: boom},
 				stranger:  fakeStranger{verdict: domain.StrangerAllowed},
 				limiter:   permitLimiter{},
@@ -165,7 +165,7 @@ func TestSendEligibility_依赖异常时一律拒绝发送(t *testing.T) {
 		},
 		{
 			name: "陌生人判定异常",
-			deps: eligibilityDeps{
+			deps: eligibilityInputs{
 				relations: fakeRelations{relation: 1},
 				stranger:  failingStranger{err: boom},
 				limiter:   permitLimiter{},
@@ -175,7 +175,7 @@ func TestSendEligibility_依赖异常时一律拒绝发送(t *testing.T) {
 		},
 		{
 			name: "按对限流预占异常",
-			deps: eligibilityDeps{
+			deps: eligibilityInputs{
 				relations: fakeRelations{relation: 4},
 				stranger:  fakeStranger{verdict: domain.StrangerAllowed},
 				limiter:   failingLimiter{err: boom},

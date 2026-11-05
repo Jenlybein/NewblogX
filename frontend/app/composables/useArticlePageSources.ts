@@ -6,8 +6,7 @@ import { getArticleScoreSummary } from "~/services/ai";
 import { getArticleAuthorInfo, getArticleDetail, getArticleDetailAnonymous, getArticlePrivateState } from "~/services/article";
 import { getRootComments, getRootCommentsAnonymous } from "~/services/comment";
 import { getUserBaseInfo } from "~/services/user";
-import type { ArticleFavoriteResult } from "~/types/api";
-import type { ArticleAuthorInfo, ArticleDetail, CommentRootItem } from "~/types/api";
+import type { ArticleAuthorInfo, ArticleDetail, ArticleFavoriteResult, CommentRootItem } from "~/types/api";
 import { applyArticleFavoriteResult } from "~/utils/articleFavorite";
 import { detectReaderRenderMode, type ReaderRenderMode } from "~/utils/readerRenderMode";
 import { readerSwrCache, type ReaderSwrCache } from "~/utils/readerSwrCache";
@@ -265,7 +264,7 @@ export async function useArticlePageSources(options: ArticlePageSourcesOptions) 
   }
 
   /**
-   * 阅读页取数模块统一管写响应（ADR-0024 决策 4 / #282）：
+   * 阅读页取数模块统一管写响应（ADR-0024 决策 4 / 票 282）：
    * 页面只上报「读者做了什么 + 写响应」，不接触缓存单例与缓存键。
    *
    * - 写响应带权威字段：直接覆盖本次渲染的正文（权威计数 + 私有态），**不做本地 ±1**；

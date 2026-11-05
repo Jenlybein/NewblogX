@@ -768,8 +768,9 @@ backend 注解  ──swag v2──►  backend/docs/swagger.json  ──openapi
 **改了接口就要重新生成两遍**，第一遍后端、第二遍每个前端：
 
 ```bash
+# 生成工具的安装 ref 只在 scripts/tool-versions.env 定义（CI / 本地门禁 / 门禁自检三处消费）
 cd backend
-go install github.com/swaggo/swag/v2/cmd/swag@v2.0.0-rc6   # 只需一次
+. ../scripts/tool-versions.env && go install "$SWAG_MODULE@$SWAG_VERSION"   # 只需一次
 make openapi                                              # → docs/swagger.json
 
 cd ../frontend        && corepack pnpm openapi:types       # → app/types/openapi.d.ts
@@ -779,12 +780,12 @@ cd ../frontend_admin  && corepack pnpm openapi:types
 三个坑，都踩过：
 
 1. **必须用 swag v2**，且命令带 `--v3.1`。v1 只出 Swagger 2.0，而 `openapi-typescript` 只吃 3.x。
-2. **`make openapi` 失败时 exit code 可能仍是 0**（例如注解里写了 `map[string]any`，swag 报错后静默跳过写文件）。所以**验证成功要看文件时间或 grep 新内容**，不要只看退出码。
+2. **`make openapi` 失败时 exit code 可能仍是 0**（例如注解里写了 `map[string]any`，swag 报错后静默跳过写文件）。此时「生成后有没有差异」恰好是空的，用 `git diff --exit-code` 当判据会全绿；验证走仓库级判定 `node scripts/check-contract-freshness.mjs`（临时文件逐字比对 + 条目数量不下降 + 新增结构在场），失败原因区分 `SILENT_SKIP` 与 `COMMAND_FAILED`。
 3. 注解引用别的包的类型时，**那个包必须被文件真正 import**——注释不参与编译。代码里没用到就写 `_ "路径"`。
 
 前端侧用 `app/utils/contract.ts` 的三层工具消费契约：`RequiredSchema<K>`（响应必填）、`Nullable<T,K>`（显式可空）、`OptionalFields<T,K>`（后端可能不返回）。**可空性有三种状态**，混了就会出现"构造兜底对象时编译不过"：`T` → `T`；`*T` → `T | null`；`*T` + `omitempty` → 字段整个缺席，必须用 `OptionalFields`。
 
-CI 有两个 job 专门盯这件事：`contract`（`swagger.json` 必须与注解一致）和 `contract-types`（两份 `openapi.d.ts` 必须与 `swagger.json` 一致）。**只做前一半会漏掉"改了注解→生成契约→忘了更新前端类型"这种失效。**
+CI 有两个 job 专门盯这件事：`contract`（`swagger.json` 必须与注解一致，判定与本地门禁 / 门禁自检共用 `scripts/check-contract-freshness.mjs`）和 `contract-types`（两份 `openapi.d.ts` 必须与 `swagger.json` 一致）。**只做前一半会漏掉"改了注解→生成契约→忘了更新前端类型"这种失效。**
 
 ---
 
@@ -1710,7 +1711,7 @@ docker compose exec blogx_server /app/server -f /app/config/settings.yaml -es -s
 文件被其他进程短暂占用（杀软/索引/编辑器），不是代码问题。脚本会自动重试三次，还不行就单独重跑一次。
 
 **`make openapi` 说成功，但 `swagger.json` 没变化**
-swag 遇到不支持的注解（典型是 `map[string]any`）会报错然后**静默跳过写文件，exit code 仍是 0**。看文件修改时间，或者 grep 一下你新加的接口路径。注解里请用具名类型。
+swag 遇到不支持的注解（典型是 `map[string]any`）会报错然后**静默跳过写文件，exit code 仍是 0**。此时「生成后有没有差异」恰好是空的，所以 `git diff --exit-code` 判不出这种假绿。跑 `node scripts/check-contract-freshness.mjs`：它生成到临时目录逐字比对，并以 `SILENT_SKIP` 报出这种失效（与 `COMMAND_FAILED` 分开）。注解里请用具名类型。
 
 **`nuxi typecheck` 在 Windows 上 OOM**
 加 `NODE_OPTIONS=--max-old-space-size=8192`。`scripts/check.sh` 已经默认设了。

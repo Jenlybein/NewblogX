@@ -45,7 +45,7 @@
 | 1 | `backend` | `go build ./...` + `go vet ./...` | **不跑测试**——项目里没有任何测试用 `testing.Short()`，`-race -short` 与 integration job 是同一批用例 |
 | 2 | `backend-integration` | `go test -race -tags integration -count=1 -timeout 25m ./...` | MySQL 8.0 service 供所有包共用；先断言 `docker info` 可用 |
 | 3 | `archcheck` | 规则自检 + 棘轮两遍（含 `--skip-tests=false`） | 基线从 `arch-baseline.env` 读，**绝不写死数字** |
-| 4 | `contract` | 装 `swag@v2.0.0-rc6` → `go mod download` → `make openapi` → `git diff --exit-code backend/docs/swagger.json` | 判据是"重新生成后 git 无差异"，不是"能生成" |
+| 4 | `contract` | 从 `scripts/tool-versions.env` 装生成工具 → `go mod download` → `node scripts/check-contract-freshness.mjs`（`make openapi` 生成到临时目录逐字比对 + 条目数量不下降 + 新增结构在场） | 判据是"生成真的发生过且产物未过期"，不是"能生成"，也不再用 `git diff --exit-code` |
 | 5 | `frontend-lint` | 矩阵 `[frontend, frontend_admin]`：`pnpm lint` | `TZ: Asia/Shanghai` |
 | 6 | `frontend-typecheck` | 矩阵两端：`pnpm typecheck` | 同上 |
 | 7 | `contract-types` | 矩阵两端：重新生成 d.ts 到 `/tmp` 再 `diff` `app/types/openapi.d.ts` | 补上 job 4 盖不到的那一层 |
@@ -67,7 +67,7 @@
 | **时区** | runner 默认 UTC，前端有用例断言"某个时刻显示成 3 点"，四个前端 job 统一钉 `TZ: Asia/Shanghai` |
 | **swag 依赖未下全会假报错** | 不加 `go mod download` 会偶发 `cannot find all dependencies, <nil>`，而 swag 的报错只说"找不到依赖"，极易误判成注解写错 |
 | **Windows：`nuxt prepare` 偶发 EPERM** | `.nuxt/eslint.config.mjs` 被杀软/索引短暂占用；脚本重试 3 次，只在日志含 `EPERM` 时重试 |
-| **`git diff` 判据会假红** | 工作区常有未提交改动，`git diff --exit-code` 会假红、人习惯性忽略。契约类型改成"重新生成到临时文件再 `diff`" |
+| **`git diff` 判据会假红** | 工作区常有未提交改动，`git diff --exit-code` 会假红、人习惯性忽略；更致命的是生成器静默跳过时差异为空、检查仍绿。契约与契约类型都改成"重新生成到临时文件逐字比对"，三处（CI / 本地门禁 / 门禁自检）共用 `scripts/check-contract-freshness.mjs` 这一份判定 |
 | **门禁自检的恢复不能用 `git checkout --`** | 那会把工作区里未提交的活一起冲掉。所有临时改动用**备份副本**恢复，`trap` 只兜底 |
 
 ### 1.4 门禁自检：`scripts/verify-gates.sh`（4 道 → 13 道 → 14 道）
@@ -80,7 +80,7 @@
 | 2 | archcheck 棘轮 | 注入 1 处违规，阈值从 `arch-baseline.env` 读 |
 | 3 | archcheck 规则自检 | 跑通（规则测试自身即反例） |
 | 4 | 前端 typecheck | 注入类型错误 |
-| 5 | 契约未过期 | 改 `@title` → `make openapi` → 生成结果必须变化 |
+| 5 | 契约未过期 | 与真门禁跨同一判定：真生成跑通；注入「静默跳过但退出码 0」→ 报 `SILENT_SKIP`；注入「命令失败」→ 报 `COMMAND_FAILED`；改 `@title` 不重生成 → 报 `STALE`；写歪工具版本 → 报 `TOOL_VERSION_MISMATCH` |
 | 6 | 前端契约类型未过期 | 往 d.ts 插一行 → 必须判为过期 |
 | 7 | 契约 ↔ 路由对账 | 往 swagger.json 塞虚构端点 → 测试必须报 phantom |
 | 8 | admin 鉴权 | **不注入**，只跑通（自带两条对照断言） |
@@ -91,10 +91,10 @@
 | 13 | 两端 `imageShaping` 定形工具同源 | 只改一端定形工具的参数（模拟"只改一端忘了同步"） |
 | 14 | 跨端装饰参数一致性 | 只改后台一个 `DECO_*` 范围常量（模拟"只改一端忘了同步"） |
 
-- 第 5 道不用 `git diff` 判定的理由见 §1.3。
+- 第 5 道不用 `git diff` 判定的理由见 §1.3；生成工具的安装 ref 只在 `scripts/tool-versions.env` 定义一次，CI、本地门禁、门禁自检三处消费，判定还会核对已安装二进制的构建信息。
 - 第 8 道不注入的理由：要让它红必须临时摘掉某条后台路由的 `AdminMiddleware`，脚本一旦被中断就留下"后台无鉴权"。它本身已带 `TestProbeDistinguishesUnprotectedRoute` 与 `TestAdminOnlyListCoversContract` 两条对照断言。
 - 第 11 道的 canary 方式在 2026-10-31 改过：原先"往 `app/utils` 加一个 0 覆盖文件、把整体从 100% 拉到 85.7%"的假设**已过期**（admin 端 `app/utils` 增长到 12 个文件、覆盖率 99.2%，注入 3 条语句只掉到 98.08%，够不到 95 门槛 → 自检会把"门禁失效"误报出来）。现改为抬阈值到 100（与分母无关）+ 核对失败原因，另带"因工具不可用而假红"的判别。
-- 验收：**14/14 全部正确报红**（当前脚本 1/14…14/14；CI 实测单次 2 分 35 秒，本地 Git Bash 同量级）；跑完 `git status` 与跑之前逐字节一致，无 canary 残留。
+- 验收：**14/14 节全部正确报红**（第 5 节含 5 条断言、第 13/14 节各含多条注入，合计 21 条 ok；当前脚本 1/14…14/14；CI 实测单次 2 分 35 秒，本地 Git Bash 同量级）；跑完 `git status` 与跑之前逐字节一致，无 canary 残留。
 - 历史：自检覆盖曾经是 4 道 → 13 道；新增两端 `imageShaping` 定形工具同源门禁后为 **14 道**。
 - CI 的 `gates-canary` 曾经在 YAML 里另写一份注入逻辑、只验证 1 道 —— 两处各写一份的必然结果是"本地 13 道、CI 1 道，没人知道该信哪个"（现为本地 14 道、CI 14 道）。
 - **门禁自检的触发条件曾经只看 PR 标题**：于是"改了门禁却没人验门禁"能一路飘过去。2026-10-31 实际发生过一次：`verify-gates.sh` 第 11 节（覆盖率门槛）的注入假设已过期（admin 覆盖率与文件数增长后，注入一个零覆盖文件掉不到 95 门槛），但因为没人跑它，PR 上的 `gates canary` 显示 pass 而 step 其实被 skip —— 门禁给了它并没有提供的保障。现在补了第二条触发：**本次 PR 改到门禁自身时无条件跑**。

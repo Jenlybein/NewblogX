@@ -1,0 +1,24 @@
+{
+  "comment": "契约未过期判定的仓库级清单：minimumEntries 是条目数量的独立基线（改动契约只增不减时随批抬高）；addedIn 点名本次新增结构，判定要求它们在重新生成的产物里确实在场。path 条目可点名其下的 HTTP 方法；schema 条目按 components.schemas 的键名点名。清单只登记事实，不读源码文本。",
+  "minimumEntries": {
+    "paths": 122,
+    "operations": 160,
+    "schemas": 286
+  },
+  "addedIn": [
+    {
+      "ticket": "273",
+      "reason": "判据前置时已随 #270 进入契约的私信列表具名形状；用来证明「本次新增结构确实在场」这条校验不是永真通过。",
+      "paths": {
+        "/chat/messages": ["get", "post", "delete"],
+        "/chat/sessions": ["get", "delete"]
+      },
+      "schemas": [
+        "internal_chat_adapter_http.IDListRequest",
+        "myblogx_internal_chat_domain.MessageCursor",
+        "myblogx_internal_chat_domain.MessageListData",
+        "myblogx_internal_kernel.Envelope-myblogx_internal_chat_domain_MessageListData"
+      ]
+    }
+  ]
+}

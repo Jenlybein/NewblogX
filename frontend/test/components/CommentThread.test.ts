@@ -6,6 +6,7 @@ import { defineComponent, h } from "vue";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import AppAvatar from "~/components/common/AppAvatar.vue";
+import CommentAuthor from "~/components/comment/CommentAuthor.vue";
 import CommentThread from "~/components/comment/CommentThread.vue";
 import type { CommentReplyItem, CommentRootItem } from "~/types/api";
 
@@ -257,6 +258,14 @@ describe("CommentThread：作者区进个人主页（票 292）", () => {
 
     await wrapper.get(".comment-action--reply").trigger("click");
     expect(wrapper.emitted("reply")?.[0]).toEqual(["c1"]);
+  });
+
+  it("两层作者区来自同一个组件，只有头像边长不同（根 42 / 子 32）", async () => {
+    const wrapper = await mountExpanded({ user_id: "u1" }, [makeReply({ user_id: "u2" })]);
+
+    // 抽组件的前提是两处真的走同一份实现：只有 size 这一个差异。
+    expect(wrapper.findAllComponents(CommentAuthor)).toHaveLength(2);
+    expect(wrapper.findAllComponents(AppAvatar).map((avatar) => avatar.props("size"))).toEqual([42, 32]);
   });
 });
 

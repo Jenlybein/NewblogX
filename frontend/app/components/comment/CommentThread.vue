@@ -7,8 +7,8 @@ import {
   IconThumbUp,
   IconThumbUpFilled,
 } from "@tabler/icons-vue";
-import AppAvatar from "~/components/common/AppAvatar.vue";
 import LoadingSkeleton from "~/components/common/LoadingSkeleton.vue";
+import CommentAuthor from "~/components/comment/CommentAuthor.vue";
 import { useMotionPreference } from "~/composables/useMotionPreference";
 import type { CommentReplyItem, CommentRootItem } from "~/types/api";
 import { formatDateTimeLabel } from "~/utils/format";
@@ -166,17 +166,14 @@ function showFallback(comment: CommentNode): boolean {
   <div class="comment-thread">
     <article v-for="comment in comments" :key="comment.id" class="comment">
       <div class="comment__head">
-        <!-- 作者区是进个人主页的入口（票 292）：头像与昵称包在**同一个** NuxtLink 里，
-             缺失 user_id 时退化成静态文本（不可点、不可聚焦、读屏不当链接）——
+        <!-- 作者区是进个人主页的入口（票 292）：头像 + 昵称同一个链接，缺失 user_id
+             退化成静态文本。根评论与子评论共用 `CommentAuthor`（只有头像边长不同），
              与文章卡片的作者区同一范式（ArticleFeedItem.vue）。 -->
-        <NuxtLink v-if="comment.user_id" :to="`/users/${comment.user_id}`" class="comment__author-link">
-          <AppAvatar :size="42" :src="comment.user_avatar" :name="comment.user_nickname" fallback="评" />
-          <span class="comment__author">{{ comment.user_nickname }}</span>
-        </NuxtLink>
-        <span v-else class="comment__author-link comment__author-link--static">
-          <AppAvatar :size="42" :src="comment.user_avatar" :name="comment.user_nickname" fallback="评" />
-          <span class="comment__author">{{ comment.user_nickname }}</span>
-        </span>
+        <CommentAuthor
+          :user-id="comment.user_id"
+          :avatar="comment.user_avatar"
+          :nickname="comment.user_nickname"
+        />
         <div class="comment__identity">
           <div class="comment__meta">
             <span class="comment__time">{{ formatDateTimeLabel(comment.created_at) }}</span>
@@ -252,15 +249,14 @@ function showFallback(comment: CommentNode): boolean {
                   :style="replyItemStyle(comment.id, index)"
                 >
                   <div class="comment__head">
-                    <!-- 子评论的作者区与根评论同一口径（票 292）；「回复 XXX」是关系说明，不是身份入口，不做链接。 -->
-                    <NuxtLink v-if="reply.user_id" :to="`/users/${reply.user_id}`" class="comment__author-link">
-                      <AppAvatar :size="32" :src="reply.user_avatar" :name="reply.user_nickname" fallback="评" />
-                      <span class="comment__author">{{ reply.user_nickname }}</span>
-                    </NuxtLink>
-                    <span v-else class="comment__author-link comment__author-link--static">
-                      <AppAvatar :size="32" :src="reply.user_avatar" :name="reply.user_nickname" fallback="评" />
-                      <span class="comment__author">{{ reply.user_nickname }}</span>
-                    </span>
+                    <!-- 子评论的作者区与根评论同一口径（票 292），只是头像边长 32；
+                         「回复 XXX」是关系说明，不是身份入口，不做链接。 -->
+                    <CommentAuthor
+                      :user-id="reply.user_id"
+                      :avatar="reply.user_avatar"
+                      :nickname="reply.user_nickname"
+                      :size="32"
+                    />
                     <div class="comment__identity">
                       <div class="comment__meta">
                         <span class="comment__time">{{ formatDateTimeLabel(reply.created_at) }}</span>

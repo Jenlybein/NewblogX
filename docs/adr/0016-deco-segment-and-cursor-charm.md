@@ -3,7 +3,7 @@
 - 状态：已交付
 - 日期：2026-10-31
 - 来源：spec [issue #35](https://github.com/Jenlybein/NewblogX/issues/35)（落地分票 #36–#43）；开源实现调研与关键纠正是该 spec「Further Notes」的一部分；视觉约束上游为 [ADR-0012](./0012-neutral-glass-visual-system.md)
-- 后续修订：**决策 9、已否决段的「永远开着的 rAF 轻晃」、代价段第 4 条、当前生效约束 8 已由 [ADR-0018](./0018-charm-frame-cap-and-pointer-offset.md)（已交付，2026-11-01）取代**，其余条款继续生效。差异速览：20fps 怠速车道与"指针移动期间走满速"一起取消，挂件只剩一条 `requestAnimationFrame` 调度，帧率上限改由后台 `deco.charm.fps_cap` 控制，另加可配的指针端偏移。
+- 后续修订：**决策 9、已否决段的「永远开着的 rAF 轻晃」、代价段第 4 条、当前生效约束 8 已由 [ADR-0018](./0018-charm-frame-cap-and-pointer-offset.md)（已交付，2026-11-01）取代**；**决策 11 与当前生效约束 3 于 2026-11-06 按 #286 整体重写**：参数事实从四端独立定义收成一张生成式参数表，范围门禁退场。其余条款继续生效。差异速览：20fps 怠速车道与"指针移动期间走满速"一起取消，挂件只剩一条 `requestAnimationFrame` 调度，帧率上限改由后台 `deco.charm.fps_cap` 控制；12 个数值参数进入契约（开放接口契约）。
 
 ## 背景与问题
 
@@ -29,7 +29,7 @@
 8. **层级 `z-index: 9999`，压过弹窗与提示条**。这是有意选的"高于一切"：它会在 AI 面板、登录弹窗、toast 之上飘。安全性来自整层 `pointer-events: none` + `aria-hidden="true"`——"在上面"不等于"挡住"：点击穿透、不进 Tab 序列、读屏读不到。同时明确**不与捏捏避让**：绳子穿过它的一瞬是装饰的自然行为，避让反而会显出"它在躲人"。
 9. **静止轻晃与零帧的取舍**：轻晃幅度为 0、频率为 0、系统要求减少动态时**完全停帧**；轻晃开启且指针不再主动驱动头节点（停住 / 已停稳）时走一条节流到约 20fps 的怠速车道，指针移动期间仍走满速动画帧。轻晃开启时不按能量阈值停帧（那会把链冻在一个歪姿势上）；把幅度或频率调为 0 后才按能量收敛回零帧。即"有生命感"不等于"永远空转"，也不等于拖行时降频。
 10. **收尾描边用填充的带形多边形，不用一根等宽 `stroke`**。单根 SVG stroke 无法改变宽度；带形多边形沿中心线法向两侧偏移，宽度从起始线性收到固定 0.6 倍——收尾比例钉成常数而不进配置。代价是 `d` 比折线长，但每帧 DOM 写入仍然只有两个属性（路径的 `d` 与站标的一个 `transform`），不碰布局属性。
-11. **参数一致性由跨端门禁守着**。三处独立定义（后端 Go 常量、读者站、后台）加上默认种子，必须对同一参数的 min/max/default 与布尔默认逐项一致；只改一端必须 CI 变红，并指出是哪两端、哪个参数。门禁只比较、不维护第三张权威表。
+11. **参数事实只有一张仓库级参数表**。`deco` 段的 12 个数值参数由 `config/deco-charm-parameters.json` 定义；构建期生成后端常量与归一化表、默认种子、读者站常量/参数清单、后台常量/元数据，并把 min/max/default 注入契约（开放接口契约）。#283 的段注册表仍登记 `deco` 段本身，不在注册表里另抄参数。唯一校验是「重新生成后四端无差异 + 运行时取值正确」；各端不再维护独立的 min/max/default 手抄，旧范围门禁、锚点清单与夹具消费检查全部退场。
 
 ## 理由与已否决方案
 
@@ -43,12 +43,12 @@
 - **把层级降到弹窗之下 / 做捏捏避让**：降层会失去"玻璃上的装饰"这一层意思；避让会让装饰显出智能与意图，违背"它不是功能入口"。已否决。
 - **用单根 stroke 画收尾**：SVG stroke 不能沿路径变宽，伪宽度的 dash 技巧只会把收尾做成一串补丁。已否决。
 - **永远开着的 rAF 轻晃**：静态页面白白耗电；"轻晃"与"零帧"并不矛盾，可以按状态切换车道。已否决。
-- **只靠各端单测**：三份定义各自内部自洽，任何一端的测试都不会因另一端漂移而红——这正是要 CI 门禁而不是单测的原因。已否决。
+- **只靠各端单测或读源码文本比范围**：各端内部自洽会掩盖手写事实漂移，源码解析又会跟着实现形状脆断。已否决；改由同一参数表生成四端消费物，并用契约与后端 HTTP 接口的运行时取值验行为。
 
 ## 代价 / 不做什么
 
 - **`z-index: 9999` 的后果是它确实会画在登录弹窗与 toast 之上**。这是有意接受的；若将来觉得碍事，改的是一个数 + 一条设计门禁断言，不是重构。
-- **配置类型仍是手写视图模型**，不受契约棘轮保护；跨端门禁只保证范围与默认值一致，不保证单位、标签、语义一致——那部分仍靠人同步。
+- **参数表同时生成契约字段事实与两端常量**，标签、单位、提示等表单文案仍留在参数表里由后台生成物消费；共享归一化夹具与三套消费测试保留，继续钉住夹边界、取整顺序与负半值远离 0。
 - **钳位不报错意味着"错的输入会被静默纠正"**：管理员可能直到保存后看到被夹回的值才发现填错。接受这个代价，换取"不会因为一半没填好就整份被拒"。
 - **轻晃开启且指针停住时有约 20fps 的常驻成本**；幅度或频率为 0、减少动态、或无轻晃时的链收敛后才回到零帧，指针移动期间始终是满速帧。
 - **不做什么**：不做触屏与移动端适配、不做读者个人开关、不做实时预览、不引入第三方动画/物理库、不做第二种装饰、不做 canvas/WebGL 渲染路径，也不把挂件做成第二个功能入口（捏捏仍是读者站 AI 的唯一入口）。
@@ -57,7 +57,7 @@
 
 1. 装饰配置只放在 `deco` 段，挂件参数只在 `deco.charm` 子块；不得塞进 `site`/`ai`/其余业务段。新增装饰加子块，不再开第 9 段。
 2. 写入路径的归一化**永不报错**：越界钳边界、缺省补默认、NaN/非法回落默认。不得把它改成返回 400。
-3. `deco.charm` 的每个数值参数的 min/max/default 与布尔默认，必须在后端 Go、读者站、后台、默认种子四处逐项一致；只改一端必须 CI 变红。
+3. `deco.charm` 的 12 个数值参数只由 `config/deco-charm-parameters.json` 生成后端、默认种子、读者站、后台与契约（开放接口契约）五处消费物；`node scripts/generate-deco-parameters.mjs --check` 必须验「重新生成后四端无差异 + 运行时取值正确」，任何手写生成物或契约字段漂移都必须变红。共享归一化夹具与三套消费它的测试继续保留。
 4. 弧垂只能来自"绳长大于实际距离"；不得把 `gravity` 当作下垂旋钮，参数说明也不得暗示这一点。
 5. 物理固定步长为 1/120s：单帧最多 8 个子步、累加器上限 0.05s；不得退回"每帧一步"。
 6. 挂件层必须是全屏 SVG，且同时具备 `pointer-events: none`、`aria-hidden="true"`、`z-index: 9999`；颜色只消费语义 token（`--color-ink-faint`），不得出现裸色值。
@@ -68,9 +68,9 @@
 
 ## 相关代码与文档
 
-- 配置与词汇：[configuration.md](../architecture/configuration.md) §五（八段与 `deco` 子块）· [GLOSSARY · 光标挂件 / 挂绳](../../GLOSSARY.md)
-- 代码：[backend/conf/conf_deco.go](../../backend/conf/conf_deco.go)（范围常量与钳位）· [backend/config/site_default_settings.yaml](../../backend/config/site_default_settings.yaml)（默认种子）· [frontend/app/utils/decoCharm.ts](../../frontend/app/utils/decoCharm.ts)（物理与几何）· [frontend_admin/app/utils/decoParams.ts](../../frontend_admin/app/utils/decoParams.ts)（参数元数据）
-- 门禁：[scripts/check-deco-range-parity.mjs](../../scripts/check-deco-range-parity.mjs) · [frontend/test/gates/deco-range-parity.test.ts](../../frontend/test/gates/deco-range-parity.test.ts)
+- 配置与词汇：[configuration.md](../architecture/configuration.md) §五（九段与 `deco` 子块）· [GLOSSARY · 光标挂件 / 挂绳](../../GLOSSARY.md)
+- 代码：[config/deco-charm-parameters.json](../../config/deco-charm-parameters.json)（唯一参数表）· [scripts/generate-deco-parameters.mjs](../../scripts/generate-deco-parameters.mjs)（生成器与校验）· [backend/conf/conf_deco.go](../../backend/conf/conf_deco.go)（后端消费物）· [backend/config/site_default_settings.yaml](../../backend/config/site_default_settings.yaml)（默认种子）· [frontend/app/utils/decoCharm.ts](../../frontend/app/utils/decoCharm.ts)（读者站消费物）· [frontend_admin/app/utils/decoParams.ts](../../frontend_admin/app/utils/decoParams.ts)（后台消费物）
+- 门禁：[scripts/generate-deco-parameters.mjs](../../scripts/generate-deco-parameters.mjs) · [scripts/verify-gates.sh](../../scripts/verify-gates.sh) 第 14 道 · [backend/conf/testdata/deco-charm-normalization.json](../../backend/conf/testdata/deco-charm-normalization.json)（共享归一化夹具）
 - 上游：[ADR-0012](./0012-neutral-glass-visual-system.md)（视觉系统与动效预算）· [spec issue #35](https://github.com/Jenlybein/NewblogX/issues/35)
 
 ## 后续修订（2026-11-01）
@@ -84,7 +84,7 @@
 | 代价段第 4 条 | 约 20fps 的常驻成本，指针移动期间始终满速帧 | 常驻成本变成恒定 `fps_cap`（默认 60 相比 20fps 是 3 倍重绘），不随指针状态变化 |
 | 当前生效约束 8 | 约 20fps 怠速车道 / 满速动画帧 | 只保留"完全停帧"与"收敛后回零帧"这半条；帧率部分改由 ADR-0018 约束 1–3 规定 |
 
-**继续生效的部分**：决策 1–8、10、11 与约束 1–7、9、10（装饰段归属、钳位不报错、四端一致、Verlet + 松弛弧垂、固定 1/120s 步长、SVG 覆盖层、`z-index 9999` + `pointer-events: none`、带形多边形收尾、不成为第二个功能入口、失焦只冻结不瞬移）。ADR-0018 只改"帧率怎么来"和"指针端从哪里长出来"，不碰渲染立场与物理模型。
+**继续生效的部分**：决策 1–8、10 与约束 1–2、4–7、9、10（装饰段归属、钳位不报错、Verlet + 松弛弧垂、固定 1/120s 步长、SVG 覆盖层、`z-index 9999` + `pointer-events: none`、带形多边形收尾、不成为第二个功能入口、失焦只冻结不瞬移）。决策 11 与约束 3 已按 #286 重写为生成式参数表口径；ADR-0018 只改"帧率怎么来"和"指针端从哪里长出来"，不碰渲染立场与物理模型。
 
 **落地时连带改掉的**（已完成，属 ADR-0018 的实施清单，此处列出是因为它们都写在本 ADR 名下的文档里）：[configuration.md](../architecture/configuration.md) §五 的降速段与参数清单（八个→十一个）、[site_default_settings.yaml](../../backend/config/site_default_settings.yaml) 里关于旧降速策略的注释、[CursorCharm.vue](../../frontend/app/components/deco/CursorCharm.vue) 顶部的渲染成本注释（现按 `fps_cap` 门控说明）、[GLOSSARY](../../GLOSSARY.md) 的「挂绳」词条（已补"指针端 = 指针热点 + 指针端偏移"）。
 
@@ -98,5 +98,9 @@
 
 原因：硬赋值会把一帧里几十像素的指针位移当成瞬时冲量灌进链里，距离约束随即把每节拉到静止长度——快速甩动时"挂绳整条瞬直"。一阶跟随把同一段位移摊到多个固定子步上，并且让滞后随速度变化（慢拖几乎贴手、快甩才落后）。物理在 [`charmPointerFollow.ts`](../../frontend/app/utils/charmPointerFollow.ts)（从 `decoCharm.ts` 拆出，守住单文件 800 行门槛）；验收由 `test/utils/decoCharmPointerFollow.test.ts` 与 `test/composables/useCursorCharmPointerFollow.test.ts` 盯着（平滑跟随、滞后有界不脱节、16.7ms 与 33.3ms 帧间隔末态一致）。
 
-**没做的**：不新增任何 `deco.charm` 参数（时间常数与滞后上界都是内部常量，跨端门禁的 12 个数值参数不变）；不改 `CHARM_CONSTRAINT_ITERATIONS = 20` 与 `stiffness` 的弹性口径——因此拖拽速度超过约 2500px/s 时弦长仍会被拉到绳长以上（实测 3200px/s 时约 138px），这是 #122 有意保留的弹性，不是本次能修的。
+**没做的**：不新增任何 `deco.charm` 参数（时间常数与滞后上界都是内部常量，参数表的 12 个数值参数不变）；不改 `CHARM_CONSTRAINT_ITERATIONS = 20` 与 `stiffness` 的弹性口径——因此拖拽速度超过约 2500px/s 时弦长仍会被拉到绳长以上（实测 3200px/s 时约 138px），这是 #122 有意保留的弹性，不是本次能修的。
+
+## 后续修订（2026-11-06，#286 参数门禁生成式）
+
+按票 #286 显式要求整体重写决策 11 与当前生效约束 3；其它决策、物理链条、渲染边界与指针端偏移行为保持不动。12 个数值参数进入契约（开放接口契约），`conf.Charm` 的每个字段带 min/max/default；三份契约产物同批重新生成，契约基线按实测仍为 135/176/326、`addedIn` 追加 `ticket: "286"`、判据四文件零改动。旧 `check-deco-range-parity.mjs`、629 行门禁测试、`DECO_ANCHOR_PARAMETERS` 锚点与夹具消费检查退场，只保留 122 条共享归一化夹具与三套消费测试。范围门禁的 14/14 整节演练换成一条「重新生成后四端无差异 + 运行时取值正确」校验，其余 13 道 canary 不变。契约单一来源内核仍由 [ADR-0003](./0003-generated-contract-single-source.md) 规定，本条不修改它；新形态另见 [ADR-0028 后续修订](./0028-named-outline-trees-as-the-only-shape.md)。
 

@@ -9,12 +9,15 @@ import (
 	"time"
 
 	"myblogx/internal/kernel/ctype"
+	"myblogx/internal/platform/config"
 )
 
 // SensitivePlaceholder 是管理员接口回显敏感字段时用的占位符。
 //
-// 前端保存时会把这个值原样传回来，服务端据此判断"用户没有改密钥"。
-const SensitivePlaceholder = "******"
+// #284：字面量与"占位符 / 空串 / 覆盖"三种语义都收进 platform/config 的
+// 生效值模块（config.SensitivePlaceholder / config.ResolveSensitive），
+// 这里只保留站点模块自己的领域别名，避免第二份字符串与判定分支。
+const SensitivePlaceholder = config.SensitivePlaceholder
 
 // Banner 是首页轮播图。
 type Banner struct {

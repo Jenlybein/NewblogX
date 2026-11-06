@@ -37,7 +37,7 @@ func WireChat(infra *Infra) *chatroot.Module {
 		infra.DB,
 		infra.Redis,
 		infra.Logger,
-		infra.RuntimeSite,
+		infra.Effective,
 		&chatRelationBridge{},
 		userSettings,
 		chatAuthBridge{svc: authService},

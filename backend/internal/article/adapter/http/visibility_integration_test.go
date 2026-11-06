@@ -129,10 +129,10 @@ func TestVisibilitySwitchFiltersMySQLReadSurfaces(t *testing.T) {
 //
 // RuntimeConfigService 的缓存为空时 GetRuntimeArticle 回退到 defaults，
 // 所以这里不需要 MySQL：正是 App 里"配置没加载完"的同一形态。
-func siteConfigWithShowNonAdmin(t *testing.T, show bool) *config.RuntimeConfigService {
+func siteConfigWithShowNonAdmin(t *testing.T, show bool) *config.EffectiveConfig {
 	t.Helper()
-	return config.NewRuntimeConfigService(
+	return config.NewEffectiveConfig(config.NewRuntimeConfigService(
 		conf.RuntimeDefaults{Site: conf.Site{Article: siteconf.Article{ShowNonAdminArticles: show}}},
 		nil, nil,
-	)
+	))
 }

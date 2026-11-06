@@ -25,6 +25,7 @@ import (
 	"myblogx/internal/platform/idgen"
 	redis_service "myblogx/internal/platform/redis"
 	"myblogx/internal/platform/redis/redis_chat"
+	"myblogx/internal/testkit/schema"
 	sitehttp "myblogx/internal/site/adapter/http"
 	siteapp "myblogx/internal/site/app"
 )
@@ -40,7 +41,7 @@ func TestEffectiveConfig_后台改每天99条为7_保存深度合并现读_下�
 	if err != nil {
 		t.Fatalf("打开 sqlite 失败: %v", err)
 	}
-	if err := config.MigrateForTest(db); err != nil {
+	if err := db.AutoMigrate(&schema.RuntimeConfigRow{}); err != nil {
 		t.Fatalf("建配置表失败: %v", err)
 	}
 	logger := logrus.New()

@@ -80,9 +80,11 @@ func TestSidebarCollectionReaderUsesArticleCardModel(t *testing.T) {
 	}
 
 	// 开关关闭：只剩管理员作者那篇，封面跳过不可见节点。
-	closed := &sidebarCollectionReader{svc: svc, site: config.NewRuntimeConfigService(
-		conf.RuntimeDefaults{Site: conf.Site{Article: siteconf.Article{ShowNonAdminArticles: false}}},
-		nil, nil,
+	closed := &sidebarCollectionReader{svc: svc, effective: config.NewEffectiveConfig(
+		config.NewRuntimeConfigService(
+			conf.RuntimeDefaults{Site: conf.Site{Article: siteconf.Article{ShowNonAdminArticles: false}}},
+			nil, nil,
+		),
 	)}
 	got, err = closed.RecommendedCollections(ctx, 5)
 	if err != nil {

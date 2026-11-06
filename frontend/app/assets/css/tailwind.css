@@ -1004,6 +1004,28 @@
     @apply text-base font-semibold text-ink;
   }
 
+  /* 作者区（头像 + 昵称）是进个人主页的入口（票 292）：字色仍是正文墨色，不改成
+     功能蓝；hover 才出下划线，键盘焦点环沿用全站 --color-focus。 */
+  .comment__author-link {
+    @apply inline-flex min-w-0 items-start gap-3 text-ink;
+  }
+
+  .comment__author-link:hover {
+    text-decoration: underline;
+    text-decoration-thickness: 1px;
+    text-underline-offset: 4px;
+  }
+
+  .comment__author-link:focus-visible {
+    outline: 2px solid var(--color-focus);
+    outline-offset: 2px;
+  }
+
+  /* 缺失 user_id 时是纯文本：不给 hover 反馈（避免"像链接却点不动"）。 */
+  .comment__author-link--static {
+    @apply cursor-default;
+  }
+
   .comment__time {
     @apply text-sm text-ink-muted;
   }

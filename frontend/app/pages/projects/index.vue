@@ -1,6 +1,6 @@
-<script setup lang="ts">
+﻿<script setup lang="ts">
 import { computed } from "vue";
-import ArticleCover from "~/components/article/ArticleCover.vue";
+import FolderCardList from "~/components/common/FolderCardList.vue";
 import ProfileEmptyState from "~/components/profile/ProfileEmptyState.vue";
 import { getProjects } from "~/services/project";
 import { projectCardView } from "~/utils/project";
@@ -16,6 +16,7 @@ import { projectCardView } from "~/utils/project";
  * 分叉，就会出现"列表里有卡片、点进去 404"。
  *
  * 与「合集」并列但**不共用数据**；本页内部文案一律写「项目」，不混用「合集」。
+ * 卡片与网格由共用组件 `FolderCardList` 提供（票 293），本页不再自带卡片样式。
  */
 const { data, pending, error } = await useAsyncData(
   "reader-projects",
@@ -45,20 +46,7 @@ const emptyDescription = computed(() =>
       <p v-if="cards.length" class="project-page__count">{{ cards.length }} 个项目</p>
     </header>
 
-    <ul v-if="cards.length" class="project-grid" data-project-list="true">
-      <li v-for="card in cards" :key="card.id" class="project-card">
-        <NuxtLink :to="card.href" class="project-card__link">
-          <span class="project-card__cover">
-            <ArticleCover :src="card.cover" :title="card.title" />
-          </span>
-          <span class="project-card__body">
-            <strong class="project-card__title">{{ card.title }}</strong>
-            <span class="project-card__description">{{ card.description }}</span>
-            <span class="project-card__meta">{{ card.countLabel }}</span>
-          </span>
-        </NuxtLink>
-      </li>
-    </ul>
+    <FolderCardList v-if="cards.length" :cards="cards" data-project-list="true" />
 
     <ProfileEmptyState
       v-else
@@ -71,7 +59,6 @@ const emptyDescription = computed(() =>
 </template>
 
 <style scoped>
-/* 卡片复用合集卡片的视觉语言（语义色 token + 圆角阶梯），不引入新的视觉类。 */
 .project-page {
   padding-top: 2rem;
   padding-bottom: 4rem;
@@ -112,90 +99,5 @@ const emptyDescription = computed(() =>
   text-transform: uppercase;
 }
 
-.project-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(min(100%, 20rem), 1fr));
-  gap: 1.25rem;
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-
-.project-card {
-  border: 1px solid var(--color-line);
-  border-radius: var(--radius-lg);
-  background: var(--color-surface);
-  overflow: hidden;
-  transition:
-    transform var(--motion-fast) var(--motion-ease),
-    border-color var(--motion-fast) var(--motion-ease),
-    box-shadow var(--motion-fast) var(--motion-ease);
-}
-
-.project-card:hover {
-  border-color: var(--color-line-strong);
-  box-shadow: 0 22px 52px -30px var(--color-shadow);
-  transform: translateY(-2px);
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .project-card:hover {
-    transform: none;
-  }
-}
-
-.project-card__link {
-  display: flex;
-  flex-direction: column;
-  height: 100%;
-  color: inherit;
-  text-decoration: none;
-}
-
-.project-card__cover {
-  display: block;
-  aspect-ratio: 16 / 9;
-  overflow: hidden;
-  background: var(--color-bg-subtle);
-}
-
-.project-card__body {
-  display: flex;
-  flex: 1 1 auto;
-  flex-direction: column;
-  gap: 0.5rem;
-  padding: 1rem 1.125rem 1.25rem;
-}
-
-.project-card__title {
-  color: var(--color-ink);
-  font-family: var(--font-title);
-  font-size: 1.25rem;
-  letter-spacing: -0.015em;
-  line-height: 1.3;
-}
-
-.project-card__description {
-  display: -webkit-box;
-  flex: 1 1 auto;
-  overflow: hidden;
-  color: var(--color-ink-muted);
-  font-size: 0.875rem;
-  line-height: 1.6;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 2;
-}
-
-.project-card__meta {
-  color: var(--color-ink-faint);
-  font-family: var(--font-mono);
-  font-size: 0.75rem;
-  letter-spacing: 0.08em;
-}
-
-.project-card :is(a):focus-visible {
-  outline: 2px solid var(--color-focus);
-  outline-offset: 2px;
-  border-radius: var(--radius-lg);
-}
+/* 卡片与网格由共用组件 FolderCardList 提供（票 293）：两页不再各写一份卡片样式。 */
 </style>

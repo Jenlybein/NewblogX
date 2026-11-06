@@ -6,8 +6,7 @@ import { useMotionPreference } from "~/composables/useMotionPreference";
 import type { MessageCenterNavItem, MessageCenterTab } from "~/utils/messageCenter";
 import { shouldShowUnreadCount } from "~/utils/messageCenter";
 import {
-  NECK_NOMINAL_SPAN,
-  NECK_SEPARATION_PX,
+  NECK_VIEW_BOX,
   isNeckSeamOpen,
   neckGradientStops,
   neckMotionKind,
@@ -17,15 +16,17 @@ import {
 } from "~/utils/subnavNeck";
 
 /**
- * 消息中心顶部子项条（票 239 建立，票 297 改成**一体化分段条**）。
+ * 消息中心顶部子项条（票 239 建立，票 297 改成**一体化分段条**，本次按参考返工）。
  *
  * 形态（口径见 docs/notes/2026-11-07-reading-ui-grill.md §三 3.7）：
  *   - 五段**相邻贴合**成一个分段控件，整条是内容宽度（不再 `self-stretch` 拉满）；
- *   - 激活块 = 深墨面（语义层 inverse）铺底 + 反白文字，未激活段仍是次级墨色；
- *   - 只有激活段两侧的接缝张开，张开的接缝处画一段**颈部**：两条凹曲线夹出的腰形面，
- *     用线性渐变填充，两端分别取左右相邻段的填充色；
- *   - 段位 `margin-left` 与圆角由弹簧驱动（**全站唯一允许布局属性动画的地方**，
- *     仅限这条 ≤5 个节点，ADR-0012 后续修订 2026-11-07 已登记），颜色走 CSS 过渡；
+ *   - 未激活段是轨道面（`--color-surface-raised`），激活块是深墨面
+ *     （`--color-surface-inverse`）铺底 + 反白文字；
+ *   - 只有激活段两侧的接缝张开 20px，张开的接缝里画一段**颈部**：两端满高、中点收腰的
+ *     哑铃形，用线性渐变填充，两端分别取左右相邻段的填充色；
+ *   - 段位 `margin-left`、四角圆角与颈部宽度由同一组弹簧驱动（**全站唯一允许布局属性
+ *     动画的地方**，仅限这条 ≤5 个节点，ADR-0012 后续修订 2026-11-07 已登记），
+ *     颜色走 CSS 过渡；
  *   - 「减少动态」下弹簧落位（时长 0），不是放慢。
  *
  * 几何与弹簧接线全部在 `~/utils/subnavNeck`：本组件不写几何数字、也不碰
@@ -45,8 +46,8 @@ const { prefersReducedMotion } = useMotionPreference();
 const activeIndex = computed(() => props.items.findIndex((item) => item.key === props.activeTab));
 
 /** 颈部路径与 viewBox 是常量：形状只描述比例，真实宽高由 CSS 拉伸。 */
-const neckD = neckPath(NECK_SEPARATION_PX, NECK_NOMINAL_SPAN);
-const neckViewBox = `0 0 ${NECK_SEPARATION_PX} ${NECK_NOMINAL_SPAN}`;
+const neckD = neckPath();
+const neckCount = computed(() => props.items.length);
 
 /**
  * 逐段的到位状态 + 颈部装饰。
@@ -59,7 +60,9 @@ const segments = computed(() =>
     item,
     active: index === activeIndex.value,
     seamOpen: isNeckSeamOpen(index, activeIndex.value),
-    animate: neckSegmentMotion(index, activeIndex.value),
+    /** 第 0 段左边没有接缝；其余每一段都常驻一条颈部（闭合时宽度收到 0）。 */
+    hasSeam: index > 0,
+    animate: neckSegmentMotion(index, activeIndex.value, neckCount.value),
     stops: neckGradientStops(index, activeIndex.value),
     gradientId: `inbox-subnav-neck-${index}`,
   })),
@@ -81,11 +84,15 @@ const motionKind = computed(() => neckMotionKind(prefersReducedMotion.value));
       :animate="segment.animate"
       :transition="transition"
     >
-      <!-- 颈部：只有张开的接缝才画。路径与渐变端点都来自纯几何助手。 -->
+      <!-- 颈部：每条接缝常驻一条，宽度读 --neck-gap。
+           张开的接缝是满宽的那一段，闭合的接缝宽度收到 0（贴合时正好消失）——
+           所以"拉开"与"连上"两个方向都能看见它被拉长 / 收细，不会在切换的那一帧凭空出现在
+           某个状态里。宽度与段位是同一组弹簧，回弹期间两者永远对齐。 -->
       <svg
-        v-if="segment.seamOpen"
+        v-if="segment.hasSeam"
         class="message-center-tab__neck"
-        :viewBox="neckViewBox"
+        :data-seam="segment.seamOpen ? 'open' : 'closed'"
+        :viewBox="NECK_VIEW_BOX"
         preserveAspectRatio="none"
         aria-hidden="true"
         focusable="false"

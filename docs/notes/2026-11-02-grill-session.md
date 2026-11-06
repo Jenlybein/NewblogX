@@ -120,7 +120,7 @@
 - 弧垂只由 slack 驱动（`charmTether.ts:132-144`，`sagPeak = √(3·chord·slack/8)`），**重力完全不参与**；默认绳长 120px，指针一动 chord 逼近 120 → slack=0 → 弧垂严格为 0 → 视觉是直线。
 - 指针端每子步**硬赋值**且 `previous[0]` 同步归零（`decoCharm.ts:591-595`），零插值；发布又被 `1000/fps_cap` 门控量化 → 瞬移感。
 - 偏移唯一换算点 `decoCharm.ts:546-554` `charmPointerAnchor()`，仅被 `useCursorCharm.ts:348` 调用一次；渲染层确认没再偏。
-- 默认参数：`rope_length` 120、`segments` 10、`gravity` 1600、`damping` 0.99、`idle_sway_hz` 0.8、`idle_sway_amp` 20、`fps_cap` 60、`logo_size` 48、`line_width` 2.5、`pointer_offset` 3/3。共 `enable` + 11 个数值参数，四源一致由 `scripts/check-deco-range-parity.mjs` 守。（历史调查快照；#286 后已改为 12 参数由 `config/deco-charm-parameters.json` 生成，旧范围门禁退场。）
+- 默认参数：`rope_length` 120、`segments` 10、`gravity` 1600、`damping` 0.99、`idle_sway_hz` 0.8、`idle_sway_amp` 20、`fps_cap` 60、`logo_size` 48、`line_width` 2.5、`pointer_offset` 3/3。共 `enable` + 11 个数值参数，四源一致由当时的范围门禁守。（历史调查快照；#286 后已改为 12 参数由 `config/deco-charm-parameters.json` 生成，旧范围门禁退场。）
 - **后台无法调的**：stiffness / 弹性 / 松弛因子 / 头部平滑。
 - 离开窗口处理：有 `pointerout`（仅 `relatedTarget == null`）/ `blur` / `focus` / `visibilitychange`，**无 `mouseleave` / `pointerleave`**。冻结时指针端停最后位置、链自然收敛。默认轻晃开着 → 永不因收敛停帧。
 - ADR-0016/0018 锁死的常量：1/120s 固定步长、0.05s 累加器上限、单帧最多 8 子步（**迭代次数不在锁死清单**）。
@@ -268,7 +268,7 @@
 1. 仓库根无 `package.json`/`pnpm-workspace.yaml`/`turbo.json`/`packages/`；`docs/adr/0012-...:61` 明文「**抽共享包被否决**（两端各有 workspace 与独立 lockfile，构建耦合风险高于收益）」。
 2. 跨 app import 在 CI 会炸：`bannerFramingContract.test.ts:8-11` —— 触发对端 `.nuxt` 解析，TSConfckParseError；两端零 import 先例。
 3. `HomeSidebar.vue` **11 项依赖里 8 项后台没有**：`~/utils/home`、`~/utils/avatar`、`~/utils/chrome`、`~/utils/motion`、两个 composable、`AppAvatar.vue`、`brandProjectTitle`；`motion-v` 后台未装；CSS `blueprint-panel`/`blueprint-chip`/`section-title` 等只在读者站 `tailwind.css` 定义。
-- **既定惯例 = 两份拷贝 + 门禁防漂移**（ADR-0012:61 明文）。门禁清单：`check-token-parity.mjs`（逐字节）、`check-deco-range-parity.mjs`（四源；历史快照，#286 后由生成式参数校验取代）、取景契约表、16:9 静态断言。
+- **既定惯例 = 两份拷贝 + 门禁防漂移**（ADR-0012:61 明文）。门禁清单：`check-token-parity.mjs`（逐字节）、旧四源范围门禁（历史快照，#286 后由生成式参数校验取代）、取景契约表、16:9 静态断言。
 - **关键缺口**：`tokens.css` 有同源门禁，但**组件类层（`tailwind.css` vs `admin.css`）没有**，且已实际漂移 —— `eyebrow` 读者站无 `mb-2`（`tailwind.css:63-66`）vs 后台有（`admin.css:78-81`）。
 - 更正前探子两处：`bannerFraming.ts`(77行) vs `framing.ts`(265行) **不是逐行拷贝**（同步靠两端各钉同一张字面量契约表）；`image.ts` 那对**才是**真正近拷贝（约 250 行同构）且**无任何门禁**。
 

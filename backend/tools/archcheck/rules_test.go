@@ -264,20 +264,34 @@ var _ = article_repo.New
 
 // TestR6_单文件行数上限 验证超长文件会被标记。
 func TestR6_单文件行数上限(t *testing.T) {
-	// 构造一个 900 行的文件
+	// 构造一个 2300 行的文件（超过 2200 行阈值）
 	var sb strings.Builder
 	sb.WriteString("package big\n\n")
-	for i := 0; i < 900; i++ {
+	for i := 0; i < 2300; i++ {
 		sb.WriteString("// filler\n")
+	}
+	// 恰好 2200 行不应告警：阈值是「超过」，不是「达到」。
+	// package 行 + 空行占 2 行，补 2198 行 filler 后总行数正好 2200。
+	var boundary strings.Builder
+	boundary.WriteString("package boundary\n\n")
+	for i := 0; i < 2198; i++ {
+		boundary.WriteString("// filler\n")
 	}
 
 	cases := []case_{
 		{
-			name:     "900 行文件超限",
+			name:     "2300 行文件超限",
 			rel:      "service/es_service/article_sync.go",
 			src:      sb.String(),
 			ruleID:   "R6",
 			wantHits: 1,
+		},
+		{
+			name:     "恰好 2200 行不告警",
+			rel:      "service/es_service/boundary.go",
+			src:      boundary.String(),
+			ruleID:   "R6",
+			wantHits: 0,
 		},
 		{
 			name:     "短文件不告警",

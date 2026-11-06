@@ -12,7 +12,10 @@
 #   而后续几轮陆续新增了 7 道门禁 —— 契约未过期、契约类型未过期、契约↔路由对账、
 #   admin 鉴权探测、菜单↔页面对账、前端 lint、覆盖率门槛。
 #   它们一道都没进过自检，等于"新增的门禁是否有效"从来没被验证过。
-#   现在 14 道全覆盖（第 14 道改为生成式装饰参数校验；其余 13 道不变）。
+#   现在 14 节演练全覆盖：1..13 对应门禁清单（scripts/gates/gates.json）里的
+#   13 道仓库级门禁；第 14 节是**清单外**的生成式装饰参数校验（#286）——
+#   #287 AC4 只把「清单 / 版本 / 判定 / 重复安装」四件收进清单，参数生成脚本
+#   不进清单，但它的演练照旧在这里，证明它会红。
 #   第 5 道（契约未过期）与真门禁跨同一个判定实现
 #   （scripts/check-contract-freshness.mjs），并真实注入「静默跳过但退出码 0」、
 #   「命令失败」、「契约过期」与「工具版本写歪」四种形态，失败原因各自可区分。
@@ -163,6 +166,26 @@ if ! node scripts/gates/run.mjs --check-coverage >"$CANARY_TMP/out.txt" 2>&1; th
   exit 2
 fi
 cat "$CANARY_TMP/out.txt"
+
+# ── 演练节号与清单逐项一致 ───────────────────────────────────────────
+# 节号从清单派生（run.mjs --sections），本脚本里的 `===== n/14` 标记必须与它
+# 一一对应：清单加了门禁却没补演练节 → 那道门禁永远没被自检验过；脚本里多演
+# 一节清单里没有的门禁 → 自检在演一个不存在的东西。两个方向都在这里拦下。
+# 这一项不进 PASS/FAIL：它验的是"自检覆盖了哪些节"，不是"某道门禁会红"。
+LIST_SECTIONS="$(node scripts/gates/run.mjs --sections)" || {
+  echo "✗ 读不到门禁清单里的演练节号" >&2
+  exit 2
+}
+SCRIPT_SECTIONS="$(grep -oE '===== [0-9]+/14' scripts/verify-gates.sh \
+  | sed -E 's|^===== ([0-9]+)/14$|\1|' | sort -n | tr '\n' ' ' | sed 's/ $//')"
+if [ "$LIST_SECTIONS" != "$SCRIPT_SECTIONS" ]; then
+  echo "✗ 演练节号与门禁清单不一致（清单是唯一来源）：" >&2
+  echo "  清单（run.mjs --sections）：$LIST_SECTIONS" >&2
+  echo "  本脚本的 ===== n/14 标记：$SCRIPT_SECTIONS" >&2
+  echo "  清单里新增门禁就补一节「===== n/14 ...」，否则那道门禁永远不会被自检验过。" >&2
+  exit 2
+fi
+echo "  演练节号与清单一致：$LIST_SECTIONS（门禁清单 scripts/gates/gates.json）"
 
 # --only 的节号必须来自清单，且至少选中一项（零项 = 失败，不是"跳过"）。
 if [ -n "$ONLY_IDS" ]; then
@@ -637,7 +660,10 @@ echo ""
 if canary_selected 14; then
 echo "===== 14/14 生成式装饰参数校验 ====="
 # 门禁原型：scripts/generate-deco-parameters.mjs --check（#286）。
-# 真门禁先证明四端消费物与同一参数表一致，再验契约与 /site/deco 运行时取值。
+# 它按 #287 AC4 不进清单（清单只收清单 / 版本 / 判定 / 重复安装四件），
+# 真门禁由 scripts/check.sh 的 gates 段与 ci.yml 的 frontend-lint 直接执行。
+# 真门禁先证明四端消费物与同一参数表一致，再验契约与 /site/deco 运行时取值；
+# 自检这一节直接调同一个脚本 —— 是否在清单里不改变"它会红"这件事要不要被证明。
 # 注入：只改后台生成物一个上限，让「重新生成后四端无差异」这一条变红；
 # 恢复后真门禁再跑通，排除 node/go 不可用造成的假红。
 ADMIN_DECO="frontend_admin/app/utils/decoParams.ts"

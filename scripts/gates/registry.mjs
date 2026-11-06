@@ -30,13 +30,19 @@ export function loadRegistry(file = DEFAULT_REGISTRY) {
     if (seenGate.has(gate.id)) throw new Error(`门禁 id 重复：${gate.id}`);
     seenGate.add(gate.id);
     if (!gate.label) throw new Error(`门禁 ${gate.id} 缺 label`);
-    if (!Array.isArray(gate.steps) || gate.steps.length === 0) {
-      throw new Error(`门禁 ${gate.id} 没有可执行步骤`);
+    if (!gate.group) throw new Error(`门禁 ${gate.id} 缺 group`);
+    if (!hasSteps(gate) && !hasSection(gate)) {
+      throw new Error(`门禁 ${gate.id} 没有执行方式（要么给 steps，要么给 section 指向门禁自检第 N 节）`);
     }
-    for (const step of gate.steps) {
-      if (!Array.isArray(step.command) || step.command.length === 0) {
-        throw new Error(`门禁 ${gate.id} 的某个步骤没有 command`);
+    if (hasSteps(gate)) {
+      for (const step of gate.steps) {
+        if (!Array.isArray(step.command) || step.command.length === 0) {
+          throw new Error(`门禁 ${gate.id} 的某个步骤没有 command`);
+        }
       }
+    }
+    if (hasSection(gate) && !Number.isInteger(gate.section)) {
+      throw new Error(`门禁 ${gate.id} 的 section 必须是整型演练节号`);
     }
   }
 
@@ -47,17 +53,46 @@ export function loadRegistry(file = DEFAULT_REGISTRY) {
     seenCanary.add(canary.id);
   }
 
-  return { file: abs, gates, canaries };
+  const notGates = Array.isArray(data.notGates) ? data.notGates : [];
+  for (const id of notGates) {
+    if (!Number.isInteger(id)) throw new Error(`notGates 只能列演练节号（整型），收到 ${JSON.stringify(id)}`);
+    if (!seenCanary.has(id)) throw new Error(`notGates 里的演练 ${id} 不存在于 canaries（豁免不存在的演练等于没豁免）`);
+  }
+
+  return { file: abs, gates, canaries, notGates };
 }
 
-// coverageProblems 返回「清单里有门禁，但门禁自检没有对应演练」等问题。
-// 空数组 = 每道门禁都被门禁自检演练过。
+// hasSteps 判断这道门禁的命令是否可由 runner 直接执行。
+export function hasSteps(gate) {
+  return Array.isArray(gate.steps) && gate.steps.length > 0;
+}
+
+// hasSection 判断这道门禁是否只靠门禁自检的某一节证明（真门禁在别处执行）。
+export function hasSection(gate) {
+  return gate.section !== undefined && gate.section !== null;
+}
+
+// executableGates 是「runner 能代跑」的那部分：有 steps 的。
+export function executableGates(gates) {
+  return gates.filter(hasSteps);
+}
+
+// coverageProblems 返回「清单与演练对不上」的问题。空数组 = 对得上。
 //
-// 只查这一个方向：演练清单里还有一批节（后端单测、typecheck、lint、覆盖率门槛等）
-// 不在本清单里 —— 它们不是仓库级判据，也不在「清单 / 版本 / 判定 / 安装」四件事内。
+// 两个方向都查：
+//   1. 每道门禁都有演练节号、节号存在、且有执行方式（steps 或 section）；
+//   2. 每个演练节号都有门禁负责 —— 否则清单里少登记了一道门禁，
+//      自检会在跑一节没有任何门禁对应的演练，等于演了个不存在的东西。
+//
+// 唯一的例外是 notGates：`#287 AC4` 只把「清单 / 版本 / 判定 / 重复安装」
+// 四件收进清单，参数生成脚本不属于这四件。那种演练必须**显式**登记在
+// notGates 里才豁免；没登记的一律照旧算「没人负责」—— 所以豁免不会
+// 变成「少一道门禁也自动放行」。反过来，某节既被 notGates 豁免又有门禁
+// 认领，说明登记自相矛盾，同样报出来。
 export function coverageProblems(registry) {
   const problems = [];
   const canaryIds = new Set(registry.canaries.map(c => c.id));
+  const notGates = new Set(registry.notGates || []);
   for (const gate of registry.gates) {
     if (!Array.isArray(gate.canaries) || gate.canaries.length === 0) {
       problems.push(`门禁 ${gate.id} 没有登记演练节号（门禁自检会验不到它）`);
@@ -65,6 +100,22 @@ export function coverageProblems(registry) {
     }
     for (const id of gate.canaries) {
       if (!canaryIds.has(id)) problems.push(`门禁 ${gate.id} 指向不存在的演练 ${id}`);
+      if (notGates.has(id)) problems.push(`门禁 ${gate.id} 认领了清单外演练 ${id}（它已登记在 notGates，两者只能其一）`);
+    }
+    if (!hasSteps(gate) && !hasSection(gate)) {
+      problems.push(`门禁 ${gate.id} 没有执行方式（steps 或 section 至少要有一个）`);
+    }
+    if (hasSection(gate) && !gate.canaries.includes(gate.section)) {
+      problems.push(`门禁 ${gate.id} 的 section=${gate.section} 不在它的 canaries 里（自检节号与门禁对不上）`);
+    }
+  }
+  const covered = new Set();
+  for (const gate of registry.gates) {
+    for (const id of gate.canaries || []) covered.add(id);
+  }
+  for (const canary of registry.canaries) {
+    if (!covered.has(canary.id) && !notGates.has(canary.id)) {
+      problems.push(`演练 ${canary.id}（${canary.title}）没有门禁负责（清单里少了一道门禁；确属清单外请显式登记到 notGates）`);
     }
   }
   return problems;

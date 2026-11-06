@@ -5,11 +5,19 @@
 # 这个脚本让"本地跑过"和"CI 绿"是同一件事，避免出现
 # "本地随便过、推上去全红"或者反过来"CI 根本没在跑"。
 #
+# 门禁清单 / 工具版本 / 契约未过期判定 / 公共安装步骤只有一处定义：
+# scripts/gates/gates.json + scripts/gates/（run.mjs / install.mjs / tools.mjs）。
+# 本地、CI、门禁自检三处都经 scripts/gates/run.mjs 调同一批命令，
+# 加一道门禁只需改 gates.json 那一处清单。
+#
 # 用法：
 #   ./scripts/check.sh              # 全量
 #   ./scripts/check.sh backend      # 只跑后端
 #   ./scripts/check.sh frontend     # 只跑两个前端
 #   ./scripts/check.sh gates        # 只做门禁自检（证明门禁会红）
+#
+# 注意：这里没有"跳过门禁"的开关。BLOGX_SKIP_INTEGRATION 只跳过集成用例，
+# 且会打印醒目警告；它不会跳过任何门禁自检。
 #
 # 环境变量（默认值就是推荐值，只在需要时覆盖）：
 #   BLOGX_FAST=1              跳过 -race。快约 12 秒，但不做数据竞争检测；提交前别用。

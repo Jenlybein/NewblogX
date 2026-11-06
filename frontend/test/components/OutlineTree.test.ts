@@ -152,6 +152,34 @@ async function mountLanded(options: Parameters<typeof mountTree>[0] = {}) {
   return wrapper;
 }
 
+/**
+ * 把 `document.fonts.ready` 换成一个**由测试手动兑现**的 Promise。
+ *
+ * 为什么必须自己控制时机：字体晚到是真实浏览器里的常态（webfont 比首帧慢），
+ * 而 happy-dom 根本没有 `document.fonts`。只有把"就绪"这一刻捏在手里，
+ * 才能断言"字体晚到时圆点做了什么"（而不是只断言它最终停在哪）。
+ */
+function deferFontsReady() {
+  let release: () => void = () => {};
+  const ready = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  const original = Object.getOwnPropertyDescriptor(document, "fonts");
+  Object.defineProperty(document, "fonts", { configurable: true, value: { ready } });
+
+  return {
+    /** 兑现 `fonts.ready`，并把因此触发的重对准跑完。 */
+    async land() {
+      release();
+      await flushPromises();
+    },
+    restore() {
+      if (original) Object.defineProperty(document, "fonts", original);
+      else Reflect.deleteProperty(document, "fonts");
+    },
+  };
+}
+
 describe("沟槽圆点：只跟随当前文章", () => {
   it("两个详情页没有当前文章时不渲染圆点", () => {
     const wrapper = mountTree();
@@ -168,6 +196,43 @@ describe("沟槽圆点：只跟随当前文章", () => {
     expect(dot.findAll("a, button")).toHaveLength(0);
     expect(dot.attributes("data-outline-dot-target")).toBe("a2");
     expect(dot.attributes("data-outline-dot-motion")).toBe("snap");
+  });
+
+  it("首次进入字体晚到：仍是落位（snap），入场不会因为字体替换而滑一段", async () => {
+    const fonts = deferFontsReady();
+
+    try {
+      const wrapper = await mountLanded({ currentArticleId: "102" });
+      expect(wrapper.get("[data-outline-dot]").attributes("data-outline-dot-motion")).toBe("snap");
+
+      // 字体到货 → 行高变化 → 重测；这一趟"还没移动过"，所以不许播弹簧。
+      await fonts.land();
+
+      const dot = wrapper.get("[data-outline-dot]");
+      expect(dot.attributes("data-outline-dot-motion")).toBe("snap");
+      expect(dot.attributes("data-outline-dot-target")).toBe("a2");
+    } finally {
+      fonts.restore();
+    }
+  });
+
+  it("切过文章后字体才就绪：按普通重对准走弹簧（travel），不把圆点拽回旧位置", async () => {
+    const fonts = deferFontsReady();
+
+    try {
+      const wrapper = await mountLanded({ currentArticleId: "101" });
+      await wrapper.setProps({ currentArticleId: "102" });
+      await nextTick();
+      expect(wrapper.get("[data-outline-dot]").attributes("data-outline-dot-motion")).toBe("travel");
+
+      await fonts.land();
+
+      const dot = wrapper.get("[data-outline-dot]");
+      expect(dot.attributes("data-outline-dot-motion")).toBe("travel");
+      expect(dot.attributes("data-outline-dot-target")).toBe("a2");
+    } finally {
+      fonts.restore();
+    }
   });
 
   it("圆点的深度跟着当前行：跨层级时透传新的 depth（横向落在该层引导线上）", async () => {

@@ -177,14 +177,15 @@ function align(animate: boolean): void {
 /**
  * 字体就绪后再落一次位（首测可能量在字体替换之前，行高会变）。
  *
- * 还没播过弹簧时直接落位——入场不该因为字体替换而"滑一下"；已经切换过文章
- * 之后字体才就绪，就按普通重对准走弹簧，不把圆点拽回旧位置。
+ * 传的是**已经移动过**这个判断本身：还没播过弹簧时直接落位——入场不该因为字体
+ * 替换而"滑一下"；已经切换过文章之后字体才就绪，才按普通重对准走弹簧，
+ * 不把圆点拽回旧位置。
  */
 function alignWhenFontsReady(): void {
   if (typeof document === "undefined") return;
   const fonts = document.fonts;
   if (!fonts?.ready) return;
-  void fonts.ready.then(() => align(!hasTraveled)).catch(() => undefined);
+  void fonts.ready.then(() => align(hasTraveled)).catch(() => undefined);
 }
 
 onMounted(() => {

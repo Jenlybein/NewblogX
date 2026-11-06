@@ -10,7 +10,7 @@ import type { CollectionCardView } from "~/utils/collection";
  * （`minmax(min(100%, 20rem), 1fr)`），卡片内部按列宽等比缩放。
  *
  * 卡片视图**复用既有的 `CollectionCardView`**：`ProjectCardView` 与它逐字段同形
- * （结构类型上互相兼容，两个列表页的 `cards` 都能直接传），本组件不再另立第四份
+ * （结构类型上互相兼容，两个列表页的 `cards` 都能直接传），本组件不再另立一份
  * 同形声明——多一份字段表，就多一处将来要跟着改的地方。
  */
 defineProps<{ cards: CollectionCardView[] }>();

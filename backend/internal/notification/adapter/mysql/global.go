@@ -350,17 +350,13 @@ func (r *GlobalRepo) baseVisible(ctx context.Context, userID uint64, userCreated
 	deletedSub := db.Unscoped().Model(&userStateRow{}).
 		Select("msg_id").
 		Where("user_id = ? AND deleted_at IS NOT NULL", userID)
+
+	// 可见性表达式（含过期总闸）由领域里那一份规则逐字生成；
+	// 用户级软删仍是个人态，在这里叠加。
+	predicate := domain.VisibilityPredicate{Now: now, UserCreatedAt: userCreatedAt}
+	sql, args := predicate.SQL()
 	return db.Model(&globalRow{}).
-		Where("expire_time > ?", now).
-		Where(db.Where("user_visible_rule = ?", int8(domain.VisibleAll)).
-			Or(db.Where(
-				"user_visible_rule = ? AND created_at >= ? AND expire_time >= ?",
-				int8(domain.VisibleRegistered), userCreatedAt, userCreatedAt,
-			)).
-			Or(db.Where(
-				"user_visible_rule = ? AND created_at < ? AND expire_time >= ?",
-				int8(domain.VisibleNew), userCreatedAt, userCreatedAt,
-			))).
+		Where(sql, args...).
 		Where("id NOT IN (?)", deletedSub)
 }
 

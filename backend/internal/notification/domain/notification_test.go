@@ -2,7 +2,6 @@ package domain_test
 
 import (
 	"testing"
-	"time"
 
 	"myblogx/internal/notification/domain"
 )
@@ -62,47 +61,9 @@ func TestPageNormalize(t *testing.T) {
 	}
 }
 
-func TestGlobalNotifVisibleAt(t *testing.T) {
-	now := time.Date(2026, 10, 25, 12, 0, 0, 0, time.Local)
-	published := now.Add(-24 * time.Hour)
-	registered := now.Add(-48 * time.Hour) // 公告发布前就注册，属"老用户"
-	newUser := now.Add(-1 * time.Hour)     // 公告发布后才注册，属"新用户"
-
-	base := domain.GlobalNotif{
-		CreatedAt: published,
-		ExpireAt:  now.Add(24 * time.Hour),
-	}
-
-	all := base
-	all.VisibleRule = domain.VisibleAll
-	if !all.VisibleAt(registered, now) || !all.VisibleAt(newUser, now) {
-		t.Fatal("所有用户规则应对任意注册时间可见")
-	}
-
-	oldUsers := base
-	oldUsers.VisibleRule = domain.VisibleRegistered
-	if !oldUsers.VisibleAt(registered, now) {
-		t.Fatal("老用户规则对发布前注册的用户应可见")
-	}
-	if oldUsers.VisibleAt(newUser, now) {
-		t.Fatal("老用户规则对发布后注册的用户不应可见")
-	}
-
-	newUsers := base
-	newUsers.VisibleRule = domain.VisibleNew
-	if newUsers.VisibleAt(registered, now) {
-		t.Fatal("新用户规则对发布前注册的用户不应可见")
-	}
-	if !newUsers.VisibleAt(newUser, now) {
-		t.Fatal("新用户规则对发布后注册的用户应可见")
-	}
-
-	expired := all
-	expired.ExpireAt = now.Add(-time.Second)
-	if expired.VisibleAt(registered, now) {
-		t.Fatal("已过期公告不应可见")
-	}
-}
+// 公告可见性边界（刚过期 / 注册同秒 / 新用户 / 老用户）已经迁移到
+// backend/internal/notification/adapter/http/handler_visibility_test.go：
+// 那里从后端 HTTP 接口观察，测的是线上那份规则，而不是这里的好测副本。
 
 func TestVisibleRuleEffective(t *testing.T) {
 	if domain.VisibleRule(0).Effective() != domain.VisibleRegistered {

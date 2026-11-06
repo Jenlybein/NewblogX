@@ -248,10 +248,10 @@ const (
 	// CodeChatImageNotOwned 图片私信的 URL 不是本站上传产物（票 267）。
 	// 陌生人私信开着时，content 里塞任意外链可以当追踪像素 / 钓鱼图用，
 	// 所以 msg_type=2 必须能反解出本站 object_key、且该 key 在 image_models 里。
-	CodeChatImageNotOwned   Code = "chat.image_not_owned"
+	CodeChatImageNotOwned Code = "chat.image_not_owned"
 	// CodeChatBlocked 对方在我 / 我在对方的屏蔽或拉黑名单里（ADR-0026）。
-	CodeChatBlocked         Code = "chat.blocked"
-	CodeChatStrangerOff     Code = "chat.stranger_disabled"
+	CodeChatBlocked     Code = "chat.blocked"
+	CodeChatStrangerOff Code = "chat.stranger_disabled"
 	// CodeChatRecipientStrangerOff 接收方个人开关关闭（#247）。
 	//
 	// 与 CodeChatStrangerOff 分开：同样是"陌生人被拒"，站点级要联系管理员，
@@ -269,17 +269,28 @@ const (
 )
 
 // 通知与站内信。
+//
+// 适配器只转发错误值：协议码、中文文案都从这一组错误码派生，
+// 不再按 IsCode 挑分支重写响应。
 const (
-	CodeMessageSelectionEmpty Code = "message.selection_empty"
-	CodeMessageNotFound       Code = "message.not_found"
-	CodeMessageAlreadyRead    Code = "message.already_read"
-	CodeMessageNothingRead    Code = "message.nothing_read"
-	CodeMessageConfMissing    Code = "message.conf_missing"
-	CodeNotifNotFound         Code = "notif.not_found"
-	CodeNotifTitleDuplicated  Code = "notif.title_duplicated"
-	CodeNotifExpireTooSoon    Code = "notif.expire_too_soon"
-	CodeNotifCreateFailed     Code = "notif.create_failed"
-	CodeNotifUserMissing      Code = "notif.user_missing"
+	CodeMessageSelectionEmpty     Code = "message.selection_empty"
+	CodeMessageNotFound           Code = "message.not_found"
+	CodeMessageAlreadyRead        Code = "message.already_read"
+	CodeMessageNothingRead        Code = "message.nothing_read"
+	CodeMessageConfMissing        Code = "message.conf_missing"
+	CodeMessageIDAndTypeEmpty     Code = "message.id_and_t_empty"
+	CodeCommonBindMissing         Code = "common.bind_missing"
+	CodeNotifForbidden            Code = "notif.forbidden"
+	CodeNotifAdminRequired        Code = "notif.admin_required"
+	CodeNotifInvalidArgument      Code = "notif.invalid_argument"
+	CodeNotifReadSelectionEmpty   Code = "notif.read_selection_empty"
+	CodeNotifDeleteSelectionEmpty Code = "notif.delete_selection_empty"
+	CodeNotifDeleteNotFound       Code = "notif.delete_not_found"
+	CodeNotifNotFound             Code = "notif.not_found"
+	CodeNotifTitleDuplicated      Code = "notif.title_duplicated"
+	CodeNotifExpireTooSoon        Code = "notif.expire_too_soon"
+	CodeNotifCreateFailed         Code = "notif.create_failed"
+	CodeNotifUserMissing          Code = "notif.user_missing"
 )
 
 // 站点配置与轮播图。
@@ -355,8 +366,11 @@ const (
 	// 既没有稳定错误码也没有集中文案。领域里的参数错误各有专码；这里只兜
 	// "格式/组合不合法"这一类（如 before_updated_at + before_id 必须成对）。
 	CodeCommonInvalidArgument Code = "common.invalid_argument"
-	CodeCommonDBRequired      Code = "common.db_required"
-	CodeCdcRuleNotExist       Code = "cdc.rule_not_exist"
+	// CodeCommonServiceFailed 是共享响应层给"无错误码的内部错误"的统一文案：
+	// 保留失败语义，但不把 err.Error() 的实现细节带进响应。
+	CodeCommonServiceFailed Code = "common.service_failed"
+	CodeCommonDBRequired    Code = "common.db_required"
+	CodeCdcRuleNotExist     Code = "cdc.rule_not_exist"
 
 	CodeStorageBucketRequired    Code = "storage.bucket_required"
 	CodeStorageObjectKeyRequired Code = "storage.object_key_required"
@@ -537,20 +551,28 @@ var messages = map[Code]string{
 	CodeChatSessionTooFast:       "当前会话发送过于频繁，请稍后再试",
 	// 额度是后台可改的运行值（#284），文案不抄死"99 条"，否则管理员改完
 	// 用户看到的仍是旧数字。用中性说法，具体值由站点配置给出。
-	CodeChatDailyLimit:           "今天给这位用户发送的消息已达上限，请明天再试",
-	CodeChatWeekStranger:         "本周只允许向陌生人发送 1 条消息",
-	CodeChatWeekLimit:            "本周可发送消息次数已达上限，对方回复后才可以继续发送消息",
+	CodeChatDailyLimit:   "今天给这位用户发送的消息已达上限，请明天再试",
+	CodeChatWeekStranger: "本周只允许向陌生人发送 1 条消息",
+	CodeChatWeekLimit:    "本周可发送消息次数已达上限，对方回复后才可以继续发送消息",
 
-	CodeMessageSelectionEmpty: "请选择要操作的消息或会话",
-	CodeMessageNotFound:       "消息不存在",
-	CodeMessageAlreadyRead:    "消息已被读取",
-	CodeMessageNothingRead:    "没有可标记已读的消息",
-	CodeMessageConfMissing:    "用户配置信息不存在",
-	CodeNotifNotFound:         "消息不存在",
-	CodeNotifTitleDuplicated:  "全局通知标题重复",
-	CodeNotifExpireTooSoon:    "过期时间不能小于一天",
-	CodeNotifCreateFailed:     "全局通知创建失败",
-	CodeNotifUserMissing:      "用户不存在",
+	CodeMessageSelectionEmpty:     "请选择要操作的消息或会话",
+	CodeMessageNotFound:           "消息不存在",
+	CodeMessageAlreadyRead:        "消息已被读取",
+	CodeMessageNothingRead:        "没有可标记已读的消息",
+	CodeMessageConfMissing:        "用户配置信息不存在",
+	CodeMessageIDAndTypeEmpty:     "id 和 t 不能同时为空",
+	CodeCommonBindMissing:         "请求参数错误",
+	CodeNotifForbidden:            "权限不足",
+	CodeNotifAdminRequired:        "权限错误",
+	CodeNotifInvalidArgument:      "参数错误",
+	CodeNotifReadSelectionEmpty:   "请输入要读取的消息 id 列表",
+	CodeNotifDeleteSelectionEmpty: "请输入要删除的公告 id 列表",
+	CodeNotifDeleteNotFound:       "未找到需要删除的公告",
+	CodeNotifNotFound:             "消息不存在",
+	CodeNotifTitleDuplicated:      "全局通知标题重复",
+	CodeNotifExpireTooSoon:        "过期时间不能小于一天",
+	CodeNotifCreateFailed:         "全局通知创建失败",
+	CodeNotifUserMissing:          "用户不存在",
 
 	CodeSiteConfigMissing: "运行时配置服务未初始化",
 	CodeSiteInfoNotFound:  "站点信息不存在",
@@ -605,6 +627,7 @@ var messages = map[Code]string{
 
 	CodeCommonInvalidOrder:    "排序字段错误",
 	CodeCommonInvalidArgument: "参数不合法",
+	CodeCommonServiceFailed:   "服务异常，请稍后重试",
 	CodeCommonDBRequired:      "缺少查询数据库依赖",
 	CodeCdcRuleNotExist:       "规则不存在",
 

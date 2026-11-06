@@ -4,9 +4,14 @@ import { tocIndentLevel } from "~/utils/toc";
  * 标题大纲「轨道 + 飞行器」的几何（票 296，纯函数，不碰 DOM）。
  *
  * 分工：这个模块只负责**算**——层级换算成缩进、每个标题一个节点、节点之间连成
- * 一条只往下走的折线，以及「某个 y 之前已经走过多少长度」「某个长度处的切线角度」。
- * 组件负责**量**（每个链接行的中心 y）与**画**（SVG + 弹簧）。
- * 飞机停机点直接用节点坐标（`node.x / node.y`），不经这里换算。
+ * 一条**会拐弯的折线**，以及「某个 y 之前已经走过多少长度」「某个长度处在哪、
+ * 切线朝哪」。组件负责**量**（每个链接行的中心 y）与**画**（SVG + 弹簧）。
+ *
+ * 为什么轨道必须拐弯：参考组件的节点横坐标是 `5 + depth * 14`，层级一变 x 就变，
+ * 于是两个节点之间**不能**用一条固定 x 的竖线连起来——那样节点会悬在竖线外面，
+ * 看起来像"点没长在轨道上"（上一版被用户否掉的正是这一点）。这里把每段相邻节点
+ * 拆成「竖 → 斜 → 竖」三小段：斜段夹在两个折点之间，折点分别位于这段纵向跨度的
+ * 30% 与 70% 处，所以拐弯是一条短斜线，而不是直角台阶。
  *
  * 为什么几何要独立成纯函数：轨道的观感全靠这几个量（虚线描边、已读段实线填、
  * 飞机停在当前长度、机头贴切线），但它们全是"输入数字 → 输出数字"，不需要浏览器
@@ -17,25 +22,34 @@ import { tocIndentLevel } from "~/utils/toc";
  * 真值后再改（这也是参考组件自己做的那件事）。
  */
 
-/** 每级标题的横向缩进（px）：与左栏目录树的缩进口径区分开，这里是轨道自己的量。 */
+/** 轨道起点距 svg 左边缘的距离（px）：与参考组件的 `RAIL_X` 同口径。 */
+export const TOC_RAIL_BASE_X_PX = 5;
+
+/** 每级标题的横向缩进（px）：节点 x = 起点 + depth × 本值，与参考组件一致。 */
 export const TOC_RAIL_INDENT_PX = 14;
 
 /** 兜底行距（px）：测量不可用时按这个间距等距排布。 */
 export const TOC_RAIL_ROW_PX = 28;
 
-/** 轨道起点距 svg 左边缘的距离（px）：给飞机机身留出横向余量。 */
-export const TOC_RAIL_BASE_X_PX = 8;
+/**
+ * 折点位置（占相邻两节点纵向跨度的比例）：0.3 表示上折点在 30%、下折点在 70%，
+ * 中间 40% 留给斜线过渡。取值与参考组件的"30% 处放两个折点"一致。
+ */
+export const TOC_RAIL_BEND_RATIO = 0.3;
 
 /** 轨道顶部留白（px）。 */
 export const TOC_RAIL_PAD_TOP_PX = 12;
 
-/** 轨道底部留白（px）：最后一个节点下方还要能放下飞机尾迹。 */
+/** 轨道底部留白（px）：最后一个节点下方还要能放下飞机机尾。 */
 export const TOC_RAIL_PAD_BOTTOM_PX = 16;
 
-/** 节点圆点半径（px）。 */
-export const TOC_RAIL_NODE_RADIUS_PX = 3.5;
+/** 节点圆点半径（px）：已读 = 实心 3px（参考组件同值）。 */
+export const TOC_RAIL_NODE_RADIUS_PX = 3;
 
-/** svg 画布宽度（px）：兜住 3 档缩进 + 节点半径 + 飞机横向余量。 */
+/** 未读节点的半径（px）：比已读略大一点，空心描边才不显细（参考组件同值）。 */
+export const TOC_RAIL_NODE_RADIUS_HOLLOW_PX = 3.25;
+
+/** svg 画布宽度（px）：兜住最深一层的节点 x（5 + 2 × 14）与飞机横向半宽。 */
 export const TOC_RAIL_WIDTH_PX = 44;
 
 /** 折线只认标题的这两个字段（`ArticleHeadingAnchor` 的子集，便于测试直接喂字面量）。 */
@@ -53,7 +67,13 @@ export interface TocRailNode {
   y: number;
 }
 
-/** 折线的一段：用于"按 y 求长度"与切线角。 */
+/** 折线上的一点（节点、折点、以及任意长度处取样都用它）。 */
+export interface TocRailPoint {
+  x: number;
+  y: number;
+}
+
+/** 折线的一段：用于"按 y 求长度""按长度求点/切线"。 */
 export interface TocRailSegment {
   x1: number;
   y1: number;
@@ -127,7 +147,35 @@ export function buildTocRailNodes(
   });
 }
 
-/** 节点序列 → 折线（相邻节点直接连线，所以只会横向走一次、整体只向下）。 */
+/**
+ * 两个节点的横坐标不同时，它们之间的两个折点。
+ *
+ * 上折点留在出发节点的 x 上（纵向跨度的 30%），下折点已经落在到达节点的 x 上
+ * （70% 处），两点之间就是那条斜线。x 相同时返回空数组——同层相邻标题之间本来就
+ * 是一条竖线，不该为了"好看"硬加一段折。
+ *
+ * `near` 额外钳到跨度的一半以内：测量退化成"两个标题几乎重合"时也不会让两个折点
+ * 交叉（那会画出回头的折线）。
+ */
+function bendPoints(from: TocRailNode, to: TocRailNode): TocRailPoint[] {
+  const dx = to.x - from.x;
+  const dy = to.y - from.y;
+  if (Math.abs(dx) < 0.01 || !(dy > 0)) {
+    return [];
+  }
+
+  const near = Math.min(TOC_RAIL_BEND_RATIO * dy, dy / 2);
+  if (!(near > 0)) {
+    return [];
+  }
+
+  return [
+    { x: from.x, y: from.y + near },
+    { x: to.x, y: to.y - near },
+  ];
+}
+
+/** 节点序列 → 折线（相邻节点之间横坐标不同就插两个折点，整体只向下）。 */
 export function buildTocRailPath(nodes: readonly TocRailNode[]): TocRailPath {
   const first = nodes[0];
   if (!first) {
@@ -141,13 +189,25 @@ export function buildTocRailPath(nodes: readonly TocRailNode[]): TocRailPath {
     };
   }
 
+  // 先把折点摊平成一条点序列：节点本身仍是折线的顶点（点一定落在轨道上），
+  // 折点只是节点之间的插值点。
+  const points: TocRailPoint[] = [{ x: first.x, y: first.y }];
+  let previous = first;
+  for (const to of nodes.slice(1)) {
+    points.push(...bendPoints(previous, to), { x: to.x, y: to.y });
+    previous = to;
+  }
+
   const commands = [`M ${round(first.x)} ${round(first.y)}`];
   const segments: TocRailSegment[] = [];
   let totalLength = 0;
-  let previous = first;
 
-  for (const to of nodes.slice(1)) {
-    const from = previous;
+  for (let index = 1; index < points.length; index += 1) {
+    const from = points[index - 1];
+    const to = points[index];
+    if (!from || !to) {
+      continue;
+    }
     const dx = to.x - from.x;
     const dy = to.y - from.y;
     const length = Math.hypot(dx, dy);
@@ -164,7 +224,6 @@ export function buildTocRailPath(nodes: readonly TocRailNode[]): TocRailPath {
 
     totalLength += length;
     commands.push(`L ${round(to.x)} ${round(to.y)}`);
-    previous = to;
   }
 
   return {
@@ -173,7 +232,7 @@ export function buildTocRailPath(nodes: readonly TocRailNode[]): TocRailPath {
     segments,
     totalLength,
     width: TOC_RAIL_WIDTH_PX,
-    height: Math.ceil(previous.y + TOC_RAIL_PAD_BOTTOM_PX + TOC_RAIL_NODE_RADIUS_PX),
+    height: Math.ceil(previous.y + TOC_RAIL_PAD_BOTTOM_PX + TOC_RAIL_NODE_RADIUS_HOLLOW_PX),
   };
 }
 
@@ -188,8 +247,9 @@ function clampLength(path: TocRailPath, length: number): number {
 /**
  * 走到某个 y 时在轨道上已经走了多长（px）。
  *
- * 折线的 y 单调递增，所以 y 只可能落在一段里：找到那一段，按纵向比例切分它的长度。
- * 越界（滚动到底部之后 / 顶部之前）钳到两端。
+ * 折线的 y 单调递增（节点 y 严格递增，折点都夹在两个节点之间），所以 y 只可能落在
+ * 一段里：找到那一段，按纵向比例切分它的长度。斜段里"纵向比例 = 弧长比例"成立，
+ * 因为段内是直线。越界（滚动到底部之后 / 顶部之前）钳到两端。
  */
 export function tocRailLengthAtY(path: TocRailPath, y: number): number {
   if (path.totalLength <= 0 || !Number.isFinite(y)) {
@@ -228,6 +288,34 @@ export function tocRailReadFraction(path: TocRailPath, y: number): number {
   return tocRailLengthAtY(path, y) / path.totalLength;
 }
 
+/**
+ * 某个长度处在画布上的点（飞机就停在这里）。
+ *
+ * 越界钳到两端；空节点表没有可落的点，返回 null（组件据此不画飞机）。
+ */
+export function tocRailPointAtLength(path: TocRailPath, length: number): TocRailPoint | null {
+  const first = path.nodes[0];
+  if (!first) {
+    return null;
+  }
+
+  const target = clampLength(path, length);
+
+  for (const segment of path.segments) {
+    if (target <= segment.startLength + segment.length) {
+      const progress =
+        segment.length <= 0 ? 1 : (target - segment.startLength) / segment.length;
+      return {
+        x: segment.x1 + (segment.x2 - segment.x1) * progress,
+        y: segment.y1 + (segment.y2 - segment.y1) * progress,
+      };
+    }
+  }
+
+  const last = path.segments[path.segments.length - 1];
+  return last ? { x: last.x2, y: last.y2 } : { x: first.x, y: first.y };
+}
+
 /** 某个长度处的切线角（度）：飞机机头就贴这个角度。没有线段时按"向下"给。 */
 export function tocRailAngleAtLength(path: TocRailPath, length: number): number {
   if (path.segments.length === 0) {
@@ -245,4 +333,16 @@ export function tocRailAngleAtLength(path: TocRailPath, length: number): number 
   const last = path.segments[path.segments.length - 1];
   // 空线段已在上面提前返回；显式兜底只为满足严格空值检查（行为不变）。
   return last ? last.angleDeg : 90;
+}
+
+/**
+ * 飞机的旋转角（度）：切线角 + 90。
+ *
+ * 为什么加 90：机身是按"机头朝上"画的（`M12 2 …` 的尖角在正上方），而切线角
+ * 用的是 SVG 口径（0 = 向右、90 = 向下）。把朝上的图形转到切线方向，就要多转
+ * 一个 90°——这也正是参考组件的算法。角度不取模：负角/超过 360° 的旋转在 SVG
+ * 里等价，保留原值便于测试直接读，不必和归一化纠缠。
+ */
+export function tocRailPlaneRotationDeg(path: TocRailPath, length: number): number {
+  return tocRailAngleAtLength(path, length) + 90;
 }

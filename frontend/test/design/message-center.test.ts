@@ -64,6 +64,36 @@ describe("消息中心：视觉规则（CSS 源码判据）", () => {
     expect(neck).toContain("pointer-events-none");
   });
 
+  it("分段条是裸轨道：容器不再带边框 / 内边距 / 底色（返工点）", () => {
+    const subnav = blockAfter(tailwindCss, ".message-center__subnav {");
+
+    // 以前是"带边线与 p-1 的圆角盒子"，五段被框在里面、接缝张开时露的是盒子自己的纸面，
+    // 于是怎么调都不像参考的一体化分段条。容器只负责排布与横向滚动。
+    expect(subnav).not.toContain("border");
+    expect(subnav).not.toMatch(/\bp[xytblr]?-[0-9]/u);
+    expect(subnav).not.toContain("background");
+  });
+
+  it("未激活段自带轨道面；贴合侧不带圆角（圆角只由组件的弹簧按敞口给）", () => {
+    const segment = blockAfter(tailwindCss, ".message-center__subnav-segment {");
+
+    expect(segment).toContain("background: var(--color-surface-raised)");
+    // 静态兜底恒为方角：贴合处的圆角会在相邻两段之间啃出缺口，
+    // 只有组件按"这条接缝是否张开"给的那份行内样式才是真圆角。
+    expect(segment).toContain("border-radius: 0");
+    expect(blockAfter(tailwindCss, ".message-center__subnav-segment:first-child {")).toContain(
+      "border-top-left-radius: var(--radius-md)",
+    );
+  });
+
+  it("段内边距走参考的 md 节奏：px-5 py-2.5、链接继承段的圆角", () => {
+    const tab = blockAfter(tailwindCss, ".message-center-tab {");
+
+    expect(tab).toContain("px-5");
+    expect(tab).toContain("py-2.5");
+    expect(tab).toContain("border-radius: inherit");
+  });
+
   it("激活块内的未读角标是半透明反白底（票 297）", () => {
     const badge = blockAfter(tailwindCss, ".message-center-tab.is-active .message-center-tab__count {");
 

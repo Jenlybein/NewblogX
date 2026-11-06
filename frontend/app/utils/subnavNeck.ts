@@ -1,8 +1,7 @@
 import { resolveSpringMotion, SPRING_NECK, type SpringOrJumpTransition } from "~/utils/motion";
 
 /**
- * 消息中心分段条的纯几何与纯接线（票 297；术语见 GLOSSARY「颈部」，
- * 口径见 docs/notes/2026-11-07-reading-ui-grill.md §三 3.7 与 §三 3.8）。
+ * 消息中心分段条的纯几何与纯接线（票 297 建立，本次按参考组件的 md 档返工）。
  *
  * 分工与 `folderCardGeometry` 一致：
  *   - 这里只做算术与判定（纯函数，可单测，SSR 与客户端算出的结果逐字节相同）；
@@ -10,10 +9,12 @@ import { resolveSpringMotion, SPRING_NECK, type SpringOrJumpTransition } from "~
  *   - 弹簧参数**只从 `utils/motion.ts` 的预设取**（`SPRING_NECK`），本文件不出现任何
  *     stiffness / damping 数字。`test/design/motion-spring-gates.test.ts` 会扫这一条。
  *
- * 形态（参考组件的 GooeyNav，本票只复刻形态）：
- *   五段**相邻贴合**成一条分段控件；只有激活段两侧的接缝"张开"（张开量 =
- *   `NECK_SEPARATION_PX`），张开的接缝处画一段颈部 —— 两条凹曲线夹出的腰形面，
- *   用线性渐变填充，渐变两端分别取左右相邻段的填充色。
+ * 形态（参考组件 GooeyNav；本票只复刻形态）：
+ *   五段**相邻贴合**成一条分段控件；只有激活段两侧的接缝"张开"（张开量 = md 档的
+ *   `separation` = 20px），张开的接缝里画一段颈部 —— 两条凹曲线夹出的腰形面，用线性渐变
+ *   填充，渐变两端分别取左右相邻段的填充色。
+ *   圆角只在**敞口**的一侧给：张开的接缝旁与控件两端是圆的，闭合接缝旁必须是 0，
+ *   否则相邻两段的圆角会在贴合处啃出四个缺口，整条就读成"五个胶囊"而不是"一条"。
  *   闭合接缝的段位重叠 1px：贴合不留发丝缝（浏览器亚像素取整会在 0 间隙处漏一道白线）。
  */
 
@@ -25,42 +26,53 @@ import { resolveSpringMotion, SPRING_NECK, type SpringOrJumpTransition } from "~
  */
 export const NECK_CLOSED_GAP = -1;
 
-/** 张开量（px）：激活段两侧接缝的分离距离，也是颈部的标称宽度。 */
-export const NECK_SEPARATION_PX = 12;
+/**
+ * 张开量（px）：激活段两侧接缝的分离距离，也是颈部的标称宽度。
+ *
+ * 取参考组件 `md` 档的 `separation` = 20。原先的 12 太窄：20px 的间隙才容得下
+ * "两端满高、中间收腰"的那条曲线，12px 下曲线被压成一根发丝，看起来像没张开。
+ */
+export const NECK_SEPARATION_PX = 20;
 
 /**
- * 颈部的标称高度（viewBox 单位，不是像素）。
+ * 颈部的标称坐标高度（viewBox 单位，不是像素）。
  *
  * 真实高度由 CSS 拉伸（`preserveAspectRatio="none"`）：分段条在高屏/窄屏下高度会变，
  * 把高度写进路径反而会在换行或字号变化时错位。所以路径只描述"比例"，高度交给 CSS。
  */
 export const NECK_NOMINAL_SPAN = 100;
 
-/** 闭合段的圆角（px）：圆角阶梯的 `--radius-sm`（control 档）。 */
-export const NECK_RADIUS_IDLE_PX = 8;
-
-/** 激活块的圆角（px）：涨到圆角阶梯的 `--radius-md`（field 档），弹簧过渡。 */
-export const NECK_RADIUS_ACTIVE_PX = 14;
+/**
+ * 收腰后的最薄处（标称单位，相对 `NECK_NOMINAL_SPAN`）：段高的 28%。
+ *
+ * 颈部两端与段边齐平（满高），中间收成一条细腰 —— 端点是"被两段拉住"的锚点，
+ * 腰是"被拉长"的证据。再细会读成断裂，再粗就没有张力。
+ */
+export const NECK_WAIST = 28;
 
 /**
- * 单侧"收腰"程度：三次贝塞尔的两个控制点都拉到 gap 的这个比例处。
+ * 段的敞口圆角（px）：圆角阶梯的 `--radius-md`（field 档）。
  *
- * 取 1/3 是算出来的，不是调的：控制点同 x 时曲线的 t=0.5 横坐标是控制点偏移的 0.75，
- * 于是中段收腰量 = 2 × 0.75 × (1/3) × gap = gap/2 —— 颈部正中留半个间隙宽，
- * 再窄会看起来要断，再宽就不像"被拉住"。
+ * 只给张开的接缝一侧与控件两端；闭合接缝一侧恒为 0（见文件头的"为什么要分侧"）。
  */
-const NECK_BOW_RATIO = 1 / 3;
+export const NECK_CORNER_PX = 14;
+
+/** 颈部的 viewBox：横向也按标称值，实际宽度由 --neck-gap 拉伸（x 比例跟着间隙走）。 */
+export const NECK_VIEW_BOX = `0 0 ${NECK_NOMINAL_SPAN} ${NECK_NOMINAL_SPAN}`;
 
 /** 激活块的填充（深墨面）—— 颈部的两端取它和纸面。 */
 const FILL_ACTIVE = "var(--color-surface-inverse)";
 
-/** 未激活段/分段条自身的填充（纸面）—— 颈部的另一端取它。 */
-const FILL_IDLE = "var(--color-surface)";
+/** 未激活段（分段条的轨道面）的填充 —— 颈部的另一端取它。 */
+const FILL_IDLE = "var(--color-surface-raised)";
 
-/** 一段的到位状态：段位位移 + 圆角 + 颈部的实时宽度（同一组弹簧一起走）。 */
+/** 一段的到位状态：段位位移 + 四角圆角 + 颈部的实时宽度（同一组弹簧一起走）。 */
 export interface NeckSegmentMotion extends Record<string, string> {
   marginLeft: string;
-  borderRadius: string;
+  borderTopLeftRadius: string;
+  borderTopRightRadius: string;
+  borderBottomRightRadius: string;
+  borderBottomLeftRadius: string;
   /** 颈部实时宽度（px）：`left`/`width` 都读它，闭合时为 0。 */
   "--neck-gap": string;
 }
@@ -80,26 +92,26 @@ function cssNumber(value: number): number {
 /**
  * 一段颈部的 SVG 路径（`d`）：两条凹曲线夹出的腰形，闭合。
  *
- * 坐标系：原点在左邻段右上角，`gap` 是接缝的横向间隙，`span` 是标称高度。
- * 左边界从 (0,0) 弯到 (0,span)，右边界镜像 —— 两条曲线都向中轴内收，于是
- * 上下贴住相邻两段、正中收成半宽的腰。
+ * 坐标系：宽高都是标称值（`span`），原点在左端上沿。上边界从 (0,0) 经中点控制点压到
+ * 中部再抬回 (span,0)，下边界镜像 —— 于是**两端满高、正中收腰**，像被两段拉住的液体。
+ * 真实宽高由 CSS 拉伸（`preserveAspectRatio="none"`），路径本身不掺像素。
  *
- * **纯函数**：间隙 ≤ 0、任一侧不是有限数、高度 ≤ 0 时返回空串 ——
+ * **纯函数**：`waist` 不在 (0, span) 开区间内、`span` 非正或非有限数时返回空串 ——
  * 退化输入宁可"不画"，也不能把 NaN 坐标交给浏览器（那会让整条 SVG 失联）。
  */
-export function neckPath(gap: number, span: number): string {
-  if (!Number.isFinite(gap) || !Number.isFinite(span) || gap <= 0 || span <= 0) return "";
+export function neckPath(waist: number = NECK_WAIST, span: number = NECK_NOMINAL_SPAN): string {
+  if (!Number.isFinite(waist) || !Number.isFinite(span)) return "";
+  if (span <= 0 || waist <= 0 || waist >= span) return "";
 
-  const bow = gap * NECK_BOW_RATIO;
-  const lower = span / 3;
-  const upper = (span * 2) / 3;
-  const mirror = gap - bow;
+  const mid = cssNumber(span / 2);
+  const lower = cssNumber(waist);
+  const edge = cssNumber(span);
 
   return [
     "M0 0",
-    `C${cssNumber(bow)} ${cssNumber(lower)} ${cssNumber(bow)} ${cssNumber(upper)} 0 ${cssNumber(span)}`,
-    `L${cssNumber(gap)} ${cssNumber(span)}`,
-    `C${cssNumber(mirror)} ${cssNumber(upper)} ${cssNumber(mirror)} ${cssNumber(lower)} ${cssNumber(gap)} 0`,
+    `Q${mid} ${cssNumber(span - waist)} ${edge} 0`,
+    `L${edge} ${edge}`,
+    `Q${mid} ${lower} 0 ${edge}`,
     "Z",
   ].join(" ");
 }
@@ -125,20 +137,40 @@ export function isNeckSeamOpen(index: number, activeIndex: number): boolean {
 }
 
 /**
+ * 第 `seam` 条接缝（0..count）该不该给圆角。
+ *
+ * 控件两端的"外边"（0 与 count）永远敞口；中间的接缝只在张开时敞口。
+ * 闭合接缝旁给圆角会在贴合处啃出缺口，所以那里必须是 0。
+ */
+export function neckSeamCorner(seam: number, activeIndex: number, count: number): number {
+  if (!Number.isFinite(seam) || !Number.isFinite(count) || count <= 0) return 0;
+  const edge = seam <= 0 || seam >= count;
+  return edge || isNeckSeamOpen(seam, activeIndex) ? NECK_CORNER_PX : 0;
+}
+
+/**
  * 第 `index` 段到位后的样式（弹簧的终点）。
  *
  * `--neck-gap` 与 `marginLeft` 用**同一组弹簧**驱动：颈部的 left/width 读这个变量，
  * 于是它在整段过渡里始终等于真实间隙，不会在弹性回弹时缩错位置。
  *
- * 圆角只跟"是不是激活块"走（被拉开的邻段只是让位，不涨圆角）—— 两个属性分开表达，
- * 断言的语义也更清楚：位移看接缝，圆角看激活。
+ * 四角圆角分开给：左接缝决定左侧两角、右接缝决定右侧两角（`count` 用来认控件两端）。
  */
-export function neckSegmentMotion(index: number, activeIndex: number): NeckSegmentMotion {
+export function neckSegmentMotion(
+  index: number,
+  activeIndex: number,
+  count: number,
+): NeckSegmentMotion {
   const gap = neckSegmentGap(index, activeIndex);
+  const left = neckSeamCorner(index, activeIndex, count);
+  const right = neckSeamCorner(index + 1, activeIndex, count);
 
   return {
     marginLeft: `${gap}px`,
-    borderRadius: `${index === activeIndex ? NECK_RADIUS_ACTIVE_PX : NECK_RADIUS_IDLE_PX}px`,
+    borderTopLeftRadius: `${left}px`,
+    borderTopRightRadius: `${right}px`,
+    borderBottomRightRadius: `${right}px`,
+    borderBottomLeftRadius: `${left}px`,
     "--neck-gap": `${gap > 0 ? gap : 0}px`,
   };
 }
@@ -162,12 +194,17 @@ export function neckMotionKind(prefersReducedMotion: boolean): "spring" | "jump"
  * 第 `index` 段左侧接缝的颈部渐变端点。
  *
  * 左端点取左邻段的填充色、右端点取右邻段的填充色 —— 激活块是深墨面，未激活段是
- * 纸面，所以两个端点就是这两支语义 token 的排列，不新增"激活垫"色相。
+ * 轨道面，所以两个端点就是这两支语义 token 的排列，不新增"激活垫"色相。
+ *
+ * 闭合接缝（两侧都不是激活块）两端同为轨道面：过渡期间它会被拉成一条同色的桥，
+ * 于是"连上"那一刻不会闪出第二种颜色。
  */
 export function neckGradientStops(index: number, activeIndex: number): NeckGradientStops {
   const leftNeighbourActive = index - 1 === activeIndex;
+  const rightNeighbourActive = index === activeIndex;
 
-  return leftNeighbourActive
-    ? { from: FILL_ACTIVE, to: FILL_IDLE }
-    : { from: FILL_IDLE, to: FILL_ACTIVE };
+  return {
+    from: leftNeighbourActive ? FILL_ACTIVE : FILL_IDLE,
+    to: rightNeighbourActive ? FILL_ACTIVE : FILL_IDLE,
+  };
 }

@@ -4,6 +4,7 @@ import { NAnchor, NAnchorLink } from "naive-ui";
 import ArticleTocRail from "~/components/article/ArticleTocRail.vue";
 import type { ArticleHeadingAnchor } from "~/composables/useArticleMarkdown";
 import { useMotionPreference } from "~/composables/useMotionPreference";
+import { whenFontsReady } from "~/utils/fontsReady";
 import { formatProgressPercent, resolveTocFollow, tocIndentLevel } from "~/utils/toc";
 import { buildTocRailNodes } from "~/utils/tocRail";
 
@@ -191,14 +192,9 @@ function handleResize() {
   measureRows();
 }
 
-/** 字体晚到会改行高：就绪后再量一次（与参考组件的做法一致）。 */
+/** 字体晚到会改行高：就绪后再量一次（SSR 守卫与目录树的圆点共用同一个工具）。 */
 function measureAfterFonts() {
-  const fonts = document.fonts;
-  if (!fonts?.ready) {
-    return;
-  }
-
-  fonts.ready.then(measureRows).catch(() => undefined);
+  whenFontsReady(measureRows);
 }
 
 onMounted(() => {

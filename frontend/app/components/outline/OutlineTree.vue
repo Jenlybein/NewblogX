@@ -3,6 +3,7 @@ import { computed, onMounted, ref, watch } from "vue";
 import { motion, useSpring, useTransform } from "motion-v";
 
 import { useMotionPreference } from "~/composables/useMotionPreference";
+import { whenFontsReady } from "~/utils/fontsReady";
 import type { OutlineSourceKind } from "~/utils/outlineKind";
 import type { DotPoint } from "~/utils/outlineDot";
 import { outlineDotPointAt, outlineDotXPx } from "~/utils/outlineDot";
@@ -179,13 +180,10 @@ function align(animate: boolean): void {
  *
  * 传的是**已经移动过**这个判断本身：还没播过弹簧时直接落位——入场不该因为字体
  * 替换而"滑一下"；已经切换过文章之后字体才就绪，才按普通重对准走弹簧，
- * 不把圆点拽回旧位置。
+ * 不把圆点拽回旧位置。SSR 守卫在 `whenFontsReady` 里（与标题大纲共用一份）。
  */
 function alignWhenFontsReady(): void {
-  if (typeof document === "undefined") return;
-  const fonts = document.fonts;
-  if (!fonts?.ready) return;
-  void fonts.ready.then(() => align(hasTraveled)).catch(() => undefined);
+  whenFontsReady(() => align(hasTraveled));
 }
 
 onMounted(() => {

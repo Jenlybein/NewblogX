@@ -513,9 +513,10 @@ async function submitSearch() {
 }
 
 /* 三枚动作按钮等宽：同一个 class、同一个宽度基准，不再各自覆写 padding。
- * 5.5rem 放得下 18px 图标 + gap + 两个汉字（0.8125rem），亮暗主题几何不变。 */
+ * 4.25rem（68px）刚好放得下 18px 图标 + gap + 两个汉字（0.8125rem），
+ * 亮暗主题与三档断点几何不变；图标态（文字隐藏）也由这条声明给宽度。 */
 .site-action--equal {
-  min-width: 5.5rem;
+  min-width: 4.25rem;
   padding: 0 0.5rem;
 }
 

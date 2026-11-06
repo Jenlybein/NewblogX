@@ -25,6 +25,7 @@ SWAG_OUTPUT_DIR ?= docs
 openapi:
 	$(SWAG) init -g cmd/server/main.go -o $(SWAG_OUTPUT_DIR) --parseDependency --parseInternal \
 		--v3.1 --outputTypes $(SWAG_OUTPUT_TYPES)
+	@node ../scripts/decorate-deco-contract.mjs --swagger "$(SWAG_OUTPUT_DIR)/swagger.json"
 
 build:
 	go build ./...

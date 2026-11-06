@@ -1,12 +1,10 @@
 package http_test
 
 import (
-	"bytes"
 	"encoding/json"
 	"math"
 	"net/http/httptest"
 	"os"
-	"path/filepath"
 	"strings"
 	"testing"
 
@@ -34,7 +32,7 @@ type decoParameterTable struct {
 }
 
 const decoParameterTablePath = "../../../../../config/deco-charm-parameters.json"
-const decoContractPath = "../../../../../backend/docs/swagger.json"
+const decoContractPath = "../../../../docs/swagger.json"
 
 func readDecoParameterTable(t *testing.T) decoParameterTable {
 	t.Helper()
@@ -249,8 +247,3 @@ func TestGeneratedDecoParametersAreExposedByContractAndHTTP(t *testing.T) {
 			func(parameter decoParameterSpec) float64 { return parameter.Max })
 	})
 }
-
-// 让 gofmt/test 明确用到 bytes：保留一个最小的请求体构造器，避免不同 Go 版本
-// 对 json.Marshal 返回值类型的诊断差异影响本行为用例。
-var _ = bytes.NewReader
-var _ = filepath.Join

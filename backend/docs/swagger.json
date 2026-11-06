@@ -4,56 +4,92 @@
             "conf.Charm": {
                 "properties": {
                     "damping": {
-                        "description": "Damping 是每个固定步长后保留的速度比例（无量纲，0.9–1；1 表示不衰减）。",
-                        "type": "number"
+                        "description": "每个固定步长后保留的速度比例（无量纲，0.9–1；1 表示不衰减）。",
+                        "type": "number",
+                        "minimum": 0.9,
+                        "maximum": 1,
+                        "default": 0.99
                     },
                     "enable": {
-                        "description": "Enable 是总开关。默认开着：功能上线后读者立刻就能看到。",
+                        "default": true,
                         "type": "boolean"
                     },
                     "fps_cap": {
-                        "description": "FpsCap 是最高渲染帧率，单位 fps，整数。\n\n语义是**上限**而不是保证：高于显示器刷新率时等价于\"每帧\"，高刷屏上的\n实际帧率落在刷新率的整数分之一（144Hz + 90 档 = 72fps）。它只决定\n\"每秒画几次\"，不影响绳子运动速度 —— 物理仍按固定步长按真实时间推进。",
-                        "type": "number"
+                        "description": "最高渲染帧率，单位 fps，整数。语义是上限而不是保证：高于显示器刷新率时等价于每帧，高刷屏上的实际帧率落在刷新率的整数分之一（144Hz + 90 档 = 72fps）。它只决定每秒画几次，不影响绳子运动速度 —— 物理仍按固定步长按真实时间推进。",
+                        "type": "number",
+                        "minimum": 30,
+                        "maximum": 160,
+                        "default": 60
                     },
                     "gravity": {
-                        "description": "Gravity 是重力加速度，单位 px/s²。",
-                        "type": "number"
+                        "description": "重力加速度，单位 px/s²。",
+                        "type": "number",
+                        "minimum": 400,
+                        "maximum": 4000,
+                        "default": 1600
                     },
                     "idle_sway_amp": {
-                        "description": "IdleSwayAmp 是静止摆动的加速度幅度，单位 px/s²，作用在自由端：\n横向加速度按节点序号加权（指针端 0、尾端 1），不是每个节点同一份。\n0 表示关掉轻晃（读者站据此退回静止即停帧）；频率为 0 同样视为关掉。",
-                        "type": "number"
+                        "description": "静止摆动的加速度幅度，单位 px/s²，作用在自由端：横向加速度按节点序号加权（指针端 0、尾端 1），不是每个节点同一份。0 表示关掉轻晃（读者站据此退回静止即停帧）；频率为 0 同样视为关掉。",
+                        "type": "number",
+                        "minimum": 0,
+                        "maximum": 40,
+                        "default": 20
                     },
                     "idle_sway_hz": {
-                        "description": "IdleSwayHz 是静止摆动的频率，单位 Hz。0 表示关掉轻晃。",
-                        "type": "number"
+                        "description": "静止摆动的频率，单位 Hz。0 表示关掉轻晃。",
+                        "type": "number",
+                        "minimum": 0,
+                        "maximum": 1.5,
+                        "default": 0.8
                     },
                     "line_width": {
-                        "description": "LineWidth 是描边起始宽度，单位 px（收尾宽度固定为它的 0.6 倍）。",
-                        "type": "number"
+                        "description": "描边起始宽度，单位 px（收尾宽度固定为它的 0.6 倍）。",
+                        "type": "number",
+                        "minimum": 1,
+                        "maximum": 6,
+                        "default": 2.5
                     },
                     "logo_size": {
-                        "description": "LogoSize 是站标显示尺寸，单位 px。",
-                        "type": "number"
+                        "description": "站标显示尺寸，单位 px。",
+                        "type": "number",
+                        "minimum": 15,
+                        "maximum": 70,
+                        "default": 48
                     },
                     "pointer_offset_x": {
-                        "description": "PointerOffsetX 是\"指针端偏移\"的水平分量，单位 CSS px（与 clientX 同一视口\n坐标系，不随 DPI 缩放）。默认 3，区间 -24–24，**允许负值**（往左偏）。\n\n语义是\"指针端节点 = 指针热点 + (X, Y)\"：挂绳的物理与渲染都从换算后的\n头节点出发，渲染层不得再单独偏一次（ADR-0018 决策 8 / 约束 7）。",
-                        "type": "number"
+                        "description": "指针端偏移的水平分量，单位 CSS px（与 clientX 同一视口坐标系，不随 DPI 缩放）。默认 3，区间 -24–24，允许负值（往左偏）。语义是指针端节点 = 指针热点 + (X, Y)：挂绳的物理与渲染都从换算后的头节点出发，渲染层不得再单独偏一次（ADR-0018 决策 8 / 约束 7）。",
+                        "type": "number",
+                        "minimum": -24,
+                        "maximum": 24,
+                        "default": 3
                     },
                     "pointer_offset_y": {
-                        "description": "PointerOffsetY 是指针端偏移的垂直分量，单位 CSS px（向下为正）。",
-                        "type": "number"
+                        "description": "指针端偏移的垂直分量，单位 CSS px（向下为正）。",
+                        "type": "number",
+                        "minimum": -24,
+                        "maximum": 24,
+                        "default": 3
                     },
                     "rope_length": {
-                        "description": "RopeLength 是挂绳长度（松垂阈值），单位 px。",
-                        "type": "number"
+                        "description": "挂绳长度（松垂阈值），单位 px。",
+                        "type": "number",
+                        "minimum": 40,
+                        "maximum": 240,
+                        "default": 120
                     },
                     "segments": {
-                        "description": "Segments 是 Verlet 链的节点数（节），整数计数。\n\n用 float64 而不是 int 是有意的：写入路径\"永不报错\"的承诺必须对数字成立。\n用 int 时 `{\"segments\":10.6}` 会在 JSON 绑定时直接 400，管理员根本到不了\nNormalize；Normalize 里再做四舍五入，10.6 节就按 11 节落库。",
-                        "type": "number"
+                        "description": "Verlet 链的节点数（节），整数计数。",
+                        "type": "number",
+                        "minimum": 4,
+                        "maximum": 30,
+                        "default": 10
                     },
                     "stiffness": {
-                        "description": "Stiffness 是距离约束刚度（无量纲，0.2–1）：每次迭代消化这么多比例的\n误差。1 等于全量投影（刚杆手感）；越小越弹，拖动时先拉长再回弹。",
-                        "type": "number"
+                        "description": "距离约束刚度（无量纲，0.2–1）：每次迭代消化这么多比例的误差。1 等于全量投影（刚杆手感）；越小越弹，拖动时先拉长再回弹。",
+                        "type": "number",
+                        "minimum": 0.2,
+                        "maximum": 1,
+                        "default": 0.5
                     }
                 },
                 "type": "object"
@@ -2987,8 +3023,7 @@
             "internal_site_adapter_http.SiteSectionDecoRequest": {
                 "properties": {
                     "charm": {
-                        "$ref": "#/components/schemas/conf.Charm",
-                        "description": "Charm 是光标挂件的参数子块。"
+                        "$ref": "#/components/schemas/conf.Charm"
                     }
                 },
                 "type": "object"
@@ -2996,8 +3031,7 @@
             "internal_site_adapter_http.SiteSectionDecoResponse": {
                 "properties": {
                     "charm": {
-                        "$ref": "#/components/schemas/conf.Charm",
-                        "description": "Charm 是光标挂件的参数子块。"
+                        "$ref": "#/components/schemas/conf.Charm"
                     }
                 },
                 "type": "object"
@@ -3005,7 +3039,7 @@
             "internal_site_adapter_http.SiteSectionImageGcRequest": {
                 "properties": {
                     "batch_limit": {
-                        "description": "BatchLimit 是单次最多检查（或真删）的图片条数。\u003c=0 按默认 50 条，超过 500 按 500。",
+                        "description": "BatchLimit 是单次最多检查（或真删）的图片条数。<=0 按默认 50 条，超过 500 按 500。",
                         "type": "integer"
                     },
                     "enabled": {
@@ -3013,7 +3047,7 @@
                         "type": "boolean"
                     },
                     "grace_days": {
-                        "description": "GraceDays 是冷静期天数：上传不足这么多天的图不进入候选。\n\n\u003c=0 按默认 14 天处理：这个值是误删的最后一道防线，零值更可能是\n配置写漏了，不该被当成\"关掉保护\"。",
+                        "description": "GraceDays 是冷静期天数：上传不足这么多天的图不进入候选。\n\n<=0 按默认 14 天处理：这个值是误删的最后一道防线，零值更可能是\n配置写漏了，不该被当成\"关掉保护\"。",
                         "type": "integer"
                     }
                 },
@@ -3022,7 +3056,7 @@
             "internal_site_adapter_http.SiteSectionImageGcResponse": {
                 "properties": {
                     "batch_limit": {
-                        "description": "BatchLimit 是单次最多检查（或真删）的图片条数。\u003c=0 按默认 50 条，超过 500 按 500。",
+                        "description": "BatchLimit 是单次最多检查（或真删）的图片条数。<=0 按默认 50 条，超过 500 按 500。",
                         "type": "integer"
                     },
                     "enabled": {
@@ -3030,7 +3064,7 @@
                         "type": "boolean"
                     },
                     "grace_days": {
-                        "description": "GraceDays 是冷静期天数：上传不足这么多天的图不进入候选。\n\n\u003c=0 按默认 14 天处理：这个值是误删的最后一道防线，零值更可能是\n配置写漏了，不该被当成\"关掉保护\"。",
+                        "description": "GraceDays 是冷静期天数：上传不足这么多天的图不进入候选。\n\n<=0 按默认 14 天处理：这个值是误删的最后一道防线，零值更可能是\n配置写漏了，不该被当成\"关掉保护\"。",
                         "type": "integer"
                     }
                 },
@@ -3074,7 +3108,7 @@
                         "$ref": "#/components/schemas/conf.LogTraceConfig"
                     },
                     "wal_dir": {
-                        "description": "日志本地兜底目录，空则用 \u003cdir\u003e/wal",
+                        "description": "日志本地兜底目录，空则用 <dir>/wal",
                         "type": "string"
                     }
                 },
@@ -3118,7 +3152,7 @@
                         "$ref": "#/components/schemas/conf.LogTraceConfig"
                     },
                     "wal_dir": {
-                        "description": "日志本地兜底目录，空则用 \u003cdir\u003e/wal",
+                        "description": "日志本地兜底目录，空则用 <dir>/wal",
                         "type": "string"
                     }
                 },
@@ -3155,7 +3189,7 @@
                         "type": "integer"
                     },
                     "timeout_sec": {
-                        "description": "TimeoutSec 单次调用超时（秒）；\u003c=0 按 DefaultMailTimeoutSec 处理",
+                        "description": "TimeoutSec 单次调用超时（秒）；<=0 按 DefaultMailTimeoutSec 处理",
                         "type": "integer"
                     }
                 },
@@ -3192,7 +3226,7 @@
                         "type": "integer"
                     },
                     "timeout_sec": {
-                        "description": "TimeoutSec 单次调用超时（秒）；\u003c=0 按 DefaultMailTimeoutSec 处理",
+                        "description": "TimeoutSec 单次调用超时（秒）；<=0 按 DefaultMailTimeoutSec 处理",
                         "type": "integer"
                     }
                 },
@@ -9241,7 +9275,7 @@
                         }
                     },
                     {
-                        "description": "来源（collection:\u003cid\u003e）",
+                        "description": "来源（collection:<id>）",
                         "in": "query",
                         "name": "from",
                         "schema": {
@@ -11971,7 +12005,7 @@
                         }
                     },
                     {
-                        "description": "来源（project:\u003cid\u003e）",
+                        "description": "来源（project:<id>）",
                         "in": "query",
                         "name": "from",
                         "schema": {

@@ -397,6 +397,156 @@ describe("页头：右侧动作区（#198 创作移位）", () => {
 });
 
 /**
+ * 动作按钮等宽（#291 / 决策记录 §三 3.3）。
+ *
+ * 三枚按钮（创作 / 消息 / 历史）的等宽必须**继续由同一条声明**保证：
+ * 基准从 5.5rem（88px）压到 4.25rem（68px），padding / gap / 图标尺寸 / 字号不变。
+ *
+ * 组件测试拿不到计算样式，所以这里把接缝定在两层外部可观察面上：
+ *   1. 渲染结果——三个元素是否命中同一套 class（等宽不是靠各自样式凑出来的）；
+ *   2. 样式源码的声明块——宽度基准是多少、有没有第二条 width/min-width 覆写。
+ * 这两层都不依赖组件内部结构，换实现方式时只要不变量还在就不会红。
+ */
+describe("页头：动作按钮等宽（#291）", () => {
+  const readHeader = () => readFileSync(join(process.cwd(), FILENAME), "utf8");
+
+  /** <style scoped> 里的 CSS，注释先摘掉：注释里的选择器不该算成声明。 */
+  function styleSource(): string {
+    const source = readHeader();
+    const style = source.slice(source.indexOf("<style scoped>"));
+    return style.replace(/\/\*[\s\S]*?\*\//gu, "");
+  }
+
+  /** 切出规则（选择器 + 声明块）；@media 里的规则也会被单独切出，够用即可。 */
+  function styleRules(): Array<{ selector: string; body: string }> {
+    const rules: Array<{ selector: string; body: string }> = [];
+    const pattern = /([^{}]+)\{([^{}]*)\}/gu;
+    let match: RegExpExecArray | null;
+    while ((match = pattern.exec(styleSource()))) {
+      rules.push({ selector: match[1]!.trim(), body: match[2]! });
+    }
+    return rules;
+  }
+
+  /** 某条选择器第一处规则的声明块（断点覆盖同名选择器时取基础那条）。 */
+  function declarationsOf(selector: string): string {
+    const found = styleRules().filter((rule) => rule.selector === selector);
+    expect(found.length).toBeGreaterThan(0);
+    return found[0]!.body;
+  }
+
+  function login() {
+    hub.authLoggedIn!.value = true;
+    return mountHeader();
+  }
+
+  it("三枚按钮命中同一套 class，顺序固定为 创作 → 消息 → 历史", () => {
+    const wrapper = login();
+    const equal = wrapper.findAll(".site-action--equal");
+
+    expect(equal).toHaveLength(3);
+    // 等宽不是某一枚的私有 class：三枚都挂着 site-action（44px 触控高度与胶囊外观）
+    // 与 site-action--equal（宽度基准）。
+    for (const node of equal) {
+      expect(node.classes()).toContain("site-action");
+    }
+    expect(wrapper.get('button.site-action--equal[data-chrome="write"]').exists()).toBe(true);
+    expect(wrapper.get('a.site-action--equal[href="/messages"]').exists()).toBe(true);
+    expect(wrapper.get('a.site-action--equal[href="/history"]').exists()).toBe(true);
+  });
+
+  it("等宽仍由同一条声明保证：基准 4.25rem（68px），不是内容自然宽", () => {
+    const all = styleRules();
+    const equalRules = all.filter((rule) => rule.selector.includes(".site-action--equal"));
+
+    // 只有一条：没有任何断点或某一枚按钮另起炉灶。
+    expect(equalRules).toHaveLength(1);
+    const body = equalRules[0]!.body;
+
+    expect(body).toMatch(/min-width:\s*4\.25rem;/u);
+    // 不是 width: auto / fit-content / max-content 这类"内容自然宽"。
+    expect(body).not.toMatch(/(?<!-)width:\s*(auto|fit-content|max-content|min-content)/u);
+    // 旧的 88px 基准彻底退场（注释也不留旧值，免得下次被抄回去）。
+    expect(readHeader()).not.toMatch(/5\.5rem/u);
+  });
+
+  it("三枚不再各自覆写宽度或内边距（padding / gap / 字号仍来自 .site-action）", () => {
+    const base = declarationsOf(".site-action");
+
+    expect(base).toMatch(/padding:\s*0 0\.5rem;/u);
+    expect(base).toMatch(/gap:\s*0\.375rem;/u);
+    expect(base).toMatch(/font-size:\s*0\.8125rem;/u);
+
+    const perButton = styleRules().filter((rule) =>
+      /^\.site-header__(write|messages|history)\b/u.test(rule.selector),
+    );
+    expect(perButton.length).toBeGreaterThan(0);
+    for (const rule of perButton) {
+      expect(rule.selector).not.toContain("--equal");
+      expect(rule.body).not.toMatch(/min-width/u);
+      expect(rule.body).not.toMatch(/(?<!-)width:/u);
+      expect(rule.body).not.toMatch(/padding/u);
+    }
+  });
+
+  it("44px 触控高度不变：min-height: 2.75rem 仍在基础胶囊上", () => {
+    const base = declarationsOf(".site-action");
+
+    expect(base).toMatch(/min-height:\s*2\.75rem;/u);
+    // 高度只由基础胶囊给，等宽规则不碰高度。
+    expect(declarationsOf(".site-action--equal")).not.toMatch(/height/u);
+  });
+
+  /** 取一个 @media 块的内部文本（按花括号配平，块里还有嵌套规则）。 */
+  function mediaBlock(css: string, query: string): string {
+    const start = css.indexOf(query);
+    expect(start).toBeGreaterThan(-1);
+    const open = css.indexOf("{", start);
+    let depth = 0;
+    for (let index = open; index < css.length; index += 1) {
+      if (css[index] === "{") depth += 1;
+      else if (css[index] === "}") {
+        depth -= 1;
+        if (depth === 0) return css.slice(open + 1, index);
+      }
+    }
+    throw new Error(`媒体查询没有闭合：${query}`);
+  }
+
+  it("<640px / 640–1023px 只显图标时，宽度仍由同一条声明支配（没有退回 44px 方块的断点）", () => {
+    const css = styleSource();
+
+    // 窄屏与平板档都不重新定义动作按钮的宽度：图标态同样是 4.25rem 的盒子，
+    // 而不是退回 .site-action 的 2.75rem（44px）方块。
+    for (const query of ["@media (max-width: 639px)", "@media (min-width: 640px)"]) {
+      const media = mediaBlock(css, query);
+      expect(media).not.toMatch(/\.site-action/u);
+      expect(media).not.toMatch(/min-width:/u);
+    }
+
+    // 图标态由文字标签隐藏实现（盒子宽度不变），不是靠改宽度。
+    const writeLabel = declarationsOf(".site-header__write-label");
+    expect(writeLabel).toMatch(/display:\s*none;/u);
+  });
+
+  it("消息未读红点的结构与位置不变（按钮内的绝对定位圆点）", () => {
+    const wrapper = login();
+    const dot = wrapper.get('a.site-action--equal[href="/messages"] .site-header__dot');
+
+    expect(dot.attributes("aria-hidden")).toBe("true");
+
+    const body = declarationsOf(".site-header__dot");
+    expect(body).toMatch(/position:\s*absolute;/u);
+    expect(body).toMatch(/top:\s*0\.4375rem;/u);
+    expect(body).toMatch(/right:\s*0\.4375rem;/u);
+    expect(body).toMatch(/width:\s*0\.4375rem;/u);
+    expect(body).toMatch(/height:\s*0\.4375rem;/u);
+    expect(body).toMatch(/border-radius:\s*var\(--radius-pill\);/u);
+    expect(body).toMatch(/background:\s*var\(--color-danger\);/u);
+  });
+});
+
+/**
  * 消息中心入口（#239）。
  *
  * 结构验收：

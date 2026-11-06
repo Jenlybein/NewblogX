@@ -5,6 +5,7 @@
 - 来源：2026-10-31 的 grilling 会话（用户反馈："当前主题不好看，蓝色作为主色调太伤眼"；目标：apple.com 式高级感美学 + 液态玻璃 + 圆角）。spec 为 [issue #17](https://github.com/Jenlybein/NewblogX/issues/17)（`ready-for-agent`），落地分票 #18–#25 已全部合入集成分支；视觉解构见 [Apple 液态玻璃解构](../notes/2026-10-30-apple-liquid-glass-deconstruction.md)，改造方案见 [中性玻璃改造方案](../notes/2026-10-31-neutral-glass-redesign-plan.md)
 - 后续修订：**决策 8 与约束 10 中"中文继续 Noto Sans SC"的部分已由 [ADR-0019](./0019-reader-rendering-and-cache-strategy.md)（已交付，落地票 #80–#87）取代** —— 中文字体改为系统字体栈，以消除首屏 2.3 MB 自托管字体；Sora = 字标/大标题、Inter = 正文/UI、全站无衬线这些分工继续生效。差异表见文末「后续修订」。
 - 后续修订（2026-11-04）：**约束 1 / 2 / 3 / 4 对"正文 markdown 渲染区"放开** —— 正文区不再受五色相锁定，改由 `--md-*` 一组独立语义 token 单独治理（六层标题色 + 七档代码色 + 真下划线）；裸色值门禁与两端 token 同源不变。落地票 #244（spec #234 §5/§8），差异表见文末「后续修订（2026-11-04）」，肉眼验收见[色板预览](../notes/2026-11-04-markdown-palette-preview.md)。
+- 后续修订（2026-11-07）：**约束 6 / 9 新增三处例外** —— 合集/项目文件夹卡的 flap 允许玻璃（内容面唯一例外）、消息中心 tab 颈部允许 `margin-left` 布局动画、三处动效改用弹簧（标题大纲飞行器 / 目录树沟槽圆点 / tab 颈部）。三档时长与单一缓动**继续服务 CSS 侧**。差异表见文末「后续修订（2026-11-07）」，来源会话见 [阅读页 UI grill 记录](../notes/2026-11-07-reading-ui-grill.md)。
 
 ## 背景与问题
 
@@ -138,4 +139,34 @@ ADR-0010 在 2026-10-30 落地（ticket #1–#13 已合并），取向是"图纸
 - 实际渲染对齐：[frontend/test/composables/markdownPaletteGallery.test.ts](../../frontend/test/composables/markdownPaletteGallery.test.ts)（把[预览稿](../../frontend/test/fixtures/markdown-palette-gallery.md)真渲染一遍，对齐 H1–H6 与 hljs 类名），肉眼验收步骤见[色板预览](../notes/2026-11-04-markdown-palette-preview.md)。
 
 **相关代码**：[frontend/app/assets/css/tokens.css](../../frontend/app/assets/css/tokens.css)（第 7 段 `--md-*` 组）· [frontend/app/utils/markdownTheme.ts](../../frontend/app/utils/markdownTheme.ts)（`MARKDOWN_THEME_ROLES` 新增正文色板角色 + token 解析）· [frontend/app/utils/markdownThemeCss.ts](../../frontend/app/utils/markdownThemeCss.ts)（样式源；受「单文件 ≤ 800 行」约束从 `markdownTheme.ts` 外移）。
+
+## 后续修订（2026-11-07）
+
+**三处例外：内容面玻璃（文件夹 flap）、布局属性动画（tab 颈部）、弹簧动效（三处）**。按本目录的登记规则（"已交付的 ADR 不改结论，只追加后续修订"），正文原样保留，差异在此登记。来源是 2026-11-07 的 grill 会话（6 项阅读页/评论区/顶栏/合集卡片需求），决策全文见[阅读页 UI grill 记录](../notes/2026-11-07-reading-ui-grill.md)。
+
+| 本 ADR 位置 | 原文口径 | 修订后 |
+| --- | --- | --- |
+| 约束 6（玻璃作用域） | 液态玻璃只用于导航/控制层；正文、卡片、列表等内容面一律不透明；同屏可见玻璃层 ≤3 | **合集/项目文件夹卡的 flap（前盖）是内容面上唯一的玻璃例外**：只有 flap 一层（背板与封面卡仍是不透明面），且必须带 `@supports not (backdrop-filter)` 与 `prefers-reduced-transparency` 的不透明降级、移动端 `blur ≤12px`（约束 7 照旧生效）。"同屏 ≤3"改为**非卡片玻璃层 ≤3**；卡片 flap 单独计数，允许常开（列表页可达 24 张） |
+| 约束 9（动效三档） | 三档 `120 / 200 / 320ms` + 单一 `cubic-bezier(.2,.8,.2,1)` + stagger 40ms；只动 `transform`/`opacity` | 新增**弹簧例外，仅三处**：右栏标题大纲的飞行器位移与转向、目录树的沟槽圆点、消息中心 tab 条颈部。弹簧参数**集中在 `utils/motion.ts` 的 `SPRING_*` 预设**，组件禁止内联 `stiffness`/`damping` 字面量。**颈部允许 `margin-left`（布局属性）变化**，仅限该条 ≤5 个节点。三档时长与单一缓动继续服务 CSS 侧（评论展开/收起、路由过渡、hover 反馈），不因弹簧退役 |
+| 约束 9（减少动态） | 强制尊重 `prefers-reduced-motion` | 口径不变且**加严**：弹簧在该偏好下必须 `jump()` 到终点（"归零"而不是"放慢"），弧线直接落位；弧线由"弹簧驱动 0→1 进度 + `useTransform` 派生偏移"实现，**不引入 `motion` 包**（本仓库未安装，`motion-v` 也不转出 `arc()`） |
+
+**原因**：这两条都是用户在会话里**主动拍板**后偏离原立场（明确选择"flap 保留 `backdrop-filter` 且常开"与"三处都用弹簧"），不是实现时的顺手决定。若只留在代码里，下一个读者会按约束 6 / 9 把它们当成违规修掉——与 ADR-0010 那次"立场被否定但没人记录"的教训同型。
+
+**一并加严的门禁（与实现同批交付）**：
+
+1. 使用弹簧的组件在「减少动态」下必须落位为静止（禁止保留过渡）；
+2. 组件里不得出现裸 `stiffness` / `damping` 数字，只能引用 `utils/motion.ts` 的 `SPRING_*`。
+
+理由：[reduced-motion.test.ts](../../frontend/test/design/reduced-motion.test.ts) 只扫 CSS 的 `@keyframes` / `animation:`，**JS 弹簧完全在现有门禁视野之外**——这是本次新开的一个动效入口，不补断言等于让档位 C 静默退化。
+
+**已知代价（接受并记录）**：24 张卡片同屏时每张 flap 都是一个 backdrop root，滚动有掉帧风险（第一顺位回退方案是"仅 hover 开 blur"）；颈部每帧触发该行重排；弧线形状由正弦近似自绘，与参考组件有细微视觉差异。
+
+**继续生效**：本 ADR 其余全部条款——五色相锁死（正文渲染区除外）、中性石墨阶、圆角阶梯、玻璃作用域与降级（含约束 7 的两条降级与移动端 12px）、暗色机制、`tokens.css` 两端同源与裸色值门禁、字体条款（含 2026-11-01 与 2026-11-04 两次修订）。
+
+**相关代码**：
+
+- 弹簧预设：[frontend/app/utils/motion.ts](../../frontend/app/utils/motion.ts)（新增 `SPRING_*`；`MOTION_DURATIONS_MS` / `MOTION_EASE` 不改）
+- 三处消费者：[frontend/app/components/article/ArticleTocAnchor.vue](../../frontend/app/components/article/ArticleTocAnchor.vue)（轨道与飞机）· [frontend/app/components/outline/OutlineTree.vue](../../frontend/app/components/outline/OutlineTree.vue)（沟槽圆点）· [frontend/app/components/inbox/InboxSubNav.vue](../../frontend/app/components/inbox/InboxSubNav.vue)（颈部）
+- 玻璃例外落点：合集/项目列表页共用的文件夹卡组件（新建），消费方 [frontend/app/pages/collections/index.vue](../../frontend/app/pages/collections/index.vue) 与 [frontend/app/pages/projects/index.vue](../../frontend/app/pages/projects/index.vue)
+- 现有门禁与测试：[frontend/test/design/motion-foundation.test.ts](../../frontend/test/design/motion-foundation.test.ts) · [frontend/test/design/reduced-motion.test.ts](../../frontend/test/design/reduced-motion.test.ts) · [scripts/check-design-tokens.mjs](../../scripts/check-design-tokens.mjs)
 

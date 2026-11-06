@@ -10,6 +10,14 @@
 # 本地、CI、门禁自检三处都经 scripts/gates/run.mjs 调同一批命令，
 # 加一道门禁只需改 gates.json 那一处清单。
 #
+# 但本脚本里确实写着两类命令，它们是**真实实现**，不是第二份清单：
+#   1. 清单里「只有演练节号、没有 steps」的门禁（后端单测、typecheck、契约类型、
+#      路由对账、admin 鉴权、菜单对账、lint、覆盖率）：真门禁就是下面这些步骤；
+#   2. 生成式装饰参数校验（#286）：按 #287 AC4 清单只收「清单 / 版本 / 判定 /
+#      重复安装」四件，参数脚本不进清单，因此在 gates 段直接调用。
+# runner 会点名每条「只有演练节号」的门禁由谁执行；`--check-coverage` 会把
+# 第 2 类作为 notGates 显式列出来 —— 豁免是登记过的，不是漏登记。
+#
 # 用法：
 #   ./scripts/check.sh              # 全量
 #   ./scripts/check.sh backend      # 只跑后端
@@ -103,8 +111,26 @@ run_prepare() {
   return 1
 }
 
-# 集成测试（-tags integration）需要 Docker：testcontainers 会起 MySQL / ClickHouse。
+# local_groups_cover_registry 核对「清单里的分组，本地门禁都跑到」。
 #
+# 判据是**在本脚本自身里找 `--group <分组>`**，而不是再抄一份分组清单：
+# 抄一份的话，清单新增分组时两边一起忘，这项检查就永远绿 —— 那正是以前
+# 「守卫检查的符号根本不存在」那类失效。分组归属仍然只在 gates.json 里。
+local_groups_cover_registry() {
+  local missing="" g listed
+  listed="$(node "$ROOT/scripts/gates/run.mjs" --groups)" || return 1
+  for g in $listed; do
+    grep -q -- "--group[ =]$g" "$0" || missing="$missing $g"
+  done
+  if [ -n "$missing" ]; then
+    echo "✗ 清单里有分组没在本地门禁里跑到：$missing"
+    echo "  在 scripts/check.sh 对应目标里加一次 run.mjs --group <分组>；否则那道门禁只在 CI 上跑，本地永远是绿的但没验。"
+    return 1
+  fi
+  echo "✓ 清单里的分组都在本地跑到：$listed"
+}
+
+# 集成测试（-tags integration）需要 Docker：testcontainers 会起 MySQL / ClickHouse。
 # 关键在于"跳过"不能是静默的 —— 静默跳过正是当年门禁撒谎的老毛病。
 # 三种情形分开处理：
 #   1. BLOGX_SKIP_INTEGRATION=1：显式跳过，打印警告（本地临时调试用）；
@@ -363,13 +389,18 @@ if [ "$TARGET" = "all" ] || [ "$TARGET" = "gates" ]; then
   run "门禁清单（单一来源）" node "$ROOT/scripts/gates/run.mjs" --list
   # runner 自身的行为用例（跨 CLI 接缝，不读源码文本）。
   run "门禁 runner 行为用例" node "$ROOT/scripts/gates/test-gate-runner.mjs"
-  # 清单里的每道门禁都必须有对应演练，否则新门禁会静默地不被自检验证。
-  run "门禁演练覆盖（每道门禁都有演练）" node "$ROOT/scripts/gates/run.mjs" --check-coverage
+  # 清单里的每道门禁都必须有对应演练、每个演练都必须有门禁负责，否则新门禁
+  # 会静默地不被自检验证（或自检在演一个清单里没有的门禁）。
+  run "门禁演练覆盖（每道门禁都有演练，每个演练都有门禁）" node "$ROOT/scripts/gates/run.mjs" --check-coverage
+  # 本地跑的分组必须覆盖清单里的全部分组：清单新增一个分组而本地忘了接，
+  # 那道门禁就只在 CI 上跑，本地一直是"绿的但没验"。
+  run "门禁分组覆盖（清单里的分组都在本地跑到）" local_groups_cover_registry
   # deco.charm 的 12 个数值参数只由 config/deco-charm-parameters.json 生成四端
   # 消费物并进入契约（开放接口契约）。一条校验同时验重新生成后四端无差异、
   # 契约中的 min/max/default 与 GET/PUT /site/deco 的运行时取值。
   # 它是参数生成脚本（#286），不属于「清单 / 版本 / 判定 / 重复安装」四件事，
-  # 因此留在门禁清单之外、仍在这里与 verify-gates.sh 第 14 节调用。
+  # 按 #287 AC4 留在门禁清单之外（gates.json 的 notGates 显式登记第 14 节），
+  # 因此在这里与 ci.yml 的 frontend-lint、verify-gates.sh 第 14 节直接调用。
   run "生成式装饰参数校验" node scripts/generate-deco-parameters.mjs --check
   run "门禁自检（证明门禁会红）" bash scripts/verify-gates.sh
 fi

@@ -1096,8 +1096,59 @@
     transform: rotate(180deg);
   }
 
+  /*
+   * 子评论展开动效（票 294）。
+   *
+   * 容器常驻 DOM（要有东西才能做高度过渡），折叠时靠 `grid-template-rows: 0fr` +
+   * 内层 `overflow: hidden` 把高度收成 0（组件同时给它 `inert`，不可聚焦、不进读屏）。
+   * 展开/收起只改这一行轨道与透明度：**容器高度全程只过渡这一次**，条目入场的
+   * 逐条淡入只动 opacity / transform，不会再触发第二次高度动画。
+   *
+   * 时长分档：展开走 base（200ms，写在目标态上），收起走 fast（120ms，写在基态上）——
+   * 过渡以目标态声明为准，所以「展开慢、收起快」不用第二套开关。
+   */
   .comment__replies {
+    display: grid;
+    grid-template-rows: 0fr;
+    opacity: 0;
+    transition:
+      grid-template-rows var(--motion-fast) var(--motion-ease),
+      opacity var(--motion-fast) var(--motion-ease);
+  }
+
+  .comment__replies--open {
+    grid-template-rows: 1fr;
+    opacity: 1;
+    transition-duration: var(--motion-base);
+  }
+
+  /* 轨道动画的承载层：`min-height: 0` 是 0fr 真的收成 0 的前提。 */
+  .comment__replies-clip {
+    overflow: hidden;
+    min-height: 0;
+  }
+
+  /* 展开后的实际内容（分隔线 / 间距都在这里，折叠时随裁剪一起消失）。 */
+  .comment__replies-body {
     @apply mt-4 flex flex-col gap-3 border-t border-line pt-4;
+  }
+
+  /*
+   * 逐条淡入：只动 opacity / transform。延迟由 `utils/motion.ts` 的
+   * `staggerDelayMs(索引, 减少动态)` 算成毫秒写在内联 style 上，这里不写任何时长字面量。
+   */
+  .comment__replies-item {
+    transition:
+      opacity var(--motion-base) var(--motion-ease),
+      transform var(--motion-base) var(--motion-ease);
+  }
+
+  /* 减少动态：这一块整段即时（不是放慢），就近兜底，不依赖全站那条统一开关。 */
+  @media (prefers-reduced-motion: reduce) {
+    .comment__replies,
+    .comment__replies-item {
+      transition: none;
+    }
   }
 
   .comment__pagination {

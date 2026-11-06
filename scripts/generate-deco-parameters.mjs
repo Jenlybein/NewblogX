@@ -318,20 +318,6 @@ function adminSource(source, table) {
     '<!-- END GENERATED DECO -->', generated);
 }
 
-function decorateContract(root, table) {
-  const contractPath = path.join(root, 'backend/docs/swagger.json');
-  const doc = JSON.parse(fs.readFileSync(contractPath, 'utf8'));
-  const charm = doc.components?.schemas?.['conf.Charm'];
-  if (!charm?.properties) throw new Error('契约缺少 conf.Charm.properties');
-  for (const p of table.parameters) {
-    if (!charm.properties[p.key]) throw new Error(`契约缺少 conf.Charm.${p.key}`);
-    charm.properties[p.key].minimum = p.min;
-    charm.properties[p.key].maximum = p.max;
-    charm.properties[p.key].default = p.default;
-  }
-  fs.writeFileSync(contractPath, `${JSON.stringify(doc, null, 4)}\n`);
-}
-
 function contractProperties(root, table) {
   const doc = JSON.parse(fs.readFileSync(path.join(root, 'backend/docs/swagger.json'), 'utf8'));
   const properties = doc.components?.schemas?.['conf.Charm']?.properties || {};

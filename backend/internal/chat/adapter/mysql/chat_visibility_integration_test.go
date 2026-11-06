@@ -467,3 +467,76 @@ func TestConcurrentSendAndReadStayConsistentAfterReconcile(t *testing.T) {
 		t.Fatalf("消息中心角标与并账真值不一致: badge=%d truth=%d", badge, truth)
 	}
 }
+
+// TestConcurrentSendAndMarkReadSessionDoesNotDeadlock 并发"发送 + 整会话已读"
+// 不允许出现 InnoDB 死锁（1213）。
+//
+// 这是加锁顺序倒置的回归守卫：发送与已读都会先后写 chat_msg_models 与
+// chat_session_models。只要一侧写成「会话→消息」、另一侧是「消息→会话」，
+// 环就成立（发送持会话行等消息行、已读持消息行等会话行）。修法只能是
+// 统一顺序，**不能**是捕获 1213 重试（治理 D10）——所以这里把任何一次 1213
+// 都判为失败，而不是"偶发抖动放过"。
+//
+// 为什么是"1 个发送者 + 2 个已读者、多轮"而不是"一堆发送者"：多发送者
+// 同时打同一条会话行还会撞上 ON DUPLICATE KEY UPDATE 的 S→X 升级窗口，
+// 那是另一条与本题无关的既有竞态，混进来只会让回归用例本身抖。这里刻意
+// 只保留单写者，把竞态收敛到"发送 vs 已读"这唯一一条加锁顺序上。
+func TestConcurrentSendAndMarkReadSessionDoesNotDeadlock(t *testing.T) {
+	t.Parallel()
+
+	repo, db := setup(t)
+	ctx := context.Background()
+	base := time.Date(2026, 1, 1, 10, 0, 0, 0, time.UTC)
+	receiver := ctype.NewID(200)
+	sessionID := domain.BuildSessionID(ctype.NewID(100), receiver)
+	sendText(t, repo, 100, 200, "seed", base)
+
+	const rounds = 12
+	for round := 0; round < rounds; round++ {
+		at := base.Add(time.Duration(round+1) * time.Minute)
+		var wg sync.WaitGroup
+		errs := make(chan error, 3)
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			_, _, err := repo.Send(ctx, domain.SendCommand{
+				SenderID:   ctype.NewID(100),
+				ReceiverID: receiver,
+				Content:    fmt.Sprintf("race-%d", round),
+				SendTime:   at,
+				MsgType:    domain.TypeText,
+			}, domain.Display{Nickname: "甲"}, domain.Display{Nickname: "乙"}, "race")
+			errs <- err
+		}()
+		for i := 0; i < 2; i++ {
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
+				_, err := repo.MarkReadSession(ctx, receiver, sessionID)
+				errs <- err
+			}()
+		}
+		wg.Wait()
+		close(errs)
+		for err := range errs {
+			if err != nil {
+				t.Fatalf("第 %d 轮并发发送/已读失败（死锁 1213 也算失败）: %v", round, err)
+			}
+		}
+	}
+
+	// 没有丢更新：并账仍能把派生列覆盖回消息行真值。
+	if _, err := mysql.ReconcileChatUnread(ctx, db, sessionID, 200); err != nil {
+		t.Fatalf("并账失败: %v", err)
+	}
+	var truth int64
+	if err := db.Table("chat_msg_models").
+		Where("session_id = ? AND receiver_id = ? AND msg_status < ? AND deleted_at IS NULL",
+			sessionID, 200, int8(domain.StatusRead)).
+		Count(&truth).Error; err != nil {
+		t.Fatalf("数真值失败: %v", err)
+	}
+	if badge := privateBadge(t, db, 200); badge != truth {
+		t.Fatalf("并发后角标与消息行真值不一致: badge=%d truth=%d", badge, truth)
+	}
+}

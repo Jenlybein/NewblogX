@@ -113,29 +113,6 @@ type GlobalNotif struct {
 	CreatedAt   time.Time
 }
 
-// VisibleAt 判断某用户在 now 时刻能否看到该公告。
-//
-// 这是旧 SQL 三段 OR 的等价改写，逐条对应：
-//   - 所有用户：只看是否过期；
-//   - 老用户：公告发布时间不早于用户注册时间；
-//   - 新用户：公告发布时间早于用户注册时间。
-//
-// 另外旧 SQL 每条分支都带 `expire_time >= user.created_at`，
-// 这条在"公告已过期则不可见"的前提下恒成立，这里统一前置判断。
-func (n GlobalNotif) VisibleAt(userCreatedAt, now time.Time) bool {
-	if !n.ExpireAt.After(now) || n.ExpireAt.Before(userCreatedAt) {
-		return false
-	}
-	switch n.VisibleRule.Effective() {
-	case VisibleAll:
-		return true
-	case VisibleNew:
-		return n.CreatedAt.Before(userCreatedAt)
-	default:
-		return !n.CreatedAt.Before(userCreatedAt)
-	}
-}
-
 // Conf 是用户的消息通知开关。
 type Conf struct {
 	DiggNoticeEnabled        bool

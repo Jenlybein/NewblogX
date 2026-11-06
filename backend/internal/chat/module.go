@@ -18,7 +18,6 @@ import (
 	"gorm.io/gorm"
 
 	"myblogx/conf"
-	siteconf "myblogx/conf/site"
 	chathttp "myblogx/internal/chat/adapter/http"
 	chatmysql "myblogx/internal/chat/adapter/mysql"
 	chatredis "myblogx/internal/chat/adapter/redis"
@@ -61,7 +60,7 @@ func New(
 	db *gorm.DB,
 	redisClient *redis.Client,
 	logger *logrus.Logger,
-	runtimeSite *sitecfg.RuntimeConfigService,
+	effective *sitecfg.EffectiveConfig,
 	relations domain.RelationReader,
 	userSettings UserSettings,
 	auth chathttp.Authenticator,
@@ -79,14 +78,17 @@ func New(
 		appLogger = logger
 	}
 
+	if effective == nil {
+		effective = sitecfg.NewEffectiveConfig(nil)
+	}
 	svc := chatapp.New(
 		store,
 		store,
 		relations,
 		&userDirectory{db: db},
-		&strangerPolicy{inner: runtimeSite, users: userSettings},
-		chatredis.NewLimiter(redisOptions, runtimeChatRate(runtimeSite)),
-		&imageVerifier{db: db, storage: runtimeSite},
+		&strangerPolicy{inner: effective, users: userSettings},
+		chatredis.NewLimiter(redisOptions, effective.ChatRateFunc()),
+		&imageVerifier{db: db, storage: effective},
 		chatmysql.NewBlockPolicy(db),
 		appLogger,
 	)
@@ -99,17 +101,6 @@ func New(
 		appLogger,
 	)
 	return &Module{Service: svc, Handler: handler, Hub: hub}
-}
-
-// runtimeChatRate 每次现读运行时配置：后台改完发送额度后下一次发送就按新值判。
-func runtimeChatRate(runtimeSite *sitecfg.RuntimeConfigService) func() (int, int) {
-	return func() (int, int) {
-		if runtimeSite == nil {
-			return siteconf.NormalizeChatRate(0, 0)
-		}
-		chat := runtimeSite.GetRuntimeChat()
-		return siteconf.NormalizeChatRate(chat.RateWindowSec, chat.RateDailyMax)
-	}
 }
 
 // userDirectory 读用户展示快照（平台读模型，不 import user 模块）。
@@ -139,7 +130,7 @@ func (d *userDirectory) Displays(_ context.Context, ids []ctype.ID) (map[ctype.I
 // 接收方一级走 user 模块读端口，每次现读，账号设置改完立即生效。
 // 任一级关闭即拒绝；站点关闭时不再多查一次用户偏好。
 type strangerPolicy struct {
-	inner *sitecfg.RuntimeConfigService
+	inner *sitecfg.EffectiveConfig
 	users UserSettings
 }
 
@@ -155,7 +146,7 @@ func (p *strangerPolicy) CheckStranger(ctx context.Context, receiverID ctype.ID)
 		// 这是部署/配置问题，归到站点级，避免把用户引向"对方关了开关"。
 		return domain.StrangerBlockedBySite, nil
 	}
-	if !p.inner.GetRuntimeSite().Chat.StrangerMsgEnabled {
+	if !p.inner.Chat().StrangerMsgEnabled {
 		return domain.StrangerBlockedBySite, nil
 	}
 	if p.users == nil {
@@ -187,7 +178,7 @@ func (p *strangerPolicy) CheckStranger(ctx context.Context, receiverID ctype.ID)
 // 不让校验成为绕过口子。
 type imageVerifier struct {
 	db      *gorm.DB
-	storage *sitecfg.RuntimeConfigService
+	storage *sitecfg.EffectiveConfig
 }
 
 var _ domain.ImageURLVerifier = (*imageVerifier)(nil)
@@ -197,7 +188,7 @@ func (v *imageVerifier) IsOwnedImageURL(ctx context.Context, rawURL string) (boo
 	if v == nil || v.db == nil || v.storage == nil {
 		return false, nil
 	}
-	cfg := v.storage.GetRuntimeStorage()
+	cfg := v.storage.Storage()
 	if !cfg.Enable {
 		return false, nil
 	}

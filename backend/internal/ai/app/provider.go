@@ -9,13 +9,14 @@ import (
 	"myblogx/internal/ai/domain"
 	"myblogx/internal/apperr"
 	"myblogx/internal/kernel/ctype"
+	"myblogx/internal/platform/config"
 )
 
 // sensitivePlaceholder 是密钥回显用的占位符。
 //
-// 与站点配置的 domain.SensitivePlaceholder 同值不同包：AI 模块不 import
-// site 模块（跨模块依赖被 R11 拦）。约定一致：前端原样回传 = 没改。
-const sensitivePlaceholder = "******"
+// #284：字面量收进 platform/config 的生效值模块，AI 模块不 import site 模块
+// （跨模块依赖被 R11 拦），但和站点配置共用同一份常量。前端原样回传 = 没改。
+const sensitivePlaceholder = config.SensitivePlaceholder
 
 // ProviderInput 是新增/修改一条配置的入参。
 type ProviderInput struct {

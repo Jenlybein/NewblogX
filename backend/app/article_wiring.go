@@ -42,7 +42,7 @@ func WireArticle(infra *Infra) {
 	h := articlehttp.NewHandler(
 		svc,
 		infra.Logger,
-		infra.RuntimeSite,
+		infra.Effective,
 		viewerFromContext,
 		&imageResolver{db: infra.DB},
 	)

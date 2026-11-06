@@ -13,9 +13,10 @@ func TestGetRuntimeChatRateDefaultsAndNormalization(t *testing.T) {
 	t.Run("配置缺省时回落到 ADR-0026 默认", func(t *testing.T) {
 		svc := NewRuntimeConfigService(conf.RuntimeDefaults{}, quietLogger(), nil)
 		chat := svc.GetRuntimeChat()
-		w, d := siteconf.NormalizeChatRate(chat.RateWindowSec, chat.RateDailyMax)
-		if w != 10 || d != 99 {
-			t.Fatalf("缺省应为 10 秒 / 99 条，实际 %d 秒 / %d 条", w, d)
+		w, d := NormalizeChatRate(chat.RateWindowSec, chat.RateDailyMax).Pair()
+		if w != DefaultChatWindowSec || d != DefaultChatDailyMax {
+			t.Fatalf("缺省应为 %d 秒 / %d 条，实际 %d 秒 / %d 条",
+				DefaultChatWindowSec, DefaultChatDailyMax, w, d)
 		}
 	})
 

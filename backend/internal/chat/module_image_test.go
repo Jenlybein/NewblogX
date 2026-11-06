@@ -29,7 +29,8 @@ func (verifierImageRow) TableName() string { return "image_models" }
 func newVerifier(t *testing.T, storage conf.QiNiu) *imageVerifier {
 	t.Helper()
 	db := testutil.SetupSQLite(t, &verifierImageRow{})
-	site := sitecfg.NewRuntimeConfigService(conf.RuntimeDefaults{Storage: storage}, nil, nil)
+	site := sitecfg.NewEffectiveConfig(
+		sitecfg.NewRuntimeConfigService(conf.RuntimeDefaults{Storage: storage}, nil, nil))
 	return &imageVerifier{db: db, storage: site}
 }
 

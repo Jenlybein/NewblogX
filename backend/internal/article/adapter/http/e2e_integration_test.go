@@ -84,7 +84,7 @@ func newRouterWithSite(
 	db *gorm.DB,
 	viewer domain.Viewer,
 	idStart uint64,
-	site *config.RuntimeConfigService,
+	site *config.EffectiveConfig,
 ) *gin.Engine {
 	t.Helper()
 
@@ -233,12 +233,12 @@ func TestSitePolicyRejectsNormalUserWithReadableMessage(t *testing.T) {
 	seedAuthor(t, db, 100)
 
 	// 两个写作开关都关：普通用户只能查看与删除存量草稿。
-	closed := config.NewRuntimeConfigService(conf.RuntimeDefaults{
+	closed := config.NewEffectiveConfig(config.NewRuntimeConfigService(conf.RuntimeDefaults{
 		Site: conf.Site{Article: siteconf.Article{
 			AllowNonAdminPublish: false,
 			AllowNonAdminDraft:   false,
 		}},
-	}, logrus.New(), nil)
+	}, logrus.New(), nil))
 
 	author := newRouterWithSite(t, db, domain.NormalUser(ctype.NewID(100)), 100, closed)
 

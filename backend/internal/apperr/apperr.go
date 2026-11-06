@@ -535,7 +535,9 @@ var messages = map[Code]string{
 	CodeChatSendFailed:           "消息发送失败",
 	CodeChatTooFrequent:          "发送过于频繁，请 10 秒后再试",
 	CodeChatSessionTooFast:       "当前会话发送过于频繁，请稍后再试",
-	CodeChatDailyLimit:           "今天给这位用户发送的消息已达上限（99 条），请明天再试",
+	// 额度是后台可改的运行值（#284），文案不抄死"99 条"，否则管理员改完
+	// 用户看到的仍是旧数字。用中性说法，具体值由站点配置给出。
+	CodeChatDailyLimit:           "今天给这位用户发送的消息已达上限，请明天再试",
 	CodeChatWeekStranger:         "本周只允许向陌生人发送 1 条消息",
 	CodeChatWeekLimit:            "本周可发送消息次数已达上限，对方回复后才可以继续发送消息",
 

@@ -10,12 +10,14 @@ import (
 	"github.com/go-redis/redis/v8"
 
 	"myblogx/internal/kernel/ctype"
+	"myblogx/internal/platform/config"
 	redis_service "myblogx/internal/platform/redis"
 )
 
 // 发送限流口径（spec 269 / D-4，票 268，ADR-0026）。
 //
-// 参数由后台「站点 → 私信」现读下发，默认 **1 条 / 10 秒、99 条 / 自然日**。
+// 参数由后台「站点 → 私信」经生效值模块现读下发（默认 1 条 / 窗口、N 条 / 自然日，
+// 默认窗口与额度只在 platform/config 的生效值模块声明一次）。
 // 它替换了旧的"用户 60/60s + 会话 30/60s + 自然周 1/3 条"三档：
 //   - 周配额把陌生人压到每周 1 条过紧，且"对方回复才重置"的隐含规则难解释；
 //   - 按日额度是可预期的额度，短窗口挡住连发刷屏。
@@ -91,18 +93,18 @@ func (r *PairReservation) Release(deps redis_service.Options) error {
 
 // ReserveChatPairRate 尝试为 (sender, receiver) 预占一次发送额度。
 //
-// windowSec / dailyMax 由调用方从运行时配置现读（后台可改），非法值由调用方
-// 先用 siteconf.NormalizeChatRate 收敛；本函数只再兜一层，避免误传 0 导致
+// windowSec / dailyMax 由调用方从生效值模块的现读闭包取（后台可改，已归一化）；
+// 本函数只再兜一层，避免误传 0 导致
 // "窗口 0 秒 = 不限流 / 日额度 0 = 全站禁言"这类静默失效。
 //
 // 返回值：reservation 非空=成功；为空且 limitedBy 非空=被限流；err 非空=Redis 异常。
 // Redis 未初始化时返回 error（失败关闭，不放行）。
 func ReserveChatPairRate(deps redis_service.Options, senderID, receiverID ctype.ID, now time.Time, windowSec, dailyMax int) (*PairReservation, string, error) {
 	if windowSec <= 0 {
-		windowSec = 10
+		windowSec = config.DefaultChatWindowSec
 	}
 	if dailyMax <= 0 {
-		dailyMax = 99
+		dailyMax = config.DefaultChatDailyMax
 	}
 	window := time.Duration(windowSec) * time.Second
 	// 窗口 key 的 TTL 取 2 倍窗口，留一点冗余避免频繁重建；最少 20 秒。

@@ -71,7 +71,7 @@ describe("门禁接线：本地脚本与 CI 是同一口径", () => {
     expect(ciJobBlock("frontend-lint")).toContain(cli);
     expect(verifyGates).toContain(cli);
     expect(verifyGates).toContain("14/14 生成式装饰参数校验");
-    expect(verifyGates).not.toContain("check-deco-range-parity.mjs");
+    expect(verifyGates).toContain("只改后台生成物一端会被判为重新生成后有差异");
   });
 
   it("两端同源副本门禁接进了 check.sh、verify-gates.sh 与 CI（票 200；票 225 扩到裁剪窗）", () => {

@@ -1,5 +1,6 @@
-﻿<script setup lang="ts">
+<script setup lang="ts">
 import FolderCard from "~/components/common/FolderCard.vue";
+import type { CollectionCardView } from "~/utils/collection";
 
 /**
  * 合集 / 项目列表的文件夹卡网格（票 293）。
@@ -7,21 +8,12 @@ import FolderCard from "~/components/common/FolderCard.vue";
  * 为什么网格也收进共用组件：两页原本各写一份同形的卡片与网格样式，本票把
  * 「卡片 + 网格」一起收敛成一处，页面只剩页头与空态。列宽公式保持不变
  * （`minmax(min(100%, 20rem), 1fr)`），卡片内部按列宽等比缩放。
+ *
+ * 卡片视图**复用既有的 `CollectionCardView`**：`ProjectCardView` 与它逐字段同形
+ * （结构类型上互相兼容，两个列表页的 `cards` 都能直接传），本组件不再另立第四份
+ * 同形声明——多一份字段表，就多一处将来要跟着改的地方。
  */
-interface FolderCardItem {
-  /** 列表 key（后端契约里的雪花字符串）。 */
-  id: string;
-  /** 详情页路由。 */
-  href: string;
-  title: string;
-  description: string;
-  /** 封面 URL；空串走空占位。 */
-  cover: string;
-  /** 篇数文案。 */
-  countLabel: string;
-}
-
-defineProps<{ cards: FolderCardItem[] }>();
+defineProps<{ cards: CollectionCardView[] }>();
 </script>
 
 <template>

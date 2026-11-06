@@ -197,3 +197,23 @@ describe("两页共用同一个文件夹卡：各自的卡片样式已删除", (
     expect(source).not.toMatch(/backdrop-filter/u);
   });
 });
+
+/**
+ * 卡片视图只该有一份形状定义（Data Clump 的反面）。
+ *
+ * 合集与项目的卡片视图逐字段相同，`FolderCardList` 曾经又抄了第三份
+ * `FolderCardItem`：三份字段表意味着加一个字段要改三处，且漏改不会报错
+ * （结构类型只在赋值处比较）。这里钉住"复用既有类型"这件事。
+ */
+describe("文件夹卡列表：卡片视图复用既有类型", () => {
+  const source = readFileSync(join(projectDir, "app/components/common/FolderCardList.vue"), "utf8");
+
+  it("从 utils/collection 取 CollectionCardView（项目卡与之同形）", () => {
+    expect(source).toContain('import type { CollectionCardView } from "~/utils/collection"');
+    expect(source).toContain("cards: CollectionCardView[]");
+  });
+
+  it("不再本地声明同形的 FolderCardItem", () => {
+    expect(source).not.toMatch(/FolderCardItem/u);
+  });
+});

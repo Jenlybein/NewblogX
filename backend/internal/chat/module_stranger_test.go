@@ -32,11 +32,11 @@ func (f *fakeStrangerUserSettings) StrangerChatEnabled(_ context.Context, id cty
 	return f.enabled, f.err
 }
 
-// newRuntimeSite 构造只带站点段默认值的运行时配置服务（缓存为空时读默认值）。
-func newRuntimeSite(strangerMsgEnabled bool) *sitecfg.RuntimeConfigService {
-	return sitecfg.NewRuntimeConfigService(conf.RuntimeDefaults{
+// newRuntimeSite 构造只带站点段默认值的生效值模块（缓存为空时读默认值）。
+func newRuntimeSite(strangerMsgEnabled bool) *sitecfg.EffectiveConfig {
+	return sitecfg.NewEffectiveConfig(sitecfg.NewRuntimeConfigService(conf.RuntimeDefaults{
 		Site: conf.Site{Chat: siteconf.Chat{StrangerMsgEnabled: strangerMsgEnabled}},
-	}, nil, nil)
+	}, nil, nil))
 }
 
 func TestStrangerPolicy_两级开关取交集(t *testing.T) {

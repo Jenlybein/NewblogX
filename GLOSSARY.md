@@ -410,7 +410,8 @@ _Avoid_: 把它当品牌色或主色；把 `#2997FF` 用在亮色下的文字上
 **液态玻璃层（glass layer）**：
 只允许出现在**导航/控制层**的半透明材质（顶栏、浮层、抽屉、捏捏面板、胶囊、悬浮控件），两档 `--glass-thin` / `--glass-thick`；正文、卡片、列表等内容面一律不透明实体面。
 位置：`tokens.css` 的玻璃组 token；取舍与降级规则见 [ADR-0012](./docs/adr/0012-neutral-glass-visual-system.md) 与改造方案第 3 批。
-_Avoid_: 在内容面/正文上叠玻璃；把玻璃当成"装饰性半透明"到处铺（`backdrop-filter` 会让元素成为 backdrop root，嵌套玻璃只会读成平灰）。
+**唯一的内容面例外**是「合集/项目文件夹卡」的前盖 flap —— 只有 flap 一层，背板与封面卡仍是不透明面，且必须带 `@supports not (backdrop-filter)` 与 `prefers-reduced-transparency` 降级；登记见 [ADR-0012 后续修订（2026-11-07）](./docs/adr/0012-neutral-glass-visual-system.md)。
+_Avoid_: 在内容面/正文上叠玻璃（文件夹卡的 flap 是登记过的例外，别处一律不适用）；把玻璃当成"装饰性半透明"到处铺（`backdrop-filter` 会让元素成为 backdrop root，嵌套玻璃只会读成平灰）。
 易混：玻璃层 ≠ 半透明卡片——前者是控制层材质，后者是非法用法。
 
 **圆角阶梯（radius scale）**：
@@ -442,7 +443,28 @@ _Avoid_: 再造一张"暗色专用 Logo"——`logo-512-white.png` 是无 alpha 
 **动效档位（motion tier）**：
 动效预算的分级名字，现行是**档位 C**：三档时长 120 / 200 / 320ms + 单一缓动 + stagger 40ms，允许全站区块级滚动进场（位移 ≤12px）、视差 ≤10px、导航随滚动转玻璃；正文段落不进场，且强制尊重 `prefers-reduced-motion`。
 位置：`tokens.css` 动效层与 `frontend/app/utils/motion.ts`（同一份预算，两处必须同改）。
-_Avoid_: 用"档位 B"描述现状；在 `prefers-reduced-motion` 下仍保留进场。
+档位 C 在 **JS 侧另有第二套预算**：`utils/motion.ts` 的「弹簧预设」，目前只有三处消费者（标题大纲飞行器、目录树沟槽圆点、消息中心颈部），是登记过的例外；CSS 侧仍只用三档时长 + 单一缓动。登记见 [ADR-0012 后续修订（2026-11-07）](./docs/adr/0012-neutral-glass-visual-system.md)。
+_Avoid_: 用"档位 B"描述现状；在 `prefers-reduced-motion` 下仍保留进场（弹簧在该偏好下必须落位为静止，不是放慢）；在组件里内联弹簧数字。
+
+**合集/项目文件夹卡（folder card）**：
+读者侧合集列表与项目列表的卡片形态：一张文件夹（背板 + 前盖 flap）里插着**一张** 16:9 封面卡，hover / 键盘聚焦时卡片上抽、flap 前倾，点击直接进详情。里面的封面就是该合集/项目已有的单张 `cover`（空封面时后端已回退到首篇公开文章封面）。
+位置：两页共用的文件夹卡组件（新建），消费方 `frontend/app/pages/collections/index.vue` 与 `frontend/app/pages/projects/index.vue`；形态与交互口径见[阅读页 UI grill 记录](./docs/notes/2026-11-07-reading-ui-grill.md) §三 3.6。
+_Avoid_: 叫它"3D 卡片"（它是文件夹，不是可翻转卡片）；说"里面放三张封面"（只放一张，三张扇形方案已被否）；把「文件夹卡」与后台的树编辑器节点混为一谈。
+
+**沟槽圆点（gutter dot）**：
+阅读页左边缘抽屉目录里指示「当前文章」的圆点：横向位置随该行的层级落在**该层的发丝引导线上**（线从圆点中穿过），换文章时沿位移向量画弧滑过去；`hover` 不动它，`depth 0` 落在最外侧缩进起点。
+位置：`frontend/app/components/outline/OutlineTree.vue`（文档树本身），驱动见 `frontend/app/utils/motion.ts` 的弹簧预设。
+_Avoid_: 叫"指示器""小圆点"（压线是它的定义，不是装饰）；把它当成悬停反馈或滚动进度。
+
+**颈部（neck）**：
+消息中心 tab 条的一体化分段控制里，激活块与相邻块被拉开时生成的**凹曲连接面**（两端线性渐变分别取左右两块的填充色），让分段在分离的瞬间仍连着；两张相邻段之间的"空隙"由它填住。
+位置：`frontend/app/components/inbox/InboxSubNav.vue` + `frontend/app/utils/motion.ts`（弹簧预设）；`margin-left` 是该条唯一允许布局动画的地方。
+_Avoid_: 叫"连接线""描边"（它是面不是线）；用它指代两段之间的空隙本身。
+
+**弹簧预设（spring preset）**：
+`utils/motion.ts` 里集中定义的 stiffness / damping / mass 参数组，是弹簧动效的唯一来源；组件只能引用预设，不得内联数字。它与「动效档位」并列，是后者在 JS 侧的第二套预算，不是替代。
+位置：`frontend/app/utils/motion.ts` 的 `SPRING_*`；由两条设计测试锁定（reduce 下必须落位、组件不得出现裸 stiffness/damping）。
+_Avoid_: 在组件里写 `{ type: "spring", stiffness: 200 }`；把弹簧当成"档位 C 的替代"。
 
 > 说明：本节新增词条（中性石墨阶、功能蓝、液态玻璃层、圆角阶梯、品牌资产例外、动效档位）出自 [ADR-0012](./docs/adr/0012-neutral-glass-visual-system.md)。该 ADR 已**交付**（落地分票 #18–#25 已全部合入），上述词条描述的都是当前生效的实现口径；「语义色 token」词条中两端逐字节同源的约定已由 `scripts/check-token-parity.mjs` 保证，两份 `tokens.css` 现逐字节一致。
 > 「轮播封面 / 头像定形」两个词条源自封面与头像的上传前定形：封面口径见 [ADR-0015](./docs/adr/0015-banner-framing-as-parameters.md)（状态**已交付**，2026-11-03 正文整体重写）；词条只定义概念，取舍（为什么改成上传前定形、为什么不存参数、历史封面为什么不迁移）见该 ADR。旧的「取景 / 焦点 / 缩放」三条词条已随取景体系退场删除（2026-11-03，#205）；`crop` 契约字段、`banner.crop_invalid` 错误码与通用取景表在代码、契约与建表脚本中均不存在。

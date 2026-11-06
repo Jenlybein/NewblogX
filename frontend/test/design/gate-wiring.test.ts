@@ -59,22 +59,19 @@ describe("门禁接线：本地脚本与 CI 是同一口径", () => {
     expect(frontendGateTest).toContain('kind: "new-color-literal"');
   });
 
-  it("跨端装饰参数门禁同时出现在 check.sh 的 gates 段、verify-gates.sh 与 CI（#43）", () => {
-    const cli = "node scripts/check-deco-range-parity.mjs";
+  it("生成式装饰参数校验出现在 check.sh 的 gates 段、门禁自检与 CI（#286）", () => {
+    const cli = "node scripts/generate-deco-parameters.mjs --check";
 
-    // 本地：gates 段必须跑真命令（验收要求「只改一端 → check.sh gates 变红」）。
     const gatesStart = checkSh.indexOf('[ "$TARGET" = "gates" ]');
     expect(gatesStart).toBeGreaterThan(-1);
     const gatesSection = checkSh.slice(gatesStart);
     expect(gatesSection).toContain(cli);
     expect(gatesSection).toContain("bash scripts/verify-gates.sh");
 
-    // CI：与本地同一条命令，挂在仓库级判据所在的 job 里。
     expect(ciJobBlock("frontend-lint")).toContain(cli);
-
-    // 自检：verify-gates.sh 真的把这道门禁纳入，而不是只在 check.sh 挂个名字。
-    expect(verifyGates).toContain("check-deco-range-parity.mjs");
-    expect(verifyGates).toContain("14/14 跨端装饰参数一致性门禁");
+    expect(verifyGates).toContain(cli);
+    expect(verifyGates).toContain("14/14 生成式装饰参数校验");
+    expect(verifyGates).toContain("只改后台生成物一端会被判为重新生成后有差异");
   });
 
   it("两端同源副本门禁接进了 check.sh、verify-gates.sh 与 CI（票 200；票 225 扩到裁剪窗）", () => {

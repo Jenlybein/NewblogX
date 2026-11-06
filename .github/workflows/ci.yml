@@ -278,14 +278,12 @@ jobs:
         working-directory: .
         run: node scripts/check-image-shaping-parity.mjs
 
-      # deco.charm 的九个参数（布尔默认 + 八个数值）在后端 Go / 读者站 / 后台
-      # 三处逐项一致（#43）。同样是仓库级判据（同时读三端源文件），与矩阵里的
-      # app 无关，只跑一份；命令与本地 scripts/check.sh 的「跨端装饰参数一致」
-      # 完全同一条，不在这里另写一份规则。
-      - name: 跨端装饰参数一致性检查
+      # 一张参数表生成四端消费物并进入契约（开放接口契约）；#286 退掉范围门禁，
+      # 只留「重新生成后四端无差异 + 运行时取值正确」这一条校验。
+      - name: 生成式装饰参数校验
         if: matrix.app == 'frontend'
         working-directory: .
-        run: node scripts/check-deco-range-parity.mjs
+        run: node scripts/generate-deco-parameters.mjs --check
 
   # ── 前端类型检查 ──────────────────────────────────────────────────
   frontend-typecheck:

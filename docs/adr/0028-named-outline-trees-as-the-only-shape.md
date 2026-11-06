@@ -45,3 +45,7 @@
 - 契约与守卫：`backend/docs/swagger.json`、`scripts/contract-structures.json`、`scripts/check-contract-freshness.mjs`、`backend/internal/platform/http/router/{retired_flat_include_test.go,retired_shared_outline_test.go,admin_gate_scan_test.go,contract_routes_test.go}`
 - 前端：`frontend/app/services/outline.ts`、`frontend/app/utils/outlineContext.ts`、`frontend_admin/app/services/admin.ts`、两个 app 的 `app/types/openapi.d.ts`
 - 部署与发布：[发布说明](../notes/2026-11-05-outline-tree-contract-release-notes.md) · [README §11.3](../../README.md) · [README §11.4.4](../../README.md)
+
+## 后续修订（2026-11-06，#286 参数门禁生成式）
+
+本条只追加后续修订，0028 正文一字未改。#286 把 `deco.charm` 的 12 个数值参数收进 `config/deco-charm-parameters.json` 一张仓库级参数表；构建期生成后端、默认种子、读者站、后台与契约（开放接口契约）五处消费物。`conf.Charm` 的字段事实以 min/max/default 进入契约，三份产物同批重新生成；契约基线按实测仍为 **135/176/326**（本批只在既有 schema 上补字段事实，没有新增路径 / schema），`addedIn` 追加 `ticket: "286"` 并在 `comment` 保留 #277（124/164/292→119/159/288）与 #283（→135/176/326）的历史理由；判据四文件 `check-contract-freshness.mjs` / `test-contract-freshness.mjs` / `verify-gates.sh` / `tool-versions.env` 零改动，不复制工具版本字面量。ADR-0003 正文不动：契约仍以生成产物为单一来源，本批只是把参数事实并入同一条生成链。旧范围门禁、629 行门禁测试、锚点清单、夹具消费检查与 14/14 整节演练退场；其余 13 道 canary 保留。共享归一化夹具（122 条）与三套消费测试保留，挂件物理链条与指针端偏移行为不变。本批零 DDL。

@@ -30,7 +30,7 @@ type Banner struct {
 	//
 	// 存的是运营输入的原文（只收敛首尾空白），不做 HTML / Markdown 解析或渲染：
 	// 读者站按纯文本插值输出，不引入清洗面。
-	Title string
+	Title     string
 	CreatedAt time.Time
 	UpdatedAt time.Time
 }

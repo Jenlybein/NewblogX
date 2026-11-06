@@ -143,7 +143,7 @@ func (e *EffectiveConfig) OnlyAdminAuthorsFunc() func() bool {
 func (e *EffectiveConfig) Article() siteconf.Article {
 	if e == nil || e.store == nil {
 		return siteconf.Article{
-			SkipExamining:         false,
+			SkipExamining:        false,
 			AllowNonAdminPublish: true,
 			AllowNonAdminDraft:   true,
 			ShowNonAdminArticles: true,

@@ -57,14 +57,12 @@ describe("抽卡距离：基宽下上抽 30px，等比缩放", () => {
     expect(folderCardLiftPx(642)).toBe(60);
   });
 
-  it("未展开（无 hover / 无聚焦）时不位移", () => {
-    expect(folderCardLiftPx(321, { revealed: false })).toBe(0);
-    expect(folderCardLiftPx(642, { revealed: false })).toBe(0);
-  });
-
-  it("减少动态下无位移（归零，不是放慢）", () => {
-    expect(folderCardLiftPx(321, { reducedMotion: true })).toBe(0);
-    expect(folderCardLiftPx(642, { revealed: true, reducedMotion: true })).toBe(0);
+  it("宽度测不出来时归零（不产生 NaN 位移）", () => {
+    // 「未展开 / 减少动态时归零」不在这里：那是 CSS 的 :hover 与
+    // prefers-reduced-motion 兜底的事，算式只回答「展开时抽多远」。
+    expect(folderCardLiftPx(0)).toBe(0);
+    expect(folderCardLiftPx(-100)).toBe(0);
+    expect(folderCardLiftPx(Number.NaN)).toBe(0);
   });
 });
 

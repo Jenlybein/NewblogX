@@ -50,13 +50,6 @@ const BASE = {
   sheetTilt: 6,
 } as const;
 
-interface FolderCardLiftOptions {
-  /** 是否处于 hover / 键盘聚焦态；默认 true（问的是"展开时抽多远"）。 */
-  revealed?: boolean;
-  /** 系统「减少动态」：位移归零，不是放慢。 */
-  reducedMotion?: boolean;
-}
-
 /** 缩放系数 = 容器宽度 / 基宽；宽度不可用时按 0（调用方不得据此画几何）。 */
 export function folderCardScale(containerWidthPx: number): number {
   if (!Number.isFinite(containerWidthPx) || containerWidthPx <= 0) return 0;
@@ -69,13 +62,15 @@ export function folderCardSheetHeightPx(sheetWidthPx: number): number {
   return sheetWidthPx / SHEET_ASPECT;
 }
 
-/** 抽卡距离（px）：基宽 30px，等比缩放；未展开或减少动态时为 0。 */
-export function folderCardLiftPx(
-  containerWidthPx: number,
-  options: FolderCardLiftOptions = {},
-): number {
-  const { revealed = true, reducedMotion = false } = options;
-  if (reducedMotion || !revealed) return 0;
+/**
+ * 抽卡距离（px）：基宽下 30px，等比缩放。
+ *
+ * 只回答"展开时抽多远"这一个问题。**未展开**与**减少动态**的归零不在这里分叉：
+ * 前者由 CSS 的 `:hover` / `:focus-visible` 决定（不展开就不套那份位移），
+ * 后者由 `prefers-reduced-motion` 的兜底把位移归零。算式里带上这两个开关，
+ * 生产代码一次都不会传——那只是把 CSS 已经管好的事再抄一份到 JS 里。
+ */
+export function folderCardLiftPx(containerWidthPx: number): number {
   return BASE.lift * folderCardScale(containerWidthPx);
 }
 

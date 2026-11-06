@@ -264,6 +264,51 @@ func TestReconcileAllChatUnreadPaginatesAllSessions(t *testing.T) {
 	}
 }
 
+// TestReconcileAllChatUnreadCursorCoversBothSidesOfEachSession 游标按 session_id
+// 去重分页，批次边界不会漏掉同一条会话的另一方。
+//
+// #279 AC4 要求"排序 / 水位 / 分页不读 ID 大小"，所以全量并账的游标是 session_id
+// 而不是雪花主键。但 session_id 不是唯一键：一条会话在表里有两行（双方各一行）。
+// 如果分页按"行"推进（`session_id > after`），批量为 1 时批次边界正好落在同一
+// 会话的两行之间，另一方就永远不会被重算 —— 角标一直是脏值。
+// 这里用 batch=1 把边界钉死在每一条会话中间，要求所有用户都被覆盖到。
+func TestReconcileAllChatUnreadCursorCoversBothSidesOfEachSession(t *testing.T) {
+	t.Parallel()
+
+	repo, db := setup(t)
+	ctx := context.Background()
+	base := time.Date(2026, 1, 1, 10, 0, 0, 0, time.UTC)
+
+	// 三条会话、每对用户各两行：100-200、100-300、200-300。
+	sendText(t, repo, 100, 200, "ab-1", base)
+	sendText(t, repo, 100, 200, "ab-2", base.Add(time.Minute))
+	sendText(t, repo, 100, 300, "ac-1", base.Add(2*time.Minute))
+	sendText(t, repo, 300, 200, "cb-1", base.Add(3*time.Minute))
+
+	if err := db.Exec("UPDATE chat_session_models SET unread_count = 99").Error; err != nil {
+		t.Fatalf("写脏派生列失败: %v", err)
+	}
+	total, err := mysql.ReconcileAllChatUnread(ctx, db, 1)
+	if err != nil {
+		t.Fatalf("全量并账失败: %v", err)
+	}
+	// 6 行会话都要被写回；漏掉任何一行，那个用户的角标就会留在 99。
+	if total != 6 {
+		t.Fatalf("batch=1 的全量并账应覆盖 6 行会话（3 条会话 × 双方），实际 %d", total)
+	}
+	for _, userID := range []uint64{100, 200, 300} {
+		var truth int64
+		if err := db.Table("chat_msg_models").
+			Where("receiver_id = ? AND msg_status < ? AND deleted_at IS NULL", userID, int8(domain.StatusRead)).
+			Count(&truth).Error; err != nil {
+			t.Fatalf("数用户 %d 的真值失败: %v", userID, err)
+		}
+		if badge := privateBadge(t, db, userID); badge != truth {
+			t.Fatalf("用户 %d 的角标没被并账覆盖: badge=%d truth=%d", userID, badge, truth)
+		}
+	}
+}
+
 // TestVisibilitySetIncludesOwnMessagesButUnreadOnlyCountsIncoming 两类集合边界。
 //
 // 可见集含自己发的消息（不看 sender_id / receiver_id）；未读数只数

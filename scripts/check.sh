@@ -358,12 +358,10 @@ if [ "$TARGET" = "all" ] || [ "$TARGET" = "frontend" ]; then
 fi
 
 if [ "$TARGET" = "all" ] || [ "$TARGET" = "gates" ]; then
-  # deco.charm 的每个数值参数（min/max/default）与布尔默认值在后端 Go / 读者站 /
-  # 后台 / 默认种子四处逐项一致，且四源键集合相等、锚点参数在场（#43；#72 起不再
-  # 依赖"参数总数"，新增参数不需要改门禁）。这是仓库级判据（同时读四端源文件），
-  # 与 app 无关；放在 gates 段是因为验收要求「只改任一端 → check.sh gates 变红」。
-  # CI 的 frontend-lint job 跑同一条命令，避免"本地一份、CI 一份"的口径漂移。
-  run "跨端装饰参数一致" node scripts/check-deco-range-parity.mjs
+  # deco.charm 的 12 个数值参数只由 config/deco-charm-parameters.json 生成四端
+  # 消费物并进入契约（开放接口契约）。一条校验同时验重新生成后四端无差异、
+  # 契约中的 min/max/default 与 GET/PUT /site/deco 的运行时取值。
+  run "生成式装饰参数校验" node scripts/generate-deco-parameters.mjs --check
   run "门禁自检（证明门禁会红）" bash scripts/verify-gates.sh
 fi
 

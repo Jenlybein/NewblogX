@@ -24,6 +24,9 @@ export default defineConfig({
     globals: false,
     setupFiles: ["./test/setup.ts"],
     include: ["test/**/*.{test,spec}.ts"],
+    // 测试文件被误删时必须判红，而不是"零用例 = 全部通过"。
+    // 两端口径一致（frontend_admin 也已显式写 false），与 governance §3.5 同步。
+    passWithNoTests: false,
     restoreMocks: true,
     clearMocks: true,
     coverage: {

@@ -28,8 +28,22 @@
 #   原因：工作区经常有未提交改动，git checkout 会把人的活一起冲掉。
 #   每节用完立即恢复；trap 只做兜底。
 #
-# 用法：./scripts/verify-gates.sh
-# 退出码 0 表示"所有门禁都能正确报错"，非 0 表示某道门禁是假的。
+# 与门禁清单（#287）的关系：
+#   门禁清单只有一个来源 —— scripts/gates/gates.json，经 scripts/gates/run.mjs 读。
+#   本地门禁（scripts/check.sh）、持续集成（.github/workflows/ci.yml）、门禁自检
+#   三处跨同一个入口；第 5 节的真门禁与四种注入、第 12/13 节的同源门禁都经
+#   runner 调用，不再在自检里另拼命令。
+#   开跑前先核对「清单里的每道门禁都登记了演练」：新门禁没演练就拒绝开跑，
+#   避免自检"看起来覆盖了"而新门禁从未被验证。
+#
+# 用法：
+#   ./scripts/verify-gates.sh                 # 全跑（默认，也是 CI 的口径）
+#   ./scripts/verify-gates.sh --only 5,12     # 只跑受影响演练（改动范围可先用
+#                                             #   node scripts/gates/run.mjs --affected <路径> 算）
+# 退出码 0 表示"所有（或选中的）门禁都能正确报错"，非 0 表示某道门禁是假的。
+#
+# 「整体跳过」没有入口：--skip / --skip-all / BLOGX_SKIP_GATES 一律拒绝；
+# --only 只接受清单里存在的演练节号，且必须至少选中一项（零项 = 失败）。
 set -uo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -659,9 +673,16 @@ fi
 echo ""
 echo "─────────────────────────────"
 echo "通过：$PASS  失败：$FAIL"
+if [ -n "$ONLY_IDS" ]; then
+  echo "  范围：--only $ONLY_IDS（只验证了受影响的演练；其余节要靠全量运行覆盖，不存在整体跳过路径）"
+fi
 if [ "$FAIL" -ne 0 ]; then
   echo "✗ 存在失效门禁，M1 不能验收"
   echo "  如果怀疑有文件没恢复干净，用 git status 复查（本脚本不会动已提交内容）"
   exit 1
 fi
-echo "✓ 全部门禁均能在违规时报错"
+if [ -n "$ONLY_IDS" ]; then
+  echo "✓ 选中的演练均能在违规时报错（--only $ONLY_IDS）"
+else
+  echo "✓ 全部门禁均能在违规时报错"
+fi

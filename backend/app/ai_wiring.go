@@ -53,7 +53,7 @@ func WireAI(infra *Infra) {
 			esClient: infra.ESClient,
 			index:    infra.Config.ES.Index,
 			// AI 搜索复用 type 1，因此同样受「显示非管理员发布文章」开关约束。
-			onlyAdminAuthors: onlyAdminAuthors(infra.RuntimeSite),
+			onlyAdminAuthors: onlyAdminAuthors(infra.Effective),
 		},
 		func() conf.AI {
 			if infra.RuntimeSite == nil {

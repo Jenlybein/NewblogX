@@ -31,6 +31,9 @@ type Infra struct {
 	ESClient    *elasticsearch.Client
 	ClickHouse  *sql.DB
 	RuntimeSite *sitecfg.RuntimeConfigService
+	// Effective 是「此刻生效值」模块入口：展示开关与私信限流等消费点只持它
+	// 给出的现读取值闭包，不各自捕获 RuntimeConfigService（#284）。
+	Effective *sitecfg.EffectiveConfig
 
 	// Health 汇总后台组件状态，供 /health/ready 读取。
 	// 见 internal/platform/health 的包注释：它存在的理由是一次"组件死了但探针全绿"的线上事故。
@@ -133,6 +136,7 @@ func InitRuntimeServices(infra *Infra) error {
 		return fmt.Errorf("运行时站点配置初始化失败: %w", err)
 	}
 	infra.RuntimeSite = runtimeSite
+	infra.Effective = sitecfg.NewEffectiveConfig(runtimeSite)
 	return nil
 }
 

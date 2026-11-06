@@ -128,23 +128,7 @@ func (r Reconcile) Interval() time.Duration {
 	return time.Duration(minutes) * time.Minute
 }
 
-// NormalizeChatRate 把非法 / 越界的限流参数收敛到合法区间。
-//
-// 后台填 0、负数或超大值时不能让限流静默失效：0 秒窗口等于不限流，
-// 0 条日额度等于把所有私信都掐死。这里统一钳到 [1, 86400] 秒与 [1, 9999] 条，
-// 缺省（0）回落到 ADR-0026 的默认 10 秒 / 99 条。
-func NormalizeChatRate(windowSec, dailyMax int) (int, int) {
-	const (
-		defaultWindowSec = 10
-		defaultDailyMax  = 99
-		maxWindowSec     = 86400
-		maxDailyMax      = 9999
-	)
-	if windowSec <= 0 || windowSec > maxWindowSec {
-		windowSec = defaultWindowSec
-	}
-	if dailyMax <= 0 || dailyMax > maxDailyMax {
-		dailyMax = defaultDailyMax
-	}
-	return windowSec, dailyMax
-}
+// Chat 的默认值与合法区间不在这里声明（#284）：本包只声明配置形状，
+// 归一化与默认 10 秒 / 99 条在 internal/platform/config 的生效值模块里，
+// 避免同一个数字被复制成多份。数据库补种用的字面量仍由
+// site_default_settings.yaml 显式给出（它是"库里没有这段时"的唯一来源）。

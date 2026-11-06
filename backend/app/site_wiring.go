@@ -40,8 +40,8 @@ func WireSite(infra *Infra) {
 	sidebar := siteapp.NewSidebar(
 		sitemysql.NewSidebar(infra.DB),
 		sitemysql.NewSidebarData(infra.DB, &sidebarCollectionReader{
-			svc:  newArticleService(infra),
-			site: infra.RuntimeSite,
+			svc:       newArticleService(infra),
+			effective: infra.Effective,
 		}),
 		infra.Logger,
 	)
@@ -236,18 +236,15 @@ func errSiteRuntimeMissing() error { return apperr.New(apperr.CodeSiteConfigMiss
 // 右栏是读者端公开读面，所以「显示非管理员发布文章」开关与合集列表卡片同源：
 // 每请求从站点运行时配置现读（ADR-0017 决策 4 的 Provider 闭包口径）。
 type sidebarCollectionReader struct {
-	svc  *articleapp.Service
-	site *sitecfg.RuntimeConfigService
+	svc       *articleapp.Service
+	effective *sitecfg.EffectiveConfig
 }
 
 // RecommendedCollections 取展示中的合集卡片（篇数与封面回退由 article 读模型算好）。
 func (r *sidebarCollectionReader) RecommendedCollections(
 	ctx context.Context, limit int,
 ) ([]sitedomain.SidebarCollection, error) {
-	onlyAdminAuthors := false
-	if r.site != nil {
-		onlyAdminAuthors = !r.site.GetRuntimeArticle().ShowNonAdminArticles
-	}
+	onlyAdminAuthors := r.effective.OnlyAdminAuthors()
 	cards, _, err := r.svc.ListCollectionCards(ctx, onlyAdminAuthors, articledomain.Page{Limit: limit})
 	if err != nil {
 		return nil, err

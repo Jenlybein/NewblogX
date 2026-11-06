@@ -7,6 +7,7 @@ import (
 	"myblogx/conf"
 	"myblogx/internal/apperr"
 	"myblogx/internal/kernel/ctype"
+	"myblogx/internal/platform/config"
 	"myblogx/internal/site/domain"
 )
 
@@ -137,15 +138,13 @@ func (s *Service) AdminMail() conf.Mail {
 
 // UpdateMail 覆盖邮件配置。
 //
-// 密钥回传占位符表示"没改"，此时沿用当前值 —— 否则前端每次保存都会把
-// 刚填好的密钥写成 ******，下一次发信就失败。
+// 密钥的三种语义（占位符 = 没改 / 空串 = 真清除 / 其它 = 覆盖）由生效值模块的
+// ResolveSensitive 统一判定，不在这里再写一份分支。
 func (s *Service) UpdateMail(mail conf.Mail) error {
 	if s.runtime == nil {
 		return apperr.New(apperr.CodeSiteConfigMissing)
 	}
-	if mail.SecretKey == domain.SensitivePlaceholder {
-		mail.SecretKey = s.runtime.Mail().SecretKey
-	}
+	mail.SecretKey = config.ResolveSensitive(mail.SecretKey, s.runtime.Mail().SecretKey)
 	return s.runtime.UpdateMail(mail)
 }
 
@@ -161,9 +160,7 @@ func (s *Service) UpdateStorage(storage conf.QiNiu) error {
 	if s.runtime == nil {
 		return apperr.New(apperr.CodeSiteConfigMissing)
 	}
-	if storage.SecretKey == domain.SensitivePlaceholder {
-		storage.SecretKey = s.runtime.Storage().SecretKey
-	}
+	storage.SecretKey = config.ResolveSensitive(storage.SecretKey, s.runtime.Storage().SecretKey)
 	return s.runtime.UpdateStorage(storage)
 }
 
@@ -179,9 +176,7 @@ func (s *Service) UpdateOAuth(oauth conf.QQ) error {
 	if s.runtime == nil {
 		return apperr.New(apperr.CodeSiteConfigMissing)
 	}
-	if oauth.AppKey == domain.SensitivePlaceholder {
-		oauth.AppKey = s.runtime.OAuth().AppKey
-	}
+	oauth.AppKey = config.ResolveSensitive(oauth.AppKey, s.runtime.OAuth().AppKey)
 	return s.runtime.UpdateOAuth(oauth)
 }
 

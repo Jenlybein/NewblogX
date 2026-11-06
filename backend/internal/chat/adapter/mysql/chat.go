@@ -124,6 +124,39 @@ func (r *Repo) Send(ctx context.Context, cmd domain.SendCommand, senderDisplay, 
 	}
 
 	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		// 加锁顺序铁律：**先消息行，后会话行**。
+		//
+		// 两条路径都动 chat_msg_models 与 chat_session_models：
+		//   - 本函数（发送）：插一条消息 → 更新两条会话行；
+		//   - markReadWhere（按 ID 已读 / 整会话已读）：更新消息行 → 递减会话行。
+		// 两者的加锁顺序必须一致，否则并发"发送 + 已读"时 InnoDB 形成环：
+		// 发送持会话行等消息行、已读持消息行等会话行，必然可能报 1213。
+		//
+		// 这里原来先写会话行（清未读 / upsert）、再插消息、最后又更新会话行，
+		// 顺序是 会话→消息→会话，与已读路径正好相反。修法是把消息插入提到
+		// 任何会话写入之前，**不是**捕获 1213 重试：重试只是把死锁概率摊薄，
+		// 加锁顺序仍然是错的（治理 D10 明令禁止用重试掩盖）。
+		// 动这里之前先读 markReadWhere 顶部的同一段说明。
+		row := msgRow{
+			ID:         msg.ID,
+			SenderID:   msg.SenderID,
+			ReceiverID: msg.ReceiverID,
+			SessionID:  msg.SessionID,
+			Content:    msg.Content,
+			SendTime:   msg.SendTime,
+			MsgStatus:  int8(msg.MsgStatus),
+			MsgType:    int8(msg.MsgType),
+		}
+		if err := tx.Create(&row).Error; err != nil {
+			// 幂等键命中：主键已存在。把整个事务回滚，交给调用方读回既有消息。
+			if cmd.ClientMsgID != "" && isDuplicateKey(err) {
+				return errDuplicateClientMsg
+			}
+			return err
+		}
+		msg.ID = ctype.NewID(row.ID.Uint64())
+
+		// 以下才是会话行：同一个事务里第二次、也是最后一次换表。
 		sessions := []sessionRow{{
 			SessionID:        msg.SessionID,
 			UserID:           msg.SenderID,
@@ -178,25 +211,6 @@ func (r *Repo) Send(ctx context.Context, cmd domain.SendCommand, senderDisplay, 
 		}).Create(&sessions).Error; err != nil {
 			return err
 		}
-
-		row := msgRow{
-			ID:         msg.ID,
-			SenderID:   msg.SenderID,
-			ReceiverID: msg.ReceiverID,
-			SessionID:  msg.SessionID,
-			Content:    msg.Content,
-			SendTime:   msg.SendTime,
-			MsgStatus:  int8(msg.MsgStatus),
-			MsgType:    int8(msg.MsgType),
-		}
-		if err := tx.Create(&row).Error; err != nil {
-			// 幂等键命中：主键已存在。把整个事务回滚，交给调用方读回既有消息。
-			if cmd.ClientMsgID != "" && isDuplicateKey(err) {
-				return errDuplicateClientMsg
-			}
-			return err
-		}
-		msg.ID = ctype.NewID(row.ID.Uint64())
 
 		updates := map[string]any{
 			"last_msg_id":      msg.ID,
@@ -474,6 +488,11 @@ func (r *Repo) MarkReadSession(ctx context.Context, userID ctype.ID, sessionID s
 // scope 只负责追加筛选条件；主体统一做：选未读 → 更新状态与 read_at →
 // 按会话递减未读 → 按（发送人, 会话）聚合成 chat.message.read 发件箱事件。
 // 没有命中行时直接返回空结果，不是错误（第二次调用必须幂等）。
+//
+// 加锁顺序铁律：**先消息行，后会话行**，与 Send 一致。
+// 这里先 UPDATE chat_msg_models（状态与 read_at），再 decreaseUnread 更新
+// chat_session_models；两处顺序不能对调，否则并发"发送 + 已读"会 1213。
+// 详见 Send 事务体开头的同一段说明。
 func (r *Repo) markReadWhere(ctx context.Context, userID ctype.ID, scope func(*gorm.DB) *gorm.DB) ([]domain.Message, error) {
 	var affected []domain.Message
 	now := time.Now()
@@ -637,17 +656,38 @@ func decreaseUnread(tx *gorm.DB, userID ctype.ID, delta map[string]int) error {
 	if len(delta) == 0 {
 		return nil
 	}
+	// 先取会话行主键，再**按主键**更新未读。
+	//
+	// 不能直接 `WHERE user_id = ? AND session_id IN (...)`：这句会走
+	// uk_chat_session_user_receiver（user_id 打头）——先锁二级索引记录、再锁主键行。
+	// 而 Send 的 ON DUPLICATE KEY UPDATE 恰好相反（先插主键行、再查/锁唯一索引）。
+	// 两条路径的表级顺序（消息→会话）修好之后，索引级仍然是反的，实测在
+	// "发送 + 整会话已读"并发下依然报 1213（死锁图：一方持 uk 等 PRIMARY，
+	// 另一方持 PRIMARY 等 uk）。按主键升序更新只碰聚簇索引，于是两条路径
+	// 锁会话行的顺序一致。详见 Send 事务体开头的加锁顺序说明。
+	sessionIDs := make([]string, 0, len(delta))
+	for sessionID := range delta {
+		sessionIDs = append(sessionIDs, sessionID)
+	}
+	var ids []uint64
+	if err := tx.Unscoped().Model(&sessionRow{}).
+		Where("user_id = ? AND session_id IN ?", userID.Uint64(), sessionIDs).
+		Order("id ASC").
+		Pluck("id", &ids).Error; err != nil {
+		return err
+	}
+	if len(ids) == 0 {
+		return nil
+	}
 	caseSQL := "CASE session_id"
 	args := make([]any, 0, len(delta)*3)
-	sessionIDs := make([]string, 0, len(delta))
 	for sessionID, n := range delta {
 		caseSQL += " WHEN ? THEN CASE WHEN unread_count >= ? THEN unread_count - ? ELSE 0 END"
 		args = append(args, sessionID, n, n)
-		sessionIDs = append(sessionIDs, sessionID)
 	}
 	caseSQL += " ELSE unread_count END"
 	return tx.Unscoped().Model(&sessionRow{}).
-		Where("user_id = ? AND session_id IN ?", userID.Uint64(), sessionIDs).
+		Where("id IN ?", ids).
 		Update("unread_count", gorm.Expr(caseSQL, args...)).Error
 }
 

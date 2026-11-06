@@ -13,41 +13,41 @@ import (
 
 // 参数表生成的钳位边界与缺省回落值；注释只写语义，不改数值。
 const (
-	CharmLogoSizeMin = 15.0
-	CharmLogoSizeMax = 70.0
-	CharmLogoSizeDefault = 48.0
-	CharmRopeLengthMin = 40.0
-	CharmRopeLengthMax = 240.0
-	CharmRopeLengthDefault = 120.0
-	CharmSegmentsMin = 4.0
-	CharmSegmentsMax = 30.0
-	CharmSegmentsDefault = 10.0
-	CharmLineWidthMin = 1.0
-	CharmLineWidthMax = 6.0
-	CharmLineWidthDefault = 2.5
-	CharmGravityMin = 400.0
-	CharmGravityMax = 4000.0
-	CharmGravityDefault = 1600.0
-	CharmDampingMin = 0.9
-	CharmDampingMax = 1.0
-	CharmDampingDefault = 0.99
-	CharmStiffnessMin = 0.2
-	CharmStiffnessMax = 1.0
-	CharmStiffnessDefault = 0.5
-	CharmIdleSwayHzMin = 0.0
-	CharmIdleSwayHzMax = 1.5
-	CharmIdleSwayHzDefault = 0.8
-	CharmIdleSwayAmpMin = 0.0
-	CharmIdleSwayAmpMax = 40.0
-	CharmIdleSwayAmpDefault = 20.0
-	CharmFpsCapMin = 30.0
-	CharmFpsCapMax = 160.0
-	CharmFpsCapDefault = 60.0
-	CharmPointerOffsetXMin = -24.0
-	CharmPointerOffsetXMax = 24.0
+	CharmLogoSizeMin           = 15.0
+	CharmLogoSizeMax           = 70.0
+	CharmLogoSizeDefault       = 48.0
+	CharmRopeLengthMin         = 40.0
+	CharmRopeLengthMax         = 240.0
+	CharmRopeLengthDefault     = 120.0
+	CharmSegmentsMin           = 4.0
+	CharmSegmentsMax           = 30.0
+	CharmSegmentsDefault       = 10.0
+	CharmLineWidthMin          = 1.0
+	CharmLineWidthMax          = 6.0
+	CharmLineWidthDefault      = 2.5
+	CharmGravityMin            = 400.0
+	CharmGravityMax            = 4000.0
+	CharmGravityDefault        = 1600.0
+	CharmDampingMin            = 0.9
+	CharmDampingMax            = 1.0
+	CharmDampingDefault        = 0.99
+	CharmStiffnessMin          = 0.2
+	CharmStiffnessMax          = 1.0
+	CharmStiffnessDefault      = 0.5
+	CharmIdleSwayHzMin         = 0.0
+	CharmIdleSwayHzMax         = 1.5
+	CharmIdleSwayHzDefault     = 0.8
+	CharmIdleSwayAmpMin        = 0.0
+	CharmIdleSwayAmpMax        = 40.0
+	CharmIdleSwayAmpDefault    = 20.0
+	CharmFpsCapMin             = 30.0
+	CharmFpsCapMax             = 160.0
+	CharmFpsCapDefault         = 60.0
+	CharmPointerOffsetXMin     = -24.0
+	CharmPointerOffsetXMax     = 24.0
 	CharmPointerOffsetXDefault = 3.0
-	CharmPointerOffsetYMin = -24.0
-	CharmPointerOffsetYMax = 24.0
+	CharmPointerOffsetYMin     = -24.0
+	CharmPointerOffsetYMax     = 24.0
 	CharmPointerOffsetYDefault = 3.0
 )
 
@@ -87,17 +87,17 @@ type Charm struct {
 // charmDecode 是 Charm 的 JSON 解码中间层：数值字段用 *float64、开关用 *bool，
 // 才能把"JSON 里没给这个键（或给了 null）"与"给了 0 / false"分开。
 type charmDecode struct {
-	Enable *bool `json:"enable"`
-	LogoSize *float64 `json:"logo_size"`
-	RopeLength *float64 `json:"rope_length"`
-	Segments *float64 `json:"segments"`
-	LineWidth *float64 `json:"line_width"`
-	Gravity *float64 `json:"gravity"`
-	Damping *float64 `json:"damping"`
-	Stiffness *float64 `json:"stiffness"`
-	IdleSwayHz *float64 `json:"idle_sway_hz"`
-	IdleSwayAmp *float64 `json:"idle_sway_amp"`
-	FpsCap *float64 `json:"fps_cap"`
+	Enable         *bool    `json:"enable"`
+	LogoSize       *float64 `json:"logo_size"`
+	RopeLength     *float64 `json:"rope_length"`
+	Segments       *float64 `json:"segments"`
+	LineWidth      *float64 `json:"line_width"`
+	Gravity        *float64 `json:"gravity"`
+	Damping        *float64 `json:"damping"`
+	Stiffness      *float64 `json:"stiffness"`
+	IdleSwayHz     *float64 `json:"idle_sway_hz"`
+	IdleSwayAmp    *float64 `json:"idle_sway_amp"`
+	FpsCap         *float64 `json:"fps_cap"`
 	PointerOffsetX *float64 `json:"pointer_offset_x"`
 	PointerOffsetY *float64 `json:"pointer_offset_y"`
 }
@@ -109,17 +109,17 @@ func (c *Charm) UnmarshalJSON(data []byte) error {
 		return err
 	}
 	*c = Charm{
-		Enable: charmBoolOrDefault(decoded.Enable, true),
-		LogoSize: charmFloatOrDefault(decoded.LogoSize, CharmLogoSizeDefault),
-		RopeLength: charmFloatOrDefault(decoded.RopeLength, CharmRopeLengthDefault),
-		Segments: charmFloatOrDefault(decoded.Segments, CharmSegmentsDefault),
-		LineWidth: charmFloatOrDefault(decoded.LineWidth, CharmLineWidthDefault),
-		Gravity: charmFloatOrDefault(decoded.Gravity, CharmGravityDefault),
-		Damping: charmFloatOrDefault(decoded.Damping, CharmDampingDefault),
-		Stiffness: charmFloatOrDefault(decoded.Stiffness, CharmStiffnessDefault),
-		IdleSwayHz: charmFloatOrDefault(decoded.IdleSwayHz, CharmIdleSwayHzDefault),
-		IdleSwayAmp: charmFloatOrDefault(decoded.IdleSwayAmp, CharmIdleSwayAmpDefault),
-		FpsCap: charmFloatOrDefault(decoded.FpsCap, CharmFpsCapDefault),
+		Enable:         charmBoolOrDefault(decoded.Enable, true),
+		LogoSize:       charmFloatOrDefault(decoded.LogoSize, CharmLogoSizeDefault),
+		RopeLength:     charmFloatOrDefault(decoded.RopeLength, CharmRopeLengthDefault),
+		Segments:       charmFloatOrDefault(decoded.Segments, CharmSegmentsDefault),
+		LineWidth:      charmFloatOrDefault(decoded.LineWidth, CharmLineWidthDefault),
+		Gravity:        charmFloatOrDefault(decoded.Gravity, CharmGravityDefault),
+		Damping:        charmFloatOrDefault(decoded.Damping, CharmDampingDefault),
+		Stiffness:      charmFloatOrDefault(decoded.Stiffness, CharmStiffnessDefault),
+		IdleSwayHz:     charmFloatOrDefault(decoded.IdleSwayHz, CharmIdleSwayHzDefault),
+		IdleSwayAmp:    charmFloatOrDefault(decoded.IdleSwayAmp, CharmIdleSwayAmpDefault),
+		FpsCap:         charmFloatOrDefault(decoded.FpsCap, CharmFpsCapDefault),
 		PointerOffsetX: charmFloatOrDefault(decoded.PointerOffsetX, CharmPointerOffsetXDefault),
 		PointerOffsetY: charmFloatOrDefault(decoded.PointerOffsetY, CharmPointerOffsetYDefault),
 	}

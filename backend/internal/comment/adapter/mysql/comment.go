@@ -19,15 +19,15 @@ import (
 
 // commentRow 对应 comment_models 表。
 type commentRow struct {
-	ID                ctype.ID `gorm:"primaryKey;autoIncrement:false"`
-	CreatedAt         time.Time
-	UpdatedAt         time.Time
-	DeletedAt         gorm.DeletedAt
-	Content           string
-	UserID            ctype.ID
-	UserNickname      string
-	UserAvatar        string
-	ArticleID         ctype.ID
+	ID           ctype.ID `gorm:"primaryKey;autoIncrement:false"`
+	CreatedAt    time.Time
+	UpdatedAt    time.Time
+	DeletedAt    gorm.DeletedAt
+	Content      string
+	UserID       ctype.ID
+	UserNickname string
+	UserAvatar   string
+	ArticleID    ctype.ID
 	// ReplyID 用指针：根评论没有父评论可指向，必须落 NULL 而不是 0。
 	//
 	// 表里 fk_comment_models_parent_model 要求 reply_id 指向一条真实评论，

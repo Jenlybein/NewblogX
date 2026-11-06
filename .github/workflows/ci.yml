@@ -182,10 +182,12 @@ jobs:
         run: node scripts/gates/install.mjs go-mod --dir backend
 
       # 判定实现仍是 scripts/check-contract-freshness.mjs（#273）：这里只按清单
-      # 里的门禁 id 调它，与本地门禁、门禁自检第 5 节跨同一个实现。
+      # 里的分组调它，与本地门禁、门禁自检第 5 节跨同一个实现。
+      # 用分组而不是写死 gate id：清单里 contract 组的门禁增删（例如判定行为用例）
+      # 不用回来改这个 job。
       - name: 契约未过期判定（生成到临时文件逐字比对）
         working-directory: .
-        run: node scripts/gates/run.mjs contract-freshness
+        run: node scripts/gates/run.mjs --group contract
 
   # ── 前端 lint（两端解耦，矩阵并行）────────────────────────────────
   frontend-lint:
@@ -255,8 +257,9 @@ jobs:
 
       # 一张参数表生成四端消费物并进入契约（开放接口契约）；#286 退掉范围门禁，
       # 只留「重新生成后四端无差异 + 运行时取值正确」这一条校验。
-      # 它是参数生成脚本，不属于「清单 / 版本 / 判定 / 重复安装」四件事，
-      # 因此仍在门禁清单之外，由这里与 verify-gates.sh 第 14 节直接调用。
+      # 它是参数生成脚本，按 #287 AC4 不属于「清单 / 版本 / 判定 / 重复安装」
+      # 四件事，因此仍在门禁清单之外（gates.json 的 notGates 登记第 14 节），
+      # 由这里与 check.sh 的 gates 段、verify-gates.sh 第 14 节直接调用。
       - name: 生成式装饰参数校验
         if: matrix.app == 'frontend'
         working-directory: .

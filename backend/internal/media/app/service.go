@@ -165,9 +165,9 @@ func (s *Service) CreateTask(ctx context.Context, userID uint64, fileName string
 		DeclaredMime: mimeType,
 		DeclaredSize: size,
 		Hash:         hash,
-		Purpose:     declaredPurpose,
-		TargetRatio: targetRatio,
-		ExpiresAt:   now.Add(time.Duration(q.ExpirySeconds) * time.Second),
+		Purpose:      declaredPurpose,
+		TargetRatio:  targetRatio,
+		ExpiresAt:    now.Add(time.Duration(q.ExpirySeconds) * time.Second),
 	}
 
 	token, err := s.storage.Token(domain.Policy{

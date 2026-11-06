@@ -12,7 +12,7 @@ import (
 // （defaultMaxRetries），逐次上报会把后台的"调用次数"放大成 3 倍，
 // 与用户感知的"我用了几次 AI"对不上。真实的请求次数记在 Attempts 里。
 type CallUsage struct {
-	Model string
+	Model  string
 	Vendor string
 
 	PromptTokens     int

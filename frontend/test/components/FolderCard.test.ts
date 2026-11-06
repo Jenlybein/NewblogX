@@ -7,14 +7,16 @@ import { describe, expect, it } from "vitest";
 
 import FolderCard from "~/components/common/FolderCard.vue";
 import FolderCardList from "~/components/common/FolderCardList.vue";
+import { FOLDER_FLAP_PATH } from "~/utils/folderCardGeometry";
 
 import { findColorLiterals } from "../../../scripts/check-design-tokens.mjs";
 
 /**
- * 合集/项目文件夹卡的行为（grill 记录 §三 3.6、票 293）。
+ * 合集/项目文件夹卡的行为与外形（grill 记录 §三 3.6、票 293）。
  *
- * 断的都是**外部可观察**的东西：点击去哪、空封面长什么样、能不能聚焦、
- * 组件里有没有裸色值；像素级视觉不在这里（仓库不做截图回归，见 ADR-0012）。
+ * 断的是**外部可观察**的东西：点击去哪、空封面长什么样、能不能聚焦、组件里有没有
+ * 裸色值，以及"前盖是不是那条带凸舌的轮廓"——后者是本票的核心：外形来自路径，
+ * 不来自圆角。像素级视觉不在这里（仓库不做截图回归，见 ADR-0012）。
  */
 const projectDir = process.cwd();
 
@@ -58,6 +60,11 @@ function mountList(cards: unknown[] = [collectionCard, projectCard]) {
     global: { stubs: { NuxtLink: NuxtLinkStub } },
   });
 }
+
+const componentSource = readFileSync(
+  join(projectDir, "app/components/common/FolderCard.vue"),
+  "utf8",
+);
 
 describe("文件夹卡：点击就是导航（一次点击进详情，不做「先炸开后进详情」）", () => {
   it("卡片的可点区域就是指向详情页的链接", () => {
@@ -108,6 +115,93 @@ describe("文件夹卡：封面", () => {
 
     expect(wrapper.find(".folder-card__sheet img").exists()).toBe(false);
   });
+
+  it("只有一张封面：三张扇形方案已被否", () => {
+    expect(mountCard().findAll(".folder-card__sheet")).toHaveLength(1);
+  });
+});
+
+/**
+ * 外形（本票的核心）：前盖不是"一块圆角玻璃"，是参考组件那条**带凸舌的路径**。
+ * 玻璃用同一条路径当遮罩裁形（任意列宽都铺满元素），墨线层再用它描边 + 画内阴影。
+ */
+describe("文件夹卡：前盖是带凸舌的轮廓（文件夹外形来自路径，不来自圆角）", () => {
+  it("墨线层用参考路径逐字描边", () => {
+    const edge = mountCard().get(".folder-card__flap-edge");
+
+    expect(edge.attributes("d")).toBe(FOLDER_FLAP_PATH);
+    expect(edge.attributes("d")).toContain("L178.08 33.5343");
+    expect(edge.attributes("d")).toContain("196.416 41.5404H296");
+  });
+
+  it("前盖的 SVG 用 321×241 画布、按元素盒子拉伸（列宽变了形状不变）", () => {
+    const svg = mountCard().get(".folder-card__flap-ink");
+
+    expect(svg.attributes("viewBox")).toBe("0 0 321 241");
+    expect(svg.attributes("preserveAspectRatio")).toBe("none");
+  });
+
+  it("玻璃层用同一条轮廓当遮罩（mask 以自定义属性下发）", () => {
+    const stage = mountCard().get(".folder-card__stage").element as HTMLElement;
+    const mask = stage.style.getPropertyValue("--folder-flap-mask");
+
+    expect(mask.startsWith("url('data:image/svg+xml,")).toBe(true);
+    expect(decodeURIComponent(mask)).toContain(FOLDER_FLAP_PATH);
+    expect(componentSource).toContain("mask-image: var(--folder-flap-mask)");
+    expect(componentSource).toContain("-webkit-mask-image: var(--folder-flap-mask)");
+  });
+
+  it("内阴影走 SVG filter（feOffset + feComposite + feColorMatrix）", () => {
+    const wrapper = mountCard();
+    const shade = wrapper.get(".folder-card__flap-shade");
+
+    expect(shade.attributes("filter")).toMatch(/^url\(#folder-flap-shade-.+\)$/u);
+    expect(componentSource).toContain("feOffset");
+    expect(componentSource).toContain('operator="out"');
+    expect(componentSource).toContain("feColorMatrix");
+  });
+
+  it("内阴影的颜色矩阵里只有数字（换主题不用改这里，也不会撞配色门禁）", () => {
+    const matrices = componentSource.match(/values="([^"]*)"/gu) ?? [];
+
+    expect(matrices).toHaveLength(2);
+    for (const matrix of matrices) {
+      expect(matrix).toMatch(/^values="[0-9.\s]+"$/u);
+    }
+  });
+
+  it("每张卡的内阴影过滤器各自唯一（否则浏览器只认第一个）", () => {
+    const Page = defineComponent({
+      render: () =>
+        h("ul", [
+          h(FolderCard, { href: "/collections/a", title: "A" }),
+          h(FolderCard, { href: "/collections/b", title: "B" }),
+        ]),
+    });
+    const ids = mount(Page, { global: { stubs: { NuxtLink: NuxtLinkStub } } })
+      .findAll(".folder-card__flap-shade")
+      .map((path) => path.attributes("filter"));
+
+    expect(ids).toHaveLength(2);
+    expect(ids[0]).not.toBe(ids[1]);
+  });
+
+  it("层次齐全：背板 / 封面 / 前盖三层都在（前后关系由 CSS 的 z-index 定）", () => {
+    const wrapper = mountCard();
+
+    expect(wrapper.find(".folder-card__back").exists()).toBe(true);
+    expect(wrapper.find(".folder-card__sheet").exists()).toBe(true);
+    expect(wrapper.find(".folder-card__flap").exists()).toBe(true);
+    expect(componentSource).toMatch(/\.folder-card__back \{[\s\S]*?z-index: 0/u);
+    expect(componentSource).toMatch(/\.folder-card__sheet \{[\s\S]*?z-index: 1/u);
+    expect(componentSource).toMatch(/\.folder-card__flap \{[\s\S]*?z-index: 2/u);
+  });
+
+  it("前盖以底边为铰链做透视（rotateX 由几何变量给，容器给 perspective）", () => {
+    expect(componentSource).toContain("transform-origin: 50% 100%");
+    expect(componentSource).toContain("transform: rotateX(var(--folder-flap-tilt))");
+    expect(componentSource).toContain("perspective: 900px");
+  });
 });
 
 describe("文件夹卡：可聚焦", () => {
@@ -139,38 +233,38 @@ describe("文件夹卡：配色只来自语义 token（组件源内零裸色值�
  * happy-dom 不做 layout、更不认 `@supports`。
  */
 describe("文件夹卡：前盖玻璃的降级与窄屏", () => {
-  const source = readFileSync(join(projectDir, "app/components/common/FolderCard.vue"), "utf8");
-
-  it("前盖常开玻璃（backdrop-filter），填充取玻璃 token", () => {
-    expect(source).toContain("backdrop-filter:");
-    expect(source).toContain("var(--glass-thin-fill)");
+  it("玻璃层常开 backdrop-filter，填充取玻璃 token", () => {
+    expect(componentSource).toContain("backdrop-filter:");
+    expect(componentSource).toContain("var(--glass-thick-fill)");
   });
 
   it("不支持 backdrop-filter 时退化为不透明面", () => {
-    expect(source).toContain("@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px)))");
-    expect(source).toMatch(/@supports not[\s\S]*?background: var\(--color-surface-raised\)/u);
+    expect(componentSource).toContain("@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px)))");
+    expect(componentSource).toMatch(/@supports not[\s\S]*?background: var\(--color-surface-raised\)/u);
   });
 
   it("系统「减少透明度」时同样退化为不透明面", () => {
-    expect(source).toMatch(
+    expect(componentSource).toMatch(
       /@media \(prefers-reduced-transparency: reduce\)[\s\S]*?backdrop-filter: none/u,
     );
   });
 
   it("窄屏（≤768px）模糊走 --glass-blur-mobile（12px）", () => {
-    expect(source).toMatch(/@media \(max-width: 768px\)[\s\S]*?blur\(var\(--glass-blur-mobile\)\)/u);
+    expect(componentSource).toMatch(
+      /@media \(max-width: 768px\)[\s\S]*?blur\(var\(--glass-blur-mobile\)\)/u,
+    );
   });
 
   it("减少动态：位移与旋转归零，只保留静态形态（且不吃弹簧）", () => {
-    expect(source).toMatch(
+    expect(componentSource).toMatch(
       /@media \(prefers-reduced-motion: reduce\)[\s\S]*?transform: none/u,
     );
-    expect(source).not.toMatch(/stiffness|damping|type:\s*"spring"/u);
+    expect(componentSource).not.toMatch(/stiffness|damping|type:\s*"spring"/u);
   });
 
   it("位移走 200ms 的 CSS 过渡 + 唯一缓动 token", () => {
-    expect(source).toContain("transition:");
-    expect(source).toContain("var(--motion-base) var(--motion-ease)");
+    expect(componentSource).toContain("transition:");
+    expect(componentSource).toContain("var(--motion-base) var(--motion-ease)");
   });
 });
 

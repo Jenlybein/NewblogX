@@ -82,7 +82,7 @@ if (opts.mode === 'coverage') {
     console.error(`✗ 门禁清单与演练清单不一致（${registry.file}）`);
     process.exit(1);
   }
-  console.log(`✓ ${registry.gates.length} 道门禁都有对应的演练节号，${registry.canaries.length} 道演练都有对应门禁`);
+  console.log(`✓ ${registry.gates.length} 道门禁都登记了演练节号（演练清单共 ${registry.canaries.length} 道；其余演练对应的是非仓库级门禁）`);
   process.exit(0);
 }
 

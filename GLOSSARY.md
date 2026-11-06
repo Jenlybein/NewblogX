@@ -211,7 +211,12 @@ _Avoid_: 自动重投（定时扫 pending；死信多半是"改之前必然失�
 
 **门禁（scripts/check.sh）**：
 本地一键门禁（后端 + 集成 + 两端前端 + 门禁自检），口径必须与 CI 一致；跑过它等于本地结论与 CI 一致。
-位置：`bash scripts/check.sh [all|backend|frontend|gates]`，开关 `BLOGX_FAST` / `BLOGX_NO_CACHE` / `BLOGX_SKIP_INTEGRATION`。
+位置：`bash scripts/check.sh [all|backend|frontend|gates]`，开关 `BLOGX_FAST` / `BLOGX_NO_CACHE` / `BLOGX_SKIP_INTEGRATION`；具体命令不写在这里，见「门禁清单 / 门禁 runner」。
+
+**门禁清单 / 门禁 runner（scripts/gates/）**：
+门禁清单只有一个来源 `scripts/gates/gates.json`；本地门禁、持续集成、门禁自检三处都经 `node scripts/gates/run.mjs` 调同一批命令，工具版本与公共安装步骤经 `scripts/gates/install.mjs` 读 `scripts/tool-versions.env`。
+位置：`scripts/gates/`（`gates.json` / `run.mjs` / `install.mjs` / `tools.mjs` / `registry.mjs`）；加一道门禁只改 `gates.json` 一处，并登记它对应的演练节号。
+_Avoid_: 在 `check.sh`、`ci.yml`、`verify-gates.sh` 各写一遍命令或版本字面量（口径必然漂移，且加一道门禁要改三处）。
 
 **archcheck**：
 Go AST 实现的架构守卫，替代会"永真通过"的 PowerShell 正则守卫；规则 R1–R12，每条有 ID 与 slug。
@@ -219,8 +224,8 @@ Go AST 实现的架构守卫，替代会"永真通过"的 PowerShell 正则守�
 _Avoid_: 用 grep/正则匹配符号名做架构检查（别名与换行能绕过，且 CI 跑不了 PowerShell）。
 
 **棘轮（--max-violations）**：
-存量违规基线，只准减不准增；基线数字只在 `scripts/arch-baseline.env` 定义一次，三处消费。
-位置：`scripts/arch-baseline.env`（当前 0），消费方是 `check.sh`、`verify-gates.sh`、`.github/workflows/ci.yml`。
+存量违规基线，只准减不准增；基线数字只在 `scripts/arch-baseline.env` 定义一次，经门禁清单里的 archcheck 门禁由 runner 读一次并填进命令。
+位置：`scripts/arch-baseline.env`（当前 0），消费方是 `check.sh`、`verify-gates.sh`、`.github/workflows/ci.yml` 三处共用的 `node scripts/gates/run.mjs --group backend`。
 _Avoid_: 把基线数字写死在别处（曾出现"本地降到 0、CI 还停在 250"）。
 
 **规则自检（rules_test.go）**：
@@ -228,8 +233,9 @@ _Avoid_: 把基线数字写死在别处（曾出现"本地降到 0、CI 还停�
 位置：`backend/tools/archcheck/rules_test.go`；新增规则必须同时补人造用例。
 
 **门禁自检（verify-gates.sh）**：
-主动注入违规来证明每道门禁真的会红（14 道 canary），而不是永远绿。
-位置：`bash scripts/verify-gates.sh`；CI 里由 `gates-canary` job 调用同一脚本，不另写一份注入逻辑。
+主动注入违规来证明每道门禁真的会红（14 道 canary），而不是永远绿；开跑前先核对「清单里的每道门禁都登记了演练」。
+位置：`bash scripts/verify-gates.sh`（默认全跑；`--only <节号>` 只跑受影响演练）；CI 里由 `gates-canary` job 调用同一脚本，不另写一份注入逻辑。
+_Avoid_: 给门禁自检加"整体跳过"开关（`--skip` / `BLOGX_SKIP_GATES` 之类一律拒绝；零项选中按失败处理）。
 
 **假绿 / 门禁撒谎**：
 门禁"看起来通过但实际没执行"的失效形态：测试缓存命中、静默跳过、子 shell 吞掉退出码、生成器静默跳过整份写入仍 exit 0。

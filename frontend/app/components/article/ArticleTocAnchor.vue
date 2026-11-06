@@ -287,11 +287,23 @@ onBeforeUnmount(() => {
 }
 
 /*
- * 只让位，不改锚点自己的视觉：naive 的高亮与 `.article-toc-link.is-active` 的
- * 当前项左竖条（见 tailwind.css）都属于行为层，视觉层不许把它们抹掉。
- * 竖条落在 2.75rem 处、轨道带最右的节点在 36px，两者相邻但不重叠。
+ * 文字紧贴各自的节点：轨道基准 5px + 14px/层 + 14px 间距（与参考的 LABEL_GAP 一致）。
+ * 不再把整条锚点右移 44px —— 那样文字离轨道有 ~52px，读起来是两列而不是一棵目录。
+ * 缩进层级仍只有 0/1/2 三档（见 `tocIndentLevel`），所以三档写死即可。
  */
 .article-toc__plot :deep(.n-anchor) {
-  margin-left: 2.75rem;
+  margin-left: 0;
+}
+
+.article-toc__plot :deep(.article-toc-link) {
+  padding-left: 19px;
+}
+
+.article-toc__plot :deep(.article-toc-link--indent-1) {
+  padding-left: 33px;
+}
+
+.article-toc__plot :deep(.article-toc-link--indent-2) {
+  padding-left: 47px;
 }
 </style>

@@ -87,13 +87,16 @@ const dotProgress = useSpring(0, dotSpring);
 const dotFrom = ref<DotPoint>({ x: 0, y: 0 });
 const dotTo = ref<DotPoint>({ x: 0, y: 0 });
 
-/** 进度 → 坐标（线性插值 + 正弦弧偏移），弧只在 x/y 同时变化时出现。 */
-const dotX = useTransform(dotProgress, (progress) =>
-  outlineDotPointAt(dotFrom.value, dotTo.value, progress).x,
-);
-const dotY = useTransform(dotProgress, (progress) =>
-  outlineDotPointAt(dotFrom.value, dotTo.value, progress).y,
-);
+/**
+ * 进度 → 坐标（线性插值 + 正弦弧偏移），弧只在 x/y 同时变化时出现。
+ *
+ * 用函数形态 `useTransform(fn)` 而不是 `useTransform(dotProgress, fn)`：后者的
+ * 转换函数**只在进度变化时**重算，而「减少动态下瞬移」与「同进度重对准」这两类
+ * 情况下进度始终是 1，函数不重跑，圆点就会留在旧坐标。函数形态把 `dotFrom` /
+ * `dotTo` 一起纳入依赖，from/to 变了同样重算。
+ */
+const dotX = useTransform(() => outlineDotPointAt(dotFrom.value, dotTo.value, dotProgress.get()).x);
+const dotY = useTransform(() => outlineDotPointAt(dotFrom.value, dotTo.value, dotProgress.get()).y);
 
 const dotVisible = ref(false);
 const dotTargetId = ref("");

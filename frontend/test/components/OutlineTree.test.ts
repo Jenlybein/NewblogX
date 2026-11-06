@@ -328,3 +328,79 @@ describe("沟槽圆点：只跟随当前文章", () => {
     expect(wrapper.get("[data-outline-dot]").element.closest("a, button")).toBeNull();
   });
 });
+
+/* ------------------------------------------------------------------ 压线坐标 */
+
+/** 行高 / 行距（px）：与 `OutlineTree.vue` 的 `min-height: 2.75rem` + `gap: 0.25rem` 同口径。 */
+const ROW_HEIGHT_PX = 44;
+const ROW_PITCH_PX = 48;
+
+/**
+ * happy-dom 没有布局：`offsetTop` / `offsetHeight` 恒为 0，圆点纵向永远量到 0，也就
+ * 断言不了"压在该行垂直中心"。这里把两枚只读属性换成按**可见行序**推算的假布局，
+ * 让坐标本身可断言（而不是只断言 data-* 标记）。
+ *
+ * `offsetTop` 按可见行序算而不是按固定表：折叠后行的位置会变，重对准要靠它。
+ * 依赖 `vitest.config.ts` 的 `restoreMocks: true` 在用例结束后还原。
+ */
+function stubRowLayout() {
+  vi.spyOn(HTMLElement.prototype, "offsetTop", "get").mockImplementation(function (this: HTMLElement) {
+    const tree = this.closest("[data-outline-tree]");
+    const rows = tree ? [...tree.querySelectorAll<HTMLElement>("[data-outline-row]")] : [];
+    const index = rows.indexOf(this);
+    return index < 0 ? 0 : index * ROW_PITCH_PX;
+  });
+  vi.spyOn(HTMLElement.prototype, "offsetHeight", "get").mockReturnValue(ROW_HEIGHT_PX);
+}
+
+/** 从挂载后的行内 `transform` 里取圆点的圆心坐标（组件用 `x` / `y` 两个 motion value）。 */
+function dotPoint(wrapper: ReturnType<typeof mountTree>): { x: number; y: number } {
+  const style = wrapper.get("[data-outline-dot]").attributes("style") ?? "";
+  const axis = (name: "translateX" | "translateY") => {
+    const match = new RegExp(`${name}\\((-?[\\d.]+)px\\)`, "u").exec(style);
+    return match ? Number(match[1]) : 0;
+  };
+
+  return { x: axis("translateX"), y: axis("translateY") };
+}
+
+describe("沟槽圆点：落位坐标（假布局）", () => {
+  it("落位坐标 = 该层发丝线的 x + 行垂直中心（depth 1 → x=12、第二行中心 70）", async () => {
+    stubRowLayout();
+    const wrapper = await mountLanded({ currentArticleId: "101" });
+
+    expect(dotPoint(wrapper)).toEqual({ x: 12, y: 70 });
+  });
+
+  it("根层没有引导线：x 落在最外侧缩进起点 0，而不是某一层的线上", async () => {
+    stubRowLayout();
+    const wrapper = await mountLanded({ currentArticleId: "103" });
+
+    // depth 0 的 a3 是第 5 行（索引 4）→ 4 × 48 + 22
+    expect(dotPoint(wrapper)).toEqual({ x: 0, y: 214 });
+  });
+
+  it("减少动态：跨层级切换直接落到新层级的线与新行中心（坐标不靠进度变化重算）", async () => {
+    stubRowLayout();
+    vi.stubGlobal("matchMedia", (query: string) => ({
+      matches: query.includes("prefers-reduced-motion"),
+      media: query,
+      onchange: null,
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+      addListener: vi.fn(),
+      removeListener: vi.fn(),
+      dispatchEvent: vi.fn(),
+    }));
+
+    const wrapper = await mountLanded({ currentArticleId: "101" });
+    expect(dotPoint(wrapper)).toEqual({ x: 12, y: 70 });
+
+    await wrapper.setProps({ currentArticleId: "102" });
+    await nextTick();
+
+    expect(wrapper.get("[data-outline-dot]").attributes("data-outline-dot-motion")).toBe("snap");
+    // 旧实现在这里会让 x 停在 12（进度值没变、派生坐标不重算），只剩 y 换行。
+    expect(dotPoint(wrapper)).toEqual({ x: 36, y: 166 });
+  });
+});

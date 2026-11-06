@@ -7,7 +7,9 @@
  * 这份结果。
  *
  * 「第 N 篇」位置标记已随扁平列表退役：树里位置靠缩进表达（notes A7）。
- * 篇数与封面回退都由后端读模型算好，这里不重算。
+ * 文章封面也退场了（决定清单：三个使用点都只渲染纯文字行），所以行视图里
+ * 没有封面字段——契约仍带 `article_cover`，但读者侧不再消费它。
+ * 篇数由后端读模型算好，这里不重算。
  */
 
 import { isOutlineSourceKind, outlineNodeKind } from "./outlineKind";
@@ -21,6 +23,10 @@ export interface OutlineNode {
   title?: string;
   article_id?: string;
   article_title?: string;
+  /**
+   * 契约仍带文章封面，但读者侧目录树不再渲染缩略图（三个使用点一致）。
+   * 保留字段只为与契约形状对齐，映射到行时不读取它。
+   */
   article_cover?: string;
   children?: OutlineNode[] | null;
 }
@@ -40,8 +46,6 @@ export interface OutlineTreeRow {
   hasChildren: boolean;
   /** 标题：文件夹用自己的标题，文章节点读文章快照的标题。 */
   label: string;
-  /** 封面：只文章节点有；空串交给 ArticleCover 的透明空白。 */
-  cover: string;
   /** 层级（根 = 0）：缩进与引导线由页面按它渲染。 */
   depth: number;
   /** 文章节点：带 `?from=<kind>:<id>` 的阅读页链接。 */
@@ -112,7 +116,6 @@ export function outlineTreeRows(
         isFolder,
         hasChildren: children.length > 0,
         label,
-        cover: isFolder ? "" : (node.article_cover ?? "").trim(),
         depth,
         ...(isFolder || !articleId || !from
           ? {}

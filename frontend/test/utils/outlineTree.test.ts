@@ -13,7 +13,8 @@ import {
  * 的来源参数。
  *
  * 这里只钉外部行为：同样一棵树无论怎么折叠，行的顺序与层级都不变；页面用它
- * 渲染，不另写一份遍历。封面回退与篇数都读后端算好的读模型，前端不重算。
+ * 渲染，不另写一份遍历。篇数读后端算好的读模型，前端不重算；文章封面已从目录树
+ * 退场（三个使用点都只渲染纯文字行），行视图不再有封面字段。
  */
 
 const tree: OutlineNode[] = [
@@ -80,6 +81,17 @@ describe("outlineTreeRows：嵌套树 → 带层级的行", () => {
     expect(rows[3]?.href).toBe("/article/a2?from=collection:c1");
   });
 
+  it("行视图不再携带封面字段：文章的 article_cover 给了也不映射到行上", () => {
+    const rows = outlineTreeRows(tree, "collection", "c1");
+
+    // 树的三个使用点（两个详情页 + 阅读页抽屉）都只渲染纯文字行。
+    expect(rows.every((row) => !("cover" in row))).toBe(true);
+    // 契约里仍有 article_cover（输入形状保留），但读者侧不再消费它。
+    expect(tree[0]?.children?.[1]?.children?.[0]?.article_cover).toBe(
+      "https://img.example/second.png",
+    );
+  });
+
   it("层级只由 depth 表达，不再给「第 N 篇」位置标记", () => {
     const rows = outlineTreeRows(tree, "project", "p1");
 
@@ -109,7 +121,7 @@ describe("outlineTreeRows：嵌套树 → 带层级的行", () => {
     expect(rows.filter((row) => row.href)).toEqual([]);
   });
 
-  it("空标题退化成中性占位，空封面交给 ArticleCover 的透明空白", () => {
+  it("空标题退化成中性占位；封面退场后行上只有文字", () => {
     const rows = outlineTreeRows(
       [
         {
@@ -136,7 +148,7 @@ describe("outlineTreeRows：嵌套树 → 带层级的行", () => {
 
     expect(rows[0]?.label).toBe("未命名章节");
     expect(rows[1]?.label).toBe("未命名文章");
-    expect(rows[1]?.cover).toBe("");
+    expect(rows[1]).not.toHaveProperty("cover");
   });
 
   it("空树不产生行，只有空文件夹的树只有文件夹行", () => {

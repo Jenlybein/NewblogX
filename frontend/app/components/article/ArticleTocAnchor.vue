@@ -16,6 +16,10 @@ import { buildTocRailNodes } from "~/utils/tocRail";
  *   2. **视觉层**吃两样东西：标题的层级（缩进）与每行的实际 y（测量），几何由
  *      `utils/tocRail` 的纯函数算。
  *
+ * 边界还有一条：**视觉层不许改写行为层的样式**。锚点当前项的左侧竖条与字重高亮
+ * 都来自行为层（`tailwind.css` 的 `.article-toc-link.is-active`），轨道只能靠
+ * 让位（右移锚点）与它并存，不能把那条竖条抹成透明。
+ *
  * 卡头的进度条与百分比**保留**：它们与轨道的已读填充是刻意的双表达（用户明确选的
  * 口径），不要因为"重复"把它们删掉。
  */
@@ -278,7 +282,7 @@ onBeforeUnmount(() => {
   position: relative;
 }
 
-/* 轨道占左侧一条窄带，锚点整体右移让位；缩进仍由 `.article-toc-link--indent-*` 管。 */
+/* 轨道占左侧一条窄带（画布 44px），锚点整体右移让位；缩进仍由 `.article-toc-link--indent-*` 管。 */
 .article-toc__rail {
   position: absolute;
   top: 0;
@@ -286,12 +290,12 @@ onBeforeUnmount(() => {
   pointer-events: none;
 }
 
+/*
+ * 只让位，不改锚点自己的视觉：naive 的高亮与 `.article-toc-link.is-active` 的
+ * 当前项左竖条（见 tailwind.css）都属于行为层，视觉层不许把它们抹掉。
+ * 竖条落在 2.75rem 处、轨道带最右的节点在 36px，两者相邻但不重叠。
+ */
 .article-toc__plot :deep(.n-anchor) {
   margin-left: 2.75rem;
-}
-
-/* 轨道已经承担了"当前在哪"的左侧记号，锚点自己那条左竖条不再重复画。 */
-.article-toc__plot :deep(.article-toc-link) {
-  border-left-color: transparent;
 }
 </style>

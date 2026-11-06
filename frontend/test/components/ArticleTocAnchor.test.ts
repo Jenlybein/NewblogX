@@ -1,9 +1,14 @@
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
+
 import { flushPromises, mount } from "@vue/test-utils";
 import { describe, expect, it, vi } from "vitest";
 import { defineComponent, h } from "vue";
 
 import ArticleTocAnchor from "~/components/article/ArticleTocAnchor.vue";
 import type { ArticleHeadingAnchor } from "~/composables/useArticleMarkdown";
+
+import { blockAfter, stripComments } from "../helpers/designFiles";
 
 /**
  * 标题大纲的「轨道 + 飞行器」（票 296）。
@@ -257,5 +262,37 @@ describe("ArticleTocAnchor：减少动态", () => {
     } finally {
       window.matchMedia = originalMatchMedia;
     }
+  });
+});
+
+/**
+ * 视觉层只叠不改（票 296 的行为层边界）。
+ *
+ * 曾经的写法是 `:deep(.article-toc-link) { border-left-color: transparent }`：
+ * 轨道一上来就把锚点「当前项左竖条」抹掉了，等于视觉层改写了行为层的既有视觉。
+ * 这里读源码钉住——组件里不得再有针对 `.article-toc-link` 的 border-left 覆盖，
+ * 而那条竖条本身仍在样式表里（删的是覆盖，不是竖条）。
+ */
+describe("ArticleTocAnchor：视觉层不覆盖行为层的既有视觉", () => {
+  const projectDir = process.cwd();
+  const source = stripComments(
+    readFileSync(join(projectDir, "app/components/article/ArticleTocAnchor.vue"), "utf8"),
+  );
+  const css = readFileSync(join(projectDir, "app/assets/css/tailwind.css"), "utf8");
+
+  it("组件源码里不再出现针对 .article-toc-link 的 border-left 覆盖", () => {
+    const rules = source.match(/\.article-toc-link[^{}]*\{[^{}]*\}/gu) ?? [];
+
+    expect(rules.filter((rule) => /border-left/u.test(rule))).toEqual([]);
+    expect(source).not.toMatch(/\.article-toc-link[^{]*\{[^}]*border-left/u);
+  });
+
+  it("锚点自己的当前项左竖条仍在样式表里（让位共存，而不是抹掉）", () => {
+    expect(blockAfter(css, ".article-toc-link.is-active {")).toContain("border-left-color");
+  });
+
+  it("轨道视觉层还在：靠右移锚点让位，轨道本身不缩水", () => {
+    expect(source).toContain(".article-toc__rail");
+    expect(blockAfter(source, ".article-toc__plot :deep(.n-anchor) {")).toContain("margin-left");
   });
 });

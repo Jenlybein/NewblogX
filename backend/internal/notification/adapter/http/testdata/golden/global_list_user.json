@@ -1,0 +1,1 @@
+{"code":0,"data":{"has_more":false,"list":[{"id":"101","create_at":"2026-01-01T03:00:00Z","title":"面向所有人","icon":"icon.png","content":"所有用户可见","herf":"/a/面向所有人","is_read":false},{"id":"102","create_at":"2026-01-01T03:00:00Z","title":"面向老用户","icon":"icon.png","content":"发布前注册可见","herf":"/a/面向老用户","is_read":false}]},"msg":"成功"}

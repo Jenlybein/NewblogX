@@ -34,13 +34,14 @@ type VisibilityPredicate struct {
 	UserCreatedAt time.Time
 }
 
-// SQL 返回线上查询的可见性子句与参数。
+// SQL 返回线上查询的完整可见性表达式与参数。
 //
-// 与 baseVisible 旧的 `Where(db.Where(...).Or(...))` 形状等价，但文本只在
-// 这里生成一次；调用方只负责叠加过期总闸、用户级软删与分页。
+// 这就是 baseVisible 旧查询的全部判定条件：先一条 `expire_time > 此刻` 总闸，
+// 再三段 OR；用户级软删（个人态）由调用方另外叠加。文本只在这里生成一次，
+// 读模型逐字消费，不再自己拼过期总闸或分支。
 func (p VisibilityPredicate) SQL() (string, []any) {
+	args := []any{p.Now}
 	var parts []string
-	args := make([]any, 0, 7)
 	for _, b := range visibilityBranches {
 		conds := []string{"user_visible_rule = ?"}
 		args = append(args, int8(b.rule))
@@ -54,7 +55,7 @@ func (p VisibilityPredicate) SQL() (string, []any) {
 		}
 		parts = append(parts, "("+strings.Join(conds, " AND ")+")")
 	}
-	return "(" + strings.Join(parts, " OR ") + ")", args
+	return "expire_time > ? AND (" + strings.Join(parts, " OR ") + ")", args
 }
 
 // Matches 用同一张分支表在内存里判定，供有状态假仓储消费。

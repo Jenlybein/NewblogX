@@ -329,7 +329,7 @@ describe("沟槽圆点：只跟随当前文章", () => {
   });
 });
 
-/* ------------------------------------------------------------------ 压线坐标 */
+/* ------------------------------------------------------------------ 压线与弧线 */
 
 /** 行高 / 行距（px）：与 `OutlineTree.vue` 的 `min-height: 2.75rem` + `gap: 0.25rem` 同口径。 */
 const ROW_HEIGHT_PX = 44;
@@ -364,7 +364,20 @@ function dotPoint(wrapper: ReturnType<typeof mountTree>): { x: number; y: number
   return { x: axis("translateX"), y: axis("translateY") };
 }
 
-describe("沟槽圆点：落位坐标（假布局）", () => {
+/** 同层两篇（都是 depth 1），用来证明"只有纵向变化时不画弧"。 */
+const sameDepthNodes: OutlineNode[] = [
+  {
+    id: "g1",
+    kind: 1,
+    title: "同一章",
+    children: [
+      { id: "b1", kind: 2, article_id: "201", article_title: "同层一", children: [] },
+      { id: "b2", kind: 2, article_id: "202", article_title: "同层二", children: [] },
+    ],
+  },
+];
+
+describe("沟槽圆点：压线与弧线（假布局）", () => {
   it("落位坐标 = 该层发丝线的 x + 行垂直中心（depth 1 → x=12、第二行中心 70）", async () => {
     stubRowLayout();
     const wrapper = await mountLanded({ currentArticleId: "101" });
@@ -378,6 +391,29 @@ describe("沟槽圆点：落位坐标（假布局）", () => {
 
     // depth 0 的 a3 是第 5 行（索引 4）→ 4 × 48 + 22
     expect(dotPoint(wrapper)).toEqual({ x: 0, y: 214 });
+  });
+
+  it("跨层级切换画弧：data-outline-dot-arc 从 straight 变成 arc", async () => {
+    stubRowLayout();
+    const wrapper = await mountLanded({ currentArticleId: "101" }); // depth 1 → depth 2
+    expect(wrapper.get("[data-outline-dot]").attributes("data-outline-dot-arc")).toBe("straight");
+
+    await wrapper.setProps({ currentArticleId: "102" });
+    await nextTick();
+
+    expect(wrapper.get("[data-outline-dot]").attributes("data-outline-dot-arc")).toBe("arc");
+    expect(wrapper.get("[data-outline-dot]").attributes("data-outline-dot-motion")).toBe("travel");
+  });
+
+  it("同层换行只动 y：不画弧（圆点全程留在引导线上）", async () => {
+    const wrapper = await mountLanded({ nodes: sameDepthNodes, currentArticleId: "201" });
+    expect(wrapper.get("[data-outline-dot]").attributes("data-outline-dot-arc")).toBe("straight");
+
+    await wrapper.setProps({ currentArticleId: "202" });
+    await nextTick();
+
+    expect(wrapper.get("[data-outline-dot]").attributes("data-outline-dot-arc")).toBe("straight");
+    expect(wrapper.get("[data-outline-dot]").attributes("data-outline-dot-motion")).toBe("travel");
   });
 
   it("减少动态：跨层级切换直接落到新层级的线与新行中心（坐标不靠进度变化重算）", async () => {

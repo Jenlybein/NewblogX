@@ -2,8 +2,10 @@ import { describe, expect, it } from "vitest";
 
 import {
   OUTLINE_DOT_ARC_MAX_PX,
+  OUTLINE_DOT_ARC_MAX_RATIO,
   OUTLINE_GUIDE_OFFSET_REM,
   OUTLINE_INDENT_REM,
+  outlineDotArcBulgePx,
   outlineDotArcOffset,
   outlineDotPointAt,
   outlineDotXPx,
@@ -67,6 +69,46 @@ describe("outlineDotXPx：rem 按根字号换算成 px", () => {
   it("根字号缺失时按 16px 兜底", () => {
     expect(outlineDotXPx(1, Number.NaN)).toBe(12);
     expect(outlineDotXPx(1, 0)).toBe(12);
+  });
+});
+
+describe("outlineDotArcBulgePx：弧的鼓包量级（参考 min(0.8, 14/distance)）", () => {
+  it("相邻层、相邻行（24, 48）这种典型跨层级位移取满 14px 上限", () => {
+    // distance = √(24² + 48²) ≈ 53.7，0.8 × 53.7 ≈ 43 → 被 14 钳住
+    expect(outlineDotArcBulgePx(24, 48)).toBeCloseTo(OUTLINE_DOT_ARC_MAX_PX, 5);
+    expect(outlineDotArcBulgePx(120, 90)).toBeCloseTo(OUTLINE_DOT_ARC_MAX_PX, 5);
+  });
+
+  it("短距离按位移的 0.8 倍鼓，不和上限打架", () => {
+    // distance = 10
+    expect(outlineDotArcBulgePx(6, 8)).toBeCloseTo(OUTLINE_DOT_ARC_MAX_RATIO * 10, 5);
+  });
+
+  it("纯纵向 / 纯横向 / 零位移都没有法向分量（圆点必须留在线上或行中心）", () => {
+    expect(outlineDotArcBulgePx(0, 120)).toBe(0);
+    expect(outlineDotArcBulgePx(48, 0)).toBe(0);
+    expect(outlineDotArcBulgePx(0, 0)).toBe(0);
+    expect(outlineDotArcBulgePx(Number.NaN, 10)).toBe(0);
+  });
+});
+
+describe("弧的可见性：跨层级不是直线滑过去", () => {
+  it("相邻层换行（12,70 → 36,166）的中段偏离直线 ≥ 10px", () => {
+    const from = { x: 12, y: 70 };
+    const to = { x: 36, y: 166 };
+    const middle = outlineDotPointAt(from, to, 0.5);
+    const straightMiddle = { x: (from.x + to.x) / 2, y: (from.y + to.y) / 2 };
+
+    expect(Math.hypot(middle.x - straightMiddle.x, middle.y - straightMiddle.y)).toBeGreaterThanOrEqual(10);
+  });
+
+  it("鼓包不超过上限，也不算小到看不见（≥ 位移长度的 0.1 倍与 6px）", () => {
+    const bulge = outlineDotArcBulgePx(24, 48);
+    const distance = Math.hypot(24, 48);
+
+    expect(bulge).toBeLessThanOrEqual(OUTLINE_DOT_ARC_MAX_PX);
+    expect(bulge).toBeGreaterThanOrEqual(6);
+    expect(bulge).toBeGreaterThanOrEqual(distance * 0.1);
   });
 });
 

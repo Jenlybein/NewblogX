@@ -6,7 +6,7 @@ import { useMotionPreference } from "~/composables/useMotionPreference";
 import { whenFontsReady } from "~/utils/fontsReady";
 import type { OutlineSourceKind } from "~/utils/outlineKind";
 import type { DotPoint } from "~/utils/outlineDot";
-import { outlineDotPointAt, outlineDotXPx } from "~/utils/outlineDot";
+import { outlineDotArcBulgePx, outlineDotPointAt, outlineDotXPx } from "~/utils/outlineDot";
 import { markCurrentOutlineRows, visibleOutlineRows } from "~/utils/outlineState";
 import type { OutlineNode } from "~/utils/outlineTree";
 import { outlineTreeRows } from "~/utils/outlineTree";
@@ -97,6 +97,13 @@ const dotTo = ref<DotPoint>({ x: 0, y: 0 });
  */
 const dotX = useTransform(() => outlineDotPointAt(dotFrom.value, dotTo.value, dotProgress.get()).x);
 const dotY = useTransform(() => outlineDotPointAt(dotFrom.value, dotTo.value, dotProgress.get()).y);
+
+/** 这一趟是弧线还是直线（跨层级才有法向分量）；透出给验收与结构测试观察。 */
+const dotArc = computed(() => {
+  const dx = dotTo.value.x - dotFrom.value.x;
+  const dy = dotTo.value.y - dotFrom.value.y;
+  return outlineDotArcBulgePx(dx, dy) > 0 ? "arc" : "straight";
+});
 
 const dotVisible = ref(false);
 const dotTargetId = ref("");
@@ -216,6 +223,7 @@ watch(() => props.collapsed, () => align(true), { flush: "post" });
       :data-outline-dot-target="dotTargetId"
       :data-outline-dot-depth="dotDepth"
       :data-outline-dot-motion="dotMotion"
+      :data-outline-dot-arc="dotArc"
       :style="{ x: dotX, y: dotY }"
     />
 

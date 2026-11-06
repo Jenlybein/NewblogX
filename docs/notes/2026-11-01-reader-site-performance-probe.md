@@ -29,7 +29,7 @@ TypeError: n.off is not a function
 滚动视差组合式在路由切换、组件卸载的 `dispose` 里调用了 **MotionValue 上并不存在的 `off` 方法**（motion-v / framer-motion 的正确用法是 `on()` 返回的取消订阅函数）。文章、搜索、文章页的"回首页"链接全部复现。
 
 **影响**：`contentVisible` 在 B、D 两个场景只能记"**从不出现（≥15 s）**"，无法测毫秒数；"切页慢"的用户体感里，很大一部分其实是**点击后页面不出现**。
-**来源**：该调用自提交 `2bd7931`（#23 液态玻璃层 + 滚动进场 + 视差）引入，motion-v 版本未变——属于**长期存在的缺陷**，不是最近部署引入。首页另有 `Hydration completed but contains mismatches` 警告。
+**来源**：该调用自提交 `cf5b334`（#23 液态玻璃层 + 滚动进场 + 视差）引入，motion-v 版本未变——属于**长期存在的缺陷**，不是最近部署引入。首页另有 `Hydration completed but contains mismatches` 警告。
 
 ## 首屏（文档级加载）
 
@@ -88,7 +88,7 @@ TypeError: n.off is not a function
 ### 测法
 
 - 站点：**本地生产构建**——`cd frontend && pnpm build`，然后 `NUXT_API_UPSTREAM=https://gentlybeing.cn node .output/server/index.mjs`（`127.0.0.1:3000`）。API 上游仍是生产（`https://gentlybeing.cn`）。生产站此时仍是旧构建，改后无法在生产上直接测。
-- 改前补跑了一份**同一脚本的本地构建**（`main` `5530bb8`，`127.0.0.1:3001`）作同口径对照；生产基线（本文上方）作第二参照。
+- 改前补跑了一份**同一脚本的本地构建**（`main` `936800d`，`127.0.0.1:3001`）作同口径对照；生产基线（本文上方）作第二参照。
 - 工具口径不变：Playwright + Chromium 156，1440×900，冷 = 全新上下文 + CDP 禁用 HTTP 缓存，热 = 同上下文先访问一次再测；每场景每模式 3 次，下表为**中位 / 最差**。
 - 命令：
   ```bash
@@ -101,7 +101,7 @@ TypeError: n.off is not a function
 
 ### 四项硬指标（改后）
 
-| 指标 | 改前·本地 main 5530bb8 | 改后·集成分支 + 过渡 120 ms | 预算 | 结论 |
+| 指标 | 改前·本地 main 936800d | 改后·集成分支 + 过渡 120 ms | 预算 | 结论 |
 | --- | --- | --- | --- | --- |
 | 首屏内容可见 · 首页冷 | 515 / 962 ms | **314 / 435 ms** | < 800 ms | PASS |
 | 首屏内容可见 · 首页热 | 378 / 440 ms | **161 / 172 ms** | < 800 ms | PASS |

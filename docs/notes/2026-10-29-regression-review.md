@@ -251,7 +251,7 @@ P 永不 settle，`finally { refreshPromise = null }` 也永不执行 → 这个
 3. **cron 组件未登记状态**。`WireCron` 的调度器失败同样只写日志，形状与 river 一致。
 4. **river 没有积压/位点指标**。现在只能从 `/app/var/master.yaml` 看位点，
    看不出"落后主库多少"。要提前发现同步变慢，需要暴露位点差值。
-5. **`bad277c` 里 dump wrapper 的实现依赖 alpine 的包行为**。升级基础镜像或
+5. **`d0c6245` 里 dump wrapper 的实现依赖 alpine 的包行为**。升级基础镜像或
    `apk add mysql-client` 的包来源变化时，这条修复可能悄悄失效 —— 需要一条
    "全量转储能跑通"的自检（CLI 里做，或部署后手工验一次）。
 6. **`/health/ready` 只允许内网访问**（nginx 不转发 `/health`），这是刻意的：

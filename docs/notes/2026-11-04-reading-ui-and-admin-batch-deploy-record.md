@@ -2,7 +2,7 @@
 
 - 时间：2026-11-04 19:52–20:02（服务器本地时区）
 - 目标：腾讯云 `43.155.228.146`，`/opt/blogx`，compose 目录 `deploy/compose/production`
-- 代码：`2b11387` → **`8056e37`**（squash 合入的 PR [#259](https://github.com/Jenlybein/NewblogX/pull/259)）
+- 代码：`cbcc284` → **`42f0938`**（squash 合入的 PR [#259](https://github.com/Jenlybein/NewblogX/pull/259)）
 - 方式：**串行**（后端 → 读者站 → 后台），每层建完先验证再进下一层
 
 ## 追加：两处验收反馈修复（同日 20:20–20:40）
@@ -11,8 +11,8 @@
 
 | 提交 | 内容 | 上线前的问题 |
 | --- | --- | --- |
-| `497e59a` | **正文列不再单独收窄**：删掉 `.article-main` 的 `max-width:72rem` + `margin-inline:auto`；行宽 token 80ch → 92ch | 上一版把正文列整体收窄并居中，与上方 hero 元信息条、右侧栏脱开，两侧露出页面底色 |
-| `7e32482` | **六层标题装置对齐 `themes/graphite-island-spectrum`**：H1 定标线改「三角+方块」、H2 改 6px 粗条 + 向右淡出的色带、H3 加通栏发丝线、H4 改 44px 记号笔横条、H5 改贴纸标签块、H6 改前置 1px 引线 | 六层颜色不同但装置太像（三角形/短下划线/双线/顶线），层级辨识度不够 |
+| `172b8d9` | **正文列不再单独收窄**：删掉 `.article-main` 的 `max-width:72rem` + `margin-inline:auto`；行宽 token 80ch → 92ch | 上一版把正文列整体收窄并居中，与上方 hero 元信息条、右侧栏脱开，两侧露出页面底色 |
+| `517131d` | **六层标题装置对齐 `themes/graphite-island-spectrum`**：H1 定标线改「三角+方块」、H2 改 6px 粗条 + 向右淡出的色带、H3 加通栏发丝线、H4 改 44px 记号笔横条、H5 改贴纸标签块、H6 改前置 1px 引线 | 六层颜色不同但装置太像（三角形/短下划线/双线/顶线），层级辨识度不够 |
 
 验证（全部为实际命令输出）：
 
@@ -33,7 +33,7 @@ docker tag blogx-web:production    blogx-web:2026-11-04-pre250
 docker tag blogx-admin:production  blogx-admin:2026-11-04-pre250
 
 # 1) 后端
-cd /opt/blogx && git merge --ff-only origin/main          # -> 8056e37
+cd /opt/blogx && git merge --ff-only origin/main          # -> 42f0938
 cd deploy/compose/production && set -a && . ./.env && set +a
 docker compose up -d --build blogx_server
 # 2) 读者站
@@ -50,8 +50,8 @@ docker compose restart nginx
 
 | 提交 | 内容 | 上线前的问题 |
 | --- | --- | --- |
-| `257330e` | 阅读页目录改**贴左边缘的可收起抽屉**：竖排窄标 + 左侧滑出面板（`min(20rem, 86vw)`）覆盖正文，点遮罩 / Esc / × 关闭，收起时面板 `inert`；页面布局恒定两列，删掉 `.article-layout--with-outline` 那条 13.5rem 第三列；骨架去掉 `with-outline` | 目录占一列，把正文挤窄，两侧还脱节 |
-| `d9a43a5` | 后台目录树改用 **Naive UI `NTree`**：树线 + 16px 缩进 + 折叠 + 内置拖拽；行内六个按钮收进「⋯」下拉；新增纯函数 `outlineDropIndex` 做落点换算；移除 `sortablejs` + `@types/sortablejs`；补 `.outline-tree` / `.outline-node*` 样式 | 手写 `<ul>` 只有 20px 缩进、没有任何树线与样式，每行还摊开六个按钮 |
+| `66ec568` | 阅读页目录改**贴左边缘的可收起抽屉**：竖排窄标 + 左侧滑出面板（`min(20rem, 86vw)`）覆盖正文，点遮罩 / Esc / × 关闭，收起时面板 `inert`；页面布局恒定两列，删掉 `.article-layout--with-outline` 那条 13.5rem 第三列；骨架去掉 `with-outline` | 目录占一列，把正文挤窄，两侧还脱节 |
+| `81f5929` | 后台目录树改用 **Naive UI `NTree`**：树线 + 16px 缩进 + 折叠 + 内置拖拽；行内六个按钮收进「⋯」下拉；新增纯函数 `outlineDropIndex` 做落点换算；移除 `sortablejs` + `@types/sortablejs`；补 `.outline-tree` / `.outline-node*` 样式 | 手写 `<ul>` 只有 20px 缩进、没有任何树线与样式，每行还摊开六个按钮 |
 
 验证（实际命令输出）：
 

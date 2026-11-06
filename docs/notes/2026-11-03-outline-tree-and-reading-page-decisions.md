@@ -9,7 +9,7 @@
 
 ## 0. 事实底座（已在生产机上只读核实）
 
-1. 部署版本 = 仓库最新提交 `cd25c40`（`blogx-server` / `blogx-web` / `blogx-admin` 三镜像 2026-11-03 17:15–17:19 构建；容器内 bundle 能查到"正在定形"文案）。
+1. 部署版本 = 仓库最新提交 `9a3dbea`（`blogx-server` / `blogx-web` / `blogx-admin` 三镜像 2026-11-03 17:15–17:19 构建；容器内 bundle 能查到"正在定形"文案）。
 2. **`gentlybeing.cn` 与 `image.gentlybeing.cn` 当前公网 DNS 均为 `NXDOMAIN`**：223.5.5.5 / 119.29.29.29 / 8.8.8.8 / 1.1.1.1 与 Cloudflare DoH 一致；权威 SOA 为 `f1g1ns1.dnspod.net` + **`nxdomainadmin.dnspod.com`**（DNSPod 对"解析被暂停"的专用应答）。宿主机自己解析不到；本机可访问是因为本地 DNS 返回 `198.18.1.98`（代理 fake-IP 网段）。
 3. **579 的链路**：`runtime_config_models.storage.callback_url = https://gentlybeing.cn/api/images/qiniu/callback`；七牛上传回调失败 → 浏览器拿到 HTTP 579（[README §16.7](../../README.md) 同口径）。同时前端 `frontend/app/services/image.ts` 上传成功后**只轮询任务状态，从不调 `POST /images/upload-tasks/complete`**（全仓零调用点），确认链路 100% 依赖那条已断的回调。
 4. **私信 WS 的链路**：nginx access log 里 `GET /api/chat/ws?ticket=…` 恒返 **403 / 10 字节**（gorilla `Upgrade` 校验 `Origin` 失败时默认写的 `Forbidden\n`）。`backend/internal/platform/http/middleware/origin_allowlist.go` 的默认白名单只有 `https://blog.gentlybeing.cn`、`https://blogx.gentlybeing.cn` 两个旧子域，**没有生产域 `https://gentlybeing.cn`**；生产 `.env` 也没有 `BLOGX_CORS_ALLOWED_ORIGINS`。票据接口 200、Redis 票据实现正常、nginx 的 `/api/chat/ws` Upgrade 头已配好。
@@ -71,7 +71,7 @@
 | --- | --- | --- |
 | D1 | **比例不合规才弹裁剪窗** | 合规（与目标比例相差 ≤1%）直接自动居中裁；不合规才弹窗由作者选区域 |
 | D2 | **裁剪窗交互** | 固定比例框 + 拖动 + 1–3× 缩放；不做旋转/镜像/滤镜；确认把结果**烤进新文件**，不存任何裁剪参数；取消 = 中止本次上传、保留原封面 |
-| D3 | **实现方式：手写 canvas，复用 #204 删掉的取景窗结构** | 从 git 历史（`cd25c40^`）取 `StudioCoverFramingDialog.vue` / `StudioCoverFramingView.vue` / `BannerFramingDialog.vue` / `BannerFramingView.vue` 的结构改写；**不引入 cropperjs**（ADR-0015 已撤回该选型） |
+| D3 | **实现方式：手写 canvas，复用 #204 删掉的取景窗结构** | 从 git 历史（`9a3dbea^`）取 `StudioCoverFramingDialog.vue` / `StudioCoverFramingView.vue` / `BannerFramingDialog.vue` / `BannerFramingView.vue` 的结构改写；**不引入 cropperjs**（ADR-0015 已撤回该选型） |
 | D4 | **覆盖所有封面/头像入口** | 读者站文章封面 + 头像；后台轮播 + 合集 + 项目封面；两端同一份实现（沿用 `imageShaping.ts` 逐字节同源门禁） |
 | D5 | **后端校验比例** | 创建上传任务时带 `purpose`（cover / avatar），任务里记目标比例；确认（七牛回调与前端 `complete` 共用同一路径）按 ±1% 校验，不合规把任务判 failed 并给明确错误码（需重生成契约） |
 

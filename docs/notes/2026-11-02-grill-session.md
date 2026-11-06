@@ -115,7 +115,7 @@
 
 - 算法：**Verlet 积分 + 全量投影距离约束**（Gauss-Seidel），**无 spring-damper / 弹性 k**。核心在 `frontend/app/utils/decoCharm.ts:590-666`（组件与 composable 只是接线层）。
 - 约束修正 `correction = (distance - rest) / distance` 是**全量投影**（无松弛因子）→ 不可伸长刚杆链，不是弹性绳。
-- **迭代次数注释与代码不一致**：`decoCharm.ts:630` 实际 `config.segments * 30`（默认 300 次/子步），但 `:622-626` 注释仍写「2 × segments … 10 节点 × 20 次」。`git log -L` 证实 `5839cf6`（#42）改代码未同步注释末句。
+- **迭代次数注释与代码不一致**：`decoCharm.ts:630` 实际 `config.segments * 30`（默认 300 次/子步），但 `:622-626` 注释仍写「2 × segments … 10 节点 × 20 次」。`git log -L` 证实 `9f5b0a5`（#42）改代码未同步注释末句。
 - `segments` = 链节点数（默认 10，区间 4–24），且**每节 rest length = rope_length / segments**（默认 120/10 = 12px）。→ 拉到 24 时每节只剩 5px，节点越多链越容易被拉直，**这正是用户"拉到最大还是硬"的原因**。
 - 弧垂只由 slack 驱动（`charmTether.ts:132-144`，`sagPeak = √(3·chord·slack/8)`），**重力完全不参与**；默认绳长 120px，指针一动 chord 逼近 120 → slack=0 → 弧垂严格为 0 → 视觉是直线。
 - 指针端每子步**硬赋值**且 `previous[0]` 同步归零（`decoCharm.ts:591-595`），零插值；发布又被 `1000/fps_cap` 门控量化 → 瞬移感。
@@ -538,16 +538,16 @@ DDL 的 DROP 是 QUERY_EVENT，**不走 `OnRow`**（`imageref/river.go:117-129` 
 
 ## 十、实施进展（/implement-spec，2026-11-02）
 
-集成分支 `integration/89-auth-and-interaction-fixes`（基于 `main` @ `eca7edc`），draft PR [#133](https://github.com/Jenlybein/NewblogX/pull/133)。
+集成分支 `integration/89-auth-and-interaction-fixes`（基于 `main` @ `755fbd6`），draft PR [#133](https://github.com/Jenlybein/NewblogX/pull/133)。
 
 | 票 | 提交 | 状态 |
 |---|---|---|
-| #101 轮播三态筛选 | `95508f1` | ✅ 已合入 |
-| #96 点赞关系行口径 | `4e446d9` + `e68c03c`（对账工具） | ✅ 已合入 |
-| #99 刷新令牌版本 | `18f59c1` | ✅ 已合入 |
-| #97 评论外键 | `6d6bcd3` | ✅ 已合入（父字段落 NULL，连带修正 `reply_id IS NULL`） |
-| #98 前端登录态 | `69e4229` + `59479cc` | ✅ 已合入（写请求不重放 + 已登录判定改口径 + 校验去重） |
-| #100 窄屏目录 | `70452c2` | ✅ 已合入（纯函数 + 只滚自身容器 + 窄屏不渲染） |
+| #101 轮播三态筛选 | `9f282ee` | ✅ 已合入 |
+| #96 点赞关系行口径 | `191d40d` + `fd7f14c`（对账工具） | ✅ 已合入 |
+| #99 刷新令牌版本 | `c46f79e` | ✅ 已合入 |
+| #97 评论外键 | `b3556ac` | ✅ 已合入（父字段落 NULL，连带修正 `reply_id IS NULL`） |
+| #98 前端登录态 | `6d8283d` + `dcb8183` | ✅ 已合入（写请求不重放 + 已登录判定改口径 + 校验去重） |
+| #100 窄屏目录 | `fa67ac2` | ✅ 已合入（纯函数 + 只滚自身容器 + 窄屏不渲染） |
 
 **6 张票全部完成**，PR [#133](https://github.com/Jenlybein/NewblogX/pull/133) 已转正式评审，#96–#101 已关闭，6 个 worktree 已清理。
 
@@ -555,7 +555,7 @@ DDL 的 DROP 是 QUERY_EVENT，**不走 `OnRow`**（`imageref/river.go:117-129` 
 
 #100 的实现要点：新增纯函数 `resolveTocFollow`（在既有目录纯函数模块），只计算目录容器的 scrollTop；组件改用它并加程序化滚动抑制窗口；窄屏按与侧栏 sticky→static 同一断点不渲染目录。顺带清理了对 shadow DOM 标题恒为 null 的 `document.getElementById` 回退。
 
-审查阶段的自我修正：#98 的 `markPossiblyExpired` 会在每次鉴权失败时发起校验，并发失败会重复打接口——已用 `verifyPromise` 收敛（`59479cc`）。另核查确认两处高风险连带无误：轮播三态改完后读者站仍显式只取展示中；评论父字段可空后依赖该列的查询仅一处且已改为 `IS NULL`。
+审查阶段的自我修正：#98 的 `markPossiblyExpired` 会在每次鉴权失败时发起校验，并发失败会重复打接口——已用 `verifyPromise` 收敛（`dcb8183`）。另核查确认两处高风险连带无误：轮播三态改完后读者站仍显式只取展示中；评论父字段可空后依赖该列的查询仅一处且已改为 `IS NULL`。
 
 ### ⚠️ 本次挖出的更大根因：**数据库查询缓存污染**（已单开 [#132](https://github.com/Jenlybein/NewblogX/issues/132)，挂为 #89 子票）
 
@@ -595,7 +595,7 @@ DDL 的 DROP 是 QUERY_EVENT，**不走 `OnRow`**（`imageref/river.go:117-129` 
 
 **修法**：Cacher 拿得到 `Dest`，在这一层把形状（类型名）补进键里——不改插件内部、不替换插件。实现放 `internal/platform/mysql/querycache.go` 并**只此一份**，生产 `core/init_db.go` 与测试基建 `testkit/mysqlcontainer` 共用（两份的话测试验证的就不是生产行为）。用类型名而不是值：值随行内容变化会让缓存永远命中不了。
 
-**成本评估结论：关闭该插件（已执行，提交 `5ad50ca`）**。插件在 Create/Update/Delete 回调里无条件 `Invalidate`，而 `redisCacher` 的实现是 `SCAN gorm-caches::*` 全量扫描 + DEL —— **任何一次写都清空全部缓存**（已加 `TestAnyWriteWipesTheWholeCache` 钉住）。本站每次文章浏览都要写浏览计数，写极频繁 → 缓存刚存进去就被清空，命中率趋近于 0，却每次写都付一次 O(N) 的 Redis SCAN。
+**成本评估结论：关闭该插件（已执行，提交 `4258a44`）**。插件在 Create/Update/Delete 回调里无条件 `Invalidate`，而 `redisCacher` 的实现是 `SCAN gorm-caches::*` 全量扫描 + DEL —— **任何一次写都清空全部缓存**（已加 `TestAnyWriteWipesTheWholeCache` 钉住）。本站每次文章浏览都要写浏览计数，写极频繁 → 缓存刚存进去就被清空，命中率趋近于 0，却每次写都付一次 O(N) 的 Redis SCAN。
 
 关闭内容：`InitDB` 不再装载插件；`redisCacher` 与其测试一并删除（无调用点）；`InitDB` 去掉 `redisClient` 参数（它原先只为该插件而传，Redis 客户端仍由 `InitRedis` 单独创建并交给需要它的组件）。
 

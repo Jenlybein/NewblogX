@@ -56,7 +56,7 @@ code-review 两轴在本批上又查出两处「迁移没做到底」，已在�
 
 ## 部署记录（2026-11-04，已完成）
 
-- 代码：`main` @ `17356fc`（PR #222 squash 合入，Closes #210–#221、#223–#225）
+- 代码：`main` @ `97d0a38`（PR #222 squash 合入，Closes #210–#221、#223–#225）
 - 镜像：`blogx-server` / `blogx-web` / `blogx-admin` 三个 `:production` **串行**重建（服务器 3G 内存，构建前先 `compose down` 释放内存）
 - 建表：`docker compose run --rm blogx_server /app/server -f config/settings.yaml -db` → exit 0，产出 `content_outline_node_models`
 - **旧表物理下线**：确认 `collection_article_models` / `project_article_models` 各 0 行后 `DROP TABLE`；库内表集合与 `schema.sql` 完全一致（39 = 39，无多余、无缺失）

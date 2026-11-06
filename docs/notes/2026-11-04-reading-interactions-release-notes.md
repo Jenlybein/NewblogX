@@ -88,7 +88,7 @@
 
 | 项 | 值 |
 | --- | --- |
-| 代码版本 | `main@2b11387`（PR #248 squash） |
+| 代码版本 | `main@cbcc284`（PR #248 squash） |
 | 目标 | `43.155.228.146`：`/opt/blogx`（docker compose production） |
 | 镜像 | `blogx-server:a0b0cc3ceff4` / `blogx-web:6efd5bef0340` / `blogx-admin:bf9ecf10801b`，**串行**构建 |
 | 重建方式 | `up -d --force-recreate blogx_web blogx_admin blogx_server` + `restart nginx` |

@@ -2,7 +2,7 @@
 
 - 状态：已交付
 - 日期：2026-11-04（初版）· 2026-11-06（正文整体重写）
-- 部署：2026-11-04 随 PR [#259](https://github.com/Jenlybein/NewblogX/pull/259) 上线（`8056e37`），记录见[部署记录](../notes/2026-11-04-reading-ui-and-admin-batch-deploy-record.md)；2026-11-06 的整体重写随 [#279](https://github.com/Jenlybein/NewblogX/issues/279) 落地（父规格 [#272](https://github.com/Jenlybein/NewblogX/issues/272)）
+- 部署：2026-11-04 随 PR [#259](https://github.com/Jenlybein/NewblogX/pull/259) 上线（`42f0938`），记录见[部署记录](../notes/2026-11-04-reading-ui-and-admin-batch-deploy-record.md)；2026-11-06 的整体重写随 [#279](https://github.com/Jenlybein/NewblogX/issues/279) 落地（父规格 [#272](https://github.com/Jenlybein/NewblogX/issues/272)）
 - 来源：读者反馈「点赞后刷新，按钮已赞但计数没变」· [决定清单](../notes/2026-11-04-reading-ui-and-admin-batch-decisions.md)（§1–2）· 规格 #272 要求「并账周期配置化 + 读路径只认一个权威值入口」
 - 变更说明：按 #272 / #279 的要求**正文整体重写**，显式覆盖本文 README 规则 3「已交付的 ADR 不改结论」——初版的判断（计数是派生值、并账按关系行重算覆盖、CDC 实时并账为非目标）**全部保留**，本版改的是「周期从哪来」与「值从哪个入口读」，并把被取代的旧口径写死。
 - 关联：[ADR-0019](./0019-reader-rendering-and-cache-strategy.md)（两层缓存）· [ADR-0024](./0024-reader-user-state-and-count-truth.md)（写响应回填权威计数）· [ADR-0027](./0027-message-center-ordering-pagination-and-read-receipt.md)（消息的排序与水位属于消息时间口径）· [GLOSSARY · 计数账本](../../GLOSSARY.md)

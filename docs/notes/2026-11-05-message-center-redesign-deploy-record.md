@@ -3,8 +3,8 @@
 - 规格：[#270](https://github.com/Jenlybein/NewblogX/issues/270)（已关闭）
 - PR：[#271](https://github.com/Jenlybein/NewblogX/pull/271)（一个 PR 整批）
 - CI：run `41892933631`，13/13 全绿（archcheck 含测试文件、contract up-to-date、两端契约类型、integration 均通过）
-- 合并提交：`a2e9a62`（Merge pull request #271）
-- 部署前 HEAD：`a79164f` → 部署后 `a2e9a62`
+- 合并提交：`1bc217c`（Merge pull request #271）
+- 部署前 HEAD：`0ddbe73` → 部署后 `1bc217c`
 
 ## 串行部署（服务器 `腾讯云blog` / `/opt/blogx`）
 

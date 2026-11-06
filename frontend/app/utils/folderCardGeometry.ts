@@ -1,16 +1,20 @@
 /**
  * 合集/项目文件夹卡的纯几何（grill 记录 §三 3.6，术语见 GLOSSARY「合集/项目文件夹卡」）。
  *
- * 形态是一条**比例公式**，不是一组写死的像素：网格列宽不变
+ * 形态是**一组比例**，不是一组写死的像素：网格列宽不变
  * （`minmax(min(100%, 20rem), 1fr)`），卡内的背板、封面、前盖都按
  * 「容器宽度 / 基宽」等比缩放，所以 20rem 的窄列与 30rem 的宽列是同一个形状。
  *
- * 基宽取参考形态的 321×270。参考实现是 321×270 的三张扇形，本票只有**一张**
- * 16:9 封面卡（三张扇形方案已被否，见 grill 记录 §三 3.6 与 §五）。
+ * 外形来自参考组件的**前盖轮廓**（`FOLDER_FLAP_PATH`，逐字照抄）：左上圆角、
+ * 顶部凸舌、45° 斜切肩、右侧平顶、底部圆角。它就是「看起来像文件夹」的来源，
+ * 其余层次（背板 / 封面 / 前盖）都围着这条轮廓排。
+ *
+ * 基宽取参考的 321×270 舞台、前盖 viewBox 321×241。参考里是三张扇形纸卡，
+ * 本票只有**一张** 16:9 封面（三张扇形方案已被否，见 grill 记录 §三 3.6 与 §五）。
  *
  * 分工：
  *   - 这里只做算术与换算（纯函数，可单测）；
- *   - 样式表只消费 `folderCardStyleVars()` 的结果，不写死尺寸与角度。
+ *   - 样式表只消费 `folderCardStyleVars()` 的结果，不写死尺寸、角度与路径。
  *
  * 为什么样式变量用百分比而不是 cqw / 容器查询：百分比的参照是浏览器算好的
  * 包含块与自身盒子，不需要容器查询单位（老浏览器会整体失效），也不需要
@@ -23,27 +27,49 @@ export const FOLDER_CARD_BASE_WIDTH = 321;
 /** 参考形态的基高（px）：同上，只用于比例换算。 */
 export const FOLDER_CARD_BASE_HEIGHT = 270;
 
+/** 前盖（flap）在基宽下的尺寸：参考组件的 viewBox 是 321×241。 */
+export const FOLDER_FLAP_WIDTH = 321;
+export const FOLDER_FLAP_HEIGHT = 241;
+
+/** 前盖轮廓的圆角半径（与下面这条 path 里的 25 同源，背板跟着它走）。 */
+export const FOLDER_FLAP_RADIUS = 25;
+
+/**
+ * 凸舌肩线的 y（前盖自身坐标）：右侧平顶从这条线开始。
+ *
+ * 数值取自下面 path 里第一个水平段 `H296` 的 y —— 前盖盖住封面下沿的位置
+ * 就是这条线，所以「封面露出上 2/3」是按它算的，不是按前盖顶边算的。
+ */
+export const FOLDER_FLAP_SHOULDER_Y = 41.5404;
+
+/**
+ * 前盖轮廓：**逐字**来自参考组件（左上圆角 → 凸舌顶边 → 45° 斜切肩 →
+ * 右侧平顶 → 直边 → 底部圆角）。改这里之前先想清楚：这是"文件夹"三个字。
+ */
+export const FOLDER_FLAP_PATH =
+  "M0 25C0 11.1929 11.1929 0 25 0H136.084C143.044 0 149.689 2.90139 154.42 8.00608L178.08 33.5343C182.811 38.639 189.456 41.5404 196.416 41.5404H296C309.807 41.5404 321 52.7333 321 66.5404V216C321 229.807 309.807 241 296 241H25C11.1929 241 0 229.807 0 216V25Z";
+
 /** 封面卡固定 16:9（与 ArticleCover 同一个形状，票 204）。 */
 const SHEET_ASPECT = 16 / 9;
 
 /** 基宽下的几何（px）。出处见每行注释；改这里就等于改所有列宽下的形状。 */
 const BASE = {
-  /** 背板：左右各留 8，底边 264（舞台高 270 留 6 底白）。 */
-  backLeft: 8,
-  backTop: 12,
-  backWidth: 305,
-  backBottom: 264,
-  /** 封面卡：236 宽（16:9 → 132.75 高），水平居中，顶部 46。 */
-  sheetWidth: 236,
-  sheetTop: 46,
-  /** 前盖：比背板再收 2，底边与背板齐平。 */
-  flapLeft: 10,
-  flapWidth: 301,
-  /** 封面露出上 2/3 —— 前盖顶边正好盖住下 1/3。 */
+  /** 背板：铺满宽度，顶边 10（比前盖低 13，露一条后沿），底边与舞台齐平。 */
+  backTop: 10,
+  backBottom: 270,
+  /** 前盖：321 宽压满、241 高，顶边 23、底边 264 —— 底部留 6 当背板的后沿。 */
+  flapTop: 23,
+  flapBottom: 264,
+  /** 封面卡：210 宽（16:9 → 118.13 高），水平居中。 */
+  sheetWidth: 210,
+  /**
+   * 封面常态露出上 2/3 —— 被前盖斜切肩（`FOLDER_FLAP_SHOULDER_Y`）盖住下沿。
+   * 肩线以下的封面全部藏在前盖后面。
+   */
   visibleSheetFraction: 2 / 3,
   /** hover / 键盘聚焦时封面上抽的距离（基宽下）。 */
   lift: 30,
-  /** 前盖常态前倾角（度）；展开时前倾到 -45°。 */
+  /** 前盖常态前倾角（度）；展开时前倾到 -45°（铰链在下沿）。 */
   flapTilt: -15,
   flapTiltOpen: -45,
   /** 封面展开时的旋转角（度）。 */
@@ -84,14 +110,37 @@ export function folderCardSheetTiltDeg(revealed: boolean): number {
   return revealed ? BASE.sheetTilt : 0;
 }
 
-/** 基宽下的封面高度（px），用于把"30px 上抽"换算成占封面高度的比例。 */
-function baseSheetHeightPx(): number {
-  return folderCardSheetHeightPx(BASE.sheetWidth);
+/** 前盖斜切肩在舞台坐标里的 y（px）：封面「露出上 2/3」就是拿它当遮盖线。 */
+export function folderFlapShoulderY(): number {
+  return BASE.flapTop + FOLDER_FLAP_SHOULDER_Y;
 }
 
-/** 基宽下的前盖顶边（px）：封面顶 + 2/3 封面高 = 露出上 2/3。 */
-function baseFlapTopPx(): number {
-  return BASE.sheetTop + baseSheetHeightPx() * BASE.visibleSheetFraction;
+/** 封面顶边（px）：肩线以上正好露出上 2/3，其余压在前盖后面。 */
+export function folderSheetTopPx(): number {
+  const sheetHeight = folderCardSheetHeightPx(BASE.sheetWidth);
+  return folderFlapShoulderY() - sheetHeight * BASE.visibleSheetFraction;
+}
+
+/**
+ * 前盖的 `mask-image`：参考组件的轮廓当遮罩（`preserveAspectRatio="none"`，
+ * 所以任意列宽下都铺满元素、形状不变）。
+ *
+ * 为什么用 mask 而不是 `clip-path: path()`：`path()` 只认像素、不随列宽缩放，
+ * 等于把 321×241 钉死；data-URI 的 SVG 有自己的 viewBox，跟着元素盒子走。
+ * 遮罩里的 `fill="white"` 只需要 alpha，不参与配色。
+ */
+export function folderFlapMaskImage(): string {
+  const svg =
+    `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${FOLDER_FLAP_WIDTH} ${FOLDER_FLAP_HEIGHT}" preserveAspectRatio="none">` +
+    `<path d="${FOLDER_FLAP_PATH}" fill="white"/></svg>`;
+  // 括号与引号必须一起编掉：这个值要穿过 CSS 自定义属性，而自定义属性又常常
+  // 写在 `style="…"` 属性里——留一个裸括号就可能把外层的引号/函数提前收掉，
+  // 结果是 mask 解析成空、整个前盖凭空消失（正是这里踩过的坑）。
+  const encoded = encodeURIComponent(svg).replace(
+    /['()]/gu,
+    (char) => `%${char.charCodeAt(0).toString(16).toUpperCase()}`,
+  );
+  return `url('data:image/svg+xml,${encoded}')`;
 }
 
 /** 值 ÷ 基准，换算成百分比字符串；两位小数、去掉多余的 0。 */
@@ -102,13 +151,12 @@ function percentOf(valuePx: number, basePx: number): string {
 
 /** 样式表消费的那一份几何：全部相对容器（宽度 / 高度 / 角度），无像素尺寸。 */
 export function folderCardStyleVars(): Record<string, string> {
-  const flapTop = baseFlapTopPx();
+  const sheetHeight = folderCardSheetHeightPx(BASE.sheetWidth);
+  const sheetTop = folderSheetTopPx();
 
   return {
     "--folder-stage-ratio": `${FOLDER_CARD_BASE_WIDTH} / ${FOLDER_CARD_BASE_HEIGHT}`,
-    "--folder-back-left": percentOf(BASE.backLeft, FOLDER_CARD_BASE_WIDTH),
     "--folder-back-top": percentOf(BASE.backTop, FOLDER_CARD_BASE_HEIGHT),
-    "--folder-back-width": percentOf(BASE.backWidth, FOLDER_CARD_BASE_WIDTH),
     "--folder-back-height": percentOf(
       BASE.backBottom - BASE.backTop,
       FOLDER_CARD_BASE_HEIGHT,
@@ -117,22 +165,21 @@ export function folderCardStyleVars(): Record<string, string> {
       (FOLDER_CARD_BASE_WIDTH - BASE.sheetWidth) / 2,
       FOLDER_CARD_BASE_WIDTH,
     ),
-    "--folder-sheet-top": percentOf(BASE.sheetTop, FOLDER_CARD_BASE_HEIGHT),
+    "--folder-sheet-top": percentOf(sheetTop, FOLDER_CARD_BASE_HEIGHT),
     "--folder-sheet-width": percentOf(BASE.sheetWidth, FOLDER_CARD_BASE_WIDTH),
-    "--folder-sheet-height": percentOf(baseSheetHeightPx(), FOLDER_CARD_BASE_HEIGHT),
+    "--folder-sheet-height": percentOf(sheetHeight, FOLDER_CARD_BASE_HEIGHT),
     "--folder-sheet-lift": percentOf(
       -folderCardLiftPx(FOLDER_CARD_BASE_WIDTH),
-      baseSheetHeightPx(),
+      sheetHeight,
     ),
     "--folder-sheet-tilt": `${folderCardSheetTiltDeg(true)}deg`,
-    "--folder-flap-left": percentOf(BASE.flapLeft, FOLDER_CARD_BASE_WIDTH),
-    "--folder-flap-top": percentOf(flapTop, FOLDER_CARD_BASE_HEIGHT),
-    "--folder-flap-width": percentOf(BASE.flapWidth, FOLDER_CARD_BASE_WIDTH),
+    "--folder-flap-top": percentOf(BASE.flapTop, FOLDER_CARD_BASE_HEIGHT),
     "--folder-flap-height": percentOf(
-      BASE.backBottom - flapTop,
+      BASE.flapBottom - BASE.flapTop,
       FOLDER_CARD_BASE_HEIGHT,
     ),
     "--folder-flap-tilt": `${folderCardFlapTiltDeg(false)}deg`,
     "--folder-flap-tilt-open": `${folderCardFlapTiltDeg(true)}deg`,
+    "--folder-flap-mask": folderFlapMaskImage(),
   };
 }

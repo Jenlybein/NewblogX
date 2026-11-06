@@ -4,8 +4,9 @@ import { tocIndentLevel } from "~/utils/toc";
  * 标题大纲「轨道 + 飞行器」的几何（票 296，纯函数，不碰 DOM）。
  *
  * 分工：这个模块只负责**算**——层级换算成缩进、每个标题一个节点、节点之间连成
- * 一条只往下走的折线，以及「某个 y 之前已经走过多少长度」「某个长度处的坐标与
- * 切线角度」。组件负责**量**（每个链接行的中心 y）与**画**（SVG + 弹簧）。
+ * 一条只往下走的折线，以及「某个 y 之前已经走过多少长度」「某个长度处的切线角度」。
+ * 组件负责**量**（每个链接行的中心 y）与**画**（SVG + 弹簧）。
+ * 飞机停机点直接用节点坐标（`node.x / node.y`），不经这里换算。
  *
  * 为什么几何要独立成纯函数：轨道的观感全靠这几个量（虚线描边、已读段实线填、
  * 飞机停在当前长度、机头贴切线），但它们全是"输入数字 → 输出数字"，不需要浏览器
@@ -225,33 +226,6 @@ export function tocRailReadFraction(path: TocRailPath, y: number): number {
   }
 
   return tocRailLengthAtY(path, y) / path.totalLength;
-}
-
-/** 某个长度处的坐标（飞机停机点）。零段路径落在唯一节点上。 */
-export function tocRailPointAtLength(path: TocRailPath, length: number): { x: number; y: number } {
-  const node = path.nodes[0];
-  if (!node) {
-    return { x: TOC_RAIL_BASE_X_PX, y: 0 };
-  }
-
-  const target = clampLength(path, length);
-  if (path.totalLength <= 0) {
-    return { x: node.x, y: node.y };
-  }
-
-  for (const segment of path.segments) {
-    if (target <= segment.startLength + segment.length) {
-      const progress =
-        segment.length <= 0 ? 1 : (target - segment.startLength) / segment.length;
-      return {
-        x: segment.x1 + (segment.x2 - segment.x1) * progress,
-        y: segment.y1 + (segment.y2 - segment.y1) * progress,
-      };
-    }
-  }
-
-  const last = path.nodes[path.nodes.length - 1] ?? node;
-  return { x: last.x, y: last.y };
 }
 
 /** 某个长度处的切线角（度）：飞机机头就贴这个角度。没有线段时按"向下"给。 */

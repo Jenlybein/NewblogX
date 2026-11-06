@@ -10,7 +10,6 @@ import {
   buildTocRailPath,
   tocRailAngleAtLength,
   tocRailLengthAtY,
-  tocRailPointAtLength,
   tocRailReadFraction,
 } from "~/utils/tocRail";
 
@@ -161,7 +160,7 @@ describe("tocRailLengthAtY：按 y 求已经走过多少", () => {
   });
 });
 
-describe("tocRailAngleAtLength / tocRailPointAtLength：飞机朝向与停机点", () => {
+describe("tocRailAngleAtLength：飞机朝向", () => {
   const path = buildTocRailPath(buildTocRailNodes(headings, [20, 56, 100]));
 
   it("切线角是沿轨道往下的度数：右下段 69°，左下段 108°", () => {
@@ -170,16 +169,14 @@ describe("tocRailAngleAtLength / tocRailPointAtLength：飞机朝向与停机点
     expect(Math.round(tocRailAngleAtLength(path, 60))).toBe(108);
   });
 
-  it("长度 0 落在第一个节点上，全长落在最后一个节点上", () => {
-    expect(tocRailPointAtLength(path, 0)).toEqual({ x: TOC_RAIL_BASE_X_PX, y: 20 });
-
-    const end = tocRailPointAtLength(path, path.totalLength);
-    expect(end.x).toBeCloseTo(TOC_RAIL_BASE_X_PX, 5);
-    expect(end.y).toBeCloseTo(100, 5);
+  it("超界长度钳在两端（弹簧过冲也不会让机头朝向跳档）", () => {
+    expect(Math.round(tocRailAngleAtLength(path, -50))).toBe(69);
+    expect(Math.round(tocRailAngleAtLength(path, 10_000))).toBe(108);
   });
 
-  it("超界长度钳在两端（弹簧过冲也不会把飞机甩出画布）", () => {
-    expect(tocRailPointAtLength(path, -50)).toEqual({ x: TOC_RAIL_BASE_X_PX, y: 20 });
-    expect(tocRailPointAtLength(path, 10_000).y).toBeCloseTo(100, 5);
+  it("零长路径（只有一个标题）没有线段：按「向下」给角度，不返回 NaN", () => {
+    const single = buildTocRailPath(buildTocRailNodes([{ id: "only", level: 2 }], [20]));
+
+    expect(tocRailAngleAtLength(single, 0)).toBe(90);
   });
 });

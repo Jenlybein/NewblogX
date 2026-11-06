@@ -34,7 +34,9 @@ defineProps<{ cards: CollectionCardView[] }>();
 .folder-card-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(min(100%, 20rem), 1fr));
-  gap: 1.25rem;
+  /* 行距比列距宽：封面卡常态就比舞台高出一截（纸从文件夹里探出来），
+     行距要留得下那段溢出，以及对焦/悬停时再上抽的 30px。 */
+  gap: 1.75rem 1.25rem;
   margin: 0;
   padding: 0;
   list-style: none;

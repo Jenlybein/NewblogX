@@ -141,6 +141,33 @@ describe("ArticleTocAnchor：轨道叠在 naive 锚点之上", () => {
     expect(track.attributes("stroke-dasharray")).toBe("2 5");
   });
 
+  it("轨道是折线：层级一变就拐弯，path 上不止「起点 + 每个节点」那几个点", () => {
+    const wrapper = mountToc();
+    const track = wrapper.get(".article-toc-rail__track");
+
+    // 三个标题两段过渡，每段横坐标都变 → 每段插两个折点 → 6 个 L 指令。
+    expect(track.attributes("d")?.match(/L/gu)).toHaveLength(6);
+  });
+
+  it("节点随层级横向错开：h2 在 5、h3 在 19（每级 14px）", () => {
+    const wrapper = mountToc();
+
+    expect(wrapper.get('[data-node-id="h-a"]').attributes("cx")).toBe("5");
+    expect(wrapper.get('[data-node-id="h-b"]').attributes("cx")).toBe("19");
+    expect(wrapper.get('[data-node-id="h-c"]').attributes("cx")).toBe("5");
+  });
+
+  it("已读实心 3px、未读空心 3.25px；当前节点是实心那个", () => {
+    const wrapper = mountToc();
+
+    // 当前在 h-b：它与其上方的 h-a 已读，h-c 未读。
+    expect(wrapper.get('[data-node-id="h-a"]').attributes("r")).toBe("3");
+    expect(wrapper.get('[data-node-id="h-b"]').attributes("r")).toBe("3");
+    expect(wrapper.get('[data-node-id="h-c"]').attributes("r")).toBe("3.25");
+    expect(wrapper.get('[data-node-id="h-c"]').classes()).not.toContain("is-read");
+    expect(wrapper.get('[data-node-id="h-a"]').classes()).toContain("is-read");
+  });
+
   it("飞机停当前节点上，朝向贴轨道切线", () => {
     const wrapper = mountToc();
 

@@ -75,19 +75,23 @@ describe("门禁接线：本地脚本与 CI 是同一口径", () => {
   });
 
   it("两端同源副本门禁接进了 check.sh、verify-gates.sh 与 CI（票 200；票 225 扩到裁剪窗）", () => {
-    const cli = "node scripts/check-image-shaping-parity.mjs";
+    // #287：命令只在门禁清单里定义一次，三处都经 scripts/gates/run.mjs 调它。
+    const cli = "scripts/check-image-shaping-parity.mjs";
+    const gateList = readFileSync(join(repoRoot, "scripts/gates/gates.json"), "utf8");
+    expect(gateList).toContain(cli);
+    expect(gateList).toContain("scripts/check-token-parity.mjs");
 
-    // 本地：frontend 段与 token 同源门禁挨着跑（都是"两份文件逐字节一致"的仓库级判据）。
+    // 本地：frontend 段的仓库级判据（两端 token / 同源副本）按分组调 runner。
     const frontendStart = checkSh.indexOf('[ "$TARGET" = "frontend" ]');
     const gatesStart = checkSh.indexOf('[ "$TARGET" = "gates" ]');
     expect(frontendStart).toBeGreaterThan(-1);
     expect(gatesStart).toBeGreaterThan(frontendStart);
     const frontendSection = checkSh.slice(frontendStart, gatesStart);
-    expect(frontendSection).toContain(cli);
-    expect(frontendSection).toContain("node scripts/check-token-parity.mjs");
+    expect(frontendSection).toContain("scripts/gates/run.mjs");
+    expect(frontendSection).toContain("--group frontend");
 
-    // CI：与本地同一条命令，挂在仓库级判据所在的 job 里。
-    expect(ciJobBlock("frontend-lint")).toContain(cli);
+    // CI：与本地同一个入口，挂在仓库级判据所在的 job 里。
+    expect(ciJobBlock("frontend-lint")).toContain("node scripts/gates/run.mjs --group frontend");
 
     // 自检：verify-gates.sh 必须真的注入"只改后台副本一个常量"并断言门禁变红。
     expect(verifyGates).toContain("check-image-shaping-parity.mjs");

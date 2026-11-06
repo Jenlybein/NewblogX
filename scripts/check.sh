@@ -41,9 +41,8 @@ export GOTOOLCHAIN=local
 export CGO_ENABLED=1
 
 # 架构违规棘轮：当前存量与演进历史见 scripts/arch-baseline.env。
-# 数字只从那一个文件读，避免本地 / CI / 自检脚本三处各写一遍后漂移。
-# shellcheck source=scripts/arch-baseline.env
-. "$ROOT/scripts/arch-baseline.env"
+# 阈值不再由本脚本读：门禁清单（scripts/gates/gates.json）里的 archcheck 门禁
+# 由 runner 从那一份文件读并替换占位符，本地 / CI / 门禁自检共用同一个入口。
 # nuxt typecheck 在 Windows 上默认堆不够，需要抬高上限
 export NODE_OPTIONS="${NODE_OPTIONS:---max-old-space-size=8192}"
 
@@ -227,17 +226,16 @@ if [ "$TARGET" = "all" ] || [ "$TARGET" = "backend" ]; then
     cd backend
     run "backend: go build"     go build ./...
     run "backend: go vet"       go vet ./...
-    run "backend: archcheck 规则自检" go test ./tools/archcheck/...
-    run "backend: archcheck 棘轮($ARCH_MAX_VIOLATIONS)" \
-      go run ./tools/archcheck --mode=error --max-violations="$ARCH_MAX_VIOLATIONS" .
-    # 第二遍把 _test.go 也算进来，专门盯依赖方向（R10/R11）。
+    # 规则自检 + 棘轮两遍都登记在门禁清单里（scripts/gates/gates.json），
+    # 本地 / CI / 门禁自检读同一份；加一道门禁只改那一处。
     #
-    # 为什么要单独一遍：默认的 --skip-tests 会跳过测试文件，而测试里
-    # import models 会把 M6 的"删 models"卡住 —— 那种违规不会在别处报警。
+    # 第二遍把 _test.go 也算进来，专门盯依赖方向（R10/R11）：
+    # 默认的 --skip-tests 会跳过测试文件，而测试里 import models 会把 M6 的
+    # "删 models" 卡住 —— 那种违规不会在别处报警。
     # R1/R7/R8 标了 ProductionOnly，在测试文件上本来就不报，所以这一遍
     # 实际只多出依赖方向的约束，不会因为"测试里造数据用了 *gorm.DB"变红。
-    run "backend: archcheck 棘轮(含测试文件)" \
-      go run ./tools/archcheck --mode=error --skip-tests=false --max-violations="$ARCH_MAX_VIOLATIONS" .
+    run "backend: archcheck（规则自检 + 棘轮两遍）" \
+      node "$ROOT/scripts/gates/run.mjs" --group backend
     # 测试只跑一遍。
     #
     # 项目里**没有任何测试**使用 testing.Short()，所以过去"先 -race -short 跑一遍、
@@ -295,29 +293,22 @@ run_contract_types() {
 if [ "$TARGET" = "all" ] || [ "$TARGET" = "backend" ]; then
   # 契约（开放接口契约）未过期：与 CI 的 contract job、门禁自检第 5 节
   # 共用 scripts/check-contract-freshness.mjs 这一份判定，不在本地另写一份。
-  # gates 段不在这里重复跑：verify-gates.sh 第 5 节已经调用同一份判定并注入失效形态。
-  # shellcheck source=scripts/tool-versions.env
-  . "$ROOT/scripts/tool-versions.env"
-  run "契约未过期（$SWAG_MODULE@$SWAG_VERSION）" node scripts/check-contract-freshness.mjs
-  # 判定自身的行为用例（跨 CLI 接缝，不读源码文本）：真生成 / 静默跳过 /
-  # 命令失败 / 过期 / 条目数下降 / 新增结构缺席。
-  run "契约判定行为用例" node scripts/test-contract-freshness.mjs
+  # 命令与工具版本登记在门禁清单里（runner 从 scripts/tool-versions.env 读 ref），
+  # 这里只按分组调用，不拼字面版本、也不复制命令。
+  # gates 段不在这里重复跑：verify-gates.sh 第 5 节已经调用同一个门禁并注入失效形态。
+  run "契约门禁（未过期判定 + 判定行为用例）" \
+    node "$ROOT/scripts/gates/run.mjs" --group contract
 fi
 
 if [ "$TARGET" = "all" ] || [ "$TARGET" = "frontend" ]; then
   for app in frontend frontend_admin; do
     run_contract_types "$app"
   done
-  # 两端 tokens.css 逐字节同源（ADR-0012 约束 14 / #22）。
-  # 这是仓库级判据（比较两份文件），与 app 无关，所以在循环外只跑一次；
-  # CI 的 frontend-lint job 跑同一条命令，避免"本地一份、CI 一份"的口径漂移。
-  run "两端 token 同源" node scripts/check-token-parity.mjs
-  # 两端同源副本逐字节一致（#200 定形工具；#225 扩到裁剪窗四份组件）。
-  # 后台不得相对路径 import 读者站模块（#176 曾因此让生产构建失败），所以三种封面
-  # 与头像共用的定形实现、以及 ImageCropView / ImageCropDialog 两份裁剪窗组件，
-  # 都只能靠"两端各一份逐字复制 + 门禁比对"。同样是仓库级判据，
-  # 与 app 无关，紧挨 token 同源跑一次。
-  run "两端同源副本" node scripts/check-image-shaping-parity.mjs
+  # 仓库级判据（两端 tokens.css 逐字节同源 = ADR-0012 约束 14 / #22；
+  # 两端 imageShaping 定形工具与裁剪窗四份组件逐字节同源 = #200 / #225）。
+  # 命令登记在门禁清单里，CI 的 frontend-lint job 与门禁自检读同一份。
+  run "仓库级门禁（两端 token / 同源副本）" \
+    node "$ROOT/scripts/gates/run.mjs" --group frontend
   for app in frontend frontend_admin; do
     (
       cd "$app"
@@ -358,9 +349,19 @@ if [ "$TARGET" = "all" ] || [ "$TARGET" = "frontend" ]; then
 fi
 
 if [ "$TARGET" = "all" ] || [ "$TARGET" = "gates" ]; then
+  # 门禁清单只有一个来源：scripts/gates/gates.json。
+  # 加一道门禁只改那一处 —— 本地（这里）、CI（ci.yml 的 gates-canary 调同一个
+  # runner）、门禁自检（verify-gates.sh 开头核对清单与演练一致）都自动看到。
+  run "门禁清单（单一来源）" node "$ROOT/scripts/gates/run.mjs" --list
+  # runner 自身的行为用例（跨 CLI 接缝，不读源码文本）。
+  run "门禁 runner 行为用例" node "$ROOT/scripts/gates/test-gate-runner.mjs"
+  # 清单里的每道门禁都必须有对应演练，否则新门禁会静默地不被自检验证。
+  run "门禁演练覆盖（每道门禁都有演练）" node "$ROOT/scripts/gates/run.mjs" --check-coverage
   # deco.charm 的 12 个数值参数只由 config/deco-charm-parameters.json 生成四端
   # 消费物并进入契约（开放接口契约）。一条校验同时验重新生成后四端无差异、
   # 契约中的 min/max/default 与 GET/PUT /site/deco 的运行时取值。
+  # 它是参数生成脚本（#286），不属于「清单 / 版本 / 判定 / 重复安装」四件事，
+  # 因此留在门禁清单之外、仍在这里与 verify-gates.sh 第 14 节调用。
   run "生成式装饰参数校验" node scripts/generate-deco-parameters.mjs --check
   run "门禁自检（证明门禁会红）" bash scripts/verify-gates.sh
 fi

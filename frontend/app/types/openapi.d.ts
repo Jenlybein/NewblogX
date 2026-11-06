@@ -6539,57 +6539,68 @@ export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
         "conf.Charm": {
-            /** @description Damping 是每个固定步长后保留的速度比例（无量纲，0.9–1；1 表示不衰减）。 */
-            damping?: number;
-            /** @description Enable 是总开关。默认开着：功能上线后读者立刻就能看到。 */
-            enable?: boolean;
             /**
-             * @description FpsCap 是最高渲染帧率，单位 fps，整数。
-             *
-             *     语义是**上限**而不是保证：高于显示器刷新率时等价于"每帧"，高刷屏上的
-             *     实际帧率落在刷新率的整数分之一（144Hz + 90 档 = 72fps）。它只决定
-             *     "每秒画几次"，不影响绳子运动速度 —— 物理仍按固定步长按真实时间推进。
+             * @description 每个固定步长后保留的速度比例（无量纲，0.9–1；1 表示不衰减）。
+             * @default 0.99
              */
-            fps_cap?: number;
-            /** @description Gravity 是重力加速度，单位 px/s²。 */
-            gravity?: number;
+            damping: number;
+            /** @default true */
+            enable: boolean;
             /**
-             * @description IdleSwayAmp 是静止摆动的加速度幅度，单位 px/s²，作用在自由端：
-             *     横向加速度按节点序号加权（指针端 0、尾端 1），不是每个节点同一份。
-             *     0 表示关掉轻晃（读者站据此退回静止即停帧）；频率为 0 同样视为关掉。
+             * @description 最高渲染帧率，单位 fps，整数。语义是上限而不是保证：高于显示器刷新率时等价于每帧，高刷屏上的实际帧率落在刷新率的整数分之一（144Hz + 90 档 = 72fps）。它只决定每秒画几次，不影响绳子运动速度 —— 物理仍按固定步长按真实时间推进。
+             * @default 60
              */
-            idle_sway_amp?: number;
-            /** @description IdleSwayHz 是静止摆动的频率，单位 Hz。0 表示关掉轻晃。 */
-            idle_sway_hz?: number;
-            /** @description LineWidth 是描边起始宽度，单位 px（收尾宽度固定为它的 0.6 倍）。 */
-            line_width?: number;
-            /** @description LogoSize 是站标显示尺寸，单位 px。 */
-            logo_size?: number;
+            fps_cap: number;
             /**
-             * @description PointerOffsetX 是"指针端偏移"的水平分量，单位 CSS px（与 clientX 同一视口
-             *     坐标系，不随 DPI 缩放）。默认 3，区间 -24–24，**允许负值**（往左偏）。
-             *
-             *     语义是"指针端节点 = 指针热点 + (X, Y)"：挂绳的物理与渲染都从换算后的
-             *     头节点出发，渲染层不得再单独偏一次（ADR-0018 决策 8 / 约束 7）。
+             * @description 重力加速度，单位 px/s²。
+             * @default 1600
              */
-            pointer_offset_x?: number;
-            /** @description PointerOffsetY 是指针端偏移的垂直分量，单位 CSS px（向下为正）。 */
-            pointer_offset_y?: number;
-            /** @description RopeLength 是挂绳长度（松垂阈值），单位 px。 */
-            rope_length?: number;
+            gravity: number;
             /**
-             * @description Segments 是 Verlet 链的节点数（节），整数计数。
-             *
-             *     用 float64 而不是 int 是有意的：写入路径"永不报错"的承诺必须对数字成立。
-             *     用 int 时 `{"segments":10.6}` 会在 JSON 绑定时直接 400，管理员根本到不了
-             *     Normalize；Normalize 里再做四舍五入，10.6 节就按 11 节落库。
+             * @description 静止摆动的加速度幅度，单位 px/s²，作用在自由端：横向加速度按节点序号加权（指针端 0、尾端 1），不是每个节点同一份。0 表示关掉轻晃（读者站据此退回静止即停帧）；频率为 0 同样视为关掉。
+             * @default 20
              */
-            segments?: number;
+            idle_sway_amp: number;
             /**
-             * @description Stiffness 是距离约束刚度（无量纲，0.2–1）：每次迭代消化这么多比例的
-             *     误差。1 等于全量投影（刚杆手感）；越小越弹，拖动时先拉长再回弹。
+             * @description 静止摆动的频率，单位 Hz。0 表示关掉轻晃。
+             * @default 0.8
              */
-            stiffness?: number;
+            idle_sway_hz: number;
+            /**
+             * @description 描边起始宽度，单位 px（收尾宽度固定为它的 0.6 倍）。
+             * @default 2.5
+             */
+            line_width: number;
+            /**
+             * @description 站标显示尺寸，单位 px。
+             * @default 48
+             */
+            logo_size: number;
+            /**
+             * @description 指针端偏移的水平分量，单位 CSS px（与 clientX 同一视口坐标系，不随 DPI 缩放）。默认 3，区间 -24–24，允许负值（往左偏）。语义是指针端节点 = 指针热点 + (X, Y)：挂绳的物理与渲染都从换算后的头节点出发，渲染层不得再单独偏一次（ADR-0018 决策 8 / 约束 7）。
+             * @default 3
+             */
+            pointer_offset_x: number;
+            /**
+             * @description 指针端偏移的垂直分量，单位 CSS px（向下为正）。
+             * @default 3
+             */
+            pointer_offset_y: number;
+            /**
+             * @description 挂绳长度（松垂阈值），单位 px。
+             * @default 120
+             */
+            rope_length: number;
+            /**
+             * @description Verlet 链的节点数（节），整数计数。
+             * @default 10
+             */
+            segments: number;
+            /**
+             * @description 距离约束刚度（无量纲，0.2–1）：每次迭代消化这么多比例的误差。1 等于全量投影（刚杆手感）；越小越弹，拖动时先拉长再回弹。
+             * @default 0.5
+             */
+            stiffness: number;
         };
         "conf.LogCleanup": {
             enabled?: boolean;
@@ -7541,11 +7552,9 @@ export interface components {
             timeout_sec?: number;
         };
         "internal_site_adapter_http.SiteSectionDecoRequest": {
-            /** @description Charm 是光标挂件的参数子块。 */
             charm?: components["schemas"]["conf.Charm"];
         };
         "internal_site_adapter_http.SiteSectionDecoResponse": {
-            /** @description Charm 是光标挂件的参数子块。 */
             charm?: components["schemas"]["conf.Charm"];
         };
         "internal_site_adapter_http.SiteSectionImageGcRequest": {

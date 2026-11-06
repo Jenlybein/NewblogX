@@ -128,7 +128,8 @@ export function buildTocRailNodes(
 
 /** 节点序列 → 折线（相邻节点直接连线，所以只会横向走一次、整体只向下）。 */
 export function buildTocRailPath(nodes: readonly TocRailNode[]): TocRailPath {
-  if (nodes.length === 0) {
+  const first = nodes[0];
+  if (!first) {
     return {
       d: "",
       nodes: [],
@@ -139,14 +140,13 @@ export function buildTocRailPath(nodes: readonly TocRailNode[]): TocRailPath {
     };
   }
 
-  const first = nodes[0];
   const commands = [`M ${round(first.x)} ${round(first.y)}`];
   const segments: TocRailSegment[] = [];
   let totalLength = 0;
+  let previous = first;
 
-  for (let index = 1; index < nodes.length; index += 1) {
-    const from = nodes[index - 1];
-    const to = nodes[index];
+  for (const to of nodes.slice(1)) {
+    const from = previous;
     const dx = to.x - from.x;
     const dy = to.y - from.y;
     const length = Math.hypot(dx, dy);
@@ -163,9 +163,8 @@ export function buildTocRailPath(nodes: readonly TocRailNode[]): TocRailPath {
 
     totalLength += length;
     commands.push(`L ${round(to.x)} ${round(to.y)}`);
+    previous = to;
   }
-
-  const last = nodes[nodes.length - 1];
 
   return {
     d: commands.join(" "),
@@ -173,7 +172,7 @@ export function buildTocRailPath(nodes: readonly TocRailNode[]): TocRailPath {
     segments,
     totalLength,
     width: TOC_RAIL_WIDTH_PX,
-    height: Math.ceil(last.y + TOC_RAIL_PAD_BOTTOM_PX + TOC_RAIL_NODE_RADIUS_PX),
+    height: Math.ceil(previous.y + TOC_RAIL_PAD_BOTTOM_PX + TOC_RAIL_NODE_RADIUS_PX),
   };
 }
 
@@ -198,6 +197,9 @@ export function tocRailLengthAtY(path: TocRailPath, y: number): number {
 
   const first = path.nodes[0];
   const last = path.nodes[path.nodes.length - 1];
+  if (!first || !last) {
+    return 0;
+  }
   if (y <= first.y) {
     return 0;
   }
@@ -248,7 +250,7 @@ export function tocRailPointAtLength(path: TocRailPath, length: number): { x: nu
     }
   }
 
-  const last = path.nodes[path.nodes.length - 1];
+  const last = path.nodes[path.nodes.length - 1] ?? node;
   return { x: last.x, y: last.y };
 }
 
@@ -266,5 +268,7 @@ export function tocRailAngleAtLength(path: TocRailPath, length: number): number 
     }
   }
 
-  return path.segments[path.segments.length - 1].angleDeg;
+  const last = path.segments[path.segments.length - 1];
+  // 空线段已在上面提前返回；显式兜底只为满足严格空值检查（行为不变）。
+  return last ? last.angleDeg : 90;
 }

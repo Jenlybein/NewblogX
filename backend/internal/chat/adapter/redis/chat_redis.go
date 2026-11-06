@@ -20,8 +20,8 @@ import (
 // N 与 M **每次发送现读**生效值模块给出的闭包（后台「站点 → 私信」可改），
 // 不重启即生效；默认值与合法范围只在生效值模块声明一次。
 type Limiter struct {
-	deps   redis_service.Options
-	now    func() time.Time
+	deps redis_service.Options
+	now  func() time.Time
 	// limits 返回 (窗口秒数, 日额度)；注入函数而不是快照，保证"现读"。
 	limits func() (int, int)
 }

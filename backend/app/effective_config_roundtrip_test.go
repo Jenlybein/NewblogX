@@ -25,9 +25,9 @@ import (
 	"myblogx/internal/platform/idgen"
 	redis_service "myblogx/internal/platform/redis"
 	"myblogx/internal/platform/redis/redis_chat"
-	"myblogx/internal/testkit/schema"
 	sitehttp "myblogx/internal/site/adapter/http"
 	siteapp "myblogx/internal/site/app"
+	"myblogx/internal/testkit/schema"
 )
 
 // 「此刻生效值」的往返测试（#284）。唯一测试接缝是后端 HTTP 接口 + 契约：
@@ -252,65 +252,105 @@ func TestEffectiveConfig_九段具名出入口全部登记且往返可读(t *tes
 		{"site", f.handler.UpdateSiteSection, f.handler.AdminSiteSection,
 			`{"site_info":{"beian":"京ICP备00000001号"}}`,
 			func(t *testing.T, rec *httptest.ResponseRecorder) {
-				var v struct{ SiteInfo struct{ Beian string `json:"beian"` } `json:"site_info"` }
+				var v struct {
+					SiteInfo struct {
+						Beian string `json:"beian"`
+					} `json:"site_info"`
+				}
 				readSection(t, rec, &v)
-				if v.SiteInfo.Beian != "京ICP备00000001号" { t.Fatalf("site 段往返失败: %+v", v) }
+				if v.SiteInfo.Beian != "京ICP备00000001号" {
+					t.Fatalf("site 段往返失败: %+v", v)
+				}
 			}},
 		{"ai", f.handler.UpdateAiSection, f.handler.AdminAiSection,
 			`{"nickname":"新助手"}`,
 			func(t *testing.T, rec *httptest.ResponseRecorder) {
-				var v struct{ Nickname string `json:"nickname"` }
+				var v struct {
+					Nickname string `json:"nickname"`
+				}
 				readSection(t, rec, &v)
-				if v.Nickname != "新助手" { t.Fatalf("ai 段往返失败: %+v", v) }
+				if v.Nickname != "新助手" {
+					t.Fatalf("ai 段往返失败: %+v", v)
+				}
 			}},
 		{"mail", f.handler.UpdateMailSection, f.handler.AdminMailSection,
 			`{"from_name":"新发件人"}`,
 			func(t *testing.T, rec *httptest.ResponseRecorder) {
-				var v struct{ FromName string `json:"from_name"` }
+				var v struct {
+					FromName string `json:"from_name"`
+				}
 				readSection(t, rec, &v)
-				if v.FromName != "新发件人" { t.Fatalf("mail 段往返失败: %+v", v) }
+				if v.FromName != "新发件人" {
+					t.Fatalf("mail 段往返失败: %+v", v)
+				}
 			}},
 		{"storage", f.handler.UpdateStorageSection, f.handler.AdminStorageSection,
 			`{"bucket":"b-284"}`,
 			func(t *testing.T, rec *httptest.ResponseRecorder) {
-				var v struct{ Bucket string `json:"bucket"` }
+				var v struct {
+					Bucket string `json:"bucket"`
+				}
 				readSection(t, rec, &v)
-				if v.Bucket != "b-284" { t.Fatalf("storage 段往返失败: %+v", v) }
+				if v.Bucket != "b-284" {
+					t.Fatalf("storage 段往返失败: %+v", v)
+				}
 			}},
 		{"oauth", f.handler.UpdateOauthSection, f.handler.AdminOauthSection,
 			`{"app_id":"app-284"}`,
 			func(t *testing.T, rec *httptest.ResponseRecorder) {
-				var v struct{ AppID string `json:"app_id"` }
+				var v struct {
+					AppID string `json:"app_id"`
+				}
 				readSection(t, rec, &v)
-				if v.AppID != "app-284" { t.Fatalf("oauth 段往返失败: %+v", v) }
+				if v.AppID != "app-284" {
+					t.Fatalf("oauth 段往返失败: %+v", v)
+				}
 			}},
 		{"log", f.handler.UpdateLogSection, f.handler.AdminLogSection,
 			`{"level":"warn"}`,
 			func(t *testing.T, rec *httptest.ResponseRecorder) {
-				var v struct{ Level string `json:"level"` }
+				var v struct {
+					Level string `json:"level"`
+				}
 				readSection(t, rec, &v)
-				if v.Level != "warn" { t.Fatalf("log 段往返失败: %+v", v) }
+				if v.Level != "warn" {
+					t.Fatalf("log 段往返失败: %+v", v)
+				}
 			}},
 		{"upload", f.handler.UpdateUploadSection, f.handler.AdminUploadSection,
 			`{"whitelist":["webp"]}`,
 			func(t *testing.T, rec *httptest.ResponseRecorder) {
-				var v struct{ Whitelist []string `json:"whitelist"` }
+				var v struct {
+					Whitelist []string `json:"whitelist"`
+				}
 				readSection(t, rec, &v)
-				if len(v.Whitelist) != 1 || v.Whitelist[0] != "webp" { t.Fatalf("upload 段往返失败: %+v", v) }
+				if len(v.Whitelist) != 1 || v.Whitelist[0] != "webp" {
+					t.Fatalf("upload 段往返失败: %+v", v)
+				}
 			}},
 		{"deco", f.handler.UpdateDecoSection, f.handler.AdminDecoSection,
 			`{"charm":{"enable":false}}`,
 			func(t *testing.T, rec *httptest.ResponseRecorder) {
-				var v struct{ Charm struct{ Enable bool `json:"enable"` } `json:"charm"` }
+				var v struct {
+					Charm struct {
+						Enable bool `json:"enable"`
+					} `json:"charm"`
+				}
 				readSection(t, rec, &v)
-				if v.Charm.Enable { t.Fatalf("deco 段往返失败: %+v", v) }
+				if v.Charm.Enable {
+					t.Fatalf("deco 段往返失败: %+v", v)
+				}
 			}},
 		{"image_gc", f.handler.UpdateImageGcSection, f.handler.AdminImageGcSection,
 			`{"grace_days":7}`,
 			func(t *testing.T, rec *httptest.ResponseRecorder) {
-				var v struct{ GraceDays int `json:"grace_days"` }
+				var v struct {
+					GraceDays int `json:"grace_days"`
+				}
 				readSection(t, rec, &v)
-				if v.GraceDays != 7 { t.Fatalf("image_gc 段往返失败: %+v", v) }
+				if v.GraceDays != 7 {
+					t.Fatalf("image_gc 段往返失败: %+v", v)
+				}
 			}},
 	}
 	for _, c := range cases {

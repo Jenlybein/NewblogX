@@ -10,9 +10,9 @@ import (
 	"gorm.io/gorm"
 
 	"myblogx/internal/apperr"
+	mediamysql "myblogx/internal/media/adapter/mysql"
 	"myblogx/internal/media/app"
 	mediaapptest "myblogx/internal/media/apptest"
-	mediamysql "myblogx/internal/media/adapter/mysql"
 	"myblogx/internal/media/domain"
 	"myblogx/internal/testkit/mysqlcontainer"
 	"myblogx/internal/testkit/schema"

@@ -21,8 +21,8 @@ import (
 // 本文件是「合集最小闭环」的端到端契约：建合集 → 树里挂文章 → 读者侧可见。
 //
 // #219 契约破坏性变更后，合集详情返回**嵌套目录树**（`outline`），扁平
-// `articles[]` 已退役。种子直接写 `content_outline_node_models`
-// （schema.InsertOutlineNode）；旧扁平收录中间表已随 #225 从代码里删除。
+// `articles[]` 已退役。种子直接写 `collection_outline_node_models`
+// （schema.InsertCollectionOutlineNode）；旧共用表已随 #277 从代码里删除。
 
 // migrateCollectionsHTTP 建出合集闭环需要的表（比共享的 migrate 多 schema.Collection
 // 与 schema.Outline）。
@@ -54,11 +54,10 @@ func seedCollectionArticle(t *testing.T, db *gorm.DB, id, authorID uint64) {
 	})
 }
 
-// seedCollectionOutlineNode 往合集树里播种一行。
-func seedCollectionOutlineNode(t *testing.T, db *gorm.DB, spec schema.OutlineNodeSpec) {
+// seedCollectionOutlineNode 往合集具名树表播种一行。
+func seedCollectionOutlineNode(t *testing.T, db *gorm.DB, spec schema.NamedOutlineNodeSpec) {
 	t.Helper()
-	spec.OwnerKind = int(outline.OwnerCollection)
-	schema.InsertOutlineNode(t, db, spec)
+	schema.InsertCollectionOutlineNode(t, db, spec)
 }
 
 // envelope 是响应外壳（只看 code / data）。
@@ -133,13 +132,13 @@ func readCollectionDetail(
 	return detail.Outline.Nodes, detail.ArticleCount, detail.Cover
 }
 
-// readCollectionAdminOutline 读后台树编辑器的整棵树。
+// readCollectionAdminOutline 读后台树编辑器的整棵树（具名端点）。
 func readCollectionAdminOutline(
 	t *testing.T, r *gin.Engine, id ctype.ID,
 ) []collectionOutlineNode {
 	t.Helper()
 	raw := rawRequest(t, r, "GET",
-		fmt.Sprintf("/api/collections/%s/outline/admin", id), nil)
+		fmt.Sprintf("/api/collections/%s/outline-tree", id), nil)
 	env := decode(t, raw)
 	if env.Code != 0 {
 		t.Fatalf("后台目录树应成功，实际 code=%d msg=%s（响应 %s）", env.Code, env.Msg, raw)
@@ -153,13 +152,13 @@ func readCollectionAdminOutline(
 	return data.Nodes
 }
 
-// saveCollectionOutline 整棵树一次性提交，返回保存后的根层节点。
+// saveCollectionOutline 整棵树一次性提交（具名端点），返回保存后的根层节点。
 func saveCollectionOutline(
 	t *testing.T, r *gin.Engine, id ctype.ID, body string,
 ) []collectionOutlineNode {
 	t.Helper()
 	raw := rawRequest(t, r, "PUT",
-		fmt.Sprintf("/api/collections/%s/outline", id), []byte(body))
+		fmt.Sprintf("/api/collections/%s/outline-tree", id), []byte(body))
 	env := decode(t, raw)
 	if env.Code != 0 {
 		t.Fatalf("保存目录树应成功，实际 code=%d msg=%s（响应 %s）", env.Code, env.Msg, raw)
@@ -221,18 +220,18 @@ func TestCollectionStalePlaceholderAndCleanup(t *testing.T) {
 
 	// 播种目录树：「第一章」下挂 21–24，根层再放一个空文件夹「空章节」。
 	ownerID := created.ID.Uint64()
-	seedCollectionOutlineNode(t, db, schema.OutlineNodeSpec{
+	seedCollectionOutlineNode(t, db, schema.NamedOutlineNodeSpec{
 		ID: 7001, OwnerID: ownerID, Kind: int(outline.NodeKindFolder),
 		Title: "第一章", SortOrder: 1, At: at,
 	})
 	for i, articleID := range []uint64{21, 22, 23, 24} {
-		seedCollectionOutlineNode(t, db, schema.OutlineNodeSpec{
+		seedCollectionOutlineNode(t, db, schema.NamedOutlineNodeSpec{
 			ID: uint64(7002 + i), OwnerID: ownerID, ParentID: 7001,
 			Kind: int(outline.NodeKindArticle), ArticleID: articleID,
 			SortOrder: i + 1, At: at,
 		})
 	}
-	seedCollectionOutlineNode(t, db, schema.OutlineNodeSpec{
+	seedCollectionOutlineNode(t, db, schema.NamedOutlineNodeSpec{
 		ID: 7006, OwnerID: ownerID, Kind: int(outline.NodeKindFolder),
 		Title: "空章节", SortOrder: 2, At: at,
 	})
@@ -409,11 +408,11 @@ func TestCollectionCardsHonorShowNonAdminSwitch(t *testing.T) {
 	}
 
 	// 树里先挂普通作者 31，再挂管理员作者 32。
-	seedCollectionOutlineNode(t, db, schema.OutlineNodeSpec{
+	seedCollectionOutlineNode(t, db, schema.NamedOutlineNodeSpec{
 		ID: 7501, OwnerID: created.ID.Uint64(), Kind: int(outline.NodeKindArticle),
 		ArticleID: 31, SortOrder: 1, At: at,
 	})
-	seedCollectionOutlineNode(t, db, schema.OutlineNodeSpec{
+	seedCollectionOutlineNode(t, db, schema.NamedOutlineNodeSpec{
 		ID: 7502, OwnerID: created.ID.Uint64(), Kind: int(outline.NodeKindArticle),
 		ArticleID: 32, SortOrder: 2, At: at,
 	})
@@ -487,7 +486,7 @@ func TestCollectionCardsHonorShowNonAdminSwitch(t *testing.T) {
 	} else if err := json.Unmarshal(env.Data, &second); err != nil {
 		t.Fatalf("解析合集 ID 失败: %v", err)
 	}
-	seedCollectionOutlineNode(t, db, schema.OutlineNodeSpec{
+	seedCollectionOutlineNode(t, db, schema.NamedOutlineNodeSpec{
 		ID: 7503, OwnerID: second.ID.Uint64(), Kind: int(outline.NodeKindArticle),
 		ArticleID: 31, SortOrder: 1, At: at,
 	})
@@ -536,7 +535,7 @@ func TestCollectionMinimalLoop(t *testing.T) {
 
 	// ② 树里挂一篇文章（直接播种目录树，不碰已冻结的扁平中间表）。
 	at := time.Date(2026, 1, 1, 12, 0, 0, 0, time.UTC)
-	seedCollectionOutlineNode(t, db, schema.OutlineNodeSpec{
+	seedCollectionOutlineNode(t, db, schema.NamedOutlineNodeSpec{
 		ID: 7200, OwnerID: created.ID.Uint64(), Kind: int(outline.NodeKindArticle),
 		ArticleID: 1, SortOrder: 1, At: at,
 	})

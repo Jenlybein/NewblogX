@@ -9,12 +9,47 @@ import (
 	"myblogx/internal/testkit/mysqlcontainer"
 )
 
-// 本文件钉住 #217 的第一条验收：建表命令能创建目录树表，重复执行无副作用。
+// 本文件钉住「建表脚本能建出目录树表，重复执行无副作用」这条外部行为。
 //
 // 零 DDL 口径下新增表只走 CREATE TABLE IF NOT EXISTS；这里连续执行两次，
 // 第二次必须同样成功且表结构不变。没有 Docker 时 mysqlcontainer 会 skip。
+//
+// #277 收缩后只有两张按实体命名的树表：归属由表名表达，去掉归属列，
+// 唯一键与索引只落在 (owner_id, article_id) 上。断言的是 information_schema
+// 里**真库看到的结构**，不是源码文本。
 
-func TestApplyCreatesOutlineTableIdempotently(t *testing.T) {
+type outlineTableShape struct {
+	table         string
+	wantOwnerKind bool
+	wantColumns   map[string]string
+}
+
+func outlineTableShapes() []outlineTableShape {
+	common := map[string]string{
+		"owner_id":   "bigint unsigned",
+		"parent_id":  "bigint unsigned",
+		"kind":       "bigint",
+		"title":      "varchar(128)",
+		"article_id": "bigint unsigned",
+		"sort_order": "bigint",
+	}
+	return []outlineTableShape{
+		{
+			table:         "collection_outline_node_models",
+			wantOwnerKind: false,
+			wantColumns:   common,
+		},
+		{
+			table:         "project_outline_node_models",
+			wantOwnerKind: false,
+			wantColumns:   common,
+		},
+	}
+}
+
+// TestApplyCreatesOutlineTablesIdempotently 对两张具名树表逐张验幂等、列类型、
+// article_id 可空性，以及两张表确实没有归属列。
+func TestApplyCreatesOutlineTablesIdempotently(t *testing.T) {
 	db := mysqlcontainer.DB(t)
 
 	for i := 0; i < 2; i++ {
@@ -23,45 +58,45 @@ func TestApplyCreatesOutlineTableIdempotently(t *testing.T) {
 		}
 	}
 
-	var rows []struct {
-		ColumnName string `gorm:"column:COLUMN_NAME"`
-		ColumnType string `gorm:"column:COLUMN_TYPE"`
-		Nullable   string `gorm:"column:IS_NULLABLE"`
-	}
-	if err := db.Raw(
-		"SELECT column_name AS COLUMN_NAME, column_type AS COLUMN_TYPE, is_nullable AS IS_NULLABLE "+
-			"FROM information_schema.columns WHERE table_schema = DATABASE() AND table_name = ? "+
-			"ORDER BY ordinal_position",
-		"content_outline_node_models",
-	).Scan(&rows).Error; err != nil {
-		t.Fatalf("读取目录树表结构失败: %v", err)
-	}
-	if len(rows) == 0 {
-		t.Fatal("建表脚本没有创建 content_outline_node_models")
-	}
+	for _, shape := range outlineTableShapes() {
+		t.Run(shape.table, func(t *testing.T) {
+			var rows []struct {
+				ColumnName string `gorm:"column:COLUMN_NAME"`
+				ColumnType string `gorm:"column:COLUMN_TYPE"`
+				Nullable   string `gorm:"column:IS_NULLABLE"`
+			}
+			if err := db.Raw(
+				"SELECT column_name AS COLUMN_NAME, column_type AS COLUMN_TYPE, is_nullable AS IS_NULLABLE "+
+					"FROM information_schema.columns WHERE table_schema = DATABASE() AND table_name = ? "+
+					"ORDER BY ordinal_position",
+				shape.table,
+			).Scan(&rows).Error; err != nil {
+				t.Fatalf("读取 %s 结构失败: %v", shape.table, err)
+			}
+			if len(rows) == 0 {
+				t.Fatalf("建表脚本没有创建 %s", shape.table)
+			}
 
-	want := map[string]string{
-		"owner_kind": "bigint",
-		"owner_id":   "bigint unsigned",
-		"parent_id":  "bigint unsigned",
-		"kind":       "bigint",
-		"title":      "varchar(128)",
-		"article_id": "bigint unsigned",
-		"sort_order": "bigint",
-	}
-	got := make(map[string]string, len(rows))
-	for _, row := range rows {
-		got[row.ColumnName] = row.ColumnType
-	}
-	for col, typ := range want {
-		if got[col] != typ {
-			t.Errorf("列 %s 类型应为 %s，实际 %q", col, typ, got[col])
-		}
-	}
-	// 文件夹节点的 article_id 必须是 NULL（唯一索引里 NULL 互不冲突）。
-	for _, row := range rows {
-		if row.ColumnName == "article_id" && row.Nullable != "YES" {
-			t.Errorf("article_id 必须可空（文件夹节点为 NULL），实际 %s", row.Nullable)
-		}
+			got := make(map[string]string, len(rows))
+			for _, row := range rows {
+				got[row.ColumnName] = row.ColumnType
+			}
+			for col, typ := range shape.wantColumns {
+				if got[col] != typ {
+					t.Errorf("列 %s 类型应为 %s，实际 %q", col, typ, got[col])
+				}
+			}
+			_, hasOwnerKind := got["owner_kind"]
+			if hasOwnerKind != shape.wantOwnerKind {
+				t.Errorf("%s 是否有归属列 owner_kind：期望 %v，实际 %v",
+					shape.table, shape.wantOwnerKind, hasOwnerKind)
+			}
+			// 文件夹节点的 article_id 必须是 NULL（唯一索引里 NULL 互不冲突）。
+			for _, row := range rows {
+				if row.ColumnName == "article_id" && row.Nullable != "YES" {
+					t.Errorf("article_id 必须可空（文件夹节点为 NULL），实际 %s", row.Nullable)
+				}
+			}
+		})
 	}
 }

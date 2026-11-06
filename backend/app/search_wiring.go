@@ -25,7 +25,7 @@ func WireSearch(infra *Infra) {
 		infra.ESClient,
 		infra.Config.ES.Index,
 		tokenVerifier{svc: authService},
-		onlyAdminAuthors(infra.RuntimeSite),
+		infra.Effective.OnlyAdminAuthorsFunc(),
 	)
 	router.SetSearchHandler(h)
 }

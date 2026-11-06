@@ -3,6 +3,7 @@
 package res
 
 import (
+	"myblogx/internal/apperr"
 	"myblogx/utils/validate"
 
 	"github.com/gin-gonic/gin"
@@ -141,4 +142,30 @@ func FailWithValidError(err error, c *gin.Context) {
 		Data: data,
 		Msg:  msg,
 	}.Json(c)
+}
+
+// Fail 是共享响应层对"错误值"的唯一出口。
+//
+// 协议码由错误码的类别决定（分类只在 apperr 一处登记）；中文文案只从
+// apperr 的消息表取；data 恒为空对象。未知错误（没有错误码）统一给通用
+// 服务异常文案：它仍然是一次失败（不吞），但 err.Error() 里的实现细节、
+// 连接串或包装前缀一律不进响应。调用方只需把错误值原样递进来。
+func Fail(err error, c *gin.Context) {
+	if err == nil {
+		err = apperr.New(apperr.CodeCommonServiceFailed)
+	}
+	msg := apperr.Message(apperr.CodeCommonServiceFailed)
+	if code, ok := apperr.CodeOf(err); ok {
+		msg = apperr.Message(code)
+	}
+	data := map[string]any{}
+
+	switch apperr.ProtocolOf(err) {
+	case apperr.ProtocolValidation:
+		Response{Code: FailValidCode, Data: data, Msg: msg}.Json(c)
+	case apperr.ProtocolAuth:
+		Response{Code: FailAuthCode, Data: data, Msg: msg}.Json(c)
+	default:
+		Response{Code: FailServiceCode, Data: data, Msg: msg}.Json(c)
+	}
 }

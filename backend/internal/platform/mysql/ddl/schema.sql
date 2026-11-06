@@ -325,12 +325,14 @@ CREATE TABLE IF NOT EXISTS `collection_models` (
   KEY `idx_collection_models_creator_id` (`creator_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
-CREATE TABLE IF NOT EXISTS `content_outline_node_models` (
+-- 两张按实体命名的树表（#274 expand 立项，#277 收缩为唯一形状）。
+-- 归属由表名表达，不再有 owner_kind；唯一键与索引只落在 (owner_id, article_id)。
+-- 文件夹节点的 article_id 为 NULL：MySQL 唯一索引里多个 NULL 互不冲突。
+CREATE TABLE IF NOT EXISTS `collection_outline_node_models` (
   `id` bigint unsigned NOT NULL,
   `created_at` datetime(3) DEFAULT NULL,
   `updated_at` datetime(3) DEFAULT NULL,
   `deleted_at` datetime(3) DEFAULT NULL,
-  `owner_kind` bigint NOT NULL,
   `owner_id` bigint unsigned NOT NULL,
   `parent_id` bigint unsigned NOT NULL DEFAULT '0',
   `kind` bigint NOT NULL,
@@ -338,8 +340,24 @@ CREATE TABLE IF NOT EXISTS `content_outline_node_models` (
   `article_id` bigint unsigned DEFAULT NULL,
   `sort_order` bigint NOT NULL DEFAULT '0',
   PRIMARY KEY (`id`),
-  UNIQUE KEY `uk_outline_owner_article` (`owner_kind`,`owner_id`,`article_id`),
-  KEY `idx_outline_owner` (`owner_kind`,`owner_id`)
+  UNIQUE KEY `uk_collection_outline_owner_article` (`owner_id`,`article_id`),
+  KEY `idx_collection_outline_owner` (`owner_id`,`article_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
+CREATE TABLE IF NOT EXISTS `project_outline_node_models` (
+  `id` bigint unsigned NOT NULL,
+  `created_at` datetime(3) DEFAULT NULL,
+  `updated_at` datetime(3) DEFAULT NULL,
+  `deleted_at` datetime(3) DEFAULT NULL,
+  `owner_id` bigint unsigned NOT NULL,
+  `parent_id` bigint unsigned NOT NULL DEFAULT '0',
+  `kind` bigint NOT NULL,
+  `title` varchar(128) NOT NULL,
+  `article_id` bigint unsigned DEFAULT NULL,
+  `sort_order` bigint NOT NULL DEFAULT '0',
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uk_project_outline_owner_article` (`owner_id`,`article_id`),
+  KEY `idx_project_outline_owner` (`owner_id`,`article_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 CREATE TABLE IF NOT EXISTS `comment_digg_models` (

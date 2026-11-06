@@ -26,9 +26,12 @@ import type {
   DeadLetterReplayResult,
   ImageListResponseData,
   ListData,
+  CollectionOutlineSavePayload,
+  CollectionOutlineTreeResponseData,
   OutlineNodePayload,
-  OutlineTreeResponseData,
   ProjectAdminCard,
+  ProjectOutlineSavePayload,
+  ProjectOutlineTreeResponseData,
   ProjectCreatePayload,
   ProjectUpdatePayload,
   ReplayLogRecord,
@@ -44,7 +47,7 @@ import type {
   UserListResponseData,
 } from '~/types/api'
 
-/** 可读写的配置段。与后端 platform/config 的段名常量一一对应（八段）。 */
+/** 可读写的配置段。与后端段注册表（platform/config/registry.go）的九段一一对应（ADR-0029）。 */
 export type RuntimeSectionName =
   | 'site'
   | 'ai'
@@ -54,6 +57,7 @@ export type RuntimeSectionName =
   | 'log'
   | 'upload'
   | 'deco'
+  | 'image_gc'
 
 function api() {
   return useNuxtApp().$api
@@ -223,31 +227,37 @@ export function setProjectDisplay(id: string, displayed: boolean) {
 
 // ── 目录树（一个编辑器服务合集与项目）─────────────────────────────
 //
-// 收录 / 顺序 / 层次 / 失效清理全部走整树提交：旧的扁平收录与排序接口已从
-// 后台服务层移除（后端接口保留，但后台不再有任何调用点，旧表不再被写入）。
+// 收录 / 顺序 / 层次 / 失效清理全部走整树提交：两个实体各有自己的具名端点
+// 与具名树表；旧共享端点与旧共用表已随 #277 一起下线，没有兼容层。
 
-/** 后台读回某个合集的整棵目录树（含空文件夹与失效标记）。 */
+/**
+ * 后台读回某个合集的整棵目录树（含空文件夹与失效标记）。
+ *
+ * #275 迁移：改走合集具名端点 `GET /collections/<id>/outline-tree`。它是公开读
+ * 端点，管理员例外靠请求里携带的身份判定（默认 `auth` 不能关）——不带令牌会被
+ * 当成匿名读者，未展示的合集读成空树，下一次整树提交就会把整棵树软删掉。
+ */
 export function getCollectionOutline(id: string) {
-  return api().request<OutlineTreeResponseData>(`/collections/${id}/outline/admin`)
+  return api().request<CollectionOutlineTreeResponseData>(`/collections/${id}/outline-tree`)
 }
 
-/** 整棵树一次性提交（新建文件夹 / 批量收录 / 层级与顺序一起落库）。 */
+/** 整棵树一次性提交到合集具名树（新建文件夹 / 批量收录 / 层级与顺序一起落库）。 */
 export function saveCollectionOutline(id: string, nodes: OutlineNodePayload[]) {
-  return api().request<OutlineTreeResponseData, { nodes: OutlineNodePayload[] }>(
-    `/collections/${id}/outline`,
+  return api().request<CollectionOutlineTreeResponseData, CollectionOutlineSavePayload>(
+    `/collections/${id}/outline-tree`,
     { method: 'PUT', body: { nodes } },
   )
 }
 
-/** 后台读回某个项目的整棵目录树（与合集同一套形状）。 */
+/** 后台读回某个项目的整棵目录树（#276：项目具名端点的管理员读面）。 */
 export function getProjectOutline(id: string) {
-  return api().request<OutlineTreeResponseData>(`/projects/${id}/outline/admin`)
+  return api().request<ProjectOutlineTreeResponseData>(`/projects/${id}/outline-tree`)
 }
 
-/** 整棵树一次性提交（与合集同一个后端模块）。 */
+/** 整棵树一次性提交到项目具名端点（#276：写 project_outline_node_models）。 */
 export function saveProjectOutline(id: string, nodes: OutlineNodePayload[]) {
-  return api().request<OutlineTreeResponseData, { nodes: OutlineNodePayload[] }>(
-    `/projects/${id}/outline`,
+  return api().request<ProjectOutlineTreeResponseData, ProjectOutlineSavePayload>(
+    `/projects/${id}/outline-tree`,
     { method: 'PUT', body: { nodes } },
   )
 }
@@ -412,9 +422,9 @@ export function getReplayLogs(query: { page?: number; limit?: number; stream?: s
 
 // ── 其余配置段 ────────────────────────────────────────────────
 //
-// 八个段共用同一条路由（`GET /site/admin/{name}` / `PUT /site/{name}`），
-// 请求体与响应结构随 name 变。所以这里用泛型包一层，再给出具名包装 ——
-// 具名的那几个让页面里的调用点能一眼看出在读写哪一段。
+// 九段各有具名端点（`GET /site/admin/<段名>` / `PUT /site/<段名>`），
+// 请求体与响应形状按段固定（ADR-0029）。这里仍用泛型包一层再给出具名包装，
+// 让页面里的调用点能一眼看出在读写哪一段；类型由生成的 openapi.d.ts 派生。
 
 export function getRuntimeSection<T>(name: RuntimeSectionName) {
   return api().request<T>(`/site/admin/${name}`)
@@ -464,7 +474,7 @@ export function updateUploadRuntimeConfig(payload: UploadRuntimeConfig) {
   return updateRuntimeSection('upload', payload)
 }
 
-/** 装饰段（第 8 段 deco）：光标挂件的开关与十二个数值参数。 */
+/** 装饰段（九段里的 deco）：光标挂件的开关与十二个数值参数，形状来自具名契约。 */
 export function getDecoRuntimeConfig() {
   return getRuntimeSection<DecoRuntimeConfig>('deco')
 }

@@ -24,6 +24,9 @@ func mustSiteHandler() *sitehttp.Handler {
 }
 
 // SiteRouter 注册站点配置路由。
+//
+// 九段运行时配置各有具名端点（#283 / ADR-0029），参数化 /site/{name} 与
+// /site/admin/{name} 已整体退场；静态路径不再与通配段争抢。
 func SiteRouter(r *gin.RouterGroup, runtimeMw mw.Runtime) {
 	app := mustSiteHandler()
 
@@ -31,17 +34,36 @@ func SiteRouter(r *gin.RouterGroup, runtimeMw mw.Runtime) {
 	authGroup := group.Group("", runtimeMw.AuthMiddleware)
 	adminGroup := authGroup.Group("", mw.AdminMiddleware)
 
-	// 静态路径必须先于 :name 注册，否则会被通配吃掉。
 	group.GET("qq_url", app.QQLoginURL)
 	group.GET("seo", app.SEO)
 	group.GET("ai_info", app.AIInfo)
 	group.GET("sidebar_cards", app.SidebarCards)
-	group.GET(":name", mw.BindUri[sitehttp.SiteInfoRequest], app.PublicInfo)
 
-	adminGroup.GET("admin/:name", mw.BindUri[sitehttp.SiteInfoRequest], app.AdminInfo)
-	adminGroup.PUT(":name", mw.CaptureLog(mw.ReqBody), mw.BindUri[sitehttp.SiteInfoRequest], app.UpdateConfig)
-	// 右栏卡片的静态路径同样必须先于 admin/:name 注册。
-	// PUT 走 BindJson：handler 从 `requestJson` 取已绑定的请求体（与其它写接口同一套）。
+	// 公开读：site 与 deco 是九段里唯二对读者开放的段。
+	group.GET("site", app.PublicSiteSection)
+	group.GET("deco", app.PublicDecoSection)
+
+	// 管理读 / 写：九段一一对应具名方法，审计的 TargetID 由 handler 写死段名。
+	for _, route := range []struct {
+		path   string
+		read   gin.HandlerFunc
+		update gin.HandlerFunc
+	}{
+		{"site", app.AdminSiteSection, app.UpdateSiteSection},
+		{"ai", app.AdminAiSection, app.UpdateAiSection},
+		{"mail", app.AdminMailSection, app.UpdateMailSection},
+		{"storage", app.AdminStorageSection, app.UpdateStorageSection},
+		{"oauth", app.AdminOauthSection, app.UpdateOauthSection},
+		{"log", app.AdminLogSection, app.UpdateLogSection},
+		{"upload", app.AdminUploadSection, app.UpdateUploadSection},
+		{"deco", app.AdminDecoSection, app.UpdateDecoSection},
+		{"image_gc", app.AdminImageGcSection, app.UpdateImageGcSection},
+	} {
+		adminGroup.GET("admin/"+route.path, route.read)
+		adminGroup.PUT(route.path, mw.CaptureLog(mw.ReqBody), route.update)
+	}
+
+	// 右栏卡片是独立运营位，不属于九段注册表。
 	adminGroup.GET("admin/sidebar_cards", app.AdminSidebarCards)
 	adminGroup.PUT("admin/sidebar_cards", mw.CaptureLog(mw.ReqBody), mw.BindJson[sitehttp.SidebarCardsSaveRequest], app.UpdateSidebarCards)
 }

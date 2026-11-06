@@ -1,6 +1,147 @@
 {
     "components": {
         "schemas": {
+            "conf.Charm": {
+                "properties": {
+                    "damping": {
+                        "description": "每个固定步长后保留的速度比例（无量纲，0.9–1；1 表示不衰减）。",
+                        "type": "number",
+                        "minimum": 0.9,
+                        "maximum": 1,
+                        "default": 0.99
+                    },
+                    "enable": {
+                        "default": true,
+                        "type": "boolean"
+                    },
+                    "fps_cap": {
+                        "description": "最高渲染帧率，单位 fps，整数。语义是上限而不是保证：高于显示器刷新率时等价于每帧，高刷屏上的实际帧率落在刷新率的整数分之一（144Hz + 90 档 = 72fps）。它只决定每秒画几次，不影响绳子运动速度 —— 物理仍按固定步长按真实时间推进。",
+                        "type": "number",
+                        "minimum": 30,
+                        "maximum": 160,
+                        "default": 60
+                    },
+                    "gravity": {
+                        "description": "重力加速度，单位 px/s²。",
+                        "type": "number",
+                        "minimum": 400,
+                        "maximum": 4000,
+                        "default": 1600
+                    },
+                    "idle_sway_amp": {
+                        "description": "静止摆动的加速度幅度，单位 px/s²，作用在自由端：横向加速度按节点序号加权（指针端 0、尾端 1），不是每个节点同一份。0 表示关掉轻晃（读者站据此退回静止即停帧）；频率为 0 同样视为关掉。",
+                        "type": "number",
+                        "minimum": 0,
+                        "maximum": 40,
+                        "default": 20
+                    },
+                    "idle_sway_hz": {
+                        "description": "静止摆动的频率，单位 Hz。0 表示关掉轻晃。",
+                        "type": "number",
+                        "minimum": 0,
+                        "maximum": 1.5,
+                        "default": 0.8
+                    },
+                    "line_width": {
+                        "description": "描边起始宽度，单位 px（收尾宽度固定为它的 0.6 倍）。",
+                        "type": "number",
+                        "minimum": 1,
+                        "maximum": 6,
+                        "default": 2.5
+                    },
+                    "logo_size": {
+                        "description": "站标显示尺寸，单位 px。",
+                        "type": "number",
+                        "minimum": 15,
+                        "maximum": 70,
+                        "default": 48
+                    },
+                    "pointer_offset_x": {
+                        "description": "指针端偏移的水平分量，单位 CSS px（与 clientX 同一视口坐标系，不随 DPI 缩放）。默认 3，区间 -24–24，允许负值（往左偏）。语义是指针端节点 = 指针热点 + (X, Y)：挂绳的物理与渲染都从换算后的头节点出发，渲染层不得再单独偏一次（ADR-0018 决策 8 / 约束 7）。",
+                        "type": "number",
+                        "minimum": -24,
+                        "maximum": 24,
+                        "default": 3
+                    },
+                    "pointer_offset_y": {
+                        "description": "指针端偏移的垂直分量，单位 CSS px（向下为正）。",
+                        "type": "number",
+                        "minimum": -24,
+                        "maximum": 24,
+                        "default": 3
+                    },
+                    "rope_length": {
+                        "description": "挂绳长度（松垂阈值），单位 px。",
+                        "type": "number",
+                        "minimum": 40,
+                        "maximum": 240,
+                        "default": 120
+                    },
+                    "segments": {
+                        "description": "Verlet 链的节点数（节），整数计数。",
+                        "type": "number",
+                        "minimum": 4,
+                        "maximum": 30,
+                        "default": 10
+                    },
+                    "stiffness": {
+                        "description": "距离约束刚度（无量纲，0.2–1）：每次迭代消化这么多比例的误差。1 等于全量投影（刚杆手感）；越小越弹，拖动时先拉长再回弹。",
+                        "type": "number",
+                        "minimum": 0.2,
+                        "maximum": 1,
+                        "default": 0.5
+                    }
+                },
+                "type": "object"
+            },
+            "conf.LogCleanup": {
+                "properties": {
+                    "enabled": {
+                        "type": "boolean"
+                    },
+                    "retention_days": {
+                        "type": "integer"
+                    },
+                    "run_at": {
+                        "type": "string"
+                    }
+                },
+                "type": "object"
+            },
+            "conf.LogErrorConfig": {
+                "properties": {
+                    "capture_min_level": {
+                        "type": "string"
+                    },
+                    "capture_stack": {
+                        "type": "boolean"
+                    },
+                    "cause_chain_depth": {
+                        "type": "integer"
+                    },
+                    "stack_max_bytes": {
+                        "type": "integer"
+                    }
+                },
+                "type": "object"
+            },
+            "conf.LogTraceConfig": {
+                "properties": {
+                    "enabled": {
+                        "type": "boolean"
+                    },
+                    "gateway_header_priority": {
+                        "type": "string"
+                    },
+                    "inherit_from_gateway": {
+                        "type": "boolean"
+                    },
+                    "request_id_equals_trace_id": {
+                        "type": "boolean"
+                    }
+                },
+                "type": "object"
+            },
             "internal_ai_adapter_http.BaseRequest": {
                 "properties": {
                     "content": {
@@ -850,36 +991,6 @@
                 ],
                 "type": "object"
             },
-            "internal_article_adapter_http.ArticleOutlineContextResponse": {
-                "properties": {
-                    "current": {
-                        "$ref": "#/components/schemas/internal_article_adapter_http.OutlineArticleRefResponse"
-                    },
-                    "has_tree": {
-                        "type": "boolean"
-                    },
-                    "next": {
-                        "$ref": "#/components/schemas/internal_article_adapter_http.OutlineArticleRefResponse"
-                    },
-                    "nodes": {
-                        "items": {
-                            "$ref": "#/components/schemas/internal_article_adapter_http.OutlineNodeResponse"
-                        },
-                        "type": "array",
-                        "uniqueItems": false
-                    },
-                    "owner_id": {
-                        "type": "string"
-                    },
-                    "owner_kind": {
-                        "type": "integer"
-                    },
-                    "previous": {
-                        "$ref": "#/components/schemas/internal_article_adapter_http.OutlineArticleRefResponse"
-                    }
-                },
-                "type": "object"
-            },
             "internal_article_adapter_http.ArticleReviewHandleRequest": {
                 "properties": {
                     "reason": {
@@ -1268,6 +1379,54 @@
                 },
                 "type": "object"
             },
+            "internal_article_adapter_http.CollectionOutlineSaveRequest": {
+                "properties": {
+                    "nodes": {
+                        "items": {
+                            "$ref": "#/components/schemas/internal_article_adapter_http.OutlineNodeRequest"
+                        },
+                        "type": "array",
+                        "uniqueItems": false
+                    }
+                },
+                "type": "object"
+            },
+            "internal_article_adapter_http.CollectionOutlineTreeResponse": {
+                "properties": {
+                    "article_count": {
+                        "type": "integer"
+                    },
+                    "cover": {
+                        "type": "string"
+                    },
+                    "current": {
+                        "$ref": "#/components/schemas/internal_article_adapter_http.OutlineArticleRefResponse"
+                    },
+                    "has_tree": {
+                        "type": "boolean"
+                    },
+                    "next": {
+                        "$ref": "#/components/schemas/internal_article_adapter_http.OutlineArticleRefResponse"
+                    },
+                    "nodes": {
+                        "items": {
+                            "$ref": "#/components/schemas/internal_article_adapter_http.OutlineNodeResponse"
+                        },
+                        "type": "array",
+                        "uniqueItems": false
+                    },
+                    "owner_id": {
+                        "type": "string"
+                    },
+                    "owner_kind": {
+                        "type": "integer"
+                    },
+                    "previous": {
+                        "$ref": "#/components/schemas/internal_article_adapter_http.OutlineArticleRefResponse"
+                    }
+                },
+                "type": "object"
+            },
             "internal_article_adapter_http.CollectionUpdateRequest": {
                 "properties": {
                     "cover": {
@@ -1496,18 +1655,6 @@
                 },
                 "type": "object"
             },
-            "internal_article_adapter_http.OutlineSaveRequest": {
-                "properties": {
-                    "nodes": {
-                        "items": {
-                            "$ref": "#/components/schemas/internal_article_adapter_http.OutlineNodeRequest"
-                        },
-                        "type": "array",
-                        "uniqueItems": false
-                    }
-                },
-                "type": "object"
-            },
             "internal_article_adapter_http.OutlineTreeResponse": {
                 "properties": {
                     "nodes": {
@@ -1654,6 +1801,54 @@
                 "required": [
                     "project_ids"
                 ],
+                "type": "object"
+            },
+            "internal_article_adapter_http.ProjectOutlineSaveRequest": {
+                "properties": {
+                    "nodes": {
+                        "items": {
+                            "$ref": "#/components/schemas/internal_article_adapter_http.OutlineNodeRequest"
+                        },
+                        "type": "array",
+                        "uniqueItems": false
+                    }
+                },
+                "type": "object"
+            },
+            "internal_article_adapter_http.ProjectOutlineTreeResponse": {
+                "properties": {
+                    "article_count": {
+                        "type": "integer"
+                    },
+                    "cover": {
+                        "type": "string"
+                    },
+                    "current": {
+                        "$ref": "#/components/schemas/internal_article_adapter_http.OutlineArticleRefResponse"
+                    },
+                    "has_tree": {
+                        "type": "boolean"
+                    },
+                    "next": {
+                        "$ref": "#/components/schemas/internal_article_adapter_http.OutlineArticleRefResponse"
+                    },
+                    "nodes": {
+                        "items": {
+                            "$ref": "#/components/schemas/internal_article_adapter_http.OutlineNodeResponse"
+                        },
+                        "type": "array",
+                        "uniqueItems": false
+                    },
+                    "owner_id": {
+                        "type": "string"
+                    },
+                    "owner_kind": {
+                        "type": "integer"
+                    },
+                    "previous": {
+                        "$ref": "#/components/schemas/internal_article_adapter_http.OutlineArticleRefResponse"
+                    }
+                },
                 "type": "object"
             },
             "internal_article_adapter_http.ProjectUpdateRequest": {
@@ -2767,6 +2962,472 @@
                 },
                 "type": "object"
             },
+            "internal_site_adapter_http.SiteSectionAiRequest": {
+                "properties": {
+                    "abstract": {
+                        "type": "string"
+                    },
+                    "avatar": {
+                        "type": "string"
+                    },
+                    "daily_quota": {
+                        "type": "integer"
+                    },
+                    "enable": {
+                        "type": "boolean"
+                    },
+                    "max_input_chars": {
+                        "type": "integer"
+                    },
+                    "nickname": {
+                        "type": "string"
+                    },
+                    "temperature": {
+                        "type": "number"
+                    },
+                    "timeout_sec": {
+                        "type": "integer"
+                    }
+                },
+                "type": "object"
+            },
+            "internal_site_adapter_http.SiteSectionAiResponse": {
+                "properties": {
+                    "abstract": {
+                        "type": "string"
+                    },
+                    "avatar": {
+                        "type": "string"
+                    },
+                    "daily_quota": {
+                        "type": "integer"
+                    },
+                    "enable": {
+                        "type": "boolean"
+                    },
+                    "max_input_chars": {
+                        "type": "integer"
+                    },
+                    "nickname": {
+                        "type": "string"
+                    },
+                    "temperature": {
+                        "type": "number"
+                    },
+                    "timeout_sec": {
+                        "type": "integer"
+                    }
+                },
+                "type": "object"
+            },
+            "internal_site_adapter_http.SiteSectionDecoRequest": {
+                "properties": {
+                    "charm": {
+                        "$ref": "#/components/schemas/conf.Charm"
+                    }
+                },
+                "type": "object"
+            },
+            "internal_site_adapter_http.SiteSectionDecoResponse": {
+                "properties": {
+                    "charm": {
+                        "$ref": "#/components/schemas/conf.Charm"
+                    }
+                },
+                "type": "object"
+            },
+            "internal_site_adapter_http.SiteSectionImageGcRequest": {
+                "properties": {
+                    "batch_limit": {
+                        "description": "BatchLimit 是单次最多检查（或真删）的图片条数。<=0 按默认 50 条，超过 500 按 500。",
+                        "type": "integer"
+                    },
+                    "enabled": {
+                        "description": "Enabled 是真删回收的总开关。\n\n默认 false：不该让\"配置写漏了\"等同于\"可以不可逆删除\"。\n清单（只读）不受它影响，随时可以看；它只控制真删。",
+                        "type": "boolean"
+                    },
+                    "grace_days": {
+                        "description": "GraceDays 是冷静期天数：上传不足这么多天的图不进入候选。\n\n<=0 按默认 14 天处理：这个值是误删的最后一道防线，零值更可能是\n配置写漏了，不该被当成\"关掉保护\"。",
+                        "type": "integer"
+                    }
+                },
+                "type": "object"
+            },
+            "internal_site_adapter_http.SiteSectionImageGcResponse": {
+                "properties": {
+                    "batch_limit": {
+                        "description": "BatchLimit 是单次最多检查（或真删）的图片条数。<=0 按默认 50 条，超过 500 按 500。",
+                        "type": "integer"
+                    },
+                    "enabled": {
+                        "description": "Enabled 是真删回收的总开关。\n\n默认 false：不该让\"配置写漏了\"等同于\"可以不可逆删除\"。\n清单（只读）不受它影响，随时可以看；它只控制真删。",
+                        "type": "boolean"
+                    },
+                    "grace_days": {
+                        "description": "GraceDays 是冷静期天数：上传不足这么多天的图不进入候选。\n\n<=0 按默认 14 天处理：这个值是误删的最后一道防线，零值更可能是\n配置写漏了，不该被当成\"关掉保护\"。",
+                        "type": "integer"
+                    }
+                },
+                "type": "object"
+            },
+            "internal_site_adapter_http.SiteSectionLogRequest": {
+                "properties": {
+                    "app": {
+                        "type": "string"
+                    },
+                    "cleanup": {
+                        "$ref": "#/components/schemas/conf.LogCleanup"
+                    },
+                    "dir": {
+                        "type": "string"
+                    },
+                    "error": {
+                        "$ref": "#/components/schemas/conf.LogErrorConfig"
+                    },
+                    "level": {
+                        "description": "trace/debug/info/warn/error；改完立即生效",
+                        "type": "string"
+                    },
+                    "query_default_limit": {
+                        "description": "后台日志查询默认条数",
+                        "type": "integer"
+                    },
+                    "query_max_limit": {
+                        "description": "后台日志查询最大条数",
+                        "type": "integer"
+                    },
+                    "request_log_enabled": {
+                        "description": "是否记录请求访问日志",
+                        "type": "boolean"
+                    },
+                    "stdout_format": {
+                        "description": "text/json，默认 json；改完需重启",
+                        "type": "string"
+                    },
+                    "trace": {
+                        "$ref": "#/components/schemas/conf.LogTraceConfig"
+                    },
+                    "wal_dir": {
+                        "description": "日志本地兜底目录，空则用 <dir>/wal",
+                        "type": "string"
+                    }
+                },
+                "type": "object"
+            },
+            "internal_site_adapter_http.SiteSectionLogResponse": {
+                "properties": {
+                    "app": {
+                        "type": "string"
+                    },
+                    "cleanup": {
+                        "$ref": "#/components/schemas/conf.LogCleanup"
+                    },
+                    "dir": {
+                        "type": "string"
+                    },
+                    "error": {
+                        "$ref": "#/components/schemas/conf.LogErrorConfig"
+                    },
+                    "level": {
+                        "description": "trace/debug/info/warn/error；改完立即生效",
+                        "type": "string"
+                    },
+                    "query_default_limit": {
+                        "description": "后台日志查询默认条数",
+                        "type": "integer"
+                    },
+                    "query_max_limit": {
+                        "description": "后台日志查询最大条数",
+                        "type": "integer"
+                    },
+                    "request_log_enabled": {
+                        "description": "是否记录请求访问日志",
+                        "type": "boolean"
+                    },
+                    "stdout_format": {
+                        "description": "text/json，默认 json；改完需重启",
+                        "type": "string"
+                    },
+                    "trace": {
+                        "$ref": "#/components/schemas/conf.LogTraceConfig"
+                    },
+                    "wal_dir": {
+                        "description": "日志本地兜底目录，空则用 <dir>/wal",
+                        "type": "string"
+                    }
+                },
+                "type": "object"
+            },
+            "internal_site_adapter_http.SiteSectionMailRequest": {
+                "properties": {
+                    "endpoint": {
+                        "description": "Endpoint 可选：国际站账号需要覆盖成 ses.intl.tencentcloudapi.com",
+                        "type": "string"
+                    },
+                    "from_address": {
+                        "description": "FromAddress 发信地址；必须已在控制台验证通过，否则报 NotAuthenticatedSender",
+                        "type": "string"
+                    },
+                    "from_name": {
+                        "description": "FromName 发件人显示名",
+                        "type": "string"
+                    },
+                    "region": {
+                        "description": "Region 地域；只支持 ap-guangzhou / ap-hongkong",
+                        "type": "string"
+                    },
+                    "secret_id": {
+                        "description": "SecretID 腾讯云 API 密钥 ID",
+                        "type": "string"
+                    },
+                    "secret_key": {
+                        "description": "SecretKey 腾讯云 API 密钥 Key（敏感，后台回显时用占位符遮蔽）",
+                        "type": "string"
+                    },
+                    "template_id": {
+                        "description": "TemplateID 验证码模板 ID；模板正文见文档，变量为 action / code / timeout",
+                        "type": "integer"
+                    },
+                    "timeout_sec": {
+                        "description": "TimeoutSec 单次调用超时（秒）；<=0 按 DefaultMailTimeoutSec 处理",
+                        "type": "integer"
+                    }
+                },
+                "type": "object"
+            },
+            "internal_site_adapter_http.SiteSectionMailResponse": {
+                "properties": {
+                    "endpoint": {
+                        "description": "Endpoint 可选：国际站账号需要覆盖成 ses.intl.tencentcloudapi.com",
+                        "type": "string"
+                    },
+                    "from_address": {
+                        "description": "FromAddress 发信地址；必须已在控制台验证通过，否则报 NotAuthenticatedSender",
+                        "type": "string"
+                    },
+                    "from_name": {
+                        "description": "FromName 发件人显示名",
+                        "type": "string"
+                    },
+                    "region": {
+                        "description": "Region 地域；只支持 ap-guangzhou / ap-hongkong",
+                        "type": "string"
+                    },
+                    "secret_id": {
+                        "description": "SecretID 腾讯云 API 密钥 ID",
+                        "type": "string"
+                    },
+                    "secret_key": {
+                        "description": "SecretKey 腾讯云 API 密钥 Key（敏感，后台回显时用占位符遮蔽）",
+                        "type": "string"
+                    },
+                    "template_id": {
+                        "description": "TemplateID 验证码模板 ID；模板正文见文档，变量为 action / code / timeout",
+                        "type": "integer"
+                    },
+                    "timeout_sec": {
+                        "description": "TimeoutSec 单次调用超时（秒）；<=0 按 DefaultMailTimeoutSec 处理",
+                        "type": "integer"
+                    }
+                },
+                "type": "object"
+            },
+            "internal_site_adapter_http.SiteSectionOauthRequest": {
+                "properties": {
+                    "app_id": {
+                        "type": "string"
+                    },
+                    "app_key": {
+                        "type": "string"
+                    },
+                    "redirect": {
+                        "type": "string"
+                    }
+                },
+                "type": "object"
+            },
+            "internal_site_adapter_http.SiteSectionOauthResponse": {
+                "properties": {
+                    "app_id": {
+                        "type": "string"
+                    },
+                    "app_key": {
+                        "type": "string"
+                    },
+                    "redirect": {
+                        "type": "string"
+                    }
+                },
+                "type": "object"
+            },
+            "internal_site_adapter_http.SiteSectionSiteRequest": {
+                "properties": {
+                    "about": {
+                        "$ref": "#/components/schemas/myblogx_conf_site.About"
+                    },
+                    "article": {
+                        "$ref": "#/components/schemas/myblogx_conf_site.Article"
+                    },
+                    "chat": {
+                        "$ref": "#/components/schemas/myblogx_conf_site.Chat"
+                    },
+                    "comment": {
+                        "$ref": "#/components/schemas/myblogx_conf_site.Comment"
+                    },
+                    "login": {
+                        "$ref": "#/components/schemas/myblogx_conf_site.Login"
+                    },
+                    "project": {
+                        "$ref": "#/components/schemas/myblogx_conf_site.Project"
+                    },
+                    "reconcile": {
+                        "$ref": "#/components/schemas/myblogx_conf_site.Reconcile",
+                        "description": "Reconcile 是并账任务的运行期策略（#279）：周期只有一个来源，见 site.Reconcile。"
+                    },
+                    "seo": {
+                        "$ref": "#/components/schemas/myblogx_conf_site.Seo"
+                    },
+                    "site_info": {
+                        "$ref": "#/components/schemas/myblogx_conf_site.SiteInfo"
+                    }
+                },
+                "type": "object"
+            },
+            "internal_site_adapter_http.SiteSectionSiteResponse": {
+                "properties": {
+                    "about": {
+                        "$ref": "#/components/schemas/myblogx_conf_site.About"
+                    },
+                    "article": {
+                        "$ref": "#/components/schemas/myblogx_conf_site.Article"
+                    },
+                    "chat": {
+                        "$ref": "#/components/schemas/myblogx_conf_site.Chat"
+                    },
+                    "comment": {
+                        "$ref": "#/components/schemas/myblogx_conf_site.Comment"
+                    },
+                    "login": {
+                        "$ref": "#/components/schemas/myblogx_conf_site.Login"
+                    },
+                    "project": {
+                        "$ref": "#/components/schemas/myblogx_conf_site.Project"
+                    },
+                    "reconcile": {
+                        "$ref": "#/components/schemas/myblogx_conf_site.Reconcile",
+                        "description": "Reconcile 是并账任务的运行期策略（#279）：周期只有一个来源，见 site.Reconcile。"
+                    },
+                    "seo": {
+                        "$ref": "#/components/schemas/myblogx_conf_site.Seo"
+                    },
+                    "site_info": {
+                        "$ref": "#/components/schemas/myblogx_conf_site.SiteInfo"
+                    }
+                },
+                "type": "object"
+            },
+            "internal_site_adapter_http.SiteSectionStorageRequest": {
+                "properties": {
+                    "access_key": {
+                        "type": "string"
+                    },
+                    "bucket": {
+                        "type": "string"
+                    },
+                    "callback_url": {
+                        "description": "七牛上传成功后的服务端回调地址",
+                        "type": "string"
+                    },
+                    "enable": {
+                        "type": "boolean"
+                    },
+                    "expiry": {
+                        "description": "上传凭证过期时间，单位秒",
+                        "type": "integer"
+                    },
+                    "prefix": {
+                        "type": "string"
+                    },
+                    "region": {
+                        "type": "string"
+                    },
+                    "secret_key": {
+                        "type": "string"
+                    },
+                    "size": {
+                        "description": "上传大小限制，单位 MB",
+                        "type": "integer"
+                    },
+                    "uri": {
+                        "type": "string"
+                    }
+                },
+                "type": "object"
+            },
+            "internal_site_adapter_http.SiteSectionStorageResponse": {
+                "properties": {
+                    "access_key": {
+                        "type": "string"
+                    },
+                    "bucket": {
+                        "type": "string"
+                    },
+                    "callback_url": {
+                        "description": "七牛上传成功后的服务端回调地址",
+                        "type": "string"
+                    },
+                    "enable": {
+                        "type": "boolean"
+                    },
+                    "expiry": {
+                        "description": "上传凭证过期时间，单位秒",
+                        "type": "integer"
+                    },
+                    "prefix": {
+                        "type": "string"
+                    },
+                    "region": {
+                        "type": "string"
+                    },
+                    "secret_key": {
+                        "type": "string"
+                    },
+                    "size": {
+                        "description": "上传大小限制，单位 MB",
+                        "type": "integer"
+                    },
+                    "uri": {
+                        "type": "string"
+                    }
+                },
+                "type": "object"
+            },
+            "internal_site_adapter_http.SiteSectionUploadRequest": {
+                "properties": {
+                    "whitelist": {
+                        "description": "Whitelist 允许上传的图片后缀；前后端与格式探测都会用它",
+                        "items": {
+                            "type": "string"
+                        },
+                        "type": "array",
+                        "uniqueItems": false
+                    }
+                },
+                "type": "object"
+            },
+            "internal_site_adapter_http.SiteSectionUploadResponse": {
+                "properties": {
+                    "whitelist": {
+                        "description": "Whitelist 允许上传的图片后缀；前后端与格式探测都会用它",
+                        "items": {
+                            "type": "string"
+                        },
+                        "type": "array",
+                        "uniqueItems": false
+                    }
+                },
+                "type": "object"
+            },
             "internal_user_adapter_http.AdminCreateRequest": {
                 "properties": {
                     "email": {
@@ -3018,6 +3679,166 @@
                         "type": "boolean"
                     },
                     "username": {
+                        "type": "string"
+                    }
+                },
+                "type": "object"
+            },
+            "myblogx_conf_site.About": {
+                "properties": {
+                    "bilibili": {
+                        "type": "string"
+                    },
+                    "gitee": {
+                        "type": "string"
+                    },
+                    "github": {
+                        "type": "string"
+                    },
+                    "qq": {
+                        "type": "string"
+                    },
+                    "site_date": {
+                        "type": "string"
+                    },
+                    "version": {
+                        "type": "string"
+                    },
+                    "wechat": {
+                        "type": "string"
+                    }
+                },
+                "type": "object"
+            },
+            "myblogx_conf_site.Article": {
+                "properties": {
+                    "allow_non_admin_draft": {
+                        "description": "允许非管理员创建草稿",
+                        "type": "boolean"
+                    },
+                    "allow_non_admin_publish": {
+                        "description": "「发布与展示」三个开关（ADR-0017 决策 2）。\n它们只表达\"允许什么\"，判定点在 app 层与读过滤处，不靠前端隐藏；\n默认值只写在 site_default_settings.yaml（这一段是自由键值块，\n深度合并会把老库缺的键按默认值补齐，所以不需要数据迁移）。",
+                        "type": "boolean"
+                    },
+                    "show_non_admin_articles": {
+                        "description": "显示非管理员发布的文章",
+                        "type": "boolean"
+                    },
+                    "skip_examining": {
+                        "description": "免审核",
+                        "type": "boolean"
+                    }
+                },
+                "type": "object"
+            },
+            "myblogx_conf_site.Chat": {
+                "properties": {
+                    "rate_daily_max": {
+                        "description": "自然日内允许的最大条数",
+                        "type": "integer"
+                    },
+                    "rate_window_sec": {
+                        "description": "发送限流（ADR-0026）：同一发件人对同一收件人的滑动窗口与日额度。\n后台「站点 → 私信」卡可改，零 DDL —— 它们只是运行时配置的一个键，\n不给任何既有表加列。缺省值由 site_default_settings.yaml 显式写明。",
+                        "type": "integer"
+                    },
+                    "stranger_msg_enabled": {
+                        "description": "允许陌生人发私信",
+                        "type": "boolean"
+                    }
+                },
+                "type": "object"
+            },
+            "myblogx_conf_site.Comment": {
+                "properties": {
+                    "skip_examining": {
+                        "description": "免审核",
+                        "type": "boolean"
+                    }
+                },
+                "type": "object"
+            },
+            "myblogx_conf_site.Login": {
+                "properties": {
+                    "captcha": {
+                        "type": "boolean"
+                    },
+                    "email_code_timeout": {
+                        "description": "邮箱验证码有效期，单位：分钟",
+                        "type": "integer"
+                    },
+                    "email_login": {
+                        "type": "boolean"
+                    },
+                    "email_send_per_email_max": {
+                        "description": "单邮箱窗口内最大发送次数",
+                        "type": "integer"
+                    },
+                    "email_send_per_ip_max": {
+                        "description": "单IP窗口内最大发送次数",
+                        "type": "integer"
+                    },
+                    "email_send_window_second": {
+                        "description": "邮件发送限流窗口，单位：秒",
+                        "type": "integer"
+                    },
+                    "login_fail_ip_max": {
+                        "description": "单IP窗口内最大失败次数",
+                        "type": "integer"
+                    },
+                    "login_fail_user_max": {
+                        "description": "单账号窗口内最大失败次数",
+                        "type": "integer"
+                    },
+                    "login_fail_window_minute": {
+                        "description": "登录失败统计窗口，单位：分钟",
+                        "type": "integer"
+                    },
+                    "qq_login": {
+                        "type": "boolean"
+                    },
+                    "username_pwd_login": {
+                        "type": "boolean"
+                    }
+                },
+                "type": "object"
+            },
+            "myblogx_conf_site.Project": {
+                "properties": {
+                    "icon": {
+                        "type": "string"
+                    },
+                    "title": {
+                        "type": "string"
+                    },
+                    "web_path": {
+                        "type": "string"
+                    }
+                },
+                "type": "object"
+            },
+            "myblogx_conf_site.Reconcile": {
+                "properties": {
+                    "interval_minutes": {
+                        "description": "IntervalMinutes 是并账周期，单位分钟。\n\n缺省（0）与负数回落到 30 分钟：0 周期会让调度器变成忙循环，而这更可能是\n\"配置写漏了\"而不是\"想每秒并一次\"。上限钳到一天，下限 1 分钟 ——\n并账是扫表的运维动作，秒级周期只会放大写放大（ADR-0025「已否决方案」）。",
+                        "type": "integer"
+                    }
+                },
+                "type": "object"
+            },
+            "myblogx_conf_site.Seo": {
+                "properties": {
+                    "description": {
+                        "type": "string"
+                    },
+                    "keywords": {
+                        "type": "string"
+                    }
+                },
+                "type": "object"
+            },
+            "myblogx_conf_site.SiteInfo": {
+                "properties": {
+                    "beian": {
                         "type": "string"
                     }
                 },
@@ -4063,20 +4884,6 @@
                 },
                 "type": "object"
             },
-            "myblogx_internal_kernel.Envelope-internal_article_adapter_http_ArticleOutlineContextResponse": {
-                "properties": {
-                    "code": {
-                        "type": "integer"
-                    },
-                    "data": {
-                        "$ref": "#/components/schemas/internal_article_adapter_http.ArticleOutlineContextResponse"
-                    },
-                    "msg": {
-                        "type": "string"
-                    }
-                },
-                "type": "object"
-            },
             "myblogx_internal_kernel.Envelope-internal_article_adapter_http_ArticleReviewTaskListResponse": {
                 "properties": {
                     "code": {
@@ -4119,13 +4926,13 @@
                 },
                 "type": "object"
             },
-            "myblogx_internal_kernel.Envelope-internal_article_adapter_http_OutlineTreeResponse": {
+            "myblogx_internal_kernel.Envelope-internal_article_adapter_http_CollectionOutlineTreeResponse": {
                 "properties": {
                     "code": {
                         "type": "integer"
                     },
                     "data": {
-                        "$ref": "#/components/schemas/internal_article_adapter_http.OutlineTreeResponse"
+                        "$ref": "#/components/schemas/internal_article_adapter_http.CollectionOutlineTreeResponse"
                     },
                     "msg": {
                         "type": "string"
@@ -4154,6 +4961,20 @@
                     },
                     "data": {
                         "$ref": "#/components/schemas/internal_article_adapter_http.ProjectDetailResponse"
+                    },
+                    "msg": {
+                        "type": "string"
+                    }
+                },
+                "type": "object"
+            },
+            "myblogx_internal_kernel.Envelope-internal_article_adapter_http_ProjectOutlineTreeResponse": {
+                "properties": {
+                    "code": {
+                        "type": "integer"
+                    },
+                    "data": {
+                        "$ref": "#/components/schemas/internal_article_adapter_http.ProjectOutlineTreeResponse"
                     },
                     "msg": {
                         "type": "string"
@@ -4364,6 +5185,132 @@
                     },
                     "data": {
                         "$ref": "#/components/schemas/internal_site_adapter_http.SidebarCardsResponse"
+                    },
+                    "msg": {
+                        "type": "string"
+                    }
+                },
+                "type": "object"
+            },
+            "myblogx_internal_kernel.Envelope-internal_site_adapter_http_SiteSectionAiResponse": {
+                "properties": {
+                    "code": {
+                        "type": "integer"
+                    },
+                    "data": {
+                        "$ref": "#/components/schemas/internal_site_adapter_http.SiteSectionAiResponse"
+                    },
+                    "msg": {
+                        "type": "string"
+                    }
+                },
+                "type": "object"
+            },
+            "myblogx_internal_kernel.Envelope-internal_site_adapter_http_SiteSectionDecoResponse": {
+                "properties": {
+                    "code": {
+                        "type": "integer"
+                    },
+                    "data": {
+                        "$ref": "#/components/schemas/internal_site_adapter_http.SiteSectionDecoResponse"
+                    },
+                    "msg": {
+                        "type": "string"
+                    }
+                },
+                "type": "object"
+            },
+            "myblogx_internal_kernel.Envelope-internal_site_adapter_http_SiteSectionImageGcResponse": {
+                "properties": {
+                    "code": {
+                        "type": "integer"
+                    },
+                    "data": {
+                        "$ref": "#/components/schemas/internal_site_adapter_http.SiteSectionImageGcResponse"
+                    },
+                    "msg": {
+                        "type": "string"
+                    }
+                },
+                "type": "object"
+            },
+            "myblogx_internal_kernel.Envelope-internal_site_adapter_http_SiteSectionLogResponse": {
+                "properties": {
+                    "code": {
+                        "type": "integer"
+                    },
+                    "data": {
+                        "$ref": "#/components/schemas/internal_site_adapter_http.SiteSectionLogResponse"
+                    },
+                    "msg": {
+                        "type": "string"
+                    }
+                },
+                "type": "object"
+            },
+            "myblogx_internal_kernel.Envelope-internal_site_adapter_http_SiteSectionMailResponse": {
+                "properties": {
+                    "code": {
+                        "type": "integer"
+                    },
+                    "data": {
+                        "$ref": "#/components/schemas/internal_site_adapter_http.SiteSectionMailResponse"
+                    },
+                    "msg": {
+                        "type": "string"
+                    }
+                },
+                "type": "object"
+            },
+            "myblogx_internal_kernel.Envelope-internal_site_adapter_http_SiteSectionOauthResponse": {
+                "properties": {
+                    "code": {
+                        "type": "integer"
+                    },
+                    "data": {
+                        "$ref": "#/components/schemas/internal_site_adapter_http.SiteSectionOauthResponse"
+                    },
+                    "msg": {
+                        "type": "string"
+                    }
+                },
+                "type": "object"
+            },
+            "myblogx_internal_kernel.Envelope-internal_site_adapter_http_SiteSectionSiteResponse": {
+                "properties": {
+                    "code": {
+                        "type": "integer"
+                    },
+                    "data": {
+                        "$ref": "#/components/schemas/internal_site_adapter_http.SiteSectionSiteResponse"
+                    },
+                    "msg": {
+                        "type": "string"
+                    }
+                },
+                "type": "object"
+            },
+            "myblogx_internal_kernel.Envelope-internal_site_adapter_http_SiteSectionStorageResponse": {
+                "properties": {
+                    "code": {
+                        "type": "integer"
+                    },
+                    "data": {
+                        "$ref": "#/components/schemas/internal_site_adapter_http.SiteSectionStorageResponse"
+                    },
+                    "msg": {
+                        "type": "string"
+                    }
+                },
+                "type": "object"
+            },
+            "myblogx_internal_kernel.Envelope-internal_site_adapter_http_SiteSectionUploadResponse": {
+                "properties": {
+                    "code": {
+                        "type": "integer"
+                    },
+                    "data": {
+                        "$ref": "#/components/schemas/internal_site_adapter_http.SiteSectionUploadResponse"
                     },
                     "msg": {
                         "type": "string"
@@ -5043,20 +5990,6 @@
                 },
                 "type": "object"
             },
-            "myblogx_internal_kernel.Envelope-myblogx_internal_kernel_SiteConfigData": {
-                "properties": {
-                    "code": {
-                        "type": "integer"
-                    },
-                    "data": {
-                        "$ref": "#/components/schemas/myblogx_internal_kernel.SiteConfigData"
-                    },
-                    "msg": {
-                        "type": "string"
-                    }
-                },
-                "type": "object"
-            },
             "myblogx_internal_kernel.Envelope-myblogx_internal_search_domain_Response": {
                 "properties": {
                     "code": {
@@ -5607,10 +6540,6 @@
                         "uniqueItems": false
                     }
                 },
-                "type": "object"
-            },
-            "myblogx_internal_kernel.SiteConfigData": {
-                "additionalProperties": {},
                 "type": "object"
             },
             "myblogx_internal_search_domain.ArticleStatus": {
@@ -7688,45 +8617,6 @@
                 ]
             }
         },
-        "/articles/{id}/outline-context": {
-            "get": {
-                "parameters": [
-                    {
-                        "description": "文章 ID",
-                        "in": "path",
-                        "name": "id",
-                        "required": true,
-                        "schema": {
-                            "type": "string"
-                        }
-                    },
-                    {
-                        "description": "来源（project:\u003cid\u003e / collection:\u003cid\u003e）",
-                        "in": "query",
-                        "name": "from",
-                        "schema": {
-                            "type": "string"
-                        }
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "content": {
-                            "application/json": {
-                                "schema": {
-                                    "$ref": "#/components/schemas/myblogx_internal_kernel.Envelope-internal_article_adapter_http_ArticleOutlineContextResponse"
-                                }
-                            }
-                        },
-                        "description": "OK"
-                    }
-                },
-                "summary": "文章上下文（阅读页左栏目录树）",
-                "tags": [
-                    "outline"
-                ]
-            }
-        },
         "/banners": {
             "delete": {
                 "requestBody": {
@@ -7912,6 +8802,7 @@
                 ]
             },
             "get": {
+                "description": "列表按 send_time 升序返回（最旧在前），同毫秒用 id 做确定性并列裁决；不带游标时返回最新一窗，next_cursor 指向本页最旧一条。",
                 "responses": {
                     "200": {
                         "content": {
@@ -8371,7 +9262,52 @@
                 ]
             }
         },
-        "/collections/{id}/outline": {
+        "/collections/{id}/outline-tree": {
+            "get": {
+                "parameters": [
+                    {
+                        "description": "合集 ID",
+                        "in": "path",
+                        "name": "id",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "description": "来源（collection:<id>）",
+                        "in": "query",
+                        "name": "from",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "description": "阅读页当前文章 ID",
+                        "in": "query",
+                        "name": "article_id",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/myblogx_internal_kernel.Envelope-internal_article_adapter_http_CollectionOutlineTreeResponse"
+                                }
+                            }
+                        },
+                        "description": "OK"
+                    }
+                },
+                "summary": "合集具名目录树",
+                "tags": [
+                    "collection"
+                ]
+            },
             "put": {
                 "parameters": [
                     {
@@ -8388,7 +9324,7 @@
                     "content": {
                         "application/json": {
                             "schema": {
-                                "$ref": "#/components/schemas/internal_article_adapter_http.OutlineSaveRequest",
+                                "$ref": "#/components/schemas/internal_article_adapter_http.CollectionOutlineSaveRequest",
                                 "summary": "body",
                                 "description": "请求体"
                             }
@@ -8402,7 +9338,7 @@
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "$ref": "#/components/schemas/myblogx_internal_kernel.Envelope-internal_article_adapter_http_OutlineTreeResponse"
+                                    "$ref": "#/components/schemas/myblogx_internal_kernel.Envelope-internal_article_adapter_http_CollectionOutlineTreeResponse"
                                 }
                             }
                         },
@@ -8414,45 +9350,9 @@
                         "BearerAuth": []
                     }
                 ],
-                "summary": "保存合集目录树",
+                "summary": "保存合集具名目录树",
                 "tags": [
-                    "outline"
-                ]
-            }
-        },
-        "/collections/{id}/outline/admin": {
-            "get": {
-                "parameters": [
-                    {
-                        "description": "合集 ID",
-                        "in": "path",
-                        "name": "id",
-                        "required": true,
-                        "schema": {
-                            "type": "string"
-                        }
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "content": {
-                            "application/json": {
-                                "schema": {
-                                    "$ref": "#/components/schemas/myblogx_internal_kernel.Envelope-internal_article_adapter_http_OutlineTreeResponse"
-                                }
-                            }
-                        },
-                        "description": "OK"
-                    }
-                },
-                "security": [
-                    {
-                        "BearerAuth": []
-                    }
-                ],
-                "summary": "后台合集目录树",
-                "tags": [
-                    "outline"
+                    "collection"
                 ]
             }
         },
@@ -11092,7 +11992,52 @@
                 ]
             }
         },
-        "/projects/{id}/outline": {
+        "/projects/{id}/outline-tree": {
+            "get": {
+                "parameters": [
+                    {
+                        "description": "项目 ID",
+                        "in": "path",
+                        "name": "id",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "description": "来源（project:<id>）",
+                        "in": "query",
+                        "name": "from",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "description": "阅读页当前文章 ID",
+                        "in": "query",
+                        "name": "article_id",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/myblogx_internal_kernel.Envelope-internal_article_adapter_http_ProjectOutlineTreeResponse"
+                                }
+                            }
+                        },
+                        "description": "OK"
+                    }
+                },
+                "summary": "项目具名目录树",
+                "tags": [
+                    "project"
+                ]
+            },
             "put": {
                 "parameters": [
                     {
@@ -11109,7 +12054,7 @@
                     "content": {
                         "application/json": {
                             "schema": {
-                                "$ref": "#/components/schemas/internal_article_adapter_http.OutlineSaveRequest",
+                                "$ref": "#/components/schemas/internal_article_adapter_http.ProjectOutlineSaveRequest",
                                 "summary": "body",
                                 "description": "请求体"
                             }
@@ -11123,7 +12068,7 @@
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "$ref": "#/components/schemas/myblogx_internal_kernel.Envelope-internal_article_adapter_http_OutlineTreeResponse"
+                                    "$ref": "#/components/schemas/myblogx_internal_kernel.Envelope-internal_article_adapter_http_ProjectOutlineTreeResponse"
                                 }
                             }
                         },
@@ -11135,45 +12080,9 @@
                         "BearerAuth": []
                     }
                 ],
-                "summary": "保存项目目录树",
+                "summary": "保存项目具名目录树",
                 "tags": [
-                    "outline"
-                ]
-            }
-        },
-        "/projects/{id}/outline/admin": {
-            "get": {
-                "parameters": [
-                    {
-                        "description": "项目 ID",
-                        "in": "path",
-                        "name": "id",
-                        "required": true,
-                        "schema": {
-                            "type": "string"
-                        }
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "content": {
-                            "application/json": {
-                                "schema": {
-                                    "$ref": "#/components/schemas/myblogx_internal_kernel.Envelope-internal_article_adapter_http_OutlineTreeResponse"
-                                }
-                            }
-                        },
-                        "description": "OK"
-                    }
-                },
-                "security": [
-                    {
-                        "BearerAuth": []
-                    }
-                ],
-                "summary": "后台项目目录树",
-                "tags": [
-                    "outline"
+                    "project"
                 ]
             }
         },
@@ -11250,6 +12159,156 @@
                 ]
             }
         },
+        "/site/admin/ai": {
+            "get": {
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/myblogx_internal_kernel.Envelope-internal_site_adapter_http_SiteSectionAiResponse"
+                                }
+                            }
+                        },
+                        "description": "OK"
+                    }
+                },
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "summary": "获取 ai 段运行时配置（管理员）",
+                "tags": [
+                    "site"
+                ]
+            }
+        },
+        "/site/admin/deco": {
+            "get": {
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/myblogx_internal_kernel.Envelope-internal_site_adapter_http_SiteSectionDecoResponse"
+                                }
+                            }
+                        },
+                        "description": "OK"
+                    }
+                },
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "summary": "获取 deco 段运行时配置（管理员）",
+                "tags": [
+                    "site"
+                ]
+            }
+        },
+        "/site/admin/image_gc": {
+            "get": {
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/myblogx_internal_kernel.Envelope-internal_site_adapter_http_SiteSectionImageGcResponse"
+                                }
+                            }
+                        },
+                        "description": "OK"
+                    }
+                },
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "summary": "获取 image_gc 段运行时配置（管理员）",
+                "tags": [
+                    "site"
+                ]
+            }
+        },
+        "/site/admin/log": {
+            "get": {
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/myblogx_internal_kernel.Envelope-internal_site_adapter_http_SiteSectionLogResponse"
+                                }
+                            }
+                        },
+                        "description": "OK"
+                    }
+                },
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "summary": "获取 log 段运行时配置（管理员）",
+                "tags": [
+                    "site"
+                ]
+            }
+        },
+        "/site/admin/mail": {
+            "get": {
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/myblogx_internal_kernel.Envelope-internal_site_adapter_http_SiteSectionMailResponse"
+                                }
+                            }
+                        },
+                        "description": "OK"
+                    }
+                },
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "summary": "获取 mail 段运行时配置（管理员）",
+                "tags": [
+                    "site"
+                ]
+            }
+        },
+        "/site/admin/oauth": {
+            "get": {
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/myblogx_internal_kernel.Envelope-internal_site_adapter_http_SiteSectionOauthResponse"
+                                }
+                            }
+                        },
+                        "description": "OK"
+                    }
+                },
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "summary": "获取 oauth 段运行时配置（管理员）",
+                "tags": [
+                    "site"
+                ]
+            }
+        },
         "/site/admin/sidebar_cards": {
             "get": {
                 "responses": {
@@ -11311,25 +12370,14 @@
                 ]
             }
         },
-        "/site/admin/{name}": {
+        "/site/admin/site": {
             "get": {
-                "parameters": [
-                    {
-                        "description": "配置名称：site 站点 / ai AI / mail 邮件 / storage 对象存储 / oauth 第三方登录 / log 日志 / upload 上传策略 / deco 装饰",
-                        "in": "path",
-                        "name": "name",
-                        "required": true,
-                        "schema": {
-                            "type": "string"
-                        }
-                    }
-                ],
                 "responses": {
                     "200": {
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "$ref": "#/components/schemas/myblogx_internal_kernel.Envelope-myblogx_internal_kernel_SiteConfigData"
+                                    "$ref": "#/components/schemas/myblogx_internal_kernel.Envelope-internal_site_adapter_http_SiteSectionSiteResponse"
                                 }
                             }
                         },
@@ -11341,7 +12389,95 @@
                         "BearerAuth": []
                     }
                 ],
-                "summary": "获取站点配置（管理员）",
+                "summary": "获取 site 段运行时配置（管理员）",
+                "tags": [
+                    "site"
+                ]
+            }
+        },
+        "/site/admin/storage": {
+            "get": {
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/myblogx_internal_kernel.Envelope-internal_site_adapter_http_SiteSectionStorageResponse"
+                                }
+                            }
+                        },
+                        "description": "OK"
+                    }
+                },
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "summary": "获取 storage 段运行时配置（管理员）",
+                "tags": [
+                    "site"
+                ]
+            }
+        },
+        "/site/admin/upload": {
+            "get": {
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/myblogx_internal_kernel.Envelope-internal_site_adapter_http_SiteSectionUploadResponse"
+                                }
+                            }
+                        },
+                        "description": "OK"
+                    }
+                },
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "summary": "获取 upload 段运行时配置（管理员）",
+                "tags": [
+                    "site"
+                ]
+            }
+        },
+        "/site/ai": {
+            "put": {
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/internal_site_adapter_http.SiteSectionAiRequest",
+                                "summary": "body",
+                                "description": "ai 段配置"
+                            }
+                        }
+                    },
+                    "description": "ai 段配置",
+                    "required": true
+                },
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/myblogx_internal_kernel.Envelope-myblogx_internal_kernel_EmptyData"
+                                }
+                            }
+                        },
+                        "description": "OK"
+                    }
+                },
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "summary": "更新 ai 段运行时配置（管理员）",
                 "tags": [
                     "site"
                 ]
@@ -11362,6 +12498,214 @@
                     }
                 },
                 "summary": "获取站点 AI 信息",
+                "tags": [
+                    "site"
+                ]
+            }
+        },
+        "/site/deco": {
+            "get": {
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/myblogx_internal_kernel.Envelope-internal_site_adapter_http_SiteSectionDecoResponse"
+                                }
+                            }
+                        },
+                        "description": "OK"
+                    }
+                },
+                "summary": "获取公开装饰配置",
+                "tags": [
+                    "site"
+                ]
+            },
+            "put": {
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/internal_site_adapter_http.SiteSectionDecoRequest",
+                                "summary": "body",
+                                "description": "deco 段配置"
+                            }
+                        }
+                    },
+                    "description": "deco 段配置",
+                    "required": true
+                },
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/myblogx_internal_kernel.Envelope-myblogx_internal_kernel_EmptyData"
+                                }
+                            }
+                        },
+                        "description": "OK"
+                    }
+                },
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "summary": "更新 deco 段运行时配置（管理员）",
+                "tags": [
+                    "site"
+                ]
+            }
+        },
+        "/site/image_gc": {
+            "put": {
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/internal_site_adapter_http.SiteSectionImageGcRequest",
+                                "summary": "body",
+                                "description": "image_gc 段配置"
+                            }
+                        }
+                    },
+                    "description": "image_gc 段配置",
+                    "required": true
+                },
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/myblogx_internal_kernel.Envelope-myblogx_internal_kernel_EmptyData"
+                                }
+                            }
+                        },
+                        "description": "OK"
+                    }
+                },
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "summary": "更新 image_gc 段运行时配置（管理员）",
+                "tags": [
+                    "site"
+                ]
+            }
+        },
+        "/site/log": {
+            "put": {
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/internal_site_adapter_http.SiteSectionLogRequest",
+                                "summary": "body",
+                                "description": "log 段配置"
+                            }
+                        }
+                    },
+                    "description": "log 段配置",
+                    "required": true
+                },
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/myblogx_internal_kernel.Envelope-myblogx_internal_kernel_EmptyData"
+                                }
+                            }
+                        },
+                        "description": "OK"
+                    }
+                },
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "summary": "更新 log 段运行时配置（管理员）",
+                "tags": [
+                    "site"
+                ]
+            }
+        },
+        "/site/mail": {
+            "put": {
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/internal_site_adapter_http.SiteSectionMailRequest",
+                                "summary": "body",
+                                "description": "mail 段配置"
+                            }
+                        }
+                    },
+                    "description": "mail 段配置",
+                    "required": true
+                },
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/myblogx_internal_kernel.Envelope-myblogx_internal_kernel_EmptyData"
+                                }
+                            }
+                        },
+                        "description": "OK"
+                    }
+                },
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "summary": "更新 mail 段运行时配置（管理员）",
+                "tags": [
+                    "site"
+                ]
+            }
+        },
+        "/site/oauth": {
+            "put": {
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/internal_site_adapter_http.SiteSectionOauthRequest",
+                                "summary": "body",
+                                "description": "oauth 段配置"
+                            }
+                        }
+                    },
+                    "description": "oauth 段配置",
+                    "required": true
+                },
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/myblogx_internal_kernel.Envelope-myblogx_internal_kernel_EmptyData"
+                                }
+                            }
+                        },
+                        "description": "OK"
+                    }
+                },
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "summary": "更新 oauth 段运行时配置（管理员）",
                 "tags": [
                     "site"
                 ]
@@ -11427,63 +12771,37 @@
                 ]
             }
         },
-        "/site/{name}": {
+        "/site/site": {
             "get": {
-                "parameters": [
-                    {
-                        "description": "站点信息名称：site 站点版本、seo SEO 信息、deco 装饰",
-                        "in": "path",
-                        "name": "name",
-                        "required": true,
-                        "schema": {
-                            "type": "string"
-                        }
-                    }
-                ],
                 "responses": {
                     "200": {
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "$ref": "#/components/schemas/myblogx_internal_kernel.Envelope-myblogx_internal_kernel_SiteConfigData"
+                                    "$ref": "#/components/schemas/myblogx_internal_kernel.Envelope-internal_site_adapter_http_SiteSectionSiteResponse"
                                 }
                             }
                         },
                         "description": "OK"
                     }
                 },
-                "summary": "获取站点公开配置",
+                "summary": "获取公开站点配置",
                 "tags": [
                     "site"
                 ]
             },
             "put": {
-                "parameters": [
-                    {
-                        "description": "配置名称：site 站点 / ai AI / mail 邮件 / storage 对象存储 / oauth 第三方登录 / log 日志 / upload 上传策略 / deco 装饰",
-                        "in": "path",
-                        "name": "name",
-                        "required": true,
-                        "schema": {
-                            "type": "string"
-                        }
-                    }
-                ],
                 "requestBody": {
                     "content": {
                         "application/json": {
                             "schema": {
-                                "type": "object"
-                            }
-                        },
-                        "text/plain": {
-                            "schema": {
-                                "title": "body",
-                                "type": "object"
+                                "$ref": "#/components/schemas/internal_site_adapter_http.SiteSectionSiteRequest",
+                                "summary": "body",
+                                "description": "site 段配置"
                             }
                         }
                     },
-                    "description": "请求体：与对应配置段的结构一致",
+                    "description": "site 段配置",
                     "required": true
                 },
                 "responses": {
@@ -11503,7 +12821,83 @@
                         "BearerAuth": []
                     }
                 ],
-                "summary": "更新站点运行时配置（管理员）",
+                "summary": "更新 site 段运行时配置（管理员）",
+                "tags": [
+                    "site"
+                ]
+            }
+        },
+        "/site/storage": {
+            "put": {
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/internal_site_adapter_http.SiteSectionStorageRequest",
+                                "summary": "body",
+                                "description": "storage 段配置"
+                            }
+                        }
+                    },
+                    "description": "storage 段配置",
+                    "required": true
+                },
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/myblogx_internal_kernel.Envelope-myblogx_internal_kernel_EmptyData"
+                                }
+                            }
+                        },
+                        "description": "OK"
+                    }
+                },
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "summary": "更新 storage 段运行时配置（管理员）",
+                "tags": [
+                    "site"
+                ]
+            }
+        },
+        "/site/upload": {
+            "put": {
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/internal_site_adapter_http.SiteSectionUploadRequest",
+                                "summary": "body",
+                                "description": "upload 段配置"
+                            }
+                        }
+                    },
+                    "description": "upload 段配置",
+                    "required": true
+                },
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/myblogx_internal_kernel.Envelope-myblogx_internal_kernel_EmptyData"
+                                }
+                            }
+                        },
+                        "description": "OK"
+                    }
+                },
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "summary": "更新 upload 段运行时配置（管理员）",
                 "tags": [
                     "site"
                 ]

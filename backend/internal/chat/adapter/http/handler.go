@@ -162,7 +162,11 @@ func (h *Handler) Sessions(c *gin.Context) {
 }
 
 // Messages 消息列表。
+//
+// 列表按 send_time **升序**（最旧在前）返回；相同时间用 id 做确定性并列裁决。
+// before_send_time + before_id 指向上一页最旧一条，继续往前翻更早的页。
 // @Summary 会话消息列表
+// @Description 列表按 send_time 升序返回（最旧在前），同毫秒用 id 做确定性并列裁决；不带游标时返回最新一窗，next_cursor 指向本页最旧一条。
 // @Tags chat
 // @Produce json
 // @Security BearerAuth

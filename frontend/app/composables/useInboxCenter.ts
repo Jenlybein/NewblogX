@@ -17,7 +17,7 @@ import {
   isDraftChatSessionId,
   type InboxDraftSessionSeed,
 } from "~/utils/chat";
-import { mergeChatMessages, toAscending } from "~/utils/chatTimeline";
+import { buildChatTimeline, mergeChatMessages } from "~/utils/chatTimeline";
 import type { ChatSendType } from "~/utils/chatMessage";
 import { errorMessage } from "~/utils/errorMessage";
 
@@ -35,9 +35,11 @@ import { errorMessage } from "~/utils/errorMessage";
  *   - WS 只推通知。连接本身属于整个登录会话（`useChatSocket` 单例 + useMessageRealtime），
  *     这个 composable 只在私信页挂载期间**订阅**通知：命中当前会话才增量拉消息。
  *
- * # 时间线的不变量（游标分页改造后）
+ * # 时间线的不变量（游标分页 / 列表方向改造后）
+ *   - 后端直接返回**升序**页（最旧在前），前端不再反转任何一页；
  *   - `chatMessages` 是**一条升序数组**：最旧在最上、最新在最下；
  *   - 第一页重置它，`loadOlderChatMessages` 只往前**前插**，WS 通知只往后**增量追加**；
+ *   - 日期分组 / 分组合并 / 回执由 `chatTimeline` 这一处算好交给面板；
  *   - 因此发送 / 删除 / 已读都不得整页重拉，否则用户已经翻出来的历史会被折叠掉。
  */
 
@@ -248,10 +250,17 @@ export function useInboxCenter(options: UseInboxCenterOptions = {}) {
   }
 
   /**
+   * 面板要画的时间线：日期分隔条、2 分钟合并组、气泡内容与回执都在这里算好。
+   *
+   * 面板只遍历它渲染，不再自己算日期键或分组 —— 私信侧只有一个持有者。
+   */
+  const chatTimeline = computed(() => buildChatTimeline(chatMessages.value));
+
+  /**
    * 拉（或重拉）第一页：重置数组、游标与 hasMore。
    *
    * 只允许在「切换会话 / 重连 / 预备会话刚变成真会话 / 用户点重试」这些
-   * 语义上确实要重置的地方调用。后端给的是 DESC，这里转升序后落到界面。
+   * 语义上确实要重置的地方调用。后端直接给升序页，这里原样收下、不再反转。
    */
   async function loadChatMessages(sessionId = chatStore.activeSessionId) {
     if (!sessionId || isDraftChatSessionId(sessionId)) {
@@ -266,18 +275,17 @@ export function useInboxCenter(options: UseInboxCenterOptions = {}) {
     nextCursor = { before_send_time: "", before_id: "" };
     hasMoreHistory.value = false;
     try {
-      const payload = await getChatMessages({ sessionId, type: 1, limit: CHAT_WINDOW_PAGE_SIZE });
+      const page = await getChatMessages({ sessionId, type: 1, limit: CHAT_WINDOW_PAGE_SIZE });
       if (currentRequest !== requestId || chatStore.activeSessionId !== sessionId) {
         return [];
       }
-      const ascending = toAscending(payload.list);
-      chatMessages.value = ascending;
-      nextCursor = payload.next_cursor;
-      hasMoreHistory.value = payload.has_more;
+      chatMessages.value = page.list;
+      nextCursor = page.next_cursor;
+      hasMoreHistory.value = page.has_more;
       messagePending.value = false;
       // 首屏加载完就标记已读：不等用户手动点，也不等下一条 WS 通知。
       await markActiveSessionRead();
-      return ascending;
+      return page.list;
     } finally {
       if (currentRequest === requestId) {
         messagePending.value = false;
@@ -311,7 +319,7 @@ export function useInboxCenter(options: UseInboxCenterOptions = {}) {
     const cursor = nextCursor;
     olderPending.value = true;
     try {
-      const payload = await getChatMessages({
+      const page = await getChatMessages({
         sessionId,
         type: 1,
         limit: CHAT_WINDOW_PAGE_SIZE,
@@ -320,13 +328,13 @@ export function useInboxCenter(options: UseInboxCenterOptions = {}) {
       if (currentRequest !== requestId || chatStore.activeSessionId !== sessionId) {
         return 0;
       }
-      const olderAsc = toAscending(payload.list);
+      const olderAsc = page.list;
       const currentIds = new Set(chatMessages.value.map((item) => item.id));
       const prepended = olderAsc.filter((item) => !currentIds.has(item.id));
       // 前插 + 用 merge 让重叠 id 拿到最新的 is_read / msg_status，顺序不变。
       chatMessages.value = mergeChatMessages([...prepended, ...chatMessages.value], olderAsc);
-      nextCursor = payload.next_cursor;
-      hasMoreHistory.value = payload.has_more;
+      nextCursor = page.next_cursor;
+      hasMoreHistory.value = page.has_more;
       return prepended.length;
     } finally {
       if (currentRequest === requestId) {
@@ -345,11 +353,11 @@ export function useInboxCenter(options: UseInboxCenterOptions = {}) {
   async function loadNewestChatMessages(sessionId: string) {
     // 通知增量只读取当前序号：它自己不是一次「会话切换」，不能作废首屏响应。
     const currentRequest = requestId;
-    const payload = await getChatMessages({ sessionId, type: 1, limit: CHAT_WINDOW_PAGE_SIZE });
+    const page = await getChatMessages({ sessionId, type: 1, limit: CHAT_WINDOW_PAGE_SIZE });
     if (currentRequest !== requestId || chatStore.activeSessionId !== sessionId) {
       return;
     }
-    chatMessages.value = mergeChatMessages(chatMessages.value, toAscending(payload.list));
+    chatMessages.value = mergeChatMessages(chatMessages.value, page.list);
   }
 
   /** 界面「重试」按钮：清掉发送错误，再重拉第一页；静默、永不抛。 */
@@ -613,6 +621,7 @@ export function useInboxCenter(options: UseInboxCenterOptions = {}) {
     chatSessions,
     filteredChatSessions,
     chatMessages,
+    chatTimeline,
     chatKeyword,
     chatDraft,
     chatDraftType,

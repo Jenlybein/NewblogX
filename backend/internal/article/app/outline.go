@@ -12,14 +12,12 @@ import (
 	"myblogx/internal/article/domain/project"
 )
 
-// 本文件是「目录树」的用例：合集与项目共用的后台树编辑闭环。
+// 本文件是两个具名树端点共用的**领域编排规则**：整树提交的展开 / 幂等复用、
+// 新收录文章的可收录校验、后台读面的嵌套组装。
 //
-// 真源只有 content_outline_node_models：
-//   - 读：整棵嵌套树（含空文件夹）+ 文章节点快照（标题 / 是否失效）；
-//   - 写：整棵树一次性提交（新建文件夹、批量收录、层级与顺序一起落库）。
-//
-// 这是合集 / 项目内容编排的**唯一**写入口：旧的扁平收录表与其单步接口
-// 已随 #225 一起从代码里删除。
+// 它不是一个对外用例：调用方必须先经 namedRepos 把事务仓储指向某张具名树表，
+// 再调用 SaveNamedOutline / NamedOutlineTree / CollectionDetail / ProjectDetail。
+// 旧共用表与它的 AdminOutline / SaveOutline 两个共享端点已随 #277 下线。
 
 // OutlineInputNode 是整树提交里的一个节点。
 //
@@ -33,114 +31,11 @@ type OutlineInputNode struct {
 	Children  []OutlineInputNode
 }
 
-// SaveOutlineCmd 是整棵树一次性提交的输入。
-type SaveOutlineCmd struct {
-	Actor     domain.Viewer
+// saveOutlineCmd 是整树提交规则的内部输入（不对外暴露旧共享命令）。
+type saveOutlineCmd struct {
 	OwnerKind outline.OwnerKind
 	OwnerID   outline.ID
 	Nodes     []OutlineInputNode
-}
-
-// AdminOutline 返回后台树编辑器的读面（整棵嵌套树）。
-//
-// 只给管理员：它会摆出"文章已失效"这类运营状态，与读者侧详情页是两份读模型。
-func (s *Service) AdminOutline(
-	ctx context.Context, viewer domain.Viewer, ownerKind outline.OwnerKind, ownerID outline.ID,
-) (*outline.Detail, error) {
-	if !viewer.IsAdmin() {
-		return nil, domain.ErrForbidden
-	}
-
-	var detail *outline.Detail
-	err := s.tx.WithinTx(ctx, func(ctx context.Context, r Repos) error {
-		if err := checkOutlineOwner(ctx, r, ownerKind, ownerID); err != nil {
-			return err
-		}
-		nodes, err := r.Outlines().ListNodes(ctx, ownerKind, ownerID)
-		if err != nil {
-			return err
-		}
-		detail, err = s.buildOutlineDetail(ctx, r, ownerKind, ownerID, nodes)
-		return err
-	})
-	return detail, err
-}
-
-// SaveOutline 整棵树一次性提交（管理员）。
-//
-// 幂等：同样内容重复提交不产生新行（已带 ID 的节点就地更新，正文匹配的新节点
-// 复用已有行）。失败整单回滚，不会留下半套顺序。
-func (s *Service) SaveOutline(ctx context.Context, cmd SaveOutlineCmd) (*outline.Detail, error) {
-	if !cmd.Actor.IsAdmin() {
-		return nil, domain.ErrForbidden
-	}
-	if !cmd.OwnerKind.Valid() || cmd.OwnerID.IsZero() {
-		return nil, outline.ErrStructureInvalid
-	}
-
-	now := s.clock.Now()
-	var detail *outline.Detail
-	err := s.tx.WithinTx(ctx, func(ctx context.Context, r Repos) error {
-		if err := checkOutlineOwner(ctx, r, cmd.OwnerKind, cmd.OwnerID); err != nil {
-			return err
-		}
-		current, err := r.Outlines().ListNodes(ctx, cmd.OwnerKind, cmd.OwnerID)
-		if err != nil {
-			return err
-		}
-
-		planned, err := s.planOutline(ctx, r, cmd, current, now)
-		if err != nil {
-			return err
-		}
-
-		nodes := make([]*outline.Node, 0, len(planned))
-		for _, p := range planned {
-			nodes = append(nodes, p.node)
-		}
-		if err := outline.Validate(nodes); err != nil {
-			return err
-		}
-		if err := s.checkIncludableNewArticles(ctx, r, planned); err != nil {
-			return err
-		}
-
-		var creates, updates []*outline.Node
-		used := make(map[outline.ID]bool, len(current))
-		for _, p := range planned {
-			if p.isNew {
-				creates = append(creates, p.node)
-				continue
-			}
-			updates = append(updates, p.node)
-			used[p.node.ID()] = true
-		}
-		if len(creates) > 0 {
-			if err := r.Outlines().Create(ctx, creates); err != nil {
-				return err
-			}
-		}
-		if len(updates) > 0 {
-			if err := r.Outlines().Update(ctx, updates); err != nil {
-				return err
-			}
-		}
-		var removed []outline.ID
-		for _, n := range current {
-			if !used[n.ID()] {
-				removed = append(removed, n.ID())
-			}
-		}
-		if len(removed) > 0 {
-			if err := r.Outlines().SoftDelete(ctx, removed, now); err != nil {
-				return err
-			}
-		}
-
-		detail, err = s.buildOutlineDetail(ctx, r, cmd.OwnerKind, cmd.OwnerID, nodes)
-		return err
-	})
-	return detail, err
 }
 
 // plannedNode 是提交里的一行：node 是最终状态（新节点已给好 ID）。
@@ -156,7 +51,7 @@ type plannedNode struct {
 //   - 不带 ID 的文章节点按文章匹配已有行（含软删行，恢复而不是新插入）；
 //   - 不带 ID 的文件夹按（父节点 + 标题）匹配当前活跃行。
 func (s *Service) planOutline(
-	ctx context.Context, r Repos, cmd SaveOutlineCmd, current []*outline.Node, now time.Time,
+	ctx context.Context, r treeRepos, cmd saveOutlineCmd, current []*outline.Node, now time.Time,
 ) ([]*plannedNode, error) {
 	byID := make(map[outline.ID]*outline.Node, len(current))
 	used := make(map[outline.ID]*outline.Node, len(current))
@@ -285,7 +180,7 @@ func (s *Service) planOutline(
 // checkIncludableNewArticles 只约束**新收录**：已有节点上的文章后来变成
 // 私有 / 删除时节点保留（失效行口径沿用），不在这里拒绝。
 func (s *Service) checkIncludableNewArticles(
-	ctx context.Context, r Repos, planned []*plannedNode,
+	ctx context.Context, r treeRepos, planned []*plannedNode,
 ) error {
 	for _, p := range planned {
 		if !p.isNew || !p.node.IsArticle() {
@@ -310,7 +205,7 @@ func (s *Service) checkIncludableNewArticles(
 // 快照用 FindIncludingDeleted（旧扁平 LEFT JOIN 的等价物）：文章被软删时节点
 // 仍保留标题并标 deleted；只有节点指向的文章真的不存在时才退化成 missing。
 func (s *Service) buildOutlineDetail(
-	ctx context.Context, r Repos, ownerKind outline.OwnerKind, ownerID outline.ID, nodes []*outline.Node,
+	ctx context.Context, r treeRepos, ownerKind outline.OwnerKind, ownerID outline.ID, nodes []*outline.Node,
 ) (*outline.Detail, error) {
 	tree, err := outline.Build(nodes)
 	if err != nil {
@@ -369,12 +264,12 @@ func (s *Service) buildOutlineDetail(
 	return &outline.Detail{OwnerKind: ownerKind, OwnerID: ownerID, Tree: treeView}, nil
 }
 
-// checkOutlineOwner 确认树归属的实体存在（后台不能给不存在的合集建树）。
+// checkOutlineOwner 确认树归属的实体存在（后台不能给不存在的实体建树）。
 //
 // 软删 / 不存在的实体返回各自子域的 ErrNotFound：后台对"合集不存在"与
 // "树结构不合法"是两种提示，不该合并。
 func checkOutlineOwner(
-	ctx context.Context, r Repos, ownerKind outline.OwnerKind, ownerID outline.ID,
+	ctx context.Context, r treeRepos, ownerKind outline.OwnerKind, ownerID outline.ID,
 ) error {
 	switch ownerKind {
 	case outline.OwnerCollection:

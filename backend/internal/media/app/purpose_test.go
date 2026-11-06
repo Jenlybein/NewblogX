@@ -209,7 +209,7 @@ func TestConfirmWithoutPurposeSkipsRatioCheck(t *testing.T) {
 
 	for _, path := range []string{"callback", "user"} {
 		svc, repo, tasks := newPurposeService(1234, 777) // 任意比例
-		created := createPurposeTask(t, svc, nil)         // 请求体不带 purpose
+		created := createPurposeTask(t, svc, nil)        // 请求体不带 purpose
 		if created.TargetRatio != (domain.Ratio{}) {
 			t.Fatalf("未声明用途的任务不该有目标比例，实际 %+v", created.TargetRatio)
 		}

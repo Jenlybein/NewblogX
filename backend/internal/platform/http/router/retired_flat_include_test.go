@@ -1,6 +1,6 @@
 package router_test
 
-// 旧扁平收录 / 排序接口的退役守卫（#225）。
+// 旧扁平收录 / 排序接口（#225）与旧共享树端点（#277）的退役守卫。
 //
 // # 为什么需要它
 //
@@ -50,6 +50,13 @@ var retiredFlatIncludeOps = []string{
 	"DELETE /projects/{id}/articles",
 	"PATCH /projects/{id}/articles/order",
 	"DELETE /projects/{id}/admin/stale",
+	// #277：旧共享树端点与旧共用树表一起退役。它们是 #274 expand 期为了让
+	// #275 / #276 逐张保持全绿而票内暂留的过渡，不是长期兼容层。
+	"GET /collections/{id}/outline/admin",
+	"PUT /collections/{id}/outline",
+	"GET /projects/{id}/outline/admin",
+	"PUT /projects/{id}/outline",
+	"GET /articles/{id}/outline-context",
 }
 
 // keptFlatSuccessorOps 是退役后**必须仍然存在**的接口。
@@ -59,15 +66,14 @@ var retiredFlatIncludeOps = []string{
 var keptFlatSuccessorOps = []string{
 	// 项目之间排序：写 project_models.sort_order，仍是现行功能。
 	"PATCH /projects/order",
-	// 目录树读写（合集与项目）。
-	"GET /collections/{id}/outline/admin",
-	"PUT /collections/{id}/outline",
-	"GET /projects/{id}/outline/admin",
-	"PUT /projects/{id}/outline",
+	// 具名树端点（#277 收缩后的唯一对外形状）。
+	"GET /collections/{id}/outline-tree",
+	"PUT /collections/{id}/outline-tree",
+	"GET /projects/{id}/outline-tree",
+	"PUT /projects/{id}/outline-tree",
 	// 详情（读者侧）。
 	"GET /collections/{id}",
 	"GET /projects/{id}",
-	"GET /articles/{id}/outline-context",
 	// 后台卡片与增删改、展示开关。
 	"GET /collections/admin",
 	"POST /collections",
@@ -89,7 +95,7 @@ func TestRetiredFlatIncludeOpsAreGone(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
 	injectZeroHandlers()
-	engine := router.NewEngine(mw.RuntimeOptions{}, nil)
+	engine := router.NewEngine(mw.RuntimeOptions{}, nil, injectZeroHandlers())
 
 	registered := make(map[string]bool)
 	for _, rt := range engine.Routes() {
@@ -150,7 +156,7 @@ func TestRetiredFlatIncludeGuardCatchesPhantom(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
 	injectZeroHandlers()
-	engine := router.NewEngine(mw.RuntimeOptions{}, nil)
+	engine := router.NewEngine(mw.RuntimeOptions{}, nil, injectZeroHandlers())
 
 	registered := make(map[string]bool)
 	for _, rt := range engine.Routes() {

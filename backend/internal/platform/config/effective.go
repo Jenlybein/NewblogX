@@ -1,0 +1,169 @@
+package config
+
+import (
+	"myblogx/conf"
+	siteconf "myblogx/conf/site"
+)
+
+// Chat 现读站点级私信策略（陌生人开关 + 限流参数）。
+func (e *EffectiveConfig) Chat() siteconf.Chat {
+	if e == nil || e.store == nil {
+		return siteconf.Chat{}
+	}
+	return e.store.GetRuntimeChat()
+}
+
+// Storage 现读对象存储配置（失败关闭的消费者用它取当前域名）。
+func (e *EffectiveConfig) Storage() conf.QiNiu {
+	if e == nil || e.store == nil {
+		return conf.QiNiu{}
+	}
+	return e.store.GetRuntimeStorage()
+}
+
+// 本包是「此刻生效值」的唯一模块（#284）：
+//
+//   - 默认值与合法范围：DefaultChatWindowSec / DefaultChatDailyMax / NormalizeChatRate；
+//   - 补种与现读：RuntimeConfigService（registry.go 的九段登记 + runtime.go 的
+//     LoadDefaults / seedMissing / GetRuntimeXxx + merge.go 的深度合并）；
+//   - 敏感字段占位符：SensitivePlaceholder / ResolveSensitive；
+//   - 段注册：RegisteredSections / LookupSection（#283 的唯一事实，这里只消费）。
+//
+// 消费点不再各自捕获 *RuntimeConfigService 再重复取反 / 归一化 / 判占位符，
+// 只持 NewEffectiveConfig 给出的一个现读取值闭包：管理员在后台改完，下一次
+// 读取就按新值判，不用重启。
+//
+// 「每天 99 条」只在本文件的 DefaultChatDailyMax 声明一次；apperr 的文案用
+// 中性说法，限流器与 Redis 兜底都从这里派生，不再各抄一份 10 / 99。
+
+// 私信发送限流的默认值与合法区间（ADR-0026）。
+const (
+	DefaultChatWindowSec = 10
+	DefaultChatDailyMax  = 99
+
+	minChatWindowSec = 1
+	maxChatWindowSec = 86400
+	minChatDailyMax  = 1
+	maxChatDailyMax  = 9999
+)
+
+// ChatRate 是一对已经收敛到合法区间的生效值。
+type ChatRate struct {
+	WindowSec int
+	DailyMax  int
+}
+
+// Pair 返回旧调用点要的 (窗口秒数, 日额度)。
+func (r ChatRate) Pair() (int, int) { return r.WindowSec, r.DailyMax }
+
+// NormalizeChatRate 把非法 / 越界的限流参数收敛到合法区间。
+//
+// 后台填 0、负数或超大值时不能让限流静默失效：0 秒窗口等于不限流，
+// 0 条日额度等于把所有私信都掐死。缺省回落到本模块声明的默认值。
+func NormalizeChatRate(windowSec, dailyMax int) ChatRate {
+	if windowSec < minChatWindowSec || windowSec > maxChatWindowSec {
+		windowSec = DefaultChatWindowSec
+	}
+	if dailyMax < minChatDailyMax || dailyMax > maxChatDailyMax {
+		dailyMax = DefaultChatDailyMax
+	}
+	return ChatRate{WindowSec: windowSec, DailyMax: dailyMax}
+}
+
+// SensitivePlaceholder 是管理员接口回显敏感字段时用的占位符。
+//
+// 前端保存时会把这个值原样传回来，服务端据此判断"用户没有改密钥"。
+const SensitivePlaceholder = "******"
+
+// ResolveSensitive 把后台回传的敏感字段收敛成真正要落库的值：
+//
+//   - 占位符 = 没改，沿用当前值（不把星号写回库）；
+//   - 空串 = 真清除（管理员要能撤销一个已泄露的密钥）；
+//   - 其它字符串 = 覆盖。
+//
+// 三种语义只在这里判定一次，管理端三个密钥字段不再各写一份分支。
+func ResolveSensitive(incoming, current string) string {
+	if incoming == SensitivePlaceholder {
+		return current
+	}
+	return incoming
+}
+
+// EffectiveConfig 持有「此刻生效值」的读入口。
+//
+// 它不缓存任何值：每次调用都回到 RuntimeConfigService 的现读快照，
+// 所以后台保存后不需要重建本对象、更不需要重启进程。
+type EffectiveConfig struct {
+	store *RuntimeConfigService
+}
+
+// NewEffectiveConfig 构造生效值入口。store 为 nil 时所有读取走安全默认值
+// （展示开关按"开"处理，限流按模块默认值处理，失败关闭/宁可多出内容）。
+func NewEffectiveConfig(store *RuntimeConfigService) *EffectiveConfig {
+	return &EffectiveConfig{store: store}
+}
+
+// ChatRate 现读私信限流生效值，并收敛到合法区间。
+func (e *EffectiveConfig) ChatRate() ChatRate {
+	if e == nil || e.store == nil {
+		return NormalizeChatRate(0, 0)
+	}
+	chat := e.store.GetRuntimeChat()
+	return NormalizeChatRate(chat.RateWindowSec, chat.RateDailyMax)
+}
+
+// ChatRateFunc 返回消费点唯一该持有的现读取值闭包。
+func (e *EffectiveConfig) ChatRateFunc() func() (int, int) {
+	return func() (int, int) { return e.ChatRate().Pair() }
+}
+
+// OnlyAdminAuthors 现读「显示非管理员发布文章」开关的反面：
+// 为真表示公开读面只出管理员作者的文章（ADR-0017 决策 4）。
+//
+// 取反只在这里做一次；article / search / 右栏 / AI 检索四处消费点都拿它。
+func (e *EffectiveConfig) OnlyAdminAuthors() bool {
+	if e == nil || e.store == nil {
+		return false
+	}
+	return !e.store.GetRuntimeArticle().ShowNonAdminArticles
+}
+
+// OnlyAdminAuthorsFunc 返回展示开关的现读取值闭包。
+func (e *EffectiveConfig) OnlyAdminAuthorsFunc() func() bool {
+	if e == nil {
+		return func() bool { return false }
+	}
+	return e.OnlyAdminAuthors
+}
+
+// Article 现读文章相关开关，供只关心 site.article 的消费点使用。
+//
+// 配置服务缺失时按业务默认（三个发布/展示开关全开、免审核关闭）兜底：
+// 宁可多出内容，也不要因为装配缺失把全站作者锁死。
+func (e *EffectiveConfig) Article() siteconf.Article {
+	if e == nil || e.store == nil {
+		return siteconf.Article{
+			SkipExamining:        false,
+			AllowNonAdminPublish: true,
+			AllowNonAdminDraft:   true,
+			ShowNonAdminArticles: true,
+		}
+	}
+	return e.store.GetRuntimeArticle()
+}
+
+// SectionNames 返回九段登记项的名字（复用 #283 的 RegisteredSections 外部行为）。
+func (e *EffectiveConfig) SectionNames() []SectionName {
+	entries := RegisteredSections()
+	out := make([]SectionName, 0, len(entries))
+	for _, entry := range entries {
+		out = append(out, entry.Name)
+	}
+	return out
+}
+
+// HasSection 查询段是否登记（漏登记在写库前就会失败，见 registry_test.go）。
+func (e *EffectiveConfig) HasSection(name string) bool {
+	_, ok := LookupSection(name)
+	return ok
+}

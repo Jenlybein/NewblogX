@@ -20,7 +20,7 @@ import (
 //
 // #218 之后，项目的收录与顺序**只经目录树编辑器**：旧的扁平收录 / 排序
 // 接口已随 #225 删除，本文件也不再断言扁平 `articles[]`。
-// 读面统一读 `/outline/admin` 的嵌套树。
+// 读面统一读 `/outline-tree` 的嵌套树。
 //
 // 走真实 HTTP + 真 MySQL，断言的是**外部行为**（响应里的业务码与字段、
 // 读者侧读面），不是仓储方法被调了几次。读者侧公开读的独立契约在
@@ -99,6 +99,8 @@ func readerProjects(t *testing.T, r *gin.Engine) []projectCard {
 // assertProjectWriteForbidden 断言非管理员写接口全部落到既有鉴权错误码。
 //
 // 旧的扁平收录 / 排序接口不在清单里：本批的写入口是目录树整树保存。
+// #276 的具名 GET 是**公开读**（读者详情页与左栏要用），不在鉴权探针清单里；
+// 非管理员读它只能拿到读者读面或 has_tree=false，不会拿到后台读面。
 func assertProjectWriteForbidden(t *testing.T, r *gin.Engine, id ctype.ID) {
 	t.Helper()
 	cases := []struct {
@@ -108,10 +110,9 @@ func assertProjectWriteForbidden(t *testing.T, r *gin.Engine, id ctype.ID) {
 		{"改", "PUT", "/api/projects/" + string(id), `{"title":"偷偷改"}`},
 		{"删", "DELETE", "/api/projects/" + string(id), ""},
 		{"展示开关", "PATCH", "/api/projects/" + string(id) + "/display", `{"displayed":true}`},
-		{"保存目录树", "PUT", "/api/projects/" + string(id) + "/outline", `{"nodes":[]}`},
+		{"保存目录树", "PUT", "/api/projects/" + string(id) + "/outline-tree", `{"nodes":[]}`},
 		{"项目之间排序", "PATCH", "/api/projects/order", `{"project_ids":[]}`},
 		{"后台列表", "GET", "/api/projects/admin", ""},
-		{"后台目录树", "GET", "/api/projects/" + string(id) + "/outline/admin", ""},
 	}
 	for _, c := range cases {
 		var body []byte
@@ -185,7 +186,7 @@ func TestProjectAdminLoop(t *testing.T) {
 	}
 	// 同一棵树内重复挂同一篇文章被拒（可读错误，不是数据库 1062）。
 	dupRaw := rawRequest(t, adminRouter, "PUT",
-		fmt.Sprintf("/api/projects/%s/outline", created.ID),
+		fmt.Sprintf("/api/projects/%s/outline-tree", created.ID),
 		[]byte(`{"nodes":[{"kind":2,"article_id":"31"},{"kind":2,"article_id":"31"}]}`))
 	if env := decode(t, dupRaw); env.Code == 0 || env.Msg != "该文章已在目录树中" {
 		t.Fatalf("重复收录应报【该文章已在目录树中】，实际 code=%d msg=%q", env.Code, env.Msg)
@@ -376,7 +377,7 @@ func TestProjectAdminOrdering(t *testing.T) {
 		t.Fatalf("非管理员换序应落到既有鉴权错误，实际 code=%d msg=%q", env.Code, env.Msg)
 	}
 	if env := decode(t, rawRequest(t, authorRouter, "PUT",
-		fmt.Sprintf("/api/projects/%s/outline", first),
+		fmt.Sprintf("/api/projects/%s/outline-tree", first),
 		[]byte(`{"nodes":[]}`))); env.Code == 0 || env.Msg != authorForbiddenMsg {
 		t.Fatalf("非管理员保存目录树应落到既有鉴权错误，实际 code=%d msg=%q", env.Code, env.Msg)
 	}
@@ -495,15 +496,18 @@ func TestProjectAdminStalePlaceholderAndCleanup(t *testing.T) {
 		t.Fatalf("清理后读者详情不对: %+v", detail)
 	}
 
-	// 非管理员不能清理（整树保存）、也不能读后台目录树。
+	// 非管理员不能清理（整树保存）。具名 GET 是公开读：普通用户只能拿到
+	// 读者读面，不会拿到后台保留的失效行（后台读面是管理员有意例外）。
 	authorRouter := newRouterWithIDs(t, db, domain.NormalUser(ctype.NewID(100)), 100)
 	if env := decode(t, rawRequest(t, authorRouter, "PUT",
-		fmt.Sprintf("/api/projects/%s/outline", projectID), []byte(cleanupBody))); env.Code == 0 || env.Msg != authorForbiddenMsg {
+		fmt.Sprintf("/api/projects/%s/outline-tree", projectID), []byte(cleanupBody))); env.Code == 0 || env.Msg != authorForbiddenMsg {
 		t.Fatalf("非管理员清理应落到既有鉴权错误，实际 code=%d msg=%q", env.Code, env.Msg)
 	}
-	if env := decode(t, rawRequest(t, authorRouter, "GET",
-		fmt.Sprintf("/api/projects/%s/outline/admin", projectID), nil)); env.Code == 0 || env.Msg != authorForbiddenMsg {
-		t.Fatalf("非管理员读后台目录树应落到既有鉴权错误，实际 code=%d msg=%q", env.Code, env.Msg)
+	// 具名 GET 对普通用户是读者读面：能成功，但不含后台保留的失效行。
+	readerView := decode(t, rawRequest(t, authorRouter, "GET",
+		fmt.Sprintf("/api/projects/%s/outline-tree", projectID), nil))
+	if readerView.Code != 0 {
+		t.Fatalf("普通用户读具名树应是公开读面，实际 code=%d msg=%q", readerView.Code, readerView.Msg)
 	}
 }
 
@@ -534,21 +538,21 @@ func TestProjectAdminOutlineIncludeRules(t *testing.T) {
 	}
 
 	// 重复收录：同一棵树内一篇文章最多一个节点。
-	dupRaw := rawRequest(t, adminRouter, "PUT", fmt.Sprintf("/api/projects/%s/outline", projectID),
+	dupRaw := rawRequest(t, adminRouter, "PUT", fmt.Sprintf("/api/projects/%s/outline-tree", projectID),
 		[]byte(`{"nodes":[{"kind":2,"article_id":"61"},{"kind":2,"article_id":"61"}]}`))
 	if env := decode(t, dupRaw); env.Code == 0 || env.Msg != "该文章已在目录树中" {
 		t.Fatalf("重复收录应被拒，实际 code=%d msg=%q", env.Code, env.Msg)
 	}
 
 	// 草稿不可收录：整单拒绝，已有树不变。
-	draftRaw := rawRequest(t, adminRouter, "PUT", fmt.Sprintf("/api/projects/%s/outline", projectID),
+	draftRaw := rawRequest(t, adminRouter, "PUT", fmt.Sprintf("/api/projects/%s/outline-tree", projectID),
 		[]byte(`{"nodes":[{"kind":2,"article_id":"61"},{"kind":2,"article_id":"63"}]}`))
 	if env := decode(t, draftRaw); env.Code == 0 || env.Msg != "只有已发布且可见的文章可以收录" {
 		t.Fatalf("收录草稿应被拒，实际 code=%d msg=%q", env.Code, env.Msg)
 	}
 
 	// 不存在的文章同样整单拒绝。
-	missingRaw := rawRequest(t, adminRouter, "PUT", fmt.Sprintf("/api/projects/%s/outline", projectID),
+	missingRaw := rawRequest(t, adminRouter, "PUT", fmt.Sprintf("/api/projects/%s/outline-tree", projectID),
 		[]byte(`{"nodes":[{"kind":2,"article_id":"61"},{"kind":2,"article_id":"999"}]}`))
 	if env := decode(t, missingRaw); env.Code == 0 || env.Msg != "只有已发布且可见的文章可以收录" {
 		t.Fatalf("收录不存在的文章应被拒，实际 code=%d msg=%q", env.Code, env.Msg)

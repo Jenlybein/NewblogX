@@ -36,14 +36,17 @@ backend/docs/swagger.json                    （唯一产物，json 单格式）
 后端（`backend/Makefile` 的 `openapi` target）：
 
 ```makefile
-# 安装：go install github.com/swaggo/swag/v2/cmd/swag@v2.0.0-rc6
+# 安装 ref 只在仓库级 scripts/tool-versions.env 定义；CI / 本地门禁 / 门禁自检三处消费。
 SWAG ?= $(shell go env GOPATH)/bin/swag
 SWAG_OUTPUT_TYPES ?= json
+SWAG_OUTPUT_DIR ?= docs
 
 openapi:
-	$(SWAG) init -g cmd/server/main.go -o docs --parseDependency --parseInternal \
+	$(SWAG) init -g cmd/server/main.go -o $(SWAG_OUTPUT_DIR) --parseDependency --parseInternal \
 		--v3.1 --outputTypes $(SWAG_OUTPUT_TYPES)
 ```
+
+> 生成工具版本不在本文复述：`scripts/tool-versions.env` 是仓库级单一来源，`go install` 与判定实现都读它。
 
 两个前端（`package.json`，两端同名）：
 
@@ -381,33 +384,31 @@ E 消灭的是根因：隐式转换消失后，类型和 JSON 永远是同一个
 
 ## 8. 验证生成成功的正确方法
 
-**不能只看 exit code。** swag v2 在 §2.3 的场景下 exit code 是 0、文件不更新。
+**不能只看 exit code，也不能用 `git diff --exit-code`。** swag v2 在 §2.3 的场景下 exit code 是 0、文件不更新，此时"生成后无差异"恰好等于"生成器静默跳过时差异为空"——判据会给出绿灯，是典型的假绿 / 门禁撒谎。工作区脏时 `git diff` 又会假红，人习惯性忽略。
+
+仓库级判定 `node scripts/check-contract-freshness.mjs` 持续集成、本地门禁、门禁自检三处共用，判据是：
+
+1. 已安装的生成工具必须匹配 `scripts/tool-versions.env` 的安装 ref（`go version -m` 核对）；
+2. `make openapi` 把产物写到**临时目录**，命令失败报 `COMMAND_FAILED`；
+3. 退出码 0 但临时产物不存在报 `SILENT_SKIP`（与命令失败是两种红）；
+4. 条目数量（paths / operations / schemas）不得低于 `scripts/contract-structures.json` 登记的基线；
+5. 临时产物与已提交契约**逐字比对**，不同报 `STALE`；
+6. 清单点名的本次新增结构必须在场，缺席报 `ADDED_STRUCTURE_MISSING`。
 
 ```bash
-cd backend
-# ① 生成
-make openapi
+# 仓库根：与 CI 的 contract job、门禁自检第 5 节同一条判定
+node scripts/check-contract-freshness.mjs
 
-# ② 必须验证产物真的被重写（三选一，推荐前两个）
-ls -l --time-style=full-iso docs/swagger.json        # 时间戳是否变
-grep -c '你要找的新 schema 名' docs/swagger.json      # 新内容是否存在
-python -c "import json;d=json.load(open('docs/swagger.json'));print(d['openapi'],len(d['components']['schemas']),len(d['paths']))"
-# 期望：3.1.0 / schema 数不下降 / paths 不下降；若打印旧值 ⇒ 生成被静默跳过
+# 人工重生成（产物仍落在 docs/，两端类型同批重生成并提交）
+cd backend && make openapi
+cd ../frontend       && corepack pnpm openapi:types && corepack pnpm typecheck
+cd ../frontend_admin && corepack pnpm openapi:types && corepack pnpm typecheck
 
-# ③ 后端全量（注意 integration tag）
-go build ./...
-CGO_ENABLED=1 go vet -tags integration ./...
-CGO_ENABLED=1 go test ./... -count=1
-go run ./tools/archcheck --skip-tests=false .        # 期望 0 违规
-
-# ④ 两端重新生成 + typecheck
-cd ../frontend       && pnpm openapi:types && pnpm typecheck
-cd ../frontend_admin && pnpm openapi:types && pnpm typecheck
+# 全量门禁
+bash scripts/check.sh
 ```
 
-全量门禁走仓库根脚本：`bash scripts/check.sh`。
-
-> **检测脚本本身也需要被验证。** 写脚本时子串判断要互斥：用 `'ListData' in line` 会把 `HasMoreListData` 也算成 `ListData`（13 处误报中的 5 处）。正确写法：`'HasMoreListData' in line` 优先，再判断 `'ListData' in line and not says_more`。
+判定自身的行为用例 `node scripts/test-contract-freshness.mjs` 用受控生成器验外部行为（真生成 / 静默跳过 / 命令失败 / 过期 / 条目数下降 / 新增结构缺席），不读源码文本；门禁自检第 5 节再真实注入「静默跳过但退出码 0」与「命令失败」，断言两种红的原因可区分。
 
 ---
 

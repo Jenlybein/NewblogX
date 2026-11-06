@@ -345,6 +345,38 @@ func TestSitemsgRouterGetUserSummary(t *testing.T) {
 		t.Fatalf("创建全局通知失败: %v", err)
 	}
 
+	// 消息中心角标的私信数字来自会话行派生列（SUM(unread_count)），
+	// 与会话 badge / 并账共用同一份真值。软删会话不进角标。
+	peer := &schema.UserRow{
+		Username: "msg_peer",
+		Password: "x",
+		Nickname: "peer",
+		Role:     enum.RoleUser,
+	}
+	if err := db.Create(peer).Error; err != nil {
+		t.Fatalf("创建会话对方失败: %v", err)
+	}
+	if err := db.Create(&schema.ChatSessionRow{
+		SessionID:   "chat:100:200",
+		UserID:      user.ID,
+		ReceiverID:  user.ID,
+		UnreadCount: 2,
+	}).Error; err != nil {
+		t.Fatalf("创建私信会话失败: %v", err)
+	}
+	softDeleted := &schema.ChatSessionRow{
+		SessionID:   "chat:100:300",
+		UserID:      user.ID,
+		ReceiverID:  peer.ID,
+		UnreadCount: 3,
+	}
+	if err := db.Create(softDeleted).Error; err != nil {
+		t.Fatalf("创建待软删私信会话失败: %v", err)
+	}
+	if err := db.Delete(softDeleted).Error; err != nil {
+		t.Fatalf("软删私信会话失败: %v", err)
+	}
+
 	now := time.Now()
 	if err := db.Create(&schema.UserGlobalNotifRow{
 		MsgID:  notifs[1].ID,
@@ -381,5 +413,8 @@ func TestSitemsgRouterGetUserSummary(t *testing.T) {
 	}
 	if int(data["global_msg_count"].(float64)) != 1 {
 		t.Fatalf("全局未读数异常, body=%s", w.Body.String())
+	}
+	if int(data["private_msg_count"].(float64)) != 2 {
+		t.Fatalf("私信未读数应只数活跃会话的派生列之和, body=%s", w.Body.String())
 	}
 }

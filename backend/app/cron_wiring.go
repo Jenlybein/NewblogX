@@ -6,6 +6,7 @@ import (
 
 	"gorm.io/gorm"
 
+	"myblogx/conf/site"
 	articlemysql "myblogx/internal/article/adapter/mysql"
 	"myblogx/internal/article/domain/viewhistory"
 	chatmysql "myblogx/internal/chat/adapter/mysql"
@@ -19,15 +20,29 @@ import (
 	"myblogx/internal/platform/scheduler"
 )
 
-// 计数刷盘的调度参数。
+// 并账任务的调度参数。
+//
+// 周期不在这里：它是运行期配置 site.reconcile.interval_minutes（#279），
+// 唯一来源是 site.Reconcile.Interval()。本文件只留锁的持有时间。
 const (
-	counterSyncInterval = 30 * time.Minute
-	counterSyncLockTTL  = 30 * time.Minute
+	counterSyncLockTTL = 30 * time.Minute
 
 	// 每日日志清理的默认执行时间与保留天数（配置缺省时使用）。
 	defaultLogCleanupAt    = "03:30:00"
 	defaultLogRetentionDay = 7
 )
+
+// reconcileInterval 返回当前生效的并账周期。
+//
+// 每次注册时现读运行期配置（库里的 site.reconcile 段），缺省 30 分钟。
+// 想改周期不必改代码；但它是**调度注册参数**，与「日志清理每天几点」同一口径：
+// 改完要重启才生效（换周期要重新注册任务），这一点写进 ADR-0025。
+func reconcileInterval(infra *Infra) time.Duration {
+	if infra.RuntimeSite == nil {
+		return site.Reconcile{}.Interval()
+	}
+	return infra.RuntimeSite.GetRuntimeSite().Reconcile.Interval()
+}
 
 // CounterMetric 描述"某个 Redis 计数 key 刷到某张表的某一列"。
 //
@@ -126,12 +141,24 @@ func ReconcileChatUnread(ctx context.Context, db *gorm.DB) (int, error) {
 	return chatmysql.ReconcileAllChatUnread(ctx, db, 200)
 }
 
+// taskScheduler 是装配层用到的调度能力。
+//
+// 抽成窄接口只为一件事：让用例能在**注册接缝**上观察「注册了哪些任务、周期是多少、
+// 跑一次会发生什么」，而不是去读源码文本。真实实现是 platform/scheduler。
+type taskScheduler interface {
+	Every(d time.Duration, job scheduler.Job) error
+	Daily(hour, minute, second int, job scheduler.Job) error
+	Start()
+	Shutdown() error
+}
+
 // WireCron 注册并启动定时任务。
 //
 // 这里是唯一知道"哪个 Redis key 对应哪张表的哪一列"的地方：
 //   - 刷盘机制在 platform/rediscounter（双缓冲 + 回补）
 //   - 写入 SQL 在各自的 adapter（article / comment）
 //   - 调度与互斥在 platform/scheduler
+//   - 并账周期来自运行期配置（site.reconcile.interval_minutes），代码里没有第二份默认值
 //
 // 之前这些全在 service/cron_service 一个包里，既写 SQL 又管调度，
 // 于是"改一个列名"和"调一次调度间隔"要在同一个文件里动。
@@ -141,14 +168,27 @@ func ReconcileChatUnread(ctx context.Context, db *gorm.DB) (int, error) {
 // Lifecycle 的 stop hook 是后进先出，而 main 里先注册了基础设施清理，
 // 所以这里注册的会先执行。
 func WireCron(infra *Infra, lifecycle *Lifecycle) error {
+	return wireCron(infra, lifecycle, nil)
+}
+
+// wireCron 是 WireCron 的实现，调度器由调用方给。
+//
+// newScheduler 为 nil 时建真调度器；用例传记录器，就能断言「周期来自配置」
+// 「两个并账跑在同一个任务体里」这些行为，而不必真的等 30 分钟。
+func wireCron(infra *Infra, lifecycle *Lifecycle, newScheduler func() (taskScheduler, error)) error {
 	if err := validateInfra(infra); err != nil {
 		return err
 	}
 
-	sch, err := scheduler.New(scheduler.Options{
-		Client: infra.Redis,
-		Logger: infra.Logger,
-	})
+	if newScheduler == nil {
+		newScheduler = func() (taskScheduler, error) {
+			return scheduler.New(scheduler.Options{
+				Client: infra.Redis,
+				Logger: infra.Logger,
+			})
+		}
+	}
+	sch, err := newScheduler()
 	if err != nil {
 		return err
 	}
@@ -156,7 +196,11 @@ func WireCron(infra *Infra, lifecycle *Lifecycle) error {
 	flusher := rediscounter.New(infra.Redis, infra.Logger)
 	db := infra.DB
 
-	if err := sch.Every(counterSyncInterval, scheduler.Job{
+	// 周期只有一个来源：运行期配置 site.reconcile.interval_minutes（#279）。
+	interval := reconcileInterval(infra)
+	infra.Logger.Infof("并账周期=%s（来自运行期配置 site.reconcile.interval_minutes）", interval)
+
+	if err := sch.Every(interval, scheduler.Job{
 		Name:    "同步文章计数",
 		LockKey: "cron:sync_article:lock",
 		LockTTL: counterSyncLockTTL,
@@ -184,7 +228,7 @@ func WireCron(infra *Infra, lifecycle *Lifecycle) error {
 	}
 
 	// ── 标签文章数 ──
-	if err := sch.Every(counterSyncInterval, scheduler.Job{
+	if err := sch.Every(interval, scheduler.Job{
 		Name:    "同步标签文章数",
 		LockKey: "cron:sync_tag:lock",
 		LockTTL: counterSyncLockTTL,
@@ -225,7 +269,7 @@ func WireCron(infra *Infra, lifecycle *Lifecycle) error {
 	}
 	for _, m := range commentMetrics {
 		m := m
-		if err := sch.Every(counterSyncInterval, scheduler.Job{
+		if err := sch.Every(interval, scheduler.Job{
 			Name:    m.name,
 			LockKey: m.lockKey,
 			LockTTL: counterSyncLockTTL,
@@ -301,7 +345,7 @@ func PurgeViewHistory(ctx context.Context, db *gorm.DB, now time.Time) (int, err
 //
 // 与日志清理不同，这个任务的"开关/天数"没有运行时配置：它跟随 cron 体系
 // 每天跑一次，参数全部来自常量与 domain 的保留期（viewhistory.Retention）。
-func registerViewHistoryCleanup(infra *Infra, sch *scheduler.Scheduler) {
+func registerViewHistoryCleanup(infra *Infra, sch taskScheduler) {
 	if err := sch.Daily(viewHistoryCleanupHour, viewHistoryCleanupMinute, 0, scheduler.Job{
 		Name:    "浏览历史清理",
 		LockKey: "cron:purge_view_history:lock",
@@ -326,7 +370,7 @@ func registerViewHistoryCleanup(infra *Infra, sch *scheduler.Scheduler) {
 //
 // 配置非法时不静默兜底成默认值就当成功：先记一条 Error，
 // 让人知道"你配的那个时间没生效"，然后用默认时间跑。
-func registerLogCleanup(infra *Infra, sch *scheduler.Scheduler) {
+func registerLogCleanup(infra *Infra, sch taskScheduler) {
 	// 开关与保留天数都**每次现读**运行时配置：这样在后台打开/关闭清理、
 	// 调整保留天数都不必重启。只有"每天几点跑"仍取启动时的基线
 	// —— 那是调度注册参数，改它需要重新 CreateJob。

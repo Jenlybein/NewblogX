@@ -11,8 +11,8 @@ import (
 
 // fakeRepo 是内存版仓储，让用例只验证服务层行为，不牵扯 SQL。
 type fakeRepo struct {
-	items  []domain.AIProvider
-	seq    uint64
+	items   []domain.AIProvider
+	seq     uint64
 	deleted map[ctype.ID]bool
 }
 

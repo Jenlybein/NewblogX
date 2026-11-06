@@ -1666,48 +1666,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/articles/{id}/outline-context": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** 文章上下文（阅读页左栏目录树） */
-        get: {
-            parameters: {
-                query?: {
-                    /** @description 来源（project:<id> / collection:<id>） */
-                    from?: string;
-                };
-                header?: never;
-                path: {
-                    /** @description 文章 ID */
-                    id: string;
-                };
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description OK */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["myblogx_internal_kernel.Envelope-internal_article_adapter_http_ArticleOutlineContextResponse"];
-                    };
-                };
-            };
-        };
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/banners": {
         parameters: {
             query?: never;
@@ -1848,7 +1806,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** 会话消息列表 */
+        /**
+         * 会话消息列表
+         * @description 列表按 send_time 升序返回（最旧在前），同毫秒用 id 做确定性并列裁决；不带游标时返回最新一窗，next_cursor 指向本页最旧一条。
+         */
         get: {
             parameters: {
                 query?: never;
@@ -2335,61 +2296,22 @@ export interface paths {
         };
         trace?: never;
     };
-    "/collections/{id}/outline": {
+    "/collections/{id}/outline-tree": {
         parameters: {
             query?: never;
             header?: never;
             path?: never;
             cookie?: never;
         };
-        get?: never;
-        /** 保存合集目录树 */
-        put: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path: {
-                    /** @description 合集 ID */
-                    id: string;
-                };
-                cookie?: never;
-            };
-            /** @description 请求体 */
-            requestBody: {
-                content: {
-                    "application/json": components["schemas"]["internal_article_adapter_http.OutlineSaveRequest"];
-                };
-            };
-            responses: {
-                /** @description OK */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["myblogx_internal_kernel.Envelope-internal_article_adapter_http_OutlineTreeResponse"];
-                    };
-                };
-            };
-        };
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/collections/{id}/outline/admin": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** 后台合集目录树 */
+        /** 合集具名目录树 */
         get: {
             parameters: {
-                query?: never;
+                query?: {
+                    /** @description 来源（collection:<id>） */
+                    from?: string;
+                    /** @description 阅读页当前文章 ID */
+                    article_id?: string;
+                };
                 header?: never;
                 path: {
                     /** @description 合集 ID */
@@ -2405,12 +2327,40 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["myblogx_internal_kernel.Envelope-internal_article_adapter_http_OutlineTreeResponse"];
+                        "application/json": components["schemas"]["myblogx_internal_kernel.Envelope-internal_article_adapter_http_CollectionOutlineTreeResponse"];
                     };
                 };
             };
         };
-        put?: never;
+        /** 保存合集具名目录树 */
+        put: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    /** @description 合集 ID */
+                    id: string;
+                };
+                cookie?: never;
+            };
+            /** @description 请求体 */
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["internal_article_adapter_http.CollectionOutlineSaveRequest"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["myblogx_internal_kernel.Envelope-internal_article_adapter_http_CollectionOutlineTreeResponse"];
+                    };
+                };
+            };
+        };
         post?: never;
         delete?: never;
         options?: never;
@@ -4485,61 +4435,22 @@ export interface paths {
         };
         trace?: never;
     };
-    "/projects/{id}/outline": {
+    "/projects/{id}/outline-tree": {
         parameters: {
             query?: never;
             header?: never;
             path?: never;
             cookie?: never;
         };
-        get?: never;
-        /** 保存项目目录树 */
-        put: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path: {
-                    /** @description 项目 ID */
-                    id: string;
-                };
-                cookie?: never;
-            };
-            /** @description 请求体 */
-            requestBody: {
-                content: {
-                    "application/json": components["schemas"]["internal_article_adapter_http.OutlineSaveRequest"];
-                };
-            };
-            responses: {
-                /** @description OK */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["myblogx_internal_kernel.Envelope-internal_article_adapter_http_OutlineTreeResponse"];
-                    };
-                };
-            };
-        };
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/projects/{id}/outline/admin": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** 后台项目目录树 */
+        /** 项目具名目录树 */
         get: {
             parameters: {
-                query?: never;
+                query?: {
+                    /** @description 来源（project:<id>） */
+                    from?: string;
+                    /** @description 阅读页当前文章 ID */
+                    article_id?: string;
+                };
                 header?: never;
                 path: {
                     /** @description 项目 ID */
@@ -4555,12 +4466,40 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["myblogx_internal_kernel.Envelope-internal_article_adapter_http_OutlineTreeResponse"];
+                        "application/json": components["schemas"]["myblogx_internal_kernel.Envelope-internal_article_adapter_http_ProjectOutlineTreeResponse"];
                     };
                 };
             };
         };
-        put?: never;
+        /** 保存项目具名目录树 */
+        put: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    /** @description 项目 ID */
+                    id: string;
+                };
+                cookie?: never;
+            };
+            /** @description 请求体 */
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["internal_article_adapter_http.ProjectOutlineSaveRequest"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["myblogx_internal_kernel.Envelope-internal_article_adapter_http_ProjectOutlineTreeResponse"];
+                    };
+                };
+            };
+        };
         post?: never;
         delete?: never;
         options?: never;
@@ -4681,6 +4620,222 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/site/admin/ai": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 获取 ai 段运行时配置（管理员） */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["myblogx_internal_kernel.Envelope-internal_site_adapter_http_SiteSectionAiResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/site/admin/deco": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 获取 deco 段运行时配置（管理员） */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["myblogx_internal_kernel.Envelope-internal_site_adapter_http_SiteSectionDecoResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/site/admin/image_gc": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 获取 image_gc 段运行时配置（管理员） */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["myblogx_internal_kernel.Envelope-internal_site_adapter_http_SiteSectionImageGcResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/site/admin/log": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 获取 log 段运行时配置（管理员） */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["myblogx_internal_kernel.Envelope-internal_site_adapter_http_SiteSectionLogResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/site/admin/mail": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 获取 mail 段运行时配置（管理员） */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["myblogx_internal_kernel.Envelope-internal_site_adapter_http_SiteSectionMailResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/site/admin/oauth": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 获取 oauth 段运行时配置（管理员） */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["myblogx_internal_kernel.Envelope-internal_site_adapter_http_SiteSectionOauthResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/site/admin/sidebar_cards": {
         parameters: {
             query?: never;
@@ -4742,22 +4897,19 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/site/admin/{name}": {
+    "/site/admin/site": {
         parameters: {
             query?: never;
             header?: never;
             path?: never;
             cookie?: never;
         };
-        /** 获取站点配置（管理员） */
+        /** 获取 site 段运行时配置（管理员） */
         get: {
             parameters: {
                 query?: never;
                 header?: never;
-                path: {
-                    /** @description 配置名称：site 站点 / ai AI / mail 邮件 / storage 对象存储 / oauth 第三方登录 / log 日志 / upload 上传策略 / deco 装饰 */
-                    name: string;
-                };
+                path?: never;
                 cookie?: never;
             };
             requestBody?: never;
@@ -4768,12 +4920,125 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["myblogx_internal_kernel.Envelope-myblogx_internal_kernel_SiteConfigData"];
+                        "application/json": components["schemas"]["myblogx_internal_kernel.Envelope-internal_site_adapter_http_SiteSectionSiteResponse"];
                     };
                 };
             };
         };
         put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/site/admin/storage": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 获取 storage 段运行时配置（管理员） */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["myblogx_internal_kernel.Envelope-internal_site_adapter_http_SiteSectionStorageResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/site/admin/upload": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 获取 upload 段运行时配置（管理员） */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["myblogx_internal_kernel.Envelope-internal_site_adapter_http_SiteSectionUploadResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/site/ai": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** 更新 ai 段运行时配置（管理员） */
+        put: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            /** @description ai 段配置 */
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["internal_site_adapter_http.SiteSectionAiRequest"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["myblogx_internal_kernel.Envelope-myblogx_internal_kernel_EmptyData"];
+                    };
+                };
+            };
+        };
         post?: never;
         delete?: never;
         options?: never;
@@ -4810,6 +5075,231 @@ export interface paths {
             };
         };
         put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/site/deco": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 获取公开装饰配置 */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["myblogx_internal_kernel.Envelope-internal_site_adapter_http_SiteSectionDecoResponse"];
+                    };
+                };
+            };
+        };
+        /** 更新 deco 段运行时配置（管理员） */
+        put: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            /** @description deco 段配置 */
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["internal_site_adapter_http.SiteSectionDecoRequest"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["myblogx_internal_kernel.Envelope-myblogx_internal_kernel_EmptyData"];
+                    };
+                };
+            };
+        };
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/site/image_gc": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** 更新 image_gc 段运行时配置（管理员） */
+        put: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            /** @description image_gc 段配置 */
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["internal_site_adapter_http.SiteSectionImageGcRequest"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["myblogx_internal_kernel.Envelope-myblogx_internal_kernel_EmptyData"];
+                    };
+                };
+            };
+        };
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/site/log": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** 更新 log 段运行时配置（管理员） */
+        put: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            /** @description log 段配置 */
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["internal_site_adapter_http.SiteSectionLogRequest"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["myblogx_internal_kernel.Envelope-myblogx_internal_kernel_EmptyData"];
+                    };
+                };
+            };
+        };
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/site/mail": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** 更新 mail 段运行时配置（管理员） */
+        put: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            /** @description mail 段配置 */
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["internal_site_adapter_http.SiteSectionMailRequest"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["myblogx_internal_kernel.Envelope-myblogx_internal_kernel_EmptyData"];
+                    };
+                };
+            };
+        };
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/site/oauth": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** 更新 oauth 段运行时配置（管理员） */
+        put: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            /** @description oauth 段配置 */
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["internal_site_adapter_http.SiteSectionOauthRequest"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["myblogx_internal_kernel.Envelope-myblogx_internal_kernel_EmptyData"];
+                    };
+                };
+            };
+        };
         post?: never;
         delete?: never;
         options?: never;
@@ -4925,22 +5415,19 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/site/{name}": {
+    "/site/site": {
         parameters: {
             query?: never;
             header?: never;
             path?: never;
             cookie?: never;
         };
-        /** 获取站点公开配置 */
+        /** 获取公开站点配置 */
         get: {
             parameters: {
                 query?: never;
                 header?: never;
-                path: {
-                    /** @description 站点信息名称：site 站点版本、seo SEO 信息、deco 装饰 */
-                    name: string;
-                };
+                path?: never;
                 cookie?: never;
             };
             requestBody?: never;
@@ -4951,27 +5438,105 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["myblogx_internal_kernel.Envelope-myblogx_internal_kernel_SiteConfigData"];
+                        "application/json": components["schemas"]["myblogx_internal_kernel.Envelope-internal_site_adapter_http_SiteSectionSiteResponse"];
                     };
                 };
             };
         };
-        /** 更新站点运行时配置（管理员） */
+        /** 更新 site 段运行时配置（管理员） */
         put: {
             parameters: {
                 query?: never;
                 header?: never;
-                path: {
-                    /** @description 配置名称：site 站点 / ai AI / mail 邮件 / storage 对象存储 / oauth 第三方登录 / log 日志 / upload 上传策略 / deco 装饰 */
-                    name: string;
-                };
+                path?: never;
                 cookie?: never;
             };
-            /** @description 请求体：与对应配置段的结构一致 */
+            /** @description site 段配置 */
             requestBody: {
                 content: {
-                    "application/json": Record<string, never>;
-                    "text/plain": Record<string, never>;
+                    "application/json": components["schemas"]["internal_site_adapter_http.SiteSectionSiteRequest"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["myblogx_internal_kernel.Envelope-myblogx_internal_kernel_EmptyData"];
+                    };
+                };
+            };
+        };
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/site/storage": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** 更新 storage 段运行时配置（管理员） */
+        put: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            /** @description storage 段配置 */
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["internal_site_adapter_http.SiteSectionStorageRequest"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["myblogx_internal_kernel.Envelope-myblogx_internal_kernel_EmptyData"];
+                    };
+                };
+            };
+        };
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/site/upload": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** 更新 upload 段运行时配置（管理员） */
+        put: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            /** @description upload 段配置 */
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["internal_site_adapter_http.SiteSectionUploadRequest"];
                 };
             };
             responses: {
@@ -5973,6 +6538,87 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        "conf.Charm": {
+            /**
+             * @description 每个固定步长后保留的速度比例（无量纲，0.9–1；1 表示不衰减）。
+             * @default 0.99
+             */
+            damping: number;
+            /** @default true */
+            enable: boolean;
+            /**
+             * @description 最高渲染帧率，单位 fps，整数。语义是上限而不是保证：高于显示器刷新率时等价于每帧，高刷屏上的实际帧率落在刷新率的整数分之一（144Hz + 90 档 = 72fps）。它只决定每秒画几次，不影响绳子运动速度 —— 物理仍按固定步长按真实时间推进。
+             * @default 60
+             */
+            fps_cap: number;
+            /**
+             * @description 重力加速度，单位 px/s²。
+             * @default 1600
+             */
+            gravity: number;
+            /**
+             * @description 静止摆动的加速度幅度，单位 px/s²，作用在自由端：横向加速度按节点序号加权（指针端 0、尾端 1），不是每个节点同一份。0 表示关掉轻晃（读者站据此退回静止即停帧）；频率为 0 同样视为关掉。
+             * @default 20
+             */
+            idle_sway_amp: number;
+            /**
+             * @description 静止摆动的频率，单位 Hz。0 表示关掉轻晃。
+             * @default 0.8
+             */
+            idle_sway_hz: number;
+            /**
+             * @description 描边起始宽度，单位 px（收尾宽度固定为它的 0.6 倍）。
+             * @default 2.5
+             */
+            line_width: number;
+            /**
+             * @description 站标显示尺寸，单位 px。
+             * @default 48
+             */
+            logo_size: number;
+            /**
+             * @description 指针端偏移的水平分量，单位 CSS px（与 clientX 同一视口坐标系，不随 DPI 缩放）。默认 3，区间 -24–24，允许负值（往左偏）。语义是指针端节点 = 指针热点 + (X, Y)：挂绳的物理与渲染都从换算后的头节点出发，渲染层不得再单独偏一次（ADR-0018 决策 8 / 约束 7）。
+             * @default 3
+             */
+            pointer_offset_x: number;
+            /**
+             * @description 指针端偏移的垂直分量，单位 CSS px（向下为正）。
+             * @default 3
+             */
+            pointer_offset_y: number;
+            /**
+             * @description 挂绳长度（松垂阈值），单位 px。
+             * @default 120
+             */
+            rope_length: number;
+            /**
+             * @description Verlet 链的节点数（节），整数计数。
+             * @default 10
+             */
+            segments: number;
+            /**
+             * @description 距离约束刚度（无量纲，0.2–1）：每次迭代消化这么多比例的误差。1 等于全量投影（刚杆手感）；越小越弹，拖动时先拉长再回弹。
+             * @default 0.5
+             */
+            stiffness: number;
+        };
+        "conf.LogCleanup": {
+            enabled?: boolean;
+            retention_days?: number;
+            run_at?: string;
+        };
+        "conf.LogErrorConfig": {
+            capture_min_level?: string;
+            capture_stack?: boolean;
+            cause_chain_depth?: number;
+            stack_max_bytes?: number;
+        };
+        "conf.LogTraceConfig": {
+            enabled?: boolean;
+            gateway_header_priority?: string;
+            inherit_from_gateway?: boolean;
+            request_id_equals_trace_id?: boolean;
+        };
         "internal_ai_adapter_http.BaseRequest": {
             content: string;
         };
@@ -6231,15 +6877,6 @@ export interface components {
         "internal_article_adapter_http.ArticleHotTopOrderRequest": {
             article_ids: string[];
         };
-        "internal_article_adapter_http.ArticleOutlineContextResponse": {
-            current?: components["schemas"]["internal_article_adapter_http.OutlineArticleRefResponse"];
-            has_tree?: boolean;
-            next?: components["schemas"]["internal_article_adapter_http.OutlineArticleRefResponse"];
-            nodes?: components["schemas"]["internal_article_adapter_http.OutlineNodeResponse"][];
-            owner_id?: string;
-            owner_kind?: number;
-            previous?: components["schemas"]["internal_article_adapter_http.OutlineArticleRefResponse"];
-        };
         "internal_article_adapter_http.ArticleReviewHandleRequest": {
             reason?: string;
             /** @enum {integer} */
@@ -6365,6 +7002,20 @@ export interface components {
         "internal_article_adapter_http.CollectionDisplayRequest": {
             displayed?: boolean;
         };
+        "internal_article_adapter_http.CollectionOutlineSaveRequest": {
+            nodes?: components["schemas"]["internal_article_adapter_http.OutlineNodeRequest"][];
+        };
+        "internal_article_adapter_http.CollectionOutlineTreeResponse": {
+            article_count?: number;
+            cover?: string;
+            current?: components["schemas"]["internal_article_adapter_http.OutlineArticleRefResponse"];
+            has_tree?: boolean;
+            next?: components["schemas"]["internal_article_adapter_http.OutlineArticleRefResponse"];
+            nodes?: components["schemas"]["internal_article_adapter_http.OutlineNodeResponse"][];
+            owner_id?: string;
+            owner_kind?: number;
+            previous?: components["schemas"]["internal_article_adapter_http.OutlineArticleRefResponse"];
+        };
         "internal_article_adapter_http.CollectionUpdateRequest": {
             cover?: string;
             description?: string;
@@ -6436,9 +7087,6 @@ export interface components {
             stale_reason?: string;
             title?: string;
         };
-        "internal_article_adapter_http.OutlineSaveRequest": {
-            nodes?: components["schemas"]["internal_article_adapter_http.OutlineNodeRequest"][];
-        };
         "internal_article_adapter_http.OutlineTreeResponse": {
             nodes?: components["schemas"]["internal_article_adapter_http.OutlineNodeResponse"][];
             owner_id?: string;
@@ -6491,6 +7139,20 @@ export interface components {
         };
         "internal_article_adapter_http.ProjectOrderRequest": {
             project_ids: string[];
+        };
+        "internal_article_adapter_http.ProjectOutlineSaveRequest": {
+            nodes?: components["schemas"]["internal_article_adapter_http.OutlineNodeRequest"][];
+        };
+        "internal_article_adapter_http.ProjectOutlineTreeResponse": {
+            article_count?: number;
+            cover?: string;
+            current?: components["schemas"]["internal_article_adapter_http.OutlineArticleRefResponse"];
+            has_tree?: boolean;
+            next?: components["schemas"]["internal_article_adapter_http.OutlineArticleRefResponse"];
+            nodes?: components["schemas"]["internal_article_adapter_http.OutlineNodeResponse"][];
+            owner_id?: string;
+            owner_kind?: number;
+            previous?: components["schemas"]["internal_article_adapter_http.OutlineArticleRefResponse"];
         };
         "internal_article_adapter_http.ProjectUpdateRequest": {
             cover?: string;
@@ -6869,6 +7531,214 @@ export interface components {
             id?: string;
             title?: string;
         };
+        "internal_site_adapter_http.SiteSectionAiRequest": {
+            abstract?: string;
+            avatar?: string;
+            daily_quota?: number;
+            enable?: boolean;
+            max_input_chars?: number;
+            nickname?: string;
+            temperature?: number;
+            timeout_sec?: number;
+        };
+        "internal_site_adapter_http.SiteSectionAiResponse": {
+            abstract?: string;
+            avatar?: string;
+            daily_quota?: number;
+            enable?: boolean;
+            max_input_chars?: number;
+            nickname?: string;
+            temperature?: number;
+            timeout_sec?: number;
+        };
+        "internal_site_adapter_http.SiteSectionDecoRequest": {
+            charm?: components["schemas"]["conf.Charm"];
+        };
+        "internal_site_adapter_http.SiteSectionDecoResponse": {
+            charm?: components["schemas"]["conf.Charm"];
+        };
+        "internal_site_adapter_http.SiteSectionImageGcRequest": {
+            /** @description BatchLimit 是单次最多检查（或真删）的图片条数。<=0 按默认 50 条，超过 500 按 500。 */
+            batch_limit?: number;
+            /**
+             * @description Enabled 是真删回收的总开关。
+             *
+             *     默认 false：不该让"配置写漏了"等同于"可以不可逆删除"。
+             *     清单（只读）不受它影响，随时可以看；它只控制真删。
+             */
+            enabled?: boolean;
+            /**
+             * @description GraceDays 是冷静期天数：上传不足这么多天的图不进入候选。
+             *
+             *     <=0 按默认 14 天处理：这个值是误删的最后一道防线，零值更可能是
+             *     配置写漏了，不该被当成"关掉保护"。
+             */
+            grace_days?: number;
+        };
+        "internal_site_adapter_http.SiteSectionImageGcResponse": {
+            /** @description BatchLimit 是单次最多检查（或真删）的图片条数。<=0 按默认 50 条，超过 500 按 500。 */
+            batch_limit?: number;
+            /**
+             * @description Enabled 是真删回收的总开关。
+             *
+             *     默认 false：不该让"配置写漏了"等同于"可以不可逆删除"。
+             *     清单（只读）不受它影响，随时可以看；它只控制真删。
+             */
+            enabled?: boolean;
+            /**
+             * @description GraceDays 是冷静期天数：上传不足这么多天的图不进入候选。
+             *
+             *     <=0 按默认 14 天处理：这个值是误删的最后一道防线，零值更可能是
+             *     配置写漏了，不该被当成"关掉保护"。
+             */
+            grace_days?: number;
+        };
+        "internal_site_adapter_http.SiteSectionLogRequest": {
+            app?: string;
+            cleanup?: components["schemas"]["conf.LogCleanup"];
+            dir?: string;
+            error?: components["schemas"]["conf.LogErrorConfig"];
+            /** @description trace/debug/info/warn/error；改完立即生效 */
+            level?: string;
+            /** @description 后台日志查询默认条数 */
+            query_default_limit?: number;
+            /** @description 后台日志查询最大条数 */
+            query_max_limit?: number;
+            /** @description 是否记录请求访问日志 */
+            request_log_enabled?: boolean;
+            /** @description text/json，默认 json；改完需重启 */
+            stdout_format?: string;
+            trace?: components["schemas"]["conf.LogTraceConfig"];
+            /** @description 日志本地兜底目录，空则用 <dir>/wal */
+            wal_dir?: string;
+        };
+        "internal_site_adapter_http.SiteSectionLogResponse": {
+            app?: string;
+            cleanup?: components["schemas"]["conf.LogCleanup"];
+            dir?: string;
+            error?: components["schemas"]["conf.LogErrorConfig"];
+            /** @description trace/debug/info/warn/error；改完立即生效 */
+            level?: string;
+            /** @description 后台日志查询默认条数 */
+            query_default_limit?: number;
+            /** @description 后台日志查询最大条数 */
+            query_max_limit?: number;
+            /** @description 是否记录请求访问日志 */
+            request_log_enabled?: boolean;
+            /** @description text/json，默认 json；改完需重启 */
+            stdout_format?: string;
+            trace?: components["schemas"]["conf.LogTraceConfig"];
+            /** @description 日志本地兜底目录，空则用 <dir>/wal */
+            wal_dir?: string;
+        };
+        "internal_site_adapter_http.SiteSectionMailRequest": {
+            /** @description Endpoint 可选：国际站账号需要覆盖成 ses.intl.tencentcloudapi.com */
+            endpoint?: string;
+            /** @description FromAddress 发信地址；必须已在控制台验证通过，否则报 NotAuthenticatedSender */
+            from_address?: string;
+            /** @description FromName 发件人显示名 */
+            from_name?: string;
+            /** @description Region 地域；只支持 ap-guangzhou / ap-hongkong */
+            region?: string;
+            /** @description SecretID 腾讯云 API 密钥 ID */
+            secret_id?: string;
+            /** @description SecretKey 腾讯云 API 密钥 Key（敏感，后台回显时用占位符遮蔽） */
+            secret_key?: string;
+            /** @description TemplateID 验证码模板 ID；模板正文见文档，变量为 action / code / timeout */
+            template_id?: number;
+            /** @description TimeoutSec 单次调用超时（秒）；<=0 按 DefaultMailTimeoutSec 处理 */
+            timeout_sec?: number;
+        };
+        "internal_site_adapter_http.SiteSectionMailResponse": {
+            /** @description Endpoint 可选：国际站账号需要覆盖成 ses.intl.tencentcloudapi.com */
+            endpoint?: string;
+            /** @description FromAddress 发信地址；必须已在控制台验证通过，否则报 NotAuthenticatedSender */
+            from_address?: string;
+            /** @description FromName 发件人显示名 */
+            from_name?: string;
+            /** @description Region 地域；只支持 ap-guangzhou / ap-hongkong */
+            region?: string;
+            /** @description SecretID 腾讯云 API 密钥 ID */
+            secret_id?: string;
+            /** @description SecretKey 腾讯云 API 密钥 Key（敏感，后台回显时用占位符遮蔽） */
+            secret_key?: string;
+            /** @description TemplateID 验证码模板 ID；模板正文见文档，变量为 action / code / timeout */
+            template_id?: number;
+            /** @description TimeoutSec 单次调用超时（秒）；<=0 按 DefaultMailTimeoutSec 处理 */
+            timeout_sec?: number;
+        };
+        "internal_site_adapter_http.SiteSectionOauthRequest": {
+            app_id?: string;
+            app_key?: string;
+            redirect?: string;
+        };
+        "internal_site_adapter_http.SiteSectionOauthResponse": {
+            app_id?: string;
+            app_key?: string;
+            redirect?: string;
+        };
+        "internal_site_adapter_http.SiteSectionSiteRequest": {
+            about?: components["schemas"]["myblogx_conf_site.About"];
+            article?: components["schemas"]["myblogx_conf_site.Article"];
+            chat?: components["schemas"]["myblogx_conf_site.Chat"];
+            comment?: components["schemas"]["myblogx_conf_site.Comment"];
+            login?: components["schemas"]["myblogx_conf_site.Login"];
+            project?: components["schemas"]["myblogx_conf_site.Project"];
+            /** @description Reconcile 是并账任务的运行期策略（#279）：周期只有一个来源，见 site.Reconcile。 */
+            reconcile?: components["schemas"]["myblogx_conf_site.Reconcile"];
+            seo?: components["schemas"]["myblogx_conf_site.Seo"];
+            site_info?: components["schemas"]["myblogx_conf_site.SiteInfo"];
+        };
+        "internal_site_adapter_http.SiteSectionSiteResponse": {
+            about?: components["schemas"]["myblogx_conf_site.About"];
+            article?: components["schemas"]["myblogx_conf_site.Article"];
+            chat?: components["schemas"]["myblogx_conf_site.Chat"];
+            comment?: components["schemas"]["myblogx_conf_site.Comment"];
+            login?: components["schemas"]["myblogx_conf_site.Login"];
+            project?: components["schemas"]["myblogx_conf_site.Project"];
+            /** @description Reconcile 是并账任务的运行期策略（#279）：周期只有一个来源，见 site.Reconcile。 */
+            reconcile?: components["schemas"]["myblogx_conf_site.Reconcile"];
+            seo?: components["schemas"]["myblogx_conf_site.Seo"];
+            site_info?: components["schemas"]["myblogx_conf_site.SiteInfo"];
+        };
+        "internal_site_adapter_http.SiteSectionStorageRequest": {
+            access_key?: string;
+            bucket?: string;
+            /** @description 七牛上传成功后的服务端回调地址 */
+            callback_url?: string;
+            enable?: boolean;
+            /** @description 上传凭证过期时间，单位秒 */
+            expiry?: number;
+            prefix?: string;
+            region?: string;
+            secret_key?: string;
+            /** @description 上传大小限制，单位 MB */
+            size?: number;
+            uri?: string;
+        };
+        "internal_site_adapter_http.SiteSectionStorageResponse": {
+            access_key?: string;
+            bucket?: string;
+            /** @description 七牛上传成功后的服务端回调地址 */
+            callback_url?: string;
+            enable?: boolean;
+            /** @description 上传凭证过期时间，单位秒 */
+            expiry?: number;
+            prefix?: string;
+            region?: string;
+            secret_key?: string;
+            /** @description 上传大小限制，单位 MB */
+            size?: number;
+            uri?: string;
+        };
+        "internal_site_adapter_http.SiteSectionUploadRequest": {
+            /** @description Whitelist 允许上传的图片后缀；前后端与格式探测都会用它 */
+            whitelist?: string[];
+        };
+        "internal_site_adapter_http.SiteSectionUploadResponse": {
+            /** @description Whitelist 允许上传的图片后缀；前后端与格式探测都会用它 */
+            whitelist?: string[];
+        };
         "internal_user_adapter_http.AdminCreateRequest": {
             email?: string;
             nickname?: string;
@@ -6958,6 +7828,88 @@ export interface components {
              */
             stranger_msg_enabled?: boolean;
             username?: string;
+        };
+        "myblogx_conf_site.About": {
+            bilibili?: string;
+            gitee?: string;
+            github?: string;
+            qq?: string;
+            site_date?: string;
+            version?: string;
+            wechat?: string;
+        };
+        "myblogx_conf_site.Article": {
+            /** @description 允许非管理员创建草稿 */
+            allow_non_admin_draft?: boolean;
+            /**
+             * @description 「发布与展示」三个开关（ADR-0017 决策 2）。
+             *     它们只表达"允许什么"，判定点在 app 层与读过滤处，不靠前端隐藏；
+             *     默认值只写在 site_default_settings.yaml（这一段是自由键值块，
+             *     深度合并会把老库缺的键按默认值补齐，所以不需要数据迁移）。
+             */
+            allow_non_admin_publish?: boolean;
+            /** @description 显示非管理员发布的文章 */
+            show_non_admin_articles?: boolean;
+            /** @description 免审核 */
+            skip_examining?: boolean;
+        };
+        "myblogx_conf_site.Chat": {
+            /** @description 自然日内允许的最大条数 */
+            rate_daily_max?: number;
+            /**
+             * @description 发送限流（ADR-0026）：同一发件人对同一收件人的滑动窗口与日额度。
+             *     后台「站点 → 私信」卡可改，零 DDL —— 它们只是运行时配置的一个键，
+             *     不给任何既有表加列。缺省值由 site_default_settings.yaml 显式写明。
+             */
+            rate_window_sec?: number;
+            /** @description 允许陌生人发私信 */
+            stranger_msg_enabled?: boolean;
+        };
+        "myblogx_conf_site.Comment": {
+            /** @description 免审核 */
+            skip_examining?: boolean;
+        };
+        "myblogx_conf_site.Login": {
+            captcha?: boolean;
+            /** @description 邮箱验证码有效期，单位：分钟 */
+            email_code_timeout?: number;
+            email_login?: boolean;
+            /** @description 单邮箱窗口内最大发送次数 */
+            email_send_per_email_max?: number;
+            /** @description 单IP窗口内最大发送次数 */
+            email_send_per_ip_max?: number;
+            /** @description 邮件发送限流窗口，单位：秒 */
+            email_send_window_second?: number;
+            /** @description 单IP窗口内最大失败次数 */
+            login_fail_ip_max?: number;
+            /** @description 单账号窗口内最大失败次数 */
+            login_fail_user_max?: number;
+            /** @description 登录失败统计窗口，单位：分钟 */
+            login_fail_window_minute?: number;
+            qq_login?: boolean;
+            username_pwd_login?: boolean;
+        };
+        "myblogx_conf_site.Project": {
+            icon?: string;
+            title?: string;
+            web_path?: string;
+        };
+        "myblogx_conf_site.Reconcile": {
+            /**
+             * @description IntervalMinutes 是并账周期，单位分钟。
+             *
+             *     缺省（0）与负数回落到 30 分钟：0 周期会让调度器变成忙循环，而这更可能是
+             *     "配置写漏了"而不是"想每秒并一次"。上限钳到一天，下限 1 分钟 ——
+             *     并账是扫表的运维动作，秒级周期只会放大写放大（ADR-0025「已否决方案」）。
+             */
+            interval_minutes?: number;
+        };
+        "myblogx_conf_site.Seo": {
+            description?: string;
+            keywords?: string;
+        };
+        "myblogx_conf_site.SiteInfo": {
+            beian?: string;
         };
         "myblogx_internal_ai_metainfo.Metainfos": {
             id?: string;
@@ -7305,11 +8257,6 @@ export interface components {
             data?: components["schemas"]["internal_article_adapter_http.ArticleFavoriteResponse"];
             msg?: string;
         };
-        "myblogx_internal_kernel.Envelope-internal_article_adapter_http_ArticleOutlineContextResponse": {
-            code?: number;
-            data?: components["schemas"]["internal_article_adapter_http.ArticleOutlineContextResponse"];
-            msg?: string;
-        };
         "myblogx_internal_kernel.Envelope-internal_article_adapter_http_ArticleReviewTaskListResponse": {
             code?: number;
             data?: components["schemas"]["internal_article_adapter_http.ArticleReviewTaskListResponse"];
@@ -7325,9 +8272,9 @@ export interface components {
             data?: components["schemas"]["internal_article_adapter_http.CollectionDetailResponse"];
             msg?: string;
         };
-        "myblogx_internal_kernel.Envelope-internal_article_adapter_http_OutlineTreeResponse": {
+        "myblogx_internal_kernel.Envelope-internal_article_adapter_http_CollectionOutlineTreeResponse": {
             code?: number;
-            data?: components["schemas"]["internal_article_adapter_http.OutlineTreeResponse"];
+            data?: components["schemas"]["internal_article_adapter_http.CollectionOutlineTreeResponse"];
             msg?: string;
         };
         "myblogx_internal_kernel.Envelope-internal_article_adapter_http_ProjectCreatedResponse": {
@@ -7338,6 +8285,11 @@ export interface components {
         "myblogx_internal_kernel.Envelope-internal_article_adapter_http_ProjectDetailResponse": {
             code?: number;
             data?: components["schemas"]["internal_article_adapter_http.ProjectDetailResponse"];
+            msg?: string;
+        };
+        "myblogx_internal_kernel.Envelope-internal_article_adapter_http_ProjectOutlineTreeResponse": {
+            code?: number;
+            data?: components["schemas"]["internal_article_adapter_http.ProjectOutlineTreeResponse"];
             msg?: string;
         };
         "myblogx_internal_kernel.Envelope-internal_auth_adapter_http_SendEmailResponse": {
@@ -7413,6 +8365,51 @@ export interface components {
         "myblogx_internal_kernel.Envelope-internal_site_adapter_http_SidebarCardsResponse": {
             code?: number;
             data?: components["schemas"]["internal_site_adapter_http.SidebarCardsResponse"];
+            msg?: string;
+        };
+        "myblogx_internal_kernel.Envelope-internal_site_adapter_http_SiteSectionAiResponse": {
+            code?: number;
+            data?: components["schemas"]["internal_site_adapter_http.SiteSectionAiResponse"];
+            msg?: string;
+        };
+        "myblogx_internal_kernel.Envelope-internal_site_adapter_http_SiteSectionDecoResponse": {
+            code?: number;
+            data?: components["schemas"]["internal_site_adapter_http.SiteSectionDecoResponse"];
+            msg?: string;
+        };
+        "myblogx_internal_kernel.Envelope-internal_site_adapter_http_SiteSectionImageGcResponse": {
+            code?: number;
+            data?: components["schemas"]["internal_site_adapter_http.SiteSectionImageGcResponse"];
+            msg?: string;
+        };
+        "myblogx_internal_kernel.Envelope-internal_site_adapter_http_SiteSectionLogResponse": {
+            code?: number;
+            data?: components["schemas"]["internal_site_adapter_http.SiteSectionLogResponse"];
+            msg?: string;
+        };
+        "myblogx_internal_kernel.Envelope-internal_site_adapter_http_SiteSectionMailResponse": {
+            code?: number;
+            data?: components["schemas"]["internal_site_adapter_http.SiteSectionMailResponse"];
+            msg?: string;
+        };
+        "myblogx_internal_kernel.Envelope-internal_site_adapter_http_SiteSectionOauthResponse": {
+            code?: number;
+            data?: components["schemas"]["internal_site_adapter_http.SiteSectionOauthResponse"];
+            msg?: string;
+        };
+        "myblogx_internal_kernel.Envelope-internal_site_adapter_http_SiteSectionSiteResponse": {
+            code?: number;
+            data?: components["schemas"]["internal_site_adapter_http.SiteSectionSiteResponse"];
+            msg?: string;
+        };
+        "myblogx_internal_kernel.Envelope-internal_site_adapter_http_SiteSectionStorageResponse": {
+            code?: number;
+            data?: components["schemas"]["internal_site_adapter_http.SiteSectionStorageResponse"];
+            msg?: string;
+        };
+        "myblogx_internal_kernel.Envelope-internal_site_adapter_http_SiteSectionUploadResponse": {
+            code?: number;
+            data?: components["schemas"]["internal_site_adapter_http.SiteSectionUploadResponse"];
             msg?: string;
         };
         "myblogx_internal_kernel.Envelope-internal_user_adapter_http_AdminCreateResponse": {
@@ -7655,11 +8652,6 @@ export interface components {
             data?: components["schemas"]["myblogx_internal_kernel.ListData-myblogx_internal_comment_app_ManageItem"];
             msg?: string;
         };
-        "myblogx_internal_kernel.Envelope-myblogx_internal_kernel_SiteConfigData": {
-            code?: number;
-            data?: components["schemas"]["myblogx_internal_kernel.SiteConfigData"];
-            msg?: string;
-        };
         "myblogx_internal_kernel.Envelope-myblogx_internal_search_domain_Response": {
             code?: number;
             data?: components["schemas"]["myblogx_internal_search_domain.Response"];
@@ -7809,9 +8801,6 @@ export interface components {
         "myblogx_internal_kernel.ListData-myblogx_internal_comment_app_ManageItem": {
             count?: number;
             list?: components["schemas"]["myblogx_internal_comment_app.ManageItem"][];
-        };
-        "myblogx_internal_kernel.SiteConfigData": {
-            [key: string]: unknown;
         };
         /** @enum {integer} */
         "myblogx_internal_search_domain.ArticleStatus": 1 | 2 | 3 | 4;

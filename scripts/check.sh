@@ -5,11 +5,27 @@
 # 这个脚本让"本地跑过"和"CI 绿"是同一件事，避免出现
 # "本地随便过、推上去全红"或者反过来"CI 根本没在跑"。
 #
+# 门禁清单 / 工具版本 / 契约未过期判定 / 公共安装步骤只有一处定义：
+# scripts/gates/gates.json + scripts/gates/（run.mjs / install.mjs / tools.mjs）。
+# 本地、CI、门禁自检三处都经 scripts/gates/run.mjs 调同一批命令，
+# 加一道门禁只需改 gates.json 那一处清单。
+#
+# 但本脚本里确实写着两类命令，它们是**真实实现**，不是第二份清单：
+#   1. 清单里「只有演练节号、没有 steps」的门禁（后端单测、typecheck、契约类型、
+#      路由对账、admin 鉴权、菜单对账、lint、覆盖率）：真门禁就是下面这些步骤；
+#   2. 生成式装饰参数校验（#286）：按 #287 AC4 清单只收「清单 / 版本 / 判定 /
+#      重复安装」四件，参数脚本不进清单，因此在 gates 段直接调用。
+# runner 会点名每条「只有演练节号」的门禁由谁执行；`--check-coverage` 会把
+# 第 2 类作为 notGates 显式列出来 —— 豁免是登记过的，不是漏登记。
+#
 # 用法：
 #   ./scripts/check.sh              # 全量
 #   ./scripts/check.sh backend      # 只跑后端
 #   ./scripts/check.sh frontend     # 只跑两个前端
 #   ./scripts/check.sh gates        # 只做门禁自检（证明门禁会红）
+#
+# 注意：这里没有"跳过门禁"的开关。BLOGX_SKIP_INTEGRATION 只跳过集成用例，
+# 且会打印醒目警告；它不会跳过任何门禁自检。
 #
 # 环境变量（默认值就是推荐值，只在需要时覆盖）：
 #   BLOGX_FAST=1              跳过 -race。快约 12 秒，但不做数据竞争检测；提交前别用。
@@ -41,9 +57,8 @@ export GOTOOLCHAIN=local
 export CGO_ENABLED=1
 
 # 架构违规棘轮：当前存量与演进历史见 scripts/arch-baseline.env。
-# 数字只从那一个文件读，避免本地 / CI / 自检脚本三处各写一遍后漂移。
-# shellcheck source=scripts/arch-baseline.env
-. "$ROOT/scripts/arch-baseline.env"
+# 阈值不再由本脚本读：门禁清单（scripts/gates/gates.json）里的 archcheck 门禁
+# 由 runner 从那一份文件读并替换占位符，本地 / CI / 门禁自检共用同一个入口。
 # nuxt typecheck 在 Windows 上默认堆不够，需要抬高上限
 export NODE_OPTIONS="${NODE_OPTIONS:---max-old-space-size=8192}"
 
@@ -96,8 +111,26 @@ run_prepare() {
   return 1
 }
 
-# 集成测试（-tags integration）需要 Docker：testcontainers 会起 MySQL / ClickHouse。
+# local_groups_cover_registry 核对「清单里的分组，本地门禁都跑到」。
 #
+# 判据是**在本脚本自身里找 `--group <分组>`**，而不是再抄一份分组清单：
+# 抄一份的话，清单新增分组时两边一起忘，这项检查就永远绿 —— 那正是以前
+# 「守卫检查的符号根本不存在」那类失效。分组归属仍然只在 gates.json 里。
+local_groups_cover_registry() {
+  local missing="" g listed
+  listed="$(node "$ROOT/scripts/gates/run.mjs" --groups)" || return 1
+  for g in $listed; do
+    grep -q -- "--group[ =]$g" "$0" || missing="$missing $g"
+  done
+  if [ -n "$missing" ]; then
+    echo "✗ 清单里有分组没在本地门禁里跑到：$missing"
+    echo "  在 scripts/check.sh 对应目标里加一次 run.mjs --group <分组>；否则那道门禁只在 CI 上跑，本地永远是绿的但没验。"
+    return 1
+  fi
+  echo "✓ 清单里的分组都在本地跑到：$listed"
+}
+
+# 集成测试（-tags integration）需要 Docker：testcontainers 会起 MySQL / ClickHouse。
 # 关键在于"跳过"不能是静默的 —— 静默跳过正是当年门禁撒谎的老毛病。
 # 三种情形分开处理：
 #   1. BLOGX_SKIP_INTEGRATION=1：显式跳过，打印警告（本地临时调试用）；
@@ -227,17 +260,16 @@ if [ "$TARGET" = "all" ] || [ "$TARGET" = "backend" ]; then
     cd backend
     run "backend: go build"     go build ./...
     run "backend: go vet"       go vet ./...
-    run "backend: archcheck 规则自检" go test ./tools/archcheck/...
-    run "backend: archcheck 棘轮($ARCH_MAX_VIOLATIONS)" \
-      go run ./tools/archcheck --mode=error --max-violations="$ARCH_MAX_VIOLATIONS" .
-    # 第二遍把 _test.go 也算进来，专门盯依赖方向（R10/R11）。
+    # 规则自检 + 棘轮两遍都登记在门禁清单里（scripts/gates/gates.json），
+    # 本地 / CI / 门禁自检读同一份；加一道门禁只改那一处。
     #
-    # 为什么要单独一遍：默认的 --skip-tests 会跳过测试文件，而测试里
-    # import models 会把 M6 的"删 models"卡住 —— 那种违规不会在别处报警。
+    # 第二遍把 _test.go 也算进来，专门盯依赖方向（R10/R11）：
+    # 默认的 --skip-tests 会跳过测试文件，而测试里 import models 会把 M6 的
+    # "删 models" 卡住 —— 那种违规不会在别处报警。
     # R1/R7/R8 标了 ProductionOnly，在测试文件上本来就不报，所以这一遍
     # 实际只多出依赖方向的约束，不会因为"测试里造数据用了 *gorm.DB"变红。
-    run "backend: archcheck 棘轮(含测试文件)" \
-      go run ./tools/archcheck --mode=error --skip-tests=false --max-violations="$ARCH_MAX_VIOLATIONS" .
+    run "backend: archcheck（规则自检 + 棘轮两遍）" \
+      node "$ROOT/scripts/gates/run.mjs" --group backend
     # 测试只跑一遍。
     #
     # 项目里**没有任何测试**使用 testing.Short()，所以过去"先 -race -short 跑一遍、
@@ -292,20 +324,25 @@ run_contract_types() {
   echo "✓ $app: 契约类型未过期"
 }
 
+if [ "$TARGET" = "all" ] || [ "$TARGET" = "backend" ]; then
+  # 契约（开放接口契约）未过期：与 CI 的 contract job、门禁自检第 5 节
+  # 共用 scripts/check-contract-freshness.mjs 这一份判定，不在本地另写一份。
+  # 命令与工具版本登记在门禁清单里（runner 从 scripts/tool-versions.env 读 ref），
+  # 这里只按分组调用，不拼字面版本、也不复制命令。
+  # gates 段不在这里重复跑：verify-gates.sh 第 5 节已经调用同一个门禁并注入失效形态。
+  run "契约门禁（未过期判定 + 判定行为用例）" \
+    node "$ROOT/scripts/gates/run.mjs" --group contract
+fi
+
 if [ "$TARGET" = "all" ] || [ "$TARGET" = "frontend" ]; then
   for app in frontend frontend_admin; do
     run_contract_types "$app"
   done
-  # 两端 tokens.css 逐字节同源（ADR-0012 约束 14 / #22）。
-  # 这是仓库级判据（比较两份文件），与 app 无关，所以在循环外只跑一次；
-  # CI 的 frontend-lint job 跑同一条命令，避免"本地一份、CI 一份"的口径漂移。
-  run "两端 token 同源" node scripts/check-token-parity.mjs
-  # 两端同源副本逐字节一致（#200 定形工具；#225 扩到裁剪窗四份组件）。
-  # 后台不得相对路径 import 读者站模块（#176 曾因此让生产构建失败），所以三种封面
-  # 与头像共用的定形实现、以及 ImageCropView / ImageCropDialog 两份裁剪窗组件，
-  # 都只能靠"两端各一份逐字复制 + 门禁比对"。同样是仓库级判据，
-  # 与 app 无关，紧挨 token 同源跑一次。
-  run "两端同源副本" node scripts/check-image-shaping-parity.mjs
+  # 仓库级判据（两端 tokens.css 逐字节同源 = ADR-0012 约束 14 / #22；
+  # 两端 imageShaping 定形工具与裁剪窗四份组件逐字节同源 = #200 / #225）。
+  # 命令登记在门禁清单里，CI 的 frontend-lint job 与门禁自检读同一份。
+  run "仓库级门禁（两端 token / 同源副本）" \
+    node "$ROOT/scripts/gates/run.mjs" --group frontend
   for app in frontend frontend_admin; do
     (
       cd "$app"
@@ -346,12 +383,25 @@ if [ "$TARGET" = "all" ] || [ "$TARGET" = "frontend" ]; then
 fi
 
 if [ "$TARGET" = "all" ] || [ "$TARGET" = "gates" ]; then
-  # deco.charm 的每个数值参数（min/max/default）与布尔默认值在后端 Go / 读者站 /
-  # 后台 / 默认种子四处逐项一致，且四源键集合相等、锚点参数在场（#43；#72 起不再
-  # 依赖"参数总数"，新增参数不需要改门禁）。这是仓库级判据（同时读四端源文件），
-  # 与 app 无关；放在 gates 段是因为验收要求「只改任一端 → check.sh gates 变红」。
-  # CI 的 frontend-lint job 跑同一条命令，避免"本地一份、CI 一份"的口径漂移。
-  run "跨端装饰参数一致" node scripts/check-deco-range-parity.mjs
+  # 门禁清单只有一个来源：scripts/gates/gates.json。
+  # 加一道门禁只改那一处 —— 本地（这里）、CI（ci.yml 的 gates-canary 调同一个
+  # runner）、门禁自检（verify-gates.sh 开头核对清单与演练一致）都自动看到。
+  run "门禁清单（单一来源）" node "$ROOT/scripts/gates/run.mjs" --list
+  # runner 自身的行为用例（跨 CLI 接缝，不读源码文本）。
+  run "门禁 runner 行为用例" node "$ROOT/scripts/gates/test-gate-runner.mjs"
+  # 清单里的每道门禁都必须有对应演练、每个演练都必须有门禁负责，否则新门禁
+  # 会静默地不被自检验证（或自检在演一个清单里没有的门禁）。
+  run "门禁演练覆盖（每道门禁都有演练，每个演练都有门禁）" node "$ROOT/scripts/gates/run.mjs" --check-coverage
+  # 本地跑的分组必须覆盖清单里的全部分组：清单新增一个分组而本地忘了接，
+  # 那道门禁就只在 CI 上跑，本地一直是"绿的但没验"。
+  run "门禁分组覆盖（清单里的分组都在本地跑到）" local_groups_cover_registry
+  # deco.charm 的 12 个数值参数只由 config/deco-charm-parameters.json 生成四端
+  # 消费物并进入契约（开放接口契约）。一条校验同时验重新生成后四端无差异、
+  # 契约中的 min/max/default 与 GET/PUT /site/deco 的运行时取值。
+  # 它是参数生成脚本（#286），不属于「清单 / 版本 / 判定 / 重复安装」四件事，
+  # 按 #287 AC4 留在门禁清单之外（gates.json 的 notGates 显式登记第 14 节），
+  # 因此在这里与 ci.yml 的 frontend-lint、verify-gates.sh 第 14 节直接调用。
+  run "生成式装饰参数校验" node scripts/generate-deco-parameters.mjs --check
   run "门禁自检（证明门禁会红）" bash scripts/verify-gates.sh
 fi
 

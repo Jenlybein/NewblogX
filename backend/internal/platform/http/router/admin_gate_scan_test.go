@@ -73,11 +73,27 @@ var adminRouteTemplates = []string{
 	"POST /api/users/admin",
 	"PUT /api/users/admin/info",
 	"GET /api/users/login/log",
-	// 站点配置（读侧公开，写侧与 admin 段只读管理员）
-	"GET /api/site/admin/:name",
+	// 站点配置（九段具名端点：公开读 site / deco，管理读与写都是管理员）。
+	"GET /api/site/admin/site",
+	"GET /api/site/admin/ai",
+	"GET /api/site/admin/mail",
+	"GET /api/site/admin/storage",
+	"GET /api/site/admin/oauth",
+	"GET /api/site/admin/log",
+	"GET /api/site/admin/upload",
+	"GET /api/site/admin/deco",
+	"GET /api/site/admin/image_gc",
 	"GET /api/site/admin/sidebar_cards",
 	"PUT /api/site/admin/sidebar_cards",
-	"PUT /api/site/:name",
+	"PUT /api/site/site",
+	"PUT /api/site/ai",
+	"PUT /api/site/mail",
+	"PUT /api/site/storage",
+	"PUT /api/site/oauth",
+	"PUT /api/site/log",
+	"PUT /api/site/upload",
+	"PUT /api/site/deco",
+	"PUT /api/site/image_gc",
 	// 全局通知写操作（读是登录用户都有的）
 	"POST /api/global_notif",
 	"DELETE /api/global_notif",
@@ -108,15 +124,13 @@ var adminRouteTemplates = []string{
 	"POST /api/article-review-tasks/:id/review",
 	// 合集 / 项目（前台读公开，编排与写只给管理员）
 	"GET /api/collections/admin",
-	"GET /api/collections/:id/outline/admin",
-	"PUT /api/collections/:id/outline",
+	"PUT /api/collections/:id/outline-tree",
 	"POST /api/collections",
 	"PUT /api/collections/:id",
 	"DELETE /api/collections/:id",
 	"PATCH /api/collections/:id/display",
 	"GET /api/projects/admin",
-	"GET /api/projects/:id/outline/admin",
-	"PUT /api/projects/:id/outline",
+	"PUT /api/projects/:id/outline-tree",
 	"POST /api/projects",
 	"PUT /api/projects/:id",
 	"DELETE /api/projects/:id",
@@ -154,8 +168,9 @@ var userRouteTemplates = []string{
 	"GET /api/users/detail",
 	"GET /api/users/sessions",
 	"DELETE /api/users/sessions/:id",
-	// 站点公开读
-	"GET /api/site/:name",
+	// 站点公开读：seo / ai_info / 九段里的 site 与 deco / 右栏卡片。
+	"GET /api/site/site",
+	"GET /api/site/deco",
 	"GET /api/site/qq_url",
 	"GET /api/site/seo",
 	"GET /api/site/sidebar_cards",
@@ -187,7 +202,6 @@ var userRouteTemplates = []string{
 	"POST /api/images/qiniu/audit/callback",
 	// 文章前台
 	"GET /api/articles/:id",
-	"GET /api/articles/:id/outline-context",
 	"GET /api/articles/author_info",
 	"GET /api/articles/category",
 	"GET /api/articles/category/options",
@@ -213,11 +227,13 @@ var userRouteTemplates = []string{
 	"DELETE /api/articles/history",
 	"DELETE /api/articles/history/all",
 	"DELETE /api/articles/top",
-	// 合集 / 项目前台读
+	// 合集 / 项目前台读（含两个具名树端点，公开读）
 	"GET /api/collections",
 	"GET /api/collections/:id",
+	"GET /api/collections/:id/outline-tree",
 	"GET /api/projects",
 	"GET /api/projects/:id",
+	"GET /api/projects/:id/outline-tree",
 	// 评论 / 关注 / 粉丝
 	"GET /api/comments",
 	"GET /api/comments/man",
@@ -246,7 +262,7 @@ func registeredRoutes(t *testing.T) []string {
 	gin.SetMode(gin.TestMode)
 	gin.DefaultErrorWriter = io.Discard
 	injectZeroHandlers()
-	engine := router.NewEngine(middleware.RuntimeOptions{Verifier: userTokenVerifier{}}, nil)
+	engine := router.NewEngine(middleware.RuntimeOptions{Verifier: userTokenVerifier{}}, nil, injectZeroHandlers())
 	out := make([]string, 0, len(engine.Routes()))
 	for _, r := range engine.Routes() {
 		out = append(out, strings.ToUpper(r.Method)+" "+r.Path)

@@ -9,10 +9,20 @@ import (
 	"net"
 	"net/http"
 
+	chathttp "myblogx/internal/chat/adapter/http"
 	"myblogx/internal/platform/http/middleware"
 
 	"github.com/gin-gonic/gin"
 )
+
+// Handlers 是合成根显式交给路由树的模块处理器。
+//
+// 目前只有私信模块走显式注入（#280）：私信处理器由 internal/chat.New 装配，
+// 合成根经这里传进来，路由包不再持有它的包级变量。
+// 其它模块仍是 xxxHandler + SetXxxHandler 的存量形态，本次不清（只清这一处）。
+type Handlers struct {
+	Chat *chathttp.Handler
+}
 
 // NewEngine 组装完整路由树，但不监听端口。
 //
@@ -23,7 +33,7 @@ import (
 // registry 是后台组件的健康状态注册表，/health/ready 读它。
 // 单独传而不是塞进 RuntimeOptions：那个结构体是 NewRuntime 的构造参数，
 // 塞进去就成了"顺手抓一把依赖往下传"，正是 R2 要消灭的形状。
-func NewEngine(opts middleware.RuntimeOptions, registry *health.Registry) *gin.Engine {
+func NewEngine(opts middleware.RuntimeOptions, registry *health.Registry, handlers Handlers) *gin.Engine {
 	r := gin.New()
 	r.Use(gin.LoggerWithConfig(gin.LoggerConfig{
 		SkipPaths: []string{"/health"},
@@ -49,7 +59,7 @@ func NewEngine(opts middleware.RuntimeOptions, registry *health.Registry) *gin.E
 	UserRouter(nr, mwRuntime)
 	ArticleRouter(nr, mwRuntime)
 	CommentRouter(nr, mwRuntime)
-	ChatRouter(nr, mwRuntime)
+	ChatRouter(nr, mwRuntime, handlers.Chat)
 	SitemsgRouter(nr, mwRuntime)
 	GlobalNotifRouter(nr, mwRuntime)
 	FollowRouter(nr, mwRuntime)
@@ -68,9 +78,9 @@ func NewEngine(opts middleware.RuntimeOptions, registry *health.Registry) *gin.E
 //
 // 监听句柄在返回前同步创建，端口被占用等绑定错误会直接返回 error，
 // 避免"后台 goroutine 启动失败、主流程却挂着等信号"的假活状态。
-func Run(opts middleware.RuntimeOptions, registry *health.Registry) (*http.Server, error) {
+func Run(opts middleware.RuntimeOptions, registry *health.Registry, handlers Handlers) (*http.Server, error) {
 	gin.SetMode(opts.System.GinMode)
-	r := NewEngine(opts, registry)
+	r := NewEngine(opts, registry, handlers)
 
 	ln, err := net.Listen("tcp", opts.System.Addr())
 	if err != nil {

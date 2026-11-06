@@ -3,6 +3,7 @@ package http
 import (
 	"time"
 
+	"myblogx/internal/apperr"
 	"myblogx/internal/kernel/ctype"
 	"myblogx/internal/platform/http/middleware"
 	"myblogx/internal/platform/http/res"
@@ -131,12 +132,12 @@ func bindJSON[T any](c *gin.Context) (T, bool) {
 	}
 	raw, ok := c.Get("requestJson")
 	if !ok {
-		res.FailWithMsg("请求参数错误", c)
+		res.Fail(apperr.New(apperr.CodeCommonBindMissing), c)
 		return zero, false
 	}
 	typed, ok := raw.(T)
 	if !ok {
-		res.FailWithMsg("请求参数错误", c)
+		res.Fail(apperr.New(apperr.CodeCommonBindMissing), c)
 		return zero, false
 	}
 	return typed, true
@@ -150,12 +151,12 @@ func bindQuery[T any](c *gin.Context) (T, bool) {
 	}
 	raw, ok := c.Get("requestQuery")
 	if !ok {
-		res.FailWithMsg("请求参数错误", c)
+		res.Fail(apperr.New(apperr.CodeCommonBindMissing), c)
 		return zero, false
 	}
 	typed, ok := raw.(T)
 	if !ok {
-		res.FailWithMsg("请求参数错误", c)
+		res.Fail(apperr.New(apperr.CodeCommonBindMissing), c)
 		return zero, false
 	}
 	return typed, true

@@ -33,9 +33,7 @@ type Handler struct {
 	// onlyAdminAuthors 现读「显示非管理员发布文章」开关的反面：为真表示
 	// 公开搜索只出管理员作者的文章。做成取值函数而不是构造时的布尔快照，
 	// 后台改完下一次请求即生效（GLOSSARY 的「Provider 闭包（现读）」）。
-	//
-	// 与另外两处同改：backend/app/visibility_wiring.go 的 onlyAdminAuthors，
-	// 以及 backend/internal/article/adapter/http/handler.go 的 onlyAdminAuthors 方法。
+	// 闭包来自 platform/config 的生效值模块，与另外三处消费点同源（#284）。
 	onlyAdminAuthors func() bool
 }
 

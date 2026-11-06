@@ -43,7 +43,7 @@ export type ArticleDiggDeps = {
   articleId: () => string;
   /** 从文章里取点赞字段。 */
   snapshot: () => ArticleDiggSnapshot;
-  /** 把点赞结果写回文章（页面负责实际赋值 + 主动失效客户端缓存）。 */
+  /** 把点赞写响应上报给阅读页取数模块（回填与缓存失效由它统一管）。 */
   patchArticle: (isDigg: boolean, diggCount: number) => void;
   /** 按**目标态**设置点赞（不是取反）。 */
   setDigg: (articleId: string, liked: boolean) => Promise<ArticleDiggMutationResult>;

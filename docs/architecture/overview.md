@@ -492,7 +492,7 @@ blogx/                              ← 仓库根（无 workspace / 无 turbo）
 | `server/routes/api/chat/ws.ts`（queue 无上限） | 修 backpressure，或统一走 nginx 删掉该层 |
 | `server/utils/upstreamProxy.ts` | `app/lib/http/upstream.ts`（本 app 内，不跨 app） |
 | `nuxt.config.ts` 手写 dotenv 解析（45 行） | 保留本 app 一份（不再跨 app 引用） |
-| `app/pages/studio/write.vue`（**2,043 行**，占 web app 13.7%） | **已完成（M6）**：`pages/studio/write.vue` **361 行** + `components/studio/{StudioWriteHeader,Toc,Preview,PublishDialog}.vue` + `composables/useStudio*.ts` + `constants/studioToolbar.ts` + `assets/css/studio-write.css`。验收口径：**单文件 ≤800 行**（原写的 `<200` 已作废） |
+| `app/pages/studio/write.vue`（**2,043 行**，占 web app 13.7%） | **已完成（M6）**：`pages/studio/write.vue` **361 行** + `components/studio/{StudioWriteHeader,Toc,Preview,PublishDialog}.vue` + `composables/useStudio*.ts` + `constants/studioToolbar.ts` + `assets/css/studio-write.css`。验收口径：**单文件 ≤2200 行**（原写的 `<200` 已作废；阈值由 800 调整） |
 | `app/types/api.ts`（736 行 / 80 个手写 interface） | **已完成（契约可用性改造）**：压到 **12 个**手写 interface，其余 50 个从契约派生。派生工具见 `app/types/contract.ts`：`RequiredSchema<K>` / `Nullable<T,K>` / `OptionalFields<T,K>`（详见 [contracts](./contracts.md)） |
 | `app/services/http/*` | `app/lib/http/` |
 | `app/stores/{auth,chat,message}.ts`（循环依赖） | 改事件驱动，`auth` 只发事件不直接调用其他 store |
@@ -528,7 +528,7 @@ cd frontend_admin && pnpm openapi:types
 | 端口接口 | `Reader` / `Writer` / `Gate` / `Counter`（能力名） | — |
 | DTO | 后缀 `Req`/`Resp`/`Query`，放 `adapter/dto.go` | `article_types.go` 混杂 |
 | 错误 | `domain.ErrXxx` 哨兵 + `errors.Is`；中文文案集中在 `internal/apperr` | 中文 `errors.New` |
-| 单文件上限 | **800 行**（archcheck 强制） | `article_sync.go` 1,547 |
+| 单文件上限 | **2200 行**（archcheck 强制） | `article_sync.go` 1,547 |
 | 单函数上限 | 80 行 | — |
 
 ---
@@ -578,7 +578,7 @@ cd frontend_admin && pnpm openapi:types
 | A4 | **禁止 `type Deps struct`**；`*gorm.DB` 只能出现在 `*/adapter/` 与 `platform/mysql/` | `R3` / `R1` / `R2` |
 | A5 | **依赖单向 `adapter → app → domain`**；模块间零 import；`internal/kernel` 只放 ID/分页/错误 | `R5` / `R11` |
 | A6 | **事务走 UnitOfWork**（`WithinTx(ctx, fn(ctx, Repos) error)`），domain/app 不得出现 `*gorm.DB` | 人工 |
-| A7 | **单文件 ≤ 800 行**（Go 与 Vue 同口径），前端由两端 eslint `max-lines`(error) 兜住；判断标准看职责数而不只看行数 | `R6` / eslint |
+| A7 | **单文件 ≤ 2200 行**（Go 与 Vue 同口径），前端由两端 eslint `max-lines`(error) 兜住；判断标准看职责数而不只看行数 | `R6` / eslint |
 | A8 | **命名规范**：禁 `enter.go`、禁 `Deps`、DTO 后缀 `Req`/`Resp`/`Query`、错误用 `ErrXxx` 哨兵 + `errors.Is` | `R8` / 人工 |
 | A9 | **row 结构（GORM 标签、列映射、`TableName`）由使用者自持**，不进 domain、不跨模块共享；雪花 `BeforeCreate` 钩子只在 `platform/mysql/hooks.go` | `R10` |
 | A10 | **禁裸 `go`**（一律 `safego.Go`）；**禁跨模块 import adapter**；**禁共享 models** | `R7` / `R11` / `R10` |

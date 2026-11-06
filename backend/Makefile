@@ -9,19 +9,25 @@
 # v1 只输出 Swagger 2.0，而 openapi-typescript 只吃 3.x —— 装成 v1 时
 # `make openapi` 会退化成 2.0 产物，前端 `pnpm openapi:types` 会报错。
 #
-# 安装：go install github.com/swaggo/swag/v2/cmd/swag@v2.0.0-rc6
+# 安装 ref 只在仓库级 scripts/tool-versions.env 定义（本文件与 CI / 自检三处消费），
+# 不要在这里复述字面版本。
 SWAG ?= $(shell go env GOPATH)/bin/swag
 
 # 只出 json：docs.go 无人 import（gin 里没有挂 /swagger 路由），
 # swagger.yaml 也没有消费方。少了这两个产物，go.mod 里那个 swag 依赖也一起没了。
 SWAG_OUTPUT_TYPES ?= json
+# 契约未过期判定会把产物写到临时目录逐字比对；人工 make openapi 仍落在 docs/。
+SWAG_OUTPUT_DIR ?= docs
 
 .PHONY: openapi build test gate
 
 # 重新生成 OpenAPI 契约
 openapi:
-	$(SWAG) init -g cmd/server/main.go -o docs --parseDependency --parseInternal \
+	$(SWAG) init -g cmd/server/main.go -o $(SWAG_OUTPUT_DIR) --parseDependency --parseInternal \
 		--v3.1 --outputTypes $(SWAG_OUTPUT_TYPES)
+	@if [ -f "$(SWAG_OUTPUT_DIR)/swagger.json" ]; then \
+		node ../scripts/decorate-deco-contract.mjs --swagger "$(SWAG_OUTPUT_DIR)/swagger.json"; \
+	fi
 
 build:
 	go build ./...

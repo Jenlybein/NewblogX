@@ -37,15 +37,15 @@ type ImageResolver interface {
 
 // Handler 是 article 模块的 HTTP 处理器。
 type Handler struct {
-	svc    *app.Service
-	logger *logrus.Logger
-	site   *sitecfg.RuntimeConfigService
-	viewer ViewerResolver
-	images ImageResolver
+	svc       *app.Service
+	logger    *logrus.Logger
+	effective *sitecfg.EffectiveConfig
+	viewer    ViewerResolver
+	images    ImageResolver
 }
 
 // NewHandler 构造处理器。
-func NewHandler(svc *app.Service, logger *logrus.Logger, site *sitecfg.RuntimeConfigService, viewer ViewerResolver, images ImageResolver) *Handler {
+func NewHandler(svc *app.Service, logger *logrus.Logger, effective *sitecfg.EffectiveConfig, viewer ViewerResolver, images ImageResolver) *Handler {
 	if viewer == nil {
 		viewer = anonymousViewer
 	}
@@ -55,7 +55,7 @@ func NewHandler(svc *app.Service, logger *logrus.Logger, site *sitecfg.RuntimeCo
 		logger = logrus.New()
 		logger.SetOutput(io.Discard)
 	}
-	return &Handler{svc: svc, logger: logger, site: site, viewer: viewer, images: images}
+	return &Handler{svc: svc, logger: logger, effective: effective, viewer: viewer, images: images}
 }
 
 // anonymousViewer 是兜底：没有鉴权信息时一律当匿名。
@@ -64,27 +64,18 @@ func anonymousViewer(*gin.Context) domain.Viewer { return domain.Anonymous() }
 // viewerOf 取当前操作者。
 func (h *Handler) viewerOf(c *gin.Context) domain.Viewer { return h.viewer(c) }
 
-// skipExamining 取站点配置"是否跳过审核"。
+// skipExamining 取站点配置"是否跳过审核"（现读生效值）。
 func (h *Handler) skipExamining() bool {
-	if h.site == nil {
-		return false
-	}
-	return h.site.GetRuntimeArticle().SkipExamining
+	return h.effective.Article().SkipExamining
 }
 
 // onlyAdminAuthors 取「显示非管理员发布文章」开关的反面，作为读面过滤开关。
 //
 // 做成方法而不是构造时的布尔：开关每请求现读，后台改完下一次请求即生效
-// （ADR-0017 决策 4 + GLOSSARY 的「Provider 闭包（现读）」）。没有配置服务时按默认值
-// true（展示）处理——宁可多出内容，也不要静默隐藏。
-//
-// 与另外两处同改：backend/app/visibility_wiring.go 的 onlyAdminAuthors，
-// 以及 backend/internal/search/adapter/http/handler.go 的 onlyAdminAuthors 字段。
+// （ADR-0017 决策 4 + GLOSSARY 的「Provider 闭包（现读）」）。取反只发生在
+// platform/config 的生效值模块里，这里与另外三处消费点共用同一个闭包口径。
 func (h *Handler) onlyAdminAuthors() bool {
-	if h.site == nil {
-		return false
-	}
-	return !h.site.GetRuntimeArticle().ShowNonAdminArticles
+	return h.effective.OnlyAdminAuthors()
 }
 
 // writePolicy 取站点「发布与展示」里与写作权限有关的两个开关（ADR-0017 决策 2）。
@@ -96,10 +87,7 @@ func (h *Handler) onlyAdminAuthors() bool {
 // 不能因为读不到运行时配置就把全站作者锁死（装配缺失应当由启动日志暴露，
 // 而不是表现为"站点忽然不能发文"）。
 func (h *Handler) writePolicy() domain.WritePolicy {
-	if h.site == nil {
-		return domain.OpenWritePolicy()
-	}
-	article := h.site.GetRuntimeArticle()
+	article := h.effective.Article()
 	return domain.WritePolicy{
 		AllowNonAdminPublish: article.AllowNonAdminPublish,
 		AllowNonAdminDraft:   article.AllowNonAdminDraft,

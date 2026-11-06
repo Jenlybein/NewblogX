@@ -12,6 +12,7 @@ import (
 
 	"myblogx/internal/apperr"
 	"myblogx/internal/chat/domain"
+	"myblogx/internal/chat/domain/msgid"
 	"myblogx/internal/kernel/ctype"
 	"myblogx/internal/platform/idgen"
 )
@@ -98,7 +99,7 @@ var errDuplicateClientMsg = errors.New("chat: duplicate client msg key")
 // Send 实现 domain.Command。
 //
 // 幂等：cmd.ClientMsgID 非空时，主键由（发送人，幂等键）派生（见
-// domain.MessageIDFromClientKey）。重复提交会撞主键，整个事务回滚，
+// msgid.FromClientKey）。重复提交会撞主键，整个事务回滚，
 // 然后读回第一次落库的消息并标记 duplicated=true。
 // 这就是"零 DDL 下的幂等落库"：幂等性由数据库唯一约束保证，
 // 不依赖进程内缓存、不依赖 Redis、多实例并发也成立。
@@ -113,7 +114,7 @@ func (r *Repo) Send(ctx context.Context, cmd domain.SendCommand, senderDisplay, 
 		MsgType:    cmd.MsgType,
 	}
 	if cmd.ClientMsgID != "" {
-		msg.ID = domain.MessageIDFromClientKey(cmd.SenderID, cmd.ClientMsgID)
+		msg.ID = msgid.FromClientKey(cmd.SenderID, cmd.ClientMsgID)
 	} else {
 		next, err := idgen.Next()
 		if err != nil {
@@ -123,6 +124,39 @@ func (r *Repo) Send(ctx context.Context, cmd domain.SendCommand, senderDisplay, 
 	}
 
 	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		// 加锁顺序铁律：**先消息行，后会话行**。
+		//
+		// 两条路径都动 chat_msg_models 与 chat_session_models：
+		//   - 本函数（发送）：插一条消息 → 更新两条会话行；
+		//   - markReadWhere（按 ID 已读 / 整会话已读）：更新消息行 → 递减会话行。
+		// 两者的加锁顺序必须一致，否则并发"发送 + 已读"时 InnoDB 形成环：
+		// 发送持会话行等消息行、已读持消息行等会话行，必然可能报 1213。
+		//
+		// 这里原来先写会话行（清未读 / upsert）、再插消息、最后又更新会话行，
+		// 顺序是 会话→消息→会话，与已读路径正好相反。修法是把消息插入提到
+		// 任何会话写入之前，**不是**捕获 1213 重试：重试只是把死锁概率摊薄，
+		// 加锁顺序仍然是错的（治理 D10 明令禁止用重试掩盖）。
+		// 动这里之前先读 markReadWhere 顶部的同一段说明。
+		row := msgRow{
+			ID:         msg.ID,
+			SenderID:   msg.SenderID,
+			ReceiverID: msg.ReceiverID,
+			SessionID:  msg.SessionID,
+			Content:    msg.Content,
+			SendTime:   msg.SendTime,
+			MsgStatus:  int8(msg.MsgStatus),
+			MsgType:    int8(msg.MsgType),
+		}
+		if err := tx.Create(&row).Error; err != nil {
+			// 幂等键命中：主键已存在。把整个事务回滚，交给调用方读回既有消息。
+			if cmd.ClientMsgID != "" && isDuplicateKey(err) {
+				return errDuplicateClientMsg
+			}
+			return err
+		}
+		msg.ID = ctype.NewID(row.ID.Uint64())
+
+		// 以下才是会话行：同一个事务里第二次、也是最后一次换表。
 		sessions := []sessionRow{{
 			SessionID:        msg.SessionID,
 			UserID:           msg.SenderID,
@@ -177,25 +211,6 @@ func (r *Repo) Send(ctx context.Context, cmd domain.SendCommand, senderDisplay, 
 		}).Create(&sessions).Error; err != nil {
 			return err
 		}
-
-		row := msgRow{
-			ID:         msg.ID,
-			SenderID:   msg.SenderID,
-			ReceiverID: msg.ReceiverID,
-			SessionID:  msg.SessionID,
-			Content:    msg.Content,
-			SendTime:   msg.SendTime,
-			MsgStatus:  int8(msg.MsgStatus),
-			MsgType:    int8(msg.MsgType),
-		}
-		if err := tx.Create(&row).Error; err != nil {
-			// 幂等键命中：主键已存在。把整个事务回滚，交给调用方读回既有消息。
-			if cmd.ClientMsgID != "" && isDuplicateKey(err) {
-				return errDuplicateClientMsg
-			}
-			return err
-		}
-		msg.ID = ctype.NewID(row.ID.Uint64())
 
 		updates := map[string]any{
 			"last_msg_id":      msg.ID,
@@ -292,13 +307,25 @@ func fillRowIDs(rows []sessionRow) error {
 	return nil
 }
 
-// ListSessions 实现 domain.Repository。
-func (r *Repo) ListSessions(ctx context.Context, userID ctype.ID, unscoped bool, page domain.Page) ([]domain.Session, int, error) {
-	page = page.Normalize()
+// ListSessions 实现 domain.Query。
+//
+// 拉黑（level=2）的过滤与计数走**同一段 SQL 条件**：先分页再在内存里剔行，
+// 会让总数按全部拉黑目标数扣减，得到与可见行数无关的假值（#280）。
+func (r *Repo) ListSessions(ctx context.Context, q domain.SessionQuery) ([]domain.Session, int, error) {
+	page := q.Page.Normalize()
 	base := func() *gorm.DB {
-		tx := r.db.WithContext(ctx).Model(&sessionRow{}).Where("user_id = ?", userID.Uint64())
-		if unscoped {
+		tx := r.db.WithContext(ctx).Model(&sessionRow{}).Where("user_id = ?", q.UserID.Uint64())
+		if q.Unscoped {
 			tx = tx.Unscoped()
+		}
+		if q.HideBlocked {
+			// 子查询直接读同一张私信拉黑表（chat_block_models），不再先把
+			// 全部拉黑目标读进内存。deleted_at 要自己判：手写子查询不经过
+			// gorm 的软删钩子。
+			tx = tx.Where(
+				"NOT EXISTS (SELECT 1 FROM chat_block_models AS blocked WHERE blocked.owner_id = ? AND blocked.blocked_id = chat_session_models.receiver_id AND blocked.level = ? AND blocked.deleted_at IS NULL)",
+				q.UserID.Uint64(), uint8(domain.BlockLevelHard),
+			)
 		}
 		return tx
 	}
@@ -337,37 +364,6 @@ func (r *Repo) FindSession(ctx context.Context, sessionID string, userID ctype.I
 	return toSession(row), nil
 }
 
-// clearWatermarkSubquery 由清空水位 ID 反查被清空那行的 send_time。
-//
-// clear_before_msg_id 存的是"清到哪条消息"的主键，但主键不是时序：客户端幂等键
-// 派生的消息 ID 是 [2^62,2^63) 区间的 FNV 哈希，拿 id > 水位做过滤会随机
-// 放过/挡掉历史消息。真相是那行消息的 send_time，所以可见性条件是
-//
-//	send_time > (SELECT send_time FROM chat_msg_models WHERE id = 水位)
-//
-// 子查询必须 Unscoped：被清空的那条消息可能之后被用户删掉（软删），
-// 默认范围会把水位行过滤掉，子查询返回 NULL，整段历史就又冒出来了。
-func clearWatermarkSubquery(ctx context.Context, db *gorm.DB, clearBefore ctype.ID) *gorm.DB {
-	return db.WithContext(ctx).Unscoped().Model(&msgRow{}).
-		Select("send_time").
-		Where("id = ?", clearBefore)
-}
-
-// applyClearWatermark 给"可见消息"查询加上时间水位过滤；水位为零时不加。
-func applyClearWatermark(ctx context.Context, db *gorm.DB, tx *gorm.DB, clearBefore ctype.ID) *gorm.DB {
-	if clearBefore.IsZero() {
-		return tx
-	}
-	return tx.Where("send_time > (?)", clearWatermarkSubquery(ctx, db, clearBefore))
-}
-
-// userDeletedMsgIDs 是"该用户在该会话里已删除"的消息 ID 子查询（Unscoped）。
-func userDeletedMsgIDs(ctx context.Context, db *gorm.DB, userID ctype.ID, sessionID string) *gorm.DB {
-	return db.WithContext(ctx).Unscoped().Model(&stateRow{}).
-		Select("msg_id").
-		Where("user_id = ? AND session_id = ? AND deleted_at IS NOT NULL", userID, sessionID)
-}
-
 // ListMessages 实现 domain.Query。
 func (r *Repo) ListMessages(ctx context.Context, q domain.MessageQuery) (domain.MessageQueryResult, error) {
 	page := q.Page.Normalize()
@@ -385,17 +381,8 @@ func (r *Repo) ListMessages(ctx context.Context, q domain.MessageQuery) (domain.
 		}
 		cursorTime = parsed
 	}
-	base := func() *gorm.DB {
-		tx := r.db.WithContext(ctx).Model(&msgRow{}).Where("session_id = ?", q.SessionID)
-		if q.Unscoped {
-			tx = tx.Unscoped()
-		}
-		tx = applyClearWatermark(ctx, r.db, tx, q.ClearBefore)
-		if !q.Unscoped {
-			tx = tx.Where("id NOT IN (?)", userDeletedMsgIDs(ctx, r.db, q.UserID, q.SessionID))
-		}
-		return tx
-	}
+	scope := visibilityScope{ctx: ctx, db: r.db, sessionID: q.SessionID, userID: q.UserID}.withClearBefore(q.ClearBefore)
+	base := func() *gorm.DB { return scope.visible(q.Unscoped) }
 	var total int64
 	if err := base().Count(&total).Error; err != nil {
 		return domain.MessageQueryResult{}, err
@@ -403,6 +390,8 @@ func (r *Repo) ListMessages(ctx context.Context, q domain.MessageQuery) (domain.
 	// 多取一条判断 has_more：不能用 COUNT - offset 推，因为游标过滤后
 	// COUNT 是"会话可见总数"，不是"本页之后还剩几条"。
 	query := base().
+		// 取窗顺序仍是「最新在前」：第一页与每一页都要落在最近的 limit 条上，
+		// 交出前再由下面反序成契约要求的「页内最旧在前」。
 		// id 只是相同 send_time 的确定性定序键，绝不是时序键：客户端幂等键
 		// 派生的主键是 [2^62,2^63) 区间的 FNV 哈希，与消息先后无关。
 		Order("send_time DESC, id DESC")
@@ -421,9 +410,11 @@ func (r *Repo) ListMessages(ctx context.Context, q domain.MessageQuery) (domain.
 	if hasMore {
 		rows = rows[:page.Limit]
 	}
+	// 对外契约：列表**最旧在前**。取窗是「最新在前」，所以这里整体反序一次；
+	// 首屏（无游标）拿到的仍是最新一窗，只是页内从旧到新，界面不用再反转。
 	out := make([]domain.Message, 0, len(rows))
-	for _, row := range rows {
-		out = append(out, toMessage(row))
+	for i := len(rows) - 1; i >= 0; i-- {
+		out = append(out, toMessage(rows[i]))
 	}
 	result := domain.MessageQueryResult{
 		Messages: out,
@@ -431,11 +422,12 @@ func (r *Repo) ListMessages(ctx context.Context, q domain.MessageQuery) (domain.
 		HasMore:  hasMore,
 	}
 	// has_more=false 时 next_cursor 保持零值（空字符串），前端据此停翻。
-	if hasMore && len(rows) > 0 {
-		last := rows[len(rows)-1]
+	// 游标锚在本页**最旧**一条（升序结果的第一条），继续往前翻更早。
+	if hasMore && len(out) > 0 {
+		oldest := out[0]
 		result.NextCursor = domain.MessageCursor{
-			BeforeSendTime: last.SendTime.Format(time.RFC3339Nano),
-			BeforeID:       ctype.NewID(last.ID.Uint64()),
+			BeforeSendTime: oldest.SendTime.Format(time.RFC3339Nano),
+			BeforeID:       oldest.ID,
 		}
 	}
 	return result, nil
@@ -481,19 +473,13 @@ func (r *Repo) MarkReadSession(ctx context.Context, userID ctype.ID, sessionID s
 	if sessionID == "" {
 		return nil, apperr.New(apperr.CodeCommonInvalidArgument)
 	}
-	// 水位取自"我"自己的会话行；不存在时按 0 处理（没有清空过）。
-	var session sessionRow
-	if err := r.db.WithContext(ctx).Model(&sessionRow{}).
-		Select("clear_before_msg_id").
-		Where("session_id = ? AND user_id = ?", sessionID, userID).
-		Take(&session).Error; err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
+	scope, err := r.newVisibilityScope(ctx, sessionID, userID)
+	if err != nil {
 		return nil, err
 	}
-	clearBefore := ctype.NewID(session.ClearBeforeMsgID.Uint64())
 	return r.markReadWhere(ctx, userID, func(tx *gorm.DB) *gorm.DB {
-		tx = tx.Where("session_id = ?", sessionID)
-		tx = applyClearWatermark(ctx, r.db, tx, clearBefore)
-		return tx.Where("id NOT IN (?)", userDeletedMsgIDs(ctx, r.db, userID, sessionID))
+		// 用同一份可见集口径追加条件：会话、清空时间水位、用户级软删。
+		return scope.clauses(tx.Where("session_id = ?", sessionID), false)
 	})
 }
 
@@ -502,6 +488,11 @@ func (r *Repo) MarkReadSession(ctx context.Context, userID ctype.ID, sessionID s
 // scope 只负责追加筛选条件；主体统一做：选未读 → 更新状态与 read_at →
 // 按会话递减未读 → 按（发送人, 会话）聚合成 chat.message.read 发件箱事件。
 // 没有命中行时直接返回空结果，不是错误（第二次调用必须幂等）。
+//
+// 加锁顺序铁律：**先消息行，后会话行**，与 Send 一致。
+// 这里先 UPDATE chat_msg_models（状态与 read_at），再 decreaseUnread 更新
+// chat_session_models；两处顺序不能对调，否则并发"发送 + 已读"会 1213。
+// 详见 Send 事务体开头的同一段说明。
 func (r *Repo) markReadWhere(ctx context.Context, userID ctype.ID, scope func(*gorm.DB) *gorm.DB) ([]domain.Message, error) {
 	var affected []domain.Message
 	now := time.Now()
@@ -623,7 +614,11 @@ func (r *Repo) DeleteSessions(ctx context.Context, userID ctype.ID, sessionIDs [
 		if len(rows) == 0 {
 			return nil
 		}
-		maxIDs, err := loadMaxMsgIDs(tx, sessionIDs)
+		latest, err := loadLatestMessages(tx, sessionIDs)
+		if err != nil {
+			return err
+		}
+		watermarkTimes, err := loadWatermarkSendTimes(tx, rows)
 		if err != nil {
 			return err
 		}
@@ -632,8 +627,9 @@ func (r *Repo) DeleteSessions(ctx context.Context, userID ctype.ID, sessionIDs [
 		args := make([]any, 0, len(rows)*2)
 		for _, row := range rows {
 			clear := row.ClearBeforeMsgID
-			if maxIDs[row.SessionID] > clear.Uint64() {
-				clear = ctype.NewID(maxIDs[row.SessionID])
+			candidate, ok := latest[row.SessionID]
+			if ok && candidate.after(watermarkTimes, clear) {
+				clear = candidate.ID
 			}
 			idList = append(idList, row.ID.Uint64())
 			caseSQL += " WHEN ? THEN ?"
@@ -660,37 +656,39 @@ func decreaseUnread(tx *gorm.DB, userID ctype.ID, delta map[string]int) error {
 	if len(delta) == 0 {
 		return nil
 	}
+	// 先取会话行主键，再**按主键**更新未读。
+	//
+	// 不能直接 `WHERE user_id = ? AND session_id IN (...)`：这句会走
+	// uk_chat_session_user_receiver（user_id 打头）——先锁二级索引记录、再锁主键行。
+	// 而 Send 的 ON DUPLICATE KEY UPDATE 恰好相反（先插主键行、再查/锁唯一索引）。
+	// 两条路径的表级顺序（消息→会话）修好之后，索引级仍然是反的，实测在
+	// "发送 + 整会话已读"并发下依然报 1213（死锁图：一方持 uk 等 PRIMARY，
+	// 另一方持 PRIMARY 等 uk）。按主键升序更新只碰聚簇索引，于是两条路径
+	// 锁会话行的顺序一致。详见 Send 事务体开头的加锁顺序说明。
+	sessionIDs := make([]string, 0, len(delta))
+	for sessionID := range delta {
+		sessionIDs = append(sessionIDs, sessionID)
+	}
+	var ids []uint64
+	if err := tx.Unscoped().Model(&sessionRow{}).
+		Where("user_id = ? AND session_id IN ?", userID.Uint64(), sessionIDs).
+		Order("id ASC").
+		Pluck("id", &ids).Error; err != nil {
+		return err
+	}
+	if len(ids) == 0 {
+		return nil
+	}
 	caseSQL := "CASE session_id"
 	args := make([]any, 0, len(delta)*3)
-	sessionIDs := make([]string, 0, len(delta))
 	for sessionID, n := range delta {
 		caseSQL += " WHEN ? THEN CASE WHEN unread_count >= ? THEN unread_count - ? ELSE 0 END"
 		args = append(args, sessionID, n, n)
-		sessionIDs = append(sessionIDs, sessionID)
 	}
 	caseSQL += " ELSE unread_count END"
 	return tx.Unscoped().Model(&sessionRow{}).
-		Where("user_id = ? AND session_id IN ?", userID.Uint64(), sessionIDs).
+		Where("id IN ?", ids).
 		Update("unread_count", gorm.Expr(caseSQL, args...)).Error
-}
-
-func loadMaxMsgIDs(tx *gorm.DB, sessionIDs []string) (map[string]uint64, error) {
-	var rows []struct {
-		SessionID string
-		MaxMsgID  ctype.ID
-	}
-	if err := tx.Model(&msgRow{}).
-		Select("session_id, MAX(id) AS max_msg_id").
-		Where("session_id IN ?", sessionIDs).
-		Group("session_id").
-		Scan(&rows).Error; err != nil {
-		return nil, err
-	}
-	out := make(map[string]uint64, len(rows))
-	for _, row := range rows {
-		out[row.SessionID] = row.MaxMsgID.Uint64()
-	}
-	return out, nil
 }
 
 func toRawIDs(ids []ctype.ID) []uint64 {

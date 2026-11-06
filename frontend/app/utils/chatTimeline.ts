@@ -1,12 +1,13 @@
 import type { ChatMessageItem } from "~/types/api";
+import { resolveChatMessageContent, type ResolvedChatMessage } from "~/utils/chatMessage";
 
 /**
- * 私信时间线的纯函数。
+ * 私信时间线的纯函数（唯一实现）。
  *
- * 后端 `GET /api/chat/messages` 永远返回 **DESC**（`send_time DESC, id DESC`）并且
- * 用 `(before_send_time, before_id)` 游标往前翻页；界面则从上到下渲染
- * **升序**（最旧在最上、最新在最下）。这两件事只在 `toAscending` 一个地方换方向，
- * 剩下的函数都只处理「已经升序」的累积数组 —— 不要把排序散到组件里。
+ * 后端 `GET /api/chat/messages` 直接返回**升序**（`send_time ASC, id ASC`，最旧在前），
+ * 用 `(before_send_time, before_id)` 游标往前翻更早一页；界面从上到下原样渲染，
+ * **不再有任何反转**。日期分组、2 分钟合并分组与回执也都在这里算好，交给面板
+ * 只画结果 —— 组件里不再有第二份日期键或排序。
  *
  * 另一条硬约束：消息 id 是 FNV 哈希字符串，**不是**单调递增的数字。任何用
  * `Number(id)` 排序的逻辑都会把历史顺序打乱；这里只有「新追加的那一批」之间
@@ -21,7 +22,7 @@ function pad2(value: number) {
 }
 
 /**
- * 解析后端时间字符串。RFC3339Nano（9 位小数秒）与旧形状的 RFC3339 都会进来，
+ * 解析后端时间字符串。RFC3339Nano（9 位小数秒）与不带小数秒的 RFC3339 都会进来，
  * 空串 / 非法串一律返回 null —— 调用方据此决定「不分组 / 不显示」。
  */
 function parseChatTime(sendTime: string): Date | null {
@@ -40,14 +41,10 @@ function localDateKey(date: Date) {
   return `${date.getFullYear()}-${pad2(date.getMonth() + 1)}-${pad2(date.getDate())}`;
 }
 
-/**
- * DESC → ASC 的浅拷贝反转；**不修改入参**。
- *
- * 用扩展再 reverse 而不是 `Array.prototype.reverse()`：后者会原地改掉
- * 后端返回的数组，翻页时同一份 payload 被消费两次就会顺序错乱。
- */
-export function toAscending<T>(descending: readonly T[]): T[] {
-  return [...descending].reverse();
+/** 时间串 → 本地日历日键；非法 / 空时间归到同一段「未知日期」。 */
+function chatDayKey(sendTime: string): string {
+  const date = parseChatTime(sendTime);
+  return date ? localDateKey(date) : "unknown";
 }
 
 /**
@@ -113,8 +110,8 @@ export function mergeChatMessages(
  * 相邻两条是否属于同一个「两分钟合并组」。
  *
  * 三个条件同时成立：同一个发送者、本地日历日相同、时间差绝对值不超过 2 分钟。
- * 用绝对值是因为 DESC/ASC 混用或时钟抖动时传入的先后不保证；跨午夜（23:59 →
- * 00:01）即使只差 2 分钟也因为日历日不同而拆成两组。
+ * 用绝对值是为了让「传参顺序颠倒」也不影响判定（调用方本应按升序传入）；跨午夜
+ * （23:59 → 00:01）即使只差 2 分钟也因为日历日不同而拆成两组。
  * 任一时间缺失/非法 → false（宁可多一个分组头，也不要把不确定的消息粘在一起）。
  */
 export function isSameChatGroup(a: ChatMessageItem, b: ChatMessageItem): boolean {
@@ -172,4 +169,80 @@ export function fullChatTimestamp(sendTime: string): string {
     return "";
   }
   return `${localDateKey(date)} ${pad2(date.getHours())}:${pad2(date.getMinutes())}:${pad2(date.getSeconds())}`;
+}
+
+/** 日期分隔条（每个自然日一段）。 */
+export interface ChatTimelineDateEntry {
+  kind: "date";
+  key: string;
+  label: string;
+}
+
+/** 一个气泡：消息本体 + 已解析的内容 + 回执文案（只有最后一条自己发的才有）。 */
+export interface ChatTimelineBubble {
+  item: ChatMessageItem;
+  resolved: ResolvedChatMessage;
+  receipt: "" | "已读" | "已送达";
+}
+
+/** 一组连续气泡（同一发送人、同一天、2 分钟内）。 */
+export interface ChatTimelineGroupEntry {
+  kind: "group";
+  key: string;
+  isSelf: boolean;
+  entries: ChatTimelineBubble[];
+}
+
+export type ChatTimelineEntry = ChatTimelineDateEntry | ChatTimelineGroupEntry;
+
+/**
+ * 把升序消息数组切成「日期分隔条 + 合并组」的时间线。
+ *
+ * 这是**唯一**的分组实现：面板只遍历结果，不再自己算日期键、分组或回执。
+ * 不做任何排序（入参已由 `useInboxCenter` 维护为升序），也不修改入参。
+ *
+ * `now` 可注入，只为让「今天 / 昨天」的文案在测试里可复现；生产用当前时间。
+ */
+export function buildChatTimeline(
+  items: readonly ChatMessageItem[],
+  now: Date = new Date(),
+): ChatTimelineEntry[] {
+  // 只有「自己发的最后一条」保留回执：先倒着找一次，避免每条都扫全数组。
+  let lastSelfMessageId: string | null = null;
+  for (let i = items.length - 1; i >= 0; i -= 1) {
+    if (items[i]?.is_self) {
+      lastSelfMessageId = items[i]!.id;
+      break;
+    }
+  }
+
+  const out: ChatTimelineEntry[] = [];
+  let lastDay = "";
+  let lastItem: ChatMessageItem | null = null;
+  let group: ChatTimelineGroupEntry | null = null;
+
+  for (const item of items) {
+    const day = chatDayKey(item.send_time);
+    if (day !== lastDay) {
+      out.push({ kind: "date", key: `date-${day}-${item.id}`, label: chatDateSeparatorLabel(item.send_time, now) });
+      lastDay = day;
+      lastItem = null;
+      group = null;
+    }
+
+    const sameGroup = lastItem !== null && group !== null && isSameChatGroup(lastItem, item);
+    if (!sameGroup) {
+      group = { kind: "group", key: `group-${item.id}`, isSelf: Boolean(item.is_self), entries: [] };
+      out.push(group);
+    }
+
+    group!.entries.push({
+      item,
+      resolved: resolveChatMessageContent(item),
+      receipt: item.id === lastSelfMessageId ? (item.is_read ? "已读" : "已送达") : "",
+    });
+    lastItem = item;
+  }
+
+  return out;
 }

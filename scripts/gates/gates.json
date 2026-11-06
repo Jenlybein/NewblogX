@@ -1,0 +1,252 @@
+{
+  "$comment": "门禁清单：本文件是唯一来源，13 道仓库级门禁各一条，不重复登记。加一道门禁只改这里 —— 本地门禁（scripts/check.sh）、持续集成（.github/workflows/ci.yml）、门禁自检（scripts/verify-gates.sh）都经 scripts/gates/run.mjs 读它。每条都必须带 canaries（门禁自检的演练节号，1..14）与执行方式：steps = 这条命令本身可由 runner 直接执行；section = 真门禁由本地 / CI 的某个步骤实现，只能靠门禁自检第 N 节证明它会红，runner 不代跑（用 executedBy 写清是谁在跑）。",
+  "notGates": [14],
+  "notGatesReason": "演练第 14 节（生成式装饰参数校验，#286）不是仓库级门禁：#287 AC4 明写清单只收「清单 / 版本 / 判定 / 重复安装」四件，不含参数脚本。它由 scripts/check.sh 的 gates 段、.github/workflows/ci.yml 的 frontend-lint job 直接执行，verify-gates.sh 第 14 节证明它会红。必须在这里显式登记：--check-coverage 只豁免登记过的节号，未登记的演练仍然算「没人负责」。",
+  "gates": [
+    {
+      "id": "backend-test",
+      "label": "后端单测（race + integration，含 golden 与容器契约）",
+      "group": "backend",
+      "canaries": [1],
+      "section": 1,
+      "executedBy": "scripts/check.sh backend（go test -race -tags integration）与 ci.yml 的 backend-integration job —— 需要 Docker / MySQL 编排，不适合由 runner 直接起"
+    },
+    {
+      "id": "archcheck",
+      "label": "archcheck 规则自检 + 棘轮（两遍）",
+      "group": "backend",
+      "canaries": [2, 3],
+      "steps": [
+        { "cwd": "backend", "command": ["go", "test", "./tools/archcheck/..."] },
+        {
+          "cwd": "backend",
+          "command": [
+            "go",
+            "run",
+            "./tools/archcheck",
+            "--mode=error",
+            "--max-violations=__ARCH_MAX_VIOLATIONS__",
+            "."
+          ]
+        },
+        {
+          "cwd": "backend",
+          "command": [
+            "go",
+            "run",
+            "./tools/archcheck",
+            "--mode=error",
+            "--skip-tests=false",
+            "--max-violations=__ARCH_MAX_VIOLATIONS__",
+            "."
+          ]
+        }
+      ]
+    },
+    {
+      "id": "frontend-typecheck",
+      "label": "前端 typecheck（两端，先 nuxt prepare）",
+      "group": "frontend",
+      "canaries": [4],
+      "section": 4,
+      "executedBy": "scripts/check.sh frontend 与 ci.yml 的 frontend-typecheck job（nuxt prepare → pnpm typecheck）"
+    },
+    {
+      "id": "contract-freshness",
+      "label": "契约未过期（#273 那一份判定，三处共用）",
+      "group": "contract",
+      "canaries": [5],
+      "passthrough": true,
+      "steps": [
+        { "cwd": ".", "command": ["node", "scripts/check-contract-freshness.mjs"] }
+      ]
+    },
+    {
+      "id": "contract-freshness-cases",
+      "label": "契约未过期判定的行为用例",
+      "group": "contract",
+      "canaries": [5],
+      "steps": [
+        { "cwd": ".", "command": ["node", "scripts/test-contract-freshness.mjs"] }
+      ]
+    },
+    {
+      "id": "contract-types",
+      "label": "契约 → 前端派生类型未过期（两端 openapi.d.ts）",
+      "group": "frontend",
+      "canaries": [6],
+      "section": 6,
+      "executedBy": "scripts/check.sh 的 run_contract_types 与 ci.yml 的 contract-types job（重新生成到临时文件再比对）"
+    },
+    {
+      "id": "route-contract",
+      "label": "契约 ↔ 路由表对账",
+      "group": "backend",
+      "canaries": [7],
+      "section": 7,
+      "executedBy": "backend/internal/platform/http/router/contract_routes_test.go（随 go test 一起跑）"
+    },
+    {
+      "id": "admin-auth",
+      "label": "admin 鉴权探测",
+      "group": "backend",
+      "canaries": [8],
+      "section": 8,
+      "executedBy": "backend/internal/platform/http/router/ 的鉴权用例（随 go test 一起跑；见自检第 8 节不注入的理由）"
+    },
+    {
+      "id": "menu-pages",
+      "label": "管理后台菜单 ↔ 页面文件对账",
+      "group": "frontend",
+      "canaries": [9],
+      "section": 9,
+      "executedBy": "frontend_admin 的 menu 用例（随 pnpm test / test:coverage 一起跑）"
+    },
+    {
+      "id": "frontend-lint",
+      "label": "前端 lint（两端）",
+      "group": "frontend",
+      "canaries": [10],
+      "section": 10,
+      "executedBy": "scripts/check.sh frontend 与 ci.yml 的 frontend-lint job（pnpm lint）"
+    },
+    {
+      "id": "coverage-threshold",
+      "label": "覆盖率门槛（两端，各自统计范围）",
+      "group": "frontend",
+      "canaries": [11],
+      "section": 11,
+      "executedBy": "scripts/check.sh frontend 与 ci.yml 的 frontend-test job（pnpm test:coverage，阈值在 vitest.config.ts）"
+    },
+    {
+      "id": "token-parity",
+      "label": "两端 tokens.css 同源",
+      "group": "frontend",
+      "canaries": [12],
+      "steps": [
+        { "cwd": ".", "command": ["node", "scripts/check-token-parity.mjs"] }
+      ]
+    },
+    {
+      "id": "image-shaping-parity",
+      "label": "两端同源副本（定形工具 + 裁剪窗四份组件）",
+      "group": "frontend",
+      "canaries": [13],
+      "steps": [
+        { "cwd": ".", "command": ["node", "scripts/check-image-shaping-parity.mjs"] }
+      ]
+    }
+  ],
+  "canaries": [
+    {
+      "id": 1,
+      "title": "后端单测",
+      "affected": ["backend/**"]
+    },
+    {
+      "id": 2,
+      "title": "archcheck 棘轮",
+      "affected": ["backend/**"]
+    },
+    {
+      "id": 3,
+      "title": "archcheck 规则自检",
+      "affected": ["backend/tools/archcheck/**"]
+    },
+    {
+      "id": 4,
+      "title": "前端 typecheck",
+      "affected": ["frontend/**"]
+    },
+    {
+      "id": 5,
+      "title": "契约未过期",
+      "affected": [
+        "backend/**",
+        "Makefile",
+        "scripts/check-contract-freshness.mjs",
+        "scripts/test-contract-freshness.mjs",
+        "scripts/contract-structures.json",
+        "scripts/tool-versions.env"
+      ]
+    },
+    {
+      "id": 6,
+      "title": "前端契约类型未过期",
+      "affected": [
+        "backend/docs/swagger.json",
+        "frontend/app/types/openapi.d.ts",
+        "frontend_admin/app/types/openapi.d.ts"
+      ]
+    },
+    {
+      "id": 7,
+      "title": "契约 ↔ 路由对账",
+      "affected": [
+        "backend/docs/swagger.json",
+        "backend/internal/platform/http/router/**"
+      ]
+    },
+    {
+      "id": 8,
+      "title": "admin 鉴权",
+      "affected": [
+        "backend/internal/platform/http/router/**",
+        "backend/internal/**/adapter/http/**"
+      ]
+    },
+    {
+      "id": 9,
+      "title": "菜单 ↔ 页面",
+      "affected": [
+        "frontend_admin/app/utils/menu.ts",
+        "frontend_admin/app/pages/**"
+      ]
+    },
+    {
+      "id": 10,
+      "title": "前端 lint",
+      "affected": ["frontend/**", "frontend_admin/**"]
+    },
+    {
+      "id": 11,
+      "title": "覆盖率门槛",
+      "affected": [
+        "frontend/vitest.config.ts",
+        "frontend_admin/vitest.config.ts",
+        "frontend/**",
+        "frontend_admin/**"
+      ]
+    },
+    {
+      "id": 12,
+      "title": "两端 tokens.css 同源",
+      "affected": [
+        "scripts/check-token-parity.mjs",
+        "frontend/app/assets/css/tokens.css",
+        "frontend_admin/app/assets/css/tokens.css"
+      ]
+    },
+    {
+      "id": 13,
+      "title": "两端同源副本（定形工具 + 裁剪窗）",
+      "affected": [
+        "scripts/check-image-shaping-parity.mjs",
+        "frontend/app/utils/imageShaping.ts",
+        "frontend_admin/app/utils/imageShaping.ts",
+        "frontend/app/components/media/**",
+        "frontend_admin/app/components/media/**"
+      ]
+    },
+    {
+      "id": 14,
+      "title": "生成式装饰参数校验",
+      "affected": [
+        "scripts/generate-deco-parameters.mjs",
+        "config/deco-charm-parameters.json",
+        "frontend/app/utils/decoParams.ts",
+        "frontend_admin/app/utils/decoParams.ts"
+      ]
+    }
+  ]
+}

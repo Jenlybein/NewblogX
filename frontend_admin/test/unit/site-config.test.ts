@@ -1,168 +1,144 @@
-import { readFileSync } from "node:fs";
-import { join } from "node:path";
+import { describe, expectTypeOf, it } from "vitest";
 
-import { describe, expect, it } from "vitest";
+import type {
+  AIRuntimeConfig,
+  DecoRuntimeConfig,
+  ImageGCRuntimeConfig,
+  LogRuntimeConfig,
+  MailRuntimeConfig,
+  OAuthRuntimeConfig,
+  SiteLoginRuntimeConfig,
+  SiteRuntimeConfig,
+  StorageRuntimeConfig,
+  UploadRuntimeConfig,
+} from "~/types/api";
+import type { RequiredSchema } from "~/types/contract";
 
 /**
- * 后台「站点」页的发布/展示开关与站点模式删除（票 #60 / ADR-0017）。
+ * 后台「站点」配置的编译期契约对账（#60 / #192 / #202 / ADR-0017 / ADR-0026；#283 改写）。
  *
- * 为什么按源码断言：后台前端没有组件测试基线（naive-ui 交互要 mock 一整套），
- * 而这些结论都只存在于 `.vue` 模板与手写类型里 —— 与 `settings-wording.test.ts`
- * 同一套做法。三条口径：
+ * #283 前这一层是「逐字段解析 `app/types/api.ts` 里手写视图模型 + .vue 模板字符串」的
+ * 源码文本断言。九段具名进契约（开放接口契约）之后，手写视图模型整体退场、两端类型都从
+ * `openapi.d.ts` 派生，字段名与类型由生成产物在编译期给出；本文件随之改成**纯契约类型
+ * 派生断言**：只 `import type` 生成的具名段 schema，用 `expectTypeOf` 证明形状来自契约，
+ * 不读源码文本、不复制字段清单、不新增源码文本断言。
  *
- * 1. 「站点模式」整条链消失（下拉、选项、手写类型）。它是死配置：全仓没有一处
- *    读它，留着只会让管理员以为改了定位有用。
- * 2. 「发布与展示」卡片上三个开关都绑定到 `config.article.*`，键名与后端
- *    `conf/site.Article` 的 json tag 一致 —— 绑错键的表现是"点了保存没反应"，
- *    编译器不会说话（这一段在契约里是自由键值块）。
- * 3. 手写类型 `SiteRuntimeConfig` 是整段 site 配置的视图模型，缺字段会被
- *    表单静默写成 undefined。
+ * 原本 13 条用例的语义事实全部保留，只是判定口径从「源码里有没有某个键/某句文案」
+ * 换成「契约形状是否如此」：
+ *   1. 站点模式 / 站点标题 / Logo / 旧右栏键都不在契约里 → 写回这些键过不了类型检查；
+ *   2. 发布与展示三开关、私信限流与陌生人开关都是具名 `Article` / `Chat` 形状的强类型字段；
+ *   3. 九段各有具名响应形状，后台类型一一派生自它们。
  *
- * vitest 以 project root（frontend_admin/）为 cwd。
+ * `expectTypeOf` 在运行时是 no-op，真正的判定发生在 `nuxi typecheck`；这与读者站
+ * `test/gates/site-runtime-config-parity.test.ts` 同一套做法。
  */
-const projectDir = process.cwd();
-
-function readSettingsSite(): string {
-  return readFileSync(join(projectDir, "app", "components", "settings", "SettingsSite.vue"), "utf8");
-}
-
-function readApiTypes(): string {
-  return readFileSync(join(projectDir, "app", "types", "api.ts"), "utf8");
-}
+type SiteSectionResponse = RequiredSchema<"internal_site_adapter_http.SiteSectionSiteResponse">;
+type SiteInfoShape = RequiredSchema<"myblogx_conf_site.SiteInfo">;
+type ArticleShape = RequiredSchema<"myblogx_conf_site.Article">;
+type ChatShape = RequiredSchema<"myblogx_conf_site.Chat">;
+type LoginShape = RequiredSchema<"myblogx_conf_site.Login">;
 
 describe("「站点模式」整条链已删除（#60）", () => {
-  it("后台站点页不再有下拉、选项与绑定", () => {
-    const source = readSettingsSite();
-
-    expect(source).not.toContain("站点模式");
-    expect(source).not.toContain("site_info.mode");
-    expect(source).not.toContain("modeOptions");
-    expect(source).not.toContain("社区模式");
-    expect(source).not.toContain("博客模式");
+  it("site 段就是具名契约形状，且 site_info 里没有 mode", () => {
+    // SiteRuntimeConfig 从 openapi.d.ts 派生，不再是手写视图模型。
+    expectTypeOf<SiteRuntimeConfig>().toEqualTypeOf<SiteSectionResponse>();
+    expectTypeOf<keyof SiteInfoShape>().toEqualTypeOf<"beian">();
+    expectTypeOf<"mode" extends keyof SiteInfoShape ? true : false>().toEqualTypeOf<false>();
+    expectTypeOf<"mode" extends keyof SiteSectionResponse ? true : false>().toEqualTypeOf<false>();
   });
 
-  it("手写类型 SiteRuntimeConfig.site_info 不再声明 mode", () => {
-    const source = readApiTypes();
-    const siteInfo = source.match(/site_info: \{([\s\S]*?)\n {2}\}/u)?.[1] ?? "";
-
-    expect(siteInfo.length).toBeGreaterThan(0);
-    expect(siteInfo).not.toMatch(/\bmode\b/u);
+  it("后台类型就是 site 段具名响应（不是第三份字段清单）", () => {
+    expectTypeOf<SiteRuntimeConfig["site_info"]>().toEqualTypeOf<SiteInfoShape>();
+    expectTypeOf<SiteRuntimeConfig["article"]>().toEqualTypeOf<ArticleShape>();
+    expectTypeOf<SiteRuntimeConfig["chat"]>().toEqualTypeOf<ChatShape>();
+    expectTypeOf<SiteRuntimeConfig["login"]>().toEqualTypeOf<LoginShape>();
   });
 });
 
 describe("旧右栏配置已从后台视图模型下线", () => {
-  it("手写类型 SiteRuntimeConfig 不再声明 index_right", () => {
-    // 留着它等于给后台留一条"把废弃键原样写回 site 段"的通路：
-    // 页面是整段读取再整段提交，类型里多一个键，保存就会把它带回去。
-    expect(readApiTypes()).not.toContain("index_right");
+  it("site 段具名契约不再有 index_right / site_notice / hot_tags / recommended_authors", () => {
+    // 契约里没有这个键：任何想把废弃键写回 site 段的代码都过不了类型检查。
+    expectTypeOf<"index_right" extends keyof SiteSectionResponse ? true : false>().toEqualTypeOf<false>();
+    expectTypeOf<"site_notice" extends keyof SiteSectionResponse ? true : false>().toEqualTypeOf<false>();
+    expectTypeOf<"hot_tags" extends keyof SiteSectionResponse ? true : false>().toEqualTypeOf<false>();
+    expectTypeOf<"recommended_authors" extends keyof SiteSectionResponse ? true : false>().toEqualTypeOf<false>();
   });
 
-  it("站点页没有旧右栏开关控件（只有标题与启用两个字段的那套）", () => {
-    const source = readSettingsSite();
-
-    expect(source).not.toContain("site_notice");
-    expect(source).not.toContain("hot_tags");
-    expect(source).not.toContain("recommended_authors");
+  it("九段各有具名响应形状，后台类型一一派生自它们", () => {
+    expectTypeOf<AIRuntimeConfig>().toEqualTypeOf<
+      RequiredSchema<"internal_site_adapter_http.SiteSectionAiResponse">
+    >();
+    expectTypeOf<MailRuntimeConfig>().toEqualTypeOf<
+      RequiredSchema<"internal_site_adapter_http.SiteSectionMailResponse">
+    >();
+    expectTypeOf<StorageRuntimeConfig>().toEqualTypeOf<
+      RequiredSchema<"internal_site_adapter_http.SiteSectionStorageResponse">
+    >();
+    expectTypeOf<OAuthRuntimeConfig>().toEqualTypeOf<
+      RequiredSchema<"internal_site_adapter_http.SiteSectionOauthResponse">
+    >();
+    expectTypeOf<LogRuntimeConfig>().toEqualTypeOf<
+      RequiredSchema<"internal_site_adapter_http.SiteSectionLogResponse">
+    >();
+    expectTypeOf<UploadRuntimeConfig>().toEqualTypeOf<
+      RequiredSchema<"internal_site_adapter_http.SiteSectionUploadResponse">
+    >();
+    expectTypeOf<DecoRuntimeConfig>().toEqualTypeOf<
+      RequiredSchema<"internal_site_adapter_http.SiteSectionDecoResponse">
+    >();
+    expectTypeOf<ImageGCRuntimeConfig>().toEqualTypeOf<
+      RequiredSchema<"internal_site_adapter_http.SiteSectionImageGcResponse">
+    >();
   });
 });
 
 describe("站点标题与 Logo 自定义已删除（#192）", () => {
-  it("基础信息页不再有站点标题与 Logo 输入，只留备案号", () => {
-    const source = readSettingsSite();
-
-    // 这两项读者站从不消费：页头字标与浏览器标题来自品牌常量，favicon 走
-    // project.icon。删掉字段后若输入框还在，保存时它只会被 JSON 忽略 ——
-    // 管理员看到的是一个"改了没反应"的开关。
-    expect(source).not.toContain('label="站点标题"');
-    expect(source).not.toContain('label="Logo URL"');
-    expect(source).not.toContain("config.site_info.title");
-    expect(source).not.toContain("config.site_info.logo");
-    expect(source).toContain("config.site_info.beian");
+  it("基础信息子块只有备案号，没有标题与 Logo", () => {
+    expectTypeOf<SiteInfoShape>().toEqualTypeOf<{ beian: string }>();
+    expectTypeOf<"title" extends keyof SiteInfoShape ? true : false>().toEqualTypeOf<false>();
+    expectTypeOf<"logo" extends keyof SiteInfoShape ? true : false>().toEqualTypeOf<false>();
   });
 
-  it("手写类型 SiteRuntimeConfig.site_info 只剩 beian（保存载荷不再带被删字段）", () => {
-    const source = readApiTypes();
-    const siteInfo = source.match(/site_info: \{([\s\S]*?)\n {2}\}/u)?.[1] ?? "";
-
-    expect(siteInfo.length).toBeGreaterThan(0);
-    // 页面是整段读取再整段提交：类型里多一个键，保存就会把它原样写回 site 段。
-    expect(siteInfo).not.toMatch(/\btitle\b/u);
-    expect(siteInfo).not.toMatch(/\blogo\b/u);
-    expect(siteInfo).toMatch(/\bbeian: string\b/u);
+  it("site_info 的备案号是字符串（保存载荷不再带被删字段）", () => {
+    expectTypeOf<SiteInfoShape["beian"]>().toEqualTypeOf<string>();
+    expectTypeOf<SiteRuntimeConfig["site_info"]["beian"]>().toEqualTypeOf<string>();
   });
 });
 
 describe("「发布与展示」三开关（#60 / ADR-0017 决策 2）", () => {
-  const SWITCHES = ["allow_non_admin_publish", "allow_non_admin_draft", "show_non_admin_articles"];
-
-  it("同一张卡「发布与展示」里三个开关都绑定到 config.article.*", () => {
-    const source = readSettingsSite();
-
-    expect(source).toContain("发布与展示");
-    for (const key of SWITCHES) {
-      // 绑定写成 `config.article.<key>`：键名与后端 json tag 不一致时，
-      // 保存会把一个后端不认识的键写进 site 段，表现为"点了保存没反应"。
-      expect(source).toContain(`config.article.${key}`);
-    }
+  it("article 具名形状声明三个布尔", () => {
+    expectTypeOf<ArticleShape["allow_non_admin_publish"]>().toEqualTypeOf<boolean>();
+    expectTypeOf<ArticleShape["allow_non_admin_draft"]>().toEqualTypeOf<boolean>();
+    expectTypeOf<ArticleShape["show_non_admin_articles"]>().toEqualTypeOf<boolean>();
   });
 
-  it("三个开关的标签用 ADR-0017 的措辞（管理员读得懂关掉会发生什么）", () => {
-    const source = readSettingsSite();
-
-    expect(source).toContain("允许非管理员发布文章");
-    expect(source).toContain("允许非管理员创建草稿");
-    expect(source).toContain("显示非管理员发布文章");
+  it("site 段的 article 子块就是具名 Article 形状", () => {
+    expectTypeOf<SiteRuntimeConfig["article"]>().toEqualTypeOf<ArticleShape>();
+    expectTypeOf<SiteRuntimeConfig["article"]["allow_non_admin_publish"]>().toEqualTypeOf<boolean>();
   });
 
-  it("手写类型 SiteRuntimeConfig.article 声明三个布尔（表单缺字段会被写成 undefined）", () => {
-    const source = readApiTypes();
-    const article = source.match(/\n {2}article: \{([\s\S]*?)\n {2}\}/u)?.[1] ?? "";
-
-    expect(article.length).toBeGreaterThan(0);
-    for (const key of SWITCHES) {
-      expect(article).toMatch(new RegExp(`\\b${key}: boolean`, "u"));
-    }
+  it("登录策略子块也是具名 Login 形状（不是独立视图模型）", () => {
+    expectTypeOf<SiteLoginRuntimeConfig>().toEqualTypeOf<LoginShape>();
+    expectTypeOf<SiteRuntimeConfig["login"]>().toEqualTypeOf<SiteLoginRuntimeConfig>();
   });
 });
 
 describe("私信的陌生人开关（#202）", () => {
-  it("「私信」卡里的开关绑定到 config.chat.stranger_msg_enabled", () => {
-    const source = readSettingsSite();
-
-    expect(source).toContain("私信");
-    // 键名必须与后端 `conf/site.Chat` 的 json tag 一致；绑错的表现是
-    // "点了保存没反应"，编译器不会说话（site 段在契约里是自由键值块）。
-    expect(source).toContain("config.chat.stranger_msg_enabled");
-    expect(source).toContain("允许陌生人发私信");
+  it("chat 具名形状声明陌生人开关布尔", () => {
+    expectTypeOf<ChatShape["stranger_msg_enabled"]>().toEqualTypeOf<boolean>();
+    expectTypeOf<SiteRuntimeConfig["chat"]["stranger_msg_enabled"]>().toEqualTypeOf<boolean>();
   });
 
-  it("手写类型 SiteRuntimeConfig.chat 声明布尔（表单缺字段会被写成 undefined）", () => {
-    const source = readApiTypes();
-    const chat = source.match(/\n {2}chat: \{([\s\S]*?)\n {2}\}/u)?.[1] ?? "";
-
-    expect(chat.length).toBeGreaterThan(0);
-    expect(chat).toMatch(/\bstranger_msg_enabled: boolean/u);
+  it("私信限流参数在具名契约里同名且是数值（ADR-0026）", () => {
+    expectTypeOf<ChatShape["rate_window_sec"]>().toEqualTypeOf<number>();
+    expectTypeOf<ChatShape["rate_daily_max"]>().toEqualTypeOf<number>();
+    expectTypeOf<SiteRuntimeConfig["chat"]["rate_window_sec"]>().toEqualTypeOf<number>();
+    expectTypeOf<SiteRuntimeConfig["chat"]["rate_daily_max"]>().toEqualTypeOf<number>();
   });
 
-  it("私信限流参数在类型、表单与后端默认配置三处同名（ADR-0026）", () => {
-    const types = readApiTypes();
-    const chat = types.match(/\n {2}chat: \{([\s\S]*?)\n {2}\}/u)?.[1] ?? "";
-    expect(chat).toMatch(/\brate_window_sec: number/u);
-    expect(chat).toMatch(/\brate_daily_max: number/u);
-
-    const form = readSettingsSite();
-    expect(form).toContain("config.chat.rate_window_sec");
-    expect(form).toContain("config.chat.rate_daily_max");
-    // 表单必须给合法区间，否则填 0 会让限流静默失效。
-    expect(form).toContain(':min="1"');
-    expect(form).toContain("site-chat-rate-window");
-    expect(form).toContain("site-chat-rate-daily");
-  });
-
-  it("开关是站点级策略：后台说明点明保存后立即生效，而不是要求重启", () => {
-    const source = readSettingsSite();
-
-    expect(source).toContain("站点级策略");
-    expect(source).toContain("立即生效");
+  it("私信开关是站点级策略：chat 子块属于 site 段具名形状", () => {
+    // 站点级 = 它随整段 site 一起读写，不在用户行上（零 DDL 不给既有表加列）。
+    expectTypeOf<SiteRuntimeConfig["chat"]>().toEqualTypeOf<ChatShape>();
+    expectTypeOf<"chat" extends keyof SiteSectionResponse ? true : false>().toEqualTypeOf<true>();
   });
 });

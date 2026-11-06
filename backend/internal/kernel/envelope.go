@@ -63,13 +63,3 @@ type HasMoreListData[T any] struct {
 //
 // res.OkWithMsg 实际返回 `data: {}`，所以这里用空结构体。
 type EmptyData struct{}
-
-// SiteConfigData 是站点配置的键值块。
-//
-// 为什么是 map：`/site/{name}` 按 name 返回不同配置块（seo / ai_info / ...），
-// 结构随 name 变，契约无法用固定字段表达。
-//
-// 注意：注解里**不能直接写 `map[string]any`** —— swag 会报
-// `cannot find type definition: map[string]any` 并**静默跳过整份契约的写入**
-// （exit code 仍是 0，只有翻文件时间才能发现）。所以必须用这个具名类型。
-type SiteConfigData map[string]any

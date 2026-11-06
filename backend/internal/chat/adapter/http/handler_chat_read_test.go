@@ -15,6 +15,7 @@ import (
 	chathttp "myblogx/internal/chat/adapter/http"
 	"myblogx/internal/chat/app"
 	"myblogx/internal/chat/domain"
+	"myblogx/internal/chat/domain/msgid"
 	"myblogx/internal/kernel/ctype"
 	"myblogx/internal/kernel/enum"
 	"myblogx/internal/platform/http/res"
@@ -44,7 +45,7 @@ func (f *readFakeRepo) Send(context.Context, domain.SendCommand, domain.Display,
 	return domain.Message{}, false, nil
 }
 
-func (f *readFakeRepo) ListSessions(context.Context, ctype.ID, bool, domain.Page) ([]domain.Session, int, error) {
+func (f *readFakeRepo) ListSessions(context.Context, domain.SessionQuery) ([]domain.Session, int, error) {
 	return nil, 0, nil
 }
 
@@ -90,7 +91,7 @@ func newReadEngine(repo *readFakeRepo) *gin.Engine {
 		}})
 	})
 	svc := app.New(repo, repo, fakeRelations{}, fakeUsers{},
-		fakeStranger{verdict: domain.StrangerAllowed}, nil, nil, nil, nil)
+		fakeStranger{verdict: domain.StrangerAllowed}, permitLimiter{}, nil, permitBlocks{}, nil)
 	handler := chathttp.NewHandler(svc, ws.NewHub(),
 		fakeTickets{user: ctype.NewID(1), session: ctype.NewID(1)}, fakeAuth{}, nil)
 	engine.POST("/chat/read", handler.Read)
@@ -128,9 +129,11 @@ func TestRead_BindsJSONStringIDs(t *testing.T) {
 	}
 }
 
-// TestRead_BigHashIDIsNotTruncated 2^62 区间的哈希 ID 必须原样透传（不转 JS number）。
+// TestRead_BigHashIDIsNotTruncated 派生号段（2^62 以上）的哈希 ID 必须原样透传（不转 JS number）。
 func TestRead_BigHashIDIsNotTruncated(t *testing.T) {
-	big := ctype.NewID(domain.ClientKeyIDBase + 987654321)
+	// 用真实的派生入口造 ID：这条用例守的是"大 ID 原样透传"，
+	// 所以 ID 必须真的是模块会产出的那种值，而不是手写的相近数字。
+	big := msgid.FromClientKey(ctype.NewID(100), "client-key-big")
 	repo := &readFakeRepo{affectedByList: []domain.Message{{ID: big}}}
 	engine := newReadEngine(repo)
 

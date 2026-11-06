@@ -11,15 +11,15 @@ import (
 	"myblogx/internal/kernel/enum"
 )
 
-// cardStats 是列表卡片从目录树派生的两个数字。
+// cardStats 是列表卡片从归属树派生的两个数字。
 type cardStats struct {
 	ArticleCount int
 	// Cover 是 DFS 第一个公开文章节点的封面；它可能为空（交给前端空白兜底）。
 	Cover string
 }
 
-// outlineCardStats 一次性读出某类 owner 的全部树与文章快照，返回每棵树的
-// 公开篇数与封面回退。
+// ownerCardStats 是两处列表卡片**唯一**的归属树读模型：调用方只传「哪个 owner」，
+// 实现内部按归属走各自的具名树表（合集 / 项目）。
 //
 // 为什么在 Go 里组装而不是 SQL 子查询：封面回退要按**树本身的 DFS 顺序**
 // 取第一个公开文章节点，这条顺序只有 outline.Build + ReaderView 一份实现；
@@ -27,22 +27,41 @@ type cardStats struct {
 // 一次读全量树的成本可以接受。
 //
 // 可见性口径与读者详情完全一致：文章用 domain 的 IsPubliclyVisible，
-// onlyAdminAuthors 为真时再按作者角色过滤。
-func outlineCardStats(
-	ctx context.Context, db *gorm.DB, ownerKind outline.OwnerKind, onlyAdminAuthors bool,
+// onlyAdminAuthors 为真时再按作者角色过滤。旧共用树表不再有任何读取点。
+func ownerCardStats(
+	ctx context.Context, db *gorm.DB, kind outline.OwnerKind, onlyAdminAuthors bool,
 ) (map[ctype.ID]cardStats, error) {
-	var nodeRows []outlineNodeRow
-	err := db.WithContext(ctx).
-		Where("owner_kind = ?", int(ownerKind)).
-		Find(&nodeRows).Error
-	if err != nil {
+	table := "collection_outline_node_models"
+	if kind == outline.OwnerProject {
+		table = "project_outline_node_models"
+	}
+
+	var nodeRows []namedOutlineRow
+	if err := db.WithContext(ctx).Table(table).
+		Where("deleted_at IS NULL").Find(&nodeRows).Error; err != nil {
 		return nil, err
 	}
 
 	byOwner := make(map[ctype.ID][]*outline.Node)
 	articleIDs := make([]ctype.ID, 0)
 	seenArticle := make(map[ctype.ID]bool)
-	for _, n := range toOutlineNodes(nodeRows) {
+	for _, row := range nodeRows {
+		var articleID outline.ArticleID
+		if row.ArticleID != nil {
+			articleID = outline.ArticleID(*row.ArticleID)
+		}
+		n := outline.Rebuild(outline.RebuildParams{
+			ID:        outline.ID(row.ID),
+			OwnerKind: kind,
+			OwnerID:   outline.ID(row.OwnerID),
+			ParentID:  outline.ID(row.ParentID),
+			Kind:      outline.NodeKind(row.Kind),
+			Title:     row.Title,
+			ArticleID: articleID,
+			SortOrder: row.SortOrder,
+			CreatedAt: row.CreatedAt,
+			UpdatedAt: row.UpdatedAt,
+		})
 		ownerID := ctype.ID(n.OwnerID())
 		byOwner[ownerID] = append(byOwner[ownerID], n)
 		if n.IsArticle() {

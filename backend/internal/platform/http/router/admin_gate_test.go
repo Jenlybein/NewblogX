@@ -98,6 +98,25 @@ var adminOnly = []struct {
 	// 右栏卡片配置（#111）：读侧公开，管理侧读写都要求管理员。
 	{"GET", "/api/site/admin/sidebar_cards"},
 	{"PUT", "/api/site/admin/sidebar_cards"},
+	// 九段具名管理端出入口（#283）：写侧没有 :name，必须逐个被行为探针挡住。
+	{"GET", "/api/site/admin/site"},
+	{"GET", "/api/site/admin/ai"},
+	{"GET", "/api/site/admin/mail"},
+	{"GET", "/api/site/admin/storage"},
+	{"GET", "/api/site/admin/oauth"},
+	{"GET", "/api/site/admin/log"},
+	{"GET", "/api/site/admin/upload"},
+	{"GET", "/api/site/admin/deco"},
+	{"GET", "/api/site/admin/image_gc"},
+	{"PUT", "/api/site/site"},
+	{"PUT", "/api/site/ai"},
+	{"PUT", "/api/site/mail"},
+	{"PUT", "/api/site/storage"},
+	{"PUT", "/api/site/oauth"},
+	{"PUT", "/api/site/log"},
+	{"PUT", "/api/site/upload"},
+	{"PUT", "/api/site/deco"},
+	{"PUT", "/api/site/image_gc"},
 	// 注册级全量扫描（票 264）发现以下 18 条后台接口虽挂了 AdminMiddleware，
 	// 却从未被行为探针覆盖。补上后，普通用户令牌会被真的挡一次；漏挂中间件立即变红。
 	{"POST", "/api/banners"},
@@ -120,7 +139,7 @@ var adminOnly = []struct {
 
 // adminAreaPrefixes 是"整段只给管理员"的路径前缀，用于完整性检查。
 //
-// 只收这类前缀：读写混在一起的区域（/site/{name}、/articles、/comments）
+// 只收这类前缀：读写混在一起的区域（/site/<段名>、/articles、/comments）
 // 没法靠前缀判断，只能靠人在 adminOnly 里登记。
 var adminAreaPrefixes = []string{
 	"/data/",
@@ -148,7 +167,8 @@ func (userTokenVerifier) VerifyAccessToken(_ context.Context, raw string) (*jwts
 
 // injectZeroHandlers 注入零值处理器：本测试只关心"停在哪一层"。
 // 任何 handler 方法被真正调用都会 panic —— 那恰好说明中间件没拦住。
-func injectZeroHandlers() {
+// 私信走显式注入（#280），返回给 NewEngine。
+func injectZeroHandlers() router.Handlers {
 	router.SetSiteHandler(&sitehttp.Handler{})
 	router.SetAnalyticsHandler(&analyticshttp.Handler{})
 	router.SetImageHandler(&mediahttp.Handler{})
@@ -157,11 +177,11 @@ func injectZeroHandlers() {
 	router.SetUserHandler(&userhttp.Handler{})
 	router.SetArticleHandler(&articlehttp.Handler{})
 	router.SetCommentHandler(&commenthttp.Handler{})
-	router.SetChatHandler(&chathttp.Handler{})
 	router.SetNotificationHandler(&notificationhttp.Handler{})
 	router.SetFollowHandler(&socialhttp.Handler{})
 	router.SetSearchHandler(&searchhttp.Handler{})
 	router.SetAIHandler(&aihttp.Handler{})
+	return router.Handlers{Chat: &chathttp.Handler{}}
 }
 
 // TestAdminRoutesRejectOrdinaryUser 逐个探测：普通用户令牌必须被挡在 AdminMiddleware。
@@ -171,7 +191,7 @@ func TestAdminRoutesRejectOrdinaryUser(t *testing.T) {
 	gin.DefaultErrorWriter = io.Discard
 
 	injectZeroHandlers()
-	engine := router.NewEngine(mw.RuntimeOptions{Verifier: userTokenVerifier{}}, nil)
+	engine := router.NewEngine(mw.RuntimeOptions{Verifier: userTokenVerifier{}}, nil, injectZeroHandlers())
 
 	for _, c := range adminOnly {
 		c := c
@@ -210,7 +230,7 @@ func TestProbeDistinguishesUnprotectedRoute(t *testing.T) {
 	gin.DefaultErrorWriter = io.Discard
 
 	injectZeroHandlers()
-	engine := router.NewEngine(mw.RuntimeOptions{Verifier: userTokenVerifier{}}, nil)
+	engine := router.NewEngine(mw.RuntimeOptions{Verifier: userTokenVerifier{}}, nil, injectZeroHandlers())
 
 	req := httptest.NewRequest("GET", "/api/users/detail", nil)
 	req.Header.Set("Authorization", "Bearer ordinary-user-token")

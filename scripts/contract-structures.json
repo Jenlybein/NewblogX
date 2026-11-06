@@ -1,0 +1,100 @@
+{
+  "comment": "契约未过期判定的仓库级清单：minimumEntries 是条目数量的独立基线（改动契约只增不减时随批抬高）；addedIn 点名本次新增结构，判定要求它们在重新生成的产物里确实在场。path 条目可点名其下的 HTTP 方法；schema 条目按 components.schemas 的键名点名。清单只登记事实，不读源码文本。#277 把基线从 124/164/292 重新登记为 119/159/288：下降来自 #274 expand 期票内过渡（5 个旧共享端点与旧共用形状）被 #277 收缩，不是生成器退化；判据与双向对账逻辑一字未改，#273 / #274 两批仍在契约中的新增结构继续留在 addedIn。#283 九段具名化把参数化 /site/{name} 与 /site/admin/{name} 换成九段具名端点、每段一对具名响应/请求形状，并删掉 kernel.SiteConfigData 自由键值块；产物实测从 119/159/288 上升到 135/176/326（新增 16 path / 17 operation / 38 schema），按实测抬高基线并追加 ticket 283；判据、行为用例、verify-gates.sh 5/14、tool-versions.env 一字未改，#273 / #274 的 19 项结构全部仍在契约中故保留。#286 把 deco.charm 的 12 个数值参数 min/max/default 从同一张仓库级参数表注入 conf.Charm 字段；重新生成产物实测仍为 135/176/326（只补既有 schema 的字段事实，没有新增 path / operation / schema），故 minimumEntries 保持 135/176/326 并追加 ticket 286 点名 conf.Charm 新增结构在场；三份契约产物同批重生成；判据实现三份（check-contract-freshness.mjs / test-contract-freshness.mjs / tool-versions.env）相对 e5bb586 零 diff，verify-gates.sh 是 canary 编排/消费方、按票 #286 AC 3 要求 14/14 整节演练退场，仅文件头注释与第 14 节（7 个 hunk）改动，#273 的 5/14、版本安装与判定逻辑、其余 13 道 canary 一字未动，判定未被绕过。若未来条目数下降，必须在 comment / ADR / 提交说明三处写明预期下降理由，不得偷偷下调基线；#277 的 124/164/292→119/159/288 与 #283 的→135/176/326 历史理由保留。理由另见 ADR-0029、ADR-0016/0018 重写段、ADR-0028 后续修订与本批提交说明。",
+  "minimumEntries": {
+    "paths": 135,
+    "operations": 176,
+    "schemas": 326
+  },
+  "addedIn": [
+    {
+      "ticket": "273",
+      "reason": "判据前置时已随 #270 进入契约的私信列表具名形状；用来证明「本次新增结构确实在场」这条校验不是永真通过。",
+      "paths": {
+        "/chat/messages": ["get", "post", "delete"],
+        "/chat/sessions": ["get", "delete"]
+      },
+      "schemas": [
+        "internal_chat_adapter_http.IDListRequest",
+        "myblogx_internal_chat_domain.MessageCursor",
+        "myblogx_internal_chat_domain.MessageListData",
+        "myblogx_internal_kernel.Envelope-myblogx_internal_chat_domain_MessageListData"
+      ]
+    },
+    {
+      "ticket": "274",
+      "reason": "拆树 expand：两张按实体命名的独立树表、两个具名形状与两个具名端点；proof「本次新增结构确实在场」对新增的 path / schema 生效。",
+      "paths": {
+        "/collections/{id}/outline-tree": ["get", "put"],
+        "/projects/{id}/outline-tree": ["get", "put"]
+      },
+      "schemas": [
+        "internal_article_adapter_http.CollectionOutlineSaveRequest",
+        "internal_article_adapter_http.CollectionOutlineTreeResponse",
+        "internal_article_adapter_http.ProjectOutlineSaveRequest",
+        "internal_article_adapter_http.ProjectOutlineTreeResponse",
+        "myblogx_internal_kernel.Envelope-internal_article_adapter_http_CollectionOutlineTreeResponse",
+        "myblogx_internal_kernel.Envelope-internal_article_adapter_http_ProjectOutlineTreeResponse"
+      ]
+    },
+    {
+      "ticket": "283",
+      "reason": "配置段注册表与九段具名契约：参数化 /site/{name} 与 /site/admin/{name} 退场，九段各有具名 GET /site/admin/<段> 与 PUT /site/<段>，公开 site / deco 另有具名 GET；每段一对具名响应/请求 schema 加 Envelope 包装。自由键值块 kernel.SiteConfigData 及其 Envelope 已从契约删除。",
+      "paths": {
+        "/site/site": ["get", "put"],
+        "/site/deco": ["get", "put"],
+        "/site/admin/site": ["get"],
+        "/site/admin/ai": ["get"],
+        "/site/admin/mail": ["get"],
+        "/site/admin/storage": ["get"],
+        "/site/admin/oauth": ["get"],
+        "/site/admin/log": ["get"],
+        "/site/admin/upload": ["get"],
+        "/site/admin/deco": ["get"],
+        "/site/admin/image_gc": ["get"],
+        "/site/ai": ["put"],
+        "/site/mail": ["put"],
+        "/site/storage": ["put"],
+        "/site/oauth": ["put"],
+        "/site/log": ["put"],
+        "/site/upload": ["put"],
+        "/site/image_gc": ["put"]
+      },
+      "schemas": [
+        "internal_site_adapter_http.SiteSectionSiteResponse",
+        "internal_site_adapter_http.SiteSectionAiResponse",
+        "internal_site_adapter_http.SiteSectionMailResponse",
+        "internal_site_adapter_http.SiteSectionStorageResponse",
+        "internal_site_adapter_http.SiteSectionOauthResponse",
+        "internal_site_adapter_http.SiteSectionLogResponse",
+        "internal_site_adapter_http.SiteSectionUploadResponse",
+        "internal_site_adapter_http.SiteSectionDecoResponse",
+        "internal_site_adapter_http.SiteSectionImageGcResponse",
+        "internal_site_adapter_http.SiteSectionSiteRequest",
+        "internal_site_adapter_http.SiteSectionAiRequest",
+        "internal_site_adapter_http.SiteSectionMailRequest",
+        "internal_site_adapter_http.SiteSectionStorageRequest",
+        "internal_site_adapter_http.SiteSectionOauthRequest",
+        "internal_site_adapter_http.SiteSectionLogRequest",
+        "internal_site_adapter_http.SiteSectionUploadRequest",
+        "internal_site_adapter_http.SiteSectionDecoRequest",
+        "internal_site_adapter_http.SiteSectionImageGcRequest",
+        "myblogx_internal_kernel.Envelope-internal_site_adapter_http_SiteSectionSiteResponse",
+        "myblogx_internal_kernel.Envelope-internal_site_adapter_http_SiteSectionAiResponse",
+        "myblogx_internal_kernel.Envelope-internal_site_adapter_http_SiteSectionMailResponse",
+        "myblogx_internal_kernel.Envelope-internal_site_adapter_http_SiteSectionStorageResponse",
+        "myblogx_internal_kernel.Envelope-internal_site_adapter_http_SiteSectionOauthResponse",
+        "myblogx_internal_kernel.Envelope-internal_site_adapter_http_SiteSectionLogResponse",
+        "myblogx_internal_kernel.Envelope-internal_site_adapter_http_SiteSectionUploadResponse",
+        "myblogx_internal_kernel.Envelope-internal_site_adapter_http_SiteSectionDecoResponse",
+        "myblogx_internal_kernel.Envelope-internal_site_adapter_http_SiteSectionImageGcResponse"
+      ]
+    },
+    {
+      "ticket": "286",
+      "reason": "生成式装饰参数：config/deco-charm-parameters.json 的 12 个数值参数把 min/max/default 注入既有 conf.Charm schema，并把同批生成的 swagger.json 与两端 openapi.d.ts 纳入契约单一来源；条目数按实测仍为 135/176/326，没有新增 path / operation / schema，故以 conf.Charm 字段事实作为本次新增结构在场 proof。",
+      "schemas": [
+        "conf.Charm"
+      ]
+    }
+  ]
+}

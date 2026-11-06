@@ -73,14 +73,13 @@ func seedCollectionArticle(
 	}
 }
 
-// seedCollectionTreeNode 往合集树里播种一行（卡片读面只认目录树）。
+// seedCollectionTreeNode 往合集具名树表播种一行（卡片读面只认这张树）。
 func seedCollectionTreeNode(
-	t *testing.T, db *gorm.DB, collectionID uint64, spec schema.OutlineNodeSpec,
+	t *testing.T, db *gorm.DB, collectionID uint64, spec schema.NamedOutlineNodeSpec,
 ) {
 	t.Helper()
-	spec.OwnerKind = int(outline.OwnerCollection)
 	spec.OwnerID = collectionID
-	schema.InsertOutlineNode(t, db, spec)
+	schema.InsertCollectionOutlineNode(t, db, spec)
 }
 
 // newCollection 建一个聚合（绕过用例，直接测仓储）。
@@ -183,7 +182,7 @@ func TestCollectionRepo_ListCardsCoverFallback(t *testing.T) {
 	if err := repo.Create(ctx, c); err != nil {
 		t.Fatalf("建合集失败: %v", err)
 	}
-	seedCollectionTreeNode(t, db, 1, schema.OutlineNodeSpec{
+	seedCollectionTreeNode(t, db, 1, schema.NamedOutlineNodeSpec{
 		ID: 1, Kind: int(outline.NodeKindArticle), ArticleID: 1,
 		SortOrder: 1, At: collectionBaseTime,
 	})
@@ -259,7 +258,7 @@ func TestCollectionRepo_ListAdminCardsFallbackCover(t *testing.T) {
 	if err := repo.Create(ctx, c); err != nil {
 		t.Fatalf("建合集失败: %v", err)
 	}
-	seedCollectionTreeNode(t, db, 1, schema.OutlineNodeSpec{
+	seedCollectionTreeNode(t, db, 1, schema.NamedOutlineNodeSpec{
 		ID: 1, Kind: int(outline.NodeKindArticle), ArticleID: 1,
 		SortOrder: 1, At: collectionBaseTime,
 	})
@@ -307,21 +306,21 @@ func TestCollectionRepo_CardsReadOutlineTree(t *testing.T) {
 	if err := repo.Create(ctx, newCollection(t, 1, "目录树合集", true, 1)); err != nil {
 		t.Fatalf("建合集失败: %v", err)
 	}
-	seedCollectionTreeNode(t, db, 1, schema.OutlineNodeSpec{
+	seedCollectionTreeNode(t, db, 1, schema.NamedOutlineNodeSpec{
 		ID: 10, Kind: int(outline.NodeKindFolder), Title: "第一章", SortOrder: 1, At: collectionBaseTime,
 	})
-	seedCollectionTreeNode(t, db, 1, schema.OutlineNodeSpec{
+	seedCollectionTreeNode(t, db, 1, schema.NamedOutlineNodeSpec{
 		ID: 11, ParentID: 10, Kind: int(outline.NodeKindArticle), ArticleID: 11,
 		SortOrder: 1, At: collectionBaseTime,
 	})
-	seedCollectionTreeNode(t, db, 1, schema.OutlineNodeSpec{
+	seedCollectionTreeNode(t, db, 1, schema.NamedOutlineNodeSpec{
 		ID: 12, ParentID: 10, Kind: int(outline.NodeKindArticle), ArticleID: 12,
 		SortOrder: 2, At: collectionBaseTime,
 	})
-	seedCollectionTreeNode(t, db, 1, schema.OutlineNodeSpec{
+	seedCollectionTreeNode(t, db, 1, schema.NamedOutlineNodeSpec{
 		ID: 13, Kind: int(outline.NodeKindArticle), ArticleID: 13, SortOrder: 2, At: collectionBaseTime,
 	})
-	seedCollectionTreeNode(t, db, 1, schema.OutlineNodeSpec{
+	seedCollectionTreeNode(t, db, 1, schema.NamedOutlineNodeSpec{
 		ID: 14, Kind: int(outline.NodeKindArticle), ArticleID: 14, SortOrder: 3, At: collectionBaseTime,
 	})
 
@@ -333,7 +332,7 @@ func TestCollectionRepo_CardsReadOutlineTree(t *testing.T) {
 		Update("cover", "https://img/explicit.png").Error; err != nil {
 		t.Fatalf("写合集封面失败: %v", err)
 	}
-	seedCollectionTreeNode(t, db, 2, schema.OutlineNodeSpec{
+	seedCollectionTreeNode(t, db, 2, schema.NamedOutlineNodeSpec{
 		ID: 20, Kind: int(outline.NodeKindArticle), ArticleID: 12, SortOrder: 1, At: collectionBaseTime,
 	})
 

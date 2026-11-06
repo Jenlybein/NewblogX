@@ -56,9 +56,8 @@ type Repos interface {
 	// Projects 是项目（与合集并列的独立内容实体）。
 	// 与 Collections 是两套数据、两套表：项目有自己的后台维护页，不共用合集的行。
 	Projects() project.Repository
-	// Outlines 是目录树（合集与项目共用的一张树表）。
-	// 旧的扁平收录中间表已冻结退场，收录与层次只经这里读写。
-	Outlines() outline.Repository
+	// 目录树不在 Repos 上：两个实体各有一张具名树表，读树前必须先用
+	// NamedOutlineRepository 把一次事务的仓储指向对应归属（见 named_outline.go）。
 }
 
 // DiggPort 是点赞关系端口。

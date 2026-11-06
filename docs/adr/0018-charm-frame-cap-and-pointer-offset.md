@@ -26,7 +26,7 @@
 7. **轻晃保留、默认仍开**（0.8Hz / 幅度 20）。恒定上限下"阅读时也在重绘"是显式接受的代价，省电档位交给运营：把 `idle_sway_amp` 设 0（收敛后回零帧）或把 `fps_cap` 调低。
 8. **指针端偏移**：物理头节点 = 指针热点 + `(pointer_offset_x, pointer_offset_y)`，默认 `(3, 3)`，每轴合法区间 `-24–24`，单位 CSS px（与 `clientX/clientY` 同一视口坐标系，不随 DPI 缩放），允许负值（可往左上偏）。偏移只在这一处换算，渲染不得再单独偏一次。
 9. **新增第四条钳位规则 `normalizeSignedRange`**（夹到 `[min, max]`、NaN/±Inf 回落默认、`0` 是普通值）。现有三条都表达不了"允许负数的区间"：`normalizePositiveRange` 把 `<= 0` 一律回落默认，`normalizeNonNegativeRange` 把 0 当合法值保留、负值仍被夹回 `min`（而这里的 `min` 就是负数，等于负偏移被静默吃掉）。
-10. **跨端一致门禁要跟着升级**：`scripts/check-deco-range-parity.mjs` 的数值正则扩到支持负号（否则负的 min 会被跳过并报 `missing-value`）；参数总数不再写死，改成"四源键集合相等 + 锚点参数必须在场"（`rope_length`、`fps_cap`、`pointer_offset_x`、`pointer_offset_y`），既不再每加一个参数就改一串数字，又拦得住"某个参数从四源同时消失"。
+10. **参数事实按 #286 整体改为生成式**：12 个数值参数（含本 ADR 的 `fps_cap` 与两轴指针端偏移）只在 `config/deco-charm-parameters.json` 定义，构建期生成后端 / 默认种子 / 读者站 / 后台与契约（开放接口契约）五处消费物。旧范围门禁、四源键集合与锚点参数清单退场；唯一校验是「重新生成后四端无差异 + 运行时取值正确」。共享归一化夹具与三套消费测试保留，继续钉住夹边界、取整顺序（先夹边界再取整 / 先取整再夹）与负半值远离 0。
 
 ## 理由与已否决方案
 
@@ -66,15 +66,16 @@
 6. 停帧（轻晃关且收敛）、`hidden` 暂停、失焦冻结三条保留；删除任何一条都要另开 ADR。
 7. 指针端 = 指针热点 + `(pointer_offset_x, pointer_offset_y)`；物理头节点必须用这个换算，渲染不得再单独偏一次。
 8. 偏移每轴 `-24..24`、默认 `3/3`、单位 CSS px；钳位必须用 `normalizeSignedRange`，不得用 `normalizePositiveRange` / `normalizeNonNegativeRange` 顶替（它们会静默吃掉负值）。
-9. `deco.charm` 每个数值参数的 min/max/default 必须在后端 Go、读者站、后台、默认种子四处逐项一致，由 `check-deco-range-parity.mjs` 守着；该门禁必须支持负值，并改用"四源键集合相等 + 锚点参数清单"而不是写死参数数量。
-10. 契约不受影响（`/site/{name}` 的 data 是 `kernel.SiteConfigData = map[string]any`）；不得为这三个参数新增 swagger 注解、路由或 DTO。
+9. `deco.charm` 的 12 个数值参数必须来自同一张参数表并由生成器派生四端消费物；`node scripts/generate-deco-parameters.mjs --check` 验重新生成后四端无差异，并验契约 min/max/default 与 `GET/PUT /site/deco` 的运行时取值。旧四源逐项比范围门禁与锚点清单不再存在；共享归一化夹具（122 条用例）及后端 / 读者站 / 后台三套消费测试继续生效，负半值仍按远离 0 取整。
+10. 12 个数值参数通过 `conf.Charm` 字段的 min/max/default 进入契约（开放接口契约）；`backend/docs/swagger.json` 与两端各自生成的 `app/types/openapi.d.ts` 必须同批重生成，禁止手改、禁止跨应用共享。不得为参数新增专用 swagger 路由或自由键值 DTO；#283 已交付的九段具名出入口保持不变。
 
 ## 相关代码与文档
 
-- 配置与校验：[backend/conf/conf_deco.go](../../backend/conf/conf_deco.go)（常量三元组、结构体、四条钳位规则）· [backend/config/site_default_settings.yaml](../../backend/config/site_default_settings.yaml)（默认种子）· [配置分层](../architecture/configuration.md) §五
-- 读者站：[frontend/app/utils/decoCharm.ts](../../frontend/app/utils/decoCharm.ts)（常量、`CharmRopeConfig`、clamp/normalize）· [frontend/app/composables/useCursorCharm.ts](../../frontend/app/composables/useCursorCharm.ts)（门控与发布）· [frontend/app/components/deco/CursorCharm.vue](../../frontend/app/components/deco/CursorCharm.vue)
-- 后台：[frontend_admin/app/utils/decoParams.ts](../../frontend_admin/app/utils/decoParams.ts)（参数元数据，表单纯元数据驱动）· [frontend_admin/app/types/api.ts](../../frontend_admin/app/types/api.ts)
-- 门禁：[scripts/check-deco-range-parity.mjs](../../scripts/check-deco-range-parity.mjs) · [frontend/test/gates/deco-range-parity.test.ts](../../frontend/test/gates/deco-range-parity.test.ts) · [backend/conf/testdata/deco-charm-normalization.json](../../backend/conf/testdata/deco-charm-normalization.json)
+- 参数表与生成校验：[config/deco-charm-parameters.json](../../config/deco-charm-parameters.json) · [scripts/generate-deco-parameters.mjs](../../scripts/generate-deco-parameters.mjs) · [scripts/decorate-deco-contract.mjs](../../scripts/decorate-deco-contract.mjs)
+- 配置与校验：[backend/conf/conf_deco.go](../../backend/conf/conf_deco.go)（后端消费物与四条钳位规则）· [backend/config/site_default_settings.yaml](../../backend/config/site_default_settings.yaml)（默认种子）· [配置分层](../architecture/configuration.md) §五
+- 读者站：[frontend/app/utils/decoCharm.ts](../../frontend/app/utils/decoCharm.ts)（生成常量、`CharmRopeConfig`、clamp/normalize）· [frontend/app/composables/useCursorCharm.ts](../../frontend/app/composables/useCursorCharm.ts)（门控与发布）· [frontend/app/components/deco/CursorCharm.vue](../../frontend/app/components/deco/CursorCharm.vue)
+- 后台：[frontend_admin/app/utils/decoParams.ts](../../frontend_admin/app/utils/decoParams.ts)（生成元数据，表单纯元数据驱动）· [frontend_admin/app/types/api.ts](../../frontend_admin/app/types/api.ts)
+- 门禁与夹具：[scripts/verify-gates.sh](../../scripts/verify-gates.sh) 第 14 道 · [backend/conf/testdata/deco-charm-normalization.json](../../backend/conf/testdata/deco-charm-normalization.json)（122 条用例，三套消费测试保留）
 - 上游：[ADR-0016](./0016-deco-segment-and-cursor-charm.md)（本 ADR 取代其决策 9、已否决段的"永远开着的 rAF 轻晃"、代价段第 4 条、当前生效约束 8；其余条款继续生效）· [ADR-0012](./0012-neutral-glass-visual-system.md)（视觉与动效预算）
 - 词汇：[GLOSSARY · 光标挂件 / 挂绳](../../GLOSSARY.md)——实施时必须给「挂绳」词条补一句"指针端 = 指针热点 + 指针端偏移"，否则该词条在落地后就是错的。
 
@@ -89,11 +90,11 @@
 3. **`0` 是合法偏移，不是缺陷**。偏移走 `normalizeSignedRange`（`0` 与负数都是普通值）：库里缺这两个键时钳出来就是 `0`，指针端正好压在指针热点上、等于关掉偏移；默认种子是 `3/3`，所以"新装即右下 3px"。想回到"压在热点上"就把两轴都填 0 —— 这与"填错被静默纠正"无关，是语义。
 4. **帧率门控的最终形态**：容差落成常量 `CHARM_FRAME_GATE_TOLERANCE_MS = 4`（判定是 `now - lastPublishAt >= 1000 / fps_cap - 4`，即决策里的字面 `-4` 被命名了）；`lastPublishAt` 初值 `null` 视为"已到点"，循环一启动的第一帧就发布、不空等一个间隔（决策 3 / 约束 5 括号里那句"初值不是例外"）；`deltaSeconds` 取**距上一次发布的真实流逝时间**（`lastFrameTime` 只在发布那一帧更新），因此被门控挡掉的帧不会让绳子慢放 —— 30 档一帧仍推进 33.3ms，且仍由 0.05s 累加器上限截断。
 5. **链在第一帧按当时的指针位置建立**。`pointermove` 只写 `pointer` 坐标与 `visible`，建链发生在门控帧的 `ensureRope(head, config)` 里（决策 5 / 约束 5 的直接后果）。连带影响是三条冻结 / 暂停用例的前提改了措辞：必须先跑一帧把链建起来、再跳指针，否则"冻结前后头节点不变"断言的是空链。这是**测试前提**的调整，不是行为妥协 —— 在事件里建链就等于给拖动开了发布口子。
-6. **跨端门禁的最终形态**：四源**键集合相等**（哪一端缺参数或多参数都报红，并点名是哪两端）+ **锚点参数清单带交付状态位**（`delivered` / `pending`）。四个锚点（`rope_length` / `fps_cap` / `pointer_offset_x` / `pointer_offset_y`）现在全是 `delivered`。状态位机制**有意保留**给下一批参数：新参数可以先标 `pending`（四端都没有也不算红），实现那一笔提交再把状态改成 `delivered`；反过来，标了 `delivered` 却从四端同时消失就是失败 —— 这是"参数被静默删掉"唯一的拦截点。
-7. **最终数字**：`deco.charm` = 总开关 `enable` + **11 个数值参数** —— `logo_size` / `rope_length` / `segments` / `line_width` / `gravity` / `damping` / `idle_sway_hz` / `idle_sway_amp`，加本 ADR 的三个新参数 `fps_cap`（默认 60、区间 30–160）、`pointer_offset_x` / `pointer_offset_y`（默认 3/3、每轴 -24–24）；共享归一化夹具 [deco-charm-normalization.json](../../backend/conf/testdata/deco-charm-normalization.json) **111 条用例**，后端 / 读者站 / 后台三套测试共同消费，与 [`scripts/check-deco-range-parity.mjs`](../../scripts/check-deco-range-parity.mjs) 的取值范围门禁不是同一道门（前者判取值、后者判四源一致）。
+6. **实施记录中的跨端门禁形态已被 #286 取代**：四源键集合相等与锚点状态位随旧范围门禁脚本一并退场；现在由一张参数表生成四端消费物，用「重新生成后四端无差异 + 运行时取值正确」一条校验拦截手写漂移。下面第 7 条里的 111 条 / 11 参数是当时数字，也已过期：当前共享夹具是 122 条 / 12 参数。
+7. **当时数字（已被后续修订取代）**：本 ADR 落地时 `deco.charm` 记为总开关 `enable` + 11 个数值参数、共享夹具 111 条用例，并靠当时的四源范围门禁比四源范围。当前事实以参数表为准：12 个数值参数（增加 `stiffness`）、共享归一化夹具 122 条用例，三套消费测试保留；取值范围不再靠源码文本比对，而由生成式校验与契约/HTTP 行为用例守住。
 8. **术语统一（评审后收口）**：`GLOSSARY` 的唯一正名是「指针端」，实现里链的第 0 个节点称「指针端节点」，旧叫法「绳头」已进 `_Avoid_`。本 ADR 的决策 8 / 约束 7 沿用写作时的「物理头节点」，指的就是这个「指针端节点」；代码、配置注释、后台文案与 `configuration.md` 已统一到「指针端」。
 
-**收尾校验（#76 实跑）**：`node scripts/check-deco-range-parity.mjs` 绿（派生出 11 个数值参数、111 条夹具被三套测试消费）；`frontend` 的 `test/gates` + `test/design` 与后台 `test/unit/settings-wording.test.ts` 全绿。文档口径同步见 [ADR-0016 后续修订](./0016-deco-segment-and-cursor-charm.md)、[ADR 索引](./README.md)、[配置分层 §五](../architecture/configuration.md)、[GLOSSARY · 挂绳](../../GLOSSARY.md)。
+**当时收尾校验（#76）**：旧范围门禁曾为绿；该脚本已于 #286 退场，当前以 `node scripts/generate-deco-parameters.mjs --check` 为准。文档口径同步见 [ADR-0016 后续修订](./0016-deco-segment-and-cursor-charm.md)、[ADR 索引](./README.md)、[配置分层 §五](../architecture/configuration.md)、[GLOSSARY · 挂绳](../../GLOSSARY.md)。
 
 ## 后续修订（2026-11-02）
 
@@ -105,9 +106,13 @@
 | 站标尺寸 `logo_size` | `24–96` | `15–70` |
 | 链节点数 `segments` | `4–24` | `4–30` |
 | 后台数值输入 | 每个参数一行 `NInputNumber` | 每个参数「滑块 + 数字框」双输入，两者读写同一字段；越界/非法输入按同一钳位规则夹回，并在行内给可见提示 |
-| 最终数字（实施记录第 7 条） | 11 个数值参数 | 12 个：新增距离约束刚度 `stiffness`（0.2–1，默认 0.5），并已登记为跨端门禁的第五个锚点参数 |
+| 最终数字（实施记录第 7 条） | 11 个数值参数 | 12 个：新增距离约束刚度 `stiffness`（0.2–1，默认 0.5）；当时的第五个锚点参数已随 #286 范围门禁退场 |
 
 `damping` 的钳位规则本身不变（仍是"正数区间"：0 与负数回落默认），变的只是边界；
 `1` 与 `0.9` 都是合法边界值，`1` 不再被钳成 `0.995`。四源（后端 Go 常量 / 读者站 /
-后台元数据 / 默认种子）与共享归一化夹具同步更新，门禁脚本的锚点清单加入
-`stiffness`，因此新增参数或某端漏改仍会立刻变红。
+后台元数据 / 默认种子）与共享归一化夹具同步更新，当时门禁脚本的锚点清单加入
+`stiffness`；#286 之后由生成式参数校验拦截新增参数或某端漏改。
+
+## 后续修订（2026-11-06，#286 参数门禁生成式）
+
+按票 #286 显式要求整体重写决策 10 与当前生效约束 9 / 10。契约（开放接口契约）现在印出 12 个数值参数的 min/max/default；`backend/docs/swagger.json` 与两端 `app/types/openapi.d.ts` 同批重生成，契约基线仍为 135/176/326，`addedIn` 追加 `ticket: "286"`。判据**实现**三份（`check-contract-freshness.mjs` / `test-contract-freshness.mjs` / `tool-versions.env`）相对 `e5bb586` 零 diff；`verify-gates.sh` 是 canary 编排/消费方，按票 #286 AC 3 要求 14/14 整节演练退场，**仅**文件头注释与第 14 节（7 个 hunk）改动，#273 的 5/14、版本安装与判定逻辑、其余 13 道 canary 一字未动，判定未被绕过。范围门禁、锚点清单、夹具消费检查与 14/14 整节演练退场；替换为一条「重新生成后四端无差异 + 运行时取值正确」校验，其余 13 道 canary 保留。共享归一化夹具 122 条与三套消费测试保留；物理链条、帧率门控、指针端偏移行为不变。`ADR-0003` 正文不动，生成式契约形态另见 [ADR-0028 后续修订](./0028-named-outline-trees-as-the-only-shape.md)。

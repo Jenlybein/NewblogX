@@ -1,10 +1,11 @@
-// Package outline 是「目录树」子域：合集与项目共用的层次与顺序。
+// Package outline 是「合集目录树」「项目目录树」共用的层次与顺序。
 //
-// 一张树表（content_outline_node_models）同时服务两个 owner，节点分两种：
+// 两个实体各有自己的具名树表，节点分两种：
 //   - 文件夹节点：只分组，不可阅读、不可点击，不带封面 / 摘要 / 正文；
 //   - 文章节点：指向一篇文章。
 //
-// 规则只有一份，合集与项目的差异留在各自的主表与文案层（ADR-0023）。
+// 规则只有一份，归属由调用方在事务入口一次给出；合集与项目的差异留在各自的
+// 主表与文案层（ADR-0028）。
 // 本包只放"什么算合法树"的纯规则与纯函数，不含 SQL 也不认识 gin。
 package outline
 
@@ -506,13 +507,6 @@ type Repository interface {
 	// 原行而不是新插入（与点赞表、旧收录中间表是同一个坑）。
 	// 没有该文章节点时返回 ErrNodeMissing。
 	FindByArticle(ctx context.Context, ownerKind OwnerKind, ownerID ID, articleID ArticleID) (*Node, error)
-
-	// ListByArticle 返回这篇文章在**所有树**里的活跃文章节点（跨树重复允许）。
-	//
-	// 阅读页 `?from=` 缺失时要回退到"第一棵归属树"：这一步必须在 app 层能看见
-	// 文章出现在哪些树里，所以按文章反查，而不是让 app 遍历所有合集/项目。
-	// 顺序固定为 (owner_kind, owner_id, id) 升序，保证同一份数据每次回退到同一棵树。
-	ListByArticle(ctx context.Context, articleID ArticleID) ([]*Node, error)
 
 	// Create 批量插入节点（ID 已由调用方给好）。
 	Create(ctx context.Context, nodes []*Node) error

@@ -7,18 +7,16 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-// chatHandler 由 app.WireChat 在启动时注入。
-var chatHandler *chathttp.Handler
-
-// SetChatHandler 注入私信处理器。
-func SetChatHandler(h *chathttp.Handler) { chatHandler = h }
-
 // ChatRouter 注册私信路由。
-func ChatRouter(r *gin.RouterGroup, runtimeMw mw.Runtime) {
-	if chatHandler == nil {
-		panic("router: 私信处理器未注入（应在 app.WireChat 中调用 SetChatHandler）")
+//
+// 处理器由合成根显式传入（#280 清掉这一处包级可变状态）。
+// 说明：本仓库其它模块仍用 xxxHandler + SetXxxHandler 的包级注入，属于存量；
+// 本次只清私信这一处，不宣称全仓已无包级可变状态。
+func ChatRouter(r *gin.RouterGroup, runtimeMw mw.Runtime, handler *chathttp.Handler) {
+	if handler == nil {
+		panic("router: 私信处理器未注入（应由 internal/chat.New 装配后经 router.Handlers 传入）")
 	}
-	app := chatHandler
+	app := handler
 
 	group := r.Group("chat")
 	authGroup := group.Group("", runtimeMw.AuthMiddleware)

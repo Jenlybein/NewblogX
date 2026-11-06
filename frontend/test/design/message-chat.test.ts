@@ -56,12 +56,12 @@ describe("私信子项：/messages/chat 的右内容", () => {
     const panel = read("app/components/inbox/InboxChatPanel.vue");
     const timeline = read("app/utils/chatTimeline.ts");
 
-    expect(panel).toContain("chatDateSeparatorLabel");
-    expect(panel).toContain("isSameChatGroup");
+    // 分组 / 日期键都在唯一实现里算；面板只画结果。
+    expect(timeline).toContain("chatDateSeparatorLabel");
+    expect(timeline).toContain("isSameChatGroup");
     expect(panel).toContain("fullChatTimestamp");
     expect(panel).toContain("studio-chat-date-separator");
     expect(timeline).toContain("2 * 60 * 1000");
-    expect(timeline).toContain("toAscending");
   });
 
   it("首屏 7 条 + 上滑加载更早 + 贴底才自动跟随", () => {
@@ -87,10 +87,14 @@ describe("私信子项：/messages/chat 的右内容", () => {
 });
 
 describe("排序 / 已读 / 分页的契约门禁（ADR-0027）", () => {
-  it("后端 DESC 契约不变，前端维护单一升序数组", () => {
+  it("后端直接给升序（最旧在前），前端不再反转任何一页", () => {
     const timeline = read("app/utils/chatTimeline.ts");
-    expect(timeline).toContain("export function toAscending");
-    expect(inboxCenterSource).toContain("toAscending");
+    const panel = read("app/components/inbox/InboxChatPanel.vue");
+
+    expect(timeline).not.toContain("toAscending");
+    expect(inboxCenterSource).not.toContain("toAscending");
+    // 日期键只有一份：面板不再自带 chatDayKey。
+    expect(panel).not.toContain("chatDayKey");
   });
 
   it("复合游标 (before_send_time, before_id)，不用 offset 取更早页", () => {

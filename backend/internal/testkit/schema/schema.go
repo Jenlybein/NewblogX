@@ -151,10 +151,12 @@ const (
 	// 与 Collection 同构但不共用数据；同样两张表单开一组：中间表带两个外键
 	// （指向 project_models 与 article_models）。
 	Project Group = "project"
-	// Outline 是目录树（合集与项目共用的一张树表）。
+	// Outline 是目录树：旧共用表 + 两张按实体命名的新表（#274 expand）。
 	//
 	// 与 Collection / Project 分开一组：树表没有指向主表的外键（owner 是
 	// 多态的，零 DDL 下加不了），测试只关心树本身时不必建合集 / 项目表。
+	// 三张表放同一组：所有点名本组的真 MySQL 夹具一次性建齐，不会出现
+	// 「新表没建 → 表不存在」。两张新表由 #275 / #276 各自接读写，#277 收缩。
 	Outline Group = "outline"
 	// All 是全部表（仅用于结构一致性契约测试）。
 	All Group = "all"
@@ -240,9 +242,10 @@ var groupModels = map[Group][]any{
 		&ProjectRow{},
 	},
 	Outline: {
-		&OutlineNodeRow{},
+		&CollectionOutlineNodeRow{},
+		&ProjectOutlineNodeRow{},
 	},
-	// All 是**全部 39 张表**，只用于"schema.sql 与自持行是否一致"的契约测试。
+	// All 是**全部 41 张表**，只用于"schema.sql 与自持行是否一致"的契约测试。
 	//
 	// 为什么不复用上面那些组拼起来：拼装顺序一变，这个测试就变成
 	// "测拼装顺序"而不是"测结构一致性"。这里写死一份，顺序沿用当年
@@ -268,7 +271,8 @@ var groupModels = map[Group][]any{
 		&ArticleHotTopRow{},
 		&CollectionRow{},
 		&ProjectRow{},
-		&OutlineNodeRow{},
+		&CollectionOutlineNodeRow{},
+		&ProjectOutlineNodeRow{},
 		&ImageRow{},
 		&ImageRefRow{},
 		&RuntimeConfigRow{},

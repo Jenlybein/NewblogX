@@ -44,9 +44,19 @@ func isAdmin(c *gin.Context) bool {
 	return claims != nil && claims.IsAdmin()
 }
 
-// fail 交给统一响应层：apperr 自带中文文案。
+// fail 把错误值原样交给共享响应层：协议码、中文文案与失败载荷只由
+// apperr + res 决定。适配器不挑错误码分支、不重写文案、不拼内部报错原文。
 func fail(c *gin.Context, err error) {
-	res.FailWithError(err, c)
+	res.Fail(err, c)
+}
+
+// requireAdmin 把"需要管理员"表达成一个错误值，而不是一句中文文案。
+func requireAdmin(c *gin.Context) bool {
+	if isAdmin(c) {
+		return true
+	}
+	fail(c, apperr.New(apperr.CodeNotifAdminRequired))
+	return false
 }
 
 // ── 全局公告 ────────────────────────────────────────────────────
@@ -65,21 +75,20 @@ func (h *Handler) GlobalList(c *gin.Context) {
 		return
 	}
 	if cr.Order != "" {
-		// 旧实现没有开放排序白名单，传 order 会直接报错。
-		res.FailWithMsg("排序字段错误", c)
+		fail(c, apperr.New(apperr.CodeCommonInvalidOrder))
 		return
 	}
 	admin := false
 	switch cr.Type {
 	case 2:
 		if !isAdmin(c) {
-			res.FailWithMsg("权限不足", c)
+			fail(c, apperr.New(apperr.CodeNotifForbidden))
 			return
 		}
 		admin = true
 	case 1:
 	default:
-		res.FailWithMsg("参数错误", c)
+		fail(c, apperr.New(apperr.CodeNotifInvalidArgument))
 		return
 	}
 	items, hasMore, err := h.svc.ListGlobal(c.Request.Context(), userID(c), admin, domain.Page{
@@ -88,10 +97,6 @@ func (h *Handler) GlobalList(c *gin.Context) {
 		Key:   cr.Key,
 	})
 	if err != nil {
-		if !admin && apperr.IsCode(err, apperr.CodeNotifUserMissing) {
-			res.FailWithMsg("用户不存在", c)
-			return
-		}
 		fail(c, err)
 		return
 	}
@@ -120,8 +125,7 @@ func (h *Handler) GlobalList(c *gin.Context) {
 // @Success 200 {object} kernel.Envelope[GlobalCreateResponse]
 // @Router /global_notif [post]
 func (h *Handler) GlobalCreate(c *gin.Context) {
-	if !isAdmin(c) {
-		res.FailWithMsg("权限错误", c)
+	if !requireAdmin(c) {
 		return
 	}
 	cr, ok := bindJSON[GlobalCreateRequest](c)
@@ -137,14 +141,9 @@ func (h *Handler) GlobalCreate(c *gin.Context) {
 		Href:        cr.Href,
 	})
 	if err != nil {
-		switch {
-		case apperr.IsCode(err, apperr.CodeNotifExpireTooSoon):
-			res.FailWithMsg("过期时间不能小于一天", c)
-		case apperr.IsCode(err, apperr.CodeNotifTitleDuplicated):
-			res.FailWithMsg("全局通知标题重复", c)
-		default:
-			res.FailWithMsg(fmt.Sprintf("全局通知创建失败 %v", err), c)
-		}
+		// 只转发错误值：领域错误自带文案，未知错误由共享响应层换成通用文案，
+		// 内部报错原文绝不拼进响应。
+		fail(c, err)
 		return
 	}
 	res.OkWithData(GlobalCreateResponse{
@@ -173,21 +172,12 @@ func (h *Handler) GlobalRead(c *gin.Context) {
 		return
 	}
 	if len(cr.IDList) == 0 {
-		res.FailWithMsg("请输入要读取的消息 id 列表", c)
+		fail(c, apperr.New(apperr.CodeNotifReadSelectionEmpty))
 		return
 	}
 	count, err := h.svc.MarkGlobalRead(c.Request.Context(), userID(c), cr.IDList)
 	if err != nil {
-		switch {
-		case apperr.IsCode(err, apperr.CodeNotifNotFound):
-			res.FailWithMsg("消息不存在", c)
-		case apperr.IsCode(err, apperr.CodeMessageNothingRead):
-			res.FailWithMsg("没有可标记已读的消息", c)
-		case apperr.IsCode(err, apperr.CodeNotifUserMissing):
-			res.FailWithMsg("用户不存在", c)
-		default:
-			fail(c, err)
-		}
+		fail(c, err)
 		return
 	}
 	res.OkWithMsg(fmt.Sprintf("标记已读%d条消息", count), c)
@@ -214,10 +204,6 @@ func (h *Handler) GlobalUserRemove(c *gin.Context) {
 	}
 	count, err := h.svc.DeleteGlobalForUser(c.Request.Context(), userID(c), cr.IDList)
 	if err != nil {
-		if apperr.IsCode(err, apperr.CodeNotifUserMissing) {
-			res.FailWithMsg("用户不存在", c)
-			return
-		}
 		fail(c, err)
 		return
 	}
@@ -239,15 +225,11 @@ func (h *Handler) GlobalAdminRemove(c *gin.Context) {
 		return
 	}
 	if len(cr.IDList) == 0 {
-		res.FailWithMsg("请输入要删除的公告 id 列表", c)
+		fail(c, apperr.New(apperr.CodeNotifDeleteSelectionEmpty))
 		return
 	}
 	count, err := h.svc.DeleteGlobal(c.Request.Context(), cr.IDList)
 	if err != nil {
-		if apperr.IsCode(err, apperr.CodeNotifNotFound) {
-			res.FailWithMsg("未找到需要删除的公告", c)
-			return
-		}
 		fail(c, err)
 		return
 	}
@@ -270,7 +252,7 @@ func (h *Handler) Messages(c *gin.Context) {
 		return
 	}
 	if cr.Order != "" {
-		res.FailWithMsg("排序字段错误", c)
+		fail(c, apperr.New(apperr.CodeCommonInvalidOrder))
 		return
 	}
 	rows, hasMore, err := h.svc.ListMessages(c.Request.Context(), userID(c), domain.Group(cr.T), domain.Page{
@@ -303,7 +285,7 @@ func (h *Handler) MessageRead(c *gin.Context) {
 		return
 	}
 	if cr.ID.IsZero() && cr.T == 0 {
-		res.FailWithMsg("id 和 t 不能同时为空", c)
+		fail(c, apperr.New(apperr.CodeMessageIDAndTypeEmpty))
 		return
 	}
 	ctx := c.Request.Context()
@@ -311,14 +293,7 @@ func (h *Handler) MessageRead(c *gin.Context) {
 	if !cr.ID.IsZero() {
 		err := h.svc.MarkMessageRead(ctx, uid, cr.ID.Uint64())
 		if err != nil {
-			switch {
-			case apperr.IsCode(err, apperr.CodeMessageNotFound):
-				res.FailWithMsg("消息不存在", c)
-			case apperr.IsCode(err, apperr.CodeMessageAlreadyRead):
-				res.FailWithMsg("消息已被读取", c)
-			default:
-				fail(c, err)
-			}
+			fail(c, err)
 			return
 		}
 		res.OkWithMsg("标记已读成功", c)
@@ -347,7 +322,7 @@ func (h *Handler) MessageRemove(c *gin.Context) {
 		return
 	}
 	if cr.ID.IsZero() && cr.T == 0 {
-		res.FailWithMsg("id 和 t 不能同时为空", c)
+		fail(c, apperr.New(apperr.CodeMessageIDAndTypeEmpty))
 		return
 	}
 	ctx := c.Request.Context()
@@ -355,10 +330,6 @@ func (h *Handler) MessageRemove(c *gin.Context) {
 	if !cr.ID.IsZero() {
 		err := h.svc.DeleteMessage(ctx, uid, cr.ID.Uint64())
 		if err != nil {
-			if apperr.IsCode(err, apperr.CodeMessageNotFound) {
-				res.FailWithMsg("消息不存在", c)
-				return
-			}
 			fail(c, err)
 			return
 		}
@@ -383,10 +354,6 @@ func (h *Handler) MessageRemove(c *gin.Context) {
 func (h *Handler) Conf(c *gin.Context) {
 	conf, err := h.svc.GetConf(c.Request.Context(), userID(c))
 	if err != nil {
-		if apperr.IsCode(err, apperr.CodeMessageConfMissing) {
-			res.FailWithMsg("用户配置信息不存在", c)
-			return
-		}
 		fail(c, err)
 		return
 	}
@@ -419,11 +386,7 @@ func (h *Handler) ConfUpdate(c *gin.Context) {
 		PrivateChatNoticeEnabled: cr.PrivateChatNoticeEnabled,
 	})
 	if err != nil {
-		if apperr.IsCode(err, apperr.CodeMessageConfMissing) {
-			res.FailWithMsg("用户配置信息不存在", c)
-			return
-		}
-		res.FailWithMsg("用户配置信息更新失败", c)
+		fail(c, err)
 		return
 	}
 	res.OkWithMsg("用户配置信息更新成功", c)
@@ -439,10 +402,6 @@ func (h *Handler) ConfUpdate(c *gin.Context) {
 func (h *Handler) Unread(c *gin.Context) {
 	counts, err := h.svc.UnreadCounts(c.Request.Context(), userID(c))
 	if err != nil {
-		if apperr.IsCode(err, apperr.CodeNotifUserMissing) {
-			res.FailWithMsg("用户不存在", c)
-			return
-		}
 		fail(c, err)
 		return
 	}

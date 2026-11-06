@@ -26,7 +26,22 @@ func (s *Service) ListHotTopCards(ctx context.Context, onlyAdminAuthors bool) ([
 	err := s.tx.WithinTx(ctx, func(ctx context.Context, r Repos) error {
 		var err error
 		cards, err = r.HotTops().ListCards(ctx, onlyAdminAuthors)
-		return err
+		if err != nil {
+			return err
+		}
+		// 浏览量也走账本（#279）：卡片过去只读库里的列，于是首页 5、点进去 7。
+		persisted := make(map[domain.ArticleID]int, len(cards))
+		for _, c := range cards {
+			persisted[c.ArticleID] = c.ViewCount
+		}
+		views, err := ledgerOf(r).ApplyViews(ctx, persisted)
+		if err != nil {
+			return err
+		}
+		for i := range cards {
+			cards[i].ViewCount = views[cards[i].ArticleID]
+		}
+		return nil
 	})
 	return cards, err
 }

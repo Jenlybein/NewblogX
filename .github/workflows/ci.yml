@@ -127,36 +127,22 @@ jobs:
           go-version: ${{ env.GO_VERSION }}
           cache-dependency-path: backend/go.sum
 
-      # 规则自身的单测：每条规则都必须能在人造违规上报错
-      - name: archcheck rules self-test
-        run: go test ./tools/archcheck/...
-
-      # 棘轮：基线定义在 scripts/arch-baseline.env，本地门禁 / CI / 自检脚本
-      # 三处都读它。这里绝不写死数字 —— 之前 CI 停在 250 而本地已是 0，
-      # 等于 CI 允许新增 250 处违规，棘轮失去意义。
-      - name: archcheck (ratchet)
+      # 规则自检 + 棘轮两遍都登记在仓库级门禁清单（scripts/gates/gates.json）：
+      # 本地 check.sh、CI、门禁自检都经 scripts/gates/run.mjs 读同一份。
+      # 棘轮阈值只从 scripts/arch-baseline.env 读出后由 runner 填进命令 ——
+      # 这里绝不写死数字；之前 CI 停在 250 而本地已是 0，棘轮就失去了意义。
+      - name: archcheck（规则自检 + 棘轮两遍）
         working-directory: .
-        run: |
-          . scripts/arch-baseline.env
-          echo "棘轮基线：$ARCH_MAX_VIOLATIONS"
-          cd backend
-          go run ./tools/archcheck --mode=error --max-violations="$ARCH_MAX_VIOLATIONS" .
-
-      # 第二遍包含 _test.go：默认的 -skip-tests 会跳过测试文件，
-      # 而测试里 import models 会卡住 M6 的"删 models"，那种违规别处不报警。
-      - name: archcheck (ratchet, 含测试文件)
-        working-directory: .
-        run: |
-          . scripts/arch-baseline.env
-          cd backend
-          go run ./tools/archcheck --mode=error --skip-tests=false --max-violations="$ARCH_MAX_VIOLATIONS" .
+        run: node scripts/gates/run.mjs --group backend
 
   # ── 契约：生成产物必须与代码注解一致 ────────────────────────────────
   # 为什么需要这个 job：契约是前后端唯一的耦合点。有人改了 Go 注解却忘了
   # 跑 `make openapi`，docs/swagger.json 就会静默过期，前端类型照着过期契约
   # 生成 —— 门禁全绿，但契约是错的，而且没有任何信号。
   #
-  # 判据是"重新生成后 git 无差异"，而不是"能生成"。
+  # 判据与本地门禁 / 门禁自检共用 scripts/check-contract-freshness.mjs：
+  # 生成到临时目录逐字比对 + 条目数量不下降 + 本次新增结构在场；
+  # 不再用 git diff --exit-code（工作区脏会假红，且看不出静默跳过）。
   contract:
     name: backend (contract up-to-date)
     runs-on: ubuntu-latest
@@ -171,9 +157,17 @@ jobs:
           go-version: ${{ env.GO_VERSION }}
           cache-dependency-path: backend/go.sum
 
-      # 必须与 Makefile 注释里写的版本一致，否则产物格式会漂移。
-      - name: 安装 swag v2
-        run: go install github.com/swaggo/swag/v2/cmd/swag@v2.0.0-rc6
+      # 判定实现是仓库级 .mjs 脚本，显式装 Node 而不是依赖 runner 预装版本。
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      # 安装 ref 只从仓库级 scripts/tool-versions.env 读（经 scripts/gates/install.mjs
+      # 这唯一入口，本地与门禁自检同一条命令）；判定实现还会核对已安装二进制的
+      # go version -m 构建信息，避免"装了别的版本却全绿"。
+      - name: 安装契约生成工具（单一版本来源）
+        working-directory: .
+        run: node scripts/gates/install.mjs swag
 
       # 先把依赖下全，再让 swag 跑。
       #
@@ -184,21 +178,16 @@ jobs:
       # 只说"找不到依赖"，看不出是网络问题，非常容易误判成注解写错。
       # 单独一步下载，失败原因就落在这一步，且失败会明确指着 go.sum。
       - name: 下载 Go 依赖
-        run: go mod download
-
-      - name: 重新生成契约
-        run: make openapi
-
-      - name: 契约必须与提交内容一致
         working-directory: .
-        run: |
-          if ! git diff --exit-code backend/docs/swagger.json; then
-            echo ""
-            echo "✗ docs/swagger.json 与代码注解不一致。"
-            echo "  请在本地执行 cd backend && make openapi 并提交产物。"
-            echo "  否则前端类型会照着过期契约生成，门禁却全绿。"
-            exit 1
-          fi
+        run: node scripts/gates/install.mjs go-mod --dir backend
+
+      # 判定实现仍是 scripts/check-contract-freshness.mjs（#273）：这里只按清单
+      # 里的分组调它，与本地门禁、门禁自检第 5 节跨同一个实现。
+      # 用分组而不是写死 gate id：清单里 contract 组的门禁增删（例如判定行为用例）
+      # 不用回来改这个 job。
+      - name: 契约未过期判定（生成到临时文件逐字比对）
+        working-directory: .
+        run: node scripts/gates/run.mjs --group contract
 
   # ── 前端 lint（两端解耦，矩阵并行）────────────────────────────────
   frontend-lint:
@@ -229,7 +218,7 @@ jobs:
           cache: pnpm
           cache-dependency-path: ${{ matrix.app }}/pnpm-lock.yaml
 
-      - run: pnpm install --frozen-lockfile
+      - run: node ../scripts/gates/install.mjs pnpm
 
       # 后台的用例与预览会跨包 import 读者站的纯函数（`../frontend/app/utils/*`），
       # 那些模块自己 import 了读者站独有的依赖（如 `isomorphic-dompurify`）。
@@ -237,7 +226,7 @@ jobs:
       # 否则在 import 链上会解析不到（本地因为两边都装过所以看不出来）。
       - name: 安装读者站依赖（后台跨包 import 需要）
         if: matrix.app == 'frontend_admin'
-        run: pnpm install --frozen-lockfile
+        run: node ../scripts/gates/install.mjs pnpm
         working-directory: frontend
 
       - name: pnpm lint
@@ -257,31 +246,24 @@ jobs:
       - name: 设计 token 漂移检查
         run: pnpm check:tokens
 
-      # 两端 tokens.css 逐字节一致（ADR-0012 约束 14 / #22）。
-      # 这是仓库级判据（比较两份文件），与矩阵里的 app 无关，只跑一份即可；
-      # 命令与本地 scripts/check.sh 的「两端 token 同源」完全同一条。
-      - name: 两端 token 同源检查
+      # 仓库级判据（两端 tokens.css 逐字节同源 = ADR-0012 约束 14 / #22；
+      # 两端 imageShaping 定形工具与裁剪窗四份组件逐字节同源 = #200 / #225）。
+      # 命令登记在 scripts/gates/gates.json 这一处清单里，与本地 scripts/check.sh
+      # 的「仓库级门禁（两端 token / 同源副本）」跨同一个 runner；矩阵里只跑一份。
+      - name: 仓库级门禁（两端 token / 同源副本）
         if: matrix.app == 'frontend'
         working-directory: .
-        run: node scripts/check-token-parity.mjs
+        run: node scripts/gates/run.mjs --group frontend
 
-      # 两端 imageShaping.ts 逐字节一致（票 200；#195 交办的跨包共享）。
-      # 后台不得相对路径 import 读者站模块（#176），三种封面与头像共用的定形实现
-      # 只能靠"同一份文件 + 门禁"。同样是仓库级判据，命令与本地 scripts/check.sh
-      # 的「两端定形工具同源」完全同一条。
-      - name: 两端定形工具同源检查
+      # 一张参数表生成四端消费物并进入契约（开放接口契约）；#286 退掉范围门禁，
+      # 只留「重新生成后四端无差异 + 运行时取值正确」这一条校验。
+      # 它是参数生成脚本，按 #287 AC4 不属于「清单 / 版本 / 判定 / 重复安装」
+      # 四件事，因此仍在门禁清单之外（gates.json 的 notGates 登记第 14 节），
+      # 由这里与 check.sh 的 gates 段、verify-gates.sh 第 14 节直接调用。
+      - name: 生成式装饰参数校验
         if: matrix.app == 'frontend'
         working-directory: .
-        run: node scripts/check-image-shaping-parity.mjs
-
-      # deco.charm 的九个参数（布尔默认 + 八个数值）在后端 Go / 读者站 / 后台
-      # 三处逐项一致（#43）。同样是仓库级判据（同时读三端源文件），与矩阵里的
-      # app 无关，只跑一份；命令与本地 scripts/check.sh 的「跨端装饰参数一致」
-      # 完全同一条，不在这里另写一份规则。
-      - name: 跨端装饰参数一致性检查
-        if: matrix.app == 'frontend'
-        working-directory: .
-        run: node scripts/check-deco-range-parity.mjs
+        run: node scripts/generate-deco-parameters.mjs --check
 
   # ── 前端类型检查 ──────────────────────────────────────────────────
   frontend-typecheck:
@@ -310,7 +292,7 @@ jobs:
           cache: pnpm
           cache-dependency-path: ${{ matrix.app }}/pnpm-lock.yaml
 
-      - run: pnpm install --frozen-lockfile
+      - run: node ../scripts/gates/install.mjs pnpm
 
       # 后台的用例与预览会跨包 import 读者站的纯函数（`../frontend/app/utils/*`），
       # 那些模块自己 import 了读者站独有的依赖（如 `isomorphic-dompurify`）。
@@ -318,7 +300,7 @@ jobs:
       # 否则在 import 链上会解析不到（本地因为两边都装过所以看不出来）。
       - name: 安装读者站依赖（后台跨包 import 需要）
         if: matrix.app == 'frontend_admin'
-        run: pnpm install --frozen-lockfile
+        run: node ../scripts/gates/install.mjs pnpm
         working-directory: frontend
 
       - run: pnpm typecheck
@@ -356,7 +338,7 @@ jobs:
           cache: pnpm
           cache-dependency-path: ${{ matrix.app }}/pnpm-lock.yaml
 
-      - run: pnpm install --frozen-lockfile
+      - run: node ../scripts/gates/install.mjs pnpm
 
       # 后台的用例与预览会跨包 import 读者站的纯函数（`../frontend/app/utils/*`），
       # 那些模块自己 import 了读者站独有的依赖（如 `isomorphic-dompurify`）。
@@ -364,7 +346,7 @@ jobs:
       # 否则在 import 链上会解析不到（本地因为两边都装过所以看不出来）。
       - name: 安装读者站依赖（后台跨包 import 需要）
         if: matrix.app == 'frontend_admin'
-        run: pnpm install --frozen-lockfile
+        run: node ../scripts/gates/install.mjs pnpm
         working-directory: frontend
 
       # 重新生成到临时文件再比对（不是在原地生成后 git diff）：
@@ -411,7 +393,7 @@ jobs:
           cache: pnpm
           cache-dependency-path: ${{ matrix.app }}/pnpm-lock.yaml
 
-      - run: pnpm install --frozen-lockfile
+      - run: node ../scripts/gates/install.mjs pnpm
 
       # 后台的用例与预览会跨包 import 读者站的纯函数（`../frontend/app/utils/*`），
       # 那些模块自己 import 了读者站独有的依赖（如 `isomorphic-dompurify`）。
@@ -419,7 +401,7 @@ jobs:
       # 否则在 import 链上会解析不到（本地因为两边都装过所以看不出来）。
       - name: 安装读者站依赖（后台跨包 import 需要）
         if: matrix.app == 'frontend_admin'
-        run: pnpm install --frozen-lockfile
+        run: node ../scripts/gates/install.mjs pnpm
         working-directory: frontend
 
       # 跑测试并卡覆盖率门槛（两端配置各自的统计范围）。
@@ -486,13 +468,17 @@ jobs:
         env:
           CGO_ENABLED: "1"
         run: |
-          go install github.com/swaggo/swag/v2/cmd/swag@v2.0.0-rc6
+          # 工具版本与安装步骤只有一处定义（scripts/tool-versions.env + install.mjs），
+          # 与本地门禁、contract job 同一条命令，不在这里另拼版本字面量。
+          node scripts/gates/install.mjs swag
           # 自检第 5 节会跑 `make openapi`，而 swag 带 --parseDependency 时自己会调
           # `go list -deps`；若不先把模块下全，它会与下载并发、偶发报
           # `cannot find all dependencies, <nil>`，让自检误判成"契约生成失败"。
           # 常规 contract job 正是靠一个独立的 `go mod download` 步骤规避这一点
           # （Makefile 上方注释也记了同一个坑）；自检 job 此前从未真跑过，所以没暴露。
-          ( cd backend && go mod download )
-          ( cd frontend && pnpm install --frozen-lockfile )
-          ( cd frontend_admin && pnpm install --frozen-lockfile )
+          node scripts/gates/install.mjs go-mod --dir backend
+          node scripts/gates/install.mjs pnpm --dir frontend
+          node scripts/gates/install.mjs pnpm --dir frontend_admin
+          # 门禁自检本身：脚本开头会先按清单核对「每道门禁都有演练」，
+          # 再逐节注入违规；它不接受任何整体跳过参数。
           bash scripts/verify-gates.sh

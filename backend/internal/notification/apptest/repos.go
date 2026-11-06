@@ -139,6 +139,16 @@ func (m *Messages) DeleteGroup(_ context.Context, receiver uint64, types []domai
 	return count, nil
 }
 
+// Seed 直接放入一条写死种子（含 ID 与全部时间戳），供 golden 逐字节快照使用。
+//
+// 与 Create 的区别：Create 是"生产路径的替身行为"（分配 ID、打当前时间），
+// Seed 是"测试夹具写死种子"，不改动任何字段。两者都不改变读写语义。
+func (m *Messages) Seed(msg domain.Message) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.rows = append(m.rows, msg)
+}
+
 // Create 实现 domain.MessageRepository。
 func (m *Messages) Create(_ context.Context, msg *domain.Message) error {
 	if msg == nil || msg.Receiver == 0 {
@@ -233,7 +243,7 @@ func (g *Globals) ListVisible(_ context.Context, userID uint64, userCreatedAt ti
 		if g.deleted[userID][row.ID.Uint64()] {
 			continue
 		}
-		if row.VisibleAt(userCreatedAt, now) && matchKey(row, page.Key) {
+		if (domain.VisibilityPredicate{Now: now, UserCreatedAt: userCreatedAt}).Matches(row) && matchKey(row, page.Key) {
 			hit = append(hit, row)
 		}
 	}
@@ -270,7 +280,7 @@ func (g *Globals) FindVisible(_ context.Context, userID uint64, ids []ctype.ID, 
 		if g.deleted[userID][row.ID.Uint64()] {
 			continue
 		}
-		if row.VisibleAt(userCreatedAt, now) {
+		if (domain.VisibilityPredicate{Now: now, UserCreatedAt: userCreatedAt}).Matches(row) {
 			out = append(out, row)
 		}
 	}
@@ -336,11 +346,18 @@ func (g *Globals) CountUnread(_ context.Context, userID uint64, userCreatedAt ti
 		if g.deleted[userID][row.ID.Uint64()] || g.read[userID][row.ID.Uint64()] {
 			continue
 		}
-		if row.VisibleAt(userCreatedAt, now) {
+		if (domain.VisibilityPredicate{Now: now, UserCreatedAt: userCreatedAt}).Matches(row) {
 			count++
 		}
 	}
 	return count, nil
+}
+
+// Seed 直接放入一条写死种子（含 ID 与 created_at），供 golden 逐字节快照使用。
+func (g *Globals) Seed(n domain.GlobalNotif) {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	g.rows = append(g.rows, n)
 }
 
 // Create 实现 domain.GlobalRepository。

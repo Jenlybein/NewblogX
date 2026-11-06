@@ -199,6 +199,7 @@ type Runtime struct {
 	log     conf.Logrus
 	upload  conf.Upload
 	deco    conf.Deco
+	imageGC conf.ImageGC
 }
 
 var _ domain.RuntimeConfig = (*Runtime)(nil)
@@ -332,6 +333,21 @@ func (r *Runtime) UpdateDeco(deco conf.Deco) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	r.deco = deco
+	return nil
+}
+
+// ImageGC 实现 domain.RuntimeConfig。
+func (r *Runtime) ImageGC() conf.ImageGC {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return r.imageGC
+}
+
+// UpdateImageGC 实现 domain.RuntimeConfig。
+func (r *Runtime) UpdateImageGC(imageGC conf.ImageGC) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.imageGC = imageGC
 	return nil
 }
 

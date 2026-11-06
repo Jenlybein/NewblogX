@@ -4,13 +4,12 @@ import type { ArticleOutlineContext } from "~/utils/outlineContext";
 import {
   articleOutlineContextHref,
   outlineContextKind,
-  outlineContextQuery,
   outlineContextSource,
 } from "~/utils/outlineContext";
 
 /**
- * 文章上下文（阅读页左栏）的纯映射（接缝五）：
- * `?from=` 透传、归属 → 来源参数、相邻文章的链接。组件只消费这里的结果。
+ * 文章上下文（阅读页左栏）的纯映射：归属 → 来源参数、相邻文章的链接。
+ * 组件只消费这里的结果；`?from=` 的取数在 services/outline.ts 一处完成。
  */
 
 function context(overrides: Partial<ArticleOutlineContext> = {}): ArticleOutlineContext {
@@ -32,19 +31,6 @@ function context(overrides: Partial<ArticleOutlineContext> = {}): ArticleOutline
     ...overrides,
   };
 }
-
-describe("outlineContextQuery：把 ?from= 原样透传给后端", () => {
-  it("没有来源时返回空对象（由服务端回退到第一棵归属树）", () => {
-    expect(outlineContextQuery(undefined)).toEqual({});
-    expect(outlineContextQuery("")).toEqual({});
-    expect(outlineContextQuery("   ")).toEqual({});
-  });
-
-  it("有来源时只带 from，不做第二份格式判定（格式校验在服务端一处）", () => {
-    expect(outlineContextQuery("project:375")).toEqual({ from: "project:375" });
-    expect(outlineContextQuery("  collection:9  ")).toEqual({ from: "collection:9" });
-  });
-});
 
 describe("outlineContextKind / outlineContextSource：归属 → 来源参数", () => {
   it("合集 / 项目的数值归属映射回 `<kind>:<id>`", () => {

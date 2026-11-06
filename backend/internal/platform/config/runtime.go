@@ -11,6 +11,7 @@ package config
 
 import (
 	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
 	"sync"
@@ -22,19 +23,6 @@ import (
 
 	"github.com/sirupsen/logrus"
 	"gorm.io/gorm"
-)
-
-// 各配置段在表里的 name。
-const (
-	SectionSite    = "site"
-	SectionAI      = "ai"
-	SectionMail    = "mail"
-	SectionStorage = "storage"
-	SectionOAuth   = "oauth"
-	SectionLog     = "log"
-	SectionUpload  = "upload"
-	SectionDeco    = "deco"
-	SectionImageGC = "image_gc"
 )
 
 // defaultSettingsFileName 是默认值文件名；与 settings.yaml 同目录。
@@ -263,21 +251,18 @@ func loadPayloads(tx *gorm.DB) (map[string]string, error) {
 // 理由是"配置坏了"和"数据库连不上"的严重性不同 —— 前者应该降级可用，
 // 后者才该拦住启动。
 func (s *RuntimeConfigService) decodeAll(payloads map[string]string) *RuntimeConfig {
-	return &RuntimeConfig{
-		Site:    decodeOrDefault(SectionSite, s.defaults.Site, payloads, s.logger),
-		AI:      decodeOrDefault(SectionAI, s.defaults.AI, payloads, s.logger),
-		Mail:    decodeOrDefault(SectionMail, s.defaults.Mail, payloads, s.logger),
-		Storage: decodeOrDefault(SectionStorage, s.defaults.Storage, payloads, s.logger),
-		OAuth:   decodeOrDefault(SectionOAuth, s.defaults.OAuth, payloads, s.logger),
-		Log:     decodeOrDefault(SectionLog, s.defaults.Log, payloads, s.logger),
-		Upload:  decodeOrDefault(SectionUpload, s.defaults.Upload, payloads, s.logger),
-		Deco:    decodeOrDefault(SectionDeco, s.defaults.Deco, payloads, s.logger),
-		ImageGC: decodeOrDefault(SectionImageGC, s.defaults.ImageGC, payloads, s.logger),
+	out := &RuntimeConfig{}
+	for _, entry := range RegisteredSections() {
+		value := entry.Decode(s, payloads)
+		if !entry.Apply(out, value) {
+			panic(fmt.Sprintf("运行时配置：段 %s 的解码结果类型与注册表不一致", entry.Name))
+		}
 	}
+	return out
 }
 
 // decodeOrDefault 解析单段，失败时记 warn 并回退该段默认值。
-func decodeOrDefault[T any](name string, defaults T, payloads map[string]string, logger *logrus.Logger) T {
+func decodeOrDefault[T any](name SectionName, defaults T, payloads map[string]string, logger *logrus.Logger) T {
 	out, err := decodeSection(name, defaults, payloads)
 	if err != nil {
 		if logger != nil {
@@ -292,9 +277,9 @@ func decodeOrDefault[T any](name string, defaults T, payloads map[string]string,
 //
 // 合并是按字段做的：库里那段 JSON 少哪个字段就用默认值补哪个。
 // 所以"新增一个配置字段"不需要写数据迁移，也不需要给老行补值。
-func decodeSection[T any](name string, defaults T, payloads map[string]string) (T, error) {
+func decodeSection[T any](name SectionName, defaults T, payloads map[string]string) (T, error) {
 	var out T
-	merged, err := mergeJSON(defaults, payloads[name])
+	merged, err := mergeJSON(defaults, payloads[string(name)])
 	if err != nil {
 		return out, apperr.Wrap(apperr.CodeRuntimeConfigDecodeFailed, err)
 	}
@@ -314,29 +299,16 @@ func decodeSection[T any](name string, defaults T, payloads map[string]string) (
 // 软删除（行还在、只是 deleted_at 非空），直接 Create 会撞索引让启动失败。
 // upsertPayload 会把软删除行恢复并用默认值覆盖，这正是想要的语义。
 func (s *RuntimeConfigService) seedMissing(tx *gorm.DB, payloads map[string]string) error {
-	seeds := []struct {
-		name  string
-		value any
-	}{
-		{SectionSite, s.defaults.Site},
-		{SectionAI, s.defaults.AI},
-		{SectionMail, s.defaults.Mail},
-		{SectionStorage, s.defaults.Storage},
-		{SectionOAuth, s.defaults.OAuth},
-		{SectionLog, s.defaults.Log},
-		{SectionUpload, s.defaults.Upload},
-		{SectionDeco, s.defaults.Deco},
-		{SectionImageGC, s.defaults.ImageGC},
-	}
-	for _, seed := range seeds {
-		if _, ok := payloads[seed.name]; ok {
+	for _, entry := range RegisteredSections() {
+		name := string(entry.Name)
+		if _, ok := payloads[name]; ok {
 			continue
 		}
-		raw, err := json.Marshal(seed.value)
+		raw, err := json.Marshal(entry.Defaults(s.defaults))
 		if err != nil {
 			return apperr.Wrap(apperr.CodeRuntimeConfigDecodeFailed, err)
 		}
-		if err := upsertPayload(tx, seed.name, string(raw)); err != nil {
+		if err := upsertPayload(tx, name, string(raw)); err != nil {
 			return err
 		}
 	}
@@ -415,20 +387,38 @@ func (s *RuntimeConfigService) UpdateImageGC(imageGC conf.ImageGC) error {
 // updateSection 是各段更新的公共骨架：事务里 upsert 单行，提交后刷内存缓存。
 //
 // 泛型写成包级函数而不是方法：Go 的方法不能自带类型参数。
-func updateSection[T any](s *RuntimeConfigService, name string, value T) error {
+func updateSection[T any](s *RuntimeConfigService, name SectionName, value T) error {
 	if s.db == nil {
 		return apperr.New(apperr.CodeRuntimeConfigDBMissing)
+	}
+	// 先过注册表：漏登记必须在任何写库动作之前失败，不能留下
+	// "库里写进去了、缓存却没更新"的半状态。
+	if err := s.validateSection(name, value); err != nil {
+		return err
 	}
 	raw, err := json.Marshal(value)
 	if err != nil {
 		return apperr.Wrap(apperr.CodeRuntimeConfigDecodeFailed, err)
 	}
 	if err := s.db.Transaction(func(tx *gorm.DB) error {
-		return upsertPayload(tx, name, string(raw))
+		return upsertPayload(tx, string(name), string(raw))
 	}); err != nil {
 		return err
 	}
 	s.applySection(name, value)
+	return nil
+}
+
+// validateSection 在段注册表里查段名与值类型。
+func (s *RuntimeConfigService) validateSection(name SectionName, value any) error {
+	entry, ok := LookupSection(string(name))
+	if !ok {
+		return fmt.Errorf("运行时配置：段 %s 未在注册表登记", name)
+	}
+	// 用一份临时配置试应用：不触碰真实缓存，也能和 applySection 共用同一份类型判定。
+	if !entry.Apply(&RuntimeConfig{}, value) {
+		return fmt.Errorf("运行时配置：段 %s 的值类型与注册表不一致", name)
+	}
 	return nil
 }
 
@@ -458,36 +448,17 @@ func upsertPayload(tx *gorm.DB, name, payload string) error {
 	return tx.Model(&row).Updates(map[string]any{"payload": payload}).Error
 }
 
-// applySection 把刚写入的值同步进缓存。
-func (s *RuntimeConfigService) applySection(name string, value any) {
+// applySection 把刚写入的值同步进缓存；入口已由 validateSection 保证登记与类型。
+func (s *RuntimeConfigService) applySection(name SectionName, value any) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	entry, ok := LookupSection(string(name))
+	if !ok {
+		panic(fmt.Sprintf("运行时配置：段 %s 未在注册表登记（写库前应先失败）", name))
+	}
 	cfg := s.snapshotLocked()
-	switch typed := value.(type) {
-	case conf.Site:
-		cfg.Site = typed
-	case conf.AI:
-		cfg.AI = typed
-	case conf.Mail:
-		cfg.Mail = typed
-	case conf.QiNiu:
-		cfg.Storage = typed
-	case conf.QQ:
-		cfg.OAuth = typed
-	case conf.Logrus:
-		cfg.Log = typed
-	case conf.Upload:
-		cfg.Upload = typed
-	case conf.Deco:
-		cfg.Deco = typed
-	case conf.ImageGC:
-		cfg.ImageGC = typed
-	default:
-		// 只有本包自己会调用 applySection，走到这里说明新增了段却忘了加分支。
-		if s.logger != nil {
-			s.logger.Warnf("运行时配置：未知的配置段 %s，缓存未更新", name)
-		}
-		return
+	if !entry.Apply(cfg, value) {
+		panic(fmt.Sprintf("运行时配置：段 %s 的值类型与注册表不一致（写库前应先失败）", name))
 	}
 	s.cache = cfg
 }

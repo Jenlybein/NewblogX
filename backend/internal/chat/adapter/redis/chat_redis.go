@@ -8,6 +8,7 @@ import (
 	"myblogx/internal/apperr"
 	"myblogx/internal/chat/domain"
 	"myblogx/internal/kernel/ctype"
+	"myblogx/internal/platform/config"
 	redis_service "myblogx/internal/platform/redis"
 	"myblogx/internal/platform/redis/redis_chat"
 	"myblogx/internal/platform/redis/redis_ws_ticket"
@@ -16,21 +17,21 @@ import (
 // Limiter 实现 domain.Limiter。
 //
 // 限流口径（ADR-0026）：同一发件人对同一收件人 1 条 / N 秒、M 条 / 自然日。
-// N 与 M **每次发送现读**运行时配置（后台「站点 → 私信」可改），不重启即生效；
-// 缺省由 `siteconf.NormalizeChatRate` 收敛到 10 秒 / 99 条。
+// N 与 M **每次发送现读**生效值模块给出的闭包（后台「站点 → 私信」可改），
+// 不重启即生效；默认值与合法范围只在生效值模块声明一次。
 type Limiter struct {
-	deps   redis_service.Options
-	now    func() time.Time
+	deps redis_service.Options
+	now  func() time.Time
 	// limits 返回 (窗口秒数, 日额度)；注入函数而不是快照，保证"现读"。
 	limits func() (int, int)
 }
 
 var _ domain.Limiter = (*Limiter)(nil)
 
-// NewLimiter 构造限流器；limits 为 nil 时用 ADR-0026 的默认值。
+// NewLimiter 构造限流器；limits 为 nil 时回落到生效值模块的默认值。
 func NewLimiter(deps redis_service.Options, limits func() (int, int)) *Limiter {
 	if limits == nil {
-		limits = func() (int, int) { return 10, 99 }
+		limits = config.NewEffectiveConfig(nil).ChatRateFunc()
 	}
 	return &Limiter{deps: deps, now: time.Now, limits: limits}
 }

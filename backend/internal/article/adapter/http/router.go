@@ -35,9 +35,6 @@ func (h *Handler) Register(r *gin.RouterGroup, authMw, optionalMw gin.HandlerFun
 	// 公开读
 	group.GET("author_info", mw.BindQuery[ArticleAuthorInfoBindRequest], h.AuthorInfo)
 	group.GET(":id", mw.BindUri[kernel.IDRequest], h.Detail)
-	// 文章上下文（阅读页左栏目录树）：公开读；`from` 缺失时回退到第一棵归属树。
-	group.GET(":id/outline-context", mw.BindUri[kernel.IDRequest],
-		mw.BindQuery[ArticleOutlineContextRequest], h.ArticleOutlineContext)
 	group.POST("view", mw.BindJson[ArticleViewCountRequest], h.Visit)
 	group.GET("category", mw.BindQuery[CategoryListRequest], h.Categories)
 	group.GET("category/options", mw.BindQuery[CategoryOptionsRequest], h.CategoryOptions)
@@ -48,12 +45,16 @@ func (h *Handler) Register(r *gin.RouterGroup, authMw, optionalMw gin.HandlerFun
 	group.GET("top", mw.BindQuery[ArticleTopListRequest], h.Tops)
 	// 热门置顶运营位（与上面的作者置顶是两套数据）。公开读：首页区块。
 	group.GET("hot-top", h.HotTops)
-	// 合集（读者侧只读：列表页 + 详情页）。
+	// 合集（读者侧只读：列表页 + 详情页 + 合集目录树）。
 	collectionGroup.GET("", mw.BindQuery[CollectionListRequest], h.Collections)
 	collectionGroup.GET(":id", mw.BindUri[kernel.IDRequest], h.CollectionDetail)
-	// 项目（与合集并列的独立内容实体；读者侧同样只读：列表页 + 详情页）。
+	collectionGroup.GET(":id/outline-tree", mw.BindUri[kernel.IDRequest],
+		mw.BindQuery[NamedOutlineTreeRequest], h.CollectionOutlineTree)
+	// 项目（与合集并列的独立内容实体；读者侧同样只读：列表页 + 详情页 + 项目目录树）。
 	projectGroup.GET("", mw.BindQuery[ProjectListRequest], h.Projects)
 	projectGroup.GET(":id", mw.BindUri[kernel.IDRequest], h.ProjectDetail)
+	projectGroup.GET(":id/outline-tree", mw.BindUri[kernel.IDRequest],
+		mw.BindQuery[NamedOutlineTreeRequest], h.ProjectOutlineTree)
 	reviewAdminGroup.GET("", mw.BindQuery[ArticleReviewTaskListRequest], h.ReviewTasks)
 
 	// 登录用户写
@@ -92,12 +93,11 @@ func (h *Handler) Register(r *gin.RouterGroup, authMw, optionalMw gin.HandlerFun
 	collectionAdminGroup.DELETE(":id", mw.BindUri[kernel.IDRequest], h.DeleteCollection)
 	collectionAdminGroup.PATCH(":id/display", mw.CaptureLog(mw.ReqBody),
 		mw.BindUri[kernel.IDRequest], mw.BindJson[CollectionDisplayRequest], h.SetCollectionDisplay)
-	// 目录树：后台读回整棵树 + 整棵树一次性提交。
-	// 这是合集内容编排的**唯一**入口：旧的扁平收录 / 排序 / 失效清理接口已随
-	// 旧中间表一起退役（#225），不在这里留任何单步写入口。
-	collectionAdminGroup.GET(":id/outline/admin", mw.BindUri[kernel.IDRequest], h.AdminCollectionOutline)
-	collectionAdminGroup.PUT(":id/outline", mw.CaptureLog(mw.ReqBody),
-		mw.BindUri[kernel.IDRequest], mw.BindJson[OutlineSaveRequest], h.SaveCollectionOutline)
+	// 合集目录树：后台读回整棵树 + 整棵树一次性提交，写入
+	// collection_outline_node_models。这是合集内容编排的唯一入口。
+	collectionAdminGroup.PUT(":id/outline-tree", mw.CaptureLog(mw.ReqBody),
+		mw.BindUri[kernel.IDRequest], mw.BindJson[CollectionOutlineSaveRequest],
+		h.SaveCollectionOutlineTree)
 	// 项目管理（全部在管理员分组下）：与合集逐条对齐，路径换成 /projects。
 	projectAdminGroup.GET("admin", h.AdminProjects)
 	projectAdminGroup.POST("", mw.CaptureLog(mw.ReqBody), mw.BindJson[ProjectCreateRequest], h.CreateProject)
@@ -109,10 +109,11 @@ func (h *Handler) Register(r *gin.RouterGroup, authMw, optionalMw gin.HandlerFun
 	// 项目之间排序：落 project_models.sort_order，是现行功能（不随旧表退役）。
 	projectAdminGroup.PATCH("order", mw.CaptureLog(mw.ReqBody),
 		mw.BindJson[ProjectOrderRequest], h.ReplaceProjectSortOrder)
-	// 目录树（与合集同一套读写形状，路径换成 /projects）。
-	projectAdminGroup.GET(":id/outline/admin", mw.BindUri[kernel.IDRequest], h.AdminProjectOutline)
-	projectAdminGroup.PUT(":id/outline", mw.CaptureLog(mw.ReqBody),
-		mw.BindUri[kernel.IDRequest], mw.BindJson[OutlineSaveRequest], h.SaveProjectOutline)
+	// 项目目录树（与合集同一套读写形状，路径换成 /projects），写入
+	// project_outline_node_models。
+	projectAdminGroup.PUT(":id/outline-tree", mw.CaptureLog(mw.ReqBody),
+		mw.BindUri[kernel.IDRequest], mw.BindJson[ProjectOutlineSaveRequest],
+		h.SaveProjectOutlineTree)
 
 	adminGroup.PUT("tags", mw.CaptureLog(mw.ReqBody), mw.BindJson[TagRequest], h.SaveTag)
 	adminGroup.DELETE("tags", mw.CaptureLog(mw.ReqBody), mw.BindJson[kernel.IDListRequest], h.DeleteTags)

@@ -67,7 +67,12 @@ func WireHTTP(infra *Infra, lc *Lifecycle) error {
 	WireSocial(infra)
 
 	// chat 链路：私信改由 internal/chat 提供。
-	WireChat(infra)
+	// 处理器由模块装配后显式交给路由树（#280）：路由包不再持有私信包级变量。
+	chatModule := WireChat(infra)
+	handlers := router.Handlers{}
+	if chatModule != nil {
+		handlers.Chat = chatModule.Handler
+	}
 
 	// ai 链路：AI 能力改由 internal/ai 提供。
 	WireAI(infra)
@@ -76,7 +81,7 @@ func WireHTTP(infra *Infra, lc *Lifecycle) error {
 	// 必须在 WireUser 之后：用户列表的"最后登录"依赖同一份日志查询配置。
 	WireAnalytics(infra)
 
-	srv, err := router.Run(opts, infra.Health)
+	srv, err := router.Run(opts, infra.Health, handlers)
 	if err != nil {
 		return fmt.Errorf("启动 HTTP 服务失败: %w", err)
 	}

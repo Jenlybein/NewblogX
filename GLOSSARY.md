@@ -49,9 +49,9 @@ _Avoid_: 按中文字符串匹配错误分支（改一个字就断）。
 
 **零 DDL（零 DDL 硬约束 = 零列变更 + 允许新增表）**：
 不改、不删既有表结构（列名、类型、列顺序、删列全禁），只允许 `CREATE TABLE IF NOT EXISTS` 新建表；因为 **CDC 按列名解析 binlog 行**（ES 文章投影与 image-ref 两条链路都从行快照按列名取值，不是只有 ES 投影）。
-例外边界写死在"新建表"这一侧：经 ADR 立项的登记例外必须一条 ADR 指名；**当前没有任何登记例外**——通用取景表 `picture_crop_models` 曾是首个也是唯一一个，已随取景退场在 #205 物理下线（[ADR-0020](./docs/adr/0020-zero-ddl-exception-and-generic-framing-table.md) 已由 [ADR-0015](./docs/adr/0015-banner-framing-as-parameters.md) 取代）。**既有表的列变更仍然一律禁止**（含 ALTER、DROP 后重建、加列、删列）。
+例外边界写死在"新建表"这一侧：**新建表本身不违反零 DDL**，但必须由一条 ADR 指名立项，并走 `schema.sql` + testkit 三处登记。私信模块唯一经 ADR 指名新增的表是 `chat_block_models`（[ADR-0026](./docs/adr/0026-chat-send-side-risk-control.md)）；通用取景表 `picture_crop_models` 曾由 [ADR-0020](./docs/adr/0020-zero-ddl-exception-and-generic-framing-table.md) 立项、已随取景退场在 #205 物理下线（该 ADR 由 [ADR-0015](./docs/adr/0015-banner-framing-as-parameters.md) 取代）。**既有表的列变更没有任何例外**（含 ALTER、DROP 后重建、加列、删列）——说"没有登记例外"指的是这一侧。
 位置：硬约束 A1，见 `docs/architecture/overview.md` §六、`README.md` §11.3 与 §十三；新增表仍走 `schema.sql` + testkit 三处登记。
-_Avoid_: 把"迁移"理解成 ALTER——本项目没有 ALTER 通道；把"允许新增表"读成"允许重建既有表"；把已下线的通用取景表当作现行登记例外。
+_Avoid_: 把"迁移"理解成 ALTER——本项目没有 ALTER 通道；把"允许新增表"读成"允许重建既有表"；把已下线的通用取景表当作现行登记例外；把"没有登记例外"读成"不允许新增表"（新建表只需 ADR 指名，不是例外）。
 
 ---
 
@@ -75,8 +75,8 @@ handler 上的 `// @Summary` / `@Param` / `@Success` 注释是契约的唯一来
 统一响应外壳 `{code,msg,data}`，**只用于 `@Success` 注解**，业务代码不要拿它构造响应。
 位置：`backend/internal/kernel/envelope.go`；注解写法 `kernel.Envelope[kernel.ListData[http.XxxItem]]`。
 
-**data 载荷（ListData / HasMoreListData / EmptyData / SiteConfigData）**：
-四种 data 形状，必须按 handler 实际调用的 helper 选：`OkWithList`→`{list,count}`、`OkWithHasMoreList`→`{list,has_more}`、`OkWithMsg`→`{}`、`/site/{name}`→自由键值块。
+**data 载荷（ListData / HasMoreListData / EmptyData）**：
+三种 data 形状，必须按 handler 实际调用的 helper 选：`OkWithList`→`{list,count}`、`OkWithHasMoreList`→`{list,has_more}`、`OkWithMsg`→`{}`；九段运行时配置各有具名形状，不再使用自由键值块。
 位置：`backend/internal/kernel/envelope.go`。
 易混：`ListData` 与 `HasMoreListData` 用错就是契约撒谎——前端读 `has_more` 恒为 `undefined`，编译器一句提示都没有。
 
@@ -124,8 +124,8 @@ _Avoid_: 在代码里再写一份默认值（两份默认值会互相打架）�
 
 **运行时配置（runtime_config_models）**：
 管理员在后台改、下一次请求即生效的配置；表结构是 `(name, payload)`，**一段一行完整 JSON**。
-位置：表 `runtime_config_models`；八段 `site/ai/mail/storage/oauth/log/upload/deco`。
-_Avoid_: 旧表 `runtime_site_config_models`（已无代码读）、列化存储（零 DDL 下每加字段都要改表 = 不可行）。
+位置：表 `runtime_config_models`；九段 `site/ai/mail/storage/oauth/log/upload/deco/image_gc`，由 `backend/internal/platform/config/registry.go` 的段注册表一处登记，漏登记在写库前失败（[ADR-0029](./docs/adr/0029-config-section-registry-and-nine-named-sections.md)）。
+_Avoid_: 旧表 `runtime_site_config_models`（已无代码读）、列化存储（零 DDL 下每加字段都要改表 = 不可行）、参数化 `/site/{name}` 与 `map[string]any` 自由键值块（已退场，九段各有具名响应/请求形状）。
 
 **Provider 闭包（现读）**：
 消费点持有的是取值函数（`func() T`）而不是启动时的值快照，所以后台改完立刻生效。
@@ -211,7 +211,12 @@ _Avoid_: 自动重投（定时扫 pending；死信多半是"改之前必然失�
 
 **门禁（scripts/check.sh）**：
 本地一键门禁（后端 + 集成 + 两端前端 + 门禁自检），口径必须与 CI 一致；跑过它等于本地结论与 CI 一致。
-位置：`bash scripts/check.sh [all|backend|frontend|gates]`，开关 `BLOGX_FAST` / `BLOGX_NO_CACHE` / `BLOGX_SKIP_INTEGRATION`。
+位置：`bash scripts/check.sh [all|backend|frontend|gates]`，开关 `BLOGX_FAST` / `BLOGX_NO_CACHE` / `BLOGX_SKIP_INTEGRATION`；具体命令不写在这里，见「门禁清单 / 门禁 runner」。
+
+**门禁清单 / 门禁 runner（scripts/gates/）**：
+门禁清单只有一个来源 `scripts/gates/gates.json`；本地门禁、持续集成、门禁自检三处都经 `node scripts/gates/run.mjs` 调同一批命令，工具版本与公共安装步骤经 `scripts/gates/install.mjs` 读 `scripts/tool-versions.env`。
+位置：`scripts/gates/`（`gates.json` / `run.mjs` / `install.mjs` / `tools.mjs` / `registry.mjs`）；加一道门禁只改 `gates.json` 一处，并登记它对应的演练节号。
+_Avoid_: 在 `check.sh`、`ci.yml`、`verify-gates.sh` 各写一遍命令或版本字面量（口径必然漂移，且加一道门禁要改三处）。
 
 **archcheck**：
 Go AST 实现的架构守卫，替代会"永真通过"的 PowerShell 正则守卫；规则 R1–R12，每条有 ID 与 slug。
@@ -219,8 +224,8 @@ Go AST 实现的架构守卫，替代会"永真通过"的 PowerShell 正则守�
 _Avoid_: 用 grep/正则匹配符号名做架构检查（别名与换行能绕过，且 CI 跑不了 PowerShell）。
 
 **棘轮（--max-violations）**：
-存量违规基线，只准减不准增；基线数字只在 `scripts/arch-baseline.env` 定义一次，三处消费。
-位置：`scripts/arch-baseline.env`（当前 0），消费方是 `check.sh`、`verify-gates.sh`、`.github/workflows/ci.yml`。
+存量违规基线，只准减不准增；基线数字只在 `scripts/arch-baseline.env` 定义一次，经门禁清单里的 archcheck 门禁由 runner 读一次并填进命令。
+位置：`scripts/arch-baseline.env`（当前 0），消费方是 `check.sh`、`verify-gates.sh`、`.github/workflows/ci.yml` 三处共用的 `node scripts/gates/run.mjs --group backend`。
 _Avoid_: 把基线数字写死在别处（曾出现"本地降到 0、CI 还停在 250"）。
 
 **规则自检（rules_test.go）**：
@@ -228,13 +233,15 @@ _Avoid_: 把基线数字写死在别处（曾出现"本地降到 0、CI 还停�
 位置：`backend/tools/archcheck/rules_test.go`；新增规则必须同时补人造用例。
 
 **门禁自检（verify-gates.sh）**：
-主动注入违规来证明每道门禁真的会红（14 道 canary），而不是永远绿。
-位置：`bash scripts/verify-gates.sh`；CI 里由 `gates-canary` job 调用同一脚本，不另写一份注入逻辑。
+主动注入违规来证明每道门禁真的会红（14 道 canary），而不是永远绿；开跑前先核对「清单里的每道门禁都登记了演练」。
+位置：`bash scripts/verify-gates.sh`（默认全跑；`--only <节号>` 只跑受影响演练）；CI 里由 `gates-canary` job 调用同一脚本，不另写一份注入逻辑。
+_Avoid_: 给门禁自检加"整体跳过"开关（`--skip` / `BLOGX_SKIP_GATES` 之类一律拒绝；零项选中按失败处理）。
 
 **假绿 / 门禁撒谎**：
-门禁"看起来通过但实际没执行"的失效形态：测试缓存命中、静默跳过、子 shell 吞掉退出码、生成被打断仍 exit 0。
+门禁"看起来通过但实际没执行"的失效形态：测试缓存命中、静默跳过、子 shell 吞掉退出码、生成器静默跳过整份写入仍 exit 0。
 位置：`docs/architecture/governance.md` §1.3；对策是跳过的步骤必须打印警告、CI 把跳过变成失败。
-_Avoid_: 用 `git diff --exit-code` 当契约判据（工作区脏会假红，人习惯性忽略）。
+理由：用「生成后有没有差异」当契约判据时，生成器静默跳过时差异为空，检查会误判为"契约未过期"而全绿；所以契约未过期判定改成"重新生成到临时文件逐字比对 + 条目数量不下降 + 本次新增结构在场"。
+_Avoid_: 用 `git diff --exit-code` 当契约判据（生成器静默跳过时差异为空，且工作区脏会假红，人习惯性忽略）。
 
 **golden 测试**：
 写死种子、逐字节比对、**不做归一化**的响应快照测试；只给 5 个只读模块做（comment / search / site / notification / analytics）。
@@ -450,21 +457,27 @@ _Avoid_: 用"档位 B"描述现状；在 `prefers-reduced-motion` 下仍保留�
 _Avoid_: 「管理员置顶」（ES 旧派生字段 `admin_top` 的叫法，已删除）；「精选文章」（旧文案）；拿「热门置顶」指作者置顶。
 
 **合集（collection）**：
-由**管理员**维护的、有标题 / 描述 / 封面 / 展示开关与顺序的文章集合（"Nuxt 部署实战"这类专题）。与「热门置顶」是两套数据：合集没有条数上限，且主体是"一个有名字的集合"而不是首页排序位；作者不参与创建，读者只读。唯一真相是主表 `collection_models`；**收录关系与层次由「目录树」承载**（见本节「目录树」词条，[ADR-0023](./docs/adr/0023-outline-tree-for-collections-and-projects.md)），旧的扁平中间表 `collection_article_models` 已下线（#225：代码不再登记，生产库由部署时手工 DROP）。失效口径沿用原来那套：文章后来不再公开时树节点**保留**，读者侧靠 JOIN 过滤、后台标「已失效」并可清理。合集**不进 ES**（运营编排不是可检索内容）。读者侧列表只出「展示中」的合集，篇数只算仍公开的文章；未展示的合集对读者按**不存在**处理（不返回"这个合集未发布"），管理员仍可打开。封面为空时读模型回退到首篇公开文章的封面（即树中深度优先的第一个文章节点）。
-位置：表 `collection_models` + 目录树 `content_outline_node_models`（DDL 见 `backend/internal/platform/mysql/ddl/schema.sql`）；接口 `GET /collections`、`GET /collections/{id}`（公开读，detail 回嵌套树）、`GET /collections/admin`、`POST /collections`、`PATCH /collections/{id}/display`；后端 `internal/article/domain/collection`（规则与读模型）、`app/collection.go`、`adapter/mysql/collection_repo.go`、`adapter/http/handler_collection.go`；读者站 `frontend/app/pages/collections/` 与顶栏第四项 `frontend/app/utils/chrome.ts`。
+由**管理员**维护的、有标题 / 描述 / 封面 / 展示开关与顺序的文章集合（"Nuxt 部署实战"这类专题）。与「热门置顶」是两套数据：合集没有条数上限，且主体是"一个有名字的集合"而不是首页排序位；作者不参与创建，读者只读。唯一真相是主表 `collection_models`；**收录关系与层次由「合集目录树」承载**（见本节「合集目录树」词条，[ADR-0028](./docs/adr/0028-named-outline-trees-as-the-only-shape.md)），旧的扁平中间表 `collection_article_models` 已下线（#225：代码不再登记，生产库由部署时手工 DROP）。失效口径沿用原来那套：文章后来不再公开时树节点**保留**，读者侧靠 JOIN 过滤、后台标「已失效」并可清理。合集**不进 ES**（运营编排不是可检索内容）。读者侧列表只出「展示中」的合集，篇数只算仍公开的文章；未展示的合集对读者按**不存在**处理（不返回"这个合集未发布"），管理员仍可打开。封面为空时读模型回退到首篇公开文章的封面（即树中深度优先的第一个文章节点）。
+位置：表 `collection_models` + `collection_outline_node_models`（DDL 见 `backend/internal/platform/mysql/ddl/schema.sql`）；接口 `GET /collections`、`GET /collections/{id}`（公开读，detail 回嵌套树）、`GET|PUT /collections/{id}/outline-tree`、`GET /collections/admin`、`POST /collections`、`PATCH /collections/{id}/display`；后端 `internal/article/domain/collection`（规则与读模型）、`app/collection.go`、`adapter/mysql/collection_repo.go`、`adapter/http/handler_collection.go`；读者站 `frontend/app/pages/collections/` 与顶栏第四项 `frontend/app/utils/chrome.ts`。
 _Avoid_: 「专辑」「专栏」「系列」（同义词，一律写合集）；用「合集」指用户自己的收藏夹（那是 `favorite_models`，与合集无关）；用「合集」指 ADR 归档（`docs/archive/v1/04-adr-collection.md` 是旧文档合集，不是这个功能）。
 
 **项目（project）**：
 读者站顶栏第五项所指向的内容实体，与「合集」是**两套独立数据、两个入口**（合集仍在第四项）。在内容语境下「项目」专指这个实体：它的列表页、卡片、空态文案一律写「项目」，不混用「合集」字样；页面版式与组件复用合集的读者侧实现，但数据来源独立。
 易混：`backend/conf/site/enter.go` 的 `Project` 段是**站点项目配置**（站点项目名 / 图标 / 前端入口路径），契约字段 `project_title` 属站点配置域，不是内容实体；文档里「本项目 / 这个软件项目」一律指**本仓库**，写作时改成「本仓库」。
-位置：表 `project_models` 与目录树 `content_outline_node_models`（收录与层次由目录树承载，旧中间表 `project_article_models` 已下线，#225 之后代码不再登记它、生产库由部署时手工 DROP）；接口 `GET /projects`、`GET /projects/{id}`；读者站 `frontend/app/pages/projects/`、后台「项目管理」与树编辑器。读者侧版式与合集复用（同网格、同卡片、同空态），数据来源与表各自独立。
+位置：表 `project_models` 与 `project_outline_node_models`（收录与层次由「项目目录树」承载，旧中间表 `project_article_models` 已下线，#225 之后代码不再登记它、生产库由部署时手工 DROP）；接口 `GET /projects`、`GET /projects/{id}`、`GET|PUT /projects/{id}/outline-tree`；读者站 `frontend/app/pages/projects/`、后台「项目管理」与树编辑器。读者侧版式与合集复用（同网格、同卡片、同空态），数据来源与表各自独立。
 _Avoid_: 用「项目」指站点项目配置或本仓库；用「项目」指顶栏第四项的「合集」；把两者当成同一份数据的两个入口。
 
-**目录树（outline）**：
-合集 / 项目内部的**层次与顺序**：由「文件夹节点」（只分组、不可阅读、不可点击）与「文章节点」（指向一篇文章）组成，可任意深度嵌套。一篇文章可以同时出现在多棵树里，所以"属于哪棵树"是**节点**的属性，不是文章的属性（同一棵树内最多一个节点）。读者侧详情页就是这棵树——点文章节点跳到阅读页并带 `?from=<kind>:<id>` 来路；阅读页左侧显示同一棵树（当前节点高亮 + 上一篇/下一篇），窄屏收进「目录」抽屉。后台用一个树编辑器编排（取代合集 / 项目的排列页）。
-位置：表 `content_outline_node_models`（`owner_kind` / `owner_id` / `parent_id` / `kind` / `title` / `article_id` / `sort_order` / 软删）；旧的扁平中间表 `collection_article_models` / `project_article_models` 已**下线**（#225：`schema.sql` 与 testkit 都不再登记、代码不再读写，生产库由部署时手工 DROP）；后台树编辑器与读者侧详情页 / 阅读页左栏。
-易混：文章内的标题大纲叫**标题大纲**（`ArticleTocAnchor`），不是目录树；「收录」现在就是"把一个文章节点挂到树上"，不再有第二份成员表。
-_Avoid_: 叫它「侧栏 / 目录组件」（那是标题大纲）；把文件夹当可读内容；把它当成合并「合集」与「项目」的手段（两个实体仍是两套数据、两个入口）。
+**合集目录树（collection outline）**：
+合集内部的**层次与顺序**：由「文件夹节点」（只分组、不可阅读、不可点击）与「文章节点」（指向一篇文章）组成，可任意深度嵌套。一篇文章可以同时出现在多棵树里，所以"属于哪棵树"是**节点**的属性，不是文章的属性（同一棵树内最多一个节点）。读者侧合集详情页就是这棵树——点文章节点跳到阅读页并带 `?from=collection:<id>` 来路；阅读页左侧显示同一棵树（当前节点高亮 + 上一篇/下一篇），窄屏收进「目录」抽屉。后台用一个树编辑器编排。
+位置：表 `collection_outline_node_models`（`owner_id` / `parent_id` / `kind` / `title` / `article_id` / `sort_order` / 软删）；接口 `GET|PUT /collections/{id}/outline-tree`；后端 `internal/article/domain/outline`（两个实体共用的纯规则）、`internal/article/app/named_outline.go`、`adapter/mysql/named_outline_repo.go`、`adapter/http/handler_named_outline.go`；读者站合集详情页与阅读页左栏、后台合集编辑弹窗的树抽屉。取舍见 [ADR-0028](./docs/adr/0028-named-outline-trees-as-the-only-shape.md)。
+易混：文章内的标题大纲叫**标题大纲**（`ArticleTocAnchor`），不是合集目录树；「收录」现在就是"把一个文章节点挂到树上"，不再有第二份成员表。
+_Avoid_: 「目录树」（旧正名，已退役：它曾指一张同时服务合集与项目的共用表，见 [ADR-0023](./docs/adr/0023-outline-tree-for-collections-and-projects.md)）；「侧栏 / 目录组件」（那是标题大纲）；把文件夹当可读内容；把它与「项目目录树」当成同一份数据。
+
+**项目目录树（project outline）**：
+项目内部的**层次与顺序**：节点种类、嵌套规则、失效行口径与「合集目录树」共用一份纯规则，但数据各自独立、归属由表名表达。读者侧项目详情页就是这棵树——点文章节点跳到阅读页并带 `?from=project:<id>` 来路；阅读页左侧显示同一棵树，窄屏收进「目录」抽屉。后台用一个树编辑器编排。
+位置：表 `project_outline_node_models`（`owner_id` / `parent_id` / `kind` / `title` / `article_id` / `sort_order` / 软删）；接口 `GET|PUT /projects/{id}/outline-tree`；后端 `internal/article/domain/outline`、`internal/article/app/named_outline.go`、`adapter/mysql/named_outline_repo.go`、`adapter/http/handler_named_outline.go`；读者站项目详情页与阅读页左栏、后台项目编辑弹窗的树抽屉。取舍见 [ADR-0028](./docs/adr/0028-named-outline-trees-as-the-only-shape.md)。
+易混：文章内的标题大纲叫**标题大纲**（`ArticleTocAnchor`），不是项目目录树；读者侧版式与合集复用同一份组件，数据来源与表各自独立。
+_Avoid_: 「目录树」（旧正名，已退役：它曾指一张同时服务合集与项目的共用表，见 [ADR-0023](./docs/adr/0023-outline-tree-for-collections-and-projects.md)）；「侧栏 / 目录组件」（那是标题大纲）；把文件夹当可读内容；把它与「合集目录树」当成同一份数据。
 
 **作者置顶**：
 作者把自己的一篇文章钉在**个人主页**的置顶关系；只有作者本人能设置，与热门置顶是两套数据、两套存储。读者站与后台当前都**没有**消费点（用户页 / 个人主页的文章列表走搜索 type 3），接口保留但不在「显示」开关的读者读面清单内（ADR-0017 决策 4）。
@@ -523,7 +536,7 @@ _Avoid_: 把「消息中心」当作私信页的新名字（私信只是它五�
 
 **陌生人私信（stranger DM policy）**：
 是否允许陌生人给我发私信由**两级**决定：站点总闸（`site.chat.stranger_msg_enabled`，缺省显式关闭）**且**接收方个人开关（账号设置里的「允许陌生人给我发私信」，默认开启）。任一关闭即拒绝；自己发给自己、双方已有关注或既存会话关系时不做陌生人判定。拒绝时判定结论带**哪一级**：站点级与接收方级各有错误码（`chat.stranger_disabled` / `chat.recipient_stranger_disabled`）与不同文案，不把"对方不想收"说成站点策略。
-位置：`backend/internal/chat/domain/chat.go` 的 `StrangerPolicy`（`CheckStranger` 带接收方 id、返回 `StrangerVerdict`）、`backend/app/chat_wiring.go`（两级取值）、读者站账号设置页的隐私区、`PUT /users/info` 的可选字段 `stranger_msg_enabled`。
+位置：`backend/internal/chat/domain/chat.go` 的 `StrangerPolicy`（`CheckStranger` 带接收方 id、返回 `StrangerVerdict`）、`backend/internal/chat/module.go`（两级取值）、读者站账号设置页的隐私区、`PUT /users/info` 的可选字段 `stranger_msg_enabled`。
 _Avoid_: 说它"只由站点开关决定"（那是旧口径，已废止）；把"陌生人"理解成"没关注我的人"或"没聊过的人"之一——判定按既有关注/会话关系整体算，不是单一维度；把所有拒绝都归到站点级（接收方关掉自己开关时找管理员查不出任何问题）。
 
 **屏蔽（block）**：
@@ -538,13 +551,28 @@ _Avoid_: 把它与「屏蔽」当同义词（屏蔽仍保留历史会话可见�
 
 **私信（direct message）**：
 登录用户之间一对一发送的文本 / 图片消息；发送与接收双方各持一份会话视图，删除只影响自己那一份。它不是系统通知，也不是 AI 对话。
-位置：`backend/internal/chat/`（`domain` / `app` / `adapter`）、接口 `/api/chat/*`、WebSocket `/api/chat/ws`；读者站 `frontend/app/components/inbox/InboxChatPanel.vue`（挂在消息中心的私信子项下）；表 `chat_msg_models` / `chat_msg_user_state_models` / `chat_session_models` / `chat_block_models`。
+位置：`backend/internal/chat/`（`domain` / `app` / `adapter` / 模块装配 `module.go`）、接口 `/api/chat/*`、WebSocket `/api/chat/ws`；读者站 `frontend/app/components/inbox/InboxChatPanel.vue`（挂在消息中心的私信子项下）；表 `chat_msg_models` / `chat_msg_user_state_models` / `chat_session_models` / `chat_block_models`。
 _Avoid_: 用裸词「消息」「聊天」指代私信（站内信、通知、AI 面板都叫消息）；把「站内信」当作私信（那是系统通知面板 `InboxSitePanel`）；把「捏捏」的 AI 面板当作会话。
 
 **会话（chat session）**：
 两名用户之间私信的**有序序列**，由双方 ID 双向一致地求出同一个 `session_id`（`domain.BuildSessionID`），因此 A→B 与 B→A 落在同一会话；会话有自己的软删与未读计数，删除会话只清自己那侧。
 位置：`backend/internal/chat/domain/chat.go`、`adapter/mysql/chat.go` 的 `ListSessions`；表 `chat_session_models`。
 _Avoid_: 把会话当成「消息列表」（后者是会话里的逐条内容）；把「会话」说成「对话窗口 / 聊天室」（前者是数据，后者是 UI）；把还没发出首条消息时的空占位当成另一种会话。
+
+**会话可见集（session visible set）**：
+某用户在某条会话里能看到的全部消息：`send_time` 在清空水位之上、未被本人删除，**包含自己发出的消息**（不是只算收到的）。会话列表、消息列表、整会话已读、消息中心角标与 30 分钟并账都消费同一份实现，不再各写一份判定式。
+位置：`backend/internal/chat/adapter/mysql/visibility.go`（唯一实现）· `backend/internal/chat/adapter/mysql/chat.go`（消息列表与清空水位）· [ADR-0027](./docs/adr/0027-message-center-ordering-pagination-and-read-receipt.md)。
+_Avoid_: 旧名「会话可见与未读真相」（已退役，正名拆成「会话可见集」与「会话未读数」）；把「可见集」当成「未读数」（后者是前者的子集）；把它当成「会话列表」；只算收到的消息（自己发的也在可见集里）。
+
+**会话未读数（session unread count）**：
+会话可见集里再加一个条件——接收者是我、且消息状态未读——得到的条数；会话 badge、消息中心角标、整会话已读与并账必须给出同一个数。
+位置：`backend/internal/chat/adapter/mysql/visibility.go`、`backend/internal/chat/adapter/mysql/unread_reconcile.go`、消息中心聚合（`backend/internal/notification`）· [ADR-0027](./docs/adr/0027-message-center-ordering-pagination-and-read-receipt.md)。
+_Avoid_: 旧名「会话可见与未读真相」（已退役，正名拆成「会话可见集」与「会话未读数」）；把未读数说成可见集；用推送增量或客户端缓存当真相；把站内信 / 系统通知的未读混进来。
+
+**私信发送资格（chat send eligibility）**：
+一次发送前必须判完的五项准入：站点总闸（`site.chat.stranger_msg_enabled`）、接收方个人开关、屏蔽 / 拉黑分级、按对限流预占、图片来源（仅图片消息）。判定点唯一，依赖不可用或查询异常一律失败关闭（拒绝发送），不存在"跳过这一项"的放行分支。管理员视图不过滤拉黑是**有意例外**，不属于发送资格。
+位置：`backend/internal/chat/app/eligibility.go`（`sendGuard`）、`backend/internal/chat/app/service.go`（`Send`）、`backend/internal/chat/module.go`（五项依赖的装配）· [ADR-0026](./docs/adr/0026-chat-send-side-risk-control.md)。
+_Avoid_: 「发送侧风控」（旧名，已退役）；把发送资格说成「陌生人私信」（那只是其中两级开关）；依赖缺失时放行；把管理员视图的拉黑例外当成漏判。
 
 ---
 
@@ -564,9 +592,9 @@ _Avoid_: 叫它"弹窗 / modal"（它无遮罩、无居中卡片、不锁滚动�
 _Avoid_: 说它"跳到页脚 / 回到顶部"；把它的 aria 名称写成"评论"。
 
 **计数账本（count ledger）**：
-点赞 / 收藏数的**派生值**口径：这两个数不再靠增量累积，30 分钟并账时用 `COUNT(关系行)` 直接覆盖整列（`digg_count` / `favor_count`）；两次并账之间，读路径返回 `列 + Redis 增量`，增量是短命的、不参与持久化。视图数与评论数仍是另一套口径（`列 += 增量`）。因此"临时 ±1"不会累积成漂移，CDC 实时并账是明确的非目标。
-位置：`backend/internal/article/adapter/mysql/counter_flush.go`（并账）、`backend/app/cron_wiring.go`（任务装配）、`backend/internal/article/app/subdomain.go`（收藏内容列表的增量合并）；决策见 [ADR-0025](docs/adr/0025-count-ledger-and-reconciliation.md)。
-_Avoid_: 把"列 + 增量"当成权威值（它只是两次并账之间的可读近似）；用"实时对账 / CDC 并账"描述它（那是被否掉的方向）。
+点赞 / 收藏数的**派生值**口径：这两个数不再靠增量累积，并账时用 `COUNT(关系行)` 直接覆盖整列（`digg_count` / `favor_count`）；两次并账之间，权威值 = `持久列 + Redis 增量`，增量是短命的、不参与持久化。视图数与评论数仍是另一套口径（`列 += 增量`）。并账周期是**运行期配置**（`site.reconcile.interval_minutes`，默认 30 分钟），文章计数与私信未读跑在同一个调度任务里、失败彼此隔离。权威值只有一个读入口（`app.CountLedger`）；旧的「每个读点各自把列与增量相加」是**被取代口径**。因此"临时 ±1"不会累积成漂移，CDC 实时并账是明确的非目标。
+位置：`backend/internal/article/adapter/mysql/counter_flush.go`（并账）、`backend/app/cron_wiring.go`（任务装配与周期来源）、`backend/internal/article/app/ledger.go`（唯一权威读入口）；决策见 [ADR-0025](docs/adr/0025-count-ledger-and-reconciliation.md)。
+_Avoid_: 把"列 + 增量"当成一处**读路径口径**（它只是账本主值的构成：读取一律经账本入口）；用"实时对账 / CDC 并账"描述它（那是被否掉的方向）；把并账周期写回代码常量。
 
 ---
 

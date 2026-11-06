@@ -15,12 +15,12 @@ func TestParsePurposeAcceptsOnlyCoverAndAvatar(t *testing.T) {
 		want domain.Purpose
 		ok   bool
 	}{
-		"cover":  {want: domain.PurposeCover, ok: true},
-		"avatar": {want: domain.PurposeAvatar, ok: true},
+		"cover":    {want: domain.PurposeCover, ok: true},
+		"avatar":   {want: domain.PurposeAvatar, ok: true},
 		" AVATAR ": {want: domain.PurposeAvatar, ok: true},
-		"":       {ok: false},
-		"poster": {ok: false},
-		"Cover2": {ok: false},
+		"":         {ok: false},
+		"poster":   {ok: false},
+		"Cover2":   {ok: false},
 	}
 	for input, want := range cases {
 		got, ok := domain.ParsePurpose(input)

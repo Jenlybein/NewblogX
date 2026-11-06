@@ -79,21 +79,48 @@ function tempRegistry(mutate) {
       bad('--list --json 输出门禁数组', r.stdout);
     } else {
       const required = [
+        'backend-test',
         'archcheck',
         'contract-freshness',
         'contract-freshness-cases',
+        'frontend-typecheck',
+        'contract-types',
+        'route-contract',
+        'admin-auth',
+        'menu-pages',
+        'frontend-lint',
+        'coverage-threshold',
         'token-parity',
         'image-shaping-parity',
       ];
       const missing = required.filter(id => !gates.some(g => g.id === id));
       if (missing.length) bad(`清单包含全部门禁（缺 ${missing.join(', ')}）`, JSON.stringify(gates, null, 2));
       else ok('--list --json 输出门禁数组，含全部门禁');
-      const shape = gates.filter(g => !g.label || !Array.isArray(g.steps) || g.steps.length === 0);
-      if (shape.length) bad('每道门禁都有 label 与可执行步骤', JSON.stringify(shape, null, 2));
-      else ok('每道门禁都有 label 与可执行步骤');
+      // 每条都必须有执行方式：steps（runner 代跑）或 section（由本地脚本 / CI job 执行）。
+      const hasRun = g => (Array.isArray(g.steps) && g.steps.length > 0) || Number.isInteger(g.section);
+      const shape = gates.filter(g => !g.label || !g.group || !hasRun(g));
+      if (shape.length) bad('每道门禁都有 label、group 与执行方式（steps 或 section）', JSON.stringify(shape, null, 2));
+      else ok('每道门禁都有 label、group 与执行方式（steps 或 section）');
       const uncovered = gates.filter(g => !Array.isArray(g.canaries) || g.canaries.length === 0);
       if (uncovered.length) bad('每道门禁都登记了对应的演练节号', coveredIds(uncovered));
       else ok('每道门禁都登记了对应的演练节号');
+      // #287 AC1/AC4/AC6：清单正好 13 道仓库级门禁 —— 14 个演练节号里 13 个由
+      // 清单门禁负责，第 14 个（生成式装饰参数校验）按 AC4 不进清单，必须由
+      // notGates 显式豁免；既没人负责又没登记的节号照样算漏。
+      const canaryFile = JSON.parse(fs.readFileSync(path.join(ROOT, 'scripts', 'gates', 'gates.json'), 'utf8'));
+      const wanted = (canaryFile.canaries || []).map(c => c.id);
+      const notGates = new Set(canaryFile.notGates || []);
+      const covered = new Set(gates.flatMap(g => g.canaries || []));
+      const unregistered = wanted.filter(id => !covered.has(id) && !notGates.has(id));
+      const bothSides = [...notGates].filter(id => covered.has(id));
+      if (gates.length !== 13 || wanted.length !== 14 || unregistered.length || bothSides.length) {
+        bad(
+          '清单正好 13 道门禁；14 个演练节号里 13 个有门禁负责、第 14 个按 notGates 显式豁免' +
+          `（门禁 ${gates.length} 道，没人负责也没豁免的演练 ${unregistered.join(',') || '无'}，` +
+          `既豁免又有门禁认领的 ${bothSides.join(',') || '无'}）`,
+          JSON.stringify(gates.map(g => g.id), null, 2),
+        );
+      } else ok('清单正好 13 道门禁；14 个演练节号里 13 个有门禁负责、第 14 个按 notGates 显式豁免');
     }
   }
 
@@ -139,6 +166,16 @@ function coveredIds(gates) {
   if (cov.status === 0 || !out(cov).includes('demo-gate-without-canary')) {
     bad('没有演练的门禁会让覆盖检查失败并点名', out(cov));
   } else ok('没有演练的门禁会让覆盖检查失败并点名');
+
+  // 豁免只能显式：某节既没人负责又没登记 notGates 时，覆盖检查必须失败。
+  // 否则「少登记一道门禁」会静默变成绿的那一类失效。
+  const orphanFile = tempRegistry(data => {
+    data.canaries.push({ id: 96, title: '既没门禁也没豁免的演练', affected: [] });
+  });
+  const orphan = cli(['--check-coverage', '--registry', orphanFile]);
+  if (orphan.status === 0 || !out(orphan).includes('演练 96')) {
+    bad('没人负责又没登记 notGates 的演练会让覆盖检查失败（豁免不是静默放过）', out(orphan));
+  } else ok('没人负责又没登记 notGates 的演练会让覆盖检查失败（豁免不是静默放过）');
 
   const covOk = cli(['--check-coverage']);
   if (covOk.status !== 0) bad('当前清单的演练覆盖检查通过', out(covOk));

@@ -269,10 +269,10 @@ func TestChatDetailed_Usage(t *testing.T) {
 		reply: "你好",
 		delay: time.Millisecond,
 		usage: &schema.TokenUsage{
-			PromptTokens:     12,
-			CompletionTokens: 7,
-			TotalTokens:      19,
-			PromptTokenDetails:     schema.PromptTokenDetails{CachedTokens: 3},
+			PromptTokens:            12,
+			CompletionTokens:        7,
+			TotalTokens:             19,
+			PromptTokenDetails:      schema.PromptTokenDetails{CachedTokens: 3},
 			CompletionTokensDetails: schema.CompletionTokensDetails{ReasoningTokens: 2},
 		},
 	}

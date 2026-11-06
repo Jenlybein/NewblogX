@@ -264,6 +264,51 @@ func TestReconcileAllChatUnreadPaginatesAllSessions(t *testing.T) {
 	}
 }
 
+// TestReconcileAllChatUnreadCursorCoversBothSidesOfEachSession 游标按 session_id
+// 去重分页，批次边界不会漏掉同一条会话的另一方。
+//
+// #279 AC4 要求"排序 / 水位 / 分页不读 ID 大小"，所以全量并账的游标是 session_id
+// 而不是雪花主键。但 session_id 不是唯一键：一条会话在表里有两行（双方各一行）。
+// 如果分页按"行"推进（`session_id > after`），批量为 1 时批次边界正好落在同一
+// 会话的两行之间，另一方就永远不会被重算 —— 角标一直是脏值。
+// 这里用 batch=1 把边界钉死在每一条会话中间，要求所有用户都被覆盖到。
+func TestReconcileAllChatUnreadCursorCoversBothSidesOfEachSession(t *testing.T) {
+	t.Parallel()
+
+	repo, db := setup(t)
+	ctx := context.Background()
+	base := time.Date(2026, 1, 1, 10, 0, 0, 0, time.UTC)
+
+	// 三条会话、每对用户各两行：100-200、100-300、200-300。
+	sendText(t, repo, 100, 200, "ab-1", base)
+	sendText(t, repo, 100, 200, "ab-2", base.Add(time.Minute))
+	sendText(t, repo, 100, 300, "ac-1", base.Add(2*time.Minute))
+	sendText(t, repo, 300, 200, "cb-1", base.Add(3*time.Minute))
+
+	if err := db.Exec("UPDATE chat_session_models SET unread_count = 99").Error; err != nil {
+		t.Fatalf("写脏派生列失败: %v", err)
+	}
+	total, err := mysql.ReconcileAllChatUnread(ctx, db, 1)
+	if err != nil {
+		t.Fatalf("全量并账失败: %v", err)
+	}
+	// 6 行会话都要被写回；漏掉任何一行，那个用户的角标就会留在 99。
+	if total != 6 {
+		t.Fatalf("batch=1 的全量并账应覆盖 6 行会话（3 条会话 × 双方），实际 %d", total)
+	}
+	for _, userID := range []uint64{100, 200, 300} {
+		var truth int64
+		if err := db.Table("chat_msg_models").
+			Where("receiver_id = ? AND msg_status < ? AND deleted_at IS NULL", userID, int8(domain.StatusRead)).
+			Count(&truth).Error; err != nil {
+			t.Fatalf("数用户 %d 的真值失败: %v", userID, err)
+		}
+		if badge := privateBadge(t, db, userID); badge != truth {
+			t.Fatalf("用户 %d 的角标没被并账覆盖: badge=%d truth=%d", userID, badge, truth)
+		}
+	}
+}
+
 // TestVisibilitySetIncludesOwnMessagesButUnreadOnlyCountsIncoming 两类集合边界。
 //
 // 可见集含自己发的消息（不看 sender_id / receiver_id）；未读数只数
@@ -465,5 +510,78 @@ func TestConcurrentSendAndReadStayConsistentAfterReconcile(t *testing.T) {
 	}
 	if badge := privateBadge(t, db, 200); badge != truth {
 		t.Fatalf("消息中心角标与并账真值不一致: badge=%d truth=%d", badge, truth)
+	}
+}
+
+// TestConcurrentSendAndMarkReadSessionDoesNotDeadlock 并发"发送 + 整会话已读"
+// 不允许出现 InnoDB 死锁（1213）。
+//
+// 这是加锁顺序倒置的回归守卫：发送与已读都会先后写 chat_msg_models 与
+// chat_session_models。只要一侧写成「会话→消息」、另一侧是「消息→会话」，
+// 环就成立（发送持会话行等消息行、已读持消息行等会话行）。修法只能是
+// 统一顺序，**不能**是捕获 1213 重试（治理 D10）——所以这里把任何一次 1213
+// 都判为失败，而不是"偶发抖动放过"。
+//
+// 为什么是"1 个发送者 + 2 个已读者、多轮"而不是"一堆发送者"：多发送者
+// 同时打同一条会话行还会撞上 ON DUPLICATE KEY UPDATE 的 S→X 升级窗口，
+// 那是另一条与本题无关的既有竞态，混进来只会让回归用例本身抖。这里刻意
+// 只保留单写者，把竞态收敛到"发送 vs 已读"这唯一一条加锁顺序上。
+func TestConcurrentSendAndMarkReadSessionDoesNotDeadlock(t *testing.T) {
+	t.Parallel()
+
+	repo, db := setup(t)
+	ctx := context.Background()
+	base := time.Date(2026, 1, 1, 10, 0, 0, 0, time.UTC)
+	receiver := ctype.NewID(200)
+	sessionID := domain.BuildSessionID(ctype.NewID(100), receiver)
+	sendText(t, repo, 100, 200, "seed", base)
+
+	const rounds = 12
+	for round := 0; round < rounds; round++ {
+		at := base.Add(time.Duration(round+1) * time.Minute)
+		var wg sync.WaitGroup
+		errs := make(chan error, 3)
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			_, _, err := repo.Send(ctx, domain.SendCommand{
+				SenderID:   ctype.NewID(100),
+				ReceiverID: receiver,
+				Content:    fmt.Sprintf("race-%d", round),
+				SendTime:   at,
+				MsgType:    domain.TypeText,
+			}, domain.Display{Nickname: "甲"}, domain.Display{Nickname: "乙"}, "race")
+			errs <- err
+		}()
+		for i := 0; i < 2; i++ {
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
+				_, err := repo.MarkReadSession(ctx, receiver, sessionID)
+				errs <- err
+			}()
+		}
+		wg.Wait()
+		close(errs)
+		for err := range errs {
+			if err != nil {
+				t.Fatalf("第 %d 轮并发发送/已读失败（死锁 1213 也算失败）: %v", round, err)
+			}
+		}
+	}
+
+	// 没有丢更新：并账仍能把派生列覆盖回消息行真值。
+	if _, err := mysql.ReconcileChatUnread(ctx, db, sessionID, 200); err != nil {
+		t.Fatalf("并账失败: %v", err)
+	}
+	var truth int64
+	if err := db.Table("chat_msg_models").
+		Where("session_id = ? AND receiver_id = ? AND msg_status < ? AND deleted_at IS NULL",
+			sessionID, 200, int8(domain.StatusRead)).
+		Count(&truth).Error; err != nil {
+		t.Fatalf("数真值失败: %v", err)
+	}
+	if badge := privateBadge(t, db, 200); badge != truth {
+		t.Fatalf("并发后角标与消息行真值不一致: badge=%d truth=%d", badge, truth)
 	}
 }

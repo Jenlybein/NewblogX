@@ -59,16 +59,24 @@ describe("门禁接线：本地脚本与 CI 是同一口径", () => {
     expect(frontendGateTest).toContain('kind: "new-color-literal"');
   });
 
-  it("生成式装饰参数校验出现在 check.sh 的 gates 段、门禁自检与 CI（#286）", () => {
+  it("生成式装饰参数校验按 #287 AC4 不进清单，由 check.sh、CI 与自检直接执行（#286 / #287）", () => {
+    // #287 AC4：清单只收「清单 / 版本 / 判定 / 重复安装」四件，参数脚本不进清单。
+    // 它仍然是一条会红的校验，由本地门禁、CI 与门禁自检直接执行，
+    // 并在 gates.json 的 notGates 里显式登记为「清单外」。
     const cli = "node scripts/generate-deco-parameters.mjs --check";
+    const gateList = readFileSync(join(repoRoot, "scripts/gates/gates.json"), "utf8");
+    expect(gateList).not.toContain('"id": "deco-parameters"');
+    expect(gateList).toContain('"notGates": [14]');
 
+    // 本地：gates 段直接调它（清单外，不经 runner）。
     const gatesStart = checkSh.indexOf('[ "$TARGET" = "gates" ]');
     expect(gatesStart).toBeGreaterThan(-1);
-    const gatesSection = checkSh.slice(gatesStart);
-    expect(gatesSection).toContain(cli);
-    expect(gatesSection).toContain("bash scripts/verify-gates.sh");
+    expect(checkSh.slice(gatesStart)).toContain(cli);
 
+    // CI：frontend-lint 的读者站那一格跑同一条命令。
     expect(ciJobBlock("frontend-lint")).toContain(cli);
+
+    // 自检：第 14 节调同一条命令，注入后必须变红。
     expect(verifyGates).toContain(cli);
     expect(verifyGates).toContain("14/14 生成式装饰参数校验");
     expect(verifyGates).toContain("只改后台生成物一端会被判为重新生成后有差异");

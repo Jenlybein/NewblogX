@@ -82,7 +82,7 @@ func TestReconcileArticleCountSelfHealsLostDelta(t *testing.T) {
 	seedUsers(t, db)
 	schema.InsertArticle(t, db, schema.ArticleSpec{
 		ID: reconcileArtID, Title: "并账契约文章", AuthorID: reconcileAuthor,
-		DiggCount: 0, // 增量丢了：关系行有 1 条，列还是 0
+		DiggCount:     0, // 增量丢了：关系行有 1 条，列还是 0
 		PublishStatus: schema.ArticleStatusPublished, Visibility: schema.VisibilityVisible,
 	})
 	schema.InsertArticleDigg(t, db, schema.ArticleDiggSpec{ID: 6001, ArticleID: reconcileArtID, UserID: reconcileReader})

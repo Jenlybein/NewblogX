@@ -79,6 +79,16 @@ func ReconcileChatUnread(ctx context.Context, db *gorm.DB, sessionID string, use
 // 也拉长事务。这里不显式开事务 —— 每条会话的覆盖写是独立的，中途失败时
 // 已修好的会话保持正确，剩下的下一轮再修（可重入）。
 //
+// 游标是 **session_id（字符串），不是主键 id**：主键是雪花号，它的大小既不
+// 表示时间先后、也不表示会话顺序，拿它分页等于让"排序 / 水位 / 分页"依赖
+// ID 大小（#279 AC4 明令禁止）。session_id 上有 idx_chat_session_id 索引，
+// ORDER BY session_id 走索引，正好够用，不需要新增 DDL。
+//
+// 注意 session_id 不是唯一键：同一条会话在表里有两行（双方各一行）。
+// 所以分页按 session_id **去重**取一批会话号，再回表取这批会话的全部行，
+// 逐行并账。若按"行"分页并在批次边界把它切成两半，`session_id > after`
+// 会把同一会话的另一行漏掉 —— 那个用户的角度就永远不被重算。
+//
 // 这也是为什么它挂在既有 30 分钟 tick 上而不是新开调度器：与文章计数并账
 // 同一个节奏，不新增定时任务（ADR-0025 的约束）。
 func ReconcileAllChatUnread(ctx context.Context, db *gorm.DB, batch int) (int, error) {
@@ -90,21 +100,35 @@ func ReconcileAllChatUnread(ctx context.Context, db *gorm.DB, batch int) (int, e
 	}
 
 	total := 0
-	var after uint64
+	var after string
 	for {
-		var sessions []sessionRow
+		var page []sessionRow
 		if err := db.WithContext(ctx).
-			Select("id", "session_id", "user_id").
-			Where("id > ? AND deleted_at IS NULL", after).
-			Order("id ASC").
+			Model(&sessionRow{}).
+			Select("session_id").
+			Distinct().
+			Where("session_id > ? AND deleted_at IS NULL", after).
+			Order("session_id ASC").
 			Limit(batch).
-			Find(&sessions).Error; err != nil {
+			Find(&page).Error; err != nil {
 			return total, err
 		}
-		if len(sessions) == 0 {
+		if len(page) == 0 {
 			return total, nil
 		}
-		for _, s := range sessions {
+		sessionIDs := make([]string, 0, len(page))
+		for _, s := range page {
+			sessionIDs = append(sessionIDs, s.SessionID)
+		}
+		// 回表取这批会话的全部行：同一条会话的两行（双方各一行）都要并账。
+		var rows []sessionRow
+		if err := db.WithContext(ctx).
+			Select("session_id", "user_id").
+			Where("session_id IN ? AND deleted_at IS NULL", sessionIDs).
+			Find(&rows).Error; err != nil {
+			return total, err
+		}
+		for _, s := range rows {
 			hit, err := ReconcileChatUnread(ctx, db, s.SessionID, s.UserID.Uint64())
 			if err != nil {
 				return total, err
@@ -112,9 +136,9 @@ func ReconcileAllChatUnread(ctx context.Context, db *gorm.DB, batch int) (int, e
 			if hit {
 				total++
 			}
-			after = s.ID.Uint64()
 		}
-		if len(sessions) < batch {
+		after = page[len(page)-1].SessionID
+		if len(page) < batch {
 			return total, nil
 		}
 	}

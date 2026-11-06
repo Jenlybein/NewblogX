@@ -17,7 +17,7 @@
 
 用法：`./scripts/check.sh [all|backend|frontend|gates]`。
 
-门禁命令本身不写在这个脚本里：清单与命令、工具版本、契约未过期判定、公共安装步骤都收在 `scripts/gates/`（见 §1.5），这里只按分组调用同一个 runner。
+清单里 13 道仓库级门禁的命令不写在这个脚本里：清单与命令、工具版本、契约未过期判定、公共安装步骤都收在 `scripts/gates/`（见 §1.5），这里按分组调用同一个 runner。脚本里确实写着两类命令，且都是**真实实现**而不是第二份清单：清单中「只有演练节号、没有 `steps`」的 8 道门禁（后端单测、typecheck、契约类型、路由对账、admin 鉴权、菜单对账、lint、覆盖率），以及按 #287 AC4 不进清单的生成式装饰参数校验（#286）。
 
 | 段 | 实际执行的命令 |
 | --- | --- |
@@ -27,7 +27,7 @@
 | 契约类型 | `run_contract_types`：`openapi-typescript ../backend/docs/swagger.json -o /tmp/xxx.d.ts` 再 `diff` 与 `app/types/openapi.d.ts` |
 | 前端（两端） | `nuxt prepare` → `pnpm check:components` → `pnpm check:tokens` → `pnpm lint` → `pnpm typecheck` → `pnpm test` → `pnpm test:coverage` |
 | 仓库级判据 | `node scripts/gates/run.mjs --group frontend`（两端 tokens.css 同源、定形工具与裁剪窗同源副本） |
-| 自检 | `node scripts/gates/run.mjs --list` → `node scripts/gates/test-gate-runner.mjs` → `--check-coverage` → `node scripts/generate-deco-parameters.mjs --check` → `bash scripts/verify-gates.sh` |
+| 自检 | `node scripts/gates/run.mjs --list` → `node scripts/gates/test-gate-runner.mjs` → `--check-coverage` → 分组覆盖核对 → `node scripts/generate-deco-parameters.mjs --check`（清单外，见 #287 AC4）→ `bash scripts/verify-gates.sh` |
 
 环境变量（默认值即推荐值）：
 
@@ -49,8 +49,8 @@
 | 1 | `backend` | `go build ./...` + `go vet ./...` | **不跑测试**——项目里没有任何测试用 `testing.Short()`，`-race -short` 与 integration job 是同一批用例 |
 | 2 | `backend-integration` | `go test -race -tags integration -count=1 -timeout 25m ./...` | MySQL 8.0 service 供所有包共用；先断言 `docker info` 可用 |
 | 3 | `archcheck` | `node scripts/gates/run.mjs --group backend`：规则自检 + 棘轮两遍（含 `--skip-tests=false`） | 基线从 `arch-baseline.env` 读出后由 runner 填进命令，**绝不写死数字** |
-| 4 | `contract` | `node scripts/gates/install.mjs swag` → `node scripts/gates/install.mjs go-mod --dir backend` → `node scripts/gates/run.mjs contract-freshness`（`make openapi` 生成到临时目录逐字比对 + 条目数量不下降 + 新增结构在场） | 判据是"生成真的发生过且产物未过期"，不是"能生成"，也不再用 `git diff --exit-code`；安装 ref 只从 `tool-versions.env` 读 |
-| 5 | `frontend-lint` | 矩阵 `[frontend, frontend_admin]`：`node ../scripts/gates/install.mjs pnpm` → `pnpm lint` → `pnpm check:components` → `pnpm check:tokens`；读者站那一格再跑 `node scripts/gates/run.mjs --group frontend`（两端同源判据）与生成式装饰参数校验 | `TZ: Asia/Shanghai` |
+| 4 | `contract` | `node scripts/gates/install.mjs swag` → `node scripts/gates/install.mjs go-mod --dir backend` → `node scripts/gates/run.mjs --group contract`（`make openapi` 生成到临时目录逐字比对 + 条目数量不下降 + 新增结构在场 + 判定行为用例） | 判据是"生成真的发生过且产物未过期"，不是"能生成"，也不再用 `git diff --exit-code`；安装 ref 只从 `tool-versions.env` 读；按分组调而不是写死 gate id |
+| 5 | `frontend-lint` | 矩阵 `[frontend, frontend_admin]`：`node ../scripts/gates/install.mjs pnpm` → `pnpm lint` → `pnpm check:components` → `pnpm check:tokens`；读者站那一格再跑 `node scripts/gates/run.mjs --group frontend`（两端同源判据）与 `node scripts/generate-deco-parameters.mjs --check`（参数脚本，不进清单） | `TZ: Asia/Shanghai` |
 | 6 | `frontend-typecheck` | 矩阵两端：`node ../scripts/gates/install.mjs pnpm` → `pnpm typecheck` | 同上 |
 | 7 | `contract-types` | 矩阵两端：`node ../scripts/gates/install.mjs pnpm` → 重新生成 d.ts 到 `/tmp` 再 `diff` `app/types/openapi.d.ts` | 补上 job 4 盖不到的那一层 |
 | 8 | `frontend-test` | 矩阵两端：`node ../scripts/gates/install.mjs pnpm` → `pnpm test:coverage` | 曾经只跑 `pnpm test`，admin 0 用例 + `passWithNoTests` = 空转；两端现在都显式 `passWithNoTests: false` |
@@ -74,7 +74,7 @@
 | **`git diff` 判据会假红** | 工作区常有未提交改动，`git diff --exit-code` 会假红、人习惯性忽略；更致命的是生成器静默跳过时差异为空、检查仍绿。契约与契约类型都改成"重新生成到临时文件逐字比对"，三处（CI / 本地门禁 / 门禁自检）共用 `scripts/check-contract-freshness.mjs` 这一份判定 |
 | **门禁自检的恢复不能用 `git checkout --`** | 那会把工作区里未提交的活一起冲掉。所有临时改动用**备份副本**恢复，`trap` 只兜底 |
 
-### 1.4 门禁自检：`scripts/verify-gates.sh`（4 道 → 13 道 → 14 道）
+### 1.4 门禁自检：`scripts/verify-gates.sh`（14 节演练：13 道清单门禁 + 1 道清单外校验）
 
 > 存在的意义：**证明上面所有 job 真的会失败**。如果它们只是永远绿，整套 CI 等于不存在。
 
@@ -93,16 +93,16 @@
 | 11 | 覆盖率门槛 | 把 vitest 阈值临时抬到 100（当前覆盖率远低于 100，必然判红），并核对失败原因确是"低于阈值"而非工具不可用 |
 | 12 | 两端 `tokens.css` 同源 | 给后台那份末尾追加一行注释（模拟"只改一端忘了同步"） |
 | 13 | 两端 `imageShaping` 定形工具同源 | 只改一端定形工具的参数（模拟"只改一端忘了同步"） |
-| 14 | 跨端装饰参数一致性 | 只改后台一个 `DECO_*` 范围常量（模拟"只改一端忘了同步"） |
+| 14 | 跨端装饰参数一致性 | 只改后台一个 `DECO_*` 范围常量（模拟"只改一端忘了同步"）。该节是**清单外**校验（#287 AC4），由 `check.sh` / `ci.yml` 直接执行 |
 
 - 第 5 道不用 `git diff` 判定的理由见 §1.3；生成工具的安装 ref 只在 `scripts/tool-versions.env` 定义一次，CI、本地门禁、门禁自检三处消费，判定还会核对已安装二进制的构建信息。
 - 第 8 道不注入的理由：要让它红必须临时摘掉某条后台路由的 `AdminMiddleware`，脚本一旦被中断就留下"后台无鉴权"。它本身已带 `TestProbeDistinguishesUnprotectedRoute` 与 `TestAdminOnlyListCoversContract` 两条对照断言。
 - 第 11 道的 canary 方式在 2026-10-31 改过：原先"往 `app/utils` 加一个 0 覆盖文件、把整体从 100% 拉到 85.7%"的假设**已过期**（admin 端 `app/utils` 增长到 12 个文件、覆盖率 99.2%，注入 3 条语句只掉到 98.08%，够不到 95 门槛 → 自检会把"门禁失效"误报出来）。现改为抬阈值到 100（与分母无关）+ 核对失败原因，另带"因工具不可用而假红"的判别。
-- 验收：**14/14 节全部正确报红**（第 5 节含 5 条断言、第 13/14 节各含多条注入，合计 **20 条 ok**；#286 让第 14 节由整节演练换成一条生成式校验，净少 1 条旧正向演练；当前脚本 1/14…14/14；CI 实测单次 2 分 35 秒，本地 Git Bash 同量级）；跑完 `git status` 与跑之前逐字节一致，无 canary 残留。
-- 与门禁清单（#287）：脚本开跑前先用 `node scripts/gates/run.mjs --check-coverage` 核对「清单里的每道门禁都登记了演练」，对不上直接退出（新门禁不会被静默漏掉）；第 5 节的真门禁与四种注入、第 12/13 节的同源门禁都经 `scripts/gates/run.mjs` 调同一个入口，不在自检里另拼命令。
+- 验收：**14/14 节全部正确报红**（1..13 节对应清单里的 13 道仓库级门禁，第 14 节是清单外的生成式装饰参数校验；第 5 节含 5 条断言、第 13/14 节各含多条注入，合计 **20 条 ok**；#286 让第 14 节由整节演练换成一条生成式校验，净少 1 条旧正向演练；当前脚本 1/14…14/14；CI 实测单次 2 分 35 秒，本地 Git Bash 同量级）；跑完 `git status` 与跑之前逐字节一致，无 canary 残留。
+- 与门禁清单（#287）：脚本开跑前先用 `node scripts/gates/run.mjs --check-coverage` 核对「清单里的每道门禁都登记了演练；每节演练要么有门禁负责，要么**显式**登记在 `notGates`」，对不上直接退出（新门禁不会被静默漏掉；少一道门禁也不会被静默放过）；第 5 节的真门禁与四种注入、第 12/13 节的同源门禁都经 `scripts/gates/run.mjs` 调同一个入口，不在自检里另拼命令；第 14 节按 #287 AC4 不进清单，直接调 `node scripts/generate-deco-parameters.mjs --check`。
 - **不许整体跳过**：`--skip` / `--skip-all` / `BLOGX_SKIP_GATES` 一律拒绝；`--only <节号>` 只跑受影响演练（改动范围可先用 `node scripts/gates/run.mjs --affected <路径>` 算），节号必须来自清单且至少选中一项 —— 零项按失败处理，不存在「什么都没跑就算通过」。
-- 历史：自检覆盖曾经是 4 道 → 13 道；新增两端 `imageShaping` 定形工具同源门禁后为 **14 道**。
-- CI 的 `gates-canary` 曾经在 YAML 里另写一份注入逻辑、只验证 1 道 —— 两处各写一份的必然结果是"本地 13 道、CI 1 道，没人知道该信哪个"（现为本地 14 道、CI 14 道）。
+- 历史：自检覆盖曾经是 4 道 → 13 道 → 14 节。现在 **13 道仓库级门禁在清单**（`1`..`13` 节），**第 14 节**是按 #287 AC4 不进清单的生成式装饰参数校验 —— 它仍然要自检（"不进清单"不等于"不用证明它会红"）。
+- CI 的 `gates-canary` 曾经在 YAML 里另写一份注入逻辑、只验证 1 道 —— 两处各写一份的必然结果是"本地 13 道、CI 1 道，没人知道该信哪个"（现为本地 14 节、CI 14 节）。
 - **门禁自检的触发条件曾经只看 PR 标题**：于是"改了门禁却没人验门禁"能一路飘过去。2026-10-31 实际发生过一次：`verify-gates.sh` 第 11 节（覆盖率门槛）的注入假设已过期（admin 覆盖率与文件数增长后，注入一个零覆盖文件掉不到 95 门槛），但因为没人跑它，PR 上的 `gates canary` 显示 pass 而 step 其实被 skip —— 门禁给了它并没有提供的保障。现在补了第二条触发：**本次 PR 改到门禁自身时无条件跑**。
 
 ### 1.5 门禁清单与 runner：`scripts/gates/`（#287）
@@ -111,7 +111,7 @@
 
 | 东西 | 落点 | 说明 |
 | --- | --- | --- |
-| 门禁清单 | `scripts/gates/gates.json` | 每道仓库级门禁的 `id` / 标题 / 分组 / 命令 / 对应演练节号；`node scripts/gates/run.mjs --list --json` 可机读 |
+| 门禁清单 | `scripts/gates/gates.json` | **13 道仓库级门禁各一条**：`id` / 标题 / 分组 / 执行方式（`steps` = runner 可直接跑；`section` = 真门禁由本地脚本或 CI job 执行，靠门禁自检第 N 节证明会红，`executedBy` 写明是谁在跑）/ 对应演练节号；`node scripts/gates/run.mjs --list --json` 可机读。另有 `notGates`：按 #287 AC4 不进清单的演练节号（目前只有 `14`，生成式装饰参数校验），豁免必须显式登记 |
 | 工具版本 | `scripts/tool-versions.env`（原有单一来源）+ `scripts/gates/tools.mjs` | 只有读它的实现，没有第二份字面版本 |
 | 契约未过期判定 | `scripts/check-contract-freshness.mjs`（#273，**未改动**） | 清单里的 `contract-freshness` 门禁就是调它；注入仍报 `SILENT_SKIP` / `COMMAND_FAILED` / `STALE` / `TOOL_VERSION_MISMATCH` |
 | 重复安装步骤 | `scripts/gates/install.mjs` | `swag` / `go-mod` / `pnpm` 三个套件；CI 每个 job 只调它 |
@@ -120,13 +120,13 @@
 
 | 处 | 调用 |
 | --- | --- |
-| 本地门禁 | `scripts/check.sh` 的 `--group backend` / `--group contract` / `--group frontend` / `--check-coverage` |
-| 持续集成 | `.github/workflows/ci.yml` 的 `archcheck` / `contract` / 四个前端 job / `gates-canary` |
-| 门禁自检 | `scripts/verify-gates.sh` 的清单前置检查与第 5 / 12 / 13 节真门禁 |
+| 本地门禁 | `scripts/check.sh` 的 `--group backend` / `--group contract` / `--group frontend` + `--check-coverage` + `--groups`（分组覆盖核对）+ 清单外生成式装饰参数校验直调 |
+| 持续集成 | `.github/workflows/ci.yml` 的 `archcheck`（`--group backend`）/ `contract`（`--group contract`）/ 四个前端 job（`--group frontend`，读者站那一格另直调生成式装饰参数校验）/ `gates-canary` |
+| 门禁自检 | `scripts/verify-gates.sh` 的清单前置检查（`--check-coverage` + `--sections` 核对 `===== n/14` 标记）与第 5 / 12 / 13 节真门禁；第 14 节直调清单外的生成式装饰参数校验 |
 
-- 加一道门禁：在 `gates.json` 加一条（含 `canaries` 节号）。本地与 CI 立刻按分组跑到它；若没登记演练，门禁自检直接拒绝开跑。
-- 反过来说，`check.sh` / `ci.yml` / `verify-gates.sh` 里不再出现这些命令本身，也不再 `source` 版本文件。
-- 范围外：生成式装饰参数校验（#286 的 `scripts/generate-deco-parameters.mjs`）不并入清单，仍由 `check.sh` 的 gates 段、`ci.yml` 的 frontend-lint 与自检第 14 节直接调用。
+- 加一道门禁：在 `gates.json` 加一条（含 `group`、`canaries` 节号与执行方式）。runner 直接跑得动就给 `steps`；只能由 check.sh / CI job 跑就给 `section: N`（真门禁在别处，自检第 N 节证明它会红）。本地与 CI 立刻按分组看到它。
+- 两个方向都卡住：新门禁没登记演练 → `--check-coverage` 直接失败、自检拒绝开跑；清单里多出一个没人负责、又没登记 `notGates` 的演练节号 → 同样失败；某节既登记在 `notGates` 又被某道门禁认领 → 自相矛盾，同样失败；脚本里多演一节清单没有的门禁 → `--sections` 与 `===== n/14` 标记对不上，自检拒绝开跑。
+- 反过来说，`check.sh` / `ci.yml` / `verify-gates.sh` 里不再出现清单内门禁的命令本身，也不再 `source` 版本文件。生成式装饰参数校验（#286）按 #287 AC4 **不进清单**（清单只收「清单 / 版本 / 判定 / 重复安装」四件，不含参数脚本），由 `check.sh` 的 gates 段、`ci.yml` 的 frontend-lint 与自检第 14 节直接执行，并在 `gates.json` 的 `notGates` 里显式登记 —— 不是"漏登记"，也不是"静默允许缺失"。
 
 ---
 
@@ -492,7 +492,7 @@ func Strs(k string, v []string) Field // 有长度上限
 | --- | --- | --- |
 | CI job | 0（起点无 CI） | **9** |
 | archcheck 规则 / 违规基线 | 0 条 / — | **12 条（R1–R12）/ 0** |
-| 门禁自检覆盖 | 4 道 | **14 道**（14/14 正确报红；v1 收尾时为 13 道） |
+| 门禁自检覆盖 | 4 道 | **14 节**（14/14 正确报红；其中 13 道仓库级门禁在清单，第 14 节是按 #287 AC4 不进清单的参数校验） |
 | `deadcode`（不带 `-test`） | — | **595**（生产 0） |
 | 契约 paths / operations / schemas | — | **92 / 119 / 203**（归档时实测） |
 | 契约幽灵端点 | 6 | **0** |

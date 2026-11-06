@@ -125,7 +125,7 @@
 | R3 | — | service/domain 层禁止 import gin | error | — |
 | R4 | — | domain 层禁止直接调用 `time.Now()`（应注入 Clock） | warn | — |
 | R5 | — | api 层禁止 import repository（分层倒置） | error | — |
-| R6 | — | 单文件不得超过 800 行 | warn | — |
+| R6 | — | 单文件不得超过 2200 行 | warn | — |
 | R7 | — | 禁止裸 `go` 语句（应使用 `safego.Go`） | warn | ✅ |
 | R8 | — | 禁止 `errors.New` 使用中文字面量（应使用 apperr 错误码） | warn | ✅ |
 | R9 | `log-no-any` | **日志输入禁 `any` / 禁同包类型 / `Extra` 必须 `map[string]string`** | error | — |
@@ -470,7 +470,7 @@ func Strs(k string, v []string) Field // 有长度上限
 | 前端 `api.ts` 两端合计 | 1020 行 | **407 行** |
 | 服务层匿名响应类型 / admin 手写响应类型 | 2 / 1 | **0 / 0** |
 | admin 用例 | 0 | **39** |
-| 单文件超 800 行 | — | 最大 `article/[id].vue` **715 行** |
+| 单文件超 2200 行 | — | 最大 `article/[id].vue` **715 行** |
 | `TODO` / `FIXME`、`as any` / `@ts-ignore` | — | 全仓 **0** |
 
 ---

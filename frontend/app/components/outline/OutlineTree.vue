@@ -19,7 +19,7 @@ import { SPRING_DOT, resolveSpringMotion } from "~/utils/motion";
  * 文件夹可折叠、文章节点带来源链接、当前文章高亮，层级靠缩进表达（notes A7）。
  * 文章行是**纯文字**：封面缩略图已从三个使用点一起退场。
  *
- * 沟槽圆点（票 295）：一枚装饰性小圆点标出「当前文章」——
+ * 沟槽圆点（票 295，2026-11-07 返工）：一枚装饰性圆点标出「当前文章」——
  *   - 横向压在该行所属层级的发丝引导线上（`depth × 1.5rem − 0.75rem`，`depth 0` 取 0），
  *     几何全部由 `utils/outlineDot.ts` 的纯函数给出；
  *   - 纵向取该行垂直中心（`offsetTop + 行高 / 2`），所以折叠 / 展开让行位移后要重测；
@@ -28,6 +28,10 @@ import { SPRING_DOT, resolveSpringMotion } from "~/utils/motion";
  *     + 正弦弧偏移），不依赖 `motion` 包的 `arc()`；
  *   - 首次进入 / 字体就绪时的首测**直接落位**（不播动画），「减少动态」下每次都瞬移；
  *   - `hover` / 键盘聚焦不动它，它也不进 Tab 顺序、不吃点击（装饰层）。
+ *
+ * 视觉（返工要点）：0.75rem 实心 `--color-ink`（8px 太小、在 1px 发丝线旁读不出
+ * "压线"），抬到当前行记号笔底之上，正中留一道 1px 纸色缝——上下两段发丝线在
+ * 视觉上接成一条，线的叠压关系一眼可辨。颜色只取语义 token，不引入新色相。
  *
  * 测量一律在客户端：抽屉收起态是 `transform + visibility`（不是 `display: none`），
  * `offsetTop` 仍然可测，所以不必等抽屉展开才落位。
@@ -250,6 +254,9 @@ watch(() => props.collapsed, () => align(true), { flush: "post" });
 <style scoped>
 /* 圆点相对这个盒子绝对定位；`ul` 与它同起点，所以行坐标可以直接用 `offsetTop`。 */
 .outline-tree {
+  /* 圆点直径：0.75rem = 12px，是 1px 发丝线的 12 倍。参考组件约 6px 的小点在
+   * 44px 行高、1px 引导线旁会被读成"线上的毛刺"，读不出"点压线"，所以放大一档。 */
+  --outline-dot-size: 0.75rem;
   position: relative;
 }
 
@@ -280,18 +287,39 @@ watch(() => props.collapsed, () => align(true), { flush: "post" });
 
 /*
  * 沟槽圆点：半宽负偏移，让 `translate(x, y)` 落在圆心；
- * 抬一层是因为当前行的记号笔底会盖住它（否则"压线"看不见）。
+ * z-index 抬到当前行的记号笔底之上，否则"压线"会被底糊掉。
  */
 .outline-tree__dot {
   position: absolute;
-  top: -0.25rem;
-  left: -0.25rem;
-  z-index: 1;
-  width: 0.5rem;
-  height: 0.5rem;
+  top: calc(var(--outline-dot-size) / -2);
+  left: calc(var(--outline-dot-size) / -2);
+  z-index: 2;
+  width: var(--outline-dot-size);
+  height: var(--outline-dot-size);
+  overflow: hidden; /* 把下面的缝裁进圆里，边缘不留碎像素 */
   border-radius: var(--radius-pill);
   background: var(--color-ink);
   pointer-events: none;
+}
+
+/*
+ * 线从圆点里穿过：圆点正中留一道 1px 纸色缝，上下两段发丝线在视觉上接成一条，
+ * "点压在线上"就看得出来了。`left: 50%` 让缝的像素列与发丝线的 `left` 完全重合
+ * （圆心落在线的左沿，不是线的中心），接缝处不会错半个像素。
+ * 根层没有引导线，不留缝（否则像被切开的点）。
+ */
+.outline-tree__dot::after {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 50%;
+  width: 1px;
+  background: var(--color-surface);
+  content: "";
+}
+
+.outline-tree__dot[data-outline-dot-depth="0"]::after {
+  content: none;
 }
 
 .outline-tree__toggle,

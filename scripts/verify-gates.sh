@@ -28,12 +28,62 @@
 #   原因：工作区经常有未提交改动，git checkout 会把人的活一起冲掉。
 #   每节用完立即恢复；trap 只做兜底。
 #
-# 用法：./scripts/verify-gates.sh
-# 退出码 0 表示"所有门禁都能正确报错"，非 0 表示某道门禁是假的。
+# 与门禁清单（#287）的关系：
+#   门禁清单只有一个来源 —— scripts/gates/gates.json，经 scripts/gates/run.mjs 读。
+#   本地门禁（scripts/check.sh）、持续集成（.github/workflows/ci.yml）、门禁自检
+#   三处跨同一个入口；第 5 节的真门禁与四种注入、第 12/13 节的同源门禁都经
+#   runner 调用，不再在自检里另拼命令。
+#   开跑前先核对「清单里的每道门禁都登记了演练」：新门禁没演练就拒绝开跑，
+#   避免自检"看起来覆盖了"而新门禁从未被验证。
+#
+# 用法：
+#   ./scripts/verify-gates.sh                 # 全跑（默认，也是 CI 的口径）
+#   ./scripts/verify-gates.sh --only 5,12     # 只跑受影响演练（改动范围可先用
+#                                             #   node scripts/gates/run.mjs --affected <路径> 算）
+# 退出码 0 表示"所有（或选中的）门禁都能正确报错"，非 0 表示某道门禁是假的。
+#
+# 「整体跳过」没有入口：--skip / --skip-all / BLOGX_SKIP_GATES 一律拒绝；
+# --only 只接受清单里存在的演练节号，且必须至少选中一项（零项 = 失败）。
 set -uo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT"
+
+# ── 不许整体跳过 + 按改动范围只跑受影响演练 ──────────────────────────
+# 「全部跳过」在这里没有入口：--skip / --skip-all / BLOGX_SKIP_GATES 一律拒绝；
+# --only 只接受门禁清单里存在的演练节号，且必须至少选中一项
+# （零项 = 失败，不存在"什么都没跑就算通过"）。
+ONLY_IDS=""
+while [ "$#" -gt 0 ]; do
+  case "$1" in
+    --only)
+      shift
+      [ "$#" -gt 0 ] || { echo "✗ --only 需要演练节号（门禁自检不许整体跳过）" >&2; exit 2; }
+      ONLY_IDS="$1"; shift ;;
+    --only=*) ONLY_IDS="${1#--only=}"; shift ;;
+    --skip*|--no-*)
+      echo "✗ 门禁自检不许整体跳过：不接受 $1。要只跑一部分请用 --only <节号>，且至少选中一项。" >&2
+      exit 2 ;;
+    *)
+      echo "✗ 未知参数 $1（门禁自检只接受 --only <节号>）" >&2
+      exit 2 ;;
+  esac
+done
+if [ -n "${BLOGX_SKIP_GATES:-}${BLOGX_SKIP_ALL_GATES:-}" ]; then
+  echo "✗ 门禁自检不许整体跳过：检测到 BLOGX_SKIP_* 环境变量" >&2
+  exit 2
+fi
+ONLY_IDS="$(printf '%s' "$ONLY_IDS" | tr ' ' ',')"
+
+# canary_selected 决定本节要不要跑：默认全跑，--only 只跑选中的节。
+canary_selected() {
+  [ -z "$ONLY_IDS" ] && return 0
+  case ",$ONLY_IDS," in
+    *",$1,"*) return 0 ;;
+  esac
+  echo "  （--only 未选中 ${1}/14，跳过本节；这不是整体跳过）"
+  return 1
+}
 
 for candidate in "$HOME/scoop/apps/go/current/bin" "$HOME/scoop/apps/go/1.27.3/bin"; do
   [ -x "$candidate/go.exe" ] && export PATH="$candidate:$PATH" && break
@@ -46,9 +96,9 @@ export GOTOOLCHAIN=local CGO_ENABLED=1
 # 自检反被判成"门禁失效"（2026-10-25 实际发生过）。
 # shellcheck source=scripts/arch-baseline.env
 . "$ROOT/scripts/arch-baseline.env"
-# 生成工具版本单一来源：自检与 CI / 本地门禁读同一份安装 ref。
-# shellcheck source=scripts/tool-versions.env
-. "$ROOT/scripts/tool-versions.env"
+# 生成工具版本单一来源：scripts/tool-versions.env。自检不再自己 source 它，
+# 而是经 scripts/gates/run.mjs（真门禁）与 scripts/gates/install.mjs（安装步骤）
+# 读同一份 —— 版本只有一处定义，判定与安装都不会在自检里长出第二份。
 
 PASS=0
 FAIL=0
@@ -103,6 +153,28 @@ restore_all() {
 }
 trap restore_all EXIT
 
+# ── 清单前置：门禁清单与演练清单必须对得上 ───────────────────────────
+# 门禁清单只有一个来源：scripts/gates/gates.json（经 scripts/gates/run.mjs 读）。
+# 加一道门禁只改那一处；若新门禁还没登记演练，自检直接拒绝开跑 ——
+# 否则自检会"看起来覆盖了"，新门禁却从来没被验证过。
+if ! node scripts/gates/run.mjs --check-coverage >"$CANARY_TMP/out.txt" 2>&1; then
+  echo "✗ 门禁清单与演练清单对不上（新门禁必须先有演练）："
+  tail -20 "$CANARY_TMP/out.txt"
+  exit 2
+fi
+cat "$CANARY_TMP/out.txt"
+
+# --only 的节号必须来自清单，且至少选中一项（零项 = 失败，不是"跳过"）。
+if [ -n "$ONLY_IDS" ]; then
+  if ! node scripts/gates/run.mjs --list-canaries --json --only "$ONLY_IDS" \
+      >"$CANARY_TMP/canaries.json" 2>"$CANARY_TMP/canaries.err"; then
+    echo "✗ --only 的节号无效（门禁自检不许整体跳过）：" >&2
+    cat "$CANARY_TMP/canaries.err" >&2
+    exit 2
+  fi
+  echo "  只跑受影响演练：$(tr -d '\n ' < "$CANARY_TMP/canaries.json" | sed 's/},{/} {/g' | cut -c1-200)"
+fi
+
 ok() {
   echo "✓ 门禁有效：$1"
   PASS=$((PASS+1))
@@ -152,6 +224,7 @@ contract_types_stale() {
   return 0
 }
 
+if canary_selected 1; then
 echo "===== 1/14 后端单测门禁 ====="
 mkdir -p backend/internal/canary
 cat > "$CANARY_TEST" <<'EOF'
@@ -167,7 +240,9 @@ EOF
 expect_fail "backend 单测" bash -c 'cd backend && go test ./internal/canary/'
 rm -f "$CANARY_TEST"; rmdir backend/internal/canary 2>/dev/null
 
+fi
 echo ""
+if canary_selected 2; then
 echo "===== 2/14 架构规则门禁（archcheck 棘轮） ====="
 mkdir -p backend/api/zz_canary
 cat > "$CANARY_ARCH" <<'EOF'
@@ -187,12 +262,16 @@ expect_fail "archcheck 棘轮（新增违规即超阈值，基线 $ARCH_MAX_VIOL
   bash -c "cd backend && go run ./tools/archcheck --mode=error --max-violations=$ARCH_MAX_VIOLATIONS ."
 rm -f "$CANARY_ARCH"; rmdir backend/api/zz_canary 2>/dev/null
 
+fi
 echo ""
+if canary_selected 3; then
 echo "===== 3/14 archcheck 规则自检 ====="
 # 规则自检本身也是门禁：如果把某条规则改坏（不再报错），rules_test 必须红。
 expect_pass "archcheck 规则自检" bash -c 'cd backend && go test ./tools/archcheck/...'
 
+fi
 echo ""
+if canary_selected 4; then
 echo "===== 4/14 前端类型门禁 ====="
 cat > "$CANARY_TS" <<'EOF'
 // 故意制造类型错误：把一个字符串赋给 number。
@@ -203,7 +282,9 @@ EOF
 expect_fail "前端 typecheck" bash -c 'cd frontend && NODE_OPTIONS="--max-old-space-size=8192" corepack pnpm typecheck'
 rm -f "$CANARY_TS"
 
+fi
 echo ""
+if canary_selected 5; then
 echo "===== 5/14 契约未过期（注解 → swagger.json） ====="
 # 门禁原型：CI 的 contract job / check.sh 的「契约未过期」都调用
 # scripts/check-contract-freshness.mjs。自检必须跨**同一个判定接口**，
@@ -218,7 +299,12 @@ echo "===== 5/14 契约未过期（注解 → swagger.json） ====="
 # 注入走环境变量 SWAG 覆盖 Makefile 的生成器命令，`make openapi` 本身仍是
 # 真门禁那条命令；e 用 --versions-file 指到临时文件，不改仓库里的版本来源。
 # 除 d 临时改 main.go 外都不碰仓库文件，且每节用完立即从备份副本恢复。
-FRESHNESS="scripts/check-contract-freshness.mjs"
+FRESHNESS_GATE="contract-freshness"
+# freshness 调「真门禁」本身：清单里的 contract-freshness 门禁 → 判定实现
+# scripts/check-contract-freshness.mjs。自检与本地门禁 / CI 走同一个入口，
+# 因此下面五种注入验的就是那条真链路，而不是另写一份判据。
+# 额外参数原样透传（`--` 之后）给同一份判定实现。
+freshness() { node scripts/gates/run.mjs "$FRESHNESS_GATE" "$@"; }
 SWAG_SKIP="$CANARY_TMP/swag-silent-skip.sh"
 SWAG_FAIL="$CANARY_TMP/swag-command-fail.sh"
 printf '#!/bin/sh\n# 生成器静默跳过：退出码 0，但不写产物\nexit 0\n' > "$SWAG_SKIP"
@@ -229,7 +315,7 @@ chmod +x "$SWAG_SKIP" "$SWAG_FAIL"
 reason_of() { grep -oE '\[reason\] [A-Z_]+' "$CANARY_TMP/out.txt" | head -1 | awk '{print $2}'; }
 
 # a) 真门禁跑通（用同一份判定实现）
-if node "$FRESHNESS" >"$CANARY_TMP/out.txt" 2>&1; then
+if freshness >"$CANARY_TMP/out.txt" 2>&1; then
   ok "契约未过期判定（真门禁跑通）"
 else
   echo "✗ 契约未过期判定本身跑不通（node / swag / make 缺失？），后续注入会假红"
@@ -238,7 +324,7 @@ else
 fi
 
 # b) 静默跳过但退出码 0 —— 真实触发「门禁撒谎」形态
-if SWAG="sh $SWAG_SKIP" node "$FRESHNESS" >"$CANARY_TMP/out.txt" 2>&1; then
+if SWAG="sh $SWAG_SKIP" freshness >"$CANARY_TMP/out.txt" 2>&1; then
   bad "生成器静默跳过但退出码 0，判定却通过了（假绿）"
 elif [ "$(reason_of)" = "SILENT_SKIP" ]; then
   ok "生成器静默跳过但退出码 0 会判红（SILENT_SKIP）"
@@ -249,7 +335,7 @@ else
 fi
 
 # c) 命令失败 —— 必须与静默跳过报出**不同**原因
-if SWAG="sh $SWAG_FAIL" node "$FRESHNESS" >"$CANARY_TMP/out.txt" 2>&1; then
+if SWAG="sh $SWAG_FAIL" freshness >"$CANARY_TMP/out.txt" 2>&1; then
   bad "生成命令失败，判定却通过了"
 elif [ "$(reason_of)" = "COMMAND_FAILED" ]; then
   ok "生成命令失败会判红（COMMAND_FAILED，与静默跳过原因可区分）"
@@ -267,7 +353,7 @@ if backup_file "$MAIN_GO"; then
   if ! grep -q "@title BlogX API CANARY" "$MAIN_GO"; then
     echo "✗ 无法注入：main.go 里没有预期的 @title 行"
     FAIL=$((FAIL+1))
-  elif node "$FRESHNESS" >"$CANARY_TMP/out.txt" 2>&1; then
+  elif freshness >"$CANARY_TMP/out.txt" 2>&1; then
     bad "注解改了、契约没重新生成，判定却通过了"
   elif [ "$(reason_of)" = "STALE" ]; then
     ok "注解变更但契约未重新生成会判红（STALE）"
@@ -291,7 +377,7 @@ if cp "$VERSIONS" "$TAMPERED_VERSIONS" && grep -q '^SWAG_VERSION=' "$TAMPERED_VE
   if ! grep -q '^SWAG_VERSION=v9.9.9-canary$' "$TAMPERED_VERSIONS"; then
     echo "✗ 无法写歪版本文件（单一来源格式变了？）"
     FAIL=$((FAIL+1))
-  elif node "$FRESHNESS" --versions-file "$TAMPERED_VERSIONS" >"$CANARY_TMP/out.txt" 2>&1; then
+  elif freshness -- --versions-file "$TAMPERED_VERSIONS" >"$CANARY_TMP/out.txt" 2>&1; then
     bad "写歪工具版本，判定却通过了"
   elif [ "$(reason_of)" = "TOOL_VERSION_MISMATCH" ]; then
     ok "写歪工具版本会判红（TOOL_VERSION_MISMATCH，单一来源生效）"
@@ -305,7 +391,9 @@ else
   FAIL=$((FAIL+1))
 fi
 
+fi
 echo ""
+if canary_selected 6; then
 echo "===== 6/14 前端契约类型未过期 ====="
 # 门禁原型（CI 的 contract-types job / check.sh 的 run_contract_types）：
 # swagger.json 更新了但 openapi.d.ts 忘了重新生成 → 前端按旧类型编译。
@@ -325,7 +413,9 @@ else
   FAIL=$((FAIL+1))
 fi
 
+fi
 echo ""
+if canary_selected 7; then
 echo "===== 7/14 契约 ↔ 路由表对账 ====="
 # 门禁原型：backend/internal/platform/http/router/contract_routes_test.go
 # 它双向对账：契约里有、路由里没有 = 契约说谎（严格失败）；
@@ -358,7 +448,9 @@ else
   FAIL=$((FAIL+1))
 fi
 
+fi
 echo ""
+if canary_selected 8; then
 echo "===== 8/14 admin 鉴权门禁（不注入，理由见文件头） ====="
 # 这三条用例自带反例：
 #   TestAdminRoutesRejectOrdinaryUser       普通用户令牌探 16 个后台操作，必须停在中间件
@@ -367,7 +459,9 @@ echo "===== 8/14 admin 鉴权门禁（不注入，理由见文件头） ====="
 expect_pass "admin 鉴权探测 + 契约覆盖面" \
   bash -c "cd backend && go test ./internal/platform/http/router/ -run '^(TestAdminRoutesRejectOrdinaryUser|TestProbeDistinguishesUnprotectedRoute|TestAdminOnlyListCoversContract)\$' -count=1"
 
+fi
 echo ""
+if canary_selected 9; then
 echo "===== 9/14 菜单 ↔ 页面文件对账 ====="
 # 门禁原型：frontend_admin/test/unit/menu.test.ts
 # 起因：侧边栏挂着「日志中心 → /logs」而 app/pages/logs/ 不存在，点进去 404。
@@ -390,7 +484,9 @@ else
   FAIL=$((FAIL+1))
 fi
 
+fi
 echo ""
+if canary_selected 10; then
 echo "===== 10/14 前端 lint 门禁 ====="
 # 注入一个 debugger：两端 eslint 都把 no-debugger 设为 error。
 printf 'export function canaryLint(): void {\n  debugger\n}\n' > "$CANARY_LINT"
@@ -401,7 +497,9 @@ else
 fi
 rm -f "$CANARY_LINT"
 
+fi
 echo ""
+if canary_selected 11; then
 echo "===== 11/14 覆盖率门槛 ====="
 # 门禁原型：frontend_admin 的 vitest coverage thresholds（95/90/95/95，
 # 统计范围只有 app/utils/**）。
@@ -440,7 +538,9 @@ else
   bad "无法备份 $ADMIN_VITEST_CFG，覆盖率自检无法进行"
 fi
 
+fi
 echo ""
+if canary_selected 12; then
 echo "===== 12/14 两端 tokens.css 同源门禁 ====="
 # 门禁原型：scripts/check-token-parity.mjs（ADR-0012 约束 14 / #22）
 # 判据是"两份文件逐字节相同"。注入：给后台那份末尾追加一个注释 —— 模拟最真实的
@@ -448,7 +548,7 @@ echo "===== 12/14 两端 tokens.css 同源门禁 ====="
 ADMIN_TOKENS="frontend_admin/app/assets/css/tokens.css"
 if backup_file "$ADMIN_TOKENS"; then
   printf '\n/* canary: 故意只改一端 */\n' >> "$ADMIN_TOKENS"
-  if node scripts/check-token-parity.mjs >"$CANARY_TMP/out.txt" 2>&1; then
+  if node scripts/gates/run.mjs token-parity >"$CANARY_TMP/out.txt" 2>&1; then
     bad "两端 tokens.css 不一致时，同源门禁没有失败"
   elif grep -q "两端 token 同源门禁失败" "$CANARY_TMP/out.txt"; then
     # 必须确认"红"的原因是内容不一致，而不是 node 没被找到：
@@ -465,7 +565,9 @@ else
   FAIL=$((FAIL+1))
 fi
 
+fi
 echo ""
+if canary_selected 13; then
 echo "===== 13/14 两端同源副本门禁（定形工具 + 裁剪窗四份组件） ====="
 # 门禁原型：scripts/check-image-shaping-parity.mjs（#200 定形工具；#225 扩到裁剪窗）
 # 判据是"两端副本逐字节相同"。后台不能 import 读者站模块（#176 会让生产构建失败），
@@ -478,7 +580,7 @@ if backup_file "$ADMIN_SHAPING"; then
   if ! grep -q "width: 1500, height: 900" "$ADMIN_SHAPING"; then
     echo "✗ 无法注入：imageShaping.ts 里没找到预期的封面目标尺寸常量"
     FAIL=$((FAIL+1))
-  elif node scripts/check-image-shaping-parity.mjs >"$CANARY_TMP/out.txt" 2>&1; then
+  elif node scripts/gates/run.mjs image-shaping-parity >"$CANARY_TMP/out.txt" 2>&1; then
     bad "两端定形工具不一致时，同源门禁没有失败"
   elif grep -q "两端定形工具（imageShaping）同源门禁失败" "$CANARY_TMP/out.txt"; then
     # 必须确认"红"的原因是内容不一致（且报了哪一份漂移），
@@ -509,7 +611,7 @@ if backup_file "$ADMIN_CROP_DIALOG"; then
   if ! grep -q 'preset="dial"' "$ADMIN_CROP_DIALOG"; then
     echo "✗ 无法注入：ImageCropDialog.vue 里没找到预期的 NModal preset"
     FAIL=$((FAIL+1))
-  elif node scripts/check-image-shaping-parity.mjs >"$CANARY_TMP/out.txt" 2>&1; then
+  elif node scripts/gates/run.mjs image-shaping-parity >"$CANARY_TMP/out.txt" 2>&1; then
     bad "两端裁剪窗组件不一致时，同源门禁没有失败"
   elif grep -q "两端裁剪窗（ImageCropView / ImageCropDialog）同源门禁失败" "$CANARY_TMP/out.txt"; then
     if grep -q "漂移方向" "$CANARY_TMP/out.txt"; then
@@ -530,7 +632,9 @@ else
   FAIL=$((FAIL+1))
 fi
 
+fi
 echo ""
+if canary_selected 14; then
 echo "===== 14/14 生成式装饰参数校验 ====="
 # 门禁原型：scripts/generate-deco-parameters.mjs --check（#286）。
 # 真门禁先证明四端消费物与同一参数表一致，再验契约与 /site/deco 运行时取值。
@@ -565,12 +669,20 @@ else
   FAIL=$((FAIL+1))
 fi
 
+fi
 echo ""
 echo "─────────────────────────────"
 echo "通过：$PASS  失败：$FAIL"
+if [ -n "$ONLY_IDS" ]; then
+  echo "  范围：--only $ONLY_IDS（只验证了受影响的演练；其余节要靠全量运行覆盖，不存在整体跳过路径）"
+fi
 if [ "$FAIL" -ne 0 ]; then
   echo "✗ 存在失效门禁，M1 不能验收"
   echo "  如果怀疑有文件没恢复干净，用 git status 复查（本脚本不会动已提交内容）"
   exit 1
 fi
-echo "✓ 全部门禁均能在违规时报错"
+if [ -n "$ONLY_IDS" ]; then
+  echo "✓ 选中的演练均能在违规时报错（--only $ONLY_IDS）"
+else
+  echo "✓ 全部门禁均能在违规时报错"
+fi

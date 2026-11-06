@@ -370,7 +370,9 @@ func (s *Service) DeleteGlobal(ctx context.Context, ids []ctype.ID) (int, error)
 		return 0, err
 	}
 	if count == 0 {
-		return 0, apperr.New(apperr.CodeNotifNotFound)
+		// 管理员删除时"一条都没删掉"是对这个动作的直接结论，
+		// 由用例层给出带文案的错误值；适配器只负责原样转发。
+		return 0, apperr.New(apperr.CodeNotifDeleteNotFound)
 	}
 	return count, nil
 }

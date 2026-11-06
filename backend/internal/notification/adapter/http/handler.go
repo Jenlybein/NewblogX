@@ -230,10 +230,6 @@ func (h *Handler) GlobalAdminRemove(c *gin.Context) {
 	}
 	count, err := h.svc.DeleteGlobal(c.Request.Context(), cr.IDList)
 	if err != nil {
-		if apperr.IsCode(err, apperr.CodeNotifNotFound) {
-			fail(c, apperr.New(apperr.CodeNotifDeleteNotFound))
-			return
-		}
 		fail(c, err)
 		return
 	}

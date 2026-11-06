@@ -233,7 +233,7 @@ func (g *Globals) ListVisible(_ context.Context, userID uint64, userCreatedAt ti
 		if g.deleted[userID][row.ID.Uint64()] {
 			continue
 		}
-		if row.VisibleAt(userCreatedAt, now) && matchKey(row, page.Key) {
+		if (domain.VisibilityPredicate{Now: now, UserCreatedAt: userCreatedAt}).Matches(row) && matchKey(row, page.Key) {
 			hit = append(hit, row)
 		}
 	}
@@ -270,7 +270,7 @@ func (g *Globals) FindVisible(_ context.Context, userID uint64, ids []ctype.ID, 
 		if g.deleted[userID][row.ID.Uint64()] {
 			continue
 		}
-		if row.VisibleAt(userCreatedAt, now) {
+		if (domain.VisibilityPredicate{Now: now, UserCreatedAt: userCreatedAt}).Matches(row) {
 			out = append(out, row)
 		}
 	}
@@ -336,7 +336,7 @@ func (g *Globals) CountUnread(_ context.Context, userID uint64, userCreatedAt ti
 		if g.deleted[userID][row.ID.Uint64()] || g.read[userID][row.ID.Uint64()] {
 			continue
 		}
-		if row.VisibleAt(userCreatedAt, now) {
+		if (domain.VisibilityPredicate{Now: now, UserCreatedAt: userCreatedAt}).Matches(row) {
 			count++
 		}
 	}

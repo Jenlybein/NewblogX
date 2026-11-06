@@ -1524,10 +1524,17 @@
     @apply min-w-0 p-5 md:p-6;
   }
 
-  /* ---- 消息中心（2026-11-05 重构）：顶部导航条 + 单一内容卡 -------------------
-   * 五个子项共用一张 .surface-card；导航变成横条后内容区占满整行。
-   * 选中态 = 抬升面底 + 底部 2px 强调条 + 字重（inset 阴影不改盒模型，切换不抖）。
-   * 颜色全部走语义 token，圆角只用五档阶梯，窄屏横条可横向滚动。 */
+  /* ---- 消息中心（票 297）：一体化分段条 + 颈部 ---------------------------------
+   * 五个子项从"各自带边框的胶囊"改成一条分段控件：五段**相邻贴合**，
+   * 整条为**内容宽度**（不再 self-stretch 拉满整行），窄屏仍可横向滚动。
+   * 激活块 = 深墨面（--color-surface-inverse）铺底 + 反白文字（--color-on-inverse），
+   * 未激活段仍是次级墨色（--color-ink-muted）；不新增"激活垫"色相。
+   * 只有激活段两侧的接缝张开，张开的接缝里画一段颈部（两条凹曲线夹出的腰形面 +
+   * 线性渐变，两端分别取左右相邻段的填充色），几何与渐变端点由 utils/subnavNeck 给。
+   * 闭合接缝的段位重叠 1px：贴合不留发丝缝。
+   * 段位 margin-left 与圆角由组件的弹簧驱动 —— 这是全站唯一允许布局属性动画的地方，
+   * 仅限这条 ≤5 个节点（ADR-0012 后续修订 2026-11-07）；颜色过渡仍走 CSS 的三档时长
+   * 与单一缓动，弹簧不替代它。 */
   .message-center__header {
     @apply flex items-end justify-between gap-3;
   }
@@ -1541,34 +1548,65 @@
   }
 
   .message-center__subnav {
-    @apply flex items-center gap-1 self-stretch rounded-card border p-1;
+    @apply inline-flex max-w-full items-stretch rounded-card border p-1;
     background: var(--color-surface);
     border-color: var(--color-line);
     overflow-x: auto;
   }
 
-  .message-center-tab {
-    @apply flex shrink-0 items-center justify-center gap-2 rounded-control px-4 py-2 text-sm transition;
-    color: var(--color-ink-muted);
-    touch-action: manipulation;
+  /* 一段：段位（margin-left）与圆角由组件的弹簧写在行内样式上，
+   * 这里的值是"还没接上 JS"时的同一档，不做第二套视觉。 */
+  .message-center__subnav-segment {
+    @apply relative shrink-0 whitespace-nowrap;
+    border-radius: var(--radius-sm);
+    --neck-gap: 0px;
   }
 
-  .message-center-tab:hover {
+  .message-center__subnav-segment[data-active="true"] {
+    background: var(--color-surface-inverse);
+  }
+
+  .message-center-tab {
+    @apply relative flex h-full items-center justify-center gap-2 px-4 py-2 text-sm;
+    border-radius: inherit;
+    color: var(--color-ink-muted);
+    touch-action: manipulation;
+    transition-property: color, background-color;
+    transition-duration: var(--motion-fast);
+    transition-timing-function: var(--motion-ease);
+  }
+
+  /* hover 只给未激活段：激活块是深墨面，垫一层淡底会把它读成"半选中"。 */
+  .message-center__subnav-segment:not([data-active="true"]) .message-center-tab:hover {
     background: var(--color-line-faint);
     color: var(--color-ink);
   }
 
   .message-center-tab.is-active {
-    background: var(--color-surface-raised);
-    color: var(--color-ink);
+    color: var(--color-on-inverse);
     font-weight: 600;
-    box-shadow: inset 0 -2px 0 var(--color-ink);
+  }
+
+  /* 颈部：长在张开的那段间隙里。宽/位读 --neck-gap（与段位用同一组弹簧驱动），
+   * 所以弹性回弹期间它与真实间隙始终对齐；SVG 只描述比例，宽高由这里拉伸。 */
+  .message-center-tab__neck {
+    @apply pointer-events-none absolute;
+    top: 0;
+    bottom: 0;
+    left: calc(-1 * var(--neck-gap, 0px));
+    width: var(--neck-gap, 0px);
   }
 
   .message-center-tab__count {
     @apply inline-flex min-w-6 items-center justify-center rounded-pill px-2 py-0.5 text-xs font-semibold;
     background: var(--color-line-faint);
     color: var(--color-ink);
+  }
+
+  /* 激活块内的角标：半透明反白底（深墨面上不能再用发丝线那种极淡底）。 */
+  .message-center-tab.is-active .message-center-tab__count {
+    background: color-mix(in srgb, var(--color-on-inverse) 18%, transparent);
+    color: var(--color-on-inverse);
   }
 
   .message-center__main {

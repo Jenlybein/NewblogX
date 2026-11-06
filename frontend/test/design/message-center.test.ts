@@ -31,12 +31,45 @@ const tabMiddleware = read("app/middleware/messages-tab.ts");
 const legacyInboxPage = read("app/pages/studio/inbox.vue");
 
 describe("消息中心：视觉规则（CSS 源码判据）", () => {
-  it("子项选中态：抬升面底 + 底部 2px 强调条 + 字重（顶部导航条）", () => {
+  it("子项选中态：激活段深墨面（inverse）铺底 + 反白文字，不再用底部强调条（票 297）", () => {
+    const activeSegment = blockAfter(tailwindCss, '.message-center__subnav-segment[data-active="true"] {');
     const selected = blockAfter(tailwindCss, ".message-center-tab.is-active {");
 
-    expect(selected).toContain("background: var(--color-surface-raised)");
-    expect(selected).toContain("box-shadow: inset 0 -2px 0 var(--color-ink)");
+    expect(activeSegment).toContain("background: var(--color-surface-inverse)");
+    expect(selected).toContain("color: var(--color-on-inverse)");
     expect(selected).toMatch(/font-weight:\s*600/u);
+    // 旧口径的强调条与抬升面底必须整条退役：两套选中标记叠在一起会互相打架。
+    expect(selected).not.toContain("box-shadow");
+    expect(selected).not.toContain("--color-surface-raised");
+  });
+
+  it("五段贴合、整条为内容宽度（不再 self-stretch 拉满、不再留段间距）（票 297）", () => {
+    const subnav = blockAfter(tailwindCss, ".message-center__subnav {");
+    const segment = blockAfter(tailwindCss, ".message-center__subnav-segment {");
+
+    expect(subnav).toContain("inline-flex");
+    expect(subnav).toContain("max-w-full");
+    expect(subnav).not.toContain("self-stretch");
+    // 段间距会重新长回"独立胶囊"，贴合的贴合量只能由段位（margin-left）表达。
+    expect(subnav).not.toMatch(/\bgap-[0-9]/u);
+    expect(segment).toContain("shrink-0");
+    expect(segment).toContain("whitespace-nowrap");
+  });
+
+  it("颈部：宽/位读 --neck-gap，长在张开的那段间隙里（票 297）", () => {
+    const neck = blockAfter(tailwindCss, ".message-center-tab__neck {");
+
+    expect(neck).toContain("left: calc(-1 * var(--neck-gap");
+    expect(neck).toContain("width: var(--neck-gap");
+    expect(neck).toContain("pointer-events-none");
+  });
+
+  it("激活块内的未读角标是半透明反白底（票 297）", () => {
+    const badge = blockAfter(tailwindCss, ".message-center-tab.is-active .message-center-tab__count {");
+
+    expect(badge).toContain("color-mix(");
+    expect(badge).toContain("var(--color-on-inverse)");
+    expect(badge).toContain("color: var(--color-on-inverse)");
   });
 
   it("五个子项共用顶部导航条 + 单一内容卡，不再是 220px 左导航", () => {

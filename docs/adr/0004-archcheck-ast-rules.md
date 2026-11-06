@@ -60,3 +60,9 @@
 - 代码：[tools/archcheck/rules_id.go](../../backend/tools/archcheck/rules_id.go)（R12 `id-must-be-ctype`，见 [ADR-0007](./0007-id-string-type-as-truth.md)）
 - 文档：[治理与质量 · 架构守卫](../architecture/governance.md)
 - 原始记录：[04 · ADR 合集（v1 归档）](../archive/v1/04-adr-collection.md)
+
+## 后续修订（2026-11-06，用户指令）
+
+- R6「单文件行数上限」阈值由 **800 行改为 2200 行**；`rules.go` 判定、`rules_test.go` 自检用例、两端 `eslint.config.mjs` 的 `max-lines`、`governance.md` / `overview.md` 口径同批对齐。
+- 本 ADR 正文与「当前生效约束」原文不动（已交付 ADR 不改结论，只追加后续修订）；`archive/v1` 与 `notes/memory` 里的 800 行记录属历史账，保留。
+- 动机：只拦真正失控的巨型文件，不再因为稍长的测试 / 聚合文件就逼着拆文件；职责边界仍靠 review 判断，不靠行数。

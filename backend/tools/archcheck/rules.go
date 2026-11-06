@@ -218,12 +218,13 @@ func ruleNoImportCycleAcrossModules() Rule {
 
 // ── R6：单文件行数上限 ───────────────────────────────────────────
 //
-// 现状：article_sync.go 1,547 行、sync.go 852 行。
-// 超大文件不是风格问题——它意味着职责没有边界，改一处要读一天。
+// 阈值 2200 行：只拦真正失控的巨型文件，不再因为稍长的测试 / 聚合文件
+// 就逼着拆文件。超大文件仍然不是风格问题——它意味着职责没有边界，
+// 改一处要读一天；这里只是把「失控」的门槛放宽到实际需要的位置。
 func ruleFileTooLong() Rule {
 	return Rule{
 		ID:    "R6",
-		Title: "单文件不得超过 800 行",
+		Title: "单文件不得超过 2200 行",
 		Level: "warn",
 		Check: func(fset *token.FileSet, file *ast.File, rel string) []Violation {
 			// 用 fset 里的行数信息判断
@@ -232,12 +233,12 @@ func ruleFileTooLong() Rule {
 				return nil
 			}
 			lines := tf.LineCount()
-			if lines <= 800 {
+			if lines <= 2200 {
 				return nil
 			}
 			return []Violation{{
 				Rule: "R6", File: rel, Line: 1,
-				Msg: fmt.Sprintf("文件共 %d 行，超过 800 行上限", lines),
+				Msg: fmt.Sprintf("文件共 %d 行，超过 2200 行上限", lines),
 			}}
 		},
 	}

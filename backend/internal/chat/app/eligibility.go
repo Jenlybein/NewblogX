@@ -41,48 +41,96 @@ type sendPlan struct {
 }
 
 // check 判完发送资格。返回的 content 是归一化后的正文（图片消息已包成 JSON）。
+//
+// 四层判定各是一个私有方法，顺序即优先级（后面的层看不到前面层否决的请求）：
+// validate（依赖 + 图片）→ rejectBlocked（拉黑）→ rejectStranger（陌生人）→ reserve（限流）。
+// 这里只负责按顺序串起来并把结论拼成发送计划。
 func (g *sendGuard) check(ctx context.Context, senderID, receiverID ctype.ID, msgType domain.MsgType, content string) (sendPlan, error) {
-	// 五项资格依赖缺一不可：缺项意味着对应的风控根本没上场，不能放行。
-	if g.blocks == nil || g.relations == nil || g.stranger == nil || g.limiter == nil {
-		return sendPlan{}, apperr.New(apperr.CodeChatSendFailed)
+	normalized, err := g.validate(ctx, msgType, content)
+	if err != nil {
+		return sendPlan{}, err
 	}
-
-	normalized, err := g.verifyImage(ctx, msgType, content)
+	if err := g.rejectBlocked(ctx, senderID, receiverID); err != nil {
+		return sendPlan{}, err
+	}
+	sender, receiver, relation, err := g.rejectStranger(ctx, senderID, receiverID)
+	if err != nil {
+		return sendPlan{}, err
+	}
+	reservation, err := g.reserve(ctx, senderID, receiverID, relation)
 	if err != nil {
 		return sendPlan{}, err
 	}
 
-	// 屏蔽 / 拉黑（ADR-0026）在陌生人判定之前：这是"我"明确表达过的意愿，
-	// 优先级高于任何站点级 / 个人级陌生人开关。
-	//   - 我屏蔽 / 拉黑了对方：我不该再能给他发（单向自律，避免手滑继续骚扰）；
-	//   - 对方屏蔽 / 拉黑了我：他发不进来，我也不该能发过去。
+	return sendPlan{
+		senderID:    senderID,
+		receiverID:  receiverID,
+		sender:      sender,
+		receiver:    receiver,
+		relation:    relation,
+		reservation: reservation,
+		content:     normalized,
+	}, nil
+}
+
+// validate 是第 1 层：资格依赖必须全部装配，图片消息必须来自本站上传产物。
+//
+// 五项资格依赖缺一不可：缺项意味着对应的风控根本没上场，不能放行。
+func (g *sendGuard) validate(ctx context.Context, msgType domain.MsgType, content string) (string, error) {
+	if g.blocks == nil || g.relations == nil || g.stranger == nil || g.limiter == nil {
+		return "", apperr.New(apperr.CodeChatSendFailed)
+	}
+	return g.verifyImage(ctx, msgType, content)
+}
+
+// rejectBlocked 是第 2 层：屏蔽 / 拉黑（ADR-0026）在陌生人判定之前。
+//
+// 这是"我"明确表达过的意愿，优先级高于任何站点级 / 个人级陌生人开关：
+//   - 我屏蔽 / 拉黑了对方：我不该再能给他发（单向自律，避免手滑继续骚扰）；
+//   - 对方屏蔽 / 拉黑了我：他发不进来，我也不该能发过去。
+func (g *sendGuard) rejectBlocked(ctx context.Context, senderID, receiverID ctype.ID) error {
 	outgoing, err := g.blocks.Level(ctx, senderID, receiverID)
 	if err != nil {
-		return sendPlan{}, err
+		return err
 	}
 	incoming, err := g.blocks.Level(ctx, receiverID, senderID)
 	if err != nil {
-		return sendPlan{}, err
+		return err
 	}
 	if outgoing != domain.BlockLevelNone || incoming != domain.BlockLevelNone {
-		return sendPlan{}, apperr.New(apperr.CodeChatBlocked)
+		return apperr.New(apperr.CodeChatBlocked)
 	}
+	return nil
+}
 
+// rejectStranger 是第 3 层：陌生人判定。
+//
+// 展示快照与关系级别是这一层的输入（"确实没有关系"才可能是陌生人），所以和
+// 判定一起取并带回给发送计划 —— 拆成"先取数再判定"只会让取数在没有判定时
+// 也被调一次。
+//
+// 陌生人私信是**两级**策略（#243）：站点总闸 AND 接收方个人开关。
+// 两级取值在装配层的 StrangerPolicy 里合成，用例层只消费结论；
+// 必须传接收方 ID，个人开关才有接线点。
+//
+// #247 起结论带原因：两种拒绝在读者侧对应不同的正确动作 ——
+// 站点级找管理员，接收方级提示"对方不接受陌生人私信"。
+func (g *sendGuard) rejectStranger(ctx context.Context, senderID, receiverID ctype.ID) (sender, receiver domain.Display, relation int8, err error) {
 	displays, err := g.users.Displays(ctx, []ctype.ID{senderID, receiverID})
 	if err != nil {
-		return sendPlan{}, err
+		return domain.Display{}, domain.Display{}, 0, err
 	}
 	receiver, ok := displays[receiverID]
 	if !ok {
-		return sendPlan{}, apperr.New(apperr.CodeChatUserNotFound)
+		return domain.Display{}, domain.Display{}, 0, apperr.New(apperr.CodeChatUserNotFound)
 	}
-	sender := displays[senderID]
+	sender = displays[senderID]
 
-	relation := int8(1)
+	relation = int8(1)
 	if senderID != receiverID {
 		got, err := g.relations.Batch(ctx, senderID, []ctype.ID{receiverID})
 		if err != nil {
-			return sendPlan{}, err
+			return domain.Display{}, domain.Display{}, 0, err
 		}
 		if rel, ok := got[receiverID]; ok {
 			relation = rel
@@ -100,44 +148,29 @@ func (g *sendGuard) check(ctx context.Context, senderID, receiverID ctype.ID, ms
 		case apperr.IsCode(err, apperr.CodeChatSessionNotFound):
 			// 没有会话：继续按陌生人判定。
 		default:
-			return sendPlan{}, err
+			return domain.Display{}, domain.Display{}, 0, err
 		}
 	}
-	// 陌生人私信是**两级**策略（#243）：站点总闸 AND 接收方个人开关。
-	// 两级取值在装配层的 StrangerPolicy 里合成，用例层只消费结论；
-	// 必须传接收方 ID，个人开关才有接线点。
-	//
-	// #247 起结论带原因：两种拒绝在读者侧对应不同的正确动作 ——
-	// 站点级找管理员，接收方级提示"对方不接受陌生人私信"。
 	if stranger {
 		verdict, err := g.stranger.CheckStranger(ctx, receiverID)
 		if err != nil {
-			return sendPlan{}, err
+			return domain.Display{}, domain.Display{}, 0, err
 		}
 		switch verdict {
 		case domain.StrangerAllowed:
 		case domain.StrangerBlockedByRecipient:
-			return sendPlan{}, apperr.New(apperr.CodeChatRecipientStrangerOff)
+			return domain.Display{}, domain.Display{}, 0, apperr.New(apperr.CodeChatRecipientStrangerOff)
 		default:
 			// 站点级拒绝（以及未知结论的失败关闭）沿用既有错误码。
-			return sendPlan{}, apperr.New(apperr.CodeChatStrangerOff)
+			return domain.Display{}, domain.Display{}, 0, apperr.New(apperr.CodeChatStrangerOff)
 		}
 	}
+	return sender, receiver, relation, nil
+}
 
-	reservation, err := g.limiter.Reserve(ctx, senderID, receiverID, relation)
-	if err != nil {
-		return sendPlan{}, err
-	}
-
-	return sendPlan{
-		senderID:    senderID,
-		receiverID:  receiverID,
-		sender:      sender,
-		receiver:    receiver,
-		relation:    relation,
-		reservation: reservation,
-		content:     normalized,
-	}, nil
+// reserve 是第 4 层：按对限流。额度预占是发送计划的一部分，由发送者收尾。
+func (g *sendGuard) reserve(ctx context.Context, senderID, receiverID ctype.ID, relation int8) (domain.Reservation, error) {
+	return g.limiter.Reserve(ctx, senderID, receiverID, relation)
 }
 
 // verifyImage 校验图片私信必须来自本站上传产物，并保持既有 JSON 正文形状。

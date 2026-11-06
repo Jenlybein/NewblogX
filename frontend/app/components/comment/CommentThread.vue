@@ -45,10 +45,19 @@ function toggleReplies(rootId: string) {
   <div class="comment-thread">
     <article v-for="comment in comments" :key="comment.id" class="comment">
       <div class="comment__head">
-        <AppAvatar :size="42" :src="comment.user_avatar" :name="comment.user_nickname" fallback="评" />
+        <!-- 作者区是进个人主页的入口（票 292）：头像与昵称包在**同一个** NuxtLink 里，
+             缺失 user_id 时退化成静态文本（不可点、不可聚焦、读屏不当链接）——
+             与文章卡片的作者区同一范式（ArticleFeedItem.vue）。 -->
+        <NuxtLink v-if="comment.user_id" :to="`/users/${comment.user_id}`" class="comment__author-link">
+          <AppAvatar :size="42" :src="comment.user_avatar" :name="comment.user_nickname" fallback="评" />
+          <span class="comment__author">{{ comment.user_nickname }}</span>
+        </NuxtLink>
+        <span v-else class="comment__author-link comment__author-link--static">
+          <AppAvatar :size="42" :src="comment.user_avatar" :name="comment.user_nickname" fallback="评" />
+          <span class="comment__author">{{ comment.user_nickname }}</span>
+        </span>
         <div class="comment__identity">
           <div class="comment__meta">
-            <span class="comment__author">{{ comment.user_nickname }}</span>
             <span class="comment__time">{{ formatDateTimeLabel(comment.created_at) }}</span>
             <span v-if="comment.status === 1" class="comment__status">审核中</span>
           </div>
@@ -103,10 +112,17 @@ function toggleReplies(rootId: string) {
             class="comment comment--reply"
           >
             <div class="comment__head">
-              <AppAvatar :size="32" :src="reply.user_avatar" :name="reply.user_nickname" fallback="评" />
+              <!-- 子评论的作者区与根评论同一口径（票 292）；「回复 XXX」是关系说明，不是身份入口，不做链接。 -->
+              <NuxtLink v-if="reply.user_id" :to="`/users/${reply.user_id}`" class="comment__author-link">
+                <AppAvatar :size="32" :src="reply.user_avatar" :name="reply.user_nickname" fallback="评" />
+                <span class="comment__author">{{ reply.user_nickname }}</span>
+              </NuxtLink>
+              <span v-else class="comment__author-link comment__author-link--static">
+                <AppAvatar :size="32" :src="reply.user_avatar" :name="reply.user_nickname" fallback="评" />
+                <span class="comment__author">{{ reply.user_nickname }}</span>
+              </span>
               <div class="comment__identity">
                 <div class="comment__meta">
-                  <span class="comment__author">{{ reply.user_nickname }}</span>
                   <span class="comment__time">{{ formatDateTimeLabel(reply.created_at) }}</span>
                   <span v-if="reply.reply_user_nickname" class="comment__time">回复 {{ reply.reply_user_nickname }}</span>
                 </div>

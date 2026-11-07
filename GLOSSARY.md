@@ -668,7 +668,7 @@ _Avoid_: 把它当成文章的 `risk_level` 列；把它的历史价值当成已
 
 **运行时策略 skill（`skills/`）**：
 放在仓库根 `skills/<name>/SKILL.md`、随产品进程**启动时读盘**并注入模型调用的文本策略。格式遵循 **Agent Skills 开放规范**（`name` + `description` 为必填，可选 `license` / `compatibility` / `metadata` / `allowed-tools`；`name` 必须等于父目录名），**不自造字段**——产品私有信息只写进 `metadata`（`map[string]string`），这样同一份 skill 脱离本项目也能被任何兼容客户端直接使用。"哪个场景用哪份 skill"是**产品接线**，写在运行期配置里，不进 skill 本体。读不到、格式不合规、或引用了未知场景，一律**启动失败**，不存在内置兜底文本；版本号取 SKILL.md 字节哈希，落进调用记录。
-位置：目录形态、加载器契约与校验规则见 [grill 记录](./docs/notes/2026-11-07-publish-gate-and-moderation-grill.md) §五；决定见 ADR-0033（提议）；规范见 <https://agentskills.io/specification>。
+位置：目录形态、加载器契约与校验规则见 [grill 记录](./docs/notes/2026-11-07-publish-gate-and-moderation-grill.md) §五；决定见 [ADR-0033](./docs/adr/0033-runtime-policy-skills.md)；规范见 <https://agentskills.io/specification>。
 易混：它与 `AGENTS.md` 里那套「Agent skills」**格式相同、消费者不同**——那三个 `docs/agents/*.md` 是编码 agent 读本仓配置的入口，`skills/` 里这两份是产品运行时读的策略文本；与「阻断级词表」分工也不同（词表是数据、走运行期配置热改；skill 是规则、走代码版本）。
 _Avoid_: 把它叫「prompt 目录」（它不只装 prompt 片段，还带规范校验与版本）；在 frontmatter 里自造 `applies_to` / `version` 这类顶层字段（规范只允许 `metadata` 承载私有信息）；在代码里再写一份兜底文案。
 

@@ -275,3 +275,15 @@ image_ref_river:
 replay:
   # 单批回放条数
   batch_size: 100
+
+# 运行时策略文本（skills/）的目录。
+# 它属于进程级配置而不是数据库里的运行期配置：读不到就不启动，影响的是"进程怎么跑"，
+# 不是某次请求的行为。放进能热改的那一层，就会出现"进程起来了、策略文本却没了"的中间态。
+# 目录相对**进程工作目录**解析，逐个扫描 <root>/*/SKILL.md：
+#   - 容器里镜像是 WORKDIR /app，并把仓库根 skills/ 拷到 /app/skills，用默认值即可；
+#   - 本地从 backend/ 目录 `go run ./cmd/server`，所以 .envrc 里给 ../skills。
+# 留空回落到默认 skills（见 conf.DefaultSkillsDirs）；逗号分隔可配多个目录。
+# 读不到、或格式不合规（名称与目录名不一致、描述超长、正文为空、metadata 值非字符串）
+# 一律启动失败，错误里点名具体文件——不存在代码内兜底文本（ADR-0033）。
+skills:
+  dirs: "${BLOGX_SKILLS_DIRS:-}"

@@ -13,7 +13,9 @@
 #   admin 鉴权探测、菜单↔页面对账、前端 lint、覆盖率门槛。
 #   它们一道都没进过自检，等于"新增的门禁是否有效"从来没被验证过。
 #   现在 14 节演练全覆盖：1..13 对应门禁清单（scripts/gates/gates.json）里的
-#   13 道仓库级门禁；第 14 节是**清单外**的生成式装饰参数校验（#286）——
+#   14 道仓库级门禁（`skills-format`（#309）与 `archcheck` 共用第 3 节 —— 它的
+#   人造成违规用例写在 `scripts/check-skills.mjs --self-test` 里，与第 3 节
+#   「规则自检」是同一种证明形状，因此不新增演练节号、不改本脚本的编号）；第 14 节是**清单外**的生成式装饰参数校验（#286）——
 #   #287 AC4 只把「清单 / 版本 / 判定 / 重复安装」四件收进清单，参数生成脚本
 #   不进清单，但它的演练照旧在这里，证明它会红。
 #   第 5 道（契约未过期）与真门禁跨同一个判定实现
@@ -291,6 +293,11 @@ if canary_selected 3; then
 echo "===== 3/14 archcheck 规则自检 ====="
 # 规则自检本身也是门禁：如果把某条规则改坏（不再报错），rules_test 必须红。
 expect_pass "archcheck 规则自检" bash -c 'cd backend && go test ./tools/archcheck/...'
+# 同一节号还登记着运行时策略 skill 门禁（skills-format，#309）。它的负向用例写在
+# 门禁自己的 --self-test 里 —— 与"规则测试自身即反例"是同一种证明形状，所以两道
+# 门禁共用第 3 节，本脚本的 1..14 编号与 /14 标记一字未动。
+expect_pass "运行时策略 skill 门禁（--self-test 自带人造违规用例）" \
+  node scripts/check-skills.mjs --self-test
 
 fi
 echo ""

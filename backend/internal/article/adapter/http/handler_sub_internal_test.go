@@ -40,6 +40,42 @@ func TestParseViewHistoryCursorUsesAppErrorCode(t *testing.T) {
 	}
 }
 
+// TestRequireRejectReason 钉住请求层的"驳回必须写明原因"。
+//
+// 用例层也有同一条规则（那里是唯一真正的不变量），请求层这一道是为了让空原因
+// 在进事务之前就拿到明确的错误码，而不是变成一次"看起来成功、通知里却什么都没写"
+// 的审核。通过不需要原因：这条规则不能被顺手加到通过上。
+func TestRequireRejectReason(t *testing.T) {
+	cases := []struct {
+		name     string
+		approve  bool
+		reason   string
+		wantCode apperr.Code
+	}{
+		{name: "通过不带原因", approve: true, reason: ""},
+		{name: "通过带原因", approve: true, reason: "写得好"},
+		{name: "驳回带原因", approve: false, reason: "内容不完整"},
+		{name: "驳回空原因", approve: false, reason: "", wantCode: apperr.CodeArticleReviewReasonRequired},
+		{name: "驳回纯空白", approve: false, reason: " \n\t ", wantCode: apperr.CodeArticleReviewReasonRequired},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			err := requireRejectReason(tc.approve, tc.reason)
+			if tc.wantCode == "" {
+				if err != nil {
+					t.Fatalf("不该报错，实际 %v", err)
+				}
+				return
+			}
+			code, ok := apperr.CodeOf(err)
+			if !ok || code != tc.wantCode {
+				t.Fatalf("应返回错误码 %s，实际 code=%s ok=%v err=%v", tc.wantCode, code, ok, err)
+			}
+		})
+	}
+}
+
 // TestParseViewHistoryCursorAcceptsCompletePairs 保证参数校验改走 apperr 后正常路径不变。
 func TestParseViewHistoryCursorAcceptsCompletePairs(t *testing.T) {
 	// 两个都缺省 = 第一页，没有错误、也没有游标。

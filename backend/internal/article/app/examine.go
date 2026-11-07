@@ -2,9 +2,27 @@ package app
 
 import (
 	"context"
+	"strings"
 
 	"myblogx/internal/article/domain"
 )
+
+// reviewReason 校验并规范化审核动作的驳回原因。
+//
+// 通过不需要原因；驳回必须给出一句非空的话（去掉首尾空白后仍非空）。
+// 这条规则放用例层而不是只放请求层：管理后台、脚本、将来的批量审核都走同一条
+// 用例，绕过 HTTP 不能绕过它。返回的 trimmed 值要原样落库——作者看到的就是它，
+// 让手滑打出的首尾换行跟着送达没有任何价值。
+func reviewReason(approve bool, reason string) (string, error) {
+	if approve {
+		return "", nil
+	}
+	trimmed := strings.TrimSpace(reason)
+	if trimmed == "" {
+		return "", domain.ErrReviewReasonRequired
+	}
+	return trimmed, nil
+}
 
 // Examine 审核文章。
 //
@@ -15,10 +33,14 @@ func (s *Service) Examine(ctx context.Context, cmd ExamineCmd) (*domain.Article,
 	if !cmd.Actor.IsAdmin() {
 		return nil, domain.ErrForbidden
 	}
+	reason, err := reviewReason(cmd.Approve, cmd.Reason)
+	if err != nil {
+		return nil, err
+	}
 
 	var result *domain.Article
 
-	err := s.tx.WithinTx(ctx, func(ctx context.Context, r Repos) error {
+	err = s.tx.WithinTx(ctx, func(ctx context.Context, r Repos) error {
 		a, err := r.Articles().Find(ctx, cmd.ArticleID)
 		if err != nil {
 			return err
@@ -53,7 +75,7 @@ func (s *Service) Examine(ctx context.Context, cmd ExamineCmd) (*domain.Article,
 					return err
 				}
 			} else {
-				if err := t.Reject(cmd.Actor.UserID, cmd.Reason, now); err != nil {
+				if err := t.Reject(cmd.Actor.UserID, reason, now); err != nil {
 					return err
 				}
 			}

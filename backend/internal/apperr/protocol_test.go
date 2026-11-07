@@ -84,6 +84,7 @@ var serviceFallbackCodes = []apperr.Code{
 	apperr.CodeArticleVersionConflict,
 	apperr.CodeArticlePublishDisabled,
 	apperr.CodeArticleDraftDisabled,
+	apperr.CodeArticleReviewReasonRequired,
 
 	// 分类与标签。
 	apperr.CodeTaxonomyTitleRequired,

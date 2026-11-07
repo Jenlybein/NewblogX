@@ -12903,6 +12903,27 @@
                 ]
             }
         },
+        "/sitemap.xml": {
+            "get": {
+                "description": "只含首页与已发布且可见的文章页（sitemap 协议）",
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/xml": {
+                                "schema": {
+                                    "type": "string"
+                                }
+                            }
+                        },
+                        "description": "sitemap.xml"
+                    }
+                },
+                "summary": "站点地图",
+                "tags": [
+                    "article"
+                ]
+            }
+        },
         "/sitemsg": {
             "delete": {
                 "requestBody": {

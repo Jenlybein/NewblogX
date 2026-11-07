@@ -9,6 +9,7 @@ import { useHomePageSources } from "~/composables/useHomePageSources";
 import { useParallax } from "~/composables/useParallax";
 import { useSectionReveal } from "~/composables/useSectionReveal";
 import { BRAND, brandDescription, brandFullName } from "~/utils/brand";
+import { webSiteJsonLd } from "~/utils/seo";
 
 const siteStore = useSiteStore();
 
@@ -27,6 +28,21 @@ useSeoMeta({
   keywords: siteStore.seo?.keywords || "前端, Nuxt, Vue, OpenAPI",
   ogTitle: brandFullName(),
   ogDescription: brandDescription(siteStore.seo?.description),
+});
+
+// 票 314 交付 6：站点声明 + 站内搜索（WebSite + SearchAction）。首页是 SSR 白名单里
+// 唯一的另一个页面（ADR-0019 决策 1），所以这条 JSON-LD 一定出现在爬虫拿到的 HTML 里。
+// SearchAction 的参数名必须是搜索页**真的读**的那一个（`/search?key=`）——写错不报错，
+// 只会让"在搜索结果里再搜一次"跳到一页空结果。
+const siteUrl = String(useRuntimeConfig().public.siteUrl || "");
+useHead({
+  script: [
+    {
+      key: "seo-website-jsonld",
+      type: "application/ld+json",
+      innerHTML: JSON.stringify(webSiteJsonLd({ siteName: brandFullName(), siteUrl })),
+    },
+  ],
 });
 
 const banners = computed(() => bannerData.value?.list || []);

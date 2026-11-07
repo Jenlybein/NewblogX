@@ -188,6 +188,7 @@ function confirmClearHistory() {
 onMounted(() => {
   void loadFirstPage();
 });
+useNoIndexPage();
 </script>
 
 <template>

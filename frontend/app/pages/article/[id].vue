@@ -33,7 +33,8 @@ import { resolveArticleEditEntry } from "~/utils/articleEdit";
 import { formatCount, formatDateTimeLabel } from "~/utils/format";
 import { getAuthorButtonLabel, isFollowing } from "~/utils/relation";
 import { resolveAvatarInitial } from "~/utils/avatar";
-import { brandDescription } from "~/utils/brand";
+import { brandAbsoluteAssetUrl, brandDescription, brandFullName } from "~/utils/brand";
+import { articleJsonLd, breadcrumbJsonLd, canonicalArticleUrl, siteOrigin } from "~/utils/seo";
 import { errorMessage } from "~/utils/errorMessage";
 import katexCssUrl from "katex/dist/katex.min.css?url";
 
@@ -407,12 +408,81 @@ onUnmounted(() => {
   disposeArticleDigg();
 });
 
+// 机器读数（票 314 交付 4–6）：规范地址 / 分享卡片 / JSON-LD。
+//
+// 三样都只写 head，不动任何页面行为：地址栏仍然是 `?from=collection:5`，
+// `route.query.from`（第 89 行）照常决定左侧抽屉显示哪棵树。
+//
+// 规范地址的域名取运行时 `siteUrl` 而不是从请求头反推：同一篇文章的
+// `?from=` / `?utm_source=` 变体各自命中不同的 SSR 缓存键，但它们必须输出
+// **同一条** canonical，否则"给搜索引擎去重"这件事本身会去重失败。
+const runtimeConfig = useRuntimeConfig();
+const siteUrl = computed(() => String(runtimeConfig.public.siteUrl || ""));
+const canonicalUrl = computed(() => canonicalArticleUrl(siteUrl.value, articleId.value));
+
 useSeoMeta({
   title: computed(() => article.value?.title || "文章详情"),
   description: computed(() => brandDescription(article.value?.abstract)),
   ogTitle: computed(() => article.value?.title || "文章详情"),
   ogDescription: computed(() => brandDescription(article.value?.abstract)),
   ogImage: computed(() => article.value?.cover || ""),
+  // 票 314 交付 5：分享卡片声明成"一篇文章"（微信 / X / Discord 才会按文章卡片渲染，
+  // 而不是当成"一个网站"）。og:url 用规范地址，与 canonical 同源。
+  ogType: "article",
+  ogUrl: canonicalUrl,
+  // 发布时间取 `created_at`：库里没有 `published_at` 列（本票零 DDL 的硬约束），
+  // 记录时间就是读者能看到的那一个"发布"时刻。空值不输出空标签。
+  articlePublishedTime: computed(() => article.value?.created_at || undefined),
+  // `article:author` 在 OG 里是可以重复的字段（多作者），所以这里给数组。
+  articleAuthor: computed(() => (article.value?.author_name ? [article.value.author_name] : [])),
+  articleTag: computed(() => article.value?.tags ?? []),
+});
+
+// 票 314 交付 4/6：canonical 是 head 里的一行，不是一次跳转；Article 与 BreadcrumbList
+// 埋成两条独立的 application/ld+json（带 key，水合与路由切换时原地替换，不叠加）。
+useHead(() => {
+  const current = article.value;
+
+  return {
+    link: [{ rel: "canonical", href: canonicalUrl.value }],
+    script: current
+      ? [
+          {
+            key: "seo-article-jsonld",
+            type: "application/ld+json",
+            innerHTML: JSON.stringify(
+              articleJsonLd({
+                url: canonicalUrl.value,
+                siteUrl: siteUrl.value,
+                siteName: brandFullName(),
+                siteLogoUrl: brandAbsoluteAssetUrl(siteUrl.value, "logo"),
+                title: current.title,
+                abstract: current.abstract,
+                cover: current.cover,
+                createdAt: current.created_at,
+                updatedAt: current.updated_at,
+                authorName: current.author_name,
+                authorId: current.author_id,
+                tags: current.tags,
+                categoryName: current.category_name,
+              }),
+            ),
+          },
+          {
+            key: "seo-breadcrumb-jsonld",
+            type: "application/ld+json",
+            innerHTML: JSON.stringify(
+              breadcrumbJsonLd({
+                homeName: "首页",
+                homeUrl: `${siteOrigin(siteUrl.value)}/`,
+                articleTitle: current.title,
+                articleUrl: canonicalUrl.value,
+              }),
+            ),
+          },
+        ]
+      : [],
+  };
 });
 </script>
 

@@ -293,6 +293,7 @@ watch(
   },
   { flush: "post" },
 );
+useNoIndexPage();
 </script>
 
 <template>

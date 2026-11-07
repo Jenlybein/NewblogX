@@ -59,9 +59,56 @@ describe("消息中心：视觉规则（CSS 源码判据）", () => {
   it("颈部：宽/位读 --neck-gap，长在张开的那段间隙里（票 297）", () => {
     const neck = blockAfter(tailwindCss, ".message-center-tab__neck {");
 
-    expect(neck).toContain("left: calc(-1 * var(--neck-gap");
-    expect(neck).toContain("width: var(--neck-gap");
+    // 负间隙（闭合接缝的 -1px 重叠）被 max() 钳到 0：颈部永远不会比真实间隙宽，
+    // 也就不会盖到相邻段、把渐变漏到别人的圆角上。
+    expect(neck).toContain("left: calc(-1 * max(0px, var(--neck-gap");
+    expect(neck).toContain("width: max(0px, var(--neck-gap");
     expect(neck).toContain("pointer-events-none");
+    // 段位与颈部读同一个变量，不各写一份（错开就会漏色 / 留发丝）
+    expect(blockAfter(tailwindCss, ".message-center__subnav-segment {")).toContain(
+      "margin-left: var(--neck-gap",
+    );
+  });
+
+  it("肩：用本段自己的底色把敞口接缝一侧的圆角缺角填平（返工点）", () => {
+    const shoulder = blockAfter(tailwindCss, ".message-center-tab__shoulder {");
+
+    // 颈部只长在接缝里、够不到圆角缺角；缺角不填，页底色就会在深墨块旁边露成浅色楔形。
+    expect(shoulder).toContain("background: inherit");
+    expect(shoulder).toContain("width: var(--radius-md)");
+    expect(shoulder).toContain("pointer-events-none");
+    expect(blockAfter(tailwindCss, '.message-center-tab__shoulder[data-side="left"] {')).toContain("left: 0");
+    expect(blockAfter(tailwindCss, '.message-center-tab__shoulder[data-side="right"] {')).toContain("right: 0");
+  });
+
+  it("分段条是裸轨道：容器不再带边框 / 内边距 / 底色（返工点）", () => {
+    const subnav = blockAfter(tailwindCss, ".message-center__subnav {");
+
+    // 以前是"带边线与 p-1 的圆角盒子"，五段被框在里面、接缝张开时露的是盒子自己的纸面，
+    // 于是怎么调都不像参考的一体化分段条。容器只负责排布与横向滚动。
+    expect(subnav).not.toContain("border");
+    expect(subnav).not.toMatch(/\bp[xytblr]?-[0-9]/u);
+    expect(subnav).not.toContain("background");
+  });
+
+  it("未激活段自带轨道面；贴合侧不带圆角（圆角只由组件的弹簧按敞口给）", () => {
+    const segment = blockAfter(tailwindCss, ".message-center__subnav-segment {");
+
+    expect(segment).toContain("background: var(--color-surface-raised)");
+    // 静态兜底恒为方角：贴合处的圆角会在相邻两段之间啃出缺口，
+    // 只有组件按"这条接缝是否张开"给的那份行内样式才是真圆角。
+    expect(segment).toContain("border-radius: 0");
+    expect(blockAfter(tailwindCss, ".message-center__subnav-segment:first-child {")).toContain(
+      "border-top-left-radius: var(--radius-md)",
+    );
+  });
+
+  it("段内边距走参考的 md 节奏：px-5 py-2.5、链接继承段的圆角", () => {
+    const tab = blockAfter(tailwindCss, ".message-center-tab {");
+
+    expect(tab).toContain("px-5");
+    expect(tab).toContain("py-2.5");
+    expect(tab).toContain("border-radius: inherit");
   });
 
   it("激活块内的未读角标是半透明反白底（票 297）", () => {

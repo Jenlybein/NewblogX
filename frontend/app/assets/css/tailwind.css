@@ -1527,14 +1527,19 @@
   /* ---- 消息中心（票 297）：一体化分段条 + 颈部 ---------------------------------
    * 五个子项从"各自带边框的胶囊"改成一条分段控件：五段**相邻贴合**，
    * 整条为**内容宽度**（不再 self-stretch 拉满整行），窄屏仍可横向滚动。
+   * 整条**不带容器边框 / 内边距 / 底色**：以前那个带 p-1 + 边线的圆角盒子把五段框在
+   * 里面，看着像"盒子里的一个胶囊"，接缝张开时露的又是盒子自己的纸面，所以怎么调都
+   * 不像参考。现在轨道面落在每段自己身上（--color-surface-raised），张开的接缝直接
+   * 露出页面底 —— 开口才看得见。
    * 激活块 = 深墨面（--color-surface-inverse）铺底 + 反白文字（--color-on-inverse），
    * 未激活段仍是次级墨色（--color-ink-muted）；不新增"激活垫"色相。
-   * 只有激活段两侧的接缝张开，张开的接缝里画一段颈部（两条凹曲线夹出的腰形面 +
+   * 只有激活段两侧的接缝张开，张开的接缝里画一段颈部（两端满高、中点收腰的哑铃面 +
    * 线性渐变，两端分别取左右相邻段的填充色），几何与渐变端点由 utils/subnavNeck 给。
-   * 闭合接缝的段位重叠 1px：贴合不留发丝缝。
-   * 段位 margin-left 与圆角由组件的弹簧驱动 —— 这是全站唯一允许布局属性动画的地方，
-   * 仅限这条 ≤5 个节点（ADR-0012 后续修订 2026-11-07）；颜色过渡仍走 CSS 的三档时长
-   * 与单一缓动，弹簧不替代它。 */
+   * 圆角只在敞口一侧给（张开的接缝旁 / 控件两端），闭合接缝旁必须是 0：否则相邻两段的
+   * 圆角会在贴合处啃出缺口，整条读成"五个胶囊"。
+   * 段位 margin-left、四角圆角与颈部宽度由组件的同一组弹簧驱动 —— 这是全站唯一允许
+   * 布局属性动画的地方，仅限这条 ≤5 个节点（ADR-0012 后续修订 2026-11-07）；
+   * 颜色过渡仍走 CSS 的三档时长与单一缓动，弹簧不替代它。 */
   .message-center__header {
     @apply flex items-end justify-between gap-3;
   }
@@ -1548,18 +1553,29 @@
   }
 
   .message-center__subnav {
-    @apply inline-flex max-w-full items-stretch rounded-card border p-1;
-    background: var(--color-surface);
-    border-color: var(--color-line);
+    @apply inline-flex max-w-full items-stretch;
     overflow-x: auto;
   }
 
-  /* 一段：段位（margin-left）与圆角由组件的弹簧写在行内样式上，
-   * 这里的值是"还没接上 JS"时的同一档，不做第二套视觉。 */
+  /* 一段：段位、四角圆角与接缝间隙都由组件的弹簧写在行内样式上（只有 `--neck-gap`
+   * 一个间隙量，段位与颈部都从它派生，不可能错开）；这里只给"还没接上 JS"时的近似
+   * （控件两端是圆的、中间贴合），不做第二套视觉。 */
   .message-center__subnav-segment {
     @apply relative shrink-0 whitespace-nowrap;
-    border-radius: var(--radius-sm);
+    margin-left: var(--neck-gap, 0px);
+    background: var(--color-surface-raised);
+    border-radius: 0;
     --neck-gap: 0px;
+  }
+
+  .message-center__subnav-segment:first-child {
+    border-top-left-radius: var(--radius-md);
+    border-bottom-left-radius: var(--radius-md);
+  }
+
+  .message-center__subnav-segment:last-child {
+    border-top-right-radius: var(--radius-md);
+    border-bottom-right-radius: var(--radius-md);
   }
 
   .message-center__subnav-segment[data-active="true"] {
@@ -1567,7 +1583,7 @@
   }
 
   .message-center-tab {
-    @apply relative flex h-full items-center justify-center gap-2 px-4 py-2 text-sm;
+    @apply relative flex h-full items-center justify-center gap-2 px-5 py-2.5 text-sm;
     border-radius: inherit;
     color: var(--color-ink-muted);
     touch-action: manipulation;
@@ -1587,14 +1603,35 @@
     font-weight: 600;
   }
 
-  /* 颈部：长在张开的那段间隙里。宽/位读 --neck-gap（与段位用同一组弹簧驱动），
-   * 所以弹性回弹期间它与真实间隙始终对齐；SVG 只描述比例，宽高由这里拉伸。 */
+  /* 肩：贴着敞口接缝的那一侧，用本段自己的底色把圆角缺角填平。
+   * 缺角在段边线的里侧，而颈部只长在接缝里 —— 不填的话页底色会从颈部端面与圆弧之间
+   * 漏出来（深墨块旁边就是一块浅色楔形）。宽取圆角阶梯的 --radius-md：与段的圆角同源，
+   * 填的正好是缺角那一块。`background: inherit` 让它永远等于本段此刻的填充色。 */
+  .message-center-tab__shoulder {
+    @apply pointer-events-none absolute;
+    top: 0;
+    bottom: 0;
+    width: var(--radius-md);
+    background: inherit;
+  }
+
+  .message-center-tab__shoulder[data-side="left"] {
+    left: 0;
+  }
+
+  .message-center-tab__shoulder[data-side="right"] {
+    right: 0;
+  }
+
+  /* 颈部：长在张开的那段间隙里。宽/位读 --neck-gap（与段位同一个变量、同一条弹簧），
+   * 负值（闭合接缝的 -1px 重叠）由 max() 钳到 0 —— 颈部因此**永远不会比间隙宽**，
+   * 不会盖到相邻段上去。SVG 只描述比例（viewBox 的两个标称值），宽高由这里拉伸。 */
   .message-center-tab__neck {
     @apply pointer-events-none absolute;
     top: 0;
     bottom: 0;
-    left: calc(-1 * var(--neck-gap, 0px));
-    width: var(--neck-gap, 0px);
+    left: calc(-1 * max(0px, var(--neck-gap, 0px)));
+    width: max(0px, var(--neck-gap, 0px));
   }
 
   .message-center-tab__count {
@@ -1702,7 +1739,6 @@
     .message-center__subnav {
       flex-direction: row;
       overflow-x: auto;
-      padding: 0.5rem;
     }
 
     .message-center-tab {

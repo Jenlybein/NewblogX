@@ -2,12 +2,14 @@ package app
 
 import (
 	"context"
-	"myblogx/internal/kernel/ctype"
+	"sort"
 
 	"myblogx/internal/article/domain"
 	"myblogx/internal/article/domain/favorite"
+	"myblogx/internal/article/domain/moderation"
 	"myblogx/internal/article/domain/review"
 	"myblogx/internal/article/domain/taxonomy"
+	"myblogx/internal/kernel/ctype"
 )
 
 // ── 分类 ──
@@ -341,34 +343,98 @@ func enrichItemCounters(ctx context.Context, r Repos, items []*favorite.Item) er
 // 判断"值不值得发"，标题不够（#307）。任务表没有正文列（零 DDL 硬约束），
 // 所以正文从 article_models 批量读一次；文章已被删除时该条正文为空，
 // 但任务照常出现，队列不会因此整页失败。
-// 默认排序由仓储负责：提交时间升序（老投稿在前），避免新投稿不断插队。
-func (s *Service) ListReviewTasks(ctx context.Context, viewer domain.Viewer, status *review.Status, page domain.Page) ([]ReviewTaskView, int64, error) {
+//
+// 每条条目同时带上机审前两层的结论（词表 + 评分派生标签）。两层都是纯函数：
+// 词表每次从运行期配置现读、评分记录每次从 ai 模块现读，不落库也不缓存，
+// 所以运营改完词表，下一次列表请求立即按新词表判（票 311 验收标准 2）。
+//
+// 默认排序由仓储负责：提交时间升序（老投稿在前）。按风险排序时风险不在库里，
+// 需要先取整个筛选范围、在内存里排序后再按页码切片（见 ReviewSortRisk）。
+func (s *Service) ListReviewTasks(ctx context.Context, viewer domain.Viewer, status *review.Status, sortBy ReviewListSort, page domain.Page) ([]ReviewTaskView, int64, error) {
 	if !viewer.IsAdmin() {
 		return nil, 0, domain.ErrForbidden
 	}
 	var (
 		tasks  []*review.Task
 		bodies map[domain.ArticleID]string
+		scores map[domain.ArticleID]moderation.ScoreFacts
 		total  int64
 	)
 	err := s.tx.WithinTx(ctx, func(ctx context.Context, r Repos) error {
-		p := page.Normalize()
 		var err error
-		tasks, total, err = r.Reviews().List(ctx, status, p.Offset, p.Limit)
+		if sortBy == ReviewSortRisk {
+			// 风险排序：取整个筛选范围；total 就是实际条目数。
+			tasks, err = r.Reviews().ListAll(ctx, status)
+			total = int64(len(tasks))
+		} else {
+			p := page.Normalize()
+			tasks, total, err = r.Reviews().List(ctx, status, p.Offset, p.Limit)
+		}
 		if err != nil {
 			return err
 		}
 		bodies, err = reviewBodies(ctx, r, tasks)
+		if err != nil {
+			return err
+		}
+		scores, err = s.latestModerationScores(ctx, tasks)
 		return err
 	})
 	if err != nil {
 		return nil, 0, err
 	}
+
+	words := moderation.WordLists{}
+	if s.words != nil {
+		words = s.words()
+	}
+
 	out := make([]ReviewTaskView, 0, len(tasks))
-	for _, t := range tasks {
-		out = append(out, ReviewTaskView{Task: *t, Content: bodies[t.ArticleID()]})
+	for _, task := range tasks {
+		// 没有评分记录时 facts 保持 nil：第②层不产生信号，不报错（票 311 验收标准 5）。
+		var facts *moderation.ScoreFacts
+		if got, ok := scores[task.ArticleID()]; ok {
+			copied := got
+			facts = &copied
+		}
+		body := bodies[task.ArticleID()]
+		risk := moderation.Evaluate(task.ArticleTitle()+"\n"+body, words, facts)
+		out = append(out, ReviewTaskView{Task: *task, Content: body, Risk: risk})
+	}
+
+	if sortBy == ReviewSortRisk {
+		// 高风险在前；同等级保持提交时间升序、id 作同毫秒兜底，与默认排序的内层一致。
+		sort.SliceStable(out, func(i, j int) bool {
+			left, right := out[i].Risk.Level.Rank(), out[j].Risk.Level.Rank()
+			if left != right {
+				return left > right
+			}
+			if !out[i].Task.CreatedAt().Equal(out[j].Task.CreatedAt()) {
+				return out[i].Task.CreatedAt().Before(out[j].Task.CreatedAt())
+			}
+			return out[i].Task.ID() < out[j].Task.ID()
+		})
+		p := page.Normalize()
+		start := min(p.Offset, len(out))
+		end := min(start+p.Limit, len(out))
+		out = out[start:end]
 	}
 	return out, total, nil
+}
+
+// latestModerationScores 批量读取机审第②层需要的评分片段。
+//
+// 端口为 nil 或没有条目时直接返回 nil：没有评分数据的站点仍然能用第①层
+// 与审核列表，不因为没接模型就整页失败（spec #302 用户故事 18）。
+func (s *Service) latestModerationScores(ctx context.Context, tasks []*review.Task) (map[domain.ArticleID]moderation.ScoreFacts, error) {
+	if s.scores == nil || len(tasks) == 0 {
+		return nil, nil
+	}
+	ids := make([]domain.ArticleID, 0, len(tasks))
+	for _, t := range tasks {
+		ids = append(ids, t.ArticleID())
+	}
+	return s.scores.LatestScores(ctx, ids)
 }
 
 // reviewBodies 取审核队列条目对应的文章当前正文。

@@ -63,7 +63,14 @@ func newArticleService(infra *Infra) *articleapp.Service {
 	// 上限取生效值的**现读闭包**，所以后台改完下一次请求即生效；管理员豁免在
 	// 用例层判定（这里不传角色）。Redis 不可用时适配器返回错误 —— 失败关闭。
 	quota := adapterredis.NewSubmitQuota(counterOptions, infra.Effective.ArticleSubmitDailyMaxFunc())
-	return articleapp.New(uow, realClock{}, snowflakeIDs{}, quota)
+	return articleapp.New(
+		uow,
+		realClock{},
+		snowflakeIDs{},
+		quota,
+		newArticleModerationScores(infra.DB),
+		articleModerationWords(infra.Effective),
+	)
 }
 
 // realClock 是生产时钟。

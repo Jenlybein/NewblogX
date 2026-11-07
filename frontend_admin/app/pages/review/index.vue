@@ -5,6 +5,7 @@ import ReviewBodyPreview from '~/components/review/ReviewBodyPreview.vue'
 import { getArticleReviewTasks, reviewArticleTask } from '~/services/admin'
 import type { ArticleReviewTaskItem } from '~/types/api'
 import { formatDateTime } from '~/utils/format'
+import { riskLabelText, riskLevelMeta } from '~/utils/reviewRisk'
 
 const message = useMessage()
 const dialog = useDialog()
@@ -14,6 +15,8 @@ const page = ref(1)
 const limit = ref(10)
 const total = ref(0)
 const status = ref<'pending' | 'approved' | 'rejected' | 'canceled' | undefined>('pending')
+// 排序由服务端做：风险不落库，前端只能拿到排好序的一页（票 311）。
+const sort = ref<'created_at' | 'risk'>('created_at')
 const rows = ref<ArticleReviewTaskItem[]>([])
 const rejectTarget = ref<ArticleReviewTaskItem | null>(null)
 const rejectReason = ref('')
@@ -31,8 +34,31 @@ const statusOptions = [
   { label: '已取消', value: 'canceled' },
 ]
 
+const sortOptions = [
+  { label: '提交时间（默认）', value: 'created_at' },
+  { label: '风险优先', value: 'risk' },
+]
+
 const columns = [
   { title: '文章', key: 'article_title', minWidth: 200 },
+  {
+    title: '风险',
+    key: 'risk_level',
+    minWidth: 230,
+    // 机审前两层（词表 + 评分派生标签）的结论，每次读取现算（票 311）。
+    render: (row: ArticleReviewTaskItem) => {
+      const meta = riskLevelMeta(row.risk_level)
+      const labels = (row.risk_labels ?? []).map((code) =>
+        h(NTag, { size: 'small', bordered: false, type: 'info' }, { default: () => riskLabelText(code) }),
+      )
+      return h(NSpace, { size: 4, wrap: true }, {
+        default: () => [
+          h(NTag, { size: 'small', type: meta.type }, { default: () => meta.label }),
+          ...labels,
+        ],
+      })
+    },
+  },
   {
     title: '正文',
     key: 'content',
@@ -100,7 +126,12 @@ function reviewStatusType(value: string) {
 async function refresh() {
   loading.value = true
   try {
-    const data = await getArticleReviewTasks({ page: page.value, limit: limit.value, status: status.value })
+    const data = await getArticleReviewTasks({
+      page: page.value,
+      limit: limit.value,
+      status: status.value,
+      sort: sort.value,
+    })
     rows.value = data.list
     total.value = data.count
   } catch {
@@ -142,7 +173,7 @@ async function reject() {
   await refresh()
 }
 
-watch([page, status], refresh)
+watch([page, status, sort], refresh)
 onMounted(refresh)
 </script>
 
@@ -151,6 +182,7 @@ onMounted(refresh)
     <NCard class="admin-card">
       <div class="admin-toolbar">
         <NSelect v-model:value="status" :options="statusOptions" clearable class="w-full md:w-56" />
+        <NSelect v-model:value="sort" :options="sortOptions" class="w-full md:w-56" />
         <NButton secondary :loading="loading" @click="refresh">刷新队列</NButton>
       </div>
     </NCard>

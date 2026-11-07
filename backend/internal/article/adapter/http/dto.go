@@ -107,12 +107,17 @@ type ArticleReviewTaskListRequest struct {
 	Page   int              `form:"page"`
 	Limit  int              `form:"limit"`
 	Status ReviewTaskStatus `form:"status" binding:"omitempty,oneof=pending approved rejected canceled" enums:"pending,approved,rejected,canceled"`
+	// Sort 为空等价于 created_at：默认按提交时间升序，老投稿不会被新投稿饿死。
+	Sort ReviewTaskSort `form:"sort" binding:"omitempty,oneof=created_at risk" enums:"created_at,risk"`
 }
 
 // ArticleReviewTaskItem 审核任务项。
 //
 // content 是文章当前正文（不是提交时的快照）：审核员要在列表里直接判断，
 // 不必再跳文章页。文章已被删除时为空串。
+//
+// risk_level / risk_labels 是机审前两层（词表 + 评分派生标签）的结论，
+// 每次读取现算、不落库；没有评分记录时 risk_level 仍可能是 none，不是错误。
 type ArticleReviewTaskItem struct {
 	ID            ctype.ID         `json:"id"`
 	ArticleID     ctype.ID         `json:"article_id"`
@@ -128,6 +133,11 @@ type ArticleReviewTaskItem struct {
 	CreatedAt     time.Time        `json:"created_at"`
 	ReviewedAt    *time.Time       `json:"reviewed_at"`
 	ReviewedBy    *ctype.ID        `json:"reviewed_by"`
+	// RiskLevel 是风险等级：none / low / medium / high。
+	RiskLevel ReviewRiskLevel `json:"risk_level" enums:"none,low,medium,high"`
+	// RiskLabels 是命中的风险标签（稳定 code，前端映射中文）：
+	// block_word / watch_word / low_score / dimension_collapse / length_abnormal。
+	RiskLabels []string `json:"risk_labels"`
 }
 
 // ArticleReviewTaskListResponse 审核任务列表结果。

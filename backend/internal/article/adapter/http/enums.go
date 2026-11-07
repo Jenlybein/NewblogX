@@ -52,3 +52,26 @@ const (
 	ReviewTaskSourceEdit     ReviewTaskSource = "edit"
 	ReviewTaskSourceResubmit ReviewTaskSource = "resubmit"
 )
+
+// ReviewTaskSort 是审核队列的排序口径（票 311）。
+type ReviewTaskSort string
+
+const (
+	// ReviewTaskSortCreatedAt 提交时间升序（默认）。
+	ReviewTaskSortCreatedAt ReviewTaskSort = "created_at"
+	// ReviewTaskSortRisk 风险等级降序、同等级仍按提交时间升序。
+	ReviewTaskSortRisk ReviewTaskSort = "risk"
+)
+
+// ReviewRiskLevel 是机审前两层给出的风险等级（票 311）。
+//
+// 与 domain/moderation 的 Level 取值一致；这里复制一份是 HTTP 层的惯例
+// （见本文件顶部说明），转换只在 handler 里做一次。
+type ReviewRiskLevel string
+
+const (
+	ReviewRiskLevelNone   ReviewRiskLevel = "none"
+	ReviewRiskLevelLow    ReviewRiskLevel = "low"
+	ReviewRiskLevelMedium ReviewRiskLevel = "medium"
+	ReviewRiskLevelHigh   ReviewRiskLevel = "high"
+)

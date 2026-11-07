@@ -107,6 +107,13 @@ func toTaskItem(t app.ReviewTaskView) ArticleReviewTaskItem {
 		id := ctype.NewID(by.Uint64())
 		item.ReviewedBy = &id
 	}
+	item.RiskLevel = ReviewRiskLevel(t.Risk.Level)
+	// nil → []：契约里这是数组，空列表比 null 更好消费（前端不用再判空）。
+	labels := t.Risk.Labels()
+	if labels == nil {
+		labels = []string{}
+	}
+	item.RiskLabels = labels
 	return item
 }
 

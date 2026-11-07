@@ -466,6 +466,8 @@ export interface paths {
                 query?: {
                     /** @description 任务状态 */
                     status?: string;
+                    /** @description 排序：created_at（默认）或 risk（风险优先） */
+                    sort?: string;
                     /** @description 页码 */
                     page?: number;
                     /** @description 每页数量 */
@@ -6894,6 +6896,13 @@ export interface components {
             reason?: string;
             reviewed_at?: string;
             reviewed_by?: string;
+            /**
+             * @description RiskLabels 是命中的风险标签（稳定 code，前端映射中文）：
+             *     block_word / watch_word / low_score / dimension_collapse / length_abnormal。
+             */
+            risk_labels?: string[];
+            /** @description RiskLevel 是风险等级：none / low / medium / high。 */
+            risk_level?: components["schemas"]["internal_article_adapter_http.ReviewRiskLevel"];
             source?: components["schemas"]["internal_article_adapter_http.ReviewTaskSource"];
             stage?: components["schemas"]["internal_article_adapter_http.ReviewTaskStage"];
             status?: components["schemas"]["internal_article_adapter_http.ReviewTaskStatus"];
@@ -7160,6 +7169,8 @@ export interface components {
             description?: string;
             title: string;
         };
+        /** @enum {string} */
+        "internal_article_adapter_http.ReviewRiskLevel": "none" | "low" | "medium" | "high";
         /** @enum {string} */
         "internal_article_adapter_http.ReviewTaskSource": "create" | "edit" | "resubmit";
         /** @enum {string} */
@@ -7871,6 +7882,17 @@ export interface components {
              *     深度合并会把老库缺的键按默认值补齐，所以不需要数据迁移）。
              */
             allow_non_admin_publish?: boolean;
+            /**
+             * @description Moderation 是机审前两层的高危词表（票 311 / spec #302 决策 22、27）。
+             *
+             *     词表是**运行期数据**（运营热改、不发版），"怎么判"的规则结构在
+             *     internal/article/domain/moderation 里。两档的差别：阻断级命中后将来可
+             *     自动拒（本票只标红），观察级只标红、处置权交人。
+             *
+             *     缺省值只由 site_default_settings.yaml 显式给出（每个清单只有一个定义点）；
+             *     这里不写第二份字面默认值。
+             */
+            moderation?: components["schemas"]["myblogx_conf_site.Moderation"];
             /** @description 显示非管理员发布的文章 */
             show_non_admin_articles?: boolean;
             /** @description 免审核 */
@@ -7923,6 +7945,12 @@ export interface components {
             login_fail_window_minute?: number;
             qq_login?: boolean;
             username_pwd_login?: boolean;
+        };
+        "myblogx_conf_site.Moderation": {
+            /** @description BlockWords 阻断级词表：命中即高风险；后续票里允许自动拒（本票只标红）。 */
+            block_words?: string[];
+            /** @description WatchWords 观察级词表：命中只标红，处置权在人。 */
+            watch_words?: string[];
         };
         "myblogx_conf_site.Project": {
             icon?: string;

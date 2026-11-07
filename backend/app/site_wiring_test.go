@@ -44,7 +44,7 @@ func TestSidebarCollectionReaderUsesArticleCardModel(t *testing.T) {
 
 	repos := articleapptest.NewRepos()
 	tx := articleapptest.NewTx(repos)
-	svc := articleapp.New(tx, articleapptest.NewClock(articleapptest.DefaultTime), articleapptest.NewIDGen(1000))
+	svc := articleapp.New(tx, articleapptest.NewClock(articleapptest.DefaultTime), articleapptest.NewIDGen(1000), nil)
 	ctx := context.Background()
 
 	adminViewer := articledomain.AdminUser(articledomain.UserID(ctype.NewID(900)))

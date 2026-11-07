@@ -336,18 +336,29 @@ func enrichItemCounters(ctx context.Context, r Repos, items []*favorite.Item) er
 // ── 审核任务 ──
 
 // ListReviewTasks 分页列出审核任务（仅管理员）。
+//
+// 条目带**文章当前正文**，而不是任务行上的标题快照：审核员要在列表里直接
+// 判断"值不值得发"，标题不够（#307）。任务表没有正文列（零 DDL 硬约束），
+// 所以正文从 article_models 批量读一次；文章已被删除时该条正文为空，
+// 但任务照常出现，队列不会因此整页失败。
+// 默认排序由仓储负责：提交时间升序（老投稿在前），避免新投稿不断插队。
 func (s *Service) ListReviewTasks(ctx context.Context, viewer domain.Viewer, status *review.Status, page domain.Page) ([]ReviewTaskView, int64, error) {
 	if !viewer.IsAdmin() {
 		return nil, 0, domain.ErrForbidden
 	}
 	var (
-		tasks []*review.Task
-		total int64
+		tasks  []*review.Task
+		bodies map[domain.ArticleID]string
+		total  int64
 	)
 	err := s.tx.WithinTx(ctx, func(ctx context.Context, r Repos) error {
 		p := page.Normalize()
 		var err error
 		tasks, total, err = r.Reviews().List(ctx, status, p.Offset, p.Limit)
+		if err != nil {
+			return err
+		}
+		bodies, err = reviewBodies(ctx, r, tasks)
 		return err
 	})
 	if err != nil {
@@ -355,9 +366,29 @@ func (s *Service) ListReviewTasks(ctx context.Context, viewer domain.Viewer, sta
 	}
 	out := make([]ReviewTaskView, 0, len(tasks))
 	for _, t := range tasks {
-		out = append(out, ReviewTaskView{Task: *t})
+		out = append(out, ReviewTaskView{Task: *t, Content: bodies[t.ArticleID()]})
 	}
 	return out, total, nil
+}
+
+// reviewBodies 取审核队列条目对应的文章当前正文。
+//
+// 批量读一次（FindMany 会跳过缺失 / 已软删的 ID），不逐条查询；缺失即空串，
+// 因为"文章没了但任务还在"的情形要让人工把任务处理掉，而不是让整页 500。
+func reviewBodies(ctx context.Context, r Repos, tasks []*review.Task) (map[domain.ArticleID]string, error) {
+	ids := make([]domain.ArticleID, 0, len(tasks))
+	for _, t := range tasks {
+		ids = append(ids, t.ArticleID())
+	}
+	articles, err := r.Articles().FindMany(ctx, ids)
+	if err != nil {
+		return nil, err
+	}
+	bodies := make(map[domain.ArticleID]string, len(articles))
+	for _, a := range articles {
+		bodies[a.ID()] = a.Content()
+	}
+	return bodies, nil
 }
 
 // HandleReviewTask 处理某条审核任务（仅管理员）。

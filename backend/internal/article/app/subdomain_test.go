@@ -221,6 +221,79 @@ func TestHandleReviewTaskApproveNeedsNoReason(t *testing.T) {
 	}
 }
 
+// ── 审核队列：条目带正文、空队列不是错误 ──
+//
+// 审核员要在列表里直接判断一篇文章，只有标题远远不够：标题看不出东拼西凑、
+// 通篇 AI 腔或整段复制。所以队列条目必须带正文（#307）。
+//
+// 正文取的是**文章当前内容**，不是提交时的快照：审核任务表没有正文列
+// （零 DDL 硬约束），提交时也只快照了标题与作者。这个取舍写在
+// ListReviewTasks 的注释里，并由下面第一条用例锁住。
+
+func TestListReviewTasksIncludesCurrentArticleBody(t *testing.T) {
+	t.Parallel()
+
+	svc, repos, _ := newService(t)
+	ctx := context.Background()
+	a := apptest.NewArticle().
+		ID(ctype.NewID(1)).
+		Author(author).
+		Status(domain.StatusExamining).
+		Title("待审稿").
+		Content("<p>第一段</p><p>第二段</p>").
+		Build()
+	repos.FakeArticles().Seed(a)
+	repos.FakeReviews().Seed(apptest.NewTaskForTest(1, a.ID(), author, review.StatusPending))
+
+	views, total, err := svc.ListReviewTasks(ctx, adminViewer(), nil, domain.Page{Limit: 10})
+	if err != nil {
+		t.Fatalf("列出审核任务失败: %v", err)
+	}
+	if total != 1 || len(views) != 1 {
+		t.Fatalf("应有 1 条任务，实际 total=%d len=%d", total, len(views))
+	}
+	if views[0].Content != a.Content() {
+		t.Fatalf("条目正文应为文章当前内容 %q，实际 %q", a.Content(), views[0].Content)
+	}
+}
+
+func TestListReviewTasksEmptyQueueIsNotAnError(t *testing.T) {
+	t.Parallel()
+
+	svc, _, _ := newService(t)
+	ctx := context.Background()
+
+	views, total, err := svc.ListReviewTasks(ctx, adminViewer(), nil, domain.Page{})
+	if err != nil {
+		t.Fatalf("空队列是正常读面，不应报错: %v", err)
+	}
+	if total != 0 || len(views) != 0 {
+		t.Fatalf("空队列应返回空列表，实际 total=%d len=%d", total, len(views))
+	}
+}
+
+// TestListReviewTasksToleratesMissingArticle 任务行指向的文章已被删除时，
+// 整页队列不能因此失败：条目照常出现、正文留空，审核员仍能按标题处理掉它。
+func TestListReviewTasksToleratesMissingArticle(t *testing.T) {
+	t.Parallel()
+
+	svc, repos, _ := newService(t)
+	ctx := context.Background()
+	// 只预置任务，不预置文章。
+	repos.FakeReviews().Seed(apptest.NewTaskForTest(1, ctype.NewID(404), author, review.StatusPending))
+
+	views, total, err := svc.ListReviewTasks(ctx, adminViewer(), nil, domain.Page{Limit: 10})
+	if err != nil {
+		t.Fatalf("文章已删不应让队列失败: %v", err)
+	}
+	if total != 1 || len(views) != 1 {
+		t.Fatalf("任务仍应出现，实际 total=%d len=%d", total, len(views))
+	}
+	if views[0].Content != "" {
+		t.Fatalf("文章不存在时正文应为空，实际 %q", views[0].Content)
+	}
+}
+
 func TestCreateArticleWithFreshlyCreatedCategory(t *testing.T) {
 	t.Parallel()
 

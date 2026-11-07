@@ -338,3 +338,93 @@ func (d *Diggs) Events() []string {
 	defer d.mu.Unlock()
 	return append([]string(nil), d.events...)
 }
+
+// SubmitQuota 是 app.SubmitQuotaPort 的内存实现（投稿配额，票 304 / ADR-0030）。
+//
+// 有状态而不是"第 N 次返回 false"：额度是累计量，"释放后能不能再预占"
+// 只有在真的记账之后才断言得出来。
+type SubmitQuota struct {
+	mu       sync.Mutex
+	limit    int
+	used     map[domain.UserID]int
+	failNext error
+	reserves int
+	releases int
+}
+
+// NewSubmitQuota 构造每日上限为 dailyMax 的配额 fake。
+func NewSubmitQuota(dailyMax int) *SubmitQuota {
+	return &SubmitQuota{limit: dailyMax, used: make(map[domain.UserID]int)}
+}
+
+// Seed 预置某用户当天已用的次数（模拟"今天已经提交过几次"）。
+func (q *SubmitQuota) Seed(userID domain.UserID, used int) {
+	q.mu.Lock()
+	defer q.mu.Unlock()
+	q.used[userID] = used
+}
+
+// Used 返回某用户当天已用的次数。
+func (q *SubmitQuota) Used(userID domain.UserID) int {
+	q.mu.Lock()
+	defer q.mu.Unlock()
+	return q.used[userID]
+}
+
+// FailNext 让下一次 Reserve 返回 err（模拟 Redis 故障，验证失败关闭与归还）。
+func (q *SubmitQuota) FailNext(err error) {
+	q.mu.Lock()
+	defer q.mu.Unlock()
+	q.failNext = err
+}
+
+// Reserves 返回 Reserve 被调用的次数（含被拒的调用）。
+func (q *SubmitQuota) Reserves() int {
+	q.mu.Lock()
+	defer q.mu.Unlock()
+	return q.reserves
+}
+
+// Releases 返回成功归还的次数。
+func (q *SubmitQuota) Releases() int {
+	q.mu.Lock()
+	defer q.mu.Unlock()
+	return q.releases
+}
+
+// Reserve 预占一次额度；用满时返回 domain.ErrSubmitQuotaExceeded。
+func (q *SubmitQuota) Reserve(_ context.Context, userID domain.UserID) (app.SubmitQuotaReservation, error) {
+	q.mu.Lock()
+	defer q.mu.Unlock()
+	q.reserves++
+	if q.failNext != nil {
+		err := q.failNext
+		q.failNext = nil
+		return nil, err
+	}
+	if q.used[userID] >= q.limit {
+		return nil, domain.ErrSubmitQuotaExceeded
+	}
+	q.used[userID]++
+	return &submitQuotaReservation{quota: q, userID: userID}, nil
+}
+
+// submitQuotaReservation 是一次预占，重复 Release 不重复扣减（与生产适配器同口径）。
+type submitQuotaReservation struct {
+	quota  *SubmitQuota
+	userID domain.UserID
+	once   sync.Once
+}
+
+// Release 归还这次预占。
+func (r *submitQuotaReservation) Release(_ context.Context) error {
+	r.once.Do(func() {
+		r.quota.mu.Lock()
+		defer r.quota.mu.Unlock()
+		if r.quota.used[r.userID] > 0 {
+			r.quota.used[r.userID]--
+		}
+		r.quota.releases++
+	})
+	return nil
+}

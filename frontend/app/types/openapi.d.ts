@@ -6926,6 +6926,7 @@ export interface components {
             article_title?: string;
             author_id?: string;
             author_name?: string;
+            content?: string;
             created_at?: string;
             id?: string;
             publish_status?: components["schemas"]["internal_article_adapter_http.ArticleStatus"];
@@ -7577,6 +7578,17 @@ export interface components {
             enable?: boolean;
             max_input_chars?: number;
             nickname?: string;
+            /**
+             * @description SceneSkills 是「哪个 AI 场景用哪份运行时策略 skill」的产品接线（#310）。
+             *
+             *     它属于运行期配置而不是 skill 文件：skill 要保持可移植（任何人拿走都能直接用），
+             *     场景绑定要能临时摘掉某份 skill 而不发版（grill §5.3 / ADR-0033）。
+             *     key 是 AI 调用场景（internal/ai 的 Scene* 常量），value 是 skills/<name> 的名称列表；
+             *     一个场景可以拼多份 skill，正文按顺序拼接。
+             */
+            scene_skills?: {
+                [key: string]: string[];
+            };
             temperature?: number;
             timeout_sec?: number;
         };
@@ -7587,6 +7599,17 @@ export interface components {
             enable?: boolean;
             max_input_chars?: number;
             nickname?: string;
+            /**
+             * @description SceneSkills 是「哪个 AI 场景用哪份运行时策略 skill」的产品接线（#310）。
+             *
+             *     它属于运行期配置而不是 skill 文件：skill 要保持可移植（任何人拿走都能直接用），
+             *     场景绑定要能临时摘掉某份 skill 而不发版（grill §5.3 / ADR-0033）。
+             *     key 是 AI 调用场景（internal/ai 的 Scene* 常量），value 是 skills/<name> 的名称列表；
+             *     一个场景可以拼多份 skill，正文按顺序拼接。
+             */
+            scene_skills?: {
+                [key: string]: string[];
+            };
             temperature?: number;
             timeout_sec?: number;
         };
@@ -7891,6 +7914,18 @@ export interface components {
             show_non_admin_articles?: boolean;
             /** @description 免审核 */
             skip_examining?: boolean;
+            /**
+             * @description SubmitDailyMax 是「投稿配额」的每日上限：每个普通用户每自然日可提交多少次
+             *     （ADR-0030，spec #302 决策 19）。管理员豁免是代码里的固定规则，不在这里配。
+             *
+             *     计量单位是**提交动作**而不是"发布成功的文章"：被打回也算一次，因为每次提交
+             *     都会真实产生一次审核任务；因系统不可用而失败的提交由用例层释放预占，不占额度。
+             *
+             *     缺省值由 site_default_settings.yaml 显式写成 15；越界 / 0 / 负数在
+             *     internal/platform/config 的生效值模块里回落到默认值（那段是自由键值块，
+             *     深度合并会把老库缺的键按默认值补齐，所以加这个字段不需要数据迁移）。
+             */
+            submit_daily_max?: number;
         };
         "myblogx_conf_site.Chat": {
             /** @description 自然日内允许的最大条数 */

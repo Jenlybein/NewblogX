@@ -679,7 +679,9 @@ func (r *ReviewRepo) List(ctx context.Context, status *review.Status, offset, li
 		limit = 10
 	}
 	var rows []reviewTaskRow
-	if err := q.Order("id desc").Offset(offset).Limit(limit).Find(&rows).Error; err != nil {
+	// 默认按提交时间升序：老投稿在前，新投稿不会一直插队把旧投稿饿死（#307）。
+	// id 升序是同毫秒（datetime(3)）的兜底，保证分页稳定。
+	if err := q.Order("created_at asc, id asc").Offset(offset).Limit(limit).Find(&rows).Error; err != nil {
 		return nil, 0, err
 	}
 	out := make([]*review.Task, 0, len(rows))
@@ -704,6 +706,10 @@ func toReviewRow(t *review.Task) *reviewTaskRow {
 		ReviewedBy:           fromReviewerID(t.ReviewedBy()),
 	}
 	m.ID = ctype.NewID(t.ID())
+	// created_at 就是提交时间：任务行创建的那一刻即作者提交的那一刻。
+	// 显式写入（而不是让 gorm 用落库时刻）才能让"提交时间排序"按真实提交顺序
+	// 成立，集成测试也据此可复现。
+	m.CreatedAt = t.CreatedAt()
 	return m
 }
 

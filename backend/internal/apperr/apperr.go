@@ -39,6 +39,12 @@ const (
 	// 单独一个码而不是复用 invalid_state：前者是"少填了一个必填项"（补一句话再点一次），
 	// 后者是"这篇文章当前不该被审核"（刷新列表）。管理后台据此提示的操作不同。
 	CodeArticleReviewReasonRequired Code = "article.review_reason_required"
+	// CodeArticleSubmitQuotaExceeded 是「投稿配额」用完（票 304 / ADR-0034）。
+	//
+	// 与 article.forbidden / publish_disabled_by_site 都不同：那些是"你/站点不允许"，
+	// 这个是"今天的提交次数用完了，明天自然恢复"。三类混用会让作者去查自己的账号
+	// 或去找管理员改开关，而正确动作是"明天再来"。
+	CodeArticleSubmitQuotaExceeded Code = "article.submit_quota_exceeded"
 )
 
 // 分类与标签。
@@ -360,6 +366,12 @@ const (
 	CodeAIProviderMissing   Code = "ai.provider_missing"
 	CodeAIVendorUnsupported Code = "ai.vendor_unsupported"
 	CodeAIProviderInvalid   Code = "ai.provider_invalid"
+
+	// CodeAIPolicySkillMissing 是「场景配置引用了读不到的运行时策略 skill」。
+	//
+	// 它属于服务异常而不是参数错误：出问题的是部署/配置，不是这次请求的入参。
+	// 这里必须明确失败 —— 静默退化成空口径回答等于让用户先发现（ADR-0033）。
+	CodeAIPolicySkillMissing Code = "ai.policy_skill_missing"
 )
 
 // 通用工具与基础设施。
@@ -423,6 +435,9 @@ var messages = map[Code]string{
 	CodeArticleDraftDisabled:   "站点当前不允许保存草稿（站点策略，不是账号问题），请联系管理员开启「允许非管理员创建草稿」",
 	// 文案要说清"这句话是给作者的"，管理员才知道必须填、不能糊一个句号。
 	CodeArticleReviewReasonRequired: "驳回必须写明原因（作者会看到这句话）",
+	// 文案要写清"今天用完、明天恢复"：作者看到后应当知道什么时候再来，
+	// 而不是怀疑自己的账号被限制。
+	CodeArticleSubmitQuotaExceeded: "今天的投稿配额已用完，配额按自然日重置（明天 00:00 后可再次提交）",
 
 	CodeTaxonomyTitleRequired: "名称不能为空",
 	CodeTaxonomyTitleExists:   "名称重复",
@@ -628,9 +643,10 @@ var messages = map[Code]string{
 	CodeAIChoicesEmpty:   "AI响应无有效Choices数据",
 	CodeAIReplyEmpty:     "AI回复内容为空",
 
-	CodeAIProviderMissing:   "还没有启用的模型配置",
-	CodeAIVendorUnsupported: "不支持的模型供应商",
-	CodeAIProviderInvalid:   "模型配置不完整",
+	CodeAIProviderMissing:    "还没有启用的模型配置",
+	CodeAIVendorUnsupported:  "不支持的模型供应商",
+	CodeAIProviderInvalid:    "模型配置不完整",
+	CodeAIPolicySkillMissing: "AI 场景配置引用的运行时策略文本缺失",
 
 	CodeCommonInvalidOrder:    "排序字段错误",
 	CodeCommonInvalidArgument: "参数不合法",

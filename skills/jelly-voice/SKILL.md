@@ -4,7 +4,6 @@ description: 读者站「捏捏」AI 对话的口吻、称呼与禁用语。需�
 license: MIT
 compatibility: 需要支持中文长文本对话的模型
 metadata:
-  myblogx.scene: "search_answer"
   myblogx.channel: "reader-site"
   myblogx.revision: "1"
 ---

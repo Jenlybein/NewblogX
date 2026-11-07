@@ -379,6 +379,56 @@ func TestReviewRepoLifecycle(t *testing.T) {
 	}
 }
 
+// TestReviewRepoListOrdersBySubmissionAsc 锁住审核队列的默认排序：
+// 按提交时间升序，老投稿在前，新投稿不会因为一直在最上面而把旧投稿饿死。
+//
+// 断言点故意让「插入顺序」与「提交时间顺序」相反（先落库的是后提交的 9002），
+// 所以只有真的按 created_at 升序取，才会先拿到 9001。原先的 `id desc` 会先
+// 返回 9002，正好被这条用例抓住。
+func TestReviewRepoListOrdersBySubmissionAsc(t *testing.T) {
+	t.Parallel()
+
+	db := migrate(t)
+	seedUsers(t, db)
+	repo := mysql.NewReviewRepo(db)
+	ctx := context.Background()
+	base := time.Date(2026, 1, 1, 12, 0, 0, 0, time.UTC)
+
+	newTask := func(id uint64, at time.Time) *review.Task {
+		return review.NewTask(review.NewTaskParams{
+			ID:            ctype.NewID(id),
+			ArticleID:     ctype.NewID(6001),
+			AuthorID:      ctype.NewID(100),
+			ArticleTitle:  "待审",
+			AuthorName:    "作者",
+			PublishStatus: domain.StatusExamining,
+			Source:        review.SourceCreate,
+			Now:           at,
+		})
+	}
+	older := newTask(9001, base)
+	newer := newTask(9002, base.Add(time.Minute))
+
+	// 先落库后提交的那条，再落库先提交的那条。
+	if err := repo.Save(ctx, newer); err != nil {
+		t.Fatalf("保存后提交的任务失败: %v", err)
+	}
+	if err := repo.Save(ctx, older); err != nil {
+		t.Fatalf("保存先提交的任务失败: %v", err)
+	}
+
+	tasks, total, err := repo.List(ctx, nil, 0, 10)
+	if err != nil {
+		t.Fatalf("列出任务失败: %v", err)
+	}
+	if total != 2 || len(tasks) != 2 {
+		t.Fatalf("应有 2 条任务，实际 total=%d len=%d", total, len(tasks))
+	}
+	if tasks[0].ID() != 9001 || tasks[1].ID() != 9002 {
+		t.Fatalf("默认排序应为提交时间升序（9001 在前），实际 %d, %d", tasks[0].ID(), tasks[1].ID())
+	}
+}
+
 // TestUoWCommitAndRollback 用真库验证事务语义：
 // 回调返回 nil 必须提交，返回错误必须整体回滚。
 func TestUoWCommitAndRollback(t *testing.T) {

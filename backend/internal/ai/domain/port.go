@@ -83,3 +83,24 @@ type TagReader interface {
 type Searcher interface {
 	Search(ctx context.Context, req searchdomain.Request) (searchdomain.Response, error)
 }
+
+// SceneSkill 是一份运行时策略 skill 的正文与版本。
+//
+// Version 是 SKILL.md 字节哈希（`skills.Skill.Hash()`），随 AI 调用记录落库：
+// 线上跑的是哪一版口径要能回溯，而不是在代码里再写一个人工版本常量。
+type SceneSkill struct {
+	Name    string
+	Body    string
+	Version string
+}
+
+// SceneSkillReader 按名称读取运行时策略 skill。
+//
+// 端口在使用方定义、由装配层接到 `internal/platform/skills` 的目录加载器上；
+// 业务层不 import 那个平台包，也就不会把"文件怎么读"混进用例逻辑。
+//
+// 读取失败时必须返回错误：配置引用了读不到的 skill 属于配置错误，
+// 不能静默退化成一份空口径继续回答（不存在代码内兜底文本，ADR-0033）。
+type SceneSkillReader interface {
+	ReadSceneSkill(name string) (SceneSkill, error)
+}

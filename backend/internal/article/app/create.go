@@ -58,6 +58,18 @@ func (s *Service) Create(ctx context.Context, cmd CreateArticleCmd) (*domain.Art
 		return nil, err
 	}
 
+	// 投稿配额（票 304 / ADR-0030）：只有提交才算一次提交动作，存草稿不计。
+	// 预占放在事务之前——超限时一个字节都不该落库；闸门落地后评分调用也要排在
+	// 预占之后，否则"评分成功才发现超限"会白烧一次模型调用。
+	var reservation SubmitQuotaReservation
+	if target == domain.StatusExamining {
+		res, err := s.reserveSubmitQuota(ctx, cmd.Actor)
+		if err != nil {
+			return nil, err
+		}
+		reservation = res
+	}
+
 	var created *domain.Article
 
 	err := s.tx.WithinTx(ctx, func(ctx context.Context, r Repos) error {
@@ -129,6 +141,8 @@ func (s *Service) Create(ctx context.Context, cmd CreateArticleCmd) (*domain.Art
 	})
 
 	if err != nil {
+		// 提交因系统故障失败：归还额度，不因平台问题罚作者（票 304 验收标准）。
+		s.releaseSubmitQuota(ctx, reservation)
 		return nil, err
 	}
 	return created, nil

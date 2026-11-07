@@ -433,9 +433,10 @@ useSeoMeta({
   // 发布时间取 `created_at`：库里没有 `published_at` 列（本票零 DDL 的硬约束），
   // 记录时间就是读者能看到的那一个"发布"时刻。空值不输出空标签。
   articlePublishedTime: computed(() => article.value?.created_at || undefined),
-  // `article:author` 在 OG 里是可以重复的字段（多作者），所以这里给数组。
-  articleAuthor: computed(() => (article.value?.author_name ? [article.value.author_name] : [])),
-  articleTag: computed(() => article.value?.tags ?? []),
+  // `article:author` 在 OG 里是可以重复的字段（多作者），所以这里给数组；空值时给
+  // undefined 而不是空数组 —— 空数组会让 unhead 输出一条 `content` 为空的标签。
+  articleAuthor: computed(() => (article.value?.author_name ? [article.value.author_name] : undefined)),
+  articleTag: computed(() => (article.value?.tags?.length ? article.value.tags : undefined)),
 });
 
 // 票 314 交付 4/6：canonical 是 head 里的一行，不是一次跳转；Article 与 BreadcrumbList

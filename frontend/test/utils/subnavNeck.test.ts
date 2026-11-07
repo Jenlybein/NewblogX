@@ -18,6 +18,7 @@ import {
   neckSeamCorner,
   neckSegmentGap,
   neckSegmentMotion,
+  neckShoulderSides,
   neckTransition,
 } from "~/utils/subnavNeck";
 
@@ -177,7 +178,6 @@ describe("段位与圆角：到位后的值 + 弹簧来源", () => {
 
   it("激活段让开张开量、四角都是敞口圆角；闭合段压在重叠位、贴合侧不带圆角", () => {
     expect(neckSegmentMotion(2, 2, count)).toEqual({
-      marginLeft: `${NECK_SEPARATION_PX}px`,
       borderTopLeftRadius: `${NECK_CORNER_PX}px`,
       borderTopRightRadius: `${NECK_CORNER_PX}px`,
       borderBottomRightRadius: `${NECK_CORNER_PX}px`,
@@ -186,27 +186,31 @@ describe("段位与圆角：到位后的值 + 弹簧来源", () => {
     });
 
     expect(neckSegmentMotion(1, 2, count)).toEqual({
-      marginLeft: `${NECK_CLOSED_GAP}px`,
       // 左接缝闭合（0）、右接缝张开（圆）—— 贴合一侧必须方，不然相邻两段的圆角会互相啃
       borderTopLeftRadius: "0px",
       borderBottomLeftRadius: "0px",
       borderTopRightRadius: `${NECK_CORNER_PX}px`,
       borderBottomRightRadius: `${NECK_CORNER_PX}px`,
-      "--neck-gap": "0px",
+      "--neck-gap": `${NECK_CLOSED_GAP}px`,
     });
+  });
+
+  it("只有一份间隙量：`--neck-gap` 保留负值，段位与颈部都从它派生（不各写一份）", () => {
+    // 负值必须原样留着：段位要的就是 -1px 的重叠；颈部那一侧在 CSS 里用 max() 钳到 0。
+    expect(neckSegmentMotion(1, 2, count)["--neck-gap"]).toBe(`${NECK_CLOSED_GAP}px`);
+    expect(neckSegmentMotion(1, 2, count)).not.toHaveProperty("marginLeft");
   });
 
   it("首段没有左接缝：贴在第 0 位、左角仍是敞口圆角（控件的那一头）", () => {
     const first = neckSegmentMotion(0, 2, count);
 
-    expect(first.marginLeft).toBe("0px");
+    expect(first["--neck-gap"]).toBe("0px");
     expect(first.borderTopLeftRadius).toBe(`${NECK_CORNER_PX}px`);
     expect(first.borderTopRightRadius).toBe("0px");
   });
 
-  it("闭合接缝的颈部宽度是 0（不画，也不留缝）", () => {
-    expect(neckSegmentMotion(4, 2, count)["--neck-gap"]).toBe("0px");
-    expect(neckSegmentMotion(4, 2, count).marginLeft).toBe(`${NECK_CLOSED_GAP}px`);
+  it("闭合接缝没有间隙（段位重叠），颈部宽度在 CSS 里被钳到 0", () => {
+    expect(neckSegmentMotion(4, 2, count)["--neck-gap"]).toBe(`${NECK_CLOSED_GAP}px`);
   });
 
   it("弹簧参数只来自 motion.ts 的 SPRING_NECK", () => {
@@ -223,6 +227,34 @@ describe("段位与圆角：到位后的值 + 弹簧来源", () => {
     const tokens = readFileSync(join(process.cwd(), "app/assets/css/tokens.css"), "utf8");
 
     expect(tokens).toContain(`--radius-md: ${NECK_CORNER_PX}px`);
+  });
+});
+
+describe("肩：只给激活段朝向接缝的那一侧", () => {
+  const count = 5;
+
+  it("中间段激活：两侧都挂肩（两侧都是敞口接缝）", () => {
+    expect(neckShoulderSides(2, 2, count)).toEqual({ left: true, right: true });
+  });
+
+  it("首段激活：左侧是控件自己的圆角，不挂肩", () => {
+    expect(neckShoulderSides(0, 0, count)).toEqual({ left: false, right: true });
+  });
+
+  it("末段激活：右侧是控件自己的圆角，不挂肩", () => {
+    expect(neckShoulderSides(4, 4, count)).toEqual({ left: true, right: false });
+  });
+
+  it("未激活段不挂肩（缺角只有在深墨面旁边才看得见，填了会削掉贴合的圆角）", () => {
+    for (const index of [0, 1, 3, 4]) {
+      expect(neckShoulderSides(index, 2, count)).toEqual({ left: false, right: false });
+    }
+  });
+
+  it("找不到激活段（activeIndex 越界）时谁都不挂肩，不抛错", () => {
+    for (const index of [0, 2, 4]) {
+      expect(neckShoulderSides(index, -1, count)).toEqual({ left: false, right: false });
+    }
   });
 });
 

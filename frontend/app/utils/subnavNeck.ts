@@ -66,15 +66,29 @@ const FILL_ACTIVE = "var(--color-surface-inverse)";
 /** 未激活段（分段条的轨道面）的填充 —— 颈部的另一端取它。 */
 const FILL_IDLE = "var(--color-surface-raised)";
 
-/** 一段的到位状态：段位位移 + 四角圆角 + 颈部的实时宽度（同一组弹簧一起走）。 */
+/**
+ * 一段的到位状态：**接缝间隙 + 四角圆角**（同一组弹簧一起走）。
+ *
+ * `--neck-gap` 是这批值里唯一表达"间隙"的量，而且它可以是负的（闭合接缝的 -1px 重叠）。
+ * 段位（`margin-left`）与颈部的宽度/位置都**从它派生**（见 tailwind.css 的
+ * `.message-center__subnav-segment` / `.message-center-tab__neck`），而不是各写一份：
+ *   - 写两份时，一个取原始值、一个取 `max(0, …)`，两侧起点不同 → 过渡中颈部会比真实
+ *     间隙宽出最多 1px，浅色的那一端就从激活块的边上漏出来；反过来窄 1px 又会留一道
+ *     发丝。单一变量就没有这个自由度。
+ */
 export interface NeckSegmentMotion extends Record<string, string> {
-  marginLeft: string;
   borderTopLeftRadius: string;
   borderTopRightRadius: string;
   borderBottomRightRadius: string;
   borderBottomLeftRadius: string;
-  /** 颈部实时宽度（px）：`left`/`width` 都读它，闭合时为 0。 */
+  /** 接缝间隙（px，可为负）：段位与颈部几何都读它。 */
   "--neck-gap": string;
+}
+
+/** 一段两侧要不要"肩"（见 `neckShoulderSides`）。 */
+export interface NeckShoulders {
+  left: boolean;
+  right: boolean;
 }
 
 /** 颈部渐变的两个端点（语义 token 名，不是色值）。 */
@@ -151,8 +165,9 @@ export function neckSeamCorner(seam: number, activeIndex: number, count: number)
 /**
  * 第 `index` 段到位后的样式（弹簧的终点）。
  *
- * `--neck-gap` 与 `marginLeft` 用**同一组弹簧**驱动：颈部的 left/width 读这个变量，
- * 于是它在整段过渡里始终等于真实间隙，不会在弹性回弹时缩错位置。
+ * 只给**一份**间隙（`--neck-gap`，可为负）+ 四角圆角；段位与颈部的宽/位都在 CSS 里
+ * 从这份间隙派生（`margin-left` 取原值、颈部取 `max(0px, …)`），所以回弹期间两者
+ * 不可能互相错开。
  *
  * 四角圆角分开给：左接缝决定左侧两角、右接缝决定右侧两角（`count` 用来认控件两端）。
  */
@@ -166,12 +181,40 @@ export function neckSegmentMotion(
   const right = neckSeamCorner(index + 1, activeIndex, count);
 
   return {
-    marginLeft: `${gap}px`,
     borderTopLeftRadius: `${left}px`,
     borderTopRightRadius: `${right}px`,
     borderBottomRightRadius: `${right}px`,
     borderBottomLeftRadius: `${left}px`,
-    "--neck-gap": `${gap > 0 ? gap : 0}px`,
+    "--neck-gap": `${gap}px`,
+  };
+}
+
+/**
+ * 激活段两侧要不要挂"肩"（用本段自己的底色把圆角缺角填平的补片）。
+ *
+ * 为什么需要：颈部是"两端满高"的，它的端面正好落在段边线上；而段在接缝侧是圆角，
+ * 圆角缺角在段边线的**里侧**（颈部够不到），于是页底色从颈部端面与圆弧之间漏出来，
+ * 在深墨块旁边就是一块浅色楔形 —— 看起来像颈部渐变从圆角处漏了。把缺角用**本段自己**
+ * 的底色填平，两块就并成一个轮廓（液体并成一团），漏色消失；这也正是"圆角与颈部的
+ * 相交处被激活块本身盖住"。
+ *
+ * 只给激活段：缺角真正刺眼是因为它挨着深墨面（浅色楔形），未激活段的缺角与底色只差
+ * 一点点（纸面对轨道面），填不填看不出来；而填了会削掉未激活段朝向接缝那一侧的圆角，
+ * 让整条读成"被切过的条"。所以"肩"只跟着激活块走，控件两端（没有接缝的那一侧）永远
+ * 不填 —— 那里的圆角就是控件自己的圆角。
+ */
+export function neckShoulderSides(
+  index: number,
+  activeIndex: number,
+  count: number,
+): NeckShoulders {
+  const isActive = Number.isFinite(index) && index === activeIndex;
+  const hasLeftSeam = index > 0 && index < count;
+  const hasRightSeam = index >= 0 && index < count - 1;
+
+  return {
+    left: isActive && hasLeftSeam && isNeckSeamOpen(index, activeIndex),
+    right: isActive && hasRightSeam && isNeckSeamOpen(index + 1, activeIndex),
   };
 }
 

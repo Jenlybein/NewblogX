@@ -3,7 +3,7 @@ import { join } from "node:path";
 
 import { describe, expect, it } from "vitest";
 
-import { blockAfter } from "../helpers/designFiles";
+import { blockAfter, stripComments } from "../helpers/designFiles";
 
 /**
  * 消息中心（#239）的视觉与路由契约门禁。
@@ -56,27 +56,22 @@ describe("消息中心：视觉规则（CSS 源码判据）", () => {
     expect(segment).toContain("whitespace-nowrap");
   });
 
-  it("颈部：宽/位读 --neck-gap，长在张开的那段间隙里（票 297）", () => {
-    const neck = blockAfter(tailwindCss, ".message-center-tab__neck {");
+  it("颈部整体退役：样式表里没有任何连接形状（选择器、渐变、SVG 全部消失）", () => {
+    // 审稿意见："这个元素与两边连接的样式直接去掉"。不是把宽度收到 0，而是整条选择器消失 ——
+    // 留一条 `width: 0` 的规则，下次谁调张开量它就会复活。
+    const css = stripComments(tailwindCss);
 
-    // 负间隙（闭合接缝的 -1px 重叠）被 max() 钳到 0：颈部永远不会比真实间隙宽，
-    // 也就不会盖到相邻段、把渐变漏到别人的圆角上。
-    expect(neck).toContain("left: calc(-1 * max(0px, var(--neck-gap");
-    expect(neck).toContain("width: max(0px, var(--neck-gap");
-    expect(neck).toContain("pointer-events-none");
-    // 段位与颈部读同一个变量，不各写一份（错开就会漏色 / 留发丝）
-    expect(blockAfter(tailwindCss, ".message-center__subnav-segment {")).toContain(
-      "margin-left: var(--neck-gap",
-    );
+    expect(css).not.toContain(".message-center-tab__neck");
+    expect(css).not.toContain("--neck-inset");
+    expect(css).not.toContain("linearGradient");
   });
 
-  it("颈部端面内缩一个圆角半径：圆弧保留、圆角与颈部之间不漏月牙", () => {
-    const neck = blockAfter(tailwindCss, ".message-center-tab__neck {");
+  it("张开量只写一份：段位从 --seam-gap 派生（弹簧把间隙写在行内样式上）", () => {
+    const segment = blockAfter(tailwindCss, ".message-center__subnav-segment {");
 
-    // 段的圆角让段边只剩中间一段是直线；端面顶到条带上下沿就会压在圆弧外面，
-    // 圆弧与端面之间必然空出月牙形页底色（深墨块旁边那块浅色楔形）。
-    expect(neck).toContain("top: var(--neck-inset");
-    expect(neck).toContain("bottom: var(--neck-inset");
+    expect(segment).toContain("margin-left: var(--seam-gap");
+    // 还没接上 JS 时的兜底：贴合（0），不做第二套视觉。
+    expect(segment).toContain("--seam-gap: 0px");
   });
 
   it("分段条是裸轨道：容器不再带边框 / 内边距 / 底色（返工点）", () => {

@@ -1533,8 +1533,10 @@
    * 露出页面底 —— 开口才看得见。
    * 激活块 = 深墨面（--color-surface-inverse）铺底 + 反白文字（--color-on-inverse），
    * 未激活段仍是次级墨色（--color-ink-muted）；不新增"激活垫"色相。
-   * 只有激活段两侧的接缝张开，张开的接缝里画一段颈部（两端满高、中点收腰的哑铃面 +
+   * 只有激活段两侧的接缝张开，张开的接缝里画一段颈部（两端最厚、中点收腰的哑铃面 +
    * 线性渐变，两端分别取左右相邻段的填充色），几何与渐变端点由 utils/subnavNeck 给。
+   * 颈部上下内缩一个圆角半径：段的圆角让段边只剩中间是直线，颈部端面只落在直线段上，
+   * 圆弧才完整、圆角与颈部之间也不会漏出月牙形页底色。
    * 圆角只在敞口一侧给（张开的接缝旁 / 控件两端），闭合接缝旁必须是 0：否则相邻两段的
    * 圆角会在贴合处啃出缺口，整条读成"五个胶囊"。
    * 段位 margin-left、四角圆角与颈部宽度由组件的同一组弹簧驱动 —— 这是全站唯一允许
@@ -1603,33 +1605,17 @@
     font-weight: 600;
   }
 
-  /* 肩：贴着敞口接缝的那一侧，用本段自己的底色把圆角缺角填平。
-   * 缺角在段边线的里侧，而颈部只长在接缝里 —— 不填的话页底色会从颈部端面与圆弧之间
-   * 漏出来（深墨块旁边就是一块浅色楔形）。宽取圆角阶梯的 --radius-md：与段的圆角同源，
-   * 填的正好是缺角那一块。`background: inherit` 让它永远等于本段此刻的填充色。 */
-  .message-center-tab__shoulder {
-    @apply pointer-events-none absolute;
-    top: 0;
-    bottom: 0;
-    width: var(--radius-md);
-    background: inherit;
-  }
-
-  .message-center-tab__shoulder[data-side="left"] {
-    left: 0;
-  }
-
-  .message-center-tab__shoulder[data-side="right"] {
-    right: 0;
-  }
-
   /* 颈部：长在张开的那段间隙里。宽/位读 --neck-gap（与段位同一个变量、同一条弹簧），
    * 负值（闭合接缝的 -1px 重叠）由 max() 钳到 0 —— 颈部因此**永远不会比间隙宽**，
-   * 不会盖到相邻段上去。SVG 只描述比例（viewBox 的两个标称值），宽高由这里拉伸。 */
+   * 不会盖到相邻段上去。
+   * 上下各内缩 `--neck-inset`（= 段的圆角半径）：段的圆角让段边只剩中间一段是直线，
+   * 颈部端面只落在直线段上，圆弧就完整保留 —— 端面若顶到条带上下沿，圆弧与端面之间
+   * 必然空出月牙形页底色（深墨块旁边那块浅色"楔形"）。
+   * SVG 只描述比例（viewBox 的两个标称值），宽高由这里拉伸。 */
   .message-center-tab__neck {
     @apply pointer-events-none absolute;
-    top: 0;
-    bottom: 0;
+    top: var(--neck-inset, 0px);
+    bottom: var(--neck-inset, 0px);
     left: calc(-1 * max(0px, var(--neck-gap, 0px)));
     width: max(0px, var(--neck-gap, 0px));
   }

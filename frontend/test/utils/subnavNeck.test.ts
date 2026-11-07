@@ -7,6 +7,7 @@ import { SPRING_NECK } from "~/utils/motion";
 import {
   NECK_CLOSED_GAP,
   NECK_CORNER_PX,
+  NECK_END_INSET_PX,
   NECK_NOMINAL_SPAN,
   NECK_SEPARATION_PX,
   NECK_VIEW_BOX,
@@ -18,7 +19,6 @@ import {
   neckSeamCorner,
   neckSegmentGap,
   neckSegmentMotion,
-  neckShoulderSides,
   neckTransition,
 } from "~/utils/subnavNeck";
 
@@ -88,11 +88,15 @@ describe("neckPath：颈部路径是纯函数", () => {
     expect(NECK_NOMINAL_SPAN - topMidY).toBeCloseTo(bottomMidY, 5);
   });
 
-  it("两端是满高（贴住相邻段的上／下沿），不是从半高起步", () => {
+  it("两端是颈部自己的满高（带子的上下沿），不是从半高起步", () => {
     const numbers = numbersIn(neckPath(NECK_WAIST, NECK_NOMINAL_SPAN));
-    // 起点 (0,0) 与终点的镜像 (0,span) 都在整条高度上
+    // 起点 (0,0) 与终点的镜像 (0,span) 都在整条带高上
     expect(numbers.slice(0, 2)).toEqual([0, 0]);
     expect(numbers.slice(-2)).toEqual([0, NECK_NOMINAL_SPAN]);
+  });
+
+  it("腰部取颈部带高的 55%（还看得出收腰，又不至于读成断线）", () => {
+    expect(NECK_WAIST).toBe(55);
   });
 
   it("同一组输入永远给同一条路径（纯函数，无隐藏状态）", () => {
@@ -230,34 +234,17 @@ describe("段位与圆角：到位后的值 + 弹簧来源", () => {
   });
 });
 
-describe("肩：只给激活段朝向接缝的那一侧", () => {
-  const count = 5;
-
-  it("中间段激活：两侧都挂肩（两侧都是敞口接缝）", () => {
-    expect(neckShoulderSides(2, 2, count)).toEqual({ left: true, right: true });
+describe("颈部端面与圆角：内缩量必须等于圆角半径", () => {
+  it("端面只落在段边的直线段上（内缩 = 圆角半径），否则会漏月牙形页底色", () => {
+    // 段的圆角让段边只剩 y 属于 [r, h-r] 这一段是直线；端面顶到条带上下沿就会压在圆弧外面，
+    // 圆弧与端面之间必然空出月牙形页底色（深墨块旁边那块浅色楔形）。
+    expect(NECK_END_INSET_PX).toBe(NECK_CORNER_PX);
   });
 
-  it("首段激活：左侧是控件自己的圆角，不挂肩", () => {
-    expect(neckShoulderSides(0, 0, count)).toEqual({ left: false, right: true });
-  });
-
-  it("末段激活：右侧是控件自己的圆角，不挂肩", () => {
-    expect(neckShoulderSides(4, 4, count)).toEqual({ left: true, right: false });
-  });
-
-  it("未激活段不挂肩（缺角只有在深墨面旁边才看得见，填了会削掉贴合的圆角）", () => {
-    for (const index of [0, 1, 3, 4]) {
-      expect(neckShoulderSides(index, 2, count)).toEqual({ left: false, right: false });
-    }
-  });
-
-  it("找不到激活段（activeIndex 越界）时谁都不挂肩，不抛错", () => {
-    for (const index of [0, 2, 4]) {
-      expect(neckShoulderSides(index, -1, count)).toEqual({ left: false, right: false });
-    }
+  it("视图盒仍是标称的方形：带子高由 CSS 拉伸成 段高 - 2×内缩", () => {
+    expect(NECK_VIEW_BOX).toBe(`0 0 ${NECK_NOMINAL_SPAN} ${NECK_NOMINAL_SPAN}`);
   });
 });
-
 describe("颈部渐变：两端分别取左右相邻段的填充色", () => {
   const activeFill = "var(--color-surface-inverse)";
   const idleFill = "var(--color-surface-raised)";

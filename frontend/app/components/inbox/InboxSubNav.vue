@@ -6,13 +6,13 @@ import { useMotionPreference } from "~/composables/useMotionPreference";
 import type { MessageCenterNavItem, MessageCenterTab } from "~/utils/messageCenter";
 import { shouldShowUnreadCount } from "~/utils/messageCenter";
 import {
+  NECK_END_INSET_PX,
   NECK_VIEW_BOX,
   isNeckSeamOpen,
   neckGradientStops,
   neckMotionKind,
   neckPath,
   neckSegmentMotion,
-  neckShoulderSides,
   neckTransition,
 } from "~/utils/subnavNeck";
 
@@ -22,9 +22,10 @@ import {
  * 形态（口径见 docs/notes/2026-11-07-reading-ui-grill.md §三 3.7）：
  *   - 五段**相邻贴合**成一个分段控件，整条是内容宽度（不再 `self-stretch` 拉满）；
  *   - 未激活段是轨道面（`--color-surface-raised`），激活块是深墨面
- *     （`--color-surface-inverse`）铺底 + 反白文字；
+ *     （`--color-surface-inverse`）铺底 + 反白文字，敞口侧保留 `--radius-md` 圆角；
  *   - 只有激活段两侧的接缝张开 20px，张开的接缝里画一段**颈部**：两端满高、中点收腰的
- *     哑铃形，用线性渐变填充，两端分别取左右相邻段的填充色；
+ *     哑铃形，用线性渐变填充，两端分别取左右相邻段的填充色；颈部上下各内缩一个圆角半径，
+ *     两端只落在段边的直线段上，所以圆弧完整、圆角与颈部之间不会漏出页底色；
  *   - 段位 `margin-left`、四角圆角与颈部宽度由同一组弹簧驱动（**全站唯一允许布局属性
  *     动画的地方**，仅限这条 ≤5 个节点，ADR-0012 后续修订 2026-11-07 已登记），
  *     颜色走 CSS 过渡；
@@ -57,31 +58,32 @@ const neckCount = computed(() => props.items.length);
  * 否则 hydration 会把整条 SVG 重建一遍。
  */
 const segments = computed(() =>
-  props.items.map((item, index) => {
-    const shoulders = neckShoulderSides(index, activeIndex.value, neckCount.value);
-
-    return {
-      item,
-      active: index === activeIndex.value,
-      seamOpen: isNeckSeamOpen(index, activeIndex.value),
-      /** 第 0 段左边没有接缝；其余每一段都常驻一条颈部（闭合时宽度收到 0）。 */
-      hasSeam: index > 0,
-      /** 肩：用本段自己的底色填平圆角缺角，别让页底色从颈部与圆弧之间漏出来。 */
-      shoulderLeft: shoulders.left,
-      shoulderRight: shoulders.right,
-      animate: neckSegmentMotion(index, activeIndex.value, neckCount.value),
-      stops: neckGradientStops(index, activeIndex.value),
-      gradientId: `inbox-subnav-neck-${index}`,
-    };
-  }),
+  props.items.map((item, index) => ({
+    item,
+    active: index === activeIndex.value,
+    seamOpen: isNeckSeamOpen(index, activeIndex.value),
+    /** 第 0 段左边没有接缝；其余每一段都常驻一条颈部（闭合时宽度收到 0）。 */
+    hasSeam: index > 0,
+    animate: neckSegmentMotion(index, activeIndex.value, neckCount.value),
+    stops: neckGradientStops(index, activeIndex.value),
+    gradientId: `inbox-subnav-neck-${index}`,
+  })),
 );
 
 const transition = computed(() => neckTransition(prefersReducedMotion.value));
 const motionKind = computed(() => neckMotionKind(prefersReducedMotion.value));
+
+/** 颈部上下内缩量（= 段的敞口圆角），交给 CSS 把颈部抬到圆角的切线以内。 */
+const neckInsetStyle = { "--neck-inset": `${NECK_END_INSET_PX}px` };
 </script>
 
 <template>
-  <nav class="message-center__subnav" aria-label="消息中心子项" :data-neck-motion="motionKind">
+  <nav
+    class="message-center__subnav"
+    aria-label="消息中心子项"
+    :data-neck-motion="motionKind"
+    :style="neckInsetStyle"
+  >
     <motion.div
       v-for="segment in segments"
       :key="segment.item.key"
@@ -92,26 +94,12 @@ const motionKind = computed(() => neckMotionKind(prefersReducedMotion.value));
       :animate="segment.animate"
       :transition="transition"
     >
-      <!-- 肩：把本段在敞口接缝那一侧的圆角缺角用**本段自己的底色**填平。
-           缺角在段边线的里侧，颈部（只长在接缝里）够不到它；不填的话页底色就从颈部端面
-           与圆弧之间漏出来，在深墨块旁边就是一块浅色楔形。 -->
-      <span
-        v-if="segment.shoulderLeft"
-        class="message-center-tab__shoulder"
-        data-side="left"
-        aria-hidden="true"
-      />
-      <span
-        v-if="segment.shoulderRight"
-        class="message-center-tab__shoulder"
-        data-side="right"
-        aria-hidden="true"
-      />
-
       <!-- 颈部：每条接缝常驻一条，宽度读 --neck-gap。
            张开的接缝是满宽的那一段，闭合的接缝宽度收到 0（贴合时正好消失）——
            所以"拉开"与"连上"两个方向都能看见它被拉长 / 收细，不会在切换的那一帧凭空出现在
-           某个状态里。宽度与段位是同一个变量（同一条弹簧），回弹期间两者永远对齐。 -->
+           某个状态里。宽度与段位是同一个变量（同一条弹簧），回弹期间两者永远对齐。
+           上下各内缩一个圆角半径（--neck-inset）：两端只落在段边的直线段上，
+           圆弧完整保留，也就不会在圆角与颈部之间漏出月牙形的页底色。 -->
       <svg
         v-if="segment.hasSeam"
         class="message-center-tab__neck"

@@ -1023,6 +1023,9 @@
                     "author_name": {
                         "type": "string"
                     },
+                    "content": {
+                        "type": "string"
+                    },
                     "created_at": {
                         "type": "string"
                     },

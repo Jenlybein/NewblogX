@@ -225,6 +225,13 @@ type DeleteResult struct {
 // ReviewTaskView 是审核任务的只读视图。
 type ReviewTaskView struct {
 	Task review.Task
+	// Content 是**文章当前正文**，不是提交那一刻的快照。
+	//
+	// 审核任务表没有正文列（零 DDL 硬约束），提交时只快照了标题与作者，
+	// 所以这里取 article_models 里的当前内容。这正是审核员要判断的东西，
+	// 也比"再存一份快照"更不容易让人读到旧稿。
+	// 文章已被删除时留空，任务条目仍然出现（见 ListReviewTasks）。
+	Content string
 }
 
 // ── 合集 ──

@@ -110,12 +110,16 @@ type ArticleReviewTaskListRequest struct {
 }
 
 // ArticleReviewTaskItem 审核任务项。
+//
+// content 是文章当前正文（不是提交时的快照）：审核员要在列表里直接判断，
+// 不必再跳文章页。文章已被删除时为空串。
 type ArticleReviewTaskItem struct {
 	ID            ctype.ID         `json:"id"`
 	ArticleID     ctype.ID         `json:"article_id"`
 	AuthorID      ctype.ID         `json:"author_id"`
 	ArticleTitle  string           `json:"article_title"`
 	AuthorName    string           `json:"author_name"`
+	Content       string           `json:"content"`
 	PublishStatus ArticleStatus    `json:"publish_status"`
 	Stage         ReviewTaskStage  `json:"stage"`
 	Source        ReviewTaskSource `json:"source"`

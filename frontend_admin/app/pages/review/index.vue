@@ -1,13 +1,15 @@
 <script setup lang="ts">
 import { h } from 'vue'
-import { NButton, NCard, NDataTable, NInput, NModal, NSelect, NSpace, NTag, useDialog, useMessage } from 'naive-ui'
+import { NButton, NCard, NDataTable, NEmpty, NInput, NModal, NSelect, NSpace, NTag, useDialog, useMessage } from 'naive-ui'
+import ReviewBodyPreview from '~/components/review/ReviewBodyPreview.vue'
 import { getArticleReviewTasks, reviewArticleTask } from '~/services/admin'
 import type { ArticleReviewTaskItem } from '~/types/api'
 import { formatDateTime } from '~/utils/format'
 
 const message = useMessage()
 const dialog = useDialog()
-const loading = ref(false)
+// 初始为 true：首屏还没请求时不要先闪一下空态。
+const loading = ref(true)
 const page = ref(1)
 const limit = ref(10)
 const total = ref(0)
@@ -30,8 +32,15 @@ const statusOptions = [
 ]
 
 const columns = [
-  { title: '文章', key: 'article_title', minWidth: 240 },
-  { title: '作者', key: 'author_name', width: 140 },
+  { title: '文章', key: 'article_title', minWidth: 200 },
+  {
+    title: '正文',
+    key: 'content',
+    minWidth: 360,
+    // 列表里直接给正文（长稿折叠、可展开）：审核员不跳文章页就能判断（票 307）。
+    render: (row: ArticleReviewTaskItem) => h(ReviewBodyPreview, { content: row.content }),
+  },
+  { title: '作者', key: 'author_name', width: 120 },
   {
     title: '来源',
     key: 'source',
@@ -147,7 +156,14 @@ onMounted(refresh)
     </NCard>
 
     <NCard class="admin-card" title="审核任务">
+      <!-- 空队列是正常读面，不是错误：给空态，不弹"加载失败"。 -->
+      <NEmpty
+        v-if="!loading && rows.length === 0"
+        class="py-10"
+        description="队列为空：没有符合条件的审核任务"
+      />
       <NDataTable
+        v-else
         :columns="columns"
         :data="rows"
         :loading="loading"

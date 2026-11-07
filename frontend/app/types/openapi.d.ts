@@ -6887,6 +6887,7 @@ export interface components {
             article_title?: string;
             author_id?: string;
             author_name?: string;
+            content?: string;
             created_at?: string;
             id?: string;
             publish_status?: components["schemas"]["internal_article_adapter_http.ArticleStatus"];

@@ -996,6 +996,9 @@
                     "reason": {
                         "type": "string"
                     },
+                    "reason_code": {
+                        "$ref": "#/components/schemas/internal_article_adapter_http.ReviewReasonCode"
+                    },
                     "status": {
                         "enum": [
                             3,
@@ -1007,6 +1010,17 @@
                 "required": [
                     "status"
                 ],
+                "type": "object"
+            },
+            "internal_article_adapter_http.ArticleReviewReasonItem": {
+                "properties": {
+                    "label": {
+                        "type": "string"
+                    },
+                    "value": {
+                        "$ref": "#/components/schemas/internal_article_adapter_http.ReviewReasonCode"
+                    }
+                },
                 "type": "object"
             },
             "internal_article_adapter_http.ArticleReviewTaskItem": {
@@ -1037,6 +1051,9 @@
                     },
                     "reason": {
                         "type": "string"
+                    },
+                    "reason_code": {
+                        "$ref": "#/components/schemas/internal_article_adapter_http.ReviewReasonCode"
                     },
                     "reviewed_at": {
                         "type": "string"
@@ -1870,6 +1887,28 @@
                     "title"
                 ],
                 "type": "object"
+            },
+            "internal_article_adapter_http.ReviewReasonCode": {
+                "enum": [
+                    "quality",
+                    "compliance",
+                    "incomplete",
+                    "format",
+                    "other",
+                    "quality",
+                    "compliance",
+                    "incomplete",
+                    "format",
+                    "other"
+                ],
+                "type": "string",
+                "x-enum-varnames": [
+                    "ReasonQuality",
+                    "ReasonCompliance",
+                    "ReasonIncomplete",
+                    "ReasonFormat",
+                    "ReasonOther"
+                ]
             },
             "internal_article_adapter_http.ReviewTaskSource": {
                 "enum": [
@@ -5751,6 +5790,20 @@
                 },
                 "type": "object"
             },
+            "myblogx_internal_kernel.Envelope-myblogx_internal_kernel_ListData-internal_article_adapter_http_ArticleReviewReasonItem": {
+                "properties": {
+                    "code": {
+                        "type": "integer"
+                    },
+                    "data": {
+                        "$ref": "#/components/schemas/myblogx_internal_kernel.ListData-internal_article_adapter_http_ArticleReviewReasonItem"
+                    },
+                    "msg": {
+                        "type": "string"
+                    }
+                },
+                "type": "object"
+            },
             "myblogx_internal_kernel.Envelope-myblogx_internal_kernel_ListData-internal_article_adapter_http_ArticleTopCardResponse": {
                 "properties": {
                     "code": {
@@ -6277,6 +6330,21 @@
                     "list": {
                         "items": {
                             "$ref": "#/components/schemas/internal_article_adapter_http.ArticleHotTopCardResponse"
+                        },
+                        "type": "array",
+                        "uniqueItems": false
+                    }
+                },
+                "type": "object"
+            },
+            "myblogx_internal_kernel.ListData-internal_article_adapter_http_ArticleReviewReasonItem": {
+                "properties": {
+                    "count": {
+                        "type": "integer"
+                    },
+                    "list": {
+                        "items": {
+                            "$ref": "#/components/schemas/internal_article_adapter_http.ArticleReviewReasonItem"
                         },
                         "type": "array",
                         "uniqueItems": false
@@ -7445,6 +7513,31 @@
                     }
                 ],
                 "summary": "处理审核任务",
+                "tags": [
+                    "article"
+                ]
+            }
+        },
+        "/article-review/reasons": {
+            "get": {
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/myblogx_internal_kernel.Envelope-myblogx_internal_kernel_ListData-internal_article_adapter_http_ArticleReviewReasonItem"
+                                }
+                            }
+                        },
+                        "description": "OK"
+                    }
+                },
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "summary": "驳回原因可选值",
                 "tags": [
                     "article"
                 ]

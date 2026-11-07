@@ -8,6 +8,10 @@ package http
 //
 // 取值必须与数据库、与 domain 层完全一致，改一个数字/字符串都会让老数据读不出来。
 
+import (
+	"myblogx/internal/article/domain/review"
+)
+
 // ArticleStatus 是文章发布状态。数值与库中一致：草稿=1、审核中=2、已发布=3、已拒绝=4。
 type ArticleStatus int8
 
@@ -52,3 +56,12 @@ const (
 	ReviewTaskSourceEdit     ReviewTaskSource = "edit"
 	ReviewTaskSourceResubmit ReviewTaskSource = "resubmit"
 )
+
+// ReviewReasonCode 是驳回原因的固定枚举值。
+//
+// 这里**别名**而不是像上面那几组一样重抄一份取值：驳回原因的词表只能有一处
+// （kernel/enum/article_review_enum，见 GLOSSARY「枚举别名」），因为它是 #308
+// 的核心——契约里的 enum、管理后台的下拉与作者收到的文案全都从那一处生成，
+// 再抄一份取值就会出现"契约允许的值代码不认"。
+type ReviewReasonCode = review.ReasonCode
+

@@ -3,6 +3,7 @@ package app_test
 import (
 	"context"
 	"errors"
+	"strings"
 	"testing"
 
 	"myblogx/internal/apperr"
@@ -138,13 +139,13 @@ func TestSaveCategoryTitleUniquePerAuthor(t *testing.T) {
 	}
 }
 
-// ── 审核任务：驳回必须带原因 ──
+// ── 审核任务：驳回必须选一条固定原因 ──
 //
 // 驳回是"把一句话送到作者手里"这个动作：没有那句话，作者只收到"审核失败"、
-// 不知道哪里不行。所以空原因必须在用例层就被拒，而且不许留下任何副作用——
-// 已经改了一半的文章状态 + 一条空原因通知，正是本票要修的那个缺陷。
+// 不知道哪里不行。所以"必须选一条枚举"在用例层把关，而且不许留下任何副作用——
+// 已经改了一半的文章状态 + 一条空原因通知，正是 #303 修过的那个缺陷。
 
-func TestHandleReviewTaskRejectRequiresReason(t *testing.T) {
+func TestHandleReviewTaskRejectRequiresEnum(t *testing.T) {
 	t.Parallel()
 
 	svc, repos, _ := newService(t)
@@ -152,11 +153,29 @@ func TestHandleReviewTaskRejectRequiresReason(t *testing.T) {
 	a := seedArticle(t, repos, ctype.NewID(1), author, domain.StatusExamining)
 	repos.FakeReviews().Seed(apptest.NewTaskForTest(1, a.ID(), author, review.StatusPending))
 
-	for _, reason := range []string{"", "   ", "\n\t"} {
-		_, err := svc.HandleReviewTask(ctx, adminViewer(), ctype.NewID(1), false, reason)
-		if !errors.Is(err, domain.ErrReviewReasonRequired) {
-			t.Fatalf("原因 %q 应被拒绝，实际 %v", reason, err)
-		}
+	cases := []struct {
+		name     string
+		code     review.ReasonCode
+		note     string
+		wantCode apperr.Code
+	}{
+		// 没选：自由文本写得再长也不能代替枚举——前端要按值渲染，值才是结论。
+		{name: "没选枚举", code: "", note: "内容不完整", wantCode: apperr.CodeArticleReviewReasonInvalid},
+		// 选了一个词表之外的值：旧客户端 / 手搓请求，不能当枚举存下去。
+		{name: "词表之外的值", code: "too_short", note: "", wantCode: apperr.CodeArticleReviewReasonInvalid},
+		// 「其他原因」不补说明，作者收到的就是一句「其他原因」，等于没说。
+		{name: "其他原因不补说明", code: review.ReasonOther, note: "   ", wantCode: apperr.CodeArticleReviewReasonRequired},
+		// 说明超长会撞 varchar(500)：在进事务之前给出可读错误码。
+		{name: "说明超长", code: review.ReasonQuality, note: strings.Repeat("长", review.ReasonNoteMaxLen+1), wantCode: apperr.CodeArticleReviewReasonTooLong},
+	}
+
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			_, err := svc.HandleReviewTask(ctx, adminViewer(), ctype.NewID(1), false, c.code, c.note)
+			if got, ok := apperr.CodeOf(err); !ok || got != c.wantCode {
+				t.Fatalf("应返回错误码 %s，实际 code=%s ok=%v err=%v", c.wantCode, got, ok, err)
+			}
+		})
 	}
 
 	if got, _ := repos.FakeArticles().Find(ctx, ctype.NewID(1)); got.Status() != domain.StatusExamining {
@@ -171,9 +190,9 @@ func TestHandleReviewTaskRejectRequiresReason(t *testing.T) {
 	}
 }
 
-// TestHandleReviewTaskRejectKeepsReason 合法原因要落到审核任务上，
-// 且去掉首尾空白：作者看到的那句话不该带着审核员手滑打出的换行。
-func TestHandleReviewTaskRejectKeepsReason(t *testing.T) {
+// TestHandleReviewTaskRejectStoresEnumAndNote 合法驳回把"枚举 + 补充说明"落到任务上，
+// 且补充说明去掉首尾空白：作者看到的那句话不该带着审核员手滑打出的换行。
+func TestHandleReviewTaskRejectStoresEnumAndNote(t *testing.T) {
 	t.Parallel()
 
 	svc, repos, _ := newService(t)
@@ -181,13 +200,16 @@ func TestHandleReviewTaskRejectKeepsReason(t *testing.T) {
 	a := seedArticle(t, repos, ctype.NewID(1), author, domain.StatusExamining)
 	repos.FakeReviews().Seed(apptest.NewTaskForTest(1, a.ID(), author, review.StatusPending))
 
-	if _, err := svc.HandleReviewTask(ctx, adminViewer(), ctype.NewID(1), false, "  内容不完整\n"); err != nil {
+	if _, err := svc.HandleReviewTask(ctx, adminViewer(), ctype.NewID(1), false, review.ReasonIncomplete, "  缺少示例代码\n"); err != nil {
 		t.Fatalf("带原因的驳回失败: %v", err)
 	}
 
 	task, _ := repos.FakeReviews().Find(ctx, 1)
-	if task.Reason() != "内容不完整" {
-		t.Fatalf("审核任务应记下原因，实际 %q", task.Reason())
+	if task.ReasonCode() != review.ReasonIncomplete {
+		t.Fatalf("审核任务应记下枚举 %q，实际 %q", review.ReasonIncomplete, task.ReasonCode())
+	}
+	if task.ReasonNote() != "缺少示例代码" {
+		t.Fatalf("审核任务应记下补充说明 %q，实际 %q", "缺少示例代码", task.ReasonNote())
 	}
 	if task.Status() != review.StatusRejected {
 		t.Fatalf("任务应为已驳回，实际 %s", task.Status())
@@ -197,8 +219,30 @@ func TestHandleReviewTaskRejectKeepsReason(t *testing.T) {
 	}
 }
 
+// TestHandleReviewTaskRejectOnlyEnumIsEnough 只选一条、不补说明是合法输入：
+// 自由文本是"可选"，别把它变成第二个必填项。
+func TestHandleReviewTaskRejectOnlyEnumIsEnough(t *testing.T) {
+	t.Parallel()
+
+	svc, repos, _ := newService(t)
+	ctx := context.Background()
+	a := seedArticle(t, repos, ctype.NewID(1), author, domain.StatusExamining)
+	repos.FakeReviews().Seed(apptest.NewTaskForTest(1, a.ID(), author, review.StatusPending))
+
+	if _, err := svc.HandleReviewTask(ctx, adminViewer(), ctype.NewID(1), false, review.ReasonQuality, ""); err != nil {
+		t.Fatalf("只选枚举的驳回应成功，实际 %v", err)
+	}
+	task, _ := repos.FakeReviews().Find(ctx, 1)
+	if task.ReasonNote() != "" {
+		t.Fatalf("没补说明时不该凭空造出一句，实际 %q", task.ReasonNote())
+	}
+	if task.ReasonCode() != review.ReasonQuality {
+		t.Fatalf("枚举应落在任务上，实际 %q", task.ReasonCode())
+	}
+}
+
 // TestHandleReviewTaskApproveNeedsNoReason 通过不需要原因：
-// "驳回要写原因"这条规则不能被顺手加到通过上，否则管理员点"通过"也要先写理由。
+// "驳回要选原因"这条规则不能被顺手加到通过上，否则管理员点"通过"也要先写理由。
 func TestHandleReviewTaskApproveNeedsNoReason(t *testing.T) {
 	t.Parallel()
 
@@ -207,7 +251,9 @@ func TestHandleReviewTaskApproveNeedsNoReason(t *testing.T) {
 	a := seedArticle(t, repos, ctype.NewID(1), author, domain.StatusExamining)
 	repos.FakeReviews().Seed(apptest.NewTaskForTest(1, a.ID(), author, review.StatusPending))
 
-	if _, err := svc.HandleReviewTask(ctx, adminViewer(), ctype.NewID(1), true, ""); err != nil {
+	// 通过时即便带了原因也一律丢弃：通过的语义里没有"驳回原因"这一项，
+	// 留下它只会让队列里出现一条状态是 approved 却带 reason 的记录。
+	if _, err := svc.HandleReviewTask(ctx, adminViewer(), ctype.NewID(1), true, review.ReasonOther, "不该被记录"); err != nil {
 		t.Fatalf("审核通过不该要求原因，实际 %v", err)
 	}
 
@@ -218,6 +264,9 @@ func TestHandleReviewTaskApproveNeedsNoReason(t *testing.T) {
 	task, _ := repos.FakeReviews().Find(ctx, 1)
 	if task.Status() != review.StatusApproved {
 		t.Fatalf("任务应为已通过，实际 %s", task.Status())
+	}
+	if task.Reason() != "" {
+		t.Fatalf("通过不该在任务上留下原因，实际 %q", task.Reason())
 	}
 }
 

@@ -34,11 +34,20 @@ var (
 	ErrPublishDisabledBySite = apperr.New(apperr.CodeArticlePublishDisabled)
 	// ErrDraftDisabledBySite 站点策略关闭了非管理员的存草稿能力。
 	ErrDraftDisabledBySite = apperr.New(apperr.CodeArticleDraftDisabled)
-	// ErrReviewReasonRequired 驳回没写明原因。
+	// ErrReviewReasonInvalid 驳回原因不是固定枚举里的一条。
 	//
-	// 原因不是"审核操作的附属备注"，而是**送给作者看的正文**：通知里那一行
-	// "失败原因："和作者打开草稿看到的是同一句话，空着等于什么都没说。
+	// 驳回原因现在是"固定枚举 + 可选自由文本"（#308）：枚举是结论，自由文本只是补充。
+	// 没有枚举就分不出"哪一类问题"，前端也无法按值渲染文案——只认值，不认中文。
+	ErrReviewReasonInvalid = apperr.New(apperr.CodeArticleReviewReasonInvalid)
+	// ErrReviewReasonRequired 选「其他原因」时没补那句说明。
+	//
+	// 原因不是"审核操作的附属备注"，而是**送给作者看的正文**：只给一个"其他原因"
+	// 等于什么都没说（与 #303 修的是同一件事，只是现在由枚举兜住"必须写"这条底线）。
 	ErrReviewReasonRequired = apperr.New(apperr.CodeArticleReviewReasonRequired)
+	// ErrReviewReasonTooLong 补充说明超出长度上限。
+	//
+	// 原因列是 varchar(500)、枚举值也编在同一列（零 DDL），不拦截会变成写库失败。
+	ErrReviewReasonTooLong = apperr.New(apperr.CodeArticleReviewReasonTooLong)
 	// ErrSubmitQuotaExceeded 「投稿配额」用完：当天已提交的次数达到上限。
 	//
 	// 与 ErrForbidden / ErrPublishDisabledBySite 分开：那两个要用户改账号或找管理员，

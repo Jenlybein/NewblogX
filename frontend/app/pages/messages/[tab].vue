@@ -77,6 +77,7 @@ async function handleRemove(id: string) {
 }
 
 useSeoMeta({ title: "消息中心" });
+useNoIndexPage();
 </script>
 
 <template>

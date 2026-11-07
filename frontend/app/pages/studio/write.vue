@@ -272,6 +272,7 @@ useSeoMeta({
   title: "创作系统 - 写文章",
   description: "对齐原型工作台结构的正式创作页面。",
 });
+useNoIndexPage();
 </script>
 
 <template>

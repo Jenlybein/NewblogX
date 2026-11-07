@@ -270,6 +270,18 @@ ai:
 - **合集/项目不做 sitemap**：它们是 client-only 页面，爬虫拿到空壳；列进 sitemap 只会让站长后台持续报"已提交，未收录"。
 - **RSS/Atom 砍掉**：它是"读者订阅功能"，不是 SEO 功能。对收录的加速是间接且微弱的；没人用阅读器订阅时收益接近零。等真有人说"想订阅"再加。
 
+### 6.5 实施记录（2026-11-08，与上表的四处偏差都有理由）
+
+| 项 | 落点/形态变了什么 | 为什么 |
+| --- | --- | --- |
+| 2 | `robots.txt` 改由 `server/routes/robots.txt.get.ts` 按运行时 `NUXT_PUBLIC_SITE_URL` 现拼，删掉 `public/robots.txt` | `Sitemap:` 行必须是绝对地址，而 local / test / production 是三个不同域名；静态文件只能写死一个，测试环境会把爬虫指向生产站的 sitemap |
+| 2 | 只 `Disallow: /api/`，**不** Disallow 私密页面 | 与 §6.2③ 同一条理由：被 Disallow 的页面爬虫进不去，读不到页面里的 `noindex`。私密页面一律走页面级标签 |
+| 5 | `article:published_time` 取 `created_at` | 库里没有 `published_at` 列（本票零 DDL），记录时间就是读者能看到的那一个"发布"时刻 |
+| 6 | `BreadcrumbList` 只有两级（首页 → 标题），分类只进 `Article.articleSection` | 站点没有分类页（无 `/category/*` 路由）。面包屑的每一层都要有可访问的 `item`，为凑三层编一条分类 URL 等于把爬虫送去一页 404 |
+
+另外两条实施口径：`canonical` 的域名取运行时 `siteUrl` 而非请求头（同一篇文章的多个来路变体必须输出同一条 canonical，否则"去重"本身会失效）；`noindex` 的指令值收敛到 `useNoIndexPage()` 一处，`test/gates/seo-foundation.test.ts` 按路由清单逐页检查有没有漏。
+
+
 ---
 
 ## 七、被否决的方案与理由

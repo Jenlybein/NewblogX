@@ -122,6 +122,7 @@ const dashboardWarning = computed(() => {
 useSeoMeta({
   title: "个人中心 - 数据概览",
 });
+useNoIndexPage();
 </script>
 
 <template>

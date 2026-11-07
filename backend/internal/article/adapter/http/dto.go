@@ -113,6 +113,11 @@ type ArticleReviewTaskListRequest struct {
 //
 // content 是文章当前正文（不是提交时的快照）：审核员要在列表里直接判断，
 // 不必再跳文章页。文章已被删除时为空串。
+//
+// reason_code / reason 是驳回原因的**两个部分**：reason_code 是固定枚举值
+// （前端按值渲染文案，绝不按中文匹配），reason 是审核员补的那句自由文本。
+// 历史行（#308 之前、撤销）没有枚举，reason_code 为 null，reason 是整段原文——
+// 前端因此只剩"枚举 + 补充"与"只有一段话"两种情形要显示。
 type ArticleReviewTaskItem struct {
 	ID            ctype.ID         `json:"id"`
 	ArticleID     ctype.ID         `json:"article_id"`
@@ -124,10 +129,20 @@ type ArticleReviewTaskItem struct {
 	Stage         ReviewTaskStage  `json:"stage"`
 	Source        ReviewTaskSource `json:"source"`
 	Status        ReviewTaskStatus `json:"status"`
+	ReasonCode    *ReviewReasonCode `json:"reason_code"`
 	Reason        string           `json:"reason"`
 	CreatedAt     time.Time        `json:"created_at"`
 	ReviewedAt    *time.Time       `json:"reviewed_at"`
 	ReviewedBy    *ctype.ID        `json:"reviewed_by"`
+}
+
+// ArticleReviewReasonItem 是一条可选的驳回原因（出站）。
+//
+// 值与文案都来自后端唯一词表：前端拿它渲染下拉框，选中的是 value，
+// 显示的是 label——两边都不需要认识中文。
+type ArticleReviewReasonItem struct {
+	Value ReviewReasonCode `json:"value"`
+	Label string           `json:"label"`
 }
 
 // ArticleReviewTaskListResponse 审核任务列表结果。
@@ -137,9 +152,14 @@ type ArticleReviewTaskListResponse struct {
 }
 
 // ArticleReviewHandleRequest 处理审核任务。
+//
+// 驳回必须带 reason_code（固定枚举里的一条）；reason 是可选的一句自由文本。
+// 取值校验在用例层（app.reviewReason）：能选哪些值由契约里的 enum 说了算，
+// 这里不再手抄一份 oneof 清单。
 type ArticleReviewHandleRequest struct {
-	Status ArticleStatus `json:"status" binding:"required,oneof=3 4" swaggertype:"integer" enums:"3,4"`
-	Reason string        `json:"reason"`
+	Status     ArticleStatus    `json:"status" binding:"required,oneof=3 4" swaggertype:"integer" enums:"3,4"`
+	ReasonCode ReviewReasonCode `json:"reason_code"`
+	Reason     string           `json:"reason"`
 }
 
 // ArticleAdminVisibilityURI 管理员改可见性。

@@ -34,11 +34,22 @@ const (
 	// 而正确动作是找管理员打开「发布与展示」开关。
 	CodeArticlePublishDisabled Code = "article.publish_disabled_by_site"
 	CodeArticleDraftDisabled   Code = "article.draft_disabled_by_site"
-	// CodeArticleReviewReasonRequired 驳回没有写明原因。
+	// CodeArticleReviewReasonRequired 驳回少了那句补充说明。
 	//
+	// 驳回现在是"固定枚举 + 可选自由文本"（#308）：枚举必选，自由文本平时可以不写，
+	// 只有选「其他原因」时非写不可——否则作者收到的就是一句"其他原因"，等于没说。
 	// 单独一个码而不是复用 invalid_state：前者是"少填了一个必填项"（补一句话再点一次），
 	// 后者是"这篇文章当前不该被审核"（刷新列表）。管理后台据此提示的操作不同。
 	CodeArticleReviewReasonRequired Code = "article.review_reason_required"
+	// CodeArticleReviewReasonInvalid 驳回原因不是固定枚举里的一条。
+	//
+	// 与 review_reason_required 分开：这个是"选错了/没选"（前端漏传或旧客户端），
+	// 那个是"选对了但没补说明"。给审核员的动作不同——重选一条 vs 补一句话。
+	CodeArticleReviewReasonInvalid Code = "article.review_reason_invalid"
+	// CodeArticleReviewReasonTooLong 补充说明超出长度上限。
+	//
+	// 原因列是 varchar(500) 且枚举值也编在同一列：不拦的话超长粘贴会变成写库失败（500）。
+	CodeArticleReviewReasonTooLong Code = "article.review_reason_too_long"
 	// CodeArticleSubmitQuotaExceeded 是「投稿配额」用完（票 304 / ADR-0031）。
 	//
 	// 与 article.forbidden / publish_disabled_by_site 都不同：那些是"你/站点不允许"，
@@ -434,7 +445,11 @@ var messages = map[Code]string{
 	CodeArticlePublishDisabled: "站点当前不允许发布文章（站点策略，不是账号问题），请联系管理员开启「允许非管理员发布文章」",
 	CodeArticleDraftDisabled:   "站点当前不允许保存草稿（站点策略，不是账号问题），请联系管理员开启「允许非管理员创建草稿」",
 	// 文案要说清"这句话是给作者的"，管理员才知道必须填、不能糊一个句号。
-	CodeArticleReviewReasonRequired: "驳回必须写明原因（作者会看到这句话）",
+	CodeArticleReviewReasonRequired: "这条驳回原因必须补一句说明（作者会看到这句话）",
+	// 说清"从固定列表里选"：审核员眼前是一个下拉框，不是输入框。
+	CodeArticleReviewReasonInvalid: "驳回必须从固定原因里选择一条",
+	// 不说具体字数：上限是代码里的常量，写进文案只会多一处会漂的副本。
+	CodeArticleReviewReasonTooLong: "驳回补充说明过长，请精简后再提交",
 	// 文案要写清"今天用完、明天恢复"：作者看到后应当知道什么时候再来，
 	// 而不是怀疑自己的账号被限制。
 	CodeArticleSubmitQuotaExceeded: "今天的投稿配额已用完，配额按自然日重置（明天 00:00 后可再次提交）",

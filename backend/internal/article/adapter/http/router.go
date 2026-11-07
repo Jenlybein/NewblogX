@@ -62,6 +62,8 @@ func (h *Handler) Register(r *gin.RouterGroup, authMw, optionalMw gin.HandlerFun
 	projectGroup.GET(":id/outline-tree", mw.BindUri[kernel.IDRequest],
 		mw.BindQuery[NamedOutlineTreeRequest], h.ProjectOutlineTree)
 	reviewAdminGroup.GET("", mw.BindQuery[ArticleReviewTaskListRequest], h.ReviewTasks)
+	// 驳回原因的固定列表：值与文案都从后端唯一词表出（#308），前端据此渲染下拉。
+	reviewAdminGroup.GET("reasons", h.ReviewReasons)
 
 	// 登录用户写
 	authGroup.POST("", mw.BindJson[ArticleCreateRequest], h.Create)

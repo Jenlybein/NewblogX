@@ -354,6 +354,9 @@ func (s *Service) requireAuthor(ctx context.Context, viewerID, articleID uint64)
 }
 
 // persistScore 把评分结果转成记录并落库。
+//
+// 一律走 Upsert：同一篇文章再次评分覆盖既有那行，作者改稿后看到的就是新结论。
+// 覆盖写由仓储在事务里保证"只有一行"（与并发竞争一起收口），组合层不需要先查后写。
 func persistScore(
 	ctx context.Context,
 	repo domain.ScoreRepository,
@@ -394,7 +397,7 @@ func persistScore(
 		ModelName:        activeModelName(aiConf),
 		PromptVersion:    scoringPromptVersion,
 	}
-	if _, err := repo.CreateIfAbsent(ctx, record); err != nil {
+	if err := repo.Upsert(ctx, record); err != nil {
 		return nil, err
 	}
 	return record, nil

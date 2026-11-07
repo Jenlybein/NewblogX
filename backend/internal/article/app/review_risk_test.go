@@ -41,7 +41,7 @@ func newModerationService(t *testing.T, scores app.ModerationScorePort, words ap
 	t.Helper()
 	repos := apptest.NewRepos()
 	tx := apptest.NewTx(repos)
-	svc := app.New(tx, apptest.NewClock(apptest.DefaultTime), apptest.NewIDGen(1000), nil, scores, words)
+	svc := app.New(tx, apptest.NewClock(apptest.DefaultTime), apptest.NewIDGen(1000), nil, scores, words, nil)
 	repos.FakeUsers().Seed(app.AuthorView{ID: author, Nickname: "作者", Username: "u100"})
 	repos.FakeCategories().Seed()
 	return svc, repos

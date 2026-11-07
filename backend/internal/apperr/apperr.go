@@ -56,6 +56,21 @@ const (
 	// 这个是"今天的提交次数用完了，明天自然恢复"。三类混用会让作者去查自己的账号
 	// 或去找管理员改开关，而正确动作是"明天再来"。
 	CodeArticleSubmitQuotaExceeded Code = "article.submit_quota_exceeded"
+	// CodeArticleQualityRejected 是「拿到分数，但没达到发布线」（票 306 / ADR-0032）。
+	//
+	// 它与 article.score_unavailable 必须是两个码：前者是"文章不够好"（去改稿），
+	// 后者是"平台没给出结论"（稍后重试）。作者据此决定下一步动作，混用会误导。
+	CodeArticleQualityRejected Code = "article.quality_rejected"
+	// CodeArticleScoreUnavailable 是「评分失败：没拿到可用分数」（票 306 / ADR-0032）。
+	//
+	// 覆盖网络错、超时、429/5xx、返回非 JSON、缺总分等情形：一律拒绝本次提交
+	// 且不落库（失败关闭），并归还已经预占的投稿配额。
+	CodeArticleScoreUnavailable Code = "article.score_unavailable"
+	// CodeArticleQualityGateRequiresAI 是后台开启质量闸门时 AI 不可用（票 306）。
+	//
+	// 这是**保存配置**这一步的失败，不是提交路径的失败：总闸关着或没有启用的
+	// 模型配置时，把闸门打开等于让所有人第一天就被拒，因此拒绝保存。
+	CodeArticleQualityGateRequiresAI Code = "article.quality_gate_requires_ai"
 )
 
 // 分类与标签。
@@ -453,6 +468,11 @@ var messages = map[Code]string{
 	// 文案要写清"今天用完、明天恢复"：作者看到后应当知道什么时候再来，
 	// 而不是怀疑自己的账号被限制。
 	CodeArticleSubmitQuotaExceeded: "今天的投稿配额已用完，配额按自然日重置（明天 00:00 后可再次提交）",
+	// 质量闸门：文案要说清"文章已存为草稿"（不是丢了），"不够好"与"平台故障"
+	// 靠错误码区分，文案层面也各说各的下一步动作。
+	CodeArticleQualityRejected: "文章质量未达到发布线，已保存为草稿",
+	CodeArticleScoreUnavailable: "质量评分暂时不可用（模型调用失败），本次提交未保存，请稍后重试",
+	CodeArticleQualityGateRequiresAI: "开启质量闸门需要先启用 AI 助手并配置至少一个可用模型，否则所有投稿都会被拒",
 
 	CodeTaxonomyTitleRequired: "名称不能为空",
 	CodeTaxonomyTitleExists:   "名称重复",

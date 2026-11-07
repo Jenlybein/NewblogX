@@ -31,6 +31,10 @@ var protocols = map[Code]ProtocolKind{
 	CodeCommonInvalidOrder:        ProtocolValidation,
 	CodeCommonInvalidArgument:     ProtocolValidation,
 	CodeCommonBindMissing:         ProtocolValidation,
+	// 质量闸门：不达标与"开启闸门时 AI 不可用"都是可以按提示修正的失败，
+	// 用 1001 而不是 1002（后者会让调用方以为后端坏了）。
+	CodeArticleQualityRejected:       ProtocolValidation,
+	CodeArticleQualityGateRequiresAI: ProtocolValidation,
 	CodeMessageSelectionEmpty:     ProtocolValidation,
 	CodeMessageIDAndTypeEmpty:     ProtocolValidation,
 	CodeMessageNotFound:           ProtocolValidation,

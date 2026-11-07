@@ -23,7 +23,7 @@ func newQuotaService(t *testing.T, dailyMax int) (*app.Service, *apptest.Repos, 
 	repos := apptest.NewRepos()
 	tx := apptest.NewTx(repos)
 	quota := apptest.NewSubmitQuota(dailyMax)
-	svc := app.New(tx, apptest.NewClock(apptest.DefaultTime), apptest.NewIDGen(1000), quota, nil, nil)
+	svc := app.New(tx, apptest.NewClock(apptest.DefaultTime), apptest.NewIDGen(1000), quota, nil, nil, nil)
 	repos.FakeUsers().Seed(app.AuthorView{ID: author, Nickname: "作者", Username: "u100"})
 	repos.FakeCategories().Seed()
 	return svc, repos, tx, quota

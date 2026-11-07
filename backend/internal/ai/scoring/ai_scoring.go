@@ -9,7 +9,14 @@ import (
 )
 
 // ScoreArticleQuality 对整篇文章做质量评分与写作建议分析。
+//
+// **温度固定为 0**（票 306 / ADR-0032）：评分是要拿去做"能不能发布"的判定，
+// 需要的是可复现而不是创造性——同一篇文章、同一份提示词连调两次给出 47 与
+// 53 时，作者看到的是"随机打回"。站点级 ai.temperature 是给对话类场景用的，
+// 评分场景不跟随它；这一处覆盖只影响评分，捏捏、改写、诊断等场景仍然吃配置值。
 func ScoreArticleQuality(ctx context.Context, aiConf conf.AI, req ArticleScoreRequest) (*ArticleScoreResponse, error) {
+	aiConf.Temperature = 0
+
 	title, content, headings := prepareArticleForScoring(req.Title, req.Content)
 	if len([]rune(strings.TrimSpace(content))) < articleScoringMinChars {
 		return nil, fmt.Errorf("文章内容过短，建议补充完整后再评分")

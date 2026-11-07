@@ -54,12 +54,13 @@ type Option struct {
 type ScoreRepository interface {
 	// Article 读文章快照；不存在时返回 apperr.CodeArticleNotFound。
 	Article(ctx context.Context, id uint64) (ArticleSnapshot, error)
-	// Latest 读最近一条评分记录；没有时返回 nil。
+	// Latest 读该文章最近一次评分记录；没有时返回 nil。
 	Latest(ctx context.Context, articleID uint64) (*ScoreRecord, error)
-	// CreateIfAbsent 只在还没有评分记录时写入，返回是否真的写入。
+	// Upsert 写入一条评分记录：该文章还没有记录就新建，已有则整体覆盖。
 	//
-	// 用一个方法而不是"查 + 写"两步，是为了把并发下的重复判断收进同一个事务。
-	CreateIfAbsent(ctx context.Context, record *ScoreRecord) (bool, error)
+	// 同一篇文章在库里永远只有一行 —— 一行代表"最近一次评分"，不保留历史。
+	// 用这一个方法而不是"查 + 写"两步，是为了把并发下的"只有一行"收进同一个事务。
+	Upsert(ctx context.Context, record *ScoreRecord) error
 }
 
 // Catalog 提供文章元信息推荐用的分类与标签候选。

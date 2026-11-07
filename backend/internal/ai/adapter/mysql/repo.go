@@ -12,6 +12,7 @@ import (
 	"myblogx/internal/platform/idgen"
 
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 	"myblogx/internal/kernel/ctype"
 )
 
@@ -108,59 +109,103 @@ func (r *Repo) Latest(ctx context.Context, articleID uint64) (*domain.ScoreRecor
 	return &record, nil
 }
 
-// CreateIfAbsent 实现 domain.ScoreRepository。
-func (r *Repo) CreateIfAbsent(ctx context.Context, record *domain.ScoreRecord) (bool, error) {
+// Upsert 实现 domain.ScoreRepository：同一篇文章写一行，已有则整体覆盖。
+//
+// # 为什么不是"有记录就跳过"
+//
+// 旧实现发现该文章已有评分就什么都不写，于是"被驳回 → 改稿 → 再评分"这条路上，
+// 作者永远看到第一次算出来的分数。评分结论必须可重算、可覆盖。
+//
+// # 为什么这样写才只有一行
+//
+// 表上 article_id 没有唯一索引（零 DDL 加不了），所以"只插一次"不能靠数据库约束兜底：
+// 两个并发的评分请求都会读到"还没有行"，然后各插一行。这里退回到最朴素的排他手段 ——
+// 事务第一步先锁住这篇文章在 article_models 里的那一行，拿到锁之后才判断有没有评分行。
+// 同一篇文章的并发评分因此在文章行上排队，判断与写入之间插不进别的写者。
+//
+// 覆盖写保留原行的主键（对外的 record_id 不会跳），但把 created_at 一起推到本次评分时间：
+// 这一行代表"最近一次评分"而不是评分历史，读者页与作者页都把它显示成评分时间，
+// 留着首次时间会让人以为没重算过。
+func (r *Repo) Upsert(ctx context.Context, record *domain.ScoreRecord) error {
 	if record == nil {
-		return false, apperr.New(apperr.CodeAIScoreSaveFailed)
+		return apperr.New(apperr.CodeAIScoreSaveFailed)
 	}
 	if record.ID.IsZero() {
 		next, err := idgen.Next()
 		if err != nil {
-			return false, err
+			return err
 		}
 		record.ID = next
 	}
-	created := false
-	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		var count int64
-		if err := tx.Model(&scoreRow{}).
-			Where("article_id = ?", record.ArticleID).
-			Count(&count).Error; err != nil {
+	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if err := lockArticle(tx, record.ArticleID); err != nil {
 			return err
-		}
-		if count > 0 {
-			return nil
 		}
 		now := time.Now()
-		row := scoreRow{
-			ID:                       record.ID,
-			CreatedAt:                now,
-			UpdatedAt:                now,
-			ArticleID:                record.ArticleID,
-			UserID:                   record.UserID,
-			TitleSnapshot:            record.TitleSnapshot,
-			ContentHash:              record.ContentHash,
-			ContentLength:            record.ContentLength,
-			ArticleUpdatedAtSnapshot: record.ArticleUpdatedAt,
-			AITotalScore:             record.AITotalScore,
-			TotalScore:               record.TotalScore,
-			ScoreLevel:               record.ScoreLevel,
-			ArticleType:              record.ArticleType,
-			DimensionsJSON:           record.DimensionsJSON,
-			MainIssuesJSON:           record.MainIssuesJSON,
-			OverallComment:           record.OverallComment,
-			Provider:                 record.Provider,
-			ModelName:                record.ModelName,
-			PromptVersion:            record.PromptVersion,
+		// Unscoped：软删过的旧记录也要被覆盖回来，否则会变成"一行旧的 + 一行新的"。
+		var existing scoreRow
+		query := tx.Unscoped().
+			Where("article_id = ?", record.ArticleID).
+			Order("id asc").
+			Limit(1).
+			Find(&existing)
+		if query.Error != nil {
+			return query.Error
 		}
-		if err := tx.Create(&row).Error; err != nil {
-			return err
+
+		// 用 map 而不是结构体：结构体会被 GORM 跳过零值（分数或篇幅真的可以是 0）。
+		columns := map[string]any{
+			"created_at":                  now,
+			"updated_at":                  now,
+			"deleted_at":                  nil,
+			"article_id":                  record.ArticleID,
+			"user_id":                     record.UserID,
+			"title_snapshot":              record.TitleSnapshot,
+			"content_hash":                record.ContentHash,
+			"content_length":              record.ContentLength,
+			"article_updated_at_snapshot": record.ArticleUpdatedAt,
+			"ai_total_score":              record.AITotalScore,
+			"total_score":                 record.TotalScore,
+			"score_level":                 record.ScoreLevel,
+			"article_type":                record.ArticleType,
+			"dimensions_json":             record.DimensionsJSON,
+			"main_issues_json":            record.MainIssuesJSON,
+			"overall_comment":             record.OverallComment,
+			"provider":                    record.Provider,
+			"model_name":                  record.ModelName,
+			"prompt_version":              record.PromptVersion,
 		}
+
 		record.CreatedAt = now
-		created = true
-		return nil
+		if query.RowsAffected == 0 {
+			columns["id"] = record.ID
+			if err := tx.Model(&scoreRow{}).Create(columns).Error; err != nil {
+				return err
+			}
+			return nil
+		}
+		record.ID = existing.ID
+		return tx.Unscoped().Model(&scoreRow{}).Where("id = ?", existing.ID).Updates(columns).Error
 	})
-	return created, err
+}
+
+// lockArticle 给这篇文章在 article_models 里的那行加排他锁，让同一篇文章的并发评分排队。
+//
+// MySQL 用 SELECT ... FOR UPDATE。SQLite（仓储测试库）没有行锁语法，
+// 直接跳过：它本身就是单写者，而且 testkit 的连接池只开一条连接。
+func lockArticle(tx *gorm.DB, articleID ctype.ID) error {
+	if tx.Dialector.Name() != "mysql" {
+		return nil
+	}
+	var row articleRow
+	err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
+		Select("id").
+		Where("id = ?", articleID).
+		Take(&row).Error
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return apperr.New(apperr.CodeAIArticleMissing)
+	}
+	return err
 }
 
 // toRecord 把表行转成领域实体。

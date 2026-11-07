@@ -4,6 +4,7 @@ package apptest
 import (
 	"context"
 	"sync"
+	"time"
 
 	"myblogx/conf"
 	"myblogx/internal/ai/app"
@@ -53,13 +54,19 @@ func (s *Scores) Latest(_ context.Context, articleID uint64) (*domain.ScoreRecor
 	return nil, nil
 }
 
-// CreateIfAbsent 实现 domain.ScoreRepository。
-func (s *Scores) CreateIfAbsent(_ context.Context, record *domain.ScoreRecord) (bool, error) {
+// Upsert 实现 domain.ScoreRepository：按文章覆盖写，同一篇文章只留一行。
+//
+// 语义与 MySQL 适配器一致：命中既有行时保留它的主键、把内容整体换成新结果，
+// 并把 CreatedAt 推到这次写入的时间（一行代表"最近一次评分"，不是历史）。
+func (s *Scores) Upsert(_ context.Context, record *domain.ScoreRecord) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	for _, row := range s.records {
-		if row.ArticleID == record.ArticleID {
-			return false, nil
+	record.CreatedAt = time.Now()
+	for i := range s.records {
+		if s.records[i].ArticleID == record.ArticleID {
+			record.ID = s.records[i].ID
+			s.records[i] = *record
+			return nil
 		}
 	}
 	if record.ID.IsZero() {
@@ -67,7 +74,7 @@ func (s *Scores) CreateIfAbsent(_ context.Context, record *domain.ScoreRecord) (
 		s.next++
 	}
 	s.records = append(s.records, *record)
-	return true, nil
+	return nil
 }
 
 // Seed 直接插入一条记录（测试播种用）。

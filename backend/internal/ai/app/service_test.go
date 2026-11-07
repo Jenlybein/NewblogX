@@ -3,10 +3,14 @@ package app_test
 import (
 	"context"
 	"encoding/json"
+	"net/http"
+	"net/http/httptest"
+	"sync/atomic"
 	"testing"
 	"time"
 
 	"myblogx/conf"
+	"myblogx/internal/ai/app"
 	"myblogx/internal/ai/apptest"
 	"myblogx/internal/ai/domain"
 	aisearch "myblogx/internal/ai/search"
@@ -142,6 +146,104 @@ func TestEnsureScoreIfMissingSkips(t *testing.T) {
 			t.Fatal("AI 未启用不应产生评分记录")
 		}
 	})
+}
+
+// TestRescoreOverwritesStoredScore 钉住 #305：已评分的文章再评分时存储被覆盖，
+// 读者页与作者页读到的都是最新一次结果，而且库里仍然只有一行。
+func TestRescoreOverwritesStoredScore(t *testing.T) {
+	env := newEnv()
+	ctx := context.Background()
+	// 把评分请求打到桩模型：第一次 41 分，第二次 88 分（模拟作者改稿后重算）。
+	var calls int32
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		score := 41
+		if atomic.AddInt32(&calls, 1) > 1 {
+			score = 88
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(scoreReply(score)))
+	}))
+	defer server.Close()
+	env.AI.Active.Fields["base_url"] = server.URL
+
+	in := app.RescoreInput{
+		ArticleID: ctype.NewID(100),
+		Title:     "标题",
+		Content:   "第一版正文：讲清楚了一件事，但论证单薄，例子也不够具体。",
+	}
+
+	first, err := env.Service.Rescore(ctx, 7, in)
+	if err != nil {
+		t.Fatalf("首次评分失败: %v", err)
+	}
+	if first.AITotalScore != 41 {
+		t.Fatalf("首次评分总分 = %d，期望 41", first.AITotalScore)
+	}
+
+	in.Content = "改稿后的正文：补了例子、压了重复表述，论证完整，结构清晰，读起来顺畅。"
+	second, err := env.Service.Rescore(ctx, 7, in)
+	if err != nil {
+		t.Fatalf("再次评分失败: %v", err)
+	}
+	if second.AITotalScore != 88 {
+		t.Fatalf("再次评分应返回新分数 88，实际 %d", second.AITotalScore)
+	}
+	if second.TotalScore <= first.TotalScore {
+		t.Fatalf("再次评分的加权总分 %d 没有高于首次的 %d", second.TotalScore, first.TotalScore)
+	}
+	if second.RecordID != first.RecordID {
+		t.Fatalf("再次评分应覆盖同一行，record_id 从 %v 变成了 %v", first.RecordID, second.RecordID)
+	}
+
+	// 作者读详情、读者读摘要，都必须是最新一次的结果。
+	detail, err := env.Service.ScoreDetail(ctx, 7, 100)
+	if err != nil {
+		t.Fatalf("读作者评分详情失败: %v", err)
+	}
+	if detail.AITotalScore != 88 || detail.TotalScore != second.TotalScore {
+		t.Fatalf("作者读到的是旧结果: %+v", detail)
+	}
+	summary, err := env.Service.ScoreSummary(ctx, 100)
+	if err != nil {
+		t.Fatalf("读读者评分摘要失败: %v", err)
+	}
+	if summary.TotalScore != second.TotalScore {
+		t.Fatalf("读者读到的总分 = %d，期望 %d", summary.TotalScore, second.TotalScore)
+	}
+
+	if records := env.Scores.All(); len(records) != 1 {
+		t.Fatalf("同一篇文章的评分记录数 = %d，期望 1", len(records))
+	}
+}
+
+// scoreReply 拼一段 OpenAI 风格的评分回复，六个维度统一给 score 分。
+func scoreReply(score int) string {
+	names := []string{"clarity", "structure", "completeness", "readability", "persuasiveness", "language"}
+	dimensions := make([]map[string]any, 0, len(names))
+	for _, name := range names {
+		dimensions = append(dimensions, map[string]any{"name": name, "score": score, "reason": "理由"})
+	}
+	body, err := json.Marshal(map[string]any{
+		"ai_total_score":  score,
+		"total_score":     score,
+		"score_level":     "B",
+		"article_type":    "教程",
+		"dimensions":      dimensions,
+		"main_issues":     []any{},
+		"overall_comment": "整体不错",
+	})
+	if err != nil {
+		panic(err)
+	}
+	reply, err := json.Marshal(map[string]any{
+		"choices": []map[string]any{
+			{"index": 0, "message": map[string]any{"role": "assistant", "content": "```json\n" + string(body) + "\n```"}},
+		},
+	})
+	if err != nil {
+		panic(err)
+	}
+	return string(reply)
 }
 
 func TestRewriteSearchRequiresContent(t *testing.T) {

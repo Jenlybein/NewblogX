@@ -24,7 +24,7 @@ func newSitemapTestHandler(t *testing.T) (*Handler, *apptest.Repos) {
 	repos := apptest.NewRepos()
 	// 投稿配额端口（票 304）与站点地图无关，但 `app.New` 的装配位置要求它显式给一个：
 	// 传 nil 等于"这条路径一旦被牵到配额就 panic"，宁可用一个永远有额度的 fake。
-	svc := app.New(apptest.NewTx(repos), apptest.NewClock(apptest.DefaultTime), apptest.NewIDGen(1000), apptest.NewSubmitQuota(15))
+	svc := app.New(apptest.NewTx(repos), apptest.NewClock(apptest.DefaultTime), apptest.NewIDGen(1000), apptest.NewSubmitQuota(15), nil)
 	return NewHandler(svc, nil, nil, nil, nil), repos
 }
 

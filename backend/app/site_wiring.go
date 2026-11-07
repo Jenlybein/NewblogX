@@ -33,6 +33,10 @@ func WireSite(infra *Infra) {
 		infra.Version,
 		func() string { return infra.RuntimeSite.GetRuntimeOAuth().Url() },
 		infra.Logger,
+		// AI 可用性现读闭包（票 306 / ADR-0032）：开「发布质量闸门」时校验它。
+		// 判定口径与 AI 模块的 specFromConfig 一致：总闸开着且至少有一条启用的
+		// 模型配置，才算"真的能调"。
+		aiReadyFunc(infra),
 	)
 	// 右栏卡片：配置表 + 三种内置卡的数据源。
 	// 热门文章 / 评论 / 标签是站点模块自己的只读投影；推荐合集卡读的篇数与
@@ -260,4 +264,19 @@ func (r *sidebarCollectionReader) RecommendedCollections(
 		})
 	}
 	return out, nil
+}
+
+// aiReadyFunc 返回「AI 现在能不能真的被调用」的现读判定。
+//
+// 它只服务于保存前校验（开「发布质量闸门」要求 AI 可用，票 306 / ADR-0032）。
+// 做成闭包而不是启动时快照：总闸与模型配置都能在后台热改，判定必须跟着走。
+// aiService 在装配顺序上可能晚于站点模块，因此取不到时按"不可用"处理——
+// 这条只是拦住"开闸门"，不会让任何既有功能失效。
+func aiReadyFunc(infra *Infra) func() bool {
+	return func() bool {
+		if infra == nil || aiService == nil {
+			return false
+		}
+		return aiService.Ready()
+	}
 }

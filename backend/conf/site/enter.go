@@ -76,6 +76,97 @@ type Article struct {
 	// internal/platform/config 的生效值模块里回落到默认值（那段是自由键值块，
 	// 深度合并会把老库缺的键按默认值补齐，所以加这个字段不需要数据迁移）。
 	SubmitDailyMax int `yaml:"submit_daily_max" json:"submit_daily_max"`
+
+	// QualityGate 是「发布质量闸门」的站点配置（票 306 / ADR-0032）。
+	//
+	// 它只是形状与默认值的载体：闸门开关、及格线、灰带宽度与四个档界全部
+	// 自由可配、**不做交叉校验**（spec 决策 11）——允许保存"及格线 50 而
+	// 31–59 叫不合格文章"这类自相矛盾的组合，代价由作者侧照旧显示档名承担。
+	//
+	// 缺省值由 site_default_settings.yaml 显式给出；越界值在 QualityGate.Effective
+	// 一处收敛，不在用例层与 adapter 各抄一份。
+	QualityGate QualityGate `yaml:"quality_gate" json:"quality_gate"`
+}
+
+// QualityGate 是「发布质量闸门」的配置形状。
+type QualityGate struct {
+	// Enabled 是闸门开关。零值 = 关闭，提交路径与引入闸门之前完全一致。
+	Enabled bool `yaml:"enabled" json:"enabled"`
+	// PassScore 是标称及格线（0–100）。
+	//
+	// **实际放行线 = PassScore + GrayBandWidth**：灰带做在及格线**上方**，
+	// 而不是上下两侧各留一半。理由是闸门的目的是让"同一篇文章今天能发、
+	// 明天不能发"不发生——只有把放行线整体抬出抖动量程（±2 分）才做得到；
+	// 两侧各留一半等于在阈值正上方留一条"49 与 51 都卡"的窄缝，抖动照样命中。
+	// 因此作者看到的"还差几分"按实际放行线算，后台两个数字也都看得见。
+	PassScore int `yaml:"pass_score" json:"pass_score"`
+	// GrayBandWidth 是灰带宽度（默认 2）：及格线上再让出这么多分才放行。
+	GrayBandWidth int `yaml:"gray_band_width" json:"gray_band_width"`
+	// 四个档界是五档位的上界：较差 / 不合格 / 常规 / 优质 / 精品。
+	// 默认 30 / 59 / 80 / 89，与评分提示词里的分档一致。
+	BandPoorMax        int `yaml:"band_poor_max" json:"band_poor_max"`
+	BandUnqualifiedMax int `yaml:"band_unqualified_max" json:"band_unqualified_max"`
+	BandNormalMax      int `yaml:"band_normal_max" json:"band_normal_max"`
+	BandGoodMax        int `yaml:"band_good_max" json:"band_good_max"`
+}
+
+// 闸门默认值与合法边界。
+//
+// 「默认 50 分及格、灰带 2 分」只在这里与 site_default_settings.yaml 各声明
+// 一次：前者是代码侧兜底，后者是"库里没有这一段时"的唯一默认值来源。
+const (
+	// DefaultQualityGatePassScore 是默认及格线。
+	DefaultQualityGatePassScore = 50
+	// DefaultQualityGateGrayBandWidth 是默认灰带宽度。
+	DefaultQualityGateGrayBandWidth = 2
+	// DefaultQualityGateBandPoorMax 等四个是默认档界。
+	DefaultQualityGateBandPoorMax        = 30
+	DefaultQualityGateBandUnqualifiedMax = 59
+	DefaultQualityGateBandNormalMax      = 80
+	DefaultQualityGateBandGoodMax        = 89
+
+	// minQualityGateScore / maxQualityGateScore 是分数字段（及格线与四个档界）的
+	// 合法区间。0 与 100 本身合法：它们是有意义的极端配置。
+	minQualityGateScore = 0
+	maxQualityGateScore = 100
+	// maxQualityGateGrayBandWidth 是灰带宽度上限。
+	//
+	// 上限定 20 而不是 100：灰带是"抖动量程"的容器，把它调到接近 100 等于
+	// 让所有文章都落在灰带里——那是"闸门关了但不说"，比直接关闸门更难排查。
+	maxQualityGateGrayBandWidth = 20
+)
+
+// Effective 把闸门配置收敛到合法区间。
+//
+// 只钳不改语义：越界值回落到各自默认值，**不做档界之间的交叉校验**
+// （spec 决策 11 明确允许自相矛盾的组合）。
+func (g QualityGate) Effective() QualityGate {
+	g.PassScore = clampQualityScore(g.PassScore, DefaultQualityGatePassScore)
+	g.GrayBandWidth = clampBand(g.GrayBandWidth)
+	g.BandPoorMax = clampQualityScore(g.BandPoorMax, DefaultQualityGateBandPoorMax)
+	g.BandUnqualifiedMax = clampQualityScore(g.BandUnqualifiedMax, DefaultQualityGateBandUnqualifiedMax)
+	g.BandNormalMax = clampQualityScore(g.BandNormalMax, DefaultQualityGateBandNormalMax)
+	g.BandGoodMax = clampQualityScore(g.BandGoodMax, DefaultQualityGateBandGoodMax)
+	return g
+}
+
+// PublishLine 返回实际放行线（及格线 + 灰带宽度）。
+func (g QualityGate) PublishLine() int {
+	return g.Effective().PassScore + g.Effective().GrayBandWidth
+}
+
+func clampQualityScore(value, fallback int) int {
+	if value < minQualityGateScore || value > maxQualityGateScore {
+		return fallback
+	}
+	return value
+}
+
+func clampBand(value int) int {
+	if value < 0 || value > maxQualityGateGrayBandWidth {
+		return DefaultQualityGateGrayBandWidth
+	}
+	return value
 }
 
 type Comment struct {

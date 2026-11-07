@@ -91,6 +91,22 @@ func (s *Service) config() (conf.AI, error) {
 	return s.ai(), nil
 }
 
+// Ready 报告 AI 现在能不能真的被调用：总闸开着、且至少有一条启用的模型配置。
+//
+// 口径与 specFromConfig 一致（它就是按这两条判失败的）。调用方是「开质量闸门」
+// 这类"保存前先确认前提"的校验（票 306 / ADR-0032）：把失败面从运行期挪到
+// 配置期，避免出现"闸门开着而 AI 关着"这种把所有投稿都拒掉的组合。
+func (s *Service) Ready() bool {
+	if s == nil {
+		return false
+	}
+	aiConf, err := s.config()
+	if err != nil {
+		return false
+	}
+	return aiConf.Enable && aiConf.Active != nil
+}
+
 // ── 元信息生成 ──────────────────────────────────────────────────
 
 // Metainfo 根据正文生成标题、摘要、分类与标签建议。
@@ -280,6 +296,74 @@ type ScoreView struct {
 	MainIssues     []scoring.ArticleScoreIssue
 	OverallComment string
 	CreatedAt      time.Time
+}
+
+// GateScoreInput 是一次「发布质量闸门」的评分请求（票 306 / ADR-0032）。
+//
+// 它与 RescoreInput 的区别是**不要求文章已经落库**：闸门在提交事务之外跑，
+// 那时新建的文章还不存在（ID 已经生成）。因此这里自带标题、正文与作者，
+// 由本方法直接决定评分记录的内容，不再回读文章行。
+type GateScoreInput struct {
+	ArticleID ctype.ID
+	AuthorID  ctype.ID
+	Title     string
+	Content   string
+	// UpdatedAt 是这次提交对应内容的更新时间，随评分记录落库用于回溯。
+	UpdatedAt time.Time
+}
+
+// GateScoreResult 是闸门拿到的一次可用评分结论。
+type GateScoreResult struct {
+	TotalScore int
+	Issues     []scoring.ArticleScoreIssue
+}
+
+// ScoreForGate 为一次提交评分并落库，返回可用的分数与问题列表。
+//
+// 为什么落库：作者被拒时看到的分数、以及审核列表里的风险标签，都从这一份
+// 记录读；不落库的话，同一次提交会被异步补评分再评一次，等于一次提交烧两次
+// 模型调用（ADR-0032「代价」一节）。
+//
+// 拿不到可用分数一律返回 error（失败关闭），由用例层翻成
+// article.score_unavailable；拿到分数就返回结果，哪怕只有 23 分。
+func (s *Service) ScoreForGate(ctx context.Context, in GateScoreInput) (GateScoreResult, error) {
+	aiConf, err := s.config()
+	if err != nil {
+		return GateScoreResult{}, err
+	}
+	if !aiConf.Enable {
+		return GateScoreResult{}, apperr.New(apperr.CodeAIServiceOff)
+	}
+
+	title := strings.TrimSpace(in.Title)
+	content := strings.TrimSpace(in.Content)
+	if title == "" || content == "" {
+		return GateScoreResult{}, apperr.New(apperr.CodeAIArticleMissing)
+	}
+
+	scoreResp, err := scoring.ScoreArticleQuality(
+		aipkg.WithCallMeta(ctx, aipkg.CallMeta{Scene: aipkg.SceneScoring}), aiConf,
+		scoring.ArticleScoreRequest{Title: title, Content: content})
+	if err != nil {
+		return GateScoreResult{}, err
+	}
+
+	updatedAt := in.UpdatedAt
+	snapshot := domain.ArticleSnapshot{
+		ID:        in.ArticleID,
+		AuthorID:  in.AuthorID,
+		Title:     title,
+		Content:   content,
+		UpdatedAt: updatedAt,
+	}
+	if _, err := persistScore(ctx, s.scores, snapshot, title, content, scoreResp, aiConf); err != nil {
+		return GateScoreResult{}, apperr.Wrap(apperr.CodeAIScoreSaveFailed, err)
+	}
+
+	return GateScoreResult{
+		TotalScore: scoreResp.TotalScore,
+		Issues:     scoreResp.MainIssues,
+	}, nil
 }
 
 // ScoreSummary 读公开评分摘要（不含评语与原因）。

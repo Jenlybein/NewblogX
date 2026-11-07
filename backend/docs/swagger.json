@@ -3743,6 +3743,10 @@
                         "description": "「发布与展示」三个开关（ADR-0017 决策 2）。\n它们只表达\"允许什么\"，判定点在 app 层与读过滤处，不靠前端隐藏；\n默认值只写在 site_default_settings.yaml（这一段是自由键值块，\n深度合并会把老库缺的键按默认值补齐，所以不需要数据迁移）。",
                         "type": "boolean"
                     },
+                    "quality_gate": {
+                        "$ref": "#/components/schemas/myblogx_conf_site.QualityGate",
+                        "description": "QualityGate 是「发布质量闸门」的站点配置（票 306 / ADR-0032）。\n\n它只是形状与默认值的载体：闸门开关、及格线、灰带宽度与四个档界全部\n自由可配、**不做交叉校验**（spec 决策 11）——允许保存\"及格线 50 而\n31–59 叫不合格文章\"这类自相矛盾的组合，代价由作者侧照旧显示档名承担。\n\n缺省值由 site_default_settings.yaml 显式给出；越界值在 QualityGate.Effective\n一处收敛，不在用例层与 adapter 各抄一份。"
+                    },
                     "show_non_admin_articles": {
                         "description": "显示非管理员发布的文章",
                         "type": "boolean"
@@ -3839,6 +3843,36 @@
                     },
                     "web_path": {
                         "type": "string"
+                    }
+                },
+                "type": "object"
+            },
+            "myblogx_conf_site.QualityGate": {
+                "properties": {
+                    "band_good_max": {
+                        "type": "integer"
+                    },
+                    "band_normal_max": {
+                        "type": "integer"
+                    },
+                    "band_poor_max": {
+                        "description": "四个档界是五档位的上界：较差 / 不合格 / 常规 / 优质 / 精品。\n默认 30 / 59 / 80 / 89，与评分提示词里的分档一致。",
+                        "type": "integer"
+                    },
+                    "band_unqualified_max": {
+                        "type": "integer"
+                    },
+                    "enabled": {
+                        "description": "Enabled 是闸门开关。零值 = 关闭，提交路径与引入闸门之前完全一致。",
+                        "type": "boolean"
+                    },
+                    "gray_band_width": {
+                        "description": "GrayBandWidth 是灰带宽度（默认 2）：及格线上再让出这么多分才放行。",
+                        "type": "integer"
+                    },
+                    "pass_score": {
+                        "description": "PassScore 是标称及格线（0–100）。\n\n**实际放行线 = PassScore + GrayBandWidth**：灰带做在及格线**上方**，\n而不是上下两侧各留一半。理由是闸门的目的是让\"同一篇文章今天能发、\n明天不能发\"不发生——只有把放行线整体抬出抖动量程（±2 分）才做得到；\n两侧各留一半等于在阈值正上方留一条\"49 与 51 都卡\"的窄缝，抖动照样命中。\n因此作者看到的\"还差几分\"按实际放行线算，后台两个数字也都看得见。",
+                        "type": "integer"
                     }
                 },
                 "type": "object"

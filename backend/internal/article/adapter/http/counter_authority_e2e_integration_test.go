@@ -47,7 +47,7 @@ func newRouterWithCounters(
 
 	opts := redis_service.Options{Client: client}
 	uow := articlemysql.NewTxManager(db, opts, nil)
-	svc := articleapp.New(uow, testClock{at: time.Date(2026, 1, 1, 12, 0, 0, 0, time.UTC)}, &testIDs{n: 100}, nil)
+	svc := articleapp.New(uow, testClock{at: time.Date(2026, 1, 1, 12, 0, 0, 0, time.UTC)}, &testIDs{n: 100}, nil, nil)
 	h := articlehttp.NewHandler(svc, nil, nil, func(*gin.Context) domain.Viewer { return viewer }, nil)
 
 	gin.SetMode(gin.TestMode)

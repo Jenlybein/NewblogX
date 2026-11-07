@@ -43,6 +43,11 @@ type CreateArticleCmd struct {
 	// 由 adapter 从运行时配置的现读闭包取值，判定在 app/domain 层完成
 	// （ADR-0017 当前生效约束 2）。零值 = 两项都关，所以调用方必须显式给出。
 	Policy domain.WritePolicy
+	// QualityGate 是「发布质量闸门」的生效配置快照（票 306 / ADR-0032）。
+	//
+	// 零值 = 闸门关闭，提交路径与引入闸门之前完全一致。由 adapter 每请求
+	// 从运行时配置现读，收紧 / 放宽在下一次提交即生效，不需要重启。
+	QualityGate QualityGatePolicy
 }
 
 // UpdateArticleCmd 是更新文章的输入；nil 表示该字段不修改。
@@ -69,6 +74,9 @@ type UpdateArticleCmd struct {
 	// 语义注意：这里同时决定"能不能更新这篇文章"——关闭发布开关时，
 	// 更新已发布（或审核中）的文章会被拒；关闭草稿开关时，保存草稿会被拒。
 	Policy domain.WritePolicy
+	// QualityGate 是「发布质量闸门」的生效配置快照（票 306 / ADR-0032）。
+	// 零值 = 闸门关闭，更新路径与引入闸门之前完全一致。
+	QualityGate QualityGatePolicy
 }
 
 // UpdateResult 是更新结果。

@@ -167,6 +167,59 @@ type SubmitQuotaReservation interface {
 	Release(ctx context.Context) error
 }
 
+// QualityGatePort 是「发布质量闸门」的评分端口（票 306 / ADR-0032）。
+//
+// 由使用方（本包）定义、装配层接到 AI 模块。形状只有一个方法：对一篇待提交
+// 的文章打一次分，并返回分数与问题列表；"拿不到可用分数"必须返回错误。
+//
+// 这是对"article app 不直接依赖 AI 模块"的一次**有意突破**：文章应用层原本只
+// 通过事务型发件箱产生副作用，而闸门是**同步决策** —— 分数决定这次提交落草稿
+// 还是进审核，等不了异步中继，因此必须有这个窄口子。ADR-0032 记录了这条张力
+// 与理由，不要在实现里把评分调用挪回事务内。
+type QualityGatePort interface {
+	// Evaluate 对一篇待提交文章评分。
+	//
+	// 网络错、超时、限流、5xx、返回非 JSON、缺总分等"没拿到可用分数"的情形
+	// 一律返回错误（失败关闭）；拿到分数（哪怕 23 分）就返回结果，由用例层
+	// 按阈值判定，不算系统故障。
+	Evaluate(ctx context.Context, in QualityGateInput) (QualityGateScore, error)
+}
+
+// QualityGateInput 是一次评分请求。
+//
+// 故意不传 cmd / 文章聚合：端口只需要"评分所必需的四件事"，这样装配层实现
+// 不必理解文章的状态机，测试也不必造一整个聚合。
+type QualityGateInput struct {
+	ArticleID domain.ArticleID
+	AuthorID  domain.UserID
+	Title     string
+	Content   string
+	// UpdatedAt 是这次提交对应内容的更新时间，随评分记录落库用于回溯。
+	UpdatedAt time.Time
+}
+
+// QualityGateScore 是一次可用的评分结论。
+type QualityGateScore struct {
+	// TotalScore 是 0–100 的总分。
+	TotalScore int
+	// Issues 是逐条问题，用于告诉作者"按哪几条改"。
+	Issues []QualityIssue
+}
+
+// QualityIssue 是一条评分问题。
+type QualityIssue struct {
+	// Positions 是问题在正文里的定位；可能为空（模型没给位置）。
+	Positions  []QualityPosition
+	Reason     string
+	Suggestion string
+}
+
+// QualityPosition 定位到正文的段落与原文引用。
+type QualityPosition struct {
+	Paragraph int
+	Quote     string
+}
+
 // Clock 是可注入时钟。domain 不取时间，时间由用例层传入。
 type Clock interface {
 	Now() time.Time
@@ -207,11 +260,17 @@ type Service struct {
 	// 生产装配在 backend/app/article_wiring.go 里必然注入 Redis 适配器，
 	// 而适配器在 Redis 不可用时返回错误（失败关闭，不放行提交）。
 	quota SubmitQuotaPort
+	// quality 是发布质量闸门的评分端口（票 306 / ADR-0032）。
+	//
+	// 为 nil 表示闸门即使被打开也无法评分 —— 此时按失败关闭处理（拒绝提交，
+	// 错误码 article.score_unavailable）。生产装配必然注入（article_wiring.go）。
+	quality QualityGatePort
 }
 
 // New 构造用例服务。
 //
-// quota 为 nil 时提交路径不设上限（测试用）；生产装配必须给出（见 article_wiring.go）。
-func New(tx TxManager, clock Clock, ids IDGen, quota SubmitQuotaPort) *Service {
-	return &Service{tx: tx, clock: clock, ids: ids, quota: quota}
+// quota / quality 为 nil 时分别表示"不设上限"与"无法评分"（测试用）；
+// 生产装配必须给出（见 article_wiring.go）。
+func New(tx TxManager, clock Clock, ids IDGen, quota SubmitQuotaPort, quality QualityGatePort) *Service {
+	return &Service{tx: tx, clock: clock, ids: ids, quota: quota, quality: quality}
 }

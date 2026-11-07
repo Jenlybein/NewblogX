@@ -85,6 +85,10 @@ var serviceFallbackCodes = []apperr.Code{
 	apperr.CodeArticlePublishDisabled,
 	apperr.CodeArticleDraftDisabled,
 	apperr.CodeArticleReviewReasonRequired,
+	// #308：驳回原因从"必填一句话"变成"必选一条固定枚举 + 可选一句话"。
+	// 两个新码都是审核员当场能改的动作（重选 / 精简），所以按服务兜底类别登记。
+	apperr.CodeArticleReviewReasonInvalid,
+	apperr.CodeArticleReviewReasonTooLong,
 	// 投稿配额用完（票 304）：不是"你传错了参数"，调用方也修不了；
 	// 它只是今天没次数了，明天自然恢复。因此按服务兜底类别，不伪装成校验失败。
 	apperr.CodeArticleSubmitQuotaExceeded,

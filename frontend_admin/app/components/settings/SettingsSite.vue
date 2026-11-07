@@ -23,6 +23,33 @@ const saving = ref(false)
 const config = ref({} as SiteRuntimeConfig)
 const loaded = ref(false)
 
+// 词表在界面上是"一行一个词"的文本，配置里是字符串数组：转换只在这里做一次。
+// 空行与首尾空白一律丢掉，运营从聊天窗口复制过来的词不会带进一个空格条目。
+function wordListToText(list: string[] | undefined): string {
+  return (list ?? []).join('\n')
+}
+
+function textToWordList(text: string): string[] {
+  return text
+    .split(/\r?\n/u)
+    .map((word) => word.trim())
+    .filter((word) => word !== '')
+}
+
+const blockWordsText = computed({
+  get: () => wordListToText(config.value.article.moderation?.block_words),
+  set: (value: string) => {
+    config.value.article.moderation.block_words = textToWordList(value)
+  },
+})
+
+const watchWordsText = computed({
+  get: () => wordListToText(config.value.article.moderation?.watch_words),
+  set: (value: string) => {
+    config.value.article.moderation.watch_words = textToWordList(value)
+  },
+})
+
 async function load() {
   loading.value = true
   try {
@@ -55,7 +82,7 @@ onMounted(load)
     <!-- 登录策略单独一块，但和基础信息同一个表单：它属于 site 段，
          拆成两个组件各自读写整段，会互相把对方刚存的值覆盖回去。 -->
     <NAlert type="info" :bordered="false" class="mb-4">
-      下面五组设置（基础信息 / 登录策略 / 发布与展示 / 内容审核 / 私信）属于同一段配置，
+      下面六组设置（基础信息 / 登录策略 / 发布与展示 / 内容审核 / 机审词表 / 私信）属于同一段配置，
       改完点一次「保存站点配置」即可，不需要分别保存。
     </NAlert>
 
@@ -140,6 +167,34 @@ onMounted(load)
         </NFormItem>
         <NFormItem label="评论免审核">
           <NSwitch v-model:value="config.comment.skip_examining" />
+        </NFormItem>
+      </NCard>
+
+      <!-- 机审前两层的高危词表（票 311）。词表是运行期数据，保存后下一次读取
+           立即按新词表判；规则（大小写、拉丁词边界、评分派生阈值）在代码里。 -->
+      <NCard class="admin-card mb-4" title="机审词表" size="small">
+        <NAlert type="info" :bordered="false" class="mb-4">
+          一行一个词，空行忽略。「阻断级」命中会把投稿标为高风险，将来可自动拒；
+          「观察级」只标红、由人工决定。词表只做字符串匹配：英文不区分大小写，
+          中文按字面命中，短词可能出现在更长的词里（已知误报，靠分档与人工兜底）。
+        </NAlert>
+        <NFormItem label="阻断级词表">
+          <NInput
+            v-model:value="blockWordsText"
+            type="textarea"
+            :autosize="{ minRows: 4, maxRows: 8 }"
+            class="admin-field--long"
+            placeholder="例如：代开发票"
+            data-role="site-moderation-block-words" />
+        </NFormItem>
+        <NFormItem label="观察级词表">
+          <NInput
+            v-model:value="watchWordsText"
+            type="textarea"
+            :autosize="{ minRows: 4, maxRows: 8 }"
+            class="admin-field--long"
+            placeholder="例如：加微信"
+            data-role="site-moderation-watch-words" />
         </NFormItem>
       </NCard>
 

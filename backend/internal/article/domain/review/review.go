@@ -7,7 +7,6 @@ package review
 
 import (
 	"context"
-	"strings"
 	"time"
 
 	"myblogx/internal/apperr"
@@ -156,26 +155,23 @@ func (t *Task) AuthorName() string { return t.authorName }
 // Stage 返回审核阶段。
 func (t *Task) Stage() Stage { return t.stage }
 
-// Reason 返回审核意见/撤销原因。
+// Reason 返回审核意见/撤销原因（reason 列的原始内容）。
+//
+// 这是**落库形态**：驳回时是"枚举 + 换行 + 自由文本"（见 FormatReason），
+// 历史行与撤销原因是纯文本。要给作者看的那句话走 ReasonText，
+// 要拆分给管理后台看的走 ReasonCode / ReasonNote。
 func (t *Task) Reason() string { return t.reason }
 
-// ReasonMissingFallback 是审核任务没填原因时的兜底文案。
-//
-// #303 之前驳回原因不是必填，历史任务行的 reason 可能是空串或纯空白。
-// 把空串原样拼进通知，作者看到的是"失败原因："后面什么都没有——比不写这一行
-// 更糟（会以为界面坏了）。兜底文案只陈述事实（没写原因）并指出下一步，
-// 不替审核员编一个理由。
-const ReasonMissingFallback = "审核员未填写具体原因，如有疑问请联系管理员"
+// ReasonCode 返回这条任务的驳回原因枚举；没有枚举（历史行 / 撤销）时为空串。
+func (t *Task) ReasonCode() ReasonCode {
+	code, _ := ParseReason(t.reason)
+	return code
+}
 
-// ReasonText 返回**给作者看**的驳回原因：空白一律换成兜底文案。
-//
-// 两处消费同一个函数：驳回通知的正文（通知链路）与作者打开被打回的草稿时
-// 看到的那句话。两边必须是同一句话，兜底文案也只有这一份。
-func ReasonText(reason string) string {
-	if trimmed := strings.TrimSpace(reason); trimmed != "" {
-		return trimmed
-	}
-	return ReasonMissingFallback
+// ReasonNote 返回审核员补的那句自由文本；没有时为空串。
+func (t *Task) ReasonNote() string {
+	_, note := ParseReason(t.reason)
+	return note
 }
 
 // CreatedAt 返回创建时间。
@@ -208,13 +204,17 @@ func (t *Task) Approve(reviewer domain.UserID, now time.Time) error {
 	return t.markReviewed(reviewer, now, "")
 }
 
-// Reject 审核拒绝，必须带原因（前端会展示给作者）。
-func (t *Task) Reject(reviewer domain.UserID, reason string, now time.Time) error {
+// Reject 审核拒绝。
+//
+// 原因由"固定枚举 + 可选的一句自由文本"组成：枚举是给作者与统计看的一级标签，
+// 自由文本是审核员想补的话。两者在这里被编码进同一个 reason 列
+// （FormatReason），因为既有表不允许加列（零 DDL）。
+func (t *Task) Reject(reviewer domain.UserID, code ReasonCode, note string, now time.Time) error {
 	if t.status != StatusPending {
 		return ErrTaskHandled
 	}
 	t.status = StatusRejected
-	return t.markReviewed(reviewer, now, reason)
+	return t.markReviewed(reviewer, now, FormatReason(code, note))
 }
 
 // Cancel 撤销任务（作者改回草稿或重新提交时，旧任务作废）。
@@ -253,4 +253,11 @@ type Repository interface {
 	ListPendingByArticle(ctx context.Context, articleID domain.ArticleID) ([]*Task, error)
 	// List 分页列出任务（status 为空表示全部）。
 	List(ctx context.Context, status *Status, offset, limit int) ([]*Task, int64, error)
+	// ListAll 列出满足状态的全部任务。
+	//
+	// 只给"按风险排序"用：风险由词表与评分实时算出、不在库里，SQL 层排不了，
+	// 所以必须先取整个筛选范围再在用例层排序。审核队列是人工处理的（规模受
+	// 审核员吞吐约束），这里不设上限；若将来队列量级变化，应先做风险快照，
+	// 而不是在这条只读路径上加截断。
+	ListAll(ctx context.Context, status *Status) ([]*Task, error)
 }

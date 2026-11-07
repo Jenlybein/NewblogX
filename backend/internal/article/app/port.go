@@ -14,6 +14,7 @@ import (
 	"myblogx/internal/article/domain/collection"
 	"myblogx/internal/article/domain/favorite"
 	"myblogx/internal/article/domain/hottop"
+	"myblogx/internal/article/domain/moderation"
 	"myblogx/internal/article/domain/outline"
 	"myblogx/internal/article/domain/project"
 	"myblogx/internal/article/domain/review"
@@ -225,6 +226,21 @@ type Clock interface {
 	Now() time.Time
 }
 
+// ModerationScorePort 是「机审第②层」读取已有评分记录的端口（票 311）。
+//
+// 由使用方（本包）定义、装配层接到 ai 模块的评分仓储；只读、批量、不触发
+// 任何模型调用。没有评分记录的文章不出现在返回 map 里 —— "没有记录"是正常
+// 状态，不是错误（审核列表照常渲染）。
+type ModerationScorePort interface {
+	LatestScores(ctx context.Context, articleIDs []domain.ArticleID) (map[domain.ArticleID]moderation.ScoreFacts, error)
+}
+
+// ModerationWordProvider 现读两档高危词表（机审第①层）。
+//
+// 词表是运行期配置：每次读取都现算，运营在后台改完，下一次列表请求立即
+// 按新词表判，不缓存、不落库。返回的 WordLists 里空清单表示该档关闭。
+type ModerationWordProvider func() moderation.WordLists
+
 // IDGen 是可注入 ID 生成器。
 //
 // 生产用雪花，测试用固定序列；这样 golden 才能逐字节稳定。
@@ -260,6 +276,11 @@ type Service struct {
 	// 生产装配在 backend/app/article_wiring.go 里必然注入 Redis 适配器，
 	// 而适配器在 Redis 不可用时返回错误（失败关闭，不放行提交）。
 	quota SubmitQuotaPort
+	// scores 是机审第②层的评分记录来源（票 311）。为 nil 表示"没有评分数据"，
+	// 此时审核列表只算词表层、不报错；生产装配接到 ai 模块的评分仓储。
+	scores ModerationScorePort
+	// words 现读机审词表（票 311）。为 nil 表示两档词表都为空。
+	words ModerationWordProvider
 	// quality 是发布质量闸门的评分端口（票 306 / ADR-0032）。
 	//
 	// 为 nil 表示闸门即使被打开也无法评分 —— 此时按失败关闭处理（拒绝提交，
@@ -269,8 +290,15 @@ type Service struct {
 
 // New 构造用例服务。
 //
-// quota / quality 为 nil 时分别表示"不设上限"与"无法评分"（测试用）；
-// 生产装配必须给出（见 article_wiring.go）。
-func New(tx TxManager, clock Clock, ids IDGen, quota SubmitQuotaPort, quality QualityGatePort) *Service {
-	return &Service{tx: tx, clock: clock, ids: ids, quota: quota, quality: quality}
+// quota / scores / words / quality 为 nil 时分别退化为"不设上限 / 没有评分数据 /
+// 空词表 / 无法评分"（测试装配会这样）；生产装配在 backend/app/article_wiring.go 里给出实现。
+func New(
+	tx TxManager, clock Clock, ids IDGen,
+	quota SubmitQuotaPort, scores ModerationScorePort, words ModerationWordProvider,
+	quality QualityGatePort,
+) *Service {
+	return &Service{
+		tx: tx, clock: clock, ids: ids,
+		quota: quota, scores: scores, words: words, quality: quality,
+	}
 }

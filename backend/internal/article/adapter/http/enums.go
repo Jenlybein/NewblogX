@@ -8,6 +8,10 @@ package http
 //
 // 取值必须与数据库、与 domain 层完全一致，改一个数字/字符串都会让老数据读不出来。
 
+import (
+	"myblogx/internal/article/domain/review"
+)
+
 // ArticleStatus 是文章发布状态。数值与库中一致：草稿=1、审核中=2、已发布=3、已拒绝=4。
 type ArticleStatus int8
 
@@ -52,3 +56,34 @@ const (
 	ReviewTaskSourceEdit     ReviewTaskSource = "edit"
 	ReviewTaskSourceResubmit ReviewTaskSource = "resubmit"
 )
+
+// ReviewTaskSort 是审核队列的排序口径（票 311）。
+type ReviewTaskSort string
+
+const (
+	// ReviewTaskSortCreatedAt 提交时间升序（默认）。
+	ReviewTaskSortCreatedAt ReviewTaskSort = "created_at"
+	// ReviewTaskSortRisk 风险等级降序、同等级仍按提交时间升序。
+	ReviewTaskSortRisk ReviewTaskSort = "risk"
+)
+
+// ReviewRiskLevel 是机审前两层给出的风险等级（票 311）。
+//
+// 与 domain/moderation 的 Level 取值一致；这里复制一份是 HTTP 层的惯例
+// （见本文件顶部说明），转换只在 handler 里做一次。
+type ReviewRiskLevel string
+
+const (
+	ReviewRiskLevelNone   ReviewRiskLevel = "none"
+	ReviewRiskLevelLow    ReviewRiskLevel = "low"
+	ReviewRiskLevelMedium ReviewRiskLevel = "medium"
+	ReviewRiskLevelHigh   ReviewRiskLevel = "high"
+)
+
+// ReviewReasonCode 是驳回原因的固定枚举值。
+//
+// 这里**别名**而不是像上面那几组一样重抄一份取值：驳回原因的词表只能有一处
+// （kernel/enum/article_review_enum，见 GLOSSARY「枚举别名」），因为它是 #308
+// 的核心——契约里的 enum、管理后台的下拉与作者收到的文案全都从那一处生成，
+// 再抄一份取值就会出现"契约允许的值代码不认"。
+type ReviewReasonCode = review.ReasonCode

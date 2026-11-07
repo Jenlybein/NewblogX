@@ -664,6 +664,26 @@ func (r *ReviewRepo) ListPendingByArticle(ctx context.Context, articleID domain.
 	return out, nil
 }
 
+// ListAll 列出满足状态的全部任务（按风险排序用）。
+//
+// 与 List 同一顺序（提交时间升序、id 作同毫秒兜底），只是不分页：风险不在库里，
+// 排序必须在用例层做，分页只能在排序之后切。
+func (r *ReviewRepo) ListAll(ctx context.Context, status *review.Status) ([]*review.Task, error) {
+	q := r.db.WithContext(ctx).Model(&reviewTaskRow{})
+	if status != nil {
+		q = q.Where("status = ?", string(*status))
+	}
+	var rows []reviewTaskRow
+	if err := q.Order("created_at asc, id asc").Find(&rows).Error; err != nil {
+		return nil, err
+	}
+	out := make([]*review.Task, 0, len(rows))
+	for _, m := range rows {
+		out = append(out, toDomainTask(m))
+	}
+	return out, nil
+}
+
 // List 分页列出任务。
 func (r *ReviewRepo) List(ctx context.Context, status *review.Status, offset, limit int) ([]*review.Task, int64, error) {
 	q := r.db.WithContext(ctx).Model(&reviewTaskRow{})

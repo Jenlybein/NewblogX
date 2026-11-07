@@ -6,6 +6,7 @@ import (
 	"myblogx/internal/article/domain"
 	"myblogx/internal/article/domain/collection"
 	"myblogx/internal/article/domain/favorite"
+	"myblogx/internal/article/domain/moderation"
 	"myblogx/internal/article/domain/project"
 	"myblogx/internal/article/domain/review"
 	"myblogx/internal/article/domain/viewhistory"
@@ -144,8 +145,10 @@ type ExamineCmd struct {
 	ArticleID domain.ArticleID
 	// Approve 为真表示通过，否则拒绝。
 	Approve bool
-	// Reason 拒绝原因。
-	Reason string
+	// ReasonCode 驳回原因的固定枚举值（通过时忽略）。
+	ReasonCode review.ReasonCode
+	// ReasonNote 驳回原因的可选补充说明（通过时忽略）。
+	ReasonNote string
 }
 
 // FavoriteCmd 是收藏动作的输入。
@@ -240,7 +243,25 @@ type ReviewTaskView struct {
 	// 也比"再存一份快照"更不容易让人读到旧稿。
 	// 文章已被删除时留空，任务条目仍然出现（见 ListReviewTasks）。
 	Content string
+	// Risk 是机审前两层（词表 + 评分派生标签）的结论。
+	//
+	// 不落库、每次读取现算：运营改完词表，下一次请求立即按新词表判（票 311）。
+	// 文章没有评分记录时只算词表层，Risk.Level 仍可能是 none，不是错误。
+	Risk moderation.Result
 }
+
+// ReviewListSort 是审核队列的排序口径。
+type ReviewListSort string
+
+const (
+	// ReviewSortCreatedAt 按提交时间升序（默认）：老投稿在前，避免被新投稿饿死。
+	ReviewSortCreatedAt ReviewListSort = "created_at"
+	// ReviewSortRisk 按风险等级降序；同等级仍按提交时间升序。
+	//
+	// 风险不落库，SQL 层排不了，所以这个口径要取整个筛选范围再在内存里排
+	// （见 ListReviewTasks 与 review.ListAll）。
+	ReviewSortRisk ReviewListSort = "risk"
+)
 
 // ── 合集 ──
 

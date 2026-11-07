@@ -52,7 +52,7 @@ func newGateService(t *testing.T, gate app.QualityGatePort) (*app.Service, *appt
 	repos := apptest.NewRepos()
 	tx := apptest.NewTx(repos)
 	quota := apptest.NewSubmitQuota(15)
-	svc := app.New(tx, apptest.NewClock(apptest.DefaultTime), apptest.NewIDGen(1000), quota, gate)
+	svc := app.New(tx, apptest.NewClock(apptest.DefaultTime), apptest.NewIDGen(1000), quota, nil, nil, gate)
 	repos.FakeUsers().Seed(app.AuthorView{ID: author, Nickname: "作者甲", Username: "u100"})
 	repos.FakeCategories().Seed()
 	return svc, repos, quota

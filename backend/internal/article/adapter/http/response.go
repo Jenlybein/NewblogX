@@ -86,6 +86,10 @@ func toCreateResponse(a app.ArticleView, coverImageID *ctype.ID) ArticleCreateRe
 }
 
 // toTaskItem 审核任务项。
+//
+// 驳回原因拆成"固定枚举值 + 自由文本"两个字段出站：前端按 value 渲染文案，
+// 不按中文字符串匹配（改一个字就断）。历史行没有枚举时 reason_code 为 null，
+// reason 仍是整段原文，前端照原样显示。
 func toTaskItem(t app.ReviewTaskView) ArticleReviewTaskItem {
 	task := t.Task
 	item := ArticleReviewTaskItem{
@@ -99,14 +103,24 @@ func toTaskItem(t app.ReviewTaskView) ArticleReviewTaskItem {
 		Stage:         ReviewTaskStage(task.Stage()),
 		Source:        ReviewTaskSource(task.Source()),
 		Status:        ReviewTaskStatus(task.Status()),
-		Reason:        task.Reason(),
+		Reason:        task.ReasonNote(),
 		CreatedAt:     task.CreatedAt(),
 		ReviewedAt:    task.ReviewedAt(),
+	}
+	if code := task.ReasonCode(); code != "" {
+		item.ReasonCode = &code
 	}
 	if by := task.ReviewedBy(); by != nil {
 		id := ctype.NewID(by.Uint64())
 		item.ReviewedBy = &id
 	}
+	item.RiskLevel = ReviewRiskLevel(t.Risk.Level)
+	// nil → []：契约里这是数组，空列表比 null 更好消费（前端不用再判空）。
+	labels := t.Risk.Labels()
+	if labels == nil {
+		labels = []string{}
+	}
+	item.RiskLabels = labels
 	return item
 }
 

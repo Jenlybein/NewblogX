@@ -61,6 +61,65 @@ func TestDefaultSettingsYaml_站点段不再有mode(t *testing.T) {
 	}
 }
 
+// 机审词表（票 311）的默认值只写在 site_default_settings.yaml，代码里没有第二份
+// 字面清单。这条用例钉住"默认值真的存在且两档都非空"：清单为空等于机审第①层
+// 默认关闭，运营会以为功能没上线。
+func TestDefaultSettingsYaml_机审词表两档都有默认值(t *testing.T) {
+	raw, err := os.ReadFile("../../../config/site_default_settings.yaml")
+	if err != nil {
+		t.Fatalf("读取默认值文件失败: %v", err)
+	}
+	var file struct {
+		Site struct {
+			Article struct {
+				Moderation struct {
+					BlockWords []string `yaml:"block_words"`
+					WatchWords []string `yaml:"watch_words"`
+				} `yaml:"moderation"`
+			} `yaml:"article"`
+		} `yaml:"site"`
+	}
+	if err := yaml.Unmarshal(raw, &file); err != nil {
+		t.Fatalf("解析默认值文件失败: %v", err)
+	}
+	if len(file.Site.Article.Moderation.BlockWords) == 0 {
+		t.Fatal("site_default_settings.yaml 的 site.article.moderation.block_words 不能为空")
+	}
+	if len(file.Site.Article.Moderation.WatchWords) == 0 {
+		t.Fatal("site_default_settings.yaml 的 site.article.moderation.watch_words 不能为空")
+	}
+}
+
+// 老部署的 site 段 JSON 里没有 moderation 键：深度合并必须把默认词表补进来，
+// 否则升级后运营看到的是"词表丢了"、机审第①层静默关闭（零 DDL、不做数据迁移）。
+func TestRuntimeConfig_旧站点载荷缺机审词表时按默认值补齐(t *testing.T) {
+	want := siteconf.Moderation{
+		BlockWords: []string{"代开发票"},
+		WatchWords: []string{"加微信"},
+	}
+	defaults := conf.RuntimeDefaults{
+		Site: conf.Site{Article: siteconf.Article{Moderation: want}},
+	}
+	svc, db := newTestService(t, defaults)
+
+	// 旧载荷只有 article 的既有开关，没有 moderation 子块。
+	legacy := `{"article":{"skip_examining":true,"allow_non_admin_publish":true}}`
+	if err := upsertPayload(db, SectionSite, legacy); err != nil {
+		t.Fatalf("预置老载荷失败: %v", err)
+	}
+	if err := svc.InitRuntimeConfig(); err != nil {
+		t.Fatalf("加载老站点载荷失败: %v", err)
+	}
+
+	got := svc.GetRuntimeArticle().Moderation
+	if len(got.BlockWords) != len(want.BlockWords) || got.BlockWords[0] != want.BlockWords[0] {
+		t.Fatalf("阻断级词表应按默认值补齐，实际 %v", got.BlockWords)
+	}
+	if len(got.WatchWords) != len(want.WatchWords) || got.WatchWords[0] != want.WatchWords[0] {
+		t.Fatalf("观察级词表应按默认值补齐，实际 %v", got.WatchWords)
+	}
+}
+
 func TestUpdateSite_旧mode残留不报错且保存后消失(t *testing.T) {
 	// 库里已存的 site 段可能还留着 "mode": 1。ADR-0017 明确不做数据迁移：
 	// 深度合并会把它留在 map 里但不再进类型，管理员下次保存整段即自然消失。

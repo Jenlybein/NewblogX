@@ -22,6 +22,12 @@ type CallMeta struct {
 	UserID    ctype.ID
 	RequestID string
 	TraceID   string
+	// PromptVersion 是这次调用所用策略文本的版本号（运行时策略 skill 的
+	// SKILL.md 字节哈希前 12 位）。空值表示这次调用没有绑定策略文本。
+	//
+	// 它来自内容哈希而不是手写常量：运营改文案时版本自动变，调用记录与
+	// 文件内容不会各说各话（#310 / ADR-0033）。
+	PromptVersion string
 }
 
 // 场景标识。
@@ -64,6 +70,9 @@ func WithCallMeta(ctx context.Context, patch CallMeta) context.Context {
 	}
 	if patch.TraceID != "" {
 		current.TraceID = patch.TraceID
+	}
+	if patch.PromptVersion != "" {
+		current.PromptVersion = patch.PromptVersion
 	}
 	return context.WithValue(ctx, callMetaKey{}, current)
 }

@@ -2985,6 +2985,16 @@
                     "nickname": {
                         "type": "string"
                     },
+                    "scene_skills": {
+                        "additionalProperties": {
+                            "items": {
+                                "type": "string"
+                            },
+                            "type": "array"
+                        },
+                        "description": "SceneSkills 是「哪个 AI 场景用哪份运行时策略 skill」的产品接线（#310）。\n\n它属于运行期配置而不是 skill 文件：skill 要保持可移植（任何人拿走都能直接用），\n场景绑定要能临时摘掉某份 skill 而不发版（grill §5.3 / ADR-0033）。\nkey 是 AI 调用场景（internal/ai 的 Scene* 常量），value 是 skills/<name> 的名称列表；\n一个场景可以拼多份 skill，正文按顺序拼接。",
+                        "type": "object"
+                    },
                     "temperature": {
                         "type": "number"
                     },
@@ -3013,6 +3023,16 @@
                     },
                     "nickname": {
                         "type": "string"
+                    },
+                    "scene_skills": {
+                        "additionalProperties": {
+                            "items": {
+                                "type": "string"
+                            },
+                            "type": "array"
+                        },
+                        "description": "SceneSkills 是「哪个 AI 场景用哪份运行时策略 skill」的产品接线（#310）。\n\n它属于运行期配置而不是 skill 文件：skill 要保持可移植（任何人拿走都能直接用），\n场景绑定要能临时摘掉某份 skill 而不发版（grill §5.3 / ADR-0033）。\nkey 是 AI 调用场景（internal/ai 的 Scene* 常量），value 是 skills/<name> 的名称列表；\n一个场景可以拼多份 skill，正文按顺序拼接。",
+                        "type": "object"
                     },
                     "temperature": {
                         "type": "number"

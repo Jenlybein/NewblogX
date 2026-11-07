@@ -129,6 +129,15 @@ ai:
   nickname: "博客AI助手"
   # 对外展示给用户的 AI 助手头像地址
   avatar: ""
+  # 「哪个 AI 场景用哪份运行时策略 skill」的产品接线（#310）。
+  #
+  # 这是运行期配置，不是 skill 文件的一部分：skill 必须可移植，场景绑定要能
+  # 临时摘掉某份 skill 而不发版。key 是 AI 调用场景（见 internal/ai 的 Scene* 常量），
+  # value 是仓库根 skills/<name>/SKILL.md 的名称（按顺序拼接正文）。
+  # 引用了不存在的 skill 时，该场景的 AI 调用明确失败，不会静默用一份空口径。
+  scene_skills:
+    search_answer:
+      - jelly-voice
 
 # 邮件发送（腾讯云 SES）。
 # 后台「邮件」页填的就是这一段；默认全空 + 模板 ID 为 0，

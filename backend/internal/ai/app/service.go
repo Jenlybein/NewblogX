@@ -37,13 +37,14 @@ type Logger interface {
 
 // Service 是 AI 服务。
 type Service struct {
-	scores   domain.ScoreRepository
-	catalog  domain.Catalog
-	tags     domain.TagReader
-	searcher domain.Searcher
-	ai       func() conf.AI
-	rawLog   *logrus.Logger
-	logger   Logger
+	scores      domain.ScoreRepository
+	catalog     domain.Catalog
+	tags        domain.TagReader
+	searcher    domain.Searcher
+	sceneSkills domain.SceneSkillReader
+	ai          func() conf.AI
+	rawLog      *logrus.Logger
+	logger      Logger
 }
 
 // New 构造 AI 服务。
@@ -70,6 +71,15 @@ func New(
 // WithRawLogger 注入 logrus（元信息生成要用）。
 func (s *Service) WithRawLogger(logger *logrus.Logger) *Service {
 	s.rawLog = logger
+	return s
+}
+
+// WithSceneSkills 注入运行时策略文本读取端口（场景 → skill 的正文与版本）。
+//
+// 由装配层接到 skills 目录加载器；单测里换成内存替身。不注入时，
+// 配置里一旦绑定了 skill，相关场景会明确失败而不是悄悄用空口径。
+func (s *Service) WithSceneSkills(reader domain.SceneSkillReader) *Service {
+	s.sceneSkills = reader
 	return s
 }
 
@@ -194,13 +204,58 @@ func (s *Service) SearchArticles(ctx context.Context, rewrite *aisearch.ArticleS
 }
 
 // StreamAnswer 基于检索结果让 LLM 生成回答（流式）。
+//
+// 「捏捏」的口吻、称呼与禁用语来自运行期配置 ai.scene_skills 绑定的运行时策略
+// skill（#310）：这里解析场景绑定、读出正文与版本，正文拼进 system prompt，
+// 版本随这次调用记录落库（回溯源文本）。代码里不再写第二份口径文案。
 func (s *Service) StreamAnswer(ctx context.Context, question string, list []searchdomain.Item) (chan string, chan error, error) {
 	aiConf, err := s.config()
 	if err != nil {
 		return nil, nil, err
 	}
-	ctx = aipkg.WithCallMeta(ctx, aipkg.CallMeta{Scene: aipkg.SceneSearchAnswer})
-	return aisearch.AnalyzeArticleSearchStream(ctx, aiConf, question, list)
+	policy, version, err := s.scenePolicy(aiConf, aipkg.SceneSearchAnswer)
+	if err != nil {
+		return nil, nil, err
+	}
+	ctx = aipkg.WithCallMeta(ctx, aipkg.CallMeta{
+		Scene:         aipkg.SceneSearchAnswer,
+		PromptVersion: version,
+	})
+	return aisearch.AnalyzeArticleSearchStream(ctx, aiConf, question, list, policy)
+}
+
+// scenePolicy 按运行期配置把场景绑定解析成最终要注入的正文与版本。
+//
+// 一个场景可以绑定多份 skill：正文按配置顺序拼接，版本写各份哈希的拼接。
+// 没绑定任何 skill 时返回空串 —— 该场景就是它原来的样子，不注入策略文本。
+func (s *Service) scenePolicy(aiConf conf.AI, scene string) (string, string, error) {
+	names := aiConf.SceneSkills[scene]
+	if len(names) == 0 {
+		return "", "", nil
+	}
+	if s.sceneSkills == nil {
+		return "", "", apperr.New(apperr.CodeAIPolicySkillMissing)
+	}
+
+	bodies := make([]string, 0, len(names))
+	versions := make([]string, 0, len(names))
+	for _, raw := range names {
+		name := strings.TrimSpace(raw)
+		if name == "" {
+			continue
+		}
+		skill, err := s.sceneSkills.ReadSceneSkill(name)
+		if err != nil {
+			return "", "", apperr.Wrap(apperr.CodeAIPolicySkillMissing, err)
+		}
+		if body := strings.TrimSpace(skill.Body); body != "" {
+			bodies = append(bodies, body)
+		}
+		if version := strings.TrimSpace(skill.Version); version != "" {
+			versions = append(versions, version)
+		}
+	}
+	return strings.Join(bodies, "\n\n"), strings.Join(versions, "+"), nil
 }
 
 // ── 文章质量评分 ────────────────────────────────────────────────

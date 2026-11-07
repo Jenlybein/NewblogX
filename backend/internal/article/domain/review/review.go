@@ -7,6 +7,7 @@ package review
 
 import (
 	"context"
+	"strings"
 	"time"
 
 	"myblogx/internal/apperr"
@@ -157,6 +158,25 @@ func (t *Task) Stage() Stage { return t.stage }
 
 // Reason 返回审核意见/撤销原因。
 func (t *Task) Reason() string { return t.reason }
+
+// ReasonMissingFallback 是审核任务没填原因时的兜底文案。
+//
+// #303 之前驳回原因不是必填，历史任务行的 reason 可能是空串或纯空白。
+// 把空串原样拼进通知，作者看到的是"失败原因："后面什么都没有——比不写这一行
+// 更糟（会以为界面坏了）。兜底文案只陈述事实（没写原因）并指出下一步，
+// 不替审核员编一个理由。
+const ReasonMissingFallback = "审核员未填写具体原因，如有疑问请联系管理员"
+
+// ReasonText 返回**给作者看**的驳回原因：空白一律换成兜底文案。
+//
+// 两处消费同一个函数：驳回通知的正文（通知链路）与作者打开被打回的草稿时
+// 看到的那句话。两边必须是同一句话，兜底文案也只有这一份。
+func ReasonText(reason string) string {
+	if trimmed := strings.TrimSpace(reason); trimmed != "" {
+		return trimmed
+	}
+	return ReasonMissingFallback
+}
 
 // CreatedAt 返回创建时间。
 func (t *Task) CreatedAt() time.Time { return t.createdAt }

@@ -3,15 +3,19 @@ package app
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"time"
 
 	articleapp "myblogx/internal/article/app"
+	"myblogx/internal/article/domain/review"
 	chatdomain "myblogx/internal/chat/domain"
 	"myblogx/internal/kernel/ctype"
 	notificationapp "myblogx/internal/notification/app"
 	"myblogx/internal/platform/cdc/outboxrelay"
 	"myblogx/internal/platform/es/articlesync"
+
+	"gorm.io/gorm"
 )
 
 // OutboxWiringOptions 是本进程中继策略的**显式输入**，由 main 按进程角色决定。
@@ -190,7 +194,14 @@ func notifySubscriber(infra *Infra) outboxrelay.Subscriber {
 		case articleapp.EventArticlePublished:
 			content = fmt.Sprintf("您的文章《%s》审核通过!", article.Title)
 		case articleapp.EventArticleRejected:
-			content = fmt.Sprintf("您的文章《%s》审核失败，请修改后再提交!\n失败原因：%s", article.Title, "")
+			// 原因取自**审核任务记录**，不是重新查文章：驳回理由一直存在任务行上
+			// （review.Task.Reason），缺的只是"把它带到通知正文里"这一步。
+			// 不要去文章表找原因——那里从来没有过这个字段，读不到只会绕回兜底文案。
+			reason, err := rejectionReason(ctx, infra, articleID)
+			if err != nil {
+				return err
+			}
+			content = rejectionContent(article.Title, reason)
 		default:
 			return nil
 		}
@@ -222,6 +233,39 @@ func notifySubscriber(infra *Infra) outboxrelay.Subscriber {
 			LinkHref:   linkHref,
 		})
 	}
+}
+
+// rejectionContent 是驳回通知的正文。
+//
+// 失败原因交给 review.ReasonText 渲染：历史任务没填原因时落兜底文案，
+// 不能留一句"失败原因："后面什么都没有。文案与"作者打开被打回的草稿"
+// 看到的是同一句话，替换文案只改 review.ReasonText 一处。
+func rejectionContent(title, reason string) string {
+	return fmt.Sprintf("您的文章《%s》审核失败，请修改后再提交!\n失败原因：%s",
+		title, review.ReasonText(reason))
+}
+
+// rejectionReason 取这篇文章最近一次驳回时审核员写下的原因。
+//
+// 查的是审核任务表：原因本来就记在任务行上（review.Task.Reason），
+// 本票修的只是"它从来没被带到通知正文里"。历史任务可能没填原因
+// （#303 之前不是必填），这里如实返回空串，由 review.ReasonText 统一兜底；
+// 不要在这里另写一份兜底文案。
+//
+// 查不到任务行（例如任务已被清理）同样返回空串：没有记录不算通知失败，
+// 返回错误只会让中继白白重试到死信。
+func rejectionReason(ctx context.Context, infra *Infra, articleID ctype.ID) (string, error) {
+	var row noticeReviewReasonRow
+	err := infra.DB.WithContext(ctx).
+		Table(row.TableName()).
+		Select("reason").
+		Where("article_id = ? AND status = ?", articleID, string(review.StatusRejected)).
+		Order("reviewed_at DESC, id DESC").
+		Take(&row).Error
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return "", nil
+	}
+	return row.Reason, err
 }
 
 // interactionPayload 是点赞/收藏事件体（article_id + actor_id）。

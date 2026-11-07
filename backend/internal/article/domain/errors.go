@@ -34,4 +34,9 @@ var (
 	ErrPublishDisabledBySite = apperr.New(apperr.CodeArticlePublishDisabled)
 	// ErrDraftDisabledBySite 站点策略关闭了非管理员的存草稿能力。
 	ErrDraftDisabledBySite = apperr.New(apperr.CodeArticleDraftDisabled)
+	// ErrReviewReasonRequired 驳回没写明原因。
+	//
+	// 原因不是"审核操作的附属备注"，而是**送给作者看的正文**：通知里那一行
+	// "失败原因："和作者打开草稿看到的是同一句话，空着等于什么都没说。
+	ErrReviewReasonRequired = apperr.New(apperr.CodeArticleReviewReasonRequired)
 )

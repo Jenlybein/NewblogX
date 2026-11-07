@@ -363,14 +363,19 @@ func (s *Service) ListReviewTasks(ctx context.Context, viewer domain.Viewer, sta
 // HandleReviewTask 处理某条审核任务（仅管理员）。
 //
 // 与 Examine 的区别：Examine 是按文章审核，这里是按任务审核（管理后台的队列视图）。
-// 两者最终都改文章状态，只是入口不同。
+// 两者最终都改文章状态，只是入口不同；"驳回必须写明原因"由同一条规则把关
+// （reviewReason），所以两个入口不会一个能空着原因通过、另一个不行。
 func (s *Service) HandleReviewTask(ctx context.Context, viewer domain.Viewer, taskID ctype.ID, approve bool, reason string) (*domain.Article, error) {
 	if !viewer.IsAdmin() {
 		return nil, domain.ErrForbidden
 	}
+	reason, err := reviewReason(approve, reason)
+	if err != nil {
+		return nil, err
+	}
 
 	var result *domain.Article
-	err := s.tx.WithinTx(ctx, func(ctx context.Context, r Repos) error {
+	err = s.tx.WithinTx(ctx, func(ctx context.Context, r Repos) error {
 		task, err := r.Reviews().Find(ctx, taskID.Uint64())
 		if err != nil {
 			return err

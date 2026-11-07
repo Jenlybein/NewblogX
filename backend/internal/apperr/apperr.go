@@ -34,6 +34,11 @@ const (
 	// 而正确动作是找管理员打开「发布与展示」开关。
 	CodeArticlePublishDisabled Code = "article.publish_disabled_by_site"
 	CodeArticleDraftDisabled   Code = "article.draft_disabled_by_site"
+	// CodeArticleReviewReasonRequired 驳回没有写明原因。
+	//
+	// 单独一个码而不是复用 invalid_state：前者是"少填了一个必填项"（补一句话再点一次），
+	// 后者是"这篇文章当前不该被审核"（刷新列表）。管理后台据此提示的操作不同。
+	CodeArticleReviewReasonRequired Code = "article.review_reason_required"
 )
 
 // 分类与标签。
@@ -416,6 +421,8 @@ var messages = map[Code]string{
 	// 而不是怀疑自己的账号被限制了。
 	CodeArticlePublishDisabled: "站点当前不允许发布文章（站点策略，不是账号问题），请联系管理员开启「允许非管理员发布文章」",
 	CodeArticleDraftDisabled:   "站点当前不允许保存草稿（站点策略，不是账号问题），请联系管理员开启「允许非管理员创建草稿」",
+	// 文案要说清"这句话是给作者的"，管理员才知道必须填、不能糊一个句号。
+	CodeArticleReviewReasonRequired: "驳回必须写明原因（作者会看到这句话）",
 
 	CodeTaxonomyTitleRequired: "名称不能为空",
 	CodeTaxonomyTitleExists:   "名称重复",

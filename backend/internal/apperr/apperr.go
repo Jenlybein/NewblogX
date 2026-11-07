@@ -50,7 +50,7 @@ const (
 	//
 	// 原因列是 varchar(500) 且枚举值也编在同一列：不拦的话超长粘贴会变成写库失败（500）。
 	CodeArticleReviewReasonTooLong Code = "article.review_reason_too_long"
-	// CodeArticleSubmitQuotaExceeded 是「投稿配额」用完（票 304 / ADR-0034）。
+	// CodeArticleSubmitQuotaExceeded 是「投稿配额」用完（票 304 / ADR-0031）。
 	//
 	// 与 article.forbidden / publish_disabled_by_site 都不同：那些是"你/站点不允许"，
 	// 这个是"今天的提交次数用完了，明天自然恢复"。三类混用会让作者去查自己的账号
@@ -381,7 +381,7 @@ const (
 	// CodeAIPolicySkillMissing 是「场景配置引用了读不到的运行时策略 skill」。
 	//
 	// 它属于服务异常而不是参数错误：出问题的是部署/配置，不是这次请求的入参。
-	// 这里必须明确失败 —— 静默退化成空口径回答等于让用户先发现（ADR-0033）。
+	// 这里必须明确失败 —— 静默退化成空口径回答等于让用户先发现（ADR-0030）。
 	CodeAIPolicySkillMissing Code = "ai.policy_skill_missing"
 )
 

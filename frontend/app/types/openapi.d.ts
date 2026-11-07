@@ -5558,6 +5558,45 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/sitemap.xml": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * 站点地图
+         * @description 只含首页与已发布且可见的文章页（sitemap 协议）
+         */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description sitemap.xml */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/xml": string;
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/sitemsg": {
         parameters: {
             query?: never;
@@ -7543,7 +7582,7 @@ export interface components {
              * @description SceneSkills 是「哪个 AI 场景用哪份运行时策略 skill」的产品接线（#310）。
              *
              *     它属于运行期配置而不是 skill 文件：skill 要保持可移植（任何人拿走都能直接用），
-             *     场景绑定要能临时摘掉某份 skill 而不发版（grill §5.3 / ADR-0033）。
+             *     场景绑定要能临时摘掉某份 skill 而不发版（grill §5.3 / ADR-0030）。
              *     key 是 AI 调用场景（internal/ai 的 Scene* 常量），value 是 skills/<name> 的名称列表；
              *     一个场景可以拼多份 skill，正文按顺序拼接。
              */
@@ -7564,7 +7603,7 @@ export interface components {
              * @description SceneSkills 是「哪个 AI 场景用哪份运行时策略 skill」的产品接线（#310）。
              *
              *     它属于运行期配置而不是 skill 文件：skill 要保持可移植（任何人拿走都能直接用），
-             *     场景绑定要能临时摘掉某份 skill 而不发版（grill §5.3 / ADR-0033）。
+             *     场景绑定要能临时摘掉某份 skill 而不发版（grill §5.3 / ADR-0030）。
              *     key 是 AI 调用场景（internal/ai 的 Scene* 常量），value 是 skills/<name> 的名称列表；
              *     一个场景可以拼多份 skill，正文按顺序拼接。
              */

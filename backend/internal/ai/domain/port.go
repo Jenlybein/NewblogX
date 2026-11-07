@@ -100,7 +100,7 @@ type SceneSkill struct {
 // 业务层不 import 那个平台包，也就不会把"文件怎么读"混进用例逻辑。
 //
 // 读取失败时必须返回错误：配置引用了读不到的 skill 属于配置错误，
-// 不能静默退化成一份空口径继续回答（不存在代码内兜底文本，ADR-0033）。
+// 不能静默退化成一份空口径继续回答（不存在代码内兜底文本，ADR-0030）。
 type SceneSkillReader interface {
 	ReadSceneSkill(name string) (SceneSkill, error)
 }

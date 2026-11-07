@@ -126,7 +126,7 @@ func installCallReporter(infra *Infra) {
 // sceneSkillCatalog 把平台层 skill 目录适配成 AI 用例层的读取端口。
 //
 // 适配放在装配层：internal/ai 的用例只知道"要一段策略文本与版本"，
-// 不知道它是从磁盘哪个目录读的；skills 加载器也不 import 任何业务包（ADR-0033）。
+// 不知道它是从磁盘哪个目录读的；skills 加载器也不 import 任何业务包（ADR-0030）。
 type sceneSkillCatalog struct {
 	catalog *skills.Catalog
 }

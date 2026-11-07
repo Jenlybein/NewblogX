@@ -7965,6 +7965,7 @@ export interface components {
              *     深度合并会把老库缺的键按默认值补齐，所以不需要数据迁移）。
              */
             allow_non_admin_publish?: boolean;
+            moderation?: components["schemas"]["myblogx_conf_site.Moderation"];
             /**
              * @description Moderation 是机审前两层的高危词表（票 311 / spec #302 决策 22、27）。
              *
@@ -7974,8 +7975,16 @@ export interface components {
              *
              *     缺省值只由 site_default_settings.yaml 显式给出（每个清单只有一个定义点）；
              *     这里不写第二份字面默认值。
+             *     QualityGate 是「发布质量闸门」的站点配置（票 306 / ADR-0032）。
+             *
+             *     它只是形状与默认值的载体：闸门开关、及格线、灰带宽度与四个档界全部
+             *     自由可配、**不做交叉校验**（spec 决策 11）——允许保存"及格线 50 而
+             *     31–59 叫不合格文章"这类自相矛盾的组合，代价由作者侧照旧显示档名承担。
+             *
+             *     缺省值由 site_default_settings.yaml 显式给出；越界值在 QualityGate.Effective
+             *     一处收敛，不在用例层与 adapter 各抄一份。
              */
-            moderation?: components["schemas"]["myblogx_conf_site.Moderation"];
+            quality_gate?: components["schemas"]["myblogx_conf_site.QualityGate"];
             /** @description 显示非管理员发布的文章 */
             show_non_admin_articles?: boolean;
             /** @description 免审核 */
@@ -8039,6 +8048,25 @@ export interface components {
             icon?: string;
             title?: string;
             web_path?: string;
+        };
+        "myblogx_conf_site.QualityGate": {
+            band_good_max?: number;
+            band_normal_max?: number;
+            /** @description 四个档界是五档位的上界：较差 / 不合格 / 常规 / 优质 / 精品。 */
+            band_poor_max?: number;
+            band_unqualified_max?: number;
+            /** @description Enabled 是闸门开关。零值 = 关闭，提交路径与引入闸门之前完全一致。 */
+            enabled?: boolean;
+            /** @description GrayBandWidth 是灰带宽度（默认 2）：及格线上再让出这么多分才放行。 */
+            gray_band_width?: number;
+            /**
+             * @description PassScore 是标称及格线（0–100）。
+             *
+             *     **实际放行线 = PassScore + GrayBandWidth**：灰带做在及格线**上方**，
+             *     而不是上下两侧各留一半。理由是闸门的目的是让"同一篇文章今天能发、
+             *     明天不能发"不发生——只有把放行线整体抬出抖动量程（±2 分）才做得到。
+             */
+            pass_score?: number;
         };
         "myblogx_conf_site.Reconcile": {
             /**

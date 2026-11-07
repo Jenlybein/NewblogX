@@ -6,7 +6,7 @@ import type { ArticleHeadingAnchor } from "~/composables/useArticleMarkdown";
 import { useMotionPreference } from "~/composables/useMotionPreference";
 import { whenFontsReady } from "~/utils/fontsReady";
 import { formatProgressPercent, resolveTocFollow, tocIndentLevel } from "~/utils/toc";
-import { buildTocRailNodes } from "~/utils/tocRail";
+import { buildTocRailNodes, tocRailLabelInsetPx, tocRailRowCenterPx } from "~/utils/tocRail";
 
 /**
  * 右栏标题大纲（票 296：轨道 + 飞行器）。
@@ -17,9 +17,13 @@ import { buildTocRailNodes } from "~/utils/tocRail";
  *   2. **视觉层**吃两样东西：标题的层级（缩进）与每行的实际 y（测量），几何由
  *      `utils/tocRail` 的纯函数算。
  *
- * 边界还有一条：**视觉层不许改写行为层的样式**。锚点当前项的左侧竖条与字重高亮
- * 都来自行为层（`tailwind.css` 的 `.article-toc-link.is-active`），轨道只能靠
- * 让位（右移锚点）与它并存，不能把那条竖条抹成透明。
+ * 对齐只有两条算式，且都出自 `utils/tocRail`：
+ *   - 纵向：节点 y = 行盒的**垂直中心**（`tocRailRowCenterPx`），不取行顶/行底；
+ *   - 横向：文字 `padding-left` = 节点 x + 14px（`tocRailLabelInsetPx`），层级只改
+ *     节点 x，间距恒定。CSS 里不再另写一套缩进，避免两套数字互相拉扯。
+ *
+ * 左侧那一列只有轨道：激活态靠字重 + `--color-ink` 表达，不再画竖条（naive 的
+ * `border-left` 已从 `.article-toc-link` 上撤掉，它也压不到轨道那一列）。
  *
  * 卡头的进度条与百分比**保留**：它们与轨道的已读填充是刻意的双表达（用户明确选的
  * 口径），不要因为"重复"把它们删掉。
@@ -91,7 +95,8 @@ function measureRows() {
     }
 
     const rect = link.getBoundingClientRect();
-    return rect.height > 0 ? rect.top - origin + rect.height / 2 : null;
+    // 行盒的中心，不是行顶：节点与文字的中线对齐（算式在 utils/tocRail 里，测试直接钉它）。
+    return rect.height > 0 ? tocRailRowCenterPx(rect.top, rect.height, origin) : null;
   });
 }
 
@@ -260,11 +265,8 @@ onBeforeUnmount(() => {
             :href="heading.href"
             :title="heading.title"
             :data-heading-id="heading.id"
-            :class="[
-              'article-toc-link',
-              `article-toc-link--indent-${tocIndentLevel(heading.level)}`,
-              { 'is-active': activeHeadingId === heading.id },
-            ]"
+            :class="['article-toc-link', { 'is-active': activeHeadingId === heading.id }]"
+            :style="{ paddingLeft: `${tocRailLabelInsetPx(tocIndentLevel(heading.level))}px` }"
             @click.prevent="handleJump(heading.id)"
           />
         </NAnchor>
@@ -278,32 +280,12 @@ onBeforeUnmount(() => {
   position: relative;
 }
 
-/* 轨道占左侧一条窄带（画布 44px），锚点整体右移让位；缩进仍由 `.article-toc-link--indent-*` 管。 */
+/* 轨道占左侧一条窄带（画布 44px，最深的节点在 x=33）；锚点不整体右移——
+   文字的内边距由 `tocRailLabelInsetPx` 逐行给，轨道与文字共用同一套 x。 */
 .article-toc__rail {
   position: absolute;
   top: 0;
   left: 0;
   pointer-events: none;
-}
-
-/*
- * 文字紧贴各自的节点：轨道基准 5px + 14px/层 + 14px 间距（与参考的 LABEL_GAP 一致）。
- * 不再把整条锚点右移 44px —— 那样文字离轨道有 ~52px，读起来是两列而不是一棵目录。
- * 缩进层级仍只有 0/1/2 三档（见 `tocIndentLevel`），所以三档写死即可。
- */
-.article-toc__plot :deep(.n-anchor) {
-  margin-left: 0;
-}
-
-.article-toc__plot :deep(.article-toc-link) {
-  padding-left: 19px;
-}
-
-.article-toc__plot :deep(.article-toc-link--indent-1) {
-  padding-left: 33px;
-}
-
-.article-toc__plot :deep(.article-toc-link--indent-2) {
-  padding-left: 47px;
 }
 </style>

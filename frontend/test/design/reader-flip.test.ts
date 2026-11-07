@@ -179,7 +179,10 @@ describe("原先直接消费原始色相的组件改走语义层", () => {
     expect(isActive(".article-action--primary")).toMatch(/background:\s*var\(--color-ink\)/u);
     expect(isActive(".article-action--primary")).toMatch(/color:\s*var\(--color-on-strong\)/u);
     expect(isActive(".article-reading-progress__fill")).toMatch(/background:\s*var\(--color-ink\)/u);
-    expect(isActive(".article-toc-link.is-active")).toMatch(/border-left-color:\s*var\(--color-ink\)/u);
+    // 目录激活行不再画左竖条（它与轨道那一列打架），激活感由标题的墨色承担。
+    expect(isActive(".article-toc-link.is-active :where(.n-anchor-link__title)")).toMatch(
+      /color:\s*var\(--color-ink\)/u,
+    );
   });
 });
 

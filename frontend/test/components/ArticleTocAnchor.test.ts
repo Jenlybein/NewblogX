@@ -293,33 +293,61 @@ describe("ArticleTocAnchor：减少动态", () => {
 });
 
 /**
- * 视觉层只叠不改（票 296 的行为层边界）。
+ * 左侧那一列只有轨道（票 296 返工）。
  *
- * 曾经的写法是 `:deep(.article-toc-link) { border-left-color: transparent }`：
- * 轨道一上来就把锚点「当前项左竖条」抹掉了，等于视觉层改写了行为层的既有视觉。
- * 这里读源码钉住——组件里不得再有针对 `.article-toc-link` 的 border-left 覆盖，
- * 而那条竖条本身仍在样式表里（删的是覆盖，不是竖条）。
+ * 上一版 naive 的"当前项左竖条"（`.article-toc-link.is-active` 的 `border-left-color`）
+ * 压在轨道那一列上，两个元素互相打架：用户的原话是"激活的标题栏有个样式让左边有一条
+ * 黑线，与轨道冲突"。这里从两头钉住——组件不再覆盖、样式表里也不再画。
  */
-describe("ArticleTocAnchor：视觉层不覆盖行为层的既有视觉", () => {
+describe("ArticleTocAnchor：左侧那一列只留给轨道", () => {
   const projectDir = process.cwd();
   const source = stripComments(
     readFileSync(join(projectDir, "app/components/article/ArticleTocAnchor.vue"), "utf8"),
   );
   const css = readFileSync(join(projectDir, "app/assets/css/tailwind.css"), "utf8");
 
-  it("组件源码里不再出现针对 .article-toc-link 的 border-left 覆盖", () => {
-    const rules = source.match(/\.article-toc-link[^{}]*\{[^{}]*\}/gu) ?? [];
+  it("组件与样式表里都没有指向 .article-toc-link 的 border-left", () => {
+    const componentRules = source.match(/\.article-toc-link[^{}]*\{[^{}]*\}/gu) ?? [];
 
-    expect(rules.filter((rule) => /border-left/u.test(rule))).toEqual([]);
+    expect(componentRules.filter((rule) => /border-left/u.test(rule))).toEqual([]);
     expect(source).not.toMatch(/\.article-toc-link[^{]*\{[^}]*border-left/u);
+    // 样式表里连"透明的占位竖条"也没有：轨道是这一列唯一的视觉元素。
+    expect(css).not.toMatch(/\.article-toc-link[^{]*\{[^}]*border-left/u);
   });
 
-  it("锚点自己的当前项左竖条仍在样式表里（让位共存，而不是抹掉）", () => {
-    expect(blockAfter(css, ".article-toc-link.is-active {")).toContain("border-left-color");
+  it("激活态仍靠字重与墨色表达（去掉竖条不等于去掉高亮）", () => {
+    expect(blockAfter(css, ".article-toc-link.is-active :where(.n-anchor-link__title) {")).toContain(
+      "color: var(--color-ink)",
+    );
+    expect(blockAfter(css, ".article-toc-link.is-active :where(.n-anchor-link__title) {")).toContain(
+      "font-weight: 600",
+    );
   });
 
-  it("轨道视觉层还在：靠右移锚点让位，轨道本身不缩水", () => {
+  it("轨道视觉层还在，且文字缩进由同一套算式内联给出（不在 CSS 里另写一套）", () => {
     expect(source).toContain(".article-toc__rail");
-    expect(blockAfter(source, ".article-toc__plot :deep(.n-anchor) {")).toContain("margin-left");
+    expect(source).toContain("tocRailLabelInsetPx");
+    expect(css).not.toMatch(/\.article-toc-link--indent-\d/u);
+  });
+
+  it("每行文字的 padding-left = 自己的节点 x + 14px", () => {
+    const wrapper = mountToc();
+
+    // h-a / h-c 是 h2（depth 0，节点 x=5），h-b 是 h3（depth 1，节点 x=19）。
+    expect((wrapper.get('[data-heading-id="h-a"]').element as HTMLElement).style.paddingLeft).toBe(
+      "19px",
+    );
+    expect((wrapper.get('[data-heading-id="h-b"]').element as HTMLElement).style.paddingLeft).toBe(
+      "33px",
+    );
+
+    for (const id of ["h-a", "h-b", "h-c"]) {
+      const row = wrapper.get(`[data-heading-id="${id}"]`);
+      const node = wrapper.get(`[data-node-id="${id}"]`);
+      const textLeft = Number.parseFloat((row.element as HTMLElement).style.paddingLeft);
+      const nodeX = Number(node.attributes("cx"));
+
+      expect(textLeft - nodeX).toBe(14);
+    }
   });
 });

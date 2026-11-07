@@ -359,30 +359,24 @@
     max-height: clamp(160px, 32dvh, 380px);
   }
 
+  /* 目录行：左侧那一列只留给轨道。行本身不画竖条（曾经的 border-left 会压在轨道
+     的节点列上），缩进也由 `tocRailLabelInsetPx` 逐行以内联 padding-left 给出，
+     这里不再写第二套缩进数字。 */
   .article-toc-link {
-    @apply relative block border-l-2 border-transparent transition-colors;
+    @apply relative block transition-colors;
   }
 
-  .article-toc-link--indent-1 {
-    padding-left: 1rem;
-  }
-
-  .article-toc-link--indent-2 {
-    padding-left: 2rem;
-  }
-
+  /* 标题的内边距只留上下与右：左侧 0 起步，文字的起点才等于外层 padding-left，
+     于是"文字 = 自己的节点 + 14px"在每一层都成立。 */
   .article-toc-link :where(.n-anchor-link__title) {
-    @apply px-3 py-1.5 text-[13px] leading-6 text-ink-muted;
+    @apply py-1.5 pr-3 pl-0 text-[13px] leading-6 text-ink-muted;
   }
 
   .article-toc-link:hover :where(.n-anchor-link__title) {
     color: var(--color-ink);
   }
 
-  .article-toc-link.is-active {
-    border-left-color: var(--color-ink);
-  }
-
+  /* 激活态只靠颜色与字重表达，不再有左侧竖条。 */
   .article-toc-link.is-active :where(.n-anchor-link__title) {
     color: var(--color-ink);
     font-weight: 600;

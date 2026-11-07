@@ -65,9 +65,14 @@ function segmentStyles(wrapper: ReturnType<typeof mountNav>): HTMLElement[] {
   return wrapper.findAll(".message-center__subnav-segment").map((segment) => segment.element as HTMLElement);
 }
 
-/** 分段容器上由弹簧写到位的段位偏移（px 字符串）。 */
-function segmentMargins(wrapper: ReturnType<typeof mountNav>): string[] {
-  return segmentStyles(wrapper).map((element) => element.style.marginLeft);
+/**
+ * 分段容器上由弹簧写到位的接缝间隙（px 字符串）。
+ *
+ * 段位与颈部宽度都从这一个变量派生（`margin-left` 取原值、颈部取 `max(0px, …)`），
+ * 所以只看它就够 —— 这正是"两者不会错开"的证据。
+ */
+function segmentGaps(wrapper: ReturnType<typeof mountNav>): string[] {
+  return segmentStyles(wrapper).map((element) => element.style.getPropertyValue("--neck-gap"));
 }
 
 /** 一段的四角圆角（px 字符串，顺序：左上 / 右上 / 右下 / 左下）。 */
@@ -157,14 +162,17 @@ describe("一体化分段条：五段贴合", () => {
     expect(activeLink.classes()).toContain("is-active");
   });
 
-  it("闭合接缝重叠 1px：非激活段落在负 1px 的段位上", () => {
+  it("闭合接缝重叠 1px：间隙为负 1，段位与颈部都按它派生", () => {
     const wrapper = mountNav("comments");
-    const margins = segmentMargins(wrapper);
+    const gaps = segmentGaps(wrapper);
 
-    expect(margins[0]).toBe("0px");
-    expect(margins[2]).toBe(`${NECK_CLOSED_GAP}px`);
-    expect(margins[3]).toBe(`${NECK_CLOSED_GAP}px`);
-    expect(margins[4]).toBe(`${NECK_CLOSED_GAP}px`);
+    expect(gaps[0]).toBe("0px");
+    expect(gaps[2]).toBe(`${NECK_CLOSED_GAP}px`);
+    expect(gaps[3]).toBe(`${NECK_CLOSED_GAP}px`);
+    expect(gaps[4]).toBe(`${NECK_CLOSED_GAP}px`);
+    // 段位不再由 JS 另写一份 margin-left：CSS 从同一个 --neck-gap 派生，
+    // 于是"段位偏移"与"颈部宽度"在任何一帧都不可能错开。
+    expect(segmentStyles(wrapper).map((element) => element.style.marginLeft)).toEqual(["", "", "", "", ""]);
   });
 
   it("圆角只给敞口一侧：激活块四角皆圆，闭合接缝旁是方的（贴合处不啃缺）", () => {
@@ -217,18 +225,23 @@ describe("颈部：每条接缝常驻，宽度由张开量决定", () => {
 
   it("张开的接缝按张开量拉开，颈部就长在张开的那段间隙里", () => {
     const wrapper = mountNav("system");
-    const margins = segmentMargins(wrapper);
+    const gaps = segmentGaps(wrapper);
 
-    expect(margins[2]).toBe(`${NECK_SEPARATION_PX}px`);
-    expect(margins[3]).toBe(`${NECK_SEPARATION_PX}px`);
-    expect(margins[1]).toBe(`${NECK_CLOSED_GAP}px`);
+    expect(gaps[2]).toBe(`${NECK_SEPARATION_PX}px`);
+    expect(gaps[3]).toBe(`${NECK_SEPARATION_PX}px`);
+    expect(gaps[1]).toBe(`${NECK_CLOSED_GAP}px`);
   });
 
-  it("颈部宽度读同一组弹簧写下的 --neck-gap：张开的接缝是 20px，闭合的是 0", () => {
+  it("间隙只写一份：张开的接缝是 20px，闭合的是负 1（颈部在 CSS 里钳到 0）", () => {
     const wrapper = mountNav("system");
-    const gaps = segmentStyles(wrapper).map((element) => element.style.getPropertyValue("--neck-gap"));
 
-    expect(gaps).toEqual(["0px", "0px", `${NECK_SEPARATION_PX}px`, `${NECK_SEPARATION_PX}px`, "0px"]);
+    expect(segmentGaps(wrapper)).toEqual([
+      "0px",
+      `${NECK_CLOSED_GAP}px`,
+      `${NECK_SEPARATION_PX}px`,
+      `${NECK_SEPARATION_PX}px`,
+      `${NECK_CLOSED_GAP}px`,
+    ]);
   });
 
   it("颈部路径两端满高、中点收腰（哑铃形，不是两头收窄的细缝）", () => {
@@ -295,12 +308,53 @@ describe("动效：弹簧只从 motion.ts 的预设取，减少动态落位", ()
     const wrapper = mountNav("system");
 
     expect(wrapper.find(".message-center__subnav").attributes("data-neck-motion")).toBe("jump");
-    expect(segmentMargins(wrapper)).toEqual([
+    expect(segmentGaps(wrapper)).toEqual([
       "0px",
       `${NECK_CLOSED_GAP}px`,
       `${NECK_SEPARATION_PX}px`,
       `${NECK_SEPARATION_PX}px`,
       `${NECK_CLOSED_GAP}px`,
     ]);
+  });
+});
+
+describe("肩：用激活块自己的底色填平圆角缺角", () => {
+  /** 某子项激活时，哪些段挂着肩、挂在哪一侧。 */
+  function shouldersOf(activeTab: Tab): string[] {
+    return mountNav(activeTab)
+      .findAll(".message-center__subnav-segment")
+      .map((segment) => {
+        const sides = segment
+          .findAll(".message-center-tab__shoulder")
+          .map((shoulder) => shoulder.attributes("data-side"));
+        return sides.length > 0 ? sides.join("+") : "";
+      });
+  }
+
+  it("只有激活段挂肩，且只挂在朝向接缝的那一侧", () => {
+    // 中间段激活：两侧都是敞口接缝
+    expect(shouldersOf("system")).toEqual(["", "", "left+right", "", ""]);
+    // 首段激活：左边是控件自己的圆角
+    expect(shouldersOf("comments")).toEqual(["right", "", "", "", ""]);
+    // 末段激活：右边是控件自己的圆角
+    expect(shouldersOf("chat")).toEqual(["", "", "", "", "left"]);
+  });
+
+  it("肩是纯装饰：对读屏器隐藏，也不吃指针事件", () => {
+    const shoulders = mountNav("system").findAll(".message-center-tab__shoulder");
+
+    expect(shoulders).toHaveLength(2);
+    for (const shoulder of shoulders) expect(shoulder.attributes("aria-hidden")).toBe("true");
+  });
+
+  it("肩在分段容器内、链接之前：缺角由段自己的底色盖住，链接的可点区域不变", () => {
+    const active = mountNav("system").find('.message-center__subnav-segment[data-active="true"]')!;
+    const children = active.element.children;
+
+    // 顺序：左肩 / 右肩 / 颈部 / 链接
+    expect(children[0]!.className).toContain("message-center-tab__shoulder");
+    expect(children[1]!.className).toContain("message-center-tab__shoulder");
+    expect(children[2]!.className).toContain("message-center-tab__neck");
+    expect(children[3]!.className).toContain("message-center-tab");
   });
 });

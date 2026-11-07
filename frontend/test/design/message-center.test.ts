@@ -59,9 +59,26 @@ describe("消息中心：视觉规则（CSS 源码判据）", () => {
   it("颈部：宽/位读 --neck-gap，长在张开的那段间隙里（票 297）", () => {
     const neck = blockAfter(tailwindCss, ".message-center-tab__neck {");
 
-    expect(neck).toContain("left: calc(-1 * var(--neck-gap");
-    expect(neck).toContain("width: var(--neck-gap");
+    // 负间隙（闭合接缝的 -1px 重叠）被 max() 钳到 0：颈部永远不会比真实间隙宽，
+    // 也就不会盖到相邻段、把渐变漏到别人的圆角上。
+    expect(neck).toContain("left: calc(-1 * max(0px, var(--neck-gap");
+    expect(neck).toContain("width: max(0px, var(--neck-gap");
     expect(neck).toContain("pointer-events-none");
+    // 段位与颈部读同一个变量，不各写一份（错开就会漏色 / 留发丝）
+    expect(blockAfter(tailwindCss, ".message-center__subnav-segment {")).toContain(
+      "margin-left: var(--neck-gap",
+    );
+  });
+
+  it("肩：用本段自己的底色把敞口接缝一侧的圆角缺角填平（返工点）", () => {
+    const shoulder = blockAfter(tailwindCss, ".message-center-tab__shoulder {");
+
+    // 颈部只长在接缝里、够不到圆角缺角；缺角不填，页底色就会在深墨块旁边露成浅色楔形。
+    expect(shoulder).toContain("background: inherit");
+    expect(shoulder).toContain("width: var(--radius-md)");
+    expect(shoulder).toContain("pointer-events-none");
+    expect(blockAfter(tailwindCss, '.message-center-tab__shoulder[data-side="left"] {')).toContain("left: 0");
+    expect(blockAfter(tailwindCss, '.message-center-tab__shoulder[data-side="right"] {')).toContain("right: 0");
   });
 
   it("分段条是裸轨道：容器不再带边框 / 内边距 / 底色（返工点）", () => {

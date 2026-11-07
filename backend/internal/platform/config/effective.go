@@ -70,6 +70,51 @@ func NormalizeChatRate(windowSec, dailyMax int) ChatRate {
 	return ChatRate{WindowSec: windowSec, DailyMax: dailyMax}
 }
 
+// 投稿配额（每人每自然日可提交次数上限）的默认值与合法区间（ADR-0030，
+// spec #302 决策 19）。
+//
+// 「每天 15 次」只在本文件声明一次：Redis 兜底（redis_article_quota 的 dailyMax<=0
+// 分支）、生效值归一化与配置服务缺失时的回落都从这里派生，
+// 与 chat 的「每天 99 条」同一条口径。数据库补种用的字面量仍由
+// site_default_settings.yaml 显式给出。
+const (
+	// DefaultArticleSubmitDailyMax 是默认的每日投稿上限。
+	DefaultArticleSubmitDailyMax = 15
+
+	minArticleSubmitDailyMax = 1
+	maxArticleSubmitDailyMax = 9999
+)
+
+// NormalizeArticleSubmitDailyMax 把非法 / 越界的每日投稿上限收敛到合法区间。
+//
+// 0 与负数一律回落到默认值，而不是解释成"禁止投稿"：这两个值更可能是
+// "配置写漏了"而不是产品意图，而按字面执行会让全站用户当天一篇文章都提交不了。
+func NormalizeArticleSubmitDailyMax(dailyMax int) int {
+	if dailyMax < minArticleSubmitDailyMax || dailyMax > maxArticleSubmitDailyMax {
+		return DefaultArticleSubmitDailyMax
+	}
+	return dailyMax
+}
+
+// ArticleSubmitDailyMax 现读每日投稿上限的生效值。
+//
+// 每次请求现读（不缓存），所以后台改完**下一次请求**即按新值判 —— 票 304 的
+// 验收标准之一。
+func (e *EffectiveConfig) ArticleSubmitDailyMax() int {
+	if e == nil || e.store == nil {
+		return DefaultArticleSubmitDailyMax
+	}
+	return NormalizeArticleSubmitDailyMax(e.store.GetRuntimeArticle().SubmitDailyMax)
+}
+
+// ArticleSubmitDailyMaxFunc 返回消费点唯一该持有的现读取值闭包。
+func (e *EffectiveConfig) ArticleSubmitDailyMaxFunc() func() int {
+	if e == nil {
+		return func() int { return DefaultArticleSubmitDailyMax }
+	}
+	return e.ArticleSubmitDailyMax
+}
+
 // SensitivePlaceholder 是管理员接口回显敏感字段时用的占位符。
 //
 // 前端保存时会把这个值原样传回来，服务端据此判断"用户没有改密钥"。
@@ -138,8 +183,8 @@ func (e *EffectiveConfig) OnlyAdminAuthorsFunc() func() bool {
 
 // Article 现读文章相关开关，供只关心 site.article 的消费点使用。
 //
-// 配置服务缺失时按业务默认（三个发布/展示开关全开、免审核关闭）兜底：
-// 宁可多出内容，也不要因为装配缺失把全站作者锁死。
+// 配置服务缺失时按业务默认（三个发布/展示开关全开、免审核关闭、
+// 投稿配额按模块默认值）兜底：宁可多出内容，也不要因为装配缺失把全站作者锁死。
 func (e *EffectiveConfig) Article() siteconf.Article {
 	if e == nil || e.store == nil {
 		return siteconf.Article{
@@ -147,6 +192,7 @@ func (e *EffectiveConfig) Article() siteconf.Article {
 			AllowNonAdminPublish: true,
 			AllowNonAdminDraft:   true,
 			ShowNonAdminArticles: true,
+			SubmitDailyMax:       DefaultArticleSubmitDailyMax,
 		}
 	}
 	return e.store.GetRuntimeArticle()

@@ -39,4 +39,9 @@ var (
 	// 原因不是"审核操作的附属备注"，而是**送给作者看的正文**：通知里那一行
 	// "失败原因："和作者打开草稿看到的是同一句话，空着等于什么都没说。
 	ErrReviewReasonRequired = apperr.New(apperr.CodeArticleReviewReasonRequired)
+	// ErrSubmitQuotaExceeded 「投稿配额」用完：当天已提交的次数达到上限。
+	//
+	// 与 ErrForbidden / ErrPublishDisabledBySite 分开：那两个要用户改账号或找管理员，
+	// 这个只需要等到明天（配额按自然日重置，ADR-0034）。
+	ErrSubmitQuotaExceeded = apperr.New(apperr.CodeArticleSubmitQuotaExceeded)
 )

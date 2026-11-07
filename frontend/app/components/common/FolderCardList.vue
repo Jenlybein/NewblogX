@@ -33,10 +33,12 @@ defineProps<{ cards: CollectionCardView[] }>();
 <style scoped>
 .folder-card-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(min(100%, 20rem), 1fr));
+  /* 列宽收到 16–18rem：原先的 `minmax(…, 20rem, 1fr)` 会被 `1fr` 拉到近 25rem，
+     三张卡就把一屏塞满。给上界之后宽屏只是多排一列，每张卡不再被拉大。 */
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 16rem), 18rem));
   /* 行距比列距宽：封面卡常态就比舞台高出一截（纸从文件夹里探出来），
-     行距要留得下那段溢出，以及对焦/悬停时再上抽的 30px。 */
-  gap: 1.75rem 1.25rem;
+     行距要留得下那段溢出，以及对焦/悬停时再上抽的距离。 */
+  gap: 2.5rem 2rem;
   margin: 0;
   padding: 0;
   list-style: none;

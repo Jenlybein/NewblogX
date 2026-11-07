@@ -32,7 +32,7 @@ import {
 describe("缩放系数：容器宽度 / 基宽 321", () => {
   it("基宽本身是 1，两倍宽是 2，半宽是 0.5", () => {
     expect(FOLDER_CARD_BASE_WIDTH).toBe(321);
-    expect(FOLDER_CARD_BASE_HEIGHT).toBe(270);
+    expect(FOLDER_CARD_BASE_HEIGHT).toBe(221);
 
     expect(folderCardScale(321)).toBe(1);
     expect(folderCardScale(642)).toBe(2);
@@ -83,10 +83,10 @@ describe("封面的 16:9：高度由宽度决定", () => {
   });
 });
 
-describe("抽卡距离：基宽下上抽 30px，等比缩放", () => {
-  it("基宽 30px、两倍宽 60px", () => {
-    expect(folderCardLiftPx(321)).toBe(30);
-    expect(folderCardLiftPx(642)).toBe(60);
+describe("抽卡距离：基宽下上抽 24px，等比缩放", () => {
+  it("基宽 24px、两倍宽 48px", () => {
+    expect(folderCardLiftPx(321)).toBe(24);
+    expect(folderCardLiftPx(642)).toBe(48);
   });
 
   it("宽度测不出来时归零（不产生 NaN 位移）", () => {
@@ -111,27 +111,35 @@ describe("倾角：前盖常态 -15°、展开 -45°；封面展开旋转 6°", 
 });
 
 /**
- * 「露出上 2/3」是拿**凸舌肩线**当遮盖线算的，不是前盖顶边：前盖左侧有凸舌，
- * 顶边比肩线高一大截，按顶边算封面会被藏掉一半。这条是整套几何的核心。
+ * 比例是本轮返工的核心：用户看到的第一版文件夹比封面大 1.53 倍，整块卡读成"一个大文件夹
+ * 里塞了张小图"。现在的口径是**文件夹只比封面宽一点点**，封面才是主体。
  */
-describe("封面露出多少：被凸舌肩线盖住下沿，露出上 2/3", () => {
-  const sheetHeight = folderCardSheetHeightPx(210);
+describe("封面与文件夹的比例：文件夹只比封面宽一点点", () => {
+  const sheetHeight = folderCardSheetHeightPx(283);
   const shoulder = folderFlapShoulderY();
   const sheetTop = folderSheetTopPx();
 
+  it("文件夹宽度只比封面宽 13%（不是参考的 1.53 倍）", () => {
+    const ratio = FOLDER_CARD_BASE_WIDTH / 283;
+
+    expect(ratio).toBeGreaterThan(1.05);
+    expect(ratio).toBeLessThan(1.2);
+  });
+
   it("肩线 = 前盖顶边 + 路径里的 41.5404", () => {
-    expect(shoulder).toBeCloseTo(23 + 41.5404, 5);
+    expect(shoulder).toBeCloseTo(118 + 41.5404, 5);
   });
 
-  it("肩线以下的封面高度 = 封面高度的 1/3", () => {
-    expect(shoulder - sheetTop).toBeCloseTo((sheetHeight * 2) / 3, 5);
-    expect(sheetHeight - (shoulder - sheetTop)).toBeCloseTo(sheetHeight / 3, 5);
+  it("封面顶边在舞台顶部留出 6 的空隙，底边压在前盖后面", () => {
+    expect(sheetTop).toBe(6);
+    expect(sheetTop + sheetHeight).toBeGreaterThan(shoulder);
   });
 
-  it("封面顶边略高于舞台（纸从文件夹里探出来），底边深埋在前盖后面", () => {
-    expect(sheetTop).toBeLessThan(0);
-    expect(sheetTop).toBeGreaterThan(-30);
-    expect(sheetTop + sheetHeight).toBeGreaterThan(shoulder + 30);
+  it("前盖顶边之上露出约 70% 的封面（不是把封面整个盖住）", () => {
+    const visible = (118 - sheetTop) / sheetHeight;
+
+    expect(visible).toBeGreaterThan(0.6);
+    expect(visible).toBeLessThan(0.8);
   });
 });
 
@@ -164,29 +172,29 @@ describe("前盖遮罩：轮廓的 data-URI", () => {
 describe("样式变量：几何换算成百分比与角度（列宽自适应、不写死像素）", () => {
   const vars = folderCardStyleVars();
 
-  it("舞台保持 321 : 270 的比例", () => {
-    expect(vars["--folder-stage-ratio"]).toBe("321 / 270");
+  it("舞台是 321 : 221（比参考的 270 矮：前盖收成前唇，不再占整张前脸）", () => {
+    expect(vars["--folder-stage-ratio"]).toBe("321 / 221");
   });
 
-  it("背板：顶边 10/270、高 260/270（顶边低于凸舌顶、底部留一截后沿）", () => {
-    expect(vars["--folder-back-top"]).toBe("3.7%");
-    expect(vars["--folder-back-height"]).toBe("96.3%");
+  it("背板：顶边 4/221、高 217/221（底部留一截后沿）", () => {
+    expect(vars["--folder-back-top"]).toBe("1.81%");
+    expect(vars["--folder-back-height"]).toBe("98.19%");
   });
 
-  it("封面：宽 210/321、左侧居中、高 118.125/270、顶边 -14.21/270（探出舞台）", () => {
-    expect(vars["--folder-sheet-width"]).toBe("65.42%");
-    expect(vars["--folder-sheet-left"]).toBe("17.29%");
-    expect(vars["--folder-sheet-height"]).toBe("43.75%");
-    expect(vars["--folder-sheet-top"]).toBe("-5.26%");
+  it("封面：宽 283/321、左侧居中 19/321、高 159.19/221、顶边 6/221", () => {
+    expect(vars["--folder-sheet-width"]).toBe("88.16%");
+    expect(vars["--folder-sheet-left"]).toBe("5.92%");
+    expect(vars["--folder-sheet-height"]).toBe("72.03%");
+    expect(vars["--folder-sheet-top"]).toBe("2.71%");
   });
 
-  it("前盖：顶边 23/270、高 241/270（底边 264，留 6 给背板后沿）", () => {
-    expect(vars["--folder-flap-top"]).toBe("8.52%");
-    expect(vars["--folder-flap-height"]).toBe("89.26%");
+  it("前盖：顶边 118/221、高 97/221（底边 215，留 6 给背板后沿）", () => {
+    expect(vars["--folder-flap-top"]).toBe("53.39%");
+    expect(vars["--folder-flap-height"]).toBe("43.89%");
   });
 
-  it("抽卡距离按封面高度的比例给（基宽下 30 / 118.125）", () => {
-    expect(vars["--folder-sheet-lift"]).toBe("-25.4%");
+  it("抽卡距离按封面高度的比例给（基宽下 24 / 159.19）", () => {
+    expect(vars["--folder-sheet-lift"]).toBe("-15.08%");
   });
 
   it("两个倾角与封面旋转也来自同一份几何（样式表里不写角度字面量）", () => {

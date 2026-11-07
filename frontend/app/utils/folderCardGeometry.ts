@@ -24,8 +24,9 @@
 /** 参考形态的基宽（px）：所有比例的换算基准，**不是**渲染尺寸。 */
 export const FOLDER_CARD_BASE_WIDTH = 321;
 
-/** 参考形态的基高（px）：同上，只用于比例换算。 */
-export const FOLDER_CARD_BASE_HEIGHT = 270;
+/** 参考形态的基高（px）：同上，只用于比例换算。**比参考的 270 矮**——
+ *  舞台压扁之后，文件夹只比封面宽一点点（用户 2026-11-07 的返工口径）。 */
+export const FOLDER_CARD_BASE_HEIGHT = 221;
 
 /** 前盖（flap）在基宽下的尺寸：参考组件的 viewBox 是 321×241。 */
 export const FOLDER_FLAP_WIDTH = 321;
@@ -54,21 +55,26 @@ const SHEET_ASPECT = 16 / 9;
 
 /** 基宽下的几何（px）。出处见每行注释；改这里就等于改所有列宽下的形状。 */
 const BASE = {
-  /** 背板：铺满宽度，顶边 10（比前盖低 13，露一条后沿），底边与舞台齐平。 */
-  backTop: 10,
-  backBottom: 270,
-  /** 前盖：321 宽压满、241 高，顶边 23、底边 264 —— 底部留 6 当背板的后沿。 */
-  flapTop: 23,
-  flapBottom: 264,
-  /** 封面卡：210 宽（16:9 → 118.13 高），水平居中。 */
-  sheetWidth: 210,
+  /** 背板：铺满宽度，顶边 4（比前盖低，露一条后沿），底边与舞台齐平。 */
+  backTop: 4,
+  backBottom: 221,
   /**
-   * 封面常态露出上 2/3 —— 被前盖斜切肩（`FOLDER_FLAP_SHOULDER_Y`）盖住下沿。
-   * 肩线以下的封面全部藏在前盖后面。
+   * 前盖：321 宽压满，只占舞台下部的 97 高（底边 215，留 6 当背板的后沿）。
+   *
+   * 顶边 **不再**是参考的 23 —— 参考里前盖是整张前脸（241 高），本票要「文件夹只比
+   * 封面宽一点点」，所以前盖收成一道前唇，顶边压到封面下 30% 处。
    */
-  visibleSheetFraction: 2 / 3,
+  flapTop: 118,
+  flapBottom: 215,
+  /**
+   * 封面卡：283 宽（16:9 → 159.19 高），水平居中。
+   * 舞台宽 321，所以文件夹只比封面宽 13%——这就是"稍宽一点点"。
+   */
+  sheetWidth: 283,
+  /** 封面顶边：留 6 的空隙，不顶到舞台边框。 */
+  sheetTop: 6,
   /** hover / 键盘聚焦时封面上抽的距离（基宽下）。 */
-  lift: 30,
+  lift: 24,
   /** 前盖常态前倾角（度）；展开时前倾到 -45°（铰链在下沿）。 */
   flapTilt: -15,
   flapTiltOpen: -45,
@@ -115,10 +121,9 @@ export function folderFlapShoulderY(): number {
   return BASE.flapTop + FOLDER_FLAP_SHOULDER_Y;
 }
 
-/** 封面顶边（px）：肩线以上正好露出上 2/3，其余压在前盖后面。 */
+/** 封面顶边（px）：固定留 6 的空隙，不顶到舞台边框。 */
 export function folderSheetTopPx(): number {
-  const sheetHeight = folderCardSheetHeightPx(BASE.sheetWidth);
-  return folderFlapShoulderY() - sheetHeight * BASE.visibleSheetFraction;
+  return BASE.sheetTop;
 }
 
 /**

@@ -161,7 +161,7 @@ const shadeId = `folder-flap-shade-${useId().replace(/[^\w-]/gu, "-")}`;
 .folder-card__link {
   display: flex;
   flex-direction: column;
-  gap: 0.875rem;
+  gap: 1.25rem;
   height: 100%;
   color: inherit;
   text-decoration: none;

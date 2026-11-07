@@ -161,7 +161,7 @@ export function clampParallaxOffset(offsetPx: number, prefersReducedMotion: bool
  * 弹簧预设：动效档位 C 在 JS 侧的第二套预算（ADR-0012 后续修订 2026-11-07）
  *
  * 弹簧只服务**登记过的三处**：右栏标题大纲的飞行器（travel / turn）、目录树的沟槽
- * 圆点（dot）、消息中心分段条颈部（neck）。CSS 侧仍只有三档时长 + 单一缓动 ——
+ * 圆点（dot）、消息中心分段条接缝（neck）。CSS 侧仍只有三档时长 + 单一缓动 ——
  * tokens.css 不动（CSS 表达不了弹簧），三档时长与单一缓动继续服务评论展开/收起、
  * 路由过渡与 hover。
  *
@@ -177,7 +177,7 @@ export interface SpringPreset {
   mass: number;
 }
 
-/** 预设的四组名字；`travel` 位移、`turn` 转向、`dot` 目录树圆点、`neck` 分段条颈部。 */
+/** 预设的四组名字；`travel` 位移、`turn` 转向、`dot` 目录树圆点、`neck` 分段条接缝。 */
 export type SpringPresetName = "travel" | "turn" | "dot" | "neck";
 
 /** 标题大纲飞行器：位移（grill §3.8 登记值）。 */
@@ -204,7 +204,7 @@ export const SPRING_DOT: SpringPreset = Object.freeze({
   mass: 0.8,
 });
 
-/** 消息中心分段条颈部：圆角与 margin-left 两侧接缝（grill §3.8 登记值）。 */
+/** 消息中心分段条接缝：圆角与 margin-left 两侧接缝（grill §3.8 登记值）。 */
 export const SPRING_NECK: SpringPreset = Object.freeze({
   stiffness: 200,
   damping: 28,
@@ -251,7 +251,7 @@ export const MOTION_JUMP_TRANSITION: JumpTransition = Object.freeze({
  * 「要么弹簧、要么立即落位」：组件一行接入的解析助手。
  *
  * `prefersReducedMotion` 为真时返回**静止**（`MOTION_JUMP_TRANSITION`，时长 0），
- * 而不是把弹簧放慢 —— 弧线、颈部、飞行器在该偏好下都直接落位。
+ * 而不是把弹簧放慢 —— 弧线、接缝、飞行器在该偏好下都直接落位。
  * 组件里出现 `SPRING_*` 却没走这里，会被 `test/design/motion-spring-gates.test.ts` 打红。
  */
 export function resolveSpringMotion(

@@ -3,17 +3,21 @@ import { describe, expect, it } from "vitest";
 import {
   TOC_RAIL_BASE_X_PX,
   TOC_RAIL_BEND_RATIO,
+  TOC_RAIL_FIRST_ROW_CENTER_PX,
   TOC_RAIL_INDENT_PX,
-  TOC_RAIL_PAD_TOP_PX,
+  TOC_RAIL_LABEL_GAP_PX,
   TOC_RAIL_ROW_PX,
   TOC_RAIL_WIDTH_PX,
   buildTocRailNodes,
   buildTocRailPath,
   tocRailAngleAtLength,
+  tocRailLabelInsetPx,
   tocRailLengthAtY,
+  tocRailNodeX,
   tocRailPlaneRotationDeg,
   tocRailPointAtLength,
   tocRailReadFraction,
+  tocRailRowCenterPx,
 } from "~/utils/tocRail";
 
 /**
@@ -58,18 +62,21 @@ describe("buildTocRailNodes：层级定缩进，测量定 y", () => {
     expect(nodes.map((node) => node.id)).toEqual(["a", "b", "c", "d"]);
   });
 
-  it("没有测量（SSR / 首帧）时按等距兜底，保证首屏轨道不是一坨叠在一起的点", () => {
+  it("没有测量（SSR / 首帧）时按等距兜底，且兜底就落在真实行中心上", () => {
     const nodes = buildTocRailNodes(headings);
 
     expect(nodes.map((node) => node.y)).toEqual([
-      TOC_RAIL_PAD_TOP_PX,
-      TOC_RAIL_PAD_TOP_PX + TOC_RAIL_ROW_PX,
-      TOC_RAIL_PAD_TOP_PX + 2 * TOC_RAIL_ROW_PX,
+      TOC_RAIL_FIRST_ROW_CENTER_PX,
+      TOC_RAIL_FIRST_ROW_CENTER_PX + TOC_RAIL_ROW_PX,
+      TOC_RAIL_FIRST_ROW_CENTER_PX + 2 * TOC_RAIL_ROW_PX,
     ]);
   });
 
   it("测量退化（全是 0 / 不递增 / 条数对不上）时也走等距兜底", () => {
-    const fallback = [TOC_RAIL_PAD_TOP_PX, TOC_RAIL_PAD_TOP_PX + TOC_RAIL_ROW_PX];
+    const fallback = [
+      TOC_RAIL_FIRST_ROW_CENTER_PX,
+      TOC_RAIL_FIRST_ROW_CENTER_PX + TOC_RAIL_ROW_PX,
+    ];
 
     for (const rows of [
       [0, 0],
@@ -93,6 +100,42 @@ describe("buildTocRailNodes：层级定缩进，测量定 y", () => {
   it("空标题 → 空节点表（不抛异常、不造出幽灵节点）", () => {
     expect(buildTocRailNodes([], [])).toEqual([]);
     expect(buildTocRailNodes([], [12, 40])).toEqual([]);
+  });
+});
+
+describe("对齐算式：节点落在行中心，文字 = 自己的节点 + 固定间距", () => {
+  it("节点 y 就是行盒的垂直中心（不是行顶、不是行底）", () => {
+    // 行盒：高 40、行距 4 → 第一行 top=0，第二行 top=44。
+    const centers = [
+      tocRailRowCenterPx(0, 40, 0),
+      tocRailRowCenterPx(44, 40, 0),
+    ];
+
+    expect(centers).toEqual([20, 64]);
+    expect(buildTocRailNodes(headings.slice(0, 2), centers).map((node) => node.y)).toEqual(centers);
+  });
+
+  it("容器不在视口顶部时中心仍然相对容器算（减掉 origin）", () => {
+    expect(tocRailRowCenterPx(300, 40, 280)).toBe(40);
+  });
+
+  it("节点 x 只有 0/1/2 三档：5 / 19 / 33", () => {
+    expect([0, 1, 2].map(tocRailNodeX)).toEqual([5, 19, 33]);
+  });
+
+  it("文字内边距 = 自己的节点 x + 14px：任何层级间距都一样", () => {
+    for (const depth of [0, 1, 2]) {
+      expect(tocRailLabelInsetPx(depth)).toBe(tocRailNodeX(depth) + TOC_RAIL_LABEL_GAP_PX);
+      expect(tocRailLabelInsetPx(depth) - tocRailNodeX(depth)).toBe(14);
+    }
+
+    expect([0, 1, 2].map(tocRailLabelInsetPx)).toEqual([19, 33, 47]);
+  });
+
+  it("层级越深缩进越多，但间距恒定（不会越缩越远）", () => {
+    const gaps = [0, 1, 2].map((depth) => tocRailLabelInsetPx(depth) - tocRailNodeX(depth));
+
+    expect(new Set(gaps).size).toBe(1);
   });
 });
 

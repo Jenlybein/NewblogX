@@ -19,7 +19,9 @@ import { tocIndentLevel } from "~/utils/toc";
  *
  * 为什么测量退化要兜底：SSR 与首帧没有布局，`offsetTop` 全是 0。若直接把 0 当
  * 真值，轨道会缩成一个点。兜底按等距排布，让首屏就有一条完整的轨道，客户端量到
- * 真值后再改（这也是参考组件自己做的那件事）。
+ * 真值后再改（这也是参考组件自己做的那件事）。**兜底的步长与首节点 y 必须镜像真实
+ * 行盒**（行高 40 + 行距 4、中心 20）：兜底若按别的数字排，首屏那几帧就是"节点比
+ * 标题高一截"，用户看到的正是上一版的错位。
  */
 
 /** 轨道起点距 svg 左边缘的距离（px）：与参考组件的 `RAIL_X` 同口径。 */
@@ -28,17 +30,36 @@ export const TOC_RAIL_BASE_X_PX = 5;
 /** 每级标题的横向缩进（px）：节点 x = 起点 + depth × 本值，与参考组件一致。 */
 export const TOC_RAIL_INDENT_PX = 14;
 
-/** 兜底行距（px）：测量不可用时按这个间距等距排布。 */
-export const TOC_RAIL_ROW_PX = 28;
+/**
+ * 文字与它自己那个节点之间的固定间距（px）。
+ *
+ * 这个值**不随层级变**：节点已经按层级往右挪了 14px，文字的缩进必须从同一个 x
+ * 出发再加本值，两层才对得上是"一棵目录"。上一版文字另有自己的内边距，层级一深
+ * 间距就越拉越大，看起来像两列各自在漂。
+ */
+export const TOC_RAIL_LABEL_GAP_PX = 14;
+
+/** 兜底的单行盒高（px）：镜像 `.article-toc-link` 的行盒（上下 2 + 标题上下 6 + 行高 24）。 */
+export const TOC_RAIL_ROW_HEIGHT_PX = 40;
+
+/** 兜底的行距（px）：镜像 `.article-toc-link` 的 `margin-bottom`。 */
+export const TOC_RAIL_ROW_GAP_PX = 4;
+
+/** 兜底的行步长（px）：测量不可用时按这个间距等距排布。 */
+export const TOC_RAIL_ROW_PX = TOC_RAIL_ROW_HEIGHT_PX + TOC_RAIL_ROW_GAP_PX;
+
+/**
+ * 兜底的首个节点 y（px）：第一行行盒的一半，也就是那一行的**垂直中心**。
+ *
+ * 用中心而不是行顶：轨道上的点永远对齐"这一行文字的正中"，不该贴行顶或行底。
+ */
+export const TOC_RAIL_FIRST_ROW_CENTER_PX = TOC_RAIL_ROW_HEIGHT_PX / 2;
 
 /**
  * 折点位置（占相邻两节点纵向跨度的比例）：0.3 表示上折点在 30%、下折点在 70%，
  * 中间 40% 留给斜线过渡。取值与参考组件的"30% 处放两个折点"一致。
  */
 export const TOC_RAIL_BEND_RATIO = 0.3;
-
-/** 轨道顶部留白（px）。 */
-export const TOC_RAIL_PAD_TOP_PX = 12;
 
 /** 轨道底部留白（px）：最后一个节点下方还要能放下飞机机尾。 */
 export const TOC_RAIL_PAD_BOTTOM_PX = 16;
@@ -103,6 +124,37 @@ function round(value: number): number {
 }
 
 /**
+ * 某一层的节点横坐标（px）。
+ *
+ * 缩进只有 0/1/2 三档（`tocIndentLevel`），所以这里是一张只有三个取值的表：
+ * 5 / 19 / 33。文字的内边距由 `tocRailLabelInsetPx` 从同一个式子派生。
+ */
+export function tocRailNodeX(depth: number): number {
+  return TOC_RAIL_BASE_X_PX + depth * TOC_RAIL_INDENT_PX;
+}
+
+/**
+ * 某一层文字的左内边距（px）：**节点 x + 固定间距**。
+ *
+ * 这是"文字与自己的节点保持约 14px"的唯一出处：任何层级都从自己的节点出发加同一个
+ * 间距，所以层级之间的间距不会漂。组件把结果直接写进 `padding-left`，CSS 里不再另
+ * 写一套缩进 —— 两套数字并存正是上一版看起来"整体右移"的来源。
+ */
+export function tocRailLabelInsetPx(depth: number): number {
+  return tocRailNodeX(depth) + TOC_RAIL_LABEL_GAP_PX;
+}
+
+/**
+ * 一行的垂直中心（相对轨道容器顶部，px）。
+ *
+ * 节点必须落在**行中心**：行顶会让整条轨道比文字高一截，行底则低一截。
+ * 组件量到的行盒（`top` 与 `height`）经这里换算，测试也直接钉这个算式。
+ */
+export function tocRailRowCenterPx(rowTop: number, rowHeight: number, originTop: number): number {
+  return rowTop - originTop + rowHeight / 2;
+}
+
+/**
  * 测量值是否可信：条数对得上、全是有限非负数、且严格递增。
  *
  * 不递增意味着"两个标题中心重合"——那会把折线画成回头的竖线，比等距兜底更糟。
@@ -141,8 +193,10 @@ export function buildTocRailNodes(
     return {
       id: heading.id,
       depth,
-      x: TOC_RAIL_BASE_X_PX + depth * TOC_RAIL_INDENT_PX,
-      y: usable ? (rows[index] as number) : TOC_RAIL_PAD_TOP_PX + index * TOC_RAIL_ROW_PX,
+      x: tocRailNodeX(depth),
+      y: usable
+        ? (rows[index] as number)
+        : TOC_RAIL_FIRST_ROW_CENTER_PX + index * TOC_RAIL_ROW_PX,
     };
   });
 }

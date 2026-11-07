@@ -360,6 +360,12 @@ const (
 	CodeAIProviderMissing   Code = "ai.provider_missing"
 	CodeAIVendorUnsupported Code = "ai.vendor_unsupported"
 	CodeAIProviderInvalid   Code = "ai.provider_invalid"
+
+	// CodeAIPolicySkillMissing 是「场景配置引用了读不到的运行时策略 skill」。
+	//
+	// 它属于服务异常而不是参数错误：出问题的是部署/配置，不是这次请求的入参。
+	// 这里必须明确失败 —— 静默退化成空口径回答等于让用户先发现（ADR-0033）。
+	CodeAIPolicySkillMissing Code = "ai.policy_skill_missing"
 )
 
 // 通用工具与基础设施。
@@ -628,9 +634,10 @@ var messages = map[Code]string{
 	CodeAIChoicesEmpty:   "AI响应无有效Choices数据",
 	CodeAIReplyEmpty:     "AI回复内容为空",
 
-	CodeAIProviderMissing:   "还没有启用的模型配置",
-	CodeAIVendorUnsupported: "不支持的模型供应商",
-	CodeAIProviderInvalid:   "模型配置不完整",
+	CodeAIProviderMissing:    "还没有启用的模型配置",
+	CodeAIVendorUnsupported:  "不支持的模型供应商",
+	CodeAIProviderInvalid:    "模型配置不完整",
+	CodeAIPolicySkillMissing: "AI 场景配置引用的运行时策略文本缺失",
 
 	CodeCommonInvalidOrder:    "排序字段错误",
 	CodeCommonInvalidArgument: "参数不合法",

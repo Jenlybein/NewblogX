@@ -277,6 +277,7 @@ var serviceFallbackCodes = []apperr.Code{
 	apperr.CodeAIProviderMissing,
 	apperr.CodeAIVendorUnsupported,
 	apperr.CodeAIProviderInvalid,
+	apperr.CodeAIPolicySkillMissing,
 
 	// 通用工具与基础设施。
 	apperr.CodeCommonServiceFailed,

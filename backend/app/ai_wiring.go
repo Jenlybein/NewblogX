@@ -2,6 +2,7 @@ package app
 
 import (
 	"context"
+	"fmt"
 
 	"myblogx/conf"
 	"myblogx/internal/ai"
@@ -14,6 +15,7 @@ import (
 	"myblogx/internal/platform/llm"
 	"myblogx/internal/platform/log/writer"
 	redis_service "myblogx/internal/platform/redis"
+	"myblogx/internal/platform/skills"
 	searchredis "myblogx/internal/search/adapter/redis"
 	searchapp "myblogx/internal/search/app"
 	searchdomain "myblogx/internal/search/domain"
@@ -66,7 +68,8 @@ func WireAI(infra *Infra) {
 			return cfg
 		},
 		infra.Logger,
-	).WithRawLogger(infra.Logger)
+	).WithRawLogger(infra.Logger).
+		WithSceneSkills(sceneSkillCatalog{catalog: infra.Skills})
 
 	aiService = svc
 	router.SetAIHandler(aihttp.NewHandler(svc, providers))
@@ -90,6 +93,12 @@ func installCallReporter(infra *Infra) {
 			}
 			errMessage = res.Err.Error()
 		}
+		// 策略文本版本进 extra_json，而不是加列：ai_call_logs 的列是 ClickHouse
+		// 里写死的，版本是"这次调用用了哪份口径"的附加事实，零 DDL 也能落。
+		var extra map[string]string
+		if res.Meta.PromptVersion != "" {
+			extra = map[string]string{"prompt_version": res.Meta.PromptVersion}
+		}
 		writer.EmitAICallLog(infra.LogOptions, writer.AICallLogInput{
 			Scene:            res.Meta.Scene,
 			Vendor:           res.Usage.Vendor,
@@ -109,8 +118,39 @@ func installCallReporter(infra *Infra) {
 			TraceID:          res.Meta.TraceID,
 			ErrorCode:        errCode,
 			ErrorMessage:     errMessage,
+			Extra:            extra,
 		})
 	})
+}
+
+// sceneSkillCatalog 把平台层 skill 目录适配成 AI 用例层的读取端口。
+//
+// 适配放在装配层：internal/ai 的用例只知道"要一段策略文本与版本"，
+// 不知道它是从磁盘哪个目录读的；skills 加载器也不 import 任何业务包（ADR-0033）。
+type sceneSkillCatalog struct {
+	catalog *skills.Catalog
+}
+
+var _ domain.SceneSkillReader = sceneSkillCatalog{}
+
+// ReadSceneSkill 读一份 skill 的正文与版本。
+//
+// 正文按需读盘（加载器只驻留目录层），所以运营替换 SKILL.md 后下一次调用
+// 立刻用新文本；版本取加载时算出的字节哈希，随调用记录落进 extra_json。
+func (r sceneSkillCatalog) ReadSceneSkill(name string) (domain.SceneSkill, error) {
+	if r.catalog == nil {
+		return domain.SceneSkill{}, apperr.New(apperr.CodeAIPolicySkillMissing)
+	}
+	skill, ok := r.catalog.Get(name)
+	if !ok {
+		return domain.SceneSkill{}, apperr.Wrap(
+			apperr.CodeAIPolicySkillMissing, fmt.Errorf("skills 目录里没有名为 %q 的 skill", name))
+	}
+	body, err := skill.Body()
+	if err != nil {
+		return domain.SceneSkill{}, apperr.Wrap(apperr.CodeAIPolicySkillMissing, err)
+	}
+	return domain.SceneSkill{Name: skill.Name(), Body: body, Version: skill.Hash()}, nil
 }
 
 // aiSearcher 把 search 模块的用例适配成 AI 模块的搜索端口。

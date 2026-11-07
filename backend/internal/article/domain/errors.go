@@ -42,6 +42,6 @@ var (
 	// ErrSubmitQuotaExceeded 「投稿配额」用完：当天已提交的次数达到上限。
 	//
 	// 与 ErrForbidden / ErrPublishDisabledBySite 分开：那两个要用户改账号或找管理员，
-	// 这个只需要等到明天（配额按自然日重置，ADR-0034）。
+	// 这个只需要等到明天（配额按自然日重置，ADR-0031）。
 	ErrSubmitQuotaExceeded = apperr.New(apperr.CodeArticleSubmitQuotaExceeded)
 )

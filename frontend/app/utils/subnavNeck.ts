@@ -15,6 +15,8 @@ import { resolveSpringMotion, SPRING_NECK, type SpringOrJumpTransition } from "~
  *   填充，渐变两端分别取左右相邻段的填充色。
  *   圆角只在**敞口**的一侧给：张开的接缝旁与控件两端是圆的，闭合接缝旁必须是 0，
  *   否则相邻两段的圆角会在贴合处啃出四个缺口，整条就读成"五个胶囊"而不是"一条"。
+ *   颈部上下各内缩一个圆角半径（`NECK_END_INSET_PX`）：两端只落在段边的直线段上，
+ *   于是圆角完整保留、圆弧与颈部之间也不会空出月牙形的页底色。
  *   闭合接缝的段位重叠 1px：贴合不留发丝缝（浏览器亚像素取整会在 0 间隙处漏一道白线）。
  */
 
@@ -43,12 +45,12 @@ export const NECK_SEPARATION_PX = 20;
 export const NECK_NOMINAL_SPAN = 100;
 
 /**
- * 收腰后的最薄处（标称单位，相对 `NECK_NOMINAL_SPAN`）：段高的 28%。
+ * 收腰后的最薄处（标称单位，相对**颈部自己的高度**）：55%。
  *
- * 颈部两端与段边齐平（满高），中间收成一条细腰 —— 端点是"被两段拉住"的锚点，
- * 腰是"被拉长"的证据。再细会读成断裂，再粗就没有张力。
+ * 颈部的端点是"被两段拉住"的锚点、正中是"被拉长"的证据；55% 还能看出收腰，
+ * 再细会读成断线。
  */
-export const NECK_WAIST = 28;
+export const NECK_WAIST = 55;
 
 /**
  * 段的敞口圆角（px）：圆角阶梯的 `--radius-md`（field 档）。
@@ -56,6 +58,18 @@ export const NECK_WAIST = 28;
  * 只给张开的接缝一侧与控件两端；闭合接缝一侧恒为 0（见文件头的"为什么要分侧"）。
  */
 export const NECK_CORNER_PX = 14;
+
+/**
+ * 颈部上下各内缩多少（px）：**等于段的敞口圆角**（`--radius-md`）。
+ *
+ * 为什么必须内缩到圆角的切线以内：段在接缝侧是圆角，圆角的**直线段**只从 y = r 开始。
+ * 颈部端面如果按"满高"顶到条带的上下沿，端面就落在圆弧**外面**，圆弧与端面之间必然
+ * 空出一个月牙形的页底色（深墨块旁边就是那块浅色"楔形"）。两种修法只能二选一：
+ *   - 把月牙填掉 ⇒ 填色与块同色，圆弧被抹平，块成了方角矩形；
+ *   - 让颈部端面收在切线以内 ⇒ 圆弧完整保留，月牙根本不会产生。
+ * 这里选后者：颈部两端落在段边的**直线段**上，两端仍是颈部最厚处、正中收腰。
+ */
+export const NECK_END_INSET_PX = NECK_CORNER_PX;
 
 /** 颈部的 viewBox：横向也按标称值，实际宽度由 --neck-gap 拉伸（x 比例跟着间隙走）。 */
 export const NECK_VIEW_BOX = `0 0 ${NECK_NOMINAL_SPAN} ${NECK_NOMINAL_SPAN}`;
@@ -85,12 +99,6 @@ export interface NeckSegmentMotion extends Record<string, string> {
   "--neck-gap": string;
 }
 
-/** 一段两侧要不要"肩"（见 `neckShoulderSides`）。 */
-export interface NeckShoulders {
-  left: boolean;
-  right: boolean;
-}
-
 /** 颈部渐变的两个端点（语义 token 名，不是色值）。 */
 export interface NeckGradientStops {
   from: string;
@@ -107,7 +115,9 @@ function cssNumber(value: number): number {
  * 一段颈部的 SVG 路径（`d`）：两条凹曲线夹出的腰形，闭合。
  *
  * 坐标系：宽高都是标称值（`span`），原点在左端上沿。上边界从 (0,0) 经中点控制点压到
- * 中部再抬回 (span,0)，下边界镜像 —— 于是**两端满高、正中收腰**，像被两段拉住的液体。
+ * 中部再抬回 (span,0)，下边界镜像 —— 于是**两端是颈部自己的满高、正中收腰**，像被两段
+ * 拉住的液体。"满高"指颈部这条带子自己被拉满（带子上下沿 = 内缩后的段边直线段端点），
+ * 不是条带的上下沿 —— 见 `NECK_END_INSET_PX` 里为什么必须内缩。
  * 真实宽高由 CSS 拉伸（`preserveAspectRatio="none"`），路径本身不掺像素。
  *
  * **纯函数**：`waist` 不在 (0, span) 开区间内、`span` 非正或非有限数时返回空串 ——
@@ -186,35 +196,6 @@ export function neckSegmentMotion(
     borderBottomRightRadius: `${right}px`,
     borderBottomLeftRadius: `${left}px`,
     "--neck-gap": `${gap}px`,
-  };
-}
-
-/**
- * 激活段两侧要不要挂"肩"（用本段自己的底色把圆角缺角填平的补片）。
- *
- * 为什么需要：颈部是"两端满高"的，它的端面正好落在段边线上；而段在接缝侧是圆角，
- * 圆角缺角在段边线的**里侧**（颈部够不到），于是页底色从颈部端面与圆弧之间漏出来，
- * 在深墨块旁边就是一块浅色楔形 —— 看起来像颈部渐变从圆角处漏了。把缺角用**本段自己**
- * 的底色填平，两块就并成一个轮廓（液体并成一团），漏色消失；这也正是"圆角与颈部的
- * 相交处被激活块本身盖住"。
- *
- * 只给激活段：缺角真正刺眼是因为它挨着深墨面（浅色楔形），未激活段的缺角与底色只差
- * 一点点（纸面对轨道面），填不填看不出来；而填了会削掉未激活段朝向接缝那一侧的圆角，
- * 让整条读成"被切过的条"。所以"肩"只跟着激活块走，控件两端（没有接缝的那一侧）永远
- * 不填 —— 那里的圆角就是控件自己的圆角。
- */
-export function neckShoulderSides(
-  index: number,
-  activeIndex: number,
-  count: number,
-): NeckShoulders {
-  const isActive = Number.isFinite(index) && index === activeIndex;
-  const hasLeftSeam = index > 0 && index < count;
-  const hasRightSeam = index >= 0 && index < count - 1;
-
-  return {
-    left: isActive && hasLeftSeam && isNeckSeamOpen(index, activeIndex),
-    right: isActive && hasRightSeam && isNeckSeamOpen(index + 1, activeIndex),
   };
 }
 

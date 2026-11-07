@@ -70,15 +70,13 @@ describe("消息中心：视觉规则（CSS 源码判据）", () => {
     );
   });
 
-  it("肩：用本段自己的底色把敞口接缝一侧的圆角缺角填平（返工点）", () => {
-    const shoulder = blockAfter(tailwindCss, ".message-center-tab__shoulder {");
+  it("颈部端面内缩一个圆角半径：圆弧保留、圆角与颈部之间不漏月牙", () => {
+    const neck = blockAfter(tailwindCss, ".message-center-tab__neck {");
 
-    // 颈部只长在接缝里、够不到圆角缺角；缺角不填，页底色就会在深墨块旁边露成浅色楔形。
-    expect(shoulder).toContain("background: inherit");
-    expect(shoulder).toContain("width: var(--radius-md)");
-    expect(shoulder).toContain("pointer-events-none");
-    expect(blockAfter(tailwindCss, '.message-center-tab__shoulder[data-side="left"] {')).toContain("left: 0");
-    expect(blockAfter(tailwindCss, '.message-center-tab__shoulder[data-side="right"] {')).toContain("right: 0");
+    // 段的圆角让段边只剩中间一段是直线；端面顶到条带上下沿就会压在圆弧外面，
+    // 圆弧与端面之间必然空出月牙形页底色（深墨块旁边那块浅色楔形）。
+    expect(neck).toContain("top: var(--neck-inset");
+    expect(neck).toContain("bottom: var(--neck-inset");
   });
 
   it("分段条是裸轨道：容器不再带边框 / 内边距 / 底色（返工点）", () => {

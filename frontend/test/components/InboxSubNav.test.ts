@@ -7,6 +7,7 @@ import { messageCenterNavItems } from "~/utils/messageCenter";
 import {
   NECK_CLOSED_GAP,
   NECK_CORNER_PX,
+  NECK_END_INSET_PX,
   NECK_SEPARATION_PX,
   NECK_WAIST,
   neckPath,
@@ -318,43 +319,18 @@ describe("动效：弹簧只从 motion.ts 的预设取，减少动态落位", ()
   });
 });
 
-describe("肩：用激活块自己的底色填平圆角缺角", () => {
-  /** 某子项激活时，哪些段挂着肩、挂在哪一侧。 */
-  function shouldersOf(activeTab: Tab): string[] {
-    return mountNav(activeTab)
-      .findAll(".message-center__subnav-segment")
-      .map((segment) => {
-        const sides = segment
-          .findAll(".message-center-tab__shoulder")
-          .map((shoulder) => shoulder.attributes("data-side"));
-        return sides.length > 0 ? sides.join("+") : "";
-      });
-  }
+describe("颈部端面：内缩到圆角的切线以内", () => {
+  it("容器上给出 --neck-inset（= 段圆角半径），颈部只占段边的直线段", () => {
+    const nav = mountNav("system").find(".message-center__subnav").element as HTMLElement;
 
-  it("只有激活段挂肩，且只挂在朝向接缝的那一侧", () => {
-    // 中间段激活：两侧都是敞口接缝
-    expect(shouldersOf("system")).toEqual(["", "", "left+right", "", ""]);
-    // 首段激活：左边是控件自己的圆角
-    expect(shouldersOf("comments")).toEqual(["right", "", "", "", ""]);
-    // 末段激活：右边是控件自己的圆角
-    expect(shouldersOf("chat")).toEqual(["", "", "", "", "left"]);
+    // 端面顶到条带上下沿就会压在圆弧外面 —— 圆弧与端面之间必然漏出月牙形页底色。
+    expect(nav.style.getPropertyValue("--neck-inset")).toBe(`${NECK_END_INSET_PX}px`);
   });
 
-  it("肩是纯装饰：对读屏器隐藏，也不吃指针事件", () => {
-    const shoulders = mountNav("system").findAll(".message-center-tab__shoulder");
+  it("颈部仍只挂在内部接缝上，闭合时靠 --neck-gap 收到 0", () => {
+    const wrapper = mountNav("system");
 
-    expect(shoulders).toHaveLength(2);
-    for (const shoulder of shoulders) expect(shoulder.attributes("aria-hidden")).toBe("true");
-  });
-
-  it("肩在分段容器内、链接之前：缺角由段自己的底色盖住，链接的可点区域不变", () => {
-    const active = mountNav("system").find('.message-center__subnav-segment[data-active="true"]')!;
-    const children = active.element.children;
-
-    // 顺序：左肩 / 右肩 / 颈部 / 链接
-    expect(children[0]!.className).toContain("message-center-tab__shoulder");
-    expect(children[1]!.className).toContain("message-center-tab__shoulder");
-    expect(children[2]!.className).toContain("message-center-tab__neck");
-    expect(children[3]!.className).toContain("message-center-tab");
+    expect(wrapper.findAll(".message-center-tab__neck")).toHaveLength(4);
+    expect(segmentGaps(wrapper)[3]).toBe(`${NECK_SEPARATION_PX}px`);
   });
 });

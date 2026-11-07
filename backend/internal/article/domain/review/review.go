@@ -253,4 +253,11 @@ type Repository interface {
 	ListPendingByArticle(ctx context.Context, articleID domain.ArticleID) ([]*Task, error)
 	// List 分页列出任务（status 为空表示全部）。
 	List(ctx context.Context, status *Status, offset, limit int) ([]*Task, int64, error)
+	// ListAll 列出满足状态的全部任务。
+	//
+	// 只给"按风险排序"用：风险由词表与评分实时算出、不在库里，SQL 层排不了，
+	// 所以必须先取整个筛选范围再在用例层排序。审核队列是人工处理的（规模受
+	// 审核员吞吐约束），这里不设上限；若将来队列量级变化，应先做风险快照，
+	// 而不是在这条只读路径上加截断。
+	ListAll(ctx context.Context, status *Status) ([]*Task, error)
 }

@@ -294,7 +294,7 @@ func TestListReviewTasksIncludesCurrentArticleBody(t *testing.T) {
 	repos.FakeArticles().Seed(a)
 	repos.FakeReviews().Seed(apptest.NewTaskForTest(1, a.ID(), author, review.StatusPending))
 
-	views, total, err := svc.ListReviewTasks(ctx, adminViewer(), nil, domain.Page{Limit: 10})
+	views, total, err := svc.ListReviewTasks(ctx, adminViewer(), nil, app.ReviewSortCreatedAt, domain.Page{Limit: 10})
 	if err != nil {
 		t.Fatalf("列出审核任务失败: %v", err)
 	}
@@ -312,7 +312,7 @@ func TestListReviewTasksEmptyQueueIsNotAnError(t *testing.T) {
 	svc, _, _ := newService(t)
 	ctx := context.Background()
 
-	views, total, err := svc.ListReviewTasks(ctx, adminViewer(), nil, domain.Page{})
+	views, total, err := svc.ListReviewTasks(ctx, adminViewer(), nil, app.ReviewSortCreatedAt, domain.Page{})
 	if err != nil {
 		t.Fatalf("空队列是正常读面，不应报错: %v", err)
 	}
@@ -331,7 +331,7 @@ func TestListReviewTasksToleratesMissingArticle(t *testing.T) {
 	// 只预置任务，不预置文章。
 	repos.FakeReviews().Seed(apptest.NewTaskForTest(1, ctype.NewID(404), author, review.StatusPending))
 
-	views, total, err := svc.ListReviewTasks(ctx, adminViewer(), nil, domain.Page{Limit: 10})
+	views, total, err := svc.ListReviewTasks(ctx, adminViewer(), nil, app.ReviewSortCreatedAt, domain.Page{Limit: 10})
 	if err != nil {
 		t.Fatalf("文章已删不应让队列失败: %v", err)
 	}

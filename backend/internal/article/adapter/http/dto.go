@@ -107,6 +107,8 @@ type ArticleReviewTaskListRequest struct {
 	Page   int              `form:"page"`
 	Limit  int              `form:"limit"`
 	Status ReviewTaskStatus `form:"status" binding:"omitempty,oneof=pending approved rejected canceled" enums:"pending,approved,rejected,canceled"`
+	// Sort 为空等价于 created_at：默认按提交时间升序，老投稿不会被新投稿饿死。
+	Sort ReviewTaskSort `form:"sort" binding:"omitempty,oneof=created_at risk" enums:"created_at,risk"`
 }
 
 // ArticleReviewTaskItem 审核任务项。
@@ -114,26 +116,33 @@ type ArticleReviewTaskListRequest struct {
 // content 是文章当前正文（不是提交时的快照）：审核员要在列表里直接判断，
 // 不必再跳文章页。文章已被删除时为空串。
 //
+// risk_level / risk_labels 是机审前两层（词表 + 评分派生标签）的结论，
+// 每次读取现算、不落库；没有评分记录时 risk_level 仍可能是 none，不是错误。
 // reason_code / reason 是驳回原因的**两个部分**：reason_code 是固定枚举值
 // （前端按值渲染文案，绝不按中文匹配），reason 是审核员补的那句自由文本。
 // 历史行（#308 之前、撤销）没有枚举，reason_code 为 null，reason 是整段原文——
 // 前端因此只剩"枚举 + 补充"与"只有一段话"两种情形要显示。
 type ArticleReviewTaskItem struct {
-	ID            ctype.ID         `json:"id"`
-	ArticleID     ctype.ID         `json:"article_id"`
-	AuthorID      ctype.ID         `json:"author_id"`
-	ArticleTitle  string           `json:"article_title"`
-	AuthorName    string           `json:"author_name"`
-	Content       string           `json:"content"`
-	PublishStatus ArticleStatus    `json:"publish_status"`
-	Stage         ReviewTaskStage  `json:"stage"`
-	Source        ReviewTaskSource `json:"source"`
-	Status        ReviewTaskStatus `json:"status"`
+	ID            ctype.ID          `json:"id"`
+	ArticleID     ctype.ID          `json:"article_id"`
+	AuthorID      ctype.ID          `json:"author_id"`
+	ArticleTitle  string            `json:"article_title"`
+	AuthorName    string            `json:"author_name"`
+	Content       string            `json:"content"`
+	PublishStatus ArticleStatus     `json:"publish_status"`
+	Stage         ReviewTaskStage   `json:"stage"`
+	Source        ReviewTaskSource  `json:"source"`
+	Status        ReviewTaskStatus  `json:"status"`
 	ReasonCode    *ReviewReasonCode `json:"reason_code"`
-	Reason        string           `json:"reason"`
-	CreatedAt     time.Time        `json:"created_at"`
-	ReviewedAt    *time.Time       `json:"reviewed_at"`
-	ReviewedBy    *ctype.ID        `json:"reviewed_by"`
+	Reason        string            `json:"reason"`
+	CreatedAt     time.Time         `json:"created_at"`
+	ReviewedAt    *time.Time        `json:"reviewed_at"`
+	ReviewedBy    *ctype.ID         `json:"reviewed_by"`
+	// RiskLevel 是风险等级：none / low / medium / high。
+	RiskLevel ReviewRiskLevel `json:"risk_level" enums:"none,low,medium,high"`
+	// RiskLabels 是命中的风险标签（稳定 code，前端映射中文）：
+	// block_word / watch_word / low_score / dimension_collapse / length_abnormal。
+	RiskLabels []string `json:"risk_labels"`
 }
 
 // ArticleReviewReasonItem 是一条可选的驳回原因（出站）。

@@ -76,6 +76,27 @@ type Article struct {
 	// internal/platform/config 的生效值模块里回落到默认值（那段是自由键值块，
 	// 深度合并会把老库缺的键按默认值补齐，所以加这个字段不需要数据迁移）。
 	SubmitDailyMax int `yaml:"submit_daily_max" json:"submit_daily_max"`
+
+	// Moderation 是机审前两层的高危词表（票 311 / spec #302 决策 22、27）。
+	//
+	// 词表是**运行期数据**（运营热改、不发版），"怎么判"的规则结构在
+	// internal/article/domain/moderation 里。两档的差别：阻断级命中后将来可
+	// 自动拒（本票只标红），观察级只标红、处置权交人。
+	//
+	// 缺省值只由 site_default_settings.yaml 显式给出（每个清单只有一个定义点）；
+	// 这里不写第二份字面默认值。
+	Moderation Moderation `yaml:"moderation" json:"moderation"`
+}
+
+// Moderation 是机审词表的运行期配置形状。
+//
+// 两个清单都整段替换（不做逐元素合并）：删掉一个词必须真的删掉，不能因为
+// 默认值里还留着而"删了没反应"（合并语义见 internal/platform/config/merge.go）。
+type Moderation struct {
+	// BlockWords 阻断级词表：命中即高风险；后续票里允许自动拒（本票只标红）。
+	BlockWords []string `yaml:"block_words" json:"block_words"`
+	// WatchWords 观察级词表：命中只标红，处置权在人。
+	WatchWords []string `yaml:"watch_words" json:"watch_words"`
 }
 
 type Comment struct {

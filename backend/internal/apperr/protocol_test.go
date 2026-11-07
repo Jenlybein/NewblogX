@@ -85,6 +85,9 @@ var serviceFallbackCodes = []apperr.Code{
 	apperr.CodeArticlePublishDisabled,
 	apperr.CodeArticleDraftDisabled,
 	apperr.CodeArticleReviewReasonRequired,
+	// 投稿配额用完（票 304）：不是"你传错了参数"，调用方也修不了；
+	// 它只是今天没次数了，明天自然恢复。因此按服务兜底类别，不伪装成校验失败。
+	apperr.CodeArticleSubmitQuotaExceeded,
 
 	// 分类与标签。
 	apperr.CodeTaxonomyTitleRequired,

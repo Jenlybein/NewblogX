@@ -16,6 +16,10 @@ import (
 //   - 改的是实质内容且当前已发布/审核中 → 自动重新送审（可见性变更不算）。
 func (s *Service) Update(ctx context.Context, cmd UpdateArticleCmd) (*UpdateResult, error) {
 	var result *UpdateResult
+	// 投稿配额的预占点在这里而不是事务之前：这次更新到底会不会"提交"，
+	// 要读到文章当前状态才知道（草稿提交 vs 已发布文章编辑后自动送审）。
+	// 失败时在函数末尾归还（票 304 / ADR-0030）。
+	var reservation SubmitQuotaReservation
 
 	err := s.tx.WithinTx(ctx, func(ctx context.Context, r Repos) error {
 		a, err := r.Articles().Find(ctx, cmd.ArticleID)
@@ -99,6 +103,14 @@ func (s *Service) Update(ctx context.Context, cmd UpdateArticleCmd) (*UpdateResu
 		case idempotentSubmit:
 			// 什么都不做：文章已经是发布态，内容由 ApplyEdit 写过了。
 		case explicitSubmit || autoResubmit:
+			// 每次提交动作占一次当日额度（ADR-0030）：显式提交与"编辑已发布文章
+			// 触发的自动重新送审"都会真的产生一条审核任务，因此都计。
+			// 幂等提交（已发布 + 跳过审核）走上面的分支，不占额度。
+			res, err := s.reserveSubmitQuota(ctx, cmd.Actor)
+			if err != nil {
+				return err
+			}
+			reservation = res
 			if err := a.Submit(now, cmd.SkipExamining); err != nil {
 				return err
 			}
@@ -141,6 +153,8 @@ func (s *Service) Update(ctx context.Context, cmd UpdateArticleCmd) (*UpdateResu
 	})
 
 	if err != nil {
+		// 提交因系统故障失败：归还额度（票 304 验收标准）。
+		s.releaseSubmitQuota(ctx, reservation)
 		return nil, err
 	}
 	return result, nil

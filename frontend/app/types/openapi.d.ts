@@ -7852,6 +7852,18 @@ export interface components {
             show_non_admin_articles?: boolean;
             /** @description 免审核 */
             skip_examining?: boolean;
+            /**
+             * @description SubmitDailyMax 是「投稿配额」的每日上限：每个普通用户每自然日可提交多少次
+             *     （ADR-0030，spec #302 决策 19）。管理员豁免是代码里的固定规则，不在这里配。
+             *
+             *     计量单位是**提交动作**而不是"发布成功的文章"：被打回也算一次，因为每次提交
+             *     都会真实产生一次审核任务；因系统不可用而失败的提交由用例层释放预占，不占额度。
+             *
+             *     缺省值由 site_default_settings.yaml 显式写成 15；越界 / 0 / 负数在
+             *     internal/platform/config 的生效值模块里回落到默认值（那段是自由键值块，
+             *     深度合并会把老库缺的键按默认值补齐，所以加这个字段不需要数据迁移）。
+             */
+            submit_daily_max?: number;
         };
         "myblogx_conf_site.Chat": {
             /** @description 自然日内允许的最大条数 */

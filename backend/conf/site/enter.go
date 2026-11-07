@@ -65,6 +65,17 @@ type Article struct {
 	AllowNonAdminPublish bool `yaml:"allow_non_admin_publish" json:"allow_non_admin_publish"` // 允许非管理员发布文章
 	AllowNonAdminDraft   bool `yaml:"allow_non_admin_draft" json:"allow_non_admin_draft"`     // 允许非管理员创建草稿
 	ShowNonAdminArticles bool `yaml:"show_non_admin_articles" json:"show_non_admin_articles"` // 显示非管理员发布的文章
+
+	// SubmitDailyMax 是「投稿配额」的每日上限：每个普通用户每自然日可提交多少次
+	// （ADR-0030，spec #302 决策 19）。管理员豁免是代码里的固定规则，不在这里配。
+	//
+	// 计量单位是**提交动作**而不是"发布成功的文章"：被打回也算一次，因为每次提交
+	// 都会真实产生一次审核任务；因系统不可用而失败的提交由用例层释放预占，不占额度。
+	//
+	// 缺省值由 site_default_settings.yaml 显式写成 15；越界 / 0 / 负数在
+	// internal/platform/config 的生效值模块里回落到默认值（那段是自由键值块，
+	// 深度合并会把老库缺的键按默认值补齐，所以加这个字段不需要数据迁移）。
+	SubmitDailyMax int `yaml:"submit_daily_max" json:"submit_daily_max"`
 }
 
 type Comment struct {

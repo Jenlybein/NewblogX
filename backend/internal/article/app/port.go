@@ -146,6 +146,27 @@ type Event struct {
 	AggregateType string
 }
 
+// SubmitQuotaPort 是「投稿配额」端口（票 304 / ADR-0030）。
+//
+// 由使用方（本包）定义、装配层接 Redis 适配器；形状对齐私信发送限流的预占 / 释放
+// （domain.Limiter）：一个 Reserve 方法 + 一份可释放的预占，不引入"查询剩余额度"
+// 这类读方法——额度只在提交那一刻被判定，其他地方要显示剩余量应当另开只读端口。
+type SubmitQuotaPort interface {
+	// Reserve 预占一次当日的投稿额度。
+	//
+	// 额度用完返回 domain.ErrSubmitQuotaExceeded；其余错误视为系统故障
+	// （失败关闭：不放行提交）。成功时调用方在提交失败后必须 Release。
+	Reserve(ctx context.Context, userID domain.UserID) (SubmitQuotaReservation, error)
+}
+
+// SubmitQuotaReservation 是一次已占用的投稿额度。
+//
+// Release 必须幂等：调用点常写成"显式归还 + defer 兜底"，重复归还会把
+// 当日额度凭空放大。
+type SubmitQuotaReservation interface {
+	Release(ctx context.Context) error
+}
+
 // Clock 是可注入时钟。domain 不取时间，时间由用例层传入。
 type Clock interface {
 	Now() time.Time
@@ -182,9 +203,15 @@ type Service struct {
 	tx    TxManager
 	clock Clock
 	ids   IDGen
+	// quota 是投稿配额端口（票 304）。为 nil 表示"不设上限"——只有测试装配会这样；
+	// 生产装配在 backend/app/article_wiring.go 里必然注入 Redis 适配器，
+	// 而适配器在 Redis 不可用时返回错误（失败关闭，不放行提交）。
+	quota SubmitQuotaPort
 }
 
 // New 构造用例服务。
-func New(tx TxManager, clock Clock, ids IDGen) *Service {
-	return &Service{tx: tx, clock: clock, ids: ids}
+//
+// quota 为 nil 时提交路径不设上限（测试用）；生产装配必须给出（见 article_wiring.go）。
+func New(tx TxManager, clock Clock, ids IDGen, quota SubmitQuotaPort) *Service {
+	return &Service{tx: tx, clock: clock, ids: ids, quota: quota}
 }

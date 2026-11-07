@@ -443,7 +443,7 @@ _Avoid_: 再造一张"暗色专用 Logo"——`logo-512-white.png` 是无 alpha 
 **动效档位（motion tier）**：
 动效预算的分级名字，现行是**档位 C**：三档时长 120 / 200 / 320ms + 单一缓动 + stagger 40ms，允许全站区块级滚动进场（位移 ≤12px）、视差 ≤10px、导航随滚动转玻璃；正文段落不进场，且强制尊重 `prefers-reduced-motion`。
 位置：`tokens.css` 动效层与 `frontend/app/utils/motion.ts`（同一份预算，两处必须同改）。
-档位 C 在 **JS 侧另有第二套预算**：`utils/motion.ts` 的「弹簧预设」，目前只有三处消费者（标题大纲飞行器、目录树沟槽圆点、消息中心颈部），是登记过的例外；CSS 侧仍只用三档时长 + 单一缓动。登记见 [ADR-0012 后续修订（2026-11-07）](./docs/adr/0012-neutral-glass-visual-system.md)。
+档位 C 在 **JS 侧另有第二套预算**：`utils/motion.ts` 的「弹簧预设」，目前只有三处消费者（标题大纲飞行器、目录树沟槽圆点、消息中心接缝位移），是登记过的例外；CSS 侧仍只用三档时长 + 单一缓动。登记见 [ADR-0012 后续修订（2026-11-07）](./docs/adr/0012-neutral-glass-visual-system.md)。
 _Avoid_: 用"档位 B"描述现状；在 `prefers-reduced-motion` 下仍保留进场（弹簧在该偏好下必须落位为静止，不是放慢）；在组件里内联弹簧数字。
 
 **合集/项目文件夹卡（folder card）**：
@@ -456,10 +456,10 @@ _Avoid_: 叫它"3D 卡片"（它是文件夹，不是可翻转卡片）；说"�
 位置：`frontend/app/components/outline/OutlineTree.vue`（文档树本身），驱动见 `frontend/app/utils/motion.ts` 的弹簧预设。
 _Avoid_: 叫"指示器""小圆点"（压线是它的定义，不是装饰）；把它当成悬停反馈或滚动进度。
 
-**颈部（neck）**：
-消息中心 tab 条的一体化分段控制里，激活块与相邻块被拉开时生成的**凹曲连接面**（两端线性渐变分别取左右两块的填充色），让分段在分离的瞬间仍连着；两张相邻段之间的"空隙"由它填住。
-位置：`frontend/app/components/inbox/InboxSubNav.vue` + `frontend/app/utils/motion.ts`（弹簧预设）；`margin-left` 是该条唯一允许布局动画的地方。
-_Avoid_: 叫"连接线""描边"（它是面不是线）；用它指代两段之间的空隙本身。
+**接缝（seam）**：
+消息中心 tab 条的一体化分段控制里，激活块与相邻块之间被拉开的那道**间隙**。张开量由弹簧驱动，`margin-left` 是该条唯一允许布局动画的地方；激活块两侧（敞口侧）给圆角，闭合接缝侧为 0，免得贴着时啃出缺口。
+位置：`frontend/app/components/inbox/InboxSubNav.vue` + `frontend/app/utils/subnavNeck.ts`（`seam*` 几何）；弹簧预设见 `frontend/app/utils/motion.ts` 的 `SPRING_NECK`。
+_Avoid_: 叫「颈部」——参考组件里那条「凹曲连接面 + 渐变」的颈部已在 2026-11-07 返工时被明确**去掉**：激活块现在是独立的圆角块，接缝里不画任何连接形状。也不要用它指代激活块本身。
 
 **弹簧预设（spring preset）**：
 `utils/motion.ts` 里集中定义的 stiffness / damping / mass 参数组，是弹簧动效的唯一来源；组件只能引用预设，不得内联数字。它与「动效档位」并列，是后者在 JS 侧的第二套预算，不是替代。

@@ -170,3 +170,16 @@ ADR-0010 在 2026-10-30 落地（ticket #1–#13 已合并），取向是"图纸
 - 玻璃例外落点：合集/项目列表页共用的文件夹卡组件（新建），消费方 [frontend/app/pages/collections/index.vue](../../frontend/app/pages/collections/index.vue) 与 [frontend/app/pages/projects/index.vue](../../frontend/app/pages/projects/index.vue)
 - 现有门禁与测试：[frontend/test/design/motion-foundation.test.ts](../../frontend/test/design/motion-foundation.test.ts) · [frontend/test/design/reduced-motion.test.ts](../../frontend/test/design/reduced-motion.test.ts) · [scripts/check-design-tokens.mjs](../../scripts/check-design-tokens.mjs)
 
+## 后续修订（2026-11-07 返工：按参考对齐四处视觉）
+
+上表（同日早先那轮）登记的三处例外**继续生效**，但落点有变化，原因记在这里，免得下一个人按旧描述去找一个不存在的形状。
+
+| 事项 | 早先那轮（同日） | 返工后（现行） |
+| --- | --- | --- |
+| 消息中心 tab 条的连接形状 | 接缝处画「颈部」：两条凹曲线 + 线性渐变 | **颈部整个删除**。用户明确要求去掉「与两边连接的样式」：激活块是独立圆角块，接缝里不画任何形状。`neckPath` / `neckGradientStops` / `FILL_ACTIVE` / `FILL_IDLE` / `NECK_VIEW_BOX` / `NECK_WAIST` / `NECK_NOMINAL_SPAN` 均已删除，`--neck-gap` 改名 `--seam-gap` |
+| 约束 9 的布局动画例外 | 「tab 颈部允许 `margin-left` 变化」 | 例外**依然成立**，只是主体从"颈部"变成"接缝位移"：张开量仍由 `SPRING_NECK` 驱动 `margin-left`，仍是 ≤5 个节点的小子树、仍是全站唯一允许的布局动画。参考里 `SPRING_NECK` 因此**不退役** |
+| 右栏标题大纲的当前项 | `.article-toc-link.is-active` 带一条 `border-left` 竖条 | **竖条去掉**：轨道是那一列唯一的视觉元素，当前项只靠加粗 + `--color-ink` 表达。节点对齐到行中心，文字固定离节点 14px |
+| 合集/项目文件夹卡 | 参考比例的 321×270 舞台，封面占 65% | 用户要求「文件夹只比封面宽一点点」：舞台压到 **321×221**，封面占 **88%**，前盖从"整张前脸"收成一道前唇；卡片列宽收到 `16–18rem`、卡间距放大 |
+
+**已知代价（更新）**：接缝位移每帧仍触发该行重排（范围不变，5 个节点）；文件夹 flap 的玻璃层与 24 张卡片同屏的掉帧风险不变；弧线仍用正弦近似。
+

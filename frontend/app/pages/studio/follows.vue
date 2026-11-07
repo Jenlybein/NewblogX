@@ -45,6 +45,7 @@ function nextPage() {
 useSeoMeta({
   title: "个人中心 - 关注",
 });
+useNoIndexPage();
 </script>
 
 <template>

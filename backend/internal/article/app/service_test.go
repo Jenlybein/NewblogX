@@ -459,7 +459,8 @@ func TestExamineReject(t *testing.T) {
 	repos.FakeReviews().Seed(apptest.NewTaskForTest(1, a.ID(), author, review.StatusPending))
 
 	got, err := svc.Examine(ctx, app.ExamineCmd{
-		Actor: adminViewer(), ArticleID: ctype.NewID(1), Approve: false, Reason: "内容不完整",
+		Actor: adminViewer(), ArticleID: ctype.NewID(1), Approve: false,
+		ReasonCode: review.ReasonIncomplete, ReasonNote: "缺示例代码",
 	})
 	if err != nil {
 		t.Fatalf("审核拒绝失败: %v", err)
@@ -468,8 +469,8 @@ func TestExamineReject(t *testing.T) {
 		t.Fatalf("应为已拒绝，实际 %s", got.Status())
 	}
 	task, _ := repos.FakeReviews().Find(ctx, 1)
-	if task.Reason() != "内容不完整" {
-		t.Fatalf("应记录拒绝原因，实际 %q", task.Reason())
+	if task.ReasonCode() != review.ReasonIncomplete || task.ReasonNote() != "缺示例代码" {
+		t.Fatalf("应记录拒绝原因的枚举与说明，实际 %q / %q", task.ReasonCode(), task.ReasonNote())
 	}
 }
 

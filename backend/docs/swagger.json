@@ -996,6 +996,9 @@
                     "reason": {
                         "type": "string"
                     },
+                    "reason_code": {
+                        "$ref": "#/components/schemas/internal_article_adapter_http.ReviewReasonCode"
+                    },
                     "status": {
                         "enum": [
                             3,
@@ -1007,6 +1010,17 @@
                 "required": [
                     "status"
                 ],
+                "type": "object"
+            },
+            "internal_article_adapter_http.ArticleReviewReasonItem": {
+                "properties": {
+                    "label": {
+                        "type": "string"
+                    },
+                    "value": {
+                        "$ref": "#/components/schemas/internal_article_adapter_http.ReviewReasonCode"
+                    }
+                },
                 "type": "object"
             },
             "internal_article_adapter_http.ArticleReviewTaskItem": {
@@ -1037,6 +1051,9 @@
                     },
                     "reason": {
                         "type": "string"
+                    },
+                    "reason_code": {
+                        "$ref": "#/components/schemas/internal_article_adapter_http.ReviewReasonCode"
                     },
                     "reviewed_at": {
                         "type": "string"
@@ -1882,6 +1899,28 @@
                     "title"
                 ],
                 "type": "object"
+            },
+            "internal_article_adapter_http.ReviewReasonCode": {
+                "enum": [
+                    "quality",
+                    "compliance",
+                    "incomplete",
+                    "format",
+                    "other",
+                    "quality",
+                    "compliance",
+                    "incomplete",
+                    "format",
+                    "other"
+                ],
+                "type": "string",
+                "x-enum-varnames": [
+                    "ReasonQuality",
+                    "ReasonCompliance",
+                    "ReasonIncomplete",
+                    "ReasonFormat",
+                    "ReasonOther"
+                ]
             },
             "internal_article_adapter_http.ReviewRiskLevel": {
                 "enum": [
@@ -3019,7 +3058,7 @@
                             },
                             "type": "array"
                         },
-                        "description": "SceneSkills 是「哪个 AI 场景用哪份运行时策略 skill」的产品接线（#310）。\n\n它属于运行期配置而不是 skill 文件：skill 要保持可移植（任何人拿走都能直接用），\n场景绑定要能临时摘掉某份 skill 而不发版（grill §5.3 / ADR-0033）。\nkey 是 AI 调用场景（internal/ai 的 Scene* 常量），value 是 skills/<name> 的名称列表；\n一个场景可以拼多份 skill，正文按顺序拼接。",
+                        "description": "SceneSkills 是「哪个 AI 场景用哪份运行时策略 skill」的产品接线（#310）。\n\n它属于运行期配置而不是 skill 文件：skill 要保持可移植（任何人拿走都能直接用），\n场景绑定要能临时摘掉某份 skill 而不发版（grill §5.3 / ADR-0030）。\nkey 是 AI 调用场景（internal/ai 的 Scene* 常量），value 是 skills/<name> 的名称列表；\n一个场景可以拼多份 skill，正文按顺序拼接。",
                         "type": "object"
                     },
                     "temperature": {
@@ -3058,7 +3097,7 @@
                             },
                             "type": "array"
                         },
-                        "description": "SceneSkills 是「哪个 AI 场景用哪份运行时策略 skill」的产品接线（#310）。\n\n它属于运行期配置而不是 skill 文件：skill 要保持可移植（任何人拿走都能直接用），\n场景绑定要能临时摘掉某份 skill 而不发版（grill §5.3 / ADR-0033）。\nkey 是 AI 调用场景（internal/ai 的 Scene* 常量），value 是 skills/<name> 的名称列表；\n一个场景可以拼多份 skill，正文按顺序拼接。",
+                        "description": "SceneSkills 是「哪个 AI 场景用哪份运行时策略 skill」的产品接线（#310）。\n\n它属于运行期配置而不是 skill 文件：skill 要保持可移植（任何人拿走都能直接用），\n场景绑定要能临时摘掉某份 skill 而不发版（grill §5.3 / ADR-0030）。\nkey 是 AI 调用场景（internal/ai 的 Scene* 常量），value 是 skills/<name> 的名称列表；\n一个场景可以拼多份 skill，正文按顺序拼接。",
                         "type": "object"
                     },
                     "temperature": {
@@ -5803,6 +5842,20 @@
                 },
                 "type": "object"
             },
+            "myblogx_internal_kernel.Envelope-myblogx_internal_kernel_ListData-internal_article_adapter_http_ArticleReviewReasonItem": {
+                "properties": {
+                    "code": {
+                        "type": "integer"
+                    },
+                    "data": {
+                        "$ref": "#/components/schemas/myblogx_internal_kernel.ListData-internal_article_adapter_http_ArticleReviewReasonItem"
+                    },
+                    "msg": {
+                        "type": "string"
+                    }
+                },
+                "type": "object"
+            },
             "myblogx_internal_kernel.Envelope-myblogx_internal_kernel_ListData-internal_article_adapter_http_ArticleTopCardResponse": {
                 "properties": {
                     "code": {
@@ -6329,6 +6382,21 @@
                     "list": {
                         "items": {
                             "$ref": "#/components/schemas/internal_article_adapter_http.ArticleHotTopCardResponse"
+                        },
+                        "type": "array",
+                        "uniqueItems": false
+                    }
+                },
+                "type": "object"
+            },
+            "myblogx_internal_kernel.ListData-internal_article_adapter_http_ArticleReviewReasonItem": {
+                "properties": {
+                    "count": {
+                        "type": "integer"
+                    },
+                    "list": {
+                        "items": {
+                            "$ref": "#/components/schemas/internal_article_adapter_http.ArticleReviewReasonItem"
                         },
                         "type": "array",
                         "uniqueItems": false
@@ -7505,6 +7573,31 @@
                     }
                 ],
                 "summary": "处理审核任务",
+                "tags": [
+                    "article"
+                ]
+            }
+        },
+        "/article-review/reasons": {
+            "get": {
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/myblogx_internal_kernel.Envelope-myblogx_internal_kernel_ListData-internal_article_adapter_http_ArticleReviewReasonItem"
+                                }
+                            }
+                        },
+                        "description": "OK"
+                    }
+                },
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "summary": "驳回原因可选值",
                 "tags": [
                     "article"
                 ]
@@ -12987,6 +13080,27 @@
                 "summary": "更新 upload 段运行时配置（管理员）",
                 "tags": [
                     "site"
+                ]
+            }
+        },
+        "/sitemap.xml": {
+            "get": {
+                "description": "只含首页与已发布且可见的文章页（sitemap 协议）",
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/xml": {
+                                "schema": {
+                                    "type": "string"
+                                }
+                            }
+                        },
+                        "description": "sitemap.xml"
+                    }
+                },
+                "summary": "站点地图",
+                "tags": [
+                    "article"
                 ]
             }
         },

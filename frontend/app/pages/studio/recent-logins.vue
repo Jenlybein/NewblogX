@@ -31,6 +31,7 @@ async function handleRevoke(id: string, isCurrent: boolean) {
 useSeoMeta({
   title: "个人中心 - 登录设备",
 });
+useNoIndexPage();
 </script>
 
 <template>

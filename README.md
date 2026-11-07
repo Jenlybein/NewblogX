@@ -692,7 +692,7 @@ go run ./cmd/server -f config/settings.yaml -es -s ensure # 只建索引/流水�
 ```
 
 > **策略文本目录**：进程启动时会读仓库根的 `skills/`（捏捏的口吻、投稿机审规则），
-> 读不到或格式不合规就**不启动**，错误里会点名具体文件（ADR-0033）。
+> 读不到或格式不合规就**不启动**，错误里会点名具体文件（ADR-0030）。
 > 你在 `backend/` 里启动，所以 `.envrc.example` 里给的是 `BLOGX_SKILLS_DIRS='../skills'`——
 > 从旧 `.envrc` 升级时补上这一条，否则第一步就会撞上"目录读不到"。
 > 改完文案先跑 `node scripts/check-skills.mjs`，它和启动时的校验是同一套规则。

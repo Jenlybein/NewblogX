@@ -70,7 +70,7 @@ func InitInfra(cfg *conf.Config, configFile string, version string) (*Infra, err
 	//
 	// 放在最前面是有意的：它不依赖数据库、也不需要任何外部服务，
 	// 排版错一个字段就能在连库之前失败，错误里直接点名是哪一份文件。
-	// 这正是"读不到就不启动"的落点 —— 不存在代码内兜底文本（ADR-0033）。
+	// 这正是"读不到就不启动"的落点 —— 不存在代码内兜底文本（ADR-0030）。
 	catalog, err := LoadSkills(cfg)
 	if err != nil {
 		return nil, err

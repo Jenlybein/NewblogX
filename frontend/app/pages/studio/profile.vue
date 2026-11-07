@@ -169,6 +169,7 @@ async function handleDelete(id: string) {
 useSeoMeta({
   title: "个人中心 - 我的文章",
 });
+useNoIndexPage();
 </script>
 
 <template>

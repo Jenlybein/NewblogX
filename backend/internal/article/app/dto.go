@@ -137,8 +137,10 @@ type ExamineCmd struct {
 	ArticleID domain.ArticleID
 	// Approve 为真表示通过，否则拒绝。
 	Approve bool
-	// Reason 拒绝原因。
-	Reason string
+	// ReasonCode 驳回原因的固定枚举值（通过时忽略）。
+	ReasonCode review.ReasonCode
+	// ReasonNote 驳回原因的可选补充说明（通过时忽略）。
+	ReasonNote string
 }
 
 // FavoriteCmd 是收藏动作的输入。

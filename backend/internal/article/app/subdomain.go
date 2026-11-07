@@ -460,13 +460,14 @@ func reviewBodies(ctx context.Context, r Repos, tasks []*review.Task) (map[domai
 // HandleReviewTask 处理某条审核任务（仅管理员）。
 //
 // 与 Examine 的区别：Examine 是按文章审核，这里是按任务审核（管理后台的队列视图）。
-// 两者最终都改文章状态，只是入口不同；"驳回必须写明原因"由同一条规则把关
+// 两者最终都改文章状态，只是入口不同；"驳回必须选一条固定原因"由同一条规则把关
 // （reviewReason），所以两个入口不会一个能空着原因通过、另一个不行。
-func (s *Service) HandleReviewTask(ctx context.Context, viewer domain.Viewer, taskID ctype.ID, approve bool, reason string) (*domain.Article, error) {
+func (s *Service) HandleReviewTask(ctx context.Context, viewer domain.Viewer, taskID ctype.ID, approve bool, code review.ReasonCode, note string) (*domain.Article, error) {
 	if !viewer.IsAdmin() {
 		return nil, domain.ErrForbidden
 	}
-	reason, err := reviewReason(approve, reason)
+	// 空串是"通过"的落库形态：通过的语义里没有驳回原因这一项。
+	reasonCode, reasonNote, err := reviewReason(approve, code, note)
 	if err != nil {
 		return nil, err
 	}
@@ -497,7 +498,7 @@ func (s *Service) HandleReviewTask(ctx context.Context, viewer domain.Viewer, ta
 			if err := a.Reject(viewer.UserID, now); err != nil {
 				return err
 			}
-			if err := task.Reject(viewer.UserID, reason, now); err != nil {
+			if err := task.Reject(viewer.UserID, reasonCode, reasonNote, now); err != nil {
 				return err
 			}
 		}

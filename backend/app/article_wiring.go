@@ -59,7 +59,7 @@ func newArticleService(infra *Infra) *articleapp.Service {
 	// 作者统计的写入逻辑归 user 模块，这里把函数交给 article 的 UoW，
 	// 由它在自己的事务里调用 —— 跨模块写仍然同事务，但不再互相 import。
 	uow := mysql.NewTxManager(infra.DB, counterOptions, usermysql.ApplyArticleDelta)
-	// 投稿配额（票 304 / ADR-0034）：普通用户每自然日可提交的次数上限。
+	// 投稿配额（票 304 / ADR-0031）：普通用户每自然日可提交的次数上限。
 	// 上限取生效值的**现读闭包**，所以后台改完下一次请求即生效；管理员豁免在
 	// 用例层判定（这里不传角色）。Redis 不可用时适配器返回错误 —— 失败关闭。
 	quota := adapterredis.NewSubmitQuota(counterOptions, infra.Effective.ArticleSubmitDailyMaxFunc())

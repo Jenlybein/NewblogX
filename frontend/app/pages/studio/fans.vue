@@ -50,6 +50,7 @@ function nextPage() {
 useSeoMeta({
   title: "个人中心 - 粉丝",
 });
+useNoIndexPage();
 </script>
 
 <template>

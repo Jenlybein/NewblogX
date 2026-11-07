@@ -25,6 +25,12 @@ func (h *Handler) Register(r *gin.RouterGroup, authMw, optionalMw gin.HandlerFun
 	reviewGroup := r.Group("article-review")
 	reviewTaskGroup := r.Group("article-review-tasks")
 
+	// 站点地图（#314）：挂在 /api 下而不是 /api/articles 下——它不是"文章详情"，
+	// 而且 /api/articles/sitemap.xml 会被 /articles/:id 抢走（:id 会拿到 "sitemap.xml"）。
+	// nginx 只把 /api/ 与 /uploads/ 转给后端，所以它必须落在这个前缀内；
+	// 前端 robots.txt 的 Sitemap: 行指向的就是这里。
+	r.GET("sitemap.xml", h.Sitemap)
+
 	authGroup := group.Group("", authMw)
 	adminGroup := authGroup.Group("", mw.AdminMiddleware)
 	reviewAdminGroup := reviewGroup.Group("", authMw, mw.AdminMiddleware)
@@ -56,6 +62,8 @@ func (h *Handler) Register(r *gin.RouterGroup, authMw, optionalMw gin.HandlerFun
 	projectGroup.GET(":id/outline-tree", mw.BindUri[kernel.IDRequest],
 		mw.BindQuery[NamedOutlineTreeRequest], h.ProjectOutlineTree)
 	reviewAdminGroup.GET("", mw.BindQuery[ArticleReviewTaskListRequest], h.ReviewTasks)
+	// 驳回原因的固定列表：值与文案都从后端唯一词表出（#308），前端据此渲染下拉。
+	reviewAdminGroup.GET("reasons", h.ReviewReasons)
 
 	// 登录用户写
 	authGroup.POST("", mw.BindJson[ArticleCreateRequest], h.Create)

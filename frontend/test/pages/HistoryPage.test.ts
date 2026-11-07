@@ -173,6 +173,9 @@ function buttonByText(wrapper: ReturnType<typeof mount>, text: string) {
 beforeEach(() => {
   vi.stubGlobal("definePageMeta", () => undefined);
   vi.stubGlobal("useSeoMeta", () => undefined);
+  // 与 definePageMeta / useSeoMeta 同理：这是 Nuxt 的自动导入，单测环境里没有
+  // 编译期注入，只能由用例桩掉。#314 起历史页声明了 noindex（useNoIndexPage）。
+  vi.stubGlobal("useNoIndexPage", () => undefined);
   service.getHistoryArticles.mockReset();
   service.deleteHistoryArticles.mockReset();
   service.clearHistoryArticles.mockReset();

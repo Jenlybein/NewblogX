@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// 运行时策略 skill 门禁（#309 / ADR-0033）。
+// 运行时策略 skill 门禁（#309 / ADR-0030）。
 //
 // 为什么需要它：`skills/` 是仓库根的 Markdown 目录，**archcheck 完全看不见**
 // （它只扫 backend/**/*.go）。不补这道门禁，"策略文本写歪了"就是一片永远绿的暗礁：
@@ -438,7 +438,7 @@ function runCli(argv) {
 
   console.error("✗ 运行时策略 skill 门禁失败");
   for (const problem of result.problems) console.error(`  ${problem.file}: ${problem.message}`);
-  console.error("  规则见 skills/README.md；读不到或不合规的 skill 会让进程启动失败（ADR-0033）。");
+  console.error("  规则见 skills/README.md；读不到或不合规的 skill 会让进程启动失败（ADR-0030）。");
   return 1;
 }
 

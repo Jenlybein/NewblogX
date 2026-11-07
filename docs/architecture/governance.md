@@ -17,11 +17,11 @@
 
 用法：`./scripts/check.sh [all|backend|frontend|gates]`。
 
-清单里 13 道仓库级门禁的命令不写在这个脚本里：清单与命令、工具版本、契约未过期判定、公共安装步骤都收在 `scripts/gates/`（见 §1.5），这里按分组调用同一个 runner。脚本里确实写着两类命令，且都是**真实实现**而不是第二份清单：清单中「只有演练节号、没有 `steps`」的 8 道门禁（后端单测、typecheck、契约类型、路由对账、admin 鉴权、菜单对账、lint、覆盖率），以及按 #287 AC4 不进清单的生成式装饰参数校验（#286）。
+清单里 14 道仓库级门禁的命令不写在这个脚本里：清单与命令、工具版本、契约未过期判定、公共安装步骤都收在 `scripts/gates/`（见 §1.5），这里按分组调用同一个 runner。脚本里确实写着两类命令，且都是**真实实现**而不是第二份清单：清单中「只有演练节号、没有 `steps`」的 8 道门禁（后端单测、typecheck、契约类型、路由对账、admin 鉴权、菜单对账、lint、覆盖率），以及按 #287 AC4 不进清单的生成式装饰参数校验（#286）。
 
 | 段 | 实际执行的命令 |
 | --- | --- |
-| 后端 | `go build ./...` → `go vet ./...` → `node scripts/gates/run.mjs --group backend`（archcheck 规则自检 + 棘轮两遍，阈值由 runner 从 `scripts/arch-baseline.env` 读出后填进命令）→ `run_integration` |
+| 后端 | `go build ./...` → `go vet ./...` → `node scripts/gates/run.mjs --group backend`（archcheck 规则自检 + 棘轮两遍，阈值由 runner 从 `scripts/arch-baseline.env` 读出后填进命令；同一分组还有运行时策略 skill 格式校验，含脚本自带的负向用例）→ `run_integration` |
 | 契约 | `node scripts/gates/run.mjs --group contract`（契约未过期判定 + 判定行为用例；与 CI 的 `contract` job、门禁自检第 5 节跨同一个实现） |
 | 集成 | `go test $race -tags integration $count_flag -timeout 25m $parallel ./...` |
 | 契约类型 | `run_contract_types`：`openapi-typescript ../backend/docs/swagger.json -o /tmp/xxx.d.ts` 再 `diff` 与 `app/types/openapi.d.ts` |
@@ -74,7 +74,7 @@
 | **`git diff` 判据会假红** | 工作区常有未提交改动，`git diff --exit-code` 会假红、人习惯性忽略；更致命的是生成器静默跳过时差异为空、检查仍绿。契约与契约类型都改成"重新生成到临时文件逐字比对"，三处（CI / 本地门禁 / 门禁自检）共用 `scripts/check-contract-freshness.mjs` 这一份判定 |
 | **门禁自检的恢复不能用 `git checkout --`** | 那会把工作区里未提交的活一起冲掉。所有临时改动用**备份副本**恢复，`trap` 只兜底 |
 
-### 1.4 门禁自检：`scripts/verify-gates.sh`（14 节演练：13 道清单门禁 + 1 道清单外校验）
+### 1.4 门禁自检：`scripts/verify-gates.sh`（14 节演练：13 个演练节覆盖清单里的 14 道门禁 + 1 道清单外校验）
 
 > 存在的意义：**证明上面所有 job 真的会失败**。如果它们只是永远绿，整套 CI 等于不存在。
 
@@ -82,7 +82,7 @@
 | --- | --- | --- |
 | 1 | 后端单测 | 注入必败测试 |
 | 2 | archcheck 棘轮 | 注入 1 处违规，阈值从 `arch-baseline.env` 读 |
-| 3 | archcheck 规则自检 | 跑通（规则测试自身即反例） |
+| 3 | archcheck 规则自检 | 跑通（规则测试自身即反例）；同一节还覆盖运行时策略 skill 门禁（#309）：`node scripts/check-skills.mjs --self-test` 自带 5 个人造违规用例 + 2 个对照用例 |
 | 4 | 前端 typecheck | 注入类型错误 |
 | 5 | 契约未过期 | 与真门禁跨同一判定：真生成跑通；注入「静默跳过但退出码 0」→ 报 `SILENT_SKIP`；注入「命令失败」→ 报 `COMMAND_FAILED`；改 `@title` 不重生成 → 报 `STALE`；写歪工具版本 → 报 `TOOL_VERSION_MISMATCH` |
 | 6 | 前端契约类型未过期 | 往 d.ts 插一行 → 必须判为过期 |
@@ -98,10 +98,10 @@
 - 第 5 道不用 `git diff` 判定的理由见 §1.3；生成工具的安装 ref 只在 `scripts/tool-versions.env` 定义一次，CI、本地门禁、门禁自检三处消费，判定还会核对已安装二进制的构建信息。
 - 第 8 道不注入的理由：要让它红必须临时摘掉某条后台路由的 `AdminMiddleware`，脚本一旦被中断就留下"后台无鉴权"。它本身已带 `TestProbeDistinguishesUnprotectedRoute` 与 `TestAdminOnlyListCoversContract` 两条对照断言。
 - 第 11 道的 canary 方式在 2026-10-31 改过：原先"往 `app/utils` 加一个 0 覆盖文件、把整体从 100% 拉到 85.7%"的假设**已过期**（admin 端 `app/utils` 增长到 12 个文件、覆盖率 99.2%，注入 3 条语句只掉到 98.08%，够不到 95 门槛 → 自检会把"门禁失效"误报出来）。现改为抬阈值到 100（与分母无关）+ 核对失败原因，另带"因工具不可用而假红"的判别。
-- 验收：**14/14 节全部正确报红**（1..13 节对应清单里的 13 道仓库级门禁，第 14 节是清单外的生成式装饰参数校验；第 5 节含 5 条断言、第 13/14 节各含多条注入，合计 **20 条 ok**；#286 让第 14 节由整节演练换成一条生成式校验，净少 1 条旧正向演练；当前脚本 1/14…14/14；CI 实测单次 2 分 35 秒，本地 Git Bash 同量级）；跑完 `git status` 与跑之前逐字节一致，无 canary 残留。
+- 验收：**14/14 节全部正确报红**（1..13 节对应清单里的 14 道仓库级门禁 —— `skills-format`（#309）与 `archcheck` 共用第 3 节，因为前者的负向用例写在它自己的 `--self-test` 里、与第 3 节是同一形状；第 14 节是清单外的生成式装饰参数校验；第 5 节含 5 条断言、第 13/14 节各含多条注入，合计 **21 条 ok**（#309 给第 3 节加了 1 条 skills-format 门禁）；#286 让第 14 节由整节演练换成一条生成式校验，净少 1 条旧正向演练；当前脚本 1/14…14/14；CI 实测单次 2 分 35 秒，本地 Git Bash 同量级）；跑完 `git status` 与跑之前逐字节一致，无 canary 残留。
 - 与门禁清单（#287）：脚本开跑前先用 `node scripts/gates/run.mjs --check-coverage` 核对「清单里的每道门禁都登记了演练；每节演练要么有门禁负责，要么**显式**登记在 `notGates`」，对不上直接退出（新门禁不会被静默漏掉；少一道门禁也不会被静默放过）；第 5 节的真门禁与四种注入、第 12/13 节的同源门禁都经 `scripts/gates/run.mjs` 调同一个入口，不在自检里另拼命令；第 14 节按 #287 AC4 不进清单，直接调 `node scripts/generate-deco-parameters.mjs --check`。
 - **不许整体跳过**：`--skip` / `--skip-all` / `BLOGX_SKIP_GATES` 一律拒绝；`--only <节号>` 只跑受影响演练（改动范围可先用 `node scripts/gates/run.mjs --affected <路径>` 算），节号必须来自清单且至少选中一项 —— 零项按失败处理，不存在「什么都没跑就算通过」。
-- 历史：自检覆盖曾经是 4 道 → 13 道 → 14 节。现在 **13 道仓库级门禁在清单**（`1`..`13` 节），**第 14 节**是按 #287 AC4 不进清单的生成式装饰参数校验 —— 它仍然要自检（"不进清单"不等于"不用证明它会红"）。
+- 历史：自检覆盖曾经是 4 道 → 13 道 → 14 节。现在 **14 道仓库级门禁在清单**（覆盖在 `1`..`13` 节，其中 `skills-format` 与 `archcheck` 共用第 3 节），**第 14 节**是按 #287 AC4 不进清单的生成式装饰参数校验 —— 它仍然要自检（"不进清单"不等于"不用证明它会红"）。
 - CI 的 `gates-canary` 曾经在 YAML 里另写一份注入逻辑、只验证 1 道 —— 两处各写一份的必然结果是"本地 13 道、CI 1 道，没人知道该信哪个"（现为本地 14 节、CI 14 节）。
 - **门禁自检的触发条件曾经只看 PR 标题**：于是"改了门禁却没人验门禁"能一路飘过去。2026-10-31 实际发生过一次：`verify-gates.sh` 第 11 节（覆盖率门槛）的注入假设已过期（admin 覆盖率与文件数增长后，注入一个零覆盖文件掉不到 95 门槛），但因为没人跑它，PR 上的 `gates canary` 显示 pass 而 step 其实被 skip —— 门禁给了它并没有提供的保障。现在补了第二条触发：**本次 PR 改到门禁自身时无条件跑**。
 
@@ -111,7 +111,7 @@
 
 | 东西 | 落点 | 说明 |
 | --- | --- | --- |
-| 门禁清单 | `scripts/gates/gates.json` | **13 道仓库级门禁各一条**：`id` / 标题 / 分组 / 执行方式（`steps` = runner 可直接跑；`section` = 真门禁由本地脚本或 CI job 执行，靠门禁自检第 N 节证明会红，`executedBy` 写明是谁在跑）/ 对应演练节号；`node scripts/gates/run.mjs --list --json` 可机读。另有 `notGates`：按 #287 AC4 不进清单的演练节号（目前只有 `14`，生成式装饰参数校验），豁免必须显式登记 |
+| 门禁清单 | `scripts/gates/gates.json` | **14 道仓库级门禁各一条**：`id` / 标题 / 分组 / 执行方式（`steps` = runner 可直接跑；`section` = 真门禁由本地脚本或 CI job 执行，靠门禁自检第 N 节证明会红，`executedBy` 写明是谁在跑）/ 对应演练节号（一门一号不是硬性要求：`skills-format` 与 `archcheck` 共用第 3 节）；`node scripts/gates/run.mjs --list --json` 可机读。另有 `notGates`：按 #287 AC4 不进清单的演练节号（目前只有 `14`，生成式装饰参数校验），豁免必须显式登记 |
 | 工具版本 | `scripts/tool-versions.env`（原有单一来源）+ `scripts/gates/tools.mjs` | 只有读它的实现，没有第二份字面版本 |
 | 契约未过期判定 | `scripts/check-contract-freshness.mjs`（#273，**未改动**） | 清单里的 `contract-freshness` 门禁就是调它；注入仍报 `SILENT_SKIP` / `COMMAND_FAILED` / `STALE` / `TOOL_VERSION_MISMATCH` |
 | 重复安装步骤 | `scripts/gates/install.mjs` | `swag` / `go-mod` / `pnpm` 三个套件；CI 每个 job 只调它 |

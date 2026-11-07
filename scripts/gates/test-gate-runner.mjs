@@ -81,6 +81,7 @@ function tempRegistry(mutate) {
       const required = [
         'backend-test',
         'archcheck',
+        'skills-format',
         'contract-freshness',
         'contract-freshness-cases',
         'frontend-typecheck',
@@ -104,23 +105,26 @@ function tempRegistry(mutate) {
       const uncovered = gates.filter(g => !Array.isArray(g.canaries) || g.canaries.length === 0);
       if (uncovered.length) bad('每道门禁都登记了对应的演练节号', coveredIds(uncovered));
       else ok('每道门禁都登记了对应的演练节号');
-      // #287 AC1/AC4/AC6：清单正好 13 道仓库级门禁 —— 14 个演练节号里 13 个由
+      // #287 AC1/AC4/AC6：清单正好 14 道仓库级门禁 —— 14 个演练节号里 13 个由
       // 清单门禁负责，第 14 个（生成式装饰参数校验）按 AC4 不进清单，必须由
       // notGates 显式豁免；既没人负责又没登记的节号照样算漏。
+      // 14 这个数字来自 #309：运行时策略 skill 门禁（skills-format）与 archcheck
+      // 共用第 3 节演练（它自带 --self-test，人造成违规用例就写在脚本里），
+      // 因此门禁多一道、演练节号不变。
       const canaryFile = JSON.parse(fs.readFileSync(path.join(ROOT, 'scripts', 'gates', 'gates.json'), 'utf8'));
       const wanted = (canaryFile.canaries || []).map(c => c.id);
       const notGates = new Set(canaryFile.notGates || []);
       const covered = new Set(gates.flatMap(g => g.canaries || []));
       const unregistered = wanted.filter(id => !covered.has(id) && !notGates.has(id));
       const bothSides = [...notGates].filter(id => covered.has(id));
-      if (gates.length !== 13 || wanted.length !== 14 || unregistered.length || bothSides.length) {
+      if (gates.length !== 14 || wanted.length !== 14 || unregistered.length || bothSides.length) {
         bad(
-          '清单正好 13 道门禁；14 个演练节号里 13 个有门禁负责、第 14 个按 notGates 显式豁免' +
+          '清单正好 14 道门禁；14 个演练节号里 13 个有门禁负责、第 14 个按 notGates 显式豁免' +
           `（门禁 ${gates.length} 道，没人负责也没豁免的演练 ${unregistered.join(',') || '无'}，` +
           `既豁免又有门禁认领的 ${bothSides.join(',') || '无'}）`,
           JSON.stringify(gates.map(g => g.id), null, 2),
         );
-      } else ok('清单正好 13 道门禁；14 个演练节号里 13 个有门禁负责、第 14 个按 notGates 显式豁免');
+      } else ok('清单正好 14 道门禁；14 个演练节号里 13 个有门禁负责、第 14 个按 notGates 显式豁免');
     }
   }
 

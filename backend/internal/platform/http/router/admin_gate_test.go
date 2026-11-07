@@ -95,6 +95,8 @@ var adminOnly = []struct {
 	// 热门置顶运营位：整表排序与全量列表（带 {id} 的设置/取消在下面"边界"之外）
 	{"PATCH", "/api/articles/hot-top/order"},
 	{"GET", "/api/articles/hot-top/admin"},
+	// 驳回原因固定列表（#308）：审核员驳回时渲染下拉，属后台接口。
+	{"GET", "/api/article-review/reasons"},
 	// 右栏卡片配置（#111）：读侧公开，管理侧读写都要求管理员。
 	{"GET", "/api/site/admin/sidebar_cards"},
 	{"PUT", "/api/site/admin/sidebar_cards"},

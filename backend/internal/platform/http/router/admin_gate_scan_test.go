@@ -47,6 +47,8 @@ import (
 // 新增后台路由时，把它加进这里，并在 adminOnly 里补一条可探测的无参数等价路由
 // （或说明为什么只能带参数）。
 var adminRouteTemplates = []string{
+	// 驳回原因的固定列表：审核员驳回时用它渲染下拉，属后台接口。
+	"GET /api/article-review/reasons",
 	// 数据看板
 	"GET /api/data/sum",
 	"GET /api/data/growth",

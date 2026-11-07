@@ -540,6 +540,42 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/article-review/reasons": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 驳回原因可选值 */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["myblogx_internal_kernel.Envelope-myblogx_internal_kernel_ListData-internal_article_adapter_http_ArticleReviewReasonItem"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/articles": {
         parameters: {
             query?: never;
@@ -6918,8 +6954,13 @@ export interface components {
         };
         "internal_article_adapter_http.ArticleReviewHandleRequest": {
             reason?: string;
+            reason_code?: components["schemas"]["internal_article_adapter_http.ReviewReasonCode"];
             /** @enum {integer} */
             status: 3 | 4;
+        };
+        "internal_article_adapter_http.ArticleReviewReasonItem": {
+            label?: string;
+            value?: components["schemas"]["internal_article_adapter_http.ReviewReasonCode"];
         };
         "internal_article_adapter_http.ArticleReviewTaskItem": {
             article_id?: string;
@@ -6931,6 +6972,7 @@ export interface components {
             id?: string;
             publish_status?: components["schemas"]["internal_article_adapter_http.ArticleStatus"];
             reason?: string;
+            reason_code?: components["schemas"]["internal_article_adapter_http.ReviewReasonCode"];
             reviewed_at?: string;
             reviewed_by?: string;
             source?: components["schemas"]["internal_article_adapter_http.ReviewTaskSource"];
@@ -7199,6 +7241,8 @@ export interface components {
             description?: string;
             title: string;
         };
+        /** @enum {string} */
+        "internal_article_adapter_http.ReviewReasonCode": "quality" | "compliance" | "incomplete" | "format" | "other" | "quality" | "compliance" | "incomplete" | "format" | "other";
         /** @enum {string} */
         "internal_article_adapter_http.ReviewTaskSource": "create" | "edit" | "resubmit";
         /** @enum {string} */
@@ -8631,6 +8675,11 @@ export interface components {
             data?: components["schemas"]["myblogx_internal_kernel.ListData-internal_article_adapter_http_ArticleHotTopCardResponse"];
             msg?: string;
         };
+        "myblogx_internal_kernel.Envelope-myblogx_internal_kernel_ListData-internal_article_adapter_http_ArticleReviewReasonItem": {
+            code?: number;
+            data?: components["schemas"]["myblogx_internal_kernel.ListData-internal_article_adapter_http_ArticleReviewReasonItem"];
+            msg?: string;
+        };
         "myblogx_internal_kernel.Envelope-myblogx_internal_kernel_ListData-internal_article_adapter_http_ArticleTopCardResponse": {
             code?: number;
             data?: components["schemas"]["myblogx_internal_kernel.ListData-internal_article_adapter_http_ArticleTopCardResponse"];
@@ -8799,6 +8848,10 @@ export interface components {
         "myblogx_internal_kernel.ListData-internal_article_adapter_http_ArticleHotTopCardResponse": {
             count?: number;
             list?: components["schemas"]["internal_article_adapter_http.ArticleHotTopCardResponse"][];
+        };
+        "myblogx_internal_kernel.ListData-internal_article_adapter_http_ArticleReviewReasonItem": {
+            count?: number;
+            list?: components["schemas"]["internal_article_adapter_http.ArticleReviewReasonItem"][];
         };
         "myblogx_internal_kernel.ListData-internal_article_adapter_http_ArticleTopCardResponse": {
             count?: number;

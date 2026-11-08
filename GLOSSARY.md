@@ -313,7 +313,7 @@ AI 真正可调用要同时满足两层：站点总闸 `ai.enable`（runtime_con
 位置：`backend/conf/`；读取点是 `internal/ai/llm.go` 的 `specFromConfig`。
 
 **CallMeta（scene）**：
-挂在 ctx 上的调用元数据（scene / user_id / request_id / trace_id），给 token 用量日志用；固定 6 个场景 `scoring / metainfo / overwrite / diagnose / search_rewrite / search_answer`。
+挂在 ctx 上的调用元数据（scene / user_id / request_id / trace_id），给 token 用量日志用；固定 7 个场景 `scoring / metainfo / overwrite / diagnose / search_rewrite / search_answer / moderation`（`moderation` 是投稿合规判定，ADR-0033）。
 位置：`internal/ai/callmeta.go`；`WithCallMeta`、`callCtx(c)`。
 
 **KindAICall / ai_call_logs**：

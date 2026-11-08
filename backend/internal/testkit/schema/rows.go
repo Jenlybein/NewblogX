@@ -772,3 +772,21 @@ type CollectionRow struct {
 
 // TableName 固定表名。
 func (CollectionRow) TableName() string { return "collection_models" }
+
+// ArticleRiskRow 对应表 article_risk_models（ADR-0033 / 票 312）。
+//
+// 一篇文章一行、随提交覆盖、不存历史。文章表与审核任务表都不加列，
+// 合规结论只能落在这张经 ADR 指名的新表上。
+type ArticleRiskRow struct {
+	BaseRow
+	ArticleID     ctype.ID  `gorm:"not null;uniqueIndex:uk_article_risk_article" json:"article_id"`
+	Verdict       string    `gorm:"type:varchar(16);not null;default:clean;index:idx_article_risk_verdict" json:"verdict"`
+	RiskLevel     uint8     `gorm:"not null;default:0" json:"risk_level"`
+	CategoriesJSON string    `gorm:"type:text" json:"categories_json"`
+	ReasonsJSON    string    `gorm:"type:text" json:"reasons_json"`
+	PromptVersion  string    `gorm:"type:varchar(64)" json:"prompt_version"`
+	ModelName      string    `gorm:"type:varchar(128)" json:"model_name"`
+	CheckedAt      *time.Time `json:"checked_at"`
+}
+
+func (ArticleRiskRow) TableName() string { return "article_risk_models" }

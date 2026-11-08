@@ -14,6 +14,7 @@ import (
 	"myblogx/internal/article/domain/outline"
 	"myblogx/internal/article/domain/project"
 	"myblogx/internal/article/domain/review"
+	"myblogx/internal/article/domain/risk"
 	"myblogx/internal/article/domain/taxonomy"
 	"myblogx/internal/article/domain/top"
 	"myblogx/internal/article/domain/viewhistory"
@@ -44,6 +45,7 @@ type Repos struct {
 	collectionRepo *CollectionRepo
 	projectRepo    *ProjectRepo
 	outlineRepo    *OutlineRepo
+	riskRepo       *RiskRepo
 }
 
 // NewRepos 构造一套全部为空的 fake 仓储。
@@ -64,6 +66,7 @@ func NewRepos() *Repos {
 		hotTopRepo:     NewHotTopRepo(),
 		historyRepo:    NewViewHistoryRepo(),
 		reviewRepo:     NewReviewRepo(),
+		riskRepo:       NewRiskRepo(),
 		authorStats:    NewAuthorStats(),
 		outbox:         NewOutbox(),
 		counters:       NewCounters(),
@@ -146,6 +149,12 @@ func (r *Repos) ViewHistory() viewhistory.Repository { return r.historyRepo }
 
 // Reviews 返回审核任务仓储。
 func (r *Repos) Reviews() review.Repository { return r.reviewRepo }
+
+// Risks 返回合规判定记录仓储（票 312 / ADR-0033）。
+func (r *Repos) Risks() risk.Repository { return r.riskRepo }
+
+// FakeRisks 返回风险记录 fake 本身（测试断言其内部状态时用）。
+func (r *Repos) FakeRisks() *RiskRepo { return r.riskRepo }
 
 // AuthorStats 返回作者统计端口。
 func (r *Repos) AuthorStats() app.AuthorStatsPort { return r.authorStats }

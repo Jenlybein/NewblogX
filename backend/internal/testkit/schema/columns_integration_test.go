@@ -66,7 +66,7 @@ func TestProjectionRowsMatchDatabase(t *testing.T) {
 
 	schema.Migrate(t, db,
 		schema.UserCore, schema.UserSession, schema.ArticleCore,
-		schema.ArticleReview, schema.Favorite, schema.UserReading,
+		schema.ArticleReview, schema.ArticleRisk, schema.Favorite, schema.UserReading,
 		schema.Comment, schema.Chat, schema.Outbox,
 		schema.ImageAssets, schema.Site, schema.Social, schema.DeadLetter,
 	)

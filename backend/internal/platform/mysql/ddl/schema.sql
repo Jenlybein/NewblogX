@@ -759,3 +759,24 @@ CREATE TABLE IF NOT EXISTS `user_view_daily_models` (
   PRIMARY KEY (`id`),
   UNIQUE KEY `uk_user_view_daily` (`user_id`,`viewer_user_id`,`view_date`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
+-- 文章合规风险记录（ADR-0033 / 票 312）。
+-- 一篇文章一行、随提交覆盖、不存历史；文章表与审核任务表都不加列（零 DDL）。
+-- 唯一允许新增表的通道：由 ADR 指名 + schema.sql 与 testkit 两处登记。
+CREATE TABLE IF NOT EXISTS `article_risk_models` (
+  `id` bigint unsigned NOT NULL,
+  `created_at` datetime(3) DEFAULT NULL,
+  `updated_at` datetime(3) DEFAULT NULL,
+  `deleted_at` datetime(3) DEFAULT NULL,
+  `article_id` bigint unsigned NOT NULL,
+  `verdict` varchar(16) NOT NULL DEFAULT 'clean',
+  `risk_level` tinyint unsigned NOT NULL DEFAULT 0,
+  `categories_json` text,
+  `reasons_json` text,
+  `prompt_version` varchar(64) DEFAULT NULL,
+  `model_name` varchar(128) DEFAULT NULL,
+  `checked_at` datetime(3) DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uk_article_risk_article` (`article_id`),
+  KEY `idx_article_risk_verdict` (`verdict`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;

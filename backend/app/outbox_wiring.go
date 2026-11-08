@@ -69,6 +69,12 @@ func registerOutboxSubscribers(relay *outboxrelay.Relay, infra *Infra) {
 	relay.On(articleapp.EventArticleCreated, scoreSubscriber(infra))
 	relay.On(articleapp.EventArticlePublished, scoreSubscriber(infra))
 
+	// 合规判定（票 312 / ADR-0033）：文章创建与发布各跑一次。
+	// 与评分并列挂在同一批事件上，但**结论落在自己的表**（article_risk_models），
+	// 不借用评分记录——两者判的是不同的问题，失败与重试口径也不同。
+	relay.On(articleapp.EventArticleCreated, complianceSubscriber(infra))
+	relay.On(articleapp.EventArticlePublished, complianceSubscriber(infra))
+
 	// 通知：审核结果与旧链路一致（通过 / 拒绝各一条）。
 	relay.On(articleapp.EventArticlePublished, notifySubscriber(infra))
 	relay.On(articleapp.EventArticleRejected, notifySubscriber(infra))
@@ -169,6 +175,45 @@ func scoreSubscriber(infra *Infra) outboxrelay.Subscriber {
 			return nil
 		}
 		return aiService.EnsureScoreIfMissing(ctx, articleID.Uint64())
+	}
+}
+
+// complianceSubscriber 触发一次模型合规判定并落库（票 312 / ADR-0033）。
+//
+// 失败语义：拿不到结论时返回 error，交给发件箱重试；重试耗尽后进死信，
+// 后台看到的是"这篇文章没有合规结论"（未判定），而不是被当成"干净"放行。
+func complianceSubscriber(infra *Infra) outboxrelay.Subscriber {
+	return func(ctx context.Context, e outboxrelay.Event) error {
+		articleID := e.AggregateID
+		if articleID.IsZero() {
+			return nil
+		}
+		if aiService == nil {
+			return nil
+		}
+
+		// 文章已经不在了（多半投递前被删除）：没有可判定的对象，直接结束不重试。
+		var count int64
+		if err := infra.DB.WithContext(ctx).Table(noticeArticleRow{}.TableName()).
+			Where("id = ?", articleID).Count(&count).Error; err != nil {
+			return err
+		}
+		if count == 0 {
+			return nil
+		}
+
+		result, err := aiService.CheckArticleCompliance(ctx, articleID.Uint64())
+		if err != nil {
+			return err
+		}
+		return newArticleService(infra).SaveComplianceResult(ctx, articleID, articleapp.ComplianceResult{
+			Verdict:       result.Verdict,
+			RiskLevel:     result.RiskLevel,
+			Categories:    result.Categories,
+			Reasons:       result.Reasons,
+			PromptVersion: result.PromptVersion,
+			ModelName:     result.ModelName,
+		})
 	}
 }
 

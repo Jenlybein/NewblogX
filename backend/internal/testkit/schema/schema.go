@@ -117,6 +117,11 @@ const (
 	ArticleCore Group = "article_core"
 	// ArticleReview 是审核任务与审核日志。
 	ArticleReview Group = "article_review"
+	// ArticleRisk 是合规风险记录（ADR-0033 / 票 312）。
+	//
+	// 单开一组而不是并进 ArticleReview：它是**新表**，只在需要验合规判定的
+	// 用例里出现；并进审核组会让所有审核任务测试都多建一张表。
+	ArticleRisk Group = "article_risk"
 	// Favorite 是收藏夹与收藏关系。
 	Favorite Group = "favorite"
 	// UserReading 是置顶与浏览历史。
@@ -213,6 +218,9 @@ var groupModels = map[Group][]any{
 		&ChatMsgUserStateRow{},
 		&ChatBlockRow{},
 	},
+	ArticleRisk: {
+		&ArticleRiskRow{},
+	},
 	Outbox: {
 		&OutboxEventRow{},
 	},
@@ -287,6 +295,7 @@ var groupModels = map[Group][]any{
 		&ChatSessionRow{},
 		&ChatMsgUserStateRow{},
 		&ChatBlockRow{},
+		&ArticleRiskRow{},
 		&CdcDeadLetterRow{},
 		&OutboxEventRow{},
 		&AIProviderRow{},

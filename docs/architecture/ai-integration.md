@@ -198,7 +198,7 @@ channel：多一条 channel 就多一条"必须有人读"的契约，没人读�
 user_id / request_id / trace_id 在 `adapter/http/handler.go` 的 `callCtx(c)` 打。
 不改 10 个调用点签名，是因为这些信息对业务毫无用途，纯粹给日志看。
 
-6 个场景：`scoring / metainfo / overwrite / diagnose / search_rewrite / search_answer`。
+7 个场景：`scoring / metainfo / overwrite / diagnose / search_rewrite / search_answer / moderation`。
 `EnsureScoreIfMissing` 的 ctx 来自 outbox 中继，所以日志里 `scene=scoring, user_id=0`
 就是"异步补评分"。
 

@@ -41,11 +41,14 @@
   docker compose build blogx_server
   NODE_OPTIONS=--max-old-space-size=1024 docker compose build blogx_web
   NODE_OPTIONS=--max-old-space-size=1024 docker compose build blogx_admin
-  # 有新表 / 改了 schema.sql 才需要；必须在**新镜像构建之后**跑，
-  # 因为 schema.sql 是 go:embed 进二进制的，旧镜像里没有新表
-  docker compose run --rm --no-deps blogx_server /app/server -f config/settings.yaml -db
-  docker compose up -d
+  docker compose up -d                      # 先起服务（含 mysql / redis）
   docker compose ps                         # 等全部 healthy
+  # 有新表 / 改了 schema.sql 才需要，语句都是 CREATE TABLE IF NOT EXISTS，可重复跑。
+  # 必须在**新镜像构建之后**：schema.sql 是 go:embed 进二进制的，旧镜像里没有新表。
+  # 用 exec 而不是 `run --rm --no-deps`：这条命令会先初始化整条基础设施（Redis 也在内），
+  # 栈停着的时候 run 会以 `lookup redis on 127.0.0.11:53: server misbehaving` 退出
+  # （2026-11-08 踩过，且因为脚本 set -e 而卡在 up 之前，站点一直不起来）。
+  docker compose exec blogx_server /app/server -f config/settings.yaml -db
   ```
 
 - **动手前先看机器余量**：`free -h` / `df -h`。并把当前镜像打回滚标签

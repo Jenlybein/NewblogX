@@ -173,6 +173,11 @@ ai:
   scene_skills:
     search_answer:
       - jelly-voice
+    # 投稿合规判定（票 312 / ADR-0033）绑定 skills/moderation。
+    # 绑定的是"这个站点在意什么"（判定口径与注意事项），不是驳回话术库：
+    # 驳回理由用固定枚举，不占 skill。
+    moderation:
+      - moderation
 
 # 邮件发送（腾讯云 SES）。
 # 后台「邮件」页填的就是这一段；默认全空 + 模板 ID 为 0，

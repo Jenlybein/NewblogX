@@ -143,6 +143,25 @@ type ArticleReviewTaskItem struct {
 	// RiskLabels 是命中的风险标签（稳定 code，前端映射中文）：
 	// block_word / watch_word / low_score / dimension_collapse / length_abnormal。
 	RiskLabels []string `json:"risk_labels"`
+	// Compliance 是第③层模型合规结论（票 312 / ADR-0033）。
+	//
+	// nil 表示**还没判定**（AI 关闭、调用失败、任务刚建还没排到），
+	// 与 verdict=clean 的"判定过且干净"不是一回事；前端必须能区分这两种形态。
+	Compliance *ArticleReviewCompliance `json:"compliance"`
+}
+
+// ArticleReviewCompliance 是模型合规结论的展示形状。
+//
+// categories / reasons 是**稳定 code 与一句话依据**：前者前端映射中文，
+// 后者只给管理员看（把模型依据直接给作者等于把判定规则公开）。
+type ArticleReviewCompliance struct {
+	Verdict    string     `json:"verdict" enums:"clean,suspect,violation"`
+	RiskLevel  int        `json:"risk_level"`
+	Categories []string   `json:"categories"`
+	Reasons    []string   `json:"reasons"`
+	PromptVersion string  `json:"prompt_version"`
+	ModelName  string     `json:"model_name"`
+	CheckedAt  *time.Time `json:"checked_at"`
 }
 
 // ArticleReviewReasonItem 是一条可选的驳回原因（出站）。

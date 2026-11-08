@@ -9,6 +9,7 @@ import (
 	"myblogx/internal/article/domain/moderation"
 	"myblogx/internal/article/domain/project"
 	"myblogx/internal/article/domain/review"
+	"myblogx/internal/article/domain/risk"
 	"myblogx/internal/article/domain/viewhistory"
 )
 
@@ -248,6 +249,12 @@ type ReviewTaskView struct {
 	// 不落库、每次读取现算：运营改完词表，下一次请求立即按新词表判（票 311）。
 	// 文章没有评分记录时只算词表层，Risk.Level 仍可能是 none，不是错误。
 	Risk moderation.Result
+	// Compliance 是第③层模型合规结论（票 312 / ADR-0033）；nil 表示"未判定"。
+	//
+	// **未判定与判定为干净必须区分**：前者是"模型没给出结论"（AI 关闭、调用失败、
+	// 还没跑），后者是"模型看过且没发现问题"。合并展示会让审核员把没检查过的
+	// 文章当成已检查过的放过去。
+	Compliance *risk.Record
 }
 
 // ReviewListSort 是审核队列的排序口径。

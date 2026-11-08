@@ -991,6 +991,45 @@
                 ],
                 "type": "object"
             },
+            "internal_article_adapter_http.ArticleReviewCompliance": {
+                "properties": {
+                    "categories": {
+                        "items": {
+                            "type": "string"
+                        },
+                        "type": "array",
+                        "uniqueItems": false
+                    },
+                    "checked_at": {
+                        "type": "string"
+                    },
+                    "model_name": {
+                        "type": "string"
+                    },
+                    "prompt_version": {
+                        "type": "string"
+                    },
+                    "reasons": {
+                        "items": {
+                            "type": "string"
+                        },
+                        "type": "array",
+                        "uniqueItems": false
+                    },
+                    "risk_level": {
+                        "type": "integer"
+                    },
+                    "verdict": {
+                        "enum": [
+                            "clean",
+                            "suspect",
+                            "violation"
+                        ],
+                        "type": "string"
+                    }
+                },
+                "type": "object"
+            },
             "internal_article_adapter_http.ArticleReviewHandleRequest": {
                 "properties": {
                     "reason": {
@@ -1036,6 +1075,10 @@
                     },
                     "author_name": {
                         "type": "string"
+                    },
+                    "compliance": {
+                        "$ref": "#/components/schemas/internal_article_adapter_http.ArticleReviewCompliance",
+                        "description": "Compliance 是第③层模型合规结论（票 312 / ADR-0033）。\n\nnil 表示**还没判定**（AI 关闭、调用失败、任务刚建还没排到），\n与 verdict=clean 的\"判定过且干净\"不是一回事；前端必须能区分这两种形态。"
                     },
                     "content": {
                         "type": "string"

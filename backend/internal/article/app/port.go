@@ -18,6 +18,7 @@ import (
 	"myblogx/internal/article/domain/outline"
 	"myblogx/internal/article/domain/project"
 	"myblogx/internal/article/domain/review"
+	"myblogx/internal/article/domain/risk"
 	"myblogx/internal/article/domain/taxonomy"
 	"myblogx/internal/article/domain/top"
 	"myblogx/internal/article/domain/viewhistory"
@@ -59,6 +60,11 @@ type Repos interface {
 	Projects() project.Repository
 	// 目录树不在 Repos 上：两个实体各有一张具名树表，读树前必须先用
 	// NamedOutlineRepository 把一次事务的仓储指向对应归属（见 named_outline.go）。
+
+	// Risks 是合规判定记录（票 312 / ADR-0033）。
+	//
+	// 它是**新表**：结论写在这里，而不是给文章表或审核任务表加列（零 DDL）。
+	Risks() risk.Repository
 }
 
 // DiggPort 是点赞关系端口。

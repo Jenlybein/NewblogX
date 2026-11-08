@@ -2,9 +2,11 @@ package http
 
 import (
 	"context"
+	"encoding/json"
 
 	"myblogx/internal/article/app"
 	"myblogx/internal/article/domain"
+	"myblogx/internal/article/domain/risk"
 	"myblogx/internal/kernel/ctype"
 )
 
@@ -121,7 +123,46 @@ func toTaskItem(t app.ReviewTaskView) ArticleReviewTaskItem {
 		labels = []string{}
 	}
 	item.RiskLabels = labels
+	item.Compliance = toReviewCompliance(t.Compliance)
 	return item
+}
+
+// toReviewCompliance 把合规记录转成展示形状；没有记录时返回 nil（未判定）。
+//
+// categories / reasons 存的是 JSON 数组文本：解析失败时按空数组处理而不是
+// 报错——一条历史脏数据不该让整个审核列表 500。
+func toReviewCompliance(record *risk.Record) *ArticleReviewCompliance {
+	if record == nil {
+		return nil
+	}
+	out := &ArticleReviewCompliance{
+		Verdict:       string(record.Verdict),
+		RiskLevel:     record.RiskLevel,
+		Categories:    decodeStringArray(record.CategoriesJSON),
+		Reasons:       decodeStringArray(record.ReasonsJSON),
+		PromptVersion: record.PromptVersion,
+		ModelName:     record.ModelName,
+	}
+	if !record.CheckedAt.IsZero() {
+		checkedAt := record.CheckedAt
+		out.CheckedAt = &checkedAt
+	}
+	return out
+}
+
+// decodeStringArray 解析 JSON 字符串数组；失败或空串一律返回空数组。
+func decodeStringArray(raw string) []string {
+	if raw == "" {
+		return []string{}
+	}
+	var items []string
+	if err := json.Unmarshal([]byte(raw), &items); err != nil {
+		return []string{}
+	}
+	if items == nil {
+		return []string{}
+	}
+	return items
 }
 
 // toCtypeIDPtr 转换可空分类 ID。

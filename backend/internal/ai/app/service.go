@@ -14,6 +14,7 @@ import (
 	"myblogx/internal/ai/diagnose"
 	"myblogx/internal/ai/domain"
 	"myblogx/internal/ai/metainfo"
+	"myblogx/internal/ai/moderation"
 	"myblogx/internal/ai/overwrite"
 	"myblogx/internal/ai/scoring"
 	aisearch "myblogx/internal/ai/search"
@@ -318,6 +319,69 @@ type GateScoreResult struct {
 	Issues     []scoring.ArticleScoreIssue
 }
 
+// ComplianceResult 是一次「投稿合规判定」的结果（票 312 / ADR-0033）。
+type ComplianceResult struct {
+	Verdict    string
+	RiskLevel  int
+	Categories []string
+	Reasons    []string
+	ModelName  string
+	// PromptVersion 是这次判定所用策略文本的版本（content hash 前缀）；
+	// 空串表示站点没有给该场景绑定 skill。
+	PromptVersion string
+}
+
+// CheckArticleCompliance 对一篇文章做合规判定（票 312 / ADR-0033）。
+//
+// 它读文章快照、注入 moderation 场景的策略文本、调模型，并把结论原样返回；
+// **落库由调用方负责**（文章模块拥有风险记录表，AI 模块不跨模块写别人的表）。
+//
+// 失败语义：返回 error 表示"没判定出结论"（模型不可用、非 JSON 等）。它与
+// "判定为干净"是两件事：前者要在后台显示"未判定"，绝不能当成 clean 放行。
+func (s *Service) CheckArticleCompliance(ctx context.Context, articleID uint64) (*ComplianceResult, error) {
+	if articleID == 0 {
+		return nil, apperr.New(apperr.CodeAIArticleMissing)
+	}
+	aiConf, err := s.config()
+	if err != nil {
+		return nil, err
+	}
+	if !aiConf.Enable {
+		return nil, apperr.New(apperr.CodeAIServiceOff)
+	}
+
+	article, err := s.scores.Article(ctx, articleID)
+	if err != nil {
+		return nil, err
+	}
+
+	policy, version, err := s.scenePolicy(aiConf, aipkg.SceneModeration)
+	if err != nil {
+		return nil, err
+	}
+	checkCtx := aipkg.WithCallMeta(ctx, aipkg.CallMeta{
+		Scene:         aipkg.SceneModeration,
+		PromptVersion: version,
+	})
+
+	result, err := moderation.CheckCompliance(checkCtx, aiConf, moderation.CheckRequest{
+		Title:   article.Title,
+		Content: article.Content,
+		Policy:  policy,
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	return &ComplianceResult{
+		Verdict:       string(result.Verdict),
+		RiskLevel:     result.RiskLevel,
+		Categories:    result.Categories,
+		Reasons:       result.Reasons,
+		ModelName:     result.ModelName,
+		PromptVersion: version,
+	}, nil
+}
 // ScoreForGate 为一次提交评分并落库，返回可用的分数与问题列表。
 //
 // 为什么落库：作者被拒时看到的分数、以及审核列表里的风险标签，都从这一份

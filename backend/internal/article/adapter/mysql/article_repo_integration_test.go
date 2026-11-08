@@ -32,7 +32,7 @@ func migrate(t *testing.T) *gorm.DB {
 	db := mysqlcontainer.DB(t)
 	schema.Migrate(t, db,
 		schema.UserCore, schema.UserSession, schema.ArticleCore,
-		schema.Favorite, schema.UserReading, schema.ArticleReview,
+		schema.Favorite, schema.UserReading, schema.ArticleReview, schema.ArticleRisk,
 		schema.Comment, schema.Outbox,
 	)
 	return db

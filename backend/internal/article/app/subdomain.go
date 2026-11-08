@@ -8,6 +8,7 @@ import (
 	"myblogx/internal/article/domain/favorite"
 	"myblogx/internal/article/domain/moderation"
 	"myblogx/internal/article/domain/review"
+	"myblogx/internal/article/domain/risk"
 	"myblogx/internal/article/domain/taxonomy"
 	"myblogx/internal/kernel/ctype"
 )
@@ -355,10 +356,11 @@ func (s *Service) ListReviewTasks(ctx context.Context, viewer domain.Viewer, sta
 		return nil, 0, domain.ErrForbidden
 	}
 	var (
-		tasks  []*review.Task
-		bodies map[domain.ArticleID]string
-		scores map[domain.ArticleID]moderation.ScoreFacts
-		total  int64
+		tasks        []*review.Task
+		bodies       map[domain.ArticleID]string
+		scores       map[domain.ArticleID]moderation.ScoreFacts
+		compliances  map[ctype.ID]*risk.Record
+		total        int64
 	)
 	err := s.tx.WithinTx(ctx, func(ctx context.Context, r Repos) error {
 		var err error
@@ -378,6 +380,10 @@ func (s *Service) ListReviewTasks(ctx context.Context, viewer domain.Viewer, sta
 			return err
 		}
 		scores, err = s.latestModerationScores(ctx, tasks)
+		if err != nil {
+			return err
+		}
+		compliances, err = riskRecords(ctx, r, tasks)
 		return err
 	})
 	if err != nil {
@@ -399,7 +405,12 @@ func (s *Service) ListReviewTasks(ctx context.Context, viewer domain.Viewer, sta
 		}
 		body := bodies[task.ArticleID()]
 		risk := moderation.Evaluate(task.ArticleTitle()+"\n"+body, words, facts)
-		out = append(out, ReviewTaskView{Task: *task, Content: body, Risk: risk})
+		out = append(out, ReviewTaskView{
+			Task:       *task,
+			Content:    body,
+			Risk:       risk,
+			Compliance: compliances[task.ArticleID()],
+		})
 	}
 
 	if sortBy == ReviewSortRisk {
@@ -420,6 +431,20 @@ func (s *Service) ListReviewTasks(ctx context.Context, viewer domain.Viewer, sta
 		out = out[start:end]
 	}
 	return out, total, nil
+}
+
+// riskRecords 批量读取第③层模型合规结论（票 312 / ADR-0033）。
+//
+// 缺失的文章不出现在结果里，视图层据此展示"未判定"——这与"判定为干净"不同。
+func riskRecords(ctx context.Context, r Repos, tasks []*review.Task) (map[ctype.ID]*risk.Record, error) {
+	if len(tasks) == 0 {
+		return nil, nil
+	}
+	ids := make([]domain.ArticleID, 0, len(tasks))
+	for _, t := range tasks {
+		ids = append(ids, t.ArticleID())
+	}
+	return r.Risks().ListByArticles(ctx, ids)
 }
 
 // latestModerationScores 批量读取机审第②层需要的评分片段。

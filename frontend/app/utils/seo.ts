@@ -14,7 +14,7 @@
  * 配置给的地址是唯一稳定的那一份。
  */
 
-import { siteOrigin } from "../../shared/siteUrl";
+import { siteOrigin } from "#shared/siteUrl";
 
 /** 私密页的统一 robots 指令：可以不登录先看到空壳，但别收录（docs §6.2③）。 */
 export const PRIVATE_PAGE_ROBOTS = "noindex";

@@ -14,6 +14,10 @@ export default defineConfig({
     alias: {
       "~": appRoot,
       "@": appRoot,
+      // 与 nuxt.config 的 `#shared` 保持一致：`shared/` 在 `app/`（srcDir）之外，
+      // app 侧必须走别名（相对路径在 nitro 的 server chunk 里解析不了）。
+      // 单测里也要认这个别名，否则测的是"构建期不成立"的路径。
+      "#shared": fileURLToPath(new URL("./shared", import.meta.url)),
       "#imports": fileURLToPath(new URL("./test/mocks/nuxt-imports.ts", import.meta.url)),
       "#markdown-it": fileURLToPath(new URL("./node_modules/markdown-it/index.mjs", import.meta.url)),
       "#markdown-it-ins": fileURLToPath(new URL("./node_modules/markdown-it-ins/index.mjs", import.meta.url)),

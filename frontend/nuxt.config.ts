@@ -178,6 +178,11 @@ export default defineNuxtConfig({
   alias: {
     '#markdown-it': resolve(appRoot, 'node_modules/markdown-it/index.mjs'),
     '#markdown-it-ins': resolve(appRoot, 'node_modules/markdown-it-ins/index.mjs'),
+    // `shared/` 在 `app/`（srcDir）之外。**app 侧必须走这个别名，不能写相对路径**：
+    // nitro 产出的 server chunk 会把相对路径原样带进 `_nuxt/`，`../shared/x.ts`
+    // 到那里就不存在了，构建报 Could not resolve（#314 的 seo.ts 踩过）。
+    // server 侧写相对路径本来就能过（老代码即如此），但统一到别名更不容易再踩。
+    '#shared': resolve(appRoot, 'shared'),
   },
   modules: ["@pinia/nuxt", "@vueuse/nuxt", "@nuxtjs/tailwindcss", "@nuxt/eslint", "motion-v/nuxt"],
   // 顺序有意义：tokens.css 定义全部颜色/排版 token，必须排在 tailwind.css 之前，

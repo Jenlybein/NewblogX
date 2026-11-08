@@ -433,6 +433,18 @@ func (s *Service) ListReviewTasks(ctx context.Context, viewer domain.Viewer, sta
 	return out, total, nil
 }
 
+// taskArticleIDs 把审核任务映射成文章 ID 列表（三处批量读共用）。
+//
+// 抽出来是为了让"取哪些文章"只有一个写法：新增批量读时若各写一遍 for-range，
+// 迟早有一处漏掉某类任务或悄悄改了去重口径。
+func taskArticleIDs(tasks []*review.Task) []domain.ArticleID {
+	ids := make([]domain.ArticleID, 0, len(tasks))
+	for _, t := range tasks {
+		ids = append(ids, t.ArticleID())
+	}
+	return ids
+}
+
 // riskRecords 批量读取第③层模型合规结论（票 312 / ADR-0033）。
 //
 // 缺失的文章不出现在结果里，视图层据此展示"未判定"——这与"判定为干净"不同。
@@ -440,10 +452,7 @@ func riskRecords(ctx context.Context, r Repos, tasks []*review.Task) (map[ctype.
 	if len(tasks) == 0 {
 		return nil, nil
 	}
-	ids := make([]domain.ArticleID, 0, len(tasks))
-	for _, t := range tasks {
-		ids = append(ids, t.ArticleID())
-	}
+	ids := taskArticleIDs(tasks)
 	return r.Risks().ListByArticles(ctx, ids)
 }
 
@@ -455,10 +464,7 @@ func (s *Service) latestModerationScores(ctx context.Context, tasks []*review.Ta
 	if s.scores == nil || len(tasks) == 0 {
 		return nil, nil
 	}
-	ids := make([]domain.ArticleID, 0, len(tasks))
-	for _, t := range tasks {
-		ids = append(ids, t.ArticleID())
-	}
+	ids := taskArticleIDs(tasks)
 	return s.scores.LatestScores(ctx, ids)
 }
 
@@ -467,10 +473,7 @@ func (s *Service) latestModerationScores(ctx context.Context, tasks []*review.Ta
 // 批量读一次（FindMany 会跳过缺失 / 已软删的 ID），不逐条查询；缺失即空串，
 // 因为"文章没了但任务还在"的情形要让人工把任务处理掉，而不是让整页 500。
 func reviewBodies(ctx context.Context, r Repos, tasks []*review.Task) (map[domain.ArticleID]string, error) {
-	ids := make([]domain.ArticleID, 0, len(tasks))
-	for _, t := range tasks {
-		ids = append(ids, t.ArticleID())
-	}
+	ids := taskArticleIDs(tasks)
 	articles, err := r.Articles().FindMany(ctx, ids)
 	if err != nil {
 		return nil, err

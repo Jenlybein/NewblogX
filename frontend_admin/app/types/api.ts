@@ -60,6 +60,10 @@ export type ArticleReviewReasonItem = RequiredSchema<"internal_article_adapter_h
 
 export type ArticleReviewHandleRequest = Schema<"internal_article_adapter_http.ArticleReviewHandleRequest">;
 
+export type ArticleReviewBatchRequest = Schema<"internal_article_adapter_http.ArticleReviewBatchRequest">;
+
+export type ArticleReviewBatchResponse = RequiredSchema<"internal_article_adapter_http.ArticleReviewBatchResponse">;
+
 export type BannerModel = RequiredSchema<"internal_site_adapter_http.BannerItem">;
 
 /**

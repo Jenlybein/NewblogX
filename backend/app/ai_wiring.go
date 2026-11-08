@@ -146,11 +146,13 @@ func (r sceneSkillCatalog) ReadSceneSkill(name string) (domain.SceneSkill, error
 		return domain.SceneSkill{}, apperr.Wrap(
 			apperr.CodeAIPolicySkillMissing, fmt.Errorf("skills 目录里没有名为 %q 的 skill", name))
 	}
-	body, err := skill.Body()
+	body, version, err := skill.BodyWithVersion()
 	if err != nil {
 		return domain.SceneSkill{}, apperr.Wrap(apperr.CodeAIPolicySkillMissing, err)
 	}
-	return domain.SceneSkill{Name: skill.Name(), Body: body, Version: skill.Hash()}, nil
+	// version 必须与 body 来自同一次读盘：正文可以热改，加载时的哈希会过期，
+	// 用它记版本就会出现"新正文配旧版本号"（#309 用户故事 32 / ADR-0030）。
+	return domain.SceneSkill{Name: skill.Name(), Body: body, Version: version}, nil
 }
 
 // aiSearcher 把 search 模块的用例适配成 AI 模块的搜索端口。

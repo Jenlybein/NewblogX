@@ -498,6 +498,47 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/article-review-tasks/batch-review": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 批量处理审核任务 */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            /** @description 批量处理入参 */
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["internal_article_adapter_http.ArticleReviewBatchRequest"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["myblogx_internal_kernel.Envelope-internal_article_adapter_http_ArticleReviewBatchResponse"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/article-review-tasks/{id}/review": {
         parameters: {
             query?: never;
@@ -6954,6 +6995,21 @@ export interface components {
         "internal_article_adapter_http.ArticleHotTopOrderRequest": {
             article_ids: string[];
         };
+        "internal_article_adapter_http.ArticleReviewBatchFailedItem": {
+            code?: string;
+            task_id?: string;
+        };
+        "internal_article_adapter_http.ArticleReviewBatchRequest": {
+            ids: string[];
+            reason?: string;
+            reason_code?: components["schemas"]["internal_article_adapter_http.ReviewReasonCode"];
+            /** @enum {integer} */
+            status: 3 | 4;
+        };
+        "internal_article_adapter_http.ArticleReviewBatchResponse": {
+            failed?: components["schemas"]["internal_article_adapter_http.ArticleReviewBatchFailedItem"][];
+            succeeded?: number;
+        };
         "internal_article_adapter_http.ArticleReviewCompliance": {
             categories?: string[];
             checked_at?: string;
@@ -8446,6 +8502,11 @@ export interface components {
         "myblogx_internal_kernel.Envelope-internal_article_adapter_http_ArticleFavoriteResponse": {
             code?: number;
             data?: components["schemas"]["internal_article_adapter_http.ArticleFavoriteResponse"];
+            msg?: string;
+        };
+        "myblogx_internal_kernel.Envelope-internal_article_adapter_http_ArticleReviewBatchResponse": {
+            code?: number;
+            data?: components["schemas"]["internal_article_adapter_http.ArticleReviewBatchResponse"];
             msg?: string;
         };
         "myblogx_internal_kernel.Envelope-internal_article_adapter_http_ArticleReviewTaskListResponse": {

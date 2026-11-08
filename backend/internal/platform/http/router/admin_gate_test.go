@@ -132,6 +132,7 @@ var adminOnly = []struct {
 	{"DELETE", "/api/articles/tags"},
 	{"PUT", "/api/articles/tags"},
 	{"GET", "/api/article-review"},
+	{"POST", "/api/article-review-tasks/batch-review"},
 	{"GET", "/api/collections/admin"},
 	{"POST", "/api/collections"},
 	{"GET", "/api/projects/admin"},

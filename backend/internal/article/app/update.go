@@ -211,7 +211,15 @@ func (s *Service) Update(ctx context.Context, cmd UpdateArticleCmd) (*UpdateResu
 	}
 	if gateRejected {
 		// 文章已落草稿（改动保留），因此返回"带数据的业务拒绝"，不是静默失败。
+		// 这次预占对应一次真实的提交动作（评分 + 落草稿），照旧计一次额度。
 		return nil, newQualityRejection(cmd.ArticleID, verdict)
+	}
+	// 预演说"这次会提交"、写事务却发现"其实没提交"（并发下文章已被改成已发布，
+	// 或者这次改动没有任何字段变化）：预占还在，但没有任何提交动作对应它。
+	// 不在这里归还，就是"一次没提交也扣掉一天额度"——而这个窗口恰恰是评分
+	// 那 5–30 秒，最容易有并发的第二个人在改同一篇。
+	if reservation != nil && !result.Resubmitted {
+		s.releaseSubmitQuota(ctx, reservation)
 	}
 	return result, nil
 }

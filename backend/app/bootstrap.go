@@ -155,6 +155,12 @@ func InitRuntimeServices(infra *Infra) error {
 	}
 	infra.RuntimeSite = runtimeSite
 	infra.Effective = sitecfg.NewEffectiveConfig(runtimeSite)
+
+	// 场景 → skill 的引用在启动期一次查清：引用不存在的 skill 是**配置错误**，
+	// 不能等到第一个用户提问时才失败（ADR-0030：读不到就不启动）。
+	if err := ValidateSceneSkillBindings(runtimeSite.GetRuntimeAI(), infra.Skills); err != nil {
+		return err
+	}
 	return nil
 }
 

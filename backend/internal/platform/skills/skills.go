@@ -121,15 +121,38 @@ func (s *Skill) Metadata() map[string]string {
 // 启动时校验正文非空，但不驻留：正文可能几百行，20 份 skill 不该在启动时
 // 占 20 份内存与日志体积。
 func (s *Skill) Body() (string, error) {
+	body, _, err := s.BodyWithVersion()
+	return body, err
+}
+
+// BodyWithVersion 读正文，并返回**这份正文自己**的版本号。
+//
+// 为什么不直接用加载时的 Hash()：正文是按需读盘的，运营替换挂载的 SKILL.md
+// 之后，下一次调用拿到的是新文本，而加载时的哈希还是旧的——调用记录会记成
+// "线上跑的是旧版本"，用户故事"线上跑哪一版"就失真了。
+//
+// 因此版本必须由**这次实际送进模型的字节**算出来：同一次读盘，一次哈希。
+// 返回的版本与正文保证一一对应，日志里不会再出现"新正文配旧版本"。
+func (s *Skill) BodyWithVersion() (string, string, error) {
 	data, err := os.ReadFile(s.path)
 	if err != nil {
-		return "", fmt.Errorf("读取运行时策略 skill 正文失败: %s: %w", s.path, err)
+		return "", "", fmt.Errorf("读取运行时策略 skill 正文失败: %s: %w", s.path, err)
 	}
 	_, body, err := splitFrontmatter(string(data))
 	if err != nil {
-		return "", &FileError{Path: s.path, Reason: err.Error()}
+		return "", "", &FileError{Path: s.path, Reason: err.Error()}
 	}
-	return strings.TrimSpace(body), nil
+	version := hashBytes(data)
+	return strings.TrimSpace(body), version, nil
+}
+
+// hashBytes 计算 SKILL.md 字节的版本号（sha256 十六进制前 12 位）。
+//
+// 加载与读取正文共用同一份算法：两处若各算一遍，迟早会出现"加载时按 CRLF、
+// 读取时按 LF"这类口径不一致，版本号就不再可比。
+func hashBytes(data []byte) string {
+	sum := sha256.Sum256(data)
+	return hex.EncodeToString(sum[:])[:hashPrefixLen]
 }
 
 // FileError 是某一份 SKILL.md 不合规：路径与原因都在错误里，
@@ -211,12 +234,11 @@ func parseSkillFile(path, dirName string, data []byte) (*Skill, error) {
 		return nil, err
 	}
 
-	sum := sha256.Sum256(data)
 	return &Skill{
 		name:          fields.name,
 		description:   fields.description,
 		path:          path,
-		hash:          hex.EncodeToString(sum[:])[:hashPrefixLen],
+		hash:          hashBytes(data),
 		license:       fields.license,
 		compatibility: fields.compatibility,
 		allowedTools:  fields.allowedTools,

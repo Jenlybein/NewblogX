@@ -991,6 +991,62 @@
                 ],
                 "type": "object"
             },
+            "internal_article_adapter_http.ArticleReviewBatchFailedItem": {
+                "properties": {
+                    "code": {
+                        "type": "string"
+                    },
+                    "task_id": {
+                        "type": "string"
+                    }
+                },
+                "type": "object"
+            },
+            "internal_article_adapter_http.ArticleReviewBatchRequest": {
+                "properties": {
+                    "ids": {
+                        "items": {
+                            "type": "string"
+                        },
+                        "minItems": 1,
+                        "type": "array",
+                        "uniqueItems": false
+                    },
+                    "reason": {
+                        "type": "string"
+                    },
+                    "reason_code": {
+                        "$ref": "#/components/schemas/internal_article_adapter_http.ReviewReasonCode"
+                    },
+                    "status": {
+                        "enum": [
+                            3,
+                            4
+                        ],
+                        "type": "integer"
+                    }
+                },
+                "required": [
+                    "ids",
+                    "status"
+                ],
+                "type": "object"
+            },
+            "internal_article_adapter_http.ArticleReviewBatchResponse": {
+                "properties": {
+                    "failed": {
+                        "items": {
+                            "$ref": "#/components/schemas/internal_article_adapter_http.ArticleReviewBatchFailedItem"
+                        },
+                        "type": "array",
+                        "uniqueItems": false
+                    },
+                    "succeeded": {
+                        "type": "integer"
+                    }
+                },
+                "type": "object"
+            },
             "internal_article_adapter_http.ArticleReviewCompliance": {
                 "properties": {
                     "categories": {
@@ -5080,6 +5136,20 @@
                 },
                 "type": "object"
             },
+            "myblogx_internal_kernel.Envelope-internal_article_adapter_http_ArticleReviewBatchResponse": {
+                "properties": {
+                    "code": {
+                        "type": "integer"
+                    },
+                    "data": {
+                        "$ref": "#/components/schemas/internal_article_adapter_http.ArticleReviewBatchResponse"
+                    },
+                    "msg": {
+                        "type": "string"
+                    }
+                },
+                "type": "object"
+            },
             "myblogx_internal_kernel.Envelope-internal_article_adapter_http_ArticleReviewTaskListResponse": {
                 "properties": {
                     "code": {
@@ -7602,6 +7672,39 @@
                     }
                 ],
                 "summary": "审核任务列表",
+                "tags": [
+                    "article"
+                ]
+            }
+        },
+        "/article-review-tasks/batch-review": {
+            "post": {
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/internal_article_adapter_http.ArticleReviewBatchRequest",
+                                "summary": "body",
+                                "description": "批量处理入参"
+                            }
+                        }
+                    },
+                    "description": "批量处理入参",
+                    "required": true
+                },
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/myblogx_internal_kernel.Envelope-internal_article_adapter_http_ArticleReviewBatchResponse"
+                                }
+                            }
+                        },
+                        "description": "OK"
+                    }
+                },
+                "summary": "批量处理审核任务",
                 "tags": [
                     "article"
                 ]

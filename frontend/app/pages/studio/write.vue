@@ -251,7 +251,7 @@ const { submitArticle, scoring } = useStudioPublish({
   router,
   // 站点策略：草稿/发布开关关闭时在这里拦一道，避免"点了才知道不行"。
   policy: writePolicy,
-  // 质量不达标：把分数、差额与问题列表留在发布弹窗里，作者照着改（#306）。
+  // 质量不达标：把分数、差额与问题列表留在发布弹窗里，作者照着改（票 306）。
   onQualityRejected: (details) => {
     qualityRejection.value = details;
   },

@@ -190,6 +190,31 @@ type ArticleReviewHandleRequest struct {
 	Reason     string           `json:"reason"`
 }
 
+// ArticleReviewBatchResponse 是批量处理的结果（部分成功是正常结局）。
+//
+// failed 里每条只给 task_id + 稳定错误码：前端按码渲染文案，不认中文。
+type ArticleReviewBatchResponse struct {
+	Succeeded int                           `json:"succeeded"`
+	Failed    []ArticleReviewBatchFailedItem `json:"failed"`
+}
+
+// ArticleReviewBatchFailedItem 是批量里失败的一条。
+type ArticleReviewBatchFailedItem struct {
+	TaskID ctype.ID `json:"task_id"`
+	Code   string   `json:"code"`
+}
+
+// ArticleReviewBatchRequest 批量处理审核任务。
+//
+// 语义与单条接口**完全一致**（同一份用例、同一套原因校验），只是把同一个
+// 决定应用到多个任务：批量不是第二套规则，而是同一条路径重复调用。
+type ArticleReviewBatchRequest struct {
+	IDs        []ctype.ID       `json:"ids" binding:"required,min=1"`
+	Status     ArticleStatus    `json:"status" binding:"required,oneof=3 4" swaggertype:"integer" enums:"3,4"`
+	ReasonCode ReviewReasonCode `json:"reason_code"`
+	Reason     string           `json:"reason"`
+}
+
 // ArticleAdminVisibilityURI 管理员改可见性。
 type ArticleAdminVisibilityURI struct {
 	ID         ctype.ID `uri:"id" binding:"required"`

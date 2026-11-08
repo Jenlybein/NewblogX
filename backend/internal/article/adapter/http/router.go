@@ -127,4 +127,8 @@ func (h *Handler) Register(r *gin.RouterGroup, authMw, optionalMw gin.HandlerFun
 	adminGroup.DELETE("tags", mw.CaptureLog(mw.ReqBody), mw.BindJson[kernel.IDListRequest], h.DeleteTags)
 	reviewTaskAdminGroup.POST(":id/review", mw.CaptureLog(mw.ReqBody), mw.BindUri[kernel.IDRequest],
 		mw.BindJson[ArticleReviewHandleRequest], h.HandleReviewTask)
+	// 批量：与单条同一份用例、同一套原因校验，只是把同一个决定应用到多个任务
+	// （spec 决策 32）。挂在 tasks 前缀下而不是 review 下，因为入参是任务 ID。
+	reviewTaskAdminGroup.POST("batch-review", mw.CaptureLog(mw.ReqBody),
+		mw.BindJson[ArticleReviewBatchRequest], h.BatchHandleReviewTasks)
 }

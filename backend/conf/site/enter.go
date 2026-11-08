@@ -224,11 +224,6 @@ func (g QualityGate) Effective() QualityGate {
 	return g
 }
 
-// PublishLine 返回实际放行线（及格线 + 灰带宽度）。
-func (g QualityGate) PublishLine() int {
-	return g.Effective().PassScore + g.Effective().GrayBandWidth
-}
-
 func clampQualityScore(value, fallback int) int {
 	if value < minQualityGateScore || value > maxQualityGateScore {
 		return fallback

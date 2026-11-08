@@ -725,6 +725,43 @@ func (h *Handler) HandleReviewTask(c *gin.Context) {
 
 // ── 作者信息 ──
 
+// BatchHandleReviewTasks 批量通过或驳回审核任务（spec 决策 32）。
+//
+// @Summary 批量处理审核任务
+// @Tags article
+// @Accept json
+// @Produce json
+// @Param body body ArticleReviewBatchRequest true "批量处理入参"
+// @Success 200 {object} kernel.Envelope[ArticleReviewBatchResponse]
+// @Router /article-review-tasks/batch-review [post]
+func (h *Handler) BatchHandleReviewTasks(c *gin.Context) {
+	cr := middleware.GetBindJson[ArticleReviewBatchRequest](c)
+
+	approve := cr.Status == ArticleStatusPublished
+	result, err := h.svc.BatchHandleReviewTasks(
+		c.Request.Context(), h.viewerOf(c), cr.IDs, approve, cr.ReasonCode, cr.Reason)
+	if err != nil {
+		h.fail(c, err)
+		return
+	}
+
+	// 半成功是正常结局：逐条失败的任务给 ID + 错误码，前端据此提示
+	// "哪几条没成功"，而不是把整批当失败（一条已被别人处理不该拖垮整批）。
+	failed := make([]ArticleReviewBatchFailedItem, 0, len(result.Failed))
+	for _, item := range result.Failed {
+		failed = append(failed, ArticleReviewBatchFailedItem{
+			TaskID: item.TaskID,
+			Code:   string(item.Code),
+		})
+	}
+	h.audit(c, "article_review_batch", "", true, "批量处理审核任务")
+	// nolint:gocritic // 与其它 handler 同一写法：OkWithData 接收任意载荷。
+	res.OkWithData(ArticleReviewBatchResponse{
+		Succeeded: result.Succeeded,
+		Failed:    failed,
+	}, c)
+}
+
 // AuthorInfo 作者信息。
 //
 // @Summary 作者信息

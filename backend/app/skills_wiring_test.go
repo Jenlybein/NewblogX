@@ -93,3 +93,48 @@ func TestLoadSkills(t *testing.T) {
 		}
 	})
 }
+
+// 场景引用一份不存在的 skill 必须在启动期就失败（ADR-0030）。
+//
+// 这条防的是"配置写错但进程照常起来"：线上表现是那个场景第一次被调用时
+// 报 ai.policy_skill_missing，而那时用户已经在等回答。
+func TestValidateSceneSkillBindings(t *testing.T) {
+	t.Run("引用存在的 skill 通过", func(t *testing.T) {
+		root := t.TempDir()
+		writeSkill(t, root, "jelly-voice", validSkill)
+		cat, err := app.LoadSkills(&conf.Config{Skills: conf.Skills{Dirs: root}})
+		if err != nil {
+			t.Fatalf("加载失败: %v", err)
+		}
+
+		aiConf := conf.AI{SceneSkills: map[string][]string{"search_answer": {"jelly-voice"}}}
+		if err := app.ValidateSceneSkillBindings(aiConf, cat); err != nil {
+			t.Fatalf("引用存在的 skill 不该报错: %v", err)
+		}
+	})
+
+	t.Run("引用不存在的 skill 返回错误并点名", func(t *testing.T) {
+		root := t.TempDir()
+		writeSkill(t, root, "jelly-voice", validSkill)
+		cat, err := app.LoadSkills(&conf.Config{Skills: conf.Skills{Dirs: root}})
+		if err != nil {
+			t.Fatalf("加载失败: %v", err)
+		}
+
+		aiConf := conf.AI{SceneSkills: map[string][]string{"moderation": {"nope"}}}
+		err = app.ValidateSceneSkillBindings(aiConf, cat)
+		if err == nil {
+			t.Fatal("引用不存在的 skill 应启动失败")
+		}
+		if !strings.Contains(err.Error(), "moderation") || !strings.Contains(err.Error(), "nope") {
+			t.Fatalf("错误里应点名场景与 skill: %v", err)
+		}
+	})
+
+	t.Run("空名单是合法的（场景不绑定策略文本）", func(t *testing.T) {
+		aiConf := conf.AI{SceneSkills: map[string][]string{"moderation": nil}}
+		if err := app.ValidateSceneSkillBindings(aiConf, nil); err != nil {
+			t.Fatalf("空名单不该报错: %v", err)
+		}
+	})
+}

@@ -111,9 +111,6 @@ func CheckCompliance(ctx context.Context, aiConf conf.AI, req CheckRequest) (*Re
 	if err != nil {
 		return nil, err
 	}
-	if !aiConf.Enable {
-		return nil, fmt.Errorf("AI 未启用")
-	}
 
 	var parsed checkResponse
 	if err := ai.UnmarshalJSONBlock(reply, &parsed); err != nil {

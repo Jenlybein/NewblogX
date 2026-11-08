@@ -8,6 +8,8 @@ import type {
   AdminSidebarCardsResponseData,
   SidebarCardsSavePayload,
   ActionAuditRecord,
+  ArticleReviewBatchRequest,
+  ArticleReviewBatchResponse,
   ArticleReviewHandleRequest,
   ArticleReviewReasonItem,
   ArticleReviewTaskListResponseData,
@@ -92,6 +94,22 @@ export function reviewArticleTask(id: string, payload: ArticleReviewHandleReques
     method: 'POST',
     body: payload,
   })
+}
+
+/**
+ * 批量处理审核任务（spec 决策 32）。
+ *
+ * 与单条接口同一份后端用例：批量不是第二套规则。响应里的 `failed` 是**正常
+ * 结局**——某条任务可能已被别人处理，不该让整批失败。
+ */
+export function batchReviewArticleTasks(ids: string[], payload: Omit<ArticleReviewBatchRequest, 'ids'>) {
+  return api().request<ArticleReviewBatchResponse, ArticleReviewBatchRequest>(
+    '/article-review-tasks/batch-review',
+    {
+      method: 'POST',
+      body: { ids, ...payload },
+    },
+  )
 }
 
 /**

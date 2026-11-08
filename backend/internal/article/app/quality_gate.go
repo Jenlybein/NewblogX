@@ -42,12 +42,13 @@ type QualityGatePolicy struct {
 }
 
 // PublishLine 是实际判定用的发布线。
-// PublishLine 是实际判定用的发布线。
 //
 // 灰带做在及格线**上方**而不是上下各留一半（spec 决策 9 与 ADR-0032 决策 7）：
 // 实际放行线 = 及格线 + 灰带宽度。只有把放行线整体抬出抖动量程，"49 与 51 都卡"
 // 的窄缝才不会正好落在阈值正上方；两侧各留一半挡不住阈值附近的抖动。
 // 作者看到的"还差几分"按这条线算，三个数字（及格线 / 灰带 / 放行线）后台都可见。
+func (p QualityGatePolicy) PublishLine() int {
+	return p.PassScore + p.GrayBandWidth
 }
 
 // Level 按配置里的四个档界给出档名。

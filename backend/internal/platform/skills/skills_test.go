@@ -109,6 +109,55 @@ func TestCatalogHoldsNamesAndDescriptionsWhileBodyIsReadOnDemand(t *testing.T) {
 	}
 }
 
+// 版本号必须跟着**这次读到的正文**走：热改挂载的 SKILL.md 之后，调用记录
+// 里记的版本不能还是加载时那一个，否则"线上跑的是哪一版"就是假话（#309）。
+func TestBodyWithVersionTracksHotEditedContent(t *testing.T) {
+	root := t.TempDir()
+	first := validFrontmatter + "第一版正文。\n"
+	path := writeSkill(t, root, "jelly-voice", first)
+
+	cat, err := skills.Load([]string{root})
+	if err != nil {
+		t.Fatalf("加载失败: %v", err)
+	}
+	s, ok := cat.Get("jelly-voice")
+	if !ok {
+		t.Fatal("按名称应能取到 jelly-voice")
+	}
+
+	body, version, err := s.BodyWithVersion()
+	if err != nil {
+		t.Fatalf("读正文失败: %v", err)
+	}
+	if body != "第一版正文。" {
+		t.Fatalf("首次正文 = %q", body)
+	}
+	if version != s.Hash() {
+		t.Fatalf("未改的正文版本应与加载时一致: got %q want %q", version, s.Hash())
+	}
+
+	// 热改：正文换成第二版。
+	second := validFrontmatter + "第二版正文。\n"
+	if err := os.WriteFile(path, []byte(second), 0o644); err != nil {
+		t.Fatalf("改写夹具失败: %v", err)
+	}
+
+	body, version, err = s.BodyWithVersion()
+	if err != nil {
+		t.Fatalf("热改后读正文失败: %v", err)
+	}
+	if body != "第二版正文。" {
+		t.Fatalf("热改后正文 = %q", body)
+	}
+	if version == s.Hash() {
+		t.Fatal("热改后版本仍是加载时的旧值：调用记录会记错版本")
+	}
+	sum := sha256.Sum256([]byte(second))
+	if want := hex.EncodeToString(sum[:])[:12]; version != want {
+		t.Fatalf("版本 = %q，期望新正文的 sha256 前 12 位 %q", version, want)
+	}
+}
+
 // 版本号是 SKILL.md 字节的 sha256 前 12 位：期望值由用例自己按规范算，
 // 不从实现反推（否则等于拿实现给自己作证）。
 func TestSkillHashIsFileBytesSHA256Prefix(t *testing.T) {

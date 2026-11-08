@@ -3,7 +3,7 @@ import { join } from "node:path";
 
 import { describe, expect, it } from "vitest";
 
-import { ROBOTS_DISALLOW_PATHS, ROBOTS_SITEMAP_PATH, buildRobotsTxt } from "../../shared/robotsTxt";
+import { ROBOTS_ALLOW_PATHS, ROBOTS_DISALLOW_PATHS, ROBOTS_SITEMAP_PATH, buildRobotsTxt } from "../../shared/robotsTxt";
 
 /**
  * #314 交付 2：robots.txt 的两件事 —— ① sitemap 在哪；② 哪些目录别来爬。
@@ -36,6 +36,16 @@ describe("buildRobotsTxt：门口指示牌", () => {
     expect(txt).toContain("User-agent: *");
     expect(txt).toContain("Disallow: /api/");
     expect(ROBOTS_DISALLOW_PATHS).toEqual(["/api/"]);
+  });
+
+  it("sitemap 虽在 /api/ 下，但被显式 Allow 放行（否则等于关掉自己让去取的清单）", () => {
+    const txt = buildRobotsTxt(siteUrl);
+
+    // 最长前缀匹配：Allow: /api/sitemap.xml 赢过 Disallow: /api/。
+    expect(txt).toContain(`Allow: ${ROBOTS_SITEMAP_PATH}`);
+    expect(ROBOTS_ALLOW_PATHS).toEqual([ROBOTS_SITEMAP_PATH]);
+    // Allow 行必须排在 Disallow 之前，读起来才是"例外在前、通则在后"。
+    expect(txt.indexOf("Allow:")).toBeLessThan(txt.indexOf("Disallow:"));
   });
 
   it("**不** Disallow 私密页面：它们要靠页面里的 noindex 才有效", () => {

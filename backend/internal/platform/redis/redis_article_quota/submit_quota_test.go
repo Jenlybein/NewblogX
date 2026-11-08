@@ -10,7 +10,7 @@ import (
 	"myblogx/test/testutil"
 )
 
-// 投稿配额（票 304 / ADR-0030）的平台层验证：按自然日分桶的计数键 + 预占 / 释放。
+// 投稿配额（票 304 / ADR-0031）的平台层验证：按自然日分桶的计数键 + 预占 / 释放。
 // 只测额度守恒，不断言 Redis 键长什么样（spec 的 Testing Decisions）。
 
 func testRedisOptions() redis_service.Options {

@@ -153,7 +153,7 @@ type Event struct {
 	AggregateType string
 }
 
-// SubmitQuotaPort 是「投稿配额」端口（票 304 / ADR-0030）。
+// SubmitQuotaPort 是「投稿配额」端口（票 304 / ADR-0031）。
 //
 // 由使用方（本包）定义、装配层接 Redis 适配器；形状对齐私信发送限流的预占 / 释放
 // （domain.Limiter）：一个 Reserve 方法 + 一份可释放的预占，不引入"查询剩余额度"

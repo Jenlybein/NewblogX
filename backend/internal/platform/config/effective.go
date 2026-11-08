@@ -70,7 +70,7 @@ func NormalizeChatRate(windowSec, dailyMax int) ChatRate {
 	return ChatRate{WindowSec: windowSec, DailyMax: dailyMax}
 }
 
-// 投稿配额（每人每自然日可提交次数上限）的默认值与合法区间（ADR-0030，
+// 投稿配额（每人每自然日可提交次数上限）的默认值与合法区间（ADR-0031，
 // spec #302 决策 19）。
 //
 // 「每天 15 次」只在本文件声明一次：Redis 兜底（redis_article_quota 的 dailyMax<=0

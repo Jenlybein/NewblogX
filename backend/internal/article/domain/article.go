@@ -402,7 +402,7 @@ func (a *Article) Approve(reviewer UserID, now time.Time) error {
 }
 
 // Reject 审核拒绝。
-// RevokeForCompliance 把一篇文章因合规判定置为「已拒绝」（票 313 / ADR-0033）。
+// RevokeForCompliance 把一篇文章因合规判定置为「已拒绝」（票 313 / ADR-0034）。
 //
 // 与 Reject 的差别只有一处：允许的起点不同。Reject 是人工驳回，只从「审核中」
 // 出发；这里允许从「已发布」出发——违规内容已经在公网上了，自动拒的意义就是

@@ -39,7 +39,7 @@ const (
 	SourceCreate   Source = "create"
 	SourceEdit     Source = "edit"
 	SourceResubmit Source = "resubmit"
-	// SourceCompliance 是模型合规判定命中的自动拒绝（票 313 / ADR-0033）。
+	// SourceCompliance 是模型合规判定命中的自动拒绝（票 313 / ADR-0034）。
 	//
 	// 单开一个来源而不是复用 create：复盘时要能一眼分清"人拒的"与"系统拒的"，
 	// 否则自动拒的误判会被当成审核员判断失误。

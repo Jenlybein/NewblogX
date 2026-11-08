@@ -23,9 +23,19 @@ export const ROBOTS_SITEMAP_PATH = "/api/sitemap.xml";
 export const ROBOTS_DISALLOW_PATHS = ["/api/"] as const;
 
 /**
+ * 在 Disallow 之外**显式放行**的路径。
+ *
+ * 站点地图本身就在 `/api/` 下面：只写 `Disallow: /api/` 会把它一起关掉，
+ * 等于告诉爬虫"去取一份你不许取的清单"。robots 的匹配按**最长前缀**取胜，
+ * 因此这里写完整路径就能让它重新可抓——不必为 sitemap 挪位置，也就不会和
+ * "nginx 只转发 /api/ 与 /uploads/"这条部署约束打架。
+ */
+export const ROBOTS_ALLOW_PATHS = [ROBOTS_SITEMAP_PATH] as const;
+
+/**
  * 拼出 robots.txt 全文。
  *
- * 行序按通行写法：User-agent 分组 → Disallow → 空行 → Sitemap。
+ * 行序按通行写法：User-agent 分组 → Allow → Disallow → 空行 → Sitemap。
  * 结尾必须留换行：robots.txt 是逐行协议，最后一行不闭合时部分爬虫会忽略它。
  */
 export function buildRobotsTxt(siteUrl?: string | null): string {
@@ -34,6 +44,7 @@ export function buildRobotsTxt(siteUrl?: string | null): string {
 
   const lines = [
     "User-agent: *",
+    ...ROBOTS_ALLOW_PATHS.map((path) => `Allow: ${path}`),
     ...ROBOTS_DISALLOW_PATHS.map((path) => `Disallow: ${path}`),
     "",
     `Sitemap: ${sitemap}`,

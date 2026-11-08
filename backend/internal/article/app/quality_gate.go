@@ -31,7 +31,7 @@ type QualityGatePolicy struct {
 	Enabled bool
 	// PassScore 是及格线（0–100）。发布线 = 及格线 + 灰带宽度。
 	PassScore int
-	// GrayBandWidth 是灰带宽度（默认 2）：及格线附近 ±这个宽度的分数不放行。
+	// GrayBandWidth 是灰带宽度（默认 2）：及格线**之上**再让出这么多分才放行。
 	GrayBandWidth int
 	// 四个档界是五个档位的上界：较差 / 不合格 / 常规 / 优质 / 精品。
 	// 默认 30 / 59 / 80 / 89，与评分提示词里的分档一致。
@@ -42,12 +42,12 @@ type QualityGatePolicy struct {
 }
 
 // PublishLine 是实际判定用的发布线。
+// PublishLine 是实际判定用的发布线。
 //
-// 灰带 = 及格线上下各 width 分都不放行（spec 决策 9：49 与 51 都不能因为
-// 边界抖动变成"随机打回"）。整数分下，能通过的第一个分数是
-// 及格线 + 灰带宽度；因此"还差几分"的分母就是这条线。
-func (p QualityGatePolicy) PublishLine() int {
-	return p.PassScore + p.GrayBandWidth
+// 灰带做在及格线**上方**而不是上下各留一半（spec 决策 9 与 ADR-0032 决策 7）：
+// 实际放行线 = 及格线 + 灰带宽度。只有把放行线整体抬出抖动量程，"49 与 51 都卡"
+// 的窄缝才不会正好落在阈值正上方；两侧各留一半挡不住阈值附近的抖动。
+// 作者看到的"还差几分"按这条线算，三个数字（及格线 / 灰带 / 放行线）后台都可见。
 }
 
 // Level 按配置里的四个档界给出档名。

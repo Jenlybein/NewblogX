@@ -622,11 +622,11 @@ _Avoid_: 把"列 + 增量"当成一处**读路径口径**（它只是账本主�
 
 ## 十二、发布治理（闸门 / 配额 / 机审）
 
-> **本节词条全部处于「已定、未交付」状态**（2026-11-07 grill 决定的形态，代码尚未落地）。词条只定义概念，"为什么这么选、否掉了什么、代价是什么"见 [发布闸门与机审 grill 记录](./docs/notes/2026-11-07-publish-gate-and-moderation-grill.md)；落地后本节各词条的"位置"再补代码路径。
+> **本节词条全部已交付**（2026-11-07 grill 决定的形态，2026-11-08 落地；对应 ADR-0030–0034）。词条只定义概念，"为什么这么选、否掉了什么、代价是什么"见 [发布闸门与机审 grill 记录](./docs/notes/2026-11-07-publish-gate-and-moderation-grill.md)；各词条"位置"给出代码路径。
 
 **发布质量闸门（quality gate）**：
 "提交后先评分、分数够才允许继续"的这道**硬闸**，与人工审核是**两道彼此独立的开关**：闸门管"有没有资格进队列"，人工审核管"进了队列放不放行"。判定发生在提交那一刻，且必须在**数据库事务之外**（评分是一次 5–30 秒的模型调用，占着事务等于钉死连接池）。
-位置：概念见 [grill 记录](./docs/notes/2026-11-07-publish-gate-and-moderation-grill.md) §2.1；决定见 ADR-0030（提议）。
+位置：概念见 [grill 记录](./docs/notes/2026-11-07-publish-gate-and-moderation-grill.md) §2.1；决定见 [ADR-0032](./docs/adr/0032-quality-gate.md)。
 易混：它与「人工审核」不是同一条流水线的两段，而是可以分别开关的两道门；它也不是评分本身——评分是"给出分数"，闸门是"拿分数做决定"。
 _Avoid_: 把「闸门」当成评分的同义词；说"提交即评分即发布"（中间还有一道分数判定）；把闸门判定写进事务里。
 
@@ -637,20 +637,20 @@ _Avoid_: 把「闸门」当成评分的同义词；说"提交即评分即发布"
 _Avoid_: 把"AI 给了低分"说成"评分失败"；把超时与低分报成同一个错误码。
 
 **灰带（gray band）**：
-发布阈值附近的一段**不算通过、也不算终局**的分数区间（当前定义为阈值 ±2）。落进灰带的文章不发布，文案要明说"差几分"，让作者按评审意见改一版再投；它的存在是为了不让 49 与 51 变成"随机打回"。站点关了人工审核时，灰带**不**自动转人工，也不放宽阈值。
+发布放行线**之上**的一段缓冲：实际放行线 = 及格线 + 灰带宽度（默认 50 + 2），落在这条线下的文章不发布。灰带刻意做在阈值**上方**而不是上下各一半：只有把放行线整体抬出抖动量程，"同一篇文章今天能发、明天不能发"才不会发生（两侧各留一半，阈值正上方仍是一条会抖中窄缝）。文案按实际放行线算差额，明说"还差几分"。站点关了人工审核时，灰带**不**自动转人工，也不放宽阈值。
 位置：概念见 [grill 记录](./docs/notes/2026-11-07-publish-gate-and-moderation-grill.md) §2.1 决策 9 与 §七。
 易混：灰带不是"宽容带"（不会偷偷把阈值降 2 分），也不是"待审区"（不产生审核任务）。
 _Avoid_: 用灰带指代人工审核队列；说"灰带内可以发布"。
 
 **投稿配额（submit quota）**：
 每名普通用户每个自然日允许**提交**的次数上限（默认 15），用来把灌水成本关在门外。计量单位是**提交动作**而不是"发布成功的文章"：被打回也计，因为每次提交都会真实触发一次模型调用与一条审核任务。管理员豁免；因评分故障而失败的提交不计。刷新靠"按日期分桶的计数键自然过期"完成，不依赖定时任务。
-位置：机制沿用私信的同名做法（`internal/platform/redis/redis_chat/risk_limit.go`）；概念见 [grill 记录](./docs/notes/2026-11-07-publish-gate-and-moderation-grill.md) §2.3；决定见 ADR-0032（提议）。
+位置：机制沿用私信的同名做法（`internal/platform/redis/redis_chat/risk_limit.go`）；概念见 [grill 记录](./docs/notes/2026-11-07-publish-gate-and-moderation-grill.md) §2.3；决定见 [ADR-0031](./docs/adr/0031-submit-quota.md)。
 易混：它不是"发布上限"（被打回也计），也不是"存草稿的上限"（草稿不消耗）。
 _Avoid_: 把「投稿」与「发布」「存草稿」混用；说"每天能发 15 篇"。
 
 **三层机审（three-layer moderation）**：
 人工审核之前的**自动筛查**，按成本从低到高分三层：① 纯代码高危词匹配 ② 从已有评分结果派生的风险标签（低分 / 维度塌陷 / 篇幅异常） ③ 模型合规判定。前两层是**给定文本就能重算的纯函数**，不落库；只有第三层（花钱、有延迟）才落一条风险记录。三层都能拒稿，但只有 ① 的"阻断级"与 ③ 的高置信违规是自动拒，② 与"观察级"只标红交人。
-位置：概念见 [grill 记录](./docs/notes/2026-11-07-publish-gate-and-moderation-grill.md) §2.4；决定见 ADR-0031（提议）。
+位置：概念见 [grill 记录](./docs/notes/2026-11-07-publish-gate-and-moderation-grill.md) §2.4；第③层与风险记录见 [ADR-0033](./docs/adr/0033-risk-models.md)，自动拒落点见 [ADR-0034](./docs/adr/0034-auto-reject-and-landing.md)；前两层（词表与评分派生标签）是纯函数实现，见 `internal/article/domain/moderation`。
 易混：它不是"机审替代人工"（第三层只给结论、裁决权仍在人工与阻断级词表）；② 也不是"再评一次分"（它复用已有分数，零新增调用）。
 _Avoid_: 把三层说成"三次 AI 调用"；把风险标签当成文章的字段（它是风险记录，文章表不新增列）。
 
@@ -662,13 +662,13 @@ _Avoid_: 把两级词表合成一个"敏感词库"；把词表写进代码常量
 
 **风险记录（risk record）**：
 一篇文章**最近一次**模型合规判定的结论：结论档（干净 / 存疑 / 违规）、风险级别、命中的类别与依据、判定时的策略版本与模型名。它只存"当前结论"，不存历史；审核列表的红点从它读，文章表与审核任务表**都不加列**（零 DDL 硬约束）。
-位置：概念见 [grill 记录](./docs/notes/2026-11-07-publish-gate-and-moderation-grill.md) §四；决定见 ADR-0031（提议）。
+位置：概念见 [grill 记录](./docs/notes/2026-11-07-publish-gate-and-moderation-grill.md) §四；决定见 [ADR-0033](./docs/adr/0033-risk-models.md)；自动拒与落点见 [ADR-0034](./docs/adr/0034-auto-reject-and-landing.md)。
 易混：它不是「评分记录」——评分判"写得好不好"，风险记录判"能不能发"；两者可以互相矛盾（评分 82 但命中违规），矛盾时以风险结论为准。
 _Avoid_: 把它当成文章的 `risk_level` 列；把它的历史价值当成已实现（刻意不存历史）。
 
 **运行时策略 skill（`skills/`）**：
 放在仓库根 `skills/<name>/SKILL.md`、随产品进程**启动时读盘**并注入模型调用的文本策略。格式遵循 **Agent Skills 开放规范**（`name` + `description` 为必填，可选 `license` / `compatibility` / `metadata` / `allowed-tools`；`name` 必须等于父目录名），**不自造字段**——产品私有信息只写进 `metadata`（`map[string]string`），这样同一份 skill 脱离本项目也能被任何兼容客户端直接使用。"哪个场景用哪份 skill"是**产品接线**，写在运行期配置里，不进 skill 本体。读不到、格式不合规、或引用了未知场景，一律**启动失败**，不存在内置兜底文本；版本号取 SKILL.md 字节哈希，落进调用记录。
-位置：目录形态、加载器契约与校验规则见 [grill 记录](./docs/notes/2026-11-07-publish-gate-and-moderation-grill.md) §五；决定见 [ADR-0030](./docs/adr/0033-runtime-policy-skills.md)；规范见 <https://agentskills.io/specification>。
+位置：目录形态、加载器契约与校验规则见 [grill 记录](./docs/notes/2026-11-07-publish-gate-and-moderation-grill.md) §五；决定见 [ADR-0030](./docs/adr/0030-runtime-policy-skills.md)；规范见 <https://agentskills.io/specification>。
 易混：它与 `AGENTS.md` 里那套「Agent skills」**格式相同、消费者不同**——那三个 `docs/agents/*.md` 是编码 agent 读本仓配置的入口，`skills/` 里这两份是产品运行时读的策略文本；与「阻断级词表」分工也不同（词表是数据、走运行期配置热改；skill 是规则、走代码版本）。
 _Avoid_: 把它叫「prompt 目录」（它不只装 prompt 片段，还带规范校验与版本）；在 frontmatter 里自造 `applies_to` / `version` 这类顶层字段（规范只允许 `metadata` 承载私有信息）；在代码里再写一份兜底文案。
 

@@ -169,17 +169,19 @@ func TestListReviewTasksSortsByRiskLevel(t *testing.T) {
 	base := apptest.DefaultTime
 	// 提交时间升序：41（低风险/无命中）→ 42（低分 medium）→ 43（观察级 medium）→ 44（阻断级 high）。
 	for i, spec := range []struct {
-		articleID uint64
+		// ID 用 ctype.ID 而不是裸 uint64：R12 对测试文件同样生效
+		// （雪花 ID 超出 JS 安全整数，裸整型会让契约印成 integer）。
+		articleID ctype.ID
 		content   string
 		at        time.Time
 	}{
-		{41, "普通正文", base.Add(0 * time.Minute)},
-		{42, "普通正文", base.Add(1 * time.Minute)},
-		{43, "欢迎加微信", base.Add(2 * time.Minute)},
-		{44, "代开发票", base.Add(3 * time.Minute)},
+		{ctype.NewID(41), "普通正文", base.Add(0 * time.Minute)},
+		{ctype.NewID(42), "普通正文", base.Add(1 * time.Minute)},
+		{ctype.NewID(43), "欢迎加微信", base.Add(2 * time.Minute)},
+		{ctype.NewID(44), "代开发票", base.Add(3 * time.Minute)},
 	} {
 		a := apptest.NewArticle().
-			ID(ctype.NewID(spec.articleID)).
+			ID(spec.articleID).
 			Author(author).
 			Status(domain.StatusExamining).
 			Title("待审稿").

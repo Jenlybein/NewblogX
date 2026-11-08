@@ -2,8 +2,8 @@
 import { h } from 'vue'
 import { NButton, NCard, NDataTable, NEmpty, NInput, NModal, NSelect, NSpace, NTag, useDialog, useMessage } from 'naive-ui'
 import ReviewBodyPreview from '~/components/review/ReviewBodyPreview.vue'
-import { getArticleReviewTasks, reviewArticleTask } from '~/services/admin'
-import type { ArticleReviewTaskItem } from '~/types/api'
+import { getArticleReviewReasons, getArticleReviewTasks, reviewArticleTask } from '~/services/admin'
+import type { ArticleReviewReasonItem, ArticleReviewTaskItem } from '~/types/api'
 import { formatDateTime } from '~/utils/format'
 import { complianceVerdictMeta, riskLabelText, riskLevelMeta } from '~/utils/reviewRisk'
 
@@ -20,6 +20,9 @@ const sort = ref<'created_at' | 'risk'>('created_at')
 const rows = ref<ArticleReviewTaskItem[]>([])
 const rejectTarget = ref<ArticleReviewTaskItem | null>(null)
 const rejectReason = ref('')
+// 原因码必选：值来自后端固定词表，中文只在 option.label 里出现。
+const rejectReasonCode = ref<ArticleReviewReasonItem['value'] | null>(null)
+const reasonOptions = ref<ArticleReviewReasonItem[]>([])
 const rejectVisible = computed({
   get: () => !!rejectTarget.value,
   set: (value: boolean) => {
@@ -175,24 +178,36 @@ function approve(row: ArticleReviewTaskItem) {
 
 function openReject(row: ArticleReviewTaskItem) {
   rejectTarget.value = row
+  rejectReasonCode.value = null
   rejectReason.value = ''
 }
 
 async function reject() {
   if (!rejectTarget.value) return
-  if (!rejectReason.value.trim()) {
-    message.warning('请填写驳回原因')
+  // 原因码是**必选**的：后端 reason 只收枚举里的一条（#308 / app.reviewReason），
+  // 自由文本只作补充。少传 reason_code 会被判 article.review_reason_invalid。
+  if (!rejectReasonCode.value) {
+    message.warning('请选择驳回原因')
     return
   }
 
-  await reviewArticleTask(rejectTarget.value.id, { status: 4, reason: rejectReason.value.trim() })
+  await reviewArticleTask(rejectTarget.value.id, {
+    status: 4,
+    reason_code: rejectReasonCode.value,
+    reason: rejectReason.value.trim(),
+  })
   message.success('已驳回审核任务')
   rejectTarget.value = null
   await refresh()
 }
 
 watch([page, status, sort], refresh)
-onMounted(refresh)
+onMounted(async () => {
+  await refresh()
+  // 原因清单由后端下发（前端不手抄中文）；拿不到时下拉为空，驳回按钮会被
+  // 前置校验挡住——宁可让管理员看到"没得选"，也不发一条注定失败的请求。
+  reasonOptions.value = await getArticleReviewReasons()
+})
 </script>
 
 <template>
@@ -225,7 +240,12 @@ onMounted(refresh)
     <NModal v-model:show="rejectVisible" preset="card" class="max-w-[560px]" title="驳回文章">
       <NSpace vertical>
         <p class="muted m-0">{{ rejectTarget?.article_title }}</p>
-        <NInput v-model:value="rejectReason" type="textarea" :autosize="{ minRows: 4, maxRows: 6 }" placeholder="请输入驳回原因" />
+        <NSelect
+          v-model:value="rejectReasonCode"
+          :options="reasonOptions"
+          placeholder="请选择驳回原因（必选）"
+        />
+        <NInput v-model:value="rejectReason" type="textarea" :autosize="{ minRows: 3, maxRows: 6 }" placeholder="补充说明（可选；选『其他原因』时必填）" />
         <div class="flex justify-end gap-3">
           <NButton @click="rejectTarget = null">取消</NButton>
           <NButton type="error" @click="reject">确认驳回</NButton>

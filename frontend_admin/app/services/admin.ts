@@ -8,6 +8,8 @@ import type {
   AdminSidebarCardsResponseData,
   SidebarCardsSavePayload,
   ActionAuditRecord,
+  ArticleReviewHandleRequest,
+  ArticleReviewReasonItem,
   ArticleReviewTaskListResponseData,
   ArticleSearchResponseData,
   ArticleYearDataResponseData,
@@ -85,11 +87,22 @@ export function getArticleReviewTasks(query: {
   return api().request<ArticleReviewTaskListResponseData>('/article-review', { query })
 }
 
-export function reviewArticleTask(id: string, payload: { status: 3 | 4; reason?: string }) {
-  return api().request<unknown, typeof payload>(`/article-review-tasks/${id}/review`, {
+export function reviewArticleTask(id: string, payload: ArticleReviewHandleRequest) {
+  return api().request<unknown, ArticleReviewHandleRequest>(`/article-review-tasks/${id}/review`, {
     method: 'POST',
     body: payload,
   })
+}
+
+/**
+ * 驳回原因的固定列表（值 + 文案由后端唯一词表下发）。
+ *
+ * 前端不手抄中文：渲染 label、提交 value，两边都不认识中文（#308 验收标准）。
+ */
+export function getArticleReviewReasons() {
+  return api()
+    .request<ListData<ArticleReviewReasonItem>>('/article-review/reasons')
+    .then(res => res.list ?? [])
 }
 
 export function getAdminUsers() {

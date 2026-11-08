@@ -1,8 +1,9 @@
 <script setup lang="ts">
 import { computed, ref } from "vue";
-import { NButton, NCard, NInput, NModal, NSelect, NSwitch } from "naive-ui";
+import { NAlert, NButton, NCard, NInput, NModal, NSelect, NSwitch } from "naive-ui";
 
 import StudioCoverUploadPanel from "./StudioCoverUploadPanel.vue";
+import type { QualityRejectionDetails } from "~/composables/useStudioPublish";
 import type { ShapeImageTarget } from "~/utils/imageShaping";
 import { categoryTitleError, normalizeCategoryTitle } from "~/utils/studioCategory";
 
@@ -42,6 +43,13 @@ const props = defineProps<{
   visibilityOptions: { label: string; value: string }[];
   draftLabel: string;
   publishLabel: string;
+  /**
+   * 最近一次「质量不达标」的完整结论（票 306）。
+   *
+   * null 表示这次提交没被闸门拦下；有值时在弹窗里就地展示分数、差额与
+   * 问题列表——弹窗本来就没关（提交失败不会关），作者不用再去找提示。
+   */
+  qualityRejection?: QualityRejectionDetails | null;
   /** 站点草稿开关关闭：保存草稿按钮禁用（服务端同样会拒绝）。 */
   draftDisabled: boolean;
   /** 站点发布开关关闭：发布按钮禁用（服务端同样会拒绝）。 */
@@ -172,6 +180,29 @@ v-model:value="abstractText" type="textarea" maxlength="180"
               <NSwitch v-model:value="commentsToggle" />
             </div>
           </div>
+
+          <!-- 质量不达标（票 306）：就地展示分数、差额与逐条问题。
+               弹窗在失败后仍然是打开的，所以这里比 toast 更合适：作者能一条条
+               对照着改，而不是在一句会消失的提示里找信息。 -->
+          <NAlert
+            v-if="props.qualityRejection"
+            type="error"
+            :bordered="false"
+            class="publish-form__rejection"
+            data-role="quality-rejection">
+            <template #header>
+              内容质量未达标：{{ props.qualityRejection.score }} 分，
+              放行线 {{ props.qualityRejection.required_score }} 分，
+              还差 {{ props.qualityRejection.gap }} 分
+            </template>
+            <ul v-if="props.qualityRejection.issues?.length" class="publish-rejection__list">
+              <li v-for="(issue, index) in props.qualityRejection.issues" :key="index">
+                <strong>{{ issue.reason || "需要修改" }}</strong>
+                <span v-if="issue.suggestion"> —— {{ issue.suggestion }}</span>
+              </li>
+            </ul>
+            <p v-else class="muted m-0">这篇文章已落回草稿，改完可以立刻重投。</p>
+          </NAlert>
 
         </div>
 

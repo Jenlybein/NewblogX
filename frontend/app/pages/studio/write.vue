@@ -15,6 +15,7 @@ import { useStudioEditorCommands } from "~/composables/useStudioEditorCommands";
 import { useStudioAiAssist } from "~/composables/useStudioAiAssist";
 import { useStudioArticle } from "~/composables/useStudioArticle";
 import { useStudioPublish } from "~/composables/useStudioPublish";
+import type { QualityRejectionDetails } from "~/composables/useStudioPublish";
 import { useStudioScore } from "~/composables/useStudioScore";
 import { useStudioToolbar } from "~/composables/useStudioToolbar";
 import { updateArticle } from "~/services/article";
@@ -238,7 +239,7 @@ async function handleRefreshArticleScore() {
 }
 
 // 提交流程见 composable（新建/编辑 × 草稿/发布 的 6 条分支集中在一处）。
-const { submitArticle } = useStudioPublish({
+const { submitArticle, scoring } = useStudioPublish({
   canSubmit,
   pendingState,
   isEditMode,
@@ -250,6 +251,16 @@ const { submitArticle } = useStudioPublish({
   router,
   // 站点策略：草稿/发布开关关闭时在这里拦一道，避免"点了才知道不行"。
   policy: writePolicy,
+  // 质量不达标：把分数、差额与问题列表留在发布弹窗里，作者照着改（#306）。
+  onQualityRejected: (details) => {
+    qualityRejection.value = details;
+  },
+});
+
+/** 最近一次「质量不达标」的完整结论；成功提交或重新打开弹窗时清空。 */
+const qualityRejection = ref<QualityRejectionDetails | null>(null);
+watch(publishVisible, (open) => {
+  if (open) qualityRejection.value = null;
 });
 
 // 工具栏分发见 composable（按钮 key → 插片段 / 改视图 / 开 AI）。
@@ -399,7 +410,8 @@ ref="editorTextareaRef" v-model="form.content" class="write-page__textarea"
       :category-creating="categoryCreating"
       :on-create-category="createCategoryInline"
       :draft-label="draftActionLabel"
-      :publish-label="publishActionLabel"
+      :publish-label="scoring ? '评分中…' : publishActionLabel"
+      :quality-rejection="qualityRejection"
       :on-cover-change="handleCoverFileChange"
       :on-clear="clearCoverSelection"
       @submit="submitArticle"

@@ -63,9 +63,10 @@ type ArticleVisibility = enum.ArticleVisibilityStatus
 
 // 文章可见性取值。
 const (
-	VisibilityVisible     = enum.ArticleVisibilityVisible
-	VisibilityUserHidden  = enum.ArticleVisibilityUserHidden
-	VisibilityAdminHidden = enum.ArticleVisibilityAdminHidden
+	VisibilityVisible       = enum.ArticleVisibilityVisible
+	VisibilityUserHidden    = enum.ArticleVisibilityUserHidden
+	VisibilityAdminHidden   = enum.ArticleVisibilityAdminHidden
+	VisibilityPendingReview = enum.ArticleVisibilityPendingReview
 )
 
 // 审核任务的三组枚举（定义在 kernel，业务模块可自由引用）。

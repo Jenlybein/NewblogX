@@ -125,6 +125,15 @@ export async function useStudioArticle(deps: StudioArticleDeps) {
     visibility_status: "visible" as "visible" | "user_hidden",
   });
 
+  /**
+   * 当前文章是否仍在"已发布、等内容检查通过才对读者可见"。
+   *
+   * 票 302 新规则引入 pending_review：作者拿到"已发布"回执，但读者还看不到。
+   * 表单的 visibility_status 只有两档（写接口不收 pending_review），所以单独用
+   * 一个只读标记承载它 —— 回填时归一成 visible 不会误导，页面据此给一句提示。
+   */
+  const pendingReview = ref(false);
+
   const coverFileInputRef = ref<HTMLInputElement | null>(null);
 
   const coverPreviewUrl = ref("");
@@ -327,6 +336,9 @@ export async function useStudioArticle(deps: StudioArticleDeps) {
       resetCoverPickerState();
       form.comments_toggle = article.comments_toggle ?? true;
       form.visibility_status = article.visibility_status === "user_hidden" ? "user_hidden" : "visible";
+      // pending_review 不能写回表单（写接口只收两档），但要让页面知道
+      // "已发布但还没对读者可见"，否则作者会以为设置里选的"可见"已经生效。
+      pendingReview.value = article.visibility_status === "pending_review";
       form.category_id = article.category_id ?? null;
       form.tag_ids = Array.isArray(article.tag_ids) ? [...article.tag_ids] : [];
       hydratedArticleId.value = articleId;
@@ -539,6 +551,8 @@ export async function useStudioArticle(deps: StudioArticleDeps) {
   return {
     // 表单
     form,
+    /** 当前文章是否仍在等内容检查通过才对读者可见（票 302）。 */
+    pendingReview,
     articleTitleModel,
     articleContentModel,
     // 文章标识

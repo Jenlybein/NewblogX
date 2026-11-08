@@ -50,6 +50,12 @@ const props = defineProps<{
    * 问题列表——弹窗本来就没关（提交失败不会关），作者不用再去找提示。
    */
   qualityRejection?: QualityRejectionDetails | null;
+  /**
+   * 当前文章是否仍在"已发布、等内容检查通过才对读者可见"（票 302）。
+   *
+   * 只影响一句提示，不改变按钮行为：作者仍可编辑重投，服务端会重新判定。
+   */
+  pendingReview?: boolean;
   /** 站点草稿开关关闭：保存草稿按钮禁用（服务端同样会拒绝）。 */
   draftDisabled: boolean;
   /** 站点发布开关关闭：发布按钮禁用（服务端同样会拒绝）。 */
@@ -202,6 +208,17 @@ v-model:value="abstractText" type="textarea" maxlength="180"
               </li>
             </ul>
             <p v-else class="muted m-0">这篇文章已落回草稿，改完可以立刻重投。</p>
+          </NAlert>
+
+          <!-- 票 302：文章已发布但还在等内容检查，读者暂时看不到。
+               只给一句状态说明，不暴露命中词、模型结论或内部状态名。 -->
+          <NAlert
+            v-if="props.pendingReview && !props.qualityRejection"
+            type="info"
+            :bordered="false"
+            class="publish-form__rejection"
+            data-role="pending-review">
+            文章已发布，正在做内容检查；检查通过后才会对读者可见。期间仍可继续编辑并重新提交。
           </NAlert>
 
         </div>

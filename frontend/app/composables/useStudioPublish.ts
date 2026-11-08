@@ -188,7 +188,9 @@ export function useStudioPublish(deps: StudioPublishDeps) {
       if (status === 1) {
         message.success("草稿已保存");
       } else if (created.publish_status === 3) {
-        message.success("文章已发布成功");
+        // 已发布但可能仍处 pending_review：作者立刻拿到"已发布"回执，
+        // 对读者可见要等模型判定通过。文案不能承诺"立刻公开"。
+        message.success("文章已发布，内容检查通过后将对读者可见");
       } else if (created.publish_status === 2) {
         message.success("文章已提交审核，审核通过后会公开展示");
       } else {

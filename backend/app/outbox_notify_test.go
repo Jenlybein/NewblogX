@@ -29,12 +29,16 @@ func TestRejectNoticeCarriesReviewReason(t *testing.T) {
 		taskReason string
 		// noTask 表示连审核任务行都没有（例如任务已被清掉）。
 		noTask bool
+		// source 非空表示"系统直接拒"：任务仍是待处理，来源决定固定文案。
+		source article_review_enum.Source
 		// want 是正文里必须出现的那句话。
 		want string
 	}{
 		{name: "有原因", taskReason: "内容不完整", want: "内容不完整"},
 		{name: "历史任务没填原因", taskReason: "", want: "审核员未填写具体原因"},
 		{name: "没有审核任务行", noTask: true, want: "审核员未填写具体原因"},
+		{name: "内容检查直接拒", source: article_review_enum.SourceRiskCheck, want: "内容检查未通过"},
+		{name: "合规自动拒", source: article_review_enum.SourceCompliance, want: "内容不合规"},
 	}
 
 	for _, c := range cases {
@@ -53,6 +57,15 @@ func TestRejectNoticeCarriesReviewReason(t *testing.T) {
 
 			if !c.noTask {
 				reviewedAt := time.Now()
+				var reviewedAtPtr *time.Time = &reviewedAt
+				taskStatus := article_review_enum.StatusRejected
+				taskSource := article_review_enum.SourceCreate
+				if c.source != "" {
+					// 系统直接拒：任务仍是待处理，理由不在 rejected 行上。
+					taskStatus = article_review_enum.StatusPending
+					taskSource = c.source
+					reviewedAtPtr = nil
+				}
 				if err := db.Create(&schema.ArticleReviewTaskRow{
 					BaseRow:      schema.BaseRow{ID: ctype.NewID(303000000000000003)},
 					ArticleID:    articleID,
@@ -60,10 +73,10 @@ func TestRejectNoticeCarriesReviewReason(t *testing.T) {
 					ArticleTitle: "待审文章",
 					AuthorName:   "作者",
 					Stage:        article_review_enum.StageManual,
-					Source:       article_review_enum.SourceCreate,
-					Status:       article_review_enum.StatusRejected,
+					Source:       taskSource,
+					Status:       taskStatus,
 					Reason:       c.taskReason,
-					ReviewedAt:   &reviewedAt,
+					ReviewedAt:   reviewedAtPtr,
 				}).Error; err != nil {
 					t.Fatalf("写入审核任务失败: %v", err)
 				}
@@ -101,20 +114,29 @@ func TestRejectNoticeCarriesReviewReason(t *testing.T) {
 			if got.Receiver != authorID.Uint64() {
 				t.Fatalf("驳回通知应发给作者 %d，实际 %d", authorID.Uint64(), got.Receiver)
 			}
-			if !strings.Contains(got.Content, "审核失败") {
-				t.Fatalf("正文应说明审核失败，实际 %q", got.Content)
+			if c.source != "" {
+				// 系统直接拒是终局、不给改：不能把作者引向"请修改后再提交"。
+				if !strings.Contains(got.Content, "已被拒绝") {
+					t.Fatalf("系统拒应说明已被拒绝，实际 %q", got.Content)
+				}
+				if strings.Contains(got.Content, "请修改后再提交") {
+					t.Fatalf("系统拒不该说请修改后再提交（不给改），实际 %q", got.Content)
+				}
+			} else if !strings.Contains(got.Content, "审核失败") {
+				t.Fatalf("人工驳回正文应说明审核失败，实际 %q", got.Content)
 			}
 			if !strings.Contains(got.Content, c.want) {
 				t.Fatalf("正文应包含 %q，实际 %q", c.want, got.Content)
 			}
-			// "失败原因："后面必须还有话——这正是本票修的空白。
-			const label = "失败原因："
+			// "原因："后面必须还有话——这正是 #303 修的空白。
+			// 系统拒用「原因：」，人工驳回用「失败原因：」，后者含前者。
+			const label = "原因："
 			at := strings.Index(got.Content, label)
 			if at < 0 {
-				t.Fatalf("正文应写明失败原因，实际 %q", got.Content)
+				t.Fatalf("正文应写明原因，实际 %q", got.Content)
 			}
 			if tail := strings.TrimSpace(got.Content[at+len(label):]); tail == "" {
-				t.Fatalf("失败原因后面不能是空白，实际 %q", got.Content)
+				t.Fatalf("原因后面不能是空白，实际 %q", got.Content)
 			}
 		})
 	}

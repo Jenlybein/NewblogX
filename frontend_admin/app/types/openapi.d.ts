@@ -7105,7 +7105,7 @@ export interface components {
             user_id?: string;
         };
         /** @enum {string} */
-        "internal_article_adapter_http.ArticleVisibility": "visible" | "user_hidden" | "admin_hidden";
+        "internal_article_adapter_http.ArticleVisibility": "visible" | "user_hidden" | "admin_hidden" | "pending_review";
         "internal_article_adapter_http.CategoryListItem": {
             article_count?: number;
             avatar?: string;
@@ -7324,11 +7324,11 @@ export interface components {
             title: string;
         };
         /** @enum {string} */
-        "internal_article_adapter_http.ReviewReasonCode": "quality" | "compliance" | "incomplete" | "format" | "other" | "quality" | "compliance" | "incomplete" | "format" | "other";
+        "internal_article_adapter_http.ReviewReasonCode": "quality" | "compliance" | "incomplete" | "format" | "other" | "risk_check" | "quality" | "compliance" | "incomplete" | "format" | "other" | "risk_check";
         /** @enum {string} */
         "internal_article_adapter_http.ReviewRiskLevel": "none" | "low" | "medium" | "high";
         /** @enum {string} */
-        "internal_article_adapter_http.ReviewTaskSource": "create" | "edit" | "resubmit" | "compliance";
+        "internal_article_adapter_http.ReviewTaskSource": "create" | "edit" | "resubmit" | "compliance" | "risk_check" | "model_suspect" | "model_failure";
         /** @enum {string} */
         "internal_article_adapter_http.ReviewTaskStage": "manual";
         /** @enum {string} */
@@ -9119,7 +9119,7 @@ export interface components {
             title?: string;
         };
         /** @enum {string} */
-        "myblogx_internal_search_domain.VisibilityStatus": "visible" | "user_hidden" | "admin_hidden";
+        "myblogx_internal_search_domain.VisibilityStatus": "visible" | "user_hidden" | "admin_hidden" | "pending_review";
         "myblogx_internal_social_domain.FansItem": {
             fans_abstract?: string;
             fans_avatar?: string;

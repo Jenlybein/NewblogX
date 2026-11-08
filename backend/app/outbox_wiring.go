@@ -10,7 +10,9 @@ import (
 	articleapp "myblogx/internal/article/app"
 	"myblogx/internal/article/domain/review"
 	chatdomain "myblogx/internal/chat/domain"
+	"myblogx/internal/ai/moderation"
 	"myblogx/internal/kernel/ctype"
+	"myblogx/internal/kernel/enum/article_review_enum"
 	notificationapp "myblogx/internal/notification/app"
 	"myblogx/internal/platform/cdc/outboxrelay"
 	"myblogx/internal/platform/es/articlesync"
@@ -188,10 +190,6 @@ func complianceSubscriber(infra *Infra) outboxrelay.Subscriber {
 		if articleID.IsZero() {
 			return nil
 		}
-		if aiService == nil {
-			return nil
-		}
-
 		// 文章已经不在了（多半投递前被删除）：没有可判定的对象，直接结束不重试。
 		var count int64
 		if err := infra.DB.WithContext(ctx).Table(noticeArticleRow{}.TableName()).
@@ -202,11 +200,28 @@ func complianceSubscriber(infra *Infra) outboxrelay.Subscriber {
 			return nil
 		}
 
+		articleSvc := newArticleService(infra)
+		if aiService == nil {
+			// AI 未装配：不能把文章永远留在 pending_review（作者以为发了、
+			// 读者却看不到）。转人工，由管理员决定放行还是驳回。
+			return articleSvc.BackToReviewForCompliance(ctx, articleID,
+				article_review_enum.SourceModelFailure)
+		}
 		result, err := aiService.CheckArticleCompliance(ctx, articleID.Uint64())
 		if err != nil {
-			return err
+			// 判定失败：**在订阅者内部重试一次**，然后转人工。
+			//
+			// 不能借用发件箱的 e.Attempts 来数重试次数：EventArticlePublished
+			// 上还挂着评分、通知等兄弟订阅者，runSubscribers 用 errors.Join
+			// 汇总——任一兄弟失败就会重投整批，Attempts 会涨到 2/3/4/5，
+			// 于是一次"评分失败"会把已判 clean 的文章也误改成人工审核。
+			// 自己重试一次与兄弟彻底解耦，且严格只有一次。
+			result, err = aiService.CheckArticleCompliance(ctx, articleID.Uint64())
+			if err != nil {
+				return articleSvc.BackToReviewForCompliance(ctx, articleID,
+					article_review_enum.SourceModelFailure)
+			}
 		}
-		articleSvc := newArticleService(infra)
 		if saveErr := articleSvc.SaveComplianceResult(ctx, articleID, articleapp.ComplianceResult{
 			Verdict:       result.Verdict,
 			RiskLevel:     result.RiskLevel,
@@ -218,13 +233,30 @@ func complianceSubscriber(infra *Infra) outboxrelay.Subscriber {
 			return saveErr
 		}
 
-		// 高置信违规自动拒（票 313 / ADR-0033）：档位 violation 且风险级别 ≥ 2。
-		// 只在"明确违规"时动手：suspect 一律交人，因为误判会直接落到作者身上，
-		// 而他没有申诉渠道。
-		if result.Verdict == complianceVerdictViolation && result.RiskLevel >= autoRejectRiskLevel {
-			return articleSvc.AutoRejectForCompliance(ctx, articleID)
+		// 分流（票 302 新规则）：提交时同步扫描干净的文章以
+		// Published + pending_review 落库，作者立刻拿到"已发布"回执，
+		// 这里才决定它对不对读者可见。
+		switch moderation.Verdict(result.Verdict) {
+		case moderation.VerdictClean:
+			// 模型判干净：真正放开可见。幂等，重复投递不会产生额外写入。
+			return articleSvc.PublishForCompliance(ctx, articleID)
+		case moderation.VerdictSuspect:
+			// 存疑：误判会直接落到作者身上且他没有申诉渠道，一律交人。
+			// 从"已发布待可见"改回审核中并建一条待处理任务。
+			return articleSvc.BackToReviewForCompliance(ctx, articleID,
+				article_review_enum.SourceModelSuspect)
+		case moderation.VerdictViolation:
+			// 高置信违规自动拒（票 313 / ADR-0033）：档位 violation 且风险 ≥ 2。
+			// 风险 1 的 violation 也交人，理由同 suspect。
+			if result.RiskLevel >= autoRejectRiskLevel {
+				return articleSvc.AutoRejectForCompliance(ctx, articleID)
+			}
+			return articleSvc.BackToReviewForCompliance(ctx, articleID,
+				article_review_enum.SourceModelSuspect)
 		}
-		return nil
+		// 未知档位不当作干净放行：失败关闭，交人工。
+		return articleSvc.BackToReviewForCompliance(ctx, articleID,
+			article_review_enum.SourceModelSuspect)
 	}
 }
 
@@ -233,8 +265,8 @@ func complianceSubscriber(infra *Infra) outboxrelay.Subscriber {
 // 定 2 而不是 1：1 是"低风险"（措辞可疑），那种程度误判最常见，交人看更合适。
 const autoRejectRiskLevel = 2
 
-// complianceVerdictViolation 是「明确违规」档位的稳定值（与 ADR-0033 一致）。
-const complianceVerdictViolation = "violation"
+// 合规档位不在本地重声明：词表唯一来源是 ai/moderation.Verdict*，
+// 这里直接用别名比较，避免"改了一处忘了另一处"（GLOSSARY「枚举别名」）。
 
 // notifySubscriber 在审核通过/拒绝时给作者发系统通知。
 //
@@ -256,7 +288,10 @@ func notifySubscriber(infra *Infra) outboxrelay.Subscriber {
 		var content string
 		switch e.EventName {
 		case articleapp.EventArticlePublished:
-			content = fmt.Sprintf("您的文章《%s》审核通过!", article.Title)
+			// 票 302 新规则下这个事件也可能来自"干净文章提交即发布、但还在
+			// 等内容检查"（pending_review），此时并没人工审核过。用中性文案，
+			// 不谎称"审核通过"；作者侧已有的"已发布"提示负责说明后续等待。
+			content = fmt.Sprintf("您的文章《%s》已发布!", article.Title)
 		case articleapp.EventArticleRejected:
 			// 原因取自**审核任务记录**，不是重新查文章：驳回理由一直存在任务行上
 			// （review.Task.Reason），缺的只是"把它带到通知正文里"这一步。
@@ -304,9 +339,15 @@ func notifySubscriber(infra *Infra) outboxrelay.Subscriber {
 // 失败原因交给 review.ReasonText 渲染：历史任务没填原因时落兜底文案，
 // 不能留一句"失败原因："后面什么都没有。文案与"作者打开被打回的草稿"
 // 看到的是同一句话，替换文案只改 review.ReasonText 一处。
+//
+// 系统直接拒（票 302 同步风险命中 / ADR-0034 合规自动拒）是**终局、不给改**，
+// 仍说"请修改后再提交"会把作者引向一个必然被拒的动作，所以换一句陈述式文案。
 func rejectionContent(title, reason string) string {
-	return fmt.Sprintf("您的文章《%s》审核失败，请修改后再提交!\n失败原因：%s",
-		title, review.ReasonText(reason))
+	text := review.ReasonText(reason)
+	if text == review.ReasonLabel(review.ReasonRiskCheck) || text == articleapp.ComplianceRejectionLabel() {
+		return fmt.Sprintf("您的文章《%s》未通过内容检查，已被拒绝。\n原因：%s", title, text)
+	}
+	return fmt.Sprintf("您的文章《%s》审核失败，请修改后再提交!\n失败原因：%s", title, text)
 }
 
 // rejectionReason 取这篇文章最近一次驳回时审核员写下的原因。
@@ -327,19 +368,40 @@ func rejectionReason(ctx context.Context, infra *Infra, articleID ctype.ID) (str
 		Order("reviewed_at DESC, id DESC").
 		Take(&row).Error
 	if errors.Is(err, gorm.ErrRecordNotFound) {
-		// 没有已拒绝的审核任务：可能是合规自动拒（任务仍是待处理，见
-		// AutoRejectForCompliance）。此时给作者固定文案，而不是空串——
-		// 空串会让通知里出现"理由："后面什么都没有。
+		// 没有已拒绝的审核任务：可能是合规自动拒，或提交时同步风险扫描直接拒
+		// （票 302 新规则）——这两种的任务仍是待处理，理由不在 rejected 行上。
+		// 给作者固定文案，而不是空串：空串会让通知里出现"理由："后面什么都没有。
+		var pendingRow noticePendingReasonRow
+		pendingErr := infra.DB.WithContext(ctx).Table(pendingRow.TableName()).
+			Select("source").
+			Where("article_id = ? AND status = ? AND source IN ?", articleID,
+				string(review.StatusPending),
+				[]string{string(article_review_enum.SourceRiskCheck), string(article_review_enum.SourceCompliance)}).
+			Order("created_at DESC, id DESC").
+			Take(&pendingRow).Error
+		if pendingErr == nil {
+			if pendingRow.Source == string(article_review_enum.SourceRiskCheck) {
+				return review.ReasonLabel(review.ReasonRiskCheck), nil
+			}
+			return articleapp.ComplianceRejectionLabel(), nil
+		}
 		var riskRow noticeRiskRow
 		riskErr := infra.DB.WithContext(ctx).Table(riskRow.TableName()).
 			Where("article_id = ?", articleID).Take(&riskRow).Error
-		if riskErr == nil && riskRow.Verdict == complianceVerdictViolation {
+		if riskErr == nil && riskRow.Verdict == string(moderation.VerdictViolation) {
 			return articleapp.ComplianceRejectionLabel(), nil
 		}
 		return "", nil
 	}
 	return row.Reason, err
 }
+
+// noticePendingReasonRow 读待处理复盘任务的来源（票 302：系统直接拒的通知文案）。
+type noticePendingReasonRow struct {
+	Source string `gorm:"column:source"`
+}
+
+func (noticePendingReasonRow) TableName() string { return "article_review_task_models" }
 
 // noticeRiskRow 是读合规结论用的最小投影（票 313：自动拒后通知要给出固定文案）。
 type noticeRiskRow struct {

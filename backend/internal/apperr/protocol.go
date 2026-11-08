@@ -33,8 +33,11 @@ var protocols = map[Code]ProtocolKind{
 	CodeCommonBindMissing:         ProtocolValidation,
 	// 质量闸门：不达标与"开启闸门时 AI 不可用"都是可以按提示修正的失败，
 	// 用 1001 而不是 1002（后者会让调用方以为后端坏了）。
+	// risk_rejected 是内容检查未通过的业务拒绝，同样归 1001，
+	// 但作者只看到固定文案，不给命中词与等级。
 	CodeArticleQualityRejected:       ProtocolValidation,
 	CodeArticleQualityGateRequiresAI: ProtocolValidation,
+	CodeArticleRiskRejected:          ProtocolValidation,
 	CodeMessageSelectionEmpty:     ProtocolValidation,
 	CodeMessageIDAndTypeEmpty:     ProtocolValidation,
 	CodeMessageNotFound:           ProtocolValidation,

@@ -26,9 +26,15 @@ const (
 type ArticleVisibility string
 
 const (
-	ArticleVisibilityVisible     ArticleVisibility = "visible"
-	ArticleVisibilityUserHidden  ArticleVisibility = "user_hidden"
-	ArticleVisibilityAdminHidden ArticleVisibility = "admin_hidden"
+	ArticleVisibilityVisible       ArticleVisibility = "visible"
+	ArticleVisibilityUserHidden    ArticleVisibility = "user_hidden"
+	ArticleVisibilityAdminHidden   ArticleVisibility = "admin_hidden"
+	// ArticleVisibilityPendingReview 是"已发布、等模型合规判定通过才可见"的
+	// 系统中间态。本文件按文件头约定复制枚举字面量（不 import 业务包），
+	// 唯一来源在 kernel/enum/article_visibility_status.go；domain 侧另有一份
+	// 同值常量。它不出现在任何写接口的入参枚举里（作者不能自己设），
+	// 只作为读响应里可能出现的值，所以这里的 oneof 校验刻意不含它。
+	ArticleVisibilityPendingReview ArticleVisibility = "pending_review"
 )
 
 // ReviewTaskStatus 是审核任务状态。
@@ -59,6 +65,10 @@ const (
 	//
 	// 单列一个来源：复盘时要能一眼分清"人拒的"与"系统拒的"。
 	ReviewTaskSourceCompliance ReviewTaskSource = "compliance"
+	// 票 302 新规则：同步风险扫描直接拒、模型判存疑转人工、模型判定失败转人工。
+	ReviewTaskSourceRiskCheck   ReviewTaskSource = "risk_check"
+	ReviewTaskSourceModelSuspect ReviewTaskSource = "model_suspect"
+	ReviewTaskSourceModelFailure ReviewTaskSource = "model_failure"
 )
 
 // ReviewTaskSort 是审核队列的排序口径（票 311）。

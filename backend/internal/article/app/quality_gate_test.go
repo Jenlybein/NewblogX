@@ -109,6 +109,27 @@ func TestGatePassesWhenScoreReachesPublishLine(t *testing.T) {
 	}
 }
 
+// 票 302 新规则 + 闸门同时生效：达标也只是"已发布待可见"，
+// 不能因为闸门通过就跳过异步模型判定。
+func TestGatePassWithReviewStillPendingVisibility(t *testing.T) {
+	gate := &fakeQualityGate{score: 80}
+	svc, repos, _ := newGateService(t, gate)
+
+	cmd := gateSubmitCmd(gatePolicy())
+	cmd.SkipExamining = false
+
+	a, err := svc.Create(context.Background(), cmd)
+	if err != nil {
+		t.Fatalf("达标提交不应报错: %v", err)
+	}
+	if a.Status() != domain.StatusPublished || a.Visibility() != domain.VisibilityPendingReview {
+		t.Fatalf("达标且非免审核应落 Published + pending_review，实际 %s / %s", a.Status(), a.Visibility())
+	}
+	if names := repos.FakeOutbox().Names(); len(names) != 1 || names[0] != app.EventArticlePublished {
+		t.Fatalf("应发 published 事件触发异步判定，实际 %v", names)
+	}
+}
+
 // TestGateRejectsBelowLineAsDraft 钉住"不达标落草稿并带上分数/差额/问题"。
 func TestGateRejectsBelowLineAsDraft(t *testing.T) {
 	gate := &fakeQualityGate{

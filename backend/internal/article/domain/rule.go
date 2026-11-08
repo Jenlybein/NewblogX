@@ -91,8 +91,19 @@ func CanBeExaminedBy(a *Article, viewer Viewer) bool {
 //
 // 作者可以设置 visible / user_hidden；admin_hidden 只允许管理员设置或解除，
 // 否则作者可以自行撤销管理员的隐藏。
+//
+// pending_review 是系统内部中间态：只有模型判定（异步副作用）能把它转成
+// visible，作者不能自己用"改可见性"接口提前放行，管理员也不能手工 show 掉它
+// ——否则绕过合规判定就成了一个公开接口。管理员要放行只能走审核通过，
+// 那条路径由 Approve 统一处理可见性。
 func CanSetVisibility(a *Article, viewer Viewer, next Visibility) bool {
 	if a == nil || a.deleted || !viewer.IsLoggedIn() {
+		return false
+	}
+	if next == VisibilityPendingReview {
+		return false
+	}
+	if a.visibility == VisibilityPendingReview {
 		return false
 	}
 	if viewer.IsAdmin() {

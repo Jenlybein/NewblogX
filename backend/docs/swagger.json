@@ -1340,13 +1340,15 @@
                 "enum": [
                     "visible",
                     "user_hidden",
-                    "admin_hidden"
+                    "admin_hidden",
+                    "pending_review"
                 ],
                 "type": "string",
                 "x-enum-varnames": [
                     "ArticleVisibilityVisible",
                     "ArticleVisibilityUserHidden",
-                    "ArticleVisibilityAdminHidden"
+                    "ArticleVisibilityAdminHidden",
+                    "ArticleVisibilityPendingReview"
                 ]
             },
             "internal_article_adapter_http.CategoryListItem": {
@@ -2006,11 +2008,13 @@
                     "incomplete",
                     "format",
                     "other",
+                    "risk_check",
                     "quality",
                     "compliance",
                     "incomplete",
                     "format",
-                    "other"
+                    "other",
+                    "risk_check"
                 ],
                 "type": "string",
                 "x-enum-varnames": [
@@ -2018,7 +2022,8 @@
                     "ReasonCompliance",
                     "ReasonIncomplete",
                     "ReasonFormat",
-                    "ReasonOther"
+                    "ReasonOther",
+                    "ReasonRiskCheck"
                 ]
             },
             "internal_article_adapter_http.ReviewRiskLevel": {
@@ -2041,14 +2046,20 @@
                     "create",
                     "edit",
                     "resubmit",
-                    "compliance"
+                    "compliance",
+                    "risk_check",
+                    "model_suspect",
+                    "model_failure"
                 ],
                 "type": "string",
                 "x-enum-varnames": [
                     "ReviewTaskSourceCreate",
                     "ReviewTaskSourceEdit",
                     "ReviewTaskSourceResubmit",
-                    "ReviewTaskSourceCompliance"
+                    "ReviewTaskSourceCompliance",
+                    "ReviewTaskSourceRiskCheck",
+                    "ReviewTaskSourceModelSuspect",
+                    "ReviewTaskSourceModelFailure"
                 ]
             },
             "internal_article_adapter_http.ReviewTaskStage": {
@@ -7019,13 +7030,15 @@
                 "enum": [
                     "visible",
                     "user_hidden",
-                    "admin_hidden"
+                    "admin_hidden",
+                    "pending_review"
                 ],
                 "type": "string",
                 "x-enum-varnames": [
                     "ArticleVisibilityVisible",
                     "ArticleVisibilityUserHidden",
-                    "ArticleVisibilityAdminHidden"
+                    "ArticleVisibilityAdminHidden",
+                    "ArticleVisibilityPendingReview"
                 ]
             },
             "myblogx_internal_social_domain.FansItem": {

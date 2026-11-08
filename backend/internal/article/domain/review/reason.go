@@ -29,6 +29,9 @@ const (
 	ReasonFormat = article_review_enum.ReasonFormat
 	// ReasonOther 其他原因（说明必须补一句，否则作者只看到「其他原因」）。
 	ReasonOther = article_review_enum.ReasonOther
+	// ReasonRiskCheck 是系统同步内容检查未通过时写进任务行的枚举（票 302 新规则）。
+	// 管理员下拉里没有它（不在 ReasonCodes 里），只能由自动判定产生。
+	ReasonRiskCheck = article_review_enum.ReasonRiskCheck
 )
 
 // ReasonNoteMaxLen 是补充说明的字数上限。

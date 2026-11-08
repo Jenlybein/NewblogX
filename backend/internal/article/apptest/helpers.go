@@ -38,6 +38,19 @@ func NewTaskForTest(id uint64, articleID domain.ArticleID, authorID domain.UserI
 	})
 }
 
+// NewTaskWithSourceForTest 构造指定来源的审核任务（票 302：系统直接拒的复盘任务）。
+func NewTaskWithSourceForTest(id uint64, articleID domain.ArticleID, authorID domain.UserID, status review.Status, source review.Source) *review.Task {
+	return review.RestoreTask(review.RestoreTaskParams{
+		ID:        ctype.NewID(id),
+		ArticleID: articleID,
+		AuthorID:  authorID,
+		Stage:     review.StageManual,
+		Source:    source,
+		Status:    status,
+		CreatedAt: DefaultTime,
+	})
+}
+
 // NewTopEntryForTest 构造置顶关系。
 func NewTopEntryForTest(userID domain.UserID, articleID domain.ArticleID) *top.Entry {
 	return top.NewEntry(userID, articleID)

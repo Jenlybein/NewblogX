@@ -206,16 +206,35 @@ func complianceSubscriber(infra *Infra) outboxrelay.Subscriber {
 		if err != nil {
 			return err
 		}
-		return newArticleService(infra).SaveComplianceResult(ctx, articleID, articleapp.ComplianceResult{
+		articleSvc := newArticleService(infra)
+		if saveErr := articleSvc.SaveComplianceResult(ctx, articleID, articleapp.ComplianceResult{
 			Verdict:       result.Verdict,
 			RiskLevel:     result.RiskLevel,
 			Categories:    result.Categories,
 			Reasons:       result.Reasons,
 			PromptVersion: result.PromptVersion,
 			ModelName:     result.ModelName,
-		})
+		}); saveErr != nil {
+			return saveErr
+		}
+
+		// 高置信违规自动拒（票 313 / ADR-0033）：档位 violation 且风险级别 ≥ 2。
+		// 只在"明确违规"时动手：suspect 一律交人，因为误判会直接落到作者身上，
+		// 而他没有申诉渠道。
+		if result.Verdict == complianceVerdictViolation && result.RiskLevel >= autoRejectRiskLevel {
+			return articleSvc.AutoRejectForCompliance(ctx, articleID)
+		}
+		return nil
 	}
 }
+
+// autoRejectRiskLevel 是"高置信"的门槛：风险级别 ≥ 2 才自动拒。
+//
+// 定 2 而不是 1：1 是"低风险"（措辞可疑），那种程度误判最常见，交人看更合适。
+const autoRejectRiskLevel = 2
+
+// complianceVerdictViolation 是「明确违规」档位的稳定值（与 ADR-0033 一致）。
+const complianceVerdictViolation = "violation"
 
 // notifySubscriber 在审核通过/拒绝时给作者发系统通知。
 //
@@ -308,10 +327,28 @@ func rejectionReason(ctx context.Context, infra *Infra, articleID ctype.ID) (str
 		Order("reviewed_at DESC, id DESC").
 		Take(&row).Error
 	if errors.Is(err, gorm.ErrRecordNotFound) {
+		// 没有已拒绝的审核任务：可能是合规自动拒（任务仍是待处理，见
+		// AutoRejectForCompliance）。此时给作者固定文案，而不是空串——
+		// 空串会让通知里出现"理由："后面什么都没有。
+		var riskRow noticeRiskRow
+		riskErr := infra.DB.WithContext(ctx).Table(riskRow.TableName()).
+			Where("article_id = ?", articleID).Take(&riskRow).Error
+		if riskErr == nil && riskRow.Verdict == complianceVerdictViolation {
+			return articleapp.ComplianceRejectionLabel(), nil
+		}
 		return "", nil
 	}
 	return row.Reason, err
 }
+
+// noticeRiskRow 是读合规结论用的最小投影（票 313：自动拒后通知要给出固定文案）。
+type noticeRiskRow struct {
+	ArticleID ctype.ID `gorm:"column:article_id"`
+	Verdict   string   `gorm:"column:verdict"`
+}
+
+// TableName 返回合规风险表的表名。
+func (noticeRiskRow) TableName() string { return "article_risk_models" }
 
 // interactionPayload 是点赞/收藏事件体（article_id + actor_id）。
 type interactionPayload struct {

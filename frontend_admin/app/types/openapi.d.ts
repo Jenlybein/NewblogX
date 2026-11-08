@@ -6954,6 +6954,16 @@ export interface components {
         "internal_article_adapter_http.ArticleHotTopOrderRequest": {
             article_ids: string[];
         };
+        "internal_article_adapter_http.ArticleReviewCompliance": {
+            categories?: string[];
+            checked_at?: string;
+            model_name?: string;
+            prompt_version?: string;
+            reasons?: string[];
+            risk_level?: number;
+            /** @enum {string} */
+            verdict?: "clean" | "suspect" | "violation";
+        };
         "internal_article_adapter_http.ArticleReviewHandleRequest": {
             reason?: string;
             reason_code?: components["schemas"]["internal_article_adapter_http.ReviewReasonCode"];
@@ -6969,6 +6979,13 @@ export interface components {
             article_title?: string;
             author_id?: string;
             author_name?: string;
+            /**
+             * @description Compliance 是第③层模型合规结论（票 312 / ADR-0033）。
+             *
+             *     nil 表示**还没判定**（AI 关闭、调用失败、任务刚建还没排到），
+             *     与 verdict=clean 的"判定过且干净"不是一回事；前端必须能区分这两种形态。
+             */
+            compliance?: components["schemas"]["internal_article_adapter_http.ArticleReviewCompliance"];
             content?: string;
             created_at?: string;
             id?: string;
@@ -7255,7 +7272,7 @@ export interface components {
         /** @enum {string} */
         "internal_article_adapter_http.ReviewRiskLevel": "none" | "low" | "medium" | "high";
         /** @enum {string} */
-        "internal_article_adapter_http.ReviewTaskSource": "create" | "edit" | "resubmit";
+        "internal_article_adapter_http.ReviewTaskSource": "create" | "edit" | "resubmit" | "compliance";
         /** @enum {string} */
         "internal_article_adapter_http.ReviewTaskStage": "manual";
         /** @enum {string} */

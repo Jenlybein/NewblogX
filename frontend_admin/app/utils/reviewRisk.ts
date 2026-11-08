@@ -56,3 +56,28 @@ export function riskLevelRank(level: string | undefined | null): number {
 export function riskLabelText(code: string): string {
   return RISK_LABEL_TEXT[code] ?? code;
 }
+
+/** 第③层模型合规结论的档位（票 312 / ADR-0033）。*/
+export type ReviewComplianceVerdict = "clean" | "suspect" | "violation";
+
+interface ComplianceMeta {
+  label: string;
+  type: ReviewRiskTagType;
+}
+
+const COMPLIANCE_META: Record<ReviewComplianceVerdict, ComplianceMeta> = {
+  clean: { label: "合规", type: "success" },
+  suspect: { label: "可疑", type: "warning" },
+  violation: { label: "违规", type: "error" },
+};
+
+/**
+ * 模型结论 → 中文标签 + 颜色。
+ *
+ * 未知值一律按"可疑"：归到合规等于静默放行，归到违规等于静默拒绝，
+ * 两者都比"交人看"更糟（ADR-0033 决策 3）。
+ */
+export function complianceVerdictMeta(verdict: string | undefined | null): ComplianceMeta {
+  const normalized = (verdict ?? "") as ReviewComplianceVerdict;
+  return COMPLIANCE_META[normalized] ?? COMPLIANCE_META.suspect;
+}

@@ -1984,13 +1984,15 @@
                 "enum": [
                     "create",
                     "edit",
-                    "resubmit"
+                    "resubmit",
+                    "compliance"
                 ],
                 "type": "string",
                 "x-enum-varnames": [
                     "ReviewTaskSourceCreate",
                     "ReviewTaskSourceEdit",
-                    "ReviewTaskSourceResubmit"
+                    "ReviewTaskSourceResubmit",
+                    "ReviewTaskSourceCompliance"
                 ]
             },
             "internal_article_adapter_http.ReviewTaskStage": {

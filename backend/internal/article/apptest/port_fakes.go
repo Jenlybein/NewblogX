@@ -339,7 +339,79 @@ func (d *Diggs) Events() []string {
 	return append([]string(nil), d.events...)
 }
 
-// SubmitQuota 是 app.SubmitQuotaPort 的内存实现（投稿配额，票 304 / ADR-0030）。
+// QualityGate 是 app.QualityGatePort 的内存实现（发布质量闸门，票 306 / ADR-0032）。
+//
+// 只返回"给定分数"这一个结论，不模拟模型：spec 的测试决定明确要求用假实现
+// 给定分数，测"我们拿这个分数做了什么决定"。
+type QualityGate struct {
+	mu      sync.Mutex
+	score   app.QualityGateScore
+	err     error
+	calls   int
+	inputs  []app.QualityGateInput
+	onEval  func(app.QualityGateInput)
+}
+
+// NewQualityGate 构造返回固定分数的评测替身。
+func NewQualityGate(score int, issues ...app.QualityIssue) *QualityGate {
+	return &QualityGate{score: app.QualityGateScore{TotalScore: score, Issues: issues}}
+}
+
+// FailNext 让下一次 Evaluate 返回 err（模拟网络错 / 超时 / 5xx / 非 JSON）。
+func (g *QualityGate) FailNext(err error) {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	g.err = err
+}
+
+// SetScore 改下一次评测返回的分数。
+func (g *QualityGate) SetScore(score int) {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	g.score.TotalScore = score
+}
+
+// OnEvaluate 注册评测时的观察钩子（用例测试用它断言此刻不在事务内）。
+func (g *QualityGate) OnEvaluate(fn func(app.QualityGateInput)) {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	g.onEval = fn
+}
+
+// Calls 返回评测次数。
+func (g *QualityGate) Calls() int {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	return g.calls
+}
+
+// Inputs 返回每次评测的入参（断言评分用的是最终内容）。
+func (g *QualityGate) Inputs() []app.QualityGateInput {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	return append([]app.QualityGateInput(nil), g.inputs...)
+}
+
+// Evaluate 实现 app.QualityGatePort。
+func (g *QualityGate) Evaluate(_ context.Context, in app.QualityGateInput) (app.QualityGateScore, error) {
+	g.mu.Lock()
+	g.calls++
+	g.inputs = append(g.inputs, in)
+	err := g.err
+	score := g.score
+	onEval := g.onEval
+	g.mu.Unlock()
+
+	if onEval != nil {
+		onEval(in)
+	}
+	if err != nil {
+		return app.QualityGateScore{}, err
+	}
+	return score, nil
+}
+
+// SubmitQuota 是 app.SubmitQuotaPort 的内存实现（投稿配额，票 304 / ADR-0031）。
 //
 // 有状态而不是"第 N 次返回 false"：额度是累计量，"释放后能不能再预占"
 // 只有在真的记账之后才断言得出来。

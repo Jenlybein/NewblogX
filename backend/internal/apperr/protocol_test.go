@@ -85,9 +85,18 @@ var serviceFallbackCodes = []apperr.Code{
 	apperr.CodeArticlePublishDisabled,
 	apperr.CodeArticleDraftDisabled,
 	apperr.CodeArticleReviewReasonRequired,
+	// #308：驳回原因从"必填一句话"变成"必选一条固定枚举 + 可选一句话"。
+	// 两个新码都是审核员当场能改的动作（重选 / 精简），所以按服务兜底类别登记。
+	apperr.CodeArticleReviewReasonInvalid,
+	apperr.CodeArticleReviewReasonTooLong,
 	// 投稿配额用完（票 304）：不是"你传错了参数"，调用方也修不了；
 	// 它只是今天没次数了，明天自然恢复。因此按服务兜底类别，不伪装成校验失败。
 	apperr.CodeArticleSubmitQuotaExceeded,
+	// 质量闸门（票 306）：两类都不是参数问题。score_unavailable 是上游模型
+	// 没给出可用结论（作者改稿修不好它，只能等）；quality_rejected 是系统按
+	// 配置给出了"不够好"的结论，作者能改，但它的下一步动作是改稿而不是修参数。
+	// quality_gate_requires_ai 是管理员保存配置时撞上的前提缺失，同样不是参数错误。
+	apperr.CodeArticleScoreUnavailable,
 
 	// 分类与标签。
 	apperr.CodeTaxonomyTitleRequired,

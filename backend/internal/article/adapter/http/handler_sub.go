@@ -1,7 +1,6 @@
 package http
 
 import (
-	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -664,6 +663,7 @@ func (h *Handler) RemoveHistory(c *gin.Context) {
 // @Produce json
 // @Security BearerAuth
 // @Param status query string false "任务状态"
+// @Param sort query string false "排序：created_at（默认）或 risk（风险优先）"
 // @Param page query int false "页码"
 // @Param limit query int false "每页数量"
 // @Success 200 {object} kernel.Envelope[ArticleReviewTaskListResponse]
@@ -677,7 +677,12 @@ func (h *Handler) ReviewTasks(c *gin.Context) {
 		status = &s
 	}
 
-	tasks, total, err := h.svc.ListReviewTasks(c.Request.Context(), h.viewerOf(c), status,
+	sortBy := app.ReviewSortCreatedAt
+	if cr.Sort == ReviewTaskSortRisk {
+		sortBy = app.ReviewSortRisk
+	}
+
+	tasks, total, err := h.svc.ListReviewTasks(c.Request.Context(), h.viewerOf(c), status, sortBy,
 		domain.Page{Offset: pageOffset(cr.Page, cr.Limit), Limit: cr.Limit})
 	if err != nil {
 		h.fail(c, err)
@@ -707,28 +712,15 @@ func (h *Handler) HandleReviewTask(c *gin.Context) {
 	cr := middleware.GetBindJson[ArticleReviewHandleRequest](c)
 
 	approve := cr.Status == ArticleStatusPublished
-	if err := requireRejectReason(approve, cr.Reason); err != nil {
-		h.fail(c, err)
-		return
-	}
-	if _, err := h.svc.HandleReviewTask(c.Request.Context(), h.viewerOf(c), uri.ID, approve, cr.Reason); err != nil {
+	// 驳回原因的校验在用例层（app.reviewReason）：这里再挡一次没有额外收益，
+	// 只会让"哪些值算合法"多一处手抄的清单。用例层在开事务之前就返回错误码，
+	// 所以空原因同样进不了事务。
+	if _, err := h.svc.HandleReviewTask(c.Request.Context(), h.viewerOf(c), uri.ID, approve, cr.ReasonCode, cr.Reason); err != nil {
 		h.fail(c, err)
 		return
 	}
 	h.audit(c, "article_review_handle", "", true, "处理审核任务")
 	res.OkWithMsg("处理成功", c)
-}
-
-// requireRejectReason 是请求层的"驳回必须写明原因"校验。
-//
-// 用例层有同一条规则（app.reviewReason），这里再挡一次的理由是：
-// 空原因应该在进事务之前拿到明确的错误码，而不是先跑完审核再回滚。
-// 通过不需要原因——这条规则只管驳回。
-func requireRejectReason(approve bool, reason string) error {
-	if approve || strings.TrimSpace(reason) != "" {
-		return nil
-	}
-	return apperr.New(apperr.CodeArticleReviewReasonRequired)
 }
 
 // ── 作者信息 ──

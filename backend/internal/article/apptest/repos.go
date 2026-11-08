@@ -250,6 +250,7 @@ type Tx struct {
 	calls     int
 	commits   int
 	rollbacks int
+	active    int
 	failNext  error
 }
 
@@ -258,11 +259,19 @@ func NewTx(repos *Repos) *Tx { return &Tx{repos: repos} }
 
 // WithinTx 执行 fn；出错则回滚全部 fake 仓储。
 func (t *Tx) WithinTx(ctx context.Context, fn func(ctx context.Context, r app.Repos) error) error {
+	// active 记录"此刻是否有一个事务正在执行"。发布质量闸门的用例测试用它
+	// 断言评分调用没有发生在事务内（票 306 / ADR-0032）。
 	t.mu.Lock()
 	t.calls++
+	t.active++
 	injected := t.failNext
 	t.failNext = nil
 	t.mu.Unlock()
+	defer func() {
+		t.mu.Lock()
+		t.active--
+		t.mu.Unlock()
+	}()
 
 	if injected != nil {
 		return injected
@@ -282,6 +291,16 @@ func (t *Tx) WithinTx(ctx context.Context, fn func(ctx context.Context, r app.Re
 	t.commits++
 	t.mu.Unlock()
 	return nil
+}
+
+// Active 返回当前是否有一个 WithinTx 正在执行（>0 表示在事务内）。
+//
+// 用例测试用它证明"评分调用发生在数据库事务之外"：评测 fake 被调用时
+// Active() 必须是 0（票 306）—— 评分进事务会把连接池钉死 5–30 秒。
+func (t *Tx) Active() int {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	return t.active
 }
 
 // FailNext 让下一次 WithinTx 直接失败（模拟"事务都没开起来"）。

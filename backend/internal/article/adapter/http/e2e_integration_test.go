@@ -89,7 +89,7 @@ func newRouterWithSite(
 	t.Helper()
 
 	uow := articlemysql.NewTxManager(db, redis_service.Options{}, nil /* 作者统计不在本测试断言范围 */)
-	svc := articleapp.New(uow, testClock{at: time.Date(2026, 1, 1, 12, 0, 0, 0, time.UTC)}, &testIDs{n: idStart}, nil)
+	svc := articleapp.New(uow, testClock{at: time.Date(2026, 1, 1, 12, 0, 0, 0, time.UTC)}, &testIDs{n: idStart}, nil, nil, nil, nil)
 
 	h := articlehttp.NewHandler(svc, nil, site, func(*gin.Context) domain.Viewer { return viewer }, nil)
 

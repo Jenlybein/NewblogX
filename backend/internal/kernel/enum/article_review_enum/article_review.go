@@ -40,3 +40,51 @@ const (
 	SourceEdit     Source = "edit"
 	SourceResubmit Source = "resubmit"
 )
+
+// ReasonCode 是驳回原因的固定枚举。
+//
+// 为什么是固定枚举而不是自由文本：自由文本让同一件事在校验口径上互不相认，
+// 也没法让前端"按值渲染"——改一个字，按中文字符串匹配的代码就断（apperr 的教训）。
+// 取值是**稳定值**：进契约、落库、出通知都只认它；中文文案只在这里出现一次。
+//
+// 词表只在这一处声明（GLOSSARY「枚举别名」），domain / adapter 一律别名引用；
+// 加一条原因只改本文件，契约里的枚举与前端下拉都跟着生成。
+//
+// 空串不是枚举值，它表示"没有枚举"——#303 之前的历史行与撤销原因用纯自由文本。
+type ReasonCode string
+
+// 驳回原因取值。
+const (
+	// ReasonQuality 内容质量不达标。
+	ReasonQuality ReasonCode = "quality"
+	// ReasonCompliance 内容不合规。
+	ReasonCompliance ReasonCode = "compliance"
+	// ReasonIncomplete 内容不完整。
+	ReasonIncomplete ReasonCode = "incomplete"
+	// ReasonFormat 排版或格式问题。
+	ReasonFormat ReasonCode = "format"
+	// ReasonOther 其他原因（说明必须补一句，否则作者只看到「其他原因」）。
+	ReasonOther ReasonCode = "other"
+)
+
+// reasonLabels 是驳回原因的中文文案。
+//
+// 与取值放同一文件：这就是"错误码 + 中文文案集中一处"的同源做法——
+// 改一句话只动这里，作者通知、管理后台下拉与列表都跟着变。
+var reasonLabels = map[ReasonCode]string{
+	ReasonQuality:    "内容质量不达标",
+	ReasonCompliance: "内容不合规",
+	ReasonIncomplete: "内容不完整",
+	ReasonFormat:     "排版格式问题",
+	ReasonOther:      "其他原因",
+}
+
+// ReasonCodes 返回全部取值。顺序就是下拉框顺序（先质量问题、再合规、再格式、最后其他）。
+//
+// 显式列表而不是遍历 map：map 顺序随机，下拉框每次刷新换一个顺序会让人以为选项变了。
+func ReasonCodes() []ReasonCode {
+	return []ReasonCode{ReasonQuality, ReasonCompliance, ReasonIncomplete, ReasonFormat, ReasonOther}
+}
+
+// Label 返回该取值的中文文案。未知取值返回空串（调用方据此判断"不是固定枚举"）。
+func (c ReasonCode) Label() string { return reasonLabels[c] }

@@ -593,6 +593,28 @@ func (r *ReviewRepo) ListPendingByArticle(_ context.Context, articleID domain.Ar
 	return out, nil
 }
 
+// ListAll 列出满足状态的全部任务。
+func (r *ReviewRepo) ListAll(_ context.Context, status *review.Status) ([]*review.Task, error) {
+	r.count.inc("ListAll")
+	if err := r.fault.take("ListAll"); err != nil {
+		return nil, err
+	}
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	var all []*review.Task
+	for _, id := range r.seq {
+		t, ok := r.byID[id]
+		if !ok {
+			continue
+		}
+		if status != nil && t.Status() != *status {
+			continue
+		}
+		all = append(all, cloneTask(t))
+	}
+	return all, nil
+}
+
 // List 分页列出任务。
 func (r *ReviewRepo) List(_ context.Context, status *review.Status, offset, limit int) ([]*review.Task, int64, error) {
 	r.count.inc("List")

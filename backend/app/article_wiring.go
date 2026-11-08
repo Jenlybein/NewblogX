@@ -10,6 +10,8 @@ import (
 	articlehttp "myblogx/internal/article/adapter/http"
 	"myblogx/internal/article/adapter/mysql"
 	adapterredis "myblogx/internal/article/adapter/redis"
+	aiapp "myblogx/internal/ai/app"
+	"myblogx/internal/apperr"
 	articleapp "myblogx/internal/article/app"
 	"myblogx/internal/article/domain"
 	"myblogx/internal/article/domain/collection"
@@ -63,7 +65,15 @@ func newArticleService(infra *Infra) *articleapp.Service {
 	// 上限取生效值的**现读闭包**，所以后台改完下一次请求即生效；管理员豁免在
 	// 用例层判定（这里不传角色）。Redis 不可用时适配器返回错误 —— 失败关闭。
 	quota := adapterredis.NewSubmitQuota(counterOptions, infra.Effective.ArticleSubmitDailyMaxFunc())
-	return articleapp.New(uow, realClock{}, snowflakeIDs{}, quota)
+	return articleapp.New(
+		uow,
+		realClock{},
+		snowflakeIDs{},
+		quota,
+		newArticleModerationScores(infra.DB),
+		articleModerationWords(infra.Effective),
+		qualityGatePort{},
+	)
 }
 
 // realClock 是生产时钟。
@@ -175,4 +185,49 @@ func (r *imageResolver) FindImageIDByURL(ctx context.Context, url string) (*ctyp
 func (r *imageResolver) ResolveImageURLByID(ctx context.Context, id ctype.ID) (string, error) {
 	_ = ctx
 	return mediamysql.ResolveURLByID(r.db, id.Uint64())
+}
+
+// qualityGatePort 是「发布质量闸门」的评分端口适配器（票 306 / ADR-0032）。
+//
+// 它把 article 用例层的窄口子接到 AI 模块：调 ScoreForGate 拿分数与问题列表，
+// 并把"没有可用分数"的各种情形（未装配、AI 未开启、模型调用失败、返回非 JSON）
+// 统一成 error —— 用例层据此失败关闭。
+//
+// 评分**落库**由 AI 侧负责：同一次提交若再被异步补评分评一次，就是一次提交烧
+// 两次模型调用；写进记录后异步路径看到已有记录就会跳过。
+type qualityGatePort struct{}
+
+// Evaluate 实现 articleapp.QualityGatePort。
+func (qualityGatePort) Evaluate(ctx context.Context, in articleapp.QualityGateInput) (articleapp.QualityGateScore, error) {
+	if aiService == nil {
+		// 闸门开着却没有 AI 装配：按"拿不到分数"处理，而不是静默放行。
+		return articleapp.QualityGateScore{}, apperr.New(apperr.CodeAIServiceOff)
+	}
+	result, err := aiService.ScoreForGate(ctx, aiapp.GateScoreInput{
+		ArticleID: in.ArticleID,
+		AuthorID:  in.AuthorID,
+		Title:     in.Title,
+		Content:   in.Content,
+		UpdatedAt: in.UpdatedAt,
+	})
+	if err != nil {
+		return articleapp.QualityGateScore{}, err
+	}
+
+	issues := make([]articleapp.QualityIssue, 0, len(result.Issues))
+	for _, issue := range result.Issues {
+		positions := make([]articleapp.QualityPosition, 0, len(issue.Positions))
+		for _, pos := range issue.Positions {
+			positions = append(positions, articleapp.QualityPosition{
+				Paragraph: pos.Paragraph,
+				Quote:     pos.Quote,
+			})
+		}
+		issues = append(issues, articleapp.QualityIssue{
+			Positions:  positions,
+			Reason:     issue.Reason,
+			Suggestion: issue.Suggestion,
+		})
+	}
+	return articleapp.QualityGateScore{TotalScore: result.TotalScore, Issues: issues}, nil
 }

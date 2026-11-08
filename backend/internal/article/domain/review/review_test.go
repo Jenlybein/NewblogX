@@ -65,7 +65,7 @@ func TestTaskStateMachine(t *testing.T) {
 	t.Run("拒绝带原因", func(t *testing.T) {
 		t.Parallel()
 		task := newTask()
-		if err := task.Reject(ctype.NewID(900), "内容不完整", now); err != nil {
+		if err := task.Reject(ctype.NewID(900), review.ReasonIncomplete, "缺少示例代码", now); err != nil {
 			t.Fatalf("不应报错: %v", err)
 		}
 		if task.Status() != review.StatusRejected {

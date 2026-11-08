@@ -75,7 +75,13 @@ export function getArticleYearData() {
   return api().request<ArticleYearDataResponseData>('/data/article-year')
 }
 
-export function getArticleReviewTasks(query: { page?: number; limit?: number; status?: string }) {
+export function getArticleReviewTasks(query: {
+  page?: number
+  limit?: number
+  status?: string
+  // 风险排序由服务端做（风险不落库，前端只能收到已经排好序的一页）。
+  sort?: 'created_at' | 'risk'
+}) {
   return api().request<ArticleReviewTaskListResponseData>('/article-review', { query })
 }
 

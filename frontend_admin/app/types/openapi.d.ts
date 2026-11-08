@@ -466,6 +466,8 @@ export interface paths {
                 query?: {
                     /** @description 任务状态 */
                     status?: string;
+                    /** @description 排序：created_at（默认）或 risk（风险优先） */
+                    sort?: string;
                     /** @description 页码 */
                     page?: number;
                     /** @description 每页数量 */
@@ -534,6 +536,42 @@ export interface paths {
                 };
             };
         };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/article-review/reasons": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 驳回原因可选值 */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["myblogx_internal_kernel.Envelope-myblogx_internal_kernel_ListData-internal_article_adapter_http_ArticleReviewReasonItem"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -6918,8 +6956,13 @@ export interface components {
         };
         "internal_article_adapter_http.ArticleReviewHandleRequest": {
             reason?: string;
+            reason_code?: components["schemas"]["internal_article_adapter_http.ReviewReasonCode"];
             /** @enum {integer} */
             status: 3 | 4;
+        };
+        "internal_article_adapter_http.ArticleReviewReasonItem": {
+            label?: string;
+            value?: components["schemas"]["internal_article_adapter_http.ReviewReasonCode"];
         };
         "internal_article_adapter_http.ArticleReviewTaskItem": {
             article_id?: string;
@@ -6931,8 +6974,16 @@ export interface components {
             id?: string;
             publish_status?: components["schemas"]["internal_article_adapter_http.ArticleStatus"];
             reason?: string;
+            reason_code?: components["schemas"]["internal_article_adapter_http.ReviewReasonCode"];
             reviewed_at?: string;
             reviewed_by?: string;
+            /**
+             * @description RiskLabels 是命中的风险标签（稳定 code，前端映射中文）：
+             *     block_word / watch_word / low_score / dimension_collapse / length_abnormal。
+             */
+            risk_labels?: string[];
+            /** @description RiskLevel 是风险等级：none / low / medium / high。 */
+            risk_level?: components["schemas"]["internal_article_adapter_http.ReviewRiskLevel"];
             source?: components["schemas"]["internal_article_adapter_http.ReviewTaskSource"];
             stage?: components["schemas"]["internal_article_adapter_http.ReviewTaskStage"];
             status?: components["schemas"]["internal_article_adapter_http.ReviewTaskStatus"];
@@ -7199,6 +7250,10 @@ export interface components {
             description?: string;
             title: string;
         };
+        /** @enum {string} */
+        "internal_article_adapter_http.ReviewReasonCode": "quality" | "compliance" | "incomplete" | "format" | "other" | "quality" | "compliance" | "incomplete" | "format" | "other";
+        /** @enum {string} */
+        "internal_article_adapter_http.ReviewRiskLevel": "none" | "low" | "medium" | "high";
         /** @enum {string} */
         "internal_article_adapter_http.ReviewTaskSource": "create" | "edit" | "resubmit";
         /** @enum {string} */
@@ -7910,6 +7965,26 @@ export interface components {
              *     深度合并会把老库缺的键按默认值补齐，所以不需要数据迁移）。
              */
             allow_non_admin_publish?: boolean;
+            moderation?: components["schemas"]["myblogx_conf_site.Moderation"];
+            /**
+             * @description Moderation 是机审前两层的高危词表（票 311 / spec #302 决策 22、27）。
+             *
+             *     词表是**运行期数据**（运营热改、不发版），"怎么判"的规则结构在
+             *     internal/article/domain/moderation 里。两档的差别：阻断级命中后将来可
+             *     自动拒（本票只标红），观察级只标红、处置权交人。
+             *
+             *     缺省值只由 site_default_settings.yaml 显式给出（每个清单只有一个定义点）；
+             *     这里不写第二份字面默认值。
+             *     QualityGate 是「发布质量闸门」的站点配置（票 306 / ADR-0032）。
+             *
+             *     它只是形状与默认值的载体：闸门开关、及格线、灰带宽度与四个档界全部
+             *     自由可配、**不做交叉校验**（spec 决策 11）——允许保存"及格线 50 而
+             *     31–59 叫不合格文章"这类自相矛盾的组合，代价由作者侧照旧显示档名承担。
+             *
+             *     缺省值由 site_default_settings.yaml 显式给出；越界值在 QualityGate.Effective
+             *     一处收敛，不在用例层与 adapter 各抄一份。
+             */
+            quality_gate?: components["schemas"]["myblogx_conf_site.QualityGate"];
             /** @description 显示非管理员发布的文章 */
             show_non_admin_articles?: boolean;
             /** @description 免审核 */
@@ -7963,10 +8038,35 @@ export interface components {
             qq_login?: boolean;
             username_pwd_login?: boolean;
         };
+        "myblogx_conf_site.Moderation": {
+            /** @description BlockWords 阻断级词表：命中即高风险；后续票里允许自动拒（本票只标红）。 */
+            block_words?: string[];
+            /** @description WatchWords 观察级词表：命中只标红，处置权在人。 */
+            watch_words?: string[];
+        };
         "myblogx_conf_site.Project": {
             icon?: string;
             title?: string;
             web_path?: string;
+        };
+        "myblogx_conf_site.QualityGate": {
+            band_good_max?: number;
+            band_normal_max?: number;
+            /** @description 四个档界是五档位的上界：较差 / 不合格 / 常规 / 优质 / 精品。 */
+            band_poor_max?: number;
+            band_unqualified_max?: number;
+            /** @description Enabled 是闸门开关。零值 = 关闭，提交路径与引入闸门之前完全一致。 */
+            enabled?: boolean;
+            /** @description GrayBandWidth 是灰带宽度（默认 2）：及格线上再让出这么多分才放行。 */
+            gray_band_width?: number;
+            /**
+             * @description PassScore 是标称及格线（0–100）。
+             *
+             *     **实际放行线 = PassScore + GrayBandWidth**：灰带做在及格线**上方**，
+             *     而不是上下两侧各留一半。理由是闸门的目的是让"同一篇文章今天能发、
+             *     明天不能发"不发生——只有把放行线整体抬出抖动量程（±2 分）才做得到。
+             */
+            pass_score?: number;
         };
         "myblogx_conf_site.Reconcile": {
             /**
@@ -8631,6 +8731,11 @@ export interface components {
             data?: components["schemas"]["myblogx_internal_kernel.ListData-internal_article_adapter_http_ArticleHotTopCardResponse"];
             msg?: string;
         };
+        "myblogx_internal_kernel.Envelope-myblogx_internal_kernel_ListData-internal_article_adapter_http_ArticleReviewReasonItem": {
+            code?: number;
+            data?: components["schemas"]["myblogx_internal_kernel.ListData-internal_article_adapter_http_ArticleReviewReasonItem"];
+            msg?: string;
+        };
         "myblogx_internal_kernel.Envelope-myblogx_internal_kernel_ListData-internal_article_adapter_http_ArticleTopCardResponse": {
             code?: number;
             data?: components["schemas"]["myblogx_internal_kernel.ListData-internal_article_adapter_http_ArticleTopCardResponse"];
@@ -8799,6 +8904,10 @@ export interface components {
         "myblogx_internal_kernel.ListData-internal_article_adapter_http_ArticleHotTopCardResponse": {
             count?: number;
             list?: components["schemas"]["internal_article_adapter_http.ArticleHotTopCardResponse"][];
+        };
+        "myblogx_internal_kernel.ListData-internal_article_adapter_http_ArticleReviewReasonItem": {
+            count?: number;
+            list?: components["schemas"]["internal_article_adapter_http.ArticleReviewReasonItem"][];
         };
         "myblogx_internal_kernel.ListData-internal_article_adapter_http_ArticleTopCardResponse": {
             count?: number;

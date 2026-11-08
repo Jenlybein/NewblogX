@@ -69,7 +69,7 @@ func newEffectiveFixture(t *testing.T) *effectiveFixture {
 	if err := store.InitRuntimeConfig(); err != nil {
 		t.Fatalf("配置补种失败: %v", err)
 	}
-	svc := siteapp.New(nil, nil, siteRuntimeBridge{inner: store}, "test", func() string { return "" }, logger)
+	svc := siteapp.New(nil, nil, siteRuntimeBridge{inner: store}, "test", func() string { return "" }, logger, nil)
 	return &effectiveFixture{
 		db:        db,
 		store:     store,

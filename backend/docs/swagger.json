@@ -996,6 +996,9 @@
                     "reason": {
                         "type": "string"
                     },
+                    "reason_code": {
+                        "$ref": "#/components/schemas/internal_article_adapter_http.ReviewReasonCode"
+                    },
                     "status": {
                         "enum": [
                             3,
@@ -1007,6 +1010,17 @@
                 "required": [
                     "status"
                 ],
+                "type": "object"
+            },
+            "internal_article_adapter_http.ArticleReviewReasonItem": {
+                "properties": {
+                    "label": {
+                        "type": "string"
+                    },
+                    "value": {
+                        "$ref": "#/components/schemas/internal_article_adapter_http.ReviewReasonCode"
+                    }
+                },
                 "type": "object"
             },
             "internal_article_adapter_http.ArticleReviewTaskItem": {
@@ -1038,11 +1052,26 @@
                     "reason": {
                         "type": "string"
                     },
+                    "reason_code": {
+                        "$ref": "#/components/schemas/internal_article_adapter_http.ReviewReasonCode"
+                    },
                     "reviewed_at": {
                         "type": "string"
                     },
                     "reviewed_by": {
                         "type": "string"
+                    },
+                    "risk_labels": {
+                        "description": "RiskLabels 是命中的风险标签（稳定 code，前端映射中文）：\nblock_word / watch_word / low_score / dimension_collapse / length_abnormal。",
+                        "items": {
+                            "type": "string"
+                        },
+                        "type": "array",
+                        "uniqueItems": false
+                    },
+                    "risk_level": {
+                        "$ref": "#/components/schemas/internal_article_adapter_http.ReviewRiskLevel",
+                        "description": "RiskLevel 是风险等级：none / low / medium / high。"
                     },
                     "source": {
                         "$ref": "#/components/schemas/internal_article_adapter_http.ReviewTaskSource"
@@ -1870,6 +1899,43 @@
                     "title"
                 ],
                 "type": "object"
+            },
+            "internal_article_adapter_http.ReviewReasonCode": {
+                "enum": [
+                    "quality",
+                    "compliance",
+                    "incomplete",
+                    "format",
+                    "other",
+                    "quality",
+                    "compliance",
+                    "incomplete",
+                    "format",
+                    "other"
+                ],
+                "type": "string",
+                "x-enum-varnames": [
+                    "ReasonQuality",
+                    "ReasonCompliance",
+                    "ReasonIncomplete",
+                    "ReasonFormat",
+                    "ReasonOther"
+                ]
+            },
+            "internal_article_adapter_http.ReviewRiskLevel": {
+                "enum": [
+                    "none",
+                    "low",
+                    "medium",
+                    "high"
+                ],
+                "type": "string",
+                "x-enum-varnames": [
+                    "ReviewRiskLevelNone",
+                    "ReviewRiskLevelLow",
+                    "ReviewRiskLevelMedium",
+                    "ReviewRiskLevelHigh"
+                ]
             },
             "internal_article_adapter_http.ReviewTaskSource": {
                 "enum": [
@@ -3743,6 +3809,13 @@
                         "description": "「发布与展示」三个开关（ADR-0017 决策 2）。\n它们只表达\"允许什么\"，判定点在 app 层与读过滤处，不靠前端隐藏；\n默认值只写在 site_default_settings.yaml（这一段是自由键值块，\n深度合并会把老库缺的键按默认值补齐，所以不需要数据迁移）。",
                         "type": "boolean"
                     },
+                    "moderation": {
+                        "$ref": "#/components/schemas/myblogx_conf_site.Moderation"
+                    },
+                    "quality_gate": {
+                        "$ref": "#/components/schemas/myblogx_conf_site.QualityGate",
+                        "description": "Moderation 是机审前两层的高危词表（票 311 / spec #302 决策 22、27）。\n\n词表是**运行期数据**（运营热改、不发版），\"怎么判\"的规则结构在\ninternal/article/domain/moderation 里。两档的差别：阻断级命中后将来可\n自动拒（本票只标红），观察级只标红、处置权交人。\n\n缺省值只由 site_default_settings.yaml 显式给出（每个清单只有一个定义点）；\n这里不写第二份字面默认值。\nQualityGate 是「发布质量闸门」的站点配置（票 306 / ADR-0032）。\n\n它只是形状与默认值的载体：闸门开关、及格线、灰带宽度与四个档界全部\n自由可配、**不做交叉校验**（spec 决策 11）——允许保存\"及格线 50 而\n31–59 叫不合格文章\"这类自相矛盾的组合，代价由作者侧照旧显示档名承担。\n\n缺省值由 site_default_settings.yaml 显式给出；越界值在 QualityGate.Effective\n一处收敛，不在用例层与 adapter 各抄一份。"
+                    },
                     "show_non_admin_articles": {
                         "description": "显示非管理员发布的文章",
                         "type": "boolean"
@@ -3829,6 +3902,27 @@
                 },
                 "type": "object"
             },
+            "myblogx_conf_site.Moderation": {
+                "properties": {
+                    "block_words": {
+                        "description": "BlockWords 阻断级词表：命中即高风险；后续票里允许自动拒（本票只标红）。",
+                        "items": {
+                            "type": "string"
+                        },
+                        "type": "array",
+                        "uniqueItems": false
+                    },
+                    "watch_words": {
+                        "description": "WatchWords 观察级词表：命中只标红，处置权在人。",
+                        "items": {
+                            "type": "string"
+                        },
+                        "type": "array",
+                        "uniqueItems": false
+                    }
+                },
+                "type": "object"
+            },
             "myblogx_conf_site.Project": {
                 "properties": {
                     "icon": {
@@ -3839,6 +3933,36 @@
                     },
                     "web_path": {
                         "type": "string"
+                    }
+                },
+                "type": "object"
+            },
+            "myblogx_conf_site.QualityGate": {
+                "properties": {
+                    "band_good_max": {
+                        "type": "integer"
+                    },
+                    "band_normal_max": {
+                        "type": "integer"
+                    },
+                    "band_poor_max": {
+                        "description": "四个档界是五档位的上界：较差 / 不合格 / 常规 / 优质 / 精品。",
+                        "type": "integer"
+                    },
+                    "band_unqualified_max": {
+                        "type": "integer"
+                    },
+                    "enabled": {
+                        "description": "Enabled 是闸门开关。零值 = 关闭，提交路径与引入闸门之前完全一致。",
+                        "type": "boolean"
+                    },
+                    "gray_band_width": {
+                        "description": "GrayBandWidth 是灰带宽度（默认 2）：及格线上再让出这么多分才放行。",
+                        "type": "integer"
+                    },
+                    "pass_score": {
+                        "description": "PassScore 是标称及格线（0–100）。\n\n**实际放行线 = PassScore + GrayBandWidth**：灰带做在及格线**上方**，\n而不是上下两侧各留一半。理由是闸门的目的是让\"同一篇文章今天能发、\n明天不能发\"不发生——只有把放行线整体抬出抖动量程（±2 分）才做得到。",
+                        "type": "integer"
                     }
                 },
                 "type": "object"
@@ -5751,6 +5875,20 @@
                 },
                 "type": "object"
             },
+            "myblogx_internal_kernel.Envelope-myblogx_internal_kernel_ListData-internal_article_adapter_http_ArticleReviewReasonItem": {
+                "properties": {
+                    "code": {
+                        "type": "integer"
+                    },
+                    "data": {
+                        "$ref": "#/components/schemas/myblogx_internal_kernel.ListData-internal_article_adapter_http_ArticleReviewReasonItem"
+                    },
+                    "msg": {
+                        "type": "string"
+                    }
+                },
+                "type": "object"
+            },
             "myblogx_internal_kernel.Envelope-myblogx_internal_kernel_ListData-internal_article_adapter_http_ArticleTopCardResponse": {
                 "properties": {
                     "code": {
@@ -6277,6 +6415,21 @@
                     "list": {
                         "items": {
                             "$ref": "#/components/schemas/internal_article_adapter_http.ArticleHotTopCardResponse"
+                        },
+                        "type": "array",
+                        "uniqueItems": false
+                    }
+                },
+                "type": "object"
+            },
+            "myblogx_internal_kernel.ListData-internal_article_adapter_http_ArticleReviewReasonItem": {
+                "properties": {
+                    "count": {
+                        "type": "integer"
+                    },
+                    "list": {
+                        "items": {
+                            "$ref": "#/components/schemas/internal_article_adapter_http.ArticleReviewReasonItem"
                         },
                         "type": "array",
                         "uniqueItems": false
@@ -7362,6 +7515,14 @@
                         }
                     },
                     {
+                        "description": "排序：created_at（默认）或 risk（风险优先）",
+                        "in": "query",
+                        "name": "sort",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
                         "description": "页码",
                         "in": "query",
                         "name": "page",
@@ -7445,6 +7606,31 @@
                     }
                 ],
                 "summary": "处理审核任务",
+                "tags": [
+                    "article"
+                ]
+            }
+        },
+        "/article-review/reasons": {
+            "get": {
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/myblogx_internal_kernel.Envelope-myblogx_internal_kernel_ListData-internal_article_adapter_http_ArticleReviewReasonItem"
+                                }
+                            }
+                        },
+                        "description": "OK"
+                    }
+                },
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "summary": "驳回原因可选值",
                 "tags": [
                     "article"
                 ]

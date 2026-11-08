@@ -14,6 +14,7 @@ import (
 	"myblogx/internal/ai/diagnose"
 	"myblogx/internal/ai/domain"
 	"myblogx/internal/ai/metainfo"
+	"myblogx/internal/ai/moderation"
 	"myblogx/internal/ai/overwrite"
 	"myblogx/internal/ai/scoring"
 	aisearch "myblogx/internal/ai/search"
@@ -37,13 +38,14 @@ type Logger interface {
 
 // Service 是 AI 服务。
 type Service struct {
-	scores   domain.ScoreRepository
-	catalog  domain.Catalog
-	tags     domain.TagReader
-	searcher domain.Searcher
-	ai       func() conf.AI
-	rawLog   *logrus.Logger
-	logger   Logger
+	scores      domain.ScoreRepository
+	catalog     domain.Catalog
+	tags        domain.TagReader
+	searcher    domain.Searcher
+	sceneSkills domain.SceneSkillReader
+	ai          func() conf.AI
+	rawLog      *logrus.Logger
+	logger      Logger
 }
 
 // New 构造 AI 服务。
@@ -73,12 +75,37 @@ func (s *Service) WithRawLogger(logger *logrus.Logger) *Service {
 	return s
 }
 
+// WithSceneSkills 注入运行时策略文本读取端口（场景 → skill 的正文与版本）。
+//
+// 由装配层接到 skills 目录加载器；单测里换成内存替身。不注入时，
+// 配置里一旦绑定了 skill，相关场景会明确失败而不是悄悄用空口径。
+func (s *Service) WithSceneSkills(reader domain.SceneSkillReader) *Service {
+	s.sceneSkills = reader
+	return s
+}
+
 // config 返回当前 AI 配置。
 func (s *Service) config() (conf.AI, error) {
 	if s.ai == nil {
 		return conf.AI{}, apperr.New(apperr.CodeAIConfigMissing)
 	}
 	return s.ai(), nil
+}
+
+// Ready 报告 AI 现在能不能真的被调用：总闸开着、且至少有一条启用的模型配置。
+//
+// 口径与 specFromConfig 一致（它就是按这两条判失败的）。调用方是「开质量闸门」
+// 这类"保存前先确认前提"的校验（票 306 / ADR-0032）：把失败面从运行期挪到
+// 配置期，避免出现"闸门开着而 AI 关着"这种把所有投稿都拒掉的组合。
+func (s *Service) Ready() bool {
+	if s == nil {
+		return false
+	}
+	aiConf, err := s.config()
+	if err != nil {
+		return false
+	}
+	return aiConf.Enable && aiConf.Active != nil
 }
 
 // ── 元信息生成 ──────────────────────────────────────────────────
@@ -194,13 +221,58 @@ func (s *Service) SearchArticles(ctx context.Context, rewrite *aisearch.ArticleS
 }
 
 // StreamAnswer 基于检索结果让 LLM 生成回答（流式）。
+//
+// 「捏捏」的口吻、称呼与禁用语来自运行期配置 ai.scene_skills 绑定的运行时策略
+// skill（#310）：这里解析场景绑定、读出正文与版本，正文拼进 system prompt，
+// 版本随这次调用记录落库（回溯源文本）。代码里不再写第二份口径文案。
 func (s *Service) StreamAnswer(ctx context.Context, question string, list []searchdomain.Item) (chan string, chan error, error) {
 	aiConf, err := s.config()
 	if err != nil {
 		return nil, nil, err
 	}
-	ctx = aipkg.WithCallMeta(ctx, aipkg.CallMeta{Scene: aipkg.SceneSearchAnswer})
-	return aisearch.AnalyzeArticleSearchStream(ctx, aiConf, question, list)
+	policy, version, err := s.scenePolicy(aiConf, aipkg.SceneSearchAnswer)
+	if err != nil {
+		return nil, nil, err
+	}
+	ctx = aipkg.WithCallMeta(ctx, aipkg.CallMeta{
+		Scene:         aipkg.SceneSearchAnswer,
+		PromptVersion: version,
+	})
+	return aisearch.AnalyzeArticleSearchStream(ctx, aiConf, question, list, policy)
+}
+
+// scenePolicy 按运行期配置把场景绑定解析成最终要注入的正文与版本。
+//
+// 一个场景可以绑定多份 skill：正文按配置顺序拼接，版本写各份哈希的拼接。
+// 没绑定任何 skill 时返回空串 —— 该场景就是它原来的样子，不注入策略文本。
+func (s *Service) scenePolicy(aiConf conf.AI, scene string) (string, string, error) {
+	names := aiConf.SceneSkills[scene]
+	if len(names) == 0 {
+		return "", "", nil
+	}
+	if s.sceneSkills == nil {
+		return "", "", apperr.New(apperr.CodeAIPolicySkillMissing)
+	}
+
+	bodies := make([]string, 0, len(names))
+	versions := make([]string, 0, len(names))
+	for _, raw := range names {
+		name := strings.TrimSpace(raw)
+		if name == "" {
+			continue
+		}
+		skill, err := s.sceneSkills.ReadSceneSkill(name)
+		if err != nil {
+			return "", "", apperr.Wrap(apperr.CodeAIPolicySkillMissing, err)
+		}
+		if body := strings.TrimSpace(skill.Body); body != "" {
+			bodies = append(bodies, body)
+		}
+		if version := strings.TrimSpace(skill.Version); version != "" {
+			versions = append(versions, version)
+		}
+	}
+	return strings.Join(bodies, "\n\n"), strings.Join(versions, "+"), nil
 }
 
 // ── 文章质量评分 ────────────────────────────────────────────────
@@ -225,6 +297,137 @@ type ScoreView struct {
 	MainIssues     []scoring.ArticleScoreIssue
 	OverallComment string
 	CreatedAt      time.Time
+}
+
+// GateScoreInput 是一次「发布质量闸门」的评分请求（票 306 / ADR-0032）。
+//
+// 它与 RescoreInput 的区别是**不要求文章已经落库**：闸门在提交事务之外跑，
+// 那时新建的文章还不存在（ID 已经生成）。因此这里自带标题、正文与作者，
+// 由本方法直接决定评分记录的内容，不再回读文章行。
+type GateScoreInput struct {
+	ArticleID ctype.ID
+	AuthorID  ctype.ID
+	Title     string
+	Content   string
+	// UpdatedAt 是这次提交对应内容的更新时间，随评分记录落库用于回溯。
+	UpdatedAt time.Time
+}
+
+// GateScoreResult 是闸门拿到的一次可用评分结论。
+type GateScoreResult struct {
+	TotalScore int
+	Issues     []scoring.ArticleScoreIssue
+}
+
+// ComplianceResult 是一次「投稿合规判定」的结果（票 312 / ADR-0033）。
+type ComplianceResult struct {
+	Verdict    string
+	RiskLevel  int
+	Categories []string
+	Reasons    []string
+	ModelName  string
+	// PromptVersion 是这次判定所用策略文本的版本（content hash 前缀）；
+	// 空串表示站点没有给该场景绑定 skill。
+	PromptVersion string
+}
+
+// CheckArticleCompliance 对一篇文章做合规判定（票 312 / ADR-0033）。
+//
+// 它读文章快照、注入 moderation 场景的策略文本、调模型，并把结论原样返回；
+// **落库由调用方负责**（文章模块拥有风险记录表，AI 模块不跨模块写别人的表）。
+//
+// 失败语义：返回 error 表示"没判定出结论"（模型不可用、非 JSON 等）。它与
+// "判定为干净"是两件事：前者要在后台显示"未判定"，绝不能当成 clean 放行。
+func (s *Service) CheckArticleCompliance(ctx context.Context, articleID uint64) (*ComplianceResult, error) {
+	if articleID == 0 {
+		return nil, apperr.New(apperr.CodeAIArticleMissing)
+	}
+	aiConf, err := s.config()
+	if err != nil {
+		return nil, err
+	}
+	if !aiConf.Enable {
+		return nil, apperr.New(apperr.CodeAIServiceOff)
+	}
+
+	article, err := s.scores.Article(ctx, articleID)
+	if err != nil {
+		return nil, err
+	}
+
+	policy, version, err := s.scenePolicy(aiConf, aipkg.SceneModeration)
+	if err != nil {
+		return nil, err
+	}
+	checkCtx := aipkg.WithCallMeta(ctx, aipkg.CallMeta{
+		Scene:         aipkg.SceneModeration,
+		PromptVersion: version,
+	})
+
+	result, err := moderation.CheckCompliance(checkCtx, aiConf, moderation.CheckRequest{
+		Title:   article.Title,
+		Content: article.Content,
+		Policy:  policy,
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	return &ComplianceResult{
+		Verdict:       string(result.Verdict),
+		RiskLevel:     result.RiskLevel,
+		Categories:    result.Categories,
+		Reasons:       result.Reasons,
+		ModelName:     result.ModelName,
+		PromptVersion: version,
+	}, nil
+}
+// ScoreForGate 为一次提交评分并落库，返回可用的分数与问题列表。
+//
+// 为什么落库：作者被拒时看到的分数、以及审核列表里的风险标签，都从这一份
+// 记录读；不落库的话，同一次提交会被异步补评分再评一次，等于一次提交烧两次
+// 模型调用（ADR-0032「代价」一节）。
+//
+// 拿不到可用分数一律返回 error（失败关闭），由用例层翻成
+// article.score_unavailable；拿到分数就返回结果，哪怕只有 23 分。
+func (s *Service) ScoreForGate(ctx context.Context, in GateScoreInput) (GateScoreResult, error) {
+	aiConf, err := s.config()
+	if err != nil {
+		return GateScoreResult{}, err
+	}
+	if !aiConf.Enable {
+		return GateScoreResult{}, apperr.New(apperr.CodeAIServiceOff)
+	}
+
+	title := strings.TrimSpace(in.Title)
+	content := strings.TrimSpace(in.Content)
+	if title == "" || content == "" {
+		return GateScoreResult{}, apperr.New(apperr.CodeAIArticleMissing)
+	}
+
+	scoreResp, err := scoring.ScoreArticleQuality(
+		aipkg.WithCallMeta(ctx, aipkg.CallMeta{Scene: aipkg.SceneScoring}), aiConf,
+		scoring.ArticleScoreRequest{Title: title, Content: content})
+	if err != nil {
+		return GateScoreResult{}, err
+	}
+
+	updatedAt := in.UpdatedAt
+	snapshot := domain.ArticleSnapshot{
+		ID:        in.ArticleID,
+		AuthorID:  in.AuthorID,
+		Title:     title,
+		Content:   content,
+		UpdatedAt: updatedAt,
+	}
+	if _, err := persistScore(ctx, s.scores, snapshot, title, content, scoreResp, aiConf); err != nil {
+		return GateScoreResult{}, apperr.Wrap(apperr.CodeAIScoreSaveFailed, err)
+	}
+
+	return GateScoreResult{
+		TotalScore: scoreResp.TotalScore,
+		Issues:     scoreResp.MainIssues,
+	}, nil
 }
 
 // ScoreSummary 读公开评分摘要（不含评语与原因）。
@@ -354,6 +557,9 @@ func (s *Service) requireAuthor(ctx context.Context, viewerID, articleID uint64)
 }
 
 // persistScore 把评分结果转成记录并落库。
+//
+// 一律走 Upsert：同一篇文章再次评分覆盖既有那行，作者改稿后看到的就是新结论。
+// 覆盖写由仓储在事务里保证"只有一行"（与并发竞争一起收口），组合层不需要先查后写。
 func persistScore(
 	ctx context.Context,
 	repo domain.ScoreRepository,
@@ -394,7 +600,7 @@ func persistScore(
 		ModelName:        activeModelName(aiConf),
 		PromptVersion:    scoringPromptVersion,
 	}
-	if _, err := repo.CreateIfAbsent(ctx, record); err != nil {
+	if err := repo.Upsert(ctx, record); err != nil {
 		return nil, err
 	}
 	return record, nil

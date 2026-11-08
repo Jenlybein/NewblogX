@@ -12,6 +12,7 @@ import (
 	"myblogx/internal/platform/health"
 	"myblogx/internal/platform/http/ws"
 	"myblogx/internal/platform/log/writer"
+	"myblogx/internal/platform/skills"
 
 	"github.com/elastic/go-elasticsearch/v7"
 	"github.com/go-redis/redis/v8"
@@ -51,6 +52,11 @@ type Infra struct {
 	// 中继是否需要跳过私信事件由装配处显式传入（见 WireOutboxRelay 的
 	// OutboxWiringOptions），不靠这个字段反推。
 	ChatHub *ws.Hub
+
+	// Skills 是启动时加载的运行时策略文本目录层（只有名称与描述）。
+	// 没有它就是"进程起不来"——加载失败在这里直接返回错误，不存在兜底文本。
+	// 正文由消费点按需读（skills.Skill.Body）。
+	Skills *skills.Catalog
 }
 
 // InitInfra 初始化不依赖业务表的基础设施。
@@ -59,6 +65,16 @@ func InitInfra(cfg *conf.Config, configFile string, version string) (*Infra, err
 		return nil, fmt.Errorf("初始化基础设施失败: 配置不能为空")
 	}
 	normalizeConfig(cfg)
+
+	// 运行时策略文本（skills/）：启动阶段就读盘校验。
+	//
+	// 放在最前面是有意的：它不依赖数据库、也不需要任何外部服务，
+	// 排版错一个字段就能在连库之前失败，错误里直接点名是哪一份文件。
+	// 这正是"读不到就不启动"的落点 —— 不存在代码内兜底文本（ADR-0030）。
+	catalog, err := LoadSkills(cfg)
+	if err != nil {
+		return nil, err
+	}
 
 	if err := core.InitSnowflake(cfg); err != nil {
 		return nil, fmt.Errorf("初始化基础设施失败: %w", err)
@@ -122,6 +138,8 @@ func InitInfra(cfg *conf.Config, configFile string, version string) (*Infra, err
 		Health: health.New(),
 		// 供 AI 用量上报复用同一份日志依赖。
 		LogOptions: logOptions,
+		// 运行时政策文本的目录层：启动时已校验，正文按需读。
+		Skills: catalog,
 	}, nil
 }
 
@@ -137,6 +155,12 @@ func InitRuntimeServices(infra *Infra) error {
 	}
 	infra.RuntimeSite = runtimeSite
 	infra.Effective = sitecfg.NewEffectiveConfig(runtimeSite)
+
+	// 场景 → skill 的引用在启动期一次查清：引用不存在的 skill 是**配置错误**，
+	// 不能等到第一个用户提问时才失败（ADR-0030：读不到就不启动）。
+	if err := ValidateSceneSkillBindings(runtimeSite.GetRuntimeAI(), infra.Skills); err != nil {
+		return err
+	}
 	return nil
 }
 

@@ -54,6 +54,16 @@ export type ArticleReviewTaskItem = RequiredSchema<"internal_article_adapter_htt
 
 export type ArticleReviewTaskListResponseData = RequiredSchema<"internal_article_adapter_http.ArticleReviewTaskListResponse">;
 
+// 驳回原因的固定词表与驳回请求体：两者都从契约派生，前端不再手写副本
+// （contracts.md §4：请求体用 `Schema<"...">`，响应体用 `RequiredSchema<"...">`）。
+export type ArticleReviewReasonItem = RequiredSchema<"internal_article_adapter_http.ArticleReviewReasonItem">;
+
+export type ArticleReviewHandleRequest = Schema<"internal_article_adapter_http.ArticleReviewHandleRequest">;
+
+export type ArticleReviewBatchRequest = Schema<"internal_article_adapter_http.ArticleReviewBatchRequest">;
+
+export type ArticleReviewBatchResponse = RequiredSchema<"internal_article_adapter_http.ArticleReviewBatchResponse">;
+
 export type BannerModel = RequiredSchema<"internal_site_adapter_http.BannerItem">;
 
 /**
@@ -247,6 +257,10 @@ export type ArticleSearchResponseData = Omit<
  * 站点登录策略子块只是 site 段里的一个字段，不再是独立视图模型。
  */
 export type SiteRuntimeConfig = RequiredSchema<"internal_site_adapter_http.SiteSectionSiteResponse">
+
+// 发布质量闸门与投稿配额的配置形状（票 304 / 306）：从契约派生，
+// 前端不再手写一份字段清单（contracts.md §4）。
+export type QualityGateConfig = RequiredSchema<"myblogx_conf_site.QualityGate">;
 export type SiteLoginRuntimeConfig = RequiredSchema<"myblogx_conf_site.Login">
 export type AIRuntimeConfig = RequiredSchema<"internal_site_adapter_http.SiteSectionAiResponse">
 export type MailRuntimeConfig = RequiredSchema<"internal_site_adapter_http.SiteSectionMailResponse">

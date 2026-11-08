@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { useStudioPublish } from "~/composables/useStudioPublish";
+import { ApiBusinessError } from "~/services/http/errors";
 
 // useStudioPublish 的 6 条分支。
 //
@@ -33,6 +34,7 @@ function harness(overrides: {
   visibility?: "visible" | "user_hidden";
   coverUploading?: boolean;
   policy?: { allowPublish: boolean; allowDraft: boolean };
+  onQualityRejected?: (details: unknown) => void;
 } = {}): Harness {
   const message = { success: vi.fn(), warning: vi.fn(), error: vi.fn() };
   const push = vi.fn(async () => undefined);
@@ -50,6 +52,7 @@ function harness(overrides: {
     message,
     router: { push },
     policy: overrides.policy ? { value: overrides.policy } : undefined,
+    onQualityRejected: overrides.onQualityRejected,
   });
 
   return { publish, message, push, pendingState, publishVisible };
@@ -170,5 +173,47 @@ describe("useStudioPublish", () => {
 
     expect(createArticleMock).toHaveBeenCalledTimes(1);
     expect(h.message.success).toHaveBeenCalledWith("草稿已保存");
+  });
+
+  it("质量不达标：把分数/差额/问题交给页面，而不是当成普通提交失败", async () => {
+    const rejection = {
+      article_id: "42",
+      score: 40,
+      required_score: 52,
+      gap: 12,
+      level: "unqualified",
+      issues: [{ reason: "结构松散", suggestion: "按步骤重排" }],
+    };
+    createArticleMock.mockRejectedValue(
+      new ApiBusinessError("内容质量未达标", 1002, rejection),
+    );
+    const onQualityRejected = vi.fn();
+    const h = harness({ onQualityRejected });
+
+    await h.publish.submitArticle(2);
+
+    expect(onQualityRejected).toHaveBeenCalledWith(rejection);
+    // 关键：不能退化成一句"提交失败"，否则作者不知道该改什么。
+    expect(h.message.error).not.toHaveBeenCalled();
+    expect(h.pendingState.publish).toBe(false);
+  });
+
+  it("发布期间把 scoring 置真，结束后归零（用于显示「评分中…」）", async () => {
+    let release: (value: unknown) => void = () => {};
+    createArticleMock.mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          release = resolve;
+        }),
+    );
+    const h = harness();
+    const promise = h.publish.submitArticle(2);
+
+    expect(h.publish.scoring.value).toBe(true);
+
+    release({ id: "42", publish_status: 3 });
+    await promise;
+
+    expect(h.publish.scoring.value).toBe(false);
   });
 });

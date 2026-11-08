@@ -58,6 +58,44 @@ func (s *Service) Create(ctx context.Context, cmd CreateArticleCmd) (*domain.Art
 		return nil, err
 	}
 
+	// 投稿配额（票 304 / ADR-0031）：只有提交才算一次提交动作，存草稿不计。
+	// 预占放在事务之前——超限时一个字节都不该落库；闸门落地后评分调用也要排在
+	// 预占之后，否则"评分成功才发现超限"会白烧一次模型调用。
+	var reservation SubmitQuotaReservation
+	gateRejected := false
+	var verdict qualityVerdict
+	// 新建文章在评分时还没有落库，但评分记录要按真实的 article_id 写，
+	// 所以闸门开启时先在事务外生成 ID，写事务复用它。
+	var articleID domain.ArticleID
+	if target == domain.StatusExamining {
+		res, err := s.reserveSubmitQuota(ctx, cmd.Actor)
+		if err != nil {
+			return nil, err
+		}
+		reservation = res
+
+		if cmd.QualityGate.Enabled {
+			// 评分必须在数据库事务之外（票 306 / ADR-0032）：一次模型调用 5–30 秒，
+			// 把它留在 WithinTx 里等于钉死连接池。顺序固定为
+			// 配额预占 → 评分 → 判定 → 落库（grill §三）。
+			articleID = s.ids.NextArticleID()
+			gateVerdict, err := s.judgeQuality(ctx, cmd.QualityGate, QualityGateInput{
+				ArticleID: articleID,
+				AuthorID:  cmd.Actor.UserID,
+				Title:     cmd.Title,
+				Content:   cmd.Content,
+				UpdatedAt: s.clock.Now(),
+			})
+			if err != nil {
+				// 拿不到可用分数：本次提交不落库，归还配额（失败关闭）。
+				s.releaseSubmitQuota(ctx, reservation)
+				return nil, err
+			}
+			verdict = gateVerdict
+			gateRejected = !gateVerdict.Passed
+		}
+	}
+
 	var created *domain.Article
 
 	err := s.tx.WithinTx(ctx, func(ctx context.Context, r Repos) error {
@@ -74,14 +112,19 @@ func (s *Service) Create(ctx context.Context, cmd CreateArticleCmd) (*domain.Art
 		now := s.clock.Now()
 		status := domain.StatusDraft
 		var submittedAt *time.Time
-		if target == domain.StatusExamining {
+		// 质量不达标（含灰带）：即使站点开启了"跳过审核"也不放行，文章落草稿，
+		// 作者改完可以立刻重投（spec 决策 24）。
+		if target == domain.StatusExamining && !gateRejected {
 			status = domain.ResolveSubmitStatus(cmd.SkipExamining)
 			t := now
 			submittedAt = &t
 		}
+		if articleID.IsZero() {
+			articleID = s.ids.NextArticleID()
+		}
 
 		article, err := domain.NewArticle(domain.NewArticleParams{
-			ID:             s.ids.NextArticleID(),
+			ID:             articleID,
 			AuthorID:       cmd.Actor.UserID,
 			Title:          cmd.Title,
 			Abstract:       cmd.Abstract,
@@ -129,7 +172,14 @@ func (s *Service) Create(ctx context.Context, cmd CreateArticleCmd) (*domain.Art
 	})
 
 	if err != nil {
+		// 提交因系统故障失败：归还额度，不因平台问题罚作者（票 304 验收标准）。
+		s.releaseSubmitQuota(ctx, reservation)
 		return nil, err
+	}
+	if gateRejected {
+		// 文章已经以草稿落库（作者能继续改、能立刻重投），因此这里是"带数据的
+		// 业务拒绝"而不是 "什么都没发生"：错误码 + 分数 / 差额 / 问题列表。
+		return nil, newQualityRejection(created.ID(), verdict)
 	}
 	return created, nil
 }

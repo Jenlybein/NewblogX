@@ -2,9 +2,11 @@ package http
 
 import (
 	"context"
+	"encoding/json"
 
 	"myblogx/internal/article/app"
 	"myblogx/internal/article/domain"
+	"myblogx/internal/article/domain/risk"
 	"myblogx/internal/kernel/ctype"
 )
 
@@ -86,6 +88,10 @@ func toCreateResponse(a app.ArticleView, coverImageID *ctype.ID) ArticleCreateRe
 }
 
 // toTaskItem 审核任务项。
+//
+// 驳回原因拆成"固定枚举值 + 自由文本"两个字段出站：前端按 value 渲染文案，
+// 不按中文字符串匹配（改一个字就断）。历史行没有枚举时 reason_code 为 null，
+// reason 仍是整段原文，前端照原样显示。
 func toTaskItem(t app.ReviewTaskView) ArticleReviewTaskItem {
 	task := t.Task
 	item := ArticleReviewTaskItem{
@@ -94,19 +100,69 @@ func toTaskItem(t app.ReviewTaskView) ArticleReviewTaskItem {
 		AuthorID:      ctype.NewID(task.AuthorID().Uint64()),
 		ArticleTitle:  task.ArticleTitle(),
 		AuthorName:    task.AuthorName(),
+		Content:       t.Content,
 		PublishStatus: ArticleStatus(task.PublishStatus()),
 		Stage:         ReviewTaskStage(task.Stage()),
 		Source:        ReviewTaskSource(task.Source()),
 		Status:        ReviewTaskStatus(task.Status()),
-		Reason:        task.Reason(),
+		Reason:        task.ReasonNote(),
 		CreatedAt:     task.CreatedAt(),
 		ReviewedAt:    task.ReviewedAt(),
+	}
+	if code := task.ReasonCode(); code != "" {
+		item.ReasonCode = &code
 	}
 	if by := task.ReviewedBy(); by != nil {
 		id := ctype.NewID(by.Uint64())
 		item.ReviewedBy = &id
 	}
+	item.RiskLevel = ReviewRiskLevel(t.Risk.Level)
+	// nil → []：契约里这是数组，空列表比 null 更好消费（前端不用再判空）。
+	labels := t.Risk.Labels()
+	if labels == nil {
+		labels = []string{}
+	}
+	item.RiskLabels = labels
+	item.Compliance = toReviewCompliance(t.Compliance)
 	return item
+}
+
+// toReviewCompliance 把合规记录转成展示形状；没有记录时返回 nil（未判定）。
+//
+// categories / reasons 存的是 JSON 数组文本：解析失败时按空数组处理而不是
+// 报错——一条历史脏数据不该让整个审核列表 500。
+func toReviewCompliance(record *risk.Record) *ArticleReviewCompliance {
+	if record == nil {
+		return nil
+	}
+	out := &ArticleReviewCompliance{
+		Verdict:       string(record.Verdict),
+		RiskLevel:     record.RiskLevel,
+		Categories:    decodeStringArray(record.CategoriesJSON),
+		Reasons:       decodeStringArray(record.ReasonsJSON),
+		PromptVersion: record.PromptVersion,
+		ModelName:     record.ModelName,
+	}
+	if !record.CheckedAt.IsZero() {
+		checkedAt := record.CheckedAt
+		out.CheckedAt = &checkedAt
+	}
+	return out
+}
+
+// decodeStringArray 解析 JSON 字符串数组；失败或空串一律返回空数组。
+func decodeStringArray(raw string) []string {
+	if raw == "" {
+		return []string{}
+	}
+	var items []string
+	if err := json.Unmarshal([]byte(raw), &items); err != nil {
+		return []string{}
+	}
+	if items == nil {
+		return []string{}
+	}
+	return items
 }
 
 // toCtypeIDPtr 转换可空分类 ID。

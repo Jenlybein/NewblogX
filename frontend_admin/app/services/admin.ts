@@ -8,6 +8,10 @@ import type {
   AdminSidebarCardsResponseData,
   SidebarCardsSavePayload,
   ActionAuditRecord,
+  ArticleReviewBatchRequest,
+  ArticleReviewBatchResponse,
+  ArticleReviewHandleRequest,
+  ArticleReviewReasonItem,
   ArticleReviewTaskListResponseData,
   ArticleSearchResponseData,
   ArticleYearDataResponseData,
@@ -75,15 +79,48 @@ export function getArticleYearData() {
   return api().request<ArticleYearDataResponseData>('/data/article-year')
 }
 
-export function getArticleReviewTasks(query: { page?: number; limit?: number; status?: string }) {
+export function getArticleReviewTasks(query: {
+  page?: number
+  limit?: number
+  status?: string
+  // 风险排序由服务端做（风险不落库，前端只能收到已经排好序的一页）。
+  sort?: 'created_at' | 'risk'
+}) {
   return api().request<ArticleReviewTaskListResponseData>('/article-review', { query })
 }
 
-export function reviewArticleTask(id: string, payload: { status: 3 | 4; reason?: string }) {
-  return api().request<unknown, typeof payload>(`/article-review-tasks/${id}/review`, {
+export function reviewArticleTask(id: string, payload: ArticleReviewHandleRequest) {
+  return api().request<unknown, ArticleReviewHandleRequest>(`/article-review-tasks/${id}/review`, {
     method: 'POST',
     body: payload,
   })
+}
+
+/**
+ * 批量处理审核任务（spec 决策 32）。
+ *
+ * 与单条接口同一份后端用例：批量不是第二套规则。响应里的 `failed` 是**正常
+ * 结局**——某条任务可能已被别人处理，不该让整批失败。
+ */
+export function batchReviewArticleTasks(ids: string[], payload: Omit<ArticleReviewBatchRequest, 'ids'>) {
+  return api().request<ArticleReviewBatchResponse, ArticleReviewBatchRequest>(
+    '/article-review-tasks/batch-review',
+    {
+      method: 'POST',
+      body: { ids, ...payload },
+    },
+  )
+}
+
+/**
+ * 驳回原因的固定列表（值 + 文案由后端唯一词表下发）。
+ *
+ * 前端不手抄中文：渲染 label、提交 value，两边都不认识中文（#308 验收标准）。
+ */
+export function getArticleReviewReasons() {
+  return api()
+    .request<ListData<ArticleReviewReasonItem>>('/article-review/reasons')
+    .then(res => res.list ?? [])
 }
 
 export function getAdminUsers() {

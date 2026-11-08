@@ -14,6 +14,7 @@ import (
 	"myblogx/internal/article/domain/outline"
 	"myblogx/internal/article/domain/project"
 	"myblogx/internal/article/domain/review"
+	"myblogx/internal/article/domain/risk"
 	"myblogx/internal/article/domain/taxonomy"
 	"myblogx/internal/article/domain/top"
 	"myblogx/internal/article/domain/viewhistory"
@@ -95,6 +96,9 @@ func (r *repos) Reviews() review.Repository              { return NewReviewRepo(
 func (r *repos) AuthorStats() app.AuthorStatsPort {
 	return &authorStats{db: r.db, apply: r.authorStats}
 }
+
+// Risks 现场构造合规记录仓储（票 312 / ADR-0033），与其它 Getter 同一做法。
+func (r *repos) Risks() risk.Repository { return NewRiskRepo(r.db) }
 
 // Outbox 用当前事务句柄构造写入器：事件行写进本事务，随业务一起提交/回滚。
 func (r *repos) Outbox() app.OutboxPort    { return NewOutboxWriter(r.db) }

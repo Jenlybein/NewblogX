@@ -3,15 +3,19 @@ package app
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"time"
 
 	articleapp "myblogx/internal/article/app"
+	"myblogx/internal/article/domain/review"
 	chatdomain "myblogx/internal/chat/domain"
 	"myblogx/internal/kernel/ctype"
 	notificationapp "myblogx/internal/notification/app"
 	"myblogx/internal/platform/cdc/outboxrelay"
 	"myblogx/internal/platform/es/articlesync"
+
+	"gorm.io/gorm"
 )
 
 // OutboxWiringOptions 是本进程中继策略的**显式输入**，由 main 按进程角色决定。
@@ -64,6 +68,12 @@ func registerOutboxSubscribers(relay *outboxrelay.Relay, infra *Infra) {
 	// 评分：创建与发布都要保证有评分记录（复刻旧 create/examine/review 的行为）。
 	relay.On(articleapp.EventArticleCreated, scoreSubscriber(infra))
 	relay.On(articleapp.EventArticlePublished, scoreSubscriber(infra))
+
+	// 合规判定（票 312 / ADR-0033）：文章创建与发布各跑一次。
+	// 与评分并列挂在同一批事件上，但**结论落在自己的表**（article_risk_models），
+	// 不借用评分记录——两者判的是不同的问题，失败与重试口径也不同。
+	relay.On(articleapp.EventArticleCreated, complianceSubscriber(infra))
+	relay.On(articleapp.EventArticlePublished, complianceSubscriber(infra))
 
 	// 通知：审核结果与旧链路一致（通过 / 拒绝各一条）。
 	relay.On(articleapp.EventArticlePublished, notifySubscriber(infra))
@@ -168,6 +178,64 @@ func scoreSubscriber(infra *Infra) outboxrelay.Subscriber {
 	}
 }
 
+// complianceSubscriber 触发一次模型合规判定并落库（票 312 / ADR-0033）。
+//
+// 失败语义：拿不到结论时返回 error，交给发件箱重试；重试耗尽后进死信，
+// 后台看到的是"这篇文章没有合规结论"（未判定），而不是被当成"干净"放行。
+func complianceSubscriber(infra *Infra) outboxrelay.Subscriber {
+	return func(ctx context.Context, e outboxrelay.Event) error {
+		articleID := e.AggregateID
+		if articleID.IsZero() {
+			return nil
+		}
+		if aiService == nil {
+			return nil
+		}
+
+		// 文章已经不在了（多半投递前被删除）：没有可判定的对象，直接结束不重试。
+		var count int64
+		if err := infra.DB.WithContext(ctx).Table(noticeArticleRow{}.TableName()).
+			Where("id = ?", articleID).Count(&count).Error; err != nil {
+			return err
+		}
+		if count == 0 {
+			return nil
+		}
+
+		result, err := aiService.CheckArticleCompliance(ctx, articleID.Uint64())
+		if err != nil {
+			return err
+		}
+		articleSvc := newArticleService(infra)
+		if saveErr := articleSvc.SaveComplianceResult(ctx, articleID, articleapp.ComplianceResult{
+			Verdict:       result.Verdict,
+			RiskLevel:     result.RiskLevel,
+			Categories:    result.Categories,
+			Reasons:       result.Reasons,
+			PromptVersion: result.PromptVersion,
+			ModelName:     result.ModelName,
+		}); saveErr != nil {
+			return saveErr
+		}
+
+		// 高置信违规自动拒（票 313 / ADR-0033）：档位 violation 且风险级别 ≥ 2。
+		// 只在"明确违规"时动手：suspect 一律交人，因为误判会直接落到作者身上，
+		// 而他没有申诉渠道。
+		if result.Verdict == complianceVerdictViolation && result.RiskLevel >= autoRejectRiskLevel {
+			return articleSvc.AutoRejectForCompliance(ctx, articleID)
+		}
+		return nil
+	}
+}
+
+// autoRejectRiskLevel 是"高置信"的门槛：风险级别 ≥ 2 才自动拒。
+//
+// 定 2 而不是 1：1 是"低风险"（措辞可疑），那种程度误判最常见，交人看更合适。
+const autoRejectRiskLevel = 2
+
+// complianceVerdictViolation 是「明确违规」档位的稳定值（与 ADR-0033 一致）。
+const complianceVerdictViolation = "violation"
+
 // notifySubscriber 在审核通过/拒绝时给作者发系统通知。
 //
 // 文案与旧链路保持一致（旧代码里是裸 goroutine 调 InsertSystemMessage），
@@ -190,7 +258,14 @@ func notifySubscriber(infra *Infra) outboxrelay.Subscriber {
 		case articleapp.EventArticlePublished:
 			content = fmt.Sprintf("您的文章《%s》审核通过!", article.Title)
 		case articleapp.EventArticleRejected:
-			content = fmt.Sprintf("您的文章《%s》审核失败，请修改后再提交!\n失败原因：%s", article.Title, "")
+			// 原因取自**审核任务记录**，不是重新查文章：驳回理由一直存在任务行上
+			// （review.Task.Reason），缺的只是"把它带到通知正文里"这一步。
+			// 不要去文章表找原因——那里从来没有过这个字段，读不到只会绕回兜底文案。
+			reason, err := rejectionReason(ctx, infra, articleID)
+			if err != nil {
+				return err
+			}
+			content = rejectionContent(article.Title, reason)
 		default:
 			return nil
 		}
@@ -223,6 +298,57 @@ func notifySubscriber(infra *Infra) outboxrelay.Subscriber {
 		})
 	}
 }
+
+// rejectionContent 是驳回通知的正文。
+//
+// 失败原因交给 review.ReasonText 渲染：历史任务没填原因时落兜底文案，
+// 不能留一句"失败原因："后面什么都没有。文案与"作者打开被打回的草稿"
+// 看到的是同一句话，替换文案只改 review.ReasonText 一处。
+func rejectionContent(title, reason string) string {
+	return fmt.Sprintf("您的文章《%s》审核失败，请修改后再提交!\n失败原因：%s",
+		title, review.ReasonText(reason))
+}
+
+// rejectionReason 取这篇文章最近一次驳回时审核员写下的原因。
+//
+// 查的是审核任务表：原因本来就记在任务行上（review.Task.Reason），
+// 本票修的只是"它从来没被带到通知正文里"。历史任务可能没填原因
+// （#303 之前不是必填），这里如实返回空串，由 review.ReasonText 统一兜底；
+// 不要在这里另写一份兜底文案。
+//
+// 查不到任务行（例如任务已被清理）同样返回空串：没有记录不算通知失败，
+// 返回错误只会让中继白白重试到死信。
+func rejectionReason(ctx context.Context, infra *Infra, articleID ctype.ID) (string, error) {
+	var row noticeReviewReasonRow
+	err := infra.DB.WithContext(ctx).
+		Table(row.TableName()).
+		Select("reason").
+		Where("article_id = ? AND status = ?", articleID, string(review.StatusRejected)).
+		Order("reviewed_at DESC, id DESC").
+		Take(&row).Error
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		// 没有已拒绝的审核任务：可能是合规自动拒（任务仍是待处理，见
+		// AutoRejectForCompliance）。此时给作者固定文案，而不是空串——
+		// 空串会让通知里出现"理由："后面什么都没有。
+		var riskRow noticeRiskRow
+		riskErr := infra.DB.WithContext(ctx).Table(riskRow.TableName()).
+			Where("article_id = ?", articleID).Take(&riskRow).Error
+		if riskErr == nil && riskRow.Verdict == complianceVerdictViolation {
+			return articleapp.ComplianceRejectionLabel(), nil
+		}
+		return "", nil
+	}
+	return row.Reason, err
+}
+
+// noticeRiskRow 是读合规结论用的最小投影（票 313：自动拒后通知要给出固定文案）。
+type noticeRiskRow struct {
+	ArticleID ctype.ID `gorm:"column:article_id"`
+	Verdict   string   `gorm:"column:verdict"`
+}
+
+// TableName 返回合规风险表的表名。
+func (noticeRiskRow) TableName() string { return "article_risk_models" }
 
 // interactionPayload 是点赞/收藏事件体（article_id + actor_id）。
 type interactionPayload struct {

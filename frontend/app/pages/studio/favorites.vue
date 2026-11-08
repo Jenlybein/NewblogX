@@ -147,6 +147,7 @@ function nextContentPage() {
 useSeoMeta({
   title: "个人中心 - 收藏夹",
 });
+useNoIndexPage();
 </script>
 
 <template>

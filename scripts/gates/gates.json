@@ -1,5 +1,5 @@
 {
-  "$comment": "门禁清单：本文件是唯一来源，13 道仓库级门禁各一条，不重复登记。加一道门禁只改这里 —— 本地门禁（scripts/check.sh）、持续集成（.github/workflows/ci.yml）、门禁自检（scripts/verify-gates.sh）都经 scripts/gates/run.mjs 读它。每条都必须带 canaries（门禁自检的演练节号，1..14）与执行方式：steps = 这条命令本身可由 runner 直接执行；section = 真门禁由本地 / CI 的某个步骤实现，只能靠门禁自检第 N 节证明它会红，runner 不代跑（用 executedBy 写清是谁在跑）。",
+  "$comment": "门禁清单：本文件是唯一来源，14 道仓库级门禁各一条，不重复登记。加一道门禁只改这里 —— 本地门禁（scripts/check.sh）、持续集成（.github/workflows/ci.yml）、门禁自检（scripts/verify-gates.sh）都经 scripts/gates/run.mjs 读它。每条都必须带 canaries（门禁自检的演练节号，1..14）与执行方式：steps = 这条命令本身可由 runner 直接执行；section = 真门禁由本地 / CI 的某个步骤实现，只能靠门禁自检第 N 节证明它会红，runner 不代跑（用 executedBy 写清是谁在跑）。演练节号不必一门一号：skills-format（#309）与 archcheck 共用第 3 节，因为它的人造违规用例写在脚本自己的 --self-test 里，与第 3 节「规则自检」是同一种证明形状。",
   "notGates": [14],
   "notGatesReason": "演练第 14 节（生成式装饰参数校验，#286）不是仓库级门禁：#287 AC4 明写清单只收「清单 / 版本 / 判定 / 重复安装」四件，不含参数脚本。它由 scripts/check.sh 的 gates 段、.github/workflows/ci.yml 的 frontend-lint job 直接执行，verify-gates.sh 第 14 节证明它会红。必须在这里显式登记：--check-coverage 只豁免登记过的节号，未登记的演练仍然算「没人负责」。",
   "gates": [
@@ -41,6 +41,16 @@
             "."
           ]
         }
+      ]
+    },
+    {
+      "id": "skills-format",
+      "label": "运行时策略 skill 格式校验（frontmatter + 负向用例）",
+      "group": "backend",
+      "canaries": [3],
+      "steps": [
+        { "cwd": ".", "command": ["node", "scripts/check-skills.mjs", "--self-test"] },
+        { "cwd": ".", "command": ["node", "scripts/check-skills.mjs"] }
       ]
     },
     {
@@ -151,7 +161,12 @@
     {
       "id": 3,
       "title": "archcheck 规则自检",
-      "affected": ["backend/tools/archcheck/**"]
+      "affected": [
+        "backend/tools/archcheck/**",
+        "backend/internal/platform/skills/**",
+        "skills/**",
+        "scripts/check-skills.mjs"
+      ]
     },
     {
       "id": 4,

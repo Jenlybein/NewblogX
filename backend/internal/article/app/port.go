@@ -14,9 +14,11 @@ import (
 	"myblogx/internal/article/domain/collection"
 	"myblogx/internal/article/domain/favorite"
 	"myblogx/internal/article/domain/hottop"
+	"myblogx/internal/article/domain/moderation"
 	"myblogx/internal/article/domain/outline"
 	"myblogx/internal/article/domain/project"
 	"myblogx/internal/article/domain/review"
+	"myblogx/internal/article/domain/risk"
 	"myblogx/internal/article/domain/taxonomy"
 	"myblogx/internal/article/domain/top"
 	"myblogx/internal/article/domain/viewhistory"
@@ -58,6 +60,11 @@ type Repos interface {
 	Projects() project.Repository
 	// 目录树不在 Repos 上：两个实体各有一张具名树表，读树前必须先用
 	// NamedOutlineRepository 把一次事务的仓储指向对应归属（见 named_outline.go）。
+
+	// Risks 是合规判定记录（票 312 / ADR-0033）。
+	//
+	// 它是**新表**：结论写在这里，而不是给文章表或审核任务表加列（零 DDL）。
+	Risks() risk.Repository
 }
 
 // DiggPort 是点赞关系端口。
@@ -146,10 +153,99 @@ type Event struct {
 	AggregateType string
 }
 
+// SubmitQuotaPort 是「投稿配额」端口（票 304 / ADR-0031）。
+//
+// 由使用方（本包）定义、装配层接 Redis 适配器；形状对齐私信发送限流的预占 / 释放
+// （domain.Limiter）：一个 Reserve 方法 + 一份可释放的预占，不引入"查询剩余额度"
+// 这类读方法——额度只在提交那一刻被判定，其他地方要显示剩余量应当另开只读端口。
+type SubmitQuotaPort interface {
+	// Reserve 预占一次当日的投稿额度。
+	//
+	// 额度用完返回 domain.ErrSubmitQuotaExceeded；其余错误视为系统故障
+	// （失败关闭：不放行提交）。成功时调用方在提交失败后必须 Release。
+	Reserve(ctx context.Context, userID domain.UserID) (SubmitQuotaReservation, error)
+}
+
+// SubmitQuotaReservation 是一次已占用的投稿额度。
+//
+// Release 必须幂等：调用点常写成"显式归还 + defer 兜底"，重复归还会把
+// 当日额度凭空放大。
+type SubmitQuotaReservation interface {
+	Release(ctx context.Context) error
+}
+
+// QualityGatePort 是「发布质量闸门」的评分端口（票 306 / ADR-0032）。
+//
+// 由使用方（本包）定义、装配层接到 AI 模块。形状只有一个方法：对一篇待提交
+// 的文章打一次分，并返回分数与问题列表；"拿不到可用分数"必须返回错误。
+//
+// 这是对"article app 不直接依赖 AI 模块"的一次**有意突破**：文章应用层原本只
+// 通过事务型发件箱产生副作用，而闸门是**同步决策** —— 分数决定这次提交落草稿
+// 还是进审核，等不了异步中继，因此必须有这个窄口子。ADR-0032 记录了这条张力
+// 与理由，不要在实现里把评分调用挪回事务内。
+type QualityGatePort interface {
+	// Evaluate 对一篇待提交文章评分。
+	//
+	// 网络错、超时、限流、5xx、返回非 JSON、缺总分等"没拿到可用分数"的情形
+	// 一律返回错误（失败关闭）；拿到分数（哪怕 23 分）就返回结果，由用例层
+	// 按阈值判定，不算系统故障。
+	Evaluate(ctx context.Context, in QualityGateInput) (QualityGateScore, error)
+}
+
+// QualityGateInput 是一次评分请求。
+//
+// 故意不传 cmd / 文章聚合：端口只需要"评分所必需的四件事"，这样装配层实现
+// 不必理解文章的状态机，测试也不必造一整个聚合。
+type QualityGateInput struct {
+	ArticleID domain.ArticleID
+	AuthorID  domain.UserID
+	Title     string
+	Content   string
+	// UpdatedAt 是这次提交对应内容的更新时间，随评分记录落库用于回溯。
+	UpdatedAt time.Time
+}
+
+// QualityGateScore 是一次可用的评分结论。
+type QualityGateScore struct {
+	// TotalScore 是 0–100 的总分。
+	TotalScore int
+	// Issues 是逐条问题，用于告诉作者"按哪几条改"。
+	Issues []QualityIssue
+}
+
+// QualityIssue 是一条评分问题。
+type QualityIssue struct {
+	// Positions 是问题在正文里的定位；可能为空（模型没给位置）。
+	Positions  []QualityPosition
+	Reason     string
+	Suggestion string
+}
+
+// QualityPosition 定位到正文的段落与原文引用。
+type QualityPosition struct {
+	Paragraph int
+	Quote     string
+}
+
 // Clock 是可注入时钟。domain 不取时间，时间由用例层传入。
 type Clock interface {
 	Now() time.Time
 }
+
+// ModerationScorePort 是「机审第②层」读取已有评分记录的端口（票 311）。
+//
+// 由使用方（本包）定义、装配层接到 ai 模块的评分仓储；只读、批量、不触发
+// 任何模型调用。没有评分记录的文章不出现在返回 map 里 —— "没有记录"是正常
+// 状态，不是错误（审核列表照常渲染）。
+type ModerationScorePort interface {
+	LatestScores(ctx context.Context, articleIDs []domain.ArticleID) (map[domain.ArticleID]moderation.ScoreFacts, error)
+}
+
+// ModerationWordProvider 现读两档高危词表（机审第①层）。
+//
+// 词表是运行期配置：每次读取都现算，运营在后台改完，下一次列表请求立即
+// 按新词表判，不缓存、不落库。返回的 WordLists 里空清单表示该档关闭。
+type ModerationWordProvider func() moderation.WordLists
 
 // IDGen 是可注入 ID 生成器。
 //
@@ -182,9 +278,33 @@ type Service struct {
 	tx    TxManager
 	clock Clock
 	ids   IDGen
+	// quota 是投稿配额端口（票 304）。为 nil 表示"不设上限"——只有测试装配会这样；
+	// 生产装配在 backend/app/article_wiring.go 里必然注入 Redis 适配器，
+	// 而适配器在 Redis 不可用时返回错误（失败关闭，不放行提交）。
+	quota SubmitQuotaPort
+	// scores 是机审第②层的评分记录来源（票 311）。为 nil 表示"没有评分数据"，
+	// 此时审核列表只算词表层、不报错；生产装配接到 ai 模块的评分仓储。
+	scores ModerationScorePort
+	// words 现读机审词表（票 311）。为 nil 表示两档词表都为空。
+	words ModerationWordProvider
+	// quality 是发布质量闸门的评分端口（票 306 / ADR-0032）。
+	//
+	// 为 nil 表示闸门即使被打开也无法评分 —— 此时按失败关闭处理（拒绝提交，
+	// 错误码 article.score_unavailable）。生产装配必然注入（article_wiring.go）。
+	quality QualityGatePort
 }
 
 // New 构造用例服务。
-func New(tx TxManager, clock Clock, ids IDGen) *Service {
-	return &Service{tx: tx, clock: clock, ids: ids}
+//
+// quota / scores / words / quality 为 nil 时分别退化为"不设上限 / 没有评分数据 /
+// 空词表 / 无法评分"（测试装配会这样）；生产装配在 backend/app/article_wiring.go 里给出实现。
+func New(
+	tx TxManager, clock Clock, ids IDGen,
+	quota SubmitQuotaPort, scores ModerationScorePort, words ModerationWordProvider,
+	quality QualityGatePort,
+) *Service {
+	return &Service{
+		tx: tx, clock: clock, ids: ids,
+		quota: quota, scores: scores, words: words, quality: quality,
+	}
 }

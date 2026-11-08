@@ -18,6 +18,14 @@ type AI struct {
 	Avatar        string  `yaml:"avatar" json:"avatar"`
 	Abstract      string  `yaml:"abstract" json:"abstract"`
 
+	// SceneSkills 是「哪个 AI 场景用哪份运行时策略 skill」的产品接线（#310）。
+	//
+	// 它属于运行期配置而不是 skill 文件：skill 要保持可移植（任何人拿走都能直接用），
+	// 场景绑定要能临时摘掉某份 skill 而不发版（grill §5.3 / ADR-0030）。
+	// key 是 AI 调用场景（internal/ai 的 Scene* 常量），value 是 skills/<name> 的名称列表；
+	// 一个场景可以拼多份 skill，正文按顺序拼接。
+	SceneSkills map[string][]string `yaml:"scene_skills" json:"scene_skills"`
+
 	// Active 是当前启用的模型配置。
 	//
 	// 由装配层每次现填（读 ProviderService 的内存快照），**不落库、不接受

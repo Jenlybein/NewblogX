@@ -469,6 +469,7 @@ async function savePrivacy() {
 useSeoMeta({
   title: "个人中心 - 账号设置",
 });
+useNoIndexPage();
 </script>
 
 <template>

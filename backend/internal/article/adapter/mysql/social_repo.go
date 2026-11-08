@@ -664,6 +664,26 @@ func (r *ReviewRepo) ListPendingByArticle(ctx context.Context, articleID domain.
 	return out, nil
 }
 
+// ListAll 列出满足状态的全部任务（按风险排序用）。
+//
+// 与 List 同一顺序（提交时间升序、id 作同毫秒兜底），只是不分页：风险不在库里，
+// 排序必须在用例层做，分页只能在排序之后切。
+func (r *ReviewRepo) ListAll(ctx context.Context, status *review.Status) ([]*review.Task, error) {
+	q := r.db.WithContext(ctx).Model(&reviewTaskRow{})
+	if status != nil {
+		q = q.Where("status = ?", string(*status))
+	}
+	var rows []reviewTaskRow
+	if err := q.Order("created_at asc, id asc").Find(&rows).Error; err != nil {
+		return nil, err
+	}
+	out := make([]*review.Task, 0, len(rows))
+	for _, m := range rows {
+		out = append(out, toDomainTask(m))
+	}
+	return out, nil
+}
+
 // List 分页列出任务。
 func (r *ReviewRepo) List(ctx context.Context, status *review.Status, offset, limit int) ([]*review.Task, int64, error) {
 	q := r.db.WithContext(ctx).Model(&reviewTaskRow{})
@@ -679,7 +699,9 @@ func (r *ReviewRepo) List(ctx context.Context, status *review.Status, offset, li
 		limit = 10
 	}
 	var rows []reviewTaskRow
-	if err := q.Order("id desc").Offset(offset).Limit(limit).Find(&rows).Error; err != nil {
+	// 默认按提交时间升序：老投稿在前，新投稿不会一直插队把旧投稿饿死（#307）。
+	// id 升序是同毫秒（datetime(3)）的兜底，保证分页稳定。
+	if err := q.Order("created_at asc, id asc").Offset(offset).Limit(limit).Find(&rows).Error; err != nil {
 		return nil, 0, err
 	}
 	out := make([]*review.Task, 0, len(rows))
@@ -704,6 +726,10 @@ func toReviewRow(t *review.Task) *reviewTaskRow {
 		ReviewedBy:           fromReviewerID(t.ReviewedBy()),
 	}
 	m.ID = ctype.NewID(t.ID())
+	// created_at 就是提交时间：任务行创建的那一刻即作者提交的那一刻。
+	// 显式写入（而不是让 gorm 用落库时刻）才能让"提交时间排序"按真实提交顺序
+	// 成立，集成测试也据此可复现。
+	m.CreatedAt = t.CreatedAt()
 	return m
 }
 

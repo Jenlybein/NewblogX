@@ -107,23 +107,70 @@ type ArticleReviewTaskListRequest struct {
 	Page   int              `form:"page"`
 	Limit  int              `form:"limit"`
 	Status ReviewTaskStatus `form:"status" binding:"omitempty,oneof=pending approved rejected canceled" enums:"pending,approved,rejected,canceled"`
+	// Sort 为空等价于 created_at：默认按提交时间升序，老投稿不会被新投稿饿死。
+	Sort ReviewTaskSort `form:"sort" binding:"omitempty,oneof=created_at risk" enums:"created_at,risk"`
 }
 
 // ArticleReviewTaskItem 审核任务项。
+//
+// content 是文章当前正文（不是提交时的快照）：审核员要在列表里直接判断，
+// 不必再跳文章页。文章已被删除时为空串。
+//
+// risk_level / risk_labels 是机审前两层（词表 + 评分派生标签）的结论，
+// 每次读取现算、不落库；没有评分记录时 risk_level 仍可能是 none，不是错误。
+// reason_code / reason 是驳回原因的**两个部分**：reason_code 是固定枚举值
+// （前端按值渲染文案，绝不按中文匹配），reason 是审核员补的那句自由文本。
+// 历史行（#308 之前、撤销）没有枚举，reason_code 为 null，reason 是整段原文——
+// 前端因此只剩"枚举 + 补充"与"只有一段话"两种情形要显示。
 type ArticleReviewTaskItem struct {
-	ID            ctype.ID         `json:"id"`
-	ArticleID     ctype.ID         `json:"article_id"`
-	AuthorID      ctype.ID         `json:"author_id"`
-	ArticleTitle  string           `json:"article_title"`
-	AuthorName    string           `json:"author_name"`
-	PublishStatus ArticleStatus    `json:"publish_status"`
-	Stage         ReviewTaskStage  `json:"stage"`
-	Source        ReviewTaskSource `json:"source"`
-	Status        ReviewTaskStatus `json:"status"`
-	Reason        string           `json:"reason"`
-	CreatedAt     time.Time        `json:"created_at"`
-	ReviewedAt    *time.Time       `json:"reviewed_at"`
-	ReviewedBy    *ctype.ID        `json:"reviewed_by"`
+	ID            ctype.ID          `json:"id"`
+	ArticleID     ctype.ID          `json:"article_id"`
+	AuthorID      ctype.ID          `json:"author_id"`
+	ArticleTitle  string            `json:"article_title"`
+	AuthorName    string            `json:"author_name"`
+	Content       string            `json:"content"`
+	PublishStatus ArticleStatus     `json:"publish_status"`
+	Stage         ReviewTaskStage   `json:"stage"`
+	Source        ReviewTaskSource  `json:"source"`
+	Status        ReviewTaskStatus  `json:"status"`
+	ReasonCode    *ReviewReasonCode `json:"reason_code"`
+	Reason        string            `json:"reason"`
+	CreatedAt     time.Time         `json:"created_at"`
+	ReviewedAt    *time.Time        `json:"reviewed_at"`
+	ReviewedBy    *ctype.ID         `json:"reviewed_by"`
+	// RiskLevel 是风险等级：none / low / medium / high。
+	RiskLevel ReviewRiskLevel `json:"risk_level" enums:"none,low,medium,high"`
+	// RiskLabels 是命中的风险标签（稳定 code，前端映射中文）：
+	// block_word / watch_word / low_score / dimension_collapse / length_abnormal。
+	RiskLabels []string `json:"risk_labels"`
+	// Compliance 是第③层模型合规结论（票 312 / ADR-0033）。
+	//
+	// nil 表示**还没判定**（AI 关闭、调用失败、任务刚建还没排到），
+	// 与 verdict=clean 的"判定过且干净"不是一回事；前端必须能区分这两种形态。
+	Compliance *ArticleReviewCompliance `json:"compliance"`
+}
+
+// ArticleReviewCompliance 是模型合规结论的展示形状。
+//
+// categories / reasons 是**稳定 code 与一句话依据**：前者前端映射中文，
+// 后者只给管理员看（把模型依据直接给作者等于把判定规则公开）。
+type ArticleReviewCompliance struct {
+	Verdict    string     `json:"verdict" enums:"clean,suspect,violation"`
+	RiskLevel  int        `json:"risk_level"`
+	Categories []string   `json:"categories"`
+	Reasons    []string   `json:"reasons"`
+	PromptVersion string  `json:"prompt_version"`
+	ModelName  string     `json:"model_name"`
+	CheckedAt  *time.Time `json:"checked_at"`
+}
+
+// ArticleReviewReasonItem 是一条可选的驳回原因（出站）。
+//
+// 值与文案都来自后端唯一词表：前端拿它渲染下拉框，选中的是 value，
+// 显示的是 label——两边都不需要认识中文。
+type ArticleReviewReasonItem struct {
+	Value ReviewReasonCode `json:"value"`
+	Label string           `json:"label"`
 }
 
 // ArticleReviewTaskListResponse 审核任务列表结果。
@@ -133,9 +180,39 @@ type ArticleReviewTaskListResponse struct {
 }
 
 // ArticleReviewHandleRequest 处理审核任务。
+//
+// 驳回必须带 reason_code（固定枚举里的一条）；reason 是可选的一句自由文本。
+// 取值校验在用例层（app.reviewReason）：能选哪些值由契约里的 enum 说了算，
+// 这里不再手抄一份 oneof 清单。
 type ArticleReviewHandleRequest struct {
-	Status ArticleStatus `json:"status" binding:"required,oneof=3 4" swaggertype:"integer" enums:"3,4"`
-	Reason string        `json:"reason"`
+	Status     ArticleStatus    `json:"status" binding:"required,oneof=3 4" swaggertype:"integer" enums:"3,4"`
+	ReasonCode ReviewReasonCode `json:"reason_code"`
+	Reason     string           `json:"reason"`
+}
+
+// ArticleReviewBatchResponse 是批量处理的结果（部分成功是正常结局）。
+//
+// failed 里每条只给 task_id + 稳定错误码：前端按码渲染文案，不认中文。
+type ArticleReviewBatchResponse struct {
+	Succeeded int                           `json:"succeeded"`
+	Failed    []ArticleReviewBatchFailedItem `json:"failed"`
+}
+
+// ArticleReviewBatchFailedItem 是批量里失败的一条。
+type ArticleReviewBatchFailedItem struct {
+	TaskID ctype.ID `json:"task_id"`
+	Code   string   `json:"code"`
+}
+
+// ArticleReviewBatchRequest 批量处理审核任务。
+//
+// 语义与单条接口**完全一致**（同一份用例、同一套原因校验），只是把同一个
+// 决定应用到多个任务：批量不是第二套规则，而是同一条路径重复调用。
+type ArticleReviewBatchRequest struct {
+	IDs        []ctype.ID       `json:"ids" binding:"required,min=1"`
+	Status     ArticleStatus    `json:"status" binding:"required,oneof=3 4" swaggertype:"integer" enums:"3,4"`
+	ReasonCode ReviewReasonCode `json:"reason_code"`
+	Reason     string           `json:"reason"`
 }
 
 // ArticleAdminVisibilityURI 管理员改可见性。

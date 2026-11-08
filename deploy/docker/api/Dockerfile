@@ -37,6 +37,12 @@ COPY --from=builder /build/out/server /app/server
 COPY --from=builder /build/backend/config /app/config
 COPY --from=builder /build/backend/resources /app/resources
 
+# 运行时策略文本（skills/，仓库根，不在 backend/ 下）。
+# 进程启动时按 <root>/*/SKILL.md 读盘，读不到就直接不启动（ADR-0033），
+# 所以它必须进镜像；go:embed 到不了父目录，这是决定的形状，不是疏忽。
+# 想改文案不发版：把宿主机目录挂到 /app/skills 覆盖这一份即可。
+COPY skills /app/skills
+
 # 安装运行时依赖：时区、CA 证书、mysql 客户端（包含 mysqldump）
 #
 # 注意：Alpine 的 mysql-client 包其实就是 MariaDB 客户端，所以容器里的

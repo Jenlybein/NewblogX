@@ -31,6 +31,16 @@ type noticeMessageRow struct{}
 // TableName 固定表名。
 func (noticeMessageRow) TableName() string { return "article_message_models" }
 
+// noticeReviewReasonRow 是发驳回通知时读的审核任务信息（只取驳回原因）。
+//
+// 只查一列：装配层不需要审核任务的其余字段，多查一列就多一处随表结构漂移的耦合。
+type noticeReviewReasonRow struct {
+	Reason string
+}
+
+// TableName 固定表名。
+func (noticeReviewReasonRow) TableName() string { return "article_review_task_models" }
+
 // tagTitleRow 是"标签 id → 标题"的映射行。
 type tagTitleRow struct {
 	ID    ctype.ID

@@ -54,12 +54,13 @@ type Option struct {
 type ScoreRepository interface {
 	// Article 读文章快照；不存在时返回 apperr.CodeArticleNotFound。
 	Article(ctx context.Context, id uint64) (ArticleSnapshot, error)
-	// Latest 读最近一条评分记录；没有时返回 nil。
+	// Latest 读该文章最近一次评分记录；没有时返回 nil。
 	Latest(ctx context.Context, articleID uint64) (*ScoreRecord, error)
-	// CreateIfAbsent 只在还没有评分记录时写入，返回是否真的写入。
+	// Upsert 写入一条评分记录：该文章还没有记录就新建，已有则整体覆盖。
 	//
-	// 用一个方法而不是"查 + 写"两步，是为了把并发下的重复判断收进同一个事务。
-	CreateIfAbsent(ctx context.Context, record *ScoreRecord) (bool, error)
+	// 同一篇文章在库里永远只有一行 —— 一行代表"最近一次评分"，不保留历史。
+	// 用这一个方法而不是"查 + 写"两步，是为了把并发下的"只有一行"收进同一个事务。
+	Upsert(ctx context.Context, record *ScoreRecord) error
 }
 
 // Catalog 提供文章元信息推荐用的分类与标签候选。
@@ -81,4 +82,25 @@ type TagReader interface {
 // 复制一份只会在两边字段漂移。
 type Searcher interface {
 	Search(ctx context.Context, req searchdomain.Request) (searchdomain.Response, error)
+}
+
+// SceneSkill 是一份运行时策略 skill 的正文与版本。
+//
+// Version 是 SKILL.md 字节哈希（`skills.Skill.Hash()`），随 AI 调用记录落库：
+// 线上跑的是哪一版口径要能回溯，而不是在代码里再写一个人工版本常量。
+type SceneSkill struct {
+	Name    string
+	Body    string
+	Version string
+}
+
+// SceneSkillReader 按名称读取运行时策略 skill。
+//
+// 端口在使用方定义、由装配层接到 `internal/platform/skills` 的目录加载器上；
+// 业务层不 import 那个平台包，也就不会把"文件怎么读"混进用例逻辑。
+//
+// 读取失败时必须返回错误：配置引用了读不到的 skill 属于配置错误，
+// 不能静默退化成一份空口径继续回答（不存在代码内兜底文本，ADR-0030）。
+type SceneSkillReader interface {
+	ReadSceneSkill(name string) (SceneSkill, error)
 }

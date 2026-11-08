@@ -25,6 +25,12 @@ func (h *Handler) Register(r *gin.RouterGroup, authMw, optionalMw gin.HandlerFun
 	reviewGroup := r.Group("article-review")
 	reviewTaskGroup := r.Group("article-review-tasks")
 
+	// 站点地图（#314）：挂在 /api 下而不是 /api/articles 下——它不是"文章详情"，
+	// 而且 /api/articles/sitemap.xml 会被 /articles/:id 抢走（:id 会拿到 "sitemap.xml"）。
+	// nginx 只把 /api/ 与 /uploads/ 转给后端，所以它必须落在这个前缀内；
+	// 前端 robots.txt 的 Sitemap: 行指向的就是这里。
+	r.GET("sitemap.xml", h.Sitemap)
+
 	authGroup := group.Group("", authMw)
 	adminGroup := authGroup.Group("", mw.AdminMiddleware)
 	reviewAdminGroup := reviewGroup.Group("", authMw, mw.AdminMiddleware)
@@ -56,6 +62,8 @@ func (h *Handler) Register(r *gin.RouterGroup, authMw, optionalMw gin.HandlerFun
 	projectGroup.GET(":id/outline-tree", mw.BindUri[kernel.IDRequest],
 		mw.BindQuery[NamedOutlineTreeRequest], h.ProjectOutlineTree)
 	reviewAdminGroup.GET("", mw.BindQuery[ArticleReviewTaskListRequest], h.ReviewTasks)
+	// 驳回原因的固定列表：值与文案都从后端唯一词表出（#308），前端据此渲染下拉。
+	reviewAdminGroup.GET("reasons", h.ReviewReasons)
 
 	// 登录用户写
 	authGroup.POST("", mw.BindJson[ArticleCreateRequest], h.Create)
@@ -119,4 +127,8 @@ func (h *Handler) Register(r *gin.RouterGroup, authMw, optionalMw gin.HandlerFun
 	adminGroup.DELETE("tags", mw.CaptureLog(mw.ReqBody), mw.BindJson[kernel.IDListRequest], h.DeleteTags)
 	reviewTaskAdminGroup.POST(":id/review", mw.CaptureLog(mw.ReqBody), mw.BindUri[kernel.IDRequest],
 		mw.BindJson[ArticleReviewHandleRequest], h.HandleReviewTask)
+	// 批量：与单条同一份用例、同一套原因校验，只是把同一个决定应用到多个任务
+	// （spec 决策 32）。挂在 tasks 前缀下而不是 review 下，因为入参是任务 ID。
+	reviewTaskAdminGroup.POST("batch-review", mw.CaptureLog(mw.ReqBody),
+		mw.BindJson[ArticleReviewBatchRequest], h.BatchHandleReviewTasks)
 }

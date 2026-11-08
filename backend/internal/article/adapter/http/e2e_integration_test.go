@@ -56,7 +56,7 @@ func migrate(t *testing.T) *gorm.DB {
 	db := mysqlcontainer.DB(t)
 	schema.Migrate(t, db,
 		schema.UserCore, schema.UserSession, schema.ArticleCore,
-		schema.Favorite, schema.UserReading, schema.ArticleReview,
+		schema.Favorite, schema.UserReading, schema.ArticleReview, schema.ArticleRisk,
 		schema.Comment, schema.Outbox,
 	)
 	return db
@@ -89,7 +89,7 @@ func newRouterWithSite(
 	t.Helper()
 
 	uow := articlemysql.NewTxManager(db, redis_service.Options{}, nil /* 作者统计不在本测试断言范围 */)
-	svc := articleapp.New(uow, testClock{at: time.Date(2026, 1, 1, 12, 0, 0, 0, time.UTC)}, &testIDs{n: idStart})
+	svc := articleapp.New(uow, testClock{at: time.Date(2026, 1, 1, 12, 0, 0, 0, time.UTC)}, &testIDs{n: idStart}, nil, nil, nil, nil)
 
 	h := articlehttp.NewHandler(svc, nil, site, func(*gin.Context) domain.Viewer { return viewer }, nil)
 

@@ -14,6 +14,7 @@ import (
 	"myblogx/internal/article/domain/outline"
 	"myblogx/internal/article/domain/project"
 	"myblogx/internal/article/domain/review"
+	"myblogx/internal/article/domain/risk"
 	"myblogx/internal/article/domain/taxonomy"
 	"myblogx/internal/article/domain/top"
 	"myblogx/internal/article/domain/viewhistory"
@@ -44,6 +45,7 @@ type Repos struct {
 	collectionRepo *CollectionRepo
 	projectRepo    *ProjectRepo
 	outlineRepo    *OutlineRepo
+	riskRepo       *RiskRepo
 }
 
 // NewRepos 构造一套全部为空的 fake 仓储。
@@ -64,6 +66,7 @@ func NewRepos() *Repos {
 		hotTopRepo:     NewHotTopRepo(),
 		historyRepo:    NewViewHistoryRepo(),
 		reviewRepo:     NewReviewRepo(),
+		riskRepo:       NewRiskRepo(),
 		authorStats:    NewAuthorStats(),
 		outbox:         NewOutbox(),
 		counters:       NewCounters(),
@@ -146,6 +149,12 @@ func (r *Repos) ViewHistory() viewhistory.Repository { return r.historyRepo }
 
 // Reviews 返回审核任务仓储。
 func (r *Repos) Reviews() review.Repository { return r.reviewRepo }
+
+// Risks 返回合规判定记录仓储（票 312 / ADR-0033）。
+func (r *Repos) Risks() risk.Repository { return r.riskRepo }
+
+// FakeRisks 返回风险记录 fake 本身（测试断言其内部状态时用）。
+func (r *Repos) FakeRisks() *RiskRepo { return r.riskRepo }
 
 // AuthorStats 返回作者统计端口。
 func (r *Repos) AuthorStats() app.AuthorStatsPort { return r.authorStats }
@@ -250,6 +259,7 @@ type Tx struct {
 	calls     int
 	commits   int
 	rollbacks int
+	active    int
 	failNext  error
 }
 
@@ -258,11 +268,19 @@ func NewTx(repos *Repos) *Tx { return &Tx{repos: repos} }
 
 // WithinTx 执行 fn；出错则回滚全部 fake 仓储。
 func (t *Tx) WithinTx(ctx context.Context, fn func(ctx context.Context, r app.Repos) error) error {
+	// active 记录"此刻是否有一个事务正在执行"。发布质量闸门的用例测试用它
+	// 断言评分调用没有发生在事务内（票 306 / ADR-0032）。
 	t.mu.Lock()
 	t.calls++
+	t.active++
 	injected := t.failNext
 	t.failNext = nil
 	t.mu.Unlock()
+	defer func() {
+		t.mu.Lock()
+		t.active--
+		t.mu.Unlock()
+	}()
 
 	if injected != nil {
 		return injected
@@ -282,6 +300,16 @@ func (t *Tx) WithinTx(ctx context.Context, fn func(ctx context.Context, r app.Re
 	t.commits++
 	t.mu.Unlock()
 	return nil
+}
+
+// Active 返回当前是否有一个 WithinTx 正在执行（>0 表示在事务内）。
+//
+// 用例测试用它证明"评分调用发生在数据库事务之外"：评测 fake 被调用时
+// Active() 必须是 0（票 306）—— 评分进事务会把连接池钉死 5–30 秒。
+func (t *Tx) Active() int {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	return t.active
 }
 
 // FailNext 让下一次 WithinTx 直接失败（模拟"事务都没开起来"）。

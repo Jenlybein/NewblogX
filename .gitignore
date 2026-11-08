@@ -46,6 +46,7 @@ deploy/docker/clickhouse/users.d/default-user.xml
 # 操作系统 / 编辑器
 .DS_Store
 .idea/
+.vscode/
 
 # Agent 内部数据（不随仓库分发）
 .workbuddy/

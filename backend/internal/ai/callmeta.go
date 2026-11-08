@@ -13,7 +13,7 @@ import (
 // 加参数要改 10 个调用点 + 6 个子包签名，而这些信息对业务逻辑本身毫无用途，
 // 纯粹是"给日志看的"。ctx 本来就已经全链路透传（客户端断开要能取消上游请求）。
 type CallMeta struct {
-	// Scene 是功能场景，见下面 6 个常量。空值表示"没标注"，后台会显示为 -。
+	// Scene 是功能场景，见下面 7 个常量。空值表示"没标注"，后台会显示为 -。
 	Scene string
 	// UserID 是触发这次调用的用户；零值表示匿名或异步任务（如 outbox 补评分）。
 	//
@@ -22,11 +22,17 @@ type CallMeta struct {
 	UserID    ctype.ID
 	RequestID string
 	TraceID   string
+	// PromptVersion 是这次调用所用策略文本的版本号（运行时策略 skill 的
+	// SKILL.md 字节哈希前 12 位）。空值表示这次调用没有绑定策略文本。
+	//
+	// 它来自内容哈希而不是手写常量：运营改文案时版本自动变，调用记录与
+	// 文件内容不会各说各话（#310 / ADR-0030）。
+	PromptVersion string
 }
 
 // 场景标识。
 //
-// 集中一处定义而不是在 6 个子包里各写字面量：后台的场景筛选下拉、首页图例、
+// 集中一处定义而不是在各子包里各写字面量：后台的场景筛选下拉、首页图例、
 // 日志上报三处都读它，分散写就会出现 "search_answer" 与 "searchAnswer"
 // 这种永远匹配不上的脏维度，而且不会报错。
 const (
@@ -36,6 +42,12 @@ const (
 	SceneDiagnose      = "diagnose"
 	SceneSearchRewrite = "search_rewrite"
 	SceneSearchAnswer  = "search_answer"
+	// SceneModeration 是投稿的**合规判定**（票 312 / ADR-0033）。
+	//
+	// 单开一个场景而不是并进 scoring：两者判的是不同的问题（写得好不好 vs
+	// 能不能发），成本、失败率与超时都要分开统计；混在一起就没法回答
+	// "合规判定这个月花了多少钱、失败率多少"。
+	SceneModeration = "moderation"
 )
 
 // callMetaKey 是 ctx 里存取 CallMeta 的私有键类型（避免和其他包的键撞车）。
@@ -64,6 +76,9 @@ func WithCallMeta(ctx context.Context, patch CallMeta) context.Context {
 	}
 	if patch.TraceID != "" {
 		current.TraceID = patch.TraceID
+	}
+	if patch.PromptVersion != "" {
+		current.PromptVersion = patch.PromptVersion
 	}
 	return context.WithValue(ctx, callMetaKey{}, current)
 }

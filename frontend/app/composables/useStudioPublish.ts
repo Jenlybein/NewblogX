@@ -1,4 +1,7 @@
+import { ref } from "vue";
+
 import { createArticle, updateArticle } from "~/services/article";
+import { ApiBusinessError } from "~/services/http/errors";
 import {
   DRAFT_DISABLED_NOTICE,
   PUBLISH_DISABLED_NOTICE,
@@ -25,6 +28,47 @@ export type Notifier = {
 /** ArticlePayload 是提交给创建/更新接口的载荷。 */
 export type ArticlePayload = Parameters<typeof createArticle>[0];
 
+/**
+ * QualityRejectionIssue 是评分给出的一条问题（定位 + 原因 + 建议）。
+ *
+ * 与后端 `QualityIssue` 一一对应；这里手写是因为它只出现在**失败响应的
+ * data** 里，契约的 Envelope 泛型不覆盖错误分支（见 contracts.md §6.5）。
+ */
+export type QualityRejectionIssue = {
+  reason?: string;
+  suggestion?: string;
+  positions?: Array<{ paragraph?: number; quote?: string }>;
+};
+
+/** QualityRejectionDetails 是「质量不达标」的完整拒绝数据。 */
+export type QualityRejectionDetails = {
+  article_id?: string;
+  score: number;
+  required_score: number;
+  gap: number;
+  level?: string;
+  issues?: QualityRejectionIssue[];
+};
+
+/**
+ * qualityRejectionOf 从错误里取出质量拒绝数据；不是这类错误时返回 null。
+ *
+ * 用鸭子类型而不是 `instanceof ApiBusinessError`：跨模块边界传进来的错误
+ * 可能是被包装过的，只认 `data` 的形状更稳。
+ */
+export function qualityRejectionOf(reason: unknown): QualityRejectionDetails | null {
+  const data =
+    reason instanceof ApiBusinessError
+      ? reason.data
+      : (reason as { data?: unknown } | null)?.data;
+  if (!data || typeof data !== "object") return null;
+  const candidate = data as Partial<QualityRejectionDetails>;
+  if (typeof candidate.score !== "number" || typeof candidate.required_score !== "number") {
+    return null;
+  }
+  return candidate as QualityRejectionDetails;
+}
+
 export type StudioPublishDeps = {
   /** 标题与正文是否都非空。 */
   canSubmit: { value: boolean };
@@ -48,6 +92,13 @@ export type StudioPublishDeps = {
    * 不能因为调用方没传就改变原有行为。
    */
   policy?: { value: ArticleWritePolicy };
+  /**
+   * 质量不达标时的展示回调（可选）。
+   *
+   * 不传就退回一句纯文本提示；传了则由页面把分数、差额与问题列表完整呈现
+   * （#306 验收标准：作者要能看到"按哪几条改"）。
+   */
+  onQualityRejected?: (details: QualityRejectionDetails) => void;
 };
 
 export function useStudioPublish(deps: StudioPublishDeps) {
@@ -62,7 +113,17 @@ export function useStudioPublish(deps: StudioPublishDeps) {
     message,
     router,
     policy,
+    onQualityRejected,
   } = deps;
+
+  /**
+   * 评分中标记：开启质量闸门时，一次提交要等 5–30 秒模型调用。
+   *
+   * 它和 pendingState.publish 不是同一件事：后者在整条提交流程里都为 true，
+   * 前者只在"等评分"这一段为 true，页面据此把按钮文案换成「评分中…」，
+   * 让作者知道现在慢是因为在评分，而不是卡住了。
+   */
+  const scoring = ref(false);
 
   /** 站点策略是否允许这次提交（没传 policy 时按允许处理）。 */
   function sitePolicyAllows(status: 1 | 2): boolean {
@@ -102,6 +163,8 @@ export function useStudioPublish(deps: StudioPublishDeps) {
 
     const key = status === 1 ? "draft" : "publish";
     pendingState[key] = true;
+    // 发布（状态 2）会在开启闸门时先评分；草稿不评分。
+    scoring.value = status === 2;
 
     try {
       const payload = buildArticlePayload(status);
@@ -133,11 +196,25 @@ export function useStudioPublish(deps: StudioPublishDeps) {
       }
       await router.push(`/article/${created.id}`);
     } catch (error) {
+      // 质量不达标是**带数据的业务拒绝**，不是"提交失败"：把分数、差额与
+      // 问题列表交给页面呈现，作者才有下一步动作可做（#306 验收标准）。
+      const rejection = qualityRejectionOf(error);
+      if (rejection) {
+        if (onQualityRejected) {
+          onQualityRejected(rejection);
+        } else {
+          message.error(
+            `内容质量未达标：${rejection.score} 分，放行线 ${rejection.required_score} 分，还差 ${rejection.gap} 分。`,
+          );
+        }
+        return;
+      }
       message.error(errorMessage(error, "文章提交失败"));
     } finally {
       pendingState[key] = false;
+      scoring.value = false;
     }
   }
 
-  return { submitArticle };
+  return { submitArticle, scoring };
 }

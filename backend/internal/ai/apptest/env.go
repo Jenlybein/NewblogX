@@ -4,6 +4,7 @@ package apptest
 import (
 	"context"
 	"sync"
+	"time"
 
 	"myblogx/conf"
 	"myblogx/internal/ai/app"
@@ -53,13 +54,19 @@ func (s *Scores) Latest(_ context.Context, articleID uint64) (*domain.ScoreRecor
 	return nil, nil
 }
 
-// CreateIfAbsent 实现 domain.ScoreRepository。
-func (s *Scores) CreateIfAbsent(_ context.Context, record *domain.ScoreRecord) (bool, error) {
+// Upsert 实现 domain.ScoreRepository：按文章覆盖写，同一篇文章只留一行。
+//
+// 语义与 MySQL 适配器一致：命中既有行时保留它的主键、把内容整体换成新结果，
+// 并把 CreatedAt 推到这次写入的时间（一行代表"最近一次评分"，不是历史）。
+func (s *Scores) Upsert(_ context.Context, record *domain.ScoreRecord) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	for _, row := range s.records {
-		if row.ArticleID == record.ArticleID {
-			return false, nil
+	record.CreatedAt = time.Now()
+	for i := range s.records {
+		if s.records[i].ArticleID == record.ArticleID {
+			record.ID = s.records[i].ID
+			s.records[i] = *record
+			return nil
 		}
 	}
 	if record.ID.IsZero() {
@@ -67,7 +74,7 @@ func (s *Scores) CreateIfAbsent(_ context.Context, record *domain.ScoreRecord) (
 		s.next++
 	}
 	s.records = append(s.records, *record)
-	return true, nil
+	return nil
 }
 
 // Seed 直接插入一条记录（测试播种用）。
@@ -145,11 +152,40 @@ func (s *Searcher) Search(_ context.Context, req searchdomain.Request) (searchdo
 	return s.Results(req), nil
 }
 
+// SceneSkills 是运行时策略文本端口的内存替身。
+//
+// ByName 可以直接改：改掉正文再调一次，就等价于"运营改了 SKILL.md、进程没重启"。
+type SceneSkills struct {
+	mu     sync.Mutex
+	ByName map[string]domain.SceneSkill
+	Calls  []string
+}
+
+var _ domain.SceneSkillReader = (*SceneSkills)(nil)
+
+// NewSceneSkills 构造空替身。
+func NewSceneSkills() *SceneSkills {
+	return &SceneSkills{ByName: make(map[string]domain.SceneSkill)}
+}
+
+// ReadSceneSkill 实现 domain.SceneSkillReader。
+func (s *SceneSkills) ReadSceneSkill(name string) (domain.SceneSkill, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.Calls = append(s.Calls, name)
+	skill, ok := s.ByName[name]
+	if !ok {
+		return domain.SceneSkill{}, apperr.New(apperr.CodeAIPolicySkillMissing)
+	}
+	return skill, nil
+}
+
 // Env 打包一组替身。
 type Env struct {
 	Scores   *Scores
 	Catalog  *Catalog
 	Searcher *Searcher
+	Skills   *SceneSkills
 	AI       conf.AI
 	Service  *app.Service
 }
@@ -159,13 +195,19 @@ func NewEnv(aiConf conf.AI) *Env {
 	scores := NewScores()
 	catalog := NewCatalog()
 	searcher := &Searcher{}
-	return &Env{
+	skills := NewSceneSkills()
+	env := &Env{
 		Scores:   scores,
 		Catalog:  catalog,
 		Searcher: searcher,
+		Skills:   skills,
 		AI:       aiConf,
-		Service:  app.New(scores, catalog, catalog, searcher, func() conf.AI { return aiConf }, nil),
 	}
+	// 与生产装配一样每次现取配置：用例可以改 env.AI（场景绑定、模型配置）
+	// 而不必重建服务。
+	env.Service = app.New(scores, catalog, catalog, searcher, func() conf.AI { return env.AI }, nil).
+		WithSceneSkills(skills)
+	return env
 }
 
 // NewDefaultService 用空实现组装服务（路由表测试用）。

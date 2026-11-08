@@ -44,9 +44,15 @@ type Service struct {
 	version string
 	qqURL   func() string
 	logger  Logger
+	aiReady func() bool
 }
 
 // New 构造站点服务。
+//
+// aiReady 是「AI 现在能不能真的用」的现读判定（总闸开着且至少有一条启用的模型
+// 配置）。它只用于保存前的校验：开「发布质量闸门」这个动作本身要求 AI 可用，
+// 否则新站点上线第一天就是"所有投稿都被拒"（票 306 / ADR-0032）。
+// 传 nil 表示不校验（只有测试会这样），生产装配必须给真实现。
 func New(
 	banners domain.BannerRepository,
 	images domain.ImageResolver,
@@ -54,6 +60,7 @@ func New(
 	version string,
 	qqURL func() string,
 	logger Logger,
+	aiReady func() bool,
 ) *Service {
 	return &Service{
 		banners: banners,
@@ -62,6 +69,7 @@ func New(
 		version: version,
 		qqURL:   qqURL,
 		logger:  logger,
+		aiReady: aiReady,
 	}
 }
 
@@ -114,9 +122,16 @@ func (s *Service) AdminSite() conf.Site { return s.PublicSite() }
 func (s *Service) AdminAI() conf.AI { return s.runtime.AI() }
 
 // UpdateSite 覆盖站点配置。
+//
+// 「开质量闸门」这个动作本身要求 AI 可用（票 306 / ADR-0032）：闸门是失败关闭的，
+// 而 AI 默认是关闭的，两者叠在一起就是"新站点上线第一天所有投稿都被拒"。
+// 因此把失败面从运行期挪到配置期——保存不了，这个状态就不存在。
 func (s *Service) UpdateSite(site conf.Site) error {
 	if s.runtime == nil {
 		return apperr.New(apperr.CodeSiteConfigMissing)
+	}
+	if site.Article.QualityGate.Enabled && s.aiReady != nil && !s.aiReady() {
+		return apperr.New(apperr.CodeArticleQualityGateRequiresAI)
 	}
 	return s.runtime.UpdateSite(site)
 }

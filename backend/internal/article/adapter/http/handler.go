@@ -2,6 +2,7 @@ package http
 
 import (
 	"context"
+	"errors"
 	"io"
 	"myblogx/internal/kernel"
 	"strconv"
@@ -9,6 +10,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/sirupsen/logrus"
 
+	"myblogx/internal/apperr"
 	"myblogx/internal/article/app"
 	"myblogx/internal/article/domain"
 	"myblogx/internal/kernel/ctype"
@@ -94,15 +96,42 @@ func (h *Handler) writePolicy() domain.WritePolicy {
 	}
 }
 
+// qualityGate 取「发布质量闸门」的生效配置快照（票 306 / ADR-0032）。
+//
+// 与上面几个方法同一条口径：每请求现读，后台改完下一次提交即生效。
+// 取值与归一化都在这一处：conf 里的 QualityGate.Effective() 只钳越界，
+// 转换成用例层的 QualityGatePolicy 也在这里做一次，不在 app 层再抄一份映射。
+func (h *Handler) qualityGate() app.QualityGatePolicy {
+	gate := h.effective.Article().QualityGate.Effective()
+	return app.QualityGatePolicy{
+		Enabled:            gate.Enabled,
+		PassScore:          gate.PassScore,
+		GrayBandWidth:      gate.GrayBandWidth,
+		BandPoorMax:        gate.BandPoorMax,
+		BandUnqualifiedMax: gate.BandUnqualifiedMax,
+		BandNormalMax:      gate.BandNormalMax,
+		BandGoodMax:        gate.BandGoodMax,
+	}
+}
+
 // fail 统一错误出口：把领域错误码翻成 HTTP 响应。
 //
 // 不区分"不存在"与"无权"：两者在 domain 里本来就合并成 ErrArticleNotFound，
 // 防止用响应差异探测他人草稿。
+//
+// 「质量不达标」是唯一的例外：它是一次**带数据的业务拒绝**——错误码仍由
+// apperr 一处映射（前端按码分支），而分数 / 差额 / 问题列表是动态数据，
+// 塞进错误码文案表是不可能的，只能走 data（票 306 / ADR-0032）。
 func (h *Handler) fail(c *gin.Context, err error) {
 	switch {
 	case err == nil:
 		res.FailWithMsg("操作失败", c)
 	default:
+		var details *app.QualityRejectionDetails
+		if errors.As(err, &details) {
+			res.FailWithData(details, apperr.Message(apperr.CodeArticleQualityRejected), c)
+			return
+		}
 		res.FailWithMsg(err.Error(), c)
 	}
 }
@@ -169,6 +198,7 @@ func (h *Handler) Create(c *gin.Context) {
 		Visibility:     domain.Visibility(cr.VisibilityStatus),
 		SkipExamining:  h.skipExamining(),
 		Policy:         h.writePolicy(),
+		QualityGate:    h.qualityGate(),
 	})
 	if err != nil {
 		h.fail(c, err)
@@ -257,6 +287,7 @@ func (h *Handler) Update(c *gin.Context) {
 		TargetStatus:   target,
 		SkipExamining:  h.skipExamining(),
 		Policy:         h.writePolicy(),
+		QualityGate:    h.qualityGate(),
 	})
 	if err != nil {
 		h.fail(c, err)

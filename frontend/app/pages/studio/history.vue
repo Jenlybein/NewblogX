@@ -6,4 +6,5 @@
 definePageMeta({
   middleware: ["history-redirect"],
 });
+useNoIndexPage();
 </script>

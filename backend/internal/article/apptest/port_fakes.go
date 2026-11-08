@@ -338,3 +338,165 @@ func (d *Diggs) Events() []string {
 	defer d.mu.Unlock()
 	return append([]string(nil), d.events...)
 }
+
+// QualityGate 是 app.QualityGatePort 的内存实现（发布质量闸门，票 306 / ADR-0032）。
+//
+// 只返回"给定分数"这一个结论，不模拟模型：spec 的测试决定明确要求用假实现
+// 给定分数，测"我们拿这个分数做了什么决定"。
+type QualityGate struct {
+	mu      sync.Mutex
+	score   app.QualityGateScore
+	err     error
+	calls   int
+	inputs  []app.QualityGateInput
+	onEval  func(app.QualityGateInput)
+}
+
+// NewQualityGate 构造返回固定分数的评测替身。
+func NewQualityGate(score int, issues ...app.QualityIssue) *QualityGate {
+	return &QualityGate{score: app.QualityGateScore{TotalScore: score, Issues: issues}}
+}
+
+// FailNext 让下一次 Evaluate 返回 err（模拟网络错 / 超时 / 5xx / 非 JSON）。
+func (g *QualityGate) FailNext(err error) {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	g.err = err
+}
+
+// SetScore 改下一次评测返回的分数。
+func (g *QualityGate) SetScore(score int) {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	g.score.TotalScore = score
+}
+
+// OnEvaluate 注册评测时的观察钩子（用例测试用它断言此刻不在事务内）。
+func (g *QualityGate) OnEvaluate(fn func(app.QualityGateInput)) {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	g.onEval = fn
+}
+
+// Calls 返回评测次数。
+func (g *QualityGate) Calls() int {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	return g.calls
+}
+
+// Inputs 返回每次评测的入参（断言评分用的是最终内容）。
+func (g *QualityGate) Inputs() []app.QualityGateInput {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	return append([]app.QualityGateInput(nil), g.inputs...)
+}
+
+// Evaluate 实现 app.QualityGatePort。
+func (g *QualityGate) Evaluate(_ context.Context, in app.QualityGateInput) (app.QualityGateScore, error) {
+	g.mu.Lock()
+	g.calls++
+	g.inputs = append(g.inputs, in)
+	err := g.err
+	score := g.score
+	onEval := g.onEval
+	g.mu.Unlock()
+
+	if onEval != nil {
+		onEval(in)
+	}
+	if err != nil {
+		return app.QualityGateScore{}, err
+	}
+	return score, nil
+}
+
+// SubmitQuota 是 app.SubmitQuotaPort 的内存实现（投稿配额，票 304 / ADR-0031）。
+//
+// 有状态而不是"第 N 次返回 false"：额度是累计量，"释放后能不能再预占"
+// 只有在真的记账之后才断言得出来。
+type SubmitQuota struct {
+	mu       sync.Mutex
+	limit    int
+	used     map[domain.UserID]int
+	failNext error
+	reserves int
+	releases int
+}
+
+// NewSubmitQuota 构造每日上限为 dailyMax 的配额 fake。
+func NewSubmitQuota(dailyMax int) *SubmitQuota {
+	return &SubmitQuota{limit: dailyMax, used: make(map[domain.UserID]int)}
+}
+
+// Seed 预置某用户当天已用的次数（模拟"今天已经提交过几次"）。
+func (q *SubmitQuota) Seed(userID domain.UserID, used int) {
+	q.mu.Lock()
+	defer q.mu.Unlock()
+	q.used[userID] = used
+}
+
+// Used 返回某用户当天已用的次数。
+func (q *SubmitQuota) Used(userID domain.UserID) int {
+	q.mu.Lock()
+	defer q.mu.Unlock()
+	return q.used[userID]
+}
+
+// FailNext 让下一次 Reserve 返回 err（模拟 Redis 故障，验证失败关闭与归还）。
+func (q *SubmitQuota) FailNext(err error) {
+	q.mu.Lock()
+	defer q.mu.Unlock()
+	q.failNext = err
+}
+
+// Reserves 返回 Reserve 被调用的次数（含被拒的调用）。
+func (q *SubmitQuota) Reserves() int {
+	q.mu.Lock()
+	defer q.mu.Unlock()
+	return q.reserves
+}
+
+// Releases 返回成功归还的次数。
+func (q *SubmitQuota) Releases() int {
+	q.mu.Lock()
+	defer q.mu.Unlock()
+	return q.releases
+}
+
+// Reserve 预占一次额度；用满时返回 domain.ErrSubmitQuotaExceeded。
+func (q *SubmitQuota) Reserve(_ context.Context, userID domain.UserID) (app.SubmitQuotaReservation, error) {
+	q.mu.Lock()
+	defer q.mu.Unlock()
+	q.reserves++
+	if q.failNext != nil {
+		err := q.failNext
+		q.failNext = nil
+		return nil, err
+	}
+	if q.used[userID] >= q.limit {
+		return nil, domain.ErrSubmitQuotaExceeded
+	}
+	q.used[userID]++
+	return &submitQuotaReservation{quota: q, userID: userID}, nil
+}
+
+// submitQuotaReservation 是一次预占，重复 Release 不重复扣减（与生产适配器同口径）。
+type submitQuotaReservation struct {
+	quota  *SubmitQuota
+	userID domain.UserID
+	once   sync.Once
+}
+
+// Release 归还这次预占。
+func (r *submitQuotaReservation) Release(_ context.Context) error {
+	r.once.Do(func() {
+		r.quota.mu.Lock()
+		defer r.quota.mu.Unlock()
+		if r.quota.used[r.userID] > 0 {
+			r.quota.used[r.userID]--
+		}
+		r.quota.releases++
+	})
+	return nil
+}

@@ -22,7 +22,7 @@ const ENTRY_POINTS: Array<{ file: string; purpose: "cover" | "avatar" | null }> 
   { file: "frontend/app/pages/studio/settings.vue", purpose: "avatar" },
   { file: "frontend/app/composables/useInboxCenter.ts", purpose: null },
   // 后台：轮播封面、合集封面、项目封面
-  { file: "frontend_admin/app/pages/media/index.vue", purpose: "cover" },
+  { file: "frontend_admin/app/components/media/BannerFormModal.vue", purpose: "cover" },
   { file: "frontend_admin/app/components/articles/CollectionEditorOverlay.vue", purpose: "cover" },
   { file: "frontend_admin/app/components/articles/CollectionEditorOverlay.vue", purpose: "cover" },
 ];

@@ -127,12 +127,13 @@
 
 ### 2.9 分类（对应需求 9）——已存在，只是没接 UI
 
-- **分类是一等公民**：表 `category_models`（`schema.sql:211-222`，唯一键 `uk_category_user_title (user_id,title)`）、领域 `backend/internal/article/domain/taxonomy/taxonomy.go:31-58`、文章表 `article_models.category_id` 存在（`schema.sql:112`）。river 投影表已含 `category_models`。
+- **分类是一等公民**：表 `category_models`（`backend/internal/platform/mysql/ddl/schema.sql:204-215`，唯一键 `uk_category_user_title (user_id,title)` 在 `:212`）、领域 `backend/internal/article/domain/taxonomy/taxonomy.go:31-58`、文章表 `article_models.category_id` 存在（`schema.sql:112`）。river 投影表已含 `category_models`（`backend/internal/platform/cdc/river/article_search_projection.go:21`）。
 - 分类**按用户唯一**（个人分类），一篇文章只属一个分类。
-- 创建接口 `POST /api/articles/category`（`router.go:59`，**authGroup = 登录用户即可**），body 只要 `{id, title}`（`dto.go:146-150`）。
-- 标签则**管理员专属**：`PUT /api/articles/tags` 在 `adminGroup`（`router.go:71-72`）；`tag_models` 按 `title` 全局唯一，是公共词库。
-- **没有「写文章时顺带新建」的先例**：`ArticleCreateRequest` 只收 ID（`dto.go:21-22`）；前端零处调用 saveCategory/saveTag，只调 `getTagOptions` / `getCategoryOptions`（`frontend/app/services/search.ts:36-69`）。
-- 创作页下拉加载：`frontend/app/composables/useStudioArticle.ts:92-99`，分类选项**只在登录后请求**。
+- 创建接口 `POST /api/articles/category`（`backend/internal/article/adapter/http/router.go:84`，**authGroup = 登录用户即可**），body 只要 `{id, title}`（`backend/internal/article/adapter/http/dto.go:235-238`）。
+- 标签则**管理员专属**：`PUT /api/articles/tags` 在 `adminGroup`（`backend/internal/article/adapter/http/router.go:126-127`）；`tag_models` 按 `title` 全局唯一（`backend/internal/platform/mysql/ddl/schema.sql:584`），是公共词库。
+- **没有「写文章时顺带新建」的先例**：`ArticleCreateRequest` 只收 ID（`backend/internal/article/adapter/http/dto.go:21-22`）；前端对分类只有一处写调用——写作页的内联新建 `createCategory`（`frontend/app/services/search.ts:77-84`），改名 / 删除与标签写入仍**零处调用**，读只走 `getTagOptions` / `getCategoryOptions`（`frontend/app/services/search.ts:36-69`）。
+- 创作页下拉加载：`frontend/app/composables/useStudioArticle.ts:229-236`，分类选项**只在登录后请求**；两个 `useAsyncData` 都带 `.catch(() => [])`，读失败会静默成空列表。
+- 本节行号已于 2026-11-09 按当时的集成分支逐条复核（#324）；代码再搬动后会再次过期，引用前先 `grep` 复核。
 
 ### 2.10 文章封面（对应需求 10）
 

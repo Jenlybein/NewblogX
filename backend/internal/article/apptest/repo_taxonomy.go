@@ -286,6 +286,26 @@ func (r *TagRepo) ExistsTitle(_ context.Context, title string, excludeID domain.
 	return false, nil
 }
 
+// CountArticleRefs 统计仍引用该标签的文章数（对应关联表的实时统计）。
+func (r *TagRepo) CountArticleRefs(_ context.Context, id domain.TagID) (int, error) {
+	r.count.inc("CountArticleRefs")
+	if err := r.fault.take("CountArticleRefs"); err != nil {
+		return 0, err
+	}
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	n := 0
+	for _, tags := range r.articleTags {
+		for _, t := range tags {
+			if t == id {
+				n++
+				break
+			}
+		}
+	}
+	return n, nil
+}
+
 // Save 新建或更新标签。
 func (r *TagRepo) Save(_ context.Context, t *taxonomy.Tag) error {
 	r.count.inc("Save")

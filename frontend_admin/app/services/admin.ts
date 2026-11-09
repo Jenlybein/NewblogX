@@ -47,6 +47,8 @@ import type {
   SiteRuntimeConfig,
   StorageRuntimeConfig,
   SumResponseData,
+  TagListItem,
+  TagWritePayload,
   UploadRuntimeConfig,
   UserListResponseData,
 } from '~/types/api'
@@ -167,6 +169,42 @@ export function setArticleAdminVisibility(articleId: string, visibility: 'hide' 
 
 export function deleteAdminArticles(id_list: string[]) {
   return api().request<unknown, { id_list: string[] }>('/articles', { method: 'DELETE', body: { id_list } })
+}
+
+// ── 标签（全站词库，仅管理员可写）─────────────────────────────
+//
+// 后台管理页要看见停用项（否则没法重新启用它们），所以列表固定带
+// include_disabled=true。发布页的下拉是另一条读面（`/articles/tags/options`，
+// 只含启用项），别把这两个混用。
+
+/** 后台标签列表：含停用项，文章数按关联表实时统计。 */
+export function getAdminTags() {
+  return api().request<ListData<TagListItem>>('/articles/tags', {
+    query: { include_disabled: true },
+  })
+}
+
+/**
+ * 新建 / 更新标签。
+ *
+ * 更新是读—改—写：`sort` / `description` / `is_enabled` 省略即保持原值。
+ * 后台编辑弹窗总会带上这四栏的当前值，所以"只改动某一栏"在线上表现为只变了那一栏。
+ */
+export function saveAdminTag(payload: TagWritePayload) {
+  return api().request<unknown, TagWritePayload>('/articles/tags', { method: 'PUT', body: payload })
+}
+
+/**
+ * 删除标签（只对零引用标签开放）。
+ *
+ * 被文章引用时后端拒绝并给出可读文案（"该标签已有 N 篇文章在用，请改用停用"）：
+ * 调用方把 `error.message` 原样展示，不要用一句笼统的"删除失败"盖掉它。
+ */
+export function deleteAdminTags(idList: string[]) {
+  return api().request<unknown, { id_list: string[] }>('/articles/tags', {
+    method: 'DELETE',
+    body: { id_list: idList },
+  })
 }
 
 // ── 热门置顶（运营位，ADR-0017 决策 5）────────────────────────

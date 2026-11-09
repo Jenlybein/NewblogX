@@ -322,3 +322,20 @@ export interface SetupAdminPayload {
   email?: string
   nickname?: string
 }
+
+// ── 标签词库（管理后台「文章管理 → 标签管理」）───────────────────
+//
+// 标签是全站词库（没有 owner、仅管理员可写）。列表里的 `article_count` 是后端
+// 按 article_tag_models 实时统计出来的，不是库里那列没人维护的冗余值。
+
+/** 后台标签列表的一行：标题 / 文章数 / 排序 / 启用状态 / 描述。 */
+export type TagListItem = RequiredSchema<"internal_article_adapter_http.TagListItem">;
+
+/**
+ * 标签写入请求体。
+ *
+ * `sort` / `description` / `is_enabled` 省略表示"这次不改这一项"——后端是
+ * 读—改—写，没传就保留原值（编辑停用标签不会把它悄悄放回全站可选）。
+ * 编辑弹窗因此总是显式带上四栏的当前值。
+ */
+export type TagWritePayload = Schema<"internal_article_adapter_http.TagRequest">;

@@ -88,6 +88,7 @@ function toggleCategory(id: string) {
             class="profile-category-card"
             :class="{ 'is-active': activeCategoryId === category.id }"
             :aria-pressed="activeCategoryId === category.id"
+            :aria-label="`${category.title}：${category.article_count} 篇公开文章`"
             @click="toggleCategory(category.id)"
           >
             <span class="profile-category-card__title-row">

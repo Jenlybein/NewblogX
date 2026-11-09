@@ -77,7 +77,9 @@ func TestCreateDraft(t *testing.T) {
 	}
 }
 
-func TestCreateSubmitGoesToReview(t *testing.T) {
+// 票 302 新规则：干净文章不再进人工队列，而是"已发布 + 待模型放行可见"。
+// 作者立刻拿到"已发布"回执，匿名访客要等异步合规判定通过才读得到。
+func TestCreateCleanSubmitIsPublishedButPendingReview(t *testing.T) {
 	t.Parallel()
 
 	svc, repos, _ := newService(t)
@@ -86,27 +88,37 @@ func TestCreateSubmitGoesToReview(t *testing.T) {
 	a, err := svc.Create(ctx, app.CreateArticleCmd{
 		Actor:         authorViewer(),
 		Policy:        domain.OpenWritePolicy(),
-		Title:         "待审稿",
+		Title:         "干净稿",
 		Content:       "正文",
 		TargetStatus:  domain.StatusExamining,
 		SkipExamining: false,
 	})
 	if err != nil {
-		t.Fatalf("提交审核失败: %v", err)
+		t.Fatalf("提交失败: %v", err)
 	}
-	if a.Status() != domain.StatusExamining {
-		t.Fatalf("应为审核中，实际 %s", a.Status())
+	if a.Status() != domain.StatusPublished {
+		t.Fatalf("干净文章应立即为已发布，实际 %s", a.Status())
+	}
+	if a.Visibility() != domain.VisibilityPendingReview {
+		t.Fatalf("干净文章应暂不可见（pending_review），实际 %s", a.Visibility())
+	}
+	if a.IsPubliclyVisible() {
+		t.Fatal("pending_review 的文章不该对匿名访客可见")
 	}
 	if a.SubmittedAt() == nil {
-		t.Fatal("提交审核应记录 submitted_at")
+		t.Fatal("提交应记录 submitted_at")
 	}
 
 	tasks, err := repos.FakeReviews().ListPendingByArticle(ctx, a.ID())
 	if err != nil {
 		t.Fatalf("查任务失败: %v", err)
 	}
-	if len(tasks) != 1 || tasks[0].Source() != review.SourceCreate {
-		t.Fatalf("应建 1 条 create 来源的待审任务，实际 %d", len(tasks))
+	if len(tasks) != 0 {
+		t.Fatalf("同步路径不该产生人工待审任务，实际 %d 条", len(tasks))
+	}
+	// 要触发异步评分 + 合规判定 + "审核通过"通知，事件必须是 Published。
+	if names := repos.FakeOutbox().Names(); len(names) != 1 || names[0] != app.EventArticlePublished {
+		t.Fatalf("干净提交应发 published 事件，实际 %v", names)
 	}
 }
 
@@ -264,7 +276,10 @@ func TestUpdateNoopDoesNotWrite(t *testing.T) {
 	}
 }
 
-// TestUpdatePublishedTriggersReReview 锁住"改已发布文章会自动重新送审"。
+// TestUpdatePublishedTriggersReReview 锁住"改已发布文章会重新判定"。
+//
+// 票 302 新规则下重审的落点不再是审核中：干净改动重新以
+// Published + pending_review 落库，等异步模型判定再放行可见。
 func TestUpdatePublishedTriggersReReview(t *testing.T) {
 	t.Parallel()
 
@@ -283,14 +298,17 @@ func TestUpdatePublishedTriggersReReview(t *testing.T) {
 		t.Fatalf("更新失败: %v", err)
 	}
 	if !res.Resubmitted {
-		t.Fatal("改已发布文章应重新送审")
+		t.Fatal("改已发布文章应重新判定")
 	}
-	if res.Article.Status() != domain.StatusExamining {
-		t.Fatalf("状态应为审核中，实际 %s", res.Article.Status())
+	if res.Article.Status() != domain.StatusPublished {
+		t.Fatalf("干净改动应立刻回到已发布，实际 %s", res.Article.Status())
+	}
+	if res.Article.Visibility() != domain.VisibilityPendingReview {
+		t.Fatalf("干净改动应暂不可见（pending_review），实际 %s", res.Article.Visibility())
 	}
 	tasks, _ := repos.FakeReviews().ListPendingByArticle(ctx, ctype.NewID(1))
-	if len(tasks) != 1 || tasks[0].Source() != review.SourceEdit {
-		t.Fatalf("应建 1 条 edit 来源任务，实际 %d", len(tasks))
+	if len(tasks) != 0 {
+		t.Fatalf("同步路径不该建人工任务，实际 %d 条", len(tasks))
 	}
 }
 

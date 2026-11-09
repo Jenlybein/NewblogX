@@ -97,7 +97,8 @@ describe("useStudioPublish", () => {
 
   it("新建 + 发布：按返回的 publish_status 给三种不同提示", async () => {
     const cases = [
-      { status: 3, want: "文章已发布成功" },
+      // 票 302：已发布不等于立刻对读者可见，要等内容检查通过。
+      { status: 3, want: "文章已发布，内容检查通过后将对读者可见" },
       { status: 2, want: "文章已提交审核，审核通过后会公开展示" },
       { status: 0, want: "文章已提交发布" },
     ];

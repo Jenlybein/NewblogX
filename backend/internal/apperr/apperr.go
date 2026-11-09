@@ -71,6 +71,12 @@ const (
 	// 这是**保存配置**这一步的失败，不是提交路径的失败：总闸关着或没有启用的
 	// 模型配置时，把闸门打开等于让所有人第一天就被拒，因此拒绝保存。
 	CodeArticleQualityGateRequiresAI Code = "article.quality_gate_requires_ai"
+	// CodeArticleRiskRejected 是提交时同步风险扫描命中 medium 及以上（票 302 新规则）。
+	//
+	// 与另外两条拒绝码刻意分开：quality_rejected 是"文章不够好"（落草稿、可改可重投），
+	// 这条是"命中风险词/评分派生风险"（落 REJECTED、不给改）；作者据此知道不是
+	// 改几分能解决的事。作者侧只看到固定文案，命中的词、维度与等级一律不外泄。
+	CodeArticleRiskRejected Code = "article.risk_rejected"
 )
 
 // 分类与标签。
@@ -473,6 +479,7 @@ var messages = map[Code]string{
 	CodeArticleQualityRejected: "文章质量未达到发布线，已保存为草稿",
 	CodeArticleScoreUnavailable: "质量评分暂时不可用（模型调用失败），本次提交未保存，请稍后重试",
 	CodeArticleQualityGateRequiresAI: "开启质量闸门需要先启用 AI 助手并配置至少一个可用模型，否则所有投稿都会被拒",
+	CodeArticleRiskRejected:         "文章未通过内容检查，已被拒绝",
 
 	CodeTaxonomyTitleRequired: "名称不能为空",
 	CodeTaxonomyTitleExists:   "名称重复",

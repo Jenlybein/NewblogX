@@ -64,6 +64,9 @@ func (s *Service) Create(ctx context.Context, cmd CreateArticleCmd) (*domain.Art
 	var reservation SubmitQuotaReservation
 	gateRejected := false
 	var verdict qualityVerdict
+	// riskRejected 是提交时同步风险扫描命中 medium 及以上的结论（票 302 新规则）。
+	// 它与 gateRejected 的落点不同：质量不达标落草稿可改，风险命中直接 REJECTED。
+	riskRejected := false
 	// 新建文章在评分时还没有落库，但评分记录要按真实的 article_id 写，
 	// 所以闸门开启时先在事务外生成 ID，写事务复用它。
 	var articleID domain.ArticleID
@@ -74,10 +77,21 @@ func (s *Service) Create(ctx context.Context, cmd CreateArticleCmd) (*domain.Art
 		}
 		reservation = res
 
-		if cmd.QualityGate.Enabled {
+		// 站点「文章免审核」开启时按用户选定的口径：全部直接真发布，
+		// 同步风险扫描也不拦（异步合规判定仍作事后兜底）。
+		if !cmd.SkipExamining {
+			risk, err := s.scanSubmitRisk(ctx, cmd.Title, cmd.Content, domain.ArticleID(""))
+			if err != nil {
+				s.releaseSubmitQuota(ctx, reservation)
+				return nil, err
+			}
+			riskRejected = risk.Rejected
+		}
+
+		if cmd.QualityGate.Enabled && !riskRejected {
 			// 评分必须在数据库事务之外（票 306 / ADR-0032）：一次模型调用 5–30 秒，
 			// 把它留在 WithinTx 里等于钉死连接池。顺序固定为
-			// 配额预占 → 评分 → 判定 → 落库（grill §三）。
+			// 配额预占 → 风险扫描 → 评分 → 判定 → 落库。
 			articleID = s.ids.NextArticleID()
 			gateVerdict, err := s.judgeQuality(ctx, cmd.QualityGate, QualityGateInput{
 				ArticleID: articleID,
@@ -110,12 +124,13 @@ func (s *Service) Create(ctx context.Context, cmd CreateArticleCmd) (*domain.Art
 		}
 
 		now := s.clock.Now()
+		outcome := decideSubmit(cmd.SkipExamining, gateRejected, riskRejected)
 		status := domain.StatusDraft
+		visibility := domain.NormalizeVisibility(cmd.Visibility)
 		var submittedAt *time.Time
-		// 质量不达标（含灰带）：即使站点开启了"跳过审核"也不放行，文章落草稿，
-		// 作者改完可以立刻重投（spec 决策 24）。
-		if target == domain.StatusExamining && !gateRejected {
-			status = domain.ResolveSubmitStatus(cmd.SkipExamining)
+		if target == domain.StatusExamining {
+			status = outcome.Status
+			visibility = outcome.Visibility
 			t := now
 			submittedAt = &t
 		}
@@ -133,7 +148,7 @@ func (s *Service) Create(ctx context.Context, cmd CreateArticleCmd) (*domain.Art
 			Cover:          cmd.Cover,
 			CommentsToggle: cmd.CommentsToggle,
 			Status:         status,
-			Visibility:     cmd.Visibility,
+			Visibility:     visibility,
 			SubmittedAt:    submittedAt,
 			Now:            now,
 		})
@@ -157,8 +172,8 @@ func (s *Service) Create(ctx context.Context, cmd CreateArticleCmd) (*domain.Art
 				return err
 			}
 		}
-		if status == domain.StatusExamining {
-			if err := createReviewTask(ctx, s, r, article, review.SourceCreate, now); err != nil {
+		if riskRejected {
+			if err := saveRiskRejectionTask(ctx, s, r, article, now); err != nil {
 				return err
 			}
 		}
@@ -168,7 +183,7 @@ func (s *Service) Create(ctx context.Context, cmd CreateArticleCmd) (*domain.Art
 		}
 
 		created = article
-		return emit(ctx, r, EventArticleCreated, article.ID())
+		return emit(ctx, r, submitEventName(status, riskRejected, false, true), article.ID())
 	})
 
 	if err != nil {
@@ -180,6 +195,11 @@ func (s *Service) Create(ctx context.Context, cmd CreateArticleCmd) (*domain.Art
 		// 文章已经以草稿落库（作者能继续改、能立刻重投），因此这里是"带数据的
 		// 业务拒绝"而不是 "什么都没发生"：错误码 + 分数 / 差额 / 问题列表。
 		return nil, newQualityRejection(created.ID(), verdict)
+	}
+	if riskRejected {
+		// 文章已以 REJECTED 落库（不给改），返回固定文案的业务拒绝。
+		// 命中词、维度、等级都不带给作者。
+		return nil, newRiskRejection()
 	}
 	return created, nil
 }

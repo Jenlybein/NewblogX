@@ -252,6 +252,15 @@ func (a *Article) ApplyEdit(p EditPatch, now time.Time) (EditFlags, error) {
 	}
 	if p.Visibility != nil {
 		next := NormalizeVisibility(*p.Visibility)
+		// pending_review 是系统内部中间态：作者不能借"编辑文章"接口把
+		// visibility_status 改成 visible 来提前放行、绕过模型合规判定
+		// （ADR-0035 约束 3）。CanSetVisibility 只管管理员的改可见性端点，
+		// 这条通用的 Update 路径必须自己再挡一次。
+		// 不改原值就不报 flags.Visibility，纯改可见性的请求因此变成 no-op，
+		// 不会返回"已修改"误导调用方。
+		if a.visibility == VisibilityPendingReview && next == VisibilityVisible {
+			next = VisibilityPendingReview
+		}
 		if a.visibility != next {
 			a.visibility = next
 			flags.Visibility = true
@@ -338,8 +347,27 @@ func (a *Article) NeedsReReview(flags EditFlags, skipExamining bool) bool {
 
 // Submit 提交审核（或按站点配置直接发布）。
 //
-// 允许的来源状态：草稿、已拒绝、审核中（重复提交即重新排审）、已发布（编辑后重审）。
+// 允许的来源状态：草稿、已拒绝（人工驳回后改稿重投，#303）、审核中、已发布。
+// 注意：**系统直接拒**（同步风险命中 / 合规自动拒）虽然也是 StatusRejected，
+// 但由 app 层的 Update 提交分支按任务来源拦住，不在这里区分——domain 只认状态。
+//
+// 注意：票 302 新规则下 Create/Update 走的是 SubmitWithOutcome，因为"提交"
+// 的落点不再只由 skipExamining 决定（还叠了同步风险扫描与闸门）。这里保留
+// 给不需要新规则的调用方与历史用例，语义仍是旧的两态。
 func (a *Article) Submit(now time.Time, skipExamining bool) error {
+	return a.submitTo(ResolveSubmitStatus(skipExamining), VisibilityVisible, now)
+}
+
+// SubmitWithOutcome 按用例层算好的落点提交（票 302 新规则）。
+//
+// 落点可能是 Published + pending_review（干净文章，作者立刻拿到"已发布"
+// 回执但对读者暂不可见）、Published + visible（站点免审核）、或
+// Rejected（同步风险命中）。domain 不认识"风险扫描"，只认这个结论。
+func (a *Article) SubmitWithOutcome(status Status, visibility Visibility, now time.Time) error {
+	return a.submitTo(status, visibility, now)
+}
+
+func (a *Article) submitTo(next Status, visibility Visibility, now time.Time) error {
 	if a.deleted {
 		return ErrArticleNotFound
 	}
@@ -349,17 +377,19 @@ func (a *Article) Submit(now time.Time, skipExamining bool) error {
 		return ErrInvalidTransition
 	}
 
-	next := ResolveSubmitStatus(skipExamining)
-	if a.status == StatusPublished && next == StatusPublished {
-		// 已经在目标态：站点跳过审核时，"编辑一篇已发布文章并再次提交"走的就是这条路。
+	if a.status == StatusPublished && next == StatusPublished && visibility == VisibilityVisible {
+		// 站点免审核的幂等提交：目标态与当前态相同，且本来就是真发布。
 		// 这里以前报 ErrAlreadyPublished，后果是**已发布的文章永远改不了**——
 		// 用户点"更新"只会看到一句"文章已发布"，正文改动被整笔回滚。
-		// 提交的意图是"让它处于发布态"，而这个前提本就成立，所以做成幂等：
-		// 不改变状态，只保留 ApplyEdit 已经写过的时间戳。
+		//
+		// 注意条件里必须带 visibility == visible：票 302 新规则下"编辑已发布
+		// 文章重新判定"的目标也是 Published，但可见性是 pending_review ——
+		// 那不是幂等，改过的正文必须重新等对读者隐藏起来，否则编辑会绕过模型判定。
 		return nil
 	}
 
 	a.status = next
+	a.visibility = visibility
 	t := now
 	a.submittedAt = &t
 	a.reviewedAt = nil
@@ -385,6 +415,10 @@ func (a *Article) BackToDraft(now time.Time) error {
 }
 
 // Approve 审核通过。
+//
+// 模型判 suspect 或判定失败会把文章从"已发布待可见"改回审核中（BackToReview），
+// 管理员在这里做最终放行。若可见性还停在 pending_review，一并清成 visible：
+// 审核通过就是最终决定，不该留一个"已发布但读者看不到"的中间态。
 func (a *Article) Approve(reviewer UserID, now time.Time) error {
 	if a.deleted {
 		return ErrArticleNotFound
@@ -393,10 +427,53 @@ func (a *Article) Approve(reviewer UserID, now time.Time) error {
 		return ErrInvalidTransition
 	}
 	a.status = StatusPublished
+	if a.visibility == VisibilityPendingReview {
+		a.visibility = VisibilityVisible
+	}
 	t := now
 	a.reviewedAt = &t
 	by := reviewer
 	a.reviewedBy = &by
+	a.updatedAt = now
+	return nil
+}
+
+// PublishForCompliance 模型判 clean 后把"已发布待可见"的文章真正放开。
+//
+// 它是异步合规判定的成功出口（票 #302 新规则）：提交时同步扫描没命中
+// medium 及以上风险，文章已以 Published + pending_review 落库，作者立刻拿到
+// "已发布"回执；只有模型判干净才对匿名访客可见。
+//
+// 幂等：已经是 visible 时直接返回 nil，outbox 重复投递不会产生额外写入。
+func (a *Article) PublishForCompliance(now time.Time) error {
+	if a.deleted {
+		return ErrArticleNotFound
+	}
+	if a.status != StatusPublished || a.visibility != VisibilityPendingReview {
+		return nil
+	}
+	a.visibility = VisibilityVisible
+	a.updatedAt = now
+	return nil
+}
+
+// BackToReview 把"已发布待可见"的文章改回审核中，交人工处置。
+//
+// 两个入口共用：模型判 suspect（存疑，误判风险高不自动拒）、以及模型判定
+// 重试一次后仍失败（不能让文章永远停在"作者以为发了、读者看不到"的隐形拒稿）。
+// 可见性一并清成 visible：审核中本身就不对读者可见（CanBeViewedBy），
+// 状态语义保持单一，也能让管理员审核通过后直接发布。
+func (a *Article) BackToReview(now time.Time) error {
+	if a.deleted {
+		return ErrArticleNotFound
+	}
+	if a.status != StatusPublished || a.visibility != VisibilityPendingReview {
+		return ErrInvalidTransition
+	}
+	a.status = StatusExamining
+	a.visibility = VisibilityVisible
+	t := now
+	a.submittedAt = &t
 	a.updatedAt = now
 	return nil
 }
@@ -419,6 +496,11 @@ func (a *Article) RevokeForCompliance(now time.Time) error {
 		return ErrInvalidTransition
 	}
 	a.status = StatusRejected
+	// 清掉 pending_review：已拒绝不该继续挂着一个"等放行"的中间态，
+	// 否则后续任何把它改回审核中/发布的路径都得额外处理这个残留值。
+	if a.visibility == VisibilityPendingReview {
+		a.visibility = VisibilityVisible
+	}
 	t := now
 	a.reviewedAt = &t
 	a.reviewedBy = nil

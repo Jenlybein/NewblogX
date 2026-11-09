@@ -4,7 +4,6 @@ import (
 	"context"
 
 	"myblogx/internal/article/domain"
-	"myblogx/internal/article/domain/review"
 )
 
 // Update 更新文章。
@@ -27,26 +26,41 @@ func (s *Service) Update(ctx context.Context, cmd UpdateArticleCmd) (*UpdateResu
 	var reservation SubmitQuotaReservation
 	gateRejected := false
 	var verdict qualityVerdict
+	riskRejected := false
 
-	if cmd.QualityGate.Enabled {
-		// 只读预演 + 事务外评分。评分调用在 WithinTx 返回之后，因此此刻没有任何
-		// 数据库事务在使用连接（grill §三 与 ADR-0032 的硬纪律）。
-		var preview updatePreview
-		if err := s.tx.WithinTx(ctx, func(ctx context.Context, r Repos) error {
-			p, err := s.previewUpdate(ctx, r, cmd)
-			preview = p
-			return err
-		}); err != nil {
+	// 只读预演 + **事务外**的同步风险扫描与评分。两者都必须在 WithinTx 之外：
+	// 风险扫描要读已有评分记录，评分是一次 5–30 秒的模型调用，占着事务等于
+	// 钉死连接池（ADR-0032 硬纪律、ADR-0035 决策 1）。写事务会重新读一遍
+	// 文章，以它读到的状态为准。
+	var preview updatePreview
+	if err := s.tx.WithinTx(ctx, func(ctx context.Context, r Repos) error {
+		p, err := s.previewUpdate(ctx, r, cmd)
+		preview = p
+		return err
+	}); err != nil {
+		return nil, err
+	}
+
+	// 预演说"这次会提交"就在事务外把配额、风险扫描、评分一次做完。
+	// 闸门关不关都要扫（票 302 新规则），所以不再分两条路径、也不在事务内补扫。
+	if preview.NeedsSubmit {
+		res, err := s.reserveSubmitQuota(ctx, cmd.Actor)
+		if err != nil {
 			return nil, err
 		}
+		reservation = res
 
-		if preview.NeedsGate {
-			res, err := s.reserveSubmitQuota(ctx, cmd.Actor)
+		// 站点「文章免审核」开启时全部直接真发布，同步风险扫描也不拦。
+		if !cmd.SkipExamining {
+			risk, err := s.scanSubmitRisk(ctx, preview.Title, preview.Content, cmd.ArticleID)
 			if err != nil {
+				s.releaseSubmitQuota(ctx, reservation)
 				return nil, err
 			}
-			reservation = res
+			riskRejected = risk.Rejected
+		}
 
+		if cmd.QualityGate.Enabled && !riskRejected {
 			gateVerdict, err := s.judgeQuality(ctx, cmd.QualityGate, QualityGateInput{
 				ArticleID: cmd.ArticleID,
 				AuthorID:  cmd.Actor.UserID,
@@ -122,9 +136,9 @@ func (s *Service) Update(ctx context.Context, cmd UpdateArticleCmd) (*UpdateResu
 		autoResubmit := a.NeedsReReview(flags, cmd.SkipExamining)
 		// 已发布 + 跳过审核：目标态就是当前态。此时"提交"是幂等的，
 		// 既不重建审核任务（否则已发布的文章会被塞进审核队列），也不刷新审核痕迹。
-		idempotentSubmit := explicitSubmit &&
-			a.Status() == domain.StatusPublished &&
-			domain.ResolveSubmitStatus(cmd.SkipExamining) == domain.StatusPublished
+		// 票 302 新规则下免审核仍是"直接真发布"，所以直接看开关，
+		// 不再用 ResolveSubmitStatus 反推。
+		idempotentSubmit := explicitSubmit && a.Status() == domain.StatusPublished && cmd.SkipExamining
 
 		switch {
 		case explicitDraft:
@@ -137,20 +151,31 @@ func (s *Service) Update(ctx context.Context, cmd UpdateArticleCmd) (*UpdateResu
 		case idempotentSubmit:
 			// 什么都不做：文章已经是发布态，内容由 ApplyEdit 写过了。
 		case explicitSubmit || autoResubmit:
-			// 每次提交动作占一次当日额度（ADR-0031）：显式提交与"编辑已发布文章
-			// 触发的自动重新送审"都会真的产生一条审核任务，因此都计。
-			// 幂等提交（已发布 + 跳过审核）走上面的分支，不占额度。
-			//
-			// 闸门开启时额度已在事务外预占（评分必须先于提交判定）；闸门关闭时
-			// 仍保持原路径：在这里预占，失败回滚由函数末尾统一归还。
-			if reservation == nil {
-				res, err := s.reserveSubmitQuota(ctx, cmd.Actor)
-				if err != nil {
+			// 系统直接拒是终局（票 302 / ADR-0035「不给改」）：同步风险命中与
+			// 合规自动拒都留了一条待处理复盘任务，按来源认。人工驳回的
+			// StatusRejected 不在此列——#303 允许作者改稿后重投。
+			if err := rejectSystemRejectedResubmit(ctx, r, a.ID()); err != nil {
+				return err
+			}
+			// 配额、同步风险扫描与评分都已在写事务之外完成（见函数开头）；
+			// 这里只消费那些结论，不再做任何事务内的端口调用。
+			// 预演与写事务读到的是同一状态；若并发下状态变了，末尾的
+			// `!result.Resubmitted` 分支会把预占归还。
+			outcome := decideSubmit(cmd.SkipExamining, gateRejected, riskRejected)
+			if outcome.Rejected {
+				// 同步风险命中：直接 REJECTED，不给改。留一条复盘任务供管理员看。
+				if err := a.SubmitWithOutcome(domain.StatusRejected, domain.VisibilityVisible, now); err != nil {
 					return err
 				}
-				reservation = res
+				if err := cancelPendingReviewTasks(ctx, r, a.ID(), "内容检查未通过", now); err != nil {
+					return err
+				}
+				if err := saveRiskRejectionTask(ctx, s, r, a, now); err != nil {
+					return err
+				}
+				resubmitted = true
+				break
 			}
-
 			if gateRejected {
 				// 质量不达标：不放行，文章落草稿（spec 决策 24）。即使站点开启了
 				// "跳过审核"也不直接发布 —— 灰带与低分都意味着"先改再投"。
@@ -163,21 +188,12 @@ func (s *Service) Update(ctx context.Context, cmd UpdateArticleCmd) (*UpdateResu
 				break
 			}
 
-			if err := a.Submit(now, cmd.SkipExamining); err != nil {
+			if err := a.SubmitWithOutcome(outcome.Status, outcome.Visibility, now); err != nil {
 				return err
 			}
-			reason := "作者重新提交审核"
-			if explicitSubmit {
-				reason = "作者提交审核"
-			}
-			if err := cancelPendingReviewTasks(ctx, r, a.ID(), reason, now); err != nil {
-				return err
-			}
-			source := review.SourceResubmit
-			if autoResubmit {
-				source = review.SourceEdit
-			}
-			if err := createReviewTask(ctx, s, r, a, source, now); err != nil {
+			// 干净文章不再在同步路径建人工任务：人工队列只由异步模型判定产生。
+			// 但要撤销旧的待处理任务（例如这篇文章之前因模型存疑被改回审核中）。
+			if err := cancelPendingReviewTasks(ctx, r, a.ID(), "作者重新提交", now); err != nil {
 				return err
 			}
 			resubmitted = true
@@ -194,14 +210,8 @@ func (s *Service) Update(ctx context.Context, cmd UpdateArticleCmd) (*UpdateResu
 
 		result = &UpdateResult{Article: a, Changed: true, Resubmitted: resubmitted, TagsReplaced: tagsReplaced}
 
-		event := EventArticleUpdated
-		switch {
-		case explicitDraft:
-			event = EventArticleBackToDraft
-		case a.Status() == domain.StatusExamining:
-			event = EventArticleSubmitted
-		}
-		return emit(ctx, r, event, a.ID())
+		return emit(ctx, r,
+			submitEventName(a.Status(), riskRejected, explicitDraft, false), a.ID())
 	})
 
 	if err != nil {
@@ -213,6 +223,10 @@ func (s *Service) Update(ctx context.Context, cmd UpdateArticleCmd) (*UpdateResu
 		// 文章已落草稿（改动保留），因此返回"带数据的业务拒绝"，不是静默失败。
 		// 这次预占对应一次真实的提交动作（评分 + 落草稿），照旧计一次额度。
 		return nil, newQualityRejection(cmd.ArticleID, verdict)
+	}
+	if riskRejected {
+		// 文章已以 REJECTED 落库（不给改），返回固定文案的业务拒绝。
+		return nil, newRiskRejection()
 	}
 	// 预演说"这次会提交"、写事务却发现"其实没提交"（并发下文章已被改成已发布，
 	// 或者这次改动没有任何字段变化）：预占还在，但没有任何提交动作对应它。
@@ -255,7 +269,7 @@ func (s *Service) previewUpdate(ctx context.Context, r Repos, cmd UpdateArticleC
 	if explicitDraft || idempotentSubmit || !(explicitSubmit || autoResubmit) {
 		return updatePreview{}, nil
 	}
-	return updatePreview{NeedsGate: true, Title: a.Title(), Content: a.Content()}, nil
+	return updatePreview{NeedsSubmit: true, Title: a.Title(), Content: a.Content()}, nil
 }
 
 // editPatchFromCmd 把更新入参投影成领域层能应用的补丁。

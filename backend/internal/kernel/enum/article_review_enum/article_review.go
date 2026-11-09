@@ -44,6 +44,15 @@ const (
 	// 单开一个来源而不是复用 create：复盘时要能一眼分清"人拒的"与"系统拒的"，
 	// 否则自动拒的误判会被当成审核员判断失误。
 	SourceCompliance Source = "compliance"
+	// SourceRiskCheck 是提交时同步风险扫描命中 medium 及以上的自动拒绝（票 302 新规则）。
+	//
+	// 与 SourceCompliance 分开：前者是模型异步判定，这里是纯字符串/评分派生
+	// 的同步判定，失败率、误判类型与复盘方式都不同。
+	SourceRiskCheck Source = "risk_check"
+	// SourceModelSuspect / SourceModelFailure 是"已发布待可见"文章被异步改回
+	// 人工审核的两种原因（票 302 新规则）：模型判存疑、或判定重试一次后仍失败。
+	SourceModelSuspect Source = "model_suspect"
+	SourceModelFailure Source = "model_failure"
 )
 
 // ReasonCode 是驳回原因的固定枚举。
@@ -70,6 +79,9 @@ const (
 	ReasonFormat ReasonCode = "format"
 	// ReasonOther 其他原因（说明必须补一句，否则作者只看到「其他原因」）。
 	ReasonOther ReasonCode = "other"
+	// ReasonRiskCheck 是提交时同步内容检查未通过（票 302 新规则）。
+	// 作者只看到这条固定文案，命中的词、维度、等级一律不外泄。
+	ReasonRiskCheck ReasonCode = "risk_check"
 )
 
 // reasonLabels 是驳回原因的中文文案。
@@ -82,11 +94,16 @@ var reasonLabels = map[ReasonCode]string{
 	ReasonIncomplete: "内容不完整",
 	ReasonFormat:     "排版格式问题",
 	ReasonOther:      "其他原因",
+	ReasonRiskCheck:  "内容检查未通过",
 }
 
-// ReasonCodes 返回全部取值。顺序就是下拉框顺序（先质量问题、再合规、再格式、最后其他）。
+// ReasonCodes 返回**人工审核员可选**的全部取值。
 //
+// 顺序就是下拉框顺序（先质量问题、再合规、再格式、最后其他）。
 // 显式列表而不是遍历 map：map 顺序随机，下拉框每次刷新换一个顺序会让人以为选项变了。
+//
+// 系统专用的取值（ReasonRiskCheck 等）刻意不在这里：它们只能由自动判定写入
+// 任务行供复盘，不能出现在管理员的下拉里 —— 否则人会替系统背一次误判。
 func ReasonCodes() []ReasonCode {
 	return []ReasonCode{ReasonQuality, ReasonCompliance, ReasonIncomplete, ReasonFormat, ReasonOther}
 }

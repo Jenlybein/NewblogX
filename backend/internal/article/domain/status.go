@@ -54,12 +54,19 @@ const (
 	VisibilityUserHidden Visibility = "user_hidden"
 	// VisibilityAdminHidden 管理员隐藏。
 	VisibilityAdminHidden Visibility = "admin_hidden"
+	// VisibilityPendingReview 已发布、但等模型合规判定通过才对读者可见。
+	//
+	// 提交时同步风险扫描没命中中等及以上风险的文章先进这个中间态：作者立刻
+	// 拿到"已发布"的回执，匿名访客却还读不到；模型判 clean 才转 visible。
+	// 这是可见性维度的新取值，不是新状态、也不是新列（零 DDL 约束）。
+	// 作者与管理员的既有豁免不受影响，见 CanBeViewedBy。
+	VisibilityPendingReview Visibility = "pending_review"
 )
 
 // Valid 判断可见性取值是否合法。
 func (v Visibility) Valid() bool {
 	switch v {
-	case VisibilityVisible, VisibilityUserHidden, VisibilityAdminHidden:
+	case VisibilityVisible, VisibilityUserHidden, VisibilityAdminHidden, VisibilityPendingReview:
 		return true
 	}
 	return false

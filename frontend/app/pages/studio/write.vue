@@ -97,6 +97,7 @@ const {
   draftActionLabel,
   publishActionLabel,
   isPublishingLocked,
+  pendingReview,
 } = await useStudioArticle({ pendingState, message, previewHeadings });
 
 const articleScoreModalOpen = ref(false);
@@ -412,6 +413,7 @@ ref="editorTextareaRef" v-model="form.content" class="write-page__textarea"
       :draft-label="draftActionLabel"
       :publish-label="scoring ? '评分中…' : publishActionLabel"
       :quality-rejection="qualityRejection"
+      :pending-review="pendingReview"
       :on-cover-change="handleCoverFileChange"
       :on-clear="clearCoverSelection"
       @submit="submitArticle"

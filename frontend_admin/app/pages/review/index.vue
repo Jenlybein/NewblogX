@@ -140,7 +140,14 @@ const columns = [
 ]
 
 function sourceLabel(value: string) {
-  return ({ create: '新建', edit: '编辑', resubmit: '重提' } as Record<string, string>)[value] || value
+  // 票 302 新规则新增的三个来源：同步风险直接拒、模型判存疑转人工、
+  // 模型判定失败转人工。加上此前的合规自动拒，管理员要能一眼看清
+  // "为什么这条在队列里"，不能显示机器值。
+  return ({
+    create: '新建', edit: '编辑', resubmit: '重提',
+    compliance: '合规自动拒', risk_check: '内容检查拒',
+    model_suspect: '模型存疑', model_failure: '模型判定失败',
+  } as Record<string, string>)[value] || value
 }
 
 function reviewStatusLabel(value: string) {

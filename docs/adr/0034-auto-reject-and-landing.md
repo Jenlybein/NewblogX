@@ -1,6 +1,6 @@
 # ADR-0034：合规自动拒与两种拒后落点
 
-- 状态：已交付
+- 状态：**已由 [ADR-0035](./0035-risk-gated-publish.md) 取代**（2026-11-09 新发布口径推翻了"词表只标红、观察级交人"与"两种落点"；本文保留作为历史理由）
 - 日期：2026-11-08
 - 来源：parent spec [#302](https://github.com/Jenlybein/NewblogX/issues/302)（发布治理一期）· 落地票 [#313](https://github.com/Jenlybein/NewblogX/issues/313)（自动拒与落点）· 上游 [#312](./0033-risk-models.md)（合规判定）· 决定过程见 [grill 记录 §4.4 / §五](../notes/2026-11-07-publish-gate-and-moderation-grill.md)
 

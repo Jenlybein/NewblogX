@@ -167,8 +167,10 @@ func newQualityRejection(articleID domain.ArticleID, v qualityVerdict) error {
 // 只读：previewUpdate 不改库，也不预占配额。它的唯一用途是让评分发生在
 // 数据库事务之外（ADR-0032），写事务会重新读一遍文章并以它读到的状态为准。
 type updatePreview struct {
-	// NeedsGate 表示这次更新确实是一次提交动作（显式提交或自动重新送审）。
-	NeedsGate bool
-	Title     string
-	Content   string
+	// NeedsSubmit 表示这次更新确实是一次提交动作（显式提交或自动重新送审）。
+	// 票 302 新规则：不论闸门开不开，提交都要在事务外先做同步风险扫描，
+	// 所以字段从 NeedsGate 改名，语义也放宽了。
+	NeedsSubmit bool
+	Title       string
+	Content     string
 }

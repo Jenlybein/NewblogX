@@ -128,60 +128,7 @@ export function describeBannerCoverSize(
   }
 }
 
-/** 编辑标题要回填的字段：更新接口是整体替换，所以 href / show 也必须带上。 */
-export interface BannerTitleSource {
-  id?: string | null
-  cover_image_id?: string | null
-  title?: string | null
-  href?: string | null
-  show?: boolean | null
-}
+// 「只改标题」那条路径（`buildBannerTitlePayload` / `saveBannerTitle`）随 #330 删除：
+// 新增与编辑现在共用 `BannerFormModal`，更新走的是完整表单的整体替换，
+// 不再存在"标题单独写一次"的入口。请求体仍由 `buildBannerCreatePayload` 生成。
 
-export interface BannerTitleWrite {
-  id: string
-  payload: BannerWritePayload
-}
-
-/**
- * 生成 `PUT /banners/:id` 的请求体（只改标题的路径）。
- *
- * `null` 表示这一行没有封面图片 ID（历史行或数据损坏）：更新接口要求
- * cover_image_id，凭空编一个只会失败，页面据此提示而不是发一个坏请求。
- *
- * 标题一并带上：更新是整体替换，漏传就等于把已有标题清掉。
- */
-export function buildBannerTitlePayload(
-  row: BannerTitleSource,
-  title: string,
-): BannerTitleWrite | null {
-  if (!row.id || !row.cover_image_id) return null
-  return {
-    id: row.id,
-    payload: {
-      cover_image_id: row.cover_image_id,
-      title: bannerTitleText(title),
-      href: row.href ?? '',
-      show: Boolean(row.show),
-    },
-  }
-}
-
-/** 更新器的最小契约：页面把它接到 `updateBanner`，测试里换成假实现。 */
-export type BannerUpdater = (id: string, payload: BannerWritePayload) => Promise<unknown>
-
-/**
- * 保存一次标题编辑。
- *
- * 返回 `false` 表示这一行没有封面 ID、**没有发任何写请求**；抛出则是更新接口
- * 失败。空标题是合法输入（清空误填的标题），不会因此拒发。
- */
-export async function saveBannerTitle(
-  row: BannerTitleSource,
-  title: string,
-  update: BannerUpdater,
-): Promise<boolean> {
-  const write = buildBannerTitlePayload(row, title)
-  if (!write) return false
-  await update(write.id, write.payload)
-  return true
-}

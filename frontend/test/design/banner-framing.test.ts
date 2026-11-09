@@ -19,6 +19,13 @@ import { blockAfter } from "../helpers/designFiles";
 const projectDir = process.cwd();
 const readerIndex = readFileSync(join(projectDir, "app/pages/index.vue"), "utf8");
 const adminCss = readFileSync(join(projectDir, "../frontend_admin/app/assets/css/admin.css"), "utf8");
+// 票 330 起轮播的新增 / 编辑合成一个弹窗组件，上传预览框随之从 admin.css 的常驻面板
+// 搬进了组件自己的 scoped 样式。这里读组件而不是样式表：被锁的不变量（预览框 16:9）
+// 没变，变的是它现在写在哪个文件里。
+const adminBannerModal = readFileSync(
+  join(projectDir, "../frontend_admin/app/components/media/BannerFormModal.vue"),
+  "utf8",
+);
 
 /** 取块里的比例声明，并把空白压成单空格（只消除排版差异，不放过取值差异）。 */
 function aspectRatioOf(block: string): string {
@@ -49,7 +56,7 @@ describe("封面固定 16:9：跨端只有一份形状、两端取值一致", ()
   it("后台上传预览框与阅读站面板同一比例（跨端常量一致性）", () => {
     const readerPanel = blockAfter(readerIndex, ".home-cover__panel {");
     // 后台只剩一个会露出轮播封面的 16:9 框（上传预览框）；取景框已随 #204 退场。
-    const preview = blockAfter(adminCss, ".admin-upload-panel__picker {");
+    const preview = blockAfter(adminBannerModal, ".banner-form__preview {");
 
     expect(aspectRatioOf(preview), `上传预览框应是 ${SPEC_RATIO}`).toBe(SPEC_RATIO);
     expect(aspectRatioOf(preview), "上传预览框应与阅读站面板一致").toBe(aspectRatioOf(readerPanel));

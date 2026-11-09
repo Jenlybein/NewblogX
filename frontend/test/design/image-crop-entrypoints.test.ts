@@ -28,8 +28,10 @@ const ENTRYPOINTS = [
     files: ["frontend/app/pages/studio/settings.vue"],
   },
   {
+    // 票 330 起轮播的新增 / 编辑都在弹窗组件里：封面编排与裁剪窗随之从页面搬进组件，
+    // 页面只负责打开弹窗。入口换了文件，不变量没变。
     name: "后台轮播封面",
-    files: ["frontend_admin/app/pages/media/index.vue"],
+    files: ["frontend_admin/app/components/media/BannerFormModal.vue"],
   },
   {
     // 2026-11-04 起合集 / 项目的封面都在编辑弹窗里：两个入口共用同一个组件，

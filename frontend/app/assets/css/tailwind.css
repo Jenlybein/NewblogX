@@ -308,14 +308,6 @@
     @apply min-w-0;
   }
 
-  .profile-category-toolbar {
-    @apply flex flex-wrap items-center justify-end gap-2;
-  }
-
-  .profile-category-card-wrap {
-    @apply flex flex-col gap-2;
-  }
-
   .profile-category-card {
     @apply flex min-h-[72px] flex-col justify-center gap-2 rounded-card border border-line bg-surface p-4 text-left transition-colors;
     touch-action: manipulation;
@@ -343,7 +335,9 @@
     @apply truncate text-base font-semibold text-ink;
   }
 
-  /* 单个分类的行内操作（改名 / 删除）：只在自己的主页出现（票 325）。 */
+  /* 单个分类的行内操作（改名 / 删除）+ 分栏级主操作（新建分类）。
+   * 票 327 起公开主页的分类栏只读，这套按钮只被个人中心的分类管理页
+   * （`/studio/categories`）使用；保留样式、不再提供组件插槽。 */
   .profile-category-card__actions {
     @apply flex items-center justify-end gap-2;
   }

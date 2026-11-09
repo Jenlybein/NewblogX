@@ -41,6 +41,11 @@ func (s *Service) ListCategories(ctx context.Context, viewer domain.Viewer, targ
 //
 // 名称唯一性显式检查：库里虽然有唯一索引，但那会返回 1062 错误码，
 // 前端拿不到"名称重复"这个可读提示。
+//
+// **删过的名字可以再用**：新建时若同用户下存在同名软删行，仓储恢复它
+// （保留原 ID）而不是插入一条新的（ADR-0036 决策 1）。所以这里返回的分类
+// 可能带着"本次生成的 ID"，而库里那条仍是旧 ID —— 调用方不要拿新建时的 ID
+// 做后续写入，建完重拉列表即可（写入接口本来也不返回它）。
 func (s *Service) SaveCategory(ctx context.Context, viewer domain.Viewer, id domain.CategoryID, title string) (*taxonomy.Category, error) {
 	if !viewer.IsLoggedIn() {
 		return nil, domain.ErrForbidden
@@ -82,6 +87,15 @@ func (s *Service) SaveCategory(ctx context.Context, viewer domain.Viewer, id dom
 }
 
 // DeleteCategories 删除分类（只删自己的）。
+//
+// 删除不是"删掉一个词条"：它把挂在该分类下的 N 篇文章改成"未分类"，文章本身还在。
+// 所以它是**两步、同一事务**：先解除文章归属、再软删分类（见
+// CategoryRepository.Delete 的契约；ADR-0036 约束 3 规定顺序不得颠倒）。
+// 中途失败整单回滚，不会留下"文章已解绑、分类还在"的半截状态。
+//
+// 别人的分类是**拒绝**而不是静默跳过：批量删除是"一次动作"，删掉一半再返回
+// 成功会让调用方以为全部成功。不存在的 ID 仍然跳过（重复提交同一批不该报错）。
+// 两人用同一个分类名互不影响：归属按 user_id 判，删不到对方的行。
 func (s *Service) DeleteCategories(ctx context.Context, viewer domain.Viewer, ids []domain.CategoryID) (int, error) {
 	if !viewer.IsLoggedIn() {
 		return 0, domain.ErrForbidden
@@ -94,7 +108,8 @@ func (s *Service) DeleteCategories(ctx context.Context, viewer domain.Viewer, id
 				continue // 不存在就跳过：批量删除不应因一个脏 ID 整单失败
 			}
 			if !c.BelongsTo(viewer.UserID) {
-				continue
+				// 文案用「分类不存在」而不是「无权限」：不向调用方确认别人的分类存在。
+				return taxonomy.ErrCategoryNotFound
 			}
 			if err := r.Categories().Delete(ctx, id); err != nil {
 				return err
@@ -103,7 +118,11 @@ func (s *Service) DeleteCategories(ctx context.Context, viewer domain.Viewer, id
 		}
 		return nil
 	})
-	return deleted, err
+	if err != nil {
+		// 事务已回滚，一条都没删掉：不能把中间累计的条数报给调用方。
+		return 0, err
+	}
+	return deleted, nil
 }
 
 // nextCategoryID 从文章 ID 生成器借号。

@@ -198,5 +198,46 @@ describe("分类栏：他人主页是只读视图", () => {
       expect(text).not.toContain(banned);
     }
     expect(wrapper.findAll("button").map((item) => item.text())).toEqual(["工程笔记3"]);
+    // 连工具栏容器都不该出现：页面只在"自己主页"时填插槽。
+    expect(wrapper.find(".profile-category-toolbar").exists()).toBe(false);
+  });
+});
+
+describe("分类栏：写入口由页面通过插槽接入（票 325）", () => {
+  it("toolbar 插槽渲染在分类列表上方，category-actions 插槽跟在各自分类后面", () => {
+    const wrapper = mount(ProfileCategoryExplorer, {
+      props: {
+        categories: [category(), category({ id: "c2", title: "读书", article_count: 0 })],
+        activeCategoryId: "",
+        articles: [],
+        pending: false,
+        articlesPending: false,
+        articlesFailed: false,
+        failed: false,
+      },
+      slots: {
+        toolbar: () => h("button", { type: "button", "data-role": "category-create" }, "新建分类"),
+        "category-actions": (scope: { category: ProfileCategoryItem }) =>
+          h("button", { type: "button", "data-role": `rename-${scope.category.id}` }, `改名 ${scope.category.title}`),
+      },
+      global: {
+        stubs: {
+          NuxtLink: NuxtLinkStub,
+          IconThumbUp: true,
+          IconHeart: true,
+          IconMessageCircle2: true,
+          IconEye: true,
+        },
+      },
+    });
+
+    const toolbar = wrapper.get(".profile-category-toolbar");
+    expect(toolbar.get('[data-role="category-create"]').text()).toBe("新建分类");
+
+    // 每个分类都能拿到"自己的"那一行操作（插槽作用域传的是该分类）。
+    expect(wrapper.get('[data-role="rename-c1"]').text()).toBe("改名 工程笔记");
+    expect(wrapper.get('[data-role="rename-c2"]').text()).toBe("改名 读书");
+    // 只读视图本身没被改动：分类仍是可点的一等入口。
+    expect(wrapper.findAll(".profile-category-card")).toHaveLength(2);
   });
 });

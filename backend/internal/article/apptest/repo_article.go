@@ -255,6 +255,30 @@ func cloneArticle(a *domain.Article) *domain.Article {
 	})
 }
 
+// detachCategory 把引用该分类的文章置空，返回受影响篇数。
+//
+// 由 CategoryRepo.Delete 调用：生产里"删除分类"的第一步就是这条批量 UPDATE
+// （见 adapter/mysql 的 CategoryRepo.Delete），内存实现也必须真的发生，
+// 否则用例层断言不了"文章变未分类"。
+func (r *ArticleRepo) detachCategory(id domain.CategoryID) int {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	n := 0
+	for _, a := range r.byID {
+		got := a.CategoryID()
+		if got == nil || *got != id {
+			continue
+		}
+		// 与编辑接口同一条路径（CategorySet + 空 ID = 清空），
+		// 保证"分类被删"和"作者手动改成未分类"落库形态一致。
+		if _, err := a.ApplyEdit(domain.EditPatch{CategorySet: true}, DefaultTime); err != nil {
+			continue
+		}
+		n++
+	}
+	return n
+}
+
 // matchFilter 在内存里复现 Filter 语义，保证 fake 与真库行为一致。
 func matchFilter(a *domain.Article, f domain.Filter) bool {
 	if f.OnlyPublic && !a.IsPubliclyVisible() {

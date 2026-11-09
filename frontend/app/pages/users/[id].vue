@@ -1,9 +1,10 @@
 <script setup lang="ts">
 import { computed, shallowRef, watch } from "vue";
-import { useMessage } from "naive-ui";
+import { useDialog, useMessage } from "naive-ui";
 import ArticleFeedItem from "~/components/article/ArticleFeedItem.vue";
 import LoadingSkeleton from "~/components/common/LoadingSkeleton.vue";
 import ProfileCategoryExplorer from "~/components/profile/ProfileCategoryExplorer.vue";
+import ProfileCategoryFormModal from "~/components/profile/ProfileCategoryFormModal.vue";
 import ProfileCollectionShelf from "~/components/profile/ProfileCollectionShelf.vue";
 import ProfileEmptyState from "~/components/profile/ProfileEmptyState.vue";
 import ProfileHeroCard from "~/components/profile/ProfileHeroCard.vue";
@@ -33,6 +34,7 @@ const authStore = useAuthStore();
 const uiStore = useUiStore();
 const { jumpToDraftChat } = useDraftChatJump();
 const message = useMessage();
+const dialog = useDialog();
 const userId = computed(() => route.params.id as string);
 const profileLoadFailed = shallowRef(false);
 
@@ -235,7 +237,7 @@ const { data: fansData, pending: fansPending, refresh: refreshFansData } = useAs
 // ── 分类栏（票 321）：只读。分类列表公开可读，点分类再按 author_id + category_id 取文章 ──
 const categoriesLoadFailed = shallowRef(false);
 
-const { data: categoriesData, pending: categoriesPending } = useAsyncData(
+const { data: categoriesData, pending: categoriesPending, refresh: refreshCategories } = useAsyncData(
   () => `user-categories:${userId.value}`,
   () =>
     getProfileCategories(userId.value)
@@ -310,6 +312,42 @@ watch(activeCategoryId, (categoryId) => {
 // 换一个人看主页时收起已展开的分类，避免把上一位作者的文章留在栏里。
 watch(userId, () => {
   activeCategoryId.value = "";
+});
+
+// ── 分类栏的写操作（票 325）：只有自己的主页才有，他人主页与未登录一律只读 ──
+//
+// 页面的职责只剩两件："是不是我自己"和"把按钮放进插槽"。新建 / 改名 / 删除的
+// 流程（空名校验、二次确认 + 受影响篇数、失败原样展示、写完重拉列表）全在
+// useProfileCategoryManage 里，那里的用例不依赖这个页面。
+const canManageCategories = computed(() => isSelf.value);
+
+const {
+  formOpen: categoryFormOpen,
+  formTitle: categoryFormTitle,
+  formMode: categoryFormMode,
+  saving: categorySaving,
+  openCreate: openCreateCategory,
+  openRename: openRenameCategory,
+  submit: submitCategory,
+  remove: removeCategory,
+} = useProfileCategoryManage({
+  message,
+  // 二次确认交给 naive-ui 的 dialog：删除不可逆，且要先说清楚影响几篇文章。
+  confirm: ({ title, content, onConfirm }) =>
+    dialog.warning({
+      title,
+      content,
+      positiveText: "删除",
+      negativeText: "取消",
+      onPositiveClick: onConfirm,
+    }),
+  reload: () => refreshCategories(),
+  onDeleted: (id) => {
+    // 删掉正在展开的那个分类时收起内容区，别把它的文章留在栏里。
+    if (activeCategoryId.value === id) {
+      activeCategoryId.value = "";
+    }
+  },
 });
 
 const favoriteSummaryText = computed(() => {
@@ -526,7 +564,39 @@ useSeoMeta({
             :articles-pending="categoryArticlesPending"
             :articles-failed="categoryArticlesFailed"
             :failed="categoriesLoadFailed"
-          />
+          >
+            <!-- 写入口只在自己的主页出现：他人主页与未登录看到的仍是纯只读视图。 -->
+            <template v-if="canManageCategories" #toolbar>
+              <button
+                type="button"
+                class="profile-category-action is-primary"
+                data-role="category-create"
+                @click="openCreateCategory"
+              >
+                新建分类
+              </button>
+            </template>
+            <template v-if="canManageCategories" #category-actions="{ category }">
+              <div class="profile-category-card__actions">
+                <button
+                  type="button"
+                  class="profile-category-action"
+                  :data-role="`category-rename-${category.id}`"
+                  @click="openRenameCategory(category)"
+                >
+                  改名
+                </button>
+                <button
+                  type="button"
+                  class="profile-category-action is-danger"
+                  :data-role="`category-delete-${category.id}`"
+                  @click="removeCategory(category)"
+                >
+                  删除
+                </button>
+              </div>
+            </template>
+          </ProfileCategoryExplorer>
 
           <ProfileRelationList
             v-else-if="activeTab === 'follow'"
@@ -630,5 +700,14 @@ useSeoMeta({
         </section>
       </aside>
     </div>
+
+    <!-- 新建 / 改名弹窗：只有自己的主页会打开它（按钮本身也只在 isSelf 时渲染）。 -->
+    <ProfileCategoryFormModal
+      v-model:show="categoryFormOpen"
+      :mode="categoryFormMode"
+      :initial-title="categoryFormMode === 'rename' ? categoryFormTitle : ''"
+      :pending="categorySaving"
+      @submit="submitCategory"
+    />
   </div>
 </template>

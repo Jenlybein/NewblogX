@@ -17,7 +17,10 @@ import (
 
 // ListCategories 列出某用户的分类。
 //
-// 未指定用户时用当前登录者：分类是"个人分类"，不允许匿名枚举他人分类列表。
+// 真实语义是"公开可读、写入私有"：读不校验归属，匿名也能按 user_id 读他人分类
+// （个人主页要展示分类）；写入才要求登录并校验归属（见 SaveCategory /
+// DeleteCategories）。未指定用户时退回到当前登录者，两者都没有才拒绝，
+// 免得匿名请求落成"列出全站分类"。
 func (s *Service) ListCategories(ctx context.Context, viewer domain.Viewer, target domain.UserID) ([]*taxonomy.Category, error) {
 	if target.IsZero() {
 		target = viewer.UserID
@@ -114,7 +117,14 @@ func (s *Service) nextCategoryID() domain.CategoryID {
 // ── 标签 ──
 
 // ListTags 列出标签。
-func (s *Service) ListTags(ctx context.Context, includeDisabled bool) ([]*taxonomy.Tag, error) {
+//
+// includeDisabled 只对管理员生效：标签词库本身公开可读（发布页要选标签），
+// 但停用项属于管理视图，匿名与普通用户即使显式传了也降级成只返回启用项
+// （不报错——前端统一带这个参数，报错只会让公开读白屏）。
+func (s *Service) ListTags(ctx context.Context, viewer domain.Viewer, includeDisabled bool) ([]*taxonomy.Tag, error) {
+	if !viewer.IsAdmin() {
+		includeDisabled = false
+	}
 	var out []*taxonomy.Tag
 	err := s.tx.WithinTx(ctx, func(ctx context.Context, r Repos) error {
 		var err error

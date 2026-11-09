@@ -7,6 +7,8 @@ import {
   PUBLISH_REJECTED,
   isAdminHidden,
   publishLabel,
+  isAdminHidden,
+  isPendingReview,
   visibilityLabel,
 } from '~/utils/articleLabels'
 
@@ -33,14 +35,28 @@ describe('publishLabel', () => {
 })
 
 describe('visibilityLabel', () => {
-  it('三种可见性的文案', () => {
+  it('四种可见性的文案', () => {
     expect(visibilityLabel('visible')).toBe('公开')
     expect(visibilityLabel('user_hidden')).toBe('作者隐藏')
     expect(visibilityLabel('admin_hidden')).toBe('后台隐藏')
+    // 票 302 的中间态：已发布、但对读者还不可见。漏掉这一档会回落成「公开」，
+    // 于是"作者以为发了、读者看不到"这种状态在后台完全看不见。
+    expect(visibilityLabel('pending_review')).toBe('待可见')
   })
 
   it('缺省按公开处理（与后端默认值一致）', () => {
     expect(visibilityLabel(undefined)).toBe('公开')
+  })
+})
+
+describe('isPendingReview', () => {
+  it('只有 pending_review 算"等合规判定"', () => {
+    expect(isPendingReview('pending_review')).toBe(true)
+    // 这三档都能用隐藏/恢复按钮动，不能被当成待可见。
+    expect(isPendingReview('visible')).toBe(false)
+    expect(isPendingReview('admin_hidden')).toBe(false)
+    expect(isPendingReview('user_hidden')).toBe(false)
+    expect(isPendingReview(undefined)).toBe(false)
   })
 })
 

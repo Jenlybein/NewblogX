@@ -1,8 +1,8 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from "vue";
 import { NButton, NInput, useDialog, useMessage } from "naive-ui";
-import { IconSearch, IconTrash } from "@tabler/icons-vue";
-import ArticleCover from "~/components/article/ArticleCover.vue";
+import { IconSearch } from "@tabler/icons-vue";
+import ArticleMiniCard from "~/components/article/ArticleMiniCard.vue";
 import LoadingSkeleton from "~/components/common/LoadingSkeleton.vue";
 import ProfileEmptyState from "~/components/profile/ProfileEmptyState.vue";
 import { clearHistoryArticles, deleteHistoryArticles, getHistoryArticles } from "~/services/history";
@@ -259,54 +259,32 @@ useNoIndexPage();
         </div>
 
         <div class="article-history-grid">
-          <article v-for="item in group.items" :key="item.article_id" class="article-history-card">
-            <label v-if="batchMode" class="article-history-card__select">
-              <input
-                type="checkbox"
-                :checked="selected.includes(item.article_id)"
-                :aria-label="`选择「${item.title}」`"
-                @change="toggleSelect(item.article_id)"
-              />
-            </label>
-
-            <NuxtLink
-              v-if="!batchMode"
-              :to="`/article/${item.article_id}`"
-              class="article-history-card__cover"
-              :aria-label="`查看《${item.title}》`"
-            >
-              <ArticleCover :src="item.cover" :title="item.title" />
-            </NuxtLink>
-            <div v-else class="article-history-card__cover" aria-hidden="true">
-              <ArticleCover :src="item.cover" :title="item.title" />
-            </div>
-
-            <div class="article-history-card__title-row">
-              <NuxtLink
-                v-if="!batchMode"
-                :to="`/article/${item.article_id}`"
-                class="article-history-card__title"
-              >
-                {{ item.title }}
-              </NuxtLink>
-              <span v-else class="article-history-card__title">{{ item.title }}</span>
-
-              <button
-                v-if="!batchMode"
-                type="button"
-                class="article-history-card__remove"
-                aria-label="移出浏览历史"
-                :disabled="busy"
-                @click="removeOne(item.article_id)"
-              >
-                <IconTrash :size="14" aria-hidden="true" />
-              </button>
-            </div>
-
-            <span class="article-history-card__time">
-              浏览于 {{ formatDateTimeLabel(item.updated_at) }}
-            </span>
-          </article>
+          <!-- 卡片本体是共享组件（与收藏夹同一个形状，票 327）。
+               这里只补两处历史页特有的东西：批量勾选框（覆盖层）与行内「移出」。 -->
+          <ArticleMiniCard
+            v-for="item in group.items"
+            :key="item.article_id"
+            :title="item.title"
+            :cover="item.cover"
+            :to="`/article/${item.article_id}`"
+            :interactive="!batchMode"
+            :meta="`浏览于 ${formatDateTimeLabel(item.updated_at)}`"
+            :removable="!batchMode"
+            remove-label="移出浏览历史"
+            :remove-disabled="busy"
+            @remove="removeOne(item.article_id)"
+          >
+            <template v-if="batchMode" #overlay>
+              <label class="article-mini-card__select">
+                <input
+                  type="checkbox"
+                  :checked="selected.includes(item.article_id)"
+                  :aria-label="`选择「${item.title}」`"
+                  @change="toggleSelect(item.article_id)"
+                />
+              </label>
+            </template>
+          </ArticleMiniCard>
         </div>
       </section>
     </div>
@@ -483,36 +461,13 @@ useNoIndexPage();
   }
 }
 
-.article-history-card {
-  position: relative;
-  display: flex;
-  min-width: 0;
-  flex-direction: column;
-  gap: 6px;
-  padding: 8px;
-  border: 1px solid var(--color-line);
-  border-radius: var(--radius-md);
-  background: var(--color-surface-raised);
-  transition:
-    border-color var(--motion-fast) var(--motion-ease),
-    transform var(--motion-fast) var(--motion-ease);
-}
+/* ── 卡片本体在共享组件里（app/components/article/ArticleMiniCard.vue）──
+ * 这里只留历史页特有的两样：栅格列数，以及批量模式下的勾选框覆盖层。
+ */
 
-.article-history-card:hover {
-  border-color: var(--color-line-strong);
-  transform: translateY(-1px);
-}
-
-/* 封面锁 16:9（与列表 / 详情同一个形状），宽度随列宽伸缩。 */
-.article-history-card__cover {
-  display: block;
-  aspect-ratio: 16 / 9;
-  overflow: hidden;
-  border-radius: var(--radius-sm);
-  background: var(--color-line-faint);
-}
-
-.article-history-card__select {
+/* 勾选框覆盖层：绝对定位到卡片封面左上角。
+   插槽内容带本页的作用域标记，所以样式写在页面里而不是组件里。 */
+.article-mini-card__select {
   position: absolute;
   z-index: 2;
   inset-block-start: 6px;
@@ -527,73 +482,12 @@ useNoIndexPage();
   background: var(--color-surface-raised);
 }
 
-.article-history-card__select input {
+.article-mini-card__select input {
   width: 14px;
   height: 14px;
   margin: 0;
   accent-color: var(--color-ink);
   cursor: pointer;
-}
-
-.article-history-card__title-row {
-  display: flex;
-  min-width: 0;
-  align-items: flex-start;
-  gap: 4px;
-}
-
-.article-history-card__title {
-  display: -webkit-box;
-  overflow: hidden;
-  flex: 1 1 auto;
-  color: var(--color-ink);
-  font-size: 0.875rem;
-  font-weight: 600;
-  line-height: 1.4;
-  text-decoration: none;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 2;
-}
-
-.article-history-card__title:hover {
-  text-decoration: underline;
-  text-underline-offset: 3px;
-}
-
-.article-history-card__remove {
-  display: inline-flex;
-  flex: 0 0 auto;
-  align-items: center;
-  justify-content: center;
-  width: 26px;
-  height: 26px;
-  padding: 0;
-  border: 1px solid var(--color-line);
-  border-radius: var(--radius-pill);
-  background: var(--color-surface-raised);
-  color: var(--color-ink-muted);
-  cursor: pointer;
-  transition:
-    border-color var(--motion-fast) var(--motion-ease),
-    color var(--motion-fast) var(--motion-ease);
-}
-
-.article-history-card__remove:hover,
-.article-history-card__remove:focus-visible {
-  border-color: var(--color-line-strong);
-  color: var(--color-ink);
-}
-
-.article-history-card__remove:focus-visible {
-  outline: 2px solid var(--color-focus);
-  outline-offset: 2px;
-}
-
-.article-history-card__time {
-  color: var(--color-ink-muted);
-  font-family: var(--font-mono);
-  font-size: 0.6875rem;
-  letter-spacing: 0.04em;
 }
 
 /* ── 底部：加载更多 / 没有更多 ── */
@@ -609,7 +503,7 @@ useNoIndexPage();
   font-size: 0.8125rem;
 }
 
-/* 窄屏：时间轴收窄，删除按钮给更大的触摸留白（形状不变）。 */
+/* 窄屏：时间轴收窄（卡片形状由共享组件负责，这里不再改）。 */
 @media (max-width: 768px) {
   .history-toolbar {
     align-items: stretch;
@@ -618,10 +512,6 @@ useNoIndexPage();
   .history-group {
     grid-template-columns: 64px minmax(0, 1fr);
     column-gap: 12px;
-  }
-
-  .article-history-card__remove {
-    padding: 6px;
   }
 }
 </style>

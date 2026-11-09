@@ -203,7 +203,7 @@ describe("版式：左侧时间轴 + 右侧卡片栅格", () => {
       "昨天",
       "更早",
     ]);
-    expect(wrapper.findAll(".article-history-card")).toHaveLength(3);
+    expect(wrapper.findAll(".article-mini-card")).toHaveLength(3);
     expect(wrapper.findAll(".history-group__dot")).toHaveLength(3);
     expect(wrapper.find(".history-timeline").exists()).toBe(true);
   });
@@ -214,11 +214,11 @@ describe("版式：左侧时间轴 + 右侧卡片栅格", () => {
     const wrapper = mountPage();
     await flushPromises();
 
-    const card = wrapper.get(".article-history-card");
-    expect(card.get(".article-history-card__cover").exists()).toBe(true);
-    expect(card.get(".article-history-card__title").text()).toBe("第一篇");
-    expect(card.get(".article-history-card__title").attributes("href")).toBe("/article/a1");
-    expect(card.get(".article-history-card__time").text()).toContain("浏览于");
+    const card = wrapper.get(".article-mini-card");
+    expect(card.get(".article-mini-card__cover").exists()).toBe(true);
+    expect(card.get(".article-mini-card__title").text()).toBe("第一篇");
+    expect(card.get(".article-mini-card__title").attributes("href")).toBe("/article/a1");
+    expect(card.get(".article-mini-card__meta").text()).toContain("浏览于");
     expect(card.text()).not.toContain("浏览者甲");
     for (const banned of ["分类", "标签", "阅读时长"]) {
       expect(card.text()).not.toContain(banned);
@@ -247,7 +247,11 @@ describe("版式：左侧时间轴 + 右侧卡片栅格", () => {
     for (const token of ["--color-surface-raised", "--color-line-faint", "--color-line", "--color-ink"]) {
       expect(source).toContain(`var(${token})`);
     }
-    expect(blockAfter(source, ".article-history-card__title {")).toContain("-webkit-line-clamp: 2");
+
+    // 标题两行截断从票 327 起归共享卡片组件：历史与收藏必须是同一个形状，
+    // 所以形状本身不在本页源码里，判据要读组件。
+    const miniCard = stripComments(readFileSync(join(process.cwd(), "app/components/article/ArticleMiniCard.vue"), "utf8"));
+    expect(blockAfter(miniCard, ".article-mini-card__title {")).toContain("-webkit-line-clamp: 2");
   });
 });
 
@@ -269,7 +273,7 @@ describe("顶部操作：搜索标题（服务端 keyword）", () => {
 
     expect(service.getHistoryArticles).toHaveBeenCalledTimes(2);
     expect(service.getHistoryArticles.mock.calls[1]![0]).toMatchObject({ keyword: "Go" });
-    expect(wrapper.get(".article-history-card__title").text()).toBe("Go 并发模型");
+    expect(wrapper.get(".article-mini-card__title").text()).toBe("Go 并发模型");
   });
 
   it("清空关键词后搜索回到全部历史（keyword 不下传）", async () => {
@@ -313,7 +317,7 @@ describe("顶部操作：清空历史（二次确认）", () => {
     await flushPromises();
 
     expect(service.clearHistoryArticles).toHaveBeenCalledTimes(1);
-    expect(wrapper.findAll(".article-history-card")).toHaveLength(0);
+    expect(wrapper.findAll(".article-mini-card")).toHaveLength(0);
     expect(wrapper.get(".history-empty").text()).toContain("还没有浏览历史");
     expect(message.success).toHaveBeenCalledWith("已清空浏览历史");
   });
@@ -330,17 +334,17 @@ describe("单条删除：标题行右侧垃圾桶", () => {
     const wrapper = mountPage();
     await flushPromises();
 
-    const firstCard = wrapper.get(".article-history-card");
-    const remove = firstCard.get(".article-history-card__remove");
+    const firstCard = wrapper.get(".article-mini-card");
+    const remove = firstCard.get(".article-mini-card__remove");
     expect(remove.attributes("aria-label")).toBe("移出浏览历史");
-    expect(firstCard.get(".article-history-card__title-row").exists()).toBe(true);
+    expect(firstCard.get(".article-mini-card__title-row").exists()).toBe(true);
 
     await remove.trigger("click");
     await flushPromises();
 
     expect(service.deleteHistoryArticles).toHaveBeenCalledWith(["a1"]);
-    expect(wrapper.findAll(".article-history-card")).toHaveLength(1);
-    expect(wrapper.get(".article-history-card__title").text()).toBe("第二篇");
+    expect(wrapper.findAll(".article-mini-card")).toHaveLength(1);
+    expect(wrapper.get(".article-mini-card__title").text()).toBe("第二篇");
     expect(message.success).toHaveBeenCalledWith("已移出浏览历史");
   });
 });
@@ -360,10 +364,10 @@ describe("批量管理：多选态", () => {
     const wrapper = mountPage();
     await flushPromises();
 
-    expect(wrapper.findAll(".article-history-card__select")).toHaveLength(0);
+    expect(wrapper.findAll(".article-mini-card__select")).toHaveLength(0);
     await buttonByText(wrapper, "批量管理").trigger("click");
 
-    const boxes = wrapper.findAll(".article-history-card__select input");
+    const boxes = wrapper.findAll(".article-mini-card__select input");
     expect(boxes).toHaveLength(3);
     expect(wrapper.get(".history-selected").text()).toContain("已选 0 条");
 
@@ -375,8 +379,8 @@ describe("批量管理：多选态", () => {
     await flushPromises();
 
     expect(service.deleteHistoryArticles).toHaveBeenCalledWith(["a1", "a2"]);
-    expect(wrapper.findAll(".article-history-card")).toHaveLength(1);
-    expect(wrapper.find(".article-history-card__select").exists()).toBe(false);
+    expect(wrapper.findAll(".article-mini-card")).toHaveLength(1);
+    expect(wrapper.find(".article-mini-card__select").exists()).toBe(false);
     expect(wrapper.find(".history-selected").exists()).toBe(false);
   });
 
@@ -387,12 +391,12 @@ describe("批量管理：多选态", () => {
     await flushPromises();
 
     await buttonByText(wrapper, "批量管理").trigger("click");
-    await wrapper.get(".article-history-card__select input").setValue(true);
+    await wrapper.get(".article-mini-card__select input").setValue(true);
     await buttonByText(wrapper, "取消").trigger("click");
     await flushPromises();
 
     expect(service.deleteHistoryArticles).not.toHaveBeenCalled();
-    expect(wrapper.find(".article-history-card__select").exists()).toBe(false);
+    expect(wrapper.find(".article-mini-card__select").exists()).toBe(false);
     expect(wrapper.find(".history-selected").exists()).toBe(false);
   });
 
@@ -403,8 +407,8 @@ describe("批量管理：多选态", () => {
     await flushPromises();
     await buttonByText(wrapper, "批量管理").trigger("click");
 
-    expect(wrapper.find(".article-history-card__title").attributes("href")).toBeUndefined();
-    expect(wrapper.find(".article-history-card__remove").exists()).toBe(false);
+    expect(wrapper.find(".article-mini-card__title").attributes("href")).toBeUndefined();
+    expect(wrapper.find(".article-mini-card__remove").exists()).toBe(false);
   });
 });
 
@@ -438,10 +442,10 @@ describe("游标分页：加载更多", () => {
     expect(secondCall.beforeUpdatedAt).toBe(yesterdayAt);
     expect(secondCall.beforeId).toBe("a2");
 
-    expect(wrapper.findAll(".article-history-card")).toHaveLength(3);
+    expect(wrapper.findAll(".article-mini-card")).toHaveLength(3);
     const todayGroup = wrapper.findAll(".history-group")[0]!;
     expect(todayGroup.get(".history-group__label").text()).toBe("今天");
-    expect(todayGroup.findAll(".article-history-card")).toHaveLength(2);
+    expect(todayGroup.findAll(".article-mini-card")).toHaveLength(2);
     expect(wrapper.find(".history-more").exists()).toBe(false);
     expect(wrapper.get(".history-end").text()).toContain("没有更多了");
   });
@@ -460,13 +464,13 @@ describe("三态：加载中 / 空 / 失败", () => {
     await nextTick();
 
     expect(wrapper.get(".history-loading").get(".skeleton").exists()).toBe(true);
-    expect(wrapper.findAll(".article-history-card")).toHaveLength(0);
+    expect(wrapper.findAll(".article-mini-card")).toHaveLength(0);
 
     resolveFirst({ list: [historyItem()], has_more: false });
     await flushPromises();
 
     expect(wrapper.find(".history-loading").exists()).toBe(false);
-    expect(wrapper.findAll(".article-history-card")).toHaveLength(1);
+    expect(wrapper.findAll(".article-mini-card")).toHaveLength(1);
   });
 
   it("列表为空且无搜索词时是空态，而不是失败态", async () => {
@@ -496,6 +500,6 @@ describe("三态：加载中 / 空 / 失败", () => {
 
     expect(service.getHistoryArticles).toHaveBeenCalledTimes(2);
     expect(wrapper.find(".history-error").exists()).toBe(false);
-    expect(wrapper.findAll(".article-history-card")).toHaveLength(1);
+    expect(wrapper.findAll(".article-mini-card")).toHaveLength(1);
   });
 });

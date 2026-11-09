@@ -144,7 +144,7 @@ func (h *Handler) TagOptions(c *gin.Context) {
 
 // listTags 是标签列表/下拉的公共逻辑。
 func (h *Handler) listTags(c *gin.Context, includeDisabled bool) {
-	list, err := h.svc.ListTags(c.Request.Context(), includeDisabled)
+	list, err := h.svc.ListTags(c.Request.Context(), h.viewerOf(c), includeDisabled)
 	if err != nil {
 		h.fail(c, err)
 		return

@@ -1,5 +1,5 @@
 import { mount } from "@vue/test-utils";
-import { defineComponent, h, ref } from "vue";
+import { defineComponent, h, ref, watch } from "vue";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { useProfileCategoryManage } from "~/composables/useProfileCategoryManage";
@@ -117,7 +117,15 @@ const ProfileMediaStub = defineComponent({
   },
 });
 
-/** 弹窗替身：只暴露"页面把哪套参数接给了它"。 */
+/**
+ * 弹窗替身：既能观察页面接给了哪些参数，也能像真弹窗那样把"用户输入"抛回去。
+ *
+ * 之前这里只渲染 `data-*` 属性、从不 emit `submit`，于是"页面把 submit 接到了
+ * 哪里、接到了什么值"这条线两侧各自绿、中间没测：composable 用例自己调
+ * `submit()`（读的是它自己的 formTitle），页面用例只看到一个不会提交的替身，
+ * 真实接线断了也没有用例红（P0）。现在替身保留输入、按真弹窗的规则重置、
+ * 并在点保存时把当前文本 emit 出去。
+ */
 const CategoryFormModalStub = defineComponent({
   props: {
     show: { type: Boolean, default: false },
@@ -125,14 +133,50 @@ const CategoryFormModalStub = defineComponent({
     initialTitle: { type: String, default: "" },
     pending: { type: Boolean, default: false },
   },
-  setup(props) {
+  emits: {
+    "update:show": (_value: boolean) => true,
+    submit: (_title: string) => true,
+  },
+  setup(props, { emit }) {
+    const text = ref("");
+
+    // 与真弹窗同一条规则：每次打开（或换 initialTitle）按 initialTitle 重置。
+    // 提交失败时 show 不变，所以输入留在框里、不会被重置掉。
+    watch(
+      () => [props.show, props.initialTitle] as const,
+      ([show, initial]) => {
+        if (show) text.value = initial;
+      },
+      { immediate: true },
+    );
+
     return () =>
-      h("div", {
-        "data-role": "category-form-modal",
-        "data-show": String(props.show),
-        "data-mode": props.mode,
-        "data-initial": props.initialTitle,
-      });
+      h(
+        "div",
+        {
+          "data-role": "category-form-modal",
+          "data-show": String(props.show),
+          "data-mode": props.mode,
+          "data-initial": props.initialTitle,
+        },
+        [
+          h("input", {
+            "data-role": "category-form-input",
+            value: text.value,
+            onInput: (event: Event) => {
+              text.value = (event.target as HTMLInputElement).value;
+            },
+          }),
+          h(
+            "button",
+            {
+              "data-role": "category-form-save",
+              onClick: () => emit("submit", text.value),
+            },
+            "保存",
+          ),
+        ],
+      );
   },
 });
 
@@ -278,5 +322,64 @@ describe("分类栏写操作：页面接线", () => {
     expect(message.success).toHaveBeenCalledWith("分类已删除");
     // 写完以服务端为准：分类列表被重拉（首屏一次 + 删除后一次）。
     expect(categoryService.getProfileCategories).toHaveBeenCalledTimes(2);
+  });
+});
+
+/**
+ * 这条线以前是断的：弹窗 emit('submit', title)、页面 @submit="submitCategory"，
+ * 但 submit() 不接参数、只读 formTitle，而 formTitle 没有任何输入回写来源。
+ * 后果是新建永远提示"分类名称不能为空"，改名提交的则是旧标题（后端 UPDATE 同值，
+ * 提示成功却什么都没变）。下面三条用例真的跨过这条线：
+ * 用户敲的字 → 弹窗 emit → 页面接线 → composable → service 载荷。
+ */
+describe("分类栏写操作：弹窗提交的标题真的进到请求里（P0）", () => {
+  it("新建：saveProfileCategory 收到的是弹窗里敲进去的标题", async () => {
+    const wrapper = mountPage();
+    await settle();
+
+    await wrapper.get('[data-role="category-create"]').trigger("click");
+    await wrapper.get('[data-role="category-form-input"]').setValue("工程笔记");
+    await wrapper.get('[data-role="category-form-save"]').trigger("click");
+    await settle();
+
+    expect(message.warning).not.toHaveBeenCalled();
+    expect(categoryService.saveProfileCategory).toHaveBeenCalledTimes(1);
+    expect(categoryService.saveProfileCategory).toHaveBeenCalledWith({ title: "工程笔记" });
+    expect(wrapper.get('[data-role="category-form-modal"]').attributes("data-show")).toBe("false");
+  });
+
+  it("改名：提交的是新标题而不是回填的旧标题", async () => {
+    const wrapper = mountPage();
+    await settle();
+
+    await wrapper.get('[data-role="category-rename-c1"]').trigger("click");
+    const input = wrapper.get('[data-role="category-form-input"]');
+    // 回填：打开改名时看到的是"改哪个名字"。
+    expect((input.element as HTMLInputElement).value).toBe("工程笔记");
+
+    await input.setValue("工程随笔");
+    await wrapper.get('[data-role="category-form-save"]').trigger("click");
+    await settle();
+
+    expect(categoryService.saveProfileCategory).toHaveBeenCalledWith({ id: "c1", title: "工程随笔" });
+  });
+
+  it("新建失败：弹窗保持打开，用户输入不丢", async () => {
+    categoryService.saveProfileCategory.mockRejectedValueOnce(new Error("名称重复"));
+    const wrapper = mountPage();
+    await settle();
+
+    await wrapper.get('[data-role="category-create"]').trigger("click");
+    await wrapper.get('[data-role="category-form-input"]').setValue("工程笔记");
+    await wrapper.get('[data-role="category-form-save"]').trigger("click");
+    await settle();
+
+    expect(message.error).toHaveBeenCalledWith("名称重复");
+    expect(wrapper.get('[data-role="category-form-modal"]').attributes("data-show")).toBe("true");
+    expect(
+      (wrapper.get('[data-role="category-form-input"]').element as HTMLInputElement).value,
+    ).toBe("工程笔记");
+    // 失败不重拉列表（以服务端为准的前提是"服务端真写进去了"）。
+    expect(categoryService.getProfileCategories).toHaveBeenCalledTimes(1);
   });
 });

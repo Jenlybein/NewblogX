@@ -588,6 +588,36 @@ describe("useStudioArticle · 分类下拉的数据来源（#320）", () => {
   });
 });
 
+describe("useStudioArticle · 标签下拉的数据来源", () => {
+  // 与分类那组同形：标签侧原来也是 `.catch(() => [])` —— 接口一挂就和
+  // "还没建过标签"长得一样，作者以为自己没标签，重复建同名（#322 漏网的一处）。
+
+  it("加载失败时把原因留在 tagOptionsError 上，而不是静默空列表", async () => {
+    getTagOptionsMock.mockRejectedValueOnce(new Error("网络断开"));
+    const { api } = await harness();
+
+    expect(api.tagOptions.value).toEqual([]);
+    expect(api.tagOptionsError.value).toBe("网络断开");
+  });
+
+  it("失败原因没有文案时给一句可读的兜底", async () => {
+    getTagOptionsMock.mockRejectedValueOnce({});
+    const { api } = await harness();
+
+    expect(api.tagOptionsError.value).toBe("标签列表加载失败");
+  });
+
+  it("加载成功时错误态是空的，标签留在下拉里", async () => {
+    const { api } = await harness();
+
+    expect(api.tagOptions.value).toEqual([
+      { label: "Go", value: "tag-1" },
+      { label: "Vue", value: "tag-2" },
+    ]);
+    expect(api.tagOptionsError.value).toBe("");
+  });
+});
+
 describe("useStudioArticle · 内联新建分类", () => {
   it("登录状态由当前用户决定", async () => {
     const { api } = await harness();

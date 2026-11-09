@@ -71,6 +71,7 @@ const {
   isEditMode,
   hydratedArticleId,
   tagOptions,
+  tagOptionsError,
   categoryOptions,
   categoryOptionsError,
   categoryCreating,
@@ -408,6 +409,7 @@ ref="editorTextareaRef" v-model="form.content" class="write-page__textarea"
       :category-options="categoryOptions || []"
       :category-error="categoryOptionsError"
       :tag-options="tagOptions || []"
+      :tag-error="tagOptionsError"
       :visibility-options="visibilityOptions"
       :can-create-category="isLoggedIn"
       :category-creating="categoryCreating"

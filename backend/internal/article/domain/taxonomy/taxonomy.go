@@ -311,7 +311,8 @@ type TagRepository interface {
 	// 因此新建后库里的 ID 可能不是调用方给的那个。调用方不要依赖新建时的 ID
 	// （写入接口不返回它，列表另行读取）。
 	Save(ctx context.Context, t *Tag) error
-	// Delete 删除标签及其文章关联。
+	// Delete 软删标签。**不清理文章关联**：删除门禁（应用层按关联表实时统计
+	// 引用数）已经保证被引用的标签不会走到这里，能删的标签本来就没有关联行。
 	Delete(ctx context.Context, id domain.TagID) error
 	// ReplaceArticleTags 用给定标签集合替换某文章的全部标签。
 	ReplaceArticleTags(ctx context.Context, articleID domain.ArticleID, tagIDs []domain.TagID) error

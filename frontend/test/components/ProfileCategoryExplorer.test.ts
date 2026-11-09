@@ -190,7 +190,7 @@ describe("分类栏：点分类就地展开文章", () => {
 });
 
 describe("分类栏：他人主页是只读视图", () => {
-  it("默认不渲染新建 / 改名 / 删除等写入口（写操作属于后续票）", () => {
+  it("默认不渲染新建 / 改名 / 删除等写入口（页面只在「自己主页」时填插槽）", () => {
     const wrapper = mountExplorer({ categories: [category()], activeCategoryId: "c1", articles: [article()] });
 
     const text = wrapper.text();

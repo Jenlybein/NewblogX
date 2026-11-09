@@ -98,6 +98,7 @@ const baseProps = {
   categoryOptions: [] as { label: string; value: string }[],
   categoryError: "",
   tagOptions: [] as { label: string; value: string }[],
+  tagError: "",
   visibilityOptions: [] as { label: string; value: string }[],
   draftLabel: "保存草稿",
   publishLabel: "确定并发布",
@@ -224,5 +225,25 @@ describe("StudioWritePublishDialog · 分类下拉的空状态与错误（#320�
 
     expect(wrapper.find('[data-role="category-empty"]').exists()).toBe(false);
     expect(wrapper.find('[data-role="category-error"]').exists()).toBe(false);
+  });
+});
+
+// 标签下拉的错误提示（#322 / 本批 P1）。
+//
+// 标签侧原来还是 `.catch(() => [])`：接口挂了和"一个标签都还没建"长得一模一样。
+// 现在与分类同款：失败给原因，成功/为空不给错误。
+describe("StudioWritePublishDialog · 标签下拉的错误提示", () => {
+  it("加载失败时就地展示原因，而不是空的下拉", () => {
+    const wrapper = mountDialog({ tagError: "网络断开" });
+
+    const hint = wrapper.find('[data-role="tag-error"]');
+    expect(hint.exists()).toBe(true);
+    expect(hint.text()).toContain("网络断开");
+  });
+
+  it("没有错误时不渲染标签错误提示（空列表是正常状态）", () => {
+    const wrapper = mountDialog({ tagOptions: [], tagError: "" });
+
+    expect(wrapper.find('[data-role="tag-error"]').exists()).toBe(false);
   });
 });

@@ -132,7 +132,7 @@
 - 创建接口 `POST /api/articles/category`（`backend/internal/article/adapter/http/router.go:84`，**authGroup = 登录用户即可**），body 只要 `{id, title}`（`backend/internal/article/adapter/http/dto.go:235-238`）。
 - 标签则**管理员专属**：`PUT /api/articles/tags` 在 `adminGroup`（`backend/internal/article/adapter/http/router.go:126-127`）；`tag_models` 按 `title` 全局唯一（`backend/internal/platform/mysql/ddl/schema.sql:584`），是公共词库。
 - **没有「写文章时顺带新建」的先例**：`ArticleCreateRequest` 只收 ID（`backend/internal/article/adapter/http/dto.go:21-22`）；前端对分类只有一处写调用——写作页的内联新建 `createCategory`（`frontend/app/services/search.ts:77-84`），改名 / 删除与标签写入仍**零处调用**，读只走 `getTagOptions` / `getCategoryOptions`（`frontend/app/services/search.ts:36-69`）。
-- 创作页下拉加载：`frontend/app/composables/useStudioArticle.ts:229-236`，分类选项**只在登录后请求**；两个 `useAsyncData` 都带 `.catch(() => [])`，读失败会静默成空列表。
+- 创作页下拉加载：`frontend/app/composables/useStudioArticle.ts`，分类选项**只在登录后请求**；分类侧读失败已落成可见错误态（`categoryOptionsError`），而**标签下拉**此前是 `.catch(() => [])`，读失败会静默成空列表（本批已补 `tagOptionsError` + `loadTagOptions()`，与分类同款）。
 - 本节行号已于 2026-11-09 按当时的集成分支逐条复核（#324）；代码再搬动后会再次过期，引用前先 `grep` 复核。
 
 ### 2.10 文章封面（对应需求 10）

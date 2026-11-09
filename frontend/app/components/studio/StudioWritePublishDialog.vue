@@ -47,6 +47,13 @@ const props = defineProps<{
    */
   categoryError?: string;
   tagOptions: { label: string; value: string }[];
+  /**
+   * 标签下拉加载失败的可读原因。
+   *
+   * 与 `categoryError` 同一套规矩（票 320 的病根在标签侧也存在过）：
+   * 空串表示这次加载没出错，失败时必须说清是"没加载出来"，而不是空下拉。
+   */
+  tagError?: string;
   visibilityOptions: { label: string; value: string }[];
   draftLabel: string;
   publishLabel: string;
@@ -162,9 +169,16 @@ v-model:value="categoryId" clearable filterable :options="props.categoryOptions 
 
           <div class="publish-form__row">
             <label class="publish-form__label">添加标签</label>
-            <NSelect
+            <div class="publish-tags">
+              <NSelect
 v-model:value="tagIds" multiple clearable filterable max-tag-count="responsive"
-              :options="props.tagOptions || []" placeholder="请选择已有标签" class="publish-form__control" />
+                :options="props.tagOptions || []" placeholder="请选择已有标签" class="publish-form__control" />
+
+              <!-- 标签下拉的故障态（与分类同款）：接口挂了不能装成"还没有标签"。 -->
+              <p v-if="props.tagError" class="publish-tags__hint publish-tags__hint--error" data-role="tag-error">
+                {{ props.tagError }}
+              </p>
+            </div>
           </div>
 
           <div class="publish-form__row publish-form__row--top">
@@ -323,6 +337,14 @@ v-model:value="abstractText" type="textarea" maxlength="180"
   gap: 8px;
 }
 
+/* 标签下拉 + 它的故障提示：与分类同列布局（提示挂在控件下面）。 */
+.publish-tags {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 8px;
+}
+
 .publish-category__create {
   display: flex;
   align-items: center;
@@ -338,15 +360,18 @@ v-model:value="abstractText" type="textarea" maxlength="180"
   align-self: flex-start;
 }
 
-/* 分类下拉的空状态（正常态）与错误（故障态）：一句话之差，颜色与语气都要区分。 */
-.publish-category__hint {
+/* 分类下拉的空状态（正常态）与错误（故障态）：一句话之差，颜色与语气都要区分。
+   标签下拉的错误提示用同一套样式（.publish-tags__hint），不另立一套口径。 */
+.publish-category__hint,
+.publish-tags__hint {
   margin: 0;
   color: var(--color-ink-muted);
   font-size: 12px;
   line-height: 1.5;
 }
 
-.publish-category__hint--error {
+.publish-category__hint--error,
+.publish-tags__hint--error {
   color: var(--color-danger-ink);
 }
 

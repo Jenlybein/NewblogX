@@ -72,14 +72,23 @@ export function useProfileCategoryManage(options: ProfileCategoryManageOptions) 
   /**
    * 提交新建 / 改名。
    *
+   * `title` 是弹窗 `emit('submit', title)` 带过来的用户输入；不传时回落到
+   * `formTitle`（供"不经过弹窗"的调用点与既有用例使用）。
+   *
+   * 为什么必须有这个参数：弹窗自己持有输入框、只在 `initialTitle` 变化时回填
+   * `formTitle`，所以用户敲的字**不会**写回 `formTitle`。早先这里只读
+   * `formTitle`，结果是新建永远提示"分类名称不能为空"，改名则提交旧标题
+   * ——后端 UPDATE 同值，提示成功但什么都没变。
+   *
    * 首尾空白在这里去掉（后端也会再去一次）：空名不该发到网络上，
    * 用户看到的提示是"分类名称不能为空"而不是一次静默失败。
    */
-  async function submit() {
+  async function submit(title?: string) {
     if (saving.value) return;
 
-    const title = formTitle.value.trim();
-    if (!title) {
+    const raw = title ?? formTitle.value;
+    const nextTitle = raw.trim();
+    if (!nextTitle) {
       options.message.warning("分类名称不能为空");
       return;
     }
@@ -87,12 +96,13 @@ export function useProfileCategoryManage(options: ProfileCategoryManageOptions) 
     const renaming = editingCategory.value;
     saving.value = true;
     try {
-      await saveProfileCategory({ ...(renaming ? { id: renaming.id } : {}), title });
+      await saveProfileCategory({ ...(renaming ? { id: renaming.id } : {}), title: nextTitle });
       formOpen.value = false;
       options.message.success(renaming ? "分类已改名" : "分类已新建");
       await options.reload();
     } catch (error) {
       // 「名称重复」等可读文案由后端给出，原样展示（ADR-0036 约束 5）。
+      // 失败时弹窗保持打开：用户改个名字就能重试，不用重新敲。
       options.message.error(errorMessage(error, "保存分类失败"));
     } finally {
       saving.value = false;

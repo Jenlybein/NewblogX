@@ -11,7 +11,7 @@
 - 分类 `category_models`：`UNIQUE KEY uk_category_user_title (user_id, title)`（`backend/internal/platform/mysql/ddl/schema.sql:212`）。
 - 标签 `tag_models`：`UNIQUE KEY idx_tag_models_title (title)`（同文件 `:584`；名字带 `idx_` 前缀，但它**是唯一键**）。
 
-于是"删过的名字被永久占用"：查重（GORM 模型查询，自动带 `deleted_at IS NULL`）说没重复，INSERT 却撞 1062。今天还没人踩到，只因为个人端还不能删分类——分类管理一上线它立刻会爆。
+于是"删过的名字被永久占用"：查重（GORM 模型查询，自动带 `deleted_at IS NULL`）说没重复，INSERT 却撞 1062。本批之前没人踩到，只是因为个人端还不能删分类——#325 把分类管理接上个人主页后，这条路径立刻会被走到。
 
 MySQL 没有部分索引 / 条件唯一索引，本批又是零 DDL（不改既有表的列与索引），所以"只对活行唯一"在库层面表达不出来。**"删过的名字能不能重用"必须在应用层显式决定**，而不是留给下一个人偶遇。
 
@@ -19,11 +19,12 @@ MySQL 没有部分索引 / 条件唯一索引，本批又是零 DDL（不改既�
 
 ## 决策
 
-1. **删除保持软删，名字可以重用；重用的方式是"先恢复、再新建"。** 凡"唯一键 + 软删"的实体，创建时都走平台助手 `RestoreOrCreateUnique`（`backend/internal/platform/mysql/restore.go:29`）：先按匹配键找 `deleted_at IS NOT NULL` 的行并恢复（清 `deleted_at`、写回本次字段值、**保留原 ID**），找不到才插入。分类的匹配键是 `(user_id, title)`；并发下"唯一键冲突"等价于"已存在"，不算错误。**本批落地的是分类创建**，标签侧的同名重建仍是已知遗留（见代价），补的时候照这条走。
+1. **删除保持软删，名字可以重用；重用的方式是"先恢复、再新建"。** 凡"唯一键 + 软删"的实体，创建时都走平台助手 `RestoreOrCreateUnique`（`backend/internal/platform/mysql/restore.go:29`）：先按匹配键找 `deleted_at IS NOT NULL` 的行并恢复（清 `deleted_at`、写回本次字段值、**保留原 ID**），找不到才插入。分类的匹配键是 `(user_id, title)`；并发下"唯一键冲突"等价于"已存在"，不算错误。**分类与标签的创建都已走这条**（标签侧在本批补齐，两个仓储的 `Save` 共用 `saveUniqueWithRestore`，`backend/internal/article/adapter/mysql/taxonomy_repo.go:129-155`）；改名走 UPDATE，不会去恢复另一行软删记录（见「已知限制」）。
 2. **恢复保留原 ID，调用方不得依赖"新建必然有新 ID"。** 前端建完重拉列表，不拿返回的 ID 做后续写入。
 3. **删除分类必须在同一事务内先解除文章归属、再软删分类。** 文章的分类字段置空（`article_models.category_id` 上有外键指向分类表，`backend/internal/platform/mysql/ddl/schema.sql:132`，但软删下外键永远不会触发，救不了这条引用），置空经 binlog 触发该文章的搜索投影重算（`backend/internal/platform/cdc/river/projection_replay.go:146`），不需要额外补偿任务。
-4. **标签：停用是常规动作，删除只对零引用开放。** 停用后它不进可选列表（`Tag.Usable` / `FilterUsable`，`backend/internal/article/domain/taxonomy/taxonomy.go:205-239`），已打过它的文章不受影响；删除前按关联表**实时**统计引用数，被引用时返回可读错误并提示改用停用，不采信冗余计数列 `tag_models.article_count`（`backend/internal/platform/mysql/ddl/schema.sql:580`）。
-5. **唯一键冲突一律翻译成领域可读文案。** 分类侧已有 `categorySaveError`（`backend/internal/article/adapter/mysql/taxonomy_repo.go:114-129`），标签侧必须补同等形状的一条；不允许把 1062 原文透传成 500。
+4. **标签：停用是常规动作，删除只对零引用开放。** 停用后它不进可选列表（`Tag.Usable` / `FilterUsable`，`backend/internal/article/domain/taxonomy/taxonomy.go:230-263`），已打过它的文章不受影响；删除前按关联表**实时**统计引用数，被引用时返回可读错误并提示改用停用，不采信冗余计数列 `tag_models.article_count`（`backend/internal/platform/mysql/ddl/schema.sql:580`）。
+5. **唯一键冲突一律翻译成领域可读文案。** 分类与标签的 `Save` 共用同一条翻译 `taxonomySaveError`（`backend/internal/article/adapter/mysql/taxonomy_repo.go:164-172`），两侧口径只有一份；不允许把 1062 原文透传成 500。
+6. **删除分类时，回收站里的文章保留分类归属。** 置空 `article_models.category_id` 只作用于**活跃文章**（软删作用域），并且用 `UpdateColumn` 而不是 `Updates` —— 后者会顺带刷 `updated_at`，让所有原属该分类的文章在详情页集体显示一个新的"更新于"（`backend/internal/article/adapter/mysql/taxonomy_repo.go:192-199`，用例 `TestDeleteCategoryDetachesArticlesBeforeSoftDelete`）。为什么保留：这篇文章看不见，删除分类也不该偷偷改它的数据；而删除是软删、同名重建会**恢复同一行分类**，归属随之回来，不丢信息。
 
 ## 理由与已否决方案
 
@@ -35,27 +36,33 @@ MySQL 没有部分索引 / 条件唯一索引，本批又是零 DDL（不改既�
 
 ## 代价 / 不做什么
 
-- **软删行一直留在表里**，包括"恢复过又删掉"的。本批不做一次性清理脚本（#319 明确不做）：新语义下同名创建会自动恢复，清理不再必要，但表会缓慢变大。
+- **软删行一直留在表里**，包括"恢复过又删掉"的。本批的**唯一遗留**是一次性清理脚本（#319 明确不做）：新语义下同名创建会自动恢复，清理不再必要，但表会缓慢变大。
 - **恢复的语义是"这条以前存在过"**：恢复出来的行继承旧 ID 与旧的创建时间，把它当"全新的一条"来用（例如按 ID 大小当创建顺序）会看到旧位置。
-- **标签侧本批只补 1062 的可读文案，没有做恢复**：一个被删除的标签名仍占着唯一键，重建同名会得到"名称重复"，而不是被恢复。原因是标签删除只对零引用开放、本批不接受"删了就要能重建同名"的诉求。后续若要修，走决策 1 的同一个助手，**不要**改标题。
+- **每次 `Save` 多一次"活行是否存在"的查询**：不看 `RowsAffected` 就得先查一次（对应 `saveUniqueWithRestore` 的第一段），换来的是"值没变的保存"不会被误判成新建。分类与标签的保存频率以人操作计，这点开销不值得优化掉。
 - **不给分类加隐私开关、不做多级分类与排序**（要加列，违反零 DDL）；**不做标签合并 / 批量重命名 / 批量迁移**（#319 out of scope）。
 - **停用标签不会因为"改一下描述"被悄悄放回可选**：编辑是读—改—写，没传启用状态就保持原状。
 
 ## 当前生效约束
 
-1. 分类的创建必须走 `RestoreOrCreateUnique`（或同语义的"先恢复再插入"）；禁止裸 INSERT 之后只靠 1062 兜底。标签侧同名重建在本批仍是已知遗留（见代价），补的时候用同一个助手，禁止改成"给标题加后缀"。
+1. 创建（新建路径）必须走 `RestoreOrCreateUnique`（或同语义的"先恢复再插入"）；禁止裸 INSERT 之后只靠 1062 兜底。分类与标签都已落地（共用 `saveUniqueWithRestore`）；补新实体时用同一个助手，禁止改成"给标题加后缀"。
 2. 恢复不得更换 ID。
-3. 删除分类 = 解除文章归属 + 软删分类，两步在同一事务内完成；先解除归属、后删分类，顺序不得颠倒。
+3. 删除分类 = 解除**活跃**文章归属 + 软删分类，两步在同一事务内完成；先解除归属、后删分类，顺序不得颠倒。
 4. 标签删除前必须按关联表实时统计引用数；被引用时拒绝并提示改用停用。
 5. 唯一键冲突不得以 500 或数据库原文的形式出现在响应里。
-6. 停用状态只能由显式的启用动作改回。
+6. 删除分类只是"活跃文章解绑 + 软删分类"：回收站里的文章保留分类归属，且活跃文章的 `updated_at` 不得被这次解绑改动（用 `UpdateColumn`，不要用 `Updates`）。
+7. 停用状态只能由显式的启用动作改回。
+
+## 已知限制
+
+- **把一个分类改名成"只被软删行占用"的名字，仍会报「名称重复」。** 恢复只发生在新建路径；改名是 `UPDATE category_models ... WHERE id = ?`，撞的仍是那条不含 `deleted_at` 的唯一索引。用户会看到"名称重复"，但列表里根本看不到那个名字。这是"零 DDL + 保留软删行"的必然结果，本批不修（修法要么改索引，要么改名时顺手恢复另一行——后者会把一条看不见的分类复活，更糟）。行为由 `TestRenameCategoryIntoSoftDeletedNameStillDuplicates` 钉住（`backend/internal/article/adapter/mysql/taxonomy_repo_test.go`）。
+- **"删除分类后搜索侧的分类归属同步更新"没有直接用例。** #325 的这条验收目前只由 CDC 链路（ADR-0009：置空经 binlog 触发该文章的投影重算）与 ADR 保证，本批**没有**补"删分类 → 投影重算"的端到端用例。原因：要断言它必须把 MySQL binlog、river worker 与搜索索引串起来跑，而这一票改动的只是"置空 + 软删"这两条 SQL 语义（已由 `TestDeleteCategoryDetachesArticlesBeforeSoftDelete` 钉住），投影重算本身由 ADR-0009 的 golden 用例覆盖。要补的话落点应在 search 子域的集成用例，而不是分类仓储——把这个缺口写在这里，是为了不让它被误当成"已经测过"。
 
 ## 相关代码与文档
 
 - 软删基类：`backend/internal/article/adapter/mysql/rows.go:28-33`（`BaseRow` 的 `gorm.DeletedAt`）
 - 唯一索引与冗余计数列：`backend/internal/platform/mysql/ddl/schema.sql:204-215`（分类，`uk_category_user_title` 在 `:212`）· 同文件 `:572-587`（标签，`idx_tag_models_title` 在 `:584`，`article_count` 在 `:580`）
 - 平台助手与先例：`backend/internal/platform/mysql/restore.go:29`（`RestoreOrCreateUnique`）· 点赞 `backend/internal/article/adapter/mysql/ports.go:170-189`
-- 1062 翻译：`backend/internal/article/adapter/mysql/taxonomy_repo.go:114-129`（`categorySaveError`）；标签侧同文件 `TagRepo.Save`（`:206-231`）尚无等价翻译
-- 用例：`backend/internal/article/app/subdomain.go:21`（`ListCategories`）· `:41`（`SaveCategory`）· `:82`（`DeleteCategories`）· `:117`（`ListTags`）· `:128`（`SaveTag`）· `:181`（`DeleteTags`）
+- 1062 翻译：`backend/internal/article/adapter/mysql/taxonomy_repo.go:164-172`（`taxonomySaveError`，分类与标签共用）· 共用写入形状 `:129-155`（`saveUniqueWithRestore`）· 两个仓储的 `Save`：`CategoryRepo.Save` `:103-113`、`TagRepo.Save` `:313-328`
+- 用例：`backend/internal/article/app/subdomain.go:24`（`ListCategories`）· `:49`（`SaveCategory`）· `:99`（`DeleteCategories`）· `:143`（`ListTags`）· `:162`（`SaveTag`）· `:252`（`DeleteTags`）
 - 外键与 CDC：`backend/internal/platform/mysql/ddl/schema.sql:132` · `backend/internal/platform/cdc/river/projection_replay.go:146`
 - 术语：[GLOSSARY · 标签 / 分类](../../GLOSSARY.md)

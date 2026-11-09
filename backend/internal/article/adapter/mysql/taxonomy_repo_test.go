@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"testing"
+	"time"
 
 	"gorm.io/gorm"
 
@@ -141,6 +142,40 @@ func TestSaveTagDuplicateTitleOnRenameReturnsReadableError(t *testing.T) {
 	}
 	if err.Error() != "名称重复" {
 		t.Fatalf("面向用户的文案应为「名称重复」，实际: %q", err.Error())
+	}
+}
+
+// TestSaveTagNewPathWithExistingLiveTitleReturnsDuplicate 钉住 1062 在"新建路径"上的翻译。
+//
+// 场景：库里已有一条活标签 "Go"，另一个调用方（并发窗口里刚过查重的那一个，
+// 或直接调仓储的用例）拿着**新 ID** 再存同名。RestoreOrCreateUnique 找不到可恢复的
+// 软删行，插入撞唯一键，返回 (false, nil)。丢掉这个 bool 就会让 Save 返回 nil——
+// 用户看到"保存成功"，库里却什么都没多出来；分类侧同场景返回 ErrTitleDuplicated。
+func TestSaveTagNewPathWithExistingLiveTitleReturnsDuplicate(t *testing.T) {
+	repo, db := newTagRepoWithUniqueTitle(t)
+	ctx := context.Background()
+
+	goTag := mustNewTag(t, 1, "Go")
+	if err := repo.Save(ctx, goTag); err != nil {
+		t.Fatalf("预置标签失败: %v", err)
+	}
+
+	dup := mustNewTag(t, 2, "Go")
+	err := repo.Save(ctx, dup)
+	if !errors.Is(err, taxonomy.ErrTitleDuplicated) {
+		t.Fatalf("已有活行 + 新建路径的同名保存必须返回领域错误，实际: %v", err)
+	}
+	if err.Error() != "名称重复" {
+		t.Fatalf("面向用户的文案应为「名称重复」，实际: %q", err.Error())
+	}
+
+	// 被拒的那次不能留下半条数据：复用不了软删行、插入也没成功，表里仍是一行。
+	var n int64
+	if err := db.Unscoped().Model(&tagRow{}).Count(&n).Error; err != nil {
+		t.Fatalf("统计标签数失败: %v", err)
+	}
+	if n != 1 {
+		t.Fatalf("同名冲突后表里应仍只有 1 行，实际 %d 行", n)
 	}
 }
 
@@ -374,6 +409,49 @@ func TestSaveCategoryRecreatesAfterSoftDelete(t *testing.T) {
 	}
 }
 
+// TestRenameCategoryIntoSoftDeletedNameStillDuplicates 钉住 ADR-0036 的「已知限制」。
+//
+// 恢复只发生在**新建**路径。改名走 UPDATE：目标名字如果只被一条软删行占着，
+// 唯一索引照样拒绝——用户看到「名称重复」，而列表里根本看不到那个名字。
+// 这是"零 DDL + 保留软删行"的必然结果；把它写进 ADR 而不是假装没有，
+// 并且用这条用例把行为钉死，免得日后被当成 bug 顺手改成"改名也去恢复"。
+func TestRenameCategoryIntoSoftDeletedNameStillDuplicates(t *testing.T) {
+	repo, db := newCategoryRepoWithUniqueTitle(t)
+	ctx := context.Background()
+
+	keep := mustNewCategory(t, 1, 100, "前端")
+	gone := mustNewCategory(t, 2, 100, "后端")
+	for _, c := range []*taxonomy.Category{keep, gone} {
+		if err := repo.Save(ctx, c); err != nil {
+			t.Fatalf("预置分类 %q 失败: %v", c.Title(), err)
+		}
+	}
+	// 软删「后端」：名字从此只被一条软删行占着。
+	if err := repo.Delete(ctx, gone.ID()); err != nil {
+		t.Fatalf("软删分类失败: %v", err)
+	}
+
+	// 查重只看活行，所以它说"没有重复"——这也是用户会觉得莫名其妙的原因。
+	if dup, err := repo.ExistsTitle(ctx, keep.UserID(), "后端", keep.ID()); err != nil || dup {
+		t.Fatalf("活行查重应说没有重复，实际 dup=%v err=%v", dup, err)
+	}
+	if err := keep.Rename("后端"); err != nil {
+		t.Fatalf("改名失败: %v", err)
+	}
+	if err := repo.Save(ctx, keep); !errors.Is(err, taxonomy.ErrTitleDuplicated) {
+		t.Fatalf("改名成一个只被软删行占用的名字应报「名称重复」，实际: %v", err)
+	}
+
+	// 两条行都还在：没有任何一条被这次失败顺手恢复或删掉。
+	var total int64
+	if err := db.Unscoped().Model(&categoryRow{}).Count(&total).Error; err != nil {
+		t.Fatalf("统计分类数失败: %v", err)
+	}
+	if total != 2 {
+		t.Fatalf("表里应仍是 2 行（1 活 + 1 软删），实际 %d 行", total)
+	}
+}
+
 // TestSaveCategoryUnchangedUpdateIsNotADuplicate 钉住"值没变"的 UPDATE。
 //
 // MySQL 对值没变的 UPDATE 返回 0 行变更。若拿 RowsAffected 判定"行不存在"，
@@ -436,6 +514,14 @@ func TestDeleteCategoryDetachesArticlesBeforeSoftDelete(t *testing.T) {
 		t.Fatalf("软删文章失败: %v", err)
 	}
 
+	// 打点：置空 category_id 不是"编辑文章"，不该刷 updated_at ——
+	// 否则作者主页与文章详情页会集体显示一个新的"更新于"，而这只是分类被删了。
+	frozen := time.Date(2020, 1, 2, 3, 4, 5, 0, time.UTC)
+	if err := db.Model(&articleRow{}).Where("id IN ?", []ctype.ID{ctype.NewID(11), ctype.NewID(12)}).
+		UpdateColumn("updated_at", frozen).Error; err != nil {
+		t.Fatalf("预置 updated_at 失败: %v", err)
+	}
+
 	if err := repo.Delete(ctx, doomed.ID()); err != nil {
 		t.Fatalf("删除分类失败: %v", err)
 	}
@@ -449,6 +535,29 @@ func TestDeleteCategoryDetachesArticlesBeforeSoftDelete(t *testing.T) {
 		}
 		if got != nil {
 			t.Fatalf("文章 %d 应变成未分类，实际 category_id=%s", id, got)
+		}
+	}
+
+	// 决策（ADR-0036）：回收站里的文章**保留**分类归属。删除是软删、重建同名分类
+	// 会恢复同一行，归属随之回来；这里顺手清掉反而丢掉了一条能回来的信息。
+	var trashedCategory *ctype.ID
+	if err := db.Unscoped().Model(&articleRow{}).Select("category_id").
+		Where("id = ?", deletedID).Scan(&trashedCategory).Error; err != nil {
+		t.Fatalf("读回收站文章的分类失败: %v", err)
+	}
+	if trashedCategory == nil || *trashedCategory != doomedID {
+		t.Fatalf("回收站里的文章应保留分类归属，实际 %v", trashedCategory)
+	}
+
+	// 解绑不改文章的"更新于"。
+	for _, id := range []uint64{11, 12} {
+		var got time.Time
+		if err := db.Model(&articleRow{}).Select("updated_at").
+			Where("id = ?", ctype.NewID(id)).Scan(&got).Error; err != nil {
+			t.Fatalf("读文章 %d 的 updated_at 失败: %v", id, err)
+		}
+		if !got.UTC().Equal(frozen) {
+			t.Fatalf("文章 %d 的 updated_at 不该被改，期望 %s，实际 %s", id, frozen, got.UTC())
 		}
 	}
 	// 别的分类下的文章不受影响。

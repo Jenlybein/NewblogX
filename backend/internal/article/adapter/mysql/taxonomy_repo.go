@@ -102,49 +102,66 @@ func (r *CategoryRepo) ExistsTitle(ctx context.Context, userID domain.UserID, ti
 // 软删行、保留原 ID，与点赞 / 标签一致。
 func (r *CategoryRepo) Save(ctx context.Context, c *taxonomy.Category) error {
 	id := ctype.ID(c.ID())
-	live, err := r.liveExists(ctx, id)
-	if err != nil {
+	return saveUniqueWithRestore(ctx, r.db, &categoryRow{}, id, &categoryRow{
+		BaseRow: BaseRow{ID: id},
+		Title:   c.Title(),
+		UserID:  fromUserID(c.UserID()),
+	}, map[string]any{
+		"title":   c.Title(),
+		"user_id": fromUserID(c.UserID()),
+	}, []string{"UserID", "Title"})
+}
+
+// saveUniqueWithRestore 是"唯一索引 + 软删"实体在 Save 里的统一写法。
+//
+// 分类与标签的 Save 只差三样东西：写哪张表、匹配键是哪几列、恢复/更新时要写回
+// 哪些字段；中间的判断是同一件事，此前在两个仓储里各写了一遍（连
+// `liveExists` 与"1062 翻译"都是两份），一处修另一处漏（标签侧就漏过）。
+//
+// 三条语义：
+//  1. **活行存在就走 UPDATE**，不看 RowsAffected（理由见两个 Save 的注释）；
+//  2. **活行不存在就交给平台助手**：先恢复同名软删行（保留原 ID），再插入；
+//  3. 助手返回 `false` 表示"没恢复、插入又撞了唯一键"——对调用方就是
+//     「名称重复」。把它当成功吞掉，用户会看到"保存成功"但库里什么都没有。
+//
+// `table` 只用来定位表与软删作用域（传零值行即可）；`row` 是这次要写入的字段
+// （恢复与插入共用），`update` 是命中活行时更新的列。
+func saveUniqueWithRestore[T any](
+	ctx context.Context,
+	db *gorm.DB,
+	table any,
+	id ctype.ID,
+	row *T,
+	update map[string]any,
+	match []string,
+) error {
+	var live int64
+	if err := db.WithContext(ctx).Model(table).Where("id = ?", id).Count(&live).Error; err != nil {
 		return err
 	}
-	if !live {
-		restored, err := platformmysql.RestoreOrCreateUnique(r.db.WithContext(ctx), &categoryRow{
-			BaseRow: BaseRow{ID: id},
-			Title:   c.Title(),
-			UserID:  fromUserID(c.UserID()),
-		}, []string{"UserID", "Title"})
+	if live == 0 {
+		restored, err := platformmysql.RestoreOrCreateUnique(db.WithContext(ctx), row, match)
 		if err != nil {
-			return categorySaveError(err)
+			return taxonomySaveError(err)
 		}
 		if !restored {
-			// 没有可恢复的软删行、插入又撞了唯一键：说明同用户下已经有一条
-			// 同名活行（并发请求抢先落地）。对调用方而言这就是「名称重复」，
-			// 而不是"什么都没做但成功了"。
 			return taxonomy.ErrTitleDuplicated
 		}
 		return nil
 	}
-	return categorySaveError(r.db.WithContext(ctx).Model(&categoryRow{}).
+	return taxonomySaveError(db.WithContext(ctx).Model(table).
 		Where("id = ?", id).
-		Updates(map[string]any{"title": c.Title(), "user_id": fromUserID(c.UserID())}).Error)
+		Updates(update).Error)
 }
 
-// liveExists 判断活行（未软删）是否存在。
-func (r *CategoryRepo) liveExists(ctx context.Context, id ctype.ID) (bool, error) {
-	var n int64
-	if err := r.db.WithContext(ctx).Model(&categoryRow{}).Where("id = ?", id).Count(&n).Error; err != nil {
-		return false, err
-	}
-	return n > 0, nil
-}
-
-// categorySaveError 把底层唯一键冲突翻译成领域错误。
+// taxonomySaveError 把底层唯一键冲突翻译成领域错误（分类与标签共用）。
 //
 // 应用层虽然先做了 ExistsTitle 查重，但两个并发请求仍可能同时通过查重，
-// 最后由 (user_id, title) 上的 uk_category_user_title 拒绝后一次写入。
-// 如果不在这里翻译，handler 会把 gorm.ErrDuplicatedKey 原样透传，
+// 最后由唯一索引（分类 `uk_category_user_title` / 标签 `idx_tag_models_title`）
+// 拒绝后一次写入。如果不在这里翻译，handler 会把 gorm.ErrDuplicatedKey 原样透传，
 // 用户看到的会是 "duplicated key not allowed" / MySQL 1062，
 // 而不是 apperr 消息表里的 "名称重复"。
-func categorySaveError(err error) error {
+func taxonomySaveError(err error) error {
 	if err == nil {
 		return nil
 	}
@@ -165,10 +182,17 @@ func categorySaveError(err error) error {
 // 两步共用调用方的事务句柄（UseCase 的 WithinTx 现场构造本仓储），
 // 因此中途失败不会留下"文章已解绑、分类还在"或反过来的半截状态。
 // 置空会经 binlog 触发搜索投影重算（ADR-0009），不需要补偿任务。
+//
+// 两条容易写错的边界（ADR-0036 决策 6 / 已知限制）：
+//   - **回收站里的文章保留分类归属**：软删作用域让它们不参与这次置空，这是有意的。
+//     删除是软删、同名重建会恢复同一行分类，归属随之回来；顺手清掉反而丢信息。
+//   - **不写 `updated_at`**：用 `UpdateColumn` 而不是 `Updates`。后者会顺带把
+//     updated_at 刷成现在（GORM 的自动时间戳），于是所有原属该分类的文章在
+//     详情页上集体显示一个新的"更新于"——用户只是删了个分类，文章并没改。
 func (r *CategoryRepo) Delete(ctx context.Context, id domain.CategoryID) error {
 	if err := r.db.WithContext(ctx).Model(&articleRow{}).
 		Where("category_id = ?", ctype.ID(id)).
-		Updates(map[string]any{"category_id": nil}).Error; err != nil {
+		UpdateColumn("category_id", nil).Error; err != nil {
 		return err
 	}
 	return r.db.WithContext(ctx).Delete(&categoryRow{}, "id = ?", ctype.ID(id)).Error
@@ -276,7 +300,7 @@ func (r *TagRepo) ExistsTitle(ctx context.Context, title string, excludeID domai
 	return n > 0, nil
 }
 
-// Save 新建或更新标签。
+// Save 新建或更新标签（判断形状与分类共用 saveUniqueWithRestore）。
 //
 // 存在性显式判定，不看 RowsAffected：MySQL 对"值没变"的 UPDATE 返回 0 行变更，
 // 把它当成"行不存在"就会去 INSERT，然后撞上自己那行、被翻成「名称重复」——
@@ -288,53 +312,19 @@ func (r *TagRepo) ExistsTitle(ctx context.Context, title string, excludeID domai
 // "这个名字以前存在过"，恢复它（保留原 ID），不再新建。
 func (r *TagRepo) Save(ctx context.Context, t *taxonomy.Tag) error {
 	id := ctype.ID(t.ID())
-	live, err := r.liveExists(ctx, id)
-	if err != nil {
-		return err
-	}
-	if !live {
-		_, err := platformmysql.RestoreOrCreateUnique(r.db.WithContext(ctx), &tagRow{
-			BaseRow:     BaseRow{ID: id},
-			Title:       t.Title(),
-			Sort:        t.Sort(),
-			Description: t.Description(),
-			IsEnabled:   t.Enabled(),
-			CreatedBy:   fromUserID(t.CreatedBy()),
-		}, []string{"Title"})
-		return tagSaveError(err)
-	}
-	return tagSaveError(r.db.WithContext(ctx).Model(&tagRow{}).
-		Where("id = ?", id).
-		Updates(map[string]any{
-			"title":       t.Title(),
-			"sort":        t.Sort(),
-			"description": t.Description(),
-			"is_enabled":  t.Enabled(),
-		}).Error)
-}
-
-// liveExists 判断活行（未软删）是否存在。
-func (r *TagRepo) liveExists(ctx context.Context, id ctype.ID) (bool, error) {
-	var n int64
-	if err := r.db.WithContext(ctx).Model(&tagRow{}).Where("id = ?", id).Count(&n).Error; err != nil {
-		return false, err
-	}
-	return n > 0, nil
-}
-
-// tagSaveError 把底层唯一键冲突翻译成领域错误（与 categorySaveError 同一口径）。
-//
-// 应用层先做了 ExistsTitle 查重，但并发请求仍可能同时通过查重、最后由
-// idx_tag_models_title 拒绝后一次写入。不翻译的话，管理员看到的是
-// "duplicated key not allowed" / MySQL 1062，而不是「名称重复」。
-func tagSaveError(err error) error {
-	if err == nil {
-		return nil
-	}
-	if errors.Is(err, gorm.ErrDuplicatedKey) {
-		return taxonomy.ErrTitleDuplicated
-	}
-	return err
+	return saveUniqueWithRestore(ctx, r.db, &tagRow{}, id, &tagRow{
+		BaseRow:     BaseRow{ID: id},
+		Title:       t.Title(),
+		Sort:        t.Sort(),
+		Description: t.Description(),
+		IsEnabled:   t.Enabled(),
+		CreatedBy:   fromUserID(t.CreatedBy()),
+	}, map[string]any{
+		"title":       t.Title(),
+		"sort":        t.Sort(),
+		"description": t.Description(),
+		"is_enabled":  t.Enabled(),
+	}, []string{"Title"})
 }
 
 // Delete 软删标签。

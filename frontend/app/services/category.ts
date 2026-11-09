@@ -1,7 +1,7 @@
 import { useNuxtApp } from "#imports";
-import { readListPayload } from "~/services/listData";
+import { readListPayload } from "~/utils/listPayload";
 import type { Schema } from "~/types/contract";
-import type { ProfileCategoryItem, ProfileCategoryListData } from "~/types/api";
+import type { ProfileCategoryItem, CategoryListData } from "~/types/api";
 
 /**
  * 分类的读者侧读取（#321）与写操作（#325）。
@@ -44,7 +44,7 @@ function toProfileCategory(item: Schema<"internal_article_adapter_http.CategoryL
 /** 读这位作者（user_id）的公开分类列表；匿名访客同样可读。 */
 export function getProfileCategories(userId: string | number) {
   return useNuxtApp()
-    .$api.request<ProfileCategoryListData>("/api/articles/category", {
+    .$api.request<CategoryListData>("/api/articles/category", {
       auth: false,
       query: {
         user_id: String(userId),

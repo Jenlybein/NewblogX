@@ -1,3 +1,4 @@
+import { readListPayload } from "~/utils/listPayload";
 import type { OptionItem } from "~/types/api";
 
 // 分类 / 标签下拉项的映射（#320）。
@@ -28,13 +29,13 @@ export type TaxonomyOptionsPayload =
  *
  * 三条规矩：
  *   1. 缺 ID 或标题的条目直接跳过 —— 没有 ID 选不中，没有标题看不出是什么；
- *   2. 载荷缺 list（后端返回空 data）时给空数组，不抛错；
+ *   2. 载荷的 `{list, count}` 形状交给 `readListPayload`（与 services 同一份读法），
+ *      缺 list（后端返回空 data）时给空数组，不抛错；
  *   3. 只做映射，不判断"该不该显示空状态 / 错误"——那是调用点的事，
  *      因为"一个分类都没有"和"接口挂了"要给用户看不同的话。
  */
 export function toOptionItems(payload: TaxonomyOptionsPayload): OptionItem[] {
-  const items = payload?.list;
-  if (!Array.isArray(items)) return [];
+  const { list: items } = readListPayload<TaxonomyOptionSource | null>(payload);
 
   const options: OptionItem[] = [];
   for (const item of items) {

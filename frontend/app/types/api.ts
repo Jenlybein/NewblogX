@@ -108,7 +108,15 @@ export type FavoriteFolderListData = RequiredSchema<"myblogx_internal_kernel.Lis
  */
 export type TagListData = RequiredSchema<"myblogx_internal_kernel.ListData-internal_article_adapter_http_TagListItem">;
 
-/** 分类下拉的列表载荷（`GET /articles/category/options?user_id=`），形状同上。 */
+/**
+ * 分类列表的列表载荷（`kernel.ListData` 的 `{list, count}`），条目是 `CategoryListItem`。
+ *
+ * 两个读接口共用同一形状，所以只有一个别名：
+ *  - `GET /api/articles/category/options?user_id=`（写文章时的分类下拉，#320）；
+ *  - `GET /api/articles/category?user_id=`（个人主页分类栏，#321）。
+ * 以前这里按接口名写了两遍一模一样的别名（`ProfileCategoryListData`），
+ * 契约一改就要改两处，且两处可以悄悄漂移。
+ */
 export type CategoryListData = RequiredSchema<"myblogx_internal_kernel.ListData-internal_article_adapter_http_CategoryListItem">;
 
 /**
@@ -132,10 +140,6 @@ export type ProfileCategoryItem = Pick<
   RequiredSchema<"internal_article_adapter_http.CategoryListItem">,
   "id" | "title" | "article_count"
 >;
-
-/** `GET /api/articles/category` 的 data：`{list, count}`，条目是 `CategoryListItem`。 */
-export type ProfileCategoryListData =
-  RequiredSchema<"myblogx_internal_kernel.ListData-internal_article_adapter_http_CategoryListItem">;
 
 export type SearchArticleItem = RequiredSchema<"myblogx_internal_search_domain.Item">;
 

@@ -226,7 +226,27 @@ export async function useStudioArticle(deps: StudioArticleDeps) {
   const isEditMode = computed(() => Boolean(editArticleId.value));
   const hydratedArticleId = ref("");
 
-  const { data: tagOptions } = await useAsyncData("studio-write-tag-options", () => getTagOptions().catch(() => []));
+  /**
+   * 标签下拉的加载错误（本批补的那一处）。
+   *
+   * 与下面 `categoryOptionsError` 同一条理由：原来这里是 `.catch(() => [])`，
+   * 接口一挂就和"还没建过标签"长得一模一样，作者以为自己没有标签。
+   * 失败时把原因留在这里，由发布弹窗就地展示；空数组只代表真的为空。
+   */
+  const tagOptionsError = ref("");
+
+  /** loadTagOptions 是标签下拉的唯一取数入口：失败不抛，落进 tagOptionsError。 */
+  async function loadTagOptions() {
+    tagOptionsError.value = "";
+    try {
+      return await getTagOptions();
+    } catch (error) {
+      tagOptionsError.value = errorMessage(error, "标签列表加载失败");
+      return [];
+    }
+  }
+
+  const { data: tagOptions } = await useAsyncData("studio-write-tag-options", loadTagOptions);
 
   /**
    * 分类下拉的加载错误（#320）。
@@ -583,6 +603,8 @@ export async function useStudioArticle(deps: StudioArticleDeps) {
     hydratedArticleId,
     // 数据
     tagOptions,
+    /** 标签下拉加载失败的可读原因；空串表示这次加载没出错。 */
+    tagOptionsError,
     categoryOptions,
     /** 分类下拉加载失败的可读原因；空串表示这次加载没出错（#320）。 */
     categoryOptionsError,

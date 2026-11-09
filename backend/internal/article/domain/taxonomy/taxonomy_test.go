@@ -5,6 +5,7 @@ import (
 	"myblogx/internal/kernel/ctype"
 	"testing"
 
+	"myblogx/internal/apperr"
 	"myblogx/internal/article/domain"
 	"myblogx/internal/article/domain/taxonomy"
 )
@@ -69,5 +70,29 @@ func TestTagToggle(t *testing.T) {
 	}
 	if err := tag.Rename("  ", 0, ""); !errors.Is(err, taxonomy.ErrTitleRequired) {
 		t.Fatalf("改名为空应报错，实际 %v", err)
+	}
+}
+
+// TestTagInUseError 锁住"删除被拒"的可读文案与错误码。
+//
+// 文案里必须带篇数：管理员据此判断要不要改用停用；错误码只能有一个
+// （前端按码分支），所以文案是动态的、码是固定的。
+func TestTagInUseError(t *testing.T) {
+	t.Parallel()
+
+	err := taxonomy.NewTagInUseError(3)
+	if err.Count() != 3 {
+		t.Fatalf("应记住引用篇数 3，实际 %d", err.Count())
+	}
+	want := "该标签已有 3 篇文章在用，请改用停用"
+	if err.Error() != want {
+		t.Fatalf("文案应为 %q，实际 %q", want, err.Error())
+	}
+	var target *taxonomy.TagInUseError
+	if !errors.As(error(err), &target) || target.Count() != 3 {
+		t.Fatalf("errors.As 应能取回 TagInUseError，实际 %v", err)
+	}
+	if !apperr.IsCode(err, apperr.CodeTagInUse) {
+		t.Fatalf("应带错误码 %s，实际 %v", apperr.CodeTagInUse, err)
 	}
 }

@@ -125,6 +125,11 @@ func (s *Service) ListTags(ctx context.Context, includeDisabled bool) ([]*taxono
 }
 
 // SaveTag 创建或更新标签（仅管理员）。
+//
+// 更新走**读—改—写**：先读出库里的标签，再只覆盖请求里给出的字段。
+// 早先的实现每次都从零构造一个 NewTag（默认启用、排序 0、描述空），于是
+// "编辑一个停用标签"会顺手把它放回全站可选，只改标题也会把排序与描述清空。
+// 没传就是没改：Sort / Description / Enabled 都是可选值，nil 表示保持原值。
 func (s *Service) SaveTag(ctx context.Context, viewer domain.Viewer, in TagInput) (*taxonomy.Tag, error) {
 	if !viewer.IsAdmin() {
 		return nil, domain.ErrForbidden
@@ -132,32 +137,20 @@ func (s *Service) SaveTag(ctx context.Context, viewer domain.Viewer, in TagInput
 
 	var saved *taxonomy.Tag
 	err := s.tx.WithinTx(ctx, func(ctx context.Context, r Repos) error {
-		id := in.ID
-		if id.IsZero() {
-			id = ctype.NewID(s.ids.NextArticleID().Uint64())
+		tag, err := s.loadOrNewTag(ctx, r, viewer, in)
+		if err != nil {
+			return err
 		}
-
-		dup, err := r.Tags().ExistsTitle(ctx, in.Title, id)
+		if err := applyTagInput(tag, in); err != nil {
+			return err
+		}
+		// 查重放在改名之后：标题已去空白，撞库前就给可读文案。
+		dup, err := r.Tags().ExistsTitle(ctx, tag.Title(), tag.ID())
 		if err != nil {
 			return err
 		}
 		if dup {
 			return taxonomy.ErrTitleDuplicated
-		}
-
-		tag, err := taxonomy.NewTag(id, in.Title, viewer.UserID)
-		if err != nil {
-			return err
-		}
-		if err := tag.Rename(in.Title, in.Sort, in.Description); err != nil {
-			return err
-		}
-		if in.Enabled != nil {
-			if *in.Enabled {
-				tag.Enable()
-			} else {
-				tag.Disable()
-			}
 		}
 		if err := r.Tags().Save(ctx, tag); err != nil {
 			return err
@@ -165,19 +158,68 @@ func (s *Service) SaveTag(ctx context.Context, viewer domain.Viewer, in TagInput
 		saved = tag
 		return nil
 	})
-	return saved, err
+	if err != nil {
+		return nil, err
+	}
+	return saved, nil
+}
+
+// loadOrNewTag 取出要写的标签：有 ID 就按 ID 读（读不到就是不存在，
+// 不再拿客户端给的 ID 新建一条），没有 ID 才新建。
+func (s *Service) loadOrNewTag(ctx context.Context, r Repos, viewer domain.Viewer, in TagInput) (*taxonomy.Tag, error) {
+	if !in.ID.IsZero() {
+		return r.Tags().Find(ctx, in.ID)
+	}
+	id := ctype.NewID(s.ids.NextArticleID().Uint64())
+	return taxonomy.NewTag(id, in.Title, viewer.UserID)
+}
+
+// applyTagInput 把请求里"给了的"字段写到标签上。
+//
+// 标题总是重写（写入接口的必填项）；其余三项为 nil 时保持原值。
+func applyTagInput(tag *taxonomy.Tag, in TagInput) error {
+	sort := tag.Sort()
+	if in.Sort != nil {
+		sort = *in.Sort
+	}
+	desc := tag.Description()
+	if in.Description != nil {
+		desc = *in.Description
+	}
+	if err := tag.Rename(in.Title, sort, desc); err != nil {
+		return err
+	}
+	switch {
+	case in.Enabled == nil:
+		// 没传启用状态：不动。编辑停用标签不能把它悄悄放回全站可选。
+	case *in.Enabled:
+		tag.Enable()
+	default:
+		tag.Disable()
+	}
+	return nil
 }
 
 // TagInput 是标签写入的输入。
+//
+// Sort / Description / Enabled 用指针：nil = "这次没动它"。
+// 更新是读—改—写，所以"没传"与"显式传零值"必须能分开。
 type TagInput struct {
 	ID          domain.TagID
 	Title       string
-	Sort        int
-	Description string
+	Sort        *int
+	Description *string
 	Enabled     *bool
 }
 
 // DeleteTags 删除标签（仅管理员）。
+//
+// 只对**没有被任何文章引用**的标签开放：被引用时整单拒绝，并给出可读提示
+// （几篇在用 + 建议改用停用）。引用数按关联表实时统计——tag_models 上的
+// article_count 没有维护者，按它放行会把真有文章在用的标签删掉。
+//
+// 一条被引用就整单回滚：批量删除是"一次动作"，删掉一半再报错会让管理员
+// 以为全部失败，回头再点一次又删掉一批。
 func (s *Service) DeleteTags(ctx context.Context, viewer domain.Viewer, ids []domain.TagID) (int, error) {
 	if !viewer.IsAdmin() {
 		return 0, domain.ErrForbidden
@@ -185,14 +227,25 @@ func (s *Service) DeleteTags(ctx context.Context, viewer domain.Viewer, ids []do
 	deleted := 0
 	err := s.tx.WithinTx(ctx, func(ctx context.Context, r Repos) error {
 		for _, id := range ids {
+			refs, err := r.Tags().CountArticleRefs(ctx, id)
+			if err != nil {
+				return err
+			}
+			if refs > 0 {
+				return taxonomy.NewTagInUseError(refs)
+			}
 			if err := r.Tags().Delete(ctx, id); err != nil {
-				continue
+				continue // 不存在就跳过：批量删除不应因一个脏 ID 整单失败
 			}
 			deleted++
 		}
 		return nil
 	})
-	return deleted, err
+	if err != nil {
+		// 事务已回滚，一条都没删掉：不能把中间累计的条数报给调用方。
+		return 0, err
+	}
+	return deleted, nil
 }
 
 // ── 收藏夹 ──

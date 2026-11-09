@@ -7,6 +7,7 @@ package taxonomy
 
 import (
 	"context"
+	"fmt"
 	"strings"
 	"time"
 
@@ -27,6 +28,29 @@ var (
 	// ErrTagNotFound 标签不存在。
 	ErrTagNotFound = apperr.New(apperr.CodeTagNotFound)
 )
+
+// TagInUseError 是"标签仍被文章引用，不能删除"。
+//
+// 为什么不用 apperr.New 的固定文案：管理员要看到**几篇**在用，才知道这件事
+// 影响多大、该不该直接停用；只说"有引用"，他还得自己去数。
+// 错误码仍然只有一个（apperr.CodeTagInUse），前端按码分支、按文案展示。
+type TagInUseError struct {
+	count int
+}
+
+// NewTagInUseError 构造"标签被引用"错误。
+func NewTagInUseError(count int) *TagInUseError { return &TagInUseError{count: count} }
+
+// Count 返回引用该标签的文章数。
+func (e *TagInUseError) Count() int { return e.count }
+
+// Error 返回面向管理员的文案（含篇数与下一步动作）。
+func (e *TagInUseError) Error() string {
+	return fmt.Sprintf("该标签已有 %d 篇文章在用，请改用停用", e.count)
+}
+
+// Unwrap 让 errors.Is / apperr.CodeOf 能拿到错误码（文案由 Error 覆盖）。
+func (e *TagInUseError) Unwrap() error { return apperr.New(apperr.CodeTagInUse) }
 
 // Category 是用户自建的分类。
 //
@@ -259,10 +283,23 @@ type TagRepository interface {
 	// FindMany 批量读取；缺失的 ID 直接跳过。
 	FindMany(ctx context.Context, ids []domain.TagID) ([]*Tag, error)
 	// List 列出标签（includeDisabled 为真时含停用项）。
+	//
+	// 返回的 ArticleCount 必须按关联表实时统计，不读 tag_models.article_count：
+	// 那一列没有任何维护者，真实数据里恒为 0，拿它显示"文章数"等于骗人。
 	List(ctx context.Context, includeDisabled bool) ([]*Tag, error)
 	// ExistsTitle 判断标题是否已存在。
 	ExistsTitle(ctx context.Context, title string, excludeID domain.TagID) (bool, error)
+	// CountArticleRefs 统计仍引用该标签的文章数（按关联表实时统计）。
+	//
+	// 删除门禁用它，而不是读实体上的 ArticleCount：读模型可能来自旧快照，
+	// 门禁必须看"此刻还有谁在用"。
+	CountArticleRefs(ctx context.Context, id domain.TagID) (int, error)
 	// Save 新建或更新。
+	//
+	// 新建时若存在**同名软删行**（title 唯一索引不含 deleted_at，删除又是软删），
+	// 实现必须恢复那一行而不是插入（房规见 platform/mysql.RestoreOrCreateUnique）：
+	// 因此新建后库里的 ID 可能不是调用方给的那个。调用方不要依赖新建时的 ID
+	// （写入接口不返回它，列表另行读取）。
 	Save(ctx context.Context, t *Tag) error
 	// Delete 删除标签及其文章关联。
 	Delete(ctx context.Context, id domain.TagID) error

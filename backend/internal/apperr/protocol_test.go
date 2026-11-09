@@ -104,6 +104,10 @@ var serviceFallbackCodes = []apperr.Code{
 	apperr.CodeCategoryNotFound,
 	apperr.CodeTagNotFound,
 	apperr.CodeTagDisabled,
+	// 标签删除门禁（票 322）：不是"你传错了参数"，是"这条标签现在不能删"。
+	// 管理员的正确动作是改用停用，重发一次请求修不好它，所以按服务兜底类别，
+	// 与同一组其它标签错误码保持一致（前端只读文案，不按 1001/1002 分支）。
+	apperr.CodeTagInUse,
 
 	// 收藏。
 	apperr.CodeFavoriteTitleRequired,

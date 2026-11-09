@@ -370,3 +370,119 @@ func TestCreateArticleWithFreshlyCreatedCategory(t *testing.T) {
 		t.Fatalf("文章分类应为新建分类 %s，实际 %v", categoryID, a.CategoryID())
 	}
 }
+
+// ── 分类的删除与归属（票 325）──
+//
+// 删除分类不是"删掉一个标签"：它是把 N 篇文章从"属于某分类"改成"未分类"，
+// 文章本身必须还在。所以这里断言的是文章侧的结果，而不是分类行没了。
+
+// seedCategorizedArticle 预置一篇挂在指定分类下的文章。
+func seedCategorizedArticle(t *testing.T, repos *apptest.Repos, id uint64, categoryID domain.CategoryID) *domain.Article {
+	t.Helper()
+	a := apptest.NewArticle().
+		ID(ctype.NewID(id)).
+		Author(author).
+		Status(domain.StatusPublished).
+		Category(categoryID).
+		Build()
+	repos.FakeArticles().Seed(a)
+	return a
+}
+
+func TestDeleteCategoryTurnsItsArticlesIntoUncategorized(t *testing.T) {
+	t.Parallel()
+
+	svc, repos, tx := newService(t)
+	ctx := context.Background()
+	doomed := newAuthorCategory(domain.CategoryID(ctype.NewID(7)), author, "要删掉的分类")
+	kept := newAuthorCategory(domain.CategoryID(ctype.NewID(8)), author, "留着的分类")
+	repos.FakeCategories().Seed(doomed, kept)
+
+	first := seedCategorizedArticle(t, repos, 11, doomed.ID())
+	second := seedCategorizedArticle(t, repos, 12, doomed.ID())
+	untouched := seedCategorizedArticle(t, repos, 13, kept.ID())
+
+	deleted, err := svc.DeleteCategories(ctx, authorViewer(), []domain.CategoryID{doomed.ID()})
+	if err != nil {
+		t.Fatalf("删除自己的分类应成功，实际 %v", err)
+	}
+	if deleted != 1 {
+		t.Fatalf("应报告删除 1 条，实际 %d", deleted)
+	}
+
+	// 文章还在，只是不再属于任何分类。
+	for _, a := range []*domain.Article{first, second} {
+		stored, err := repos.FakeArticles().Find(ctx, a.ID())
+		if err != nil {
+			t.Fatalf("文章 %s 不该消失: %v", a.ID(), err)
+		}
+		if stored.CategoryID() != nil {
+			t.Fatalf("文章 %s 应变成未分类，实际仍是 %s", a.ID(), *stored.CategoryID())
+		}
+	}
+	// 别的分类下的文章不受影响。
+	stored, err := repos.FakeArticles().Find(ctx, untouched.ID())
+	if err != nil {
+		t.Fatalf("别的分类下的文章读不到: %v", err)
+	}
+	if stored.CategoryID() == nil || *stored.CategoryID() != kept.ID() {
+		t.Fatalf("别的分类下的文章不该被置空，实际 %v", stored.CategoryID())
+	}
+	// 分类本身没了。
+	if _, err := repos.FakeCategories().Find(ctx, doomed.ID()); !errors.Is(err, taxonomy.ErrCategoryNotFound) {
+		t.Fatalf("删除后应查不到该分类，实际 %v", err)
+	}
+	if tx.Commits() != 1 {
+		t.Fatalf("删除应在一次事务内完成，实际提交 %d 次", tx.Commits())
+	}
+}
+
+func TestDeleteCategoryRejectsSomeoneElsesCategory(t *testing.T) {
+	t.Parallel()
+
+	svc, repos, tx := newService(t)
+	ctx := context.Background()
+	foreign := newAuthorCategory(domain.CategoryID(ctype.NewID(9)), stranger, "别人的分类")
+	repos.FakeCategories().Seed(foreign)
+	a := seedCategorizedArticle(t, repos, 14, foreign.ID())
+
+	deleted, err := svc.DeleteCategories(ctx, authorViewer(), []domain.CategoryID{foreign.ID()})
+	if !errors.Is(err, taxonomy.ErrCategoryNotFound) {
+		t.Fatalf("删别人的分类应被拒绝，实际 err=%v", err)
+	}
+	if deleted != 0 {
+		t.Fatalf("被拒的删除不应报告删除条数，实际 %d", deleted)
+	}
+	if _, findErr := repos.FakeCategories().Find(ctx, foreign.ID()); findErr != nil {
+		t.Fatalf("被拒的删除不能真的删掉别人的分类: %v", findErr)
+	}
+	// 整单回滚：别人的文章也不该被顺手改成未分类。
+	if stored, findErr := repos.FakeArticles().Find(ctx, a.ID()); findErr != nil ||
+		stored.CategoryID() == nil || *stored.CategoryID() != foreign.ID() {
+		t.Fatalf("被拒的删除不该动文章归属，实际 %v err=%v", stored.CategoryID(), findErr)
+	}
+	if tx.Commits() != 0 || tx.Rollbacks() != 1 {
+		t.Fatalf("被拒的删除应回滚事务，实际 commits=%d rollbacks=%d", tx.Commits(), tx.Rollbacks())
+	}
+}
+
+func TestSaveCategoryCannotRenameSomeoneElsesCategory(t *testing.T) {
+	t.Parallel()
+
+	svc, repos, _ := newService(t)
+	ctx := context.Background()
+	foreign := newAuthorCategory(domain.CategoryID(ctype.NewID(10)), stranger, "别人的分类")
+	repos.FakeCategories().Seed(foreign)
+
+	_, err := svc.SaveCategory(ctx, authorViewer(), foreign.ID(), "改个名字")
+	if !errors.Is(err, taxonomy.ErrCategoryNotFound) {
+		t.Fatalf("改别人的分类应被拒绝，实际 %v", err)
+	}
+	stored, findErr := repos.FakeCategories().Find(ctx, foreign.ID())
+	if findErr != nil {
+		t.Fatalf("被拒的改名不该动别人的分类: %v", findErr)
+	}
+	if stored.Title() != "别人的分类" {
+		t.Fatalf("被拒的改名不该落库，实际 %q", stored.Title())
+	}
+}

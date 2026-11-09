@@ -5,6 +5,7 @@ package http_test
 import (
 	"fmt"
 	"net/http"
+	"strings"
 	"testing"
 
 	"gorm.io/gorm"
@@ -28,6 +29,7 @@ func TestSubdomainEndpointsEndToEnd(t *testing.T) {
 	author := newRouterWithIDs(t, db, domain.NormalUser(ctype.NewID(100)), 1000)
 	reader := newRouterWithIDs(t, db, domain.NormalUser(ctype.NewID(200)), 2000)
 	admin := newRouterWithIDs(t, db, domain.AdminUser(ctype.NewID(900)), 3000)
+	anon := newRouterWithIDs(t, db, domain.Anonymous(), 4000)
 
 	// ── 分类：建 → 列表 → 删 ──
 	respCode(t, do(t, author, http.MethodPost, "/api/articles/category",
@@ -50,6 +52,51 @@ func TestSubdomainEndpointsEndToEnd(t *testing.T) {
 	}
 	respCode(t, do(t, admin, http.MethodDelete, "/api/articles/tags",
 		[]byte(fmt.Sprintf(`{"id_list":[%s]}`, tagID))), "删标签")
+
+	// ── 标签的「包含停用」只对管理员生效（票 323）──
+	// 标签公开读保留（发布页要选标签），但停用项属于管理视图：匿名与普通用户
+	// 即使显式传 include_disabled 也只拿到启用项，且不报错。
+	respCode(t, do(t, admin, http.MethodPut, "/api/articles/tags",
+		[]byte(`{"title":"端到端启用标签","sort":8}`)), "建启用标签")
+	respCode(t, do(t, admin, http.MethodPut, "/api/articles/tags",
+		[]byte(`{"title":"端到端停用标签","sort":9,"is_enabled":false}`)), "建停用标签")
+	const disabledTitle = "端到端停用标签"
+	tagsWithDisabledURL := "/api/articles/tags?include_disabled=1"
+
+	// 管理员：停用项可见。
+	if findIDByTitle(listOf(t, do(t, admin, http.MethodGet, tagsWithDisabledURL, nil)), disabledTitle) == "" {
+		t.Fatal("管理员带 include_disabled 应看到停用标签")
+	}
+	// 匿名：降级成只返回启用项（不报错）。
+	if findIDByTitle(listOf(t, do(t, anon, http.MethodGet, tagsWithDisabledURL, nil)), disabledTitle) != "" {
+		t.Fatal("匿名带 include_disabled 不应看到停用标签")
+	}
+	// 普通用户：同样降级。
+	if findIDByTitle(listOf(t, do(t, reader, http.MethodGet, tagsWithDisabledURL, nil)), disabledTitle) != "" {
+		t.Fatal("普通用户带 include_disabled 不应看到停用标签")
+	}
+
+	// 公开读本身不能被这次收紧弄坏：匿名不带参数照样读到启用项。
+	anonTags := listOf(t, do(t, anon, http.MethodGet, "/api/articles/tags", nil))
+	if findIDByTitle(anonTags, "端到端启用标签") == "" {
+		t.Fatal("匿名默认标签列表缺启用项")
+	}
+	if findIDByTitle(anonTags, disabledTitle) != "" {
+		t.Fatal("匿名默认标签列表不应含停用项")
+	}
+	// 分类公开读同理（个人主页要展示分类）。
+	respCode(t, do(t, anon, http.MethodGet, "/api/articles/category?user_id=100", nil), "匿名读分类")
+
+	// 清理标签，避免影响后续子域断言。
+	allTags := listOf(t, do(t, admin, http.MethodGet, tagsWithDisabledURL, nil))
+	cleanupIDs := make([]string, 0, 2)
+	for _, title := range []string{"端到端启用标签", disabledTitle} {
+		if id := findIDByTitle(allTags, title); id != "" {
+			cleanupIDs = append(cleanupIDs, id)
+		}
+	}
+	respCode(t, do(t, admin, http.MethodDelete, "/api/articles/tags",
+		[]byte(fmt.Sprintf(`{"id_list":[%s]}`, strings.Join(cleanupIDs, ",")))), "删标签（鉴权用例）")
 
 	// ── 收藏夹：建 → 列表 → 删 ──
 	respCode(t, do(t, author, http.MethodPut, "/api/articles/favorite",
@@ -190,6 +237,245 @@ func TestSubdomainEndpointsEndToEnd(t *testing.T) {
 	if code, _ := gone["code"].(float64); code == 0 {
 		t.Fatalf("删除后仍能读到文章: %v", gone)
 	}
+}
+
+// TestTagAdminLifecycleEndToEnd 是后台「标签管理」页依赖的三条语义（票 322），
+// 走真路由 + 真 MySQL 验证：
+//
+//  1. 删除门禁：被文章引用的标签删不掉，提示里带篇数并建议改用停用；
+//  2. 编辑是读—改—写：只传标题时排序 / 描述 / 启用状态保持原值
+//     （停用的标签不会被悄悄放回全站可选）；
+//  3. 软删后同名重建能成功（title 唯一索引不含 deleted_at，裸 INSERT 会 1062）。
+func TestTagAdminLifecycleEndToEnd(t *testing.T) {
+	db := migrate(t)
+	seedGoldenUser(t, db, 100, "tag_author", "标签作者", "", "", schema.RoleUser)
+	seedGoldenUser(t, db, 900, "tag_admin", "标签管理员", "", "", schema.RoleAdmin)
+
+	author := newRouterWithIDs(t, db, domain.NormalUser(ctype.NewID(100)), 1000)
+	admin := newRouterWithIDs(t, db, domain.AdminUser(ctype.NewID(900)), 3000)
+
+	// ── 新建：排序与描述一起写入 ──
+	respCode(t, do(t, admin, http.MethodPut, "/api/articles/tags",
+		[]byte(`{"title":"端到端标签","sort":7,"description":"标签描述"}`)), "建标签")
+	tagID := findIDByTitle(listOf(t, do(t, admin, http.MethodGet, "/api/articles/tags", nil)), "端到端标签")
+	if tagID == "" {
+		t.Fatal("标签列表缺新标签")
+	}
+
+	// ── 建一篇草稿并打上这个标签：它就成了"被引用的标签" ──
+	created := do(t, author, http.MethodPost, "/api/articles",
+		[]byte(fmt.Sprintf(`{"title":"带标签的文章","content":"正文","status":1,"tag_ids":[%s]}`, tagID)))
+	respCode(t, created, "建带标签的文章")
+	articleID := dataOf(t, created)["id"].(string)
+
+	// ── 删除被拒：可读文案（篇数 + 建议停用），标签原封不动 ──
+	rejected := do(t, admin, http.MethodDelete, "/api/articles/tags",
+		[]byte(fmt.Sprintf(`{"id_list":[%s]}`, tagID)))
+	if code, _ := rejected["code"].(float64); code == 0 {
+		t.Fatalf("被文章引用的标签不应允许删除: %v", rejected)
+	}
+	msg, _ := rejected["msg"].(string)
+	for _, want := range []string{"1 篇文章在用", "停用"} {
+		if !strings.Contains(msg, want) {
+			t.Fatalf("删除被拒的提示应包含 %q，实际 %q", want, msg)
+		}
+	}
+	if findIDByTitle(listOf(t, do(t, admin, http.MethodGet, "/api/articles/tags", nil)), "端到端标签") == "" {
+		t.Fatal("被拒的删除不该把标签删掉")
+	}
+
+	// ── 编辑只传标题：排序与描述保持原值，仍然启用 ──
+	respCode(t, do(t, admin, http.MethodPut, "/api/articles/tags",
+		[]byte(fmt.Sprintf(`{"id":%s,"title":"端到端标签改"}`, tagID))), "只改标题")
+	row := findRowByTitle(t, listOf(t, do(t, admin, http.MethodGet,
+		"/api/articles/tags?include_disabled=true", nil)), "端到端标签改")
+	if row == nil {
+		t.Fatal("改名后列表里找不到标签")
+	}
+	if got, _ := row["sort"].(float64); got != 7 {
+		t.Fatalf("没传排序时应保留 7，实际 %v", row["sort"])
+	}
+	if row["description"] != "标签描述" {
+		t.Fatalf("没传描述时应保留「标签描述」，实际 %v", row["description"])
+	}
+	if enabled, _ := row["is_enabled"].(bool); !enabled {
+		t.Fatal("没传启用状态时不该把启用标签改成停用")
+	}
+
+	// ── 停用后从发布页下拉（只含启用项）里消失 ──
+	respCode(t, do(t, admin, http.MethodPut, "/api/articles/tags",
+		[]byte(fmt.Sprintf(`{"id":%s,"title":"端到端标签改","is_enabled":false}`, tagID))), "停用标签")
+	if id := findIDByTitle(listOf(t, do(t, admin, http.MethodGet,
+		"/api/articles/tags/options", nil)), "端到端标签改"); id != "" {
+		t.Fatalf("停用标签不该出现在发布页下拉里（%s）", id)
+	}
+
+	// ── 再编辑一次（只传标题）：仍是停用 ──
+	respCode(t, do(t, admin, http.MethodPut, "/api/articles/tags",
+		[]byte(fmt.Sprintf(`{"id":%s,"title":"端到端标签改2"}`, tagID))), "编辑停用标签")
+	row = findRowByTitle(t, listOf(t, do(t, admin, http.MethodGet,
+		"/api/articles/tags?include_disabled=true", nil)), "端到端标签改2")
+	if row == nil {
+		t.Fatal("编辑停用标签后列表里找不到它")
+	}
+	if enabled, _ := row["is_enabled"].(bool); enabled {
+		t.Fatal("编辑停用标签不该把它悄悄放回全站可选")
+	}
+
+	// ── 删掉文章之后它就零引用了：此时删除应当放行 ──
+	respCode(t, do(t, author, http.MethodDelete, "/api/articles/"+articleID, nil), "删文章")
+	respCode(t, do(t, admin, http.MethodDelete, "/api/articles/tags",
+		[]byte(fmt.Sprintf(`{"id_list":[%s]}`, tagID))), "删零引用标签")
+
+	// ── 软删后同名重建：成功，且列表里只有一条（恢复软删行，不新增） ──
+	respCode(t, do(t, admin, http.MethodPut, "/api/articles/tags",
+		[]byte(`{"title":"端到端标签改2","sort":1}`)), "同名重建标签")
+	rows := listOf(t, do(t, admin, http.MethodGet, "/api/articles/tags?include_disabled=true", nil))
+	same := 0
+	for _, it := range rows {
+		if it["title"] == "端到端标签改2" {
+			same++
+		}
+	}
+	if same != 1 {
+		t.Fatalf("同名重建后列表里应只有一条，实际 %d 条", same)
+	}
+
+	// ── 标题重复：可读文案，不是 MySQL 1062 原文 ──
+	dup := do(t, admin, http.MethodPut, "/api/articles/tags", []byte(`{"title":"端到端标签改2"}`))
+	if code, _ := dup["code"].(float64); code == 0 {
+		t.Fatalf("重复标题应被拒绝，实际成功: %v", dup)
+	}
+	if dup["msg"] != "名称重复" {
+		t.Fatalf("重复标题的提示应为「名称重复」，实际 %v", dup["msg"])
+	}
+}
+
+// TestCategoryManageLifecycleEndToEnd 是票 325 的端到端验收，走真路由 + 真 MySQL：
+//
+//	"建分类 → 挂文章 → 改名 → 删分类 → 文章变未分类 → 同名重建成功"
+//
+// 外加三条边界：两人各自的同名分类互不影响、改 / 删他人的分类被拒绝、
+// 分类名首尾空白被忽略。
+func TestCategoryManageLifecycleEndToEnd(t *testing.T) {
+	db := migrate(t)
+	seedGoldenUser(t, db, 100, "cat_author", "分类作者", "", "", schema.RoleUser)
+	seedGoldenUser(t, db, 200, "cat_other", "另一个作者", "", "", schema.RoleUser)
+
+	author := newRouterWithIDs(t, db, domain.NormalUser(ctype.NewID(100)), 1000)
+	other := newRouterWithIDs(t, db, domain.NormalUser(ctype.NewID(200)), 2000)
+	anon := newRouterWithIDs(t, db, domain.Anonymous(), 4000)
+
+	categoryPath := "/api/articles/category?user_id=100"
+
+	// ── 新建：首尾空白被忽略，列表里是去空白后的名字 ──
+	respCode(t, do(t, author, http.MethodPost, "/api/articles/category",
+		[]byte(`{"title":"  端到端分类  "}`)), "建分类")
+	catID := findIDByTitle(listOf(t, do(t, author, http.MethodGet, categoryPath, nil)), "端到端分类")
+	if catID == "" {
+		t.Fatal("分类列表缺新分类（或标题没去空白）")
+	}
+
+	// ── 挂一篇文章上去 ──
+	created := do(t, author, http.MethodPost, "/api/articles",
+		[]byte(fmt.Sprintf(`{"title":"带分类的文章","content":"正文","status":1,"category_id":%s}`, catID)))
+	respCode(t, created, "建带分类的文章")
+	articleID := dataOf(t, created)["id"].(string)
+	detailPath := "/api/articles/" + articleID
+
+	detail := dataOf(t, do(t, author, http.MethodGet, detailPath, nil))
+	if detail["category_name"] != "端到端分类" {
+		t.Fatalf("详情应显示分类「端到端分类」，实际 %v", detail["category_name"])
+	}
+
+	// ── 改名：列表与文章详情都跟着变 ──
+	respCode(t, do(t, author, http.MethodPost, "/api/articles/category",
+		[]byte(fmt.Sprintf(`{"id":%s,"title":"端到端分类-改名"}`, catID))), "分类改名")
+	if id := findIDByTitle(listOf(t, do(t, author, http.MethodGet, categoryPath, nil)), "端到端分类-改名"); id != catID {
+		t.Fatalf("改名后列表应显示新名字且是同一条（%s），实际 %q", catID, id)
+	}
+	detail = dataOf(t, do(t, author, http.MethodGet, detailPath, nil))
+	if detail["category_name"] != "端到端分类-改名" {
+		t.Fatalf("改名后文章详情应显示新名字，实际 %v", detail["category_name"])
+	}
+
+	// ── 删分类：文章不消失，变成未分类 ──
+	respCode(t, do(t, author, http.MethodDelete, "/api/articles/category",
+		[]byte(fmt.Sprintf(`{"id_list":[%s]}`, catID))), "删分类")
+	if id := findIDByTitle(listOf(t, do(t, author, http.MethodGet, categoryPath, nil)), "端到端分类-改名"); id != "" {
+		t.Fatalf("删除后分类列表里不该再有它（%s）", id)
+	}
+	detailResp := do(t, author, http.MethodGet, detailPath, nil)
+	respCode(t, detailResp, "删除分类后读文章详情")
+	detail = dataOf(t, detailResp)
+	if detail["category_id"] != nil {
+		t.Fatalf("删除分类后文章应变成未分类，实际 category_id=%v", detail["category_id"])
+	}
+	if detail["category_name"] != "" {
+		t.Fatalf("删除分类后详情不该再显示分类名，实际 %v", detail["category_name"])
+	}
+
+	// ── 同名重建：成功，且恢复的是原来那条（保留原 ID） ──
+	respCode(t, do(t, author, http.MethodPost, "/api/articles/category",
+		[]byte(`{"title":"端到端分类-改名"}`)), "同名重建分类")
+	rows := listOf(t, do(t, author, http.MethodGet, categoryPath, nil))
+	same := make([]string, 0, 1)
+	for _, it := range rows {
+		if it["title"] == "端到端分类-改名" {
+			same = append(same, it["id"].(string))
+		}
+	}
+	if len(same) != 1 {
+		t.Fatalf("同名重建后列表里应只有一条，实际 %d 条", len(same))
+	}
+	if same[0] != catID {
+		t.Fatalf("恢复应保留原 ID %s，实际 %s", catID, same[0])
+	}
+
+	// ── 两个用户各有同名分类：互不冲突，也互相看不到 ──
+	respCode(t, do(t, other, http.MethodPost, "/api/articles/category",
+		[]byte(`{"title":"端到端分类-改名"}`)), "另一个作者用同名分类")
+	otherID := findIDByTitle(listOf(t, do(t, other, http.MethodGet,
+		"/api/articles/category?user_id=200", nil)), "端到端分类-改名")
+	if otherID == "" || otherID == catID {
+		t.Fatalf("另一位作者应拥有自己的一条同名分类，实际 %q", otherID)
+	}
+	if id := findIDByTitle(listOf(t, do(t, anon, http.MethodGet, categoryPath, nil)), "端到端分类-改名"); id != catID {
+		t.Fatalf("匿名读作者主页分类应看到作者自己那条（%s），实际 %q", catID, id)
+	}
+
+	// ── 改 / 删他人的分类被拒绝，且什么都没发生 ──
+	renamed := do(t, other, http.MethodPost, "/api/articles/category",
+		[]byte(fmt.Sprintf(`{"id":%s,"title":"偷改别人的分类"}`, catID)))
+	if code, _ := renamed["code"].(float64); code == 0 {
+		t.Fatalf("改别人的分类应被拒绝，实际成功: %v", renamed)
+	}
+	removed := do(t, other, http.MethodDelete, "/api/articles/category",
+		[]byte(fmt.Sprintf(`{"id_list":[%s]}`, catID)))
+	if code, _ := removed["code"].(float64); code == 0 {
+		t.Fatalf("删别人的分类应被拒绝，实际成功: %v", removed)
+	}
+	if id := findIDByTitle(listOf(t, do(t, author, http.MethodGet, categoryPath, nil)), "端到端分类-改名"); id != catID {
+		t.Fatalf("被拒的改 / 删不该动作者自己的分类，实际 %q", id)
+	}
+
+	// ── 匿名看不到写操作（写接口都在登录组）：直接调会被拒 ──
+	anonSave := do(t, anon, http.MethodPost, "/api/articles/category",
+		[]byte(`{"title":"匿名分类"}`))
+	if code, _ := anonSave["code"].(float64); code == 0 {
+		t.Fatalf("匿名建分类应被拒绝，实际成功: %v", anonSave)
+	}
+}
+
+// findRowByTitle 在列表里按 title 找整行（找不到返回 nil）。
+func findRowByTitle(t *testing.T, items []map[string]any, title string) map[string]any {
+	t.Helper()
+	for _, it := range items {
+		if it["title"] == title {
+			return it
+		}
+	}
+	return nil
 }
 
 // respCode 断言业务 code 为 0。

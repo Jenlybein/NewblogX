@@ -11,6 +11,7 @@ import (
 	"myblogx/internal/article/domain/taxonomy"
 	"myblogx/internal/kernel/ctype"
 	"myblogx/internal/platform/idgen"
+	platformmysql "myblogx/internal/platform/mysql"
 )
 
 // CategoryRepo 是 taxonomy.CategoryRepository 的 MySQL 实现。
@@ -89,36 +90,78 @@ func (r *CategoryRepo) ExistsTitle(ctx context.Context, userID domain.UserID, ti
 	return n > 0, nil
 }
 
-// Save 新建或更新（upsert）。
+// Save 新建或更新分类。
 //
-// 先按 ID 更新，影响 0 行说明库里没有，再插入。不用 GORM 的 Save：
-// 它会用主键判断存在性并可能触发全字段覆盖，对软删表容易踩坑。
+// 存在性显式判定，不看 RowsAffected：MySQL 对"值没变"的 UPDATE 返回 0 行变更，
+// 把它当成"行不存在"就会去 INSERT，然后撞上自己那行、被翻成「名称重复」——
+// 一次什么都没改的保存（个人主页弹窗只点了保存）就被拒了。
+//
+// 新建走平台的 RestoreOrCreateUnique（match = UserID + Title）：
+// (user_id, title) 上是**不含** deleted_at 的唯一索引，而删除是软删，裸 INSERT 会让
+// "删掉一个分类之后再建同名"永远得到 1062。房规（ADR-0036 约束 1）是恢复那条
+// 软删行、保留原 ID，与点赞 / 标签一致。
 func (r *CategoryRepo) Save(ctx context.Context, c *taxonomy.Category) error {
 	id := ctype.ID(c.ID())
-	updates := r.db.WithContext(ctx).Model(&categoryRow{}).
-		Where("id = ?", id).
-		Updates(map[string]any{"title": c.Title(), "user_id": fromUserID(c.UserID())})
-	if updates.Error != nil {
-		return categorySaveError(updates.Error)
-	}
-	if updates.RowsAffected > 0 {
-		return nil
-	}
-	return categorySaveError(r.db.WithContext(ctx).Create(&categoryRow{
+	return saveUniqueWithRestore(ctx, r.db, &categoryRow{}, id, &categoryRow{
 		BaseRow: BaseRow{ID: id},
 		Title:   c.Title(),
 		UserID:  fromUserID(c.UserID()),
-	}).Error)
+	}, map[string]any{
+		"title":   c.Title(),
+		"user_id": fromUserID(c.UserID()),
+	}, []string{"UserID", "Title"})
 }
 
-// categorySaveError 把底层唯一键冲突翻译成领域错误。
+// saveUniqueWithRestore 是"唯一索引 + 软删"实体在 Save 里的统一写法。
+//
+// 分类与标签的 Save 只差三样东西：写哪张表、匹配键是哪几列、恢复/更新时要写回
+// 哪些字段；中间的判断是同一件事，此前在两个仓储里各写了一遍（连
+// `liveExists` 与"1062 翻译"都是两份），一处修另一处漏（标签侧就漏过）。
+//
+// 三条语义：
+//  1. **活行存在就走 UPDATE**，不看 RowsAffected（理由见两个 Save 的注释）；
+//  2. **活行不存在就交给平台助手**：先恢复同名软删行（保留原 ID），再插入；
+//  3. 助手返回 `false` 表示"没恢复、插入又撞了唯一键"——对调用方就是
+//     「名称重复」。把它当成功吞掉，用户会看到"保存成功"但库里什么都没有。
+//
+// `table` 只用来定位表与软删作用域（传零值行即可）；`row` 是这次要写入的字段
+// （恢复与插入共用），`update` 是命中活行时更新的列。
+func saveUniqueWithRestore[T any](
+	ctx context.Context,
+	db *gorm.DB,
+	table any,
+	id ctype.ID,
+	row *T,
+	update map[string]any,
+	match []string,
+) error {
+	var live int64
+	if err := db.WithContext(ctx).Model(table).Where("id = ?", id).Count(&live).Error; err != nil {
+		return err
+	}
+	if live == 0 {
+		restored, err := platformmysql.RestoreOrCreateUnique(db.WithContext(ctx), row, match)
+		if err != nil {
+			return taxonomySaveError(err)
+		}
+		if !restored {
+			return taxonomy.ErrTitleDuplicated
+		}
+		return nil
+	}
+	return taxonomySaveError(db.WithContext(ctx).Model(table).
+		Where("id = ?", id).
+		Updates(update).Error)
+}
+
+// taxonomySaveError 把底层唯一键冲突翻译成领域错误（分类与标签共用）。
 //
 // 应用层虽然先做了 ExistsTitle 查重，但两个并发请求仍可能同时通过查重，
-// 最后由 (user_id, title) 上的 uk_category_user_title 拒绝后一次写入。
-// 如果不在这里翻译，handler 会把 gorm.ErrDuplicatedKey 原样透传，
+// 最后由唯一索引（分类 `uk_category_user_title` / 标签 `idx_tag_models_title`）
+// 拒绝后一次写入。如果不在这里翻译，handler 会把 gorm.ErrDuplicatedKey 原样透传，
 // 用户看到的会是 "duplicated key not allowed" / MySQL 1062，
 // 而不是 apperr 消息表里的 "名称重复"。
-func categorySaveError(err error) error {
+func taxonomySaveError(err error) error {
 	if err == nil {
 		return nil
 	}
@@ -129,7 +172,29 @@ func categorySaveError(err error) error {
 }
 
 // Delete 删除分类。
+//
+// 两步，顺序不得颠倒（ADR-0036 约束 3）：
+//  1. 先把挂在该分类下的文章 `category_id` 置空 —— 那列上有外键指向分类表，
+//     但删除是软删，外键永远不会触发；不显式置空，文章就会继续指着一个
+//     已经"不存在"的分类（详情页仍显示它、列表按它筛出空结果）。
+//  2. 再软删分类本身。
+//
+// 两步共用调用方的事务句柄（UseCase 的 WithinTx 现场构造本仓储），
+// 因此中途失败不会留下"文章已解绑、分类还在"或反过来的半截状态。
+// 置空会经 binlog 触发搜索投影重算（ADR-0009），不需要补偿任务。
+//
+// 两条容易写错的边界（ADR-0036 决策 6 / 已知限制）：
+//   - **回收站里的文章保留分类归属**：软删作用域让它们不参与这次置空，这是有意的。
+//     删除是软删、同名重建会恢复同一行分类，归属随之回来；顺手清掉反而丢信息。
+//   - **不写 `updated_at`**：用 `UpdateColumn` 而不是 `Updates`。后者会顺带把
+//     updated_at 刷成现在（GORM 的自动时间戳），于是所有原属该分类的文章在
+//     详情页上集体显示一个新的"更新于"——用户只是删了个分类，文章并没改。
 func (r *CategoryRepo) Delete(ctx context.Context, id domain.CategoryID) error {
+	if err := r.db.WithContext(ctx).Model(&articleRow{}).
+		Where("category_id = ?", ctype.ID(id)).
+		UpdateColumn("category_id", nil).Error; err != nil {
+		return err
+	}
 	return r.db.WithContext(ctx).Delete(&categoryRow{}, "id = ?", ctype.ID(id)).Error
 }
 
@@ -174,13 +239,21 @@ func (r *TagRepo) FindMany(ctx context.Context, ids []domain.TagID) ([]*taxonomy
 }
 
 // List 列出标签。
+//
+// 文章数按关联表实时统计（子查询），不读 tag_models.article_count：
+// 那一列没有任何维护者，真实数据里恒为 0；后台标签页与删除门禁必须看到同一个数。
 func (r *TagRepo) List(ctx context.Context, includeDisabled bool) ([]*taxonomy.Tag, error) {
-	q := r.db.WithContext(ctx).Model(&tagRow{})
+	// 用 Table 而不是 Model：这里的 select 带聚合子查询，且软删条件要显式写
+	// （Table 不会自动补 deleted_at IS NULL）。
+	q := r.db.WithContext(ctx).
+		Table("tag_models AS t").
+		Select("t.*, " + tagArticleRefCountSQL("t.id") + " AS article_count").
+		Where("t.deleted_at IS NULL")
 	if !includeDisabled {
-		q = q.Where("is_enabled = ?", true)
+		q = q.Where("t.is_enabled = ?", true)
 	}
 	var rows []tagRow
-	if err := q.Order("sort desc, id asc").Find(&rows).Error; err != nil {
+	if err := q.Order("t.sort desc, t.id asc").Scan(&rows).Error; err != nil {
 		return nil, err
 	}
 	out := make([]*taxonomy.Tag, 0, len(rows))
@@ -188,6 +261,30 @@ func (r *TagRepo) List(ctx context.Context, includeDisabled bool) ([]*taxonomy.T
 		out = append(out, toDomainTag(m))
 	}
 	return out, nil
+}
+
+// tagArticleRefCountSQL 是"该标签当前被多少篇文章引用"的实时统计子查询。
+//
+// 只把没被软删的文章算进去：文章删了链接行会留下（关联表是硬删，但删除路径
+// 不做级联清理），把已删文章的链接算成引用会让标签永远删不掉。
+// 关联表的 deleted_at 列在各环境并不一致，所以刻意不筛它（见 ReplaceArticleTags）。
+func tagArticleRefCountSQL(tagIDColumn string) string {
+	return "(SELECT COUNT(*) FROM article_tag_models atg " +
+		"JOIN article_models a ON a.id = atg.article_id " +
+		"WHERE atg.tag_id = " + tagIDColumn + " AND a.deleted_at IS NULL)"
+}
+
+// CountArticleRefs 统计仍引用该标签的文章数。
+func (r *TagRepo) CountArticleRefs(ctx context.Context, id domain.TagID) (int, error) {
+	var n int64
+	if err := r.db.WithContext(ctx).
+		Table("article_tag_models AS atg").
+		Joins("JOIN article_models AS a ON a.id = atg.article_id").
+		Where("atg.tag_id = ? AND a.deleted_at IS NULL", ctype.ID(id)).
+		Count(&n).Error; err != nil {
+		return 0, err
+	}
+	return int(n), nil
 }
 
 // ExistsTitle 判断标签名是否重复。
@@ -203,34 +300,37 @@ func (r *TagRepo) ExistsTitle(ctx context.Context, title string, excludeID domai
 	return n > 0, nil
 }
 
-// Save 新建或更新标签（upsert，语义同分类）。
+// Save 新建或更新标签（判断形状与分类共用 saveUniqueWithRestore）。
+//
+// 存在性显式判定，不看 RowsAffected：MySQL 对"值没变"的 UPDATE 返回 0 行变更，
+// 把它当成"行不存在"就会去 INSERT，然后撞上自己那行、被翻成「名称重复」——
+// 一次什么都没改的编辑（后台弹窗只点了保存）就被拒了。
+//
+// 新建走平台的 RestoreOrCreateUnique（match = Title）：title 上是**不含**
+// deleted_at 的唯一索引，而删除是软删，裸 INSERT 会让"删掉一个零引用标签
+// 之后再建同名"永远得到 1062。房规与点赞 / 收藏一致：软删行视为
+// "这个名字以前存在过"，恢复它（保留原 ID），不再新建。
 func (r *TagRepo) Save(ctx context.Context, t *taxonomy.Tag) error {
 	id := ctype.ID(t.ID())
-	updates := r.db.WithContext(ctx).Model(&tagRow{}).
-		Where("id = ?", id).
-		Updates(map[string]any{
-			"title":       t.Title(),
-			"sort":        t.Sort(),
-			"description": t.Description(),
-			"is_enabled":  t.Enabled(),
-		})
-	if updates.Error != nil {
-		return updates.Error
-	}
-	if updates.RowsAffected > 0 {
-		return nil
-	}
-	return r.db.WithContext(ctx).Create(&tagRow{
+	return saveUniqueWithRestore(ctx, r.db, &tagRow{}, id, &tagRow{
 		BaseRow:     BaseRow{ID: id},
 		Title:       t.Title(),
 		Sort:        t.Sort(),
 		Description: t.Description(),
 		IsEnabled:   t.Enabled(),
 		CreatedBy:   fromUserID(t.CreatedBy()),
-	}).Error
+	}, map[string]any{
+		"title":       t.Title(),
+		"sort":        t.Sort(),
+		"description": t.Description(),
+		"is_enabled":  t.Enabled(),
+	}, []string{"Title"})
 }
 
-// Delete 删除标签及关联（TagModel 自带 BeforeDelete 清理 article_tag）。
+// Delete 软删标签。
+//
+// 关联表不在这里清理：删除门禁（Service.DeleteTags）已经保证被引用时不会走到这，
+// 所以能删的标签本来就没有关联行。
 func (r *TagRepo) Delete(ctx context.Context, id domain.TagID) error {
 	return r.db.WithContext(ctx).Delete(&tagRow{}, "id = ?", ctype.ID(id)).Error
 }

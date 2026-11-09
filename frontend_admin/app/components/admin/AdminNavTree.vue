@@ -12,6 +12,7 @@ import {
   IconPin,
   IconSettings,
   IconShieldCheck,
+  IconTag,
   IconUsers,
 } from '@tabler/icons-vue'
 import type { AdminNavIcon, AdminNavMenuEntry } from '~/utils/menu'
@@ -22,6 +23,7 @@ const ICONS: Record<AdminNavIcon, Component> = {
   shield: IconShieldCheck,
   article: IconArticle,
   pin: IconPin,
+  tag: IconTag,
   users: IconUsers,
   settings: IconSettings,
   photo: IconPhoto,

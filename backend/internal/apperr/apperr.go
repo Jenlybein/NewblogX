@@ -86,6 +86,13 @@ const (
 	CodeCategoryNotFound      Code = "taxonomy.category_not_found"
 	CodeTagNotFound           Code = "taxonomy.tag_not_found"
 	CodeTagDisabled           Code = "taxonomy.tag_disabled"
+	// CodeTagInUse 是"标签仍被文章引用，删除被拒绝"（票 322）。
+	//
+	// 与 tag_not_found / tag_disabled 分开：那两个是"这条标签没了/不能用"，
+	// 这个是"它还在被用，但你改个动作（停用）就能达到目的"。
+	// 提示里要带引用篇数，所以调用点的文案由 taxonomy.TagInUseError 动态生成；
+	// 这里登记的是兜底文案（错误码表要求每个码都有可读消息）。
+	CodeTagInUse Code = "taxonomy.tag_in_use"
 )
 
 // 收藏。
@@ -486,6 +493,7 @@ var messages = map[Code]string{
 	CodeCategoryNotFound:      "分类不存在",
 	CodeTagNotFound:           "标签不存在",
 	CodeTagDisabled:           "标签不存在或已停用",
+	CodeTagInUse:              "该标签已有文章在用，请改用停用",
 
 	CodeFavoriteTitleRequired: "收藏夹名称不能为空",
 	CodeFavoriteFolderMissing: "收藏夹不存在",

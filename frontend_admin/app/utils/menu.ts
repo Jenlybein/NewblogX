@@ -26,6 +26,7 @@ export type AdminNavIcon =
   | 'shield'
   | 'article'
   | 'pin'
+  | 'tag'
   | 'users'
   | 'settings'
   | 'photo'
@@ -83,6 +84,9 @@ export const ADMIN_NAV_TREE: AdminNavNode[] = [
       { label: '合集管理', path: '/articles/collections', icon: 'article' },
       // 项目与合集并列的独立内容实体，维护页同样落在「文章管理」下。
       { label: '项目管理', path: '/articles/projects', icon: 'article' },
+      // 标签是全站词库（没有 owner、仅管理员可写）：维护页归到文章域的同一组里，
+      // 与发布页的标签下拉是"写入口 / 读入口"的两端。
+      { label: '标签管理', path: '/articles/tags', icon: 'tag' },
       // 目录树编辑器：合集与项目的收录 / 顺序 / 层次只有一个入口（#218 起）。
     ],
   },

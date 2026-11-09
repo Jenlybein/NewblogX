@@ -39,7 +39,21 @@ const props = defineProps<{
   /** 选过图之后才有定形产物尺寸（回填的旧封面没有）。 */
   coverSize: ShapeImageTarget | null;
   categoryOptions: { label: string; value: string }[];
+  /**
+   * 分类下拉加载失败的可读原因（票 320）。
+   *
+   * 空串表示这次加载没出错 —— 与"确实一个分类都没有"必须分开说，
+   * 否则用户会以为账号里没有分类，转头去重复建同名。
+   */
+  categoryError?: string;
   tagOptions: { label: string; value: string }[];
+  /**
+   * 标签下拉加载失败的可读原因。
+   *
+   * 与 `categoryError` 同一套规矩（票 320 的病根在标签侧也存在过）：
+   * 空串表示这次加载没出错，失败时必须说清是"没加载出来"，而不是空下拉。
+   */
+  tagError?: string;
   visibilityOptions: { label: string; value: string }[];
   draftLabel: string;
   publishLabel: string;
@@ -114,6 +128,18 @@ async function submitCategory() {
 v-model:value="categoryId" clearable filterable :options="props.categoryOptions || []"
                 placeholder="请选择分类" class="publish-form__control" />
 
+              <!-- 分类下拉的两种"空"（票 320）：没数据 vs 没加载出来。
+                   前者给一句能照着做的话，后者给原因 —— 都不能是一声不响的空白。 -->
+              <p
+                v-if="props.categoryError"
+                class="publish-category__hint publish-category__hint--error"
+                data-role="category-error">
+                {{ props.categoryError }}
+              </p>
+              <p v-else-if="!(props.categoryOptions || []).length" class="publish-category__hint" data-role="category-empty">
+                {{ props.canCreateCategory ? "还没有分类，点下面「+ 新建分类」创建第一个" : "还没有可选分类" }}
+              </p>
+
               <!-- 新建分类就地展开：不跳分类管理页，创建成功后自动选中（issue 127）。 -->
               <template v-if="props.canCreateCategory">
                 <div v-if="categoryCreateOpen" class="publish-category__create">
@@ -143,9 +169,16 @@ v-model:value="categoryId" clearable filterable :options="props.categoryOptions 
 
           <div class="publish-form__row">
             <label class="publish-form__label">添加标签</label>
-            <NSelect
+            <div class="publish-tags">
+              <NSelect
 v-model:value="tagIds" multiple clearable filterable max-tag-count="responsive"
-              :options="props.tagOptions || []" placeholder="请选择已有标签" class="publish-form__control" />
+                :options="props.tagOptions || []" placeholder="请选择已有标签" class="publish-form__control" />
+
+              <!-- 标签下拉的故障态（与分类同款）：接口挂了不能装成"还没有标签"。 -->
+              <p v-if="props.tagError" class="publish-tags__hint publish-tags__hint--error" data-role="tag-error">
+                {{ props.tagError }}
+              </p>
+            </div>
           </div>
 
           <div class="publish-form__row publish-form__row--top">
@@ -304,6 +337,14 @@ v-model:value="abstractText" type="textarea" maxlength="180"
   gap: 8px;
 }
 
+/* 标签下拉 + 它的故障提示：与分类同列布局（提示挂在控件下面）。 */
+.publish-tags {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 8px;
+}
+
 .publish-category__create {
   display: flex;
   align-items: center;
@@ -317,6 +358,21 @@ v-model:value="abstractText" type="textarea" maxlength="180"
 
 .publish-category__add {
   align-self: flex-start;
+}
+
+/* 分类下拉的空状态（正常态）与错误（故障态）：一句话之差，颜色与语气都要区分。
+   标签下拉的错误提示用同一套样式（.publish-tags__hint），不另立一套口径。 */
+.publish-category__hint,
+.publish-tags__hint {
+  margin: 0;
+  color: var(--color-ink-muted);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.publish-category__hint--error,
+.publish-tags__hint--error {
+  color: var(--color-danger-ink);
 }
 
 .publish-summary {

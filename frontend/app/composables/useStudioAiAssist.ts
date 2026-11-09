@@ -5,6 +5,7 @@ import { useTextareaSelectionOverlay } from "~/composables/useTextareaSelectionO
 import type { StudioAiAction } from "~/composables/useStudioAiSelection";
 import { generateArticleMetainfo } from "~/services/ai";
 import { errorMessage } from "~/utils/errorMessage";
+import { matchOptionByText } from "~/utils/taxonomyOptions";
 
 // 写作页的 AI 面板：选区浮层、动作执行、改写结果落回正文、元信息补全。
 //
@@ -194,15 +195,8 @@ export function useStudioAiAssist(deps: StudioAiDeps) {
     });
   }
 
-  function matchOptionByText(options: Array<{ label: string; value: string }>, target?: { id?: string; title?: string } | null) {
-    if (!target) return null;
-    const byId = options.find((item) => item.value === target.id);
-    if (byId) return byId.value;
-    const normalizedTitle = target.title?.trim().toLowerCase();
-    const byTitle = options.find((item) => item.label.trim().toLowerCase() === normalizedTitle);
-    return byTitle?.value ?? null;
-  }
-
+  // 分类/标签的匹配规则只有一处实现（~/utils/taxonomyOptions）：先认 ID 再认标题，
+  // 都对不上就当作没命中 —— 绝不把 AI 给的名字当 ID 写进表单。
   async function handleAiAssist() {
     if (!form.content.trim()) {
       message.warning("先写一点正文，再让 AI 帮你补标题和摘要。");

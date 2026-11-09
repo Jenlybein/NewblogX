@@ -276,11 +276,15 @@ type FavoriteRemovePatchModel struct {
 }
 
 // TagRequest 标签创建/更新（管理员）。
+//
+// Sort / Description / IsEnabled 是指针：写入接口对更新是"读—改—写"，
+// 没传的字段保持原值（编辑停用标签不能把它悄悄放回全站可选）。
+// JSON 线上形状不变：swag 对 *int / *string 仍生成 type=integer / string。
 type TagRequest struct {
 	ID          ctype.ID `json:"id"`
 	Title       string   `json:"title" binding:"required"`
-	Sort        int      `json:"sort"`
-	Description string   `json:"description"`
+	Sort        *int     `json:"sort"`
+	Description *string  `json:"description"`
 	IsEnabled   *bool    `json:"is_enabled"`
 }
 

@@ -59,7 +59,7 @@ func NewRepos() *Repos {
 	users := NewUsers()
 	return &Repos{
 		articleRepo:    articles,
-		categoryRepo:   NewCategoryRepo(),
+		categoryRepo:   NewCategoryRepo().WithArticles(articles),
 		tagRepo:        NewTagRepo(),
 		favoriteRepo:   NewFavoriteRepo(),
 		topRepo:        NewTopRepo(),

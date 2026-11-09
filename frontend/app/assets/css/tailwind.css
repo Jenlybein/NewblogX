@@ -292,6 +292,104 @@
     @apply truncate text-sm font-semibold text-ink;
   }
 
+  /* ---- 个人主页「分类」栏（票 321）：左侧分类列表 + 右侧就地展开的文章，与收藏架同构 ---- */
+  .profile-category-layout {
+    @apply grid gap-5 xl:grid-cols-[280px_minmax(0,1fr)];
+  }
+
+  .profile-category-layout__folders {
+    @apply flex flex-col gap-3;
+  }
+
+  .profile-category-layout__content {
+    @apply min-w-0;
+  }
+
+  .profile-category-toolbar {
+    @apply flex flex-wrap items-center justify-end gap-2;
+  }
+
+  .profile-category-card-wrap {
+    @apply flex flex-col gap-2;
+  }
+
+  .profile-category-card {
+    @apply flex min-h-[72px] flex-col justify-center gap-2 rounded-card border border-line bg-surface p-4 text-left transition-colors;
+    touch-action: manipulation;
+  }
+
+  .profile-category-card:hover {
+    border-color: var(--color-line-strong);
+  }
+
+  .profile-category-card:focus-visible {
+    outline: 2px solid var(--color-focus);
+    outline-offset: 2px;
+  }
+
+  .profile-category-card.is-active {
+    border-color: var(--color-line-strong);
+    background: var(--color-highlight);
+  }
+
+  .profile-category-card__title-row {
+    @apply flex items-center justify-between gap-3;
+  }
+
+  .profile-category-card__title {
+    @apply truncate text-base font-semibold text-ink;
+  }
+
+  /* 单个分类的行内操作（改名 / 删除）：只在自己的主页出现（票 325）。 */
+  .profile-category-card__actions {
+    @apply flex items-center justify-end gap-2;
+  }
+
+  .profile-category-action {
+    @apply inline-flex min-h-[36px] items-center rounded-field border border-line-faint px-3 text-xs font-medium text-ink-muted transition-colors;
+    touch-action: manipulation;
+  }
+
+  .profile-category-action:hover {
+    border-color: var(--color-line-strong);
+    color: var(--color-ink);
+  }
+
+  .profile-category-action:focus-visible {
+    outline: 2px solid var(--color-focus);
+    outline-offset: 2px;
+  }
+
+  /* 新建分类是这一栏的主操作：比行内的两个次级动作更显眼。 */
+  .profile-category-action.is-primary {
+    @apply text-ink;
+    border-color: var(--color-line-strong);
+    background: var(--color-highlight);
+  }
+
+  /* 删除是不可逆动作：用 danger 档说清楚，而不是和"改名"长得一样。 */
+  .profile-category-action.is-danger {
+    @apply text-danger-ink;
+  }
+
+  .profile-category-action.is-danger:hover {
+    border-color: var(--color-danger-line);
+    background: var(--color-danger-soft);
+    color: var(--color-danger-ink);
+  }
+
+  .profile-category-article-list {
+    @apply flex flex-col gap-4;
+  }
+
+  .profile-category-heading {
+    @apply flex items-center justify-between gap-3 rounded-field border border-line-faint bg-subtle px-4 py-3;
+  }
+
+  .profile-category-heading__title {
+    @apply truncate text-sm font-semibold text-ink;
+  }
+
   .profile-relation-list {
     @apply flex flex-col gap-4;
   }

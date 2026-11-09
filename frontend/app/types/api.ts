@@ -43,10 +43,17 @@ export type SiteSidebarCardsData = RequiredSchema<"internal_site_adapter_http.Si
 /** 轮播图列表载荷。之前服务层手写了同名形状（`{list, has_more}`），漏了契约里的 `count`。 */
 export type BannerListData = RequiredSchema<"myblogx_internal_kernel.HasMoreListData-internal_site_adapter_http_BannerItem">;
 
-export interface OptionItem {
+/**
+ * 下拉选项的纯 UI 形状（不对应任何接口）。
+ *
+ * 刻意用 `type` 而不是 `interface`：只有类型别名与匿名对象类型带隐式索引签名，
+ * 才能赋给 naive-ui 那些 `[k: string]: unknown` 的选项类型；`interface` 没有隐式
+ * 索引签名，直接喂给 `NSelect :options` 会报 "Property 'type' is missing"（#320）。
+ */
+export type OptionItem = {
   label: string;
   value: string;
-}
+};
 
 export type CreateImageUploadTaskRequest = Schema<"internal_media_adapter_http.CreateTaskRequest">;
 
@@ -94,6 +101,25 @@ export type FavoriteFolderItem = RequiredSchema<"internal_article_adapter_http.F
 export type FavoriteFolderListData = RequiredSchema<"myblogx_internal_kernel.ListData-internal_article_adapter_http_FavoriteListItem">;
 
 /**
+ * 标签下拉的列表载荷（`GET /articles/tags/options`）。
+ *
+ * data 恒为 `kernel.ListData` 的 `{list, count}`；服务层曾把它当数组 `.map`，
+ * 于是抛错又被兜底吞掉，下拉永远空白（#320）。
+ */
+export type TagListData = RequiredSchema<"myblogx_internal_kernel.ListData-internal_article_adapter_http_TagListItem">;
+
+/**
+ * 分类列表的列表载荷（`kernel.ListData` 的 `{list, count}`），条目是 `CategoryListItem`。
+ *
+ * 两个读接口共用同一形状，所以只有一个别名：
+ *  - `GET /api/articles/category/options?user_id=`（写文章时的分类下拉，#320）；
+ *  - `GET /api/articles/category?user_id=`（个人主页分类栏，#321）。
+ * 以前这里按接口名写了两遍一模一样的别名（`ProfileCategoryListData`），
+ * 契约一改就要改两处，且两处可以悄悄漂移。
+ */
+export type CategoryListData = RequiredSchema<"myblogx_internal_kernel.ListData-internal_article_adapter_http_CategoryListItem">;
+
+/**
  * 收藏夹写操作（创建 / 更新共用）的请求体。
  *
  * 之前叫 `FavoriteFolderCreatePayload` 且被当成**返回值**用，还混进了
@@ -102,6 +128,18 @@ export type FavoriteFolderListData = RequiredSchema<"myblogx_internal_kernel.Lis
  * 且**不返回任何数据**。
  */
 export type FavoriteFolderWritePayload = Schema<"internal_article_adapter_http.FavoriteRequest">;
+
+/**
+ * 个人主页「分类」栏要显示的字段（#321）。
+ *
+ * 契约里 `internal_article_adapter_http.CategoryListItem` 还带 nickname / avatar /
+ * created_at 等管理侧字段；分类栏只用得到 id / title / article_count。用 `Pick` 从契约
+ * 派生而不是手写 interface —— 字段名与类型仍由契约编译期校验。
+ */
+export type ProfileCategoryItem = Pick<
+  RequiredSchema<"internal_article_adapter_http.CategoryListItem">,
+  "id" | "title" | "article_count"
+>;
 
 export type SearchArticleItem = RequiredSchema<"myblogx_internal_search_domain.Item">;
 

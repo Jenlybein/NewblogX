@@ -12,17 +12,30 @@ import (
 //
 // 唯一约束 (userID, title) 与库里 uk_category_user_title 一致；
 // Save 撞唯一键返回 ErrConflict。
+//
+// 删除要像生产一样连带"解除文章归属"（生产在一个事务里先置空文章的分类、
+// 再软删分类），所以它需要文章 fake 的引用：没有接上时只删分类本身。
 type CategoryRepo struct {
-	mu    sync.Mutex
-	byID  map[domain.CategoryID]*taxonomy.Category
-	seq   []domain.CategoryID
-	fault fault
-	count counter
+	mu       sync.Mutex
+	byID     map[domain.CategoryID]*taxonomy.Category
+	seq      []domain.CategoryID
+	articles *ArticleRepo
+	fault    fault
+	count    counter
 }
 
 // NewCategoryRepo 创建空仓储。
 func NewCategoryRepo() *CategoryRepo {
 	return &CategoryRepo{byID: make(map[domain.CategoryID]*taxonomy.Category)}
+}
+
+// WithArticles 接上文章 fake：删除分类时把挂在该分类下的文章置空。
+//
+// 与 NewCollectionRepo(articles, ...) 同一做法：内存实现也要让"读者看到的结果"
+// 真实发生，否则用例层只能断言"删分类的方法被调了"，断言不了"文章变未分类"。
+func (r *CategoryRepo) WithArticles(articles *ArticleRepo) *CategoryRepo {
+	r.articles = articles
+	return r
 }
 
 // Seed 预置数据。
@@ -119,7 +132,7 @@ func (r *CategoryRepo) Save(_ context.Context, c *taxonomy.Category) error {
 	return nil
 }
 
-// Delete 删除分类。
+// Delete 删除分类，并把挂在该分类下的文章置空（对应生产里的两步同事务）。
 func (r *CategoryRepo) Delete(_ context.Context, id domain.CategoryID) error {
 	r.count.inc("Delete")
 	if err := r.fault.take("Delete"); err != nil {
@@ -129,6 +142,9 @@ func (r *CategoryRepo) Delete(_ context.Context, id domain.CategoryID) error {
 	defer r.mu.Unlock()
 	if _, ok := r.byID[id]; !ok {
 		return taxonomy.ErrCategoryNotFound
+	}
+	if r.articles != nil {
+		r.articles.detachCategory(id)
 	}
 	delete(r.byID, id)
 	return nil
@@ -284,6 +300,26 @@ func (r *TagRepo) ExistsTitle(_ context.Context, title string, excludeID domain.
 		}
 	}
 	return false, nil
+}
+
+// CountArticleRefs 统计仍引用该标签的文章数（对应关联表的实时统计）。
+func (r *TagRepo) CountArticleRefs(_ context.Context, id domain.TagID) (int, error) {
+	r.count.inc("CountArticleRefs")
+	if err := r.fault.take("CountArticleRefs"); err != nil {
+		return 0, err
+	}
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	n := 0
+	for _, tags := range r.articleTags {
+		for _, t := range tags {
+			if t == id {
+				n++
+				break
+			}
+		}
+	}
+	return n, nil
 }
 
 // Save 新建或更新标签。

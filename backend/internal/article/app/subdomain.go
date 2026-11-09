@@ -17,7 +17,10 @@ import (
 
 // ListCategories 列出某用户的分类。
 //
-// 未指定用户时用当前登录者：分类是"个人分类"，不允许匿名枚举他人分类列表。
+// 真实语义是"公开可读、写入私有"：读不校验归属，匿名也能按 user_id 读他人分类
+// （个人主页要展示分类）；写入才要求登录并校验归属（见 SaveCategory /
+// DeleteCategories）。未指定用户时退回到当前登录者，两者都没有才拒绝，
+// 免得匿名请求落成"列出全站分类"。
 func (s *Service) ListCategories(ctx context.Context, viewer domain.Viewer, target domain.UserID) ([]*taxonomy.Category, error) {
 	if target.IsZero() {
 		target = viewer.UserID
@@ -38,6 +41,11 @@ func (s *Service) ListCategories(ctx context.Context, viewer domain.Viewer, targ
 //
 // 名称唯一性显式检查：库里虽然有唯一索引，但那会返回 1062 错误码，
 // 前端拿不到"名称重复"这个可读提示。
+//
+// **删过的名字可以再用**：新建时若同用户下存在同名软删行，仓储恢复它
+// （保留原 ID）而不是插入一条新的（ADR-0036 决策 1）。所以这里返回的分类
+// 可能带着"本次生成的 ID"，而库里那条仍是旧 ID —— 调用方不要拿新建时的 ID
+// 做后续写入，建完重拉列表即可（写入接口本来也不返回它）。
 func (s *Service) SaveCategory(ctx context.Context, viewer domain.Viewer, id domain.CategoryID, title string) (*taxonomy.Category, error) {
 	if !viewer.IsLoggedIn() {
 		return nil, domain.ErrForbidden
@@ -79,6 +87,15 @@ func (s *Service) SaveCategory(ctx context.Context, viewer domain.Viewer, id dom
 }
 
 // DeleteCategories 删除分类（只删自己的）。
+//
+// 删除不是"删掉一个词条"：它把挂在该分类下的 N 篇文章改成"未分类"，文章本身还在。
+// 所以它是**两步、同一事务**：先解除文章归属、再软删分类（见
+// CategoryRepository.Delete 的契约；ADR-0036 约束 3 规定顺序不得颠倒）。
+// 中途失败整单回滚，不会留下"文章已解绑、分类还在"的半截状态。
+//
+// 别人的分类是**拒绝**而不是静默跳过：批量删除是"一次动作"，删掉一半再返回
+// 成功会让调用方以为全部成功。不存在的 ID 仍然跳过（重复提交同一批不该报错）。
+// 两人用同一个分类名互不影响：归属按 user_id 判，删不到对方的行。
 func (s *Service) DeleteCategories(ctx context.Context, viewer domain.Viewer, ids []domain.CategoryID) (int, error) {
 	if !viewer.IsLoggedIn() {
 		return 0, domain.ErrForbidden
@@ -91,7 +108,8 @@ func (s *Service) DeleteCategories(ctx context.Context, viewer domain.Viewer, id
 				continue // 不存在就跳过：批量删除不应因一个脏 ID 整单失败
 			}
 			if !c.BelongsTo(viewer.UserID) {
-				continue
+				// 文案用「分类不存在」而不是「无权限」：不向调用方确认别人的分类存在。
+				return taxonomy.ErrCategoryNotFound
 			}
 			if err := r.Categories().Delete(ctx, id); err != nil {
 				return err
@@ -100,7 +118,11 @@ func (s *Service) DeleteCategories(ctx context.Context, viewer domain.Viewer, id
 		}
 		return nil
 	})
-	return deleted, err
+	if err != nil {
+		// 事务已回滚，一条都没删掉：不能把中间累计的条数报给调用方。
+		return 0, err
+	}
+	return deleted, nil
 }
 
 // nextCategoryID 从文章 ID 生成器借号。
@@ -114,7 +136,14 @@ func (s *Service) nextCategoryID() domain.CategoryID {
 // ── 标签 ──
 
 // ListTags 列出标签。
-func (s *Service) ListTags(ctx context.Context, includeDisabled bool) ([]*taxonomy.Tag, error) {
+//
+// includeDisabled 只对管理员生效：标签词库本身公开可读（发布页要选标签），
+// 但停用项属于管理视图，匿名与普通用户即使显式传了也降级成只返回启用项
+// （不报错——前端统一带这个参数，报错只会让公开读白屏）。
+func (s *Service) ListTags(ctx context.Context, viewer domain.Viewer, includeDisabled bool) ([]*taxonomy.Tag, error) {
+	if !viewer.IsAdmin() {
+		includeDisabled = false
+	}
 	var out []*taxonomy.Tag
 	err := s.tx.WithinTx(ctx, func(ctx context.Context, r Repos) error {
 		var err error
@@ -125,6 +154,11 @@ func (s *Service) ListTags(ctx context.Context, includeDisabled bool) ([]*taxono
 }
 
 // SaveTag 创建或更新标签（仅管理员）。
+//
+// 更新走**读—改—写**：先读出库里的标签，再只覆盖请求里给出的字段。
+// 早先的实现每次都从零构造一个 NewTag（默认启用、排序 0、描述空），于是
+// "编辑一个停用标签"会顺手把它放回全站可选，只改标题也会把排序与描述清空。
+// 没传就是没改：Sort / Description / Enabled 都是可选值，nil 表示保持原值。
 func (s *Service) SaveTag(ctx context.Context, viewer domain.Viewer, in TagInput) (*taxonomy.Tag, error) {
 	if !viewer.IsAdmin() {
 		return nil, domain.ErrForbidden
@@ -132,32 +166,20 @@ func (s *Service) SaveTag(ctx context.Context, viewer domain.Viewer, in TagInput
 
 	var saved *taxonomy.Tag
 	err := s.tx.WithinTx(ctx, func(ctx context.Context, r Repos) error {
-		id := in.ID
-		if id.IsZero() {
-			id = ctype.NewID(s.ids.NextArticleID().Uint64())
+		tag, err := s.loadOrNewTag(ctx, r, viewer, in)
+		if err != nil {
+			return err
 		}
-
-		dup, err := r.Tags().ExistsTitle(ctx, in.Title, id)
+		if err := applyTagInput(tag, in); err != nil {
+			return err
+		}
+		// 查重放在改名之后：标题已去空白，撞库前就给可读文案。
+		dup, err := r.Tags().ExistsTitle(ctx, tag.Title(), tag.ID())
 		if err != nil {
 			return err
 		}
 		if dup {
 			return taxonomy.ErrTitleDuplicated
-		}
-
-		tag, err := taxonomy.NewTag(id, in.Title, viewer.UserID)
-		if err != nil {
-			return err
-		}
-		if err := tag.Rename(in.Title, in.Sort, in.Description); err != nil {
-			return err
-		}
-		if in.Enabled != nil {
-			if *in.Enabled {
-				tag.Enable()
-			} else {
-				tag.Disable()
-			}
 		}
 		if err := r.Tags().Save(ctx, tag); err != nil {
 			return err
@@ -165,19 +187,68 @@ func (s *Service) SaveTag(ctx context.Context, viewer domain.Viewer, in TagInput
 		saved = tag
 		return nil
 	})
-	return saved, err
+	if err != nil {
+		return nil, err
+	}
+	return saved, nil
+}
+
+// loadOrNewTag 取出要写的标签：有 ID 就按 ID 读（读不到就是不存在，
+// 不再拿客户端给的 ID 新建一条），没有 ID 才新建。
+func (s *Service) loadOrNewTag(ctx context.Context, r Repos, viewer domain.Viewer, in TagInput) (*taxonomy.Tag, error) {
+	if !in.ID.IsZero() {
+		return r.Tags().Find(ctx, in.ID)
+	}
+	id := ctype.NewID(s.ids.NextArticleID().Uint64())
+	return taxonomy.NewTag(id, in.Title, viewer.UserID)
+}
+
+// applyTagInput 把请求里"给了的"字段写到标签上。
+//
+// 标题总是重写（写入接口的必填项）；其余三项为 nil 时保持原值。
+func applyTagInput(tag *taxonomy.Tag, in TagInput) error {
+	sort := tag.Sort()
+	if in.Sort != nil {
+		sort = *in.Sort
+	}
+	desc := tag.Description()
+	if in.Description != nil {
+		desc = *in.Description
+	}
+	if err := tag.Rename(in.Title, sort, desc); err != nil {
+		return err
+	}
+	switch {
+	case in.Enabled == nil:
+		// 没传启用状态：不动。编辑停用标签不能把它悄悄放回全站可选。
+	case *in.Enabled:
+		tag.Enable()
+	default:
+		tag.Disable()
+	}
+	return nil
 }
 
 // TagInput 是标签写入的输入。
+//
+// Sort / Description / Enabled 用指针：nil = "这次没动它"。
+// 更新是读—改—写，所以"没传"与"显式传零值"必须能分开。
 type TagInput struct {
 	ID          domain.TagID
 	Title       string
-	Sort        int
-	Description string
+	Sort        *int
+	Description *string
 	Enabled     *bool
 }
 
 // DeleteTags 删除标签（仅管理员）。
+//
+// 只对**没有被任何文章引用**的标签开放：被引用时整单拒绝，并给出可读提示
+// （几篇在用 + 建议改用停用）。引用数按关联表实时统计——tag_models 上的
+// article_count 没有维护者，按它放行会把真有文章在用的标签删掉。
+//
+// 一条被引用就整单回滚：批量删除是"一次动作"，删掉一半再报错会让管理员
+// 以为全部失败，回头再点一次又删掉一批。
 func (s *Service) DeleteTags(ctx context.Context, viewer domain.Viewer, ids []domain.TagID) (int, error) {
 	if !viewer.IsAdmin() {
 		return 0, domain.ErrForbidden
@@ -185,14 +256,25 @@ func (s *Service) DeleteTags(ctx context.Context, viewer domain.Viewer, ids []do
 	deleted := 0
 	err := s.tx.WithinTx(ctx, func(ctx context.Context, r Repos) error {
 		for _, id := range ids {
+			refs, err := r.Tags().CountArticleRefs(ctx, id)
+			if err != nil {
+				return err
+			}
+			if refs > 0 {
+				return taxonomy.NewTagInUseError(refs)
+			}
 			if err := r.Tags().Delete(ctx, id); err != nil {
-				continue
+				continue // 不存在就跳过：批量删除不应因一个脏 ID 整单失败
 			}
 			deleted++
 		}
 		return nil
 	})
-	return deleted, err
+	if err != nil {
+		// 事务已回滚，一条都没删掉：不能把中间累计的条数报给调用方。
+		return 0, err
+	}
+	return deleted, nil
 }
 
 // ── 收藏夹 ──

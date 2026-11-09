@@ -226,10 +226,51 @@ export async function useStudioArticle(deps: StudioArticleDeps) {
   const isEditMode = computed(() => Boolean(editArticleId.value));
   const hydratedArticleId = ref("");
 
-  const { data: tagOptions } = await useAsyncData("studio-write-tag-options", () => getTagOptions().catch(() => []));
+  /**
+   * 标签下拉的加载错误（本批补的那一处）。
+   *
+   * 与下面 `categoryOptionsError` 同一条理由：原来这里是 `.catch(() => [])`，
+   * 接口一挂就和"还没建过标签"长得一模一样，作者以为自己没有标签。
+   * 失败时把原因留在这里，由发布弹窗就地展示；空数组只代表真的为空。
+   */
+  const tagOptionsError = ref("");
+
+  /** loadTagOptions 是标签下拉的唯一取数入口：失败不抛，落进 tagOptionsError。 */
+  async function loadTagOptions() {
+    tagOptionsError.value = "";
+    try {
+      return await getTagOptions();
+    } catch (error) {
+      tagOptionsError.value = errorMessage(error, "标签列表加载失败");
+      return [];
+    }
+  }
+
+  const { data: tagOptions } = await useAsyncData("studio-write-tag-options", loadTagOptions);
+
+  /**
+   * 分类下拉的加载错误（#320）。
+   *
+   * 原来这里是 `.catch(() => [])`：接口一挂就和"这个账号还没有分类"长得一模一样，
+   * 用户以为自己没分类，于是重复建同名，再撞上后端正确返回的"名称重复"。
+   * 失败时把原因留在这里，由发布弹窗就地展示；空数组只代表真的为空。
+   */
+  const categoryOptionsError = ref("");
+
+  /** loadCategoryOptions 是分类下拉的唯一取数入口：失败不抛，落进 categoryOptionsError。 */
+  async function loadCategoryOptions(userId: string) {
+    categoryOptionsError.value = "";
+    try {
+      return await getCategoryOptions(userId);
+    } catch (error) {
+      categoryOptionsError.value = errorMessage(error, "分类列表加载失败");
+      return [];
+    }
+  }
+
   const { data: categoryOptions } = await useAsyncData(
     () => `studio-write-category-options:${currentUserId.value || "guest"}`,
-    () => (currentUserId.value ? getCategoryOptions(currentUserId.value).catch(() => []) : Promise.resolve([])),
+    () => (currentUserId.value ? loadCategoryOptions(currentUserId.value) : Promise.resolve([])),
     {
       watch: [currentUserId],
     },
@@ -270,6 +311,7 @@ export async function useStudioArticle(deps: StudioArticleDeps) {
 
       const options = await getCategoryOptions(currentUserId.value);
       categoryOptions.value = options;
+      categoryOptionsError.value = "";
       const createdOption = findCategoryOptionByTitle(options, title);
       if (!createdOption) {
         message.warning("分类已创建，但未能载入新分类，请稍后重试。");
@@ -561,7 +603,11 @@ export async function useStudioArticle(deps: StudioArticleDeps) {
     hydratedArticleId,
     // 数据
     tagOptions,
+    /** 标签下拉加载失败的可读原因；空串表示这次加载没出错。 */
+    tagOptionsError,
     categoryOptions,
+    /** 分类下拉加载失败的可读原因；空串表示这次加载没出错（#320）。 */
+    categoryOptionsError,
     categoryCreating,
     createCategoryInline,
     isLoggedIn,

@@ -1,5 +1,6 @@
 import { useNuxtApp } from "#imports";
-import type { OptionItem, SearchArticleResponse } from "~/types/api";
+import type { CategoryListData, SearchArticleResponse, TagListData } from "~/types/api";
+import { toOptionItems } from "~/utils/taxonomyOptions";
 
 export interface SearchArticlesParams {
   type?: 1 | 2 | 3 | 4 | 5;
@@ -34,38 +35,21 @@ export function searchArticlesWithAi(content: string) {
 }
 
 export function getTagOptions() {
+  // 载荷是 `{list, count}`，不是数组 —— 映射统一走 toOptionItems（#320）。
   return useNuxtApp()
-    .$api.request<Array<{ id?: string; title?: string; value?: string; label?: string }>>("/api/articles/tags/options", {
-      auth: false,
-    })
-    .then((list) =>
-      list.map(
-        (item) =>
-          ({
-            label: item.title ?? item.label ?? "",
-            value: item.id ?? item.value ?? "",
-          }) satisfies OptionItem,
-      ),
-    );
+    .$api.request<TagListData>("/api/articles/tags/options", { auth: false })
+    .then((payload) => toOptionItems(payload));
 }
 
 export function getCategoryOptions(userId: string | number) {
   return useNuxtApp()
-    .$api.request<Array<{ id?: string; title?: string; value?: string; label?: string }>>("/api/articles/category/options", {
+    .$api.request<CategoryListData>("/api/articles/category/options", {
       auth: false,
       query: {
         user_id: String(userId),
       },
     })
-    .then((list) =>
-      list.map(
-        (item) =>
-          ({
-            label: item.title ?? item.label ?? "",
-            value: item.id ?? item.value ?? "",
-          }) satisfies OptionItem,
-      ),
-    );
+    .then((payload) => toOptionItems(payload));
 }
 
 /**

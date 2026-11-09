@@ -23,6 +23,7 @@ const modalSource = readFileSync(
   join(process.cwd(), 'app/components/media/BannerFormModal.vue'),
   'utf8',
 )
+const adminCss = readFileSync(join(process.cwd(), 'app/assets/css/admin.css'), 'utf8')
 
 describe('bannerTitleText / bannerTitleCell', () => {
   it('只收敛首尾空白，HTML 标签原样保留（不解析、不剥离）', () => {
@@ -88,9 +89,17 @@ describe('新增是按钮 + 弹窗，不是常驻卡片（#330）', () => {
     expect(pageSource).not.toMatch(/saveBannerTitle/u)
   })
 
-  it('弹窗宽度受控，不铺满全屏', () => {
-    expect(modalSource).toMatch(/banner-form-modal/u)
-    expect(modalSource).toMatch(/max-width:\s*calc\(100vw - 32px\)/u)
+  it('弹窗宽度受控，不铺满全屏（且不能写在 scoped 样式里）', () => {
+    // 宽度只能来自**全局**规则：`preset="card"` 会把 class 落到 naive-ui 自己渲染的
+    // `.n-card` 上，那个节点没有本组件的 `data-v-*` 标记 —— 写在 scoped 里等于没写，
+    // 会回落到 naive-ui 默认的 `max-width: calc(100vw - 32px)`（铺满全屏）。
+    // 这条曾经就是真实 bug：第一版写在 `<style scoped>` 里，用户看到的是全屏弹窗。
+    expect(adminCss).toMatch(/\.n-modal\.banner-form-modal\s*\{/u)
+    expect(adminCss).toMatch(/\.n-modal\.banner-form-modal\s*\{[^}]*width:\s*560px/u)
+    expect(modalSource).toMatch(/class="banner-form-modal"/u)
+
+    const scopedStyle = modalSource.slice(modalSource.indexOf('<style scoped>'))
+    expect(scopedStyle).not.toMatch(/\.banner-form-modal\s*\{/u)
   })
 })
 

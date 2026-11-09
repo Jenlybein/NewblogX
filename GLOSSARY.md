@@ -521,6 +521,18 @@ _Avoid_: 把 guest 当普通用户（旧行为，已废）。
 位置：后端 `backend/internal/article/domain/viewhistory`（`Retention = 90 天`）与 `backend/app/cron_wiring.go` 的每日清理任务；表 `user_view_article_history_models`（`UNIQUE(user_id, article_id)` + upsert）；接口 `GET /api/articles/history`（标题搜索 + `before_updated_at` / `before_id` 游标）、`DELETE /api/articles/history`（按 id 选删）、`DELETE /api/articles/history/all`（清空）——三条删除接口都是软删；读者站独立页 `frontend/app/pages/history.vue`（按日历天分组、搜索、清空、批量选删）。
 _Avoid_: 叫它"浏览记录接口"（它是一个用户可见的数据域与页面，不是一组接口的别称）；把它当成流水账（去重后只保留最近一次）；说"历史永久保留"（90 天前的记录会被每日清理软删）。
 
+**标签（tag）**：
+全站共用的**主题词**：给文章补一句"讲的是哪一类东西"。它归**站点**所有、不属于任何作者——任何登录用户都能给自己的文章选标签，但只有管理员能新建、改名、调排序、停用与删除，作者对词库本身没有写权。与文章是**多对多**：一个标签能挂在多篇文章上，一篇文章也能有多个标签。**停用**是常规动作，停用后它不再出现在可选项里、已经打过它的文章不受影响；**删除**只对没有任何文章引用的标签开放，被引用时应改用停用。
+位置：`backend/internal/article/domain/taxonomy/taxonomy.go`（`Tag`、`Usable`、`Disable`、`FilterUsable`）、`backend/internal/article/app/subdomain.go`（`ListTags` / `SaveTag` / `DeleteTags`）；管理后台的标签管理页与读者站发布页的标签下拉。取舍见 [ADR-0036](./docs/adr/0036-taxonomy-delete-semantics.md)。
+易混：与「分类」是两个东西——标签是全站共享的词，分类是个人私有的分组容器；「分类管理」只指个人分类，标签那一侧叫词库 / 标签管理。与「阻断级词表 / 观察级词表」也不同：那是发布治理判违规用的数据，不是给作者选的。
+_Avoid_: 把标签当"文章的私有关键字"（作者只选不建）；把「标签」与「分类」互换着说；把"停用"说成"删除"（停用不影响已打过的文章，删除只对零引用开放）；用"敏感词 / 词库"指代它（那是发布治理的两级词表）。
+
+**分类（category）**：
+**某个用户私有**的文章分组：一个分类只属于一个用户、只装这个用户自己的文章；一篇文章最多属于一个分类，也可以一个都不属于——那是**未分类**，不是一种"空分类"。**读是公开的**（任何人都能在个人主页按某人的分类看他的文章），**写只归作者本人**：新建、改名、删除都要校验归属，管理员也不代管别人的分类。删除分类的含义是"这些文章变回未分类"，**不是**"把这些文章一起删掉"。
+位置：`backend/internal/article/domain/taxonomy/taxonomy.go`（`Category`、`BelongsTo`、`Rename`）、`backend/internal/article/app/subdomain.go`（`ListCategories` / `SaveCategory` / `DeleteCategories`）；读者站个人主页的分类栏与发布页的分类下拉。删除语义的取舍见 [ADR-0036](./docs/adr/0036-taxonomy-delete-semantics.md)。
+易混：与「合集」「项目」不同——后两者由管理员维护，有顺序与层次；分类只有归属，没有排序与嵌套。分类也**不是**「标签」的个人版：同名分类在两个人名下是两个互不相干的分类，而标签名全站只有一条。
+_Avoid_: 拿「分类管理」同时指代个人分类与全站词库（后者是标签）；说"公共分类 / 全站分类"（分类按用户唯一）；把"删除分类"理解成"删掉分类下的文章"；用「栏目 / 频道」叫它（频道页不在现行范围）。
+
 ---
 
 ## 十、读者站渲染与缓存

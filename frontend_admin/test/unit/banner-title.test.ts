@@ -1,23 +1,26 @@
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
-import { describe, expect, it, vi } from 'vitest'
+import { describe, expect, it } from 'vitest'
 
-import { buildBannerCreatePayload, saveBannerTitle } from '~/utils/bannerCover'
+import { buildBannerCreatePayload } from '~/utils/bannerCover'
 import { bannerTitleCell, bannerTitleText } from '~/utils/bannerTitle'
 
 /**
- * 后台轮播标题（纯文本、可空、可编辑）。
+ * 后台轮播标题（纯文本、可空）。
  *
  * 页面交给 Vue，这里锁三件会出事的事：
- *   1. 创建请求带不带标题；
- *   2. 编辑标题时是否保留该行其余字段、空标题能不能存（PUT 是整体替换）；
- *   3. 页面流程里不再有取景步骤（#204：取景按钮、弹窗与 crop 载荷都已删除）。
- * 另外用一条源码断言钉住"表单有输入、列表有标题列、行上有编辑入口"这三个落点
- * （页面组件需要整套 naive-ui 交互，这类落点沿用仓库既有的源码门禁写法）。
+ *   1. 标题的收敛规则（只去首尾空白，不解析 HTML）；
+ *   2. 创建 / 更新的请求体里标题字段一定存在（可空，但不能缺）；
+ *   3. 页面与弹窗的落点：新增是**按钮 + 弹窗**（不再是常驻卡片），
+ *      编辑复用同一张卡，且行上有编辑入口。
+ *
+ * #330 起「只改标题」那条独立路径已删除：新增与编辑共用 `BannerFormModal`，
+ * 更新走完整表单的整体替换。所以这里不再断言 `saveBannerTitle`。
  */
 
-const pageSource = readFileSync(
-  join(process.cwd(), 'app/pages/media/index.vue'),
+const pageSource = readFileSync(join(process.cwd(), 'app/pages/media/index.vue'), 'utf8')
+const modalSource = readFileSync(
+  join(process.cwd(), 'app/components/media/BannerFormModal.vue'),
   'utf8',
 )
 
@@ -40,8 +43,8 @@ describe('bannerTitleText / bannerTitleCell', () => {
   })
 })
 
-describe('创建请求带标题', () => {
-  it('填了标题就把标题带进创建请求（请求体没有 crop）', () => {
+describe('创建 / 更新的请求体带标题', () => {
+  it('填了标题就把标题带进请求体（没有 crop 字段）', () => {
     const payload = buildBannerCreatePayload({
       coverImageId: '42',
       title: '春季上新',
@@ -69,78 +72,45 @@ describe('创建请求带标题', () => {
   })
 })
 
-describe('saveBannerTitle：编辑已有轮播的标题', () => {
-  const update = vi.fn(async () => undefined)
-
-  it('把新标题写进请求体，并保留该行其余字段', async () => {
-    await expect(
-      saveBannerTitle(
-        {
-          id: '9',
-          cover_image_id: '7',
-          href: 'https://example.com',
-          show: false,
-          title: '旧标题',
-        },
-        '新标题',
-        update,
-      ),
-    ).resolves.toBe(true)
-
-    expect(update).toHaveBeenCalledWith('9', {
-      cover_image_id: '7',
-      title: '新标题',
-      href: 'https://example.com',
-      show: false,
-    })
-    const payload = update.mock.calls.at(-1)?.[1] as object
-    expect('crop' in payload).toBe(false)
+describe('新增是按钮 + 弹窗，不是常驻卡片（#330）', () => {
+  it('页面里有「新增轮播」按钮，点它才打开弹窗', () => {
+    expect(pageSource).toMatch(/新增轮播/u)
+    expect(pageSource).toMatch(/openCreateEditor/u)
+    expect(pageSource).toMatch(/BannerFormModal/u)
   })
 
-  it('空标题可以保存（清空误填的标题）', async () => {
-    await expect(
-      saveBannerTitle(
-        { id: '9', cover_image_id: '7', href: '/a', show: true, title: '旧标题' },
-        '',
-        update,
-      ),
-    ).resolves.toBe(true)
-
-    expect(update).toHaveBeenCalledWith('9', expect.objectContaining({ title: '' }))
+  it('页面里不再有常驻的「新增轮播」卡片，也没有只改标题的弹窗', () => {
+    // 旧结构的三个特征：常驻卡片的标题、标题编辑函数、以及它用的写请求。
+    // 断言按**代码字面量**取，不按散文取——注释里提到旧行为不该让用例变红。
+    expect(pageSource).not.toMatch(/title="新增轮播"/u)
+    expect(pageSource).not.toMatch(/openTitleEditor/u)
+    expect(pageSource).not.toMatch(/'编辑标题'/u)
+    expect(pageSource).not.toMatch(/saveBannerTitle/u)
   })
 
-  it('没有封面图片 ID 时不发写请求（更新接口无从整体替换）', async () => {
-    await expect(
-      saveBannerTitle({ id: '1', cover_image_id: '' }, '标题', update),
-    ).resolves.toBe(false)
-    expect(update).not.toHaveBeenCalled()
-  })
-
-  it('更新失败原样上抛（页面据此提示，不假装已保存）', async () => {
-    const failing = vi.fn(async () => {
-      throw new Error('网络中断')
-    })
-
-    await expect(
-      saveBannerTitle({ id: '9', cover_image_id: '7' }, '标题', failing),
-    ).rejects.toThrow('网络中断')
+  it('弹窗宽度受控，不铺满全屏', () => {
+    expect(modalSource).toMatch(/banner-form-modal/u)
+    expect(modalSource).toMatch(/max-width:\s*calc\(100vw - 32px\)/u)
   })
 })
 
-describe('后台轮播页的标题落点', () => {
-  it('创建表单有标题输入', () => {
-    expect(pageSource).toMatch(/bannerForm\.title/u)
-    expect(pageSource).toMatch(/label="标题"/u)
+describe('编辑复用同一张卡，四个字段都能改（#330）', () => {
+  it('弹窗同时提供标题 / 跳转地址 / 展示 / 封面', () => {
+    for (const role of ['banner-form-title', 'banner-form-href', 'banner-form-show']) {
+      expect(modalSource).toContain(role)
+    }
+    expect(modalSource).toMatch(/封面图片/u)
+    expect(modalSource).toMatch(/跳转地址/u)
   })
 
-  it('列表有标题列，空标题显示占位', () => {
-    expect(pageSource).toMatch(/title:\s*'标题'/u)
-    expect(pageSource).toMatch(/bannerTitleCell/u)
+  it('两种模式只有一个组件：创建与编辑都走 createBanner / updateBanner', () => {
+    expect(modalSource).toMatch(/createBanner/u)
+    expect(modalSource).toMatch(/updateBanner/u)
   })
 
-  it('行上有编辑标题的入口，且保存走标题写请求', () => {
-    expect(pageSource).toMatch(/编辑标题/u)
-    expect(pageSource).toMatch(/saveBannerTitle/u)
+  it('行上有编辑入口，不再只有编辑标题', () => {
+    expect(pageSource).toMatch(/openEditEditor/u)
+    expect(pageSource).toMatch(/编辑/u)
   })
 
   it('页面流程不再出现取景步骤：没有取景按钮/弹窗/crop 载荷（#204）', () => {

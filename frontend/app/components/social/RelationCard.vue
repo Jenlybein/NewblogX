@@ -40,6 +40,8 @@ const emit = defineEmits<{
   toggleFollow: [];
   /** 发私信。 */
   message: [];
+  /** 移除粉丝（单向）。只有"他关注我"的行才会发这个信号。 */
+  removeFan: [];
 }>();
 
 const mutual = computed(() => props.relation === 4);
@@ -55,13 +57,18 @@ const primary = computed(() => {
 });
 
 /**
- * 更多菜单。三项的取舍：
- *   - 发私信：三类关系都能发。
- *   - 取消关注：只有"我关注了对方"（含互关）才成立。
- *   - 回关：只有"对方关注了我、我还没回"才成立。
+ * 「移除粉丝」只对"他关注我"的行成立（relation 3 或 4），而且不在公开主页出现。
  *
- * 注意没有"移除粉丝"：后端没有这个能力（只能取消我自己的关注，
- * 不能把别人的关注移除），所以菜单里不摆一个点不动的项。
+ * 为什么 follow 视图不给：在那里用户的心理模型是"我关注的人"，移除粉丝是另一件事，
+ * 混进同一个菜单会让人误以为它会取关。要看粉丝，切到粉丝视图。
+ */
+const canRemoveFan = computed(() => props.mode !== "follow" && (props.relation === 3 || props.relation === 4));
+
+/**
+ * 更多菜单。顺序是"最常用 → 关系动作 → 最重"：
+ *   - 发私信：三类关系都能发。
+ *   - 取消关注 / 回关：与主按钮互补（主按钮是状态时，这里才是能做的动作）。
+ *   - 移除粉丝：单向删除"他关注我"，放最后，因为它是不可撤销的那一个。
  */
 const menuItems = computed(() => {
   const items: Array<{ key: string; label: string }> = [{ key: "message", label: "发私信" }];
@@ -70,12 +77,16 @@ const menuItems = computed(() => {
   } else {
     items.push({ key: "toggleFollow", label: "回关" });
   }
+  if (canRemoveFan.value) {
+    items.push({ key: "removeFan", label: "移除粉丝" });
+  }
   return items;
 });
 
 function handleMenu(key: string) {
   if (key === "message") emit("message");
   else if (key === "toggleFollow") emit("toggleFollow");
+  else if (key === "removeFan") emit("removeFan");
 }
 </script>
 

@@ -1,31 +1,10 @@
-import type {
-  FanUserListData,
-  FollowUserListData,
-  MessagePreference,
-  UserSessionListData,
-  UserProfileUpdatePayload,
-} from "~/types/api";
+import type { MessagePreference, UserSessionListData, UserProfileUpdatePayload } from "~/types/api";
 
 // 浏览历史已从创作区移出（`/history` 顶级页，见 #241）：它的服务与游标分页
 // 一起落在 `services/history.ts`，这里不再导出 get/deleteHistoryArticles。
-
-export function getFollowUsers(params: { page?: number; limit?: number }) {
-  return useNuxtApp().$api.request<FollowUserListData>("/api/follow", {
-    query: {
-      page: params.page ?? 1,
-      limit: params.limit ?? 20,
-    },
-  });
-}
-
-export function getFanUsers(params: { page?: number; limit?: number }) {
-  return useNuxtApp().$api.request<FanUserListData>("/api/fans", {
-    query: {
-      page: params.page ?? 1,
-      limit: params.limit ?? 20,
-    },
-  });
-}
+//
+// 关注 / 粉丝列表也不再从这里出（票 327）：旧的两个读端点合成 `/api/relations` 三视图，
+// 调用方在 `services/follow.ts`。这里曾有两个转调旧端点的函数，没人调用后随之删除。
 
 export function getUserSessions(params: { page?: number; limit?: number } = {}) {
   return useNuxtApp().$api.request<UserSessionListData>("/api/users/sessions", {

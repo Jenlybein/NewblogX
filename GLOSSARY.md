@@ -694,6 +694,20 @@ _Avoid_: 把它叫「prompt 目录」（它不只装 prompt 片段，还带规�
 
 ---
 
+## 十三、关注关系
+
+**关系视图（relation view）**：
+关注关系的三个视图：**关注**（我关注了谁）、**粉丝**（谁关注了我）、**互关**（两者交集）。三者是同一份关系数据的不同方向，共用一个读端点 `GET /api/relations?type=follow|fans|mutual`、同一套分页与同一种条目形状 `RelationItem`（`user_id` / `nickname` / `avatar` / `abstract` / `follow_time` / `relation`）；互关由服务端**先筛后分页**，不是取一页回来再过滤。
+位置：`backend/internal/social/`（`domain.RelationKind`、`RelationItem`、`Follow.Counterpart`；`adapter/mysql/follow.go` 的 `ListRelations` / `CountRelations`）；个人中心页 `frontend/app/pages/studio/relations.vue`（顶栏切三视图 + 计数徽标，卡片 `components/social/RelationCard.vue`）；公开主页 `/users/[id]` 的关注 / 粉丝分栏复用同一端点且只读。
+_Avoid_: 说「关注列表」和「粉丝列表」是两个接口（那是旧口径，已合并）；以为互关是第三份数据（它是关注与粉丝的交集，`follow ≥ mutual`、`fans ≥ mutual`）；在客户端筛互关（每页条数与 `has_more` 都会失真）。
+
+**移除粉丝（remove fan）**：
+把「某人关注我」这一条关系**单向**删掉：对方不会收到通知，之后仍可再次关注；我关注的人不受影响。持久化上与「取消关注」是同一个操作的两个语义（`Unfollow(followed, fans)` 的参数顺序不同），统计按同方向回滚（他的关注数 -1、我的粉丝数 -1）。只有我本人能做，且入口只在个人中心。
+位置：`DELETE /api/relations/fans/{id}`（`backend/internal/social/app/service.go` 的 `RemoveFan`）；错误码 `follow.fan_not_found`（「该用户不是你的粉丝」）；前端入口在关系卡片的「更多」菜单里，点击先二次确认。
+_Avoid_: 把它当「拉黑」（拉黑还禁止再次关注、双向隐藏，本仓目前只有私信侧的屏蔽 / 拉黑）；把它当「取消关注」（那是我对别人的动作）；以为它会通知对方。
+
+---
+
 ## 维护规则
 
 1. **什么时候新增词条**：一个词开始被多处代码或文档引用、且读者可能叫错它时（出现同义词、旧名、缩写）才加。一次性数字、某次故障的过程、实现细节都不进本文。

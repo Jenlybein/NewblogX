@@ -2811,78 +2811,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/fans": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** 粉丝列表 */
-        get: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path?: never;
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description OK */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["myblogx_internal_kernel.Envelope-myblogx_internal_kernel_HasMoreListData-myblogx_internal_social_domain_FansItem"];
-                    };
-                };
-            };
-        };
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/follow": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** 关注列表 */
-        get: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path?: never;
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description OK */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["myblogx_internal_kernel.Envelope-myblogx_internal_kernel_HasMoreListData-myblogx_internal_social_domain_FollowingItem"];
-                    };
-                };
-            };
-        };
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/follow/{id}": {
         parameters: {
             query?: never;
@@ -4581,6 +4509,140 @@ export interface paths {
         };
         post?: never;
         delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/relations": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * 关系列表
+         * @description type=follow 我关注的人；type=fans 关注我的人；type=mutual 互相关注。
+         *     互关在服务端过滤（先筛后分页），调用方不需要也不应该自己再筛。
+         *     user_id 省略时看自己的列表；看别人的列表受对方的可见性设置约束。
+         */
+        get: {
+            parameters: {
+                query: {
+                    /** @description 视图 */
+                    type: "follow" | "fans" | "mutual";
+                    /** @description 列表归属用户 ID，缺省为自己 */
+                    user_id?: string;
+                    /** @description 页码 */
+                    page?: number;
+                    /** @description 每页条数 */
+                    limit?: number;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["myblogx_internal_kernel.Envelope-myblogx_internal_kernel_HasMoreListData-myblogx_internal_social_domain_RelationItem"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/relations/counts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * 关系计数
+         * @description 顶栏徽标用；与列表同一套可见性判据，列表不可见时这里同样失败。
+         */
+        get: {
+            parameters: {
+                query?: {
+                    /** @description 统计归属用户 ID，缺省为自己 */
+                    user_id?: string;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["myblogx_internal_kernel.Envelope-myblogx_internal_social_domain_RelationCounts"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/relations/fans/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * 移除粉丝
+         * @description 只删"他关注我"这一条。对方不会收到通知，之后仍可再次关注。
+         */
+        delete: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    /** @description 要移除的粉丝用户 ID */
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["myblogx_internal_kernel.Envelope-myblogx_internal_kernel_EmptyData"];
+                    };
+                };
+            };
+        };
         options?: never;
         head?: never;
         patch?: never;
@@ -8769,14 +8831,9 @@ export interface components {
             data?: components["schemas"]["myblogx_internal_kernel.HasMoreListData-myblogx_internal_comment_app_RootItem"];
             msg?: string;
         };
-        "myblogx_internal_kernel.Envelope-myblogx_internal_kernel_HasMoreListData-myblogx_internal_social_domain_FansItem": {
+        "myblogx_internal_kernel.Envelope-myblogx_internal_kernel_HasMoreListData-myblogx_internal_social_domain_RelationItem": {
             code?: number;
-            data?: components["schemas"]["myblogx_internal_kernel.HasMoreListData-myblogx_internal_social_domain_FansItem"];
-            msg?: string;
-        };
-        "myblogx_internal_kernel.Envelope-myblogx_internal_kernel_HasMoreListData-myblogx_internal_social_domain_FollowingItem": {
-            code?: number;
-            data?: components["schemas"]["myblogx_internal_kernel.HasMoreListData-myblogx_internal_social_domain_FollowingItem"];
+            data?: components["schemas"]["myblogx_internal_kernel.HasMoreListData-myblogx_internal_social_domain_RelationItem"];
             msg?: string;
         };
         "myblogx_internal_kernel.Envelope-myblogx_internal_kernel_ListData-internal_ai_adapter_http_ProviderItem": {
@@ -8914,6 +8971,11 @@ export interface components {
             data?: components["schemas"]["myblogx_internal_search_domain.Response"];
             msg?: string;
         };
+        "myblogx_internal_kernel.Envelope-myblogx_internal_social_domain_RelationCounts": {
+            code?: number;
+            data?: components["schemas"]["myblogx_internal_social_domain.RelationCounts"];
+            msg?: string;
+        };
         "myblogx_internal_kernel.Envelope-myblogx_internal_user_app_DetailView": {
             code?: number;
             data?: components["schemas"]["myblogx_internal_user_app.DetailView"];
@@ -8948,13 +9010,9 @@ export interface components {
             has_more?: boolean;
             list?: components["schemas"]["myblogx_internal_comment_app.RootItem"][];
         };
-        "myblogx_internal_kernel.HasMoreListData-myblogx_internal_social_domain_FansItem": {
+        "myblogx_internal_kernel.HasMoreListData-myblogx_internal_social_domain_RelationItem": {
             has_more?: boolean;
-            list?: components["schemas"]["myblogx_internal_social_domain.FansItem"][];
-        };
-        "myblogx_internal_kernel.HasMoreListData-myblogx_internal_social_domain_FollowingItem": {
-            has_more?: boolean;
-            list?: components["schemas"]["myblogx_internal_social_domain.FollowingItem"][];
+            list?: components["schemas"]["myblogx_internal_social_domain.RelationItem"][];
         };
         "myblogx_internal_kernel.IDListRequest": {
             id_list: string[];
@@ -9120,21 +9178,18 @@ export interface components {
         };
         /** @enum {string} */
         "myblogx_internal_search_domain.VisibilityStatus": "visible" | "user_hidden" | "admin_hidden" | "pending_review";
-        "myblogx_internal_social_domain.FansItem": {
-            fans_abstract?: string;
-            fans_avatar?: string;
-            fans_nickname?: string;
-            fans_user_id?: string;
-            follow_time?: string;
-            relation?: number;
+        "myblogx_internal_social_domain.RelationCounts": {
+            fans?: number;
+            follow?: number;
+            mutual?: number;
         };
-        "myblogx_internal_social_domain.FollowingItem": {
+        "myblogx_internal_social_domain.RelationItem": {
+            abstract?: string;
+            avatar?: string;
             follow_time?: string;
-            followed_abstract?: string;
-            followed_avatar?: string;
-            followed_nickname?: string;
-            followed_user_id?: string;
+            nickname?: string;
             relation?: number;
+            user_id?: string;
         };
         "myblogx_internal_user_app.DetailView": {
             abstract?: string;

@@ -10,7 +10,7 @@ import ProfileHeroCard from "~/components/profile/ProfileHeroCard.vue";
 import ProfileRelationList from "~/components/profile/ProfileRelationList.vue";
 import { getProfileCategories } from "~/services/category";
 import { getPublicFavoriteFolders, getOwnFavoriteFolders, getFavoriteFolderArticles } from "~/services/favorite";
-import { getFansList, getFollowList, followUser, unfollowUser } from "~/services/follow";
+import { getRelations, followUser, unfollowUser } from "~/services/follow";
 import { searchArticles } from "~/services/search";
 import { readListPayload } from "~/services/listData";
 import { useDraftChatJump } from "~/composables/useDraftChatJump";
@@ -200,10 +200,11 @@ const { data: followData, pending: followPending, refresh: refreshFollowData } =
   () => `user-follow:${userId.value}:${authStore.profileId || "guest"}:${followLocked.value ? "locked" : "open"}`,
   async () => {
     if (followLocked.value) {
-      return { list: [], count: 0 };
+      return { list: [], has_more: false };
     }
 
-    return getFollowList({
+    return getRelations({
+      type: "follow",
       userId: userId.value,
       page: 1,
       limit: 30,
@@ -218,10 +219,11 @@ const { data: fansData, pending: fansPending, refresh: refreshFansData } = useAs
   () => `user-fans:${userId.value}:${authStore.profileId || "guest"}:${fansLocked.value ? "locked" : "open"}`,
   async () => {
     if (fansLocked.value) {
-      return { list: [], count: 0 };
+      return { list: [], has_more: false };
     }
 
-    return getFansList({
+    return getRelations({
+      type: "fans",
       userId: userId.value,
       page: 1,
       limit: 30,

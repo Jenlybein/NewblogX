@@ -286,6 +286,7 @@ const (
 	CodeFollowTargetNotFound Code = "follow.target_not_found"
 	CodeFollowDuplicate      Code = "follow.duplicate"
 	CodeFollowNotFollowing   Code = "follow.not_following"
+	CodeFollowFanNotFound    Code = "follow.fan_not_found"
 	CodeFollowListPrivate    Code = "follow.list_private"
 	CodeFollowConfigMissing  Code = "follow.config_missing"
 )
@@ -483,10 +484,10 @@ var messages = map[Code]string{
 	CodeArticleSubmitQuotaExceeded: "今天的投稿配额已用完，配额按自然日重置（明天 00:00 后可再次提交）",
 	// 质量闸门：文案要说清"文章已存为草稿"（不是丢了），"不够好"与"平台故障"
 	// 靠错误码区分，文案层面也各说各的下一步动作。
-	CodeArticleQualityRejected: "文章质量未达到发布线，已保存为草稿",
-	CodeArticleScoreUnavailable: "质量评分暂时不可用（模型调用失败），本次提交未保存，请稍后重试",
+	CodeArticleQualityRejected:       "文章质量未达到发布线，已保存为草稿",
+	CodeArticleScoreUnavailable:      "质量评分暂时不可用（模型调用失败），本次提交未保存，请稍后重试",
 	CodeArticleQualityGateRequiresAI: "开启质量闸门需要先启用 AI 助手并配置至少一个可用模型，否则所有投稿都会被拒",
-	CodeArticleRiskRejected:         "文章未通过内容检查，已被拒绝",
+	CodeArticleRiskRejected:          "文章未通过内容检查，已被拒绝",
 
 	CodeTaxonomyTitleRequired: "名称不能为空",
 	CodeTaxonomyTitleExists:   "名称重复",
@@ -601,6 +602,7 @@ var messages = map[Code]string{
 	CodeFollowTargetNotFound: "目标用户不存在",
 	CodeFollowDuplicate:      "请勿重复关注",
 	CodeFollowNotFollowing:   "尚未关注该用户",
+	CodeFollowFanNotFound:    "该用户不是你的粉丝",
 	CodeFollowListPrivate:    "关注关系未公开",
 	CodeFollowConfigMissing:  "用户配置信息不存在",
 

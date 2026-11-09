@@ -288,13 +288,13 @@ export type HistoryArticleItem = RequiredSchema<"internal_article_adapter_http.A
 export type HistoryArticleListData = RequiredSchema<"myblogx_internal_kernel.HasMoreListData-internal_article_adapter_http_ArticleViewHistoryItem">;
 
 
-export type FollowUserItem = RequiredSchema<"myblogx_internal_social_domain.FollowingItem">;
+// 关系视图（票 327）：关注 / 粉丝 / 互关共用一种条目形状，
+// 所以不再有 FollowUserItem / FanUserItem 两个孪生类型。
+export type RelationItem = RequiredSchema<"myblogx_internal_social_domain.RelationItem">;
 
-export type FollowUserListData = RequiredSchema<"myblogx_internal_kernel.HasMoreListData-myblogx_internal_social_domain_FollowingItem">;
+export type RelationListData = RequiredSchema<"myblogx_internal_kernel.HasMoreListData-myblogx_internal_social_domain_RelationItem">;
 
-export type FanUserItem = RequiredSchema<"myblogx_internal_social_domain.FansItem">;
-
-export type FanUserListData = RequiredSchema<"myblogx_internal_kernel.HasMoreListData-myblogx_internal_social_domain_FansItem">;
+export type RelationCounts = RequiredSchema<"myblogx_internal_social_domain.RelationCounts">;
 
 export type FavoriteArticleItem = RequiredSchema<"internal_article_adapter_http.FavoriteArticleListItem">;
 

@@ -5889,27 +5889,13 @@
                 },
                 "type": "object"
             },
-            "myblogx_internal_kernel.Envelope-myblogx_internal_kernel_HasMoreListData-myblogx_internal_social_domain_FansItem": {
+            "myblogx_internal_kernel.Envelope-myblogx_internal_kernel_HasMoreListData-myblogx_internal_social_domain_RelationItem": {
                 "properties": {
                     "code": {
                         "type": "integer"
                     },
                     "data": {
-                        "$ref": "#/components/schemas/myblogx_internal_kernel.HasMoreListData-myblogx_internal_social_domain_FansItem"
-                    },
-                    "msg": {
-                        "type": "string"
-                    }
-                },
-                "type": "object"
-            },
-            "myblogx_internal_kernel.Envelope-myblogx_internal_kernel_HasMoreListData-myblogx_internal_social_domain_FollowingItem": {
-                "properties": {
-                    "code": {
-                        "type": "integer"
-                    },
-                    "data": {
-                        "$ref": "#/components/schemas/myblogx_internal_kernel.HasMoreListData-myblogx_internal_social_domain_FollowingItem"
+                        "$ref": "#/components/schemas/myblogx_internal_kernel.HasMoreListData-myblogx_internal_social_domain_RelationItem"
                     },
                     "msg": {
                         "type": "string"
@@ -6295,6 +6281,20 @@
                 },
                 "type": "object"
             },
+            "myblogx_internal_kernel.Envelope-myblogx_internal_social_domain_RelationCounts": {
+                "properties": {
+                    "code": {
+                        "type": "integer"
+                    },
+                    "data": {
+                        "$ref": "#/components/schemas/myblogx_internal_social_domain.RelationCounts"
+                    },
+                    "msg": {
+                        "type": "string"
+                    }
+                },
+                "type": "object"
+            },
             "myblogx_internal_kernel.Envelope-myblogx_internal_user_app_DetailView": {
                 "properties": {
                     "code": {
@@ -6413,29 +6413,14 @@
                 },
                 "type": "object"
             },
-            "myblogx_internal_kernel.HasMoreListData-myblogx_internal_social_domain_FansItem": {
+            "myblogx_internal_kernel.HasMoreListData-myblogx_internal_social_domain_RelationItem": {
                 "properties": {
                     "has_more": {
                         "type": "boolean"
                     },
                     "list": {
                         "items": {
-                            "$ref": "#/components/schemas/myblogx_internal_social_domain.FansItem"
-                        },
-                        "type": "array",
-                        "uniqueItems": false
-                    }
-                },
-                "type": "object"
-            },
-            "myblogx_internal_kernel.HasMoreListData-myblogx_internal_social_domain_FollowingItem": {
-                "properties": {
-                    "has_more": {
-                        "type": "boolean"
-                    },
-                    "list": {
-                        "items": {
-                            "$ref": "#/components/schemas/myblogx_internal_social_domain.FollowingItem"
+                            "$ref": "#/components/schemas/myblogx_internal_social_domain.RelationItem"
                         },
                         "type": "array",
                         "uniqueItems": false
@@ -7041,48 +7026,39 @@
                     "ArticleVisibilityPendingReview"
                 ]
             },
-            "myblogx_internal_social_domain.FansItem": {
+            "myblogx_internal_social_domain.RelationCounts": {
                 "properties": {
-                    "fans_abstract": {
-                        "type": "string"
+                    "fans": {
+                        "type": "integer"
                     },
-                    "fans_avatar": {
-                        "type": "string"
+                    "follow": {
+                        "type": "integer"
                     },
-                    "fans_nickname": {
-                        "type": "string"
-                    },
-                    "fans_user_id": {
-                        "type": "string"
-                    },
-                    "follow_time": {
-                        "type": "string"
-                    },
-                    "relation": {
+                    "mutual": {
                         "type": "integer"
                     }
                 },
                 "type": "object"
             },
-            "myblogx_internal_social_domain.FollowingItem": {
+            "myblogx_internal_social_domain.RelationItem": {
                 "properties": {
+                    "abstract": {
+                        "type": "string"
+                    },
+                    "avatar": {
+                        "type": "string"
+                    },
                     "follow_time": {
                         "type": "string"
                     },
-                    "followed_abstract": {
-                        "type": "string"
-                    },
-                    "followed_avatar": {
-                        "type": "string"
-                    },
-                    "followed_nickname": {
-                        "type": "string"
-                    },
-                    "followed_user_id": {
+                    "nickname": {
                         "type": "string"
                     },
                     "relation": {
                         "type": "integer"
+                    },
+                    "user_id": {
+                        "type": "string"
                     }
                 },
                 "type": "object"
@@ -10035,56 +10011,6 @@
                 ]
             }
         },
-        "/fans": {
-            "get": {
-                "responses": {
-                    "200": {
-                        "content": {
-                            "application/json": {
-                                "schema": {
-                                    "$ref": "#/components/schemas/myblogx_internal_kernel.Envelope-myblogx_internal_kernel_HasMoreListData-myblogx_internal_social_domain_FansItem"
-                                }
-                            }
-                        },
-                        "description": "OK"
-                    }
-                },
-                "security": [
-                    {
-                        "BearerAuth": []
-                    }
-                ],
-                "summary": "粉丝列表",
-                "tags": [
-                    "follow"
-                ]
-            }
-        },
-        "/follow": {
-            "get": {
-                "responses": {
-                    "200": {
-                        "content": {
-                            "application/json": {
-                                "schema": {
-                                    "$ref": "#/components/schemas/myblogx_internal_kernel.Envelope-myblogx_internal_kernel_HasMoreListData-myblogx_internal_social_domain_FollowingItem"
-                                }
-                            }
-                        },
-                        "description": "OK"
-                    }
-                },
-                "security": [
-                    {
-                        "BearerAuth": []
-                    }
-                ],
-                "summary": "关注列表",
-                "tags": [
-                    "follow"
-                ]
-            }
-        },
         "/follow/{id}": {
             "delete": {
                 "parameters": [
@@ -12457,6 +12383,147 @@
                 "summary": "保存项目具名目录树",
                 "tags": [
                     "project"
+                ]
+            }
+        },
+        "/relations": {
+            "get": {
+                "description": "type=follow 我关注的人；type=fans 关注我的人；type=mutual 互相关注。\n互关在服务端过滤（先筛后分页），调用方不需要也不应该自己再筛。\nuser_id 省略时看自己的列表；看别人的列表受对方的可见性设置约束。",
+                "parameters": [
+                    {
+                        "description": "视图",
+                        "in": "query",
+                        "name": "type",
+                        "required": true,
+                        "schema": {
+                            "enum": [
+                                "follow",
+                                "fans",
+                                "mutual"
+                            ],
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "description": "列表归属用户 ID，缺省为自己",
+                        "in": "query",
+                        "name": "user_id",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "description": "页码",
+                        "in": "query",
+                        "name": "page",
+                        "schema": {
+                            "default": 1,
+                            "type": "integer"
+                        }
+                    },
+                    {
+                        "description": "每页条数",
+                        "in": "query",
+                        "name": "limit",
+                        "schema": {
+                            "default": 10,
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/myblogx_internal_kernel.Envelope-myblogx_internal_kernel_HasMoreListData-myblogx_internal_social_domain_RelationItem"
+                                }
+                            }
+                        },
+                        "description": "OK"
+                    }
+                },
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "summary": "关系列表",
+                "tags": [
+                    "follow"
+                ]
+            }
+        },
+        "/relations/counts": {
+            "get": {
+                "description": "顶栏徽标用；与列表同一套可见性判据，列表不可见时这里同样失败。",
+                "parameters": [
+                    {
+                        "description": "统计归属用户 ID，缺省为自己",
+                        "in": "query",
+                        "name": "user_id",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/myblogx_internal_kernel.Envelope-myblogx_internal_social_domain_RelationCounts"
+                                }
+                            }
+                        },
+                        "description": "OK"
+                    }
+                },
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "summary": "关系计数",
+                "tags": [
+                    "follow"
+                ]
+            }
+        },
+        "/relations/fans/{id}": {
+            "delete": {
+                "description": "只删\"他关注我\"这一条。对方不会收到通知，之后仍可再次关注。",
+                "parameters": [
+                    {
+                        "description": "要移除的粉丝用户 ID",
+                        "in": "path",
+                        "name": "id",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/myblogx_internal_kernel.Envelope-myblogx_internal_kernel_EmptyData"
+                                }
+                            }
+                        },
+                        "description": "OK"
+                    }
+                },
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "summary": "移除粉丝",
+                "tags": [
+                    "follow"
                 ]
             }
         },

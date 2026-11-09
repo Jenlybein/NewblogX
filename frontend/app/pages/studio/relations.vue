@@ -1,24 +1,34 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, shallowRef, watch } from "vue";
-import { NButton, useMessage } from "naive-ui";
+import { NButton, useDialog, useMessage } from "naive-ui";
 import RelationCard from "~/components/social/RelationCard.vue";
 import ProfileEmptyState from "~/components/profile/ProfileEmptyState.vue";
-import { followUser, unfollowUser, getFansList, getFollowList } from "~/services/follow";
+import {
+  followUser,
+  getRelationCounts,
+  getRelations,
+  removeFan as removeFanRequest,
+  unfollowUser,
+  type RelationKind,
+} from "~/services/follow";
 import { useDraftChatJump } from "~/composables/useDraftChatJump";
 import { errorMessage } from "~/utils/errorMessage";
 import { isFollowing } from "~/utils/relation";
+import type { RelationCounts, RelationItem } from "~/types/api";
 
 /**
  * 个人中心 - 关注与粉丝（票 327）。
  *
- * 关注与粉丝原本是两个页面（`/studio/follows`、`/studio/fans`），但它们是同一件事
- * 的两面：都是"我和这个人的关系"，只是方向不同；还有一个天然的第三视图「互关」。
- * 三个页面各写一遍列表、分页与动作，是三份会各自漂移的实现。现在合成一页，
- * 用页内顶栏切换，列表本体是同一个卡片组件。
+ * 关注与粉丝是同一件事的两面（方向不同），互关是两者的交集，所以三种视图合在
+ * 一页，用页内顶栏切换；列表本体是同一个卡片。
  *
- * 互关没有独立接口：它 ⊆ 关注，所以由关注列表按 `relation === 4` 筛出来。
- * 代价要说清楚——筛完的一页会比服务端一页少，所以互关视图在客户端自己分页
- * （先把关注列表读够，再按本地页长切），不和服务端的 `has_more` 混用。
+ * 取数只有一条路径：`GET /api/relations?type=...`。互关由**服务端**先筛后分页，
+ * 所以这里没有"筛完不够一页还要往后扫"的逻辑——那是本票之前客户端筛互关的
+ * 临时办法，`has_more` 与每页条数都不可信。顶栏的数字来自
+ * `GET /api/relations/counts`（与列表同一套可见性判据）。
+ *
+ * 写动作两类：`/api/follow/{id}`（我对别人的关注）与
+ * `/api/relations/fans/{id}`（单方面移除关注我的人）。
  */
 definePageMeta({
   layout: "studio",
@@ -31,17 +41,8 @@ useSeoMeta({
 useNoIndexPage();
 
 const PAGE_SIZE = 24;
-/** 互关一次最多扫这么多个服务端关注页，防止"关注几千人"时无限翻页。 */
-const MAX_MUTUAL_SCAN_PAGES = 6;
 
-type RelationTab = "follow" | "fans" | "mutual";
-type RelationRow = {
-  id: string;
-  nickname: string;
-  avatar: string;
-  abstract: string;
-  relation: number;
-};
+type RelationTab = RelationKind;
 
 const TABS: Array<{ key: RelationTab; label: string }> = [
   { key: "follow", label: "关注" },
@@ -50,79 +51,40 @@ const TABS: Array<{ key: RelationTab; label: string }> = [
 ];
 
 const message = useMessage();
+const dialog = useDialog();
 const { jumpToDraftChat } = useDraftChatJump();
 const route = useRoute();
 const router = useRouter();
 
 const activeTab = ref<RelationTab>(resolveTab(route.query.tab));
 const page = shallowRef(1);
-const rows = ref<RelationRow[]>([]);
+const rows = ref<RelationItem[]>([]);
 const hasMore = ref(false);
 const pending = ref(true);
 const failed = ref(false);
 const busy = ref(false);
-
-/** 互关：一次扫到的全部互关行（客户端分页，见文件头注释）。 */
-const mutualAll = ref<RelationRow[]>([]);
-const mutualExhausted = ref(false);
+/**
+ * 顶栏计数。读失败就留空——徽标少一个数字不影响列表可用，
+ * 但它绝不能变成"0"（那会让人以为关系没了）。
+ */
+const counts = shallowRef<RelationCounts | null>(null);
 
 function resolveTab(value: unknown): RelationTab {
   return value === "fans" || value === "mutual" ? value : "follow";
 }
 
-function normalizeFollow(item: { followed_user_id: string; followed_nickname: string; followed_avatar?: string; followed_abstract?: string; relation?: number }): RelationRow {
-  return {
-    id: item.followed_user_id,
-    nickname: item.followed_nickname,
-    avatar: item.followed_avatar ?? "",
-    abstract: item.followed_abstract ?? "",
-    relation: item.relation ?? 0,
-  };
-}
-
-function normalizeFan(item: { fans_user_id: string; fans_nickname: string; fans_avatar?: string; fans_abstract?: string; relation?: number }): RelationRow {
-  return {
-    id: item.fans_user_id,
-    nickname: item.fans_nickname,
-    avatar: item.fans_avatar ?? "",
-    abstract: item.fans_abstract ?? "",
-    relation: item.relation ?? 0,
-  };
-}
-
-/** 互关视图：先把关注列表读够，再筛出 `relation === 4`。 */
-async function loadMutualPage(target: number) {
-  const needed = target * PAGE_SIZE;
-  let rawPage = 1;
-
-  while (mutualAll.value.length < needed && !mutualExhausted.value && rawPage <= MAX_MUTUAL_SCAN_PAGES) {
-    const result = await getFollowList({ page: rawPage, limit: PAGE_SIZE });
-    mutualAll.value = [...mutualAll.value, ...result.list.map(normalizeFollow).filter((row) => row.relation === 4)];
-    if (!result.has_more) mutualExhausted.value = true;
-    rawPage += 1;
-  }
-
-  rows.value = mutualAll.value.slice((target - 1) * PAGE_SIZE, target * PAGE_SIZE);
-  hasMore.value =
-    mutualAll.value.length > target * PAGE_SIZE ||
-    (!mutualExhausted.value && mutualAll.value.length === target * PAGE_SIZE);
+function tabCount(kind: RelationTab): number | null {
+  if (!counts.value) return null;
+  return counts.value[kind] ?? null;
 }
 
 async function loadPage(target: number) {
   pending.value = true;
   failed.value = false;
   try {
-    if (activeTab.value === "mutual") {
-      await loadMutualPage(target);
-    } else if (activeTab.value === "fans") {
-      const result = await getFansList({ page: target, limit: PAGE_SIZE });
-      rows.value = result.list.map(normalizeFan);
-      hasMore.value = result.has_more;
-    } else {
-      const result = await getFollowList({ page: target, limit: PAGE_SIZE });
-      rows.value = result.list.map(normalizeFollow);
-      hasMore.value = result.has_more;
-    }
+    const result = await getRelations({ type: activeTab.value, page: target, limit: PAGE_SIZE });
+    rows.value = result.list;
+    hasMore.value = result.has_more;
   } catch (error) {
     // 失败态与空态必须分开：失败时落进"还没有人"会让用户以为关系没了。
     failed.value = true;
@@ -134,42 +96,54 @@ async function loadPage(target: number) {
   }
 }
 
-/** 切分栏：换一个视图就回到第一页，并且把互关的累积清空重新扫。 */
+async function loadCounts() {
+  try {
+    counts.value = await getRelationCounts();
+  } catch {
+    counts.value = null;
+  }
+}
+
+/**
+ * 写入之后以服务端为准。
+ *
+ * 关系是双向的：关注一个人会同时改两个视图的计数，也会让他从"粉丝"变成"互关"。
+ * 本地改一行就会漏掉这些联动，所以一律重拉列表与计数。
+ *
+ * 顺带处理一个边界：移除/取关删掉本页最后一条时退回上一页，
+ * 否则会停在一张空页上（`page` 变化会触发 watch 重新取数）。
+ */
+async function reloadAfterMutation() {
+  await Promise.all([loadPage(page.value), loadCounts()]);
+  if (!rows.value.length && page.value > 1) {
+    page.value -= 1;
+  }
+}
+
+/** 切分栏：换一个视图就回到第一页。 */
 function switchTab(tab: RelationTab) {
   if (tab === activeTab.value) return;
   activeTab.value = tab;
   const wasOnFirstPage = page.value === 1;
   page.value = 1;
   rows.value = [];
-  if (tab === "mutual") {
-    mutualAll.value = [];
-    mutualExhausted.value = false;
-  }
   void router.replace({ query: { ...route.query, tab } });
-  // 页码没变（本来就停在第 1 页）时 watch 不会触发，所以这里显式取一次；
-  // 页码变了则由 watch 负责，避免同一轮取数发两次。
+  // 页码没变（本来就停在第 1 页）时 watch 不会触发，所以这里显式取一次。
   if (wasOnFirstPage) void loadPage(1);
 }
 
-async function toggleFollow(row: RelationRow) {
+async function toggleFollow(row: RelationItem) {
   if (busy.value) return;
   busy.value = true;
   try {
     if (isFollowing(row.relation)) {
-      await unfollowUser(row.id);
-      message.success(row.relation === 4 ? "已取消回关" : "已取消关注");
+      await unfollowUser(row.user_id);
+      message.success("已取消关注");
     } else {
-      await followUser(row.id);
-      message.success("已回关");
+      await followUser(row.user_id);
+      message.success(row.relation === 3 ? "已回关" : "已关注");
     }
-    // 写完以服务端为准：关系是双向的，本地改一条会漏掉对方那侧的计数与互关状态。
-    if (activeTab.value === "mutual") {
-      mutualAll.value = [];
-      mutualExhausted.value = false;
-      await loadMutualPage(page.value);
-    } else {
-      await loadPage(page.value);
-    }
+    await reloadAfterMutation();
   } catch (error) {
     message.error(errorMessage(error, "关注操作失败"));
   } finally {
@@ -177,10 +151,35 @@ async function toggleFollow(row: RelationRow) {
   }
 }
 
-function openMessage(row: RelationRow) {
+/** 移除粉丝是不可撤销的，先问一次；讲清楚是单向的、对方不会收到通知。 */
+function confirmRemoveFan(row: RelationItem) {
+  dialog.warning({
+    title: "移除粉丝",
+    content: `移除后「${row.nickname}」将不再关注你。对方不会收到通知，之后仍可再次关注。`,
+    positiveText: "移除",
+    negativeText: "取消",
+    onPositiveClick: () => removeFanById(row),
+  });
+}
+
+async function removeFanById(row: RelationItem) {
+  if (busy.value) return;
+  busy.value = true;
+  try {
+    await removeFanRequest(row.user_id);
+    message.success("已移除该粉丝");
+    await reloadAfterMutation();
+  } catch (error) {
+    message.error(errorMessage(error, "移除粉丝失败"));
+  } finally {
+    busy.value = false;
+  }
+}
+
+function openMessage(row: RelationItem) {
   // 与作者主页共用同一份跨页契约（四个 draft_* 参数由 buildDraftChatQuery 单一来源生成）。
   void jumpToDraftChat({
-    receiverId: row.id,
+    receiverId: row.user_id,
     receiverNickname: row.nickname || "新会话",
     receiverAvatar: row.avatar || "",
     relation: row.relation,
@@ -198,6 +197,7 @@ function nextPage() {
 }
 
 onMounted(() => {
+  void loadCounts();
   void loadPage(page.value);
 });
 
@@ -205,13 +205,26 @@ watch(page, (value) => {
   void loadPage(value);
 });
 
+/**
+ * 空态的标题只说"没有"。
+ *
+ * 不复用 `summaryText`：徽标可能已经读到 12 人（例如刚移除掉本页最后一条、
+ * 计数还没回来），而列表此刻是空的——那时标题写"关注 12 人"会让空态自相矛盾。
+ */
+const emptyTitle = computed(() => {
+  if (activeTab.value === "mutual") return "还没有互相关注的人";
+  if (activeTab.value === "fans") return "还没有粉丝";
+  return "还没有关注任何人";
+});
+
 const summaryText = computed(() => {
   if (pending.value) return "正在读取关系列表…";
   if (failed.value) return "暂时读不到这份关系列表";
-  if (!rows.value.length) {
-    if (activeTab.value === "mutual") return "还没有互相关注的人";
-    if (activeTab.value === "fans") return "还没有粉丝";
-    return "还没有关注任何人";
+  if (!rows.value.length) return emptyTitle.value;
+  const total = tabCount(activeTab.value);
+  if (total !== null) {
+    const noun = activeTab.value === "fans" ? "粉丝" : activeTab.value === "mutual" ? "互关" : "关注";
+    return `${noun} ${total} 人`;
   }
   return `共 ${rows.value.length} 人${hasMore.value ? "（还有更多）" : ""}`;
 });
@@ -235,7 +248,7 @@ const emptyDescription = computed(() => {
         </div>
       </div>
 
-      <!-- 页内顶栏：三个视图共用同一个列表与同一个卡片，只换取数来源。 -->
+      <!-- 页内顶栏：三个视图共用同一个卡片与同一份分页，只换取数参数。 -->
       <div class="relation-tabs" role="tablist" aria-label="关系视图">
         <button
           v-for="tab in TABS"
@@ -249,14 +262,15 @@ const emptyDescription = computed(() => {
           @click="switchTab(tab.key)"
         >
           {{ tab.label }}
+          <span v-if="tabCount(tab.key) !== null" class="relation-tabs__count">{{ tabCount(tab.key) }}</span>
         </button>
       </div>
 
       <div v-if="rows.length" class="relation-card-grid" :data-role="`relation-list-${activeTab}`">
         <RelationCard
           v-for="row in rows"
-          :key="row.id"
-          :user-id="row.id"
+          :key="row.user_id"
+          :user-id="row.user_id"
           :nickname="row.nickname"
           :avatar="row.avatar"
           :abstract="row.abstract"
@@ -265,6 +279,7 @@ const emptyDescription = computed(() => {
           :busy="busy"
           @toggle-follow="toggleFollow(row)"
           @message="openMessage(row)"
+          @remove-fan="confirmRemoveFan(row)"
         />
       </div>
 
@@ -273,7 +288,7 @@ const emptyDescription = computed(() => {
         class="mt-5"
         size="md"
         :pending="pending"
-        :title="pending ? '正在读取关系列表' : summaryText"
+        :title="pending ? '正在读取关系列表' : failed ? '暂时读不到这份关系列表' : emptyTitle"
         :description="pending ? '稍候会自动出现。' : emptyDescription"
       />
 
@@ -317,6 +332,9 @@ const emptyDescription = computed(() => {
 }
 
 .relation-tabs__item {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
   padding: 6px 18px;
   border: 0;
   border-radius: var(--radius-pill);
@@ -342,6 +360,18 @@ const emptyDescription = computed(() => {
 .relation-tabs__item:focus-visible {
   outline: 2px solid var(--color-focus);
   outline-offset: 2px;
+}
+
+/* 计数徽标：等宽数字，随选中态轻微加深，不做独立的彩色强调。 */
+.relation-tabs__count {
+  color: var(--color-ink-muted);
+  font-family: var(--font-mono);
+  font-size: 0.6875rem;
+  font-weight: 500;
+}
+
+.relation-tabs__item.is-active .relation-tabs__count {
+  color: var(--color-ink);
 }
 
 /* 卡片栅格：个人中心的窄栏里两列，宽一些时三列。 */

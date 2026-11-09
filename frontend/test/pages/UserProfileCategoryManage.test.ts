@@ -63,10 +63,12 @@ vi.mock("~/services/favorite", () => ({
   getFavoriteFolderArticles: vi.fn(async () => ({ list: [], count: 0 })),
 }));
 vi.mock("~/services/follow", () => ({
-  getFollowList: vi.fn(async () => ({ list: [], count: 0 })),
-  getFansList: vi.fn(async () => ({ list: [], count: 0 })),
+  // 票 327 起关注 / 粉丝共用一个读端点（type 区分视图），条目形状也统一了。
+  getRelations: vi.fn(async () => ({ list: [], has_more: false })),
+  getRelationCounts: vi.fn(async () => ({ follow: 0, fans: 0, mutual: 0 })),
   followUser: vi.fn(),
   unfollowUser: vi.fn(),
+  removeFan: vi.fn(),
 }));
 vi.mock("~/composables/useDraftChatJump", () => ({ useDraftChatJump: () => ({ jumpToDraftChat: vi.fn() }) }));
 vi.mock("naive-ui", () => ({ useMessage: () => message }));

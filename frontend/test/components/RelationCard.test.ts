@@ -8,7 +8,7 @@ import RelationCard from "~/components/social/RelationCard.vue";
  * 关系卡片（关注 / 粉丝 / 互关三视图共用，票 327）。
  *
  * 形状参照用户给的截图：长方形容器里圆形头像 + 昵称 + 行内按钮，
- * 右侧「更多」入口里是私信与关系动作。这一层只锁**文案与信号**：
+ * 右侧「更多」入口里是私信、关系动作与移除粉丝。这一层只锁**文案与信号**：
  * 哪种关系显示什么按钮、菜单里有什么、点了抛什么事件——样式不在断言范围。
  *
  * naive-ui 的 `NDropdown` 换成能观察 options 的替身：菜单项是数据不是模板，
@@ -113,24 +113,34 @@ describe("关系卡片：更多菜单", () => {
     expect(menuLabels(mountCard({ relation: 4, mode: "follow" }))).toEqual(["发私信", "取消关注"]);
   });
 
-  it("对方关注了我、我还没回：发私信 / 回关", () => {
-    expect(menuLabels(mountCard({ relation: 3, mode: "fans" }))).toEqual(["发私信", "回关"]);
+  it("对方关注了我、我还没回（粉丝视图）：发私信 / 回关 / 移除粉丝", () => {
+    expect(menuLabels(mountCard({ relation: 3, mode: "fans" }))).toEqual(["发私信", "回关", "移除粉丝"]);
   });
 
-  it("没有「移除粉丝」：后端只能取消我自己的关注，不能移除别人的关注", () => {
-    for (const mode of ["follow", "fans", "mutual"] as const) {
-      expect(menuLabels(mountCard({ relation: 3, mode }))).not.toContain("移除粉丝");
-    }
+  it("互关的行也能移除粉丝（粉丝视图与互关视图）", () => {
+    expect(menuLabels(mountCard({ relation: 4, mode: "fans" }))).toContain("移除粉丝");
+    expect(menuLabels(mountCard({ relation: 4, mode: "mutual" }))).toContain("移除粉丝");
+  });
+
+  it("关注视图不提供「移除粉丝」：那里的心理模型是「我关注的人」", () => {
+    expect(menuLabels(mountCard({ relation: 4, mode: "follow" }))).not.toContain("移除粉丝");
+  });
+
+  it("不关注我的人没有「移除粉丝」可移除（relation=2 不是我的粉丝）", () => {
+    expect(menuLabels(mountCard({ relation: 2, mode: "fans" }))).not.toContain("移除粉丝");
   });
 
   it("选菜单项抛对应事件", async () => {
-    const wrapper = mountCard({ relation: 4, mode: "follow" });
+    const wrapper = mountCard({ relation: 3, mode: "fans" });
 
     await wrapper.get('[data-key="message"]').trigger("click");
     expect(wrapper.emitted("message")).toHaveLength(1);
 
     await wrapper.get('[data-key="toggleFollow"]').trigger("click");
     expect(wrapper.emitted("toggleFollow")).toHaveLength(1);
+
+    await wrapper.get('[data-key="removeFan"]').trigger("click");
+    expect(wrapper.emitted("removeFan")).toHaveLength(1);
   });
 });
 

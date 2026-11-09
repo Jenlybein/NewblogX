@@ -98,86 +98,127 @@ func (s *Service) Unfollow(ctx context.Context, viewerID, targetID uint64) error
 	return nil
 }
 
-// ListFollowing 关注列表。
-func (s *Service) ListFollowing(ctx context.Context, viewerID, ownerID, followedFilter uint64, page domain.Page) ([]domain.FollowingItem, bool, error) {
+// ListRelations 关系列表（关注 / 粉丝 / 互关共用同一个入口）。
+func (s *Service) ListRelations(ctx context.Context, viewerID, ownerID uint64, kind domain.RelationKind, page domain.Page) ([]domain.RelationItem, bool, error) {
 	ownerID = s.resolveOwner(viewerID, ownerID)
 	if ownerID == 0 {
-		return []domain.FollowingItem{}, false, nil
+		return []domain.RelationItem{}, false, nil
 	}
-	if ownerID != viewerID && s.privacy != nil {
-		visible, err := s.privacy.FollowVisible(ctx, ownerID)
-		if err != nil {
-			return nil, false, apperr.New(apperr.CodeFollowConfigMissing)
-		}
-		if !visible {
-			return nil, false, apperr.New(apperr.CodeFollowListPrivate)
+	if ownerID != viewerID {
+		if err := s.ensureVisible(ctx, ownerID, kind); err != nil {
+			return nil, false, err
 		}
 	}
 
-	rows, hasMore, err := s.repo.ListFollowing(ctx, ownerID, followedFilter, page)
+	rows, hasMore, err := s.repo.ListRelations(ctx, ownerID, kind, page)
 	if err != nil {
 		return nil, false, err
 	}
-	s.hydrateFollowed(ctx, rows)
-
-	ids := make([]uint64, 0, len(rows))
-	for _, row := range rows {
-		ids = append(ids, row.FollowedUserID.Uint64())
-	}
-	relations := s.relationBatch(ctx, viewerID, ids)
-	items := make([]domain.FollowingItem, 0, len(rows))
-	for _, row := range rows {
-		items = append(items, domain.FollowingItem{
-			FollowedUserID:   row.FollowedUserID,
-			FollowedNickname: row.FollowedNickname,
-			FollowedAvatar:   row.FollowedAvatar,
-			FollowedAbstract: row.FollowedAbstract,
-			FollowTime:       row.CreatedAt,
-			Relation:         relations[row.FollowedUserID.Uint64()],
-		})
-	}
-	return items, hasMore, nil
+	return s.toRelationItems(ctx, viewerID, kind, rows), hasMore, nil
 }
 
-// ListFans 粉丝列表。
-func (s *Service) ListFans(ctx context.Context, viewerID, ownerID, fansFilter uint64, page domain.Page) ([]domain.FansItem, bool, error) {
+// CountRelations 三个视图的计数（顶栏徽标用）。
+func (s *Service) CountRelations(ctx context.Context, viewerID, ownerID uint64) (domain.RelationCounts, error) {
 	ownerID = s.resolveOwner(viewerID, ownerID)
 	if ownerID == 0 {
-		return []domain.FansItem{}, false, nil
+		return domain.RelationCounts{}, nil
 	}
-	if ownerID != viewerID && s.privacy != nil {
-		visible, err := s.privacy.FansVisible(ctx, ownerID)
-		if err != nil {
-			return nil, false, apperr.New(apperr.CodeFollowConfigMissing)
+	// 计数跟列表一起受可见性约束：列表锁着而数字还亮着，等于把私密关系的
+	// 规模透给访客。
+	if ownerID != viewerID {
+		if err := s.ensureVisible(ctx, ownerID, domain.KindFollow); err != nil {
+			return domain.RelationCounts{}, err
 		}
-		if !visible {
-			return nil, false, apperr.New(apperr.CodeFollowListPrivate)
-		}
+	}
+	return s.repo.CountRelations(ctx, ownerID)
+}
+
+// RemoveFan 移除一个关注我的人。
+//
+// 语义是**单向移除**：只删"他关注我"这一条，不通知对方，也不阻止他再次关注。
+// 所以它调用的持久化操作与取关完全相同（Unfollow(我, 他)），差别只在用例层：
+// 取关是我放弃了对他的关注，移除粉丝是我让别人对我的关注消失。
+//
+// 统计照旧跟着关系走：他的关注数 -1、我的粉丝数 -1。
+func (s *Service) RemoveFan(ctx context.Context, viewerID, fanID uint64) error {
+	if viewerID == 0 {
+		return apperr.New(apperr.CodeAuthRequired)
+	}
+	if viewerID == fanID {
+		return apperr.New(apperr.CodeFollowSelf)
 	}
 
-	rows, hasMore, err := s.repo.ListFans(ctx, ownerID, fansFilter, page)
+	removed, err := s.repo.Unfollow(ctx, viewerID, fanID)
 	if err != nil {
-		return nil, false, err
+		return err
 	}
-	s.hydrateFans(ctx, rows)
+	if !removed {
+		return apperr.New(apperr.CodeFollowFanNotFound)
+	}
+	if s.stats != nil {
+		if err := s.stats.ApplyFollowDelta(ctx, fanID, viewerID, -1); err != nil {
+			s.logError("更新移除粉丝后的统计失败: fans=%d followed=%d err=%v", fanID, viewerID, err)
+		}
+	}
+	return nil
+}
+
+// ensureVisible 检查 owner 的对应列表是否对访客可见。
+//
+// mutual ⊆ follow，所以互关视图沿用关注列表的可见性开关。
+func (s *Service) ensureVisible(ctx context.Context, ownerID uint64, kind domain.RelationKind) error {
+	if s.privacy == nil {
+		return nil
+	}
+	var (
+		visible bool
+		err     error
+	)
+	if kind == domain.KindFans {
+		visible, err = s.privacy.FansVisible(ctx, ownerID)
+	} else {
+		visible, err = s.privacy.FollowVisible(ctx, ownerID)
+	}
+	if err != nil {
+		return apperr.New(apperr.CodeFollowConfigMissing)
+	}
+	if !visible {
+		return apperr.New(apperr.CodeFollowListPrivate)
+	}
+	return nil
+}
+
+// toRelationItems 把关系行投影成统一条目，并补齐关系值。
+//
+// 关系值是"我看这些人分别是什么关系"，所以要用 viewer 去算；缺快照的那一端
+// 顺手用展示读补上（历史数据里快照可能为空）。
+func (s *Service) toRelationItems(ctx context.Context, viewerID uint64, kind domain.RelationKind, rows []domain.Follow) []domain.RelationItem {
+	if kind == domain.KindFans {
+		s.hydrateFans(ctx, rows)
+	} else {
+		s.hydrateFollowed(ctx, rows)
+	}
 
 	ids := make([]uint64, 0, len(rows))
 	for _, row := range rows {
-		ids = append(ids, row.FansUserID.Uint64())
+		id, _, _, _ := row.Counterpart(kind)
+		ids = append(ids, id.Uint64())
 	}
 	relations := s.relationBatch(ctx, viewerID, ids)
-	items := make([]domain.FansItem, 0, len(rows))
+
+	items := make([]domain.RelationItem, 0, len(rows))
 	for _, row := range rows {
-		items = append(items, domain.FansItem{
-			FansUserID:   row.FansUserID,
-			FansNickname: row.FansNickname,
-			FansAvatar:   row.FansAvatar,
-			FansAbstract: row.FansAbstract,
-			FollowTime:   row.CreatedAt,
-			Relation:     relations[row.FansUserID.Uint64()],
+		id, nickname, avatar, abstract := row.Counterpart(kind)
+		items = append(items, domain.RelationItem{
+			UserID:     id,
+			Nickname:   nickname,
+			Avatar:     avatar,
+			Abstract:   abstract,
+			FollowTime: row.CreatedAt,
+			Relation:   relations[id.Uint64()],
 		})
 	}
-	return items, hasMore, nil
+	return items
 }
 
 // Relation 计算两人关系（供其他模块复用）。

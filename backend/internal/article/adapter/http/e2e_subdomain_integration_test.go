@@ -29,6 +29,7 @@ func TestSubdomainEndpointsEndToEnd(t *testing.T) {
 	author := newRouterWithIDs(t, db, domain.NormalUser(ctype.NewID(100)), 1000)
 	reader := newRouterWithIDs(t, db, domain.NormalUser(ctype.NewID(200)), 2000)
 	admin := newRouterWithIDs(t, db, domain.AdminUser(ctype.NewID(900)), 3000)
+	anon := newRouterWithIDs(t, db, domain.Anonymous(), 4000)
 
 	// ── 分类：建 → 列表 → 删 ──
 	respCode(t, do(t, author, http.MethodPost, "/api/articles/category",
@@ -51,6 +52,51 @@ func TestSubdomainEndpointsEndToEnd(t *testing.T) {
 	}
 	respCode(t, do(t, admin, http.MethodDelete, "/api/articles/tags",
 		[]byte(fmt.Sprintf(`{"id_list":[%s]}`, tagID))), "删标签")
+
+	// ── 标签的「包含停用」只对管理员生效（票 323）──
+	// 标签公开读保留（发布页要选标签），但停用项属于管理视图：匿名与普通用户
+	// 即使显式传 include_disabled 也只拿到启用项，且不报错。
+	respCode(t, do(t, admin, http.MethodPut, "/api/articles/tags",
+		[]byte(`{"title":"端到端启用标签","sort":8}`)), "建启用标签")
+	respCode(t, do(t, admin, http.MethodPut, "/api/articles/tags",
+		[]byte(`{"title":"端到端停用标签","sort":9,"is_enabled":false}`)), "建停用标签")
+	const disabledTitle = "端到端停用标签"
+	tagsWithDisabledURL := "/api/articles/tags?include_disabled=1"
+
+	// 管理员：停用项可见。
+	if findIDByTitle(listOf(t, do(t, admin, http.MethodGet, tagsWithDisabledURL, nil)), disabledTitle) == "" {
+		t.Fatal("管理员带 include_disabled 应看到停用标签")
+	}
+	// 匿名：降级成只返回启用项（不报错）。
+	if findIDByTitle(listOf(t, do(t, anon, http.MethodGet, tagsWithDisabledURL, nil)), disabledTitle) != "" {
+		t.Fatal("匿名带 include_disabled 不应看到停用标签")
+	}
+	// 普通用户：同样降级。
+	if findIDByTitle(listOf(t, do(t, reader, http.MethodGet, tagsWithDisabledURL, nil)), disabledTitle) != "" {
+		t.Fatal("普通用户带 include_disabled 不应看到停用标签")
+	}
+
+	// 公开读本身不能被这次收紧弄坏：匿名不带参数照样读到启用项。
+	anonTags := listOf(t, do(t, anon, http.MethodGet, "/api/articles/tags", nil))
+	if findIDByTitle(anonTags, "端到端启用标签") == "" {
+		t.Fatal("匿名默认标签列表缺启用项")
+	}
+	if findIDByTitle(anonTags, disabledTitle) != "" {
+		t.Fatal("匿名默认标签列表不应含停用项")
+	}
+	// 分类公开读同理（个人主页要展示分类）。
+	respCode(t, do(t, anon, http.MethodGet, "/api/articles/category?user_id=100", nil), "匿名读分类")
+
+	// 清理标签，避免影响后续子域断言。
+	allTags := listOf(t, do(t, admin, http.MethodGet, tagsWithDisabledURL, nil))
+	cleanupIDs := make([]string, 0, 2)
+	for _, title := range []string{"端到端启用标签", disabledTitle} {
+		if id := findIDByTitle(allTags, title); id != "" {
+			cleanupIDs = append(cleanupIDs, id)
+		}
+	}
+	respCode(t, do(t, admin, http.MethodDelete, "/api/articles/tags",
+		[]byte(fmt.Sprintf(`{"id_list":[%s]}`, strings.Join(cleanupIDs, ",")))), "删标签（鉴权用例）")
 
 	// ── 收藏夹：建 → 列表 → 删 ──
 	respCode(t, do(t, author, http.MethodPut, "/api/articles/favorite",

@@ -1,11 +1,24 @@
 <script setup lang="ts">
-import { NButton, NList, NListItem, NThing, NTag, useMessage } from "naive-ui";
+import { NButton, useMessage } from "naive-ui";
+import ProfileRelationList from "~/components/profile/ProfileRelationList.vue";
 import { followUser, unfollowUser } from "~/services/follow";
 import { getFanUsers } from "~/services/studio";
-import { formatDateTimeLabel } from "~/utils/format";
 import { isFollowing, isMutualFollow } from "~/utils/relation";
 import { errorMessage } from "~/utils/errorMessage";
 
+/**
+ * 个人中心 - 粉丝（票 327）。
+ *
+ * 列表本体复用公开主页那份 `ProfileRelationList`（头像 + 昵称 + 关系 chip + 简介 + 时间 + 操作）。
+ *
+ * 为什么不再自己拼 naive-ui 的 `NList / NListItem / NThing`：操作按钮放在
+ * `NListItem` 的 `#suffix` 槽里，而 `.n-list-item__suffix` 是 `flex: 0`（basis 0、不 grow），
+ * 这一列会退化成"内容的最小可断行宽度"；"查看主页"是中文、可任意断行，于是整列被压成
+ * 一个字宽、四个字竖排、列表项被撑高。共享组件把操作放在自己的卡片栅格里，
+ * 中文按钮不会被压扁（`.glass-badge` 另有 `white-space: nowrap` 兜底）。
+ *
+ * 分页仍留在页面：共享组件只管一页的展示，翻页由取数方决定。
+ */
 definePageMeta({
   layout: "studio",
   middleware: "auth",
@@ -22,12 +35,15 @@ const { data, pending, refresh } = await useAsyncData(
 async function toggleFollow(id: string, relation: number) {
   try {
     if (isFollowing(relation)) {
+      // 粉丝语境：互相关注（4）撤掉的是"你回关的那一半"（提示也别写"取消关注"）；
+      // 单向已关注（2）撤掉的就是关注本身。提示与按钮文案（见 utils/relation）一致。
       await unfollowUser(id);
-      message.success("已取消回关");
+      message.success(isMutualFollow(relation) ? "已取消回关" : "已取消关注");
     } else {
       await followUser(id);
       message.success("已回关");
     }
+    // 写完以服务端为准：关系是双向的，本地改一条还会漏掉对方那侧的计数。
     await refresh();
     if (!data.value?.list.length && page.value > 1) {
       page.value -= 1;
@@ -56,39 +72,35 @@ useNoIndexPage();
 <template>
   <div class="page-stack">
     <section class="studio-list-card">
-      <NList v-if="data?.list.length">
-        <NListItem v-for="item in data?.list" :key="item.fans_user_id">
-          <NThing :title="item.fans_nickname" :description="item.fans_abstract || '这个用户还没有填写简介。'">
-            <template #header-extra>
-              <NTag size="small">{{ isMutualFollow(item.relation) ? "互相关注" : "关注了你" }}</NTag>
-            </template>
-            <template #footer>
-              <div class="studio-list-meta">
-                <span>{{ formatDateTimeLabel(item.follow_time) }}</span>
-              </div>
-            </template>
-          </NThing>
-          <template #suffix>
-            <div class="flex flex-wrap gap-2">
-              <NuxtLink :to="`/users/${item.fans_user_id}`" class="glass-badge">查看主页</NuxtLink>
-              <NButton quaternary size="small" @click="toggleFollow(item.fans_user_id, item.relation)">
-                {{ isMutualFollow(item.relation) ? "取消回关" : "回关" }}
-              </NButton>
-            </div>
-          </template>
-        </NListItem>
-      </NList>
-      <StudioEmptyState
-        v-else
-        title="你还没有粉丝"
-        :description="pending ? '正在读取粉丝列表…' : '继续发布内容和参与互动后，这里会逐渐出现新的关系沉淀。'"
+      <ProfileRelationList
+        title="粉丝"
+        mode="fans"
+        :items="data?.list ?? []"
+        :pending="pending"
+        @toggle-follow="toggleFollow"
       />
 
       <div v-if="data?.list.length" class="mt-5 flex flex-wrap items-center justify-between gap-3 text-sm muted">
         <span>第 {{ page }} 页</span>
         <div class="flex items-center gap-3">
-          <NButton quaternary size="small" :disabled="page <= 1 || pending" @click="previousPage()">上一页</NButton>
-          <NButton quaternary size="small" :disabled="!data?.has_more || pending" @click="nextPage()">下一页</NButton>
+          <NButton
+            quaternary
+            size="small"
+            data-role="pagination-prev"
+            :disabled="page <= 1 || pending"
+            @click="previousPage()"
+          >
+            上一页
+          </NButton>
+          <NButton
+            quaternary
+            size="small"
+            data-role="pagination-next"
+            :disabled="!data?.has_more || pending"
+            @click="nextPage()"
+          >
+            下一页
+          </NButton>
         </div>
       </div>
     </section>

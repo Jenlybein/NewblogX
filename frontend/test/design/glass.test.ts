@@ -129,6 +129,15 @@ describe("玻璃作用域：只出现在导航 / 浮层 / 悬浮控件 / 胶囊"
 
     expect(block).not.toContain("backdrop-filter");
   });
+
+  // #327：粉丝 / 关注列表的"查看主页"曾放在 naive-ui 的 `#suffix` 槽里，
+  // 那一列是 `flex: 0`（basis 0），中文可任意断行 → 整列压成一字宽、四字竖排。
+  // 根因是布局，徽标自身也要兜一层：任何被塞进窄槽的场景都不许把中文折成竖排。
+  it("旧的 .glass-badge 不折行（中文文案不会被压成一字宽）", () => {
+    const block = blockAfter(tailwindCss, ".glass-badge");
+
+    expect(block).toContain("white-space: nowrap");
+  });
 });
 
 describe("玻璃材料：两档 token 消费（#18 种下的玻璃组）", () => {

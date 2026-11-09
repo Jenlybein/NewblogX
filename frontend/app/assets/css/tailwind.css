@@ -77,6 +77,9 @@
     @apply inline-flex items-center gap-2 rounded-pill border px-3 py-1 text-xs font-medium;
     background: var(--color-surface-raised);
     border-color: var(--color-line-faint);
+    /* 中文文案（"查看主页"）可任意断行：一旦被塞进窄槽（如 naive 的 flex:0 列），
+     * 就会一字一竖成四行。徽标自身不折行，布局再挤也只是溢出而不是变形。 */
+    white-space: nowrap;
   }
 
   .section-title {

@@ -1,11 +1,20 @@
 <script setup lang="ts">
-import { NButton, NList, NListItem, NThing, NTag, useMessage } from "naive-ui";
+import { NButton, useMessage } from "naive-ui";
+import ProfileRelationList from "~/components/profile/ProfileRelationList.vue";
 import { unfollowUser } from "~/services/follow";
 import { getFollowUsers } from "~/services/studio";
-import { formatDateTimeLabel } from "~/utils/format";
-import { isMutualFollow } from "~/utils/relation";
 import { errorMessage } from "~/utils/errorMessage";
 
+/**
+ * 个人中心 - 关注（票 327）。
+ *
+ * 与粉丝页同一处修复：列表本体复用公开主页那份 `ProfileRelationList`，
+ * 不再用 naive-ui `NList/NListItem/NThing` + `#suffix` 槽（`flex: 0` 会把中文操作按钮
+ * 压成一字宽、竖排、把列表项撑高）。关注页是"我关注的人"，所以文案走关系语境
+ * （默认 `mode`）：互相关注 → 「取消关注」，与公开主页保持一致。
+ *
+ * 分页仍留在页面。
+ */
 definePageMeta({
   layout: "studio",
   middleware: "auth",
@@ -51,37 +60,34 @@ useNoIndexPage();
 <template>
   <div class="page-stack">
     <section class="studio-list-card">
-      <NList v-if="data?.list.length">
-        <NListItem v-for="item in data?.list" :key="item.followed_user_id">
-          <NThing :title="item.followed_nickname" :description="item.followed_abstract || '这个用户还没有填写简介。'">
-            <template #header-extra>
-              <NTag size="small">{{ isMutualFollow(item.relation) ? "互相关注" : "已关注" }}</NTag>
-            </template>
-            <template #footer>
-              <div class="studio-list-meta">
-                <span>{{ formatDateTimeLabel(item.follow_time) }}</span>
-              </div>
-            </template>
-          </NThing>
-          <template #suffix>
-            <div class="flex flex-wrap gap-2">
-              <NuxtLink :to="`/users/${item.followed_user_id}`" class="glass-badge">查看主页</NuxtLink>
-              <NButton quaternary size="small" @click="removeFollow(item.followed_user_id)">取消关注</NButton>
-            </div>
-          </template>
-        </NListItem>
-      </NList>
-      <StudioEmptyState
-        v-else
-        title="你还没有关注任何人"
-        :description="pending ? '正在读取关注列表…' : '可以从作者主页或文章详情作者卡开始关注感兴趣的创作者。'"
+      <ProfileRelationList
+        title="关注"
+        :items="data?.list ?? []"
+        :pending="pending"
+        @toggle-follow="removeFollow"
       />
 
       <div v-if="data?.list.length" class="mt-5 flex flex-wrap items-center justify-between gap-3 text-sm muted">
         <span>第 {{ page }} 页</span>
         <div class="flex items-center gap-3">
-          <NButton quaternary size="small" :disabled="page <= 1 || pending" @click="previousPage()">上一页</NButton>
-          <NButton quaternary size="small" :disabled="!data?.has_more || pending" @click="nextPage()">下一页</NButton>
+          <NButton
+            quaternary
+            size="small"
+            data-role="pagination-prev"
+            :disabled="page <= 1 || pending"
+            @click="previousPage()"
+          >
+            上一页
+          </NButton>
+          <NButton
+            quaternary
+            size="small"
+            data-role="pagination-next"
+            :disabled="!data?.has_more || pending"
+            @click="nextPage()"
+          >
+            下一页
+          </NButton>
         </div>
       </div>
     </section>

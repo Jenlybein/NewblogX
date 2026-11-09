@@ -5,6 +5,7 @@ package http_test
 import (
 	"fmt"
 	"net/http"
+	"strings"
 	"testing"
 
 	"gorm.io/gorm"
@@ -190,6 +191,129 @@ func TestSubdomainEndpointsEndToEnd(t *testing.T) {
 	if code, _ := gone["code"].(float64); code == 0 {
 		t.Fatalf("删除后仍能读到文章: %v", gone)
 	}
+}
+
+// TestTagAdminLifecycleEndToEnd 是后台「标签管理」页依赖的三条语义（票 322），
+// 走真路由 + 真 MySQL 验证：
+//
+//  1. 删除门禁：被文章引用的标签删不掉，提示里带篇数并建议改用停用；
+//  2. 编辑是读—改—写：只传标题时排序 / 描述 / 启用状态保持原值
+//     （停用的标签不会被悄悄放回全站可选）；
+//  3. 软删后同名重建能成功（title 唯一索引不含 deleted_at，裸 INSERT 会 1062）。
+func TestTagAdminLifecycleEndToEnd(t *testing.T) {
+	db := migrate(t)
+	seedGoldenUser(t, db, 100, "tag_author", "标签作者", "", "", schema.RoleUser)
+	seedGoldenUser(t, db, 900, "tag_admin", "标签管理员", "", "", schema.RoleAdmin)
+
+	author := newRouterWithIDs(t, db, domain.NormalUser(ctype.NewID(100)), 1000)
+	admin := newRouterWithIDs(t, db, domain.AdminUser(ctype.NewID(900)), 3000)
+
+	// ── 新建：排序与描述一起写入 ──
+	respCode(t, do(t, admin, http.MethodPut, "/api/articles/tags",
+		[]byte(`{"title":"端到端标签","sort":7,"description":"标签描述"}`)), "建标签")
+	tagID := findIDByTitle(listOf(t, do(t, admin, http.MethodGet, "/api/articles/tags", nil)), "端到端标签")
+	if tagID == "" {
+		t.Fatal("标签列表缺新标签")
+	}
+
+	// ── 建一篇草稿并打上这个标签：它就成了"被引用的标签" ──
+	created := do(t, author, http.MethodPost, "/api/articles",
+		[]byte(fmt.Sprintf(`{"title":"带标签的文章","content":"正文","status":1,"tag_ids":[%s]}`, tagID)))
+	respCode(t, created, "建带标签的文章")
+	articleID := dataOf(t, created)["id"].(string)
+
+	// ── 删除被拒：可读文案（篇数 + 建议停用），标签原封不动 ──
+	rejected := do(t, admin, http.MethodDelete, "/api/articles/tags",
+		[]byte(fmt.Sprintf(`{"id_list":[%s]}`, tagID)))
+	if code, _ := rejected["code"].(float64); code == 0 {
+		t.Fatalf("被文章引用的标签不应允许删除: %v", rejected)
+	}
+	msg, _ := rejected["msg"].(string)
+	for _, want := range []string{"1 篇文章在用", "停用"} {
+		if !strings.Contains(msg, want) {
+			t.Fatalf("删除被拒的提示应包含 %q，实际 %q", want, msg)
+		}
+	}
+	if findIDByTitle(listOf(t, do(t, admin, http.MethodGet, "/api/articles/tags", nil)), "端到端标签") == "" {
+		t.Fatal("被拒的删除不该把标签删掉")
+	}
+
+	// ── 编辑只传标题：排序与描述保持原值，仍然启用 ──
+	respCode(t, do(t, admin, http.MethodPut, "/api/articles/tags",
+		[]byte(fmt.Sprintf(`{"id":%s,"title":"端到端标签改"}`, tagID))), "只改标题")
+	row := findRowByTitle(t, listOf(t, do(t, admin, http.MethodGet,
+		"/api/articles/tags?include_disabled=true", nil)), "端到端标签改")
+	if row == nil {
+		t.Fatal("改名后列表里找不到标签")
+	}
+	if got, _ := row["sort"].(float64); got != 7 {
+		t.Fatalf("没传排序时应保留 7，实际 %v", row["sort"])
+	}
+	if row["description"] != "标签描述" {
+		t.Fatalf("没传描述时应保留「标签描述」，实际 %v", row["description"])
+	}
+	if enabled, _ := row["is_enabled"].(bool); !enabled {
+		t.Fatal("没传启用状态时不该把启用标签改成停用")
+	}
+
+	// ── 停用后从发布页下拉（只含启用项）里消失 ──
+	respCode(t, do(t, admin, http.MethodPut, "/api/articles/tags",
+		[]byte(fmt.Sprintf(`{"id":%s,"title":"端到端标签改","is_enabled":false}`, tagID))), "停用标签")
+	if id := findIDByTitle(listOf(t, do(t, admin, http.MethodGet,
+		"/api/articles/tags/options", nil)), "端到端标签改"); id != "" {
+		t.Fatalf("停用标签不该出现在发布页下拉里（%s）", id)
+	}
+
+	// ── 再编辑一次（只传标题）：仍是停用 ──
+	respCode(t, do(t, admin, http.MethodPut, "/api/articles/tags",
+		[]byte(fmt.Sprintf(`{"id":%s,"title":"端到端标签改2"}`, tagID))), "编辑停用标签")
+	row = findRowByTitle(t, listOf(t, do(t, admin, http.MethodGet,
+		"/api/articles/tags?include_disabled=true", nil)), "端到端标签改2")
+	if row == nil {
+		t.Fatal("编辑停用标签后列表里找不到它")
+	}
+	if enabled, _ := row["is_enabled"].(bool); enabled {
+		t.Fatal("编辑停用标签不该把它悄悄放回全站可选")
+	}
+
+	// ── 删掉文章之后它就零引用了：此时删除应当放行 ──
+	respCode(t, do(t, author, http.MethodDelete, "/api/articles/"+articleID, nil), "删文章")
+	respCode(t, do(t, admin, http.MethodDelete, "/api/articles/tags",
+		[]byte(fmt.Sprintf(`{"id_list":[%s]}`, tagID))), "删零引用标签")
+
+	// ── 软删后同名重建：成功，且列表里只有一条（恢复软删行，不新增） ──
+	respCode(t, do(t, admin, http.MethodPut, "/api/articles/tags",
+		[]byte(`{"title":"端到端标签改2","sort":1}`)), "同名重建标签")
+	rows := listOf(t, do(t, admin, http.MethodGet, "/api/articles/tags?include_disabled=true", nil))
+	same := 0
+	for _, it := range rows {
+		if it["title"] == "端到端标签改2" {
+			same++
+		}
+	}
+	if same != 1 {
+		t.Fatalf("同名重建后列表里应只有一条，实际 %d 条", same)
+	}
+
+	// ── 标题重复：可读文案，不是 MySQL 1062 原文 ──
+	dup := do(t, admin, http.MethodPut, "/api/articles/tags", []byte(`{"title":"端到端标签改2"}`))
+	if code, _ := dup["code"].(float64); code == 0 {
+		t.Fatalf("重复标题应被拒绝，实际成功: %v", dup)
+	}
+	if dup["msg"] != "名称重复" {
+		t.Fatalf("重复标题的提示应为「名称重复」，实际 %v", dup["msg"])
+	}
+}
+
+// findRowByTitle 在列表里按 title 找整行（找不到返回 nil）。
+func findRowByTitle(t *testing.T, items []map[string]any, title string) map[string]any {
+	t.Helper()
+	for _, it := range items {
+		if it["title"] == title {
+			return it
+		}
+	}
+	return nil
 }
 
 // respCode 断言业务 code 为 0。

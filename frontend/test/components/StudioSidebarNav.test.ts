@@ -58,7 +58,7 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
-describe("个人中心侧栏：分类入口", () => {
+describe("个人中心侧栏：分类入口与关注粉丝合并", () => {
   it("有「分类」项，指向 /studio/categories", () => {
     const wrapper = mountNav();
 
@@ -68,16 +68,26 @@ describe("个人中心侧栏：分类入口", () => {
     expect(categories?.to).toBe("/studio/categories");
   });
 
-  it("「分类」排在「收藏夹」与「关注」之间", () => {
+  it("「分类」紧跟在「收藏夹」之后（内容相关的东西挨着）", () => {
     const labels = navEntries(mountNav()).map((entry) => entry.label);
 
     expect(labels.indexOf("分类")).toBe(labels.indexOf("收藏夹") + 1);
-    expect(labels.indexOf("关注")).toBe(labels.indexOf("分类") + 1);
+  });
+
+  it("关注与粉丝合成一项「关注与粉丝」，指向 /studio/relations", () => {
+    const entries = navEntries(mountNav());
+
+    // 旧的两个入口必须退场：留着它们等于同一份数据有两个入口、两套实现。
+    expect(entries.some((entry) => entry.label === "关注")).toBe(false);
+    expect(entries.some((entry) => entry.label === "粉丝")).toBe(false);
+
+    const relations = entries.find((entry) => entry.label === "关注与粉丝");
+    expect(relations?.to).toBe("/studio/relations");
   });
 
   it("其余入口保持原样（没有顺手改动既有导航）", () => {
     const labels = navEntries(mountNav()).map((entry) => entry.label);
 
-    expect(labels).toEqual(["数据概览", "我的文章", "收藏夹", "分类", "关注", "粉丝", "登录设备", "账号设置"]);
+    expect(labels).toEqual(["数据概览", "我的文章", "收藏夹", "分类", "关注与粉丝", "登录设备", "账号设置"]);
   });
 });

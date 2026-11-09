@@ -5,7 +5,7 @@ import AppAvatar from "~/components/common/AppAvatar.vue";
 import ProfileEmptyState from "~/components/profile/ProfileEmptyState.vue";
 import type { FanUserItem, FollowUserItem } from "~/types/api";
 import { formatDateTimeLabel } from "~/utils/format";
-import { getFansRelationActionLabel, getRelationActionLabel, getRelationLabel } from "~/utils/relation";
+import { getRelationActionLabel, getRelationLabel } from "~/utils/relation";
 
 type RelationRow = {
   id: string;
@@ -24,19 +24,8 @@ const props = withDefaults(
     locked?: boolean;
     lockedTitle?: string;
     lockedDescription?: string;
-    /**
-     * 动作文案的语境。
-     *
-     * - `relation`（默认）：公开主页 `/users/[id]` 的关注 / 粉丝分栏 —— 按钮说的是
-     *   "你与这个人的关系"（互相关注 → 取消关注）；
-     * - `fans`：个人中心的粉丝页 —— 对方本来就关注着你，撤掉的是"你回关的那一半"
-     *   （互相关注 → 取消回关）。
-     *
-     * 关系 chip 不受它影响：两种语境都用 `getRelationLabel` 描述客观关系。
-     */
-    mode?: "relation" | "fans";
   }>(),
-  { pending: false, locked: false, lockedTitle: "", lockedDescription: "", mode: "relation" },
+  { pending: false, locked: false, lockedTitle: "", lockedDescription: "" },
 );
 
 const emit = defineEmits<{
@@ -65,9 +54,9 @@ const normalizedItems = computed<RelationRow[]>(() =>
   ),
 );
 
-/** 动作文案按语境选择函数：页面不必在模板里堆三元，两种语境的措辞各有一处来源。 */
+/** 动作文案：公开主页只表达"你与这个人的关系"，粉丝语境的措辞由个人中心的卡片自己负责。 */
 function actionLabel(relation: number) {
-  return props.mode === "fans" ? getFansRelationActionLabel(relation) : getRelationActionLabel(relation);
+  return getRelationActionLabel(relation);
 }
 </script>
 

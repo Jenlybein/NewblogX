@@ -58,6 +58,10 @@ export const CLIENT_ONLY_PATTERNS = [
 export const SERVER_REDIRECT_ROUTES = [
   { route: "/articles", to: "/search", statusCode: 301 },
   { route: "/studio/history", to: "/history", statusCode: 301 },
+  // 关注与粉丝合成一页（票 327 `/studio/relations`，页内顶栏切换关注/粉丝/互关）。
+  // 旧的两条入口保留 301：它们是个人中心里的链接，历史收藏与浏览器书签可能还留着。
+  { route: "/studio/follows", to: "/studio/relations?tab=follow", statusCode: 301 },
+  { route: "/studio/fans", to: "/studio/relations?tab=fans", statusCode: 301 },
 ] as const satisfies readonly ServerRedirectRoute[];
 
 /** 切分路由（丢掉空段）。 */

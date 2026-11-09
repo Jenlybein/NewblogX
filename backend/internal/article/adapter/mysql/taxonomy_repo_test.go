@@ -294,3 +294,185 @@ func TestTagArticleRefCountsComeFromJoinTable(t *testing.T) {
 		t.Fatalf("零引用标签应为 0，实际 %d err=%v", refs, err)
 	}
 }
+
+// ── 分类仓储：软删后同名重建 × 删除时解除文章归属（票 325）──
+
+// newCategoryRepoWithUniqueTitle 建一张与生产同构的 category_models
+// （(user_id, title) 上唯一索引），文章表一起建：删除分类要连带清文章的分类字段。
+func newCategoryRepoWithUniqueTitle(t *testing.T) (*CategoryRepo, *gorm.DB) {
+	t.Helper()
+	// user_models 一起建：ListByUser 会 LEFT JOIN 出作者昵称 / 头像。
+	db := testutil.SetupSQLite(t, &categoryRow{}, &articleRow{}, &userRow{})
+	if err := db.Exec(
+		"CREATE UNIQUE INDEX uk_category_user_title ON category_models(user_id, title)",
+	).Error; err != nil {
+		t.Fatalf("建唯一索引失败: %v", err)
+	}
+	return NewCategoryRepo(db), db
+}
+
+func mustNewCategory(t *testing.T, id uint64, userID uint64, title string) *taxonomy.Category {
+	t.Helper()
+	c, err := taxonomy.NewCategory(
+		domain.CategoryID(ctype.NewID(id)),
+		domain.UserID(ctype.NewID(userID)),
+		title,
+	)
+	if err != nil {
+		t.Fatalf("构造分类 %q 失败: %v", title, err)
+	}
+	return c
+}
+
+// TestSaveCategoryRecreatesAfterSoftDelete 是票 325 的核心：
+// "删过的名字还能再建"。
+//
+// (user_id, title) 上的唯一索引不含 deleted_at，而删除是软删：裸 INSERT 会让
+// 重建同名永远得到 1062（查重按活行看说没重复，写进去却撞上软删行）。
+// 房规是恢复那条软删行（清 deleted_at、写回本次字段、保留原 ID），与点赞 / 标签一致。
+func TestSaveCategoryRecreatesAfterSoftDelete(t *testing.T) {
+	repo, db := newCategoryRepoWithUniqueTitle(t)
+	ctx := context.Background()
+
+	old := mustNewCategory(t, 1, 100, "前端")
+	if err := repo.Save(ctx, old); err != nil {
+		t.Fatalf("新建分类失败: %v", err)
+	}
+	if err := repo.Delete(ctx, old.ID()); err != nil {
+		t.Fatalf("软删分类失败: %v", err)
+	}
+	// 删除是软删：活行里查不到，行本身还在。
+	if list, err := repo.ListByUser(ctx, old.UserID()); err != nil || len(list) != 0 {
+		t.Fatalf("软删后列表应为空，实际 %d 条 err=%v", len(list), err)
+	}
+
+	reborn := mustNewCategory(t, 2, 100, "前端")
+	if err := repo.Save(ctx, reborn); err != nil {
+		t.Fatalf("软删后重建同名分类失败（唯一键没走恢复）: %v", err)
+	}
+
+	list, err := repo.ListByUser(ctx, old.UserID())
+	if err != nil {
+		t.Fatalf("列出分类失败: %v", err)
+	}
+	if len(list) != 1 {
+		t.Fatalf("恢复应复用那一条，列表里只该有一条，实际 %d 条", len(list))
+	}
+	if list[0].ID() != old.ID() {
+		t.Fatalf("恢复应保留原 ID %s，实际 %s", old.ID(), list[0].ID())
+	}
+	if list[0].Title() != "前端" {
+		t.Fatalf("恢复出来的标题应为「前端」，实际 %q", list[0].Title())
+	}
+	// 落库只有一行：软删行被复用，而不是又插一条。
+	var total int64
+	if err := db.Unscoped().Model(&categoryRow{}).Count(&total).Error; err != nil {
+		t.Fatalf("统计失败: %v", err)
+	}
+	if total != 1 {
+		t.Fatalf("表里应只有一条（复用软删行），实际 %d 条", total)
+	}
+}
+
+// TestSaveCategoryUnchangedUpdateIsNotADuplicate 钉住"值没变"的 UPDATE。
+//
+// MySQL 对值没变的 UPDATE 返回 0 行变更。若拿 RowsAffected 判定"行不存在"，
+// 一次什么都没改的保存就会去 INSERT，然后撞上自己那行、被翻成「名称重复」。
+func TestSaveCategoryUnchangedUpdateIsNotADuplicate(t *testing.T) {
+	repo, db := newCategoryRepoWithUniqueTitle(t)
+	ctx := context.Background()
+
+	c := mustNewCategory(t, 1, 100, "前端")
+	if err := repo.Save(ctx, c); err != nil {
+		t.Fatalf("新建分类失败: %v", err)
+	}
+	// 原样再存一次（个人主页弹窗"只点了保存"的情形）。
+	if err := repo.Save(ctx, c); err != nil {
+		t.Fatalf("原样保存不应报错，实际: %v", err)
+	}
+	var n int64
+	if err := db.Model(&categoryRow{}).Count(&n).Error; err != nil {
+		t.Fatalf("统计分类数失败: %v", err)
+	}
+	if n != 1 {
+		t.Fatalf("不应多出一行，实际 %d 行", n)
+	}
+}
+
+// TestDeleteCategoryDetachesArticlesBeforeSoftDelete 钉住删除的两步语义（ADR-0036 约束 3）：
+// 先把挂在该分类下的文章置空、再软删分类；文章本身不消失，别的分类不受影响。
+//
+// article_models.category_id 上有外键指向分类表，但删除是软删，外键永远不触发，
+// 不显式置空就会留下"指向一条已删分类"的文章——详情页仍会显示那个分类。
+func TestDeleteCategoryDetachesArticlesBeforeSoftDelete(t *testing.T) {
+	repo, db := newCategoryRepoWithUniqueTitle(t)
+	ctx := context.Background()
+
+	doomed := mustNewCategory(t, 1, 100, "要删掉的分类")
+	kept := mustNewCategory(t, 2, 100, "留着的分类")
+	for _, c := range []*taxonomy.Category{doomed, kept} {
+		if err := repo.Save(ctx, c); err != nil {
+			t.Fatalf("预置分类 %q 失败: %v", c.Title(), err)
+		}
+	}
+	doomedID := ctype.ID(doomed.ID())
+	keptID := ctype.ID(kept.ID())
+	for _, row := range []*articleRow{
+		{BaseRow: BaseRow{ID: ctype.NewID(11)}, CategoryID: &doomedID},
+		{BaseRow: BaseRow{ID: ctype.NewID(12)}, CategoryID: &doomedID},
+		{BaseRow: BaseRow{ID: ctype.NewID(13)}, CategoryID: &keptID},
+		{BaseRow: BaseRow{ID: ctype.NewID(14)}}, // 本来就没分类
+	} {
+		if err := db.Create(row).Error; err != nil {
+			t.Fatalf("预置文章 %s 失败: %v", row.ID, err)
+		}
+	}
+	// 已软删的文章也挂着这个分类：它不展示，但置空它是无害的，不该报错。
+	deletedID := ctype.ID(ctype.NewID(15))
+	if err := db.Create(&articleRow{BaseRow: BaseRow{ID: deletedID}, CategoryID: &doomedID}).Error; err != nil {
+		t.Fatalf("预置已删文章失败: %v", err)
+	}
+	if err := db.Delete(&articleRow{BaseRow: BaseRow{ID: deletedID}}).Error; err != nil {
+		t.Fatalf("软删文章失败: %v", err)
+	}
+
+	if err := repo.Delete(ctx, doomed.ID()); err != nil {
+		t.Fatalf("删除分类失败: %v", err)
+	}
+
+	// 文章还在，只是没有分类了。
+	for _, id := range []uint64{11, 12} {
+		var got *ctype.ID
+		if err := db.Model(&articleRow{}).Select("category_id").
+			Where("id = ?", ctype.NewID(id)).Scan(&got).Error; err != nil {
+			t.Fatalf("读文章 %d 的分类失败: %v", id, err)
+		}
+		if got != nil {
+			t.Fatalf("文章 %d 应变成未分类，实际 category_id=%s", id, got)
+		}
+	}
+	// 别的分类下的文章不受影响。
+	var keptCategory *ctype.ID
+	if err := db.Model(&articleRow{}).Select("category_id").
+		Where("id = ?", ctype.NewID(13)).Scan(&keptCategory).Error; err != nil {
+		t.Fatalf("读文章 13 的分类失败: %v", err)
+	}
+	if keptCategory == nil || *keptCategory != keptID {
+		t.Fatalf("别的分类下的文章不该被置空，实际 %v", keptCategory)
+	}
+	// 分类本身是软删：行还在。
+	var live int64
+	if err := db.Model(&categoryRow{}).Where("id = ?", doomedID).Count(&live).Error; err != nil {
+		t.Fatalf("统计失败: %v", err)
+	}
+	if live != 0 {
+		t.Fatalf("分类应已被软删，实际仍有 %d 条活行", live)
+	}
+	var total int64
+	if err := db.Unscoped().Model(&categoryRow{}).Where("id = ?", doomedID).Count(&total).Error; err != nil {
+		t.Fatalf("统计软删行失败: %v", err)
+	}
+	if total != 1 {
+		t.Fatalf("删除应为软删（行保留），实际 %d 条", total)
+	}
+}

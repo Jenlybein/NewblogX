@@ -90,26 +90,51 @@ func (r *CategoryRepo) ExistsTitle(ctx context.Context, userID domain.UserID, ti
 	return n > 0, nil
 }
 
-// Save 新建或更新（upsert）。
+// Save 新建或更新分类。
 //
-// 先按 ID 更新，影响 0 行说明库里没有，再插入。不用 GORM 的 Save：
-// 它会用主键判断存在性并可能触发全字段覆盖，对软删表容易踩坑。
+// 存在性显式判定，不看 RowsAffected：MySQL 对"值没变"的 UPDATE 返回 0 行变更，
+// 把它当成"行不存在"就会去 INSERT，然后撞上自己那行、被翻成「名称重复」——
+// 一次什么都没改的保存（个人主页弹窗只点了保存）就被拒了。
+//
+// 新建走平台的 RestoreOrCreateUnique（match = UserID + Title）：
+// (user_id, title) 上是**不含** deleted_at 的唯一索引，而删除是软删，裸 INSERT 会让
+// "删掉一个分类之后再建同名"永远得到 1062。房规（ADR-0036 约束 1）是恢复那条
+// 软删行、保留原 ID，与点赞 / 标签一致。
 func (r *CategoryRepo) Save(ctx context.Context, c *taxonomy.Category) error {
 	id := ctype.ID(c.ID())
-	updates := r.db.WithContext(ctx).Model(&categoryRow{}).
-		Where("id = ?", id).
-		Updates(map[string]any{"title": c.Title(), "user_id": fromUserID(c.UserID())})
-	if updates.Error != nil {
-		return categorySaveError(updates.Error)
+	live, err := r.liveExists(ctx, id)
+	if err != nil {
+		return err
 	}
-	if updates.RowsAffected > 0 {
+	if !live {
+		restored, err := platformmysql.RestoreOrCreateUnique(r.db.WithContext(ctx), &categoryRow{
+			BaseRow: BaseRow{ID: id},
+			Title:   c.Title(),
+			UserID:  fromUserID(c.UserID()),
+		}, []string{"UserID", "Title"})
+		if err != nil {
+			return categorySaveError(err)
+		}
+		if !restored {
+			// 没有可恢复的软删行、插入又撞了唯一键：说明同用户下已经有一条
+			// 同名活行（并发请求抢先落地）。对调用方而言这就是「名称重复」，
+			// 而不是"什么都没做但成功了"。
+			return taxonomy.ErrTitleDuplicated
+		}
 		return nil
 	}
-	return categorySaveError(r.db.WithContext(ctx).Create(&categoryRow{
-		BaseRow: BaseRow{ID: id},
-		Title:   c.Title(),
-		UserID:  fromUserID(c.UserID()),
-	}).Error)
+	return categorySaveError(r.db.WithContext(ctx).Model(&categoryRow{}).
+		Where("id = ?", id).
+		Updates(map[string]any{"title": c.Title(), "user_id": fromUserID(c.UserID())}).Error)
+}
+
+// liveExists 判断活行（未软删）是否存在。
+func (r *CategoryRepo) liveExists(ctx context.Context, id ctype.ID) (bool, error) {
+	var n int64
+	if err := r.db.WithContext(ctx).Model(&categoryRow{}).Where("id = ?", id).Count(&n).Error; err != nil {
+		return false, err
+	}
+	return n > 0, nil
 }
 
 // categorySaveError 把底层唯一键冲突翻译成领域错误。
@@ -130,7 +155,22 @@ func categorySaveError(err error) error {
 }
 
 // Delete 删除分类。
+//
+// 两步，顺序不得颠倒（ADR-0036 约束 3）：
+//  1. 先把挂在该分类下的文章 `category_id` 置空 —— 那列上有外键指向分类表，
+//     但删除是软删，外键永远不会触发；不显式置空，文章就会继续指着一个
+//     已经"不存在"的分类（详情页仍显示它、列表按它筛出空结果）。
+//  2. 再软删分类本身。
+//
+// 两步共用调用方的事务句柄（UseCase 的 WithinTx 现场构造本仓储），
+// 因此中途失败不会留下"文章已解绑、分类还在"或反过来的半截状态。
+// 置空会经 binlog 触发搜索投影重算（ADR-0009），不需要补偿任务。
 func (r *CategoryRepo) Delete(ctx context.Context, id domain.CategoryID) error {
+	if err := r.db.WithContext(ctx).Model(&articleRow{}).
+		Where("category_id = ?", ctype.ID(id)).
+		Updates(map[string]any{"category_id": nil}).Error; err != nil {
+		return err
+	}
 	return r.db.WithContext(ctx).Delete(&categoryRow{}, "id = ?", ctype.ID(id)).Error
 }
 

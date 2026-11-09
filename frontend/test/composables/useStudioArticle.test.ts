@@ -536,6 +536,58 @@ describe("useStudioArticle · 裁剪窗：比例不合规才弹（#215）", () =
   });
 });
 
+describe("useStudioArticle · 分类下拉的数据来源（#320）", () => {
+  // 病根：options 端点的 data 是 `{list, count}`，服务层当数组读会抛错，
+  // 而调用点的 `.catch(() => [])` 把它吞成"空列表"。于是用户看不见已有分类，
+  // 只能重复建同名，再撞上后端正确返回的"名称重复"。
+  // 所以这组用例只钉两件事：坏掉时**看得见**，好起来时**是数据**。
+
+  it("加载失败时把原因留在 categoryOptionsError 上，而不是静默空列表", async () => {
+    getCategoryOptionsMock.mockRejectedValueOnce(new Error("网络断开"));
+    const { api } = await harness();
+
+    expect(api.categoryOptions.value).toEqual([]);
+    expect(api.categoryOptionsError.value).toBe("网络断开");
+  });
+
+  it("失败原因没有文案时给一句可读的兜底", async () => {
+    getCategoryOptionsMock.mockRejectedValueOnce({});
+    const { api } = await harness();
+
+    expect(api.categoryOptionsError.value).toBe("分类列表加载失败");
+  });
+
+  it("加载成功时错误态是空的（不能把上一次的失败挂在界面上）", async () => {
+    getCategoryOptionsMock.mockResolvedValueOnce([{ label: "后端", value: "cat-1" }]);
+    const { api } = await harness();
+
+    expect(api.categoryOptions.value).toEqual([{ label: "后端", value: "cat-1" }]);
+    expect(api.categoryOptionsError.value).toBe("");
+  });
+
+  it("空账号（未登录）不请求分类接口，也不报错", async () => {
+    const { api } = await harness({ profileId: "" });
+
+    expect(getCategoryOptionsMock).not.toHaveBeenCalled();
+    expect(api.categoryOptions.value).toEqual([]);
+    expect(api.categoryOptionsError.value).toBe("");
+  });
+
+  it("新建分类成功后清掉之前的加载错误，并把新分类留在下拉里", async () => {
+    getCategoryOptionsMock.mockRejectedValueOnce(new Error("网络断开"));
+    const { api } = await harness();
+    expect(api.categoryOptionsError.value).toBe("网络断开");
+
+    getCategoryOptionsMock.mockResolvedValueOnce([{ label: "新分类", value: "cat-9" }]);
+    const ok = await api.createCategoryInline("新分类");
+
+    expect(ok).toBe(true);
+    expect(api.categoryOptionsError.value).toBe("");
+    expect(api.categoryOptions.value).toEqual([{ label: "新分类", value: "cat-9" }]);
+    expect(api.form.category_id).toBe("cat-9");
+  });
+});
+
 describe("useStudioArticle · 内联新建分类", () => {
   it("登录状态由当前用户决定", async () => {
     const { api } = await harness();

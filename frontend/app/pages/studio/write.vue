@@ -72,6 +72,7 @@ const {
   hydratedArticleId,
   tagOptions,
   categoryOptions,
+  categoryOptionsError,
   categoryCreating,
   createCategoryInline,
   isLoggedIn,
@@ -405,6 +406,7 @@ ref="editorTextareaRef" v-model="form.content" class="write-page__textarea"
       :cover-error="coverError"
       :cover-size="coverImageSize"
       :category-options="categoryOptions || []"
+      :category-error="categoryOptionsError"
       :tag-options="tagOptions || []"
       :visibility-options="visibilityOptions"
       :can-create-category="isLoggedIn"

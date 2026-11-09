@@ -96,6 +96,7 @@ const baseProps = {
   coverError: "",
   coverSize: null,
   categoryOptions: [] as { label: string; value: string }[],
+  categoryError: "",
   tagOptions: [] as { label: string; value: string }[],
   visibilityOptions: [] as { label: string; value: string }[],
   draftLabel: "保存草稿",
@@ -184,5 +185,44 @@ describe("StudioWritePublishDialog · 内联新建分类", () => {
 
     expect(wrapper.find('input[placeholder="新分类名称"]').exists()).toBe(true);
     expect((wrapper.find('input[placeholder="新分类名称"]').element as HTMLInputElement).value).toBe("新分类");
+  });
+});
+
+// 分类下拉的空状态与错误提示（#320）。
+//
+// 这两件事必须长得不一样："一个分类都没有"是正常状态（给一句能照着做的提示），
+// "列表没加载出来"是故障（给原因）。以前两者都是一个空白下拉。
+describe("StudioWritePublishDialog · 分类下拉的空状态与错误（#320）", () => {
+  it("加载失败时就地展示原因，而不是空白下拉", () => {
+    const wrapper = mountDialog({ categoryError: "网络断开" });
+
+    const hint = wrapper.find('[data-role="category-error"]');
+    expect(hint.exists()).toBe(true);
+    expect(hint.text()).toContain("网络断开");
+    expect(wrapper.find('[data-role="category-empty"]').exists()).toBe(false);
+  });
+
+  it("没有任何分类且能新建时，提示可以就地建一个", () => {
+    const wrapper = mountDialog({ categoryOptions: [], canCreateCategory: true });
+
+    const hint = wrapper.find('[data-role="category-empty"]');
+    expect(hint.exists()).toBe(true);
+    expect(hint.text()).toContain("还没有分类");
+    expect(hint.text()).toContain("新建分类");
+  });
+
+  it("未登录且没有分类时给一句不可建的空状态（不能引导到看不见的入口）", () => {
+    const wrapper = mountDialog({ categoryOptions: [], canCreateCategory: false });
+
+    const hint = wrapper.find('[data-role="category-empty"]');
+    expect(hint.exists()).toBe(true);
+    expect(hint.text()).not.toContain("新建分类");
+  });
+
+  it("有分类可选时不显示空状态", () => {
+    const wrapper = mountDialog({ categoryOptions: [{ label: "后端", value: "cat-1" }] });
+
+    expect(wrapper.find('[data-role="category-empty"]').exists()).toBe(false);
+    expect(wrapper.find('[data-role="category-error"]').exists()).toBe(false);
   });
 });

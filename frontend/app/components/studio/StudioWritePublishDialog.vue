@@ -39,6 +39,13 @@ const props = defineProps<{
   /** 选过图之后才有定形产物尺寸（回填的旧封面没有）。 */
   coverSize: ShapeImageTarget | null;
   categoryOptions: { label: string; value: string }[];
+  /**
+   * 分类下拉加载失败的可读原因（票 320）。
+   *
+   * 空串表示这次加载没出错 —— 与"确实一个分类都没有"必须分开说，
+   * 否则用户会以为账号里没有分类，转头去重复建同名。
+   */
+  categoryError?: string;
   tagOptions: { label: string; value: string }[];
   visibilityOptions: { label: string; value: string }[];
   draftLabel: string;
@@ -113,6 +120,18 @@ async function submitCategory() {
               <NSelect
 v-model:value="categoryId" clearable filterable :options="props.categoryOptions || []"
                 placeholder="请选择分类" class="publish-form__control" />
+
+              <!-- 分类下拉的两种"空"（票 320）：没数据 vs 没加载出来。
+                   前者给一句能照着做的话，后者给原因 —— 都不能是一声不响的空白。 -->
+              <p
+                v-if="props.categoryError"
+                class="publish-category__hint publish-category__hint--error"
+                data-role="category-error">
+                {{ props.categoryError }}
+              </p>
+              <p v-else-if="!(props.categoryOptions || []).length" class="publish-category__hint" data-role="category-empty">
+                {{ props.canCreateCategory ? "还没有分类，点下面「+ 新建分类」创建第一个" : "还没有可选分类" }}
+              </p>
 
               <!-- 新建分类就地展开：不跳分类管理页，创建成功后自动选中（issue 127）。 -->
               <template v-if="props.canCreateCategory">
@@ -317,6 +336,18 @@ v-model:value="abstractText" type="textarea" maxlength="180"
 
 .publish-category__add {
   align-self: flex-start;
+}
+
+/* 分类下拉的空状态（正常态）与错误（故障态）：一句话之差，颜色与语气都要区分。 */
+.publish-category__hint {
+  margin: 0;
+  color: var(--color-ink-muted);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.publish-category__hint--error {
+  color: var(--color-danger-ink);
 }
 
 .publish-summary {

@@ -11,7 +11,7 @@ import {
 } from '~/services/admin'
 import type { SearchArticleItem } from '~/types/api'
 import { resolveArticleCoverSrc } from '~/utils/articleCover'
-import { isAdminHidden, publishLabel, visibilityLabel } from '~/utils/articleLabels'
+import { isAdminHidden, isPendingReview, publishLabel, visibilityLabel } from '~/utils/articleLabels'
 import { formatDateTime } from '~/utils/format'
 import { HOT_TOP_LIMIT, hotTopIds } from '~/utils/hotTop'
 
@@ -95,7 +95,15 @@ const columns = [
     render: (row: SearchArticleItem) =>
       h(
         NTag,
-        { size: 'small', type: isAdminHidden(row.visibility_status) ? 'error' : 'success' },
+        {
+          size: 'small',
+          // 待可见是"中间态"：既不是公开（success），也不是被后台压下（error）。
+          type: isAdminHidden(row.visibility_status)
+            ? 'error'
+            : isPendingReview(row.visibility_status)
+              ? 'warning'
+              : 'success',
+        },
         { default: () => visibilityLabel(row.visibility_status) },
       ),
   },
@@ -134,16 +142,30 @@ const columns = [
             },
             { default: () => (toppedIds.value.has(row.id) ? '取消置顶' : '热门置顶') },
           ),
-          h(
-            NButton,
-            {
-              size: 'small',
-              tertiary: true,
-              type: isAdminHidden(row.visibility_status) ? 'primary' : 'warning',
-              onClick: () => toggleVisibility(row),
-            },
-            { default: () => (isAdminHidden(row.visibility_status) ? '恢复' : '隐藏') },
-          ),
+          // 待可见的文章不能用这个按钮动：后端拒绝在 pending_review 上改可见性
+          // （否则绕过合规判定）。放行只有"模型判 clean"或"判定失败转人工"两条路，
+          // 所以这里给一个不可点的说明，而不是摆一个点了必然报错的「隐藏」。
+          isPendingReview(row.visibility_status)
+            ? h(
+                NButton,
+                {
+                  size: 'small',
+                  tertiary: true,
+                  disabled: true,
+                  title: '等模型合规判定；判 clean 自动公开，判存疑/失败自动转人工审核',
+                },
+                { default: () => '待合规判定' },
+              )
+            : h(
+                NButton,
+                {
+                  size: 'small',
+                  tertiary: true,
+                  type: isAdminHidden(row.visibility_status) ? 'primary' : 'warning',
+                  onClick: () => toggleVisibility(row),
+                },
+                { default: () => (isAdminHidden(row.visibility_status) ? '恢复' : '隐藏') },
+              ),
           h(
             NButton,
             {

@@ -448,6 +448,22 @@
   }
 
   /*
+   * 轮播新增 / 编辑弹窗的宽度：收窄到 560px，不铺满全屏（票 330）。
+   *
+   * 必须写成**全局**规则，并且带 `.n-modal.` 前缀提权，两个原因都是硬的：
+   *   1. `preset="card"` 时 naive-ui 把 `class` 落到它自己渲染的 `.n-card` 上
+   *      （BodyWrapper 里 `effectiveAttrs.class` 合并进 Card），那个节点没有本组件的
+   *      `data-v-*` 标记 —— 写在组件的 `<style scoped>` 里永远不匹配，
+   *      宽度就回落到 naive-ui 默认的 `max-width: calc(100vw - 32px)`（看起来铺满全屏）。
+   *   2. 与 naive-ui 的 `.n-modal` 规则（0,1,0）同时争 width 时，
+   *      `.n-modal.banner-form-modal`（0,2,0）赢，不受样式表注入顺序影响。
+   * 窄屏仍由 `.n-modal` 自带的 `max-width: calc(100vw - 32px)` 兜住，不会顶出屏幕。
+   */
+  .n-modal.banner-form-modal {
+    width: 560px;
+  }
+
+  /*
    * 轮播的新增 / 编辑改成同一张弹窗卡片（票 330），页面里不再有常驻的上传面板，
    * 所以 `admin-upload-panel` 与 `admin-switch-row` 这一组只剩 `__hint`
    * 还在别处使用（`OutlineTreeEditor` 的信息行），其余规则随之删除。

@@ -415,14 +415,19 @@ function close() {
 
 <style scoped>
 /*
- * 宽度受控：弹窗按卡片宽度收窄（560px），窄屏留边距。
- * 新增 / 编辑是同一张卡，所以这里不存在"新建那张铺满、编辑那张很窄"的错位。
+ * 弹窗宽度不在这里，在 `app/assets/css/admin.css` 的 `.n-modal.banner-form-modal`。
+ *
+ * 原因：`preset="card"` 时 naive-ui 把传进来的 `class` 落到它自己渲染的 `.n-card`
+ * 上（BodyWrapper 里 `effectiveAttrs.class` 合并进 Card），那个元素不是本组件的
+ * 模板节点，拿不到 `data-v-*` 作用域标记 —— scoped 选择器
+ * `.banner-form-modal[data-v-*]` 永远不匹配，宽度就回落到 naive-ui 默认的
+ * `max-width: calc(100vw - 32px)`，看起来铺满全屏。
+ *
+ * 所以宽度写成全局规则并用 `.n-modal.` 前缀提权（0,2,0 胜过后者的 0,1,0），
+ * 与样式表注入顺序无关。窄屏仍由 `.n-modal` 自带的 `max-width` 兜住。
+ *
+ * 下面这些 `.banner-form__*` 都落在本组件模板自己的节点上，scoped 正常工作。
  */
-.banner-form-modal {
-  width: 560px;
-  max-width: calc(100vw - 32px);
-}
-
 .banner-form__cover {
   display: flex;
   flex-wrap: wrap;

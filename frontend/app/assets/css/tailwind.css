@@ -292,7 +292,7 @@
     @apply truncate text-sm font-semibold text-ink;
   }
 
-  /* ---- 个人主页「分类」栏（#321）：左侧分类列表 + 右侧就地展开的文章，与收藏架同构 ---- */
+  /* ---- 个人主页「分类」栏（票 321）：左侧分类列表 + 右侧就地展开的文章，与收藏架同构 ---- */
   .profile-category-layout {
     @apply grid gap-5 xl:grid-cols-[280px_minmax(0,1fr)];
   }

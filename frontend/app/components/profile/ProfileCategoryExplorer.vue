@@ -5,7 +5,7 @@ import ProfileEmptyState from "~/components/profile/ProfileEmptyState.vue";
 import type { ProfileCategoryItem, SearchArticleItem } from "~/types/api";
 
 /**
- * 个人主页的「分类」栏（#321）：左边列这位作者的分类，点一个就在右边就地展开
+ * 个人主页的「分类」栏（票 321）：左边列这位作者的分类，点一个就在右边就地展开
  * 该作者该分类下的文章，不跳页。
  *
  * 本组件**只读**：数据（分类列表、分类下的文章）都由页面取好传进来，选中的分类

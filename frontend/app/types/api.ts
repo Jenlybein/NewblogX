@@ -121,6 +121,22 @@ export type CategoryListData = RequiredSchema<"myblogx_internal_kernel.ListData-
  */
 export type FavoriteFolderWritePayload = Schema<"internal_article_adapter_http.FavoriteRequest">;
 
+/**
+ * 个人主页「分类」栏要显示的字段（#321）。
+ *
+ * 契约里 `internal_article_adapter_http.CategoryListItem` 还带 nickname / avatar /
+ * created_at 等管理侧字段；分类栏只用得到 id / title / article_count。用 `Pick` 从契约
+ * 派生而不是手写 interface —— 字段名与类型仍由契约编译期校验。
+ */
+export type ProfileCategoryItem = Pick<
+  RequiredSchema<"internal_article_adapter_http.CategoryListItem">,
+  "id" | "title" | "article_count"
+>;
+
+/** `GET /api/articles/category` 的 data：`{list, count}`，条目是 `CategoryListItem`。 */
+export type ProfileCategoryListData =
+  RequiredSchema<"myblogx_internal_kernel.ListData-internal_article_adapter_http_CategoryListItem">;
+
 export type SearchArticleItem = RequiredSchema<"myblogx_internal_search_domain.Item">;
 
 export type SearchArticleResponse = RequiredSchema<"myblogx_internal_search_domain.Response">;

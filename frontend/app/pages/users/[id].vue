@@ -1,22 +1,27 @@
 <script setup lang="ts">
-import { computed, shallowRef } from "vue";
+import { computed, shallowRef, watch } from "vue";
 import { useMessage } from "naive-ui";
 import ArticleFeedItem from "~/components/article/ArticleFeedItem.vue";
 import LoadingSkeleton from "~/components/common/LoadingSkeleton.vue";
+import ProfileCategoryExplorer from "~/components/profile/ProfileCategoryExplorer.vue";
 import ProfileCollectionShelf from "~/components/profile/ProfileCollectionShelf.vue";
 import ProfileEmptyState from "~/components/profile/ProfileEmptyState.vue";
 import ProfileHeroCard from "~/components/profile/ProfileHeroCard.vue";
 import ProfileRelationList from "~/components/profile/ProfileRelationList.vue";
+import { getProfileCategories } from "~/services/category";
 import { getPublicFavoriteFolders, getOwnFavoriteFolders, getFavoriteFolderArticles } from "~/services/favorite";
 import { getFansList, getFollowList, followUser, unfollowUser } from "~/services/follow";
+import { searchArticles } from "~/services/search";
+import { readListPayload } from "~/services/listData";
 import { useDraftChatJump } from "~/composables/useDraftChatJump";
 import { getSelfUserDetail, getUserBaseInfo } from "~/services/user";
 import { formatCount } from "~/utils/format";
 import { getAuthorButtonLabel, isFollowing } from "~/utils/relation";
 import { errorMessage } from "~/utils/errorMessage";
+import type { SearchArticleItem } from "~/types/api";
 
-type UserTab = "articles" | "favorites" | "follow" | "fans";
-const USER_TABS: UserTab[] = ["articles", "favorites", "follow", "fans"];
+type UserTab = "articles" | "favorites" | "categories" | "follow" | "fans";
+const USER_TABS: UserTab[] = ["articles", "favorites", "categories", "follow", "fans"];
 
 function resolveUserTab(value: unknown): UserTab {
   return typeof value === "string" && USER_TABS.includes(value as UserTab) ? (value as UserTab) : "articles";
@@ -227,6 +232,86 @@ const { data: fansData, pending: fansPending, refresh: refreshFansData } = useAs
   },
 );
 
+// ── 分类栏（票 321）：只读。分类列表公开可读，点分类再按 author_id + category_id 取文章 ──
+const categoriesLoadFailed = shallowRef(false);
+
+const { data: categoriesData, pending: categoriesPending } = useAsyncData(
+  () => `user-categories:${userId.value}`,
+  () =>
+    getProfileCategories(userId.value)
+      .then((data) => {
+        categoriesLoadFailed.value = false;
+        return data;
+      })
+      .catch(() => {
+        // 读不到分类不能连累整页：退回空列表，由 failed 标记让分类栏说明原因。
+        categoriesLoadFailed.value = true;
+        return { list: [], count: 0 };
+      }),
+  {
+    watch: [userId],
+    server: false,
+    lazy: true,
+  },
+);
+
+const categories = computed(() => categoriesData.value?.list ?? []);
+
+const activeCategoryId = shallowRef("");
+const categoryArticles = shallowRef<SearchArticleItem[]>([]);
+const categoryArticlesPending = shallowRef(false);
+const categoryArticlesFailed = shallowRef(false);
+
+/** 就地展开：点一个分类 → 取该作者该分类下的公开文章，不跳页。 */
+async function loadCategoryArticles(categoryId: string) {
+  const targetUser = userId.value;
+  categoryArticlesPending.value = true;
+  categoryArticlesFailed.value = false;
+
+  try {
+    const payload = await searchArticles({
+      type: 3,
+      author_id: targetUser,
+      category_id: categoryId,
+      page: 1,
+      limit: 12,
+      page_mode: "count",
+      sort: 2,
+    });
+
+    // 请求返回时用户可能已经换分类 / 换主页：丢弃过期结果，别把旧分类的文章画上去。
+    if (activeCategoryId.value !== categoryId || userId.value !== targetUser) return;
+
+    categoryArticles.value = readListPayload(payload).list;
+  } catch {
+    if (activeCategoryId.value !== categoryId || userId.value !== targetUser) return;
+
+    categoryArticles.value = [];
+    categoryArticlesFailed.value = true;
+  } finally {
+    if (activeCategoryId.value === categoryId && userId.value === targetUser) {
+      categoryArticlesPending.value = false;
+    }
+  }
+}
+
+watch(activeCategoryId, (categoryId) => {
+  categoryArticles.value = [];
+  categoryArticlesFailed.value = false;
+
+  if (!categoryId) {
+    categoryArticlesPending.value = false;
+    return;
+  }
+
+  void loadCategoryArticles(categoryId);
+});
+
+// 换一个人看主页时收起已展开的分类，避免把上一位作者的文章留在栏里。
+watch(userId, () => {
+  activeCategoryId.value = "";
+});
+
 const favoriteSummaryText = computed(() => {
   if (favoriteLocked.value) return "收藏夹未公开";
   return `公开收藏夹 ${favoriteFolders.value?.count ?? 0} 个`;
@@ -310,6 +395,7 @@ async function handleRelationToggle(targetId: string, relation: number) {
 const tabLabels: Record<UserTab, string> = {
   articles: "文章",
   favorites: "收藏",
+  categories: "分类",
   follow: "关注",
   fans: "粉丝",
 };
@@ -317,6 +403,7 @@ const tabLabels: Record<UserTab, string> = {
 const tabSummaryText = computed(() => {
   if (activeTab.value === "articles") return `${articles.value.length} 篇文章`;
   if (activeTab.value === "favorites") return favoriteSummaryText.value;
+  if (activeTab.value === "categories") return `${categories.value.length} 个分类`;
   if (activeTab.value === "follow") return `${followData.value?.list?.length || 0} 个关注`;
   return `${fansData.value?.list?.length || 0} 个粉丝`;
 });
@@ -361,6 +448,7 @@ useSeoMeta({
                 v-for="item in [
                   { label: '文章', value: 'articles' },
                   { label: '收藏', value: 'favorites' },
+                  { label: '分类', value: 'categories' },
                   { label: '关注', value: 'follow' },
                   { label: '粉丝', value: 'fans' },
                 ]"
@@ -429,6 +517,17 @@ useSeoMeta({
             @update:active-folder-id="favoriteFolderId = $event"
           />
 
+          <ProfileCategoryExplorer
+            v-else-if="activeTab === 'categories'"
+            v-model:active-category-id="activeCategoryId"
+            :categories="categories"
+            :articles="categoryArticles"
+            :pending="categoriesPending"
+            :articles-pending="categoryArticlesPending"
+            :articles-failed="categoryArticlesFailed"
+            :failed="categoriesLoadFailed"
+          />
+
           <ProfileRelationList
             v-else-if="activeTab === 'follow'"
             title="关注列表"
@@ -464,7 +563,7 @@ useSeoMeta({
             size="md"
             title="当前分栏不可用"
             description="这个分栏暂时没有内容，请切换到其他内容继续浏览。"
-            :hints="['文章、收藏、关注、粉丝四个分栏互不影响。']"
+            :hints="['文章、收藏、分类、关注、粉丝五个分栏互不影响。']"
           />
         </section>
       </div>

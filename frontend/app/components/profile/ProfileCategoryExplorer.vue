@@ -8,13 +8,14 @@ import type { ProfileCategoryItem, SearchArticleItem } from "~/types/api";
  * 个人主页的「分类」栏（票 321）：左边列这位作者的分类，点一个就在右边就地展开
  * 该作者该分类下的文章，不跳页。
  *
- * 本组件**只读**：数据（分类列表、分类下的文章）都由页面取好传进来，选中的分类
- * 通过 `update:activeCategoryId` 回传，页面据此再取文章。匿名访客与他人访问走的是
- * 同一条路径，所以这里不渲染任何写入口。
+ * 本组件**不判断身份、也不发写请求**：数据（分类列表、分类下的文章）都由页面取好传进来，
+ * 选中的分类通过 `update:activeCategoryId` 回传，页面据此再取文章。匿名访客、他人主页
+ * 与自己主页走的是同一条读路径。
  *
- * 扩展位（留给下游的写操作票）：`toolbar`（分栏级操作，比如"新建分类"）与
- * `category-actions`（单个分类的行内操作）。两个插槽默认为空，只读视图不受影响；
- * 是否公开由页面按 `isSelf` 决定，组件本身不判断身份。
+ * 扩展位（票 325 起被页面用上）：`toolbar`（分栏级操作，"新建分类"）与
+ * `category-actions`（单个分类的行内操作，"改名 / 删除"）。两个插槽默认为空，
+ * 所以只读视图不受影响；**是否公开由页面按 `isSelf` 决定**——页面只在看自己时填插槽，
+ * 组件本身不判断登录态（分工见 `useProfileCategoryManage` 与 users/[id].vue）。
  */
 const props = withDefaults(
   defineProps<{

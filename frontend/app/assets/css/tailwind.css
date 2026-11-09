@@ -340,6 +340,44 @@
     @apply truncate text-base font-semibold text-ink;
   }
 
+  /* 单个分类的行内操作（改名 / 删除）：只在自己的主页出现（票 325）。 */
+  .profile-category-card__actions {
+    @apply flex items-center justify-end gap-2;
+  }
+
+  .profile-category-action {
+    @apply inline-flex min-h-[36px] items-center rounded-field border border-line-faint px-3 text-xs font-medium text-ink-muted transition-colors;
+    touch-action: manipulation;
+  }
+
+  .profile-category-action:hover {
+    border-color: var(--color-line-strong);
+    color: var(--color-ink);
+  }
+
+  .profile-category-action:focus-visible {
+    outline: 2px solid var(--color-focus);
+    outline-offset: 2px;
+  }
+
+  /* 新建分类是这一栏的主操作：比行内的两个次级动作更显眼。 */
+  .profile-category-action.is-primary {
+    @apply text-ink;
+    border-color: var(--color-line-strong);
+    background: var(--color-highlight);
+  }
+
+  /* 删除是不可逆动作：用 danger 档说清楚，而不是和"改名"长得一样。 */
+  .profile-category-action.is-danger {
+    @apply text-danger-ink;
+  }
+
+  .profile-category-action.is-danger:hover {
+    border-color: var(--color-danger-line);
+    background: var(--color-danger-soft);
+    color: var(--color-danger-ink);
+  }
+
   .profile-category-article-list {
     @apply flex flex-col gap-4;
   }

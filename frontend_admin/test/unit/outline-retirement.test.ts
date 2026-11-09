@@ -89,6 +89,8 @@ describe('旧排列页与收录弹窗已退役', () => {
       '/articles/hot-top',
       '/articles/collections',
       '/articles/projects',
+      // 标签管理是文章域的新维护页（#322），不是旧的排列 / 编排入口。
+      '/articles/tags',
     ])
     // 编排不再是菜单项：它是合集 / 项目卡片上的「编排目录树」按钮。
     expect(FLAT_NAV.filter(item => item.label.includes('编排'))).toEqual([])
@@ -96,7 +98,7 @@ describe('旧排列页与收录弹窗已退役', () => {
     expect(articleGroup.children!.filter(child => child.label.includes('编排'))).toEqual([])
   })
 
-  it('页面数量硬断言：25 个页面退役两个排列页与编排页后剩 22 个', () => {
+  it('页面数量硬断言：25 个页面退役两个排列页与编排页后剩 22 个，加标签管理页（#322）后是 23 个', () => {
     const pages: string[] = []
     const walk = (dir: string) => {
       for (const entry of readdirSync(dir, { withFileTypes: true })) {
@@ -106,7 +108,7 @@ describe('旧排列页与收录弹窗已退役', () => {
       }
     }
     walk(pagesDir)
-    expect(pages.length).toBe(22)
+    expect(pages.length).toBe(23)
   })
 
   /**

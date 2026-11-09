@@ -43,10 +43,17 @@ export type SiteSidebarCardsData = RequiredSchema<"internal_site_adapter_http.Si
 /** 轮播图列表载荷。之前服务层手写了同名形状（`{list, has_more}`），漏了契约里的 `count`。 */
 export type BannerListData = RequiredSchema<"myblogx_internal_kernel.HasMoreListData-internal_site_adapter_http_BannerItem">;
 
-export interface OptionItem {
+/**
+ * 下拉选项的纯 UI 形状（不对应任何接口）。
+ *
+ * 刻意用 `type` 而不是 `interface`：只有类型别名与匿名对象类型带隐式索引签名，
+ * 才能赋给 naive-ui 那些 `[k: string]: unknown` 的选项类型；`interface` 没有隐式
+ * 索引签名，直接喂给 `NSelect :options` 会报 "Property 'type' is missing"（#320）。
+ */
+export type OptionItem = {
   label: string;
   value: string;
-}
+};
 
 export type CreateImageUploadTaskRequest = Schema<"internal_media_adapter_http.CreateTaskRequest">;
 
@@ -92,6 +99,17 @@ export type FavoriteFolderItem = RequiredSchema<"internal_article_adapter_http.F
 
 
 export type FavoriteFolderListData = RequiredSchema<"myblogx_internal_kernel.ListData-internal_article_adapter_http_FavoriteListItem">;
+
+/**
+ * 标签下拉的列表载荷（`GET /articles/tags/options`）。
+ *
+ * data 恒为 `kernel.ListData` 的 `{list, count}`；服务层曾把它当数组 `.map`，
+ * 于是抛错又被兜底吞掉，下拉永远空白（#320）。
+ */
+export type TagListData = RequiredSchema<"myblogx_internal_kernel.ListData-internal_article_adapter_http_TagListItem">;
+
+/** 分类下拉的列表载荷（`GET /articles/category/options?user_id=`），形状同上。 */
+export type CategoryListData = RequiredSchema<"myblogx_internal_kernel.ListData-internal_article_adapter_http_CategoryListItem">;
 
 /**
  * 收藏夹写操作（创建 / 更新共用）的请求体。

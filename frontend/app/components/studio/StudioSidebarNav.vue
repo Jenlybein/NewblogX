@@ -6,7 +6,7 @@ import {
   IconHeartHandshake,
   IconLogin2,
   IconSettings,
-  IconUsers,
+  IconTags,
   IconUserSquareRounded,
 } from "@tabler/icons-vue";
 import AppAvatar from "~/components/common/AppAvatar.vue";
@@ -27,8 +27,11 @@ const items: StudioNavItem[] = [
   { label: "我的文章", to: "/studio/profile", icon: IconFileText },
   // 浏览历史已提升为顶级页 `/history`：创作区不再有入口（决策 7）。
   { label: "收藏夹", to: "/studio/favorites", icon: IconBookmarks },
-  { label: "关注", to: "/studio/follows", icon: IconHeartHandshake },
-  { label: "粉丝", to: "/studio/fans", icon: IconUsers },
+  // 分类的管理属于个人中心（票 327）：公开主页的分类栏只保留展示，
+  // 集中管理（新建 / 改名 / 删除）放这里，挨着内容相关的收藏夹与关注。
+  { label: "分类", to: "/studio/categories", icon: IconTags },
+  // 关注与粉丝合成一页（票 327）：二者是同一件事的两面，页内顶栏切换关注/粉丝/互关。
+  { label: "关注与粉丝", to: "/studio/relations", icon: IconHeartHandshake },
   { label: "登录设备", to: "/studio/recent-logins", icon: IconLogin2 },
   { label: "账号设置", to: "/studio/settings", icon: IconSettings },
 ];

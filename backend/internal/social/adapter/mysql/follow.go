@@ -71,15 +71,39 @@ func (r *Repo) Unfollow(ctx context.Context, followedID, fansID uint64) (bool, e
 	return res.RowsAffected > 0, nil
 }
 
-// ListFollowing 实现 domain.Repository。
-func (r *Repo) ListFollowing(ctx context.Context, ownerID, followedFilter uint64, page domain.Page) ([]domain.Follow, bool, error) {
+// ListRelations 实现 domain.Repository。
+//
+// 三个视图共用一条查询路径，差别只在"拿哪一端当对端"与"互关要不要再收一次"：
+//
+//	follow ：fans_user_id = 我        → 对端是 followed_user_id
+//	fans   ：followed_user_id = 我    → 对端是 fans_user_id
+//	mutual ：fans_user_id = 我 且 对端也关注我 → 对端是 followed_user_id
+//
+// 互关必须在这里筛（而不是取一页回来让调用方过滤）：先在 SQL 里筛再分页，
+// 分页才是对的；反过来"先分页后过滤"会让每页条数随关系分布抖动，
+// 前端只能靠多翻几页凑数。
+func (r *Repo) ListRelations(ctx context.Context, ownerID uint64, kind domain.RelationKind, page domain.Page) ([]domain.Follow, bool, error) {
 	page = page.Normalize()
-	tx := r.db.WithContext(ctx).Model(&followRow{}).Where("fans_user_id = ?", ownerID)
-	if followedFilter != 0 {
-		tx = tx.Where("followed_user_id = ?", followedFilter)
+
+	tx := r.db.WithContext(ctx).Model(&followRow{})
+	var columns []string
+	switch kind {
+	case domain.KindFans:
+		tx = tx.Where("followed_user_id = ?", ownerID)
+		columns = fansColumns
+	case domain.KindMutual:
+		// 我关注的人里，那些也在关注我的人。
+		tx = tx.Where("fans_user_id = ?", ownerID).
+			Where("followed_user_id IN (?)",
+				r.db.Model(&followRow{}).Select("fans_user_id").Where("followed_user_id = ?", ownerID))
+		columns = followedColumns
+	default:
+		tx = tx.Where("fans_user_id = ?", ownerID)
+		columns = followedColumns
 	}
+
 	var rows []followRow
-	if err := tx.Select("created_at", "followed_user_id", "followed_nickname", "followed_avatar", "followed_abstract").
+	if err := tx.Select(columns).
 		Order("created_at asc, id asc").
 		Limit(page.Limit + 1).
 		Offset(page.Offset()).
@@ -93,26 +117,49 @@ func (r *Repo) ListFollowing(ctx context.Context, ownerID, followedFilter uint64
 	return toFollows(rows), hasMore, nil
 }
 
-// ListFans 实现 domain.Repository。
-func (r *Repo) ListFans(ctx context.Context, ownerID, fansFilter uint64, page domain.Page) ([]domain.Follow, bool, error) {
-	page = page.Normalize()
-	tx := r.db.WithContext(ctx).Model(&followRow{}).Where("followed_user_id = ?", ownerID)
-	if fansFilter != 0 {
-		tx = tx.Where("fans_user_id = ?", fansFilter)
+// 只取本视图需要的那一端快照：follow/mutual 读被关注者，fans 读粉丝。
+var (
+	followedColumns = []string{"created_at", "followed_user_id", "followed_nickname", "followed_avatar", "followed_abstract"}
+	fansColumns     = []string{"created_at", "fans_user_id", "fans_nickname", "fans_avatar", "fans_abstract"}
+)
+
+// CountRelations 实现 domain.Repository。
+//
+// 三个数是三条 COUNT：关注 / 粉丝各自一条，"互关"是"我关注的人里也关注我的"，
+// 用一条带子查询的 COUNT。都是单表命中索引的计数，不值得为省两次往返
+// 拼一条难读的条件聚合。
+func (r *Repo) CountRelations(ctx context.Context, ownerID uint64) (domain.RelationCounts, error) {
+	var counts domain.RelationCounts
+
+	follow, err := r.count(ctx, ownerID, "fans_user_id = ?")
+	if err != nil {
+		return counts, err
 	}
-	var rows []followRow
-	if err := tx.Select("created_at", "fans_user_id", "fans_nickname", "fans_avatar", "fans_abstract").
-		Order("created_at asc, id asc").
-		Limit(page.Limit + 1).
-		Offset(page.Offset()).
-		Find(&rows).Error; err != nil {
-		return nil, false, err
+	fans, err := r.count(ctx, ownerID, "followed_user_id = ?")
+	if err != nil {
+		return counts, err
 	}
-	hasMore := len(rows) > page.Limit
-	if hasMore {
-		rows = rows[:page.Limit]
+
+	var mutual int64
+	if err := r.db.WithContext(ctx).Model(&followRow{}).
+		Where("fans_user_id = ?", ownerID).
+		Where("followed_user_id IN (?)",
+			r.db.Model(&followRow{}).Select("fans_user_id").Where("followed_user_id = ?", ownerID)).
+		Count(&mutual).Error; err != nil {
+		return counts, err
 	}
-	return toFollows(rows), hasMore, nil
+
+	counts.Follow = int(follow)
+	counts.Fans = int(fans)
+	counts.Mutual = int(mutual)
+	return counts, nil
+}
+
+// count 是带条件的活关系计数（软删由 GORM 自动加 deleted_at IS NULL）。
+func (r *Repo) count(ctx context.Context, ownerID uint64, where string) (int64, error) {
+	var n int64
+	err := r.db.WithContext(ctx).Model(&followRow{}).Where(where, ownerID).Count(&n).Error
+	return n, err
 }
 
 // RelationBatch 实现 domain.Repository。

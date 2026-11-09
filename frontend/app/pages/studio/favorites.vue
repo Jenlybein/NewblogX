@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, watch } from "vue";
 import { NButton, NInput, NModal, NSkeleton, useMessage } from "naive-ui";
-import ArticleCover from "~/components/article/ArticleCover.vue";
+import ArticleMiniCard from "~/components/article/ArticleMiniCard.vue";
 import {
   createFavoriteFolder,
   deleteFavoriteFolders,
@@ -220,44 +220,26 @@ useNoIndexPage();
               </div>
             </div>
 
-            <div v-if="contents?.list.length" class="favorite-content-list">
-              <article v-for="item in contents?.list" :key="item.article_id" class="favorite-content-card">
-                <NuxtLink :to="`/article/${item.article_id}`" class="favorite-content-card__cover-wrap" aria-label="查看文章详情">
-                  <ArticleCover :src="item.cover" :title="item.title" />
-                </NuxtLink>
-
-                <div class="favorite-content-card__main">
-                  <NuxtLink :to="`/article/${item.article_id}`" class="favorite-content-card__title">
-                    {{ item.title }}
-                  </NuxtLink>
-                  <p class="favorite-content-card__abstract">
-                    {{ item.abstract || "这篇文章暂无摘要，点击查看原文获取完整内容。" }}
-                  </p>
-                  <div class="favorite-content-card__meta">
-                    <span>{{ item.user_nickname }}</span>
-                    <span>{{ item.view_count }} 阅读</span>
-                    <span>收藏于 {{ formatDateTimeLabel(item.favorited_at) }}</span>
-                  </div>
-                </div>
-
-                <div class="favorite-content-card__actions">
-                  <NuxtLink :to="`/article/${item.article_id}`" class="glass-badge">查看原文</NuxtLink>
-                  <NButton quaternary size="small" @click="removeArticle(item.article_id)">移出</NButton>
-                </div>
-              </article>
+            <!-- 卡片本体是共享组件：与浏览历史同一个形状（票 327），差异只有元信息那一行。
+                 整张卡（封面与标题）都指向详情页，所以不再单独排一个"查看原文"按钮。 -->
+            <div v-if="contents?.list.length" class="favorite-content-grid">
+              <ArticleMiniCard
+                v-for="item in contents?.list"
+                :key="item.article_id"
+                :title="item.title"
+                :cover="item.cover"
+                :to="`/article/${item.article_id}`"
+                :meta="`${item.user_nickname} · ${item.view_count} 阅读 · 收藏于 ${formatDateTimeLabel(item.favorited_at)}`"
+                removable
+                remove-label="移出收藏夹"
+                @remove="removeArticle(item.article_id)"
+              />
             </div>
-            <div v-else-if="contentsPending" class="favorite-content-list">
-              <article v-for="idx in 4" :key="`content-skeleton-${idx}`" class="favorite-content-card">
-                <NSkeleton class="favorite-content-card__cover-skeleton" />
-                <div class="favorite-content-card__main">
-                  <NSkeleton text width="75%" height="24px" />
-                  <NSkeleton text :repeat="2" class="mt-2" />
-                  <NSkeleton text width="66%" class="mt-2" />
-                </div>
-                <div class="favorite-content-card__actions">
-                  <NSkeleton round height="32px" width="64px" />
-                  <NSkeleton round height="32px" width="48px" />
-                </div>
+            <div v-else-if="contentsPending" class="favorite-content-grid">
+              <article v-for="idx in 4" :key="`content-skeleton-${idx}`" class="favorite-content-skeleton">
+                <NSkeleton class="favorite-content-skeleton__cover" />
+                <NSkeleton text width="75%" height="20px" />
+                <NSkeleton text width="60%" />
               </article>
             </div>
             <StudioEmptyState
@@ -301,129 +283,38 @@ useNoIndexPage();
 </template>
 
 <style scoped>
-/* 颜色一律消费语义 token（票 #9 把创作区从旧青绿色板收敛到新体系）。 */
-.favorite-content-list {
-  display: flex;
-  flex-direction: column;
+/* 颜色一律消费语义 token。卡片本体在 app/components/article/ArticleMiniCard.vue：
+   与浏览历史同一个形状，这里只负责栅格列数与骨架占位。 */
+
+/* 这一栏是个人中心的右半区，容器本来就窄：最多两列，窄屏一列。
+   历史页是整页宽度，所以那边能铺到 5 列（同一个卡片、不同的栅格）。 */
+.favorite-content-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: 12px;
   padding: 12px;
 }
 
-.favorite-content-card {
-  display: grid;
-  grid-template-columns: 176px minmax(0, 1fr) auto;
-  gap: 14px;
-  align-items: stretch;
+@media (min-width: 720px) {
+  .favorite-content-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+/* 骨架也必须用同一个栅格，否则加载时与加载后的版式会跳一下。 */
+.favorite-content-skeleton {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px;
   border: 1px solid var(--color-line);
-  border-radius: var(--radius-lg);
-  background: var(--color-surface);
-  padding: 10px;
-  transition:
-    border-color var(--motion-fast) var(--motion-ease),
-    box-shadow var(--motion-fast) var(--motion-ease),
-    transform var(--motion-fast) var(--motion-ease);
-}
-
-.favorite-content-card:hover {
-  border-color: var(--color-line-strong);
-  box-shadow: 0 10px 24px var(--color-shadow);
-  transform: translateY(-1px);
-}
-
-/* 缩略图固定 16:9：窄屏只换列宽（比例不变），与详情页封面同一个形状。
-   缺封面只在共用封面组件里留一块空白（票 210），本页不再自带兜底样式。 */
-.favorite-content-card__cover-wrap {
   border-radius: var(--radius-md);
-  overflow: hidden;
-  display: block;
-  aspect-ratio: 16 / 9;
+  background: var(--color-surface-raised);
 }
 
-.favorite-content-card__cover-skeleton {
+.favorite-content-skeleton__cover {
   width: 100%;
   aspect-ratio: 16 / 9;
-  border-radius: var(--radius-md);
-}
-
-.favorite-content-card__main {
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.favorite-content-card__title {
-  color: var(--color-ink);
-  font-size: 18px;
-  line-height: 1.35;
-  font-weight: 700;
-  text-decoration: none;
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
-}
-
-.favorite-content-card__title:hover {
-  color: var(--color-ink);
-}
-
-.favorite-content-card__abstract {
-  margin: 0;
-  color: var(--color-ink-muted);
-  font-size: 14px;
-  line-height: 1.65;
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
-}
-
-.favorite-content-card__meta {
-  margin-top: auto;
-  display: flex;
-  flex-wrap: wrap;
-  gap: 10px;
-  color: var(--color-ink-muted);
-  font-size: 13px;
-}
-
-.favorite-content-card__actions {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-  justify-content: center;
-  gap: 10px;
-  min-width: 88px;
-}
-
-@media (max-width: 980px) {
-  .favorite-content-card {
-    grid-template-columns: 144px minmax(0, 1fr);
-    gap: 12px;
-  }
-
-  .favorite-content-card__actions {
-    grid-column: 1 / -1;
-    flex-direction: row;
-    justify-content: flex-end;
-    padding-top: 4px;
-  }
-}
-
-@media (max-width: 640px) {
-  .favorite-content-list {
-    padding: 10px;
-    gap: 10px;
-  }
-
-  .favorite-content-card {
-    grid-template-columns: 1fr;
-    padding: 10px;
-  }
-
-  .favorite-content-card__actions {
-    justify-content: flex-start;
-  }
+  border-radius: var(--radius-sm);
 }
 </style>

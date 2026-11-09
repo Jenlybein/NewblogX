@@ -7,11 +7,18 @@ type Repository interface {
 	// Follow 关注（软删记录会被恢复并刷新快照）；返回本次是否真正写入。
 	Follow(ctx context.Context, f *Follow) (bool, error)
 	// Unfollow 取关；返回本次是否真的删掉了活记录。
+	//
+	// 两个参数是"关系的两端"，不是"谁操作"：Unfollow(followedID, fansID) 删的是
+	// followedID 被 fansID 关注这一条。所以"移除关注我的人"也走它
+	// （Unfollow(我, 粉丝)），语义差别在用例层，不在持久化层。
 	Unfollow(ctx context.Context, followedID, fansID uint64) (bool, error)
-	// ListFollowing 分页查某人关注的人。
-	ListFollowing(ctx context.Context, ownerID, followedFilter uint64, page Page) ([]Follow, bool, error)
-	// ListFans 分页查某人的粉丝。
-	ListFans(ctx context.Context, ownerID, fansFilter uint64, page Page) ([]Follow, bool, error)
+	// ListRelations 按视图分页查关系。
+	//
+	// kind=follow 取 ownerID 关注的人；kind=fans 取关注 ownerID 的人；
+	// kind=mutual 取与 ownerID 互相关注的人（服务端过滤，不靠调用方筛）。
+	ListRelations(ctx context.Context, ownerID uint64, kind RelationKind, page Page) ([]Follow, bool, error)
+	// CountRelations 一次取三个视图的计数（供顶栏徽标用）。
+	CountRelations(ctx context.Context, ownerID uint64) (RelationCounts, error)
 	// RelationBatch 批量计算 viewer 与一批用户的关系。
 	RelationBatch(ctx context.Context, viewerID uint64, ids []uint64) (map[uint64]Relation, error)
 }

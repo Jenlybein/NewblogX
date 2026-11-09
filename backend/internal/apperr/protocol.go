@@ -28,9 +28,9 @@ var protocols = map[Code]ProtocolKind{
 	CodeUserSessionExpired: ProtocolAuth,
 
 	// 通知与站内信：调用方能修正的失败。
-	CodeCommonInvalidOrder:        ProtocolValidation,
-	CodeCommonInvalidArgument:     ProtocolValidation,
-	CodeCommonBindMissing:         ProtocolValidation,
+	CodeCommonInvalidOrder:    ProtocolValidation,
+	CodeCommonInvalidArgument: ProtocolValidation,
+	CodeCommonBindMissing:     ProtocolValidation,
 	// 质量闸门：不达标与"开启闸门时 AI 不可用"都是可以按提示修正的失败，
 	// 用 1001 而不是 1002（后者会让调用方以为后端坏了）。
 	// risk_rejected 是内容检查未通过的业务拒绝，同样归 1001，
@@ -38,22 +38,28 @@ var protocols = map[Code]ProtocolKind{
 	CodeArticleQualityRejected:       ProtocolValidation,
 	CodeArticleQualityGateRequiresAI: ProtocolValidation,
 	CodeArticleRiskRejected:          ProtocolValidation,
-	CodeMessageSelectionEmpty:     ProtocolValidation,
-	CodeMessageIDAndTypeEmpty:     ProtocolValidation,
-	CodeMessageNotFound:           ProtocolValidation,
-	CodeMessageAlreadyRead:        ProtocolValidation,
-	CodeMessageNothingRead:        ProtocolValidation,
-	CodeMessageConfMissing:        ProtocolValidation,
-	CodeNotifForbidden:            ProtocolValidation,
-	CodeNotifAdminRequired:        ProtocolValidation,
-	CodeNotifInvalidArgument:      ProtocolValidation,
-	CodeNotifReadSelectionEmpty:   ProtocolValidation,
-	CodeNotifDeleteSelectionEmpty: ProtocolValidation,
-	CodeNotifDeleteNotFound:       ProtocolValidation,
-	CodeNotifNotFound:             ProtocolValidation,
-	CodeNotifTitleDuplicated:      ProtocolValidation,
-	CodeNotifExpireTooSoon:        ProtocolValidation,
-	CodeNotifUserMissing:          ProtocolValidation,
+	CodeMessageSelectionEmpty:        ProtocolValidation,
+	CodeMessageIDAndTypeEmpty:        ProtocolValidation,
+	CodeMessageNotFound:              ProtocolValidation,
+	CodeMessageAlreadyRead:           ProtocolValidation,
+	CodeMessageNothingRead:           ProtocolValidation,
+	CodeMessageConfMissing:           ProtocolValidation,
+	CodeNotifForbidden:               ProtocolValidation,
+	CodeNotifAdminRequired:           ProtocolValidation,
+	CodeNotifInvalidArgument:         ProtocolValidation,
+	CodeNotifReadSelectionEmpty:      ProtocolValidation,
+	CodeNotifDeleteSelectionEmpty:    ProtocolValidation,
+	CodeNotifDeleteNotFound:          ProtocolValidation,
+	CodeNotifNotFound:                ProtocolValidation,
+	CodeNotifTitleDuplicated:         ProtocolValidation,
+	CodeNotifExpireTooSoon:           ProtocolValidation,
+	CodeNotifUserMissing:             ProtocolValidation,
+
+	// 移除粉丝（票 327）：对方本来就不是我的粉丝，是调用方能看懂并放弃的失败，
+	// 归 1001 而不是 1002（后者会让前端以为后端坏了）。
+	// 相邻的几个 follow.* 码是更早的一批，仍走默认兜底 —— 这里只登记新码，
+	// 不做顺手改判，免得同一批接口的行为在无关改动里漂移。
+	CodeFollowFanNotFound: ProtocolValidation,
 }
 
 // ProtocolOf 从错误值取协议类别。

@@ -5,10 +5,8 @@ import (
 	"github.com/gin-gonic/gin"
 
 	"myblogx/internal/apperr"
-	"myblogx/internal/kernel/ctype"
 	"myblogx/internal/platform/http/res"
 	"myblogx/internal/social/app"
-	"myblogx/internal/social/domain"
 	"myblogx/utils/jwts"
 	// 供 swag 注解里的 kernel.Envelope 解析用（代码里不直接引用）。
 	_ "myblogx/internal/kernel"
@@ -33,22 +31,6 @@ func viewerID(c *gin.Context) uint64 {
 		return 0
 	}
 	return cl.UserID.Uint64()
-}
-
-// FollowingQuery 关注列表查询。
-type FollowingQuery struct {
-	Page           int      `form:"page"`
-	Limit          int      `form:"limit"`
-	UserID         ctype.ID `form:"user_id"`
-	FollowedUserID ctype.ID `form:"followed_user_id"`
-}
-
-// FansQuery 粉丝列表查询。
-type FansQuery struct {
-	Page       int      `form:"page"`
-	Limit      int      `form:"limit"`
-	UserID     ctype.ID `form:"user_id"`
-	FansUserID ctype.ID `form:"fans_user_id"`
 }
 
 // Follow 关注用户。
@@ -89,48 +71,6 @@ func (h *Handler) Unfollow(c *gin.Context) {
 		return
 	}
 	res.OkWithMsg("取消关注成功", c)
-}
-
-// ListFollowing 关注列表。
-// @Summary 关注列表
-// @Tags follow
-// @Produce json
-// @Security BearerAuth
-// @Success 200 {object} kernel.Envelope[kernel.HasMoreListData[domain.FollowingItem]]
-// @Router /follow [get]
-func (h *Handler) ListFollowing(c *gin.Context) {
-	var q FollowingQuery
-	if err := c.ShouldBindQuery(&q); err != nil {
-		res.FailWithMsg("参数错误", c)
-		return
-	}
-	list, hasMore, err := h.svc.ListFollowing(c.Request.Context(), viewerID(c), q.UserID.Uint64(), q.FollowedUserID.Uint64(), domain.Page{Page: q.Page, Limit: q.Limit})
-	if err != nil {
-		res.FailWithError(err, c)
-		return
-	}
-	res.OkWithHasMoreList(list, hasMore, c)
-}
-
-// ListFans 粉丝列表。
-// @Summary 粉丝列表
-// @Tags follow
-// @Produce json
-// @Security BearerAuth
-// @Success 200 {object} kernel.Envelope[kernel.HasMoreListData[domain.FansItem]]
-// @Router /fans [get]
-func (h *Handler) ListFans(c *gin.Context) {
-	var q FansQuery
-	if err := c.ShouldBindQuery(&q); err != nil {
-		res.FailWithMsg("参数错误", c)
-		return
-	}
-	list, hasMore, err := h.svc.ListFans(c.Request.Context(), viewerID(c), q.UserID.Uint64(), q.FansUserID.Uint64(), domain.Page{Page: q.Page, Limit: q.Limit})
-	if err != nil {
-		res.FailWithError(err, c)
-		return
-	}
-	res.OkWithHasMoreList(list, hasMore, c)
 }
 
 // pathID 解析路径里的数字 ID。

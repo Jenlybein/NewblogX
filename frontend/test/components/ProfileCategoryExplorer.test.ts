@@ -203,8 +203,14 @@ describe("分类栏：他人主页是只读视图", () => {
   });
 });
 
-describe("分类栏：写入口由页面通过插槽接入（票 325）", () => {
-  it("toolbar 插槽渲染在分类列表上方，category-actions 插槽跟在各自分类后面", () => {
+describe("分类栏：写入口不在这层，也没有留插槽（票 327 口径）", () => {
+  /**
+   * 票 325 时这里验证过 `toolbar` / `category-actions` 两个插槽能把写入口接进来。
+   * 用户随后纠正了定位：分类的管理只在个人中心 `/studio/categories`，公开主页对
+   * 任何身份都只读。插槽如果没人填，就是死代码 —— 所以整组删掉，这里反过来钉住
+   * "谁都塞不进来"：即便调用方硬传插槽，组件也不渲染它。
+   */
+  it("即便调用方传入 toolbar / category-actions 插槽，也不会渲染出写入口", () => {
     const wrapper = mount(ProfileCategoryExplorer, {
       props: {
         categories: [category(), category({ id: "c2", title: "读书", article_count: 0 })],
@@ -231,13 +237,10 @@ describe("分类栏：写入口由页面通过插槽接入（票 325）", () => 
       },
     });
 
-    const toolbar = wrapper.get(".profile-category-toolbar");
-    expect(toolbar.get('[data-role="category-create"]').text()).toBe("新建分类");
-
-    // 每个分类都能拿到"自己的"那一行操作（插槽作用域传的是该分类）。
-    expect(wrapper.get('[data-role="rename-c1"]').text()).toBe("改名 工程笔记");
-    expect(wrapper.get('[data-role="rename-c2"]').text()).toBe("改名 读书");
-    // 只读视图本身没被改动：分类仍是可点的一等入口。
+    expect(wrapper.find(".profile-category-toolbar").exists()).toBe(false);
+    expect(wrapper.find('[data-role="category-create"]').exists()).toBe(false);
+    expect(wrapper.find('[data-role="rename-c1"]').exists()).toBe(false);
+    // 只读视图本身照旧：分类仍是可点的一等入口。
     expect(wrapper.findAll(".profile-category-card")).toHaveLength(2);
   });
 });

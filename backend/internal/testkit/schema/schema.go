@@ -666,6 +666,42 @@ func InsertViewHistory(t *testing.T, db *gorm.DB, id, userID, articleID uint64, 
 	}
 }
 
+// UserFollowSpec 描述要插入的一条关注关系。
+type UserFollowSpec struct {
+	ID uint64
+	// FollowedUserID 被关注的人，FansUserID 关注者（即"谁关注了谁"）。
+	FollowedUserID uint64
+	FollowedName   string
+	FollowedAvatar string
+	FansUserID     uint64
+	FansName       string
+	CreatedAt      time.Time
+}
+
+// InsertUserFollow 插入一条关注关系。
+//
+// 两侧昵称快照可以给空串：仓储层会用展示读补（hydrateFollowed / hydrateFans），
+// 想验"补齐"这条路径时正好用得上。
+func InsertUserFollow(t *testing.T, db *gorm.DB, spec UserFollowSpec) {
+	t.Helper()
+	at := spec.CreatedAt
+	if at.IsZero() {
+		at = time.Date(2026, 1, 1, 12, 0, 0, 0, time.UTC)
+	}
+	m := UserFollowRow{
+		BaseRow:          BaseRow{ID: ctype.NewID(spec.ID), CreatedAt: at, UpdatedAt: at},
+		FollowedUserID:   ctype.NewID(spec.FollowedUserID),
+		FollowedNickname: spec.FollowedName,
+		FollowedAvatar:   spec.FollowedAvatar,
+		FollowedAbstract: "",
+		FansUserID:       ctype.NewID(spec.FansUserID),
+		FansNickname:     spec.FansName,
+	}
+	if err := db.Omit("FollowedUserModel", "FansUserModel").Create(&m).Error; err != nil {
+		t.Fatalf("插入关注关系 %d->%d 失败: %v", spec.FansUserID, spec.FollowedUserID, err)
+	}
+}
+
 // ReviewTaskSpec 描述要插入的审核任务行。
 type ReviewTaskSpec struct {
 	ID                   uint64

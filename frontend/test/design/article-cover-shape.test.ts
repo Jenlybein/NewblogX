@@ -20,6 +20,8 @@ const articleCover = readFileSync(join(projectDir, "app/components/article/Artic
 const tailwind = readFileSync(join(projectDir, "app/assets/css/tailwind.css"), "utf8");
 const historyPage = readFileSync(join(projectDir, "app/pages/history.vue"), "utf8");
 const favoritesPage = readFileSync(join(projectDir, "app/pages/studio/favorites.vue"), "utf8");
+// 票 327：历史与收藏的短卡片收敛成同一个组件，缩略图形状住在组件里。
+const miniCard = readFileSync(join(projectDir, "app/components/article/ArticleMiniCard.vue"), "utf8");
 
 const SPEC_RATIO = "16 / 9";
 
@@ -172,27 +174,30 @@ describe("阅读站列表缩略图：不再按列表变体换比例", () => {
 });
 
 describe("创作页列表缩略图：历史与收藏同为 16:9", () => {
-  it("历史卡片缩略图锁 16:9，窄屏只改列宽与按钮可见性、不改形状", () => {
-    const block = blockAfter(historyPage, ".article-history-card__cover {");
+  it("共享短卡片的缩略图锁 16:9，窄屏只放大触摸留白、不改形状", () => {
+    const block = blockAfter(miniCard, ".article-mini-card__cover {");
     expect(aspectRatioOf(block)).toBe(SPEC_RATIO);
     expect(block).not.toMatch(/height\s*:/u);
 
-    // #194 起历史页改成栅格短卡片：封面宽度完全由列宽决定，窄屏块只让移出按钮常显，
-    // 不得再出现任何第二形状（height / aspect-ratio 覆盖）。
-    const narrow = blockAfter(historyPage, "@media (max-width: 768px)");
-    expect(narrow).toContain(".article-history-card__remove");
+    // #194 起历史页改成栅格短卡片；票 327 把这张卡抽成共享组件后，
+    // 窄屏块只允许动移出按钮的触摸留白，不得再出现任何第二形状。
+    const narrow = blockAfter(miniCard, "@media (max-width: 768px)");
+    expect(narrow).toContain(".article-mini-card__remove");
     expect(narrow).not.toMatch(/height\s*:/u);
     expect(narrow).not.toMatch(/aspect-ratio/u);
   });
 
-  it("收藏卡片缩略图锁 16:9，窄屏不写高度档与最小高度", () => {
-    const wrap = blockAfter(favoritesPage, ".favorite-content-card__cover-wrap {");
-    expect(aspectRatioOf(wrap)).toBe(SPEC_RATIO);
-    expect(wrap).not.toMatch(/height\s*:/u);
+  it("历史页与收藏页都不自己重写一份缩略图形状（形状只有组件一份）", () => {
+    // 历史页整页都不该再出现 aspect-ratio：封面形状一旦在页面里被覆盖，就是第二份实现。
+    expect(historyPage).not.toMatch(/aspect-ratio/u);
 
-    const skeleton = blockAfter(favoritesPage, ".favorite-content-card__cover-skeleton {");
+    // 收藏页唯一允许的 aspect-ratio 是骨架占位：它是"内容未到"的占位，
+    // 不是另一种封面形状（真实封面的形状只在共享卡片里）。
+    const skeleton = blockAfter(favoritesPage, ".favorite-content-skeleton__cover {");
     expect(aspectRatioOf(skeleton)).toBe(SPEC_RATIO);
     expect(skeleton).not.toMatch(/height\s*:/u);
+    expect(historyPage).not.toMatch(/\.favorite-content-skeleton/u);
+    expect(favoritesPage).not.toMatch(/\.favorite-content-card/u);
 
     // 旧实现用 min-height 与窄屏高度档撑封面，这两者都等于"第二个形状"。
     expect(favoritesPage).not.toMatch(/min-height\s*:/u);

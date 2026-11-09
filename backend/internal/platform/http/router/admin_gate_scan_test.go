@@ -239,15 +239,16 @@ var userRouteTemplates = []string{
 	"GET /api/projects",
 	"GET /api/projects/:id",
 	"GET /api/projects/:id/outline-tree",
-	// 评论 / 关注 / 粉丝
+	// 评论 / 关注关系（票 327 起读走 /relations 三视图，写仍走 /follow）
 	"GET /api/comments",
 	"GET /api/comments/man",
 	"GET /api/comments/replies",
 	"POST /api/comments",
 	"POST /api/comments/:id/digg",
 	"DELETE /api/comments/:id",
-	"GET /api/fans",
-	"GET /api/follow",
+	"GET /api/relations",
+	"GET /api/relations/counts",
+	"DELETE /api/relations/fans/:id",
 	"POST /api/follow/:id",
 	"DELETE /api/follow/:id",
 	// 搜索 / AI 生成（登录用户）

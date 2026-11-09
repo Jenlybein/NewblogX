@@ -8,14 +8,13 @@ import type { ProfileCategoryItem, SearchArticleItem } from "~/types/api";
  * 个人主页的「分类」栏（票 321）：左边列这位作者的分类，点一个就在右边就地展开
  * 该作者该分类下的文章，不跳页。
  *
- * 本组件**不判断身份、也不发写请求**：数据（分类列表、分类下的文章）都由页面取好传进来，
- * 选中的分类通过 `update:activeCategoryId` 回传，页面据此再取文章。匿名访客、他人主页
- * 与自己主页走的是同一条读路径。
+ * 本组件**只读**：不判断身份、不发写请求，也没有任何写入口插槽（票 327 口径）。
+ * 分类的集中管理（新建 / 改名 / 删除）只有一个地方 —— 个人中心 `/studio/categories`，
+ * 复用 `useProfileCategoryManage` 与 `ProfileCategoryFormModal`。公开主页对任何身份
+ * （包括作者本人）都只展示：分类列表、文章数、点分类展开文章、空态与失败态。
  *
- * 扩展位（票 325 起被页面用上）：`toolbar`（分栏级操作，"新建分类"）与
- * `category-actions`（单个分类的行内操作，"改名 / 删除"）。两个插槽默认为空，
- * 所以只读视图不受影响；**是否公开由页面按 `isSelf` 决定**——页面只在看自己时填插槽，
- * 组件本身不判断登录态（分工见 `useProfileCategoryManage` 与 users/[id].vue）。
+ * 数据（分类列表、分类下的文章）都由页面取好传进来，选中的分类通过
+ * `update:activeCategoryId` 回传，页面据此再取文章。
  */
 const props = withDefaults(
   defineProps<{
@@ -58,10 +57,6 @@ function toggleCategory(id: string) {
 <template>
   <div class="profile-category-layout">
     <aside class="profile-category-layout__folders" aria-label="作者分类">
-      <div v-if="$slots.toolbar" class="profile-category-toolbar">
-        <slot name="toolbar" />
-      </div>
-
       <ProfileEmptyState
         v-if="failed"
         size="sm"
@@ -83,22 +78,21 @@ function toggleCategory(id: string) {
       />
 
       <template v-else>
-        <div v-for="category in categories" :key="category.id" class="profile-category-card-wrap">
-          <button
-            type="button"
-            class="profile-category-card"
-            :class="{ 'is-active': activeCategoryId === category.id }"
-            :aria-pressed="activeCategoryId === category.id"
-            :aria-label="`${category.title}：${category.article_count} 篇公开文章`"
-            @click="toggleCategory(category.id)"
-          >
-            <span class="profile-category-card__title-row">
-              <strong class="profile-category-card__title">{{ category.title }}</strong>
-              <span class="blueprint-chip">{{ category.article_count }}</span>
-            </span>
-          </button>
-          <slot name="category-actions" :category="category" />
-        </div>
+        <button
+          v-for="category in categories"
+          :key="category.id"
+          type="button"
+          class="profile-category-card"
+          :class="{ 'is-active': activeCategoryId === category.id }"
+          :aria-pressed="activeCategoryId === category.id"
+          :aria-label="`${category.title}：${category.article_count} 篇公开文章`"
+          @click="toggleCategory(category.id)"
+        >
+          <span class="profile-category-card__title-row">
+            <strong class="profile-category-card__title">{{ category.title }}</strong>
+            <span class="blueprint-chip">{{ category.article_count }}</span>
+          </span>
+        </button>
       </template>
     </aside>
 

@@ -351,6 +351,122 @@ func TestTagAdminLifecycleEndToEnd(t *testing.T) {
 	}
 }
 
+// TestCategoryManageLifecycleEndToEnd 是票 325 的端到端验收，走真路由 + 真 MySQL：
+//
+//	"建分类 → 挂文章 → 改名 → 删分类 → 文章变未分类 → 同名重建成功"
+//
+// 外加三条边界：两人各自的同名分类互不影响、改 / 删他人的分类被拒绝、
+// 分类名首尾空白被忽略。
+func TestCategoryManageLifecycleEndToEnd(t *testing.T) {
+	db := migrate(t)
+	seedGoldenUser(t, db, 100, "cat_author", "分类作者", "", "", schema.RoleUser)
+	seedGoldenUser(t, db, 200, "cat_other", "另一个作者", "", "", schema.RoleUser)
+
+	author := newRouterWithIDs(t, db, domain.NormalUser(ctype.NewID(100)), 1000)
+	other := newRouterWithIDs(t, db, domain.NormalUser(ctype.NewID(200)), 2000)
+	anon := newRouterWithIDs(t, db, domain.Anonymous(), 4000)
+
+	categoryPath := "/api/articles/category?user_id=100"
+
+	// ── 新建：首尾空白被忽略，列表里是去空白后的名字 ──
+	respCode(t, do(t, author, http.MethodPost, "/api/articles/category",
+		[]byte(`{"title":"  端到端分类  "}`)), "建分类")
+	catID := findIDByTitle(listOf(t, do(t, author, http.MethodGet, categoryPath, nil)), "端到端分类")
+	if catID == "" {
+		t.Fatal("分类列表缺新分类（或标题没去空白）")
+	}
+
+	// ── 挂一篇文章上去 ──
+	created := do(t, author, http.MethodPost, "/api/articles",
+		[]byte(fmt.Sprintf(`{"title":"带分类的文章","content":"正文","status":1,"category_id":%s}`, catID)))
+	respCode(t, created, "建带分类的文章")
+	articleID := dataOf(t, created)["id"].(string)
+	detailPath := "/api/articles/" + articleID
+
+	detail := dataOf(t, do(t, author, http.MethodGet, detailPath, nil))
+	if detail["category_name"] != "端到端分类" {
+		t.Fatalf("详情应显示分类「端到端分类」，实际 %v", detail["category_name"])
+	}
+
+	// ── 改名：列表与文章详情都跟着变 ──
+	respCode(t, do(t, author, http.MethodPost, "/api/articles/category",
+		[]byte(fmt.Sprintf(`{"id":%s,"title":"端到端分类-改名"}`, catID))), "分类改名")
+	if id := findIDByTitle(listOf(t, do(t, author, http.MethodGet, categoryPath, nil)), "端到端分类-改名"); id != catID {
+		t.Fatalf("改名后列表应显示新名字且是同一条（%s），实际 %q", catID, id)
+	}
+	detail = dataOf(t, do(t, author, http.MethodGet, detailPath, nil))
+	if detail["category_name"] != "端到端分类-改名" {
+		t.Fatalf("改名后文章详情应显示新名字，实际 %v", detail["category_name"])
+	}
+
+	// ── 删分类：文章不消失，变成未分类 ──
+	respCode(t, do(t, author, http.MethodDelete, "/api/articles/category",
+		[]byte(fmt.Sprintf(`{"id_list":[%s]}`, catID))), "删分类")
+	if id := findIDByTitle(listOf(t, do(t, author, http.MethodGet, categoryPath, nil)), "端到端分类-改名"); id != "" {
+		t.Fatalf("删除后分类列表里不该再有它（%s）", id)
+	}
+	detailResp := do(t, author, http.MethodGet, detailPath, nil)
+	respCode(t, detailResp, "删除分类后读文章详情")
+	detail = dataOf(t, detailResp)
+	if detail["category_id"] != nil {
+		t.Fatalf("删除分类后文章应变成未分类，实际 category_id=%v", detail["category_id"])
+	}
+	if detail["category_name"] != "" {
+		t.Fatalf("删除分类后详情不该再显示分类名，实际 %v", detail["category_name"])
+	}
+
+	// ── 同名重建：成功，且恢复的是原来那条（保留原 ID） ──
+	respCode(t, do(t, author, http.MethodPost, "/api/articles/category",
+		[]byte(`{"title":"端到端分类-改名"}`)), "同名重建分类")
+	rows := listOf(t, do(t, author, http.MethodGet, categoryPath, nil))
+	same := make([]string, 0, 1)
+	for _, it := range rows {
+		if it["title"] == "端到端分类-改名" {
+			same = append(same, it["id"].(string))
+		}
+	}
+	if len(same) != 1 {
+		t.Fatalf("同名重建后列表里应只有一条，实际 %d 条", len(same))
+	}
+	if same[0] != catID {
+		t.Fatalf("恢复应保留原 ID %s，实际 %s", catID, same[0])
+	}
+
+	// ── 两个用户各有同名分类：互不冲突，也互相看不到 ──
+	respCode(t, do(t, other, http.MethodPost, "/api/articles/category",
+		[]byte(`{"title":"端到端分类-改名"}`)), "另一个作者用同名分类")
+	otherID := findIDByTitle(listOf(t, do(t, other, http.MethodGet,
+		"/api/articles/category?user_id=200", nil)), "端到端分类-改名")
+	if otherID == "" || otherID == catID {
+		t.Fatalf("另一位作者应拥有自己的一条同名分类，实际 %q", otherID)
+	}
+	if id := findIDByTitle(listOf(t, do(t, anon, http.MethodGet, categoryPath, nil)), "端到端分类-改名"); id != catID {
+		t.Fatalf("匿名读作者主页分类应看到作者自己那条（%s），实际 %q", catID, id)
+	}
+
+	// ── 改 / 删他人的分类被拒绝，且什么都没发生 ──
+	renamed := do(t, other, http.MethodPost, "/api/articles/category",
+		[]byte(fmt.Sprintf(`{"id":%s,"title":"偷改别人的分类"}`, catID)))
+	if code, _ := renamed["code"].(float64); code == 0 {
+		t.Fatalf("改别人的分类应被拒绝，实际成功: %v", renamed)
+	}
+	removed := do(t, other, http.MethodDelete, "/api/articles/category",
+		[]byte(fmt.Sprintf(`{"id_list":[%s]}`, catID)))
+	if code, _ := removed["code"].(float64); code == 0 {
+		t.Fatalf("删别人的分类应被拒绝，实际成功: %v", removed)
+	}
+	if id := findIDByTitle(listOf(t, do(t, author, http.MethodGet, categoryPath, nil)), "端到端分类-改名"); id != catID {
+		t.Fatalf("被拒的改 / 删不该动作者自己的分类，实际 %q", id)
+	}
+
+	// ── 匿名看不到写操作（写接口都在登录组）：直接调会被拒 ──
+	anonSave := do(t, anon, http.MethodPost, "/api/articles/category",
+		[]byte(`{"title":"匿名分类"}`))
+	if code, _ := anonSave["code"].(float64); code == 0 {
+		t.Fatalf("匿名建分类应被拒绝，实际成功: %v", anonSave)
+	}
+}
+
 // findRowByTitle 在列表里按 title 找整行（找不到返回 nil）。
 func findRowByTitle(t *testing.T, items []map[string]any, title string) map[string]any {
 	t.Helper()

@@ -156,17 +156,24 @@ onMounted(load)
         </NFormItem>
       </NCard>
 
-      <!-- 发布质量闸门（票 306）：开启后提交前先评分，不达标不放行。 -->
+      <!-- 发布质量闸门（票 306）：开启后提交前先评分，不达标不放行。
+           ADR-0040 起是**木桶**判定：总分与六个维度都要过线。 -->
       <NCard class="admin-card mb-4" title="发布质量闸门" size="small">
         <NAlert type="warning" :bordered="false" class="mb-4">
           开启前必须先让 AI 可用（总闸打开且至少配置了一条启用模型），否则保存会被拒绝——
-          闸门失败关闭，叠上 AI 不可用就等于"所有投稿都被拒"。实际放行线 =
-          及格线 + 灰带宽度（当前 {{ publishLine }} 分）。
+          闸门失败关闭，叠上 AI 不可用就等于"所有投稿都被拒"。
+        </NAlert>
+        <NAlert type="info" :bordered="false" class="mb-4">
+          判定是**木桶**：总分要达到 {{ publishLine }} 分（及格线 + 灰带宽度），
+          并且六个维度（清晰度 / 结构性 / 完整度 / 可读性 / 说服力 / 语言规范）
+          **每一项**都要达到及格线 {{ qualityGate.pass_score }} 分。
+          任何一项不够都不能发布，总分再高也不行——否则长板会把短板抵消掉，
+          两行话也能凑出及格的加权分。
         </NAlert>
         <NFormItem label="开启质量闸门">
           <NSwitch v-model:value="qualityGate.enabled" />
         </NFormItem>
-        <NFormItem label="及格线">
+        <NFormItem label="及格线（同时是每个维度的下限）">
           <NInputNumber v-model:value="qualityGate.pass_score" class="admin-field--number" :min="0" :max="100" />
         </NFormItem>
         <NFormItem label="灰带宽度">

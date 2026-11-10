@@ -3,8 +3,9 @@ import { computed, ref } from "vue";
 import { NAlert, NButton, NCard, NInput, NModal, NSelect, NSwitch } from "naive-ui";
 
 import StudioCoverUploadPanel from "./StudioCoverUploadPanel.vue";
-import type { QualityRejectionDetails } from "~/composables/useStudioPublish";
+import type { QualityRejectionDetails, QualityRejectionDimension } from "~/composables/useStudioPublish";
 import type { ShapeImageTarget } from "~/utils/imageShaping";
+import { scoreDimensionLabel } from "~/utils/scoreDimensions";
 import { categoryTitleError, normalizeCategoryTitle } from "~/utils/studioCategory";
 
 // 发布弹窗：补全分类/标签/封面/摘要/可见性/评论开关，然后提交。
@@ -95,6 +96,14 @@ const emit = defineEmits<{
 const categoryCreateOpen = ref(false);
 const newCategoryTitle = ref("");
 const newCategoryTitleError = computed(() => categoryTitleError(newCategoryTitle.value));
+
+// 驳回时没达到及格线的维度（木桶判定）。空数组表示"这次是总分不够"，
+// 两种驳回理由的措辞完全不同，所以先归一成列表再决定文案。
+const rejectionWeakDimensions = computed<QualityRejectionDimension[]>(() => {
+  const list = props.qualityRejection?.weak_dimensions;
+  if (!Array.isArray(list)) return [];
+  return list.filter((item) => typeof item?.score === "number");
+});
 
 function toggleCategoryCreate() {
   categoryCreateOpen.value = !categoryCreateOpen.value;
@@ -222,7 +231,9 @@ v-model:value="abstractText" type="textarea" maxlength="180"
 
           <!-- 质量不达标（票 306）：就地展示分数、差额与逐条问题。
                弹窗在失败后仍然是打开的，所以这里比 toast 更合适：作者能一条条
-               对照着改，而不是在一句会消失的提示里找信息。 -->
+               对照着改，而不是在一句会消失的提示里找信息。
+               ADR-0040 起判定是**木桶**：某一项没过及格线也会被拒，这时 gap 是 0，
+               所以标题不能只说"还差几分"，必须点名没过的维度。 -->
           <NAlert
             v-if="props.qualityRejection"
             type="error"
@@ -230,17 +241,40 @@ v-model:value="abstractText" type="textarea" maxlength="180"
             class="publish-form__rejection"
             data-role="quality-rejection">
             <template #header>
-              内容质量未达标：{{ props.qualityRejection.score }} 分，
-              放行线 {{ props.qualityRejection.required_score }} 分，
-              还差 {{ props.qualityRejection.gap }} 分
+              <template v-if="rejectionWeakDimensions.length">
+                内容质量未达标：{{ props.qualityRejection.score }} 分，
+                有 {{ rejectionWeakDimensions.length }} 项低于及格线
+                {{ props.qualityRejection.min_dimension_score }} 分
+                <template v-if="props.qualityRejection.gap > 0">
+                  ，总分还差 {{ props.qualityRejection.gap }} 分
+                </template>
+              </template>
+              <template v-else>
+                内容质量未达标：{{ props.qualityRejection.score }} 分，
+                放行线 {{ props.qualityRejection.required_score }} 分，
+                还差 {{ props.qualityRejection.gap }} 分
+              </template>
             </template>
+            <ul
+              v-if="rejectionWeakDimensions.length"
+              class="publish-rejection__list"
+              data-role="quality-rejection-dimensions">
+              <li v-for="item in rejectionWeakDimensions" :key="item.name">
+                <strong>{{ scoreDimensionLabel(item.name) }}</strong>：
+                {{ item.score }} 分（需 ≥ {{ props.qualityRejection.min_dimension_score }} 分）
+              </li>
+            </ul>
             <ul v-if="props.qualityRejection.issues?.length" class="publish-rejection__list">
               <li v-for="(issue, index) in props.qualityRejection.issues" :key="index">
                 <strong>{{ issue.reason || "需要修改" }}</strong>
                 <span v-if="issue.suggestion"> —— {{ issue.suggestion }}</span>
               </li>
             </ul>
-            <p v-else class="muted m-0">这篇文章已落回草稿，改完可以立刻重投。</p>
+            <p
+              v-else-if="!rejectionWeakDimensions.length"
+              class="muted m-0">
+              这篇文章已落回草稿，改完可以立刻重投。
+            </p>
           </NAlert>
 
           <!-- 票 302：文章已发布但还在等内容检查，读者暂时看不到。

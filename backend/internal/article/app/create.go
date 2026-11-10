@@ -195,7 +195,7 @@ func (s *Service) Create(ctx context.Context, cmd CreateArticleCmd) (*domain.Art
 	if gateRejected {
 		// 文章已经以草稿落库（作者能继续改、能立刻重投），因此这里是"带数据的
 		// 业务拒绝"而不是 "什么都没发生"：错误码 + 分数 / 差额 / 问题列表。
-		return nil, newQualityRejection(created.ID(), verdict)
+		return nil, newQualityRejection(created.ID(), verdict, cmd.QualityGate.PassScore)
 	}
 	if riskRejected {
 		// 文章已以 REJECTED 落库（不给改），返回固定文案的业务拒绝。

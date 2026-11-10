@@ -62,8 +62,15 @@ var dimensionOrder = []string{
 type ArticleScoreRequest struct {
 	Title   string
 	Content string
+	// Policy 是运行时策略文本正文（skills/scoring/SKILL.md，ADR-0040）；空串表示
+	// 站点没有给评分场景绑定策略文本，此时只用内置的判据与形态封顶。
+	//
+	// 它与代码里的 JSON 形状、分档数字是两件事：那些是**解析契约**，改坏会让结果
+	// 读不出来；策略文本只影响宽严，运营可以随时替换而不发版。
+	Policy string
 }
 
+// ArticleScoreResponse 是一次评分的完整结果。
 type ArticleScoreResponse struct {
 	AITotalScore   int                     `json:"ai_total_score"`
 	TotalScore     int                     `json:"total_score"`
@@ -74,6 +81,7 @@ type ArticleScoreResponse struct {
 	OverallComment string                  `json:"overall_comment"`
 }
 
+// ArticleScoreDimension 是一个维度的得分与理由。
 type ArticleScoreDimension struct {
 	Name   string `json:"name"`
 	Score  int    `json:"score"`

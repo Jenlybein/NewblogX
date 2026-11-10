@@ -318,6 +318,9 @@ type GateScoreInput struct {
 // GateScoreResult 是闸门拿到的一次可用评分结论。
 type GateScoreResult struct {
 	TotalScore int
+	// Dimensions 是六个维度的得分（ADR-0040）。闸门要做**木桶判定**——任何一项
+	// 低于及格线都不能发布——所以维度分必须一起返回，不能只给总分。
+	Dimensions []ScoreDimension
 	Issues     []scoring.ArticleScoreIssue
 }
 
@@ -415,14 +418,24 @@ func (s *Service) ScoreForGate(ctx context.Context, in GateScoreInput) (GateScor
 		return GateScoreResult{}, err
 	}
 
+	// 评分口径来自运行时策略文本（skills/scoring/SKILL.md，ADR-0040）：绑定被摘掉时
+	// policy 为空，只靠内置判据与形态封顶，不报错——评分是发布链路上的必经步骤，
+	// 让它因为"少绑一份文案"整站发不出文章，代价远大于收益。
+	policy, policyVersion, err := s.scenePolicy(aiConf, aipkg.SceneScoring)
+	if err != nil {
+		releaseQuotaLease(ctx, lease)
+		return GateScoreResult{}, err
+	}
+
 	scoreResp, err := scoring.ScoreArticleQuality(
 		aipkg.WithCallMeta(ctx, aipkg.CallMeta{
-			Scene:   aipkg.SceneScoring,
-			UserID:  in.AuthorID,
-			IsAdmin: in.AuthorIsAdmin,
-			Billing: aipkg.BillingPrecharged,
+			Scene:         aipkg.SceneScoring,
+			UserID:        in.AuthorID,
+			IsAdmin:       in.AuthorIsAdmin,
+			Billing:       aipkg.BillingPrecharged,
+			PromptVersion: policyVersion,
 		}), aiConf,
-		scoring.ArticleScoreRequest{Title: title, Content: content})
+		scoring.ArticleScoreRequest{Title: title, Content: content, Policy: policy})
 	if err != nil {
 		// 没拿到结论的系统性失败不占额度（与投稿配额同一条口径）。
 		releaseQuotaLease(ctx, lease)
@@ -443,8 +456,18 @@ func (s *Service) ScoreForGate(ctx context.Context, in GateScoreInput) (GateScor
 
 	return GateScoreResult{
 		TotalScore: scoreResp.TotalScore,
+		Dimensions: toScoreDimensions(scoreResp.Dimensions),
 		Issues:     scoreResp.MainIssues,
 	}, nil
+}
+
+// toScoreDimensions 把评分包的维度映射成用例层的展示形状。
+func toScoreDimensions(list []scoring.ArticleScoreDimension) []ScoreDimension {
+	result := make([]ScoreDimension, 0, len(list))
+	for _, item := range list {
+		result = append(result, ScoreDimension{Name: item.Name, Score: item.Score, Reason: item.Reason})
+	}
+	return result
 }
 
 // ScoreSummary 读公开评分摘要（不含评语与原因）。
@@ -509,13 +532,20 @@ func (s *Service) Rescore(ctx context.Context, viewerID uint64, in RescoreInput)
 		return ScoreView{}, err
 	}
 
+	policy, policyVersion, err := s.scenePolicy(aiConf, aipkg.SceneScoring)
+	if err != nil {
+		releaseQuotaLease(ctx, lease)
+		return ScoreView{}, err
+	}
+
 	scoreResp, err := scoring.ScoreArticleQuality(
 		aipkg.WithCallMeta(ctx, aipkg.CallMeta{
-			Scene:   aipkg.SceneScoring,
-			IsAdmin: meta.IsAdmin,
-			Billing: aipkg.BillingPrecharged,
+			Scene:         aipkg.SceneScoring,
+			IsAdmin:       meta.IsAdmin,
+			Billing:       aipkg.BillingPrecharged,
+			PromptVersion: policyVersion,
 		}), aiConf,
-		scoring.ArticleScoreRequest{Title: title, Content: content})
+		scoring.ArticleScoreRequest{Title: title, Content: content, Policy: policy})
 	if err != nil {
 		releaseQuotaLease(ctx, lease)
 		return ScoreView{}, err
@@ -563,12 +593,19 @@ func (s *Service) EnsureScoreIfMissing(ctx context.Context, articleID uint64) er
 	// 这条 ctx 来自 outbox 中继而不是 HTTP 请求。作者归属仍然补上（日志要能回答
 	// "这篇补评分是谁的文章"），但计费档位是"只记日志不计费"：它不是作者主动
 	// 触发的动作，而且与闸门评分存在竞态，重复计量没有意义（ADR-0038）。
+	policy, policyVersion, err := s.scenePolicy(aiConf, aipkg.SceneScoring)
+	if err != nil {
+		return err
+	}
 	scoreCtx := aipkg.WithCallMeta(ctx, aipkg.CallMeta{
-		Scene:   aipkg.SceneScoring,
-		UserID:  article.AuthorID,
-		Billing: aipkg.BillingUnmetered,
+		Scene:         aipkg.SceneScoring,
+		UserID:        article.AuthorID,
+		Billing:       aipkg.BillingUnmetered,
+		PromptVersion: policyVersion,
 	})
-	scoreResp, err := scoring.ScoreArticleQuality(scoreCtx, aiConf, scoring.ArticleScoreRequest{Title: title, Content: content})
+	scoreResp, err := scoring.ScoreArticleQuality(scoreCtx, aiConf, scoring.ArticleScoreRequest{
+		Title: title, Content: content, Policy: policy,
+	})
 	if err != nil {
 		return err
 	}

@@ -183,7 +183,7 @@ func (s *Service) Update(ctx context.Context, cmd UpdateArticleCmd) (*UpdateResu
 				if err := a.BackToDraft(now); err != nil {
 					return err
 				}
-				if err := cancelPendingReviewTasks(ctx, r, a.ID(), "文章质量未达发布线", now); err != nil {
+				if err := cancelPendingReviewTasks(ctx, r, a.ID(), "文章质量未达标", now); err != nil {
 					return err
 				}
 				break
@@ -223,7 +223,7 @@ func (s *Service) Update(ctx context.Context, cmd UpdateArticleCmd) (*UpdateResu
 	if gateRejected {
 		// 文章已落草稿（改动保留），因此返回"带数据的业务拒绝"，不是静默失败。
 		// 这次预占对应一次真实的提交动作（评分 + 落草稿），照旧计一次额度。
-		return nil, newQualityRejection(cmd.ArticleID, verdict)
+		return nil, newQualityRejection(cmd.ArticleID, verdict, cmd.QualityGate.PassScore)
 	}
 	if riskRejected {
 		// 文章已以 REJECTED 落库（不给改），返回固定文案的业务拒绝。

@@ -22,17 +22,23 @@ func ScoreArticleQuality(ctx context.Context, aiConf conf.AI, req ArticleScoreRe
 		return nil, fmt.Errorf("文章内容过短，建议补充完整后再评分")
 	}
 
+	// 形态事实只算一次，封顶在两个出口共用（ADR-0040）。
+	shape := analyzeContentShape(content)
+
 	if len([]rune(content)) <= articleScoringDirectMaxChars {
-		return scoreShortArticle(ctx, aiConf, title, content, headings)
+		return scoreShortArticle(ctx, aiConf, req.Policy, title, content, headings, shape)
 	}
-	return scoreLongArticle(ctx, aiConf, title, content, headings)
+	return scoreLongArticle(ctx, aiConf, req.Policy, title, content, headings, shape)
 }
 
-func scoreShortArticle(ctx context.Context, aiConf conf.AI, title string, content string, headings []string) (*ArticleScoreResponse, error) {
+func scoreShortArticle(
+	ctx context.Context, aiConf conf.AI, policy string,
+	title string, content string, headings []string, shape contentShape,
+) (*ArticleScoreResponse, error) {
 	reply, err := ai.Chat(ctx, aiConf, []ai.Message{
 		{
 			Role:    "system",
-			Content: buildFullArticlePrompt(title, content, headings),
+			Content: buildFullArticlePrompt(policy, title, content, headings),
 		},
 	})
 	if err != nil {
@@ -43,10 +49,13 @@ func scoreShortArticle(ctx context.Context, aiConf conf.AI, title string, conten
 	if err = ai.UnmarshalJSONBlock(reply, &response); err != nil {
 		return nil, fmt.Errorf("全文评分结果不是有效 JSON: %w", err)
 	}
-	return normalizeFinalResponse(&response, ""), nil
+	return finalizeResponse(&response, "", shape), nil
 }
 
-func scoreLongArticle(ctx context.Context, aiConf conf.AI, title string, content string, headings []string) (*ArticleScoreResponse, error) {
+func scoreLongArticle(
+	ctx context.Context, aiConf conf.AI, policy string,
+	title string, content string, headings []string, shape contentShape,
+) (*ArticleScoreResponse, error) {
 	chunkList := splitArticleChunks(content)
 	if len(chunkList) == 0 {
 		return nil, fmt.Errorf("文章内容过短，建议补充完整后再评分")
@@ -56,7 +65,7 @@ func scoreLongArticle(ctx context.Context, aiConf conf.AI, title string, content
 	reply, err := ai.Chat(ctx, aiConf, []ai.Message{
 		{
 			Role:    "system",
-			Content: buildFirstChunkPrompt(title, chunkList[0], totalChunks),
+			Content: buildFirstChunkPrompt(policy, title, chunkList[0], totalChunks),
 		},
 	})
 	if err != nil {
@@ -73,7 +82,7 @@ func scoreLongArticle(ctx context.Context, aiConf conf.AI, title string, content
 		reply, err = ai.Chat(ctx, aiConf, []ai.Message{
 			{
 				Role:    "system",
-				Content: buildMiddleChunkPrompt(title, chunkList[index], totalChunks, statePtr),
+				Content: buildMiddleChunkPrompt(policy, title, chunkList[index], totalChunks, statePtr),
 			},
 		})
 		if err != nil {
@@ -91,7 +100,7 @@ func scoreLongArticle(ctx context.Context, aiConf conf.AI, title string, content
 	reply, err = ai.Chat(ctx, aiConf, []ai.Message{
 		{
 			Role:    "system",
-			Content: buildFinalChunkPrompt(title, finalChunk, totalChunks, statePtr, headings),
+			Content: buildFinalChunkPrompt(policy, title, finalChunk, totalChunks, statePtr, headings),
 		},
 	})
 	if err != nil {
@@ -102,5 +111,15 @@ func scoreLongArticle(ctx context.Context, aiConf conf.AI, title string, content
 	if err = ai.UnmarshalJSONBlock(reply, &response); err != nil {
 		return nil, fmt.Errorf("长文最终评分结果不是有效 JSON: %w", err)
 	}
-	return normalizeFinalResponse(&response, statePtr.ArticleType), nil
+	return finalizeResponse(&response, statePtr.ArticleType, shape), nil
+}
+
+// finalizeResponse 是评分结果的唯一收口：先按契约归一化，再套形态封顶。
+//
+// 两者分开写在两个文件里是有意的——归一化保证"结果读得出来"，封顶保证
+// "读出来的分不会被常识否掉"（ADR-0040）。
+func finalizeResponse(resp *ArticleScoreResponse, fallbackArticleType string, shape contentShape) *ArticleScoreResponse {
+	out := normalizeFinalResponse(resp, fallbackArticleType)
+	applyShapeCaps(out, shape)
+	return out
 }

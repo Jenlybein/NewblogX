@@ -64,8 +64,16 @@ func TestScoreArticleQualityShortArticle(t *testing.T) {
 	}
 
 	resp, err := ScoreArticleQuality(context.Background(), aiConf, ArticleScoreRequest{
-		Title:   "Go 写作实践",
-		Content: "# Go 写作实践\n\n这是一篇完整的文章。\n\n它讨论了表达、结构和示例。",
+		Title: "Go 写作实践",
+		// 形态要"成篇"（够长 + 多段）：ADR-0040 起过短或单段的正文会被形态封顶，
+		// 这条用例验的是"短线路径走全文 prompt、总分由后端重算"，不该被封顶干扰。
+		Content: strings.Join([]string{
+			"# Go 写作实践",
+			"最近整理接口层时发现几个反复出现的问题，记下来备查。第一个问题是返回值形状不一致：同一个模块里有的端点包了一层 envelope，有的直接返回数组。",
+			"第二个问题是错误码的粒度：所有失败都返回同一个 code，前端只能靠 message 里的中文分支，一旦文案改了就全崩。",
+			"第三个问题是分页参数：有的用 page/limit，有的用 offset/count。统一成前者之后，前端的列表组件终于可以复用同一份翻页逻辑。",
+			"最后留一条经验：接口的边界要在服务端收紧，前端的校验只是提示，不是保障。",
+		}, "\n\n"),
 	})
 	if err != nil {
 		t.Fatalf("短文评分失败: %v", err)

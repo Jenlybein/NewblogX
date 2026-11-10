@@ -199,6 +199,29 @@ describe("useStudioPublish", () => {
     expect(h.pendingState.publish).toBe(false);
   });
 
+  it("单项未过及格线：兜底文案点名项数，不说「还差 0 分」", async () => {
+    // 木桶判定（ADR-0040）：总分 78 远高于放行线，只有完整度 41 低于及格线 50。
+    const rejection = {
+      article_id: "42",
+      score: 78,
+      required_score: 52,
+      gap: 0,
+      min_dimension_score: 50,
+      weak_dimensions: [{ name: "completeness", score: 41 }],
+    };
+    createArticleMock.mockRejectedValue(
+      new ApiBusinessError("内容质量未达标", 1002, rejection),
+    );
+    const h = harness();
+
+    await h.publish.submitArticle(2);
+
+    expect(h.message.error).toHaveBeenCalledTimes(1);
+    const text = String(h.message.error.mock.calls[0]?.[0] ?? "");
+    expect(text).toContain("1 项低于及格线 50 分");
+    expect(text).not.toContain("还差 0 分");
+  });
+
   it("发布期间把 scoring 置真，结束后归零（用于显示「评分中…」）", async () => {
     let release: (value: unknown) => void = () => {};
     createArticleMock.mockImplementation(

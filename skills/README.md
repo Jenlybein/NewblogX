@@ -20,8 +20,10 @@ skills/
 ├── README.md          # 本文件（不是 skill，加载器会跳过根下的普通文件）
 ├── jelly-voice/
 │   └── SKILL.md       # 读者站「捏捏」：口吻、称呼、禁用语
-└── moderation/
-    └── SKILL.md       # 投稿机审：判定规则与注意事项
+├── moderation/
+│   └── SKILL.md       # 投稿机审：判定规则与注意事项
+└── scoring/
+    └── SKILL.md       # 文章质量评分：什么算值得发布、维度判据、反空洞规则
 ```
 
 新增一份 skill 只需要加一个目录，**不用改代码**：

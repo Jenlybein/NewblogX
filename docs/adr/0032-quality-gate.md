@@ -81,3 +81,17 @@
 - 装配：`backend/app/article_wiring.go`（`qualityGatePort`）· `backend/app/site_wiring.go`（`aiReadyFunc`）
 - AI 侧：`backend/internal/ai/app/service.go`（`ScoreForGate`、`Ready`）· `backend/internal/ai/scoring/ai_scoring.go`（温度固定 0）
 - HTTP：`backend/internal/article/adapter/http/handler.go`（`qualityGate()`、结构化拒绝）
+
+## 后续修订
+
+**2026-11-10（与 [ADR-0040](./0040-quality-gate-bucket-and-scoring-skill.md) 同批）**：判定口径从"只看加权总分"改为**木桶**，并新增评分侧的形态封顶与运行时策略文本。以下三条被取代或收窄，其余条款一字未动：
+
+| 原条款 | 现在的口径 |
+| --- | --- |
+| 决策 1–9 隐含的"总分过线即放行" | 总分过线**且**六个维度**每一项**都要 ≥ `pass_score`。总分再高，只要一项不够就不放行。 |
+| 约束 6「实际放行线 = pass_score + gray_band_width」 | 灰带仍只作用于**总分**；维度下限就是 `pass_score` 本身，**不加**灰带。两个数字各管一件事，不共用。 |
+| 决策 9「拒绝时带结构化数据」 | `QualityRejectionDetails` 增加了 `min_dimension_score` 与 `weak_dimensions`；`gap` 只表示**总分**差额，被维度卡住时归零（不再给负数）。 |
+
+新约束（不属于本 ADR 原条款）：`weak_dimensions` 只列 `< pass_score` 的维度，与 `gap` 相互独立，两者可以同时成立；作者侧因此分两种文案（"有几项低于及格线" / "还差几分"），后端不拼含糊句子。
+
+这份修订没有改变"闸门默认关闭、评分在事务外、失败关闭、零 DDL"这四条根基，也没有改变错误码集合。

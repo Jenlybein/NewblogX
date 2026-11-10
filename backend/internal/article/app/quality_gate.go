@@ -3,6 +3,7 @@ package app
 import (
 	"context"
 	"fmt"
+	"sort"
 
 	"myblogx/internal/apperr"
 	"myblogx/internal/article/domain"
@@ -30,6 +31,9 @@ type QualityGatePolicy struct {
 	// Enabled 是闸门开关。
 	Enabled bool
 	// PassScore 是及格线（0–100）。发布线 = 及格线 + 灰带宽度。
+	//
+	// 它同时是**每个维度的下限**（ADR-0040 的木桶判定）：总分只是加权结果，
+	// 加权会让长板补短板，所以"六项都过及格线"必须单独成立。
 	PassScore int
 	// GrayBandWidth 是灰带宽度（默认 2）：及格线**之上**再让出这么多分才放行。
 	GrayBandWidth int
@@ -79,8 +83,13 @@ type qualityVerdict struct {
 	// Gap 是离发布线还差几分（Passed 为 false 时才有意义）。
 	Gap int
 	// Level 是按配置档界算出的档名。
-	Level  string
-	Issues []QualityIssue
+	Level string
+	// WeakDimensions 是低于及格线的维度（木桶判定，ADR-0040）。
+	//
+	// 它与 Gap 是两条独立的驳回理由：Gap>0 说"总分不够"，WeakDimensions 非空说
+	// "某一项不够"。两者可能同时成立，也可能只有后者成立（总分 78 但完整度 41）。
+	WeakDimensions []QualityDimension
+	Issues         []QualityIssue
 }
 
 // judgeQuality 取分并按配置判定。
@@ -107,17 +116,55 @@ func (s *Service) judgeQuality(
 	}
 
 	required := policy.PublishLine()
-	if score.TotalScore >= required {
+	weak := weakDimensions(score.Dimensions, policy.PassScore)
+
+	// 木桶：总分过线 **且** 六项都过及格线（ADR-0040）。两个条件都要成立 ——
+	// 只留其中一个都会出现"六项都 51 与六项都 90 同等放行"这类说不清的口径。
+	if score.TotalScore >= required && len(weak) == 0 {
 		return qualityVerdict{Passed: true, Score: score.TotalScore, Required: required}, nil
 	}
+
+	gap := required - score.TotalScore
+	if gap < 0 {
+		// 总分过线、被维度卡住时，差额不是"还差几分"，不能给负数让作者误解。
+		gap = 0
+	}
 	return qualityVerdict{
-		Passed:   false,
-		Score:    score.TotalScore,
-		Required: required,
-		Gap:      required - score.TotalScore,
-		Level:    policy.Level(score.TotalScore),
-		Issues:   score.Issues,
+		Passed:         false,
+		Score:          score.TotalScore,
+		Required:       required,
+		Gap:            gap,
+		Level:          policy.Level(score.TotalScore),
+		WeakDimensions: weak,
+		Issues:         score.Issues,
 	}, nil
+}
+
+// weakDimensions 返回低于及格线的维度，按分数从低到高排序（最该改的排在最前）。
+//
+// 没有维度分时返回空：这不是"通过"，而是"分不出短板"——此时仍按总分判，
+// 与引入木桶之前完全一致。空列表必须与"全部都过线"不同义，所以调用方还会
+// 单独看总分，两者都成立才放行。
+func weakDimensions(list []QualityDimension, minScore int) []QualityDimension {
+	if len(list) == 0 {
+		return nil
+	}
+	weak := make([]QualityDimension, 0, len(list))
+	for _, item := range list {
+		if item.Score < minScore {
+			weak = append(weak, item)
+		}
+	}
+	if len(weak) == 0 {
+		return nil
+	}
+	sort.SliceStable(weak, func(i, j int) bool {
+		if weak[i].Score != weak[j].Score {
+			return weak[i].Score < weak[j].Score
+		}
+		return weak[i].Name < weak[j].Name
+	})
+	return weak
 }
 
 // QualityRejectionDetails 是「质量不达标」给作者的补充信息。
@@ -136,6 +183,13 @@ type QualityRejectionDetails struct {
 	Gap int `json:"gap"`
 	// Level 是按运行时档界算出的档名。
 	Level string `json:"level"`
+	// MinDimensionScore 是每个维度的下限（= 及格线，ADR-0040）。
+	MinDimensionScore int `json:"min_dimension_score"`
+	// WeakDimensions 是没到下限的维度，分数最低的排最前。
+	//
+	// 它是"总分够但某项不够"这条驳回理由的唯一说明：不给它，作者只会看到
+	// "还差 0 分"，然后去凑字数，而真正该补的是被点名的那一项。
+	WeakDimensions []QualityDimension `json:"weak_dimensions"`
 	// Issues 是逐条问题（可能为空：模型没给问题但分数不够）。
 	Issues []QualityIssue `json:"issues"`
 }
@@ -145,20 +199,27 @@ func (d *QualityRejectionDetails) Error() string {
 	if d == nil {
 		return ""
 	}
+	if d.Gap <= 0 && len(d.WeakDimensions) > 0 {
+		return fmt.Sprintf(
+			"文章已保存为草稿：评分 %d 分（%s），有 %d 项未达到及格线（%d 分）",
+			d.Score, d.Level, len(d.WeakDimensions), d.MinDimensionScore)
+	}
 	return fmt.Sprintf(
 		"文章已保存为草稿：评分 %d 分（%s），还差 %d 分才达到发布线（%d 分）",
 		d.Score, d.Level, d.Gap, d.RequiredScore)
 }
 
 // newQualityRejection 把判定结论包成带错误码的错误。
-func newQualityRejection(articleID domain.ArticleID, v qualityVerdict) error {
+func newQualityRejection(articleID domain.ArticleID, v qualityVerdict, minDimensionScore int) error {
 	return apperr.Wrap(apperr.CodeArticleQualityRejected, &QualityRejectionDetails{
-		ArticleID:     articleID,
-		Score:         v.Score,
-		RequiredScore: v.Required,
-		Gap:           v.Gap,
-		Level:         v.Level,
-		Issues:        v.Issues,
+		ArticleID:         articleID,
+		Score:             v.Score,
+		RequiredScore:     v.Required,
+		Gap:               v.Gap,
+		Level:             v.Level,
+		MinDimensionScore: minDimensionScore,
+		WeakDimensions:    v.WeakDimensions,
+		Issues:            v.Issues,
 	})
 }
 

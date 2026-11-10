@@ -21,7 +21,7 @@ import {
  *
  * 两条都按仓库既有 canary 习惯来证明有牙齿：**喂人造违规文件断言红、喂合规文件断绿**。
  * 尤其门禁二：预设落地时还没有消费者，只靠"真实仓库全绿"这条断言会永远绿 —— 所以人造用例
- * 是这条门禁的主要证据。三处消费者（标题大纲飞行器 / 目录树圆点 / 消息中心颈部）随后续票
+ * 是这条门禁的主要证据。两处消费者（标题大纲飞行器 / 消息中心颈部）随后续票
  * 落地后，"真实仓库为绿"才第一次有了实际含义。
  */
 const appSources = collectAppSources();
@@ -67,7 +67,7 @@ describe("门禁一：组件里不得出现裸 stiffness / damping 数字", () =
         source(
           "app/components/outline/OutlineTree.vue",
           '<script setup lang="ts">',
-          "const dotTransition = resolveSpringMotion(SPRING_DOT, prefersReducedMotion.value);",
+          "const outlineTransition = resolveSpringMotion(SPRING_TRAVEL, prefersReducedMotion.value);",
           "</script>",
         ),
       ]),
@@ -94,7 +94,7 @@ describe("门禁一：组件里不得出现裸 stiffness / damping 数字", () =
       findBareSpringNumbers([
         source(
           "app/utils/motion.ts",
-          "export const SPRING_DOT = Object.freeze({ stiffness: 180, damping: 24, mass: 0.8 });",
+          "export const SPRING_TRAVEL = Object.freeze({ stiffness: 140, damping: 26, mass: 0.6 });",
         ),
       ]),
     ).toEqual([]);
@@ -112,17 +112,17 @@ describe("门禁一：组件里不得出现裸 stiffness / damping 数字", () =
 });
 
 describe("门禁二：引用弹簧预设的文件必须有「减少动态 → 落位」分支", () => {
-  it("真实仓库为绿（三处消费者已落地；喂违规必红的证据仍由下面的 canary 提供）", () => {
+  it("真实仓库为绿（两处消费者已落地；喂违规必红的证据仍由下面的 canary 提供）", () => {
     expect(appSources.length).toBeGreaterThan(100);
     expect(findUnresolvedSpringConsumers(appSources)).toEqual([]);
   });
 
-  it("canary 红：直接 useSpring(SPRING_DOT) 套预设、没有落位分支", () => {
+  it("canary 红：直接 useSpring(SPRING_TRAVEL) 套预设、没有落位分支", () => {
     const violations = findUnresolvedSpringConsumers([
       source(
         "app/components/outline/OutlineTree.vue",
         '<script setup lang="ts">',
-        "const x = useSpring(SPRING_DOT);",
+        "const x = useSpring(SPRING_TRAVEL);",
         "</script>",
       ),
     ]);
@@ -139,7 +139,7 @@ describe("门禁二：引用弹簧预设的文件必须有「减少动态 → �
         source(
           "app/components/outline/OutlineTree.vue",
           '<script setup lang="ts">',
-          "const dotTransition = resolveSpringMotion(SPRING_DOT, prefersReducedMotion.value);",
+          "const outlineTransition = resolveSpringMotion(SPRING_TRAVEL, prefersReducedMotion.value);",
           "</script>",
         ),
       ]),
@@ -158,7 +158,7 @@ describe("门禁二：引用弹簧预设的文件必须有「减少动态 → �
     expect(violations[0].reason).toContain("SPRING_NECK");
   });
 
-  it("四组预设全部在扫描面内（新增预设也自动进审计）", () => {
+  it("三组预设全部在扫描面内（新增预设也自动进审计）", () => {
     for (const name of Object.keys(SPRING_PRESETS)) {
       const preset = `SPRING_${name.toUpperCase()}`;
       const violations = findUnresolvedSpringConsumers([
@@ -174,7 +174,7 @@ describe("门禁二：引用弹簧预设的文件必须有「减少动态 → �
       findUnresolvedSpringConsumers([
         source(
           "app/components/outline/OutlineTree.vue",
-          "/* 圆点用 SPRING_DOT 驱动，弧线用 SPRING_TRAVEL */",
+          "/* 标题大纲的飞行器用 SPRING_TRAVEL 驱动 */",
           "// SPRING_NECK 与这条无关",
           "const x = 1;",
         ),
@@ -185,7 +185,7 @@ describe("门禁二：引用弹簧预设的文件必须有「减少动态 → �
   it("motion.ts 本身引用预设是定义，不是消费", () => {
     expect(
       findUnresolvedSpringConsumers([
-        source("app/utils/motion.ts", "export const SPRING_PRESETS = { dot: SPRING_DOT };"),
+        source("app/utils/motion.ts", "export const SPRING_PRESETS = { travel: SPRING_TRAVEL };"),
       ]),
     ).toEqual([]);
   });

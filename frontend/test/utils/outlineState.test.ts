@@ -65,14 +65,14 @@ describe("visibleOutlineRows：折叠只裁掉文件夹的后代", () => {
   });
 
   it("收起 f1：它自己还在（可再展开），所有后代消失", () => {
-    expect(visibleOutlineRows(rows, new Set(), new Set(["f1"])).map((item) => item.id)).toEqual([
+    expect(visibleOutlineRows(rows, new Set(["f1"])).map((item) => item.id)).toEqual([
       "f1",
       "a3",
     ]);
   });
 
   it("收起嵌套的 f2 只影响它那一支；未知节点 ID 不影响任何行", () => {
-    expect(visibleOutlineRows(rows, new Set(), new Set(["f2", "missing"])).map((item) => item.id)).toEqual([
+    expect(visibleOutlineRows(rows, new Set(["f2", "missing"])).map((item) => item.id)).toEqual([
       "f1",
       "a1",
       "f2",
@@ -80,14 +80,8 @@ describe("visibleOutlineRows：折叠只裁掉文件夹的后代", () => {
     ]);
   });
 
-  it("当前文章命中被收起的分支时自动展开来路文件夹（当前文章可见）", () => {
-    expect(
-      visibleOutlineRows(rows, new Set(["a2"]), new Set(["f1", "f2"])).map((item) => item.id),
-    ).toEqual(["f1", "a1", "f2", "a2", "a3"]);
-    expect(visibleOutlineRows(rows, new Set(["a3"]), new Set(["f1"])).map((item) => item.id)).toEqual([
-      "f1",
-      "a3",
-    ]);
+  it("收起当前文章所在的 f2 后，a2 真的消失（没有为当前文章强开的分支）", () => {
+    expect(visibleOutlineRows(rows, new Set(["f1", "f2"])).map((item) => item.id)).toEqual(["f1", "a3"]);
   });
 });
 

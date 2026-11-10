@@ -1,6 +1,5 @@
 import { mount } from "@vue/test-utils";
 import { describe, expect, it } from "vitest";
-import { nextTick } from "vue";
 
 import ArticleOutlineAside from "~/components/article/ArticleOutlineAside.vue";
 import type { ArticleOutlineContext } from "~/utils/outlineContext";
@@ -67,20 +66,6 @@ describe("ArticleOutlineAside：有归属树时左栏出现", () => {
     expect(current.classes()).toContain("is-current");
     expect(current.attributes("aria-current")).toBe("page");
     expect(wrapper.text()).toContain("目录");
-  });
-
-  it("当前文章在抽屉里带一枚沟槽圆点（装饰层，不改 aria-current 与 Tab 顺序）", async () => {
-    const wrapper = mountAside();
-    // 圆点在首次测量后才出现（`onMounted` 落位 → 下一帧渲染）。
-    await nextTick();
-
-    const dot = wrapper.get("[data-outline-dot]");
-    expect(dot.attributes("data-outline-dot-target")).toBe("n1");
-    expect(dot.attributes("aria-hidden")).toBe("true");
-    expect(dot.attributes("tabindex")).toBeUndefined();
-    expect(wrapper.get('[data-outline-row="n1"]').attributes("aria-current")).toBe("page");
-    // 焦点顺序仍只有文件夹箭头与文章链接。
-    expect(wrapper.findAll("[data-outline-dot] a, [data-outline-dot] button")).toHaveLength(0);
   });
 
   it("上一篇 / 下一篇沿用同一棵树的 from（翻页不串专题）", () => {

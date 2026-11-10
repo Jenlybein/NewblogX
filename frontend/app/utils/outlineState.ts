@@ -43,44 +43,15 @@ export function serializeOutlineExpanded(collapsed: ReadonlySet<string>): string
 }
 
 /**
- * 当前文章高亮所需的「来路文件夹」：命中某篇文章时，它上面每一层文件夹都展开。
- *
- * 返回的是 DFS 行里文章节点之前、层级更小的文件夹 ID 集合。
- */
-export function ancestorFolderIds(
-  rows: readonly OutlineTreeRow[],
-  currentArticleId: string | null | undefined,
-): Set<string> {
-  const ancestors = new Set<string>();
-  if (!currentArticleId) return ancestors;
-  const stack: string[] = [];
-  for (const row of rows) {
-    while (stack.length > row.depth) stack.pop();
-    if (row.articleId === currentArticleId) {
-      for (const id of stack) ancestors.add(id);
-      break;
-    }
-    if (row.isFolder) stack[row.depth] = row.id;
-  }
-  return ancestors;
-}
-
-/**
  * 可见行：收起的文件夹自己仍显示（可再点开），它的后代整支隐藏。
  *
- * `currentArticleIds` 命中的分支会被强制展开，保证「当前文章高亮」永远可见；
- * 它不改变 localStorage 里读者自己保存的折叠状态。
+ * 当前文章没有特权（2026-11-10 按反馈修改）：读者收起哪一层，就保持哪一层；
+ * 当前文章行跟着隐藏，不为高亮强行掰开文件夹。高亮只对"已经可见"的行生效。
  */
 export function visibleOutlineRows(
   rows: readonly OutlineTreeRow[],
-  currentArticleIds: ReadonlySet<string> = new Set(),
   collapsed: ReadonlySet<string> = new Set(),
 ): OutlineTreeRow[] {
-  const forced = new Set<string>();
-  for (const articleId of currentArticleIds) {
-    for (const id of ancestorFolderIds(rows, articleId)) forced.add(id);
-  }
-
   const visible: OutlineTreeRow[] = [];
   let hiddenBelow = -1;
   for (const row of rows) {
@@ -89,7 +60,7 @@ export function visibleOutlineRows(
       hiddenBelow = -1;
     }
     visible.push(row);
-    if (row.isFolder && collapsed.has(row.id) && !forced.has(row.id)) {
+    if (row.isFolder && collapsed.has(row.id)) {
       hiddenBelow = row.depth;
     }
   }

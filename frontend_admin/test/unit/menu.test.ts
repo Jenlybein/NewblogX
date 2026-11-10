@@ -51,8 +51,9 @@ function collectPageFiles(dir: string, prefix = ''): string[] {
 /**
  * 可导航项的冻结清单：拍平视图不许改动任何一项的标题 / 路由 / 图标 / 顺序。
  *
- * 「站点配置」是纯分组（没有自身页面），所以不在可导航清单里；八个配置编辑域
- * 紧跟其后作为子项（九段里 `image_gc` 暂无编辑页，ADR-0029）。`/site` 仍是「站点」域的入口，旧书签不会失效。
+ * 「站点配置」是纯分组（没有自身页面），下挂「站点」分组（站点四页，ADR-0039）、
+ * 七个配置编辑域与「右栏卡片」；「媒体运营」同样只分组，下挂轮播运营与图片资源库。
+ * `image_gc` 暂无编辑页（ADR-0029），`/media` 是旧地址跳转页（不在菜单里）。
  */
 const EXPECTED_ADMIN_NAV = [
   { label: '数据概览', path: '/', icon: 'chart' },
@@ -63,7 +64,10 @@ const EXPECTED_ADMIN_NAV = [
   { label: '项目管理', path: '/articles/projects', icon: 'article' },
   { label: '标签管理', path: '/articles/tags', icon: 'tag' },
   { label: '用户管理', path: '/users', icon: 'users' },
-  { label: '站点', path: '/site', icon: 'settings' },
+  { label: '站点基础', path: '/site', icon: 'settings' },
+  { label: '登录与发码', path: '/site/login', icon: 'settings' },
+  { label: '发布与审核', path: '/site/publish', icon: 'settings' },
+  { label: '私信', path: '/site/chat', icon: 'settings' },
   { label: 'AI 助手', path: '/site/ai', icon: 'settings' },
   { label: '邮件', path: '/site/mail', icon: 'settings' },
   { label: '对象存储', path: '/site/storage', icon: 'settings' },
@@ -72,7 +76,8 @@ const EXPECTED_ADMIN_NAV = [
   { label: '上传策略', path: '/site/upload', icon: 'settings' },
   { label: '装饰', path: '/site/deco', icon: 'settings' },
   { label: '右栏卡片', path: '/site/sidebar-cards', icon: 'settings' },
-  { label: '媒体运营', path: '/media', icon: 'photo' },
+  { label: '轮播运营', path: '/media/banners', icon: 'photo' },
+  { label: '图片资源库', path: '/media/images', icon: 'photo' },
   { label: '全局通知', path: '/notifications', icon: 'bell' },
   { label: '运行日志', path: '/logs', icon: 'database' },
   { label: '同步死信', path: '/logs/dead-letter', icon: 'alert' },
@@ -190,9 +195,17 @@ describe('后台菜单拍平视图', () => {
   it('navItemByPath 按路由查激活项；没有页面就不算激活，未知路径返回 undefined', () => {
     expect(navItemByPath('/')?.label).toBe('数据概览')
     expect(navItemByPath('/articles/hot-top')?.label).toBe('热门置顶')
-    // 站点配置的八个编辑域都是可导航子项，高亮按精确路由命中。
-    expect(navItemByPath('/site')?.label).toBe('站点')
+    // 站点配置的三个编辑层级：站点四页（深度 2）挂在「站点」分组下，其余域深度 1。
+    expect(navItemByPath('/site')?.label).toBe('站点基础')
     expect(navItemByPath('/site/deco')?.label).toBe('装饰')
+    expect(FLAT_NAV.find(item => item.label === '站点基础')).toMatchObject({
+      parentLabel: '站点',
+      depth: 2,
+    })
+    expect(FLAT_NAV.find(item => item.label === '私信')).toMatchObject({
+      parentLabel: '站点',
+      depth: 2,
+    })
     expect(navItemByPath('/site/missing')).toBeUndefined()
     expect(navItemByPath('')).toBeUndefined()
 
@@ -439,17 +452,14 @@ describe('父项只分组：点标题是展开/收起，不会跳页', () => {
   })
 
   it('父项自己的页面仍可到达：降级成组内第一个子项', () => {
-    const groupPaths = ADMIN_NAV_TREE.filter(node => (node.children?.length ?? 0) > 0).map(
-      group => group.children![0]!.path,
-    )
-    expect(groupPaths).toEqual(
-      expect.arrayContaining(['/articles', '/site', '/logs'].filter(path => path !== '/site')),
-    )
-    // 两个"原来父项能点开"的页面，现在都是组内第一个子项。
+    // 分组第一个子项可能是更深一层的分组（站点配置 → 站点），所以只要求
+    // 「文章管理」「日志中心」这类自带页面的分组仍把页面降级到组内第一项。
     expect(FLAT_NAV.find(item => item.path === '/articles')?.label).toBe('文章列表')
     expect(FLAT_NAV.find(item => item.path === '/articles')?.depth).toBe(1)
     expect(FLAT_NAV.find(item => item.path === '/logs')?.label).toBe('运行日志')
     expect(FLAT_NAV.find(item => item.path === '/logs')?.depth).toBe(1)
+    // 站点配置的第一个子项是分组（没有 path），`/site` 因此深度 2。
+    expect(navTrail('/site').map(item => item.label)).toEqual(['站点配置', '站点'])
   })
 })
 describe('后台菜单对账（两级结构）', () => {

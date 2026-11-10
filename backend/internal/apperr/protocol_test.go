@@ -257,6 +257,7 @@ var serviceFallbackCodes = []apperr.Code{
 	apperr.CodeRuntimeConfigDecodeFailed,
 	apperr.CodeSetupAlreadyDone,
 	apperr.CodeRuntimeConfigTableMissing,
+	apperr.CodeSiteAIDailyLimitInvalid,
 
 	// AI 能力。
 	apperr.CodeAIDisabled,
@@ -294,6 +295,8 @@ var serviceFallbackCodes = []apperr.Code{
 	apperr.CodeAIVendorUnsupported,
 	apperr.CodeAIProviderInvalid,
 	apperr.CodeAIPolicySkillMissing,
+	apperr.CodeAIDailyLimitExceeded,
+	apperr.CodeAIQuotaUnavailable,
 
 	// 通用工具与基础设施。
 	apperr.CodeCommonServiceFailed,

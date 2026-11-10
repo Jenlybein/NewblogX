@@ -148,6 +148,40 @@ func TestPublishForComplianceMakesArticleVisible(t *testing.T) {
 	}
 }
 
+// 额度延迟重审（ADR-0038）：改回审核中，但**不建**人工任务（次日自动重审）。
+func TestDeferForComplianceCreatesNoManualTask(t *testing.T) {
+	t.Parallel()
+
+	svc, repos := newModerationService(t, nil, nil)
+	ctx := context.Background()
+	a := apptest.NewArticle().
+		ID(ctype.NewID(9)).Author(author).
+		Status(domain.StatusPublished).
+		Visibility(domain.VisibilityPendingReview).
+		Build()
+	repos.FakeArticles().Seed(a)
+
+	if err := svc.DeferForCompliance(ctx, a.ID()); err != nil {
+		t.Fatalf("延迟重审转态失败: %v", err)
+	}
+	stored, _ := repos.FakeArticles().Find(ctx, a.ID())
+	if stored.Status() != domain.StatusExamining {
+		t.Fatalf("应改回审核中，实际 %s", stored.Status())
+	}
+	if stored.IsPubliclyVisible() {
+		t.Fatal("审核中不该对读者可见")
+	}
+	// 关键差异：这里不建待处理任务，管理员队列不该多出一行"明天就自动过"的任务。
+	tasks, _ := repos.FakeReviews().ListPendingByArticle(ctx, a.ID())
+	if len(tasks) != 0 {
+		t.Fatalf("延迟重审不该建人工任务，实际 %d 条", len(tasks))
+	}
+	// 幂等：文章已不在 pending_review，重复投递按"目的已达成"处理。
+	if err := svc.DeferForCompliance(ctx, a.ID()); err != nil {
+		t.Fatalf("幂等重投不该报错: %v", err)
+	}
+}
+
 // 异步分流：模型判 suspect / 判定失败 → 改回审核中并建人工任务。
 func TestBackToReviewForCompliance(t *testing.T) {
 	t.Parallel()

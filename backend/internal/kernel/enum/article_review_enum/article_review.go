@@ -53,6 +53,10 @@ const (
 	// 人工审核的两种原因（票 302 新规则）：模型判存疑、或判定重试一次后仍失败。
 	SourceModelSuspect Source = "model_suspect"
 	SourceModelFailure Source = "model_failure"
+	// SourceQuotaDeferred 是「合规判定因为作者当日额度用尽而推迟，兜底扫描把它
+	// 转回人工」（ADR-0038）。正常路径下这类文章次日会自动重审，不会走到人工；
+	// 这条来源只在延迟事件丢失、被兜底扫描捞回来时出现。
+	SourceQuotaDeferred Source = "quota_deferred"
 )
 
 // ReasonCode 是驳回原因的固定枚举。

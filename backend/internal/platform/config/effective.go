@@ -78,12 +78,94 @@ func NormalizeChatRate(windowSec, dailyMax int) ChatRate {
 // 与 chat 的「每天 99 条」同一条口径。数据库补种用的字面量仍由
 // site_default_settings.yaml 显式给出。
 const (
+	// 投稿配额（每人每自然日可提交次数上限）的默认值与合法区间（ADR-0031，
+	// spec #302 决策 19）。
+	//
+	// 「每天 15 次」只在本文件声明一次：Redis 兜底（redis_article_quota 的 dailyMax<=0
+	// 分支）、生效值归一化与配置服务缺失时的回落都从这里派生，
+	// 与 chat 的「每天 99 条」同一条口径。数据库补种用的字面量仍由
+	// site_default_settings.yaml 显式给出。
+
 	// DefaultArticleSubmitDailyMax 是默认的每日投稿上限。
 	DefaultArticleSubmitDailyMax = 15
 
 	minArticleSubmitDailyMax = 1
 	maxArticleSubmitDailyMax = 9999
 )
+
+// AI 每日额度的默认值与合法区间（ADR-0038）。
+//
+// 「每个场景每天多少次」在这里声明一次：读取侧的越界回落、装配层缺省闭包、
+// 单测里的最小装配都从这里派生。数据库补种用的字面量仍由
+// site_default_settings.yaml 显式给出（与 chat / 投稿配额同一条口径）。
+const (
+	DefaultAIDailyLimitScoring       = 20
+	DefaultAIDailyLimitMetainfo      = 50
+	DefaultAIDailyLimitOverwrite     = 50
+	DefaultAIDailyLimitDiagnose      = 20
+	DefaultAIDailyLimitSearchRewrite = 50
+	DefaultAIDailyLimitSearchAnswer  = 50
+	DefaultAIDailyLimitModeration    = 20
+
+	// MaxAIDailyLimit 是后台可填的上界；超过它按非法配置处理。
+	MaxAIDailyLimit = 9999
+)
+
+// DefaultAIDailyLimits 返回一组内置默认额度。
+func DefaultAIDailyLimits() conf.DailyLimits {
+	return conf.DailyLimits{
+		Scoring:       DefaultAIDailyLimitScoring,
+		Metainfo:      DefaultAIDailyLimitMetainfo,
+		Overwrite:     DefaultAIDailyLimitOverwrite,
+		Diagnose:      DefaultAIDailyLimitDiagnose,
+		SearchRewrite: DefaultAIDailyLimitSearchRewrite,
+		SearchAnswer:  DefaultAIDailyLimitSearchAnswer,
+		Moderation:    DefaultAIDailyLimitModeration,
+	}
+}
+
+// NormalizeAIDailyLimits 把越界值收敛到合法区间。
+//
+// 0 是**合法值**（不限），不能像投稿配额那样把 0 也回落到默认 ——那会让
+// "我不想限制这个场景"变成"给它 20 次"。
+// 负数与超过上界的值更可能是手改库或旧数据造成的，一律回落到该场景的默认值；
+// 正常写入路径在保存时就被拒绝（见 site 用例层的校验）。
+func NormalizeAIDailyLimits(in conf.DailyLimits) conf.DailyLimits {
+	def := DefaultAIDailyLimits()
+	normalize := func(value, fallback int) int {
+		if value < 0 || value > MaxAIDailyLimit {
+			return fallback
+		}
+		return value
+	}
+	return conf.DailyLimits{
+		Scoring:       normalize(in.Scoring, def.Scoring),
+		Metainfo:      normalize(in.Metainfo, def.Metainfo),
+		Overwrite:     normalize(in.Overwrite, def.Overwrite),
+		Diagnose:      normalize(in.Diagnose, def.Diagnose),
+		SearchRewrite: normalize(in.SearchRewrite, def.SearchRewrite),
+		SearchAnswer:  normalize(in.SearchAnswer, def.SearchAnswer),
+		Moderation:    normalize(in.Moderation, def.Moderation),
+	}
+}
+
+// AIDailyLimits 现读七个场景的每日额度（已归一化）。
+//
+// 每次调用现读，所以后台改完下一次请求即生效（ADR-0038 的验收标准之一）。
+func (e *EffectiveConfig) AIDailyLimits() conf.DailyLimits {
+	if e == nil || e.store == nil {
+		return DefaultAIDailyLimits()
+	}
+	return NormalizeAIDailyLimits(e.store.GetRuntimeAI().DailyLimits)
+}
+
+// AIDailyLimitsFunc 返回消费点唯一该持有的现读取值闭包。
+func (e *EffectiveConfig) AIDailyLimitsFunc() func() conf.DailyLimits {
+	if e == nil {
+		return func() conf.DailyLimits { return DefaultAIDailyLimits() }
+	}
+	return e.AIDailyLimits
+}
 
 // NormalizeArticleSubmitDailyMax 把非法 / 越界的每日投稿上限收敛到合法区间。
 //

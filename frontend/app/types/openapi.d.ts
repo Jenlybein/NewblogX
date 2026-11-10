@@ -6782,6 +6782,15 @@ export interface components {
              */
             stiffness: number;
         };
+        "conf.DailyLimits": {
+            diagnose?: number;
+            metainfo?: number;
+            moderation?: number;
+            overwrite?: number;
+            scoring?: number;
+            search_answer?: number;
+            search_rewrite?: number;
+        };
         "conf.LogCleanup": {
             enabled?: boolean;
             retention_days?: number;
@@ -7764,7 +7773,14 @@ export interface components {
         "internal_site_adapter_http.SiteSectionAiRequest": {
             abstract?: string;
             avatar?: string;
-            daily_quota?: number;
+            /**
+             * @description DailyLimits 是七个 AI 场景各自的「每人每自然日」调用上限。
+             *
+             *     为什么不再是一个站点级数字：一次 30 秒的投稿评分和一次两行的选区改写
+             *     成本差两个数量级，共用一个预算只会让运营在对成本无感的地方先撞墙。
+             *     0 表示不限；负数与超过 9999 的值在保存时被拒绝，读取侧另有一道归一化防线。
+             */
+            daily_limits?: components["schemas"]["conf.DailyLimits"];
             enable?: boolean;
             max_input_chars?: number;
             nickname?: string;
@@ -7785,7 +7801,14 @@ export interface components {
         "internal_site_adapter_http.SiteSectionAiResponse": {
             abstract?: string;
             avatar?: string;
-            daily_quota?: number;
+            /**
+             * @description DailyLimits 是七个 AI 场景各自的「每人每自然日」调用上限。
+             *
+             *     为什么不再是一个站点级数字：一次 30 秒的投稿评分和一次两行的选区改写
+             *     成本差两个数量级，共用一个预算只会让运营在对成本无感的地方先撞墙。
+             *     0 表示不限；负数与超过 9999 的值在保存时被拒绝，读取侧另有一道归一化防线。
+             */
+            daily_limits?: components["schemas"]["conf.DailyLimits"];
             enable?: boolean;
             max_input_chars?: number;
             nickname?: string;

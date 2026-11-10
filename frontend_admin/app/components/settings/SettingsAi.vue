@@ -70,13 +70,44 @@ onMounted(load)
         <NFormItem label="最大输入字符">
           <NInputNumber v-model:value="config.max_input_chars" class="admin-field--number" :min="100" />
         </NFormItem>
-        <NFormItem label="每日配额（0 不限）">
-          <NInputNumber v-model:value="config.daily_quota" class="admin-field--number" :min="0" />
-        </NFormItem>
         <NFormItem label="采样温度">
           <NInputNumber v-model:value="config.temperature" class="admin-field--number" :min="0" :max="2" :step="0.1" />
         </NFormItem>
       </NSpace>
+
+      <!-- 每日额度按场景分设（ADR-0038）：一次 30 秒的评分和一次两行的改写
+           成本差两个数量级，共用一个预算只会让运营在无感的地方先撞墙。
+           0 表示不限；负数与超过 9999 的值保存时会被拒绝。 -->
+      <NDivider />
+      <NAlert type="info" :bordered="false" class="mb-4">
+        每人每自然日的调用上限，<strong>0 表示不限</strong>。计量口径是「一次模型调用算一次」，
+        唯一例外是评分：一次评分动作只算一次（长文按段落分块，内部多次调用不重复扣）。
+        AI 搜索一次问答会各消耗「改写」与「作答」各一次；管理员不受这些上限约束。
+      </NAlert>
+      <NSpace :size="12" class="w-full">
+        <NFormItem label="评分（投稿闸门 / 主动重评）">
+          <NInputNumber v-model:value="config.daily_limits.scoring" class="admin-field--number" :min="0" :max="9999" />
+        </NFormItem>
+        <NFormItem label="元信息（标题/摘要/标签）">
+          <NInputNumber v-model:value="config.daily_limits.metainfo" class="admin-field--number" :min="0" :max="9999" />
+        </NFormItem>
+        <NFormItem label="改写（选区改写）">
+          <NInputNumber v-model:value="config.daily_limits.overwrite" class="admin-field--number" :min="0" :max="9999" />
+        </NFormItem>
+        <NFormItem label="诊断（选区诊断）">
+          <NInputNumber v-model:value="config.daily_limits.diagnose" class="admin-field--number" :min="0" :max="9999" />
+        </NFormItem>
+        <NFormItem label="搜索改写（检索意图）">
+          <NInputNumber v-model:value="config.daily_limits.search_rewrite" class="admin-field--number" :min="0" :max="9999" />
+        </NFormItem>
+        <NFormItem label="搜索作答（检索结果回答）">
+          <NInputNumber v-model:value="config.daily_limits.search_answer" class="admin-field--number" :min="0" :max="9999" />
+        </NFormItem>
+        <NFormItem label="合规判定（异步机审）">
+          <NInputNumber v-model:value="config.daily_limits.moderation" class="admin-field--number" :min="0" :max="9999" />
+        </NFormItem>
+      </NSpace>
+
       <NButton type="primary" :loading="saving" @click="save">保存 AI 助手配置</NButton>
     </NForm>
     <div v-else class="admin-empty">{{ loading ? '配置加载中' : '配置加载失败，刷新页面重试' }}</div>

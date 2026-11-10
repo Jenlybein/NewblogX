@@ -6,9 +6,9 @@ import (
 	"strings"
 	"time"
 
+	"myblogx/internal/apperr"
 	"myblogx/internal/article/domain"
 	"myblogx/internal/article/domain/risk"
-	"myblogx/internal/apperr"
 )
 
 // ComplianceResult 是一次模型合规判定的结论（票 312 / ADR-0033）。

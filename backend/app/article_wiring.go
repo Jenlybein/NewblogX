@@ -7,11 +7,11 @@ import (
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
 
+	aiapp "myblogx/internal/ai/app"
+	"myblogx/internal/apperr"
 	articlehttp "myblogx/internal/article/adapter/http"
 	"myblogx/internal/article/adapter/mysql"
 	adapterredis "myblogx/internal/article/adapter/redis"
-	aiapp "myblogx/internal/ai/app"
-	"myblogx/internal/apperr"
 	articleapp "myblogx/internal/article/app"
 	"myblogx/internal/article/domain"
 	"myblogx/internal/article/domain/collection"
@@ -204,11 +204,12 @@ func (qualityGatePort) Evaluate(ctx context.Context, in articleapp.QualityGateIn
 		return articleapp.QualityGateScore{}, apperr.New(apperr.CodeAIServiceOff)
 	}
 	result, err := aiService.ScoreForGate(ctx, aiapp.GateScoreInput{
-		ArticleID: in.ArticleID,
-		AuthorID:  in.AuthorID,
-		Title:     in.Title,
-		Content:   in.Content,
-		UpdatedAt: in.UpdatedAt,
+		ArticleID:     in.ArticleID,
+		AuthorID:      in.AuthorID,
+		Title:         in.Title,
+		Content:       in.Content,
+		UpdatedAt:     in.UpdatedAt,
+		AuthorIsAdmin: in.AuthorIsAdmin,
 	})
 	if err != nil {
 		return articleapp.QualityGateScore{}, err

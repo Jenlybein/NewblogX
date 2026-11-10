@@ -361,6 +361,10 @@ const (
 	CodeRuntimeConfigPathMissing  Code = "runtimeconfig.path_missing"
 	CodeRuntimeConfigDecodeFailed Code = "runtimeconfig.decode_failed"
 
+	// AI 每日额度的保存期校验（ADR-0038）。与"额度用完"完全不同：
+	// 那是运行期的业务结论，这是保存配置时的参数错误。
+	CodeSiteAIDailyLimitInvalid Code = "site.ai_daily_limit_invalid"
+
 	// 首次初始化。闸门是"库里还没有管理员"：一旦有了管理员，
 	// 这两个接口就永久关闭，避免成为绕过鉴权的后门。
 	CodeSetupAlreadyDone          Code = "setup.already_done"
@@ -412,6 +416,19 @@ const (
 	// 它属于服务异常而不是参数错误：出问题的是部署/配置，不是这次请求的入参。
 	// 这里必须明确失败 —— 静默退化成空口径回答等于让用户先发现（ADR-0030）。
 	CodeAIPolicySkillMissing Code = "ai.policy_skill_missing"
+
+	// CodeAIDailyLimitExceeded 是「今天的 AI 使用次数用完了」。
+	//
+	// 它与「整站 AI 不可用」「没有启用的模型配置」严格分开：三者该采取的动作
+	// 完全不同（明天再来 / 找管理员开总闸 / 管理员配模型）。混用会让用户去查
+	// 自己的账号或找管理员改开关，而正确动作只是等一天。
+	CodeAIDailyLimitExceeded Code = "ai.daily_limit_exceeded"
+
+	// CodeAIQuotaUnavailable 是「额度服务本身不可用」（Redis 未初始化或脚本报错）。
+	//
+	// 它属于服务异常而不是额度用完：失败关闭（拒绝本次调用），但文案不能
+	// 说成"明天再来"——那会让用户以为是自己用超了。
+	CodeAIQuotaUnavailable Code = "ai.quota_unavailable"
 )
 
 // 通用工具与基础设施。
@@ -661,6 +678,7 @@ var messages = map[Code]string{
 	CodeRuntimeConfigPathMissing:  "运行时站点默认配置路径未设置",
 	CodeRuntimeConfigDecodeFailed: "运行时配置解析失败",
 	CodeRuntimeConfigTableMissing: "运行时配置表不存在，请先执行数据库初始化命令：/app/server -db",
+	CodeSiteAIDailyLimitInvalid:   "AI 每日上限必须是 0–9999 之间的整数（0 表示不限）",
 
 	CodeAIDisabled:         "AI 功能未启用",
 	CodeAIConfigMissing:    "运行时配置服务未初始化",
@@ -699,6 +717,8 @@ var messages = map[Code]string{
 	CodeAIVendorUnsupported:  "不支持的模型供应商",
 	CodeAIProviderInvalid:    "模型配置不完整",
 	CodeAIPolicySkillMissing: "AI 场景配置引用的运行时策略文本缺失",
+	CodeAIDailyLimitExceeded: "今天的 AI 使用次数已用完，明天恢复",
+	CodeAIQuotaUnavailable:   "AI 次数校验服务暂不可用，请稍后再试",
 
 	CodeCommonInvalidOrder:    "排序字段错误",
 	CodeCommonInvalidArgument: "参数不合法",

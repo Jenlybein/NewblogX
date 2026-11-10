@@ -7,11 +7,14 @@ import (
 	"fmt"
 	"time"
 
+	aipkg "myblogx/internal/ai"
+	"myblogx/internal/ai/moderation"
+	"myblogx/internal/apperr"
 	articleapp "myblogx/internal/article/app"
 	"myblogx/internal/article/domain/review"
 	chatdomain "myblogx/internal/chat/domain"
-	"myblogx/internal/ai/moderation"
 	"myblogx/internal/kernel/ctype"
+	"myblogx/internal/kernel/enum"
 	"myblogx/internal/kernel/enum/article_review_enum"
 	notificationapp "myblogx/internal/notification/app"
 	"myblogx/internal/platform/cdc/outboxrelay"
@@ -190,14 +193,16 @@ func complianceSubscriber(infra *Infra) outboxrelay.Subscriber {
 		if articleID.IsZero() {
 			return nil
 		}
-		// 文章已经不在了（多半投递前被删除）：没有可判定的对象，直接结束不重试。
-		var count int64
-		if err := infra.DB.WithContext(ctx).Table(noticeArticleRow{}.TableName()).
-			Where("id = ?", articleID).Count(&count).Error; err != nil {
-			return err
-		}
-		if count == 0 {
+		// 一次读全：存在性、标题（通知要用）与作者（额度归属要用）。
+		var article noticeArticleRow
+		err := infra.DB.WithContext(ctx).Table(article.TableName()).
+			Select("id, title, author_id").Where("id = ?", articleID).Take(&article).Error
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			// 文章已经不在了（多半投递前被删除）：没有可判定的对象，直接结束不重试。
 			return nil
+		}
+		if err != nil {
+			return err
 		}
 
 		articleSvc := newArticleService(infra)
@@ -207,8 +212,25 @@ func complianceSubscriber(infra *Infra) outboxrelay.Subscriber {
 			return articleSvc.BackToReviewForCompliance(ctx, articleID,
 				article_review_enum.SourceModelFailure)
 		}
-		result, err := aiService.CheckArticleCompliance(ctx, articleID.Uint64())
+
+		// 归属：异步链路没有登录态，只能回查作者与角色。管理员豁免在额度收费点
+		// 只认 IsAdmin 布尔，不认识角色枚举（ADR-0038）。
+		isAdmin, err := userIsAdmin(ctx, infra, article.AuthorID)
 		if err != nil {
+			return err
+		}
+		checkCtx := aipkg.WithCallMeta(ctx, aipkg.CallMeta{
+			UserID:  article.AuthorID,
+			IsAdmin: isAdmin,
+		})
+
+		result, err := aiService.CheckArticleCompliance(checkCtx, articleID.Uint64())
+		if err != nil {
+			if apperr.IsCode(err, apperr.CodeAIDailyLimitExceeded) {
+				// 额度用完不是"判定失败"：重试注定再被拒、还会白扣一次。
+				// 落点见 deferComplianceForQuota（审核中 + 无任务 + 次日重投 + 通知）。
+				return deferComplianceForQuota(ctx, infra, articleSvc, article)
+			}
 			// 判定失败：**在订阅者内部重试一次**，然后转人工。
 			//
 			// 不能借用发件箱的 e.Attempts 来数重试次数：EventArticlePublished
@@ -216,12 +238,13 @@ func complianceSubscriber(infra *Infra) outboxrelay.Subscriber {
 			// 汇总——任一兄弟失败就会重投整批，Attempts 会涨到 2/3/4/5，
 			// 于是一次"评分失败"会把已判 clean 的文章也误改成人工审核。
 			// 自己重试一次与兄弟彻底解耦，且严格只有一次。
-			result, err = aiService.CheckArticleCompliance(ctx, articleID.Uint64())
+			result, err = aiService.CheckArticleCompliance(checkCtx, articleID.Uint64())
 			if err != nil {
 				return articleSvc.BackToReviewForCompliance(ctx, articleID,
 					article_review_enum.SourceModelFailure)
 			}
 		}
+
 		if saveErr := articleSvc.SaveComplianceResult(ctx, articleID, articleapp.ComplianceResult{
 			Verdict:       result.Verdict,
 			RiskLevel:     result.RiskLevel,
@@ -258,6 +281,88 @@ func complianceSubscriber(infra *Infra) outboxrelay.Subscriber {
 		return articleSvc.BackToReviewForCompliance(ctx, articleID,
 			article_review_enum.SourceModelSuspect)
 	}
+}
+
+// userIsAdmin 回查作者是否管理员（异步链路没有登录态）。
+//
+// 查不到用户就按"非管理员"处理：作者已被删除的文章不该因为一个孤儿行
+// 让整条事件无限重试。
+func userIsAdmin(ctx context.Context, infra *Infra, userID ctype.ID) (bool, error) {
+	if userID.IsZero() {
+		return false, nil
+	}
+	var row noticeUserRoleRow
+	err := infra.DB.WithContext(ctx).Table(row.TableName()).
+		Select("role").Where("id = ?", userID).Take(&row).Error
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return false, nil
+	}
+	if err != nil {
+		return false, err
+	}
+	return row.Role == enum.RoleAdmin, nil
+}
+
+// deferComplianceForQuota 在作者当日合规判定额度用尽时收尾一条事件。
+//
+// 三件事必须一起发生（ADR-0038）：
+//  1. 文章改回「审核中」且**不建人工任务**（明天会自动重审）；
+//  2. 给作者一条系统通知，说清楚"明天自动重审、期间读者看不到"；
+//  3. 把本条事件推迟到次日零点后重投（既不算完成也不算失败）。
+//
+// 任何一步失败都返回错误：事件会因为失败重试，但 DeferForCompliance 幂等，
+// 重试只会重复一次"已经完成"的转态（ErrInvalidTransition 被吞掉）。
+func deferComplianceForQuota(
+	ctx context.Context, infra *Infra, articleSvc *articleapp.Service, article noticeArticleRow,
+) error {
+	if err := articleSvc.DeferForCompliance(ctx, article.ID); err != nil {
+		return err
+	}
+	if err := notifyQuotaDeferred(ctx, infra, article); err != nil {
+		return err
+	}
+	return &outboxrelay.RescheduleError{
+		At:     nextQuotaReviewTime(time.Now()),
+		Reason: "AI 合规判定额度已用完，次日自动重审",
+	}
+}
+
+// notifyQuotaDeferred 给作者发一条「额度不足、明日自动重审」的系统通知。
+//
+// 去重与 notifySubscriber 同一套（中继是 at-least-once，事件被推迟后仍可能
+// 重复投递；消息表不能加去重列，所以按 接收者 + 链接 + 正文 判重）。
+func notifyQuotaDeferred(ctx context.Context, infra *Infra, article noticeArticleRow) error {
+	content := fmt.Sprintf(
+		"今日的 AI 审核次数已用完，您的文章《%s》将在明日额度恢复后自动重审。重审通过前，读者看不到这篇文章。",
+		article.Title)
+	linkHref := fmt.Sprintf("/article/%s", article.ID)
+
+	var exists int64
+	if err := infra.DB.WithContext(ctx).Table(noticeMessageRow{}.TableName()).
+		Where("receiver_id = ? AND link_herf = ? AND content = ?", article.AuthorID, linkHref, content).
+		Count(&exists).Error; err != nil {
+		return err
+	}
+	if exists > 0 || notificationService == nil {
+		return nil
+	}
+	return notificationService.NotifySystem(ctx, notificationapp.SystemNotice{
+		Receiver:   article.AuthorID.Uint64(),
+		ActionUser: article.AuthorID.Uint64(),
+		Content:    content,
+		LinkTitle:  article.Title,
+		LinkHref:   linkHref,
+	})
+}
+
+// nextQuotaReviewTime 是"额度恢复后重审"的落点：次日零点后 5 分钟 + 0–10 分钟抖动。
+//
+// 抖动是必要的：额度会在同一时刻对所有人恢复，没有抖动时当天所有被推迟的
+// 合规判定会在同一分钟涌入模型接口。
+func nextQuotaReviewTime(now time.Time) time.Time {
+	y, m, d := now.Date()
+	next := time.Date(y, m, d, 0, 5, 0, 0, now.Location()).AddDate(0, 0, 1)
+	return next.Add(time.Duration(now.UnixNano()%10) * time.Minute)
 }
 
 // autoRejectRiskLevel 是"高置信"的门槛：风险级别 ≥ 2 才自动拒。

@@ -320,6 +320,20 @@ AI 真正可调用要同时满足两层：站点总闸 `ai.enable`（runtime_con
 AI 调用日志（场景、模型、token、耗时、失败原因），第 6 类平台日志；TTL 400 天、`ORDER BY` 以 ts 打头，**不记 prompt 与回复正文**。
 位置：`internal/platform/log/event.go`、ClickHouse 表 `ai_call_logs`、`GET /logs/ai`、`GET /data/ai-usage`。
 
+**AI 每日额度（ai daily quota）**：
+七个 AI 场景各自的「每人每自然日」调用上限，配置在 `ai.daily_limits`（七个具名字段，`0` 表示不限；负数与超过 9999 保存时被拒绝）。
+计量单位是**一次出站模型调用**（`ai.Chat` / `ChatStream` 出口是唯一收费点），唯一例外是**评分**：一次评分动作只算一次（长文分块不重复扣）。
+三类调用不计数：管理员、没有用户归属（`user_id=0` 的异步链路）、已预扣或只记日志的调用（`CallMeta.Billing`）。
+额度用尽返回 `ai.daily_limit_exceeded`，额度服务故障返回 `ai.quota_unavailable`（失败关闭、不放行）。
+位置：`backend/internal/ai/quota.go`（收费点与场景映射）、`backend/internal/ai/callmeta.go`（`IsAdmin` / `Billing`）、`backend/internal/platform/redis/redis_ai_quota`（日桶 + Lua 预占）、`backend/config/site_default_settings.yaml`；决定见 [ADR-0038](./docs/adr/0038-ai-daily-quota.md)。
+_Avoid_: 用「每日配额」指那个**单一站点级数字**（该字段 `daily_quota` 已删除）；把额度单位当成"点击次数"；说"评分每天能评 20 次模型调用"（单位是评分动作）。
+
+**额度延迟重审（quota-deferred review）**：
+作者当日合规判定额度用尽时的收尾：文章从「已发布 + 待可见」改回**「审核中」但不建待处理任务**，同一条合规事件推迟到次日零点后（带抖动）重投，作者收到系统通知；每日兜底扫描把「审核中 + 无待处理任务 + 超过 24 小时」的文章转人工，防止投递丢失导致永久悬挂。
+位置：`backend/internal/article/app/compliance_transition.go`（`DeferForCompliance`）、`compliance_sweep.go`（`EscalateForReview`）、`backend/app/{outbox_wiring.go,cron_wiring.go}`、`internal/platform/cdc/outboxrelay/reschedule.go`；决定见 [ADR-0038](./docs/adr/0038-ai-daily-quota.md)。
+易混：它与「转人工」不是同一落点——转人工会建一条待处理任务，延迟重审当天**不建**；只有兜底扫描（事件丢了）才把它转人工补上任务。
+_Avoid_: 叫它「审核失败」或「合规拒绝」；说"额度用完作者就发不出文章"（作者不会被拒稿，只是当天不可见、次日重审）。
+
 ---
 
 ## 七、环境与部署
@@ -380,6 +394,12 @@ _Avoid_: 叫它"AI 对话框""聊天机器人"（它是入口角色，不是对�
 读者站与后台的**用户可见品牌名**（英文 JellyBin、中文副标「果冻盒」）；旧展示名 `BlogX` 不再使用。
 位置：两端各一份品牌模块（读者站 `frontend/app/`、后台 `frontend_admin/app/`），集中导出英文名、中文名、字标结构、助手显示名、站点一句话介绍与版权行；改造前这些品牌串仍是散落硬编码。
 _Avoid_: 把内部标识当展示名——仓库名 `blogx`、Go module `myblogx`、`BLOGX_*` 环境变量前缀、compose 服务名 `blogx_web` / `blogx_admin` / `blogx_server`、`blogx-theme` cookie 与 `blogx_access_token` / `blogx_profile_snapshot` 存储键都不改名。
+
+**后台三级菜单（three-level admin nav）**：
+后台侧栏支持「分组 → 分组 → 页面」三层；分组 key 是**层级链**（`group:站点配置 / 站点`），不是标签名，否则两层同名前缀会共用一份展开态。
+唯一使用处是「站点配置 → 站点 → 站点基础 / 登录与发码 / 发布与审核 / 私信」（[ADR-0039](./docs/adr/0039-admin-nav-three-levels-and-site-split.md)）；不进菜单的旧地址跳转页登记在 `ADMIN_REDIRECT_PAGES`。
+位置：`frontend_admin/app/utils/menu.ts`（树、拍平、`navGroupKey`、对账）、`components/admin/AdminNavTree.vue`、`assets/css/admin.css` 的 `data-depth='2'`。
+_Avoid_: 用标签名当分组 key；把 `/media` 当成菜单项（它是跳转页）；说"菜单项级权限门控"（`AdminNavNode` 没有权限字段，不做按项门控）。
 
 **光标挂件（cursor charm）**：
 读者站的**纯装饰**角色：站标用一条「挂绳」系在指针上，随指针被拖行、摆动。它不响应点击、不抢焦点、不承载任何功能——读者站唯一的功能性入口仍是「捏捏」。

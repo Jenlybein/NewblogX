@@ -311,6 +311,8 @@ type GateScoreInput struct {
 	Content   string
 	// UpdatedAt 是这次提交对应内容的更新时间，随评分记录落库用于回溯。
 	UpdatedAt time.Time
+	// AuthorIsAdmin 表示提交者拥有管理员身份：为真时不占每日评分额度（ADR-0038）。
+	AuthorIsAdmin bool
 }
 
 // GateScoreResult 是闸门拿到的一次可用评分结论。
@@ -382,6 +384,7 @@ func (s *Service) CheckArticleCompliance(ctx context.Context, articleID uint64) 
 		PromptVersion: version,
 	}, nil
 }
+
 // ScoreForGate 为一次提交评分并落库，返回可用的分数与问题列表。
 //
 // 为什么落库：作者被拒时看到的分数、以及审核列表里的风险标签，都从这一份
@@ -405,10 +408,24 @@ func (s *Service) ScoreForGate(ctx context.Context, in GateScoreInput) (GateScor
 		return GateScoreResult{}, apperr.New(apperr.CodeAIArticleMissing)
 	}
 
+	// 评分按「动作」计额度（ADR-0038）：一次提交内部会按段落分块、顺序调 2..N 次，
+	// 在这里预扣一次并给 ctx 打上预扣标记，分块子调用看到标记就不再重复扣。
+	lease, err := aipkg.BuyActionQuota(ctx, aiConf, aipkg.SceneScoring, in.AuthorID, in.AuthorIsAdmin)
+	if err != nil {
+		return GateScoreResult{}, err
+	}
+
 	scoreResp, err := scoring.ScoreArticleQuality(
-		aipkg.WithCallMeta(ctx, aipkg.CallMeta{Scene: aipkg.SceneScoring}), aiConf,
+		aipkg.WithCallMeta(ctx, aipkg.CallMeta{
+			Scene:   aipkg.SceneScoring,
+			UserID:  in.AuthorID,
+			IsAdmin: in.AuthorIsAdmin,
+			Billing: aipkg.BillingPrecharged,
+		}), aiConf,
 		scoring.ArticleScoreRequest{Title: title, Content: content})
 	if err != nil {
+		// 没拿到结论的系统性失败不占额度（与投稿配额同一条口径）。
+		releaseQuotaLease(ctx, lease)
 		return GateScoreResult{}, err
 	}
 
@@ -484,10 +501,23 @@ func (s *Service) Rescore(ctx context.Context, viewerID uint64, in RescoreInput)
 		content = strings.TrimSpace(article.Content)
 	}
 
+	// 与闸门评分同档：一次重评动作只计 1 次额度。身份来自 handler 已写入的
+	// CallMeta（重评走的是登录 + 作者校验过的接口）。
+	meta := aipkg.CallMetaFrom(ctx)
+	lease, err := aipkg.BuyActionQuota(ctx, aiConf, aipkg.SceneScoring, ctype.NewID(viewerID), meta.IsAdmin)
+	if err != nil {
+		return ScoreView{}, err
+	}
+
 	scoreResp, err := scoring.ScoreArticleQuality(
-		aipkg.WithCallMeta(ctx, aipkg.CallMeta{Scene: aipkg.SceneScoring}), aiConf,
+		aipkg.WithCallMeta(ctx, aipkg.CallMeta{
+			Scene:   aipkg.SceneScoring,
+			IsAdmin: meta.IsAdmin,
+			Billing: aipkg.BillingPrecharged,
+		}), aiConf,
 		scoring.ArticleScoreRequest{Title: title, Content: content})
 	if err != nil {
+		releaseQuotaLease(ctx, lease)
 		return ScoreView{}, err
 	}
 	record, err := persistScore(ctx, s.scores, article, title, content, scoreResp, aiConf)
@@ -530,9 +560,14 @@ func (s *Service) EnsureScoreIfMissing(ctx context.Context, articleID uint64) er
 
 	title := strings.TrimSpace(article.Title)
 	content := strings.TrimSpace(article.Content)
-	// 这条 ctx 来自 outbox 中继而不是 HTTP 请求，所以日志里的 user_id 恒为 0 ——
-	// 后台看到"scoring + user_id=0"就表示这是异步补评分，不是某个用户在操作。
-	scoreCtx := aipkg.WithCallMeta(ctx, aipkg.CallMeta{Scene: aipkg.SceneScoring})
+	// 这条 ctx 来自 outbox 中继而不是 HTTP 请求。作者归属仍然补上（日志要能回答
+	// "这篇补评分是谁的文章"），但计费档位是"只记日志不计费"：它不是作者主动
+	// 触发的动作，而且与闸门评分存在竞态，重复计量没有意义（ADR-0038）。
+	scoreCtx := aipkg.WithCallMeta(ctx, aipkg.CallMeta{
+		Scene:   aipkg.SceneScoring,
+		UserID:  article.AuthorID,
+		Billing: aipkg.BillingUnmetered,
+	})
 	scoreResp, err := scoring.ScoreArticleQuality(scoreCtx, aiConf, scoring.ArticleScoreRequest{Title: title, Content: content})
 	if err != nil {
 		return err

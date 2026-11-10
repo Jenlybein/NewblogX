@@ -3,6 +3,7 @@ package app
 
 import (
 	"context"
+	"fmt"
 
 	"myblogx/conf"
 	"myblogx/internal/apperr"
@@ -137,11 +138,41 @@ func (s *Service) UpdateSite(site conf.Site) error {
 }
 
 // UpdateAI 覆盖站点级 AI 设置。
+//
+// 每日上限在保存时校验（ADR-0038）：0 是合法值（不限），负数与超过上界的值
+// 一律拒绝。这里的拒绝是**否决保存**而不是静默回落 —— 后台是唯一写入口，
+// 悄悄改掉管理员填的数字只会让人以为改成功了。
 func (s *Service) UpdateAI(ai conf.AI) error {
 	if s.runtime == nil {
 		return apperr.New(apperr.CodeSiteConfigMissing)
 	}
+	if err := validateAIDailyLimits(ai.DailyLimits); err != nil {
+		return err
+	}
 	return s.runtime.UpdateAI(ai)
+}
+
+// validateAIDailyLimits 校验七个场景的每日上限。
+func validateAIDailyLimits(limits conf.DailyLimits) error {
+	fields := []struct {
+		name  string
+		value int
+	}{
+		{"scoring", limits.Scoring},
+		{"metainfo", limits.Metainfo},
+		{"overwrite", limits.Overwrite},
+		{"diagnose", limits.Diagnose},
+		{"search_rewrite", limits.SearchRewrite},
+		{"search_answer", limits.SearchAnswer},
+		{"moderation", limits.Moderation},
+	}
+	for _, f := range fields {
+		if f.value < 0 || f.value > config.MaxAIDailyLimit {
+			return apperr.Wrap(apperr.CodeSiteAIDailyLimitInvalid,
+				fmt.Errorf("daily_limits.%s=%d", f.name, f.value))
+		}
+	}
+	return nil
 }
 
 // AdminMail 返回管理端的邮件配置，密钥用占位符遮蔽。

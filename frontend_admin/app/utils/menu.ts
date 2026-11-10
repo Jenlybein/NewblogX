@@ -19,7 +19,7 @@
  * icon 用字符串而不是组件：utils 层不该 import Vue 组件，
  * 组件层再把它映射成具体图标（见 AdminNavTree.vue 的 ICONS）。
  */
-import { SITE_SETTINGS_SECTIONS } from './siteSettings'
+import { SITE_SETTINGS_GROUP_LABEL, SITE_SETTINGS_PAGES, SITE_SETTINGS_SECTIONS } from './siteSettings'
 
 export type AdminNavIcon =
   | 'chart'
@@ -92,14 +92,22 @@ export const ADMIN_NAV_TREE: AdminNavNode[] = [
   },
   { label: '用户管理', path: '/users', icon: 'users' },
   {
-    // 站点配置的八个编辑域各有独立路由（`/site` + `/site/{域}`），父项只分组：
-    // 它没有自身页面，点标题只展开/收起，不会跳到空页。
+    // 站点配置：站点段拆成四页后，菜单是三级（ADR-0039）。
     //
-    // 「右栏卡片」也挂在它下面：它是首页运营位，与站点配置同一层入口，
-    // 但有自己独立的整表保存语义（增删/拖动排序/标题/启停）。
+    // 站点配置（纯分组）→ 站点（纯分组）→ 基础 / 登录与发码 / 发布与审核 / 私信，
+    // 其余七个编辑域与「右栏卡片」仍直接挂在站点配置下。
     label: '站点配置',
     icon: 'settings',
     children: [
+      {
+        label: SITE_SETTINGS_GROUP_LABEL,
+        icon: 'settings',
+        children: SITE_SETTINGS_PAGES.map((section): AdminNavNode => ({
+          label: section.label,
+          path: section.path,
+          icon: 'settings',
+        })),
+      },
       ...SITE_SETTINGS_SECTIONS.map((section): AdminNavNode => ({
         label: section.label,
         path: section.path,
@@ -108,7 +116,16 @@ export const ADMIN_NAV_TREE: AdminNavNode[] = [
       { label: '右栏卡片', path: '/site/sidebar-cards' as const, icon: 'settings' as const },
     ],
   },
-  { label: '媒体运营', path: '/media', icon: 'photo' },
+  {
+    // 媒体运营拆成两个互相独立的页（ADR-0039）：轮播运营与图片资源库各拉各的分页。
+    // 父项只分组：`/media` 由一个跳转页承接旧书签，不在这里作为分组自身的页面。
+    label: '媒体运营',
+    icon: 'photo',
+    children: [
+      { label: '轮播运营', path: '/media/banners', icon: 'photo' },
+      { label: '图片资源库', path: '/media/images', icon: 'photo' },
+    ],
+  },
   { label: '全局通知', path: '/notifications', icon: 'bell' },
   {
     // 同「文章管理」：父项只分组，日志检索页降级为第一个子项。
@@ -238,9 +255,14 @@ export function buildAdminBreadcrumb(
   ]
 }
 
-/** 分组节点的稳定 key：分组可能没有页面，不能用 path 当 key。 */
-export function navGroupKey(node: Pick<AdminNavNode, 'label'>): string {
-  return `group:${node.label}`
+/**
+ * 分组节点的稳定 key。
+ *
+ * 用**层级链**（根 → 自身）而不是只取标签名：三级菜单里已经有「站点配置 → 站点」
+ * 这样的同名前缀，只用名字会让不同层共用一份展开态，收起一层时另一层跟着塌。
+ */
+export function navGroupKey(chain: readonly string[]): string {
+  return `group:${chain.join(' / ')}`
 }
 
 /**
@@ -253,7 +275,14 @@ export function activeGroupKeys(
   flat: AdminNavFlatItem[] = FLAT_NAV,
 ): string[] {
   // 祖先链上的每一项都是分组：没有分组的父项就不会有子项挂在它下面。
-  return navTrail(path, flat).map(item => navGroupKey(item))
+  // key 用累积链（[站点配置] → [站点配置, 站点]），与 buildMenuEntry 的口径一致。
+  const keys: string[] = []
+  const chain: string[] = []
+  for (const item of navTrail(path, flat)) {
+    chain.push(item.label)
+    keys.push(navGroupKey(chain))
+  }
+  return keys
 }
 
 /**
@@ -309,6 +338,7 @@ function buildMenuEntry(
   activePath: string,
   expandedKeys: ReadonlySet<string>,
   depth: number,
+  ancestors: readonly string[] = [],
 ): AdminNavMenuEntry | null {
   const childrenNodes = node.children ?? []
 
@@ -326,10 +356,11 @@ function buildMenuEntry(
     }
   }
 
+  const chain = [...ancestors, node.label]
   const children = childrenNodes
-    .map(child => buildMenuEntry(child, activePath, expandedKeys, depth + 1))
+    .map(child => buildMenuEntry(child, activePath, expandedKeys, depth + 1, chain))
     .filter((entry): entry is AdminNavMenuEntry => entry !== null)
-  const key = navGroupKey(node)
+  const key = navGroupKey(chain)
 
   return {
     kind: 'group',
@@ -445,7 +476,11 @@ export function reconcileAdminNav(
   }
 
   const unreachablePages = pageFiles.filter(
-    file => file !== 'login' && file !== 'setup' && !reachable.has(file),
+    file =>
+      file !== 'login' &&
+      file !== 'setup' &&
+      !ADMIN_REDIRECT_PAGES.has(file) &&
+      !reachable.has(file),
   )
 
   return {
@@ -458,6 +493,14 @@ export function reconcileAdminNav(
     hotTopOrder: hotTopOrderProblem(flat),
   }
 }
+
+/**
+ * 不挂在菜单里、但确实存在的页面（旧地址的跳转页）。
+ *
+ * `/media` 是「媒体运营」拆成两页后留下的旧地址（ADR-0039）：它只做 `navigateTo`
+ * 跳转到轮播运营，所以不该出现在侧栏，但对账时也不能被当成"忘了加菜单"的孤儿页。
+ */
+export const ADMIN_REDIRECT_PAGES: ReadonlySet<string> = new Set(['media/index', 'media'])
 
 /**
  * 把菜单 path 映射成"页面文件的相对路径候选"（相对 app/pages，不含 .vue 后缀）。

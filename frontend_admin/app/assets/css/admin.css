@@ -113,6 +113,12 @@
     padding-left: 2.25rem;
   }
 
+  // 三级菜单（ADR-0039）：站点配置 → 站点 → 子页。没有这一档时第三层会退回
+  // 默认 px-3，视觉上与父级齐平，层级就看不出来了。
+  .admin-nav__item[data-depth='2'] > .admin-nav__link {
+    padding-left: 3.5rem;
+  }
+
   .admin-nav__link:hover {
     color: var(--color-ink);
     background: var(--color-bg-subtle);

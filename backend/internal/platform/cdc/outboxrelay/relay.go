@@ -457,6 +457,12 @@ func (r *Relay) Dispatch(ctx context.Context, id ctype.ID) error {
 	if dispatchErr == nil {
 		return r.markDone(ctx, id)
 	}
+	// 订阅者可以要求「把这条事件推迟到将来」：它既不是完成也不是失败，
+	// 记账阶段必须走第三条路径，否则会被 markDone / markFailed 覆盖。
+	var reschedule *RescheduleError
+	if errors.As(dispatchErr, &reschedule) && reschedule != nil {
+		return r.markScheduled(ctx, id, row, reschedule)
+	}
 	return r.markFailed(ctx, row, dispatchErr)
 }
 

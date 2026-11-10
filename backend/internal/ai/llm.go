@@ -60,34 +60,57 @@ func Chat(ctx context.Context, aiConf conf.AI, msgList []Message) (string, error
 	if err != nil {
 		return "", err
 	}
+	// 每日额度：出站口是唯一的收费点，业务侧不需要各写一遍（ADR-0038）。
+	lease, err := chargeCall(ctx, aiConf)
+	if err != nil {
+		// 被额度挡住同样要留一条调用日志：否则后台只能听用户说"我用不了"，
+		// 看不出今天有多少人被挡、挡在哪个场景。用量为空，失败原因即错误码。
+		reportCall(ctx, llm.CallUsage{}, err, false)
+		return "", err
+	}
 	content, usage, err := llm.ChatDetailed(ctx, llm.SharedFactory(), spec, msgList)
 	reportCall(ctx, usage, err, false)
+	if err != nil {
+		// 没有真正拿到结论的系统性失败不占额度（与投稿配额同一条口径）。
+		releaseQuota(ctx, lease)
+	}
 	return content, err
+}
+
+// closedStream 造一对"只有一个错误"的通道。
+//
+// 返回的通道已经关闭：调用方的 for-range 会立刻结束，错误从 errChan 读一次。
+func closedStream(err error) (chan string, chan error) {
+	contentChan := make(chan string)
+	errChan := make(chan error, 1)
+	errChan <- err
+	close(contentChan)
+	close(errChan)
+	return contentChan, errChan
 }
 
 // ChatStream 流式 AI 对话，返回内容通道与错误通道。
 func ChatStream(ctx context.Context, aiConf conf.AI, msgList []Message) (chan string, chan error) {
 	if !aiConf.Enable {
-		contentChan := make(chan string)
-		errChan := make(chan error, 1)
-		errChan <- apperr.New(apperr.CodeAIServiceOff)
-		close(contentChan)
-		close(errChan)
-		return contentChan, errChan
+		return closedStream(apperr.New(apperr.CodeAIServiceOff))
 	}
 	spec, err := specFromConfig(aiConf)
 	if err != nil {
-		contentChan := make(chan string)
-		errChan := make(chan error, 1)
-		errChan <- err
-		close(contentChan)
-		close(errChan)
-		return contentChan, errChan
+		return closedStream(err)
+	}
+	lease, err := chargeCall(ctx, aiConf)
+	if err != nil {
+		reportCall(ctx, llm.CallUsage{}, err, true)
+		return closedStream(err)
 	}
 	// 用量只能在流的写协程退出前拿到（收尾帧里），所以走回调而不是返回值。
 	return llm.ChatStreamDetailed(ctx, llm.SharedFactory(), spec, msgList,
 		func(usage llm.CallUsage, streamErr error) {
 			reportCall(ctx, usage, streamErr, true)
+			if streamErr != nil {
+				// 流失败（包括写完一半断流）归还预占：这一条没有产出可用结论。
+				releaseQuota(ctx, lease)
+			}
 		})
 }
 

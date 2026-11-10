@@ -56,7 +56,7 @@ func TestSaveComplianceResultNormalizesUnknownVerdict(t *testing.T) {
 
 	if err := svc.SaveComplianceResult(ctx, articleID, app.ComplianceResult{
 		Verdict:   "ok", // 模型偶尔给同义词，认不出来的一律交人看
-		RiskLevel: 9,   // 越界级别收敛到 3
+		RiskLevel: 9,    // 越界级别收敛到 3
 	}); err != nil {
 		t.Fatalf("写入失败: %v", err)
 	}

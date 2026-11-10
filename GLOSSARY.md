@@ -420,9 +420,14 @@ _Avoid_: 在内容面/正文上叠玻璃（文件夹卡的 flap 是登记过的�
 _Avoid_: 在组件里写 `rounded-[18px]` 一类裸圆角字面量。
 
 **首屏封面（editorial hero）**：
-首页顶部的**满幅图形封面**，是全站唯一的"编辑部式例外区"：横向色带、超大 h1、细网格、标题下发丝基线、封面四角裁切标记、下沿刻度、方括号/箭头记号、胶囊小签，视觉素材取自运营上传的首张轮播封面。它没有卡片边框与纸面底色，轮播控件并入其中；记号与下沿刻度构成右下角整组。
-位置：`frontend/app/pages/index.vue` 首屏区块与 `frontend/app/components/article/BannerCarousel.vue`；取舍见 [ADR-0013](./docs/adr/0013-editorial-hero-cover.md)（含 2026-11-03「后续修订」：右栏线条场退役）。
+首页顶部的**满幅图形封面**，是全站唯一的"编辑部式例外区"：横向色带、超大 h1、指针墨流、标题下发丝基线、下沿刻度、方括号/箭头记号、胶囊小签，视觉素材取自运营上传的首张轮播封面。它没有卡片边框与纸面底色，轮播控件并入其中；记号与下沿刻度构成右下角整组。
+位置：`frontend/app/pages/index.vue` 首屏区块与 `frontend/app/components/article/BannerCarousel.vue`；取舍见 [ADR-0013](./docs/adr/0013-editorial-hero-cover.md)（含 2026-11-03「后续修订」：右栏线条场退役；2026-11-10：细网格/四角裁切发丝线退场，加入指针墨流）。
 _Avoid_: 叫它"首屏卡片 / hero 卡片"（卡片形态已废）；把它当成可复用的版式模板（只允许出现在首页首屏）；用「线条场」指代已删除的那 15 条横条（它是历史实现，不是版式元素）。
+
+**指针墨流（ink fluid）**：
+首屏深墨背景板上跟随指针的 GPU 流体墨迹：指针划过时把速度与染料一起推开，墨在底上晕开、慢慢褪回淡白。默认只在指针移动时启动；指针停 2.5s 后停掉 RAF，最后一帧留在画布上。只用两档中性反白 token，不引入新色相；无 WebGL2 或用户要求减少动态时退化为纯深墨底 / 固定静帧。
+位置：`frontend/app/components/home/HomeInkFluid.vue` + `frontend/app/composables/useInkFluid.ts` + `frontend/app/utils/inkFluid.ts`；算法参考 `WheatXie/uiarc-pro-reverse` 的 `ink-fluid`，落到 Vue/Nuxt 后由 RAF 驱动。
+_Avoid_: 叫它"粒子 / 鼠标拖尾"（它是稳定流体模拟，不是一串粒子）；把它当成可复用到列表页的装饰（只允许首屏）；在 `prefers-reduced-motion` 下继续跑动画。
 
 **轮播封面（banner cover）**：
 首屏轮播面板里的那张图，是运营在**上传前就按 16:9 定形好**的成品文件；面板比例固定、不随屏宽变化，因此同一张图在任何屏幕上是同一个形状，读者端固定居中渲染、不读任何构图参数。

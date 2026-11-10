@@ -21,11 +21,7 @@ const carouselVue = readFileSync(
 );
 
 describe("首屏装饰层点击穿透", () => {
-  const layers = [
-    ".home-cover__bands",
-    ".home-cover__grid",
-    ".home-cover__aside",
-  ] as const;
+  const layers = [".home-cover__bands", ".home-cover__ink", ".home-cover__aside"] as const;
 
   for (const layer of layers) {
     it(`${layer} 声明了 pointer-events: none`, () => {
@@ -38,7 +34,7 @@ describe("首屏装饰层点击穿透", () => {
     const template = screenVue.slice(screenVue.indexOf("<template>"));
     for (const marker of [
       'class="home-cover__bands',
-      'class="home-cover__grid',
+      'class="home-cover__ink',
       'class="home-cover__marks"',
       'class="home-cover__ticks"',
     ]) {

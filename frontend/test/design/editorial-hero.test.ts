@@ -9,7 +9,7 @@ import { blockAfter, collectFiles, extensionFilter, stripComments } from "../hel
 /**
  * 首屏编辑部式封面（ADR-0013）的静态设计契约。
  *
- * 首屏是全站唯一的"编辑部式例外区"：满幅色带、超大 h1、网格刻度、方括号/箭头记号
+ * 首屏是全站唯一的"编辑部式例外区"：满幅色带、超大 h1、指针墨流、方括号/箭头记号
  * 只允许长在这一个文件里。例外区最危险的退化是"被复制到列表页"，所以这里的断言
  * 一半在验证版式本身，一半在验证**边界**（记号类名与三色色带不出首屏）。
  *
@@ -71,7 +71,7 @@ describe("满幅：脱离 page-shell 的水平内边距", () => {
   });
 });
 
-describe("分层：底图 → 底部渐黑 → 色带 → 网格刻度 → h1 → 记号 → 控件", () => {
+describe("分层：底图 → 底部渐黑 → 指针墨流 → 色带 → h1 → 记号 → 控件", () => {
   it("底图层来自运营上传的首张轮播 cover，铺满面板", () => {
     expect(bannerVue).toContain('class="banner-photo"');
     expect(bannerVue).toMatch(/<img[\s\S]*:src="currentBanner\.cover"/u);
@@ -106,13 +106,20 @@ describe("分层：底图 → 底部渐黑 → 色带 → 网格刻度 → h1 �
     expect(blockAfter(indexVue, ".home-cover__band--coral {")).toContain("var(--jelly-coral)");
   });
 
-  it("网格线走发丝线 token，下沿刻度用 --font-mono", () => {
-    const grid = blockAfter(indexVue, ".home-cover__grid {");
+  it("主题相关的细网格与四角裁切发丝线已退场；下沿刻度仍用 --font-mono", () => {
+    // 2026-11-10 用户反馈：亮色下看不见、暗色下才浮出来的发丝线是多余装饰，整层删掉。
+    expect(indexVue).not.toContain("home-cover__grid");
+    expect(indexVue).not.toContain("home-cover__grid-line");
+    expect(indexVue).not.toContain("home-cover__crops");
+    expect(indexVue).not.toContain("home-cover__crop");
+    expect(blockAfter(indexVue, ".home-cover {")).not.toContain("--color-line-faint");
 
-    expect(grid).toContain("var(--color-line-faint)");
     const ticks = blockAfter(indexVue, ".home-cover__ticks {");
     expect(ticks).toContain("var(--font-mono)");
     expect(coverTemplate(indexVue)).toContain("home-cover__tick");
+    // 发丝线退场后，首屏背景板换成指针墨流（纯装饰，画布在内容层之下）。
+    expect(coverTemplate(indexVue)).toContain("<HomeInkFluid");
+    expect(coverTemplate(indexVue)).toContain('class="home-cover__ink"');
   });
 
   it("超大 h1 之上还有纯装饰（aria-hidden）的箭头 / 方括号 / 胶囊小签", () => {

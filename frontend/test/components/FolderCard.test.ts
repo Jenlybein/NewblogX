@@ -217,6 +217,19 @@ describe("文件夹卡：可聚焦", () => {
   });
 });
 
+describe("文件夹卡列表：宽屏四列，窄屏逐级降列", () => {
+  const listSource = readFileSync(join(projectDir, "app/components/common/FolderCardList.vue"), "utf8");
+
+  it("宽屏固定四等分列（用户 2026-11-10 的口径）", () => {
+    expect(listSource).toContain("grid-template-columns: repeat(4, minmax(0, 1fr));");
+  });
+
+  it("四列一直保持到 768px；竖屏平板两列、手机单列", () => {
+    expect(listSource).toMatch(/@media \(max-width: 768px\)[\s\S]*?repeat\(2, minmax\(0, 1fr\)\)/u);
+    expect(listSource).toMatch(/@media \(max-width: 520px\)[\s\S]*?grid-template-columns: minmax\(0, 1fr\)/u);
+  });
+});
+
 describe("文件夹卡：配色只来自语义 token（组件源内零裸色值）", () => {
   const sources = ["app/components/common/FolderCard.vue", "app/components/common/FolderCardList.vue"];
 

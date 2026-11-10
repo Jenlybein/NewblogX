@@ -3,6 +3,7 @@ import { computed } from "vue";
 import { NButton } from "naive-ui";
 import BannerCarousel from "~/components/article/BannerCarousel.vue";
 import HomeFeedSection from "~/components/home/HomeFeedSection.vue";
+import HomeInkFluid from "~/components/home/HomeInkFluid.vue";
 import HomePinnedSection from "~/components/home/HomePinnedSection.vue";
 import HomeSidebar from "~/components/home/HomeSidebar.vue";
 import { useHomePageSources } from "~/composables/useHomePageSources";
@@ -62,12 +63,13 @@ const siteBootstrapPending = computed(() => !siteStore.fetched);
 const latestFailed = computed(() => Boolean(latestRequestError.value));
 
 // 首屏封面的分层动效（ADR-0013 决策 9，全部归口 #23 的同一份预算）：
-//   · 装饰层（色带 / 网格刻度）走 useSectionReveal：只动 transform/opacity，位移 ≤12px；
+//   · 装饰层（色带）走 useSectionReveal：只动 transform/opacity，位移 ≤12px；
 //   · 文字层（h1/记号）**不做入场动画** —— 关键内容必须常显（详见模板里的注释）；
-//   · 记号挂一条 useParallax：≤10px，reduced-motion 下归零。
+//   · 记号挂一条 useParallax：≤10px，reduced-motion 下归零；
+//   · 指针墨流是独立的 RAF（composables/useInkFluid），reduce 下只画一帧静帧。
 // 首屏不自己写关键帧动画，也不对布局属性做过渡。
 // 2026-11-03 后续修订：右栏线条场（15 条横条 + 两段式入场）已退役，
-// 改为「标题下发丝基线 + 封面四角裁切标记」的编辑部网格语言（见 ADR-0013 后续修订）。
+// 改为「标题下发丝基线」的编辑部网格语言（见 ADR-0013 后续修订）。
 const { target: coverRevealTarget, revealStyle } = useSectionReveal();
 const { parallaxStyle } = useParallax();
 
@@ -88,25 +90,28 @@ async function handleRetryLatest() {
   <div class="page-stack" data-page="home">
     <!--
       首屏封面（ADR-0013）：全站唯一的编辑部式例外区。
-      色带 / 细网格 / 下沿刻度 / 方括号与箭头记号 / 胶囊小签 / 发丝基线 / 四角裁切标记
-       只允许在这里出现（有设计测试锁住），它们都是 aria-hidden 的纯装饰。
-      图层自下而上：底图（BannerCarousel 的媒体层）→ 底部渐黑 → 色带 → 细网格 →
+      色带 / 下沿刻度 / 方括号与箭头记号 / 胶囊小签 / 发丝基线 / 指针墨流
+       只允许在这里出现（有设计测试锁住），装饰层都 aria-hidden。
+      图层自下而上：底图（BannerCarousel 的媒体层）→ 指针墨流 → 色带 →
       超大 h1 → 记号与下沿刻度 → 底部渐黑区里的轮播控件。
-       2026-11-03 后续修订：右栏线条场退役，改为编辑部网格语言（见 ADR-0013 后续修订）。
+       2026-11-03 后续修订：右栏线条场退役，改为编辑部网格语言。
+       2026-11-10 后续修订：主题相关的细网格与四角裁切发丝线退场，换成指针墨流。
     -->
     <section ref="coverRevealTarget" class="home-cover" data-home-hero>
-      <!-- 2 色带：黄 / 功能蓝 / 珊瑚，仅首屏可作装饰（3 条，窄屏只留 1 条） -->
+      <!-- 2 指针墨流：鼠标划过时在深墨底上晕开的流体墨迹，纯装饰、不吃点击 -->
+      <HomeInkFluid
+        class="home-cover__ink"
+        aria-hidden="true"
+        :intensity="0.95"
+        :tint="0.5"
+        :force="0.7"
+      />
+
+      <!-- 3 色带：黄 / 功能蓝 / 珊瑚，仅首屏可作装饰（3 条，窄屏只留 1 条） -->
       <div class="home-cover__bands motion-reveal" :style="revealStyle" aria-hidden="true">
         <span class="home-cover__band home-cover__band--yellow" />
         <span class="home-cover__band home-cover__band--blue" />
         <span class="home-cover__band home-cover__band--coral" />
-      </div>
-
-      <!-- 3 网格线与下沿刻度：≥1024px 才显示（窄屏隐藏） -->
-      <div class="home-cover__grid motion-reveal" :style="revealStyle" aria-hidden="true">
-        <span class="home-cover__grid-line home-cover__grid-line--a" />
-        <span class="home-cover__grid-line home-cover__grid-line--b" />
-        <span class="home-cover__grid-line home-cover__grid-line--c" />
       </div>
 
       <!-- 4 超大 h1 在上；轮播是它下方偏右的面板，右栏是记号与下沿刻度 -->
@@ -122,7 +127,7 @@ async function handleRetryLatest() {
         </div>
 
         <!-- 标题下发丝基线：只跨左栏（与轮播面板同宽），落在标题与面板的栅格间隙中线。
-             纯装饰、aria-hidden、不吃点击；与四角裁切标记同属 2026-11-03 的编辑部网格语言。 -->
+             纯装饰、aria-hidden、不吃点击，属于 2026-11-03 的编辑部网格语言。 -->
         <span class="home-cover__rule" aria-hidden="true" />
 
         <div class="home-cover__panel" :class="{ 'home-cover__panel--empty': !banners.length }">
@@ -150,14 +155,6 @@ async function handleRetryLatest() {
         </div>
       </div>
 
-      <!-- 封面四角裁切标记：只在封面四角各画一段 16px 的 L 形发丝线（更淡的一档）。
-           与基线同为纯装饰，aria-hidden + pointer-events: none，不压可读内容、不挡轮播点击。 -->
-      <div class="home-cover__crops" aria-hidden="true">
-        <i class="home-cover__crop home-cover__crop--tl" />
-        <i class="home-cover__crop home-cover__crop--tr" />
-        <i class="home-cover__crop home-cover__crop--bl" />
-        <i class="home-cover__crop home-cover__crop--br" />
-      </div>
     </section>
 
     <!-- 右栏没有启用卡片时整块不渲染，同时把栅格收成单列，避免右侧留下空列。 -->
@@ -237,6 +234,14 @@ async function handleRetryLatest() {
   padding: clamp(1.5rem, 4vw, 3rem) var(--cover-pad-x);
 }
 
+/* ---- 图层 1：指针墨流（画布铺满封面，压在色带、轮播面板与内容之下） ---- */
+.home-cover__ink {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+}
+
 /* ---- 图层 2：色带（仅首屏可出现的装饰；黄 / 功能蓝 / 珊瑚三色，不得第四色） ---- */
 .home-cover__bands {
   position: absolute;
@@ -271,41 +276,6 @@ async function handleRetryLatest() {
   left: 0;
   width: 26%;
   background: var(--jelly-coral);
-}
-
-/* ---- 图层 3：网格线与下沿刻度（≥1024px 才显示） ---- */
-.home-cover__grid {
-  position: absolute;
-  inset: 0;
-  z-index: 3;
-  display: none;
-  pointer-events: none;
-  background-image: linear-gradient(to right, var(--color-line-faint) 1px, transparent 1px);
-  background-size: 25% 100%;
-}
-
-.home-cover__grid-line {
-  position: absolute;
-  display: block;
-  background: var(--color-line-faint);
-}
-
-.home-cover__grid-line--a {
-  inset-block: 0;
-  left: 0;
-  width: 1px;
-}
-
-.home-cover__grid-line--b {
-  inset-block: 0;
-  right: 0;
-  width: 1px;
-}
-
-.home-cover__grid-line--c {
-  inset-inline: 0;
-  bottom: 18%;
-  height: 1px;
 }
 
 /* ---- 图层 4/5：超大 h1 在上，轮播面板在它下方（略偏右），右栏记号与下沿刻度 ---- */
@@ -352,8 +322,8 @@ async function handleRetryLatest() {
   background: color-mix(in srgb, var(--color-on-inverse) 6%, var(--color-surface-inverse));
 }
 
-/* ---- 2026-11-03 编辑部网格语言：标题下发丝基线 + 封面四角裁切标记 ----
-    取代已退役的右栏线条场。两者都只用中性反白色 / 发丝 token，
+/* ---- 2026-11-03 编辑部网格语言：标题下发丝基线 ----
+    取代已退役的右栏线条场。基线只用中性反白色，
     黄 / 功能蓝 / 珊瑚三色仍然只属于色带（ADR-0012 约束 1、ADR-0013 约束 2）。 */
 
 /* 基线只跨左栏（与轮播面板同宽、左缘对齐），落在标题与面板的栅格间隙中线。
@@ -372,52 +342,6 @@ async function handleRetryLatest() {
   pointer-events: none;
 }
 
-/* 四角裁切标记：贴在封面四角（inset 24px），每段 16px 的 L 形发丝线。
-   整层铺满封面但 pointer-events: none，不会吃掉轮播的点击。 */
-.home-cover__crops {
-  position: absolute;
-  inset: 0;
-  z-index: 3;
-  display: none;
-  pointer-events: none;
-}
-
-.home-cover__crop {
-  position: absolute;
-  display: block;
-  width: 16px;
-  height: 16px;
-  border: 0 solid var(--color-line-faint);
-  border-width: 1px;
-}
-
-.home-cover__crop--tl {
-  top: 24px;
-  left: 24px;
-  border-right: 0;
-  border-bottom: 0;
-}
-
-.home-cover__crop--tr {
-  top: 24px;
-  right: 24px;
-  border-left: 0;
-  border-bottom: 0;
-}
-
-.home-cover__crop--bl {
-  bottom: 24px;
-  left: 24px;
-  border-right: 0;
-  border-top: 0;
-}
-
-.home-cover__crop--br {
-  right: 24px;
-  bottom: 24px;
-  border-left: 0;
-  border-top: 0;
-}
 /* 超大 h1：占满第一行（大字压在最上面，权重最高）。 */
 .home-cover__copy {
   position: relative;
@@ -576,13 +500,6 @@ async function handleRetryLatest() {
   display: block;
 }
 
-@media (min-width: 1024px) {
-  .home-cover__grid,
-  .home-cover__crops {
-    display: block;
-  }
-}
-
 @media (max-width: 767px) {
   .home-cover__inner {
     grid-template-columns: minmax(0, 1fr);
@@ -615,15 +532,7 @@ async function handleRetryLatest() {
     transform: none;
   }
 
-  .home-cover__grid {
-    display: none;
-  }
-
   .home-cover__rule {
-    display: none;
-  }
-
-  .home-cover__crops {
     display: none;
   }
 

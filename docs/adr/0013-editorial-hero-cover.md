@@ -109,3 +109,17 @@ ADR-0012 定下的全站气质是"中性石墨阶 + 圆角阶梯 + 只落在导�
 - 代码：`frontend/app/pages/index.vue`（删线条场的模板 / 脚本 / CSS，新增基线与裁切标，`--cover-aside-x/y` 控制整组位移）；
 - 测试：`frontend/test/design/editorial-hero.test.ts` 与 `hero-overlay-clickthrough.test.ts` 删掉依赖线条场存在的旧断言（含一处模块级 `blockAfter(".home-cover__line {")`）；按本次会话约定**只删不补**，不新增装饰不变量；
 - 词汇：[GLOSSARY · 首屏封面](../../GLOSSARY.md) 词条同步为新版式元素清单，并统一正名（下沿刻度 / 轮播封面 / 底部渐黑）。
+
+## 后续修订（2026-11-10：发丝网格退场，背景板改为指针墨流）
+
+用户反馈：首屏亮色状态下背景板没有发丝线，暗色状态下却浮出一些——这层「细网格 + 四角裁切标记」用的是 `--color-line-faint`，亮色下是深墨 10% 压在深墨底上（等于不可见），暗色下变成白 8–14%（才显出来）。同一装饰在两种主题下不是同一个存在，判定为多余，整层删除。
+
+替换方案是参考 `WheatXie/uiarc-pro-reverse` 的 `ink-fluid` 做一层**指针墨流**：
+
+- 只挂在首页首屏背景板；画布 `aria-hidden` + `pointer-events: none`，不挡轮播与链接；
+- GPU Stable Fluids（splat → curl → vorticity → divergence → pressure → gradient → advect）。默认**不跑 ambient 羽流**：指针移动才启动 RAF，指针停 2.5s、离开首屏或标签页后台即停，最后一张留在画布上；
+- 颜色只用 `--color-on-inverse` 与 `--color-on-inverse-muted` 两档中性反白，不引入第五个色相，符合 ADR-0012 约束 1；
+- `prefers-reduced-motion` 下只画一帧固定种子的静帧，不继续动；没有 WebGL2 / 浮点 color buffer 时整层隐藏（`data-ink-fallback`），首屏回到纯深墨底；
+- 原「细网格 + 四角裁切标记」的 CSS、模板与设计测试断言一并删除；标题下发丝基线保留（它用反白色，两种主题下都存在）。
+
+实现落在 `frontend/app/components/home/HomeInkFluid.vue`、`frontend/app/composables/useInkFluid.ts` 与 `frontend/app/utils/inkFluid.ts`；ADR-0012 的颜色例外仍只覆盖装饰色带，不扩到墨流。

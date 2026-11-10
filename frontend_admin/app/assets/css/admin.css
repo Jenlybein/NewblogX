@@ -113,8 +113,8 @@
     padding-left: 2.25rem;
   }
 
-  // 三级菜单（ADR-0039）：站点配置 → 站点 → 子页。没有这一档时第三层会退回
-  // 默认 px-3，视觉上与父级齐平，层级就看不出来了。
+  /* 三级菜单（ADR-0039）：站点配置 → 站点 → 子页。没有这一档时第三层会退回
+     默认 px-3，视觉上与父级齐平，层级就看不出来了。 */
   .admin-nav__item[data-depth='2'] > .admin-nav__link {
     padding-left: 3.5rem;
   }
@@ -499,9 +499,13 @@
       @apply p-3;
     }
 
-    /* 两级菜单在窄屏下收窄缩进与内边距，保证父标题 + 子项仍可读可点。 */
+    /* 两级/三级菜单在窄屏下收窄缩进与内边距，保证父标题 + 子项仍可读可点。 */
     .admin-nav__item[data-depth='1'] > .admin-nav__link {
       padding-left: 1.5rem;
+    }
+
+    .admin-nav__item[data-depth='2'] > .admin-nav__link {
+      padding-left: 2.5rem;
     }
 
     .admin-nav__group-title {

@@ -94,11 +94,12 @@ func (s *Service) Create(ctx context.Context, cmd CreateArticleCmd) (*domain.Art
 			// 配额预占 → 风险扫描 → 评分 → 判定 → 落库。
 			articleID = s.ids.NextArticleID()
 			gateVerdict, err := s.judgeQuality(ctx, cmd.QualityGate, QualityGateInput{
-				ArticleID: articleID,
-				AuthorID:  cmd.Actor.UserID,
-				Title:     cmd.Title,
-				Content:   cmd.Content,
-				UpdatedAt: s.clock.Now(),
+				ArticleID:     articleID,
+				AuthorID:      cmd.Actor.UserID,
+				Title:         cmd.Title,
+				Content:       cmd.Content,
+				UpdatedAt:     s.clock.Now(),
+				AuthorIsAdmin: cmd.Actor.IsAdmin(),
 			})
 			if err != nil {
 				// 拿不到可用分数：本次提交不落库，归还配额（失败关闭）。

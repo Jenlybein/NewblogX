@@ -19,7 +19,7 @@ func TestBatchHandleReviewTasksReportsPartialSuccess(t *testing.T) {
 	seedReviewedArticle(t, repos, 1, 11, "正文甲")
 
 	result, err := svc.BatchHandleReviewTasks(ctx, adminViewer(), []ctype.ID{
-		ctype.NewID(11), // 存在
+		ctype.NewID(11),  // 存在
 		ctype.NewID(999), // 不存在
 	}, true, "", "")
 	if err != nil {

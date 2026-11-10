@@ -438,11 +438,11 @@ func (s *Service) ListReviewTasks(ctx context.Context, viewer domain.Viewer, sta
 		return nil, 0, domain.ErrForbidden
 	}
 	var (
-		tasks        []*review.Task
-		bodies       map[domain.ArticleID]string
-		scores       map[domain.ArticleID]moderation.ScoreFacts
-		compliances  map[ctype.ID]*risk.Record
-		total        int64
+		tasks       []*review.Task
+		bodies      map[domain.ArticleID]string
+		scores      map[domain.ArticleID]moderation.ScoreFacts
+		compliances map[ctype.ID]*risk.Record
+		total       int64
 	)
 	err := s.tx.WithinTx(ctx, func(ctx context.Context, r Repos) error {
 		var err error

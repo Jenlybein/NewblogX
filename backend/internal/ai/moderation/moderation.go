@@ -58,7 +58,7 @@ func NormalizeVerdict(raw string) Verdict {
 
 // Result 是一次合规判定的结论。
 type Result struct {
-	Verdict  Verdict
+	Verdict Verdict
 	// RiskLevel 是 0–3 的风险级别，用于审核列表排序。
 	RiskLevel int
 	// Categories 是命中的类别（如"广告引流""违法交易"），用于后台展示。

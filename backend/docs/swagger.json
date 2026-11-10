@@ -94,6 +94,32 @@
                 },
                 "type": "object"
             },
+            "conf.DailyLimits": {
+                "properties": {
+                    "diagnose": {
+                        "type": "integer"
+                    },
+                    "metainfo": {
+                        "type": "integer"
+                    },
+                    "moderation": {
+                        "type": "integer"
+                    },
+                    "overwrite": {
+                        "type": "integer"
+                    },
+                    "scoring": {
+                        "type": "integer"
+                    },
+                    "search_answer": {
+                        "type": "integer"
+                    },
+                    "search_rewrite": {
+                        "type": "integer"
+                    }
+                },
+                "type": "object"
+            },
             "conf.LogCleanup": {
                 "properties": {
                     "enabled": {
@@ -3151,8 +3177,9 @@
                     "avatar": {
                         "type": "string"
                     },
-                    "daily_quota": {
-                        "type": "integer"
+                    "daily_limits": {
+                        "$ref": "#/components/schemas/conf.DailyLimits",
+                        "description": "DailyLimits 是七个 AI 场景各自的「每人每自然日」调用上限。\n\n为什么不再是一个站点级数字：一次 30 秒的投稿评分和一次两行的选区改写\n成本差两个数量级，共用一个预算只会让运营在对成本无感的地方先撞墙。\n0 表示不限；负数与超过 9999 的值在保存时被拒绝，读取侧另有一道归一化防线。"
                     },
                     "enable": {
                         "type": "boolean"
@@ -3190,8 +3217,9 @@
                     "avatar": {
                         "type": "string"
                     },
-                    "daily_quota": {
-                        "type": "integer"
+                    "daily_limits": {
+                        "$ref": "#/components/schemas/conf.DailyLimits",
+                        "description": "DailyLimits 是七个 AI 场景各自的「每人每自然日」调用上限。\n\n为什么不再是一个站点级数字：一次 30 秒的投稿评分和一次两行的选区改写\n成本差两个数量级，共用一个预算只会让运营在对成本无感的地方先撞墙。\n0 表示不限；负数与超过 9999 的值在保存时被拒绝，读取侧另有一道归一化防线。"
                     },
                     "enable": {
                         "type": "boolean"

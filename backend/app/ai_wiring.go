@@ -8,6 +8,7 @@ import (
 	"myblogx/internal/ai"
 	aihttp "myblogx/internal/ai/adapter/http"
 	aimysql "myblogx/internal/ai/adapter/mysql"
+	airedis "myblogx/internal/ai/adapter/redis"
 	aiapp "myblogx/internal/ai/app"
 	"myblogx/internal/ai/domain"
 	"myblogx/internal/apperr"
@@ -33,6 +34,10 @@ func WireAI(infra *Infra) {
 	}
 	redisOptions := redis_service.NewOptions(infra.Redis, infra.Logger)
 	catalog := aimysql.NewCatalog(infra.DB)
+
+	// 每日额度的计数端口（ADR-0038）。装在这里而不是 ai 包内部：
+	// internal/ai 不 import platform/redis，落点属于装配层的决定。
+	ai.SetQuotaGate(airedis.NewDailyQuota(redisOptions))
 
 	// 模型配置列表 + 内存快照。
 	//
@@ -65,6 +70,9 @@ func WireAI(infra *Infra) {
 			// 每次现填而不是缓存整份 conf.AI：站点级设置与"用哪条模型"是
 			// 两处数据源，任一处改了都要立刻生效。
 			cfg.Active = providers.Active()
+			// 额度在此归一化（越界值回落到默认值）：出站口每调用一次都要用
+			// 它做判定，不该让一个手改的负数变成"全站 AI 立刻不可用"。
+			cfg.DailyLimits = infra.Effective.AIDailyLimits()
 			return cfg
 		},
 		infra.Logger,

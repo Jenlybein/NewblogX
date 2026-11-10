@@ -45,7 +45,6 @@ func gatePolicy() app.QualityGatePolicy {
 	}
 }
 
-
 // newGateService 组装一个带闸门端口与配额 fake 的服务。
 func newGateService(t *testing.T, gate app.QualityGatePort) (*app.Service, *apptest.Repos, *apptest.SubmitQuota) {
 	t.Helper()

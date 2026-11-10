@@ -34,11 +34,11 @@ func saveRiskRejectionTask(ctx context.Context, s *Service, r Repos, a *domain.A
 
 // submitEventName 按文章的最终状态选领域事件。
 //
-//  - Published（含 pending_review）→ Published：一次触发评分、合规判定与
-//    "审核通过"通知，正好实现"提交后立刻告诉作者已发布"；
-//  - Rejected（同步风险命中）→ Rejected：通知链路据此给出固定文案；
-//  - Examining → Submitted；Draft → BackToDraft（仅 Update 会走到）；
-//  - 其余 → Created（Create 存草稿）/ Updated（Update 的纯内容编辑）。
+//   - Published（含 pending_review）→ Published：一次触发评分、合规判定与
+//     "审核通过"通知，正好实现"提交后立刻告诉作者已发布"；
+//   - Rejected（同步风险命中）→ Rejected：通知链路据此给出固定文案；
+//   - Examining → Submitted；Draft → BackToDraft（仅 Update 会走到）；
+//   - 其余 → Created（Create 存草稿）/ Updated（Update 的纯内容编辑）。
 //
 // isCreate 区分"新建"与"更新"：两者的兜底事件不同，其余分支共用。
 func submitEventName(status domain.Status, riskRejected, explicitDraft, isCreate bool) string {

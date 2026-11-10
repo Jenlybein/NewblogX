@@ -11,7 +11,7 @@ import (
 // 为什么放 ctx 而不是加函数参数：调用链是
 // handler → app.Service → 6 个业务子包 → ai.Chat，
 // 加参数要改 10 个调用点 + 6 个子包签名，而这些信息对业务逻辑本身毫无用途，
-// 纯粹是"给日志看的"。ctx 本来就已经全链路透传（客户端断开要能取消上游请求）。
+// 纯粹是"给日志与额度看的"。ctx 本来就已经全链路透传（客户端断开要能取消上游请求）。
 type CallMeta struct {
 	// Scene 是功能场景，见下面 7 个常量。空值表示"没标注"，后台会显示为 -。
 	Scene string
@@ -28,7 +28,29 @@ type CallMeta struct {
 	// 它来自内容哈希而不是手写常量：运营改文案时版本自动变，调用记录与
 	// 文件内容不会各说各话（#310 / ADR-0030）。
 	PromptVersion string
+
+	// IsAdmin 表示触发者拥有管理员身份；为真时这次调用不占每日额度。
+	//
+	// 它必须是布尔而不是角色枚举：internal/ai 不该知道"管理员"在数据库里
+	// 是哪个数字，判定留在拿到登录态的那一处（HTTP handler 与异步链路的装配层）。
+	IsAdmin bool
+
+	// Billing 是这次调用在额度记账上的档位，默认 BillingNormal。
+	Billing Billing
 }
+
+// Billing 是一次调用的额度记账档位。
+type Billing int
+
+const (
+	// BillingNormal 是默认：每次出站调用扣一次额度。
+	BillingNormal Billing = iota
+	// BillingPrecharged 表示本次动作已经在入口预扣过（评分等一次动作多次调用），
+	// 出站口看到它就不再重复扣。
+	BillingPrecharged
+	// BillingUnmetered 表示只记日志、完全不占额度（异步补评分这类系统链路）。
+	BillingUnmetered
+)
 
 // 场景标识。
 //
@@ -80,8 +102,22 @@ func WithCallMeta(ctx context.Context, patch CallMeta) context.Context {
 	if patch.PromptVersion != "" {
 		current.PromptVersion = patch.PromptVersion
 	}
+	if patch.IsAdmin {
+		current.IsAdmin = true
+	}
+	// 档位零值是 BillingNormal，所以只有显式的"预扣 / 不计费"才会覆盖，
+	// 补丁没法把一次调用改回普通计费 —— 这正是想要的：预扣态只由入口设置。
+	if patch.Billing != BillingNormal {
+		current.Billing = patch.Billing
+	}
 	return context.WithValue(ctx, callMetaKey{}, current)
 }
+
+// CallMetaFrom 取出当前的调用元信息（零值表示没有标注）。
+//
+// 导出给用例层用：动作级预扣需要读 handler 已经写进来的 UserID / IsAdmin，
+// 但不需要（也不应该）能改写它。
+func CallMetaFrom(ctx context.Context) CallMeta { return callMetaFrom(ctx) }
 
 // callMetaFrom 取出当前的元信息；没有就返回零值。
 func callMetaFrom(ctx context.Context) CallMeta {

@@ -1,17 +1,14 @@
 <script setup lang="ts">
 /**
- * 站点域（`/site`）：站点基础信息 + 登录策略。
+ * 站点基础（`/site`）：备案号 + SEO。
  *
- * 站点配置的八个编辑域拆成独立路由后，每个域一个页面文件、由 URL 决定当前域：
- * 刷新停留在本域，链接可以直接分享。九段里 `image_gc` 暂无编辑页（ADR-0029）。
- * 组件本身不改名、不移动（表单与保存逻辑仍在自己那一段里）。
- *
- * 「登录策略」属于 site 段（`site.login`），所以和站点基础信息放在同一页、
- * 共用一次保存，否则两个组件各自提交整段 site 会互相覆盖。
+ * 「站点」拆成四页后（ADR-0039），本页只拥有 `site_info` 与 `seo` 两个顶层块；
+ * 保存走读-改-写，不覆盖登录策略 / 发布治理 / 私信，也不动没有编辑入口的块。
+ * 路由沿用旧地址 `/site`，旧书签不失效。
  */
-import SettingsSite from '~/components/settings/SettingsSite.vue'
+import SettingsSiteBasics from '~/components/settings/SettingsSiteBasics.vue'
 </script>
 
 <template>
-  <SettingsSite />
+  <SettingsSiteBasics />
 </template>

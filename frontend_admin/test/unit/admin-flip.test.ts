@@ -192,14 +192,15 @@ describe("每页都有可见且可用的主题开关", () => {
     expect(toggle).toMatch(/IconSun|IconMoon/u);
   });
 
-  it("23 个路由页面全部被两种布局覆盖（不存在没有开关的页面）", () => {
+  it("28 个路由页面全部被两种布局覆盖（不存在没有开关的页面）", () => {
     const pages = pageFiles();
 
     // 页面数量本身就是既有验收项（菜单 ↔ 页面文件对账另有门禁用例）。
     // 25 个页面退役合集 / 项目两个旧排列页与目录编排页后剩 22 个；
     // #322 新增「标签管理」页后是 23 个。
-    // 「站点」域复用 /site（index.vue），其余七域各一个新文件。
-    expect(pages.length).toBe(23);
+    // ADR-0039：站点拆出 login / publish / chat（基础页复用 /site）、
+    // 媒体运营拆出 banners / images（/media 保留为跳转页），共 28 个。
+    expect(pages.length).toBe(28);
     for (const page of pages) {
       const source = readFileSync(join(appDir, page), "utf8");
       const usesAuthLayout = /definePageMeta\(\{ layout: 'auth' \}\)/u.test(source);

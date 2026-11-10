@@ -203,6 +203,8 @@ type QualityGateInput struct {
 	Content   string
 	// UpdatedAt 是这次提交对应内容的更新时间，随评分记录落库用于回溯。
 	UpdatedAt time.Time
+	// AuthorIsAdmin 表示提交者是管理员：管理员不受 AI 每日额度约束（ADR-0038）。
+	AuthorIsAdmin bool
 }
 
 // QualityGateScore 是一次可用的评分结论。

@@ -8,10 +8,13 @@ import (
 
 	"myblogx/conf/site"
 	articlemysql "myblogx/internal/article/adapter/mysql"
+	articledomain "myblogx/internal/article/domain"
+	"myblogx/internal/article/domain/review"
 	"myblogx/internal/article/domain/viewhistory"
 	chatmysql "myblogx/internal/chat/adapter/mysql"
 	commentmysql "myblogx/internal/comment/adapter/mysql"
 	"myblogx/internal/kernel/ctype"
+	"myblogx/internal/kernel/enum/article_review_enum"
 	"myblogx/internal/platform/log/writer"
 	"myblogx/internal/platform/redis/redis_article"
 	"myblogx/internal/platform/redis/redis_comment"
@@ -303,6 +306,9 @@ func wireCron(infra *Infra, lifecycle *Lifecycle, newScheduler func() (taskSched
 	// ── 每日浏览历史清理（90 天）──
 	registerViewHistoryCleanup(infra, sch)
 
+	// ── 每日兜底：额度延迟重审的悬挂文章 ──
+	registerDeferredComplianceSweep(infra, sch)
+
 	if lifecycle != nil {
 		lifecycle.OnStop("scheduler", func(context.Context) error {
 			return sch.Shutdown()
@@ -323,6 +329,89 @@ const (
 	viewHistoryCleanupMinute  = 10
 	viewHistoryCleanupLockTTL = 10 * time.Minute
 )
+
+// 额度延迟重审兜底的调度参数（ADR-0038）。
+//
+// 与浏览历史清理错开：这个任务只扫一小批行，放在 05:10 是为了排在
+// 「次日 00:05 自动重审」之后——正常文章那时已经重审完，扫到的都是真悬挂。
+const (
+	deferredComplianceSweepHour    = 5
+	deferredComplianceSweepMinute  = 10
+	deferredComplianceSweepLockTTL = 10 * time.Minute
+	// deferredComplianceGrace 是"审核中且没有任何待处理任务"持续多久才判定为悬挂。
+	// 正常路径次日 00:05 就会自动重审；24 小时还没动静说明延迟事件丢了。
+	deferredComplianceGrace = 24 * time.Hour
+	// deferredComplianceSweepLimit 是单次最多捞多少篇：兜底不该在一天里
+	// 变成一次批量模型调用，分批慢慢来即可。
+	deferredComplianceSweepLimit = 100
+)
+
+// SweepDeferredCompliance 把「审核中 + 无待处理任务 + 超过 24 小时」的文章转人工。
+//
+// 这是额度延迟重审的兜底：正常路径下这类文章次日会自动重审，不会走到这里；
+// 只有延迟事件丢失时才靠它避免文章永久悬挂（作者看到审核中、管理员队列里却没有）。
+//
+// 它**不调模型**：只建一条待处理任务，把决定权交回管理员。
+func SweepDeferredCompliance(ctx context.Context, infra *Infra, now time.Time) (int, error) {
+	if infra == nil || infra.DB == nil || aiService == nil {
+		// 没有 AI 装配的进程（river / worker / cron）不做这件事：
+		// 这里的兜底只服务于"AI 判定被额度推迟"的场景。
+		return 0, nil
+	}
+
+	var ids []ctype.ID
+	err := infra.DB.WithContext(ctx).Raw(`
+SELECT a.id FROM article_models a
+WHERE a.publish_status = ? AND a.deleted_at IS NULL AND a.updated_at < ?
+  AND NOT EXISTS (
+    SELECT 1 FROM article_review_task_models t
+    WHERE t.article_id = a.id AND t.status = ? AND t.deleted_at IS NULL
+  )
+ORDER BY a.updated_at ASC
+LIMIT ?`,
+		int(articledomain.StatusExamining),
+		now.Add(-deferredComplianceGrace),
+		string(review.StatusPending),
+		deferredComplianceSweepLimit,
+	).Scan(&ids).Error
+	if err != nil {
+		return 0, err
+	}
+
+	svc := newArticleService(infra)
+	escalated := 0
+	for _, id := range ids {
+		if err := svc.EscalateForReview(ctx, id, article_review_enum.SourceQuotaDeferred); err != nil {
+			// 单篇失败不打断整批：下一轮扫描还会把它捞回来。
+			infra.Logger.Errorf("额度延迟重审兜底转人工失败 article=%s: %v", id, err)
+			continue
+		}
+		escalated++
+	}
+	return escalated, nil
+}
+
+// registerDeferredComplianceSweep 注册每日兜底任务。
+func registerDeferredComplianceSweep(infra *Infra, sch taskScheduler) {
+	if err := sch.Daily(deferredComplianceSweepHour, deferredComplianceSweepMinute, 0, scheduler.Job{
+		Name:    "额度延迟重审兜底",
+		LockKey: "cron:sweep_deferred_compliance:lock",
+		LockTTL: deferredComplianceSweepLockTTL,
+		Run: func(ctx context.Context) (int, error) {
+			n, err := SweepDeferredCompliance(ctx, infra, time.Now())
+			if err != nil {
+				infra.Logger.Errorf("额度延迟重审兜底失败: %v", err)
+				return 0, err
+			}
+			return n, nil
+		},
+	}); err != nil {
+		infra.Logger.Errorf("注册额度延迟重审兜底任务失败: %v", err)
+		return
+	}
+	infra.Logger.Infof("已注册额度延迟重审兜底任务: 每日 %02d:%02d",
+		deferredComplianceSweepHour, deferredComplianceSweepMinute)
+}
 
 // PurgeViewHistory 执行一次浏览历史清理，返回软删的行数。
 //

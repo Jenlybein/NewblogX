@@ -62,11 +62,12 @@ func (s *Service) Update(ctx context.Context, cmd UpdateArticleCmd) (*UpdateResu
 
 		if cmd.QualityGate.Enabled && !riskRejected {
 			gateVerdict, err := s.judgeQuality(ctx, cmd.QualityGate, QualityGateInput{
-				ArticleID: cmd.ArticleID,
-				AuthorID:  cmd.Actor.UserID,
-				Title:     preview.Title,
-				Content:   preview.Content,
-				UpdatedAt: s.clock.Now(),
+				ArticleID:     cmd.ArticleID,
+				AuthorID:      cmd.Actor.UserID,
+				Title:         preview.Title,
+				Content:       preview.Content,
+				UpdatedAt:     s.clock.Now(),
+				AuthorIsAdmin: cmd.Actor.IsAdmin(),
 			})
 			if err != nil {
 				// 拿不到可用分数：本次提交不落库，归还配额（失败关闭）。

@@ -2,6 +2,7 @@ package app
 
 import (
 	"myblogx/internal/kernel/ctype"
+	"myblogx/internal/kernel/enum"
 )
 
 // 本文件是装配层的**查询投影**。
@@ -49,3 +50,14 @@ type tagTitleRow struct {
 
 // TableName 固定表名。
 func (tagTitleRow) TableName() string { return "tag_models" }
+
+// noticeUserRoleRow 是"用户 id → 角色"的映射行（只取角色）。
+//
+// 异步链路没有登录态，但 AI 每日额度的管理员豁免与调用日志的归属都需要它；
+// 只查一列，不引入整行用户结构（那会随表结构漂移）。
+type noticeUserRoleRow struct {
+	Role enum.RoleType
+}
+
+// TableName 固定表名。
+func (noticeUserRoleRow) TableName() string { return "user_models" }

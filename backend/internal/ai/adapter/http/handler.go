@@ -47,14 +47,21 @@ func userID(c *gin.Context) uint64 {
 
 // callCtx 给下游补上"谁在用 AI"。
 //
-// 场景标签由 app.Service 打（那里才知道具体是哪个用例），这里只补调用方身份
-// 与链路 ID —— handler 是唯一同时知道登录态和请求 ID 的地方。
+// 场景标签由 app.Service 打（那里才知道具体是哪个用例），这里只补调用方身份、
+// 管理员身份与链路 ID —— handler 是唯一同时知道登录态和请求 ID 的地方。
+//
+// IsAdmin 放在这里而不是让收费点去查库：internal/ai 只认布尔，不认角色枚举，
+// 判定留在拿到登录态的这一处（与 ADR-0031 的"豁免在用例外判"同一思路）。
 func callCtx(c *gin.Context) context.Context {
-	return ai.WithCallMeta(c.Request.Context(), ai.CallMeta{
+	meta := ai.CallMeta{
 		UserID:    ctype.NewID(userID(c)),
 		RequestID: requestmeta.GetRequestID(c),
 		TraceID:   requestmeta.GetTraceID(c),
-	})
+	}
+	if claims := jwts.GetClaimsByGin(c); claims != nil {
+		meta.IsAdmin = claims.IsAdmin()
+	}
+	return ai.WithCallMeta(c.Request.Context(), meta)
 }
 
 // prepareSSE 设置 SSE 响应头。

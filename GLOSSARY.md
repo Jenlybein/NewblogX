@@ -443,18 +443,13 @@ _Avoid_: 再造一张"暗色专用 Logo"——`logo-512-white.png` 是无 alpha 
 **动效档位（motion tier）**：
 动效预算的分级名字，现行是**档位 C**：三档时长 120 / 200 / 320ms + 单一缓动 + stagger 40ms，允许全站区块级滚动进场（位移 ≤12px）、视差 ≤10px、导航随滚动转玻璃；正文段落不进场，且强制尊重 `prefers-reduced-motion`。
 位置：`tokens.css` 动效层与 `frontend/app/utils/motion.ts`（同一份预算，两处必须同改）。
-档位 C 在 **JS 侧另有第二套预算**：`utils/motion.ts` 的「弹簧预设」，目前只有三处消费者（标题大纲飞行器、目录树沟槽圆点、消息中心接缝位移），是登记过的例外；CSS 侧仍只用三档时长 + 单一缓动。登记见 [ADR-0012 后续修订（2026-11-07）](./docs/adr/0012-neutral-glass-visual-system.md)。
+档位 C 在 **JS 侧另有第二套预算**：`utils/motion.ts` 的「弹簧预设」，目前只有两处消费者（标题大纲飞行器、消息中心接缝位移），是登记过的例外；CSS 侧仍只用三档时长 + 单一缓动。登记见 [ADR-0012 后续修订（2026-11-07）](./docs/adr/0012-neutral-glass-visual-system.md)。
 _Avoid_: 用"档位 B"描述现状；在 `prefers-reduced-motion` 下仍保留进场（弹簧在该偏好下必须落位为静止，不是放慢）；在组件里内联弹簧数字。
 
 **合集/项目文件夹卡（folder card）**：
 读者侧合集列表与项目列表的卡片形态：一张文件夹（背板 + 前盖 flap）里插着**一张** 16:9 封面卡，hover / 键盘聚焦时卡片上抽、flap 前倾，点击直接进详情。里面的封面就是该合集/项目已有的单张 `cover`（空封面时后端已回退到首篇公开文章封面）。
 位置：两页共用的文件夹卡组件（新建），消费方 `frontend/app/pages/collections/index.vue` 与 `frontend/app/pages/projects/index.vue`；形态与交互口径见[阅读页 UI grill 记录](./docs/notes/2026-11-07-reading-ui-grill.md) §三 3.6。
 _Avoid_: 叫它"3D 卡片"（它是文件夹，不是可翻转卡片）；说"里面放三张封面"（只放一张，三张扇形方案已被否）；把「文件夹卡」与后台的树编辑器节点混为一谈。
-
-**沟槽圆点（gutter dot）**：
-阅读页左边缘抽屉目录里指示「当前文章」的圆点：横向位置随该行的层级落在**该层的发丝引导线上**（线从圆点中穿过），换文章时沿位移向量画弧滑过去；`hover` 不动它，`depth 0` 落在最外侧缩进起点。
-位置：`frontend/app/components/outline/OutlineTree.vue`（文档树本身），驱动见 `frontend/app/utils/motion.ts` 的弹簧预设。
-_Avoid_: 叫"指示器""小圆点"（压线是它的定义，不是装饰）；把它当成悬停反馈或滚动进度。
 
 **接缝（seam）**：
 消息中心 tab 条的一体化分段控制里，激活块与相邻块之间被拉开的那道**间隙**。张开量由弹簧驱动，`margin-left` 是该条唯一允许布局动画的地方；激活块两侧（敞口侧）给圆角，闭合接缝侧为 0，免得贴着时啃出缺口。

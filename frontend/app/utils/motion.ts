@@ -160,8 +160,9 @@ export function clampParallaxOffset(offsetPx: number, prefersReducedMotion: bool
 /* ------------------------------------------------------------------------------------
  * 弹簧预设：动效档位 C 在 JS 侧的第二套预算（ADR-0012 后续修订 2026-11-07）
  *
- * 弹簧只服务**登记过的三处**：右栏标题大纲的飞行器（travel / turn）、目录树的沟槽
- * 圆点（dot）、消息中心分段条接缝（neck）。CSS 侧仍只有三档时长 + 单一缓动 ——
+ * 弹簧只服务**登记过的两处**：右栏标题大纲的飞行器（travel / turn）与消息中心
+ * 分段条接缝（neck）。目录树沟槽圆点已于 2026-11-10 按用户反馈移除，`SPRING_DOT`
+ * 一并退场，不留一个没有消费者的预设。CSS 侧仍只有三档时长 + 单一缓动 ——
  * tokens.css 不动（CSS 表达不了弹簧），三档时长与单一缓动继续服务评论展开/收起、
  * 路由过渡与 hover。
  *
@@ -177,8 +178,8 @@ export interface SpringPreset {
   mass: number;
 }
 
-/** 预设的四组名字；`travel` 位移、`turn` 转向、`dot` 目录树圆点、`neck` 分段条接缝。 */
-export type SpringPresetName = "travel" | "turn" | "dot" | "neck";
+/** 预设的三组名字；`travel` 位移、`turn` 转向、`neck` 分段条接缝。 */
+export type SpringPresetName = "travel" | "turn" | "neck";
 
 /** 标题大纲飞行器：位移（grill §3.8 登记值）。 */
 export const SPRING_TRAVEL: SpringPreset = Object.freeze({
@@ -192,16 +193,6 @@ export const SPRING_TURN: SpringPreset = Object.freeze({
   stiffness: 260,
   damping: 30,
   mass: 1,
-});
-
-/**
- * 目录树沟槽圆点：近临界阻尼（ζ = 24 / (2√(180 × 0.8)) = 1），落位后不回弹 ——
- * 圆点压在该层引导线上，"停下"本身就是语义，来回晃会读成"还没停"。
- */
-export const SPRING_DOT: SpringPreset = Object.freeze({
-  stiffness: 180,
-  damping: 24,
-  mass: 0.8,
 });
 
 /** 消息中心分段条接缝：圆角与 margin-left 两侧接缝（grill §3.8 登记值）。 */
@@ -218,7 +209,6 @@ export const SPRING_NECK: SpringPreset = Object.freeze({
 export const SPRING_PRESETS: Readonly<Record<SpringPresetName, SpringPreset>> = Object.freeze({
   travel: SPRING_TRAVEL,
   turn: SPRING_TURN,
-  dot: SPRING_DOT,
   neck: SPRING_NECK,
 });
 

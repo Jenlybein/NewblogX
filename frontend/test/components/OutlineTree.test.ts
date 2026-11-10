@@ -1,11 +1,11 @@
-import { flushPromises, mount } from "@vue/test-utils";
-import { describe, expect, it, vi } from "vitest";
+import { mount } from "@vue/test-utils";
+import { describe, expect, it } from "vitest";
 import { nextTick } from "vue";
 
 import OutlineTree from "~/components/outline/OutlineTree.vue";
 import type { OutlineNode } from "~/utils/outlineTree";
 
-/** 组件级接缝：展开/收起、带来源的链接、当前文章高亮、折叠持久化衔接、沟槽圆点。 */
+/** 组件级接缝：展开/收起（含当前文章所在文件夹）、带来源的链接、当前文章高亮、折叠持久化衔接。 */
 
 const nodes: OutlineNode[] = [
   {
@@ -119,13 +119,22 @@ describe("OutlineTree：读者详情页目录树", () => {
     expect(wrapper.emitted("toggle")).toEqual([["f1"]]);
   });
 
-  it("当前文章高亮且命中被收起分支时自动展开，文件夹自己不高亮", () => {
-    const wrapper = mountTree({ collapsed: new Set(["f1", "f2"]), currentArticleId: "102" });
+  it("当前文章可见时高亮；它所在的文件夹被收起时保持收起，当前行跟着隐藏", () => {
+    const wrapper = mountTree({ currentArticleId: "102" });
 
     expect(wrapper.get('[data-outline-row="a2"]').classes()).toContain("is-current");
     expect(wrapper.get('[data-outline-row="a2"]').attributes("aria-current")).toBe("page");
     expect(wrapper.get('[data-outline-row="a1"]').classes()).not.toContain("is-current");
     expect(wrapper.get('[data-outline-row="f1"]').classes()).not.toContain("is-current");
+
+    const collapsedWrapper = mountTree({ collapsed: new Set(["f1"]), currentArticleId: "102" });
+
+    expect(collapsedWrapper.findAll("[data-outline-row]").map((row) => row.attributes("data-outline-row"))).toEqual([
+      "f1",
+      "a3",
+    ]);
+    expect(collapsedWrapper.find('[data-outline-row="a2"]').exists()).toBe(false);
+    expect(collapsedWrapper.find("[data-outline-row].is-current").exists()).toBe(false);
   });
 
   it("空树不渲染任何节点；空态文案由父页面的 ProfileEmptyState 负责", () => {
@@ -180,302 +189,5 @@ describe("OutlineTree：读者详情页目录树", () => {
     expect(wrapper.get('[data-outline-row="a2"]').classes()).toContain("is-entering");
     expect(wrapper.get('[data-outline-row="f1"]').classes()).not.toContain("is-entering");
     expect(wrapper.get('[data-outline-row="a3"]').classes()).not.toContain("is-entering");
-  });
-});
-
-/** 挂载后等一次微任务：圆点要等 `onMounted` 里的首次测量才会出现。 */
-async function mountLanded(options: Parameters<typeof mountTree>[0] = {}) {
-  const wrapper = mountTree(options);
-  await nextTick();
-  await flushPromises();
-  return wrapper;
-}
-
-/**
- * 把 `document.fonts.ready` 换成一个**由测试手动兑现**的 Promise。
- *
- * 为什么必须自己控制时机：字体晚到是真实浏览器里的常态（webfont 比首帧慢），
- * 而 happy-dom 根本没有 `document.fonts`。只有把"就绪"这一刻捏在手里，
- * 才能断言"字体晚到时圆点做了什么"（而不是只断言它最终停在哪）。
- */
-function deferFontsReady() {
-  let release: () => void = () => {};
-  const ready = new Promise<void>((resolve) => {
-    release = resolve;
-  });
-  const original = Object.getOwnPropertyDescriptor(document, "fonts");
-  Object.defineProperty(document, "fonts", { configurable: true, value: { ready } });
-
-  return {
-    /** 兑现 `fonts.ready`，并把因此触发的重对准跑完。 */
-    async land() {
-      release();
-      await flushPromises();
-    },
-    restore() {
-      if (original) Object.defineProperty(document, "fonts", original);
-      else Reflect.deleteProperty(document, "fonts");
-    },
-  };
-}
-
-describe("沟槽圆点：只跟随当前文章", () => {
-  it("两个详情页没有当前文章时不渲染圆点", () => {
-    const wrapper = mountTree();
-
-    expect(wrapper.find("[data-outline-dot]").exists()).toBe(false);
-  });
-
-  it("首次进入直接落位（snap），且圆点是装饰：aria-hidden、不可聚焦、不含链接", async () => {
-    const wrapper = await mountLanded({ currentArticleId: "102" });
-    const dot = wrapper.get("[data-outline-dot]");
-
-    expect(dot.attributes("aria-hidden")).toBe("true");
-    expect(dot.attributes("tabindex")).toBeUndefined();
-    expect(dot.findAll("a, button")).toHaveLength(0);
-    expect(dot.attributes("data-outline-dot-target")).toBe("a2");
-    expect(dot.attributes("data-outline-dot-motion")).toBe("snap");
-  });
-
-  it("首次进入字体晚到：仍是落位（snap），入场不会因为字体替换而滑一段", async () => {
-    const fonts = deferFontsReady();
-
-    try {
-      const wrapper = await mountLanded({ currentArticleId: "102" });
-      expect(wrapper.get("[data-outline-dot]").attributes("data-outline-dot-motion")).toBe("snap");
-
-      // 字体到货 → 行高变化 → 重测；这一趟"还没移动过"，所以不许播弹簧。
-      await fonts.land();
-
-      const dot = wrapper.get("[data-outline-dot]");
-      expect(dot.attributes("data-outline-dot-motion")).toBe("snap");
-      expect(dot.attributes("data-outline-dot-target")).toBe("a2");
-    } finally {
-      fonts.restore();
-    }
-  });
-
-  it("切过文章后字体才就绪：按普通重对准走弹簧（travel），不把圆点拽回旧位置", async () => {
-    const fonts = deferFontsReady();
-
-    try {
-      const wrapper = await mountLanded({ currentArticleId: "101" });
-      await wrapper.setProps({ currentArticleId: "102" });
-      await nextTick();
-      expect(wrapper.get("[data-outline-dot]").attributes("data-outline-dot-motion")).toBe("travel");
-
-      await fonts.land();
-
-      const dot = wrapper.get("[data-outline-dot]");
-      expect(dot.attributes("data-outline-dot-motion")).toBe("travel");
-      expect(dot.attributes("data-outline-dot-target")).toBe("a2");
-    } finally {
-      fonts.restore();
-    }
-  });
-
-  it("圆点的深度跟着当前行：跨层级时透传新的 depth（横向落在该层引导线上）", async () => {
-    const wrapper = await mountLanded({ currentArticleId: "101" });
-    expect(wrapper.get("[data-outline-dot]").attributes("data-outline-dot-depth")).toBe("1");
-
-    await wrapper.setProps({ currentArticleId: "102" });
-    await nextTick();
-
-    expect(wrapper.get("[data-outline-dot]").attributes("data-outline-dot-depth")).toBe("2");
-  });
-
-  it("同树内切文章：圆点换目标并开始移动（travel），不重挂载", async () => {
-    const wrapper = await mountLanded({ currentArticleId: "101" });
-
-    await wrapper.setProps({ currentArticleId: "102" });
-    await nextTick();
-
-    const dot = wrapper.get("[data-outline-dot]");
-    expect(dot.attributes("data-outline-dot-target")).toBe("a2");
-    expect(dot.attributes("data-outline-dot-motion")).toBe("travel");
-    // aria-current 与高亮跟着换，圆点不改变这套语义。
-    expect(wrapper.get('[data-outline-row="a2"]').attributes("aria-current")).toBe("page");
-    expect(wrapper.get('[data-outline-row="a1"]').attributes("aria-current")).toBeUndefined();
-  });
-
-  it("折叠文件夹让目标行位移后重新对准（目标行不变，重新移动）", async () => {
-    const wrapper = await mountLanded({ currentArticleId: "103" });
-    expect(wrapper.get("[data-outline-dot]").attributes("data-outline-dot-target")).toBe("a3");
-    expect(wrapper.get("[data-outline-dot]").attributes("data-outline-dot-motion")).toBe("snap");
-
-    // 收起上方的第一章：它整支隐藏，附录（当前文章）向上位移。
-    await wrapper.setProps({ collapsed: new Set(["f1"]) });
-    await nextTick();
-
-    const dot = wrapper.get("[data-outline-dot]");
-    expect(dot.attributes("data-outline-dot-target")).toBe("a3");
-    expect(dot.attributes("data-outline-dot-motion")).toBe("travel");
-    expect(wrapper.findAll("[data-outline-row]").map((row) => row.attributes("data-outline-row"))).toEqual([
-      "f1",
-      "a3",
-    ]);
-  });
-
-  it("hover 与键盘聚焦不动圆点（只有当前文章换才动）", async () => {
-    const wrapper = await mountLanded({ currentArticleId: "102" });
-
-    await wrapper.get('[data-outline-row="a1"] a').trigger("mouseenter");
-    await wrapper.get('[data-outline-row="a1"] a').trigger("focus");
-    await wrapper.get('[data-outline-row="f2"] button').trigger("mouseenter");
-    await nextTick();
-
-    const dot = wrapper.get("[data-outline-dot]");
-    expect(dot.attributes("data-outline-dot-target")).toBe("a2");
-    expect(dot.attributes("data-outline-dot-motion")).toBe("snap");
-  });
-
-  it("减少动态：切文章时圆点瞬移（snap），不保留滑动", async () => {
-    vi.stubGlobal("matchMedia", (query: string) => ({
-      matches: query.includes("prefers-reduced-motion"),
-      media: query,
-      onchange: null,
-      addEventListener: vi.fn(),
-      removeEventListener: vi.fn(),
-      addListener: vi.fn(),
-      removeListener: vi.fn(),
-      dispatchEvent: vi.fn(),
-    }));
-
-    const wrapper = await mountLanded({ currentArticleId: "101" });
-    await wrapper.setProps({ currentArticleId: "102" });
-    await nextTick();
-
-    const dot = wrapper.get("[data-outline-dot]");
-    expect(dot.attributes("data-outline-dot-target")).toBe("a2");
-    expect(dot.attributes("data-outline-dot-motion")).toBe("snap");
-  });
-
-  it("圆点不改变键盘顺序：焦点仍然只有文件夹箭头与文章链接", async () => {
-    const wrapper = await mountLanded({ currentArticleId: "102" });
-
-    const focusables = wrapper
-      .findAll("a, button")
-      .map((element) => element.attributes("href") ?? element.attributes("data-outline-toggle"));
-
-    expect(focusables).toEqual([
-      "f1",
-      "/article/101?from=collection:c1",
-      "f2",
-      "/article/102?from=collection:c1",
-      "/article/103?from=collection:c1",
-    ]);
-    expect(wrapper.get("[data-outline-dot]").element.closest("a, button")).toBeNull();
-  });
-});
-
-/* ------------------------------------------------------------------ 压线与弧线 */
-
-/** 行高 / 行距（px）：与 `OutlineTree.vue` 的 `min-height: 2.75rem` + `gap: 0.25rem` 同口径。 */
-const ROW_HEIGHT_PX = 44;
-const ROW_PITCH_PX = 48;
-
-/**
- * happy-dom 没有布局：`offsetTop` / `offsetHeight` 恒为 0，圆点纵向永远量到 0，也就
- * 断言不了"压在该行垂直中心"。这里把两枚只读属性换成按**可见行序**推算的假布局，
- * 让坐标本身可断言（而不是只断言 data-* 标记）。
- *
- * `offsetTop` 按可见行序算而不是按固定表：折叠后行的位置会变，重对准要靠它。
- * 依赖 `vitest.config.ts` 的 `restoreMocks: true` 在用例结束后还原。
- */
-function stubRowLayout() {
-  vi.spyOn(HTMLElement.prototype, "offsetTop", "get").mockImplementation(function (this: HTMLElement) {
-    const tree = this.closest("[data-outline-tree]");
-    const rows = tree ? [...tree.querySelectorAll<HTMLElement>("[data-outline-row]")] : [];
-    const index = rows.indexOf(this);
-    return index < 0 ? 0 : index * ROW_PITCH_PX;
-  });
-  vi.spyOn(HTMLElement.prototype, "offsetHeight", "get").mockReturnValue(ROW_HEIGHT_PX);
-}
-
-/** 从挂载后的行内 `transform` 里取圆点的圆心坐标（组件用 `x` / `y` 两个 motion value）。 */
-function dotPoint(wrapper: ReturnType<typeof mountTree>): { x: number; y: number } {
-  const style = wrapper.get("[data-outline-dot]").attributes("style") ?? "";
-  const axis = (name: "translateX" | "translateY") => {
-    const match = new RegExp(`${name}\\((-?[\\d.]+)px\\)`, "u").exec(style);
-    return match ? Number(match[1]) : 0;
-  };
-
-  return { x: axis("translateX"), y: axis("translateY") };
-}
-
-/** 同层两篇（都是 depth 1），用来证明"只有纵向变化时不画弧"。 */
-const sameDepthNodes: OutlineNode[] = [
-  {
-    id: "g1",
-    kind: 1,
-    title: "同一章",
-    children: [
-      { id: "b1", kind: 2, article_id: "201", article_title: "同层一", children: [] },
-      { id: "b2", kind: 2, article_id: "202", article_title: "同层二", children: [] },
-    ],
-  },
-];
-
-describe("沟槽圆点：压线与弧线（假布局）", () => {
-  it("落位坐标 = 该层发丝线的 x + 行垂直中心（depth 1 → x=12、第二行中心 70）", async () => {
-    stubRowLayout();
-    const wrapper = await mountLanded({ currentArticleId: "101" });
-
-    expect(dotPoint(wrapper)).toEqual({ x: 12, y: 70 });
-  });
-
-  it("根层没有引导线：x 落在最外侧缩进起点 0，而不是某一层的线上", async () => {
-    stubRowLayout();
-    const wrapper = await mountLanded({ currentArticleId: "103" });
-
-    // depth 0 的 a3 是第 5 行（索引 4）→ 4 × 48 + 22
-    expect(dotPoint(wrapper)).toEqual({ x: 0, y: 214 });
-  });
-
-  it("跨层级切换画弧：data-outline-dot-arc 从 straight 变成 arc", async () => {
-    stubRowLayout();
-    const wrapper = await mountLanded({ currentArticleId: "101" }); // depth 1 → depth 2
-    expect(wrapper.get("[data-outline-dot]").attributes("data-outline-dot-arc")).toBe("straight");
-
-    await wrapper.setProps({ currentArticleId: "102" });
-    await nextTick();
-
-    expect(wrapper.get("[data-outline-dot]").attributes("data-outline-dot-arc")).toBe("arc");
-    expect(wrapper.get("[data-outline-dot]").attributes("data-outline-dot-motion")).toBe("travel");
-  });
-
-  it("同层换行只动 y：不画弧（圆点全程留在引导线上）", async () => {
-    const wrapper = await mountLanded({ nodes: sameDepthNodes, currentArticleId: "201" });
-    expect(wrapper.get("[data-outline-dot]").attributes("data-outline-dot-arc")).toBe("straight");
-
-    await wrapper.setProps({ currentArticleId: "202" });
-    await nextTick();
-
-    expect(wrapper.get("[data-outline-dot]").attributes("data-outline-dot-arc")).toBe("straight");
-    expect(wrapper.get("[data-outline-dot]").attributes("data-outline-dot-motion")).toBe("travel");
-  });
-
-  it("减少动态：跨层级切换直接落到新层级的线与新行中心（坐标不靠进度变化重算）", async () => {
-    stubRowLayout();
-    vi.stubGlobal("matchMedia", (query: string) => ({
-      matches: query.includes("prefers-reduced-motion"),
-      media: query,
-      onchange: null,
-      addEventListener: vi.fn(),
-      removeEventListener: vi.fn(),
-      addListener: vi.fn(),
-      removeListener: vi.fn(),
-      dispatchEvent: vi.fn(),
-    }));
-
-    const wrapper = await mountLanded({ currentArticleId: "101" });
-    expect(dotPoint(wrapper)).toEqual({ x: 12, y: 70 });
-
-    await wrapper.setProps({ currentArticleId: "102" });
-    await nextTick();
-
-    expect(wrapper.get("[data-outline-dot]").attributes("data-outline-dot-motion")).toBe("snap");
-    // 旧实现在这里会让 x 停在 12（进度值没变、派生坐标不重算），只剩 y 换行。
-    expect(dotPoint(wrapper)).toEqual({ x: 36, y: 166 });
   });
 });

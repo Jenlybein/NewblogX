@@ -64,7 +64,7 @@ const REDUCED_MOTION_ARGUMENT = /reduced/iu;
  * 把注释换成等长空白（保留换行）。
  *
  * 不用 `stripComments`：它会删掉注释内容、行号随之错位，而门禁的报错必须能直接
- * 跳到那一行。等长空白既让注释里的 `SPRING_DOT` / `stiffness: 200` 不再算数，
+ * 跳到那一行。等长空白既让注释里的 `SPRING_TRAVEL` / `stiffness: 200` 不再算数，
  * 又保证行号与原文件一致。
  */
 function blankComments(text: string): string {
@@ -100,8 +100,8 @@ export function collectAppSources(appRoot: string = join(process.cwd(), "app")):
 /**
  * 门禁一：组件里出现裸 `stiffness` / `damping` 数字。
  *
- * 参数只能来自 `SPRING_*` 预设（组件写 `useSpring(SPRING_DOT)` 或
- * `resolveSpringMotion(SPRING_DOT, …)`），这样"统一调手感"才只需要改一处。
+ * 参数只能来自 `SPRING_*` 预设（组件写 `useSpring(SPRING_TRAVEL)` 或
+ * `resolveSpringMotion(SPRING_TRAVEL, …)`），这样"统一调手感"才只需要改一处。
  */
 export function findBareSpringNumbers(sources: SourceFile[]): SourceViolation[] {
   const violations: SourceViolation[] = [];
@@ -127,7 +127,7 @@ export function findBareSpringNumbers(sources: SourceFile[]): SourceViolation[] 
  *
  * 判据是"文件里出现了 `SPRING_*`，且至少有一处 `resolveSpringMotion(SPRING_*, …)`
  * 的第二个实参能看出是减少动态偏好"。把偏好写死成 `false`、或直接
- * `useSpring(SPRING_DOT)` 绕过解析，都算缺分支 —— 这两种写法在 reduce 下都会继续动。
+ * `useSpring(SPRING_TRAVEL)` 绕过解析，都算缺分支 —— 这两种写法在 reduce 下都会继续动。
  */
 export function findUnresolvedSpringConsumers(sources: SourceFile[]): SourceViolation[] {
   const violations: SourceViolation[] = [];

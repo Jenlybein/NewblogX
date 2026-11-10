@@ -138,6 +138,12 @@ http {
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto $scheme;
         proxy_set_header X-Forwarded-Host $host;
+        # 提交/更新文章会在请求里同步等一次模型评分（ADR-0032 要求它在事务外，
+        # 但仍在这条 HTTP 请求里）。默认 60s 的读超时对推理模型不够：实测单篇
+        # 评分 30–170 秒，超时后客户端拿到的是 nginx 的 504，而不是接口的结构化
+        # 错误。这里的值必须 ≥ ai.timeout_sec（后台「AI」段那个超时）。
+        proxy_read_timeout 180s;
+        proxy_send_timeout 180s;
         proxy_pass http://blogx_api_upstream/api/;
      }
 

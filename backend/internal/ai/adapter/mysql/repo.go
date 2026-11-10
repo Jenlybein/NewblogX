@@ -123,6 +123,17 @@ func (r *Repo) Latest(ctx context.Context, articleID uint64) (*domain.ScoreRecor
 // 事务第一步先锁住这篇文章在 article_models 里的那一行，拿到锁之后才判断有没有评分行。
 // 同一篇文章的并发评分因此在文章行上排队，判断与写入之间插不进别的写者。
 //
+// # 文章行还不存在时为什么照写
+//
+// 质量闸门在提交事务**之前**评分，新建文章的 ID 已经生成、但 article_models 那一行
+// 要到本次请求的写事务里才插进去（ADR-0032 决策 5）。这时锁的目标行不存在，见
+// lockArticle 的说明：那不是错误，也不需要排队，照常写评分行即可 —— 文章落库后
+// 这一行就归它。把它当成失败，等于"闸门一开，新文章永远提交不了"。
+//
+// 反过来，读路径与"必须有文章"的调用方（Rescore / EnsureScoreIfMissing）都先走
+// Article() 拿到快照，文章不存在时在那里就返回 ai.article_missing，不会走到这里。
+//
+
 // 覆盖写保留原行的主键（对外的 record_id 不会跳），但把 created_at 一起推到本次评分时间：
 // 这一行代表"最近一次评分"而不是评分历史，读者页与作者页都把它显示成评分时间，
 // 留着首次时间会让人以为没重算过。
@@ -193,6 +204,16 @@ func (r *Repo) Upsert(ctx context.Context, record *domain.ScoreRecord) error {
 //
 // MySQL 用 SELECT ... FOR UPDATE。SQLite（仓储测试库）没有行锁语法，
 // 直接跳过：它本身就是单写者，而且 testkit 的连接池只开一条连接。
+//
+// "查不到那一行"不是错误，按**没有可锁的行**继续：
+//   - 质量闸门路径：新文章 ID 已生成、行还没插（ADR-0032 决策 5）。这把锁的作用是让
+//     "同一篇文章"的并发评分排队（评分表在 article_id 上没有唯一索引），而一个刚生成、
+//     还没入库的 ID 不可能被第二个写者拿去评分，所以不需要锁；
+//   - 已删文章：Rescore / EnsureScoreIfMissing 这类调用方在 Article() 那里就提前返回了，
+//     走不到这里。
+//
+// 早先这里返回 ai.article_missing，后果是"闸门开启时任何新建即提交都被打成
+// 拿不到分数"，整笔提交失败关闭——这正是 #341 报上来的现象。
 func lockArticle(tx *gorm.DB, articleID ctype.ID) error {
 	if tx.Dialector.Name() != "mysql" {
 		return nil
@@ -203,7 +224,7 @@ func lockArticle(tx *gorm.DB, articleID ctype.ID) error {
 		Where("id = ?", articleID).
 		Take(&row).Error
 	if errors.Is(err, gorm.ErrRecordNotFound) {
-		return apperr.New(apperr.CodeAIArticleMissing)
+		return nil
 	}
 	return err
 }

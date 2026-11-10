@@ -50,6 +50,31 @@ describe("BannerCarousel：首屏封面媒体层（底图 + 底部渐黑 + 降�
     expect(wrapper.get(".banner-stage img").attributes("src")).toContain("b1.png");
   });
 
+  it("单张带标题时挂 is-single：把少掉的控件行高度补回来（标题才不会掉到最下沿）", () => {
+    const wrapper = mount(BannerCarousel, {
+      props: {
+        banners: [{ id: "s1", cover: "https://image.example.com/s1.png", title: "只有一张" }] as never,
+      },
+      global: { stubs: { NuxtLink: NuxtLinkStub } },
+    });
+
+    // 控件仍然不渲染（单张没有可操作对象），但渐黑区要按有多控件时的高度排。
+    expect(wrapper.find(".banner-controls").exists()).toBe(false);
+    expect(wrapper.get(".banner-veil").classes()).toContain("is-single");
+  });
+
+  it("单张但没有标题时不挂 is-single：那会变成一条空的压暗带", () => {
+    const wrapper = mount(BannerCarousel, {
+      props: {
+        banners: [{ id: "s2", cover: "https://image.example.com/s2.png", title: "" }] as never,
+      },
+      global: { stubs: { NuxtLink: NuxtLinkStub } },
+    });
+
+    expect(wrapper.get(".banner-veil").classes()).toContain("is-titleless");
+    expect(wrapper.get(".banner-veil").classes()).not.toContain("is-single");
+  });
+
   it("≥2 张才渲染控件，且控件住在底部渐黑区里（不再是一颗玻璃胶囊）", () => {
     const wrapper = mount(BannerCarousel, {
       props: { banners: banners.slice(0, 2) as never },

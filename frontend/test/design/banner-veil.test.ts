@@ -209,6 +209,59 @@ describe("控件并入渐黑区：不再单独一颗黑色胶囊", () => {
   });
 });
 
+describe("单张轮播：控件行的高度要补回来，标题不能掉到最下沿", () => {
+  /**
+   * 只有 1 张时圆点与箭头都不渲染（没有可操作的对象），渐黑区因此短一整行，
+   * 标题就贴到面板最下沿 —— 用户报的"单张时样式不对"就是这个。
+   *
+   * 修法是把控件行本该占的高度补进下内边距。这里锁住"补出来的高度与有控件时
+   * 逐项对齐"：控件行高度、标题与控件的间隙、下内边距三项都必须实测得到，
+   * 任何一项改了而这里没跟着改，用例就会红。
+   */
+  const CONTROL_ROW_REM = 2.75; // .banner-arrow / .banner-dot 的 min-height: 44px
+
+  it("补的高度 = 下内边距 + 控件行高度 + 标题与控件的间隙", () => {
+    const single = blockAfter(bannerVue, ".banner-veil.is-single {");
+
+    expect(single, "单张变体必须显式补 padding-bottom").toMatch(/padding-bottom:\s*calc\(/u);
+    // 三段都从源码实测，不在这里抄死一份"应该是什么"。
+    const veilBottom = /padding:\s*\n?\s*clamp\([\d.]+rem, [\d.]+vw, [\d.]+rem\) clamp\([\d.]+rem, [\d.]+vw, [\d.]+rem\) clamp\(([\d.]+)rem, ([\d.]+)vw, ([\d.]+)rem\)/u.exec(
+      veilBlock(),
+    );
+    expect(veilBottom, "渐黑区下内边距应是一段 clamp()").not.toBeNull();
+    const gap = /gap:\s*clamp\(([\d.]+)rem, ([\d.]+)vw, ([\d.]+)rem\)/u.exec(
+      blockAfter(bannerVue, ".banner-veil__body {"),
+    );
+    expect(gap, "标题与控件的间隙应是 `body` 的 gap").not.toBeNull();
+
+    // 把三项拼成补出来的那段文本，确认它确实出现在 padding-bottom 里。
+    const parts = [
+      `clamp(${veilBottom![1]}rem, ${veilBottom![2]}vw, ${veilBottom![3]}rem)`,
+      `${CONTROL_ROW_REM}rem`,
+      `clamp(${gap![1]}rem, ${gap![2]}vw, ${gap![3]}rem)`,
+    ];
+    const flat = single!.replace(/\s+/gu, " ");
+    for (const part of parts) {
+      expect(flat, `补出来的高度里缺少「${part}」`).toContain(part);
+    }
+  });
+
+  it("控件行确实是 44px：少于它标题就会比多张时更低", () => {
+    // 触控区 44px 是既有的无障碍约定（圆点/箭头都不许更小）。
+    expect(blockAfter(bannerVue, ".banner-arrow {")).toContain("min-height: 44px");
+    expect(blockAfter(bannerVue, ".banner-dot {")).toContain("min-height: 44px");
+    // 2.75rem 与 44px 必须同值（默认根字号 16px）。
+    expect(CONTROL_ROW_REM * 16).toBe(44);
+  });
+
+  it("只在「有标题且没有控件」时挂 is-single，空标题不补（否则是一条空压暗带）", () => {
+    expect(bannerVue).toMatch(/singleWithoutControls/u);
+    expect(bannerVue).toMatch(/Boolean\(titleText\.value\) && !hasControls\.value/u);
+    const template = templateOf(bannerVue);
+    expect(template).toMatch(/class="banner-veil"[\s\S]{0,180}'is-single': singleWithoutControls/u);
+  });
+});
+
 describe("没有遮挡内容的大黑块：图层不会整幅压暗", () => {
   it("旧的整幅罩层退场，底图层与舞台层都不画底色", () => {
     expect(bannerVue).not.toContain("banner-scrim");

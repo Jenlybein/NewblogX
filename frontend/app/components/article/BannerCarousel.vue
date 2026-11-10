@@ -27,6 +27,18 @@ const currentBanner = computed(() => props.banners[currentIndex.value] ?? null);
 /** 当前这张的标题（纯文本）。空标题不渲染文字区，不留一块空标题带。 */
 const titleText = computed(() => bannerTitleText(currentBanner.value?.title));
 
+/** ≥2 张才有控件；只有 1 张时圆点与箭头都没有可操作的对象。 */
+const hasControls = computed(() => props.banners.length > 1);
+
+/**
+ * 有标题、但没有控件行。
+ *
+ * 这时渐黑区会短一整行控件的高度，标题就掉到面板最下沿（单张轮播的用户反馈）。
+ * 模板据此挂 `is-single`，把控件行本该占的高度补进下内边距，让标题落在与
+ * ≥2 张时**完全相同**的位置。没有标题时不补：那会变成一条空压暗带。
+ */
+const singleWithoutControls = computed(() => Boolean(titleText.value) && !hasControls.value);
+
 /** 当前这张图加载失败：只把底图层切到失败态，切换下一张时复位。 */
 const imageFailed = ref(false);
 
@@ -182,7 +194,13 @@ watch(
         **高度由内容撑出来**，不是固定的面板占比：没有标题时就只留控件那一条，
         不会无端压暗半张图（那正是"大黑块"的来源）。
       -->
-      <div class="banner-veil" :class="{ 'is-titleless': !titleText }">
+      <div
+        class="banner-veil"
+        :class="{
+          'is-titleless': !titleText,
+          'is-single': singleWithoutControls,
+        }"
+      >
         <div class="banner-veil__body">
           <!--
             标题是纯文本：用插值输出（Vue 自动转义），不接 v-html。
@@ -323,6 +341,27 @@ watch(
 /* 没有标题：只剩一行控件，过渡带也跟着收窄，避免"空标题也压半张图"。 */
 .banner-veil.is-titleless {
   padding-top: clamp(1.25rem, 5vw, 2rem);
+}
+
+/*
+ * 有标题但没有控件行（只有 1 张轮播）。
+ *
+ * 渐黑区的高度由内容撑出来，少一行控件就短一行：标题因此掉到面板最下沿，
+ * 看起来像"没排完"。这里把控件行本该占的高度补回下内边距，标题落在与 ≥2 张时
+ * 完全相同的位置。
+ *
+ * 组成（与有控件时逐项对齐，改一处必须同时改这里）：
+ *   下内边距 clamp(0.4rem, 1vw, 0.75rem)
+ * + 控件行 2.75rem（`.banner-arrow` / `.banner-dot` 的 min-height: 44px）
+ * + 标题与控件之间的间隙 clamp(0.25rem, 0.8vw, 0.75rem)（`.banner-veil__body` 的 gap）
+ *
+ * 为什么不是"始终渲染控件"：单张时圆点与箭头没有任何可操作的对象，
+ * 摆在那里只是为了占位，会变成一组点了没反应的控件。
+ */
+.banner-veil.is-single {
+  padding-bottom: calc(
+    clamp(0.4rem, 1vw, 0.75rem) + 2.75rem + clamp(0.25rem, 0.8vw, 0.75rem)
+  );
 }
 
 /* 无图时退回既有空态；它走正常文档流（封面文字仍在上方成立）。 */

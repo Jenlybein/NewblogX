@@ -16,11 +16,14 @@ import (
 // 只模拟"端口返回什么"：给分、给问题、或报错。它不模拟模型行为——这里要验的
 // 是"我们拿这个分数做了什么决定"，不是模型会不会打分。
 type fakeQualityGate struct {
-	score    int
-	issues   []app.QualityIssue
-	err      error
-	calls    int
-	lastGate app.QualityGateInput
+	score int
+	// dimensions 是六个维度的分（ADR-0040 的木桶判定要用）。留空表示"这次评分
+	// 没给维度分"，此时只按总分判。
+	dimensions []app.QualityDimension
+	issues     []app.QualityIssue
+	err        error
+	calls      int
+	lastGate   app.QualityGateInput
 }
 
 func (f *fakeQualityGate) Evaluate(_ context.Context, in app.QualityGateInput) (app.QualityGateScore, error) {
@@ -29,7 +32,19 @@ func (f *fakeQualityGate) Evaluate(_ context.Context, in app.QualityGateInput) (
 	if f.err != nil {
 		return app.QualityGateScore{}, f.err
 	}
-	return app.QualityGateScore{TotalScore: f.score, Issues: f.issues}, nil
+	return app.QualityGateScore{TotalScore: f.score, Dimensions: f.dimensions, Issues: f.issues}, nil
+}
+
+// evenDimensions 返回六个都给同一分的维度（桶判定的"全过线"用例）。
+func evenDimensions(score int) []app.QualityDimension {
+	return []app.QualityDimension{
+		{Name: "clarity", Score: score},
+		{Name: "structure", Score: score},
+		{Name: "completeness", Score: score},
+		{Name: "readability", Score: score},
+		{Name: "persuasiveness", Score: score},
+		{Name: "language", Score: score},
+	}
 }
 
 // gatePolicy 返回"闸门开着、及格线 50、灰带 2"（实际放行线 52）。
@@ -176,6 +191,98 @@ func TestGateGrayBandDoesNotPass(t *testing.T) {
 	}
 	if details.Gap != 1 {
 		t.Fatalf("灰带内的差额应为 1 分，实际 %d", details.Gap)
+	}
+}
+
+// TestGateBucketRejectsWhenSingleDimensionBelowPassScore 钉住木桶判定（ADR-0040）：
+// 总分过线，但某一项没过及格线，仍然不放行。
+//
+// 这条正是线上那次"两行祝福语拿到 51 分并被发布"的结构性修复：加权总分会让
+// 长板补短板，所以"六项都过线"必须单独成立。作者侧必须被点名是哪一项不够，
+// 否则他看到"还差 0 分"只会去凑字数。
+func TestGateBucketRejectsWhenSingleDimensionBelowPassScore(t *testing.T) {
+	gate := &fakeQualityGate{
+		score: 78, // 远高于放行线 52
+		dimensions: []app.QualityDimension{
+			{Name: "clarity", Score: 82},
+			{Name: "structure", Score: 70},
+			{Name: "completeness", Score: 41}, // 只有这一项没过 50 分的及格线
+			{Name: "readability", Score: 76},
+			{Name: "persuasiveness", Score: 62},
+			{Name: "language", Score: 80},
+		},
+	}
+	svc, repos, _ := newGateService(t, gate)
+
+	_, err := svc.Create(context.Background(), gateSubmitCmd(gatePolicy()))
+
+	var details *app.QualityRejectionDetails
+	if !errors.As(err, &details) {
+		t.Fatalf("单项未过及格线应不放行，实际 %v", err)
+	}
+	if code, ok := apperr.CodeOf(err); !ok || code != apperr.CodeArticleQualityRejected {
+		t.Fatalf("错误码应为 quality_rejected，实际 %s ok=%v", code, ok)
+	}
+	if details.Score != 78 || details.RequiredScore != 52 {
+		t.Fatalf("分数/放行线不对: score=%d required=%d", details.Score, details.RequiredScore)
+	}
+	// 总分够线时差额必须是 0，不能给负数让作者误解成"还差 -26 分"。
+	if details.Gap != 0 {
+		t.Fatalf("总分过线时差额应为 0，实际 %d", details.Gap)
+	}
+	if details.MinDimensionScore != 50 {
+		t.Fatalf("维度下限应等于及格线 50，实际 %d", details.MinDimensionScore)
+	}
+	if len(details.WeakDimensions) != 1 || details.WeakDimensions[0].Name != "completeness" {
+		t.Fatalf("应只点名 completeness 一项，实际 %v", details.WeakDimensions)
+	}
+	if details.WeakDimensions[0].Score != 41 {
+		t.Fatalf("弱项分数应原样带回，实际 %d", details.WeakDimensions[0].Score)
+	}
+
+	// 落点与总分不足时一致：草稿，可改可重投。
+	a, err := repos.FakeArticles().Find(context.Background(), details.ArticleID)
+	if err != nil || a == nil {
+		t.Fatalf("被打回的文章应已落库: %v", err)
+	}
+	if a.Status() != domain.StatusDraft {
+		t.Fatalf("被打回的文章应为草稿，实际 %v", a.Status())
+	}
+}
+
+// TestGateBucketPassesWhenEveryDimensionClears 钉住木桶的另一半：六项都过线
+// 且总分过线才放行。
+func TestGateBucketPassesWhenEveryDimensionClears(t *testing.T) {
+	gate := &fakeQualityGate{score: 78, dimensions: evenDimensions(60)}
+	svc, _, _ := newGateService(t, gate)
+
+	a, err := svc.Create(context.Background(), gateSubmitCmd(gatePolicy()))
+	if err != nil {
+		t.Fatalf("六项都过线且总分过线应放行: %v", err)
+	}
+	if a.Status() != domain.StatusPublished {
+		t.Fatalf("达标应发布，实际 %s", a.Status())
+	}
+}
+
+// 边界：正好等于及格线算过线（约定是 ">="，与总分口径一致）。
+func TestGateBucketAcceptsDimensionExactlyAtPassScore(t *testing.T) {
+	gate := &fakeQualityGate{score: 52, dimensions: evenDimensions(50)}
+	svc, _, _ := newGateService(t, gate)
+
+	if _, err := svc.Create(context.Background(), gateSubmitCmd(gatePolicy())); err != nil {
+		t.Fatalf("维度正好 50 分应算过线: %v", err)
+	}
+}
+
+// 旧评分记录 / 端口没填维度分时退回"只看总分"：不能因为拿不到维度分就把
+// 所有人的提交都拒掉，但也不能假装它过了桶判定。
+func TestGateBucketFallsBackToTotalWhenDimensionsMissing(t *testing.T) {
+	gate := &fakeQualityGate{score: 78}
+	svc, _, _ := newGateService(t, gate)
+
+	if _, err := svc.Create(context.Background(), gateSubmitCmd(gatePolicy())); err != nil {
+		t.Fatalf("没有维度分时应按总分放行: %v", err)
 	}
 }
 

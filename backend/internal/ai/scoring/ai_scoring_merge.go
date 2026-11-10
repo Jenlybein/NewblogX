@@ -56,8 +56,8 @@ func normalizeStateDimensions(list []scoringStateDimension) []scoringStateDimens
 		if !ok {
 			item = scoringStateDimension{
 				Name:     name,
-				Score:    50,
-				Evidence: "未提供该维度证据，按保守中间分处理",
+				Score:    missingDimensionScore,
+				Evidence: "未提供该维度证据，按缺失维度下限处理",
 			}
 		}
 		if item.Evidence == "" {
@@ -87,8 +87,8 @@ func normalizeFinalDimensions(list []ArticleScoreDimension) []ArticleScoreDimens
 		if !ok {
 			item = ArticleScoreDimension{
 				Name:   name,
-				Score:  50,
-				Reason: "未提供该维度理由，按保守中间分处理",
+				Score:  missingDimensionScore,
+				Reason: "未提供该维度理由，按缺失维度下限处理",
 			}
 		}
 		if item.Reason == "" {

@@ -230,5 +230,14 @@ func (qualityGatePort) Evaluate(ctx context.Context, in articleapp.QualityGateIn
 			Suggestion: issue.Suggestion,
 		})
 	}
-	return articleapp.QualityGateScore{TotalScore: result.TotalScore, Issues: issues}, nil
+	dimensions := make([]articleapp.QualityDimension, 0, len(result.Dimensions))
+	for _, item := range result.Dimensions {
+		dimensions = append(dimensions, articleapp.QualityDimension{Name: item.Name, Score: item.Score})
+	}
+
+	return articleapp.QualityGateScore{
+		TotalScore: result.TotalScore,
+		Dimensions: dimensions,
+		Issues:     issues,
+	}, nil
 }

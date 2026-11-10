@@ -211,8 +211,23 @@ type QualityGateInput struct {
 type QualityGateScore struct {
 	// TotalScore 是 0–100 的总分。
 	TotalScore int
+	// Dimensions 是六个维度的得分（ADR-0040）。
+	//
+	// 闸门是**木桶**判定：任何一项低于及格线都不能发布，总分再高也不行。
+	// 为空表示这次评分没有给出维度分（旧记录 / 端口实现未填），此时只按总分判 ——
+	// 拿不到维度分不该让所有人的提交都被拒，但也不能假装它过了。
+	Dimensions []QualityDimension
 	// Issues 是逐条问题，用于告诉作者"按哪几条改"。
 	Issues []QualityIssue
+}
+
+// QualityDimension 是一个评分维度的得分。
+//
+// Name 是评分侧的英文键（clarity / structure / completeness / readability /
+// persuasiveness / language），中文名由前端一处映射，不在后端重复维护。
+type QualityDimension struct {
+	Name  string
+	Score int
 }
 
 // QualityIssue 是一条评分问题。

@@ -3,6 +3,7 @@ import type { AiArticleScoringIssue, AiArticleScoringResponseData } from "~/type
 import { computed } from "vue";
 import { NButton, NCard, NEmpty, NModal, NProgress, NTag } from "naive-ui";
 import { formatDateTimeLabel } from "~/utils/format";
+import { scoreDimensionLabel } from "~/utils/scoreDimensions";
 import { usePointerSpecular } from "~/composables/usePointerSpecular";
 
 const props = defineProps<{
@@ -27,18 +28,18 @@ const { handlePointerMove } = usePointerSpecular();
 // 契约里 dimension.name 是 string（后端是 string，没有枚举约束），
 // 所以 map 用 string 做 key，查不到时用下面的兜底值。
 const dimensionFallback = {
-  label: "其他",
   color: "var(--color-ink-muted)",
   railColor: "var(--color-line-faint)",
 };
 // 维度配色只消费语义 token（禁止第六个色相）；NProgress 接受 CSS 变量，明暗两态自动跟随。
-const dimensionMetaMap: Record<string, { label: string; color: string; railColor: string }> = {
-  clarity: { label: "清晰度", color: "var(--color-ink)", railColor: "var(--color-line-faint)" },
-  structure: { label: "结构性", color: "var(--color-ink-muted)", railColor: "var(--color-line-faint)" },
-  completeness: { label: "完整度", color: "var(--color-ink)", railColor: "var(--color-line-faint)" },
-  readability: { label: "可读性", color: "var(--color-ink-muted)", railColor: "var(--color-line-faint)" },
-  persuasiveness: { label: "说服力", color: "var(--color-danger)", railColor: "var(--color-danger-soft)" },
-  language: { label: "语言规范", color: "var(--color-ink-muted)", railColor: "var(--color-line-faint)" },
+// 中文名来自 utils/scoreDimensions 的唯一一处映射（ADR-0040），这里只管颜色。
+const dimensionMetaMap: Record<string, { color: string; railColor: string }> = {
+  clarity: { color: "var(--color-ink)", railColor: "var(--color-line-faint)" },
+  structure: { color: "var(--color-ink-muted)", railColor: "var(--color-line-faint)" },
+  completeness: { color: "var(--color-ink)", railColor: "var(--color-line-faint)" },
+  readability: { color: "var(--color-ink-muted)", railColor: "var(--color-line-faint)" },
+  persuasiveness: { color: "var(--color-danger)", railColor: "var(--color-danger-soft)" },
+  language: { color: "var(--color-ink-muted)", railColor: "var(--color-line-faint)" },
 };
 
 const modalTitle = computed(() => props.title || "文章质量评分");
@@ -118,7 +119,7 @@ function resolveIssueAnchor(issue: AiArticleScoringIssue) {
             :key="dimension.name"
             class="article-score-dimension">
             <div class="article-score-dimension__top">
-              <strong>{{ getDimensionMeta(dimension.name).label }}</strong>
+              <strong>{{ scoreDimensionLabel(dimension.name) }}</strong>
               <span>{{ dimension.score }}</span>
             </div>
             <NProgress

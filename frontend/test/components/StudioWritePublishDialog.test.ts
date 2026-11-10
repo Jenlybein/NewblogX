@@ -76,7 +76,20 @@ vi.mock("naive-ui", () => {
     },
   });
 
-  return { NModal, NCard, NSelect, NInput, NButton, NSwitch };
+  // NAlert 只在「质量不达标」时出现：把 header 与正文都渲染出来，
+  // 这样用例能直接断言作者看到的措辞（ADR-0040 要求点名没过的维度）。
+  const NAlert = defineComponent({
+    name: "NAlert",
+    setup(_, { slots }) {
+      return () =>
+        h("div", { "data-test": "alert" }, [
+          h("header", {}, slots.header?.()),
+          slots.default?.(),
+        ]);
+    },
+  });
+
+  return { NModal, NCard, NSelect, NInput, NButton, NSwitch, NAlert };
 });
 
 const baseProps = {
@@ -245,5 +258,72 @@ describe("StudioWritePublishDialog · 标签下拉的错误提示", () => {
     const wrapper = mountDialog({ tagOptions: [], tagError: "" });
 
     expect(wrapper.find('[data-role="tag-error"]').exists()).toBe(false);
+  });
+});
+
+// 木桶判定（ADR-0040）：总分过线但某一项没过及格线时 gap 是 0，
+// 所以驳回卡片必须点名"哪一项差多少"，不能只说"还差 0 分"。
+describe("StudioWritePublishDialog · 质量驳回（单项未过及格线）", () => {
+  it("点名没达到及格线的维度与它的分数", () => {
+    const wrapper = mountDialog({
+      qualityRejection: {
+        article_id: "42",
+        score: 78,
+        required_score: 52,
+        gap: 0,
+        min_dimension_score: 50,
+        weak_dimensions: [{ name: "completeness", score: 41 }],
+      },
+    });
+
+    const alert = wrapper.find('[data-role="quality-rejection"]');
+    expect(alert.exists()).toBe(true);
+
+    const list = wrapper.find('[data-role="quality-rejection-dimensions"]');
+    expect(list.exists()).toBe(true);
+    expect(list.text()).toContain("完整度");
+    expect(list.text()).toContain("41");
+    expect(list.text()).toContain("50");
+
+    // 标题说清"几项低于及格线"，不再退回"还差 0 分"。
+    expect(alert.text()).toContain("1 项低于及格线");
+    expect(alert.text()).not.toContain("还差 0 分");
+  });
+
+  it("多个弱项按后端给的顺序（分最低在最前）逐条展示", () => {
+    const wrapper = mountDialog({
+      qualityRejection: {
+        score: 60,
+        required_score: 52,
+        gap: 0,
+        min_dimension_score: 50,
+        weak_dimensions: [
+          { name: "completeness", score: 30 },
+          { name: "structure", score: 45 },
+        ],
+      },
+    });
+
+    const items = wrapper.findAll('[data-role="quality-rejection-dimensions"] li');
+    expect(items).toHaveLength(2);
+    expect(items[0]!.text()).toContain("完整度");
+    expect(items[1]!.text()).toContain("结构性");
+  });
+
+  it("只有总分不足时仍按原来的说法（放行线 + 差额），不显示维度列表", () => {
+    const wrapper = mountDialog({
+      qualityRejection: {
+        score: 40,
+        required_score: 52,
+        gap: 12,
+        min_dimension_score: 50,
+        weak_dimensions: [],
+      },
+    });
+
+    expect(wrapper.find('[data-role="quality-rejection-dimensions"]').exists()).toBe(false);
+    const alert = wrapper.find('[data-role="quality-rejection"]');
+    expect(alert.text()).toContain("放行线 52 分");
+    expect(alert.text()).toContain("还差 12 分");
   });
 });

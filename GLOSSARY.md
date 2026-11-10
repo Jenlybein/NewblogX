@@ -658,9 +658,27 @@ _Avoid_: 把"列 + 增量"当成一处**读路径口径**（它只是账本主�
 
 **发布质量闸门（quality gate）**：
 "提交后先评分、分数够才允许继续"的这道**硬闸**，与人工审核是**两道彼此独立的开关**：闸门管"有没有资格进队列"，人工审核管"进了队列放不放行"。判定发生在提交那一刻，且必须在**数据库事务之外**（评分是一次 5–30 秒的模型调用，占着事务等于钉死连接池）。
-位置：概念见 [grill 记录](./docs/notes/2026-11-07-publish-gate-and-moderation-grill.md) §2.1；决定见 [ADR-0032](./docs/adr/0032-quality-gate.md)。
+放行条件是**木桶**：总分 ≥ 发布线（及格线 + 灰带）**且**六个维度**每一项**都 ≥ 及格线（见「木桶判定」）。
+位置：概念见 [grill 记录](./docs/notes/2026-11-07-publish-gate-and-moderation-grill.md) §2.1；决定见 [ADR-0032](./docs/adr/0032-quality-gate.md) 与它的「后续修订」、[ADR-0040](./docs/adr/0040-quality-gate-bucket-and-scoring-skill.md)。
 易混：它与「人工审核」不是同一条流水线的两段，而是可以分别开关的两道门；它也不是评分本身——评分是"给出分数"，闸门是"拿分数做决定"。
-_Avoid_: 把「闸门」当成评分的同义词；说"提交即评分即发布"（中间还有一道分数判定）；把闸门判定写进事务里。
+_Avoid_: 把「闸门」当成评分的同义词；说"提交即评分即发布"（中间还有一道分数判定）；把闸门判定写进事务里；说"总分够了就能发"。
+
+**木桶判定（bucket rule）**：
+发布质量闸门的放行口径（ADR-0040）：**六项都过线才放行，总分再高也不行**。理由是一次真实误判——两行祝福语在「清晰」「没有语病」上确实拿高分，加权平均后被长板抬过及格线并发布。灰带只加在**总分**上，维度下限就是及格线本身，两者不共用。
+两个驳回理由因此相互独立：`gap` 只说总分差几分（被维度卡住时归零），`weak_dimensions` 只说哪几项没过线（分最低的排最前）。
+位置：`backend/internal/article/app/quality_gate.go`（`judgeQuality` / `weakDimensions`）、`frontend/app/components/studio/StudioWritePublishDialog.vue`；决定见 [ADR-0040](./docs/adr/0040-quality-gate-bucket-and-scoring-skill.md)。
+_Avoid_: 把它叫「平均分判定」；以为调高及格线等价于木桶（短文本的高分集中在不衡量信息量的维度上，抬线拦不住）；把维度下限也加灰带。
+
+**内容形态封顶（shape cap）**：
+评分侧由代码（不是模型）执行的硬上限（ADR-0040）：正文不足 100 字或不足 3 个自然段 → `completeness ≤ 30`、`structure ≤ 45`、总分 ≤ 40；整篇基本是寒暄 / 祝福 / 致谢 / 链接 → 总分 ≤ 30、`completeness ≤ 20`；另有统一规则「总分 ≤ 最低维度 + 15」。它判的是**可数的硬事实**，语义宽严仍在策略文本里。
+位置：`backend/internal/ai/scoring/ai_scoring_shape.go`；数字必须与 [`skills/scoring/SKILL.md`](./skills/scoring/SKILL.md) 的表格一致。
+_Avoid_: 把它当成提示词的一部分（提示词只是请求，封顶是保证）；说"改 skill 就能关掉封顶"。
+
+**评分策略 skill（scoring skill）**：
+`skills/scoring/SKILL.md`，评分场景的运行时策略文本，经 `ai.scene_skills.scoring` 绑定注入提示词（与 moderation / jelly-voice 同一套机制）。分工固定：**代码管形状**（JSON 契约、维度键名、分档数字、形态封顶），**文本管宽严**（什么算值得发布、维度判据、反空洞规则）；两者冲突时以更严者为准。
+摘掉绑定不会关掉底线：内置形态下限仍在提示词里，也不报错（否则一次配置手滑会让全站发不出文章）。
+位置：[`skills/scoring/SKILL.md`](./skills/scoring/SKILL.md)、`backend/config/site_default_settings.yaml`、`backend/internal/ai/app/service.go`（`scenePolicy`）；决定见 [ADR-0040](./docs/adr/0040-quality-gate-bucket-and-scoring-skill.md)。
+_Avoid_: 把 JSON 形状写进 skill 正文；把 skill 当成"驳回话术库"。
 
 **评分失败（score unavailable）**：
 "没拿到可用分数"这一种结局：网络错、超时、429/5xx、返回非 JSON、JSON 里没有总分。它与「评分未达标」是**两个不同的错误码**——前者是系统没给出结论，后者是系统给出了"不够好"的结论。站点策略是失败关闭（拒绝本次投稿），但**因故障失败的投稿不消耗当日配额**。

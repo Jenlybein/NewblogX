@@ -6,8 +6,16 @@ import (
 	"strings"
 )
 
-func buildScoringCorePrompt() string {
-	return fmt.Sprintf(`
+// buildScoringCorePrompt 组合「运行时策略文本 + 内置判据」。
+//
+// 分工（与 moderation 同一套，ADR-0033 / ADR-0040）：策略文本由运营维护，解释
+// "什么算值得发布"，可以随时替换而不发版；内置这段只规定**解析契约**（JSON 形状、
+// 维度键名、分档数字）与一条不可让渡的底线，保证结果读得出来、也不会因为换了
+// 一份宽松文案就把两行字的文本放进站点。
+func buildScoringCorePrompt(policy string) string {
+	var b strings.Builder
+
+	b.WriteString(`
 你是一名严格、克制、稳定的中文写作评审助手，只负责文章质量评分与写作指导。
 
 请严格遵守以下规则：
@@ -15,23 +23,38 @@ func buildScoringCorePrompt() string {
 2. 分数要保守，不得虚高，不顾情面，对差文章敢给差分数，对好文章敢给好分数。
 3. 允许输出 0 到 100 的任何整数分数，并严格使用以下分档：较差文章 0-30，不合格文章 31-59，常规文章 60-80，优质文章 81-89，精品文章 90-100。
 4. 评分时必须使用以下 6 个维度，且维度名只能使用这些英文键：
+`)
+	b.WriteString(fmt.Sprintf(`   - %s：%s
    - %s：%s
    - %s：%s
    - %s：%s
    - %s：%s
    - %s：%s
-   - %s：%s
-5. 你必须先判断文章类型，article_type 只能从以下列表中选择一个：%s。
+`, DimensionClarity, ExplanationClarity, DimensionStructure, ExplanationStructure,
+		DimensionCompleteness, ExplanationCompleteness, DimensionReadability, ExplanationReadability,
+		DimensionPersuasiveness, ExplanationPersuasiveness, DimensionLanguage, ExplanationLanguage))
+
+	b.WriteString(fmt.Sprintf(`5. 你必须先判断文章类型，article_type 只能从以下列表中选择一个：%s。
 6. 不同文体的评审侧重点不同：说明文、教程、科普、报告、新闻、通知、邮件更重清晰度、结构性和完整度；议论文、评论、发言稿更重结构性和说服力；散文、小说、诗歌、剧本、童话、传说、记叙文、日记、网文更重可读性、语言表现与结构完成度；文案更重可读性、说服力和表达效率。
 7. main_issues 请按重要性排序，并尽量覆盖不同层面的真实问题，不要只给两三条空泛结论。数量要求如下：当参考总分小于 30 分时，必须输出 5 到 9 条；当参考总分小于 60 分时，必须输出 4 到 7 条；当参考总分小于 70 分时，必须输出 2 到 5 条；当参考总分不低于 70 分时，输出 0 到 3 条即可。
-8. 如果你看到内容在段首或段尾被工程切分、上下文被截断，不要把“截断本身”当成文章缺陷。
+8. 如果你看到内容在段首或段尾被工程切分、上下文被截断，不要把"截断本身"当成文章缺陷。
 9. 原文位置中的 quote 请尽量截取 10 到 25 个字；如果定位不稳定，段落编号可写 0，但不要编造原文。
 10. overall_comment 必须合并输出三层内容：文章整体评价、写作建议、优先修改措施；它是一个字符串，不要拆成列表。
-11. total_score 是你基于整体判断给出的参考总分；最终展示总分会由系统按维度分和文章类型另行计算。
-`, DimensionClarity, ExplanationClarity, DimensionStructure, ExplanationStructure, DimensionCompleteness, ExplanationCompleteness, DimensionReadability, ExplanationReadability, DimensionPersuasiveness, ExplanationPersuasiveness, DimensionLanguage, ExplanationLanguage, ai.MustJSONString(supportedArticleTypes))
+11. 维度分之间必须自洽：总分不得高于「最低维度分 + 15」，否则说明你在用长板补短板。
+12. 内容形态优先于文笔：正文不足 100 字或不足 3 个自然段时，completeness 不得高于 30、structure 不得高于 45；纯寒暄、纯祝福、纯致谢、纯链接、纯图片说明这类没有信息量的文本，总分不得高于 30、completeness 不得高于 20。「读不出语病」不是优点，是没有东西可错。
+13. total_score 是你基于整体判断给出的参考总分；最终展示总分会由系统按维度分和文章类型另行计算，并可能按内容形态封顶。
+`, ai.MustJSONString(supportedArticleTypes)))
+
+	if trimmed := strings.TrimSpace(policy); trimmed != "" {
+		b.WriteString("\n本站在意的评分口径如下（运营维护，优先遵守；与上面内置规则冲突时以**更严**的那条为准）：\n")
+		b.WriteString(trimmed)
+		b.WriteString("\n")
+	}
+
+	return strings.TrimSpace(b.String())
 }
 
-func buildFirstChunkPrompt(title string, chunk scoringChunk, totalChunks int) string {
+func buildFirstChunkPrompt(policy string, title string, chunk scoringChunk, totalChunks int) string {
 	return strings.TrimSpace(fmt.Sprintf(`
 %s
 
@@ -67,10 +90,10 @@ func buildFirstChunkPrompt(title string, chunk scoringChunk, totalChunks int) st
   "covered_chunk_index": %d,
   "covered_chunk_count": %d
 }
-`, buildScoringCorePrompt(), chunk.Index, totalChunks, title, chunk.Content, chunk.Index, totalChunks))
+`, buildScoringCorePrompt(policy), chunk.Index, totalChunks, title, chunk.Content, chunk.Index, totalChunks))
 }
 
-func buildMiddleChunkPrompt(title string, chunk scoringChunk, totalChunks int, state *scoringState) string {
+func buildMiddleChunkPrompt(policy string, title string, chunk scoringChunk, totalChunks int, state *scoringState) string {
 	return strings.TrimSpace(fmt.Sprintf(`
 %s
 
@@ -91,10 +114,10 @@ func buildMiddleChunkPrompt(title string, chunk scoringChunk, totalChunks int, s
 3. main_issues 要继续按重要性排序，尽量避免重复空话。
 4. overall_comment 要同步更新，继续保持“整体评价 + 写作建议 + 优先修改措施”的合并表达。
 5. covered_chunk_index 更新为当前片段序号。
-`, buildScoringCorePrompt(), chunk.Index, totalChunks, title, ai.MustJSONString(state), chunk.Content))
+`, buildScoringCorePrompt(policy), chunk.Index, totalChunks, title, ai.MustJSONString(state), chunk.Content))
 }
 
-func buildFinalChunkPrompt(title string, chunk scoringChunk, totalChunks int, state *scoringState, headings []string) string {
+func buildFinalChunkPrompt(policy string, title string, chunk scoringChunk, totalChunks int, state *scoringState, headings []string) string {
 	return strings.TrimSpace(fmt.Sprintf(`
 %s
 
@@ -136,10 +159,10 @@ func buildFinalChunkPrompt(title string, chunk scoringChunk, totalChunks int, st
   "overall_comment": ""
 }
 注意：article_type 只能从以下列表中选择一个：%s
-`, buildScoringCorePrompt(), title, ai.MustJSONString(headings), ai.MustJSONString(state), chunk.Content, ai.MustJSONString(supportedArticleTypes)))
+`, buildScoringCorePrompt(policy), title, ai.MustJSONString(headings), ai.MustJSONString(state), chunk.Content, ai.MustJSONString(supportedArticleTypes)))
 }
 
-func buildFullArticlePrompt(title string, content string, headings []string) string {
+func buildFullArticlePrompt(policy string, title string, content string, headings []string) string {
 	return strings.TrimSpace(fmt.Sprintf(`
 %s
 
@@ -178,5 +201,5 @@ func buildFullArticlePrompt(title string, content string, headings []string) str
   "overall_comment": ""
 }
 注意：article_type 只能从以下列表中选择一个：%s
-`, buildScoringCorePrompt(), title, ai.MustJSONString(headings), content, ai.MustJSONString(supportedArticleTypes)))
+`, buildScoringCorePrompt(policy), title, ai.MustJSONString(headings), content, ai.MustJSONString(supportedArticleTypes)))
 }

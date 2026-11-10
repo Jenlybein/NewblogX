@@ -40,6 +40,13 @@ export type QualityRejectionIssue = {
   positions?: Array<{ paragraph?: number; quote?: string }>;
 };
 
+/** QualityRejectionDimension 是一个没达到及格线的维度（木桶判定，ADR-0040）。 */
+export type QualityRejectionDimension = {
+  /** 维度键（clarity / structure / …），中文名由 utils/scoreDimensions 映射。 */
+  name?: string;
+  score?: number;
+};
+
 /** QualityRejectionDetails 是「质量不达标」的完整拒绝数据。 */
 export type QualityRejectionDetails = {
   article_id?: string;
@@ -47,6 +54,15 @@ export type QualityRejectionDetails = {
   required_score: number;
   gap: number;
   level?: string;
+  /**
+   * min_dimension_score 是每个维度的下限（= 及格线）。
+   *
+   * 总分够线但某项不够时 gap 会是 0 —— 这时"还差 0 分"是废话，作者要看的是
+   * weak_dimensions。
+   */
+  min_dimension_score?: number;
+  /** weak_dimensions 是没到下限的维度，分数最低的排最前。 */
+  weak_dimensions?: QualityRejectionDimension[];
   issues?: QualityRejectionIssue[];
 };
 
@@ -205,8 +221,15 @@ export function useStudioPublish(deps: StudioPublishDeps) {
         if (onQualityRejected) {
           onQualityRejected(rejection);
         } else {
+          // 兜底文案要能说清两种驳回理由：总分不够，或某一项没过及格线
+          // （木桶判定，ADR-0040）。只有后者时 gap 是 0，不能只说"还差 0 分"。
+          const weak = (rejection.weak_dimensions ?? []).filter(
+            (item) => typeof item?.score === "number",
+          );
           message.error(
-            `内容质量未达标：${rejection.score} 分，放行线 ${rejection.required_score} 分，还差 ${rejection.gap} 分。`,
+            weak.length
+              ? `内容质量未达标：${rejection.score} 分，有 ${weak.length} 项低于及格线 ${rejection.min_dimension_score ?? ""} 分。`
+              : `内容质量未达标：${rejection.score} 分，放行线 ${rejection.required_score} 分，还差 ${rejection.gap} 分。`,
           );
         }
         return;

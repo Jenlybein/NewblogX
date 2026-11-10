@@ -6,8 +6,11 @@ import type { CollectionCardView } from "~/utils/collection";
  * 合集 / 项目列表的文件夹卡网格（票 293）。
  *
  * 为什么网格也收进共用组件：两页原本各写一份同形的卡片与网格样式，本票把
- * 「卡片 + 网格」一起收敛成一处，页面只剩页头与空态。列宽公式保持不变
- * （`minmax(min(100%, 20rem), 1fr)`），卡片内部按列宽等比缩放。
+ * 「卡片 + 网格」一起收敛成一处，页面只剩页头与空态。
+ *
+ * 列数（2026-11-10 调整）：**4 个一行**是默认规则，一直保持到 768px——
+ * 不再被 auto-fill 的 16–18rem 上界卡住，桌面与横屏平板都是完整四列；
+ * 竖屏平板 / 手机降到 2 / 1 列。卡片内部仍按列宽等比缩放，不写死像素。
  *
  * 卡片视图**复用既有的 `CollectionCardView`**：`ProjectCardView` 与它逐字段同形
  * （结构类型上互相兼容，两个列表页的 `cards` 都能直接传），本组件不再另立一份
@@ -33,14 +36,26 @@ defineProps<{ cards: CollectionCardView[] }>();
 <style scoped>
 .folder-card-grid {
   display: grid;
-  /* 列宽收到 16–18rem：原先的 `minmax(…, 20rem, 1fr)` 会被 `1fr` 拉到近 25rem，
-     三张卡就把一屏塞满。给上界之后宽屏只是多排一列，每张卡不再被拉大。 */
-  grid-template-columns: repeat(auto-fill, minmax(min(100%, 16rem), 18rem));
+  /* 宽屏四列：每列等分剩余宽度，卡片随列宽等比缩放。 */
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   /* 行距比列距宽：封面卡常态就比舞台高出一截（纸从文件夹里探出来），
      行距要留得下那段溢出，以及对焦/悬停时再上抽的距离。 */
-  gap: 2.5rem 2rem;
+  gap: 2.5rem 1.5rem;
   margin: 0;
   padding: 0;
   list-style: none;
+}
+
+/* 竖屏平板：两列；手机：单列。桌面与横屏平板保持四列。 */
+@media (max-width: 768px) {
+  .folder-card-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 520px) {
+  .folder-card-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
 }
 </style>

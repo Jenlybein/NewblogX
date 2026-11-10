@@ -81,14 +81,20 @@ function expectNoCover(wrapper: ReturnType<typeof mount>): void {
   expect(wrapper.find("[data-outline-cover]").exists()).toBe(false);
 }
 
-/** 文章行只渲染标题文字（`textContent` 恰为标签，没有额外空白/占位）。 */
+/**
+ * 文章行只渲染标题文字（`textContent` 恰为标签，没有额外空白/占位）。
+ *
+ * 2026-11-10 起行内多了箭头占位与文件图标（装饰性 SVG，不产生文字），所以不再
+ * 用「子元素恰好一个」当代理；直接比"行文本 = 标签文本"，图标数量由
+ * `expectNoCover` 的 `img` 断言继续兜住。
+ */
 function expectTextOnlyRows(wrapper: ReturnType<typeof mount>): void {
   const rows = wrapper.findAll("[data-outline-kind='article'] a");
 
   expect(rows.length).toBeGreaterThan(0);
   for (const row of rows) {
-    expect(row.element.children).toHaveLength(1);
-    expect(row.text()).toBe(row.element.textContent?.trim());
+    expect(row.find(".outline-tree__label").text().length).toBeGreaterThan(0);
+    expect(row.text()).toBe(row.get(".outline-tree__label").text());
   }
 }
 

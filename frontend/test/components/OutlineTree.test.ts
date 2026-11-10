@@ -142,6 +142,45 @@ describe("OutlineTree：读者详情页目录树", () => {
     expect(wrapper.findAll("img")).toHaveLength(0);
     expect(wrapper.get('[data-outline-row="a1"]').text()).toContain("开篇");
   });
+
+  it("每行都有固定图标列：文件夹是开合图标，文章是文件图标", () => {
+    const wrapper = mountTree();
+
+    expect(wrapper.findAll('[data-outline-kind="folder"]')).toHaveLength(2);
+    expect(wrapper.findAll('[data-outline-kind="article"]')).toHaveLength(3);
+    for (const row of wrapper.findAll("[data-outline-row]")) {
+      expect(row.find(".outline-tree__icon").exists()).toBe(true);
+    }
+    expect(wrapper.findAll(".outline-tree__icon--folder")).toHaveLength(2);
+    expect(wrapper.findAll(".outline-tree__icon--article")).toHaveLength(3);
+  });
+
+  it("折叠文件夹时箭头与文件夹图标一起换形（展开态由同一份 collapsed 决定）", () => {
+    const wrapper = mountTree({ collapsed: new Set(["f1"]) });
+
+    expect(wrapper.get('[data-outline-toggle="f1"]').attributes("aria-expanded")).toBe("false");
+    expect(wrapper.get('[data-outline-row="f1"] .outline-tree__folder-glyph').classes()).not.toContain("is-open");
+
+    const openWrapper = mountTree();
+    expect(openWrapper.get('[data-outline-row="f1"] .outline-tree__folder-glyph').classes()).toContain("is-open");
+  });
+
+  it("展开文件夹带出的新行带入场标记：只标记新增行，原有行不重播", async () => {
+    const wrapper = mountTree({ collapsed: new Set(["f1"]) });
+    expect(wrapper.findAll("[data-outline-row]").map((row) => row.attributes("data-outline-row"))).toEqual([
+      "f1",
+      "a3",
+    ]);
+
+    await wrapper.setProps({ collapsed: new Set<string>() });
+    await nextTick();
+
+    expect(wrapper.get('[data-outline-row="a1"]').classes()).toContain("is-entering");
+    expect(wrapper.get('[data-outline-row="f2"]').classes()).toContain("is-entering");
+    expect(wrapper.get('[data-outline-row="a2"]').classes()).toContain("is-entering");
+    expect(wrapper.get('[data-outline-row="f1"]').classes()).not.toContain("is-entering");
+    expect(wrapper.get('[data-outline-row="a3"]').classes()).not.toContain("is-entering");
+  });
 });
 
 /** 挂载后等一次微任务：圆点要等 `onMounted` 里的首次测量才会出现。 */

@@ -1,9 +1,11 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, ref, watch } from "vue";
+import { IconList, IconX } from "@tabler/icons-vue";
 
 import ArticleOutlinePanel from "~/components/article/ArticleOutlinePanel.vue";
 import LoadingSkeleton from "~/components/common/LoadingSkeleton.vue";
 import type { ArticleOutlineContext } from "~/utils/outlineContext";
+import { outlineContextKind } from "~/utils/outlineContext";
 
 /**
  * 阅读页目录抽屉（票 220 的左栏，2026-11-04 验收改为「贴左边缘的抽屉」）。
@@ -31,6 +33,18 @@ const visible = computed(() => props.pending || hasTree.value);
 const panelState = computed(() => (props.pending ? "pending" : "ready"));
 // 切树（合集/项目换了 owner）时重建面板：折叠状态按树存 localStorage。
 const panelKey = computed(() => `${props.context?.owner_kind ?? 0}:${props.context?.owner_id ?? ""}`);
+// 面板眉题只表达"这棵树属于谁"：语义与 `outlineKind` 的 owner_kind 口径一致，
+// 未知值不猜归属，退回通用的 Outline。
+const ownerEyebrow = computed(() => {
+  switch (outlineContextKind(props.context)) {
+    case "collection":
+      return "Collection";
+    case "project":
+      return "Project";
+    default:
+      return "Outline";
+  }
+});
 
 const open = ref(false);
 const tabRef = ref<HTMLButtonElement | null>(null);
@@ -91,19 +105,24 @@ onBeforeUnmount(() => {
       data-outline-drawer-toggle
       @click="toggle"
     >
-      <span class="outline-rail__tab-mark" aria-hidden="true">≡</span>
+      <span class="outline-rail__tab-mark" aria-hidden="true">
+        <IconList :size="15" :stroke-width="1.8" />
+      </span>
       <span class="outline-rail__tab-label">目录</span>
     </button>
 
     <!-- 遮罩只负责"点外面关掉"，不做成暗色蒙版：读者常常是边看正文边找章节。 -->
-    <button
-      v-if="open"
-      type="button"
-      class="outline-rail__scrim"
-      aria-label="关闭目录"
-      data-outline-drawer-backdrop
-      @click="close(true)"
-    />
+    <Transition name="outline-scrim">
+      <button
+        v-if="open"
+        type="button"
+        class="outline-rail__scrim"
+        aria-label="关闭目录"
+        tabindex="-1"
+        data-outline-drawer-backdrop
+        @click="close(true)"
+      />
+    </Transition>
 
     <aside
       id="article-outline-panel"
@@ -114,10 +133,13 @@ onBeforeUnmount(() => {
       data-outline-panel
     >
       <div class="outline-rail__head">
-        <p class="article-eyebrow">
-          <span class="article-eyebrow__mark" aria-hidden="true" />
-          Outline
-        </p>
+        <div class="outline-rail__heading-block">
+          <p class="article-eyebrow">
+            <span class="article-eyebrow__mark" aria-hidden="true" />
+            {{ ownerEyebrow }}
+          </p>
+          <h2 class="outline-rail__heading">目录</h2>
+        </div>
         <button
           type="button"
           class="outline-rail__close"
@@ -125,19 +147,21 @@ onBeforeUnmount(() => {
           data-outline-close
           @click="close(true)"
         >
-          ×
+          <IconX :size="16" :stroke-width="1.8" />
         </button>
       </div>
 
-      <div v-if="pending" data-role="article-outline-skeleton">
-        <LoadingSkeleton :rows="8" variant="text" label="文章目录正在加载" />
+      <div class="outline-rail__body">
+        <div v-if="pending" data-role="article-outline-skeleton">
+          <LoadingSkeleton :rows="8" variant="text" label="文章目录正在加载" />
+        </div>
+        <ArticleOutlinePanel
+          v-else-if="context && hasTree"
+          :key="panelKey"
+          :context="context"
+          :current-article-id="currentArticleId"
+        />
       </div>
-      <ArticleOutlinePanel
-        v-else-if="context && hasTree"
-        :key="panelKey"
-        :context="context"
-        :current-article-id="currentArticleId"
-      />
     </aside>
   </div>
 </template>
@@ -151,36 +175,49 @@ onBeforeUnmount(() => {
   pointer-events: none;
 }
 
-/* 竖排窄标：贴左边缘、垂直居中，宽 2rem 左右，不遮正文的有效内容区。 */
+/* 竖排窄标：贴左边缘、垂直居中，读作一页被折进去的书签。 */
 .outline-rail__tab {
   position: absolute;
-  top: 46%;
+  top: 43%;
   left: 0;
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 0.5rem;
-  padding: 0.75rem 0.4rem;
+  gap: 0.55rem;
+  padding: 0.65rem 0.42rem 0.8rem;
   border: 1px solid var(--color-line);
   border-left: 0;
-  border-radius: 0 var(--radius-md) var(--radius-md) 0;
+  border-radius: 0 var(--radius-lg) var(--radius-lg) 0;
   background: var(--color-surface);
   color: var(--color-ink-muted);
   font-family: var(--font-title);
   font-size: 0.8125rem;
   cursor: pointer;
   pointer-events: auto;
-  transition: color var(--motion-fast) var(--motion-ease), background var(--motion-fast) var(--motion-ease);
+  box-shadow: 0 18px 34px -26px var(--color-shadow);
+  transition:
+    color var(--motion-fast) var(--motion-ease),
+    background var(--motion-fast) var(--motion-ease),
+    box-shadow var(--motion-base) var(--motion-ease),
+    transform var(--motion-base) var(--motion-ease);
 }
 
 .outline-rail__tab:hover {
   color: var(--color-ink);
   background: var(--color-surface-raised);
+  box-shadow: 0 22px 42px -24px var(--color-shadow);
+  transform: translateX(2px);
 }
 
+/* 窄标上的小色块：与面板眉题里的记号块同一语义，告诉读者"里面是一份目录"。 */
 .outline-rail__tab-mark {
-  font-family: var(--font-mono);
-  font-size: 0.875rem;
+  display: grid;
+  place-items: center;
+  width: 1.5rem;
+  height: 1.5rem;
+  border-radius: var(--radius-sm);
+  background: var(--color-highlight);
+  color: var(--color-ink);
   line-height: 1;
 }
 
@@ -189,23 +226,32 @@ onBeforeUnmount(() => {
   letter-spacing: 0.18em;
 }
 
-/* 面板：从左侧滑出，压住正文但不改布局。 */
+/*
+ * 面板：从左侧滑出，压住正文但不改布局。顶部一层很轻的抬升渐变，
+ * 让"目录"区先亮出来；正文面本身仍是不透明的纸面（玻璃只用在这层抽屉上）。
+ */
 .outline-rail__panel {
   position: absolute;
   top: 0;
   bottom: 0;
   left: 0;
-  width: min(20rem, 86vw);
-  padding: 1rem 1.1rem 1.25rem;
-  overflow-y: auto;
-  border-radius: 0 var(--radius-lg) var(--radius-lg) 0;
+  display: flex;
+  flex-direction: column;
+  width: min(22rem, 92vw);
+  padding: 0;
+  overflow: hidden;
+  border-radius: 0 var(--radius-xl) var(--radius-xl) 0;
   border-left: 0;
-  background: var(--color-surface);
-  box-shadow: var(--shadow-lg);
+  background: linear-gradient(180deg, var(--color-surface-raised), var(--color-surface) 10rem);
+  box-shadow:
+    0 34px 80px -36px var(--color-shadow),
+    1px 0 0 var(--color-line-faint);
   transform: translateX(-101%);
   visibility: hidden;
   pointer-events: auto;
-  transition: transform var(--motion-base) var(--motion-ease), visibility var(--motion-base) var(--motion-ease);
+  transition:
+    transform var(--motion-base) var(--motion-ease),
+    visibility var(--motion-base) var(--motion-ease);
 }
 
 .outline-rail__panel.is-drawer-open {
@@ -213,46 +259,104 @@ onBeforeUnmount(() => {
   visibility: visible;
 }
 
+/*
+ * 遮罩只负责点击关闭；淡入比"啪地出现"更像一层纸。
+ * 取**页面底色**而不是墨色：亮色下是一层暖纸，暗色下自然变暗；
+ * 用 ink 会在暗色主题里把页面提亮成灰雾（旧实现的观感问题）。
+ */
 .outline-rail__scrim {
   position: absolute;
   inset: 0;
   border: 0;
-  background: color-mix(in srgb, var(--color-ink) 18%, transparent);
+  background: color-mix(in srgb, var(--color-bg-page) 55%, transparent);
   cursor: default;
   pointer-events: auto;
 }
 
+.outline-scrim-enter-active,
+.outline-scrim-leave-active {
+  transition: opacity var(--motion-fast) var(--motion-ease);
+}
+
+.outline-scrim-enter-from,
+.outline-scrim-leave-to {
+  opacity: 0;
+}
+
+/* 头部固定，目录本体单独滚动：树再长，"目录"两个字也不会跟着滚走。 */
 .outline-rail__head {
   display: flex;
-  align-items: center;
+  flex: 0 0 auto;
+  align-items: flex-start;
   justify-content: space-between;
   gap: 0.75rem;
-  margin-bottom: 0.5rem;
+  padding: 1.15rem 1.05rem 0.85rem 1.25rem;
+  border-bottom: 1px solid var(--color-line-faint);
+}
+
+.outline-rail__heading-block {
+  min-width: 0;
+}
+
+.outline-rail__heading {
+  margin: 0.3rem 0 0;
+  color: var(--color-ink);
+  font-family: var(--font-title);
+  font-size: 1.375rem;
+  font-weight: 650;
+  letter-spacing: -0.02em;
+  line-height: 1.15;
 }
 
 .outline-rail__close {
   display: inline-flex;
+  flex: 0 0 auto;
   align-items: center;
   justify-content: center;
-  width: 1.75rem;
-  height: 1.75rem;
+  width: 2rem;
+  height: 2rem;
   border: 1px solid transparent;
   border-radius: var(--radius-sm);
   background: transparent;
   color: var(--color-ink-muted);
-  font-size: 1.05rem;
-  line-height: 1;
   cursor: pointer;
+  transition:
+    border-color var(--motion-fast) var(--motion-ease),
+    background var(--motion-fast) var(--motion-ease),
+    color var(--motion-fast) var(--motion-ease);
 }
 
 .outline-rail__close:hover {
   border-color: var(--color-line);
+  background: var(--color-surface);
   color: var(--color-ink);
+}
+
+.outline-rail__body {
+  flex: 1 1 auto;
+  min-height: 0;
+  padding: 0.35rem 0.9rem 1.4rem 1.15rem;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.outline-rail :is(button, a):focus-visible {
+  outline: 2px solid var(--color-focus);
+  outline-offset: 2px;
 }
 
 @media (prefers-reduced-motion: reduce) {
   .outline-rail__panel,
   .outline-rail__tab {
+    transition: none;
+  }
+
+  .outline-rail__tab:hover {
+    transform: none;
+  }
+
+  .outline-scrim-enter-active,
+  .outline-scrim-leave-active {
     transition: none;
   }
 }

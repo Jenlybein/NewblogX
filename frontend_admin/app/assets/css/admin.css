@@ -113,8 +113,21 @@
     padding-left: 2.25rem;
   }
 
-  /* 三级菜单（ADR-0039）：站点配置 → 站点 → 子页。没有这一档时第三层会退回
-     默认 px-3，视觉上与父级齐平，层级就看不出来了。 */
+  /* 分组行与链接行必须按**同一个** depth 一起缩进，否则层级会读错：
+     分组用的是 .admin-nav__group（px-2）+ .admin-nav__group-title（px-1），
+     两段内边距叠起来是 0.75rem，和 depth=0 的链接正好对齐。
+     只给链接加 depth 缩进时，「站点」这个三级分组会与「站点配置」齐平，
+     而它的子项却在 3.5rem——看起来像"子项挂在站点配置下面"。
+     这里让分组行的图标与同层的链接图标落在同一条竖线上：
+     分组 padding-left = 链接 padding-left − title 的 px-1(0.25rem)。 */
+  .admin-nav__item[data-depth='1'] > .admin-nav__group {
+    padding-left: 2rem;
+  }
+
+  .admin-nav__item[data-depth='2'] > .admin-nav__group {
+    padding-left: 3.25rem;
+  }
+
   .admin-nav__item[data-depth='2'] > .admin-nav__link {
     padding-left: 3.5rem;
   }
@@ -499,13 +512,21 @@
       @apply p-3;
     }
 
-    /* 两级/三级菜单在窄屏下收窄缩进与内边距，保证父标题 + 子项仍可读可点。 */
+    /* 窄屏下按同样的比例收窄：链接与分组行仍然落在同一条竖线上。 */
     .admin-nav__item[data-depth='1'] > .admin-nav__link {
       padding-left: 1.5rem;
     }
 
     .admin-nav__item[data-depth='2'] > .admin-nav__link {
       padding-left: 2.5rem;
+    }
+
+    .admin-nav__item[data-depth='1'] > .admin-nav__group {
+      padding-left: 1.25rem;
+    }
+
+    .admin-nav__item[data-depth='2'] > .admin-nav__group {
+      padding-left: 2.25rem;
     }
 
     .admin-nav__group-title {

@@ -377,3 +377,20 @@ export type UserProfileUpdatePayload = Nullable<
   "username" | "nickname" | "abstract" | "avatar_image_id" | "home_style_id"
 >;
 
+
+// ── 合集 / 项目分组（ADR-0041）─────────────────────────────────
+
+/** 分组里的一个条目：顺序由数组位置表达，元素只有一个 ID。 */
+export type GroupItem = RequiredSchema<"internal_article_adapter_http.GroupItemResponse">;
+
+/** 一个分组及其条目顺序。 */
+export type GroupNode = RequiredSchema<"internal_article_adapter_http.GroupNodeResponse">;
+
+/**
+ * 分组读面。
+ *
+ * 读者侧与后台共用这一个形状：读者侧只会拿到展示中的实体，且 `ungrouped`
+ * 那一批由页面作为尾块平铺（**不渲染「未分组」标题** —— 它描述的是后台的
+ * 编排状态，对访客没有意义）。
+ */
+export type GroupTreeData = RequiredSchema<"internal_article_adapter_http.GroupTreeResponse">;

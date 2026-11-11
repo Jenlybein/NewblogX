@@ -247,6 +247,9 @@ var userRouteTemplates = []string{
 	"DELETE /api/articles/top",
 	// 合集 / 项目前台读（含两个具名树端点，公开读）
 	"GET /api/collections",
+	// 读者侧分组读面（票 353）：公开可读，只给"谁和谁在一起、谁在前"。
+	"GET /api/collections/grouped",
+	"GET /api/projects/grouped",
 	"GET /api/collections/:id",
 	"GET /api/collections/:id/outline-tree",
 	"GET /api/projects",

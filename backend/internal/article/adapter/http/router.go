@@ -56,11 +56,15 @@ func (h *Handler) Register(r *gin.RouterGroup, authMw, optionalMw gin.HandlerFun
 	collectionGroup.GET(":id", mw.BindUri[kernel.IDRequest], h.CollectionDetail)
 	collectionGroup.GET(":id/outline-tree", mw.BindUri[kernel.IDRequest],
 		mw.BindQuery[NamedOutlineTreeRequest], h.CollectionOutlineTree)
+	// 读者侧分组读面（票 353）：只给"谁和谁在一起、谁在前"，
+	// 没有「未分组」标题，也没有后台那些编排动作。
+	collectionGroup.GET("grouped", h.PublicGroupTreeView)
 	// 项目（与合集并列的独立内容实体；读者侧同样只读：列表页 + 详情页 + 项目目录树）。
 	projectGroup.GET("", mw.BindQuery[ProjectListRequest], h.Projects)
 	projectGroup.GET(":id", mw.BindUri[kernel.IDRequest], h.ProjectDetail)
 	projectGroup.GET(":id/outline-tree", mw.BindUri[kernel.IDRequest],
 		mw.BindQuery[NamedOutlineTreeRequest], h.ProjectOutlineTree)
+	projectGroup.GET("grouped", h.PublicGroupTreeView)
 	reviewAdminGroup.GET("", mw.BindQuery[ArticleReviewTaskListRequest], h.ReviewTasks)
 	// 驳回原因的固定列表：值与文案都从后端唯一词表出（#308），前端据此渲染下拉。
 	reviewAdminGroup.GET("reasons", h.ReviewReasons)

@@ -291,8 +291,10 @@ describe("两页共用同一个文件夹卡：各自的卡片样式已删除", (
   it.each(pages)("%s 用共用组件渲染列表", (relativePath) => {
     const source = readFileSync(join(projectDir, relativePath), "utf8");
 
-    expect(source).toContain('from "~/components/common/FolderCardList.vue"');
-    expect(source).toContain("<FolderCardList");
+    // 票 353 起页面渲染的是 GroupedReaderList（它内部用 FolderCardList 铺每个分段的卡片），
+    // 页面自己仍然不碰卡片与网格。
+    expect(source).toContain('from "~/components/common/GroupedReaderList.vue"');
+    expect(source).toContain("<GroupedReaderList");
   });
 
   it.each(pages)("%s 不再自带卡片样式（网格 / 封面 / 标题 / 描述 / 篇数）", (relativePath) => {

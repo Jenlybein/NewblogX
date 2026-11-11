@@ -141,6 +141,17 @@ var adminRouteTemplates = []string{
 	"DELETE /api/projects/:id",
 	"PATCH /api/projects/:id/display",
 	"PATCH /api/projects/order",
+	// 合集 / 项目分组（ADR-0041）：读面与写面都在管理员分组下。
+	"GET /api/collections/groups",
+	"PUT /api/collections/groups",
+	"PUT /api/collections/groups/order",
+	"DELETE /api/collections/groups/:id",
+	"PUT /api/collections/:id/compose",
+	"GET /api/projects/groups",
+	"PUT /api/projects/groups",
+	"PUT /api/projects/groups/order",
+	"DELETE /api/projects/groups/:id",
+	"PUT /api/projects/:id/compose",
 }
 
 // userRouteTemplates 是其余所有路由：公开或登录用户可访问。

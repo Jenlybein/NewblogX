@@ -18,6 +18,7 @@ import (
 	"myblogx/internal/article/domain/favorite"
 	"myblogx/internal/article/domain/outline"
 	"myblogx/internal/article/domain/project"
+	"myblogx/internal/article/domain/grouping"
 	"myblogx/internal/kernel/ctype"
 	"myblogx/internal/kernel/enum"
 	mediamysql "myblogx/internal/media/adapter/mysql"
@@ -104,6 +105,24 @@ func (snowflakeIDs) NextReviewTaskID() uint64 {
 		panic("article: 雪花 ID 生成失败: " + err.Error())
 	}
 	return id.Uint64()
+}
+
+// NextGroupID 返回下一个分组 ID（ADR-0041）。
+func (snowflakeIDs) NextGroupID() grouping.ID {
+	id, err := idgen.Next()
+	if err != nil {
+		panic("article: 雪花 ID 生成失败: " + err.Error())
+	}
+	return grouping.ID(id.String())
+}
+
+// NextGroupItemID 返回下一个条目归属行 ID。
+func (snowflakeIDs) NextGroupItemID() ctype.ID {
+	id, err := idgen.Next()
+	if err != nil {
+		panic("article: 雪花 ID 生成失败: " + err.Error())
+	}
+	return id
 }
 
 // NextCollectionID 返回下一个合集 ID。

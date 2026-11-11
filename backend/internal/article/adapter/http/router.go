@@ -106,6 +106,18 @@ func (h *Handler) Register(r *gin.RouterGroup, authMw, optionalMw gin.HandlerFun
 	collectionAdminGroup.PUT(":id/outline-tree", mw.CaptureLog(mw.ReqBody),
 		mw.BindUri[kernel.IDRequest], mw.BindJson[CollectionOutlineSaveRequest],
 		h.SaveCollectionOutlineTree)
+	// 合集分组（ADR-0041）：读面 / 建改名 / 删除 / 整树换序。
+	//
+	// 分组 CRUD 立即生效，不参与拖拽的 10 秒防抖；整树换序是幂等整份覆盖。
+	// 路径里带 :kind 是为了让两个实体共用同一组 handler —— 语义完全一致，
+	// 写两份只会让"删分组时把条目退回未分组"这种差异只修在一边。
+	collectionAdminGroup.GET("groups", h.GroupTreeView)
+	collectionAdminGroup.PUT("groups", mw.CaptureLog(mw.ReqBody), mw.BindJson[GroupSaveRequest], h.GroupSaveView)
+	collectionAdminGroup.DELETE("groups/:id", mw.BindUri[kernel.IDRequest], h.GroupDeleteView)
+	collectionAdminGroup.PUT("groups/order", mw.CaptureLog(mw.ReqBody), mw.BindJson[GroupOrderRequest], h.GroupOrderView)
+	// 字段 + 目录树一次原子提交：编辑弹窗里"改标题 + 拖完树"是一次保存动作。
+	collectionAdminGroup.PUT(":id/compose", mw.CaptureLog(mw.ReqBody),
+		mw.BindUri[kernel.IDRequest], mw.BindJson[CollectionComposeRequest], h.CollectionComposeView)
 	// 项目管理（全部在管理员分组下）：与合集逐条对齐，路径换成 /projects。
 	projectAdminGroup.GET("admin", h.AdminProjects)
 	projectAdminGroup.POST("", mw.CaptureLog(mw.ReqBody), mw.BindJson[ProjectCreateRequest], h.CreateProject)
@@ -122,6 +134,13 @@ func (h *Handler) Register(r *gin.RouterGroup, authMw, optionalMw gin.HandlerFun
 	projectAdminGroup.PUT(":id/outline-tree", mw.CaptureLog(mw.ReqBody),
 		mw.BindUri[kernel.IDRequest], mw.BindJson[ProjectOutlineSaveRequest],
 		h.SaveProjectOutlineTree)
+	// 项目分组（与合集逐条对齐，路径换成 /projects）。
+	projectAdminGroup.GET("groups", h.GroupTreeView)
+	projectAdminGroup.PUT("groups", mw.CaptureLog(mw.ReqBody), mw.BindJson[GroupSaveRequest], h.GroupSaveView)
+	projectAdminGroup.DELETE("groups/:id", mw.BindUri[kernel.IDRequest], h.GroupDeleteView)
+	projectAdminGroup.PUT("groups/order", mw.CaptureLog(mw.ReqBody), mw.BindJson[GroupOrderRequest], h.GroupOrderView)
+	projectAdminGroup.PUT(":id/compose", mw.CaptureLog(mw.ReqBody),
+		mw.BindUri[kernel.IDRequest], mw.BindJson[ProjectComposeRequest], h.ProjectComposeView)
 
 	adminGroup.PUT("tags", mw.CaptureLog(mw.ReqBody), mw.BindJson[TagRequest], h.SaveTag)
 	adminGroup.DELETE("tags", mw.CaptureLog(mw.ReqBody), mw.BindJson[kernel.IDListRequest], h.DeleteTags)

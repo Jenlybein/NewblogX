@@ -2,6 +2,7 @@ package app
 
 import (
 	"context"
+	"time"
 
 	"myblogx/internal/article/domain"
 	"myblogx/internal/article/domain/collection"
@@ -78,6 +79,25 @@ func (s *Service) SaveNamedOutline(ctx context.Context, cmd SaveNamedOutlineCmd)
 	now := s.clock.Now()
 	var detail *outline.Detail
 	err := s.tx.WithinTx(ctx, func(ctx context.Context, repos Repos) error {
+		built, err := s.saveNamedOutlineInTx(ctx, repos, cmd, now)
+		if err != nil {
+			return err
+		}
+		detail = built
+		return nil
+	})
+	return detail, err
+}
+
+// saveNamedOutlineInTx 是整树提交的**事务内**实现：调用方已经在事务里。
+//
+// 抽出来是因为"字段 + 目录树"的 compose 用例要在同一个事务里既改实体又改树，
+// 不能再开一层事务。规则一字不改，只是把事务边界交给调用方。
+func (s *Service) saveNamedOutlineInTx(
+	ctx context.Context, repos Repos, cmd SaveNamedOutlineCmd, now time.Time,
+) (*outline.Detail, error) {
+	var detail *outline.Detail
+	err := func() error {
 		r, err := namedRepos(ctx, repos, cmd.OwnerKind)
 		if err != nil {
 			return err
@@ -144,7 +164,7 @@ func (s *Service) SaveNamedOutline(ctx context.Context, cmd SaveNamedOutlineCmd)
 
 		detail, err = s.buildOutlineDetail(ctx, r, cmd.OwnerKind, cmd.OwnerID, nodes)
 		return err
-	})
+	}()
 	return detail, err
 }
 

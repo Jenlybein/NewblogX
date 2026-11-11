@@ -140,6 +140,17 @@ var adminOnly = []struct {
 	{"GET", "/api/projects/admin"},
 	{"POST", "/api/projects"},
 	{"PATCH", "/api/projects/order"},
+		// 合集 / 项目分组（ADR-0041）。
+		{"GET", "/api/collections/groups"},
+		{"PUT", "/api/collections/groups"},
+		{"PUT", "/api/collections/groups/order"},
+		{"DELETE", "/api/collections/groups/9"},
+		{"PUT", "/api/collections/9/compose"},
+		{"GET", "/api/projects/groups"},
+		{"PUT", "/api/projects/groups"},
+		{"PUT", "/api/projects/groups/order"},
+		{"DELETE", "/api/projects/groups/9"},
+		{"PUT", "/api/projects/9/compose"},
 }
 
 // adminAreaPrefixes 是"整段只给管理员"的路径前缀，用于完整性检查。

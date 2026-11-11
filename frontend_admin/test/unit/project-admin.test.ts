@@ -139,13 +139,14 @@ describe('applyProjectDisplayResult', () => {
 describe('项目页表单类名与共用工具', () => {
   const projectDir = process.cwd()
 
-  it('项目页不再复用合集类名，改用项目专用类名', () => {
+  it('项目页与合集页共用同一份分组网格与编辑弹窗', () => {
     const page = 'app/pages/articles/projects.vue'
     const source = readFileSync(join(projectDir, page), 'utf8')
-    // 决定清单 §8 第 37 条：项目页与合集页共用同一个卡片网格与编辑弹窗，
-    // 不再各自维护一套 `admin-project-form` / `admin-collection-form` 表单壳。
-    expect(source, page).toContain('CollectionCardGrid')
-    expect(source, page).toContain('CollectionEditorOverlay')
+    // 决定清单 §8 第 37 条 + 票 348：两页共用同一份实现（分组网格、拖排、
+    // 分组 CRUD、编辑弹窗都在 EntityAdminPage 里），页面本身只剩 kind 一个参数。
+    // 各自维护一套表单壳 / 各写一份分组逻辑，都会让"删分组退回未分组"这类
+    // 差异只修在一边。
+    expect(source, page).toContain('EntityAdminPage')
     expect(source, page).toContain('kind="project"')
     expect(source, page).not.toContain('admin-collection-form')
   })

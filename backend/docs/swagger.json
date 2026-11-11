@@ -559,6 +559,29 @@
                 },
                 "type": "object"
             },
+            "internal_analytics_adapter_http.DeadLetterDeleteRequest": {
+                "properties": {
+                    "id_list": {
+                        "items": {
+                            "type": "string"
+                        },
+                        "type": "array",
+                        "uniqueItems": false
+                    }
+                },
+                "required": [
+                    "id_list"
+                ],
+                "type": "object"
+            },
+            "internal_analytics_adapter_http.DeadLetterDeleteResultResponse": {
+                "properties": {
+                    "deleted": {
+                        "type": "integer"
+                    }
+                },
+                "type": "object"
+            },
             "internal_analytics_adapter_http.DeadLetterItemResponse": {
                 "properties": {
                     "action": {
@@ -5075,6 +5098,20 @@
                     },
                     "data": {
                         "$ref": "#/components/schemas/internal_analytics_adapter_http.ChainQueryResponse"
+                    },
+                    "msg": {
+                        "type": "string"
+                    }
+                },
+                "type": "object"
+            },
+            "myblogx_internal_kernel.Envelope-internal_analytics_adapter_http_DeadLetterDeleteResultResponse": {
+                "properties": {
+                    "code": {
+                        "type": "integer"
+                    },
+                    "data": {
+                        "$ref": "#/components/schemas/internal_analytics_adapter_http.DeadLetterDeleteResultResponse"
                     },
                     "msg": {
                         "type": "string"
@@ -11322,6 +11359,42 @@
             }
         },
         "/logs/dead-letter": {
+            "delete": {
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/internal_analytics_adapter_http.DeadLetterDeleteRequest",
+                                "summary": "body",
+                                "description": "死信 ID 列表"
+                            }
+                        }
+                    },
+                    "description": "死信 ID 列表",
+                    "required": true
+                },
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/myblogx_internal_kernel.Envelope-internal_analytics_adapter_http_DeadLetterDeleteResultResponse"
+                                }
+                            }
+                        },
+                        "description": "OK"
+                    }
+                },
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "summary": "删除死信",
+                "tags": [
+                    "log"
+                ]
+            },
             "get": {
                 "parameters": [
                     {

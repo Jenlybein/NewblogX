@@ -503,6 +503,19 @@ export function replayDeadLetters(idList: string[]) {
   })
 }
 
+/**
+ * 删除死信（物理删除，返回真删掉的行数）。
+ *
+ * 用于"这条我怎么都处理不了，别留着了"。删掉之后不会再被重投；outbox 的 dead 行
+ * 不受影响（relay 只取 pending / 到期的行，永远不回收 dead）。
+ */
+export function deleteDeadLetters(idList: string[]) {
+  return api().request<{ deleted: number }, { id_list: string[] }>('/logs/dead-letter', {
+    method: 'DELETE',
+    body: { id_list: idList },
+  })
+}
+
 /** 回放日志：每次重投尝试的时间线（含跳过与不支持）。 */
 export function getReplayLogs(query: { page?: number; limit?: number; stream?: string; result?: string }) {
   return api().request<ListData<ReplayLogRecord>>('/logs/replay', { query })

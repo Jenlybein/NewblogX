@@ -15,7 +15,7 @@
 import { h } from 'vue'
 import { NButton, NCard, NDataTable, NSelect, NSpace, NTag, useDialog, useMessage } from 'naive-ui'
 import type { DataTableColumns } from 'naive-ui'
-import { getDeadLetters, replayDeadLetters } from '~/services/admin'
+import { deleteDeadLetters, getDeadLetters, replayDeadLetters } from '~/services/admin'
 import type { DeadLetterItem } from '~/types/api'
 import { formatDateTime } from '~/utils/format'
 import { canReplay, deadLetterStatusLabel, replayResultLabel, streamLabel } from '~/utils/deadLetters'
@@ -28,6 +28,7 @@ const dialog = useDialog()
 
 const loading = ref(false)
 const replaying = ref(false)
+const deleting = ref(false)
 const page = ref(1)
 const total = ref(0)
 const rows = ref<DeadLetterItem[]>([])
@@ -83,6 +84,26 @@ const columns: DataTableColumns<DeadLetterItem> = [
     width: 180,
     render: (row: DeadLetterItem) => formatDateTime(row.updated_at || row.created_at),
   },
+  {
+    // 行内删除：有些死信永远重投不成功（例如 es_projection 没有主键），
+    // 留着只会让列表越来越长，所以给一个"就删这一条"的出口。
+    title: '操作',
+    key: 'actions',
+    width: 90,
+    render: (row: DeadLetterItem) =>
+      h(
+        NButton,
+        {
+          size: 'small',
+          tertiary: true,
+          type: 'error',
+          loading: deleting.value,
+          'data-role': `dead-letter-delete-${row.id}`,
+          onClick: () => askDelete([String(row.id)]),
+        },
+        { default: () => '删除' },
+      ),
+  },
 ]
 
 async function refresh() {
@@ -136,6 +157,38 @@ async function doReplay() {
   })
 }
 
+/**
+ * 删除死信（行内单条 / 工具栏批量）。
+ *
+ * 二次确认里必须说清两件事，否则用户不敢点：
+ *  1. 是真删（这张表没有回收站）；
+ *  2. 只删失败记录，源数据与 outbox 里的消息都不动。
+ */
+function askDelete(ids: string[]) {
+  if (ids.length === 0) {
+    message.warning('请先勾选要删除的记录')
+    return
+  }
+  dialog.warning({
+    title: '删除死信',
+    content: `将永久删除 ${ids.length} 条死信记录。这只删失败记录本身：源数据、搜索索引与 outbox 里的消息都不受影响，删掉的记录也不会再被重投。`,
+    positiveText: '删除',
+    negativeText: '取消',
+    async onPositiveClick() {
+      deleting.value = true
+      try {
+        const data = await deleteDeadLetters(ids)
+        message.success(`已删除 ${data?.deleted ?? ids.length} 条死信`)
+        await refresh()
+      } catch (error) {
+        message.error(error instanceof Error ? error.message : '删除失败')
+      } finally {
+        deleting.value = false
+      }
+    },
+  })
+}
+
 /** 把逐条结果汇总成一句人话，再把"没成功"的详细原因单独提示。 */
 function report(results: { result: string; message: string }[]) {
   const counts = results.reduce<Record<string, number>>((acc, item) => {
@@ -177,7 +230,7 @@ onMounted(refresh)
 
     <p class="admin-hint">
       数据同步（MySQL → 搜索/领域事件）重试耗尽后的失败记录。勾选后可以在这里重投一次，
-      不必再进数据库手工补数据。
+      不必再进数据库手工补数据；实在处理不了的（例如来源本身不支持重投）可以直接删掉。
     </p>
 
     <NSpace class="mb-3" align="center">
@@ -185,6 +238,15 @@ onMounted(refresh)
       <NSelect v-model:value="filterStatus" :options="statusOptions" placeholder="全部状态" clearable style="width: 160px" @update:value="applyFilter" />
       <NButton type="primary" :loading="replaying" :disabled="checked.length === 0" @click="doReplay">
         重投选中（{{ checked.length }}）
+      </NButton>
+      <NButton
+        type="error"
+        tertiary
+        :loading="deleting"
+        :disabled="checked.length === 0"
+        data-role="dead-letter-delete-batch"
+        @click="askDelete(checked)">
+        删除选中（{{ checked.length }}）
       </NButton>
       <span class="admin-hint">共 {{ total }} 条</span>
     </NSpace>

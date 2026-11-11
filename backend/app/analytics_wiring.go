@@ -201,5 +201,18 @@ func (d *analyticsDeadLetters) Count(ctx context.Context, q domain.DeadLetterQue
 	})
 }
 
+// Delete 实现 domain.DeadLetterReader：按主键物理删除死信。
+func (d *analyticsDeadLetters) Delete(ctx context.Context, ids []ctype.ID) (int64, error) {
+	_ = ctx
+	if len(ids) == 0 {
+		return 0, nil
+	}
+	raw := make([]string, 0, len(ids))
+	for _, id := range ids {
+		raw = append(raw, id.String())
+	}
+	return deadletter.DeleteByIDs(d.db, raw)
+}
+
 // 保证 time 包被使用（更新时间格式化在适配器内完成）。
 var _ = time.Time{}

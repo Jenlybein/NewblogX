@@ -68,4 +68,6 @@ func LogRouter(r *gin.RouterGroup, runtimeMw mw.Runtime) {
 	// 死信（DLQ）：看得见 + 补得上。重投是写操作，天然落在这个 admin 分组里。
 	group.GET("dead-letter", mw.BindQuery[analyticshttp.DeadLetterListRequest], app.DeadLetterListView)
 	group.POST("dead-letter/replay", mw.BindJson[analyticshttp.DeadLetterReplayRequest], app.DeadLetterReplayView)
+	// 删掉"没法处理"的死信（票 356）：物理删除，不动 outbox 的 dead 行。
+	group.DELETE("dead-letter", mw.BindJson[analyticshttp.DeadLetterDeleteRequest], app.DeadLetterDeleteView)
 }

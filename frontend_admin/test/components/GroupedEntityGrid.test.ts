@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import GroupedEntityGrid from '~/components/articles/GroupedEntityGrid.vue'
 import { useEntityGroups } from '~/composables/useEntityGroups'
-import { nextTick, ref } from 'vue'
+import { nextTick } from 'vue'
 
 /**
  * 合集 / 项目分组网格（票 348）。

@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import ChipSelect from "~/components/common/ChipSelect.vue";
 import { computed, reactive, ref } from "vue";
-import { NButton, NCard, NInput, NModal, NSelect, NSwitch, useMessage } from "naive-ui";
+import { NButton, NCard, NInput, NModal, NSwitch, useMessage } from "naive-ui";
 import AppAvatar from "~/components/common/AppAvatar.vue";
 import ImageCropDialog from "~/components/studio/ImageCropDialog.vue";
 import { sendEmailCode } from "~/services/auth";
@@ -515,7 +515,6 @@ useSeoMeta({
 useNoIndexPage();
 </script>
 
-<template>
 <template>
   <div class="page-stack">
     <!-- 单列 + 分栏（票 355）：一屏只看一个分栏，切换靠侧栏子项与页内 tab。

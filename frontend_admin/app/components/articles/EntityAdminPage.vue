@@ -196,7 +196,7 @@ onBeforeUnmount(() => {
       :loading="groups.loading.value"
       :toggling-id="togglingId"
       :saving-order="groups.sortState.value === 'saving'"
-      @order-change="groups.markOrderDirty"
+      @order-change="groups.applySnapshot"
       @edit="startEdit"
       @remove="removeItem"
       @toggle="toggleDisplay"

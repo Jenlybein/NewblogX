@@ -19,13 +19,7 @@ const searchService = vi.hoisted(() => ({ searchArticles: vi.fn() }));
 
 vi.mock("naive-ui", async () => {
   const { defineComponent, h } = await import("vue");
-  const passthrough = (name: string, tag = "div") =>
-    defineComponent({
-      name,
-      setup(_props, { slots }) {
-        return () => h(tag, [slots.header?.(), slots.default?.(), slots.footer?.()]);
-      },
-    });
+
   return {
     NButton: defineComponent({
       name: "NButton",

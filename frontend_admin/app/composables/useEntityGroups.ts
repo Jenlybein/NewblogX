@@ -128,6 +128,23 @@ export function useEntityGroups(options: UseEntityGroupsOptions) {
     sortPersist.markDirty()
   }
 
+  /**
+   * 落账拖拽后的排列（网格抛上来的整树快照）。
+   *
+   * 网格不直接改父组件的数据，所以这里负责把快照写回本地状态：
+   * 顺序变化必须落在"提交时读的那份数据"上，否则拖完看起来动了、保存的还是旧顺序。
+   */
+  function applySnapshot(snapshot: { groups: { id: string; items: string[] }[]; ungrouped: string[] }) {
+    const byId = new Map(cards.value.map(card => [card.id, card]))
+    groups.value = snapshot.groups.map(group => ({
+      id: group.id,
+      title: groups.value.find(g => g.id === group.id)?.title ?? '',
+      items: group.items.map(id => byId.get(id)).filter((c): c is GroupedCardItem => Boolean(c)),
+    }))
+    ungrouped.value = snapshot.ungrouped.map(id => byId.get(id)).filter((c): c is GroupedCardItem => Boolean(c))
+    markOrderDirty()
+  }
+
 
 
   /** 离开页面前把待提交的顺序发出去。 */
@@ -145,6 +162,7 @@ export function useEntityGroups(options: UseEntityGroupsOptions) {
     sortState: sortPersist.state,
     refresh,
     markOrderDirty,
+    applySnapshot,
     flushOrder,
     currentOrder,
     applyTree,

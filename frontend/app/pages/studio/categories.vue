@@ -11,7 +11,7 @@
  * 展示、写完重拉列表都在 `useProfileCategoryManage` 里，它自己的用例不依赖这个页面。
  */
 import { computed, ref, shallowRef, watch } from 'vue'
-import { NButton, NModal, NSkeleton, useDialog, useMessage } from 'naive-ui'
+import { NModal, NSkeleton, useDialog, useMessage } from 'naive-ui'
 import ArticleGridCard from '~/components/article/ArticleGridCard.vue'
 import ProfileCategoryFormModal from '~/components/profile/ProfileCategoryFormModal.vue'
 import ProfileEmptyState from '~/components/profile/ProfileEmptyState.vue'

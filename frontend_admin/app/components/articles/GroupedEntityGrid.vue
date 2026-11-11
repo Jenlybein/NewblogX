@@ -20,7 +20,7 @@ import { MOTION_EXPRESSIVE_MS } from '~/utils/motion'
  * 组件保持"哑"：不发请求、不持保存状态，顺序变化只抛 `orderChange`
  * （整树快照），由页面用 useSortPersist 做 10 秒防抖 + 离开前 flush。
  */
-import { computed, ref } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { NButton, NSwitch } from 'naive-ui'
 import { VueDraggable } from 'vue-draggable-plus'
 import { resolveCollectionCover } from '~/utils/collectionAdmin'
@@ -62,14 +62,45 @@ const emit = defineEmits<{
   edit: [GroupedCardItem]
   remove: [GroupedCardItem]
   toggle: [GroupedCardItem, boolean]
-  /** 顺序变了：抛整树快照，由页面决定何时提交。 */
-  orderChange: []
+  /** 顺序变了：抛整树快照（拖拽后的真实排列），由页面决定何时提交。 */
+  orderChange: [snapshot: GroupedTreeSnapshot]
   groupCreate: []
   groupRename: [GroupedGroup]
   groupRemove: [GroupedGroup]
 }>()
 
 const label = computed(() => (props.kind === 'collection' ? '合集' : '项目'))
+
+/**
+ * 整树快照：拖完之后界面上的真实排列。
+ *
+ * 组件**不直接改 props**（`v-model` 绑 props 会触发 vue/no-mutating-props，
+ * 更实际的问题是：父组件的数据被子里悄悄改掉，谁在什么时候改的说不清）。
+ * 所以内部持一份本地副本，拖拽只动副本，松手时把快照抛给父组件去落账。
+ */
+export interface GroupedTreeSnapshot {
+  groups: { id: string; items: string[] }[]
+  ungrouped: string[]
+}
+
+const localGroups = ref<GroupedGroup[]>([])
+const localUngrouped = ref<GroupedCardItem[]>([])
+
+// props → 本地副本：父组件刷新（重新归位）时同步过来。
+watch(
+  () => props.groups,
+  (next) => {
+    localGroups.value = next.map(group => ({ ...group, items: [...group.items] }))
+  },
+  { immediate: true, deep: true },
+)
+watch(
+  () => props.ungrouped,
+  (next) => {
+    localUngrouped.value = [...next]
+  },
+  { immediate: true, deep: true },
+)
 
 /** 拖动分组标题期间收起所有卡片：长列表下不收起就看不出拖到了哪。 */
 const draggingGroup = ref(false)
@@ -79,32 +110,35 @@ function coverOf(item: GroupedCardItem) {
   return resolveCollectionCover(item.cover, item.fallback_cover)?.url ?? ""
 }
 
-/** 任一拖拽结束都只通知"顺序变了"：快照由页面从当前数据现取。 */
+/** 任一拖拽结束：收起结束，并把当前排列作为快照抛给父组件。 */
 function onDrop() {
   draggingGroup.value = false
-  emit('orderChange')
+  emit('orderChange', {
+    groups: localGroups.value.map(group => ({ id: group.id, items: group.items.map(item => item.id) })),
+    ungrouped: localUngrouped.value.map(item => item.id),
+  })
 }
 </script>
 
 <template>
   <div class="grouped-grid" :data-role="`${kind}-grouped-grid`">
-    <p v-if="!props.groups.length && !props.ungrouped.length && !props.loading" class="admin-hint" :data-role="`${kind}-grid-empty`">
+    <p v-if="!localGroups.length && !localUngrouped.length && !props.loading" class="admin-hint" :data-role="`${kind}-grid-empty`">
       还没有{{ label }}。点右上角「新建{{ label }}」开始；建好之后可以新建分组把它们归拢起来。
     </p>
 
     <!-- 未分组固定第一：它是"还没被放进任何分组"，不是一种分组。
          没有未分组条目时整段消失（空标题没有意义）。 -->
-    <section v-if="props.ungrouped.length" class="grouped-grid__section" data-role="group-ungrouped">
+    <section v-if="localUngrouped.length" class="grouped-grid__section" data-role="group-ungrouped">
       <header class="grouped-grid__head grouped-grid__head--static">
         <span class="grouped-grid__title">未分组</span>
-        <span class="grouped-grid__count">{{ props.ungrouped.length }}</span>
+        <span class="grouped-grid__count">{{ localUngrouped.length }}</span>
       </header>
 
       <!-- 未分组也要跟着收起：拖动分组标题时如果它还铺着，
            屏幕上一半是卡片，"拖到哪儿了"又看不出来了。 -->
       <VueDraggable
         v-show="!draggingGroup"
-        v-model="props.ungrouped"
+        v-model="localUngrouped"
         class="collection-grid"
         :animation="MOTION_EXPRESSIVE_MS.dragSettle"
         group="grouped-cards"
@@ -112,13 +146,13 @@ function onDrop() {
         :data-role="`${kind}-ungrouped-cards`"
         @end="onDrop">
         <article
-          v-for="item in props.ungrouped"
+          v-for="item in localUngrouped"
           :key="item.id"
           class="collection-card"
           :data-role="`${kind}-card`"
           :data-id="item.id">
           <div class="collection-card__cover">
-            <img v-if="coverOf(item)" :src="coverOf(item)" :alt="item.title" />
+            <img v-if="coverOf(item)" :src="coverOf(item)" :alt="item.title">
             <span v-else class="collection-card__cover-empty" aria-hidden="true" />
           </div>
           <div class="collection-card__body">
@@ -146,7 +180,7 @@ function onDrop() {
 
     <!-- 分组标题之间可拖动换序。 -->
     <VueDraggable
-      v-model="props.groups"
+      v-model="localGroups"
       class="grouped-grid__groups"
       :animation="MOTION_EXPRESSIVE_MS.dragSettle"
       handle=".grouped-grid__grip"
@@ -155,7 +189,7 @@ function onDrop() {
       @start="draggingGroup = true"
       @end="onDrop">
       <section
-        v-for="group in props.groups"
+        v-for="group in localGroups"
         :key="group.id"
         class="grouped-grid__section"
         :data-role="`group-${group.id}`">
@@ -195,7 +229,7 @@ function onDrop() {
             :data-role="`${kind}-card`"
             :data-id="item.id">
             <div class="collection-card__cover">
-              <img v-if="coverOf(item)" :src="coverOf(item)" :alt="item.title" />
+              <img v-if="coverOf(item)" :src="coverOf(item)" :alt="item.title">
               <span v-else class="collection-card__cover-empty" aria-hidden="true" />
             </div>
             <div class="collection-card__body">

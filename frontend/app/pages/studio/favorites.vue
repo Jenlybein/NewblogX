@@ -13,7 +13,7 @@
  *  2. 新建/编辑后留在网格里，新卡高亮一下 —— 否则"建完还是空"像是没生效；
  *  3. 删除只删分组与其下收藏关系，文章本身不动（后端已按此实现）。
  */
-import { computed, nextTick, onBeforeUnmount, onMounted, ref, shallowRef, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, ref, shallowRef, watch } from 'vue'
 import { NButton, NInput, NModal, NSkeleton, useMessage } from 'naive-ui'
 import ArticleGridCard from '~/components/article/ArticleGridCard.vue'
 import {

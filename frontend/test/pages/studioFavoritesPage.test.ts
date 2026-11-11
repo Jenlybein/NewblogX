@@ -1,5 +1,5 @@
 import { mount } from "@vue/test-utils";
-import { Suspense, defineComponent, h, isRef, ref, watch, type Component, type Ref } from "vue";
+import { Suspense, defineComponent, h, ref, type Component } from "vue";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import FavoritesPage from "~/pages/studio/favorites.vue";

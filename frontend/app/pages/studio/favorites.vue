@@ -1,7 +1,21 @@
 <script setup lang="ts">
-import { computed, watch } from "vue";
-import { NButton, NInput, NModal, NSkeleton, useMessage } from "naive-ui";
-import ArticleMiniCard from "~/components/article/ArticleMiniCard.vue";
+/**
+ * 个人中心 · 收藏夹（票 345 改版）。
+ *
+ * 版式从"左栏分组列表 + 右栏内容"换成"收藏夹网格 + 大弹窗"：
+ *  - 一进来先看全部收藏夹（名称、简介、篇数），点哪张进哪张；
+ *  - 收藏夹的资料编辑/删除收进卡片 hover 与弹窗里，不再占一整条工具栏；
+ *  - 夹子内容在大弹窗里以多列文章卡呈现，滚动到底自动加载下一页。
+ *
+ * 三条交互语义（都被用户踩过，别再退化）：
+ *  1. 新建收藏夹**必须填资料**：复用同一个弹窗（无标题、按钮「确定」），
+ *     不再一点就建一个叫「新的收藏夹」的占位夹；
+ *  2. 新建/编辑后留在网格里，新卡高亮一下 —— 否则"建完还是空"像是没生效；
+ *  3. 删除只删分组与其下收藏关系，文章本身不动（后端已按此实现）。
+ */
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, shallowRef, watch } from 'vue'
+import { NButton, NInput, NModal, NSkeleton, useMessage } from 'naive-ui'
+import ArticleGridCard from '~/components/article/ArticleGridCard.vue'
 import {
   createFavoriteFolder,
   deleteFavoriteFolders,
@@ -9,318 +23,375 @@ import {
   getOwnFavoriteFolders,
   removeFavoriteFolderArticles,
   updateFavoriteFolder,
-} from "~/services/favorite";
-import { formatDateTimeLabel } from "~/utils/format";
-import { errorMessage } from "~/utils/errorMessage";
+} from '~/services/favorite'
+import { errorMessage } from '~/utils/errorMessage'
 
 definePageMeta({
-  layout: "studio",
-  middleware: "auth",
-});
+  layout: 'studio',
+  middleware: 'auth',
+})
 
-const message = useMessage();
-const activeFolderId = shallowRef<string>("");
-const contentPage = shallowRef(1);
-const editModalVisible = shallowRef(false);
-const editForm = reactive({
-  title: "",
-  abstract: "",
-});
+/** 弹窗内每页条数：2–3 列下正好两整排（票 345 决定）。 */
+const PAGE_SIZE = 24
+
+const message = useMessage()
 
 const { data: folders, pending: foldersPending, refresh: refreshFolders } = await useAsyncData(
-  "studio-favorite-folders",
+  'studio-favorite-folders',
   () => getOwnFavoriteFolders(),
-);
-const { data: contents, pending: contentsPending, refresh: refreshContents } = await useAsyncData(
-  () => `studio-favorite-contents:${activeFolderId.value}:${contentPage.value}`,
-  () =>
-    activeFolderId.value
-      ? getFavoriteFolderArticles({
-          favoriteId: activeFolderId.value,
-          page: contentPage.value,
-          limit: 30,
-          // 本人读自己的夹子：必须带 token，否则非默认夹会被 403 吞成空态（票 344）。
-          auth: true,
-        })
-      : Promise.resolve({ list: [], has_more: false }),
-  {
-    watch: [activeFolderId, contentPage],
-  },
-);
+)
 
-watch(
-  () => folders.value?.list,
-  (list) => {
-    if (!list?.length) {
-      activeFolderId.value = "";
-      editForm.title = "";
-      editForm.abstract = "";
-      return;
-    }
+/** 当前打开的大弹窗对应的收藏夹 id；空串表示关闭。 */
+const openFolderId = shallowRef('')
+const openFolder = computed(() => folders.value?.list.find(item => item.id === openFolderId.value))
 
-    if (!activeFolderId.value || !list.some((item) => item.id === activeFolderId.value)) {
-      activeFolderId.value = list[0]?.id ?? "";
-    }
-    contentPage.value = 1;
-  },
-  { immediate: true },
-);
+const articles = ref<FavoriteArticleItem[]>([])
+const articlesLoading = ref(false)
+const page = shallowRef(1)
+const hasMore = shallowRef(false)
 
-const currentFolder = computed(() => folders.value?.list.find((item) => item.id === activeFolderId.value));
+type FavoriteArticleItem = {
+  article_id: string
+  title: string
+  cover: string
+  updated_at?: string
+  favorited_at?: string
+  view_count?: number
+  digg_count?: number
+  comment_count?: number
+  favor_count?: number
+}
 
-watch(
-  () => activeFolderId.value,
-  () => {
-    contentPage.value = 1;
-  },
-);
-
-async function handleCreateFolder() {
+async function loadArticles(reset = false) {
+  if (!openFolderId.value) return
+  if (reset) {
+    page.value = 1
+    articles.value = []
+  }
+  articlesLoading.value = true
   try {
-    await createFavoriteFolder({
-      title: "新的收藏夹",
-      abstract: "为稍后阅读保留一组主题内容。",
-    });
-    message.success("收藏夹已创建");
-    await refreshFolders();
+    const data = await getFavoriteFolderArticles({
+      favoriteId: openFolderId.value,
+      page: page.value,
+      limit: PAGE_SIZE,
+      // 本人读自己的夹子必须带 token（票 344）。
+      auth: true,
+    })
+    const list = (data?.list ?? []) as unknown as FavoriteArticleItem[]
+    articles.value = reset ? list : [...articles.value, ...list]
+    hasMore.value = Boolean(data?.has_more)
   } catch (error) {
-    message.error(errorMessage(error, "创建收藏夹失败"));
+    message.error(errorMessage(error, '加载收藏内容失败'))
+  } finally {
+    articlesLoading.value = false
   }
 }
 
-async function handleUpdateFolder() {
-  if (!activeFolderId.value) return;
-  try {
-    await updateFavoriteFolder({
-      id: activeFolderId.value,
-      title: editForm.title.trim(),
-      abstract: editForm.abstract.trim(),
-    });
-    message.success("收藏夹已更新");
-    editModalVisible.value = false;
-    await refreshFolders();
-  } catch (error) {
-    message.error(errorMessage(error, "更新收藏夹失败"));
-  }
+function openFolderModal(id: string) {
+  openFolderId.value = id
+  void loadArticles(true)
 }
 
-function openEditModal() {
-  if (!currentFolder.value) return;
-  editForm.title = currentFolder.value.title ?? "";
-  editForm.abstract = currentFolder.value.abstract ?? "";
-  editModalVisible.value = true;
+function closeFolderModal() {
+  openFolderId.value = ''
+  articles.value = []
+  page.value = 1
+  hasMore.value = false
 }
 
-async function handleDeleteFolder() {
-  if (!activeFolderId.value) return;
-  try {
-    await deleteFavoriteFolders([activeFolderId.value]);
-    message.success("收藏夹已删除");
-    await refreshFolders();
-  } catch (error) {
-    message.error(errorMessage(error, "删除收藏夹失败"));
-  }
+async function loadMore() {
+  if (articlesLoading.value || !hasMore.value) return
+  page.value += 1
+  await loadArticles(false)
+}
+
+/** 滚动到底：弹窗内滚动加载（不翻页）。 */
+function onModalScroll(event: Event) {
+  const el = event.target as HTMLElement
+  if (!el) return
+  if (el.scrollTop + el.clientHeight >= el.scrollHeight - 64) void loadMore()
 }
 
 async function removeArticle(articleId: string) {
-  if (!activeFolderId.value) return;
+  if (!openFolderId.value) return
   try {
-    await removeFavoriteFolderArticles({
-      favoriteId: activeFolderId.value,
-      articleIds: [articleId],
-    });
-    message.success("文章已移出收藏夹");
-    await refreshContents();
-    await refreshFolders();
-    if (!contents.value?.list.length && contentPage.value > 1) {
-      contentPage.value -= 1;
-    }
+    await removeFavoriteFolderArticles({ favoriteId: openFolderId.value, articleIds: [articleId] })
+    message.success('文章已移出收藏夹')
+    await loadArticles(true)
+    await refreshFolders()
   } catch (error) {
-    message.error(errorMessage(error, "移除收藏内容失败"));
+    message.error(errorMessage(error, '移除收藏内容失败'))
   }
 }
 
-function previousContentPage() {
-  if (contentPage.value <= 1) return;
-  contentPage.value -= 1;
+// ── 收藏夹资料弹窗（新建与编辑共用同一个）─────────────────────────
+
+const editorOpen = ref(false)
+const editingId = shallowRef('')
+const saving = ref(false)
+const form = ref({ title: '', abstract: '' })
+
+/** 名称上限 32 与库里的 varchar(32) 对齐；简介 120 是产品上限。 */
+const TITLE_MAX = 32
+const ABSTRACT_MAX = 120
+
+const isEditing = computed(() => Boolean(editingId.value))
+const titleError = computed(() => {
+  const value = form.value.title.trim()
+  if (!value) return '请填写收藏夹名称'
+  if (value.length > TITLE_MAX) return `名称不能超过 ${TITLE_MAX} 个字`
+  return ''
+})
+
+function openCreateEditor() {
+  editingId.value = ''
+  form.value = { title: '', abstract: '' }
+  editorOpen.value = true
 }
 
-function nextContentPage() {
-  if (!contents.value?.has_more) return;
-  contentPage.value += 1;
+function openEditEditor(id: string) {
+  const folder = folders.value?.list.find(item => item.id === id)
+  if (!folder) return
+  editingId.value = id
+  form.value = { title: folder.title ?? '', abstract: folder.abstract ?? '' }
+  editorOpen.value = true
 }
 
-useSeoMeta({
-  title: "个人中心 - 收藏夹",
-});
-useNoIndexPage();
+/** 新建后高亮的那张卡：让"刚建好的夹子"在网格里一眼可见。 */
+const highlightId = shallowRef('')
+let highlightTimer: ReturnType<typeof setTimeout> | null = null
+
+function flashHighlight(id: string) {
+  highlightId.value = id
+  if (highlightTimer) clearTimeout(highlightTimer)
+  highlightTimer = setTimeout(() => {
+    highlightId.value = ''
+    highlightTimer = null
+  }, 2400)
+}
+
+onBeforeUnmount(() => {
+  if (highlightTimer) clearTimeout(highlightTimer)
+})
+
+async function submitEditor() {
+  if (titleError.value) return
+  saving.value = true
+  try {
+    const payload = { title: form.value.title.trim(), abstract: form.value.abstract.trim() }
+    if (isEditing.value) {
+      await updateFavoriteFolder({ id: editingId.value, ...payload })
+      message.success('收藏夹已更新')
+    } else {
+      await createFavoriteFolder(payload)
+      message.success('收藏夹已创建')
+    }
+    editorOpen.value = false
+    await refreshFolders()
+    if (!isEditing.value) {
+      // 后端不返回新夹子的 id：按标题找回"刚建的那个"，找到就高亮。
+      const created = folders.value?.list.find(item => item.title === payload.title)
+      if (created) {
+        await nextTick()
+        flashHighlight(created.id)
+      }
+    }
+  } catch (error) {
+    // 「名称重复」等可读文案由后端给出，原样展示。
+    message.error(errorMessage(error, '保存收藏夹失败'))
+  } finally {
+    saving.value = false
+  }
+}
+
+const deleteTarget = shallowRef('')
+
+function askDelete(id: string) {
+  deleteTarget.value = id
+}
+
+async function confirmDelete() {
+  const id = deleteTarget.value
+  if (!id) return
+  try {
+    await deleteFavoriteFolders([id])
+    message.success('收藏夹已删除')
+    deleteTarget.value = ''
+    if (openFolderId.value === id) closeFolderModal()
+    await refreshFolders()
+  } catch (error) {
+    message.error(errorMessage(error, '删除收藏夹失败'))
+  }
+}
+
+const deleteFolderTitle = computed(
+  () => folders.value?.list.find(item => item.id === deleteTarget.value)?.title ?? '')
+
+watch(folders, (value) => {
+  if (!value?.list.length) closeFolderModal()
+})
+
+useSeoMeta({ title: '个人中心 - 收藏夹' })
+useNoIndexPage()
 </script>
 
 <template>
   <div class="page-stack">
-    <section class="surface-card studio-inbox-card">
-      <div class="studio-inbox-grid">
-        <aside class="studio-inbox-grid__aside">
-          <div class="studio-toolbar studio-toolbar--stack">
-            <div>
-              <h2 class="section-title">收藏夹分组</h2>
-            </div>
-            <NButton type="primary" @click="handleCreateFolder()">新建收藏夹</NButton>
-          </div>
+    <section class="surface-card p-5 md:p-6">
+      <div class="studio-toolbar">
+        <div>
+          <h2 class="section-title">收藏夹</h2>
+          <p class="muted">共 {{ folders?.list.length ?? 0 }} 个收藏夹，点开查看里面的文章。</p>
+        </div>
+        <NButton type="primary" data-role="folder-create" @click="openCreateEditor()">新建收藏夹</NButton>
+      </div>
 
-          <div class="mt-4 space-y-2">
-            <template v-if="foldersPending">
-              <div
-                v-for="idx in 4"
-                :key="`folder-skeleton-${idx}`"
-                class="rounded-card border border-line bg-surface px-4 py-3"
-              >
-                <NSkeleton text width="70%" />
-                <NSkeleton text width="50%" class="mt-2" />
-              </div>
-            </template>
-            <template v-else>
-              <button
-                v-for="folder in folders?.list || []"
-                :key="folder.id"
-                type="button"
-                class="studio-filter-chip studio-filter-chip--stack"
-                :class="{ 'is-active': activeFolderId === folder.id }"
-                @click="activeFolderId = folder.id"
-              >
-                <span class="studio-filter-chip__main">
-                  <strong>{{ folder.title }}</strong>
-                  <small>{{ folder.abstract || "暂未填写简介" }}</small>
-                </span>
-                <span class="studio-sidebar__badge">{{ folder.article_count }}</span>
-              </button>
-            </template>
-          </div>
-        </aside>
-
-        <div class="studio-inbox-grid__main space-y-5">
-          <section class="surface-section p-4 md:p-5">
-            <div class="studio-toolbar">
-              <div>
-                <template v-if="foldersPending">
-                  <NSkeleton text width="224px" height="28px" />
-                  <NSkeleton text width="288px" class="mt-2" />
-                </template>
-                <template v-else>
-                  <h2 class="section-title">{{ currentFolder?.title || "未选择收藏夹" }}</h2>
-                  <p class="muted">{{ currentFolder?.abstract || "暂未填写简介" }}</p>
-                </template>
-              </div>
-              <div class="flex flex-wrap gap-2">
-                <NButton quaternary @click="openEditModal()" :disabled="!activeFolderId">修改资料</NButton>
-                <NButton quaternary type="error" @click="handleDeleteFolder()" :disabled="!activeFolderId">删除分组</NButton>
-              </div>
-            </div>
-          </section>
-
-          <section class="studio-list-card !p-0">
-            <div class="studio-toolbar border-b border-line px-5 py-4">
-              <div>
-                <h2 class="section-title">分组内容</h2>
-                <p class="muted">当前第 {{ contentPage }} 页</p>
-              </div>
-            </div>
-
-            <!-- 卡片本体是共享组件：与浏览历史同一个形状（票 327），差异只有元信息那一行。
-                 整张卡（封面与标题）都指向详情页，所以不再单独排一个"查看原文"按钮。 -->
-            <div v-if="contents?.list.length" class="favorite-content-grid">
-              <ArticleMiniCard
-                v-for="item in contents?.list"
-                :key="item.article_id"
-                :title="item.title"
-                :cover="item.cover"
-                :to="`/article/${item.article_id}`"
-                :meta="`${item.user_nickname} · ${item.view_count} 阅读 · 收藏于 ${formatDateTimeLabel(item.favorited_at)}`"
-                removable
-                remove-label="移出收藏夹"
-                @remove="removeArticle(item.article_id)"
-              />
-            </div>
-            <div v-else-if="contentsPending" class="favorite-content-grid">
-              <article v-for="idx in 4" :key="`content-skeleton-${idx}`" class="favorite-content-skeleton">
-                <NSkeleton class="favorite-content-skeleton__cover" />
-                <NSkeleton text width="75%" height="20px" />
-                <NSkeleton text width="60%" />
-              </article>
-            </div>
-            <StudioEmptyState
-              v-else
-              title="这个收藏夹还是空的"
-              :description="'先去文章详情页收藏内容，或者切换到另一个分组继续整理。'"
-              class="m-5"
-            />
-
-            <div v-if="contents?.list.length" class="px-5 pb-5 flex flex-wrap items-center justify-between gap-3 text-sm muted">
-              <span>第 {{ contentPage }} 页</span>
-              <div class="flex items-center gap-3">
-                <NButton quaternary size="small" :disabled="contentPage <= 1 || contentsPending" @click="previousContentPage()">上一页</NButton>
-                <NButton quaternary size="small" :disabled="!contents?.has_more || contentsPending" @click="nextContentPage()">下一页</NButton>
-              </div>
-            </div>
-          </section>
+      <div v-if="foldersPending" class="folder-grid mt-5">
+        <div v-for="idx in 4" :key="`folder-skeleton-${idx}`" class="folder-card">
+          <NSkeleton text width="60%" />
+          <NSkeleton text width="90%" class="mt-3" />
         </div>
       </div>
+
+      <div v-else-if="folders?.list.length" class="folder-grid mt-5" data-role="folder-grid">
+        <article
+          v-for="folder in folders.list"
+          :key="folder.id"
+          class="folder-card"
+          :class="{ 'folder-card--highlight': highlightId === folder.id }"
+          :data-role="`folder-card-${folder.id}`">
+          <button type="button" class="folder-card__open" @click="openFolderModal(folder.id)">
+            <header class="folder-card__head">
+              <strong class="folder-card__title">{{ folder.title }}</strong>
+              <span class="folder-card__count" data-role="folder-count">{{ folder.article_count ?? 0 }} 篇</span>
+            </header>
+            <p class="folder-card__abstract">{{ folder.abstract || '还没有填写简介' }}</p>
+          </button>
+
+          <div class="folder-card__actions">
+            <NButton size="tiny" tertiary data-role="folder-edit" @click.stop="openEditEditor(folder.id)">编辑</NButton>
+            <NButton size="tiny" tertiary type="error" data-role="folder-delete" @click.stop="askDelete(folder.id)">
+              删除
+            </NButton>
+          </div>
+        </article>
+      </div>
+
+      <StudioEmptyState
+        v-else
+        title="还没有收藏夹"
+        description="点右上角「新建收藏夹」建第一个，之后在文章页就能把内容收进来。"
+        class="mt-5" />
     </section>
 
-    <NModal v-model:show="editModalVisible" preset="card" title="修改收藏夹资料" style="max-width: 560px" :mask-closable="false">
-      <div class="grid gap-4 md:grid-cols-2">
+    <!-- 夹子内容：大弹窗 + 多列文章卡 -->
+    <NModal
+      :show="Boolean(openFolderId)"
+      preset="card"
+      :bordered="false"
+      class="favorite-modal"
+      style="width: min(1100px, calc(100vw - 32px)); max-height: 85vh"
+      @update:show="(value: boolean) => { if (!value) closeFolderModal() }">
+      <template #header>
+        <div class="favorite-modal__head">
+          <h2 class="section-title">{{ openFolder?.title || '收藏夹' }}</h2>
+          <span class="muted">{{ openFolder?.article_count ?? 0 }} 篇 · 滚动到底自动加载</span>
+        </div>
+      </template>
+
+      <div v-if="openFolderId" class="favorite-modal__body" data-role="folder-articles" @scroll="onModalScroll">
+        <div v-if="articles.length" class="article-grid">
+          <ArticleGridCard
+            v-for="item in articles"
+            :key="item.article_id"
+            :title="item.title"
+            :cover="item.cover"
+            :date="item.updated_at || item.favorited_at"
+            :to="`/article/${item.article_id}`"
+            :view-count="item.view_count"
+            :digg-count="item.digg_count"
+            :comment-count="item.comment_count"
+            :favor-count="item.favor_count"
+            action-label="移出收藏夹"
+            @action="removeArticle(item.article_id)" />
+        </div>
+
+        <div v-else-if="articlesLoading" class="article-grid">
+          <article v-for="idx in 6" :key="`article-skeleton-${idx}`" class="article-grid-card">
+            <NSkeleton class="article-grid-card__cover" />
+            <NSkeleton text width="80%" class="mt-3" />
+            <NSkeleton text width="55%" class="mt-2" />
+          </article>
+        </div>
+
+        <StudioEmptyState
+          v-else
+          title="这个收藏夹还是空的"
+          description="先去文章详情页收藏内容，或者换一个收藏夹继续整理。" />
+      </div>
+    </NModal>
+
+    <!-- 收藏夹资料：新建与编辑共用，无标题条 -->
+    <NModal
+      v-model:show="editorOpen"
+      preset="card"
+      :bordered="false"
+      class="favorite-editor"
+      style="width: min(560px, calc(100vw - 32px))"
+      :mask-closable="false">
+      <div class="grid gap-4">
         <label class="space-y-2">
           <span class="text-sm font-medium">收藏夹名称</span>
-          <NInput v-model:value="editForm.title" maxlength="40" />
+          <NInput
+            v-model:value="form.title"
+            :maxlength="TITLE_MAX"
+            show-count
+            placeholder="例如：Vue3 精读"
+            data-role="folder-editor-title" />
+          <span v-if="titleError" class="text-xs text-danger">{{ titleError }}</span>
         </label>
-        <label class="space-y-2 md:col-span-2">
+        <label class="space-y-2">
           <span class="text-sm font-medium">收藏夹简介</span>
-          <NInput v-model:value="editForm.abstract" type="textarea" :autosize="{ minRows: 3, maxRows: 5 }" maxlength="120" />
+          <NInput
+            v-model:value="form.abstract"
+            type="textarea"
+            :autosize="{ minRows: 3, maxRows: 5 }"
+            :maxlength="ABSTRACT_MAX"
+            show-count
+            placeholder="一句话说明这个夹子收什么"
+            data-role="folder-editor-abstract" />
         </label>
       </div>
+
       <template #footer>
         <div class="flex justify-end gap-2">
-          <NButton quaternary @click="editModalVisible = false">取消</NButton>
-          <NButton type="primary" @click="handleUpdateFolder()" :disabled="!activeFolderId">保存修改</NButton>
+          <NButton quaternary data-role="folder-editor-cancel" @click="editorOpen = false">取消</NButton>
+          <NButton
+            type="primary"
+            :loading="saving"
+            :disabled="Boolean(titleError)"
+            data-role="folder-editor-submit"
+            @click="submitEditor()">
+            确定
+          </NButton>
+        </div>
+      </template>
+    </NModal>
+
+    <NModal
+      :show="Boolean(deleteTarget)"
+      preset="card"
+      :bordered="false"
+      style="width: min(480px, calc(100vw - 32px))"
+      @update:show="(value: boolean) => { if (!value) deleteTarget = '' }">
+      <p>确认删除收藏夹「{{ deleteFolderTitle }}」？</p>
+      <p class="muted mt-2 text-sm">只删这个分组与其中的收藏关系，文章本身不会被删除。</p>
+      <template #footer>
+        <div class="flex justify-end gap-2">
+          <NButton quaternary data-role="folder-delete-cancel" @click="deleteTarget = ''">取消</NButton>
+          <NButton type="error" data-role="folder-delete-confirm" @click="confirmDelete()">删除</NButton>
         </div>
       </template>
     </NModal>
   </div>
 </template>
-
-<style scoped>
-/* 颜色一律消费语义 token。卡片本体在 app/components/article/ArticleMiniCard.vue：
-   与浏览历史同一个形状，这里只负责栅格列数与骨架占位。 */
-
-/* 这一栏是个人中心的右半区，容器本来就窄：最多两列，窄屏一列。
-   历史页是整页宽度，所以那边能铺到 5 列（同一个卡片、不同的栅格）。 */
-.favorite-content-grid {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr);
-  gap: 12px;
-  padding: 12px;
-}
-
-@media (min-width: 720px) {
-  .favorite-content-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-}
-
-/* 骨架也必须用同一个栅格，否则加载时与加载后的版式会跳一下。 */
-.favorite-content-skeleton {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  padding: 8px;
-  border: 1px solid var(--color-line);
-  border-radius: var(--radius-md);
-  background: var(--color-surface-raised);
-}
-
-.favorite-content-skeleton__cover {
-  width: 100%;
-  aspect-ratio: 16 / 9;
-  border-radius: var(--radius-sm);
-}
-</style>

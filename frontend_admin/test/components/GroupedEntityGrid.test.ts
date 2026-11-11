@@ -163,3 +163,29 @@ describe('useEntityGroups：归位与保存节奏', () => {
     expect(saveOrder).toHaveBeenCalledTimes(2)
   })
 })
+
+describe('分组网格：折叠', () => {
+  it('点折叠按钮只收起这一组，再点展开；未分组段同样可折叠', async () => {
+    const wrapper = mountGrid()
+    const toggle = wrapper.get('[data-role="group-collapse-g1"]')
+    expect(toggle.attributes('aria-expanded')).toBe('true')
+
+    await toggle.trigger('click')
+
+    expect(toggle.attributes('aria-expanded')).toBe('false')
+    expect(wrapper.get('[data-role="collection-group-cards-g1"]').attributes('style')).toContain('display: none')
+
+    await toggle.trigger('click')
+    expect(wrapper.get('[data-role="collection-group-cards-g1"]').attributes('style') ?? '').not.toContain('display: none')
+
+    const ungroupedToggle = wrapper.get('[data-role="collection-group-collapse-ungrouped"]')
+    await ungroupedToggle.trigger('click')
+    expect(wrapper.get('[data-role="collection-ungrouped-cards"]').attributes('style')).toContain('display: none')
+  })
+
+  it('折叠不是排序：不抛 orderChange', async () => {
+    const wrapper = mountGrid()
+    await wrapper.get('[data-role="group-collapse-g1"]').trigger('click')
+    expect(wrapper.emitted('orderChange')).toBeUndefined()
+  })
+})

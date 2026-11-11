@@ -960,6 +960,32 @@
   color: var(--color-ink-faint);
 }
 
+/* 折叠按钮：与把手同尺寸的方钮，放在把手左边。
+ * 它自己吃掉 mousedown，避免"想折叠却把分组拖走了"。 */
+.grouped-grid__collapse {
+  display: inline-flex;
+  flex: 0 0 auto;
+  width: 1.5rem;
+  height: 1.5rem;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: 1px solid var(--color-line-faint);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface);
+  color: var(--color-ink-muted);
+  cursor: pointer;
+}
+
+.grouped-grid__collapse:hover {
+  border-color: var(--color-line);
+  background: var(--color-bg-subtle);
+  color: var(--color-ink);
+}
+
+/* 焦点环走文件顶部的全局规则（`button:focus-visible`），这里不再单独声明：
+ * --color-focus 的消费点必须保持唯一，否则 admin-flip 的不变量会红。 */
+
 .grouped-grid__head:hover .grouped-grid__grip {
   border-color: var(--color-line);
   color: var(--color-ink-muted);

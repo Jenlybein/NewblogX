@@ -23,12 +23,12 @@ function button(wrapper: ReturnType<typeof mount>, action: string) {
   return wrapper.get(`[data-action="${action}"]`);
 }
 
-describe("ArticleActionsBar：五个动作的结构", () => {
-  it("固定顺序：点赞 → 收藏 → 评论 → 分享 → 底部，容器标出变体（右栏 / hero）", () => {
+describe("ArticleActionsBar：六个动作的结构", () => {
+  it("固定顺序：点赞 → 收藏 → 评论 → 分享 → 底部 → 顶部，容器标出变体（右栏 / hero）", () => {
     const wrapper = mount(ArticleActionsBar);
 
     expect(wrapper.get("[data-role='article-actions-bar']").attributes("data-variant")).toBe("aside");
-    expect(actionNames(wrapper)).toEqual(["digg", "favor", "comment", "share", "bottom"]);
+    expect(actionNames(wrapper)).toEqual(["digg", "favor", "comment", "share", "bottom", "top"]);
   });
 
   it("每个动作都有图标（svg），分享与「底部」也带图标——不是文字按钮", () => {
@@ -39,7 +39,7 @@ describe("ArticleActionsBar：五个动作的结构", () => {
     }
   });
 
-  it("点赞 / 收藏 / 评论带数字；分享与「底部」没有计数（不造假数字）", () => {
+  it("点赞 / 收藏 / 评论带数字；分享 / 底部 / 顶部都没有计数（不造假数字）", () => {
     const wrapper = mount(ArticleActionsBar, {
       props: { diggCount: 1234, favorCount: 8, commentCount: 12000 },
     });
@@ -57,7 +57,7 @@ describe("ArticleActionsBar：五个动作的结构", () => {
     const bar = wrapper.get("[data-role='article-actions-bar']");
     expect(bar.attributes("data-variant")).toBe("hero");
     expect(bar.classes()).toContain("article-actions-bar--hero");
-    expect(actionNames(wrapper)).toEqual(["digg", "favor", "comment", "share", "bottom"]);
+    expect(actionNames(wrapper)).toEqual(["digg", "favor", "comment", "share", "bottom", "top"]);
   });
 });
 

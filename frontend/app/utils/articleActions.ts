@@ -12,7 +12,7 @@ import { formatCount } from "~/utils/format";
  *  3. 文案是可脱离组件断言的规格（`test/utils/articleActions.test.ts`）。
  */
 
-export type ArticleActionKind = "digg" | "favor" | "share" | "comment" | "bottom";
+export type ArticleActionKind = "digg" | "favor" | "share" | "comment" | "bottom" | "top";
 
 export interface ArticleActionCopyOptions {
   kind: ArticleActionKind;
@@ -62,5 +62,7 @@ export function describeArticleAction(options: ArticleActionCopyOptions): Articl
       return { label: `打开评论输入框，当前 ${count} 条评论`, title: "评论" };
     case "bottom":
       return { label: "跳到页面底部（评论区）", title: "到底" };
+    case "top":
+      return { label: "回到页面顶部", title: "到顶" };
   }
 }

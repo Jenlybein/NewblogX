@@ -182,6 +182,8 @@ const { activeHeadingId, progressPercent } = useReadingProgress(
 const authorInitial = computed(() => resolveAvatarInitial(article.value?.author_name, "A"));
 const authorRelationText = computed(() => getAuthorButtonLabel(authorProfile.value?.relation));
 const isSelfAuthor = computed(() => authStore.profileId != null && String(authStore.profileId) === authorId.value);
+/** 作者公开主页：作者卡上的头像 / 昵称 / @id 都指向它。 */
+const authorProfileLink = computed(() => (authorId.value ? `/users/${authorId.value}` : ""));
 // 「编辑」入口（票 213 / 决定清单 C4）：只给作者本人，且与页头「创作」共用同一个
 // 站点发布开关（`entryVisible`）。判定收在纯函数里（`utils/articleEdit.ts`），
 // 页面只负责把两个既有信号喂给它 —— 别人 / 游客 / 未登录都拿不到入口。
@@ -268,6 +270,12 @@ function scrollToComments() {
 /** 「底部」按钮：滚到评论区起点（= 正文末尾）。页脚不是内容，不作为落点。 */
 function handleScrollToEnd() {
   scrollToComments();
+}
+
+/** 「到顶」按钮：与「到底」成对，回到正文开头。 */
+function handleScrollToTop() {
+  if (!import.meta.client) return;
+  window.scrollTo({ top: 0, behavior: prefersReducedMotion.value ? "auto" : "smooth" });
 }
 
 /** 互动条的「评论」：直接开输入面板（未登录先弹登录框），不再滚动 + 聚焦。 */
@@ -571,6 +579,7 @@ useHead(() => {
           @share="handleShare"
           @comment="handleCommentJump"
           @bottom="handleScrollToEnd"
+          @top="handleScrollToTop"
         />
       </section>
 
@@ -667,7 +676,22 @@ useHead(() => {
             </p>
 
             <div class="article-author__head">
+              <!-- 头像 / 昵称 / @id 三处都指向作者的公开主页：之前整张卡是死的，
+                   读者看到作者想点进去，点哪儿都没反应（2026-11-12）。 -->
+              <NuxtLink
+                v-if="authorProfileLink"
+                :to="authorProfileLink"
+                class="article-author__avatar-link"
+                :aria-label="`查看 ${article?.author_name} 的公开主页`">
+                <AppAvatar
+                  :size="64"
+                  :src="article?.author_avatar"
+                  :name="article?.author_name"
+                  :fallback="authorInitial"
+                />
+              </NuxtLink>
               <AppAvatar
+                v-else
                 :size="64"
                 :src="article?.author_avatar"
                 :name="article?.author_name"
@@ -675,10 +699,24 @@ useHead(() => {
               />
               <div class="article-author__identity">
                 <div class="article-author__name-row">
-                  <span class="article-author__name">{{ article?.author_name }}</span>
+                  <NuxtLink
+                    v-if="authorProfileLink"
+                    :to="authorProfileLink"
+                    class="article-author__name article-author__name--link">
+                    {{ article?.author_name }}
+                  </NuxtLink>
+                  <span v-else class="article-author__name">{{ article?.author_name }}</span>
                   <span class="article-chip">文章作者</span>
                 </div>
-                <p class="article-author__handle">@{{ article?.author_username }}</p>
+                <p class="article-author__handle">
+                  <NuxtLink
+                    v-if="authorProfileLink"
+                    :to="authorProfileLink"
+                    class="article-author__handle-link">
+                    @{{ article?.author_username }}
+                  </NuxtLink>
+                  <template v-else>@{{ article?.author_username }}</template>
+                </p>
                 <p class="article-author__joined">
                   加入于 {{ formatDateTimeLabel(article?.author_created_time) || "暂未公开" }}
                 </p>
@@ -722,6 +760,7 @@ useHead(() => {
               @share="handleShare"
               @comment="handleCommentJump"
               @bottom="handleScrollToEnd"
+              @top="handleScrollToTop"
             />
           </section>
 

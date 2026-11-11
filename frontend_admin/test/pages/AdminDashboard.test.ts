@@ -211,3 +211,18 @@ describe('站点概览：零值折叠', () => {
     expect(wrapper.get('[data-role="admin-ai-usage"]').text()).toContain('日志库未启用')
   })
 })
+
+describe('站点概览：会话失效', () => {
+  it('汇总被判定为登录失效时，提示并跳登录，而不是把一排 0 当结论', async () => {
+    const { ApiBusinessError } = await import('~/services/http/errors')
+    adminApi.getDashboardSum.mockRejectedValue(new ApiBusinessError('请先登录', 1003))
+
+    const navigateTo = vi.fn()
+    vi.stubGlobal('navigateTo', navigateTo)
+
+    await mountPage()
+
+    expect(messageMock.error).toHaveBeenCalledWith('登录状态已过期，请重新登录')
+    expect(navigateTo).toHaveBeenCalledWith({ path: '/login', query: { redirect: '/' } })
+  })
+})

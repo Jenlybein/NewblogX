@@ -145,9 +145,8 @@ describe("分类栏：点分类就地展开文章", () => {
     expect(entries[0]?.text()).toContain("按分类展开的文章");
     expect(entries[1]?.text()).toContain("同分类第二篇");
 
-    const heading = wrapper.get(".profile-category-heading");
-    expect(heading.text()).toContain("工程笔记");
-    expect(heading.text()).toContain("2");
+    // 右栏不再有「分类名 + 篇数」顶栏：左边的选中态已经说明了是哪个分类。
+    expect(wrapper.find(".profile-category-heading").exists()).toBe(false);
     expect(wrapper.get(".profile-category-card").classes()).toContain("is-active");
   });
 

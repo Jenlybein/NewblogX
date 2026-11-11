@@ -126,10 +126,8 @@ function toggleCategory(id: string) {
       />
 
       <div v-else-if="articles.length" class="profile-category-article-list" data-role="category-articles">
-        <div class="profile-category-heading">
-          <span class="profile-category-heading__title">{{ activeCategory.title }}</span>
-          <span class="blueprint-chip">{{ articles.length }} 篇</span>
-        </div>
+        <!-- 不设顶栏：左边选中的分类已经高亮，右栏再来一条「Vue3 · 4 篇」
+             只是把同一个信息说第二遍，还白占一行高度（2026-11-12）。 -->
         <!-- 多列文章卡（票 345 抽出来的共享卡）：封面 + 标题 + 日期 + 四个计数。
              窄栏旁边一列能放下 2–3 张，扫起来比原来的单列条目快得多。 -->
         <div class="article-grid">

@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import { computed, shallowRef, watch } from "vue";
-import { useMessage } from "naive-ui";
+import { computed, nextTick, ref, shallowRef, watch } from "vue";
+import { NButton, NInput, useMessage } from "naive-ui";
 import ArticleFeedItem from "~/components/article/ArticleFeedItem.vue";
 import LoadingSkeleton from "~/components/common/LoadingSkeleton.vue";
 import ProfileCategoryExplorer from "~/components/profile/ProfileCategoryExplorer.vue";
@@ -14,6 +14,7 @@ import { getRelations, followUser, unfollowUser } from "~/services/follow";
 import { searchArticles } from "~/services/search";
 import { readListPayload } from "~/services/listData";
 import { useDraftChatJump } from "~/composables/useDraftChatJump";
+import { useMotionPreference } from "~/composables/useMotionPreference";
 import { getSelfUserDetail, getUserBaseInfo } from "~/services/user";
 import { formatCount } from "~/utils/format";
 import { getAuthorButtonLabel, isFollowing } from "~/utils/relation";
@@ -32,6 +33,7 @@ const router = useRouter();
 const authStore = useAuthStore();
 const uiStore = useUiStore();
 const { jumpToDraftChat } = useDraftChatJump();
+const { prefersReducedMotion } = useMotionPreference();
 const message = useMessage();
 const userId = computed(() => route.params.id as string);
 const profileLoadFailed = shallowRef(false);
@@ -115,13 +117,25 @@ const profileAbstractText = computed(() => {
   return profile.value?.abstract || "";
 });
 
+/**
+ * 文章流：分页 + 仅在本作者范围内搜索。
+ *
+ * 2026-11-12 补：之前只有第一页 12 条，没有分页，也没有搜索 —— 作者有 205 篇时
+ * 读者只能看到最新 12 篇。搜索沿用同一个端点（`type=3` 已经按 `author_id` 过滤），
+ * 加 `key` 即可；关键词与页码都进 params，`useArticleSearch` 会按指纹重新取数。
+ */
+const articlePage = ref(1);
+const articleKeyword = ref("");
+const articleKeywordDraft = ref("");
+
 const articleQuery = computed(() => ({
   type: 3 as const,
   author_id: userId.value,
-  page: 1,
+  page: articlePage.value,
   limit: 12,
   page_mode: "count" as const,
   sort: 2 as const,
+  ...(articleKeyword.value ? { key: articleKeyword.value } : {}),
 }));
 
 // 文章流与下面几个源一起在 setup 里**并行发起**（ADR-0019 约束 6：不得串行 await）：
@@ -140,6 +154,34 @@ void articleSearchPromise
   .catch(() => undefined);
 const articles = computed(() => articleSearch.value?.articles.value ?? []);
 const articlePending = computed(() => articleSearch.value?.pending.value ?? true);
+const articleTotal = computed(() => articleSearch.value?.pagination.value?.total ?? 0);
+const articleTotalPages = computed(() => {
+  const totalPages = articleSearch.value?.pagination.value?.total_pages ?? 0;
+  if (totalPages > 0) return totalPages;
+  // 后端只给 has_more 时用"当前页 + 1"兜底，至少让"下一页"可用。
+  return articleSearch.value?.pagination.value?.has_more ? articlePage.value + 1 : articlePage.value;
+});
+
+const articleListRef = ref<HTMLElement | null>(null);
+
+function applyArticleSearch() {
+  articleKeyword.value = articleKeywordDraft.value.trim();
+  articlePage.value = 1;
+}
+
+function clearArticleSearch() {
+  articleKeywordDraft.value = "";
+  articleKeyword.value = "";
+  articlePage.value = 1;
+}
+
+async function goArticlePage(page: number) {
+  const next = Math.min(Math.max(1, page), articleTotalPages.value);
+  if (next === articlePage.value) return;
+  articlePage.value = next;
+  await nextTick();
+  articleListRef.value?.scrollIntoView({ behavior: prefersReducedMotion.value ? "auto" : "smooth", block: "start" });
+}
 
 const favoriteLocked = computed(() => !isSelf.value && profile.value?.favorites_visibility === false);
 const followLocked = computed(() => !authStore.isLoggedIn || (!isSelf.value && profile.value?.followers_visibility === false));
@@ -176,7 +218,7 @@ watch(
   { immediate: true },
 );
 
-const { data: favoriteArticles, pending: favoriteArticlesPending } = useAsyncData(
+const { data: favoriteArticles, pending: favoriteArticlesPending, error: favoriteArticlesError } = useAsyncData(
   () => `user-favorite-articles:${favoriteFolderId.value || "empty"}:${favoriteLocked.value ? "locked" : "open"}`,
   async () => {
     if (favoriteLocked.value || !favoriteFolderId.value) {
@@ -187,9 +229,11 @@ const { data: favoriteArticles, pending: favoriteArticlesPending } = useAsyncDat
       favoriteId: favoriteFolderId.value,
       page: 1,
       limit: 18,
-      // 公开主页是匿名读面：后端只列已发布文章。带上 token 反而会把
-      // "这是来访者自己的收藏夹"当成私有读，口径就串了（票 344）。
-      auth: false,
+      // 看自己的主页要带 token：非默认收藏夹对匿名读面是 403（后端只会放行
+      // 默认夹），不带 token 就会被吞成"这个收藏夹还是空的"——本人看自己
+      // 的夹子却看不到内容（2026-11-12 修）。看别人的主页仍然匿名读，
+      // 后端只列已发布文章（票 344 的口径不变）。
+      auth: isSelf.value,
     });
   },
   {
@@ -323,10 +367,8 @@ watch(userId, () => {
 // （`useProfileCategoryManage` + `ProfileCategoryFormModal` 只在那里用）。
 // 本页保留展示链路：分类列表、文章数、点分类就地展开、空态与失败态。
 
-const favoriteSummaryText = computed(() => {
-  if (favoriteLocked.value) return "收藏夹未公开";
-  return `公开收藏夹 ${favoriteFolders.value?.count ?? 0} 个`;
-});
+// 公开主页不再播报"公开收藏夹 N 个 / N 关注 / N 粉丝"：右侧成就卡已经给了关注与
+// 粉丝的数字，收藏夹的数量对访客没有决策价值（2026-11-12 按需求去掉整块）。
 
 const visibilityBadges = computed(() => [
   profile.value?.favorites_visibility ? "收藏公开" : "收藏私密",
@@ -403,22 +445,6 @@ async function handleRelationToggle(targetId: string, relation: number) {
   }
 }
 
-const tabLabels: Record<UserTab, string> = {
-  articles: "文章",
-  favorites: "收藏",
-  categories: "分类",
-  follow: "关注",
-  fans: "粉丝",
-};
-
-const tabSummaryText = computed(() => {
-  if (activeTab.value === "articles") return `${articles.value.length} 篇文章`;
-  if (activeTab.value === "favorites") return favoriteSummaryText.value;
-  if (activeTab.value === "categories") return `${categories.value.length} 个分类`;
-  if (activeTab.value === "follow") return `${followData.value?.list?.length || 0} 个关注`;
-  return `${fansData.value?.list?.length || 0} 个粉丝`;
-});
-
 useSeoMeta({
   title: computed(() => `${profile.value?.nickname || "作者"} - 个人主页`),
   description: computed(() => profile.value?.abstract || "开发者个人主页"),
@@ -473,47 +499,73 @@ useSeoMeta({
                 {{ item.label }}
               </button>
             </div>
-
-            <div class="flex flex-wrap items-center gap-2">
-              <span class="blueprint-chip">{{ favoriteSummaryText }}</span>
-              <span class="blueprint-chip">{{ followData?.list?.length || 0 }} 关注</span>
-              <span class="blueprint-chip">{{ fansData?.list?.length || 0 }} 粉丝</span>
-            </div>
-          </div>
-
-          <div class="mb-4 flex flex-wrap items-center justify-between gap-3 border-t border-line-faint pt-4">
-            <span class="text-sm text-ink-muted">{{ tabLabels[activeTab] }} · {{ tabSummaryText }}</span>
-            <NuxtLink to="/search" class="blueprint-link">搜索更多文章</NuxtLink>
           </div>
 
           <template v-if="activeTab === 'articles'">
-            <!-- 结果区骨架优先：文章流还在路上时先出占位，不再用「加载中…」空态代替版式。 -->
-            <div v-if="articlePending && !articles.length" class="space-y-4">
-              <LoadingSkeleton :rows="3" variant="card" label="作者文章正在加载" />
-            </div>
-            <div v-else-if="articles.length" class="space-y-4">
-              <ArticleFeedItem
-                v-for="article in articles"
-                :key="article.id"
-                :article="article"
-                variant="list"
-                :show-author="false"
+            <!-- 只搜这位作者的文章：端点仍是同一个（type=3 自带 author_id 过滤），
+                 关键词随 params 进指纹，翻页与搜索互不覆盖。 -->
+            <div class="profile-article-tools">
+              <NInput
+                v-model:value="articleKeywordDraft"
+                class="profile-article-tools__input"
+                size="small"
+                clearable
+                placeholder="搜索这位作者的文章"
+                aria-label="搜索这位作者的文章"
+                @keyup.enter="applyArticleSearch"
               />
+              <NButton size="small" type="primary" secondary @click="applyArticleSearch">搜索</NButton>
+              <NButton v-if="articleKeyword" size="small" quaternary @click="clearArticleSearch">清除</NButton>
+              <span v-if="articleKeyword" class="profile-article-tools__hint">
+                「{{ articleKeyword }}」· {{ articleTotal }} 篇
+              </span>
             </div>
-            <ProfileEmptyState
-              v-else
-              size="md"
-              :pending="articlePending"
-              :title="articlePending ? '正在加载作者文章' : '这位作者还没有公开文章'"
-              :description="
-                articlePending
-                  ? '文章流正在读取，稍候会自动出现。'
-                  : '作者还没有发布公开文章，可以先看收藏架或关注/粉丝列表。'
-              "
-              :hints="articlePending ? [] : ['公开文章才会出现在这里，草稿与私密文章不会展示。']"
-            >
-              <NuxtLink to="/search" class="blueprint-link">去搜索其他人的文章</NuxtLink>
-            </ProfileEmptyState>
+
+            <div ref="articleListRef" class="profile-article-list">
+              <!-- 结果区骨架优先：文章流还在路上时先出占位，不再用「加载中…」空态代替版式。 -->
+              <div v-if="articlePending && !articles.length" class="space-y-4">
+                <LoadingSkeleton :rows="3" variant="card" label="作者文章正在加载" />
+              </div>
+              <div v-else-if="articles.length" class="space-y-4">
+                <ArticleFeedItem
+                  v-for="article in articles"
+                  :key="article.id"
+                  :article="article"
+                  variant="list"
+                  :show-author="false"
+                />
+              </div>
+              <ProfileEmptyState
+                v-else
+                size="md"
+                :pending="articlePending"
+                :title="articlePending ? '正在加载作者文章' : articleKeyword ? '没有匹配的文章' : '这位作者还没有公开文章'"
+                :description="
+                  articlePending
+                    ? '文章流正在读取，稍候会自动出现。'
+                    : articleKeyword
+                      ? '换个关键词试试，或者清除搜索看全部文章。'
+                      : '作者还没有发布公开文章，可以先看收藏架或关注/粉丝列表。'
+                "
+                :hints="articlePending || articleKeyword ? [] : ['公开文章才会出现在这里，草稿与私密文章不会展示。']"
+              >
+                <NuxtLink v-if="!articleKeyword" to="/search" class="blueprint-link">去搜索其他人的文章</NuxtLink>
+              </ProfileEmptyState>
+            </div>
+
+            <div v-if="articleTotalPages > 1" class="profile-pager">
+              <NButton size="small" secondary :disabled="articlePage <= 1" @click="goArticlePage(articlePage - 1)">
+                上一页
+              </NButton>
+              <span class="profile-pager__status">{{ articlePage }} / {{ articleTotalPages }}</span>
+              <NButton
+                size="small"
+                secondary
+                :disabled="articlePage >= articleTotalPages"
+                @click="goArticlePage(articlePage + 1)">
+                下一页
+              </NButton>
+            </div>
           </template>
 
           <ProfileCollectionShelf
@@ -522,6 +574,7 @@ useSeoMeta({
             :active-folder-id="favoriteFolderId"
             :articles="favoriteArticles?.list || []"
             :pending="favoriteFoldersPending || favoriteArticlesPending"
+            :failed="Boolean(favoriteArticlesError)"
             :locked="favoriteLocked"
             locked-title="收藏夹暂未公开"
             locked-description="这位作者把收藏夹设成了私密状态，所以目前只能查看文章流与基础成就。"
@@ -585,20 +638,16 @@ useSeoMeta({
           <div class="section-title mt-2">个人成就</div>
           <div class="mt-4 blueprint-divider">
             <div class="sidebar-list-row">
-              <span class="text-ink-muted">关注了</span>
-              <strong class="text-ink">{{ formatCount(profile?.follow_count || 0) }}</strong>
-            </div>
-            <div class="sidebar-list-row blueprint-divider">
-              <span class="text-ink-muted">关注者</span>
-              <strong class="text-ink">{{ formatCount(profile?.fans_count || 0) }}</strong>
-            </div>
-            <div class="sidebar-list-row blueprint-divider">
               <span class="text-ink-muted">文章数</span>
               <strong class="text-ink">{{ formatCount(profile?.article_count || 0) }}</strong>
             </div>
             <div class="sidebar-list-row blueprint-divider">
-              <span class="text-ink-muted">累计阅读</span>
+              <span class="text-ink-muted">主页访问量</span>
               <strong class="text-ink">{{ formatCount(profile?.view_count || 0) }}</strong>
+            </div>
+            <div class="sidebar-list-row blueprint-divider">
+              <span class="text-ink-muted">累计被阅读</span>
+              <strong class="text-ink">{{ formatCount(profile?.article_visited_count || 0) }}</strong>
             </div>
           </div>
         </section>
@@ -636,7 +685,6 @@ useSeoMeta({
           </p>
           <div class="mt-4 flex flex-wrap items-center gap-3">
             <NuxtLink to="/search" class="blueprint-link">回到文章流</NuxtLink>
-            <NuxtLink v-if="isSelf" to="/studio/dashboard" class="blueprint-link">进入个人中心</NuxtLink>
           </div>
         </section>
       </aside>

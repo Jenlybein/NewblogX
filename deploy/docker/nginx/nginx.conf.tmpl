@@ -60,6 +60,13 @@ http {
      ${BLOGX_NGINX_LISTEN_443}
      server_name  ${BLOGX_NGINX_SERVER_NAME};
 
+     # 有 TLS 的形态（test / production / api-only）：HTTP 一律跳到 HTTPS。
+     # 不这么做的话，用 http://IP 进来的人能正常打开页面并登录，但 refresh_token
+     # 是 Secure Cookie，浏览器在 HTTP 下根本不会回传 —— 15 分钟后访问令牌过期，
+     # 整个后台的请求都会 1003，看起来像"数据全丢了"（2026-11-12 线上踩过）。
+     # local 形态没有证书，这一行渲染为空。
+     ${BLOGX_NGINX_HTTP_REDIRECT}
+
      # 部署形态开关：1=启用，0=该子站不对外提供（返回 404）
      set $blogx_serve_web "${BLOGX_NGINX_SERVE_WEB}";
      set $blogx_serve_admin "${BLOGX_NGINX_SERVE_ADMIN}";

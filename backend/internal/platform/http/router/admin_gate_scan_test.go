@@ -71,7 +71,7 @@ var adminRouteTemplates = []string{
 	"GET /api/logs/ai/:id",
 	"GET /api/logs/dead-letter",
 	"POST /api/logs/dead-letter/replay",
-		"DELETE /api/logs/dead-letter",
+	"DELETE /api/logs/dead-letter",
 	// 用户管理
 	"GET /api/users/admin/list",
 	"POST /api/users/admin",
@@ -123,7 +123,7 @@ var adminRouteTemplates = []string{
 	"POST /api/articles/:id/admin/:visibility",
 	"DELETE /api/articles",
 	"DELETE /api/articles/tags",
-		"PATCH /api/articles/tags/order",
+	"PATCH /api/articles/tags/order",
 	"PUT /api/articles/tags",
 	"GET /api/article-review",
 	"POST /api/article-review-tasks/:id/review",
@@ -185,6 +185,8 @@ var userRouteTemplates = []string{
 	"PUT /api/users/password/renewal/email",
 	"GET /api/users/base",
 	"GET /api/users/detail",
+	// 公开用户搜索：顶栏搜索的「用户」分栏用，匿名可读，只返回正常状态的公开字段。
+	"GET /api/users/search",
 	"GET /api/users/sessions",
 	"DELETE /api/users/sessions/:id",
 	// 站点公开读：seo / ai_info / 九段里的 site 与 deco / 右栏卡片。

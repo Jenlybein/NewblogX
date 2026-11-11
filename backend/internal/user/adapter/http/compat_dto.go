@@ -89,12 +89,16 @@ type BaseInfoResponse struct {
 	FollowCount         int       `json:"follow_count"`
 	ArticleVisitedCount int       `json:"article_visited_count"`
 	ArticleCount        int       `json:"article_count"`
-	FavoritesVisibility bool      `json:"favorites_visibility"`
-	FollowVisibility    bool      `json:"followers_visibility"`
-	FansVisibility      bool      `json:"fans_visibility"`
+	// 累计互动：只统计作者**已发布**文章的赞 / 收藏 / 评论总数。
+	DiggCount           int64 `json:"digg_count"`
+	FavorCount          int64 `json:"favor_count"`
+	CommentCount        int64 `json:"comment_count"`
+	FavoritesVisibility bool  `json:"favorites_visibility"`
+	FollowVisibility    bool  `json:"followers_visibility"`
+	FansVisibility      bool  `json:"fans_visibility"`
 
-	Relation            int8      `json:"relation"`
-	Place               string    `json:"place"`
+	Relation int8   `json:"relation"`
+	Place    string `json:"place"`
 }
 
 // AdminUserItemResponse 管理端用户列表的一行（旧契约字段名）。

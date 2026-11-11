@@ -4125,11 +4125,21 @@
                     "code_age": {
                         "type": "integer"
                     },
+                    "comment_count": {
+                        "type": "integer"
+                    },
+                    "digg_count": {
+                        "description": "累计互动：只统计作者**已发布**文章的赞 / 收藏 / 评论总数。",
+                        "type": "integer"
+                    },
                     "fans_count": {
                         "type": "integer"
                     },
                     "fans_visibility": {
                         "type": "boolean"
+                    },
+                    "favor_count": {
+                        "type": "integer"
                     },
                     "favorites_visibility": {
                         "type": "boolean"
@@ -4231,6 +4241,26 @@
                         "type": "boolean"
                     },
                     "username": {
+                        "type": "string"
+                    }
+                },
+                "type": "object"
+            },
+            "internal_user_adapter_http.UserSearchItemResponse": {
+                "properties": {
+                    "abstract": {
+                        "type": "string"
+                    },
+                    "avatar": {
+                        "type": "string"
+                    },
+                    "code_age": {
+                        "type": "integer"
+                    },
+                    "id": {
+                        "type": "string"
+                    },
+                    "nickname": {
                         "type": "string"
                     }
                 },
@@ -6321,6 +6351,20 @@
                 },
                 "type": "object"
             },
+            "myblogx_internal_kernel.Envelope-myblogx_internal_kernel_HasMoreListData-internal_user_adapter_http_UserSearchItemResponse": {
+                "properties": {
+                    "code": {
+                        "type": "integer"
+                    },
+                    "data": {
+                        "$ref": "#/components/schemas/myblogx_internal_kernel.HasMoreListData-internal_user_adapter_http_UserSearchItemResponse"
+                    },
+                    "msg": {
+                        "type": "string"
+                    }
+                },
+                "type": "object"
+            },
             "myblogx_internal_kernel.Envelope-myblogx_internal_kernel_HasMoreListData-myblogx_internal_comment_app_RootItem": {
                 "properties": {
                     "code": {
@@ -6837,6 +6881,21 @@
                     "list": {
                         "items": {
                             "$ref": "#/components/schemas/internal_site_adapter_http.BannerItem"
+                        },
+                        "type": "array",
+                        "uniqueItems": false
+                    }
+                },
+                "type": "object"
+            },
+            "myblogx_internal_kernel.HasMoreListData-internal_user_adapter_http_UserSearchItemResponse": {
+                "properties": {
+                    "has_more": {
+                        "type": "boolean"
+                    },
+                    "list": {
+                        "items": {
+                            "$ref": "#/components/schemas/internal_user_adapter_http.UserSearchItemResponse"
                         },
                         "type": "array",
                         "uniqueItems": false
@@ -15168,6 +15227,52 @@
                     }
                 },
                 "summary": "刷新访问令牌",
+                "tags": [
+                    "user"
+                ]
+            }
+        },
+        "/users/search": {
+            "get": {
+                "parameters": [
+                    {
+                        "description": "关键词（昵称或用户名）",
+                        "in": "query",
+                        "name": "key",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "description": "页码",
+                        "in": "query",
+                        "name": "page",
+                        "schema": {
+                            "type": "integer"
+                        }
+                    },
+                    {
+                        "description": "每页数量",
+                        "in": "query",
+                        "name": "limit",
+                        "schema": {
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/myblogx_internal_kernel.Envelope-myblogx_internal_kernel_HasMoreListData-internal_user_adapter_http_UserSearchItemResponse"
+                                }
+                            }
+                        },
+                        "description": "OK"
+                    }
+                },
+                "summary": "搜索用户",
                 "tags": [
                     "user"
                 ]

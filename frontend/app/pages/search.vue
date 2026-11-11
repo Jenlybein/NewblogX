@@ -5,6 +5,7 @@ import ArticleFeedItem from "~/components/article/ArticleFeedItem.vue";
 import LoadingSkeleton from "~/components/common/LoadingSkeleton.vue";
 import ProfileEmptyState from "~/components/profile/ProfileEmptyState.vue";
 import { getTagOptions, searchArticles, searchArticlesWithAi } from "~/services/search";
+import { searchUsers, type PublicUserSearchItem } from "~/services/user";
 import {
   SEARCH_ACTION_LABELS,
   resolveSearchEmptyState,
@@ -139,9 +140,28 @@ const searchPager = await usePagedResourceCache({
   },
 });
 
+// 用户搜索与文章搜索并行：输作者名时，读者既要他的文章，也可能想直接进主页。
+// 这一栏是增强信息，读不到就不显示，不影响文章结果与错误态。
+// 不 await（ADR-0019 约束 6）：首屏 setup 不能被第二个请求串行拖住。
+const { data: userResults } = useAsyncData(
+  () => `search-users:${committedQuery.value.mode}:${committedQuery.value.key.trim()}`,
+  async (): Promise<PublicUserSearchItem[]> => {
+    const keyword = committedQuery.value.key.trim();
+    if (!keyword || committedQuery.value.mode === "ai") {
+      return [];
+    }
+    try {
+      const payload = await searchUsers({ key: keyword, limit: 6 });
+      return payload.list;
+    } catch {
+      return [];
+    }
+  },
+  { watch: [committedQuery] },
+);
+
 const sortOptions = [
-  { label: "综合相关度", value: "1" },
-  { label: "最新发布", value: "2" },
+  { label: "综合相关度", value: "1" },  { label: "最新发布", value: "2" },
   { label: "回复最多", value: "3" },
   { label: "点赞最多", value: "4" },
   { label: "收藏最多", value: "5" },
@@ -343,6 +363,34 @@ useNoIndexPage();
             <NButton type="primary" attr-type="button" @click="handleSearch">搜索</NButton>
           </div>
         </div>
+      </div>
+    </section>
+
+    <section v-if="userResults?.length" class="blueprint-panel">
+      <div class="eyebrow">Users</div>
+      <h2 class="section-title mt-2">相关用户</h2>
+      <div class="search-user-list">
+        <NuxtLink
+          v-for="user in userResults"
+          :key="user.id"
+          :to="`/users/${user.id}`"
+          class="search-user-card"
+        >
+          <img
+            v-if="user.avatar"
+            :src="user.avatar"
+            alt=""
+            class="search-user-card__avatar"
+            loading="lazy"
+          >
+          <span v-else class="search-user-card__avatar search-user-card__avatar--fallback" aria-hidden="true">
+            {{ user.nickname.slice(0, 1) }}
+          </span>
+          <span class="search-user-card__text">
+            <span class="search-user-card__name">{{ user.nickname }}</span>
+            <span class="search-user-card__abstract">{{ user.abstract || "还没有写简介" }}</span>
+          </span>
+        </NuxtLink>
       </div>
     </section>
 

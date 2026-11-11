@@ -649,6 +649,18 @@ useSeoMeta({
               <span class="text-ink-muted">累计被阅读</span>
               <strong class="text-ink">{{ formatCount(profile?.article_visited_count || 0) }}</strong>
             </div>
+            <div class="sidebar-list-row blueprint-divider">
+              <span class="text-ink-muted">累计被赞</span>
+              <strong class="text-ink">{{ formatCount(profile?.digg_count || 0) }}</strong>
+            </div>
+            <div class="sidebar-list-row blueprint-divider">
+              <span class="text-ink-muted">累计被收藏</span>
+              <strong class="text-ink">{{ formatCount(profile?.favor_count || 0) }}</strong>
+            </div>
+            <div class="sidebar-list-row blueprint-divider">
+              <span class="text-ink-muted">累计被评论</span>
+              <strong class="text-ink">{{ formatCount(profile?.comment_count || 0) }}</strong>
+            </div>
           </div>
         </section>
 

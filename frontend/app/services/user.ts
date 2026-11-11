@@ -1,4 +1,39 @@
+import { useNuxtApp } from "#imports";
 import type { MessageSummary, UserBaseInfo, UserSelfDetail } from "~/types/api";
+
+/**
+ * 用户搜索的一行（公开字段）。
+ *
+ * 后端只回昵称 / 头像 / 简介 / 注册年数，没有邮箱与状态：搜索是匿名可用的读面。
+ */
+export type PublicUserSearchItem = {
+  id: string;
+  nickname: string;
+  avatar: string;
+  abstract: string;
+  code_age: number;
+};
+
+export type UserSearchListData = {
+  list: PublicUserSearchItem[];
+  has_more: boolean;
+};
+
+/**
+ * 按昵称 / 用户名搜索用户。
+ *
+ * 顶栏搜索进到结果页时，除了文章还会带一栏「相关用户」，这样输入作者名
+ * 既能找到他的文章，也能直接进他的主页。
+ */
+export function searchUsers(params: { key: string; page?: number; limit?: number }) {
+  return useNuxtApp().$api.request<UserSearchListData>("/api/users/search", {
+    query: {
+      key: params.key,
+      page: params.page ?? 1,
+      limit: params.limit ?? 6,
+    },
+  });
+}
 
 export function getUserBaseInfo(id: string | number) {
   return useNuxtApp().$api.request<UserBaseInfo>("/api/users/base", {

@@ -106,6 +106,24 @@ type Integrations struct {
 	Sessions  SessionRevoker
 	LastLogin LastLoginReader
 	Tags      TagValidator
+	// AuthorStats 读作者已发布文章的累计互动（赞 / 收藏 / 评论）。
+	// 数据在 article 模块，可选：拿不到就只少三个展示数字，主页仍然能开。
+	AuthorStats AuthorStatsReader
+}
+
+// AuthorStats 是某作者全部已发布文章的累计互动数。
+type AuthorStats struct {
+	Digg    int64
+	Favor   int64
+	Comment int64
+}
+
+// AuthorStatsReader 读作者的累计互动数。
+//
+// 定义在用户模块（消费方）而不是 article 模块，理由与 RelationReader 相同：
+// 用户模块只需要这三个数字，不该知道文章表怎么算。
+type AuthorStatsReader interface {
+	AuthorStats(ctx context.Context, authorID domain.UserID) (AuthorStats, error)
 }
 
 // WithIntegrations 注入可选外部能力。
@@ -115,6 +133,7 @@ func WithIntegrations(i Integrations) Option {
 		s.homeView = i.HomeView
 		s.sessions = i.Sessions
 		s.lastLogin = i.LastLogin
+		s.authorStats = i.AuthorStats
 		s.tags = i.Tags
 	}
 }
@@ -177,11 +196,12 @@ type Service struct {
 	usernameAlloc UsernameAllocator
 	logger        Logger
 
-	relation  RelationReader
-	homeView  HomeViewRecorder
-	sessions  SessionRevoker
-	lastLogin LastLoginReader
-	tags      TagValidator
+	relation    RelationReader
+	homeView    HomeViewRecorder
+	sessions    SessionRevoker
+	lastLogin   LastLoginReader
+	tags        TagValidator
+	authorStats AuthorStatsReader
 }
 
 // Option 是可选的装配项。

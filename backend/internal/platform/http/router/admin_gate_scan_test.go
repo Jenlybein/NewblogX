@@ -70,6 +70,7 @@ var adminRouteTemplates = []string{
 	"GET /api/logs/ai/:id",
 	"GET /api/logs/dead-letter",
 	"POST /api/logs/dead-letter/replay",
+		"DELETE /api/logs/dead-letter",
 	// 用户管理
 	"GET /api/users/admin/list",
 	"POST /api/users/admin",

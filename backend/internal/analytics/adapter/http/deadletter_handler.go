@@ -58,6 +58,14 @@ type DeadLetterReplayRequest struct {
 	IDList []ctype.ID `json:"id_list" binding:"required"`
 }
 
+// DeadLetterDeleteRequest 是删除死信请求体。
+//
+// 与重投同一个形状（id_list）：一次只能删掉明确点出来的那几条，
+// 不提供"按条件清空"——误删一整批的代价太大。
+type DeadLetterDeleteRequest struct {
+	IDList []ctype.ID `json:"id_list" binding:"required"`
+}
+
 // DeadLetterReplayResultResponse 是单条重投结果。
 type DeadLetterReplayResultResponse struct {
 	ID      ctype.ID `json:"id"`
@@ -65,6 +73,11 @@ type DeadLetterReplayResultResponse struct {
 	Status  string   `json:"status"`
 	Result  string   `json:"result"`
 	Message string   `json:"message"`
+}
+
+// DeadLetterDeleteResultResponse 是删除结果（真删掉的行数）。
+type DeadLetterDeleteResultResponse struct {
+	Deleted int `json:"deleted"`
 }
 
 // DeadLetterListView 死信列表（管理员）。
@@ -164,6 +177,37 @@ func (h *Handler) DeadLetterReplayView(c *gin.Context) {
 		})
 	}
 	res.OkWithList(items, len(items), c)
+}
+
+// DeadLetterDeleteView 删除死信（管理员）。
+//
+// 用于"这条我怎么都处理不了，别留着了"。物理删除：cdc_dead_letter 没有 deleted_at，
+// 且删掉之后 outbox 的 dead 行不会被重新投递（relay 只取 pending / 到期的行）。
+// @Summary 删除死信
+// @Tags log
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Param body body DeadLetterDeleteRequest true "死信 ID 列表"
+// @Success 200 {object} kernel.Envelope[DeadLetterDeleteResultResponse]
+// @Router /logs/dead-letter [delete]
+func (h *Handler) DeadLetterDeleteView(c *gin.Context) {
+	cr := middleware.GetBindJson[DeadLetterDeleteRequest](c)
+	if h.deadLetters == nil {
+		res.FailWithMsg("死信查询未初始化", c)
+		return
+	}
+	if len(cr.IDList) > maxReplayBatch {
+		res.FailWithMsg(fmt.Sprintf("一次最多删除 %d 条，请分批操作", maxReplayBatch), c)
+		return
+	}
+
+	deleted, err := h.deadLetters.Delete(c.Request.Context(), cr.IDList)
+	if err != nil {
+		res.FailWithError(err, c)
+		return
+	}
+	res.OkWithData(DeadLetterDeleteResultResponse{Deleted: int(deleted)}, c)
 }
 
 // deadLetterQuery 把请求参数翻译成领域查询（分页参数由调用方补，因为 Count 用不到）。

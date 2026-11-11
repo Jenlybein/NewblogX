@@ -69,10 +69,16 @@ type DeadLetterQuery struct {
 	Offset         int
 }
 
-// DeadLetterReader 查死信队列。
+// DeadLetterReader 查死信队列，并允许管理员删掉"没法处理"的那几条。
 type DeadLetterReader interface {
 	Query(ctx context.Context, q DeadLetterQuery) ([]DeadLetter, error)
 	Count(ctx context.Context, q DeadLetterQuery) (int64, error)
+	// Delete 物理删除若干条死信，返回真正删掉的行数。
+	//
+	// 这张表没有 deleted_at（死信是事件快照，只做保留期清理），所以只能真删。
+	// 删掉之后不会再被重投，但 outbox 的 dead 行不受影响：relay 只取 pending /
+	// 到期的行，永远不会回收 dead，因此删除死信不会让任何消息被重新投递。
+	Delete(ctx context.Context, ids []ctype.ID) (int64, error)
 }
 
 // DeadLetterReplayResult 是一条死信的重投结果。

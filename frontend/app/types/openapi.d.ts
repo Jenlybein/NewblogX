@@ -3815,7 +3815,32 @@ export interface paths {
         };
         put?: never;
         post?: never;
-        delete?: never;
+        /** 删除死信 */
+        delete: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            /** @description 死信 ID 列表 */
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["internal_analytics_adapter_http.DeadLetterDeleteRequest"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["myblogx_internal_kernel.Envelope-internal_analytics_adapter_http_DeadLetterDeleteResultResponse"];
+                    };
+                };
+            };
+        };
         options?: never;
         head?: never;
         patch?: never;
@@ -6962,6 +6987,12 @@ export interface components {
             count?: number;
             date?: string;
         };
+        "internal_analytics_adapter_http.DeadLetterDeleteRequest": {
+            id_list: string[];
+        };
+        "internal_analytics_adapter_http.DeadLetterDeleteResultResponse": {
+            deleted?: number;
+        };
         "internal_analytics_adapter_http.DeadLetterItemResponse": {
             action?: string;
             cdc_job_id?: string;
@@ -8595,6 +8626,11 @@ export interface components {
         "myblogx_internal_kernel.Envelope-internal_analytics_adapter_http_ChainQueryResponse": {
             code?: number;
             data?: components["schemas"]["internal_analytics_adapter_http.ChainQueryResponse"];
+            msg?: string;
+        };
+        "myblogx_internal_kernel.Envelope-internal_analytics_adapter_http_DeadLetterDeleteResultResponse": {
+            code?: number;
+            data?: components["schemas"]["internal_analytics_adapter_http.DeadLetterDeleteResultResponse"];
             msg?: string;
         };
         "myblogx_internal_kernel.Envelope-internal_analytics_adapter_http_GrowthDataResponse": {

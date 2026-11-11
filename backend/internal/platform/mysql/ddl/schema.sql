@@ -360,6 +360,65 @@ CREATE TABLE IF NOT EXISTS `project_outline_node_models` (
   KEY `idx_project_outline_owner` (`owner_id`,`article_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
+-- 合集 / 项目分组（ADR-0041）：两个实体各一对表 —— 分组表 + 条目归属表。
+--
+-- 为什么条目归属单独一张表而不是在 collection_models 上加一列 group_id：
+-- 零 DDL 口径不允许给既有表加列；而且归属与组内顺序是"编排"而不是"实体属性"，
+-- 分组被删时它们要整体退回未分组，放在独立表里这件事才是一次 UPDATE。
+--
+-- group_id = 0 表示**未分组**：未分组不是一种分组，它是"还没被放进任何分组"，
+-- 不建一条永远存在的特殊行来代表它。
+CREATE TABLE IF NOT EXISTS `collection_group_models` (
+  `id` bigint unsigned NOT NULL,
+  `created_at` datetime(3) DEFAULT NULL,
+  `updated_at` datetime(3) DEFAULT NULL,
+  `deleted_at` datetime(3) DEFAULT NULL,
+  `title` varchar(128) NOT NULL,
+  `sort_order` bigint NOT NULL DEFAULT '0',
+  PRIMARY KEY (`id`),
+  KEY `idx_collection_group_models_sort` (`sort_order`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
+-- 一个合集最多落在一个分组里：uk 落在 collection_id 上（不是 (group_id, collection_id)），
+-- 否则同一个合集能同时进两个分组，界面上会出现两份。
+CREATE TABLE IF NOT EXISTS `collection_group_item_models` (
+  `id` bigint unsigned NOT NULL,
+  `created_at` datetime(3) DEFAULT NULL,
+  `updated_at` datetime(3) DEFAULT NULL,
+  `deleted_at` datetime(3) DEFAULT NULL,
+  `group_id` bigint unsigned NOT NULL DEFAULT '0',
+  `collection_id` bigint unsigned NOT NULL,
+  `sort_order` bigint NOT NULL DEFAULT '0',
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uk_collection_group_item_collection` (`collection_id`),
+  KEY `idx_collection_group_item_group` (`group_id`,`sort_order`),
+  CONSTRAINT `fk_collection_group_item_collection` FOREIGN KEY (`collection_id`) REFERENCES `collection_models` (`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
+CREATE TABLE IF NOT EXISTS `project_group_models` (
+  `id` bigint unsigned NOT NULL,
+  `created_at` datetime(3) DEFAULT NULL,
+  `updated_at` datetime(3) DEFAULT NULL,
+  `deleted_at` datetime(3) DEFAULT NULL,
+  `title` varchar(128) NOT NULL,
+  `sort_order` bigint NOT NULL DEFAULT '0',
+  PRIMARY KEY (`id`),
+  KEY `idx_project_group_models_sort` (`sort_order`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
+CREATE TABLE IF NOT EXISTS `project_group_item_models` (
+  `id` bigint unsigned NOT NULL,
+  `created_at` datetime(3) DEFAULT NULL,
+  `updated_at` datetime(3) DEFAULT NULL,
+  `deleted_at` datetime(3) DEFAULT NULL,
+  `group_id` bigint unsigned NOT NULL DEFAULT '0',
+  `project_id` bigint unsigned NOT NULL,
+  `sort_order` bigint NOT NULL DEFAULT '0',
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uk_project_group_item_project` (`project_id`),
+  KEY `idx_project_group_item_group` (`group_id`,`sort_order`),
+  CONSTRAINT `fk_project_group_item_project` FOREIGN KEY (`project_id`) REFERENCES `project_models` (`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 CREATE TABLE IF NOT EXISTS `comment_digg_models` (
   `id` bigint unsigned NOT NULL,
   `created_at` datetime(3) DEFAULT NULL,

@@ -2284,6 +2284,147 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/collections/groups": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 分组读面 */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["myblogx_internal_kernel.Envelope-internal_article_adapter_http_GroupTreeResponse"];
+                    };
+                };
+            };
+        };
+        /** 新建或改名分组 */
+        put: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            /** @description 分组标题（id 为空表示新建） */
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["internal_article_adapter_http.GroupSaveRequest"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["myblogx_internal_kernel.Envelope-internal_article_adapter_http_GroupNodeResponse"];
+                    };
+                };
+            };
+        };
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/collections/groups/order": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** 分组整树换序 */
+        put: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            /** @description 整树顺序 */
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["internal_article_adapter_http.GroupOrderRequest"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["myblogx_internal_kernel.Envelope-any"];
+                    };
+                };
+            };
+        };
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/collections/groups/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** 删除分组 */
+        delete: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    /** @description 分组 ID */
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["myblogx_internal_kernel.Envelope-any"];
+                    };
+                };
+            };
+        };
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/collections/{id}": {
         parameters: {
             query?: never;
@@ -2369,6 +2510,50 @@ export interface paths {
                 };
             };
         };
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/collections/{id}/compose": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** 合集字段 + 目录树一次提交 */
+        put: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    /** @description 合集 ID */
+                    id: string;
+                };
+                cookie?: never;
+            };
+            /** @description 字段与整棵树 */
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["internal_article_adapter_http.CollectionComposeRequest"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["myblogx_internal_kernel.Envelope-internal_article_adapter_http_CollectionOutlineTreeResponse"];
+                    };
+                };
+            };
+        };
+        post?: never;
+        delete?: never;
         options?: never;
         head?: never;
         patch?: never;
@@ -4335,6 +4520,147 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/projects/groups": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 分组读面 */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["myblogx_internal_kernel.Envelope-internal_article_adapter_http_GroupTreeResponse"];
+                    };
+                };
+            };
+        };
+        /** 新建或改名分组 */
+        put: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            /** @description 分组标题（id 为空表示新建） */
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["internal_article_adapter_http.GroupSaveRequest"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["myblogx_internal_kernel.Envelope-internal_article_adapter_http_GroupNodeResponse"];
+                    };
+                };
+            };
+        };
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/projects/groups/order": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** 分组整树换序 */
+        put: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            /** @description 整树顺序 */
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["internal_article_adapter_http.GroupOrderRequest"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["myblogx_internal_kernel.Envelope-any"];
+                    };
+                };
+            };
+        };
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/projects/groups/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** 删除分组 */
+        delete: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    /** @description 分组 ID */
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["myblogx_internal_kernel.Envelope-any"];
+                    };
+                };
+            };
+        };
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/projects/order": {
         parameters: {
             query?: never;
@@ -4461,6 +4787,50 @@ export interface paths {
                 };
             };
         };
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/projects/{id}/compose": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** 项目字段 + 目录树一次提交 */
+        put: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    /** @description 项目 ID */
+                    id: string;
+                };
+                cookie?: never;
+            };
+            /** @description 字段与整棵树 */
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["internal_article_adapter_http.ProjectComposeRequest"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["myblogx_internal_kernel.Envelope-internal_article_adapter_http_ProjectOutlineTreeResponse"];
+                    };
+                };
+            };
+        };
+        post?: never;
+        delete?: never;
         options?: never;
         head?: never;
         patch?: never;
@@ -7290,6 +7660,12 @@ export interface components {
             id?: string;
             title?: string;
         };
+        "internal_article_adapter_http.CollectionComposeRequest": {
+            cover?: string;
+            description?: string;
+            nodes?: components["schemas"]["internal_article_adapter_http.OutlineNodeRequest"][];
+            title: string;
+        };
         "internal_article_adapter_http.CollectionCreateRequest": {
             cover?: string;
             description?: string;
@@ -7371,6 +7747,30 @@ export interface components {
             id?: string;
             title: string;
         };
+        "internal_article_adapter_http.GroupItemResponse": {
+            owner_id?: string;
+        };
+        "internal_article_adapter_http.GroupNodeRequest": {
+            id: string;
+            items?: string[];
+        };
+        "internal_article_adapter_http.GroupNodeResponse": {
+            id?: string;
+            items?: components["schemas"]["internal_article_adapter_http.GroupItemResponse"][];
+            title?: string;
+        };
+        "internal_article_adapter_http.GroupOrderRequest": {
+            groups?: components["schemas"]["internal_article_adapter_http.GroupNodeRequest"][];
+            ungrouped?: string[];
+        };
+        "internal_article_adapter_http.GroupSaveRequest": {
+            id?: string;
+            title: string;
+        };
+        "internal_article_adapter_http.GroupTreeResponse": {
+            groups?: components["schemas"]["internal_article_adapter_http.GroupNodeResponse"][];
+            ungrouped?: components["schemas"]["internal_article_adapter_http.GroupItemResponse"][];
+        };
         "internal_article_adapter_http.OutlineArticleRefResponse": {
             article_cover?: string;
             article_id?: string;
@@ -7426,6 +7826,12 @@ export interface components {
             description?: string;
             id?: string;
             title?: string;
+        };
+        "internal_article_adapter_http.ProjectComposeRequest": {
+            cover?: string;
+            description?: string;
+            nodes?: components["schemas"]["internal_article_adapter_http.OutlineNodeRequest"][];
+            title: string;
         };
         "internal_article_adapter_http.ProjectCreateRequest": {
             cover?: string;
@@ -8603,6 +9009,11 @@ export interface components {
             user_nickname?: string;
         };
         "myblogx_internal_kernel.EmptyData": Record<string, never>;
+        "myblogx_internal_kernel.Envelope-any": {
+            code?: number;
+            data?: unknown;
+            msg?: string;
+        };
         "myblogx_internal_kernel.Envelope-internal_ai_adapter_http_MetaInfoResponse": {
             code?: number;
             data?: components["schemas"]["internal_ai_adapter_http.MetaInfoResponse"];
@@ -8696,6 +9107,16 @@ export interface components {
         "myblogx_internal_kernel.Envelope-internal_article_adapter_http_CollectionOutlineTreeResponse": {
             code?: number;
             data?: components["schemas"]["internal_article_adapter_http.CollectionOutlineTreeResponse"];
+            msg?: string;
+        };
+        "myblogx_internal_kernel.Envelope-internal_article_adapter_http_GroupNodeResponse": {
+            code?: number;
+            data?: components["schemas"]["internal_article_adapter_http.GroupNodeResponse"];
+            msg?: string;
+        };
+        "myblogx_internal_kernel.Envelope-internal_article_adapter_http_GroupTreeResponse": {
+            code?: number;
+            data?: components["schemas"]["internal_article_adapter_http.GroupTreeResponse"];
             msg?: string;
         };
         "myblogx_internal_kernel.Envelope-internal_article_adapter_http_ProjectCreatedResponse": {

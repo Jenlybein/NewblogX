@@ -790,3 +790,47 @@ type ArticleRiskRow struct {
 }
 
 func (ArticleRiskRow) TableName() string { return "article_risk_models" }
+// CollectionGroupRow 对应表 collection_group_models（ADR-0041）。
+type CollectionGroupRow struct {
+	BaseRow
+	Title string `gorm:"type:varchar(128);not null" json:"title"`
+	// SortOrder 是分组之间的顺序号（从 1 开始），整树提交时整列重写。
+	SortOrder int `gorm:"not null;default:0" json:"sort_order"`
+}
+
+// TableName 固定表名。
+func (CollectionGroupRow) TableName() string { return "collection_group_models" }
+
+// CollectionGroupItemRow 对应表 collection_group_item_models。
+//
+// GroupID 为 0 表示未分组；UK 落在 collection_id 上，一个合集最多在一个分组里。
+type CollectionGroupItemRow struct {
+	BaseRow
+	GroupID      ctype.ID `gorm:"not null;default:0" json:"group_id"`
+	CollectionID ctype.ID `gorm:"not null" json:"collection_id"`
+	SortOrder    int      `gorm:"not null;default:0" json:"sort_order"`
+}
+
+// TableName 固定表名。
+func (CollectionGroupItemRow) TableName() string { return "collection_group_item_models" }
+
+// ProjectGroupRow 对应表 project_group_models（ADR-0041）。
+type ProjectGroupRow struct {
+	BaseRow
+	Title     string `gorm:"type:varchar(128);not null" json:"title"`
+	SortOrder int    `gorm:"not null;default:0" json:"sort_order"`
+}
+
+// TableName 固定表名。
+func (ProjectGroupRow) TableName() string { return "project_group_models" }
+
+// ProjectGroupItemRow 对应表 project_group_item_models。
+type ProjectGroupItemRow struct {
+	BaseRow
+	GroupID   ctype.ID `gorm:"not null;default:0" json:"group_id"`
+	ProjectID ctype.ID `gorm:"not null" json:"project_id"`
+	SortOrder int      `gorm:"not null;default:0" json:"sort_order"`
+}
+
+// TableName 固定表名。
+func (ProjectGroupItemRow) TableName() string { return "project_group_item_models" }

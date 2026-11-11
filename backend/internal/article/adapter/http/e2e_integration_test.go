@@ -24,6 +24,7 @@ import (
 	articleapp "myblogx/internal/article/app"
 	"myblogx/internal/article/domain"
 	"myblogx/internal/article/domain/collection"
+	"myblogx/internal/article/domain/grouping"
 	"myblogx/internal/article/domain/favorite"
 	"myblogx/internal/article/domain/outline"
 	"myblogx/internal/article/domain/project"
@@ -50,6 +51,8 @@ func (g *testIDs) NextFolderID() favorite.ID       { return ctype.NewID(g.next()
 func (g *testIDs) NextCollectionID() collection.ID { return ctype.NewID(g.next()) }
 func (g *testIDs) NextProjectID() project.ID       { return ctype.NewID(g.next()) }
 func (g *testIDs) NextOutlineNodeID() outline.ID   { return ctype.NewID(g.next()) }
+func (g *testIDs) NextGroupID() grouping.ID        { return grouping.ID(ctype.NewID(g.next())) }
+func (g *testIDs) NextGroupItemID() ctype.ID       { return ctype.NewID(g.next()) }
 
 func migrate(t *testing.T) *gorm.DB {
 	t.Helper()

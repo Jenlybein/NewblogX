@@ -13,6 +13,7 @@ import (
 	"myblogx/internal/article/domain"
 	"myblogx/internal/article/domain/collection"
 	"myblogx/internal/article/domain/favorite"
+	"myblogx/internal/article/domain/grouping"
 	"myblogx/internal/article/domain/hottop"
 	"myblogx/internal/article/domain/moderation"
 	"myblogx/internal/article/domain/outline"
@@ -281,6 +282,16 @@ type IDGen interface {
 	// 与 NextCollectionID 分开：项目与合集是两套内容实体，ID 会出现在
 	// 读者站 URL 上，日志里要能分辨"这是项目还是合集"。
 	NextProjectID() project.ID
+	// NextGroupID 生成分组 ID（ADR-0041）。
+	//
+	// 与合集 / 项目 ID 分开：分组 ID 出现在后台接口里，日志要能分辨"这一行是
+	// 分组编排还是内容实体"。
+	NextGroupID() grouping.ID
+	// NextGroupIDItem 生成条目归属行的 ID。
+	//
+	// 归属行不是内容实体，只在本模块内部出现；单独一个方法是为了让"这一行是
+	// 编排"在日志里可辨认，而不是混进内容实体的 ID 序列。
+	NextGroupItemID() ctype.ID
 	// NextOutlineNodeID 生成目录树节点 ID。
 	//
 	// 树节点 ID 会出现在后台接口里（整树提交带回 ID 才能幂等更新），

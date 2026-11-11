@@ -1499,6 +1499,30 @@
                 },
                 "type": "object"
             },
+            "internal_article_adapter_http.CollectionComposeRequest": {
+                "properties": {
+                    "cover": {
+                        "type": "string"
+                    },
+                    "description": {
+                        "type": "string"
+                    },
+                    "nodes": {
+                        "items": {
+                            "$ref": "#/components/schemas/internal_article_adapter_http.OutlineNodeRequest"
+                        },
+                        "type": "array",
+                        "uniqueItems": false
+                    },
+                    "title": {
+                        "type": "string"
+                    }
+                },
+                "required": [
+                    "title"
+                ],
+                "type": "object"
+            },
             "internal_article_adapter_http.CollectionCreateRequest": {
                 "properties": {
                     "cover": {
@@ -1751,6 +1775,102 @@
                 ],
                 "type": "object"
             },
+            "internal_article_adapter_http.GroupItemResponse": {
+                "properties": {
+                    "owner_id": {
+                        "type": "string"
+                    }
+                },
+                "type": "object"
+            },
+            "internal_article_adapter_http.GroupNodeRequest": {
+                "properties": {
+                    "id": {
+                        "type": "string"
+                    },
+                    "items": {
+                        "items": {
+                            "type": "string"
+                        },
+                        "type": "array",
+                        "uniqueItems": false
+                    }
+                },
+                "required": [
+                    "id"
+                ],
+                "type": "object"
+            },
+            "internal_article_adapter_http.GroupNodeResponse": {
+                "properties": {
+                    "id": {
+                        "type": "string"
+                    },
+                    "items": {
+                        "items": {
+                            "$ref": "#/components/schemas/internal_article_adapter_http.GroupItemResponse"
+                        },
+                        "type": "array",
+                        "uniqueItems": false
+                    },
+                    "title": {
+                        "type": "string"
+                    }
+                },
+                "type": "object"
+            },
+            "internal_article_adapter_http.GroupOrderRequest": {
+                "properties": {
+                    "groups": {
+                        "items": {
+                            "$ref": "#/components/schemas/internal_article_adapter_http.GroupNodeRequest"
+                        },
+                        "type": "array",
+                        "uniqueItems": false
+                    },
+                    "ungrouped": {
+                        "items": {
+                            "type": "string"
+                        },
+                        "type": "array",
+                        "uniqueItems": false
+                    }
+                },
+                "type": "object"
+            },
+            "internal_article_adapter_http.GroupSaveRequest": {
+                "properties": {
+                    "id": {
+                        "type": "string"
+                    },
+                    "title": {
+                        "type": "string"
+                    }
+                },
+                "required": [
+                    "title"
+                ],
+                "type": "object"
+            },
+            "internal_article_adapter_http.GroupTreeResponse": {
+                "properties": {
+                    "groups": {
+                        "items": {
+                            "$ref": "#/components/schemas/internal_article_adapter_http.GroupNodeResponse"
+                        },
+                        "type": "array",
+                        "uniqueItems": false
+                    },
+                    "ungrouped": {
+                        "items": {
+                            "$ref": "#/components/schemas/internal_article_adapter_http.GroupItemResponse"
+                        },
+                        "type": "array",
+                        "uniqueItems": false
+                    }
+                },
+                "type": "object"
+            },
             "internal_article_adapter_http.OutlineArticleRefResponse": {
                 "properties": {
                     "article_cover": {
@@ -1910,6 +2030,30 @@
                         "type": "string"
                     }
                 },
+                "type": "object"
+            },
+            "internal_article_adapter_http.ProjectComposeRequest": {
+                "properties": {
+                    "cover": {
+                        "type": "string"
+                    },
+                    "description": {
+                        "type": "string"
+                    },
+                    "nodes": {
+                        "items": {
+                            "$ref": "#/components/schemas/internal_article_adapter_http.OutlineNodeRequest"
+                        },
+                        "type": "array",
+                        "uniqueItems": false
+                    },
+                    "title": {
+                        "type": "string"
+                    }
+                },
+                "required": [
+                    "title"
+                ],
                 "type": "object"
             },
             "internal_article_adapter_http.ProjectCreateRequest": {
@@ -5035,6 +5179,18 @@
             "myblogx_internal_kernel.EmptyData": {
                 "type": "object"
             },
+            "myblogx_internal_kernel.Envelope-any": {
+                "properties": {
+                    "code": {
+                        "type": "integer"
+                    },
+                    "data": {},
+                    "msg": {
+                        "type": "string"
+                    }
+                },
+                "type": "object"
+            },
             "myblogx_internal_kernel.Envelope-internal_ai_adapter_http_MetaInfoResponse": {
                 "properties": {
                     "code": {
@@ -5294,6 +5450,34 @@
                     },
                     "data": {
                         "$ref": "#/components/schemas/internal_article_adapter_http.CollectionOutlineTreeResponse"
+                    },
+                    "msg": {
+                        "type": "string"
+                    }
+                },
+                "type": "object"
+            },
+            "myblogx_internal_kernel.Envelope-internal_article_adapter_http_GroupNodeResponse": {
+                "properties": {
+                    "code": {
+                        "type": "integer"
+                    },
+                    "data": {
+                        "$ref": "#/components/schemas/internal_article_adapter_http.GroupNodeResponse"
+                    },
+                    "msg": {
+                        "type": "string"
+                    }
+                },
+                "type": "object"
+            },
+            "myblogx_internal_kernel.Envelope-internal_article_adapter_http_GroupTreeResponse": {
+                "properties": {
+                    "code": {
+                        "type": "integer"
+                    },
+                    "data": {
+                        "$ref": "#/components/schemas/internal_article_adapter_http.GroupTreeResponse"
                     },
                     "msg": {
                         "type": "string"
@@ -9581,6 +9765,141 @@
                 ]
             }
         },
+        "/collections/groups": {
+            "get": {
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/myblogx_internal_kernel.Envelope-internal_article_adapter_http_GroupTreeResponse"
+                                }
+                            }
+                        },
+                        "description": "OK"
+                    }
+                },
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "summary": "分组读面",
+                "tags": [
+                    "collection"
+                ]
+            },
+            "put": {
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/internal_article_adapter_http.GroupSaveRequest",
+                                "summary": "body",
+                                "description": "分组标题（id 为空表示新建）"
+                            }
+                        }
+                    },
+                    "description": "分组标题（id 为空表示新建）",
+                    "required": true
+                },
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/myblogx_internal_kernel.Envelope-internal_article_adapter_http_GroupNodeResponse"
+                                }
+                            }
+                        },
+                        "description": "OK"
+                    }
+                },
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "summary": "新建或改名分组",
+                "tags": [
+                    "collection"
+                ]
+            }
+        },
+        "/collections/groups/order": {
+            "put": {
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/internal_article_adapter_http.GroupOrderRequest",
+                                "summary": "body",
+                                "description": "整树顺序"
+                            }
+                        }
+                    },
+                    "description": "整树顺序",
+                    "required": true
+                },
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/myblogx_internal_kernel.Envelope-any"
+                                }
+                            }
+                        },
+                        "description": "OK"
+                    }
+                },
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "summary": "分组整树换序",
+                "tags": [
+                    "collection"
+                ]
+            }
+        },
+        "/collections/groups/{id}": {
+            "delete": {
+                "parameters": [
+                    {
+                        "description": "分组 ID",
+                        "in": "path",
+                        "name": "id",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/myblogx_internal_kernel.Envelope-any"
+                                }
+                            }
+                        },
+                        "description": "OK"
+                    }
+                },
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "summary": "删除分组",
+                "tags": [
+                    "collection"
+                ]
+            }
+        },
         "/collections/{id}": {
             "delete": {
                 "parameters": [
@@ -9688,6 +10007,55 @@
                     }
                 ],
                 "summary": "改合集",
+                "tags": [
+                    "collection"
+                ]
+            }
+        },
+        "/collections/{id}/compose": {
+            "put": {
+                "parameters": [
+                    {
+                        "description": "合集 ID",
+                        "in": "path",
+                        "name": "id",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/internal_article_adapter_http.CollectionComposeRequest",
+                                "summary": "body",
+                                "description": "字段与整棵树"
+                            }
+                        }
+                    },
+                    "description": "字段与整棵树",
+                    "required": true
+                },
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/myblogx_internal_kernel.Envelope-internal_article_adapter_http_CollectionOutlineTreeResponse"
+                                }
+                            }
+                        },
+                        "description": "OK"
+                    }
+                },
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "summary": "合集字段 + 目录树一次提交",
                 "tags": [
                     "collection"
                 ]
@@ -12259,6 +12627,141 @@
                 ]
             }
         },
+        "/projects/groups": {
+            "get": {
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/myblogx_internal_kernel.Envelope-internal_article_adapter_http_GroupTreeResponse"
+                                }
+                            }
+                        },
+                        "description": "OK"
+                    }
+                },
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "summary": "分组读面",
+                "tags": [
+                    "collection"
+                ]
+            },
+            "put": {
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/internal_article_adapter_http.GroupSaveRequest",
+                                "summary": "body",
+                                "description": "分组标题（id 为空表示新建）"
+                            }
+                        }
+                    },
+                    "description": "分组标题（id 为空表示新建）",
+                    "required": true
+                },
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/myblogx_internal_kernel.Envelope-internal_article_adapter_http_GroupNodeResponse"
+                                }
+                            }
+                        },
+                        "description": "OK"
+                    }
+                },
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "summary": "新建或改名分组",
+                "tags": [
+                    "collection"
+                ]
+            }
+        },
+        "/projects/groups/order": {
+            "put": {
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/internal_article_adapter_http.GroupOrderRequest",
+                                "summary": "body",
+                                "description": "整树顺序"
+                            }
+                        }
+                    },
+                    "description": "整树顺序",
+                    "required": true
+                },
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/myblogx_internal_kernel.Envelope-any"
+                                }
+                            }
+                        },
+                        "description": "OK"
+                    }
+                },
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "summary": "分组整树换序",
+                "tags": [
+                    "collection"
+                ]
+            }
+        },
+        "/projects/groups/{id}": {
+            "delete": {
+                "parameters": [
+                    {
+                        "description": "分组 ID",
+                        "in": "path",
+                        "name": "id",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/myblogx_internal_kernel.Envelope-any"
+                                }
+                            }
+                        },
+                        "description": "OK"
+                    }
+                },
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "summary": "删除分组",
+                "tags": [
+                    "collection"
+                ]
+            }
+        },
         "/projects/order": {
             "patch": {
                 "requestBody": {
@@ -12404,6 +12907,55 @@
                     }
                 ],
                 "summary": "改项目",
+                "tags": [
+                    "project"
+                ]
+            }
+        },
+        "/projects/{id}/compose": {
+            "put": {
+                "parameters": [
+                    {
+                        "description": "项目 ID",
+                        "in": "path",
+                        "name": "id",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/internal_article_adapter_http.ProjectComposeRequest",
+                                "summary": "body",
+                                "description": "字段与整棵树"
+                            }
+                        }
+                    },
+                    "description": "字段与整棵树",
+                    "required": true
+                },
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/myblogx_internal_kernel.Envelope-internal_article_adapter_http_ProjectOutlineTreeResponse"
+                                }
+                            }
+                        },
+                        "description": "OK"
+                    }
+                },
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "summary": "项目字段 + 目录树一次提交",
                 "tags": [
                     "project"
                 ]

@@ -66,6 +66,32 @@ describe("ArticleFeedItem：列表 / 搜索 / 收藏架三处同一卡片形态"
     expect(wrapper.get(".feed-entry__author-link").text()).toContain("作者甲");
   });
 
+  it("作者在顶行、日期左边；四个计数与标签同一行、贴最右", () => {
+    const wrapper = mountCard({ variant: "list" });
+
+    // 顶行 = 作者 + 日期 + 分类 + 状态（作者排第一）。
+    const meta = wrapper.get(".feed-entry__meta");
+    expect(meta.get(".feed-entry__author").text()).toContain("作者甲");
+    expect(meta.text()).toContain("2026/10/01");
+    expect(meta.find(".feed-entry__stats").exists()).toBe(false);
+
+    // 底行 = 标签在左 + 计数在右（同一条基线）；不再有一条单独的作者/计数底栏。
+    const footline = wrapper.get(".feed-entry__footline");
+    expect(footline.find(".feed-entry__tags").exists()).toBe(true);
+    expect(footline.find(".feed-entry__stats").exists()).toBe(true);
+    expect(wrapper.find(".feed-entry__footer").exists()).toBe(false);
+  });
+
+  it("作者可关闭（收藏架之外的地方仍按旧参数工作）", () => {
+    const wrapper = mount(ArticleFeedItem, {
+      props: { entry: baseEntry, variant: "list", showAuthor: false },
+      global: { stubs: { NuxtLink: NuxtLinkStub } },
+    });
+
+    expect(wrapper.find(".feed-entry__author").exists()).toBe(false);
+    expect(wrapper.get(".feed-entry__meta").text()).toContain("2026/10/01");
+  });
+
   it("搜索变体复用同一形态，只是更紧凑（不再有第二种卡片）", () => {
     const wrapper = mountCard({ variant: "search" });
 

@@ -1,14 +1,18 @@
 <script setup lang="ts">
 /**
- * 90 天创作热力图（票 354）。
+ * 90 天创作热力图（票 354，2026-11-12 重做）。
  *
- * 13 列 × 7 行：每列一周（周一到周日），最后一行是本周。起点对齐到"周一起"，
- * 所以网格左边永远是周一 —— 不对齐的话用户没法把颜色和"上周三"对上。
+ * 上一版只有"一排小方块"：没有月份、没有星期、没有图例，13×7 个 14px 的格
+ * 缩在整宽卡片左上角，看上去像渲染坏了。这一版补三件事：
+ *   1. 月份刻度（每列一周）+ 星期刻度（一 / 三 / 五）+ 色阶图例；
+ *   2. 右侧一栏把数字说出来（总次数 / 有动作天数 / 连续天数 / 最活跃的一天）——
+ *      颜色只回答"哪天多"，数字回答"一共多少"；
+ *   3. 格子用容器宽度档 `--hm-cell`，窄屏不挤成一团。
  *
- * 三条可访问性要求（热力图最容易做成"只有鼠标能看"）：
- *  1. 每个格子是 `<button>`，可 Tab 聚焦、可读出 `aria-label`（日期 + 次数）；
- *  2. 聚焦时把提示文字显示在网格下方（不依赖 hover 的 tooltip）；
- *  3. 颜色不是唯一编码：提示里始终有"3 次"这样的文字。
+ * 每条可访问性要求都保留（热力图最容易做成"只有鼠标能看"）：
+ *   - 每个格子是 `<button>`，可 Tab 聚焦、`aria-label` 里有日期与次数；
+ *   - 聚焦时提示显示在网格下方（不依赖 hover 的 tooltip）；
+ *   - 颜色不是唯一编码：提示里始终有"3 次"这样的文字。
  */
 import { computed, ref } from 'vue'
 
@@ -111,6 +115,42 @@ function levelOf(count: number): number {
   return 4
 }
 
+/** 按周切列：每列 7 天（周一起）。 */
+const weeks = computed<Cell[][]>(() => {
+  const out: Cell[][] = []
+  for (let i = 0; i < cells.value.length; i += 7) {
+    out.push(cells.value.slice(i, i + 7))
+  }
+  return out
+})
+
+const weekCount = computed(() => Math.max(weeks.value.length, 1))
+
+/**
+ * 月份刻度：每一列取该周第一天所在的月份，跨月时换标签。
+ * 返回的 `start` 是 1 基列号，直接写进 `grid-column`。
+ */
+const months = computed<{ label: string; start: number; span: number; month: number }[]>(() => {
+  const out: { label: string; start: number; span: number; month: number }[] = []
+  weeks.value.forEach((week, index) => {
+    const key = week[0]?.key
+    if (!key) return
+    const month = Number(key.slice(5, 7))
+    const last = out[out.length - 1]
+    if (last && last.month === month) {
+      last.span += 1
+      return
+    }
+    out.push({ label: `${month} 月`, start: index + 1, span: 1, month })
+  })
+  return out
+})
+
+/** 月份轨道与格子轨道用同一套列宽/间隙，标签才能对齐到列。 */
+const monthTrackStyle = computed(() => ({
+  gridTemplateColumns: `repeat(${weekCount.value}, var(--hm-cell))`,
+}))
+
 /** 聚焦格子的提示（键盘用户靠它读数）。 */
 const focusedKey = ref('')
 const focused = computed(() => cells.value.find(cell => cell.key === focusedKey.value) ?? null)
@@ -119,43 +159,134 @@ const total = computed(() => cells.value.reduce((sum, cell) => sum + cell.count,
 
 /** 有动作的天数：用来给"这段时间做了多少"一个更直观的说法。 */
 const activeDays = computed(() => cells.value.filter(cell => cell.count > 0).length)
+
+/** 连到今天为止的连续创作天数（今天还是 0 时从昨天往前数）。 */
+const streak = computed(() => {
+  const past = cells.value.filter(cell => !cell.future)
+  let index = past.length - 1
+  // 今天还没动笔不算断档：从昨天开始数。
+  if (index >= 0 && past[index]!.count === 0) index -= 1
+  let run = 0
+  for (; index >= 0; index -= 1) {
+    if (past[index]!.count === 0) break
+    run += 1
+  }
+  return run
+})
+
+/** 最活跃的一天：并列时取更近的一天。 */
+const bestDay = computed(() => {
+  let best: Cell | null = null
+  for (const cell of cells.value) {
+    if (!best || cell.count >= best.count) best = cell
+  }
+  return best && best.count > 0 ? best : null
+})
+
+function shortDay(key: string): string {
+  const [, month, day] = key.split('-')
+  return `${Number(month)}/${Number(day)}`
+}
+
+/** 彩色的前三档之外，图例还要第四档（最深）；用同一组类名渲染，避免第二套色阶。 */
+const LEGEND_LEVELS = [0, 1, 2, 3, 4] as const
 </script>
 
 <template>
   <section class="activity-heatmap" data-role="activity-heatmap">
     <header class="activity-heatmap__head">
-      <h3 class="activity-heatmap__title">近 90 天创作</h3>
+      <div class="activity-heatmap__head-copy">
+        <h3 class="activity-heatmap__title">近 90 天创作</h3>
+        <p class="activity-heatmap__subtitle">每天新建与更新的次数，按东八区切天。</p>
+      </div>
       <span class="activity-heatmap__summary" data-role="activity-summary">
         {{ total }} 次 · {{ activeDays }} 天有动作
       </span>
     </header>
 
-    <div
-      class="activity-heatmap__grid"
-      role="grid"
-      :aria-label="`近 ${days} 天每天的新建与更新次数`">
-      <button
-        v-for="cell in cells"
-        :key="cell.key"
-        type="button"
-        role="gridcell"
-        class="activity-heatmap__cell"
-        :class="`activity-heatmap__cell--l${cell.level}`"
-        :data-role="`activity-cell-${cell.key}`"
-        :data-level="cell.level"
-        :aria-label="`${cell.key}：${cell.count} 次`"
-        :aria-hidden="cell.future ? 'true' : undefined"
-        :tabindex="cell.future ? -1 : 0"
-        @focus="focusedKey = cell.key"
-        @blur="focusedKey = ''">
-        <span class="activity-heatmap__dot" aria-hidden="true" />
-      </button>
+    <div class="activity-heatmap__body">
+      <div class="activity-heatmap__chart">
+        <div class="activity-heatmap__chart-top">
+          <span class="activity-heatmap__axis-spacer" aria-hidden="true" />
+          <div class="activity-heatmap__months" aria-hidden="true" :style="monthTrackStyle">
+            <span
+              v-for="month in months"
+              :key="`${month.start}-${month.label}`"
+              class="activity-heatmap__month"
+              :style="{ gridColumn: `${month.start} / span ${month.span}` }">
+              {{ month.label }}
+            </span>
+          </div>
+        </div>
+
+        <div class="activity-heatmap__chart-main">
+          <div class="activity-heatmap__weekdays" aria-hidden="true">
+            <span v-for="(name, index) in ['一', '', '三', '', '五', '', '']" :key="index">{{ name }}</span>
+          </div>
+
+          <div
+            class="activity-heatmap__grid"
+            role="grid"
+            :aria-label="`近 ${days} 天每天的新建与更新次数`">
+            <button
+              v-for="cell in cells"
+              :key="cell.key"
+              type="button"
+              role="gridcell"
+              class="activity-heatmap__cell"
+              :class="`activity-heatmap__cell--l${cell.level}`"
+              :data-role="`activity-cell-${cell.key}`"
+              :data-level="cell.level"
+              :data-future="cell.future ? 'true' : undefined"
+              :aria-label="`${cell.key}：${cell.count} 次`"
+              :aria-hidden="cell.future ? 'true' : undefined"
+              :tabindex="cell.future ? -1 : 0"
+              @focus="focusedKey = cell.key"
+              @blur="focusedKey = ''">
+              <span class="activity-heatmap__dot" aria-hidden="true" />
+            </button>
+          </div>
+        </div>
+
+        <p class="activity-heatmap__tip" data-role="activity-tip">
+          <template v-if="focused">{{ focused.key }} · {{ focused.count }} 次</template>
+          <template v-else>把光标移到格子上看具体日期与次数。</template>
+        </p>
+      </div>
+
+      <!-- 右栏：颜色说不清"一共多少"，这里用四个数字补上。 -->
+      <dl class="activity-heatmap__facts">
+        <div class="activity-heatmap__fact">
+          <dt>总次数</dt>
+          <dd>{{ total }}<small>次</small></dd>
+        </div>
+        <div class="activity-heatmap__fact">
+          <dt>有动作</dt>
+          <dd>{{ activeDays }}<small>天</small></dd>
+        </div>
+        <div class="activity-heatmap__fact">
+          <dt>连续创作</dt>
+          <dd>{{ streak }}<small>天</small></dd>
+        </div>
+        <div class="activity-heatmap__fact">
+          <dt>最活跃</dt>
+          <dd>
+            <template v-if="bestDay">{{ shortDay(bestDay.key) }}<small>{{ bestDay.count }} 次</small></template>
+            <template v-else>—</template>
+          </dd>
+        </div>
+      </dl>
     </div>
 
-    <!-- 提示固定显示在网格下方：不依赖 hover 的浮层，键盘与触屏都能看到。 -->
-    <p class="activity-heatmap__tip" data-role="activity-tip">
-      <template v-if="focused">{{ focused.key }} · {{ focused.count }} 次</template>
-      <template v-else>把光标移到格子上看具体日期与次数。</template>
-    </p>
+    <!-- 色阶图例：颜色不是唯一编码，图例只做"深浅"提示。 -->
+    <footer class="activity-heatmap__foot" aria-hidden="true">
+      <span class="activity-heatmap__legend-label">少</span>
+      <span
+        v-for="level in LEGEND_LEVELS"
+        :key="level"
+        class="activity-heatmap__legend-cell"
+        :class="`activity-heatmap__cell--l${level}`" />
+      <span class="activity-heatmap__legend-label">多</span>
+    </footer>
   </section>
 </template>

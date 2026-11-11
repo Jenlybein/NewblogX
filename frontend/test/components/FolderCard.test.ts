@@ -217,16 +217,19 @@ describe("文件夹卡：可聚焦", () => {
   });
 });
 
-describe("文件夹卡列表：宽屏四列，窄屏逐级降列", () => {
+describe("文件夹卡列表：宽屏六列，窄屏逐级降列", () => {
   const listSource = readFileSync(join(projectDir, "app/components/common/FolderCardList.vue"), "utf8");
 
-  it("宽屏固定四等分列（用户 2026-11-10 的口径）", () => {
-    expect(listSource).toContain("grid-template-columns: repeat(4, minmax(0, 1fr));");
+  it("宽屏固定六等分列（用户 2026-11-12 的口径：缩小单卡、一屏六列）", () => {
+    expect(listSource).toContain("grid-template-columns: repeat(6, minmax(0, 1fr));");
   });
 
-  it("四列一直保持到 768px；竖屏平板两列、手机单列", () => {
-    expect(listSource).toMatch(/@media \(max-width: 768px\)[\s\S]*?repeat\(2, minmax\(0, 1fr\)\)/u);
-    expect(listSource).toMatch(/@media \(max-width: 520px\)[\s\S]*?grid-template-columns: minmax\(0, 1fr\)/u);
+  it("逐级降列：5 / 4 / 3 / 2 / 1，最低一档是单列", () => {
+    expect(listSource).toMatch(/@media \(max-width: 1279px\)[\s\S]*?repeat\(5, minmax\(0, 1fr\)\)/u);
+    expect(listSource).toMatch(/@media \(max-width: 1080px\)[\s\S]*?repeat\(4, minmax\(0, 1fr\)\)/u);
+    expect(listSource).toMatch(/@media \(max-width: 860px\)[\s\S]*?repeat\(3, minmax\(0, 1fr\)\)/u);
+    expect(listSource).toMatch(/@media \(max-width: 640px\)[\s\S]*?repeat\(2, minmax\(0, 1fr\)\)/u);
+    expect(listSource).toMatch(/@media \(max-width: 420px\)[\s\S]*?grid-template-columns: minmax\(0, 1fr\)/u);
   });
 });
 

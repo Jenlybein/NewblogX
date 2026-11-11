@@ -5,11 +5,11 @@ import StudioArticleRow from "~/components/studio/StudioArticleRow.vue";
 import type { SearchArticleItem } from "~/types/api";
 
 /**
- * 我的文章 · 压缩行卡（票 351）。
+ * 我的文章 · 压缩行卡（票 351，2026-11-12 重排）。
  *
- * 用户的原话是"列表项高度压缩、把多余行合并"：状态与查看/编辑/删除要和标签同列，
- * 四个计数要在同一行最右边。这层用例钉的是"这些信息都在同一张卡里、并且各就各位"，
- * 不钉具体像素。
+ * 用户的原话是"丑到没边、状态单独占一行"：上一版把状态与操作塞在封面下方，
+ * 卡片被撑成三行。现在钉的是新结构 —— 状态与标题、操作同处顶行，标签与四个
+ * 计数同一条基线，整张卡只有两列。
  */
 
 function article(overrides: Partial<SearchArticleItem> = {}): SearchArticleItem {
@@ -63,21 +63,20 @@ describe("压缩行卡：结构", () => {
     expect(row.find(".feed-entry").exists()).toBe(false);
   });
 
-  it("状态与操作在封面正下方（与封面同一列），不在卡片底部", () => {
+  it("状态与操作在标题同一行，不再单独占一行", () => {
     const wrapper = mountRow();
 
-    // 左列 = 封面 + 状态 + 操作，三者同属一个容器。
-    const aside = wrapper.get(".studio-article-row__aside");
-    expect(aside.find(".studio-article-row__cover").exists()).toBe(true);
-    expect(aside.get(".studio-article-row__status-line").text()).toContain("已发布");
-    expect(aside.find('[data-role="article-view"]').exists()).toBe(true);
-    expect(aside.find('[data-role="article-edit"]').exists()).toBe(true);
-    expect(aside.find('[data-role="article-delete"]').exists()).toBe(true);
+    // 顶行 = 状态 + 标题 + 操作，三者同属一个容器。
+    const head = wrapper.get(".studio-article-row__head");
+    expect(head.get(".studio-article-row__status").text()).toContain("已发布");
+    expect(head.find(".studio-article-row__title").exists()).toBe(true);
+    expect(head.find('[data-role="article-view"]').exists()).toBe(true);
+    expect(head.find('[data-role="article-edit"]').exists()).toBe(true);
+    expect(head.find('[data-role="article-delete"]').exists()).toBe(true);
 
-    // 正文列里没有状态与操作（它们不该跑到卡片底部与正文混排）。
-    const body = wrapper.get(".studio-article-row__body");
-    expect(body.find(".studio-article-row__status-line").exists()).toBe(false);
-    expect(body.find('[data-role="article-delete"]').exists()).toBe(false);
+    // 封面不再是"带状态列"的 aside：它只是卡片左列的一张图。
+    expect(wrapper.find(".studio-article-row__aside").exists()).toBe(false);
+    expect(wrapper.get(".studio-article-row").find(".studio-article-row__cover").exists()).toBe(true);
   });
 
   it("标签与四个计数在同一条基线上：标签在左、计数贴最右", () => {

@@ -4,11 +4,12 @@ import { describe, expect, it, vi } from 'vitest'
 import GroupedReaderList from '~/components/common/GroupedReaderList.vue'
 
 /**
- * 读者侧分组展示（票 353）。
+ * 读者侧分组展示（票 353，2026-11-12 调整尾块分隔线）。
  *
  * 与后台的差别只有两条，这层用例把它们钉死：
  *   1. 分组按保存顺序渲染，组内顺序照后端给的（前端不重排）；
- *   2. **不渲染「未分组」标题**：没有分组的实体作为尾块平铺。
+ *   2. 没有分组的实体作为**尾块**渲染，前面用一条淡色细线 + 「未分组」标签隔开
+ *      （用户明确要求：`---- 未分组 ----` 这样的分隔线，否则尾块会贴着上一组）。
  * 另外空分组整段不出现 —— 只有标题、下面什么都没有的分段只会让页面看起来坏了。
  */
 
@@ -70,8 +71,8 @@ describe('读者侧分组：顺序', () => {
   })
 })
 
-describe('读者侧分组：没有「未分组」标题', () => {
-  it('未分组实体作为尾块平铺，且不出现「未分组」三个字', () => {
+describe('读者侧分组：尾块分隔线', () => {
+  it('未分组实体作为尾块，前面有一条淡色细线和「未分组」标签', () => {
     const wrapper = mount(GroupedReaderList, {
       props: {
         cards: [card('a'), card('b')],
@@ -81,8 +82,23 @@ describe('读者侧分组：没有「未分组」标题', () => {
 
     const trailing = wrapper.get('[data-role="reader-group-trailing"]')
     expect(trailing.findAll('[data-id]').map(n => n.attributes('data-id'))).toEqual(['b'])
-    // 整页不该出现"未分组"这个说法：它描述的是后台的编排状态。
-    expect(wrapper.text()).not.toContain('未分组')
+    // 分隔线只在"上面确实有分组"时出现：整页没有分组时它只是一段普通列表。
+    expect(trailing.find('.grouped-reader-list__divider').exists()).toBe(true)
+    expect(trailing.get('.grouped-reader-list__divider-label').text()).toBe('未分组')
+  })
+
+  it('每个分组头都有标题、计数与一条发丝线（此前整块没有样式）', () => {
+    const wrapper = mount(GroupedReaderList, {
+      props: {
+        cards: [card('a'), card('b')],
+        groups: tree([{ id: 'g1', title: '第一组', items: ['a', 'b'] }]),
+      },
+    })
+
+    const head = wrapper.get('[data-role="reader-group-g1"] .grouped-reader-list__head')
+    expect(head.get('.grouped-reader-list__title').text()).toBe('第一组')
+    expect(head.get('.grouped-reader-list__count').text()).toContain('2')
+    expect(head.find('.grouped-reader-list__line').exists()).toBe(true)
   })
 
   it('分组读面里没有的卡片也落到尾块（新建成还没进过分组）', () => {
@@ -97,13 +113,14 @@ describe('读者侧分组：没有「未分组」标题', () => {
     expect(trailing.findAll('[data-id]').map(n => n.attributes('data-id'))).toEqual(['b', 'c'])
   })
 
-  it('没有分组读面时退回一个平铺网格（分组是排版信息，缺了不该报错）', () => {
+  it('没有分组读面时退回一个平铺网格：不画分隔线，也不出现「未分组」', () => {
     const wrapper = mount(GroupedReaderList, {
       props: { cards: [card('a'), card('b')], groups: null },
     })
 
     expect(wrapper.find('.grouped-reader-list__section').exists()).toBe(true)
     expect(wrapper.findAll('[data-id]').map(n => n.attributes('data-id'))).toEqual(['a', 'b'])
+    expect(wrapper.find('.grouped-reader-list__divider').exists()).toBe(false)
     expect(wrapper.text()).not.toContain('未分组')
   })
 })

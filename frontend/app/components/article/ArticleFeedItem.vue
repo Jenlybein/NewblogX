@@ -12,6 +12,21 @@ import {
 } from "~/utils/articleEntry";
 import { formatCount } from "~/utils/format";
 
+/**
+ * 文章条目：列表 / 搜索结果 / 收藏架三处共用（#7 卡片三处复用）。
+ *
+ * 2026-11-12 重排（用户反馈：条目太高、信息散成四行）：
+ *   ┌ 封面 ┬ 作者 · 日期 / 分类 · 状态 ──────────────────────┐
+ *   │      │ 标题                                            │
+ *   │      │ 摘要（两行）                                     │
+ *   │      │ 标签 ·············· 赞 藏 评 阅（贴最右）        │
+ *   └──────┴─────────────────────────────────────────────────┘
+ *
+ * 两条硬约束：
+ *  1. 作者在最顶上、日期左边 —— 它回答"谁写的"，比分类更该先被读到；
+ *  2. 四个计数与标签同一条基线、贴最右 —— 原来它们独占一条底栏，
+ *     那一栏就是"条目太高"的主要来源。底栏随之取消。
+ */
 const props = withDefaults(
   defineProps<{
     /** 列表 / 搜索结果的原始数据（旧 API）。 */
@@ -64,8 +79,25 @@ const hiddenTagCount = computed(() => Math.max(view.value.tags.length - 3, 0));
     <span v-else class="feed-entry__cover feed-entry__cover--empty" aria-hidden="true" />
 
     <div class="feed-entry__body">
-      <div v-if="view.dateLabel || view.categoryLabel || view.statusLabel" class="feed-entry__meta">
-        <span v-if="view.dateLabel">{{ view.dateLabel }}</span>
+      <!-- 顶行：作者（日期左边）→ 日期 → 分类 → 状态。 -->
+      <div v-if="showAuthor || view.dateLabel || view.categoryLabel || view.statusLabel" class="feed-entry__meta">
+        <div v-if="showAuthor" class="feed-entry__author">
+          <NuxtLink
+            v-if="view.author && view.author.id"
+            :to="`/users/${view.author.id}`"
+            class="feed-entry__author-link"
+          >
+            <AppAvatar :size="20" :src="view.author.avatar" :name="view.author.nickname" fallback="作" />
+            <span>{{ view.author.nickname }}</span>
+          </NuxtLink>
+          <span v-else-if="view.author" class="feed-entry__author-link feed-entry__author-link--static">
+            <AppAvatar :size="20" :src="view.author.avatar" :name="view.author.nickname" fallback="作" />
+            <span>{{ view.author.nickname }}</span>
+          </span>
+          <span v-else class="feed-entry__author-link feed-entry__author-link--empty">站内文章</span>
+        </div>
+
+        <span v-if="view.dateLabel" class="feed-entry__date">{{ view.dateLabel }}</span>
         <span v-if="view.dateLabel && view.categoryLabel" class="feed-entry__dot" aria-hidden="true">/</span>
         <span v-if="view.categoryLabel">{{ view.categoryLabel }}</span>
         <span v-if="view.statusLabel" class="feed-entry__status">{{ view.statusLabel }}</span>
@@ -76,30 +108,15 @@ const hiddenTagCount = computed(() => Math.max(view.value.tags.length - 3, 0));
 
       <p class="feed-entry__abstract">{{ view.abstract }}</p>
 
-      <div v-if="visibleTags.length" class="feed-entry__tags">
-        <span v-for="tag in visibleTags" :key="tag.id" class="feed-entry__tag">{{ tag.title }}</span>
-        <span v-if="hiddenTagCount" class="feed-entry__tag feed-entry__tag--more">+{{ hiddenTagCount }}</span>
-      </div>
-
       <div v-if="view.shelfMeta.length" class="feed-entry__shelf-meta">
         <span v-for="meta in view.shelfMeta" :key="meta">{{ meta }}</span>
       </div>
 
-      <div class="feed-entry__footer">
-        <div v-if="showAuthor" class="feed-entry__author">
-          <NuxtLink
-            v-if="view.author && view.author.id"
-            :to="`/users/${view.author.id}`"
-            class="feed-entry__author-link"
-          >
-            <AppAvatar :size="28" :src="view.author.avatar" :name="view.author.nickname" fallback="作" />
-            <span>{{ view.author.nickname }}</span>
-          </NuxtLink>
-          <span v-else-if="view.author" class="feed-entry__author-link feed-entry__author-link--static">
-            <AppAvatar :size="28" :src="view.author.avatar" :name="view.author.nickname" fallback="作" />
-            <span>{{ view.author.nickname }}</span>
-          </span>
-          <span v-else class="feed-entry__author-link feed-entry__author-link--empty">站内文章</span>
+      <!-- 底行：标签在左，四个计数贴最右（两者同一条基线）。 -->
+      <div class="feed-entry__footline">
+        <div v-if="visibleTags.length" class="feed-entry__tags">
+          <span v-for="tag in visibleTags" :key="tag.id" class="feed-entry__tag">{{ tag.title }}</span>
+          <span v-if="hiddenTagCount" class="feed-entry__tag feed-entry__tag--more">+{{ hiddenTagCount }}</span>
         </div>
 
         <div class="feed-entry__stats" role="group" aria-label="文章统计">

@@ -146,6 +146,36 @@ describe('站点概览：KPI 与趋势', () => {
   })
 })
 
+describe('站点概览：空站提示', () => {
+  it('只读不到汇总时，不许说"站点还没有内容"', async () => {
+    adminApi.getDashboardSum.mockRejectedValue(new Error('数据库读取失败'))
+
+    const wrapper = await mountPage()
+
+    // 读不到 ≠ 没有内容：这时应该提示"汇总读不到"，而不是断言站点是空的。
+    expect(wrapper.find('[data-role="admin-empty-site"]').exists()).toBe(false)
+    expect(wrapper.get('[data-role="admin-sum-failed"]').exists()).toBe(true)
+  })
+
+  it('确实读到、且用户与文章都是 0 时，才提示站点没有内容', async () => {
+    adminApi.getDashboardSum.mockResolvedValue({
+      flow_count: 0, user_count: 0, article_count: 0, message_count: 0,
+      comment_count: 0, new_login_count: 0, new_sign_count: 0,
+    })
+
+    const wrapper = await mountPage()
+
+    expect(wrapper.get('[data-role="admin-empty-site"]').exists()).toBe(true)
+    expect(wrapper.find('[data-role="admin-sum-failed"]').exists()).toBe(false)
+  })
+
+  it('内容 Top 5 明确按阅读量、只看已发布（默认综合排序会给出假 Top 5）', async () => {
+    await mountPage()
+
+    expect(adminApi.searchAdminArticles).toHaveBeenCalledWith({ page: 1, limit: 5, status: 3, sort: 6 })
+  })
+})
+
 describe('站点概览：零值折叠', () => {
   it('AI 用量为 0 时折叠成一行，不画图也不排指标卡', async () => {
     const wrapper = await mountPage()

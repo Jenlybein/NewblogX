@@ -2213,3 +2213,100 @@ html {
     --glass-specular: none;
   }
 }
+
+/* ── 多列 chip 下拉（票 352）──────────────────────────────────
+ *
+ * 发布/编辑文章时标签词库有 56 条，原生下拉一行一个要翻很久。
+ * 这里把选项排成流式 chip：一行能放 4–6 个，一屏看完大半词库。
+ *
+ * 面板宽度固定 420px 而不是跟随触发器：触发器在表单里可能只有 200px 宽，
+ * 跟着它走会让 chip 挤成两列、失去"一眼扫完"的意义。 */
+.chip-select__trigger {
+  @apply flex min-h-[36px] w-full items-center gap-1.5 rounded-field border px-3 py-1.5 text-left text-sm;
+  border-color: var(--color-line);
+  background: var(--color-surface);
+  color: var(--color-ink);
+  transition: border-color var(--motion-fast) var(--motion-ease);
+}
+
+.chip-select__trigger:hover,
+.chip-select__trigger--open {
+  border-color: var(--color-line-strong);
+}
+
+/* 打开态只加深描边：焦点蓝留给真正的 :focus-visible（设计门禁要求焦点色
+ * 只出现在 :focus 选择器的 outline 里）。 */
+.chip-select__trigger--open {
+  border-color: var(--color-ink-muted);
+}
+
+.chip-select__trigger:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.chip-select__placeholder {
+  @apply flex-1 truncate;
+  color: var(--color-ink-faint);
+}
+
+.chip-select__value {
+  @apply min-w-0 flex-1 truncate;
+}
+
+.chip-select__more {
+  @apply shrink-0 text-xs;
+  color: var(--color-ink-muted);
+}
+
+.chip-select__clear {
+  @apply shrink-0 cursor-pointer px-1 text-xs leading-none;
+  color: var(--color-ink-faint);
+}
+
+.chip-select__clear:hover {
+  color: var(--color-danger);
+}
+
+.chip-select__caret {
+  @apply shrink-0 text-[10px];
+  color: var(--color-ink-faint);
+}
+
+.chip-select__panel {
+  @apply flex w-[420px] max-w-[calc(100vw-32px)] flex-col gap-2 p-3;
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-md);
+  background: var(--color-surface-raised);
+  box-shadow: 0 18px 44px var(--color-shadow);
+}
+
+.chip-select__chips {
+  @apply flex max-h-[240px] flex-wrap gap-1.5 overflow-y-auto;
+}
+
+.chip-select__chip {
+  @apply shrink-0 cursor-pointer rounded-pill border px-2.5 py-1 text-xs;
+  border-color: var(--color-line);
+  background: var(--color-surface);
+  color: var(--color-ink);
+  transition: border-color var(--motion-fast) var(--motion-ease),
+    background-color var(--motion-fast) var(--motion-ease);
+}
+
+.chip-select__chip:hover,
+.chip-select__chip--active {
+  border-color: var(--color-line-strong);
+  background: var(--color-bg-subtle);
+}
+
+.chip-select__chip--selected {
+  border-color: var(--color-ink);
+  background: var(--color-ink);
+  color: var(--color-surface);
+}
+
+.chip-select__empty {
+  @apply py-3 text-center text-xs;
+  color: var(--color-ink-muted);
+}

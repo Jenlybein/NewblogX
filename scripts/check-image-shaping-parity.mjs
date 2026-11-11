@@ -329,7 +329,7 @@ function runCli(argv) {
     );
   } else {
     ok = false;
-    console.error("✗ 两端同源副本（ImageCropView / ImageCropDialog / MetricCard）门禁失败");
+    console.error("✗ 两端同源副本（ImageCropView / ImageCropDialog / MetricCard / motion）门禁失败");
     for (const failure of crop.failures) console.error(`  ${failure.message}`);
   }
 

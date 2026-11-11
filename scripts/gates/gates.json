@@ -139,7 +139,7 @@
     },
     {
       "id": "image-shaping-parity",
-      "label": "两端同源副本（定形工具 + 裁剪窗四份组件）",
+      "label": "两端同源副本（定形工具 + 裁剪窗 + MetricCard + motion）",
       "group": "frontend",
       "canaries": [13],
       "steps": [

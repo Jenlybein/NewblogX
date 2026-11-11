@@ -415,6 +415,112 @@
     color: var(--color-ink-muted);
   }
 
+  /* ── 标签卡网格（票 346）────────────────────────────────────
+   *
+   * 为什么从表格改成网格：56 个标签在表格里是 56 行、每行 46px，
+   * 一屏只能看到十来个，而每行的信息只有"名字 + 篇数 + 状态"三样。
+   * 卡片把同样三样塞进约 1/5 的高度，一屏能看全词库。
+   *
+   * 拖拽排序的手柄是 ⠿（只在卡片左侧），整卡不接管拖拽：卡片里的
+   * 编辑/启停/删除按钮必须还能正常点。 */
+  .tag-grid {
+    @apply grid gap-3;
+    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  }
+
+  .tag-card {
+    @apply flex min-w-0 flex-col gap-2 border p-3;
+    border-color: var(--color-line);
+    border-radius: var(--radius-md);
+    background: var(--color-surface);
+    transition: border-color var(--motion-fast) var(--motion-ease),
+      transform var(--motion-fast) var(--motion-ease);
+  }
+
+  .tag-card:hover {
+    border-color: var(--color-line-strong);
+    transform: translateY(-1px);
+  }
+
+  .tag-card--disabled {
+    background: var(--color-bg-subtle);
+  }
+
+  .tag-card--disabled .tag-card__title {
+    color: var(--color-ink-muted);
+  }
+
+  /* 拖动中的占位：只留虚框，避免"两个卡片同时出现在屏幕上"的错觉。 */
+  .tag-card--ghost {
+    border-style: dashed;
+    border-color: var(--color-line-strong);
+    background: transparent;
+    opacity: 0.6;
+  }
+
+  .tag-card__head {
+    @apply flex items-center gap-2;
+  }
+
+  .tag-card__grip {
+    @apply shrink-0 cursor-grab select-none;
+    color: var(--color-ink-faint);
+    font-size: 0.875rem;
+    line-height: 1;
+  }
+
+  .tag-card__grip:active {
+    cursor: grabbing;
+  }
+
+  .tag-card__title {
+    @apply min-w-0 flex-1 truncate font-semibold;
+    font-size: 0.9375rem;
+  }
+
+  .tag-card__count {
+    @apply shrink-0 text-xs tabular-nums;
+    color: var(--color-ink-muted);
+  }
+
+  .tag-card__desc {
+    @apply m-0 text-xs leading-5;
+    color: var(--color-ink-muted);
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+
+  .tag-card__foot {
+    @apply mt-auto flex items-center gap-2;
+  }
+
+  .tag-card__sort {
+    @apply text-xs tabular-nums;
+    color: var(--color-ink-faint);
+  }
+
+  /* 操作按钮平时淡出，hover / 键盘聚焦时出现：静止状态下每张卡只留信息，
+   * 视线不会被 56 组按钮切碎。 */
+  .tag-card__actions {
+    @apply ml-auto flex items-center gap-1;
+    opacity: 0;
+    transition: opacity var(--motion-fast) var(--motion-ease);
+  }
+
+  .tag-card:hover .tag-card__actions,
+  .tag-card:focus-within .tag-card__actions {
+    opacity: 1;
+  }
+
+  /* 触屏没有 hover：直接把操作露出来，否则永远点不到。 */
+  @media (hover: none) {
+    .tag-card__actions {
+      opacity: 1;
+    }
+  }
+
   .admin-cover {
     @apply h-20 w-28 shrink-0 overflow-hidden;
     border-radius: var(--radius-md);

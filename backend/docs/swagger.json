@@ -2151,6 +2151,21 @@
                 },
                 "type": "object"
             },
+            "internal_article_adapter_http.TagOrderRequest": {
+                "properties": {
+                    "tag_ids": {
+                        "items": {
+                            "type": "string"
+                        },
+                        "type": "array",
+                        "uniqueItems": false
+                    }
+                },
+                "required": [
+                    "tag_ids"
+                ],
+                "type": "object"
+            },
             "internal_article_adapter_http.TagRequest": {
                 "properties": {
                     "description": {
@@ -8591,6 +8606,44 @@
                     }
                 },
                 "summary": "标签下拉",
+                "tags": [
+                    "article"
+                ]
+            }
+        },
+        "/articles/tags/order": {
+            "patch": {
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/internal_article_adapter_http.TagOrderRequest",
+                                "summary": "body",
+                                "description": "请求体"
+                            }
+                        }
+                    },
+                    "description": "请求体",
+                    "required": true
+                },
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/myblogx_internal_kernel.Envelope-myblogx_internal_kernel_EmptyData"
+                                }
+                            }
+                        },
+                        "description": "OK"
+                    }
+                },
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "summary": "标签之间排序",
                 "tags": [
                     "article"
                 ]

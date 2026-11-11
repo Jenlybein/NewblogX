@@ -130,6 +130,7 @@ var adminOnly = []struct {
 	{"POST", "/api/ai/providers"},
 	{"DELETE", "/api/articles"},
 	{"DELETE", "/api/articles/tags"},
+		{"PATCH", "/api/articles/tags/order"},
 	{"PUT", "/api/articles/tags"},
 	{"GET", "/api/article-review"},
 	{"POST", "/api/article-review-tasks/batch-review"},

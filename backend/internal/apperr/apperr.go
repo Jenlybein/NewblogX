@@ -93,6 +93,11 @@ const (
 	// 提示里要带引用篇数，所以调用点的文案由 taxonomy.TagInUseError 动态生成；
 	// 这里登记的是兜底文案（错误码表要求每个码都有可读消息）。
 	CodeTagInUse Code = "taxonomy.tag_in_use"
+	// CodeTagOrderMismatch 标签全集顺序替换的输入与当前集合不一致（票 346）。
+	//
+	// 与 project.order_mismatch 同一条语义：后台拿到的是上一次读到的列表，
+	// 期间有人改名/新建/删除后整单拒绝，让前端刷新后重试，而不是把别人的改动排丢。
+	CodeTagOrderMismatch Code = "taxonomy.tag_order_mismatch"
 )
 
 // 收藏。
@@ -512,6 +517,7 @@ var messages = map[Code]string{
 	CodeTagNotFound:           "标签不存在",
 	CodeTagDisabled:           "标签不存在或已停用",
 	CodeTagInUse:              "该标签已有文章在用，请改用停用",
+	CodeTagOrderMismatch:      "排序列表与当前标签不一致，请刷新后重试",
 
 	CodeFavoriteTitleRequired: "收藏夹名称不能为空",
 	CodeFavoriteFolderMissing: "收藏夹不存在",

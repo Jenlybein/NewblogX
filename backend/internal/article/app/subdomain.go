@@ -277,6 +277,29 @@ func (s *Service) DeleteTags(ctx context.Context, viewer domain.Viewer, ids []do
 	return deleted, nil
 }
 
+// ReplaceTagSortOrder 用完整有序列表原子重排标签之间的展示顺序（仅管理员）。
+//
+// 输入必须是当前全部未软删标签（含停用）的一个排列（taxonomy.CheckSortOrder）：
+// 集合不一致整单拒绝，后台据此刷新重试，而不是把并发新建 / 删除的标签静默排丢。
+// 落库的是既有 tag_models.sort 列（不是 sort_order）：列表读面按 `sort desc`，
+// 所以第 0 个（网格最靠前）拿到最大的 sort 值。读者站首页标签云不读这个字段。
+func (s *Service) ReplaceTagSortOrder(ctx context.Context, viewer domain.Viewer, ids []domain.TagID) error {
+	if !viewer.IsAdmin() {
+		return domain.ErrForbidden
+	}
+
+	return s.tx.WithinTx(ctx, func(ctx context.Context, r Repos) error {
+		current, err := r.Tags().ListIDs(ctx)
+		if err != nil {
+			return err
+		}
+		if err := taxonomy.CheckSortOrder(current, ids); err != nil {
+			return err
+		}
+		return r.Tags().UpdateSortOrders(ctx, ids)
+	})
+}
+
 // ── 收藏夹 ──
 
 // ListFolders 列出某用户的收藏夹。

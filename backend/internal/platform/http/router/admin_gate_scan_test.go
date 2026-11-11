@@ -121,6 +121,7 @@ var adminRouteTemplates = []string{
 	"POST /api/articles/:id/admin/:visibility",
 	"DELETE /api/articles",
 	"DELETE /api/articles/tags",
+		"PATCH /api/articles/tags/order",
 	"PUT /api/articles/tags",
 	"GET /api/article-review",
 	"POST /api/article-review-tasks/:id/review",

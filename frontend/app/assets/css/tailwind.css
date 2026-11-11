@@ -2310,3 +2310,210 @@ html {
   @apply py-3 text-center text-xs;
   color: var(--color-ink-muted);
 }
+/* ── 收藏夹网格与多列文章卡（票 345）────────────────────────────
+ *
+ * 收藏夹从"左栏列表 + 右栏内容"改成"网格 + 大弹窗"：
+ * 一进来先看全部夹子，点哪张进哪张。卡片只在 hover / 键盘聚焦时露出
+ * 编辑与删除，静止状态每张卡只有名称、简介与篇数。 */
+.folder-grid {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+}
+
+.folder-card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface);
+  transition: border-color var(--motion-fast) var(--motion-ease),
+    transform var(--motion-fast) var(--motion-ease);
+}
+
+.folder-card:hover,
+.folder-card:focus-within {
+  border-color: var(--color-line-strong);
+  transform: translateY(-1px);
+}
+
+/* 新建后高亮：让"刚建好的那个夹子"在网格里一眼可见（票 345 的交互决定）。 */
+.folder-card--highlight {
+  border-color: var(--color-ink);
+  box-shadow: 0 0 0 2px var(--color-highlight);
+}
+
+.folder-card__open {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 8px;
+  width: 100%;
+  padding: 16px;
+  text-align: left;
+  background: transparent;
+  border: 0;
+  cursor: pointer;
+}
+
+.folder-card__head {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.folder-card__title {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 0.9375rem;
+  font-weight: 600;
+}
+
+.folder-card__count {
+  flex: 0 0 auto;
+  font-size: 0.75rem;
+  font-variant-numeric: tabular-nums;
+  color: var(--color-ink-muted);
+}
+
+.folder-card__abstract {
+  margin: 0;
+  font-size: 0.8125rem;
+  line-height: 1.5;
+  color: var(--color-ink-muted);
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.folder-card__actions {
+  display: flex;
+  gap: 4px;
+  justify-content: flex-end;
+  padding: 0 12px 12px;
+  opacity: 0;
+  transition: opacity var(--motion-fast) var(--motion-ease);
+}
+
+.folder-card:hover .folder-card__actions,
+.folder-card:focus-within .folder-card__actions {
+  opacity: 1;
+}
+
+@media (hover: none) {
+  .folder-card__actions {
+    opacity: 1;
+  }
+}
+
+/* 弹窗内的文章栅格：2–3 列自适应。 */
+.article-grid {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+}
+
+.favorite-modal__body {
+  max-height: calc(85vh - 120px);
+  overflow-y: auto;
+  padding-right: 4px;
+}
+
+.article-grid-card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-md);
+  background: var(--color-surface-raised);
+  transition: border-color var(--motion-fast) var(--motion-ease),
+    transform var(--motion-fast) var(--motion-ease);
+}
+
+.article-grid-card:hover,
+.article-grid-card:focus-within {
+  border-color: var(--color-line-strong);
+  transform: translateY(-1px);
+}
+
+.article-grid-card__link {
+  display: block;
+  padding: 8px 8px 0;
+  color: inherit;
+  text-decoration: none;
+}
+
+.article-grid-card__cover {
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  overflow: hidden;
+  border-radius: var(--radius-sm);
+  background: var(--color-bg-subtle);
+}
+
+.article-grid-card__cover img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.article-grid-card__title {
+  margin: 8px 0 0;
+  font-size: 0.875rem;
+  font-weight: 600;
+  line-height: 1.4;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.article-grid-card__meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px;
+  font-size: 0.6875rem;
+  font-variant-numeric: tabular-nums;
+  color: var(--color-ink-muted);
+}
+
+.article-grid-card__stats {
+  display: flex;
+  gap: 8px;
+}
+
+/* hover 才出现的「移出收藏夹」：静止状态下卡片只留信息。 */
+.article-grid-card__action {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  padding: 2px 8px;
+  font-size: 0.6875rem;
+  color: var(--color-ink);
+  background: var(--color-surface);
+  border: 1px solid var(--color-line-strong);
+  border-radius: var(--radius-pill);
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity var(--motion-fast) var(--motion-ease);
+}
+
+.article-grid-card:hover .article-grid-card__action,
+.article-grid-card:focus-within .article-grid-card__action {
+  opacity: 1;
+}
+
+@media (hover: none) {
+  .article-grid-card__action {
+    opacity: 1;
+  }
+}

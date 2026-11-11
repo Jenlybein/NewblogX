@@ -191,15 +191,16 @@ describe("创作页列表缩略图：历史与收藏同为 16:9", () => {
     // 历史页整页都不该再出现 aspect-ratio：封面形状一旦在页面里被覆盖，就是第二份实现。
     expect(historyPage).not.toMatch(/aspect-ratio/u);
 
-    // 收藏页唯一允许的 aspect-ratio 是骨架占位：它是"内容未到"的占位，
-    // 不是另一种封面形状（真实封面的形状只在共享卡片里）。
-    const skeleton = blockAfter(favoritesPage, ".favorite-content-skeleton__cover {");
-    expect(aspectRatioOf(skeleton)).toBe(SPEC_RATIO);
-    expect(skeleton).not.toMatch(/height\s*:/u);
-    expect(historyPage).not.toMatch(/\.favorite-content-skeleton/u);
+    // 收藏页（票 345 改成"网格 + 大弹窗"）同样不自己画形状：骨架与真实封面
+    // 都用共享卡片的多列卡 `.article-grid-card__cover`，页面里一个 aspect-ratio 都没有。
+    expect(favoritesPage).not.toMatch(/aspect-ratio/u);
     expect(favoritesPage).not.toMatch(/\.favorite-content-card/u);
-
     // 旧实现用 min-height 与窄屏高度档撑封面，这两者都等于"第二个形状"。
     expect(favoritesPage).not.toMatch(/min-height\s*:/u);
+
+    // 多列卡的封面形状（骨架与真图共用同一份）锁 16:9，且不按高度撑。
+    const gridCover = blockAfter(tailwind, ".article-grid-card__cover {");
+    expect(aspectRatioOf(gridCover)).toBe(SPEC_RATIO);
+    expect(gridCover).not.toMatch(/height\s*:/u);
   });
 });

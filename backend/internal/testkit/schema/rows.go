@@ -779,14 +779,62 @@ func (CollectionRow) TableName() string { return "collection_models" }
 // 合规结论只能落在这张经 ADR 指名的新表上。
 type ArticleRiskRow struct {
 	BaseRow
-	ArticleID     ctype.ID  `gorm:"not null;uniqueIndex:uk_article_risk_article" json:"article_id"`
-	Verdict       string    `gorm:"type:varchar(16);not null;default:clean;index:idx_article_risk_verdict" json:"verdict"`
-	RiskLevel     uint8     `gorm:"not null;default:0" json:"risk_level"`
-	CategoriesJSON string    `gorm:"type:text" json:"categories_json"`
-	ReasonsJSON    string    `gorm:"type:text" json:"reasons_json"`
-	PromptVersion  string    `gorm:"type:varchar(64)" json:"prompt_version"`
-	ModelName      string    `gorm:"type:varchar(128)" json:"model_name"`
+	ArticleID      ctype.ID   `gorm:"not null;uniqueIndex:uk_article_risk_article" json:"article_id"`
+	Verdict        string     `gorm:"type:varchar(16);not null;default:clean;index:idx_article_risk_verdict" json:"verdict"`
+	RiskLevel      uint8      `gorm:"not null;default:0" json:"risk_level"`
+	CategoriesJSON string     `gorm:"type:text" json:"categories_json"`
+	ReasonsJSON    string     `gorm:"type:text" json:"reasons_json"`
+	PromptVersion  string     `gorm:"type:varchar(64)" json:"prompt_version"`
+	ModelName      string     `gorm:"type:varchar(128)" json:"model_name"`
 	CheckedAt      *time.Time `json:"checked_at"`
 }
 
 func (ArticleRiskRow) TableName() string { return "article_risk_models" }
+
+// CollectionGroupRow 对应表 collection_group_models（ADR-0041）。
+type CollectionGroupRow struct {
+	BaseRow
+	Title string `gorm:"type:varchar(128);not null" json:"title"`
+	// SortOrder 是分组之间的顺序号（从 1 开始），整树提交时整列重写。
+	SortOrder int `gorm:"not null;default:0" json:"sort_order"`
+}
+
+// TableName 固定表名。
+func (CollectionGroupRow) TableName() string { return "collection_group_models" }
+
+// CollectionGroupItemRow 对应表 collection_group_item_models。
+//
+// GroupID 为 0 表示未分组；UK 落在 collection_id 上，一个合集最多在一个分组里。
+type CollectionGroupItemRow struct {
+	BaseRow
+	GroupID ctype.ID `gorm:"not null;default:0;index:idx_collection_group_item_group,priority:1" json:"group_id"`
+	// CollectionID 上的唯一键与 schema.sql 一致：一个合集最多落在一个分组里。
+	// 少了它，测试库会允许重复行，而"重复覆盖不该产生新行"这条用例就会假绿。
+	CollectionID ctype.ID `gorm:"not null;uniqueIndex:uk_collection_group_item_collection" json:"collection_id"`
+	SortOrder    int      `gorm:"not null;default:0;index:idx_collection_group_item_group,priority:2" json:"sort_order"`
+}
+
+// TableName 固定表名。
+func (CollectionGroupItemRow) TableName() string { return "collection_group_item_models" }
+
+// ProjectGroupRow 对应表 project_group_models（ADR-0041）。
+type ProjectGroupRow struct {
+	BaseRow
+	Title     string `gorm:"type:varchar(128);not null" json:"title"`
+	SortOrder int    `gorm:"not null;default:0" json:"sort_order"`
+}
+
+// TableName 固定表名。
+func (ProjectGroupRow) TableName() string { return "project_group_models" }
+
+// ProjectGroupItemRow 对应表 project_group_item_models。
+type ProjectGroupItemRow struct {
+	BaseRow
+	GroupID ctype.ID `gorm:"not null;default:0;index:idx_project_group_item_group,priority:1" json:"group_id"`
+	// ProjectID 上的唯一键与 schema.sql 一致（一个项目最多落在一个分组里）。
+	ProjectID ctype.ID `gorm:"not null;uniqueIndex:uk_project_group_item_project" json:"project_id"`
+	SortOrder int      `gorm:"not null;default:0;index:idx_project_group_item_group,priority:2" json:"sort_order"`
+}
+
+// TableName 固定表名。
+func (ProjectGroupItemRow) TableName() string { return "project_group_item_models" }

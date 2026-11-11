@@ -3,6 +3,7 @@ package mysql
 import (
 	"context"
 	"errors"
+	"strings"
 	"time"
 
 	"gorm.io/gorm"
@@ -65,29 +66,67 @@ func (r *FavoriteRepo) DefaultFolder(ctx context.Context, userID domain.UserID) 
 // ListFolders 列出某用户的收藏夹。
 //
 // 带回列表页需要的读模型字段：所属用户昵称/头像、创建与更新时间。
-func (r *FavoriteRepo) ListFolders(ctx context.Context, userID domain.UserID) ([]*favorite.Folder, error) {
-	// 不内嵌 favoriteRow：内嵌会把 TableName() 一起提升到匿名结构体上，
-	// GORM 解析 schema 时以"表模型"方式处理，导致自增主键/时间列扫不出来。
+//
+// 计数与包含关系都**现算**而不是读冗余列：`article_count` 过去没有任何写入
+// （新建的夹子恒 0，用户会读成"没收藏进去"）。写入侧现在会在同一事务内刷新
+// 该列，但读侧仍以关系行为准 —— 列只是给外部消费者看的快照，不能让列表
+// 依赖一个"某条写路径忘了刷新"就长期撒谎的值（#344）。
+func (r *FavoriteRepo) ListFolders(ctx context.Context, q favorite.ListFoldersQuery) ([]*favorite.Folder, error) {
 	var rows []struct {
-		ID           ctype.ID
-		CreatedAt    time.Time
-		UpdatedAt    time.Time
-		UserID       ctype.ID
-		Title        string
-		Cover        string
-		Abstract     string
-		IsDefault    bool
-		ArticleCount int
-		Nickname     string
-		Avatar       string
+		ID            ctype.ID
+		CreatedAt     time.Time
+		UpdatedAt     time.Time
+		UserID        ctype.ID
+		Title         string
+		Cover         string
+		Abstract      string
+		IsDefault     bool
+		ArticleCount  int
+		Nickname      string
+		Avatar        string
+		HasArticle    bool
 	}
-	if err := r.db.WithContext(ctx).
+	// 公开读面（看别人的夹子或匿名）只数已发布文章：草稿/审核中的数量不该
+	// 透给访客，与收藏内容列表同一口径。
+	visibleFilter := "r.deleted_at IS NULL"
+	// 显式列出 f 的列而不用 `f.*`：下面会用同名别名覆盖 article_count
+	// （`f.*` 里那个是过期的快照列），结果集里出现两个同名列时由谁胜出
+	// 取决于驱动实现，不能靠它。
+	selectParts := []string{
+		"f.id", "f.user_id", "f.title", "f.cover", "f.abstract",
+		"f.is_default", "f.created_at", "f.updated_at",
+		"u.nickname AS nickname",
+		"u.avatar AS avatar",
+	}
+	// SELECT 里的占位符必须与 args 严格同序：可见性过滤在前（仅公开面有），
+	// has_article 的 article_id 在后。写反了会把 ID 绑到状态位上，且不报错。
+	selectArgs := make([]any, 0, 2)
+
+	if q.PublishedOnly {
+		visibleFilter += " AND EXISTS (SELECT 1 FROM article_models pa WHERE pa.id = r.article_id AND pa.deleted_at IS NULL AND pa.publish_status = ?)"
+		selectArgs = append(selectArgs, statusPublished)
+	}
+	selectParts = append(selectParts,
+		"(SELECT COUNT(*) FROM user_article_favor_models r WHERE r.favor_id = f.id AND "+visibleFilter+") AS article_count")
+
+	if !q.ArticleID.IsZero() {
+		// has_article 只看"这篇文章是否在这个夹子里"，不关心它是否已发布：
+		// 收藏弹窗要据此显示勾还是加号（#344）。
+		selectParts = append(selectParts,
+			"EXISTS (SELECT 1 FROM user_article_favor_models ra WHERE ra.favor_id = f.id AND ra.article_id = ? AND ra.deleted_at IS NULL) AS has_article")
+		selectArgs = append(selectArgs, ctype.ID(q.ArticleID))
+	}
+
+	// 默认夹固定第一，其余按更新时间倒序：新建或刚变动的夹子排在最前，
+	// 与"新建后留在网格里"的交互一致。
+	err := r.db.WithContext(ctx).
 		Table("favorite_models AS f").
-		Select("f.*, u.nickname AS nickname, u.avatar AS avatar").
+		Select(strings.Join(selectParts, ", "), selectArgs...).
 		Joins("LEFT JOIN user_models u ON u.id = f.user_id").
-		Where("f.user_id = ? AND f.deleted_at IS NULL", fromUserID(userID)).
-		Order("f.is_default desc, f.id asc").
-		Scan(&rows).Error; err != nil {
+		Where("f.user_id = ? AND f.deleted_at IS NULL", fromUserID(q.UserID)).
+		Order("f.is_default desc, f.updated_at desc, f.id desc").
+		Scan(&rows).Error
+	if err != nil {
 		return nil, err
 	}
 	out := make([]*favorite.Folder, 0, len(rows))
@@ -104,12 +143,19 @@ func (r *FavoriteRepo) ListFolders(ctx context.Context, userID domain.UserID) ([
 			UpdatedAt:     m.UpdatedAt,
 			OwnerNickname: m.Nickname,
 			OwnerAvatar:   m.Avatar,
+			HasArticle:    m.HasArticle,
 		}))
 	}
 	return out, nil
 }
 
+
+
 // ExistsFolderTitle 判断名称重复。
+//
+// 只看**未软删**的夹子：软删掉的那个同名夹子不算重复，保存时会把它复活
+// （见 SaveFolder）。唯一键 uk_favorite_user_title 覆盖软删行，所以"算重复"
+// 与"能插入"是两件事，这里必须与 SaveFolder 的复活逻辑配成一对。
 func (r *FavoriteRepo) ExistsFolderTitle(ctx context.Context, userID domain.UserID, title string, excludeID favorite.ID) (bool, error) {
 	q := r.db.WithContext(ctx).Model(&favoriteRow{}).
 		Where("user_id = ? AND title = ?", fromUserID(userID), title)
@@ -139,6 +185,18 @@ func (r *FavoriteRepo) SaveFolder(ctx context.Context, f *favorite.Folder) error
 	if updates.RowsAffected > 0 {
 		return nil
 	}
+
+	// 走到这里说明没有活跃的同一行。可能是"新建"，也可能是"用户删过一个同名夹子
+	// 又建了一个同名的"——后者在唯一键 uk_favorite_user_title 下插不进去
+	// （唯一键覆盖软删行），所以先把那条软删行复活。
+	revived, err := r.reviveSoftDeletedFolder(ctx, f)
+	if err != nil {
+		return err
+	}
+	if revived {
+		return nil
+	}
+
 	return r.db.WithContext(ctx).Create(&favoriteRow{
 		BaseRow:   BaseRow{ID: id},
 		UserID:    fromUserID(f.UserID()),
@@ -149,11 +207,64 @@ func (r *FavoriteRepo) SaveFolder(ctx context.Context, f *favorite.Folder) error
 	}).Error
 }
 
-// DeleteFolder 删除收藏夹（FavoriteModel 的 BeforeDelete 会清掉收藏关系）。
+// reviveSoftDeletedFolder 把同名软删行改回这条新夹子，返回是否复活成功。
+//
+// 语义是"用户删过的名字可以再用"：复活时沿用**新的 ID** 会让收藏关系指向旧行，
+// 所以这里把新夹子的 ID 与资料整体写进旧行 —— 对调用方来说就是"这个名字现在
+// 指向刚建的这个夹子"。关系行不可能存在（删夹时已级联清掉）。
+func (r *FavoriteRepo) reviveSoftDeletedFolder(ctx context.Context, f *favorite.Folder) (bool, error) {
+	result := r.db.WithContext(ctx).Unscoped().Model(&favoriteRow{}).
+		Where("user_id = ? AND title = ? AND deleted_at IS NOT NULL", fromUserID(f.UserID()), f.Title()).
+		Updates(map[string]any{
+			"id":         ctype.ID(f.ID()),
+			"cover":      f.Cover(),
+			"abstract":   f.Abstract(),
+			"is_default": f.IsDefault(),
+			"deleted_at": nil,
+		})
+	if result.Error != nil {
+		return false, result.Error
+	}
+	return result.RowsAffected > 0, nil
+}
+
+// DeleteFolder 删除收藏夹与其下所有收藏关系，**不动文章本身**。
+//
+// 级联是被领域契约要求的（favorite.Repository 的注释、fake 仓储都这么做），
+// 旧实现只在注释里写着"BeforeDelete 会清掉关系"，而那个钩子在重构时被删除，
+// 于是关系行成了孤儿：文章仍显示"已收藏"，却不在任何夹子里（#344）。
 func (r *FavoriteRepo) DeleteFolder(ctx context.Context, id favorite.ID) error {
+	if err := r.db.WithContext(ctx).
+		Where("favor_id = ?", ctype.ID(id)).
+		Delete(&userArticleFavorRow{}).Error; err != nil {
+		return err
+	}
 	return r.db.WithContext(ctx).
 		Where("id = ?", ctype.ID(id)).
 		Delete(&favoriteRow{}).Error
+}
+
+// RefreshFolderStats 在同一事务内重算该夹的文章数并推进更新时间。
+//
+// 用一条 UPDATE + 子查询而不是"读出来再写回去"：并发收藏两个不同文章时，
+// 读-改-写会丢计数，整列重算不会。updated_at 一并推进，收藏夹列表才能按
+// "最近变动"排序（#344）。
+func (r *FavoriteRepo) RefreshFolderStats(ctx context.Context, folderID favorite.ID, updatedAt time.Time) error {
+	return refreshFolderStatsTx(r.db.WithContext(ctx), ctype.ID(folderID), updatedAt)
+}
+
+// refreshFolderStatsTx 是 RefreshFolderStats 的 tx 版本：删文章时要在同一个
+// 事务里重算多个夹子，抽出来避免两份 SQL。
+func refreshFolderStatsTx(tx *gorm.DB, folderID ctype.ID, updatedAt time.Time) error {
+	return tx.Exec(`
+		UPDATE favorite_models AS f
+		SET article_count = (
+				SELECT COUNT(*) FROM user_article_favor_models r
+				WHERE r.favor_id = f.id AND r.deleted_at IS NULL
+			),
+			updated_at = ?
+		WHERE f.id = ? AND f.deleted_at IS NULL`,
+		updatedAt, folderID).Error
 }
 
 // FindItem 读取某夹子里的收藏。
@@ -247,11 +358,33 @@ func (r *FavoriteRepo) DeleteItem(ctx context.Context, articleID domain.ArticleI
 		Delete(&userArticleFavorRow{}).Error
 }
 
-// DeleteItemsByArticle 删除某文章全部收藏。
-func (r *FavoriteRepo) DeleteItemsByArticle(ctx context.Context, articleID domain.ArticleID) error {
-	return r.db.WithContext(ctx).
-		Where("article_id = ?", fromArticleID(articleID)).
-		Delete(&userArticleFavorRow{}).Error
+// DeleteItemsByArticle 删除某文章的全部收藏，并重算受影响夹子的文章数。
+//
+// 只删关系行不够：`article_count` 是给外部消费者看的快照列，删文章时不同步
+// 就会留下"夹子里显示 5 篇、点进去只有 4 篇"。所以先记下受影响的夹子，
+// 删完再逐个重算（与收藏/移出走同一份 RefreshFolderStats）。
+func (r *FavoriteRepo) DeleteItemsByArticle(ctx context.Context, articleID domain.ArticleID, now time.Time) error {
+	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		var folderIDs []ctype.ID
+		if err := tx.Model(&userArticleFavorRow{}).
+			Where("article_id = ?", fromArticleID(articleID)).
+			Distinct("favor_id").
+			Pluck("favor_id", &folderIDs).Error; err != nil {
+			return err
+		}
+
+		if err := tx.Where("article_id = ?", fromArticleID(articleID)).
+			Delete(&userArticleFavorRow{}).Error; err != nil {
+			return err
+		}
+
+		for _, folderID := range folderIDs {
+			if err := refreshFolderStatsTx(tx, folderID, now); err != nil {
+				return err
+			}
+		}
+		return nil
+	})
 }
 
 // ListItems 分页列出某夹子的收藏。
@@ -264,13 +397,26 @@ func (r *FavoriteRepo) DeleteItemsByArticle(ctx context.Context, articleID domai
 // 只过滤当页会让 total 变成全量，前端分页直接错乱。
 // 用快照里的 article_author_id 而不是文章表的 author_id：作者角色是**现读**的
 // （用户改角色后立刻生效），文章归属则取收藏时的快照，与列表展示一致。
-func (r *FavoriteRepo) ListItems(ctx context.Context, folderID favorite.ID, offset, limit int, onlyAdminAuthors bool) ([]*favorite.Item, int64, error) {
+func (r *FavoriteRepo) ListItems(ctx context.Context, folderID favorite.ID, offset, limit int, onlyAdminAuthors, publishedOnly bool) ([]*favorite.Item, int64, error) {
+	// publishedOnly 为公开读面（他人夹/匿名）准备：收藏时文章可能已发布，
+	// 之后被撤回草稿或删除。用 JOIN（而非 EXISTS）同时作用于 count 与当页，
+	// 否则 total 会与列表不一致，分页直接错乱。
+	joinArticle := "LEFT JOIN article_models a ON a.id = f.article_id AND a.deleted_at IS NULL"
+	if publishedOnly {
+		joinArticle = "JOIN article_models a ON a.id = f.article_id AND a.deleted_at IS NULL AND a.publish_status = ?"
+	}
+
 	base := func() *gorm.DB {
 		q := r.db.WithContext(ctx).Table("user_article_favor_models AS f").
 			Where("f.favor_id = ? AND f.deleted_at IS NULL", ctype.ID(folderID))
 		if onlyAdminAuthors {
 			q = q.Joins("JOIN user_models AS author_u ON author_u.id = f.article_author_id AND author_u.role = ?",
 				int8(enum.RoleAdmin))
+		}
+		if publishedOnly {
+			q = q.Joins(joinArticle, statusPublished)
+		} else {
+			q = q.Joins(joinArticle)
 		}
 		return q
 	}
@@ -284,28 +430,29 @@ func (r *FavoriteRepo) ListItems(ctx context.Context, folderID favorite.ID, offs
 	}
 
 	var rows []struct {
-		CreatedAt       time.Time
-		ArticleID       ctype.ID
-		UserID          ctype.ID
-		ArticleTitle    string
-		ArticleAbstract string
-		ArticleCover    string
-		ArticleStatus   int8
-		AuthorID        ctype.ID
-		AuthorNickname  string
-		AuthorAvatar    string
-		ViewCount       int
-		DiggCount       int
-		CommentCount    int
-		FavorCount      int
+		CreatedAt        time.Time
+		ArticleUpdatedAt time.Time
+		ArticleID        ctype.ID
+		UserID           ctype.ID
+		ArticleTitle     string
+		ArticleAbstract  string
+		ArticleCover     string
+		ArticleStatus    int8
+		AuthorID         ctype.ID
+		AuthorNickname   string
+		AuthorAvatar     string
+		ViewCount        int
+		DiggCount        int
+		CommentCount     int
+		FavorCount       int
 	}
 	if err := base().
-		Select("f.created_at, f.article_id, f.user_id, f.article_title, f.article_abstract, f.article_cover, " +
+		Select("f.created_at, COALESCE(a.updated_at, f.created_at) AS article_updated_at, " +
+			"f.article_id, f.user_id, f.article_title, f.article_abstract, f.article_cover, " +
 			"f.article_status, f.article_author_id AS author_id, " +
 			"f.article_author_nickname AS author_nickname, f.article_author_avatar AS author_avatar, " +
 			"COALESCE(a.view_count,0) AS view_count, COALESCE(a.digg_count,0) AS digg_count, " +
 			"COALESCE(a.comment_count,0) AS comment_count, COALESCE(a.favor_count,0) AS favor_count").
-		Joins("LEFT JOIN article_models a ON a.id = f.article_id AND a.deleted_at IS NULL").
 		Order("f.created_at desc, f.id desc").
 		Offset(offset).Limit(limit).
 		Scan(&rows).Error; err != nil {
@@ -315,21 +462,22 @@ func (r *FavoriteRepo) ListItems(ctx context.Context, folderID favorite.ID, offs
 	out := make([]*favorite.Item, 0, len(rows))
 	for _, m := range rows {
 		out = append(out, favorite.RestoreItem(favorite.RestoreItemParams{
-			ArticleID:       domain.ArticleID(m.ArticleID),
-			UserID:          domain.UserID(m.UserID),
-			FolderID:        folderID,
-			ArticleTitle:    m.ArticleTitle,
-			ArticleAbstract: m.ArticleAbstract,
-			ArticleCover:    m.ArticleCover,
-			ArticleStatus:   domain.Status(m.ArticleStatus),
-			AuthorID:        domain.UserID(m.AuthorID),
-			AuthorNickname:  m.AuthorNickname,
-			AuthorAvatar:    m.AuthorAvatar,
-			FavoritedAt:     m.CreatedAt,
-			ViewCount:       m.ViewCount,
-			DiggCount:       m.DiggCount,
-			CommentCount:    m.CommentCount,
-			FavorCount:      m.FavorCount,
+			ArticleID:        domain.ArticleID(m.ArticleID),
+			UserID:           domain.UserID(m.UserID),
+			FolderID:         folderID,
+			ArticleTitle:     m.ArticleTitle,
+			ArticleAbstract:  m.ArticleAbstract,
+			ArticleCover:     m.ArticleCover,
+			ArticleStatus:    domain.Status(m.ArticleStatus),
+			AuthorID:         domain.UserID(m.AuthorID),
+			AuthorNickname:   m.AuthorNickname,
+			AuthorAvatar:     m.AuthorAvatar,
+			FavoritedAt:      m.CreatedAt,
+			ArticleUpdatedAt: m.ArticleUpdatedAt,
+			ViewCount:        m.ViewCount,
+			DiggCount:        m.DiggCount,
+			CommentCount:     m.CommentCount,
+			FavorCount:       m.FavorCount,
 		}))
 	}
 	return out, total, nil

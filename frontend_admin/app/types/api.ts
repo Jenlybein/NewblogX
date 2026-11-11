@@ -339,3 +339,32 @@ export type TagListItem = RequiredSchema<"internal_article_adapter_http.TagListI
  * 编辑弹窗因此总是显式带上四栏的当前值。
  */
 export type TagWritePayload = Schema<"internal_article_adapter_http.TagRequest">;
+
+// ── 合集 / 项目分组（ADR-0041）─────────────────────────────────
+
+/** 分组里的一个条目：顺序由数组位置表达，元素只有一个 ID。 */
+export type GroupItem = RequiredSchema<"internal_article_adapter_http.GroupItemResponse">;
+
+/** 一个分组及其条目顺序。 */
+export type GroupNode = RequiredSchema<"internal_article_adapter_http.GroupNodeResponse">;
+
+/**
+ * 后台分组读面。
+ *
+ * `ungrouped` 单独一段而不是一个"分组"：未分组固定排在最前，且在没有未分组
+ * 条目时整段消失 —— 它不是一种分组，不需要一条数据行来代表它。
+ */
+export type GroupTreeData = RequiredSchema<"internal_article_adapter_http.GroupTreeResponse">;
+
+/** 整树换序的请求体（幂等整份覆盖）。 */
+export type GroupOrderPayload = Required<Schema<"internal_article_adapter_http.GroupOrderRequest">>;
+// ── 站点概览的补充计数（票 349）──────────────────────────────
+
+/**
+ * 概览的补充计数。
+ *
+ * 只含已有端点没提供的数字：窗口内访问 / 新增注册 / 新增文章。
+ * 边界由后端给出（东八区），前端把 `range_start` 直接写进口径提示，
+ * 而不是自己再推一遍时间。
+ */
+export type OverviewData = RequiredSchema<"internal_analytics_adapter_http.OverviewResponse">;

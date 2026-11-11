@@ -31,7 +31,7 @@ type Handler struct {
 	// 为什么放在 HTTP 层而不是用例层：这是"一次页面加载算一次访问"的埋点口径，
 	// 属于接入层的事；用例层不需要知道流量是怎么计的。
 	// 为 nil 时跳过（单测/路由表测试不关心计数）。
-	onPublicSiteView func()
+	onPublicSiteView func(ip, userAgent string)
 }
 
 // Option 是 Handler 的可选依赖。
@@ -43,7 +43,7 @@ func WithSidebar(sidebar *app.SidebarService) Option {
 }
 
 // NewHandler 构造处理器。onPublicSiteView 可为 nil。
-func NewHandler(svc *app.Service, onPublicSiteView func(), opts ...Option) *Handler {
+func NewHandler(svc *app.Service, onPublicSiteView func(ip, userAgent string), opts ...Option) *Handler {
 	if svc == nil {
 		panic("site/http: 用例服务未注入")
 	}

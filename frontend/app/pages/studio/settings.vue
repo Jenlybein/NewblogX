@@ -1,6 +1,7 @@
 <script setup lang="ts">
+import ChipSelect from "~/components/common/ChipSelect.vue";
 import { computed, reactive, ref } from "vue";
-import { NButton, NCard, NInput, NModal, NSelect, NSwitch, useMessage } from "naive-ui";
+import { NButton, NCard, NInput, NModal, NSwitch, useMessage } from "naive-ui";
 import AppAvatar from "~/components/common/AppAvatar.vue";
 import ImageCropDialog from "~/components/studio/ImageCropDialog.vue";
 import { sendEmailCode } from "~/services/auth";
@@ -25,7 +26,7 @@ import {
   shapeAvatarWithFraming,
 } from "~/utils/avatar";
 import { isImageFile, measureImage, type ShapeFramingState } from "~/utils/imageShaping";
-import { buildPrivacyUpdatePayload, buildProfileUpdatePayload } from "~/utils/studioSettings";
+import { buildPrivacyUpdatePayload, buildProfileUpdatePayload, buildVisibilityUpdatePayload } from "~/utils/studioSettings";
 import { errorMessage } from "~/utils/errorMessage";
 
 definePageMeta({
@@ -35,6 +36,31 @@ definePageMeta({
 
 const message = useMessage();
 const authStore = useAuthStore();
+const route = useRoute();
+
+/**
+ * 账号设置的五个分栏（票 355）。
+ *
+ * 用 `?section=` 而不是五个路由文件：分栏共享同一份数据加载（资料 / 偏好 /
+ * 标签选项），拆成五个页面就会各自拉一遍，且"保存后刷新"要重写五份。
+ * 顺序即侧栏子项顺序，也即页面上的 tab 顺序。
+ */
+const sectionTabs = [
+  { key: "profile", label: "个人资料" },
+  { key: "security", label: "账号安全" },
+  { key: "notify", label: "消息偏好" },
+  { key: "visibility", label: "可见性" },
+  { key: "privacy", label: "隐私" },
+] as const;
+
+type SettingsSection = (typeof sectionTabs)[number]["key"];
+
+/** 当前分栏：不认识的 section 一律回落到「个人资料」，不显示空白页。 */
+const activeSection = computed<SettingsSection>(() => {
+  const raw = route.query.section;
+  const value = typeof raw === "string" ? raw : "profile";
+  return (sectionTabs.some(tab => tab.key === value) ? value : "profile") as SettingsSection;
+});
 
 const { data: profile, refresh: refreshProfile } = await useAsyncData("studio-settings-profile", () => getSelfUserDetail());
 const { data: preference, refresh: refreshPreference } = await useAsyncData("studio-settings-preference", () => getMessagePreference());
@@ -50,7 +76,6 @@ const profileForm = reactive({
   favorites_visibility: true,
   followers_visibility: true,
   fans_visibility: true,
-  home_style_id: "",
   // 允许陌生人给我发私信（后端两级判定的个人一级，默认开启）。
   stranger_msg_enabled: true,
 });
@@ -168,7 +193,6 @@ watch(
     profileForm.fans_visibility = value.fans_visibility ?? true;
     // 默认开启：老账号没有这条配置行时后端也按允许处理，前端不能显示成关闭。
     profileForm.stranger_msg_enabled = value.stranger_msg_enabled ?? true;
-    profileForm.home_style_id = value.home_style_id ?? "";
   },
   { immediate: true },
 );
@@ -272,7 +296,6 @@ async function saveProfile() {
         favorites_visibility: profileForm.favorites_visibility,
         followers_visibility: profileForm.followers_visibility,
         fans_visibility: profileForm.fans_visibility,
-        home_style_id: profileForm.home_style_id,
       },
       {
         likeTagIds: normalizedLikeTagIds,
@@ -437,6 +460,26 @@ async function submitPasswordReset() {
   }
 }
 
+/**
+ * 可见性独立保存（票 355）。
+ *
+ * 之前三个开关混在"保存资料"里：用户只想改一个可见性，却会把整张资料卡
+ * （用户名、昵称、简介、偏好标签）一起提交一遍。独立之后提交的只有这三个字段。
+ */
+async function saveVisibility() {
+  try {
+    await updateUserProfile(buildVisibilityUpdatePayload({
+      favorites_visibility: profileForm.favorites_visibility,
+      followers_visibility: profileForm.followers_visibility,
+      fans_visibility: profileForm.fans_visibility,
+    }));
+    await refreshProfile();
+    message.success("可见性设置已更新");
+  } catch (error) {
+    message.error(errorMessage(error, "保存可见性失败"));
+  }
+}
+
 async function savePreference() {
   try {
     await updateMessagePreference({ ...preferenceForm });
@@ -474,183 +517,261 @@ useNoIndexPage();
 
 <template>
   <div class="page-stack">
-    <div class="grid gap-5 xl:grid-cols-[minmax(0,1fr)_360px]">
-      <section class="space-y-5">
-        <NCard class="studio-list-card" :bordered="false">
-          <div class="studio-toolbar">
-            <div>
-              <div class="eyebrow">Profile</div>
-              <h2 class="section-title mt-2">个人资料</h2>
-            </div>
-            <NButton type="primary" :disabled="avatarUploading.pending" @click="saveProfile()">保存资料</NButton>
+    <!-- 单列 + 分栏（票 355）：一屏只看一个分栏，切换靠侧栏子项与页内 tab。
+         之前是两列各塞几张卡，同一件事（我的资料）被拆到左右两栏，眼睛来回跳。 -->
+    <nav class="settings-tabs" aria-label="账号设置分栏">
+      <NuxtLink
+        v-for="tab in sectionTabs"
+        :key="tab.key"
+        :to="`/studio/settings?section=${tab.key}`"
+        class="settings-tabs__tab"
+        :class="{ 'is-active': activeSection === tab.key }"
+        :data-role="`settings-tab-${tab.key}`">
+        {{ tab.label }}
+      </NuxtLink>
+    </nav>
+
+    <!-- 个人资料 -->
+    <NCard v-if="activeSection === 'profile'" class="studio-list-card" :bordered="false">
+      <div class="studio-toolbar">
+        <div>
+          <div class="eyebrow">Profile</div>
+          <h2 class="section-title mt-2">个人资料</h2>
+        </div>
+        <NButton type="primary" :disabled="avatarUploading.pending" data-role="settings-save-profile" @click="saveProfile()">
+          保存资料
+        </NButton>
+      </div>
+
+      <div class="mt-4">
+        <div class="settings-row">
+          <span class="settings-row__label">用户名</span>
+          <div class="settings-row__control">
+            <NInput v-model:value="profileForm.username" maxlength="20" placeholder="输入用户名…" />
           </div>
+        </div>
 
-          <div class="mt-5 grid gap-4 md:grid-cols-2">
-            <label class="space-y-2">
-              <span class="text-sm font-medium">用户名</span>
-              <NInput v-model:value="profileForm.username" maxlength="20" placeholder="输入用户名…" />
-            </label>
-            <label class="space-y-2">
-              <span class="text-sm font-medium">昵称</span>
-              <NInput v-model:value="profileForm.nickname" maxlength="20" placeholder="输入昵称…" />
-            </label>
-            <label class="space-y-2 md:col-span-2">
-              <span class="text-sm font-medium">头像上传</span>
-              <div class="rounded-card border border-line bg-surface px-4 py-4">
-                <input
-                  ref="avatarFileInputRef"
-                  type="file"
-                  accept="image/*"
-                  class="hidden"
-                  @change="handleAvatarFileChange" />
+        <div class="settings-row">
+          <span class="settings-row__label">昵称</span>
+          <div class="settings-row__control">
+            <NInput v-model:value="profileForm.nickname" maxlength="20" placeholder="输入昵称…" />
+          </div>
+        </div>
 
-                <div class="flex min-h-[92px] flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-                  <div class="flex items-center gap-3">
-                    <AppAvatar :size="56" :src="profileAvatarPreview" :name="profileAvatarInitial" :fallback="profileAvatarInitial" />
-                    <div class="space-y-1">
-                      <p class="text-sm font-medium">更新你的个人头像</p>
-                      <p class="text-xs muted">支持 JPG / PNG / WebP，会上传前居中裁成方形并压到 256×256</p>
-                    </div>
-                  </div>
+        <div class="settings-row settings-row--switch">
+          <span class="settings-row__label">头像</span>
+          <div class="settings-row__control">
+            <input
+              ref="avatarFileInputRef"
+              type="file"
+              accept="image/*"
+              class="hidden"
+              @change="handleAvatarFileChange" />
 
-                  <div class="flex flex-wrap gap-2 sm:justify-end">
-                    <NButton quaternary :loading="avatarUploading.pending" @click="openAvatarPicker()">
-                      {{ profileForm.avatar ? "重新上传头像" : "选择头像图片" }}
-                    </NButton>
-                    <NButton v-if="profileForm.avatar || profileForm.avatar_image_id" quaternary @click="clearAvatar()">
-                      移除头像
-                    </NButton>
-                  </div>
+            <div class="flex min-h-[72px] flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+              <div class="flex items-center gap-3">
+                <AppAvatar :size="56" :src="profileAvatarPreview" :name="profileAvatarInitial" :fallback="profileAvatarInitial" />
+                <div class="space-y-1">
+                  <p class="text-sm font-medium">更新你的个人头像</p>
+                  <p class="text-xs muted">支持 JPG / PNG / WebP，会上传前居中裁成方形并压到 256×256</p>
                 </div>
-
-                <p v-if="avatarUploading.stage" class="mt-3 text-xs muted">{{ avatarUploading.stage }}</p>
               </div>
-            </label>
-            <label class="space-y-2 md:col-span-2">
-              <span class="text-sm font-medium">个人简介</span>
-              <NInput
-                v-model:value="profileForm.abstract"
-                type="textarea"
-                :autosize="{ minRows: 4, maxRows: 6 }"
-                maxlength="120"
-                placeholder="介绍你的创作方向、关注主题或个人偏好…"
-              />
-            </label>
-            <label class="space-y-2 md:col-span-2">
-              <span class="text-sm font-medium">偏好标签</span>
-              <NSelect
-                v-model:value="profileForm.like_tag_ids"
-                multiple
-                filterable
-                clearable
-                max-tag-count="responsive"
-                :options="tagOptions || []"
-                placeholder="选择你感兴趣的标签，提交时会走 like_tag_ids"
-              />
-            </label>
-            <label class="space-y-2 md:col-span-2 lg:max-w-[320px]">
-              <span class="text-sm font-medium">主页样式 ID</span>
-              <NInput v-model:value="profileForm.home_style_id" placeholder="例如：1、2、3" />
-            </label>
-          </div>
-        </NCard>
 
-        <NCard class="studio-list-card" :bordered="false">
-          <div class="eyebrow">Bind</div>
-          <h2 class="section-title mt-2">绑定信息</h2>
-
-          <div class="mt-5 space-y-3">
-            <div class="flex items-center justify-between rounded-card border px-4 py-3">
-              <div class="flex items-center gap-4">
-                <span class="text-sm font-medium">邮箱</span>
-                <span class="text-sm muted">{{ maskedEmailText }}</span>
+              <div class="flex flex-wrap gap-2 sm:justify-end">
+                <NButton quaternary :loading="avatarUploading.pending" @click="openAvatarPicker()">
+                  {{ profileForm.avatar ? "重新上传头像" : "选择头像图片" }}
+                </NButton>
+                <NButton v-if="profileForm.avatar || profileForm.avatar_image_id" quaternary @click="clearAvatar()">
+                  移除头像
+                </NButton>
               </div>
-              <NButton text type="primary" @click="openEmailModalDialog()">
-                {{ hasBoundEmail ? "修改邮箱" : "绑定邮箱" }}
-              </NButton>
             </div>
-            <div class="flex items-center justify-between rounded-card border px-4 py-3">
-              <div class="flex items-center gap-4">
-                <span class="text-sm font-medium">密码</span>
-                <span class="text-sm muted">{{ maskedPasswordText }}</span>
-              </div>
-              <NButton text type="primary" @click="openPasswordModalDialog()">
-                {{ hasBoundPassword ? "修改密码" : "绑定密码" }}
-              </NButton>
-            </div>
-          </div>
-        </NCard>
-      </section>
 
-      <section class="space-y-5">
-        <NCard class="studio-list-card" :bordered="false">
+            <p v-if="avatarUploading.stage" class="mt-3 text-xs muted">{{ avatarUploading.stage }}</p>
+          </div>
+        </div>
+
+        <div class="settings-row settings-row--switch">
+          <span class="settings-row__label">个人简介</span>
+          <div class="settings-row__control">
+            <NInput
+              v-model:value="profileForm.abstract"
+              type="textarea"
+              :autosize="{ minRows: 3, maxRows: 6 }"
+              maxlength="120"
+              placeholder="介绍你的创作方向、关注主题或个人偏好…"
+            />
+          </div>
+        </div>
+
+        <div class="settings-row settings-row--switch">
+          <span class="settings-row__label">偏好标签</span>
+          <div class="settings-row__control">
+            <ChipSelect
+              v-model="profileForm.like_tag_ids"
+              multiple
+              :max-tag-count="5"
+              :options="tagOptions || []"
+              placeholder="选择你感兴趣的标签，提交时会走 like_tag_ids"
+              data-role="settings-like-tags"
+            />
+            <p class="settings-row__hint">读者侧会用这些标签给你推荐相关内容。</p>
+          </div>
+        </div>
+      </div>
+    </NCard>
+
+    <!-- 账号安全 -->
+    <NCard v-if="activeSection === 'security'" class="studio-list-card" :bordered="false">
+      <div class="eyebrow">Security</div>
+      <h2 class="section-title mt-2">账号安全</h2>
+      <p class="mt-1 text-sm muted">邮箱与密码都走独立弹窗：改它们要验证码 / 旧密码，不适合塞在行内。</p>
+
+      <div class="mt-4">
+        <div class="settings-row">
+          <span class="settings-row__label">邮箱</span>
+          <div class="settings-row__control flex items-center justify-between gap-3">
+            <span class="text-sm muted">{{ maskedEmailText }}</span>
+            <NButton text type="primary" data-role="settings-bind-email" @click="openEmailModalDialog()">
+              {{ hasBoundEmail ? "修改邮箱" : "绑定邮箱" }}
+            </NButton>
+          </div>
+        </div>
+
+        <div class="settings-row">
+          <span class="settings-row__label">密码</span>
+          <div class="settings-row__control flex items-center justify-between gap-3">
+            <span class="text-sm muted">{{ maskedPasswordText }}</span>
+            <NButton text type="primary" data-role="settings-bind-password" @click="openPasswordModalDialog()">
+              {{ hasBoundPassword ? "修改密码" : "绑定密码" }}
+            </NButton>
+          </div>
+        </div>
+      </div>
+
+      <!-- 没有危险区：站点没有"注销账号"端点，放一个点了会失败的按钮只是骗人。 -->
+    </NCard>
+
+    <!-- 消息偏好 -->
+    <NCard v-if="activeSection === 'notify'" class="studio-list-card" :bordered="false">
+      <div class="studio-toolbar">
+        <div>
           <div class="eyebrow">Preference</div>
           <h2 class="section-title mt-2">消息偏好</h2>
+        </div>
+        <NButton type="primary" data-role="settings-save-notify" @click="savePreference()">保存偏好</NButton>
+      </div>
 
-          <div class="mt-5 space-y-3">
-            <div class="flex items-center justify-between rounded-card border px-4 py-3">
-              <span>点赞提醒</span>
-              <NSwitch v-model:value="preferenceForm.digg_notice_enabled" />
-            </div>
-            <div class="flex items-center justify-between rounded-card border px-4 py-3">
-              <span>评论提醒</span>
-              <NSwitch v-model:value="preferenceForm.comment_notice_enabled" />
-            </div>
-            <div class="flex items-center justify-between rounded-card border px-4 py-3">
-              <span>收藏提醒</span>
-              <NSwitch v-model:value="preferenceForm.favor_notice_enabled" />
-            </div>
-            <div class="flex items-center justify-between rounded-card border px-4 py-3">
-              <span>私信提醒</span>
-              <NSwitch v-model:value="preferenceForm.private_chat_notice_enabled" />
-            </div>
+      <div class="mt-4">
+        <div class="settings-row settings-row--switch">
+          <div>
+            <span class="settings-row__label">点赞提醒</span>
+            <p class="settings-row__hint">有人给你的文章点赞时收到站内提醒。</p>
           </div>
-          <div class="mt-4">
-            <NButton type="primary" @click="savePreference()">保存偏好</NButton>
+          <div class="settings-row__control flex justify-end">
+            <NSwitch v-model:value="preferenceForm.digg_notice_enabled" />
           </div>
-        </NCard>
+        </div>
 
-        <NCard class="studio-list-card" :bordered="false">
+        <div class="settings-row settings-row--switch">
+          <div>
+            <span class="settings-row__label">评论提醒</span>
+            <p class="settings-row__hint">有新的评论时收到站内提醒。</p>
+          </div>
+          <div class="settings-row__control flex justify-end">
+            <NSwitch v-model:value="preferenceForm.comment_notice_enabled" />
+          </div>
+        </div>
+
+        <div class="settings-row settings-row--switch">
+          <div>
+            <span class="settings-row__label">收藏提醒</span>
+            <p class="settings-row__hint">有人收藏你的文章时收到站内提醒。</p>
+          </div>
+          <div class="settings-row__control flex justify-end">
+            <NSwitch v-model:value="preferenceForm.favor_notice_enabled" />
+          </div>
+        </div>
+
+        <div class="settings-row settings-row--switch">
+          <div>
+            <span class="settings-row__label">私信提醒</span>
+            <p class="settings-row__hint">收到新私信时收到站内提醒。</p>
+          </div>
+          <div class="settings-row__control flex justify-end">
+            <NSwitch v-model:value="preferenceForm.private_chat_notice_enabled" />
+          </div>
+        </div>
+      </div>
+    </NCard>
+
+    <!-- 可见性：独立保存按钮 -->
+    <NCard v-if="activeSection === 'visibility'" class="studio-list-card" :bordered="false">
+      <div class="studio-toolbar">
+        <div>
           <div class="eyebrow">Visibility</div>
           <h2 class="section-title mt-2">可见性</h2>
+        </div>
+        <NButton type="primary" data-role="settings-save-visibility" @click="saveVisibility()">保存可见性</NButton>
+      </div>
 
-          <div class="mt-5 space-y-3">
-            <div class="flex items-center justify-between rounded-card border px-4 py-3">
-              <span>收藏夹可见</span>
-              <NSwitch v-model:value="profileForm.favorites_visibility" />
-            </div>
-            <div class="flex items-center justify-between rounded-card border px-4 py-3">
-              <span>关注列表可见</span>
-              <NSwitch v-model:value="profileForm.followers_visibility" />
-            </div>
-            <div class="flex items-center justify-between rounded-card border px-4 py-3">
-              <span>粉丝列表可见</span>
-              <NSwitch v-model:value="profileForm.fans_visibility" />
-            </div>
+      <div class="mt-4">
+        <div class="settings-row settings-row--switch">
+          <div>
+            <span class="settings-row__label">收藏夹可见</span>
+            <p class="settings-row__hint">关掉后，别人在你的主页看不到收藏夹。</p>
           </div>
-        </NCard>
+          <div class="settings-row__control flex justify-end">
+            <NSwitch v-model:value="profileForm.favorites_visibility" />
+          </div>
+        </div>
 
-        <NCard class="studio-list-card" :bordered="false">
+        <div class="settings-row settings-row--switch">
+          <div>
+            <span class="settings-row__label">关注列表可见</span>
+            <p class="settings-row__hint">关掉后，别人看不到你关注了谁。</p>
+          </div>
+          <div class="settings-row__control flex justify-end">
+            <NSwitch v-model:value="profileForm.followers_visibility" />
+          </div>
+        </div>
+
+        <div class="settings-row settings-row--switch">
+          <div>
+            <span class="settings-row__label">粉丝列表可见</span>
+            <p class="settings-row__hint">关掉后，别人看不到谁关注了你。</p>
+          </div>
+          <div class="settings-row__control flex justify-end">
+            <NSwitch v-model:value="profileForm.fans_visibility" />
+          </div>
+        </div>
+      </div>
+    </NCard>
+
+    <!-- 隐私 -->
+    <NCard v-if="activeSection === 'privacy'" class="studio-list-card" :bordered="false">
+      <div class="studio-toolbar">
+        <div>
           <div class="eyebrow">Privacy</div>
           <h2 class="section-title mt-2">隐私</h2>
+        </div>
+        <NButton type="primary" data-role="settings-save-privacy" @click="savePrivacy()">保存隐私设置</NButton>
+      </div>
 
-          <div class="mt-5 space-y-3">
-            <div class="flex items-start justify-between gap-4 rounded-card border px-4 py-3">
-              <div class="min-w-0">
-                <span class="text-sm font-medium">允许陌生人给我发私信</span>
-                <p class="mt-1 text-xs leading-5 muted">
-                  关掉后，未关注你、也没有会话往来的人将无法给你发私信；站点总开关仍然生效。
-                </p>
-              </div>
-              <NSwitch v-model:value="profileForm.stranger_msg_enabled" />
-            </div>
+      <div class="mt-4">
+        <div class="settings-row settings-row--switch">
+          <div>
+            <span class="settings-row__label">允许陌生人给我发私信</span>
+            <p class="settings-row__hint">
+              关掉后，未关注你、也没有会话往来的人将无法给你发私信；站点总开关仍然生效。
+            </p>
           </div>
-          <div class="mt-4">
-            <NButton type="primary" @click="savePrivacy()">保存隐私设置</NButton>
+          <div class="settings-row__control flex justify-end">
+            <NSwitch v-model:value="profileForm.stranger_msg_enabled" />
           </div>
-        </NCard>
-      </section>
-    </div>
+        </div>
+      </div>
+    </NCard>
 
     <NModal
       v-model:show="showEmailModal"

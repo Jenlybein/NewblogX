@@ -1,181 +1,155 @@
-import { flushPromises, mount } from "@vue/test-utils";
-import { defineComponent, h } from "vue";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { flushPromises, mount } from '@vue/test-utils'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { defineComponent, h } from 'vue'
 
-import FavoriteFolderModal from "~/components/favorite/FavoriteFolderModal.vue";
-import type { FavoriteFolderItem } from "~/types/api";
+import FavoriteFolderModal from '~/components/favorite/FavoriteFolderModal.vue'
 
 /**
- * 收藏夹弹窗的「已收藏 → 移除」分支（票 #235 第 5 项 / ADR-0024 决策 6）。
+ * 收藏夹选择器（票 345）。
  *
- * 既有缺陷：按钮文案是"移出收藏夹"，但请求走 `POST /articles/favorite`
- * → 后端 `Favorite` 发现关系已存在，直接返回 `ErrItemExists`
- * （"已收藏该文章"）。用户点"移除"反而得到一条失败提示，且关系没动。
- *
- * 这里只测组件对外的协议：移除分支发 DELETE（不是 POST），并且把写响应里的
- * 权威 `favor_count` 透传给父级（页面据此 patch，不再重新取正文）。
+ * 用户原话：选了收藏夹却看不到文章、按钮又已经变成"已收藏"。所以这一层钉的是
+ * 选择器本身的可操作性，而不是大卡的样子：
+ *   1. 每个夹子是**两行**（名称 + 篇数徽标 / 简介一行），一屏能看十几个；
+ *   2. 右侧是**圆形 ＋/✓**：点一下收藏、再点一下移出；
+ *   3. 篇数徽标写的是真实篇数（来自 has_article + article_count）；
+ *   4. 页面上不再出现"共 N 篇文章"这种占一整行的文案。
  */
-const mocks = vi.hoisted(() => ({
+
+const messageMock = vi.hoisted(() => ({ success: vi.fn(), error: vi.fn(), warning: vi.fn(), info: vi.fn() }))
+const favoriteApi = vi.hoisted(() => ({
   getOwnFavoriteFolders: vi.fn(),
   createFavoriteFolder: vi.fn(),
-  favoriteArticle: vi.fn(),
   removeFavoriteFolderArticles: vi.fn(),
-}));
+}))
+const articleApi = vi.hoisted(() => ({ favoriteArticle: vi.fn() }))
 
-vi.mock("naive-ui", () => {
-  const NModal = defineComponent({
-    name: "NModal",
-    props: { show: { type: Boolean, default: false } },
-    setup(props, { slots }) {
-      return () => (props.show ? h("div", { "data-test": "modal" }, slots.default?.()) : null);
-    },
-  });
-  const NCard = defineComponent({
-    name: "NCard",
-    setup(_, { slots }) {
-      return () => h("section", { "data-test": "card" }, slots.default?.());
-    },
-  });
-  const NButton = defineComponent({
-    name: "NButton",
-    props: { disabled: { type: Boolean, default: false }, loading: { type: Boolean, default: false } },
-    emits: ["click"],
-    setup(props, { slots, emit }) {
-      return () => h("button", { disabled: props.disabled, onClick: () => emit("click") }, slots.default?.());
-    },
-  });
-  const NEmpty = defineComponent({
-    name: "NEmpty",
-    props: { description: { type: String, default: "" } },
-    setup(props) {
-      return () => h("div", { "data-test": "empty" }, props.description);
-    },
-  });
-  const NInput = defineComponent({
-    name: "NInput",
-    setup() {
-      return () => h("input");
-    },
-  });
-  const NSkeleton = defineComponent({
-    name: "NSkeleton",
-    setup() {
-      return () => h("div", { "data-test": "skeleton" });
-    },
-  });
+vi.mock('~/services/favorite', () => favoriteApi)
+vi.mock('~/services/article', () => articleApi)
+vi.mock('~/composables/usePointerSpecular', () => ({ usePointerSpecular: () => ({ handlePointerMove: vi.fn() }) }))
 
-  return { NModal, NCard, NButton, NEmpty, NInput, NSkeleton, useMessage: () => ({ success: vi.fn(), error: vi.fn(), info: vi.fn() }) };
-});
-
-vi.mock("~/services/favorite", () => ({
-  getOwnFavoriteFolders: mocks.getOwnFavoriteFolders,
-  createFavoriteFolder: mocks.createFavoriteFolder,
-  removeFavoriteFolderArticles: mocks.removeFavoriteFolderArticles,
-}));
-
-vi.mock("~/services/article", () => ({
-  favoriteArticle: mocks.favoriteArticle,
-}));
-
-const ARTICLE_ID = "a1";
-
-function makeFolder(overrides: Partial<FavoriteFolderItem> = {}): FavoriteFolderItem {
+vi.mock('naive-ui', async () => {
+  const passthrough = (name: string) =>
+    defineComponent({ name, setup: (_, { slots }) => () => h('div', [slots.default?.()]) })
   return {
-    id: "f1",
-    user_id: "u1",
-    title: "架构灵感",
-    cover: "",
-    abstract: "说明",
-    is_default: false,
-    article_count: 2,
-    has_article: true,
-    nickname: "",
-    avatar: "",
-    created_at: "",
-    updated_at: "",
+    NModal: defineComponent({
+      name: 'NModal',
+      props: { show: { type: Boolean, default: false } },
+      setup(props, { slots }) {
+        return () => (props.show ? h('div', slots.default?.()) : null)
+      },
+    }),
+    NCard: passthrough('NCard'),
+    NButton: defineComponent({
+      name: 'NButton',
+      props: { disabled: Boolean, loading: Boolean },
+      setup(props, { slots }) {
+        return () => h('button', { disabled: props.disabled || undefined }, slots.default?.())
+      },
+    }),
+    NInput: defineComponent({
+      name: 'NInput',
+      props: { value: { type: String, default: '' } },
+      emits: ['update:value'],
+      setup(props, { emit }) {
+        return () =>
+          h('input', {
+            value: props.value,
+            onInput: (e: Event) => emit('update:value', (e.target as HTMLInputElement).value),
+          })
+      },
+    }),
+    NEmpty: defineComponent({ name: 'NEmpty', setup: () => () => h('div') }),
+    NSkeleton: defineComponent({ name: 'NSkeleton', setup: () => () => h('div') }),
+    useMessage: () => messageMock,
+  }
+})
+
+function folder(overrides: Record<string, unknown> = {}) {
+  return {
+    id: 'f1',
+    title: '默认收藏',
+    abstract: '稍后阅读',
+    article_count: 3,
+    is_default: true,
+    has_article: false,
     ...overrides,
-  } as FavoriteFolderItem;
+  }
 }
 
-async function mountModal() {
+/**
+ * 挂载并"打开"选择器。
+ *
+ * 先以 show=false 挂载再改成 true：组件在 show 变真时才拉列表（watch），
+ * 直接以 true 挂载不会触发那条 watch —— 那样测到的是空态，不是真实路径。
+ */
+async function mountChooser(folders = [folder()]) {
+  favoriteApi.getOwnFavoriteFolders.mockResolvedValue({ list: folders, count: folders.length })
   const wrapper = mount(FavoriteFolderModal, {
-    props: { show: false, articleId: ARTICLE_ID, articleTitle: "正文标题" },
-  });
-  await wrapper.setProps({ show: true });
-  await flushPromises();
-  return wrapper;
+    props: { show: false, articleId: 'a1', articleTitle: '一篇文章' },
+  })
+  await wrapper.setProps({ show: true })
+  await flushPromises()
+  return wrapper
 }
 
 beforeEach(() => {
-  mocks.getOwnFavoriteFolders.mockReset().mockResolvedValue({ count: 1, list: [makeFolder()] });
-  mocks.createFavoriteFolder.mockReset();
-  mocks.favoriteArticle.mockReset().mockResolvedValue({ is_favor: true, favor_count: 1 });
-  mocks.removeFavoriteFolderArticles.mockReset().mockResolvedValue({ is_favor: false, favor_count: 0 });
-});
+  vi.clearAllMocks()
+  favoriteApi.removeFavoriteFolderArticles.mockResolvedValue({})
+  articleApi.favoriteArticle.mockResolvedValue({ is_favor: true, favor_count: 1 })
+})
 
-describe("FavoriteFolderModal：已收藏 → 移除", () => {
-  it("移除分支走 DELETE（不是再 POST 一次撞 ErrItemExists）", async () => {
-    const wrapper = await mountModal();
-    const removeButton = wrapper.findAll("button").find((node) => node.text().includes("移出收藏夹"));
-    expect(removeButton).toBeTruthy();
+describe('收藏夹选择器：两行紧凑行', () => {
+  it('每个夹子两行：名称 + 篇数徽标在第一行，简介在第二行', async () => {
+    const wrapper = await mountChooser()
+    await flushPromises()
 
-    await removeButton!.trigger("click");
-    await flushPromises();
+    const row = wrapper.get('[data-role="favorite-folder-row-f1"]')
+    expect(row.classes()).toContain('favorite-chooser-row')
+    expect(row.text()).toContain('默认收藏')
+    // 篇数徽标在行内，而不是"共 N 篇文章"那种独立一行。
+    expect(wrapper.get('[data-role="favorite-folder-count-f1"]').text()).toBe('3 篇')
+    expect(wrapper.text()).not.toContain('共 3 篇文章')
+    // 简介在第二行。
+    expect(row.get('.favorite-chooser-row__abstract').text()).toContain('稍后阅读')
+  })
 
-    expect(mocks.removeFavoriteFolderArticles).toHaveBeenCalledWith({
-      favoriteId: "f1",
-      articleIds: [ARTICLE_ID],
-    });
-    expect(mocks.favoriteArticle).not.toHaveBeenCalled();
-  });
+  it('已收藏的行显示 ✓，未收藏显示 ＋', async () => {
+    const wrapper = await mountChooser([
+      folder({ id: 'f1', has_article: true }),
+      folder({ id: 'f2', title: '另一个夹', is_default: false, has_article: false }),
+    ])
+    await flushPromises()
 
-  it("移除后把服务端权威 favor_count 交给父级（页面直接 patch，不重新取正文）", async () => {
-    const wrapper = await mountModal();
-    const removeButton = wrapper.findAll("button").find((node) => node.text().includes("移出收藏夹"));
+    expect(wrapper.get('[data-role="favorite-folder-toggle-f1"]').text()).toBe('✓')
+    expect(wrapper.get('[data-role="favorite-folder-toggle-f2"]').text()).toBe('＋')
+    // 选中态同时落在 aria-pressed 上（键盘与读屏都能判断）。
+    expect(wrapper.get('[data-role="favorite-folder-toggle-f1"]').attributes('aria-pressed')).toBe('true')
+  })
+})
 
-    await removeButton!.trigger("click");
-    await flushPromises();
+describe('收藏夹选择器：＋/✓ 切换', () => {
+  it('点 ＋ 收藏到该夹，并把权威结果抛给页面', async () => {
+    const wrapper = await mountChooser([folder({ id: 'f1' })])
+    await flushPromises()
 
-    const updated = wrapper.emitted("updated");
-    expect(updated?.at(-1)).toEqual([{ is_favor: false, favor_count: 0 }]);
-    // 列表也会重取：移除后该收藏夹的 has_article 应变为 false。
-    expect(mocks.getOwnFavoriteFolders).toHaveBeenCalledTimes(2);
-  });
+    await wrapper.get('[data-role="favorite-folder-toggle-f1"]').trigger('click')
+    await flushPromises()
 
-  it("未收藏分支仍走 POST（不要为了修移除把加入也改坏）", async () => {
-    mocks.getOwnFavoriteFolders.mockResolvedValue({ count: 1, list: [makeFolder({ has_article: false })] });
-    const wrapper = await mountModal();
-    const addButton = wrapper.findAll("button").find((node) => node.text().includes("加入收藏夹"));
+    expect(articleApi.favoriteArticle).toHaveBeenCalledWith('a1', 'f1')
+    expect(wrapper.emitted('updated')).toBeTruthy()
+  })
 
-    await addButton!.trigger("click");
-    await flushPromises();
+  it('再点 ✓ 从该夹移出（不是"加入"）', async () => {
+    const wrapper = await mountChooser([folder({ id: 'f1', has_article: true })])
+    await flushPromises()
 
-    expect(mocks.favoriteArticle).toHaveBeenCalledWith(ARTICLE_ID, "f1");
-    expect(mocks.removeFavoriteFolderArticles).not.toHaveBeenCalled();
-  });
-});
+    await wrapper.get('[data-role="favorite-folder-toggle-f1"]').trigger('click')
+    await flushPromises()
 
-describe("FavoriteFolderModal：写响应缺载荷时的防御（评审 #248 / P0-2）", () => {
-  it("响应是空对象（旧失败分支 `data: {}`）：emit null，页面不再抛 TypeError", async () => {
-    // 旧后端全失败时仍返回成功 + 空 data；页面读 payload.is_favor 直接 TypeError。
-    mocks.removeFavoriteFolderArticles.mockResolvedValueOnce({});
-    const wrapper = await mountModal();
-    const removeButton = wrapper.findAll("button").find((node) => node.text().includes("移出收藏夹"));
-
-    await removeButton!.trigger("click");
-    await flushPromises();
-
-    expect(wrapper.emitted("updated")?.at(-1)).toEqual([null]);
-  });
-
-  it("后端返回非 0 业务码（全失败）：走错误分支，不发 updated", async () => {
-    mocks.removeFavoriteFolderArticles.mockRejectedValueOnce(new Error("尚未收藏该文章"));
-    const wrapper = await mountModal();
-    const removeButton = wrapper.findAll("button").find((node) => node.text().includes("移出收藏夹"));
-
-    await removeButton!.trigger("click");
-    await flushPromises();
-
-    expect(wrapper.emitted("updated")).toBeUndefined();
-  });
-});
+    expect(favoriteApi.removeFavoriteFolderArticles).toHaveBeenCalledWith({
+      favoriteId: 'f1',
+      articleIds: ['a1'],
+    })
+    expect(articleApi.favoriteArticle).not.toHaveBeenCalled()
+  })
+})

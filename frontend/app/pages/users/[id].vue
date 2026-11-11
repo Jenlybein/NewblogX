@@ -86,8 +86,6 @@ const { data: profile, pending: profilePending, refresh: refreshProfile } = useA
           favorites_visibility: true,
           followers_visibility: true,
           fans_visibility: true,
-          // ctype.ID 的零值序列化成空串（不是 null），契约里 home_style_id 就是 string。
-          home_style_id: "",
           relation: 0,
           place: "",
         };
@@ -189,6 +187,9 @@ const { data: favoriteArticles, pending: favoriteArticlesPending } = useAsyncDat
       favoriteId: favoriteFolderId.value,
       page: 1,
       limit: 18,
+      // 公开主页是匿名读面：后端只列已发布文章。带上 token 反而会把
+      // "这是来访者自己的收藏夹"当成私有读，口径就串了（票 344）。
+      auth: false,
     });
   },
   {

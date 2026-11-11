@@ -68,7 +68,7 @@ describe('OutlineTreeEditor：按 kind 读树', () => {
     expect(adminApi.getCollectionOutline).not.toHaveBeenCalled()
 
     await wrapper.get('[data-role="outline-create-root"]').trigger('click')
-    await wrapper.get('[data-role="outline-save"]').trigger('click')
+    await (wrapper.vm as unknown as { save: () => Promise<void> }).save()
     await flushPromises()
 
     expect(adminApi.saveProjectOutline).toHaveBeenCalledWith('p1', expect.any(Array))
@@ -82,8 +82,10 @@ describe('OutlineTreeEditor：没有实体 ID 时不给存', () => {
     await flushPromises()
 
     expect(wrapper.find('[data-role="outline-needs-save"]').exists()).toBe(true)
-    // 没有 ID 时整条工具栏都不渲染：连「保存」按钮都不该出现（避免点了才报错）。
-    expect(wrapper.find('[data-role="outline-save"]').exists()).toBe(false)
+    // 票 348 起树里没有自己的保存按钮（保存由外层弹窗的「保存修改」提交），
+    // 所以这里断言的是"整条工具栏都不渲染"，连操作说明入口都不该出现。
+    expect(wrapper.find('[data-role="outline-help"]').exists()).toBe(false)
+    expect(wrapper.find('[data-role="outline-create-root"]').exists()).toBe(false)
     expect(adminApi.getCollectionOutline).not.toHaveBeenCalled()
     expect(adminApi.saveCollectionOutline).not.toHaveBeenCalled()
   })
@@ -98,7 +100,7 @@ describe('OutlineTreeEditor：保存提交嵌套节点', () => {
     const wrapper = mount(OutlineTreeEditor, { props: { kind: 'collection', entityId: 'c2' } })
     await flushPromises()
 
-    await wrapper.get('[data-role="outline-save"]').trigger('click')
+    await (wrapper.vm as unknown as { save: () => Promise<void> }).save()
     await flushPromises()
 
     expect(adminApi.saveCollectionOutline).toHaveBeenCalledTimes(1)
@@ -125,7 +127,7 @@ describe('OutlineTreeEditor：保存提交嵌套节点', () => {
     const wrapper = mount(OutlineTreeEditor, { props: { kind: 'collection', entityId: 'c3' } })
     await flushPromises()
 
-    await wrapper.get('[data-role="outline-save"]').trigger('click')
+    await (wrapper.vm as unknown as { save: () => Promise<void> }).save()
     await flushPromises()
 
     expect(adminApi.saveCollectionOutline).toHaveBeenCalledWith('c3', [])
@@ -177,7 +179,7 @@ describe('OutlineTreeEditor：NTree 承载树的渲染与拖拽', () => {
     })
     await flushPromises()
 
-    await wrapper.get('[data-role="outline-save"]').trigger('click')
+    await (wrapper.vm as unknown as { save: () => Promise<void> }).save()
     await flushPromises()
 
     const [, nodes] = adminApi.saveCollectionOutline.mock.calls[0] as [string, Array<{ title?: string }>]

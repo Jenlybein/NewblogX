@@ -3,6 +3,7 @@ package cli
 import (
 	"fmt"
 
+	articlemysql "myblogx/internal/article/adapter/mysql"
 	mysqlddl "myblogx/internal/platform/mysql/ddl"
 
 	"github.com/sirupsen/logrus"
@@ -33,6 +34,16 @@ func FlagDB(db *gorm.DB, logger *logrus.Logger) error {
 	if err := mysqlddl.Apply(db); err != nil {
 		if logger != nil {
 			logger.Error("数据库迁移失败: ", err)
+		}
+		return err
+	}
+
+	// 建表之后补一次冗余计数回填（幂等、只写数据不改结构）。
+	// 与建表同批执行的原因：`article_count` 曾是"从不更新的列"，
+	// 不做这一遍历史夹子的「N 篇」会一直是假值（#344）。
+	if err := articlemysql.BackfillFavoriteCounts(db); err != nil {
+		if logger != nil {
+			logger.Error("收藏夹计数回填失败: ", err)
 		}
 		return err
 	}

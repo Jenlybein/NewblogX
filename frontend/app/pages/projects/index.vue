@@ -1,8 +1,8 @@
 <script setup lang="ts">
 import { computed } from "vue";
-import FolderCardList from "~/components/common/FolderCardList.vue";
+import GroupedReaderList from "~/components/common/GroupedReaderList.vue";
 import ProfileEmptyState from "~/components/profile/ProfileEmptyState.vue";
-import { getProjects } from "~/services/project";
+import { getProjectGroups, getProjects } from "~/services/project";
 import { projectCardView } from "~/utils/project";
 
 /**
@@ -16,8 +16,15 @@ import { projectCardView } from "~/utils/project";
  * 分叉，就会出现"列表里有卡片、点进去 404"。
  *
  * 与「合集」并列但**不共用数据**；本页内部文案一律写「项目」，不混用「合集」。
- * 卡片与网格由共用组件 `FolderCardList` 提供（票 293），本页不再自带卡片样式。
+ * 卡片与网格由共用组件 `FolderCardList` 提供（票 293）；票 353 起外面再套一层
  */
+// 分组读面（票 353）：与合集同一形状、同一套语义（含"不渲染未分组标题"）。
+const { data: groups } = await useAsyncData(
+  "reader-project-groups",
+  () => getProjectGroups().catch(() => null),
+  { default: () => null },
+);
+
 const { data, pending, error } = await useAsyncData(
   "reader-projects",
   () => getProjects(1, 24),
@@ -46,7 +53,7 @@ const emptyDescription = computed(() =>
       <p v-if="cards.length" class="project-page__count">{{ cards.length }} 个项目</p>
     </header>
 
-    <FolderCardList v-if="cards.length" :cards="cards" data-project-list="true" />
+    <GroupedReaderList v-if="cards.length" :cards="cards" :groups="groups" label="项目" list-role="project" />
 
     <ProfileEmptyState
       v-else

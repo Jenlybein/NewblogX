@@ -374,6 +374,36 @@ export interface ChatNotificationPayload {
 // JSON 里可以是 null；但 swag 把指针印成非空类型，所以这里显式补 null。
 export type UserProfileUpdatePayload = Nullable<
   Schema<"internal_user_adapter_http.UpdateInfoRequest">,
-  "username" | "nickname" | "abstract" | "avatar_image_id" | "home_style_id"
+  "username" | "nickname" | "abstract" | "avatar_image_id"
 >;
 
+
+// ── 合集 / 项目分组（ADR-0041）─────────────────────────────────
+
+/** 分组里的一个条目：顺序由数组位置表达，元素只有一个 ID。 */
+export type GroupItem = RequiredSchema<"internal_article_adapter_http.GroupItemResponse">;
+
+/** 一个分组及其条目顺序。 */
+export type GroupNode = RequiredSchema<"internal_article_adapter_http.GroupNodeResponse">;
+
+/**
+ * 分组读面。
+ *
+ * 读者侧与后台共用这一个形状：读者侧只会拿到展示中的实体，且 `ungrouped`
+ * 那一批由页面作为尾块平铺（**不渲染「未分组」标题** —— 它描述的是后台的
+ * 编排状态，对访客没有意义）。
+ */
+export type GroupTreeData = RequiredSchema<"internal_article_adapter_http.GroupTreeResponse">;
+// ── 个人数据概览（票 354）─────────────────────────────────────
+
+/** 某个发布态的文章数。 */
+export type StudioStatusCount = RequiredSchema<"internal_article_adapter_http.StudioStatusCountResponse">;
+
+/** 概览里的文章摘要行（最近 / Top 5 共用）。 */
+export type StudioArticleBrief = RequiredSchema<"internal_article_adapter_http.StudioArticleBriefResponse">;
+
+/** 热力图的一天。 */
+export type StudioActivityDay = RequiredSchema<"internal_article_adapter_http.StudioActivityDayResponse">;
+
+/** 个人数据概览的完整读模型。 */
+export type StudioStatsData = RequiredSchema<"internal_article_adapter_http.StudioStatsResponse">;

@@ -559,6 +559,29 @@
                 },
                 "type": "object"
             },
+            "internal_analytics_adapter_http.DeadLetterDeleteRequest": {
+                "properties": {
+                    "id_list": {
+                        "items": {
+                            "type": "string"
+                        },
+                        "type": "array",
+                        "uniqueItems": false
+                    }
+                },
+                "required": [
+                    "id_list"
+                ],
+                "type": "object"
+            },
+            "internal_analytics_adapter_http.DeadLetterDeleteResultResponse": {
+                "properties": {
+                    "deleted": {
+                        "type": "integer"
+                    }
+                },
+                "type": "object"
+            },
             "internal_analytics_adapter_http.DeadLetterItemResponse": {
                 "properties": {
                     "action": {
@@ -649,6 +672,42 @@
                     },
                     "growth_rate": {
                         "type": "integer"
+                    },
+                    "range": {
+                        "description": "Range 是**收敛后**的时间窗，前端据此高亮按钮（传了非法值也能知道实际用了哪个）。",
+                        "type": "string"
+                    }
+                },
+                "type": "object"
+            },
+            "internal_analytics_adapter_http.OverviewResponse": {
+                "properties": {
+                    "new_articles": {
+                        "description": "NewArticles 是窗口内发布的文章数。",
+                        "type": "integer"
+                    },
+                    "new_users": {
+                        "description": "NewUsers 是窗口内新增注册数。",
+                        "type": "integer"
+                    },
+                    "range": {
+                        "description": "Range 是收敛后的时间窗。",
+                        "type": "string"
+                    },
+                    "range_end": {
+                        "type": "string"
+                    },
+                    "range_start": {
+                        "description": "RangeStart / RangeEnd 是窗口边界（ISO8601，东八区），让前端能把\n\"这个数字算的是哪段时间\"直接写在提示里，而不是自己再推一遍。",
+                        "type": "string"
+                    },
+                    "visits": {
+                        "description": "Visits 是窗口内的访问量（与「累计访问」同一口径，见 /data/sum）。",
+                        "type": "integer"
+                    },
+                    "visits_days": {
+                        "description": "VisitsDays 是 Visits 实际覆盖的天数。\n\n访问量存在 Redis 的按天哈希里，只保留最近 30 天（见 redis_site）。\n所以「今年访问」只能给出最近 30 天的和 —— 把这个天数一起返回，\n前端就能如实标注\"近 30 天访问\"，而不是把 30 天的数字说成一年的。",
+                        "type": "integer"
                     }
                 },
                 "type": "object"
@@ -672,6 +731,10 @@
                     },
                     "new_sign_count": {
                         "type": "integer"
+                    },
+                    "range": {
+                        "description": "Range 是收敛后的时间窗，前端据此高亮按钮。",
+                        "type": "string"
                     },
                     "user_count": {
                         "type": "integer"
@@ -1476,6 +1539,30 @@
                 },
                 "type": "object"
             },
+            "internal_article_adapter_http.CollectionComposeRequest": {
+                "properties": {
+                    "cover": {
+                        "type": "string"
+                    },
+                    "description": {
+                        "type": "string"
+                    },
+                    "nodes": {
+                        "items": {
+                            "$ref": "#/components/schemas/internal_article_adapter_http.OutlineNodeRequest"
+                        },
+                        "type": "array",
+                        "uniqueItems": false
+                    },
+                    "title": {
+                        "type": "string"
+                    }
+                },
+                "required": [
+                    "title"
+                ],
+                "type": "object"
+            },
             "internal_article_adapter_http.CollectionCreateRequest": {
                 "properties": {
                     "cover": {
@@ -1632,6 +1719,10 @@
                     "title": {
                         "type": "string"
                     },
+                    "updated_at": {
+                        "description": "UpdatedAt 是文章的更新时间（不是收藏时间）。",
+                        "type": "string"
+                    },
                     "user_avatar": {
                         "type": "string"
                     },
@@ -1722,6 +1813,102 @@
                 "required": [
                     "title"
                 ],
+                "type": "object"
+            },
+            "internal_article_adapter_http.GroupItemResponse": {
+                "properties": {
+                    "owner_id": {
+                        "type": "string"
+                    }
+                },
+                "type": "object"
+            },
+            "internal_article_adapter_http.GroupNodeRequest": {
+                "properties": {
+                    "id": {
+                        "type": "string"
+                    },
+                    "items": {
+                        "items": {
+                            "type": "string"
+                        },
+                        "type": "array",
+                        "uniqueItems": false
+                    }
+                },
+                "required": [
+                    "id"
+                ],
+                "type": "object"
+            },
+            "internal_article_adapter_http.GroupNodeResponse": {
+                "properties": {
+                    "id": {
+                        "type": "string"
+                    },
+                    "items": {
+                        "items": {
+                            "$ref": "#/components/schemas/internal_article_adapter_http.GroupItemResponse"
+                        },
+                        "type": "array",
+                        "uniqueItems": false
+                    },
+                    "title": {
+                        "type": "string"
+                    }
+                },
+                "type": "object"
+            },
+            "internal_article_adapter_http.GroupOrderRequest": {
+                "properties": {
+                    "groups": {
+                        "items": {
+                            "$ref": "#/components/schemas/internal_article_adapter_http.GroupNodeRequest"
+                        },
+                        "type": "array",
+                        "uniqueItems": false
+                    },
+                    "ungrouped": {
+                        "items": {
+                            "type": "string"
+                        },
+                        "type": "array",
+                        "uniqueItems": false
+                    }
+                },
+                "type": "object"
+            },
+            "internal_article_adapter_http.GroupSaveRequest": {
+                "properties": {
+                    "id": {
+                        "type": "string"
+                    },
+                    "title": {
+                        "type": "string"
+                    }
+                },
+                "required": [
+                    "title"
+                ],
+                "type": "object"
+            },
+            "internal_article_adapter_http.GroupTreeResponse": {
+                "properties": {
+                    "groups": {
+                        "items": {
+                            "$ref": "#/components/schemas/internal_article_adapter_http.GroupNodeResponse"
+                        },
+                        "type": "array",
+                        "uniqueItems": false
+                    },
+                    "ungrouped": {
+                        "items": {
+                            "$ref": "#/components/schemas/internal_article_adapter_http.GroupItemResponse"
+                        },
+                        "type": "array",
+                        "uniqueItems": false
+                    }
+                },
                 "type": "object"
             },
             "internal_article_adapter_http.OutlineArticleRefResponse": {
@@ -1883,6 +2070,30 @@
                         "type": "string"
                     }
                 },
+                "type": "object"
+            },
+            "internal_article_adapter_http.ProjectComposeRequest": {
+                "properties": {
+                    "cover": {
+                        "type": "string"
+                    },
+                    "description": {
+                        "type": "string"
+                    },
+                    "nodes": {
+                        "items": {
+                            "$ref": "#/components/schemas/internal_article_adapter_http.OutlineNodeRequest"
+                        },
+                        "type": "array",
+                        "uniqueItems": false
+                    },
+                    "title": {
+                        "type": "string"
+                    }
+                },
+                "required": [
+                    "title"
+                ],
                 "type": "object"
             },
             "internal_article_adapter_http.ProjectCreateRequest": {
@@ -2112,6 +2323,109 @@
                     "ReviewTaskCanceled"
                 ]
             },
+            "internal_article_adapter_http.StudioActivityDayResponse": {
+                "properties": {
+                    "count": {
+                        "description": "Count 是当天的创作动作数（成功的新建 + 更新）。",
+                        "type": "integer"
+                    },
+                    "day": {
+                        "description": "Day 是 `YYYY-MM-DD`（按 Asia/Shanghai 切天）。",
+                        "type": "string"
+                    }
+                },
+                "type": "object"
+            },
+            "internal_article_adapter_http.StudioArticleBriefResponse": {
+                "properties": {
+                    "comment_count": {
+                        "type": "integer"
+                    },
+                    "cover": {
+                        "type": "string"
+                    },
+                    "created_at": {
+                        "type": "string"
+                    },
+                    "digg_count": {
+                        "type": "integer"
+                    },
+                    "favor_count": {
+                        "type": "integer"
+                    },
+                    "id": {
+                        "type": "string"
+                    },
+                    "title": {
+                        "type": "string"
+                    },
+                    "view_count": {
+                        "type": "integer"
+                    }
+                },
+                "type": "object"
+            },
+            "internal_article_adapter_http.StudioStatsResponse": {
+                "properties": {
+                    "activity": {
+                        "description": "Activity 是**稀疏**的：没有动作的日期不出现，由前端补零铺满 13×7。",
+                        "items": {
+                            "$ref": "#/components/schemas/internal_article_adapter_http.StudioActivityDayResponse"
+                        },
+                        "type": "array",
+                        "uniqueItems": false
+                    },
+                    "activity_days": {
+                        "description": "ActivityDays 是热力图覆盖的天数（前端据此校验网格尺寸，不必硬编码 91）。",
+                        "type": "integer"
+                    },
+                    "recent": {
+                        "items": {
+                            "$ref": "#/components/schemas/internal_article_adapter_http.StudioArticleBriefResponse"
+                        },
+                        "type": "array",
+                        "uniqueItems": false
+                    },
+                    "status_counts": {
+                        "items": {
+                            "$ref": "#/components/schemas/internal_article_adapter_http.StudioStatusCountResponse"
+                        },
+                        "type": "array",
+                        "uniqueItems": false
+                    },
+                    "sum_comment": {
+                        "type": "integer"
+                    },
+                    "sum_digg": {
+                        "type": "integer"
+                    },
+                    "sum_favor": {
+                        "type": "integer"
+                    },
+                    "sum_view": {
+                        "type": "integer"
+                    },
+                    "top": {
+                        "items": {
+                            "$ref": "#/components/schemas/internal_article_adapter_http.StudioArticleBriefResponse"
+                        },
+                        "type": "array",
+                        "uniqueItems": false
+                    }
+                },
+                "type": "object"
+            },
+            "internal_article_adapter_http.StudioStatusCountResponse": {
+                "properties": {
+                    "count": {
+                        "type": "integer"
+                    },
+                    "status": {
+                        "type": "integer"
+                    }
+                },
+                "type": "object"
+            },
             "internal_article_adapter_http.TagListItem": {
                 "properties": {
                     "article_count": {
@@ -2145,6 +2459,21 @@
                         "type": "string"
                     }
                 },
+                "type": "object"
+            },
+            "internal_article_adapter_http.TagOrderRequest": {
+                "properties": {
+                    "tag_ids": {
+                        "items": {
+                            "type": "string"
+                        },
+                        "type": "array",
+                        "uniqueItems": false
+                    }
+                },
+                "required": [
+                    "tag_ids"
+                ],
                 "type": "object"
             },
             "internal_article_adapter_http.TagRequest": {
@@ -3811,9 +4140,6 @@
                     "followers_visibility": {
                         "type": "boolean"
                     },
-                    "home_style_id": {
-                        "type": "string"
-                    },
                     "id": {
                         "type": "string"
                     },
@@ -3890,9 +4216,6 @@
                     "followers_visibility": {
                         "type": "boolean"
                     },
-                    "home_style_id": {
-                        "type": "string"
-                    },
                     "like_tag_ids": {
                         "items": {
                             "type": "string"
@@ -3904,7 +4227,7 @@
                         "type": "string"
                     },
                     "stranger_msg_enabled": {
-                        "description": "StrangerChatEnabled 是\"允许陌生人给我发私信\"的个人开关。\n字段名沿用既有契约 stranger_msg_enabled；全指针语义与其余偏好一致：\n没传不改，false 是合法值（关掉）。",
+                        "description": "主页样式 ID 已从接口退场（票 355）：这个字段从来没有消费方 ——\n读者站不读它、后台也不读它，只在前端表单里占一行让人填数字。\n数据库列保留（零 DDL 口径），但不再接受写入、也不再出现在响应里。\nStrangerChatEnabled 是\"允许陌生人给我发私信\"的个人开关。\n字段名沿用既有契约 stranger_msg_enabled；全指针语义与其余偏好一致：\n没传不改，false 是合法值（关掉）。",
                         "type": "boolean"
                     },
                     "username": {
@@ -5063,6 +5386,20 @@
                 },
                 "type": "object"
             },
+            "myblogx_internal_kernel.Envelope-internal_analytics_adapter_http_DeadLetterDeleteResultResponse": {
+                "properties": {
+                    "code": {
+                        "type": "integer"
+                    },
+                    "data": {
+                        "$ref": "#/components/schemas/internal_analytics_adapter_http.DeadLetterDeleteResultResponse"
+                    },
+                    "msg": {
+                        "type": "string"
+                    }
+                },
+                "type": "object"
+            },
             "myblogx_internal_kernel.Envelope-internal_analytics_adapter_http_GrowthDataResponse": {
                 "properties": {
                     "code": {
@@ -5070,6 +5407,20 @@
                     },
                     "data": {
                         "$ref": "#/components/schemas/internal_analytics_adapter_http.GrowthDataResponse"
+                    },
+                    "msg": {
+                        "type": "string"
+                    }
+                },
+                "type": "object"
+            },
+            "myblogx_internal_kernel.Envelope-internal_analytics_adapter_http_OverviewResponse": {
+                "properties": {
+                    "code": {
+                        "type": "integer"
+                    },
+                    "data": {
+                        "$ref": "#/components/schemas/internal_analytics_adapter_http.OverviewResponse"
                     },
                     "msg": {
                         "type": "string"
@@ -5245,6 +5596,34 @@
                 },
                 "type": "object"
             },
+            "myblogx_internal_kernel.Envelope-internal_article_adapter_http_GroupNodeResponse": {
+                "properties": {
+                    "code": {
+                        "type": "integer"
+                    },
+                    "data": {
+                        "$ref": "#/components/schemas/internal_article_adapter_http.GroupNodeResponse"
+                    },
+                    "msg": {
+                        "type": "string"
+                    }
+                },
+                "type": "object"
+            },
+            "myblogx_internal_kernel.Envelope-internal_article_adapter_http_GroupTreeResponse": {
+                "properties": {
+                    "code": {
+                        "type": "integer"
+                    },
+                    "data": {
+                        "$ref": "#/components/schemas/internal_article_adapter_http.GroupTreeResponse"
+                    },
+                    "msg": {
+                        "type": "string"
+                    }
+                },
+                "type": "object"
+            },
             "myblogx_internal_kernel.Envelope-internal_article_adapter_http_ProjectCreatedResponse": {
                 "properties": {
                     "code": {
@@ -5280,6 +5659,20 @@
                     },
                     "data": {
                         "$ref": "#/components/schemas/internal_article_adapter_http.ProjectOutlineTreeResponse"
+                    },
+                    "msg": {
+                        "type": "string"
+                    }
+                },
+                "type": "object"
+            },
+            "myblogx_internal_kernel.Envelope-internal_article_adapter_http_StudioStatsResponse": {
+                "properties": {
+                    "code": {
+                        "type": "integer"
+                    },
+                    "data": {
+                        "$ref": "#/components/schemas/internal_article_adapter_http.StudioStatsResponse"
                     },
                     "msg": {
                         "type": "string"
@@ -7132,9 +7525,6 @@
                     "has_password": {
                         "type": "boolean"
                     },
-                    "home_style_id": {
-                        "type": "string"
-                    },
                     "id": {
                         "type": "string"
                     },
@@ -8084,6 +8474,14 @@
                         "schema": {
                             "type": "string"
                         }
+                    },
+                    {
+                        "description": "文章 ID（给出时返回各收藏夹是否已包含该文章）",
+                        "in": "query",
+                        "name": "article_id",
+                        "schema": {
+                            "type": "string"
+                        }
                     }
                 ],
                 "responses": {
@@ -8218,7 +8616,7 @@
                     {
                         "description": "收藏夹 ID",
                         "in": "query",
-                        "name": "favor_id",
+                        "name": "favorite_id",
                         "required": true,
                         "schema": {
                             "type": "string"
@@ -8462,6 +8860,31 @@
                 ]
             }
         },
+        "/articles/studio-stats": {
+            "get": {
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/myblogx_internal_kernel.Envelope-internal_article_adapter_http_StudioStatsResponse"
+                                }
+                            }
+                        },
+                        "description": "OK"
+                    }
+                },
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "summary": "个人数据概览",
+                "tags": [
+                    "article"
+                ]
+            }
+        },
         "/articles/tags": {
             "delete": {
                 "requestBody": {
@@ -8579,6 +9002,44 @@
                     }
                 },
                 "summary": "标签下拉",
+                "tags": [
+                    "article"
+                ]
+            }
+        },
+        "/articles/tags/order": {
+            "patch": {
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/internal_article_adapter_http.TagOrderRequest",
+                                "summary": "body",
+                                "description": "请求体"
+                            }
+                        }
+                    },
+                    "description": "请求体",
+                    "required": true
+                },
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/myblogx_internal_kernel.Envelope-myblogx_internal_kernel_EmptyData"
+                                }
+                            }
+                        },
+                        "description": "OK"
+                    }
+                },
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "summary": "标签之间排序",
                 "tags": [
                     "article"
                 ]
@@ -9479,6 +9940,161 @@
                 ]
             }
         },
+        "/collections/grouped": {
+            "get": {
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/myblogx_internal_kernel.Envelope-internal_article_adapter_http_GroupTreeResponse"
+                                }
+                            }
+                        },
+                        "description": "OK"
+                    }
+                },
+                "summary": "读者侧分组读面",
+                "tags": [
+                    "collection"
+                ]
+            }
+        },
+        "/collections/groups": {
+            "get": {
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/myblogx_internal_kernel.Envelope-internal_article_adapter_http_GroupTreeResponse"
+                                }
+                            }
+                        },
+                        "description": "OK"
+                    }
+                },
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "summary": "分组读面",
+                "tags": [
+                    "collection"
+                ]
+            },
+            "put": {
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/internal_article_adapter_http.GroupSaveRequest",
+                                "summary": "body",
+                                "description": "分组标题（id 为空表示新建）"
+                            }
+                        }
+                    },
+                    "description": "分组标题（id 为空表示新建）",
+                    "required": true
+                },
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/myblogx_internal_kernel.Envelope-internal_article_adapter_http_GroupNodeResponse"
+                                }
+                            }
+                        },
+                        "description": "OK"
+                    }
+                },
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "summary": "新建或改名分组",
+                "tags": [
+                    "collection"
+                ]
+            }
+        },
+        "/collections/groups/order": {
+            "put": {
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/internal_article_adapter_http.GroupOrderRequest",
+                                "summary": "body",
+                                "description": "整树顺序"
+                            }
+                        }
+                    },
+                    "description": "整树顺序",
+                    "required": true
+                },
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/myblogx_internal_kernel.Envelope-myblogx_internal_kernel_EmptyData"
+                                }
+                            }
+                        },
+                        "description": "OK"
+                    }
+                },
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "summary": "分组整树换序",
+                "tags": [
+                    "collection"
+                ]
+            }
+        },
+        "/collections/groups/{id}": {
+            "delete": {
+                "parameters": [
+                    {
+                        "description": "分组 ID",
+                        "in": "path",
+                        "name": "id",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/myblogx_internal_kernel.Envelope-myblogx_internal_kernel_EmptyData"
+                                }
+                            }
+                        },
+                        "description": "OK"
+                    }
+                },
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "summary": "删除分组",
+                "tags": [
+                    "collection"
+                ]
+            }
+        },
         "/collections/{id}": {
             "delete": {
                 "parameters": [
@@ -9586,6 +10202,55 @@
                     }
                 ],
                 "summary": "改合集",
+                "tags": [
+                    "collection"
+                ]
+            }
+        },
+        "/collections/{id}/compose": {
+            "put": {
+                "parameters": [
+                    {
+                        "description": "合集 ID",
+                        "in": "path",
+                        "name": "id",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/internal_article_adapter_http.CollectionComposeRequest",
+                                "summary": "body",
+                                "description": "字段与整棵树"
+                            }
+                        }
+                    },
+                    "description": "字段与整棵树",
+                    "required": true
+                },
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/myblogx_internal_kernel.Envelope-internal_article_adapter_http_CollectionOutlineTreeResponse"
+                                }
+                            }
+                        },
+                        "description": "OK"
+                    }
+                },
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "summary": "合集字段 + 目录树一次提交",
                 "tags": [
                     "collection"
                 ]
@@ -9989,6 +10654,14 @@
                         "schema": {
                             "type": "integer"
                         }
+                    },
+                    {
+                        "description": "时间窗：today / week / month / year（默认 week）",
+                        "in": "query",
+                        "name": "range",
+                        "schema": {
+                            "type": "string"
+                        }
                     }
                 ],
                 "responses": {
@@ -10008,7 +10681,42 @@
                         "BearerAuth": []
                     }
                 ],
-                "summary": "近七日增长数据",
+                "summary": "增长趋势数据",
+                "tags": [
+                    "data"
+                ]
+            }
+        },
+        "/data/overview": {
+            "get": {
+                "parameters": [
+                    {
+                        "description": "时间窗：today / week / month / year（默认 week）",
+                        "in": "query",
+                        "name": "range",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/myblogx_internal_kernel.Envelope-internal_analytics_adapter_http_OverviewResponse"
+                                }
+                            }
+                        },
+                        "description": "OK"
+                    }
+                },
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "summary": "站点概览补充计数",
                 "tags": [
                     "data"
                 ]
@@ -11257,6 +11965,42 @@
             }
         },
         "/logs/dead-letter": {
+            "delete": {
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/internal_analytics_adapter_http.DeadLetterDeleteRequest",
+                                "summary": "body",
+                                "description": "死信 ID 列表"
+                            }
+                        }
+                    },
+                    "description": "死信 ID 列表",
+                    "required": true
+                },
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/myblogx_internal_kernel.Envelope-internal_analytics_adapter_http_DeadLetterDeleteResultResponse"
+                                }
+                            }
+                        },
+                        "description": "OK"
+                    }
+                },
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "summary": "删除死信",
+                "tags": [
+                    "log"
+                ]
+            },
             "get": {
                 "parameters": [
                     {
@@ -12121,6 +12865,161 @@
                 ]
             }
         },
+        "/projects/grouped": {
+            "get": {
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/myblogx_internal_kernel.Envelope-internal_article_adapter_http_GroupTreeResponse"
+                                }
+                            }
+                        },
+                        "description": "OK"
+                    }
+                },
+                "summary": "读者侧分组读面",
+                "tags": [
+                    "collection"
+                ]
+            }
+        },
+        "/projects/groups": {
+            "get": {
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/myblogx_internal_kernel.Envelope-internal_article_adapter_http_GroupTreeResponse"
+                                }
+                            }
+                        },
+                        "description": "OK"
+                    }
+                },
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "summary": "分组读面",
+                "tags": [
+                    "collection"
+                ]
+            },
+            "put": {
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/internal_article_adapter_http.GroupSaveRequest",
+                                "summary": "body",
+                                "description": "分组标题（id 为空表示新建）"
+                            }
+                        }
+                    },
+                    "description": "分组标题（id 为空表示新建）",
+                    "required": true
+                },
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/myblogx_internal_kernel.Envelope-internal_article_adapter_http_GroupNodeResponse"
+                                }
+                            }
+                        },
+                        "description": "OK"
+                    }
+                },
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "summary": "新建或改名分组",
+                "tags": [
+                    "collection"
+                ]
+            }
+        },
+        "/projects/groups/order": {
+            "put": {
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/internal_article_adapter_http.GroupOrderRequest",
+                                "summary": "body",
+                                "description": "整树顺序"
+                            }
+                        }
+                    },
+                    "description": "整树顺序",
+                    "required": true
+                },
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/myblogx_internal_kernel.Envelope-myblogx_internal_kernel_EmptyData"
+                                }
+                            }
+                        },
+                        "description": "OK"
+                    }
+                },
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "summary": "分组整树换序",
+                "tags": [
+                    "collection"
+                ]
+            }
+        },
+        "/projects/groups/{id}": {
+            "delete": {
+                "parameters": [
+                    {
+                        "description": "分组 ID",
+                        "in": "path",
+                        "name": "id",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/myblogx_internal_kernel.Envelope-myblogx_internal_kernel_EmptyData"
+                                }
+                            }
+                        },
+                        "description": "OK"
+                    }
+                },
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "summary": "删除分组",
+                "tags": [
+                    "collection"
+                ]
+            }
+        },
         "/projects/order": {
             "patch": {
                 "requestBody": {
@@ -12266,6 +13165,55 @@
                     }
                 ],
                 "summary": "改项目",
+                "tags": [
+                    "project"
+                ]
+            }
+        },
+        "/projects/{id}/compose": {
+            "put": {
+                "parameters": [
+                    {
+                        "description": "项目 ID",
+                        "in": "path",
+                        "name": "id",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/internal_article_adapter_http.ProjectComposeRequest",
+                                "summary": "body",
+                                "description": "字段与整棵树"
+                            }
+                        }
+                    },
+                    "description": "字段与整棵树",
+                    "required": true
+                },
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/myblogx_internal_kernel.Envelope-internal_article_adapter_http_ProjectOutlineTreeResponse"
+                                }
+                            }
+                        },
+                        "description": "OK"
+                    }
+                },
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "summary": "项目字段 + 目录树一次提交",
                 "tags": [
                     "project"
                 ]

@@ -49,7 +49,7 @@ func (s *Service) Delete(ctx context.Context, cmd DeleteCmd) (*DeleteResult, err
 			return err
 		}
 		res.Favors = n
-		if err := r.Favorites().DeleteItemsByArticle(ctx, a.ID()); err != nil {
+		if err := r.Favorites().DeleteItemsByArticle(ctx, a.ID(), s.clock.Now()); err != nil {
 			return err
 		}
 

@@ -1,8 +1,8 @@
 <script setup lang="ts">
 import { computed } from "vue";
-import FolderCardList from "~/components/common/FolderCardList.vue";
+import GroupedReaderList from "~/components/common/GroupedReaderList.vue";
 import ProfileEmptyState from "~/components/profile/ProfileEmptyState.vue";
-import { getCollections } from "~/services/collection";
+import { getCollectionGroups, getCollections } from "~/services/collection";
 import { collectionCardView } from "~/utils/collection";
 
 /**
@@ -14,13 +14,22 @@ import { collectionCardView } from "~/utils/collection";
  * 可见性完全由后端决定：只返回"展示中"的合集，且已过滤掉没有公开文章的合集。
  * 前端不重复判断——两处判据一旦分叉，就会出现"列表里有卡片、点进去 404"。
  *
- * 卡片是文件夹形态（票 293）：网格与卡片都由共用组件 `FolderCardList` 提供，
- * 本页不再自带卡片样式——项目列表页用同一份实现。
+ * 卡片是文件夹形态（票 293）：网格与卡片都由共用组件 `FolderCardList` 提供；
+ * 票 353 起外面再套一层 `GroupedReaderList`（按分组分段，未分组作为尾块），
+ * 本页仍不自带任何卡片或网格样式。
  */
 const { data, pending, error } = await useAsyncData(
   "reader-collections",
   () => getCollections(1, 24),
   { default: () => ({ list: [], count: 0 }) },
+);
+
+// 分组读面（票 353）：只决定"谁和谁在一起、谁在前"。读失败不影响列表 ——
+// 分组是排版信息，缺了它退回一个平铺网格即可，不该让整页变成错误态。
+const { data: groups } = await useAsyncData(
+  "reader-collection-groups",
+  () => getCollectionGroups().catch(() => null),
+  { default: () => null },
 );
 
 useSeoMeta({
@@ -45,7 +54,7 @@ const emptyDescription = computed(() =>
       <p v-if="cards.length" class="collection-page__count">{{ cards.length }} 个专题</p>
     </header>
 
-    <FolderCardList v-if="cards.length" :cards="cards" data-collection-list="true" />
+    <GroupedReaderList v-if="cards.length" :cards="cards" :groups="groups" label="专题" />
 
     <ProfileEmptyState
       v-else

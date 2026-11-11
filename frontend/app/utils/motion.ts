@@ -16,6 +16,26 @@ import type { CSSProperties } from "vue";
 
 export const MOTION_DURATIONS_MS = { fast: 120, base: 200, slow: 320 } as const;
 
+/**
+ * 表达型时长（毫秒）：三档预算之外、**明确登记在这里**的少数几个。
+ *
+ * 为什么需要它们：三档是给"界面反馈"用的（hover、展开、路由过渡），而这三件事
+ * 的节奏天然更长 —— 数字 count-up 太快会像闪一下、拖拽落位太快看不出位移、
+ * 图表首帧太快会失去"正在成形"的观感。把它们塞进三档只会让动画变差。
+ *
+ * 为什么仍要登记：ADR-0012 的实质要求是"组件不得内联动效字面量"，否则预算就
+ * 失去意义（同一个数字散落在十几个组件里，没人知道全站动效总量）。所以这里
+ * 只放**命名预设**，组件一律引用名字；新增一个要在这里加，不许就地写数字。
+ */
+export const MOTION_EXPRESSIVE_MS = {
+  /** 指标卡数字 count-up：一次跑完，不循环。 */
+  countUp: 520,
+  /** 拖拽落位：卡片滑到新位置。 */
+  dragSettle: 160,
+  /** 图表首帧：折线从底部长出来。 */
+  chartReveal: 420,
+} as const;
+
 export type MotionToken = keyof typeof MOTION_DURATIONS_MS;
 
 /** motion-v / framer-motion 的缓动表示：贝塞尔控制点数组。 */

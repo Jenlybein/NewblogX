@@ -54,6 +54,7 @@ var adminRouteTemplates = []string{
 	"GET /api/data/growth",
 	"GET /api/data/article-year",
 	"GET /api/data/ai-usage",
+	"GET /api/data/overview",
 	// 日志中心（含详情与死信重投）
 	"GET /api/logs/runtime",
 	"GET /api/logs/runtime/:id",
@@ -70,6 +71,7 @@ var adminRouteTemplates = []string{
 	"GET /api/logs/ai/:id",
 	"GET /api/logs/dead-letter",
 	"POST /api/logs/dead-letter/replay",
+		"DELETE /api/logs/dead-letter",
 	// 用户管理
 	"GET /api/users/admin/list",
 	"POST /api/users/admin",
@@ -121,6 +123,7 @@ var adminRouteTemplates = []string{
 	"POST /api/articles/:id/admin/:visibility",
 	"DELETE /api/articles",
 	"DELETE /api/articles/tags",
+		"PATCH /api/articles/tags/order",
 	"PUT /api/articles/tags",
 	"GET /api/article-review",
 	"POST /api/article-review-tasks/:id/review",
@@ -139,6 +142,17 @@ var adminRouteTemplates = []string{
 	"DELETE /api/projects/:id",
 	"PATCH /api/projects/:id/display",
 	"PATCH /api/projects/order",
+	// 合集 / 项目分组（ADR-0041）：读面与写面都在管理员分组下。
+	"GET /api/collections/groups",
+	"PUT /api/collections/groups",
+	"PUT /api/collections/groups/order",
+	"DELETE /api/collections/groups/:id",
+	"PUT /api/collections/:id/compose",
+	"GET /api/projects/groups",
+	"PUT /api/projects/groups",
+	"PUT /api/projects/groups/order",
+	"DELETE /api/projects/groups/:id",
+	"PUT /api/projects/:id/compose",
 }
 
 // userRouteTemplates 是其余所有路由：公开或登录用户可访问。
@@ -234,6 +248,11 @@ var userRouteTemplates = []string{
 	"DELETE /api/articles/top",
 	// 合集 / 项目前台读（含两个具名树端点，公开读）
 	"GET /api/collections",
+	// 读者侧分组读面（票 353）：公开可读，只给"谁和谁在一起、谁在前"。
+	"GET /api/collections/grouped",
+	// 个人数据概览（票 354）：登录用户读自己的，不是管理员专属。
+	"GET /api/articles/studio-stats",
+	"GET /api/projects/grouped",
 	"GET /api/collections/:id",
 	"GET /api/collections/:id/outline-tree",
 	"GET /api/projects",

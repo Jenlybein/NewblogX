@@ -48,7 +48,6 @@ func (h *Handler) BaseInfo(c *gin.Context) {
 		FavoritesVisibility: p.FavoritesVis,
 		FollowVisibility:    p.FollowVis,
 		FansVisibility:      p.FansVis,
-		HomeStyleID:         p.HomeStyleID,
 		Relation:            p.Relation,
 		Place:               p.Place,
 	}, c)

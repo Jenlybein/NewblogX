@@ -24,6 +24,7 @@ import type {
   DecoRuntimeConfig,
   GlobalNotifListItem,
   GrowthDataResponseData,
+  OverviewData,
   HasMoreList,
   HotTopAdminItem,
   DeadLetterListData,
@@ -51,6 +52,8 @@ import type {
   TagWritePayload,
   UploadRuntimeConfig,
   UserListResponseData,
+  GroupOrderPayload,
+  GroupTreeData,
 } from '~/types/api'
 
 /** 可读写的配置段。与后端段注册表（platform/config/registry.go）的九段一一对应（ADR-0029）。 */
@@ -69,12 +72,37 @@ function api() {
   return useNuxtApp().$api
 }
 
-export function getDashboardSum() {
-  return api().request<SumResponseData>('/data/sum')
+/** 站点概览的时间窗（四个端点共用一个词表）。 */
+export type DataRange = 'today' | 'week' | 'month' | 'year'
+
+/**
+ * 站点汇总（票 349 起带 range）。
+ *
+ * 默认 `today`：这个端点在加 range 之前就是"今日新增"，改默认值等于静默改语义。
+ * 想按窗口看的调用方显式传。
+ */
+export function getDashboardSum(range: DataRange = 'today') {
+  return api().request<SumResponseData>('/data/sum', { query: { range } })
 }
 
-export function getGrowthData(type: 1 | 2 | 3 = 3) {
-  return api().request<GrowthDataResponseData>('/data/growth', { query: { type } })
+/**
+ * 增长趋势（票 349 起带 range）。
+ *
+ * 每张卡片各自带自己的时间窗调用一次：概览页的七张卡互不相关，
+ * 共用一个全局 range 会让"我只想放大访问量到今年"变成整页重排。
+ */
+export function getGrowthData(type: 1 | 2 | 3 = 3, range: DataRange = 'week') {
+  return api().request<GrowthDataResponseData>('/data/growth', { query: { type, range } })
+}
+
+/**
+ * 站点概览的补充计数（票 349）。
+ *
+ * 只含已有端点没提供的数字：窗口内访问 / 新增注册 / 新增文章。
+ * 任何"已经有端点"的数据都不重复搬进来。
+ */
+export function getDataOverview(range: DataRange = 'week') {
+  return api().request<OverviewData>('/data/overview', { query: { range } })
 }
 
 export function getArticleYearData() {
@@ -204,6 +232,19 @@ export function deleteAdminTags(idList: string[]) {
   return api().request<unknown, { id_list: string[] }>('/articles/tags', {
     method: 'DELETE',
     body: { id_list: idList },
+  })
+}
+
+/**
+ * 全量替换标签顺序（票 346）。
+ *
+ * 传**完整**的标签 id 列表（含停用项），顺序即展示顺序。后端在集合与当前词库
+ * 不一致时整单拒绝（并发新建/删除），调用方据此提示"列表已变化，请刷新重排"。
+ */
+export function replaceAdminTagOrder(tagIds: string[]) {
+  return api().request<unknown, { tag_ids: string[] }>('/articles/tags/order', {
+    method: 'PATCH',
+    body: { tag_ids: tagIds },
   })
 }
 
@@ -490,6 +531,19 @@ export function replayDeadLetters(idList: string[]) {
   })
 }
 
+/**
+ * 删除死信（物理删除，返回真删掉的行数）。
+ *
+ * 用于"这条我怎么都处理不了，别留着了"。删掉之后不会再被重投；outbox 的 dead 行
+ * 不受影响（relay 只取 pending / 到期的行，永远不回收 dead）。
+ */
+export function deleteDeadLetters(idList: string[]) {
+  return api().request<{ deleted: number }, { id_list: string[] }>('/logs/dead-letter', {
+    method: 'DELETE',
+    body: { id_list: idList },
+  })
+}
+
 /** 回放日志：每次重投尝试的时间线（含跳过与不支持）。 */
 export function getReplayLogs(query: { page?: number; limit?: number; stream?: string; result?: string }) {
   return api().request<ListData<ReplayLogRecord>>('/logs/replay', { query })
@@ -556,4 +610,47 @@ export function getDecoRuntimeConfig() {
 
 export function updateDecoRuntimeConfig(payload: DecoRuntimeConfig) {
   return updateRuntimeSection('deco', payload)
+}
+
+// ── 合集 / 项目分组（ADR-0041）─────────────────────────────────
+//
+// 两个实体的分组端点完全同构，只是路径前缀不同。函数按 kind 分派而不是
+// 各写一份：语义一致，写两份只会让"删分组时把条目退回未分组"这类差异只修一边。
+
+/** 后台分组读面：分组（含组内条目顺序）+ 未分组条目顺序。 */
+export function getAdminGroups(kind: 'collection' | 'project') {
+  return api().request<GroupTreeData>(`/${kind}s/groups`)
+}
+
+/** 新建或改名一个分组（立即生效）。`id` 为空表示新建。 */
+export function saveAdminGroup(kind: 'collection' | 'project', payload: { id?: string; title: string }) {
+  return api().request<unknown, { id?: string; title: string }>(`/${kind}s/groups`, {
+    method: 'PUT',
+    body: payload,
+  })
+}
+
+/** 删除分组：条目退回未分组，实体本身不动。 */
+export function deleteAdminGroup(kind: 'collection' | 'project', id: string) {
+  return api().request<unknown>(`/${kind}s/groups/${id}`, { method: 'DELETE' })
+}
+
+/** 整树换序（幂等整份覆盖）。集合不一致时后端整单拒绝，调用方据此刷新重排。 */
+export function replaceAdminGroupOrder(kind: 'collection' | 'project', payload: GroupOrderPayload) {
+  return api().request<unknown, GroupOrderPayload>(`/${kind}s/groups/order`, {
+    method: 'PUT',
+    body: payload,
+  })
+}
+
+/** 字段 + 目录树一次原子提交（编辑弹窗里的「保存修改」）。 */
+export function composeAdminEntity(
+  kind: 'collection' | 'project',
+  id: string,
+  payload: { title: string; description: string; cover: string; nodes: unknown[] },
+) {
+  return api().request<unknown, { title: string; description: string; cover: string; nodes: unknown[] }>(
+    `/${kind}s/${id}/compose`,
+    { method: 'PUT', body: payload },
+  )
 }

@@ -10,6 +10,7 @@ import (
 	"myblogx/internal/article/domain"
 	"myblogx/internal/article/domain/collection"
 	"myblogx/internal/article/domain/favorite"
+	"myblogx/internal/article/domain/grouping"
 	"myblogx/internal/article/domain/hottop"
 	"myblogx/internal/article/domain/outline"
 	"myblogx/internal/article/domain/project"
@@ -46,6 +47,7 @@ type Repos struct {
 	projectRepo    *ProjectRepo
 	outlineRepo    *OutlineRepo
 	riskRepo       *RiskRepo
+	groupRepo      *FakeGroups
 }
 
 // NewRepos 构造一套全部为空的 fake 仓储。
@@ -76,6 +78,7 @@ func NewRepos() *Repos {
 		collectionRepo: NewCollectionRepo(articles, outlines, users),
 		projectRepo:    NewProjectRepo(articles, outlines, users),
 		outlineRepo:    outlines,
+		groupRepo:      NewFakeGroups(),
 	}
 }
 
@@ -111,6 +114,9 @@ func (r *Repos) Outlines() outline.Repository { return r.outlineRepo }
 func (r *Repos) NamedOutlineFor(_ context.Context, _ outline.OwnerKind) outline.Repository {
 	return r.outlineRepo
 }
+
+// FakeGroups 返回分组 fake（ADR-0041）。
+func (r *Repos) FakeGroups() *FakeGroups { return r.groupRepo }
 
 // FakeCounters 返回计数 fake。
 func (r *Repos) FakeCounters() *Counters { return r.counters }
@@ -510,6 +516,22 @@ func (g *IDGen) NextFolderID() favorite.ID {
 // 与 NextCollectionID 同一做法：测试里只关心唯一且可复现，
 // 不关心跨类型间距（生产用雪花，天然不撞）。
 func (g *IDGen) NextProjectID() project.ID {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	g.article++
+	return ctype.NewID(g.article)
+}
+
+// NextGroupID 返回下一个分组 ID（ADR-0041）。
+func (g *IDGen) NextGroupID() grouping.ID {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	g.article++
+	return grouping.ID(ctype.NewID(g.article))
+}
+
+// NextGroupItemID 返回下一个条目归属行 ID。
+func (g *IDGen) NextGroupItemID() ctype.ID {
 	g.mu.Lock()
 	defer g.mu.Unlock()
 	g.article++

@@ -83,15 +83,28 @@ export function deleteFavoriteFolders(idList: string[]) {
   });
 }
 
-export function getFavoriteFolderArticles(payload: { favoriteId: string; page?: number; limit?: number }) {
+/**
+ * 读某收藏夹里的文章。
+ *
+ * `auth` 必须由调用方显式声明：本人看自己的夹子**必须带 token**，否则后端按
+ * 匿名处理、非默认夹直接 403，页面会把错误吞成"这个收藏夹还是空的"——
+ * 这正是"点了收藏却看不到文章"的直接成因（票 344）。公开主页看别人的夹子
+ * 仍是匿名读，后端只列已发布文章。
+ */
+export function getFavoriteFolderArticles(payload: {
+  favoriteId: string
+  page?: number
+  limit?: number
+  auth: boolean
+}) {
   return useNuxtApp().$api.request<FavoriteArticleListData>("/api/articles/favorite/contents", {
-    auth: false,
+    auth: payload.auth,
     query: {
       favorite_id: payload.favoriteId,
       page: payload.page ?? 1,
       limit: payload.limit ?? 12,
     },
-  });
+  })
 }
 
 /**

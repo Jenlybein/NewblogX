@@ -41,7 +41,7 @@ type DetailView struct {
 	FavoritesVisibility      bool          `json:"favorites_visibility"`
 	FollowVisibility         bool          `json:"followers_visibility"`
 	FansVisibility           bool          `json:"fans_visibility"`
-	HomeStyleID              ctype.ID      `json:"home_style_id"`
+
 	DiggNoticeEnabled        bool          `json:"digg_notice_enabled"`
 	CommentNoticeEnabled     bool          `json:"comment_notice_enabled"`
 	FavorNoticeEnabled       bool          `json:"favor_notice_enabled"`
@@ -57,7 +57,7 @@ type SettingsPatch struct {
 	FavoritesVisibility      *bool
 	FollowVisibility         *bool
 	FansVisibility           *bool
-	HomeStyleID              *ctype.ID
+
 	DiggNoticeEnabled        *bool
 	CommentNoticeEnabled     *bool
 	FavorNoticeEnabled       *bool
@@ -69,7 +69,7 @@ type SettingsPatch struct {
 func (p SettingsPatch) IsEmpty() bool {
 	return p.LikeTagIDs == nil &&
 		p.FavoritesVisibility == nil && p.FollowVisibility == nil && p.FansVisibility == nil &&
-		p.HomeStyleID == nil && p.DiggNoticeEnabled == nil && p.CommentNoticeEnabled == nil &&
+		p.DiggNoticeEnabled == nil && p.CommentNoticeEnabled == nil &&
 		p.FavorNoticeEnabled == nil && p.PrivateChatNoticeEnabled == nil && p.StrangerChatEnabled == nil
 }
 
@@ -87,9 +87,7 @@ func (p SettingsPatch) Apply(s domain.Settings) domain.Settings {
 	if p.FansVisibility != nil {
 		s.FansVisibility = *p.FansVisibility
 	}
-	if p.HomeStyleID != nil {
-		s.HomeStyleID = *p.HomeStyleID
-	}
+
 	if p.DiggNoticeEnabled != nil {
 		s.DiggNoticeEnabled = *p.DiggNoticeEnabled
 	}

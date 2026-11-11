@@ -60,6 +60,11 @@ func (s *Service) Favorite(ctx context.Context, cmd FavoriteCmd) (FavoriteResult
 		if err := r.Favorites().SaveItem(ctx, item); err != nil {
 			return err
 		}
+		// 成员变了，夹子的 article_count 与 updated_at 必须在同一事务内刷新：
+		// 计数一旦靠"下次登录再修"就会长期说谎（#344）。
+		if err := r.Favorites().RefreshFolderStats(ctx, folderID, s.clock.Now()); err != nil {
+			return err
+		}
 		if err := r.Counters().Add(ctx, a.ID(), domain.Counters{Favor: 1}); err != nil {
 			return err
 		}
@@ -114,6 +119,10 @@ func (s *Service) Unfavorite(ctx context.Context, cmd FavoriteCmd) (FavoriteResu
 			return err
 		}
 		if err := r.Favorites().DeleteItem(ctx, cmd.ArticleID, cmd.Actor.UserID, folderID); err != nil {
+			return err
+		}
+		// 与收藏对称：移出也是一次成员变更，计数与夹子更新时间一起刷新。
+		if err := r.Favorites().RefreshFolderStats(ctx, folderID, s.clock.Now()); err != nil {
 			return err
 		}
 		if err := r.Counters().Add(ctx, cmd.ArticleID, domain.Counters{Favor: -1}); err != nil {

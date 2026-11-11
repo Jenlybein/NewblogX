@@ -19,7 +19,6 @@ export interface ProfileFormForUpdate {
   favorites_visibility: boolean;
   followers_visibility: boolean;
   fans_visibility: boolean;
-  home_style_id?: string | null;
 }
 
 export interface ProfileUpdateExtras {
@@ -50,7 +49,6 @@ export function buildProfileUpdatePayload(
     favorites_visibility: form.favorites_visibility,
     followers_visibility: form.followers_visibility,
     fans_visibility: form.fans_visibility,
-    home_style_id: form.home_style_id || null,
   };
 
   if (extras.avatarImageId !== undefined) {
@@ -68,4 +66,23 @@ export function buildProfileUpdatePayload(
  */
 export function buildPrivacyUpdatePayload(strangerMsgEnabled: boolean): UserProfileUpdatePayload {
   return { stranger_msg_enabled: strangerMsgEnabled };
+}
+
+/**
+ * 构造**可见性**载荷（票 355）。
+ *
+ * 可见性从"资料卡的一部分"独立出来：三个开关有自己的保存按钮，所以提交的
+ * 必须**只有这三个字段** —— 带上用户名 / 昵称就是把用户没改过的资料又写一遍，
+ * 一旦期间别处改过就会被这次保存覆盖。
+ */
+export function buildVisibilityUpdatePayload(form: {
+  favorites_visibility: boolean;
+  followers_visibility: boolean;
+  fans_visibility: boolean;
+}): UserProfileUpdatePayload {
+  return {
+    favorites_visibility: form.favorites_visibility,
+    followers_visibility: form.followers_visibility,
+    fans_visibility: form.fans_visibility,
+  };
 }

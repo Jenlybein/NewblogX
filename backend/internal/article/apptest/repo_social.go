@@ -5,6 +5,7 @@ import (
 	"myblogx/internal/kernel/ctype"
 	"sort"
 	"sync"
+	"time"
 
 	"myblogx/internal/article/domain"
 	"myblogx/internal/article/domain/favorite"
@@ -25,6 +26,8 @@ type FavoriteRepo struct {
 	count   counter
 	// lastOnlyAdminAuthors 记录 ListItems 收到的读过滤开关（见该方法注释）。
 	lastOnlyAdminAuthors bool
+	// lastPublishedOnly 记录 ListItems 收到的「公开面只列已发布」开关。
+	lastPublishedOnly bool
 }
 
 type itemKey struct {
@@ -98,7 +101,7 @@ func (r *FavoriteRepo) DefaultFolder(_ context.Context, userID domain.UserID) (*
 }
 
 // ListFolders 列出某用户的收藏夹。
-func (r *FavoriteRepo) ListFolders(_ context.Context, userID domain.UserID) ([]*favorite.Folder, error) {
+func (r *FavoriteRepo) ListFolders(_ context.Context, q favorite.ListFoldersQuery) ([]*favorite.Folder, error) {
 	r.count.inc("ListFolders")
 	if err := r.fault.take("ListFolders"); err != nil {
 		return nil, err
@@ -107,12 +110,23 @@ func (r *FavoriteRepo) ListFolders(_ context.Context, userID domain.UserID) ([]*
 	defer r.mu.Unlock()
 	var out []*favorite.Folder
 	for _, f := range r.folders {
-		if f.UserID() == userID {
+		if f.UserID() == q.UserID {
 			out = append(out, cloneFolder(f))
 		}
 	}
 	sort.Slice(out, func(i, j int) bool { return out[i].ID().Uint64() < out[j].ID().Uint64() })
 	return out, nil
+}
+
+// RefreshFolderStats 记录一次统计刷新请求（fake 暂不重算，等用例层实现后再补）。
+func (r *FavoriteRepo) RefreshFolderStats(_ context.Context, folderID favorite.ID, updatedAt time.Time) error {
+	r.count.inc("RefreshFolderStats")
+	if err := r.fault.take("RefreshFolderStats"); err != nil {
+		return err
+	}
+	_ = folderID
+	_ = updatedAt
+	return nil
 }
 
 // ExistsFolderTitle 判断名称重复。
@@ -241,7 +255,7 @@ func (r *FavoriteRepo) DeleteItem(_ context.Context, articleID domain.ArticleID,
 }
 
 // DeleteItemsByArticle 删除某文章的全部收藏。
-func (r *FavoriteRepo) DeleteItemsByArticle(_ context.Context, articleID domain.ArticleID) error {
+func (r *FavoriteRepo) DeleteItemsByArticle(_ context.Context, articleID domain.ArticleID, _ time.Time) error {
 	r.count.inc("DeleteItemsByArticle")
 	if err := r.fault.take("DeleteItemsByArticle"); err != nil {
 		return err
@@ -261,7 +275,7 @@ func (r *FavoriteRepo) DeleteItemsByArticle(_ context.Context, articleID domain.
 // 内存 fake 没有用户表，拿不到"作者是不是管理员"，所以它**不做**过滤，
 // 只把收到的过滤开关记下来供断言"app 把开关传给了查询层"；过滤语义本身
 // 由 MySQL 集成测试守（adapter/mysql/social_repo_integration_test.go）。
-func (r *FavoriteRepo) ListItems(_ context.Context, folderID favorite.ID, offset, limit int, onlyAdminAuthors bool) ([]*favorite.Item, int64, error) {
+func (r *FavoriteRepo) ListItems(_ context.Context, folderID favorite.ID, offset, limit int, onlyAdminAuthors, publishedOnly bool) ([]*favorite.Item, int64, error) {
 	r.count.inc("ListItems")
 	if err := r.fault.take("ListItems"); err != nil {
 		return nil, 0, err
@@ -269,6 +283,7 @@ func (r *FavoriteRepo) ListItems(_ context.Context, folderID favorite.ID, offset
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	r.lastOnlyAdminAuthors = onlyAdminAuthors
+	r.lastPublishedOnly = publishedOnly
 	var all []*favorite.Item
 	for k, it := range r.items {
 		if k.folderID == folderID {
@@ -293,6 +308,13 @@ func (r *FavoriteRepo) ListItemsOnlyAdminAuthors() bool {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	return r.lastOnlyAdminAuthors
+}
+
+// ListItemsPublishedOnly 返回上一次 ListItems 收到的公开面过滤开关。
+func (r *FavoriteRepo) ListItemsPublishedOnly() bool {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return r.lastPublishedOnly
 }
 
 // CountByArticle 统计某文章被收藏的次数。
@@ -353,6 +375,9 @@ func cloneFolder(f *favorite.Folder) *favorite.Folder {
 	return favorite.RestoreFolder(favorite.RestoreFolderParams{
 		ID: f.ID(), UserID: f.UserID(), Title: f.Title(), Cover: f.Cover(),
 		Abstract: f.Abstract(), IsDefault: f.IsDefault(), ArticleCount: f.ArticleCount(),
+		CreatedAt: f.CreatedAt(), UpdatedAt: f.UpdatedAt(),
+		OwnerNickname: f.OwnerNickname(), OwnerAvatar: f.OwnerAvatar(),
+		HasArticle: f.HasArticle(),
 	})
 }
 
@@ -374,6 +399,7 @@ func cloneItem(i *favorite.Item) *favorite.Item {
 		AuthorNickname:  i.AuthorNickname(),
 		AuthorAvatar:    i.AuthorAvatar(),
 		FavoritedAt:     i.FavoritedAt(),
+		ArticleUpdatedAt: i.ArticleUpdatedAt(),
 		ViewCount:       i.ViewCount(),
 		DiggCount:       i.DiggCount(),
 		CommentCount:    i.CommentCount(),
@@ -693,3 +719,4 @@ func cloneTask(t *review.Task) *review.Task {
 		CreatedAt:     t.CreatedAt(),
 	})
 }
+

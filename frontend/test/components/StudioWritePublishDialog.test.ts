@@ -54,6 +54,22 @@ vi.mock("naive-ui", () => {
     },
   });
 
+  // ChipSelect 用到的两个容器：面板内容与触发器都渲染出来，
+  // 用例才能断言"选中了什么"（真实 naive 里面板默认隐藏）。
+  const NPopover = defineComponent({
+    name: "NPopover",
+    setup(_, { slots }) {
+      return () => h("div", { "data-test": "popover" }, [slots.trigger?.(), slots.default?.()]);
+    },
+  });
+
+  const NTag = defineComponent({
+    name: "NTag",
+    setup(_, { slots }) {
+      return () => h("span", { "data-test": "tag" }, slots.default?.());
+    },
+  });
+
   const NButton = defineComponent({
     name: "NButton",
     props: {
@@ -89,7 +105,7 @@ vi.mock("naive-ui", () => {
     },
   });
 
-  return { NModal, NCard, NSelect, NInput, NButton, NSwitch, NAlert };
+  return { NModal, NCard, NSelect, NInput, NButton, NSwitch, NAlert, NPopover, NTag };
 });
 
 const baseProps = {

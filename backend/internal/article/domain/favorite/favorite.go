@@ -171,12 +171,16 @@ type Item struct {
 	authorNickname  string
 	authorAvatar    string
 
-	// 读模型字段：收藏时间与文章实时计数（列表页直接展示）。
-	favoritedAt  time.Time
-	viewCount    int
-	diggCount    int
-	commentCount int
-	favorCount   int
+	// 读模型字段：收藏时间、文章更新时间与实时计数（列表页直接展示）。
+	//
+	// articleUpdatedAt 是**文章**的更新时间（不是收藏关系的），与文章列表里
+	// 展示的发布时间同一口径；零 DDL，查询层从 article_models 现取（#344）。
+	favoritedAt      time.Time
+	articleUpdatedAt time.Time
+	viewCount        int
+	diggCount        int
+	commentCount     int
+	favorCount       int
 }
 
 // RestoreItemParams 是重建收藏关系的输入。
@@ -191,11 +195,12 @@ type RestoreItemParams struct {
 	AuthorID        domain.UserID
 	AuthorNickname  string
 	AuthorAvatar    string
-	FavoritedAt     time.Time
-	ViewCount       int
-	DiggCount       int
-	CommentCount    int
-	FavorCount      int
+	FavoritedAt      time.Time
+	ArticleUpdatedAt time.Time
+	ViewCount        int
+	DiggCount        int
+	CommentCount     int
+	FavorCount       int
 }
 
 // RestoreItem 从持久化数据重建。
@@ -210,9 +215,10 @@ func RestoreItem(p RestoreItemParams) *Item {
 		articleStatus:   p.ArticleStatus,
 		authorID:        p.AuthorID,
 		authorNickname:  p.AuthorNickname,
-		authorAvatar:    p.AuthorAvatar,
-		favoritedAt:     p.FavoritedAt,
-		viewCount:       p.ViewCount,
+		authorAvatar:     p.AuthorAvatar,
+		favoritedAt:      p.FavoritedAt,
+		articleUpdatedAt: p.ArticleUpdatedAt,
+		viewCount:        p.ViewCount,
 		diggCount:       p.DiggCount,
 		commentCount:    p.CommentCount,
 		favorCount:      p.FavorCount,
@@ -230,8 +236,9 @@ func NewItemFromArticle(folderID ID, userID domain.UserID, a *domain.Article) *I
 		articleTitle:    a.Title(),
 		articleAbstract: a.Abstract(),
 		articleCover:    a.Cover(),
-		articleStatus:   a.Status(),
-		authorID:        a.AuthorID(),
+		articleStatus:    a.Status(),
+		authorID:         a.AuthorID(),
+		articleUpdatedAt: a.UpdatedAt(),
 	}
 }
 
@@ -268,6 +275,9 @@ func (i *Item) AuthorAvatar() string { return i.authorAvatar }
 // FavoritedAt 返回收藏时间（读模型）。
 func (i *Item) FavoritedAt() time.Time { return i.favoritedAt }
 
+// ArticleUpdatedAt 返回文章的更新时间（读模型，与发布时间同一口径）。
+func (i *Item) ArticleUpdatedAt() time.Time { return i.articleUpdatedAt }
+
 // ViewCount 返回文章浏览量（读模型）。
 func (i *Item) ViewCount() int { return i.viewCount }
 
@@ -298,6 +308,21 @@ func (i *Item) WithAuthorProfile(nickname, avatar string) *Item {
 	return i
 }
 
+// ListFoldersQuery 是收藏夹列表的读条件（#344）。
+//
+// 之所以放在查询对象里而不是加一堆参数：列表同时要回答三个独立问题——
+// 谁的夹子、当前文章在不在某个夹里（has_article）、是不是公开读面
+// （公开面只认已发布文章）。三者组合成一条 SQL，避免列表页 N+1。
+type ListFoldersQuery struct {
+	// UserID 是收藏夹所属用户。
+	UserID domain.UserID
+	// ArticleID 非零时逐夹计算 HasArticle；为零时全部为 false。
+	ArticleID domain.ArticleID
+	// PublishedOnly 为真（公开读面：他人夹 / type=2）时，
+	// ArticleCount 与收藏内容一样只数已发布文章。
+	PublishedOnly bool
+}
+
 // Repository 是收藏子域的持久化契约。
 type Repository interface {
 	// FindFolder 读取收藏夹。
@@ -305,13 +330,22 @@ type Repository interface {
 	// DefaultFolder 取某用户的默认收藏夹；没有则创建。
 	DefaultFolder(ctx context.Context, userID domain.UserID) (*Folder, error)
 	// ListFolders 列出某用户的收藏夹。
-	ListFolders(ctx context.Context, userID domain.UserID) ([]*Folder, error)
+	ListFolders(ctx context.Context, q ListFoldersQuery) ([]*Folder, error)
 	// ExistsFolderTitle 判断名称是否重复。
 	ExistsFolderTitle(ctx context.Context, userID domain.UserID, title string, excludeID ID) (bool, error)
 	// SaveFolder 新建或更新收藏夹。
 	SaveFolder(ctx context.Context, f *Folder) error
-	// DeleteFolder 删除收藏夹与其下所有收藏关系。
+	// DeleteFolder 删除收藏夹与其下所有收藏关系，**不动文章本身**。
+	//
+	// 领域契约：删夹只删夹行与它自己的关系行（软删），文章是别人的数据，
+	// 不允许因为整理收藏夹而消失。
 	DeleteFolder(ctx context.Context, id ID) error
+	// RefreshFolderStats 在成员变更的同一事务内重算该夹的 article_count
+	// （COUNT(*) 口径，含全部发布状态），并 bump updated_at。
+	//
+	// 计数与时间戳必须由调用方传同一时刻：这样"一次收藏"在夹子列表上的
+	// 排序变化是可复现的，也让 fake 与真库给出同一个时间。
+	RefreshFolderStats(ctx context.Context, folderID ID, updatedAt time.Time) error
 
 	// FindItem 取某用户对某文章在某夹子里的收藏；不存在返回 ErrFavoriteNotFound。
 	FindItem(ctx context.Context, articleID domain.ArticleID, userID domain.UserID, folderID ID) (*Item, error)
@@ -323,14 +357,18 @@ type Repository interface {
 	SaveItem(ctx context.Context, i *Item) error
 	// DeleteItem 删除收藏关系。
 	DeleteItem(ctx context.Context, articleID domain.ArticleID, userID domain.UserID, folderID ID) error
-	// DeleteItemsByArticle 删除某文章的全部收藏（删文章级联用）。
-	DeleteItemsByArticle(ctx context.Context, articleID domain.ArticleID) error
+	// DeleteItemsByArticle 删除某文章的全部收藏（删文章级联用），
+	// 并在同一事务内对受影响夹子重算 article_count（#344）。
+	DeleteItemsByArticle(ctx context.Context, articleID domain.ArticleID, now time.Time) error
 	// ListItems 分页列出某夹子里的收藏。
 	//
 	// onlyAdminAuthors 为真时只返回"作者是管理员"的条目（ADR-0017 决策 4：
 	// 「显示非管理员发布文章」开关关闭时收藏内容同步过滤）。做成查询层条件
 	// 而不是调用方查完再筛：total 必须与过滤后的可见条目一致，否则前端分页错乱。
-	ListItems(ctx context.Context, folderID ID, offset, limit int, onlyAdminAuthors bool) ([]*Item, int64, error)
+	//
+	// publishedOnly 为真时（公开读面：他人夹）只返回已发布文章；total 与当页
+	// 一起过滤，理由同上。本人读自己的夹子不过滤：作者/收藏者要看见草稿等其余状态。
+	ListItems(ctx context.Context, folderID ID, offset, limit int, onlyAdminAuthors, publishedOnly bool) ([]*Item, int64, error)
 	// CountByArticle 统计某文章被收藏的次数（删文章时用于审计与统计扣减）。
 	CountByArticle(ctx context.Context, articleID domain.ArticleID) (int, error)
 }

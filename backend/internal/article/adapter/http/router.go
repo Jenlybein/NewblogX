@@ -2,6 +2,7 @@ package http
 
 import (
 	"github.com/gin-gonic/gin"
+	"myblogx/internal/article/domain/outline"
 	"myblogx/internal/kernel"
 
 	mw "myblogx/internal/platform/http/middleware"
@@ -32,6 +33,9 @@ func (h *Handler) Register(r *gin.RouterGroup, authMw, optionalMw gin.HandlerFun
 	r.GET("sitemap.xml", h.Sitemap)
 
 	authGroup := group.Group("", authMw)
+	// 个人数据概览（票 354）：登录用户读自己的，不是管理员专属。
+	// 路径里带连字符前缀，避免被 /articles/:id 抢走。
+	authGroup.GET("studio-stats", h.StudioStats)
 	adminGroup := authGroup.Group("", mw.AdminMiddleware)
 	reviewAdminGroup := reviewGroup.Group("", authMw, mw.AdminMiddleware)
 	collectionAdminGroup := collectionGroup.Group("", authMw, mw.AdminMiddleware)
@@ -56,11 +60,15 @@ func (h *Handler) Register(r *gin.RouterGroup, authMw, optionalMw gin.HandlerFun
 	collectionGroup.GET(":id", mw.BindUri[kernel.IDRequest], h.CollectionDetail)
 	collectionGroup.GET(":id/outline-tree", mw.BindUri[kernel.IDRequest],
 		mw.BindQuery[NamedOutlineTreeRequest], h.CollectionOutlineTree)
+	// 读者侧分组读面（票 353）：只给"谁和谁在一起、谁在前"，
+	// 没有「未分组」标题，也没有后台那些编排动作。
+	collectionGroup.GET("grouped", BindKind(outline.OwnerCollection, h.PublicGroupTreeView))
 	// 项目（与合集并列的独立内容实体；读者侧同样只读：列表页 + 详情页 + 项目目录树）。
 	projectGroup.GET("", mw.BindQuery[ProjectListRequest], h.Projects)
 	projectGroup.GET(":id", mw.BindUri[kernel.IDRequest], h.ProjectDetail)
 	projectGroup.GET(":id/outline-tree", mw.BindUri[kernel.IDRequest],
 		mw.BindQuery[NamedOutlineTreeRequest], h.ProjectOutlineTree)
+	projectGroup.GET("grouped", BindKind(outline.OwnerProject, h.PublicGroupTreeView))
 	reviewAdminGroup.GET("", mw.BindQuery[ArticleReviewTaskListRequest], h.ReviewTasks)
 	// 驳回原因的固定列表：值与文案都从后端唯一词表出（#308），前端据此渲染下拉。
 	reviewAdminGroup.GET("reasons", h.ReviewReasons)
@@ -106,6 +114,21 @@ func (h *Handler) Register(r *gin.RouterGroup, authMw, optionalMw gin.HandlerFun
 	collectionAdminGroup.PUT(":id/outline-tree", mw.CaptureLog(mw.ReqBody),
 		mw.BindUri[kernel.IDRequest], mw.BindJson[CollectionOutlineSaveRequest],
 		h.SaveCollectionOutlineTree)
+	// 合集分组（ADR-0041）：读面 / 建改名 / 删除 / 整树换序。
+	//
+	// 分组 CRUD 立即生效，不参与拖拽的 10 秒防抖；整树换序是幂等整份覆盖。
+	// 路径里带 :kind 是为了让两个实体共用同一组 handler —— 语义完全一致，
+	// 写两份只会让"删分组时把条目退回未分组"这种差异只修在一边。
+	collectionAdminGroup.GET("groups", BindKind(outline.OwnerCollection, h.GroupTreeView))
+	collectionAdminGroup.PUT("groups", mw.CaptureLog(mw.ReqBody), mw.BindJson[GroupSaveRequest],
+		BindKind(outline.OwnerCollection, h.GroupSaveView))
+	collectionAdminGroup.DELETE("groups/:id", mw.BindUri[kernel.IDRequest],
+		BindKind(outline.OwnerCollection, h.GroupDeleteView))
+	collectionAdminGroup.PUT("groups/order", mw.CaptureLog(mw.ReqBody), mw.BindJson[GroupOrderRequest],
+		BindKind(outline.OwnerCollection, h.GroupOrderView))
+	// 字段 + 目录树一次原子提交：编辑弹窗里"改标题 + 拖完树"是一次保存动作。
+	collectionAdminGroup.PUT(":id/compose", mw.CaptureLog(mw.ReqBody),
+		mw.BindUri[kernel.IDRequest], mw.BindJson[CollectionComposeRequest], h.CollectionComposeView)
 	// 项目管理（全部在管理员分组下）：与合集逐条对齐，路径换成 /projects。
 	projectAdminGroup.GET("admin", h.AdminProjects)
 	projectAdminGroup.POST("", mw.CaptureLog(mw.ReqBody), mw.BindJson[ProjectCreateRequest], h.CreateProject)
@@ -122,9 +145,22 @@ func (h *Handler) Register(r *gin.RouterGroup, authMw, optionalMw gin.HandlerFun
 	projectAdminGroup.PUT(":id/outline-tree", mw.CaptureLog(mw.ReqBody),
 		mw.BindUri[kernel.IDRequest], mw.BindJson[ProjectOutlineSaveRequest],
 		h.SaveProjectOutlineTree)
+	// 项目分组（与合集逐条对齐，路径换成 /projects）。
+	projectAdminGroup.GET("groups", BindKind(outline.OwnerProject, h.GroupTreeView))
+	projectAdminGroup.PUT("groups", mw.CaptureLog(mw.ReqBody), mw.BindJson[GroupSaveRequest],
+		BindKind(outline.OwnerProject, h.GroupSaveView))
+	projectAdminGroup.DELETE("groups/:id", mw.BindUri[kernel.IDRequest],
+		BindKind(outline.OwnerProject, h.GroupDeleteView))
+	projectAdminGroup.PUT("groups/order", mw.CaptureLog(mw.ReqBody), mw.BindJson[GroupOrderRequest],
+		BindKind(outline.OwnerProject, h.GroupOrderView))
+	projectAdminGroup.PUT(":id/compose", mw.CaptureLog(mw.ReqBody),
+		mw.BindUri[kernel.IDRequest], mw.BindJson[ProjectComposeRequest], h.ProjectComposeView)
 
 	adminGroup.PUT("tags", mw.CaptureLog(mw.ReqBody), mw.BindJson[TagRequest], h.SaveTag)
 	adminGroup.DELETE("tags", mw.CaptureLog(mw.ReqBody), mw.BindJson[kernel.IDListRequest], h.DeleteTags)
+	// 标签之间的拖拽排序（票 346）：落既有 tag_models.sort，是全量顺序替换。
+	adminGroup.PATCH("tags/order", mw.CaptureLog(mw.ReqBody),
+		mw.BindJson[TagOrderRequest], h.ReplaceTagSortOrder)
 	reviewTaskAdminGroup.POST(":id/review", mw.CaptureLog(mw.ReqBody), mw.BindUri[kernel.IDRequest],
 		mw.BindJson[ArticleReviewHandleRequest], h.HandleReviewTask)
 	// 批量：与单条同一份用例、同一套原因校验，只是把同一个决定应用到多个任务

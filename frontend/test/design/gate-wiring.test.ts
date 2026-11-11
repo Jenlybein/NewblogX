@@ -105,8 +105,10 @@ describe("门禁接线：本地脚本与 CI 是同一口径", () => {
     expect(verifyGates).toContain("check-image-shaping-parity.mjs");
     expect(verifyGates).toContain("13/14 两端同源副本门禁（定形工具 + 裁剪窗四份组件）");
     expect(verifyGates).toContain("frontend_admin/app/utils/imageShaping.ts");
-    // 票 225：裁剪窗四份组件也必须被自检覆盖，否则"扩了门禁但没人证明它会红"。
+    // 票 225：裁剪窗组件也必须被自检覆盖，否则"扩了门禁但没人证明它会红"。
+    // 票 354 / 349 把 MetricCard 与 motion.ts 纳入同一道门禁，自检的预期文案
+    // 跟着列出四对——断言的是"自检真的在等这道门禁红"，不是文案本身。
     expect(verifyGates).toContain("frontend_admin/app/components/media/ImageCropDialog.vue");
-    expect(verifyGates).toContain("两端裁剪窗（ImageCropView / ImageCropDialog）同源门禁失败");
+    expect(verifyGates).toContain("两端同源副本（ImageCropView / ImageCropDialog / MetricCard / motion）门禁失败");
   });
 });

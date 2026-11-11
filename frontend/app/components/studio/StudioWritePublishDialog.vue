@@ -1,6 +1,7 @@
 <script setup lang="ts">
+import ChipSelect from "~/components/common/ChipSelect.vue";
 import { computed, ref } from "vue";
-import { NAlert, NButton, NCard, NInput, NModal, NSelect, NSwitch } from "naive-ui";
+import { NAlert, NButton, NCard, NInput, NModal, NSwitch } from "naive-ui";
 
 import StudioCoverUploadPanel from "./StudioCoverUploadPanel.vue";
 import type { QualityRejectionDetails, QualityRejectionDimension } from "~/composables/useStudioPublish";
@@ -133,9 +134,11 @@ async function submitCategory() {
           <div class="publish-form__row">
             <label class="publish-form__label">分类</label>
             <div class="publish-category">
-              <NSelect
-v-model:value="categoryId" clearable filterable :options="props.categoryOptions || []"
-                placeholder="请选择分类" class="publish-form__control" />
+              <ChipSelect
+                v-model="categoryId"
+                :options="props.categoryOptions || []"
+                placeholder="请选择分类"
+                data-role="publish-category" />
 
               <!-- 分类下拉的两种"空"（票 320）：没数据 vs 没加载出来。
                    前者给一句能照着做的话，后者给原因 —— 都不能是一声不响的空白。 -->
@@ -179,9 +182,13 @@ v-model:value="categoryId" clearable filterable :options="props.categoryOptions 
           <div class="publish-form__row">
             <label class="publish-form__label">添加标签</label>
             <div class="publish-tags">
-              <NSelect
-v-model:value="tagIds" multiple clearable filterable max-tag-count="responsive"
-                :options="props.tagOptions || []" placeholder="请选择已有标签" class="publish-form__control" />
+              <ChipSelect
+                v-model="tagIds"
+                multiple
+                :options="props.tagOptions || []"
+                :max-tag-count="4"
+                placeholder="请选择已有标签"
+                data-role="publish-tags" />
 
               <!-- 标签下拉的故障态（与分类同款）：接口挂了不能装成"还没有标签"。 -->
               <p v-if="props.tagError" class="publish-tags__hint publish-tags__hint--error" data-role="tag-error">
@@ -214,11 +221,11 @@ v-model:value="abstractText" type="textarea" maxlength="180"
 
           <div class="publish-form__row">
             <label class="publish-form__label">可见范围</label>
-            <NSelect
-              v-model:value="visibility"
+            <ChipSelect
+              v-model="visibility"
               :options="props.visibilityOptions"
               placeholder="请选择文章可见范围"
-              class="publish-form__control" />
+              data-role="publish-visibility" />
           </div>
 
           <div class="publish-form__row">

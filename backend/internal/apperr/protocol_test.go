@@ -74,6 +74,9 @@ func declaredCodes(t *testing.T) []apperr.Code {
 // 这张表只允许收缩：删掉一条意味着那个码登记了协议类别。新增一条必须在提交
 // 说明里写清为什么它属于服务异常，而不是参数 / 登录态问题。
 var serviceFallbackCodes = []apperr.Code{
+	// 分组功能未就绪（装配层没提供分组仓储）：这不是用户能修的问题，
+	// 也不该暴露内部装配细节，所以按通用服务异常返回。
+	apperr.CodeGroupWiring,
 	// 文章主体。
 	apperr.CodeArticleNotFound,
 	apperr.CodeArticleForbidden,
@@ -108,6 +111,9 @@ var serviceFallbackCodes = []apperr.Code{
 	// 管理员的正确动作是改用停用，重发一次请求修不好它，所以按服务兜底类别，
 	// 与同一组其它标签错误码保持一致（前端只读文案，不按 1001/1002 分支）。
 	apperr.CodeTagInUse,
+	// 标签拖拽排序（票 346）：并发改名 / 删除让提交的 ID 全集与库里不一致。
+	// 前端的正确动作是刷新后重排，重发同一个请求修不好它，与项目换序同一类别。
+	apperr.CodeTagOrderMismatch,
 
 	// 收藏。
 	apperr.CodeFavoriteTitleRequired,

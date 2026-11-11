@@ -17,12 +17,11 @@ import OutlineTreeEditor from "~/components/articles/OutlineTreeEditor.vue";
 import type { CollectionCardItem } from "~/components/articles/CollectionCardGrid.vue";
 import { useImageCropUpload, type ImageFramingRequest } from "~/composables/useImageCropUpload";
 import {
+  composeAdminEntity,
   createCollection,
   createProject,
   setCollectionDisplay,
   setProjectDisplay,
-  updateCollection,
-  updateProject,
 } from "~/services/admin";
 import { uploadImageByTask } from "~/services/image";
 import { uploadBannerCover } from "~/utils/bannerCover";
@@ -56,7 +55,8 @@ const message = useMessage();
 const label = computed(() => (props.kind === "collection" ? "合集" : "项目"));
 
 const saving = ref(false);
-const treeOpen = ref(false);
+/** 目录树编辑器：两栏布局里常驻，保存时从它取节点一起提交。 */
+const treeEditor = ref<InstanceType<typeof OutlineTreeEditor> | null>(null);
 /** 保存成功后才有值：目录树编排需要真实实体 ID。 */
 const entityId = ref("");
 
@@ -201,7 +201,6 @@ function resetAll() {
   coverSize.value = null;
   coverStage.value = "";
   entityId.value = "";
-  treeOpen.value = false;
   resetCoverCrop();
   clearLocalCoverPreview();
 }
@@ -221,7 +220,6 @@ function fillFromEntity(entity: CollectionCardItem | null | undefined) {
   errors.title = null;
   errors.description = null;
   coverStage.value = "";
-  treeOpen.value = false;
 }
 
 watch(
@@ -234,6 +232,25 @@ watch(
 
 function close() {
   emit("close");
+}
+
+/**
+ * 取目录树当前的节点。
+ *
+ * **拿不到就失败**（返回 null，由 save() 中止），绝不"当成空树"：
+ * compose 是整树覆盖，把"取不到"当成"没有节点"等于一次保存把整棵树删光，
+ * 而且还会弹成功提示。宁可这次保存不成功，也不能静默毁数据。
+ *
+ * 唯一合法的"空树"是**编辑器根本还没挂载**（新建实体、还没有 ID 时，
+ * 右栏渲染的是"先保存基本信息"的提示，本来就没有节点）。
+ */
+function currentNodes(): unknown[] | null {
+  const editor = treeEditor.value as unknown as { nodes?: () => unknown[] } | null
+  // 编辑器没挂载：新建流程里这是正常状态，空树是真实答案。
+  if (!editor) return []
+  // 挂载了但取不到 nodes()：装配/替身问题，不能猜。
+  if (typeof editor.nodes !== 'function') return null
+  return editor.nodes()
 }
 
 async function save() {
@@ -254,23 +271,49 @@ async function save() {
   saving.value = true;
   try {
     if (entityId.value) {
-      if (props.kind === "collection") {
-        await updateCollection(entityId.value, buildCollectionUpdatePayload(values));
-        await setCollectionDisplay(entityId.value, form.displayed);
-      } else {
-        await updateProject(entityId.value, buildCollectionUpdatePayload(values));
-        await setProjectDisplay(entityId.value, form.displayed);
+      // 先取节点再动任何东西：取不到就整单中止（见 currentNodes 的注释）。
+      // compose 是整树覆盖，"取不到当空树"等于一次保存删光整棵树。
+      const nodes = currentNodes();
+      if (nodes === null) {
+        message.error("目录树还没准备好，这次没有保存；请刷新页面后重试");
+        return;
       }
+      // 字段 + 目录树一次提交（票 348 / ADR-0041 的原子 compose）。
+      //
+      // 为什么必须一次：弹窗里"改标题 + 拖完树"是**一次**保存动作。分成两个请求
+      // 任何一个失败都会留下"标题改了但树没改"的半截状态，而用户只点了一次保存。
+      await composeAdminEntity(props.kind, entityId.value, {
+        ...buildCollectionUpdatePayload(values),
+        nodes,
+      });
+      // 树提交成功即"没有未保存改动"：脏标记原本只在树编辑器自己的保存里复位，
+      // 而两栏弹窗不走那条路径 —— 不复位的话「有未保存的改动」会一直挂着。
+      treeEditor.value?.markSaved?.();
+      // 展示开关仍是独立动作：它不是"内容"的一部分，且改动不该因为树保存失败而回滚。
+      if (props.kind === "collection") await setCollectionDisplay(entityId.value, form.displayed);
+      else await setProjectDisplay(entityId.value, form.displayed);
       message.success(`${label.value}已保存`);
-    } else if (props.kind === "collection") {
-      const created = await createCollection(buildCollectionCreatePayload({ ...values, displayed: form.displayed }));
-      // 新建后留在弹窗里：拿到 ID 才能继续编排目录树。
-      entityId.value = created?.id ?? "";
-      message.success("合集已创建，可以继续编排目录树");
     } else {
-      const created = await createProject(buildCollectionCreatePayload({ ...values, displayed: form.displayed }));
+      // 新建时还没有 ID：先建（拿到 ID），再按同一份树 compose 一次。
+      const created = props.kind === "collection"
+        ? await createCollection(buildCollectionCreatePayload({ ...values, displayed: form.displayed }))
+        : await createProject(buildCollectionCreatePayload({ ...values, displayed: form.displayed }));
       entityId.value = created?.id ?? "";
-      message.success("项目已创建，可以继续编排目录树");
+      const pendingNodes = currentNodes();
+      if (pendingNodes === null) {
+        // 已经建出来了，但树没提交：如实说清"建好了、树没存"，别报成功。
+        message.warning(`${label.value}已创建，但目录树没能一起保存，请再点一次「保存修改」`);
+        emit("saved");
+        return;
+      }
+      if (entityId.value && pendingNodes.length) {
+        await composeAdminEntity(props.kind, entityId.value, {
+          ...buildCollectionUpdatePayload(values),
+          nodes: pendingNodes,
+        });
+        treeEditor.value?.markSaved?.();
+      }
+      message.success(`${label.value}已创建`);
     }
     emit("saved");
   } catch (error) {
@@ -285,7 +328,7 @@ async function save() {
   <div v-if="props.show" class="collection-overlay" :data-role="`${kind}-editor`">
     <button type="button" class="collection-overlay__scrim" aria-label="关闭" @click="close" />
 
-    <div class="collection-overlay__pair" :class="{ 'collection-overlay__pair--tree': treeOpen }">
+    <div class="collection-overlay__pair">
       <section class="collection-overlay__card" role="dialog" :aria-label="`${entityId ? '编辑' : '新建'}${label}`">
         <header class="collection-overlay__head">
           <h2 class="collection-overlay__title">{{ entityId ? `编辑${label}` : `新建${label}` }}</h2>
@@ -329,15 +372,6 @@ async function save() {
 
         <footer class="collection-overlay__foot">
           <NSpace>
-            <NButton
-              data-role="collection-editor-tree"
-              :disabled="!entityId"
-              :title="entityId ? '编排目录树' : '先保存基本信息，拿到 ID 才能编排'"
-              @click="treeOpen = !treeOpen">
-              {{ treeOpen ? "收起目录树" : "编排目录树" }}
-            </NButton>
-          </NSpace>
-          <NSpace>
             <NButton @click="close">关闭</NButton>
             <NButton type="primary" :loading="saving" data-role="collection-editor-save" @click="save">
               {{ entityId ? "保存修改" : `创建${label}` }}
@@ -353,16 +387,21 @@ async function save() {
           @change="onCoverFileChange" />
       </section>
 
-      <!-- 抽屉**常驻挂载**：只有常驻才能让宽度过渡真的跑起来（v-if 一挂上就带
-           `--tree`，过渡不会执行）。收起时宽度 0 + overflow hidden + visibility hidden，
-           既看不见也进不了 Tab 序。 -->
+      <!-- 右栏：目录树（票 348 改成两栏常驻）。
+           树本身没有保存按钮（embedded），改名 / 拖动 / 删除 / 清理失效 / 批量收录
+           都在这里做，最后由「保存修改」一次提交。 -->
       <aside class="collection-overlay__drawer" :data-role="`${kind}-editor-drawer`">
         <div class="collection-overlay__drawer-inner">
           <header class="collection-overlay__head">
-            <h2 class="collection-overlay__title">编排目录树</h2>
-            <NButton size="small" quaternary @click="treeOpen = false">收起</NButton>
+            <h2 class="collection-overlay__title">目录树</h2>
+            <span class="admin-hint">拖动 / 改名 / 删除 / 清理失效 / 批量收录</span>
           </header>
-          <OutlineTreeEditor :kind="kind" :entity-id="entityId" @saved="emit('saved')" />
+          <OutlineTreeEditor
+            ref="treeEditor"
+            :kind="kind"
+            :entity-id="entityId"
+            embedded
+            @saved="emit('saved')" />
         </div>
       </aside>
     </div>

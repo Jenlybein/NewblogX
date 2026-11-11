@@ -18,6 +18,8 @@ import (
 	"myblogx/internal/article/domain/favorite"
 	"myblogx/internal/article/domain/outline"
 	"myblogx/internal/article/domain/project"
+	"myblogx/internal/analytics/adapter/clickhouse"
+	"myblogx/internal/article/domain/grouping"
 	"myblogx/internal/kernel/ctype"
 	"myblogx/internal/kernel/enum"
 	mediamysql "myblogx/internal/media/adapter/mysql"
@@ -73,7 +75,33 @@ func newArticleService(infra *Infra) *articleapp.Service {
 		newArticleModerationScores(infra.DB),
 		articleModerationWords(infra.Effective),
 		qualityGatePort{},
-	)
+	).WithActivity(&articleActivity{opts: analyticsLogOptions(infra)})
+}
+
+// articleActivity 用分析模块的 ClickHouse 读面实现 article 的活动端口（票 354）。
+//
+// 这一层就是"端口由使用方定义、实现在装配层"的落点：article 不认识 clickhouse 包，
+// 而个人概览要的恰恰是分析库才有的数据。把它放在装配层也意味着只有这里需要
+// 同时知道两边，别的模块照旧互不认识。
+type articleActivity struct {
+	opts clickhouse.Options
+}
+
+var _ articleapp.ActivityPort = (*articleActivity)(nil)
+
+// DailyActivity 返回最近 days 天里每天成功的创作动作数。
+func (a *articleActivity) DailyActivity(
+	_ context.Context, userID domain.UserID, days int,
+) (map[string]int, error) {
+	items, err := clickhouse.CountDailyStudioActivity(a.opts, userID.Uint64(), days)
+	if err != nil {
+		return nil, err
+	}
+	out := make(map[string]int, len(items))
+	for _, item := range items {
+		out[item.Day] = item.Count
+	}
+	return out, nil
 }
 
 // realClock 是生产时钟。
@@ -104,6 +132,24 @@ func (snowflakeIDs) NextReviewTaskID() uint64 {
 		panic("article: 雪花 ID 生成失败: " + err.Error())
 	}
 	return id.Uint64()
+}
+
+// NextGroupID 返回下一个分组 ID（ADR-0041）。
+func (snowflakeIDs) NextGroupID() grouping.ID {
+	id, err := idgen.Next()
+	if err != nil {
+		panic("article: 雪花 ID 生成失败: " + err.Error())
+	}
+	return grouping.ID(id.String())
+}
+
+// NextGroupItemID 返回下一个条目归属行 ID。
+func (snowflakeIDs) NextGroupItemID() ctype.ID {
+	id, err := idgen.Next()
+	if err != nil {
+		panic("article: 雪花 ID 生成失败: " + err.Error())
+	}
+	return id
 }
 
 // NextCollectionID 返回下一个合集 ID。

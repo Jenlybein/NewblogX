@@ -296,21 +296,47 @@
   }
 
   /* ---- 个人主页「分类」栏（票 321）：左侧分类列表 + 右侧就地展开的文章，与收藏架同构 ---- */
+  /* 票 351 故事 22 / 23：左栏从 280px 收到 180px（够放分类名 + 篇数），
+   * 窄屏不再堆成竖列，而是降级成一行可横滑的 chip —— 竖列在手机上会把
+   * 文章区挤到首屏之外。 */
   .profile-category-layout {
-    @apply grid gap-5 xl:grid-cols-[280px_minmax(0,1fr)];
+    @apply grid gap-5;
+  }
+
+  @media (min-width: 1024px) {
+    .profile-category-layout {
+      grid-template-columns: 180px minmax(0, 1fr);
+    }
   }
 
   .profile-category-layout__folders {
-    @apply flex flex-col gap-3;
+    @apply flex gap-2 overflow-x-auto pb-1;
+    scrollbar-width: thin;
+  }
+
+  @media (min-width: 1024px) {
+    .profile-category-layout__folders {
+      flex-direction: column;
+      overflow-x: visible;
+      padding-bottom: 0;
+    }
   }
 
   .profile-category-layout__content {
     @apply min-w-0;
   }
 
+  /* 分类条目压成一行：名称（可截断）+ 篇数。宽屏是 180px 栏里的整行，
+   * 窄屏是横滑 chip 里的一颗。 */
   .profile-category-card {
-    @apply flex min-h-[72px] flex-col justify-center gap-2 rounded-card border border-line bg-surface p-4 text-left transition-colors;
+    @apply flex shrink-0 items-center justify-between gap-2 rounded-pill border border-line bg-surface px-3 py-2 text-left transition-colors;
     touch-action: manipulation;
+  }
+
+  @media (min-width: 1024px) {
+    .profile-category-card {
+      @apply w-full rounded-control;
+    }
   }
 
   .profile-category-card:hover {
@@ -332,7 +358,12 @@
   }
 
   .profile-category-card__title {
-    @apply truncate text-base font-semibold text-ink;
+    @apply min-w-0 truncate text-sm font-medium text-ink;
+  }
+
+  .profile-category-card__count {
+    @apply shrink-0 text-xs tabular-nums;
+    color: var(--color-ink-muted);
   }
 
   /* 单个分类的行内操作（改名 / 删除）+ 分栏级主操作（新建分类）。
@@ -2212,4 +2243,825 @@ html {
   .glass-thick {
     --glass-specular: none;
   }
+}
+
+/* ── 多列 chip 下拉（票 352）──────────────────────────────────
+ *
+ * 发布/编辑文章时标签词库有 56 条，原生下拉一行一个要翻很久。
+ * 这里把选项排成流式 chip：一行能放 4–6 个，一屏看完大半词库。
+ *
+ * 面板宽度固定 420px 而不是跟随触发器：触发器在表单里可能只有 200px 宽，
+ * 跟着它走会让 chip 挤成两列、失去"一眼扫完"的意义。 */
+.chip-select__trigger {
+  @apply flex min-h-[36px] w-full items-center gap-1.5 rounded-field border px-3 py-1.5 text-left text-sm;
+  border-color: var(--color-line);
+  background: var(--color-surface);
+  color: var(--color-ink);
+  transition: border-color var(--motion-fast) var(--motion-ease);
+}
+
+.chip-select__trigger:hover,
+.chip-select__trigger--open {
+  border-color: var(--color-line-strong);
+}
+
+/* 打开态只加深描边：焦点蓝留给真正的 :focus-visible（设计门禁要求焦点色
+ * 只出现在 :focus 选择器的 outline 里）。 */
+.chip-select__trigger--open {
+  border-color: var(--color-ink-muted);
+}
+
+.chip-select__trigger:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.chip-select__placeholder {
+  @apply flex-1 truncate;
+  color: var(--color-ink-faint);
+}
+
+.chip-select__value {
+  @apply min-w-0 flex-1 truncate;
+}
+
+.chip-select__more {
+  @apply shrink-0 text-xs;
+  color: var(--color-ink-muted);
+}
+
+.chip-select__clear {
+  @apply shrink-0 cursor-pointer px-1 text-xs leading-none;
+  color: var(--color-ink-faint);
+}
+
+.chip-select__clear:hover {
+  color: var(--color-danger);
+}
+
+.chip-select__caret {
+  @apply shrink-0 text-[10px];
+  color: var(--color-ink-faint);
+}
+
+.chip-select__panel {
+  @apply flex w-[420px] max-w-[calc(100vw-32px)] flex-col gap-2 p-3;
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-md);
+  background: var(--color-surface-raised);
+  box-shadow: 0 18px 44px var(--color-shadow);
+}
+
+.chip-select__chips {
+  @apply flex max-h-[240px] flex-wrap gap-1.5 overflow-y-auto;
+}
+
+.chip-select__chip {
+  @apply shrink-0 cursor-pointer rounded-pill border px-2.5 py-1 text-xs;
+  border-color: var(--color-line);
+  background: var(--color-surface);
+  color: var(--color-ink);
+  transition: border-color var(--motion-fast) var(--motion-ease),
+    background-color var(--motion-fast) var(--motion-ease);
+}
+
+.chip-select__chip:hover,
+.chip-select__chip--active {
+  border-color: var(--color-line-strong);
+  background: var(--color-bg-subtle);
+}
+
+.chip-select__chip--selected {
+  border-color: var(--color-ink);
+  background: var(--color-ink);
+  color: var(--color-surface);
+}
+
+.chip-select__empty {
+  @apply py-3 text-center text-xs;
+  color: var(--color-ink-muted);
+}
+/* ── 收藏夹网格与多列文章卡（票 345）────────────────────────────
+ *
+ * 收藏夹从"左栏列表 + 右栏内容"改成"网格 + 大弹窗"：
+ * 一进来先看全部夹子，点哪张进哪张。卡片只在 hover / 键盘聚焦时露出
+ * 编辑与删除，静止状态每张卡只有名称、简介与篇数。 */
+.folder-grid {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+}
+
+.folder-card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface);
+  transition: border-color var(--motion-fast) var(--motion-ease),
+    transform var(--motion-fast) var(--motion-ease);
+}
+
+.folder-card:hover,
+.folder-card:focus-within {
+  border-color: var(--color-line-strong);
+  transform: translateY(-1px);
+}
+
+/* 新建后高亮：让"刚建好的那个夹子"在网格里一眼可见（票 345 的交互决定）。 */
+.folder-card--highlight {
+  border-color: var(--color-ink);
+  box-shadow: 0 0 0 2px var(--color-highlight);
+}
+
+.folder-card__open {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 8px;
+  width: 100%;
+  padding: 16px;
+  text-align: left;
+  background: transparent;
+  border: 0;
+  cursor: pointer;
+}
+
+.folder-card__head {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.folder-card__title {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 0.9375rem;
+  font-weight: 600;
+}
+
+.folder-card__count {
+  flex: 0 0 auto;
+  font-size: 0.75rem;
+  font-variant-numeric: tabular-nums;
+  color: var(--color-ink-muted);
+}
+
+.folder-card__abstract {
+  margin: 0;
+  font-size: 0.8125rem;
+  line-height: 1.5;
+  color: var(--color-ink-muted);
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.folder-card__actions {
+  display: flex;
+  gap: 4px;
+  justify-content: flex-end;
+  padding: 0 12px 12px;
+  opacity: 0;
+  transition: opacity var(--motion-fast) var(--motion-ease);
+}
+
+.folder-card:hover .folder-card__actions,
+.folder-card:focus-within .folder-card__actions {
+  opacity: 1;
+}
+
+@media (hover: none) {
+  .folder-card__actions {
+    opacity: 1;
+  }
+}
+
+/* 弹窗内的文章栅格：2–3 列自适应。 */
+.article-grid {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+}
+
+.favorite-modal__body {
+  max-height: calc(85vh - 120px);
+  overflow-y: auto;
+  padding-right: 4px;
+}
+
+.article-grid-card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-md);
+  background: var(--color-surface-raised);
+  transition: border-color var(--motion-fast) var(--motion-ease),
+    transform var(--motion-fast) var(--motion-ease);
+}
+
+.article-grid-card:hover,
+.article-grid-card:focus-within {
+  border-color: var(--color-line-strong);
+  transform: translateY(-1px);
+}
+
+.article-grid-card__link {
+  display: block;
+  padding: 8px 8px 0;
+  color: inherit;
+  text-decoration: none;
+}
+
+.article-grid-card__cover {
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  overflow: hidden;
+  border-radius: var(--radius-sm);
+  background: var(--color-bg-subtle);
+}
+
+.article-grid-card__cover img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.article-grid-card__title {
+  margin: 8px 0 0;
+  font-size: 0.875rem;
+  font-weight: 600;
+  line-height: 1.4;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.article-grid-card__meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px;
+  font-size: 0.6875rem;
+  font-variant-numeric: tabular-nums;
+  color: var(--color-ink-muted);
+}
+
+.article-grid-card__stats {
+  display: flex;
+  gap: 8px;
+}
+
+/* hover 才出现的「移出收藏夹」：静止状态下卡片只留信息。 */
+.article-grid-card__action {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  padding: 2px 8px;
+  font-size: 0.6875rem;
+  color: var(--color-ink);
+  background: var(--color-surface);
+  border: 1px solid var(--color-line-strong);
+  border-radius: var(--radius-pill);
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity var(--motion-fast) var(--motion-ease);
+}
+
+.article-grid-card:hover .article-grid-card__action,
+.article-grid-card:focus-within .article-grid-card__action {
+  opacity: 1;
+}
+
+@media (hover: none) {
+  .article-grid-card__action {
+    opacity: 1;
+  }
+}
+/* ── 我的文章压缩行卡（票 351）────────────────────────────────
+ *
+ * 用户嫌原来的列表项太高、"多余的行"太多：一张卡里塞了状态行、操作行、
+ * 再一张通用 feed 卡。这里压成**一层**：封面固定 160×90 在左，右侧一列
+ * 是标题 / 摘要两行 / 标签 / 底部一行；底部左边状态与操作、右边四个计数。
+ *
+ * 高度靠 160×90 的封面兜住：摘要超过两行就截断，不会把卡片撑高。 */
+.studio-article-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.studio-article-row {
+  display: flex;
+  gap: 12px;
+  padding: 10px;
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+  transition: border-color var(--motion-fast) var(--motion-ease);
+}
+
+.studio-article-row:hover,
+.studio-article-row:focus-within {
+  border-color: var(--color-line-strong);
+}
+
+/* 左列与封面同宽：状态与操作就在封面正下方（规格 US1），
+ * 而不是散在卡片底部与右侧正文混排。 */
+.studio-article-row__aside {
+  display: flex;
+  flex: 0 0 160px;
+  flex-direction: column;
+  gap: 6px;
+  width: 160px;
+}
+
+.studio-article-row__cover {
+  width: 160px;
+  height: 90px;
+  overflow: hidden;
+  border-radius: var(--radius-sm);
+  background: var(--color-bg-subtle);
+}
+
+.studio-article-row__cover img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.studio-article-row__cover-empty {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.studio-article-row__body {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.studio-article-row__title {
+  font-size: 0.9375rem;
+  font-weight: 600;
+  line-height: 1.35;
+  color: var(--color-ink);
+  text-decoration: none;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.studio-article-row__title:hover {
+  text-decoration: underline;
+}
+
+.studio-article-row__abstract {
+  margin: 0;
+  font-size: 0.8125rem;
+  line-height: 1.45;
+  color: var(--color-ink-muted);
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.studio-article-row__tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.studio-article-row__tag,
+.studio-article-row__tag-more {
+  padding: 0 6px;
+  font-size: 0.6875rem;
+  line-height: 1.6;
+  color: var(--color-ink-muted);
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-pill);
+}
+
+/* 标签与四个计数共用同一条基线（规格 US1）：标签在左、计数贴最右。
+ * 用 flex + space-between 而不是两行，是因为规格明确要求"同一条 baseline"。 */
+.studio-article-row__baseline {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-top: auto;
+  padding-top: 2px;
+  min-width: 0;
+}
+
+.studio-article-row__status-line,
+.studio-article-row__actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+}
+
+.studio-article-row__status {
+  padding: 0 6px;
+  font-size: 0.6875rem;
+  line-height: 1.6;
+  border-radius: var(--radius-pill);
+  border: 1px solid var(--color-line);
+  color: var(--color-ink-muted);
+}
+
+/* 状态色只用现有语义 token：设计系统没有独立的 success / warning 色对，
+ * 所以"已发布"用强描边 + 次级底、"需注意"用记号笔黄底、"拒绝/异常"用珊瑚。 */
+.studio-article-row__status--success {
+  color: var(--color-ink);
+  border-color: var(--color-line-strong);
+  background: var(--color-bg-subtle);
+}
+
+.studio-article-row__status--warning {
+  color: var(--color-ink);
+  border-color: var(--color-line-strong);
+  background: var(--color-highlight);
+}
+
+.studio-article-row__status--error {
+  color: var(--color-danger-ink);
+  border-color: var(--color-danger-line);
+}
+
+.studio-article-row__action {
+  font-size: 0.75rem;
+  color: var(--color-ink-muted);
+  background: transparent;
+  border: 0;
+  padding: 0;
+  cursor: pointer;
+  text-decoration: none;
+}
+
+.studio-article-row__action:hover {
+  color: var(--color-ink);
+  text-decoration: underline;
+}
+
+.studio-article-row__action--danger:hover {
+  color: var(--color-danger-ink);
+}
+
+.studio-article-row__counts {
+  display: flex;
+  flex: 0 0 auto;
+  gap: 10px;
+  font-size: 0.6875rem;
+  font-variant-numeric: tabular-nums;
+  color: var(--color-ink-muted);
+}
+
+.studio-article-row__counts span {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+}
+
+/* 窄屏：封面缩到 112×63 并靠上，操作与计数各自换行，避免挤成一团。 */
+@media (max-width: 720px) {
+  .studio-article-row__aside,
+  .studio-article-row__cover {
+    flex-basis: 112px;
+    width: 112px;
+  }
+
+  .studio-article-row__cover {
+    height: 63px;
+  }
+
+  /* 窄屏标签与计数不再挤一行：基线换成上下两段，否则标签会被压成竖排。 */
+  .studio-article-row__baseline {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 6px;
+  }
+}
+/* 分类弹窗里的状态角标（票 351 故事 21）：草稿 / 待审核 / 已拒绝要一眼可见。
+ * 用绝对定位压在卡片左上，不占卡片布局高度。 */
+.category-status-badge {
+  position: absolute;
+  top: 12px;
+  left: 12px;
+  padding: 0 8px;
+  font-size: 0.6875rem;
+  line-height: 1.7;
+  border-radius: var(--radius-pill);
+  color: var(--color-ink);
+  background: var(--color-surface);
+  border: 1px solid var(--color-line-strong);
+}
+
+/* 草稿用记号笔黄底：它是"还没发出去"，不是错误。 */
+.category-status-badge[data-status="1"] {
+  background: var(--color-highlight);
+}
+
+/* 被拒是异常，用珊瑚。 */
+.category-status-badge[data-status="4"] {
+  color: var(--color-danger-ink);
+  border-color: var(--color-danger-line);
+}
+/* 侧栏子项（票 355）：缩进 + 更小的字，父项保持激活态。 */
+.studio-sidebar__link--child {
+  padding-left: 2.25rem;
+  font-size: 0.8125rem;
+  color: var(--color-ink-muted);
+}
+
+.studio-sidebar__link--child.is-active {
+  color: var(--color-ink);
+  font-weight: 600;
+}
+
+/* 账号设置的字段行（票 355）：左侧固定 140px 标签列，右侧控件。
+ * 固定列宽是为了让五个分栏里的控件左边缘对齐 —— 之前每个 label 各自
+ * 决定宽度，眼睛要在锯齿状的竖线之间来回跳。 */
+.settings-row {
+  display: grid;
+  gap: 0.5rem 1rem;
+  grid-template-columns: 140px minmax(0, 1fr);
+  align-items: center;
+  padding: 0.75rem 0;
+  border-bottom: 1px solid var(--color-line-faint);
+}
+
+.settings-row:last-child {
+  border-bottom: 0;
+}
+
+.settings-row__label {
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: var(--color-ink);
+}
+
+.settings-row__control {
+  min-width: 0;
+}
+
+/* 开关行：标题 + 说明，右侧开关。说明文字让用户知道打开/关掉会发生什么。 */
+.settings-row--switch {
+  align-items: start;
+}
+
+.settings-row__hint {
+  margin: 0.25rem 0 0;
+  font-size: 0.75rem;
+  line-height: 1.5;
+  color: var(--color-ink-muted);
+}
+
+/* 窄屏：标签列折到控件上方（140px 在手机上会把控件压成一条）。 */
+@media (max-width: 640px) {
+  .settings-row {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+/* 设置页的分栏 tab（票 355）：与侧栏子项指向同一组 ?section=。 */
+.settings-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  padding-bottom: 0.25rem;
+}
+
+.settings-tabs__tab {
+  padding: 0.375rem 0.875rem;
+  font-size: 0.875rem;
+  color: var(--color-ink-muted);
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-pill);
+  text-decoration: none;
+  transition: border-color var(--motion-fast) var(--motion-ease),
+    color var(--motion-fast) var(--motion-ease);
+}
+
+.settings-tabs__tab:hover {
+  border-color: var(--color-line-strong);
+  color: var(--color-ink);
+}
+
+.settings-tabs__tab.is-active {
+  color: var(--color-surface);
+  background: var(--color-ink);
+  border-color: var(--color-ink);
+}
+/* 创作热力图（票 354）：13 列 × 7 行，每列一周（周一起）。
+ * 格子是按钮（可聚焦），颜色只是辅助编码 —— 提示里始终有具体次数。 */
+.activity-heatmap__grid {
+  display: grid;
+  grid-auto-flow: column;
+  grid-template-rows: repeat(7, 1fr);
+  gap: 3px;
+  overflow-x: auto;
+  padding-bottom: 0.25rem;
+}
+
+.activity-heatmap__cell {
+  width: 14px;
+  height: 14px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: var(--color-bg-subtle);
+  cursor: pointer;
+}
+
+.activity-heatmap__cell--l1 {
+  background: var(--color-line-strong);
+}
+
+.activity-heatmap__cell--l2 {
+  background: var(--color-ink-faint);
+}
+
+.activity-heatmap__cell--l3 {
+  background: var(--color-ink-muted);
+}
+
+.activity-heatmap__cell--l4 {
+  background: var(--color-ink);
+}
+
+.activity-heatmap__cell:focus-visible {
+  outline: 2px solid var(--color-focus);
+  outline-offset: 1px;
+}
+
+.activity-heatmap__dot {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+/* 指标卡与 KPI 横条（票 354）。
+ *
+ * 横条用 auto-fit：五个指标在宽屏一行铺满，窄屏自动折成两列 / 一列，
+ * 不需要断点。卡片本身只管排版，数字动画在组件里。 */
+.metric-strip {
+  display: grid;
+  gap: 10px;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+}
+
+.metric-card {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 12px 14px;
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+}
+
+/* 零值降级：只在调用方明确要求时变淡（例如待处理全是 0）。 */
+.metric-card--dim {
+  color: var(--color-ink-muted);
+}
+
+.metric-card__label {
+  font-size: 0.75rem;
+  color: var(--color-ink-muted);
+}
+
+.metric-card__value {
+  font-size: 1.375rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.2;
+}
+
+.metric-card__suffix {
+  margin-left: 2px;
+  font-size: 0.75rem;
+  font-weight: 400;
+  color: var(--color-ink-muted);
+}
+
+.metric-card__hint {
+  font-size: 0.6875rem;
+  color: var(--color-ink-faint);
+}
+/* 收藏夹选择行（票 345）：两行紧凑行 + 右侧圆形 ＋/✓。
+ *
+ * 之前每个夹子是一张 640px 大卡（标题 + 两行说明 + 文字按钮），一屏只能看到
+ * 三四个；改成两行之后一屏能看十几个，而且"收/移"变成一次点击而不是读一段文案。 */
+.favorite-chooser-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--color-line-faint);
+  transition: background-color var(--motion-fast) var(--motion-ease);
+}
+
+.favorite-chooser-row:last-child {
+  border-bottom: 0;
+}
+
+.favorite-chooser-row:hover {
+  background: var(--color-bg-subtle);
+}
+
+.favorite-chooser-row__body {
+  min-width: 0;
+  flex: 1;
+}
+
+.favorite-chooser-row__line {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  min-width: 0;
+}
+
+.favorite-chooser-row__title {
+  font-size: 0.875rem;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.favorite-chooser-row__badge {
+  flex: 0 0 auto;
+  padding: 0 6px;
+  font-size: 0.6875rem;
+  line-height: 1.6;
+  color: var(--color-ink-muted);
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-pill);
+}
+
+/* 篇数贴在这一行的最右边（与标题同一基线）。 */
+.favorite-chooser-row__count {
+  margin-left: auto;
+  flex: 0 0 auto;
+  font-size: 0.6875rem;
+  font-variant-numeric: tabular-nums;
+  color: var(--color-ink-muted);
+}
+
+.favorite-chooser-row__abstract {
+  margin: 2px 0 0;
+  font-size: 0.75rem;
+  line-height: 1.5;
+  color: var(--color-ink-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* 圆形 ＋/✓：已收藏是实心墨底，未收藏是描边。 */
+.favorite-chooser-row__toggle {
+  flex: 0 0 auto;
+  width: 28px;
+  height: 28px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.875rem;
+  line-height: 1;
+  color: var(--color-ink);
+  background: var(--color-surface);
+  border: 1px solid var(--color-line-strong);
+  border-radius: var(--radius-pill);
+  cursor: pointer;
+  transition: background-color var(--motion-fast) var(--motion-ease),
+    color var(--motion-fast) var(--motion-ease);
+}
+
+.favorite-chooser-row__toggle:hover {
+  background: var(--color-bg-subtle);
+}
+
+.favorite-chooser-row__toggle.is-included {
+  color: var(--color-surface);
+  background: var(--color-ink);
+  border-color: var(--color-ink);
+}
+
+.favorite-chooser-row__toggle:disabled {
+  cursor: progress;
+  opacity: 0.6;
 }

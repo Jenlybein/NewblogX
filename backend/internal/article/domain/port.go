@@ -31,6 +31,31 @@ type Repository interface {
 
 	// SoftDelete 标记删除（不物理删）。
 	SoftDelete(ctx context.Context, id ArticleID) error
+
+	// AuthorContentStats 一次读出某作者的内容概览（票 354）。
+	//
+	// 一条 SQL 同时给出各发布态的数量与四个互动计数之和：个人数据概览要在
+	// 首屏把这七个数字全显示出来，逐个查就是七次往返。
+	AuthorContentStats(ctx context.Context, authorID UserID) (ContentStats, error)
+
+	// ListRecentByAuthor 按创建时间倒序列出某作者最近的文章。
+	ListRecentByAuthor(ctx context.Context, authorID UserID, limit int) ([]*Article, error)
+
+	// ListTopByAuthor 按阅读量倒序列出某作者的文章（个人概览的"阅读 Top 5"）。
+	ListTopByAuthor(ctx context.Context, authorID UserID, limit int) ([]*Article, error)
+}
+
+// ContentStats 是某作者内容的聚合数字（票 354）。
+//
+// 只含**未软删**的文章：删掉的文章不该继续算在"我有多少内容"里。
+type ContentStats struct {
+	// StatusCounts 是各发布态的文章数（key 是发布态）。
+	StatusCounts map[Status]int64
+	// SumView / SumDigg / SumComment / SumFavor 是四个互动计数之和。
+	SumView    int64
+	SumDigg    int64
+	SumComment int64
+	SumFavor   int64
 }
 
 // Filter 是列表查询条件。

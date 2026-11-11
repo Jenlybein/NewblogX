@@ -367,7 +367,10 @@ func (h *Handler) UpdateImageGcSection(c *gin.Context) {
 // @Router /site/site [get]
 func (h *Handler) PublicSiteSection(c *gin.Context) {
 	if h.onPublicSiteView != nil {
-		h.onPublicSiteView()
+		// 访问口径（票 349）：把 IP 与 UA 一起交给计数器 —— 它按
+		// "同一 IP + 同一 UA 在每个东八区自然日只算一次"去重，并过滤爬虫。
+		// 之前这里只传"发生了一次"，所以每一次配置读取都算一次访问。
+		h.onPublicSiteView(c.ClientIP(), c.Request.UserAgent())
 	}
 	res.OkWithData(SiteSectionSiteResponse(h.svc.PublicSite()), c)
 }

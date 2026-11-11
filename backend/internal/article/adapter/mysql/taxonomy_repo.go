@@ -335,6 +335,43 @@ func (r *TagRepo) Delete(ctx context.Context, id domain.TagID) error {
 	return r.db.WithContext(ctx).Delete(&tagRow{}, "id = ?", ctype.ID(id)).Error
 }
 
+// ListIDs 返回全部未软删标签的 ID（换序的集合校验用）。
+//
+// 与 List 的读口径一致：**包含停用项**——后台网格展示的是词库全集，提交的
+// 完整序列必须与这个集合相等。集合校验只比成员、不比顺序，所以这里不排序：
+// 多一个 ORDER BY 只会让人以为顺序有意义。
+func (r *TagRepo) ListIDs(ctx context.Context) ([]domain.TagID, error) {
+	var raw []ctype.ID
+	err := r.db.WithContext(ctx).Model(&tagRow{}).
+		Pluck("id", &raw).Error
+	if err != nil {
+		return nil, err
+	}
+	out := make([]domain.TagID, 0, len(raw))
+	for _, v := range raw {
+		out = append(out, domain.TagID(v))
+	}
+	return out, nil
+}
+
+// UpdateSortOrders 把给定顺序落成 sort 值。
+//
+// 列表读面是 `ORDER BY sort desc, id asc`，所以第 0 个（网格最靠前）拿最大的
+// sort：n、n-1 … 1。逐条 UPDATE 足够（标签以百计），不折腾 CASE WHEN。
+// 集合一致性由 app 层的 taxonomy.CheckSortOrder 保证，这里只负责落库。
+func (r *TagRepo) UpdateSortOrders(ctx context.Context, ids []domain.TagID) error {
+	db := r.db.WithContext(ctx)
+	n := len(ids)
+	for i, id := range ids {
+		if err := db.Model(&tagRow{}).
+			Where("id = ?", ctype.ID(id)).
+			Update("sort", n-i).Error; err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 // ReplaceArticleTags 用给定集合替换文章标签。
 //
 // 关系表是 many2many 自动建的纯 join 表（无 id / 无 deleted_at），

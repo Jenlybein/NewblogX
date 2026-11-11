@@ -223,33 +223,38 @@ watch(
         </template>
 
         <template v-else-if="folders.length">
+          <!-- 两行紧凑行（票 345）：名称 + 篇数徽标在第一行，简介一行在第二行；
+               右侧是圆形 ＋ / ✓ 按钮 —— 一屏能看十几个夹子，点一下即收 / 移。
+               之前是 640px 大卡 + 文字按钮，一屏只看得到三四个。 -->
           <div
             v-for="folder in sortedFolders"
             :key="folder.id"
-            class="surface-section mb-3 flex flex-col gap-3 p-4 last:mb-0 md:flex-row md:items-center md:justify-between"
+            class="favorite-chooser-row"
+            :class="{ 'is-included': folder.has_article }"
+            :data-role="`favorite-folder-row-${folder.id}`"
           >
-            <div class="min-w-0">
-              <div class="flex flex-wrap items-center gap-2">
-                <div class="font-semibold">{{ folder.title }}</div>
-                <span v-if="folder.is_default" class="glass-badge">默认</span>
-                <span v-if="folder.has_article" class="glass-badge">已包含当前文章</span>
+            <div class="favorite-chooser-row__body">
+              <div class="favorite-chooser-row__line">
+                <span class="favorite-chooser-row__title">{{ folder.title }}</span>
+                <span v-if="folder.is_default" class="favorite-chooser-row__badge">默认</span>
+                <span class="favorite-chooser-row__count" :data-role="`favorite-folder-count-${folder.id}`">
+                  {{ folder.article_count ?? 0 }} 篇
+                </span>
               </div>
-              <p class="mt-2 text-sm leading-6 muted">
-                {{ folder.abstract || "这个收藏夹还没有补充说明。" }}
-              </p>
-              <div class="mt-2 text-xs muted">
-                共 {{ folder.article_count }} 篇文章
-              </div>
+              <p class="favorite-chooser-row__abstract">{{ folder.abstract || "还没有简介" }}</p>
             </div>
 
-            <NButton
-              :type="folder.has_article ? 'default' : 'primary'"
-              :ghost="!folder.has_article"
-              :loading="actionPendingId === folder.id"
-              @click="handleToggleFolder(folder)"
-            >
-              {{ folder.has_article ? "移出收藏夹" : "加入收藏夹" }}
-            </NButton>
+            <button
+              type="button"
+              class="favorite-chooser-row__toggle"
+              :class="{ 'is-included': folder.has_article }"
+              :disabled="actionPendingId === folder.id"
+              :aria-pressed="folder.has_article"
+              :aria-label="folder.has_article ? `从「${folder.title}」移出` : `收藏到「${folder.title}」`"
+              :data-role="`favorite-folder-toggle-${folder.id}`"
+              @click="handleToggleFolder(folder)">
+              {{ actionPendingId === folder.id ? "…" : folder.has_article ? "✓" : "＋" }}
+            </button>
           </div>
         </template>
 

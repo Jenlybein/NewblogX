@@ -2,31 +2,108 @@ package redis_site
 
 import (
 	"context"
+	"crypto/sha1"
+	"encoding/hex"
 	"myblogx/internal/platform/redis"
+	"myblogx/internal/platform/timezone"
 	"strconv"
+	"strings"
 	"time"
 )
 
 const (
-	siteFlowTotalKey = "blog_site_flow:total"
-	siteFlowDailyKey = "blog_site_flow:daily"
-	maxDailyFlowDays = 30
+	// siteFlowTotalKey 是累计访问量。
+	//
+	// 键名带 v2（票 349）：旧口径把每一次配置读取都算一次访问，既不去重也不过滤
+	// 爬虫，累积出来的数字与"有多少人来过"没有关系。旧键不再读取 —— 这就是
+	// "把旧累计清零"，且不需要一次破坏性的 DEL 就能让界面立刻回到真实口径。
+	siteFlowTotalKey = "blog_site_flow:total:v2"
+	// siteFlowDailyKey 是按天（Asia/Shanghai 自然日）的访问量。
+	siteFlowDailyKey = "blog_site_flow:daily:v2"
+	// siteFlowSeenKeyPrefix 是"这一天见过哪些访客"的去重集合。
+	siteFlowSeenKeyPrefix = "blog_site_flow:seen:"
+	// MaxDailyFlowDays 是按天访问量的保留期。
+	//
+	// 导出是因为统计读面也要用它：概览里"窗口内访问"只能覆盖这么多天，
+	// 两处各写一个 30 迟早会漂，而漂了之后"今年访问"会静默只算 30 天。
+	MaxDailyFlowDays = 30
 )
 
+// maxDailyFlowDays 保留内部短名，读起来更顺（导出名只给跨包用）。
+const maxDailyFlowDays = MaxDailyFlowDays
+
+// DateCountItem 是"某天有多少次访问"。
 type DateCountItem struct {
 	Date  string
 	Count int
 }
 
-// SetFlow 写入站点流量
-func SetFlow(deps redis_service.Options) {
+// flowTimezone 是"自然日"的边界（票 349）。
+//
+// 固定东八区而不是服务器本地时区：站点面向中文读者，服务器跑在 UTC 时
+// 用本地时区切天，用户在凌晨 0–8 点看到的"今天"其实是昨天。
+var flowTimezone = timezone.Shanghai()
+
+// crawlerUserAgents 是爬虫 / 监控的特征串（小写匹配）。
+//
+// 只挡明显的机器人：宁可漏掉几个小众爬虫，也不要把真人挡在外面 ——
+// 少算一次访问只是数字偏小，把真人当爬虫会让"访客数"长期偏低且无从发现。
+var crawlerUserAgents = []string{
+	"bot", "spider", "crawler", "slurp", "curl/", "wget/", "python-requests",
+	"headlesschrome", "lighthouse", "pingdom", "uptime", "monitor",
+}
+
+// IsCrawler 判断这次请求是不是爬虫（按 User-Agent）。
+func IsCrawler(userAgent string) bool {
+	ua := strings.ToLower(userAgent)
+	for _, marker := range crawlerUserAgents {
+		if strings.Contains(ua, marker) {
+			return true
+		}
+	}
+	return false
+}
+
+// SetFlow 记一次站点访问。
+//
+// 口径（票 349）：**同一 IP + 同一 User-Agent 在同一自然日内只算一次**，
+// 且爬虫不计。去重集合按天存、两天后过期，所以内存占用与"一天的访客数"成正比。
+func SetFlow(deps redis_service.Options, ip, userAgent string) {
 	if deps.Client == nil {
+		return
+	}
+	if IsCrawler(userAgent) {
 		return
 	}
 
 	ctx := context.Background()
-	now := time.Now()
+	now := time.Now().In(flowTimezone)
 	today := now.Format("2006-01-02")
+
+	// 访客指纹：IP + UA。没有 IP（例如内网直连）时用 UA 兜底，
+	// 否则所有"没有 IP"的请求会被当成同一个访客、一天只算一次。
+	visitor := ip + "|" + userAgent
+	if strings.TrimSpace(ip) == "" {
+		visitor = "noip|" + userAgent
+	}
+	sum := sha1.Sum([]byte(visitor))
+	fingerprint := hex.EncodeToString(sum[:])
+
+	seenKey := siteFlowSeenKeyPrefix + today
+	added, err := deps.Client.SAdd(ctx, seenKey, fingerprint).Result()
+	if err != nil {
+		if deps.Logger != nil {
+			deps.Logger.Errorf("站点访问去重失败: %v", err)
+		}
+		return
+	}
+	// 集合两天后过期：今天与"跨零点还在看的那个会话"都够用。
+	deps.Client.Expire(ctx, seenKey, 48*time.Hour)
+
+	// 这个访客今天已经算过了：不再累加。
+	if added == 0 {
+		return
+	}
 
 	pipe := deps.Client.TxPipeline()
 	pipe.IncrBy(ctx, siteFlowTotalKey, 1)
@@ -41,7 +118,7 @@ func SetFlow(deps redis_service.Options) {
 	pruneExpiredDailyFlow(deps, now)
 }
 
-// GetFlow 读取站点流量
+// GetFlow 读取累计访问量。
 func GetFlow(deps redis_service.Options) int {
 	if deps.Client == nil {
 		return 0
@@ -50,13 +127,13 @@ func GetFlow(deps redis_service.Options) int {
 	return num
 }
 
-// GetRecentFlow 获取最近 days 天的站点流量
+// GetRecentFlow 获取最近 days 天的站点访问量（按东八区自然日）。
 func GetRecentFlow(deps redis_service.Options, days int) []DateCountItem {
 	if deps.Client == nil || days <= 0 {
 		return nil
 	}
 
-	now := time.Now()
+	now := time.Now().In(flowTimezone)
 	pruneExpiredDailyFlow(deps, now)
 
 	values, err := deps.Client.HGetAll(context.Background(), siteFlowDailyKey).Result()
@@ -68,7 +145,7 @@ func GetRecentFlow(deps redis_service.Options, days int) []DateCountItem {
 	}
 
 	dateCountList := make([]DateCountItem, 0, days)
-	start := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location()).AddDate(0, 0, -(days - 1))
+	start := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, flowTimezone).AddDate(0, 0, -(days - 1))
 	for i := 0; i < days; i++ {
 		date := start.AddDate(0, 0, i).Format("2006-01-02")
 		count, _ := strconv.Atoi(values[date])

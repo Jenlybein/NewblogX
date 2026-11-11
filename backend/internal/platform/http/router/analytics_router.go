@@ -35,6 +35,9 @@ func DataRouter(r *gin.RouterGroup, runtimeMw mw.Runtime) {
 	adminGroup.GET("article-year", app.ArticleYearDataView)
 	// AI token 用量趋势：首页「今日/本周/本月/本年」切换都走它。
 	adminGroup.GET("ai-usage", mw.BindQuery[analyticshttp.AIUsageRequest], app.AIUsageView)
+	// 站点概览的补充计数（票 349）：只放已有端点没提供的数字，
+	// 任何"已经有端点"的数据都不在这里重复。
+	adminGroup.GET("overview", mw.BindQuery[analyticshttp.OverviewRequest], app.OverviewView)
 }
 
 // LogRouter 注册日志查询路由。
@@ -68,4 +71,6 @@ func LogRouter(r *gin.RouterGroup, runtimeMw mw.Runtime) {
 	// 死信（DLQ）：看得见 + 补得上。重投是写操作，天然落在这个 admin 分组里。
 	group.GET("dead-letter", mw.BindQuery[analyticshttp.DeadLetterListRequest], app.DeadLetterListView)
 	group.POST("dead-letter/replay", mw.BindJson[analyticshttp.DeadLetterReplayRequest], app.DeadLetterReplayView)
+	// 删掉"没法处理"的死信（票 356）：物理删除，不动 outbox 的 dead 行。
+	group.DELETE("dead-letter", mw.BindJson[analyticshttp.DeadLetterDeleteRequest], app.DeadLetterDeleteView)
 }

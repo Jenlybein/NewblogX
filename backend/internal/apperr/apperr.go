@@ -93,6 +93,11 @@ const (
 	// 提示里要带引用篇数，所以调用点的文案由 taxonomy.TagInUseError 动态生成；
 	// 这里登记的是兜底文案（错误码表要求每个码都有可读消息）。
 	CodeTagInUse Code = "taxonomy.tag_in_use"
+	// CodeTagOrderMismatch 标签全集顺序替换的输入与当前集合不一致（票 346）。
+	//
+	// 与 project.order_mismatch 同一条语义：后台拿到的是上一次读到的列表，
+	// 期间有人改名/新建/删除后整单拒绝，让前端刷新后重试，而不是把别人的改动排丢。
+	CodeTagOrderMismatch Code = "taxonomy.tag_order_mismatch"
 )
 
 // 收藏。
@@ -158,6 +163,22 @@ const (
 	CodeProjectNotFound Code = "project.not_found"
 	// CodeProjectOrderMismatch 全集顺序替换的输入与当前集合不一致。
 	CodeProjectOrderMismatch Code = "project.order_mismatch"
+
+	// ── 合集 / 项目分组（ADR-0041）──
+	//
+	// 分组是两个实体共用的一套编排语义，所以错误码不按实体分叉：
+	// 同一个结构错误不该出现两种码，前端要维护两份映射。
+	//
+	// CodeGroupTitleRequired 分组标题为空。
+	CodeGroupTitleRequired Code = "group.title_required"
+	// CodeGroupTitleTooLong 分组标题超过上限。
+	CodeGroupTitleTooLong Code = "group.title_too_long"
+	// CodeGroupNotFound 分组不存在。
+	CodeGroupNotFound Code = "group.not_found"
+	// CodeGroupOrderMismatch 整树顺序提交的输入与当前集合不一致。
+	CodeGroupOrderMismatch Code = "group.order_mismatch"
+	// CodeGroupWiring 装配层没有提供分组仓储（部署 / 装配缺陷，不是用户操作问题）。
+	CodeGroupWiring Code = "group.wiring"
 )
 
 // 目录树（合集 / 项目共用的一张树表）。
@@ -512,6 +533,7 @@ var messages = map[Code]string{
 	CodeTagNotFound:           "标签不存在",
 	CodeTagDisabled:           "标签不存在或已停用",
 	CodeTagInUse:              "该标签已有文章在用，请改用停用",
+	CodeTagOrderMismatch:      "排序列表与当前标签不一致，请刷新后重试",
 
 	CodeFavoriteTitleRequired: "收藏夹名称不能为空",
 	CodeFavoriteFolderMissing: "收藏夹不存在",
@@ -535,6 +557,11 @@ var messages = map[Code]string{
 	CodeProjectTitleTooLong:  "项目标题不能超过 128 个字符",
 	CodeProjectNotFound:      "项目不存在",
 	CodeProjectOrderMismatch: "排序列表与当前项目内容不一致，请刷新后重试",
+	CodeGroupTitleRequired:   "分组标题不能为空",
+	CodeGroupTitleTooLong:    "分组标题不能超过 128 个字符",
+	CodeGroupNotFound:        "分组不存在",
+	CodeGroupOrderMismatch:   "分组顺序与当前内容不一致，请刷新后重试",
+	CodeGroupWiring:          "分组功能未就绪（服务端装配缺失），请联系管理员",
 
 	CodeOutlineTitleRequired:        "文件夹标题不能为空",
 	CodeOutlineTitleTooLong:         "文件夹标题不能超过 128 个字符",

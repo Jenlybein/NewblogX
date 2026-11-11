@@ -246,15 +246,19 @@ var groupModels = map[Group][]any{
 	},
 	Collection: {
 		&CollectionRow{},
+		&CollectionGroupRow{},
+		&CollectionGroupItemRow{},
 	},
 	Project: {
 		&ProjectRow{},
+		&ProjectGroupRow{},
+		&ProjectGroupItemRow{},
 	},
 	Outline: {
 		&CollectionOutlineNodeRow{},
 		&ProjectOutlineNodeRow{},
 	},
-	// All 是**全部 41 张表**，只用于"schema.sql 与自持行是否一致"的契约测试。
+	// All 是**全部 45 张表**，只用于"schema.sql 与自持行是否一致"的契约测试。
 	//
 	// 为什么不复用上面那些组拼起来：拼装顺序一变，这个测试就变成
 	// "测拼装顺序"而不是"测结构一致性"。这里写死一份，顺序沿用当年
@@ -279,7 +283,11 @@ var groupModels = map[Group][]any{
 		&UserTopArticleRow{},
 		&ArticleHotTopRow{},
 		&CollectionRow{},
+		&CollectionGroupRow{},
+		&CollectionGroupItemRow{},
 		&ProjectRow{},
+		&ProjectGroupRow{},
+		&ProjectGroupItemRow{},
 		&CollectionOutlineNodeRow{},
 		&ProjectOutlineNodeRow{},
 		&ImageRow{},

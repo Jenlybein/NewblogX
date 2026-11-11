@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, shallowRef, watch } from "vue";
-import { NButton, NInput, NPagination, NTag, useMessage } from "naive-ui";
-import ArticleFeedItem from "~/components/article/ArticleFeedItem.vue";
+import { NButton, NInput, NPagination, useMessage } from "naive-ui";
+import StudioArticleRow from "~/components/studio/StudioArticleRow.vue";
 import { deleteOwnArticle } from "~/services/article";
 import { getTagOptions } from "~/services/search";
 import { errorMessage } from "~/utils/errorMessage";
@@ -145,11 +145,31 @@ function statusLabel(status: number) {
   return statusOptions.find((item) => item.value === status)?.label ?? `状态 ${status}`;
 }
 
-function statusType(status: number) {
+function statusType(status: number): "default" | "success" | "warning" | "error" {
   if (status === 3) return "success";
   if (status === 2) return "warning";
   if (status === 4) return "error";
   return "default";
+}
+
+/**
+ * 卡片上唯一的"异常状态"标签：可见性异常优先，其次"评论已关闭"。
+ *
+ * 名字如实说明它可能返回两类东西 —— 之前叫 visibilityLabel 却会返回
+ * "评论已关闭"，读代码的人会以为只有可见性。
+ */
+function articleStateLabel(item: { visibility_status?: string; comments_toggle?: boolean }) {
+  if (item.visibility_status && item.visibility_status !== "visible") {
+    if (item.visibility_status === "user_hidden") return "仅自己可见";
+    if (item.visibility_status === "admin_hidden") return "管理员隐藏";
+    return item.visibility_status;
+  }
+  return item.comments_toggle === false ? "评论已关闭" : "";
+}
+
+/** 打开编辑器：与原先同一个入口（新标签页的写文章页，带 article_id）。 */
+function openEditor(id: string) {
+  openWriteEntry({ articleId: id });
 }
 
 async function handleDelete(id: string) {
@@ -253,43 +273,18 @@ useNoIndexPage();
     </section>
 
     <section class="surface-card p-5 md:p-6">
-      <div v-if="articles.length" class="space-y-5">
-        <article
+      <!-- 票 351：列表项压成一层卡片。封面固定 160×90 在左，右侧一列是
+           标题 / 摘要两行 / 标签 / 底部一行；底部左边状态与操作、右边四个计数。 -->
+      <div v-if="articles.length" class="studio-article-list">
+        <StudioArticleRow
           v-for="item in articles"
           :key="item.id"
-          class="rounded-card border border-line bg-surface p-4 shadow-[0_18px_50px_var(--color-shadow)]"
-        >
-          <div class="mb-3 flex flex-wrap items-center justify-between gap-3">
-            <div class="flex flex-wrap items-center gap-2">
-              <NTag :type="statusType(item.publish_status)" size="small">
-                {{ statusLabel(item.publish_status) }}
-              </NTag>
-              <NTag v-if="item.visibility_status !== 'visible'" size="small" type="warning">
-                {{
-                  item.visibility_status === "user_hidden"
-                    ? "仅自己可见"
-                    : item.visibility_status === "admin_hidden"
-                      ? "管理员隐藏"
-                      : item.visibility_status
-                }}
-              </NTag>
-              <NTag v-if="!item.comments_toggle" size="small" type="warning">评论已关闭</NTag>
-            </div>
-
-            <div class="flex flex-wrap gap-2">
-              <NuxtLink :to="`/article/${item.id}`" class="glass-badge">查看详情</NuxtLink>
-              <NuxtLink
-                :to="{ path: '/studio/write', query: { article_id: item.id } }"
-                target="_blank"
-                rel="noopener noreferrer"
-                class="glass-badge"
-                @click.prevent="openWriteEntry({ articleId: item.id })">编辑</NuxtLink>
-              <NButton quaternary size="small" @click="handleDelete(item.id)">删除</NButton>
-            </div>
-          </div>
-
-          <ArticleFeedItem :article="item" compact :show-author="false" />
-        </article>
+          :article="item"
+          :status-label="statusLabel(item.publish_status)"
+          :status-type="statusType(item.publish_status)"
+          :visibility-label="articleStateLabel(item)"
+          @delete="handleDelete"
+          @edit="openEditor" />
       </div>
 
       <StudioEmptyState

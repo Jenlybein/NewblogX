@@ -19,8 +19,10 @@ import (
 func (h *Handler) ArticleYearDataView(c *gin.Context) {
 	var resp ArticleYearDataResponse
 
-	now := time.Now()
-	currentMonthStart := time.Date(now.Year(), now.Month(), 1, 0, 0, 0, 0, now.Location())
+	// 边界按东八区切（票 349）：服务器跑在 UTC 时，用本地时区会让"这个月"
+	// 在月初的头八小时落到上个月。
+	now := time.Now().In(statsTimezone)
+	currentMonthStart := time.Date(now.Year(), now.Month(), 1, 0, 0, 0, 0, statsTimezone)
 	rangeStart := currentMonthStart.AddDate(0, -11, 0)
 
 	resp.DateCountList = make([]DateCountItem, 0, 12)

@@ -643,7 +643,7 @@ if backup_file "$ADMIN_CROP_DIALOG"; then
     FAIL=$((FAIL+1))
   elif node scripts/gates/run.mjs image-shaping-parity >"$CANARY_TMP/out.txt" 2>&1; then
     bad "两端裁剪窗组件不一致时，同源门禁没有失败"
-  elif grep -q "两端裁剪窗（ImageCropView / ImageCropDialog）同源门禁失败" "$CANARY_TMP/out.txt"; then
+  elif grep -q "两端同源副本（ImageCropView / ImageCropDialog / MetricCard / motion）门禁失败" "$CANARY_TMP/out.txt"; then
     if grep -q "漂移方向" "$CANARY_TMP/out.txt"; then
       ok "只改后台那份裁剪窗组件会被判为不一致（并报出漂移方向）"
     else

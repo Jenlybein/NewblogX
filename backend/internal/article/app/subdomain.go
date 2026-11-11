@@ -277,17 +277,48 @@ func (s *Service) DeleteTags(ctx context.Context, viewer domain.Viewer, ids []do
 	return deleted, nil
 }
 
+// ReplaceTagSortOrder 用完整有序列表原子重排标签之间的展示顺序（仅管理员）。
+//
+// 输入必须是当前全部未软删标签（含停用）的一个排列（taxonomy.CheckSortOrder）：
+// 集合不一致整单拒绝，后台据此刷新重试，而不是把并发新建 / 删除的标签静默排丢。
+// 落库的是既有 tag_models.sort 列（不是 sort_order）：列表读面按 `sort desc`，
+// 所以第 0 个（网格最靠前）拿到最大的 sort 值。读者站首页标签云不读这个字段。
+func (s *Service) ReplaceTagSortOrder(ctx context.Context, viewer domain.Viewer, ids []domain.TagID) error {
+	if !viewer.IsAdmin() {
+		return domain.ErrForbidden
+	}
+
+	return s.tx.WithinTx(ctx, func(ctx context.Context, r Repos) error {
+		current, err := r.Tags().ListIDs(ctx)
+		if err != nil {
+			return err
+		}
+		if err := taxonomy.CheckSortOrder(current, ids); err != nil {
+			return err
+		}
+		return r.Tags().UpdateSortOrders(ctx, ids)
+	})
+}
+
 // ── 收藏夹 ──
 
 // ListFolders 列出某用户的收藏夹。
-func (s *Service) ListFolders(ctx context.Context, target domain.UserID) ([]*favorite.Folder, error) {
+//
+// viewer 用来判定"这是不是公开读面"：读别人的夹子（含匿名读）只允许看见
+// 已发布文章的计数（与收藏内容同一口径，见 ListFavoriteItems）。
+// articleID 非零时逐夹计算 has_article，供收藏弹窗显示勾/加号（#344）。
+func (s *Service) ListFolders(ctx context.Context, viewer domain.Viewer, target domain.UserID, articleID domain.ArticleID) ([]*favorite.Folder, error) {
 	if target.IsZero() {
 		return nil, domain.ErrForbidden
 	}
 	var out []*favorite.Folder
 	err := s.tx.WithinTx(ctx, func(ctx context.Context, r Repos) error {
 		var err error
-		out, err = r.Favorites().ListFolders(ctx, target)
+		out, err = r.Favorites().ListFolders(ctx, favorite.ListFoldersQuery{
+			UserID:        target,
+			ArticleID:     articleID,
+			PublishedOnly: viewer.UserID != target,
+		})
 		return err
 	})
 	return out, err
@@ -400,8 +431,11 @@ func (s *Service) ListFavoriteItems(ctx context.Context, viewer domain.Viewer, f
 		if !f.BelongsTo(viewer.UserID) && !f.IsDefault() {
 			return favorite.ErrFolderForbidden
 		}
+		// 公开读面（他人夹）只列已发布文章：收藏时的文章可能在之后被撤回，
+		// 读者站不该因此把草稿/审核中的内容放出来（#344）。
+		publishedOnly := !f.BelongsTo(viewer.UserID)
 		p := page.Normalize()
-		items, total, err = r.Favorites().ListItems(ctx, folderID, p.Offset, p.Limit, onlyAdminAuthors)
+		items, total, err = r.Favorites().ListItems(ctx, folderID, p.Offset, p.Limit, onlyAdminAuthors, publishedOnly)
 		if err != nil {
 			return err
 		}

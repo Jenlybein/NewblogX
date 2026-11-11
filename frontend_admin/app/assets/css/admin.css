@@ -252,87 +252,26 @@
     letter-spacing: var(--type-tracking-title);
   }
 
-  /* 纯 CSS 趋势图（7 天 / 12 个月）：不引图表库，柱与线的颜色全部来自 token。
-   * 柱是中性石墨阶（不是功能蓝、更不是克莱因蓝）。 */
+  /* 图表容器（票 349 起由 ECharts 画）：只负责"多大、什么底"，
+   * 不再有柱 / 折线的手写样式 —— 颜色由图表按 token 解析后绘制。 */
   .admin-chart {
-    @apply grid h-[280px] grid-flow-col auto-cols-fr items-stretch gap-2 border p-4;
+    @apply w-full border p-2;
     border-radius: var(--radius-lg);
     border-color: var(--color-line);
     background: var(--color-bg-subtle);
   }
 
-  .admin-chart--year {
-    min-height: 320px;
-  }
 
-  .admin-chart__item {
-    @apply flex min-w-0 flex-col items-center justify-end gap-1;
-  }
 
-  .admin-chart__bar-track {
-    @apply flex w-full flex-1 items-end justify-center;
-    min-height: 150px;
-  }
 
-  .admin-chart__bar {
-    @apply w-full;
-    min-height: 2px;
-    background: linear-gradient(180deg, var(--color-ink), var(--color-ink-muted));
-    transition: height var(--motion-base) var(--motion-ease);
-  }
 
-  .admin-chart__count {
-    @apply text-[11px] font-semibold tabular-nums;
-    color: var(--color-ink);
-  }
 
-  .admin-chart__date {
-    @apply block max-w-full truncate text-[10px] tabular-nums;
-    color: var(--color-ink-muted);
-    writing-mode: horizontal-tb;
-  }
 
-  .admin-chart__empty-note {
-    @apply m-0 mt-3 text-xs;
-    color: var(--color-ink-muted);
-  }
 
-  /* AI token 用量折线图：点数超过 20 时用它替代柱状。
-     容器高度与 .admin-chart 对齐，切换形态时页面不会跳动。 */
-  .admin-token-line {
-    @apply flex flex-col border p-4;
-    height: 280px;
-    border-radius: var(--radius-lg);
-    border-color: var(--color-line);
-    background: var(--color-bg-subtle);
-  }
 
-  .admin-token-line__svg {
-    @apply w-full flex-1;
-    min-height: 0;
-    overflow: visible;
-  }
 
-  .admin-token-line__line {
-    fill: none;
-    stroke: var(--color-ink);
-    stroke-width: 2;
-    stroke-linejoin: round;
-    stroke-linecap: round;
-    /* table 里的 SVG 默认会被拉伸；non-scaling-stroke 已在标签上设了，
-       这里再兜一层是为了少数不支持该属性的浏览器不至于画出 10px 粗线。 */
-    vector-effect: non-scaling-stroke;
-  }
 
-  .admin-token-line__area {
-    fill: var(--color-line-faint);
-    stroke: none;
-  }
 
-  .admin-token-line__axis {
-    @apply flex justify-between text-[10px] tabular-nums;
-    color: var(--color-ink-muted);
-  }
 
   .admin-login-page {
     @apply flex min-h-screen items-center justify-center p-6;
@@ -413,6 +352,112 @@
     font-family: var(--font-mono);
     font-size: 0.8125rem;
     color: var(--color-ink-muted);
+  }
+
+  /* ── 标签卡网格（票 346）────────────────────────────────────
+   *
+   * 为什么从表格改成网格：56 个标签在表格里是 56 行、每行 46px，
+   * 一屏只能看到十来个，而每行的信息只有"名字 + 篇数 + 状态"三样。
+   * 卡片把同样三样塞进约 1/5 的高度，一屏能看全词库。
+   *
+   * 拖拽排序的手柄是 ⠿（只在卡片左侧），整卡不接管拖拽：卡片里的
+   * 编辑/启停/删除按钮必须还能正常点。 */
+  .tag-grid {
+    @apply grid gap-3;
+    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  }
+
+  .tag-card {
+    @apply flex min-w-0 flex-col gap-2 border p-3;
+    border-color: var(--color-line);
+    border-radius: var(--radius-md);
+    background: var(--color-surface);
+    transition: border-color var(--motion-fast) var(--motion-ease),
+      transform var(--motion-fast) var(--motion-ease);
+  }
+
+  .tag-card:hover {
+    border-color: var(--color-line-strong);
+    transform: translateY(-1px);
+  }
+
+  .tag-card--disabled {
+    background: var(--color-bg-subtle);
+  }
+
+  .tag-card--disabled .tag-card__title {
+    color: var(--color-ink-muted);
+  }
+
+  /* 拖动中的占位：只留虚框，避免"两个卡片同时出现在屏幕上"的错觉。 */
+  .tag-card--ghost {
+    border-style: dashed;
+    border-color: var(--color-line-strong);
+    background: transparent;
+    opacity: 0.6;
+  }
+
+  .tag-card__head {
+    @apply flex items-center gap-2;
+  }
+
+  .tag-card__grip {
+    @apply shrink-0 cursor-grab select-none;
+    color: var(--color-ink-faint);
+    font-size: 0.875rem;
+    line-height: 1;
+  }
+
+  .tag-card__grip:active {
+    cursor: grabbing;
+  }
+
+  .tag-card__title {
+    @apply min-w-0 flex-1 truncate font-semibold;
+    font-size: 0.9375rem;
+  }
+
+  .tag-card__count {
+    @apply shrink-0 text-xs tabular-nums;
+    color: var(--color-ink-muted);
+  }
+
+  .tag-card__desc {
+    @apply m-0 text-xs leading-5;
+    color: var(--color-ink-muted);
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+
+  .tag-card__foot {
+    @apply mt-auto flex items-center gap-2;
+  }
+
+  .tag-card__sort {
+    @apply text-xs tabular-nums;
+    color: var(--color-ink-faint);
+  }
+
+  /* 操作按钮平时淡出，hover / 键盘聚焦时出现：静止状态下每张卡只留信息，
+   * 视线不会被 56 组按钮切碎。 */
+  .tag-card__actions {
+    @apply ml-auto flex items-center gap-1;
+    opacity: 0;
+    transition: opacity var(--motion-fast) var(--motion-ease);
+  }
+
+  .tag-card:hover .tag-card__actions,
+  .tag-card:focus-within .tag-card__actions {
+    opacity: 1;
+  }
+
+  /* 触屏没有 hover：直接把操作露出来，否则永远点不到。 */
+  @media (hover: none) {
+    .tag-card__actions {
+      opacity: 1;
+    }
   }
 
   .admin-cover {
@@ -843,21 +888,11 @@
   pointer-events: none;
 }
 
-/* 抽屉：宽度从 0 展开到 480，内容宽度固定，避免展开过程中被挤扁。
-   `visibility` 参与过渡：收起后既不可见也不可聚焦，不会留下一个宽 0 的 Tab 陷阱。 */
+/* 右栏（票 348 起常驻）：目录树一直在，不再是从 0 展开的抽屉。
+   左栏放字段、右栏放树，一次「保存修改」提交两者 —— 两个保存按钮会让
+   "到底保存了什么"变成猜谜。 */
 .collection-overlay__drawer {
-  width: 0;
-  overflow: hidden;
-  visibility: hidden;
-  opacity: 0;
-  transition: width var(--motion-base) var(--motion-ease), opacity var(--motion-fast) var(--motion-ease),
-    visibility var(--motion-fast) var(--motion-ease);
-}
-
-.collection-overlay__pair--tree .collection-overlay__drawer {
   width: min(88vw, 480px);
-  visibility: visible;
-  opacity: 1;
   margin-left: 0.75rem;
 }
 

@@ -234,3 +234,71 @@ func (r *ArticleRepo) tagIDs(ctx context.Context, ids []ctype.ID) (map[ctype.ID]
 	}
 	return out, nil
 }
+
+// AuthorContentStats 一次读出某作者的内容概览（票 354）。
+//
+// 一条 SQL 同时给出各发布态数量与四个互动计数之和：个人数据概览首屏要显示这
+// 七个数字，逐个查就是七次往返。GROUP BY 只扫该作者的行（有 author_id 索引）。
+func (r *ArticleRepo) AuthorContentStats(ctx context.Context, authorID domain.UserID) (domain.ContentStats, error) {
+	var rows []struct {
+		PublishStatus int8
+		Count         int64
+		SumView       int64
+		SumDigg       int64
+		SumComment    int64
+		SumFavor      int64
+	}
+	err := r.db.WithContext(ctx).Model(&articleRow{}).
+		Select("publish_status, count(*) AS count, coalesce(sum(view_count),0) AS sum_view, coalesce(sum(digg_count),0) AS sum_digg, coalesce(sum(comment_count),0) AS sum_comment, coalesce(sum(favor_count),0) AS sum_favor").
+		Where("author_id = ? AND deleted_at IS NULL", fromUserID(authorID)).
+		Group("publish_status").
+		Scan(&rows).Error
+	if err != nil {
+		return domain.ContentStats{}, err
+	}
+
+	stats := domain.ContentStats{StatusCounts: make(map[domain.Status]int64, len(rows))}
+	for _, row := range rows {
+		stats.StatusCounts[domain.Status(row.PublishStatus)] = row.Count
+		// 四个和按全部状态累加：草稿的阅读量通常为 0，但"总计"要如实反映
+		// 作者名下所有内容的互动，而不是只算已发布的那部分。
+		stats.SumView += row.SumView
+		stats.SumDigg += row.SumDigg
+		stats.SumComment += row.SumComment
+		stats.SumFavor += row.SumFavor
+	}
+	return stats, nil
+}
+
+// ListRecentByAuthor 按创建时间倒序列出某作者最近的文章。
+func (r *ArticleRepo) ListRecentByAuthor(ctx context.Context, authorID domain.UserID, limit int) ([]*domain.Article, error) {
+	return r.listByAuthor(ctx, authorID, limit, "created_at DESC, id DESC")
+}
+
+// ListTopByAuthor 按阅读量倒序列出某作者的文章（个人概览的"阅读 Top 5"）。
+func (r *ArticleRepo) ListTopByAuthor(ctx context.Context, authorID domain.UserID, limit int) ([]*domain.Article, error) {
+	return r.listByAuthor(ctx, authorID, limit, "view_count DESC, id DESC")
+}
+
+// listByAuthor 是上面两个读面的共用实现：只差一个排序。
+//
+// 只取未软删的文章：个人概览里的"最近"与"最热"都是在数"我现有的内容"。
+func (r *ArticleRepo) listByAuthor(ctx context.Context, authorID domain.UserID, limit int, order string) ([]*domain.Article, error) {
+	if limit <= 0 {
+		return nil, nil
+	}
+	var rows []articleRow
+	if err := r.db.WithContext(ctx).
+		Where("author_id = ? AND deleted_at IS NULL", fromUserID(authorID)).
+		Order(order).
+		Limit(limit).
+		Find(&rows).Error; err != nil {
+		return nil, err
+	}
+	out := make([]*domain.Article, 0, len(rows))
+	for _, row := range rows {
+		// 不带标签：个人概览的"最近 / 最热"只显示标题与计数，不需要标签。
+		out = append(out, toDomainArticle(row, nil))
+	}
+	return out, nil
+}

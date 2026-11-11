@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { MOTION_EXPRESSIVE_MS } from '~/utils/motion'
 /**
  * 标签管理（票 322）：全站词库唯一的人工写入口。
  *
@@ -14,22 +15,21 @@
  * 列表里的文章数是后端按关联表实时统计的，不是库里的冗余计数列；
  * 所以它和"能不能删"永远一致。
  */
-import { computed, h, onMounted, ref } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import {
   NButton,
   NCard,
-  NDataTable,
   NInput,
-  NInputNumber,
   NModal,
   NSpace,
   NSwitch,
-  NTag,
   useDialog,
   useMessage,
 } from 'naive-ui'
-import type { DataTableColumns } from 'naive-ui'
-import { deleteAdminTags, getAdminTags, saveAdminTag } from '~/services/admin'
+import { VueDraggable } from 'vue-draggable-plus'
+import TagCard from '~/components/articles/TagCard.vue'
+import { deleteAdminTags, getAdminTags, replaceAdminTagOrder, saveAdminTag } from '~/services/admin'
+import { useSortPersist } from '~/composables/useSortPersist'
 import type { TagListItem, TagWritePayload } from '~/types/api'
 
 const message = useMessage()
@@ -48,6 +48,67 @@ const filteredRows = computed(() => {
   return rows.value.filter(row => (row.title || '').toLowerCase().includes(kw))
 })
 
+/**
+ * 拖拽排序只在"不过滤"时允许。
+ *
+ * 过滤状态下可见的是全集的一个子集，把子集的顺序当整份顺序提交会把被隐藏的
+ * 标签挤到最后 —— 用户看不出为什么刷新后顺序变了。所以过滤时禁用拖拽，
+ * 并在提示里说清楚。
+ */
+const dragEnabled = computed(() => keyword.value.trim() === '')
+
+/**
+ * 上一次**提交成功**的顺序快照：提交失败时回滚到它。
+ *
+ * 只存 id 数组而不是整行，回滚时按 id 重排当前行 —— 期间若有人改名/启停，
+ * 那些字段变更不该被这次回滚覆盖。
+ *
+ * 快照只在两个时刻更新：从服务端读回列表（这就是库里的真实顺序）、以及一次
+ * 提交真的成功之后。拖动时更新快照会让"上一次成功"变成"上一次界面"，
+ * 失败回滚就回不到库里的状态了。
+ */
+let lastSavedOrder: string[] = []
+
+function snapshotOrder() {
+  lastSavedOrder = rows.value.map(row => row.id)
+}
+
+/** 提交时的顺序：只发全集（含停用），后端要求它是当前词库的一个排列。 */
+const sortPersist = useSortPersist({
+  commit: async () => {
+    await replaceAdminTagOrder(rows.value.map(row => row.id))
+    snapshotOrder()
+  },
+  onError: () => {
+    message.error('排序保存失败，正在恢复上一次成功的顺序')
+  },
+})
+
+/** 拖动结束：标记脏并触发 10 秒防抖；失败时按快照回滚。 */
+function onOrderChange() {
+  if (!dragEnabled.value) return
+  sortPersist.markDirty()
+}
+
+watch(() => sortPersist.state.value, (state) => {
+  if (state !== 'error' || lastSavedOrder.length === 0) return
+  const byId = new Map(rows.value.map(row => [row.id, row]))
+  const restored = lastSavedOrder
+    .map(id => byId.get(id))
+    .filter((row): row is TagListItem => Boolean(row))
+  if (restored.length === rows.value.length) rows.value = restored
+})
+
+/** 保存状态文案：让用户知道"刚才那一下拖动有没有落地"。 */
+const sortStateLabel = computed(() => {
+  switch (sortPersist.state.value) {
+    case 'pending': return '顺序待保存（停止拖动 10 秒后自动保存）'
+    case 'saving': return '正在保存顺序…'
+    case 'error': return '顺序保存失败，已恢复上一次成功的顺序'
+    default: return '顺序已保存（拖动后 10 秒自动保存）'
+  }
+})
+
 const editorOpen = ref(false)
 const editing = ref<TagListItem | null>(null)
 const form = ref({ title: '', description: '', sort: 0, enabled: true })
@@ -57,6 +118,7 @@ async function refresh() {
   try {
     const data = await getAdminTags()
     rows.value = data.list || []
+    snapshotOrder()
   } catch {
     message.error('标签列表加载失败')
   } finally {
@@ -163,76 +225,6 @@ function remove(row: TagListItem) {
   })
 }
 
-const columns: DataTableColumns<TagListItem> = [
-  {
-    title: '标签',
-    key: 'title',
-    minWidth: 220,
-    render: row =>
-      h('div', { class: 'min-w-0', 'data-role': 'tag-title' }, [
-        h('strong', { class: 'block truncate' }, row.title || '（无标题）'),
-        row.description
-          ? h('span', { class: 'muted text-xs line-clamp-2' }, row.description)
-          : null,
-      ]),
-  },
-  {
-    title: '文章数',
-    key: 'article_count',
-    width: 100,
-    render: row => h('span', { 'data-role': 'tag-article-count' }, `${row.article_count ?? 0} 篇`),
-  },
-  {
-    title: '排序',
-    key: 'sort',
-    width: 90,
-    render: row => h('span', { 'data-role': 'tag-sort' }, String(row.sort ?? 0)),
-  },
-  {
-    title: '状态',
-    key: 'is_enabled',
-    width: 100,
-    render: row =>
-      h(
-        NTag,
-        { size: 'small', type: row.is_enabled === false ? 'default' : 'success', 'data-role': 'tag-status' },
-        { default: () => (row.is_enabled === false ? '停用' : '启用') },
-      ),
-  },
-  {
-    title: '操作',
-    key: 'actions',
-    width: 240,
-    render: row =>
-      h(NSpace, { size: 8 }, {
-        default: () => [
-          h(
-            NButton,
-            { size: 'small', tertiary: true, 'data-role': 'tag-edit', onClick: () => openEdit(row) },
-            { default: () => '编辑' },
-          ),
-          h(
-            NButton,
-            {
-              size: 'small',
-              tertiary: true,
-              type: row.is_enabled === false ? 'primary' : 'warning',
-              loading: togglingId.value === row.id,
-              'data-role': row.is_enabled === false ? 'tag-enable' : 'tag-disable',
-              onClick: () => void toggleEnabled(row, row.is_enabled === false),
-            },
-            { default: () => (row.is_enabled === false ? '启用' : '停用') },
-          ),
-          h(
-            NButton,
-            { size: 'small', tertiary: true, type: 'error', 'data-role': 'tag-delete', onClick: () => remove(row) },
-            { default: () => '删除' },
-          ),
-        ],
-      }),
-  },
-]
-
 onMounted(refresh)
 </script>
 
@@ -252,12 +244,45 @@ onMounted(refresh)
       <span class="muted text-xs">共 {{ rows.length }} 个标签（含停用），当前显示 {{ filteredRows.length }} 个</span>
     </div>
 
-    <NDataTable
-      :columns="columns"
-      :data="filteredRows"
-      :loading="loading"
-      :row-key="(row: TagListItem) => row.id"
-      :bordered="false" />
+    <p class="admin-hint" data-role="tag-sort-hint">
+      {{ dragEnabled ? `拖动卡片可调整标签顺序（发布页下拉与标签列表同序）· ${sortStateLabel}` : '过滤状态下不可拖动排序：先清空搜索框，避免把隐藏的标签挤到最后。' }}
+    </p>
+
+    <!-- 可拖动时是 VueDraggable（拖动把手由 draggable 打开），过滤时退化成普通
+         网格 —— 两条分支渲染的是同一个 TagCard，不再各写一份。 -->
+    <VueDraggable
+      v-if="dragEnabled"
+      v-model="rows"
+      class="tag-grid"
+      :animation="MOTION_EXPRESSIVE_MS.dragSettle"
+      handle=".tag-card__grip"
+      ghost-class="tag-card--ghost"
+      data-role="tag-grid"
+      @end="onOrderChange">
+      <TagCard
+        v-for="row in filteredRows"
+        :key="row.id"
+        :row="row"
+        draggable
+        :toggling="togglingId === row.id"
+        @edit="openEdit(row)"
+        @toggle="void toggleEnabled(row, row.is_enabled === false)"
+        @remove="remove(row)" />
+    </VueDraggable>
+
+    <div v-else class="tag-grid" data-role="tag-grid">
+      <TagCard
+        v-for="row in filteredRows"
+        :key="row.id"
+        :row="row"
+        :toggling="togglingId === row.id"
+        @edit="openEdit(row)"
+        @toggle="void toggleEnabled(row, row.is_enabled === false)"
+        @remove="remove(row)" />
+    </div>
+    <p v-if="!loading && filteredRows.length === 0" class="admin-empty" data-role="tag-empty">
+      没有匹配的标签。
+    </p>
   </NCard>
 
   <NModal
@@ -274,7 +299,10 @@ onMounted(refresh)
         :rows="2"
         placeholder="描述（可选，仅后台可见）"
         data-role="tag-editor-description" />
-      <NInputNumber v-model:value="form.sort" class="w-full" placeholder="排序（越大越靠前）" data-role="tag-editor-sort" />
+      <!-- 排序不再手填：唯一入口是网格里的拖拽，手填数字会变成第二套顺序真相。 -->
+      <p class="admin-hint">
+        排序在列表里拖动卡片调整（停止拖动 10 秒后自动保存），新建的标签排在最后。
+      </p>
       <div class="flex items-center gap-3">
         <NSwitch v-model:value="form.enabled" data-role="tag-editor-enabled" />
         <span class="muted text-sm">启用（停用后不再出现在发布页的标签下拉里）</span>

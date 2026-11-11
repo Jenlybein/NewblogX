@@ -1,6 +1,7 @@
 import { useNuxtApp } from "#imports";
 import type {
   ArticleAuthorInfo,
+  StudioStatsData,
   ArticleCreateResult,
   ArticleDetail,
   ArticleDiggResult,
@@ -119,4 +120,17 @@ export function deleteOwnArticle(id: string | number) {
   return useNuxtApp().$api.request(`/api/articles/${id}`, {
     method: "DELETE",
   });
+}
+
+/**
+ * 个人数据概览（票 354）。
+ *
+ * 一个请求给出首屏要的全部数字：状态数量、四个互动计数、最近 5 篇、
+ * 阅读 Top 5、90 天活跃度。之前这里发六七次请求，任何一个慢都会让首屏
+ * 一半是空的，且"共 N 篇"这类数字来自不同时刻的快照、彼此对不上。
+ *
+ * 只读当前登录用户：不接受任何"看别人"的参数。
+ */
+export function getStudioStats() {
+  return useNuxtApp().$api.request<StudioStatsData>("/api/articles/studio-stats", { auth: true });
 }

@@ -82,5 +82,11 @@ func (b *ArticleBuilder) SubmittedAt(t time.Time) *ArticleBuilder { b.p.Submitte
 // CreatedAt 设定创建时间。
 func (b *ArticleBuilder) CreatedAt(t time.Time) *ArticleBuilder { b.p.CreatedAt = t; return b }
 
+// Counters 设定四个互动计数（票 354 的个人概览要用真实阅读量做排序断言）。
+func (b *ArticleBuilder) Counters(view, digg, comment, favor int) *ArticleBuilder {
+	b.p.Counters = domain.Counters{View: view, Digg: digg, Comment: comment, Favor: favor}
+	return b
+}
+
 // Build 产出聚合。
 func (b *ArticleBuilder) Build() *domain.Article { return domain.Restore(b.p) }

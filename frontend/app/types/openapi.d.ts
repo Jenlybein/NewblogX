@@ -980,7 +980,7 @@ export interface paths {
             parameters: {
                 query: {
                     /** @description 收藏夹 ID */
-                    favor_id: string;
+                    favorite_id: string;
                     /** @description 页码 */
                     page?: number;
                     /** @description 每页数量 */

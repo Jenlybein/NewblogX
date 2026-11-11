@@ -89,8 +89,12 @@ func (r *FavoriteRepo) ListFolders(ctx context.Context, q favorite.ListFoldersQu
 	// 公开读面（看别人的夹子或匿名）只数已发布文章：草稿/审核中的数量不该
 	// 透给访客，与收藏内容列表同一口径。
 	visibleFilter := "r.deleted_at IS NULL"
+	// 显式列出 f 的列而不用 `f.*`：下面会用同名别名覆盖 article_count
+	// （`f.*` 里那个是过期的快照列），结果集里出现两个同名列时由谁胜出
+	// 取决于驱动实现，不能靠它。
 	selectParts := []string{
-		"f.*",
+		"f.id", "f.user_id", "f.title", "f.cover", "f.abstract",
+		"f.is_default", "f.created_at", "f.updated_at",
 		"u.nickname AS nickname",
 		"u.avatar AS avatar",
 	}
@@ -145,22 +149,13 @@ func (r *FavoriteRepo) ListFolders(ctx context.Context, q favorite.ListFoldersQu
 	return out, nil
 }
 
-// argsForFolders 组装 ListFolders 的条件参数。
-//
-// SELECT 里的占位符顺序是"可见性过滤（可能带 publish_status）→ has_article 的
-// article_id"，这里必须与 SELECT 严格同序，否则会把 ID 绑到状态位上。
-func argsForFolders(q favorite.ListFoldersQuery, publishedStatus int8) []any {
-	args := make([]any, 0, 2)
-	if q.PublishedOnly {
-		args = append(args, publishedStatus)
-	}
-	if !q.ArticleID.IsZero() {
-		args = append(args, ctype.ID(q.ArticleID))
-	}
-	return args
-}
+
 
 // ExistsFolderTitle 判断名称重复。
+//
+// 只看**未软删**的夹子：软删掉的那个同名夹子不算重复，保存时会把它复活
+// （见 SaveFolder）。唯一键 uk_favorite_user_title 覆盖软删行，所以"算重复"
+// 与"能插入"是两件事，这里必须与 SaveFolder 的复活逻辑配成一对。
 func (r *FavoriteRepo) ExistsFolderTitle(ctx context.Context, userID domain.UserID, title string, excludeID favorite.ID) (bool, error) {
 	q := r.db.WithContext(ctx).Model(&favoriteRow{}).
 		Where("user_id = ? AND title = ?", fromUserID(userID), title)
@@ -190,6 +185,18 @@ func (r *FavoriteRepo) SaveFolder(ctx context.Context, f *favorite.Folder) error
 	if updates.RowsAffected > 0 {
 		return nil
 	}
+
+	// 走到这里说明没有活跃的同一行。可能是"新建"，也可能是"用户删过一个同名夹子
+	// 又建了一个同名的"——后者在唯一键 uk_favorite_user_title 下插不进去
+	// （唯一键覆盖软删行），所以先把那条软删行复活。
+	revived, err := r.reviveSoftDeletedFolder(ctx, f)
+	if err != nil {
+		return err
+	}
+	if revived {
+		return nil
+	}
+
 	return r.db.WithContext(ctx).Create(&favoriteRow{
 		BaseRow:   BaseRow{ID: id},
 		UserID:    fromUserID(f.UserID()),
@@ -198,6 +205,27 @@ func (r *FavoriteRepo) SaveFolder(ctx context.Context, f *favorite.Folder) error
 		Abstract:  f.Abstract(),
 		IsDefault: f.IsDefault(),
 	}).Error
+}
+
+// reviveSoftDeletedFolder 把同名软删行改回这条新夹子，返回是否复活成功。
+//
+// 语义是"用户删过的名字可以再用"：复活时沿用**新的 ID** 会让收藏关系指向旧行，
+// 所以这里把新夹子的 ID 与资料整体写进旧行 —— 对调用方来说就是"这个名字现在
+// 指向刚建的这个夹子"。关系行不可能存在（删夹时已级联清掉）。
+func (r *FavoriteRepo) reviveSoftDeletedFolder(ctx context.Context, f *favorite.Folder) (bool, error) {
+	result := r.db.WithContext(ctx).Unscoped().Model(&favoriteRow{}).
+		Where("user_id = ? AND title = ? AND deleted_at IS NOT NULL", fromUserID(f.UserID()), f.Title()).
+		Updates(map[string]any{
+			"id":         ctype.ID(f.ID()),
+			"cover":      f.Cover(),
+			"abstract":   f.Abstract(),
+			"is_default": f.IsDefault(),
+			"deleted_at": nil,
+		})
+	if result.Error != nil {
+		return false, result.Error
+	}
+	return result.RowsAffected > 0, nil
 }
 
 // DeleteFolder 删除收藏夹与其下所有收藏关系，**不动文章本身**。
@@ -222,7 +250,13 @@ func (r *FavoriteRepo) DeleteFolder(ctx context.Context, id favorite.ID) error {
 // 读-改-写会丢计数，整列重算不会。updated_at 一并推进，收藏夹列表才能按
 // "最近变动"排序（#344）。
 func (r *FavoriteRepo) RefreshFolderStats(ctx context.Context, folderID favorite.ID, updatedAt time.Time) error {
-	return r.db.WithContext(ctx).Exec(`
+	return refreshFolderStatsTx(r.db.WithContext(ctx), ctype.ID(folderID), updatedAt)
+}
+
+// refreshFolderStatsTx 是 RefreshFolderStats 的 tx 版本：删文章时要在同一个
+// 事务里重算多个夹子，抽出来避免两份 SQL。
+func refreshFolderStatsTx(tx *gorm.DB, folderID ctype.ID, updatedAt time.Time) error {
+	return tx.Exec(`
 		UPDATE favorite_models AS f
 		SET article_count = (
 				SELECT COUNT(*) FROM user_article_favor_models r
@@ -230,7 +264,7 @@ func (r *FavoriteRepo) RefreshFolderStats(ctx context.Context, folderID favorite
 			),
 			updated_at = ?
 		WHERE f.id = ? AND f.deleted_at IS NULL`,
-		updatedAt, ctype.ID(folderID)).Error
+		updatedAt, folderID).Error
 }
 
 // FindItem 读取某夹子里的收藏。
@@ -324,11 +358,34 @@ func (r *FavoriteRepo) DeleteItem(ctx context.Context, articleID domain.ArticleI
 		Delete(&userArticleFavorRow{}).Error
 }
 
-// DeleteItemsByArticle 删除某文章全部收藏。
+// DeleteItemsByArticle 删除某文章的全部收藏，并重算受影响夹子的文章数。
+//
+// 只删关系行不够：`article_count` 是给外部消费者看的快照列，删文章时不同步
+// 就会留下"夹子里显示 5 篇、点进去只有 4 篇"。所以先记下受影响的夹子，
+// 删完再逐个重算（与收藏/移出走同一份 RefreshFolderStats）。
 func (r *FavoriteRepo) DeleteItemsByArticle(ctx context.Context, articleID domain.ArticleID) error {
-	return r.db.WithContext(ctx).
-		Where("article_id = ?", fromArticleID(articleID)).
-		Delete(&userArticleFavorRow{}).Error
+	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		var folderIDs []ctype.ID
+		if err := tx.Model(&userArticleFavorRow{}).
+			Where("article_id = ?", fromArticleID(articleID)).
+			Distinct("favor_id").
+			Pluck("favor_id", &folderIDs).Error; err != nil {
+			return err
+		}
+
+		if err := tx.Where("article_id = ?", fromArticleID(articleID)).
+			Delete(&userArticleFavorRow{}).Error; err != nil {
+			return err
+		}
+
+		now := time.Now()
+		for _, folderID := range folderIDs {
+			if err := refreshFolderStatsTx(tx, folderID, now); err != nil {
+				return err
+			}
+		}
+		return nil
+	})
 }
 
 // ListItems 分页列出某夹子的收藏。

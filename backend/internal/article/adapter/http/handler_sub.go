@@ -354,7 +354,7 @@ func (h *Handler) DeleteFolders(c *gin.Context) {
 // @Summary 收藏夹内容
 // @Tags article
 // @Produce json
-// @Param favor_id query string true "收藏夹 ID"
+// @Param favorite_id query string true "收藏夹 ID"
 // @Param page query int false "页码"
 // @Param limit query int false "每页数量"
 // @Success 200 {object} kernel.Envelope[kernel.HasMoreListData[FavoriteArticleListItem]]

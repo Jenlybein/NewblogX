@@ -19,8 +19,6 @@ import { onBeforeUnmount, ref, type Ref } from 'vue'
 export type SortPersistState = 'idle' | 'pending' | 'saving' | 'error'
 
 export interface SortPersistOptions {
-  /** 防抖窗口（毫秒）。默认 10000，与票 346 的约定一致。 */
-  delayMs?: number
   /** 提交实现：参数是"当前顺序的快照"，由调用方决定请求体形状。 */
   commit: () => Promise<void>
   /** 提交失败时的回调（用于 toast）；默认吞掉，只把状态置为 error。 */
@@ -34,12 +32,12 @@ export interface SortPersist {
   markDirty: () => void
   /** 立刻提交（离开前 / 点保存时调用）。 */
   flush: () => Promise<void>
-  /** 丢弃待提交的改动（取消编辑、回滚后调用）。 */
-  cancel: () => void
 }
 
 export function useSortPersist(options: SortPersistOptions): SortPersist {
-  const delayMs = options.delayMs ?? 10_000
+  // 10 秒是票 346 定下的唯一口径（拖完一轮就提交太吵，更久用户会以为没保存）。
+  // 目前没有第二个调用方需要别的值，所以不做成参数。
+  const delayMs = 10_000
   const state = ref<SortPersistState>('idle')
 
   let timer: ReturnType<typeof setTimeout> | null = null
@@ -107,11 +105,6 @@ export function useSortPersist(options: SortPersistOptions): SortPersist {
     await runCommit()
   }
 
-  function cancel() {
-    clearTimer()
-    dirtyWhileSaving = false
-    if (state.value !== 'saving') state.value = 'idle'
-  }
 
   // 离开前 flush：不 await（onBeforeUnmount 无法等待），但请求已经发出，
   // 浏览器同源导航下会正常完成。真正的兜底是"每次改动都有本地快照"，
@@ -120,5 +113,5 @@ export function useSortPersist(options: SortPersistOptions): SortPersist {
     void flush()
   })
 
-  return { state, markDirty, flush, cancel }
+  return { state, markDirty, flush }
 }

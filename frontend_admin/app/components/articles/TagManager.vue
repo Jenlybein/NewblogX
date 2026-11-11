@@ -22,11 +22,11 @@ import {
   NModal,
   NSpace,
   NSwitch,
-  NTag,
   useDialog,
   useMessage,
 } from 'naive-ui'
 import { VueDraggable } from 'vue-draggable-plus'
+import TagCard from '~/components/articles/TagCard.vue'
 import { deleteAdminTags, getAdminTags, replaceAdminTagOrder, saveAdminTag } from '~/services/admin'
 import { useSortPersist } from '~/composables/useSortPersist'
 import type { TagListItem, TagWritePayload } from '~/types/api'
@@ -56,21 +56,15 @@ const filteredRows = computed(() => {
  */
 const dragEnabled = computed(() => keyword.value.trim() === '')
 
-/** 提交时的顺序：只发全集（含停用），后端要求它是当前词库的一个排列。 */
-const sortPersist = useSortPersist({
-  commit: async () => {
-    await replaceAdminTagOrder(rows.value.map(row => row.id))
-  },
-  onError: () => {
-    message.error('排序保存失败，正在恢复上一次成功的顺序')
-  },
-})
-
 /**
- * 上一次提交成功的顺序快照：提交失败时回滚到它。
+ * 上一次**提交成功**的顺序快照：提交失败时回滚到它。
  *
  * 只存 id 数组而不是整行，回滚时按 id 重排当前行 —— 期间若有人改名/启停，
  * 那些字段变更不该被这次回滚覆盖。
+ *
+ * 快照只在两个时刻更新：从服务端读回列表（这就是库里的真实顺序）、以及一次
+ * 提交真的成功之后。拖动时更新快照会让"上一次成功"变成"上一次界面"，
+ * 失败回滚就回不到库里的状态了。
  */
 let lastSavedOrder: string[] = []
 
@@ -78,10 +72,16 @@ function snapshotOrder() {
   lastSavedOrder = rows.value.map(row => row.id)
 }
 
-async function persistOrder() {
-  await sortPersist.flush()
-  if (sortPersist.state.value !== 'error') snapshotOrder()
-}
+/** 提交时的顺序：只发全集（含停用），后端要求它是当前词库的一个排列。 */
+const sortPersist = useSortPersist({
+  commit: async () => {
+    await replaceAdminTagOrder(rows.value.map(row => row.id))
+    snapshotOrder()
+  },
+  onError: () => {
+    message.error('排序保存失败，正在恢复上一次成功的顺序')
+  },
+})
 
 /** 拖动结束：标记脏并触发 10 秒防抖；失败时按快照回滚。 */
 function onOrderChange() {
@@ -247,6 +247,8 @@ onMounted(refresh)
       {{ dragEnabled ? `拖动卡片可调整标签顺序（发布页下拉与标签列表同序）· ${sortStateLabel}` : '过滤状态下不可拖动排序：先清空搜索框，避免把隐藏的标签挤到最后。' }}
     </p>
 
+    <!-- 可拖动时是 VueDraggable（拖动把手由 draggable 打开），过滤时退化成普通
+         网格 —— 两条分支渲染的是同一个 TagCard，不再各写一份。 -->
     <VueDraggable
       v-if="dragEnabled"
       v-model="rows"
@@ -256,84 +258,27 @@ onMounted(refresh)
       ghost-class="tag-card--ghost"
       data-role="tag-grid"
       @end="onOrderChange">
-      <article
+      <TagCard
         v-for="row in filteredRows"
         :key="row.id"
-        class="tag-card"
-        :class="{ 'tag-card--disabled': row.is_enabled === false }"
-        :data-role="`tag-card-${row.id}`">
-        <header class="tag-card__head">
-          <span class="tag-card__grip" title="拖动调整顺序" aria-hidden="true">⠿</span>
-          <strong class="tag-card__title" :data-role="'tag-title'">{{ row.title || '（无标题）' }}</strong>
-          <span class="tag-card__count" data-role="tag-article-count">{{ row.article_count ?? 0 }} 篇</span>
-        </header>
-
-        <p v-if="row.description" class="tag-card__desc">{{ row.description }}</p>
-
-        <footer class="tag-card__foot">
-          <NTag
-            size="small"
-            :type="row.is_enabled === false ? 'default' : 'success'"
-            data-role="tag-status">
-            {{ row.is_enabled === false ? '停用' : '启用' }}
-          </NTag>
-          <span class="tag-card__sort" data-role="tag-sort">#{{ row.sort ?? 0 }}</span>
-          <div class="tag-card__actions">
-            <NButton size="tiny" tertiary data-role="tag-edit" @click="openEdit(row)">编辑</NButton>
-            <NButton
-              size="tiny"
-              tertiary
-              :type="row.is_enabled === false ? 'primary' : 'warning'"
-              :loading="togglingId === row.id"
-              :data-role="row.is_enabled === false ? 'tag-enable' : 'tag-disable'"
-              @click="void toggleEnabled(row, row.is_enabled === false)">
-              {{ row.is_enabled === false ? '启用' : '停用' }}
-            </NButton>
-            <NButton size="tiny" tertiary type="error" data-role="tag-delete" @click="remove(row)">删除</NButton>
-          </div>
-        </footer>
-      </article>
+        :row="row"
+        draggable
+        :toggling="togglingId === row.id"
+        @edit="openEdit(row)"
+        @toggle="void toggleEnabled(row, row.is_enabled === false)"
+        @remove="remove(row)" />
     </VueDraggable>
 
     <div v-else class="tag-grid" data-role="tag-grid">
-      <article
+      <TagCard
         v-for="row in filteredRows"
         :key="row.id"
-        class="tag-card"
-        :class="{ 'tag-card--disabled': row.is_enabled === false }"
-        :data-role="`tag-card-${row.id}`">
-        <header class="tag-card__head">
-          <strong class="tag-card__title" data-role="tag-title">{{ row.title || '（无标题）' }}</strong>
-          <span class="tag-card__count" data-role="tag-article-count">{{ row.article_count ?? 0 }} 篇</span>
-        </header>
-
-        <p v-if="row.description" class="tag-card__desc">{{ row.description }}</p>
-
-        <footer class="tag-card__foot">
-          <NTag
-            size="small"
-            :type="row.is_enabled === false ? 'default' : 'success'"
-            data-role="tag-status">
-            {{ row.is_enabled === false ? '停用' : '启用' }}
-          </NTag>
-          <span class="tag-card__sort" data-role="tag-sort">#{{ row.sort ?? 0 }}</span>
-          <div class="tag-card__actions">
-            <NButton size="tiny" tertiary data-role="tag-edit" @click="openEdit(row)">编辑</NButton>
-            <NButton
-              size="tiny"
-              tertiary
-              :type="row.is_enabled === false ? 'primary' : 'warning'"
-              :loading="togglingId === row.id"
-              :data-role="row.is_enabled === false ? 'tag-enable' : 'tag-disable'"
-              @click="void toggleEnabled(row, row.is_enabled === false)">
-              {{ row.is_enabled === false ? '启用' : '停用' }}
-            </NButton>
-            <NButton size="tiny" tertiary type="error" data-role="tag-delete" @click="remove(row)">删除</NButton>
-          </div>
-        </footer>
-      </article>
+        :row="row"
+        :toggling="togglingId === row.id"
+        @edit="openEdit(row)"
+        @toggle="void toggleEnabled(row, row.is_enabled === false)"
+        @remove="remove(row)" />
     </div>
-
     <p v-if="!loading && filteredRows.length === 0" class="admin-empty" data-role="tag-empty">
       没有匹配的标签。
     </p>

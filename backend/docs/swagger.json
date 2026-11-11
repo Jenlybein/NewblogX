@@ -8282,7 +8282,7 @@
                     {
                         "description": "收藏夹 ID",
                         "in": "query",
-                        "name": "favor_id",
+                        "name": "favorite_id",
                         "required": true,
                         "schema": {
                             "type": "string"

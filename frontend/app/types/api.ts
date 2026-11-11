@@ -394,3 +394,16 @@ export type GroupNode = RequiredSchema<"internal_article_adapter_http.GroupNodeR
  * 编排状态，对访客没有意义）。
  */
 export type GroupTreeData = RequiredSchema<"internal_article_adapter_http.GroupTreeResponse">;
+// ── 个人数据概览（票 354）─────────────────────────────────────
+
+/** 某个发布态的文章数。 */
+export type StudioStatusCount = RequiredSchema<"internal_article_adapter_http.StudioStatusCountResponse">;
+
+/** 概览里的文章摘要行（最近 / Top 5 共用）。 */
+export type StudioArticleBrief = RequiredSchema<"internal_article_adapter_http.StudioArticleBriefResponse">;
+
+/** 热力图的一天。 */
+export type StudioActivityDay = RequiredSchema<"internal_article_adapter_http.StudioActivityDayResponse">;
+
+/** 个人数据概览的完整读模型。 */
+export type StudioStatsData = RequiredSchema<"internal_article_adapter_http.StudioStatsResponse">;

@@ -249,6 +249,8 @@ var userRouteTemplates = []string{
 	"GET /api/collections",
 	// 读者侧分组读面（票 353）：公开可读，只给"谁和谁在一起、谁在前"。
 	"GET /api/collections/grouped",
+	// 个人数据概览（票 354）：登录用户读自己的，不是管理员专属。
+	"GET /api/articles/studio-stats",
 	"GET /api/projects/grouped",
 	"GET /api/collections/:id",
 	"GET /api/collections/:id/outline-tree",

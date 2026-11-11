@@ -320,6 +320,18 @@ type Service struct {
 	// 为 nil 表示闸门即使被打开也无法评分 —— 此时按失败关闭处理（拒绝提交，
 	// 错误码 article.score_unavailable）。生产装配必然注入（article_wiring.go）。
 	quality QualityGatePort
+	// activity 是创作活动读端口（票 354）。为 nil 表示"没有活动数据"，
+	// 个人概览的热力图退回全零 —— 分析库不可用不该让整页打不开。
+	activity ActivityPort
+}
+
+// WithActivity 注入创作活动读端口（票 354）。
+//
+// 用可选注入而不是加进 New 的参数表：New 已经有七个参数、几十处调用点，
+// 为一个只在个人概览里用到的只读端口再动一遍全部调用点没有收益。
+func (s *Service) WithActivity(p ActivityPort) *Service {
+	s.activity = p
+	return s
 }
 
 // New 构造用例服务。
@@ -335,4 +347,20 @@ func New(
 		tx: tx, clock: clock, ids: ids,
 		quota: quota, scores: scores, words: words, quality: quality,
 	}
+}
+
+// ActivityPort 是「某用户最近 N 天每天有多少次创作动作」（票 354）。
+//
+// 由使用方（本包）定义、装配层接分析模块的存储适配器实现。为什么是端口而不是
+// 直接 import 分析模块的 adapter：垂直模块口径要求 article 不认识别的模块的
+// 实现包（archcheck R11），而个人数据概览要的恰恰是"分析模块才有的数据"。
+//
+// 只读、只按用户维度取：个人概览的每一个数字都必须限定在当前登录用户身上，
+// 端口形状里写死 userID 就是让"忘了加过滤"在编译期就不可能。
+type ActivityPort interface {
+	// DailyActivity 返回最近 days 天里每天成功的创作动作数，key 是 YYYY-MM-DD。
+	//
+	// 没有动作的日期不出现（调用方按天补零），返回空 map 不是错误：
+	// 新用户从来没创作过，这是正常状态。
+	DailyActivity(ctx context.Context, userID domain.UserID, days int) (map[string]int, error)
 }

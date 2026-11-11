@@ -2867,3 +2867,98 @@ html {
   background: var(--color-ink);
   border-color: var(--color-ink);
 }
+/* 创作热力图（票 354）：13 列 × 7 行，每列一周（周一起）。
+ * 格子是按钮（可聚焦），颜色只是辅助编码 —— 提示里始终有具体次数。 */
+.activity-heatmap__grid {
+  display: grid;
+  grid-auto-flow: column;
+  grid-template-rows: repeat(7, 1fr);
+  gap: 3px;
+  overflow-x: auto;
+  padding-bottom: 0.25rem;
+}
+
+.activity-heatmap__cell {
+  width: 14px;
+  height: 14px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: var(--color-bg-subtle);
+  cursor: pointer;
+}
+
+.activity-heatmap__cell--l1 {
+  background: var(--color-line-strong);
+}
+
+.activity-heatmap__cell--l2 {
+  background: var(--color-ink-faint);
+}
+
+.activity-heatmap__cell--l3 {
+  background: var(--color-ink-muted);
+}
+
+.activity-heatmap__cell--l4 {
+  background: var(--color-ink);
+}
+
+.activity-heatmap__cell:focus-visible {
+  outline: 2px solid var(--color-focus);
+  outline-offset: 1px;
+}
+
+.activity-heatmap__dot {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+/* 指标卡与 KPI 横条（票 354）。
+ *
+ * 横条用 auto-fit：五个指标在宽屏一行铺满，窄屏自动折成两列 / 一列，
+ * 不需要断点。卡片本身只管排版，数字动画在组件里。 */
+.metric-strip {
+  display: grid;
+  gap: 10px;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+}
+
+.metric-card {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 12px 14px;
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+}
+
+/* 零值降级：只在调用方明确要求时变淡（例如待处理全是 0）。 */
+.metric-card--dim {
+  color: var(--color-ink-muted);
+}
+
+.metric-card__label {
+  font-size: 0.75rem;
+  color: var(--color-ink-muted);
+}
+
+.metric-card__value {
+  font-size: 1.375rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.2;
+}
+
+.metric-card__suffix {
+  margin-left: 2px;
+  font-size: 0.75rem;
+  font-weight: 400;
+  color: var(--color-ink-muted);
+}
+
+.metric-card__hint {
+  font-size: 0.6875rem;
+  color: var(--color-ink-faint);
+}

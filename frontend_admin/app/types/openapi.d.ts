@@ -1255,6 +1255,42 @@ export interface paths {
         };
         trace?: never;
     };
+    "/articles/studio-stats": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 个人数据概览 */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["myblogx_internal_kernel.Envelope-internal_article_adapter_http_StudioStatsResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/articles/tags": {
         parameters: {
             query?: never;
@@ -7958,6 +7994,39 @@ export interface components {
         "internal_article_adapter_http.ReviewTaskStage": "manual";
         /** @enum {string} */
         "internal_article_adapter_http.ReviewTaskStatus": "pending" | "approved" | "rejected" | "canceled";
+        "internal_article_adapter_http.StudioActivityDayResponse": {
+            /** @description Count 是当天的创作动作数（成功的新建 + 更新）。 */
+            count?: number;
+            /** @description Day 是 `YYYY-MM-DD`（按 Asia/Shanghai 切天）。 */
+            day?: string;
+        };
+        "internal_article_adapter_http.StudioArticleBriefResponse": {
+            comment_count?: number;
+            cover?: string;
+            created_at?: string;
+            digg_count?: number;
+            favor_count?: number;
+            id?: string;
+            title?: string;
+            view_count?: number;
+        };
+        "internal_article_adapter_http.StudioStatsResponse": {
+            /** @description Activity 是**稀疏**的：没有动作的日期不出现，由前端补零铺满 13×7。 */
+            activity?: components["schemas"]["internal_article_adapter_http.StudioActivityDayResponse"][];
+            /** @description ActivityDays 是热力图覆盖的天数（前端据此校验网格尺寸，不必硬编码 91）。 */
+            activity_days?: number;
+            recent?: components["schemas"]["internal_article_adapter_http.StudioArticleBriefResponse"][];
+            status_counts?: components["schemas"]["internal_article_adapter_http.StudioStatusCountResponse"][];
+            sum_comment?: number;
+            sum_digg?: number;
+            sum_favor?: number;
+            sum_view?: number;
+            top?: components["schemas"]["internal_article_adapter_http.StudioArticleBriefResponse"][];
+        };
+        "internal_article_adapter_http.StudioStatusCountResponse": {
+            count?: number;
+            status?: number;
+        };
         "internal_article_adapter_http.TagListItem": {
             article_count?: number;
             created_at?: string;
@@ -8623,7 +8692,6 @@ export interface components {
             favorites_visibility?: boolean;
             follow_count?: number;
             followers_visibility?: boolean;
-            home_style_id?: string;
             id?: string;
             nickname?: string;
             place?: string;
@@ -8650,11 +8718,13 @@ export interface components {
             fans_visibility?: boolean;
             favorites_visibility?: boolean;
             followers_visibility?: boolean;
-            home_style_id?: string;
             like_tag_ids?: string[];
             nickname?: string;
             /**
-             * @description StrangerChatEnabled 是"允许陌生人给我发私信"的个人开关。
+             * @description 主页样式 ID 已从接口退场（票 355）：这个字段从来没有消费方 ——
+             *     读者站不读它、后台也不读它，只在前端表单里占一行让人填数字。
+             *     数据库列保留（零 DDL 口径），但不再接受写入、也不再出现在响应里。
+             *     StrangerChatEnabled 是"允许陌生人给我发私信"的个人开关。
              *     字段名沿用既有契约 stranger_msg_enabled；全指针语义与其余偏好一致：
              *     没传不改，false 是合法值（关掉）。
              */
@@ -9204,6 +9274,11 @@ export interface components {
         "myblogx_internal_kernel.Envelope-internal_article_adapter_http_ProjectOutlineTreeResponse": {
             code?: number;
             data?: components["schemas"]["internal_article_adapter_http.ProjectOutlineTreeResponse"];
+            msg?: string;
+        };
+        "myblogx_internal_kernel.Envelope-internal_article_adapter_http_StudioStatsResponse": {
+            code?: number;
+            data?: components["schemas"]["internal_article_adapter_http.StudioStatsResponse"];
             msg?: string;
         };
         "myblogx_internal_kernel.Envelope-internal_auth_adapter_http_SendEmailResponse": {
@@ -9805,7 +9880,6 @@ export interface components {
             favorites_visibility?: boolean;
             followers_visibility?: boolean;
             has_password?: boolean;
-            home_style_id?: string;
             id?: string;
             like_tag_ids?: string[];
             like_tag_items?: components["schemas"]["myblogx_internal_user_app.LikeTagItem"][];

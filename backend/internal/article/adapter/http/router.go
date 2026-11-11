@@ -32,6 +32,9 @@ func (h *Handler) Register(r *gin.RouterGroup, authMw, optionalMw gin.HandlerFun
 	r.GET("sitemap.xml", h.Sitemap)
 
 	authGroup := group.Group("", authMw)
+	// 个人数据概览（票 354）：登录用户读自己的，不是管理员专属。
+	// 路径里带连字符前缀，避免被 /articles/:id 抢走。
+	authGroup.GET("studio-stats", h.StudioStats)
 	adminGroup := authGroup.Group("", mw.AdminMiddleware)
 	reviewAdminGroup := reviewGroup.Group("", authMw, mw.AdminMiddleware)
 	collectionAdminGroup := collectionGroup.Group("", authMw, mw.AdminMiddleware)

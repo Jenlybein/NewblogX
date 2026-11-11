@@ -2283,6 +2283,109 @@
                     "ReviewTaskCanceled"
                 ]
             },
+            "internal_article_adapter_http.StudioActivityDayResponse": {
+                "properties": {
+                    "count": {
+                        "description": "Count 是当天的创作动作数（成功的新建 + 更新）。",
+                        "type": "integer"
+                    },
+                    "day": {
+                        "description": "Day 是 `YYYY-MM-DD`（按 Asia/Shanghai 切天）。",
+                        "type": "string"
+                    }
+                },
+                "type": "object"
+            },
+            "internal_article_adapter_http.StudioArticleBriefResponse": {
+                "properties": {
+                    "comment_count": {
+                        "type": "integer"
+                    },
+                    "cover": {
+                        "type": "string"
+                    },
+                    "created_at": {
+                        "type": "string"
+                    },
+                    "digg_count": {
+                        "type": "integer"
+                    },
+                    "favor_count": {
+                        "type": "integer"
+                    },
+                    "id": {
+                        "type": "string"
+                    },
+                    "title": {
+                        "type": "string"
+                    },
+                    "view_count": {
+                        "type": "integer"
+                    }
+                },
+                "type": "object"
+            },
+            "internal_article_adapter_http.StudioStatsResponse": {
+                "properties": {
+                    "activity": {
+                        "description": "Activity 是**稀疏**的：没有动作的日期不出现，由前端补零铺满 13×7。",
+                        "items": {
+                            "$ref": "#/components/schemas/internal_article_adapter_http.StudioActivityDayResponse"
+                        },
+                        "type": "array",
+                        "uniqueItems": false
+                    },
+                    "activity_days": {
+                        "description": "ActivityDays 是热力图覆盖的天数（前端据此校验网格尺寸，不必硬编码 91）。",
+                        "type": "integer"
+                    },
+                    "recent": {
+                        "items": {
+                            "$ref": "#/components/schemas/internal_article_adapter_http.StudioArticleBriefResponse"
+                        },
+                        "type": "array",
+                        "uniqueItems": false
+                    },
+                    "status_counts": {
+                        "items": {
+                            "$ref": "#/components/schemas/internal_article_adapter_http.StudioStatusCountResponse"
+                        },
+                        "type": "array",
+                        "uniqueItems": false
+                    },
+                    "sum_comment": {
+                        "type": "integer"
+                    },
+                    "sum_digg": {
+                        "type": "integer"
+                    },
+                    "sum_favor": {
+                        "type": "integer"
+                    },
+                    "sum_view": {
+                        "type": "integer"
+                    },
+                    "top": {
+                        "items": {
+                            "$ref": "#/components/schemas/internal_article_adapter_http.StudioArticleBriefResponse"
+                        },
+                        "type": "array",
+                        "uniqueItems": false
+                    }
+                },
+                "type": "object"
+            },
+            "internal_article_adapter_http.StudioStatusCountResponse": {
+                "properties": {
+                    "count": {
+                        "type": "integer"
+                    },
+                    "status": {
+                        "type": "integer"
+                    }
+                },
+                "type": "object"
+            },
             "internal_article_adapter_http.TagListItem": {
                 "properties": {
                     "article_count": {
@@ -5521,6 +5624,20 @@
                 },
                 "type": "object"
             },
+            "myblogx_internal_kernel.Envelope-internal_article_adapter_http_StudioStatsResponse": {
+                "properties": {
+                    "code": {
+                        "type": "integer"
+                    },
+                    "data": {
+                        "$ref": "#/components/schemas/internal_article_adapter_http.StudioStatsResponse"
+                    },
+                    "msg": {
+                        "type": "string"
+                    }
+                },
+                "type": "object"
+            },
             "myblogx_internal_kernel.Envelope-internal_auth_adapter_http_SendEmailResponse": {
                 "properties": {
                     "code": {
@@ -8696,6 +8813,31 @@
                     }
                 ],
                 "summary": "热门置顶排序",
+                "tags": [
+                    "article"
+                ]
+            }
+        },
+        "/articles/studio-stats": {
+            "get": {
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/myblogx_internal_kernel.Envelope-internal_article_adapter_http_StudioStatsResponse"
+                                }
+                            }
+                        },
+                        "description": "OK"
+                    }
+                },
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "summary": "个人数据概览",
                 "tags": [
                     "article"
                 ]

@@ -328,3 +328,65 @@ func matchFilter(a *domain.Article, f domain.Filter) bool {
 	}
 	return true
 }
+
+// AuthorContentStats 汇总某作者的内容数字（票 354）。
+func (r *ArticleRepo) AuthorContentStats(_ context.Context, authorID domain.UserID) (domain.ContentStats, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	stats := domain.ContentStats{StatusCounts: make(map[domain.Status]int64)}
+	for _, a := range r.byID {
+		if a.AuthorID() != authorID || a.Deleted() {
+			continue
+		}
+		stats.StatusCounts[a.Status()]++
+		c := a.Counters()
+		stats.SumView += int64(c.View)
+		stats.SumDigg += int64(c.Digg)
+		stats.SumComment += int64(c.Comment)
+		stats.SumFavor += int64(c.Favor)
+	}
+	return stats, nil
+}
+
+// ListRecentByAuthor 按创建时间倒序列出某作者最近的文章。
+func (r *ArticleRepo) ListRecentByAuthor(_ context.Context, authorID domain.UserID, limit int) ([]*domain.Article, error) {
+	return r.listByAuthor(authorID, limit, func(a, b *domain.Article) bool {
+		return a.CreatedAt().After(b.CreatedAt())
+	})
+}
+
+// ListTopByAuthor 按阅读量倒序列出某作者的文章。
+func (r *ArticleRepo) ListTopByAuthor(_ context.Context, authorID domain.UserID, limit int) ([]*domain.Article, error) {
+	return r.listByAuthor(authorID, limit, func(a, b *domain.Article) bool {
+		return a.Counters().View > b.Counters().View
+	})
+}
+
+// listByAuthor 是上面两个读面的共用实现：只差一个比较函数。
+func (r *ArticleRepo) listByAuthor(
+	authorID domain.UserID, limit int, less func(a, b *domain.Article) bool,
+) ([]*domain.Article, error) {
+	if limit <= 0 {
+		return nil, nil
+	}
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	picked := make([]*domain.Article, 0, len(r.byID))
+	for _, a := range r.byID {
+		if a.AuthorID() != authorID || a.Deleted() {
+			continue
+		}
+		picked = append(picked, cloneArticle(a))
+	}
+	// 插入排序：条数以百计，稳定且不引入 sort 包的比较器噪音。
+	for i := 1; i < len(picked); i++ {
+		for j := i; j > 0 && less(picked[j], picked[j-1]); j-- {
+			picked[j], picked[j-1] = picked[j-1], picked[j]
+		}
+	}
+	if len(picked) > limit {
+		picked = picked[:limit]
+	}
+	return picked, nil
+}

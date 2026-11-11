@@ -145,6 +145,14 @@
       "steps": [
         { "cwd": ".", "command": ["node", "scripts/check-image-shaping-parity.mjs"] }
       ]
+    },
+    {
+      "id": "metric-card-parity",
+      "label": "两端 MetricCard 同源",
+      "group": "frontend",
+      "steps": [
+        { "cwd": ".", "command": ["node", "scripts/check-metric-card-parity.mjs"] }
+      ]
     }
   ],
   "canaries": [

@@ -31,7 +31,7 @@ case "$PROFILE" in
     : "${BLOGX_NGINX_SSL_KEY:=ssl_certificate_key /usr/share/nginx/cert/domain.key;}"
     # 有证书就必须把 HTTP 收进 HTTPS：refresh_token 是 Secure Cookie，
     # 走 HTTP 的浏览器根本不会回传它（见模板里的说明）。
-    : "${BLOGX_NGINX_HTTP_REDIRECT:=if (\$scheme = http) { return 301 https://\$server_name\$request_uri; }}"
+    : "${BLOGX_NGINX_HTTP_REDIRECT:=if (\$scheme = http) { return 301 https://\$server_name\$request_uri; \}}"
     : "${BLOGX_NGINX_WEB_UPSTREAM:=blogx_web:3000}"
     : "${BLOGX_NGINX_ADMIN_UPSTREAM:=blogx_admin:3001}"
     : "${BLOGX_NGINX_SERVE_WEB:=1}"
@@ -44,7 +44,7 @@ case "$PROFILE" in
     : "${BLOGX_NGINX_SSL_KEY:=ssl_certificate_key /usr/share/nginx/cert/domain.key;}"
     # 有证书就必须把 HTTP 收进 HTTPS：refresh_token 是 Secure Cookie，
     # 走 HTTP 的浏览器根本不会回传它（见模板里的说明）。
-    : "${BLOGX_NGINX_HTTP_REDIRECT:=if (\$scheme = http) { return 301 https://\$server_name\$request_uri; }}"
+    : "${BLOGX_NGINX_HTTP_REDIRECT:=if (\$scheme = http) { return 301 https://\$server_name\$request_uri; \}}"
     : "${BLOGX_NGINX_WEB_UPSTREAM:=blogx_web:3000}"
     : "${BLOGX_NGINX_ADMIN_UPSTREAM:=blogx_admin:3001}"
     : "${BLOGX_NGINX_SERVE_WEB:=1}"
@@ -57,7 +57,7 @@ case "$PROFILE" in
     : "${BLOGX_NGINX_SSL_KEY:=ssl_certificate_key /usr/share/nginx/cert/domain.key;}"
     # 有证书就必须把 HTTP 收进 HTTPS：refresh_token 是 Secure Cookie，
     # 走 HTTP 的浏览器根本不会回传它（见模板里的说明）。
-    : "${BLOGX_NGINX_HTTP_REDIRECT:=if (\$scheme = http) { return 301 https://\$server_name\$request_uri; }}"
+    : "${BLOGX_NGINX_HTTP_REDIRECT:=if (\$scheme = http) { return 301 https://\$server_name\$request_uri; \}}"
     # 未使用的 web/admin upstream 指向 api 容器，保证 nginx 启动时能解析主机名；
     # 对应 location 由 SERVE_WEB / SERVE_ADMIN = 0 直接返回 404。
     : "${BLOGX_NGINX_WEB_UPSTREAM:=blogx_server:8080}"

@@ -117,7 +117,7 @@ async function refresh() {
   if (aiUsageResult.status === 'fulfilled') aiUsage.value = aiUsageResult.value
 
   // AI 用量也要进失败判定：漏掉它的话，请求失败时页面会静默显示一排 0，
-  // 与"日志库确实没有数据"完全不可区分（#357）。
+  // 与"日志库确实没有数据"完全不可区分（票 357）。
   if ([sumResult, flowGrowthResult, articleGrowthResult, userGrowthResult, articleYearResult, reviewResult, aiUsageResult].some(result => result.status === 'rejected')) {
     message.warning('部分数据暂时无法加载')
   }

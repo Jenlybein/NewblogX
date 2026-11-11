@@ -45,12 +45,22 @@ import {
 } from '~/utils/outlineArrange'
 import type { OutlineArticleCandidate, OutlineFlatRow, OutlineMoveOp } from '~/utils/outlineArrange'
 
-const props = defineProps<{
+const props = withDefaults(defineProps<{
   /** 编排的是合集还是项目（两个实体共用同一棵树结构）。 */
   kind: 'collection' | 'project'
   /** 实体 ID；空串表示还没保存过基本信息，此时不允许编排。 */
   entityId: string
-}>()
+  /**
+   * 嵌在编辑弹窗的两栏布局里（票 348）。
+   *
+   * 嵌入时**没有自己的保存按钮**：整份保存由弹窗的「保存修改」一次提交
+   * （字段 + 目录树走原子 compose）。树上只留拖拽 / 改名 / 删除 / 清理失效 /
+   * 批量收录这些编辑动作 —— 两个保存按钮会让"到底保存了什么"变成猜谜。
+   */
+  embedded?: boolean
+}>(), {
+  embedded: false,
+})
 
 const emit = defineEmits<{ saved: [] }>()
 
@@ -396,7 +406,12 @@ onMounted(async () => {
   await load()
 })
 
-defineExpose({ save, dirty })
+/** 供嵌入方取当前树（compose 要把节点一起提交）。 */
+function nodes() {
+  return buildOutlineNodes(rows.value)
+}
+
+defineExpose({ save, dirty, nodes, hasDirty: () => dirty.value })
 </script>
 
 <template>
@@ -443,8 +458,8 @@ defineExpose({ save, dirty })
           清理失效（{{ staleCount }}）
         </NButton>
         <NTag v-if="dirty" type="warning" size="small">有未保存的改动</NTag>
-        <!-- 「保存目录树」紧贴编辑区，不跟批量收录那一组混在一起。 -->
-        <NButton type="primary" data-role="outline-save" :loading="saving" @click="save">
+        <!-- 嵌入模式没有自己的保存按钮：整份保存由弹窗的「保存修改」一次提交。 -->
+        <NButton v-if="!embedded" type="primary" data-role="outline-save" :loading="saving" @click="save">
           保存目录树
         </NButton>
       </NSpace>

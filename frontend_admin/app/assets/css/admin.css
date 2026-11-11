@@ -949,21 +949,11 @@
   pointer-events: none;
 }
 
-/* 抽屉：宽度从 0 展开到 480，内容宽度固定，避免展开过程中被挤扁。
-   `visibility` 参与过渡：收起后既不可见也不可聚焦，不会留下一个宽 0 的 Tab 陷阱。 */
+/* 右栏（票 348 起常驻）：目录树一直在，不再是从 0 展开的抽屉。
+   左栏放字段、右栏放树，一次「保存修改」提交两者 —— 两个保存按钮会让
+   "到底保存了什么"变成猜谜。 */
 .collection-overlay__drawer {
-  width: 0;
-  overflow: hidden;
-  visibility: hidden;
-  opacity: 0;
-  transition: width var(--motion-base) var(--motion-ease), opacity var(--motion-fast) var(--motion-ease),
-    visibility var(--motion-fast) var(--motion-ease);
-}
-
-.collection-overlay__pair--tree .collection-overlay__drawer {
   width: min(88vw, 480px);
-  visibility: visible;
-  opacity: 1;
   margin-left: 0.75rem;
 }
 

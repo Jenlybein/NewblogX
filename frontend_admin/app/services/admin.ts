@@ -51,6 +51,8 @@ import type {
   TagWritePayload,
   UploadRuntimeConfig,
   UserListResponseData,
+  GroupOrderPayload,
+  GroupTreeData,
 } from '~/types/api'
 
 /** 可读写的配置段。与后端段注册表（platform/config/registry.go）的九段一一对应（ADR-0029）。 */
@@ -582,4 +584,47 @@ export function getDecoRuntimeConfig() {
 
 export function updateDecoRuntimeConfig(payload: DecoRuntimeConfig) {
   return updateRuntimeSection('deco', payload)
+}
+
+// ── 合集 / 项目分组（ADR-0041）─────────────────────────────────
+//
+// 两个实体的分组端点完全同构，只是路径前缀不同。函数按 kind 分派而不是
+// 各写一份：语义一致，写两份只会让"删分组时把条目退回未分组"这类差异只修一边。
+
+/** 后台分组读面：分组（含组内条目顺序）+ 未分组条目顺序。 */
+export function getAdminGroups(kind: 'collection' | 'project') {
+  return api().request<GroupTreeData>(`/${kind}s/groups`)
+}
+
+/** 新建或改名一个分组（立即生效）。`id` 为空表示新建。 */
+export function saveAdminGroup(kind: 'collection' | 'project', payload: { id?: string; title: string }) {
+  return api().request<unknown, { id?: string; title: string }>(`/${kind}s/groups`, {
+    method: 'PUT',
+    body: payload,
+  })
+}
+
+/** 删除分组：条目退回未分组，实体本身不动。 */
+export function deleteAdminGroup(kind: 'collection' | 'project', id: string) {
+  return api().request<unknown>(`/${kind}s/groups/${id}`, { method: 'DELETE' })
+}
+
+/** 整树换序（幂等整份覆盖）。集合不一致时后端整单拒绝，调用方据此刷新重排。 */
+export function replaceAdminGroupOrder(kind: 'collection' | 'project', payload: GroupOrderPayload) {
+  return api().request<unknown, GroupOrderPayload>(`/${kind}s/groups/order`, {
+    method: 'PUT',
+    body: payload,
+  })
+}
+
+/** 字段 + 目录树一次原子提交（编辑弹窗里的「保存修改」）。 */
+export function composeAdminEntity(
+  kind: 'collection' | 'project',
+  id: string,
+  payload: { title: string; description: string; cover: string; nodes: unknown[] },
+) {
+  return api().request<unknown, { title: string; description: string; cover: string; nodes: unknown[] }>(
+    `/${kind}s/${id}/compose`,
+    { method: 'PUT', body: payload },
+  )
 }

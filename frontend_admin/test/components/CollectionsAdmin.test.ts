@@ -22,6 +22,7 @@ import CollectionEditorOverlay from '~/components/articles/CollectionEditorOverl
 const { messageMock, adminApi } = vi.hoisted(() => ({
   messageMock: { success: vi.fn(), error: vi.fn(), warning: vi.fn(), info: vi.fn() },
   adminApi: {
+    composeAdminEntity: vi.fn(),
     createCollection: vi.fn(),
     updateCollection: vi.fn(),
     setCollectionDisplay: vi.fn(),
@@ -124,27 +125,20 @@ describe('CollectionEditorOverlay：新建 / 编辑', () => {
     expect(messageMock.warning).toHaveBeenCalled()
   })
 
-  it('新建：带上展示开关走 createCollection；拿到 ID 后「编排目录树」才可用', async () => {
+  it('新建：走 createCollection；目录树是常驻右栏，没有自己的保存按钮', async () => {
     adminApi.createCollection.mockResolvedValue({ id: 'new-1' })
     const wrapper = mount(CollectionEditorOverlay, { props: { show: true, kind: 'collection', entity: null } })
 
-    expect(wrapper.get('[data-role="collection-editor-tree"]').attributes('disabled')).toBeDefined()
+    // 票 348 起两栏常驻：目录树一开始就在，不存在"先保存再点亮按钮"这回事。
+    expect(wrapper.find('[data-role="collection-editor-tree"]').exists()).toBe(false)
+    const drawer = wrapper.get('[data-role="collection-editor-drawer"]')
+    expect(drawer.find('[data-role="outline-tree-editor-stub"]').exists()).toBe(true)
 
     await wrapper.get('input').setValue('新合集')
     await wrapper.get('[data-role="collection-editor-save"]').trigger('click')
     await flushPromises()
 
     expect(adminApi.createCollection).toHaveBeenCalledWith(expect.objectContaining({ title: '新合集', displayed: true }))
-    // 保存后留在弹窗里：拿到 ID，编排按钮亮（抽屉仍收起）。
-    expect(wrapper.get('[data-role="collection-editor-tree"]').attributes('disabled')).toBeUndefined()
-    expect(wrapper.get('.collection-overlay__pair').classes()).not.toContain('collection-overlay__pair--tree')
-
-    // 点「编排目录树」→ 抽屉以 `--tree` 态展开（宽度过渡靠这个类，抽屉本身常驻挂载）。
-    await wrapper.get('[data-role="collection-editor-tree"]').trigger('click')
-    expect(wrapper.get('.collection-overlay__pair').classes()).toContain('collection-overlay__pair--tree')
-    // 抽屉里是同一个编辑器实例，带新建拿到的 ID，且自带独立保存按钮。
-    const drawer = wrapper.get('[data-role="collection-editor-drawer"]')
-    expect(drawer.find('[data-role="outline-tree-editor-stub"]').attributes('data-entity')).toBe('new-1')
     expect(wrapper.emitted('saved')).toHaveLength(1)
   })
 
@@ -159,10 +153,14 @@ describe('CollectionEditorOverlay：新建 / 编辑', () => {
     await flushPromises()
 
     expect(adminApi.createCollection).not.toHaveBeenCalled()
-    expect(adminApi.updateCollection).toHaveBeenCalledWith('c9', expect.objectContaining({ title: '老合集' }))
+    // 票 348：字段与目录树走一次原子 compose，不再分两个请求。
+    expect(adminApi.composeAdminEntity).toHaveBeenCalledWith(
+      'collection',
+      'c9',
+      expect.objectContaining({ title: '老合集', nodes: expect.any(Array) }),
+    )
+    expect(adminApi.updateCollection).not.toHaveBeenCalled()
     expect(adminApi.setCollectionDisplay).toHaveBeenCalledWith('c9', true)
-    // 编辑时既有 ID：编排按钮一开始就可用。
-    expect(wrapper.get('[data-role="collection-editor-tree"]').attributes('disabled')).toBeUndefined()
   })
 
   it('项目 kind 走项目接口（同一套弹窗，两个页面共用）', async () => {
@@ -175,7 +173,11 @@ describe('CollectionEditorOverlay：新建 / 编辑', () => {
     await wrapper.get('[data-role="collection-editor-save"]').trigger('click')
     await flushPromises()
 
-    expect(adminApi.updateProject).toHaveBeenCalledWith('p1', expect.objectContaining({ title: '博客重构' }))
+    expect(adminApi.composeAdminEntity).toHaveBeenCalledWith(
+      'project',
+      'p1',
+      expect.objectContaining({ title: '博客重构' }),
+    )
     expect(adminApi.updateCollection).not.toHaveBeenCalled()
   })
 
@@ -199,6 +201,10 @@ describe('CollectionEditorOverlay：新建 / 编辑', () => {
     await flushPromises()
 
     // 但提交的是空封面 —— 不能把派生值写回数据库。
-    expect(adminApi.updateCollection).toHaveBeenCalledWith('c2', expect.objectContaining({ cover: '' }))
+    expect(adminApi.composeAdminEntity).toHaveBeenCalledWith(
+      'collection',
+      'c2',
+      expect.objectContaining({ cover: '' }),
+    )
   })
 })

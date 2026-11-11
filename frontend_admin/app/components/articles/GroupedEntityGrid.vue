@@ -99,7 +99,10 @@ function onDrop() {
         <span class="grouped-grid__count">{{ props.ungrouped.length }}</span>
       </header>
 
+      <!-- 未分组也要跟着收起：拖动分组标题时如果它还铺着，
+           屏幕上一半是卡片，"拖到哪儿了"又看不出来了。 -->
       <VueDraggable
+        v-show="!draggingGroup"
         v-model="props.ungrouped"
         class="collection-grid"
         :animation="160"

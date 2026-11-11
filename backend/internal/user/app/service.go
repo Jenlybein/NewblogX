@@ -24,7 +24,6 @@ type PublicProfile struct {
 
 	// 以下字段是主页展示需要的补充信息。
 	AvatarImageID *ctype.ID
-	HomeStyleID   ctype.ID
 	Place         string
 	Relation      int8
 }
@@ -64,7 +63,7 @@ func (s *Service) Detail(ctx context.Context, viewer domain.Viewer) (*DetailView
 		FavoritesVisibility:      settings.FavoritesVisibility,
 		FollowVisibility:         settings.FollowVisibility,
 		FansVisibility:           settings.FansVisibility,
-			DiggNoticeEnabled:        settings.DiggNoticeEnabled,
+		DiggNoticeEnabled:        settings.DiggNoticeEnabled,
 		CommentNoticeEnabled:     settings.CommentNoticeEnabled,
 		FavorNoticeEnabled:       settings.FavorNoticeEnabled,
 		PrivateChatNoticeEnabled: settings.PrivateChatNoticeEnabled,
@@ -130,7 +129,7 @@ func (s *Service) PublicProfile(ctx context.Context, target domain.UserID) (*Pub
 		FavoritesVis: settings.FavoritesVisibility,
 		FollowVis:    settings.FollowVisibility,
 		FansVis:      settings.FansVisibility,
-			Place:        u.Addr,
+		Place:        u.Addr,
 	}, nil
 }
 

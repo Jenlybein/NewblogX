@@ -1,6 +1,8 @@
 package http
 
 import (
+	"sort"
+
 	"myblogx/internal/article/app"
 	"myblogx/internal/article/domain"
 	"myblogx/internal/kernel/ctype"
@@ -92,8 +94,18 @@ func toStudioStatsResponse(stats *app.StudioStats) StudioStatsResponse {
 		SumComment:   stats.SumComment,
 		SumFavor:     stats.SumFavor,
 	}
-	for status, count := range stats.StatusCounts {
-		out.StatusCounts = append(out.StatusCounts, StudioStatusCountResponse{Status: int(status), Count: int(count)})
+	// 排序后输出：Go 的 map 遍历顺序随机，不排序会让同一份数据每次响应顺序都不同
+	// （前端做 diff / 快照测试时会莫名其妙地红）。
+	statuses := make([]int, 0, len(stats.StatusCounts))
+	for status := range stats.StatusCounts {
+		statuses = append(statuses, int(status))
+	}
+	sort.Ints(statuses)
+	for _, status := range statuses {
+		out.StatusCounts = append(out.StatusCounts, StudioStatusCountResponse{
+			Status: status,
+			Count:  int(stats.StatusCounts[domain.Status(status)]),
+		})
 	}
 	for _, a := range stats.Recent {
 		out.Recent = append(out.Recent, toStudioBrief(a))
@@ -101,8 +113,13 @@ func toStudioStatsResponse(stats *app.StudioStats) StudioStatsResponse {
 	for _, a := range stats.Top {
 		out.Top = append(out.Top, toStudioBrief(a))
 	}
-	for day, count := range stats.Activity {
-		out.Activity = append(out.Activity, StudioActivityDayResponse{Day: day, Count: count})
+	days := make([]string, 0, len(stats.Activity))
+	for day := range stats.Activity {
+		days = append(days, day)
+	}
+	sort.Strings(days)
+	for _, day := range days {
+		out.Activity = append(out.Activity, StudioActivityDayResponse{Day: day, Count: stats.Activity[day]})
 	}
 	return out
 }

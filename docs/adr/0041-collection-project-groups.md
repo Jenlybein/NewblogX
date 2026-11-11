@@ -2,7 +2,7 @@
 
 - 状态：已交付
 - 日期：2026-11-11
-- 来源：后台合集 / 项目页"一张卡片塞满全部信息、无法按主题归拢"的实际使用反馈 · 修订 [ADR-0023](./0023-collection-outline-tree.md) 的"唯一排序入口"约束 · 沿用零 DDL 口径
+- 来源：后台合集 / 项目页"一张卡片塞满全部信息、无法按主题归拢"的实际使用反馈 · 修订 [ADR-0023](./0023-outline-tree-for-collections-and-projects.md) 的"唯一排序入口"约束 · 沿用零 DDL 口径
 
 ## 背景与问题
 
@@ -37,10 +37,12 @@
    - 归属表对实体主键有真实外键（`fk_collection_group_item_collection` 等），
      删实体时数据库会拦住悬挂行。
 
-2. **分组树是唯一顺序真相**。分组之间、组内条目、未分组段，三者顺序全部由归属表的
-   `sort_order` 表达。`collection_models.sort_order` / `project_models.sort_order`
-   **不再参与读面**，只作为"未分组且还没有归属行"的历史条目兜底。这是对
-   [ADR-0023](./0023-collection-outline-tree.md) 约束 7「排序只经树编辑器一个入口」的修订：
+2. **分组树是分组的唯一顺序真相**。分组之间、组内条目、未分组段，三者顺序全部由归属表的
+   `sort_order` 表达；`collection_models.sort_order` / `project_models.sort_order`
+   不再是"合集之间的顺序"，只作为**未分组条目**的兜底排序（它们既没有归属行、
+   也没被拖过）。列表读面因此只有一条规则：先按分组顺序、再按组内顺序、
+   未分组排在最后并按 `sort_order` 兜底。这是对
+   [ADR-0023](./0023-outline-tree-for-collections-and-projects.md) 约束 7「排序只经树编辑器一个入口」的修订：
    那条约束说的是**目录树内部**的层次，本 ADR 补的是**实体之间**的编排，
    两者是不同的维度，不构成第二套真相。
 

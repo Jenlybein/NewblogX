@@ -10,6 +10,7 @@ import (
 	"myblogx/internal/article/domain"
 	"myblogx/internal/article/domain/collection"
 	"myblogx/internal/article/domain/favorite"
+	"myblogx/internal/article/domain/grouping"
 	"myblogx/internal/article/domain/hottop"
 	"myblogx/internal/article/domain/outline"
 	"myblogx/internal/article/domain/project"
@@ -18,6 +19,8 @@ import (
 	"myblogx/internal/article/domain/taxonomy"
 	"myblogx/internal/article/domain/top"
 	"myblogx/internal/article/domain/viewhistory"
+	"myblogx/internal/kernel/ctype"
+	"myblogx/internal/platform/idgen"
 	redis_service "myblogx/internal/platform/redis"
 )
 
@@ -125,4 +128,28 @@ func (r *repos) NamedOutlineFor(_ context.Context, kind outline.OwnerKind) outli
 		return NewProjectOutlineRepo(r.db)
 	}
 	return NewCollectionOutlineRepo(r.db)
+}
+
+// GroupsFor 按实体返回自己的分组仓储（ADR-0041）。
+//
+// 实现的是 app.GroupRepositoryFor（端口由使用方定义）。少了这个方法，
+// 分组端点会在**生产**装配下走"端口不满足"的分支、全部返回 not_found ——
+// 而单测用的是满足端口的 fake，所以这条只在真装配里才暴露（评审抓到过一次）。
+func (r *repos) GroupsFor(_ context.Context, kind outline.OwnerKind) grouping.Repository {
+	if kind == outline.OwnerProject {
+		return NewProjectGroupRepo(r.db, func() ctype.ID { return r.nextGroupItemID() })
+	}
+	return NewCollectionGroupRepo(r.db, func() ctype.ID { return r.nextGroupItemID() })
+}
+
+// nextGroupItemID 给条目归属行发主键。
+//
+// 归属行不是内容实体，不需要跨模块可辨认的 ID；用雪花保证唯一即可。
+func (r *repos) nextGroupItemID() ctype.ID {
+	id, err := idgen.Next()
+	if err != nil {
+		// 与其它 ID 生成同一口径：失败说明装配有问题，早暴露比写 0 号行好。
+		panic("article: 雪花 ID 生成失败: " + err.Error())
+	}
+	return id
 }

@@ -86,8 +86,6 @@ const { data: profile, pending: profilePending, refresh: refreshProfile } = useA
           favorites_visibility: true,
           followers_visibility: true,
           fans_visibility: true,
-          // ctype.ID 的零值序列化成空串（不是 null），契约里 home_style_id 就是 string。
-          home_style_id: "",
           relation: 0,
           place: "",
         };

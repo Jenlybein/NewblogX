@@ -183,13 +183,30 @@ func (s *Service) LoadGroupTree(ctx context.Context, actor domain.Viewer, kind o
 		}
 
 		byGroup := make(map[grouping.ID][]ctype.ID, len(groups))
+		placed := make(map[ctype.ID]struct{}, len(assignments))
 		ungrouped := make([]ctype.ID, 0, len(assignments))
 		for _, a := range assignments {
+			placed[a.OwnerID] = struct{}{}
 			if a.GroupID.IsZero() {
 				ungrouped = append(ungrouped, a.OwnerID)
 				continue
 			}
 			byGroup[a.GroupID] = append(byGroup[a.GroupID], a.OwnerID)
+		}
+
+		// 从来没有归属行的实体也算未分组（接在已有未分组条目之后）。
+		//
+		// 只遍历归属行会让"新建但还没拖过"的合集在后台读面里消失 ——
+		// 前端会把它补回来，但读模型本身不该依赖调用方兜底。
+		all, err := allOwnerIDs(ctx, repos, kind)
+		if err != nil {
+			return err
+		}
+		for _, owner := range all {
+			if _, ok := placed[owner]; ok {
+				continue
+			}
+			ungrouped = append(ungrouped, owner)
 		}
 
 		out := &GroupTree{Groups: make([]GroupNode, 0, len(groups)), Ungrouped: ungrouped}
@@ -204,6 +221,37 @@ func (s *Service) LoadGroupTree(ctx context.Context, actor domain.Viewer, kind o
 		return nil
 	})
 	return tree, err
+}
+
+// allOwnerIDs 取该实体下**全部**未删实体的 ID。
+//
+// 与 visibleOwnerIDs（读者侧）的区别：这里不按展示开关过滤 —— 后台编排要能
+// 拖到隐藏的实体上，否则"关掉展示的那个合集"永远归不了组。
+func allOwnerIDs(ctx context.Context, repos Repos, kind outline.OwnerKind) ([]ctype.ID, error) {
+	switch kind {
+	case outline.OwnerCollection:
+		cards, err := repos.Collections().ListAdminCards(ctx)
+		if err != nil {
+			return nil, err
+		}
+		out := make([]ctype.ID, 0, len(cards))
+		for _, card := range cards {
+			out = append(out, ctype.ID(card.ID))
+		}
+		return out, nil
+	case outline.OwnerProject:
+		cards, err := repos.Projects().ListAdminCards(ctx)
+		if err != nil {
+			return nil, err
+		}
+		out := make([]ctype.ID, 0, len(cards))
+		for _, card := range cards {
+			out = append(out, ctype.ID(card.ID))
+		}
+		return out, nil
+	default:
+		return nil, grouping.ErrOrderMismatch
+	}
 }
 
 // ReplaceGroupOrderCmd 是整树换序的输入。
@@ -235,18 +283,19 @@ func (s *Service) ReplaceGroupOrder(ctx context.Context, cmd ReplaceGroupOrderCm
 		if err != nil {
 			return err
 		}
-		assignments, err := repo.ListAssignments(ctx)
-		if err != nil {
-			return err
-		}
 
 		groupIDs := make([]grouping.ID, 0, len(groups))
 		for _, g := range groups {
 			groupIDs = append(groupIDs, g.ID())
 		}
-		owners := make([]ctype.ID, 0, len(assignments))
-		for _, a := range assignments {
-			owners = append(owners, a.OwnerID)
+		// 全集必须取**实体**全集，不是"已有归属行的条目"。
+		//
+		// 从来没有被拖进过分组的实体没有归属行；只按归属行算全集的话，
+		// 后台第一次拖动就会因为"提交里多了一个库不知道的条目"被整单拒绝 ——
+		// 也就是这个功能在干净数据上根本用不了。
+		owners, err := allOwnerIDs(ctx, repos, cmd.OwnerKind)
+		if err != nil {
+			return err
 		}
 		if err := grouping.CheckOrder(groupIDs, owners, cmd.Tree); err != nil {
 			return err

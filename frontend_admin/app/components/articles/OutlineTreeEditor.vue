@@ -16,7 +16,7 @@
  * 仍然只改本地行、仍然只有「保存」落地库。
  */
 import { computed, h, nextTick, onMounted, ref, watch } from 'vue'
-import { NButton, NDropdown, NInput, NSelect, NSpace, NTag, NTree, useMessage } from 'naive-ui'
+import { NButton, NDropdown, NInput, NSelect, NSpace, NTag, NTooltip, NTree, useMessage } from 'naive-ui'
 import type { DropdownOption, TreeDropInfo, TreeOption } from 'naive-ui'
 import {
   getCollectionOutline,
@@ -458,10 +458,8 @@ defineExpose({ save, dirty, nodes, hasDirty: () => dirty.value })
           清理失效（{{ staleCount }}）
         </NButton>
         <NTag v-if="dirty" type="warning" size="small">有未保存的改动</NTag>
-        <!-- 嵌入模式没有自己的保存按钮：整份保存由弹窗的「保存修改」一次提交。 -->
-        <NButton v-if="!embedded" type="primary" data-role="outline-save" :loading="saving" @click="save">
-          保存目录树
-        </NButton>
+        <!-- 树只保留编辑动作（拖拽 / 改名 / 删除 / 清理失效 / 批量收录）：
+             保存由外层弹窗的「保存修改」一次提交，树里不再有第二个保存按钮。 -->
       </NSpace>
 
       <NTree
@@ -495,11 +493,16 @@ defineExpose({ save, dirty, nodes, hasDirty: () => dirty.value })
         :options="menuOptions"
         @select="onMenuSelect" />
 
-      <p class="admin-hint">
+      <!-- 长说明收进 tooltip（票 348）：正文区只留操作本身，
+           需要"怎么用"的人点一下问号就有，不需要的人不必每次读三行。 -->
+      <NTooltip placement="bottom-start" style="max-width: 420px">
+        <template #trigger>
+          <NButton size="tiny" quaternary data-role="outline-help">操作说明</NButton>
+        </template>
         拖动节点可调整顺序与层级（落在文件夹上是它的第一个子项，落在节点间隙是同级）。
         每行右侧「⋯」里有上移 / 下移 / 缩进 / 移出 / 重命名 / 移除，键盘与触屏也走得通。
-        所有改动先留在本地，点「保存目录树」一次性提交。
-      </p>
+        所有改动先留在本地，由「保存修改」一次性提交。
+      </NTooltip>
 
       <section class="admin-arrange-batch">
         <h3 class="admin-arrange-batch__title">批量收录文章到「{{ includeTargetLabel() }}」</h3>

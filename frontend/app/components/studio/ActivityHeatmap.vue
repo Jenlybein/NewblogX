@@ -24,17 +24,42 @@ const props = withDefaults(defineProps<{
   today: undefined,
 })
 
-/** 把日期格式化成 `YYYY-MM-DD`（本地时区，与后端口径一致）。 */
+/**
+ * 把日期格式化成 `YYYY-MM-DD`，**按东八区**。
+ *
+ * 后端按 Asia/Shanghai 切天（见 clickhouse.CountDailyStudioActivity）。这里如果
+ * 用浏览器本地时区，非 +08 的读者会看到整列错位一天 —— 热力图最忌讳"我的今天
+ * 显示成昨天"。
+ */
+const DAY_FORMATTER = new Intl.DateTimeFormat('en-CA', {
+  timeZone: 'Asia/Shanghai',
+  year: 'numeric',
+  month: '2-digit',
+  day: '2-digit',
+})
+
 function dayKey(date: Date): string {
-  const y = date.getFullYear()
-  const m = String(date.getMonth() + 1).padStart(2, '0')
-  const d = String(date.getDate()).padStart(2, '0')
-  return `${y}-${m}-${d}`
+  // en-CA 的日期格式恰好是 YYYY-MM-DD，不用自己拼。
+  return DAY_FORMATTER.format(date)
 }
 
-/** 按本地时区取"今天"的零点。 */
-function startOfDay(date: Date): Date {
-  return new Date(date.getFullYear(), date.getMonth(), date.getDate())
+/**
+ * 把 `YYYY-MM-DD` 解析成 UTC 零点。
+ *
+ * 网格里的日期算术全部在 UTC 上做：日期字符串本身就是"东八区的那一天"，
+ * 用 UTC 当容器做加减不会受浏览器时区影响，也不会遇到夏令时。
+ */
+function parseDayKey(key: string): Date {
+  const [y, m, d] = key.split('-').map(Number)
+  return new Date(Date.UTC(y!, (m ?? 1) - 1, d ?? 1))
+}
+
+/** 把 UTC 容器格式化回 `YYYY-MM-DD`。 */
+function formatUtcDay(date: Date): string {
+  const y = date.getUTCFullYear()
+  const m = String(date.getUTCMonth() + 1).padStart(2, '0')
+  const d = String(date.getUTCDate()).padStart(2, '0')
+  return `${y}-${m}-${d}`
 }
 
 interface Cell {
@@ -47,21 +72,24 @@ interface Cell {
 }
 
 const cells = computed<Cell[]>(() => {
-  const today = startOfDay(props.today ?? new Date())
+  // "今天"按东八区取：与后端切天的口径一致，非 +08 的读者也不会错一天。
+  const todayKey = dayKey(props.today ?? new Date())
+  const today = parseDayKey(todayKey)
+
   // 网格是**整周**的：从"本周周日"往回数 91 天，正好 13 列 × 7 行。
   //
   // 为什么不用"今天往前 91 天"：那样最后一列只到今天就断了，格子数不是 7 的倍数，
   // 网格右侧会缺一角；本周还没到的日子按 `future` 渲染成空白。
-  const weekdayOfToday = (today.getDay() + 6) % 7 // 周一 = 0
+  const weekdayOfToday = (today.getUTCDay() + 6) % 7 // 周一 = 0
   const end = new Date(today)
-  end.setDate(end.getDate() + (6 - weekdayOfToday))
+  end.setUTCDate(end.getUTCDate() + (6 - weekdayOfToday))
   const start = new Date(end)
-  start.setDate(start.getDate() - (props.days - 1))
+  start.setUTCDate(start.getUTCDate() - (props.days - 1))
 
   const out: Cell[] = []
   const cursor = new Date(start)
   while (cursor <= end) {
-    const key = dayKey(cursor)
+    const key = formatUtcDay(cursor)
     const count = props.activity[key] ?? 0
     out.push({
       key,
@@ -69,7 +97,7 @@ const cells = computed<Cell[]>(() => {
       level: levelOf(count),
       future: cursor > today,
     })
-    cursor.setDate(cursor.getDate() + 1)
+    cursor.setUTCDate(cursor.getUTCDate() + 1)
   }
   return out
 })

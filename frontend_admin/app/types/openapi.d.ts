@@ -2446,7 +2446,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["myblogx_internal_kernel.Envelope-any"];
+                        "application/json": components["schemas"]["myblogx_internal_kernel.Envelope-myblogx_internal_kernel_EmptyData"];
                     };
                 };
             };
@@ -2487,7 +2487,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["myblogx_internal_kernel.Envelope-any"];
+                        "application/json": components["schemas"]["myblogx_internal_kernel.Envelope-myblogx_internal_kernel_EmptyData"];
                     };
                 };
             };
@@ -4759,7 +4759,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["myblogx_internal_kernel.Envelope-any"];
+                        "application/json": components["schemas"]["myblogx_internal_kernel.Envelope-myblogx_internal_kernel_EmptyData"];
                     };
                 };
             };
@@ -4800,7 +4800,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["myblogx_internal_kernel.Envelope-any"];
+                        "application/json": components["schemas"]["myblogx_internal_kernel.Envelope-myblogx_internal_kernel_EmptyData"];
                     };
                 };
             };
@@ -7574,6 +7574,8 @@ export interface components {
             message_count?: number;
             new_login_count?: number;
             new_sign_count?: number;
+            /** @description Range 是收敛后的时间窗，前端据此高亮按钮。 */
+            range?: string;
             user_count?: number;
         };
         "internal_article_adapter_http.ArticleAuthorInfoResponse": {
@@ -9218,11 +9220,6 @@ export interface components {
             user_nickname?: string;
         };
         "myblogx_internal_kernel.EmptyData": Record<string, never>;
-        "myblogx_internal_kernel.Envelope-any": {
-            code?: number;
-            data?: unknown;
-            msg?: string;
-        };
         "myblogx_internal_kernel.Envelope-internal_ai_adapter_http_MetaInfoResponse": {
             code?: number;
             data?: components["schemas"]["internal_ai_adapter_http.MetaInfoResponse"];

@@ -732,6 +732,10 @@
                     "new_sign_count": {
                         "type": "integer"
                     },
+                    "range": {
+                        "description": "Range 是收敛后的时间窗，前端据此高亮按钮。",
+                        "type": "string"
+                    },
                     "user_count": {
                         "type": "integer"
                     }
@@ -5310,18 +5314,6 @@
                 "type": "object"
             },
             "myblogx_internal_kernel.EmptyData": {
-                "type": "object"
-            },
-            "myblogx_internal_kernel.Envelope-any": {
-                "properties": {
-                    "code": {
-                        "type": "integer"
-                    },
-                    "data": {},
-                    "msg": {
-                        "type": "string"
-                    }
-                },
                 "type": "object"
             },
             "myblogx_internal_kernel.Envelope-internal_ai_adapter_http_MetaInfoResponse": {
@@ -10049,7 +10041,7 @@
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "$ref": "#/components/schemas/myblogx_internal_kernel.Envelope-any"
+                                    "$ref": "#/components/schemas/myblogx_internal_kernel.Envelope-myblogx_internal_kernel_EmptyData"
                                 }
                             }
                         },
@@ -10085,7 +10077,7 @@
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "$ref": "#/components/schemas/myblogx_internal_kernel.Envelope-any"
+                                    "$ref": "#/components/schemas/myblogx_internal_kernel.Envelope-myblogx_internal_kernel_EmptyData"
                                 }
                             }
                         },
@@ -12974,7 +12966,7 @@
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "$ref": "#/components/schemas/myblogx_internal_kernel.Envelope-any"
+                                    "$ref": "#/components/schemas/myblogx_internal_kernel.Envelope-myblogx_internal_kernel_EmptyData"
                                 }
                             }
                         },
@@ -13010,7 +13002,7 @@
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "$ref": "#/components/schemas/myblogx_internal_kernel.Envelope-any"
+                                    "$ref": "#/components/schemas/myblogx_internal_kernel.Envelope-myblogx_internal_kernel_EmptyData"
                                 }
                             }
                         },

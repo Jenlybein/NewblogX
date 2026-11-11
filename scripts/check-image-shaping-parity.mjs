@@ -49,6 +49,14 @@ export const IMAGE_CROP_FILES = {
     reader: "frontend/app/components/studio/ImageCropDialog.vue",
     admin: "frontend_admin/app/components/media/ImageCropDialog.vue",
   },
+  // 指标卡（票 354）：读者站的个人概览与后台的站点概览显示同一类数字，
+  // 两处各写一份就会出现"同一个数字在两页字号不同"这种没人会主动比对的漂移。
+  // 放进这张表而不是新开一道门禁：判据完全一样（逐字节相同），
+  // 新开一道就要多一个演练节号，而演练证明的是同一种形状。
+  metricCard: {
+    reader: "frontend/app/components/studio/MetricCard.vue",
+    admin: "frontend_admin/app/components/media/MetricCard.vue",
+  },
 };
 
 /** 从工作目录向上找到仓库根（含 scripts/ 与两端 imageShaping 的目录）。 */
@@ -210,6 +218,7 @@ export function checkImageShapingParity({ repoRoot = findRepoRoot() } = {}) {
 const IMAGE_CROP_LABELS = {
   view: "ImageCropView 裁剪窗组件",
   dialog: "ImageCropDialog 裁剪窗弹层",
+  metricCard: "MetricCard 指标卡",
 };
 
 /**
@@ -306,12 +315,13 @@ function runCli(argv) {
 
   if (crop.ok) {
     console.log(
-      `✓ 两端裁剪窗同源门禁通过（ImageCropView ${crop.files.view.reader} 字节 × 2 份、` +
-        `ImageCropDialog ${crop.files.dialog.reader} 字节 × 2 份，逐字节一致）`,
+      `✓ 两端同源副本门禁通过（ImageCropView ${crop.files.view.reader} 字节 × 2 份、` +
+        `ImageCropDialog ${crop.files.dialog.reader} 字节 × 2 份、` +
+        `MetricCard ${crop.files.metricCard.reader} 字节 × 2 份，逐字节一致）`,
     );
   } else {
     ok = false;
-    console.error("✗ 两端裁剪窗（ImageCropView / ImageCropDialog）同源门禁失败");
+    console.error("✗ 两端同源副本（ImageCropView / ImageCropDialog / MetricCard）门禁失败");
     for (const failure of crop.failures) console.error(`  ${failure.message}`);
   }
 

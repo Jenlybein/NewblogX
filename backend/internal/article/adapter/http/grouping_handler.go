@@ -101,7 +101,7 @@ func (h *Handler) GroupSaveView(c *gin.Context) {
 // @Produce json
 // @Security BearerAuth
 // @Param id path string true "分组 ID"
-// @Success 200 {object} kernel.Envelope[any]
+// @Success 200 {object} kernel.Envelope[kernel.EmptyData]
 // @Router /collections/groups/{id} [delete]
 // @Router /projects/groups/{id} [delete]
 func (h *Handler) GroupDeleteView(c *gin.Context) {
@@ -129,7 +129,7 @@ func (h *Handler) GroupDeleteView(c *gin.Context) {
 // @Produce json
 // @Security BearerAuth
 // @Param body body GroupOrderRequest true "整树顺序"
-// @Success 200 {object} kernel.Envelope[any]
+// @Success 200 {object} kernel.Envelope[kernel.EmptyData]
 // @Router /collections/groups/order [put]
 // @Router /projects/groups/order [put]
 func (h *Handler) GroupOrderView(c *gin.Context) {
@@ -219,8 +219,6 @@ func (h *Handler) ProjectComposeView(c *gin.Context) {
 	fillNamedProjectOutlineSave(&out, toOutlineTreeResponse(detail))
 	res.OkWithData(out, c)
 }
-
-
 
 // PublicGroupTreeView 读者侧分组读面（票 353）。
 //

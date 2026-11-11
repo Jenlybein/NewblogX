@@ -1,13 +1,21 @@
 package http
 
+// SumRequest 是站点汇总的查询参数。
+type SumRequest struct {
+	// Range 只影响"新增"类数字的起点（票 349）：累计数本身与窗口无关。
+	Range string `form:"range" enums:"today,week,month,year"`
+}
+
 type SumResponse struct {
-	FlowCount     int   `json:"flow_count"`
-	UserCount     int64 `json:"user_count"`
-	ArticleCount  int64 `json:"article_count"`
-	MessageCount  int64 `json:"message_count"`
-	CommentCount  int64 `json:"comment_count"`
-	NewLoginCount int64 `json:"new_login_count"`
-	NewSignCount  int64 `json:"new_sign_count"`
+	// Range 是收敛后的时间窗，前端据此高亮按钮。
+	Range         string `json:"range"`
+	FlowCount     int    `json:"flow_count"`
+	UserCount     int64  `json:"user_count"`
+	ArticleCount  int64  `json:"article_count"`
+	MessageCount  int64  `json:"message_count"`
+	CommentCount  int64  `json:"comment_count"`
+	NewLoginCount int64  `json:"new_login_count"`
+	NewSignCount  int64  `json:"new_sign_count"`
 }
 
 type GrowthDataRequest struct {

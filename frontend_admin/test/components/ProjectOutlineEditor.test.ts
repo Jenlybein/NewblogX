@@ -78,7 +78,7 @@ describe('OutlineTreeEditor：项目 kind 只编排项目独立树', () => {
     expect(adminApi.getCollectionOutline).not.toHaveBeenCalled()
     expect(wrapper.text()).toContain('已失效')
 
-    await wrapper.get('[data-role="outline-save"]').trigger('click')
+    await (wrapper.vm as unknown as { save: () => Promise<void> }).save()
     await flushPromises()
 
     expect(adminApi.saveProjectOutline).toHaveBeenCalledTimes(1)
@@ -106,7 +106,7 @@ describe('OutlineTreeEditor：项目 kind 只编排项目独立树', () => {
     // NInput 实际渲染的 input 元素：setValue 触发 input 事件驱动 v-model。
     await wrapper.get('[data-role="outline-folder-title"] input').setValue('第二章')
     await wrapper.get('[data-role="outline-create-root"]').trigger('click')
-    await wrapper.get('[data-role="outline-save"]').trigger('click')
+    await (wrapper.vm as unknown as { save: () => Promise<void> }).save()
     await flushPromises()
 
     const [, nodes] = adminApi.saveProjectOutline.mock.calls[0] as [string, Array<Record<string, unknown>>]

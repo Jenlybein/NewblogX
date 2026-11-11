@@ -2782,3 +2782,88 @@ html {
   color: var(--color-danger-ink);
   border-color: var(--color-danger-line);
 }
+/* 侧栏子项（票 355）：缩进 + 更小的字，父项保持激活态。 */
+.studio-sidebar__link--child {
+  padding-left: 2.25rem;
+  font-size: 0.8125rem;
+  color: var(--color-ink-muted);
+}
+
+.studio-sidebar__link--child.is-active {
+  color: var(--color-ink);
+  font-weight: 600;
+}
+
+/* 账号设置的字段行（票 355）：左侧固定 140px 标签列，右侧控件。
+ * 固定列宽是为了让五个分栏里的控件左边缘对齐 —— 之前每个 label 各自
+ * 决定宽度，眼睛要在锯齿状的竖线之间来回跳。 */
+.settings-row {
+  display: grid;
+  gap: 0.5rem 1rem;
+  grid-template-columns: 140px minmax(0, 1fr);
+  align-items: center;
+  padding: 0.75rem 0;
+  border-bottom: 1px solid var(--color-line-faint);
+}
+
+.settings-row:last-child {
+  border-bottom: 0;
+}
+
+.settings-row__label {
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: var(--color-ink);
+}
+
+.settings-row__control {
+  min-width: 0;
+}
+
+/* 开关行：标题 + 说明，右侧开关。说明文字让用户知道打开/关掉会发生什么。 */
+.settings-row--switch {
+  align-items: start;
+}
+
+.settings-row__hint {
+  margin: 0.25rem 0 0;
+  font-size: 0.75rem;
+  line-height: 1.5;
+  color: var(--color-ink-muted);
+}
+
+/* 窄屏：标签列折到控件上方（140px 在手机上会把控件压成一条）。 */
+@media (max-width: 640px) {
+  .settings-row {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+/* 设置页的分栏 tab（票 355）：与侧栏子项指向同一组 ?section=。 */
+.settings-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  padding-bottom: 0.25rem;
+}
+
+.settings-tabs__tab {
+  padding: 0.375rem 0.875rem;
+  font-size: 0.875rem;
+  color: var(--color-ink-muted);
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-pill);
+  text-decoration: none;
+  transition: border-color var(--motion-fast) var(--motion-ease),
+    color var(--motion-fast) var(--motion-ease);
+}
+
+.settings-tabs__tab:hover {
+  border-color: var(--color-line-strong);
+  color: var(--color-ink);
+}
+
+.settings-tabs__tab.is-active {
+  color: var(--color-surface);
+  background: var(--color-ink);
+  border-color: var(--color-ink);
+}

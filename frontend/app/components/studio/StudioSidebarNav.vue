@@ -20,7 +20,24 @@ type StudioNavItem = {
   label: string;
   to: string;
   icon: typeof IconDashboard;
+  /**
+   * 账号设置的子项（票 355）。
+   *
+   * 设置页用 `?section=` 切换分栏，所以子项是"同一路由 + 不同查询"。列在侧栏
+   * 里而不是页内 tab：用户找"改密码"时会在侧栏找，页内 tab 只有进到设置页
+   * 才看得见。子项只在设置页展开 —— 别的页面展开它只是噪音。
+   */
+  children?: { label: string; to: string }[];
 };
+
+/** 账号设置的五个分栏：顺序即页面上的顺序，也即子项顺序。 */
+const settingsSections = [
+  { label: "个人资料", to: "/studio/settings?section=profile" },
+  { label: "账号安全", to: "/studio/settings?section=security" },
+  { label: "消息偏好", to: "/studio/settings?section=notify" },
+  { label: "可见性", to: "/studio/settings?section=visibility" },
+  { label: "隐私", to: "/studio/settings?section=privacy" },
+] as const;
 
 const items: StudioNavItem[] = [
   { label: "数据概览", to: "/studio/dashboard", icon: IconDashboard },
@@ -33,11 +50,26 @@ const items: StudioNavItem[] = [
   // 关注与粉丝合成一页（票 327）：二者是同一件事的两面，页内顶栏切换关注/粉丝/互关。
   { label: "关注与粉丝", to: "/studio/relations", icon: IconHeartHandshake },
   { label: "登录设备", to: "/studio/recent-logins", icon: IconLogin2 },
-  { label: "账号设置", to: "/studio/settings", icon: IconSettings },
+  { label: "账号设置", to: "/studio/settings", icon: IconSettings, children: [...settingsSections] },
 ];
 
 function isItemActive(item: StudioNavItem) {
   return route.path === item.to;
+}
+
+/** 子项是否展开：只在设置页展开，且保持父项处于激活态。 */
+function showChildren(item: StudioNavItem) {
+  return Boolean(item.children?.length) && route.path === item.to;
+}
+
+/** 子项激活判定要连查询一起比：五个子项路径相同、只有 section 不同。 */
+function isChildActive(child: { to: string }) {
+  const [path, query] = child.to.split("?");
+  if (route.path !== path) return false;
+  const params = new URLSearchParams(query ?? "");
+  const want = params.get("section");
+  const current = typeof route.query.section === "string" ? route.query.section : "profile";
+  return (want ?? "profile") === current;
 }
 </script>
 
@@ -62,18 +94,33 @@ function isItemActive(item: StudioNavItem) {
     </div>
 
     <nav class="studio-sidebar__nav" aria-label="个人中心导航">
-      <NuxtLink
-        v-for="item in items"
-        :key="item.to"
-        :to="item.to"
-        class="studio-sidebar__link"
-        :class="{ 'is-active': isItemActive(item) }"
-      >
-        <span class="studio-sidebar__link-main">
-          <component :is="item.icon" :size="18" aria-hidden="true" />
-          <span>{{ item.label }}</span>
-        </span>
-      </NuxtLink>
+      <!-- 每一项连同它的子项一起渲染：`v-for` 挂在 template 上，
+           否则子项那段不在循环里（只渲染一次、且拿不到 item）。 -->
+      <template v-for="item in items" :key="item.to">
+        <NuxtLink
+          :to="item.to"
+          class="studio-sidebar__link"
+          :class="{ 'is-active': isItemActive(item) }"
+        >
+          <span class="studio-sidebar__link-main">
+            <component :is="item.icon" :size="18" aria-hidden="true" />
+            <span>{{ item.label }}</span>
+          </span>
+        </NuxtLink>
+
+        <!-- 账号设置的子项（票 355）：只在设置页展开。 -->
+        <template v-if="showChildren(item)">
+          <NuxtLink
+            v-for="child in item.children ?? []"
+            :key="child.to"
+            :to="child.to"
+            class="studio-sidebar__link studio-sidebar__link--child"
+            :class="{ 'is-active': isChildActive(child) }"
+            :data-role="`settings-section-${child.label}`">
+            <span class="studio-sidebar__link-main">{{ child.label }}</span>
+          </NuxtLink>
+        </template>
+      </template>
     </nav>
 
     <NuxtLink

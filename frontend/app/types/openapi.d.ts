@@ -8623,7 +8623,6 @@ export interface components {
             favorites_visibility?: boolean;
             follow_count?: number;
             followers_visibility?: boolean;
-            home_style_id?: string;
             id?: string;
             nickname?: string;
             place?: string;
@@ -8650,11 +8649,13 @@ export interface components {
             fans_visibility?: boolean;
             favorites_visibility?: boolean;
             followers_visibility?: boolean;
-            home_style_id?: string;
             like_tag_ids?: string[];
             nickname?: string;
             /**
-             * @description StrangerChatEnabled 是"允许陌生人给我发私信"的个人开关。
+             * @description 主页样式 ID 已从接口退场（票 355）：这个字段从来没有消费方 ——
+             *     读者站不读它、后台也不读它，只在前端表单里占一行让人填数字。
+             *     数据库列保留（零 DDL 口径），但不再接受写入、也不再出现在响应里。
+             *     StrangerChatEnabled 是"允许陌生人给我发私信"的个人开关。
              *     字段名沿用既有契约 stranger_msg_enabled；全指针语义与其余偏好一致：
              *     没传不改，false 是合法值（关掉）。
              */
@@ -9805,7 +9806,6 @@ export interface components {
             favorites_visibility?: boolean;
             followers_visibility?: boolean;
             has_password?: boolean;
-            home_style_id?: string;
             id?: string;
             like_tag_ids?: string[];
             like_tag_items?: components["schemas"]["myblogx_internal_user_app.LikeTagItem"][];

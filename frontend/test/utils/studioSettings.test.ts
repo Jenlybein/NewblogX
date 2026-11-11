@@ -21,7 +21,6 @@ const form: ProfileFormForUpdate = {
   favorites_visibility: false,
   followers_visibility: true,
   fans_visibility: false,
-  home_style_id: "2",
 };
 
 describe("buildProfileUpdatePayload：保存资料不发 stranger 字段", () => {
@@ -42,19 +41,17 @@ describe("buildProfileUpdatePayload：保存资料不发 stranger 字段", () =>
     expect(payload.favorites_visibility).toBe(false);
     expect(payload.followers_visibility).toBe(true);
     expect(payload.fans_visibility).toBe(false);
-    expect(payload.home_style_id).toBe("2");
   });
 
   it("空白资料回落成 null（后端把 null 当「不设置」）", () => {
     const payload = buildProfileUpdatePayload(
-      { ...form, username: "", nickname: "   ", abstract: "", home_style_id: "" },
+      { ...form, username: "", nickname: "   ", abstract: "" },
       { likeTagIds: [] },
     );
 
     expect(payload.username).toBeNull();
     expect(payload.nickname).toBeNull();
     expect(payload.abstract).toBeNull();
-    expect(payload.home_style_id).toBeNull();
   });
 
   it("头像三态：undefined = 不改（不传字段）；null = 移除；字符串 = 新图", () => {

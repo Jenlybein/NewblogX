@@ -11,13 +11,17 @@ import (
 
 // PublicProfile 是公开主页展示的信息（不含邮箱、通知开关等私密项）。
 type PublicProfile struct {
-	ID           ctype.ID
-	Username     string
-	Nickname     string
-	Avatar       string
-	Abstract     string
-	CodeAge      int
-	Stats        domain.Stats
+	ID       ctype.ID
+	Username string
+	Nickname string
+	Avatar   string
+	Abstract string
+	CodeAge  int
+	Stats    domain.Stats
+	// 累计互动（只算已发布文章）。主页成就栏展示用，拿不到时保持 0。
+	DiggCount    int64
+	FavorCount   int64
+	CommentCount int64
 	FavoritesVis bool
 	FollowVis    bool
 	FansVis      bool
@@ -118,7 +122,7 @@ func (s *Service) PublicProfile(ctx context.Context, target domain.UserID) (*Pub
 	if err != nil {
 		return nil, err
 	}
-	return &PublicProfile{
+	profile := &PublicProfile{
 		ID:           u.ID,
 		Username:     u.Username,
 		Nickname:     u.Nickname,
@@ -130,7 +134,16 @@ func (s *Service) PublicProfile(ctx context.Context, target domain.UserID) (*Pub
 		FollowVis:    settings.FollowVisibility,
 		FansVis:      settings.FansVisibility,
 		Place:        u.Addr,
-	}, nil
+	}
+	// 累计被赞 / 被收藏 / 被评论来自文章模块。读不到就留 0，不让主页打不开。
+	if s.authorStats != nil {
+		if agg, e := s.authorStats.AuthorStats(ctx, target); e == nil {
+			profile.DiggCount = agg.Digg
+			profile.FavorCount = agg.Favor
+			profile.CommentCount = agg.Comment
+		}
+	}
+	return profile, nil
 }
 
 // Update 更新用户资料。

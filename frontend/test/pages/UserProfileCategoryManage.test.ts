@@ -3,6 +3,7 @@ import { defineComponent, h, ref } from "vue";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import UserProfilePage from "~/pages/users/[id].vue";
+import { getUserBaseInfo } from "~/services/user";
 
 /**
  * 公开主页的分类栏是**只读**的（票 327 口径）。
@@ -261,5 +262,40 @@ describe("公开主页分类栏：展示链路仍然完整", () => {
     // 页面把失败标记传给分类栏；分类栏自己渲染「打不开」的空态（其用例单独覆盖）。
     expect(wrapper.find(".profile-category-layout").exists()).toBe(true);
     expect(categoryService.getProfileCategories).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("个人成就：累计互动口径", () => {
+  it("渲染累计被赞 / 被收藏 / 累计被评论（只算已发布文章，后端聚合）", async () => {
+    vi.mocked(getUserBaseInfo).mockResolvedValueOnce({
+      id: "100",
+      code_age: 1,
+      avatar: "",
+      nickname: "作者甲",
+      abstract: "",
+      view_count: 10,
+      article_visited_count: 2000,
+      article_count: 5,
+      fans_count: 0,
+      follow_count: 0,
+      favor_count: 56,
+      digg_count: 1234,
+      comment_count: 7,
+      favorites_visibility: true,
+      followers_visibility: true,
+      fans_visibility: true,
+      relation: 0,
+      place: "",
+    } as never);
+
+    const wrapper = mountPage();
+    await settle();
+
+    expect(wrapper.text()).toContain("累计被赞");
+    expect(wrapper.text()).toContain("1.2k");
+    expect(wrapper.text()).toContain("累计被收藏");
+    expect(wrapper.text()).toContain("56");
+    expect(wrapper.text()).toContain("累计被评论");
+    expect(wrapper.text()).toContain("7");
   });
 });

@@ -93,6 +93,7 @@ func WireUser(infra *Infra) {
 			Sessions:  sessionRevoker,
 			LastLogin: &lastLoginBridge{opts: analyticsLogOptions(infra)},
 			Tags:      &tagBridge{db: infra.DB},
+			AuthorStats: &authorStatsBridge{db: infra.DB},
 		}),
 	)
 

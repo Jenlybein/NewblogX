@@ -357,6 +357,40 @@
     @apply text-xs tabular-nums text-ink-muted;
   }
 
+  /* ---- 搜索结果里的「相关用户」：一行一个用户，点进主页 ----
+   * 搜作者名时只给文章不够 —— 读者真正想去的是作者本人。 */
+  .search-user-list {
+    @apply mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3;
+  }
+
+  .search-user-card {
+    @apply flex items-center gap-3 rounded-field border border-line-faint px-3 py-2.5;
+  }
+
+  .search-user-card:hover {
+    @apply border-line bg-subtle;
+  }
+
+  .search-user-card__avatar {
+    @apply h-9 w-9 flex-none rounded-full object-cover;
+  }
+
+  .search-user-card__avatar--fallback {
+    @apply grid place-items-center bg-subtle text-sm font-semibold text-ink;
+  }
+
+  .search-user-card__text {
+    @apply min-w-0;
+  }
+
+  .search-user-card__name {
+    @apply block truncate text-sm font-semibold text-ink;
+  }
+
+  .search-user-card__abstract {
+    @apply block truncate text-xs text-ink-muted;
+  }
+
   .profile-shelf-heading {
     @apply flex items-center justify-between gap-3 rounded-field border border-line-faint bg-subtle px-4 py-3;
   }

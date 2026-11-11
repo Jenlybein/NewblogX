@@ -55,6 +55,8 @@ func UserRouter(r *gin.RouterGroup, runtimeMw mw.Runtime) {
 	profile := userHandler
 	authGroup.GET("detail", profile.Detail)
 	Group.GET("base", runtimeMw.OptionalAuthMiddleware, profile.BaseInfo)
+	// 公开用户搜索：顶栏搜索的「用户」分栏，匿名可读。
+	Group.GET("search", profile.SearchUsers)
 	authGroup.PUT("info", profile.UpdateInfo)
 	adminGroup.PUT("admin/info", mw.CaptureLog(mw.ReqBody), profile.AdminUpdate)
 

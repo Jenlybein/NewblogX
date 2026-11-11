@@ -11,6 +11,7 @@ package apptest
 import (
 	"context"
 	"myblogx/internal/kernel/ctype"
+	"strings"
 	"sync"
 	"time"
 
@@ -332,6 +333,8 @@ func (u *Users) BumpTokenVersion(_ context.Context, id domain.UserID) error {
 func (u *Users) List(_ context.Context, q domain.Query) (domain.Page, error) {
 	u.mu.Lock()
 	defer u.mu.Unlock()
+	q = q.Normalize()
+	keyword := strings.TrimSpace(q.Keyword)
 	items := make([]domain.User, 0, len(u.byID))
 	for _, user := range u.byID {
 		if q.Status != nil && user.Status != *q.Status {
@@ -340,9 +343,26 @@ func (u *Users) List(_ context.Context, q domain.Query) (domain.Page, error) {
 		if q.Role != nil && user.Role != *q.Role {
 			continue
 		}
+		// 与真实仓储一致：昵称 / 用户名子串命中。
+		if keyword != "" &&
+			!strings.Contains(user.Username, keyword) &&
+			!strings.Contains(user.Nickname, keyword) {
+			continue
+		}
 		items = append(items, user)
 	}
-	return domain.Page{Items: items, Total: int64(len(items))}, nil
+	total := int64(len(items))
+
+	start := q.Offset()
+	if start >= len(items) {
+		items = nil
+	} else {
+		items = items[start:]
+	}
+	if len(items) > q.Size {
+		items = items[:q.Size]
+	}
+	return domain.Page{Items: items, Total: total}, nil
 }
 
 // LoadDisplays 实现 domain.DisplayReader。

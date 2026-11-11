@@ -7226,6 +7226,49 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/users/search": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 搜索用户 */
+        get: {
+            parameters: {
+                query?: {
+                    /** @description 关键词（昵称或用户名） */
+                    key?: string;
+                    /** @description 页码 */
+                    page?: number;
+                    /** @description 每页数量 */
+                    limit?: number;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["myblogx_internal_kernel.Envelope-myblogx_internal_kernel_HasMoreListData-internal_user_adapter_http_UserSearchItemResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/users/sessions": {
         parameters: {
             query?: never;
@@ -8756,8 +8799,12 @@ export interface components {
             avatar?: string;
             avatar_image_id?: string;
             code_age?: number;
+            comment_count?: number;
+            /** @description 累计互动：只统计作者**已发布**文章的赞 / 收藏 / 评论总数。 */
+            digg_count?: number;
             fans_count?: number;
             fans_visibility?: boolean;
+            favor_count?: number;
             favorites_visibility?: boolean;
             follow_count?: number;
             followers_visibility?: boolean;
@@ -8799,6 +8846,13 @@ export interface components {
              */
             stranger_msg_enabled?: boolean;
             username?: string;
+        };
+        "internal_user_adapter_http.UserSearchItemResponse": {
+            abstract?: string;
+            avatar?: string;
+            code_age?: number;
+            id?: string;
+            nickname?: string;
         };
         "myblogx_conf_site.About": {
             bilibili?: string;
@@ -9592,6 +9646,11 @@ export interface components {
             data?: components["schemas"]["myblogx_internal_kernel.HasMoreListData-internal_site_adapter_http_BannerItem"];
             msg?: string;
         };
+        "myblogx_internal_kernel.Envelope-myblogx_internal_kernel_HasMoreListData-internal_user_adapter_http_UserSearchItemResponse": {
+            code?: number;
+            data?: components["schemas"]["myblogx_internal_kernel.HasMoreListData-internal_user_adapter_http_UserSearchItemResponse"];
+            msg?: string;
+        };
         "myblogx_internal_kernel.Envelope-myblogx_internal_kernel_HasMoreListData-myblogx_internal_comment_app_RootItem": {
             code?: number;
             data?: components["schemas"]["myblogx_internal_kernel.HasMoreListData-myblogx_internal_comment_app_RootItem"];
@@ -9771,6 +9830,10 @@ export interface components {
         "myblogx_internal_kernel.HasMoreListData-internal_site_adapter_http_BannerItem": {
             has_more?: boolean;
             list?: components["schemas"]["internal_site_adapter_http.BannerItem"][];
+        };
+        "myblogx_internal_kernel.HasMoreListData-internal_user_adapter_http_UserSearchItemResponse": {
+            has_more?: boolean;
+            list?: components["schemas"]["internal_user_adapter_http.UserSearchItemResponse"][];
         };
         "myblogx_internal_kernel.HasMoreListData-myblogx_internal_comment_app_RootItem": {
             has_more?: boolean;

@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import ChipSelect from "~/components/common/ChipSelect.vue";
 import { computed, reactive, ref } from "vue";
 import { NButton, NCard, NInput, NModal, NSelect, NSwitch, useMessage } from "naive-ui";
 import AppAvatar from "~/components/common/AppAvatar.vue";
@@ -538,14 +539,13 @@ useNoIndexPage();
             </label>
             <label class="space-y-2 md:col-span-2">
               <span class="text-sm font-medium">偏好标签</span>
-              <NSelect
-                v-model:value="profileForm.like_tag_ids"
+              <ChipSelect
+                v-model="profileForm.like_tag_ids"
                 multiple
-                filterable
-                clearable
-                max-tag-count="responsive"
+                :max-tag-count="5"
                 :options="tagOptions || []"
                 placeholder="选择你感兴趣的标签，提交时会走 like_tag_ids"
+                data-role="settings-like-tags"
               />
             </label>
             <label class="space-y-2 md:col-span-2 lg:max-w-[320px]">

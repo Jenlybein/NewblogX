@@ -24,6 +24,7 @@ import {
   removeFavoriteFolderArticles,
   updateFavoriteFolder,
 } from '~/services/favorite'
+import type { FavoriteArticleItem } from '~/types/api'
 import { errorMessage } from '~/utils/errorMessage'
 
 definePageMeta({
@@ -50,18 +51,6 @@ const articlesLoading = ref(false)
 const page = shallowRef(1)
 const hasMore = shallowRef(false)
 
-type FavoriteArticleItem = {
-  article_id: string
-  title: string
-  cover: string
-  updated_at?: string
-  favorited_at?: string
-  view_count?: number
-  digg_count?: number
-  comment_count?: number
-  favor_count?: number
-}
-
 async function loadArticles(reset = false) {
   if (!openFolderId.value) return
   if (reset) {
@@ -77,7 +66,7 @@ async function loadArticles(reset = false) {
       // 本人读自己的夹子必须带 token（票 344）。
       auth: true,
     })
-    const list = (data?.list ?? []) as unknown as FavoriteArticleItem[]
+    const list = data?.list ?? []
     articles.value = reset ? list : [...articles.value, ...list]
     hasMore.value = Boolean(data?.has_more)
   } catch (error) {

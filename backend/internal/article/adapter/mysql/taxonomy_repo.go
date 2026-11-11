@@ -335,14 +335,14 @@ func (r *TagRepo) Delete(ctx context.Context, id domain.TagID) error {
 	return r.db.WithContext(ctx).Delete(&tagRow{}, "id = ?", ctype.ID(id)).Error
 }
 
-// ListIDs 按当前排序返回全部未软删标签的 ID（换序的集合校验用）。
+// ListIDs 返回全部未软删标签的 ID（换序的集合校验用）。
 //
-// 与 List 的读口径一致：`sort desc, id asc`，且**包含停用项**——后台网格展示
-// 的是词库全集，提交的完整序列必须与这个集合相等。
+// 与 List 的读口径一致：**包含停用项**——后台网格展示的是词库全集，提交的
+// 完整序列必须与这个集合相等。集合校验只比成员、不比顺序，所以这里不排序：
+// 多一个 ORDER BY 只会让人以为顺序有意义。
 func (r *TagRepo) ListIDs(ctx context.Context) ([]domain.TagID, error) {
 	var raw []ctype.ID
 	err := r.db.WithContext(ctx).Model(&tagRow{}).
-		Order("sort desc, id asc").
 		Pluck("id", &raw).Error
 	if err != nil {
 		return nil, err

@@ -139,7 +139,8 @@ describe("分类栏：点分类就地展开文章", () => {
       articles: [article(), article({ id: "art-2", title: "同分类第二篇" })],
     });
 
-    const entries = wrapper.findAll(".feed-entry");
+    // 票 351 起文章区是多列卡（不再是单列 feed-entry 条目）。
+    const entries = wrapper.findAll(".article-grid-card");
     expect(entries).toHaveLength(2);
     expect(entries[0]?.text()).toContain("按分类展开的文章");
     expect(entries[1]?.text()).toContain("同分类第二篇");

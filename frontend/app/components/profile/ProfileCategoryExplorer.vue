@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed } from "vue";
-import ArticleFeedItem from "~/components/article/ArticleFeedItem.vue";
+import ArticleGridCard from "~/components/article/ArticleGridCard.vue";
 import ProfileEmptyState from "~/components/profile/ProfileEmptyState.vue";
 import type { ProfileCategoryItem, SearchArticleItem } from "~/types/api";
 
@@ -78,6 +78,8 @@ function toggleCategory(id: string) {
       />
 
       <template v-else>
+        <!-- 票 351 故事 22 / 23：宽屏是 180px 窄栏，窄屏降级成一行可横滑的 chip。
+             两种形态都是"一行一个分类 + 篇数"，不再有 72px 高的大卡。 -->
         <button
           v-for="category in categories"
           :key="category.id"
@@ -86,12 +88,11 @@ function toggleCategory(id: string) {
           :class="{ 'is-active': activeCategoryId === category.id }"
           :aria-pressed="activeCategoryId === category.id"
           :aria-label="`${category.title}：${category.article_count} 篇公开文章`"
+          :data-role="`category-chip-${category.id}`"
           @click="toggleCategory(category.id)"
         >
-          <span class="profile-category-card__title-row">
-            <strong class="profile-category-card__title">{{ category.title }}</strong>
-            <span class="blueprint-chip">{{ category.article_count }}</span>
-          </span>
+          <strong class="profile-category-card__title">{{ category.title }}</strong>
+          <span class="profile-category-card__count">{{ category.article_count }}</span>
         </button>
       </template>
     </aside>
@@ -124,18 +125,26 @@ function toggleCategory(id: string) {
         description="这个分类下的文章这次没有读到，稍后刷新重试；分类列表本身是好的。"
       />
 
-      <div v-else-if="articles.length" class="profile-category-article-list">
+      <div v-else-if="articles.length" class="profile-category-article-list" data-role="category-articles">
         <div class="profile-category-heading">
           <span class="profile-category-heading__title">{{ activeCategory.title }}</span>
           <span class="blueprint-chip">{{ articles.length }} 篇</span>
         </div>
-        <ArticleFeedItem
-          v-for="item in articles"
-          :key="item.id"
-          :article="item"
-          variant="shelf"
-          :show-author="false"
-        />
+        <!-- 多列文章卡（票 345 抽出来的共享卡）：封面 + 标题 + 日期 + 四个计数。
+             窄栏旁边一列能放下 2–3 张，扫起来比原来的单列条目快得多。 -->
+        <div class="article-grid">
+          <ArticleGridCard
+            v-for="item in articles"
+            :key="item.id"
+            :title="item.title"
+            :cover="item.cover"
+            :date="item.updated_at || item.created_at"
+            :to="`/article/${item.id}`"
+            :view-count="item.view_count"
+            :digg-count="item.digg_count"
+            :comment-count="item.comment_count"
+            :favor-count="item.favor_count" />
+        </div>
       </div>
 
       <ProfileEmptyState

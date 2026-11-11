@@ -152,8 +152,13 @@ function statusType(status: number): "default" | "success" | "warning" | "error"
   return "default";
 }
 
-/** 可见性与评论关闭合成一个可读标签：卡片底部只留一处"异常状态"。 */
-function visibilityLabel(item: { visibility_status?: string; comments_toggle?: boolean }) {
+/**
+ * 卡片上唯一的"异常状态"标签：可见性异常优先，其次"评论已关闭"。
+ *
+ * 名字如实说明它可能返回两类东西 —— 之前叫 visibilityLabel 却会返回
+ * "评论已关闭"，读代码的人会以为只有可见性。
+ */
+function articleStateLabel(item: { visibility_status?: string; comments_toggle?: boolean }) {
   if (item.visibility_status && item.visibility_status !== "visible") {
     if (item.visibility_status === "user_hidden") return "仅自己可见";
     if (item.visibility_status === "admin_hidden") return "管理员隐藏";
@@ -277,7 +282,7 @@ useNoIndexPage();
           :article="item"
           :status-label="statusLabel(item.publish_status)"
           :status-type="statusType(item.publish_status)"
-          :visibility-label="visibilityLabel(item)"
+          :visibility-label="articleStateLabel(item)"
           @delete="handleDelete"
           @edit="openEditor" />
       </div>

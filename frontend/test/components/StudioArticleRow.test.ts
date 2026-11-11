@@ -58,28 +58,40 @@ describe("压缩行卡：结构", () => {
     expect(row.find(".studio-article-row__title").exists()).toBe(true);
     expect(row.find(".studio-article-row__abstract").exists()).toBe(true);
     expect(row.find(".studio-article-row__tags").exists()).toBe(true);
-    expect(row.find(".studio-article-row__foot").exists()).toBe(true);
+    expect(row.find(".studio-article-row__baseline").exists()).toBe(true);
     // 不再套第二层通用 feed 卡（那正是"多余的行"的来源）。
     expect(row.find(".feed-entry").exists()).toBe(false);
   });
 
-  it("状态与操作在底部行左侧，四个计数在同一行右侧", () => {
+  it("状态与操作在封面正下方（与封面同一列），不在卡片底部", () => {
     const wrapper = mountRow();
 
-    const foot = wrapper.get(".studio-article-row__foot");
-    const left = foot.get(".studio-article-row__left");
-    const counts = foot.get(".studio-article-row__counts");
+    // 左列 = 封面 + 状态 + 操作，三者同属一个容器。
+    const aside = wrapper.get(".studio-article-row__aside");
+    expect(aside.find(".studio-article-row__cover").exists()).toBe(true);
+    expect(aside.get(".studio-article-row__status-line").text()).toContain("已发布");
+    expect(aside.find('[data-role="article-view"]').exists()).toBe(true);
+    expect(aside.find('[data-role="article-edit"]').exists()).toBe(true);
+    expect(aside.find('[data-role="article-delete"]').exists()).toBe(true);
 
-    // 状态在左。
-    expect(left.text()).toContain("已发布");
-    // 三个操作都在左。
-    expect(left.find('[data-role="article-view"]').exists()).toBe(true);
-    expect(left.find('[data-role="article-edit"]').exists()).toBe(true);
-    expect(left.find('[data-role="article-delete"]').exists()).toBe(true);
-    // 四个计数在右（顺序：赞 / 藏 / 评 / 阅）。
+    // 正文列里没有状态与操作（它们不该跑到卡片底部与正文混排）。
+    const body = wrapper.get(".studio-article-row__body");
+    expect(body.find(".studio-article-row__status-line").exists()).toBe(false);
+    expect(body.find('[data-role="article-delete"]').exists()).toBe(false);
+  });
+
+  it("标签与四个计数在同一条基线上：标签在左、计数贴最右", () => {
+    const wrapper = mountRow();
+
+    const baseline = wrapper.get(".studio-article-row__baseline");
+    // 同一容器里既有标签又有计数 —— 这就是"同一条 baseline"。
+    expect(baseline.find(".studio-article-row__tags").exists()).toBe(true);
+    const counts = baseline.get(".studio-article-row__counts");
     expect(counts.findAll("span")).toHaveLength(4);
     expect(counts.text()).toContain("12");
     expect(counts.text()).toContain("250");
+    // 基线在正文列里（不是左列）。
+    expect(wrapper.get(".studio-article-row__body").find(".studio-article-row__baseline").exists()).toBe(true);
   });
 
   it("摘要缺失时给一句话占位，卡片高度不会塌陷", () => {

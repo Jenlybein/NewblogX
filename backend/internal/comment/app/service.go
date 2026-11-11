@@ -100,6 +100,20 @@ type Service struct {
 	ids       domain.IDGenerator
 	logger    domain.Logger
 	skipExam  func() bool
+	// moderation 是评论审核策略的现读闭包（票 359）；nil 表示未接入审核。
+	moderation func() ModerationPolicy
+	// compliance 是 AI 合规判定端口；nil 表示只做词表机审。
+	compliance ComplianceChecker
+}
+
+// WithModeration 接入评论审核（票 359）。
+//
+// 用可选项而不是往 New 上加两个参数：New 已经有 11 个位置参数，再加两个会让
+// 每个测试调用点都要改，而且"评论审核"与"仓储/缓存"不是同一层的依赖。
+func (s *Service) WithModeration(policy func() ModerationPolicy, checker ComplianceChecker) *Service {
+	s.moderation = policy
+	s.compliance = checker
+	return s
 }
 
 // New 构造评论服务。
@@ -159,6 +173,15 @@ func (s *Service) Create(ctx context.Context, viewer domain.Viewer, in CreateInp
 		return nil, apperr.New(apperr.CodeCommentClosed)
 	}
 
+	// 机器层（票 359）：阻断词直接拒绝，观察词强制留待人工。
+	// 放在入库之前：被拒的评论不该留下任何痕迹，也不该触发计数与通知。
+	policy := s.moderationPolicy()
+	if hits := matchWords(in.Content, policy.BlockWords); len(hits) > 0 {
+		s.logError("评论命中阻断词，已拒绝: article=%d user=%d words=%v", in.ArticleID.Uint64(), viewer.ID.Uint64(), hits)
+		return nil, apperr.New(apperr.CodeCommentBlocked)
+	}
+	watchHits := matchWords(in.Content, policy.WatchWords)
+
 	display := s.display(ctx, viewer.ID.Uint64())
 	c := domain.Comment{
 		Content:      in.Content,
@@ -194,6 +217,17 @@ func (s *Service) Create(ctx context.Context, viewer domain.Viewer, in CreateInp
 	}
 
 	published := viewer.Admin || (s.skipExam != nil && s.skipExam())
+	// 观察词命中时无论开没开免审核都留待人工：词表是运营显式加的，
+	// 它的语义就是"这条我要自己看"。
+	if len(watchHits) > 0 {
+		published = false
+		s.logError("评论命中观察词，留待人工: article=%d user=%d words=%v", in.ArticleID.Uint64(), viewer.ID.Uint64(), watchHits)
+	}
+	// AI 层（票 359）：只在"本来就要发布"时才花钱判定 —— 已经要人工看的评论
+	// 再调一次模型没有收益。
+	if published && policy.AIEnabled && s.compliance != nil {
+		published = s.passAI(ctx, policy, article.Title, in.Content, c.ID.Uint64())
+	}
 	if published {
 		if err := s.repo.UpdateStatus(ctx, c.ID, domain.StatusPublished); err != nil {
 			return nil, err

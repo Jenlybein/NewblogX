@@ -70,7 +70,7 @@ function harness(options: { loggedIn?: boolean; replyPages?: Record<string, Reco
   const fetchReplies = vi.fn(async (_articleId: string, rootId: string, page: number): Promise<ReplyPayload> => {
     return replyPages[rootId]?.[page] ?? { list: [makeReply()], has_more: false, reply_count: 2 };
   });
-  const createComment = vi.fn(async () => ({}) as unknown);
+  const createComment = vi.fn(async (): Promise<{ status?: number } | null> => ({ status: 2 }));
   const diggComment = vi.fn(async () => ({}) as unknown);
   const refreshArticle = vi.fn(async () => undefined);
   const openComposer = vi.fn();
@@ -232,6 +232,18 @@ describe("评论区：提交", () => {
     expect(refreshArticle).toHaveBeenCalledTimes(1);
     expect(notify.success).toHaveBeenCalledWith("评论已发送");
     expect(section.replyTarget.value).toBeNull();
+  });
+
+  it("评论停在审核中时，提示不能是「已发送」（票 359）", async () => {
+    // 机审观察词命中或 AI 判可疑时，后端返回 status=1（审核中）。
+    // 这时列表里看不到这条评论，说"已发送"会让人以为丢了。
+    const { section, createComment, notify } = harness();
+    createComment.mockResolvedValueOnce({ status: 1 });
+
+    await section.handleCreateComment("加微信聊");
+
+    expect(notify.success).toHaveBeenCalledWith("评论已提交，审核通过后显示");
+    expect(notify.success).not.toHaveBeenCalledWith("评论已发送");
   });
 
   it("回复根评论：reply_id 是该根评论的 id（落到它的楼层），刷新后清空回复目标", async () => {

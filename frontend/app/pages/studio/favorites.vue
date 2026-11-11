@@ -235,29 +235,29 @@ useNoIndexPage()
         <NButton type="primary" data-role="folder-create" @click="openCreateEditor()">新建收藏夹</NButton>
       </div>
 
-      <div v-if="foldersPending" class="folder-grid mt-5">
-        <div v-for="idx in 4" :key="`folder-skeleton-${idx}`" class="folder-card">
+      <div v-if="foldersPending" class="studio-folder-grid mt-5">
+        <div v-for="idx in 4" :key="`folder-skeleton-${idx}`" class="studio-folder-card">
           <NSkeleton text width="60%" />
           <NSkeleton text width="90%" class="mt-3" />
         </div>
       </div>
 
-      <div v-else-if="folders?.list.length" class="folder-grid mt-5" data-role="folder-grid">
+      <div v-else-if="folders?.list.length" class="studio-folder-grid mt-5" data-role="folder-grid">
         <article
           v-for="folder in folders.list"
           :key="folder.id"
-          class="folder-card"
-          :class="{ 'folder-card--highlight': highlightId === folder.id }"
+          class="studio-folder-card"
+          :class="{ 'studio-folder-card--highlight': highlightId === folder.id }"
           :data-role="`folder-card-${folder.id}`">
-          <button type="button" class="folder-card__open" @click="openFolderModal(folder.id)">
-            <header class="folder-card__head">
-              <strong class="folder-card__title">{{ folder.title }}</strong>
-              <span class="folder-card__count" data-role="folder-count">{{ folder.article_count ?? 0 }} 篇</span>
+          <button type="button" class="studio-folder-card__open" @click="openFolderModal(folder.id)">
+            <header class="studio-folder-card__head">
+              <strong class="studio-folder-card__title">{{ folder.title }}</strong>
+              <span class="studio-folder-card__count" data-role="folder-count">{{ folder.article_count ?? 0 }} 篇</span>
             </header>
-            <p class="folder-card__abstract">{{ folder.abstract || '还没有填写简介' }}</p>
+            <p class="studio-folder-card__abstract">{{ folder.abstract || '还没有填写简介' }}</p>
           </button>
 
-          <div class="folder-card__actions">
+          <div class="studio-folder-card__actions">
             <NButton size="tiny" tertiary data-role="folder-edit" @click.stop="openEditEditor(folder.id)">编辑</NButton>
             <NButton size="tiny" tertiary type="error" data-role="folder-delete" @click.stop="askDelete(folder.id)">
               删除

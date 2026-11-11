@@ -19,6 +19,7 @@ import (
 	"myblogx/conf"
 	siteconf "myblogx/conf/site"
 	"myblogx/internal/apperr"
+	"myblogx/internal/platform/secretbox"
 	"myblogx/utils/envyaml"
 
 	"github.com/sirupsen/logrus"
@@ -54,6 +55,9 @@ type RuntimeConfigService struct {
 	// 做成回调而不是直接调 core：平台包不能依赖 core（core 依赖本包，会成环）。
 	// 也不能自己 SetLevel —— logger 实例是别人的，本包只是存配置。
 	logApplier func(conf.Logrus)
+
+	// sealer 负责把配置里的密钥加密落库；nil 表示没配主密钥（只读历史明文）。
+	sealer *secretbox.Box
 
 	mu    sync.RWMutex
 	cache *RuntimeConfig
@@ -258,6 +262,8 @@ func (s *RuntimeConfigService) decodeAll(payloads map[string]string) *RuntimeCon
 			panic(fmt.Sprintf("运行时配置：段 %s 的解码结果类型与注册表不一致", entry.Name))
 		}
 	}
+	// 解密到内存：库里的密文只在这一层变成明文，上层（发信/上传/OAuth）无感。
+	s.openForUse(out)
 	return out
 }
 
@@ -396,7 +402,13 @@ func updateSection[T any](s *RuntimeConfigService, name SectionName, value T) er
 	if err := s.validateSection(name, value); err != nil {
 		return err
 	}
-	raw, err := json.Marshal(value)
+	// 先加密敏感字段再序列化：库里不该出现明文密钥。
+	// 注意 value 本身保持明文 —— 下面 applySection 要拿它进缓存。
+	persisted, err := s.sealForStore(name, value)
+	if err != nil {
+		return err
+	}
+	raw, err := json.Marshal(persisted)
 	if err != nil {
 		return apperr.Wrap(apperr.CodeRuntimeConfigDecodeFailed, err)
 	}

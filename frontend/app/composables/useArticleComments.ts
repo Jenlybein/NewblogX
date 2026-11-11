@@ -60,7 +60,11 @@ export interface ArticleCommentsDeps {
   /** 登录前置闸门：false 时调用方不得发任何互动请求。 */
   requireLogin: () => Promise<boolean>;
   fetchReplies: (articleId: string, rootId: string, page: number, limit: number) => Promise<ReplyListPayload>;
-  createComment: (payload: { article_id: string; content: string; reply_id?: string }) => Promise<unknown>;
+  createComment: (payload: {
+    article_id: string;
+    content: string;
+    reply_id?: string;
+  }) => Promise<{ status?: number } | null | undefined>;
   diggComment: (commentId: string) => Promise<unknown>;
   /** 评论/回复成功后刷新正文（评论数在正文上）。 */
   refreshArticle: () => Promise<unknown> | unknown;
@@ -262,12 +266,20 @@ export function useArticleComments(deps: ArticleCommentsDeps) {
 
     const target = replyTarget.value;
     try {
-      await deps.createComment({
+      const created = await deps.createComment({
         article_id: deps.articleId(),
         content: trimmed,
         ...(target ? { reply_id: target.id } : {}),
       });
-      deps.notify.success(target ? "回复已发送" : "评论已发送");
+      // 票 359：评论要过机审 + AI 判定，未通过的那条会停在「审核中」。
+      // 这时说"已发送"而列表里看不到，正是最让人困惑的组合（同 #344 收藏那类问题），
+      // 所以按返回的状态分开提示。
+      const pending = created?.status === 1;
+      if (pending) {
+        deps.notify.success(target ? "回复已提交，审核通过后显示" : "评论已提交，审核通过后显示");
+      } else {
+        deps.notify.success(target ? "回复已发送" : "评论已发送");
+      }
       replyTarget.value = null;
       deps.pager.reset(1);
       await deps.pager.loadPage(1, true);

@@ -42,7 +42,18 @@ export function getReplyComments(articleId: string | number, rootId: string, pag
   });
 }
 
-export function createComment(payload: { article_id: string; content: string; reply_id?: string }) {
+/**
+ * 发表评论。
+ *
+ * 返回体里的 `status` 是**权威状态**（票 359）：1 = 审核中（机审观察词命中，
+ * 或 AI 判为可疑/违规/判定失败），2 = 已发布。调用方据此决定提示文案 ——
+ * 一律说"已发送"会让"发了但列表里没有"变成一个无法解释的现象。
+ */
+export function createComment(payload: {
+  article_id: string;
+  content: string;
+  reply_id?: string;
+}): Promise<{ status?: number } | null | undefined> {
   return useNuxtApp().$api.request("/api/comments", {
     method: "POST",
     body: payload,

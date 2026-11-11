@@ -28,6 +28,8 @@ type FlagOptions struct {
 	UserNoPrompt       bool
 	// Apply 让"对账类"子命令真正落库。默认只读，不带它就只统计不改。
 	Apply bool
+	// EncryptConfig 把库里已存的明文密钥一次性加密（票 359）。
+	EncryptConfig bool
 }
 
 type Options struct {
@@ -59,6 +61,7 @@ func Parse() *FlagOptions {
 	flag.StringVar(&Flags.UserCreateEmail, "user-email", "", "创建用户邮箱(可选)")
 	flag.BoolVar(&Flags.UserNoPrompt, "user-no-prompt", false, "创建用户时禁用交互输入(参数不完整则直接失败)")
 	flag.BoolVar(&Flags.Apply, "apply", false, "对账类子命令真正落库(默认只读，只统计不改)")
+	flag.BoolVar(&Flags.EncryptConfig, "encrypt-config", false, "把已存的明文密钥加密(需要环境变量 BLOGX_CONFIG_SECRET_KEY)")
 
 	flag.Parse()
 
@@ -69,6 +72,13 @@ func Run(op *FlagOptions, deps Options) (RunResult, error) {
 	if op.DB {
 		// 执行数据库迁移
 		if err := FlagDB(deps.DB, deps.Logger); err != nil {
+			return RunResult{}, err
+		}
+		return RunResult{ContinueStartup: false}, nil
+	}
+
+	if op.EncryptConfig {
+		if err := FlagEncryptConfig(deps.DB, deps.Logger); err != nil {
 			return RunResult{}, err
 		}
 		return RunResult{ContinueStartup: false}, nil

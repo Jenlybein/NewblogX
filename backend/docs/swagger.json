@@ -4313,9 +4313,34 @@
             },
             "myblogx_conf_site.Comment": {
                 "properties": {
+                    "ai": {
+                        "$ref": "#/components/schemas/myblogx_conf_site.CommentAI",
+                        "description": "AI 是评论的 AI 合规判定（票 359）。"
+                    },
+                    "moderation": {
+                        "$ref": "#/components/schemas/myblogx_conf_site.Moderation",
+                        "description": "Moderation 是评论的机审词表（与文章同构）。"
+                    },
                     "skip_examining": {
-                        "description": "免审核",
+                        "description": "免审核（机器+AI 都通过时直发）",
                         "type": "boolean"
+                    }
+                },
+                "type": "object"
+            },
+            "myblogx_conf_site.CommentAI": {
+                "properties": {
+                    "enabled": {
+                        "description": "Enabled 打开后，评论在发布前会过一遍 AI 合规判定。",
+                        "type": "boolean"
+                    },
+                    "max_tokens": {
+                        "description": "MaxTokens 是单次判定的输出上限，默认 1000。\n\n结论只是一个短 JSON；给 1000 已经宽裕，钉住它能把每条评论的审核成本\n控制在可预期量级。",
+                        "type": "integer"
+                    },
+                    "timeout_sec": {
+                        "description": "TimeoutSec 是单次判定的超时秒数，默认 8。\n\n评论是**同步**路径：超时必须有上限，否则一次上游卡顿会把发评论的请求\n挂到分钟级。超时按\"未判定\"处理（留待人工），不按\"通过\"处理。",
+                        "type": "integer"
                     }
                 },
                 "type": "object"

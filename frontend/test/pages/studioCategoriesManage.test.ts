@@ -157,7 +157,7 @@ describe("分类弹窗：含草稿", () => {
 
     expect(searchService.searchArticles).not.toHaveBeenCalled();
 
-    await wrapper.get('[data-role="category-row-c1"] .folder-card__open').trigger("click");
+    await wrapper.get('[data-role="category-row-c1"] .studio-folder-card__open').trigger("click");
     await settle();
 
     const params = searchService.searchArticles.mock.calls[0]![0] as Record<string, unknown>;
@@ -171,7 +171,7 @@ describe("分类弹窗：含草稿", () => {
     const wrapper = mountPage();
     await settle();
 
-    await wrapper.get('[data-role="category-row-c1"] .folder-card__open').trigger("click");
+    await wrapper.get('[data-role="category-row-c1"] .studio-folder-card__open').trigger("click");
     await settle();
 
     const draft = wrapper.get('[data-role="category-article-status-a2"]');
@@ -185,7 +185,7 @@ describe("分类弹窗：含草稿", () => {
     const wrapper = mountPage();
     await settle();
 
-    await wrapper.get('[data-role="category-row-c1"] .folder-card__open').trigger("click");
+    await wrapper.get('[data-role="category-row-c1"] .studio-folder-card__open').trigger("click");
     await settle();
 
     const area = wrapper.get('[data-role="category-articles"]');
@@ -198,7 +198,7 @@ describe("分类弹窗：含草稿", () => {
     const wrapper = mountPage();
     await settle();
 
-    await wrapper.get('[data-role="category-row-c1"] .folder-card__open').trigger("click");
+    await wrapper.get('[data-role="category-row-c1"] .studio-folder-card__open').trigger("click");
     await settle();
 
     const empty = wrapper.get('[data-role="category-articles"] .empty-state-stub');

@@ -264,6 +264,11 @@ const (
 	CodeCommentDiggChanged    Code = "comment.digg_changed"
 	CodeCommentDiggDuplicated Code = "comment.digg_duplicated"
 	CodeCommentContentEmpty   Code = "comment.content_empty"
+	// CodeCommentBlocked 评论命中阻断词，已拒绝发布（票 359）。
+	//
+	// 与"内容为空"分开：这是审核结论，提示语要说清"内容不被允许"，
+	// 而不是让用户以为是自己漏填了东西。
+	CodeCommentBlocked Code = "comment.blocked"
 )
 
 // 图片与对象存储。
@@ -381,6 +386,11 @@ const (
 	CodeRuntimeConfigDBMissing    Code = "runtimeconfig.db_missing"
 	CodeRuntimeConfigPathMissing  Code = "runtimeconfig.path_missing"
 	CodeRuntimeConfigDecodeFailed Code = "runtimeconfig.decode_failed"
+	// CodeRuntimeConfigSecretUnavailable 没有配置主密钥，无法加密落库。
+	//
+	// 单列一个码：它要提示的是"去配环境变量"，与"解析失败"（数据坏了）是两回事，
+	// 混在一起会让运维照着"配置解析失败"去翻 JSON。
+	CodeRuntimeConfigSecretUnavailable Code = "runtimeconfig.secret_unavailable"
 
 	// AI 每日额度的保存期校验（ADR-0038）。与"额度用完"完全不同：
 	// 那是运行期的业务结论，这是保存配置时的参数错误。
@@ -616,6 +626,7 @@ var messages = map[Code]string{
 	CodeCommentDiggChanged:    "点赞状态已变化，请刷新后重试",
 	CodeCommentDiggDuplicated: "请勿重复点赞",
 	CodeCommentContentEmpty:   "评论内容不能为空",
+	CodeCommentBlocked:        "评论包含不被允许的内容，请修改后再发",
 
 	CodeImageUnavailable:      "图片不存在或不可用",
 	CodeImageUploadDisabled:   "站点未启用图片上传",
@@ -704,6 +715,7 @@ var messages = map[Code]string{
 	CodeRuntimeConfigDBMissing:    "数据库未初始化",
 	CodeRuntimeConfigPathMissing:  "运行时站点默认配置路径未设置",
 	CodeRuntimeConfigDecodeFailed: "运行时配置解析失败",
+	CodeRuntimeConfigSecretUnavailable: "未配置主密钥（BLOGX_CONFIG_SECRET_KEY），无法加密保存密钥；请先在环境变量里设置 32 字节密钥",
 	CodeRuntimeConfigTableMissing: "运行时配置表不存在，请先执行数据库初始化命令：/app/server -db",
 	CodeSiteAIDailyLimitInvalid:   "AI 每日上限必须是 0–9999 之间的整数（0 表示不限）",
 

@@ -185,7 +185,7 @@ describe("收藏夹网格", () => {
     const wrapper = mountPage();
     await settle();
 
-    const cards = wrapper.findAll(".folder-card");
+    const cards = wrapper.findAll(".studio-folder-card");
     expect(cards).toHaveLength(2);
     expect(wrapper.get('[data-role="folder-card-f1"]').text()).toContain("默认收藏");
     expect(wrapper.get('[data-role="folder-card-f1"]').text()).toContain("2 篇");
@@ -199,7 +199,7 @@ describe("收藏夹网格", () => {
     // 没点之前不取内容。
     expect(favoriteService.getFavoriteFolderArticles).not.toHaveBeenCalled();
 
-    await wrapper.get('[data-role="folder-card-f1"] .folder-card__open').trigger("click");
+    await wrapper.get('[data-role="folder-card-f1"] .studio-folder-card__open').trigger("click");
     await settle();
 
     expect(favoriteService.getFavoriteFolderArticles).toHaveBeenCalledWith(
@@ -217,7 +217,7 @@ describe("收藏夹网格", () => {
     const wrapper = mountPage();
     await settle();
 
-    await wrapper.get('[data-role="folder-card-f1"] .folder-card__open').trigger("click");
+    await wrapper.get('[data-role="folder-card-f1"] .studio-folder-card__open').trigger("click");
     await settle();
 
     await wrapper.get(".article-grid-card__action").trigger("click");

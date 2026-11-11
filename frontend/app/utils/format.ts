@@ -20,22 +20,6 @@ export function formatDateLabel(value?: string) {
   }).format(date);
 }
 
-/**
- * 只写日期的短格式：`2026/11/11`。
- *
- * 与 formatDateLabel 的区别是分隔符与"不补前缀"：文章卡、收藏夹、分类弹窗里的
- * 日期只回答"哪天"，不加"发布于 / 更新于"这类前缀（票 345 的口径决定）。
- * 用本地时区取年月日 —— 卡片上的日期是给人看的，不是给机器比对的。
- */
-export function dateOnlyLabel(value?: string) {
-  if (!value) return "";
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return value;
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, "0");
-  const day = String(date.getDate()).padStart(2, "0");
-  return `${year}/${month}/${day}`;
-}
 export function formatRelativeLabel(value?: string) {
   if (!value) return "";
   const date = new Date(value);

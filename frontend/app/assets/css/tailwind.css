@@ -296,21 +296,47 @@
   }
 
   /* ---- 个人主页「分类」栏（票 321）：左侧分类列表 + 右侧就地展开的文章，与收藏架同构 ---- */
+  /* 票 351 故事 22 / 23：左栏从 280px 收到 180px（够放分类名 + 篇数），
+   * 窄屏不再堆成竖列，而是降级成一行可横滑的 chip —— 竖列在手机上会把
+   * 文章区挤到首屏之外。 */
   .profile-category-layout {
-    @apply grid gap-5 xl:grid-cols-[280px_minmax(0,1fr)];
+    @apply grid gap-5;
+  }
+
+  @media (min-width: 1024px) {
+    .profile-category-layout {
+      grid-template-columns: 180px minmax(0, 1fr);
+    }
   }
 
   .profile-category-layout__folders {
-    @apply flex flex-col gap-3;
+    @apply flex gap-2 overflow-x-auto pb-1;
+    scrollbar-width: thin;
+  }
+
+  @media (min-width: 1024px) {
+    .profile-category-layout__folders {
+      flex-direction: column;
+      overflow-x: visible;
+      padding-bottom: 0;
+    }
   }
 
   .profile-category-layout__content {
     @apply min-w-0;
   }
 
+  /* 分类条目压成一行：名称（可截断）+ 篇数。宽屏是 180px 栏里的整行，
+   * 窄屏是横滑 chip 里的一颗。 */
   .profile-category-card {
-    @apply flex min-h-[72px] flex-col justify-center gap-2 rounded-card border border-line bg-surface p-4 text-left transition-colors;
+    @apply flex shrink-0 items-center justify-between gap-2 rounded-pill border border-line bg-surface px-3 py-2 text-left transition-colors;
     touch-action: manipulation;
+  }
+
+  @media (min-width: 1024px) {
+    .profile-category-card {
+      @apply w-full rounded-control;
+    }
   }
 
   .profile-category-card:hover {
@@ -332,7 +358,12 @@
   }
 
   .profile-category-card__title {
-    @apply truncate text-base font-semibold text-ink;
+    @apply min-w-0 truncate text-sm font-medium text-ink;
+  }
+
+  .profile-category-card__count {
+    @apply shrink-0 text-xs tabular-nums;
+    color: var(--color-ink-muted);
   }
 
   /* 单个分类的行内操作（改名 / 删除）+ 分栏级主操作（新建分类）。
@@ -2545,8 +2576,17 @@ html {
   border-color: var(--color-line-strong);
 }
 
-.studio-article-row__cover {
+/* 左列与封面同宽：状态与操作就在封面正下方（规格 US1），
+ * 而不是散在卡片底部与右侧正文混排。 */
+.studio-article-row__aside {
+  display: flex;
   flex: 0 0 160px;
+  flex-direction: column;
+  gap: 6px;
+  width: 160px;
+}
+
+.studio-article-row__cover {
   width: 160px;
   height: 90px;
   overflow: hidden;
@@ -2616,21 +2656,24 @@ html {
   border-radius: var(--radius-pill);
 }
 
-.studio-article-row__foot {
+/* 标签与四个计数共用同一条基线（规格 US1）：标签在左、计数贴最右。
+ * 用 flex + space-between 而不是两行，是因为规格明确要求"同一条 baseline"。 */
+.studio-article-row__baseline {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 8px;
   margin-top: auto;
   padding-top: 2px;
+  min-width: 0;
 }
 
-.studio-article-row__left {
+.studio-article-row__status-line,
+.studio-article-row__actions {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 8px;
-  min-width: 0;
+  gap: 4px;
 }
 
 .studio-article-row__status {
@@ -2697,14 +2740,45 @@ html {
 
 /* 窄屏：封面缩到 112×63 并靠上，操作与计数各自换行，避免挤成一团。 */
 @media (max-width: 720px) {
+  .studio-article-row__aside,
   .studio-article-row__cover {
     flex-basis: 112px;
     width: 112px;
+  }
+
+  .studio-article-row__cover {
     height: 63px;
   }
 
-  .studio-article-row__foot {
+  /* 窄屏标签与计数不再挤一行：基线换成上下两段，否则标签会被压成竖排。 */
+  .studio-article-row__baseline {
     flex-direction: column;
     align-items: flex-start;
+    gap: 6px;
   }
+}
+/* 分类弹窗里的状态角标（票 351 故事 21）：草稿 / 待审核 / 已拒绝要一眼可见。
+ * 用绝对定位压在卡片左上，不占卡片布局高度。 */
+.category-status-badge {
+  position: absolute;
+  top: 12px;
+  left: 12px;
+  padding: 0 8px;
+  font-size: 0.6875rem;
+  line-height: 1.7;
+  border-radius: var(--radius-pill);
+  color: var(--color-ink);
+  background: var(--color-surface);
+  border: 1px solid var(--color-line-strong);
+}
+
+/* 草稿用记号笔黄底：它是"还没发出去"，不是错误。 */
+.category-status-badge[data-status="1"] {
+  background: var(--color-highlight);
+}
+
+/* 被拒是异常，用珊瑚。 */
+.category-status-badge[data-status="4"] {
+  color: var(--color-danger-ink);
+  border-color: var(--color-danger-line);
 }

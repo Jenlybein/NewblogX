@@ -7,11 +7,10 @@
  * 所以带封面、日期与四个互动计数。
  *
  * 日期只写 `2026/11/11`，不加"发布于/更新于"前缀 —— 全站同一口径
- * （见 utils/format 的 dateOnlyLabel）。
+ * （见 utils/format 的 formatDateLabel：zh-CN 数字两位就是 `2026/11/11`）。
  */
 import { computed } from 'vue'
-import { formatCount } from '~/utils/format'
-import { dateOnlyLabel } from '~/utils/format'
+import { formatCount, formatDateLabel } from '~/utils/format'
 
 const props = withDefaults(defineProps<{
   title: string
@@ -38,25 +37,20 @@ const props = withDefaults(defineProps<{
 
 const emit = defineEmits<{ action: [] }>()
 
-const dateText = computed(() => (props.date ? dateOnlyLabel(props.date) : ''))
+const dateText = computed(() => (props.date ? formatDateLabel(props.date) : ''))
 </script>
 
 <template>
   <article class="article-grid-card">
-    <a v-if="to" class="article-grid-card__link" :href="to">
+    <!-- 封面与标题只写一份：有 to 时包一层链接，没有时就是普通容器。
+         用 component :is 而不是把这段复制两遍 —— 复制的那份最容易在改样式时漏掉。 -->
+    <component :is="to ? 'a' : 'div'" class="article-grid-card__link" :href="to || undefined">
       <div class="article-grid-card__cover">
         <img v-if="cover" :src="cover" :alt="title" loading="lazy" />
         <span v-else class="article-grid-card__cover-empty" aria-hidden="true" />
       </div>
       <h3 class="article-grid-card__title">{{ title }}</h3>
-    </a>
-    <div v-else class="article-grid-card__link">
-      <div class="article-grid-card__cover">
-        <img v-if="cover" :src="cover" :alt="title" loading="lazy" />
-        <span v-else class="article-grid-card__cover-empty" aria-hidden="true" />
-      </div>
-      <h3 class="article-grid-card__title">{{ title }}</h3>
-    </div>
+    </component>
 
     <footer class="article-grid-card__meta">
       <span v-if="dateText" class="article-grid-card__date">{{ dateText }}</span>

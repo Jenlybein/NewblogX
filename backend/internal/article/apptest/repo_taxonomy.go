@@ -2,6 +2,7 @@ package apptest
 
 import (
 	"context"
+	"sort"
 	"sync"
 
 	"myblogx/internal/article/domain"
@@ -267,6 +268,9 @@ func (r *TagRepo) FindMany(_ context.Context, ids []domain.TagID) ([]*taxonomy.T
 }
 
 // List 列出标签。
+//
+// 与生产读面同一口径：`sort desc, id asc`，`seq` 只作为同序时的稳定插入顺序。
+// 拖拽排序的用例要断言"换序后列表真的变了"，这里必须真的按 sort 排。
 func (r *TagRepo) List(_ context.Context, includeDisabled bool) ([]*taxonomy.Tag, error) {
 	r.count.inc("List")
 	if err := r.fault.take("List"); err != nil {
@@ -274,13 +278,64 @@ func (r *TagRepo) List(_ context.Context, includeDisabled bool) ([]*taxonomy.Tag
 	}
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	var out []*taxonomy.Tag
-	for _, id := range r.seq {
+	out := make([]*taxonomy.Tag, 0, len(r.seq))
+	for _, id := range r.sortedIDs() {
 		if t, ok := r.byID[id]; ok && (includeDisabled || t.Enabled()) {
 			out = append(out, cloneTag(t))
 		}
 	}
 	return out, nil
+}
+
+// sortedIDs 按 `sort desc, id asc` 返回未删除标签的 ID（生产读面的内存等价实现）。
+//
+// 排序只做 sort 降序、同值时保留 seq 顺序：ID 是 bigint 的字面量，内存里按字符串
+// 比较不是生产语义，用例也不会依赖同序时的 ID 先后。
+//
+// 调用方必须已持有 r.mu。
+func (r *TagRepo) sortedIDs() []domain.TagID {
+	ids := make([]domain.TagID, 0, len(r.seq))
+	for _, id := range r.seq {
+		if _, ok := r.byID[id]; ok {
+			ids = append(ids, id)
+		}
+	}
+	sort.SliceStable(ids, func(i, j int) bool {
+		return r.byID[ids[i]].Sort() > r.byID[ids[j]].Sort()
+	})
+	return ids
+}
+
+// ListIDs 返回全部未删除标签的 ID（换序的集合校验用）。
+func (r *TagRepo) ListIDs(_ context.Context) ([]domain.TagID, error) {
+	r.count.inc("ListIDs")
+	if err := r.fault.take("ListIDs"); err != nil {
+		return nil, err
+	}
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return r.sortedIDs(), nil
+}
+
+// UpdateSortOrders 把给定顺序落成 sort 值（第 0 个拿最大 sort，读面降序展示）。
+func (r *TagRepo) UpdateSortOrders(_ context.Context, ids []domain.TagID) error {
+	r.count.inc("UpdateSortOrders")
+	if err := r.fault.take("UpdateSortOrders"); err != nil {
+		return err
+	}
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	n := len(ids)
+	for i, id := range ids {
+		t, ok := r.byID[id]
+		if !ok {
+			continue // 集合一致性已由用例层校验，脏 ID 不在这里报错
+		}
+		if err := t.Rename(t.Title(), n-i, t.Description()); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // ExistsTitle 判断标签名是否重复。

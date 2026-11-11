@@ -125,6 +125,9 @@ func (h *Handler) Register(r *gin.RouterGroup, authMw, optionalMw gin.HandlerFun
 
 	adminGroup.PUT("tags", mw.CaptureLog(mw.ReqBody), mw.BindJson[TagRequest], h.SaveTag)
 	adminGroup.DELETE("tags", mw.CaptureLog(mw.ReqBody), mw.BindJson[kernel.IDListRequest], h.DeleteTags)
+	// 标签之间的拖拽排序（票 346）：落既有 tag_models.sort，是全量顺序替换。
+	adminGroup.PATCH("tags/order", mw.CaptureLog(mw.ReqBody),
+		mw.BindJson[TagOrderRequest], h.ReplaceTagSortOrder)
 	reviewTaskAdminGroup.POST(":id/review", mw.CaptureLog(mw.ReqBody), mw.BindUri[kernel.IDRequest],
 		mw.BindJson[ArticleReviewHandleRequest], h.HandleReviewTask)
 	// 批量：与单条同一份用例、同一套原因校验，只是把同一个决定应用到多个任务

@@ -293,6 +293,14 @@ type TagListRequest struct {
 	IncludeDisabled bool `form:"include_disabled"`
 }
 
+// TagOrderRequest 标签之间的全量顺序替换（票 346）。
+//
+// 传**完整**的标签列表（含停用项）：后台网格展示的是词库全集，后端在集合
+// 不一致（有人并发新建 / 删除标签）时整单拒绝，让前端刷新后重排。
+type TagOrderRequest struct {
+	TagIDs []ctype.ID `json:"tag_ids" binding:"required"`
+}
+
 // ArticleTopSetRequest 置顶设置。
 type ArticleTopSetRequest struct {
 	ArticleIDs []ctype.ID `json:"article_ids" binding:"required"`

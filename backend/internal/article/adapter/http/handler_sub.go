@@ -218,6 +218,36 @@ func (h *Handler) DeleteTags(c *gin.Context) {
 	res.OkWithMsg("删除成功", c)
 }
 
+// ReplaceTagSortOrder 标签之间的全量顺序替换（管理员，票 346）。
+//
+// 请求体是**完整且有序**的标签 ID 列表（含停用项）；与当前词库全集不一致时
+// 整单拒绝（taxonomy.CheckSortOrder）。落库的是既有 tag_models.sort 列，
+// 后台网格与发布页下拉都按它排序；读者站首页标签云不读该字段。
+//
+// @Summary 标签之间排序
+// @Tags article
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Param body body TagOrderRequest true "请求体"
+// @Success 200 {object} kernel.Envelope[kernel.EmptyData]
+// @Router /articles/tags/order [patch]
+func (h *Handler) ReplaceTagSortOrder(c *gin.Context) {
+	cr := middleware.GetBindJson[TagOrderRequest](c)
+
+	ids := make([]domain.TagID, 0, len(cr.TagIDs))
+	for _, id := range cr.TagIDs {
+		ids = append(ids, domain.TagID(id))
+	}
+	if err := h.svc.ReplaceTagSortOrder(c.Request.Context(), h.viewerOf(c), ids); err != nil {
+		h.fail(c, err)
+		return
+	}
+	// 批量换序没有单一目标：目标 ID 留空，不能把资源名 "tags" 当 ID 写进审计。
+	h.audit(c, "tag_sort_order", "", true, "标签之间排序")
+	res.OkWithMsg("排序成功", c)
+}
+
 // ── 收藏夹 ──
 
 // Folders 收藏夹列表。

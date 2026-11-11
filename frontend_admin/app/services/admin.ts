@@ -207,6 +207,19 @@ export function deleteAdminTags(idList: string[]) {
   })
 }
 
+/**
+ * 全量替换标签顺序（票 346）。
+ *
+ * 传**完整**的标签 id 列表（含停用项），顺序即展示顺序。后端在集合与当前词库
+ * 不一致时整单拒绝（并发新建/删除），调用方据此提示"列表已变化，请刷新重排"。
+ */
+export function replaceAdminTagOrder(tagIds: string[]) {
+  return api().request<unknown, { tag_ids: string[] }>('/articles/tags/order', {
+    method: 'PATCH',
+    body: { tag_ids: tagIds },
+  })
+}
+
 // ── 热门置顶（运营位，ADR-0017 决策 5）────────────────────────
 //
 // 唯一真相是 `article_hot_top_models`，与 ES 无关。后台两处消费：

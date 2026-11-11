@@ -255,3 +255,80 @@ func TestSaveTagRequiresAdmin(t *testing.T) {
 		t.Fatalf("非管理员删除应被拒绝，实际 %v", err)
 	}
 }
+
+// TestReplaceTagSortOrderReordersAdminList 标签之间的拖拽排序（票 346）：
+// 后台网格与发布页下拉都按新的 `sort` 读回，停用标签也参与同一个全集换序。
+func TestReplaceTagSortOrderReordersAdminList(t *testing.T) {
+	t.Parallel()
+
+	svc, repos, _ := newService(t)
+	ctx := context.Background()
+	first := seedTag(repos, 21, "第一个", 0, "", true)
+	second := seedTag(repos, 22, "第二个", 0, "", true)
+	disabled := seedTag(repos, 23, "停用的", 0, "", false)
+
+	// 后台网格提交完整序列：停用标签也在里面（它同样在网格里被拖）。
+	if err := svc.ReplaceTagSortOrder(ctx, adminViewer(),
+		[]domain.TagID{disabled.ID(), first.ID(), second.ID()}); err != nil {
+		t.Fatalf("标签换序失败: %v", err)
+	}
+
+	list, err := svc.ListTags(ctx, adminViewer(), true)
+	if err != nil {
+		t.Fatalf("读后台标签列表失败: %v", err)
+	}
+	if got := tagIDs(list); !equalTagIDs(got, []domain.TagID{disabled.ID(), first.ID(), second.ID()}) {
+		t.Fatalf("后台列表顺序不对: %v", got)
+	}
+
+	// 发布页只读启用项：相对顺序与网格一致，停用项不出现。
+	usable, err := svc.ListTags(ctx, adminViewer(), false)
+	if err != nil {
+		t.Fatalf("读启用标签列表失败: %v", err)
+	}
+	if got := tagIDs(usable); !equalTagIDs(got, []domain.TagID{first.ID(), second.ID()}) {
+		t.Fatalf("启用标签顺序不对: %v", got)
+	}
+
+	// 集合不一致（少一个）/ 非管理员：整单拒绝，且库里的顺序不变。
+	if err := svc.ReplaceTagSortOrder(ctx, adminViewer(),
+		[]domain.TagID{second.ID(), first.ID()}); !apperr.IsCode(err, apperr.CodeTagOrderMismatch) {
+		t.Fatalf("集合不一致应报顺序冲突，实际 %v", err)
+	}
+	if got := tagIDs(listAgain(t, svc)); !equalTagIDs(got, []domain.TagID{disabled.ID(), first.ID(), second.ID()}) {
+		t.Fatalf("被拒绝的换序不应改动数据，实际 %v", got)
+	}
+	if err := svc.ReplaceTagSortOrder(ctx, authorViewer(),
+		[]domain.TagID{first.ID(), second.ID(), disabled.ID()}); !errors.Is(err, domain.ErrForbidden) {
+		t.Fatalf("非管理员换序应被拒绝，实际 %v", err)
+	}
+}
+
+func tagIDs(list []*taxonomy.Tag) []domain.TagID {
+	out := make([]domain.TagID, 0, len(list))
+	for _, t := range list {
+		out = append(out, t.ID())
+	}
+	return out
+}
+
+func equalTagIDs(got, want []domain.TagID) bool {
+	if len(got) != len(want) {
+		return false
+	}
+	for i := range got {
+		if got[i] != want[i] {
+			return false
+		}
+	}
+	return true
+}
+
+func listAgain(t *testing.T, svc *app.Service) []*taxonomy.Tag {
+	t.Helper()
+	list, err := svc.ListTags(context.Background(), adminViewer(), true)
+	if err != nil {
+		t.Fatalf("再次读标签列表失败: %v", err)
+	}
+	return list
+}

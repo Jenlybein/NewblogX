@@ -108,6 +108,9 @@ var serviceFallbackCodes = []apperr.Code{
 	// 管理员的正确动作是改用停用，重发一次请求修不好它，所以按服务兜底类别，
 	// 与同一组其它标签错误码保持一致（前端只读文案，不按 1001/1002 分支）。
 	apperr.CodeTagInUse,
+	// 标签拖拽排序（票 346）：并发改名 / 删除让提交的 ID 全集与库里不一致。
+	// 前端的正确动作是刷新后重排，重发同一个请求修不好它，与项目换序同一类别。
+	apperr.CodeTagOrderMismatch,
 
 	// 收藏。
 	apperr.CodeFavoriteTitleRequired,

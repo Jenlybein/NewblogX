@@ -27,6 +27,8 @@ var (
 	ErrTagDisabled = apperr.New(apperr.CodeTagDisabled)
 	// ErrTagNotFound 标签不存在。
 	ErrTagNotFound = apperr.New(apperr.CodeTagNotFound)
+	// ErrOrderMismatch 标签全集顺序替换的输入与当前集合不一致。
+	ErrOrderMismatch = apperr.New(apperr.CodeTagOrderMismatch)
 )
 
 // TagInUseError 是"标签仍被文章引用，不能删除"。
@@ -292,7 +294,7 @@ type TagRepository interface {
 	Find(ctx context.Context, id domain.TagID) (*Tag, error)
 	// FindMany 批量读取；缺失的 ID 直接跳过。
 	FindMany(ctx context.Context, ids []domain.TagID) ([]*Tag, error)
-	// List 列出标签（includeDisabled 为真时含停用项）。
+	// List 列出标签（includeDisabled 为真时含停用项），按 sort 降序、ID 升序。
 	//
 	// 返回的 ArticleCount 必须按关联表实时统计，不读 tag_models.article_count：
 	// 那一列没有任何维护者，真实数据里恒为 0，拿它显示"文章数"等于骗人。
@@ -314,8 +316,44 @@ type TagRepository interface {
 	// Delete 软删标签。**不清理文章关联**：删除门禁（应用层按关联表实时统计
 	// 引用数）已经保证被引用的标签不会走到这里，能删的标签本来就没有关联行。
 	Delete(ctx context.Context, id domain.TagID) error
+	// ListIDs 按当前排序（sort 降序、ID 升序）返回全部未软删标签的 ID。
+	//
+	// 标签之间换序的集合校验用它：必须与后台列表读面同一口径（含停用项），
+	// 否则后台网格提交的完整序列会被判成"少一个"。只筛 deleted_at。
+	ListIDs(ctx context.Context) ([]domain.TagID, error)
+	// UpdateSortOrders 把给定顺序落成 sort 值（列表读面按 sort 降序）。
+	//
+	// 集合一致性由应用层的 taxonomy.CheckSortOrder 保证，这里只负责落库；
+	// ids 的第 0 个是网格里最靠前的那个。
+	UpdateSortOrders(ctx context.Context, ids []domain.TagID) error
 	// ReplaceArticleTags 用给定标签集合替换某文章的全部标签。
 	ReplaceArticleTags(ctx context.Context, articleID domain.ArticleID, tagIDs []domain.TagID) error
 	// ArticleTagIDs 读取某文章当前的标签集合。
 	ArticleTagIDs(ctx context.Context, articleID domain.ArticleID) ([]domain.TagID, error)
+}
+
+// CheckSortOrder 校验"标签之间全量顺序替换"的输入。
+//
+// next 必须是当前全部未软删标签（含停用）的一个排列：缺一个、多一个、重复、
+// 未知 ID 都会整单拒绝——后台网格拿到的是上一次读到的列表，期间有人新建或
+// 删除标签后，宽松语义会把那条静默排丢。与项目换序是同一条集合一致性规则。
+func CheckSortOrder(current, next []domain.TagID) error {
+	if len(next) != len(current) {
+		return ErrOrderMismatch
+	}
+	want := make(map[domain.TagID]struct{}, len(current))
+	for _, id := range current {
+		want[id] = struct{}{}
+	}
+	seen := make(map[domain.TagID]struct{}, len(next))
+	for _, id := range next {
+		if _, ok := want[id]; !ok {
+			return ErrOrderMismatch
+		}
+		if _, dup := seen[id]; dup {
+			return ErrOrderMismatch
+		}
+		seen[id] = struct{}{}
+	}
+	return nil
 }

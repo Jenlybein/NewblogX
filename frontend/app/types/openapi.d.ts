@@ -1378,6 +1378,47 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/articles/tags/order": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** 标签之间排序 */
+        patch: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            /** @description 请求体 */
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["internal_article_adapter_http.TagOrderRequest"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["myblogx_internal_kernel.Envelope-myblogx_internal_kernel_EmptyData"];
+                    };
+                };
+            };
+        };
+        trace?: never;
+    };
     "/articles/top": {
         parameters: {
             query?: never;
@@ -7415,6 +7456,9 @@ export interface components {
             sort?: number;
             title?: string;
             updated_at?: string;
+        };
+        "internal_article_adapter_http.TagOrderRequest": {
+            tag_ids: string[];
         };
         "internal_article_adapter_http.TagRequest": {
             description?: string;

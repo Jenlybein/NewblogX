@@ -7556,8 +7556,16 @@ export interface components {
              *     "这个数字算的是哪段时间"直接写在提示里，而不是自己再推一遍。
              */
             range_start?: string;
-            /** @description Visits 是**窗口内**的访问量（与「累计访问」同一口径，见 /data/sum）。 */
+            /** @description Visits 是窗口内的访问量（与「累计访问」同一口径，见 /data/sum）。 */
             visits?: number;
+            /**
+             * @description VisitsDays 是 Visits 实际覆盖的天数。
+             *
+             *     访问量存在 Redis 的按天哈希里，只保留最近 30 天（见 redis_site）。
+             *     所以「今年访问」只能给出最近 30 天的和 —— 把这个天数一起返回，
+             *     前端就能如实标注"近 30 天访问"，而不是把 30 天的数字说成一年的。
+             */
+            visits_days?: number;
         };
         "internal_analytics_adapter_http.SumResponse": {
             article_count?: number;

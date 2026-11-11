@@ -77,7 +77,7 @@ const sparkFlow = ref<DateCountItem[]>([])
 const sparkArticle = ref<DateCountItem[]>([])
 const sparkUser = ref<DateCountItem[]>([])
 
-const overview = ref<OverviewData>({ range: 'week', range_start: '', range_end: '', visits: 0, new_users: 0, new_articles: 0 })
+const overview = ref<OverviewData>({ range: 'week', range_start: '', range_end: '', visits: 0, visits_days: 0, new_users: 0, new_articles: 0 })
 const yearArticles = ref<DateCountItem[]>([])
 const pendingReviews = ref<ArticleReviewTaskItem[]>([])
 const recentActions = ref<ActionAuditRecord[]>([])
@@ -204,7 +204,9 @@ onMounted(refresh)
         <div class="flex flex-wrap items-center justify-between gap-3">
           <div>
             <h2 class="admin-page__title">趋势</h2>
-            <p class="admin-hint m-0">{{ noteOf(trendRange) }}</p>
+            <p class="admin-hint m-0">
+              {{ noteOf(trendRange) }}<template v-if="trendRange === 'month' || trendRange === 'year'"> · 访问量只保留最近 30 天，更早的日期按 0 显示</template>
+            </p>
           </div>
           <div class="flex flex-wrap items-center gap-2">
             <NRadioGroup :value="trendType" size="small" @update:value="(v: number) => onTrendTypeChange(v as 1 | 2 | 3)">
@@ -294,7 +296,8 @@ onMounted(refresh)
             <span>{{ overview.new_users }} 人</span>
           </div>
           <div class="flex items-center justify-between">
-            <span class="muted">本周访问</span>
+            <!-- 天数如实标出：访问量只保留最近 30 天，不能把 30 天的数字说成一年的。 -->
+            <span class="muted">近 {{ overview.visits_days }} 天访问</span>
             <span>{{ overview.visits }} 次</span>
           </div>
         </div>

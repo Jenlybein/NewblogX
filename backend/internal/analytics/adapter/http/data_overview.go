@@ -20,6 +20,13 @@ import (
 //
 // 口径统一按 Asia/Shanghai 切天（见 data_window.go）。
 
+// flowRetentionDays 是访问量按天哈希的保留期（与 redis_site.maxDailyFlowDays 同口径）。
+//
+// 这里写常量而不是 import：analytics 的 HTTP 层不该为了一个数字去认识
+// Redis 适配器的内部常量；两边都以"30 天"为准，改一处要同时改另一处，
+// 所以注释里点名了来源。
+const flowRetentionDays = 30
+
 // OverviewRequest 是概览的查询参数。
 type OverviewRequest struct {
 	// Range 是时间窗：today / week / month / year（默认 week）。
@@ -34,8 +41,14 @@ type OverviewResponse struct {
 	// "这个数字算的是哪段时间"直接写在提示里，而不是自己再推一遍。
 	RangeStart string `json:"range_start"`
 	RangeEnd   string `json:"range_end"`
-	// Visits 是**窗口内**的访问量（与「累计访问」同一口径，见 /data/sum）。
+	// Visits 是窗口内的访问量（与「累计访问」同一口径，见 /data/sum）。
 	Visits int `json:"visits"`
+	// VisitsDays 是 Visits 实际覆盖的天数。
+	//
+	// 访问量存在 Redis 的按天哈希里，只保留最近 30 天（见 redis_site）。
+	// 所以「今年访问」只能给出最近 30 天的和 —— 把这个天数一起返回，
+	// 前端就能如实标注"近 30 天访问"，而不是把 30 天的数字说成一年的。
+	VisitsDays int `json:"visits_days"`
 	// NewUsers 是窗口内新增注册数。
 	NewUsers int `json:"new_users"`
 	// NewArticles 是窗口内发布的文章数。
@@ -64,10 +77,18 @@ func (h *Handler) OverviewView(c *gin.Context) {
 	}
 
 	// 访问量：窗口内求和（累计访问在 /data/sum，不在这里重复）。
+	//
+	// 天数取窗口与 Redis 保留期的较小值：按天哈希只留 30 天，按一年去求
+	// 会把"只有 30 天数据"悄悄当成"一年只有这么多访问"。
 	if h.flow != nil {
-		for _, point := range h.flow.Recent(window.Days) {
+		days := window.Days
+		if days > flowRetentionDays {
+			days = flowRetentionDays
+		}
+		for _, point := range h.flow.Recent(days) {
 			resp.Visits += point.Count
 		}
+		resp.VisitsDays = days
 	}
 
 	if signups, err := h.stats.SignupsByDay(reqCtx(c), window.Start, window.End); err == nil {

@@ -21,8 +21,10 @@ import (
 func (h *Handler) SumView(c *gin.Context) {
 	var data SumResponse
 
-	now := time.Now()
-	todayStart := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location())
+	// 今天 0 点按东八区算（票 349）：服务器在 UTC 时，"今天新增"会在
+	// 每天 0–8 点把昨天下午的注册算成今天的。
+	now := time.Now().In(statsTimezone)
+	todayStart := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, statsTimezone)
 
 	summary, err := h.stats.Summary(reqCtx(c), todayStart)
 	if err != nil {

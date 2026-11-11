@@ -54,6 +54,7 @@ var adminRouteTemplates = []string{
 	"GET /api/data/growth",
 	"GET /api/data/article-year",
 	"GET /api/data/ai-usage",
+	"GET /api/data/overview",
 	// 日志中心（含详情与死信重投）
 	"GET /api/logs/runtime",
 	"GET /api/logs/runtime/:id",

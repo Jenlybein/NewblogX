@@ -252,87 +252,26 @@
     letter-spacing: var(--type-tracking-title);
   }
 
-  /* 纯 CSS 趋势图（7 天 / 12 个月）：不引图表库，柱与线的颜色全部来自 token。
-   * 柱是中性石墨阶（不是功能蓝、更不是克莱因蓝）。 */
+  /* 图表容器（票 349 起由 ECharts 画）：只负责"多大、什么底"，
+   * 不再有柱 / 折线的手写样式 —— 颜色由图表按 token 解析后绘制。 */
   .admin-chart {
-    @apply grid h-[280px] grid-flow-col auto-cols-fr items-stretch gap-2 border p-4;
+    @apply w-full border p-2;
     border-radius: var(--radius-lg);
     border-color: var(--color-line);
     background: var(--color-bg-subtle);
   }
 
-  .admin-chart--year {
-    min-height: 320px;
-  }
 
-  .admin-chart__item {
-    @apply flex min-w-0 flex-col items-center justify-end gap-1;
-  }
 
-  .admin-chart__bar-track {
-    @apply flex w-full flex-1 items-end justify-center;
-    min-height: 150px;
-  }
 
-  .admin-chart__bar {
-    @apply w-full;
-    min-height: 2px;
-    background: linear-gradient(180deg, var(--color-ink), var(--color-ink-muted));
-    transition: height var(--motion-base) var(--motion-ease);
-  }
 
-  .admin-chart__count {
-    @apply text-[11px] font-semibold tabular-nums;
-    color: var(--color-ink);
-  }
 
-  .admin-chart__date {
-    @apply block max-w-full truncate text-[10px] tabular-nums;
-    color: var(--color-ink-muted);
-    writing-mode: horizontal-tb;
-  }
 
-  .admin-chart__empty-note {
-    @apply m-0 mt-3 text-xs;
-    color: var(--color-ink-muted);
-  }
 
-  /* AI token 用量折线图：点数超过 20 时用它替代柱状。
-     容器高度与 .admin-chart 对齐，切换形态时页面不会跳动。 */
-  .admin-token-line {
-    @apply flex flex-col border p-4;
-    height: 280px;
-    border-radius: var(--radius-lg);
-    border-color: var(--color-line);
-    background: var(--color-bg-subtle);
-  }
 
-  .admin-token-line__svg {
-    @apply w-full flex-1;
-    min-height: 0;
-    overflow: visible;
-  }
 
-  .admin-token-line__line {
-    fill: none;
-    stroke: var(--color-ink);
-    stroke-width: 2;
-    stroke-linejoin: round;
-    stroke-linecap: round;
-    /* table 里的 SVG 默认会被拉伸；non-scaling-stroke 已在标签上设了，
-       这里再兜一层是为了少数不支持该属性的浏览器不至于画出 10px 粗线。 */
-    vector-effect: non-scaling-stroke;
-  }
 
-  .admin-token-line__area {
-    fill: var(--color-line-faint);
-    stroke: none;
-  }
 
-  .admin-token-line__axis {
-    @apply flex justify-between text-[10px] tabular-nums;
-    color: var(--color-ink-muted);
-  }
 
   .admin-login-page {
     @apply flex min-h-screen items-center justify-center p-6;

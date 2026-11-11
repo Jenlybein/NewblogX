@@ -672,6 +672,38 @@
                     },
                     "growth_rate": {
                         "type": "integer"
+                    },
+                    "range": {
+                        "description": "Range 是**收敛后**的时间窗，前端据此高亮按钮（传了非法值也能知道实际用了哪个）。",
+                        "type": "string"
+                    }
+                },
+                "type": "object"
+            },
+            "internal_analytics_adapter_http.OverviewResponse": {
+                "properties": {
+                    "new_articles": {
+                        "description": "NewArticles 是窗口内发布的文章数。",
+                        "type": "integer"
+                    },
+                    "new_users": {
+                        "description": "NewUsers 是窗口内新增注册数。",
+                        "type": "integer"
+                    },
+                    "range": {
+                        "description": "Range 是收敛后的时间窗。",
+                        "type": "string"
+                    },
+                    "range_end": {
+                        "type": "string"
+                    },
+                    "range_start": {
+                        "description": "RangeStart / RangeEnd 是窗口边界（ISO8601，东八区），让前端能把\n\"这个数字算的是哪段时间\"直接写在提示里，而不是自己再推一遍。",
+                        "type": "string"
+                    },
+                    "visits": {
+                        "description": "Visits 是**窗口内**的访问量（与「累计访问」同一口径，见 /data/sum）。",
+                        "type": "integer"
                     }
                 },
                 "type": "object"
@@ -5379,6 +5411,20 @@
                     },
                     "data": {
                         "$ref": "#/components/schemas/internal_analytics_adapter_http.GrowthDataResponse"
+                    },
+                    "msg": {
+                        "type": "string"
+                    }
+                },
+                "type": "object"
+            },
+            "myblogx_internal_kernel.Envelope-internal_analytics_adapter_http_OverviewResponse": {
+                "properties": {
+                    "code": {
+                        "type": "integer"
+                    },
+                    "data": {
+                        "$ref": "#/components/schemas/internal_analytics_adapter_http.OverviewResponse"
                     },
                     "msg": {
                         "type": "string"
@@ -10612,6 +10658,14 @@
                         "schema": {
                             "type": "integer"
                         }
+                    },
+                    {
+                        "description": "时间窗：today / week / month / year（默认 week）",
+                        "in": "query",
+                        "name": "range",
+                        "schema": {
+                            "type": "string"
+                        }
                     }
                 ],
                 "responses": {
@@ -10631,7 +10685,42 @@
                         "BearerAuth": []
                     }
                 ],
-                "summary": "近七日增长数据",
+                "summary": "增长趋势数据",
+                "tags": [
+                    "data"
+                ]
+            }
+        },
+        "/data/overview": {
+            "get": {
+                "parameters": [
+                    {
+                        "description": "时间窗：today / week / month / year（默认 week）",
+                        "in": "query",
+                        "name": "range",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/myblogx_internal_kernel.Envelope-internal_analytics_adapter_http_OverviewResponse"
+                                }
+                            }
+                        },
+                        "description": "OK"
+                    }
+                },
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "summary": "站点概览补充计数",
                 "tags": [
                     "data"
                 ]

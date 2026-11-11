@@ -148,14 +148,28 @@ describe("admin.css 全量走语义层（后台颜色只有一个来源）", () 
     expect(wordmark).toContain('"text-inverse-muted"');
   });
 
-  it("图表柱与折线走中性墨色（不是功能蓝，也不是克莱因蓝）", () => {
-    const bar = /\.admin-chart__bar\s*\{([^}]*)\}/u.exec(adminCssCode)?.[1] ?? "";
-    const line = /\.admin-token-line__line\s*\{([^}]*)\}/u.exec(adminCssCode)?.[1] ?? "";
+  it("图表颜色只从设计 token 解析（手写图的柱 / 折线样式已退场）", () => {
+    // 票 349：手写柱状图与折线图换成 ECharts，所以 CSS 里不再有柱 / 线的样式。
+    // 等价门禁落到组件上：图表只能通过 token 探针取色，源码里不许出现裸色值。
+    expect(adminCssCode).not.toMatch(/\.admin-chart__bar\s*\{/u);
+    expect(adminCssCode).not.toMatch(/\.admin-token-line__line\s*\{/u);
 
-    expect(bar).toContain("var(--color-ink");
-    expect(bar).not.toContain("--color-focus");
-    expect(line).toContain("stroke: var(--color-ink)");
-    expect(adminCssCode).not.toMatch(/stroke: var\(--color-focus\)/u);
+    const chart = readFileSync(join(appDir, "components/admin/TrendChart.vue"), "utf8");
+    // 取色只经 token 探针：`var(--color-*)` 由浏览器算成具体颜色再交给图表库。
+    expect(chart).toMatch(/probe\.style\.color = `var\(\$\{name\}\)`/u);
+    expect(chart).toContain("token('--color-ink')");
+    expect(chart).toContain("token('--color-line')");
+    // 图表也不许用焦点蓝当数据色（焦点色只留给焦点环）。
+    expect(chart).not.toContain("'--color-focus'");
+    // 没有裸色值：十六进制 / rgb() 都不许出现（设计 token 门禁同一条）。
+    expect(chart).not.toMatch(/#[0-9a-fA-F]{3,8}/u);
+    expect(chart).not.toMatch(/rgba?\(/u);
+  });
+
+  it("图表容器只负责尺寸与底色（不画柱子）", () => {
+    const block = /\.admin-chart\s*\{([^}]*)\}/u.exec(adminCssCode)?.[1] ?? "";
+    expect(block).toContain("var(--radius-lg)");
+    expect(block).not.toMatch(/grid-flow-col|auto-cols-fr/u);
   });
 
   it("功能蓝只保留在焦点环与链接上（不再当按钮/悬停字的颜色）", () => {

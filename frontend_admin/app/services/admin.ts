@@ -24,6 +24,7 @@ import type {
   DecoRuntimeConfig,
   GlobalNotifListItem,
   GrowthDataResponseData,
+  OverviewData,
   HasMoreList,
   HotTopAdminItem,
   DeadLetterListData,
@@ -71,12 +72,31 @@ function api() {
   return useNuxtApp().$api
 }
 
+/** 站点概览的时间窗（四个端点共用一个词表）。 */
+export type DataRange = 'today' | 'week' | 'month' | 'year'
+
 export function getDashboardSum() {
   return api().request<SumResponseData>('/data/sum')
 }
 
-export function getGrowthData(type: 1 | 2 | 3 = 3) {
-  return api().request<GrowthDataResponseData>('/data/growth', { query: { type } })
+/**
+ * 增长趋势（票 349 起带 range）。
+ *
+ * 每张卡片各自带自己的时间窗调用一次：概览页的七张卡互不相关，
+ * 共用一个全局 range 会让"我只想放大访问量到今年"变成整页重排。
+ */
+export function getGrowthData(type: 1 | 2 | 3 = 3, range: DataRange = 'week') {
+  return api().request<GrowthDataResponseData>('/data/growth', { query: { type, range } })
+}
+
+/**
+ * 站点概览的补充计数（票 349）。
+ *
+ * 只含已有端点没提供的数字：窗口内访问 / 新增注册 / 新增文章。
+ * 任何"已经有端点"的数据都不重复搬进来。
+ */
+export function getDataOverview(range: DataRange = 'week') {
+  return api().request<OverviewData>('/data/overview', { query: { range } })
 }
 
 export function getArticleYearData() {

@@ -2346,13 +2346,13 @@ html {
  * 收藏夹从"左栏列表 + 右栏内容"改成"网格 + 大弹窗"：
  * 一进来先看全部夹子，点哪张进哪张。卡片只在 hover / 键盘聚焦时露出
  * 编辑与删除，静止状态每张卡只有名称、简介与篇数。 */
-.folder-grid {
+.studio-folder-grid {
   display: grid;
   gap: 12px;
   grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
 }
 
-.folder-card {
+.studio-folder-card {
   position: relative;
   display: flex;
   flex-direction: column;
@@ -2364,19 +2364,19 @@ html {
     transform var(--motion-fast) var(--motion-ease);
 }
 
-.folder-card:hover,
-.folder-card:focus-within {
+.studio-folder-card:hover,
+.studio-folder-card:focus-within {
   border-color: var(--color-line-strong);
   transform: translateY(-1px);
 }
 
 /* 新建后高亮：让"刚建好的那个夹子"在网格里一眼可见（票 345 的交互决定）。 */
-.folder-card--highlight {
+.studio-folder-card--highlight {
   border-color: var(--color-ink);
   box-shadow: 0 0 0 2px var(--color-highlight);
 }
 
-.folder-card__open {
+.studio-folder-card__open {
   display: flex;
   flex: 1;
   flex-direction: column;
@@ -2389,13 +2389,13 @@ html {
   cursor: pointer;
 }
 
-.folder-card__head {
+.studio-folder-card__head {
   display: flex;
   align-items: baseline;
   gap: 8px;
 }
 
-.folder-card__title {
+.studio-folder-card__title {
   flex: 1;
   min-width: 0;
   overflow: hidden;
@@ -2405,14 +2405,14 @@ html {
   font-weight: 600;
 }
 
-.folder-card__count {
+.studio-folder-card__count {
   flex: 0 0 auto;
   font-size: 0.75rem;
   font-variant-numeric: tabular-nums;
   color: var(--color-ink-muted);
 }
 
-.folder-card__abstract {
+.studio-folder-card__abstract {
   margin: 0;
   font-size: 0.8125rem;
   line-height: 1.5;
@@ -2423,7 +2423,7 @@ html {
   overflow: hidden;
 }
 
-.folder-card__actions {
+.studio-folder-card__actions {
   display: flex;
   gap: 4px;
   justify-content: flex-end;
@@ -2432,13 +2432,13 @@ html {
   transition: opacity var(--motion-fast) var(--motion-ease);
 }
 
-.folder-card:hover .folder-card__actions,
-.folder-card:focus-within .folder-card__actions {
+.studio-folder-card:hover .studio-folder-card__actions,
+.studio-folder-card:focus-within .studio-folder-card__actions {
   opacity: 1;
 }
 
 @media (hover: none) {
-  .folder-card__actions {
+  .studio-folder-card__actions {
     opacity: 1;
   }
 }
@@ -2782,14 +2782,35 @@ html {
   color: var(--color-danger-ink);
   border-color: var(--color-danger-line);
 }
-/* 侧栏子项（票 355）：缩进 + 更小的字，父项保持激活态。 */
+/* 侧栏子项（票 355，2026-11-12 重做）：要让人一眼看出"这是账号设置下面的五项"。
+ *
+ * 上一版只加了 `padding-left`，实测读不出层级：子项的**盒子**与父项左边缘重合，
+ * 激活态又沿用父项那套整块填底，于是"个人资料"看起来和"账号设置"是同级。
+ *
+ * 现在三件事一起做：
+ *   1. 盒子整体右移（`margin-left`），父子左边缘错开 —— 层级靠位置而不是靠字号；
+ *   2. 一条竖线连到父项，把"属于上面那一项"画出来；
+ *   3. 激活态不再填底，改用墨色竖线 + 墨色文字：填底是"当前页"的信号，
+ *      但同一套填底出现在父子两级就会互相抵消。 */
 .studio-sidebar__link--child {
-  padding-left: 2.25rem;
+  margin-left: 1.5rem;
+  padding-left: 0.75rem;
+  border-left: 1px solid var(--color-line);
+  border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
   font-size: 0.8125rem;
+  line-height: 1.2;
   color: var(--color-ink-muted);
 }
 
+.studio-sidebar__link--child:hover {
+  /* 悬停只换文字色，不铺底：铺底会把竖线吞掉，层级又糊了。 */
+  background: transparent;
+  color: var(--color-ink);
+}
+
 .studio-sidebar__link--child.is-active {
+  background: transparent;
+  border-left-color: var(--color-ink);
   color: var(--color-ink);
   font-weight: 600;
 }

@@ -11,6 +11,7 @@ import (
 	"myblogx/conf"
 	siteconf "myblogx/conf/site"
 	"myblogx/internal/platform/idgen"
+	"myblogx/internal/platform/secretbox"
 
 	"github.com/sirupsen/logrus"
 	"gopkg.in/yaml.v3"
@@ -42,7 +43,21 @@ func newTestService(t *testing.T, defaults conf.RuntimeDefaults) (*RuntimeConfig
 
 	logger := logrus.New()
 	logger.SetOutput(io.Discard)
-	return NewRuntimeConfigService(defaults, logger, db), db
+	svc := NewRuntimeConfigService(defaults, logger, db)
+	// 装一把测试主密钥：从这一版起"写密钥"必须能加密落库，否则 Update* 会
+	// 按设计拒绝（那正是 TestUpdateMailWithoutMasterKeyFails 要覆盖的分支）。
+	svc.SetSealer(testSealer(t))
+	return svc, db
+}
+
+// testSealer 返回一把固定主密钥，让用例里的密钥字段能走"加密落库"的真实路径。
+func testSealer(t *testing.T) *secretbox.Box {
+	t.Helper()
+	box, err := secretbox.New([]byte(strings.Repeat("k", 32)))
+	if err != nil {
+		t.Fatalf("构造测试主密钥失败: %v", err)
+	}
+	return box
 }
 
 // quietLogger 返回一个不打印的 logger，用于验证 warn 分支不会 panic。

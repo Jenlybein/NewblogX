@@ -336,6 +336,61 @@ type ComplianceResult struct {
 	PromptVersion string
 }
 
+// TextCheckInput 是"对一段自由文本做合规判定"的输入。
+//
+// 与文章那条路的区别只有一处：没有文章实体可读，文本由调用方直接给。
+// 评论就是这种形态（它属于某篇文章，但判定看的是评论内容本身）。
+type TextCheckInput struct {
+	// Title 是上下文标题（评论传所属文章标题），帮助模型理解语境。
+	Title string
+	// Content 是要判定的文本。
+	Content string
+	// MaxTokens 是本次判定的输出上限；<=0 用供应商配置。
+	MaxTokens int
+}
+
+// CheckTextCompliance 对任意文本做一次合规判定（票 359：评论审核复用文章那套）。
+//
+// 与 CheckArticleCompliance 共用同一套策略文本、同一个模型档位、同一份结论结构：
+// "能不能发"的判据在站内只能有一份，否则评论与文章会得出互相矛盾的结论。
+func (s *Service) CheckTextCompliance(ctx context.Context, in TextCheckInput) (*ComplianceResult, error) {
+	aiConf, err := s.config()
+	if err != nil {
+		return nil, err
+	}
+	if !aiConf.Enable {
+		return nil, apperr.New(apperr.CodeAIServiceOff)
+	}
+
+	policy, version, err := s.scenePolicy(aiConf, aipkg.SceneModeration)
+	if err != nil {
+		return nil, err
+	}
+	checkCtx := aipkg.WithCallMeta(ctx, aipkg.CallMeta{
+		Scene:         aipkg.SceneModeration,
+		PromptVersion: version,
+	})
+
+	result, err := moderation.CheckCompliance(checkCtx, aiConf, moderation.CheckRequest{
+		Title:     in.Title,
+		Content:   in.Content,
+		Policy:    policy,
+		MaxTokens: in.MaxTokens,
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	return &ComplianceResult{
+		Verdict:       string(result.Verdict),
+		RiskLevel:     result.RiskLevel,
+		Categories:    result.Categories,
+		Reasons:       result.Reasons,
+		ModelName:     result.ModelName,
+		PromptVersion: version,
+	}, nil
+}
+
 // CheckArticleCompliance 对一篇文章做合规判定（票 312 / ADR-0033）。
 //
 // 它读文章快照、注入 moderation 场景的策略文本、调模型，并把结论原样返回；

@@ -22,6 +22,7 @@ import (
 	adapterredis "myblogx/internal/chat/adapter/redis"
 	"myblogx/internal/kernel/ctype"
 	"myblogx/internal/platform/config"
+	"myblogx/internal/platform/secretbox"
 	"myblogx/internal/platform/idgen"
 	redis_service "myblogx/internal/platform/redis"
 	"myblogx/internal/platform/redis/redis_chat"
@@ -66,6 +67,8 @@ func newEffectiveFixture(t *testing.T) *effectiveFixture {
 		Chat:    siteconf.Chat{RateWindowSec: 10, RateDailyMax: 99},
 	}}
 	store := config.NewRuntimeConfigService(defaults, logger, db)
+	// 装一把测试主密钥：票 359 起"写密钥"必须能加密落库，否则 Update* 按设计拒绝。
+	store.SetSealer(testSealer(t))
 	if err := store.InitRuntimeConfig(); err != nil {
 		t.Fatalf("配置补种失败: %v", err)
 	}
@@ -202,6 +205,7 @@ func TestEffectiveConfig_敏感字段占位符不写回星号_空串真清除_�
 	}
 	// 换一份重新加载（走模块自己的现读入口），确认库里也没被写成星号。
 	reloaded := config.NewRuntimeConfigService(conf.RuntimeDefaults{}, f.logger, f.db)
+	reloaded.SetSealer(testSealer(t))
 	if err := reloaded.InitRuntimeConfig(); err != nil {
 		t.Fatalf("重新加载失败: %v", err)
 	}
@@ -401,4 +405,14 @@ func TestEffectiveConfig_展示开关改一次_四处消费点同一下一次现
 			t.Fatalf("%s 改回后下一次现读应恢复展示，实际仍过滤", name)
 		}
 	}
+}
+
+// testSealer 返回一把固定主密钥（票 359）。
+func testSealer(t *testing.T) *secretbox.Box {
+	t.Helper()
+	box, err := secretbox.New([]byte(strings.Repeat("k", 32)))
+	if err != nil {
+		t.Fatalf("构造测试主密钥失败: %v", err)
+	}
+	return box
 }

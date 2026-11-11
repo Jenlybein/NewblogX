@@ -109,8 +109,38 @@ type Moderation struct {
 	WatchWords []string `yaml:"watch_words" json:"watch_words"`
 }
 
+// Comment 是评论的站点级策略（票 359）。
+//
+// 在票 359 之前这里只有一个"免审核"开关：打开就直发，等于评论完全裸奔。
+// 现在补上两层判定，形状与文章那套**刻意保持一致** —— 词表同构、AI 结论同构，
+// 运营只要理解一套规则。
 type Comment struct {
-	SkipExamining bool `yaml:"skip_examining" json:"skip_examining"` // 免审核
+	SkipExamining bool `yaml:"skip_examining" json:"skip_examining"` // 免审核（机器+AI 都通过时直发）
+
+	// Moderation 是评论的机审词表（与文章同构）。
+	Moderation Moderation `yaml:"moderation" json:"moderation"`
+
+	// AI 是评论的 AI 合规判定（票 359）。
+	AI CommentAI `yaml:"ai" json:"ai"`
+}
+
+// CommentAI 是评论 AI 判定的运行期参数。
+//
+// 单列一个结构而不是平铺进 Comment：这三个值是一组（开关 + 成本上限 + 超时），
+// 平铺会让人以为它们彼此无关。
+type CommentAI struct {
+	// Enabled 打开后，评论在发布前会过一遍 AI 合规判定。
+	Enabled bool `yaml:"enabled" json:"enabled"`
+	// MaxTokens 是单次判定的输出上限，默认 1000。
+	//
+	// 结论只是一个短 JSON；给 1000 已经宽裕，钉住它能把每条评论的审核成本
+	// 控制在可预期量级。
+	MaxTokens int `yaml:"max_tokens" json:"max_tokens"`
+	// TimeoutSec 是单次判定的超时秒数，默认 8。
+	//
+	// 评论是**同步**路径：超时必须有上限，否则一次上游卡顿会把发评论的请求
+	// 挂到分钟级。超时按"未判定"处理（留待人工），不按"通过"处理。
+	TimeoutSec int `yaml:"timeout_sec" json:"timeout_sec"`
 }
 
 // Chat 是私信的站点级策略（#202）。

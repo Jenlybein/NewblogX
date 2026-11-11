@@ -53,12 +53,26 @@ func specFromConfig(aiConf conf.AI) (llm.ProviderSpec, error) {
 // （未开启、没有启用的模型配置）不报：它们没有真正打到上游，记进去只会
 // 把"调用次数"这个指标污染成"用户点了多少次"。
 func Chat(ctx context.Context, aiConf conf.AI, msgList []Message) (string, error) {
+	return ChatWithLimit(ctx, aiConf, msgList, 0)
+}
+
+// ChatWithLimit 与 Chat 相同，但可以**只对这一次调用**限制输出长度。
+//
+// 为什么需要按次覆盖：输出长度是场景相关的，不是供应商相关的。合规判定只要
+// 一个 JSON 结论（几百 token 足够），而聊天回复可能要长；把 max_tokens 写进
+// 供应商配置就只有一把尺子，要么聊天被截断，要么审核白付钱。
+//
+// maxTokens <= 0 表示用供应商配置里的值（与 Chat 完全一致）。
+func ChatWithLimit(ctx context.Context, aiConf conf.AI, msgList []Message, maxTokens int) (string, error) {
 	if !aiConf.Enable {
 		return "", apperr.New(apperr.CodeAIServiceOff)
 	}
 	spec, err := specFromConfig(aiConf)
 	if err != nil {
 		return "", err
+	}
+	if maxTokens > 0 {
+		spec.MaxTokens = maxTokens
 	}
 	// 每日额度：出站口是唯一的收费点，业务侧不需要各写一遍（ADR-0038）。
 	lease, err := chargeCall(ctx, aiConf)

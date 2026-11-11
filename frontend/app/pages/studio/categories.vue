@@ -171,24 +171,24 @@ useNoIndexPage();
       </div>
 
       <!-- 票 351 故事 14：分类也是一张张卡（名称 + 篇数），点开看里面的文章。 -->
-      <div v-if="categories.length" class="mt-5 folder-grid" data-role="category-grid">
+      <div v-if="categories.length" class="mt-5 studio-folder-grid" data-role="category-grid">
         <article
           v-for="category in categories"
           :key="category.id"
-          class="folder-card"
+          class="studio-folder-card"
           :data-role="`category-row-${category.id}`"
         >
-          <button type="button" class="folder-card__open" @click="openCategoryModal(category.id)">
-            <header class="folder-card__head">
-              <strong class="folder-card__title" :data-role="`category-title-${category.id}`">{{ category.title }}</strong>
-              <span class="folder-card__count" :data-role="`category-count-${category.id}`">
+          <button type="button" class="studio-folder-card__open" @click="openCategoryModal(category.id)">
+            <header class="studio-folder-card__head">
+              <strong class="studio-folder-card__title" :data-role="`category-title-${category.id}`">{{ category.title }}</strong>
+              <span class="studio-folder-card__count" :data-role="`category-count-${category.id}`">
                 {{ category.article_count ?? 0 }} 篇
               </span>
             </header>
-            <p class="folder-card__abstract">删除后该分类下的文章会变成「未分类」，文章本身不会删除。</p>
+            <p class="studio-folder-card__abstract">删除后该分类下的文章会变成「未分类」，文章本身不会删除。</p>
           </button>
 
-          <div class="folder-card__actions">
+          <div class="studio-folder-card__actions">
             <button
               type="button"
               class="profile-category-action"

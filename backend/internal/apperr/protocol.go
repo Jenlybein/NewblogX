@@ -28,6 +28,8 @@ var protocols = map[Code]ProtocolKind{
 	CodeUserSessionExpired: ProtocolAuth,
 
 	// 通知与站内信：调用方能修正的失败。
+	// 评论命中阻断词：用户改一改就能过，属于"输入不合规"，与内容为空同类。
+	CodeCommentBlocked:        ProtocolValidation,
 	CodeCommonInvalidOrder:    ProtocolValidation,
 	CodeCommonInvalidArgument: ProtocolValidation,
 	CodeCommonBindMissing:     ProtocolValidation,
@@ -64,11 +66,10 @@ var protocols = map[Code]ProtocolKind{
 	// 合集 / 项目分组（ADR-0041）：四条都是调用方能看懂并放弃 / 修正的失败，
 	// 归 1001 而不是 1002（后者会让前端以为后端坏了）。
 	// order_mismatch 是"你手上的列表过期了，刷新后重排"，属于可恢复的校验失败。
-	CodeGroupTitleRequired:   ProtocolValidation,
-	CodeGroupTitleTooLong:    ProtocolValidation,
-	CodeGroupNotFound:        ProtocolValidation,
-	CodeGroupOrderMismatch:   ProtocolValidation,
-
+	CodeGroupTitleRequired: ProtocolValidation,
+	CodeGroupTitleTooLong:  ProtocolValidation,
+	CodeGroupNotFound:      ProtocolValidation,
+	CodeGroupOrderMismatch: ProtocolValidation,
 }
 
 // ProtocolOf 从错误值取协议类别。

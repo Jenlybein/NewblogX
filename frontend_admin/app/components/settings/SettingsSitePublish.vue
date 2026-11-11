@@ -57,6 +57,26 @@ const watchWordsText = computed({
   },
 })
 
+// 评论的词表（票 359）：形状与文章同构，但**各自独立**——评论是短文本，
+// 适合拦的词与文章不同（比如"加微信"在文章里可能只是举例，在评论里就是导流）。
+const commentBlockWordsText = computed({
+  get: () => wordListToText(config.value.comment?.moderation?.block_words),
+  set: (value: string) => {
+    const comment = config.value.comment
+    if (!comment) return
+    ;(comment.moderation ??= { block_words: [], watch_words: [] }).block_words = textToWordList(value)
+  },
+})
+
+const commentWatchWordsText = computed({
+  get: () => wordListToText(config.value.comment?.moderation?.watch_words),
+  set: (value: string) => {
+    const comment = config.value.comment
+    if (!comment) return
+    ;(comment.moderation ??= { block_words: [], watch_words: [] }).watch_words = textToWordList(value)
+  },
+})
+
 // 闸门默认值与后端 site_default_settings.yaml 一致：管理后台只负责改，
 // 不发明第二套默认值。实际放行线 = pass_score + gray_band_width。
 const DEFAULT_QUALITY_GATE: QualityGateConfig = {
@@ -143,6 +163,56 @@ onMounted(load)
         </NFormItem>
         <NFormItem label="评论免审核">
           <NSwitch v-model:value="config.comment.skip_examining" />
+        </NFormItem>
+        <NAlert type="info" :bordered="false" class="mb-4">
+          评论的判定顺序（票 359）：**先词表、再 AI**。命中阻断词直接拒绝（不入库）；
+          命中观察词强制留待人工（即使开了免审核）；两者都没命中且开了 AI 审核时，
+          AI 判为干净才直发，可疑/违规/判定失败/超时一律留待人工。
+        </NAlert>
+      </NCard>
+
+      <NCard class="admin-card mb-4" title="评论审核" size="small">
+        <NAlert type="info" :bordered="false" class="mb-4">
+          评论是短文本，词表口径与文章**分开维护**：一行一个词，空行忽略。
+          阻断级命中即拒绝，观察级命中留待人工。
+        </NAlert>
+        <NFormItem label="评论阻断级词表">
+          <NInput
+            v-model:value="commentBlockWordsText"
+            type="textarea"
+            :autosize="{ minRows: 4, maxRows: 8 }"
+            class="admin-field--long"
+            placeholder="例如：加微信付款"
+            data-role="site-comment-moderation-block-words" />
+        </NFormItem>
+        <NFormItem label="评论观察级词表">
+          <NInput
+            v-model:value="commentWatchWordsText"
+            type="textarea"
+            :autosize="{ minRows: 4, maxRows: 8 }"
+            class="admin-field--long"
+            placeholder="例如：加微信"
+            data-role="site-comment-moderation-watch-words" />
+        </NFormItem>
+        <NFormItem label="启用 AI 审核">
+          <NSwitch v-model:value="config.comment.ai.enabled" data-role="site-comment-ai-enabled" />
+        </NFormItem>
+        <NFormItem label="AI 输出上限（token）">
+          <NInputNumber
+            v-model:value="config.comment.ai.max_tokens"
+            class="admin-field--number"
+            :min="64"
+            :max="4000"
+            :step="50"
+            data-role="site-comment-ai-max-tokens" />
+        </NFormItem>
+        <NFormItem label="AI 判定超时（秒）">
+          <NInputNumber
+            v-model:value="config.comment.ai.timeout_sec"
+            class="admin-field--number"
+            :min="1"
+            :max="60"
+            data-role="site-comment-ai-timeout" />
         </NFormItem>
       </NCard>
 

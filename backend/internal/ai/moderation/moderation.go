@@ -76,6 +76,12 @@ type CheckRequest struct {
 	// Policy 是运行时策略文本正文（skills/moderation/SKILL.md）；空串表示
 	// 站点没有绑定策略文本，此时只用内置的判定要求。
 	Policy string
+	// MaxTokens 是**本次判定**允许的输出长度上限；<=0 用供应商配置里的值。
+	//
+	// 合规结论只是一个短 JSON，给足 1000 token 已经宽裕；按次限制能把审核成本
+	// 钉在一个可预期的量级，而不必为了审核把供应商的全局 max_tokens 调小
+	// （那会连带截断正常对话）。
+	MaxTokens int
 }
 
 // 文章正文送入模型的上限。
@@ -107,7 +113,7 @@ func CheckCompliance(ctx context.Context, aiConf conf.AI, req CheckRequest) (*Re
 		{Role: "user", Content: userPrompt(req.Title, content)},
 	}
 
-	reply, err := ai.Chat(ctx, aiConf, messages)
+	reply, err := ai.ChatWithLimit(ctx, aiConf, messages, req.MaxTokens)
 	if err != nil {
 		return nil, err
 	}

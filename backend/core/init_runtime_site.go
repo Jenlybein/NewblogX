@@ -3,6 +3,7 @@ package core
 import (
 	"myblogx/conf"
 	sitecfg "myblogx/internal/platform/config"
+	"myblogx/internal/platform/secretbox"
 
 	"github.com/sirupsen/logrus"
 	"gorm.io/gorm"
@@ -31,6 +32,23 @@ func InitRuntimeSite(baseConfig *conf.Config, logger *logrus.Logger, db *gorm.DB
 	defaults.Log = baseConfig.Log
 
 	runtimeService := sitecfg.NewRuntimeConfigService(defaults, logger, db)
+
+	// 配置里的密钥一律加密落库（票 359）：主密钥只来自环境变量，不落库、不进代码。
+	// 没配时不算启动失败 —— 读历史明文、发信、上传都照常，只是**不能再写入**新密钥，
+	// 那时 Update* 会明确报错，不会退回明文。
+	sealer, err := secretbox.FromEnv()
+	if err != nil {
+		if logger != nil {
+			logger.Errorf("主密钥配置有误，本次启动不加密保存密钥: %v", err)
+		}
+	} else if sealer == nil {
+		if logger != nil {
+			logger.Warnf("未设置 %s：管理后台仍可读历史配置，但保存密钥会被拒绝（不会退回明文）", secretbox.EnvKey)
+		}
+	} else {
+		runtimeService.SetSealer(sealer)
+	}
+
 	if err := runtimeService.InitRuntimeConfig(); err != nil {
 		return nil, err
 	}

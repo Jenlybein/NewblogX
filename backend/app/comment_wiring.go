@@ -2,10 +2,13 @@ package app
 
 import (
 	"context"
+	"time"
 
 	"github.com/sirupsen/logrus"
 	"gorm.io/gorm"
 
+	aiapp "myblogx/internal/ai/app"
+	"myblogx/internal/apperr"
 	commenthttp "myblogx/internal/comment/adapter/http"
 	commentmysql "myblogx/internal/comment/adapter/mysql"
 	commentapp "myblogx/internal/comment/app"
@@ -41,8 +44,50 @@ func WireComment(infra *Infra) {
 		commentIDs{},
 		infra.Logger,
 		func() bool { return infra.RuntimeSite.GetRuntimeComment().SkipExamining },
+	).WithModeration(
+		// 策略现读：运营改完词表或开关，下一条评论立即按新口径判定（不需要重启）。
+		func() commentapp.ModerationPolicy {
+			c := infra.RuntimeSite.GetRuntimeComment()
+			return commentapp.ModerationPolicy{
+				BlockWords:  c.Moderation.BlockWords,
+				WatchWords:  c.Moderation.WatchWords,
+				AIEnabled:   c.AI.Enabled,
+				AIMaxTokens: c.AI.MaxTokens,
+				AITimeout:   time.Duration(c.AI.TimeoutSec) * time.Second,
+			}
+		},
+		&commentComplianceBridge{},
 	)
 	router.SetCommentHandler(commenthttp.NewHandler(svc))
+}
+
+// commentComplianceBridge 把 AI 模块的合规判定接成评论模块的端口（票 359）。
+//
+// 判定逻辑与文章共用同一套策略文本与结论结构：站内"能不能发"的判据只能有一份，
+// 否则同一条内容在评论与文章上会得出互相矛盾的结论。
+type commentComplianceBridge struct{}
+
+// CheckComment 对一条评论做合规判定。
+func (commentComplianceBridge) CheckComment(ctx context.Context, in commentapp.ComplianceInput) (*commentapp.ComplianceResult, error) {
+	if aiService == nil {
+		return nil, apperr.New(apperr.CodeAIServiceOff)
+	}
+	got, err := aiService.CheckTextCompliance(ctx, aiapp.TextCheckInput{
+		Title:     in.ArticleTitle,
+		Content:   in.Content,
+		MaxTokens: in.MaxTokens,
+	})
+	if err != nil {
+		return nil, err
+	}
+	result := &commentapp.ComplianceResult{
+		Verdict:    commentapp.Verdict(got.Verdict),
+		Categories: got.Categories,
+	}
+	if len(got.Reasons) > 0 {
+		result.Reason = got.Reasons[0]
+	}
+	return result, nil
 }
 
 // commentIDs 用雪花生成评论 ID。

@@ -9765,6 +9765,26 @@
                 ]
             }
         },
+        "/collections/grouped": {
+            "get": {
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/myblogx_internal_kernel.Envelope-internal_article_adapter_http_GroupTreeResponse"
+                                }
+                            }
+                        },
+                        "description": "OK"
+                    }
+                },
+                "summary": "读者侧分组读面",
+                "tags": [
+                    "collection"
+                ]
+            }
+        },
         "/collections/groups": {
             "get": {
                 "responses": {
@@ -12624,6 +12644,26 @@
                 "summary": "后台项目列表（含未展示）",
                 "tags": [
                     "project"
+                ]
+            }
+        },
+        "/projects/grouped": {
+            "get": {
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/myblogx_internal_kernel.Envelope-internal_article_adapter_http_GroupTreeResponse"
+                                }
+                            }
+                        },
+                        "description": "OK"
+                    }
+                },
+                "summary": "读者侧分组读面",
+                "tags": [
+                    "collection"
                 ]
             }
         },

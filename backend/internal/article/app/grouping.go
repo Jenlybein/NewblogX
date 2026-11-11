@@ -356,3 +356,101 @@ func (s *Service) ComposeProject(ctx context.Context, cmd ComposeProjectCmd) (*o
 	})
 	return detail, err
 }
+
+// PublicGroupTree 是读者侧的分组读面（票 353）。
+//
+// 与后台读面的区别只有两条：
+//  1. 只列**展示中**的实体（关掉展示的不该出现在任何分组里）；
+//  2. **没有未分组那一段** —— 读者侧不渲染「未分组」标题，那些实体作为
+//     所有分组之后的尾块直接平铺（"未分组自动隐藏"是后台才有的行为）。
+//
+// 分组标题在读者侧只是视觉分段，不承担权限或过滤语义：一个实体是否可见
+// 仍由列表端点自己的规则决定，这里只负责"谁和谁在一起、谁在前"。
+func (s *Service) PublicGroupTree(ctx context.Context, kind outline.OwnerKind) (*GroupTree, error) {
+	if !kind.Valid() {
+		return nil, grouping.ErrOrderMismatch
+	}
+
+	var tree *GroupTree
+	err := s.tx.WithinTx(ctx, func(ctx context.Context, repos Repos) error {
+		repo, err := groupRepos(ctx, repos, kind)
+		if err != nil {
+			return err
+		}
+		groups, err := repo.ListGroups(ctx)
+		if err != nil {
+			return err
+		}
+		assignments, err := repo.ListAssignments(ctx)
+		if err != nil {
+			return err
+		}
+
+		visible, err := visibleOwnerIDs(ctx, repos, kind)
+		if err != nil {
+			return err
+		}
+
+		byGroup := make(map[grouping.ID][]ctype.ID, len(groups))
+		trailing := make([]ctype.ID, 0, len(assignments))
+		for _, a := range assignments {
+			if _, ok := visible[a.OwnerID]; !ok {
+				continue
+			}
+			if a.GroupID.IsZero() {
+				trailing = append(trailing, a.OwnerID)
+				continue
+			}
+			byGroup[a.GroupID] = append(byGroup[a.GroupID], a.OwnerID)
+		}
+
+		out := &GroupTree{Groups: make([]GroupNode, 0, len(groups)), Ungrouped: trailing}
+		for _, g := range groups {
+			items := byGroup[g.ID()]
+			// 空分组在读者侧不渲染：一个只有标题、下面什么都没有的分段
+			// 只会让页面看起来坏了。
+			if len(items) == 0 {
+				continue
+			}
+			out.Groups = append(out.Groups, GroupNode{ID: g.ID(), Title: g.Title(), Items: items})
+		}
+		tree = out
+		return nil
+	})
+	return tree, err
+}
+
+// visibleOwnerIDs 取该实体下**展示中**的全部 ID。
+//
+// 用列表仓储而不是直接查表：可见性规则（展示开关、非管理员作者过滤）只写在
+// 仓储 SQL 里一份，这里再拼一条 SQL 就是第二份真相。
+func visibleOwnerIDs(ctx context.Context, repos Repos, kind outline.OwnerKind) (map[ctype.ID]struct{}, error) {
+	out := make(map[ctype.ID]struct{})
+	switch kind {
+	case outline.OwnerCollection:
+		cards, _, err := repos.Collections().ListCards(ctx, false, domain.Page{Limit: maxPublicCards})
+		if err != nil {
+			return nil, err
+		}
+		for _, card := range cards {
+			out[ctype.ID(card.ID)] = struct{}{}
+		}
+	case outline.OwnerProject:
+		cards, _, err := repos.Projects().ListCards(ctx, false, domain.Page{Limit: maxPublicCards})
+		if err != nil {
+			return nil, err
+		}
+		for _, card := range cards {
+			out[ctype.ID(card.ID)] = struct{}{}
+		}
+	default:
+		return nil, grouping.ErrOrderMismatch
+	}
+	return out, nil
+}
+
+// maxPublicCards 是公开读面一次最多取多少个实体。
+//
+// 分组读面只用来决定"谁和谁在一起、谁在前"，不负责分页：列表本身另有分页端点。
+// 上限存在的意义是防止一次读出几万行；超过这个量的站点早该换成分页读面。
+const maxPublicCards = 500

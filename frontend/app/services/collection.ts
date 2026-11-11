@@ -1,5 +1,5 @@
 import { useNuxtApp } from "#imports";
-import type { CollectionDetail, CollectionListData, CollectionOutlineTree } from "~/types/api";
+import type { CollectionDetail, CollectionListData, CollectionOutlineTree, GroupTreeData } from "~/types/api";
 
 /**
  * 合集（读者侧只读接口）。
@@ -15,6 +15,17 @@ import type { CollectionDetail, CollectionListData, CollectionOutlineTree } from
  * 呈现组件都不必知道树换了出处；篇数 / 封面回退读具名形状算好的值，
  * 合集自己上传的封面优先（与后端详情的显式封面规则一致）。
  */
+
+/**
+ * 读者侧分组读面（票 353）。
+ *
+ * 只回答"谁和谁在一起、谁在前"：只含展示中的合集，且**没有未分组标题** ——
+ * 那些合集由页面作为尾块平铺。分组标题在读者侧不承担可见性语义，
+ * 谁可见仍由列表端点决定。
+ */
+export function getCollectionGroups() {
+  return useNuxtApp().$api.request<GroupTreeData>("/api/collections/grouped", { auth: false });
+}
 
 /** 合集列表（分页）。 */
 export function getCollections(page = 1, limit = 12) {

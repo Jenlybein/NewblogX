@@ -1,5 +1,5 @@
 import { useNuxtApp } from "#imports";
-import type { ProjectDetail, ProjectListData, ProjectOutlineTree } from "~/types/api";
+import type { GroupTreeData, ProjectDetail, ProjectListData, ProjectOutlineTree } from "~/types/api";
 
 /**
  * 项目（读者侧只读接口）。
@@ -9,6 +9,11 @@ import type { ProjectDetail, ProjectListData, ProjectOutlineTree } from "~/types
  * 它受后端「展示开关」与「显示非管理员发布文章」两个开关约束，前端不做可见性
  * 过滤（过滤已在仓储 SQL 里，重复判断只会多一份会漂移的真相）。
  */
+
+/** 读者侧分组读面（与合集同一形状，见 getCollectionGroups）。 */
+export function getProjectGroups() {
+  return useNuxtApp().$api.request<GroupTreeData>("/api/projects/grouped", { auth: false });
+}
 
 /** 项目列表（分页）。 */
 export function getProjects(page = 1, limit = 12) {

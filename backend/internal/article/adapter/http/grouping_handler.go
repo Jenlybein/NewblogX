@@ -221,3 +221,27 @@ func (h *Handler) ProjectComposeView(c *gin.Context) {
 }
 
 
+
+// PublicGroupTreeView 读者侧分组读面（票 353）。
+//
+// 只列展示中的实体，且**不返回「未分组」标题**：没有分组的实体作为所有分组
+// 之后的尾块平铺（`ungrouped` 里只有 id，读者侧不渲染标题）。
+// @Summary 读者侧分组读面
+// @Tags collection
+// @Produce json
+// @Success 200 {object} kernel.Envelope[GroupTreeResponse]
+// @Router /collections/grouped [get]
+// @Router /projects/grouped [get]
+func (h *Handler) PublicGroupTreeView(c *gin.Context) {
+	kind, ok := groupKind(c)
+	if !ok {
+		res.FailWithMsg("未知的实体", c)
+		return
+	}
+	tree, err := h.svc.PublicGroupTree(c.Request.Context(), kind)
+	if err != nil {
+		h.fail(c, err)
+		return
+	}
+	res.OkWithData(toGroupTreeResponse(tree), c)
+}

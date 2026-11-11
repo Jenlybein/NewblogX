@@ -1,8 +1,8 @@
 <script setup lang="ts">
 import { computed } from "vue";
-import FolderCardList from "~/components/common/FolderCardList.vue";
+import GroupedReaderList from "~/components/common/GroupedReaderList.vue";
 import ProfileEmptyState from "~/components/profile/ProfileEmptyState.vue";
-import { getCollections } from "~/services/collection";
+import { getCollectionGroups, getCollections } from "~/services/collection";
 import { collectionCardView } from "~/utils/collection";
 
 /**
@@ -21,6 +21,14 @@ const { data, pending, error } = await useAsyncData(
   "reader-collections",
   () => getCollections(1, 24),
   { default: () => ({ list: [], count: 0 }) },
+);
+
+// 分组读面（票 353）：只决定"谁和谁在一起、谁在前"。读失败不影响列表 ——
+// 分组是排版信息，缺了它退回一个平铺网格即可，不该让整页变成错误态。
+const { data: groups } = await useAsyncData(
+  "reader-collection-groups",
+  () => getCollectionGroups().catch(() => null),
+  { default: () => null },
 );
 
 useSeoMeta({
@@ -45,7 +53,7 @@ const emptyDescription = computed(() =>
       <p v-if="cards.length" class="collection-page__count">{{ cards.length }} 个专题</p>
     </header>
 
-    <FolderCardList v-if="cards.length" :cards="cards" data-collection-list="true" />
+    <GroupedReaderList v-if="cards.length" :cards="cards" :groups="groups" label="专题" />
 
     <ProfileEmptyState
       v-else

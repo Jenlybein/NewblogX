@@ -2517,3 +2517,194 @@ html {
     opacity: 1;
   }
 }
+/* ── 我的文章压缩行卡（票 351）────────────────────────────────
+ *
+ * 用户嫌原来的列表项太高、"多余的行"太多：一张卡里塞了状态行、操作行、
+ * 再一张通用 feed 卡。这里压成**一层**：封面固定 160×90 在左，右侧一列
+ * 是标题 / 摘要两行 / 标签 / 底部一行；底部左边状态与操作、右边四个计数。
+ *
+ * 高度靠 160×90 的封面兜住：摘要超过两行就截断，不会把卡片撑高。 */
+.studio-article-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.studio-article-row {
+  display: flex;
+  gap: 12px;
+  padding: 10px;
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+  transition: border-color var(--motion-fast) var(--motion-ease);
+}
+
+.studio-article-row:hover,
+.studio-article-row:focus-within {
+  border-color: var(--color-line-strong);
+}
+
+.studio-article-row__cover {
+  flex: 0 0 160px;
+  width: 160px;
+  height: 90px;
+  overflow: hidden;
+  border-radius: var(--radius-sm);
+  background: var(--color-bg-subtle);
+}
+
+.studio-article-row__cover img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.studio-article-row__cover-empty {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.studio-article-row__body {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.studio-article-row__title {
+  font-size: 0.9375rem;
+  font-weight: 600;
+  line-height: 1.35;
+  color: var(--color-ink);
+  text-decoration: none;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.studio-article-row__title:hover {
+  text-decoration: underline;
+}
+
+.studio-article-row__abstract {
+  margin: 0;
+  font-size: 0.8125rem;
+  line-height: 1.45;
+  color: var(--color-ink-muted);
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.studio-article-row__tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.studio-article-row__tag,
+.studio-article-row__tag-more {
+  padding: 0 6px;
+  font-size: 0.6875rem;
+  line-height: 1.6;
+  color: var(--color-ink-muted);
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-pill);
+}
+
+.studio-article-row__foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-top: auto;
+  padding-top: 2px;
+}
+
+.studio-article-row__left {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.studio-article-row__status {
+  padding: 0 6px;
+  font-size: 0.6875rem;
+  line-height: 1.6;
+  border-radius: var(--radius-pill);
+  border: 1px solid var(--color-line);
+  color: var(--color-ink-muted);
+}
+
+/* 状态色只用现有语义 token：设计系统没有独立的 success / warning 色对，
+ * 所以"已发布"用强描边 + 次级底、"需注意"用记号笔黄底、"拒绝/异常"用珊瑚。 */
+.studio-article-row__status--success {
+  color: var(--color-ink);
+  border-color: var(--color-line-strong);
+  background: var(--color-bg-subtle);
+}
+
+.studio-article-row__status--warning {
+  color: var(--color-ink);
+  border-color: var(--color-line-strong);
+  background: var(--color-highlight);
+}
+
+.studio-article-row__status--error {
+  color: var(--color-danger-ink);
+  border-color: var(--color-danger-line);
+}
+
+.studio-article-row__action {
+  font-size: 0.75rem;
+  color: var(--color-ink-muted);
+  background: transparent;
+  border: 0;
+  padding: 0;
+  cursor: pointer;
+  text-decoration: none;
+}
+
+.studio-article-row__action:hover {
+  color: var(--color-ink);
+  text-decoration: underline;
+}
+
+.studio-article-row__action--danger:hover {
+  color: var(--color-danger-ink);
+}
+
+.studio-article-row__counts {
+  display: flex;
+  flex: 0 0 auto;
+  gap: 10px;
+  font-size: 0.6875rem;
+  font-variant-numeric: tabular-nums;
+  color: var(--color-ink-muted);
+}
+
+.studio-article-row__counts span {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+}
+
+/* 窄屏：封面缩到 112×63 并靠上，操作与计数各自换行，避免挤成一团。 */
+@media (max-width: 720px) {
+  .studio-article-row__cover {
+    flex-basis: 112px;
+    width: 112px;
+    height: 63px;
+  }
+
+  .studio-article-row__foot {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+}

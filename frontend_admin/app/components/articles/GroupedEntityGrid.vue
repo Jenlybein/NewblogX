@@ -1,27 +1,33 @@
 <script setup lang="ts">
 import { MOTION_EXPRESSIVE_MS } from '~/utils/motion'
 /**
- * 合集 / 项目分组网格（票 348，两个页面共用一份）。
+ * 合集 / 项目分组网格（票 348，两个页面共用一份；2026-11-12 重排）。
  *
  * 结构（与 ADR-0041 的读面一一对应）：
  *
- *   ┌ 未分组 ────────────────────────────────┐  ← 固定第一，空时整段消失
- *   │  [卡] [卡] [卡]                        │
- *   ├ 分组标题（可拖动）──────────────────────┤
- *   │  [卡] [卡]                             │
- *   └────────────────────────────────────────┘
+ *   ┌ ⠿ 未分组          3 个 ─────────────────────┐  ← 固定第一，空时整段消失
+ *   │  [瓦片] [瓦片] [瓦片] … （最多 11 列）        │
+ *   └──────────────────────────────────────────────┘
+ *   ┌ ⠿ 第一组          5 个     改名  删除分组 ──┐  ← 标题栏本身就是拖拽把手
+ *   │  [瓦片] [瓦片] …                              │
+ *   └──────────────────────────────────────────────┘
  *
  * 三条拖拽语义：
- *  1. **卡拖进别的分组** = 改归属（跨组移动）；
- *  2. **卡在组内拖动** = 改组内顺序；
- *  3. **拖分组标题** = 改分组之间的顺序；拖动期间把各组内容临时收起，
+ *  1. **瓦片拖进别的分组** = 改归属（跨组移动）；
+ *  2. **瓦片在组内拖动** = 改组内顺序；
+ *  3. **拖分组标题栏** = 改分组之间的顺序；拖动期间把各组内容临时收起，
  *     否则长列表下"拖到哪儿了"完全看不出来。
+ *
+ * 2026-11-12 的变化：卡片从"封面 + 标题 + 两行描述 + 脚栏"的大卡收成
+ * **约 100px 宽的小瓦片**（11 列），描述退出卡面（编辑弹窗里仍有），
+ * 分组标题从一行裸文字变成有底、有把手、有计数与操作的分组栏。
  *
  * 组件保持"哑"：不发请求、不持保存状态，顺序变化只抛 `orderChange`
  * （整树快照），由页面用 useSortPersist 做 10 秒防抖 + 离开前 flush。
  */
 import { computed, ref, watch } from 'vue'
 import { NButton, NSwitch } from 'naive-ui'
+import { IconGripVertical, IconPencil, IconTrash } from '@tabler/icons-vue'
 import { VueDraggable } from 'vue-draggable-plus'
 import { resolveCollectionCover } from '~/utils/collectionAdmin'
 
@@ -121,7 +127,7 @@ function onDrop() {
 </script>
 
 <template>
-  <div class="grouped-grid" :data-role="`${kind}-grouped-grid`">
+  <div class="grouped-grid" :class="{ 'grouped-grid--dragging': draggingGroup }" :data-role="`${kind}-grouped-grid`">
     <p v-if="!localGroups.length && !localUngrouped.length && !props.loading" class="admin-hint" :data-role="`${kind}-grid-empty`">
       还没有{{ label }}。点右上角「新建{{ label }}」开始；建好之后可以新建分组把它们归拢起来。
     </p>
@@ -131,7 +137,8 @@ function onDrop() {
     <section v-if="localUngrouped.length" class="grouped-grid__section" data-role="group-ungrouped">
       <header class="grouped-grid__head grouped-grid__head--static">
         <span class="grouped-grid__title">未分组</span>
-        <span class="grouped-grid__count">{{ localUngrouped.length }}</span>
+        <span class="grouped-grid__count">{{ localUngrouped.length }} 个</span>
+        <span class="grouped-grid__hint-inline">拖到下面任一标题栏即可归组</span>
       </header>
 
       <!-- 未分组也要跟着收起：拖动分组标题时如果它还铺着，
@@ -139,51 +146,67 @@ function onDrop() {
       <VueDraggable
         v-show="!draggingGroup"
         v-model="localUngrouped"
-        class="collection-grid"
+        class="entity-tile-grid"
         :animation="MOTION_EXPRESSIVE_MS.dragSettle"
         group="grouped-cards"
-        ghost-class="collection-card--ghost"
+        ghost-class="entity-tile--ghost"
         :data-role="`${kind}-ungrouped-cards`"
         @end="onDrop">
         <article
           v-for="item in localUngrouped"
           :key="item.id"
-          class="collection-card"
+          class="entity-tile"
+          :class="{ 'entity-tile--off': !item.displayed }"
           :data-role="`${kind}-card`"
           :data-id="item.id">
-          <div class="collection-card__cover">
+          <div class="entity-tile__cover">
             <img v-if="coverOf(item)" :src="coverOf(item)" :alt="item.title">
-            <span v-else class="collection-card__cover-empty" aria-hidden="true" />
-          </div>
-          <div class="collection-card__body">
-            <strong class="collection-card__title">{{ item.title }}</strong>
-            <p class="collection-card__desc">{{ item.description || '（还没有描述）' }}</p>
-            <span class="admin-hint">{{ item.article_count ?? 0 }} 篇</span>
-          </div>
-          <footer class="collection-card__foot">
-            <NSwitch
-              :value="item.displayed"
-              size="small"
-              :loading="props.togglingId === item.id"
-              :data-role="`${kind}-card-display`"
-              @update:value="(v: boolean) => emit('toggle', item, v)" />
-            <div class="collection-card__actions">
-              <NButton size="tiny" tertiary :data-role="`${kind}-card-edit`" @click="emit('edit', item)">编辑</NButton>
-              <NButton size="tiny" tertiary type="error" :data-role="`${kind}-card-delete`" @click="emit('remove', item)">
-                删除
-              </NButton>
+            <span v-else class="entity-tile__cover-empty" aria-hidden="true" />
+            <div class="entity-tile__hover">
+              <button
+                type="button"
+                class="entity-tile__action"
+                title="编辑"
+                aria-label="编辑"
+                :data-role="`${kind}-card-edit`"
+                @click="emit('edit', item)">
+                <IconPencil :size="14" aria-hidden="true" />
+              </button>
+              <button
+                type="button"
+                class="entity-tile__action entity-tile__action--danger"
+                title="删除"
+                aria-label="删除"
+                :data-role="`${kind}-card-delete`"
+                @click="emit('remove', item)">
+                <IconTrash :size="14" aria-hidden="true" />
+              </button>
             </div>
-          </footer>
+            <span v-if="!item.displayed" class="entity-tile__badge">已隐藏</span>
+          </div>
+          <div class="entity-tile__body">
+            <strong class="entity-tile__title" :title="item.title">{{ item.title }}</strong>
+            <div class="entity-tile__foot">
+              <span class="entity-tile__count">{{ item.article_count ?? 0 }} 篇</span>
+              <NSwitch
+                :value="item.displayed"
+                size="small"
+                :loading="props.togglingId === item.id"
+                :aria-label="item.displayed ? '当前展示中，点击隐藏' : '当前已隐藏，点击展示'"
+                :data-role="`${kind}-card-display`"
+                @update:value="(v: boolean) => emit('toggle', item, v)" />
+            </div>
+          </div>
         </article>
       </VueDraggable>
     </section>
 
-    <!-- 分组标题之间可拖动换序。 -->
+    <!-- 分组标题之间可拖动换序：整条标题栏都是把手（grip 只是视觉提示）。 -->
     <VueDraggable
       v-model="localGroups"
       class="grouped-grid__groups"
       :animation="MOTION_EXPRESSIVE_MS.dragSettle"
-      handle=".grouped-grid__grip"
+      handle=".grouped-grid__head"
       ghost-class="grouped-grid__section--ghost"
       :data-role="`${kind}-group-list`"
       @start="draggingGroup = true"
@@ -193,10 +216,10 @@ function onDrop() {
         :key="group.id"
         class="grouped-grid__section"
         :data-role="`group-${group.id}`">
-        <header class="grouped-grid__head">
-          <span class="grouped-grid__grip" title="拖动调整分组顺序" aria-hidden="true">⠿</span>
-          <span class="grouped-grid__title">{{ group.title }}</span>
-          <span class="grouped-grid__count">{{ group.items.length }}</span>
+        <header class="grouped-grid__head" title="拖动调整分组顺序">
+          <span class="grouped-grid__grip" aria-hidden="true"><IconGripVertical :size="16" /></span>
+          <h3 class="grouped-grid__title">{{ group.title }}</h3>
+          <span class="grouped-grid__count">{{ group.items.length }} 个</span>
           <div class="grouped-grid__actions">
             <NButton size="tiny" tertiary :data-role="`group-rename-${group.id}`" @click="emit('groupRename', group)">
               改名
@@ -216,41 +239,57 @@ function onDrop() {
         <VueDraggable
           v-show="!draggingGroup"
           v-model="group.items"
-          class="collection-grid"
+          class="entity-tile-grid"
           :animation="MOTION_EXPRESSIVE_MS.dragSettle"
           group="grouped-cards"
-          ghost-class="collection-card--ghost"
+          ghost-class="entity-tile--ghost"
           :data-role="`${kind}-group-cards-${group.id}`"
           @end="onDrop">
           <article
             v-for="item in group.items"
             :key="item.id"
-            class="collection-card"
+            class="entity-tile"
+            :class="{ 'entity-tile--off': !item.displayed }"
             :data-role="`${kind}-card`"
             :data-id="item.id">
-            <div class="collection-card__cover">
+            <div class="entity-tile__cover">
               <img v-if="coverOf(item)" :src="coverOf(item)" :alt="item.title">
-              <span v-else class="collection-card__cover-empty" aria-hidden="true" />
-            </div>
-            <div class="collection-card__body">
-              <strong class="collection-card__title">{{ item.title }}</strong>
-              <p class="collection-card__desc">{{ item.description || '（还没有描述）' }}</p>
-              <span class="admin-hint">{{ item.article_count ?? 0 }} 篇</span>
-            </div>
-            <footer class="collection-card__foot">
-              <NSwitch
-                :value="item.displayed"
-                size="small"
-                :loading="props.togglingId === item.id"
-                :data-role="`${kind}-card-display`"
-                @update:value="(v: boolean) => emit('toggle', item, v)" />
-              <div class="collection-card__actions">
-                <NButton size="tiny" tertiary :data-role="`${kind}-card-edit`" @click="emit('edit', item)">编辑</NButton>
-                <NButton size="tiny" tertiary type="error" :data-role="`${kind}-card-delete`" @click="emit('remove', item)">
-                  删除
-                </NButton>
+              <span v-else class="entity-tile__cover-empty" aria-hidden="true" />
+              <div class="entity-tile__hover">
+                <button
+                  type="button"
+                  class="entity-tile__action"
+                  title="编辑"
+                  aria-label="编辑"
+                  :data-role="`${kind}-card-edit`"
+                  @click="emit('edit', item)">
+                  <IconPencil :size="14" aria-hidden="true" />
+                </button>
+                <button
+                  type="button"
+                  class="entity-tile__action entity-tile__action--danger"
+                  title="删除"
+                  aria-label="删除"
+                  :data-role="`${kind}-card-delete`"
+                  @click="emit('remove', item)">
+                  <IconTrash :size="14" aria-hidden="true" />
+                </button>
               </div>
-            </footer>
+              <span v-if="!item.displayed" class="entity-tile__badge">已隐藏</span>
+            </div>
+            <div class="entity-tile__body">
+              <strong class="entity-tile__title" :title="item.title">{{ item.title }}</strong>
+              <div class="entity-tile__foot">
+                <span class="entity-tile__count">{{ item.article_count ?? 0 }} 篇</span>
+                <NSwitch
+                  :value="item.displayed"
+                  size="small"
+                  :loading="props.togglingId === item.id"
+                  :aria-label="item.displayed ? '当前展示中，点击隐藏' : '当前已隐藏，点击展示'"
+                  :data-role="`${kind}-card-display`"
+                  @update:value="(v: boolean) => emit('toggle', item, v)" />
+              </div>
+            </div>
           </article>
         </VueDraggable>
 
@@ -261,7 +300,7 @@ function onDrop() {
     </VueDraggable>
 
     <div class="grouped-grid__new">
-      <NButton size="small" :data-role="`${kind}-group-create`" @click="emit('groupCreate')">新建分组</NButton>
+      <NButton size="small" dashed :data-role="`${kind}-group-create`" @click="emit('groupCreate')">＋ 新建分组</NButton>
       <span v-if="props.savingOrder" class="admin-hint" data-role="group-order-saving">正在保存顺序…</span>
     </div>
   </div>

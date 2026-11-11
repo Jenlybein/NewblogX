@@ -161,7 +161,7 @@ const shadeId = `folder-flap-shade-${useId().replace(/[^\w-]/gu, "-")}`;
 .folder-card__link {
   display: flex;
   flex-direction: column;
-  gap: 1.25rem;
+  gap: 0.875rem;
   height: 100%;
   color: inherit;
   text-decoration: none;
@@ -327,17 +327,20 @@ const shadeId = `folder-flap-shade-${useId().replace(/[^\w-]/gu, "-")}`;
   min-width: 0;
   flex: 1 1 auto;
   flex-direction: column;
-  gap: 0.5rem;
-  padding: 0 0.25rem;
+  gap: 0.375rem;
+  padding: 0 0.125rem;
 }
 
-/* 超长标题最多两行、描述固定两行：卡片高度由网格撑平，不被文本撑破。 */
+/* 超长标题最多两行、描述固定两行：卡片高度由网格撑平，不被文本撑破。
+   2026-11-12 起列宽从 310px 收到约 200px，字号整体跟降一档，
+   否则标题会在六列里换行成三行、把整行卡片撑高。 */
 .folder-card__title {
   display: -webkit-box;
   overflow: hidden;
   color: var(--color-ink);
   font-family: var(--font-title);
-  font-size: 1.25rem;
+  font-size: 1.0625rem;
+  font-weight: 600;
   letter-spacing: -0.015em;
   line-height: 1.3;
   overflow-wrap: anywhere;
@@ -350,8 +353,8 @@ const shadeId = `folder-flap-shade-${useId().replace(/[^\w-]/gu, "-")}`;
   flex: 1 1 auto;
   overflow: hidden;
   color: var(--color-ink-muted);
-  font-size: 0.875rem;
-  line-height: 1.6;
+  font-size: 0.8125rem;
+  line-height: 1.55;
   overflow-wrap: anywhere;
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 2;
@@ -360,7 +363,7 @@ const shadeId = `folder-flap-shade-${useId().replace(/[^\w-]/gu, "-")}`;
 .folder-card__meta {
   color: var(--color-ink-faint);
   font-family: var(--font-mono);
-  font-size: 0.75rem;
+  font-size: 0.6875rem;
   letter-spacing: 0.08em;
 }
 

@@ -178,14 +178,13 @@ onBeforeUnmount(() => {
 
 <template>
   <NSpace vertical :size="16">
-    <div class="admin-page__head">
-      <div>
-        <h1 class="admin-page__title">{{ label }}管理</h1>
-        <p class="admin-hint">
-          拖动卡片可以调顺序、也可以拖进别的分组；拖动分组标题（⠿）调整分组顺序，拖动期间内容会临时收起。
-          顺序在停止拖动 10 秒后自动保存，离开页面前会立刻保存。分组的新建 / 改名 / 删除立即生效。
-        </p>
-      </div>
+    <!-- 页面标题与面包屑由 AdminShell 的顶栏统一给（这里再写一遍大标题就是重复）。
+         这一条只放"这页怎么用"的说明与主操作。 -->
+    <div class="entity-admin__bar">
+      <p class="admin-hint entity-admin__hint">
+        拖动瓦片可以调顺序，也可以拖进别的分组；拖动分组标题栏调整分组顺序，拖动期间内容会临时收起。
+        顺序在停止拖动 10 秒后自动保存，离开页面前会立刻保存。分组的新建 / 改名 / 删除立即生效。
+      </p>
       <NButton type="primary" :data-role="`${kind}-create`" @click="openCreate">新建{{ label }}</NButton>
     </div>
 

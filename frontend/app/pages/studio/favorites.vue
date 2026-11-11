@@ -273,13 +273,13 @@ useNoIndexPage()
         class="mt-5" />
     </section>
 
-    <!-- 夹子内容：大弹窗 + 多列文章卡 -->
+    <!-- 夹子内容：大弹窗 + 多列文章卡（最宽 7 列，随视口逐级收列） -->
     <NModal
       :show="Boolean(openFolderId)"
       preset="card"
       :bordered="false"
       class="favorite-modal"
-      style="width: min(1100px, calc(100vw - 32px)); max-height: 85vh"
+      style="width: min(1440px, calc(100vw - 24px)); max-height: 88vh"
       @update:show="(value: boolean) => { if (!value) closeFolderModal() }">
       <template #header>
         <div class="favorite-modal__head">

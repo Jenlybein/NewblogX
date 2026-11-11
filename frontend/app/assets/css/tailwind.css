@@ -93,14 +93,19 @@
 
   /* ---- 文章条目：列表 / 搜索结果 / 收藏架三处同一形态（#7 卡片三处复用）----
    * 只消费语义 token：1px 结构线、纸面底色、墨色/次级墨色；卡片圆角 20。
-   * 三处差异只体现在尺寸与附加信息（收藏架多一行收藏元信息），不另造第二种卡片。 */
+   * 三处差异只体现在尺寸与附加信息（收藏架多一行收藏元信息），不另造第二种卡片。
+   *
+   * 2026-11-12 重排（用户反馈"条目太高、作者和计数位置不对"）：
+   *   · 作者移到**顶行、日期左边**；
+   *   · 点赞 / 收藏 / 评论 / 阅读从独占的底栏搬到**标签同一行、贴最右**；
+   *   · 底栏随之取消，内边距与间距各收一档 —— 条目高度约降 1/4。 */
   .feed-entry {
-    @apply grid gap-4 rounded-card border border-line bg-surface p-4 transition-colors md:grid-cols-[minmax(0,200px)_minmax(0,1fr)] md:gap-5 md:p-5;
+    @apply grid gap-3 rounded-card border border-line bg-surface p-3 transition-colors md:grid-cols-[minmax(0,168px)_minmax(0,1fr)] md:items-start md:gap-4 md:p-4;
   }
 
   .feed-entry--search,
   .feed-entry--shelf {
-    @apply md:grid-cols-[minmax(0,132px)_minmax(0,1fr)];
+    @apply md:grid-cols-[minmax(0,120px)_minmax(0,1fr)];
   }
 
   .feed-entry--empty {
@@ -126,24 +131,29 @@
   }
 
   .feed-entry__body {
-    @apply flex min-w-0 flex-col gap-2.5;
+    @apply flex min-w-0 flex-col gap-1.5;
   }
 
+  /* 顶行：作者、日期、分类、状态共享一条基线；作者永远排第一。 */
   .feed-entry__meta {
-    @apply flex flex-wrap items-center gap-2 text-xs text-ink-muted;
+    @apply flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 text-xs text-ink-muted;
+  }
+
+  .feed-entry__date {
+    @apply tabular-nums;
   }
 
   .feed-entry__dot {
-    @apply opacity-60;
+    @apply opacity-50;
   }
 
   .feed-entry__status {
-    @apply rounded-pill border border-line px-1.5 py-0.5 text-[11px] tracking-dense text-ink-muted;
+    @apply rounded-pill border border-line px-1.5 py-0.5 text-[11px] leading-none tracking-dense text-ink-muted;
   }
 
   .feed-entry__title {
     @apply block font-title leading-title tracking-title text-ink;
-    font-size: 1.5rem;
+    font-size: 1.25rem;
   }
 
   .feed-entry--search .feed-entry__title,
@@ -158,31 +168,32 @@
   }
 
   .feed-entry__abstract {
-    @apply line-clamp-2 text-sm leading-prose text-ink-muted;
+    @apply line-clamp-2 text-sm leading-6 text-ink-muted;
+  }
+
+  /* 底行：标签在左、四个计数贴最右。没有标签时计数靠 margin-left:auto 仍然贴右。 */
+  .feed-entry__footline {
+    @apply mt-0.5 flex min-w-0 flex-wrap items-center justify-between gap-x-3 gap-y-1.5;
   }
 
   .feed-entry__tags {
-    @apply flex flex-wrap items-center gap-1.5;
+    @apply flex min-w-0 flex-wrap items-center gap-1.5;
   }
 
   .feed-entry__tag {
-    @apply inline-flex min-h-[28px] items-center rounded-pill border border-line px-2 text-xs text-ink-muted;
+    @apply inline-flex min-h-[24px] items-center rounded-pill border border-line px-2 text-xs leading-none text-ink-muted;
   }
 
   .feed-entry__shelf-meta {
     @apply flex flex-wrap items-center gap-3 text-xs text-ink-muted;
   }
 
-  .feed-entry__footer {
-    @apply flex flex-col gap-2 border-t border-line-faint pt-3 sm:flex-row sm:items-center sm:justify-between;
-  }
-
   .feed-entry__author {
-    @apply flex min-w-0 items-center gap-2;
+    @apply flex min-w-0 items-center;
   }
 
   .feed-entry__author-link {
-    @apply inline-flex min-h-[44px] items-center gap-2 text-sm font-medium text-ink;
+    @apply inline-flex min-h-[28px] items-center gap-1.5 text-xs font-medium text-ink;
   }
 
   .feed-entry__author-link--static {
@@ -194,11 +205,15 @@
   }
 
   .feed-entry__stats {
-    @apply flex flex-wrap items-center gap-3 text-xs text-ink-muted;
+    @apply ml-auto flex shrink-0 flex-wrap items-center gap-3 text-xs tabular-nums text-ink-muted;
   }
 
   .feed-entry__stat {
-    @apply inline-flex min-h-[24px] items-center gap-1.5;
+    @apply inline-flex min-h-[24px] items-center gap-1;
+  }
+
+  .feed-entry__stat svg {
+    @apply shrink-0 opacity-80;
   }
 
   .hero-grid {
@@ -2032,9 +2047,16 @@
       grid-template-columns: minmax(0, 1fr);
     }
 
-    .feed-entry__footer {
-      flex-direction: column;
+    /* 封面形状不在这里改：16:9 是所有断点同一份定义（ADR-0015），
+       窄屏只调整底行的堆叠方向。 */
+    .feed-entry__footline {
       align-items: flex-start;
+      flex-direction: column;
+      gap: 0.5rem;
+    }
+
+    .feed-entry__stats {
+      margin-left: 0;
     }
 
     .profile-collection-layout {
@@ -2341,15 +2363,42 @@ html {
   @apply py-3 text-center text-xs;
   color: var(--color-ink-muted);
 }
-/* ── 收藏夹网格与多列文章卡（票 345）────────────────────────────
+/* ── 收藏夹 / 分类的网格与多列文章卡（票 345，2026-11-12 收紧）──
  *
  * 收藏夹从"左栏列表 + 右栏内容"改成"网格 + 大弹窗"：
  * 一进来先看全部夹子，点哪张进哪张。卡片只在 hover / 键盘聚焦时露出
- * 编辑与删除，静止状态每张卡只有名称、简介与篇数。 */
+ * 编辑与删除，静止状态每张卡只有名称、简介与篇数。
+ *
+ * 2026-11-12：夹子从 auto-fill 改成**明确的 5 列**（每张约 200px），
+ * 弹窗内的文章卡放大到最多 7 列 —— 用户要的是"一屏看更多"，不是更大的卡。 */
 .studio-folder-grid {
   display: grid;
-  gap: 12px;
-  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 10px;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+}
+
+@media (max-width: 1180px) {
+  .studio-folder-grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 920px) {
+  .studio-folder-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 680px) {
+  .studio-folder-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 420px) {
+  .studio-folder-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
 }
 
 .studio-folder-card {
@@ -2361,13 +2410,13 @@ html {
   border-radius: var(--radius-lg);
   background: var(--color-surface);
   transition: border-color var(--motion-fast) var(--motion-ease),
-    transform var(--motion-fast) var(--motion-ease);
+    background-color var(--motion-fast) var(--motion-ease);
 }
 
 .studio-folder-card:hover,
 .studio-folder-card:focus-within {
   border-color: var(--color-line-strong);
-  transform: translateY(-1px);
+  background: var(--color-surface-raised);
 }
 
 /* 新建后高亮：让"刚建好的那个夹子"在网格里一眼可见（票 345 的交互决定）。 */
@@ -2380,9 +2429,9 @@ html {
   display: flex;
   flex: 1;
   flex-direction: column;
-  gap: 8px;
+  gap: 6px;
   width: 100%;
-  padding: 16px;
+  padding: 12px;
   text-align: left;
   background: transparent;
   border: 0;
@@ -2392,7 +2441,8 @@ html {
 .studio-folder-card__head {
   display: flex;
   align-items: baseline;
-  gap: 8px;
+  gap: 6px;
+  min-width: 0;
 }
 
 .studio-folder-card__title {
@@ -2401,20 +2451,21 @@ html {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-size: 0.9375rem;
+  font-size: 0.875rem;
   font-weight: 600;
 }
 
 .studio-folder-card__count {
   flex: 0 0 auto;
-  font-size: 0.75rem;
+  font-family: var(--font-mono);
+  font-size: 0.6875rem;
   font-variant-numeric: tabular-nums;
-  color: var(--color-ink-muted);
+  color: var(--color-ink-faint);
 }
 
 .studio-folder-card__abstract {
   margin: 0;
-  font-size: 0.8125rem;
+  font-size: 0.75rem;
   line-height: 1.5;
   color: var(--color-ink-muted);
   display: -webkit-box;
@@ -2423,11 +2474,12 @@ html {
   overflow: hidden;
 }
 
+/* 操作条：静止时只占位不显形，hover / 聚焦才浮出。 */
 .studio-folder-card__actions {
   display: flex;
   gap: 4px;
   justify-content: flex-end;
-  padding: 0 12px 12px;
+  padding: 0 8px 8px;
   opacity: 0;
   transition: opacity var(--motion-fast) var(--motion-ease);
 }
@@ -2443,15 +2495,60 @@ html {
   }
 }
 
-/* 弹窗内的文章栅格：2–3 列自适应。 */
+/* 弹窗标题行：标题在左、计数在右，与卡片里的标题同一条竖线。 */
+.favorite-modal__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.25rem 0.75rem;
+}
+
+.favorite-modal__head .muted {
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  letter-spacing: 0.04em;
+  color: var(--color-ink-faint);
+}
+
+/* 弹窗内的文章栅格：最多 7 列，逐级收列。 */
 .article-grid {
   display: grid;
-  gap: 12px;
-  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 10px;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+}
+
+@media (max-width: 1400px) {
+  .article-grid {
+    grid-template-columns: repeat(6, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 1180px) {
+  .article-grid {
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 980px) {
+  .article-grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 760px) {
+  .article-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 560px) {
+  .article-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
 }
 
 .favorite-modal__body {
-  max-height: calc(85vh - 120px);
+  max-height: calc(88vh - 132px);
   overflow-y: auto;
   padding-right: 4px;
 }
@@ -2463,20 +2560,20 @@ html {
   min-width: 0;
   border: 1px solid var(--color-line);
   border-radius: var(--radius-md);
-  background: var(--color-surface-raised);
+  background: var(--color-surface);
   transition: border-color var(--motion-fast) var(--motion-ease),
-    transform var(--motion-fast) var(--motion-ease);
+    background-color var(--motion-fast) var(--motion-ease);
 }
 
 .article-grid-card:hover,
 .article-grid-card:focus-within {
   border-color: var(--color-line-strong);
-  transform: translateY(-1px);
+  background: var(--color-surface-raised);
 }
 
 .article-grid-card__link {
   display: block;
-  padding: 8px 8px 0;
+  padding: 6px 6px 0;
   color: inherit;
   text-decoration: none;
 }
@@ -2495,9 +2592,16 @@ html {
   object-fit: cover;
 }
 
+/* 无封面：与首页条目同一口径 —— 只留一块纸面，不渲染破图、不写"无封面"。 */
+.article-grid-card__cover-empty {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
 .article-grid-card__title {
-  margin: 8px 0 0;
-  font-size: 0.875rem;
+  margin: 6px 0 0;
+  font-size: 0.8125rem;
   font-weight: 600;
   line-height: 1.4;
   display: -webkit-box;
@@ -2508,30 +2612,52 @@ html {
 
 .article-grid-card__meta {
   display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  padding: 8px;
-  font-size: 0.6875rem;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 2px;
+  padding: 6px;
+  font-size: 0.625rem;
   font-variant-numeric: tabular-nums;
-  color: var(--color-ink-muted);
+  color: var(--color-ink-faint);
 }
 
+.article-grid-card__date {
+  flex: 0 0 auto;
+}
+
+/* 七列时每张卡只有约 180px：日期与四个计数挤不进一行（第 4 个会单独折行），
+ * 所以固定成两行 —— 日期在上，四个计数在下、均匀铺满，行高稳定不跳。 */
 .article-grid-card__stats {
   display: flex;
-  gap: 8px;
+  flex: 0 1 auto;
+  flex-wrap: nowrap;
+  justify-content: space-between;
+  gap: 4px;
+}
+
+/* 计数与图标同基线：图标取 12px（与首页条目的 14px 同族，只因卡片更小降一档）。 */
+.article-grid-card__stats span {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.article-grid-card__stats svg {
+  flex: 0 0 auto;
+  opacity: 0.75;
 }
 
 /* hover 才出现的「移出收藏夹」：静止状态下卡片只留信息。 */
 .article-grid-card__action {
   position: absolute;
-  top: 8px;
-  right: 8px;
+  top: 10px;
+  right: 10px;
   padding: 2px 8px;
-  font-size: 0.6875rem;
-  color: var(--color-ink);
-  background: var(--color-surface);
-  border: 1px solid var(--color-line-strong);
+  font-size: 0.625rem;
+  line-height: 1.6;
+  color: var(--color-on-inverse);
+  background: var(--color-surface-inverse);
+  border: 1px solid var(--color-surface-inverse);
   border-radius: var(--radius-pill);
   cursor: pointer;
   opacity: 0;
@@ -2548,48 +2674,46 @@ html {
     opacity: 1;
   }
 }
-/* ── 我的文章压缩行卡（票 351）────────────────────────────────
+/* ── 我的文章压缩行卡（票 351，2026-11-12 重排）────────────────
  *
- * 用户嫌原来的列表项太高、"多余的行"太多：一张卡里塞了状态行、操作行、
- * 再一张通用 feed 卡。这里压成**一层**：封面固定 160×90 在左，右侧一列
- * 是标题 / 摘要两行 / 标签 / 底部一行；底部左边状态与操作、右边四个计数。
+ * 用户嫌上一版"丑、已发布单独占一行"：状态与操作挤在封面下面的一列里，
+ * 卡片被三行结构撑高，正文却只有两行字。
  *
- * 高度靠 160×90 的封面兜住：摘要超过两行就截断，不会把卡片撑高。 */
+ * 现在整张卡是**两列三行**：左列只有封面（144×81）；右列顶行是
+ * 状态 + 标题 + 查看/编辑/删除，第二行摘要（两行封顶），第三行标签 + 四个计数。
+ * 高度由封面兜住（≈100px），摘要在两行内截断，不再把卡片撑高。 */
 .studio-article-list {
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 8px;
 }
 
 .studio-article-row {
-  display: flex;
-  gap: 12px;
+  display: grid;
+  grid-template-columns: 144px minmax(0, 1fr);
+  gap: 14px;
   padding: 10px;
   border: 1px solid var(--color-line);
   border-radius: var(--radius-md);
   background: var(--color-surface);
-  transition: border-color var(--motion-fast) var(--motion-ease);
+  transition:
+    border-color var(--motion-fast) var(--motion-ease),
+    background-color var(--motion-fast) var(--motion-ease);
 }
 
 .studio-article-row:hover,
 .studio-article-row:focus-within {
   border-color: var(--color-line-strong);
-}
-
-/* 左列与封面同宽：状态与操作就在封面正下方（规格 US1），
- * 而不是散在卡片底部与右侧正文混排。 */
-.studio-article-row__aside {
-  display: flex;
-  flex: 0 0 160px;
-  flex-direction: column;
-  gap: 6px;
-  width: 160px;
+  background: var(--color-surface-raised);
 }
 
 .studio-article-row__cover {
-  width: 160px;
-  height: 90px;
+  display: block;
+  width: 144px;
+  aspect-ratio: 16 / 9;
+  align-self: start;
   overflow: hidden;
+  border: 1px solid var(--color-line-faint);
   border-radius: var(--radius-sm);
   background: var(--color-bg-subtle);
 }
@@ -2614,19 +2738,30 @@ html {
   min-width: 0;
 }
 
+/* 顶行：状态 → 标题（吃掉剩余宽度）→ 操作。状态与标题同一条基线，不再单独占行。 */
+.studio-article-row__head {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 8px;
+}
+
 .studio-article-row__title {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--color-ink);
   font-size: 0.9375rem;
   font-weight: 600;
   line-height: 1.35;
-  color: var(--color-ink);
   text-decoration: none;
-  overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
 .studio-article-row__title:hover {
   text-decoration: underline;
+  text-underline-offset: 3px;
 }
 
 .studio-article-row__abstract {
@@ -2656,33 +2791,33 @@ html {
   border-radius: var(--radius-pill);
 }
 
-/* 标签与四个计数共用同一条基线（规格 US1）：标签在左、计数贴最右。
- * 用 flex + space-between 而不是两行，是因为规格明确要求"同一条 baseline"。 */
+/* 标签与四个计数共用同一条基线：标签在左、计数贴最右。 */
 .studio-article-row__baseline {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 8px;
   margin-top: auto;
-  padding-top: 2px;
   min-width: 0;
 }
 
-.studio-article-row__status-line,
 .studio-article-row__actions {
   display: flex;
-  flex-wrap: wrap;
+  flex: 0 0 auto;
+  flex-wrap: nowrap;
   align-items: center;
-  gap: 4px;
+  gap: 2px;
 }
 
 .studio-article-row__status {
+  flex: 0 0 auto;
   padding: 0 6px;
   font-size: 0.6875rem;
   line-height: 1.6;
   border-radius: var(--radius-pill);
   border: 1px solid var(--color-line);
   color: var(--color-ink-muted);
+  white-space: nowrap;
 }
 
 /* 状态色只用现有语义 token：设计系统没有独立的 success / warning 色对，
@@ -2704,23 +2839,52 @@ html {
   border-color: var(--color-danger-line);
 }
 
+/* 操作平时淡出（静止状态只留信息），悬停 / 键盘聚焦现形；触屏常显。 */
+.studio-article-row__actions {
+  opacity: 0;
+  transition: opacity var(--motion-fast) var(--motion-ease);
+}
+
+.studio-article-row:hover .studio-article-row__actions,
+.studio-article-row:focus-within .studio-article-row__actions {
+  opacity: 1;
+}
+
+@media (hover: none) {
+  .studio-article-row__actions {
+    opacity: 1;
+  }
+}
+
 .studio-article-row__action {
+  display: inline-flex;
+  align-items: center;
+  min-height: 24px;
+  padding: 0 7px;
   font-size: 0.75rem;
   color: var(--color-ink-muted);
   background: transparent;
-  border: 0;
-  padding: 0;
+  border: 1px solid transparent;
+  border-radius: var(--radius-pill);
   cursor: pointer;
   text-decoration: none;
+  white-space: nowrap;
+  transition:
+    color var(--motion-fast) var(--motion-ease),
+    background-color var(--motion-fast) var(--motion-ease),
+    border-color var(--motion-fast) var(--motion-ease);
 }
 
 .studio-article-row__action:hover {
   color: var(--color-ink);
-  text-decoration: underline;
+  border-color: var(--color-line);
+  background: var(--color-bg-subtle);
 }
 
 .studio-article-row__action--danger:hover {
   color: var(--color-danger-ink);
+  border-color: var(--color-danger-line);
+  background: var(--color-danger-soft);
 }
 
 .studio-article-row__counts {
@@ -2735,19 +2899,31 @@ html {
 .studio-article-row__counts span {
   display: inline-flex;
   align-items: center;
-  gap: 2px;
+  gap: 3px;
 }
 
-/* 窄屏：封面缩到 112×63 并靠上，操作与计数各自换行，避免挤成一团。 */
+/* 窄屏：封面收到 96×54，操作与计数各自换行，避免挤成一团。 */
 @media (max-width: 720px) {
-  .studio-article-row__aside,
-  .studio-article-row__cover {
-    flex-basis: 112px;
-    width: 112px;
+  .studio-article-row {
+    grid-template-columns: 96px minmax(0, 1fr);
+    gap: 10px;
   }
 
   .studio-article-row__cover {
-    height: 63px;
+    width: 96px;
+  }
+
+  .studio-article-row__head {
+    flex-wrap: wrap;
+  }
+
+  .studio-article-row__title {
+    flex-basis: 100%;
+    order: 3;
+    white-space: normal;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
   }
 
   /* 窄屏标签与计数不再挤一行：基线换成上下两段，否则标签会被压成竖排。 */
@@ -2761,10 +2937,10 @@ html {
  * 用绝对定位压在卡片左上，不占卡片布局高度。 */
 .category-status-badge {
   position: absolute;
-  top: 12px;
-  left: 12px;
-  padding: 0 8px;
-  font-size: 0.6875rem;
+  top: 10px;
+  left: 10px;
+  padding: 0 6px;
+  font-size: 0.625rem;
   line-height: 1.7;
   border-radius: var(--radius-pill);
   color: var(--color-ink);
@@ -2888,40 +3064,174 @@ html {
   background: var(--color-ink);
   border-color: var(--color-ink);
 }
-/* 创作热力图（票 354）：13 列 × 7 行，每列一周（周一起）。
+/* 创作热力图（票 354，2026-11-12 重做）：13 列 × 7 行，每列一周（周一起）。
+ *
+ * 上一版是"一排没有说明的小方块"：没有月份/星期刻度、没有图例，13×7 个
+ * 14px 的格子缩在整宽卡片的左上角，看起来像没渲染完。现在补齐刻度、图例，
+ * 右侧再加一栏数字（总次数 / 有动作 / 连续 / 最活跃），让颜色与数字互相解释。
+ *
  * 格子是按钮（可聚焦），颜色只是辅助编码 —— 提示里始终有具体次数。 */
-.activity-heatmap__grid {
+.activity-heatmap {
+  --hm-cell: clamp(14px, 1.45vw, 20px);
+  --hm-gap: 3px;
+  --hm-rail: 1.25rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.875rem;
+}
+
+.activity-heatmap__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.5rem 1rem;
+}
+
+.activity-heatmap__title {
+  margin: 0;
+  color: var(--color-ink);
+  font-family: var(--font-title);
+  font-size: 1rem;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+.activity-heatmap__subtitle {
+  margin: 0.25rem 0 0;
+  font-size: 0.75rem;
+  line-height: 1.5;
+  color: var(--color-ink-muted);
+}
+
+.activity-heatmap__summary {
+  flex: 0 0 auto;
+  padding: 0.25rem 0.75rem;
+  border: 1px solid var(--color-line-faint);
+  border-radius: var(--radius-pill);
+  background: var(--color-bg-subtle);
+  color: var(--color-ink-muted);
+  font-family: var(--font-mono);
+  font-size: 0.6875rem;
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+}
+
+/* 左：图；右：四个数字（窄屏上下堆叠）。 */
+.activity-heatmap__body {
   display: grid;
-  grid-auto-flow: column;
-  grid-template-rows: repeat(7, 1fr);
-  gap: 3px;
+  gap: 1.25rem;
+  grid-template-columns: minmax(0, 1fr);
+}
+
+@media (min-width: 720px) {
+  .activity-heatmap__body {
+    grid-template-columns: auto minmax(180px, 1fr);
+    align-items: start;
+  }
+}
+
+.activity-heatmap__chart {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 0.375rem;
   overflow-x: auto;
   padding-bottom: 0.25rem;
 }
 
+.activity-heatmap__chart-top {
+  display: flex;
+  align-items: flex-end;
+  gap: 0.5rem;
+}
+
+.activity-heatmap__axis-spacer {
+  flex: 0 0 auto;
+  width: var(--hm-rail);
+}
+
+.activity-heatmap__months {
+  display: grid;
+  gap: var(--hm-gap);
+  color: var(--color-ink-faint);
+  font-family: var(--font-mono);
+  font-size: 0.625rem;
+  line-height: 1;
+}
+
+.activity-heatmap__month {
+  overflow: visible;
+  white-space: nowrap;
+}
+
+.activity-heatmap__chart-main {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+}
+
+.activity-heatmap__weekdays {
+  display: grid;
+  flex: 0 0 auto;
+  width: var(--hm-rail);
+  grid-template-rows: repeat(7, var(--hm-cell));
+  gap: var(--hm-gap);
+  color: var(--color-ink-faint);
+  font-family: var(--font-mono);
+  font-size: 0.5625rem;
+  line-height: var(--hm-cell);
+  text-align: right;
+}
+
+.activity-heatmap__grid {
+  display: grid;
+  grid-auto-flow: column;
+  grid-template-rows: repeat(7, var(--hm-cell));
+  gap: var(--hm-gap);
+}
+
 .activity-heatmap__cell {
-  width: 14px;
-  height: 14px;
+  width: var(--hm-cell);
+  height: var(--hm-cell);
   padding: 0;
-  border: 0;
+  border: 1px solid var(--color-line-faint);
   border-radius: var(--radius-sm);
   background: var(--color-bg-subtle);
   cursor: pointer;
+  transition:
+    border-color var(--motion-fast) var(--motion-ease),
+    transform var(--motion-fast) var(--motion-ease);
+}
+
+.activity-heatmap__cell:hover {
+  border-color: var(--color-ink-muted);
+}
+
+/* 色阶：全部由「墨色 × 面」混出来，明暗两套主题共用同一个表达式。
+ * l0 也显式写一条：图例里要用同一组类名，不能靠"没规则"兜底。 */
+.activity-heatmap__cell--l0 {
+  border-color: var(--color-line-faint);
+  background: var(--color-bg-subtle);
 }
 
 .activity-heatmap__cell--l1 {
-  background: var(--color-line-strong);
+  border-color: transparent;
+  background: color-mix(in srgb, var(--color-ink) 16%, var(--color-surface));
 }
 
 .activity-heatmap__cell--l2 {
-  background: var(--color-ink-faint);
+  border-color: transparent;
+  background: color-mix(in srgb, var(--color-ink) 34%, var(--color-surface));
 }
 
 .activity-heatmap__cell--l3 {
-  background: var(--color-ink-muted);
+  border-color: transparent;
+  background: color-mix(in srgb, var(--color-ink) 58%, var(--color-surface));
 }
 
 .activity-heatmap__cell--l4 {
+  border-color: transparent;
   background: var(--color-ink);
 }
 
@@ -2930,10 +3240,90 @@ html {
   outline-offset: 1px;
 }
 
+/* 本周还没到的日子：留空，不参与色阶（也不能 Tab 到）。 */
+.activity-heatmap__cell[data-future="true"] {
+  border-color: transparent;
+  background: transparent;
+  cursor: default;
+}
+
 .activity-heatmap__dot {
   display: block;
   width: 100%;
   height: 100%;
+}
+
+.activity-heatmap__tip {
+  margin: 0;
+  min-height: 1.25rem;
+  color: var(--color-ink-faint);
+  font-size: 0.6875rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.activity-heatmap__facts {
+  display: grid;
+  margin: 0;
+  gap: 0.5rem;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-content: start;
+}
+
+.activity-heatmap__fact {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 2px;
+  padding: 0.5rem 0.625rem;
+  border: 1px solid var(--color-line-faint);
+  border-radius: var(--radius-md);
+  background: var(--color-bg-subtle);
+}
+
+.activity-heatmap__fact dt {
+  color: var(--color-ink-muted);
+  font-size: 0.6875rem;
+  line-height: 1.4;
+}
+
+.activity-heatmap__fact dd {
+  display: flex;
+  align-items: baseline;
+  gap: 0.25rem;
+  margin: 0;
+  color: var(--color-ink);
+  font-family: var(--font-title);
+  font-size: 1.125rem;
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+  line-height: 1.2;
+  white-space: nowrap;
+}
+
+.activity-heatmap__fact small {
+  color: var(--color-ink-muted);
+  font-family: var(--font-sans);
+  font-size: 0.6875rem;
+  font-weight: 400;
+}
+
+.activity-heatmap__foot {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 3px;
+}
+
+.activity-heatmap__legend-label {
+  padding: 0 0.25rem;
+  color: var(--color-ink-faint);
+  font-size: 0.625rem;
+}
+
+.activity-heatmap__legend-cell {
+  width: 10px;
+  height: 10px;
+  border-radius: var(--radius-sm);
 }
 /* 指标卡与 KPI 横条（票 354）。
  *

@@ -180,7 +180,11 @@ export function updateAdminUser(payload: {
 }
 
 // `status` is kept as the backend query name, but it filters publish_status.
-export function searchAdminArticles(query: { page?: number; limit?: number; key?: string; status?: number }) {
+//
+// `sort` 与 `status` 都是可选：搜索结果默认综合排序，概览页的"阅读 Top 5"
+// 必须显式要 `sort: 6`（浏览最多）+ `status: 3`（已发布），否则拿回来的是
+// 无关键词时按相关度排的"任意 5 篇"，标题写着 Top 5 其实是假的。
+export function searchAdminArticles(query: { page?: number; limit?: number; key?: string; status?: number; sort?: 1 | 2 | 3 | 4 | 5 | 6 }) {
   return api().request<ArticleSearchResponseData>('/search/articles', {
     query: {
       type: 5,

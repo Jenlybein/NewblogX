@@ -1,15 +1,22 @@
 <script setup lang="ts">
 /**
- * 多列文章卡（票 345，供收藏夹/分类的大弹窗复用）。
+ * 多列文章卡（票 345，供收藏夹 / 分类的大弹窗复用；2026-11-12 收紧）。
  *
  * 与 ArticleMiniCard 的区别：那个是"竖排短卡 + 一行 meta 文字"，用在浏览历史
  * 这种只需要"标题 + 时间"的地方；这里的卡片要回答"这篇值不值得点开"，
  * 所以带封面、日期与四个互动计数。
  *
+ * 2026-11-12 三处修正：
+ *  1. 计数图标换成与首页条目同一套 tabler 图标 —— 之前用 emoji（👍💬⭐👁），
+ *     字形大小/基线随系统字体变，和读者站的图标对不齐；
+ *  2. 计数顺序对齐首页：点赞 / 收藏 / 评论 / 阅读；
+ *  3. 卡片整体收紧（封面、标题、meta 各降一档），弹窗放大后一屏能放 7 列。
+ *
  * 日期只写 `2026/11/11`，不加"发布于/更新于"前缀 —— 全站同一口径
  * （见 utils/format 的 formatDateLabel：zh-CN 数字两位就是 `2026/11/11`）。
  */
 import { computed } from 'vue'
+import { IconEye, IconHeart, IconMessageCircle2, IconThumbUp } from '@tabler/icons-vue'
 import { formatCount, formatDateLabel } from '~/utils/format'
 
 const props = withDefaults(defineProps<{
@@ -55,10 +62,10 @@ const dateText = computed(() => (props.date ? formatDateLabel(props.date) : ''))
     <footer class="article-grid-card__meta">
       <span v-if="dateText" class="article-grid-card__date">{{ dateText }}</span>
       <div class="article-grid-card__stats">
-        <span title="点赞"><span aria-hidden="true">👍</span> {{ formatCount(diggCount) }}</span>
-        <span title="评论"><span aria-hidden="true">💬</span> {{ formatCount(commentCount) }}</span>
-        <span title="收藏"><span aria-hidden="true">⭐</span> {{ formatCount(favorCount) }}</span>
-        <span title="阅读"><span aria-hidden="true">👁</span> {{ formatCount(viewCount) }}</span>
+        <span title="点赞"><IconThumbUp :size="12" aria-hidden="true" /> {{ formatCount(diggCount) }}</span>
+        <span title="收藏"><IconHeart :size="12" aria-hidden="true" /> {{ formatCount(favorCount) }}</span>
+        <span title="评论"><IconMessageCircle2 :size="12" aria-hidden="true" /> {{ formatCount(commentCount) }}</span>
+        <span title="阅读"><IconEye :size="12" aria-hidden="true" /> {{ formatCount(viewCount) }}</span>
       </div>
     </footer>
 

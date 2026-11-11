@@ -331,25 +331,18 @@ async function save() {
     <div class="collection-overlay__pair">
       <section class="collection-overlay__card" role="dialog" :aria-label="`${entityId ? '编辑' : '新建'}${label}`">
         <header class="collection-overlay__head">
-          <h2 class="collection-overlay__title">{{ entityId ? `编辑${label}` : `新建${label}` }}</h2>
+          <div class="collection-overlay__heading">
+            <p class="collection-overlay__eyebrow">{{ kind === "collection" ? "Collection" : "Project" }} · {{ entityId ? "编辑" : "新建" }}</p>
+            <h2 class="collection-overlay__title">{{ entityId ? `编辑${label}` : `新建${label}` }}</h2>
+            <p class="collection-overlay__subtitle">
+              标题、描述与封面决定读者在列表里看到的样子；右侧目录树决定点进去读什么。
+            </p>
+          </div>
           <NTag v-if="entityId" size="small" data-role="collection-editor-id">{{ entityId }}</NTag>
         </header>
 
-        <NForm label-placement="top" :disabled="saving">
-          <NFormItem label="标题" :feedback="errors.title ?? undefined">
-            <NInput v-model:value="form.title" class="admin-field--url" :maxlength="TITLE_MAX" show-count />
-          </NFormItem>
-          <NFormItem label="描述" :feedback="errors.description ?? undefined">
-            <NInput
-              v-model:value="form.description"
-              type="textarea"
-              class="admin-field--long"
-              :autosize="{ minRows: 3, maxRows: 6 }"
-              :maxlength="DESCRIPTION_MAX"
-              show-count />
-          </NFormItem>
-
-          <NFormItem label="封面（16:9）">
+        <NForm label-placement="top" :disabled="saving" class="collection-overlay__form">
+          <div class="collection-overlay__split">
             <div class="collection-overlay__cover">
               <div class="collection-overlay__cover-preview">
                 <img v-if="coverPreview" :src="coverPreview" alt="" />
@@ -359,18 +352,37 @@ async function save() {
                 <NButton size="small" :disabled="coverUploading" @click="openCoverPicker">
                   {{ coverPreview ? "换一张" : "选择图片" }}
                 </NButton>
-                <NButton v-if="form.cover" size="small" tertiary type="error" @click="removeCover">移除封面</NButton>
+                <NButton v-if="form.cover" size="small" tertiary type="error" @click="removeCover">移除</NButton>
               </NSpace>
-              <p v-if="coverStage" class="admin-hint" data-role="collection-cover-stage">{{ coverStage }}</p>
+              <p class="admin-hint collection-overlay__cover-hint">{{ coverStage || "固定 16:9，上传时会按比例定形。" }}</p>
             </div>
-          </NFormItem>
 
-          <NFormItem label="展示给读者">
+            <div class="collection-overlay__fields">
+              <NFormItem label="标题" :feedback="errors.title ?? undefined" :validation-status="errors.title ? 'error' : undefined">
+                <NInput v-model:value="form.title" :maxlength="TITLE_MAX" show-count />
+              </NFormItem>
+              <NFormItem label="描述" :feedback="errors.description ?? undefined" :validation-status="errors.description ? 'error' : undefined">
+                <NInput
+                  v-model:value="form.description"
+                  type="textarea"
+                  :autosize="{ minRows: 4, maxRows: 7 }"
+                  :maxlength="DESCRIPTION_MAX"
+                  show-count />
+              </NFormItem>
+            </div>
+          </div>
+
+          <div class="collection-overlay__switch-row">
+            <div class="collection-overlay__switch-copy">
+              <p class="collection-overlay__switch-title">展示给读者</p>
+              <p class="admin-hint">关闭后读者侧不再可见，内容与目录树都会保留。</p>
+            </div>
             <NSwitch v-model:value="form.displayed" />
-          </NFormItem>
+          </div>
         </NForm>
 
         <footer class="collection-overlay__foot">
+          <p class="admin-hint collection-overlay__foot-hint">保存会把左侧字段与右侧目录树一次提交。</p>
           <NSpace>
             <NButton @click="close">关闭</NButton>
             <NButton type="primary" :loading="saving" data-role="collection-editor-save" @click="save">
@@ -392,9 +404,12 @@ async function save() {
            都在这里做，最后由「保存修改」一次提交。 -->
       <aside class="collection-overlay__drawer" :data-role="`${kind}-editor-drawer`">
         <div class="collection-overlay__drawer-inner">
-          <header class="collection-overlay__head">
-            <h2 class="collection-overlay__title">目录树</h2>
-            <span class="admin-hint">拖动 / 改名 / 删除 / 清理失效 / 批量收录</span>
+          <header class="collection-overlay__drawer-head">
+            <div>
+              <p class="collection-overlay__eyebrow">Outline</p>
+              <h2 class="collection-overlay__title">目录树</h2>
+            </div>
+            <p class="admin-hint collection-overlay__drawer-hint">拖动 / 改名 / 删除 / 清理失效 / 批量收录</p>
           </header>
           <OutlineTreeEditor
             ref="treeEditor"

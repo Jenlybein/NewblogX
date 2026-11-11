@@ -223,12 +223,12 @@ useNoIndexPage();
       />
     </section>
 
-    <!-- 分类内容：大弹窗 + 多列文章卡（含草稿，每篇带状态标签）。 -->
+    <!-- 分类内容：大弹窗 + 多列文章卡（含草稿，每篇带状态标签） -->
     <NModal
       :show="Boolean(openCategoryId)"
       preset="card"
       :bordered="false"
-      style="width: min(1100px, calc(100vw - 32px)); max-height: 85vh"
+      style="width: min(1440px, calc(100vw - 24px)); max-height: 88vh"
       @update:show="(value: boolean) => { if (!value) closeCategoryModal() }">
       <template #header>
         <div class="favorite-modal__head">

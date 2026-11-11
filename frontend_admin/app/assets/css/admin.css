@@ -213,6 +213,26 @@
     letter-spacing: var(--type-tracking-title);
   }
 
+  /* 页内的小节页头（标签管理这类"薄页面"用）：标题 + 说明 + 右侧主操作。
+   * 大标题仍归 AdminShell 的顶栏，这里只在没有顶栏标题的旧页面里用。 */
+  .admin-page__head {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 0.75rem 1rem;
+  }
+
+  .admin-page__title {
+    margin: 0 0 0.375rem;
+    color: var(--color-ink);
+    font-family: var(--font-title);
+    font-size: 1.375rem;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    line-height: 1.25;
+  }
+
   .muted {
     color: var(--color-ink-muted);
   }
@@ -259,6 +279,68 @@
     border-radius: var(--radius-lg);
     border-color: var(--color-line);
     background: var(--color-bg-subtle);
+  }
+
+  /* 指标卡与 KPI 横条（票 354）。
+   *
+   * 这一组此前**只写在读者站的 tailwind.css 里**，后台的概览页虽然用了同一份
+   * MetricCard，却没有对应样式：标签 / 数字 / 说明全挤成一行裸文字，卡片没有
+   * 边框也没有留白。两端同名同形、各自在自己的样式表里落地（组件本身被
+   * check-image-shaping-parity 锁成逐字节一致，样式不能再塞回组件里）。 */
+  .metric-strip {
+    display: grid;
+    gap: 10px;
+    grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  }
+
+  .metric-card {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    padding: 14px 16px;
+    border: 1px solid var(--color-line);
+    border-radius: var(--radius-md);
+    background: var(--color-surface);
+  }
+
+  /* 零值降级：只在调用方明确要求时变淡（例如待处理全是 0）。 */
+  .metric-card--dim {
+    color: var(--color-ink-muted);
+  }
+
+  .metric-card__label {
+    color: var(--color-ink-muted);
+    font-family: var(--font-mono);
+    font-size: 0.6875rem;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+  }
+
+  .metric-card__value {
+    color: var(--color-ink);
+    font-family: var(--font-title);
+    font-size: 1.625rem;
+    font-variant-numeric: tabular-nums;
+    font-weight: 600;
+    letter-spacing: -0.02em;
+    line-height: 1.15;
+  }
+
+  .metric-card__suffix {
+    margin-left: 3px;
+    color: var(--color-ink-faint);
+    font-family: var(--font-sans);
+    font-size: 0.75rem;
+    font-weight: 400;
+  }
+
+  .metric-card__hint {
+    overflow: hidden;
+    color: var(--color-ink-faint);
+    font-size: 0.6875rem;
+    line-height: 1.4;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
 
 
@@ -785,7 +867,374 @@
   color: var(--color-ink-faint);
 }
 
-/* ── 编辑弹窗：信息卡 + 目录树抽屉 ─────────────────────────── */
+/* ── 合集 / 项目编排页：页头工具条 + 分组栏 + 11 列瓦片（2026-11-12）──
+ *
+ * 上一版这几种元素**一条样式都没有**：`.grouped-grid__head` / `__title` /
+ * `__count` / `__actions` 都是裸元素，于是分组标题看起来只是一行普通文字，
+ * 卡片还沿用 16rem 宽的大卡 —— 一屏只能看四张，编排 30 个合集要滚很久。
+ *
+ * 现在：页头只留说明 + 主操作（大标题归顶栏）；每个分组是一条**有底色的标题栏**
+ * 加一个边框盒子；卡片收成 ~120px 宽的瓦片，宽屏 11 列。 */
+
+.entity-admin__bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.75rem 1rem;
+  padding: 0.875rem 1rem;
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface);
+}
+
+.entity-admin__hint {
+  max-width: 92ch;
+  margin: 0;
+}
+
+.grouped-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.grouped-grid__groups {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+/* 一个分组 = 一个边框盒子：分组之间靠盒子分开，而不是靠一段留白。 */
+.grouped-grid__section {
+  padding: 0.75rem;
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface);
+  transition: border-color var(--motion-fast) var(--motion-ease);
+}
+
+.grouped-grid__section:hover {
+  border-color: var(--color-line-strong);
+}
+
+.grouped-grid__section--ghost {
+  border-style: dashed;
+  background: var(--color-bg-subtle);
+  opacity: 0.6;
+}
+
+/* 标题栏：把手 + 标题 + 计数 + 操作；它自己就是拖拽把手。 */
+.grouped-grid__head {
+  display: flex;
+  min-height: 2.25rem;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 0.75rem;
+  padding: 0.25rem 0.5rem 0.25rem 0.375rem;
+  border: 1px solid var(--color-line-faint);
+  border-radius: var(--radius-md);
+  background: var(--color-bg-subtle);
+  cursor: grab;
+  user-select: none;
+}
+
+.grouped-grid__head:active {
+  cursor: grabbing;
+}
+
+.grouped-grid__head--static {
+  cursor: default;
+}
+
+.grouped-grid__grip {
+  display: inline-flex;
+  flex: 0 0 auto;
+  width: 1.5rem;
+  height: 1.5rem;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--color-line-faint);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface);
+  color: var(--color-ink-faint);
+}
+
+.grouped-grid__head:hover .grouped-grid__grip {
+  border-color: var(--color-line);
+  color: var(--color-ink-muted);
+}
+
+.grouped-grid__title {
+  flex: 1 1 auto;
+  min-width: 0;
+  margin: 0;
+  overflow: hidden;
+  color: var(--color-ink);
+  font-family: var(--font-title);
+  font-size: 0.9375rem;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.grouped-grid__count {
+  flex: 0 0 auto;
+  padding: 0 0.5rem;
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-pill);
+  background: var(--color-surface);
+  color: var(--color-ink-muted);
+  font-family: var(--font-mono);
+  font-size: 0.6875rem;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.7;
+  white-space: nowrap;
+}
+
+.grouped-grid__hint-inline {
+  flex: 0 1 auto;
+  overflow: hidden;
+  color: var(--color-ink-faint);
+  font-size: 0.6875rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.grouped-grid__actions {
+  display: flex;
+  flex: 0 0 auto;
+  gap: 0.25rem;
+  opacity: 0;
+  transition: opacity var(--motion-fast) var(--motion-ease);
+}
+
+.grouped-grid__head:hover .grouped-grid__actions,
+.grouped-grid__head:focus-within .grouped-grid__actions {
+  opacity: 1;
+}
+
+@media (hover: none) {
+  .grouped-grid__actions {
+    opacity: 1;
+  }
+
+  .grouped-grid__hint-inline {
+    display: none;
+  }
+}
+
+.grouped-grid__empty {
+  margin: 0;
+  padding: 0.5rem 0.25rem;
+}
+
+.grouped-grid__new {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+/* 11 列瓦片：宽屏一屏排满，窄屏按"列宽 ≥ 96px"逐级收列。 */
+.entity-tile-grid {
+  display: grid;
+  align-items: start;
+  gap: 0.625rem;
+  grid-template-columns: repeat(11, minmax(0, 1fr));
+}
+
+@media (max-width: 1800px) {
+  .entity-tile-grid {
+    grid-template-columns: repeat(10, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 1560px) {
+  .entity-tile-grid {
+    grid-template-columns: repeat(8, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 1320px) {
+  .entity-tile-grid {
+    grid-template-columns: repeat(7, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 1100px) {
+  .entity-tile-grid {
+    grid-template-columns: repeat(6, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 900px) {
+  .entity-tile-grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 620px) {
+  .entity-tile-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 420px) {
+  .entity-tile-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+.entity-tile {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  overflow: hidden;
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+  transition:
+    border-color var(--motion-fast) var(--motion-ease),
+    background-color var(--motion-fast) var(--motion-ease);
+}
+
+.entity-tile:hover,
+.entity-tile:focus-within {
+  border-color: var(--color-line-strong);
+  background: var(--color-surface-raised);
+}
+
+/* 拖动中的占位：只留虚框，避免"同一张卡出现在两个位置"的错觉。 */
+.entity-tile--ghost {
+  border-style: dashed;
+  border-color: var(--color-line-strong);
+  background: transparent;
+  opacity: 0.55;
+}
+
+.entity-tile--off .entity-tile__cover {
+  opacity: 0.5;
+}
+
+.entity-tile__cover {
+  position: relative;
+  aspect-ratio: 16 / 9;
+  background: var(--color-bg-subtle);
+}
+
+.entity-tile__cover img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.entity-tile__cover-empty {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+/* 编辑 / 删除：平时隐形，悬停或键盘聚焦才浮出；遮罩保证按钮在任何封面上都看得清。 */
+.entity-tile__hover {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.25rem;
+  background: color-mix(in srgb, var(--color-ink) 44%, transparent);
+  opacity: 0;
+  visibility: hidden;
+  transition:
+    opacity var(--motion-fast) var(--motion-ease),
+    visibility var(--motion-fast) var(--motion-ease);
+}
+
+.entity-tile:hover .entity-tile__hover,
+.entity-tile:focus-within .entity-tile__hover {
+  visibility: visible;
+  opacity: 1;
+}
+
+.entity-tile__action {
+  display: inline-flex;
+  width: 1.5rem;
+  height: 1.5rem;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-pill);
+  background: var(--color-surface);
+  color: var(--color-ink);
+  cursor: pointer;
+}
+
+.entity-tile__action:hover {
+  border-color: var(--color-line-strong);
+  background: var(--color-bg-subtle);
+}
+
+.entity-tile__action--danger:hover {
+  border-color: var(--color-danger-line);
+  background: var(--color-danger-soft);
+  color: var(--color-danger-ink);
+}
+
+.entity-tile__badge {
+  position: absolute;
+  top: 4px;
+  left: 4px;
+  padding: 0 5px;
+  border-radius: var(--radius-pill);
+  background: var(--color-surface-inverse);
+  color: var(--color-on-inverse);
+  font-size: 0.5625rem;
+  line-height: 1.7;
+}
+
+.entity-tile__body {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 4px;
+  padding: 0.375rem 0.5rem 0.5rem;
+}
+
+.entity-tile__title {
+  overflow: hidden;
+  color: var(--color-ink);
+  font-size: 0.75rem;
+  font-weight: 600;
+  line-height: 1.4;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.entity-tile__foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.25rem;
+}
+
+.entity-tile__count {
+  color: var(--color-ink-faint);
+  font-family: var(--font-mono);
+  font-size: 0.625rem;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+/* ── 编辑弹窗：信息卡 + 目录树抽屉（2026-11-12 重排） ───────────
+ *
+ * 用户原话"编辑信息的卡片丑爆了"：上一版是 560px 的单列表单，字段一个接一个
+ * 往下堆，封面缩在中间像一张附件。现在信息卡加宽到 760px，分成
+ * 「封面 | 字段」两栏，底部一条独立的展示开关行 + 分隔线 + 操作条；
+ * 标题上方补一行 eyebrow（Collection · 编辑），右侧目录树保持常驻。 */
 
 .collection-overlay {
   position: fixed;
@@ -809,16 +1258,16 @@
   display: flex;
   align-items: flex-start;
   justify-content: center;
-  gap: 0;
+  gap: 0.875rem;
   max-width: 100%;
 }
 
 .collection-overlay__card {
   position: relative;
-  width: min(92vw, 560px);
-  max-height: min(86vh, 720px);
+  width: min(94vw, 760px);
+  max-height: min(88vh, 780px);
   overflow-y: auto;
-  padding: 1.125rem 1.25rem 1.25rem;
+  padding: 1.25rem 1.375rem 1.375rem;
   border: 1px solid var(--color-line);
   border-radius: var(--radius-xl);
   background: var(--color-surface);
@@ -827,26 +1276,64 @@
 
 .collection-overlay__head {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: space-between;
   gap: 0.75rem;
-  margin-bottom: 0.75rem;
+  margin-bottom: 1rem;
+  padding-bottom: 0.875rem;
+  border-bottom: 1px solid var(--color-line-faint);
+}
+
+.collection-overlay__heading {
+  min-width: 0;
+}
+
+.collection-overlay__eyebrow {
+  margin: 0;
+  color: var(--color-ink-muted);
+  font-family: var(--font-mono);
+  font-size: 0.6875rem;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
 }
 
 .collection-overlay__title {
-  margin: 0;
-  font-size: 1rem;
-  font-weight: 600;
+  margin: 0.25rem 0 0;
+  color: var(--color-ink);
+  font-family: var(--font-title);
+  font-size: 1.25rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  line-height: 1.25;
 }
 
-.collection-overlay__foot {
+.collection-overlay__subtitle {
+  margin: 0.375rem 0 0;
+  max-width: 54ch;
+  color: var(--color-ink-muted);
+  font-size: 0.75rem;
+  line-height: 1.6;
+}
+
+.collection-overlay__form {
   display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 0.75rem;
-  margin-top: 0.75rem;
-  padding-top: 0.875rem;
-  border-top: 1px solid var(--color-line);
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.collection-overlay__split {
+  display: grid;
+  gap: 1.25rem;
+  grid-template-columns: minmax(0, 240px) minmax(0, 1fr);
+  align-items: start;
+}
+
+.collection-overlay__fields {
+  min-width: 0;
+}
+
+.collection-overlay__fields :where(.n-form-item:last-child) {
+  margin-bottom: 0;
 }
 
 .collection-overlay__cover {
@@ -857,14 +1344,14 @@
 
 .collection-overlay__cover-preview {
   display: flex;
+  width: 100%;
+  aspect-ratio: 16 / 9;
   align-items: center;
   justify-content: center;
-  width: min(100%, 320px);
-  aspect-ratio: 16 / 9;
   overflow: hidden;
   border: 1px dashed var(--color-line);
   border-radius: var(--radius-md);
-  background: var(--color-surface-raised);
+  background: var(--color-bg-subtle);
 }
 
 .collection-overlay__cover-preview img {
@@ -879,6 +1366,80 @@
   text-align: center;
 }
 
+.collection-overlay__cover-hint {
+  margin: 0;
+  line-height: 1.5;
+}
+
+/* 展示开关：独立一行，标题 + 说明在左、开关在右，上下用发丝线隔开。 */
+.collection-overlay__switch-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.75rem 0.875rem;
+  border: 1px solid var(--color-line-faint);
+  border-radius: var(--radius-md);
+  background: var(--color-bg-subtle);
+}
+
+.collection-overlay__switch-copy {
+  min-width: 0;
+}
+
+.collection-overlay__switch-title {
+  margin: 0 0 0.125rem;
+  color: var(--color-ink);
+  font-size: 0.875rem;
+  font-weight: 600;
+}
+
+.collection-overlay__switch-copy .admin-hint {
+  margin: 0;
+  line-height: 1.5;
+}
+
+.collection-overlay__foot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-top: 1rem;
+  padding-top: 0.875rem;
+  border-top: 1px solid var(--color-line-faint);
+}
+
+.collection-overlay__foot-hint {
+  margin: 0;
+}
+
+.collection-overlay__drawer-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-bottom: 0.75rem;
+  padding-bottom: 0.75rem;
+  border-bottom: 1px solid var(--color-line-faint);
+}
+
+.collection-overlay__drawer-hint {
+  margin: 0;
+  text-align: right;
+  line-height: 1.5;
+}
+
+@media (max-width: 880px) {
+  .collection-overlay__split {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .collection-overlay__cover {
+    max-width: 320px;
+  }
+}
+
 /* 隐藏的原生 file input：只作为「选择图片」按钮的触发器。 */
 .collection-overlay__file {
   position: absolute;
@@ -890,17 +1451,17 @@
 
 /* 右栏（票 348 起常驻）：目录树一直在，不再是从 0 展开的抽屉。
    左栏放字段、右栏放树，一次「保存修改」提交两者 —— 两个保存按钮会让
-   "到底保存了什么"变成猜谜。 */
+   "到底保存了什么"变成猜谜。
+   两栏之间的间距由 `.collection-overlay__pair` 的 gap 给，这里不再叠 margin。 */
 .collection-overlay__drawer {
   width: min(88vw, 480px);
-  margin-left: 0.75rem;
 }
 
 .collection-overlay__drawer-inner {
   width: min(88vw, 480px);
-  max-height: min(86vh, 720px);
+  max-height: min(88vh, 780px);
   overflow-y: auto;
-  padding: 1.125rem 1.25rem 1.25rem;
+  padding: 1.25rem 1.375rem 1.375rem;
   border: 1px solid var(--color-line);
   border-radius: var(--radius-xl);
   background: var(--color-surface);

@@ -242,3 +242,99 @@ func TestListItemsPublishedOnlyHidesUnpublished(t *testing.T) {
 		t.Fatalf("公开面应只剩已发布那篇，实际 %s", items[0].ArticleID())
 	}
 }
+
+// TestSaveFolderRevivesSoftDeletedName 锁住「删过的名字可以再用」。
+//
+// uk_favorite_user_title 覆盖软删行，所以"同名新建"在纯 INSERT 下会撞唯一键
+// （1001）。领域口径是名字可以复用，因此 SaveFolder 必须先尝试复活那条软删行。
+func TestSaveFolderRevivesSoftDeletedName(t *testing.T) {
+	db := migrate(t)
+	at := time.Date(2026, 1, 1, 12, 0, 0, 0, time.UTC)
+	seedEdgeReader(t, db, at)
+
+	// 先建一个夹子再删掉：行还在（软删），唯一键仍占着这个名字。
+	schema.InsertFavorite(t, db, schema.FavoriteSpec{ID: 501, UserID: edgeReader, Title: "旧名字", At: at})
+	repo := mysql.NewFavoriteRepo(db)
+	ctx := context.Background()
+	if err := repo.DeleteFolder(ctx, favorite.ID(ctype.NewID(501))); err != nil {
+		t.Fatalf("删除收藏夹失败: %v", err)
+	}
+
+	// 同名再建：不该报重复，也不该撞唯一键。
+	dup, err := repo.ExistsFolderTitle(ctx, domain.UserID(ctype.NewID(edgeReader)), "旧名字", favorite.ID(ctype.NewID(0)))
+	if err != nil {
+		t.Fatalf("判重失败: %v", err)
+	}
+	if dup {
+		t.Fatalf("软删的同名夹子不该算重复（名字可以复用）")
+	}
+
+	revived := favorite.RestoreFolder(favorite.RestoreFolderParams{
+		ID: favorite.ID(ctype.NewID(601)), UserID: domain.UserID(ctype.NewID(edgeReader)),
+		Title: "旧名字", Abstract: "新的简介", CreatedAt: at, UpdatedAt: at,
+	})
+	if err := repo.SaveFolder(ctx, revived); err != nil {
+		t.Fatalf("同名新建应复活软删行，实际报错: %v", err)
+	}
+
+	// 复活后：只有一行、是活跃的、用的是新 ID 与新简介。
+	var rows []struct {
+		ID        ctype.ID
+		Abstract  string
+		DeletedAt *time.Time
+	}
+	if err := db.Table("favorite_models").Select("id, abstract, deleted_at").
+		Where("user_id = ? AND title = ?", ctype.NewID(edgeReader), "旧名字").
+		Scan(&rows).Error; err != nil {
+		t.Fatalf("读回失败: %v", err)
+	}
+	if len(rows) != 1 {
+		t.Fatalf("同名夹子应只剩 1 行，实际 %d", len(rows))
+	}
+	if rows[0].DeletedAt != nil {
+		t.Fatalf("复活后 deleted_at 必须为空")
+	}
+	if rows[0].ID != ctype.NewID(601) {
+		t.Fatalf("复活后应换成新夹子的 ID，实际 %s", rows[0].ID)
+	}
+	if rows[0].Abstract != "新的简介" {
+		t.Fatalf("复活后简介应更新，实际 %q", rows[0].Abstract)
+	}
+}
+
+// TestDeleteItemsByArticleRecountsFolders 锁住「删文章后夹子里的 N 篇要跟着变」。
+//
+// 只删关系行不同步冗余列，用户会看到"夹子写 2 篇、点进去只有 1 篇"。
+func TestDeleteItemsByArticleRecountsFolders(t *testing.T) {
+	db := migrate(t)
+	at := time.Date(2026, 1, 1, 12, 0, 0, 0, time.UTC)
+	seedEdgeReader(t, db, at)
+
+	for _, articleID := range []uint64{8_501, 8_502} {
+		schema.InsertArticle(t, db, schema.ArticleSpec{
+			ID: articleID, Title: "文章", AuthorID: edgeReader,
+			PublishStatus: schema.ArticleStatusPublished, CreatedAt: at, UpdatedAt: at,
+		})
+	}
+	schema.InsertFavorite(t, db, schema.FavoriteSpec{ID: 701, UserID: edgeReader, Title: "夹", ArticleCount: 2, At: at})
+	for i, articleID := range []uint64{8_501, 8_502} {
+		schema.InsertUserArticleFavor(t, db, schema.UserArticleFavorSpec{
+			ID: uint64(9_701 + i), ArticleID: articleID, UserID: edgeReader, FavorID: 701,
+			ArticleTitle: "文章", ArticleStatus: schema.ArticleStatusPublished, ArticleAuthorID: edgeReader, At: at,
+		})
+	}
+
+	repo := mysql.NewFavoriteRepo(db)
+	if err := repo.DeleteItemsByArticle(context.Background(), domain.ArticleID(ctype.NewID(8_501))); err != nil {
+		t.Fatalf("删文章收藏失败: %v", err)
+	}
+
+	var count int
+	if err := db.Table("favorite_models").Select("article_count").
+		Where("id = ?", ctype.NewID(701)).Take(&count).Error; err != nil {
+		t.Fatalf("读回计数失败: %v", err)
+	}
+	if count != 1 {
+		t.Fatalf("删掉一篇后应剩 1 篇，实际 %d", count)
+	}
+}

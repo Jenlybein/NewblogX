@@ -419,6 +419,7 @@ CREATE TABLE IF NOT EXISTS `project_group_item_models` (
   KEY `idx_project_group_item_group` (`group_id`,`sort_order`),
   CONSTRAINT `fk_project_group_item_project` FOREIGN KEY (`project_id`) REFERENCES `project_models` (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
 CREATE TABLE IF NOT EXISTS `comment_digg_models` (
   `id` bigint unsigned NOT NULL,
   `created_at` datetime(3) DEFAULT NULL,

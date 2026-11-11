@@ -21,8 +21,13 @@ var cst = time.FixedZone("CST", 8*3600)
 // 桶键在两套格式里各写一份：ClickHouse 用 %Y-%m-%d，Go 的 time.Format 用
 // 2006-01-02 那套参考时间。之前把两者混成一个常量，结果是所有桶键都变成
 // 字面量 "%Y-%m-%d %H:%M:%S" —— 查得到数据也对不上，而且不报错。
+//
+// 注意 ClickHouse 与 strftime 家族的同名 token 语义不同：
+// **%M 是月份英文名**（November），分钟是 %i。写成 %M 时桶键变成
+// "10:November:00"，Go 侧是 "10:00:00"，逐桶对不上 → 整天补 0，
+// 而且 SQL 不报错、available 仍为 true（表现为"有日志库但用量恒 0"）。
 const (
-	aiBucketCHFormat = "%Y-%m-%d %H:%M:%S"
+	aiBucketCHFormat = "%Y-%m-%d %H:%i:%S"
 	aiBucketGoFormat = "2006-01-02 15:04:05"
 )
 

@@ -1,11 +1,19 @@
 <script setup lang="ts">
 import { computed } from "vue";
-import { IconEye } from "@tabler/icons-vue";
 import { NButton } from "naive-ui";
 import AppAvatar from "~/components/common/AppAvatar.vue";
 import type { UserBaseInfo } from "~/types/api";
 import { formatCount } from "~/utils/format";
 
+/**
+ * 公开主页的头部卡。
+ *
+ * 2026-11-12 收紧：
+ *  - 去掉简介下面的「阅读 N」——右栏「个人成就」已经有（且那是主页访问量），
+ *    同一屏里出现两次同一数字只会让人以为哪个是错的；
+ *  - 去掉「进入个人中心」——顶栏已经有入口，本人看主页时再放一个按钮是噪音；
+ *  - 「文章」从三项指标里撤掉：文章数在右栏个人成就里，头部只留关注 / 粉丝。
+ */
 const props = defineProps<{
   profile: UserBaseInfo;
   abstractText?: string;
@@ -21,7 +29,6 @@ const emit = defineEmits<{
 }>();
 
 const metrics = computed(() => [
-  { label: "文章", value: formatCount(props.profile.article_count) },
   { label: "关注", value: formatCount(props.profile.follow_count) },
   { label: "粉丝", value: formatCount(props.profile.fans_count) },
 ]);
@@ -37,9 +44,6 @@ const metrics = computed(() => [
         <p class="profile-hero-abstract">
           {{ props.abstractText || "这位作者暂未补充个人简介。" }}
         </p>
-        <div class="profile-hero-read">
-          <span class="inline-flex items-center gap-1.5"><IconEye :size="16" aria-hidden="true" /> 阅读 {{ formatCount(profile.view_count) }}</span>
-        </div>
       </div>
     </div>
 
@@ -64,9 +68,6 @@ const metrics = computed(() => [
         >
           {{ relationText || "关注作者" }}
         </NButton>
-      </div>
-      <div v-else class="profile-hero-actions blueprint-actions">
-        <NButton secondary attr-type="button" @click="navigateTo('/studio/dashboard')">进入个人中心</NButton>
       </div>
     </div>
   </div>

@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
+import { IconChevronDown } from '@tabler/icons-vue'
 import FolderCardList from '~/components/common/FolderCardList.vue'
 import type { CollectionCardView } from '~/utils/collection'
 import type { GroupTreeData } from '~/types/api'
@@ -16,6 +17,10 @@ import type { GroupTreeData } from '~/types/api'
  * 渲染出来就是一行默认 h2；未分组的尾块又直接贴着上一组，两段糊成一片。
  * 现在标题是「记号 + 标题 + 发丝线 + 计数」的分段头，尾块用一条淡色细线
  * 居中托住「未分组」三字 —— 分隔线本身就是读者要的那条 `---- 未分组 ----`。
+ *
+ * 同日补「折叠分组」：标题行整行可点（透明按钮盖在标题上，键盘可聚焦），
+ * 折叠只收起这一组的卡片，分组头与计数仍然可见；尾块的分隔线同样可折叠。
+ * 状态只活在组件内（默认全展开）—— 换页回来重新展开，不替读者记偏好。
  */
 const props = withDefaults(defineProps<{
   cards: CollectionCardView[]
@@ -34,6 +39,25 @@ const props = withDefaults(defineProps<{
   label: '专题',
   listRole: 'collection',
 })
+
+/** 尾块的折叠键：分组 id 是后端给的字符串，撞不上。 */
+const TRAILING_KEY = 'trailing'
+
+/** 折叠状态：键是分组 id（尾块用 `trailing`），值 true = 已折叠。 */
+const collapsed = ref<Record<string, boolean>>({})
+
+function isCollapsed(key: string) {
+  return Boolean(collapsed.value[key])
+}
+
+function toggle(key: string) {
+  collapsed.value = { ...collapsed.value, [key]: !collapsed.value[key] }
+}
+
+/** 面板 id：`aria-controls` 要指向一个真实存在的元素。 */
+function panelId(key: string) {
+  return `reader-group-panel-${key}`
+}
 
 /** 把卡片按分组归位；分组里没有卡片的段整段不渲染。 */
 const sections = computed(() => {
@@ -78,23 +102,54 @@ const showTrailingDivider = computed(() => sections.value.grouped.length > 0)
       :key="section.id"
       class="grouped-reader-list__section"
       :data-role="`reader-group-${section.id}`">
-      <header class="grouped-reader-list__head">
+      <header
+        class="grouped-reader-list__head"
+        :class="{ 'is-collapsed': isCollapsed(section.id) }">
+        <!-- 整行可点：透明按钮盖在内容上，既保留 h2 语义，又让命中区覆盖整行。 -->
+        <button
+          type="button"
+          class="grouped-reader-list__toggle"
+          :aria-expanded="!isCollapsed(section.id)"
+          :aria-controls="panelId(section.id)"
+          :aria-label="`${isCollapsed(section.id) ? '展开' : '收起'}分组：${section.title}`"
+          @click="toggle(section.id)" />
         <span class="grouped-reader-list__mark" aria-hidden="true" />
         <h2 class="grouped-reader-list__title">{{ section.title }}</h2>
         <span class="grouped-reader-list__line" aria-hidden="true" />
         <span class="grouped-reader-list__count">{{ section.cards.length }} 个{{ label }}</span>
+        <IconChevronDown class="grouped-reader-list__chevron" aria-hidden="true" />
       </header>
-      <FolderCardList :cards="section.cards" :data-collection-list="listRole === 'collection' ? 'true' : undefined" :data-project-list="listRole === 'project' ? 'true' : undefined" />
+      <FolderCardList
+        v-show="!isCollapsed(section.id)"
+        :id="panelId(section.id)"
+        :cards="section.cards"
+        :data-collection-list="listRole === 'collection' ? 'true' : undefined"
+        :data-project-list="listRole === 'project' ? 'true' : undefined" />
     </section>
 
     <!-- 尾块：淡色细线 + 居中标签，把"没归进任何分组"的内容与上一组隔开。 -->
     <section v-if="sections.trailing.length" class="grouped-reader-list__section" data-role="reader-group-trailing">
       <header v-if="showTrailingDivider" class="grouped-reader-list__divider">
         <span class="grouped-reader-list__divider-line" aria-hidden="true" />
-        <h2 class="grouped-reader-list__divider-label">未分组</h2>
+        <button
+          type="button"
+          class="grouped-reader-list__divider-toggle"
+          :class="{ 'is-collapsed': isCollapsed(TRAILING_KEY) }"
+          :aria-expanded="!isCollapsed(TRAILING_KEY)"
+          :aria-controls="panelId(TRAILING_KEY)"
+          :aria-label="`${isCollapsed(TRAILING_KEY) ? '展开' : '收起'}未分组`"
+          @click="toggle(TRAILING_KEY)">
+          <IconChevronDown class="grouped-reader-list__chevron" aria-hidden="true" />
+          <span class="grouped-reader-list__divider-label">未分组</span>
+        </button>
         <span class="grouped-reader-list__divider-line" aria-hidden="true" />
       </header>
-      <FolderCardList :cards="sections.trailing" :data-collection-list="listRole === 'collection' ? 'true' : undefined" :data-project-list="listRole === 'project' ? 'true' : undefined" />
+      <FolderCardList
+        v-show="!isCollapsed(TRAILING_KEY)"
+        :id="panelId(TRAILING_KEY)"
+        :cards="sections.trailing"
+        :data-collection-list="listRole === 'collection' ? 'true' : undefined"
+        :data-project-list="listRole === 'project' ? 'true' : undefined" />
     </section>
   </div>
 </template>
@@ -115,14 +170,33 @@ const showTrailingDivider = computed(() => sections.value.grouped.length > 0)
 }
 
 /*
- * 分段头：记号 + 标题 + 一条吃掉剩余宽度的发丝线 + 计数。
+ * 分段头：记号 + 标题 + 一条吃掉剩余宽度的发丝线 + 计数 + 折叠箭头。
  * 线不是装饰：它把"标题"和"计数"钉在同一行，读者一眼能看出这一行属于下面那组卡片。
  */
 .grouped-reader-list__head {
+  position: relative;
   display: flex;
   min-width: 0;
   align-items: center;
   gap: 0.875rem;
+  border-radius: var(--radius-sm);
+}
+
+/* 透明按钮铺满整行：点击标题、计数、空白处都能折叠，而不只是箭头。 */
+.grouped-reader-list__toggle {
+  position: absolute;
+  inset: -0.375rem -0.5rem;
+  z-index: 2;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  cursor: pointer;
+}
+
+.grouped-reader-list__toggle:focus-visible {
+  outline: 2px solid var(--color-focus);
+  outline-offset: 2px;
 }
 
 .grouped-reader-list__mark {
@@ -159,6 +233,25 @@ const showTrailingDivider = computed(() => sections.value.grouped.length > 0)
   white-space: nowrap;
 }
 
+/* 箭头：折叠时转 90°，颜色随悬停加深（行本身可点，但别让"能点"只靠箭头暗示）。 */
+.grouped-reader-list__chevron {
+  flex: 0 0 auto;
+  width: 1rem;
+  height: 1rem;
+  color: var(--color-ink-faint);
+  transition: transform var(--motion-fast) var(--motion-ease), color var(--motion-fast) var(--motion-ease);
+}
+
+.grouped-reader-list__head:hover .grouped-reader-list__chevron,
+.grouped-reader-list__divider-toggle:hover .grouped-reader-list__chevron {
+  color: var(--color-ink);
+}
+
+.grouped-reader-list__head.is-collapsed .grouped-reader-list__chevron,
+.grouped-reader-list__divider-toggle.is-collapsed .grouped-reader-list__chevron {
+  transform: rotate(-90deg);
+}
+
 /* 尾块分隔线：两侧淡色细线，中间是标签本身 —— 线一定要比分组头的更淡。 */
 .grouped-reader-list__divider {
   display: flex;
@@ -172,10 +265,36 @@ const showTrailingDivider = computed(() => sections.value.grouped.length > 0)
   background: var(--color-line-faint);
 }
 
-.grouped-reader-list__divider-label {
-  margin: 0;
-  padding: 0 0.25rem;
+.grouped-reader-list__divider-toggle {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 0.375rem;
+  padding: 0.25rem 0.5rem;
+  border: 0;
+  border-radius: var(--radius-pill);
+  background: transparent;
   color: var(--color-ink-faint);
+  cursor: pointer;
+}
+
+.grouped-reader-list__divider-toggle:hover {
+  background: var(--color-bg-subtle);
+  color: var(--color-ink-muted);
+}
+
+.grouped-reader-list__divider-toggle:focus-visible {
+  outline: 2px solid var(--color-focus);
+  outline-offset: 2px;
+}
+
+.grouped-reader-list__divider-toggle .grouped-reader-list__chevron {
+  width: 0.75rem;
+  height: 0.75rem;
+}
+
+.grouped-reader-list__divider-label {
+  color: currentColor;
   font-family: var(--font-mono);
   font-size: 0.6875rem;
   font-weight: 500;

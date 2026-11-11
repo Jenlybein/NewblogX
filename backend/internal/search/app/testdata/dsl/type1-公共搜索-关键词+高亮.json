@@ -121,7 +121,8 @@
                 "fields": [
                   "title",
                   "abstract",
-                  "content_parts.content"
+                  "content_parts.content",
+                  "author.nickname"
                 ],
                 "query": "golang 并发"
               }

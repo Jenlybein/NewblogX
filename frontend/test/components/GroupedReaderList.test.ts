@@ -124,3 +124,57 @@ describe('读者侧分组：尾块分隔线', () => {
     expect(wrapper.text()).not.toContain('未分组')
   })
 })
+
+describe('读者侧分组：折叠', () => {
+  it('点分组头只收起这一组的卡片，分组头与计数仍在', async () => {
+    const wrapper = mount(GroupedReaderList, {
+      props: {
+        cards: [card('a'), card('b'), card('c')],
+        groups: tree([
+          { id: 'g1', title: '第一组', items: ['a'] },
+          { id: 'g2', title: '第二组', items: ['b', 'c'] },
+        ]),
+      },
+    })
+
+    const head = wrapper.get('[data-role="reader-group-g1"] .grouped-reader-list__head')
+    const toggle = head.get('.grouped-reader-list__toggle')
+    expect(toggle.attributes('aria-expanded')).toBe('true')
+    expect(toggle.attributes('aria-controls')).toBe('reader-group-panel-g1')
+
+    await toggle.trigger('click')
+
+    // 折叠：aria 状态翻转、加 is-collapsed、卡片被 v-show 隐藏。
+    expect(toggle.attributes('aria-expanded')).toBe('false')
+    expect(head.classes()).toContain('is-collapsed')
+    expect(wrapper.get('[data-role="reader-group-g1"] .stub-card-list').attributes('style')).toContain('display: none')
+
+    // 别的组不受影响。
+    expect(wrapper.get('[data-role="reader-group-g2"] .stub-card-list').attributes('style') ?? '').not.toContain('display: none')
+
+    await toggle.trigger('click')
+    expect(toggle.attributes('aria-expanded')).toBe('true')
+    expect(wrapper.get('[data-role="reader-group-g1"] .stub-card-list').attributes('style') ?? '').not.toContain('display: none')
+  })
+
+  it('尾块的「未分组」分隔线也能收起 / 展开', async () => {
+    const wrapper = mount(GroupedReaderList, {
+      props: {
+        cards: [card('a'), card('b')],
+        groups: tree([{ id: 'g1', title: '第一组', items: ['a'] }], ['b']),
+      },
+    })
+
+    const toggle = wrapper.get('.grouped-reader-list__divider-toggle')
+    expect(toggle.attributes('aria-expanded')).toBe('true')
+
+    await toggle.trigger('click')
+
+    expect(toggle.attributes('aria-expanded')).toBe('false')
+    expect(toggle.classes()).toContain('is-collapsed')
+    expect(wrapper.get('[data-role="reader-group-trailing"] .stub-card-list').attributes('style')).toContain('display: none')
+
+    await toggle.trigger('click')
+    expect(wrapper.get('[data-role="reader-group-trailing"] .stub-card-list').attributes('style') ?? '').not.toContain('display: none')
+  })
+})

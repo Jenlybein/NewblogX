@@ -246,7 +246,8 @@ describe("公开主页分类栏：展示链路仍然完整", () => {
       page_mode: "count",
       sort: 2,
     });
-    expect(wrapper.get(".profile-category-heading").text()).toContain("工程笔记");
+    // 右栏顶栏已删除；文章卡直接出现，选中态由左侧分类卡承担。
+    expect(wrapper.find(".profile-category-heading").exists()).toBe(false);
     expect(wrapper.text()).toContain("按分类展开的文章");
     expect(routerReplace).not.toHaveBeenCalled();
   });

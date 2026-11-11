@@ -42,6 +42,7 @@ type ShelfProps = {
   articles?: FavoriteArticleItem[];
   pending?: boolean;
   locked?: boolean;
+  failed?: boolean;
   lockedTitle?: string;
   lockedDescription?: string;
 };
@@ -54,6 +55,7 @@ function mountShelf(props: ShelfProps = {}) {
       articles: props.articles ?? [],
       pending: props.pending ?? false,
       locked: props.locked ?? false,
+      failed: props.failed ?? false,
       ...(props.lockedTitle === undefined ? {} : { lockedTitle: props.lockedTitle }),
       ...(props.lockedDescription === undefined ? {} : { lockedDescription: props.lockedDescription }),
     },
@@ -77,18 +79,25 @@ describe("ProfileCollectionShelf：收藏架与文章卡片复用同一形态", 
     expect(entries).toHaveLength(1);
     expect(entries[0]?.text()).toContain("被收藏的文章");
     expect(wrapper.get(".profile-folder-card").classes()).toContain("is-active");
-    expect(wrapper.get(".profile-shelf-heading").text()).toContain("工程笔记");
+    // 右栏不再重复一条「收藏夹名 + 篇数」标题栏：左边已经选中了。
+    expect(wrapper.find(".profile-shelf-heading").exists()).toBe(false);
   });
 
-  it("空收藏夹不塌陷：内容区保留 lg 尺寸的空态占位、指引与下一步入口", () => {
+  it("空收藏夹不塌陷：内容区保留 lg 尺寸的空态占位与两个出口", () => {
     const wrapper = mountShelf({ folders: [folder], activeFolderId: "fav-1", articles: [] });
 
     const empty = wrapper.get(".profile-collection-layout__content [data-empty-state='true']");
     expect(empty.classes()).toContain("min-h-[320px]");
     expect(empty.text()).toContain("这个收藏夹还是空的");
-    expect(empty.text()).toContain("换一个收藏夹");
-    expect(empty.findAll(".empty-state__hints li")).toHaveLength(2);
     expect(wrapper.findAll(".empty-state__actions a").length).toBeGreaterThanOrEqual(2);
+  });
+
+  it("读不到内容（不是空）时说明原因，不伪装成空收藏夹", () => {
+    const wrapper = mountShelf({ folders: [folder], activeFolderId: "fav-1", articles: [], failed: true });
+
+    const empty = wrapper.get(".profile-collection-layout__content [data-empty-state='true']");
+    expect(empty.text()).toContain("没有读到");
+    expect(empty.text()).not.toContain("这个收藏夹还是空的");
   });
 
   it("没有任何公开收藏夹时：侧栏给出说明，内容区仍有完整空态结构", () => {

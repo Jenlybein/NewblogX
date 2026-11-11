@@ -20,6 +20,7 @@ import { NAlert, NSkeleton } from "naive-ui";
 import { computed } from "vue";
 import ActivityHeatmap from "~/components/studio/ActivityHeatmap.vue";
 import { getStudioStats } from "~/services/article";
+import { getProfileCategories } from "~/services/category";
 import { getOwnFavoriteFolders } from "~/services/favorite";
 import { getMessageSummary, getSelfUserDetail, getUserBaseInfo } from "~/services/user";
 import { formatCount } from "~/utils/format";
@@ -108,12 +109,27 @@ const todoItems = computed(() => {
 });
 
 /**
- * 分类概览：从个人资料里的偏好标签推不出来，所以这里读用户详情里已有的分类。
+ * 分类概览：读**分类表**里这位作者真实的分类（`GET /articles/category?user_id=`），
+ * 不要再拿个人资料里的偏好标签（`like_tag_items`）冒充 —— 那是"喜欢的标签"，
+ * 跟作者自己建的文章分类是两回事，所以这里以前永远显示"还没有分类"。
  *
  * 只显示前 5 个：概览是"扫一眼"的页面，把二十个分类全铺开会把下面的站点健康
  * 挤出首屏。完整清单在 /studio/categories。
  */
-const categoryOverview = computed(() => (user.value?.like_tag_items ?? []).slice(0, 5));
+const categoriesLoadFailed = ref(false)
+const { data: categories } = await useAsyncData("studio-dashboard-categories", async () => {
+  if (!authStore.profileId) return null
+  try {
+    return await getProfileCategories(authStore.profileId)
+  } catch {
+    categoriesLoadFailed.value = true
+    return null
+  }
+})
+
+const categoryOverview = computed(() => (categories.value?.list ?? []).slice(0, 5))
+const categoryCount = computed(() => categories.value?.list.length ?? 0)
+const categoriesLoaded = computed(() => !categoriesLoadFailed.value);
 
 const folderCount = computed(() => folders.value?.count ?? 0);
 const followerCount = computed(() => baseInfo.value?.fans_count ?? 0);
@@ -241,13 +257,26 @@ useNoIndexPage();
           </div>
         </dl>
 
-        <h3 class="overview__subhead">分类</h3>
+        <h3 class="overview__subhead">
+          分类
+          <span v-if="categoryCount" class="overview__subhead-count">{{ categoryCount }}</span>
+        </h3>
         <div v-if="categoryOverview.length" class="overview__chips" data-role="studio-categories">
           <NuxtLink v-for="item in categoryOverview" :key="item.id" to="/studio/categories" class="overview__chip">
             {{ item.title }}
+            <span v-if="item.article_count" class="overview__chip-count">{{ item.article_count }}</span>
+          </NuxtLink>
+          <NuxtLink
+            v-if="categoryCount > categoryOverview.length"
+            to="/studio/categories"
+            class="overview__chip overview__chip--more">
+            还有 {{ categoryCount - categoryOverview.length }} 个
           </NuxtLink>
         </div>
-        <p v-else class="overview__empty">还没有分类。<NuxtLink to="/studio/categories" class="overview__inline-link">去建一个</NuxtLink>。</p>
+        <p v-else-if="categoriesLoaded" class="overview__empty">
+          还没有分类。<NuxtLink to="/studio/categories" class="overview__inline-link">去建一个</NuxtLink>。
+        </p>
+        <p v-else class="overview__empty">分类这次没读到。<NuxtLink to="/studio/categories" class="overview__inline-link">去分类页看看</NuxtLink>。</p>
       </section>
 
       <!-- ⑥ 站点健康 + ⑦ 待处理（零值折叠） -->
@@ -664,6 +693,13 @@ useNoIndexPage();
   text-transform: uppercase;
 }
 
+/* 小标题右侧的总数：分类多的时候先让读者知道"还有多少不在这一屏"。 */
+.overview__subhead-count {
+  margin-left: 0.375rem;
+  color: var(--color-ink-faint);
+  letter-spacing: 0.06em;
+}
+
 .overview__chips {
   display: flex;
   flex-wrap: wrap;
@@ -674,6 +710,7 @@ useNoIndexPage();
   display: inline-flex;
   min-height: 26px;
   align-items: center;
+  gap: 0.375rem;
   padding: 0 0.625rem;
   border: 1px solid var(--color-line);
   border-radius: var(--radius-pill);
@@ -684,6 +721,25 @@ useNoIndexPage();
 .overview__chip:hover {
   border-color: var(--color-line-strong);
   color: var(--color-ink);
+}
+
+.overview__chip-count {
+  color: var(--color-ink-faint);
+  font-family: var(--font-mono);
+  font-size: 0.6875rem;
+}
+
+/* 「还有 N 个」是出口，不是数据：虚线边、更淡，别和真分类混淆。 */
+.overview__chip--more {
+  border-style: dashed;
+  border-color: var(--color-line-faint);
+  color: var(--color-ink-faint);
+}
+
+.overview__chip--more:hover {
+  border-style: dashed;
+  border-color: var(--color-line);
+  color: var(--color-ink-muted);
 }
 
 .overview__count-pill {

@@ -23,6 +23,12 @@ const actionAuditTimeLayout = "2006-01-02 15:04:05"
 // 只数**成功**的 create / update：失败的动作没有产出内容，把它们算进"创作活跃度"
 // 会让热力图变成"我试了多少次"。
 //
+// 2026-11-12 修正：过滤条件原来写的是 `action_name LIKE 'create%'` / `'update%'`，
+// 但审计里的动作名是**带实体前缀**的（`article_create`、`article_update`、
+// `outline_save`…）。前缀匹配一行都匹配不到，个人中心的热力图从上线起就一直是
+// 全 0 —— 数据在表里，只是查询条件错了。现在按确切动作名判断；将来要把
+// "项目 / 合集也算创作"时改这个集合，而不是放宽成前缀。
+//
 // 用一条 GROUP BY 而不是把 120 天的记录拉回来在内存里数：审计表一天可能有几千行，
 // 拉回来只为了求和是浪费。
 func CountDailyStudioActivity(opts Options, userID uint64, days int) ([]DailyActivityCount, error) {
@@ -42,7 +48,7 @@ func CountDailyStudioActivity(opts Options, userID uint64, days int) ([]DailyAct
 SELECT toDate(ts, ?) AS day, count() AS c
 FROM %s
 WHERE user_id = ? AND success = 1 AND ts >= ?
-  AND (action_name LIKE 'create%%' OR action_name LIKE 'update%%')
+  AND action_name IN ('article_create', 'article_update')
 GROUP BY day
 ORDER BY day ASC`, ActionAuditLogTableName)
 

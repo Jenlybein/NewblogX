@@ -246,8 +246,12 @@ func articleQuery(key string, boolQuery map[string]any) map[string]any {
 	if key != "" {
 		boolQuery["must"] = []any{
 			map[string]any{"multi_match": map[string]any{
-				"query":  key,
-				"fields": []string{"title", "abstract", "content_parts.content"},
+				"query": key,
+				// author.nickname 是作者昵称在文档里的投影（由文章同步/用户变更两条
+				// CDC 路径维护）。不把它放进 multi_match，读者在搜索框里输入作者名
+				// 会一篇都搜不到 —— 而"按作者找文章"是最自然的搜索意图之一。
+				// 关键词命中作者名时按字段权重统一计分，标题命中仍然更靠前。
+				"fields": []string{"title", "abstract", "content_parts.content", "author.nickname"},
 			}},
 		}
 	} else {

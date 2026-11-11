@@ -27,7 +27,7 @@ import { MOTION_EXPRESSIVE_MS } from '~/utils/motion'
  */
 import { computed, ref, watch } from 'vue'
 import { NButton, NSwitch } from 'naive-ui'
-import { IconGripVertical, IconPencil, IconTrash } from '@tabler/icons-vue'
+import { IconChevronDown, IconChevronRight, IconGripVertical, IconPencil, IconTrash } from '@tabler/icons-vue'
 import { VueDraggable } from 'vue-draggable-plus'
 import { resolveCollectionCover } from '~/utils/collectionAdmin'
 
@@ -111,6 +111,28 @@ watch(
 /** 拖动分组标题期间收起所有卡片：长列表下不收起就看不出拖到了哪。 */
 const draggingGroup = ref(false)
 
+/**
+ * 折叠分组（2026-11-12）。键是分组 id，未分组段用固定键。
+ *
+ * 与「拖动标题时临时收起」是两套状态：`draggingGroup` 是瞬时的，折叠是读者
+ * 自己选的。两者任一成立就不渲染卡片，但只有折叠会在拖完之后保留。
+ */
+const UNGROUPED_KEY = '__ungrouped__'
+const collapsed = ref<Record<string, boolean>>({})
+
+function isCollapsed(key: string) {
+  return Boolean(collapsed.value[key])
+}
+
+function toggleCollapsed(key: string) {
+  collapsed.value = { ...collapsed.value, [key]: !collapsed.value[key] }
+}
+
+/** aria-controls 的目标：卡片列表的 id 与它同源。 */
+function cardsPanelId(key: string) {
+  return `${props.kind}-group-panel-${key}`
+}
+
 /** 封面：上传的优先，没有就回退首篇；两者都没有时返回空串（渲染占位块，不发空 src）。 */
 function coverOf(item: GroupedCardItem) {
   return resolveCollectionCover(item.cover, item.fallback_cover)?.url ?? ""
@@ -136,6 +158,18 @@ function onDrop() {
          没有未分组条目时整段消失（空标题没有意义）。 -->
     <section v-if="localUngrouped.length" class="grouped-grid__section" data-role="group-ungrouped">
       <header class="grouped-grid__head grouped-grid__head--static">
+        <button
+          type="button"
+          class="grouped-grid__collapse"
+          :aria-expanded="!isCollapsed(UNGROUPED_KEY)"
+          :aria-controls="cardsPanelId(UNGROUPED_KEY)"
+          :aria-label="`${isCollapsed(UNGROUPED_KEY) ? '展开' : '收起'}未分组`"
+          :data-role="`${kind}-group-collapse-ungrouped`"
+          @mousedown.stop
+          @click.stop="toggleCollapsed(UNGROUPED_KEY)">
+          <IconChevronDown v-if="!isCollapsed(UNGROUPED_KEY)" :size="14" aria-hidden="true" />
+          <IconChevronRight v-else :size="14" aria-hidden="true" />
+        </button>
         <span class="grouped-grid__title">未分组</span>
         <span class="grouped-grid__count">{{ localUngrouped.length }} 个</span>
         <span class="grouped-grid__hint-inline">拖到下面任一标题栏即可归组</span>
@@ -144,7 +178,8 @@ function onDrop() {
       <!-- 未分组也要跟着收起：拖动分组标题时如果它还铺着，
            屏幕上一半是卡片，"拖到哪儿了"又看不出来了。 -->
       <VueDraggable
-        v-show="!draggingGroup"
+        v-show="!draggingGroup && !isCollapsed(UNGROUPED_KEY)"
+        :id="cardsPanelId(UNGROUPED_KEY)"
         v-model="localUngrouped"
         class="entity-tile-grid"
         :animation="MOTION_EXPRESSIVE_MS.dragSettle"
@@ -217,6 +252,20 @@ function onDrop() {
         class="grouped-grid__section"
         :data-role="`group-${group.id}`">
         <header class="grouped-grid__head" title="拖动调整分组顺序">
+          <!-- 折叠按钮在拖拽把手之内：按下它不能起拖（mousedown.stop），
+               点一下只切换折叠，不改变分组顺序。 -->
+          <button
+            type="button"
+            class="grouped-grid__collapse"
+            :aria-expanded="!isCollapsed(group.id)"
+            :aria-controls="cardsPanelId(group.id)"
+            :aria-label="`${isCollapsed(group.id) ? '展开' : '收起'}分组：${group.title}`"
+            :data-role="`group-collapse-${group.id}`"
+            @mousedown.stop
+            @click.stop="toggleCollapsed(group.id)">
+            <IconChevronDown v-if="!isCollapsed(group.id)" :size="14" aria-hidden="true" />
+            <IconChevronRight v-else :size="14" aria-hidden="true" />
+          </button>
           <span class="grouped-grid__grip" aria-hidden="true"><IconGripVertical :size="16" /></span>
           <h3 class="grouped-grid__title">{{ group.title }}</h3>
           <span class="grouped-grid__count">{{ group.items.length }} 个</span>
@@ -237,7 +286,8 @@ function onDrop() {
 
         <!-- 拖动分组标题时收起内容：只留一条标题，拖动目标一目了然。 -->
         <VueDraggable
-          v-show="!draggingGroup"
+          v-show="!draggingGroup && !isCollapsed(group.id)"
+          :id="cardsPanelId(group.id)"
           v-model="group.items"
           class="entity-tile-grid"
           :animation="MOTION_EXPRESSIVE_MS.dragSettle"
@@ -293,7 +343,7 @@ function onDrop() {
           </article>
         </VueDraggable>
 
-        <p v-if="!group.items.length && !draggingGroup" class="admin-hint grouped-grid__empty" :data-role="`group-empty-${group.id}`">
+        <p v-if="!group.items.length && !draggingGroup && !isCollapsed(group.id)" class="admin-hint grouped-grid__empty" :data-role="`group-empty-${group.id}`">
           把{{ label }}拖到这条标题上，就能放进这个分组。
         </p>
       </section>

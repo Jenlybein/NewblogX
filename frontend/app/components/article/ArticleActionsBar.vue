@@ -2,6 +2,7 @@
 import { computed } from "vue";
 import {
   IconArrowBarToDown,
+  IconArrowBarToUp,
   IconHeart,
   IconHeartFilled,
   IconMessageCircle2,
@@ -66,6 +67,8 @@ const emit = defineEmits<{
   comment: [];
   /** 跳到页面底部（评论区起点）。 */
   bottom: [];
+  /** 回到页面顶部（正文开头）。 */
+  top: [];
 }>();
 
 const likeDisabled = computed(() => props.likePending || props.likeDebouncing);
@@ -76,6 +79,7 @@ const copy = computed(() => ({
   comment: describeArticleAction({ kind: "comment", count: props.commentCount }),
   share: describeArticleAction({ kind: "share", count: 0 }),
   bottom: describeArticleAction({ kind: "bottom", count: 0 }),
+  top: describeArticleAction({ kind: "top", count: 0 }),
 }));
 
 // 禁用是视觉层，这里再挡一次：连点不该连发请求（也不该依赖浏览器对 disabled 的处理）。
@@ -157,6 +161,18 @@ function handleLike() {
       @click="emit('bottom')"
     >
       <IconArrowBarToDown :size="18" aria-hidden="true" />
+    </button>
+
+    <!-- 「到顶」与「到底」成对：一上一下，同一个图标家族的 bar 箭头。 -->
+    <button
+      type="button"
+      class="article-action article-actions-bar__button"
+      data-action="top"
+      :aria-label="copy.top.label"
+      :title="copy.top.title"
+      @click="emit('top')"
+    >
+      <IconArrowBarToUp :size="18" aria-hidden="true" />
     </button>
   </div>
 </template>

@@ -18,6 +18,7 @@
 import { computed, onMounted, ref } from 'vue'
 import { NAlert, NCard, NRadioButton, NRadioGroup, NSpace, NTag, useMessage } from 'naive-ui'
 import MetricCard from '~/components/media/MetricCard.vue'
+import { isAuthLikeError } from '~/services/http/errors'
 import {
   getAIUsage,
   getArticleReviewTasks,
@@ -182,6 +183,15 @@ async function refresh() {
   } else {
     sumFailed.value = true
   }
+
+  // 会话真的没了（refresh_token 也没了）时，这一页只会得到一排 0 和三条失败提示，
+  // 看起来像"站点数据全丢了"。这种情况必须说清楚并送回登录页 —— 0 不是结论。
+  if (sumResult.status === 'rejected' && isAuthLikeError(sumResult.reason)) {
+    loading.value = false
+    message.error('登录状态已过期，请重新登录')
+    await navigateTo({ path: '/login', query: { redirect: '/' } })
+    return
+  }
   if (overviewResult.status === 'fulfilled') overview.value = overviewResult.value
   if (flowSpark.status === 'fulfilled') sparkFlow.value = flowSpark.value.date_count_list
   if (articleSpark.status === 'fulfilled') sparkArticle.value = articleSpark.value.date_count_list
@@ -236,8 +246,8 @@ onMounted(refresh)
             访问量按东八区自然日 + IP/UA 去重，已过滤爬虫；文章与用户为累计值，不随下面的时间窗变化。
           </p>
         </div>
-        <NTag :type="loading ? 'default' : 'success'" size="small" round>
-          {{ loading ? '读取中' : '数据已同步' }}
+        <NTag :type="loading ? 'default' : sumFailed ? 'warning' : 'success'" size="small" round>
+          {{ loading ? '读取中' : sumFailed ? '汇总读取失败' : '数据已同步' }}
         </NTag>
       </section>
 

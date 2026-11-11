@@ -90,3 +90,17 @@ describe('MetricCard', () => {
     expect(wrapper.text()).toContain('含待审核')
   })
 })
+
+describe("数据概览：分类来源", () => {
+  it("分类读的是分类表（getProfileCategories），不是个人资料里的偏好标签", async () => {
+    const { readFileSync } = await import("node:fs");
+    const { resolve } = await import("node:path");
+    // 用例的工作目录就是 frontend/（vitest 以项目根为 cwd）。
+    const source = readFileSync(resolve(process.cwd(), "app/pages/studio/dashboard.vue"), "utf8");
+
+    // 曾经的 bug：拿 `like_tag_items`（喜欢的标签）当分类，导致明明有分类却显示
+    // 「还没有分类」。这条断言钉的是数据源，不是渲染。
+    expect(source).toContain("getProfileCategories");
+    expect(source).not.toContain("user.value?.like_tag_items");
+  });
+});

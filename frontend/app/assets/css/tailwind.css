@@ -251,12 +251,27 @@
     @apply shrink-0;
   }
 
+  /* 收藏栏与分类栏同构（2026-11-12）：180px 窄栏 + 一行一个收藏夹。
+   * 280px 的大卡把右侧文章挤掉了一列，而收藏夹的简介在窄栏里只会折成三行。 */
   .profile-collection-layout {
-    @apply grid gap-5 xl:grid-cols-[280px_minmax(0,1fr)];
+    @apply grid gap-5;
   }
 
   .profile-collection-layout__folders {
-    @apply flex flex-col gap-3;
+    @apply flex gap-2 overflow-x-auto pb-1;
+    scrollbar-width: thin;
+  }
+
+  @media (min-width: 1024px) {
+    .profile-collection-layout {
+      grid-template-columns: 180px minmax(0, 1fr);
+    }
+
+    .profile-collection-layout__folders {
+      flex-direction: column;
+      overflow-x: visible;
+      padding-bottom: 0;
+    }
   }
 
   .profile-collection-layout__content {
@@ -268,8 +283,14 @@
   }
 
   .profile-folder-card {
-    @apply flex min-h-[96px] flex-col gap-2 rounded-card border border-line bg-surface p-4 text-left transition-colors;
+    @apply flex shrink-0 items-center justify-between gap-2 rounded-pill border border-line bg-surface px-3 py-2 text-left transition-colors;
     touch-action: manipulation;
+  }
+
+  @media (min-width: 1024px) {
+    .profile-folder-card {
+      @apply w-full rounded-control;
+    }
   }
 
   .profile-folder-card:hover {
@@ -281,25 +302,59 @@
     outline-offset: 2px;
   }
 
-  .profile-folder-card.is-active {
-    border-color: var(--color-line-strong);
-    background: var(--color-highlight);
+  /* 与分类条目、顶部 tab 同一套选中语言：墨色实底 + 反白。 */
+  .profile-folder-card.is-active,
+  .profile-folder-card.is-active:hover {
+    border-color: var(--color-ink);
+    background: var(--color-ink);
   }
 
-  .profile-folder-card__title-row {
-    @apply flex items-center justify-between gap-3;
+  .profile-folder-card.is-active .profile-folder-card__title {
+    color: var(--color-on-strong);
+    font-weight: 600;
+  }
+
+  .profile-folder-card.is-active .profile-folder-card__count {
+    color: var(--color-on-strong-muted);
   }
 
   .profile-folder-card__title {
-    @apply truncate text-base font-semibold text-ink;
+    @apply min-w-0 truncate text-sm font-medium text-ink;
   }
 
-  .profile-folder-card__abstract {
-    @apply line-clamp-2 text-sm leading-6 text-ink-muted;
+  .profile-folder-card__count {
+    @apply shrink-0 text-xs tabular-nums;
+    color: var(--color-ink-faint);
   }
 
   .profile-shelf-list {
     @apply flex flex-col gap-4;
+  }
+
+  /* 公开主页文章分栏：作者内搜索 + 分页（2026-11-12）。
+   * 搜索框吃满剩余宽度，按钮不换行；窄屏时整组换行、输入框仍占满一行。 */
+  .profile-article-tools {
+    @apply mb-4 flex flex-wrap items-center gap-2;
+  }
+
+  .profile-article-tools__input {
+    @apply min-w-[12rem] flex-1;
+  }
+
+  .profile-article-tools__hint {
+    @apply text-xs text-ink-muted;
+  }
+
+  .profile-article-list {
+    @apply scroll-mt-24;
+  }
+
+  .profile-pager {
+    @apply mt-5 flex items-center justify-center gap-3;
+  }
+
+  .profile-pager__status {
+    @apply text-xs tabular-nums text-ink-muted;
   }
 
   .profile-shelf-heading {
@@ -363,9 +418,22 @@
     outline-offset: 2px;
   }
 
-  .profile-category-card.is-active {
-    border-color: var(--color-line-strong);
-    background: var(--color-highlight);
+  /* 选中态与顶部 tab 用同一套语言：墨色实底 + 反白文字。
+   * 之前这里借了 --color-highlight（荧光笔/星标语义），在分类列表里读起来像
+   * "被标记过"而不是"当前选中"，和整页的单色体系也不搭。 */
+  .profile-category-card.is-active,
+  .profile-category-card.is-active:hover {
+    border-color: var(--color-ink);
+    background: var(--color-ink);
+  }
+
+  .profile-category-card.is-active .profile-category-card__title {
+    color: var(--color-on-strong);
+    font-weight: 600;
+  }
+
+  .profile-category-card.is-active .profile-category-card__count {
+    color: var(--color-on-strong-muted);
   }
 
   .profile-category-card__title-row {
@@ -423,14 +491,6 @@
 
   .profile-category-article-list {
     @apply flex flex-col gap-4;
-  }
-
-  .profile-category-heading {
-    @apply flex items-center justify-between gap-3 rounded-field border border-line-faint bg-subtle px-4 py-3;
-  }
-
-  .profile-category-heading__title {
-    @apply truncate text-sm font-semibold text-ink;
   }
 
   .profile-relation-list {
@@ -906,6 +966,52 @@
 
   .article-author__name {
     @apply truncate font-title text-[22px] leading-title tracking-title text-ink;
+  }
+
+  /* 头像 / 昵称 / @id 三个入口（2026-11-12）：整张卡原来没有一处能点进作者主页。
+   * 悬停只做下划线 + 颜色，不加位移 —— 右栏是静态区，动起来反而像按钮。 */
+  .article-author__avatar-link {
+    @apply block shrink-0 rounded-pill;
+    line-height: 0;
+    touch-action: manipulation;
+  }
+
+  .article-author__avatar-link:focus-visible {
+    outline: 2px solid var(--color-focus);
+    outline-offset: 3px;
+  }
+
+  .article-author__name--link {
+    text-decoration-color: transparent;
+    text-underline-offset: 0.12em;
+    transition: text-decoration-color var(--motion-fast) var(--motion-ease);
+    touch-action: manipulation;
+  }
+
+  .article-author__name--link:hover {
+    text-decoration: underline;
+    text-decoration-color: var(--color-line-strong);
+  }
+
+  .article-author__name--link:focus-visible {
+    outline: 2px solid var(--color-focus);
+    outline-offset: 3px;
+  }
+
+  .article-author__handle-link {
+    color: inherit;
+    text-decoration: none;
+    touch-action: manipulation;
+  }
+
+  .article-author__handle-link:hover {
+    color: var(--color-ink);
+    text-decoration: underline;
+  }
+
+  .article-author__handle-link:focus-visible {
+    outline: 2px solid var(--color-focus);
+    outline-offset: 2px;
   }
 
   .article-author__handle {

@@ -82,3 +82,12 @@ describe("describeArticleAction：边界与在途态", () => {
     );
   });
 });
+
+describe("describeArticleAction：到顶", () => {
+  it("顶部：与底部成对，读屏说清回哪儿", () => {
+    expect(describeArticleAction({ kind: "top", count: 0 })).toEqual({
+      label: "回到页面顶部",
+      title: "到顶",
+    });
+  });
+});

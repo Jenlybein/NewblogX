@@ -48,8 +48,22 @@ describe("ProfileHeroCard", () => {
 
     expect(wrapper.text()).toContain("管理员02");
     expect(wrapper.text()).toContain("公开简介");
-    expect(wrapper.text()).toContain("阅读 1.2w");
     expect(wrapper.get('img[data-image-src="https://image.example.com/avatar.png"]').exists()).toBe(true);
+  });
+
+  it("头部只留关注 / 粉丝两个数字（文章数归右栏成就，阅读量已去重）", () => {
+    const wrapper = mountHero({ relationText: "关注作者" });
+    const labels = wrapper.findAll(".profile-hero-metric__label").map(node => node.text());
+
+    expect(labels).toEqual(["关注", "粉丝"]);
+    expect(wrapper.text()).not.toContain("阅读");
+  });
+
+  it("本人查看自己的主页时不渲染「进入个人中心」（顶栏已有入口）", () => {
+    const wrapper = mountHero({ isSelf: true });
+
+    expect(wrapper.findAll("button")).toHaveLength(0);
+    expect(wrapper.text()).not.toContain("进入个人中心");
   });
 
   it("falls back to the first nickname character when avatar is empty", () => {

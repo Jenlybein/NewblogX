@@ -280,14 +280,22 @@ func (s *Service) DeleteTags(ctx context.Context, viewer domain.Viewer, ids []do
 // ── 收藏夹 ──
 
 // ListFolders 列出某用户的收藏夹。
-func (s *Service) ListFolders(ctx context.Context, target domain.UserID) ([]*favorite.Folder, error) {
+//
+// viewer 用来判定"这是不是公开读面"：读别人的夹子（含匿名读）只允许看见
+// 已发布文章的计数（与收藏内容同一口径，见 ListFavoriteItems）。
+// articleID 非零时逐夹计算 has_article，供收藏弹窗显示勾/加号（#344）。
+func (s *Service) ListFolders(ctx context.Context, viewer domain.Viewer, target domain.UserID, articleID domain.ArticleID) ([]*favorite.Folder, error) {
 	if target.IsZero() {
 		return nil, domain.ErrForbidden
 	}
 	var out []*favorite.Folder
 	err := s.tx.WithinTx(ctx, func(ctx context.Context, r Repos) error {
 		var err error
-		out, err = r.Favorites().ListFolders(ctx, target)
+		out, err = r.Favorites().ListFolders(ctx, favorite.ListFoldersQuery{
+			UserID:        target,
+			ArticleID:     articleID,
+			PublishedOnly: viewer.UserID != target,
+		})
 		return err
 	})
 	return out, err
@@ -400,8 +408,11 @@ func (s *Service) ListFavoriteItems(ctx context.Context, viewer domain.Viewer, f
 		if !f.BelongsTo(viewer.UserID) && !f.IsDefault() {
 			return favorite.ErrFolderForbidden
 		}
+		// 公开读面（他人夹）只列已发布文章：收藏时的文章可能在之后被撤回，
+		// 读者站不该因此把草稿/审核中的内容放出来（#344）。
+		publishedOnly := !f.BelongsTo(viewer.UserID)
 		p := page.Normalize()
-		items, total, err = r.Favorites().ListItems(ctx, folderID, p.Offset, p.Limit, onlyAdminAuthors)
+		items, total, err = r.Favorites().ListItems(ctx, folderID, p.Offset, p.Limit, onlyAdminAuthors, publishedOnly)
 		if err != nil {
 			return err
 		}

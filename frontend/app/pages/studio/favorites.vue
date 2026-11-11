@@ -35,7 +35,13 @@ const { data: contents, pending: contentsPending, refresh: refreshContents } = a
   () => `studio-favorite-contents:${activeFolderId.value}:${contentPage.value}`,
   () =>
     activeFolderId.value
-      ? getFavoriteFolderArticles({ favoriteId: activeFolderId.value, page: contentPage.value, limit: 30 })
+      ? getFavoriteFolderArticles({
+          favoriteId: activeFolderId.value,
+          page: contentPage.value,
+          limit: 30,
+          // 本人读自己的夹子：必须带 token，否则非默认夹会被 403 吞成空态（#344）。
+          auth: true,
+        })
       : Promise.resolve({ list: [], has_more: false }),
   {
     watch: [activeFolderId, contentPage],

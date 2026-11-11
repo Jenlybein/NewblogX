@@ -1632,6 +1632,10 @@
                     "title": {
                         "type": "string"
                     },
+                    "updated_at": {
+                        "description": "UpdatedAt 是文章的更新时间（不是收藏时间）。",
+                        "type": "string"
+                    },
                     "user_avatar": {
                         "type": "string"
                     },
@@ -8081,6 +8085,14 @@
                         "description": "用户 ID",
                         "in": "query",
                         "name": "user_id",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "description": "文章 ID（给出时返回各收藏夹是否已包含该文章）",
+                        "in": "query",
+                        "name": "article_id",
                         "schema": {
                             "type": "string"
                         }

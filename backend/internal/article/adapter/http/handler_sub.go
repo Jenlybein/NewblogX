@@ -226,16 +226,24 @@ func (h *Handler) DeleteTags(c *gin.Context) {
 // @Tags article
 // @Produce json
 // @Param user_id query string false "用户 ID"
+// @Param article_id query string false "文章 ID（给出时返回各收藏夹是否已包含该文章）"
 // @Success 200 {object} kernel.Envelope[kernel.ListData[FavoriteListItem]]
 // @Router /articles/favorite [get]
 func (h *Handler) Folders(c *gin.Context) {
 	cr := middleware.GetBindQuery[FavoriteListRequest](c)
 
+	viewer := h.viewerOf(c)
 	target := domain.UserID(cr.UserID)
 	if target.IsZero() {
-		target = h.viewerOf(c).UserID
+		target = viewer.UserID
 	}
-	list, err := h.svc.ListFolders(c.Request.Context(), target)
+	// article_id 只影响 has_article：它是"这篇文章在不在这个夹里"，
+	// 与读权限无关，因此不参与 viewer/target 的判定（#344）。
+	var articleID domain.ArticleID
+	if cr.ArticleID != nil {
+		articleID = domain.ArticleID(*cr.ArticleID)
+	}
+	list, err := h.svc.ListFolders(c.Request.Context(), viewer, target, articleID)
 	if err != nil {
 		h.fail(c, err)
 		return
@@ -335,6 +343,7 @@ func (h *Handler) FavoriteItems(c *gin.Context) {
 	for _, it := range items {
 		list = append(list, FavoriteArticleListItem{
 			FavoritedAt:   it.FavoritedAt(),
+			UpdatedAt:     it.ArticleUpdatedAt(),
 			ArticleID:     ctype.ID(it.ArticleID()),
 			Title:         it.ArticleTitle(),
 			Abstract:      it.ArticleAbstract(),

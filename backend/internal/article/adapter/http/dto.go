@@ -258,6 +258,9 @@ type FavoriteRequest struct {
 // FavoriteListRequest 收藏夹列表。
 type FavoriteListRequest struct {
 	UserID ctype.ID `form:"user_id"`
+	// ArticleID 给出时逐夹计算 has_article（收藏弹窗据此显示勾/加号）。
+	// 指针是为了区分"没传"与"传了零值"：没传时不做包含判定。
+	ArticleID *ctype.ID `form:"article_id"`
 }
 
 // FavoriteArticlesRequest 收藏夹内文章。
@@ -375,7 +378,9 @@ type FavoriteListItem struct {
 
 // FavoriteArticleListItem 收藏内容项。
 type FavoriteArticleListItem struct {
-	FavoritedAt   time.Time     `json:"favorited_at"`
+	FavoritedAt time.Time `json:"favorited_at"`
+	// UpdatedAt 是文章的更新时间（不是收藏时间）。
+	UpdatedAt     time.Time     `json:"updated_at"`
 	ArticleID     ctype.ID      `json:"article_id"`
 	Title         string        `json:"title"`
 	Abstract      string        `json:"abstract"`

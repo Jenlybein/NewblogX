@@ -18,7 +18,7 @@ func TestPublicSiteRecordsVisit(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
 	var visits int
-	h := sitehttp.NewHandler(sitetest.NewDefaultService(), func() { visits++ })
+	h := sitehttp.NewHandler(sitetest.NewDefaultService(), func(_, _ string) { visits++ })
 
 	newCtx := func(path string) *gin.Context {
 		c, _ := gin.CreateTestContext(httptest.NewRecorder())

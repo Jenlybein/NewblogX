@@ -35,6 +35,9 @@ func DataRouter(r *gin.RouterGroup, runtimeMw mw.Runtime) {
 	adminGroup.GET("article-year", app.ArticleYearDataView)
 	// AI token 用量趋势：首页「今日/本周/本月/本年」切换都走它。
 	adminGroup.GET("ai-usage", mw.BindQuery[analyticshttp.AIUsageRequest], app.AIUsageView)
+	// 站点概览的补充计数（票 349）：只放已有端点没提供的数字，
+	// 任何"已经有端点"的数据都不在这里重复。
+	adminGroup.GET("overview", mw.BindQuery[analyticshttp.OverviewRequest], app.OverviewView)
 }
 
 // LogRouter 注册日志查询路由。

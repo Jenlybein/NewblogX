@@ -51,8 +51,8 @@ func WireSite(infra *Infra) {
 	)
 	// 站点访问量：每次读取公开配置记一次（口径与迁移前一致）。
 	redisOpts := redis_service.Options{Client: infra.Redis, Logger: infra.Logger}
-	router.SetSiteHandler(sitehttp.NewHandler(svc, func() {
-		redis_site.SetFlow(redisOpts)
+	router.SetSiteHandler(sitehttp.NewHandler(svc, func(ip, userAgent string) {
+		redis_site.SetFlow(redisOpts, ip, userAgent)
 	}, sitehttp.WithSidebar(sidebar)))
 }
 

@@ -358,3 +358,13 @@ export type GroupTreeData = RequiredSchema<"internal_article_adapter_http.GroupT
 
 /** 整树换序的请求体（幂等整份覆盖）。 */
 export type GroupOrderPayload = Required<Schema<"internal_article_adapter_http.GroupOrderRequest">>;
+// ── 站点概览的补充计数（票 349）──────────────────────────────
+
+/**
+ * 概览的补充计数。
+ *
+ * 只含已有端点没提供的数字：窗口内访问 / 新增注册 / 新增文章。
+ * 边界由后端给出（东八区），前端把 `range_start` 直接写进口径提示，
+ * 而不是自己再推一遍时间。
+ */
+export type OverviewData = RequiredSchema<"internal_analytics_adapter_http.OverviewResponse">;

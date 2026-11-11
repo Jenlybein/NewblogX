@@ -72,6 +72,7 @@ var adminOnly = []struct {
 	{"GET", "/api/data/growth"},
 	{"GET", "/api/data/article-year"},
 	{"GET", "/api/data/ai-usage"},
+		{"GET", "/api/data/overview"},
 	// 日志中心（含死信查看与重投）
 	{"GET", "/api/logs/runtime"},
 	{"GET", "/api/logs/action"},

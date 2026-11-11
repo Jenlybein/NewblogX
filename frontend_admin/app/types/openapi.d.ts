@@ -3043,12 +3043,14 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** 近七日增长数据 */
+        /** 增长趋势数据 */
         get: {
             parameters: {
                 query: {
                     /** @description 统计类型：1 网站流量 2 文章发布 3 用户注册 */
                     type: number;
+                    /** @description 时间窗：today / week / month / year（默认 week） */
+                    range?: string;
                 };
                 header?: never;
                 path?: never;
@@ -3063,6 +3065,45 @@ export interface paths {
                     };
                     content: {
                         "application/json": components["schemas"]["myblogx_internal_kernel.Envelope-internal_analytics_adapter_http_GrowthDataResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/data/overview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 站点概览补充计数 */
+        get: {
+            parameters: {
+                query?: {
+                    /** @description 时间窗：today / week / month / year（默认 week） */
+                    range?: string;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["myblogx_internal_kernel.Envelope-internal_analytics_adapter_http_OverviewResponse"];
                     };
                 };
             };
@@ -7499,6 +7540,24 @@ export interface components {
             date_count_list?: components["schemas"]["internal_analytics_adapter_http.DateCountItem"][];
             growth_num?: number;
             growth_rate?: number;
+            /** @description Range 是**收敛后**的时间窗，前端据此高亮按钮（传了非法值也能知道实际用了哪个）。 */
+            range?: string;
+        };
+        "internal_analytics_adapter_http.OverviewResponse": {
+            /** @description NewArticles 是窗口内发布的文章数。 */
+            new_articles?: number;
+            /** @description NewUsers 是窗口内新增注册数。 */
+            new_users?: number;
+            /** @description Range 是收敛后的时间窗。 */
+            range?: string;
+            range_end?: string;
+            /**
+             * @description RangeStart / RangeEnd 是窗口边界（ISO8601，东八区），让前端能把
+             *     "这个数字算的是哪段时间"直接写在提示里，而不是自己再推一遍。
+             */
+            range_start?: string;
+            /** @description Visits 是**窗口内**的访问量（与「累计访问」同一口径，见 /data/sum）。 */
+            visits?: number;
         };
         "internal_analytics_adapter_http.SumResponse": {
             article_count?: number;
@@ -9189,6 +9248,11 @@ export interface components {
         "myblogx_internal_kernel.Envelope-internal_analytics_adapter_http_GrowthDataResponse": {
             code?: number;
             data?: components["schemas"]["internal_analytics_adapter_http.GrowthDataResponse"];
+            msg?: string;
+        };
+        "myblogx_internal_kernel.Envelope-internal_analytics_adapter_http_OverviewResponse": {
+            code?: number;
+            data?: components["schemas"]["internal_analytics_adapter_http.OverviewResponse"];
             msg?: string;
         };
         "myblogx_internal_kernel.Envelope-internal_analytics_adapter_http_SumResponse": {

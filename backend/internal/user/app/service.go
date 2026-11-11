@@ -64,8 +64,7 @@ func (s *Service) Detail(ctx context.Context, viewer domain.Viewer) (*DetailView
 		FavoritesVisibility:      settings.FavoritesVisibility,
 		FollowVisibility:         settings.FollowVisibility,
 		FansVisibility:           settings.FansVisibility,
-		HomeStyleID:              settings.HomeStyleID,
-		DiggNoticeEnabled:        settings.DiggNoticeEnabled,
+			DiggNoticeEnabled:        settings.DiggNoticeEnabled,
 		CommentNoticeEnabled:     settings.CommentNoticeEnabled,
 		FavorNoticeEnabled:       settings.FavorNoticeEnabled,
 		PrivateChatNoticeEnabled: settings.PrivateChatNoticeEnabled,
@@ -131,8 +130,7 @@ func (s *Service) PublicProfile(ctx context.Context, target domain.UserID) (*Pub
 		FavoritesVis: settings.FavoritesVisibility,
 		FollowVis:    settings.FollowVisibility,
 		FansVis:      settings.FansVisibility,
-		HomeStyleID:  settings.HomeStyleID,
-		Place:        u.Addr,
+			Place:        u.Addr,
 	}, nil
 }
 

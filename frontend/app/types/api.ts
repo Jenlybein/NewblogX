@@ -374,7 +374,7 @@ export interface ChatNotificationPayload {
 // JSON 里可以是 null；但 swag 把指针印成非空类型，所以这里显式补 null。
 export type UserProfileUpdatePayload = Nullable<
   Schema<"internal_user_adapter_http.UpdateInfoRequest">,
-  "username" | "nickname" | "abstract" | "avatar_image_id" | "home_style_id"
+  "username" | "nickname" | "abstract" | "avatar_image_id"
 >;
 
 

@@ -3997,9 +3997,6 @@
                     "followers_visibility": {
                         "type": "boolean"
                     },
-                    "home_style_id": {
-                        "type": "string"
-                    },
                     "id": {
                         "type": "string"
                     },
@@ -4076,9 +4073,6 @@
                     "followers_visibility": {
                         "type": "boolean"
                     },
-                    "home_style_id": {
-                        "type": "string"
-                    },
                     "like_tag_ids": {
                         "items": {
                             "type": "string"
@@ -4090,7 +4084,7 @@
                         "type": "string"
                     },
                     "stranger_msg_enabled": {
-                        "description": "StrangerChatEnabled 是\"允许陌生人给我发私信\"的个人开关。\n字段名沿用既有契约 stranger_msg_enabled；全指针语义与其余偏好一致：\n没传不改，false 是合法值（关掉）。",
+                        "description": "主页样式 ID 已从接口退场（票 355）：这个字段从来没有消费方 ——\n读者站不读它、后台也不读它，只在前端表单里占一行让人填数字。\n数据库列保留（零 DDL 口径），但不再接受写入、也不再出现在响应里。\nStrangerChatEnabled 是\"允许陌生人给我发私信\"的个人开关。\n字段名沿用既有契约 stranger_msg_enabled；全指针语义与其余偏好一致：\n没传不改，false 是合法值（关掉）。",
                         "type": "boolean"
                     },
                     "username": {
@@ -7371,9 +7365,6 @@
                     },
                     "has_password": {
                         "type": "boolean"
-                    },
-                    "home_style_id": {
-                        "type": "string"
                     },
                     "id": {
                         "type": "string"

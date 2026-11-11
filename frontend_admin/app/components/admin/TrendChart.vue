@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { MOTION_EXPRESSIVE_MS } from '~/utils/motion'
 /**
  * 折线趋势图（票 349，ECharts 按需引入）。
  *
@@ -64,7 +65,7 @@ function buildOption() {
   const accent = token('--color-link')
 
   return {
-    animationDuration: 420,
+    animationDuration: MOTION_EXPRESSIVE_MS.chartReveal,
     grid: props.spark
       ? { left: 0, right: 0, top: 4, bottom: 4 }
       : { left: 8, right: 12, top: 16, bottom: 24, containLabel: true },

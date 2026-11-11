@@ -75,8 +75,14 @@ function api() {
 /** 站点概览的时间窗（四个端点共用一个词表）。 */
 export type DataRange = 'today' | 'week' | 'month' | 'year'
 
-export function getDashboardSum() {
-  return api().request<SumResponseData>('/data/sum')
+/**
+ * 站点汇总（票 349 起带 range）。
+ *
+ * 默认 `today`：这个端点在加 range 之前就是"今日新增"，改默认值等于静默改语义。
+ * 想按窗口看的调用方显式传。
+ */
+export function getDashboardSum(range: DataRange = 'today') {
+  return api().request<SumResponseData>('/data/sum', { query: { range } })
 }
 
 /**

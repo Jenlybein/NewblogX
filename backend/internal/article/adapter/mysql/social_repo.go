@@ -363,7 +363,7 @@ func (r *FavoriteRepo) DeleteItem(ctx context.Context, articleID domain.ArticleI
 // 只删关系行不够：`article_count` 是给外部消费者看的快照列，删文章时不同步
 // 就会留下"夹子里显示 5 篇、点进去只有 4 篇"。所以先记下受影响的夹子，
 // 删完再逐个重算（与收藏/移出走同一份 RefreshFolderStats）。
-func (r *FavoriteRepo) DeleteItemsByArticle(ctx context.Context, articleID domain.ArticleID) error {
+func (r *FavoriteRepo) DeleteItemsByArticle(ctx context.Context, articleID domain.ArticleID, now time.Time) error {
 	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		var folderIDs []ctype.ID
 		if err := tx.Model(&userArticleFavorRow{}).
@@ -378,7 +378,6 @@ func (r *FavoriteRepo) DeleteItemsByArticle(ctx context.Context, articleID domai
 			return err
 		}
 
-		now := time.Now()
 		for _, folderID := range folderIDs {
 			if err := refreshFolderStatsTx(tx, folderID, now); err != nil {
 				return err

@@ -177,6 +177,8 @@ const (
 	CodeGroupNotFound Code = "group.not_found"
 	// CodeGroupOrderMismatch 整树顺序提交的输入与当前集合不一致。
 	CodeGroupOrderMismatch Code = "group.order_mismatch"
+	// CodeGroupWiring 装配层没有提供分组仓储（部署 / 装配缺陷，不是用户操作问题）。
+	CodeGroupWiring Code = "group.wiring"
 )
 
 // 目录树（合集 / 项目共用的一张树表）。
@@ -559,6 +561,7 @@ var messages = map[Code]string{
 	CodeGroupTitleTooLong:    "分组标题不能超过 128 个字符",
 	CodeGroupNotFound:        "分组不存在",
 	CodeGroupOrderMismatch:   "分组顺序与当前内容不一致，请刷新后重试",
+	CodeGroupWiring:          "分组功能未就绪（服务端装配缺失），请联系管理员",
 
 	CodeOutlineTitleRequired:        "文件夹标题不能为空",
 	CodeOutlineTitleTooLong:         "文件夹标题不能超过 128 个字符",

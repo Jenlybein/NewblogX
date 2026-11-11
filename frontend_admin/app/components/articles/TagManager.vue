@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { MOTION_EXPRESSIVE_MS } from '~/utils/motion'
 /**
  * 标签管理（票 322）：全站词库唯一的人工写入口。
  *
@@ -253,7 +254,7 @@ onMounted(refresh)
       v-if="dragEnabled"
       v-model="rows"
       class="tag-grid"
-      :animation="160"
+      :animation="MOTION_EXPRESSIVE_MS.dragSettle"
       handle=".tag-card__grip"
       ghost-class="tag-card--ghost"
       data-role="tag-grid"

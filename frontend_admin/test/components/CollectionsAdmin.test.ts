@@ -1,4 +1,5 @@
 import { flushPromises, mount } from '@vue/test-utils'
+import { h } from 'vue'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import CollectionCardGrid, {
@@ -36,11 +37,26 @@ vi.mock('~/services/admin', () => adminApi)
 vi.mock('~/services/image', () => ({ uploadImageByTask: vi.fn() }))
 
 // 弹窗里嵌着的两块重组件：只关心弹窗本身的行为，替身各自留一个可断言的点。
+// 树编辑器替身：必须实现 nodes() / markSaved()，因为弹窗的 compose 会向它取节点
+// （取不到就 fail-closed，见 currentNodes 的注释）。没有 nodes() 的替身代表
+// "编辑器坏了"，那正是另一条用例要覆盖的场景。
+const treeStubBehavior = vi.hoisted(() => ({ withNodes: true }))
+
 vi.mock('~/components/articles/OutlineTreeEditor.vue', () => ({
   default: {
     name: 'OutlineTreeEditor',
     props: { kind: { type: String, required: true }, entityId: { type: String, required: true } },
-    template: '<div data-role="outline-tree-editor-stub" :data-kind="kind" :data-entity="entityId" />',
+    setup(props: { kind: string; entityId: string }, { expose }: { expose: (api: Record<string, unknown>) => void }) {
+      const api: Record<string, unknown> = { markSaved: vi.fn() }
+      if (treeStubBehavior.withNodes) api.nodes = () => []
+      expose(api)
+      return () =>
+        h('div', {
+          'data-role': 'outline-tree-editor-stub',
+          'data-kind': props.kind,
+          'data-entity': props.entityId,
+        })
+    },
   },
 }))
 vi.mock('~/components/media/ImageCropDialog.vue', () => ({
@@ -179,6 +195,26 @@ describe('CollectionEditorOverlay：新建 / 编辑', () => {
       expect.objectContaining({ title: '博客重构' }),
     )
     expect(adminApi.updateCollection).not.toHaveBeenCalled()
+  })
+
+  it('取不到目录树节点时整单中止，绝不当成空树把树删光', async () => {
+    // 编辑器在，但没暴露 nodes()：装配/替身出问题。
+    treeStubBehavior.withNodes = false
+    adminApi.composeAdminEntity.mockResolvedValue(undefined)
+    adminApi.setCollectionDisplay.mockResolvedValue(undefined)
+
+    const wrapper = mount(CollectionEditorOverlay, {
+      props: { show: true, kind: 'collection', entity: card({ id: 'c7', title: '老合集' }) },
+    })
+
+    await wrapper.get('[data-role="collection-editor-save"]').trigger('click')
+    await flushPromises()
+
+    // compose 是整树覆盖：拿不到节点就不能发请求。
+    expect(adminApi.composeAdminEntity).not.toHaveBeenCalled()
+    expect(adminApi.setCollectionDisplay).not.toHaveBeenCalled()
+    expect(messageMock.error).toHaveBeenCalled()
+    treeStubBehavior.withNodes = true
   })
 
   it('编辑只回填已上传的封面：回退封面不会被当成用户选择存回去', async () => {

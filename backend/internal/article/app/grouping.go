@@ -2,6 +2,7 @@ package app
 
 import (
 	"context"
+	"time"
 
 	"myblogx/internal/article/domain"
 	"myblogx/internal/article/domain/collection"
@@ -37,7 +38,7 @@ type GroupRepositoryFor interface {
 func groupRepos(ctx context.Context, repos Repos, kind outline.OwnerKind) (grouping.Repository, error) {
 	gr, ok := repos.(GroupRepositoryFor)
 	if !ok {
-		return nil, grouping.ErrNotFound
+		return nil, grouping.ErrWiring
 	}
 	return gr.GroupsFor(ctx, kind), nil
 }
@@ -137,7 +138,7 @@ func (s *Service) DeleteGroup(ctx context.Context, cmd DeleteGroupCmd) error {
 		if err != nil {
 			return err
 		}
-		return repo.DeleteGroup(ctx, cmd.ID)
+		return repo.DeleteGroup(ctx, cmd.ID, s.clock.Now())
 	})
 }
 
@@ -182,10 +183,28 @@ func (s *Service) LoadGroupTree(ctx context.Context, actor domain.Viewer, kind o
 			return err
 		}
 
+		// 实体全集先取出来：既用来补"没有归属行的实体"，也用来滤掉"归属行还在、
+		// 实体已软删"的幽灵 ID。
+		//
+		// 幽灵 ID 不是理论问题：软删一个合集不会连带删它的归属行（删实体走的是
+		// 实体自己的用例），不滤的话后台读面会把一个已经删掉的 ID 放进 groups[].items，
+		// 前端点进去是 404。
+		all, err := allOwnerIDs(ctx, repos, kind)
+		if err != nil {
+			return err
+		}
+		exists := make(map[ctype.ID]struct{}, len(all))
+		for _, owner := range all {
+			exists[owner] = struct{}{}
+		}
+
 		byGroup := make(map[grouping.ID][]ctype.ID, len(groups))
 		placed := make(map[ctype.ID]struct{}, len(assignments))
 		ungrouped := make([]ctype.ID, 0, len(assignments))
 		for _, a := range assignments {
+			if _, ok := exists[a.OwnerID]; !ok {
+				continue
+			}
 			placed[a.OwnerID] = struct{}{}
 			if a.GroupID.IsZero() {
 				ungrouped = append(ungrouped, a.OwnerID)
@@ -198,10 +217,6 @@ func (s *Service) LoadGroupTree(ctx context.Context, actor domain.Viewer, kind o
 		//
 		// 只遍历归属行会让"新建但还没拖过"的合集在后台读面里消失 ——
 		// 前端会把它补回来，但读模型本身不该依赖调用方兜底。
-		all, err := allOwnerIDs(ctx, repos, kind)
-		if err != nil {
-			return err
-		}
 		for _, owner := range all {
 			if _, ok := placed[owner]; ok {
 				continue
@@ -300,7 +315,7 @@ func (s *Service) ReplaceGroupOrder(ctx context.Context, cmd ReplaceGroupOrderCm
 		if err := grouping.CheckOrder(groupIDs, owners, cmd.Tree); err != nil {
 			return err
 		}
-		return repo.ReplaceOrder(ctx, cmd.Tree)
+		return repo.ReplaceOrder(ctx, cmd.Tree, s.clock.Now())
 	})
 }
 
@@ -316,37 +331,54 @@ type ComposeCollectionCmd struct {
 	Nodes       []OutlineInputNode
 }
 
-// ComposeCollection 在一个事务里写合集字段与整棵目录树（管理员）。
+// composeFields 是"字段 + 整棵树"提交里与实体无关的那一半。
 //
-// 为什么合成一个端点：编辑弹窗里"改标题 + 拖完树"是一次保存动作。分成两个
-// 请求，任何一个失败都会留下"标题改了但树没改"的半截状态，而用户只点了一次
-// 保存 —— 他没有任何线索知道该重试哪一个。
-func (s *Service) ComposeCollection(ctx context.Context, cmd ComposeCollectionCmd) (*outline.Detail, error) {
-	if !cmd.Actor.IsAdmin() {
+// 两个实体的字段（标题 / 描述 / 封面）与提交顺序完全一致，差异只有
+// "用哪个仓储、拿哪个 ID 当树归属"。把这半段抽出来，两个 Compose 各自只剩
+// 一次 Find + 一次 Update —— 之前两份 30 行只差三行，改一处必然漏另一处。
+type composeFields struct {
+	OwnerKind   outline.OwnerKind
+	OwnerID     outline.ID
+	Title       string
+	Description string
+	Cover       string
+	Nodes       []OutlineInputNode
+	// find 读回实体、retitle/setDescription/setCover 改它、update 落库。
+	//
+	// find / update 收 repos：实体仓储必须来自**当前事务**，不能闭包住外层句柄。
+	find           func(ctx context.Context, repos Repos) error
+	retitle        func(now time.Time) error
+	setDescription func(now time.Time)
+	setCover       func(now time.Time)
+	update         func(ctx context.Context, repos Repos) error
+}
+
+// apply 在一个事务里先写字段、再整树提交，返回提交后的后台树读面。
+func (s *Service) compose(ctx context.Context, actor domain.Viewer, in composeFields) (*outline.Detail, error) {
+	if !actor.IsAdmin() {
 		return nil, domain.ErrForbidden
 	}
 
 	now := s.clock.Now()
 	var detail *outline.Detail
 	err := s.tx.WithinTx(ctx, func(ctx context.Context, repos Repos) error {
-		c, err := repos.Collections().Find(ctx, cmd.ID)
-		if err != nil {
+		if err := in.find(ctx, repos); err != nil {
 			return err
 		}
-		if err := c.Retitle(cmd.Title, now); err != nil {
+		if err := in.retitle(now); err != nil {
 			return err
 		}
-		c.SetDescription(cmd.Description, now)
-		c.SetCover(cmd.Cover, now)
-		if err := repos.Collections().Update(ctx, c); err != nil {
+		in.setDescription(now)
+		in.setCover(now)
+		if err := in.update(ctx, repos); err != nil {
 			return err
 		}
 
 		built, err := s.saveNamedOutlineInTx(ctx, repos, SaveNamedOutlineCmd{
-			Actor:     cmd.Actor,
-			OwnerKind: outline.OwnerCollection,
-			OwnerID:   outline.ID(cmd.ID),
-			Nodes:     cmd.Nodes,
+			Actor:     actor,
+			OwnerKind: in.OwnerKind,
+			OwnerID:   in.OwnerID,
+			Nodes:     in.Nodes,
 		}, now)
 		if err != nil {
 			return err
@@ -355,6 +387,31 @@ func (s *Service) ComposeCollection(ctx context.Context, cmd ComposeCollectionCm
 		return nil
 	})
 	return detail, err
+}
+
+// ComposeCollection 在一个事务里写合集字段与整棵目录树（管理员）。
+//
+// 为什么合成一个端点：编辑弹窗里"改标题 + 拖完树"是一次保存动作。分成两个
+// 请求，任何一个失败都会留下"标题改了但树没改"的半截状态，而用户只点了一次
+// 保存 —— 他没有任何线索知道该重试哪一个。
+func (s *Service) ComposeCollection(ctx context.Context, cmd ComposeCollectionCmd) (*outline.Detail, error) {
+	var entity *collection.Collection
+	return s.compose(ctx, cmd.Actor, composeFields{
+		OwnerKind:   outline.OwnerCollection,
+		OwnerID:     outline.ID(cmd.ID),
+		Title:       cmd.Title,
+		Description: cmd.Description,
+		Cover:       cmd.Cover,
+		Nodes:       cmd.Nodes,
+		find: func(ctx context.Context, repos Repos) (err error) {
+			entity, err = repos.Collections().Find(ctx, cmd.ID)
+			return err
+		},
+		retitle:        func(now time.Time) error { return entity.Retitle(cmd.Title, now) },
+		setDescription: func(now time.Time) { entity.SetDescription(cmd.Description, now) },
+		setCover:       func(now time.Time) { entity.SetCover(cmd.Cover, now) },
+		update:         func(ctx context.Context, repos Repos) error { return repos.Collections().Update(ctx, entity) },
+	})
 }
 
 // ComposeProjectCmd 是项目"字段 + 目录树"的一次原子提交。
@@ -371,39 +428,23 @@ type ComposeProjectCmd struct {
 //
 // 与 ComposeCollection 同构但不共用数据：一篇文章可以同时进两棵树。
 func (s *Service) ComposeProject(ctx context.Context, cmd ComposeProjectCmd) (*outline.Detail, error) {
-	if !cmd.Actor.IsAdmin() {
-		return nil, domain.ErrForbidden
-	}
-
-	now := s.clock.Now()
-	var detail *outline.Detail
-	err := s.tx.WithinTx(ctx, func(ctx context.Context, repos Repos) error {
-		p, err := repos.Projects().Find(ctx, cmd.ID)
-		if err != nil {
+	var entity *project.Project
+	return s.compose(ctx, cmd.Actor, composeFields{
+		OwnerKind:   outline.OwnerProject,
+		OwnerID:     outline.ID(cmd.ID),
+		Title:       cmd.Title,
+		Description: cmd.Description,
+		Cover:       cmd.Cover,
+		Nodes:       cmd.Nodes,
+		find: func(ctx context.Context, repos Repos) (err error) {
+			entity, err = repos.Projects().Find(ctx, cmd.ID)
 			return err
-		}
-		if err := p.Retitle(cmd.Title, now); err != nil {
-			return err
-		}
-		p.SetDescription(cmd.Description, now)
-		p.SetCover(cmd.Cover, now)
-		if err := repos.Projects().Update(ctx, p); err != nil {
-			return err
-		}
-
-		built, err := s.saveNamedOutlineInTx(ctx, repos, SaveNamedOutlineCmd{
-			Actor:     cmd.Actor,
-			OwnerKind: outline.OwnerProject,
-			OwnerID:   outline.ID(cmd.ID),
-			Nodes:     cmd.Nodes,
-		}, now)
-		if err != nil {
-			return err
-		}
-		detail = built
-		return nil
+		},
+		retitle:        func(now time.Time) error { return entity.Retitle(cmd.Title, now) },
+		setDescription: func(now time.Time) { entity.SetDescription(cmd.Description, now) },
+		setCover:       func(now time.Time) { entity.SetCover(cmd.Cover, now) },
+		update:         func(ctx context.Context, repos Repos) error { return repos.Projects().Update(ctx, entity) },
 	})
-	return detail, err
 }
 
 // PublicGroupTree 是读者侧的分组读面（票 353）。

@@ -178,8 +178,10 @@ describe("canary：四份组件里只改一端必须红，并点名是哪一对"
     const result = checkImageCropParity({ repoRoot: join(projectDir, "test/utils/__missing") });
 
     expect(result.ok).toBe(false);
-    // 三对副本 × 两端 = 6 个缺失（票 354 把 MetricCard 也纳进这张表）。
+    // 四对副本 × 两端 = 8 个缺失（票 354 纳入 MetricCard，票 349 评审纳入 motion）。
     expect(result.failures.map((failure: { kind: string }) => failure.kind)).toEqual([
+      "image-crop-file-missing",
+      "image-crop-file-missing",
       "image-crop-file-missing",
       "image-crop-file-missing",
       "image-crop-file-missing",

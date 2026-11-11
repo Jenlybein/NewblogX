@@ -11,7 +11,7 @@
  * 树里没有的（新建成还没进过分组）落到"未分组"，并接在未分组末尾 ——
  * 它们不该因为"没有归属行"就消失。
  */
-import { computed, ref, shallowRef } from 'vue'
+import { ref, shallowRef } from 'vue'
 import { useSortPersist } from '~/composables/useSortPersist'
 import type { GroupedCardItem, GroupedGroup } from '~/components/articles/GroupedEntityGrid.vue'
 import type { GroupTreeData } from '~/types/api'
@@ -128,17 +128,13 @@ export function useEntityGroups(options: UseEntityGroupsOptions) {
     sortPersist.markDirty()
   }
 
-  /** 分组变了（建 / 改名 / 删）要立刻重新归位，不等防抖。 */
-  async function reloadAfterGroupChange() {
-    await refresh()
-  }
+
 
   /** 离开页面前把待提交的顺序发出去。 */
   async function flushOrder() {
     await sortPersist.flush()
   }
 
-  const groupTitles = computed(() => groups.value.map(g => g.title))
 
   return {
     cards,
@@ -146,11 +142,9 @@ export function useEntityGroups(options: UseEntityGroupsOptions) {
     ungrouped,
     loading,
     tree,
-    groupTitles,
     sortState: sortPersist.state,
     refresh,
     markOrderDirty,
-    reloadAfterGroupChange,
     flushOrder,
     currentOrder,
     applyTree,

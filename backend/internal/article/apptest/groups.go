@@ -2,6 +2,7 @@ package apptest
 
 import (
 	"context"
+	"time"
 
 	"myblogx/internal/article/domain/grouping"
 	"myblogx/internal/article/domain/outline"
@@ -88,7 +89,7 @@ func (f *FakeGroups) SaveGroup(_ context.Context, g *grouping.Group) error {
 }
 
 // DeleteGroup 删分组，并把它的条目退回未分组。
-func (f *FakeGroups) DeleteGroup(_ context.Context, id grouping.ID) error {
+func (f *FakeGroups) DeleteGroup(_ context.Context, id grouping.ID, _ time.Time) error {
 	for i, g := range f.groups {
 		if g.ID() != id {
 			continue
@@ -124,7 +125,7 @@ func (f *FakeGroups) ListAssignments(_ context.Context) ([]grouping.Assignment, 
 }
 
 // ReplaceOrder 整份覆盖分组顺序与条目归属。
-func (f *FakeGroups) ReplaceOrder(_ context.Context, tree grouping.TreeOrder) error {
+func (f *FakeGroups) ReplaceOrder(_ context.Context, tree grouping.TreeOrder, _ time.Time) error {
 	// 分组顺序：数组位置即新顺序。
 	byID := make(map[grouping.ID]*grouping.Group, len(f.groups))
 	for _, g := range f.groups {

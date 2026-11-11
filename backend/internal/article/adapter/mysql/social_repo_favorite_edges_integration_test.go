@@ -325,7 +325,7 @@ func TestDeleteItemsByArticleRecountsFolders(t *testing.T) {
 	}
 
 	repo := mysql.NewFavoriteRepo(db)
-	if err := repo.DeleteItemsByArticle(context.Background(), domain.ArticleID(ctype.NewID(8_501))); err != nil {
+	if err := repo.DeleteItemsByArticle(context.Background(), domain.ArticleID(ctype.NewID(8_501)), at); err != nil {
 		t.Fatalf("删文章收藏失败: %v", err)
 	}
 

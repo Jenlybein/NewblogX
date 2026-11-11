@@ -14,8 +14,9 @@ import { collectionCardView } from "~/utils/collection";
  * 可见性完全由后端决定：只返回"展示中"的合集，且已过滤掉没有公开文章的合集。
  * 前端不重复判断——两处判据一旦分叉，就会出现"列表里有卡片、点进去 404"。
  *
- * 卡片是文件夹形态（票 293）：网格与卡片都由共用组件 `FolderCardList` 提供，
- * 本页不再自带卡片样式——项目列表页用同一份实现。
+ * 卡片是文件夹形态（票 293）：网格与卡片都由共用组件 `FolderCardList` 提供；
+ * 票 353 起外面再套一层 `GroupedReaderList`（按分组分段，未分组作为尾块），
+ * 本页仍不自带任何卡片或网格样式。
  */
 const { data, pending, error } = await useAsyncData(
   "reader-collections",

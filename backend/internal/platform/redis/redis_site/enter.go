@@ -5,6 +5,7 @@ import (
 	"crypto/sha1"
 	"encoding/hex"
 	"myblogx/internal/platform/redis"
+	"myblogx/internal/platform/timezone"
 	"strconv"
 	"strings"
 	"time"
@@ -21,8 +22,15 @@ const (
 	siteFlowDailyKey = "blog_site_flow:daily:v2"
 	// siteFlowSeenKeyPrefix 是"这一天见过哪些访客"的去重集合。
 	siteFlowSeenKeyPrefix = "blog_site_flow:seen:"
-	maxDailyFlowDays      = 30
+	// MaxDailyFlowDays 是按天访问量的保留期。
+	//
+	// 导出是因为统计读面也要用它：概览里"窗口内访问"只能覆盖这么多天，
+	// 两处各写一个 30 迟早会漂，而漂了之后"今年访问"会静默只算 30 天。
+	MaxDailyFlowDays = 30
 )
+
+// maxDailyFlowDays 保留内部短名，读起来更顺（导出名只给跨包用）。
+const maxDailyFlowDays = MaxDailyFlowDays
 
 // DateCountItem 是"某天有多少次访问"。
 type DateCountItem struct {
@@ -34,16 +42,7 @@ type DateCountItem struct {
 //
 // 固定东八区而不是服务器本地时区：站点面向中文读者，服务器跑在 UTC 时
 // 用本地时区切天，用户在凌晨 0–8 点看到的"今天"其实是昨天。
-var flowTimezone = mustLoadLocation("Asia/Shanghai")
-
-func mustLoadLocation(name string) *time.Location {
-	loc, err := time.LoadLocation(name)
-	if err != nil {
-		// 没有 tzdata 时退回固定偏移：宁可差一次夏令时，也不能让统计整体崩掉。
-		return time.FixedZone("CST", 8*3600)
-	}
-	return loc
-}
+var flowTimezone = timezone.Shanghai()
 
 // crawlerUserAgents 是爬虫 / 监控的特征串（小写匹配）。
 //

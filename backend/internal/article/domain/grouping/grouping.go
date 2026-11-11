@@ -38,6 +38,12 @@ var (
 	ErrNotFound = apperr.New(apperr.CodeGroupNotFound)
 	// ErrOrderMismatch 整树顺序提交与当前集合不一致。
 	ErrOrderMismatch = apperr.New(apperr.CodeGroupOrderMismatch)
+	// ErrWiring 装配层没有提供分组仓储。
+	//
+	// 单独一个错误码而不是复用 ErrNotFound：那是"这个分组不存在"（用户能理解、
+	// 刷新一下就好），这是"服务端少装了一个端口"（要人修）。两者混在一起会让
+	// 装配 bug 在线上表现成 1001「分组不存在」，查起来毫无线索。
+	ErrWiring = apperr.New(apperr.CodeGroupWiring)
 )
 
 // Group 是一个分组。
@@ -256,7 +262,7 @@ type Repository interface {
 	// DeleteGroup 软删分组，并把它下面的条目移回未分组。
 	//
 	// **不删条目本身**：分组只是编排，删掉分组不该让合集 / 项目消失。
-	DeleteGroup(ctx context.Context, id ID) error
+	DeleteGroup(ctx context.Context, id ID, now time.Time) error
 
 	// ListAssignments 返回全部条目的归属与组内顺序。
 	//
@@ -267,5 +273,5 @@ type Repository interface {
 	//
 	// 幂等：同一份输入重复提交结果相同。集合一致性由 CheckOrder 保证，
 	// 本方法只负责落库。
-	ReplaceOrder(ctx context.Context, tree TreeOrder) error
+	ReplaceOrder(ctx context.Context, tree TreeOrder, now time.Time) error
 }

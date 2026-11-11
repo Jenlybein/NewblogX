@@ -28,9 +28,16 @@ func (h *Handler) SumView(c *gin.Context) {
 	now := time.Now().In(statsTimezone)
 
 	// range 只影响"新增"那两个数字的起点（票 349）：累计数（用户 / 文章 / 消息 /
-	// 评论 / 累计访问）与窗口无关，它们本来就是全量。默认 week 与旧行为
-	// （今天 0 点起）不同，所以注释里写清：概览页的两个访问 KPI 都按窗口看。
-	window := windowOf(cr.Range, now)
+	// 评论 / 累计访问）与窗口无关，它们本来就是全量。
+	//
+	// **默认仍是"今天"**：这个端点在票 349 之前就是"今日新增"，改默认值等于
+	// 静默改了一个既有端点的语义（页面上"今日新增注册"会变成本周数字）。
+	// 想按窗口看的调用方显式传 range。
+	rng := cr.Range
+	if rng == "" {
+		rng = "today"
+	}
+	window := windowOf(rng, now)
 	data.Range = window.Range
 
 	summary, err := h.stats.Summary(reqCtx(c), window.Start)

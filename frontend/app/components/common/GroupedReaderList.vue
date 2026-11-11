@@ -20,9 +20,17 @@ const props = withDefaults(defineProps<{
   /** 分组读面；为空（还没加载 / 老数据）时退回"一整个平铺网格"。 */
   groups?: GroupTreeData | null
   label?: string
+  /**
+   * 列表容器的 data 标记（两个调用方各自的观测点）。
+   *
+   * 之前写死 `data-collection-list`，项目页因此静默丢了自己的标记 ——
+   * 这种"共用组件把调用方的身份写死"的问题在 e2e 里才会暴露。
+   */
+  listRole?: string
 }>(), {
   groups: null,
   label: '专题',
+  listRole: 'collection',
 })
 
 /** 把卡片按分组归位；分组里没有卡片的段整段不渲染。 */
@@ -69,12 +77,12 @@ const sections = computed(() => {
         <h2 class="grouped-reader-list__title">{{ section.title }}</h2>
         <span class="grouped-reader-list__count">{{ section.cards.length }} 个{{ label }}</span>
       </header>
-      <FolderCardList :cards="section.cards" data-collection-list="true" />
+      <FolderCardList :cards="section.cards" :data-collection-list="listRole === 'collection' ? 'true' : undefined" :data-project-list="listRole === 'project' ? 'true' : undefined" />
     </section>
 
     <!-- 尾块没有标题：读者侧不出现「未分组」这种说法。 -->
     <section v-if="sections.trailing.length" class="grouped-reader-list__section" data-role="reader-group-trailing">
-      <FolderCardList :cards="sections.trailing" data-collection-list="true" />
+      <FolderCardList :cards="sections.trailing" :data-collection-list="listRole === 'collection' ? 'true' : undefined" :data-project-list="listRole === 'project' ? 'true' : undefined" />
     </section>
   </div>
 </template>

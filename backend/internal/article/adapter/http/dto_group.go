@@ -1,10 +1,7 @@
 package http
 
 import (
-	"strings"
-
 	"myblogx/internal/article/app"
-	"myblogx/internal/article/domain/outline"
 	"myblogx/internal/kernel/ctype"
 )
 
@@ -94,17 +91,4 @@ func toGroupTreeResponse(tree *app.GroupTree) GroupTreeResponse {
 	return out
 }
 
-// outlineKindOf 把请求路径翻译成树归属。
-//
-// 只认两个具名实体：分组表是成对的，多一个 kind 就意味着要多一对表。
-// 用路径包含判断而不是等值比较：调用方传的是完整 URL 路径。
-func outlineKindOf(path string) (outline.OwnerKind, bool) {
-	switch {
-	case strings.Contains(path, "/collections/"):
-		return outline.OwnerCollection, true
-	case strings.Contains(path, "/projects/"):
-		return outline.OwnerProject, true
-	default:
-		return 0, false
-	}
-}
+

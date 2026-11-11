@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { MOTION_EXPRESSIVE_MS } from '~/utils/motion'
 /**
  * 合集 / 项目分组网格（票 348，两个页面共用一份）。
  *
@@ -105,7 +106,7 @@ function onDrop() {
         v-show="!draggingGroup"
         v-model="props.ungrouped"
         class="collection-grid"
-        :animation="160"
+        :animation="MOTION_EXPRESSIVE_MS.dragSettle"
         group="grouped-cards"
         ghost-class="collection-card--ghost"
         :data-role="`${kind}-ungrouped-cards`"
@@ -147,7 +148,7 @@ function onDrop() {
     <VueDraggable
       v-model="props.groups"
       class="grouped-grid__groups"
-      :animation="160"
+      :animation="MOTION_EXPRESSIVE_MS.dragSettle"
       handle=".grouped-grid__grip"
       ghost-class="grouped-grid__section--ghost"
       :data-role="`${kind}-group-list`"
@@ -182,7 +183,7 @@ function onDrop() {
           v-show="!draggingGroup"
           v-model="group.items"
           class="collection-grid"
-          :animation="160"
+          :animation="MOTION_EXPRESSIVE_MS.dragSettle"
           group="grouped-cards"
           ghost-class="collection-card--ghost"
           :data-role="`${kind}-group-cards-${group.id}`"

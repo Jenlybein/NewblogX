@@ -2,7 +2,6 @@ package app
 
 import (
 	"context"
-	"time"
 
 	"myblogx/internal/article/domain"
 )
@@ -90,20 +89,4 @@ func (s *Service) StudioStats(ctx context.Context, viewer domain.Viewer) (*Studi
 		}
 	}
 	return out, nil
-}
-
-// StudioActivityDay 是热力图的一天（导出给适配层与测试用）。
-type StudioActivityDay struct {
-	// Day 是 `YYYY-MM-DD`（按 Asia/Shanghai 切天）。
-	Day string
-	// Count 是当天的创作动作数。
-	Count int
-}
-
-// StudioStatsSince 返回热力图的起始时刻（本地时区的当天零点往前推）。
-//
-// 单独抽出来是为了让"90 天"这个口径只有一份：HTTP 层、适配层与用例层都用它。
-func StudioStatsSince(now time.Time) time.Time {
-	y, m, d := now.Date()
-	return time.Date(y, m, d, 0, 0, 0, 0, now.Location()).AddDate(0, 0, -(StudioStatsDays - 1))
 }

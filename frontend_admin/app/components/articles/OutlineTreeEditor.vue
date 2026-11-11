@@ -411,7 +411,19 @@ function nodes() {
   return buildOutlineNodes(rows.value)
 }
 
-defineExpose({ save, dirty, nodes, hasDirty: () => dirty.value })
+/**
+ * 供嵌入方在整份保存成功后复位脏标记。
+ *
+ * 两栏弹窗走的是 compose（字段 + 树一次提交），不经过树自己的 save()，
+ * 所以脏标记要由调用方显式复位 —— 否则「有未保存的改动」会在保存成功后
+ * 一直挂着，用户以为没存上。
+ */
+function markSaved() {
+  dirty.value = false
+  includedCount.value = 0
+}
+
+defineExpose({ save, dirty, nodes, markSaved, hasDirty: () => dirty.value })
 </script>
 
 <template>

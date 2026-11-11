@@ -14,6 +14,7 @@
  *  - 标签在上、数字在下：数字是主角，标签是注解。
  */
 import { computed, onMounted, ref, watch } from 'vue'
+import { MOTION_EXPRESSIVE_MS } from '~/utils/motion'
 
 const props = withDefaults(defineProps<{
   /** 指标名（一行，长文案会被截断）。 */
@@ -48,7 +49,7 @@ function animateTo(target: number) {
     shown.value = target
     return
   }
-  const duration = 520
+  const duration = MOTION_EXPRESSIVE_MS.countUp
   const start = performance.now()
   const step = (now: number) => {
     const progress = Math.min((now - start) / duration, 1)

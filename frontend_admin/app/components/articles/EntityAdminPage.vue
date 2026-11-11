@@ -88,7 +88,7 @@ async function submitGroup() {
     groupEditorOpen.value = false
     message.success(editingGroupId.value ? '分组已改名' : '分组已新建')
     // 分组 CRUD 立即生效：马上重新归位，不等拖拽的 10 秒防抖。
-    await groups.reloadAfterGroupChange()
+    await groups.refresh()
   } catch (error) {
     message.error(error instanceof Error ? error.message : '分组保存失败')
   } finally {
@@ -106,7 +106,7 @@ function removeGroup(group: GroupedGroup) {
       try {
         await deleteAdminGroup(props.kind, group.id)
         message.success('分组已删除，组内内容退回未分组')
-        await groups.reloadAfterGroupChange()
+        await groups.refresh()
       } catch (error) {
         message.error(error instanceof Error ? error.message : '删除分组失败')
       }

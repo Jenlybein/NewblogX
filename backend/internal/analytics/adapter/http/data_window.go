@@ -2,6 +2,8 @@ package http
 
 import (
 	"time"
+
+	"myblogx/internal/platform/timezone"
 )
 
 // 本文件是站点数据概览的"时间窗"口径（票 349）。
@@ -13,16 +15,10 @@ import (
 //  3. 空值 / 不认识的值一律回落到 week：概览页默认看一周，比"报错"更符合直觉。
 
 // statsTimezone 是统计的时间边界。
-var statsTimezone = loadStatsLocation()
-
-func loadStatsLocation() *time.Location {
-	loc, err := time.LoadLocation("Asia/Shanghai")
-	if err != nil {
-		// 没有 tzdata 时退回固定偏移：宁可差一次夏令时，也不能让整页统计崩掉。
-		return time.FixedZone("CST", 8*3600)
-	}
-	return loc
-}
+//
+// 取 platform/timezone 的唯一实现：这条规则原本在四处各写一份（含各自的
+// tzdata 兜底），任意一份改坏就会让页面上的日期错一天。
+var statsTimezone = timezone.Shanghai()
 
 // statsRanges 是 `range` 的合法取值。
 var statsRanges = map[string]struct{}{

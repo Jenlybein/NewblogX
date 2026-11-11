@@ -2962,3 +2962,106 @@ html {
   font-size: 0.6875rem;
   color: var(--color-ink-faint);
 }
+/* 收藏夹选择行（票 345）：两行紧凑行 + 右侧圆形 ＋/✓。
+ *
+ * 之前每个夹子是一张 640px 大卡（标题 + 两行说明 + 文字按钮），一屏只能看到
+ * 三四个；改成两行之后一屏能看十几个，而且"收/移"变成一次点击而不是读一段文案。 */
+.favorite-chooser-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--color-line-faint);
+  transition: background-color var(--motion-fast) var(--motion-ease);
+}
+
+.favorite-chooser-row:last-child {
+  border-bottom: 0;
+}
+
+.favorite-chooser-row:hover {
+  background: var(--color-bg-subtle);
+}
+
+.favorite-chooser-row__body {
+  min-width: 0;
+  flex: 1;
+}
+
+.favorite-chooser-row__line {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  min-width: 0;
+}
+
+.favorite-chooser-row__title {
+  font-size: 0.875rem;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.favorite-chooser-row__badge {
+  flex: 0 0 auto;
+  padding: 0 6px;
+  font-size: 0.6875rem;
+  line-height: 1.6;
+  color: var(--color-ink-muted);
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-pill);
+}
+
+/* 篇数贴在这一行的最右边（与标题同一基线）。 */
+.favorite-chooser-row__count {
+  margin-left: auto;
+  flex: 0 0 auto;
+  font-size: 0.6875rem;
+  font-variant-numeric: tabular-nums;
+  color: var(--color-ink-muted);
+}
+
+.favorite-chooser-row__abstract {
+  margin: 2px 0 0;
+  font-size: 0.75rem;
+  line-height: 1.5;
+  color: var(--color-ink-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* 圆形 ＋/✓：已收藏是实心墨底，未收藏是描边。 */
+.favorite-chooser-row__toggle {
+  flex: 0 0 auto;
+  width: 28px;
+  height: 28px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.875rem;
+  line-height: 1;
+  color: var(--color-ink);
+  background: var(--color-surface);
+  border: 1px solid var(--color-line-strong);
+  border-radius: var(--radius-pill);
+  cursor: pointer;
+  transition: background-color var(--motion-fast) var(--motion-ease),
+    color var(--motion-fast) var(--motion-ease);
+}
+
+.favorite-chooser-row__toggle:hover {
+  background: var(--color-bg-subtle);
+}
+
+.favorite-chooser-row__toggle.is-included {
+  color: var(--color-surface);
+  background: var(--color-ink);
+  border-color: var(--color-ink);
+}
+
+.favorite-chooser-row__toggle:disabled {
+  cursor: progress;
+  opacity: 0.6;
+}

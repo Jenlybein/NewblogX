@@ -28,14 +28,31 @@ import (
 //	PUT    /<kind>/groups/order    整树顺序整份覆盖（幂等）
 //	PUT    /<kind>/:id/compose     字段 + 目录树一次原子提交
 
-// groupKind 从请求路径取实体归属。
+// groupKind 取本端点所属的实体。
 //
-// 为什么不走路径参数：两个实体各自挂在自己的路由组下（/collections/... 与
-// /projects/...），没有 :kind 这一段；为了拿到它去改路由结构，会让"分组"变成
-// 一个需要额外解释的前缀。路径前缀是确定性的，也不认识别的实体就返回 false
-// （不猜默认值）。
+// 由路由注册时绑进上下文（见 router.go 的 bindKind）：**不靠路径字符串猜**——
+// 用 `strings.Contains(path, "/collections/")` 决定写哪张表，等于让 URL 形状
+// 变成数据路由的一部分，改一次路径就静默写错表。
 func groupKind(c *gin.Context) (outline.OwnerKind, bool) {
-	return outlineKindOf(c.Request.URL.Path)
+	raw, ok := c.Get(kindContextKey)
+	if !ok {
+		return 0, false
+	}
+	kind, ok := raw.(outline.OwnerKind)
+	return kind, ok
+}
+
+// kindContextKey 是"本端点属于哪个实体"在 gin 上下文里的键。
+const kindContextKey = "article.grouping.kind"
+
+// BindKind 返回一个把实体归属绑进上下文、再交给 handler 的中间件。
+//
+// 路由注册时一个端点绑一次，handler 里不再关心自己挂在哪个前缀下。
+func BindKind(kind outline.OwnerKind, h gin.HandlerFunc) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		c.Set(kindContextKey, kind)
+		h(c)
+	}
 }
 
 // GroupTreeView 后台分组读面。

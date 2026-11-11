@@ -57,6 +57,12 @@ export const IMAGE_CROP_FILES = {
     reader: "frontend/app/components/studio/MetricCard.vue",
     admin: "frontend_admin/app/components/media/MetricCard.vue",
   },
+  // 动效预算（票 349 评审）：两端各一份，且必须是同一份 —— 组件从这里取
+  // 表达型时长预设，任一端私自加一个数字就会让"同一个动效两页不同节奏"。
+  motion: {
+    reader: "frontend/app/utils/motion.ts",
+    admin: "frontend_admin/app/utils/motion.ts",
+  },
 };
 
 /** 从工作目录向上找到仓库根（含 scripts/ 与两端 imageShaping 的目录）。 */
@@ -219,6 +225,7 @@ const IMAGE_CROP_LABELS = {
   view: "ImageCropView 裁剪窗组件",
   dialog: "ImageCropDialog 裁剪窗弹层",
   metricCard: "MetricCard 指标卡",
+  motion: "motion 动效预算",
 };
 
 /**
@@ -317,7 +324,8 @@ function runCli(argv) {
     console.log(
       `✓ 两端同源副本门禁通过（ImageCropView ${crop.files.view.reader} 字节 × 2 份、` +
         `ImageCropDialog ${crop.files.dialog.reader} 字节 × 2 份、` +
-        `MetricCard ${crop.files.metricCard.reader} 字节 × 2 份，逐字节一致）`,
+        `MetricCard ${crop.files.metricCard.reader} 字节 × 2 份、` +
+        `motion ${crop.files.motion.reader} 字节 × 2 份，逐字节一致）`,
     );
   } else {
     ok = false;

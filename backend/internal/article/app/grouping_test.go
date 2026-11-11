@@ -116,6 +116,10 @@ func TestDeleteGroupMovesItemsToUngrouped(t *testing.T) {
 	if err != nil {
 		t.Fatalf("新建失败: %v", err)
 	}
+	// 归属行指向真实存在的合集：读面会滤掉"实体已删、归属行还在"的幽灵 ID。
+	for _, id := range []uint64{11, 12} {
+		seedCollectionForGrouping(t, repos, id)
+	}
 	repos.FakeGroups().SeedAssignment(ownerID(11), g.ID(), 1)
 	repos.FakeGroups().SeedAssignment(ownerID(12), g.ID(), 2)
 

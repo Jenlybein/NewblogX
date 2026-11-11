@@ -255,7 +255,7 @@ func (r *FavoriteRepo) DeleteItem(_ context.Context, articleID domain.ArticleID,
 }
 
 // DeleteItemsByArticle 删除某文章的全部收藏。
-func (r *FavoriteRepo) DeleteItemsByArticle(_ context.Context, articleID domain.ArticleID) error {
+func (r *FavoriteRepo) DeleteItemsByArticle(_ context.Context, articleID domain.ArticleID, _ time.Time) error {
 	r.count.inc("DeleteItemsByArticle")
 	if err := r.fault.take("DeleteItemsByArticle"); err != nil {
 		return err
@@ -719,3 +719,4 @@ func cloneTask(t *review.Task) *review.Task {
 		CreatedAt:     t.CreatedAt(),
 	})
 }
+

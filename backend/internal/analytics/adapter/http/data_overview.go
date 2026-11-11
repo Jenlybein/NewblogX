@@ -5,6 +5,7 @@ import (
 
 	"myblogx/internal/platform/http/middleware"
 	"myblogx/internal/platform/http/res"
+	"myblogx/internal/platform/redis/redis_site"
 
 	"github.com/gin-gonic/gin"
 	// 供 swag 注解里的 kernel.Envelope 解析用（代码里不直接引用）。
@@ -20,12 +21,11 @@ import (
 //
 // 口径统一按 Asia/Shanghai 切天（见 data_window.go）。
 
-// flowRetentionDays 是访问量按天哈希的保留期（与 redis_site.maxDailyFlowDays 同口径）。
+// flowRetentionDays 取 Redis 计数侧的保留期，不在这里另写一个 30。
 //
-// 这里写常量而不是 import：analytics 的 HTTP 层不该为了一个数字去认识
-// Redis 适配器的内部常量；两边都以"30 天"为准，改一处要同时改另一处，
-// 所以注释里点名了来源。
-const flowRetentionDays = 30
+// 之前两处各写一遍并靠注释提醒"改一处要同时改另一处"——这种提醒没有强制力，
+// 漂了之后"今年访问"会静默只算 30 天而看不出错。
+const flowRetentionDays = redis_site.MaxDailyFlowDays
 
 // OverviewRequest 是概览的查询参数。
 type OverviewRequest struct {
@@ -53,7 +53,6 @@ type OverviewResponse struct {
 	NewUsers int `json:"new_users"`
 	// NewArticles 是窗口内发布的文章数。
 	NewArticles int `json:"new_articles"`
-
 }
 
 // OverviewView 站点概览补充计数（管理员）。

@@ -68,6 +68,7 @@ var protocols = map[Code]ProtocolKind{
 	CodeGroupTitleTooLong:    ProtocolValidation,
 	CodeGroupNotFound:        ProtocolValidation,
 	CodeGroupOrderMismatch:   ProtocolValidation,
+
 }
 
 // ProtocolOf 从错误值取协议类别。

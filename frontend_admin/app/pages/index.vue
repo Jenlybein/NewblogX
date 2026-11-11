@@ -52,6 +52,7 @@ function noteOf(range: DataRange) {
 }
 
 const sum = ref<SumResponseData>({
+  range: 'today',
   flow_count: 0,
   user_count: 0,
   article_count: 0,
@@ -132,7 +133,7 @@ async function refresh() {
     yearResult, reviewResult, actionResult, topResult,
     trendResult, aiResult,
   ] = await Promise.allSettled([
-    getDashboardSum(),
+    getDashboardSum('today'),
     getDataOverview('week'),
     getGrowthData(1, 'week'),
     getGrowthData(2, 'week'),

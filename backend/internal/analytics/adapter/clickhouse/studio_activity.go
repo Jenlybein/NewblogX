@@ -4,6 +4,8 @@ import (
 	"context"
 	"fmt"
 	"time"
+
+	"myblogx/internal/platform/timezone"
 )
 
 // DailyActivityCount 是"某一天有几次创作动作"。
@@ -15,12 +17,6 @@ type DailyActivityCount struct {
 
 // actionAuditTimeLayout 与写入侧同一份时间格式。
 const actionAuditTimeLayout = "2006-01-02 15:04:05"
-
-// studioActivityTimezone 是"天"的边界。
-//
-// 用固定时区而不是服务器本地时区：个人数据概览的热力图是给人看的"今天做了多少"，
-// 服务器跑在 UTC 时如果用 UTC 切天，东八区用户在凌晨 0–8 点看到的"今天"其实是昨天。
-const studioActivityTimezone = "Asia/Shanghai"
 
 // CountDailyStudioActivity 统计某用户最近 days 天里每天的操作审计条数。
 //
@@ -37,7 +33,11 @@ func CountDailyStudioActivity(opts Options, userID uint64, days int) ([]DailyAct
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	since := time.Now().AddDate(0, 0, -days)
+	// 起点取统计时区里"今天零点"往前 days-1 天：与热力图的格子一一对应。
+	// 用 timezone.StartOfDay 而不是 time.Now().AddDate(...)：后者按服务器本地时区
+	// 算，跑在 UTC 时会让首尾两天错位。
+	today := timezone.StartOfDay(time.Now())
+	since := today.AddDate(0, 0, -(days - 1))
 	sqlText := fmt.Sprintf(`
 SELECT toDate(ts, ?) AS day, count() AS c
 FROM %s
@@ -47,7 +47,7 @@ GROUP BY day
 ORDER BY day ASC`, ActionAuditLogTableName)
 
 	rows, err := opts.ClickHouse.QueryContext(ctx, sqlText,
-		studioActivityTimezone, userID, since.Format(actionAuditTimeLayout))
+		timezone.Name, userID, since.Format(actionAuditTimeLayout))
 	if err != nil {
 		return nil, err
 	}

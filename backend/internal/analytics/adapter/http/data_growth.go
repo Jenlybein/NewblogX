@@ -3,7 +3,6 @@ package http
 import (
 	"time"
 
-	"myblogx/internal/analytics/domain"
 	"myblogx/internal/platform/http/middleware"
 	"myblogx/internal/platform/http/res"
 
@@ -109,6 +108,3 @@ func (h *Handler) flowSeries(window statsWindow) []DateCountItem {
 	}
 	return out
 }
-
-// 让 domain 包被使用：flowSeries 的注释里说明了 FlowPoint 的来源。
-var _ = domain.FlowPoint{}

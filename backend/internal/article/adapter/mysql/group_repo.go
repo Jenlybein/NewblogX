@@ -8,6 +8,7 @@ import (
 	"myblogx/internal/kernel/ctype"
 
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 // 本文件是两个实体共用的分组存储实现。
@@ -111,22 +112,16 @@ func (r *GroupRepo) FindGroup(ctx context.Context, id grouping.ID) (*grouping.Gr
 }
 
 // SaveGroup 插入或更新一行分组。
+//
+// 用 `ON DUPLICATE KEY UPDATE` 一步做完，而不是"先 UPDATE、看 RowsAffected 再决定
+// 要不要 INSERT"：MySQL 默认只统计**真正改变**的行数，所以把同样的内容再存一次
+// 会得到 RowsAffected=0，被误判成"这行不存在"，接着 INSERT 撞主键 ——
+// 幂等承诺（ADR-0041 决策 4）就是这么破的。
 func (r *GroupRepo) SaveGroup(ctx context.Context, g *grouping.Group) error {
-	db := r.db.WithContext(ctx)
-	updated := db.Table(r.tables.groups).
-		Where("id = ?", ctype.ID(g.ID())).
-		Updates(map[string]any{
-			"title":      g.Title(),
-			"sort_order": g.SortOrder(),
-			"updated_at": g.UpdatedAt(),
-		})
-	if updated.Error != nil {
-		return updated.Error
-	}
-	if updated.RowsAffected > 0 {
-		return nil
-	}
-	return db.Table(r.tables.groups).Create(map[string]any{
+	return r.db.WithContext(ctx).Table(r.tables.groups).Clauses(clause.OnConflict{
+		Columns:   []clause.Column{{Name: "id"}},
+		DoUpdates: clause.AssignmentColumns([]string{"title", "sort_order", "updated_at"}),
+	}).Create(map[string]any{
 		"id":         ctype.ID(g.ID()),
 		"created_at": g.CreatedAt(),
 		"updated_at": g.UpdatedAt(),
@@ -139,9 +134,8 @@ func (r *GroupRepo) SaveGroup(ctx context.Context, g *grouping.Group) error {
 //
 // 两步在同一个事务里：只软删分组而不动条目，那些条目会指向一个不存在的分组，
 // 读面既不在任何分组里、也不在未分组里 —— 界面上直接消失。
-func (r *GroupRepo) DeleteGroup(ctx context.Context, id grouping.ID) error {
+func (r *GroupRepo) DeleteGroup(ctx context.Context, id grouping.ID, now time.Time) error {
 	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		now := time.Now()
 		if err := tx.Table(r.tables.items).
 			Where("group_id = ?", ctype.ID(id)).
 			Updates(map[string]any{"group_id": ctype.ID(""), "updated_at": now}).Error; err != nil {
@@ -157,7 +151,7 @@ func (r *GroupRepo) DeleteGroup(ctx context.Context, id grouping.ID) error {
 func (r *GroupRepo) ListAssignments(ctx context.Context) ([]grouping.Assignment, error) {
 	var rows []groupItemRow
 	if err := r.db.WithContext(ctx).Table(r.tables.items).
-		Select("group_id, "+r.tables.ownerColumn+" AS owner_id, sort_order").
+		Select("group_id, " + r.tables.ownerColumn + " AS owner_id, sort_order").
 		Where("deleted_at IS NULL").
 		Order("group_id asc, sort_order asc, id asc").
 		Scan(&rows).Error; err != nil {
@@ -178,9 +172,8 @@ func (r *GroupRepo) ListAssignments(ctx context.Context) ([]grouping.Assignment,
 //
 // 幂等：每次都是"先按提交算出每行应有的 group_id/sort_order，再逐行 upsert"。
 // 条目行不存在就插入（第一次把某个合集拖进分组时就是这样），存在就更新。
-func (r *GroupRepo) ReplaceOrder(ctx context.Context, tree grouping.TreeOrder) error {
+func (r *GroupRepo) ReplaceOrder(ctx context.Context, tree grouping.TreeOrder, now time.Time) error {
 	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		now := time.Now()
 
 		// 分组顺序：第 0 个拿最大序号？不需要——读面是 sort_order asc，
 		// 所以第 0 个拿 1、依次递增，与列表顺序一致。
@@ -207,28 +200,26 @@ func (r *GroupRepo) ReplaceOrder(ctx context.Context, tree grouping.TreeOrder) e
 }
 
 // upsertItem 把一条条目落到指定分组与位置。
+//
+// 同样走 `ON DUPLICATE KEY UPDATE`（唯一键在实体列上）：用"先 UPDATE 看
+// RowsAffected 再 INSERT"会在**内容没变**时把已有行当成不存在（MySQL 只统计
+// 真正改变的行数），于是重复提交同一份顺序就撞唯一键 —— 而整树换序的幂等
+// 正是 ADR-0041 决策 4 承诺的东西。
+//
+// `deleted_at` 一并清空：唯一键覆盖软删行，一条软删的归属行会吞掉这次写入
+// 并对 ListAssignments（deleted_at IS NULL）继续不可见 —— 与 #344 的收藏夹
+// 复活是同一个失败形状。
 func (r *GroupRepo) upsertItem(tx *gorm.DB, owner ctype.ID, groupID grouping.ID, order int, now time.Time) error {
-	updated := tx.Table(r.tables.items).
-		Where(r.tables.ownerColumn+" = ?", owner).
-		Updates(map[string]any{
-			"group_id":   ctype.ID(groupID),
-			"sort_order": order,
-			"updated_at": now,
-		})
-	if updated.Error != nil {
-		return updated.Error
-	}
-	if updated.RowsAffected > 0 {
-		return nil
-	}
-
-	row := map[string]any{
-		"id":         r.nextID(),
-		"created_at": now,
-		"updated_at": now,
-		"group_id":   ctype.ID(groupID),
-		"sort_order": order,
+	return tx.Table(r.tables.items).Clauses(clause.OnConflict{
+		Columns:   []clause.Column{{Name: r.tables.ownerColumn}},
+		DoUpdates: clause.AssignmentColumns([]string{"group_id", "sort_order", "updated_at", "deleted_at"}),
+	}).Create(map[string]any{
+		"id":                 r.nextID(),
+		"created_at":         now,
+		"updated_at":         now,
+		"group_id":           ctype.ID(groupID),
+		"sort_order":         order,
+		"deleted_at":         nil,
 		r.tables.ownerColumn: owner,
-	}
-	return tx.Table(r.tables.items).Create(row).Error
+	}).Error
 }

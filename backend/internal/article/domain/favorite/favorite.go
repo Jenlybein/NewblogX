@@ -359,7 +359,7 @@ type Repository interface {
 	DeleteItem(ctx context.Context, articleID domain.ArticleID, userID domain.UserID, folderID ID) error
 	// DeleteItemsByArticle 删除某文章的全部收藏（删文章级联用），
 	// 并在同一事务内对受影响夹子重算 article_count（#344）。
-	DeleteItemsByArticle(ctx context.Context, articleID domain.ArticleID) error
+	DeleteItemsByArticle(ctx context.Context, articleID domain.ArticleID, now time.Time) error
 	// ListItems 分页列出某夹子里的收藏。
 	//
 	// onlyAdminAuthors 为真时只返回"作者是管理员"的条目（ADR-0017 决策 4：

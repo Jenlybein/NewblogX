@@ -237,13 +237,20 @@ function close() {
 /**
  * 取目录树当前的节点。
  *
- * 做成"取不到就当空树"而不是直接调：树编辑器在某些场景下是替身（组件测试），
- * 它不一定暴露 nodes()；让保存因为"替身没实现某个方法"而整单失败，会把
- * 字段保存也一起拖下水。
+ * **拿不到就失败**（返回 null，由 save() 中止），绝不"当成空树"：
+ * compose 是整树覆盖，把"取不到"当成"没有节点"等于一次保存把整棵树删光，
+ * 而且还会弹成功提示。宁可这次保存不成功，也不能静默毁数据。
+ *
+ * 唯一合法的"空树"是**编辑器根本还没挂载**（新建实体、还没有 ID 时，
+ * 右栏渲染的是"先保存基本信息"的提示，本来就没有节点）。
  */
-function currentNodes() {
+function currentNodes(): unknown[] | null {
   const editor = treeEditor.value as unknown as { nodes?: () => unknown[] } | null
-  return typeof editor?.nodes === 'function' ? editor.nodes() : []
+  // 编辑器没挂载：新建流程里这是正常状态，空树是真实答案。
+  if (!editor) return []
+  // 挂载了但取不到 nodes()：装配/替身问题，不能猜。
+  if (typeof editor.nodes !== 'function') return null
+  return editor.nodes()
 }
 
 async function save() {
@@ -264,14 +271,24 @@ async function save() {
   saving.value = true;
   try {
     if (entityId.value) {
+      // 先取节点再动任何东西：取不到就整单中止（见 currentNodes 的注释）。
+      // compose 是整树覆盖，"取不到当空树"等于一次保存删光整棵树。
+      const nodes = currentNodes();
+      if (nodes === null) {
+        message.error("目录树还没准备好，这次没有保存；请刷新页面后重试");
+        return;
+      }
       // 字段 + 目录树一次提交（票 348 / ADR-0041 的原子 compose）。
       //
       // 为什么必须一次：弹窗里"改标题 + 拖完树"是**一次**保存动作。分成两个请求
       // 任何一个失败都会留下"标题改了但树没改"的半截状态，而用户只点了一次保存。
       await composeAdminEntity(props.kind, entityId.value, {
         ...buildCollectionUpdatePayload(values),
-        nodes: currentNodes(),
+        nodes,
       });
+      // 树提交成功即"没有未保存改动"：脏标记原本只在树编辑器自己的保存里复位，
+      // 而两栏弹窗不走那条路径 —— 不复位的话「有未保存的改动」会一直挂着。
+      treeEditor.value?.markSaved?.();
       // 展示开关仍是独立动作：它不是"内容"的一部分，且改动不该因为树保存失败而回滚。
       if (props.kind === "collection") await setCollectionDisplay(entityId.value, form.displayed);
       else await setProjectDisplay(entityId.value, form.displayed);
@@ -283,11 +300,18 @@ async function save() {
         : await createProject(buildCollectionCreatePayload({ ...values, displayed: form.displayed }));
       entityId.value = created?.id ?? "";
       const pendingNodes = currentNodes();
+      if (pendingNodes === null) {
+        // 已经建出来了，但树没提交：如实说清"建好了、树没存"，别报成功。
+        message.warning(`${label.value}已创建，但目录树没能一起保存，请再点一次「保存修改」`);
+        emit("saved");
+        return;
+      }
       if (entityId.value && pendingNodes.length) {
         await composeAdminEntity(props.kind, entityId.value, {
           ...buildCollectionUpdatePayload(values),
           nodes: pendingNodes,
         });
+        treeEditor.value?.markSaved?.();
       }
       message.success(`${label.value}已创建`);
     }

@@ -101,7 +101,7 @@ func TestReplaceOrderWritesGroupAndItems(t *testing.T) {
 			{ID: g1, Items: []ctype.ID{ctype.NewID(8_001)}},
 		},
 	}
-	if err := repo.ReplaceOrder(ctx, tree); err != nil {
+	if err := repo.ReplaceOrder(ctx, tree, at); err != nil {
 		t.Fatalf("整树覆盖失败: %v", err)
 	}
 
@@ -126,7 +126,7 @@ func TestReplaceOrderWritesGroupAndItems(t *testing.T) {
 	}
 
 	// 幂等：同一份输入再提交一次，行数不变。
-	if err := repo.ReplaceOrder(ctx, tree); err != nil {
+	if err := repo.ReplaceOrder(ctx, tree, at); err != nil {
 		t.Fatalf("重复覆盖应幂等，实际报错: %v", err)
 	}
 	assignments, err = repo.ListAssignments(ctx)
@@ -158,11 +158,11 @@ func TestDeleteGroupReturnsItemsToUngrouped(t *testing.T) {
 	}
 	if err := repo.ReplaceOrder(ctx, grouping.TreeOrder{
 		Groups: []grouping.GroupOrder{{ID: g, Items: []ctype.ID{ctype.NewID(8_101)}}},
-	}); err != nil {
+	}, at); err != nil {
 		t.Fatalf("整树覆盖失败: %v", err)
 	}
 
-	if err := repo.DeleteGroup(ctx, g); err != nil {
+	if err := repo.DeleteGroup(ctx, g, at); err != nil {
 		t.Fatalf("删除分组失败: %v", err)
 	}
 

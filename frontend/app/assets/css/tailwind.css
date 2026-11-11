@@ -2801,7 +2801,6 @@ html {
   min-width: 0;
 }
 
-.studio-article-row__status-line,
 .studio-article-row__actions {
   display: flex;
   flex: 0 0 auto;

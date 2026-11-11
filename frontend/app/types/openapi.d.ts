@@ -865,6 +865,8 @@ export interface paths {
                 query?: {
                     /** @description 用户 ID */
                     user_id?: string;
+                    /** @description 文章 ID（给出时返回各收藏夹是否已包含该文章） */
+                    article_id?: string;
                 };
                 header?: never;
                 path?: never;
@@ -7266,6 +7268,8 @@ export interface components {
             favor_count?: number;
             favorited_at?: string;
             title?: string;
+            /** @description UpdatedAt 是文章的更新时间（不是收藏时间）。 */
+            updated_at?: string;
             user_avatar?: string;
             user_nickname?: string;
             view_count?: number;

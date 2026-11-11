@@ -61,7 +61,7 @@ func TestFavoriteItemsFiltersNonAdminAuthors(t *testing.T) {
 	ctx := context.Background()
 
 	// 开关打开：两篇都在，total 也是 2。
-	items, total, err := repo.ListItems(ctx, ctype.NewID(1), 0, 10, false)
+	items, total, err := repo.ListItems(ctx, ctype.NewID(1), 0, 10, false, false)
 	if err != nil {
 		t.Fatalf("列收藏内容失败: %v", err)
 	}
@@ -70,7 +70,7 @@ func TestFavoriteItemsFiltersNonAdminAuthors(t *testing.T) {
 	}
 
 	// 开关关闭：只剩管理员作者那篇，且 total 必须一起变小（否则前端分页错乱）。
-	items, total, err = repo.ListItems(ctx, ctype.NewID(1), 0, 10, true)
+	items, total, err = repo.ListItems(ctx, ctype.NewID(1), 0, 10, true, false)
 	if err != nil {
 		t.Fatalf("列收藏内容（带过滤）失败: %v", err)
 	}
@@ -86,7 +86,7 @@ func TestFavoriteItemsFiltersNonAdminAuthors(t *testing.T) {
 		int8(schema.RoleUser), visAdminAuthor).Error; err != nil {
 		t.Fatalf("修改作者角色失败: %v", err)
 	}
-	items, total, err = repo.ListItems(ctx, ctype.NewID(1), 0, 10, true)
+	items, total, err = repo.ListItems(ctx, ctype.NewID(1), 0, 10, true, false)
 	if err != nil {
 		t.Fatalf("列收藏内容（降级后）失败: %v", err)
 	}

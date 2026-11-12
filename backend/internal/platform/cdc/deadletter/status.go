@@ -55,12 +55,25 @@ const (
 // ByIDs 按主键批量取死信记录。
 //
 // 顺序按 id 升序（稳定、可复现）；调用方如果要保持请求顺序，自己按 ID 索引。
+//
+// 空 ID 要在进 SQL 之前剔掉：`ctype.ID` 的零值是空串，`id IN ('')` 与 bigint
+// 比较会让 MySQL 直接报 1292（线上真出现过，见 rows.go 的 BeforeCreate 注释）。
+// 剔除之后"一条都不剩"是合法结果（返回空表），不是错误。
 func ByIDs(db *gorm.DB, ids []ctype.ID) ([]Record, error) {
 	if db == nil || len(ids) == 0 {
 		return nil, nil
 	}
-	list := make([]Record, 0, len(ids))
-	if err := db.Where("id IN ?", ids).Order("id ASC").Find(&list).Error; err != nil {
+	clean := make([]ctype.ID, 0, len(ids))
+	for _, id := range ids {
+		if !id.IsZero() {
+			clean = append(clean, id)
+		}
+	}
+	if len(clean) == 0 {
+		return nil, nil
+	}
+	list := make([]Record, 0, len(clean))
+	if err := db.Where("id IN ?", clean).Order("id ASC").Find(&list).Error; err != nil {
 		return nil, err
 	}
 	return list, nil

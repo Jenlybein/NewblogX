@@ -30,7 +30,9 @@ func DataRouter(r *gin.RouterGroup, runtimeMw mw.Runtime) {
 	group := r.Group("data", runtimeMw.AuthMiddleware)
 	adminGroup := group.Group("", mw.AdminMiddleware)
 
-	adminGroup.GET("sum", app.SumView)
+	// sum 必须挂 BindQuery：handler 里是 GetBindQuery（MustGet），漏了这条
+	// 中间件就会 panic → 500，而不是参数错误。2026-11-12 线上 500 就是这么来的。
+	adminGroup.GET("sum", mw.BindQuery[analyticshttp.SumRequest], app.SumView)
 	adminGroup.GET("growth", mw.BindQuery[analyticshttp.GrowthDataRequest], app.GrowthDataView)
 	adminGroup.GET("article-year", app.ArticleYearDataView)
 	// AI token 用量趋势：首页「今日/本周/本月/本年」切换都走它。

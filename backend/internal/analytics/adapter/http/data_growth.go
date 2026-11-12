@@ -1,9 +1,9 @@
 package http
 
 import (
+	"strings"
 	"time"
 
-	"myblogx/internal/platform/http/middleware"
 	"myblogx/internal/platform/http/res"
 
 	"github.com/gin-gonic/gin"
@@ -15,16 +15,17 @@ import (
 //
 // 票 349：窗口由 `range` 决定（today / week / month / year），所有边界按
 // Asia/Shanghai 切；三个类型共用同一个窗口，前端每张卡片各自带自己的 range 调用一次。
+// #367：week / month / year 改为向前取的滚动窗口，year 按**月**出桶。
 // @Summary 增长趋势数据
 // @Tags data
 // @Produce json
 // @Security BearerAuth
 // @Param type query int true "统计类型：1 网站流量 2 文章发布 3 用户注册"
-// @Param range query string false "时间窗：today / week / month / year（默认 week）" enums:"today,week,month,year"
+// @Param range query string false "时间窗：week / month / year（默认 week；year 按月出点）" enums:"today,week,month,year"
 // @Success 200 {object} kernel.Envelope[GrowthDataResponse]
 // @Router /data/growth [get]
 func (h *Handler) GrowthDataView(c *gin.Context) {
-	cr := middleware.GetBindQuery[GrowthDataRequest](c)
+	cr := bindQuery[GrowthDataRequest](c)
 	var resp GrowthDataResponse
 
 	window := windowOf(cr.Range, time.Now())
@@ -38,17 +39,15 @@ func (h *Handler) GrowthDataView(c *gin.Context) {
 	case 1:
 		resp.DateCountList = h.flowSeries(window)
 	case 2:
-		resp.DateCountList = make([]DateCountItem, 0, window.Days)
-		for i := 0; i < window.Days; i++ {
-			start := window.Start.AddDate(0, 0, i)
-			end := start.AddDate(0, 0, 1)
-			count, countErr := h.stats.PublishedCountBetween(reqCtx(c), start, end)
+		resp.DateCountList = make([]DateCountItem, 0, window.Buckets)
+		for i := 0; i < window.Buckets; i++ {
+			count, countErr := h.stats.PublishedCountBetween(reqCtx(c), window.BucketStart(i), window.BucketEnd(i))
 			if countErr != nil {
 				err = countErr
 				break
 			}
 			resp.DateCountList = append(resp.DateCountList, DateCountItem{
-				Date:  start.Format("2006-01-02"),
+				Date:  window.BucketLabel(i),
 				Count: count,
 			})
 		}
@@ -61,50 +60,61 @@ func (h *Handler) GrowthDataView(c *gin.Context) {
 	}
 
 	if cr.Type == 3 {
-		resp.DateCountList = make([]DateCountItem, 0, window.Days)
-		for i := 0; i < window.Days; i++ {
-			date := window.Start.AddDate(0, 0, i).Format("2006-01-02")
-			resp.DateCountList = append(resp.DateCountList, DateCountItem{
-				Date:  date,
-				Count: statList[date],
-			})
-		}
+		resp.DateCountList = fillBuckets(window, statList)
 	}
 
-	// 环比只在"至少两天"时有意义：今天还没过完，与昨天比只是半天的量。
+	// 环比拿最后两个桶比：日粒度是"今天 vs 昨天"，月粒度是"本月 vs 上月"。
+	// 后一个桶都是**没过完**的，所以它天然偏低 —— 这是存量口径，不是 bug。
 	if len(resp.DateCountList) >= 2 {
-		todayCount := resp.DateCountList[len(resp.DateCountList)-1].Count
-		yesterdayCount := resp.DateCountList[len(resp.DateCountList)-2].Count
-		resp.GrowthNum = todayCount - yesterdayCount
-		if yesterdayCount == 0 {
-			if todayCount > 0 {
+		last := resp.DateCountList[len(resp.DateCountList)-1].Count
+		prev := resp.DateCountList[len(resp.DateCountList)-2].Count
+		resp.GrowthNum = last - prev
+		if prev == 0 {
+			if last > 0 {
 				resp.GrowthRate = 100
 			}
 		} else {
-			resp.GrowthRate = int(float64(resp.GrowthNum) / float64(yesterdayCount) * 100)
+			resp.GrowthRate = int(float64(resp.GrowthNum) / float64(prev) * 100)
 		}
 	}
 
 	res.OkWithData(resp, c)
 }
 
-// flowSeries 把窗口内的访问量铺成逐日序列（缺的日期补 0）。
+// flowSeries 把窗口内的访问量铺成序列（缺的桶补 0）。
 //
-// 访问量来自 Redis 的按天哈希；缓存空时补零而不是返回空数组 ——
-// 前端要按窗口长度画趋势图，长度对不上会让图突然变短。
+// 访问量来自 Redis 的按天哈希，保留期只有 flowRetentionDays 天：月粒度时
+// 把能拿到的那些天按月求和，拿不到的历史月份是 0 —— 这是数据源的限制，
+// 概览页的 visits_days 会如实告诉前端"实际覆盖了几天"。
 func (h *Handler) flowSeries(window statsWindow) []DateCountItem {
-	byDate := make(map[string]int, window.Days)
+	byDate := make(map[string]int, flowRetentionDays)
 	if h.flow != nil {
-		// Recent 只支持"最近 N 天"，所以取窗口长度再按日期挑。
-		for _, point := range h.flow.Recent(window.Days) {
+		for _, point := range h.flow.Recent(flowRetentionDays) {
 			byDate[point.Date] = point.Count
 		}
 	}
+	return fillBuckets(window, byDate)
+}
 
-	out := make([]DateCountItem, 0, window.Days)
-	for i := 0; i < window.Days; i++ {
-		date := window.Start.AddDate(0, 0, i).Format("2006-01-02")
-		out = append(out, DateCountItem{Date: date, Count: byDate[date]})
+// fillBuckets 把"按日给出的计数"铺进窗口的桶里。
+//
+// 日粒度直接按键取；月粒度把同一 `YYYY-MM` 前缀的日期求和。
+// 铺满整个窗口而不是只回有数据的那几天：前端按桶数画图，长度对不上会让图突然变短。
+func fillBuckets(window statsWindow, byDate map[string]int) []DateCountItem {
+	out := make([]DateCountItem, 0, window.Buckets)
+	for i := 0; i < window.Buckets; i++ {
+		label := window.BucketLabel(i)
+		if window.unit == unitMonth {
+			sum := 0
+			for date, count := range byDate {
+				if strings.HasPrefix(date, label) {
+					sum += count
+				}
+			}
+			out = append(out, DateCountItem{Date: label, Count: sum})
+			continue
+		}
+		out = append(out, DateCountItem{Date: label, Count: byDate[label]})
 	}
 	return out
 }

@@ -7,7 +7,6 @@ import (
 	"myblogx/internal/platform/http/res"
 
 	"github.com/gin-gonic/gin"
-	"myblogx/internal/platform/http/middleware"
 	// 供 swag 注解里的 kernel.Envelope 解析用（代码里不直接引用）。
 	_ "myblogx/internal/kernel"
 )
@@ -20,7 +19,7 @@ import (
 // @Success 200 {object} kernel.Envelope[SumResponse]
 // @Router /data/sum [get]
 func (h *Handler) SumView(c *gin.Context) {
-	cr := middleware.GetBindQuery[SumRequest](c)
+	cr := bindQuery[SumRequest](c)
 	var data SumResponse
 
 	// 今天 0 点按东八区算（票 349）：服务器在 UTC 时，"今天新增"会在

@@ -4,7 +4,6 @@ import (
 	"time"
 
 	"myblogx/internal/analytics/adapter/clickhouse"
-	"myblogx/internal/platform/http/middleware"
 	"myblogx/internal/platform/http/res"
 
 	"github.com/gin-gonic/gin"
@@ -29,7 +28,7 @@ type AIUsageRequest struct {
 // @Success 200 {object} kernel.Envelope[clickhouse.AIUsageSummary]
 // @Router /data/ai-usage [get]
 func (h *Handler) AIUsageView(c *gin.Context) {
-	cr := middleware.GetBindQuery[AIUsageRequest](c)
+	cr := bindQuery[AIUsageRequest](c)
 	rng := cr.Range
 	if rng == "" {
 		rng = "week"

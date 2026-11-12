@@ -53,12 +53,29 @@ const RANGE_OPTIONS: { value: DataRange; label: string; note: string }[] = [
   { value: 'year', label: '今年', note: '今年 1 月 1 日 0 点到现在' },
 ]
 
+/**
+ * 主趋势图的三档：**全部向前取**，不对齐自然周 / 自然月。
+ *
+ * 自然周的问题是周一早上只有一个点，图上等于什么都没画；运营真正问的是
+ * "最近 N 天怎么样"。"今日"在趋势图上也只有一根柱子，看不出趋势，已下线。
+ * 与 RANGE_OPTIONS 分开：那是 AI 用量卡的口径，一张卡改不该带着另一张一起动。
+ */
+const TREND_RANGES: { value: DataRange; label: string; note: string }[] = [
+  { value: 'week', label: '近 7 天', note: '含今天在内往前 7 天（东八区）' },
+  { value: 'month', label: '近 30 天', note: '含今天在内往前 30 天（东八区）' },
+  { value: 'year', label: '近 12 个月', note: '含本月在内往前 12 个自然月，按月出点' },
+]
+
 function noteOf(range: DataRange) {
   return RANGE_OPTIONS.find(item => item.value === range)?.note ?? ''
 }
 
+function trendNoteOf(range: DataRange) {
+  return TREND_RANGES.find(item => item.value === range)?.note ?? ''
+}
+
 const sum = ref<SumResponseData>({
-  range: 'today',
+  range: 'week',
   flow_count: 0,
   user_count: 0,
   article_count: 0,
@@ -161,7 +178,7 @@ async function refresh() {
     yearResult, reviewResult, actionResult, topResult,
     trendResult, aiResult,
   ] = await Promise.allSettled([
-    getDashboardSum('today'),
+    getDashboardSum('week'),
     getDataOverview('week'),
     getGrowthData(1, 'week'),
     getGrowthData(2, 'week'),
@@ -255,7 +272,7 @@ onMounted(refresh)
       <section class="metric-strip" data-role="admin-metrics">
         <MetricCard label="累计访问" :value="sum.flow_count" suffix="次" hint="同一 IP + 同一浏览器每天只算一次，已过滤爬虫" />
         <MetricCard label="近 7 日访问" :value="weekVisits" suffix="次" hint="最近 7 个东八区自然日" />
-        <MetricCard label="用户总数" :value="sum.user_count" suffix="人" :hint="`今日新增注册 ${sum.new_sign_count}`" />
+        <MetricCard label="用户总数" :value="sum.user_count" suffix="人" :hint="`近 7 天新增注册 ${sum.new_sign_count}`" />
         <MetricCard label="文章总数" :value="sum.article_count" suffix="篇" :hint="`评论 ${sum.comment_count}`" />
       </section>
 
@@ -266,7 +283,7 @@ onMounted(refresh)
             <div>
               <h2 class="admin-overview__card-title">趋势</h2>
               <p class="admin-hint m-0">
-                {{ noteOf(trendRange) }}<template v-if="trendRange === 'month' || trendRange === 'year'"> · 访问量只保留最近 30 天，更早的日期按 0 显示</template>
+                {{ trendNoteOf(trendRange) }}<template v-if="trendRange === 'month' || trendRange === 'year'"> · 访问量只保留最近 30 天，更早的日期按 0 显示</template>
               </p>
             </div>
             <div class="admin-overview__controls">
@@ -274,7 +291,7 @@ onMounted(refresh)
                 <NRadioButton v-for="tab in TREND_TABS" :key="tab.value" :value="tab.value">{{ tab.label }}</NRadioButton>
               </NRadioGroup>
               <NRadioGroup :value="trendRange" size="small" @update:value="(v: string) => onTrendRangeChange(v as DataRange)">
-                <NRadioButton v-for="opt in RANGE_OPTIONS" :key="opt.value" :value="opt.value">{{ opt.label }}</NRadioButton>
+                <NRadioButton v-for="opt in TREND_RANGES" :key="opt.value" :value="opt.value">{{ opt.label }}</NRadioButton>
               </NRadioGroup>
             </div>
           </div>

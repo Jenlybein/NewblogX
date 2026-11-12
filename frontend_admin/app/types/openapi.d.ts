@@ -3049,7 +3049,7 @@ export interface paths {
                 query: {
                     /** @description 统计类型：1 网站流量 2 文章发布 3 用户注册 */
                     type: number;
-                    /** @description 时间窗：today / week / month / year（默认 week） */
+                    /** @description 时间窗：week / month / year（默认 week；year 按月出点） */
                     range?: string;
                 };
                 header?: never;

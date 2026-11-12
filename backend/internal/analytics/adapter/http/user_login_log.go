@@ -4,7 +4,6 @@ import (
 	"myblogx/internal/analytics/adapter/clickhouse"
 	"myblogx/internal/kernel/ctype"
 	"myblogx/internal/kernel/page"
-	"myblogx/internal/platform/http/middleware"
 	"myblogx/internal/platform/http/res"
 	"myblogx/utils/jwts"
 
@@ -39,7 +38,7 @@ type UserLoginListRequest struct {
 // @Success 200 {object} kernel.Envelope[kernel.ListData[clickhouse.LoginEventRecord]]
 // @Router /users/login/log [get]
 func (h *Handler) UserLoginLogList(c *gin.Context) {
-	cr := middleware.GetBindQuery[UserLoginListRequest](c)
+	cr := bindQuery[UserLoginListRequest](c)
 	claims := jwts.MustGetClaimsByGin(c)
 	if !claims.IsAdmin() {
 		res.FailWithMsg("普通角色不可访问日志接口", c)

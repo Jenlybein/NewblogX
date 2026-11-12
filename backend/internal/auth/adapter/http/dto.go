@@ -81,6 +81,15 @@ type SetPasswordRequest struct {
 	NewPassword string `json:"new_password" binding:"required"`
 }
 
+// BindPhoneRequest 已登录用户绑定手机号（号码与验证码都要给）。
+//
+// 验证码走登录那条通道（type=1）：它证明的是"这个号码现在在你手上"，
+// 与拿它登录是同一种证明。
+type BindPhoneRequest struct {
+	Phone string `json:"phone" binding:"required"`
+	Code  string `json:"code" binding:"required"`
+}
+
 // ResetPasswordRequest 邮箱验证码重置密码。
 type ResetPasswordRequest struct {
 	NewPassword string `json:"new_password" binding:"required"`

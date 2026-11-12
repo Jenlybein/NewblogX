@@ -155,3 +155,18 @@ export function setAccountPassword(payload: { phone: string; code: string; new_p
     retryAuth: false,
   });
 }
+
+/**
+ * 给当前账号绑定手机号。
+ *
+ * 验证码用 `sendSmsCode({ purpose: "login" })` 发：它证明的是"这个号码现在在你
+ * 手上"，与拿它登录是同一种证明，后端也只认这一条通道。
+ */
+export function bindPhone(payload: { phone: string; code: string }) {
+  return useNuxtApp().$api.request("/api/users/phone/bind", {
+    method: "POST",
+    body: payload,
+    auth: true,
+    retryAuth: false,
+  });
+}

@@ -291,6 +291,11 @@ func (b *directoryBridge) BindEmail(ctx context.Context, userID uint64, email st
 	return b.svc.BindEmail(ctx, ctype.NewID(userID), email)
 }
 
+// BindPhone 实现 authapp.Directory。
+func (b *directoryBridge) BindPhone(ctx context.Context, userID uint64, phone string) error {
+	return b.svc.BindPhone(ctx, ctype.NewID(userID), phone)
+}
+
 // emailCodeBridge 实现 authapp.EmailCodes：频控 + 按场景校验邮箱状态后发信。
 //
 // 邮箱状态与四个场景必须匹配：注册/绑定要求邮箱**还没**被占用，重置密码/邮箱登录

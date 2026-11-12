@@ -51,6 +51,8 @@ func UserRouter(r *gin.RouterGroup, runtimeMw mw.Runtime) {
 	Group.PUT("password/recovery/email", runtimeMw.EmailVerifyMiddleware, auth.ResetPassword)
 	authGroup.PUT("password/renewal/email", auth.UpdatePassword)
 	authGroup.POST("password/set", auth.SetPassword)
+	// 绑定手机号：登录后操作，号码已通过短信验证（验证码走 phone/verify 那条通道）。
+	authGroup.POST("phone/bind", auth.BindPhone)
 	authGroup.POST("logout", auth.Logout)
 	authGroup.POST("logout/all", auth.LogoutAll)
 	authGroup.PUT("email/bind", runtimeMw.EmailVerifyMiddleware, auth.BindEmail)

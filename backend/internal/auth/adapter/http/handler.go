@@ -528,6 +528,36 @@ func (h *Handler) SetPassword(c *gin.Context) {
 	res.OkWithMsg("密码设置成功", c)
 }
 
+// BindPhone 绑定手机号（登录后）。
+//
+// 不建档：号码已被别人绑就报错，绝不顺手建个新号 —— 那样一个号能绑出两个账号，
+// 以后用它登录进哪个号就没有答案了。
+// @Summary 绑定手机号
+// @Tags user
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Param body body BindPhoneRequest true "请求体"
+// @Success 200 {object} kernel.Envelope[kernel.EmptyData]
+// @Router /users/phone/bind [post]
+func (h *Handler) BindPhone(c *gin.Context) {
+	cl := claims(c)
+	if cl == nil {
+		fail(c, apperr.New(apperr.CodeAuthRequired))
+		return
+	}
+	var req BindPhoneRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		failBind(c)
+		return
+	}
+	if err := h.svc.BindPhone(c.Request.Context(), cl.UserID.Uint64(), req.Phone, req.Code); err != nil {
+		fail(c, err)
+		return
+	}
+	res.OkWithMsg("手机号绑定成功", c)
+}
+
 // ResetPassword 邮箱验证码重置密码。
 // @Summary 邮箱重置密码
 // @Tags user

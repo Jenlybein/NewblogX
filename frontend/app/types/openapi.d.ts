@@ -7308,6 +7308,47 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/users/phone/bind": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 绑定手机号 */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            /** @description 请求体 */
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["internal_auth_adapter_http.BindPhoneRequest"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["myblogx_internal_kernel.Envelope-myblogx_internal_kernel_EmptyData"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/users/phone/verify": {
         parameters: {
             query?: never;
@@ -8360,6 +8401,10 @@ export interface components {
             is_enabled?: boolean;
             sort?: number;
             title: string;
+        };
+        "internal_auth_adapter_http.BindPhoneRequest": {
+            code: string;
+            phone: string;
         };
         "internal_auth_adapter_http.PhoneLoginRequest": {
             code: string;

@@ -105,12 +105,26 @@ func runtimeOptions(cfg conf.SMS) *util.RuntimeOptions {
 	}
 }
 
-// templateParamPlaceholder 是验证码模板的变量占位。
+// templateParam 拼出验证码模板的变量。
 //
-// 阿里云的验证码模板固定用 `code` 这个变量名，值写成 `##code##` 表示"由平台生成"，
-// 与我们自己生成无关 —— 验证码是平台生成、平台核验的（见 Check）。
-// 如果将来换成自定义模板（变量名不是 code），这里要跟着变成可配置。
-const templateParamPlaceholder = `{"code":"##code##"}`
+// 两个变量都是**必需**的，因为系统赠送模板 100001 的正文同时用到它们：
+//
+//	您的验证码为${code}。尊敬的客户，以上验证码${min}分钟内有效，请注意保密…
+//
+// 少传任何一个，阿里云都会回 400 isv.INVALID_PARAMETERS（"请检查模板内容与
+// 模板参数是否匹配"），而这个提示不会告诉你是哪个变量少了。
+//
+//	code → 固定写 ##code##，由平台按 CodeType 生成；也只有平台生成的码能被
+//	       CheckSmsVerifyCode 核验，自己生成一串传过去是验不过的。
+//	min  → 有效分钟数，与 ValidTime 同源，避免"正文说 5 分钟、实际 3 分钟"。
+//
+// 换成自定义模板时，变量名要与模板正文一致，这里需要跟着改（或做成配置项）。
+func templateParam(ttlMinutes int) string {
+	if ttlMinutes <= 0 {
+		ttlMinutes = 5
+	}
+	return fmt.Sprintf(`{"code":"##code##","min":"%d"}`, ttlMinutes)
+}
 
 // Send 实现 Sender。
 func (c *Client) Send(_ context.Context, cfg conf.SMS, phone string, kind Kind, ttlMinutes, intervalSecond int) error {
@@ -127,11 +141,13 @@ func (c *Client) Send(_ context.Context, cfg conf.SMS, phone string, kind Kind, 
 		PhoneNumber:  tea.String(phone),
 		SignName:     tea.String(cfg.SignName),
 		TemplateCode: tea.String(cfg.TemplateCode),
-		// TemplateParam 是**必填**的：阿里云短信认证服务要求把模板变量写成
-		// `{"code":"##code##"}`，平台再把 ##code## 替换成它自己生成的那串码。
-		// 不传会直接 400 `MissingTemplateParam`（2026-11-12 线上就是这个：
-		// 页面配好了 AccessKey / 签名 / 模板，唯独代码里没带这一项）。
-		TemplateParam: tea.String(templateParamPlaceholder),
+		// TemplateParam 是**必填**的，而且必须与模板正文的变量**逐个对上**：
+		// 系统赠送模板 100001 的正文是「您的验证码为${code}。…以上验证码${min}分钟内有效」，
+		// 所以两个变量都要给，少一个就是 400 isv.INVALID_PARAMETERS
+		// （「请检查模板内容与模板参数是否匹配」）。
+		//   - code 填 ##code##：由平台按 CodeType 生成，也只有平台生成的码才能被 CheckSmsVerifyCode 核验；
+		//   - min 填有效分钟数，与 ValidTime 保持同一个来源。
+		TemplateParam: tea.String(templateParam(ttlMinutes)),
 		// 数字验证码，长度 6：手机号场景下 4 位太容易撞。
 		CodeLength: tea.Int64(6),
 		CodeType:   tea.Int64(1),
@@ -140,8 +156,10 @@ func (c *Client) Send(_ context.Context, cfg conf.SMS, phone string, kind Kind, 
 		DuplicatePolicy: tea.Int64(1),
 		// 平台侧对同一号码的最小重发间隔（秒）。取站点配置的窗口值：
 		// 两边不一致时，用户会在我们放行之后被平台拒绝，错误信息还看不出来源。
-		Interval:  tea.Int64(int64(max(intervalSecond, 1))),
-		ValidTime: tea.Int64(int64(ttlMinutes)),
+		Interval: tea.Int64(int64(max(intervalSecond, 1))),
+		// ValidTime 的单位是**秒**（文档：默认 300）。原来直接把配置里的"分钟"传进来，
+		// 等于把 5 分钟当 5 秒用 —— 用户还没输完，码就过期了。
+		ValidTime: tea.Int64(int64(ttlMinutes) * 60),
 		// 不要平台把验证码回显在响应里。
 		ReturnVerifyCode: tea.Bool(false),
 		OutId:            tea.String(outID(kind)),

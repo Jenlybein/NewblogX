@@ -603,6 +603,7 @@ type UserRow struct {
 	Password              string                  `gorm:"size:64" json:"-"`
 	Email                 *string                 `gorm:"size:256;uniqueIndex:uk_user_email" json:"email"`
 	OpenID                *string                 `gorm:"size:64;uniqueIndex:uk_user_open_id" json:"open_id"` // qq 登录的 openid
+	Phone                 *string                 `gorm:"size:20;uniqueIndex:uk_user_phone" json:"phone"`    // 手机号，登录主标识
 	Status                enum.UserStatus         `gorm:"default:1;index" json:"status"`
 	TokenVersion          uint32                  `gorm:"default:1" json:"token_version"`
 	LastPasswordChangedAt *time.Time              `json:"last_password_changed_at"`

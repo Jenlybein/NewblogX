@@ -1,7 +1,8 @@
 import { computed, ref, shallowRef } from "vue";
 import { defineStore } from "pinia";
 import { useRequestHeaders, useRuntimeConfig } from "#imports";
-import { loginWithEmailCode, loginWithPassword, logoutCurrentSession, registerWithEmail } from "~/services/auth";
+import { loginWithEmailCode, loginWithPassword, loginWithPhone, logoutCurrentSession, registerWithEmail } from "~/services/auth";
+import type { CaptchaProof } from "~/services/auth";
 import { isAuthLikeError } from "~/services/http/errors";
 import { getSelfUserDetail } from "~/services/user";
 import type { UserSelfDetail } from "~/types/api";
@@ -254,10 +255,23 @@ export const useAuthStore = defineStore("auth", () => {
     return initPromise;
   }
 
-  async function loginByPassword(payload: { username: string; password: string }) {
+  async function loginByPassword(payload: { username: string; password: string; captcha?: CaptchaProof }) {
     pending.value = true;
     try {
       const token = await loginWithPassword(payload);
+      setAccessToken(token);
+      await fetchCurrentUser();
+      initialized.value = true;
+      return true;
+    } finally {
+      pending.value = false;
+    }
+  }
+
+  async function loginByPhone(payload: { phone: string; code: string }) {
+    pending.value = true;
+    try {
+      const token = await loginWithPhone(payload);
       setAccessToken(token);
       await fetchCurrentUser();
       initialized.value = true;
@@ -379,6 +393,7 @@ export const useAuthStore = defineStore("auth", () => {
     initializeSession,
     markPossiblyExpired,
     loginByPassword,
+    loginByPhone,
     loginByEmailCode,
     registerByEmail,
     logout,

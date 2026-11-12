@@ -51,6 +51,7 @@ type UserRow struct {
 	Password              string  `gorm:"size:64"`
 	Email                 *string `gorm:"size:256;uniqueIndex:uk_user_email"`
 	OpenID                *string `gorm:"size:64;uniqueIndex:uk_user_open_id"`
+	Phone                 *string `gorm:"size:20;uniqueIndex:uk_user_phone"`
 	Status                int8    `gorm:"default:1;index"`
 	TokenVersion          uint32  `gorm:"default:1"`
 	LastPasswordChangedAt *time.Time

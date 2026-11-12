@@ -15,6 +15,8 @@ import (
 	"myblogx/internal/auth/domain"
 	"myblogx/internal/kernel/ctype"
 	"myblogx/internal/platform/http/res"
+	"myblogx/internal/platform/mail"
+	"myblogx/internal/platform/sms"
 	"myblogx/utils/jwts"
 	// 供 swag 注解里的 kernel.Envelope 解析用（代码里不直接引用）。
 	_ "myblogx/internal/kernel"
@@ -24,7 +26,13 @@ import (
 type LoginPolicy interface {
 	PasswordEnabled() bool
 	EmailEnabled() bool
+	// EmailRegisterEnabled 与 EmailEnabled 分开：注册与登录是两件事，
+	// 而"绑定邮箱"要用发码接口。混成一个开关时，关掉邮箱注册会连带
+	// 把给已注册用户发绑定验证码一起关掉。
+	EmailRegisterEnabled() bool
 	QQEnabled() bool
+	// PhoneEnabled 是「手机号 + 短信验证码」登录（兼注册）开关。
+	PhoneEnabled() bool
 }
 
 // LoginEmitter 记录登录/登出事件。
@@ -66,6 +74,28 @@ func NewHandler(svc *app.Service, policy LoginPolicy, meta MetaFunc, emitter Log
 func (h *Handler) passwordEnabled() bool { return h.policy == nil || h.policy.PasswordEnabled() }
 func (h *Handler) emailEnabled() bool    { return h.policy == nil || h.policy.EmailEnabled() }
 func (h *Handler) qqEnabled() bool       { return h.policy == nil || h.policy.QQEnabled() }
+func (h *Handler) phoneEnabled() bool    { return h.policy == nil || h.policy.PhoneEnabled() }
+
+func (h *Handler) emailRegisterEnabled() bool {
+	return h.policy == nil || h.policy.EmailRegisterEnabled()
+}
+
+// emailPurposeEnabled 按验证码用途判定开关。
+//
+// 绑定邮箱**不依赖**邮箱登录/注册开关：它是"用手机号注册的人"之后补邮箱的
+// 唯一入口，一旦跟着邮箱登录一起关掉，那些用户就再也绑不了邮箱。
+func (h *Handler) emailPurposeEnabled(kind mail.Kind) bool {
+	switch kind {
+	case mail.KindRegister:
+		return h.emailRegisterEnabled()
+	case mail.KindResetPassword, mail.KindLogin:
+		return h.emailEnabled()
+	case mail.KindBindEmail:
+		return true
+	default:
+		return false
+	}
+}
 
 func (h *Handler) sessionMeta(c *gin.Context) domain.Meta {
 	if h.meta == nil {
@@ -295,13 +325,14 @@ func (h *Handler) DeleteSession(c *gin.Context) {
 // @Success 200 {object} kernel.Envelope[SendEmailResponse]
 // @Router /users/email/verify [post]
 func (h *Handler) SendEmail(c *gin.Context) {
-	if !h.emailEnabled() {
-		res.FailWithMsg("站点未启用邮箱功能", c)
-		return
-	}
 	var req SendEmailRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		failBind(c)
+		return
+	}
+	// 按用途判定开关（不是先看一个总的 emailEnabled），理由见 emailPurposeEnabled。
+	if !h.emailPurposeEnabled(mail.Kind(req.Type)) {
+		res.FailWithMsg("站点未启用该邮箱功能", c)
 		return
 	}
 	id, err := h.svc.SendEmailCode(c.Request.Context(), req.Type, req.Email, c.ClientIP())
@@ -345,7 +376,7 @@ func (h *Handler) EmailLogin(c *gin.Context) {
 // @Success 200 {object} kernel.Envelope[string]
 // @Router /users/email/register [post]
 func (h *Handler) RegisterEmail(c *gin.Context) {
-	if !h.emailEnabled() {
+	if !h.emailRegisterEnabled() {
 		res.FailWithMsg("站点未启用邮箱注册功能", c)
 		return
 	}
@@ -395,6 +426,106 @@ func (h *Handler) QQLogin(c *gin.Context) {
 	setRefreshCookie(c.Writer, result.Tokens.Refresh, h.cookieDuration(), h.secureCookie)
 	h.emit(c, "login_success", "qq", true, result.Account.Username, result.Account.ID.Uint64(), "")
 	res.OkWithData(result.Tokens.Access, c)
+}
+
+// SendSms 发送手机验证码。
+// @Summary 发送手机验证码
+// @Tags user
+// @Accept json
+// @Produce json
+// @Param body body SendSmsRequest true "请求体"
+// @Success 200 {object} kernel.Envelope[kernel.EmptyData]
+// @Router /users/phone/verify [post]
+func (h *Handler) SendSms(c *gin.Context) {
+	var req SendSmsRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		failBind(c)
+		return
+	}
+	// 只有"登录/注册"这条用途受 phone_login 开关管：它决定站点还收不收新的手机号用户。
+	// 「设置首个密码」的复验是已登录用户证明自己是号码主人，站长不再收新用户
+	// 不应该连带把老用户改密码也锁死（邮件那边的「绑定邮箱」同理不受开关管）。
+	if sms.Kind(req.Type) == sms.KindAuth && !h.phoneEnabled() {
+		res.FailWithMsg("站点未启用手机号登录", c)
+		return
+	}
+	if err := h.svc.SendSmsCode(c.Request.Context(), req.Type, req.Phone, c.ClientIP()); err != nil {
+		fail(c, err)
+		return
+	}
+	res.OkWithMsg("验证码已发送", c)
+}
+
+// PhoneLogin 手机号 + 短信验证码登录；首次登录自动注册。
+//
+// 核验放在 handler 里而不是中间件：短信验证码由阿里云生成并核验，
+// 没有"一次性消费的本地记录"要在中间件里取，放中间件只是多一层间接。
+// 只有核验通过的那个手机号才会进入用例层，请求体里的号码不单独信任。
+// @Summary 手机号登录/注册
+// @Tags user
+// @Accept json
+// @Produce json
+// @Param body body PhoneLoginRequest true "请求体"
+// @Success 200 {object} kernel.Envelope[string]
+// @Router /users/phone [post]
+func (h *Handler) PhoneLogin(c *gin.Context) {
+	if !h.phoneEnabled() {
+		h.emit(c, "login_fail", "phone", false, "", 0, "站点未启用手机号登录")
+		res.FailWithMsg("站点未启用手机号登录功能", c)
+		return
+	}
+	var req PhoneLoginRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		failBind(c)
+		return
+	}
+	ok, err := h.svc.CheckSmsCode(c.Request.Context(), req.Phone, req.Code)
+	if err != nil {
+		h.emit(c, "login_fail", "phone", false, "", 0, err.Error())
+		fail(c, err)
+		return
+	}
+	if !ok {
+		h.emit(c, "login_fail", "phone", false, "", 0, "验证码错误")
+		fail(c, apperr.New(apperr.CodeUserCaptchaInvalid))
+		return
+	}
+	result, err := h.svc.LoginWithPhone(c.Request.Context(), req.Phone, h.sessionMeta(c))
+	if err != nil {
+		h.emit(c, "login_fail", "phone", false, "", 0, err.Error())
+		fail(c, err)
+		return
+	}
+	setRefreshCookie(c.Writer, result.Tokens.Refresh, h.cookieDuration(), h.secureCookie)
+	h.emit(c, "login_success", "phone", true, result.Account.Username, result.Account.ID.Uint64(), "")
+	res.OkWithData(result.Tokens.Access, c)
+}
+
+// SetPassword 给尚无密码的账号设置首个密码（需对绑定手机号再做一次短信复验）。
+// @Summary 设置首个密码
+// @Tags user
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Param body body SetPasswordRequest true "请求体"
+// @Success 200 {object} kernel.Envelope[kernel.EmptyData]
+// @Router /users/password/set [post]
+func (h *Handler) SetPassword(c *gin.Context) {
+	cl := claims(c)
+	if cl == nil {
+		fail(c, apperr.New(apperr.CodeAuthRequired))
+		return
+	}
+	var req SetPasswordRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		failBind(c)
+		return
+	}
+	if err := h.svc.SetPassword(c.Request.Context(), cl.UserID.Uint64(), req.Phone, req.Code, req.NewPassword); err != nil {
+		fail(c, err)
+		return
+	}
+	res.OkWithMsg("密码设置成功", c)
 }
 
 // ResetPassword 邮箱验证码重置密码。

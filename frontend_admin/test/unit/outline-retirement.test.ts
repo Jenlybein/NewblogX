@@ -98,7 +98,7 @@ describe('旧排列页与收录弹窗已退役', () => {
     expect(articleGroup.children!.filter(child => child.label.includes('编排'))).toEqual([])
   })
 
-  it('页面数量硬断言：编排页退役后 23 个；站点拆四页与媒体拆两页后 28 个（ADR-0039）', () => {
+  it('页面数量硬断言：编排页退役后 23 个；站点拆四页与媒体拆两页后 28 个；新增短信页后 29 个（ADR-0039）', () => {
     const pages: string[] = []
     const walk = (dir: string) => {
       for (const entry of readdirSync(dir, { withFileTypes: true })) {
@@ -110,7 +110,7 @@ describe('旧排列页与收录弹窗已退役', () => {
     walk(pagesDir)
     // 23 → 28：站点拆出 login / publish / chat 三页（基础页复用 /site），
     // 媒体运营拆出 banners / images 两页（/media 保留为跳转页）。
-    expect(pages.length).toBe(28)
+    expect(pages.length).toBe(29)
   })
 
   /**

@@ -18,6 +18,12 @@ type PwdLoginRequest struct {
 	// 用 oneof 收窄而不是自由字符串：拼错（比如 "Admin"）会直接 400，
 	// 而不是静默按读者站登录 —— 后者会让"后台登录拦不住非管理员"这个洞悄悄回来。
 	Scope string `json:"scope" binding:"omitempty,oneof=admin"`
+	// 图形验证码答案。站点启用 `site.login.captcha` 时必填，由
+	// middleware.CaptchaMiddleware 在读本 handler 之前校验——它读的是同一份 JSON body
+	// （io_util.ShouldBindJSONWithRecover 读完会把 body 复位，所以这里还能再绑一次）。
+	// 开关关着时这两个字段可以不传，这里是空串，不影响校验。
+	CaptchaID   string `json:"captcha_id"`
+	CaptchaCode string `json:"captcha_code"`
 }
 
 // SendEmailRequest 发送邮箱验证码。
@@ -26,6 +32,9 @@ type SendEmailRequest struct {
 	// 越界值按参数错误拒绝（oneof），不要让它一路走到发信层才变成"邮件发送失败"。
 	Type  int8   `json:"type" binding:"required,oneof=1 2 3 4"`
 	Email string `json:"email" binding:"required,email"`
+	// 图形验证码答案，同 PwdLoginRequest：开关打开时由中间件先校验。
+	CaptchaID   string `json:"captcha_id"`
+	CaptchaCode string `json:"captcha_code"`
 }
 
 // SendEmailResponse 返回验证码记录 ID。
@@ -41,6 +50,35 @@ type RegisterEmailRequest struct {
 // QQLoginRequest QQ 授权码。
 type QQLoginRequest struct {
 	Code string `json:"code" binding:"required"`
+}
+
+// SendSmsRequest 发送手机验证码。
+type SendSmsRequest struct {
+	// Type：1 登录/注册、3 设置密码前的复验。
+	//
+	// 取值与 platform/sms 的 Kind 一一对齐（2 曾是「绑定手机号」，随该功能下线并停用号位）；
+	// 用 oneof 收窄，拼错直接 400，而不是一路走到发送层才变成"短信发送失败"。
+	Type  int8   `json:"type" binding:"required,oneof=1 3"`
+	Phone string `json:"phone" binding:"required"`
+	// 图形验证码答案，同 PwdLoginRequest：开关打开时由中间件先校验。
+	CaptchaID   string `json:"captcha_id"`
+	CaptchaCode string `json:"captcha_code"`
+}
+
+// PhoneLoginRequest 手机号 + 短信验证码登录（首次登录即注册）。
+type PhoneLoginRequest struct {
+	Phone string `json:"phone" binding:"required"`
+	Code  string `json:"code" binding:"required"`
+}
+
+// SetPasswordRequest 给尚无密码的账号设置首个密码。
+//
+// 带手机号与验证码是刻意的：只凭"已登录"就允许设密码，会让一个被盗的会话
+// 把临时凭证升级成永久密码凭证。
+type SetPasswordRequest struct {
+	Phone       string `json:"phone" binding:"required"`
+	Code        string `json:"code" binding:"required"`
+	NewPassword string `json:"new_password" binding:"required"`
 }
 
 // ResetPasswordRequest 邮箱验证码重置密码。

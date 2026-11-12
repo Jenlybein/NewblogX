@@ -77,6 +77,110 @@ func (s *Service) FindOrCreateByOpenID(ctx context.Context, openID, nickname, av
 	return domain.User{}, apperr.New(apperr.CodeUserRegisterDisabled)
 }
 
+// FindOrCreateByPhone 手机号登录：有则取、无则建档。
+//
+// 与 FindOrCreateByOpenID 同构，但多两件事：
+//  1. 先校验号码形状（openid 是外部给的，无从校验；手机号是我们自己的入口）；
+//  2. 默认昵称用打码手机号，而不是完整号码 —— 昵称会出现在评论、关注列表等
+//     公开位置，把完整手机号放进去等于替用户公开隐私。
+//
+// 建档失败会回查一次：并发下另一个请求可能已经把同一个号建好了，
+// 这时"创建冲突"等于"登录成功"，不该报错。
+func (s *Service) FindOrCreateByPhone(ctx context.Context, phone string) (domain.User, error) {
+	phone = strings.TrimSpace(phone)
+	if err := domain.ValidatePhone(phone); err != nil {
+		return domain.User{}, err
+	}
+	if u, err := s.users.FindByPhone(ctx, phone); err == nil {
+		if err := domain.CanLogin(u); err != nil {
+			return domain.User{}, err
+		}
+		return u, nil
+	} else if !apperr.IsCode(err, apperr.CodeUserNotFound) {
+		// 只有"查不到"才往下建档。把任何 error 都当成"号码没注册过"，
+		// 会在库抖动 / 主从延迟时给同一个号再建一个新账号——
+		// 表现是用户每次登录都多出一个空账号，且没有任何报错。
+		return domain.User{}, err
+	}
+	if s.usernameAlloc == nil {
+		return domain.User{}, apperr.New(apperr.CodeUserRegisterDisabled)
+	}
+
+	// 取出到局部变量再取址：直接对参数取址会让所有建档请求共享同一块内存。
+	phoneColumn := phone
+	for i := 0; i < 5; i++ {
+		name, err := s.usernameAlloc.Next()
+		if err != nil {
+			return domain.User{}, err
+		}
+		u := domain.User{
+			Username:       name,
+			Nickname:       domain.MaskPhone(phone),
+			Phone:          &phoneColumn,
+			Status:         domain.StatusActive,
+			Role:           domain.RoleUser,
+			RegisterSource: domain.SourcePhone,
+			TokenVersion:   1,
+			CreatedAt:      s.clock.Now(),
+		}
+		if err := s.users.Create(ctx, &u); err != nil {
+			if got, findErr := s.users.FindByPhone(ctx, phone); findErr == nil {
+				if err := domain.CanLogin(got); err != nil {
+					return domain.User{}, err
+				}
+				return got, nil
+			}
+			continue
+		}
+		s.initAccountDefaults(ctx, u.ID)
+		return u, nil
+	}
+	return domain.User{}, apperr.New(apperr.CodeUserRegisterDisabled)
+}
+
+// PhoneOf 返回账号已绑定的手机号；未绑定时返回空串。
+//
+// 单独一个方法而不是塞进 User 聚合的读取路径：调用点是"设置密码前核对
+// 是不是本人手机号"，只有这一个场景需要它，没必要让每次鉴权都多带一个字段。
+func (s *Service) PhoneOf(ctx context.Context, id domain.UserID) (string, error) {
+	u, err := s.users.FindByID(ctx, id)
+	if err != nil {
+		return "", err
+	}
+	if u.Phone == nil {
+		return "", nil
+	}
+	return *u.Phone, nil
+}
+
+// SetPassword 给"尚无密码"的账号设置首个密码。
+//
+// 已有密码时拒绝：有密码的账号必须走 ChangePassword（要验旧密码），
+// 否则这个入口就成了免旧密码改密的后门。
+//
+// 不改令牌版本：设密码是给账号补一种登录方式，不该把所有设备踢下线
+// （改密码才需要，因为那是"凭证可能已泄露"的信号）。
+func (s *Service) SetPassword(ctx context.Context, id domain.UserID, newPassword string) error {
+	u, err := s.users.FindByID(ctx, id)
+	if err != nil {
+		return err
+	}
+	if u.HasPassword() {
+		return apperr.New(apperr.CodeUserPasswordAlreadySet)
+	}
+	if err := domain.ValidatePassword(newPassword); err != nil {
+		return err
+	}
+	if s.hasher == nil {
+		return apperr.New(apperr.CodeUserPasswordRequired)
+	}
+	hash, err := s.hasher.Hash(newPassword)
+	if err != nil {
+		return err
+	}
+	return s.users.UpdatePassword(ctx, id, hash, u.TokenVersion)
+}
+
 // RegisterByEmail 邮箱注册并立即建档。
 func (s *Service) RegisterByEmail(ctx context.Context, email, plainPassword string) (domain.User, error) {
 	email = strings.TrimSpace(email)

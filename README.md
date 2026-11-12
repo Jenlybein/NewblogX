@@ -1037,7 +1037,7 @@ docker compose up -d --build          # 只重建有变化的镜像
 docker compose ps                     # 确认 healthy
 ```
 
-数据库不需要单独迁移步骤。`-db` 执行的是 `schema.sql`，全部 `CREATE TABLE IF NOT EXISTS`，重复跑没有副作用——这也和项目的**零 DDL 硬约束**一致：口径是**零列变更 + 允许新增表**，**不会 ALTER 既有表**，也不会替你 DROP 任何表。曾经作为零 DDL 唯一登记例外的通用取景表 `picture_crop_models` 已随取景体系退场（[ADR-0020](docs/adr/0020-zero-ddl-exception-and-generic-framing-table.md) 已由 [ADR-0015](docs/adr/0015-banner-framing-as-parameters.md) 取代）；**当前没有任何登记例外**，再开例外须另开 ADR。它的物理下线是一次性现场操作，见 [11.4.3](#1143-本批189的一次性部署序列新表取景表下线与索引重建)。
+数据库不需要单独迁移步骤。`-db` 执行的是 `schema.sql`，全部 `CREATE TABLE IF NOT EXISTS`，重复跑没有副作用——这也和项目的**零 DDL 硬约束**一致：口径是**只做加法**（允许新增表、允许给既有表补列），**不做改名、改类型、删列**，也不会替你 DROP 任何表。曾经作为零 DDL 唯一登记例外的通用取景表 `picture_crop_models` 已随取景体系退场（[ADR-0020](docs/adr/0020-zero-ddl-exception-and-generic-framing-table.md) 已由 [ADR-0015](docs/adr/0015-banner-framing-as-parameters.md) 取代）；**当前没有任何登记例外**，再开例外须另开 ADR。它的物理下线是一次性现场操作，见 [11.4.3](#1143-本批189的一次性部署序列新表取景表下线与索引重建)。
 
 #### 构建一定要先 `down`、再**串行**重建
 
@@ -1121,16 +1121,23 @@ docker compose up -d
 
 顺序不能反：先回填再 `init`，回填的内容当场被删掉，搜索会一直空着直到 river 重新追上；用旧镜像 `init` 建的还是旧映射，等于白做。**重建到回填完成之间搜索会短暂返回空结果**，这是预期行为，不是故障；回填完成后 river（`-role=all` 默认带）继续同步增量。
 
-### 11.4.2 升级到带新表的版本：手动建一次表
+### 11.4.2 升级到带新表 / 新列的版本：手动跑一次 `-db`
 
-"不会 ALTER"不等于"新表会自动建出来"：entrypoint 只在 `runtime_config_models` 缺失时才跑初始化（见 [11.3](#113-首次部署)），**版本升级时新加的表不会被自举**。所以升级后要显式跑一次 `-db`：
+entrypoint 只在 `runtime_config_models` 缺失时才跑初始化（见 [11.3](#113-首次部署)），**版本升级时新加的表不会被自举**；同理，给既有表新补的列也不会自己出现——`schema.sql` 里是 `CREATE TABLE IF NOT EXISTS`，对已存在的表是空操作。所以升级后要显式跑一次 `-db`：
 
 ```bash
 docker compose exec blogx_server /app/server \
   -f config/settings.yaml -db
 ```
 
-ADR-0017 引入的 `article_hot_top_models`（热门置顶运营位）与本批的 `project_models`（项目实体）都属于这一类。漏了这一步，后台「热门置顶」页、首页运营位与后台「项目」页会报表不存在，其它功能照常——很容易被当成"代码没生效"。
+`-db` 现在做两件事，都是幂等、可重复跑的：
+
+1. 建出 `schema.sql` 里登记的全部表；
+2. 按 `backend/internal/platform/mysql/ddl/migrate.go` 的 `columnAdditions`，给**既有的表**补齐缺失的列与唯一索引（先查 `information_schema`，再决定是否 `ALTER`）。
+
+它仍然只做加法：不改列名、不改类型、不删列，也不 DROP 任何表。那几类动作会让 CDC（ES 文章投影与 image-ref 两条链路）按列名解析静默错位，必须另开 ADR 且由人工现场执行。
+
+ADR-0017 引入的 `article_hot_top_models`（热门置顶运营位）与 #189 的 `project_models`（项目实体）属于「新表」这一类；手机号登录这一批给 `user_models` 补了 `phone` 列与 `uk_user_phone`，属于「新列」这一类。漏了这一步的症状分两种：新表对应的接口报「表不存在」，或者登录 / 资料接口报 `Unknown column 'phone'`——其它功能照常，很容易被当成"代码没生效"。
 
 一次完整的升级顺序：**重建索引 + 回填 → 部署新代码 → 手动 `-db` → 后台设置三个开关与热门置顶**。本批（#189）另有"物理下线取景表"这一步，完整序列见 [11.4.3](#1143-本批189的一次性部署序列新表取景表下线与索引重建)。
 
@@ -1592,7 +1599,7 @@ BLOGX_LOG_CLEANUP_RUN_AT='03:30:00'
 
 这几条不是风格偏好，是有守卫脚本兜底的硬约束。违反了门禁会红，或者更糟——**不红但线上出错**。
 
-1. **零 DDL。** 口径是**零列变更 + 允许新增表**：不能改、不能删既有表，新表用 `CREATE TABLE IF NOT EXISTS` 登记；经 ADR 立项的登记例外必须一条 ADR 指名，**当前没有任何登记例外**（通用取景表曾是首个也是唯一一个，已随取景退场物理下线，[ADR-0020](docs/adr/0020-zero-ddl-exception-and-generic-framing-table.md) 已由 [ADR-0015](docs/adr/0015-banner-framing-as-parameters.md) 取代）。既有表的列变更仍一律禁止。**CDC 按列名解析**（ES 文章投影与 image-ref 两条链路），改列名会让同步静默错位。
+1. **零 DDL。** 口径是**只做加法**：允许新增表（`CREATE TABLE IF NOT EXISTS` 登记）、允许给既有表**补列**（必须登记在 `backend/internal/platform/mysql/ddl/migrate.go` 的 `columnAdditions`，由 `-db` 幂等执行）；**改名、改类型、删列一律禁止**。经 ADR 立项的登记例外必须一条 ADR 指名，**当前没有任何登记例外**（通用取景表曾是首个也是唯一一个，已随取景退场物理下线，[ADR-0020](docs/adr/0020-zero-ddl-exception-and-generic-framing-table.md) 已由 [ADR-0015](docs/adr/0015-banner-framing-as-parameters.md) 取代）。**CDC 按列名解析**（ES 文章投影与 image-ref 两条链路），改列名会让同步静默错位。
 2. **ID 语义字段必须用 `ctype.ID`**，禁止裸整型。守卫规则 R12 兜底，基线 0。
 3. **不要拿 ID 比大小。** `ctype.ID` 底层是字符串，`"10" < "9"` 成立。要比较先 `.Uint64()`。
 4. **不要用 `ID(123)` 构造 ID**，用 `NewID`。`go vet` 的 `stringintconv` 只抓这一种写法。

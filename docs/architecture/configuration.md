@@ -58,7 +58,7 @@
 CREATE TABLE IF NOT EXISTS `runtime_config_models` (
   `id` bigint unsigned NOT NULL,
   `created_at` / `updated_at` / `deleted_at` datetime(3),
-  `name` varchar(32) NOT NULL,   -- 九段：site / ai / mail / storage / oauth / log / upload / deco / image_gc
+  `name` varchar(32) NOT NULL,   -- 十段：site / ai / mail / storage / oauth / sms / log / upload / deco / image_gc
   `payload` longtext NOT NULL,   -- 一段完整 JSON
   PRIMARY KEY (`id`),
   UNIQUE KEY `idx_runtime_config_models_name` (`name`)
@@ -67,9 +67,12 @@ CREATE TABLE IF NOT EXISTS `runtime_config_models` (
 
 ### 3.1 为什么不是一段两列（`mail_secret_id` / `mail_region` / …）
 
-**被零 DDL 红线否决的**：`-db` 只执行 `CREATE TABLE IF NOT EXISTS`，全仓没有 ALTER 通道
-（ES 投影靠 CDC 按列名解析，改列会让投影和库对不上）。列化意味着**每加一个配置字段
-都要一次 DDL 变更**，而项目没有这个能力。JSON 段则是加字段零迁移。
+**被零 DDL 红线否决的**：`-db` 只做加法——建表（`CREATE TABLE IF NOT EXISTS`）与**补列**
+（登记在 `backend/internal/platform/mysql/ddl/migrate.go` 的 `columnAdditions`），
+不做改名、改类型、删列（ES 投影靠 CDC 按列名解析，改列会让投影和库对不上）。
+列化意味着**每加一个配置字段都要往补列登记表里加一条，并在部署时跑一次 `-db`**
+（老库上 `CREATE TABLE IF NOT EXISTS` 是空操作，不补列就永远是 `Unknown column`）；
+JSON 段则是加字段零迁移。
 
 ### 3.2 为什么不是一字段一行（EAV）
 
@@ -131,9 +134,9 @@ type Service struct{ cfg func() conf.Mail }
 
 ---
 
-## 五、九个配置段
+## 五、十个配置段
 
-九段都由 `backend/internal/platform/config/registry.go` 的 `sectionRegistry` 一处登记：
+十段都由 `backend/internal/platform/config/registry.go` 的 `sectionRegistry` 一处登记：
 补种、全量解码、缓存应用与写入校验都从它派生，**漏登记在写库前直接失败**（不再「警告后缓存不更新」）。理由与否决链见 [ADR-0029](../adr/0029-config-section-registry-and-nine-named-sections.md)。
 
 | 段 | 类型 | 真正生效的地方 | 生效时机 |
@@ -143,6 +146,7 @@ type Service struct{ cfg func() conf.Mail }
 | `mail` | `conf.Mail` | 腾讯云 SES `SendEmail`（模板发信） | 下一次发信 |
 | `storage` | `conf.QiNiu` | 上传 token、URL 反解、image-ref 同步 | 下一次上传 |
 | `oauth` | `conf.QQ` | QQ 登录回调 | 下一次登录 |
+| `sms` | `conf.SMS` | 阿里云 PNVS 短信认证的密钥、接入点、签名、模板与超时 | 下一次发码 |
 | `log` | `conf.Logrus` | 日志级别、请求日志、查询限额、清理窗口 | 级别立即，其余下一次请求 |
 | `upload` | `conf.Upload` | 上传格式白名单 | 下一次上传 |
 | `deco` | `conf.Deco` | 光标挂件的开关、站标尺寸、挂绳几何与物理（含约束刚度）、描边、静止轻晃、帧率上限与指针端偏移 | 下一次页面请求 |
@@ -150,8 +154,8 @@ type Service struct{ cfg func() conf.Mail }
 
 `deco`（装饰）不承载任何业务语义：它只影响"页面看起来怎样"。开这个独立段而不是把
 挂件参数塞进 `site`，是因为装饰会越来越多（背景、边框），而每开一段都要在注册表里
-补一项——**九段具名化**让这份成本收成一处。`image_gc` 是 #139 引入的第九段，
-此前只在库里有默认值与读路径；本批起它也有具名 HTTP 出入口。
+补一项——**具名化**让这份成本收成一处。`image_gc` 是 #139 引入的第九段（现在是第十段：
+`sms` 由手机号登录那一批插在 `oauth` 之后），此前只在库里有默认值与读路径；#139 之后它也有具名 HTTP 出入口。
 
 `ai` 段的每日额度（`daily_limits`，ADR-0038）是**唯一一处保存期拒绝非法值**的配置：
 它七个字段都是「0 合法（=不限）、负数与 >9999 一律 400」；其余数值配置（私信限流、
@@ -210,16 +214,16 @@ type Service struct{ cfg func() conf.Mail }
 
 ---
 
-## 六、后台页面：九个配置段、八个编辑域，一个例外
+## 六、后台页面：十个配置段、九个编辑域，一个例外
 
 `frontend_admin/app/pages/site/` 下每个编辑域一个页面文件（`index.vue` 是站点域，
 其余是 `ai.vue` / `mail.vue` / …），各自只挂载一个配置组件：
 `SettingsSite` / `SettingsAi` / `SettingsMail` / `SettingsStorage` / `SettingsOAuth` /
-`SettingsLog` / `SettingsUpload` / `SettingsDeco`。组件本身不改名、不移动。
+`SettingsSMS` / `SettingsLog` / `SettingsUpload` / `SettingsDeco`。组件本身不改名、不移动。
 
-九个配置段里目前只有这八个有后台编辑页；第九段 `image_gc` 已在注册表与具名端点里，
+十个配置段里目前只有这九个有后台编辑页；第十段 `image_gc` 已在注册表与具名端点里，
 但**没有**编辑页/组件——它的生效值仍由默认种子与回收任务读取（展示开关归 #284）。
-`SITE_SETTINGS_SECTIONS` 因此是「后台编辑域」的清单，不是全部九段的清单。
+`SITE_SETTINGS_SECTIONS` 因此是「后台编辑域」的清单，不是全部十段的清单。
 
 路由由 URL 决定（`/site` + `/site/{域}`），刷新停留在当前域、链接可分享。
 菜单子项从 `frontend_admin/app/utils/siteSettings.ts` 的 `SITE_SETTINGS_SECTIONS`
@@ -229,7 +233,7 @@ type Service struct{ cfg func() conf.Mail }
 放在**同一个页面、同一次保存**里 —— 两个组件各自读写整段 `site` 会互相把对方刚保存的值
 覆盖回去（A 存标题时带着旧的登录开关，B 存开关时带着旧的标题）。
 
-请求/响应形状（九段具名契约，理由与「八组路由 + DTO」否决为何被推翻见 [ADR-0029](../adr/0029-config-section-registry-and-nine-named-sections.md)）：
+请求/响应形状（十段具名契约，理由与「八组路由 + DTO」否决为何被推翻见 [ADR-0029](../adr/0029-config-section-registry-and-nine-named-sections.md)）：
 
 | 方向 | 形状 | 契约里是什么 |
 | --- | --- | --- |
@@ -282,10 +286,10 @@ const loaded = ref(false)
 
 ## 八、固有代价（不粉饰）
 
-1. **契约是破坏性变更**。九段各有具名端点与具名形状，旧参数化端点与自由键值块整体下线；
+1. **契约是破坏性变更**。每段各有具名端点与具名形状，旧参数化端点与自由键值块整体下线；
    仍按 `/site/{name}` 调用的客户端会 404，两个前端的派生类型必须同批重生成。三份契约产物
    （`backend/docs/swagger.json` 与两个 app 的 `app/types/openapi.d.ts`）由生成器同批产出，
-   条目数基线按实测登记在 `scripts/contract-structures.json`（当前 135/176/326），
+   条目数基线按实测登记在 `scripts/contract-structures.json`（当前 158/202/369），
    判据四文件零改动。当初「拆成八组路由 + 八个 DTO」的否决理由与推翻经过见
    [ADR-0029](../adr/0029-config-section-registry-and-nine-named-sections.md)。
 2. **密钥明文入库**（§3.4）。它不会比 `.env` 更安全，只换来"改完即生效"。
@@ -305,7 +309,7 @@ const loaded = ref(false)
 | `conf.Config` 删掉的字段 | 6（`Upload`/`Site`/`Email`/`QQ`/`QiNiu`/`AI`） |
 | 新增/改写的配置段类型 | `conf.Mail` 新建；`conf.Logrus` 补 11 个 json tag |
 | 后台编辑域 | 8 个页面 + 8 个组件（当时）；配置段现在是 9 段，见 §五 / [ADR-0029](../adr/0029-config-section-registry-and-nine-named-sections.md) |
-| 新增接口 | 2 个 setup 接口；配置读写现为九段具名 `GET /site/admin/<段名>` / `PUT /site/<段名>`（原参数化 `GET /site/admin/{name}`、`PUT /site/{name}` 已退场） |
+| 新增接口 | 2 个 setup 接口；配置读写现为十段具名 `GET /site/admin/<段名>` / `PUT /site/<段名>`（原参数化 `GET /site/admin/{name}`、`PUT /site/{name}` 已退场） |
 | 修复的既有缺陷 | 3（软删除行撞 `name` 唯一索引 / 重启后站点配置被重置 / 默认值回退成全零） |
 
 `settings.yaml` 现在只剩进程级配置。业务默认值只有一个来源

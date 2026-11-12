@@ -176,6 +176,21 @@ func (u *Users) FindByOpenID(_ context.Context, openID string) (domain.User, err
 	return domain.User{}, apperr.New(apperr.CodeUserNotFound)
 }
 
+// FindByPhone 实现 domain.Repository。
+func (u *Users) FindByPhone(_ context.Context, phone string) (domain.User, error) {
+	u.mu.Lock()
+	defer u.mu.Unlock()
+	if u.failReads != nil {
+		return domain.User{}, u.failReads
+	}
+	for _, user := range u.byID {
+		if user.Phone != nil && *user.Phone == phone {
+			return user, nil
+		}
+	}
+	return domain.User{}, apperr.New(apperr.CodeUserNotFound)
+}
+
 // ExistsUsername 实现 domain.Repository。
 func (u *Users) ExistsUsername(_ context.Context, username string, exclude domain.UserID) (bool, error) {
 	u.mu.Lock()
@@ -635,7 +650,13 @@ func (r *Repos) Clock() *Clock { return r.clock }
 func (r *Repos) Enricher() *Enricher { return r.enricher }
 
 // Service 组装出一个 app.Service。
-func (r *Repos) Service() *app.Service {
+func (r *Repos) Service() *app.Service { return r.ServiceWith() }
+
+// ServiceWith 与 Service 相同，但允许追加装配项。
+//
+// 账号生命周期里的"自动用户名分配器"等能力只有部分用例需要，用 extras 注入
+// 比让每个测试都手写一长串 New 参数更不容易写错。
+func (r *Repos) ServiceWith(extras ...app.Option) *app.Service {
 	return app.New(
 		r.users,
 		r.settings,
@@ -645,5 +666,6 @@ func (r *Repos) Service() *app.Service {
 		r.clock,
 		r.hasher,
 		nil, // logger：测试里不需要
+		extras...,
 	)
 }

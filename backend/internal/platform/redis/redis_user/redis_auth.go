@@ -61,6 +61,21 @@ func AllowEmailSend(deps redis_service.Options, loginConf siteconf.Login, email,
 	return okEmail && okIP
 }
 
+// AllowSmsSend 检查短信发送是否在频率限制范围内。
+//
+// 与 AllowEmailSend 同形但独立计数：短信成本远高于邮件，需要单独收紧配额，
+// 而且两条通道混用一个计数器会让"今天邮件发多了"连带挡掉短信登录。
+func AllowSmsSend(deps redis_service.Options, loginConf siteconf.Login, phone, ip string, sendType int8) bool {
+	if deps.Client == nil {
+		return true
+	}
+	ctx := context.Background()
+	window := time.Duration(loginConf.SmsSendWindowSecond) * time.Second
+	okPhone := allowWithinWindow(deps, ctx, smsSendKeyByPhone(phone, sendType), window, loginConf.SmsSendPerPhoneMax)
+	okIP := allowWithinWindow(deps, ctx, smsSendKeyByIP(ip, sendType), window, loginConf.SmsSendPerIPMax)
+	return okPhone && okIP
+}
+
 // recordFailure 记录失败次数，并在达到阈值时设置锁定
 func recordFailure(deps redis_service.Options, ctx context.Context, countKey, lockKey string, ttl time.Duration, max int64) {
 	// countKey - 失败计数的Redis Key

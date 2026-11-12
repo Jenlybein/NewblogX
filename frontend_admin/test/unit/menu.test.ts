@@ -72,6 +72,7 @@ const EXPECTED_ADMIN_NAV = [
   { label: '邮件', path: '/site/mail', icon: 'settings' },
   { label: '对象存储', path: '/site/storage', icon: 'settings' },
   { label: '第三方登录', path: '/site/oauth', icon: 'settings' },
+  { label: '短信', path: '/site/sms', icon: 'settings' },
   { label: '日志', path: '/site/log', icon: 'settings' },
   { label: '上传策略', path: '/site/upload', icon: 'settings' },
   { label: '装饰', path: '/site/deco', icon: 'settings' },

@@ -33,7 +33,7 @@ import (
 
 // 「此刻生效值」的往返测试（#284）。唯一测试接缝是后端 HTTP 接口 + 契约：
 // 后台 PUT 保存 → 深度合并 → 现读取值闭包 → 读者页 GET → 下一次发送按新值判。
-// 这里不读源码文本、不逐字段解析 Go tag / TS 键；九段登记与漏登记失败复用
+// 这里不读源码文本、不逐字段解析 Go tag / TS 键；十段登记与漏登记失败复用
 // #283 registry_test.go 的外部行为（RegisteredSections / LookupSection），不重做。
 //
 // 消费点只持 NewEffectiveConfig 给出的一个现读闭包，不重启、不重建服务。
@@ -226,15 +226,15 @@ func TestEffectiveConfig_敏感字段占位符不写回星号_空串真清除_�
 	}
 }
 
-// 九段全部登记：复用 #283 RegisteredSections() 的外部行为枚举段名，
+// 十段全部登记：复用 #283 RegisteredSections() 的外部行为枚举段名，
 // 再逐段走具名 HTTP 出入口往返（写成功 + 管理读能拿回新值）。
 // 漏登记即失败由 #283 的 registry_test.go 外部行为覆盖，本票不重做注册表。
-func TestEffectiveConfig_九段具名出入口全部登记且往返可读(t *testing.T) {
+func TestEffectiveConfig_十段具名出入口全部登记且往返可读(t *testing.T) {
 	f := newEffectiveFixture(t)
 
 	names := f.effective.SectionNames()
-	if len(names) != 9 {
-		t.Fatalf("九段应全部登记，实际 %d 段: %v", len(names), names)
+	if len(names) != 10 {
+		t.Fatalf("十段应全部登记，实际 %d 段: %v", len(names), names)
 	}
 	for _, name := range names {
 		if !f.effective.HasSection(string(name)) {
@@ -308,6 +308,19 @@ func TestEffectiveConfig_九段具名出入口全部登记且往返可读(t *tes
 				readSection(t, rec, &v)
 				if v.AppID != "app-284" {
 					t.Fatalf("oauth 段往返失败: %+v", v)
+				}
+			}},
+		{"sms", f.handler.UpdateSmsSection, f.handler.AdminSmsSection,
+			// 用非敏感字段往返：access_key_secret 在管理读里被遮蔽成占位符，
+			// 拿它做往返断言只会验证"遮蔽生效"，验证不了"值存进去了"。
+			`{"sign_name":"新签名"}`,
+			func(t *testing.T, rec *httptest.ResponseRecorder) {
+				var v struct {
+					SignName string `json:"sign_name"`
+				}
+				readSection(t, rec, &v)
+				if v.SignName != "新签名" {
+					t.Fatalf("sms 段往返失败: %+v", v)
 				}
 			}},
 		{"log", f.handler.UpdateLogSection, f.handler.AdminLogSection,

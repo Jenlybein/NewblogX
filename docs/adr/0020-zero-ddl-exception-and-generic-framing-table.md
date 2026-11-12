@@ -72,6 +72,27 @@
 8. **通用取景表不得进入任何 CDC 监听范围**（ES 文章投影、image-ref）**与 outbox 事件**；一旦接入，`target_type` / `target_id` 的列名即被冻结。
 9. **旧表名属历史命名**：正文一律写"通用取景表"，`banner_crop_models` 只在"历史命名 / 迁移"语境里出现。
 
+## 后续修订：给既有表补列的执行通道（2026-11-12）
+
+**结论**：仍不允许改名 / 改类型 / 删列（那几类会让 CDC 按列名解析静默错位）。但**允许补列**，
+并且必须走仓库内的幂等通道 `backend/internal/platform/mysql/ddl/migrate.go` 的 `columnAdditions`，
+由 `-db`（`ddl.Apply`）执行——不允许人工在各环境敲 ALTER。
+
+**为什么需要这条通道**：`schema.sql` 里全是 `CREATE TABLE IF NOT EXISTS`，对已经存在的表是空操作。
+只把新列写进 CREATE TABLE，全新库会有这一列，而既有的开发库与生产库永远不会有，
+代码一查就报 `Unknown column`；更糟的是这条错误**测试抓不到**——业务测试建表走 testkit 的
+AutoMigrate，测试库会自动补出这一列，本地越绿越危险。
+
+**边界**：登记项只做加法（补列、补唯一索引），每条都必须能在"列/索引已存在"时安全跳过；
+缺 `IndexColumns` 直接报错而不是静默建空索引。`migrate_roundtrip_test.go` 用
+「按 schema.sql 建全表 → 删掉登记的列 → 补列 → 与未删列的库逐列比对类型与可空性」钉住
+"两条路径得到同一张表"。
+
+首个登记项是 `user_models.phone`（手机号登录）；它的形态是被否决的
+「新建 `user_phone_models`」的替代——`FindByID` 本来就取整行，加一列不产生额外查询，
+独立表反而多一次查询或一个 join。部署时必须跑一次 `-db`，步骤见
+[发布说明](../notes/2026-11-12-phone-sms-auth-release-notes.md)。
+
 ## 相关代码与文档
 
 - 硬约束与口径：[overview §六 A1](../architecture/overview.md) · [GLOSSARY · 零 DDL / 取景](../../GLOSSARY.md) · [README §11.3 与 §十三](../../README.md)

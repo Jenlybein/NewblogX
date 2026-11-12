@@ -58,6 +58,7 @@ func (s *Service) Detail(ctx context.Context, viewer domain.Viewer) (*DetailView
 		Avatar:                   u.Avatar,
 		Abstract:                 u.Abstract,
 		Email:                    u.Email,
+		Phone:                    u.Phone,
 		HasPassword:              u.HasPassword(),
 		RegisterSource:           int8(u.RegisterSource),
 		CodeAge:                  u.CodeAge(s.clock.Now()),

@@ -56,8 +56,14 @@ onMounted(load)
 <template>
   <div class="admin-settings-panel">
     <NAlert type="warning" :bordered="false" class="mb-4">
-      「邮箱验证码登录」打开前，必须先在「邮件」页把腾讯云 SES 配完。
+      「邮箱验证码登录」打开前，必须先在「邮件」页把腾讯云 SES 配完；
+      「手机号登录」打开前，必须先在「短信」页把阿里云 AccessKey、签名与模板填完。
       没配就打开，用户点「获取验证码」会直接报错。
+    </NAlert>
+
+    <NAlert type="info" :bordered="false" class="mb-4">
+      本网站的注册入口是「手机号登录」：它同时承担注册（首次验证即建档）。
+      「邮箱注册」默认关闭；关掉它不影响邮箱登录与「绑定邮箱」，后两者各有自己的开关与用途。
     </NAlert>
 
     <NForm v-if="loaded" label-placement="top" :disabled="loading">
@@ -65,8 +71,18 @@ onMounted(load)
         <NFormItem label="用户名密码登录">
           <NSwitch v-model:value="config.login.username_pwd_login" />
         </NFormItem>
+        <NFormItem label="手机号登录（首次登录即注册）">
+          <NSwitch v-model:value="config.login.phone_login" />
+        </NFormItem>
         <NFormItem label="邮箱验证码登录">
           <NSwitch v-model:value="config.login.email_login" />
+        </NFormItem>
+        <!--
+          邮箱注册与邮箱登录分开：绑定邮箱要用发码接口，混成一个开关会连带把
+          「给已注册用户发绑定验证码」一起关掉。本站点默认注册只走手机号。
+        -->
+        <NFormItem label="邮箱注册（默认关闭：注册只走手机号）">
+          <NSwitch v-model:value="config.login.email_register" />
         </NFormItem>
         <NFormItem label="QQ 登录">
           <NSwitch v-model:value="config.login.qq_login" />
@@ -77,6 +93,9 @@ onMounted(load)
       </NCard>
 
       <NCard class="admin-card mb-4" title="发码限流" size="small">
+        <NAlert type="info" :bordered="false" class="mb-3">
+          邮件与短信分开计数：短信成本远高于邮件，两条通道的滥用方式也不同，配额互不占用。
+        </NAlert>
         <NSpace :size="12" class="w-full">
           <NFormItem label="验证码有效期（分钟）">
             <NInputNumber v-model:value="config.login.email_code_timeout" class="admin-field--number" :min="1" />
@@ -89,6 +108,20 @@ onMounted(load)
           </NFormItem>
           <NFormItem label="单 IP 窗口内最多发码">
             <NInputNumber v-model:value="config.login.email_send_per_ip_max" class="admin-field--number" :min="1" />
+          </NFormItem>
+        </NSpace>
+        <NSpace :size="12" class="mt-3 w-full">
+          <NFormItem label="短信验证码有效期（分钟）">
+            <NInputNumber v-model:value="config.login.sms_code_timeout" class="admin-field--number" :min="1" />
+          </NFormItem>
+          <NFormItem label="短信限流窗口（秒）">
+            <NInputNumber v-model:value="config.login.sms_send_window_second" class="admin-field--number" :min="1" />
+          </NFormItem>
+          <NFormItem label="单手机号窗口内最多发码">
+            <NInputNumber v-model:value="config.login.sms_send_per_phone_max" class="admin-field--number" :min="1" />
+          </NFormItem>
+          <NFormItem label="单 IP 短信窗口内最多发码">
+            <NInputNumber v-model:value="config.login.sms_send_per_ip_max" class="admin-field--number" :min="1" />
           </NFormItem>
         </NSpace>
       </NCard>

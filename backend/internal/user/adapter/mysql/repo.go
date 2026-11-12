@@ -83,6 +83,19 @@ func (r *Repo) FindByOpenID(ctx context.Context, openID string) (domain.User, er
 	return toUser(row), nil
 }
 
+// FindByPhone 实现 domain.Repository。
+//
+// 手机号是登录主标识：它和 username / email 一样是 user_models 上的唯一列，
+// 所以这里是一次主键外的唯一索引命中，不做 join。
+func (r *Repo) FindByPhone(ctx context.Context, phone string) (domain.User, error) {
+	var row UserRow
+	err := r.db.WithContext(ctx).Take(&row, "phone = ?", phone).Error
+	if err != nil {
+		return domain.User{}, translate(err)
+	}
+	return toUser(row), nil
+}
+
 // ExistsUsername 实现 domain.Repository。
 func (r *Repo) ExistsUsername(ctx context.Context, username string, exclude domain.UserID) (bool, error) {
 	q := r.db.WithContext(ctx).Model(&UserRow{}).Where("username = ?", username)
@@ -359,6 +372,7 @@ func toUser(row UserRow) domain.User {
 		Email:          row.Email,
 		PasswordHash:   row.Password,
 		OpenID:         row.OpenID,
+		Phone:          row.Phone,
 		Status:         domain.Status(row.Status),
 		Role:           domain.Role(row.Role),
 		RegisterSource: domain.RegisterSource(row.RegisterSource),
@@ -379,6 +393,7 @@ func fromUser(u domain.User) UserRow {
 		Password:       u.PasswordHash,
 		Email:          u.Email,
 		OpenID:         u.OpenID,
+		Phone:          u.Phone,
 		Status:         int8(u.Status),
 		TokenVersion:   u.TokenVersion,
 		Role:           int8(u.Role),

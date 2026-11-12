@@ -173,10 +173,16 @@ var serviceFallbackCodes = []apperr.Code{
 	apperr.CodeUserEmailRegistered,
 	apperr.CodeUserEmailUnregistered,
 	apperr.CodeUserMailTooFrequent,
+	apperr.CodeUserPhoneTaken,
+	apperr.CodeUserPhoneInvalid,
+	apperr.CodeUserSmsTooFrequent,
+	apperr.CodeUserSmsSendFailed,
+	apperr.CodeUserSmsVerifyFailed,
 	apperr.CodeUserInvalidCredential,
 	apperr.CodeUserAccountDisabled,
 	apperr.CodeUserAccountBanned,
 	apperr.CodeUserPasswordRequired,
+	apperr.CodeUserPasswordAlreadySet,
 	apperr.CodeUserPasswordTooShort,
 	apperr.CodeUserOldPasswordWrong,
 	apperr.CodeUserPasswordSame,
@@ -198,7 +204,6 @@ var serviceFallbackCodes = []apperr.Code{
 	apperr.CodeCommentDiggChanged,
 	apperr.CodeCommentDiggDuplicated,
 	apperr.CodeCommentContentEmpty,
-
 
 	// 图片与对象存储。
 	apperr.CodeImageUnavailable,

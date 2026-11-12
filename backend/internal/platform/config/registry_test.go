@@ -39,11 +39,14 @@ func TestUnregisteredSectionFailsInsteadOfSilentCacheMiss(t *testing.T) {
 	}
 }
 
-// 九段全部登记、且每个登记项的解码结果都能写回缓存（漏登记或类型写歪即红）。
-// 期望值来自票面的九段清单，不从被测试的注册表反推，避免自证。
-func TestSectionRegistryRegistersAllNineSections(t *testing.T) {
+// 十段全部登记、且每个登记项的解码结果都能写回缓存（漏登记或类型写歪即红）。
+//
+// 期望值来自票面清单，不从被测试的注册表反推，避免自证。
+// 第十段 sms 由 ADR-0029 的修订引入：短信通道的密钥必须加密落库，
+// 而 site 段有匿名可读的公开端点，放不进去。
+func TestSectionRegistryRegistersAllSections(t *testing.T) {
 	want := []string{
-		"site", "ai", "mail", "storage", "oauth", "log", "upload", "deco", "image_gc",
+		"site", "ai", "mail", "storage", "oauth", "sms", "log", "upload", "deco", "image_gc",
 	}
 	svc, _ := newTestService(t, conf.RuntimeDefaults{})
 	for _, name := range want {

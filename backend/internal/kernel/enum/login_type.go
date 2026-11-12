@@ -8,6 +8,7 @@ const (
 	PasswordLoginType LoginType = 1 // 密码登录
 	QQLoginType       LoginType = 2 // QQ登录
 	EmailLoginType    LoginType = 3 // 邮箱登录
+	PhoneLoginType    LoginType = 4 // 手机号 + 短信验证码登录
 )
 
 func (l LoginType) String() string {
@@ -18,6 +19,8 @@ func (l LoginType) String() string {
 		return "qq"
 	case EmailLoginType:
 		return "email"
+	case PhoneLoginType:
+		return "phone"
 	default:
 		return ""
 	}

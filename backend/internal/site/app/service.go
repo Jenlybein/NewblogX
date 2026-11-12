@@ -226,6 +226,25 @@ func (s *Service) UpdateOAuth(oauth conf.QQ) error {
 	return s.runtime.UpdateOAuth(oauth)
 }
 
+// AdminSMS 返回管理端的短信通道配置，密钥用占位符遮蔽。
+func (s *Service) AdminSMS() conf.SMS {
+	sms := s.runtime.SMS()
+	sms.AccessKeySecret = domain.SensitivePlaceholder
+	return sms
+}
+
+// UpdateSMS 覆盖短信通道配置。
+//
+// 回显占位符原样提交时，用当前值覆盖回去——否则管理员只改模板号，
+// 会把密钥改成一串星号（与邮件/存储的处理一致）。
+func (s *Service) UpdateSMS(sms conf.SMS) error {
+	if s.runtime == nil {
+		return apperr.New(apperr.CodeSiteConfigMissing)
+	}
+	sms.AccessKeySecret = config.ResolveSensitive(sms.AccessKeySecret, s.runtime.SMS().AccessKeySecret)
+	return s.runtime.UpdateSMS(sms)
+}
+
 // AdminLog 返回管理端的日志配置。
 func (s *Service) AdminLog() conf.Logrus { return s.runtime.Log() }
 

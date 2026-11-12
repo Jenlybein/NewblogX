@@ -29,6 +29,9 @@ type SiteSectionStorageRequest conf.QiNiu
 type SiteSectionOauthResponse conf.QQ
 type SiteSectionOauthRequest conf.QQ
 
+type SiteSectionSmsResponse conf.SMS
+type SiteSectionSmsRequest conf.SMS
+
 type SiteSectionLogResponse conf.Logrus
 type SiteSectionLogRequest conf.Logrus
 

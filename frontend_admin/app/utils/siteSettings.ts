@@ -27,6 +27,7 @@ export type SiteSettingsKey =
   | 'mail'
   | 'storage'
   | 'oauth'
+  | 'sms'
   | 'log'
   | 'upload'
   | 'deco'
@@ -95,6 +96,7 @@ export const SITE_SETTINGS_SECTIONS: readonly SiteSettingsSection[] = [
   { key: 'mail', label: '邮件', path: '/site/mail', component: 'SettingsMail', blocks: [] },
   { key: 'storage', label: '对象存储', path: '/site/storage', component: 'SettingsStorage', blocks: [] },
   { key: 'oauth', label: '第三方登录', path: '/site/oauth', component: 'SettingsOAuth', blocks: [] },
+  { key: 'sms', label: '短信', path: '/site/sms', component: 'SettingsSMS', blocks: [] },
   { key: 'log', label: '日志', path: '/site/log', component: 'SettingsLog', blocks: [] },
   { key: 'upload', label: '上传策略', path: '/site/upload', component: 'SettingsUpload', blocks: [] },
   { key: 'deco', label: '装饰', path: '/site/deco', component: 'SettingsDeco', blocks: [] },

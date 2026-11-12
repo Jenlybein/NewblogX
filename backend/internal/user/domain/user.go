@@ -5,9 +5,11 @@
 package domain
 
 import (
-	"myblogx/internal/kernel/ctype"
 	"strings"
 	"time"
+
+	"myblogx/internal/kernel/ctype"
+	"myblogx/internal/kernel/enum"
 )
 
 // UserID 是用户标识。
@@ -78,17 +80,23 @@ func (r Role) String() string {
 }
 
 // RegisterSource 是注册来源。
-type RegisterSource int8
+//
+// 类型与常量都直接取 kernel/enum 那一份：同一个词表只能有一处定义。
+// 否则 row 结构（testkit / ES 投影）用的类型与聚合根用的类型会各改各的，
+// 加一个来源就要改两个文件、还容易只改一边。
+type RegisterSource = enum.RegisterSourceType
 
 const (
 	// SourceEmail 邮箱注册。
-	SourceEmail RegisterSource = 1
+	SourceEmail = enum.RegisterEmailSourceType
 	// SourceQQ QQ 登录首次建档。
-	SourceQQ RegisterSource = 2
+	SourceQQ = enum.RegisterQQSourceType
 	// SourceTerminal 终端注册。
-	SourceTerminal RegisterSource = 3
+	SourceTerminal = enum.RegisterTerminalSourceType
 	// SourceAdmin 管理员创建。
-	SourceAdmin RegisterSource = 4
+	SourceAdmin = enum.RegisterAdminSourceType
+	// SourcePhone 手机号注册（短信验证码首次建档）。
+	SourcePhone = enum.RegisterPhoneSourceType
 )
 
 // User 是用户聚合根。
@@ -96,15 +104,21 @@ const (
 // 只放"跨用例都要用"的字段；偏好设置（可见性、通知开关）属于 ProfileSettings，
 // 单独一个值对象，避免聚合根膨胀成一张表的镜像。
 type User struct {
-	ID             UserID
-	CreatedAt      time.Time
-	Username       string
-	Nickname       string
-	Avatar         string
-	Abstract       string
-	Email          *string
-	PasswordHash   string
-	OpenID         *string
+	ID           UserID
+	CreatedAt    time.Time
+	Username     string
+	Nickname     string
+	Avatar       string
+	Abstract     string
+	Email        *string
+	PasswordHash string
+	OpenID       *string
+	// Phone 是登录主标识（手机号 + 短信验证码）。
+	//
+	// 它是 user_models 上的一列而不是独立表：FindByID 本来就取整行，
+	// 多这一列不产生额外查询；独立表反而要多一次查询或一个 join。
+	// 未绑定手机号的老账号（邮箱注册 / QQ 建档）为 nil。
+	Phone          *string
 	Status         Status
 	Role           Role
 	RegisterSource RegisterSource
@@ -123,7 +137,7 @@ func (u User) CodeAge(now time.Time) int {
 
 // HasPassword 判断账号是否设置过密码。
 //
-// 邮箱/QQ 登录建档的账号可能没密码，前端要据此隐藏"修改密码"入口。
+// 手机号/邮箱/第三方登录建档的账号可能没密码，前端要据此隐藏"修改密码"入口。
 func (u User) HasPassword() bool { return u.PasswordHash != "" }
 
 // TokenVersionMatches 判断令牌携带的版本号是否与当前一致。

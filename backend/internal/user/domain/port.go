@@ -87,6 +87,8 @@ type Repository interface {
 	FindByEmail(ctx context.Context, email string) (User, error)
 	// FindByOpenID 按第三方 openid 查；不存在时返回 apperr.CodeUserNotFound。
 	FindByOpenID(ctx context.Context, openID string) (User, error)
+	// FindByPhone 按手机号查；不存在时返回 apperr.CodeUserNotFound。
+	FindByPhone(ctx context.Context, phone string) (User, error)
 	// ExistsUsername 判断用户名是否被占用（exclude 用于排除自己）。
 	ExistsUsername(ctx context.Context, username string, exclude UserID) (bool, error)
 	// ExistsEmail 判断邮箱是否被占用（exclude 用于排除自己）。

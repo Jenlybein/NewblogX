@@ -79,6 +79,8 @@ type Service struct {
 	dir   Directory
 	codes EmailCodes
 	oauth OAuth
+	// smsCodes 只在手机号通道（发码 / 核验 / 登录 / 设密码复验）使用。
+	smsCodes SmsCodes
 }
 
 // Option 是可选的装配项。
@@ -92,6 +94,9 @@ func WithEmailCodes(c EmailCodes) Option { return func(s *Service) { s.codes = c
 
 // WithOAuth 注入第三方登录能力。
 func WithOAuth(o OAuth) Option { return func(s *Service) { s.oauth = o } }
+
+// WithSmsCodes 注入短信验证码能力。
+func WithSmsCodes(c SmsCodes) Option { return func(s *Service) { s.smsCodes = c } }
 
 // New 构造认证服务。
 func New(

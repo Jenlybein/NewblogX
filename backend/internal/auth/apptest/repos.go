@@ -540,7 +540,10 @@ func (r *Repos) WithTTL(access, refresh time.Duration) *Repos {
 }
 
 // Service 组装出 app.Service。
-func (r *Repos) Service() *app.Service {
+func (r *Repos) Service() *app.Service { return r.ServiceWith() }
+
+// ServiceWith 与 Service 相同，但允许追加装配项（手机号通道需要 Directory 与 SmsCodes）。
+func (r *Repos) ServiceWith(extras ...app.Option) *app.Service {
 	return app.New(
 		r.sessions,
 		r.issuer,
@@ -552,5 +555,6 @@ func (r *Repos) Service() *app.Service {
 		r.clock,
 		nil,
 		r.opts,
+		extras...,
 	)
 }

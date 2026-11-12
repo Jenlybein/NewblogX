@@ -54,6 +54,7 @@ func SiteRouter(r *gin.RouterGroup, runtimeMw mw.Runtime) {
 		{"mail", app.AdminMailSection, app.UpdateMailSection},
 		{"storage", app.AdminStorageSection, app.UpdateStorageSection},
 		{"oauth", app.AdminOauthSection, app.UpdateOauthSection},
+		{"sms", app.AdminSmsSection, app.UpdateSmsSection},
 		{"log", app.AdminLogSection, app.UpdateLogSection},
 		{"upload", app.AdminUploadSection, app.UpdateUploadSection},
 		{"deco", app.AdminDecoSection, app.UpdateDecoSection},

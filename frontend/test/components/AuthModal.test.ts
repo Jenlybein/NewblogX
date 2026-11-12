@@ -7,10 +7,9 @@ const authModalState = vi.hoisted(() => ({
   closeAuthModal: vi.fn(),
 }));
 
-const formLoadState = vi.hoisted(() => ({
-  password: 0,
-  emailLogin: 0,
-  register: 0,
+/** 站点登录开关：默认 tab 由它决定，所以测试要能改。 */
+const siteState = vi.hoisted(() => ({
+  phoneLogin: true,
 }));
 
 vi.mock("naive-ui", () => {
@@ -68,112 +67,125 @@ vi.mock("~/stores/ui", () => ({
   useUiStore: () => authModalState,
 }));
 
-vi.mock("~/components/auth/PasswordLoginForm.vue", () => {
-  formLoadState.password += 1;
-
-  return {
-    __esModule: true,
-    __isTeleport: false,
-    default: defineComponent({
-      name: "PasswordLoginFormMock",
-      emits: ["success"],
-      setup(_, { emit }) {
-        return () =>
-          h(
-            "button",
-            {
-              "data-test": "password-form",
-              onClick: () => emit("success"),
-            },
-            "password",
-          );
+vi.mock("~/stores/site", () => ({
+  useSiteStore: () => ({
+    runtimeConfig: {
+      login: {
+        phone_login: siteState.phoneLogin,
+        username_pwd_login: true,
+        email_login: true,
       },
-    }),
-  };
-});
+    },
+  }),
+}));
 
-vi.mock("~/components/auth/EmailLoginForm.vue", () => {
-  formLoadState.emailLogin += 1;
+vi.mock("~/components/auth/PhoneAuthForm.vue", () => ({
+  __esModule: true,
+  __isTeleport: false,
+  default: defineComponent({
+    name: "PhoneAuthFormMock",
+    emits: ["success"],
+    setup(_, { emit }) {
+      return () =>
+        h(
+          "button",
+          {
+            "data-test": "phone-form",
+            onClick: () => emit("success"),
+          },
+          "phone",
+        );
+    },
+  }),
+}));
 
-  return {
-    __esModule: true,
-    __isTeleport: false,
-    default: defineComponent({
-      name: "EmailLoginFormMock",
-      setup() {
-        return () => h("div", { "data-test": "email-login-form" }, "email-login");
-      },
-    }),
-  };
-});
+vi.mock("~/components/auth/PasswordLoginForm.vue", () => ({
+  __esModule: true,
+  __isTeleport: false,
+  default: defineComponent({
+    name: "PasswordLoginFormMock",
+    setup() {
+      return () => h("div", { "data-test": "password-form" }, "password");
+    },
+  }),
+}));
 
-vi.mock("~/components/auth/EmailRegisterForm.vue", () => {
-  formLoadState.register += 1;
-
-  return {
-    __esModule: true,
-    __isTeleport: false,
-    default: defineComponent({
-      name: "EmailRegisterFormMock",
-      setup() {
-        return () => h("div", { "data-test": "register-form" }, "register");
-      },
-    }),
-  };
-});
+vi.mock("~/components/auth/EmailLoginForm.vue", () => ({
+  __esModule: true,
+  __isTeleport: false,
+  default: defineComponent({
+    name: "EmailLoginFormMock",
+    setup() {
+      return () => h("div", { "data-test": "email-login-form" }, "email-login");
+    },
+  }),
+}));
 
 async function mountAuthModal() {
   const { default: AuthModal } = await import("~/components/auth/AuthModal.vue");
   return mount(AuthModal);
 }
 
+/**
+ * 断言口径说明：这里只看 **DOM 里渲染了哪个表单**，不数"模块被 import 了几次"。
+ *
+ * 数 import 次数要靠 mock 工厂里的计数器，但 vitest 的模块缓存让同一文件里
+ * 第二次 import 不再执行工厂——计数器因此会随"这个测试排第几个"而变，
+ * 是典型的脆弱断言。渲染结果才是调用方真正能观察到的行为。
+ */
 describe("AuthModal", () => {
   beforeEach(() => {
     vi.resetModules();
     authModalState.authModalOpen = true;
     authModalState.closeAuthModal.mockReset();
-    formLoadState.password = 0;
-    formLoadState.emailLogin = 0;
-    formLoadState.register = 0;
+    siteState.phoneLogin = true;
   });
 
-  it("loads only the default password form on first open", async () => {
+  // 手机号是站点的注册入口，所以站点开着它时默认落在手机号 tab。
+  it("默认 tab 是手机号登录", async () => {
+    const wrapper = await mountAuthModal();
+    await flushPromises();
+
+    expect(wrapper.get('[data-test="phone-form"]').exists()).toBe(true);
+    expect(wrapper.find('[data-test="password-form"]').exists()).toBe(false);
+    expect(wrapper.find('[data-test="email-login-form"]').exists()).toBe(false);
+  });
+
+  // 站点没开「手机号登录」时（默认配置就是关的），默认 tab 必须退回密码登录：
+  // 否则访客一开弹窗就吃到「站点未启用手机号登录」，注册与登录入口一起坏掉。
+  it("站点关掉手机号登录时，默认 tab 退回密码登录", async () => {
+    siteState.phoneLogin = false;
     const wrapper = await mountAuthModal();
     await flushPromises();
 
     expect(wrapper.get('[data-test="password-form"]').exists()).toBe(true);
-    expect(formLoadState.password).toBe(1);
-    expect(formLoadState.emailLogin).toBe(0);
-    expect(formLoadState.register).toBe(0);
+    expect(wrapper.find('[data-test="phone-form"]').exists()).toBe(false);
   });
 
-  it("lazy-loads secondary tabs only after the user switches to them", async () => {
+  it("次要 tab 在用户切过去之前不加载", async () => {
     const wrapper = await mountAuthModal();
     await flushPromises();
+
+    expect(wrapper.find('[data-test="email-login-form"]').exists()).toBe(false);
+    expect(wrapper.find('[data-test="password-form"]').exists()).toBe(false);
 
     const tabs = wrapper.getComponent({ name: "NTabs" });
     tabs.vm.$emit("update:value", "email-login");
     await flushPromises();
 
     expect(wrapper.get('[data-test="email-login-form"]').exists()).toBe(true);
-    expect(formLoadState.emailLogin).toBe(1);
-    expect(formLoadState.register).toBe(0);
 
-    tabs.vm.$emit("update:value", "register");
-    await flushPromises();
-    tabs.vm.$emit("update:value", "email-login");
+    tabs.vm.$emit("update:value", "password");
     await flushPromises();
 
-    expect(wrapper.get('[data-test="register-form"]').exists()).toBe(true);
-    expect(formLoadState.emailLogin).toBe(1);
-    expect(formLoadState.register).toBe(1);
+    expect(wrapper.get('[data-test="password-form"]').exists()).toBe(true);
   });
 
-  it("closes the modal when the active form reports success", async () => {
+  it("当前表单报告成功后关闭弹窗", async () => {
     const wrapper = await mountAuthModal();
     await flushPromises();
 
-    await wrapper.get('[data-test="password-form"]').trigger("click");
+    await wrapper.get('[data-test="phone-form"]').trigger("click");
 
     expect(authModalState.closeAuthModal).toHaveBeenCalledTimes(1);
   });

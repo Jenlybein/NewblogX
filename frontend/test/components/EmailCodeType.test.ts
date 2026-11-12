@@ -53,6 +53,25 @@ vi.mock("naive-ui", () => {
   return { NForm, NFormItem, NInput, NButton, useMessage: () => messageMock };
 });
 
+/**
+ * 表单发码前会读站点开关（图形验证码）。这条用例只关心 `type`，
+ * 因此把图形验证码整体替换成"站点没开"：既不渲染控件，也不在 vitest 里拉 pinia。
+ */
+vi.mock("~/composables/useCaptchaProof", async () => {
+  const { ref } = await import("vue");
+  return {
+    useCaptchaProof: () => ({
+      enabled: ref(false),
+      image: ref(""),
+      code: ref(""),
+      loading: ref(false),
+      missing: ref(false),
+      refresh: async () => {},
+      payload: () => undefined,
+    }),
+  };
+});
+
 /** 表单里 sendEmailCode 走的是 `useNuxtApp().$api.request`，这里只拦这一层。 */
 function stubRequest() {
   vi.stubGlobal("useNuxtApp", () => ({ $api: { request: requestMock } }));

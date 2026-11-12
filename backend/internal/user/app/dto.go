@@ -25,38 +25,45 @@ type DetailView struct {
 	// 读者站要拿它来"对齐服务端的写作策略"：站点可以只限制**非管理员**发布/建草稿，
 	// 后端对管理员短路放行；前端若不知道角色，就只能一律按"被限制"渲染，
 	// 结果是管理员自己也被锁成只读（站点开关一关，连管理员都编辑不了文章）。
-	Role                     int8          `json:"role"`
-	Username                 string        `json:"username"`
-	Nickname                 string        `json:"nickname"`
-	AvatarImageID            *ctype.ID     `json:"avatar_image_id,omitempty"`
-	Avatar                   string        `json:"avatar"`
-	Abstract                 string        `json:"abstract"`
-	Email                    *string       `json:"email"`
-	HasPassword              bool          `json:"has_password"`
-	RegisterSource           int8          `json:"register_source"`
-	CodeAge                  int           `json:"code_age"`
-	LikeTagIDs               []ctype.ID    `json:"like_tag_ids"`
-	LikeTagItems             []LikeTagItem `json:"like_tag_items"`
-	UpdatedUsernameDate      *time.Time    `json:"updated_username_date"`
-	FavoritesVisibility      bool          `json:"favorites_visibility"`
-	FollowVisibility         bool          `json:"followers_visibility"`
-	FansVisibility           bool          `json:"fans_visibility"`
+	Role          int8      `json:"role"`
+	Username      string    `json:"username"`
+	Nickname      string    `json:"nickname"`
+	AvatarImageID *ctype.ID `json:"avatar_image_id,omitempty"`
+	Avatar        string    `json:"avatar"`
+	Abstract      string    `json:"abstract"`
+	Email         *string   `json:"email"`
+	// Phone 是当前用户自己绑定的手机号（完整号码）。
+	//
+	// 只出现在"我自己"的详情里，绝不出现在公开的 BaseInfo/主页接口：
+	// 用户名下的手机号是本人数据，对别人一条都不能漏。
+	// 返回完整号码是因为"设置首个密码"要用它去调发码接口——
+	// 打码的值发不了验证码。
+	Phone               *string       `json:"phone"`
+	HasPassword         bool          `json:"has_password"`
+	RegisterSource      int8          `json:"register_source"`
+	CodeAge             int           `json:"code_age"`
+	LikeTagIDs          []ctype.ID    `json:"like_tag_ids"`
+	LikeTagItems        []LikeTagItem `json:"like_tag_items"`
+	UpdatedUsernameDate *time.Time    `json:"updated_username_date"`
+	FavoritesVisibility bool          `json:"favorites_visibility"`
+	FollowVisibility    bool          `json:"followers_visibility"`
+	FansVisibility      bool          `json:"fans_visibility"`
 
-	DiggNoticeEnabled        bool          `json:"digg_notice_enabled"`
-	CommentNoticeEnabled     bool          `json:"comment_notice_enabled"`
-	FavorNoticeEnabled       bool          `json:"favor_notice_enabled"`
-	PrivateChatNoticeEnabled bool          `json:"private_chat_notice_enabled"`
-	StrangerChatEnabled      bool          `json:"stranger_msg_enabled"`
+	DiggNoticeEnabled        bool `json:"digg_notice_enabled"`
+	CommentNoticeEnabled     bool `json:"comment_notice_enabled"`
+	FavorNoticeEnabled       bool `json:"favor_notice_enabled"`
+	PrivateChatNoticeEnabled bool `json:"private_chat_notice_enabled"`
+	StrangerChatEnabled      bool `json:"stranger_msg_enabled"`
 }
 
 // SettingsPatch 是偏好设置的局部更新。
 //
 // 全是指针：false 是合法值（关闭通知），用 bool 判断"没传"和"关掉"就分不清了。
 type SettingsPatch struct {
-	LikeTagIDs               *[]ctype.ID
-	FavoritesVisibility      *bool
-	FollowVisibility         *bool
-	FansVisibility           *bool
+	LikeTagIDs          *[]ctype.ID
+	FavoritesVisibility *bool
+	FollowVisibility    *bool
+	FansVisibility      *bool
 
 	DiggNoticeEnabled        *bool
 	CommentNoticeEnabled     *bool

@@ -144,6 +144,14 @@ func (b siteRuntimeBridge) OAuth() conf.QQ {
 	return b.inner.GetRuntimeOAuth()
 }
 
+// SMS 返回当前短信通道配置。
+func (b siteRuntimeBridge) SMS() conf.SMS {
+	if b.inner == nil {
+		return conf.SMS{}
+	}
+	return b.inner.GetRuntimeSMS()
+}
+
 // Log 返回当前日志配置。
 func (b siteRuntimeBridge) Log() conf.Logrus {
 	if b.inner == nil {
@@ -190,6 +198,14 @@ func (b siteRuntimeBridge) UpdateOAuth(oauth conf.QQ) error {
 		return errSiteRuntimeMissing()
 	}
 	return b.inner.UpdateOAuth(oauth)
+}
+
+// UpdateSMS 覆盖短信通道配置。
+func (b siteRuntimeBridge) UpdateSMS(sms conf.SMS) error {
+	if b.inner == nil {
+		return errSiteRuntimeMissing()
+	}
+	return b.inner.UpdateSMS(sms)
 }
 
 // UpdateLog 覆盖日志配置。

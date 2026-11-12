@@ -109,7 +109,7 @@ func runtimeOptions(cfg conf.SMS) *util.RuntimeOptions {
 func (c *Client) Send(_ context.Context, cfg conf.SMS, phone string, kind Kind, ttlMinutes, intervalSecond int) error {
 	if !cfg.Configured() {
 		// 没配齐就是"发不出去"。不要静默成功：那会让用户拿着一个永远收不到的码干等。
-		return apperr.New(apperr.CodeUserSmsSendFailed)
+		return apperr.New(apperr.CodeUserSmsNotConfigured)
 	}
 	client, err := newAPIClient(cfg)
 	if err != nil {
@@ -146,7 +146,7 @@ func (c *Client) Send(_ context.Context, cfg conf.SMS, phone string, kind Kind, 
 // 用户看到的是"核验没跑通"，不是"短信没发出去"。
 func (c *Client) Check(_ context.Context, cfg conf.SMS, phone, code string) (bool, error) {
 	if !cfg.Configured() {
-		return false, apperr.New(apperr.CodeUserSmsVerifyFailed)
+		return false, apperr.New(apperr.CodeUserSmsNotConfigured)
 	}
 	client, err := newAPIClient(cfg)
 	if err != nil {

@@ -427,6 +427,8 @@ async function sendPasswordCode() {
     message.success("验证码已发送");
   } catch (error) {
     message.error(errorMessage(error, "发送验证码失败"));
+    // 失败也换一张图形码：它一次性且会过期，沿用旧图重试基本等于白试。
+    void refreshCaptcha();
   }
 }
 
@@ -528,6 +530,8 @@ async function sendBindCode() {
     message.success("邮箱验证码已发送");
   } catch (error) {
     message.error(errorMessage(error, "发送验证码失败"));
+    // 失败也换一张图形码：它一次性且会过期，沿用旧图重试基本等于白试。
+    void refreshCaptcha();
   }
 }
 

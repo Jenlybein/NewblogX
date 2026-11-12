@@ -67,6 +67,9 @@ async function handleSendCode() {
     message.success("验证码已发送");
   } catch (error) {
     message.error(errorMessage(error, "发送失败"));
+    // 失败也换一张：图形码一次性且会过期，沿用旧图重试基本等于白试
+    // （用户看到的症状是"图片还在，但怎么点都说验证码错"）。
+    void refreshCaptcha();
   }
 }
 
@@ -77,6 +80,8 @@ const onSubmit = handleSubmit(async (formValues) => {
     emit("success");
   } catch (error) {
     message.error(errorMessage(error, "登录失败"));
+    // 与密码登录一致：失败就换一张图形码，否则过期的那张会一直挂在页面上。
+    void refreshCaptcha();
   }
 });
 </script>

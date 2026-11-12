@@ -47,8 +47,8 @@ func TestSend_未配置时失败而不是静默成功(t *testing.T) {
 
 	c := &Client{}
 	err := c.Send(context.Background(), conf.SMS{}, "13800001234", KindAuth, 5, 60)
-	if code, ok := apperr.CodeOf(err); !ok || code != apperr.CodeUserSmsSendFailed {
-		t.Fatalf("未配置应返回 %s，实际 %v", apperr.CodeUserSmsSendFailed, err)
+	if code, ok := apperr.CodeOf(err); !ok || code != apperr.CodeUserSmsNotConfigured {
+		t.Fatalf("未配置应返回 %s，实际 %v", apperr.CodeUserSmsNotConfigured, err)
 	}
 }
 
@@ -59,8 +59,8 @@ func TestCheck_未配置时用核验错误码(t *testing.T) {
 	// 报"发送失败"会把排查方向指错。
 	c := &Client{}
 	_, err := c.Check(context.Background(), conf.SMS{}, "13800001234", "123456")
-	if code, ok := apperr.CodeOf(err); !ok || code != apperr.CodeUserSmsVerifyFailed {
-		t.Fatalf("未配置应返回 %s，实际 %v", apperr.CodeUserSmsVerifyFailed, err)
+	if code, ok := apperr.CodeOf(err); !ok || code != apperr.CodeUserSmsNotConfigured {
+		t.Fatalf("未配置应返回 %s，实际 %v", apperr.CodeUserSmsNotConfigured, err)
 	}
 }
 

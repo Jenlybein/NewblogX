@@ -241,6 +241,12 @@ const (
 	// 共用同一个码会让用户"邮件没发过也被挡住"。
 	CodeUserSmsTooFrequent Code = "user.sms_too_frequent"
 	CodeUserSmsSendFailed  Code = "user.sms_send_failed"
+	// CodeUserSmsNotConfigured 是"后台还没填阿里云凭证"。
+	//
+	// 与 CodeUserSmsSendFailed 分开：一个是运维没配、一个是通道抽风，提示必须不同。
+	// 混用会让管理员看着「发送失败，请稍后重试」一直重试，而真相是那条配置根本
+	// 没填过（2026-11-12 线上：runtime_config_models 里连 sms 这一行都没有）。
+	CodeUserSmsNotConfigured Code = "user.sms_not_configured"
 	// CodeUserSmsVerifyFailed 专门给"核验这一步本身没跑通"（未配置、网络、平台报错），
 	// 与"码填错了"分开：码错返回 CodeUserCaptchaInvalid，用户该改输入；
 	// 复用 code=sms_send_failed 会让核验失败显示成"短信发送失败"，指错方向。
@@ -622,6 +628,7 @@ var messages = map[Code]string{
 	CodeUserPhoneInvalid:       "手机号格式不正确",
 	CodeUserSmsTooFrequent:     "验证码发送太频繁，请稍后再试",
 	CodeUserSmsSendFailed:      "短信发送失败，请稍后重试",
+	CodeUserSmsNotConfigured:   "短信服务未配置，请先在后台「站点 → 短信」填写阿里云凭证",
 	CodeUserSmsVerifyFailed:    "短信验证码校验失败，请稍后重试",
 	CodeUserInvalidCredential:  "账号或密码错误",
 	CodeUserAccountDisabled:    "账号已被禁用",

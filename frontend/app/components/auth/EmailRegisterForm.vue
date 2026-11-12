@@ -73,6 +73,8 @@ async function handleSendCode() {
     message.success("验证码已发送");
   } catch (error) {
     message.error(errorMessage(error, "发送失败"));
+    // 失败也换一张：图形码一次性且会过期，沿用旧图重试基本等于白试。
+    void refreshCaptcha();
   }
 }
 

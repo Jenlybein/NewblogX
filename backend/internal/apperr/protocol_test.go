@@ -178,6 +178,9 @@ var serviceFallbackCodes = []apperr.Code{
 	apperr.CodeUserSmsTooFrequent,
 	apperr.CodeUserSmsSendFailed,
 	apperr.CodeUserSmsVerifyFailed,
+	// 短信凭证没填是运维侧的事（与 CodeRuntimeConfigSecretUnavailable 同一类），
+	// 用户改不了任何东西，按通用服务异常返回；文案已指向「站点 → 短信」页面。
+	apperr.CodeUserSmsNotConfigured,
 	apperr.CodeUserInvalidCredential,
 	apperr.CodeUserAccountDisabled,
 	apperr.CodeUserAccountBanned,

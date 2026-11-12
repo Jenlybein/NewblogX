@@ -128,7 +128,7 @@ describe('站点概览：KPI 与趋势', () => {
     // 只找**主趋势图**那组时间窗里的「今年」按钮：AI 卡片也有一组同名按钮，
     // 用全局 findAll 会点到 AI 那组，测的就不是趋势窗了。
     const trendCard = wrapper.get('[data-role="admin-trend"]')
-    const yearButton = trendCard.findAll('button').find(b => b.text() === '今年')!
+    const yearButton = trendCard.findAll('button').find(b => b.text() === '近 12 个月')!
     await yearButton.trigger('click')
     await flushPromises()
 
@@ -142,7 +142,7 @@ describe('站点概览：KPI 与趋势', () => {
 
   it('口径提示写清"算的是哪段时间"', async () => {
     const wrapper = await mountPage()
-    expect(wrapper.text()).toContain('本周一 0 点到现在')
+    expect(wrapper.text()).toContain('含今天在内往前 7 天')
   })
 })
 

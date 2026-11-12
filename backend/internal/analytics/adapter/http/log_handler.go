@@ -104,7 +104,7 @@ type ActionAuditListRequest struct {
 // @Success 200 {object} kernel.Envelope[kernel.ListData[clickhouse.RuntimeLogRecord]]
 // @Router /logs/runtime [get]
 func (h *Handler) RuntimeLogListView(c *gin.Context) {
-	cr := middleware.GetBindQuery[RuntimeLogListRequest](c)
+	cr := bindQuery[RuntimeLogListRequest](c)
 	list, count, err := clickhouse.ListRuntimeLogs(h.logs, clickhouse.RuntimeLogQuery{
 		PageInfo: page.PageInfo{
 			Limit: cr.Limit,
@@ -186,7 +186,7 @@ func (h *Handler) RuntimeLogDetailView(c *gin.Context) {
 // @Success 200 {object} kernel.Envelope[kernel.ListData[clickhouse.LoginEventRecord]]
 // @Router /logs/login [get]
 func (h *Handler) LoginLogListView(c *gin.Context) {
-	cr := middleware.GetBindQuery[LoginLogListRequest](c)
+	cr := bindQuery[LoginLogListRequest](c)
 	eventNameLike := cr.EventName
 	list, count, err := clickhouse.ListLoginEvents(h.logs, clickhouse.LoginEventQuery{
 		PageInfo: page.PageInfo{
@@ -269,7 +269,7 @@ func (h *Handler) LoginLogDetailView(c *gin.Context) {
 // @Success 200 {object} kernel.Envelope[kernel.ListData[clickhouse.ActionAuditRecord]]
 // @Router /logs/action [get]
 func (h *Handler) ActionAuditListView(c *gin.Context) {
-	cr := middleware.GetBindQuery[ActionAuditListRequest](c)
+	cr := bindQuery[ActionAuditListRequest](c)
 	eventNameLike := cr.EventName
 	if eventNameLike == "" {
 		eventNameLike = cr.EventNameLike
@@ -359,7 +359,7 @@ type AICallListRequest struct {
 // @Success 200 {object} kernel.Envelope[kernel.ListData[clickhouse.AICallRecord]]
 // @Router /logs/ai [get]
 func (h *Handler) AICallListView(c *gin.Context) {
-	cr := middleware.GetBindQuery[AICallListRequest](c)
+	cr := bindQuery[AICallListRequest](c)
 	list, count, err := clickhouse.ListAICalls(h.logs, clickhouse.AICallQuery{
 		PageInfo: page.PageInfo{
 			Limit: cr.Limit,

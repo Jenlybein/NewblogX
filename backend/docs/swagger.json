@@ -10915,7 +10915,7 @@
                         }
                     },
                     {
-                        "description": "时间窗：today / week / month / year（默认 week）",
+                        "description": "时间窗：week / month / year（默认 week；year 按月出点）",
                         "in": "query",
                         "name": "range",
                         "schema": {

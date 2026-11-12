@@ -1,5 +1,7 @@
 package http
 
+import "github.com/gin-gonic/gin"
+
 // SumRequest 是站点汇总的查询参数。
 type SumRequest struct {
 	// Range 只影响"新增"类数字的起点（票 349）：累计数本身与窗口无关。
@@ -31,6 +33,27 @@ type GrowthDataRequest struct {
 type DateCountItem struct {
 	Date  string `json:"date"`
 	Count int    `json:"count"`
+}
+
+// bindQuery 读查询参数，**中间件没挂时返回零值而不是 panic**。
+//
+// middleware.GetBindQuery 是 MustGet：路由漏挂 BindQuery 时它直接 panic，
+// gin 的 Recovery 把它变成 500。2026-11-12 线上 `/api/data/sum` 就是这么挂的 ——
+// 一个漏挂的中间件让整张汇总卡变成「汇总读取失败」+ 一排 0。
+//
+// 这里退一步：拿不到绑定值就按默认值跑（range 回落 week、type 缺失由 switch 兜底），
+// 页面最多显示得保守一些，而不是整块数据消失。路由该挂的中间件仍然要挂。
+func bindQuery[T any](c *gin.Context) T {
+	var zero T
+	v, ok := c.Get("requestQuery")
+	if !ok {
+		return zero
+	}
+	typed, ok := v.(T)
+	if !ok {
+		return zero
+	}
+	return typed
 }
 
 type GrowthDataResponse struct {

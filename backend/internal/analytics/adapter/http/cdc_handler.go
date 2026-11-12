@@ -129,7 +129,7 @@ type ChainQueryResponse struct {
 // @Success 200 {object} kernel.Envelope[kernel.ListData[clickhouse.CdcEventRecord]]
 // @Router /logs/cdc [get]
 func (h *Handler) CdcEventListView(c *gin.Context) {
-	cr := middleware.GetBindQuery[CdcEventListRequest](c)
+	cr := bindQuery[CdcEventListRequest](c)
 	list, count, err := clickhouse.ListCdcEvents(h.logs, clickhouse.CdcEventQuery{
 		PageInfo: page.PageInfo{
 			Limit: cr.Limit,
@@ -215,7 +215,7 @@ func (h *Handler) CdcEventDetailView(c *gin.Context) {
 // @Success 200 {object} kernel.Envelope[kernel.ListData[clickhouse.ReplayEventRecord]]
 // @Router /logs/replay [get]
 func (h *Handler) ReplayEventListView(c *gin.Context) {
-	cr := middleware.GetBindQuery[ReplayEventListRequest](c)
+	cr := bindQuery[ReplayEventListRequest](c)
 	list, count, err := clickhouse.ListReplayEvents(h.logs, clickhouse.ReplayEventQuery{
 		PageInfo: page.PageInfo{
 			Limit: cr.Limit,
@@ -291,7 +291,7 @@ func (h *Handler) ReplayEventDetailView(c *gin.Context) {
 // @Success 200 {object} kernel.Envelope[ChainQueryResponse]
 // @Router /logs/chain [get]
 func (h *Handler) ChainQueryView(c *gin.Context) {
-	cr := middleware.GetBindQuery[ChainQueryRequest](c)
+	cr := bindQuery[ChainQueryRequest](c)
 	if strings.TrimSpace(cr.RequestID) == "" && strings.TrimSpace(cr.TraceID) == "" && strings.TrimSpace(cr.CdcJobID) == "" {
 		res.FailWithMsg("请至少传 request_id、trace_id、cdc_job_id 其中一个", c)
 		return

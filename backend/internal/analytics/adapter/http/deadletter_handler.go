@@ -93,7 +93,7 @@ type DeadLetterDeleteResultResponse struct {
 // @Success 200 {object} kernel.Envelope[kernel.ListData[DeadLetterItemResponse]]
 // @Router /logs/dead-letter [get]
 func (h *Handler) DeadLetterListView(c *gin.Context) {
-	cr := middleware.GetBindQuery[DeadLetterListRequest](c)
+	cr := bindQuery[DeadLetterListRequest](c)
 	if h.deadLetters == nil {
 		res.FailWithMsg("死信查询未初始化", c)
 		return

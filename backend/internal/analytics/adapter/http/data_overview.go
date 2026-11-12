@@ -3,7 +3,6 @@ package http
 import (
 	"time"
 
-	"myblogx/internal/platform/http/middleware"
 	"myblogx/internal/platform/http/res"
 	"myblogx/internal/platform/redis/redis_site"
 
@@ -66,7 +65,7 @@ type OverviewResponse struct {
 // @Success 200 {object} kernel.Envelope[OverviewResponse]
 // @Router /data/overview [get]
 func (h *Handler) OverviewView(c *gin.Context) {
-	cr := middleware.GetBindQuery[OverviewRequest](c)
+	cr := bindQuery[OverviewRequest](c)
 
 	window := windowOf(cr.Range, time.Now())
 	resp := OverviewResponse{
@@ -80,7 +79,7 @@ func (h *Handler) OverviewView(c *gin.Context) {
 	// 天数取窗口与 Redis 保留期的较小值：按天哈希只留 30 天，按一年去求
 	// 会把"只有 30 天数据"悄悄当成"一年只有这么多访问"。
 	if h.flow != nil {
-		days := window.Days
+		days := window.SpanDays()
 		if days > flowRetentionDays {
 			days = flowRetentionDays
 		}

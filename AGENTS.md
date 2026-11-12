@@ -8,9 +8,11 @@
 
 ## 分支与 CI
 
-- **`main` 只走 PR，禁止直接 push。** 分支保护要求 13 项状态检查，但管理员权限能 bypass ——
+- **`main` 只走 PR，禁止直接 push。** 分支保护要求 15 项状态检查，但管理员权限能 bypass ——
   "能推上去"不等于"合规"，不要用 bypass 当捷径。流程一律是：开分支 → push → `gh pr create`
   → 等检查全绿 → squash merge → 删分支。
+  其中 `backend (integration)` 被切成 3 片，所以是 `integration 1/3`、`2/3`、`3/3` 三项。
+  **改分片数必须同时改分支保护的必过列表**，否则 PR 永远满足不了旧名字、无法合并。
 - **push 之后必须核对 CI 结果，不能只看本地绿灯。** 本地通过和 CI 通过是两件事：
   CI 跑的是 `scripts/gates/run.mjs --group <group>` 全组 + `archcheck --skip-tests=false` 那遍
   + `test-contract-freshness.mjs` 的 8 条行为用例 + 两端 lint/typecheck/`openapi:types`。
@@ -25,6 +27,12 @@
   历史上 `#302` 一批连续三次红在 `contract up-to-date` / `archcheck` / `frontend lint`，
   都是"本地口径比 CI 少一步"造成的：漏抬高 `scripts/contract-structures.json` 的
   `minimumEntries`、测试文件里用了裸 `uint64`、手改生成物多留一个换行。
+
+- **合并后 main 上的 CI 会被跳过，这是有意的。** squash merge 生成的提交树与 PR head
+  完全一致，而 PR 上已经跑过同一套检查（分支保护要求全绿才允许合并），再跑一遍不会
+  发现任何新问题，只让每次合并多等 5 分钟。`precheck` job 按提交标题是否以 `(#数字)`
+  结尾来判定；直接 push 的提交不长这样，仍会跑全量 CI。需要强制全量时用
+  `workflow_dispatch`。所以"main 上没有新的 CI run"不等于"没验证过"——去看 PR 那次。
 
 ## 部署
 

@@ -16,10 +16,48 @@ env:
   NODE_VERSION: "22"
 
 jobs:
+  # ── 是否需要跑 CI ────────────────────────────────────────────────
+  # 合并后 main 上的那次 CI 是**重复劳动**：squash merge 生成的提交树与 PR head
+  # 完全一致，而 PR 上已经跑过同一套检查（分支保护要求 15 项全绿才允许合并）。
+  # 再跑一遍只是让每次合并多等 5 分钟，且不会发现任何新问题。
+  #
+  # 判据：push 事件的提交标题以 `(#数字)` 结尾 —— 这正是 squash merge 的命名约定，
+  # 由 GitHub 自动生成。直接 push 的提交不会长这样，仍然会跑全量 CI。
+  # 需要强制全量跑时用 workflow_dispatch。
+  #
+  # 提交标题通过 env 传入，不拼进脚本正文：标题来自外部输入，拼进去等于把
+  # 任意字符串注入 shell。
+  precheck:
+    name: precheck（是否需要跑 CI）
+    runs-on: ubuntu-latest
+    outputs:
+      run: ${{ steps.decide.outputs.run }}
+    steps:
+      - id: decide
+        env:
+          COMMIT_TITLE: ${{ github.event.head_commit.message }}
+        run: |
+          set -euo pipefail
+          if [ "${GITHUB_EVENT_NAME}" != "push" ]; then
+            echo "非 push 事件（${GITHUB_EVENT_NAME}），跑全量 CI"
+            echo "run=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          title=$(printf '%s' "$COMMIT_TITLE" | head -n 1)
+          if printf '%s' "$title" | grep -qE '\(#[0-9]+\)$'; then
+            echo "squash merge 提交（$title），PR 上已跑过同一套检查，跳过"
+            echo "run=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "非 squash merge 提交（$title），跑全量 CI"
+            echo "run=true" >> "$GITHUB_OUTPUT"
+          fi
+
   # ── 后端：编译 + vet + 单测（race）────────────────────────────────
   backend:
     name: backend (build / vet / test)
     runs-on: ubuntu-latest
+    needs: precheck
+    if: needs.precheck.outputs.run == 'true'
     defaults:
       run:
         working-directory: backend
@@ -66,6 +104,8 @@ jobs:
   backend-integration:
     name: backend (integration ${{ matrix.shard }}/${{ strategy.job-total }})
     runs-on: ubuntu-latest
+    needs: precheck
+    if: needs.precheck.outputs.run == 'true'
     # 分片：整包 `go test ./...` 带 -race 要 6 分钟，是整条流水线最慢的一段。
     # 按包名排序后轮流分配，三片并行跑，墙钟时间降到 ~2 分钟。
     # fail-fast 关掉：一片红了也要看完另外两片的结果，否则修一处再等一轮。
@@ -158,6 +198,8 @@ jobs:
   archcheck:
     name: backend (archcheck)
     runs-on: ubuntu-latest
+    needs: precheck
+    if: needs.precheck.outputs.run == 'true'
     defaults:
       run:
         working-directory: backend
@@ -196,6 +238,8 @@ jobs:
   contract:
     name: backend (contract up-to-date)
     runs-on: ubuntu-latest
+    needs: precheck
+    if: needs.precheck.outputs.run == 'true'
     defaults:
       run:
         working-directory: backend
@@ -251,6 +295,8 @@ jobs:
   frontend-lint:
     name: ${{ matrix.app }} (lint)
     runs-on: ubuntu-latest
+    needs: precheck
+    if: needs.precheck.outputs.run == 'true'
     strategy:
       fail-fast: false
       matrix:
@@ -327,6 +373,8 @@ jobs:
   frontend-typecheck:
     name: ${{ matrix.app }} (typecheck)
     runs-on: ubuntu-latest
+    needs: precheck
+    if: needs.precheck.outputs.run == 'true'
     strategy:
       fail-fast: false
       matrix:
@@ -373,6 +421,8 @@ jobs:
   contract-types:
     name: ${{ matrix.app }} (contract types up-to-date)
     runs-on: ubuntu-latest
+    needs: precheck
+    if: needs.precheck.outputs.run == 'true'
     strategy:
       fail-fast: false
       matrix:
@@ -428,6 +478,8 @@ jobs:
   frontend-test:
     name: ${{ matrix.app }} (test)
     runs-on: ubuntu-latest
+    needs: precheck
+    if: needs.precheck.outputs.run == 'true'
     strategy:
       fail-fast: false
       matrix:
@@ -473,7 +525,8 @@ jobs:
   gates-canary:
     name: gates canary (must fail)
     runs-on: ubuntu-latest
-    if: github.event_name == 'pull_request'
+    needs: precheck
+    if: needs.precheck.outputs.run == 'true' && github.event_name == 'pull_request'
     steps:
       - uses: actions/checkout@v4
         with:

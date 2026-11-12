@@ -77,10 +77,20 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ~/.cache/go-build
-          key: gobuild-${{ runner.os }}-${{ hashFiles('backend/go.sum') }}-${{ github.run_id }}
+          # key 里带 job 名 + 分片序号：所有 Go job 共用一个 key 时，它们会抢着
+          # 保存同一个 key，只有一个能成功（日志：Unable to reserve cache），
+          # 而且抢到的那份是**别的 job** 的缓存内容 —— 等于缓存形同虚设。
+          # 每条缓存线各自独立保存、各自命中，才能真的省掉重复编译。
+          # key **不带 run_id**：带了的话每轮都是新 key，永远只能"近似命中"别的
+          # job 存下的旧缓存（实测 integration 3/6 恢复的竟是 contract job 的缓存），
+          # 缓存线等于不存在。稳定 key 才能让同一个 job 每轮命中自己上一轮那份。
+          #
+          # actions/cache 不能覆盖已存在的 key，所以这份缓存不会随代码刷新 ——
+          # 但 GOCACHE 是内容寻址的：依赖产物继续复用，只有改动的包才重新编译。
+          key: gobuild-${{ runner.os }}-${{ hashFiles('backend/go.sum') }}-${{ github.job }}-${{ strategy.job-index }}
           restore-keys: |
+            gobuild-${{ runner.os }}-${{ hashFiles('backend/go.sum') }}-${{ github.job }}-
             gobuild-${{ runner.os }}-${{ hashFiles('backend/go.sum') }}-
-            gobuild-${{ runner.os }}-
 
       - name: go build
         run: go build ./...
@@ -106,13 +116,13 @@ jobs:
     runs-on: ubuntu-latest
     needs: precheck
     if: needs.precheck.outputs.run == 'true'
-    # 分片：整包 `go test ./...` 带 -race 要 6 分钟，是整条流水线最慢的一段。
-    # 按包名排序后轮流分配，三片并行跑，墙钟时间降到 ~2 分钟。
+    # 分片：整包 `go test ./...` 单进程跑要 4.5 分钟，是整条流水线最慢的一段。
+    # 按包名排序后轮流分配，三片并行跑，墙钟时间降到 ~1/3。
     # fail-fast 关掉：一片红了也要看完另外两片的结果，否则修一处再等一轮。
     strategy:
       fail-fast: false
       matrix:
-        shard: [1, 2, 3]
+        shard: [1, 2, 3, 4, 5, 6]
     services:
       mysql:
         image: mysql:8.0
@@ -158,25 +168,39 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ~/.cache/go-build
-          key: gobuild-${{ runner.os }}-${{ hashFiles('backend/go.sum') }}-${{ github.run_id }}
+          # key 里带 job 名 + 分片序号：所有 Go job 共用一个 key 时，它们会抢着
+          # 保存同一个 key，只有一个能成功（日志：Unable to reserve cache），
+          # 而且抢到的那份是**别的 job** 的缓存内容 —— 等于缓存形同虚设。
+          # 每条缓存线各自独立保存、各自命中，才能真的省掉重复编译。
+          # key **不带 run_id**：带了的话每轮都是新 key，永远只能"近似命中"别的
+          # job 存下的旧缓存（实测 integration 3/6 恢复的竟是 contract job 的缓存），
+          # 缓存线等于不存在。稳定 key 才能让同一个 job 每轮命中自己上一轮那份。
+          #
+          # actions/cache 不能覆盖已存在的 key，所以这份缓存不会随代码刷新 ——
+          # 但 GOCACHE 是内容寻址的：依赖产物继续复用，只有改动的包才重新编译。
+          key: gobuild-${{ runner.os }}-${{ hashFiles('backend/go.sum') }}-${{ github.job }}-${{ strategy.job-index }}
           restore-keys: |
+            gobuild-${{ runner.os }}-${{ hashFiles('backend/go.sum') }}-${{ github.job }}-
             gobuild-${{ runner.os }}-${{ hashFiles('backend/go.sum') }}-
-            gobuild-${{ runner.os }}-
 
       # ClickHouse 那批仍用 testcontainers，需要 Docker：runner 自带，这里断言一下，
       # 免得哪天镜像变了变成静默跳过。
       - name: 确认 Docker 可用（ClickHouse 容器测试的依赖）
         run: docker info
 
-      # 一次跑全部测试：-tags integration 已包含所有非 integration 用例，
-      # -race 保留（本地可用 BLOGX_FAST=1 跳过，CI 不应该跳过）。
+      # 一次跑全部测试：-tags integration 已包含所有非 integration 用例。
       #
       # -count=1 等价于 BLOGX_NO_CACHE=1：强制真跑，不复用测试结果缓存。
       # CI 本来就没有历史缓存，但显式写出来，避免有人以为"绿了"是缓存给的。
       #
       # 分片：按 `go list ./...` 的排序结果轮流取，第 N 片取 i % 3 == N-1。
       # 不用 `-run` 或目录前缀切：包与包之间的用例数差很多，轮流取比按名字切更均匀。
-      - name: go test (race, integration)
+      #
+      # 这里**不加 -race**：-race 让编译成本放大 5.1 倍（实测 26s → 135s），
+      # 而竞态检测只对真正有并发的代码有意义。并发相关的包由下面的
+      # backend-integration-race 单独带 -race 跑，见 scripts/ci-race-packages.txt。
+      # 用例一个都不少，少的是插桩。
+      - name: go test (integration)
         env:
           BLOGX_MYSQL_ADDR: 127.0.0.1:3306
           # 指向上面的 elasticsearch service：让真实索引的组合用例确定性运行，
@@ -191,6 +215,114 @@ jobs:
           for i in "${!pkgs[@]}"; do
             if (( i % total == idx )); then selected+=("${pkgs[$i]}"); fi
           done
+          echo "本片 ${#selected[@]} / ${#pkgs[@]} 个包"
+          go test -tags integration -count=1 -timeout 25m "${selected[@]}"
+
+  # ── 竞态检测：只跑并发相关的包 ──────────────────────────────────────
+  # 为什么只对一部分包插桩：其中 160 个包根本没有并发（纯 CRUD 仓储、DTO、
+  # 路由注册…），加不加 -race 结论一样。这里只对**非测试代码里有 goroutine /
+  # sync / atomic** 的包插桩 —— 那些地方竞态会真的发生。
+  # 名单在 scripts/ci-race-packages.txt。
+  #
+  # 为什么还要分 2 片：实测这 16 个包带 -race 跑要 199s，比不带 race 的全量分片
+  # 还慢，会变成新的关键路径。分两片后与分片 job 齐平，不再拖墙钟。
+  #
+  # 与上面的分片 job **并行**跑。
+  backend-integration-race:
+    name: backend (integration race ${{ matrix.shard }}/${{ strategy.job-total }})
+    runs-on: ubuntu-latest
+    needs: precheck
+    if: needs.precheck.outputs.run == 'true'
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2]
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ROOT_PASSWORD: root
+          TZ: Asia/Shanghai
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -uroot -proot --silent"
+          --health-interval=5s
+          --health-timeout=3s
+          --health-retries=30
+      elasticsearch:
+        image: docker.elastic.co/elasticsearch/elasticsearch:8.15.3
+        env:
+          discovery.type: single-node
+          xpack.security.enabled: "false"
+          ES_JAVA_OPTS: -Xms512m -Xmx512m
+        ports:
+          - 9200:9200
+        options: >-
+          --health-cmd="curl -sf http://localhost:9200/_cluster/health || exit 1"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=30
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache-dependency-path: backend/go.sum
+
+      - name: Go 构建缓存
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/go-build
+          # key 里带 job 名 + 分片序号：所有 Go job 共用一个 key 时，它们会抢着
+          # 保存同一个 key，只有一个能成功（日志：Unable to reserve cache），
+          # 而且抢到的那份是**别的 job** 的缓存内容 —— 等于缓存形同虚设。
+          # 每条缓存线各自独立保存、各自命中，才能真的省掉重复编译。
+          # key **不带 run_id**：带了的话每轮都是新 key，永远只能"近似命中"别的
+          # job 存下的旧缓存（实测 integration 3/6 恢复的竟是 contract job 的缓存），
+          # 缓存线等于不存在。稳定 key 才能让同一个 job 每轮命中自己上一轮那份。
+          #
+          # actions/cache 不能覆盖已存在的 key，所以这份缓存不会随代码刷新 ——
+          # 但 GOCACHE 是内容寻址的：依赖产物继续复用，只有改动的包才重新编译。
+          key: gobuild-${{ runner.os }}-${{ hashFiles('backend/go.sum') }}-${{ github.job }}-${{ strategy.job-index }}
+          restore-keys: |
+            gobuild-${{ runner.os }}-${{ hashFiles('backend/go.sum') }}-${{ github.job }}-
+            gobuild-${{ runner.os }}-${{ hashFiles('backend/go.sum') }}-
+
+      - name: go test (race，仅并发相关包)
+        env:
+          BLOGX_MYSQL_ADDR: 127.0.0.1:3306
+          BLOGX_ES_ADDR: http://127.0.0.1:9200
+        run: |
+          set -euo pipefail
+          # 名单文件在仓库根，job 的默认工作目录是 backend
+          list=../scripts/ci-race-packages.txt
+          test -f "$list" || { echo "缺少 $list"; exit 1; }
+          mapfile -t pkgs < <(grep -vE '^\s*(#|$)' "$list")
+          if [ "${#pkgs[@]}" -eq 0 ]; then
+            echo "名单为空：要么文件写坏了，要么被误清空，不能静默通过"
+            exit 1
+          fi
+          echo "带 -race 的包：${#pkgs[@]} 个"
+          # 先确认每个包都存在：路径写错时 go list 会失败，
+          # 否则 `go test` 可能把打错的包名当成"没有匹配"，静默少跑。
+          go list "${pkgs[@]}" > /dev/null
+
+          # 再按片取：与分片 job 同样的轮流分配，保证每片都有活干、且不重叠。
+          total=${{ strategy.job-total }}
+          idx=$(( ${{ matrix.shard }} - 1 ))
+          selected=()
+          for i in "${!pkgs[@]}"; do
+            if (( i % total == idx )); then selected+=("${pkgs[$i]}"); fi
+          done
+          if [ "${#selected[@]}" -eq 0 ]; then
+            echo "本片没有分到包：名单比片数还少，说明分片数配错了"
+            exit 1
+          fi
           echo "本片 ${#selected[@]} / ${#pkgs[@]} 个包"
           go test -race -tags integration -count=1 -timeout 25m "${selected[@]}"
 
@@ -214,10 +346,20 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ~/.cache/go-build
-          key: gobuild-${{ runner.os }}-${{ hashFiles('backend/go.sum') }}-${{ github.run_id }}
+          # key 里带 job 名 + 分片序号：所有 Go job 共用一个 key 时，它们会抢着
+          # 保存同一个 key，只有一个能成功（日志：Unable to reserve cache），
+          # 而且抢到的那份是**别的 job** 的缓存内容 —— 等于缓存形同虚设。
+          # 每条缓存线各自独立保存、各自命中，才能真的省掉重复编译。
+          # key **不带 run_id**：带了的话每轮都是新 key，永远只能"近似命中"别的
+          # job 存下的旧缓存（实测 integration 3/6 恢复的竟是 contract job 的缓存），
+          # 缓存线等于不存在。稳定 key 才能让同一个 job 每轮命中自己上一轮那份。
+          #
+          # actions/cache 不能覆盖已存在的 key，所以这份缓存不会随代码刷新 ——
+          # 但 GOCACHE 是内容寻址的：依赖产物继续复用，只有改动的包才重新编译。
+          key: gobuild-${{ runner.os }}-${{ hashFiles('backend/go.sum') }}-${{ github.job }}-${{ strategy.job-index }}
           restore-keys: |
+            gobuild-${{ runner.os }}-${{ hashFiles('backend/go.sum') }}-${{ github.job }}-
             gobuild-${{ runner.os }}-${{ hashFiles('backend/go.sum') }}-
-            gobuild-${{ runner.os }}-
 
       # 规则自检 + 棘轮两遍都登记在仓库级门禁清单（scripts/gates/gates.json）：
       # 本地 check.sh、CI、门禁自检都经 scripts/gates/run.mjs 读同一份。
@@ -254,10 +396,20 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ~/.cache/go-build
-          key: gobuild-${{ runner.os }}-${{ hashFiles('backend/go.sum') }}-${{ github.run_id }}
+          # key 里带 job 名 + 分片序号：所有 Go job 共用一个 key 时，它们会抢着
+          # 保存同一个 key，只有一个能成功（日志：Unable to reserve cache），
+          # 而且抢到的那份是**别的 job** 的缓存内容 —— 等于缓存形同虚设。
+          # 每条缓存线各自独立保存、各自命中，才能真的省掉重复编译。
+          # key **不带 run_id**：带了的话每轮都是新 key，永远只能"近似命中"别的
+          # job 存下的旧缓存（实测 integration 3/6 恢复的竟是 contract job 的缓存），
+          # 缓存线等于不存在。稳定 key 才能让同一个 job 每轮命中自己上一轮那份。
+          #
+          # actions/cache 不能覆盖已存在的 key，所以这份缓存不会随代码刷新 ——
+          # 但 GOCACHE 是内容寻址的：依赖产物继续复用，只有改动的包才重新编译。
+          key: gobuild-${{ runner.os }}-${{ hashFiles('backend/go.sum') }}-${{ github.job }}-${{ strategy.job-index }}
           restore-keys: |
+            gobuild-${{ runner.os }}-${{ hashFiles('backend/go.sum') }}-${{ github.job }}-
             gobuild-${{ runner.os }}-${{ hashFiles('backend/go.sum') }}-
-            gobuild-${{ runner.os }}-
 
       # 判定实现是仓库级 .mjs 脚本，显式装 Node 而不是依赖 runner 预装版本。
       - uses: actions/setup-node@v4
@@ -542,10 +694,20 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ~/.cache/go-build
-          key: gobuild-${{ runner.os }}-${{ hashFiles('backend/go.sum') }}-${{ github.run_id }}
+          # key 里带 job 名 + 分片序号：所有 Go job 共用一个 key 时，它们会抢着
+          # 保存同一个 key，只有一个能成功（日志：Unable to reserve cache），
+          # 而且抢到的那份是**别的 job** 的缓存内容 —— 等于缓存形同虚设。
+          # 每条缓存线各自独立保存、各自命中，才能真的省掉重复编译。
+          # key **不带 run_id**：带了的话每轮都是新 key，永远只能"近似命中"别的
+          # job 存下的旧缓存（实测 integration 3/6 恢复的竟是 contract job 的缓存），
+          # 缓存线等于不存在。稳定 key 才能让同一个 job 每轮命中自己上一轮那份。
+          #
+          # actions/cache 不能覆盖已存在的 key，所以这份缓存不会随代码刷新 ——
+          # 但 GOCACHE 是内容寻址的：依赖产物继续复用，只有改动的包才重新编译。
+          key: gobuild-${{ runner.os }}-${{ hashFiles('backend/go.sum') }}-${{ github.job }}-${{ strategy.job-index }}
           restore-keys: |
+            gobuild-${{ runner.os }}-${{ hashFiles('backend/go.sum') }}-${{ github.job }}-
             gobuild-${{ runner.os }}-${{ hashFiles('backend/go.sum') }}-
-            gobuild-${{ runner.os }}-
 
       - uses: pnpm/action-setup@v4
         with:

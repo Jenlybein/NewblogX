@@ -1314,6 +1314,16 @@
   min-width: 0;
 }
 
+/* 头部右侧：展开/收起目录树的开关 + 实体 ID。
+   放在标题这一行，是因为它就是"这次要不要编排"的入口，
+   藏到页脚或工具栏里都得先找一遍。 */
+.collection-overlay__head-actions {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 0.5rem;
+}
+
 .collection-overlay__eyebrow {
   margin: 0;
   color: var(--color-ink-muted);
@@ -1475,12 +1485,24 @@
   pointer-events: none;
 }
 
-/* 右栏（票 348 起常驻）：目录树一直在，不再是从 0 展开的抽屉。
-   左栏放字段、右栏放树，一次「保存修改」提交两者 —— 两个保存按钮会让
-   "到底保存了什么"变成猜谜。
-   两栏之间的间距由 `.collection-overlay__pair` 的 gap 给，这里不再叠 margin。 */
+/* 右栏：目录树（2026-11-13 改回**可折叠、默认收起**）。
+ *
+ * 票 348 曾把它改成常驻两栏，实际用起来"两个都看不清"：信息卡被挤到左边，
+ * 树又铺满右边。现在默认只留信息卡，点头部「编排目录树」才展开右栏。
+ *
+ * 收起靠 `v-show`（元素留在 DOM 里，只是 display:none）—— 不能卸载组件：
+ * 保存时要从编辑器取节点，取不到会被当成空树，整树被覆盖清空。
+ * 所以这里动的只有布局，不动挂载。
+ *
+ * 两栏之间的间距由 `.collection-overlay__pair` 的 gap 给，这里不再叠 margin。 */
 .collection-overlay__drawer {
+  display: none;
   width: min(88vw, 480px);
+}
+
+/* 展开态：成组居中时信息卡向左让位（`.collection-overlay__pair` 已负责居中）。 */
+.collection-overlay__pair--tree .collection-overlay__drawer {
+  display: block;
 }
 
 .collection-overlay__drawer-inner {
@@ -1520,7 +1542,6 @@
     opacity: 1;
     margin: 0.75rem 0 0;
   }
-
   .collection-overlay__drawer-inner {
     width: 100%;
   }

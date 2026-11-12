@@ -60,6 +60,16 @@ const treeEditor = ref<InstanceType<typeof OutlineTreeEditor> | null>(null);
 /** 保存成功后才有值：目录树编排需要真实实体 ID。 */
 const entityId = ref("");
 
+/**
+ * 目录树面板是否展开。默认收起 —— 平时改的是标题/描述/封面，
+ * 一上来就把整棵树铺在右边，两栏挤在屏幕中间，反而两个都看不清。
+ *
+ * 收起用的是 `v-show`（保留组件实例）而不是 `v-if`，这是**数据安全**要求：
+ * `currentNodes()` 在编辑器未挂载时返回空数组，而 compose 是整树覆盖 ——
+ * 用 `v-if` 收起再点「保存修改」，会把整棵目录树清空。
+ */
+const outlineOpen = ref(false);
+
 const form = reactive({ title: "", description: "", cover: "", displayed: true });
 const errors = reactive<{ title: string | null; description: string | null }>({ title: null, description: null });
 
@@ -225,7 +235,11 @@ function fillFromEntity(entity: CollectionCardItem | null | undefined) {
 watch(
   () => [props.show, props.entity?.id, props.kind],
   () => {
-    if (props.show) fillFromEntity(props.entity ?? null);
+    if (props.show) {
+      fillFromEntity(props.entity ?? null);
+      // 每次打开都回到收起态：这个开关是"这次要不要编排"，不是持久偏好。
+      outlineOpen.value = false;
+    }
   },
   { immediate: true },
 );
@@ -328,17 +342,28 @@ async function save() {
   <div v-if="props.show" class="collection-overlay" :data-role="`${kind}-editor`">
     <button type="button" class="collection-overlay__scrim" aria-label="关闭" @click="close" />
 
-    <div class="collection-overlay__pair">
+    <div class="collection-overlay__pair" :class="{ 'collection-overlay__pair--tree': outlineOpen }">
       <section class="collection-overlay__card" role="dialog" :aria-label="`${entityId ? '编辑' : '新建'}${label}`">
         <header class="collection-overlay__head">
           <div class="collection-overlay__heading">
             <p class="collection-overlay__eyebrow">{{ kind === "collection" ? "Collection" : "Project" }} · {{ entityId ? "编辑" : "新建" }}</p>
             <h2 class="collection-overlay__title">{{ entityId ? `编辑${label}` : `新建${label}` }}</h2>
             <p class="collection-overlay__subtitle">
-              标题、描述与封面决定读者在列表里看到的样子；右侧目录树决定点进去读什么。
+              标题、描述与封面决定读者在列表里看到的样子；<template v-if="outlineOpen">右侧目录树决定点进去读什么。</template><template v-else>点「编排目录树」再安排点进去读什么。</template>
             </p>
           </div>
-          <NTag v-if="entityId" size="small" data-role="collection-editor-id">{{ entityId }}</NTag>
+          <div class="collection-overlay__head-actions">
+            <NButton
+              size="small"
+              secondary
+              data-role="collection-editor-outline-toggle"
+              :aria-expanded="outlineOpen"
+              :disabled="!entityId"
+              @click="outlineOpen = !outlineOpen">
+              {{ outlineOpen ? "收起目录树" : "编排目录树" }}
+            </NButton>
+            <NTag v-if="entityId" size="small" data-role="collection-editor-id">{{ entityId }}</NTag>
+          </div>
         </header>
 
         <NForm label-placement="top" :disabled="saving" class="collection-overlay__form">
@@ -399,10 +424,11 @@ async function save() {
           @change="onCoverFileChange" />
       </section>
 
-      <!-- 右栏：目录树（票 348 改成两栏常驻）。
+      <!-- 右栏：目录树（默认收起，由头部「编排目录树」展开）。
            树本身没有保存按钮（embedded），改名 / 拖动 / 删除 / 清理失效 / 批量收录
-           都在这里做，最后由「保存修改」一次提交。 -->
-      <aside class="collection-overlay__drawer" :data-role="`${kind}-editor-drawer`">
+           都在这里做，最后由「保存修改」一次提交。
+           v-show 而非 v-if：收起时组件必须仍挂载，否则保存会误判成空树（见 outlineOpen 注释）。 -->
+      <aside v-show="outlineOpen" class="collection-overlay__drawer" :data-role="`${kind}-editor-drawer`">
         <div class="collection-overlay__drawer-inner">
           <header class="collection-overlay__drawer-head">
             <div>

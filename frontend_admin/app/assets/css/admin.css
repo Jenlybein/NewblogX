@@ -1314,6 +1314,25 @@
   min-width: 0;
 }
 
+/* 用户资料抽屉里的头像行：预览 + 「删除头像」并排。
+   删除是独立动作（立刻提交），所以不跟「保存变更」共用一行按钮，
+   免得"我只是想删头像"顺手把表单里没保存的昵称也写进去。 */
+.user-avatar-edit {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.user-avatar-edit__actions {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.user-avatar-edit__actions p {
+  margin: 0;
+}
+
 /* 头部右侧：展开/收起目录树的开关 + 实体 ID。
    放在标题这一行，是因为它就是"这次要不要编排"的入口，
    藏到页脚或工具栏里都得先找一遍。 */
